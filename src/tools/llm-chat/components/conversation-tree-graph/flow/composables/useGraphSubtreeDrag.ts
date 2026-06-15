@@ -28,6 +28,22 @@ export function useGraphSubtreeDrag(
   const dragPositionState = reactive({
     lastPosition: null as { x: number; y: number } | null,
   });
+  let d3NodeById = new Map<string, any>();
+
+  function refreshD3NodeIndex(simulation: any): void {
+    d3NodeById = new Map(
+      simulation.nodes().map((node: any) => [node.id, node])
+    );
+  }
+
+  function getIndexedD3Node(simulation: any, nodeId: string): any {
+    let d3Node = d3NodeById.get(nodeId);
+    if (!d3Node) {
+      refreshD3NodeIndex(simulation);
+      d3Node = d3NodeById.get(nodeId);
+    }
+    return d3Node;
+  }
 
   /**
    * 处理节点拖拽开始事件
@@ -64,6 +80,7 @@ export function useGraphSubtreeDrag(
     // 激活模拟 (静态模式除外)
     const simulation = simulationRef.value;
     if (simulation && layoutMode.value !== "static") {
+      refreshD3NodeIndex(simulation);
       simulation.alphaTarget(0.3).restart();
     }
   }
@@ -123,7 +140,7 @@ export function useGraphSubtreeDrag(
       dragPositionState.lastPosition = { ...node.position };
     } else {
       // 只拖拽单个节点
-      const d3Node = simulation.nodes().find((n: any) => n.id === nodeId);
+      const d3Node = getIndexedD3Node(simulation, nodeId);
       if (d3Node) {
         d3Node.fx = node.position.x + d3Node.width / 2;
         d3Node.fy = node.position.y + d3Node.height / 2;
@@ -167,9 +184,7 @@ export function useGraphSubtreeDrag(
       dragPositionState.lastPosition = null;
       logger.info("子树拖拽结束");
     } else {
-      const d3Node = simulation
-        .nodes()
-        .find((n: any) => n.id === draggedNodeId);
+      const d3Node = getIndexedD3Node(simulation, draggedNodeId);
       if (d3Node) {
         d3Node.x = event.node.position.x + d3Node.width / 2;
         d3Node.y = event.node.position.y + d3Node.height / 2;
@@ -181,6 +196,7 @@ export function useGraphSubtreeDrag(
       }
     }
 
+    d3NodeById.clear();
     simulation.alphaTarget(0);
   }
 

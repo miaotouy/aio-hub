@@ -31,6 +31,89 @@ interface DerivedContentCacheEntry {
   thinkingPreview: string | null;
 }
 
+const EMPTY_ATTACHMENTS: readonly any[] = [];
+
+function isTokenInfoEqual(a: any, b: any): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.total === b.total &&
+    a.prompt === b.prompt &&
+    a.completion === b.completion
+  );
+}
+
+function isSubtitleInfoEqual(a: any, b: any): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.profileName === b.profileName &&
+    a.profileIcon === b.profileIcon &&
+    a.modelName === b.modelName &&
+    a.modelIcon === b.modelIcon
+  );
+}
+
+function isColorInfoEqual(a: any, b: any): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.background === b.background && a.border === b.border;
+}
+
+function isNodeDataEqual(a: any, b: any): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+
+  return (
+    a.name === b.name &&
+    a.avatar === b.avatar &&
+    a.contentPreview === b.contentPreview &&
+    a.isActiveLeaf === b.isActiveLeaf &&
+    a.isEnabled === b.isEnabled &&
+    a.timestamp === b.timestamp &&
+    a.role === b.role &&
+    a.status === b.status &&
+    a.errorMessage === b.errorMessage &&
+    isSubtitleInfoEqual(a.subtitleInfo, b.subtitleInfo) &&
+    isColorInfoEqual(a.colors, b.colors) &&
+    isTokenInfoEqual(a.tokens, b.tokens) &&
+    a.attachments === b.attachments &&
+    a._nodeDepth === b._nodeDepth &&
+    a.hasThinking === b.hasThinking &&
+    a.thinkingPreview === b.thinkingPreview &&
+    a.isCompressionNode === b.isCompressionNode &&
+    a.isExpanded === b.isExpanded &&
+    a.originalMessageCount === b.originalMessageCount &&
+    a.originalTokenCount === b.originalTokenCount &&
+    a.modelId === b.modelId &&
+    a.profileId === b.profileId
+  );
+}
+
+function getReusableNodeData(previousNode: any, nextData: any): any {
+  return isNodeDataEqual(previousNode?.data, nextData)
+    ? previousNode.data
+    : nextData;
+}
+
+function isEdgeStyleEqual(a: any, b: any): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.stroke === b.stroke && a.strokeWidth === b.strokeWidth;
+}
+
+function isEdgeEqual(a: any, b: any): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.id === b.id &&
+    a.source === b.source &&
+    a.target === b.target &&
+    a.animated === b.animated &&
+    isEdgeStyleEqual(a.style, b.style)
+  );
+}
+
 /**
  * Vue Flow 树图主 Composable
  * 整合所有子模块，管理核心节点/边状态及转换逻辑
@@ -279,9 +362,13 @@ export function useFlowTreeGraph(
       forceResetPosition || currentFingerprint !== lastStructureFingerprint;
 
     const previousNodesMap = new Map<string, any>();
+    const previousEdgesMap = new Map<string, any>();
     if (!forceResetPosition) {
       for (const n of nodes.value) {
         previousNodesMap.set(n.id, n);
+      }
+      for (const edge of edges.value) {
+        previousEdgesMap.set(edge.id, edge);
       }
     }
 
@@ -345,7 +432,7 @@ export function useFlowTreeGraph(
           getProfileById,
           getModelIcon
         );
-        const attachments = node.attachments || [];
+        const attachments = node.attachments || EMPTY_ATTACHMENTS;
         const isCompressionNode = !!node.metadata?.isCompressionNode;
         const isExpanded = expandedCompressionIds.value.has(node.id);
 
@@ -394,35 +481,49 @@ export function useFlowTreeGraph(
         const modelId = node.metadata?.modelId || agent?.modelId;
         const profileId = node.metadata?.profileId || agent?.profileId;
 
-        flowNodes.push({
+        const nextData = {
+          name: roleDisplay.name,
+          avatar: roleDisplay.icon,
+          contentPreview: derivedContent.contentPreview,
+          isActiveLeaf,
+          isEnabled,
+          timestamp: node.timestamp || "",
+          role: node.role,
+          status: node.status,
+          errorMessage: node.metadata?.error,
+          subtitleInfo,
+          colors,
+          tokens,
+          attachments,
+          _nodeDepth: nodeDepthMap.get(node.id) || 0,
+          hasThinking: derivedContent.hasThinking,
+          thinkingPreview: derivedContent.thinkingPreview,
+          isCompressionNode,
+          isExpanded,
+          originalMessageCount: node.metadata?.originalMessageCount,
+          originalTokenCount: node.metadata?.originalTokenCount,
+          modelId,
+          profileId,
+        };
+        const data = getReusableNodeData(previousNode, nextData);
+        const nextFlowNode = {
           id: node.id,
           type: "custom",
           position: initialPosition,
-          data: {
-            name: roleDisplay.name,
-            avatar: roleDisplay.icon,
-            contentPreview: derivedContent.contentPreview,
-            isActiveLeaf,
-            isEnabled,
-            timestamp: node.timestamp || "",
-            role: node.role,
-            status: node.status,
-            errorMessage: node.metadata?.error,
-            subtitleInfo,
-            colors,
-            tokens,
-            attachments,
-            _nodeDepth: nodeDepthMap.get(node.id) || 0,
-            hasThinking: derivedContent.hasThinking,
-            thinkingPreview: derivedContent.thinkingPreview,
-            isCompressionNode,
-            isExpanded,
-            originalMessageCount: node.metadata?.originalMessageCount,
-            originalTokenCount: node.metadata?.originalTokenCount,
-            modelId,
-            profileId,
-          },
-        });
+          data,
+        };
+
+        if (
+          previousNode &&
+          previousNode.type === nextFlowNode.type &&
+          previousNode.position?.x === nextFlowNode.position.x &&
+          previousNode.position?.y === nextFlowNode.position.y &&
+          previousNode.data === data
+        ) {
+          flowNodes.push(previousNode);
+        } else {
+          flowNodes.push({ ...previousNode, ...nextFlowNode });
+        }
       });
     }
 
@@ -456,18 +557,23 @@ export function useFlowTreeGraph(
           const isOnActivePath =
             activePathSet.has(sourceId) && activePathSet.has(targetNode.id);
 
-          flowEdges.push({
+          const edgeStyle = {
+            stroke: isOnActivePath
+              ? (palette as any).edge.active
+              : (palette as any).edge.inactive,
+            strokeWidth: isOnActivePath ? 2 : 1,
+          };
+          const nextEdge = {
             id: `${sourceId}-${targetNode.id}`,
             source: sourceId,
             target: targetNode.id,
             animated: isOnActivePath,
-            style: {
-              stroke: isOnActivePath
-                ? (palette as any).edge.active
-                : (palette as any).edge.inactive,
-              strokeWidth: isOnActivePath ? 2 : 1,
-            },
-          });
+            style: edgeStyle,
+          };
+          const previousEdge = previousEdgesMap.get(nextEdge.id);
+          flowEdges.push(
+            isEdgeEqual(previousEdge, nextEdge) ? previousEdge : nextEdge
+          );
         }
       }
     });

@@ -56,52 +56,104 @@
           </el-button>
         </div>
 
-        <el-table
-          ref="tableRef"
-          :data="filteredSessions"
-          class="sessions-table"
-          height="100%"
-          stripe
-          @selection-change="handleSelectionChange"
-        >
-          <el-table-column type="selection" width="44" />
-          <el-table-column
-            label="会话名称"
-            min-width="260"
-            show-overflow-tooltip
-          >
-            <template #default="{ row }">
-              <button class="session-link" @click="openSession(row.id)">
-                {{ row.name || "未命名会话" }}
-              </button>
-            </template>
-          </el-table-column>
-          <el-table-column label="关联智能体" min-width="180">
-            <template #default="{ row }">
-              <span class="agent-cell">
-                <span class="agent-avatar">{{ getAgentInitial(row) }}</span>
-                <span>{{ getAgentName(row) }}</span>
-              </span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="messageCount" label="消息数" width="90" />
-          <el-table-column label="收藏夹" min-width="140" show-overflow-tooltip>
-            <template #default="{ row }">{{ getFolderName(row) }}</template>
-          </el-table-column>
-          <el-table-column label="更新时间" width="180">
-            <template #default="{ row }">{{
-              formatDate(row.updatedAt)
-            }}</template>
-          </el-table-column>
-        </el-table>
+        <div class="sessions-table" role="table" aria-label="批量管理会话列表">
+          <div class="sessions-table-header" role="row">
+            <div class="selection-cell">
+              <el-checkbox
+                :model-value="isAllFilteredSelected"
+                :indeterminate="isSomeFilteredSelected"
+                :disabled="filteredSessions.length === 0"
+                @change="toggleAllFiltered"
+              />
+            </div>
+            <div class="name-cell">会话名称</div>
+            <div class="agent-column">关联智能体</div>
+            <div class="count-column">消息数</div>
+            <div class="folder-column">收藏夹</div>
+            <div class="date-column">更新时间</div>
+          </div>
+
+          <div v-if="filteredSessions.length === 0" class="empty-state">
+            未找到匹配的会话
+          </div>
+
+          <div v-else ref="listRef" class="sessions-virtual-list">
+            <div
+              :style="{
+                height: `${totalSize}px`,
+                width: '100%',
+                position: 'relative',
+              }"
+            >
+              <div
+                v-for="virtualItem in virtualItems"
+                :key="filteredSessions[virtualItem.index].id"
+                :data-index="virtualItem.index"
+                :ref="(el) => virtualizer.measureElement(el as HTMLElement)"
+                class="session-row"
+                role="row"
+                :style="{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${virtualItem.start}px)`,
+                }"
+              >
+                <div class="selection-cell">
+                  <el-checkbox
+                    :model-value="
+                      selectedSessionIds.has(
+                        filteredSessions[virtualItem.index].id
+                      )
+                    "
+                    @change="
+                      (checked: string | number | boolean) =>
+                        toggleSessionSelection(
+                          filteredSessions[virtualItem.index],
+                          checked
+                        )
+                    "
+                  />
+                </div>
+                <button
+                  class="session-link name-cell"
+                  @click="openSession(filteredSessions[virtualItem.index].id)"
+                >
+                  {{
+                    filteredSessions[virtualItem.index].name || "未命名会话"
+                  }}
+                </button>
+                <div class="agent-cell agent-column">
+                  <span class="agent-avatar">{{
+                    getAgentInitial(filteredSessions[virtualItem.index])
+                  }}</span>
+                  <span class="cell-ellipsis">{{
+                    getAgentName(filteredSessions[virtualItem.index])
+                  }}</span>
+                </div>
+                <div class="count-column">
+                  {{ filteredSessions[virtualItem.index].messageCount ?? 0 }}
+                </div>
+                <div class="folder-column cell-ellipsis">
+                  {{ getFolderName(filteredSessions[virtualItem.index]) }}
+                </div>
+                <div class="date-column">
+                  {{ formatDate(filteredSessions[virtualItem.index].updatedAt) }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </template>
 
     <template #footer>
       <div class="batch-footer">
-        <span class="selection-count"
-          >已选择 {{ selectedSessions.length }} 项</span
-        >
+        <span class="selection-count">
+          已选择 {{ selectedSessions.length }} 项 · 当前筛选
+          {{ filteredSessions.length }} 项
+        </span>
         <div class="footer-actions">
           <el-select
             v-model="moveTargetFolderId"
@@ -147,9 +199,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { ElMessageBox } from "element-plus";
-import type { TableInstance } from "element-plus";
+import { useVirtualizer } from "@tanstack/vue-virtual";
 import {
   Delete,
   Download,
@@ -191,17 +243,19 @@ const llmChatStore = useLlmChatStore();
 const agentStore = useAgentStore();
 const errorHandler = createModuleErrorHandler("llm-chat/BatchManagerDialog");
 
-const tableRef = ref<TableInstance>();
+const listRef = ref<HTMLElement | null>(null);
 const searchQuery = ref("");
 const folderFilter = ref("__all");
 const agentFilter = ref("__all");
 const moveTargetFolderId = ref("__uncategorized");
-const selectedSessions = ref<ChatSessionIndex[]>([]);
+const selectedSessionIds = ref<Set<string>>(new Set());
 const exporting = ref(false);
 const importing = ref(false);
 const deleting = ref(false);
 
 const filteredSessions = computed(() => {
+  if (!localVisible.value) return [];
+
   const query = searchQuery.value.trim().toLowerCase();
   return [...llmChatStore.sessions]
     .filter((session) => {
@@ -226,6 +280,70 @@ const filteredSessions = computed(() => {
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
 });
+
+const virtualizer = useVirtualizer({
+  get count() {
+    return filteredSessions.value.length;
+  },
+  getScrollElement: () => listRef.value,
+  estimateSize: () => 46,
+  overscan: 12,
+});
+
+const virtualItems = computed(() => virtualizer.value.getVirtualItems());
+const totalSize = computed(() => virtualizer.value.getTotalSize());
+
+const selectedSessions = computed(() => {
+  const selectedIds = selectedSessionIds.value;
+  return llmChatStore.sessions.filter((session) => selectedIds.has(session.id));
+});
+
+const filteredSelectedCount = computed(() => {
+  const selectedIds = selectedSessionIds.value;
+  return filteredSessions.value.reduce(
+    (count, session) => count + (selectedIds.has(session.id) ? 1 : 0),
+    0
+  );
+});
+
+const isAllFilteredSelected = computed(
+  () =>
+    filteredSessions.value.length > 0 &&
+    filteredSelectedCount.value === filteredSessions.value.length
+);
+
+const isSomeFilteredSelected = computed(
+  () =>
+    filteredSelectedCount.value > 0 &&
+    filteredSelectedCount.value < filteredSessions.value.length
+);
+
+watch(
+  () => [
+    localVisible.value,
+    searchQuery.value,
+    folderFilter.value,
+    agentFilter.value,
+  ],
+  async () => {
+    await nextTick();
+    if (!localVisible.value) return;
+    virtualizer.value.scrollToOffset(0);
+    virtualizer.value.measure();
+  }
+);
+
+watch(
+  () => llmChatStore.sessions.map((session) => session.id).join(","),
+  () => {
+    const existingIds = new Set(
+      llmChatStore.sessions.map((session) => session.id)
+    );
+    selectedSessionIds.value = new Set(
+      [...selectedSessionIds.value].filter((id) => existingIds.has(id))
+    );
+  }
+);
 
 const formatDate = (value?: string) => {
   if (!value) return "未知";
@@ -252,8 +370,29 @@ const getFolderName = (session: ChatSessionIndex) => {
   );
 };
 
-const handleSelectionChange = (selection: ChatSessionIndex[]) => {
-  selectedSessions.value = selection;
+const toggleSessionSelection = (
+  session: ChatSessionIndex,
+  checked: string | number | boolean
+) => {
+  const next = new Set(selectedSessionIds.value);
+  if (checked === true) {
+    next.add(session.id);
+  } else {
+    next.delete(session.id);
+  }
+  selectedSessionIds.value = next;
+};
+
+const toggleAllFiltered = (checked: string | number | boolean) => {
+  const next = new Set(selectedSessionIds.value);
+  filteredSessions.value.forEach((session) => {
+    if (checked === true) {
+      next.add(session.id);
+    } else {
+      next.delete(session.id);
+    }
+  });
+  selectedSessionIds.value = next;
 };
 
 const openSession = (sessionId: string) => {
@@ -399,8 +538,7 @@ const handleBatchDelete = async () => {
     await llmChatStore.batchDeleteSessions(
       selectedSessions.value.map((session) => session.id)
     );
-    selectedSessions.value = [];
-    tableRef.value?.clearSelection();
+    selectedSessionIds.value = new Set();
     customMessage.success("批量删除成功");
   } catch (error) {
     const reason =
@@ -446,8 +584,86 @@ const handleBatchDelete = async () => {
 .sessions-table {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
+  overflow: hidden;
+  background-color: var(--card-bg);
+}
+
+.sessions-table-header,
+.session-row {
+  display: grid;
+  grid-template-columns:
+    44px minmax(220px, 1.6fr) minmax(150px, 1fr) 82px
+    minmax(130px, 0.9fr) 170px;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+.sessions-table-header {
+  height: 42px;
+  padding: 0 12px;
+  flex-shrink: 0;
+  border-bottom: var(--border-width) solid var(--border-color);
+  background-color: var(--sidebar-bg);
+  color: var(--text-color-light);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sessions-virtual-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.session-row {
+  min-height: 46px;
+  padding: 0 12px;
+  border-bottom: var(--border-width) solid var(--border-color);
+  color: var(--text-color);
+  font-size: 13px;
+}
+
+.session-row:hover {
+  background-color: var(--hover-bg);
+}
+
+.selection-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.name-cell,
+.agent-column,
+.folder-column,
+.date-column {
+  min-width: 0;
+}
+
+.count-column,
+.date-column {
+  color: var(--text-color-light);
+}
+
+.cell-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-color-light);
+  font-size: 13px;
 }
 
 .session-link {

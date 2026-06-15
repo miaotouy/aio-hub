@@ -1,6 +1,6 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
-import { ref, computed, onUnmounted } from "vue";
+import { ref, computed, getCurrentInstance, onUnmounted } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import type {
   Asset,
@@ -705,15 +705,21 @@ export function useAssetManager() {
     }
   };
 
-  // 组件卸载时确保取消监听
-  onUnmounted(() => {
+  const cleanupProgressListeners = () => {
     if (unlistenRebuildProgress) {
       unlistenRebuildProgress();
+      unlistenRebuildProgress = null;
     }
     if (unlistenCatalogRebuildProgress) {
       unlistenCatalogRebuildProgress();
+      unlistenCatalogRebuildProgress = null;
     }
-  });
+  };
+
+  // 组件卸载时确保取消监听；服务层/store 调用时没有组件实例。
+  if (getCurrentInstance()) {
+    onUnmounted(cleanupProgressListeners);
+  }
 
   /**
    * 从资产中移除指定来源（供业务模块使用）

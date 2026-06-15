@@ -1,8 +1,5 @@
 import { reactive, toRefs } from "vue";
-import {
-  useAssetManager,
-  assetManagerEngine,
-} from "@/composables/useAssetManager";
+import { assetManagerEngine } from "@/composables/useAssetManager";
 import type { Asset } from "@/types/asset-management";
 
 interface VideoViewerState {
@@ -24,8 +21,6 @@ const state = reactive<VideoViewerState>({
  * 视频预览服务
  */
 export function useVideoViewer() {
-  const { getAssetUrl } = useAssetManager();
-
   /**
    * 预览视频
    * @param source 视频源 (URL 字符串 或 Asset 对象)
@@ -69,7 +64,7 @@ export function useVideoViewer() {
       } else {
         // Asset 对象
         // getAssetUrl 已经被我们优化过，会返回 asset:// 协议
-        url = await getAssetUrl(source);
+        url = await assetManagerEngine.getAssetUrl(source);
         if (!title) title = source.name;
       }
 

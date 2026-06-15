@@ -1,8 +1,5 @@
 import { reactive, toRefs } from "vue";
-import {
-  useAssetManager,
-  assetManagerEngine,
-} from "@/composables/useAssetManager";
+import { assetManagerEngine } from "@/composables/useAssetManager";
 import type { Asset } from "@/types/asset-management";
 
 import type { AudioItem } from "@/components/common/AudioPlayer.vue";
@@ -32,8 +29,6 @@ const state = reactive<AudioViewerState>({
  * 音频预览服务
  */
 export function useAudioViewer() {
-  const { getAssetUrl } = useAssetManager();
-
   /**
    * 预览音频
    * @param source 音频源 (URL 字符串 或 Asset 对象)
@@ -127,7 +122,7 @@ export function useAudioViewer() {
           if (!title) title = source.split("/").pop() || "音频";
         }
       } else {
-        url = await getAssetUrl(source);
+        url = await assetManagerEngine.getAssetUrl(source);
         if (!title) title = source.name;
         if (!poster && source.thumbnailPath) {
           const basePath = await assetManagerEngine.getAssetBasePath();

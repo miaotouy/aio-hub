@@ -14,7 +14,7 @@ import { isAudioOutputTaskType, normalizeMediaTaskType } from "../types";
 import { DEFAULT_MEDIA_GENERATOR_SETTINGS } from "../config";
 import { createModuleLogger } from "@/utils/logger";
 import type { Asset } from "@/types/asset-management";
-import { useAssetManager } from "@/composables/useAssetManager";
+import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useVideoViewer } from "@/composables/useVideoViewer";
 import { useAudioViewer } from "@/composables/useAudioViewer";
@@ -38,7 +38,6 @@ export const useMediaGenStore = defineStore("media-generator", () => {
   const sessionManager = useSessionManager();
   const attachmentManager = useAttachmentManager();
   const taskManager = useMediaTaskManager();
-  const { getAssetUrl } = useAssetManager();
   const imageViewer = useImageViewer();
   const videoViewer = useVideoViewer();
   const audioViewer = useAudioViewer();
@@ -164,7 +163,9 @@ export const useMediaGenStore = defineStore("media-generator", () => {
 
     if (task.type === "image") {
       const urls = (
-        await Promise.all(assets.map((asset) => getAssetUrl(asset)))
+        await Promise.all(
+          assets.map((asset) => assetManagerEngine.getAssetUrl(asset))
+        )
       ).filter(Boolean) as string[];
       if (urls.length > 0) imageViewer.show(urls, 0);
       return;

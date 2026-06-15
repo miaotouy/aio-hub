@@ -17,22 +17,6 @@ export const settingsModules: SettingsModule[] = [
     minHeight: "auto",
   },
   {
-    id: "startup",
-    title: "启动项管理",
-    component: defineAsyncComponent(
-      () => import("../views/Settings/general/StartupSettings.vue")
-    ),
-    minHeight: "auto",
-  },
-  {
-    id: "environment",
-    title: "运行环境",
-    component: defineAsyncComponent(
-      () => import("../views/Settings/environment/EnvironmentSettings.vue")
-    ),
-    minHeight: "auto",
-  },
-  {
     id: "theme-colors",
     title: "主题色配置",
     component: defineAsyncComponent(
@@ -93,6 +77,22 @@ export const settingsModules: SettingsModule[] = [
     title: "资产管理",
     component: defineAsyncComponent(
       () => import("../views/Settings/general/AssetSettings.vue")
+    ),
+    minHeight: "auto",
+  },
+  {
+    id: "startup",
+    title: "启动项管理",
+    component: defineAsyncComponent(
+      () => import("../views/Settings/general/StartupSettings.vue")
+    ),
+    minHeight: "auto",
+  },
+  {
+    id: "environment",
+    title: "运行环境",
+    component: defineAsyncComponent(
+      () => import("../views/Settings/environment/EnvironmentSettings.vue")
     ),
     minHeight: "auto",
   },

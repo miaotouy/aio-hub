@@ -338,6 +338,10 @@ export function useLlmChatSync() {
         });
       case "delete-session":
         return store.deleteSession(params.sessionId);
+      case "batch-delete-sessions":
+        return (store as any).batchDeleteSessions(params.sessionIds);
+      case "import-sessions":
+        return (store as any).importSessions(params.sessions, params.strategy);
       case "clear-empty-sessions":
         return (store as any).clearEmptySessions(params.options);
       case "refresh-sessions-index":
@@ -354,6 +358,11 @@ export function useLlmChatSync() {
         return store.deleteFavoriteFolder(params.folderId);
       case "move-session-to-folder":
         return store.moveSessionToFolder(params.sessionId, params.folderId);
+      case "batch-move-sessions-to-folder":
+        return (store as any).batchMoveSessionsToFolder(
+          params.sessionIds,
+          params.folderId
+        );
       case "create-session":
         return store
           .createSession(params.agentId, params.name)

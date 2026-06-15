@@ -78,11 +78,18 @@ export type LlmChatAction =
   | "abort-node"
   | "switch-session"
   | "create-session"
+  | "delete-session"
+  | "batch-delete-sessions"
+  | "import-sessions"
+  | "clear-empty-sessions"
+  | "refresh-sessions-index"
+  | "update-session"
   | "toggle-favorite"
   | "create-favorite-folder"
   | "rename-favorite-folder"
   | "delete-favorite-folder"
-  | "move-session-to-folder";
+  | "move-session-to-folder"
+  | "batch-move-sessions-to-folder";
 
 /**
  * LLM Chat 操作常量
@@ -101,11 +108,18 @@ export const CHAT_ACTIONS = {
   ABORT_NODE: "abort-node" as const,
   SWITCH_SESSION: "switch-session" as const,
   CREATE_SESSION: "create-session" as const,
+  DELETE_SESSION: "delete-session" as const,
+  BATCH_DELETE_SESSIONS: "batch-delete-sessions" as const,
+  IMPORT_SESSIONS: "import-sessions" as const,
+  CLEAR_EMPTY_SESSIONS: "clear-empty-sessions" as const,
+  REFRESH_SESSIONS_INDEX: "refresh-sessions-index" as const,
+  UPDATE_SESSION: "update-session" as const,
   TOGGLE_FAVORITE: "toggle-favorite" as const,
   CREATE_FAVORITE_FOLDER: "create-favorite-folder" as const,
   RENAME_FAVORITE_FOLDER: "rename-favorite-folder" as const,
   DELETE_FAVORITE_FOLDER: "delete-favorite-folder" as const,
   MOVE_SESSION_TO_FOLDER: "move-session-to-folder" as const,
+  BATCH_MOVE_SESSIONS_TO_FOLDER: "batch-move-sessions-to-folder" as const,
 } as const;
 
 /**

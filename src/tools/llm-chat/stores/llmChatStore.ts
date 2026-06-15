@@ -18,6 +18,7 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { getActivePathWithPresets } from "../utils/chatPathUtils";
 import { getEffectiveMessageCount } from "../utils/sessionMessageCount";
 import { refreshLiveGreetingsIfNeeded } from "../services/greetingService";
+import { resolveConflicts } from "../services/sessionImportExportService";
 import type { ModelMatchContext } from "../utils/modelMatchUtils";
 import {
   recalculateNodeTokens as recalculateNodeTokensService,
@@ -31,6 +32,11 @@ import type {
   LlmParameters,
   ModelIdentifier,
 } from "../types";
+import type {
+  ExportableChatSession,
+  SessionImportConflictStrategy,
+  ResolvedSessionImport,
+} from "../services/sessionImportExportService";
 import type { FavoriteFolder } from "../composables/storage/useChatStorageSeparated";
 import type { PendingInputData } from "../types/context";
 import type { LlmMessageContent } from "@/llm-apis/common";
@@ -483,6 +489,134 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
       persistSessions();
     });
+  }
+
+  async function batchDeleteSessions(sessionIds: string[]): Promise<void> {
+    return executeOrProxy("batch-delete-sessions", { sessionIds }, async () => {
+      const idsToDelete = [...new Set(sessionIds)].filter((id) =>
+        sessionIndexMap.value.has(id)
+      );
+      if (idsToDelete.length === 0) return;
+
+      const { useChatStorageSeparated } =
+        await import("../composables/storage/useChatStorageSeparated");
+      const storage = useChatStorageSeparated();
+      const deleteIdSet = new Set(idsToDelete);
+      const remainingSessions = Array.from(sessionIndexMap.value.values())
+        .filter((session) => !deleteIdSet.has(session.id))
+        .sort(
+          (a, b) =>
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        );
+
+      let nextCurrentSessionId = currentSessionId.value;
+      if (nextCurrentSessionId && deleteIdSet.has(nextCurrentSessionId)) {
+        nextCurrentSessionId = remainingSessions[0]?.id || null;
+      }
+
+      for (const sessionId of idsToDelete) {
+        await storage.deleteSession(sessionId);
+        sessionIndexMap.value.delete(sessionId);
+        sessionDetailMap.value.delete(sessionId);
+      }
+
+      currentSessionId.value = nextCurrentSessionId;
+      if (nextCurrentSessionId) {
+        await switchSession(nextCurrentSessionId);
+      } else {
+        const sessionManager = useSessionManager();
+        await sessionManager.updateCurrentSessionId(null);
+      }
+
+      persistSessions();
+      logger.info("已批量删除会话", { count: idsToDelete.length });
+    });
+  }
+
+  async function importSessions(
+    sessionsToImport: ExportableChatSession[],
+    strategy: SessionImportConflictStrategy = "keep"
+  ): Promise<ResolvedSessionImport> {
+    return executeOrProxy(
+      "import-sessions",
+      { sessions: sessionsToImport, strategy },
+      async () => {
+        const { useChatStorageSeparated } =
+          await import("../composables/storage/useChatStorageSeparated");
+        const storage = useChatStorageSeparated();
+        const resolved = resolveConflicts(
+          sessionsToImport,
+          strategy,
+          new Set(sessionIndexMap.value.keys())
+        );
+
+        for (const session of resolved.sessions) {
+          const messageCount = getEffectiveMessageCount(
+            session.detail.nodes,
+            session.detail.rootNodeId
+          );
+          const index: ChatSessionIndex = {
+            ...session.index,
+            messageCount,
+            updatedAt: session.detail.updatedAt || session.index.updatedAt,
+            favoriteFolderId: session.index.favoriteFolderId ?? null,
+          };
+          const detail: ChatSessionDetail = {
+            ...session.detail,
+            id: index.id,
+            updatedAt: index.updatedAt,
+            history: session.detail.history || [],
+            historyIndex: session.detail.historyIndex ?? -1,
+          };
+
+          sessionIndexMap.value.set(index.id, index);
+          sessionDetailMap.value.set(index.id, detail);
+          await storage.persistSession(index, detail, currentSessionId.value);
+        }
+
+        persistSessions();
+        logger.info("会话批量导入完成", {
+          importedCount: resolved.importedCount,
+          skippedCount: resolved.skippedCount,
+          renamedCount: resolved.renamedCount,
+          overwrittenCount: resolved.overwrittenCount,
+        });
+        return resolved;
+      }
+    );
+  }
+
+  async function batchMoveSessionsToFolder(
+    sessionIds: string[],
+    folderId: string | null
+  ): Promise<void> {
+    return executeOrProxy(
+      "batch-move-sessions-to-folder",
+      { sessionIds, folderId },
+      () => {
+        if (
+          folderId !== null &&
+          !favoriteFolders.value.some((folder) => folder.id === folderId)
+        ) {
+          return;
+        }
+
+        const now = new Date().toISOString();
+        for (const sessionId of new Set(sessionIds)) {
+          const index = sessionIndexMap.value.get(sessionId);
+          if (!index) continue;
+          index.isFavorite = true;
+          index.favoriteFolderId = folderId;
+          index.updatedAt = now;
+        }
+
+        persistSessions();
+        logger.info("已批量移动会话到收藏夹", {
+          count: sessionIds.length,
+          folderId,
+        });
+      }
+    );
   }
 
   /**
@@ -1436,6 +1570,8 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     createSession,
     switchSession,
     deleteSession,
+    batchDeleteSessions,
+    importSessions,
     clearEmptySessions,
     refreshSessionsIndex,
     updateSession,
@@ -1446,6 +1582,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     renameFavoriteFolder,
     deleteFavoriteFolder,
     moveSessionToFolder,
+    batchMoveSessionsToFolder,
     reorderFavoriteFolders,
     generateSessionTopic,
     exportSessionAsMarkdown,

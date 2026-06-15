@@ -11,6 +11,7 @@ import {
   Delete,
   Refresh,
   Star,
+  Files,
 } from "@element-plus/icons-vue";
 import type { SearchMatchMode } from "../../composables/chat/useLlmSearch";
 import { invoke } from "@tauri-apps/api/core";
@@ -24,6 +25,7 @@ import RenameDialog from "./RenameDialog.vue";
 import ExportSessionDialog from "../export/ExportSessionDialog.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import FavoriteManagerDialog from "./FavoriteManagerDialog.vue";
+import BatchManagerDialog from "./BatchManagerDialog.vue";
 import { useSessionsSidebarLogic } from "../../composables/sidebar/useSessionsSidebarLogic";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 
@@ -108,6 +110,7 @@ const exportSessionDialogVisible = ref(false);
 const sessionToExport = ref<ChatSessionIndex | null>(null);
 const sessionToExportDetail = ref<ChatSessionDetail | null>(null);
 const favoriteManagerVisible = ref(false);
+const batchManagerVisible = ref(false);
 const moveFavoriteDialogVisible = ref(false);
 const movingSession = ref<ChatSessionIndex | null>(null);
 const moveTargetFolderId = ref("__uncategorized");
@@ -274,6 +277,15 @@ const handleSessionClick = (session: ChatSessionIndex) => {
   }
   emit("switch", session.id);
 };
+
+const handleBatchManagerSwitch = (sessionId: string) => {
+  const session = props.sessions.find((item) => item.id === sessionId);
+  if (session) {
+    handleSessionClick(session);
+  } else {
+    emit("switch", sessionId);
+  }
+};
 </script>
 
 <template>
@@ -375,6 +387,19 @@ const handleSessionClick = (session: ChatSessionIndex) => {
             <el-button
               :icon="Star"
               @click="favoriteManagerVisible = true"
+              circle
+              size="small"
+            />
+          </el-tooltip>
+
+          <el-tooltip
+            content="批量管理会话"
+            placement="bottom"
+            :show-after="500"
+          >
+            <el-button
+              :icon="Files"
+              @click="batchManagerVisible = true"
               circle
               size="small"
             />
@@ -505,6 +530,11 @@ const handleSessionClick = (session: ChatSessionIndex) => {
     />
 
     <FavoriteManagerDialog v-model="favoriteManagerVisible" />
+
+    <BatchManagerDialog
+      v-model="batchManagerVisible"
+      @switch="handleBatchManagerSwitch"
+    />
 
     <BaseDialog
       v-model="moveFavoriteDialogVisible"

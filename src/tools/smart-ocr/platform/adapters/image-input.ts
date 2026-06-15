@@ -37,8 +37,8 @@ export function imageBlockToOcrImage(block: ImageBlock): OcrImageInput {
 
 export function ocrImageToPluginImage(image: OcrImageInput) {
   return {
-    id: image.id,
-    groupId: image.groupId,
+    blockId: image.id,
+    imageId: image.groupId ?? image.id,
     dataUrl: image.dataUrl,
     width: image.width,
     height: image.height,

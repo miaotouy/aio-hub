@@ -68,6 +68,30 @@ export interface AgentExportFile {
   agents: ExportableAgent[];
 }
 
+export interface AgentImportSourceMeta {
+  source: "aio" | "silly-tavern" | "vcp-chat";
+  sourceLabel?: string;
+  originalId?: string;
+  originalPath?: string;
+  warnings?: string[];
+}
+
+export interface AgentImportModelRecommendation {
+  profileId?: string;
+  modelId?: string;
+  reason: "vcp-host" | "exact-model" | "fallback";
+  note?: string;
+}
+
+export interface ParsedAgentImportBundle {
+  agents: ExportableAgent[];
+  assets: Record<string, Record<string, ArrayBuffer>>;
+  bundledWorldbooks?: Record<string, BundledWorldbook[]>;
+  embeddedWorldbooks?: Record<string, import("./worldbook").STWorldbook>;
+  sourceMeta?: Record<string, AgentImportSourceMeta>;
+  modelRecommendations?: Record<string, AgentImportModelRecommendation>;
+}
+
 /**
  * 导入预检结果
  */
@@ -80,6 +104,10 @@ export interface AgentImportPreflightResult {
   bundledWorldbooks?: Record<string, BundledWorldbook[]>;
   /** 待导入的世界书内容 { agentId: STWorldbook } (针对角色卡中嵌入的世界书) */
   embeddedWorldbooks?: Record<string, import("./worldbook").STWorldbook>;
+  /** 来源元信息 { agentId: AgentImportSourceMeta } */
+  sourceMeta?: Record<string, AgentImportSourceMeta>;
+  /** 模型推荐 { agentId: AgentImportModelRecommendation } */
+  modelRecommendations?: Record<string, AgentImportModelRecommendation>;
   /** 模型不匹配的 Agent { agentIndex: number, agentName: string, modelId: string } */
   unmatchedModels: Array<{
     agentIndex: number;

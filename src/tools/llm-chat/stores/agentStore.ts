@@ -19,10 +19,14 @@ import { getLocalISOString } from "@/utils/time";
 import { exportAgents } from "../services/agentExportService";
 import {
   preflightImportAgents,
+  preflightParsedAgentImportBundle,
   commitImportAgents,
 } from "../services/agentImportService";
 import { ensurePresetAssetsImported as ensurePresetAssetsImportedService } from "../services/agentAssetService";
-import type { ConfirmImportParams } from "../types/agentImportExport";
+import type {
+  ConfirmImportParams,
+  ParsedAgentImportBundle,
+} from "../types/agentImportExport";
 
 const logger = createModuleLogger("llm-chat/agentStore");
 const errorHandler = createModuleErrorHandler("llm-chat/agentStore");
@@ -34,6 +38,7 @@ export type {
   AgentImportPreflightResult,
   ResolvedAgentToImport,
   ConfirmImportParams,
+  ParsedAgentImportBundle,
 } from "../types/agentImportExport";
 
 interface AgentStoreState {
@@ -867,6 +872,21 @@ export const useAgentStore = defineStore("llmChatAgent", {
 
       return await preflightImportAgents(files, {
         existingAgentNames: existingDisplayNames, // 这里传递的是显示名称列表
+        availableModelIds,
+      });
+    },
+
+    async preflightParsedAgentImportBundle(bundle: ParsedAgentImportBundle) {
+      const { enabledProfiles } = useLlmProfiles();
+      const availableModelIds = enabledProfiles.value.flatMap((p) =>
+        p.models.map((m) => m.id)
+      );
+      const existingDisplayNames = this.agents.map(
+        (a) => a.displayName || a.name
+      );
+
+      return await preflightParsedAgentImportBundle(bundle, {
+        existingAgentNames: existingDisplayNames,
         availableModelIds,
       });
     },

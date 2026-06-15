@@ -2,6 +2,7 @@
 import { computed, ref, watch, onMounted, defineAsyncComponent } from "vue";
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import yaml from "js-yaml";
 import { useAgentStore } from "../../stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
@@ -33,6 +34,12 @@ import type {
   AgentExportFile,
 } from "../../types/agentImportExport";
 import AgentListItem from "./AgentListItem.vue";
+import {
+  convertVcpChatScanItemsToImportBundle,
+  scanVcpChatAgents,
+  type VcpChatAgentScanItem,
+  type VcpChatAgentScanResult,
+} from "../../services/vcpChatAgentImportService";
 
 // 创建模块错误处理器
 const errorHandler = createModuleErrorHandler("llm-chat/AgentsSidebar");
@@ -50,6 +57,9 @@ const ExportAgentDialog = defineAsyncComponent(
 );
 const ImportAgentDialog = defineAsyncComponent(
   () => import("../export/ImportAgentDialog.vue")
+);
+const VcpChatAgentImportDialog = defineAsyncComponent(
+  () => import("../export/VcpChatAgentImportDialog.vue")
 );
 const WorldbookManagerDialog = defineAsyncComponent(
   () => import("../worldbook/WorldbookManagerDialog.vue")
@@ -332,6 +342,8 @@ const exportInitialSelection = ref<string[]>([]);
 const importDialogVisible = ref(false);
 const importPreflightResult = ref<any>(null);
 const importLoading = ref(false);
+const vcpChatImportDialogVisible = ref(false);
+const vcpChatScanResult = ref<VcpChatAgentScanResult | null>(null);
 const worldbookManagerVisible = ref(false);
 
 // 打开导出对话框
@@ -360,7 +372,8 @@ const handleImportFromFile = async () => {
     const input = document.createElement("input");
     input.type = "file";
     input.multiple = true;
-    input.accept = ".agent.zip,.agent.json,.agent.yaml,.agent.yml,.agent.png";
+    input.accept =
+      ".agent.zip,.agent.json,.agent.yaml,.agent.yml,.agent.png,.json";
     input.onchange = async (event) => {
       const files = Array.from((event.target as HTMLInputElement).files || []);
       if (files.length === 0) return;
@@ -403,6 +416,55 @@ const handleConfirmImport = (
 const handleCancelImport = () => {
   importDialogVisible.value = false;
   importPreflightResult.value = null;
+};
+
+const handleImportFromVcpChat = async () => {
+  try {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: "选择 VCPChat 根目录",
+    });
+    if (!selected || Array.isArray(selected)) return;
+
+    importLoading.value = true;
+    const result = await scanVcpChatAgents(selected);
+    vcpChatScanResult.value = result;
+    vcpChatImportDialogVisible.value = true;
+
+    if (result.items.length === 0) {
+      customMessage.warning("未扫描到 VCPChat Agent 配置");
+    }
+  } catch (error) {
+    errorHandler.error(error, "扫描 VCPChat Agent 失败");
+  } finally {
+    importLoading.value = false;
+  }
+};
+
+const handleImportVcpChatItems = async (items: VcpChatAgentScanItem[]) => {
+  if (items.length === 0) {
+    customMessage.warning("请先选择要导入的 VCPChat Agent");
+    return;
+  }
+
+  importLoading.value = true;
+  try {
+    const bundle = await convertVcpChatScanItemsToImportBundle(items);
+    const result = await agentStore.preflightParsedAgentImportBundle(bundle);
+    importPreflightResult.value = result;
+    vcpChatImportDialogVisible.value = false;
+    importDialogVisible.value = true;
+  } catch (error) {
+    errorHandler.error(error, "转换 VCPChat Agent 失败");
+  } finally {
+    importLoading.value = false;
+  }
+};
+
+const handleCancelVcpChatImport = () => {
+  vcpChatImportDialogVisible.value = false;
+  vcpChatScanResult.value = null;
 };
 
 // 打开创建智能体选择对话框
@@ -585,6 +647,7 @@ const handleDelete = (agent: ChatAgent) => {
       confirmButtonText: "删除",
       cancelButtonText: "取消",
       type: "warning",
+      lockScroll: false,
     }
   )
     .then(async () => {
@@ -868,6 +931,10 @@ const handleImportFromTavernCard = async () => {
               <el-icon><Download /></el-icon>
               导入智能体...
             </el-dropdown-item>
+            <el-dropdown-item @click="handleImportFromVcpChat">
+              <el-icon><Download /></el-icon>
+              从 VCPChat 导入...
+            </el-dropdown-item>
             <el-dropdown-item @click="handleImportFromTavernCard">
               <el-icon><Download /></el-icon>
               导入酒馆角色卡...
@@ -923,6 +990,16 @@ const handleImportFromTavernCard = async () => {
       :loading="importLoading"
       @confirm="handleConfirmImport"
       @cancel="handleCancelImport"
+    />
+
+    <VcpChatAgentImportDialog
+      v-if="vcpChatImportDialogVisible"
+      v-model:visible="vcpChatImportDialogVisible"
+      :scan-result="vcpChatScanResult"
+      :loading="importLoading"
+      @import="handleImportVcpChatItems"
+      @reselect="handleImportFromVcpChat"
+      @cancel="handleCancelVcpChatImport"
     />
 
     <!-- 世界书管理对话框 -->

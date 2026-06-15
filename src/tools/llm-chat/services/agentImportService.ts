@@ -8,6 +8,7 @@ import type {
   AgentImportPreflightResult,
   ConfirmImportParams,
   BundledWorldbook,
+  ParsedAgentImportBundle,
 } from "../types/agentImportExport";
 import { AgentCategory, AgentCategoryLabels } from "../types";
 import { STWorldbook } from "../types/worldbook";
@@ -22,6 +23,10 @@ import { useWorldbookStore } from "../stores/worldbookStore";
 import { invoke } from "@tauri-apps/api/core";
 import { useAgentStore } from "../stores/agentStore";
 import { useChatSettings } from "../composables/settings/useChatSettings";
+import {
+  convertVcpChatConfigToImportBundle,
+  isVcpChatConfig,
+} from "./vcpChatAgentImportService";
 
 const logger = createModuleLogger("llm-chat/agentImportService");
 const errorHandler = createModuleErrorHandler("llm-chat/agentImportService");
@@ -29,6 +34,157 @@ const errorHandler = createModuleErrorHandler("llm-chat/agentImportService");
 export interface PreflightContext {
   existingAgentNames: string[];
   availableModelIds: string[];
+}
+
+async function createPreflightResultFromBundle(
+  bundle: ParsedAgentImportBundle,
+  context: PreflightContext
+): Promise<AgentImportPreflightResult> {
+  const combinedAgents = bundle.agents;
+  const combinedAssets = bundle.assets || {};
+  const combinedBundledWorldbooks = bundle.bundledWorldbooks || {};
+  const combinedWorldbooks = bundle.embeddedWorldbooks || {};
+
+  const usedDisplayNames = new Set(context.existingAgentNames);
+  combinedAgents.forEach((agent) => {
+    let targetDisplayName = agent.displayName || agent.name;
+    if (usedDisplayNames.has(targetDisplayName)) {
+      let counter = 1;
+      let newDisplayName = `${targetDisplayName} (${counter})`;
+      while (usedDisplayNames.has(newDisplayName)) {
+        counter++;
+        newDisplayName = `${targetDisplayName} (${counter})`;
+      }
+      agent.displayName = newDisplayName;
+      targetDisplayName = newDisplayName;
+    }
+    usedDisplayNames.add(targetDisplayName);
+  });
+
+  const { availableModelIds } = context;
+  const nameConflicts: AgentImportPreflightResult["nameConflicts"] = [];
+  const unmatchedModels: AgentImportPreflightResult["unmatchedModels"] = [];
+  const worldbookConflicts: NonNullable<
+    AgentImportPreflightResult["worldbookConflicts"]
+  > = {};
+
+  const worldbookStoreForPreflight = useWorldbookStore();
+  const checkWorldbookDuplicate = async (
+    content: STWorldbook,
+    name: string
+  ): Promise<{ isDuplicate: boolean; hasNameConflict: boolean }> => {
+    const candidates = worldbookStoreForPreflight.worldbooks.filter(
+      (wb) => wb.name === name
+    );
+    if (candidates.length === 0)
+      return { isDuplicate: false, hasNameConflict: false };
+
+    for (const candidate of candidates) {
+      const existingContent =
+        await worldbookStoreForPreflight.getWorldbookContent(candidate.id);
+      if (
+        existingContent &&
+        JSON.stringify(existingContent.entries) ===
+          JSON.stringify(content.entries)
+      ) {
+        return { isDuplicate: true, hasNameConflict: true };
+      }
+    }
+    return { isDuplicate: false, hasNameConflict: true };
+  };
+
+  for (const agent of combinedAgents) {
+    const agentId = agent.id!;
+    const bundled = combinedBundledWorldbooks[agentId] || [];
+    const embedded = combinedWorldbooks[agentId];
+
+    const bundledResults = await Promise.all(
+      bundled.map(async (wb) => {
+        const result = wb.content
+          ? await checkWorldbookDuplicate(wb.content, wb.name)
+          : { isDuplicate: false, hasNameConflict: false };
+        return { name: wb.name, ...result };
+      })
+    );
+
+    let embeddedResult:
+      | { isDuplicate: boolean; hasNameConflict: boolean }
+      | undefined = undefined;
+    if (embedded) {
+      const wbName =
+        embedded.metadata?.name ||
+        `${agent.displayName || agent.name} 的世界书`;
+      embeddedResult = await checkWorldbookDuplicate(
+        normalizeWorldbook(embedded),
+        wbName
+      );
+    }
+
+    if (bundledResults.length > 0 || embeddedResult) {
+      worldbookConflicts[agentId] = {
+        bundled: bundledResults,
+        embedded: embeddedResult,
+      };
+    }
+  }
+
+  combinedAgents.forEach((agent, index) => {
+    const recommendation = agent.id
+      ? bundle.modelRecommendations?.[agent.id]
+      : undefined;
+    let isMatched = false;
+    if (recommendation?.profileId && recommendation.modelId) {
+      isMatched = true;
+    } else if (agent.modelId) {
+      if (availableModelIds.includes(agent.modelId)) {
+        isMatched = true;
+      } else if (agent.modelId.includes(":")) {
+        const pureModelId = agent.modelId.substring(
+          agent.modelId.indexOf(":") + 1
+        );
+        if (pureModelId && availableModelIds.includes(pureModelId)) {
+          isMatched = true;
+        }
+      }
+    }
+    if (!isMatched) {
+      unmatchedModels.push({
+        agentIndex: index,
+        agentName: agent.name,
+        modelId: agent.modelId,
+      });
+    }
+  });
+
+  return {
+    agents: combinedAgents,
+    assets: combinedAssets,
+    bundledWorldbooks: combinedBundledWorldbooks,
+    embeddedWorldbooks: combinedWorldbooks,
+    sourceMeta: bundle.sourceMeta,
+    modelRecommendations: bundle.modelRecommendations,
+    nameConflicts,
+    unmatchedModels,
+    worldbookConflicts,
+  };
+}
+
+export async function preflightParsedAgentImportBundle(
+  bundle: ParsedAgentImportBundle,
+  context: PreflightContext
+): Promise<AgentImportPreflightResult> {
+  try {
+    logger.info("开始预检已解析导入包", { count: bundle.agents.length });
+    const result = await createPreflightResultFromBundle(bundle, context);
+    logger.info("已解析导入包预检完成", {
+      totalAgents: result.agents.length,
+      unmatched: result.unmatchedModels.length,
+    });
+    return result;
+  } catch (error) {
+    errorHandler.handle(error as Error, { userMessage: "预检导入失败" });
+    throw error;
+  }
 }
 
 /**
@@ -53,6 +209,36 @@ export async function preflightImportAgents(
     const combinedAssets: Record<string, Record<string, ArrayBuffer>> = {};
     const combinedBundledWorldbooks: Record<string, BundledWorldbook[]> = {};
     const combinedWorldbooks: Record<string, STWorldbook> = {};
+    const combinedSourceMeta: ParsedAgentImportBundle["sourceMeta"] = {};
+    const combinedModelRecommendations: ParsedAgentImportBundle["modelRecommendations"] =
+      {};
+
+    const mergeParsedBundle = (bundle: ParsedAgentImportBundle) => {
+      for (const agent of bundle.agents) {
+        const originalId = agent.id;
+        const tempId =
+          originalId ||
+          `agent-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+        agent.id = tempId;
+        combinedAgents.push(agent);
+        combinedAssets[tempId] = bundle.assets[originalId || tempId] || {};
+        if (bundle.bundledWorldbooks?.[originalId || tempId]) {
+          combinedBundledWorldbooks[tempId] =
+            bundle.bundledWorldbooks[originalId || tempId];
+        }
+        if (bundle.embeddedWorldbooks?.[originalId || tempId]) {
+          combinedWorldbooks[tempId] =
+            bundle.embeddedWorldbooks[originalId || tempId];
+        }
+        if (bundle.sourceMeta?.[originalId || tempId]) {
+          combinedSourceMeta[tempId] = bundle.sourceMeta[originalId || tempId];
+        }
+        if (bundle.modelRecommendations?.[originalId || tempId]) {
+          combinedModelRecommendations[tempId] =
+            bundle.modelRecommendations[originalId || tempId];
+        }
+      }
+    };
 
     // 辅助函数：解析单个文件
     const parseFile = async (file: File) => {
@@ -205,6 +391,16 @@ export async function preflightImportAgents(
           if (characterBook && characterBook.entries) {
             (exportableAgent as any)._tempWorldbook = characterBook;
           }
+        } else if (isVcpChatConfig(jsonData)) {
+          const bundle = await convertVcpChatConfigToImportBundle(jsonData, {
+            originalId: jsonData.name || file.name,
+            originalPath: file.name,
+            warnings: [
+              "裸 config.json 导入无法自动读取同级头像和 regex_rules.json。",
+            ],
+          });
+          mergeParsedBundle(bundle);
+          return;
         } else {
           agentExportFile = jsonData;
         }
@@ -408,130 +604,17 @@ export async function preflightImportAgents(
 
     await Promise.all(fileList.map((file) => parseFile(file)));
 
-    const usedDisplayNames = new Set(context.existingAgentNames);
-    combinedAgents.forEach((agent) => {
-      let targetDisplayName = agent.displayName || agent.name;
-      if (usedDisplayNames.has(targetDisplayName)) {
-        let counter = 1;
-        let newDisplayName = `${targetDisplayName} (${counter})`;
-        while (usedDisplayNames.has(newDisplayName)) {
-          counter++;
-          newDisplayName = `${targetDisplayName} (${counter})`;
-        }
-        agent.displayName = newDisplayName;
-        targetDisplayName = newDisplayName;
-      }
-      usedDisplayNames.add(targetDisplayName);
-    });
-
-    const { availableModelIds } = context;
-    const nameConflicts: AgentImportPreflightResult["nameConflicts"] = [];
-    const unmatchedModels: AgentImportPreflightResult["unmatchedModels"] = [];
-    const worldbookConflicts: NonNullable<
-      AgentImportPreflightResult["worldbookConflicts"]
-    > = {};
-
-    // 预检世界书重复情况
-    const worldbookStoreForPreflight = useWorldbookStore();
-    const checkWorldbookDuplicate = async (
-      content: STWorldbook,
-      name: string
-    ): Promise<{ isDuplicate: boolean; hasNameConflict: boolean }> => {
-      const candidates = worldbookStoreForPreflight.worldbooks.filter(
-        (wb) => wb.name === name
-      );
-      if (candidates.length === 0)
-        return { isDuplicate: false, hasNameConflict: false };
-
-      for (const candidate of candidates) {
-        const existingContent =
-          await worldbookStoreForPreflight.getWorldbookContent(candidate.id);
-        if (
-          existingContent &&
-          JSON.stringify(existingContent.entries) ===
-            JSON.stringify(content.entries)
-        ) {
-          return { isDuplicate: true, hasNameConflict: true };
-        }
-      }
-      // 有同名但内容不同
-      return { isDuplicate: false, hasNameConflict: true };
-    };
-
-    for (const agent of combinedAgents) {
-      const agentId = agent.id!;
-      const bundled = combinedBundledWorldbooks[agentId] || [];
-      const embedded = combinedWorldbooks[agentId];
-
-      const bundledResults = await Promise.all(
-        bundled.map(async (wb) => {
-          const result = wb.content
-            ? await checkWorldbookDuplicate(wb.content, wb.name)
-            : { isDuplicate: false, hasNameConflict: false };
-          return { name: wb.name, ...result };
-        })
-      );
-
-      let embeddedResult:
-        | { isDuplicate: boolean; hasNameConflict: boolean }
-        | undefined = undefined;
-      if (embedded) {
-        const wbName =
-          embedded.metadata?.name ||
-          `${agent.displayName || agent.name} 的世界书`;
-        embeddedResult = await checkWorldbookDuplicate(
-          normalizeWorldbook(embedded),
-          wbName
-        );
-      }
-
-      if (bundledResults.length > 0 || embeddedResult) {
-        worldbookConflicts[agentId] = {
-          bundled: bundledResults,
-          embedded: embeddedResult,
-        };
-      }
-    }
-
-    combinedAgents.forEach((agent, index) => {
-      let isMatched = false;
-      if (agent.modelId) {
-        if (availableModelIds.includes(agent.modelId)) {
-          isMatched = true;
-        } else if (agent.modelId.includes(":")) {
-          const pureModelId = agent.modelId.substring(
-            agent.modelId.indexOf(":") + 1
-          );
-          if (pureModelId && availableModelIds.includes(pureModelId)) {
-            isMatched = true;
-          }
-        }
-      }
-      if (!isMatched) {
-        unmatchedModels.push({
-          agentIndex: index,
-          agentName: agent.name,
-          modelId: agent.modelId,
-        });
-      }
-    });
-
-    const result: AgentImportPreflightResult = {
-      agents: combinedAgents,
-      assets: combinedAssets,
-      bundledWorldbooks: combinedBundledWorldbooks,
-      embeddedWorldbooks: combinedWorldbooks,
-      nameConflicts,
-      unmatchedModels,
-      worldbookConflicts,
-    };
-
-    logger.info("预检导入完成", {
-      totalAgents: result.agents.length,
-      unmatched: result.unmatchedModels.length,
-    });
-
-    return result;
+    return await preflightParsedAgentImportBundle(
+      {
+        agents: combinedAgents,
+        assets: combinedAssets,
+        bundledWorldbooks: combinedBundledWorldbooks,
+        embeddedWorldbooks: combinedWorldbooks,
+        sourceMeta: combinedSourceMeta,
+        modelRecommendations: combinedModelRecommendations,
+      },
+      context
+    );
   } catch (error) {
     errorHandler.handle(error as Error, { userMessage: "预检导入失败" });
     throw error;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import type {
   AgentImportPreflightResult,
   ResolvedAgentToImport,
@@ -41,6 +41,8 @@ const emit = defineEmits<{
 }>();
 
 const { enabledProfiles } = useLlmProfiles();
+const showProblemsOnly = ref(false);
+const batchModelValue = ref("");
 
 // 为每个导入的 Agent 创建解决方案的响应式数据
 const resolvedAgents = ref<
@@ -52,35 +54,41 @@ const resolvedAgents = ref<
 
 // 当预检结果变化时，初始化 resolvedAgents
 const initializeResolvedAgents = (result: AgentImportPreflightResult) => {
-  resolvedAgents.value = result.agents.map((agent, index) => {
-    const unmatched = result.unmatchedModels.find(
-      (m) => m.agentIndex === index
-    );
+  resolvedAgents.value = result.agents.map((agent) => {
     const tempId = agent.id || "";
+    const recommendation = result.modelRecommendations?.[tempId];
 
     // 尝试为不匹配的模型找一个可用的
     let finalProfileId = "";
     let finalModelId = agent.modelId;
 
-    // 处理 modelId 可能包含 profileId 前缀的情况
-    const targetModelId = getPureModelId(agent.modelId);
-
-    // 查找本地是否有匹配的模型（即使 modelId 相同，profileId 也可能不同，需要重新匹配）
-    const matchedProfile = enabledProfiles.value.find((p) =>
-      p.models.some((m) => m.id === targetModelId)
+    const recommendedProfile = recommendation?.profileId
+      ? enabledProfiles.value.find((p) => p.id === recommendation.profileId)
+      : undefined;
+    const recommendedModel = recommendedProfile?.models.find(
+      (m) => m.id === recommendation?.modelId
     );
 
-    if (matchedProfile) {
-      finalProfileId = matchedProfile.id;
-      finalModelId = targetModelId; // 确保使用纯净的 modelId
+    if (recommendedProfile && recommendedModel) {
+      finalProfileId = recommendedProfile.id;
+      finalModelId = recommendedModel.id;
     } else {
-      // 找不到匹配的模型（无论是标记为 unmatched 还是单纯没找到），回退到默认第一个
-      const firstProfile = enabledProfiles.value[0];
-      if (firstProfile && firstProfile.models.length > 0) {
-        finalProfileId = firstProfile.id;
-        // 如果是 unmatched，我们可能想保留原始 modelId 让用户看到冲突，或者重置为第一个模型
-        // 这里策略是：如果是 unmatched，重置为可用模型；如果只是没找到 profile 但 modelId 没报冲突（理论上不应发生），也重置
-        if (unmatched) {
+      // 处理 modelId 可能包含 profileId 前缀的情况
+      const targetModelId = getPureModelId(agent.modelId);
+
+      // 查找本地是否有匹配的模型（即使 modelId 相同，profileId 也可能不同，需要重新匹配）
+      const matchedProfile = enabledProfiles.value.find((p) =>
+        p.models.some((m) => m.id === targetModelId)
+      );
+
+      if (matchedProfile) {
+        finalProfileId = matchedProfile.id;
+        finalModelId = targetModelId; // 确保使用纯净的 modelId
+      } else {
+        // 找不到匹配的模型（无论是标记为 unmatched 还是单纯没找到），回退到默认第一个
+        const firstProfile = enabledProfiles.value[0];
+        if (firstProfile && firstProfile.models.length > 0) {
+          finalProfileId = firstProfile.id;
           finalModelId = firstProfile.models[0].id;
         }
       }
@@ -98,6 +106,50 @@ const initializeResolvedAgents = (result: AgentImportPreflightResult) => {
         result.embeddedWorldbooks && result.embeddedWorldbooks[tempId]
       ),
     };
+  });
+};
+
+const hasProblem = (index: number, agentId?: string) => {
+  if (!props.preflightResult) return false;
+  return (
+    !!props.preflightResult.unmatchedModels.find(
+      (m) => m.agentIndex === index
+    ) ||
+    !!props.preflightResult.worldbookConflicts?.[agentId || ""] ||
+    !!props.preflightResult.sourceMeta?.[agentId || ""]?.warnings?.length
+  );
+};
+
+const displayEntries = computed(() => {
+  if (!props.preflightResult) return [];
+  return props.preflightResult.agents
+    .map((agent, index) => ({ agent, index }))
+    .filter(
+      ({ agent, index }) =>
+        !showProblemsOnly.value || hasProblem(index, agent.id)
+    );
+});
+
+const getRecommendationLabel = (agentId?: string) => {
+  const recommendation = agentId
+    ? props.preflightResult?.modelRecommendations?.[agentId]
+    : undefined;
+  if (!recommendation) return "";
+  if (recommendation.reason === "vcp-host") return "已按 VCP 连接推荐";
+  if (recommendation.reason === "exact-model") return "按模型名匹配";
+  return "回退默认模型";
+};
+
+const applyBatchModel = () => {
+  if (!batchModelValue.value) return;
+  const [profileId, modelId] = parseModelCombo(batchModelValue.value);
+  const visibleIndexes = new Set(
+    displayEntries.value.map((entry) => entry.index)
+  );
+  resolvedAgents.value.forEach((agent, index) => {
+    if (!visibleIndexes.has(index)) return;
+    agent.finalProfileId = profileId;
+    agent.finalModelId = modelId;
   });
 };
 
@@ -210,15 +262,27 @@ const handleCancel = () => {
 
         <!-- Agent 列表 -->
         <div class="agents-list-section">
-          <h4>请确认以下智能体的导入方式</h4>
+          <div class="list-header">
+            <h4>请确认以下智能体的导入方式</h4>
+            <ElCheckbox v-model="showProblemsOnly">仅显示问题项</ElCheckbox>
+          </div>
+          <div class="batch-model-row">
+            <LlmModelSelector
+              v-model="batchModelValue"
+              :capabilities="{ embedding: false, rerank: false }"
+            />
+            <ElButton size="small" @click="applyBatchModel">
+              应用到当前列表
+            </ElButton>
+          </div>
           <div
-            v-for="(agent, index) in preflightResult.agents"
-            :key="index"
+            v-for="{ agent, index } in displayEntries"
+            :key="agent.id || index"
             class="agent-resolve-item"
           >
-            <ElDescriptions :column="2" border>
+            <ElDescriptions :column="3" border>
               <ElDescriptionsItem label="名称">
-                {{ agent.name }}
+                {{ agent.displayName || agent.name }}
               </ElDescriptionsItem>
               <ElDescriptionsItem label="状态">
                 <ElTag
@@ -232,7 +296,31 @@ const handleCancel = () => {
                 >
                   模型不匹配
                 </ElTag>
+                <ElTag
+                  v-else-if="hasProblem(index, agent.id)"
+                  type="warning"
+                  size="small"
+                >
+                  需确认
+                </ElTag>
                 <ElTag v-else type="success" size="small"> 可直接导入 </ElTag>
+              </ElDescriptionsItem>
+              <ElDescriptionsItem label="来源">
+                <template v-if="preflightResult.sourceMeta?.[agent.id!]">
+                  <ElTag size="small" effect="plain">
+                    {{
+                      preflightResult.sourceMeta[agent.id!].sourceLabel ||
+                      preflightResult.sourceMeta[agent.id!].source
+                    }}
+                  </ElTag>
+                  <span class="source-id">
+                    {{
+                      preflightResult.sourceMeta[agent.id!].originalId ||
+                      preflightResult.sourceMeta[agent.id!].originalPath
+                    }}
+                  </span>
+                </template>
+                <span v-else>AIO</span>
               </ElDescriptionsItem>
               <ElDescriptionsItem
                 label="包含资源"
@@ -244,6 +332,24 @@ const handleCancel = () => {
                   }}
                   个文件
                 </ElTag>
+              </ElDescriptionsItem>
+              <ElDescriptionsItem
+                label="模型推荐"
+                v-if="preflightResult.modelRecommendations?.[agent.id!]"
+              >
+                <ElTag size="small" type="info" effect="plain">
+                  {{ getRecommendationLabel(agent.id) }}
+                </ElTag>
+              </ElDescriptionsItem>
+              <ElDescriptionsItem
+                label="来源告警"
+                v-if="preflightResult.sourceMeta?.[agent.id!]?.warnings?.length"
+              >
+                <span class="warning-inline">
+                  {{
+                    preflightResult.sourceMeta[agent.id!].warnings?.join("；")
+                  }}
+                </span>
               </ElDescriptionsItem>
             </ElDescriptions>
 
@@ -340,19 +446,19 @@ const handleCancel = () => {
             </div>
 
             <!-- 冲突解决选项 -->
-            <div
-              class="resolve-options"
-              v-if="
-                preflightResult.unmatchedModels.find(
-                  (m) => m.agentIndex === index
-                )
-              "
-            >
+            <div class="resolve-options">
               <!-- 模型不匹配解决 -->
               <div class="option-group">
-                <h5>模型重映射</h5>
+                <h5>模型确认</h5>
                 <p class="help-text">
-                  原模型 ({{ agent.modelId }}) 不可用，请选择一个新模型：
+                  原模型：{{ agent.modelId || "未设置" }}
+                  <template
+                    v-if="
+                      preflightResult.modelRecommendations?.[agent.id!]?.note
+                    "
+                  >
+                    ，{{ preflightResult.modelRecommendations[agent.id!].note }}
+                  </template>
                 </p>
                 <LlmModelSelector
                   :model-value="`${resolvedAgents[index].finalProfileId}:${resolvedAgents[index].finalModelId}`"
@@ -416,12 +522,42 @@ const handleCancel = () => {
   color: var(--el-text-color-primary);
 }
 
+.list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.list-header h4 {
+  margin-bottom: 8px;
+}
+
+.batch-model-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
 .agent-resolve-item {
   margin-bottom: 24px;
   border: 1px solid var(--el-border-color-light);
   border-radius: 6px;
   padding: 16px;
   background-color: var(--el-bg-color-page);
+}
+
+.source-id {
+  margin-left: 8px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.warning-inline {
+  color: var(--el-color-warning);
+  font-size: 12px;
 }
 
 .resolve-options {

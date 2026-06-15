@@ -46,7 +46,7 @@
             <el-option
               v-for="agent in agentStore.agents"
               :key="agent.id"
-              :label="agent.name"
+              :label="agent.displayName || agent.name"
               :value="agent.id"
             />
           </el-select>
@@ -120,14 +120,32 @@
                   class="session-link name-cell"
                   @click="openSession(filteredSessions[virtualItem.index].id)"
                 >
-                  {{
-                    filteredSessions[virtualItem.index].name || "未命名会话"
-                  }}
+                  {{ filteredSessions[virtualItem.index].name || "未命名会话" }}
                 </button>
                 <div class="agent-cell agent-column">
-                  <span class="agent-avatar">{{
-                    getAgentInitial(filteredSessions[virtualItem.index])
-                  }}</span>
+                  <Avatar
+                    v-if="
+                      getSessionDisplayAgent(
+                        filteredSessions[virtualItem.index]
+                      )
+                    "
+                    :src="
+                      resolveAvatarPath(
+                        getSessionDisplayAgent(
+                          filteredSessions[virtualItem.index]
+                        ),
+                        'agent'
+                      ) || ''
+                    "
+                    :alt="getAgentName(filteredSessions[virtualItem.index])"
+                    :size="24"
+                    shape="square"
+                    :radius="6"
+                    class="agent-avatar"
+                  />
+                  <span v-else class="agent-avatar agent-avatar-fallback">
+                    {{ getAgentInitial(filteredSessions[virtualItem.index]) }}
+                  </span>
                   <span class="cell-ellipsis">{{
                     getAgentName(filteredSessions[virtualItem.index])
                   }}</span>
@@ -139,7 +157,9 @@
                   {{ getFolderName(filteredSessions[virtualItem.index]) }}
                 </div>
                 <div class="date-column">
-                  {{ formatDate(filteredSessions[virtualItem.index].updatedAt) }}
+                  {{
+                    formatDate(filteredSessions[virtualItem.index].updatedAt)
+                  }}
                 </div>
               </div>
             </div>
@@ -211,11 +231,13 @@ import {
 } from "@element-plus/icons-vue";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readFile, writeFile } from "@tauri-apps/plugin-fs";
+import Avatar from "@/components/common/Avatar.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { formatDateTime } from "@/utils/time";
 import type { ChatSessionIndex } from "../../types";
+import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
 import { useAgentStore } from "../../stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import {
@@ -352,7 +374,13 @@ const formatDate = (value?: string) => {
 
 const getAgentName = (session: ChatSessionIndex) => {
   if (!session.displayAgentId) return "未关联";
-  return agentStore.getAgentById(session.displayAgentId)?.name || "未知智能体";
+  const agent = agentStore.getAgentById(session.displayAgentId);
+  return agent ? agent.displayName || agent.name : "未知智能体";
+};
+
+const getSessionDisplayAgent = (session: ChatSessionIndex) => {
+  if (!session.displayAgentId) return null;
+  return agentStore.getAgentById(session.displayAgentId) || null;
 };
 
 const getAgentInitial = (session: ChatSessionIndex) => {
@@ -687,6 +715,10 @@ const handleBatchDelete = async () => {
 }
 
 .agent-avatar {
+  flex-shrink: 0;
+}
+
+.agent-avatar-fallback {
   width: 24px;
   height: 24px;
   border-radius: 6px;
@@ -696,7 +728,6 @@ const handleBatchDelete = async () => {
   background-color: var(--input-bg);
   color: var(--text-color);
   font-size: 12px;
-  flex-shrink: 0;
 }
 
 .batch-footer {

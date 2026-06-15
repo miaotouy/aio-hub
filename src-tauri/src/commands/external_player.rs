@@ -5,8 +5,15 @@ use serde::Serialize;
 #[cfg(windows)]
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl, WebviewWindowBuilder};
 #[cfg(windows)]
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+#[cfg(windows)]
+use windows::Media::Control::{
+    GlobalSystemMediaTransportControlsSessionManager,
+    GlobalSystemMediaTransportControlsSessionPlaybackStatus,
+};
+#[cfg(windows)]
 use windows::Win32::{
-    Foundation::{BOOL, HWND, LPARAM, POINT, RECT},
+    Foundation::{BOOL, HWND, LPARAM, POINT, RECT, WPARAM},
     Graphics::Gdi::{
         ClientToScreen, GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST,
     },
@@ -14,9 +21,9 @@ use windows::Win32::{
         HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI},
         WindowsAndMessaging::{
             EnumWindows, GetClassNameW, GetClientRect, GetWindow, GetWindowLongW,
-            GetWindowTextLengthW, GetWindowTextW, IsWindow, IsWindowVisible, SetWindowPos,
-            GWL_EXSTYLE, GW_HWNDNEXT, GW_HWNDPREV, HWND_NOTOPMOST, HWND_TOP, HWND_TOPMOST,
-            SWP_NOMOVE, SWP_NOSIZE, WS_EX_TOPMOST,
+            GetWindowTextLengthW, GetWindowTextW, IsWindow, IsWindowVisible, SendMessageW,
+            SetWindowPos, GWL_EXSTYLE, GW_HWNDNEXT, GW_HWNDPREV, HWND_NOTOPMOST, HWND_TOP,
+            HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE, WM_USER, WS_EX_TOPMOST,
         },
     },
 };
@@ -491,6 +498,28 @@ pub struct MpcBeStatusResult {
     pub volume_level: u32,
 }
 
+#[cfg(windows)]
+fn normalize_external_player_type(player_type: &str) -> String {
+    player_type.trim().to_ascii_lowercase()
+}
+
+#[cfg(windows)]
+fn status_result(
+    file: String,
+    state: impl Into<String>,
+    position: u64,
+    duration: u64,
+    volume_level: u32,
+) -> MpcBeStatusResult {
+    MpcBeStatusResult {
+        file,
+        state: state.into(),
+        position,
+        duration,
+        volume_level: volume_level.min(100),
+    }
+}
+
 /// 通过 Rust 后端代理请求 MPC-BE Web 接口，规避 Tauri CSP scope 限制。
 ///
 /// MPC-BE `/variables.html` 返回 HTML，各字段通过 `<p id="KEY">VALUE</p>` 承载：
@@ -525,8 +554,7 @@ fn extract_mpc_field<'a>(html: &'a str, id: &str) -> Option<&'a str> {
 }
 
 #[cfg(windows)]
-#[tauri::command]
-pub async fn get_mpc_be_status(port: u16) -> Result<Option<MpcBeStatusResult>, String> {
+async fn get_mpc_status_via_web(port: u16) -> Result<Option<MpcBeStatusResult>, String> {
     let url = format!("http://localhost:{}/variables.html", port);
     let client = get_mpc_be_client();
 
@@ -598,13 +626,324 @@ pub async fn get_mpc_be_status(port: u16) -> Result<Option<MpcBeStatusResult>, S
         volume_level
     );
 
-    Ok(Some(MpcBeStatusResult {
+    Ok(Some(status_result(
         file,
         state,
         position,
         duration,
         volume_level,
-    }))
+    )))
+}
+
+#[cfg(windows)]
+fn timespan_to_milliseconds(value: windows::Foundation::TimeSpan) -> u64 {
+    (value.Duration.max(0) / 10_000) as u64
+}
+
+#[cfg(windows)]
+fn get_potplayer_status_via_smtc() -> Result<Option<MpcBeStatusResult>, String> {
+    let manager = GlobalSystemMediaTransportControlsSessionManager::RequestAsync()
+        .map_err(|e| format!("请求 Windows 媒体会话失败: {}", e))?
+        .get()
+        .map_err(|e| format!("获取 Windows 媒体会话管理器失败: {}", e))?;
+    let sessions = manager
+        .GetSessions()
+        .map_err(|e| format!("枚举 Windows 媒体会话失败: {}", e))?;
+
+    for session in sessions {
+        let source = session
+            .SourceAppUserModelId()
+            .map(|value| value.to_string())
+            .unwrap_or_default();
+
+        if !source.to_ascii_lowercase().contains("potplayer") {
+            continue;
+        }
+
+        let playback_info = session
+            .GetPlaybackInfo()
+            .map_err(|e| format!("获取 PotPlayer 播放状态失败: {}", e))?;
+        let state = match playback_info
+            .PlaybackStatus()
+            .map_err(|e| format!("读取 PotPlayer 播放状态失败: {}", e))?
+        {
+            GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing => "Playing",
+            GlobalSystemMediaTransportControlsSessionPlaybackStatus::Paused => "Paused",
+            _ => "Stopped",
+        };
+        let timeline = session
+            .GetTimelineProperties()
+            .map_err(|e| format!("读取 PotPlayer 时间线失败: {}", e))?;
+        let position = timespan_to_milliseconds(
+            timeline
+                .Position()
+                .map_err(|e| format!("读取 PotPlayer 播放进度失败: {}", e))?,
+        );
+        let start = timespan_to_milliseconds(
+            timeline
+                .StartTime()
+                .map_err(|e| format!("读取 PotPlayer 起始时间失败: {}", e))?,
+        );
+        let end = timespan_to_milliseconds(
+            timeline
+                .EndTime()
+                .map_err(|e| format!("读取 PotPlayer 结束时间失败: {}", e))?,
+        );
+        let duration = end.saturating_sub(start);
+        let media = session
+            .TryGetMediaPropertiesAsync()
+            .map_err(|e| format!("请求 PotPlayer 媒体属性失败: {}", e))?
+            .get()
+            .map_err(|e| format!("读取 PotPlayer 媒体属性失败: {}", e))?;
+        let title = media
+            .Title()
+            .map(|value| value.to_string())
+            .unwrap_or_default();
+
+        return Ok(Some(status_result(title, state, position, duration, 0)));
+    }
+
+    Ok(None)
+}
+
+#[cfg(windows)]
+fn get_potplayer_status_via_window(hwnd: i64) -> Result<Option<MpcBeStatusResult>, String> {
+    const POT_GET_TOTAL_TIME: usize = 0x5002;
+    const POT_GET_CURRENT_TIME: usize = 0x5004;
+
+    let hwnd = hwnd_from_i64(hwnd);
+    ensure_valid_window(hwnd)?;
+
+    let position = unsafe { SendMessageW(hwnd, WM_USER, WPARAM(POT_GET_CURRENT_TIME), LPARAM(0)) };
+    let duration = unsafe { SendMessageW(hwnd, WM_USER, WPARAM(POT_GET_TOTAL_TIME), LPARAM(0)) };
+
+    let position = position.0.max(0) as u64;
+    let duration = duration.0.max(0) as u64;
+
+    if position == 0 && duration == 0 {
+        return Ok(None);
+    }
+
+    let state = if duration > 0 && position >= duration {
+        "Stopped"
+    } else {
+        "Playing"
+    };
+
+    Ok(Some(status_result(
+        get_window_title(hwnd),
+        state,
+        position,
+        duration,
+        0,
+    )))
+}
+
+#[cfg(windows)]
+fn get_potplayer_status(hwnd: Option<i64>) -> Result<Option<MpcBeStatusResult>, String> {
+    if let Some(status) = get_potplayer_status_via_smtc()? {
+        return Ok(Some(status));
+    }
+
+    match hwnd {
+        Some(value) => get_potplayer_status_via_window(value),
+        None => Ok(None),
+    }
+}
+
+#[cfg(windows)]
+async fn get_vlc_status(
+    port: u16,
+    vlc_password: Option<String>,
+) -> Result<Option<MpcBeStatusResult>, String> {
+    let url = format!("http://localhost:{}/requests/status.json", port);
+    let client = get_mpc_be_client();
+    let mut request = client.get(&url);
+
+    if let Some(password) = vlc_password.filter(|value| !value.is_empty()) {
+        request = request.basic_auth("", Some(password));
+    }
+
+    let response = match request.send().await {
+        Ok(r) => r,
+        Err(e) => {
+            log::debug!("[EXTERNAL_PLAYER] VLC 连接失败 (port={}): {}", port, e);
+            return Ok(None);
+        }
+    };
+
+    if !response.status().is_success() {
+        log::debug!(
+            "[EXTERNAL_PLAYER] VLC 返回非 2xx 状态 (port={}): {}",
+            port,
+            response.status()
+        );
+        return Ok(None);
+    }
+
+    let value = response
+        .json::<serde_json::Value>()
+        .await
+        .map_err(|e| format!("解析 VLC 状态 JSON 失败: {}", e))?;
+    let state = match value.get("state").and_then(|item| item.as_str()) {
+        Some("playing") => "Playing",
+        Some("paused") => "Paused",
+        _ => "Stopped",
+    };
+    let position = value
+        .get("time")
+        .and_then(|item| item.as_u64())
+        .unwrap_or(0)
+        * 1000;
+    let duration = value
+        .get("length")
+        .and_then(|item| item.as_u64())
+        .unwrap_or(0)
+        * 1000;
+    let volume_level = value
+        .get("volume")
+        .and_then(|item| item.as_u64())
+        .map(|volume| ((volume as f64 / 256.0) * 100.0).round() as u32)
+        .unwrap_or(0);
+    let file = value
+        .pointer("/information/category/meta/filename")
+        .and_then(|item| item.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    Ok(Some(status_result(
+        file,
+        state,
+        position,
+        duration,
+        volume_level,
+    )))
+}
+
+#[cfg(windows)]
+fn normalize_mpv_pipe_path(path: Option<String>) -> String {
+    path.filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| r"\\.\pipe\mpv".to_string())
+}
+
+#[cfg(windows)]
+async fn get_mpv_status(ipc_path: Option<String>) -> Result<Option<MpcBeStatusResult>, String> {
+    let path = normalize_mpv_pipe_path(ipc_path);
+    let mut pipe = match tokio::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&path)
+        .await
+    {
+        Ok(file) => file,
+        Err(e) => {
+            log::debug!("[EXTERNAL_PLAYER] mpv IPC 连接失败 (path={}): {}", path, e);
+            return Ok(None);
+        }
+    };
+
+    let requests = [
+        r#"{"command":["get_property","path"],"request_id":1}"#,
+        r#"{"command":["get_property","pause"],"request_id":2}"#,
+        r#"{"command":["get_property","time-pos"],"request_id":3}"#,
+        r#"{"command":["get_property","duration"],"request_id":4}"#,
+    ];
+    let payload = format!("{}\n", requests.join("\n"));
+    pipe.write_all(payload.as_bytes())
+        .await
+        .map_err(|e| format!("写入 mpv IPC 请求失败: {}", e))?;
+
+    let mut buffer = vec![0u8; 8192];
+    let bytes_read =
+        tokio::time::timeout(std::time::Duration::from_secs(2), pipe.read(&mut buffer))
+            .await
+            .map_err(|_| "读取 mpv IPC 响应超时".to_string())?
+            .map_err(|e| format!("读取 mpv IPC 响应失败: {}", e))?;
+
+    if bytes_read == 0 {
+        return Ok(None);
+    }
+
+    let text = String::from_utf8_lossy(&buffer[..bytes_read]);
+    let mut file = String::new();
+    let mut paused = false;
+    let mut position = 0_u64;
+    let mut duration = 0_u64;
+
+    for line in text.lines() {
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        let Some(request_id) = value.get("request_id").and_then(|item| item.as_u64()) else {
+            continue;
+        };
+        let data = value.get("data").unwrap_or(&serde_json::Value::Null);
+
+        match request_id {
+            1 => {
+                file = data.as_str().unwrap_or("").to_string();
+            }
+            2 => {
+                paused = data.as_bool().unwrap_or(false);
+            }
+            3 => {
+                position = data
+                    .as_f64()
+                    .map(|seconds| (seconds.max(0.0) * 1000.0).round() as u64)
+                    .unwrap_or(0);
+            }
+            4 => {
+                duration = data
+                    .as_f64()
+                    .map(|seconds| (seconds.max(0.0) * 1000.0).round() as u64)
+                    .unwrap_or(0);
+            }
+            _ => {}
+        }
+    }
+
+    if file.is_empty() && duration == 0 {
+        return Ok(None);
+    }
+
+    let state = if paused { "Paused" } else { "Playing" };
+    let display_file = std::path::Path::new(&file)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(&file)
+        .to_string();
+
+    Ok(Some(status_result(
+        display_file,
+        state,
+        position,
+        duration,
+        0,
+    )))
+}
+
+#[cfg(windows)]
+#[tauri::command]
+pub async fn get_mpc_be_status(port: u16) -> Result<Option<MpcBeStatusResult>, String> {
+    get_mpc_status_via_web(port).await
+}
+
+#[cfg(windows)]
+#[tauri::command]
+pub async fn get_external_player_status(
+    player_type: String,
+    port: u16,
+    hwnd: Option<i64>,
+    mpv_ipc_path: Option<String>,
+    vlc_password: Option<String>,
+) -> Result<Option<MpcBeStatusResult>, String> {
+    match normalize_external_player_type(&player_type).as_str() {
+        "mpc-be" | "mpc-hc" => get_mpc_status_via_web(port).await,
+        "potplayer" => get_potplayer_status(hwnd),
+        "mpv" => get_mpv_status(mpv_ipc_path).await,
+        "vlc" => get_vlc_status(port, vlc_password).await,
+        other => Err(format!("不支持的外部播放器类型: {}", other)),
+    }
 }
 
 /// 关闭透明弹幕覆盖窗口。

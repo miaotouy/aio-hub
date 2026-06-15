@@ -28,10 +28,14 @@
                   class="full-width"
                 >
                   <el-option label="MPC-BE" value="mpc-be" />
+                  <el-option label="MPC-HC" value="mpc-hc" />
+                  <el-option label="PotPlayer (实验)" value="potplayer" />
+                  <el-option label="mpv" value="mpv" />
+                  <el-option label="VLC" value="vlc" />
                 </el-select>
               </el-form-item>
 
-              <el-form-item label="Web 端口">
+              <el-form-item v-if="usesWebPort" :label="portLabel">
                 <el-input-number
                   v-model="playerConfig.webPort"
                   :min="1"
@@ -40,6 +44,32 @@
                   :controls="false"
                   size="small"
                   class="full-width"
+                />
+              </el-form-item>
+
+              <el-form-item
+                v-if="playerConfig.playerType === 'mpv'"
+                label="IPC 管道"
+              >
+                <el-input
+                  v-model="playerConfig.mpvIpcPath"
+                  size="small"
+                  class="full-width"
+                  placeholder="\\\\.\\pipe\\mpv"
+                />
+              </el-form-item>
+
+              <el-form-item
+                v-if="playerConfig.playerType === 'vlc'"
+                label="Web 密码"
+              >
+                <el-input
+                  v-model="playerConfig.vlcPassword"
+                  size="small"
+                  type="password"
+                  show-password
+                  class="full-width"
+                  placeholder="VLC Web Interface 密码"
                 />
               </el-form-item>
             </div>
@@ -61,7 +91,7 @@
                   <template #dropdown>
                     <el-dropdown-menu>
                       <el-dropdown-item command="default"
-                        >仅扫描 MPC-BE</el-dropdown-item
+                        >仅扫描 {{ playerTypeLabel }}</el-dropdown-item
                       >
                       <el-dropdown-item command="all"
                         >扫描所有窗口</el-dropdown-item
@@ -81,6 +111,11 @@
                 测试连接
               </el-button>
             </div>
+
+            <p class="hint-text connection-help">
+              <Info :size="14" />
+              {{ connectionHint }}
+            </p>
           </el-form>
 
           <div class="window-list">
@@ -215,7 +250,7 @@
             v-if="!canStartOverlay && !overlayState.overlayCreated"
             class="start-requirements"
           >
-            需要先加载弹幕文件、选择播放器窗口，并通过 Web 端口连接测试。
+            需要先加载弹幕文件、选择播放器窗口，并通过连接测试。
           </p>
         </section>
       </div>
@@ -256,7 +291,12 @@ import DanmakuSettingsPanel from "./DanmakuSettingsPanel.vue";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useExternalPlayer } from "../composables/useExternalPlayer";
 import { useDanmakuOverlay } from "../composables/useDanmakuOverlay";
-import type { AssScriptInfo, DanmakuConfig, ParsedDanmaku } from "../types";
+import type {
+  AssScriptInfo,
+  DanmakuConfig,
+  ExternalPlayerType,
+  ParsedDanmaku,
+} from "../types";
 
 const props = defineProps<{
   danmakus: ParsedDanmaku[];
@@ -293,6 +333,58 @@ const {
 const testingConnection = ref(false);
 const startingOverlay = ref(false);
 const closingOverlay = ref(false);
+
+const PLAYER_LABELS: Record<ExternalPlayerType, string> = {
+  "mpc-be": "MPC-BE",
+  "mpc-hc": "MPC-HC",
+  potplayer: "PotPlayer",
+  mpv: "mpv",
+  vlc: "VLC",
+};
+
+const DEFAULT_SCAN_CLASS_NAMES: Record<ExternalPlayerType, string[]> = {
+  "mpc-be": ["MediaPlayerClassicW", "MPC-BE"],
+  "mpc-hc": ["MediaPlayerClassicW"],
+  potplayer: ["PotPlayer64", "PotPlayer", "PotPlayerMini64", "PotPlayerMini"],
+  mpv: ["mpv"],
+  vlc: ["Qt5QWindowIcon", "QWidget"],
+};
+
+const WEB_PORT_PLAYERS = new Set<ExternalPlayerType>([
+  "mpc-be",
+  "mpc-hc",
+  "vlc",
+]);
+
+const usesWebPort = computed(() =>
+  WEB_PORT_PLAYERS.has(playerConfig.playerType)
+);
+
+const playerTypeLabel = computed(() => PLAYER_LABELS[playerConfig.playerType]);
+
+const portLabel = computed(() =>
+  playerConfig.playerType === "vlc" ? "VLC Web 端口" : "Web 端口"
+);
+
+const connectionHint = computed(() => {
+  if (playerConfig.playerType === "potplayer") {
+    return "PotPlayer 为实验支持：优先使用 Windows 媒体会话，失败后回退窗口消息。";
+  }
+
+  if (playerConfig.playerType === "mpv") {
+    return "mpv 需要用 --input-ipc-server 启动并填写同一个 named pipe 路径。";
+  }
+
+  if (playerConfig.playerType === "vlc") {
+    return "VLC 需要启用 Web Interface，并填写对应端口和密码。";
+  }
+
+  if (playerConfig.playerType === "mpc-hc") {
+    return "MPC-HC 使用与 MPC-BE 兼容的 Web Interface 状态接口。";
+  }
+
+  return "MPC-BE 需要在播放器中启用 Web Interface，并确认端口一致。";
+});
 
 const canStartOverlay = computed(() => {
   return (
@@ -349,16 +441,16 @@ function formatDuration(milliseconds: number): string {
 
 async function handleScanPlayerWindows(useDefault = true): Promise<void> {
   try {
-    // 默认扫描支持多种常见的 MPC 类名
+    // 默认按当前播放器类型扫描常见 Win32 类名。
     const classNames = useDefault
-      ? ["MediaPlayerClassicW", "MPC-BE"]
+      ? DEFAULT_SCAN_CLASS_NAMES[playerConfig.playerType]
       : undefined;
     const windows = await scanPlayerWindows(classNames);
 
     if (windows.length === 0) {
       customMessage.warning(
         useDefault
-          ? "未发现 MPC-BE 窗口，请尝试“扫描所有窗口”"
+          ? `未发现 ${playerTypeLabel.value} 窗口，请尝试“扫描所有窗口”`
           : "未发现任何可见窗口"
       );
       return;
@@ -385,12 +477,15 @@ async function handleTestConnection(): Promise<void> {
     const connected = await testConnection();
 
     if (connected) {
-      customMessage.success("MPC-BE Web 接口连接成功");
+      customMessage.success(`${playerTypeLabel.value} 连接成功`);
     } else {
-      customMessage.error("MPC-BE Web 接口连接失败，请检查端口和播放器设置");
+      customMessage.error(
+        `${playerTypeLabel.value} 连接失败，请检查播放器设置`
+      );
     }
   } catch (error) {
-    errorHandler.error(error, "MPC-BE Web 接口连接测试失败", {
+    errorHandler.error(error, "外部播放器连接测试失败", {
+      playerType: playerConfig.playerType,
       port: playerConfig.webPort,
     });
   } finally {
@@ -435,7 +530,8 @@ async function handleStartOverlay(): Promise<void> {
       props.danmakus,
       props.scriptInfo,
       props.config,
-      playerConfig.webPort
+      playerConfig,
+      overlayState.targetHwnd
     );
     startPositionSync(overlayState.targetHwnd, playerConfig);
     overlayState.overlayCreated = true;
@@ -445,6 +541,7 @@ async function handleStartOverlay(): Promise<void> {
     errorHandler.error(error, "启动弹幕覆盖失败", {
       targetHwnd: overlayState.targetHwnd,
       danmakuCount: props.danmakus.length,
+      playerType: playerConfig.playerType,
       port: playerConfig.webPort,
     });
   } finally {
@@ -494,6 +591,7 @@ watch(
 
 watch(
   () => [
+    playerConfig.playerType,
     playerConfig.offsetTop,
     playerConfig.offsetBottom,
     playerConfig.fullscreenOffsetTop,
@@ -506,6 +604,17 @@ watch(
     }
 
     startPositionSync(overlayState.targetHwnd, playerConfig);
+  }
+);
+
+watch(
+  () => playerConfig.playerType,
+  () => {
+    overlayState.connected = false;
+    overlayState.playbackState = "Disconnected";
+    overlayState.targetHwnd = null;
+    playerWindows.value = [];
+    void handleScanPlayerWindows(true);
   }
 );
 

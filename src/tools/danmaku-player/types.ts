@@ -95,14 +95,24 @@ export interface DanmakuConfig {
 
 // ============ 外部播放器模式相关类型 ============
 
-/** MPC-BE Web API 返回的播放状态 */
-export interface MpcBeStatus {
+export type ExternalPlayerType =
+  | "mpc-be"
+  | "mpc-hc"
+  | "potplayer"
+  | "mpv"
+  | "vlc";
+
+/** 外部播放器状态 */
+export interface ExternalPlayerStatus {
   file: string;
   state: "Playing" | "Paused" | "Stopped";
   position: number; // 毫秒
   duration: number; // 毫秒
   volumeLevel: number; // 0-100
 }
+
+/** MPC-BE Web API 返回的播放状态 */
+export type MpcBeStatus = ExternalPlayerStatus;
 
 /** 播放器窗口信息（Rust 侧 find_player_windows 返回） */
 export interface PlayerWindowInfo {
@@ -125,9 +135,13 @@ export interface WindowRect {
 /** 外部播放器连接配置 */
 export interface ExternalPlayerConfig {
   /** 播放器类型 */
-  playerType: "mpc-be" | "potplayer";
-  /** Web API 端口 */
+  playerType: ExternalPlayerType;
+  /** Web API 端口（MPC-BE / MPC-HC / VLC） */
   webPort: number;
+  /** mpv JSON IPC named pipe 路径 */
+  mpvIpcPath: string;
+  /** VLC Web Interface 密码 */
+  vlcPassword: string;
   /** 覆盖区域上边距（像素，窗口化模式） */
   offsetTop: number;
   /** 覆盖区域下边距（像素，窗口化模式） */

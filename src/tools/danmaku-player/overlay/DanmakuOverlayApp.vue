@@ -7,11 +7,12 @@ import { listen } from "@tauri-apps/api/event";
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import { useVirtualClock } from "@tools/danmaku-player/composables/useVirtualClock";
 import { DanmakuEngine } from "@tools/danmaku-player/core/danmakuEngine";
-import { MpcBeClient } from "@tools/danmaku-player/core/mpcBeApi";
+import { TauriExternalPlayerStatusProvider } from "@tools/danmaku-player/core/externalPlayerApi";
 import type {
   AssScriptInfo,
   DanmakuConfig,
-  MpcBeStatus,
+  ExternalPlayerConfig,
+  ExternalPlayerStatus,
   ParsedDanmaku,
 } from "@tools/danmaku-player/types";
 
@@ -19,7 +20,8 @@ interface OverlayInitPayload {
   danmakus: ParsedDanmaku[];
   scriptInfo: AssScriptInfo;
   config: DanmakuConfig;
-  port: number;
+  playerConfig: ExternalPlayerConfig;
+  targetHwnd: number | null;
 }
 
 interface OverlayDanmakuUpdatePayload {
@@ -29,7 +31,8 @@ interface OverlayDanmakuUpdatePayload {
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 let engine: DanmakuEngine | null = null;
-let mpcClient: MpcBeClient | null = null;
+let statusProvider: TauriExternalPlayerStatusProvider | null = null;
+let targetHwnd: number | null = null;
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 let animationId: number | null = null;
 let lastRenderTime = 0;
@@ -64,15 +67,16 @@ function startPolling() {
   if (pollInterval !== null) return;
 
   pollInterval = setInterval(async () => {
-    if (!mpcClient) return;
+    if (!statusProvider) return;
 
     try {
-      const status: MpcBeStatus | null = await mpcClient.getStatus();
+      const status: ExternalPlayerStatus | null =
+        await statusProvider.getStatus(targetHwnd);
       if (status) {
         calibrate(status.position, status.state);
       }
     } catch (error) {
-      console.warn("[DanmakuOverlay] MPC-BE 状态轮询失败", error);
+      console.warn("[DanmakuOverlay] 外部播放器状态轮询失败", error);
     }
   }, POLL_INTERVAL);
 }
@@ -113,7 +117,8 @@ function stopRender() {
 function resetOverlay() {
   stopPolling();
   stopRender();
-  mpcClient = null;
+  statusProvider = null;
+  targetHwnd = null;
   engine = null;
   resetClock();
   clearCanvas();
@@ -122,8 +127,9 @@ function resetOverlay() {
 function handleInit(payload: OverlayInitPayload) {
   resetOverlay();
 
-  const { danmakus, scriptInfo, config, port } = payload;
-  mpcClient = new MpcBeClient(port);
+  const { danmakus, scriptInfo, config, playerConfig } = payload;
+  targetHwnd = payload.targetHwnd;
+  statusProvider = new TauriExternalPlayerStatusProvider(playerConfig);
   initEngine(config, scriptInfo);
 
   if (!engine) {
@@ -140,7 +146,9 @@ function handleInit(payload: OverlayInitPayload) {
 
   console.log("[DanmakuOverlay] 初始化完成", {
     danmakuCount: danmakus.length,
-    port,
+    playerType: playerConfig.playerType,
+    port: playerConfig.webPort,
+    targetHwnd,
   });
 }
 

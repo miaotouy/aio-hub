@@ -177,23 +177,29 @@ export function useDanmakuOverlay() {
     danmakus: ParsedDanmaku[],
     scriptInfo: AssScriptInfo,
     config: DanmakuConfig,
-    port: number
+    playerConfig: ExternalPlayerConfig,
+    targetHwnd: number | null
   ): Promise<void> {
     try {
       await tauriEmit("danmaku-overlay:init", {
         danmakus,
         scriptInfo,
         config,
-        port,
+        playerConfig: { ...playerConfig },
+        targetHwnd,
       });
       logger.info("弹幕覆盖窗口初始化事件已发送", {
         danmakuCount: danmakus.length,
-        port,
+        playerType: playerConfig.playerType,
+        port: playerConfig.webPort,
+        targetHwnd,
       });
     } catch (error) {
       errorHandler.error(error, "初始化弹幕覆盖窗口渲染失败", {
         danmakuCount: danmakus.length,
-        port,
+        playerType: playerConfig.playerType,
+        port: playerConfig.webPort,
+        targetHwnd,
       });
     }
   }

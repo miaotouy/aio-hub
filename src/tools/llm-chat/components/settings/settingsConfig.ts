@@ -1545,7 +1545,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         label: "FFmpeg 路径",
         component: "FileSelector",
         modelPath: "transcription.ffmpegPath",
-        hint: "配置本地 FFmpeg 可执行文件路径以支持大视频压缩。未配置时将尝试直接上传原始视频。",
+        hint: "留空将跟随全局运行环境中的 FFmpeg 路径；填写后仅覆盖聊天转写。",
         keywords: "transcription ffmpeg path video 视频 路径",
         visible: (settings) =>
           settings.transcription.enabled &&

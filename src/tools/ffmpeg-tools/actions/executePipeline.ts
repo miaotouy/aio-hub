@@ -10,7 +10,9 @@ import {
   join,
   appDataDir,
 } from "@tauri-apps/api/path";
+import { computed } from "vue";
 import { useFFmpegStore } from "../ffmpegStore";
+import { useFFmpeg } from "@/composables/useFFmpeg";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { ToolContext } from "@/services/types";
@@ -125,6 +127,9 @@ export async function executePipeline(
   const result = await errorHandler.wrapAsync(
     async () => {
       const store = useFFmpegStore();
+      const { activeFfmpegPath } = useFFmpeg(
+        computed(() => store.config.ffmpegPath)
+      );
       const startTime = Date.now();
       const intermediateFiles: string[] = [];
       const stepResults: Array<{
@@ -206,7 +211,7 @@ export async function executePipeline(
           mode: "custom",
           inputPath,
           outputPath,
-          ffmpegPath: store.config.ffmpegPath,
+          ffmpegPath: activeFfmpegPath.value,
           hwaccel: step.hwaccel ?? true,
           customArgs: step.args,
         };

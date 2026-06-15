@@ -1,7 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { stat } from "@tauri-apps/plugin-fs";
+import { computed } from "vue";
 import { assetManagerEngine } from "@/composables/useAssetManager";
+import { useFFmpeg } from "@/composables/useFFmpeg";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { createModuleLogger } from "@/utils/logger";
 import { parseModelCombo } from "@/utils/modelIdUtils";
@@ -66,7 +68,8 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
     }
 
     if (!reuseTempFile) {
-      const ffmpegPath = config.ffmpegPath;
+      const { activeFfmpegPath } = useFFmpeg(computed(() => config.ffmpegPath));
+      const ffmpegPath = activeFfmpegPath.value;
       const maxDirectSizeMB = config.audio?.maxDirectSizeMB || 10;
 
       const basePath = await assetManagerEngine.getAssetBasePath();
@@ -101,10 +104,10 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
 
           // 监听进度
           const unlisten = await listen<{
-            task_id: string;
+            taskId: string;
             progress: { percent: number };
           }>("ffmpeg-progress", (event) => {
-            if (event.payload.task_id === task.id) {
+            if (event.payload.taskId === task.id) {
               task.progress = event.payload.progress.percent;
             }
           });

@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { computed } from "vue";
 import { useFFmpegStore } from "../ffmpegStore";
+import { useFFmpeg } from "@/composables/useFFmpeg";
 import type { FFmpegParams, MediaMetadata, FFmpegProgress } from "../types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -10,12 +12,13 @@ const errorHandler = createModuleErrorHandler("useFFmpegCore");
 
 export function useFFmpegCore() {
   const store = useFFmpegStore();
+  const ffmpeg = useFFmpeg(computed(() => store.config.ffmpegPath));
 
   /**
    * 检查 FFmpeg 是否可用
    */
   const checkAvailability = async (path: string) => {
-    return await invoke<boolean>("check_ffmpeg_availability", { path });
+    return await ffmpeg.checkAvailability(path);
   };
 
   /**
@@ -25,7 +28,7 @@ export function useFFmpegCore() {
     return await errorHandler.wrapAsync(
       async () => {
         return await invoke<MediaMetadata>("get_media_metadata", {
-          ffmpegPath: store.config.ffmpegPath,
+          ffmpegPath: ffmpeg.activeFfmpegPath.value,
           inputPath,
         });
       },
@@ -40,7 +43,8 @@ export function useFFmpegCore() {
     return await errorHandler.wrapAsync(
       async () => {
         return await invoke<any>("get_full_media_info", {
-          ffmpegPath: store.config.ffmpegPath,
+          ffmpegPath: ffmpeg.activeFfmpegPath.value,
+          ffprobePath: ffmpeg.globalFfprobePath.value,
           inputPath,
         });
       },
@@ -118,6 +122,10 @@ export function useFFmpegCore() {
 
   return {
     checkAvailability,
+    activeFfmpegPath: ffmpeg.activeFfmpegPath,
+    globalFfmpegPath: ffmpeg.globalFfmpegPath,
+    globalFfprobePath: ffmpeg.globalFfprobePath,
+    isUsingGlobal: ffmpeg.isUsingGlobal,
     getMetadata,
     getFullMediaInfo,
     startProcess,

@@ -117,6 +117,7 @@ import {
   Close,
 } from "@element-plus/icons-vue";
 import { useFileDrop } from "@/composables/useFileDrop";
+import { useFFmpeg } from "@/composables/useFFmpeg";
 import { customMessage } from "@/utils/customMessage";
 import { detectFileType } from "@/utils/fileTypeDetector";
 import type {
@@ -138,6 +139,7 @@ interface Emits {
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
+const { activeFfmpegPath } = useFFmpeg();
 
 // 暴露根元素引用
 const rootEl = ref<HTMLElement | undefined>(undefined);
@@ -280,7 +282,7 @@ const { isDraggingOver } = useFileDrop({
             // 尝试获取视频/音频元数据
             try {
               const metadata = await invoke<any>("get_media_metadata", {
-                ffmpegPath: "ffmpeg",
+                ffmpegPath: activeFfmpegPath.value,
                 inputPath: path,
               });
               const duration = Math.round(metadata.duration || 60);

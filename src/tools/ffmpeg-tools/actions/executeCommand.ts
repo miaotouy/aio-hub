@@ -4,7 +4,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { basename, dirname, extname, join } from "@tauri-apps/api/path";
+import { computed } from "vue";
 import { useFFmpegStore } from "../ffmpegStore";
+import { useFFmpeg } from "@/composables/useFFmpeg";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { ToolContext } from "@/services/types";
@@ -75,6 +77,9 @@ export async function executeCommand(
   const result = await errorHandler.wrapAsync(
     async () => {
       const store = useFFmpegStore();
+      const { activeFfmpegPath } = useFFmpeg(
+        computed(() => store.config.ffmpegPath)
+      );
       const startTime = Date.now();
 
       // 验证输入文件存在
@@ -95,7 +100,7 @@ export async function executeCommand(
         mode: "custom",
         inputPath,
         outputPath: resolvedOutput,
-        ffmpegPath: store.config.ffmpegPath,
+        ffmpegPath: activeFfmpegPath.value,
         hwaccel,
         customArgs: ffmpegArgs,
       };

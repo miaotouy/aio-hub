@@ -5,6 +5,7 @@ import {
   appSettingsManager,
   defaultAppSettings,
   defaultAppearanceSettings,
+  defaultEnvironmentSettings,
   type AppSettings,
 } from "@/utils/appSettings";
 
@@ -57,6 +58,11 @@ export const useAppSettingsStore = defineStore("appSettings", () => {
     () => settings.value.appearance ?? defaultAppearanceSettings
   );
 
+  /** 运行环境与外部依赖设置 */
+  const environment = computed(
+    () => settings.value.environment ?? defaultEnvironmentSettings
+  );
+
   /** 主题模式 */
   const theme = computed(() => settings.value.theme ?? "auto");
 
@@ -87,6 +93,7 @@ export const useAppSettingsStore = defineStore("appSettings", () => {
     update,
     reset,
     appearance,
+    environment,
     theme,
     toolsVisible,
     toolsOrder,

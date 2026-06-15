@@ -34,6 +34,7 @@ use commands::{
     cancel_llm_chat_search,
     cancel_move_operation,
     check_asset_manager_document_converter,
+    check_command_version,
     check_ffmpeg_availability,
     clean_temp_dir,
     cleanup_items,
@@ -703,6 +704,7 @@ pub fn run() {
             apply_window_effect,
             list_directory_images,
             // 视频处理命令
+            check_command_version,
             check_ffmpeg_availability,
             process_media,
             kill_ffmpeg_process,

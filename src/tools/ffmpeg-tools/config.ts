@@ -1,7 +1,7 @@
 import type { FFmpegConfig, FFmpegPreset } from "./types";
 
 export const DEFAULT_FFMPEG_CONFIG: FFmpegConfig = {
-  ffmpegPath: "ffmpeg",
+  ffmpegPath: "",
   defaultWorkDir: "",
   maxConcurrentTasks: 2,
   hardwareAcceleration: true,

@@ -179,6 +179,9 @@ export interface AppSettings {
 
   // 下载设置
   download?: DownloadSettings;
+
+  // 运行环境与外部依赖
+  environment?: EnvironmentSettings;
 }
 
 // 默认外观设置
@@ -278,6 +281,42 @@ export interface DownloadSettings {
   showDownloadButtonInTitleBar: boolean; // 是否在标题栏显示下载按钮
 }
 
+export interface EnvironmentRuntimeSettings {
+  javascriptCommand?: string;
+  pythonCommand?: string;
+  shellCommand?: string;
+  powershellCommand?: string;
+}
+
+export interface DocumentConverterEnvironmentSettings {
+  libreOfficePath?: string;
+  abiWordPath?: string;
+}
+
+export interface EnvironmentSettings {
+  ffmpegPath?: string;
+  ffprobePath?: string;
+  gitPath?: string;
+  runtimes?: EnvironmentRuntimeSettings;
+  documentConverters?: DocumentConverterEnvironmentSettings;
+}
+
+export const defaultEnvironmentSettings: EnvironmentSettings = {
+  ffmpegPath: "ffmpeg",
+  ffprobePath: "ffprobe",
+  gitPath: "git",
+  runtimes: {
+    javascriptCommand: "",
+    pythonCommand: "",
+    shellCommand: "",
+    powershellCommand: "",
+  },
+  documentConverters: {
+    libreOfficePath: "",
+    abiWordPath: "",
+  },
+};
+
 // 默认设置
 export const defaultAppSettings: AppSettings = {
   sidebarCollapsed: false,
@@ -337,6 +376,7 @@ export const defaultAppSettings: AppSettings = {
     openFolderAfterDownload: false,
     showDownloadButtonInTitleBar: true,
   },
+  environment: defaultEnvironmentSettings,
   // 默认时区
   timezone: "auto",
 };
@@ -396,6 +436,19 @@ export const appSettingsManager = createConfigManager<AppSettings>({
       ...(loadedConfig.download as DownloadSettings),
     };
 
+    const mergedEnvironment = {
+      ...defaultConfig.environment!,
+      ...(loadedConfig.environment as EnvironmentSettings),
+      runtimes: {
+        ...defaultConfig.environment?.runtimes,
+        ...(loadedConfig.environment?.runtimes || {}),
+      },
+      documentConverters: {
+        ...defaultConfig.environment?.documentConverters,
+        ...(loadedConfig.environment?.documentConverters || {}),
+      },
+    };
+
     return {
       ...defaultConfig,
       ...loadedConfig,
@@ -403,6 +456,7 @@ export const appSettingsManager = createConfigManager<AppSettings>({
       appearance: mergedAppearance,
       proxy: mergedProxy,
       download: mergedDownload,
+      environment: mergedEnvironment,
     };
   },
 });

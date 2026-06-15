@@ -73,6 +73,14 @@ pub struct MediaMetadata {
     pub size: u64,
 }
 
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandVersionInfo {
+    pub available: bool,
+    pub version: Option<String>,
+    pub error: Option<String>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FFProbeOutput {
     pub streams: Vec<FFProbeStream>,
@@ -127,12 +135,17 @@ pub async fn get_media_metadata(ffmpeg_path: String, input_path: String) -> Medi
 pub async fn get_full_media_info(
     ffmpeg_path: String,
     input_path: String,
+    ffprobe_path: Option<String>,
 ) -> Result<FFProbeOutput, String> {
-    // 假设 ffprobe 与 ffmpeg 在同一目录下
-    let ffprobe_path = Path::new(&ffmpeg_path)
-        .parent()
-        .map(|p| p.join("ffprobe"))
-        .unwrap_or_else(|| Path::new("ffprobe").to_path_buf());
+    let ffprobe_path = ffprobe_path
+        .filter(|p| !p.trim().is_empty())
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            Path::new(&ffmpeg_path)
+                .parent()
+                .map(|p| p.join("ffprobe"))
+                .unwrap_or_else(|| Path::new("ffprobe").to_path_buf())
+        });
 
     let output = Command::new(ffprobe_path)
         .arg("-v")
@@ -246,6 +259,45 @@ pub async fn check_ffmpeg_availability(path: String) -> bool {
     match output {
         Ok(output) => output.status.success(),
         Err(_) => false,
+    }
+}
+
+#[tauri::command]
+pub async fn check_command_version(
+    path: String,
+    version_arg: Option<String>,
+) -> CommandVersionInfo {
+    let output = Command::new(&path)
+        .arg(version_arg.unwrap_or_else(|| "--version".to_string()))
+        .output()
+        .await;
+
+    match output {
+        Ok(output) => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let version = stdout
+                .lines()
+                .chain(stderr.lines())
+                .map(str::trim)
+                .find(|line| !line.is_empty())
+                .map(|line| line.to_string());
+
+            CommandVersionInfo {
+                available: output.status.success(),
+                version,
+                error: if output.status.success() {
+                    None
+                } else {
+                    Some(format!("Command exited with status: {}", output.status))
+                },
+            }
+        }
+        Err(error) => CommandVersionInfo {
+            available: false,
+            version: None,
+            error: Some(error.to_string()),
+        },
     }
 }
 

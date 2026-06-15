@@ -214,7 +214,8 @@ import type { MediaMetadata, FFmpegParams } from "../types";
 import { customMessage } from "@/utils/customMessage";
 
 const store = useFFmpegStore();
-const { getMetadata, startProcess, setupListeners } = useFFmpegCore();
+const { activeFfmpegPath, getMetadata, startProcess, setupListeners } =
+  useFFmpegCore();
 const presetManagerRef = ref<InstanceType<typeof FFmpegPresetManager>>();
 
 const currentFilePath = ref("");
@@ -443,7 +444,7 @@ const submitTask = async () => {
 
   const inputDir = await dirname(currentFilePath.value);
   params.outputPath = await join(inputDir, outputName.value);
-  params.ffmpegPath = store.config.ffmpegPath;
+  params.ffmpegPath = activeFfmpegPath.value;
 
   const task = store.addTask({
     name: outputName.value,

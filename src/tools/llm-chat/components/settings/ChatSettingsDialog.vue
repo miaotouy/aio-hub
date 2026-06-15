@@ -277,6 +277,7 @@ const handleReset = async () => {
       confirmButtonText: "确定",
       cancelButtonText: "取消",
       type: "warning",
+      lockScroll: false,
     });
 
     if (bus.windowType === "detached-component") {

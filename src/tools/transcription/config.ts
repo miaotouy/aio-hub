@@ -542,7 +542,7 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
           label: "FFmpeg 路径",
           component: "FileSelector",
           modelPath: "ffmpegPath",
-          hint: "未配置将尝试直接上传",
+          hint: "留空将跟随全局运行环境中的 FFmpeg 路径。",
           keywords: "ffmpeg path 路径",
           action: "selectFFmpegPath",
         },

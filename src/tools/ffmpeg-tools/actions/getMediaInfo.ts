@@ -2,7 +2,9 @@
  * FFmpeg Agent Action: 获取媒体信息
  */
 import { invoke } from "@tauri-apps/api/core";
+import { computed } from "vue";
 import { useFFmpegStore } from "../ffmpegStore";
+import { useFFmpeg } from "@/composables/useFFmpeg";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { MediaMetadata, FFProbeOutput } from "../types";
@@ -46,7 +48,10 @@ export async function getMediaInfo(args: GetMediaInfoArgs): Promise<string> {
   const result = await errorHandler.wrapAsync(
     async () => {
       const store = useFFmpegStore();
-      const ffmpegPath = store.config.ffmpegPath;
+      const { activeFfmpegPath, globalFfprobePath } = useFFmpeg(
+        computed(() => store.config.ffmpegPath)
+      );
+      const ffmpegPath = activeFfmpegPath.value;
 
       // 获取基础元数据
       const metadata = await invoke<MediaMetadata>("get_media_metadata", {
@@ -79,6 +84,7 @@ export async function getMediaInfo(args: GetMediaInfoArgs): Promise<string> {
         try {
           const probeData = await invoke<FFProbeOutput>("get_full_media_info", {
             ffmpegPath,
+            ffprobePath: globalFfprobePath.value,
             inputPath: path,
           });
 

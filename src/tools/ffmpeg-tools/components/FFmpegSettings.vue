@@ -4,14 +4,15 @@
       <el-form-item label="FFmpeg 可执行文件路径">
         <el-input
           v-model="store.config.ffmpegPath"
-          placeholder="例如: ffmpeg 或 C:\ffmpeg\bin\ffmpeg.exe"
+          :placeholder="`跟随全局配置 (当前: ${globalFfmpegPath})`"
         >
           <template #append>
             <el-button @click="testFFmpeg">测试</el-button>
           </template>
         </el-input>
         <div class="help-text">
-          如果 FFmpeg 已加入系统环境变量，直接填写 "ffmpeg" 即可。
+          留空将跟随全局运行环境设置；填写后仅覆盖多媒体工作台。
+          <span v-if="isUsingGlobal">当前使用：{{ activeFfmpegPath }}</span>
         </div>
       </el-form-item>
 
@@ -53,10 +54,11 @@ import { useFFmpegCore } from "../composables/useFFmpegCore";
 import { customMessage } from "@/utils/customMessage";
 
 const store = useFFmpegStore();
-const { checkAvailability } = useFFmpegCore();
+const { checkAvailability, activeFfmpegPath, globalFfmpegPath, isUsingGlobal } =
+  useFFmpegCore();
 
 const testFFmpeg = async () => {
-  const ok = await checkAvailability(store.config.ffmpegPath);
+  const ok = await checkAvailability(activeFfmpegPath.value);
   if (ok) {
     customMessage.success("FFmpeg 路径有效");
   } else {

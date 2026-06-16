@@ -159,6 +159,7 @@
     "markdown-it-texmath": "^1.0.0",
     "mermaid": "^11.14.0",
     "minimatch": "^10.2.4",
+    "modern-screenshot": "^4.7.0",
     "monaco-editor": "^0.55.1",
     "music-metadata-browser": "^2.5.11",
     "nanoid": "^5.1.7",

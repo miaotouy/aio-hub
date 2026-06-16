@@ -47,6 +47,10 @@
         <el-tab-pane label="IME输入测试" name="ime-input">
           <IMEInputTester />
         </el-tab-pane>
+
+        <el-tab-pane label="截图方案测试" name="screenshot">
+          <ScreenshotTester />
+        </el-tab-pane>
       </el-tabs>
     </div>
   </div>
@@ -64,6 +68,7 @@ import DocumentViewerTester from "./components/DocumentViewerTester.vue";
 import StoragePerformanceTester from "./components/StoragePerformanceTester.vue";
 import DownloadTester from "./components/DownloadTester.vue";
 import IMEInputTester from "./components/IMEInputTester.vue";
+import ScreenshotTester from "./components/ScreenshotTester.vue";
 
 const activeTab = ref("native");
 </script>

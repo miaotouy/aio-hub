@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from "vue";
 
 interface Props {
   value: string;
@@ -36,12 +43,132 @@ const shadowValue = computed(() => {
   return localValue.value;
 });
 
+// ===== 撤销/重做栈 =====
+interface HistoryEntry {
+  value: string;
+  cursorStart: number;
+  cursorEnd: number;
+}
+
+const MAX_HISTORY_SIZE = 100;
+const undoStack: HistoryEntry[] = [];
+const redoStack: HistoryEntry[] = [];
+let isUndoRedoing = false;
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+function getCursorPos(): { start: number; end: number } {
+  const el = textareaEl.value;
+  if (!el) return { start: 0, end: 0 };
+  return { start: el.selectionStart, end: el.selectionEnd };
+}
+
+function pushToUndoStack(entry: HistoryEntry) {
+  if (isUndoRedoing) return;
+  // 值未变化不入栈
+  if (
+    undoStack.length > 0 &&
+    undoStack[undoStack.length - 1].value === entry.value
+  )
+    return;
+  undoStack.push(entry);
+  if (undoStack.length > MAX_HISTORY_SIZE) {
+    undoStack.shift();
+  }
+  // 新变更清空重做栈
+  redoStack.length = 0;
+}
+
+function commitCurrentState() {
+  const { start, end } = getCursorPos();
+  pushToUndoStack({
+    value: localValue.value,
+    cursorStart: start,
+    cursorEnd: end,
+  });
+}
+
+/** 刷出待提交的防抖状态 */
+function flushDebouncedCommit() {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+    commitCurrentState();
+  }
+}
+
+/** 用户输入防抖提交（400ms 合并快速连续输入为一次撤销步） */
+function scheduleCommit() {
+  if (debounceTimer) clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => {
+    commitCurrentState();
+    debounceTimer = null;
+  }, 400);
+}
+
+function initHistory() {
+  undoStack.length = 0;
+  redoStack.length = 0;
+  const { start, end } = getCursorPos();
+  undoStack.push({
+    value: localValue.value,
+    cursorStart: start,
+    cursorEnd: end,
+  });
+}
+
+function handleUndo() {
+  flushDebouncedCommit();
+  if (undoStack.length <= 1) return; // 保留至少初始状态
+
+  isUndoRedoing = true;
+  const current = undoStack.pop()!;
+  redoStack.push(current);
+
+  const previous = undoStack[undoStack.length - 1];
+  localValue.value = previous.value;
+
+  nextTick(() => {
+    const el = textareaEl.value;
+    if (el) {
+      el.setSelectionRange(previous.cursorStart, previous.cursorEnd);
+    }
+    isUndoRedoing = false;
+  });
+}
+
+function handleRedo() {
+  flushDebouncedCommit();
+  if (redoStack.length === 0) return;
+
+  isUndoRedoing = true;
+  const next = redoStack.pop()!;
+  undoStack.push(next);
+
+  localValue.value = next.value;
+
+  nextTick(() => {
+    const el = textareaEl.value;
+    if (el) {
+      el.setSelectionRange(next.cursorStart, next.cursorEnd);
+    }
+    isUndoRedoing = false;
+  });
+}
+
+// ===== End 撤销/重做栈 =====
+
 // 从外部同步
 watch(
   () => props.value,
   (newVal) => {
     if (newVal !== localValue.value) {
+      flushDebouncedCommit();
       localValue.value = newVal;
+      // 外部同步也入栈，保持与 CodeMirror 行为一致（发送清空后可 undo 回来）
+      nextTick(() => {
+        const { start, end } = getCursorPos();
+        pushToUndoStack({ value: newVal, cursorStart: start, cursorEnd: end });
+      });
     }
   }
 );
@@ -54,13 +181,29 @@ watch(localValue, (newVal) => {
 });
 
 const handleInput = () => {
-  // 输入变化自动通过 watch 同步
+  // 用户输入防抖入栈，通过 watch 同步到外部
+  scheduleCommit();
 };
 
 const handleKeydown = (e: KeyboardEvent) => {
   emit("keydown", e);
 
   if (e.isComposing) return;
+
+  // 拦截撤销/重做快捷键，使用自定义栈替代浏览器原生行为
+  if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
+    e.preventDefault();
+    handleUndo();
+    return;
+  }
+  if (
+    ((e.ctrlKey || e.metaKey) && e.key === "y") ||
+    ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "Z")
+  ) {
+    e.preventDefault();
+    handleRedo();
+    return;
+  }
 
   if (props.sendKey === "ctrl+enter") {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
@@ -76,8 +219,21 @@ const handleKeydown = (e: KeyboardEvent) => {
 };
 
 const handlePaste = (e: ClipboardEvent) => {
+  // 粘贴前先刷出待提交状态，确保粘贴前快照已入栈
+  flushDebouncedCommit();
   emit("paste", e);
 };
+
+onMounted(() => {
+  initHistory();
+});
+
+onBeforeUnmount(() => {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+});
 
 // 暴露接口与 ChatCodeMirrorEditor 对齐
 defineExpose({
@@ -95,6 +251,7 @@ defineExpose({
   insertText: (text: string, from?: number, to?: number) => {
     const el = textareaEl.value;
     if (!el) return;
+    flushDebouncedCommit();
     const insertFrom = from ?? el.selectionStart;
     const insertTo = to ?? el.selectionEnd;
     const before = localValue.value.slice(0, insertFrom);
@@ -104,16 +261,34 @@ defineExpose({
     const newPos = insertFrom + text.length;
     el.setSelectionRange(newPos, newPos);
     el.focus();
+    // 程序化变更立即入栈
+    pushToUndoStack({
+      value: localValue.value,
+      cursorStart: newPos,
+      cursorEnd: newPos,
+    });
   },
   replaceRange: (text: string, from: number, to: number) => {
     const el = textareaEl.value;
     if (!el) return;
+    flushDebouncedCommit();
     const before = localValue.value.slice(0, from);
     const after = localValue.value.slice(to);
     localValue.value = before + text + after;
     // 不移动光标（静默替换）
+    // 程序化变更立即入栈，nextTick 后读取实际光标位
+    nextTick(() => {
+      const { start, end } = getCursorPos();
+      pushToUndoStack({
+        value: localValue.value,
+        cursorStart: start,
+        cursorEnd: end,
+      });
+    });
   },
   getValue: () => localValue.value,
+  undo: handleUndo,
+  redo: handleRedo,
 });
 </script>
 

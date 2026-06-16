@@ -15,6 +15,8 @@ export const HEADER_TEMPLATE_VARIABLES: Record<string, string> = {
   "{{userAgent}}": "完整 User-Agent 字符串",
   "{{secChUa}}": "sec-ch-ua 请求头值",
   "{{secChUaPlatform}}": "sec-ch-ua-platform 请求头值",
+  "{{appOrigin}}": "应用来源 URL (如 https://aiohub-app.com)",
+  "{{acceptLanguage}}": "界面语言 (如 zh-CN, en-US)，跟随语言设置变化",
 };
 
 /**
@@ -29,13 +31,19 @@ export function resolveCustomHeaders(
   const ctx = getAppContext();
   const resolved: Record<string, string> = {};
 
+  const origin = ctx.appName
+    ? `https://${ctx.appName.toLowerCase().replace(/\s+/g, "-")}.app`
+    : "https://aiohub-app.com";
+
   for (const [key, value] of Object.entries(headers)) {
     resolved[key] = value
       .replace(/\{\{appName\}\}/g, ctx.appName)
       .replace(/\{\{appVersion\}\}/g, ctx.appVersion)
       .replace(/\{\{userAgent\}\}/g, ctx.userAgent)
       .replace(/\{\{secChUa\}\}/g, ctx.secChUa)
-      .replace(/\{\{secChUaPlatform\}\}/g, ctx.secChUaPlatform);
+      .replace(/\{\{secChUaPlatform\}\}/g, ctx.secChUaPlatform)
+      .replace(/\{\{appOrigin\}\}/g, origin)
+      .replace(/\{\{acceptLanguage\}\}/g, ctx.acceptLanguage);
   }
 
   return resolved;
@@ -49,19 +57,22 @@ export function getCustomHeaderPresets(): PresetHeader[] {
   return [
     {
       name: "AIO Hub 默认",
-      description: "AIO Hub 官方推荐请求头，标识客户端身份与环境信息",
+      description: "AIO Hub 官方推荐请求头，标识客户端身份、来源与环境信息",
       headers: {
         "User-Agent": "{{userAgent}}",
         "X-App-Name": "{{appName}}",
         "X-App-Version": "{{appVersion}}",
         "x-title": "{{appName}}",
+        "HTTP-Referer": "{{appOrigin}}",
+        Origin: "{{appOrigin}}",
+        "X-OpenRouter-Title": "{{appName}}",
         "sec-ch-ua": "{{secChUa}}",
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": "{{secChUaPlatform}}",
         "sec-fetch-site": "cross-site",
         "sec-fetch-mode": "cors",
         "sec-fetch-dest": "empty",
-        "accept-language": "zh-CN",
+        "accept-language": "{{acceptLanguage}}",
       },
     },
     {
@@ -75,7 +86,7 @@ export function getCustomHeaderPresets(): PresetHeader[] {
         "sec-fetch-site": "cross-site",
         "sec-fetch-mode": "cors",
         "sec-fetch-dest": "empty",
-        "accept-language": "zh-CN",
+        "accept-language": "{{acceptLanguage}}",
         "x-title": "{{appName}}",
       },
     },
@@ -149,12 +160,15 @@ export function getAioDefaultHeaders(): Record<string, string> {
     "X-App-Name": "{{appName}}",
     "X-App-Version": "{{appVersion}}",
     "x-title": "{{appName}}",
+    "HTTP-Referer": "{{appOrigin}}",
+    Origin: "{{appOrigin}}",
+    "X-OpenRouter-Title": "{{appName}}",
     "sec-ch-ua": "{{secChUa}}",
     "sec-ch-ua-mobile": "?0",
     "sec-ch-ua-platform": "{{secChUaPlatform}}",
     "sec-fetch-site": "cross-site",
     "sec-fetch-mode": "cors",
     "sec-fetch-dest": "empty",
-    "accept-language": "zh-CN",
+    "accept-language": "{{acceptLanguage}}",
   };
 }

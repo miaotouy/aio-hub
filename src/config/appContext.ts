@@ -18,6 +18,8 @@ export interface AppContextData {
   secChUa: string;
   /** sec-ch-ua-platform 请求头值 */
   secChUaPlatform: string;
+  /** 应用界面语言 (如 "zh-CN", "en-US")，与全局语言设置同步 */
+  acceptLanguage: string;
 }
 
 interface NavigatorUAData {
@@ -62,7 +64,16 @@ export async function initAppContext(): Promise<void> {
     }
   }
 
-  cached = { appName, appVersion, userAgent, secChUa, secChUaPlatform };
+  const acceptLanguage = navigator.language || "zh-CN";
+
+  cached = {
+    appName,
+    appVersion,
+    userAgent,
+    secChUa,
+    secChUaPlatform,
+    acceptLanguage,
+  };
 }
 
 /**
@@ -77,6 +88,7 @@ export function getAppContext(): AppContextData {
       userAgent: navigator.userAgent,
       secChUa: '"Not:A-Brand";v="24", "Chromium";v="134"',
       secChUaPlatform: '"Windows"',
+      acceptLanguage: navigator.language || "zh-CN",
     };
   }
   return cached;

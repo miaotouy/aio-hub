@@ -22,6 +22,12 @@ async function processImageAsset(
 ): Promise<LlmMessageContent[]> {
   let imageBuffer: ArrayBuffer = buffer;
 
+  // 验证图片是否有效（防止损坏的图片或不支持的格式如 wmf/emf 穿透到上游 API 导致 400 报错）
+  const dims = await getImageDimensions(imageBuffer);
+  if (dims.width === 0 || dims.height === 0) {
+    throw new Error("图片尺寸为 0，可能格式不支持（如 wmf/emf）或已损坏");
+  }
+
   // 1. 模型安全约束缩放
   const maxDim = context.capabilities?.maxImageDimension;
   if (maxDim && maxDim > 0) {

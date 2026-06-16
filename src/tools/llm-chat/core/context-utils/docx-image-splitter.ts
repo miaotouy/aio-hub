@@ -57,6 +57,19 @@ async function buildImageAsset(
     const buffer = base64ToArrayBuffer(img.base64);
     const dims = await getImageDimensions(buffer);
 
+    // 过滤无法被浏览器加载的图片（可能是损坏的图片，或是不支持的格式如 wmf/emf）
+    if (dims.width === 0 || dims.height === 0) {
+      logger.warn(
+        "图片无法被浏览器加载（尺寸为 0），可能是损坏的图片或不支持的格式（如 wmf/emf），将跳过该图片",
+        {
+          imgIndex: img.index,
+          docxAssetId: docxAsset.id,
+          mimeType: img.mimeType,
+        }
+      );
+      return null;
+    }
+
     return {
       id: `docx-img-${docxAsset.id}-${img.index}`,
       type: "image",

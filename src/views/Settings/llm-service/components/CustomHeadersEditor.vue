@@ -4,6 +4,10 @@ import { getName, getVersion } from "@tauri-apps/api/app";
 import { Plus, Delete, DocumentCopy } from "@element-plus/icons-vue";
 import { customMessage } from "@/utils/customMessage";
 import BaseDialog from "@/components/common/BaseDialog.vue";
+import {
+  getCustomHeaderPresets,
+  type PresetHeader,
+} from "../config/customHeadersPresets";
 
 interface Props {
   visible: boolean;
@@ -99,47 +103,14 @@ onMounted(async () => {
   }
 });
 
-// 预设模板
-const presets = computed(() => [
-  {
-    name: "丰富的信息",
-    description: "模仿市面上常见客户端的请求头",
-    headers: {
-      "User-Agent": userAgent.value,
-      "sec-ch-ua": secChUa.value,
-      "sec-ch-ua-mobile": "?0",
-      "sec-ch-ua-platform": secChUaPlatform.value,
-      "sec-fetch-site": "cross-site",
-      "sec-fetch-mode": "cors",
-      "sec-fetch-dest": "empty",
-      "accept-language": "zh-CN",
-      "x-title": "AIO Hub",
-    },
-  },
-  {
-    name: "超时控制",
-    description: "添加自定义超时时间（类似 Stainless SDK）",
-    headers: {
-      "x-stainless-timeout": "600",
-      "x-stainless-retry-count": "0",
-    },
-  },
-  {
-    name: "压缩支持",
-    description: "启用多种压缩算法",
-    headers: {
-      "accept-encoding": "gzip, deflate, br, zstd",
-    },
-  },
-  {
-    name: "来源标识",
-    description: "标识请求来源（用户填自己的）",
-    headers: {
-      "http-referer": "https://your-app.com",
-      origin: "https://your-app.com",
-    },
-  },
-]);
+// 预设模板（从配置文件加载）
+const presets = computed<PresetHeader[]>(() =>
+  getCustomHeaderPresets({
+    userAgent: userAgent.value,
+    secChUa: secChUa.value,
+    secChUaPlatform: secChUaPlatform.value,
+  })
+);
 
 // 添加新请求头
 function addHeader() {
@@ -159,7 +130,7 @@ function removeHeader(id: string) {
 }
 
 // 应用预设
-function applyPreset(preset: (typeof presets.value)[0]) {
+function applyPreset(preset: PresetHeader) {
   // 合并预设到现有请求头
   Object.entries(preset.headers).forEach(([key, value]) => {
     const existing = tempHeaders.value.find((h) => h.key === key);

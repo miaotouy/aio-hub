@@ -203,7 +203,6 @@ pub struct FileStatus {
     pub status: String, // 短格式，与 git_analyzer::delta_status_str() 对齐："M" / "A" / "D" / "U" / "R" / "C" / "T"
     pub is_binary: bool, // 是否为二进制文件（由 crate::utils::mime::is_text_file() 判定）
 }
-}
 ```
 
 ### 5.2. 核心 Tauri 命令
@@ -222,11 +221,15 @@ pub struct FileStatus {
     - 将指定文件移出暂存区（相当于 `git reset HEAD`）。
 5.  **`git_commit(path: String, message: String) -> Result<(), String>`**
     - 提交暂存区的更改。
-6.  **`git_push(path: String) -> Result<(), String>`**
+    - **提交者身份 (Signature)**：通过 `repo.signature()` 读取仓库局部 / 全局 git config 中的 `user.name` 与 `user.email`。
+    - **防坑**：若用户从未配置 git 身份，`repo.signature()` 会直接报错。此时必须捕获并返回**友好的中文错误提示**（如「该仓库未配置提交者身份，请先执行 `git config user.name` / `user.email`」），而非抛出 git2 原始错误，避免用户首次提交时一头雾水。
+6.  **`git_push(app: AppHandle, path: String) -> Result<(), String>`**
     - 推送更改到远程仓库（回退到系统 `git push` 命令行执行，以处理凭据和网络代理）。
-    - **安全措施**：执行前注入环境变量 `GIT_TERMINAL_PROMPT=0`（阻止交互式凭据输入导致进程永久挂起）；通过 `config_manager::get_proxy_settings()` 获取用户代理配置并注入 `http_proxy` / `https_proxy` 环境变量；设置 30 秒超时自动 kill 子进程。
-7.  **`git_pull(path: String) -> Result<(), String>`**
+    - **签名说明**：必须接收 Tauri 注入的 `app: AppHandle`，因为 `config_manager::get_proxy_settings(app: &AppHandle)` 依赖它读取 `settings.json` 中的代理配置。
+    - **安全措施**：执行前注入环境变量 `GIT_TERMINAL_PROMPT=0`（阻止交互式凭据输入导致进程永久挂起）；通过 `config_manager::get_proxy_settings(&app)` 获取用户代理配置并注入 `http_proxy` / `https_proxy` 环境变量；设置 30 秒超时自动 kill 子进程。
+7.  **`git_pull(app: AppHandle, path: String) -> Result<(), String>`**
     - 从远程仓库拉取更改（回退到系统 `git pull` 命令行执行）。
+    - **签名说明**：同 `git_push`，必须接收 `app: AppHandle`。
     - **安全措施**：同 `git_push`，注入 `GIT_TERMINAL_PROMPT=0`、代理环境变量和超时保护。
 
 ---

@@ -49,12 +49,22 @@ export async function fetchModelsFromApi(
     endpoint: providerInfo.modelListEndpoint,
   });
 
-  const url = buildLlmApiUrl(
+  let url = buildLlmApiUrl(
     profile.baseUrl,
     profile.type,
     providerInfo.modelListEndpoint,
     profile
   );
+
+  // OpenRouter 默认只返回 text 类型模型，需要添加 output_modalities=all 获取完整列表
+  // 同时兼容用户以 openai/openai-compatible 类型配置 OpenRouter baseUrl 的情况
+  if (
+    profile.type === "openrouter" ||
+    profile.baseUrl.includes("openrouter.ai")
+  ) {
+    const separator = url.includes("?") ? "&" : "?";
+    url += `${separator}output_modalities=all`;
+  }
   const apiKey =
     profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
 

@@ -575,6 +575,7 @@ const networkSettingSummary = computed(() => {
                     type="primary"
                     plain
                     size="small"
+                    style="margin-right: 8px"
                     @click="showCustomHeadersDialog = true"
                   >
                     编辑请求头
@@ -597,6 +598,7 @@ const networkSettingSummary = computed(() => {
                     type="primary"
                     plain
                     size="small"
+                    style="margin-right: 8px"
                     @click="showCustomEndpointsDialog = true"
                   >
                     编辑端点

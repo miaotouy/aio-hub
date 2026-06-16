@@ -3,7 +3,7 @@
     <header class="tool-header">
       <div class="title-area">
         <FlaskConical class="title-icon" />
-        <h2 class="title">组件测试器</h2>
+        <h4 class="title">组件测试器</h4>
       </div>
       <div class="actions">
         <!-- 可以在这里放一些全局操作 -->

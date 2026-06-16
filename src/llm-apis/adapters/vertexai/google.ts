@@ -24,6 +24,7 @@ import {
   buildVertexAiTools,
   buildVertexAiToolConfig,
 } from "./utils";
+import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 
 const logger = createModuleLogger("VertexAiGoogle");
 
@@ -149,9 +150,7 @@ export async function callVertexAiGemini(
     Authorization: `Bearer ${apiKey}`,
   };
 
-  if (profile.customHeaders) {
-    Object.assign(headers, profile.customHeaders);
-  }
+  Object.assign(headers, resolveCustomHeaders(profile.customHeaders));
 
   // 流式响应
   if (options.stream && options.onStream) {
@@ -351,9 +350,7 @@ export async function callVertexAiEmbeddingApi(
     Authorization: `Bearer ${apiKey}`,
   };
 
-  if (profile.customHeaders) {
-    Object.assign(headers, profile.customHeaders);
-  }
+  Object.assign(headers, resolveCustomHeaders(profile.customHeaders));
 
   const taskType = options.taskType || "RETRIEVAL_QUERY";
   const inputs = Array.isArray(options.input) ? options.input : [options.input];

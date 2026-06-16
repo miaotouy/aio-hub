@@ -11,6 +11,7 @@ import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useModelMetadataStore } from "./modelMetadataStore";
+import { initAppContext } from "@/config/appContext";
 
 const logger = createModuleLogger("stores/appInitStore");
 const errorHandler = createModuleErrorHandler("stores/appInitStore");
@@ -74,6 +75,9 @@ export const useAppInitStore = defineStore("appInit", () => {
       const appSettingsStore = useAppSettingsStore();
       const settings = await appSettingsStore.load();
 
+      // 1.5 初始化应用上下文（缓存应用名称、版本号等，供请求头模板变量使用）
+      await initAppContext();
+
       // 2. 应用日志配置
       setProgress(15, "配置日志系统...");
       applyLogConfig(settings);
@@ -111,7 +115,6 @@ export const useAppInitStore = defineStore("appInit", () => {
         const { initializeSyncBus } = useWindowSyncBus();
         await initializeSyncBus();
       });
-
     } catch (err: any) {
       error.value = err;
       statusText.value = `初始化失败: ${err.message || "未知错误"}`;
@@ -132,6 +135,9 @@ export const useAppInitStore = defineStore("appInit", () => {
       setProgress(10, "加载设置...");
       const appSettingsStore = useAppSettingsStore();
       const settings = await appSettingsStore.load();
+
+      // 1.5 初始化应用上下文（缓存应用名称、版本号等，供请求头模板变量使用）
+      await initAppContext();
 
       // 2. 应用日志配置
       setProgress(15, "配置日志...");

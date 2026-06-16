@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from "vue";
-import { getName, getVersion } from "@tauri-apps/api/app";
+import { ref, computed, watch } from "vue";
 import { Plus, Delete, DocumentCopy } from "@element-plus/icons-vue";
 import { customMessage } from "@/utils/customMessage";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import {
   getCustomHeaderPresets,
+  resolveCustomHeaders,
+  HEADER_TEMPLATE_VARIABLES,
   type PresetHeader,
 } from "../config/customHeadersPresets";
 
@@ -58,59 +59,27 @@ watch(
   { immediate: true }
 );
 
-// 为 navigator.userAgentData 添加类型定义
-interface NavigatorUAData {
-  readonly brands: { brand: string; version: string }[];
-  readonly mobile: boolean;
-  readonly platform: string;
+// 预设模板（从配置文件加载，使用模板变量）
+const presets = computed<PresetHeader[]>(() => getCustomHeaderPresets());
+
+// 模板变量列表（用于 UI 提示）
+const templateVars = HEADER_TEMPLATE_VARIABLES;
+
+/**
+ * 检查值中是否包含模板变量
+ */
+function hasTemplateVar(value: string): boolean {
+  return /\{\{.+?\}\}/.test(value);
 }
 
-// 动态生成请求头
-const userAgent = ref(
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/5.36 (KHTML, like Gecko) YourApp/1.0.0 Chrome/134.0.0.0 Safari/537.36"
-);
-const secChUa = ref('"Not:A-Brand";v="24", "Chromium";v="134"');
-const secChUaPlatform = ref('"Windows"');
-
-onMounted(async () => {
-  try {
-    const appName = await getName();
-    const appVersion = await getVersion();
-    const baseUa = navigator.userAgent;
-
-    userAgent.value = `${baseUa} ${appName}/${appVersion}`;
-
-    const nav = navigator as Navigator & { userAgentData: NavigatorUAData };
-
-    if (nav.userAgentData) {
-      const uaData = nav.userAgentData;
-      secChUaPlatform.value = `"${uaData.platform}"`;
-
-      if (uaData.brands) {
-        secChUa.value = uaData.brands
-          .map((b) => `"${b.brand}";v="${b.version}"`)
-          .join(", ");
-      }
-    } else {
-      const platformMatch = baseUa.match(/Windows|Mac|Linux/);
-      if (platformMatch) {
-        secChUaPlatform.value = `"${platformMatch[0]}"`;
-      }
-    }
-  } catch (error) {
-    console.error("Failed to get system info for User-Agent:", error);
-    userAgent.value = navigator.userAgent;
-  }
-});
-
-// 预设模板（从配置文件加载）
-const presets = computed<PresetHeader[]>(() =>
-  getCustomHeaderPresets({
-    userAgent: userAgent.value,
-    secChUa: secChUa.value,
-    secChUaPlatform: secChUaPlatform.value,
-  })
-);
+/**
+ * 获取模板变量的解析预览
+ */
+function getResolvedPreview(value: string): string {
+  if (!hasTemplateVar(value)) return "";
+  const resolved = resolveCustomHeaders({ _: value });
+  return resolved["_"];
+}
 
 // 添加新请求头
 function addHeader() {
@@ -258,15 +227,50 @@ function handleCancel() {
               >
                 <template #prepend>Key</template>
               </el-input>
-              <el-input v-model="header.value" placeholder="请求头值">
-                <template #prepend>Value</template>
-              </el-input>
+              <div class="value-input-wrapper">
+                <el-input
+                  v-model="header.value"
+                  placeholder="请求头值（支持 {{变量}} 模板）"
+                >
+                  <template #prepend>Value</template>
+                </el-input>
+                <div
+                  v-if="hasTemplateVar(header.value)"
+                  class="resolved-preview"
+                  :title="getResolvedPreview(header.value)"
+                >
+                  → {{ getResolvedPreview(header.value) }}
+                </div>
+              </div>
               <el-button
                 type="danger"
                 :icon="Delete"
                 circle
                 @click="removeHeader(header.id)"
               />
+            </div>
+          </div>
+        </div>
+
+        <!-- 模板变量提示 -->
+        <div class="info-alert">
+          <div class="alert-content">
+            <div>💡 <strong>动态模板变量：</strong></div>
+            <ul>
+              <li v-for="(desc, varName) in templateVars" :key="varName">
+                <code class="var-code">{{ varName }}</code> — {{ desc }}
+              </li>
+            </ul>
+            <div
+              style="
+                margin-top: 8px;
+                font-size: 12px;
+                color: var(--text-secondary);
+              "
+            >
+              在请求头值中使用
+              <code class="var-code">{{ '{{appName}}' }}</code>
+              等模板变量，发送请求时会自动替换为当前真实值（如版本号更新后无需手动修改）
             </div>
           </div>
         </div>
@@ -279,9 +283,6 @@ function handleCancel() {
               <li>自定义请求头会添加到所有 API 请求中</li>
               <li>某些请求头可能会被 API 提供商忽略或覆盖</li>
               <li>建议仅添加必要的请求头，避免潜在的兼容性问题</li>
-              <li>
-                Cherry Studio 风格的请求头可以让 API 提供商更好地识别客户端类型
-              </li>
             </ul>
           </div>
         </div>
@@ -408,7 +409,32 @@ function handleCancel() {
   display: grid;
   grid-template-columns: 1fr 2fr auto;
   gap: 8px;
-  align-items: center;
+  align-items: start;
+}
+
+.value-input-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.resolved-preview {
+  font-size: 11px;
+  color: var(--el-color-success);
+  padding: 0 0 0 68px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.var-code {
+  background: rgba(var(--el-color-primary-rgb), 0.1);
+  color: var(--el-color-primary);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 12px;
 }
 
 /* 提示框 */

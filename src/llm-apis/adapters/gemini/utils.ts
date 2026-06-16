@@ -6,6 +6,7 @@ import type {
 } from "@/llm-apis/common";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
 import { DEFAULT_METADATA_RULES, testRuleMatch } from "@/config/model-metadata";
+import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 import {
   parseMessageContents,
   extractToolDefinitions,
@@ -157,9 +158,7 @@ export function buildGeminiHeaders(
     headers["X-Request-ID"] = requestId;
   }
 
-  if (profile.customHeaders) {
-    Object.assign(headers, profile.customHeaders);
-  }
+  Object.assign(headers, resolveCustomHeaders(profile.customHeaders));
 
   return headers;
 }

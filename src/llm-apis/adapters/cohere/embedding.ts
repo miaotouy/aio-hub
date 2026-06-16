@@ -5,6 +5,7 @@ import type {
 } from "@/llm-apis/embedding-types";
 import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
 import { asyncJsonStringify } from "@/utils/serialization";
+import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 
 /**
  * 调用 Cohere Embedding API (V2)
@@ -45,9 +46,7 @@ export const callCohereEmbeddingApi = async (
     headers["X-Request-ID"] = options.requestId;
   }
 
-  if (profile.customHeaders) {
-    Object.assign(headers, profile.customHeaders);
-  }
+  Object.assign(headers, resolveCustomHeaders(profile.customHeaders));
 
   const response = await fetchWithTimeout(
     url,

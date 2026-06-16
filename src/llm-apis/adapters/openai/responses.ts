@@ -12,6 +12,7 @@ import {
 import { asyncJsonStringify } from "@/utils/serialization";
 import { openAiResponsesUrlHandler } from "./utils";
 import { createModuleLogger } from "@/utils/logger";
+import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 
 const logger = createModuleLogger("llm-apis/openai-responses");
 
@@ -36,9 +37,7 @@ export const callOpenAiResponsesApi = async (
     headers["Authorization"] = `Bearer ${profile.apiKeys[0]}`;
   }
 
-  if (profile.customHeaders) {
-    Object.assign(headers, profile.customHeaders);
-  }
+  Object.assign(headers, resolveCustomHeaders(profile.customHeaders));
 
   const systemMessages = (options.messages || []).filter(
     (m) => m.role === "system"

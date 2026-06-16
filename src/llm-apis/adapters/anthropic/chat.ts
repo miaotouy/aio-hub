@@ -17,6 +17,7 @@ import {
   convertToolChoice,
   ClaudeRequest,
 } from "./utils";
+import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 
 const logger = createModuleLogger("anthropic-chat");
 const errorHandler = createModuleErrorHandler("anthropic-chat");
@@ -219,7 +220,7 @@ export const callClaudeChatApi = async (
   if (options.thinkingEnabled) betas.push("thinking-2025-12-05");
   betas.push("files-api-2025-04-14");
   if (betas.length > 0) headers["anthropic-beta"] = betas.join(",");
-  if (profile.customHeaders) Object.assign(headers, profile.customHeaders);
+  Object.assign(headers, resolveCustomHeaders(profile.customHeaders));
 
   logger.info("发送 Claude API 请求", {
     model: options.modelId,

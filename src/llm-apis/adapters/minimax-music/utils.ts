@@ -9,6 +9,7 @@ import type {
   MinimaxLyricsResponse,
   MinimaxMusicOutputFormat,
 } from "./types";
+import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 
 export const MINIMAX_MUSIC_PATHS = {
   lyricsGeneration: "/v1/lyrics_generation",
@@ -47,9 +48,7 @@ export function buildMinimaxMusicHeaders(
     headers["X-Request-ID"] = config.requestId;
   }
 
-  if (config.customHeaders) {
-    Object.assign(headers, config.customHeaders);
-  }
+  Object.assign(headers, resolveCustomHeaders(config.customHeaders));
 
   return headers;
 }

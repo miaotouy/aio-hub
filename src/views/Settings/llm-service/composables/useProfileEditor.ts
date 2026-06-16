@@ -9,6 +9,7 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { providerTypes } from "@/config/llm-providers";
 import type { LlmProfile, ProviderType } from "@/types/llm-profiles";
 import type { LlmPreset } from "@/config/llm-presets";
+import { getAioDefaultHeaders } from "../config/customHeadersPresets";
 
 export function useProfileEditor() {
   const {
@@ -135,6 +136,7 @@ export function useProfileEditor() {
       relaxIdCerts: false,
       http1Only: true,
       options: {},
+      customHeaders: getAioDefaultHeaders(),
     };
     apiKeyInput.value = "";
     selectedProfileId.value = editForm.value.id;

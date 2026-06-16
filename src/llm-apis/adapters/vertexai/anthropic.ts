@@ -14,6 +14,7 @@ import {
 } from "@/llm-apis/request-builder";
 import { asyncJsonStringify } from "@/utils/serialization";
 import { VertexAiClaudeRequest, buildClaudeMessages } from "./utils";
+import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 
 const logger = createModuleLogger("VertexAiAnthropic");
 
@@ -81,9 +82,7 @@ export async function callVertexAiClaude(
     Authorization: `Bearer ${apiKey}`,
   };
 
-  if (profile.customHeaders) {
-    Object.assign(headers, profile.customHeaders);
-  }
+  Object.assign(headers, resolveCustomHeaders(profile.customHeaders));
 
   // 流式响应
   if (options.stream && options.onStream) {

@@ -15,6 +15,7 @@ import {
 } from "@/llm-apis/request-builder";
 import { asyncJsonStringify } from "@/utils/serialization";
 import { cohereUrlHandler } from "./utils";
+import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 
 /**
  * 调用 Cohere Chat API
@@ -165,9 +166,7 @@ export const callCohereChatApi = async (
     headers["X-Request-ID"] = options.requestId;
   }
 
-  if (profile.customHeaders) {
-    Object.assign(headers, profile.customHeaders);
-  }
+  Object.assign(headers, resolveCustomHeaders(profile.customHeaders));
 
   // 如果启用流式响应
   if (options.stream && options.onStream) {

@@ -10,6 +10,7 @@ import {
   type LlmResponse,
 } from "@/llm-apis/common";
 import type { SunoClientConfig, SunoClipInfo } from "./types";
+import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 
 /** Suno API 默认路径 */
 export const SUNO_PATHS = {
@@ -67,10 +68,8 @@ export function buildSunoHeaders(
     headers["X-Request-ID"] = config.requestId;
   }
 
-  // 合并自定义请求头
-  if (config.customHeaders) {
-    Object.assign(headers, config.customHeaders);
-  }
+  // 合并自定义请求头（解析模板变量）
+  Object.assign(headers, resolveCustomHeaders(config.customHeaders));
 
   return headers;
 }

@@ -1,34 +1,82 @@
+import { getAppContext } from "@/config/appContext";
+
 export interface PresetHeader {
   name: string;
   description: string;
   headers: Record<string, string>;
 }
 
-export interface PresetContext {
-  userAgent: string;
-  secChUa: string;
-  secChUaPlatform: string;
+/**
+ * 支持的模板变量及其说明
+ */
+export const HEADER_TEMPLATE_VARIABLES: Record<string, string> = {
+  "{{appName}}": "应用名称 (如 AIO Hub)",
+  "{{appVersion}}": "应用版本号 (如 0.4.6)",
+  "{{userAgent}}": "完整 User-Agent 字符串",
+  "{{secChUa}}": "sec-ch-ua 请求头值",
+  "{{secChUaPlatform}}": "sec-ch-ua-platform 请求头值",
+};
+
+/**
+ * 解析请求头值中的模板变量
+ * 每次请求时调用，确保版本号等动态信息始终最新
+ */
+export function resolveCustomHeaders(
+  headers: Record<string, string> | undefined
+): Record<string, string> {
+  if (!headers) return {};
+
+  const ctx = getAppContext();
+  const resolved: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(headers)) {
+    resolved[key] = value
+      .replace(/\{\{appName\}\}/g, ctx.appName)
+      .replace(/\{\{appVersion\}\}/g, ctx.appVersion)
+      .replace(/\{\{userAgent\}\}/g, ctx.userAgent)
+      .replace(/\{\{secChUa\}\}/g, ctx.secChUa)
+      .replace(/\{\{secChUaPlatform\}\}/g, ctx.secChUaPlatform);
+  }
+
+  return resolved;
 }
 
 /**
  * 获取自定义请求头预设模板列表
- * @param ctx 包含动态系统信息的上下文对象
+ * 预设使用模板变量（如 {{appVersion}}），在请求时由 resolveCustomHeaders() 动态解析
  */
-export function getCustomHeaderPresets(ctx: PresetContext): PresetHeader[] {
+export function getCustomHeaderPresets(): PresetHeader[] {
   return [
     {
-      name: "丰富的信息",
-      description: "模仿市面上常见客户端的请求头",
+      name: "AIO Hub 默认",
+      description: "AIO Hub 官方推荐请求头，标识客户端身份与环境信息",
       headers: {
-        "User-Agent": ctx.userAgent,
-        "sec-ch-ua": ctx.secChUa,
+        "User-Agent": "{{userAgent}}",
+        "X-App-Name": "{{appName}}",
+        "X-App-Version": "{{appVersion}}",
+        "x-title": "{{appName}}",
+        "sec-ch-ua": "{{secChUa}}",
         "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": ctx.secChUaPlatform,
+        "sec-ch-ua-platform": "{{secChUaPlatform}}",
         "sec-fetch-site": "cross-site",
         "sec-fetch-mode": "cors",
         "sec-fetch-dest": "empty",
         "accept-language": "zh-CN",
-        "x-title": "AIO Hub",
+      },
+    },
+    {
+      name: "通用浏览器",
+      description: "模仿标准浏览器客户端的请求头",
+      headers: {
+        "User-Agent": "{{userAgent}}",
+        "sec-ch-ua": "{{secChUa}}",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "{{secChUaPlatform}}",
+        "sec-fetch-site": "cross-site",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "accept-language": "zh-CN",
+        "x-title": "{{appName}}",
       },
     },
     {
@@ -48,10 +96,10 @@ export function getCustomHeaderPresets(ctx: PresetContext): PresetHeader[] {
     },
     {
       name: "来源标识",
-      description: "标识请求来源（用户填自己的）",
+      description: "标识请求来源（填写你的应用网址）",
       headers: {
-        "http-referer": "https://your-app.com",
-        origin: "https://your-app.com",
+        "HTTP-Referer": "https://aiohub-app.com",
+        origin: "https://aiohub-app.com",
       },
     },
     {
@@ -79,5 +127,34 @@ export function getCustomHeaderPresets(ctx: PresetContext): PresetHeader[] {
         "accept-encoding": "br, gzip, deflate",
       },
     },
+    {
+      name: "OpenRouter 归属",
+      description: "标识 OpenRouter 请求来源，用于排行榜和分析统计",
+      headers: {
+        "HTTP-Referer": "https://aiohub-app.com",
+        "X-OpenRouter-Title": "AIO Hub",
+        "X-OpenRouter-Categories": "general-chat",
+      },
+    },
   ];
+}
+
+/**
+ * 获取 AIO Hub 默认请求头（同步，使用模板变量）
+ * 模板变量在请求时由 resolveCustomHeaders() 动态解析
+ */
+export function getAioDefaultHeaders(): Record<string, string> {
+  return {
+    "User-Agent": "{{userAgent}}",
+    "X-App-Name": "{{appName}}",
+    "X-App-Version": "{{appVersion}}",
+    "x-title": "{{appName}}",
+    "sec-ch-ua": "{{secChUa}}",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "{{secChUaPlatform}}",
+    "sec-fetch-site": "cross-site",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-dest": "empty",
+    "accept-language": "zh-CN",
+  };
 }

@@ -19,6 +19,7 @@ import {
   getActiveModelProperties,
   normalizeIconPath,
 } from "../config/model-metadata";
+import { getAioDefaultHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 
 const logger = createModuleLogger("LlmProfiles");
 const errorHandler = createModuleErrorHandler("LlmProfiles");
@@ -302,6 +303,7 @@ export function useLlmProfiles() {
       customEndpoints: preset.customEndpoints
         ? { ...preset.customEndpoints }
         : undefined,
+      customHeaders: getAioDefaultHeaders(),
     };
   };
 

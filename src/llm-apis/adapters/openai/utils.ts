@@ -1,5 +1,6 @@
 import type { LlmProfile, LlmModelInfo } from "@/types/llm-profiles";
 import { DEFAULT_METADATA_RULES, testRuleMatch } from "@/config/model-metadata";
+import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 
 /**
  * OpenAI 适配器的 URL 处理逻辑
@@ -149,10 +150,8 @@ export const buildOpenAiHeaders = (
     headers["X-Request-ID"] = requestId;
   }
 
-  // 应用自定义请求头
-  if (profile.customHeaders) {
-    Object.assign(headers, profile.customHeaders);
-  }
+  // 应用自定义请求头（解析模板变量）
+  Object.assign(headers, resolveCustomHeaders(profile.customHeaders));
 
   return headers;
 };

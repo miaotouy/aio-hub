@@ -16,6 +16,7 @@ import {
   buildGeminiSafetySettings,
   GeminiRequest,
 } from "./utils";
+import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 
 /**
  * 映射 Gemini finishReason 到通用格式
@@ -257,7 +258,7 @@ export const callGeminiChatApi = async (
     delete body.requestId;
   }
 
-  if (profile.customHeaders) Object.assign(headers, profile.customHeaders);
+  Object.assign(headers, resolveCustomHeaders(profile.customHeaders));
 
   if (options.stream && options.onStream) {
     const response = await fetchWithTimeout(

@@ -57,6 +57,14 @@
                       <el-icon><View /></el-icon>
                       预览
                     </el-dropdown-item>
+                    <el-dropdown-item @click="handleSendToChat(asset)">
+                      <el-icon><ChatDotRound /></el-icon>
+                      发送到聊天
+                    </el-dropdown-item>
+                    <el-dropdown-item @click="handleCopyName(asset.name)">
+                      <el-icon><DocumentCopy /></el-icon>
+                      复制文件名
+                    </el-dropdown-item>
                     <el-dropdown-item @click="handleShowInFolder(asset.path)">
                       <el-icon><FolderOpened /></el-icon>
                       打开所在目录
@@ -97,8 +105,13 @@ import {
   View,
   Delete,
   FolderOpened,
+  ChatDotRound,
+  DocumentCopy,
 } from "@element-plus/icons-vue";
 import type { Asset } from "@/types/asset-management";
+import { useRouter } from "vue-router";
+import { llmChatRegistry } from "@/tools/llm-chat/llm-chat.registry";
+import { customMessage } from "@/utils/customMessage";
 import {
   useAssetManager,
   assetManagerEngine,
@@ -128,10 +141,30 @@ const emit = defineEmits<{
   "show-in-folder": [path: string];
 }>();
 
+const router = useRouter();
 const { getSidecarActions } = useAssetManager();
 
 const handleSelect = (asset: Asset) => {
   emit("select", asset);
+};
+
+const handleSendToChat = (asset: Asset) => {
+  try {
+    llmChatRegistry.addAssets([asset]);
+    router.push("/llm-chat");
+    customMessage.success("已发送至 LLM 聊天");
+  } catch (err) {
+    customMessage.error("发送失败");
+  }
+};
+
+const handleCopyName = async (name: string) => {
+  try {
+    await navigator.clipboard.writeText(name);
+    customMessage.success("文件名已复制到剪贴板");
+  } catch (err) {
+    customMessage.error("复制失败");
+  }
 };
 
 const handleDelete = (assetId: string) => {

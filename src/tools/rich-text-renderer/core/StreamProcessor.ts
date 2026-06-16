@@ -537,14 +537,29 @@ export class StreamProcessor {
     // ID 必须预先处理好
     newNode.id = oldNode.id;
 
-    // 检查类型、内容或状态是否发生变化
+    // 检查类型是否发生变化
     const typeChanged = oldNode.type !== newNode.type;
+
+    // ---- 状态变化检测 ----
+    // 只有特定需要响应 status 变化的节点类型（如 mermaid）才允许触发 replace-node
+    // 普通节点（paragraph, text, heading 等）忽略 status 变化，避免流式结束时
+    // 所有 pending 节点因状态变为 stable 而集体触发 replace-node，导致入场动画重播
+    const needsStatusWatch = oldNode.type === "mermaid";
+    const statusChanged =
+      needsStatusWatch && oldNode.meta.status !== newNode.meta.status;
+
+    // ---- 属性变化检测 ----
+    // 使用 JSON.stringify 深度比较 props，确保 vcp_tool 的 isPending 变化、
+    // llm_think 的 isThinking 变化等能被精准捕获
+    const propsChanged =
+      JSON.stringify(oldNode.props) !== JSON.stringify(newNode.props);
+
+    // ---- 内容变化检测 ----
     const contentChanged =
       this.getNodeTextContent(oldNode) !== this.getNodeTextContent(newNode);
-    const statusChanged = oldNode.meta.status !== newNode.meta.status;
 
-    if (typeChanged || contentChanged || statusChanged) {
-      // 节点类型、内容或状态发生变化，直接替换
+    if (typeChanged || propsChanged || contentChanged || statusChanged) {
+      // 节点类型、内容、属性或状态发生变化，直接替换
       // 递归保留子节点 ID
       if (oldNode.children && newNode.children) {
         this.preserveExistingIds(newNode.children, oldNode.children);
@@ -553,6 +568,7 @@ export class StreamProcessor {
     }
 
     // 对 llm_think 节点，额外检测 isThinking 变化，避免模糊匹配闭合后计时状态不更新
+    // （props 深度比较理论上已覆盖此场景，保留为安全兜底）
     const thinkStatusChanged =
       oldNode.type === "llm_think" &&
       newNode.type === "llm_think" &&

@@ -5,7 +5,7 @@
       v-if="useAstRenderer"
       :nodes="ast"
       :generation-meta="generationMeta"
-      :enable-enter-animation="enableEnterAnimation"
+      :enable-enter-animation="renderEnableAnimation"
     />
     <!-- 纯 markdown-it 渲染模式 -->
     <div v-else class="pure-markdown-renderer" v-html="htmlContent" />
@@ -317,6 +317,31 @@ watch(
 // 内部流式状态跟踪
 const internalIsStreaming = ref(false);
 
+/**
+ * 流式结束后的动画禁用标志
+ *
+ * 核心原理：
+ * 在流式传输过程中，新节点需要播放入场动画。
+ * 但一旦流式结束（finalize），整个内容已固化，后续不再有新节点产生。
+ * 此时我们必须【永久禁用】该渲染器实例的入场动画（直到下一次重新开始流式）。
+ *
+ * 如果像之前那样仅临时禁用 100ms 然后恢复，会导致：
+ * 1. 结束时临时禁用 -> 节点移除 .rich-text-node 类
+ * 2. 100ms 后恢复 -> 节点重新加上 .rich-text-node 类
+ * 3. 浏览器检测到类被重新加上 -> 触发所有已有节点重新播放一遍入场动画！
+ *
+ * 因此，流式结束后保持禁用状态，能彻底消除总刷新及后续任何更新带来的动画重播和闪烁。
+ */
+const animationDisabledAfterStreaming = ref(false);
+
+/**
+ * 实际生效的动画启用状态
+ */
+const renderEnableAnimation = computed(() => {
+  if (animationDisabledAfterStreaming.value) return false;
+  return props.enableEnterAnimation;
+});
+
 // 提供上下文给子组件
 provide(RICH_TEXT_CONTEXT_KEY, {
   images: imageList,
@@ -523,11 +548,17 @@ watch(
 /**
  * 监听流式状态变化
  * 当流式结束时，确保执行 finalize 以清理状态（如强制结束思考）
+ * 同时永久禁用动画，防止总刷新及后续更新触发动画重播
  */
 watch(
   () => props.isStreaming,
   (newIsStreaming) => {
-    if (!newIsStreaming && useAstRenderer.value && streamProcessor.value) {
+    if (newIsStreaming) {
+      // 重新开始流式传输，启用动画
+      animationDisabledAfterStreaming.value = false;
+    } else if (useAstRenderer.value && streamProcessor.value) {
+      // 流式结束，永久禁用动画，直到下一次流式开始
+      animationDisabledAfterStreaming.value = true;
       streamProcessor.value.finalize();
     }
   }
@@ -560,6 +591,7 @@ onMounted(() => {
 
   // 订阅流式数据
   internalIsStreaming.value = true;
+  animationDisabledAfterStreaming.value = false; // 开始流式，启用动画
 
   // 判断是否启用平滑化（仅在 AST 模式下且明确启用时使用）
   const useSmoothing = props.smoothingEnabled !== false && useAstRenderer.value;
@@ -637,6 +669,9 @@ onMounted(() => {
   if (props.streamSource.onComplete) {
     unsubscribeComplete = props.streamSource.onComplete(() => {
       internalIsStreaming.value = false;
+
+      // 流式结束，永久禁用动画，防止总刷新触发动画重播
+      animationDisabledAfterStreaming.value = true;
 
       // 如果使用了平滑化，先冲刷剩余数据
       if (streamController) {

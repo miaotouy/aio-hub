@@ -269,7 +269,7 @@ function handleCancel() {
               "
             >
               在请求头值中使用
-              <code class="var-code">{{ '{{appName}}' }}</code>
+              <code class="var-code" v-pre>{{ appName }}</code>
               等模板变量，发送请求时会自动替换为当前真实值（如版本号更新后无需手动修改）
             </div>
           </div>

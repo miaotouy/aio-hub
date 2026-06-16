@@ -1,7 +1,7 @@
 import { useTranscriptionManager } from "../../composables/features/useTranscriptionManager";
 import { isTextFile } from "@/utils/fileTypeDetector";
 import { smartDecode } from "@/utils/encoding";
-import { isDocxAssetLike } from "@/utils/docxParser";
+import { isDocxAssetLike, parseDocx } from "@/utils/docxParser";
 import { createModuleLogger } from "@/utils/logger";
 import type { Asset } from "@/types/asset-management";
 import { assetManagerEngine } from "@/composables/useAssetManager";
@@ -71,7 +71,9 @@ export async function getTranscriptionAsset(
  * @param options.silent 静默模式，不输出警告日志（用于 Token 计算等频繁触发场景）
  * @param options.messageDepth 消息深度（用于判断是否触发强制转写）
  */
-export async function resolveAttachmentContent<TAttachment extends AttachmentLike>(
+export async function resolveAttachmentContent<
+  TAttachment extends AttachmentLike,
+>(
   asset: TAttachment,
   modelId: string,
   profileId: string,
@@ -82,7 +84,7 @@ export async function resolveAttachmentContent<TAttachment extends AttachmentLik
   const transcriptionAsset = await getTranscriptionAsset(asset);
 
   try {
-    // 1. 优先处理纯文本文件
+    // 优先处理纯文本文件
     if (
       attachment.type === "document" &&
       isTextFile(attachment.name, attachment.mimeType)
@@ -110,7 +112,27 @@ export async function resolveAttachmentContent<TAttachment extends AttachmentLik
       }
     }
 
-    // 2. 检查是否需要转写 (针对 Image/Audio/Video)
+    // 处理 DOCX 文件
+    if (isDocxAssetLike(attachment)) {
+      try {
+        const buffer = await getAttachmentBuffer(attachment);
+        const parseResult = await parseDocx(buffer);
+        return {
+          type: "text",
+          content: `\n[文件: ${attachment.name}]\n${parseResult.text}\n`,
+          rawText: parseResult.text,
+          asset,
+          source: "file",
+        };
+      } catch (err) {
+        logger.warn("解析 DOCX 附件失败，将尝试作为媒体附件处理", {
+          assetId: attachment.id,
+          error: err,
+        });
+      }
+    }
+
+    // 检查是否需要转写 (针对 Image/Audio/Video)
     // 使用 computeWillUseTranscription，它同时考虑模型能力和消息深度
     let shouldTranscribe = transcriptionManager.computeWillUseTranscription(
       transcriptionAsset,
@@ -124,7 +146,7 @@ export async function resolveAttachmentContent<TAttachment extends AttachmentLik
       shouldTranscribe = true;
     }
 
-    // 3. 尝试获取转写内容
+    // 尝试获取转写内容
     const transcriptionText =
       await transcriptionManager.getTranscriptionText(transcriptionAsset);
 
@@ -150,7 +172,7 @@ export async function resolveAttachmentContent<TAttachment extends AttachmentLik
       });
     }
 
-    // 4. 既不是文本文件，也没有转写内容（或者不需要转写） -> 视为媒体附件
+    // 既不是文本文件，也没有转写内容（或者不需要转写） -> 视为媒体附件
     return {
       type: "media",
       asset,
@@ -169,7 +191,9 @@ export async function resolveAttachmentContent<TAttachment extends AttachmentLik
  * 批量解析附件内容
  * 自动合并警告消息，避免重复输出
  */
-export async function resolveAttachmentsBatch<TAttachment extends AttachmentLike>(
+export async function resolveAttachmentsBatch<
+  TAttachment extends AttachmentLike,
+>(
   assets: TAttachment[],
   modelId: string,
   profileId: string,
@@ -229,3 +253,4 @@ export async function resolveAttachmentsBatch<TAttachment extends AttachmentLike
 
   return results;
 }
+

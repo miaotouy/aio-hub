@@ -25,6 +25,30 @@ import {
 const logger = createModuleLogger("llm-chat/docx-image-splitter");
 const errorHandler = createModuleErrorHandler("llm-chat/docx-image-splitter");
 
+// 模块级缓存，避免高频重复解析 DOCX 附件（如 Token 统计高频触发场景）
+const splitCache = new Map<string, DocxSplitResult>();
+const MAX_CACHE_SIZE = 20;
+
+function getCachedResult(key: string): DocxSplitResult | undefined {
+  const result = splitCache.get(key);
+  if (result) {
+    // 移动到末尾，维持 LRU 顺序
+    splitCache.delete(key);
+    splitCache.set(key, result);
+  }
+  return result;
+}
+
+function setCacheResult(key: string, value: DocxSplitResult) {
+  if (splitCache.size >= MAX_CACHE_SIZE) {
+    const firstKey = splitCache.keys().next().value;
+    if (firstKey !== undefined) {
+      splitCache.delete(firstKey);
+    }
+  }
+  splitCache.set(key, value);
+}
+
 export interface DocxSplitResult {
   /** 含 [图片 N] 占位符的纯文本 */
   text: string;
@@ -53,6 +77,23 @@ async function buildImageAsset(
   img: DocxImage,
   docxAsset: PipelineAttachment
 ): Promise<PipelineAttachment | null> {
+  // 提前过滤浏览器已知不支持的图片格式，避免调用 getImageDimensions 触发 imageProcessor 的加载失败警告
+  const UNSUPPORTED_MIMES = [
+    "image/x-emf",
+    "image/x-wmf",
+    "image/emf",
+    "image/wmf",
+  ];
+
+  if (UNSUPPORTED_MIMES.includes(img.mimeType.toLowerCase())) {
+    logger.debug("跳过浏览器不支持的图片格式", {
+      imgIndex: img.index,
+      docxAssetId: docxAsset.id,
+      mimeType: img.mimeType,
+    });
+    return null;
+  }
+
   try {
     const buffer = base64ToArrayBuffer(img.base64);
     const dims = await getImageDimensions(buffer);
@@ -112,6 +153,13 @@ export async function splitDocxIntoImageAssets(
     return { text: "", imageAssets: [], success: false };
   }
 
+  // 检查缓存
+  const cached = getCachedResult(docxAsset.id);
+  if (cached) {
+    logger.debug("命中 DOCX 拆分缓存", { docxAssetId: docxAsset.id });
+    return cached;
+  }
+
   try {
     // 1. 读取 DOCX 二进制
     const buffer = await getAttachmentBuffer(docxAsset);
@@ -138,7 +186,13 @@ export async function splitDocxIntoImageAssets(
       logger.warn("所有图片构建失败，回退到原始路径", {
         docxAssetId: docxAsset.id,
       });
-      return { text: parseResult.text, imageAssets: [], success: false };
+      const result = {
+        text: parseResult.text,
+        imageAssets: [],
+        success: false,
+      };
+      setCacheResult(docxAsset.id, result);
+      return result;
     }
 
     logger.info("DOCX 插图拆分完成", {
@@ -147,17 +201,21 @@ export async function splitDocxIntoImageAssets(
       successImages: imageAssets.length,
     });
 
-    return {
+    const result = {
       text: parseResult.text,
       imageAssets,
       success: true,
     };
+    setCacheResult(docxAsset.id, result);
+    return result;
   } catch (error) {
     errorHandler.handle(error as Error, {
       userMessage: "DOCX 图片拆分失败",
       showToUser: false,
       context: { docxAssetId: docxAsset.id, docxAssetName: docxAsset.name },
     });
-    return { text: "", imageAssets: [], success: false };
+    const result = { text: "", imageAssets: [], success: false };
+    setCacheResult(docxAsset.id, result);
+    return result;
   }
 }

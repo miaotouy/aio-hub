@@ -376,6 +376,7 @@
       title="渲染预览截图"
       width="70%"
       height="80vh"
+      content-class="screenshot-dialog-body"
       :close-on-backdrop-click="true"
       :show-close-button="true"
     >
@@ -1410,12 +1411,18 @@ const capturePreview = async () => {
 
   try {
     const startTime = performance.now();
-    const actualWidth = container.clientWidth;
+
+    // 精确获取被截图元素（.rich-text-renderer）的实际渲染尺寸，而不是父容器的尺寸！
+    // 这样能确保截图时的排版宽度与页面上看到的完全一致，彻底解决奇怪的折行问题
+    const rect = targetEl.getBoundingClientRect();
+    const actualWidth = Math.ceil(rect.width);
+    const actualHeight = Math.ceil(rect.height);
 
     // 直接对页面上已经渲染好的、排版完全正确的 DOM 元素进行截图
-    // 显式指定 width 确保 SVG 离屏渲染时排版宽度与实际完全一致，防止宽度失控导致奇怪的折行
+    // 显式指定 width 和 height 确保 SVG 离屏渲染时排版尺寸与实际完全一致，防止宽度失控导致奇怪的折行
     const dataUrl = await domToPng(targetEl, {
       width: actualWidth,
+      height: actualHeight,
       scale: 2,
       features: {
         removeControlCharacter: true,
@@ -1423,8 +1430,11 @@ const capturePreview = async () => {
       onCloneNode: (clonedNode: Node) => {
         const el = clonedNode as HTMLElement;
 
-        // 强制克隆根节点的宽度与实际一致，并允许溢出可见
+        // 强制克隆根节点的宽度和高度与实际一致，并允许溢出可见
         el.style.width = `${actualWidth}px`;
+        el.style.minWidth = `${actualWidth}px`;
+        el.style.maxWidth = `${actualWidth}px`;
+        el.style.height = `${actualHeight}px`;
         el.style.boxSizing = "border-box";
         el.style.overflow = "visible";
 
@@ -1486,7 +1496,7 @@ const capturePreview = async () => {
           }
         });
 
-        // 3. 注入临时样式：彻底隐藏所有滚动条，并防止过渡动画干扰
+        // 3. 注入临时样式：彻底隐藏所有滚动条，防止过渡动画干扰，并进行智能排版保护
         const style = document.createElement("style");
         style.textContent = `
           /* 隐藏所有滚动条，防止微小排版偏差产生滚动条视觉污染 */
@@ -1496,6 +1506,36 @@ const capturePreview = async () => {
           *::-webkit-scrollbar {
             display: none !important;
           }
+          
+          /* 强制所有可能产生滚动条的容器 overflow 为 visible，防止截断和滚动条 */
+          .markdown-table-wrapper,
+          .html-preview-container,
+          .code-preview-block,
+          .cm-editor-inner,
+          pre, code {
+            overflow: visible !important;
+            overflow-x: visible !important;
+            overflow-y: visible !important;
+          }
+          
+          /* 智能排版保护：防止 flex 布局下的直接子元素在离屏渲染时因为微小的字体/行高偏差而被压缩折行 */
+          [style*="display: flex"] > *,
+          [style*="display:flex"] > *,
+          .flex-container > * {
+            flex-shrink: 0 !important;
+          }
+          
+          /* 强制所有徽章、药丸标签、summary 折叠标题等单行文本容器不折行 */
+          summary,
+          .el-tag,
+          .el-button,
+          [style*="border-radius: 100px"],
+          [style*="border-radius: 50px"],
+          [style*="border-radius:100px"],
+          [style*="border-radius:50px"] {
+            white-space: nowrap !important;
+          }
+          
           /* 确保 details 保持原本的展开状态，不要有奇怪的过渡动画干扰截图 */
           details {
             transition: none !important;
@@ -1940,21 +1980,29 @@ onMounted(async () => {
   opacity: 0.4;
 }
 
+/* 覆盖弹窗 body 的 padding，让截图能完全贴边撑满 */
+:deep(.screenshot-dialog-body) {
+  padding: 0 !important;
+}
+
 /* 截图预览弹窗样式 */
 .screenshot-preview-content {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   min-height: 200px;
+  width: 100%;
 }
 
 .screenshot-preview-img {
-  max-width: 100%;
-  max-height: 75vh;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  width: 100%;
+  height: auto;
+  display: block;
   cursor: pointer;
   transition: opacity 0.15s;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .screenshot-preview-img:hover {

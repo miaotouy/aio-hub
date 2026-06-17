@@ -141,6 +141,25 @@
                     </el-button>
                   </el-tooltip>
                 </div>
+                <div class="visualizer-toggle">
+                  <el-tooltip
+                    content="截取当前渲染预览区域"
+                    placement="top"
+                    :show-after="300"
+                  >
+                    <el-button
+                      circle
+                      size="small"
+                      type="primary"
+                      :loading="isCapturing"
+                      @click="capturePreview"
+                    >
+                      <el-icon v-if="!isCapturing" :size="14"
+                        ><Camera
+                      /></el-icon>
+                    </el-button>
+                  </el-tooltip>
+                </div>
               </div>
             </div>
             <div class="escape-detection-bar" v-if="showEscapeDetector">
@@ -226,6 +245,25 @@
                     <el-switch v-model="autoScroll" size="small" />
                   </el-tooltip>
                   <span>自动滚动</span>
+                </div>
+                <div class="visualizer-toggle">
+                  <el-tooltip
+                    content="截取当前渲染预览区域"
+                    placement="top"
+                    :show-after="300"
+                  >
+                    <el-button
+                      circle
+                      size="small"
+                      type="primary"
+                      :loading="isCapturing"
+                      @click="capturePreview"
+                    >
+                      <el-icon v-if="!isCapturing" :size="14"
+                        ><Camera
+                      /></el-icon>
+                    </el-button>
+                  </el-tooltip>
                 </div>
               </div>
             </div>
@@ -331,6 +369,48 @@
       v-model="isAstViewerVisible"
       :data="rendererRef?.ast"
     />
+
+    <!-- 截图预览弹窗 -->
+    <BaseDialog
+      v-model="screenshotDialogVisible"
+      title="渲染预览截图"
+      width="600px"
+      height="80vh"
+      :close-on-backdrop-click="true"
+      :show-close-button="true"
+    >
+      <div class="screenshot-preview-content">
+        <img
+          v-if="screenshotDataUrl"
+          :src="screenshotDataUrl"
+          class="screenshot-preview-img"
+          @click="imageViewer.show(screenshotDataUrl)"
+        />
+        <div v-else class="screenshot-preview-placeholder">截图生成中...</div>
+      </div>
+      <template #footer>
+        <div class="screenshot-preview-actions">
+          <el-button
+            type="primary"
+            size="small"
+            :disabled="!screenshotDataUrl"
+            @click="copyScreenshot"
+          >
+            <el-icon><CopyDocument /></el-icon>
+            复制到剪贴板
+          </el-button>
+          <el-button
+            type="success"
+            size="small"
+            :disabled="!screenshotDataUrl"
+            @click="saveScreenshot"
+          >
+            <el-icon><Download /></el-icon>
+            保存图片
+          </el-button>
+        </div>
+      </template>
+    </BaseDialog>
   </div>
 </template>
 
@@ -346,7 +426,8 @@ import {
   provide,
 } from "vue";
 import { useElementSize } from "@vueuse/core";
-import { ShieldAlert } from "lucide-vue-next";
+import { ShieldAlert, Camera } from "lucide-vue-next";
+import { CopyDocument, Download } from "@element-plus/icons-vue";
 import RichTextRenderer from "../RichTextRenderer.vue";
 import type { StreamSource } from "../types";
 import { presets } from "../config/presets";
@@ -369,6 +450,9 @@ import TesterConfigSidebar from "./tester/TesterConfigSidebar.vue";
 import TesterToolbar from "./tester/TesterToolbar.vue";
 import ChatRegexEditor from "@/tools/llm-chat/components/common/ChatRegexEditor.vue";
 import type { ChatRegexConfig } from "@/tools/llm-chat/types/chatRegex";
+import { domToPng } from "modern-screenshot";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import { useImageViewer } from "@/composables/useImageViewer";
 
 // 容器尺寸检测
 const containerRef = ref<HTMLDivElement | null>(null);
@@ -483,6 +567,14 @@ const typedRegexConfig = computed({
 
 // 样式逃逸检测器显示状态
 const showEscapeDetector = ref(false);
+
+// 截图相关状态
+const isCapturing = ref(false);
+const screenshotDialogVisible = ref(false);
+const screenshotDataUrl = ref<string | null>(null);
+
+// 图片查看器
+const imageViewer = useImageViewer();
 
 // 样式编辑器显示状态
 const isStyleEditorVisible = ref(false);
@@ -1290,6 +1382,202 @@ watch(
   }
 );
 
+// 截图预览区域
+// 截图预览区域
+const capturePreview = async () => {
+  const container =
+    layoutMode.value === "curtain"
+      ? curtainContainerRef.value?.querySelector(".curtain-rendered")
+      : renderContainerRef.value;
+
+  if (!container) {
+    customMessage.warning("没有可截图的渲染内容");
+    return;
+  }
+
+  // 检查是否为空
+  const hasContent = container.querySelector(".rich-text-renderer");
+  if (!hasContent && !container.querySelector(".empty-placeholder")) {
+    customMessage.warning("没有可截图的渲染内容");
+    return;
+  }
+
+  isCapturing.value = true;
+  screenshotDialogVisible.value = true;
+  screenshotDataUrl.value = null;
+
+  let tempWrapper: HTMLDivElement | null = null;
+
+  try {
+    const startTime = performance.now();
+
+    // 方案：创建一个独立的临时容器，挂载到 body 中
+    // 这样可以完全避免原始容器的 overflow/flex 限制导致的高度截断
+    tempWrapper = document.createElement("div");
+    tempWrapper.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: ${container.scrollWidth}px;
+      min-height: ${container.scrollHeight}px;
+      z-index: -9999;
+      pointer-events: none;
+      opacity: 0;
+      overflow: visible;
+    `;
+    document.body.appendChild(tempWrapper);
+
+    // 克隆目标节点并移除所有滚动限制
+    const clonedContainer = container.cloneNode(true) as HTMLElement;
+    clonedContainer.style.overflowY = "visible";
+    clonedContainer.style.overflowX = "visible";
+    clonedContainer.style.maxHeight = "none";
+    clonedContainer.style.height = "auto";
+    clonedContainer.style.flex = "none";
+    clonedContainer.style.minHeight = "auto";
+    tempWrapper.appendChild(clonedContainer);
+
+    // 对克隆节点截图（此时它在真实 DOM 中，浏览器能准确计算完整高度）
+    const dataUrl = await domToPng(clonedContainer, {
+      scale: 2,
+      features: {
+        removeControlCharacter: true,
+      },
+      onCloneNode: (clonedNode: Node) => {
+        const el = clonedNode as HTMLElement;
+
+        // 强制 content-visibility 为 visible，防止视口外内容空白
+        el.style.setProperty("content-visibility", "visible", "important");
+        el.style.setProperty("contain-intrinsic-size", "auto 0px", "important");
+
+        // 递归处理所有子元素
+        const allElements = el.querySelectorAll("*");
+        allElements.forEach((child) => {
+          const childEl = child as HTMLElement;
+          if (childEl.style) {
+            childEl.style.setProperty(
+              "content-visibility",
+              "visible",
+              "important"
+            );
+            childEl.style.setProperty(
+              "contain-intrinsic-size",
+              "auto 0px",
+              "important"
+            );
+          }
+
+          // 修复子元素的滚动限制（如代码块、表格等内部滚动容器）
+          const childStyle = window.getComputedStyle(childEl);
+          if (
+            childStyle.overflowY === "auto" ||
+            childStyle.overflowY === "scroll" ||
+            childStyle.overflowX === "auto" ||
+            childStyle.overflowX === "scroll"
+          ) {
+            childEl.style.overflowY = "visible";
+            childEl.style.overflowX = "visible";
+            childEl.style.maxHeight = "none";
+            childEl.style.height = "auto";
+          }
+
+          // 修复毛玻璃效果：替换为实色背景
+          if (
+            childStyle.backdropFilter &&
+            childStyle.backdropFilter !== "none"
+          ) {
+            childEl.style.backdropFilter = "none";
+            // 尝试获取背景色，如果没有则使用一个合理的默认值
+            const bgColor = childStyle.backgroundColor;
+            if (
+              !bgColor ||
+              bgColor === "rgba(0, 0, 0, 0)" ||
+              bgColor === "transparent"
+            ) {
+              childEl.style.backgroundColor = "var(--card-bg)";
+            }
+          }
+        });
+      },
+    });
+
+    // 移除临时容器
+    if (tempWrapper && tempWrapper.parentNode) {
+      tempWrapper.parentNode.removeChild(tempWrapper);
+    }
+    tempWrapper = null;
+
+    const elapsed = Math.round(performance.now() - startTime);
+    customMessage.success(`截图完成，耗时 ${elapsed}ms`);
+
+    screenshotDataUrl.value = dataUrl;
+  } catch (err) {
+    customMessage.error(`截图失败: ${err}`);
+    console.error("Screenshot capture failed:", err);
+    screenshotDialogVisible.value = false;
+  } finally {
+    // 确保临时容器被清理
+    if (tempWrapper && tempWrapper.parentNode) {
+      tempWrapper.parentNode.removeChild(tempWrapper);
+    }
+    isCapturing.value = false;
+  }
+};
+// 复制截图到剪贴板
+const copyScreenshot = async () => {
+  if (!screenshotDataUrl.value) return;
+
+  try {
+    const base64Data = screenshotDataUrl.value.split(",")[1];
+    const binaryStr = atob(base64Data);
+    const buffer = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) {
+      buffer[i] = binaryStr.charCodeAt(i);
+    }
+
+    const blob = new Blob([buffer], { type: "image/png" });
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    customMessage.success("图片已复制到剪贴板");
+  } catch (err) {
+    customMessage.error("复制失败，请检查浏览器权限");
+    console.error("Failed to copy screenshot:", err);
+  }
+};
+
+// 保存截图到本地
+const saveScreenshot = async () => {
+  if (!screenshotDataUrl.value) return;
+
+  try {
+    const base64Data = screenshotDataUrl.value.split(",")[1];
+    const binaryStr = atob(base64Data);
+    const buffer = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) {
+      buffer[i] = binaryStr.charCodeAt(i);
+    }
+
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const { writeFile } = await import("@tauri-apps/plugin-fs");
+
+    const filePath = await save({
+      defaultPath: `rich-text-screenshot-${Date.now()}.png`,
+      filters: [{ name: "PNG", extensions: ["png"] }],
+    });
+
+    if (filePath) {
+      await writeFile(filePath, buffer);
+      customMessage.success("图片已保存");
+    }
+  } catch {
+    // Fallback: 浏览器下载
+    const link = document.createElement("a");
+    link.download = `rich-text-screenshot-${Date.now()}.png`;
+    link.href = screenshotDataUrl.value;
+    link.click();
+    customMessage.success("图片已下载（浏览器方式）");
+  }
+};
+
 // 组件挂载时加载配置
 onMounted(async () => {
   // 初始化 Agent 资产缓存，以支持同步路径解析
@@ -1656,5 +1944,37 @@ onMounted(async () => {
 .karaoke-future {
   color: var(--text-color-secondary);
   opacity: 0.4;
+}
+
+/* 截图预览弹窗样式 */
+.screenshot-preview-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+.screenshot-preview-img {
+  max-width: 100%;
+  max-height: 75vh;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.screenshot-preview-img:hover {
+  opacity: 0.9;
+}
+
+.screenshot-preview-placeholder {
+  color: var(--text-color-secondary);
+  font-size: 14px;
+}
+
+.screenshot-preview-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
 }
 </style>

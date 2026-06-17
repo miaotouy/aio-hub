@@ -374,7 +374,7 @@
     <BaseDialog
       v-model="screenshotDialogVisible"
       title="渲染预览截图"
-      width="600px"
+      width="70%"
       height="80vh"
       :close-on-backdrop-click="true"
       :show-close-button="true"
@@ -1395,9 +1395,11 @@ const capturePreview = async () => {
     return;
   }
 
-  // 检查是否为空
-  const hasContent = container.querySelector(".rich-text-renderer");
-  if (!hasContent && !container.querySelector(".empty-placeholder")) {
+  // 找到实际渲染富文本的根元素（它没有滚动条限制，高度由内容完全撑开，且宽度受父级约束排版完全正确）
+  const targetEl = container.querySelector(
+    ".rich-text-renderer"
+  ) as HTMLElement | null;
+  if (!targetEl) {
     customMessage.warning("没有可截图的渲染内容");
     return;
   }
@@ -1406,39 +1408,14 @@ const capturePreview = async () => {
   screenshotDialogVisible.value = true;
   screenshotDataUrl.value = null;
 
-  let tempWrapper: HTMLDivElement | null = null;
-
   try {
     const startTime = performance.now();
+    const actualWidth = container.clientWidth;
 
-    // 方案：创建一个独立的临时容器，挂载到 body 中
-    // 这样可以完全避免原始容器的 overflow/flex 限制导致的高度截断
-    tempWrapper = document.createElement("div");
-    tempWrapper.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: ${container.scrollWidth}px;
-      min-height: ${container.scrollHeight}px;
-      z-index: -9999;
-      pointer-events: none;
-      opacity: 0;
-      overflow: visible;
-    `;
-    document.body.appendChild(tempWrapper);
-
-    // 克隆目标节点并移除所有滚动限制
-    const clonedContainer = container.cloneNode(true) as HTMLElement;
-    clonedContainer.style.overflowY = "visible";
-    clonedContainer.style.overflowX = "visible";
-    clonedContainer.style.maxHeight = "none";
-    clonedContainer.style.height = "auto";
-    clonedContainer.style.flex = "none";
-    clonedContainer.style.minHeight = "auto";
-    tempWrapper.appendChild(clonedContainer);
-
-    // 对克隆节点截图（此时它在真实 DOM 中，浏览器能准确计算完整高度）
-    const dataUrl = await domToPng(clonedContainer, {
+    // 直接对页面上已经渲染好的、排版完全正确的 DOM 元素进行截图
+    // 显式指定 width 确保 SVG 离屏渲染时排版宽度与实际完全一致，防止宽度失控导致奇怪的折行
+    const dataUrl = await domToPng(targetEl, {
+      width: actualWidth,
       scale: 2,
       features: {
         removeControlCharacter: true,
@@ -1446,11 +1423,35 @@ const capturePreview = async () => {
       onCloneNode: (clonedNode: Node) => {
         const el = clonedNode as HTMLElement;
 
+        // 强制克隆根节点的宽度与实际一致，并允许溢出可见
+        el.style.width = `${actualWidth}px`;
+        el.style.boxSizing = "border-box";
+        el.style.overflow = "visible";
+
+        // 1. 核心修复：将 html 根元素上的所有 CSS 变量复制到克隆节点上
+        // 因为 SVG foreignObject 截图是独立文档上下文，无法继承父级/全局的 CSS 变量，导致颜色和排版崩溃
+        const htmlStyles = window.getComputedStyle(document.documentElement);
+        for (let i = 0; i < htmlStyles.length; i++) {
+          const prop = htmlStyles[i];
+          if (prop.startsWith("--")) {
+            el.style.setProperty(prop, htmlStyles.getPropertyValue(prop));
+          }
+        }
+
+        // 2. 同时也复制父容器上的 CSS 变量（如果有的话）
+        const parentStyles = window.getComputedStyle(container);
+        for (let i = 0; i < parentStyles.length; i++) {
+          const prop = parentStyles[i];
+          if (prop.startsWith("--")) {
+            el.style.setProperty(prop, parentStyles.getPropertyValue(prop));
+          }
+        }
+
         // 强制 content-visibility 为 visible，防止视口外内容空白
         el.style.setProperty("content-visibility", "visible", "important");
         el.style.setProperty("contain-intrinsic-size", "auto 0px", "important");
 
-        // 递归处理所有子元素
+        // 递归处理子元素，只做必要的修复，避免破坏原本精细的 CSS 布局
         const allElements = el.querySelectorAll("*");
         allElements.forEach((child) => {
           const childEl = child as HTMLElement;
@@ -1467,27 +1468,13 @@ const capturePreview = async () => {
             );
           }
 
-          // 修复子元素的滚动限制（如代码块、表格等内部滚动容器）
+          // 修复毛玻璃效果：替换为实色背景（因为 SVG foreignObject 不支持 backdrop-filter）
           const childStyle = window.getComputedStyle(childEl);
-          if (
-            childStyle.overflowY === "auto" ||
-            childStyle.overflowY === "scroll" ||
-            childStyle.overflowX === "auto" ||
-            childStyle.overflowX === "scroll"
-          ) {
-            childEl.style.overflowY = "visible";
-            childEl.style.overflowX = "visible";
-            childEl.style.maxHeight = "none";
-            childEl.style.height = "auto";
-          }
-
-          // 修复毛玻璃效果：替换为实色背景
           if (
             childStyle.backdropFilter &&
             childStyle.backdropFilter !== "none"
           ) {
             childEl.style.backdropFilter = "none";
-            // 尝试获取背景色，如果没有则使用一个合理的默认值
             const bgColor = childStyle.backgroundColor;
             if (
               !bgColor ||
@@ -1498,14 +1485,25 @@ const capturePreview = async () => {
             }
           }
         });
+
+        // 3. 注入临时样式：彻底隐藏所有滚动条，并防止过渡动画干扰
+        const style = document.createElement("style");
+        style.textContent = `
+          /* 隐藏所有滚动条，防止微小排版偏差产生滚动条视觉污染 */
+          * {
+            scrollbar-width: none !important;
+          }
+          *::-webkit-scrollbar {
+            display: none !important;
+          }
+          /* 确保 details 保持原本的展开状态，不要有奇怪的过渡动画干扰截图 */
+          details {
+            transition: none !important;
+          }
+        `;
+        el.appendChild(style);
       },
     });
-
-    // 移除临时容器
-    if (tempWrapper && tempWrapper.parentNode) {
-      tempWrapper.parentNode.removeChild(tempWrapper);
-    }
-    tempWrapper = null;
 
     const elapsed = Math.round(performance.now() - startTime);
     customMessage.success(`截图完成，耗时 ${elapsed}ms`);
@@ -1516,10 +1514,6 @@ const capturePreview = async () => {
     console.error("Screenshot capture failed:", err);
     screenshotDialogVisible.value = false;
   } finally {
-    // 确保临时容器被清理
-    if (tempWrapper && tempWrapper.parentNode) {
-      tempWrapper.parentNode.removeChild(tempWrapper);
-    }
     isCapturing.value = false;
   }
 };

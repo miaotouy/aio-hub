@@ -54,3 +54,5 @@ plugins/*
 cache
 
 .snow
+
+.tmp

@@ -34,6 +34,7 @@ import {
   ElOption,
   ElSelect,
   ElSlider,
+  ElSwitch,
   ElTooltip,
 } from "element-plus";
 import BaseDialog from "@/components/common/BaseDialog.vue";
@@ -156,22 +157,12 @@ function getMessageSummary(msg: ChatMessageNode): string {
   const text = (msg.content ?? "").replace(/\s+/g, " ").trim();
   return text.length > 60 ? `${text.slice(0, 60)}…` : text;
 }
-
 // ----- 配置面板 -----
-const effects = ref({
-  blurBackground: true,
-  outerBorder: true,
-  dropShadow: true,
-  watermark: true,
-});
-
-type Nullable<T> = T | undefined;
 type LayoutModeChoice = "follow" | "card" | "bubble";
-type AvatarChoice = "follow" | "show" | "hide";
 const layoutOverrides = ref<{
   mode: LayoutModeChoice;
-  borderRadius: Nullable<number>;
-  fontSize: Nullable<number>;
+  borderRadius: number | undefined;
+  fontSize: number | undefined;
 }>({
   mode: "follow",
   borderRadius: undefined,
@@ -180,16 +171,24 @@ const layoutOverrides = ref<{
 
 const collapseStrategy = ref<CollapseStrategy>("override-expand");
 
-const elementToggles = ref<{
-  showAvatar: AvatarChoice;
-  showModelName: boolean;
+interface ElementToggles {
+  showAvatar: boolean;
   showTimestamp: boolean;
-  showTokenStats: boolean;
-}>({
-  showAvatar: "follow",
-  showModelName: true,
+  showTokenCount: boolean;
+  showTokenCountForBlocks: boolean;
+  showCharCount: boolean;
+  showModelInfo: boolean;
+  showPerformanceMetrics: boolean;
+}
+
+const elementToggles = ref<ElementToggles>({
+  showAvatar: true,
   showTimestamp: true,
-  showTokenStats: true,
+  showTokenCount: true,
+  showTokenCountForBlocks: true,
+  showCharCount: true,
+  showModelInfo: true,
+  showPerformanceMetrics: true,
 });
 
 // ----- 预览渲染器引用 -----
@@ -256,7 +255,6 @@ const lastImageUrl = ref("");
 function buildStitchOptions(): StitchOptions {
   return {
     scale: 2,
-    effects: { ...effects.value },
     concurrency: 6,
   };
 }
@@ -337,7 +335,6 @@ async function handleSave() {
 watch(
   [
     () => Array.from(selectedIds.value),
-    effects,
     layoutOverrides,
     elementToggles,
     collapseStrategy,
@@ -483,18 +480,6 @@ onBeforeUnmount(() => {
         <!-- 左: 配置 -->
         <section class="left-panel">
           <div class="config-section">
-            <div class="section-title">效果开关</div>
-            <el-checkbox v-model="effects.blurBackground"
-              >还原模糊背景</el-checkbox
-            >
-            <el-checkbox v-model="effects.outerBorder"
-              >显示卡片外边框</el-checkbox
-            >
-            <el-checkbox v-model="effects.dropShadow">开启卡片投影</el-checkbox>
-            <el-checkbox v-model="effects.watermark">附加极简水印</el-checkbox>
-          </div>
-
-          <div class="config-section">
             <div class="section-title">布局覆盖</div>
             <div class="config-row">
               <span class="config-label">布局模式</span>
@@ -553,29 +538,38 @@ onBeforeUnmount(() => {
           </div>
 
           <div class="config-section">
-            <div class="section-title">卡片元素</div>
-            <div class="config-row">
-              <span class="config-label">显示头像</span>
-              <el-select
-                v-model="elementToggles.showAvatar"
-                placeholder="选择"
-                size="small"
-                style="width: 120px"
-              >
-                <el-option label="跟随系统" value="follow" />
-                <el-option label="显示" value="show" />
-                <el-option label="隐藏" value="hide" />
-              </el-select>
+            <div class="section-title">显示元素</div>
+            <div class="switch-row">
+              <el-switch v-model="elementToggles.showAvatar" />
+              <span class="switch-label">显示头像</span>
             </div>
-            <el-checkbox v-model="elementToggles.showModelName"
-              >显示模型名称</el-checkbox
-            >
-            <el-checkbox v-model="elementToggles.showTimestamp"
-              >显示时间戳</el-checkbox
-            >
-            <el-checkbox v-model="elementToggles.showTokenStats"
-              >显示 Token 统计</el-checkbox
-            >
+            <div class="switch-row">
+              <el-switch v-model="elementToggles.showModelInfo" />
+              <span class="switch-label">显示模型信息</span>
+            </div>
+            <div class="switch-row">
+              <el-switch v-model="elementToggles.showTimestamp" />
+              <span class="switch-label">显示时间戳</span>
+            </div>
+            <div class="switch-row">
+              <el-switch v-model="elementToggles.showTokenCount" />
+              <span class="switch-label">显示消息 Token 统计</span>
+            </div>
+            <div class="switch-row">
+              <el-switch v-model="elementToggles.showTokenCountForBlocks" />
+              <span class="switch-label">显示块级 Token 统计</span>
+            </div>
+            <div class="switch-row">
+              <el-switch v-model="elementToggles.showCharCount" />
+              <span class="switch-label">显示消息字数</span>
+            </div>
+            <div class="switch-row">
+              <el-switch v-model="elementToggles.showPerformanceMetrics" />
+              <span class="switch-label">显示性能指标</span>
+            </div>
+            <p class="section-hint">
+              默认开启即跟随系统设置，关闭后对应元素在截图中隐藏。
+            </p>
           </div>
         </section>
 
@@ -898,6 +892,17 @@ onBeforeUnmount(() => {
 }
 .config-hint {
   font-size: 11px;
+  color: var(--text-color-secondary);
+}
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  height: 28px;
+}
+.switch-label {
+  font-size: 12px;
   color: var(--text-color-secondary);
 }
 :deep(.config-section .el-checkbox) {

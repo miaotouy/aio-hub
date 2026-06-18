@@ -5,7 +5,7 @@
  * - `captureElementAsCanvas`: 对单条消息节点 (`.message-slot`) 截图, 自动处理
  *   CSS 变量复制、content-visibility 强制可见、毛玻璃替换为实色背景、滚动条隐藏。
  * - `captureMessagesAndStitch`: V2 核心 — 并发截取每条消息, 纯 Canvas 2D 拼接为
- *   完整长图; 支持还原模糊背景、外边框、投影、极简水印四种极简效果。
+ *   完整长图。
  *
  * 设计参考:
  * - `src/tools/component-tester/components/ScreenshotTester.vue` (modern-screenshot 基本用法)
@@ -32,17 +32,6 @@ export interface CaptureElementOptions extends ScreenshotScaleOptions {
   height?: number;
 }
 
-export interface StitchEffects {
-  /** 还原模糊背景 (在底层绘制半透明遮罩) */
-  blurBackground?: boolean;
-  /** 显示卡片外边框 */
-  outerBorder?: boolean;
-  /** 开启卡片投影 (shadowBlur) */
-  dropShadow?: boolean;
-  /** 附加极简水印 */
-  watermark?: boolean;
-}
-
 export interface StitchOptions extends ScreenshotScaleOptions {
   /**
    * 显式指定截图容器宽度 (CSS px)。
@@ -55,22 +44,6 @@ export interface StitchOptions extends ScreenshotScaleOptions {
    * 必须由调用方显式传入 ScreenshotRenderer 的 width prop (默认 720px)。
    */
   width?: number;
-  /** 拼接效果开关 */
-  effects?: StitchEffects;
-  /** 主题色 (用于外边框等), 默认读取 CSS 变量 --border-color */
-  borderColor?: string;
-  /** 卡片背景色, 默认读取 --card-bg */
-  cardBg?: string;
-  /** 容器背景色, 默认读取 --container-bg */
-  containerBg?: string;
-  /** 模糊背景遮罩色, 默认半透明白 */
-  blurOverlayColor?: string;
-  /** 圆角半径 (px), 默认 12 */
-  cornerRadius?: number;
-  /** 内边距 (px, 大画布四周留白), 默认 24 */
-  padding?: number;
-  /** 消息间距 (px), 默认 12 */
-  messageGap?: number;
   /** 并发截图的最大并行数, 默认 6 */
   concurrency?: number;
   /** 进度回调 */
@@ -86,20 +59,6 @@ export interface StitchResult {
 }
 
 // ===================== 内部辅助 =====================
-
-/**
- * 读取指定 CSS 变量, 回退到 fallback。
- * 在浏览器外调用时 (例如 SSR 或单测) 返回 fallback。
- */
-function readCssVar(name: string, fallback: string): string {
-  if (typeof window === "undefined" || typeof document === "undefined") {
-    return fallback;
-  }
-  const v = getComputedStyle(document.documentElement)
-    .getPropertyValue(name)
-    .trim();
-  return v || fallback;
-}
 
 /**
  * 等待所有图片解码完成 (含 background-image / content: url())。
@@ -256,11 +215,8 @@ export async function captureElementAsCanvas(
  *
  * 算法:
  * 1. 并发截图 (Promise.all 限流到 concurrency 个), 得到 N 张独立 Canvas
- * 2. 计算总高度 = padding*2 + Σ(messageHeight + gap)
- * 3. 创建大画布, 先绘制背景 (containerBg + 模糊遮罩)
- * 4. 可选绘制外边框 + 投影
- * 5. 按 y 偏移依次 drawImage 消息 Canvas
- * 6. 可选绘制右下角水印
+ * 2. 计算总高度 = Σ(messageHeight)
+ * 3. 创建大画布, 按 y 偏移依次 drawImage 消息 Canvas
  */
 export async function captureMessagesAndStitch(
   elements: HTMLElement[],
@@ -270,20 +226,7 @@ export async function captureMessagesAndStitch(
     throw new Error("captureMessagesAndStitch: 至少需要一条消息");
   }
 
-  const {
-    scale = 2,
-    timeout = 30000,
-    effects = {},
-    borderColor,
-    cardBg,
-    containerBg,
-    blurOverlayColor = "rgba(255, 255, 255, 0.4)",
-    cornerRadius = 12,
-    padding = 24,
-    messageGap = 12,
-    concurrency = 6,
-    onProgress,
-  } = options;
+  const { scale = 2, timeout = 30000, concurrency = 6, onProgress } = options;
 
   // 解析截图容器宽度: 1) 优先 options.width; 2) 回退父容器; 3) 兜底 720px
   // 关键: 千万不能用 rect.width, 气泡模式下那只是气泡自然宽度
@@ -299,13 +242,6 @@ export async function captureMessagesAndStitch(
     return 720;
   }
   const resolvedWidth = resolveCaptureWidth();
-
-  const {
-    blurBackground = true,
-    outerBorder = true,
-    dropShadow = true,
-    watermark = true,
-  } = effects;
 
   // 1. 并发截图 (限流)
   const messageCanvases: HTMLCanvasElement[] = [];
@@ -340,18 +276,13 @@ export async function captureMessagesAndStitch(
   await Promise.all(workers);
 
   // 2. 计算总尺寸 (CSS 像素, 不乘 scale)
-  // 关键: captureWidth 必须用 ScreenshotRenderer 容器宽度, 不能用第一张图的
-  // width/scale, 否则气泡模式会被强行拉伸/压缩成第一张气泡的宽度
   const captureWidth = resolvedWidth;
   const messageHeights = messageCanvases.map((c) => c.height / scale);
-  const totalHeight =
-    padding * 2 +
-    messageHeights.reduce((sum, h) => sum + h, 0) +
-    messageGap * (messageCanvases.length - 1);
+  const totalHeight = messageHeights.reduce((sum, h) => sum + h, 0);
 
   // 3. 创建大画布
   const canvas = document.createElement("canvas");
-  canvas.width = Math.ceil((captureWidth + padding * 2) * scale);
+  canvas.width = Math.ceil(captureWidth * scale);
   canvas.height = Math.ceil(totalHeight * scale);
 
   const ctx = canvas.getContext("2d");
@@ -360,107 +291,23 @@ export async function captureMessagesAndStitch(
   }
   ctx.scale(scale, scale);
 
-  // 4. 背景
-  const resolvedContainerBg =
-    containerBg ?? readCssVar("--container-bg", "#ffffff");
-  const resolvedCardBg = cardBg ?? readCssVar("--card-bg", "#ffffff");
-  const resolvedBorder = borderColor ?? readCssVar("--border-color", "#dcdfe6");
-
-  // 卡片区域 (内框)
-  const cardX = padding;
-  const cardY = padding;
-  const cardW = captureWidth;
-  const cardH = totalHeight - padding * 2;
-
-  // 先填充容器背景
-  ctx.fillStyle = resolvedContainerBg;
-  ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale);
-
-  // 还原模糊背景: 在卡片区域外绘制半透明遮罩
-  if (blurBackground) {
-    ctx.save();
-    ctx.fillStyle = blurOverlayColor;
-    ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale);
-    ctx.restore();
-  }
-
-  // 5. 卡片底色 + 可选外边框 + 可选投影
-  ctx.save();
-  if (dropShadow) {
-    ctx.shadowColor = "rgba(0, 0, 0, 0.18)";
-    ctx.shadowBlur = 24;
-    ctx.shadowOffsetY = 4;
-  }
-
-  ctx.beginPath();
-  if (typeof (ctx as any).roundRect === "function") {
-    (ctx as any).roundRect(cardX, cardY, cardW, cardH, cornerRadius);
-  } else {
-    // 简易圆角回退 (无 roundRect 的环境, 实际所有目标环境都有)
-    ctx.rect(cardX, cardY, cardW, cardH);
-  }
-  ctx.fillStyle = resolvedCardBg;
-  ctx.fill();
-
-  if (dropShadow) {
-    // shadow 只需要在填充时生效, 后续绘制前清掉
-    ctx.shadowColor = "transparent";
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetY = 0;
-  }
-
-  if (outerBorder) {
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = resolvedBorder;
-    ctx.beginPath();
-    if (typeof (ctx as any).roundRect === "function") {
-      (ctx as any).roundRect(
-        cardX + 0.5,
-        cardY + 0.5,
-        cardW - 1,
-        cardH - 1,
-        cornerRadius
-      );
-    } else {
-      ctx.rect(cardX + 0.5, cardY + 0.5, cardW - 1, cardH - 1);
-    }
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  // 6. 拼接消息 Canvas
-  // 关键: 严格以 card 边为基准, 不要叠加额外内偏移, 不然消息会和 card 边缘错位
-  let y = cardY;
+  // 4. 拼接消息 Canvas — 纯消息叠加, 不做卡片装饰
+  let y = 0;
   for (let i = 0; i < messageCanvases.length; i++) {
     const msgCanvas = messageCanvases[i];
     const h = messageHeights[i];
     try {
-      ctx.drawImage(msgCanvas, cardX, y, cardW, h);
+      ctx.drawImage(msgCanvas, 0, y, captureWidth, h);
     } catch (err) {
       // 单条截图失败不应阻塞整图, 继续下一条
       console.warn(`[screenshotCapture] drawImage 失败 (msg #${i}):`, err);
     }
-    y += h + messageGap;
-  }
-
-  // 7. 水印
-  if (watermark) {
-    ctx.save();
-    const fontSize = 12;
-    ctx.font = `${fontSize}px -apple-system, "Segoe UI", system-ui, sans-serif`;
-    ctx.fillStyle = "rgba(120, 120, 120, 0.6)";
-    ctx.textBaseline = "bottom";
-    ctx.textAlign = "right";
-    const text = "Generated by AIO Hub";
-    const tx = cardX + cardW - 12;
-    const ty = cardY + cardH - 8;
-    ctx.fillText(text, tx, ty);
-    ctx.restore();
+    y += h;
   }
 
   return {
     canvas,
-    width: captureWidth + padding * 2,
+    width: captureWidth,
     height: totalHeight,
   };
 }
@@ -501,4 +348,3 @@ export async function copyCanvasToClipboard(
   });
   await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
 }
-

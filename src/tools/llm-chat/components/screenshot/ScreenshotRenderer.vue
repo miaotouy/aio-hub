@@ -1,14 +1,19 @@
 <script setup lang="ts">
 /**
- * 截图渲染器: 离屏 DOM 镜像, 专门为截图服务。
+ * 截图渲染器: 离屏 DOM 镜像, 专门为 modern-screenshot 截图服务。
+ *
+ * 使用方式:
+ * - 调用方 (ShareScreenshotDialog) 把它挂载在 position: fixed; left: -99999px
+ *   的离屏容器里, 用户视觉上完全看不到, 仅供 domToPng / domToCanvas 读取。
+ * - 截图通过 getMessageElements() 返回所有 .message-slot 节点, 由调用方
+ *   拼接 / 缩放 / 复制 / 保存。
  *
  * 关键设计:
- * - 复用 `useMessageLayout`, 排版与主列表完全一致
- * - 固定 720px 宽度, 排版稳定
- * - `provide("screenshotMode", true)` 注入给子组件, 隐藏交互
- * - 禁用 `content-visibility`, 全量展开渲染
- * - 暴露 `getMessageElements()` 返回所有 `.message-slot` 节点, 供截图工具使用
- * - 接受 `elementToggles` 覆盖系统设置, 实时影响 DOM 预览
+ * - 复用 useMessageLayout, 排版与主列表完全一致
+ * - 固定 720px 宽度, 排版稳定 (气泡模式不依赖父容器宽度)
+ * - provide("screenshotMode", true) 注入给子组件, 隐藏交互
+ * - 禁用 content-visibility, 强制全量展开渲染 (避免离屏内容被回收)
+ * - 接受 elementToggles 覆盖系统设置, 影响最终截图内容
  */
 import { computed, provide, ref } from "vue";
 import type { ChatMessageNode } from "../../types";

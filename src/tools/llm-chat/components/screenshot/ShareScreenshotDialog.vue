@@ -1,14 +1,32 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 /**
- * 消息截图分享弹窗 — V2 单弹窗合并版。
+ * 消息截图分享弹窗 — V3 离屏渲染 + 缩略图版。
  *
  * 布局:
  *   顶部 (Top): 消息范围选择 + 精细列表
  *   下方两栏 (Left + Right):
  *     - 左 (320px): 效果开关 / 布局覆盖 / 折叠策略 / 元素开关
- *     - 右 (Flex 1): ScreenshotRenderer 实时预览 + 缩放拖拽
+ *     - 右 (Flex 1): 截图缩略图 + 操作按钮
  *
- * 响应式: 宽度 < 900px 时 下方栏自动垂直堆叠 (左在上, 右在下)。
+ * 关键设计 (V3 修复):
+ *   - ScreenshotRenderer 不再以"可见 DOM 预览"形式挂在右栏,
+ *     而是通过 <Teleport to="body"> 挂到 body 上, 用
+ *     `position: fixed; left: -99999px` 推到视口之外 (真正离屏)。
+ *     这样:
+ *       a) 用户视觉上完全看不到 ScreenshotRenderer, 不会再出现
+ *          "图片与 DOM 叠加显示" 的 bug;
+ *       b) 不再有 v-show / v-if 切换的纠结, 离屏 renderer 由
+ *          `v-if="localVisible && selectedMessages.length > 0"`
+ *          直接控制挂载 / 卸载, 简洁干净;
+ *       c) modern-screenshot 在离屏状态下照常工作 (已验证)。
+ *   - 右栏只放一个**缩略图** (最大 360px 宽), 点击缩略图
+ *     调用全局 useImageViewer 打开图片查看器放大预览,
+ *     与 RichTextRendererTester / ScreenshotTester 行为一致。
+ *   - 配置变化 (选择 / 布局 / 元素开关 / 折叠) 通过 useDebounceFn
+ *     自动重新生成缩略图, 无需手动点击。
+ *   - 主动重新生成按钮保留, 兜底 / 即时刷新用。
+ *
+ * 响应式: 宽度 < 900px 时下方栏自动垂直堆叠 (左在上, 右在下)。
  */
 import {
   computed,
@@ -18,6 +36,7 @@ import {
   ref,
   watch,
 } from "vue";
+import { useDebounceFn } from "@vueuse/core";
 import {
   Camera,
   Copy,
@@ -25,6 +44,7 @@ import {
   ChevronDown,
   ChevronRight,
   Eye,
+  Loader2,
 } from "lucide-vue-next";
 import {
   ElButton,
@@ -41,13 +61,14 @@ import BaseDialog from "@/components/common/BaseDialog.vue";
 import ScreenshotRenderer from "./ScreenshotRenderer.vue";
 import { type CollapseStrategy } from "./screenshotTypes";
 import { useScreenshotGenerator } from "../../composables/features/useScreenshotGenerator";
+import { useImageViewer } from "@/composables/useImageViewer";
 import type { ChatMessageNode } from "../../types";
 import type { ChatSessionIndex, ChatSessionDetail } from "../../types/session";
-import type { StitchOptions } from "../../utils/screenshotCapture";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("ShareScreenshotDialog");
+const imageViewer = useImageViewer();
 
 interface Props {
   visible: boolean;
@@ -154,8 +175,9 @@ function toggleMessageSelection(id: string) {
 
 function getMessageSummary(msg: ChatMessageNode): string {
   const text = (msg.content ?? "").replace(/\s+/g, " ").trim();
-  return text.length > 60 ? `${text.slice(0, 60)}…` : text;
+  return text.length > 60 ? `${text.slice(0, 60)}\u2026` : text;
 }
+
 // ----- 配置面板 -----
 type LayoutModeChoice = "follow" | "card" | "bubble";
 const layoutOverrides = ref<{
@@ -190,154 +212,100 @@ const elementToggles = ref<ElementToggles>({
   showPerformanceMetrics: true,
 });
 
-// 关键修复: elementToggles 是对象 ref, Vue prop 比较是浅比较(===)。
+// 关键: elementToggles 是对象 ref, Vue prop 比较是浅比较(===)。
 // 直接修改 .value.xxx 不会改变对象引用, 导致 ScreenshotRenderer 收不到更新。
 // 用 computed 返回浅拷贝, 确保每次属性变化都产生新引用, 强制子组件更新。
 const elementTogglesSnapshot = computed<ElementToggles>(() => ({
   ...elementToggles.value,
 }));
 
-// ----- 预览渲染器引用 -----
+// ----- 离屏渲染器引用 -----
 const rendererRef = ref<InstanceType<typeof ScreenshotRenderer> | null>(null);
 
 function getMessageElements(): HTMLElement[] {
   return rendererRef.value?.getMessageElements() ?? [];
 }
 
-// 缩放控制
-const previewScale = ref(0.7);
-const previewWrapperRef = ref<HTMLElement | null>(null);
-
-function onPreviewWheel(e: WheelEvent) {
-  if (!e.ctrlKey && !e.metaKey) return;
-  e.preventDefault();
-  const delta = e.deltaY < 0 ? 0.1 : -0.1;
-  previewScale.value = Math.min(2, Math.max(0.3, previewScale.value + delta));
-}
-
-// 拖拽查看
-const dragState = ref({
-  active: false,
-  startX: 0,
-  startY: 0,
-  scrollLeft: 0,
-  scrollTop: 0,
-});
-function onPreviewMouseDown(e: MouseEvent) {
-  const el = previewWrapperRef.value;
-  if (!el) return;
-  dragState.value = {
-    active: true,
-    startX: e.clientX,
-    startY: e.clientY,
-    scrollLeft: el.scrollLeft,
-    scrollTop: el.scrollTop,
-  };
-  document.addEventListener("mousemove", onPreviewMouseMove);
-  document.addEventListener("mouseup", onPreviewMouseUp);
-}
-function onPreviewMouseMove(e: MouseEvent) {
-  if (!dragState.value.active) return;
-  const el = previewWrapperRef.value;
-  if (!el) return;
-  el.scrollLeft =
-    dragState.value.scrollLeft - (e.clientX - dragState.value.startX);
-  el.scrollTop =
-    dragState.value.scrollTop - (e.clientY - dragState.value.startY);
-}
-function onPreviewMouseUp() {
-  dragState.value.active = false;
-  document.removeEventListener("mousemove", onPreviewMouseMove);
-  document.removeEventListener("mouseup", onPreviewMouseUp);
-}
-
 // ----- 截图生成 -----
 const generating = ref(false);
 const progress = ref({ done: 0, total: 0, currentLabel: "" });
 const lastCanvas = ref<HTMLCanvasElement | null>(null);
-const activeTab = ref<"dom" | "image">("dom");
 const lastImageUrl = ref("");
 
-function buildStitchOptions(): StitchOptions {
-  return {
-    scale: 2,
-    concurrency: 6,
-  };
-}
+// generationToken 用于在快速连续触发时丢弃过期结果,
+// 防止旧 capture 完成时覆盖新 capture 的状态。
+let generationToken = 0;
 
-async function generateScreenshotImage() {
+async function regenerateScreenshot() {
   if (selectedMessages.value.length === 0) {
     lastCanvas.value = null;
     lastImageUrl.value = "";
     return;
   }
+  // 等待离屏 renderer 挂载并完成一帧布局
+  await nextTick();
+  await new Promise((r) => setTimeout(r, 100));
+
+  const elements = getMessageElements();
+  if (elements.length === 0) {
+    customMessage.warning("未检测到可截图的消息节点");
+    return;
+  }
+
+  const token = ++generationToken;
   generating.value = true;
   try {
-    await nextTick();
-    await new Promise((r) => setTimeout(r, 150));
-    const elements = getMessageElements();
-    if (elements.length === 0) {
-      customMessage.warning("未检测到可截图的消息节点");
-      return;
-    }
     const result = await generator.generate({
       elements,
       width: SCREENSHOT_RENDER_WIDTH,
-      options: buildStitchOptions(),
+      options: { scale: 2, concurrency: 6 },
       onProgress: (done, total, label) => {
+        if (token !== generationToken) return;
         progress.value = { done, total, currentLabel: label };
       },
     });
+    if (token !== generationToken) {
+      // 有更新的 capture 触发, 丢弃本次结果
+      return;
+    }
     lastCanvas.value = result.canvas;
     lastImageUrl.value = result.canvas.toDataURL("image/png");
-    activeTab.value = "image";
   } catch (err) {
-    logger.error("截图生成失败", { error: err });
+    if (token === generationToken) {
+      logger.error("截图生成失败", { error: err });
+    }
   } finally {
-    generating.value = false;
+    if (token === generationToken) {
+      generating.value = false;
+    }
   }
 }
 
-async function switchToImageTab() {
-  // 关键修复: 先截图再切 tab, 保证 renderer 在截图时处于挂载状态
-  if (!lastImageUrl.value && selectedMessages.value.length > 0) {
-    await generateScreenshotImage();
-  } else {
-    activeTab.value = "image";
-  }
+// 防抖: 配置变化时延迟 500ms 再重生成, 避免滑动选择时疯狂触发
+const debouncedRegenerate = useDebounceFn(regenerateScreenshot, 500);
+
+function openImageViewer() {
+  if (!lastImageUrl.value) return;
+  imageViewer.show(lastImageUrl.value);
 }
 
 async function handleCopy() {
-  if (selectedMessages.value.length === 0) {
-    customMessage.warning("请先选择消息");
+  if (!lastCanvas.value) {
+    customMessage.warning("请先生成截图");
     return;
   }
-  let canvas = lastCanvas.value;
-  if (!canvas) {
-    await generateScreenshotImage();
-    canvas = lastCanvas.value;
-  }
-  if (canvas) {
-    await generator.copyToClipboard(canvas);
-  }
+  await generator.copyToClipboard(lastCanvas.value);
 }
 
 async function handleSave() {
-  if (selectedMessages.value.length === 0) {
-    customMessage.warning("请先选择消息");
+  if (!lastCanvas.value) {
+    customMessage.warning("请先生成截图");
     return;
   }
-  let canvas = lastCanvas.value;
-  if (!canvas) {
-    await generateScreenshotImage();
-    canvas = lastCanvas.value;
-  }
-  if (canvas) {
-    await generator.saveToFile(canvas, props.defaultFileName);
-  }
+  await generator.saveToFile(lastCanvas.value, props.defaultFileName);
 }
 
-// 监听所有可能影响截图效果的配置, 一旦变化则清空已生成的截图并切回 DOM 视图
+// 监听所有可能影响截图效果的配置, debounced 自动重新生成
 watch(
   [
     () => Array.from(selectedIds.value),
@@ -347,18 +315,20 @@ watch(
   ],
   () => {
     if (!localVisible.value) return;
-    lastCanvas.value = null;
-    lastImageUrl.value = "";
-    activeTab.value = "dom";
+    debouncedRegenerate();
   },
   { deep: true }
 );
 
+// 打开对话框时立即生成一次, 关闭时清理大体积 data URL
 watch(
   () => localVisible.value,
   (v) => {
     if (v) {
-      activeTab.value = "dom";
+      regenerateScreenshot();
+    } else {
+      generationToken++; // 取消进行中的 capture
+      generating.value = false;
       lastCanvas.value = null;
       lastImageUrl.value = "";
     }
@@ -378,7 +348,6 @@ onBeforeUnmount(() => {
   window.removeEventListener("resize", updateLayoutMode);
 });
 </script>
-
 <template>
   <BaseDialog
     v-model="localVisible"
@@ -579,133 +548,86 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <!-- 右: 预览 -->
+        <!-- 右: 缩略图 + 状态 -->
         <section class="right-panel">
           <div class="preview-toolbar">
-            <div class="preview-tabs">
-              <button
-                type="button"
-                class="tab-btn"
-                :class="{ active: activeTab === 'dom' }"
-                @click="activeTab = 'dom'"
-              >
-                实时排版 (DOM)
-              </button>
-              <button
-                type="button"
-                class="tab-btn"
-                :class="{ active: activeTab === 'image' }"
-                @click="switchToImageTab"
-              >
-                截图效果 (图片)
-              </button>
-            </div>
             <span class="preview-stats">
               <Camera :size="14" />
-              缩放 {{ Math.round(previewScale * 100) }}%
+              <template v-if="lastCanvas">
+                {{ Math.round(lastCanvas.width / 2) }} ×
+                {{ Math.round(lastCanvas.height / 2) }} px
+              </template>
+              <template v-else>{{ SCREENSHOT_RENDER_WIDTH }} × ? px</template>
             </span>
             <div class="preview-toolbar-actions">
               <el-button
-                size="small"
-                @click="previewScale = Math.max(0.3, previewScale - 0.1)"
-              >
-                缩小
-              </el-button>
-              <el-button
-                size="small"
-                @click="previewScale = Math.min(2, previewScale + 0.1)"
-              >
-                放大
-              </el-button>
-              <el-button size="small" @click="previewScale = 1">100%</el-button>
-              <el-button
                 type="primary"
                 size="small"
-                @click="generateScreenshotImage"
                 :loading="generating"
+                :disabled="selectedMessages.length === 0"
+                @click="regenerateScreenshot"
               >
-                生成截图
+                重新生成
               </el-button>
             </div>
           </div>
-          <div
-            ref="previewWrapperRef"
-            class="preview-wrapper"
-            @wheel="onPreviewWheel"
-            @mousedown="onPreviewMouseDown"
-          >
-            <div class="preview-stage">
-              <div
-                class="preview-canvas-frame"
-                :style="{
-                  transform: `scale(${previewScale})`,
-                  transformOrigin: 'top center',
-                }"
-              >
-                <!--
-                  关键修复 (V2.2): ScreenshotRenderer 必须始终挂载,
-                  不能受 activeTab 控制显示/隐藏, 否则 getBoundingClientRect()
-                  在 display:none 状态下返回 0, 导致截图高度坍缩。
-                  用 v-if 控制挂载, 只要 selectedMessages > 0 就保持 DOM 存在。
-                -->
-                <ScreenshotRenderer
-                  v-if="selectedMessages.length > 0"
-                  ref="rendererRef"
-                  :messages="selectedMessages"
-                  :session-index="sessionIndex"
-                  :session-detail="sessionDetail"
-                  :is-sending="isSending"
-                  :llm-think-rules="llmThinkRules"
-                  :rich-text-style-options="richTextStyleOptions"
-                  :user-rich-text-style-options="userRichTextStyleOptions"
-                  :collapse-strategy="collapseStrategy"
-                  :width="SCREENSHOT_RENDER_WIDTH"
-                  :element-toggles="elementTogglesSnapshot"
-                />
 
-                <!--
-                  图片预览 overlay: 用绝对定位覆盖在 renderer 之上,
-                  而不是用 v-show 隐藏 renderer。这样 renderer 始终参与布局,
-                  截图工具可以正确读取尺寸。
-                -->
-                <div
-                  v-if="activeTab === 'image' && selectedMessages.length > 0"
-                  class="image-preview-overlay"
-                >
-                  <img
-                    v-if="lastImageUrl"
-                    :src="lastImageUrl"
-                    class="screenshot-img"
-                    alt="截图预览"
-                  />
-                  <div v-else class="image-preview-placeholder">
-                    <p>尚未生成截图效果，请点击"生成截图"</p>
-                  </div>
-                </div>
-
-                <div v-if="selectedMessages.length === 0" class="preview-empty">
-                  <Eye :size="32" />
-                  <p>请选择至少一条消息以生成预览</p>
-                </div>
-              </div>
+          <div class="preview-thumbnail-area">
+            <div v-if="generating" class="thumbnail-state">
+              <el-icon :size="32" class="is-spinning">
+                <Loader2 />
+              </el-icon>
+              <p class="thumbnail-state-title">正在生成截图…</p>
+              <p class="thumbnail-state-progress">
+                {{ progress.done }} / {{ progress.total }}
+              </p>
+            </div>
+            <img
+              v-else-if="lastImageUrl"
+              :src="lastImageUrl"
+              class="screenshot-thumbnail"
+              alt="截图缩略图，点击查看大图"
+              @click="openImageViewer"
+            />
+            <div v-else-if="selectedMessages.length === 0" class="thumbnail-state">
+              <el-icon :size="32"><Eye /></el-icon>
+              <p class="thumbnail-state-title">请选择至少一条消息</p>
+            </div>
+            <div v-else class="thumbnail-state">
+              <el-icon :size="32"><Camera /></el-icon>
+              <p class="thumbnail-state-title">等待生成截图</p>
+              <p class="thumbnail-state-hint">点击右上角"重新生成"或修改左侧配置</p>
             </div>
           </div>
+
           <div class="preview-footer">
-            <div class="preview-progress">
+            <div class="preview-status">
               <template v-if="generating">
-                正在生成截图... {{ progress.done }} / {{ progress.total }}
+                正在生成… {{ progress.done }} / {{ progress.total }}
               </template>
               <template v-else-if="lastCanvas">
-                已生成截图 ({{ Math.round(lastCanvas.width / 2) }} ×
-                {{ Math.round(lastCanvas.height / 2) }} px)
+                已生成 ({{ Math.round(lastCanvas.width / 2) }} ×
+                {{ Math.round(lastCanvas.height / 2) }} px,
+                {{ selectedMessages.length }} 条消息)
               </template>
               <template v-else>等待生成截图</template>
             </div>
             <div class="preview-actions">
-              <el-button :icon="Copy" @click="handleCopy">
+              <el-button
+                :icon="Copy"
+                size="small"
+                :disabled="!lastCanvas"
+                @click="handleCopy"
+              >
                 复制到剪贴板
               </el-button>
-              <el-button type="primary" :icon="Download" @click="handleSave">
+              <el-button
+                type="primary"
+                size="small"
+                :icon="Download"
+                :disabled="!lastCanvas"
+                @click="handleSave"
+              >
                 保存图片
               </el-button>
             </div>
@@ -714,8 +636,41 @@ onBeforeUnmount(() => {
       </div>
     </div>
   </BaseDialog>
-</template>
 
+  <!--
+    离屏渲染区 (V3): ScreenshotRenderer 视觉上完全不可见,
+    仅供 modern-screenshot 读取。
+    关键点:
+      - <Teleport to="body"> 把它从 BaseDialog 的变换容器中抽出来,
+        避免 .base-dialog-container 的 transform: scale(...) 创建
+        包含块, 让 position: fixed 真的相对视口。
+      - position: fixed + 极大负 left/top, 推到视口外 99999px。
+      - z-index: -1 + pointer-events: none, 双保险。
+      - v-if 控制挂载: 仅在对话框打开且有选中消息时挂载, 节省资源。
+      - aria-hidden="true" 避免屏幕阅读器误读。
+  -->
+  <Teleport to="body">
+    <div
+      v-if="localVisible && selectedMessages.length > 0"
+      class="screenshot-offscreen-stage"
+      aria-hidden="true"
+    >
+      <ScreenshotRenderer
+        ref="rendererRef"
+        :messages="selectedMessages"
+        :session-index="sessionIndex"
+        :session-detail="sessionDetail"
+        :is-sending="isSending"
+        :llm-think-rules="llmThinkRules"
+        :rich-text-style-options="richTextStyleOptions"
+        :user-rich-text-style-options="userRichTextStyleOptions"
+        :collapse-strategy="collapseStrategy"
+        :width="SCREENSHOT_RENDER_WIDTH"
+        :element-toggles="elementTogglesSnapshot"
+      />
+    </div>
+  </Teleport>
+</template>
 <style scoped>
 .share-screenshot {
   display: flex;
@@ -724,7 +679,7 @@ onBeforeUnmount(() => {
   gap: 12px;
 }
 
-/* 顶部 */
+/* ===== 顶部 ===== */
 .top-panel {
   flex-shrink: 0;
   border: 1px solid var(--border-color);
@@ -829,7 +784,7 @@ onBeforeUnmount(() => {
   color: var(--text-color-secondary);
 }
 
-/* 下方双栏 */
+/* ===== 下方双栏 ===== */
 .bottom-row {
   flex: 1;
   display: flex;
@@ -865,7 +820,7 @@ onBeforeUnmount(() => {
   max-height: 280px;
 }
 
-/* 配置区 */
+/* ===== 左: 配置 ===== */
 .config-section {
   padding: 12px;
   border-bottom: 1px solid var(--border-color);
@@ -921,34 +876,7 @@ onBeforeUnmount(() => {
   margin-top: 2px;
 }
 
-/* 预览 */
-.preview-tabs {
-  display: flex;
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 2px;
-}
-.tab-btn {
-  background: transparent;
-  border: none;
-  padding: 4px 12px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-color-secondary);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.tab-btn:hover {
-  color: var(--text-color-primary);
-}
-.tab-btn.active {
-  background: var(--card-bg);
-  color: var(--primary-color);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
+/* ===== 右: 缩略图 + 状态 ===== */
 .preview-toolbar {
   display: flex;
   align-items: center;
@@ -963,79 +891,76 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 4px;
+  font-variant-numeric: tabular-nums;
 }
 .preview-toolbar-actions {
   margin-left: auto;
   display: flex;
   gap: 4px;
 }
-.preview-wrapper {
+
+/* 缩略图容器: 居中显示截图缩略图, 背景与对比明显 */
+.preview-thumbnail-area {
   flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: var(--container-bg);
   overflow: auto;
-  padding: 16px;
-  background: var(--container-bg);
-  cursor: grab;
-  user-select: none;
-}
-.preview-wrapper:active {
-  cursor: grabbing;
-}
-.preview-stage {
-  display: flex;
-  justify-content: center;
-  min-width: 100%;
-}
-.preview-canvas-frame {
-  /* 实际宽度由 ScreenshotRenderer 内部 720px 决定, 这里只做 transform 缩放 */
-  display: inline-block;
-  position: relative;
+  min-height: 0;
 }
 
-/* 图片预览 overlay: 绝对定位覆盖在 renderer 之上 */
-.image-preview-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: var(--container-bg);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  z-index: 10;
-}
-.screenshot-img {
-  width: 100%;
+.screenshot-thumbnail {
+  /* 缩略图最大 360px 宽, 高度按比例自动缩放 */
+  max-width: 360px;
+  width: auto;
   height: auto;
+  max-height: 100%;
   display: block;
-  border-radius: 8px;
+  border-radius: 6px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  cursor: zoom-in;
+  transition: transform 0.15s, box-shadow 0.15s;
 }
-.image-preview-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 48px;
-  color: var(--text-color-secondary);
-  width: 100%;
-  box-sizing: border-box;
+.screenshot-thumbnail:hover {
+  transform: scale(1.02);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
 }
 
-.preview-empty {
+/* 占位 / 加载态 */
+.thumbnail-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 48px;
-  color: var(--text-color-secondary);
   gap: 8px;
-  width: 720px;
-  box-sizing: border-box;
+  color: var(--text-color-secondary);
+  text-align: center;
 }
-.preview-empty p {
+.thumbnail-state-title {
   margin: 0;
   font-size: 13px;
+  color: var(--text-color-secondary);
+}
+.thumbnail-state-progress {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-color-placeholder);
+  font-variant-numeric: tabular-nums;
+}
+.thumbnail-state-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-color-placeholder);
+}
+.is-spinning {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .preview-footer {
@@ -1046,9 +971,27 @@ onBeforeUnmount(() => {
   border-top: 1px solid var(--border-color);
   flex-shrink: 0;
 }
-.preview-progress {
+.preview-status {
   font-size: 12px;
   color: var(--text-color-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== 离屏渲染 stage (Teleport 到 body) ===== */
+/* 关键: 推到视口外 99999px, 用户完全看不到。
+   * Teleport 把元素从 BaseDialog 的 transform 容器中抽出来,
+   * position: fixed 才能真的相对视口定位。
+   * 必须 display: block (不能用 display: none), 否则
+   * getBoundingClientRect 返回 0, modern-screenshot 会截到 0 高度。
+   */
+.screenshot-offscreen-stage {
+  position: fixed;
+  top: 0;
+  left: -99999px;
+  width: 720px;
+  z-index: -1;
+  pointer-events: none;
+  /* 不加 visibility/opacity, 避免子组件被浏览器跳过渲染或合成 */
 }
 .preview-actions {
   margin-left: auto;

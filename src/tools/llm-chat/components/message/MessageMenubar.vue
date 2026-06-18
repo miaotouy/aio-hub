@@ -33,6 +33,7 @@ import {
   Hash,
   Variable,
   Wand2,
+  Camera,
 } from "lucide-vue-next";
 import type {
   ChatMessageNode,
@@ -77,6 +78,7 @@ interface Emits {
     e: "reparse-tools",
     options?: { modelId?: string; profileId?: string }
   ): void;
+  (e: "screenshot"): void;
 }
 
 const agentStore = useAgentStore();
@@ -537,6 +539,12 @@ const handleTranslateClick = (e: MouseEvent) => {
               <div class="dropdown-item-content">
                 <Download :size="16" />
                 <span>导出分支</span>
+              </div>
+            </el-dropdown-item>
+            <el-dropdown-item @click="emit('screenshot')">
+              <div class="dropdown-item-content">
+                <Camera :size="16" />
+                <span>创建消息截图</span>
               </div>
             </el-dropdown-item>
             <el-dropdown-item

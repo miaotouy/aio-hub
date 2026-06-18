@@ -35,6 +35,8 @@ interface Props {
   sessionDetail: ChatSessionDetail | null;
   message: ChatMessageNode;
   messageDepth?: number;
+  /** 是否处于截图模式：隐藏编辑/删除按钮、禁用角色切换下拉 */
+  screenshotMode?: boolean;
 }
 
 interface Emits {
@@ -63,7 +65,7 @@ provide("chatSettings", settings);
 const isEditing = ref(false);
 const editedContent = ref(props.message.content);
 
-// ===== 背景分块渲染逻辑 (规避超长消息 backdrop-filter 失效) =====
+// ----- 背景分块渲染逻辑 (规避超长消息 backdrop-filter 失效) -----
 const messageRef = ref<HTMLElement | null>(null);
 const messageHeight = ref(0);
 const BLOCK_SIZE = 2000;
@@ -86,7 +88,7 @@ const backgroundBlocks = computed(() => {
   return Math.ceil(messageHeight.value / BLOCK_SIZE);
 });
 
-// ===== 正则规则处理逻辑 =====
+// ----- 正则规则处理逻辑 -----
 function getAgentAndUserProfileIds(metadata: any): {
   agentId: string | undefined;
   userProfileId: string | undefined;
@@ -221,7 +223,11 @@ defineExpose({
   <div
     ref="messageRef"
     class="compression-message chat-message"
-    :class="{ 'is-disabled': !isEnabled, 'is-editing': isEditing }"
+    :class="{
+      'is-disabled': !isEnabled,
+      'is-editing': isEditing,
+      'screenshot-mode': props.screenshotMode,
+    }"
     :data-message-id="message.id"
   >
     <!-- 背景层：分块渲染以规避浏览器对大尺寸 backdrop-filter 的限制 -->
@@ -255,7 +261,11 @@ defineExpose({
       <!-- 头部信息 -->
       <div class="compression-header">
         <div class="header-left">
-          <el-dropdown trigger="click" @command="handleRoleChange">
+          <el-dropdown
+            trigger="click"
+            :disabled="props.screenshotMode"
+            @command="handleRoleChange"
+          >
             <span class="role-badge" :class="message.role">
               <component
                 :is="roles.find((r) => r.value === message.role)?.icon"
@@ -303,13 +313,19 @@ defineExpose({
             </button>
           </template>
 
-          <!-- 常规模式按钮 -->
+          <!-- 常规模式按钮(截图模式下仅显示状态徽标,不暴露交互) -->
           <template v-else>
-            <button class="action-btn" title="编辑摘要" @click="startEdit">
+            <button
+              v-if="!props.screenshotMode"
+              class="action-btn"
+              title="编辑摘要"
+              @click="startEdit"
+            >
               <Edit2 :size="14" />
             </button>
 
             <button
+              v-if="!props.screenshotMode"
               class="action-btn"
               :title="
                 isEnabled
@@ -322,6 +338,7 @@ defineExpose({
             </button>
 
             <el-popconfirm
+              v-if="!props.screenshotMode"
               title="确定删除此压缩节点吗？"
               @confirm="emit('delete')"
             >

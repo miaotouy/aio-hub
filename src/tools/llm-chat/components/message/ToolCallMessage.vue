@@ -67,6 +67,8 @@ interface Props {
   richTextStyleOptions?: any;
   buttonVisibility?: ButtonVisibility;
   isSending?: boolean;
+  /** 截图模式: 隐藏操作栏 / 预览按钮 / 异步任务操作, 强制展开 */
+  screenshotMode?: boolean;
 }
 
 interface Emits {
@@ -90,6 +92,7 @@ interface Emits {
       | undefined
   ): void;
   (e: "resize", el: HTMLElement | null): void;
+  (e: "screenshot"): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -98,6 +101,7 @@ const props = withDefaults(defineProps<Props>(), {
   isTranslating: false,
   isSending: false,
   translationContent: "",
+  screenshotMode: false,
 });
 const emit = defineEmits<Emits>();
 
@@ -112,7 +116,7 @@ const asyncTaskStore = useAsyncTaskStore();
 // 编辑状态（内部管理）
 const isEditing = ref(false);
 
-// ===== 异步任务状态管理 =====
+// ----- 异步任务状态管理 -----
 const taskId = ref<string | null>(null);
 const asyncTask = ref<AsyncTaskMetadata | null>(null);
 let pollingTimer: ReturnType<typeof setInterval> | null = null;
@@ -244,17 +248,19 @@ const argsCollapsedMap = ref<Record<string, boolean>>({}); // 用于存储每个
 const editingContent = ref("");
 const editorRef = ref<any>(null);
 
-// ===== 预览弹窗状态 =====
+// ----- 预览弹窗状态 -----
 const previewDialogVisible = ref(false);
 const previewDialogContent = ref("");
 const previewDialogLabel = ref("执行结果");
 
 const toggleCollapse = () => {
   if (isEditing.value) return; // 编辑模式不允许折叠
+  if (props.screenshotMode) return; // 截图模式由 collapseStrategy 控制, 不接受交互
   isCollapsed.value = !isCollapsed.value;
 };
 
 const toggleArgsCollapse = (requestId: string) => {
+  if (props.screenshotMode) return;
   argsCollapsedMap.value[requestId] = !argsCollapsedMap.value[requestId];
 };
 
@@ -267,7 +273,7 @@ const isArgsCollapsed = (requestId: string) => {
 provide("messageId", props.message.id);
 provide("chatSettings", settings);
 
-// ===== 布局与背景逻辑 =====
+// ----- 布局与背景逻辑 -----
 const messageRef = ref<HTMLElement | null>(null);
 const messageHeight = ref(0);
 const containerWidth = ref(0);
@@ -290,7 +296,7 @@ const backgroundBlocks = computed(() => {
   return Math.ceil(messageHeight.value / BLOCK_SIZE);
 });
 
-// ===== 工具状态与元数据 =====
+// ----- 工具状态与元数据 -----
 const toolCalls = computed(() => {
   if (
     props.message.metadata?.toolCalls &&
@@ -369,7 +375,7 @@ const currentAgent = computed(() => {
   return agentId ? agentStore.getAgentById(agentId) : undefined;
 });
 
-// ===== 内容解析与正则规则 =====
+// ----- 内容解析与正则规则 -----
 const resolveAsset = (content: string) => {
   return processMessageAssetsSync(content, currentAgent.value);
 };
@@ -491,7 +497,7 @@ watch(
   { immediate: true }
 );
 
-// ===== 翻译显示逻辑 =====
+// ----- 翻译显示逻辑 -----
 const displayMode = computed<TranslationDisplayMode>(() => {
   if (props.isTranslating) return "both";
   return props.message.metadata?.translation?.displayMode || "both";
@@ -535,7 +541,7 @@ const isWideLayout = computed(() => {
   );
 });
 
-// ===== 翻译与重试逻辑 =====
+// ----- 翻译与重试逻辑 -----
 const handleTranslate = async (targetLang?: string) => {
   if (props.isTranslating) return;
 
@@ -572,7 +578,7 @@ const handleTranslate = async (targetLang?: string) => {
     // 错误由 useTranslation 处理
   }
 };
-// ===== 编辑逻辑 =====
+// ----- 编辑逻辑 -----
 // 开始编辑
 const startEdit = () => {
   editingContent.value = props.message.content;
@@ -618,7 +624,7 @@ const formatArgValue = (val: any) => {
   return String(val);
 };
 
-// ===== 菜单栏相关计算 =====
+// ----- 菜单栏相关计算 -----
 const siblings = computed(() => {
   const nodes = props.sessionDetail?.nodes;
   if (!props.sessionDetail || !nodes || !props.message.parentId)
@@ -680,6 +686,7 @@ defineExpose({
     :class="{
       'is-disabled': message.isEnabled === false,
       'is-editing': isEditing,
+      'screenshot-mode': props.screenshotMode,
     }"
     :data-message-id="message.id"
   >
@@ -829,6 +836,7 @@ defineExpose({
                     参数
                   </div>
                   <button
+                    v-if="!props.screenshotMode"
                     class="copy-small-btn"
                     @click.stop="handleCopyArgs(tc.rawArgs)"
                   >
@@ -876,6 +884,7 @@ defineExpose({
                 输入参数
               </div>
               <button
+                v-if="!props.screenshotMode"
                 class="copy-small-btn"
                 @click.stop="handleCopyArgs(toolCalls[0].rawArgs)"
               >
@@ -977,6 +986,7 @@ defineExpose({
                 <MessageSquareText :size="14" class="translation-icon" />
                 <span class="translation-title">原文</span>
                 <button
+                  v-if="!props.screenshotMode"
                   class="preview-btn"
                   @click="
                     handlePreviewResult(displayContent, '原文（执行结果）')
@@ -999,6 +1009,7 @@ defineExpose({
                       {{ toolCalls[0].status.toUpperCase() }}
                     </div>
                     <button
+                      v-if="!props.screenshotMode"
                       class="preview-btn"
                       @click="handlePreviewResult(displayContent, '执行结果')"
                       title="预览渲染效果"
@@ -1026,6 +1037,7 @@ defineExpose({
                   </span>
                 </div>
                 <button
+                  v-if="!props.screenshotMode"
                   class="preview-btn"
                   @click="
                     handlePreviewResult(
@@ -1081,10 +1093,10 @@ defineExpose({
         </div>
       </div>
 
-      <!-- 悬浮操作栏 (对齐 ChatMessage.vue 逻辑) -->
+      <!-- 悬浮操作栏 (对齐 ChatMessage.vue 逻辑; 截图模式完全不渲染) -->
       <div
         class="menubar-wrapper"
-        v-if="!isEditing"
+        v-if="!isEditing && !props.screenshotMode"
         :class="{ 'is-collapsed': isCollapsed }"
       >
         <MessageMenubar
@@ -1104,6 +1116,7 @@ defineExpose({
           @continue="onContinue"
           @create-branch="emit('create-branch')"
           @analyze-context="emit('analyze-context')"
+          @screenshot="emit('screenshot')"
           @translate="handleTranslate"
           @toggle-translation-visible="onToggleTranslationVisible"
           @change-translation-mode="onChangeTranslationMode"

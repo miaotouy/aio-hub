@@ -1,10 +1,47 @@
 # LLM Chat: 消息截图分享功能 — 实施计划 (V2)
 
 > 最后更新：2026-06-18
-> 状态：实施计划 (V2) — 待实施
+> 状态：阶段一 ~ 阶段四完成, check:frontend + lint 通过, 待真机验证
 > 作者：Gugu_Kilo & miaotouy
 > 版本：V2 (单弹窗合并 + 上左右响应式布局 + 并发消息截图 + 纯 Canvas 2D 拼接)
 > ⚠️ 历史备注：上一轮实施（V1 分组截图方案）因效果不理想、频繁切换 display 导致虚拟滚动空白、截图速度极慢而回滚。本版 V2 彻底抛弃分组截图，采用并发单条消息截图与 Canvas 拼接方案。
+
+---
+
+## 0. 施工进度日志
+
+> 本节随施工实时更新,记录实际进展、与原计划的偏差以及实施过程中的发现。
+
+### 0.1 阶段一/二 当前进展（2026-06-18）
+
+- DONE **`composables/ui/useMessageLayout.ts`**: 从 `MessageList.vue` 提取 4 个核心 computed(`compressedNodeIds`、`messageSiblingInfoMap`、`messageLayouts`、`bubbleLayoutVars`)以及 3 个派生标志(`shouldHideHeaderAvatar`、`shouldUseOutsideHeader`、`bubbleLayout`)。返回值与原 `MessageList` 中保持同名,消费者零改动。
+- DONE **`MessageList.vue` 重构**: script 1383 行 → ~1230 行,删除约 180 行重复布局计算代码。新增 `screenshotMode?` prop,内部 `provide("screenshotMode", computed)` 注入供子组件使用;模板继续透传给后代,3 个消息组件统一加 `:screenshot-mode`。
+- DONE **`ChatMessage.vue`**: prop + `screenshot-mode` class + `menubar-wrapper` 加 `&& !props.screenshotMode` 守卫。
+- DONE **`CompressionMessage.vue`**: prop + class + 角色下拉 `:disabled` + 编辑/启用/删除按钮 `v-if` 守卫。
+- DONE **`ToolCallMessage.vue`**: prop + class + `toggleCollapse`/`toggleArgsCollapse` 守卫 + menubar-wrapper `&& !screenshotMode` 守卫 + `preview-btn` / `copy-small-btn` 隐藏。
+- DONE **`MessageContent.vue`**: prop + 编辑模式 `&& !screenshotMode` 守卫 + 流式指示器 / 渐进预览图 / 翻译流式指示器 隐藏。
+- DONE **`MessageHeader.vue`**: prop + 性能指标 / 时间戳 `&& !screenshotMode` 守卫。MessageList 中的外置 header 透传 `screenshot-mode`。
+- SKIP **`MessageMenubar.vue`**: 无需修改——已通过父级 `v-if` 拦截。
+- DONE **`utils/screenshotCapture.ts`**: `captureElementAsCanvas` (CSS 变量复制 / content-visibility 强制可见 / 毛玻璃替换为实色 / 滚动条隐藏) + `captureMessagesAndStitch` (并发限流截图 / Canvas 2D 拼接 / 圆角阴影水印) + `canvasToPngBytes` (纯 JS Base64 解码, 合规 CSP) + `copyCanvasToClipboard`。
+- DONE **`ScreenshotRenderer.vue`**: 离屏固定 720px 宽, 复用 `useMessageLayout`, 镜像 4 种消息渲染分支 (外置 header / compression / tool / 普通), `provide("screenshotMode", true)`, 全量展开 (content-visibility: visible), 暴露 `getMessageElements()`。
+- DONE **`useScreenshotGenerator.ts`**: 模块化 logger / error handler, 暴露 `generate` / `copyToClipboard` / `saveToFile`, 进度回调, Tauri save dialog + writeFile。
+- DONE **`ShareScreenshotDialog.vue`**: 单弹窗合并版, 上(范围选择 + 精细列表)+ 左 320px(效果 / 布局覆盖 / 折叠策略 / 元素开关) + 右 Flex(实时预览 + 缩放拖拽), 响应式 (< 900px 垂直堆叠)。
+- DONE **入口接入**:
+  - `MessageMenubar.vue`: "更多" 下拉新增 "创建消息截图" (Camera 图标), 发射 `screenshot` 事件。
+  - `ChatMessage.vue` / `ToolCallMessage.vue` / `MessageList.vue`: 透传 `@screenshot` 事件。
+  - `ChatArea.vue`: 监听 `@screenshot`, 打开 `ShareScreenshotDialog` (默认聚焦触发消息)。
+  - `ExportBranchDialog.vue`: 底部新增 "生成分享长图" 按钮, 发射 `screenshot` 事件 (未挂到消费者, 待 GraphNodeMenubar/MessageMenubar 后续接入)。
+- DONE **`check:frontend` + `lint`**: 全部通过, 0 errors / 0 warnings。
+
+### 0.2 与原计划的偏差与设计决定
+
+- **`MessageMenubar.vue` 不需要单独 v-if 守卫**: 原计划要求整体不渲染。实际上 `ChatMessage.vue` / `ToolCallMessage.vue` 的 `menubar-wrapper` 外层已经拦截。
+- **`screenshotCollapseStrategy` 折叠策略实现**: 原计划要求遍历主界面组件实例做快照,实现成本高且易碎。变更为: 截图渲染器只接收 `collapseStrategy` 配置,`preserve` 模式由用户手动确认,`config` 模式读取 agent `defaultToolCallCollapsed` 配置。
+- **`LlmThinkNode` 折叠状态**: 原计划要求通过 DOM class 判断后还原。变更为: 截图模式下强制 `LlmThinkNode` 展开(`override-expand` 策略)或遵循用户选择策略。
+- **`provide("screenshotMode")` 注入**: 使用 `computed(() => props.screenshotMode ?? false)` 包装后注入,子组件 inject 后得到的是 ComputedRef,需要 `.value` 读取。
+
+---
+
 
 ---
 

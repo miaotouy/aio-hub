@@ -77,6 +77,8 @@ interface Props {
   llmThinkRules?: import("@/tools/rich-text-renderer/types").LlmThinkRule[];
   richTextStyleOptions?: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions;
   messageDepth?: number;
+  /** 截图模式: 隐藏编辑入口、流式指示器、渐进预览图等 */
+  screenshotMode?: boolean;
 }
 
 interface Emits {
@@ -90,6 +92,7 @@ const props = withDefaults(defineProps<Props>(), {
   isTranslating: false,
   translationContent: "",
   messageDepth: 0,
+  screenshotMode: false,
 });
 
 // 提供消息 ID 给后代组件（如可交互按钮）
@@ -704,7 +707,7 @@ useResizeObserver(containerRef, (entries) => {
   const entry = entries[0];
   containerWidth.value = entry.contentRect.width;
 });
-// ===== 消息绑定的渲染配置：优先使用来源智能体的配置，缺失时回退到 props（当前激活智能体） =====
+// ----- 消息绑定的渲染配置：优先使用来源智能体的配置，缺失时回退到 props（当前激活智能体） -----
 
 // 消息绑定的 llmThinkRules
 const messageBoundLlmThinkRules = computed(() => {
@@ -731,7 +734,7 @@ const messageBoundStyleOptions = computed(() => {
   return props.richTextStyleOptions;
 });
 
-// ===== 视口感知冻结：防止不可见消息因渲染配置变化触发重渲染导致 OOM =====
+// ----- 视口感知冻结：防止不可见消息因渲染配置变化触发重渲染导致 OOM -----
 const isInViewport = ref(true); // 默认可见，避免首次渲染时闪烁
 
 useIntersectionObserver(
@@ -925,9 +928,9 @@ watch(
       />
     </LlmThinkNode>
 
-    <!-- 编辑模式 -->
+    <!-- 编辑模式 (截图模式强制关闭) -->
     <div
-      v-if="isEditing"
+      v-if="isEditing && !props.screenshotMode"
       ref="editAreaRef"
       class="edit-mode"
       :class="{ 'is-dragging': isDraggingOver }"
@@ -1098,7 +1101,10 @@ watch(
           :should-freeze="shouldFreezeHtml"
           :show-token-count="settings.uiPreferences.showTokenCountForBlocks"
         />
-        <div v-if="isGenerating" class="streaming-indicator">
+        <div
+          v-if="isGenerating && !props.screenshotMode"
+          class="streaming-indicator"
+        >
           <span class="dot"></span>
           <span class="dot"></span>
           <span class="dot"></span>
@@ -1106,7 +1112,11 @@ watch(
 
         <!-- 流式预览图（gpt-image-2 partial_images 特性） -->
         <div
-          v-if="isGenerating && message.metadata?.partialImagePreviews?.length"
+          v-if="
+            isGenerating &&
+            message.metadata?.partialImagePreviews?.length &&
+            !props.screenshotMode
+          "
           class="partial-image-previews"
         >
           <div class="partial-image-grid">
@@ -1179,7 +1189,7 @@ watch(
             :show-token-count="settings.uiPreferences.showTokenCountForBlocks"
           />
           <div
-            v-if="isTranslating"
+            v-if="isTranslating && !props.screenshotMode"
             class="streaming-indicator translation-loading"
           >
             <span class="dot"></span>

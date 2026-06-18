@@ -27,6 +27,7 @@ import EditAgentDialog from "./agent/management/EditAgentDialog.vue";
 import ChatSettingsDialog from "./settings/ChatSettingsDialog.vue";
 import FlowTreeGraph from "./conversation-tree-graph/flow/FlowTreeGraph.vue";
 import ChatSearchPanel from "./search/ChatSearchPanel.vue";
+import ShareScreenshotDialog from "./screenshot/ShareScreenshotDialog.vue";
 // 获取智能体和模型信息
 import { useChatSettings } from "../composables/settings/useChatSettings";
 import { useLlmChatUiState } from "../composables/ui/useLlmChatUiState";
@@ -86,16 +87,29 @@ const { width: containerWidth } = useElementSize(containerRef);
 const chatAreaHeaderRef = ref<InstanceType<typeof ChatAreaHeader>>();
 const messageListRef = ref<InstanceType<typeof MessageList>>();
 
+// 截图分享弹窗状态
+const screenshotDialogVisible = ref(false);
+const screenshotFocusMessageId = ref<string | undefined>(undefined);
+const handleScreenshot = (messageId: string) => {
+  screenshotFocusMessageId.value = messageId;
+  screenshotDialogVisible.value = true;
+};
+
 const bus = useWindowSyncBus();
 const { viewMode } = useLlmChatUiState();
 const llmChatStore = useLlmChatStore();
 const { loadSettings, settings } = useChatSettings();
 
-// ===== 消息事件处理 =====
+// ----- 消息事件处理 -----
 // ChatArea 现在是一个纯粹的视图组件，只负责接收 props 和发出 emits
 // 所有分离逻辑都由 DetachedComponentContainer 通过适配器注入
 const finalMessages = toRef(props, "messages");
 const finalIsSending = toRef(props, "isSending");
+const screenshotDefaultFileName = computed(() => {
+  const session = llmChatStore.currentSession;
+  const baseTitle = (session?.name ?? "").trim() || "AIO-Hub-Chat";
+  return `${baseTitle}-分享.png`;
+});
 const finalDisabled = toRef(props, "disabled");
 const finalCurrentAgentId = toRef(props, "currentAgentId");
 const finalCurrentModelId = toRef(props, "currentModelId");
@@ -140,7 +154,7 @@ const finalMessageStyleOptions = computed(() => {
   return mergeStyleOptions(globalStyle, agentStyle);
 });
 
-// ===== 拖拽与分离功能 =====
+// ----- 拖拽与分离功能 -----
 const { detachedComponents } = useDetachedManager();
 const { startDetaching } = useDetachable();
 const { createResizeHandler } = useWindowResize();
@@ -248,7 +262,7 @@ const handleDetach = async () => {
   }
 };
 
-// ===== 渲染配置引用稳定化 =====
+// ----- 渲染配置引用稳定化 -----
 // 防止切换智能体/保存配置时，即使内容未变也因引用变化触发全量重渲染
 const stableLlmThinkRules = shallowRef(currentAgent.value?.llmThinkRules);
 watch(
@@ -289,7 +303,7 @@ const handleCompleteInput = (
   options?: { modelId?: string; profileId?: string }
 ) => emit("complete-input", content, options);
 
-// ===== 内容宽度限制样式 =====
+// ----- 内容宽度限制样式 -----
 const contentWidthStyle = computed(() => {
   if (!settings.value.uiPreferences.enableContentWidthLimit) {
     return {};
@@ -302,7 +316,7 @@ const contentWidthStyle = computed(() => {
   };
 });
 
-// ===== MessageNavigator 相关 =====
+// ----- MessageNavigator 相关 -----
 // 获取滚动容器引用
 const scrollElement = computed(() => {
   return messageListRef.value?.getScrollElement() ?? null;
@@ -352,7 +366,7 @@ const handleScrollToPrev = () => {
 
 const isReady = ref(false);
 
-// ===== 键盘导航 =====
+// ----- 键盘导航 -----
 const handleKeyDown = (e: KeyboardEvent) => {
   // 处理 Ctrl+F 搜索快捷键 (无论焦点在哪里，只要在 ChatArea 内)
   // 但如果焦点在 CodeMirror 编辑器内，则让编辑器自己处理搜索
@@ -497,6 +511,7 @@ onMounted(async () => {
               :rich-text-style-options="stableMessageStyleOptions"
               :user-rich-text-style-options="stableUserRichTextStyleOptions"
               :style="contentWidthStyle"
+              @screenshot="handleScreenshot"
             />
 
             <!-- 消息导航器 -->
@@ -592,6 +607,19 @@ onMounted(async () => {
       <div class="indicator-border"></div>
       <div class="indicator-handle"></div>
     </div>
+    <!-- 消息截图分享弹窗 -->
+    <ShareScreenshotDialog
+      v-model:visible="screenshotDialogVisible"
+      :messages="finalMessages"
+      :session-index="llmChatStore.currentSession"
+      :session-detail="llmChatStore.currentSessionDetail"
+      :is-sending="finalIsSending"
+      :initial-focus-message-id="screenshotFocusMessageId"
+      :llm-think-rules="stableLlmThinkRules"
+      :rich-text-style-options="stableMessageStyleOptions"
+      :user-rich-text-style-options="stableUserRichTextStyleOptions"
+      :default-file-name="screenshotDefaultFileName"
+    />
   </div>
 </template>
 

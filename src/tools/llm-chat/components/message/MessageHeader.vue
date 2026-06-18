@@ -16,10 +16,13 @@ interface Props {
   message: ChatMessageNode;
   /** 是否隐藏头像 (用于气泡模式的外置头像场景) */
   hideAvatar?: boolean;
+  /** 截图模式: 隐藏性能指标 / 时间戳 / token 统计等运行时信息 */
+  screenshotMode?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   hideAvatar: false,
+  screenshotMode: false,
 });
 
 const agentStore = useAgentStore();
@@ -293,7 +296,8 @@ const formatLatency = (ms: number) => {
         v-if="
           message.status === 'complete' &&
           message.metadata?.tokensPerSecond &&
-          settings.uiPreferences.showPerformanceMetrics
+          settings.uiPreferences.showPerformanceMetrics &&
+          !props.screenshotMode
         "
         class="performance-stats"
       >
@@ -339,7 +343,11 @@ const formatLatency = (ms: number) => {
       </div>
 
       <span
-        v-if="settings.uiPreferences.showTimestamp && message.timestamp"
+        v-if="
+          settings.uiPreferences.showTimestamp &&
+          message.timestamp &&
+          !props.screenshotMode
+        "
         class="message-time"
         >{{ formatRelativeTime(message.timestamp) }}</span
       >
@@ -494,12 +502,12 @@ const formatLatency = (ms: number) => {
   flex-shrink: 0;
 }
 
-/* ===========================================================
+/* -----------------------------------------------------------
  * 外置 Header 模式 (.external-header)
  * 当 header 渲染在气泡外部（headerPlacement === "outside"）时，
  * 名字行和 header-right（性能指标 / 时间戳等）并列一行容易拥挤，
  * 改为上下两行布局：名字行在上，header-right 在下。
- * =========================================================== */
+ * ----------------------------------------------------------- */
 .message-header.external-header {
   flex-direction: column;
   align-items: stretch;

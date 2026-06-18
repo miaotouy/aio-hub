@@ -8,6 +8,7 @@ import {
   onDeactivated,
   onMounted,
   onBeforeUnmount,
+  provide,
 } from "vue";
 import { useThrottleFn } from "@vueuse/core";
 import type {
@@ -17,6 +18,7 @@ import type {
 } from "../../types";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
+import { useMessageLayout } from "../../composables/ui/useMessageLayout";
 import ChatMessage from "./ChatMessage.vue";
 import CompressionMessage from "./CompressionMessage.vue";
 import ToolCallMessage from "./ToolCallMessage.vue";
@@ -31,6 +33,8 @@ interface Props {
   llmThinkRules?: import("@/tools/rich-text-renderer/types").LlmThinkRule[];
   richTextStyleOptions?: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions;
   userRichTextStyleOptions?: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions;
+  /** 是否处于截图模式(隐藏交互元素、传递到子组件) */
+  screenshotMode?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -87,188 +91,30 @@ onActivated(() => {
   }
 });
 
-/**
- * 被压缩的节点 ID 集合
- */
-const compressedNodeIds = computed(() => {
-  const ids = new Set<string>();
-  props.messages.forEach((node) => {
-    if (node.metadata?.isCompressionNode && node.isEnabled !== false) {
-      if (node.metadata.compressedNodeIds) {
-        node.metadata.compressedNodeIds.forEach((id) => ids.add(id));
-      }
-    }
-  });
-  return ids;
+// 布局编排：压缩节点、兄弟信息、角色 / 对齐、CSS 变量
+// —— 提取至 useMessageLayout,主列表与截图渲染器共享同一份计算
+const {
+  compressedNodeIds,
+  getMessageLayout,
+  getMessageSiblings,
+  bubbleLayout,
+  bubbleLayoutVars,
+  isBubbleMode,
+  avatarPlacement,
+  headerPlacement,
+  showAvatar,
+  shouldHideHeaderAvatar,
+  shouldUseOutsideHeader,
+} = useMessageLayout({
+  messages: computed(() => props.messages),
+  settings,
+  getSiblings: (id) => store.getSiblings(id),
+  isNodeInActivePath: (id) => store.isNodeInActivePath(id),
 });
 
-interface MessageSiblingInfo {
-  siblings: ChatMessageNode[];
-  currentIndex: number;
-}
-
-// 为每条消息预计算兄弟节点信息，避免模板中重复触发树查询。
-const messageSiblingInfoMap = computed(() => {
-  const map = new Map<string, MessageSiblingInfo>();
-
-  for (const message of props.messages) {
-    if (message.metadata?.isPresetDisplay) {
-      map.set(message.id, {
-        siblings: [message],
-        currentIndex: 0,
-      });
-      continue;
-    }
-
-    const siblings = store.getSiblings(message.id);
-    const currentIndex = siblings.findIndex((s: ChatMessageNode) =>
-      store.isNodeInActivePath(s.id)
-    );
-    map.set(message.id, {
-      siblings,
-      currentIndex,
-    });
-  }
-
-  return map;
-});
-
-const getMessageSiblings = (messageId: string): MessageSiblingInfo => {
-  return (
-    messageSiblingInfoMap.value.get(messageId) ?? {
-      siblings: [],
-      currentIndex: -1,
-    }
-  );
-};
-
-// ===== 气泡布局：预计算每条消息的角色 / 对齐信息 =====
-interface MessageLayoutInfo {
-  /** CSS 选择器友好的角色 (compression 节点视作 system) */
-  role: "user" | "assistant" | "tool" | "system";
-  /** 对齐方向 */
-  align: "left" | "right" | "center";
-}
-
-const bubbleLayout = computed(() => settings.value.uiPreferences.bubbleLayout);
-
-/**
- * 每条消息的布局信息（一次性预计算，避免模板里多次扫描）
- *
- * 关键逻辑：
- * - compression 节点强制视作 "system" 角色（姐姐 v3 决策）
- * - tool 消息的 follow-prev 模式：对齐方向跟随前一条（含 user 嫁接、tool 链自动传播）
- * - tool 消息的 center 模式：独立居中显示
- */
-const messageLayouts = computed<MessageLayoutInfo[]>(() => {
-  const layout = bubbleLayout.value;
-  const isBubble = layout.mode === "bubble";
-  const messages = props.messages;
-  const result: MessageLayoutInfo[] = [];
-
-  for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i];
-
-    // 解析角色：compression 节点视作 system
-    let role: MessageLayoutInfo["role"];
-    if (msg.metadata?.isCompressionNode) {
-      role = "system";
-    } else if (msg.role === "tool") {
-      role = "tool";
-    } else if (msg.role === "user") {
-      role = "user";
-    } else if (msg.role === "assistant") {
-      role = "assistant";
-    } else {
-      role = "system";
-    }
-
-    // 解析对齐
-    let align: MessageLayoutInfo["align"] = "left";
-    if (isBubble) {
-      if (role === "user") {
-        align = layout.userAlign;
-      } else if (role === "assistant") {
-        align = layout.assistantAlign;
-      } else if (role === "system") {
-        align = layout.systemAlign;
-      } else if (role === "tool") {
-        if (layout.toolAttachment === "center") {
-          align = "center";
-        } else {
-          // follow-prev: 跟随前一条；链头无 prev 时回退到 assistantAlign
-          const prevInfo = i > 0 ? result[i - 1] : null;
-          if (prevInfo && prevInfo.align !== "center") {
-            align = prevInfo.align;
-          } else {
-            align = layout.assistantAlign;
-          }
-        }
-      }
-    }
-
-    result.push({ role, align });
-  }
-
-  return result;
-});
-
-/** 获取指定消息的布局信息（按 id 查找以兼容动态更新） */
-const getMessageLayout = (index: number): MessageLayoutInfo => {
-  return (
-    messageLayouts.value[index] ?? {
-      role: "system",
-      align: "left",
-    }
-  );
-};
-
-/** CSS 变量注入 */
-const bubbleLayoutVars = computed(() => {
-  const l = bubbleLayout.value;
-  return {
-    "--bubble-max-width-percent": `${l.maxWidthPercent}%`,
-    "--bubble-max-width-px": `${l.maxWidthPx}px`,
-    "--system-max-width-percent": `${l.systemMaxWidthPercent}%`,
-    "--avatar-outside-size": `${l.avatarSize}px`,
-    "--avatar-outside-gap": `${l.avatarGap}px`,
-    "--header-outside-gap": `${l.headerGap}px`,
-    "--bubble-radius": `${l.borderRadius}px`,
-  } as Record<string, string>;
-});
-
-const isBubbleMode = computed(() => bubbleLayout.value.mode === "bubble");
-const avatarPlacement = computed(() => bubbleLayout.value.avatarPlacement);
-const headerPlacement = computed(() => bubbleLayout.value.headerPlacement);
-const showAvatar = computed(() => settings.value.uiPreferences.showAvatar);
-
-/**
- * 判断 MessageHeader 内置头像是否应被隐藏：
- * - 全局关闭显示头像
- * - 或者气泡模式下使用外置头像
- */
-const shouldHideHeaderAvatar = computed(
-  () =>
-    !showAvatar.value ||
-    (isBubbleMode.value && avatarPlacement.value === "outside")
-);
-
-/**
- * 判断某条消息是否应该使用外置 header 布局：
- * - 仅 bubble 模式 + headerPlacement === "outside" 时生效
- * - 仅普通 user / assistant 消息（非压缩、非工具）
- */
-const shouldUseOutsideHeader = (
-  msg: ChatMessageNode,
-  layoutInfo: { role: string; align: string }
-): boolean => {
-  if (!isBubbleMode.value) return false;
-  if (headerPlacement.value !== "outside") return false;
-  if (layoutInfo.align === "center") return false;
-  if (msg.metadata?.isCompressionNode) return false;
-  if (msg.role !== "user" && msg.role !== "assistant") return false;
-  return true;
-};
+// 截图模式：通过 prop 控制,默认 false
+const screenshotMode = computed(() => props.screenshotMode ?? false);
+provide("screenshotMode", screenshotMode);
 
 // 容器引用
 const messagesContainer = ref<HTMLElement | null>(null);
@@ -356,7 +202,7 @@ const switchingMessageViewportOffset = ref<number>(0);
 // 记录捕获时的原始滚动位置，用于检测浏览器强制修正
 const switchingOriginalScrollTop = ref<number>(0);
 
-// ==================== ResizeObserver：内容高度变化时自动跟随底部 ====================
+// -------------------- ResizeObserver：内容高度变化时自动跟随底部 --------------------
 let resizeObserver: ResizeObserver | null = null;
 // 上一次观测到的内容高度，用于判断是增长还是缩小
 let lastObservedHeight = 0;
@@ -742,6 +588,11 @@ const restoreSwitchingMessagePosition = () => {
   switchingMessageViewportOffset.value = 0;
 };
 
+interface ListEmits {
+  (e: "screenshot", messageId: string): void;
+}
+const emit = defineEmits<ListEmits>();
+
 defineExpose({
   scrollToBottom,
   scrollToEnd,
@@ -808,6 +659,7 @@ defineExpose({
                 class="external-header"
                 :message="msg"
                 :hide-avatar="shouldHideHeaderAvatar"
+                :screenshot-mode="screenshotMode"
               />
               <ChatMessage
                 :session-index="props.sessionIndex"
@@ -864,6 +716,7 @@ defineExpose({
                   }
                 "
                 @reparse-tools="(opts: any) => handleReparseTools(msg.id, opts)"
+                @screenshot="emit('screenshot', msg.id)"
                 @update-translation="
                   (translation: any) =>
                     store.updateMessageTranslation(msg.id, translation)
@@ -878,6 +731,7 @@ defineExpose({
               :session-detail="props.sessionDetail"
               :message="msg"
               :message-depth="messages.length - 1 - index"
+              :screenshot-mode="screenshotMode"
               @toggle-enabled="store.toggleNodeEnabled(msg.id)"
               @delete="store.deleteMessage(msg.id)"
               @update-content="
@@ -896,6 +750,7 @@ defineExpose({
               :message="msg"
               :message-depth="messages.length - 1 - index"
               :is-sending="isSending"
+              :screenshot-mode="screenshotMode"
               :siblings="getMessageSiblings(msg.id).siblings"
               :current-sibling-index="getMessageSiblings(msg.id).currentIndex"
               @delete="store.deleteMessage(msg.id)"
@@ -933,6 +788,7 @@ defineExpose({
                 }
               "
               @reparse-tools="(opts: any) => handleReparseTools(msg.id, opts)"
+              @screenshot="emit('screenshot', msg.id)"
               @save-to-branch="
                 (newContent: any, attachments: any) =>
                   store.createBranchFromEdit(msg.id, newContent, attachments)
@@ -952,6 +808,7 @@ defineExpose({
               :is-compressed="compressedNodeIds.has(msg.id)"
               :message-depth="messages.length - 1 - index"
               :is-sending="isSending"
+              :screenshot-mode="screenshotMode"
               :siblings="getMessageSiblings(msg.id).siblings"
               :current-sibling-index="getMessageSiblings(msg.id).currentIndex"
               :llm-think-rules="llmThinkRules"
@@ -1000,6 +857,7 @@ defineExpose({
                 }
               "
               @reparse-tools="(opts: any) => handleReparseTools(msg.id, opts)"
+              @screenshot="emit('screenshot', msg.id)"
               @update-translation="
                 (translation: any) =>
                   store.updateMessageTranslation(msg.id, translation)
@@ -1054,12 +912,12 @@ defineExpose({
   content-visibility: visible !important;
 }
 
-/* ===========================================================
+/* -------------------------------------------------------====
  * Bubble Layout — 气泡布局
  * 通过 .message-slot 外层 wrapper + data-* 属性 + CSS 变量驱动
  * mode-card: 保持原有行为（message-slot 透明，子元素全宽）
  * mode-bubble: 按 data-align 对齐，限宽，工具粘附融合
- * =========================================================== */
+ * -------------------------------------------------------==== */
 
 /* 卡片模式：message-slot 仅作为透明 wrapper（不改变现有视觉） */
 .messages-container.mode-card .message-slot {
@@ -1167,7 +1025,7 @@ defineExpose({
   border-radius: var(--bubble-radius, 12px);
 }
 
-/* ========== 外置头像 (avatar outside) ========== */
+/* ---------- 外置头像 (avatar outside) ---------- */
 /* 头像与气泡顶部对齐，符合多数 IM 习惯 */
 .messages-container.mode-bubble.avatar-outside
   .message-slot[data-avatar-placement="outside"] {
@@ -1190,7 +1048,7 @@ defineExpose({
   pointer-events: none;
 }
 
-/* ========== 外置 Header (headerPlacement: outside) ========== */
+/* ---------- 外置 Header (headerPlacement: outside) ---------- */
 /*
  * message-body 是 [header + 气泡] 的列容器，让 header 紧贴气泡上方
  * 气泡本身的宽度限制由 message-body 继承（max-width 已在前面统一设置）。
@@ -1240,7 +1098,7 @@ defineExpose({
   justify-content: flex-end;
 }
 
-/* ========== 右对齐通用镜像（同时覆盖 inside / outside 两种头像放置） ========== */
+/* ---------- 右对齐通用镜像（同时覆盖 inside / outside 两种头像放置） ---------- */
 /* 右对齐时，气泡内部 header 整体镜像：
  *  - inside  模式让头像贴向气泡右侧
  *  - outside 模式让名字/时间右对齐与外置头像呼应
@@ -1281,7 +1139,7 @@ defineExpose({
   margin-right: 0;
 }
 
-/* ========== 工具消息气泡镜像 ========== */
+/* ---------- 工具消息气泡镜像 ---------- */
 /* 右对齐时整体 row-reverse，让装饰条 .tool-bar 贴到气泡右侧 */
 .messages-container.mode-bubble
   .message-slot[data-align="right"]
@@ -1299,13 +1157,13 @@ defineExpose({
   :deep(.tool-call-message .tool-header .header-left) {
   flex-direction: row-reverse;
 }
-/* ==========================================================
+/* ----------------------------------------------------------
  * 气泡模式：底部信息与操作栏的"双侧布局"
  * - 底部信息 (.message-meta) 对齐到消息同方向（信息跟随气泡）
  * - 操作栏 (.menubar-wrapper) 对齐到对面方向（与信息水平错开）
  * 例：用户气泡 right-align → Token 信息靠右、操作栏靠左
  *     助手气泡 left-align  → Token 信息靠左、操作栏靠右
- * ========================================================== */
+ * ---------------------------------------------------------- */
 
 /* —— 底部信息：跟随消息方向对齐 —— */
 .messages-container.mode-bubble

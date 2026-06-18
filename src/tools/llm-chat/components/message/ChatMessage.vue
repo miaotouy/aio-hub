@@ -32,6 +32,8 @@ interface Props {
   hideHeaderAvatar?: boolean;
   /** 是否隐藏整个消息头部（气泡模式外置 header 场景使用） */
   hideHeader?: boolean;
+  /** 是否处于截图模式：隐藏 menubar,屏蔽 hover 边框变色 */
+  screenshotMode?: boolean;
 }
 
 interface Emits {
@@ -57,6 +59,7 @@ interface Emits {
       | NonNullable<NonNullable<ChatMessageNode["metadata"]>["translation"]>
       | undefined
   ): void;
+  (e: "screenshot"): void;
 }
 
 const props = defineProps<Props>();
@@ -84,7 +87,7 @@ const isLiveGreeting = computed(
     props.message.metadata?.greetingLive === true
 );
 
-// ===== 背景分块渲染逻辑 (解决超长消息 backdrop-filter 失效问题) =====
+// ----- 背景分块渲染逻辑 (解决超长消息 backdrop-filter 失效问题) -----
 const messageRef = ref<HTMLElement | null>(null);
 const messageHeight = ref(0);
 const BLOCK_SIZE = 2000; // 每个背景块的高度限制在 2000px 以内
@@ -233,6 +236,7 @@ defineExpose({
         'is-disabled': isDisabled,
         'is-preset-display': isPresetDisplay,
         'is-live-greeting': isLiveGreeting,
+        'screenshot-mode': props.screenshotMode,
       },
     ]"
   >
@@ -274,8 +278,8 @@ defineExpose({
       />
     </div>
 
-    <!-- 悬浮操作栏（始终显示，除非正在编辑） -->
-    <div class="menubar-wrapper" v-if="!isEditing">
+    <!-- 悬浮操作栏（始终显示，除非正在编辑；截图模式完全不渲染） -->
+    <div class="menubar-wrapper" v-if="!isEditing && !props.screenshotMode">
       <MessageMenubar
         :message="message"
         :is-sending="isSending"
@@ -293,6 +297,7 @@ defineExpose({
         @continue="onContinue"
         @create-branch="emit('create-branch')"
         @analyze-context="emit('analyze-context')"
+        @screenshot="emit('screenshot')"
         @reparse-tools="(opts: any) => emit('reparse-tools', opts)"
         @translate="handleTranslate"
         @change-translation-mode="handleChangeTranslationMode"

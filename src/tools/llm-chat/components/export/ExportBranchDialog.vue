@@ -86,6 +86,10 @@
     </template>
 
     <template #footer>
+      <el-button @click="handleShareScreenshot">
+        <el-icon style="margin-right: 4px"><Camera /></el-icon>
+        生成分享长图
+      </el-button>
       <el-button @click="localVisible = false">取消</el-button>
       <el-button type="primary" @click="handleExport" :loading="exporting">
         导出
@@ -96,7 +100,8 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { ElButton } from "element-plus";
+import { ElButton, ElIcon } from "element-plus";
+import { Camera } from "lucide-vue-next";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import ExportOptionsPanel from "./ExportOptionsPanel.vue";
 import ExportPreviewSection from "./ExportPreviewSection.vue";
@@ -131,6 +136,7 @@ interface Props {
 interface Emits {
   (e: "update:visible", value: boolean): void;
   (e: "exported"): void;
+  (e: "screenshot"): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -139,6 +145,12 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<Emits>();
+
+/** 转发到父级: 关闭导出弹窗, 让父级打开截图分享弹窗 */
+const handleShareScreenshot = () => {
+  localVisible.value = false;
+  emit("screenshot");
+};
 
 const localVisible = computed({
   get: () => props.visible,

@@ -28,6 +28,7 @@ import MessageExternalAvatar from "../message/MessageExternalAvatar.vue";
 import MessageHeader from "../message/MessageHeader.vue";
 import {
   type CollapseStrategy,
+  type LayoutOverrides,
   type ScreenshotElementOverrides,
   SCREENSHOT_OVERRIDES_KEY,
 } from "./screenshotTypes";
@@ -56,6 +57,8 @@ interface Props {
   width?: number;
   /** 元素显示覆盖, 控制截图中各元素的可见性 */
   elementToggles?: ScreenshotElementOverrides;
+  /** 临时布局覆盖 (与系统设置合并, 不修改系统设置) */
+  layoutOverrides?: LayoutOverrides;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -97,6 +100,7 @@ const {
   settings,
   getSiblings: (id) => store.getSiblings(id),
   isNodeInActivePath: (id) => store.isNodeInActivePath(id),
+  layoutOverrides: () => props.layoutOverrides,
 });
 
 // 覆盖 showAvatar: 当 elementToggles.showAvatar 为 false 时强制隐藏头像
@@ -121,6 +125,14 @@ const elementHideClasses = computed(() => {
   if (!o.showCharCount) classes.push("hide-char-count");
   if (!o.showAvatar) classes.push("hide-avatar");
   return classes;
+});
+
+// ----- 字体大小覆盖: 转为 CSS 变量 --message-font-size -----
+// 仅当 layoutOverrides.fontSize 是有效数字时设置, 否则不输出 (回退到子组件 v-bind 读取系统设置)
+const messageFontSizeStyle = computed<Record<string, string>>(() => {
+  const fs = props.layoutOverrides?.fontSize;
+  if (typeof fs !== "number" || !Number.isFinite(fs) || fs <= 0) return {} as Record<string, string>;
+  return { "--message-font-size": `${fs}px` };
 });
 
 const rootRef = ref<HTMLElement | null>(null);
@@ -149,6 +161,7 @@ defineExpose({
     ]"
     :style="{
       ...bubbleLayoutVars,
+      ...messageFontSizeStyle,
       '--screenshot-width': `${props.width}px`,
     }"
   >

@@ -1172,7 +1172,7 @@ defineExpose({
   padding: 16px;
   margin: 8px 0;
   border-radius: 8px;
-  font-size: v-bind('settings.uiPreferences.fontSize + "px"');
+  font-size: var(--message-font-size, v-bind('settings.uiPreferences.fontSize + "px"'));
   /* 移除原有的背景和边框样式，移交给 .message-background */
 }
 

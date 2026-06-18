@@ -1,4 +1,4 @@
-import { computed, type ComputedRef, type Ref } from "vue";
+import { computed, toValue, type ComputedRef, type MaybeRefOrGetter, type Ref } from "vue";
 import type { ChatMessageNode } from "../../types";
 import type { ChatSettings } from "../../types/settings";
 import type { BubbleLayoutConfig } from "../../types/settings";
@@ -15,6 +15,16 @@ export interface MessageLayoutInfo {
   align: "left" | "right" | "center";
 }
 
+/**
+ * 气泡布局的临时覆盖 (用于截图分享等场景, 不修改系统设置)。
+ * - mode === "follow" 时沿用系统设置的 mode
+ * - borderRadius === undefined / null 时沿用系统设置
+ */
+export interface BubbleLayoutOverride {
+  mode?: "follow" | "card" | "bubble";
+  borderRadius?: number | null;
+}
+
 export interface UseMessageLayoutOptions {
   messages: Ref<ChatMessageNode[]> | ComputedRef<ChatMessageNode[]>;
   settings: Ref<ChatSettings> | ComputedRef<ChatSettings>;
@@ -24,6 +34,12 @@ export interface UseMessageLayoutOptions {
    */
   getSiblings: (nodeId: string) => ChatMessageNode[];
   isNodeInActivePath: (nodeId: string) => boolean;
+  /**
+   * 临时布局覆盖 (与系统设置合并, 不写入持久化设置)。
+   * 仅覆盖 mode 和 borderRadius, 其余字段 (对齐/头像/header/最大宽度等)
+   * 继续沿用系统设置, 避免在截图面板里暴露过多配置。
+   */
+  layoutOverrides?: MaybeRefOrGetter<BubbleLayoutOverride | undefined>;
 }
 
 export interface UseMessageLayoutReturn {
@@ -37,7 +53,7 @@ export interface UseMessageLayoutReturn {
   showAvatar: ComputedRef<boolean>;
   /** 是否应隐藏消息头内嵌头像 (气泡外置头像场景) */
   shouldHideHeaderAvatar: ComputedRef<boolean>;
-  /** 当前气泡布局配置 */
+  /** 当前气泡布局配置 (已合并系统设置 + 临时覆盖) */
   bubbleLayout: ComputedRef<BubbleLayoutConfig>;
   /** 注入到 .messages-container 的 CSS 变量 */
   bubbleLayoutVars: ComputedRef<Record<string, string>>;
@@ -65,9 +81,28 @@ export interface UseMessageLayoutReturn {
 export function useMessageLayout(
   options: UseMessageLayoutOptions
 ): UseMessageLayoutReturn {
-  const { messages, settings, getSiblings, isNodeInActivePath } = options;
+  const {
+    messages,
+    settings,
+    getSiblings,
+    isNodeInActivePath,
+    layoutOverrides,
+  } = options;
 
-  const bubbleLayout = computed(() => settings.value.uiPreferences.bubbleLayout);
+  // 系统值 + 临时覆盖 合并, 供下游 bubbleLayoutVars / isBubbleMode 等消费
+  const bubbleLayout = computed<BubbleLayoutConfig>(() => {
+    const sys = settings.value.uiPreferences.bubbleLayout;
+    const ov = toValue(layoutOverrides);
+    if (!ov) return sys;
+    const mode: BubbleLayoutConfig["mode"] =
+      !ov.mode || ov.mode === "follow" ? sys.mode : ov.mode;
+    const borderRadius =
+      ov.borderRadius === undefined || ov.borderRadius === null
+        ? sys.borderRadius
+        : ov.borderRadius;
+    return { ...sys, mode, borderRadius };
+  });
+
   const isBubbleMode = computed(() => bubbleLayout.value.mode === "bubble");
   const avatarPlacement = computed(() => bubbleLayout.value.avatarPlacement);
   const headerPlacement = computed(() => bubbleLayout.value.headerPlacement);

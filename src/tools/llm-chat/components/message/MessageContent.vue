@@ -1295,7 +1295,7 @@ watch(
 <style scoped>
 .message-content {
   margin: 8px 0;
-  font-size: v-bind('settings.uiPreferences.fontSize + "px"');
+  font-size: var(--message-font-size, v-bind('settings.uiPreferences.fontSize + "px"'));
   line-height: v-bind("settings.uiPreferences.lineHeight");
   letter-spacing: v-bind('settings.uiPreferences.letterSpacing + "px"');
 }

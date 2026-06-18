@@ -80,6 +80,7 @@
         :collapse-strategy="collapseStrategy"
         :width="SCREENSHOT_RENDER_WIDTH"
         :element-toggles="elementTogglesSnapshot"
+        :layout-overrides="layoutOverrides"
       />
     </div>
   </Teleport>

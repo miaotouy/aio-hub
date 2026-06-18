@@ -858,6 +858,7 @@ const handleTranslateClick = (e: MouseEvent) => {
       :session-index="store.currentSession"
       :message-id="props.message.id"
       :preset-messages="currentPresetMessages"
+      @screenshot="emit('screenshot')"
     />
 
     <!-- 数据编辑对话框 -->

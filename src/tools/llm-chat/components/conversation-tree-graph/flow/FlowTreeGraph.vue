@@ -55,6 +55,7 @@
           @mouseenter="handleNodeMouseEnter(id)"
           @mouseleave="handleNodeMouseLeave()"
           @toggle-expand="toggleCompressionExpanded(id)"
+          @screenshot="emit('screenshot', id)"
         />
       </template>
 
@@ -543,6 +544,9 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+const emit = defineEmits<{
+  (e: "screenshot", messageId: string): void;
+}>();
 
 const wrapperRef = ref<HTMLDivElement | null>(null);
 const viewSettingsBtnRef = ref();
@@ -889,7 +893,9 @@ const copyDebugInfo = () => {
   }
 };
 
-const getAttachmentWatchSignature = (attachments: any[] | undefined): string => {
+const getAttachmentWatchSignature = (
+  attachments: any[] | undefined
+): string => {
   if (!attachments?.length) return "";
 
   return attachments
@@ -986,12 +992,9 @@ const getGraphSessionWatchSource = () => {
 };
 
 // 监听 session 变化
-watch(
-  getGraphSessionWatchSource,
-  () => {
-    updateChart();
-  }
-);
+watch(getGraphSessionWatchSource, () => {
+  updateChart();
+});
 
 // 监听会话 ID 变化（切换会话时自动聚焦到当前对话末端）
 watch(
@@ -1254,7 +1257,6 @@ const debugLinkPaths = computed(() => {
     })
     .filter(Boolean);
 });
-
 </script>
 
 <style scoped>

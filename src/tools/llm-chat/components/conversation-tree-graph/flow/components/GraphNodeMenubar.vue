@@ -54,6 +54,7 @@ interface Emits {
   (e: "regenerate", options?: { modelId?: string; profileId?: string }): void;
   (e: "create-branch"): void;
   (e: "interaction-active-change", active: boolean): void;
+  (e: "screenshot"): void;
 }
 
 const props = defineProps<Props>();
@@ -392,6 +393,7 @@ const handleSelectModelAndRegenerate = async () => {
       :session-index="store.currentSession"
       :message-id="props.messageId"
       :preset-messages="currentPresetMessages"
+      @screenshot="emit('screenshot')"
     />
 
     <!-- 数据编辑对话框 -->

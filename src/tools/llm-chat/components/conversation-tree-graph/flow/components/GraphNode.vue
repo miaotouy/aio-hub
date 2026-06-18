@@ -45,6 +45,7 @@
       @regenerate="handleRegenerate"
       @create-branch="handleCreateBranch"
       @interaction-active-change="handleMenubarInteractionActiveChange"
+      @screenshot="emit('screenshot')"
     />
   </div>
 </template>
@@ -111,6 +112,7 @@ interface Emits {
   (e: "regenerate", options?: { modelId?: string; profileId?: string }): void;
   (e: "create-branch"): void;
   (e: "toggle-expand"): void;
+  (e: "screenshot"): void;
 }
 
 const props = defineProps<Props>();

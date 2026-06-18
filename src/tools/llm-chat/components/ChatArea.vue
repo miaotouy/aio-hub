@@ -532,7 +532,10 @@ onMounted(async () => {
           <!-- V2 树图视图 (力导向布局) -->
           <template v-else-if="viewMode === 'force-graph'">
             <div class="force-graph-container conversation-tree-graph-box">
-              <FlowTreeGraph :session="llmChatStore.currentSessionDetail" />
+              <FlowTreeGraph
+                :session="llmChatStore.currentSessionDetail"
+                @screenshot="handleScreenshot"
+              />
             </div>
           </template>
         </div>

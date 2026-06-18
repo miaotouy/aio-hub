@@ -44,6 +44,17 @@ export interface StitchEffects {
 }
 
 export interface StitchOptions extends ScreenshotScaleOptions {
+  /**
+   * 显式指定截图容器宽度 (CSS px)。
+   *
+   * 关键: ScreenshotRenderer 固定 720px, 但每个 .message-slot 在气泡模式下
+   * 默认 width: auto, 也就是气泡的自然宽度 (~276px)。若不传 width,
+   * captureElementAsCanvas 会用 rect.width, 导致截出来是窄条气泡, 再被
+   * drawImage 强行拉伸到第一张图宽度, 排版全错。
+   *
+   * 必须由调用方显式传入 ScreenshotRenderer 的 width prop (默认 720px)。
+   */
+  width?: number;
   /** 拼接效果开关 */
   effects?: StitchEffects;
   /** 主题色 (用于外边框等), 默认读取 CSS 变量 --border-color */
@@ -274,6 +285,21 @@ export async function captureMessagesAndStitch(
     onProgress,
   } = options;
 
+  // 解析截图容器宽度: 1) 优先 options.width; 2) 回退父容器; 3) 兜底 720px
+  // 关键: 千万不能用 rect.width, 气泡模式下那只是气泡自然宽度
+  function resolveCaptureWidth(): number {
+    if (options.width && options.width > 0) return options.width;
+    if (elements.length > 0) {
+      const parent = elements[0].parentElement;
+      if (parent) {
+        const w = parent.getBoundingClientRect().width;
+        if (w > 0) return w;
+      }
+    }
+    return 720;
+  }
+  const resolvedWidth = resolveCaptureWidth();
+
   const {
     blurBackground = true,
     outerBorder = true,
@@ -287,7 +313,11 @@ export async function captureMessagesAndStitch(
   const total = elements.length;
 
   async function captureOne(el: HTMLElement, idx: number): Promise<void> {
-    const canvas = await captureElementAsCanvas(el, { scale, timeout });
+    const canvas = await captureElementAsCanvas(el, {
+      scale,
+      timeout,
+      width: resolvedWidth,
+    });
     messageCanvases[idx] = canvas;
     done += 1;
     onProgress?.(done, total, el.dataset.messageId ?? `#${idx + 1}`);
@@ -310,7 +340,9 @@ export async function captureMessagesAndStitch(
   await Promise.all(workers);
 
   // 2. 计算总尺寸 (CSS 像素, 不乘 scale)
-  const captureWidth = messageCanvases[0].width / scale;
+  // 关键: captureWidth 必须用 ScreenshotRenderer 容器宽度, 不能用第一张图的
+  // width/scale, 否则气泡模式会被强行拉伸/压缩成第一张气泡的宽度
+  const captureWidth = resolvedWidth;
   const messageHeights = messageCanvases.map((c) => c.height / scale);
   const totalHeight =
     padding * 2 +

@@ -6,6 +6,8 @@
 > 版本：V2 (单弹窗合并 + 上左右响应式布局 + 并发消息截图 + 纯 Canvas 2D 拼接)
 > ⚠️ 历史备注：上一轮实施（V1 分组截图方案）因效果不理想、频繁切换 display 导致虚拟滚动空白、截图速度极慢而回滚。本版 V2 彻底抛弃分组截图，采用并发单条消息截图与 Canvas 拼接方案。
 
+> **V2.1 关键修复 (2026-06-18)**: 补齐 ScreenshotRenderer 缺失的气泡模式 CSS (MessageList 的 bubble 样式是 scoped, 不会作用到 ScreenshotRenderer), 并把容器宽度 (720px) 作为显式参数贯穿到 captureMessagesAndStitch 与 captureElementAsCanvas, 彻底解决截图为窄条气泡 + 拼接错乱的问题. 详见 §0.3.
+
 ---
 
 ## 0. 施工进度日志
@@ -43,8 +45,26 @@
 ---
 
 
----
+### 0.3 V2.1 修复:气泡模式窄条气泡 + 拼接错乱 (2026-06-18)
 
+**症状**: 用户在气泡模式下打开分享弹窗, 选择消息点"生成截图", 输出 PNG 宽度只有 ~552px (CSS 276px), 远低于 ScreenshotRenderer 固定的 720px, 气泡被挤成一团, 用户/助手消息排版错乱.
+
+**根因 (两点叠加)**:
+
+1. **气泡模式 CSS 缺失** — MessageList.vue 的 bubble 布局 CSS (display: flex; width: 100%; align-items: flex-start; + data-align 对齐 + 子元素 max-width: min(75%, 720px)) 是 <style scoped>, **不会作用到 ScreenshotRenderer.vue 这个独立组件渲染出的 .message-slot**. ScreenshotRenderer.vue 之前只补了 mode-card 的 width:100%, 气泡模式下 .message-slot 默认 width: auto = 气泡自然宽度 (~276px).
+2. **截图宽度未贯通** — captureElementAsCanvas 默认用 lement.getBoundingClientRect().width 作 captureWidth. 气泡模式下 rect.width 拿到的是气泡自然宽度, 不是容器宽度. captureMessagesAndStitch 又用 messageCanvases[0].width / scale 作统一 captureWidth, 强行把后续消息拉伸到第一张气泡的宽度, 排版全错.
+
+**修复**:
+
+- ScreenshotRenderer.vue: 完整复刻 MessageList.vue 的气泡模式 CSS (.message-slot 全宽 + flex 对齐 + 头像/header 外置变体 + 右对齐镜像), 写入自己的 <style scoped>, 用 :deep() 处理 children.
+- screenshotCapture.ts: StitchOptions 新增 width?: number; captureMessagesAndStitch 内 esolveCaptureWidth() 按 options.width → 首个元素父容器 → 720px 兜底; captureWidth 改用 resolvedWidth 而非 messageCanvases[0].width / scale; captureElementAsCanvas 调用处显式传 width: resolvedWidth.
+- useScreenshotGenerator.ts: GenerateOptions 新增顶层 width?: number, 优先级高于 options.width.
+- ShareScreenshotDialog.vue: 抽出 SCREENSHOT_RENDER_WIDTH = 720 常量, 同步到 <ScreenshotRenderer :width> 与 generator.generate({ width }).
+
+**重要原则 (后续维护)**:
+
+- MessageList.vue 中任何改动气泡模式 CSS 的地方, 都必须同步检查 ScreenshotRenderer.vue 的 style scoped, 否则预览和截图会立刻错位.
+- 调用 captureMessagesAndStitch 时, **必须** 显式传 width (来自 ScreenshotRenderer 的 width prop), 不要依赖 rect.width 兜底 — 那是气泡自然宽度, 不是容器宽度.
 ## 1. 功能概述
 
 将当前对话分支中的单条、多条或整段消息，渲染成一张排版精美、支持高度自定义的**长图卡片**，支持一键保存到本地或复制到剪贴板。

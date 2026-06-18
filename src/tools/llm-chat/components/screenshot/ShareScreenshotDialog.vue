@@ -75,6 +75,9 @@ const localVisible = computed({
   set: (v) => emit("update:visible", v),
 });
 
+// 与 <ScreenshotRenderer :width> 保持一致, 同步穿透到截图捕获
+const SCREENSHOT_RENDER_WIDTH = 720;
+
 const generator = useScreenshotGenerator();
 
 // ----- 消息选择 -----
@@ -275,6 +278,7 @@ async function generateScreenshotImage() {
     }
     const result = await generator.generate({
       elements,
+      width: SCREENSHOT_RENDER_WIDTH,
       options: buildStitchOptions(),
       onProgress: (done, total, label) => {
         progress.value = { done, total, currentLabel: label };
@@ -648,7 +652,7 @@ onBeforeUnmount(() => {
                   :rich-text-style-options="richTextStyleOptions"
                   :user-rich-text-style-options="userRichTextStyleOptions"
                   :collapse-strategy="collapseStrategy"
-                  :width="720"
+                  :width="SCREENSHOT_RENDER_WIDTH"
                 />
 
                 <!-- 截图效果图片 -->

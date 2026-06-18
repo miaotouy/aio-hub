@@ -38,6 +38,13 @@ export interface GenerateOptions {
   options?: Omit<StitchOptions, "onProgress">;
   /** 进度回调 (会覆盖 options.onProgress) */
   onProgress?: (done: number, total: number, currentLabel: string) => void;
+  /**
+   * 显式指定截图容器宽度 (CSS px)。
+   * 强烈建议传入, 对应 ScreenshotRenderer 的 width prop (默认 720px)。
+   * 不传时会回退到 options.width, 再回退到父容器 getBoundingClientRect,
+   * 最后兜底 720px。气泡模式下不传可能截成窄条气泡。
+   */
+  width?: number;
 }
 
 export function useScreenshotGenerator() {
@@ -50,7 +57,12 @@ export function useScreenshotGenerator() {
    * 内部使用 module logger + module error handler, 错误向上抛。
    */
   async function generate(args: GenerateOptions): Promise<StitchResult> {
-    const { elements, options = {}, onProgress } = args;
+    const { elements, options = {}, onProgress, width } = args;
+    // 顶层 width 优先于 options.width, 便于调用方一键覆写
+    const mergedOptions: StitchOptions = {
+      ...options,
+      ...(width !== undefined ? { width } : {}),
+    };
     if (elements.length === 0) {
       throw new Error("没有可截图的消息节点");
     }
@@ -73,7 +85,7 @@ export function useScreenshotGenerator() {
       const result = await errorHandler.wrapAsync(
         () =>
           captureMessagesAndStitch(elements, {
-            ...options,
+            ...mergedOptions,
             onProgress: wrappedOnProgress,
           }),
         { showToUser: true, userMessage: "生成截图失败" }

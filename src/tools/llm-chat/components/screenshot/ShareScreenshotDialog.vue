@@ -87,7 +87,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from "vue";
 import { useDebounceFn } from "@vueuse/core";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import ScreenshotRenderer from "./ScreenshotRenderer.vue";
@@ -167,7 +174,7 @@ const layoutOverrides = ref<LayoutOverrides>({
   borderRadius: undefined,
   fontSize: undefined,
 });
-const collapseStrategy = ref<CollapseStrategy>("override-expand");
+const collapseStrategy = ref<CollapseStrategy>("preserve");
 const elementToggles = ref<ElementToggles>({
   showAvatar: true,
   showTimestamp: true,

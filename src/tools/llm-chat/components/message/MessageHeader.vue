@@ -172,7 +172,11 @@ const displayIcon = computed<any>(() => {
 });
 
 // 检查是否应该显示副标题（基于设置和数据可用性）
+// 截图模式下始终渲染，由 CSS 控制可见性
 const shouldShowSubtitle = computed(() => {
+  if (props.screenshotMode) {
+    return props.message.role === "assistant" && !!agentProfileInfo.value;
+  }
   return (
     settings.value.uiPreferences.showModelInfo &&
     props.message.role === "assistant" &&
@@ -296,8 +300,8 @@ const formatLatency = (ms: number) => {
         v-if="
           message.status === 'complete' &&
           message.metadata?.tokensPerSecond &&
-          settings.uiPreferences.showPerformanceMetrics &&
-          !props.screenshotMode
+          (props.screenshotMode ||
+            settings.uiPreferences.showPerformanceMetrics)
         "
         class="performance-stats"
       >
@@ -344,9 +348,8 @@ const formatLatency = (ms: number) => {
 
       <span
         v-if="
-          settings.uiPreferences.showTimestamp &&
-          message.timestamp &&
-          !props.screenshotMode
+          (props.screenshotMode || settings.uiPreferences.showTimestamp) &&
+          message.timestamp
         "
         class="message-time"
         >{{ formatRelativeTime(message.timestamp) }}</span

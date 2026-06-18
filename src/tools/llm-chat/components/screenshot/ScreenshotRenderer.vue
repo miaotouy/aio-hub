@@ -8,13 +8,11 @@
  * - `provide("screenshotMode", true)` 注入给子组件, 隐藏交互
  * - 禁用 `content-visibility`, 全量展开渲染
  * - 暴露 `getMessageElements()` 返回所有 `.message-slot` 节点, 供截图工具使用
+ * - 接受 `elementToggles` 覆盖系统设置, 实时影响 DOM 预览
  */
 import { computed, provide, ref } from "vue";
 import type { ChatMessageNode } from "../../types";
-import type {
-  ChatSessionDetail,
-  ChatSessionIndex,
-} from "../../types/session";
+import type { ChatSessionDetail, ChatSessionIndex } from "../../types/session";
 import { useMessageLayout } from "../../composables/ui/useMessageLayout";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
@@ -23,12 +21,21 @@ import CompressionMessage from "../message/CompressionMessage.vue";
 import ToolCallMessage from "../message/ToolCallMessage.vue";
 import MessageExternalAvatar from "../message/MessageExternalAvatar.vue";
 import MessageHeader from "../message/MessageHeader.vue";
+import {
+  type CollapseStrategy,
+  type ScreenshotElementOverrides,
+  SCREENSHOT_OVERRIDES_KEY,
+} from "./screenshotTypes";
 
-export type CollapseStrategy =
-  | "preserve"
-  | "config"
-  | "override-expand"
-  | "override-collapse";
+const DEFAULT_OVERRIDES: ScreenshotElementOverrides = {
+  showAvatar: true,
+  showTimestamp: true,
+  showTokenCount: true,
+  showTokenCountForBlocks: true,
+  showCharCount: true,
+  showModelInfo: true,
+  showPerformanceMetrics: true,
+};
 
 interface Props {
   messages: ChatMessageNode[];
@@ -42,6 +49,8 @@ interface Props {
   collapseStrategy?: CollapseStrategy;
   /** 渲染宽度 (CSS px), 默认 720 */
   width?: number;
+  /** 元素显示覆盖, 控制截图中各元素的可见性 */
+  elementToggles?: ScreenshotElementOverrides;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -55,7 +64,16 @@ const { settings } = useChatSettings();
 
 const screenshotMode = ref(true);
 provide("screenshotMode", screenshotMode);
-provide("screenshotCollapseStrategy", computed(() => props.collapseStrategy));
+provide(
+  "screenshotCollapseStrategy",
+  computed(() => props.collapseStrategy)
+);
+
+// ----- 元素覆盖: 将 elementToggles provide 给子组件 -----
+const elementOverrides = computed<ScreenshotElementOverrides>(
+  () => props.elementToggles ?? DEFAULT_OVERRIDES
+);
+provide(SCREENSHOT_OVERRIDES_KEY, elementOverrides);
 
 const {
   compressedNodeIds,
@@ -66,7 +84,7 @@ const {
   isBubbleMode,
   avatarPlacement,
   headerPlacement,
-  showAvatar,
+  showAvatar: layoutShowAvatar,
   shouldHideHeaderAvatar,
   shouldUseOutsideHeader,
 } = useMessageLayout({
@@ -74,6 +92,30 @@ const {
   settings,
   getSiblings: (id) => store.getSiblings(id),
   isNodeInActivePath: (id) => store.isNodeInActivePath(id),
+});
+
+// 覆盖 showAvatar: 当 elementToggles.showAvatar 为 false 时强制隐藏头像
+const showAvatar = computed(
+  () => elementOverrides.value.showAvatar && layoutShowAvatar.value
+);
+
+// 覆盖 shouldHideHeaderAvatar: 当 elementToggles.showAvatar 为 false 时强制隐藏 header 内头像
+const screenshotHideHeaderAvatar = computed(() => {
+  if (!elementOverrides.value.showAvatar) return true;
+  return shouldHideHeaderAvatar.value;
+});
+
+// ----- CSS 类: 根据 elementToggles 生成隐藏类 -----
+const elementHideClasses = computed(() => {
+  const o = elementOverrides.value;
+  const classes: string[] = [];
+  if (!o.showTimestamp) classes.push("hide-timestamp");
+  if (!o.showModelInfo) classes.push("hide-model-info");
+  if (!o.showPerformanceMetrics) classes.push("hide-performance");
+  if (!o.showTokenCount) classes.push("hide-token-count");
+  if (!o.showCharCount) classes.push("hide-char-count");
+  if (!o.showAvatar) classes.push("hide-avatar");
+  return classes;
 });
 
 const rootRef = ref<HTMLElement | null>(null);
@@ -95,7 +137,11 @@ defineExpose({
   <div
     ref="rootRef"
     class="screenshot-renderer"
-    :class="['screenshot-mode', `mode-${bubbleLayout.mode}`]"
+    :class="[
+      'screenshot-mode',
+      `mode-${bubbleLayout.mode}`,
+      ...elementHideClasses,
+    ]"
     :style="{
       ...bubbleLayoutVars,
       '--screenshot-width': `${props.width}px`,
@@ -143,7 +189,7 @@ defineExpose({
             <MessageHeader
               class="external-header"
               :message="msg"
-              :hide-avatar="shouldHideHeaderAvatar"
+              :hide-avatar="screenshotHideHeaderAvatar"
               :screenshot-mode="true"
             />
             <ChatMessage
@@ -200,7 +246,7 @@ defineExpose({
               :siblings="getMessageSiblings(msg.id).siblings"
               :current-sibling-index="getMessageSiblings(msg.id).currentIndex"
               :llm-think-rules="llmThinkRules"
-              :hide-header-avatar="shouldHideHeaderAvatar"
+              :hide-header-avatar="screenshotHideHeaderAvatar"
               :rich-text-style-options="
                 msg.role === 'user'
                   ? userRichTextStyleOptions || richTextStyleOptions
@@ -322,7 +368,9 @@ defineExpose({
   min-width: 0;
   width: fit-content;
 }
-.messages-container.mode-bubble .message-slot[data-align="right"] .message-body {
+.messages-container.mode-bubble
+  .message-slot[data-align="right"]
+  .message-body {
   align-items: flex-end;
 }
 .messages-container.mode-bubble .message-body > .chat-message {
@@ -348,5 +396,58 @@ defineExpose({
 }
 :deep(*::-webkit-scrollbar) {
   display: none !important;
+}
+
+/* ===== 元素覆盖: 根据 elementToggles 隐藏对应元素 ===== */
+
+/* 隐藏头像: 外置头像 */
+.hide-avatar :deep(.message-external-avatar) {
+  display: none !important;
+}
+
+/* 隐藏头像: header 内头像 (卡片模式或气泡模式内嵌头像) */
+.hide-avatar :deep(.message-header .header-left .avatar),
+.hide-avatar :deep(.message-header .header-left .tool-avatar) {
+  display: none !important;
+}
+
+/* 隐藏模型信息/副标题 */
+.hide-model-info :deep(.message-subtitle) {
+  display: none !important;
+}
+
+/* 隐藏时间戳 */
+.hide-timestamp :deep(.message-time) {
+  display: none !important;
+}
+
+/* 隐藏性能指标 */
+.hide-performance :deep(.performance-stats) {
+  display: none !important;
+}
+
+/* 隐藏 Token 统计 (按 data-meta-type 精确匹配) */
+.hide-token-count :deep(.usage-info[data-meta-type="token"]) {
+  display: none !important;
+}
+
+/* 隐藏字数统计 (按 data-meta-type 精确匹配) */
+.hide-char-count :deep(.usage-info[data-meta-type="char"]) {
+  display: none !important;
+}
+
+/* Token + 字数都隐藏时, 隐藏整个 meta 区域 */
+.hide-token-count.hide-char-count :deep(.message-meta) {
+  display: none !important;
+}
+
+/* 只有字数统计开启时, 隐藏 token 统计后 meta 区域仍然需要显示 */
+.hide-token-count:not(.hide-char-count) :deep(.message-meta) {
+  display: block !important;
+}
+
+/* 只有 token 统计开启时 */
+.hide-char-count:not(.hide-token-count) :deep(.message-meta) {
+  display: block !important;
 }
 </style>

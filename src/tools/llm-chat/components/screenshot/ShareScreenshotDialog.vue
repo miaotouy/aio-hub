@@ -38,9 +38,8 @@ import {
   ElTooltip,
 } from "element-plus";
 import BaseDialog from "@/components/common/BaseDialog.vue";
-import ScreenshotRenderer, {
-  type CollapseStrategy,
-} from "./ScreenshotRenderer.vue";
+import ScreenshotRenderer from "./ScreenshotRenderer.vue";
+import { type CollapseStrategy } from "./screenshotTypes";
 import { useScreenshotGenerator } from "../../composables/features/useScreenshotGenerator";
 import type { ChatMessageNode } from "../../types";
 import type { ChatSessionIndex, ChatSessionDetail } from "../../types/session";
@@ -190,6 +189,13 @@ const elementToggles = ref<ElementToggles>({
   showModelInfo: true,
   showPerformanceMetrics: true,
 });
+
+// 关键修复: elementToggles 是对象 ref, Vue prop 比较是浅比较(===)。
+// 直接修改 .value.xxx 不会改变对象引用, 导致 ScreenshotRenderer 收不到更新。
+// 用 computed 返回浅拷贝, 确保每次属性变化都产生新引用, 强制子组件更新。
+const elementTogglesSnapshot = computed<ElementToggles>(() => ({
+  ...elementToggles.value,
+}));
 
 // ----- 预览渲染器引用 -----
 const rendererRef = ref<InstanceType<typeof ScreenshotRenderer> | null>(null);
@@ -654,6 +660,7 @@ onBeforeUnmount(() => {
                   :user-rich-text-style-options="userRichTextStyleOptions"
                   :collapse-strategy="collapseStrategy"
                   :width="SCREENSHOT_RENDER_WIDTH"
+                  :element-toggles="elementTogglesSnapshot"
                 />
 
                 <!--

@@ -1,12 +1,14 @@
 # LLM Chat: 消息截图分享功能 — 实施计划 (V2)
 
 > 最后更新：2026-06-18
-> 状态：V2.2 修复完成, check:frontend 通过, 待真机验证
+> 状态：V2.3 修复完成, check:frontend 通过, 待真机验证
 > 作者：Gugu_Kilo & miaotouy
 > 版本：V2 (单弹窗合并 + 上左右响应式布局 + 并发消息截图 + 纯 Canvas 2D 拼接)
 > ⚠️ 历史备注：上一轮实施（V1 分组截图方案）因效果不理想、频繁切换 display 导致虚拟滚动空白、截图速度极慢而回滚。本版 V2 彻底抛弃分组截图，采用并发单条消息截图与 Canvas 拼接方案。
 
-> **V2.1 关键修复 (2026-06-18)**: 补齐 ScreenshotRenderer 缺失的气泡模式 CSS (MessageList 的 bubble 样式是 scoped, 不会作用到 ScreenshotRenderer), 并把容器宽度 (720px) 作为显式参数贯穿到 captureMessagesAndStitch 与 captureElementAsCanvas, 彻底解决截图为窄条气泡 + 拼接错乱的问题. 详见 §0.3.
+> **V2.1 修复 (2026-06-18)**: 补齐 ScreenshotRenderer 缺失的气泡模式 CSS (MessageList 的 bubble 样式是 scoped, 不会作用到 ScreenshotRenderer), 并把容器宽度 (720px) 作为显式参数贯穿到 captureMessagesAndStitch 与 captureElementAsCanvas, 彻底解决截图为窄条气泡 + 拼接错乱的问题. 详见 §0.3.
+>
+> **V2.3 修复 (2026-06-18)**: 修复截图"显示元素"开关无效 + CSP `blob:` 拦截问题. 详见 §0.5.
 
 ---
 
@@ -511,6 +513,53 @@ CSS 级全局抑制：
 | 交互抑制             | `screenshotMode` prop + CSS `.screenshot-mode`                   | 双重保障，prop 控制组件级行为，CSS 控制全局样式                             |
 | `content-visibility` | 截图模式禁用                                                     | 避免视口外消息不渲染导致截图空白                                            |
 | 毛玻璃效果           | 截图模式下替换为实色背景                                         | `modern-screenshot` 无法捕获 `backdrop-filter`                              |
+
+### 0.5 V2.3 修复:显示元素开关无效 + CSP `blob:` 拦截 (2026-06-18)
+
+**症状 1 — 显示元素开关无效**: 用户在截图对话框中将所有"显示元素"开关（头像、模型信息、时间戳、Token 统计、字数统计、性能指标）全部关闭，但实时预览区仍然显示所有信息，开关无任何效果。
+
+**根因**: 截图模式下各元素的 `v-if` 条件仍然基于系统设置（`settings.uiPreferences`），而非截图对话框的 `elementToggles` 覆盖值。例如：
+
+- `MessageHeader.vue` 的 `shouldShowSubtitle` 只看 `settings.uiPreferences.showModelInfo`
+- `MessageHeader.vue` 的性能指标只看 `settings.uiPreferences.showPerformanceMetrics`
+- `MessageHeader.vue` 的时间戳只看 `settings.uiPreferences.showTimestamp`
+- `MessageContent.vue` 的 `showMeta` 只看 `settings.uiPreferences.showTokenCount/showCharCount`
+- `ChatMessage.vue` 调用 `MessageHeader` 时未传递 `screenshotMode` prop
+
+这导致即使截图开关关闭，元素仍然被 `v-if` 渲染出来，CSS 隐藏类（`.hide-avatar` 等）无法作用于不存在的 DOM。
+
+**修复**:
+
+- `MessageHeader.vue`: 当 `screenshotMode=true` 时，忽略 `settings.uiPreferences.showModelInfo/showPerformanceMetrics/showTimestamp`，让副标题/性能指标/时间戳始终渲染，由 CSS 控制可见性
+- `MessageContent.vue`: 当 `screenshotMode=true` 时，让 `.message-meta` 始终渲染，由 CSS 控制可见性
+- `ChatMessage.vue`: 将 `screenshotMode` prop 正确传递给 `MessageHeader`
+- `ScreenshotRenderer.vue`: 修正 CSS 选择器，使用 `data-meta-type` 精确区分 Token 统计和字数统计
+
+**症状 2 — 卡片模式下头像无法隐藏**: 关闭"显示头像"开关后，卡片模式（非气泡模式）下头像仍然显示。
+
+**根因**: 卡片模式没有外置头像概念，头像在 `MessageHeader` 内部，由 `shouldHideHeaderAvatar` 控制。而 `shouldHideHeaderAvatar` 来自 `useMessageLayout`，它基于系统设置而非截图覆盖值。
+
+**修复**:
+
+- `ScreenshotRenderer.vue`: 新增 `screenshotHideHeaderAvatar` computed，当 `elementOverrides.showAvatar=false` 时强制返回 `true`
+- 模板中两处 `ChatMessage` / `MessageHeader` 调用均使用 `screenshotHideHeaderAvatar` 替代 `shouldHideHeaderAvatar`
+- 新增 CSS 兜底选择器 `.hide-avatar :deep(.message-header .header-left .avatar/tool-avatar)` 隐藏 header 内头像
+
+**症状 3 — CSP `blob:` 拦截报错**: 控制台频繁出现 `Connecting to 'blob:<URL>' violates Content Security Policy` 错误，截图图片加载失败。
+
+**根因**: `modern-screenshot` 库在 `domToCanvas` 过程中会用 `fetch(blob:...)` 内联处理图片，但 `index.html` 的 CSP `connect-src` 指令未包含 `blob:` 协议。
+
+**修复**:
+
+- `index.html`: 在 CSP `connect-src` 指令末尾添加 `blob:`
+
+**重要原则 (后续维护)**:
+
+- 任何基于 `settings.uiPreferences` 的 `v-if` 控制显示的元素，如果在截图模式下需要支持开关覆盖，必须增加 `screenshotMode` 分支让元素始终渲染，由 CSS 类控制可见性。
+- `MessageHeader` 接收 `screenshotMode` prop 后必须实际使用，不能仅作为标记。
+- CSS 隐藏类需要同时覆盖外置头像和 header 内头像两种场景。
+
+---
 
 ### 0.4 V2.2 修复:卡片内消息偏移 + 关闭水印后高度坍缩 (2026-06-18)
 

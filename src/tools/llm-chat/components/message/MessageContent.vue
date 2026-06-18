@@ -802,6 +802,22 @@ const containerClasses = computed(() => ({
 // 元数据响应式提取，确保异步更新能被触发
 const messageMetadata = computed(() => props.message.metadata);
 const showMeta = computed(() => {
+  // 截图模式下始终渲染 meta 区域，由 CSS 控制可见性
+  if (props.screenshotMode) {
+    const metadata = messageMetadata.value;
+    if (
+      settings.value.uiPreferences.showCharCount &&
+      props.message.content.length > 0
+    )
+      return true;
+    if (!metadata) return false;
+    return (
+      !!metadata.usage ||
+      metadata.contentTokens !== undefined ||
+      !!metadata.error
+    );
+  }
+
   const metadata = messageMetadata.value;
   const showToken = settings.value.uiPreferences.showTokenCount;
   const showChar = settings.value.uiPreferences.showCharCount;
@@ -1206,6 +1222,7 @@ watch(
       <div
         v-if="settings.uiPreferences.showTokenCount && usageInfo"
         class="usage-info"
+        data-meta-type="token"
       >
         <span
           >Token:
@@ -1227,6 +1244,7 @@ watch(
           contentTokensValue !== undefined
         "
         class="usage-info"
+        data-meta-type="token"
       >
         <span
           >本条消息:
@@ -1237,6 +1255,7 @@ watch(
       <div
         v-if="settings.uiPreferences.showCharCount && charCount > 0"
         class="usage-info"
+        data-meta-type="char"
       >
         <span>字数: {{ charCount.toLocaleString("zh-CN") }}</span>
       </div>

@@ -260,6 +260,7 @@ defineExpose({
         v-if="!hideHeader"
         :message="message"
         :hide-avatar="hideHeaderAvatar"
+        :screenshot-mode="props.screenshotMode"
       />
 
       <MessageContent

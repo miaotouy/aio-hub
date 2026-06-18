@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 /**
  * 消息截图分享弹窗 — V2 单弹窗合并版。
  *
@@ -8,7 +8,7 @@
  *     - 左 (320px): 效果开关 / 布局覆盖 / 折叠策略 / 元素开关
  *     - 右 (Flex 1): ScreenshotRenderer 实时预览 + 缩放拖拽
  *
- * 响应式: 宽度 < 900px 时, 下栏自动垂直堆叠 (左在上, 右在下)。
+ * 响应式: 宽度 < 900px 时 下方栏自动垂直堆叠 (左在上, 右在下)。
  */
 import {
   computed,
@@ -75,7 +75,7 @@ const localVisible = computed({
   set: (v) => emit("update:visible", v),
 });
 
-// 与 <ScreenshotRenderer :width> 保持一致, 同步穿透到截图捕获
+// 与 <ScreenshotRenderer :width> 保持一致, 同步贯通到截图捕获
 const SCREENSHOT_RENDER_WIDTH = 720;
 
 const generator = useScreenshotGenerator();
@@ -295,9 +295,11 @@ async function generateScreenshotImage() {
 }
 
 async function switchToImageTab() {
-  activeTab.value = "image";
+  // 关键修复: 先截图再切 tab, 保证 renderer 在截图时处于挂载状态
   if (!lastImageUrl.value && selectedMessages.value.length > 0) {
     await generateScreenshotImage();
+  } else {
+    activeTab.value = "image";
   }
 }
 
@@ -331,7 +333,7 @@ async function handleSave() {
   }
 }
 
-// 监听所有可能影响截图效果的配置，一旦变化则清空已生成的截图并切回 DOM 视图
+// 监听所有可能影响截图效果的配置, 一旦变化则清空已生成的截图并切回 DOM 视图
 watch(
   [
     () => Array.from(selectedIds.value),
@@ -640,9 +642,14 @@ onBeforeUnmount(() => {
                   transformOrigin: 'top center',
                 }"
               >
-                <!-- DOM 实时排版 -->
+                <!--
+                  关键修复 (V2.2): ScreenshotRenderer 必须始终挂载,
+                  不能受 activeTab 控制显示/隐藏, 否则 getBoundingClientRect()
+                  在 display:none 状态下返回 0, 导致截图高度坍缩。
+                  用 v-if 控制挂载, 只要 selectedMessages > 0 就保持 DOM 存在。
+                -->
                 <ScreenshotRenderer
-                  v-show="activeTab === 'dom' && selectedMessages.length > 0"
+                  v-if="selectedMessages.length > 0"
                   ref="rendererRef"
                   :messages="selectedMessages"
                   :session-index="sessionIndex"
@@ -655,10 +662,14 @@ onBeforeUnmount(() => {
                   :width="SCREENSHOT_RENDER_WIDTH"
                 />
 
-                <!-- 截图效果图片 -->
+                <!--
+                  图片预览 overlay: 用绝对定位覆盖在 renderer 之上,
+                  而不是用 v-show 隐藏 renderer。这样 renderer 始终参与布局,
+                  截图工具可以正确读取尺寸。
+                -->
                 <div
-                  v-show="activeTab === 'image' && selectedMessages.length > 0"
-                  class="image-preview-container"
+                  v-if="activeTab === 'image' && selectedMessages.length > 0"
+                  class="image-preview-overlay"
                 >
                   <img
                     v-if="lastImageUrl"
@@ -667,7 +678,7 @@ onBeforeUnmount(() => {
                     alt="截图预览"
                   />
                   <div v-else class="image-preview-placeholder">
-                    <p>尚未生成截图效果，请点击“生成截图”</p>
+                    <p>尚未生成截图效果，请点击"生成截图"</p>
                   </div>
                 </div>
 
@@ -965,13 +976,21 @@ onBeforeUnmount(() => {
 .preview-canvas-frame {
   /* 实际宽度由 ScreenshotRenderer 内部 720px 决定, 这里只做 transform 缩放 */
   display: inline-block;
+  position: relative;
 }
-.image-preview-container {
-  width: 720px;
+
+/* 图片预览 overlay: 绝对定位覆盖在 renderer 之上 */
+.image-preview-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--container-bg);
   display: flex;
   flex-direction: column;
   align-items: center;
-  box-sizing: border-box;
+  z-index: 10;
 }
 .screenshot-img {
   width: 100%;

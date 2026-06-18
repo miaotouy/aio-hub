@@ -429,12 +429,13 @@ export async function captureMessagesAndStitch(
   ctx.restore();
 
   // 6. 拼接消息 Canvas
-  let y = cardY + padding * 0.5;
+  // 关键: 严格以 card 边为基准, 不要叠加额外内偏移, 不然消息会和 card 边缘错位
+  let y = cardY;
   for (let i = 0; i < messageCanvases.length; i++) {
     const msgCanvas = messageCanvases[i];
     const h = messageHeights[i];
     try {
-      ctx.drawImage(msgCanvas, cardX + padding * 0.5, y, captureWidth, h);
+      ctx.drawImage(msgCanvas, cardX, y, cardW, h);
     } catch (err) {
       // 单条截图失败不应阻塞整图, 继续下一条
       console.warn(`[screenshotCapture] drawImage 失败 (msg #${i}):`, err);
@@ -498,7 +499,6 @@ export async function copyCanvasToClipboard(
       else reject(new Error("Canvas 转 Blob 失败"));
     }, "image/png");
   });
-  await navigator.clipboard.write([
-    new ClipboardItem({ "image/png": blob }),
-  ]);
+  await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
 }
+

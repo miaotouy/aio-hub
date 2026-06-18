@@ -1,7 +1,7 @@
 # LLM Chat: 消息截图分享功能 — 实施计划 (V2)
 
 > 最后更新：2026-06-18
-> 状态：阶段一 ~ 阶段四完成, check:frontend + lint 通过, 待真机验证
+> 状态：V2.2 修复完成, check:frontend 通过, 待真机验证
 > 作者：Gugu_Kilo & miaotouy
 > 版本：V2 (单弹窗合并 + 上左右响应式布局 + 并发消息截图 + 纯 Canvas 2D 拼接)
 > ⚠️ 历史备注：上一轮实施（V1 分组截图方案）因效果不理想、频繁切换 display 导致虚拟滚动空白、截图速度极慢而回滚。本版 V2 彻底抛弃分组截图，采用并发单条消息截图与 Canvas 拼接方案。
@@ -44,7 +44,6 @@
 
 ---
 
-
 ### 0.3 V2.1 修复:气泡模式窄条气泡 + 拼接错乱 (2026-06-18)
 
 **症状**: 用户在气泡模式下打开分享弹窗, 选择消息点"生成截图", 输出 PNG 宽度只有 ~552px (CSS 276px), 远低于 ScreenshotRenderer 固定的 720px, 气泡被挤成一团, 用户/助手消息排版错乱.
@@ -57,7 +56,8 @@
 **修复**:
 
 - ScreenshotRenderer.vue: 完整复刻 MessageList.vue 的气泡模式 CSS (.message-slot 全宽 + flex 对齐 + 头像/header 外置变体 + 右对齐镜像), 写入自己的 <style scoped>, 用 :deep() 处理 children.
-- screenshotCapture.ts: StitchOptions 新增 width?: number; captureMessagesAndStitch 内 esolveCaptureWidth() 按 options.width → 首个元素父容器 → 720px 兜底; captureWidth 改用 resolvedWidth 而非 messageCanvases[0].width / scale; captureElementAsCanvas 调用处显式传 width: resolvedWidth.
+- screenshotCapture.ts: StitchOptions 新增 width?: number; captureMessagesAndStitch 内
+  esolveCaptureWidth() 按 options.width → 首个元素父容器 → 720px 兜底; captureWidth 改用 resolvedWidth 而非 messageCanvases[0].width / scale; captureElementAsCanvas 调用处显式传 width: resolvedWidth.
 - useScreenshotGenerator.ts: GenerateOptions 新增顶层 width?: number, 优先级高于 options.width.
 - ShareScreenshotDialog.vue: 抽出 SCREENSHOT_RENDER_WIDTH = 720 常量, 同步到 <ScreenshotRenderer :width> 与 generator.generate({ width }).
 
@@ -65,6 +65,7 @@
 
 - MessageList.vue 中任何改动气泡模式 CSS 的地方, 都必须同步检查 ScreenshotRenderer.vue 的 style scoped, 否则预览和截图会立刻错位.
 - 调用 captureMessagesAndStitch 时, **必须** 显式传 width (来自 ScreenshotRenderer 的 width prop), 不要依赖 rect.width 兜底 — 那是气泡自然宽度, 不是容器宽度.
+
 ## 1. 功能概述
 
 将当前对话分支中的单条、多条或整段消息，渲染成一张排版精美、支持高度自定义的**长图卡片**，支持一键保存到本地或复制到剪贴板。
@@ -510,3 +511,41 @@ CSS 级全局抑制：
 | 交互抑制             | `screenshotMode` prop + CSS `.screenshot-mode`                   | 双重保障，prop 控制组件级行为，CSS 控制全局样式                             |
 | `content-visibility` | 截图模式禁用                                                     | 避免视口外消息不渲染导致截图空白                                            |
 | 毛玻璃效果           | 截图模式下替换为实色背景                                         | `modern-screenshot` 无法捕获 `backdrop-filter`                              |
+
+### 0.4 V2.2 修复:卡片内消息偏移 + 关闭水印后高度坍缩 (2026-06-18)
+
+**症状 1 — 位置偏移**: 用户报告截图渲染效果与 DOM 预览存在偏差, 消息气泡在卡片内左右不对称, 右、下两侧看起来被裁切/溢出 12px.
+
+**根因**: `screenshotCapture.ts` 在 `drawImage` 时使用了
+
+```ts
+ctx.drawImage(msgCanvas, cardX + padding * 0.5, y, captureWidth, h);
+let y = cardY + padding * 0.5;
+```
+
+`padding * 0.5` (= 12) 让消息在 card 内左偏 12px, 但消息本身宽度是 720px (cardW), 画到 x=36 之后就溢出 card 右边缘 12px. y 方向同理: 第一条消息从 y=36 开始, 累加后最后一条消息底边在 `36 + sum + 12*(n-1)`, 比 card 底 (24 + cardH = 24 + sum + 12\*(n-1)) 多 12px, 溢出 card 下边缘 12px. 形成"左上缩进 12px、右下溢出 12px"的不对称.
+
+**修复**: 改为
+
+```ts
+let y = cardY;
+ctx.drawImage(msgCanvas, cardX, y, cardW, h);
+```
+
+消息与 card 边缘严丝合缝, cardW 直接复用, 避免 magic number.
+
+**症状 2 — 关闭水印后高度坍缩**: 切换"附加极简水印"开关后, 截图尺寸从 ~1141px 坍缩为 60px, footer 显示 `已生成截图 (768 × 60 px)`.
+
+**根因**: `<ScreenshotRenderer>` 与图片预览互斥使用 `v-show`, `switchToImageTab` 先把 `activeTab = "image"` (renderer 变 `display: none`), 再调用 `generateScreenshotImage`. 在 `display: none` 状态下, `.message-slot` 的 `getBoundingClientRect()` 全部返回 0, `captureElementAsCanvas` 算出的 `captureHeight` 为 0, 拼接出的 canvas 高度只剩 `padding*2 + 0 + 0 ≈ 48–60px`. 即水印开关触发了 `effects` 变更 → watch 清空 `lastImageUrl` 并切回 DOM tab, 用户再点"截图效果"tab 复现了这条隐藏路径.
+
+**修复**:
+
+- `ShareScreenshotDialog.vue` 模板: `<ScreenshotRenderer>` 改为 `v-if="selectedMessages.length > 0"` 始终挂载 (不再受 `activeTab` 控制), 图片预览改为 `v-if` 渲染的绝对定位 overlay 覆盖在 renderer 之上, 保证 `.message-slot` 在任意 tab 都有正确的布局尺寸供截图工具读取.
+- `switchToImageTab`: 调换顺序, 先 `await generateScreenshotImage()` 再 `activeTab.value = "image"`, 即便有外部代码走老路径也不会触发坍缩.
+- `useScreenshotGenerator.generate`: 仍然保持顶层 `width` 优先, 不会因 overlay 改造失效.
+
+**重要原则 (后续维护)**:
+
+- 在大画布中拼接消息时, 始终用 `cardX / cardY / cardW / cardH` 描述消息区, 不要混用 `padding * 0.5` 之类的局部偏移, 容易出现一边溢出.
+- `<ScreenshotRenderer>` 必须保持挂载, **不要** 用 `v-show` / `v-if` 在 image tab 隐藏它, 否则截图前的 `getBoundingClientRect` 会得到 0 高度, 任何后续配置变更都会触发坍缩.
+- 任何让 renderer 短暂离开布局的改造 (display:none / visibility:hidden / position:fixed 离屏), 都必须先确认截图前的 `getBoundingClientRect()` 仍然返回正确尺寸.

@@ -29,6 +29,8 @@ const MAX_LOG_STRING_LENGTH = 4000;
 const MAX_LOG_ARRAY_ITEMS = 50;
 const MAX_LOG_OBJECT_KEYS = 200;
 const MAX_LOG_DATA_DEPTH = 8;
+// 字符串进入 sanitize 流程的硬上限
+const MAX_LOG_STRING_SCAN_LENGTH = 64 * 1024;
 const BASE64_FIELD_PATTERN =
   /^(?:dataUrl|base64|imageBase64|audioBase64|videoBase64|fileData|imageData|audioData|videoData|inlineData)$/i;
 const BASE64ISH_VALUE_PATTERN = /^[A-Za-z0-9+/=_-]+$/;
@@ -69,6 +71,10 @@ function isProbablyBase64Payload(value: string): boolean {
 }
 
 function sanitizeLogString(value: string, key?: string): string {
+  if (value.length > MAX_LOG_STRING_SCAN_LENGTH) {
+    const head = value.slice(0, 64);
+    return `[String omitted, length=${value.length}, head=${head}]`;
+  }
   const replacedDataUrls = value.replace(DATA_URL_PATTERN, summarizeDataUrl);
   const looksLikePayloadField = key ? BASE64_FIELD_PATTERN.test(key) : false;
 

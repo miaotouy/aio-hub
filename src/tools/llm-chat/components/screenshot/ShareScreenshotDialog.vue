@@ -229,6 +229,7 @@ async function regenerateScreenshot() {
 
   const token = ++generationToken;
   generating.value = true;
+  progress.value = { done: 0, total: elements.length, currentLabel: "" };
   try {
     // 解析自动 gap: undefined 时按布局模式取默认值 (卡片 8px, 气泡 12px)
     const resolvedGap =
@@ -400,4 +401,3 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 </style>
-

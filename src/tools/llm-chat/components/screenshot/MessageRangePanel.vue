@@ -41,9 +41,7 @@
       <el-button size="small" @click="selectAll">全选</el-button>
       <el-button size="small" @click="clearAll">清空</el-button>
       <el-button size="small" @click="selectOnlyUser">仅用户</el-button>
-      <el-button size="small" @click="selectOnlyAssistant"
-        >仅助手</el-button
-      >
+      <el-button size="small" @click="selectOnlyAssistant">仅助手</el-button>
       <div class="filter-spacer" />
       <span class="filter-count">
         已选 <strong>{{ selectedIds.size }}</strong> / {{ total }} 条
@@ -84,11 +82,7 @@
                     : "系统"
             }}
           </span>
-          <el-tooltip
-            :content="msg.content"
-            placement="top"
-            :show-after="500"
-          >
+          <el-tooltip :content="msg.content" placement="top" :show-after="500">
             <span class="fine-summary">{{ getMessageSummary(msg) }}</span>
           </el-tooltip>
         </div>
@@ -132,7 +126,7 @@ watch(
       props.messages.slice(s, e + 1).map((m) => m.id)
     );
   },
-  { immediate: false }
+  { immediate: false, deep: true }
 );
 
 function getMessageSummary(msg: ChatMessageNode): string {
@@ -272,3 +266,4 @@ function selectOnlyAssistant() {
   color: var(--text-color-secondary);
 }
 </style>
+

@@ -10,42 +10,48 @@
       <div class="section-title">布局覆盖</div>
       <div class="config-row">
         <span class="config-label">布局模式</span>
-        <el-select
-          v-model="layoutOverrides.mode"
-          placeholder="选择"
-          size="small"
-          style="width: 160px"
-        >
-          <el-option label="跟随系统" value="follow" />
-          <el-option label="卡片模式" value="card" />
-          <el-option label="气泡模式" value="bubble" />
-        </el-select>
+        <div class="config-value">
+          <el-select
+            v-model="layoutOverrides.mode"
+            placeholder="选择"
+            size="small"
+            style="width: 160px"
+          >
+            <el-option label="跟随系统" value="follow" />
+            <el-option label="卡片模式" value="card" />
+            <el-option label="气泡模式" value="bubble" />
+          </el-select>
+        </div>
       </div>
       <div class="config-row">
         <span class="config-label">气泡圆角</span>
-        <el-input-number
-          v-model="layoutOverrides.borderRadius"
-          placeholder="跟随系统"
-          :min="0"
-          :max="32"
-          size="small"
-          controls-position="right"
-          style="width: 120px"
-        />
-        <span class="config-hint">px</span>
+        <div class="config-value">
+          <el-input-number
+            v-model="layoutOverrides.borderRadius"
+            placeholder="跟随系统"
+            :min="0"
+            :max="32"
+            size="small"
+            controls-position="right"
+            style="width: 120px"
+          />
+          <span class="config-hint">px</span>
+        </div>
       </div>
       <div class="config-row">
         <span class="config-label">字体大小</span>
-        <el-input-number
-          v-model="layoutOverrides.fontSize"
-          placeholder="跟随系统"
-          :min="10"
-          :max="24"
-          size="small"
-          controls-position="right"
-          style="width: 120px"
-        />
-        <span class="config-hint">px</span>
+        <div class="config-value">
+          <el-input-number
+            v-model="layoutOverrides.fontSize"
+            placeholder="跟随系统"
+            :min="10"
+            :max="24"
+            size="small"
+            controls-position="right"
+            style="width: 120px"
+          />
+          <span class="config-hint">px</span>
+        </div>
       </div>
     </div>
 
@@ -57,37 +63,41 @@
       </div>
       <div class="config-row">
         <span class="config-label">渲染宽度</span>
-        <el-input-number
-          v-if="isFixedWidth"
-          :model-value="renderOptions.width"
-          :min="RENDER_WIDTH_MIN"
-          :max="RENDER_WIDTH_MAX"
-          :step="RENDER_WIDTH_STEP"
-          size="small"
-          controls-position="right"
-          style="width: 120px"
-          @update:model-value="onWidthChange"
-        />
-        <span v-else class="auto-width-display">
-          自动: {{ renderOptions.width }} px
-        </span>
-        <span v-if="isFixedWidth" class="config-hint">px</span>
+        <div class="config-value">
+          <el-input-number
+            v-if="isFixedWidth"
+            :model-value="renderOptions.width"
+            :min="RENDER_WIDTH_MIN"
+            :max="RENDER_WIDTH_MAX"
+            :step="RENDER_WIDTH_STEP"
+            size="small"
+            controls-position="right"
+            style="width: 120px"
+            @update:model-value="onWidthChange"
+          />
+          <span v-else class="auto-width-display">
+            自动: {{ renderOptions.width }} px
+          </span>
+          <span v-if="isFixedWidth" class="config-hint">px</span>
+        </div>
       </div>
       <div class="config-row">
         <span class="config-label">输出精度</span>
-        <el-select
-          :model-value="renderOptions.scale"
-          size="small"
-          style="width: 120px"
-          @update:model-value="onScaleChange"
-        >
-          <el-option
-            v-for="opt in CAPTURE_SCALE_OPTIONS"
-            :key="opt"
-            :label="opt + 'x' + (opt === 2 ? ' (2x 高清, 推荐)' : '')"
-            :value="opt"
-          />
-        </el-select>
+        <div class="config-value">
+          <el-select
+            :model-value="renderOptions.scale"
+            size="small"
+            style="width: 120px"
+            @update:model-value="onScaleChange"
+          >
+            <el-option
+              v-for="opt in CAPTURE_SCALE_OPTIONS"
+              :key="opt"
+              :label="opt + 'x' + (opt === 2 ? ' (2x 推荐)' : '')"
+              :value="opt"
+            />
+          </el-select>
+        </div>
       </div>
       <p class="section-hint">
         渲染宽度决定消息气泡/卡片的换行宽度；输出精度决定最终图片清晰度（最终像素
@@ -100,88 +110,100 @@
       <div class="section-title">背景与间距</div>
       <div class="config-row">
         <span class="config-label">背景类型</span>
-        <el-select
-          :model-value="renderOptions.bgConfig.type"
-          size="small"
-          style="width: 160px"
-          @update:model-value="onBgTypeChange"
-        >
-          <el-option label="跟随主题" value="theme" />
-          <el-option label="纯色背景" value="solid" />
-          <el-option label="应用壁纸" value="wallpaper" />
-        </el-select>
+        <div class="config-value">
+          <el-select
+            :model-value="renderOptions.bgConfig.type"
+            size="small"
+            style="width: 160px"
+            @update:model-value="onBgTypeChange"
+          >
+            <el-option label="跟随主题" value="theme" />
+            <el-option label="纯色背景" value="solid" />
+            <el-option label="应用壁纸" value="wallpaper" />
+          </el-select>
+        </div>
       </div>
       <div v-if="renderOptions.bgConfig.type === 'solid'" class="config-row">
         <span class="config-label">背景颜色</span>
-        <el-color-picker
-          :model-value="renderOptions.bgConfig.color"
-          size="small"
-          :predefine="[
-            '#ffffff',
-            '#f5f7fa',
-            '#fafafa',
-            '#1a1a1a',
-            '#242424',
-            '#121212',
-          ]"
-          @update:model-value="onBgColorChange"
-        />
-        <span class="config-hint">{{ renderOptions.bgConfig.color }}</span>
+        <div class="config-value">
+          <el-color-picker
+            :model-value="renderOptions.bgConfig.color"
+            size="small"
+            :predefine="[
+              '#ffffff',
+              '#f5f7fa',
+              '#fafafa',
+              '#1a1a1a',
+              '#242424',
+              '#121212',
+            ]"
+            @update:model-value="onBgColorChange"
+          />
+          <span class="config-hint">{{ renderOptions.bgConfig.color }}</span>
+        </div>
       </div>
       <div
         v-if="renderOptions.bgConfig.type === 'wallpaper'"
         class="config-row"
       >
         <span class="config-label">壁纸不透明度</span>
-        <el-slider
-          :model-value="renderOptions.bgConfig.wallpaperOpacity"
-          :min="0"
-          :max="1"
-          :step="0.05"
-          size="small"
-          style="flex: 1; min-width: 80px"
-          @update:model-value="onWallpaperOpacityChange"
-        />
-        <span class="config-hint">
-          {{
-            Math.round((renderOptions.bgConfig.wallpaperOpacity ?? 0.6) * 100)
-          }}%
-        </span>
+        <div class="config-value">
+          <el-slider
+            :model-value="renderOptions.bgConfig.wallpaperOpacity"
+            :min="0"
+            :max="1"
+            :step="0.05"
+            size="small"
+            style="flex: 1; min-width: 80px"
+            @update:model-value="onWallpaperOpacityChange"
+          />
+          <span class="config-hint">
+            {{
+              Math.round(
+                (renderOptions.bgConfig.wallpaperOpacity ?? 0.6) * 100
+              )
+            }}%
+          </span>
+        </div>
       </div>
       <div class="config-row">
         <span class="config-label">消息间距</span>
-        <el-switch
-          :model-value="renderOptions.gap === undefined"
-          size="small"
-          active-text="自动"
-          @update:model-value="onGapAutoToggle"
-        />
-        <el-input-number
-          v-if="renderOptions.gap !== undefined"
-          :model-value="renderOptions.gap"
-          :min="SCREENSHOT_GAP_MIN"
-          :max="SCREENSHOT_GAP_MAX"
-          size="small"
-          controls-position="right"
-          style="width: 100px"
-          @update:model-value="onGapChange"
-        />
-        <span v-if="renderOptions.gap !== undefined" class="config-hint"
-          >px</span
-        >
+        <div class="config-value">
+          <el-switch
+            :model-value="renderOptions.gap === undefined"
+            size="small"
+            active-text="自动"
+            @update:model-value="onGapAutoToggle"
+          />
+          <el-input-number
+            v-if="renderOptions.gap !== undefined"
+            :model-value="renderOptions.gap"
+            :min="SCREENSHOT_GAP_MIN"
+            :max="SCREENSHOT_GAP_MAX"
+            size="small"
+            controls-position="right"
+            style="width: 100px"
+            @update:model-value="onGapChange"
+          />
+          <span v-if="renderOptions.gap !== undefined" class="config-hint"
+            >px</span
+          >
+        </div>
       </div>
       <div class="config-row">
         <span class="config-label">四周留白</span>
-        <el-input-number
-          :model-value="renderOptions.padding"
-          :min="SCREENSHOT_PADDING_MIN"
-          :max="SCREENSHOT_PADDING_MAX"
-          size="small"
-          controls-position="right"
-          style="width: 100px"
-          @update:model-value="onPaddingChange"
-        />
-        <span class="config-hint">px</span>
+        <div class="config-value">
+          <el-input-number
+            :model-value="renderOptions.padding"
+            :min="SCREENSHOT_PADDING_MIN"
+            :max="SCREENSHOT_PADDING_MAX"
+            size="small"
+            controls-position="right"
+            style="width: 100px"
+            @update:model-value="onPaddingChange"
+          />
+          <span class="config-hint">px</span>
+        </div>
       </div>
       <div class="switch-row">
         <el-switch
@@ -403,18 +425,26 @@ function onDecorationToggle(v: boolean | string | number) {
 .config-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   margin-bottom: 8px;
-  flex-wrap: wrap;
 }
 .config-label {
   font-size: 12px;
   color: var(--text-color-secondary);
-  min-width: 70px;
+  flex-shrink: 0;
+}
+.config-value {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 1;
 }
 .config-hint {
   font-size: 11px;
   color: var(--text-color-secondary);
+  flex-shrink: 0;
 }
 .switch-row {
   display: flex;

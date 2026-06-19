@@ -1,15 +1,15 @@
 <!--
-  截图预览面板 (右下) — V3 重构版
+  截图预览面板 (右下) — V3 重构版 + 历史列表
 
   设计目标:
   - 主视觉 = 实时排版预览 (DOM 镜像), 用户修改配置时**瞬间**看到效果
-  - 缩略图小容器 = 仅在手动点击"生成截图"后才出现, 提供最直观的图片反馈
+  - 缩略图列表 = 保留所有手动生成的截图历史, 配置变更后旧图标记"已过时"
   - 完全手动: 不防抖、不监听配置变化、不在打开时自动渲染
 
   结构 (从上到下):
     1. 工具栏: 缩放控制 + "生成截图"按钮
     2. DOM 预览区: ScreenshotRenderer 永久挂载, 支持滚轮缩放 + 拖拽平移
-    3. 缩略图条: 固定高度小容器, 仅在生成后展示图片
+    3. 缩略图条: 横向滚动历史列表, 过时图片有遮罩标记
     4. 状态栏 + 复制/保存按钮
 -->
 <template>
@@ -18,9 +18,10 @@
     <div class="preview-toolbar">
       <span class="preview-stats">
         <Camera :size="14" />
-        <template v-if="lastCanvas">
-          {{ Math.round(lastCanvas.width / 2) }} ×
-          {{ Math.round(lastCanvas.height / 2) }} px · {{ selectedCount }} 条
+        <template v-if="activeItem">
+          {{ Math.round(activeItem.width / 2) }} ×
+          {{ Math.round(activeItem.height / 2) }} px ·
+          {{ activeItem.messageCount }} 条
         </template>
         <template v-else>
           渲染 {{ width }} px ·
@@ -71,11 +72,6 @@
             关键: 缩放由内层 .preview-canvas-scaler 的 transform: scale 承担,
             外层 .preview-canvas-frame 用显式 width/height (= 自然尺寸 * scale)
             撑出与可视内容等大的布局盒, 这样 overflow:auto 才能拿到正确的滚动范围。
-            之前把 scale 写在 frame 上, 布局盒始终是原始尺寸, 导致
-            - 放大时可视内容超出布局盒, 横向滚动范围不够, 部分内容跑到容器外
-            - 缩小时布局盒大于可视内容, 下方/右侧留出额外空白
-            ScreenshotRenderer 也必须始终挂载, 不能用 display:none,
-            否则 getBoundingClientRect() 返回 0, 截图高度坍缩为 0。
           -->
           <div
             ref="scalerRef"
@@ -110,33 +106,80 @@
       </div>
     </div>
 
-    <!-- 3. 缩略图条 -->
+    <!-- 3. 缩略图条 — 横向滚动历史列表 -->
     <div class="thumbnail-bar">
       <div class="thumbnail-bar-header">
         <span class="thumbnail-bar-title">
           <ImageIcon :size="14" />
-          截图效果
+          截图历史
+          <span v-if="history.length" class="thumbnail-bar-count"
+            >({{ history.length }})</span
+          >
         </span>
-        <span v-if="lastCanvas" class="thumbnail-bar-dim">
-          {{ Math.round(lastCanvas.width / 2) }} ×
-          {{ Math.round(lastCanvas.height / 2) }} px
-        </span>
+        <div class="thumbnail-bar-header-actions">
+          <span v-if="activeItem" class="thumbnail-bar-dim">
+            {{ Math.round(activeItem.width / 2) }} ×
+            {{ Math.round(activeItem.height / 2) }} px
+          </span>
+          <el-button
+            v-if="history.length > 0"
+            size="small"
+            text
+            type="danger"
+            @click="clearHistory"
+          >
+            <Trash2 :size="12" />
+            <span style="margin-left: 2px">清空</span>
+          </el-button>
+        </div>
       </div>
       <div class="thumbnail-bar-body">
-        <div v-if="generating" class="thumbnail-state">
-          <el-icon :size="24" class="is-spinning"><Loader2 /></el-icon>
+        <!-- 生成中指示器 -->
+        <div v-if="generating" class="thumbnail-generating">
+          <el-icon :size="20" class="is-spinning"><Loader2 /></el-icon>
           <span class="thumbnail-state-text">
-            正在生成 {{ progress.done }} / {{ progress.total }}
+            {{ progress.done }} / {{ progress.total }}
           </span>
         </div>
-        <img
-          v-else-if="lastImageUrl"
-          :src="lastImageUrl"
-          class="screenshot-thumbnail"
-          alt="截图缩略图，点击查看大图"
-          @click="openImageViewer"
-        />
-        <div v-else class="thumbnail-state thumbnail-state--placeholder">
+        <!-- 历史列表 -->
+        <div
+          v-if="history.length > 0"
+          ref="historyScrollRef"
+          class="thumbnail-list"
+        >
+          <div
+            v-for="(item, idx) in history"
+            :key="item.id"
+            class="thumbnail-item"
+            :class="{
+              'is-active': activeIndex === idx,
+              'is-stale': item.stale,
+            }"
+            @click="activeIndex = idx"
+          >
+            <img
+              :src="item.url"
+              class="thumbnail-item-img"
+              :alt="`截图 #${idx + 1}`"
+            />
+            <span class="thumbnail-item-index">#{{ idx + 1 }}</span>
+            <span v-if="item.stale" class="thumbnail-item-stale-badge"
+              >已过时</span
+            >
+            <button
+              class="thumbnail-item-remove"
+              title="移除此项"
+              @click.stop="removeHistoryItem(idx)"
+            >
+              <X :size="10" />
+            </button>
+          </div>
+        </div>
+        <!-- 空状态 -->
+        <div
+          v-if="!generating && history.length === 0"
+          class="thumbnail-state thumbnail-state--placeholder"
+        >
           <el-icon :size="24"><ImageIcon /></el-icon>
           <span class="thumbnail-state-text">尚未生成截图</span>
           <span class="thumbnail-state-hint">点击右上角"生成截图"按钮</span>
@@ -150,18 +193,32 @@
         <template v-if="generating">
           正在生成… {{ progress.done }} / {{ progress.total }}
         </template>
-        <template v-else-if="lastCanvas">
-          已生成 {{ Math.round(lastCanvas.width / 2) }} ×
-          {{ Math.round(lastCanvas.height / 2) }} px ({{ selectedCount }} 条)
+        <template v-else-if="activeItem">
+          <span v-if="activeItem.stale" class="status-stale-hint"
+            >⚠ 已过时</span
+          >
+          {{ Math.round(activeItem.width / 2) }} ×
+          {{ Math.round(activeItem.height / 2) }} px ({{
+            activeItem.messageCount
+          }}
+          条)
         </template>
         <template v-else>未生成 — 修改配置不会自动重新生成</template>
       </div>
       <div class="preview-actions">
         <el-button
+          size="small"
+          :disabled="!activeItem || generating"
+          @click="handleViewFull"
+        >
+          <el-icon><Eye /></el-icon>
+          <span style="margin-left: 4px">查看大图</span>
+        </el-button>
+        <el-button
           :icon="Copy"
           size="small"
-          :disabled="!lastCanvas || generating"
-          @click="emit('copy')"
+          :disabled="!activeItem || generating"
+          @click="handleCopy"
         >
           复制到剪贴板
         </el-button>
@@ -169,8 +226,8 @@
           type="primary"
           size="small"
           :icon="Download"
-          :disabled="!lastCanvas || generating"
-          @click="emit('save')"
+          :disabled="!activeItem || generating"
+          @click="handleSave"
         >
           保存图片
         </el-button>
@@ -180,7 +237,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import {
   Camera,
   Copy,
@@ -188,6 +245,8 @@ import {
   Eye,
   Image as ImageIcon,
   Loader2,
+  Trash2,
+  X,
   ZoomIn,
   ZoomOut,
 } from "lucide-vue-next";
@@ -202,6 +261,19 @@ import type {
   LayoutOverrides,
   ScreenshotBgConfig,
 } from "./screenshotTypes";
+
+/** 截图历史列表项 */
+interface ScreenshotHistoryItem {
+  id: number;
+  url: string;
+  canvas: HTMLCanvasElement;
+  width: number;
+  height: number;
+  messageCount: number;
+  timestamp: number;
+  stale: boolean;
+}
+
 interface Props {
   /** ScreenshotRenderer props */
   messages: ChatMessageNode[];
@@ -243,8 +315,8 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   (e: "regenerate"): void;
-  (e: "copy"): void;
-  (e: "save"): void;
+  (e: "copy", canvas: HTMLCanvasElement): void;
+  (e: "save", canvas: HTMLCanvasElement): void;
 }>();
 
 // 暴露给父组件: 获取可截图的消息元素
@@ -255,10 +327,6 @@ function getMessageElements(): HTMLElement[] {
 defineExpose({ getMessageElements, rendererRef });
 
 // ----- 自然尺寸追踪 -----
-// 用 ResizeObserver 跟踪内层 .preview-canvas-scaler 的 layout 高度,
-// 宽度直接使用 props.width (因为渲染器宽度是固定的, 测量宽度会导致 ResizeObserver 测量死循环)。
-// 拿到 scale = 1 时的真实高度, 据此把外层 frame 的 width/height 显式设成
-// 自然尺寸 * scale, 让 overflow:auto 容器给出的滚动范围与可视内容等大。
 const scalerRef = ref<HTMLElement | null>(null);
 const measuredHeight = ref(0);
 let resizeObserver: ResizeObserver | null = null;
@@ -269,7 +337,6 @@ watch(
     resizeObserver?.disconnect();
     resizeObserver = null;
     if (newScaler && selectedCount > 0) {
-      // 同步读取一次 layout, 避免首帧 frame 高度坍缩为 0 导致内容溢出
       measuredHeight.value = newScaler.clientHeight || 0;
       resizeObserver = new ResizeObserver((entries) => {
         for (const entry of entries) {
@@ -304,16 +371,12 @@ let panStartOffsetX = 0;
 let panStartOffsetY = 0;
 
 const previewFrameStyle = computed(() => ({
-  // 关键: 显式 width/height = 自然尺寸 * 缩放, 让布局盒与可视内容等大,
-  // 这样外层 overflow:auto 才能给出与可视内容匹配的滚动范围。
   width: `${naturalSize.value.width * previewScale.value}px`,
   height: `${naturalSize.value.height * previewScale.value}px`,
-  // 拖拽用 translate, 缩放交给内层 .preview-canvas-scaler。
   transform: `translate(${panX.value}px, ${panY.value}px)`,
 }));
 
 const scalerStyle = computed(() => ({
-  // 锚定左上角, 配合 frame 的等大布局盒, 可视内容正好填满 frame。
   transform: `scale(${previewScale.value})`,
   transformOrigin: "top left",
 }));
@@ -331,14 +394,12 @@ function zoomOut() {
   );
 }
 function resetZoom() {
-  // 100% 按钮 = 1:1 像素映射, 让用户看清渲染尺寸原貌
   previewScale.value = 1.0;
   panX.value = 0;
   panY.value = 0;
 }
 
 function onPreviewWheel(e: WheelEvent) {
-  // Ctrl/Cmd + 滚轮: 缩放; 普通滚轮: 滚动容器
   if (e.ctrlKey || e.metaKey) {
     e.preventDefault();
     if (e.deltaY < 0) zoomIn();
@@ -347,7 +408,6 @@ function onPreviewWheel(e: WheelEvent) {
 }
 
 function onPreviewMouseDown(e: MouseEvent) {
-  // 简化: 鼠标左键直接拖拽空白处, 排除按钮/输入控件
   if (e.button !== 0) return;
   const target = e.target as HTMLElement;
   if (target.closest("button, input, .el-input, .el-select, .el-slider"))
@@ -372,11 +432,87 @@ function onPreviewMouseDown(e: MouseEvent) {
   window.addEventListener("mouseup", onUp);
 }
 
-// ----- 大图查看 -----
+// ----- 截图历史列表 -----
+const history = ref<ScreenshotHistoryItem[]>([]);
+const activeIndex = ref(-1);
+const historyScrollRef = ref<HTMLElement | null>(null);
+let historyIdCounter = 0;
+
+const activeItem = computed<ScreenshotHistoryItem | null>(() => {
+  if (activeIndex.value < 0 || activeIndex.value >= history.value.length)
+    return null;
+  return history.value[activeIndex.value];
+});
+
+// 监听 lastImageUrl: 非空 = 新图生成完毕, 加入历史
+watch(
+  () => props.lastImageUrl,
+  (newUrl, oldUrl) => {
+    if (newUrl && newUrl !== oldUrl && props.lastCanvas) {
+      const item: ScreenshotHistoryItem = {
+        id: ++historyIdCounter,
+        url: newUrl,
+        canvas: props.lastCanvas,
+        width: props.lastCanvas.width,
+        height: props.lastCanvas.height,
+        messageCount: props.selectedCount,
+        timestamp: Date.now(),
+        stale: false,
+      };
+      history.value.push(item);
+      activeIndex.value = history.value.length - 1;
+      // 滚动到最新项
+      nextTick(() => {
+        if (historyScrollRef.value) {
+          historyScrollRef.value.scrollLeft =
+            historyScrollRef.value.scrollWidth;
+        }
+      });
+    } else if (!newUrl && oldUrl) {
+      // 父组件清空了 = 配置变更, 标记所有现有项为过时
+      markAllStale();
+    }
+  }
+);
+
+function markAllStale() {
+  for (const item of history.value) {
+    item.stale = true;
+  }
+}
+
+function removeHistoryItem(idx: number) {
+  history.value.splice(idx, 1);
+  if (history.value.length === 0) {
+    activeIndex.value = -1;
+  } else if (activeIndex.value >= history.value.length) {
+    activeIndex.value = history.value.length - 1;
+  } else if (activeIndex.value > idx) {
+    activeIndex.value--;
+  }
+}
+
+function clearHistory() {
+  history.value = [];
+  activeIndex.value = -1;
+}
+
+// ----- 操作: 大图 / 复制 / 保存 -----
 const imageViewer = useImageViewer();
-function openImageViewer() {
-  if (!props.lastImageUrl) return;
-  imageViewer.show(props.lastImageUrl);
+
+function handleViewFull() {
+  if (!activeItem.value) return;
+  imageViewer.show(activeItem.value.url);
+}
+
+function handleCopy() {
+  if (!activeItem.value) return;
+  emit("copy", activeItem.value.canvas);
+}
+
+function handleSave() {
+  if (!activeItem.value) return;
+  emit("save", activeItem.value.canvas);
 }
 </script>
 
@@ -427,13 +563,9 @@ function openImageViewer() {
   flex: 1;
   overflow: auto;
   background: var(--container-bg);
-  /* 与消息列表同色背景, 让预览贴近真实聊天界面 */
   min-height: 0;
   position: relative;
   cursor: grab;
-  /* 让 .preview-stage 可以 margin:auto 居中:
-     - 内容小时 stage 居中, 四周留白对称, 不再下方留额外空白
-     - 内容大时 margin 退化为 0, stage 贴左上, 用户自然滚动 */
   display: flex;
 }
 .preview-wrapper:active,
@@ -442,23 +574,14 @@ function openImageViewer() {
 }
 
 .preview-stage {
-  /* 极小 padding 让缩放时不贴边 */
   padding: 24px 16px;
   display: flex;
   justify-content: center;
   align-items: center;
-  /* wrapper 是 flex 容器, 用 margin:auto 双向居中;
-     内容超出 wrapper 时 margin 退化为 0, 自然贴左上滚动 */
   margin: auto;
-  /* 关键: 不再写 min-height: 100%。
-     之前写 min-height: 100% 会让 stage 在缩小时仍撑满 wrapper,
-     frame 居顶后下方留出一大块空白。*/
 }
 
 .preview-canvas-frame {
-  /* 关键: width/height 由 previewFrameStyle 显式设为 自然尺寸 * scale,
-     布局盒与可视内容等大, overflow:auto 才能给出与可视内容匹配的滚动范围。
-     transition 覆盖 width/height, 让缩放有平滑动画。*/
   transition:
     transform 0.15s ease,
     width 0.15s ease,
@@ -467,7 +590,6 @@ function openImageViewer() {
 }
 
 .preview-canvas-scaler {
-  /* 缩放锚定左上, 配合 frame 的等大布局盒, 可视内容正好填满 frame */
   transform-origin: top left;
   display: block;
 }
@@ -483,12 +605,12 @@ function openImageViewer() {
   font-size: 13px;
 }
 
-/* ===== 3. 缩略图条 ===== */
+/* ===== 3. 缩略图条 — 历史列表 ===== */
 .thumbnail-bar {
   flex-shrink: 0;
   border-top: 1px solid var(--border-color);
   background: var(--card-bg);
-  height: 138px;
+  height: 148px;
   display: flex;
   flex-direction: column;
 }
@@ -507,6 +629,16 @@ function openImageViewer() {
   gap: 4px;
   font-weight: 500;
 }
+.thumbnail-bar-count {
+  font-weight: 400;
+  color: var(--text-color-placeholder);
+  margin-left: 2px;
+}
+.thumbnail-bar-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .thumbnail-bar-dim {
   font-variant-numeric: tabular-nums;
   font-size: 11px;
@@ -515,29 +647,129 @@ function openImageViewer() {
   flex: 1;
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 8px 16px;
+  padding: 8px 12px;
   overflow: hidden;
   min-height: 0;
+  gap: 8px;
 }
 
-.screenshot-thumbnail {
-  /* 缩略图最大高度受 body 高度限制, 宽度按比例自动 */
-  max-height: 100%;
-  max-width: 100%;
-  height: auto;
+/* 生成中指示器 */
+.thumbnail-generating {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 8px;
+  flex-shrink: 0;
+  color: var(--el-color-primary);
+}
+
+/* 横向滚动列表 */
+.thumbnail-list {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex: 1;
+  min-width: 0;
+  padding: 2px 0;
+  scroll-behavior: smooth;
+}
+.thumbnail-list::-webkit-scrollbar {
+  height: 4px;
+}
+.thumbnail-list::-webkit-scrollbar-thumb {
+  background: var(--el-border-color);
+  border-radius: 2px;
+}
+
+/* 单个缩略图项 */
+.thumbnail-item {
+  position: relative;
+  flex-shrink: 0;
+  height: 80px;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    opacity 0.2s;
+  background: var(--container-bg);
+}
+.thumbnail-item:hover {
+  border-color: var(--el-color-primary-light-5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+.thumbnail-item.is-active {
+  border-color: var(--el-color-primary);
+  box-shadow: 0 0 0 2px rgba(var(--el-color-primary-rgb), 0.15);
+}
+.thumbnail-item.is-stale {
+  opacity: 0.55;
+}
+.thumbnail-item.is-stale:hover {
+  opacity: 0.8;
+}
+
+.thumbnail-item-img {
+  height: 100%;
   width: auto;
   display: block;
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  cursor: zoom-in;
-  transition:
-    transform 0.15s,
-    box-shadow 0.15s;
+  object-fit: contain;
 }
-.screenshot-thumbnail:hover {
-  transform: scale(1.02);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+
+.thumbnail-item-index {
+  position: absolute;
+  bottom: 2px;
+  left: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 1px 4px;
+  border-radius: 3px;
+  line-height: 1.2;
+}
+
+.thumbnail-item-stale-badge {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 9px;
+  color: #fff;
+  background: var(--el-color-warning);
+  padding: 1px 4px;
+  border-radius: 3px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.thumbnail-item-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  padding: 0;
+}
+.thumbnail-item:hover .thumbnail-item-remove {
+  opacity: 1;
+}
+.thumbnail-item-remove:hover {
+  background: var(--el-color-danger);
 }
 
 .thumbnail-state {
@@ -548,6 +780,7 @@ function openImageViewer() {
   gap: 4px;
   color: var(--text-color-secondary);
   text-align: center;
+  width: 100%;
 }
 .thumbnail-state-text {
   font-size: 12px;
@@ -581,6 +814,10 @@ function openImageViewer() {
   font-size: 12px;
   color: var(--text-color-secondary);
   font-variant-numeric: tabular-nums;
+}
+.status-stale-hint {
+  color: var(--el-color-warning);
+  margin-right: 4px;
 }
 .preview-actions {
   margin-left: auto;

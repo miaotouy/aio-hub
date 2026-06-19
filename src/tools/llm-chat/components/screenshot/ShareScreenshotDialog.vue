@@ -282,20 +282,12 @@ async function regenerateScreenshot() {
   }
 }
 
-async function handleCopy() {
-  if (!lastCanvas.value) {
-    customMessage.warning("请先生成截图");
-    return;
-  }
-  await generator.copyToClipboard(lastCanvas.value);
+async function handleCopy(canvas: HTMLCanvasElement) {
+  await generator.copyToClipboard(canvas);
 }
 
-async function handleSave() {
-  if (!lastCanvas.value) {
-    customMessage.warning("请先生成截图");
-    return;
-  }
-  await generator.saveToFile(lastCanvas.value, props.defaultFileName);
+async function handleSave(canvas: HTMLCanvasElement) {
+  await generator.saveToFile(canvas, props.defaultFileName);
 }
 
 /**

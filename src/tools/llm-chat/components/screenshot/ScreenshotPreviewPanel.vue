@@ -1,17 +1,3 @@
-<!--
-  截图预览面板 (右下) — V3 重构版 + 历史列表
-
-  设计目标:
-  - 主视觉 = 实时排版预览 (DOM 镜像), 用户修改配置时**瞬间**看到效果
-  - 缩略图列表 = 保留所有手动生成的截图历史, 配置变更后旧图标记"已过时"
-  - 完全手动: 不防抖、不监听配置变化、不在打开时自动渲染
-
-  结构 (从上到下):
-    1. 工具栏: 缩放控制 + "生成截图"按钮
-    2. DOM 预览区: ScreenshotRenderer 永久挂载, 支持滚轮缩放 + 拖拽平移
-    3. 缩略图条: 横向滚动历史列表, 过时图片有遮罩标记
-    4. 状态栏 + 复制/保存按钮
--->
 <template>
   <section class="right-panel">
     <!-- 1. 工具栏 -->
@@ -35,7 +21,9 @@
           @click="zoomOut"
           :disabled="previewScale <= 0.4"
         >
-          <el-icon><ZoomOut /></el-icon>
+          <el-icon>
+            <ZoomOut />
+          </el-icon>
         </el-button>
         <el-button
           size="small"
@@ -44,7 +32,9 @@
           >100%</el-button
         >
         <el-button size="small" @click="zoomIn" :disabled="previewScale >= 2">
-          <el-icon><ZoomIn /></el-icon>
+          <el-icon>
+            <ZoomIn />
+          </el-icon>
         </el-button>
         <el-button
           type="primary"
@@ -53,7 +43,9 @@
           :disabled="selectedCount === 0"
           @click="emit('regenerate')"
         >
-          <el-icon><Camera /></el-icon>
+          <el-icon>
+            <Camera />
+          </el-icon>
           <span style="margin-left: 4px">生成截图</span>
         </el-button>
       </div>
@@ -98,7 +90,9 @@
               :enable-decoration="enableDecoration"
             />
             <div v-else class="preview-empty">
-              <el-icon :size="32"><Eye /></el-icon>
+              <el-icon :size="32">
+                <Eye />
+              </el-icon>
               <p>请选择至少一条消息以查看预览</p>
             </div>
           </div>
@@ -136,7 +130,9 @@
       <div class="thumbnail-bar-body">
         <!-- 生成中指示器 -->
         <div v-if="generating" class="thumbnail-generating">
-          <el-icon :size="20" class="is-spinning"><Loader2 /></el-icon>
+          <el-icon :size="20" class="is-spinning">
+            <Loader2 />
+          </el-icon>
           <span class="thumbnail-state-text">
             {{ progress.done }} / {{ progress.total }}
           </span>
@@ -180,7 +176,9 @@
           v-if="!generating && history.length === 0"
           class="thumbnail-state thumbnail-state--placeholder"
         >
-          <el-icon :size="24"><ImageIcon /></el-icon>
+          <el-icon :size="24">
+            <ImageIcon />
+          </el-icon>
           <span class="thumbnail-state-text">尚未生成截图</span>
           <span class="thumbnail-state-hint">点击右上角"生成截图"按钮</span>
         </div>
@@ -211,7 +209,9 @@
           :disabled="!activeItem || generating"
           @click="handleViewFull"
         >
-          <el-icon><Eye /></el-icon>
+          <el-icon>
+            <Eye />
+          </el-icon>
           <span style="margin-left: 4px">查看大图</span>
         </el-button>
         <el-button
@@ -538,6 +538,7 @@ function handleSave() {
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }
+
 .preview-stats {
   font-size: 12px;
   color: var(--text-color-secondary);
@@ -546,12 +547,14 @@ function handleSave() {
   gap: 4px;
   font-variant-numeric: tabular-nums;
 }
+
 .preview-toolbar-actions {
   margin-left: auto;
   display: flex;
   gap: 4px;
   align-items: center;
 }
+
 .preview-toolbar-hint {
   color: var(--text-color-placeholder);
   font-size: 11px;
@@ -568,6 +571,7 @@ function handleSave() {
   cursor: grab;
   display: flex;
 }
+
 .preview-wrapper:active,
 .preview-stage.is-pannable {
   cursor: grabbing;
@@ -614,6 +618,7 @@ function handleSave() {
   display: flex;
   flex-direction: column;
 }
+
 .thumbnail-bar-header {
   display: flex;
   align-items: center;
@@ -623,26 +628,31 @@ function handleSave() {
   font-size: 12px;
   color: var(--text-color-secondary);
 }
+
 .thumbnail-bar-title {
   display: flex;
   align-items: center;
   gap: 4px;
   font-weight: 500;
 }
+
 .thumbnail-bar-count {
   font-weight: 400;
   color: var(--text-color-placeholder);
   margin-left: 2px;
 }
+
 .thumbnail-bar-header-actions {
   display: flex;
   align-items: center;
   gap: 8px;
 }
+
 .thumbnail-bar-dim {
   font-variant-numeric: tabular-nums;
   font-size: 11px;
 }
+
 .thumbnail-bar-body {
   flex: 1;
   display: flex;
@@ -676,9 +686,11 @@ function handleSave() {
   padding: 2px 0;
   scroll-behavior: smooth;
 }
+
 .thumbnail-list::-webkit-scrollbar {
   height: 4px;
 }
+
 .thumbnail-list::-webkit-scrollbar-thumb {
   background: var(--el-border-color);
   border-radius: 2px;
@@ -701,17 +713,21 @@ function handleSave() {
     opacity 0.2s;
   background: var(--container-bg);
 }
+
 .thumbnail-item:hover {
   border-color: var(--el-color-primary-light-5);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
+
 .thumbnail-item.is-active {
   border-color: var(--el-color-primary);
   box-shadow: 0 0 0 2px rgba(var(--el-color-primary-rgb), 0.15);
 }
+
 .thumbnail-item.is-stale {
   opacity: 0.55;
 }
+
 .thumbnail-item.is-stale:hover {
   opacity: 0.8;
 }
@@ -768,9 +784,11 @@ function handleSave() {
   transition: opacity 0.15s;
   padding: 0;
 }
+
 .thumbnail-item:hover .thumbnail-item-remove {
   opacity: 1;
 }
+
 .thumbnail-item-remove:hover {
   background: var(--el-color-danger);
 }
@@ -785,19 +803,24 @@ function handleSave() {
   text-align: center;
   width: 100%;
 }
+
 .thumbnail-state-text {
   font-size: 12px;
 }
+
 .thumbnail-state-hint {
   font-size: 11px;
   color: var(--text-color-placeholder);
 }
+
 .thumbnail-state--placeholder {
   opacity: 0.7;
 }
+
 .is-spinning {
   animation: spin 1s linear infinite;
 }
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -813,15 +836,18 @@ function handleSave() {
   border-top: 1px solid var(--border-color);
   flex-shrink: 0;
 }
+
 .preview-status {
   font-size: 12px;
   color: var(--text-color-secondary);
   font-variant-numeric: tabular-nums;
 }
+
 .status-stale-hint {
   color: var(--el-color-warning);
   margin-right: 4px;
 }
+
 .preview-actions {
   margin-left: auto;
   display: flex;

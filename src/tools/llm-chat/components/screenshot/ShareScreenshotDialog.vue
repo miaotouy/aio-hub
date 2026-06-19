@@ -1,20 +1,3 @@
-<!--
-  消息截图分享弹窗 — 编排器 (V3 重构版)
-
-  V3 设计变化:
-  - 移除 Teleport 离屏渲染: ScreenshotRenderer 现在直接挂在 ScreenshotPreviewPanel 里
-    既是实时预览源, 也是截图源, 100% 一致
-  - 移除自动重新生成:
-    * 不再在打开时自动 regenerateScreenshot()
-    * 不再有 useDebounceFn 配置变化监听
-  - 配置 / 选区变化时, 只清空已生成的 lastCanvas / lastImageUrl,
-    让"复制/保存"按钮自动禁用, 提示用户"配置已更改, 请重新生成"
-
-  UI 拆分:
-  - MessageRangePanel: 顶部 (范围 + 筛选 + 精细列表)
-  - ScreenshotConfigPanel: 左下 (布局 + 渲染尺寸 + 折叠 + 元素开关)
-  - ScreenshotPreviewPanel: 右下 (DOM 实时预览 + 缩略图小容器 + 操作按钮)
--->
 <template>
   <BaseDialog
     v-model="localVisible"
@@ -179,7 +162,7 @@ const renderOptions = ref<ScreenshotRenderOptions>({
   enableDecoration: SCREENSHOT_DECORATION_DEFAULT,
 });
 
-// 关键: elementToggles 是对象 ref, Vue prop 比较是浅比较 (===)。
+// elementToggles 是对象 ref, Vue prop 比较是浅比较 (===)。
 // 直接修改 .value.xxx 不会改变对象引用, 导致子组件收不到更新。
 // 用 computed 返回浅拷贝, 确保每次属性变化都产生新引用, 强制子组件更新。
 const elementTogglesSnapshot = computed<ElementToggles>(() => ({
@@ -292,7 +275,7 @@ async function handleSave(canvas: HTMLCanvasElement) {
 }
 
 /**
- * 关键: 配置 / 选区 / 渲染尺寸变化时, 仅清空已生成结果, 不触发生成。
+ * 配置 / 选区 / 渲染尺寸变化时, 仅清空已生成结果, 不触发生成。
  *
  * 用户在右侧预览面板已经看到实时 DOM 预览, 调整后视觉立即生效;
  * 想保存图片时, 手动点击"生成截图"即可。

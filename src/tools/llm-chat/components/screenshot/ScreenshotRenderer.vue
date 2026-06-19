@@ -1,20 +1,4 @@
 <script setup lang="ts">
-/**
- * 截图渲染器: 离屏 DOM 镜像, 专门为 modern-screenshot 截图服务。
- *
- * 使用方式:
- * - 调用方 (ShareScreenshotDialog) 把它挂载在 position: fixed; left: -99999px
- *   的离屏容器里, 用户视觉上完全看不到, 仅供 domToPng / domToCanvas 读取。
- * - 截图通过 getMessageElements() 返回所有 .message-slot 节点, 由调用方
- *   拼接 / 缩放 / 复制 / 保存。
- *
- * 关键设计:
- * - 复用 useMessageLayout, 排版与主列表完全一致
- * - 固定 720px 宽度, 排版稳定 (气泡模式不依赖父容器宽度)
- * - provide("screenshotMode", true) 注入给子组件, 隐藏交互
- * - 禁用 content-visibility, 强制全量展开渲染 (避免离屏内容被回收)
- * - 接受 elementToggles 覆盖系统设置, 影响最终截图内容
- */
 import { computed, provide, ref } from "vue";
 import type { ChatMessageNode } from "../../types";
 import type { ChatSessionDetail, ChatSessionIndex } from "../../types/session";
@@ -430,7 +414,7 @@ defineExpose({
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
 }
 
-/* 强制全量展开 — 关键, 否则视口外消息渲染不出来 */
+/* 强制全量展开, 否则视口外消息渲染不出来 */
 :deep(.chat-message),
 :deep(.tool-call-message),
 :deep(.compression-message) {
@@ -448,28 +432,29 @@ defineExpose({
   width: 100%;
   box-sizing: border-box;
 }
+
 /* Bubble 模式: 消息间距比卡片模式更大, 与 MessageList 保持一致 */
 .messages-container.mode-bubble {
   gap: var(--screenshot-gap, 12px);
 }
 
-/* ===========================================================
+/*
  * 卡片模式：message-slot 仅作为透明 wrapper（不改变现有视觉）
  * 必须显式声明，因为 MessageList.vue 的对应样式是 scoped，
  * 不会作用到本组件渲染出来的元素上。
- * =========================================================== */
+*/
 .messages-container.mode-card .message-slot {
   display: block;
   width: 100%;
   min-width: 0;
 }
 
-/* ===========================================================
+/*
  * 气泡模式：message-slot 作为对齐容器
  * 完整复刻 MessageList.vue 中的 bubble 布局规则，
  * 否则 bubble 模式下的对齐、限宽、外置头像/header 全部失效，
  * 进而导致 .message-slot 收缩到气泡自然宽度，截出来变成窄条。
- * =========================================================== */
+*/
 .messages-container.mode-bubble .message-slot {
   display: flex;
   width: 100%;
@@ -483,9 +468,11 @@ defineExpose({
 .messages-container.mode-bubble .message-slot[data-align="left"] {
   justify-content: flex-start;
 }
+
 .messages-container.mode-bubble .message-slot[data-align="right"] {
   justify-content: flex-end;
 }
+
 .messages-container.mode-bubble .message-slot[data-align="center"] {
   justify-content: center;
 }
@@ -505,8 +492,9 @@ defineExpose({
   flex: 0 1 auto;
   min-width: 0;
 }
+
 /* 外置头像: 气泡宽度需要扣掉头像列, 否则右对齐气泡会被推到边缘
- * 关键: :not([data-align="center"]) 居中消息不挂头像, 无需扣减 */
+ * :not([data-align="center"]) 居中消息不挂头像, 无需扣减 */
 .messages-container.mode-bubble.avatar-outside
   .message-slot[data-avatar-placement="outside"]:not([data-align="center"])
   > .chat-message,
@@ -550,6 +538,7 @@ defineExpose({
 .messages-container.mode-bubble .message-slot[data-role="system"] > * {
   max-width: var(--system-max-width-percent, 60%);
 }
+
 /* 圆角同步: 覆写消息组件内部的 8px 圆角为可配置值 (含背景容器与 ::after)
  * 缺少这条, 气泡模式截图出来的圆角会保持组件默认的 8px, 与系统设置不符 */
 .messages-container.mode-bubble :deep(.chat-message),
@@ -557,9 +546,11 @@ defineExpose({
 .messages-container.mode-bubble :deep(.compression-message) {
   border-radius: var(--bubble-radius, 12px);
 }
+
 .messages-container.mode-bubble :deep(.message-background-container) {
   border-radius: var(--bubble-radius, 12px);
 }
+
 .messages-container.mode-bubble :deep(.chat-message::after),
 .messages-container.mode-bubble :deep(.tool-call-message::after),
 .messages-container.mode-bubble :deep(.compression-message::after) {
@@ -572,12 +563,14 @@ defineExpose({
   align-items: flex-start;
   gap: var(--avatar-outside-gap, 8px);
 }
+
 .messages-container.mode-bubble.avatar-outside
   .message-slot[data-avatar-placement="outside"][data-align="right"] {
   flex-direction: row-reverse;
   /* row-reverse 下, flex-start 才是右对齐, 覆盖默认的 flex-end */
   justify-content: flex-start;
 }
+
 /* 外置头像的透明占位 (tool/system 行) 保持气泡缩进对齐, 但不响应交互 */
 .messages-container.mode-bubble.avatar-outside
   .message-slot[data-avatar-placement="outside"]
@@ -594,11 +587,13 @@ defineExpose({
   min-width: 0;
   width: fit-content;
 }
+
 .messages-container.mode-bubble
   .message-slot[data-align="right"]
   .message-body {
   align-items: flex-end;
 }
+
 .messages-container.mode-bubble .message-body > .chat-message {
   max-width: 100%;
   width: fit-content;
@@ -610,11 +605,13 @@ defineExpose({
   :deep(.message-header:not(.external-header)) {
   flex-direction: row-reverse;
 }
+
 .messages-container.mode-bubble
   .message-slot[data-align="right"]
   :deep(.message-header .header-left) {
   flex-direction: row-reverse;
 }
+
 /* header-right 原 margin-left: auto 与 row-reverse 冲突, 镜像 */
 .messages-container.mode-bubble
   .message-slot[data-align="right"]
@@ -622,27 +619,32 @@ defineExpose({
   margin-left: 0;
   margin-right: auto;
 }
+
 .messages-container.mode-bubble
   .message-slot[data-align="right"]
   :deep(.message-header .message-info) {
   align-items: flex-end;
   text-align: right;
 }
+
 .messages-container.mode-bubble
   .message-slot[data-align="right"]
   :deep(.tool-call-message) {
   flex-direction: row-reverse;
 }
+
 .messages-container.mode-bubble
   .message-slot[data-align="right"]
   :deep(.tool-call-message .tool-header) {
   flex-direction: row-reverse;
 }
+
 .messages-container.mode-bubble
   .message-slot[data-align="right"]
   :deep(.tool-call-message .tool-header .header-left) {
   flex-direction: row-reverse;
 }
+
 /* ----------------------------------------------------------
  * 气泡模式: 底部信息 (.message-meta) 与消息方向对齐
  * 截图模式下 menubar 整体被隐藏, 但 meta (token/字数/性能) 仍需正确对齐
@@ -655,6 +657,7 @@ defineExpose({
   align-items: flex-start;
   text-align: left;
 }
+
 .messages-container.mode-bubble
   .message-slot[data-align="right"]
   :deep(.message-meta) {
@@ -663,6 +666,7 @@ defineExpose({
   align-items: flex-end;
   text-align: right;
 }
+
 .messages-container.mode-bubble
   .message-slot[data-align="right"]
   :deep(.message-meta .error-info) {
@@ -674,6 +678,7 @@ defineExpose({
 :deep(*) {
   scrollbar-width: none !important;
 }
+
 :deep(*::-webkit-scrollbar) {
   display: none !important;
 }

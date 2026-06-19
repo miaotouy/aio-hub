@@ -8,7 +8,7 @@ export type CollapseStrategy =
   | "override-expand"
   | "override-collapse";
 
-// ===================== V4: 背景与间距配置 =====================
+// -------------- V4: 背景与间距配置 --------------
 
 /** 截图背景类型 */
 export type ScreenshotBgType = "theme" | "solid" | "wallpaper";

@@ -1,9 +1,3 @@
-<!--
-  顶部消息范围 + 筛选 + 精细列表面板。
-  - 父组件通过 v-model:range 双向绑定范围, v-model:selectedIds 接收选中的消息 ID 集合。
-  - 父组件用 :key + v-if 触发重挂载以重置 range (基于 initialFocusMessageId)。
-  - 本地 watch(range) 自动将范围同步到 selectedIds (范围选择), 精细列表勾选会覆盖范围。
--->
 <template>
   <section class="top-panel">
     <div class="range-row">
@@ -169,30 +163,36 @@ function selectOnlyAssistant() {
   padding: 12px;
   background: var(--card-bg);
 }
+
 .range-row {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
 }
+
 .range-label {
   font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
 }
+
 .range-slider {
   flex: 1;
   min-width: 200px;
 }
+
 .range-inputs {
   display: flex;
   align-items: center;
   gap: 4px;
 }
+
 .range-separator {
   color: var(--text-color-secondary);
   font-size: 12px;
 }
+
 .range-total {
   font-size: 12px;
   color: var(--text-color-secondary);
@@ -206,13 +206,16 @@ function selectOnlyAssistant() {
   margin-top: 8px;
   flex-wrap: wrap;
 }
+
 .filter-spacer {
   flex: 1;
 }
+
 .filter-count {
   font-size: 12px;
   color: var(--text-color-secondary);
 }
+
 .filter-count strong {
   color: var(--primary-color);
   font-weight: 600;
@@ -226,6 +229,7 @@ function selectOnlyAssistant() {
   margin-top: 8px;
   padding-top: 8px;
 }
+
 .fine-list-item {
   display: flex;
   align-items: center;
@@ -236,28 +240,36 @@ function selectOnlyAssistant() {
   font-size: 12px;
   transition: background 0.15s;
 }
+
 .fine-list-item:hover {
   background: var(--input-bg);
 }
+
 .fine-list-item.is-selected {
   background: color-mix(in srgb, var(--primary-color) 8%, transparent);
 }
+
 .fine-role {
   font-weight: 500;
   white-space: nowrap;
 }
+
 .fine-role.role-user {
   color: var(--primary-color);
 }
+
 .fine-role.role-assistant {
   color: var(--success-color);
 }
+
 .fine-role.role-tool {
   color: var(--warning-color);
 }
+
 .fine-role.role-system {
   color: var(--info-color);
 }
+
 .fine-summary {
   flex: 1;
   white-space: nowrap;

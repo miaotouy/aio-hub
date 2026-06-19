@@ -1,9 +1,3 @@
-<!--
-  截图配置面板 (左下)。
-  - 三个 v-model: layoutOverrides / collapseStrategy / elementToggles
-  - 父组件只需要持有状态, 面板负责所有 UI 渲染与交互。
-  - 渲染尺寸 (renderOptions) 由父组件的 v-model:renderOptions 双向绑定。
--->
 <template>
   <section class="left-panel">
     <div class="config-section">
@@ -407,21 +401,25 @@ function onDecorationToggle(v: boolean | string | number) {
   padding: 12px;
   border-bottom: 1px solid var(--border-color);
 }
+
 .config-section:last-child {
   border-bottom: none;
 }
+
 .section-title {
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 8px;
   color: var(--text-color-primary);
 }
+
 .section-hint {
   font-size: 11px;
   color: var(--text-color-secondary);
   margin-top: 4px;
   line-height: 1.4;
 }
+
 .config-row {
   display: flex;
   align-items: center;
@@ -429,11 +427,13 @@ function onDecorationToggle(v: boolean | string | number) {
   gap: 8px;
   margin-bottom: 8px;
 }
+
 .config-label {
   font-size: 12px;
   color: var(--text-color-secondary);
   flex-shrink: 0;
 }
+
 .config-value {
   display: flex;
   align-items: center;
@@ -441,11 +441,13 @@ function onDecorationToggle(v: boolean | string | number) {
   gap: 8px;
   flex: 1;
 }
+
 .config-hint {
   font-size: 11px;
   color: var(--text-color-secondary);
   flex-shrink: 0;
 }
+
 .switch-row {
   display: flex;
   align-items: center;
@@ -453,10 +455,12 @@ function onDecorationToggle(v: boolean | string | number) {
   margin-bottom: 8px;
   height: 28px;
 }
+
 .switch-label {
   font-size: 12px;
   color: var(--text-color-secondary);
 }
+
 /* auto 模式: 显示当前采样值的只读展示, 与输入框等高对齐 */
 .auto-width-display {
   display: inline-flex;
@@ -470,11 +474,13 @@ function onDecorationToggle(v: boolean | string | number) {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
+
 :deep(.config-section .el-checkbox) {
   display: flex;
   margin-bottom: 6px;
   height: auto;
 }
+
 :deep(.config-section .el-checkbox + .el-checkbox) {
   margin-top: 2px;
 }

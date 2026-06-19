@@ -689,6 +689,8 @@ function handleSave() {
   position: relative;
   flex-shrink: 0;
   height: 80px;
+  min-width: 56px;
+  max-width: 140px;
   border-radius: 6px;
   border: 2px solid transparent;
   overflow: hidden;
@@ -716,9 +718,10 @@ function handleSave() {
 
 .thumbnail-item-img {
   height: 100%;
-  width: auto;
+  width: 100%;
   display: block;
-  object-fit: contain;
+  object-fit: cover;
+  object-position: top center;
 }
 
 .thumbnail-item-index {
@@ -825,4 +828,3 @@ function handleSave() {
   gap: 8px;
 }
 </style>
-

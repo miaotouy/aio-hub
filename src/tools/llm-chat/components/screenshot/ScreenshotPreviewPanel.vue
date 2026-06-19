@@ -20,18 +20,28 @@
         <Camera :size="14" />
         <template v-if="lastCanvas">
           {{ Math.round(lastCanvas.width / 2) }} ×
-          {{ Math.round(lastCanvas.height / 2) }} px
-          · {{ selectedCount }} 条
+          {{ Math.round(lastCanvas.height / 2) }} px · {{ selectedCount }} 条
         </template>
         <template v-else>
-          渲染 {{ width }} px · <span class="preview-toolbar-hint">预览缩放</span> {{ Math.round(previewScale * 100) }}%
+          渲染 {{ width }} px ·
+          <span class="preview-toolbar-hint">预览缩放</span>
+          {{ Math.round(previewScale * 100) }}%
         </template>
       </span>
       <div class="preview-toolbar-actions">
-        <el-button size="small" @click="zoomOut" :disabled="previewScale <= 0.4">
+        <el-button
+          size="small"
+          @click="zoomOut"
+          :disabled="previewScale <= 0.4"
+        >
           <el-icon><ZoomOut /></el-icon>
         </el-button>
-        <el-button size="small" @click="resetZoom" title="重置预览缩放（仅影响预览显示, 不影响最终图片）">100%</el-button>
+        <el-button
+          size="small"
+          @click="resetZoom"
+          title="重置预览缩放（仅影响预览显示, 不影响最终图片）"
+          >100%</el-button
+        >
         <el-button size="small" @click="zoomIn" :disabled="previewScale >= 2">
           <el-icon><ZoomIn /></el-icon>
         </el-button>
@@ -55,37 +65,42 @@
       @wheel="onPreviewWheel"
       @mousedown="onPreviewMouseDown"
     >
-      <div
-        class="preview-stage"
-        :class="{ 'is-pannable': isPanning }"
-      >
-        <div
-          class="preview-canvas-frame"
-          :style="previewFrameStyle"
-        >
+      <div class="preview-stage" :class="{ 'is-pannable': isPanning }">
+        <div class="preview-canvas-frame" :style="previewFrameStyle">
           <!--
-            关键: ScreenshotRenderer 必须始终挂载, 不能用 display:none
-            也不能受 Tab 切换隐藏, 否则 getBoundingClientRect() 返回 0,
-            截图高度坍缩为 0。
+            关键: 缩放由内层 .preview-canvas-scaler 的 transform: scale 承担,
+            外层 .preview-canvas-frame 用显式 width/height (= 自然尺寸 * scale)
+            撑出与可视内容等大的布局盒, 这样 overflow:auto 才能拿到正确的滚动范围。
+            之前把 scale 写在 frame 上, 布局盒始终是原始尺寸, 导致
+            - 放大时可视内容超出布局盒, 横向滚动范围不够, 部分内容跑到容器外
+            - 缩小时布局盒大于可视内容, 下方/右侧留出额外空白
+            ScreenshotRenderer 也必须始终挂载, 不能用 display:none,
+            否则 getBoundingClientRect() 返回 0, 截图高度坍缩为 0。
           -->
-          <ScreenshotRenderer
-            v-if="selectedCount > 0"
-            ref="rendererRef"
-            :messages="messages"
-            :session-index="sessionIndex"
-            :session-detail="sessionDetail"
-            :is-sending="isSending"
-            :llm-think-rules="llmThinkRules"
-            :rich-text-style-options="richTextStyleOptions"
-            :user-rich-text-style-options="userRichTextStyleOptions"
-            :collapse-strategy="collapseStrategy"
-            :width="width"
-            :element-toggles="elementToggles"
-            :layout-overrides="layoutOverrides"
-          />
-          <div v-else class="preview-empty">
-            <el-icon :size="32"><Eye /></el-icon>
-            <p>请选择至少一条消息以查看预览</p>
+          <div
+            ref="scalerRef"
+            class="preview-canvas-scaler"
+            :style="scalerStyle"
+          >
+            <ScreenshotRenderer
+              v-if="selectedCount > 0"
+              ref="rendererRef"
+              :messages="messages"
+              :session-index="sessionIndex"
+              :session-detail="sessionDetail"
+              :is-sending="isSending"
+              :llm-think-rules="llmThinkRules"
+              :rich-text-style-options="richTextStyleOptions"
+              :user-rich-text-style-options="userRichTextStyleOptions"
+              :collapse-strategy="collapseStrategy"
+              :width="width"
+              :element-toggles="elementToggles"
+              :layout-overrides="layoutOverrides"
+            />
+            <div v-else class="preview-empty">
+              <el-icon :size="32"><Eye /></el-icon>
+              <p>请选择至少一条消息以查看预览</p>
+            </div>
           </div>
         </div>
       </div>
@@ -161,7 +176,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import {
   Camera,
   Copy,
@@ -224,6 +239,45 @@ function getMessageElements(): HTMLElement[] {
 }
 defineExpose({ getMessageElements, rendererRef });
 
+// ----- 自然尺寸追踪 -----
+// 用 ResizeObserver 跟踪内层 .preview-canvas-scaler 的 layout 高度,
+// 宽度直接使用 props.width (因为渲染器宽度是固定的, 测量宽度会导致 ResizeObserver 测量死循环)。
+// 拿到 scale = 1 时的真实高度, 据此把外层 frame 的 width/height 显式设成
+// 自然尺寸 * scale, 让 overflow:auto 容器给出的滚动范围与可视内容等大。
+const scalerRef = ref<HTMLElement | null>(null);
+const measuredHeight = ref(0);
+let resizeObserver: ResizeObserver | null = null;
+
+watch(
+  [scalerRef, () => props.selectedCount],
+  ([newScaler, selectedCount]) => {
+    resizeObserver?.disconnect();
+    resizeObserver = null;
+    if (newScaler && selectedCount > 0) {
+      // 同步读取一次 layout, 避免首帧 frame 高度坍缩为 0 导致内容溢出
+      measuredHeight.value = newScaler.clientHeight || 0;
+      resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          measuredHeight.value = entry.contentRect.height;
+        }
+      });
+      resizeObserver.observe(newScaler);
+    } else {
+      measuredHeight.value = 0;
+    }
+  },
+  { immediate: true, flush: "post" }
+);
+
+const naturalSize = computed(() => ({
+  width: props.width,
+  height: measuredHeight.value,
+}));
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect();
+});
+
 // ----- 缩放 / 拖拽 -----
 const previewScale = ref(0.8);
 const panX = ref(0);
@@ -235,15 +289,31 @@ let panStartOffsetX = 0;
 let panStartOffsetY = 0;
 
 const previewFrameStyle = computed(() => ({
-  transform: `translate(${panX.value}px, ${panY.value}px) scale(${previewScale.value})`,
-  transformOrigin: "top center",
+  // 关键: 显式 width/height = 自然尺寸 * 缩放, 让布局盒与可视内容等大,
+  // 这样外层 overflow:auto 才能给出与可视内容匹配的滚动范围。
+  width: `${naturalSize.value.width * previewScale.value}px`,
+  height: `${naturalSize.value.height * previewScale.value}px`,
+  // 拖拽用 translate, 缩放交给内层 .preview-canvas-scaler。
+  transform: `translate(${panX.value}px, ${panY.value}px)`,
+}));
+
+const scalerStyle = computed(() => ({
+  // 锚定左上角, 配合 frame 的等大布局盒, 可视内容正好填满 frame。
+  transform: `scale(${previewScale.value})`,
+  transformOrigin: "top left",
 }));
 
 function zoomIn() {
-  previewScale.value = Math.min(2, Math.round((previewScale.value + 0.1) * 10) / 10);
+  previewScale.value = Math.min(
+    2,
+    Math.round((previewScale.value + 0.1) * 10) / 10
+  );
 }
 function zoomOut() {
-  previewScale.value = Math.max(0.4, Math.round((previewScale.value - 0.1) * 10) / 10);
+  previewScale.value = Math.max(
+    0.4,
+    Math.round((previewScale.value - 0.1) * 10) / 10
+  );
 }
 function resetZoom() {
   // 100% 按钮 = 1:1 像素映射, 让用户看清渲染尺寸原貌
@@ -265,7 +335,8 @@ function onPreviewMouseDown(e: MouseEvent) {
   // 简化: 鼠标左键直接拖拽空白处, 排除按钮/输入控件
   if (e.button !== 0) return;
   const target = e.target as HTMLElement;
-  if (target.closest("button, input, .el-input, .el-select, .el-slider")) return;
+  if (target.closest("button, input, .el-input, .el-select, .el-slider"))
+    return;
 
   isPanning.value = true;
   panStartX = e.clientX;
@@ -345,6 +416,10 @@ function openImageViewer() {
   min-height: 0;
   position: relative;
   cursor: grab;
+  /* 让 .preview-stage 可以 margin:auto 居中:
+     - 内容小时 stage 居中, 四周留白对称, 不再下方留额外空白
+     - 内容大时 margin 退化为 0, stage 贴左上, 用户自然滚动 */
+  display: flex;
 }
 .preview-wrapper:active,
 .preview-stage.is-pannable {
@@ -354,16 +429,32 @@ function openImageViewer() {
 .preview-stage {
   /* 极小 padding 让缩放时不贴边 */
   padding: 24px 16px;
-  min-height: 100%;
   display: flex;
   justify-content: center;
-  align-items: flex-start;
+  align-items: center;
+  /* wrapper 是 flex 容器, 用 margin:auto 双向居中;
+     内容超出 wrapper 时 margin 退化为 0, 自然贴左上滚动 */
+  margin: auto;
+  /* 关键: 不再写 min-height: 100%。
+     之前写 min-height: 100% 会让 stage 在缩小时仍撑满 wrapper,
+     frame 居顶后下方留出一大块空白。*/
 }
 
 .preview-canvas-frame {
-  /* 缩放原点: 顶部居中, 配合 translate 实现拖拽 */
-  transition: transform 0.15s ease;
+  /* 关键: width/height 由 previewFrameStyle 显式设为 自然尺寸 * scale,
+     布局盒与可视内容等大, overflow:auto 才能给出与可视内容匹配的滚动范围。
+     transition 覆盖 width/height, 让缩放有平滑动画。*/
+  transition:
+    transform 0.15s ease,
+    width 0.15s ease,
+    height 0.15s ease;
   flex-shrink: 0;
+}
+
+.preview-canvas-scaler {
+  /* 缩放锚定左上, 配合 frame 的等大布局盒, 可视内容正好填满 frame */
+  transform-origin: top left;
+  display: block;
 }
 
 .preview-empty {
@@ -425,7 +516,9 @@ function openImageViewer() {
   border-radius: 4px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   cursor: zoom-in;
-  transition: transform 0.15s, box-shadow 0.15s;
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s;
 }
 .screenshot-thumbnail:hover {
   transform: scale(1.02);

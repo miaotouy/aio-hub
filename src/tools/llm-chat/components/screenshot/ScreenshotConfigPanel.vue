@@ -51,9 +51,14 @@
 
     <div class="config-section">
       <div class="section-title">渲染尺寸</div>
+      <div class="switch-row">
+        <el-switch v-model="isFixedWidth" />
+        <span class="switch-label">固定渲染宽度 (默认跟随消息区)</span>
+      </div>
       <div class="config-row">
         <span class="config-label">渲染宽度</span>
         <el-input-number
+          v-if="isFixedWidth"
           :model-value="renderOptions.width"
           :min="RENDER_WIDTH_MIN"
           :max="RENDER_WIDTH_MAX"
@@ -63,7 +68,10 @@
           style="width: 120px"
           @update:model-value="onWidthChange"
         />
-        <span class="config-hint">px</span>
+        <span v-else class="auto-width-display">
+          自动: {{ renderOptions.width }} px
+        </span>
+        <span v-if="isFixedWidth" class="config-hint">px</span>
       </div>
       <div class="config-row">
         <span class="config-label">输出精度</span>
@@ -76,23 +84,21 @@
           <el-option
             v-for="opt in CAPTURE_SCALE_OPTIONS"
             :key="opt"
-            :label="opt + 'x' + (opt === 2 ? ' (视网膜, 推荐)' : '')"
+            :label="opt + 'x' + (opt === 2 ? ' (2x 高清, 推荐)' : '')"
             :value="opt"
           />
         </el-select>
       </div>
       <p class="section-hint">
-        渲染宽度决定消息气泡/卡片的换行宽度；输出精度决定最终图片清晰度（最终像素 ≈ 宽度 × 精度）。
+        渲染宽度决定消息气泡/卡片的换行宽度；输出精度决定最终图片清晰度（最终像素
+        ≈ 宽度 × 精度）。
+        自动模式会在打开对话框时按消息区宽度采样，向下取整并夹紧到 480~1280 px。
       </p>
     </div>
 
     <div class="config-section">
       <div class="section-title">折叠策略</div>
-      <el-select
-        v-model="collapseStrategy"
-        size="small"
-        style="width: 100%"
-      >
+      <el-select v-model="collapseStrategy" size="small" style="width: 100%">
         <el-option label="强制展开" value="override-expand" />
         <el-option label="强制收起" value="override-collapse" />
         <el-option label="跟随配置" value="config" />
@@ -139,12 +145,9 @@
 </template>
 
 <script setup lang="ts">
-import {
-  ElInputNumber,
-  ElOption,
-  ElSelect,
-  ElSwitch,
-} from "element-plus";
+import { computed } from "vue";
+
+import { ElInputNumber, ElOption, ElSelect, ElSwitch } from "element-plus";
 import type {
   CollapseStrategy,
   ElementToggles,
@@ -184,6 +187,18 @@ function onScaleChange(v: number | undefined) {
   if (typeof v !== "number") return;
   renderOptions.value = { ...renderOptions.value, scale: v };
 }
+
+// 固定宽度开关: 反向映射 renderOptions.widthMode, 让 v-model 直接绑开关
+const isFixedWidth = computed<boolean>({
+  get: () => renderOptions.value.widthMode === "fixed",
+  set: (v) => {
+    if (renderOptions.value.widthMode === (v ? "fixed" : "auto")) return;
+    renderOptions.value = {
+      ...renderOptions.value,
+      widthMode: v ? "fixed" : "auto",
+    };
+  },
+});
 </script>
 
 <style scoped>
@@ -244,6 +259,19 @@ function onScaleChange(v: number | undefined) {
   font-size: 12px;
   color: var(--text-color-secondary);
 }
+/* auto 模式: 显示当前采样值的只读展示, 与输入框等高对齐 */
+.auto-width-display {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--input-bg);
+  color: var(--text-color-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
 :deep(.config-section .el-checkbox) {
   display: flex;
   margin-bottom: 6px;
@@ -253,3 +281,4 @@ function onScaleChange(v: number | undefined) {
   margin-top: 2px;
 }
 </style>
+

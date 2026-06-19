@@ -184,8 +184,12 @@ export async function captureElementAsCanvas(
   await nextFrame();
 
   const rect = element.getBoundingClientRect();
-  const captureWidth = Math.ceil(width ?? rect.width);
-  const captureHeight = Math.ceil(height ?? rect.height);
+  // 关键：如果元素处于 transform: scale 缩放容器中，rect.width/height 会被缩放。
+  // offsetWidth/offsetHeight 拿到的永远是 1:1 的自然布局尺寸，能完美免疫缩放影响。
+  const captureWidth = Math.ceil(width ?? element.offsetWidth ?? rect.width);
+  const captureHeight = Math.ceil(
+    height ?? element.offsetHeight ?? rect.height
+  );
 
   return domToCanvas(element, {
     width: captureWidth,

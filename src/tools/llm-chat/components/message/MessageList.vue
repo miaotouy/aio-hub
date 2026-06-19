@@ -123,6 +123,12 @@ const messagesInnerContainer = ref<HTMLElement | null>(null);
 // 暴露滚动容器供外部使用
 const getScrollElement = () => messagesContainer.value;
 
+// 暴露消息区当前宽度 (CSS px), 用于截图对话框 auto 模式采样
+// 取滚动容器的 clientWidth (含左右内边距), 与用户视觉宽度一致
+const getMessageAreaWidth = (): number => {
+  return messagesContainer.value?.clientWidth ?? 0;
+};
+
 // 【修复】在运行时注入消息虚拟渲染样式，避免生产构建 CSS 优化器影响 content-visibility。
 const MESSAGE_VISIBILITY_SELECTOR =
   ".chat-message, .tool-call-message, .compression-message";
@@ -602,6 +608,7 @@ defineExpose({
   scrollToMessageId,
   getScrollElement,
   currentVisibleIndex,
+  getMessageAreaWidth,
 });
 </script>
 

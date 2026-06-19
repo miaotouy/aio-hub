@@ -75,6 +75,9 @@ import ScreenshotConfigPanel from "./ScreenshotConfigPanel.vue";
 import {
   CAPTURE_SCALE_DEFAULT,
   RENDER_WIDTH_DEFAULT,
+  RENDER_WIDTH_MAX,
+  RENDER_WIDTH_MIN,
+  RENDER_WIDTH_MODE_DEFAULT,
   type CollapseStrategy,
   type ElementToggles,
   type LayoutOverrides,
@@ -99,6 +102,8 @@ interface Props {
   userRichTextStyleOptions?: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions;
   isSending?: boolean;
   defaultFileName?: string;
+  /** 实时获取消息区当前宽度 (CSS px), 用于 auto 模式快照。空时回退到 RENDER_WIDTH_DEFAULT。 */
+  getMessageAreaWidth?: () => number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -158,6 +163,7 @@ const elementToggles = ref<ElementToggles>({
 // 渲染尺寸 + 输出精度, 真正影响最终 PNG 的尺寸
 const renderOptions = ref<ScreenshotRenderOptions>({
   width: RENDER_WIDTH_DEFAULT,
+  widthMode: RENDER_WIDTH_MODE_DEFAULT,
   scale: CAPTURE_SCALE_DEFAULT,
 });
 
@@ -291,6 +297,19 @@ watch(
       // 清空生成结果, 一切从"未生成"开始
       lastCanvas.value = null;
       lastImageUrl.value = "";
+      // auto 模式: 按当前消息区宽度快照 (向下取整, clamp 到 [MIN, MAX])
+      if (renderOptions.value.widthMode === "auto") {
+        const raw = props.getMessageAreaWidth?.() ?? 0;
+        if (raw > 0) {
+          const sampled = Math.min(
+            RENDER_WIDTH_MAX,
+            Math.max(RENDER_WIDTH_MIN, Math.floor(raw))
+          );
+          if (sampled !== renderOptions.value.width) {
+            renderOptions.value = { ...renderOptions.value, width: sampled };
+          }
+        }
+      }
     } else {
       generationToken++; // 取消进行中的 capture
       generating.value = false;

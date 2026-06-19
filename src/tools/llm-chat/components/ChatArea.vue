@@ -95,6 +95,11 @@ const handleScreenshot = (messageId: string) => {
   screenshotDialogVisible.value = true;
 };
 
+// 暴露消息区当前宽度给截图对话框, 用于 auto 模式快照 (采样时拿, 不维护响应式引用)
+const getMessageAreaWidth = (): number => {
+  return messageListRef.value?.getMessageAreaWidth() ?? 0;
+};
+
 const bus = useWindowSyncBus();
 const { viewMode } = useLlmChatUiState();
 const llmChatStore = useLlmChatStore();
@@ -622,6 +627,7 @@ onMounted(async () => {
       :rich-text-style-options="stableMessageStyleOptions"
       :user-rich-text-style-options="stableUserRichTextStyleOptions"
       :default-file-name="screenshotDefaultFileName"
+      :get-message-area-width="getMessageAreaWidth"
     />
   </div>
 </template>

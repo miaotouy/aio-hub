@@ -33,17 +33,27 @@ export interface LayoutOverrides extends BubbleLayoutOverride {
   fontSize: number | undefined;
 }
 
+/** 渲染宽度的取值方式 */
+export type RenderWidthMode = "auto" | "fixed";
+
 /** 截图渲染选项 — 真实影响最终输出图片的尺寸与清晰度 */
 export interface ScreenshotRenderOptions {
   /**
    * 渲染容器宽度 (CSS px), 决定消息气泡/卡片的换行宽度。
+   * - widthMode = "auto" : 每次打开对话框时按消息区宽度快照, 向下取整并 clamp 到 [MIN, MAX]
+   * - widthMode = "fixed": 使用用户手动设置的值, 跨会话保留
    * 同步贯通到 ScreenshotRenderer 与 captureMessagesAndStitch。
-   * 默认 720。
    */
   width: number;
   /**
-   * 输出像素倍率 (DPR), 决定最终 PNG 的清晰度。
-   * 1 = 标准, 2 = 视网膜(默认), 3 = 超清。
+   * 渲染宽度取值方式:
+   * - "auto"  跟随消息区宽度 (打开对话框时采样, 向下取整, clamp 到 [480, 1280])
+   * - "fixed" 使用手动指定的值
+   */
+  widthMode: RenderWidthMode;
+  /**
+   * 输出像素倍率 (DPR), 决定最终 PNG 的像素密度。
+   * 1 = 标准, 2 = 2x 高清(默认), 3 = 3x 超清。
    * 真实图片尺寸 = width * scale (横向)。
    */
   scale: number;
@@ -60,6 +70,10 @@ export const RENDER_WIDTH_MAX = 1280;
 export const RENDER_WIDTH_STEP = 40;
 export const RENDER_WIDTH_DEFAULT = 720;
 
+/** 渲染宽度模式默认值: 跟随消息区宽度 */
+export const RENDER_WIDTH_MODE_DEFAULT: RenderWidthMode = "auto";
+
 /** 输出像素倍率的合法选项 */
 export const CAPTURE_SCALE_OPTIONS = [1, 2, 3] as const;
 export const CAPTURE_SCALE_DEFAULT = 2;
+

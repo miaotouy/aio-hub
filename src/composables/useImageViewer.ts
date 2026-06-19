@@ -49,6 +49,33 @@ const globalState = ref<ImageViewerState>({
 });
 
 /**
+ * 摘要化 URL 用于日志：避免把巨大的 data URL 完整打到日志里。
+ * data URL / blob URL 都很长（可能 MB 级），完整输出既拖慢 logger
+ * 又会让 logger 内部的 sanitize 链路过长, 触发 V8 栈溢出。
+ */
+function summarizeUrlForLog(url: string): string {
+  if (!url) return "";
+  // data:image/png;base64,XXXXX  -> 截取 mime 头与长度
+  if (url.startsWith("data:")) {
+    const commaIdx = url.indexOf(",");
+    const head = commaIdx > 0 ? url.slice(0, commaIdx) : url.slice(0, 64);
+    return `<data-url ${head}, length=${url.length}>`;
+  }
+  if (url.startsWith("blob:")) {
+    return `<blob-url, length=${url.length}>`;
+  }
+  // 普通 HTTP(S) / 本地路径, 短的话直接打
+  if (url.length <= 256) return url;
+  return `${url.slice(0, 128)}... [truncated, length=${url.length}]`;
+}
+
+function summarizeUrlListForLog(urls: string[]): string {
+  if (!urls || urls.length === 0) return "[]";
+  if (urls.length === 1) return summarizeUrlForLog(urls[0]);
+  return `[${urls.length} items, first=${summarizeUrlForLog(urls[0])}]`;
+}
+
+/**
  * 图片查看器 Composable
  * 提供全局的图片查看功能
  *
@@ -89,7 +116,12 @@ export function useImageViewer(): UseImageViewerReturn {
     options?: Viewer.Options
   ) => {
     const originalImageArray = Array.isArray(images) ? images : [images];
-    logger.debug("显示图片查看器，原始路径:", originalImageArray);
+    // 关键: 不要把完整的 data URL 打进 logger — 它可能 MB 级,
+    // 完整序列化会让 logger 内部的 sanitize 触发 V8 栈溢出。
+    logger.debug(
+      `显示图片查看器 (${originalImageArray.length} 张):`,
+      summarizeUrlListForLog(originalImageArray)
+    );
 
     // 预处理图片路径，将本地路径转换为 Blob URL
     const processedImages = await Promise.all(
@@ -118,7 +150,10 @@ export function useImageViewer(): UseImageViewerReturn {
       })
     );
 
-    logger.info("处理后的图片列表:", processedImages);
+    logger.info(
+      `处理后的图片列表 (${processedImages.length} 张):`,
+      summarizeUrlListForLog(processedImages)
+    );
 
     globalState.value = {
       images: processedImages,
@@ -195,3 +230,4 @@ export function useImageViewer(): UseImageViewerReturn {
     updateImages,
   };
 }
+

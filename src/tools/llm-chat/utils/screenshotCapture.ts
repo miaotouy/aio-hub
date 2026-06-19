@@ -282,11 +282,15 @@ export async function captureMessagesAndStitch(
   let done = 0;
   const total = elements.length;
 
+  // 关键：消息内容的实际宽度应该是总宽度扣除左右 padding，保持与 DOM 渲染时的实际宽度完全一致
+  const padding = options.padding ?? 0;
+  const contentWidth = Math.max(100, resolvedWidth - padding * 2);
+
   async function captureOne(el: HTMLElement, idx: number): Promise<void> {
     const canvas = await captureElementAsCanvas(el, {
       scale,
       timeout,
-      width: resolvedWidth,
+      width: contentWidth,
       hasWallpaper,
     });
     messageCanvases[idx] = canvas;
@@ -313,13 +317,12 @@ export async function captureMessagesAndStitch(
   // 2. 计算总尺寸 (CSS 像素, 不乘 scale)
   // V4: gap 默认 8px (与 ScreenshotRenderer CSS 中 mode-card 的 gap 默认一致)
   const gap = options.gap ?? 8;
-  const padding = options.padding ?? 0;
-  const captureWidth = resolvedWidth;
+  const captureWidth = contentWidth;
   const messageHeights = messageCanvases.map((c) => c.height / scale);
   const contentHeight =
     messageHeights.reduce((sum, h) => sum + h, 0) +
     gap * Math.max(0, messageHeights.length - 1);
-  const totalWidth = captureWidth + padding * 2;
+  const totalWidth = resolvedWidth; // 总宽度正好等于解析出的 resolvedWidth
   const totalHeight = contentHeight + padding * 2;
 
   // 3. 创建大画布

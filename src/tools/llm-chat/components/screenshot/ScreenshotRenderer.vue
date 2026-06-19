@@ -163,6 +163,12 @@ function getThemeBgColor(): string {
 const v4StyleVars = computed<Record<string, string>>(() => {
   const vars: Record<string, string> = {};
 
+  // 截图模式下，放宽气泡最大宽度百分比限制，避免在窄容器（如 720px）中气泡被无故压缩导致换行
+  // 默认放宽到 85%，如果系统设置比 85% 更宽松则沿用系统设置
+  const sysPercent =
+    parseFloat(bubbleLayoutVars.value["--bubble-max-width-percent"]) || 75;
+  vars["--bubble-max-width-percent"] = `${Math.max(85, sysPercent)}%`;
+
   // 间距: 如果 gap 是数字则使用, 否则不设 (让 CSS 默认值生效)
   if (typeof props.gap === "number" && Number.isFinite(props.gap)) {
     vars["--screenshot-gap"] = `${props.gap}px`;

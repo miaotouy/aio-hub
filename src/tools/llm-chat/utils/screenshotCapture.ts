@@ -360,8 +360,44 @@ export async function captureMessagesAndStitch(
   // 7. 拼接消息 Canvas — 精确累加 gap, 含模糊背景合成
   let y = padding;
   for (let i = 0; i < messageCanvases.length; i++) {
+    const el = elements[i];
     const msgCanvas = messageCanvases[i];
     const h = messageHeights[i];
+
+    // 默认使用整行卡片模式的尺寸
+    let bgX = padding;
+    let bgY = y;
+    let bgW = captureWidth;
+    let bgH = h;
+    let bgRadius = borderRadius;
+
+    // 尝试获取实际的背景容器 (气泡模式下对齐气泡的实际位置和尺寸)
+    const bgContainer = el?.querySelector(
+      ".message-background-container"
+    ) as HTMLElement | null;
+    if (bgContainer) {
+      const elRect = el.getBoundingClientRect();
+      const bgRect = bgContainer.getBoundingClientRect();
+
+      // 计算 1:1 CSS 像素下的缩放比例 (免疫 transform: scale 缩放)
+      const scaleX = el.offsetWidth / (elRect.width || 1);
+      const scaleY = el.offsetHeight / (elRect.height || 1);
+
+      const relativeX = (bgRect.left - elRect.left) * scaleX;
+      const relativeY = (bgRect.top - elRect.top) * scaleY;
+      const actualWidth = bgRect.width * scaleX;
+      const actualHeight = bgRect.height * scaleY;
+
+      bgX = padding + relativeX;
+      bgY = y + relativeY;
+      bgW = actualWidth;
+      bgH = actualHeight;
+
+      const br = parseFloat(getComputedStyle(bgContainer).borderRadius);
+      if (!isNaN(br)) {
+        bgRadius = br;
+      }
+    }
 
     // 如果有壁纸, 先在消息区域绘制模糊背景 + card-bg 蒙层
     if (blurredBgCanvas) {
@@ -369,11 +405,11 @@ export async function captureMessagesAndStitch(
         ctx,
         blurredBgCanvas,
         scale,
-        padding,
-        y,
-        captureWidth,
-        h,
-        borderRadius
+        bgX,
+        bgY,
+        bgW,
+        bgH,
+        bgRadius
       );
     }
 

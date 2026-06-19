@@ -2,6 +2,7 @@
   截图配置面板 (左下)。
   - 三个 v-model: layoutOverrides / collapseStrategy / elementToggles
   - 父组件只需要持有状态, 面板负责所有 UI 渲染与交互。
+  - 渲染尺寸 (renderOptions) 由父组件的 v-model:renderOptions 双向绑定。
 -->
 <template>
   <section class="left-panel">
@@ -46,6 +47,43 @@
         />
         <span class="config-hint">px</span>
       </div>
+    </div>
+
+    <div class="config-section">
+      <div class="section-title">渲染尺寸</div>
+      <div class="config-row">
+        <span class="config-label">渲染宽度</span>
+        <el-input-number
+          :model-value="renderOptions.width"
+          :min="RENDER_WIDTH_MIN"
+          :max="RENDER_WIDTH_MAX"
+          :step="RENDER_WIDTH_STEP"
+          size="small"
+          controls-position="right"
+          style="width: 120px"
+          @update:model-value="onWidthChange"
+        />
+        <span class="config-hint">px</span>
+      </div>
+      <div class="config-row">
+        <span class="config-label">输出精度</span>
+        <el-select
+          :model-value="renderOptions.scale"
+          size="small"
+          style="width: 120px"
+          @update:model-value="onScaleChange"
+        >
+          <el-option
+            v-for="opt in CAPTURE_SCALE_OPTIONS"
+            :key="opt"
+            :label="opt + 'x' + (opt === 2 ? ' (视网膜, 推荐)' : '')"
+            :value="opt"
+          />
+        </el-select>
+      </div>
+      <p class="section-hint">
+        渲染宽度决定消息气泡/卡片的换行宽度；输出精度决定最终图片清晰度（最终像素 ≈ 宽度 × 精度）。
+      </p>
     </div>
 
     <div class="config-section">
@@ -111,6 +149,13 @@ import type {
   CollapseStrategy,
   ElementToggles,
   LayoutOverrides,
+  ScreenshotRenderOptions,
+} from "./screenshotTypes";
+import {
+  CAPTURE_SCALE_OPTIONS,
+  RENDER_WIDTH_MAX,
+  RENDER_WIDTH_MIN,
+  RENDER_WIDTH_STEP,
 } from "./screenshotTypes";
 
 const layoutOverrides = defineModel<LayoutOverrides>("layoutOverrides", {
@@ -122,6 +167,23 @@ const collapseStrategy = defineModel<CollapseStrategy>("collapseStrategy", {
 const elementToggles = defineModel<ElementToggles>("elementToggles", {
   required: true,
 });
+const renderOptions = defineModel<ScreenshotRenderOptions>("renderOptions", {
+  required: true,
+});
+
+function onWidthChange(v: number | undefined) {
+  if (typeof v !== "number" || !Number.isFinite(v)) return;
+  const clamped = Math.min(
+    RENDER_WIDTH_MAX,
+    Math.max(RENDER_WIDTH_MIN, Math.round(v))
+  );
+  renderOptions.value = { ...renderOptions.value, width: clamped };
+}
+
+function onScaleChange(v: number | undefined) {
+  if (typeof v !== "number") return;
+  renderOptions.value = { ...renderOptions.value, scale: v };
+}
 </script>
 
 <style scoped>

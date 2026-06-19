@@ -33,7 +33,33 @@ export interface LayoutOverrides extends BubbleLayoutOverride {
   fontSize: number | undefined;
 }
 
+/** 截图渲染选项 — 真实影响最终输出图片的尺寸与清晰度 */
+export interface ScreenshotRenderOptions {
+  /**
+   * 渲染容器宽度 (CSS px), 决定消息气泡/卡片的换行宽度。
+   * 同步贯通到 ScreenshotRenderer 与 captureMessagesAndStitch。
+   * 默认 720。
+   */
+  width: number;
+  /**
+   * 输出像素倍率 (DPR), 决定最终 PNG 的清晰度。
+   * 1 = 标准, 2 = 视网膜(默认), 3 = 超清。
+   * 真实图片尺寸 = width * scale (横向)。
+   */
+  scale: number;
+}
+
 /** provide/inject key: 截图元素覆盖 */
 export const SCREENSHOT_OVERRIDES_KEY: InjectionKey<
   ComputedRef<ScreenshotElementOverrides>
 > = Symbol("screenshotElementOverrides");
+
+/** 渲染宽度的合法范围 (px) */
+export const RENDER_WIDTH_MIN = 480;
+export const RENDER_WIDTH_MAX = 1280;
+export const RENDER_WIDTH_STEP = 40;
+export const RENDER_WIDTH_DEFAULT = 720;
+
+/** 输出像素倍率的合法选项 */
+export const CAPTURE_SCALE_OPTIONS = [1, 2, 3] as const;
+export const CAPTURE_SCALE_DEFAULT = 2;

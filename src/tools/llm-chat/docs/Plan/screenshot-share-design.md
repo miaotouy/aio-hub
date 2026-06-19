@@ -1,14 +1,16 @@
-# LLM Chat: 消息截图分享功能 — 实施计划 (V2)
+# LLM Chat: 消息截图分享功能 — 实施计划 (V3)
 
-> 最后更新：2026-06-18
-> 状态：V2.3 修复完成, check:frontend 通过, 待真机验证
+> 最后更新：2026-06-19
+> 状态：V3 实施完成, check:frontend / lint 通过, 待真机验证
 > 作者：Gugu_Kilo & miaotouy
-> 版本：V2 (单弹窗合并 + 上左右响应式布局 + 并发消息截图 + 纯 Canvas 2D 拼接)
-> ⚠️ 历史备注：上一轮实施（V1 分组截图方案）因效果不理想、频繁切换 display 导致虚拟滚动空白、截图速度极慢而回滚。本版 V2 彻底抛弃分组截图，采用并发单条消息截图与 Canvas 拼接方案。
+> 版本：V3 (单弹窗合并 + 上左右响应式布局 + 并发消息截图 + 纯 Canvas 2D 拼接 + **DOM 实时预览 + 完全手动生成**)
+> ⚠️ 历史备注：V1 分组截图方案因频繁切换 display 导致虚拟滚动空白、截图速度极慢而回滚。V2 抛弃分组截图采用并发单条消息截图与 Canvas 拼接方案。V3 在 V2 基础上彻底重构"预览 + 生成"交互 (DOM 实时预览 + 完全手动生成), 详见 §0.6。
 
 > **V2.1 修复 (2026-06-18)**: 补齐 ScreenshotRenderer 缺失的气泡模式 CSS (MessageList 的 bubble 样式是 scoped, 不会作用到 ScreenshotRenderer), 并把容器宽度 (720px) 作为显式参数贯穿到 captureMessagesAndStitch 与 captureElementAsCanvas, 彻底解决截图为窄条气泡 + 拼接错乱的问题. 详见 §0.3.
 >
 > **V2.3 修复 (2026-06-18)**: 修复截图"显示元素"开关无效 + CSP `blob:` 拦截问题. 详见 §0.5.
+
+> **V3 升级 (2026-06-19)**: 恢复 DOM 实时预览 + 底部缩略图小容器 + 完全手动生成。彻底解决"点开就自动渲染"和"无法即时预览配置效果"的痛点。详见 §0.6。
 
 ---
 
@@ -513,6 +515,62 @@ CSS 级全局抑制：
 | 交互抑制             | `screenshotMode` prop + CSS `.screenshot-mode`                   | 双重保障，prop 控制组件级行为，CSS 控制全局样式                             |
 | `content-visibility` | 截图模式禁用                                                     | 避免视口外消息不渲染导致截图空白                                            |
 | 毛玻璃效果           | 截图模式下替换为实色背景                                         | `modern-screenshot` 无法捕获 `backdrop-filter`                              |
+
+### 0.6 V3 升级: 恢复 DOM 实时预览 + 底部缩略图小容器 + 完全手动生成 (2026-06-19)
+
+**症状与痛点**:
+
+1. **无法即时预览**: 之前的 V2 方案把 `ScreenshotRenderer` 放在离屏（Teleport 到 body, `position: fixed; left: -99999px`），右侧预览区只能显示生成的图片。用户修改左侧配置（如开关头像、调整字号、圆角等）时，无法获得瞬间的 DOM 渲染反馈，必须等待 modern-screenshot 完成。
+2. **自动生成卡顿**: 弹窗一打开或配置一修改，就会通过 `useDebounceFn` 触发自动截图生成。这不仅极度消耗 CPU/GPU 资源，还会导致界面卡顿，且用户无法在生成前确认排版效果。
+3. **气泡模式排版仍有问题**: 之前的 V2.1 修复只补齐了部分 ScreenshotRenderer 缺失的 bubble CSS（gap、avatar-outside 宽度扣减、border-radius 同步、右对齐镜像），实际渲染出来的气泡仍与 MessageList 主列表有视觉差异。
+
+**重构设计 (V3) — 实施内容**:
+
+1. **DOM 实时预览 (主视觉)**:
+   - `ScreenshotPreviewPanel.vue` 把 `ScreenshotRenderer` 永久挂在主体的 `.preview-canvas-frame` 容器里，通过 `transform: translate(...) scale(...)` 实现 Ctrl/Cmd + 滚轮缩放 + 鼠标拖拽平移。
+   - 用户修改任何配置，DOM 预览**瞬间响应**，**零延迟**。
+   - `ScreenshotRenderer` 必须始终挂载（v-if 仅绑 `selectedCount > 0`），不能 display:none，否则 `getBoundingClientRect()` 返回 0，modern-screenshot 高度坍缩。
+
+2. **底部缩略图小容器 (辅助)**:
+   - 高度固定 138px 的 `.thumbnail-bar`，包含：
+     - 加载态：旋转图标 + 进度 `x / y`
+     - 已生成：缩略图，点击调用 `useImageViewer` 放大查看
+     - 占位态：图标 + "尚未生成截图"提示
+   - 缩略图与小容器四周留 8px 边距，配 0 4px 圆角与轻投影，与主区域视觉分离。
+
+3. **完全手动生成**:
+   - 工具栏右上角"生成截图"按钮是**唯一**触发 `regenerateScreenshot()` 的入口。
+   - 移除 `useDebounceFn` 与所有 `watch` 触发的自动 generate。
+   - 配置 / 选区变化的 watch **仅**清空 `lastCanvas.value` 和 `lastImageUrl.value`，让"复制到剪贴板"和"保存图片"按钮自动禁用（`:disabled="!lastCanvas || generating"`），状态栏显示"未生成 — 修改配置不会自动重新生成"。
+
+4. **移除 Teleport 离屏**:
+   - `ShareScreenshotDialog.vue` 不再包含 `<Teleport to="body">` 离屏 stage。
+   - 截图时直接通过 `previewPanelRef.value.getMessageElements()` 获取预览面板中 `ScreenshotRenderer` 的 `.message-slot` 节点。
+   - 预览源与截图源 100% 一致，永远不会再出现"预览是一回事，截出来是另一回事"。
+
+5. **补齐气泡模式 CSS（V2.1 补丁补完）**:
+   - `.messages-container` 默认 `gap: 8px`，`.messages-container.mode-bubble` 单独 `gap: 12px`（与 MessageList 保持一致）。
+   - 外置头像模式：气泡 max-width 扣减 `var(--avatar-outside-size) + var(--avatar-outside-gap)`，居中消息不扣减。
+   - 圆角同步：`.chat-message` / `.tool-call-message` / `.compression-message` / `.message-background-container` 及对应 `::after` 都使用 `var(--bubble-radius, 12px)`。
+   - 外置头像透明占位 `pointer-events: none`，避免 hover 态。
+   - 右对齐镜像：header-left `flex-direction: row-reverse`、header-right `margin-right: auto`、message-info 改为右对齐。
+   - 工具调用头部同步镜像：`.tool-call-message` / `.tool-header` / `.tool-header .header-left` 全部 row-reverse。
+   - 底部信息 `.message-meta` 跟随消息方向：左对齐靠左、右对齐靠右、`.error-info` 行布局镜像。
+
+**关键文件改动**:
+
+| 文件 | 改动 |
+| :--- | :--- |
+| `src/tools/llm-chat/components/screenshot/ScreenshotRenderer.vue` | 补齐气泡模式 gap / avatar-outside 宽度扣减 / 圆角同步 / 右对齐镜像 / message-meta 对齐 5 处 CSS |
+| `src/tools/llm-chat/components/screenshot/ScreenshotPreviewPanel.vue` | 整体重写：DOM 预览 + 缩略图小容器 + 工具栏缩放 + 底部状态/操作栏；expose `getMessageElements` |
+| `src/tools/llm-chat/components/screenshot/ShareScreenshotDialog.vue` | 移除 `<Teleport>` 离屏 stage、移除 `useDebounceFn` 自动重生成、移除打开时自动 regenerate；改为手动触发 + 配置变化仅清空结果 |
+
+**验收**:
+- [x] `bun run check:frontend` 通过
+- [x] `bun run lint` 通过（0 errors / 0 warnings）
+- [ ] 真机 Tauri 窗口验证（气泡模式排版、缩略图生成、配置清空交互）
+
+---
 
 ### 0.5 V2.3 修复:显示元素开关无效 + CSP `blob:` 拦截 (2026-06-18)
 

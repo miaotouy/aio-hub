@@ -1,17 +1,19 @@
 <!--
-  消息截图分享弹窗 — 编排器 (V3 离屏渲染 + 缩略图版)。
+  消息截图分享弹窗 — 编排器 (V3 重构版)
 
-  职责:
-  - BaseDialog 外壳
-  - 状态管理 (range / selectedIds / 布局覆盖 / 折叠 / 元素开关)
-  - 防抖重新生成 + generator 编排
-  - 离屏 <ScreenshotRenderer> 挂载 (Teleport 到 body)
-  - 响应式布局 (宽窄屏切换)
+  V3 设计变化:
+  - 移除 Teleport 离屏渲染: ScreenshotRenderer 现在直接挂在 ScreenshotPreviewPanel 里
+    既是实时预览源, 也是截图源, 100% 一致
+  - 移除自动重新生成:
+    * 不再在打开时自动 regenerateScreenshot()
+    * 不再有 useDebounceFn 配置变化监听
+  - 配置 / 选区变化时, 只清空已生成的 lastCanvas / lastImageUrl,
+    让"复制/保存"按钮自动禁用, 提示用户"配置已更改, 请重新生成"
 
   UI 拆分:
   - MessageRangePanel: 顶部 (范围 + 筛选 + 精细列表)
-  - ScreenshotConfigPanel: 左下 (布局 + 折叠 + 元素开关)
-  - ScreenshotPreviewPanel: 右下 (缩略图 + 工具栏 + 操作按钮)
+  - ScreenshotConfigPanel: 左下 (布局 + 渲染尺寸 + 折叠 + 元素开关)
+  - ScreenshotPreviewPanel: 右下 (DOM 实时预览 + 缩略图小容器 + 操作按钮)
 -->
 <template>
   <BaseDialog
@@ -35,14 +37,26 @@
           v-model:layout-overrides="layoutOverrides"
           v-model:collapse-strategy="collapseStrategy"
           v-model:element-toggles="elementToggles"
+          v-model:render-options="renderOptions"
         />
         <ScreenshotPreviewPanel
+          ref="previewPanelRef"
+          :messages="selectedMessages"
+          :session-index="sessionIndex"
+          :session-detail="sessionDetail"
+          :is-sending="isSending"
+          :llm-think-rules="llmThinkRules"
+          :rich-text-style-options="richTextStyleOptions"
+          :user-rich-text-style-options="userRichTextStyleOptions"
+          :collapse-strategy="collapseStrategy"
+          :width="renderOptions.width"
+          :element-toggles="elementTogglesSnapshot"
+          :layout-overrides="layoutOverrides"
           :last-image-url="lastImageUrl"
           :last-canvas="lastCanvas"
           :generating="generating"
           :progress="progress"
           :selected-count="selectedMessages.length"
-          :width="SCREENSHOT_RENDER_WIDTH"
           @regenerate="regenerateScreenshot"
           @copy="handleCopy"
           @save="handleSave"
@@ -50,61 +64,21 @@
       </div>
     </div>
   </BaseDialog>
-
-  <!--
-    离屏渲染区: ScreenshotRenderer 视觉上完全不可见,
-    仅供 modern-screenshot 读取。
-    - <Teleport to="body"> 把它从 BaseDialog 的变换容器中抽出来,
-      避免 .base-dialog-container 的 transform: scale(...) 创建
-      包含块, 让 position: fixed 真的相对视口。
-    - position: fixed + 极大负 left/top, 推到视口外 99999px。
-    - z-index: -1 + pointer-events: none, 双保险。
-    - v-if 控制挂载: 仅在对话框打开且有选中消息时挂载, 节省资源。
-    - aria-hidden="true" 避免屏幕阅读器误读。
-  -->
-  <Teleport to="body">
-    <div
-      v-if="localVisible && selectedMessages.length > 0"
-      class="screenshot-offscreen-stage"
-      aria-hidden="true"
-    >
-      <ScreenshotRenderer
-        ref="rendererRef"
-        :messages="selectedMessages"
-        :session-index="sessionIndex"
-        :session-detail="sessionDetail"
-        :is-sending="isSending"
-        :llm-think-rules="llmThinkRules"
-        :rich-text-style-options="richTextStyleOptions"
-        :user-rich-text-style-options="userRichTextStyleOptions"
-        :collapse-strategy="collapseStrategy"
-        :width="SCREENSHOT_RENDER_WIDTH"
-        :element-toggles="elementTogglesSnapshot"
-        :layout-overrides="layoutOverrides"
-      />
-    </div>
-  </Teleport>
 </template>
 
 <script setup lang="ts">
-import {
-  computed,
-  nextTick,
-  onBeforeUnmount,
-  onMounted,
-  ref,
-  watch,
-} from "vue";
-import { useDebounceFn } from "@vueuse/core";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
-import ScreenshotRenderer from "./ScreenshotRenderer.vue";
+import ScreenshotPreviewPanel from "./ScreenshotPreviewPanel.vue";
 import MessageRangePanel from "./MessageRangePanel.vue";
 import ScreenshotConfigPanel from "./ScreenshotConfigPanel.vue";
-import ScreenshotPreviewPanel from "./ScreenshotPreviewPanel.vue";
 import {
+  CAPTURE_SCALE_DEFAULT,
+  RENDER_WIDTH_DEFAULT,
   type CollapseStrategy,
   type ElementToggles,
   type LayoutOverrides,
+  type ScreenshotRenderOptions,
 } from "./screenshotTypes";
 import { useScreenshotGenerator } from "../../composables/features/useScreenshotGenerator";
 import type { ChatMessageNode } from "../../types";
@@ -139,9 +113,6 @@ const localVisible = computed({
   get: () => props.visible,
   set: (v) => emit("update:visible", v),
 });
-
-// 与 <ScreenshotRenderer :width> 保持一致, 同步贯通到截图捕获
-const SCREENSHOT_RENDER_WIDTH = 720;
 
 const generator = useScreenshotGenerator();
 
@@ -184,19 +155,26 @@ const elementToggles = ref<ElementToggles>({
   showModelInfo: true,
   showPerformanceMetrics: true,
 });
+// 渲染尺寸 + 输出精度, 真正影响最终 PNG 的尺寸
+const renderOptions = ref<ScreenshotRenderOptions>({
+  width: RENDER_WIDTH_DEFAULT,
+  scale: CAPTURE_SCALE_DEFAULT,
+});
 
 // 关键: elementToggles 是对象 ref, Vue prop 比较是浅比较 (===)。
-// 直接修改 .value.xxx 不会改变对象引用, 导致 ScreenshotRenderer 收不到更新。
+// 直接修改 .value.xxx 不会改变对象引用, 导致子组件收不到更新。
 // 用 computed 返回浅拷贝, 确保每次属性变化都产生新引用, 强制子组件更新。
 const elementTogglesSnapshot = computed<ElementToggles>(() => ({
   ...elementToggles.value,
 }));
 
-// ----- 离屏渲染器引用 -----
-const rendererRef = ref<InstanceType<typeof ScreenshotRenderer> | null>(null);
+// ----- 预览面板引用 (从子组件拿消息元素) -----
+const previewPanelRef = ref<InstanceType<typeof ScreenshotPreviewPanel> | null>(
+  null
+);
 
 function getMessageElements(): HTMLElement[] {
-  return rendererRef.value?.getMessageElements() ?? [];
+  return previewPanelRef.value?.getMessageElements() ?? [];
 }
 
 // ----- 截图生成 -----
@@ -209,14 +187,20 @@ const lastImageUrl = ref("");
 // 防止旧 capture 完成时覆盖新 capture 的状态。
 let generationToken = 0;
 
+/**
+ * 手动触发生成截图。只有用户点击"生成截图"按钮时才调用此函数。
+ *
+ * 配置 / 选区 / 渲染尺寸变化时, watch 会清空 lastCanvas / lastImageUrl,
+ * 让复制/保存按钮自动禁用, 提示用户"配置已更改, 请重新生成"。
+ */
 async function regenerateScreenshot() {
   if (selectedMessages.value.length === 0) {
     lastCanvas.value = null;
     lastImageUrl.value = "";
     return;
   }
-  // 等待离屏 renderer 挂载并完成一帧布局
-  await nextTick();
+
+  // 等待预览面板中的 ScreenshotRenderer 挂载并完成一帧布局
   await new Promise((r) => setTimeout(r, 100));
 
   const elements = getMessageElements();
@@ -230,8 +214,11 @@ async function regenerateScreenshot() {
   try {
     const result = await generator.generate({
       elements,
-      width: SCREENSHOT_RENDER_WIDTH,
-      options: { scale: 2, concurrency: 6 },
+      width: renderOptions.value.width,
+      options: {
+        scale: renderOptions.value.scale,
+        concurrency: 6,
+      },
       onProgress: (done, total, label) => {
         if (token !== generationToken) return;
         progress.value = { done, total, currentLabel: label };
@@ -254,9 +241,6 @@ async function regenerateScreenshot() {
   }
 }
 
-// 防抖: 配置变化时延迟 500ms 再重生成, 避免滑动选择时疯狂触发
-const debouncedRegenerate = useDebounceFn(regenerateScreenshot, 500);
-
 async function handleCopy() {
   if (!lastCanvas.value) {
     customMessage.warning("请先生成截图");
@@ -273,33 +257,40 @@ async function handleSave() {
   await generator.saveToFile(lastCanvas.value, props.defaultFileName);
 }
 
-// 监听所有可能影响截图效果的配置, debounced 自动重新生成
+/**
+ * 关键: 配置 / 选区 / 渲染尺寸变化时, 仅清空已生成结果, 不触发生成。
+ *
+ * 用户在右侧预览面板已经看到实时 DOM 预览, 调整后视觉立即生效;
+ * 想保存图片时, 手动点击"生成截图"即可。
+ */
 watch(
   [
     () => Array.from(selectedIds.value),
     layoutOverrides,
     elementToggles,
     collapseStrategy,
+    renderOptions,
   ],
   () => {
-    if (!localVisible.value) return;
-    debouncedRegenerate();
+    lastCanvas.value = null;
+    lastImageUrl.value = "";
   },
   { deep: true }
 );
 
-// 打开对话框时立即生成一次, 关闭时清理大体积 data URL
+// 打开/关闭对话框: 不再自动 regenerate, 只重置选区与生成 token。
 watch(
   () => localVisible.value,
   (v) => {
     if (v) {
-      // 重置范围, 同步到 selectedIds
       range.value = getInitialRange();
       const [s, e] = range.value;
       selectedIds.value = new Set(
         props.messages.slice(s, e + 1).map((m) => m.id)
       );
-      regenerateScreenshot();
+      // 清空生成结果, 一切从"未生成"开始
+      lastCanvas.value = null;
+      lastImageUrl.value = "";
     } else {
       generationToken++; // 取消进行中的 capture
       generating.value = false;
@@ -344,22 +335,5 @@ onBeforeUnmount(() => {
 .share-screenshot.is-narrow :deep(.left-panel) {
   width: 100%;
   max-height: 280px;
-}
-
-/* 离屏 stage (Teleport 到 body) */
-/* 关键: 推到视口外 99999px, 用户完全看不到。
-   * Teleport 把元素从 BaseDialog 的 transform 容器中抽出来,
-   * position: fixed 才能真的相对视口定位。
-   * 必须 display: block (不能用 display: none), 否则
-   * getBoundingClientRect 返回 0, modern-screenshot 会截到 0 高度。
-   */
-.screenshot-offscreen-stage {
-  position: fixed;
-  top: 0;
-  left: -99999px;
-  width: 720px;
-  z-index: -1;
-  pointer-events: none;
-  /* 不加 visibility/opacity, 避免子组件被浏览器跳过渲染或合成 */
 }
 </style>

@@ -59,6 +59,8 @@ export interface StitchOptions extends ScreenshotScaleOptions {
   padding?: number;
   /** 是否启用卡片装饰 (圆角边框 + 投影) */
   enableDecoration?: boolean;
+  /** 消息背景容器的圆角 (px), 由调用方从 DOM 获取或传入, 默认 8 */
+  messageBorderRadius?: number;
 }
 
 export interface StitchResult {
@@ -126,12 +128,14 @@ function copyCssVariables(source: HTMLElement, target: HTMLElement): void {
 /**
  * 在克隆树中应用排版保护:
  * 1. 强制 content-visibility: visible, 防止视口外空白
- * 2. 替换 backdrop-filter 为实色背景 (毛玻璃在 SVG foreignObject 中丢失)
+ * 2. 替换 backdrop-filter:
+ *    - 对 .message-background-slice: 如果有壁纸则设为完全透明 (Canvas 后合成模糊)
+ *    - 对其他元素: 回退为实色背景
  * 3. 可选: 注入临时样式隐藏所有滚动条
  */
 function applyLayoutGuards(
   clonedRoot: HTMLElement,
-  options: { hideScrollbars: boolean }
+  options: { hideScrollbars: boolean; hasWallpaper: boolean }
 ): void {
   const allElements = clonedRoot.querySelectorAll<HTMLElement>("*");
   for (const child of allElements) {
@@ -144,11 +148,21 @@ function applyLayoutGuards(
       childStyle.backdropFilter !== "none" &&
       !childStyle.backdropFilter.includes("none")
     ) {
-      child.style.backdropFilter = "none";
-      // 若没有背景色, 给一个实色回退
-      const bg = childStyle.backgroundColor;
-      if (!bg || bg === "rgba(0, 0, 0, 0)" || bg === "transparent") {
-        child.style.backgroundColor = "var(--card-bg)";
+      // 对 .message-background-slice 做特殊处理
+      if (
+        options.hasWallpaper &&
+        child.classList.contains("message-background-slice")
+      ) {
+        // 有壁纸时: 设为完全透明, 让 Canvas 后合成阶段绘制模糊壁纸
+        child.style.backdropFilter = "none";
+        child.style.backgroundColor = "transparent";
+      } else {
+        // 其他元素或无壁纸: 清除模糊, 实色回退
+        child.style.backdropFilter = "none";
+        const bg = childStyle.backgroundColor;
+        if (!bg || bg === "rgba(0, 0, 0, 0)" || bg === "transparent") {
+          child.style.backgroundColor = "var(--card-bg)";
+        }
       }
     }
   }
@@ -180,12 +194,13 @@ function applyLayoutGuards(
  */
 export async function captureElementAsCanvas(
   element: HTMLElement,
-  options: CaptureElementOptions = {}
+  options: CaptureElementOptions & { hasWallpaper?: boolean } = {}
 ): Promise<HTMLCanvasElement> {
   const {
     scale = 2,
     timeout = 30000,
     hideScrollbars = true,
+    hasWallpaper = false,
     width,
     height,
   } = options;
@@ -220,7 +235,7 @@ export async function captureElementAsCanvas(
       el.style.overflow = "visible";
 
       copyCssVariables(element, el);
-      applyLayoutGuards(el, { hideScrollbars });
+      applyLayoutGuards(el, { hideScrollbars, hasWallpaper });
     },
   });
 }
@@ -258,6 +273,10 @@ export async function captureMessagesAndStitch(
   }
   const resolvedWidth = resolveCaptureWidth();
 
+  // 0. 预检壁纸状态 (决定是否需要 Canvas 后合成模糊)
+  const wallpaperSrc = parseWallpaperUrl();
+  const hasWallpaper = !!wallpaperSrc;
+
   // 1. 并发截图 (限流)
   const messageCanvases: HTMLCanvasElement[] = [];
   let done = 0;
@@ -268,6 +287,7 @@ export async function captureMessagesAndStitch(
       scale,
       timeout,
       width: resolvedWidth,
+      hasWallpaper,
     });
     messageCanvases[idx] = canvas;
     done += 1;
@@ -321,11 +341,39 @@ export async function captureMessagesAndStitch(
     drawDecoration(ctx, totalWidth, totalHeight);
   }
 
-  // 6. 拼接消息 Canvas — 精确累加 gap
+  // 6. V4 模糊合成: 如果有壁纸, 为每条消息的背景区域绘制模糊壁纸 + 蒙层
+  const borderRadius = options.messageBorderRadius ?? 8;
+  let blurredBgCanvas: HTMLCanvasElement | null = null;
+
+  if (hasWallpaper) {
+    blurredBgCanvas = await createBlurredBackgroundCanvas(
+      totalWidth,
+      totalHeight,
+      scale,
+      options.bgConfig
+    );
+  }
+
+  // 7. 拼接消息 Canvas — 精确累加 gap, 含模糊背景合成
   let y = padding;
   for (let i = 0; i < messageCanvases.length; i++) {
     const msgCanvas = messageCanvases[i];
     const h = messageHeights[i];
+
+    // 如果有壁纸, 先在消息区域绘制模糊背景 + card-bg 蒙层
+    if (blurredBgCanvas) {
+      drawBlurredMessageBackground(
+        ctx,
+        blurredBgCanvas,
+        scale,
+        padding,
+        y,
+        captureWidth,
+        h,
+        borderRadius
+      );
+    }
+
     try {
       ctx.drawImage(msgCanvas, padding, y, captureWidth, h);
     } catch (err) {
@@ -340,6 +388,158 @@ export async function captureMessagesAndStitch(
     width: totalWidth,
     height: totalHeight,
   };
+}
+
+// ===================== V4: 模糊背景合成 =====================
+
+/**
+ * 创建一张与最终大图同尺寸的"模糊版背景" Canvas。
+ *
+ * 流程:
+ * 1. 绘制壁纸 (cover) + container-bg 蒙层 (模拟真实渲染中消息下方的内容)
+ * 2. 对整张 canvas 应用 blur 滤镜
+ *
+ * 返回的 canvas 供后续 clip + drawImage 使用, 模拟 backdrop-filter 效果。
+ */
+async function createBlurredBackgroundCanvas(
+  width: number,
+  height: number,
+  scale: number,
+  bgConfig?: ScreenshotBgConfig
+): Promise<HTMLCanvasElement | null> {
+  const wallpaperSrc = parseWallpaperUrl();
+  if (!wallpaperSrc) return null;
+
+  const img = await loadImageAsync(wallpaperSrc);
+  if (!img) return null;
+
+  // 获取模糊半径
+  const blurRaw = getComputedStyle(document.documentElement)
+    .getPropertyValue("--ui-blur")
+    .trim();
+  const blurRadius = parseFloat(blurRaw) || 10;
+
+  // 获取 container-bg 蒙层色
+  const themeBgRaw = getComputedStyle(document.documentElement)
+    .getPropertyValue("--container-bg")
+    .trim();
+
+  // 获取壁纸不透明度
+  let wallpaperOpacity = 1;
+  if (bgConfig?.type === "wallpaper") {
+    wallpaperOpacity = bgConfig.wallpaperOpacity ?? 0.6;
+  } else {
+    const opacityRaw = getComputedStyle(document.documentElement)
+      .getPropertyValue("--wallpaper-opacity")
+      .trim();
+    wallpaperOpacity = opacityRaw ? parseFloat(opacityRaw) : 1;
+  }
+
+  // 1. 创建"原始背景" canvas (壁纸 + 蒙层, 未模糊)
+  const bgCanvas = document.createElement("canvas");
+  bgCanvas.width = Math.ceil(width * scale);
+  bgCanvas.height = Math.ceil(height * scale);
+  const bgCtx = bgCanvas.getContext("2d");
+  if (!bgCtx) return null;
+  bgCtx.scale(scale, scale);
+
+  // 绘制主题底色
+  const themeBgColor = getThemeBgColor();
+  bgCtx.fillStyle = themeBgColor;
+  bgCtx.fillRect(0, 0, width, height);
+
+  // Cover 绘制壁纸
+  const imgRatio = img.naturalWidth / img.naturalHeight;
+  const canvasRatio = width / height;
+  let drawWidth: number, drawHeight: number, drawX: number, drawY: number;
+  if (imgRatio > canvasRatio) {
+    drawHeight = height;
+    drawWidth = height * imgRatio;
+    drawX = (width - drawWidth) / 2;
+    drawY = 0;
+  } else {
+    drawWidth = width;
+    drawHeight = width / imgRatio;
+    drawX = 0;
+    drawY = (height - drawHeight) / 2;
+  }
+
+  bgCtx.save();
+  bgCtx.globalAlpha = wallpaperOpacity;
+  bgCtx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+  bgCtx.restore();
+
+  // 叠 container-bg 蒙层
+  if (themeBgRaw) {
+    bgCtx.fillStyle = themeBgRaw;
+    bgCtx.fillRect(0, 0, width, height);
+  }
+
+  // 2. 创建"模糊版"canvas: 从原始背景 drawImage 并应用 blur 滤镜
+  const blurCanvas = document.createElement("canvas");
+  blurCanvas.width = bgCanvas.width;
+  blurCanvas.height = bgCanvas.height;
+  const blurCtx = blurCanvas.getContext("2d");
+  if (!blurCtx) return null;
+
+  // 使用 CanvasRenderingContext2D.filter 应用高斯模糊
+  blurCtx.filter = `blur(${blurRadius * scale}px)`;
+  blurCtx.drawImage(bgCanvas, 0, 0);
+  blurCtx.filter = "none";
+
+  return blurCanvas;
+}
+
+/**
+ * 在大 Canvas 上为单条消息绘制模糊背景 + card-bg 蒙层。
+ *
+ * 相当于 AE 合成中的:
+ * 1. 圆角矩形 mask → 裁剪模糊壁纸
+ * 2. 叠半透明 card-bg 色块
+ */
+function drawBlurredMessageBackground(
+  ctx: CanvasRenderingContext2D,
+  blurredBgCanvas: HTMLCanvasElement,
+  scale: number,
+  msgX: number,
+  msgY: number,
+  msgW: number,
+  msgH: number,
+  borderRadius: number
+): void {
+  // 获取 card-bg 颜色 (半透明蒙层)
+  const cardBg = getComputedStyle(document.documentElement)
+    .getPropertyValue("--card-bg")
+    .trim();
+
+  ctx.save();
+
+  // Clip 出消息背景区域 (圆角矩形)
+  ctx.beginPath();
+  ctx.roundRect(msgX, msgY, msgW, msgH, borderRadius);
+  ctx.clip();
+
+  // 从模糊背景 canvas 上取对应区域绘制
+  // 注意: blurredBgCanvas 是 scale 倍尺寸, 需要用像素坐标
+  ctx.drawImage(
+    blurredBgCanvas,
+    msgX * scale,
+    msgY * scale,
+    msgW * scale,
+    msgH * scale,
+    msgX,
+    msgY,
+    msgW,
+    msgH
+  );
+
+  // 叠半透明 card-bg 蒙层
+  if (cardBg && cardBg !== "transparent") {
+    ctx.fillStyle = cardBg;
+    ctx.fillRect(msgX, msgY, msgW, msgH);
+  }
+
+  ctx.restore();
 }
 
 // ===================== V4: 背景绘制 =====================

@@ -235,6 +235,19 @@ async function regenerateScreenshot() {
       renderOptions.value.gap ??
       (layoutOverrides.value.mode === "bubble" ? 12 : 8);
 
+    // 从实际 DOM 读取消息背景容器的 border-radius (精确对齐模式/覆盖/系统设置)
+    let messageBorderRadius = 8;
+    const firstEl = elements[0];
+    if (firstEl) {
+      const bgContainer = firstEl.querySelector(
+        ".message-background-container"
+      );
+      if (bgContainer) {
+        const br = parseFloat(getComputedStyle(bgContainer).borderRadius);
+        if (br > 0) messageBorderRadius = br;
+      }
+    }
+
     const result = await generator.generate({
       elements,
       width: renderOptions.value.width,
@@ -245,6 +258,7 @@ async function regenerateScreenshot() {
         gap: resolvedGap,
         padding: renderOptions.value.padding,
         enableDecoration: renderOptions.value.enableDecoration,
+        messageBorderRadius,
       },
       onProgress: (done, total, label) => {
         if (token !== generationToken) return;

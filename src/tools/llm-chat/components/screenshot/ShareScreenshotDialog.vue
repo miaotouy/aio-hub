@@ -366,6 +366,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 600px; /* 保证宽屏但矮窗口下也有最小高度，防止内容缩没 */
   gap: 12px;
 }
 .bottom-row {
@@ -374,13 +375,29 @@ onBeforeUnmount(() => {
   gap: 12px;
   min-height: 0;
 }
-.share-screenshot.is-narrow .bottom-row {
-  flex-direction: column;
+
+/* 窄屏/矮屏响应式微调 */
+.share-screenshot.is-narrow {
+  height: auto;
+  min-height: 100%;
 }
-/* 窄屏时, 面板组件内的 .left-panel 也要变 100% 宽 */
+.share-screenshot.is-narrow .bottom-row {
+  flex: none;
+  flex-direction: column;
+  height: auto;
+}
+/* 窄屏时, 面板组件内的 .left-panel 变 100% 宽，并保住最小高度 */
 .share-screenshot.is-narrow :deep(.left-panel) {
   width: 100%;
-  max-height: 280px;
+  height: 320px;
+  max-height: 320px;
+  flex-shrink: 0;
+}
+/* 窄屏时, 预览面板也要保住最小高度，防止缩没 */
+.share-screenshot.is-narrow :deep(.right-panel) {
+  width: 100%;
+  height: 560px;
+  flex-shrink: 0;
 }
 </style>
 

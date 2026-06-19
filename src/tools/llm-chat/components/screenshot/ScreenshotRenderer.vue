@@ -29,6 +29,7 @@ import MessageHeader from "../message/MessageHeader.vue";
 import {
   type CollapseStrategy,
   type LayoutOverrides,
+  type ScreenshotBgConfig,
   type ScreenshotElementOverrides,
   SCREENSHOT_OVERRIDES_KEY,
 } from "./screenshotTypes";
@@ -42,7 +43,6 @@ const DEFAULT_OVERRIDES: ScreenshotElementOverrides = {
   showModelInfo: true,
   showPerformanceMetrics: true,
 };
-
 interface Props {
   messages: ChatMessageNode[];
   sessionIndex: ChatSessionIndex | null;
@@ -59,12 +59,22 @@ interface Props {
   elementToggles?: ScreenshotElementOverrides;
   /** 临时布局覆盖 (与系统设置合并, 不修改系统设置) */
   layoutOverrides?: LayoutOverrides;
+  /** V4: 背景配置 */
+  bgConfig?: ScreenshotBgConfig;
+  /** V4: 消息间距 (px), undefined = 跟随模式自动 */
+  gap?: number;
+  /** V4: 四周留白 (px) */
+  padding?: number;
+  /** V4: 是否启用卡片装饰 */
+  enableDecoration?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isSending: false,
   collapseStrategy: "config",
   width: 720,
+  padding: 0,
+  enableDecoration: false,
 });
 
 const store = useLlmChatStore();
@@ -131,8 +141,100 @@ const elementHideClasses = computed(() => {
 // 仅当 layoutOverrides.fontSize 是有效数字时设置, 否则不输出 (回退到子组件 v-bind 读取系统设置)
 const messageFontSizeStyle = computed<Record<string, string>>(() => {
   const fs = props.layoutOverrides?.fontSize;
-  if (typeof fs !== "number" || !Number.isFinite(fs) || fs <= 0) return {} as Record<string, string>;
+  if (typeof fs !== "number" || !Number.isFinite(fs) || fs <= 0)
+    return {} as Record<string, string>;
   return { "--message-font-size": `${fs}px` };
+});
+
+// 获取当前主题的不透明背景色
+function getThemeBgColor(): string {
+  const themeBg = getComputedStyle(document.documentElement)
+    .getPropertyValue("--container-bg")
+    .trim();
+  if (!themeBg) return "#ffffff";
+  const match = themeBg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (match) {
+    return `rgb(${match[1]}, ${match[2]}, ${match[3]})`;
+  }
+  return themeBg;
+}
+
+// ----- V4: 背景 / 间距 / 留白 / 装饰 CSS 变量 -----
+const v4StyleVars = computed<Record<string, string>>(() => {
+  const vars: Record<string, string> = {};
+
+  // 间距: 如果 gap 是数字则使用, 否则不设 (让 CSS 默认值生效)
+  if (typeof props.gap === "number" && Number.isFinite(props.gap)) {
+    vars["--screenshot-gap"] = `${props.gap}px`;
+  }
+
+  // 留白
+  if (typeof props.padding === "number" && props.padding > 0) {
+    vars["--screenshot-padding"] = `${props.padding}px`;
+  } else {
+    vars["--screenshot-padding"] = "0px";
+  }
+
+  // 背景
+  if (props.bgConfig) {
+    const themeBgColor = getThemeBgColor();
+    const themeBgRaw = getComputedStyle(document.documentElement)
+      .getPropertyValue("--container-bg")
+      .trim();
+
+    switch (props.bgConfig.type) {
+      case "solid":
+        vars["--screenshot-bg"] = props.bgConfig.color || themeBgColor;
+        vars["--screenshot-mask"] = "transparent";
+        break;
+      case "theme": {
+        // 跟随主题模式：
+        // 1. 底色设为当前主题不透明背景色
+        vars["--screenshot-bg"] = themeBgColor;
+
+        // 2. 如果系统当前有壁纸，也需要跟随壁纸！
+        const wallpaperUrl = getComputedStyle(document.documentElement)
+          .getPropertyValue("--wallpaper-url")
+          .trim();
+        const wallpaperOpacity = getComputedStyle(document.documentElement)
+          .getPropertyValue("--wallpaper-opacity")
+          .trim();
+
+        if (wallpaperUrl && wallpaperUrl !== "none") {
+          vars["--screenshot-wallpaper"] = wallpaperUrl;
+          vars["--screenshot-wallpaper-opacity"] = wallpaperOpacity || "1";
+          // 3. 叠加半透明主题色蒙层，保证文字可读性
+          vars["--screenshot-mask"] = themeBgRaw || "transparent";
+        } else {
+          vars["--screenshot-mask"] = "transparent";
+        }
+        break;
+      }
+      case "wallpaper": {
+        // 应用壁纸模式：
+        // 1. 底色使用当前主题的不透明背景色，而不是硬编码的白色！
+        vars["--screenshot-bg"] = themeBgColor;
+
+        // 2. 读取系统壁纸 URL，并应用用户设置的不透明度
+        const wallpaperUrl = getComputedStyle(document.documentElement)
+          .getPropertyValue("--wallpaper-url")
+          .trim();
+        if (wallpaperUrl && wallpaperUrl !== "none") {
+          vars["--screenshot-wallpaper"] = wallpaperUrl;
+          vars["--screenshot-wallpaper-opacity"] = String(
+            props.bgConfig.wallpaperOpacity ?? 0.6
+          );
+          // 3. 叠加半透明主题色蒙层，保证文字可读性
+          vars["--screenshot-mask"] = themeBgRaw || "transparent";
+        } else {
+          vars["--screenshot-mask"] = "transparent";
+        }
+        break;
+      }
+    }
+  }
+
+  return vars;
 });
 
 const rootRef = ref<HTMLElement | null>(null);
@@ -157,11 +259,13 @@ defineExpose({
     :class="[
       'screenshot-mode',
       `mode-${bubbleLayout.mode}`,
+      { 'has-decoration': props.enableDecoration },
       ...elementHideClasses,
     ]"
     :style="{
       ...bubbleLayoutVars,
       ...messageFontSizeStyle,
+      ...v4StyleVars,
       '--screenshot-width': `${props.width}px`,
     }"
   >
@@ -286,6 +390,38 @@ defineExpose({
   max-width: var(--screenshot-width, 720px);
   box-sizing: border-box;
   overflow: visible !important;
+  /* V4: 背景与留白 */
+  background: var(--screenshot-bg, transparent);
+  padding: var(--screenshot-padding, 0px);
+  position: relative;
+}
+
+/* V4: 壁纸背景层 (通过 ::before 伪元素实现, 不影响内容层) */
+.screenshot-renderer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--screenshot-wallpaper, none);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: var(--screenshot-wallpaper-opacity, 0);
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* 确保内容在壁纸层之上 */
+.screenshot-renderer > .messages-container {
+  position: relative;
+  z-index: 1;
+}
+
+/* V4: 卡片装饰 */
+.screenshot-renderer.has-decoration {
+  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.08));
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
 }
 
 /* 强制全量展开 — 关键, 否则视口外消息渲染不出来 */
@@ -300,14 +436,15 @@ defineExpose({
 .messages-container {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  /* V4: 间距由 CSS 变量控制, 回退到模式默认值 */
+  gap: var(--screenshot-gap, 8px);
   padding: 0;
   width: 100%;
   box-sizing: border-box;
 }
 /* Bubble 模式: 消息间距比卡片模式更大, 与 MessageList 保持一致 */
 .messages-container.mode-bubble {
-  gap: 12px;
+  gap: var(--screenshot-gap, 12px);
 }
 
 /* ===========================================================

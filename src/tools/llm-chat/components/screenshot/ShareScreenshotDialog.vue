@@ -52,6 +52,10 @@
           :width="renderOptions.width"
           :element-toggles="elementTogglesSnapshot"
           :layout-overrides="layoutOverrides"
+          :bg-config="renderOptions.bgConfig"
+          :gap="renderOptions.gap"
+          :padding="renderOptions.padding"
+          :enable-decoration="renderOptions.enableDecoration"
           :last-image-url="lastImageUrl"
           :last-canvas="lastCanvas"
           :generating="generating"
@@ -78,6 +82,10 @@ import {
   RENDER_WIDTH_MAX,
   RENDER_WIDTH_MIN,
   RENDER_WIDTH_MODE_DEFAULT,
+  SCREENSHOT_BG_CONFIG_DEFAULT,
+  SCREENSHOT_DECORATION_DEFAULT,
+  SCREENSHOT_GAP_DEFAULT,
+  SCREENSHOT_PADDING_DEFAULT,
   type CollapseStrategy,
   type ElementToggles,
   type LayoutOverrides,
@@ -160,11 +168,15 @@ const elementToggles = ref<ElementToggles>({
   showModelInfo: true,
   showPerformanceMetrics: true,
 });
-// 渲染尺寸 + 输出精度, 真正影响最终 PNG 的尺寸
+// 渲染尺寸 + 输出精度 + 背景与间距, 真正影响最终 PNG 的尺寸与外观
 const renderOptions = ref<ScreenshotRenderOptions>({
   width: RENDER_WIDTH_DEFAULT,
   widthMode: RENDER_WIDTH_MODE_DEFAULT,
   scale: CAPTURE_SCALE_DEFAULT,
+  bgConfig: { ...SCREENSHOT_BG_CONFIG_DEFAULT },
+  gap: SCREENSHOT_GAP_DEFAULT,
+  padding: SCREENSHOT_PADDING_DEFAULT,
+  enableDecoration: SCREENSHOT_DECORATION_DEFAULT,
 });
 
 // 关键: elementToggles 是对象 ref, Vue prop 比较是浅比较 (===)。
@@ -218,12 +230,21 @@ async function regenerateScreenshot() {
   const token = ++generationToken;
   generating.value = true;
   try {
+    // 解析自动 gap: undefined 时按布局模式取默认值 (卡片 8px, 气泡 12px)
+    const resolvedGap =
+      renderOptions.value.gap ??
+      (layoutOverrides.value.mode === "bubble" ? 12 : 8);
+
     const result = await generator.generate({
       elements,
       width: renderOptions.value.width,
       options: {
         scale: renderOptions.value.scale,
         concurrency: 6,
+        bgConfig: renderOptions.value.bgConfig,
+        gap: resolvedGap,
+        padding: renderOptions.value.padding,
+        enableDecoration: renderOptions.value.enableDecoration,
       },
       onProgress: (done, total, label) => {
         if (token !== generationToken) return;
@@ -356,3 +377,4 @@ onBeforeUnmount(() => {
   max-height: 280px;
 }
 </style>
+

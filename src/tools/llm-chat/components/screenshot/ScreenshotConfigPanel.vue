@@ -97,6 +97,105 @@
     </div>
 
     <div class="config-section">
+      <div class="section-title">背景与间距</div>
+      <div class="config-row">
+        <span class="config-label">背景类型</span>
+        <el-select
+          :model-value="renderOptions.bgConfig.type"
+          size="small"
+          style="width: 160px"
+          @update:model-value="onBgTypeChange"
+        >
+          <el-option label="跟随主题" value="theme" />
+          <el-option label="纯色背景" value="solid" />
+          <el-option label="应用壁纸" value="wallpaper" />
+        </el-select>
+      </div>
+      <div v-if="renderOptions.bgConfig.type === 'solid'" class="config-row">
+        <span class="config-label">背景颜色</span>
+        <el-color-picker
+          :model-value="renderOptions.bgConfig.color"
+          size="small"
+          :predefine="[
+            '#ffffff',
+            '#f5f7fa',
+            '#fafafa',
+            '#1a1a1a',
+            '#242424',
+            '#121212',
+          ]"
+          @update:model-value="onBgColorChange"
+        />
+        <span class="config-hint">{{ renderOptions.bgConfig.color }}</span>
+      </div>
+      <div
+        v-if="renderOptions.bgConfig.type === 'wallpaper'"
+        class="config-row"
+      >
+        <span class="config-label">壁纸不透明度</span>
+        <el-slider
+          :model-value="renderOptions.bgConfig.wallpaperOpacity"
+          :min="0"
+          :max="1"
+          :step="0.05"
+          size="small"
+          style="flex: 1; min-width: 80px"
+          @update:model-value="onWallpaperOpacityChange"
+        />
+        <span class="config-hint">
+          {{
+            Math.round((renderOptions.bgConfig.wallpaperOpacity ?? 0.6) * 100)
+          }}%
+        </span>
+      </div>
+      <div class="config-row">
+        <span class="config-label">消息间距</span>
+        <el-switch
+          :model-value="renderOptions.gap === undefined"
+          size="small"
+          active-text="自动"
+          @update:model-value="onGapAutoToggle"
+        />
+        <el-input-number
+          v-if="renderOptions.gap !== undefined"
+          :model-value="renderOptions.gap"
+          :min="SCREENSHOT_GAP_MIN"
+          :max="SCREENSHOT_GAP_MAX"
+          size="small"
+          controls-position="right"
+          style="width: 100px"
+          @update:model-value="onGapChange"
+        />
+        <span v-if="renderOptions.gap !== undefined" class="config-hint"
+          >px</span
+        >
+      </div>
+      <div class="config-row">
+        <span class="config-label">四周留白</span>
+        <el-input-number
+          :model-value="renderOptions.padding"
+          :min="SCREENSHOT_PADDING_MIN"
+          :max="SCREENSHOT_PADDING_MAX"
+          size="small"
+          controls-position="right"
+          style="width: 100px"
+          @update:model-value="onPaddingChange"
+        />
+        <span class="config-hint">px</span>
+      </div>
+      <div class="switch-row">
+        <el-switch
+          :model-value="renderOptions.enableDecoration"
+          @update:model-value="onDecorationToggle"
+        />
+        <span class="switch-label">卡片边框与投影装饰</span>
+      </div>
+      <p class="section-hint">
+        背景、间距与留白同时影响实时预览和最终输出图片。
+      </p>
+    </div>
+
+    <div class="config-section">
       <div class="section-title">折叠策略</div>
       <el-select v-model="collapseStrategy" size="small" style="width: 100%">
         <el-option label="强制展开" value="override-expand" />
@@ -147,11 +246,19 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
-import { ElInputNumber, ElOption, ElSelect, ElSwitch } from "element-plus";
+import {
+  ElColorPicker,
+  ElInputNumber,
+  ElOption,
+  ElSelect,
+  ElSlider,
+  ElSwitch,
+} from "element-plus";
 import type {
   CollapseStrategy,
   ElementToggles,
   LayoutOverrides,
+  ScreenshotBgType,
   ScreenshotRenderOptions,
 } from "./screenshotTypes";
 import {
@@ -159,6 +266,10 @@ import {
   RENDER_WIDTH_MAX,
   RENDER_WIDTH_MIN,
   RENDER_WIDTH_STEP,
+  SCREENSHOT_GAP_MAX,
+  SCREENSHOT_GAP_MIN,
+  SCREENSHOT_PADDING_MAX,
+  SCREENSHOT_PADDING_MIN,
 } from "./screenshotTypes";
 
 const layoutOverrides = defineModel<LayoutOverrides>("layoutOverrides", {
@@ -199,6 +310,63 @@ const isFixedWidth = computed<boolean>({
     };
   },
 });
+
+// ----- V4: 背景与间距配置事件处理 -----
+function onBgTypeChange(v: ScreenshotBgType) {
+  renderOptions.value = {
+    ...renderOptions.value,
+    bgConfig: { ...renderOptions.value.bgConfig, type: v },
+  };
+}
+
+function onBgColorChange(v: string | null) {
+  if (!v) return;
+  renderOptions.value = {
+    ...renderOptions.value,
+    bgConfig: { ...renderOptions.value.bgConfig, color: v },
+  };
+}
+
+function onWallpaperOpacityChange(v: number | number[]) {
+  const val = Array.isArray(v) ? v[0] : v;
+  renderOptions.value = {
+    ...renderOptions.value,
+    bgConfig: { ...renderOptions.value.bgConfig, wallpaperOpacity: val },
+  };
+}
+
+function onGapAutoToggle(isAuto: boolean | string | number) {
+  renderOptions.value = {
+    ...renderOptions.value,
+    gap: isAuto ? undefined : 8,
+  };
+}
+
+function onGapChange(v: number | undefined) {
+  if (typeof v !== "number" || !Number.isFinite(v)) return;
+  renderOptions.value = {
+    ...renderOptions.value,
+    gap: Math.min(SCREENSHOT_GAP_MAX, Math.max(SCREENSHOT_GAP_MIN, v)),
+  };
+}
+
+function onPaddingChange(v: number | undefined) {
+  if (typeof v !== "number" || !Number.isFinite(v)) return;
+  renderOptions.value = {
+    ...renderOptions.value,
+    padding: Math.min(
+      SCREENSHOT_PADDING_MAX,
+      Math.max(SCREENSHOT_PADDING_MIN, v)
+    ),
+  };
+}
+
+function onDecorationToggle(v: boolean | string | number) {
+  renderOptions.value = {
+    ...renderOptions.value,
+    enableDecoration: !!v,
+  };
+}
 </script>
 
 <style scoped>

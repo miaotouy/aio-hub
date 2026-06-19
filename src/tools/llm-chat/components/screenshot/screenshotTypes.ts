@@ -8,6 +8,42 @@ export type CollapseStrategy =
   | "override-expand"
   | "override-collapse";
 
+// ===================== V4: 背景与间距配置 =====================
+
+/** 截图背景类型 */
+export type ScreenshotBgType = "theme" | "solid" | "wallpaper";
+
+/** 截图背景配置 */
+export interface ScreenshotBgConfig {
+  type: ScreenshotBgType;
+  /** 纯色背景时的 HEX 颜色值 */
+  color: string;
+  /** 壁纸不透明度 (0.0 - 1.0) */
+  wallpaperOpacity: number;
+}
+
+/** 截图背景配置默认值 */
+export const SCREENSHOT_BG_CONFIG_DEFAULT: ScreenshotBgConfig = {
+  type: "theme",
+  color: "#ffffff",
+  wallpaperOpacity: 0.6,
+};
+
+/** 消息间距默认值: undefined 表示跟随布局模式自动 (卡片 8px, 气泡 12px) */
+export const SCREENSHOT_GAP_DEFAULT: number | undefined = undefined;
+/** 消息间距范围 */
+export const SCREENSHOT_GAP_MIN = 0;
+export const SCREENSHOT_GAP_MAX = 32;
+
+/** 四周留白默认值 (px) */
+export const SCREENSHOT_PADDING_DEFAULT = 16;
+/** 四周留白范围 */
+export const SCREENSHOT_PADDING_MIN = 0;
+export const SCREENSHOT_PADDING_MAX = 64;
+
+/** 卡片装饰默认值 */
+export const SCREENSHOT_DECORATION_DEFAULT = true;
+
 /** 截图元素显示覆盖配置 */
 export interface ScreenshotElementOverrides {
   showAvatar: boolean;
@@ -57,6 +93,16 @@ export interface ScreenshotRenderOptions {
    * 真实图片尺寸 = width * scale (横向)。
    */
   scale: number;
+
+  // --- V4: 背景与间距配置 ---
+  /** 背景配置 */
+  bgConfig: ScreenshotBgConfig;
+  /** 消息间距 (px), undefined 表示跟随布局模式自动 (卡片 8px, 气泡 12px) */
+  gap: number | undefined;
+  /** 四周留白 (内边距, px) */
+  padding: number;
+  /** 是否启用卡片外边框与投影装饰 */
+  enableDecoration: boolean;
 }
 
 /** provide/inject key: 截图元素覆盖 */

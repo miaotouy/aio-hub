@@ -13,6 +13,7 @@
  */
 
 import { domToCanvas } from "modern-screenshot";
+import type { ScreenshotBgConfig } from "../components/screenshot/screenshotTypes";
 
 // ===================== 类型 =====================
 
@@ -48,6 +49,16 @@ export interface StitchOptions extends ScreenshotScaleOptions {
   concurrency?: number;
   /** 进度回调 */
   onProgress?: (done: number, total: number, currentLabel: string) => void;
+
+  // --- V4: 背景与间距配置 ---
+  /** 背景配置 */
+  bgConfig?: ScreenshotBgConfig;
+  /** 消息间距 (px), undefined 表示不加间距 (紧贴拼接) */
+  gap?: number;
+  /** 四周留白 (px) */
+  padding?: number;
+  /** 是否启用卡片装饰 (圆角边框 + 投影) */
+  enableDecoration?: boolean;
 }
 
 export interface StitchResult {
@@ -280,13 +291,20 @@ export async function captureMessagesAndStitch(
   await Promise.all(workers);
 
   // 2. 计算总尺寸 (CSS 像素, 不乘 scale)
+  // V4: gap 默认 8px (与 ScreenshotRenderer CSS 中 mode-card 的 gap 默认一致)
+  const gap = options.gap ?? 8;
+  const padding = options.padding ?? 0;
   const captureWidth = resolvedWidth;
   const messageHeights = messageCanvases.map((c) => c.height / scale);
-  const totalHeight = messageHeights.reduce((sum, h) => sum + h, 0);
+  const contentHeight =
+    messageHeights.reduce((sum, h) => sum + h, 0) +
+    gap * Math.max(0, messageHeights.length - 1);
+  const totalWidth = captureWidth + padding * 2;
+  const totalHeight = contentHeight + padding * 2;
 
   // 3. 创建大画布
   const canvas = document.createElement("canvas");
-  canvas.width = Math.ceil(captureWidth * scale);
+  canvas.width = Math.ceil(totalWidth * scale);
   canvas.height = Math.ceil(totalHeight * scale);
 
   const ctx = canvas.getContext("2d");
@@ -295,25 +313,260 @@ export async function captureMessagesAndStitch(
   }
   ctx.scale(scale, scale);
 
-  // 4. 拼接消息 Canvas — 纯消息叠加, 不做卡片装饰
-  let y = 0;
+  // 4. 绘制背景 (壁纸模式需要异步加载图片)
+  await drawBackground(ctx, totalWidth, totalHeight, options.bgConfig);
+
+  // 5. 绘制卡片装饰 (圆角边框 + 投影)
+  if (options.enableDecoration) {
+    drawDecoration(ctx, totalWidth, totalHeight);
+  }
+
+  // 6. 拼接消息 Canvas — 精确累加 gap
+  let y = padding;
   for (let i = 0; i < messageCanvases.length; i++) {
     const msgCanvas = messageCanvases[i];
     const h = messageHeights[i];
     try {
-      ctx.drawImage(msgCanvas, 0, y, captureWidth, h);
+      ctx.drawImage(msgCanvas, padding, y, captureWidth, h);
     } catch (err) {
       // 单条截图失败不应阻塞整图, 继续下一条
       console.warn(`[screenshotCapture] drawImage 失败 (msg #${i}):`, err);
     }
-    y += h;
+    y += h + gap;
   }
 
   return {
     canvas,
-    width: captureWidth,
+    width: totalWidth,
     height: totalHeight,
   };
+}
+
+// ===================== V4: 背景绘制 =====================
+
+/**
+ * 从 CSS 变量 `--wallpaper-url` 解析出实际的 URL 字符串。
+ * 变量格式通常为: `url('/wallpapers/xxx.png')` 或 `url('https://...')` 或 `url('asset://...')`
+ *
+ * 注意: 文件名可能包含 `()` 等特殊字符, 必须使用引号配对匹配而非惰性匹配,
+ * 否则文件名中的 `)` 会导致正则提前截断 (如 `card_normal (93).jpg`)。
+ */
+function parseWallpaperUrl(): string | null {
+  const raw = getComputedStyle(document.documentElement)
+    .getPropertyValue("--wallpaper-url")
+    .trim();
+  if (!raw || raw === "none") return null;
+
+  // 优先匹配有引号包裹的 url('...') 或 url("...") — 使用反向引用确保引号配对
+  const quotedMatch = raw.match(/url\(\s*(['"])(.+)\1\s*\)/);
+  if (quotedMatch) return quotedMatch[2];
+
+  // 无引号情况: url(...)，匹配到字符串末尾的 ) (贪婪, 取最后一个右括号)
+  const unquotedMatch = raw.match(/url\(\s*(.+)\s*\)$/);
+  return unquotedMatch?.[1]?.trim() ?? null;
+}
+
+/**
+ * 加载图片为 HTMLImageElement，带超时兜底。
+ */
+function loadImageAsync(
+  src: string,
+  timeoutMs = 5000
+): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    const timer = setTimeout(() => resolve(null), timeoutMs);
+    img.onload = () => {
+      clearTimeout(timer);
+      resolve(img);
+    };
+    img.onerror = () => {
+      clearTimeout(timer);
+      resolve(null);
+    };
+    img.src = src;
+  });
+}
+
+/**
+ * 获取当前主题的不透明背景色
+ */
+function getThemeBgColor(): string {
+  const themeBg = getComputedStyle(document.documentElement)
+    .getPropertyValue("--container-bg")
+    .trim();
+  if (!themeBg) return "#ffffff";
+  const match = themeBg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (match) {
+    return `rgb(${match[1]}, ${match[2]}, ${match[3]})`;
+  }
+  return themeBg;
+}
+
+/**
+ * 在 Canvas 上绘制背景。
+ * - solid: 纯色填充
+ * - theme: 读取当前主题容器背景色 (强制不透明)
+ * - wallpaper: 加载系统壁纸图片, cover 绘制, 叠加半透明蒙层
+ * - 未配置时默认白色
+ */
+async function drawBackground(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  bgConfig?: ScreenshotBgConfig
+): Promise<void> {
+  const themeBgColor = getThemeBgColor();
+  const themeBgRaw = getComputedStyle(document.documentElement)
+    .getPropertyValue("--container-bg")
+    .trim();
+
+  if (!bgConfig) {
+    // 默认使用当前主题的不透明背景色，避免半透明输出
+    ctx.fillStyle = themeBgColor;
+    ctx.fillRect(0, 0, width, height);
+    return;
+  }
+
+  switch (bgConfig.type) {
+    case "solid":
+      ctx.fillStyle = bgConfig.color || themeBgColor;
+      ctx.fillRect(0, 0, width, height);
+      break;
+    case "theme": {
+      // 1. 先铺当前主题的不透明背景色
+      ctx.fillStyle = themeBgColor;
+      ctx.fillRect(0, 0, width, height);
+
+      // 2. 如果系统当前有壁纸，也需要跟随壁纸！
+      const wallpaperSrc = parseWallpaperUrl();
+      if (wallpaperSrc) {
+        const img = await loadImageAsync(wallpaperSrc);
+        if (img) {
+          const wallpaperOpacity = getComputedStyle(document.documentElement)
+            .getPropertyValue("--wallpaper-opacity")
+            .trim();
+          const opacity = wallpaperOpacity ? parseFloat(wallpaperOpacity) : 1;
+
+          // Cover 绘制: 等比缩放填满整个画布
+          const imgRatio = img.naturalWidth / img.naturalHeight;
+          const canvasRatio = width / height;
+          let drawWidth: number,
+            drawHeight: number,
+            drawX: number,
+            drawY: number;
+          if (imgRatio > canvasRatio) {
+            drawHeight = height;
+            drawWidth = height * imgRatio;
+            drawX = (width - drawWidth) / 2;
+            drawY = 0;
+          } else {
+            drawWidth = width;
+            drawHeight = width / imgRatio;
+            drawX = 0;
+            drawY = (height - drawHeight) / 2;
+          }
+
+          ctx.save();
+          ctx.globalAlpha = opacity;
+          ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+          ctx.restore();
+
+          // 3. 叠加半透明主题色蒙层，保证文字可读性
+          if (themeBgRaw) {
+            ctx.fillStyle = themeBgRaw;
+            ctx.fillRect(0, 0, width, height);
+          }
+        }
+      }
+      break;
+    }
+    case "wallpaper": {
+      // 1. 先铺当前主题的不透明背景色，而不是硬编码的白色！
+      ctx.fillStyle = themeBgColor;
+      ctx.fillRect(0, 0, width, height);
+
+      // 2. 尝试加载系统壁纸图片
+      const wallpaperSrc = parseWallpaperUrl();
+      if (wallpaperSrc) {
+        const img = await loadImageAsync(wallpaperSrc);
+        if (img) {
+          // Cover 绘制: 等比缩放填满整个画布
+          const imgRatio = img.naturalWidth / img.naturalHeight;
+          const canvasRatio = width / height;
+          let drawWidth: number,
+            drawHeight: number,
+            drawX: number,
+            drawY: number;
+          if (imgRatio > canvasRatio) {
+            drawHeight = height;
+            drawWidth = height * imgRatio;
+            drawX = (width - drawWidth) / 2;
+            drawY = 0;
+          } else {
+            drawWidth = width;
+            drawHeight = width / imgRatio;
+            drawX = 0;
+            drawY = (height - drawHeight) / 2;
+          }
+
+          ctx.save();
+          ctx.globalAlpha = bgConfig.wallpaperOpacity ?? 0.6;
+          ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+          ctx.restore();
+
+          // 3. 叠加半透明主题色蒙层，保证文字可读性
+          if (themeBgRaw) {
+            ctx.fillStyle = themeBgRaw;
+            ctx.fillRect(0, 0, width, height);
+          }
+        }
+      }
+      break;
+    }
+  }
+}
+
+// ===================== V4: 卡片装饰绘制 =====================
+
+/**
+ * 绘制精致的圆角矩形外边框与微弱投影。
+ */
+function drawDecoration(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number
+): void {
+  const radius = 12;
+  const inset = 0.5; // 边框内缩半像素, 避免被裁切
+
+  // 投影
+  ctx.save();
+  ctx.shadowColor = "rgba(0, 0, 0, 0.06)";
+  ctx.shadowBlur = 12;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 2;
+
+  // 圆角路径
+  ctx.beginPath();
+  ctx.roundRect(inset, inset, width - inset * 2, height - inset * 2, radius);
+  ctx.closePath();
+
+  // 仅绘制投影 (透明填充触发阴影渲染)
+  ctx.fillStyle = "rgba(0, 0, 0, 0)";
+  ctx.fill();
+  ctx.restore();
+
+  // 边框
+  ctx.save();
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.08)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(inset, inset, width - inset * 2, height - inset * 2, radius);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
 }
 
 /**

@@ -96,6 +96,10 @@
               :width="width"
               :element-toggles="elementToggles"
               :layout-overrides="layoutOverrides"
+              :bg-config="bgConfig"
+              :gap="gap"
+              :padding="padding"
+              :enable-decoration="enableDecoration"
             />
             <div v-else class="preview-empty">
               <el-icon :size="32"><Eye /></el-icon>
@@ -196,8 +200,8 @@ import type {
   CollapseStrategy,
   ElementToggles,
   LayoutOverrides,
+  ScreenshotBgConfig,
 } from "./screenshotTypes";
-
 interface Props {
   /** ScreenshotRenderer props */
   messages: ChatMessageNode[];
@@ -213,6 +217,15 @@ interface Props {
   elementToggles: ElementToggles;
   layoutOverrides: LayoutOverrides;
 
+  /** V4: 背景配置 */
+  bgConfig?: ScreenshotBgConfig;
+  /** V4: 消息间距 */
+  gap?: number;
+  /** V4: 四周留白 */
+  padding?: number;
+  /** V4: 卡片装饰 */
+  enableDecoration?: boolean;
+
   /** 生成结果 */
   lastImageUrl: string;
   lastCanvas: HTMLCanvasElement | null;
@@ -224,6 +237,8 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   isSending: false,
   width: 720,
+  padding: 0,
+  enableDecoration: false,
 });
 
 const emit = defineEmits<{
@@ -573,3 +588,4 @@ function openImageViewer() {
   gap: 8px;
 }
 </style>
+

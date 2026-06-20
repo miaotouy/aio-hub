@@ -364,9 +364,71 @@
           />
           <span class="switch-label">显示 AIO Hub Logo</span>
         </div>
+        <div class="switch-row">
+          <el-switch
+            :model-value="renderOptions.brand.showDescription ?? false"
+            @update:model-value="onBrandShowDescriptionChange"
+          />
+          <span class="switch-label">显示应用描述</span>
+        </div>
+        <div v-if="renderOptions.brand.showDescription" class="config-row">
+          <span class="config-label">描述文字</span>
+          <div class="config-value">
+            <el-input
+              :model-value="renderOptions.brand.descriptionText ?? ''"
+              size="small"
+              style="width: 160px"
+              :maxlength="60"
+              @update:model-value="onBrandDescriptionTextChange"
+            />
+          </div>
+        </div>
+        <div class="config-section-divider"></div>
+        <div class="switch-row">
+          <el-switch
+            :model-value="renderOptions.brand.showTopic ?? false"
+            @update:model-value="onBrandShowTopicChange"
+          />
+          <span class="switch-label">显示话题</span>
+        </div>
+        <div class="switch-row">
+          <el-switch
+            :model-value="renderOptions.brand.showAgents ?? false"
+            @update:model-value="onBrandShowAgentsChange"
+          />
+          <span class="switch-label">显示参与智能体</span>
+        </div>
+        <div class="switch-row">
+          <el-switch
+            :model-value="renderOptions.brand.showUser ?? false"
+            @update:model-value="onBrandShowUserChange"
+          />
+          <span class="switch-label">显示参与用户</span>
+        </div>
+        <div class="config-section-divider"></div>
+        <div class="switch-row">
+          <el-switch
+            :model-value="renderOptions.brand.showQrCode ?? false"
+            @update:model-value="onBrandShowQrCodeChange"
+          />
+          <span class="switch-label">显示官网二维码</span>
+        </div>
+        <div v-if="renderOptions.brand.showQrCode" class="config-row">
+          <span class="config-label">官网链接</span>
+          <div class="config-value">
+            <el-input
+              :model-value="renderOptions.brand.qrCodeUrl ?? ''"
+              size="small"
+              style="width: 160px"
+              placeholder="https://aiohub-app.com/"
+              @update:model-value="onBrandQrCodeUrlChange"
+            />
+          </div>
+        </div>
       </template>
       <p class="section-hint">
         标识会作为独立的截图元素拼接在长图顶部或底部, 复用毛玻璃壁纸背景。
+        话题、参与者、二维码等信息均为可选展示。
       </p>
     </div>
 
@@ -648,6 +710,57 @@ function onBrandShowLogoChange(v: boolean | string | number) {
   renderOptions.value = {
     ...renderOptions.value,
     brand: { ...renderOptions.value.brand, showLogo: !!v },
+  };
+}
+
+function onBrandShowDescriptionChange(v: boolean | string | number) {
+  renderOptions.value = {
+    ...renderOptions.value,
+    brand: { ...renderOptions.value.brand, showDescription: !!v },
+  };
+}
+
+function onBrandDescriptionTextChange(v: string | number | null | undefined) {
+  const text = typeof v === "string" ? v : String(v ?? "");
+  renderOptions.value = {
+    ...renderOptions.value,
+    brand: { ...renderOptions.value.brand, descriptionText: text },
+  };
+}
+
+function onBrandShowTopicChange(v: boolean | string | number) {
+  renderOptions.value = {
+    ...renderOptions.value,
+    brand: { ...renderOptions.value.brand, showTopic: !!v },
+  };
+}
+
+function onBrandShowAgentsChange(v: boolean | string | number) {
+  renderOptions.value = {
+    ...renderOptions.value,
+    brand: { ...renderOptions.value.brand, showAgents: !!v },
+  };
+}
+
+function onBrandShowUserChange(v: boolean | string | number) {
+  renderOptions.value = {
+    ...renderOptions.value,
+    brand: { ...renderOptions.value.brand, showUser: !!v },
+  };
+}
+
+function onBrandShowQrCodeChange(v: boolean | string | number) {
+  renderOptions.value = {
+    ...renderOptions.value,
+    brand: { ...renderOptions.value.brand, showQrCode: !!v },
+  };
+}
+
+function onBrandQrCodeUrlChange(v: string | number | null | undefined) {
+  const text = typeof v === "string" ? v : String(v ?? "");
+  renderOptions.value = {
+    ...renderOptions.value,
+    brand: { ...renderOptions.value.brand, qrCodeUrl: text },
   };
 }
 </script>

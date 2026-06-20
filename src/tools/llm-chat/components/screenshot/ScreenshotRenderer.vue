@@ -18,9 +18,10 @@ import {
   type ScreenshotElementOverrides,
   type ScreenshotWatermarkConfig,
   type WallpaperMode,
+  SCREENSHOT_BRAND_DEFAULT,
   SCREENSHOT_OVERRIDES_KEY,
 } from "./screenshotTypes";
-import aioIconColor from "@/assets/aio-icon-color.svg";
+import ScreenshotBrandStrip from "./ScreenshotBrandStrip.vue";
 
 const DEFAULT_OVERRIDES: ScreenshotElementOverrides = {
   showAvatar: true,
@@ -326,6 +327,8 @@ const showBrandFooter = computed(
   () => props.brand?.show === "bottom" || props.brand?.show === "both"
 );
 
+const resolvedBrand = computed(() => props.brand ?? SCREENSHOT_BRAND_DEFAULT);
+
 const rootRef = ref<HTMLElement | null>(null);
 const brandHeaderRef = ref<HTMLElement | null>(null);
 const brandFooterRef = ref<HTMLElement | null>(null);
@@ -375,30 +378,17 @@ defineExpose({
       '--screenshot-width': `${props.width}px`,
     }"
   >
-    <!-- V5: 顶部品牌标识 (毛玻璃 + 标识 + 自定义文案)
-         外层作为 message-slot-like wrapper, 内层 message-background-container
-         负责毛玻璃背景与圆角, 与普通消息结构一致, captureMessagesAndStitch
-         里的 querySelector 才能正确识别。 -->
-    <div
+    <!-- V5: 顶部品牌标识 -->
+    <ScreenshotBrandStrip
       v-if="showBrandHeader"
       ref="brandHeaderRef"
-      class="screenshot-brand-strip screenshot-brand-header"
-    >
-      <div class="message-background-container">
-        <div class="message-background-slice"></div>
-      </div>
-      <div class="screenshot-brand-content">
-        <img
-          v-if="props.brand?.showLogo"
-          :src="aioIconColor"
-          class="screenshot-brand-logo"
-          alt="AIO Hub"
-        />
-        <span class="screenshot-brand-text">{{
-          props.brand?.text || "AIO Hub"
-        }}</span>
-      </div>
-    </div>
+      :brand="resolvedBrand"
+      :session-index="sessionIndex"
+      :session-detail="sessionDetail"
+      :messages="messages"
+      position="top"
+      class="screenshot-brand-header"
+    />
 
     <div
       class="messages-container"
@@ -511,27 +501,17 @@ defineExpose({
       </template>
     </div>
 
-    <!-- V5: 底部品牌标识 (结构同上) -->
-    <div
+    <!-- V5: 底部品牌标识 -->
+    <ScreenshotBrandStrip
       v-if="showBrandFooter"
       ref="brandFooterRef"
-      class="screenshot-brand-strip screenshot-brand-footer"
-    >
-      <div class="message-background-container">
-        <div class="message-background-slice"></div>
-      </div>
-      <div class="screenshot-brand-content">
-        <img
-          v-if="props.brand?.showLogo"
-          :src="aioIconColor"
-          class="screenshot-brand-logo"
-          alt="AIO Hub"
-        />
-        <span class="screenshot-brand-text">{{
-          props.brand?.text || "AIO Hub"
-        }}</span>
-      </div>
-    </div>
+      :brand="resolvedBrand"
+      :session-index="sessionIndex"
+      :session-detail="sessionDetail"
+      :messages="messages"
+      position="bottom"
+      class="screenshot-brand-footer"
+    />
 
     <!-- V5: 水印层 (平铺于整张长图, 实时预览 + 导出后由 drawWatermark 重新绘制以保证高保真) -->
     <div
@@ -584,88 +564,23 @@ defineExpose({
 }
 
 /* 确保内容在壁纸层之上 */
-.screenshot-renderer > .messages-container,
-.screenshot-renderer > .screenshot-brand-strip {
+.screenshot-renderer > .messages-container {
   position: relative;
   z-index: 1;
 }
 
-/* V5: 品牌头/脚 (与消息气泡共享 .message-background-container 的毛玻璃后合成) */
-.screenshot-brand-strip {
-  /* 作为 message-slot-like wrapper, position: relative 让内层
-   * .message-background-container (默认 position: absolute, inset: 0)
-   * 能相对自己铺满, 同时 .screenshot-brand-content 也能用 z-index 浮在背景层之上 */
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
-  border-radius: 12px;
-  overflow: hidden;
-  /* 与消息气泡的内边距对齐, 给品牌横条一个柔和的留白 */
-  margin: 12px 0;
-  flex-shrink: 0;
-}
-
-/* 内层 .message-background-container 继承外层 12px 圆角,
- * 与 message-slot 中消息气泡的视觉保持一致 */
-.screenshot-brand-strip > .message-background-container {
-  border-radius: 12px;
-}
-
-/* 关键：原 ChatMessage.vue / ToolCallMessage.vue 中的 .message-background-container
- * 样式 (position: absolute; backdrop-filter 等) 是 scoped 的 (会带 data-v-xxx 后缀),
- * 不会跨组件作用到本组件的 brand 节点, 所以这里必须用 :deep() 重新声明, 否则
- * 品牌横条里这两个 div 只是普通块级元素, 完全没有毛玻璃背景。 */
-.screenshot-brand-strip :deep(.message-background-container) {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  overflow: hidden;
-  transform: translateZ(0);
-}
-
-.screenshot-brand-strip :deep(.message-background-slice) {
-  position: absolute;
-  inset: 0;
-  background-color: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
-  -webkit-backdrop-filter: blur(var(--ui-blur));
-  border-radius: inherit;
-}
-
-/* 头/脚外间距控制: 紧贴边缘时, 移除对应方向的外边距, 与消息流无缝衔接 */
+/* 头/脚外间距控制 */
 .screenshot-brand-header {
+  position: relative;
+  z-index: 1;
   margin-top: 0;
   margin-bottom: 12px;
 }
 .screenshot-brand-footer {
-  margin-top: 12px;
-  margin-bottom: 0;
-}
-
-.screenshot-brand-content {
   position: relative;
   z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-color-primary, currentColor);
-}
-
-.screenshot-brand-logo {
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
-  display: block;
-}
-
-.screenshot-brand-text {
-  letter-spacing: 0.4px;
+  margin-top: 12px;
+  margin-bottom: 0;
 }
 
 /* V4: 卡片装饰 */

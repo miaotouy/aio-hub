@@ -101,6 +101,20 @@ export interface ScreenshotBrandConfig {
   text: string;
   /** 是否显示 Logo (项目内置 aio-icon-color) */
   showLogo: boolean;
+  /** 是否显示应用描述/口号 */
+  showDescription?: boolean;
+  /** 应用描述文字 */
+  descriptionText?: string;
+  /** 是否显示官网链接/二维码 */
+  showQrCode?: boolean;
+  /** 官网链接或二维码内容，默认是 AIO Hub 的 GitHub 地址 */
+  qrCodeUrl?: string;
+  /** 是否显示会话话题 (Session Topic) */
+  showTopic?: boolean;
+  /** 是否显示参与的 Agent */
+  showAgents?: boolean;
+  /** 是否显示参与的用户 */
+  showUser?: boolean;
 }
 
 /** 标识默认值 (关闭, 不打扰用户) */
@@ -108,6 +122,13 @@ export const SCREENSHOT_BRAND_DEFAULT: ScreenshotBrandConfig = {
   show: "none",
   text: "AIO Hub",
   showLogo: true,
+  showDescription: false,
+  descriptionText: "一站式桌面AI工具枢纽",
+  showQrCode: false,
+  qrCodeUrl: "https://aiohub-app.com",
+  showTopic: false,
+  showAgents: false,
+  showUser: false,
 };
 
 // -------------- 截图元素显示覆盖配置 --------------

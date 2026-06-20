@@ -14,9 +14,13 @@ import {
   type CollapseStrategy,
   type LayoutOverrides,
   type ScreenshotBgConfig,
+  type ScreenshotBrandConfig,
   type ScreenshotElementOverrides,
+  type ScreenshotWatermarkConfig,
+  type WallpaperMode,
   SCREENSHOT_OVERRIDES_KEY,
 } from "./screenshotTypes";
+import aioIconColor from "@/assets/aio-icon-color.svg";
 
 const DEFAULT_OVERRIDES: ScreenshotElementOverrides = {
   showAvatar: true,
@@ -51,6 +55,10 @@ interface Props {
   padding?: number;
   /** V4: 是否启用卡片装饰 */
   enableDecoration?: boolean;
+  /** V5: 水印配置 */
+  watermark?: ScreenshotWatermarkConfig;
+  /** V5: 品牌标识 (头/脚) 配置 */
+  brand?: ScreenshotBrandConfig;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -143,6 +151,28 @@ function getThemeBgColor(): string {
   return themeBg;
 }
 
+// ----- V5: 壁纸平铺方式 → CSS 变量 -----
+// cover / contain / tile / stretch 四种模式在预览端的实现:
+// - cover / contain: background-size: cover / contain
+// - tile: background-size: auto (浏览器使用图像自然尺寸) + background-repeat: repeat
+// - stretch: background-size: 100% 100% + background-repeat: no-repeat
+function wallpaperStyleVars(mode: WallpaperMode | undefined): {
+  size: string;
+  repeat: string;
+} {
+  switch (mode) {
+    case "contain":
+      return { size: "contain", repeat: "no-repeat" };
+    case "tile":
+      return { size: "auto", repeat: "repeat" };
+    case "stretch":
+      return { size: "100% 100%", repeat: "no-repeat" };
+    case "cover":
+    default:
+      return { size: "cover", repeat: "no-repeat" };
+  }
+}
+
 // ----- V4: 背景 / 间距 / 留白 / 装饰 CSS 变量 -----
 const v4StyleVars = computed<Record<string, string>>(() => {
   const vars: Record<string, string> = {};
@@ -222,18 +252,104 @@ const v4StyleVars = computed<Record<string, string>>(() => {
         break;
       }
     }
+
+    // V5: 壁纸平铺方式 (cover/contain/tile/stretch) — 作用于 ::before 伪元素
+    const { size, repeat } = wallpaperStyleVars(props.bgConfig.wallpaperMode);
+    vars["--screenshot-wallpaper-size"] = size;
+    vars["--screenshot-wallpaper-repeat"] = repeat;
   }
 
   return vars;
 });
 
-const rootRef = ref<HTMLElement | null>(null);
+// ----- V5: 水印层 (实时预览用) -----
+// 在前端用微型 Canvas 绘制单个水印 tile, 转成 data URL 作为背景, 配合 background-repeat 平铺。
+// 这样既避免在每个 .message-slot 节点上重复创建 <canvas>, 又能与 export 端 createPattern
+// 算法共享同一组参数, 达到所见即所得。
+const watermarkStyle = computed<Record<string, string>>(() => {
+  const wm = props.watermark;
+  if (!wm || !wm.enable || !wm.text) {
+    return { display: "none" } as Record<string, string>;
+  }
 
-/** 暴露给外部截图工具: 收集所有可截图的消息节点 */
+  const tile = makeWatermarkTile(wm);
+  if (!tile) return { display: "none" } as Record<string, string>;
+
+  return {
+    display: "block",
+    "background-image": `url("${tile}")`,
+    "background-repeat": "repeat",
+  } as Record<string, string>;
+});
+
+/**
+ * 在一个略大于单字宽度的小画布上绘制单个水印文字 (按角度旋转),
+ * 返回 data URL。后续配合 background-repeat 即可在 .screenshot-watermark-layer 上平铺。
+ */
+function makeWatermarkTile(wm: ScreenshotWatermarkConfig): string | null {
+  if (typeof document === "undefined") return null;
+  try {
+    // 估算一个安全的画布尺寸: 文字宽度 + 上下 padding, 再加上 gap 的视觉余量
+    const padding = 16;
+    const textW = Math.max(80, wm.text.length * wm.fontSize * 0.7);
+    const tileW = Math.ceil(textW + padding * 2 + wm.gap);
+    const tileH = Math.ceil(wm.fontSize * 2 + padding * 2 + wm.gap);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = tileW;
+    canvas.height = tileH;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    ctx.clearRect(0, 0, tileW, tileH);
+    ctx.fillStyle = wm.color;
+    ctx.font = `${wm.fontSize}px var(--app-font-family, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif)`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    // 旋转绘制, 中心点放在画布中心 (留出 gap, 让相邻 tile 之间有空隙)
+    ctx.translate(tileW / 2, tileH / 2);
+    ctx.rotate((wm.angle * Math.PI) / 180);
+    ctx.fillText(wm.text, 0, 0);
+
+    return canvas.toDataURL("image/png");
+  } catch {
+    return null;
+  }
+}
+
+// ----- V5: 品牌标识 (头/脚) 可见性 -----
+const showBrandHeader = computed(
+  () => props.brand?.show === "top" || props.brand?.show === "both"
+);
+const showBrandFooter = computed(
+  () => props.brand?.show === "bottom" || props.brand?.show === "both"
+);
+
+const rootRef = ref<HTMLElement | null>(null);
+const brandHeaderRef = ref<HTMLElement | null>(null);
+const brandFooterRef = ref<HTMLElement | null>(null);
+
+/**
+ * 暴露给外部截图工具: 收集所有可截图的消息节点 + 品牌头/脚节点。
+ *
+ * 品牌节点本身不在 .messages-container 内 (以免污染消息流布局),
+ * 因此不会出现在 querySelectorAll(".message-slot") 结果中,
+ * 需要手动 prepend / append。captureMessagesAndStitch 会按顺序拼接到长图两端。
+ */
 function getMessageElements(): HTMLElement[] {
   const root = rootRef.value;
   if (!root) return [];
-  return Array.from(root.querySelectorAll<HTMLElement>(".message-slot"));
+  const slots = Array.from(root.querySelectorAll<HTMLElement>(".message-slot"));
+  const out: HTMLElement[] = [];
+  if (showBrandHeader.value && brandHeaderRef.value) {
+    out.push(brandHeaderRef.value);
+  }
+  out.push(...slots);
+  if (showBrandFooter.value && brandFooterRef.value) {
+    out.push(brandFooterRef.value);
+  }
+  return out;
 }
 
 defineExpose({
@@ -259,6 +375,29 @@ defineExpose({
       '--screenshot-width': `${props.width}px`,
     }"
   >
+    <!-- V5: 顶部品牌标识 (毛玻璃 + 标识 + 自定义文案)
+         外层作为 message-slot-like wrapper, 内层 message-background-container
+         负责毛玻璃背景与圆角, 与普通消息结构一致, captureMessagesAndStitch
+         里的 querySelector 才能正确识别。 -->
+    <div
+      v-if="showBrandHeader"
+      ref="brandHeaderRef"
+      class="screenshot-brand-strip screenshot-brand-header"
+    >
+      <div class="message-background-container">
+        <div class="message-background-slice"></div>
+      </div>
+      <div class="screenshot-brand-content">
+        <img
+          v-if="props.brand?.showLogo"
+          :src="aioIconColor"
+          class="screenshot-brand-logo"
+          alt="AIO Hub"
+        />
+        <span class="screenshot-brand-text">{{ props.brand?.text || "AIO Hub" }}</span>
+      </div>
+    </div>
+
     <div
       class="messages-container"
       :class="[
@@ -369,6 +508,33 @@ defineExpose({
         </div>
       </template>
     </div>
+
+    <!-- V5: 底部品牌标识 (结构同上) -->
+    <div
+      v-if="showBrandFooter"
+      ref="brandFooterRef"
+      class="screenshot-brand-strip screenshot-brand-footer"
+    >
+      <div class="message-background-container">
+        <div class="message-background-slice"></div>
+      </div>
+      <div class="screenshot-brand-content">
+        <img
+          v-if="props.brand?.showLogo"
+          :src="aioIconColor"
+          class="screenshot-brand-logo"
+          alt="AIO Hub"
+        />
+        <span class="screenshot-brand-text">{{ props.brand?.text || "AIO Hub" }}</span>
+      </div>
+    </div>
+
+    <!-- V5: 水印层 (平铺于整张长图, 实时预览 + 导出后由 drawWatermark 重新绘制以保证高保真) -->
+    <div
+      v-show="props.watermark?.enable"
+      class="screenshot-watermark-layer"
+      :style="watermarkStyle"
+    ></div>
   </div>
 </template>
 
@@ -392,19 +558,110 @@ defineExpose({
   position: absolute;
   inset: 0;
   background-image: var(--screenshot-wallpaper, none);
-  background-size: cover;
+  /* V5: 平铺方式由 CSS 变量控制 (cover / contain / tile / stretch) */
+  background-size: var(--screenshot-wallpaper-size, cover);
   background-position: center;
-  background-repeat: no-repeat;
+  background-repeat: var(--screenshot-wallpaper-repeat, no-repeat);
   opacity: var(--screenshot-wallpaper-opacity, 0);
   border-radius: inherit;
   pointer-events: none;
   z-index: 0;
 }
 
+/* V5: 水印层 (绝对定位, 平铺于 renderer 内部, 在壁纸之上, 内容之下) */
+.screenshot-watermark-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* z-index: 2 — 必须位于 messages-container / brand-strip (z:1) 之上,
+   * 否则会被消息容器的不透明背景完全遮住, 预览看不到水印。
+   * 这与导出端 drawWatermark 在所有消息 drawImage 之后 fillRect 整张图保持一致 (所见即所得)。 */
+  z-index: 2;
+}
+
 /* 确保内容在壁纸层之上 */
-.screenshot-renderer > .messages-container {
+.screenshot-renderer > .messages-container,
+.screenshot-renderer > .screenshot-brand-strip {
   position: relative;
   z-index: 1;
+}
+
+/* V5: 品牌头/脚 (与消息气泡共享 .message-background-container 的毛玻璃后合成) */
+.screenshot-brand-strip {
+  /* 作为 message-slot-like wrapper, position: relative 让内层
+   * .message-background-container (默认 position: absolute, inset: 0)
+   * 能相对自己铺满, 同时 .screenshot-brand-content 也能用 z-index 浮在背景层之上 */
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  overflow: hidden;
+  /* 与消息气泡的内边距对齐, 给品牌横条一个柔和的留白 */
+  margin: 12px 0;
+  flex-shrink: 0;
+}
+
+/* 内层 .message-background-container 继承外层 12px 圆角,
+ * 与 message-slot 中消息气泡的视觉保持一致 */
+.screenshot-brand-strip > .message-background-container {
+  border-radius: 12px;
+}
+
+/* 关键：原 ChatMessage.vue / ToolCallMessage.vue 中的 .message-background-container
+ * 样式 (position: absolute; backdrop-filter 等) 是 scoped 的 (会带 data-v-xxx 后缀),
+ * 不会跨组件作用到本组件的 brand 节点, 所以这里必须用 :deep() 重新声明, 否则
+ * 品牌横条里这两个 div 只是普通块级元素, 完全没有毛玻璃背景。 */
+.screenshot-brand-strip :deep(.message-background-container) {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  overflow: hidden;
+  transform: translateZ(0);
+}
+
+.screenshot-brand-strip :deep(.message-background-slice) {
+  position: absolute;
+  inset: 0;
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  -webkit-backdrop-filter: blur(var(--ui-blur));
+  border-radius: inherit;
+}
+
+/* 头/脚外间距控制: 紧贴边缘时, 移除对应方向的外边距, 与消息流无缝衔接 */
+.screenshot-brand-header {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+.screenshot-brand-footer {
+  margin-top: 12px;
+  margin-bottom: 0;
+}
+
+.screenshot-brand-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-color-primary, currentColor);
+}
+
+.screenshot-brand-logo {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  display: block;
+}
+
+.screenshot-brand-text {
+  letter-spacing: 0.4px;
 }
 
 /* V4: 卡片装饰 */

@@ -13,7 +13,12 @@
  */
 
 import { domToCanvas } from "modern-screenshot";
-import type { ScreenshotBgConfig } from "../components/screenshot/screenshotTypes";
+import type {
+  ScreenshotBgConfig,
+  ScreenshotBrandConfig,
+  ScreenshotWatermarkConfig,
+  WallpaperMode,
+} from "../components/screenshot/screenshotTypes";
 
 // ===================== 类型 =====================
 
@@ -61,6 +66,13 @@ export interface StitchOptions extends ScreenshotScaleOptions {
   enableDecoration?: boolean;
   /** 消息背景容器的圆角 (px), 由调用方从 DOM 获取或传入, 默认 8 */
   messageBorderRadius?: number;
+
+  // --- V5: 水印 ---
+  /** 水印配置 (拼接完成后, 会在大 Canvas 上平铺绘制) */
+  watermark?: ScreenshotWatermarkConfig;
+  // --- V5: 品牌标识 ---
+  /** 品牌标识配置 — 当前仅作占位与日志, 实际渲染由 ScreenshotRenderer 通过 getMessageElements 注入 */
+  brand?: ScreenshotBrandConfig;
 }
 
 export interface StitchResult {
@@ -131,7 +143,8 @@ function copyCssVariables(source: HTMLElement, target: HTMLElement): void {
  * 2. 替换 backdrop-filter:
  *    - 对 .message-background-slice: 如果有壁纸则设为完全透明 (Canvas 后合成模糊)
  *    - 对其他元素: 回退为实色背景
- * 3. 可选: 注入临时样式隐藏所有滚动条
+ * 3. 隐藏 V5 水印层 (避免被 modern-screenshot 重复绘制; 导出时由 drawWatermark 统一重绘)
+ * 4. 可选: 注入临时样式隐藏所有滚动条
  */
 function applyLayoutGuards(
   clonedRoot: HTMLElement,
@@ -141,6 +154,12 @@ function applyLayoutGuards(
   for (const child of allElements) {
     child.style.setProperty("content-visibility", "visible", "important");
     child.style.setProperty("contain-intrinsic-size", "auto 0px", "important");
+
+    // V5: 水印层在导出时由 drawWatermark 重新绘制, 这里直接隐藏避免重复
+    if (child.classList.contains("screenshot-watermark-layer")) {
+      child.style.display = "none";
+      continue;
+    }
 
     const childStyle = getComputedStyle(child);
     if (
@@ -247,6 +266,7 @@ export async function captureElementAsCanvas(
  * 1. 并发截图 (Promise.all 限流到 concurrency 个), 得到 N 张独立 Canvas
  * 2. 计算总高度 = Σ(messageHeight)
  * 3. 创建大画布, 按 y 偏移依次 drawImage 消息 Canvas
+ * 4. (V5) 在所有消息拼接完成后, 在大 Canvas 上平铺绘制水印
  */
 export async function captureMessagesAndStitch(
   elements: HTMLElement[],
@@ -372,6 +392,7 @@ export async function captureMessagesAndStitch(
     let bgRadius = borderRadius;
 
     // 尝试获取实际的背景容器 (气泡模式下对齐气泡的实际位置和尺寸)
+    // V5: 品牌头/脚也使用 .message-background-container, 因此自动获得毛玻璃后合成
     const bgContainer = el?.querySelector(
       ".message-background-container"
     ) as HTMLElement | null;
@@ -422,11 +443,65 @@ export async function captureMessagesAndStitch(
     y += h + gap;
   }
 
+  // 8. V5: 绘制水印层 (整张长图覆盖, 在所有消息之上)
+  if (options.watermark?.enable) {
+    drawWatermark(ctx, totalWidth, totalHeight, options.watermark);
+  }
+
   return {
     canvas,
     width: totalWidth,
     height: totalHeight,
   };
+}
+
+// ===================== V5: 水印绘制 =====================
+
+/**
+ * 在大 Canvas 上以 createPattern 平铺绘制水印。
+ *
+ * 算法与 ScreenshotRenderer.vue 的 makeWatermarkTile 保持一致:
+ * 1. 创建一个略大于单字宽度的小 Canvas
+ * 2. 旋转角度后绘制居中文字
+ * 3. 转为 CanvasPattern, fillRect 整张图
+ */
+function drawWatermark(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  wm: ScreenshotWatermarkConfig
+): void {
+  if (!wm.enable || !wm.text) return;
+  try {
+    const padding = 16;
+    const textW = Math.max(80, wm.text.length * wm.fontSize * 0.7);
+    const tileW = Math.ceil(textW + padding * 2 + wm.gap);
+    const tileH = Math.ceil(wm.fontSize * 2 + padding * 2 + wm.gap);
+
+    const tileCanvas = document.createElement("canvas");
+    tileCanvas.width = tileW;
+    tileCanvas.height = tileH;
+    const tileCtx = tileCanvas.getContext("2d");
+    if (!tileCtx) return;
+
+    tileCtx.clearRect(0, 0, tileW, tileH);
+    tileCtx.fillStyle = wm.color;
+    tileCtx.font = `${wm.fontSize}px var(--app-font-family, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif)`;
+    tileCtx.textAlign = "center";
+    tileCtx.textBaseline = "middle";
+    tileCtx.translate(tileW / 2, tileH / 2);
+    tileCtx.rotate((wm.angle * Math.PI) / 180);
+    tileCtx.fillText(wm.text, 0, 0);
+
+    const pattern = ctx.createPattern(tileCanvas, "repeat");
+    if (!pattern) return;
+    ctx.save();
+    ctx.fillStyle = pattern;
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+  } catch (err) {
+    console.warn("[screenshotCapture] drawWatermark 失败:", err);
+  }
 }
 
 // ===================== V4: 模糊背景合成 =====================
@@ -435,7 +510,7 @@ export async function captureMessagesAndStitch(
  * 创建一张与最终大图同尺寸的"模糊版背景" Canvas。
  *
  * 流程:
- * 1. 绘制壁纸 (cover) + container-bg 蒙层 (模拟真实渲染中消息下方的内容)
+ * 1. 绘制壁纸 (平铺方式由 bgConfig.wallpaperMode 决定) + container-bg 蒙层 (模拟真实渲染中消息下方的内容)
  * 2. 对整张 canvas 应用 blur 滤镜
  *
  * 返回的 canvas 供后续 clip + drawImage 使用, 模拟 backdrop-filter 效果。
@@ -463,10 +538,12 @@ async function createBlurredBackgroundCanvas(
     .getPropertyValue("--container-bg")
     .trim();
 
-  // 获取壁纸不透明度
+  // 获取壁纸不透明度与平铺方式
   let wallpaperOpacity = 1;
+  let wallpaperMode: WallpaperMode = "cover";
   if (bgConfig?.type === "wallpaper") {
     wallpaperOpacity = bgConfig.wallpaperOpacity ?? 0.6;
+    wallpaperMode = bgConfig.wallpaperMode ?? "cover";
   } else {
     const opacityRaw = getComputedStyle(document.documentElement)
       .getPropertyValue("--wallpaper-opacity")
@@ -487,26 +564,8 @@ async function createBlurredBackgroundCanvas(
   bgCtx.fillStyle = themeBgColor;
   bgCtx.fillRect(0, 0, width, height);
 
-  // Cover 绘制壁纸
-  const imgRatio = img.naturalWidth / img.naturalHeight;
-  const canvasRatio = width / height;
-  let drawWidth: number, drawHeight: number, drawX: number, drawY: number;
-  if (imgRatio > canvasRatio) {
-    drawHeight = height;
-    drawWidth = height * imgRatio;
-    drawX = (width - drawWidth) / 2;
-    drawY = 0;
-  } else {
-    drawWidth = width;
-    drawHeight = width / imgRatio;
-    drawX = 0;
-    drawY = (height - drawHeight) / 2;
-  }
-
-  bgCtx.save();
-  bgCtx.globalAlpha = wallpaperOpacity;
-  bgCtx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
-  bgCtx.restore();
+  // 按 V5 平铺方式绘制壁纸
+  drawWallpaper(bgCtx, img, width, height, wallpaperMode, wallpaperOpacity);
 
   // 叠 container-bg 蒙层
   if (themeBgRaw) {
@@ -581,7 +640,7 @@ function drawBlurredMessageBackground(
   ctx.restore();
 }
 
-// ===================== V4: 背景绘制 =====================
+// ===================== V4 + V5: 背景绘制 =====================
 
 /**
  * 从 CSS 变量 `--wallpaper-url` 解析出实际的 URL 字符串。
@@ -644,10 +703,89 @@ function getThemeBgColor(): string {
 }
 
 /**
+ * V5 通用: 按指定平铺方式将壁纸绘制到 ctx 上。
+ * - cover: 等比缩放填满整个画布, 居中裁剪
+ * - contain: 等比缩放完全放入画布, 居中, 留白
+ * - tile: 使用 createPattern 按图像自然尺寸平铺
+ * - stretch: 拉伸到画布尺寸
+ *
+ * 该函数被 drawBackground 与 createBlurredBackgroundCanvas 共用,
+ * 避免平铺逻辑在两处重复维护。
+ */
+function drawWallpaper(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  width: number,
+  height: number,
+  mode: WallpaperMode,
+  opacity: number
+): void {
+  if (width <= 0 || height <= 0) return;
+
+  ctx.save();
+  ctx.globalAlpha = opacity;
+
+  switch (mode) {
+    case "contain": {
+      // 等比缩放完全放入画布, 居中
+      const scale = Math.min(
+        width / img.naturalWidth,
+        height / img.naturalHeight
+      );
+      const drawW = img.naturalWidth * scale;
+      const drawH = img.naturalHeight * scale;
+      const drawX = (width - drawW) / 2;
+      const drawY = (height - drawH) / 2;
+      ctx.drawImage(img, drawX, drawY, drawW, drawH);
+      break;
+    }
+    case "tile": {
+      // 平铺: 使用图像自然尺寸, repeat
+      const pattern = ctx.createPattern(img, "repeat");
+      if (pattern) {
+        ctx.fillStyle = pattern;
+        ctx.fillRect(0, 0, width, height);
+      } else {
+        // 兜底: 直接画一个
+        ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight);
+      }
+      break;
+    }
+    case "stretch": {
+      // 拉伸到画布尺寸
+      ctx.drawImage(img, 0, 0, width, height);
+      break;
+    }
+    case "cover":
+    default: {
+      // 等比缩放填满整个画布, 居中裁剪 (与 CSS background-size: cover 行为一致)
+      const imgRatio = img.naturalWidth / img.naturalHeight;
+      const canvasRatio = width / height;
+      let drawWidth: number, drawHeight: number, drawX: number, drawY: number;
+      if (imgRatio > canvasRatio) {
+        drawHeight = height;
+        drawWidth = height * imgRatio;
+        drawX = (width - drawWidth) / 2;
+        drawY = 0;
+      } else {
+        drawWidth = width;
+        drawHeight = width / imgRatio;
+        drawX = 0;
+        drawY = (height - drawHeight) / 2;
+      }
+      ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+      break;
+    }
+  }
+
+  ctx.restore();
+}
+
+/**
  * 在 Canvas 上绘制背景。
  * - solid: 纯色填充
  * - theme: 读取当前主题容器背景色 (强制不透明)
- * - wallpaper: 加载系统壁纸图片, cover 绘制, 叠加半透明蒙层
+ * - wallpaper: 加载系统壁纸图片, 按 bgConfig.wallpaperMode 平铺绘制, 叠加半透明蒙层
  * - 未配置时默认白色
  */
 async function drawBackground(
@@ -688,29 +826,8 @@ async function drawBackground(
             .trim();
           const opacity = wallpaperOpacity ? parseFloat(wallpaperOpacity) : 1;
 
-          // Cover 绘制: 等比缩放填满整个画布
-          const imgRatio = img.naturalWidth / img.naturalHeight;
-          const canvasRatio = width / height;
-          let drawWidth: number,
-            drawHeight: number,
-            drawX: number,
-            drawY: number;
-          if (imgRatio > canvasRatio) {
-            drawHeight = height;
-            drawWidth = height * imgRatio;
-            drawX = (width - drawWidth) / 2;
-            drawY = 0;
-          } else {
-            drawWidth = width;
-            drawHeight = width / imgRatio;
-            drawX = 0;
-            drawY = (height - drawHeight) / 2;
-          }
-
-          ctx.save();
-          ctx.globalAlpha = opacity;
-          ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
-          ctx.restore();
+          // 主题模式固定 cover 行为 (与系统主界面壁纸一致)
+          drawWallpaper(ctx, img, width, height, "cover", opacity);
 
           // 3. 叠加半透明主题色蒙层，保证文字可读性
           if (themeBgRaw) {
@@ -731,29 +848,14 @@ async function drawBackground(
       if (wallpaperSrc) {
         const img = await loadImageAsync(wallpaperSrc);
         if (img) {
-          // Cover 绘制: 等比缩放填满整个画布
-          const imgRatio = img.naturalWidth / img.naturalHeight;
-          const canvasRatio = width / height;
-          let drawWidth: number,
-            drawHeight: number,
-            drawX: number,
-            drawY: number;
-          if (imgRatio > canvasRatio) {
-            drawHeight = height;
-            drawWidth = height * imgRatio;
-            drawX = (width - drawWidth) / 2;
-            drawY = 0;
-          } else {
-            drawWidth = width;
-            drawHeight = width / imgRatio;
-            drawX = 0;
-            drawY = (height - drawHeight) / 2;
-          }
-
-          ctx.save();
-          ctx.globalAlpha = bgConfig.wallpaperOpacity ?? 0.6;
-          ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
-          ctx.restore();
+          drawWallpaper(
+            ctx,
+            img,
+            width,
+            height,
+            bgConfig.wallpaperMode ?? "cover",
+            bgConfig.wallpaperOpacity ?? 0.6
+          );
 
           // 3. 叠加半透明主题色蒙层，保证文字可读性
           if (themeBgRaw) {
@@ -844,3 +946,4 @@ export async function copyCanvasToClipboard(
   });
   await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
 }
+

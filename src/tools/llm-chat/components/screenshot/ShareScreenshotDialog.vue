@@ -39,6 +39,8 @@
           :gap="renderOptions.gap"
           :padding="renderOptions.padding"
           :enable-decoration="renderOptions.enableDecoration"
+          :watermark="renderOptions.watermark"
+          :brand="renderOptions.brand"
           :last-image-url="lastImageUrl"
           :last-canvas="lastCanvas"
           :generating="generating"
@@ -66,9 +68,11 @@ import {
   RENDER_WIDTH_MIN,
   RENDER_WIDTH_MODE_DEFAULT,
   SCREENSHOT_BG_CONFIG_DEFAULT,
+  SCREENSHOT_BRAND_DEFAULT,
   SCREENSHOT_DECORATION_DEFAULT,
   SCREENSHOT_GAP_DEFAULT,
   SCREENSHOT_PADDING_DEFAULT,
+  SCREENSHOT_WATERMARK_DEFAULT,
   type CollapseStrategy,
   type ElementToggles,
   type LayoutOverrides,
@@ -160,6 +164,9 @@ const renderOptions = ref<ScreenshotRenderOptions>({
   gap: SCREENSHOT_GAP_DEFAULT,
   padding: SCREENSHOT_PADDING_DEFAULT,
   enableDecoration: SCREENSHOT_DECORATION_DEFAULT,
+  // V5 默认值 — 沿用集中式常量, 后续要调整只在 screenshotTypes.ts 改一次
+  watermark: { ...SCREENSHOT_WATERMARK_DEFAULT },
+  brand: { ...SCREENSHOT_BRAND_DEFAULT },
 });
 
 // elementToggles 是对象 ref, Vue prop 比较是浅比较 (===)。
@@ -243,6 +250,9 @@ async function regenerateScreenshot() {
         padding: renderOptions.value.padding,
         enableDecoration: renderOptions.value.enableDecoration,
         messageBorderRadius,
+        // V5: 水印 + 品牌透传给 captureMessagesAndStitch
+        watermark: renderOptions.value.watermark,
+        brand: renderOptions.value.brand,
       },
       onProgress: (done, total, label) => {
         if (token !== generationToken) return;
@@ -384,3 +394,4 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 </style>
+

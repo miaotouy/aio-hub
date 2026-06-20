@@ -13,6 +13,9 @@ export type CollapseStrategy =
 /** 截图背景类型 */
 export type ScreenshotBgType = "theme" | "solid" | "wallpaper";
 
+/** 壁纸平铺方式 (仅当 bgConfig.type === "wallpaper" 时生效) */
+export type WallpaperMode = "cover" | "contain" | "tile" | "stretch";
+
 /** 截图背景配置 */
 export interface ScreenshotBgConfig {
   type: ScreenshotBgType;
@@ -20,6 +23,8 @@ export interface ScreenshotBgConfig {
   color: string;
   /** 壁纸不透明度 (0.0 - 1.0) */
   wallpaperOpacity: number;
+  /** 壁纸平铺方式, 默认 cover (与系统主界面壁纸行为一致) */
+  wallpaperMode: WallpaperMode;
 }
 
 /** 截图背景配置默认值 */
@@ -27,6 +32,7 @@ export const SCREENSHOT_BG_CONFIG_DEFAULT: ScreenshotBgConfig = {
   type: "theme",
   color: "#ffffff",
   wallpaperOpacity: 0.6,
+  wallpaperMode: "cover",
 };
 
 /** 消息间距默认值: undefined 表示跟随布局模式自动 (卡片 8px, 气泡 12px) */
@@ -43,6 +49,68 @@ export const SCREENSHOT_PADDING_MAX = 64;
 
 /** 卡片装饰默认值 */
 export const SCREENSHOT_DECORATION_DEFAULT = true;
+
+// -------------- V5: 水印配置 --------------
+
+/** 水印配置 */
+export interface ScreenshotWatermarkConfig {
+  /** 是否启用水印 */
+  enable: boolean;
+  /** 水印文字 */
+  text: string;
+  /** 水印颜色 (支持 rgba / hex, 含透明度) */
+  color: string;
+  /** 字号 (px) */
+  fontSize: number;
+  /** 平铺间距 (px) — 两个相邻水印中心点之间的距离 */
+  gap: number;
+  /** 旋转角度 (deg) */
+  angle: number;
+}
+
+/** 水印默认值 (关闭, 与系统视觉保持一致) */
+export const SCREENSHOT_WATERMARK_DEFAULT: ScreenshotWatermarkConfig = {
+  enable: false,
+  text: "AIO Hub",
+  color: "rgba(0, 0, 0, 0.08)",
+  fontSize: 18,
+  gap: 220,
+  angle: -22,
+};
+
+/** 水印字号范围 */
+export const SCREENSHOT_WATERMARK_FONT_SIZE_MIN = 10;
+export const SCREENSHOT_WATERMARK_FONT_SIZE_MAX = 48;
+/** 水印间距范围 */
+export const SCREENSHOT_WATERMARK_GAP_MIN = 80;
+export const SCREENSHOT_WATERMARK_GAP_MAX = 600;
+/** 水印角度范围 */
+export const SCREENSHOT_WATERMARK_ANGLE_MIN = -90;
+export const SCREENSHOT_WATERMARK_ANGLE_MAX = 90;
+
+// -------------- V5: 应用标识 (头/脚) 配置 --------------
+
+/** 标识显示位置 */
+export type BrandShowMode = "none" | "top" | "bottom" | "both";
+
+/** 标识配置 */
+export interface ScreenshotBrandConfig {
+  /** 显示位置: 不显示 / 仅顶部 / 仅底部 / 顶部和底部 */
+  show: BrandShowMode;
+  /** 自定义文案 (副标题 / 副品牌), 默认与 AIO Hub 一致 */
+  text: string;
+  /** 是否显示 Logo (项目内置 aio-icon-color) */
+  showLogo: boolean;
+}
+
+/** 标识默认值 (关闭, 不打扰用户) */
+export const SCREENSHOT_BRAND_DEFAULT: ScreenshotBrandConfig = {
+  show: "none",
+  text: "AIO Hub",
+  showLogo: true,
+};
+
+// -------------- 截图元素显示覆盖配置 --------------
 
 /** 截图元素显示覆盖配置 */
 export interface ScreenshotElementOverrides {
@@ -103,6 +171,13 @@ export interface ScreenshotRenderOptions {
   padding: number;
   /** 是否启用卡片外边框与投影装饰 */
   enableDecoration: boolean;
+
+  // --- V5: 水印 ---
+  /** 水印配置 */
+  watermark: ScreenshotWatermarkConfig;
+  // --- V5: 应用标识 (头/脚) ---
+  /** 品牌标识配置 */
+  brand: ScreenshotBrandConfig;
 }
 
 /** provide/inject key: 截图元素覆盖 */

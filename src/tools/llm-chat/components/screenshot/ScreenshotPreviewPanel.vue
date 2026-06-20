@@ -88,6 +88,8 @@
               :gap="gap"
               :padding="padding"
               :enable-decoration="enableDecoration"
+              :watermark="watermark"
+              :brand="brand"
             />
             <div v-else class="preview-empty">
               <el-icon :size="32">
@@ -260,6 +262,8 @@ import type {
   ElementToggles,
   LayoutOverrides,
   ScreenshotBgConfig,
+  ScreenshotBrandConfig,
+  ScreenshotWatermarkConfig,
 } from "./screenshotTypes";
 
 /** 截图历史列表项 */
@@ -297,6 +301,11 @@ interface Props {
   padding?: number;
   /** V4: 卡片装饰 */
   enableDecoration?: boolean;
+
+  /** V5: 水印配置 */
+  watermark?: ScreenshotWatermarkConfig;
+  /** V5: 品牌标识 (头/脚) 配置 */
+  brand?: ScreenshotBrandConfig;
 
   /** 生成结果 */
   lastImageUrl: string;
@@ -854,3 +863,4 @@ function handleSave() {
   gap: 8px;
 }
 </style>
+

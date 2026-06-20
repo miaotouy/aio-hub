@@ -160,6 +160,25 @@
           </span>
         </div>
       </div>
+      <div
+        v-if="renderOptions.bgConfig.type === 'wallpaper'"
+        class="config-row"
+      >
+        <span class="config-label">壁纸平铺</span>
+        <div class="config-value">
+          <el-select
+            :model-value="renderOptions.bgConfig.wallpaperMode"
+            size="small"
+            style="width: 160px"
+            @update:model-value="onWallpaperModeChange"
+          >
+            <el-option label="铺满 (cover)" value="cover" />
+            <el-option label="完整显示 (contain)" value="contain" />
+            <el-option label="平铺 (tile)" value="tile" />
+            <el-option label="拉伸 (stretch)" value="stretch" />
+          </el-select>
+        </div>
+      </div>
       <div class="config-row">
         <span class="config-label">消息间距</span>
         <div class="config-value">
@@ -208,6 +227,146 @@
       </div>
       <p class="section-hint">
         背景、间距与留白同时影响实时预览和最终输出图片。
+      </p>
+    </div>
+
+    <div class="config-section">
+      <div class="section-title">水印</div>
+      <div class="switch-row">
+        <el-switch
+          :model-value="renderOptions.watermark.enable"
+          @update:model-value="onWatermarkEnableChange"
+        />
+        <span class="switch-label">启用水印</span>
+      </div>
+      <template v-if="renderOptions.watermark.enable">
+        <div class="config-row">
+          <span class="config-label">水印文字</span>
+          <div class="config-value">
+            <el-input
+              :model-value="renderOptions.watermark.text"
+              size="small"
+              style="width: 160px"
+              :maxlength="40"
+              @update:model-value="onWatermarkTextChange"
+            />
+          </div>
+        </div>
+        <div class="config-row">
+          <span class="config-label">水印颜色</span>
+          <div class="config-value">
+            <el-color-picker
+              :model-value="renderOptions.watermark.color"
+              size="small"
+              :predefine="[
+                'rgba(0, 0, 0, 0.08)',
+                'rgba(255, 255, 255, 0.18)',
+                'rgba(0, 0, 0, 0.15)',
+                'rgba(0, 0, 0, 0.25)',
+                'rgba(255, 255, 255, 0.35)',
+              ]"
+              show-alpha
+              @update:model-value="onWatermarkColorChange"
+            />
+            <span class="config-hint">{{ renderOptions.watermark.color }}</span>
+          </div>
+        </div>
+        <div class="config-row">
+          <span class="config-label">字号</span>
+          <div class="config-value">
+            <el-input-number
+              :model-value="renderOptions.watermark.fontSize"
+              :min="SCREENSHOT_WATERMARK_FONT_SIZE_MIN"
+              :max="SCREENSHOT_WATERMARK_FONT_SIZE_MAX"
+              :step="1"
+              size="small"
+              controls-position="right"
+              style="width: 100px"
+              @update:model-value="onWatermarkFontSizeChange"
+            />
+            <span class="config-hint">px</span>
+          </div>
+        </div>
+        <div class="config-row">
+          <span class="config-label">平铺间距</span>
+          <div class="config-value">
+            <el-input-number
+              :model-value="renderOptions.watermark.gap"
+              :min="SCREENSHOT_WATERMARK_GAP_MIN"
+              :max="SCREENSHOT_WATERMARK_GAP_MAX"
+              :step="10"
+              size="small"
+              controls-position="right"
+              style="width: 100px"
+              @update:model-value="onWatermarkGapChange"
+            />
+            <span class="config-hint">px</span>
+          </div>
+        </div>
+        <div class="config-row">
+          <span class="config-label">旋转角度</span>
+          <div class="config-value">
+            <el-slider
+              :model-value="renderOptions.watermark.angle"
+              :min="SCREENSHOT_WATERMARK_ANGLE_MIN"
+              :max="SCREENSHOT_WATERMARK_ANGLE_MAX"
+              :step="1"
+              size="small"
+              style="flex: 1; min-width: 80px"
+              @update:model-value="onWatermarkAngleChange"
+            />
+            <span class="config-hint"
+              >{{ renderOptions.watermark.angle }}°</span
+            >
+          </div>
+        </div>
+      </template>
+      <p class="section-hint">
+        水印会在整张长图上以平铺方式呈现, 同时影响实时预览和最终输出图片。
+      </p>
+    </div>
+
+    <div class="config-section">
+      <div class="section-title">应用标识</div>
+      <div class="config-row">
+        <span class="config-label">显示位置</span>
+        <div class="config-value">
+          <el-select
+            :model-value="renderOptions.brand.show"
+            size="small"
+            style="width: 160px"
+            @update:model-value="onBrandShowChange"
+          >
+            <el-option label="不显示" value="none" />
+            <el-option label="仅顶部" value="top" />
+            <el-option label="仅底部" value="bottom" />
+            <el-option label="顶部 + 底部" value="both" />
+          </el-select>
+        </div>
+      </div>
+      <template v-if="renderOptions.brand.show !== 'none'">
+        <div class="config-row">
+          <span class="config-label">自定义文字</span>
+          <div class="config-value">
+            <el-input
+              :model-value="renderOptions.brand.text"
+              size="small"
+              style="width: 160px"
+              :maxlength="40"
+              @update:model-value="onBrandTextChange"
+            />
+          </div>
+        </div>
+        <div class="switch-row">
+          <el-switch
+            :model-value="renderOptions.brand.showLogo"
+            @update:model-value="onBrandShowLogoChange"
+          />
+          <span class="switch-label">显示 AIO Hub Logo</span>
+        </div>
+      </template>
+      <p class="section-hint">
+        标识会作为独立的截图元素拼接在长图顶部或底部, 复用毛玻璃壁纸背景。
       </p>
     </div>
 
@@ -264,6 +423,7 @@ import { computed } from "vue";
 
 import {
   ElColorPicker,
+  ElInput,
   ElInputNumber,
   ElOption,
   ElSelect,
@@ -271,11 +431,13 @@ import {
   ElSwitch,
 } from "element-plus";
 import type {
+  BrandShowMode,
   CollapseStrategy,
   ElementToggles,
   LayoutOverrides,
   ScreenshotBgType,
   ScreenshotRenderOptions,
+  WallpaperMode,
 } from "./screenshotTypes";
 import {
   CAPTURE_SCALE_OPTIONS,
@@ -286,6 +448,12 @@ import {
   SCREENSHOT_GAP_MIN,
   SCREENSHOT_PADDING_MAX,
   SCREENSHOT_PADDING_MIN,
+  SCREENSHOT_WATERMARK_ANGLE_MAX,
+  SCREENSHOT_WATERMARK_ANGLE_MIN,
+  SCREENSHOT_WATERMARK_FONT_SIZE_MAX,
+  SCREENSHOT_WATERMARK_FONT_SIZE_MIN,
+  SCREENSHOT_WATERMARK_GAP_MAX,
+  SCREENSHOT_WATERMARK_GAP_MIN,
 } from "./screenshotTypes";
 
 const layoutOverrides = defineModel<LayoutOverrides>("layoutOverrides", {
@@ -351,6 +519,14 @@ function onWallpaperOpacityChange(v: number | number[]) {
   };
 }
 
+function onWallpaperModeChange(v: WallpaperMode | undefined) {
+  if (!v) return;
+  renderOptions.value = {
+    ...renderOptions.value,
+    bgConfig: { ...renderOptions.value.bgConfig, wallpaperMode: v },
+  };
+}
+
 function onGapAutoToggle(isAuto: boolean | string | number) {
   renderOptions.value = {
     ...renderOptions.value,
@@ -381,6 +557,97 @@ function onDecorationToggle(v: boolean | string | number) {
   renderOptions.value = {
     ...renderOptions.value,
     enableDecoration: !!v,
+  };
+}
+
+// ----- V5: 水印配置事件处理 -----
+function onWatermarkEnableChange(v: boolean | string | number) {
+  renderOptions.value = {
+    ...renderOptions.value,
+    watermark: { ...renderOptions.value.watermark, enable: !!v },
+  };
+}
+
+function onWatermarkTextChange(v: string | number | null | undefined) {
+  const text = typeof v === "string" ? v : String(v ?? "");
+  renderOptions.value = {
+    ...renderOptions.value,
+    watermark: { ...renderOptions.value.watermark, text },
+  };
+}
+
+function onWatermarkColorChange(v: string | null) {
+  if (!v) return;
+  renderOptions.value = {
+    ...renderOptions.value,
+    watermark: { ...renderOptions.value.watermark, color: v },
+  };
+}
+
+function onWatermarkFontSizeChange(v: number | undefined) {
+  if (typeof v !== "number" || !Number.isFinite(v)) return;
+  renderOptions.value = {
+    ...renderOptions.value,
+    watermark: {
+      ...renderOptions.value.watermark,
+      fontSize: Math.min(
+        SCREENSHOT_WATERMARK_FONT_SIZE_MAX,
+        Math.max(SCREENSHOT_WATERMARK_FONT_SIZE_MIN, Math.round(v))
+      ),
+    },
+  };
+}
+
+function onWatermarkGapChange(v: number | undefined) {
+  if (typeof v !== "number" || !Number.isFinite(v)) return;
+  renderOptions.value = {
+    ...renderOptions.value,
+    watermark: {
+      ...renderOptions.value.watermark,
+      gap: Math.min(
+        SCREENSHOT_WATERMARK_GAP_MAX,
+        Math.max(SCREENSHOT_WATERMARK_GAP_MIN, Math.round(v))
+      ),
+    },
+  };
+}
+
+function onWatermarkAngleChange(v: number | number[]) {
+  const val = Array.isArray(v) ? v[0] : v;
+  if (typeof val !== "number" || !Number.isFinite(val)) return;
+  renderOptions.value = {
+    ...renderOptions.value,
+    watermark: {
+      ...renderOptions.value.watermark,
+      angle: Math.min(
+        SCREENSHOT_WATERMARK_ANGLE_MAX,
+        Math.max(SCREENSHOT_WATERMARK_ANGLE_MIN, Math.round(val))
+      ),
+    },
+  };
+}
+
+// ----- V5: 品牌标识配置事件处理 -----
+function onBrandShowChange(v: BrandShowMode | undefined) {
+  if (!v) return;
+  renderOptions.value = {
+    ...renderOptions.value,
+    brand: { ...renderOptions.value.brand, show: v },
+  };
+}
+
+function onBrandTextChange(v: string | number | null | undefined) {
+  const text = typeof v === "string" ? v : String(v ?? "");
+  renderOptions.value = {
+    ...renderOptions.value,
+    brand: { ...renderOptions.value.brand, text },
+  };
+}
+
+function onBrandShowLogoChange(v: boolean | string | number) {
+  renderOptions.value = {
+    ...renderOptions.value,
+    brand: { ...renderOptions.value.brand, showLogo: !!v },
   };
 }
 </script>

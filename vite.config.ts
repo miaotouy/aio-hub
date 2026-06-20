@@ -1,5 +1,9 @@
 import { defineConfig } from "vite";
-import { configDefaults, defineConfig as defineVitestConfig, mergeConfig } from "vitest/config";
+import {
+  configDefaults,
+  defineConfig as defineVitestConfig,
+  mergeConfig,
+} from "vitest/config";
 import vue from "@vitejs/plugin-vue";
 import Icons from "unplugin-icons/vite";
 import { FileSystemIconLoader } from "unplugin-icons/loaders";
@@ -27,33 +31,58 @@ const viteConfig = defineConfig({
       buffer: "buffer/",
       "@": fileURLToPath(new URL("./src", import.meta.url)),
       "@types": fileURLToPath(new URL("./src/types", import.meta.url)),
-      "@components": fileURLToPath(new URL("./src/components", import.meta.url)),
+      "@components": fileURLToPath(
+        new URL("./src/components", import.meta.url)
+      ),
       "@utils": fileURLToPath(new URL("./src/utils", import.meta.url)),
-      "@composables": fileURLToPath(new URL("./src/composables", import.meta.url)),
+      "@composables": fileURLToPath(
+        new URL("./src/composables", import.meta.url)
+      ),
       "@config": fileURLToPath(new URL("./src/config", import.meta.url)),
       "@tools": fileURLToPath(new URL("./src/tools", import.meta.url)),
       "@views": fileURLToPath(new URL("./src/views", import.meta.url)),
       "@styles": fileURLToPath(new URL("./src/styles", import.meta.url)),
       "@assets": fileURLToPath(new URL("./src/assets", import.meta.url)),
-      "@lobe-icons": fileURLToPath(new URL("./node_modules/@lobehub/icons-static-svg/icons", import.meta.url)),
+      "@lobe-icons": fileURLToPath(
+        new URL(
+          "./node_modules/@lobehub/icons-static-svg/icons",
+          import.meta.url
+        )
+      ),
       "@vscode-material-icons": fileURLToPath(
-        new URL("./node_modules/vscode-material-icons/generated/icons", import.meta.url),
+        new URL(
+          "./node_modules/vscode-material-icons/generated/icons",
+          import.meta.url
+        )
       ),
       // 插件 SDK 别名 - 用于开发模式下 Vite 解析插件源码
-      "aiohub-sdk": fileURLToPath(new URL("./public/plugins/shims/aiohub-sdk-shim.js", import.meta.url)),
-      "aiohub-ui": fileURLToPath(new URL("./public/plugins/shims/aiohub-ui-shim.js", import.meta.url)),
+      "aiohub-sdk": fileURLToPath(
+        new URL("./public/plugins/shims/aiohub-sdk-shim.js", import.meta.url)
+      ),
+      "aiohub-ui": fileURLToPath(
+        new URL("./public/plugins/shims/aiohub-ui-shim.js", import.meta.url)
+      ),
       // Monaco 汉化劫持 - 拦截所有 NLS 相关请求
-      "monaco-editor/esm/vs/nls.js": fileURLToPath(new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)),
-      "monaco-editor/esm/vs/nls": fileURLToPath(new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)),
-      "monaco-editor/dev/vs/nls.js": fileURLToPath(new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)),
-      "monaco-editor/dev/vs/nls": fileURLToPath(new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)),
+      "monaco-editor/esm/vs/nls.js": fileURLToPath(
+        new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)
+      ),
+      "monaco-editor/esm/vs/nls": fileURLToPath(
+        new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)
+      ),
+      "monaco-editor/dev/vs/nls.js": fileURLToPath(
+        new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)
+      ),
+      "monaco-editor/dev/vs/nls": fileURLToPath(
+        new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)
+      ),
       // 针对绝对路径请求的额外劫持
       "/node_modules/monaco-editor/esm/vs/nls.js": fileURLToPath(
-        new URL("./src/utils/monaco-i18n/nls.js", import.meta.url),
+        new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)
       ),
-      "/node_modules/monaco-editor/esm/vs/editor/editor.main.nls.js": fileURLToPath(
-        new URL("./src/utils/monaco-i18n/nls.js", import.meta.url),
-      ),
+      "/node_modules/monaco-editor/esm/vs/editor/editor.main.nls.js":
+        fileURLToPath(
+          new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)
+        ),
     },
   },
 
@@ -82,35 +111,47 @@ const viteConfig = defineConfig({
     // 拦截 Monaco NLS 请求的中间件
     {
       name: "monaco-nls-middleware",
-      configureServer(server) {
-        server.middlewares.use(async (req, res, next) => {
-          // 拦截所有对 nls.js 的请求
-          if (
-            req.url &&
-            req.url.includes("nls.js") &&
-            (req.url.includes("monaco-editor") || req.url.includes("monaco-i18n"))
-          ) {
-            const fs = await import("node:fs");
-            let nlsContent = fs.readFileSync(
-              fileURLToPath(new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)),
-              "utf-8",
-            );
+      configureServer(server: import("vite").ViteDevServer) {
+        server.middlewares.use(
+          async (
+            req: import("node:http").IncomingMessage,
+            res: import("node:http").ServerResponse,
+            next: () => void
+          ) => {
+            // 拦截所有对 nls.js 的请求
+            if (
+              req.url &&
+              req.url.includes("nls.js") &&
+              (req.url.includes("monaco-editor") ||
+                req.url.includes("monaco-i18n"))
+            ) {
+              const fs = await import("node:fs");
+              let nlsContent = fs.readFileSync(
+                fileURLToPath(
+                  new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)
+                ),
+                "utf-8"
+              );
 
-            // 默认文件是不含 export 的纯脚本 (AMD 友好)
-            // 如果是 Vite 的 ESM 导入请求 (?import)，我们需要动态补上 export 语句
-            if (req.url.includes("import") || req.headers["sec-fetch-mode"] === "cors") {
-              nlsContent += `\nexport { localize, localize2, getConfiguredDefaultLocale, getNLSLanguage, getNLSMessages };\nexport default { localize, localize2, getConfiguredDefaultLocale, getNLSLanguage, getNLSMessages };`;
-              // console.log(`[Monaco NLS] Serving ESM-compatible NLS: ${req.url}`);
-            } else {
-              // console.log(`[Monaco NLS] Serving AMD-compatible NLS: ${req.url}`);
+              // 默认文件是不含 export 的纯脚本 (AMD 友好)
+              // 如果是 Vite 的 ESM 导入请求 (?import)，我们需要动态补上 export 语句
+              if (
+                req.url.includes("import") ||
+                req.headers["sec-fetch-mode"] === "cors"
+              ) {
+                nlsContent += `\nexport { localize, localize2, getConfiguredDefaultLocale, getNLSLanguage, getNLSMessages };\nexport default { localize, localize2, getConfiguredDefaultLocale, getNLSLanguage, getNLSMessages };`;
+                // console.log(`[Monaco NLS] Serving ESM-compatible NLS: ${req.url}`);
+              } else {
+                // console.log(`[Monaco NLS] Serving AMD-compatible NLS: ${req.url}`);
+              }
+
+              res.setHeader("Content-Type", "application/javascript");
+              res.end(nlsContent);
+              return;
             }
-
-            res.setHeader("Content-Type", "application/javascript");
-            res.end(nlsContent);
-            return;
+            next();
           }
-          next();
-        });
+        );
       },
     },
     monaco({
@@ -120,10 +161,10 @@ const viteConfig = defineConfig({
     {
       name: "monaco-remove-missing-nls-script",
       enforce: "post",
-      transformIndexHtml(html) {
+      transformIndexHtml(html: string) {
         return html.replace(
           /\n<script src="\/npm\/monaco-editor@[^"]+\/min\/vs\/editor\/editor\.main\.nls\.js"><\/script>/,
-          "",
+          ""
         );
       },
     },
@@ -141,10 +182,13 @@ const viteConfig = defineConfig({
       autoInstall: true,
       compiler: "vue3",
       customCollections: {
-        lobe: FileSystemIconLoader("./node_modules/@lobehub/icons-static-svg/icons", (svg) =>
-          svg.replace(/^<svg /, '<svg fill="currentColor" '),
+        lobe: FileSystemIconLoader(
+          "./node_modules/@lobehub/icons-static-svg/icons",
+          (svg) => svg.replace(/^<svg /, '<svg fill="currentColor" ')
         ),
-        "vscode-material": FileSystemIconLoader("./node_modules/vscode-material-icons/generated/icons"),
+        "vscode-material": FileSystemIconLoader(
+          "./node_modules/vscode-material-icons/generated/icons"
+        ),
       },
     }),
   ].filter(Boolean),
@@ -199,17 +243,27 @@ const viteConfig = defineConfig({
         danmakuOverlay: "danmaku-overlay.html",
       },
       // 外部化 macOS 专用依赖和插件构建脚本
-      external: ["fsevents", /^.*\/plugins\/.*\/(build\.js|vite\.config\.js|package\.json|Cargo\.toml|.*\.rs)$/],
+      external: [
+        "fsevents",
+        /^.*\/plugins\/.*\/(build\.js|vite\.config\.js|package\.json|Cargo\.toml|.*\.rs)$/,
+      ],
       output: {
         manualChunks(id) {
           if (id.includes("node_modules")) {
-            if (/[\\/]node_modules[\\/](?:@vue|@vueuse|vue|vue-router|pinia|vue-demi)[\\/]/.test(id)) {
+            if (
+              /[\\/]node_modules[\\/](?:@vue|@vueuse|vue|vue-router|pinia|vue-demi)[\\/]/.test(
+                id
+              )
+            ) {
               return "vendor-vue";
             }
             if (id.includes("element-plus")) {
               return "vendor-element";
             }
-            if (id.includes("codemirror") || id.includes("@guolao/vue-monaco-editor")) {
+            if (
+              id.includes("codemirror") ||
+              id.includes("@guolao/vue-monaco-editor")
+            ) {
               return "vendor-editor";
             }
             // if (id.includes('prettier')) {
@@ -265,8 +319,18 @@ export default mergeConfig(
           "src-tauri/**",
         ],
       },
-      // 排除 Tauri 后端和构建产物
-      exclude: [...configDefaults.exclude, "src-tauri/**", "dist/**", "mobile/**"],
+      // 排除 Tauri 后端、构建产物以及 AI 代理的临时工作区目录
+      exclude: [
+        ...configDefaults.exclude,
+        "src-tauri/**",
+        "dist/**",
+        "mobile/**",
+        "**/.claude/**",
+        "**/.kilo/**",
+        "**/.kilocode/**",
+        "**/.roo/**",
+        "**/.jj/**",
+      ],
     },
-  }),
+  })
 );

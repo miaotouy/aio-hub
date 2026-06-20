@@ -230,4 +230,3 @@ export function useImageViewer(): UseImageViewerReturn {
     updateImages,
   };
 }
-

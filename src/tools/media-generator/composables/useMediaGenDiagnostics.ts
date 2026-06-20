@@ -216,8 +216,7 @@ export function useMediaGenDiagnostics() {
     logger.info("导出媒体生成诊断信息", {
       fileName,
       activeType: diagnostics.activeType,
-      activeCombo:
-        diagnostics.comboInspection.active.modelCombo || "(empty)",
+      activeCombo: diagnostics.comboInspection.active.modelCombo || "(empty)",
       activeModelHasRules:
         diagnostics.comboInspection.active.model?.hasMediaGenParams,
       sameIdModelCount: diagnostics.sameIdModels.length,

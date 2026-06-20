@@ -44,9 +44,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue';
-import { useDraggable, useWindowSize, useStorage } from '@vueuse/core';
-import { Minus, Square, X } from 'lucide-vue-next';
+import { ref, computed, watch, nextTick } from "vue";
+import { useDraggable, useWindowSize, useStorage } from "@vueuse/core";
+import { Minus, Square, X } from "lucide-vue-next";
 
 export interface DraggablePanelInstance {
   activate: () => void;
@@ -67,9 +67,9 @@ const props = withDefaults(
     persistenceKey?: string; // 新增：用于本地存储的唯一键
   }>(),
   {
-    title: '悬浮面板',
-    width: '400px',
-    height: '500px',
+    title: "悬浮面板",
+    width: "400px",
+    height: "500px",
     initialX: 100,
     initialY: 100,
     destroyOnClose: false,
@@ -81,8 +81,8 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  (e: 'update:modelValue', value: boolean): void;
-  (e: 'close'): void;
+  (e: "update:modelValue", value: boolean): void;
+  (e: "close"): void;
 }>();
 
 const hasOpened = ref(false);
@@ -229,19 +229,19 @@ const initResize = (e: MouseEvent) => {
 
   const stopDrag = () => {
     isResizing.value = false;
-    window.removeEventListener('mousemove', doDrag);
-    window.removeEventListener('mouseup', stopDrag);
-    document.body.style.cursor = '';
+    window.removeEventListener("mousemove", doDrag);
+    window.removeEventListener("mouseup", stopDrag);
+    document.body.style.cursor = "";
     // 持久化尺寸
     if (props.persistenceKey) {
       // useStorage 会自动处理更新
     }
   };
 
-  window.addEventListener('mousemove', doDrag);
-  window.addEventListener('mouseup', stopDrag);
+  window.addEventListener("mousemove", doDrag);
+  window.addEventListener("mouseup", stopDrag);
   e.preventDefault();
-  document.body.style.cursor = 'se-resize';
+  document.body.style.cursor = "se-resize";
 };
 
 const panelStyle = computed(() => {
@@ -249,7 +249,7 @@ const panelStyle = computed(() => {
     left: `${x.value}px`,
     top: `${y.value}px`,
     width: `${currentWidth.value}px`,
-    height: isMinimized.value ? 'auto' : `${currentHeight.value}px`,
+    height: isMinimized.value ? "auto" : `${currentHeight.value}px`,
     zIndex: 2000,
   };
 });
@@ -259,8 +259,8 @@ const toggleMinimize = () => {
 };
 
 const close = () => {
-  emit('update:modelValue', false);
-  emit('close');
+  emit("update:modelValue", false);
+  emit("close");
 };
 
 // 监听 modelValue 变化
@@ -390,7 +390,7 @@ watch(
 }
 
 .resize-handle::after {
-  content: '';
+  content: "";
   position: absolute;
   bottom: 3px;
   right: 3px;

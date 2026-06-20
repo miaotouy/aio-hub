@@ -422,82 +422,84 @@ export function useSmartOcrRunner() {
     const abortController = _createActiveAbortController();
     const { signal } = abortController;
 
-    return await errorHandler.wrapAsync(
-      async () => {
-        const resultIndex = store.ocrResults.findIndex(
-          (r) => r.blockId === options.blockId
-        );
-        if (resultIndex === -1) {
-          throw new Error("未找到对应的识别结果");
-        }
+    return await errorHandler
+      .wrapAsync(
+        async () => {
+          const resultIndex = store.ocrResults.findIndex(
+            (r) => r.blockId === options.blockId
+          );
+          if (resultIndex === -1) {
+            throw new Error("未找到对应的识别结果");
+          }
 
-        const result = store.ocrResults[resultIndex];
-        const imageId = result.imageId;
+          const result = store.ocrResults[resultIndex];
+          const imageId = result.imageId;
 
-        const blocks = store.imageBlocksMap.get(imageId);
-        if (!blocks) {
-          throw new Error("未找到对应的图片块");
-        }
+          const blocks = store.imageBlocksMap.get(imageId);
+          if (!blocks) {
+            throw new Error("未找到对应的图片块");
+          }
 
-        const block = blocks.find((b) => b.id === options.blockId);
-        if (!block) {
-          throw new Error("未找到对应的图片块");
-        }
+          const block = blocks.find((b) => b.id === options.blockId);
+          if (!block) {
+            throw new Error("未找到对应的图片块");
+          }
 
-        // 更新状态为处理中
-        const updatingResult = {
-          ...result,
-          status: "processing" as const,
-          error: undefined,
-        };
-        store.updateOcrResults([updatingResult]);
-        onProgress?.(updatingResult);
-
-        // 重新识别这个块
-        const { runOcr } = useOcrRunner();
-        const singleBlockResults = await runOcr(
-          [block],
-          store.engineConfig,
-          (updatedResults: OcrResult[]) => {
-            if (signal.aborted) {
-              return;
-            }
-            if (updatedResults.length > 0) {
-              const newResult = {
-                ...updatedResults[0],
-                imageId,
-              };
-              store.updateOcrResults([newResult]);
-              onProgress?.(newResult);
-            }
-          },
-          signal
-        );
-
-        if (signal.aborted) {
-          _markActiveResultsCancelled();
-          return null;
-        }
-
-        // 最终更新
-        if (singleBlockResults.length > 0) {
-          const finalResult = {
-            ...singleBlockResults[0],
-            imageId,
+          // 更新状态为处理中
+          const updatingResult = {
+            ...result,
+            status: "processing" as const,
+            error: undefined,
           };
-          store.updateOcrResults([finalResult]);
-          logger.info("重试识别完成", { blockId: options.blockId });
-          return finalResult;
-        }
+          store.updateOcrResults([updatingResult]);
+          onProgress?.(updatingResult);
 
-        return null;
-      },
-      {
-        level: ErrorLevel.ERROR,
-        userMessage: "重试识别失败",
-        context: options,
-      }
-    ).finally(() => _clearActiveAbortController(abortController));
+          // 重新识别这个块
+          const { runOcr } = useOcrRunner();
+          const singleBlockResults = await runOcr(
+            [block],
+            store.engineConfig,
+            (updatedResults: OcrResult[]) => {
+              if (signal.aborted) {
+                return;
+              }
+              if (updatedResults.length > 0) {
+                const newResult = {
+                  ...updatedResults[0],
+                  imageId,
+                };
+                store.updateOcrResults([newResult]);
+                onProgress?.(newResult);
+              }
+            },
+            signal
+          );
+
+          if (signal.aborted) {
+            _markActiveResultsCancelled();
+            return null;
+          }
+
+          // 最终更新
+          if (singleBlockResults.length > 0) {
+            const finalResult = {
+              ...singleBlockResults[0],
+              imageId,
+            };
+            store.updateOcrResults([finalResult]);
+            logger.info("重试识别完成", { blockId: options.blockId });
+            return finalResult;
+          }
+
+          return null;
+        },
+        {
+          level: ErrorLevel.ERROR,
+          userMessage: "重试识别失败",
+          context: options,
+        }
+      )
+      .finally(() => _clearActiveAbortController(abortController));
   }
 
   /**
@@ -510,80 +512,84 @@ export function useSmartOcrRunner() {
     const { signal } = abortController;
 
     return (
-      (await errorHandler.wrapAsync(
-        async () => {
-          const failedResults = store.ocrResults.filter(
-            (r) => r.status === "error"
-          );
-          if (failedResults.length === 0) {
-            return [];
-          }
-
-          const blocksToRetry: ImageBlock[] = [];
-          const imageIdMap = new Map<string, string>(); // blockId -> imageId
-
-          failedResults.forEach((res) => {
-            const blocks = store.imageBlocksMap.get(res.imageId);
-            const block = blocks?.find((b) => b.id === res.blockId);
-            if (block) {
-              blocksToRetry.push(block);
-              imageIdMap.set(block.id, res.imageId);
+      (await errorHandler
+        .wrapAsync(
+          async () => {
+            const failedResults = store.ocrResults.filter(
+              (r) => r.status === "error"
+            );
+            if (failedResults.length === 0) {
+              return [];
             }
-          });
 
-          if (blocksToRetry.length === 0) {
-            return [];
-          }
+            const blocksToRetry: ImageBlock[] = [];
+            const imageIdMap = new Map<string, string>(); // blockId -> imageId
 
-          logger.info("开始批量重试失败的块", { count: blocksToRetry.length });
-
-          // 更新状态为处理中
-          const processingResults = failedResults.map((r) => ({
-            ...r,
-            status: "processing" as const,
-            error: undefined,
-          }));
-          store.updateOcrResults(processingResults);
-
-          // 执行 OCR 识别
-          const { runOcr } = useOcrRunner();
-          const results = await runOcr(
-            blocksToRetry,
-            store.engineConfig,
-            (progressResults: OcrResult[]) => {
-              if (signal.aborted) {
-                return;
+            failedResults.forEach((res) => {
+              const blocks = store.imageBlocksMap.get(res.imageId);
+              const block = blocks?.find((b) => b.id === res.blockId);
+              if (block) {
+                blocksToRetry.push(block);
+                imageIdMap.set(block.id, res.imageId);
               }
-              // 需要补全 imageId
-              const mappedResults = progressResults.map((r) => ({
-                ...r,
-                imageId: imageIdMap.get(r.blockId)!,
-              }));
-              store.updateOcrResults(mappedResults);
-              onProgress?.(store.ocrResults);
-            },
-            signal
-          );
+            });
 
-          if (signal.aborted) {
-            _markActiveResultsCancelled();
-            return [];
+            if (blocksToRetry.length === 0) {
+              return [];
+            }
+
+            logger.info("开始批量重试失败的块", {
+              count: blocksToRetry.length,
+            });
+
+            // 更新状态为处理中
+            const processingResults = failedResults.map((r) => ({
+              ...r,
+              status: "processing" as const,
+              error: undefined,
+            }));
+            store.updateOcrResults(processingResults);
+
+            // 执行 OCR 识别
+            const { runOcr } = useOcrRunner();
+            const results = await runOcr(
+              blocksToRetry,
+              store.engineConfig,
+              (progressResults: OcrResult[]) => {
+                if (signal.aborted) {
+                  return;
+                }
+                // 需要补全 imageId
+                const mappedResults = progressResults.map((r) => ({
+                  ...r,
+                  imageId: imageIdMap.get(r.blockId)!,
+                }));
+                store.updateOcrResults(mappedResults);
+                onProgress?.(store.ocrResults);
+              },
+              signal
+            );
+
+            if (signal.aborted) {
+              _markActiveResultsCancelled();
+              return [];
+            }
+
+            // 最终更新
+            const finalResults = results.map((r) => ({
+              ...r,
+              imageId: imageIdMap.get(r.blockId)!,
+            }));
+            store.updateOcrResults(finalResults);
+
+            return finalResults;
+          },
+          {
+            level: ErrorLevel.ERROR,
+            userMessage: "批量重试识别失败",
           }
-
-          // 最终更新
-          const finalResults = results.map((r) => ({
-            ...r,
-            imageId: imageIdMap.get(r.blockId)!,
-          }));
-          store.updateOcrResults(finalResults);
-
-          return finalResults;
-        },
-        {
-          level: ErrorLevel.ERROR,
-          userMessage: "批量重试识别失败",
-        }
-      ).finally(() => _clearActiveAbortController(abortController))) || []
+        )
+        .finally(() => _clearActiveAbortController(abortController))) || []
     );
   }
 

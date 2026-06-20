@@ -402,4 +402,3 @@ function truncateText(text: string, maxLength: number): string {
   border-color: var(--error-color);
 }
 </style>
-

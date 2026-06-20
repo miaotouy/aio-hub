@@ -122,12 +122,16 @@ export const googleModelRules: ModelMetadataRule[] = [
       releaseDate: "2026-05",
       description:
         "Gemini 3 Pro Image / Nano Banana Pro：面向专业资产生产的图像生成模型，使用 Thinking 跟随复杂指令，支持高保真文字与 1K/2K/4K 输出",
-      recommendedFor: ["专业图像生成", "图像编辑", "高保真文字渲染", "品牌资产"],
+      recommendedFor: [
+        "专业图像生成",
+        "图像编辑",
+        "高保真文字渲染",
+        "品牌资产",
+      ],
     },
     priority: 36,
     enabled: true,
-    description:
-      "模型正则 gemini-3-pro-image|nano-banana-pro 元数据规则",
+    description: "模型正则 gemini-3-pro-image|nano-banana-pro 元数据规则",
   },
   {
     id: "model-gemini-3.1-flash-live-preview",

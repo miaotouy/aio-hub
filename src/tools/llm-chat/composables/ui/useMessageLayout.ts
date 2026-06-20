@@ -1,4 +1,10 @@
-import { computed, toValue, type ComputedRef, type MaybeRefOrGetter, type Ref } from "vue";
+import {
+  computed,
+  toValue,
+  type ComputedRef,
+  type MaybeRefOrGetter,
+  type Ref,
+} from "vue";
 import type { ChatMessageNode } from "../../types";
 import type { ChatSettings } from "../../types/settings";
 import type { BubbleLayoutConfig } from "../../types/settings";
@@ -137,9 +143,7 @@ export function useMessageLayout(
         continue;
       }
       const siblings = getSiblings(message.id);
-      const currentIndex = siblings.findIndex((s) =>
-        isNodeInActivePath(s.id)
-      );
+      const currentIndex = siblings.findIndex((s) => isNodeInActivePath(s.id));
       map.set(message.id, { siblings, currentIndex });
     }
     return map;

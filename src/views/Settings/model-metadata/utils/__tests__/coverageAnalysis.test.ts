@@ -39,9 +39,7 @@ describe("coverageAnalysis", () => {
       "icon",
       "capabilities.toolUse",
     ]);
-    expect(contributions[0].overriddenFields).toEqual([
-      "capabilities.vision",
-    ]);
+    expect(contributions[0].overriddenFields).toEqual(["capabilities.vision"]);
     expect(contributions[1].effectiveFields).toEqual([
       "capabilities.vision",
       "capabilities.thinking",

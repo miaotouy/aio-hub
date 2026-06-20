@@ -197,4 +197,3 @@ export const RENDER_WIDTH_MODE_DEFAULT: RenderWidthMode = "auto";
 /** 输出像素倍率的合法选项 */
 export const CAPTURE_SCALE_OPTIONS = [1, 2, 3] as const;
 export const CAPTURE_SCALE_DEFAULT = 2;
-

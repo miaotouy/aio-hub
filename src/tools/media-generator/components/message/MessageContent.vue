@@ -405,11 +405,7 @@ const generationMetaForRenderer = computed(() => {
         <template v-else-if="isAudioOutputTaskType(task.type)">
           <div v-if="resultUrls.length > 0" class="audio-list">
             <div v-for="url in resultUrls" :key="url" class="media-item">
-              <AudioPlayer
-                :src="url"
-                layout="compact"
-                class="audio-preview"
-              />
+              <AudioPlayer :src="url" layout="compact" class="audio-preview" />
             </div>
           </div>
         </template>

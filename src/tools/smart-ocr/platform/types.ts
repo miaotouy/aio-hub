@@ -81,4 +81,3 @@ export interface OcrExtension {
   broken: boolean;
   devMode?: boolean;
 }
-

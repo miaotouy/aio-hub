@@ -66,9 +66,7 @@ describe("useMarkdownAst", () => {
       },
     ]);
 
-    expect(markdownAst.ast.value).toEqual([
-      paragraph("p1", [text("b", "B!")]),
-    ]);
+    expect(markdownAst.ast.value).toEqual([paragraph("p1", [text("b", "B!")])]);
     expect(markdownAst.nodeMap.get("b")?.path).toEqual([0, 0]);
   });
 });

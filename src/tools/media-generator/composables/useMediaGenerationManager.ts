@@ -584,7 +584,12 @@ export function useMediaGenerationManager() {
         const messages =
           finalContext.length > 0
             ? await buildLlmMessagesFromContext(finalContext)
-            : [buildPromptMessage(task.input.params.prompt, processedAttachments)];
+            : [
+                buildPromptMessage(
+                  task.input.params.prompt,
+                  processedAttachments
+                ),
+              ];
 
         finalOptions = {
           ...finalOptions,

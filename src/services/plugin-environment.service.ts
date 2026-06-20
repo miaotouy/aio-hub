@@ -100,8 +100,6 @@ export const pluginEnvironmentService: PluginEnvironmentAPI = {
 
   getDocumentConverterPath(key) {
     const environment = getEnvironmentSettings();
-    return (
-      environment.documentConverters?.[documentConverterKeyMap[key]] ?? ""
-    );
+    return environment.documentConverters?.[documentConverterKeyMap[key]] ?? "";
   },
 };

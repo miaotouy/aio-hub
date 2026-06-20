@@ -419,4 +419,3 @@ export const anthropicModelRules: ModelMetadataRule[] = [
     description: "模型前缀 claude- 元数据规则",
   },
 ];
-

@@ -284,4 +284,3 @@ function formatProperties(properties: ModelMetadataRule["properties"]): string {
   white-space: pre-wrap;
 }
 </style>
-

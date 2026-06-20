@@ -210,4 +210,3 @@ export function mergeRuleChainProperties(
     {} as ModelMetadataProperties
   );
 }
-

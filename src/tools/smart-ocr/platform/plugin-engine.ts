@@ -99,7 +99,9 @@ function createPendingResults(images: OcrImageInput[]): OcrResult[] {
   }));
 }
 
-function getPluginResultKey(result: NonNullable<PluginOcrBatchResult["results"]>[number]) {
+function getPluginResultKey(
+  result: NonNullable<PluginOcrBatchResult["results"]>[number]
+) {
   const imageId = result.groupId ?? result.imageId ?? result.id;
   const blockId = result.id ?? result.blockId ?? result.imageId;
   return `${imageId}:${blockId}`;

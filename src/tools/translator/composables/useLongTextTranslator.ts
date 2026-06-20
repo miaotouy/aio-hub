@@ -278,7 +278,8 @@ export function useLongTextTranslator() {
       }
     }
 
-    const message = lastError instanceof Error ? lastError.message : String(lastError);
+    const message =
+      lastError instanceof Error ? lastError.message : String(lastError);
     chunk.status = "failed";
     chunk.error = message;
     chunk.duration = Date.now() - lastStartedAt;

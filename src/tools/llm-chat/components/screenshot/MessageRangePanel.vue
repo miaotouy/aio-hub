@@ -278,4 +278,3 @@ function selectOnlyAssistant() {
   color: var(--text-color-secondary);
 }
 </style>
-

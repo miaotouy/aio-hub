@@ -252,7 +252,9 @@ const handleRadiusScaleChange = async (value: any) => {
             :key="preset.value"
             type="button"
             class="wallpaper-option"
-            :class="{ active: appearanceDraft.wallpaper.preset === preset.value }"
+            :class="{
+              active: appearanceDraft.wallpaper.preset === preset.value,
+            }"
             @click="handleWallpaperPresetChange(preset.value)"
           >
             <span class="wallpaper-preview-thumb" :class="preset.className">
@@ -693,30 +695,66 @@ const handleRadiusScaleChange = async (value: any) => {
 
 .wallpaper-preview--aurora {
   background:
-    radial-gradient(circle at 18% 20%, rgba(52, 211, 153, 0.88), transparent 32%),
-    radial-gradient(circle at 78% 24%, rgba(96, 165, 250, 0.82), transparent 34%),
-    radial-gradient(circle at 50% 88%, rgba(244, 114, 182, 0.64), transparent 38%),
+    radial-gradient(
+      circle at 18% 20%,
+      rgba(52, 211, 153, 0.88),
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at 78% 24%,
+      rgba(96, 165, 250, 0.82),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at 50% 88%,
+      rgba(244, 114, 182, 0.64),
+      transparent 38%
+    ),
     linear-gradient(145deg, #172033, #0f766e);
 }
 
 .wallpaper-preview--morning {
   background:
-    radial-gradient(circle at 18% 18%, rgba(255, 214, 165, 0.94), transparent 32%),
-    radial-gradient(circle at 82% 24%, rgba(125, 211, 252, 0.78), transparent 36%),
+    radial-gradient(
+      circle at 18% 18%,
+      rgba(255, 214, 165, 0.94),
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at 82% 24%,
+      rgba(125, 211, 252, 0.78),
+      transparent 36%
+    ),
     linear-gradient(145deg, #fff7ed, #dbeafe);
 }
 
 .wallpaper-preview--canyon {
   background:
-    radial-gradient(circle at 18% 20%, rgba(244, 114, 86, 0.72), transparent 34%),
-    radial-gradient(circle at 76% 28%, rgba(251, 191, 36, 0.62), transparent 36%),
+    radial-gradient(
+      circle at 18% 20%,
+      rgba(244, 114, 86, 0.72),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at 76% 28%,
+      rgba(251, 191, 36, 0.62),
+      transparent 36%
+    ),
     linear-gradient(150deg, #3a1f1b, #d97706);
 }
 
 .wallpaper-preview--ink {
   background:
-    radial-gradient(circle at 24% 20%, rgba(148, 163, 184, 0.36), transparent 34%),
-    radial-gradient(circle at 72% 72%, rgba(45, 212, 191, 0.28), transparent 36%),
+    radial-gradient(
+      circle at 24% 20%,
+      rgba(148, 163, 184, 0.36),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at 72% 72%,
+      rgba(45, 212, 191, 0.28),
+      transparent 36%
+    ),
     linear-gradient(150deg, #0f172a, #111827);
 }
 

@@ -288,8 +288,7 @@ const promptPlaceholder = computed(() => {
 
   if (mediaType === "music") {
     if (isMiniMaxMusic.value) {
-      if (isMiniMaxCoverModel.value)
-        return "描述翻唱风格，并添加参考音频...";
+      if (isMiniMaxCoverModel.value) return "描述翻唱风格，并添加参考音频...";
       if (params.minimax_music_mode === "instrumental")
         return "描述纯音乐风格、情绪和场景...";
       if (params.lyrics_source === "manual")

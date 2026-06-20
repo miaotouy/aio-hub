@@ -394,7 +394,9 @@ defineExpose({
           class="screenshot-brand-logo"
           alt="AIO Hub"
         />
-        <span class="screenshot-brand-text">{{ props.brand?.text || "AIO Hub" }}</span>
+        <span class="screenshot-brand-text">{{
+          props.brand?.text || "AIO Hub"
+        }}</span>
       </div>
     </div>
 
@@ -525,7 +527,9 @@ defineExpose({
           class="screenshot-brand-logo"
           alt="AIO Hub"
         />
-        <span class="screenshot-brand-text">{{ props.brand?.text || "AIO Hub" }}</span>
+        <span class="screenshot-brand-text">{{
+          props.brand?.text || "AIO Hub"
+        }}</span>
       </div>
     </div>
 

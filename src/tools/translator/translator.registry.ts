@@ -19,4 +19,3 @@ export const toolConfig: ToolConfig = {
   category: ["AI 工具", "文本处理"],
   version: "1.2.0",
 };
-

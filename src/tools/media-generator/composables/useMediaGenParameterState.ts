@@ -135,7 +135,10 @@ export function useMediaGenParameterState() {
   });
 
   const contextToggleUi = computed(() =>
-    getMediaContextToggleUi(mediaType.value, supportsConversationalContext.value)
+    getMediaContextToggleUi(
+      mediaType.value,
+      supportsConversationalContext.value
+    )
   );
 
   const showContextToggle = computed(() => contextToggleUi.value.visible);

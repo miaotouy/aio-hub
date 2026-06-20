@@ -125,7 +125,13 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, onMounted, computed } from "vue";
 import { customMessage } from "@/utils/customMessage";
-import { Expand, Fold, Refresh, Setting, Upload } from "@element-plus/icons-vue";
+import {
+  Expand,
+  Fold,
+  Refresh,
+  Setting,
+  Upload,
+} from "@element-plus/icons-vue";
 import InfoCard from "@components/common/InfoCard.vue";
 import ExportModule from "./components/ExportModule.vue";
 import ControlPanel from "./components/ControlPanel.vue";

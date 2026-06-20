@@ -150,7 +150,8 @@ body {
 
 .aio-action-button {
   background-color: color-mix(in srgb, var(--primary-color) 12%, transparent);
-  border: var(--border-width) solid color-mix(in srgb, var(--primary-color) 36%, transparent);
+  border: var(--border-width) solid
+    color-mix(in srgb, var(--primary-color) 36%, transparent);
   border-radius: var(--app-radius-md);
   color: var(--primary-color);
 }

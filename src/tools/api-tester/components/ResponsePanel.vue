@@ -34,7 +34,9 @@
         {{ response.status }} {{ response.statusText }}
       </span>
       <span class="metric">{{ response.duration }}ms</span>
-      <span class="metric">{{ formatSize(response.size ?? response.body.length) }}</span>
+      <span class="metric">{{
+        formatSize(response.size ?? response.body.length)
+      }}</span>
       <span v-if="response.isStreaming" class="streaming-badge">
         {{ response.isStreamComplete ? "流式完成" : "流式接收中" }}
       </span>
@@ -87,7 +89,9 @@
           </div>
           <div class="summary-item">
             <span>大小</span>
-            <strong>{{ formatSize(response.size ?? response.body.length) }}</strong>
+            <strong>{{
+              formatSize(response.size ?? response.body.length)
+            }}</strong>
           </div>
           <div class="summary-item">
             <span>Header 数</span>
@@ -120,7 +124,9 @@ const activeTab = ref("body");
 
 const response = computed(() => store.lastResponse!);
 const headerEntries = computed(() => Object.entries(response.value.headers));
-const contentType = computed(() => response.value.headers["content-type"] || "");
+const contentType = computed(
+  () => response.value.headers["content-type"] || ""
+);
 const bodyLanguage = computed(() => {
   if (contentType.value.includes("json")) return "json";
   if (contentType.value.includes("xml")) return "xml";
@@ -258,7 +264,8 @@ async function copyResponseBody() {
 .streaming-badge {
   color: var(--primary-color);
   background: color-mix(in srgb, var(--primary-color) 14%, transparent);
-  border: var(--border-width) solid color-mix(in srgb, var(--primary-color) 30%, transparent);
+  border: var(--border-width) solid
+    color-mix(in srgb, var(--primary-color) 30%, transparent);
 }
 
 .response-error {

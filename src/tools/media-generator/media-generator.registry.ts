@@ -1,6 +1,10 @@
 import { markRaw, watch, type WatchStopHandle } from "vue";
 import { Sparkles } from "lucide-vue-next";
-import type { ServiceMetadata, ToolRegistry, ToolConfig } from "@/services/types";
+import type {
+  ServiceMetadata,
+  ToolRegistry,
+  ToolConfig,
+} from "@/services/types";
 import type { AssetSidecarAction, Asset } from "@/types/asset-management";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
 import { createModuleLogger } from "@/utils/logger";

@@ -61,7 +61,9 @@ function parseToolSummaryItems(content: string): ToolSummaryItem[] {
     });
 }
 
-function collectToolResultSignatures(children: AstNode[]): ToolResultSignature[] {
+function collectToolResultSignatures(
+  children: AstNode[]
+): ToolResultSignature[] {
   const signatures: ToolResultSignature[] = [];
 
   for (const child of children) {
@@ -153,7 +155,9 @@ export function parseVcpRole(
         role,
         variant,
         summaryItems:
-          variant === "tool_summary" ? parseToolSummaryItems(content) : undefined,
+          variant === "tool_summary"
+            ? parseToolSummaryItems(content)
+            : undefined,
         closed,
       },
       children,

@@ -60,7 +60,9 @@ describe("userProfileStore", () => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
     storageMocks.loadProfiles.mockResolvedValue([createProfile()]);
-    storageMocks.loadSettings.mockResolvedValue({ globalProfileId: "profile-1" });
+    storageMocks.loadSettings.mockResolvedValue({
+      globalProfileId: "profile-1",
+    });
   });
 
   it("loads complete profiles with a single in-flight storage read", async () => {

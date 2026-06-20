@@ -95,11 +95,14 @@ function copyUrl() {
     customMessage.warning("没有可复制的 URL");
     return;
   }
-  navigator.clipboard.writeText(url).then(() => {
-    customMessage.success("URL 已复制到剪贴板");
-  }).catch(() => {
-    customMessage.error("复制失败");
-  });
+  navigator.clipboard
+    .writeText(url)
+    .then(() => {
+      customMessage.success("URL 已复制到剪贴板");
+    })
+    .catch(() => {
+      customMessage.error("复制失败");
+    });
 }
 
 // 中止请求

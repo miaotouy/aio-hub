@@ -494,7 +494,10 @@ export const useApiTesterStore = defineStore("apiTester", {
     // 持久化配置到 localStorage
     persistProfiles(): void {
       try {
-        localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(this.savedProfiles));
+        localStorage.setItem(
+          PROFILE_STORAGE_KEY,
+          JSON.stringify(this.savedProfiles)
+        );
       } catch (error) {
         errorHandler.error(error, "保存 Profile 配置失败", {
           context: {
@@ -552,10 +555,10 @@ export const useApiTesterStore = defineStore("apiTester", {
         error: this.lastResponse.error,
       };
 
-      this.requestHistory = [
-        historyItem,
-        ...this.requestHistory,
-      ].slice(0, MAX_HISTORY_ITEMS);
+      this.requestHistory = [historyItem, ...this.requestHistory].slice(
+        0,
+        MAX_HISTORY_ITEMS
+      );
       this.persistHistory();
     },
 

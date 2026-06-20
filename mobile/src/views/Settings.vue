@@ -23,8 +23,7 @@ import {
 const settingsStore = useSettingsStore();
 const router = useRouter();
 const { t, locale } = useI18n();
-const { appearanceDraft, updateAppearanceDraft } =
-  useAppearanceSettingsDraft();
+const { appearanceDraft, updateAppearanceDraft } = useAppearanceSettingsDraft();
 
 // 主题选项
 const themeOptions = computed(() => [

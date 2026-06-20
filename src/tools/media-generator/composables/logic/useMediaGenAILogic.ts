@@ -111,7 +111,10 @@ export function useMediaGenAILogic(options: {
             n.role === "user"
               ? n.content
               : n.metadata?.taskSnapshot?.input?.prompt || n.content;
-          const content = sanitizeTopicContextContent(rawContent, thinkTagNames);
+          const content = sanitizeTopicContextContent(
+            rawContent,
+            thinkTagNames
+          );
           if (!content) return "";
           return n.role === "user"
             ? `用户输入: ${content}`

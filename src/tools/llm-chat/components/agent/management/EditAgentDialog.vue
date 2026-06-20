@@ -139,8 +139,7 @@ const loadFormData = async () => {
     props.mode === "edit" ? localAgentId.value || props.agent?.id : null;
 
   // 确定数据源：编辑模式优先按需加载完整详情，创建模式用 initialData
-  let sourceData: Partial<AgentEditData> | ChatAgent =
-    props.initialData || {};
+  let sourceData: Partial<AgentEditData> | ChatAgent = props.initialData || {};
 
   if (props.mode === "edit" && editingAgentId) {
     const loadedAgent = await agentStore.ensureAgentLoaded(editingAgentId);

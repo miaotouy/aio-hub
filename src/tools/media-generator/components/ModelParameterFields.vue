@@ -718,7 +718,9 @@ const handleExportDiagnostics = async () => {
         <div class="section diagnostic-section">
           <div class="section-title">
             <span>诊断信息</span>
-            <el-tooltip content="导出当前会话、模型组合、参数规则与最近日志，用于排查参数面板异常">
+            <el-tooltip
+              content="导出当前会话、模型组合、参数规则与最近日志，用于排查参数面板异常"
+            >
               <el-icon class="info-icon"><Info /></el-icon>
             </el-tooltip>
           </div>

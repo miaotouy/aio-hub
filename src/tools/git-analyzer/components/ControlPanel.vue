@@ -212,19 +212,13 @@
     </div>
 
     <!-- 筛选信息提示 -->
-    <div
-      v-if="hasActiveFilters && !controlsCollapsed"
-      class="filter-summary"
-    >
+    <div v-if="hasActiveFilters && !controlsCollapsed" class="filter-summary">
       <el-icon><InfoFilled /></el-icon>
       <span>{{ filterSummary }}</span>
     </div>
 
     <!-- 范围选择器 -->
-    <div
-      v-if="commits.length > 0 && !controlsCollapsed"
-      class="range-selector"
-    >
+    <div v-if="commits.length > 0 && !controlsCollapsed" class="range-selector">
       <div class="range-row">
         <div class="range-header">
           <span class="range-label">提交范围:</span>

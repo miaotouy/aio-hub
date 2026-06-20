@@ -14,7 +14,8 @@ const normalizeTaskType = (task: MediaTask): MediaTaskType => {
   if (type !== "audio") return task.type;
 
   const params = task.input?.params || {};
-  const modelText = `${task.input?.modelId || ""} ${task.input?.profileId || ""}`.toLowerCase();
+  const modelText =
+    `${task.input?.modelId || ""} ${task.input?.profileId || ""}`.toLowerCase();
   if (
     modelText.includes("suno") ||
     params.suno_mode !== undefined ||

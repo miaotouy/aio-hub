@@ -218,10 +218,7 @@ export function useMarkdownAst(
 
         return spliceAtPath(
           nodes,
-          [
-            ...index.path.slice(0, -1),
-            index.path[index.path.length - 1] + 1,
-          ],
+          [...index.path.slice(0, -1), index.path[index.path.length - 1] + 1],
           0,
           [patch.newNode]
         );

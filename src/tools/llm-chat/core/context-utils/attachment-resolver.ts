@@ -253,4 +253,3 @@ export async function resolveAttachmentsBatch<
 
   return results;
 }
-

@@ -477,4 +477,3 @@ async function handleClearHistory() {
   margin-left: auto;
 }
 </style>
-

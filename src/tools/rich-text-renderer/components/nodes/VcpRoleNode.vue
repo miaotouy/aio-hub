@@ -1,8 +1,5 @@
 <template>
-  <div
-    class="vcp-role-fence"
-    :class="[roleClass, { 'is-pending': !closed }]"
-  >
+  <div class="vcp-role-fence" :class="[roleClass, { 'is-pending': !closed }]">
     <div class="vcp-role-badge">
       <component :is="roleIcon" class="role-icon" :size="10" />
       <span class="role-name">{{ badgeLabel }}</span>
@@ -35,7 +32,13 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { User, Bot, ShieldCheck, Loader2, ClipboardList } from "lucide-vue-next";
+import {
+  User,
+  Bot,
+  ShieldCheck,
+  Loader2,
+  ClipboardList,
+} from "lucide-vue-next";
 
 const props = defineProps<{
   nodeId: string;

@@ -3,7 +3,12 @@ import { computed, reactive } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpened } from "@element-plus/icons-vue";
-import { ExternalLink, FileCode2, GitBranch, RadioTower } from "lucide-vue-next";
+import {
+  ExternalLink,
+  FileCode2,
+  GitBranch,
+  RadioTower,
+} from "lucide-vue-next";
 import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import {
   defaultEnvironmentSettings,
@@ -156,9 +161,7 @@ const openDownload = (url: string) => {
     <div class="intro-row">
       <div>
         <h3>运行环境与外部依赖</h3>
-        <p>
-          这里配置全局默认路径。工具自身路径留空时会自动跟随这些全局设置。
-        </p>
+        <p>这里配置全局默认路径。工具自身路径留空时会自动跟随这些全局设置。</p>
       </div>
     </div>
 
@@ -170,7 +173,9 @@ const openDownload = (url: string) => {
       >
         <header class="card-header">
           <div class="title-area">
-            <el-icon class="dependency-icon"><component :is="card.icon" /></el-icon>
+            <el-icon class="dependency-icon"
+              ><component :is="card.icon"
+            /></el-icon>
             <div>
               <h4>{{ card.name }}</h4>
               <p>{{ card.description }}</p>
@@ -202,7 +207,9 @@ const openDownload = (url: string) => {
             <el-input
               :model-value="getPath(card)"
               :placeholder="card.placeholder"
-              @update:model-value="(value: string) => handlePathUpdate(card, value)"
+              @update:model-value="
+                (value: string) => handlePathUpdate(card, value)
+              "
             >
               <template #append>
                 <el-tooltip content="选择文件" placement="top">
@@ -238,7 +245,11 @@ const openDownload = (url: string) => {
           >
             检测
           </el-button>
-          <el-button link type="primary" @click="openDownload(card.downloadUrl)">
+          <el-button
+            link
+            type="primary"
+            @click="openDownload(card.downloadUrl)"
+          >
             <el-icon><ExternalLink /></el-icon>
             下载指引
           </el-button>

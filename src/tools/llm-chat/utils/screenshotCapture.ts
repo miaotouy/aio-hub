@@ -946,4 +946,3 @@ export async function copyCanvasToClipboard(
   });
   await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
 }
-

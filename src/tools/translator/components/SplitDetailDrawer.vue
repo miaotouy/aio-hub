@@ -10,7 +10,9 @@
       <header class="summary">
         <div>
           <strong>{{ task.channelName }}</strong>
-          <span>{{ task.progress }}% · {{ completedCount }}/{{ totalCount }}</span>
+          <span
+            >{{ task.progress }}% · {{ completedCount }}/{{ totalCount }}</span
+          >
         </div>
         <el-progress :percentage="task.progress" :stroke-width="8" />
       </header>
@@ -40,7 +42,9 @@
             <pre>{{ chunk.sourceText }}</pre>
           </details>
           <details :open="chunk.status === 'failed'">
-            <summary>译文 · {{ (chunk.translatedText || '').length }} 字</summary>
+            <summary>
+              译文 · {{ (chunk.translatedText || "").length }} 字
+            </summary>
             <pre>{{ chunk.translatedText || "暂无译文" }}</pre>
           </details>
         </section>
@@ -143,15 +147,27 @@ function formatDuration(duration: number) {
 }
 
 .chunk-item.status-translating {
-  border-color: color-mix(in srgb, var(--primary-color) 46%, var(--border-color));
+  border-color: color-mix(
+    in srgb,
+    var(--primary-color) 46%,
+    var(--border-color)
+  );
 }
 
 .chunk-item.status-completed {
-  border-color: color-mix(in srgb, var(--el-color-success) 36%, var(--border-color));
+  border-color: color-mix(
+    in srgb,
+    var(--el-color-success) 36%,
+    var(--border-color)
+  );
 }
 
 .chunk-item.status-failed {
-  border-color: color-mix(in srgb, var(--el-color-danger) 52%, var(--border-color));
+  border-color: color-mix(
+    in srgb,
+    var(--el-color-danger) 52%,
+    var(--border-color)
+  );
 }
 
 .chunk-head {

@@ -28,7 +28,11 @@
       >
         <div class="history-main">
           <div class="history-title-row">
-            <el-tag size="small" effect="dark" :type="getMethodType(item.method)">
+            <el-tag
+              size="small"
+              effect="dark"
+              :type="getMethodType(item.method)"
+            >
               {{ item.method }}
             </el-tag>
             <span class="history-url">{{ item.url }}</span>

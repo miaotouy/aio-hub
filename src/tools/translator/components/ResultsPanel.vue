@@ -172,10 +172,7 @@
         </footer>
       </article>
     </div>
-    <SplitDetailDrawer
-      v-model="splitDrawerVisible"
-      :task="activeSplitTask"
-    />
+    <SplitDetailDrawer v-model="splitDrawerVisible" :task="activeSplitTask" />
   </section>
 </template>
 
@@ -208,10 +205,11 @@ const contentRefs = new Map<string, HTMLElement>();
 const userScrolledAway = new Set<string>();
 const splitDrawerVisible = ref(false);
 const activeSplitChannelId = ref<string | undefined>();
-const activeSplitTask = computed(() =>
-  visibleResults.value.find(
-    (result) => result.channelId === activeSplitChannelId.value
-  )?.longTextTask
+const activeSplitTask = computed(
+  () =>
+    visibleResults.value.find(
+      (result) => result.channelId === activeSplitChannelId.value
+    )?.longTextTask
 );
 
 function setContentRef(channelId: string, el: unknown) {

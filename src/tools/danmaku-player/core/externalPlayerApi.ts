@@ -77,4 +77,3 @@ export class TauriExternalPlayerStatusProvider implements ExternalPlayerStatusPr
     return status !== null;
   }
 }
-

@@ -114,9 +114,7 @@ function collectImagesFromUnknown(value: any): Array<{
     }
 
     const imageUrl =
-      typeof item.image_url === "string"
-        ? item.image_url
-        : item.image_url?.url;
+      typeof item.image_url === "string" ? item.image_url : item.image_url?.url;
     const url =
       imageUrl ||
       item.url ||

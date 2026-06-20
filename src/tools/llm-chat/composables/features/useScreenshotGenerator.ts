@@ -71,11 +71,7 @@ export function useScreenshotGenerator() {
     progress.value = { done: 0, total: elements.length, currentLabel: "" };
     lastResult.value = null;
 
-    const wrappedOnProgress = (
-      done: number,
-      total: number,
-      label: string
-    ) => {
+    const wrappedOnProgress = (done: number, total: number, label: string) => {
       progress.value = { done, total, currentLabel: label };
       onProgress?.(done, total, label);
     };
@@ -118,9 +114,7 @@ export function useScreenshotGenerator() {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.warn("复制到剪贴板失败", { error: message });
-      customMessage.warning(
-        `复制失败: ${message}。请使用"保存图片"功能`
-      );
+      customMessage.warning(`复制失败: ${message}。请使用"保存图片"功能`);
       return false;
     }
   }

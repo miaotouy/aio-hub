@@ -4,13 +4,13 @@
 
 ## 前置软件
 
-| 软件 | 用途 |
-| :--- | :--- |
-| Bun | 前端包管理与脚本运行 |
-| Rust | Tauri 后端编译 |
-| Tauri CLI | 启动和打包桌面应用 |
-| WebView2 | Windows 运行 Tauri WebView |
-| Android / iOS 工具链 | 仅移动端开发需要 |
+| 软件                 | 用途                       |
+| :------------------- | :------------------------- |
+| Bun                  | 前端包管理与脚本运行       |
+| Rust                 | Tauri 后端编译             |
+| Tauri CLI            | 启动和打包桌面应用         |
+| WebView2             | Windows 运行 Tauri WebView |
+| Android / iOS 工具链 | 仅移动端开发需要           |
 
 Windows 用户建议先安装 Visual Studio Build Tools，并勾选 C++ 桌面开发相关组件。
 
@@ -132,4 +132,3 @@ bun run mtib
 ### 应该运行完整 `bun run check` 吗？
 
 改动范围小时可以先运行对应检查。提交前建议运行完整检查；但后端、移动端检查耗时更长，需要根据当前改动范围选择。
-

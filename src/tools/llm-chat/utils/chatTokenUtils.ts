@@ -148,9 +148,8 @@ export async function recalculateNodeTokens(
 
   try {
     let fullContent = node.content;
-    let mediaAttachments:
-      | Array<Asset | PipelineAttachment>
-      | undefined = node.attachments;
+    let mediaAttachments: Array<Asset | PipelineAttachment> | undefined =
+      node.attachments;
 
     if (
       node.role === "user" &&

@@ -159,34 +159,60 @@ provide("currentAgent", currentAgent);
 // 附件管理器 - 用于编辑模式（使用默认配置）
 const attachmentManager = useAttachmentManager();
 
-const getWillUseTranscription = (asset: Asset) => {
-  const { modelId, profileId } = props.message.metadata || {};
+// 统一解析当前消息实际对应的模型和配置 ID
+const resolvedModelAndProfile = computed(() => {
+  const metadata = props.message.metadata;
+  let modelId = metadata?.modelId;
+  let profileId = metadata?.profileId;
 
-  // 如果没有模型信息，尝试获取当前 Agent 的配置
-  let finalModelId = modelId;
-  let finalProfileId = profileId;
-
-  if (!finalModelId || !finalProfileId) {
-    const currentAgentId = agentStore.currentAgentId;
-    if (currentAgentId) {
-      const agentConfig = agentStore.getAgentConfig(currentAgentId);
-      if (agentConfig) {
-        finalModelId = agentConfig.modelId;
-        finalProfileId = agentConfig.profileId;
+  // 如果是用户消息，且没有模型信息，尝试从其子节点（助手消息）中获取发送时实际使用的模型
+  if (
+    (!modelId || !profileId) &&
+    props.message.role === "user" &&
+    props.sessionDetail?.nodes
+  ) {
+    for (const childId of props.message.childrenIds) {
+      const childNode = props.sessionDetail.nodes[childId];
+      if (
+        childNode?.role === "assistant" &&
+        childNode.metadata?.modelId &&
+        childNode.metadata?.profileId
+      ) {
+        modelId = childNode.metadata.modelId;
+        profileId = childNode.metadata.profileId;
+        break;
       }
     }
   }
 
+  // 回退到当前激活的 Agent 配置
+  if (!modelId || !profileId) {
+    const currentAgentId = agentStore.currentAgentId;
+    if (currentAgentId) {
+      const agentConfig = agentStore.getAgentConfig(currentAgentId);
+      if (agentConfig) {
+        modelId = modelId || agentConfig.modelId;
+        profileId = profileId || agentConfig.profileId;
+      }
+    }
+  }
+
+  return { modelId, profileId };
+});
+
+const getWillUseTranscription = (asset: Asset) => {
+  const { modelId, profileId } = resolvedModelAndProfile.value;
+
   // 如果仍然没有模型信息，返回 true（默认需要转写）
-  if (!finalModelId || !finalProfileId) {
+  if (!modelId || !profileId) {
     return true;
   }
 
   // 使用统一方法计算
   return computeWillUseTranscription(
     asset,
-    finalModelId,
-    finalProfileId,
+    modelId,
+    profileId,
     props.messageDepth
   );
 };
@@ -271,18 +297,7 @@ const originalRendererEnterAnimation = computed(
 // 提取生成元数据用于渲染器计时
 const generationMetaForRenderer = computed(() => {
   const metadata = props.message.metadata;
-
-  // 尝试获取模型 ID
-  // 1. 优先使用消息元数据中的 modelId (助手消息)
-  // 2. 其次尝试从当前 Agent 配置中获取 (用户消息)
-  let modelId = metadata?.modelId;
-  if (!modelId) {
-    const currentAgentId = agentStore.currentAgentId;
-    if (currentAgentId) {
-      const agentConfig = agentStore.getAgentConfig(currentAgentId);
-      modelId = agentConfig?.modelId;
-    }
-  }
+  const { modelId } = resolvedModelAndProfile.value;
 
   if (!metadata) return { modelId };
 
@@ -841,34 +856,19 @@ watch(
   [
     () => props.message.content,
     () => props.message.attachments,
-    () => props.message.metadata,
+    resolvedModelAndProfile,
   ],
-  async ([content, attachments, metadata]) => {
+  async ([content, attachments, { modelId, profileId }]) => {
     let totalChar = (content || "").length;
     if (attachments && attachments.length > 0) {
-      const { modelId, profileId } = metadata || {};
-      let finalModelId = modelId;
-      let finalProfileId = profileId;
-
-      if (!finalModelId || !finalProfileId) {
-        const currentAgentId = agentStore.currentAgentId;
-        if (currentAgentId) {
-          const agentConfig = agentStore.getAgentConfig(currentAgentId);
-          if (agentConfig) {
-            finalModelId = agentConfig.modelId;
-            finalProfileId = agentConfig.profileId;
-          }
-        }
-      }
-
-      if (finalModelId && finalProfileId) {
+      if (modelId && profileId) {
         try {
           const { resolveAttachmentsBatch } =
             await import("../../core/context-utils/attachment-resolver");
           const resolved = await resolveAttachmentsBatch(
             attachments,
-            finalModelId,
-            finalProfileId,
+            modelId,
+            profileId,
             {
               silent: true,
               messageDepth: props.messageDepth,

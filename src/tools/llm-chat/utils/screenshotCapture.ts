@@ -19,6 +19,9 @@ import type {
   ScreenshotWatermarkConfig,
   WallpaperMode,
 } from "../components/screenshot/screenshotTypes";
+import { createModuleLogger } from "@/utils/logger";
+
+const logger = createModuleLogger("screenshot-capture");
 
 // ===================== 类型 =====================
 
@@ -241,11 +244,36 @@ export async function captureElementAsCanvas(
     height: captureHeight,
     scale,
     timeout,
+    font: false, // 禁用字体加载，免疫构建版本中字体加载失败导致的崩溃，并极大提升截图速度
+    fetchFn: async (url) => {
+      if (url.startsWith("data:")) {
+        return url;
+      }
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`Fetch failed with status ${res.status}`);
+        const blob = await res.blob();
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } catch (err) {
+        logger.warn(`获取截图资源失败，已自动使用透明图兜底: ${url}`, {
+          error: err,
+        });
+        // 返回 1x1 透明 PNG 兜底，防止崩溃
+        return "data:image/png;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+      }
+    },
     features: {
       removeControlCharacter: true,
     },
     onCloneNode: (clonedNode) => {
+      if (clonedNode.nodeType !== Node.ELEMENT_NODE) return;
       const el = clonedNode as HTMLElement;
+      if (!el.style) return;
       el.style.width = `${captureWidth}px`;
       el.style.minWidth = `${captureWidth}px`;
       el.style.maxWidth = `${captureWidth}px`;

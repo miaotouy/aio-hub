@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<!--\n  DEPRECATED: 步骤配置已迁入 FlowEditor.vue 的内嵌展开区。\n  本文件不再被任何模块引用；保留此文件仅为方便回退。\n  下一轮手动清理时删除。\n-->\n<script setup lang="ts">
 /**
  * 步骤配置面板
  *

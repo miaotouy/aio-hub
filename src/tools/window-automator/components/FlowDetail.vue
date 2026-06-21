@@ -1,26 +1,34 @@
 <script setup lang="ts">
 /**
- * 方案详情页（二级页）
+ * 方案详情页（二级页）— Quicker 风格重构版
  *
  * 布局：
- *  - 左侧：FlowEditor（步骤流）
- *  - 右上：StepConfigPanel（选中步骤参数）
- *  - 右下：ControlPanel（启动 / 暂停 / 停止 / 日志）
- *
- * 顶部：返回按钮 + 方案名称 + 描述 + 窗口选择器。
+ *  - 顶部：返回按钮 + 方案名称 + 操作按钮 + VSCode 风格三边折叠开关
+ *  - 主体左侧：StepToolbox（窗口绑定 + 步骤类型按钮），可向左折叠为 0 宽
+ *  - 主体右侧工作区：
+ *      - 上：FlowEditor（一体化步骤流，含内嵌配置与徽章）
+ *      - 下：ControlPanel（运行控制 + 日志），可向下折叠为 0 高
  */
 import { computed, ref, watch, onBeforeUnmount } from "vue";
-import { ArrowLeft, Pencil, Save, Trash2, Check, X } from "lucide-vue-next";
+import {
+  ArrowLeft,
+  Pencil,
+  Save,
+  Trash2,
+  Check,
+  X,
+  PanelLeft,
+  TerminalSquare,
+} from "lucide-vue-next";
 import { useWindowAutomatorStore } from "../stores/windowAutomator.store";
 import { useFlowPersistence } from "../composables/useFlowPersistence";
 import { useFlowExecutor } from "../composables/useFlowExecutor";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import FlowEditor from "./FlowEditor.vue";
-import StepConfigPanel from "./StepConfigPanel.vue";
 import ControlPanel from "./ControlPanel.vue";
-import WindowSelector from "./WindowSelector.vue";
-import type { ActionFlow, StepType } from "../types";
+import StepToolbox from "./StepToolbox.vue";
+import type { ActionFlow, StepType, WindowInfo } from "../types";
 
 const store = useWindowAutomatorStore();
 const persistence = useFlowPersistence();
@@ -29,6 +37,10 @@ const executor = useFlowExecutor();
 const flow = computed<ActionFlow | null>(() => store.currentFlow);
 const descriptionEditing = ref(false);
 const descriptionDraft = ref("");
+
+/** 折叠状态 */
+const showSidebar = ref(true);
+const showConsole = ref(true);
 
 let saveCanceller: { trigger: () => void; cancel: () => void } | null = null;
 
@@ -55,6 +67,11 @@ function addStep(type: StepType) {
     store.selectStep(step.id);
     saveCanceller?.trigger();
   }
+}
+
+function onWindowBound(_w: WindowInfo | null) {
+  // 绑定/解绑时立即触发一次保存，便于会话恢复
+  saveCanceller?.trigger();
 }
 
 function back() {
@@ -125,8 +142,11 @@ async function deleteFlow() {
   customMessage.success("已删除");
 }
 
-function onWindowBound() {
-  saveCanceller?.trigger();
+function toggleSidebar() {
+  showSidebar.value = !showSidebar.value;
+}
+function toggleConsole() {
+  showConsole.value = !showConsole.value;
 }
 
 onBeforeUnmount(() => {
@@ -162,7 +182,34 @@ onBeforeUnmount(() => {
         </el-tooltip>
       </div>
       <div class="right">
-        <WindowSelector mode="inline" @bound="onWindowBound" />
+        <div class="fold-toggles">
+          <el-tooltip
+            :content="showSidebar ? '折叠左侧工具箱' : '展开左侧工具箱'"
+            placement="bottom"
+          >
+            <button
+              class="fold-btn"
+              :class="{ active: showSidebar }"
+              type="button"
+              @click="toggleSidebar"
+            >
+              <PanelLeft :size="16" />
+            </button>
+          </el-tooltip>
+          <el-tooltip
+            :content="showConsole ? '折叠底部控制台' : '展开底部控制台'"
+            placement="bottom"
+          >
+            <button
+              class="fold-btn"
+              :class="{ active: showConsole }"
+              type="button"
+              @click="toggleConsole"
+            >
+              <TerminalSquare :size="16" />
+            </button>
+          </el-tooltip>
+        </div>
       </div>
     </div>
 
@@ -193,14 +240,14 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="detail-body">
-      <div class="left-pane">
-        <FlowEditor @add-step="addStep" />
+      <div v-show="showSidebar" class="left-pane">
+        <StepToolbox @add-step="addStep" @bound="onWindowBound" />
       </div>
       <div class="right-pane">
         <div class="right-top">
-          <StepConfigPanel />
+          <FlowEditor />
         </div>
-        <div class="right-bottom">
+        <div v-show="showConsole" class="right-bottom">
           <ControlPanel :flow="flow" :bound-window="store.boundWindow" />
         </div>
       </div>
@@ -231,6 +278,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 .right {
   display: flex;
@@ -248,6 +296,36 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 .flow-name:hover {
+  color: var(--el-color-primary);
+}
+.fold-toggles {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--card-bg);
+}
+.fold-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.fold-btn:hover {
+  background-color: var(--el-fill-color-light);
+  color: var(--el-text-color-primary);
+}
+.fold-btn.active {
+  background-color: var(--el-color-primary-light-9);
   color: var(--el-color-primary);
 }
 .description-row {
@@ -269,10 +347,12 @@ onBeforeUnmount(() => {
   min-height: 0;
 }
 .left-pane {
-  width: 380px;
+  width: 260px;
   flex-shrink: 0;
-  min-width: 320px;
-  max-width: 480px;
+  min-width: 220px;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
 }
 .right-pane {
   flex: 1;
@@ -281,16 +361,15 @@ onBeforeUnmount(() => {
   gap: 12px;
   min-width: 0;
 }
-.right-top,
-.right-bottom {
+.right-top {
+  flex: 1 1 auto;
   min-height: 0;
 }
-.right-top {
-  flex: 0 0 auto;
-  max-height: 45%;
-}
 .right-bottom {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  height: 280px;
 }
 .empty {
   display: flex;

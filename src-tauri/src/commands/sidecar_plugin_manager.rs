@@ -109,10 +109,37 @@ pub async fn sidecar_spawn_resident(
         }
     }
 
-    let executable_full_path = PathBuf::from(&executable_path);
+    let mut executable_full_path = PathBuf::from(&executable_path);
+
+    // 打印当前工作目录和传入的路径，方便调试
+    if let Ok(cwd) = std::env::current_dir() {
+        log::info!(
+            "[SIDECAR_RESIDENT] 当前工作目录 (CWD): {}, 传入的可执行文件路径: {}",
+            cwd.display(),
+            executable_path
+        );
+
+        // 如果是相对路径，且当前工作目录是 src-tauri，我们需要将其调整为相对于项目根目录
+        if executable_full_path.is_relative() {
+            if cwd.ends_with("src-tauri") {
+                if let Some(parent) = cwd.parent() {
+                    let resolved_path = parent.join(&executable_path);
+                    log::info!(
+                        "[SIDECAR_RESIDENT] 检测到 CWD 为 src-tauri，将相对路径解析为项目根目录: {}",
+                        resolved_path.display()
+                    );
+                    executable_full_path = resolved_path;
+                }
+            } else {
+                executable_full_path = cwd.join(&executable_path);
+            }
+        }
+    }
+
     if !executable_full_path.exists() {
         return Err(format!(
-            "可执行文件不存在: {}",
+            "可执行文件不存在: {} (解析后的绝对路径: {})",
+            executable_path,
             executable_full_path.display()
         ));
     }
@@ -462,44 +489,46 @@ pub async fn sidecar_send_command(
 ) -> Result<String, String> {
     log::info!("[SIDECAR_RESIDENT] 发送命令: {}.{}", plugin_id, method);
 
-    let processes = state.processes.lock().await;
-    let process = processes
-        .get(&plugin_id)
-        .ok_or_else(|| format!("插件 {} 的常驻进程未启动", plugin_id))?;
+    // 提取 id 和 cmd_str 后立即释放 processes 锁，避免阻塞 stdout 读取任务
+    let (id, _cmd_str, rx) = {
+        let processes = state.processes.lock().await;
+        let process = processes
+            .get(&plugin_id)
+            .ok_or_else(|| format!("插件 {} 的常驻进程未启动", plugin_id))?;
 
-    // 生成唯一 ID
-    let id = process.next_id.fetch_add(1, Ordering::SeqCst);
+        // 生成唯一 ID
+        let id = process.next_id.fetch_add(1, Ordering::SeqCst);
 
-    // 构建 JSON-RPC 命令
-    let cmd = serde_json::json!({
-        "id": id,
-        "method": method,
-        "params": params
-    });
+        // 构建 JSON-RPC 命令
+        let cmd = serde_json::json!({
+            "id": id,
+            "method": method,
+            "params": params
+        });
 
-    let cmd_str = cmd.to_string();
+        let cmd_str = cmd.to_string();
 
-    // 创建 oneshot 接收器
-    let (tx, rx) = oneshot::channel::<String>();
-    {
-        let mut pending = process.pending_requests.lock().await;
-        pending.insert(id, tx);
-    }
-
-    // 写入 stdin
-    if let Err(e) = process.write_to_stdin(&cmd_str).await {
-        // 清理 pending
+        // 创建 oneshot 接收器
+        let (tx, rx) = oneshot::channel::<String>();
         {
             let mut pending = process.pending_requests.lock().await;
-            pending.remove(&id);
+            pending.insert(id, tx);
         }
-        return Err(format!("写入 stdin 失败: {}", e));
-    }
+
+        // 写入 stdin（此时仍持有 processes 锁，但这是必要的——我们不能让
+        // 其他线程同时修改同一个进程的 stdin）
+        if let Err(e) = process.write_to_stdin(&cmd_str).await {
+            // 清理 pending
+            let mut pending = process.pending_requests.lock().await;
+            pending.remove(&id);
+            return Err(format!("写入 stdin 失败: {}", e));
+        }
+
+        (id, cmd_str, rx)
+    };
+    // processes 锁在此处自动 drop，stdout 任务现在可以获取锁并完成 tx.send()
 
     // 等待响应（带超时）
-    // 释放 processes 锁，避免阻塞其他操作
-    let _ = process;
-
     let timeout = tokio::time::Duration::from_secs(300); // 5 分钟超时
     let result = tokio::time::timeout(timeout, rx).await;
 

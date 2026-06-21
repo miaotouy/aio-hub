@@ -163,95 +163,120 @@ export class SidecarPluginAdapter implements PluginProxy {
     const executablePath = this.getExecutablePath();
     const args = this.manifest.sidecar?.args || [];
 
-    // 启动常驻进程
-    await invoke("sidecar_spawn_resident", {
-      pluginId: this.manifest.id,
-      executablePath,
-      args,
-    });
+    let processSpawned = false;
 
-    // 监听常驻 Sidecar 事件
-    this.residentEventUnlisten = await listen<SidecarResidentEvent>(
-      "sidecar-resident-event",
-      (event) => {
-        const data = event.payload;
+    try {
+      // 启动常驻进程
+      await invoke("sidecar_spawn_resident", {
+        pluginId: this.manifest.id,
+        executablePath,
+        args,
+      });
+      processSpawned = true;
 
-        // 只处理本插件的事件
-        if (data.plugin_id === this.manifest.id) {
-          logger.debug(`收到常驻 Sidecar 事件: ${data.event_type}`, {
-            eventName: data.event_name,
-            data: data.data,
-          });
+      // 监听常驻 Sidecar 事件
+      this.residentEventUnlisten = await listen<SidecarResidentEvent>(
+        "sidecar-resident-event",
+        (event) => {
+          const data = event.payload;
 
-          // 如果是主动推送的 event 类型，触发回调
-          if (data.event_type === "event" && data.event_name) {
-            // 触发通用的 onSidecarEvent 回调
-            this.sidecarEventCallbacks.forEach((cb) => {
-              try {
-                const parsed = JSON.parse(data.data);
-                cb(data.event_name!, parsed.data || parsed);
-              } catch {
-                cb(data.event_name!, data.data);
-              }
+          // 只处理本插件的事件
+          if (data.plugin_id === this.manifest.id) {
+            logger.debug(`收到常驻 Sidecar 事件: ${data.event_type}`, {
+              eventName: data.event_name,
+              data: data.data,
             });
 
-            // 触发按名称分类的回调
-            const eventCallbacks = this.residentEventCallbacks.get(
-              data.event_name
-            );
-            if (eventCallbacks) {
-              eventCallbacks.forEach((cb) => {
+            // 如果是主动推送的 event 类型，触发回调
+            if (data.event_type === "event" && data.event_name) {
+              // 触发通用的 onSidecarEvent 回调
+              this.sidecarEventCallbacks.forEach((cb) => {
                 try {
                   const parsed = JSON.parse(data.data);
-                  cb(parsed.data || parsed);
+                  cb(data.event_name!, parsed.data || parsed);
                 } catch {
-                  cb(data.data);
+                  cb(data.event_name!, data.data);
                 }
               });
-            }
-          }
 
-          // 如果是 progress/result/error 类型，映射回 handlers
-          if (
-            data.event_type === "progress" ||
-            data.event_type === "result" ||
-            data.event_type === "error"
-          ) {
-            const wrappedEvent: SidecarOutputEvent = {
-              plugin_id: data.plugin_id,
-              event_type: data.event_type,
-              data: data.data,
-            };
-            const handler = this.eventHandlers.get(data.event_type);
-            if (handler) {
-              handler(wrappedEvent);
+              // 触发按名称分类的回调
+              const eventCallbacks = this.residentEventCallbacks.get(
+                data.event_name
+              );
+              if (eventCallbacks) {
+                eventCallbacks.forEach((cb) => {
+                  try {
+                    const parsed = JSON.parse(data.data);
+                    cb(parsed.data || parsed);
+                  } catch {
+                    cb(data.data);
+                  }
+                });
+              }
+            }
+
+            // 如果是 progress/result/error 类型，映射回 handlers
+            if (
+              data.event_type === "progress" ||
+              data.event_type === "result" ||
+              data.event_type === "error"
+            ) {
+              const wrappedEvent: SidecarOutputEvent = {
+                plugin_id: data.plugin_id,
+                event_type: data.event_type,
+                data: data.data,
+              };
+              const handler = this.eventHandlers.get(data.event_type);
+              if (handler) {
+                handler(wrappedEvent);
+              }
             }
           }
         }
+      );
+
+      // 如果声明了 startupMethod，自动执行启动初始化
+      if (this.manifest.sidecar?.startupMethod) {
+        const startupMethod = this.manifest.sidecar.startupMethod;
+        const startupParams = this.manifest.sidecar.startupParams || {};
+
+        logger.info(`执行常驻插件启动方法: ${this.id}.${startupMethod}`);
+
+        try {
+          const startupResult = await this.executeSidecarResident(
+            startupMethod,
+            startupParams
+          );
+          logger.info(`常驻插件初始化完成: ${this.id}`, {
+            result: startupResult,
+          });
+        } catch (error) {
+          errorHandler.error(error, `常驻插件初始化失败: ${this.id}`, {
+            context: { startupMethod },
+          });
+          throw error;
+        }
       }
-    );
+    } catch (error) {
+      logger.error(`常驻插件启动流程异常: ${this.id}`, error);
 
-    // 如果声明了 startupMethod，自动执行启动初始化
-    if (this.manifest.sidecar?.startupMethod) {
-      const startupMethod = this.manifest.sidecar.startupMethod;
-      const startupParams = this.manifest.sidecar.startupParams || {};
-
-      logger.info(`执行常驻插件启动方法: ${this.id}.${startupMethod}`);
-
-      try {
-        const startupResult = await this.executeSidecarResident(
-          startupMethod,
-          startupParams
-        );
-        logger.info(`常驻插件初始化完成: ${this.id}`, {
-          result: startupResult,
-        });
-      } catch (error) {
-        errorHandler.error(error, `常驻插件初始化失败: ${this.id}`, {
-          context: { startupMethod },
-        });
-        throw error;
+      // 如果进程已经启动，但后续步骤（如监听或初始化方法）失败了，必须立刻清理进程，防止残留
+      if (processSpawned) {
+        logger.info(`启动流程失败，正在清理已启动的常驻进程: ${this.id}`);
+        try {
+          if (this.residentEventUnlisten) {
+            this.residentEventUnlisten();
+            this.residentEventUnlisten = null;
+          }
+          await invoke("sidecar_kill_resident", {
+            pluginId: this.manifest.id,
+          });
+        } catch (killError) {
+          logger.warn(`清理常驻进程失败: ${this.id}`, { killError });
+        }
       }
+
+      throw error;
     }
   }
 

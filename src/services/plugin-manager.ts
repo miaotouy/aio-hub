@@ -551,13 +551,37 @@ class PluginManager {
           );
 
           // 初始化响应式状态
-          const isBroken = (plugin as any).isBroken || false;
-
+          let isBroken = (plugin as any).isBroken || false;
           // 根据持久化状态决定是否激活插件
           const shouldEnable = await pluginStateService.isEnabled(plugin.id);
           if (shouldEnable && !isBroken) {
             logger.info(`正在激活插件: ${plugin.id}`);
-            await plugin.enable(this.createPluginContext(plugin.id));
+            try {
+              await plugin.enable(this.createPluginContext(plugin.id));
+            } catch (enableError) {
+              logger.error(
+                `激活插件 ${plugin.id} 失败，将自动禁用并标记为损坏`,
+                enableError
+              );
+              isBroken = true;
+              (plugin as any).isBroken = true;
+              (plugin as any).error =
+                enableError instanceof Error
+                  ? enableError
+                  : new Error(String(enableError));
+
+              // 确保清理可能已经启动的后台进程
+              try {
+                await plugin.disable();
+              } catch (disableError) {
+                logger.warn(`清理失败的插件进程时发生错误: ${plugin.id}`, {
+                  disableError,
+                });
+              }
+
+              // 自动持久化为禁用状态，防止下次启动再次卡死
+              await pluginStateService.setEnabled(plugin.id, false);
+            }
           }
 
           this.pluginStates[plugin.id] = {
@@ -575,7 +599,7 @@ class PluginManager {
             });
           }
         } catch (error) {
-          errorHandler.error(error, "注册插件UI失败", {
+          errorHandler.error(error, "初始化插件失败", {
             context: { pluginId: plugin.manifest.id },
           });
         }
@@ -621,7 +645,47 @@ class PluginManager {
     // 如果是远程更新，或者状态不一致，同步插件实例的启用状态
     if (plugin && plugin.enabled !== enabled) {
       if (enabled) {
-        await plugin.enable(this.createPluginContext(pluginId));
+        try {
+          await plugin.enable(this.createPluginContext(pluginId));
+          // 成功启用，清除损坏标记
+          if (this.pluginStates[pluginId]) {
+            this.pluginStates[pluginId].isBroken = false;
+          }
+          if ((plugin as any).isBroken) {
+            (plugin as any).isBroken = false;
+            delete (plugin as any).error;
+          }
+        } catch (enableError) {
+          logger.error(
+            `手动启用插件 ${pluginId} 失败，自动回滚为禁用并标记为损坏`,
+            enableError
+          );
+
+          // 标记为损坏
+          if (this.pluginStates[pluginId]) {
+            this.pluginStates[pluginId].isBroken = true;
+          } else {
+            this.pluginStates[pluginId] = { enabled: false, isBroken: true };
+          }
+          (plugin as any).isBroken = true;
+          (plugin as any).error =
+            enableError instanceof Error
+              ? enableError
+              : new Error(String(enableError));
+
+          // 确保清理可能已经启动的后台进程
+          try {
+            await plugin.disable();
+          } catch (disableError) {
+            logger.warn(`清理失败的插件进程时发生错误: ${pluginId}`, {
+              disableError,
+            });
+          }
+
+          // 强制回滚状态
+          enabled = false;
+          await pluginStateService.setEnabled(pluginId, false);
+        }
       } else {
         await plugin.disable();
       }

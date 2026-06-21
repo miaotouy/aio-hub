@@ -31,14 +31,54 @@ const stepTypes: Array<{
   icon: typeof MousePointerClick;
   hint: string;
 }> = [
-  { type: "click", label: "点击", icon: MousePointerClick, hint: "后台/前台点击目标坐标" },
-  { type: "keypress", label: "按键", icon: Keyboard, hint: "向绑定窗口发送按键" },
-  { type: "delay", label: "延时", icon: Hourglass, hint: "等待指定毫秒数（可叠加随机波动）" },
-  { type: "colorCheck", label: "颜色判断", icon: Palette, hint: "按颜色/区域判定，决定跳转分支" },
-  { type: "goto", label: "跳转", icon: CornerDownRight, hint: "无条件跳转到指定步骤" },
-  { type: "counter", label: "循环计数", icon: Repeat, hint: "按次数控制循环逻辑" },
-  { type: "log", label: "日志", icon: FileText, hint: "输出日志，支持 {var} 插值" },
-  { type: "ocr", label: "OCR 识别", icon: TextCursorInput, hint: "识别文字并按关键字决定跳转" },
+  {
+    type: "click",
+    label: "点击",
+    icon: MousePointerClick,
+    hint: "后台/前台点击目标坐标",
+  },
+  {
+    type: "keypress",
+    label: "按键",
+    icon: Keyboard,
+    hint: "向绑定窗口发送按键",
+  },
+  {
+    type: "delay",
+    label: "延时",
+    icon: Hourglass,
+    hint: "等待指定毫秒数（可叠加随机波动）",
+  },
+  {
+    type: "colorCheck",
+    label: "颜色判断",
+    icon: Palette,
+    hint: "按颜色/区域判定，决定跳转分支",
+  },
+  {
+    type: "goto",
+    label: "跳转",
+    icon: CornerDownRight,
+    hint: "无条件跳转到指定步骤",
+  },
+  {
+    type: "counter",
+    label: "循环计数",
+    icon: Repeat,
+    hint: "按次数控制循环逻辑",
+  },
+  {
+    type: "log",
+    label: "日志",
+    icon: FileText,
+    hint: "输出日志，支持 {var} 插值",
+  },
+  {
+    type: "ocr",
+    label: "OCR 识别",
+    icon: TextCursorInput,
+    hint: "识别文字并按关键字决定跳转",
+  },
 ];
 
 function onBound(w: WindowInfo | null) {
@@ -147,8 +187,14 @@ function onBound(w: WindowInfo | null) {
   transition: all 0.15s ease;
 }
 .step-type-btn:hover {
-  border-color: var(--el-color-primary-light-5);
-  background-color: var(--el-color-primary-light-9);
+  border-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.5)
+  );
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.1)
+  );
   color: var(--el-color-primary);
 }
 .step-type-btn:active {

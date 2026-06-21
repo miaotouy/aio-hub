@@ -244,9 +244,7 @@ function clearHighlight() {
 }
 
 async function scrollToStep(stepId: string) {
-  const el = document.querySelector<HTMLElement>(
-    `[data-step-id="${stepId}"]`
-  );
+  const el = document.querySelector<HTMLElement>(`[data-step-id="${stepId}"]`);
   if (!el) return;
   // 展开目标
   if (expandedStepId.value !== stepId) {
@@ -392,10 +390,7 @@ const isStepActive = (index: number) =>
           <div class="index">{{ index + 1 }}</div>
 
           <div class="type-chip">
-            <component
-              :is="metaFor(element.stepConfig.type).icon"
-              :size="13"
-            />
+            <component :is="metaFor(element.stepConfig.type).icon" :size="13" />
             <span>{{ metaFor(element.stepConfig.type).label }}</span>
           </div>
 
@@ -429,7 +424,9 @@ const isStepActive = (index: number) =>
               size="small"
               controls-position="right"
               style="width: 110px"
-              @update:model-value="(v: number | undefined) => updateDelayDuration(element, v)"
+              @update:model-value="
+                (v: number | undefined) => updateDelayDuration(element, v)
+              "
             />
             <span class="quick-unit">ms</span>
           </div>
@@ -458,7 +455,11 @@ const isStepActive = (index: number) =>
           </div>
 
           <!-- 跳转目标徽章（来自谁） -->
-          <div v-if="incomingSources(element.id).length" class="badges" @click.stop>
+          <div
+            v-if="incomingSources(element.id).length"
+            class="badges"
+            @click.stop
+          >
             <el-tooltip
               :content="`被 ${incomingSources(element.id).length} 个步骤引用`"
               placement="top"
@@ -542,10 +543,12 @@ const isStepActive = (index: number) =>
               <KeyPressConfig
                 v-else-if="element.stepConfig.type === 'keypress'"
                 :params="
-                  (element.stepConfig as Extract<
-                    StepParams,
-                    { type: 'keypress' }
-                  >).params
+                  (
+                    element.stepConfig as Extract<
+                      StepParams,
+                      { type: 'keypress' }
+                    >
+                  ).params
                 "
                 @update:params="(v) => onInlineParamsUpdate(element, v)"
               />
@@ -560,10 +563,12 @@ const isStepActive = (index: number) =>
               <ColorCheckConfig
                 v-else-if="element.stepConfig.type === 'colorCheck'"
                 :params="
-                  (element.stepConfig as Extract<
-                    StepParams,
-                    { type: 'colorCheck' }
-                  >).params
+                  (
+                    element.stepConfig as Extract<
+                      StepParams,
+                      { type: 'colorCheck' }
+                    >
+                  ).params
                 "
                 :steps="steps"
                 @update:params="(v) => onInlineParamsUpdate(element, v)"
@@ -581,10 +586,12 @@ const isStepActive = (index: number) =>
               <CounterConfig
                 v-else-if="element.stepConfig.type === 'counter'"
                 :params="
-                  (element.stepConfig as Extract<
-                    StepParams,
-                    { type: 'counter' }
-                  >).params
+                  (
+                    element.stepConfig as Extract<
+                      StepParams,
+                      { type: 'counter' }
+                    >
+                  ).params
                 "
                 :steps="steps"
                 @update:params="(v) => onInlineParamsUpdate(element, v)"
@@ -613,9 +620,7 @@ const isStepActive = (index: number) =>
     </draggable>
 
     <ScreenshotPicker
-      v-if="
-        showScreenshotPicker && store.boundWindow && screenshotStepId
-      "
+      v-if="showScreenshotPicker && store.boundWindow && screenshotStepId"
       v-model="showScreenshotPicker"
       :hwnd="store.boundWindow.hwnd"
       :mode="screenshotMode"
@@ -698,14 +703,20 @@ const isStepActive = (index: number) =>
   background-color: var(--type-color);
 }
 .step-item:hover {
-  border-color: var(--el-color-primary-light-5);
+  border-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.5)
+  );
 }
 .step-item.selected {
   border-color: var(--el-color-primary);
   box-shadow: 0 0 0 1px var(--el-color-primary) inset;
 }
 .step-item.active {
-  background-color: var(--el-color-primary-light-9);
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.1)
+  );
   border-color: var(--el-color-primary);
   animation: step-breath 1.6s ease-in-out infinite;
 }
@@ -717,22 +728,43 @@ const isStepActive = (index: number) =>
 }
 .step-item.highlighted {
   border-color: var(--el-color-warning);
-  box-shadow: 0 0 0 2px var(--el-color-warning-light-7) inset;
+  box-shadow: 0 0 0 2px
+    rgba(var(--el-color-warning-rgb), calc(var(--card-opacity, 1) * 0.3)) inset;
 }
 .step-item.expanded {
-  background-color: var(--el-fill-color-light);
+  background-color: rgba(
+    var(--el-text-color-primary-rgb, 128, 128, 128),
+    calc(var(--card-opacity, 1) * 0.04)
+  );
 }
 .step-ghost {
   opacity: 0.4;
-  background-color: var(--el-color-primary-light-9);
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.1)
+  );
 }
 @keyframes step-breath {
-  0%, 100% { box-shadow: 0 0 0 1px var(--el-color-primary) inset; }
-  50% { box-shadow: 0 0 0 2px var(--el-color-primary) inset, 0 0 12px var(--el-color-primary-light-5); }
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px var(--el-color-primary) inset;
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px var(--el-color-primary) inset,
+      0 0 12px
+        rgba(var(--el-color-primary-rgb), calc(var(--card-opacity, 1) * 0.5));
+  }
 }
 @keyframes strip-breath {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; filter: brightness(1.4); }
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+    filter: brightness(1.4);
+  }
 }
 .expand-toggle {
   display: flex;
@@ -749,7 +781,10 @@ const isStepActive = (index: number) =>
   flex-shrink: 0;
 }
 .expand-toggle:hover {
-  background-color: var(--el-fill-color);
+  background-color: rgba(
+    var(--el-text-color-primary-rgb, 128, 128, 128),
+    calc(var(--card-opacity, 1) * 0.08)
+  );
   color: var(--el-color-primary);
 }
 .drag-handle {
@@ -766,7 +801,10 @@ const isStepActive = (index: number) =>
   width: 24px;
   height: 24px;
   border-radius: 12px;
-  background-color: var(--el-fill-color);
+  background-color: rgba(
+    var(--el-text-color-primary-rgb, 128, 128, 128),
+    calc(var(--card-opacity, 1) * 0.08)
+  );
   color: var(--el-text-color-secondary);
   display: flex;
   align-items: center;
@@ -815,7 +853,10 @@ const isStepActive = (index: number) =>
   font-size: 13px;
 }
 .label-input:focus {
-  background-color: var(--el-fill-color-light);
+  background-color: rgba(
+    var(--el-text-color-primary-rgb, 128, 128, 128),
+    calc(var(--card-opacity, 1) * 0.08)
+  );
   border-radius: 2px;
   padding: 2px 4px;
 }
@@ -860,18 +901,30 @@ const isStepActive = (index: number) =>
   white-space: nowrap;
 }
 .badge-out {
-  background-color: var(--el-color-primary-light-9);
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.1)
+  );
   color: var(--el-color-primary);
 }
 .badge-out:hover {
-  background-color: var(--el-color-primary-light-7);
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.2)
+  );
 }
 .badge-in {
-  background-color: var(--el-color-warning-light-9);
+  background-color: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity, 1) * 0.1)
+  );
   color: var(--el-color-warning-dark-2);
 }
 .badge-in:hover {
-  background-color: var(--el-color-warning-light-7);
+  background-color: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity, 1) * 0.2)
+  );
 }
 .src-link {
   cursor: pointer;
@@ -914,7 +967,9 @@ const isStepActive = (index: number) =>
 }
 .expand-enter-active,
 .expand-leave-active {
-  transition: max-height 0.22s ease, opacity 0.22s ease;
+  transition:
+    max-height 0.22s ease,
+    opacity 0.22s ease;
   overflow: hidden;
 }
 .expand-enter-from,

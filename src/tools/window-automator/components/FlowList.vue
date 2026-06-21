@@ -574,7 +574,10 @@ function handleGridMouseLeave() {
   gap: 6px;
   font-size: 12px;
   color: var(--el-text-color-secondary);
-  background-color: var(--el-fill-color-light);
+  background-color: rgba(
+    var(--el-text-color-primary-rgb, 128, 128, 128),
+    calc(var(--card-opacity, 1) * 0.08)
+  );
   padding: 2px 8px;
   border-radius: 10px;
   align-self: flex-start;

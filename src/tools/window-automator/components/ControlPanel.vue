@@ -222,19 +222,31 @@ const elapsedText = computed(() => {
   border-radius: 10px;
   font-size: 12px;
   font-weight: 500;
-  background-color: var(--el-fill-color);
+  background-color: rgba(
+    var(--el-text-color-primary-rgb, 128, 128, 128),
+    calc(var(--card-opacity, 1) * 0.08)
+  );
   color: var(--el-text-color-secondary);
 }
 .status.running {
-  background-color: var(--el-color-primary-light-9);
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.1)
+  );
   color: var(--el-color-primary);
 }
 .status.paused {
-  background-color: var(--el-color-warning-light-9);
+  background-color: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity, 1) * 0.1)
+  );
   color: var(--el-color-warning);
 }
 .status.stopping {
-  background-color: var(--el-color-danger-light-9);
+  background-color: rgba(
+    var(--el-color-danger-rgb),
+    calc(var(--card-opacity, 1) * 0.1)
+  );
   color: var(--el-color-danger);
 }
 .metric {
@@ -286,19 +298,31 @@ const elapsedText = computed(() => {
   word-break: break-all;
 }
 .log-line.info .level {
-  background-color: var(--el-color-primary-light-9);
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.1)
+  );
   color: var(--el-color-primary);
 }
 .log-line.warn .level {
-  background-color: var(--el-color-warning-light-9);
+  background-color: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity, 1) * 0.1)
+  );
   color: var(--el-color-warning);
 }
 .log-line.error .level {
-  background-color: var(--el-color-danger-light-9);
+  background-color: rgba(
+    var(--el-color-danger-rgb),
+    calc(var(--card-opacity, 1) * 0.1)
+  );
   color: var(--el-color-danger);
 }
 .log-line.debug .level {
-  background-color: var(--el-fill-color);
+  background-color: rgba(
+    var(--el-text-color-primary-rgb, 128, 128, 128),
+    calc(var(--card-opacity, 1) * 0.08)
+  );
   color: var(--el-text-color-secondary);
 }
 .log-line.error .message {

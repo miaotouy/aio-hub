@@ -321,11 +321,17 @@ onBeforeUnmount(() => {
   transition: all 0.15s;
 }
 .fold-btn:hover {
-  background-color: var(--el-fill-color-light);
+  background-color: rgba(
+    var(--el-text-color-primary-rgb, 128, 128, 128),
+    calc(var(--card-opacity, 1) * 0.08)
+  );
   color: var(--el-text-color-primary);
 }
 .fold-btn.active {
-  background-color: var(--el-color-primary-light-9);
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.1)
+  );
   color: var(--el-color-primary);
 }
 .description-row {

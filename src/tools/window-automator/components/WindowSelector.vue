@@ -247,10 +247,16 @@ watch(
   transition: background-color 0.15s;
 }
 .window-item:hover {
-  background-color: var(--el-fill-color-light);
+  background-color: rgba(
+    var(--el-text-color-primary-rgb, 128, 128, 128),
+    calc(var(--card-opacity, 1) * 0.08)
+  );
 }
 .window-item.active {
-  background-color: var(--el-color-primary-light-9);
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.1)
+  );
 }
 .window-item .title {
   font-weight: 500;

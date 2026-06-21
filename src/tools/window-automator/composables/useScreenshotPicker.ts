@@ -11,6 +11,7 @@ import { ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { rgbToHex } from "./flowUtils";
 import type { ScreenshotPickerResult } from "../types";
 
 const logger = createModuleLogger("window-automator/useScreenshotPicker");
@@ -191,9 +192,4 @@ export function useScreenshotPicker() {
     buildPointResult,
     buildRectResult,
   };
-}
-
-function rgbToHex(r: number, g: number, b: number): string {
-  const toHex = (n: number) => n.toString(16).padStart(2, "0").toUpperCase();
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }

@@ -11,6 +11,7 @@
  * 顶部工具栏：新建方案、导入方案。
  */
 import { ref, computed, onMounted } from "vue";
+import { nanoid } from "nanoid";
 import {
   Plus,
   Play,
@@ -23,6 +24,7 @@ import {
 } from "lucide-vue-next";
 import { useWindowAutomatorStore } from "../stores/windowAutomator.store";
 import { useFlowPersistence } from "../composables/useFlowPersistence";
+import { cloneFlowWithFreshIds } from "../stores/flowTransforms";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
 import { ElMessageBox } from "element-plus";
@@ -150,43 +152,15 @@ async function onImport() {
       customMessage.error("方案 JSON 解析失败");
       return;
     }
-    // 重置 id 防止冲突
-    parsed.id = `${parsed.id}-import-${Date.now()}`;
-    parsed.createdAt = new Date().toISOString();
-    parsed.updatedAt = parsed.createdAt;
-    const rand = () => Math.random().toString(36).slice(2, 6);
-    parsed.steps = parsed.steps.map((s) => ({ ...s, id: `${s.id}-${rand()}` }));
-    // 重映射子流程的 id 和内部步骤 id，
-    // 并修正 call 步骤的 targetSubFlowId 指向新的 subFlowId。
-    const subFlowIdMap = new Map<string, string>();
-    if (Array.isArray(parsed.subFlows) && parsed.subFlows.length > 0) {
-      parsed.subFlows = parsed.subFlows.map((sub) => {
-        const newSubId = `${sub.id}-${rand()}`;
-        subFlowIdMap.set(sub.id, newSubId);
-        const newSteps = (sub.steps ?? []).map((s) => ({
-          ...s,
-          id: `${s.id}-${rand()}`,
-        }));
-        return { ...sub, id: newSubId, steps: newSteps };
-      });
-      const remapCall = (steps: typeof parsed.steps) => {
-        steps.forEach((s) => {
-          if (s.stepConfig.type === "call") {
-            const oldId = s.stepConfig.params.targetSubFlowId;
-            if (oldId && subFlowIdMap.has(oldId)) {
-              s.stepConfig.params.targetSubFlowId =
-                subFlowIdMap.get(oldId) || "";
-            }
-          }
-        });
-      };
-      remapCall(parsed.steps);
-      parsed.subFlows.forEach((sub) => remapCall(sub.steps));
-    } else {
-      parsed.subFlows = [];
-    }
-    store.addFlow(parsed);
-    await persistence.save(parsed);
+    const now = new Date().toISOString();
+    const imported = cloneFlowWithFreshIds(parsed, {
+      flowId: nanoid(10),
+      stepId: () => nanoid(8),
+      subFlowId: () => nanoid(8),
+      now,
+    });
+    store.addFlow(imported);
+    await persistence.save(imported);
     customMessage.success("方案导入成功");
   } catch (e) {
     if ((e as { type?: string }).type !== "cancel") {

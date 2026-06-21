@@ -54,7 +54,7 @@ export interface StepExecContext {
   getClientSize: () => Promise<ClientSize | null>;
   /** 运行时变量表（直接读写即可）—— 始终是 store.runtime.variables（全局表） */
   variables: Record<string, string>;
-  /** 当前调用栈帧的局部变量表（§8 形参 + 局部变量；写操作只影响当前函数） */
+  /** 当前调用栈帧的局部变量表（形参 + 局部变量；写操作只影响当前函数） */
   localVariables: Record<string, string>;
   /** 完整作用域：步骤执行器在需要 {var} 插值时统一用这个，按 local -> global 解析 */
   scope: { local: Record<string, string>; global: Record<string, string> };
@@ -332,7 +332,7 @@ function runCounter(
 }
 
 function runLog(params: LogStepParams, ctx: StepExecContext): string | null {
-  // §8 局部作用域：用完整 scope 做插值（局部优先于全局）
+  // 局部作用域：用完整 scope 做插值（局部优先于全局）
   const text = interpolateVariables(params.message, ctx.scope);
   ctx.appendLog(params.level, null, text);
   return null;

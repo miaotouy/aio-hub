@@ -1,7 +1,6 @@
 /**
  * 窗口自动化助手 (Window Automator) - 类型定义
  *
- * 对应 ImplementationPlan.md 第 5 节"类型定义详细设计"。
  * 步骤参数面向运行时使用：坐标用 Coordinate 统一描述，
  * 跳转一律使用步骤 ID (FlowStep.id) 而非显示序号，避免拖拽后错乱。
  */

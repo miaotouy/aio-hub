@@ -20,7 +20,7 @@ import {
 import { getAppConfigDir } from "@/utils/appPath";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import type { ActionFlow } from "../types";
+import type { ActionFlow, FlowStep, StepType, SubFlow } from "../types";
 
 const logger = createModuleLogger("window-automator/useFlowPersistence");
 const errorHandler = createModuleErrorHandler(
@@ -44,6 +44,96 @@ interface FlowIndex {
 
 function emptyIndex(): FlowIndex {
   return { version: 1, flows: [] };
+}
+
+const STEP_TYPES = new Set<StepType>([
+  "click",
+  "keypress",
+  "delay",
+  "colorCheck",
+  "goto",
+  "counter",
+  "log",
+  "ocr",
+  "call",
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function isValidStep(value: unknown): value is FlowStep {
+  if (!isRecord(value)) return false;
+  if (typeof value.id !== "string") return false;
+  if (typeof value.label !== "string") return false;
+  if (typeof value.enabled !== "boolean") return false;
+  if (!isRecord(value.stepConfig)) return false;
+  if (typeof value.stepConfig.type !== "string") return false;
+  if (!STEP_TYPES.has(value.stepConfig.type as StepType)) return false;
+  return isRecord(value.stepConfig.params);
+}
+
+function normalizeSubFlows(value: unknown): SubFlow[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) return null;
+  const subFlows: SubFlow[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) return null;
+    if (typeof item.id !== "string" || typeof item.name !== "string") {
+      return null;
+    }
+    if (!Array.isArray(item.steps) || !item.steps.every(isValidStep)) {
+      return null;
+    }
+    subFlows.push(item as unknown as SubFlow);
+  }
+  return subFlows;
+}
+
+export function normalizeActionFlow(value: unknown): ActionFlow | null {
+  if (!isRecord(value)) return null;
+  if (typeof value.id !== "string" || typeof value.name !== "string") {
+    return null;
+  }
+  if (!Array.isArray(value.steps) || !value.steps.every(isValidStep)) {
+    return null;
+  }
+  const subFlows = normalizeSubFlows(value.subFlows);
+  if (!subFlows) return null;
+  return {
+    ...(value as unknown as ActionFlow),
+    description:
+      typeof value.description === "string" ? value.description : "",
+    targetWindow: isRecord(value.targetWindow)
+      ? {
+          title:
+            typeof value.targetWindow.title === "string"
+              ? value.targetWindow.title
+              : "",
+          className:
+            typeof value.targetWindow.className === "string"
+              ? value.targetWindow.className
+              : "",
+        }
+      : null,
+    subFlows,
+    createdAt:
+      typeof value.createdAt === "string"
+        ? value.createdAt
+        : new Date().toISOString(),
+    updatedAt:
+      typeof value.updatedAt === "string"
+        ? value.updatedAt
+        : new Date().toISOString(),
+  };
+}
+
+export function parseActionFlowText(text: string): ActionFlow | null {
+  try {
+    return normalizeActionFlow(JSON.parse(text));
+  } catch {
+    return null;
+  }
 }
 
 async function ensureDir(path: string) {
@@ -225,17 +315,12 @@ export function useFlowPersistence() {
    * 解析外部 JSON 文本为方案对象（用于导入）。
    */
   function parseFlow(text: string): ActionFlow | null {
-    try {
-      const obj = JSON.parse(text);
-      if (!obj || typeof obj !== "object") return null;
-      if (typeof obj.id !== "string" || typeof obj.name !== "string")
-        return null;
-      if (!Array.isArray(obj.steps)) return null;
-      return obj as ActionFlow;
-    } catch (e) {
-      logger.warn("方案导入解析失败", { error: String(e) });
+    const parsed = parseActionFlowText(text);
+    if (!parsed) {
+      logger.warn("方案导入解析失败");
       return null;
     }
+    return parsed;
   }
 
   return {

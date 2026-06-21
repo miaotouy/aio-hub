@@ -338,7 +338,7 @@ function backToMainFlow() {
   expandedStepId.value = null;
 }
 
-// ===================== 函数设置对话框（§8 / §9） =====================
+// ===================== 函数设置对话框 =====================
 /** 函数设置对话框的显隐与目标子流程 id */
 const subFlowSettingsOpen = ref(false);
 function openSubFlowSettings() {
@@ -346,9 +346,8 @@ function openSubFlowSettings() {
   subFlowSettingsOpen.value = true;
 }
 
-// ===================== 函数签名概览（§8/§9 在头部显示） =====================
-import { computed as _computedForSig } from "vue";
-const subFlowSignature = _computedForSig(() => {
+// ===================== 函数签名概览 =====================
+const subFlowSignature = computed(() => {
   const sub = store.currentEditingSubFlow;
   if (!sub) return "";
   const params = (sub.params ?? [])

@@ -115,7 +115,7 @@ export function truncate(text: string, max: number): string {
 
 /**
  * 变量解析作用域。local 优先于 global 解析，
- * 用于支持子流程调用栈的局部变量表（§8）。
+ * 用于支持子流程调用栈的局部变量表。
  */
 export interface VariablesScope {
   /** 当前调用栈帧的局部变量表（形参 + 局部声明） */

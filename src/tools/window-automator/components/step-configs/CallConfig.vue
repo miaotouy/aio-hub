@@ -2,8 +2,8 @@
 /**
  * 调用步骤配置：选择目标子流程 / 自定义函数
  *
- * §8 参数传递：选完函数后动态渲染形参输入表单，支持 {var} 插值。
- * §9 返回值：暴露 saveResultToVariable 输入框。
+ * 函数调用参数配置：选完函数后动态渲染形参输入表单，支持 {var} 插值；
+ * 同时暴露 saveResultToVariable 输入框接收返回值。
  */
 import { computed } from "vue";
 import { useWindowAutomatorStore } from "../../stores/windowAutomator.store";
@@ -82,7 +82,7 @@ function getArg(name: string): string {
       </div>
     </div>
 
-    <!-- §8 形参输入表单 -->
+    <!-- 形参输入表单 -->
     <div v-if="selectedSub && selectedParams.length > 0" class="params-section">
       <div class="section-label">实参</div>
       <div v-for="p in selectedParams" :key="p.name" class="param-row">
@@ -103,7 +103,7 @@ function getArg(name: string): string {
       </div>
     </div>
 
-    <!-- §9 返回值绑定 -->
+    <!-- 返回值绑定 -->
     <div v-if="selectedSub" class="return-section">
       <div class="section-label">返回值</div>
       <div class="return-row">

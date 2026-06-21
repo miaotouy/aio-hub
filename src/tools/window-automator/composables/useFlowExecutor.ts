@@ -175,7 +175,7 @@ export function useFlowExecutor() {
     let currentLocalVariables: Record<string, string> = {};
     // 调用栈：每帧记录调用方的步骤列表 / 步骤索引 / 触发的子流程信息 / 局部变量表
     // 局部变量表保存该子流程内的形参与运行期局部变量；进入新子流程时新建空表，
-    // 出栈时整张表随之销毁（§8 局部作用域）。
+    // 出栈时整张表随之销毁。
     const callStack: Array<{
       steps: FlowStep[];
       subFlowId: string | null;
@@ -198,7 +198,7 @@ export function useFlowExecutor() {
     let nextIndex = 0;
 
     /**
-     * §9 返回值处理：子流程出栈时调用。
+     * 返回值处理：子流程出栈时调用。
      * 从被弹出栈帧的 localVariables 中读取 returnVariableName 对应的值，
      * 写回调用方作用域（栈顶帧或主流程全局表）。
      */
@@ -256,7 +256,7 @@ export function useFlowExecutor() {
       // 到达当前执行上下文的末尾
       if (nextIndex < 0 || nextIndex >= currentSteps.length) {
         if (callStack.length > 0) {
-          // 出栈：恢复调用方；同时按 §9 把返回值写回调用方作用域
+          // 出栈：恢复调用方；同时把返回值写回调用方作用域
           const frame = callStack.pop()!;
           handleReturnValue(frame, currentLocalVariables);
           currentSteps = frame.steps;
@@ -341,7 +341,7 @@ export function useFlowExecutor() {
           );
           break;
         }
-        // §8 形参绑定：先把形参默认值写入新局部表，再用 arguments 实参覆盖
+        // 形参绑定：先把形参默认值写入新局部表，再用 arguments 实参覆盖
         const newLocal: Record<string, string> = {};
         if (Array.isArray(target.params)) {
           for (const p of target.params) {

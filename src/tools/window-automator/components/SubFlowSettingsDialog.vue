@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 子流程 / 自定义函数设置对话框（§8 + §9）
+ * 子流程 / 自定义函数设置对话框。
  *
  * 可以编辑：
  *  - 函数名称
@@ -132,7 +132,7 @@ function save() {
         />
       </div>
 
-      <div class="section-title">形参列表 §8</div>
+      <div class="section-title">形参列表</div>
       <div class="params-hint">
         在他处调用本函数时会作为实参传入。
         在函数内部可用 <code v-pre>{{name}}</code> 引用，也会作为局部变量在 log / goto 等场景插值。
@@ -186,7 +186,7 @@ function save() {
         添加形参
       </el-button>
 
-      <div class="section-title">返回值 §9</div>
+      <div class="section-title">返回值</div>
       <div class="return-hint">
         填写一个局部变量名（例如 <code>ocr_result</code>），
         子流程跳出时会把该变量的值传回调用方。

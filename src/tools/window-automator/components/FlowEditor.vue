@@ -32,6 +32,7 @@ import {
   ChevronRight,
   Workflow,
   ArrowLeftToLine,
+  Settings,
 } from "lucide-vue-next";
 import draggable from "vuedraggable";
 import { useWindowAutomatorStore } from "../stores/windowAutomator.store";
@@ -45,6 +46,7 @@ import LogConfig from "./step-configs/LogConfig.vue";
 import OcrConfig from "./step-configs/OcrConfig.vue";
 import CallConfig from "./step-configs/CallConfig.vue";
 import ScreenshotPicker from "./ScreenshotPicker.vue";
+import SubFlowSettingsDialog from "./SubFlowSettingsDialog.vue";
 import type {
   FlowStep,
   StepType,
@@ -280,6 +282,28 @@ function backToMainFlow() {
   expandedStepId.value = null;
 }
 
+// ===================== 函数设置对话框（§8 / §9） =====================
+/** 函数设置对话框的显隐与目标子流程 id */
+const subFlowSettingsOpen = ref(false);
+function openSubFlowSettings() {
+  if (!store.currentEditingSubFlowId) return;
+  subFlowSettingsOpen.value = true;
+}
+
+// ===================== 函数签名概览（§8/§9 在头部显示） =====================
+import { computed as _computedForSig } from "vue";
+const subFlowSignature = _computedForSig(() => {
+  const sub = store.currentEditingSubFlow;
+  if (!sub) return "";
+  const params = (sub.params ?? [])
+    .map((p) => p.label?.trim() || p.name)
+    .join(", ");
+  const ret = sub.returnVariableName
+    ? ` -> ${sub.returnVariableName}`
+    : "";
+  return `${sub.name}(${params})${ret}`;
+});
+
 // ===================== 徽章交互 =====================
 
 function highlightTargets(targets: string[]) {
@@ -416,8 +440,25 @@ const isStepActive = (index: number) => {
         </span>
         <span v-else class="main-tag">(主流程)</span>
         <span class="count">({{ steps.length }})</span>
+        <el-tooltip
+          v-if="isEditingSubFlow"
+          content="函数设置（形参 / 返回值）"
+          placement="bottom"
+        >
+          <button
+            class="back-btn"
+            type="button"
+            aria-label="函数设置"
+            @click="openSubFlowSettings"
+          >
+            <Settings :size="14" />
+          </button>
+        </el-tooltip>
       </div>
-      <div class="header-hint">点击卡片展开/收起配置</div>
+      <div v-if="isEditingSubFlow && subFlowSignature" class="header-sig">
+        签名: <code>{{ subFlowSignature }}</code>
+      </div>
+      <div v-else class="header-hint">点击卡片展开/收起配置</div>
     </div>
 
     <div v-if="isEmpty" class="empty">
@@ -714,6 +755,12 @@ const isStepActive = (index: number) => {
       @confirm="onPickerConfirm"
       @cancel="onPickerCancel"
     />
+
+    <SubFlowSettingsDialog
+      v-if="isEditingSubFlow"
+      v-model="subFlowSettingsOpen"
+      :sub-flow-id="store.currentEditingSubFlowId"
+    />
   </div>
 </template>
 
@@ -790,6 +837,21 @@ const isStepActive = (index: number) => {
 .header-hint {
   font-size: 11px;
   color: var(--el-text-color-placeholder);
+}
+.header-sig {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  font-family: ui-monospace, Consolas, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.header-sig code {
+  background-color: var(--el-fill-color-light);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 11px;
 }
 .empty {
   flex: 1;

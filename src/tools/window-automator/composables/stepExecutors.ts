@@ -52,8 +52,14 @@ export interface StepExecContext {
   ) => void;
   /** 获取当前绑定窗口的客户区尺寸，用于百分比坐标转像素 */
   getClientSize: () => Promise<ClientSize | null>;
-  /** 运行时变量表（直接读写即可） */
+  /** 运行时变量表（直接读写即可）—— 始终是 store.runtime.variables（全局表） */
   variables: Record<string, string>;
+  /** 当前调用栈帧的局部变量表（§8 形参 + 局部变量；写操作只影响当前函数） */
+  localVariables: Record<string, string>;
+  /** 完整作用域：步骤执行器在需要 {var} 插值时统一用这个，按 local -> global 解析 */
+  scope: { local: Record<string, string>; global: Record<string, string> };
+  /** 写入变量：主流程写全局，子流程写当前局部作用域 */
+  setVariable: (key: string, value: string) => void;
   /** counter 步骤用的计数器表（key = step.id） */
   counters: Record<string, number>;
 }
@@ -326,7 +332,8 @@ function runCounter(
 }
 
 function runLog(params: LogStepParams, ctx: StepExecContext): string | null {
-  const text = interpolateVariables(params.message, ctx.variables);
+  // §8 局部作用域：用完整 scope 做插值（局部优先于全局）
+  const text = interpolateVariables(params.message, ctx.scope);
   ctx.appendLog(params.level, null, text);
   return null;
 }
@@ -420,7 +427,7 @@ async function runOcr(
       .filter(Boolean)
       .join("\n");
     if (params.saveToVariable) {
-      ctx.variables[params.saveToVariable] = recognizedText;
+      ctx.setVariable(params.saveToVariable, recognizedText);
     }
     if (!params.keyword) {
       matched = recognizedText.length > 0;

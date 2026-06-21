@@ -20,6 +20,7 @@ import type {
   FlowStep,
   StepType,
   SubFlow,
+  SubFlowParamDefine,
   WindowInfo,
 } from "../types";
 import {
@@ -43,6 +44,29 @@ function createDefaultRuntime(): ExecutorRuntime {
     currentFlowId: null,
     boundHwnd: null,
     currentCallStack: [],
+  });
+}
+
+function remapStepJumpRefs(
+  steps: FlowStep[],
+  remapId: (id: string) => string
+) {
+  steps.forEach((s) => {
+    const c = s.stepConfig;
+    if (c.type === "goto") {
+      c.params.targetStepId = remapId(c.params.targetStepId);
+    } else if (c.type === "colorCheck") {
+      c.params.matchGoto = remapId(c.params.matchGoto);
+      c.params.mismatchGoto = remapId(c.params.mismatchGoto);
+    } else if (c.type === "counter") {
+      c.params.notReachedGotoId = remapId(c.params.notReachedGotoId);
+      c.params.reachedGotoId = remapId(c.params.reachedGotoId);
+    } else if (c.type === "ocr") {
+      c.params.matchGoto = remapId(c.params.matchGoto);
+      c.params.mismatchGoto = remapId(c.params.mismatchGoto);
+    } else if (c.type === "call") {
+      void c;
+    }
   });
 }
 
@@ -141,7 +165,7 @@ export const useWindowAutomatorStore = defineStore("window-automator", () => {
     cloned.createdAt = new Date().toISOString();
     cloned.updatedAt = cloned.createdAt;
     // 重新生成主流程步骤 id，并把旧的 id -> 新 id 记录下来，
-    // 后面要把 call 步骤引用的旧 subFlowId 替换成新 subFlowId。
+    // 后面同步修复主流程内的跳转引用。
     const stepIdMap = new Map<string, string>();
     cloned.steps = cloned.steps.map((step) => {
       const newId = nanoid(8);
@@ -151,21 +175,29 @@ export const useWindowAutomatorStore = defineStore("window-automator", () => {
     // 重映射子流程：重新生成 subFlow.id 及其内部步骤 id，
     // 同步修复主流程 / 各子流程内 call 步骤的 targetSubFlowId。
     const subFlowIdMap = new Map<string, string>();
+    const subStepIdMaps = new Map<string, Map<string, string>>();
     if (Array.isArray(cloned.subFlows)) {
       cloned.subFlows = cloned.subFlows.map((sub) => {
+        const oldSubId = sub.id;
         const newSubId = nanoid(8);
-        subFlowIdMap.set(sub.id, newSubId);
+        subFlowIdMap.set(oldSubId, newSubId);
         const innerStepMap = new Map<string, string>();
         const newSteps = sub.steps.map((step) => {
           const nsId = nanoid(8);
           innerStepMap.set(step.id, nsId);
           return { ...step, id: nsId };
         });
+        subStepIdMaps.set(newSubId, innerStepMap);
         return { ...sub, id: newSubId, steps: newSteps };
       });
     } else {
       cloned.subFlows = [];
     }
+    remapStepJumpRefs(cloned.steps, (id) => stepIdMap.get(id) || "");
+    cloned.subFlows.forEach((sub) => {
+      const innerStepMap = subStepIdMaps.get(sub.id);
+      remapStepJumpRefs(sub.steps, (id) => innerStepMap?.get(id) || "");
+    });
     // 修正主流程步骤里 call 引用的 targetSubFlowId
     const remapCall = (steps: FlowStep[]) => {
       steps.forEach((s) => {
@@ -181,8 +213,6 @@ export const useWindowAutomatorStore = defineStore("window-automator", () => {
     if (Array.isArray(cloned.subFlows)) {
       cloned.subFlows.forEach((sub) => remapCall(sub.steps));
     }
-    // 顺手把已经过时的 stepIdMap 标一下未使用，避免 TS 误报（保留以便将来需要重映射步骤 ID 跳转引用）
-    void stepIdMap;
     addFlow(cloned);
     return cloned;
   }
@@ -310,6 +340,64 @@ export const useWindowAutomatorStore = defineStore("window-automator", () => {
   }
 
   /**
+   * §8/§9: 更新子流程元信息（名称 / 形参 / 返回变量名）。
+   * 任意字段为 undefined 表示不变。传空数组 / 空字符串表示清除。
+   */
+  function updateSubFlowMeta(
+    subFlowId: string,
+    patch: {
+      name?: string;
+      params?: SubFlowParamDefine[] | null;
+      returnVariableName?: string | null;
+    }
+  ) {
+    const flow = currentFlow.value;
+    if (!flow) return;
+    const sub = ensureSubFlows(flow).find((s) => s.id === subFlowId);
+    if (!sub) return;
+    if (typeof patch.name === "string") {
+      sub.name = patch.name;
+    }
+    if (patch.params === null) {
+      delete sub.params;
+    } else if (Array.isArray(patch.params)) {
+      sub.params = patch.params;
+    }
+    if (patch.returnVariableName === null) {
+      delete sub.returnVariableName;
+    } else if (typeof patch.returnVariableName === "string") {
+      sub.returnVariableName = patch.returnVariableName;
+    }
+    flow.updatedAt = new Date().toISOString();
+  }
+
+  /**
+   * §11: 导入一个完整子流程对象（带 ID 重映射）。
+   * 返回新子流程的 id。
+   */
+  function importSubFlow(imported: SubFlow): string | null {
+    const flow = currentFlow.value;
+    if (!flow) return null;
+    const subs = ensureSubFlows(flow);
+    const newId = nanoid(8);
+    const stepIdMap = new Map<string, string>();
+    const newSteps: FlowStep[] = (imported.steps || []).map((s) => {
+      const newStepId = nanoid(8);
+      stepIdMap.set(s.id, newStepId);
+      return { ...s, id: newStepId };
+    });
+    remapStepJumpRefs(newSteps, (id) => stepIdMap.get(id) || "");
+    const newSub: SubFlow = {
+      ...imported,
+      id: newId,
+      steps: newSteps,
+    };
+    subs.push(newSub);
+    flow.updatedAt = new Date().toISOString();
+    return newId;
+  }
+
+  /**
    * 删除子流程。同时清理主流程 + 所有其它子流程中对它的 call 引用，
    * 并在当前正在编辑它时切回主流程。
    * 返回被清理的 call 步骤数量（供 UI 提示）。
@@ -394,8 +482,12 @@ export const useWindowAutomatorStore = defineStore("window-automator", () => {
     if (selectedStepId.value === stepId) selectedStepId.value = null;
     // 清理子流程内部其它步骤对它的引用
     sub.steps.forEach((s) => clearDeletedRefs(s, stepId));
-    // 也要清理主流程步骤对该步骤 ID 的引用（goto / colorCheck 等）
+    // 也要清理主流程和其它子流程步骤对该步骤 ID 的引用（兼容旧数据）
     flow.steps.forEach((s) => clearDeletedRefs(s, stepId));
+    flow.subFlows?.forEach((other) => {
+      if (other.id === subFlowId) return;
+      other.steps.forEach((s) => clearDeletedRefs(s, stepId));
+    });
     flow.updatedAt = new Date().toISOString();
   }
 
@@ -437,6 +529,117 @@ export const useWindowAutomatorStore = defineStore("window-automator", () => {
   function exitSubFlow() {
     currentEditingSubFlowId.value = null;
     selectedStepId.value = null;
+  }
+
+  /**
+   * §10 提取为函数：从当前编辑上下文中选中多步，提取为子流程。
+   *
+   * 行为：
+   *  1. 在当前方案的 subFlows 中新建一个空子流程；
+   *  2. 将选中的步骤（按顺序）深拷贝到该子流程内，并重新生成 step.id；
+   *  3. 把选中步骤从原位置移除，在原第一个选中位置插入一个 call 步骤；
+   *  4. 修复被移动步骤之间的内部跳转（A→B 都在子流程内则保持，否则置空警告）；
+   *  5. 清理主流程 / 其它子流程里所有指向被移动步骤的外部跳转引用。
+   *
+   * 返回新建的子流程 + 清理掉的外部引用数量（供 UI 提示）。
+   */
+  function extractSelectedToSubFlow(
+    stepIds: string[],
+    name: string
+  ): { subFlow: SubFlow | null; clearedRefs: number } {
+    const flow = currentFlow.value;
+    if (!flow || stepIds.length === 0) return { subFlow: null, clearedRefs: 0 };
+    const sourceSteps = editingSteps.value;
+    const selectedIds = Array.from(new Set(stepIds));
+    const indices = selectedIds
+      .map((id) => sourceSteps.findIndex((s) => s.id === id))
+      .filter((i) => i >= 0)
+      .sort((a, b) => a - b);
+    if (indices.length === 0) return { subFlow: null, clearedRefs: 0 };
+    const stepMap = new Map<string, string>();
+    const extractedSteps: FlowStep[] = indices.map((i) => {
+      const original = sourceSteps[i];
+      const cloned: FlowStep = JSON.parse(JSON.stringify(original));
+      const newId = nanoid(8);
+      stepMap.set(original.id, newId);
+      cloned.id = newId;
+      return cloned;
+    });
+    // 把提取出来的步骤内部的跳转引用按 stepMap 重映射
+    let clearedInternalRefs = 0;
+    const remapInternal = (steps: FlowStep[]) => {
+      steps.forEach((s) => {
+        remapStepJumpRefs([s], (id) => {
+          if (!id) return "";
+          const mapped = stepMap.get(id);
+          if (mapped) return mapped;
+          clearedInternalRefs++;
+          return "";
+        });
+      });
+    };
+    remapInternal(extractedSteps);
+    // 创建子流程对象
+    const sub = createSubFlowFactory(name);
+    sub.steps = extractedSteps;
+    ensureSubFlows(flow).push(sub);
+    // 从源步骤列表中移除选中的步骤（倒序删除避免索引错乱）
+    const reversed = [...indices].reverse();
+    const insertIndex = indices[0];
+    const targetSteps = currentEditingSubFlow.value
+      ? currentEditingSubFlow.value.steps
+      : flow.steps;
+    for (const idx of reversed) {
+      targetSteps.splice(idx, 1);
+    }
+    // 在原位置插入 call 步骤
+    const callStep: FlowStep = {
+      id: nanoid(8),
+      label: `调用 ${sub.name}`,
+      enabled: true,
+      stepConfig: {
+        type: "call" as const,
+        params: { targetSubFlowId: sub.id },
+      },
+    };
+    targetSteps.splice(insertIndex, 0, callStep);
+    // 清理外部对被移动步骤 ID 的所有跳转引用
+    let clearedRefs = 0;
+    const allScannable = [
+      ...flow.steps,
+      ...(flow.subFlows ?? []).flatMap((s) => s.steps),
+    ];
+    for (const s of allScannable) {
+      const c = s.stepConfig;
+      const clearIfMoved = (field: string) => {
+        const val = (c.params as unknown as Record<string, string>)[field];
+        if (typeof val === "string" && stepMap.has(val)) {
+          (c.params as unknown as Record<string, string>)[field] = "";
+          clearedRefs++;
+        }
+      };
+      if (c.type === "goto") {
+        clearIfMoved("targetStepId");
+      } else if (c.type === "colorCheck") {
+        clearIfMoved("matchGoto");
+        clearIfMoved("mismatchGoto");
+      } else if (c.type === "counter") {
+        clearIfMoved("notReachedGotoId");
+        clearIfMoved("reachedGotoId");
+      } else if (c.type === "ocr") {
+        clearIfMoved("matchGoto");
+        clearIfMoved("mismatchGoto");
+      }
+    }
+    clearedRefs += clearedInternalRefs;
+    flow.updatedAt = new Date().toISOString();
+    logger.info("提取为函数", {
+      subFlowId: sub.id,
+      name: sub.name,
+      moved: extractedSteps.length,
+      clearedRefs,
+    });
+    return { subFlow: sub, clearedRefs };
   }
 
   // ---- 视图切换 ----
@@ -529,7 +732,10 @@ export const useWindowAutomatorStore = defineStore("window-automator", () => {
     // subflow
     addSubFlow,
     renameSubFlow,
+    updateSubFlowMeta,
+    importSubFlow,
     deleteSubFlow,
+    extractSelectedToSubFlow,
     addSubFlowStep,
     updateSubFlowStep,
     deleteSubFlowStep,

@@ -113,17 +113,56 @@ export function truncate(text: string, max: number): string {
   return text.slice(0, max) + "...";
 }
 
-/** 把 {varName} 占位符替换为 variables 中的值；未定义保留原样 */
+/**
+ * 变量解析作用域。local 优先于 global 解析，
+ * 用于支持子流程调用栈的局部变量表（§8）。
+ */
+export interface VariablesScope {
+  /** 当前调用栈帧的局部变量表（形参 + 局部声明） */
+  local?: Record<string, string>;
+  /** 全局变量表（store.runtime.variables 引用） */
+  global?: Record<string, string>;
+}
+
+function lookup(scope: VariablesScope, key: string): string | undefined {
+  if (scope.local && Object.prototype.hasOwnProperty.call(scope.local, key)) {
+    return scope.local[key];
+  }
+  if (scope.global && Object.prototype.hasOwnProperty.call(scope.global, key)) {
+    return scope.global[key];
+  }
+  return undefined;
+}
+
+/**
+ * 把 {varName} 占位符替换为变量值；未定义保留原样。
+ *
+ * 重载 1：传入 scope 时，按 local -> global 顺序解析。
+ * 重载 2：传入 Record<string,string> 时，保持旧版全局解析（向后兼容）。
+ */
 export function interpolateVariables(
   text: string,
-  variables: Record<string, string>
+  variables: Record<string, string> | VariablesScope
 ): string {
+  // 兼容旧版签名：传入纯 Record 时包成 { global } 走新逻辑。
+  const scope: VariablesScope = variables && !('local' in variables)
+    ? { global: variables as Record<string, string> }
+    : (variables as VariablesScope);
   return text.replace(/\{([a-zA-Z0-9_]+)\}/g, (full, key: string) => {
-    if (Object.prototype.hasOwnProperty.call(variables, key)) {
-      return variables[key] ?? full;
-    }
-    return full;
+    const v = lookup(scope, key);
+    return v ?? full;
   });
+}
+
+/**
+ * 仅写入局部变量表。供执行器在子流程压栈时初始化形参/局部变量。
+ */
+export function setLocalVariable(
+  local: Record<string, string>,
+  key: string,
+  value: string
+): void {
+  local[key] = value;
 }
 
 /** 步骤配置的简短标签（用于日志） */

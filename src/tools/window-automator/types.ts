@@ -153,6 +153,33 @@ export interface OcrStepParams {
 export interface CallStepParams {
   /** 调用的子流程 ID（对应 ActionFlow.subFlows[].id）；空字符串表示未配置 */
   targetSubFlowId: string;
+  /**
+   * 实参键值对：key = 形参 name，value = 实际传入的值。
+   * 支持变量插值，例如 { "targetHp": "{global_min_hp}" } 或 { "targetHp": "80" }。
+   * 缺省或未列出的形参使用子流程定义的 defaultValue。
+   */
+  arguments?: Record<string, string>;
+  /**
+   * 可选：把子流程的返回值（returnVariableName 指向的局部变量）写入
+   * 调用方作用域的哪个变量中。空字符串 / 缺省表示丢弃返回值。
+   */
+  saveResultToVariable?: string;
+}
+
+/**
+ * 子流程形参定义。
+ *
+ * 设计为字符串值类型：变量插值由执行器在压栈时一次性解析，
+ * 形参不区分 number / string / boolean，统一在配置侧通过 defaultValue
+ * 字符串表达，运行期由用户业务代码自行转换（避免在前端做类型推断）。
+ */
+export interface SubFlowParamDefine {
+  /** 形参名（英文标识，用于变量插值，如 "targetHp"） */
+  name: string;
+  /** 显示名称（如 "目标血量百分比"） */
+  label: string;
+  /** 默认值（缺省时使用，支持变量插值字符串） */
+  defaultValue: string;
 }
 
 // --- 步骤联合 ---
@@ -196,6 +223,16 @@ export interface SubFlow {
   /** 用户自定义名称（如"打坐回血"） */
   name: string;
   steps: FlowStep[];
+  /**
+   * 可选：形参定义列表。
+   * 调用方在 CallStepParams.arguments 中按 name 提供实参；缺省使用 defaultValue。
+   */
+  params?: SubFlowParamDefine[];
+  /**
+   * 可选：把哪个局部变量的值作为函数返回值。
+   * 执行器在子流程执行完毕（出栈）时读取该变量并交给调用方。
+   */
+  returnVariableName?: string;
 }
 
 /** 完整的动作流方案（可保存/加载的单元） */

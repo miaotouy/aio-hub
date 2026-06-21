@@ -198,6 +198,98 @@ describe("window-automator subflow store", () => {
     >;
     expect(mainCallCloned.params.targetSubFlowId).toBe(newSub.id);
   });
+
+  it("duplicateFlow remaps jump targets inside main flow and subFlows", () => {
+    const store = useWindowAutomatorStore();
+    const mainTarget = makeStep("main target");
+    const mainGoto: FlowStep = {
+      ...createStep("goto"),
+      label: "jump main",
+      stepConfig: { type: "goto", params: { targetStepId: mainTarget.id } },
+    };
+    const subTarget = makeStep("sub target");
+    const subGoto: FlowStep = {
+      ...createStep("goto"),
+      label: "jump sub",
+      stepConfig: { type: "goto", params: { targetStepId: subTarget.id } },
+    };
+    store.addFlow(
+      makeFlow({
+        id: "flow-jump",
+        steps: [mainGoto, mainTarget],
+        subFlows: [{ id: "sub-jump", name: "S", steps: [subGoto, subTarget] }],
+      })
+    );
+
+    const cloned = store.duplicateFlow("flow-jump")!;
+    const clonedMainGoto = cloned.steps[0]!.stepConfig as Extract<
+      FlowStep["stepConfig"],
+      { type: "goto" }
+    >;
+    expect(clonedMainGoto.params.targetStepId).toBe(cloned.steps[1]!.id);
+    expect(clonedMainGoto.params.targetStepId).not.toBe(mainTarget.id);
+
+    const clonedSub = cloned.subFlows![0]!;
+    const clonedSubGoto = clonedSub.steps[0]!.stepConfig as Extract<
+      FlowStep["stepConfig"],
+      { type: "goto" }
+    >;
+    expect(clonedSubGoto.params.targetStepId).toBe(clonedSub.steps[1]!.id);
+    expect(clonedSubGoto.params.targetStepId).not.toBe(subTarget.id);
+  });
+
+  it("extractSelectedToSubFlow clears jumps that leave the extracted selection", () => {
+    const store = useWindowAutomatorStore();
+    const outside = makeStep("outside");
+    const selectedGoto: FlowStep = {
+      ...createStep("goto"),
+      label: "selected jump",
+      stepConfig: { type: "goto", params: { targetStepId: outside.id } },
+    };
+    store.addFlow(
+      makeFlow({
+        steps: [selectedGoto, outside],
+      })
+    );
+    store.enterFlow("flow-1");
+
+    const result = store.extractSelectedToSubFlow([selectedGoto.id], "提取");
+    expect(result.subFlow).not.toBeNull();
+    expect(result.clearedRefs).toBe(1);
+    const extractedGoto = result.subFlow!.steps[0]!.stepConfig as Extract<
+      FlowStep["stepConfig"],
+      { type: "goto" }
+    >;
+    expect(extractedGoto.params.targetStepId).toBe("");
+  });
+
+  it("importSubFlow always creates a new subFlow id and remaps internal jump ids", () => {
+    const store = useWindowAutomatorStore();
+    store.addFlow(makeFlow());
+    store.enterFlow("flow-1");
+    const target = makeStep("target");
+    const jump: FlowStep = {
+      ...createStep("goto"),
+      label: "jump",
+      stepConfig: { type: "goto", params: { targetStepId: target.id } },
+    };
+
+    const newId = store.importSubFlow({
+      id: "imported-sub",
+      name: "Imported",
+      steps: [jump, target],
+    })!;
+
+    expect(newId).not.toBe("imported-sub");
+    const imported = store.currentFlow!.subFlows![0]!;
+    expect(imported.id).toBe(newId);
+    const importedJump = imported.steps[0]!.stepConfig as Extract<
+      FlowStep["stepConfig"],
+      { type: "goto" }
+    >;
+    expect(importedJump.params.targetStepId).toBe(imported.steps[1]!.id);
+    expect(importedJump.params.targetStepId).not.toBe(target.id);
+  });
 });
 
 describe("stepExecutors: call step", () => {
@@ -210,6 +302,9 @@ describe("stepExecutors: call step", () => {
       },
       getClientSize: () => Promise.resolve(null),
       variables: {},
+      localVariables: {},
+      scope: { local: {}, global: {} },
+      setVariable: vi.fn(),
       counters: {},
     };
     const step: FlowStep = {
@@ -229,6 +324,9 @@ describe("stepExecutors: call step", () => {
       },
       getClientSize: () => Promise.resolve(null),
       variables: {},
+      localVariables: {},
+      scope: { local: {}, global: {} },
+      setVariable: vi.fn(),
       counters: {},
     };
     const step: FlowStep = {

@@ -22,7 +22,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useWindowAutomatorStore } from "../stores/windowAutomator.store";
 import { executeStep, StepExecContext } from "./stepExecutors";
-import { ClientSize } from "./flowUtils";
+import {
+  ClientSize,
+  interpolateVariables,
+} from "./flowUtils";
 import type {
   ActionFlow,
   ExecutorCallFrame,
@@ -64,13 +67,28 @@ export function useFlowExecutor() {
   }
 
   /** 为 stepExecutors 构造当前运行上下文 */
-  function buildContext(): StepExecContext {
+  function buildContext(scope: {
+    local: Record<string, string>;
+    useLocalVariables: boolean;
+  }): StepExecContext {
     return {
       boundHwnd: store.boundWindow ? store.boundWindow.hwnd : null,
       appendLog: (level, stepIndex, message) =>
         store.appendLog(level, stepIndex, message),
       getClientSize: getCurrentClientSize,
+      // 全局变量表（与旧 API 兼容；写操作会同时回写主流程 global）
       variables: store.runtime.variables,
+      // 当前调用栈帧的局部变量表（写操作只影响当前函数）
+      localVariables: scope.local,
+      // 完整作用域：步骤执行器在需要 {var} 插值时统一用这个
+      scope: { local: scope.local, global: store.runtime.variables },
+      setVariable: (key, value) => {
+        if (scope.useLocalVariables) {
+          scope.local[key] = value;
+        } else {
+          store.runtime.variables[key] = value;
+        }
+      },
       counters: store.runtime.counters,
     };
   }
@@ -145,8 +163,6 @@ export function useFlowExecutor() {
   }
 
   async function runLoop(flow: ActionFlow) {
-    const ctx = buildContext();
-
     // 子流程索引表：id -> SubFlow。执行过程中可能新增/删除子流程，
     // 因此每次 call 都会实时查询当前最新版本。
     const findSubFlow = (id: string): SubFlow | undefined =>
@@ -155,7 +171,11 @@ export function useFlowExecutor() {
     // 当前执行上下文：主流程或某个子流程
     let currentSteps: FlowStep[] = flow.steps;
     let currentSubFlowId: string | null = null;
-    // 调用栈：每帧记录调用方的步骤列表 / 步骤索引 / 触发的子流程信息
+    // 当前调用栈帧的局部变量表；主流程时为空对象，函数调用时填入形参 + 局部变量
+    let currentLocalVariables: Record<string, string> = {};
+    // 调用栈：每帧记录调用方的步骤列表 / 步骤索引 / 触发的子流程信息 / 局部变量表
+    // 局部变量表保存该子流程内的形参与运行期局部变量；进入新子流程时新建空表，
+    // 出栈时整张表随之销毁（§8 局部作用域）。
     const callStack: Array<{
       steps: FlowStep[];
       subFlowId: string | null;
@@ -165,27 +185,58 @@ export function useFlowExecutor() {
        * 出栈时若栈已空则恢复为这个值，让主流程 UI 高亮回到调用方步骤。
        */
       mainHighlight: number;
+      /** 当前调用栈帧的局部变量表（每次 push 时新建对象） */
+      localVariables: Record<string, string>;
+      /** 用于出栈时把返回值写回调用方的保存变量名（call 步骤的 saveResultToVariable） */
+      saveResultTo?: string;
     }> = [];
-    /** 是否有循环调用（同一子流程在栈中重复出现） */
+    /** 是否有循环调用（同一子流程在当前调用链中重复出现） */
     const hasRecursion = (subFlowId: string) =>
+      currentSubFlowId === subFlowId ||
       callStack.some((f) => f.subFlowId === subFlowId);
 
     let nextIndex = 0;
 
+    /**
+     * §9 返回值处理：子流程出栈时调用。
+     * 从被弹出栈帧的 localVariables 中读取 returnVariableName 对应的值，
+     * 写回调用方作用域（栈顶帧或主流程全局表）。
+     */
+    function handleReturnValue(
+      frame: { saveResultTo?: string },
+      childLocal: Record<string, string>
+    ) {
+      if (!frame.saveResultTo) return;
+      // 读取正在退出的子流程定义里的 returnVariableName
+      const childSub = findSubFlow(currentSubFlowId || "");
+      if (!childSub?.returnVariableName) return;
+      const v = childLocal[childSub.returnVariableName];
+      if (typeof v !== "string") return;
+      // 写入调用方作用域：栈顶帧的 localVariables（若还有），否则主流程全局
+      if (callStack.length > 0) {
+        const callerFrame = callStack[callStack.length - 1]!;
+        callerFrame.localVariables[frame.saveResultTo] = v;
+      } else {
+        store.runtime.variables[frame.saveResultTo] = v;
+      }
+    }
+
     /** 把当前调用栈写回 store.runtime，供 UI 面包屑/日志使用 */
     const syncRuntimeCallStack = () => {
-      // 只暴露子流程帧（主流程不计入），并把最后一帧的 stepIndex 同步为当前 nextIndex，
-      // 这样 UI 在子流程编辑器里能直接看到"当前正在跑的是哪一步"。
+      // callStack 内部帧保存的是"调用方上下文 + 被调函数局部变量"。
+      // 对 UI 暴露时要转换成真实的活跃子流程链：A 调 B 时显示 [A, B]。
       const cleaned: ExecutorCallFrame[] = [];
       for (let i = 0; i < callStack.length; i++) {
         const f = callStack[i]!;
-        if (!f.subFlowId) continue;
+        const nextFrame = callStack[i + 1];
+        const activeSubFlowId = nextFrame?.subFlowId ?? currentSubFlowId;
+        if (!activeSubFlowId) continue;
         const isLast = i === callStack.length - 1;
         cleaned.push({
-          subFlowId: f.subFlowId,
-          subFlowName: findSubFlow(f.subFlowId)?.name ?? "(已删除)",
+          subFlowId: activeSubFlowId,
+          subFlowName: findSubFlow(activeSubFlowId)?.name ?? "(已删除)",
           callerStepId: f.steps[f.stepIndex]?.id ?? "",
-          stepIndex: isLast ? nextIndex : f.stepIndex,
+          stepIndex: isLast ? nextIndex : nextFrame?.stepIndex ?? f.stepIndex,
         });
       }
       store.runtime.currentCallStack = cleaned;
@@ -205,10 +256,15 @@ export function useFlowExecutor() {
       // 到达当前执行上下文的末尾
       if (nextIndex < 0 || nextIndex >= currentSteps.length) {
         if (callStack.length > 0) {
-          // 出栈：恢复调用方
+          // 出栈：恢复调用方；同时按 §9 把返回值写回调用方作用域
           const frame = callStack.pop()!;
+          handleReturnValue(frame, currentLocalVariables);
           currentSteps = frame.steps;
           currentSubFlowId = frame.subFlowId;
+          currentLocalVariables =
+            callStack.length > 0
+              ? callStack[callStack.length - 1]!.localVariables
+              : {};
           nextIndex = frame.stepIndex + 1;
           // 主流程高亮回到调用方 call 步骤
           if (callStack.length === 0) {
@@ -240,6 +296,11 @@ export function useFlowExecutor() {
         store.runtime.currentStepIndex = nextIndex;
       }
 
+      // 每步重建 ctx，使当前帧的 localVariables 反映最新（写操作会回写到 currentLocalVariables）
+      const ctx = buildContext({
+        local: currentLocalVariables,
+        useLocalVariables: currentSubFlowId !== null,
+      });
       const nextStepId = await executeStep(ctx, step, nextIndex);
       store.runtime.totalStepsExecuted++;
 
@@ -280,17 +341,47 @@ export function useFlowExecutor() {
           );
           break;
         }
+        // §8 形参绑定：先把形参默认值写入新局部表，再用 arguments 实参覆盖
+        const newLocal: Record<string, string> = {};
+        if (Array.isArray(target.params)) {
+          for (const p of target.params) {
+            if (!p?.name) continue;
+            newLocal[p.name] = interpolateVariables(
+              p.defaultValue ?? "",
+              { global: store.runtime.variables }
+            );
+          }
+        }
+        const argOverrides = params.params.arguments;
+        if (argOverrides && typeof argOverrides === "object") {
+          for (const [k, raw] of Object.entries(argOverrides)) {
+            if (typeof raw !== "string") continue;
+            // 实参值在调用方作用域中解析（局部优先）
+            newLocal[k] = interpolateVariables(raw, {
+              local: currentLocalVariables,
+              global: store.runtime.variables,
+            });
+          }
+        }
         // 压栈并切到子流程
         callStack.push({
           steps: currentSteps,
           subFlowId: currentSubFlowId,
           stepIndex: nextIndex,
           mainHighlight,
+          localVariables: newLocal,
+          saveResultTo: params.params.saveResultToVariable || "",
         });
         currentSteps = target.steps;
         currentSubFlowId = target.id;
+        currentLocalVariables = newLocal;
         nextIndex = 0;
-        store.appendLog("info", null, `→ 调用函数: ${target.name}`);
+        const callArgsCount = Object.keys(argOverrides || {}).length;
+        store.appendLog(
+          "info",
+          null,
+          `→ 调用函数: ${target.name} (传参 ${callArgsCount} 个)`
+        );
         continue;
       }
 

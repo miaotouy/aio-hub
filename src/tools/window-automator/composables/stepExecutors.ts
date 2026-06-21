@@ -14,6 +14,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { toolRegistryManager } from "@/services/registry";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type {
+  CallStepParams,
   ColorCheckStepParams,
   CounterStepParams,
   ExecutorLogLevel,
@@ -57,9 +58,7 @@ export interface StepExecContext {
   counters: Record<string, number>;
 }
 
-const errorHandler = createModuleErrorHandler(
-  "window-automator/stepExecutors"
-);
+const errorHandler = createModuleErrorHandler("window-automator/stepExecutors");
 
 // ===================== 调度入口 =====================
 
@@ -92,7 +91,25 @@ export async function executeStep(
       return runLog(c.params, ctx);
     case "ocr":
       return runOcr(ctx, c.params, index);
+    case "call":
+      return runCall(ctx, c.params, index);
   }
+}
+
+/**
+ * call 步骤本身不执行副作用，
+ * 仅返回 "__CALL__" 让 useFlowExecutor 的 runLoop 处理调用栈压栈/出栈。
+ */
+function runCall(
+  ctx: StepExecContext,
+  params: CallStepParams,
+  index: number
+): "__CALL__" | null {
+  if (!params.targetSubFlowId) {
+    ctx.appendLog("warn", index, "调用步骤未指定目标函数，已跳过");
+    return null;
+  }
+  return "__CALL__";
 }
 
 // ===================== 步骤实现 =====================
@@ -308,10 +325,7 @@ function runCounter(
   return params.notReachedGotoId || null;
 }
 
-function runLog(
-  params: LogStepParams,
-  ctx: StepExecContext
-): string | null {
+function runLog(params: LogStepParams, ctx: StepExecContext): string | null {
   const text = interpolateVariables(params.message, ctx.variables);
   ctx.appendLog(params.level, null, text);
   return null;

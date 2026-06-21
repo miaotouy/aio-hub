@@ -23,15 +23,24 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useWindowAutomatorStore } from "../stores/windowAutomator.store";
 import { executeStep, StepExecContext } from "./stepExecutors";
 import { ClientSize } from "./flowUtils";
-import type { ActionFlow, WindowInfo } from "../types";
+import type {
+  ActionFlow,
+  ExecutorCallFrame,
+  FlowStep,
+  SubFlow,
+  WindowInfo,
+} from "../types";
 
 const errorHandler = createModuleErrorHandler(
   "window-automator/useFlowExecutor"
 );
 
-function findStepIndex(flow: ActionFlow, stepId: string): number {
-  return flow.steps.findIndex((s) => s.id === stepId);
+function findStepIndex(steps: FlowStep[], stepId: string): number {
+  return steps.findIndex((s) => s.id === stepId);
 }
+
+/** 子流程最大嵌套调用深度（防止无限递归） */
+const MAX_CALL_DEPTH = 10;
 
 export function useFlowExecutor() {
   const store = useWindowAutomatorStore();
@@ -137,7 +146,51 @@ export function useFlowExecutor() {
 
   async function runLoop(flow: ActionFlow) {
     const ctx = buildContext();
+
+    // 子流程索引表：id -> SubFlow。执行过程中可能新增/删除子流程，
+    // 因此每次 call 都会实时查询当前最新版本。
+    const findSubFlow = (id: string): SubFlow | undefined =>
+      flow.subFlows?.find((s) => s.id === id);
+
+    // 当前执行上下文：主流程或某个子流程
+    let currentSteps: FlowStep[] = flow.steps;
+    let currentSubFlowId: string | null = null;
+    // 调用栈：每帧记录调用方的步骤列表 / 步骤索引 / 触发的子流程信息
+    const callStack: Array<{
+      steps: FlowStep[];
+      subFlowId: string | null;
+      stepIndex: number;
+      /**
+       * 调用发生前，主流程 currentStepIndex 的取值。
+       * 出栈时若栈已空则恢复为这个值，让主流程 UI 高亮回到调用方步骤。
+       */
+      mainHighlight: number;
+    }> = [];
+    /** 是否有循环调用（同一子流程在栈中重复出现） */
+    const hasRecursion = (subFlowId: string) =>
+      callStack.some((f) => f.subFlowId === subFlowId);
+
     let nextIndex = 0;
+
+    /** 把当前调用栈写回 store.runtime，供 UI 面包屑/日志使用 */
+    const syncRuntimeCallStack = () => {
+      // 只暴露子流程帧（主流程不计入），并把最后一帧的 stepIndex 同步为当前 nextIndex，
+      // 这样 UI 在子流程编辑器里能直接看到"当前正在跑的是哪一步"。
+      const cleaned: ExecutorCallFrame[] = [];
+      for (let i = 0; i < callStack.length; i++) {
+        const f = callStack[i]!;
+        if (!f.subFlowId) continue;
+        const isLast = i === callStack.length - 1;
+        cleaned.push({
+          subFlowId: f.subFlowId,
+          subFlowName: findSubFlow(f.subFlowId)?.name ?? "(已删除)",
+          callerStepId: f.steps[f.stepIndex]?.id ?? "",
+          stepIndex: isLast ? nextIndex : f.stepIndex,
+        });
+      }
+      store.runtime.currentCallStack = cleaned;
+    };
+
     while (
       store.runtime.status === "running" ||
       store.runtime.status === "paused"
@@ -146,27 +199,104 @@ export function useFlowExecutor() {
         await new Promise<void>((resolve) => {
           resumeResolver = resolve;
         });
-        // 状态可能在等待期间被 stop() 改为 stopping/idle；
-        // while 条件会在下一次迭代时自然终止。
       }
-      if (nextIndex < 0 || nextIndex >= flow.steps.length) {
+      syncRuntimeCallStack();
+
+      // 到达当前执行上下文的末尾
+      if (nextIndex < 0 || nextIndex >= currentSteps.length) {
+        if (callStack.length > 0) {
+          // 出栈：恢复调用方
+          const frame = callStack.pop()!;
+          currentSteps = frame.steps;
+          currentSubFlowId = frame.subFlowId;
+          nextIndex = frame.stepIndex + 1;
+          // 主流程高亮回到调用方 call 步骤
+          if (callStack.length === 0) {
+            store.runtime.currentStepIndex = frame.mainHighlight;
+          }
+          continue;
+        }
         store.appendLog("info", null, "动作流执行完毕");
         break;
       }
-      const step = flow.steps[nextIndex];
-      if (!step) break;
+
+      const step = currentSteps[nextIndex];
+      if (!step) {
+        nextIndex++;
+        continue;
+      }
       if (!step.enabled) {
         nextIndex++;
         continue;
       }
+
+      // 记录"主流程高亮位置"：
+      // - 在主流程跑时就是 nextIndex；
+      // - 在子流程跑时，仍保持调用方 call 步骤的索引，让主流程 UI 持续高亮。
+      const mainHighlight = currentSubFlowId
+        ? (callStack[callStack.length - 1]?.mainHighlight ?? nextIndex)
+        : nextIndex;
+      if (!currentSubFlowId) {
+        store.runtime.currentStepIndex = nextIndex;
+      }
+
       const nextStepId = await executeStep(ctx, step, nextIndex);
       store.runtime.totalStepsExecuted++;
+
       if (nextStepId === "__STOP__") {
         store.appendLog("error", null, "由于步骤执行失败，已停止");
         break;
       }
+
+      if (nextStepId === "__CALL__") {
+        const params = step.stepConfig;
+        if (params.type !== "call") {
+          nextIndex++;
+          continue;
+        }
+        const targetId = params.params.targetSubFlowId;
+        const target = findSubFlow(targetId);
+        if (!target) {
+          store.appendLog(
+            "error",
+            null,
+            `调用目标函数不存在: ${targetId || "(空)"}`
+          );
+          break;
+        }
+        if (hasRecursion(targetId)) {
+          store.appendLog(
+            "error",
+            null,
+            `检测到循环调用: 函数 "${target.name}" 已在调用栈中，已停止`
+          );
+          break;
+        }
+        if (callStack.length >= MAX_CALL_DEPTH) {
+          store.appendLog(
+            "error",
+            null,
+            `调用栈深度超过上限 (${MAX_CALL_DEPTH})，已停止`
+          );
+          break;
+        }
+        // 压栈并切到子流程
+        callStack.push({
+          steps: currentSteps,
+          subFlowId: currentSubFlowId,
+          stepIndex: nextIndex,
+          mainHighlight,
+        });
+        currentSteps = target.steps;
+        currentSubFlowId = target.id;
+        nextIndex = 0;
+        store.appendLog("info", null, `→ 调用函数: ${target.name}`);
+        continue;
+      }
+
       if (nextStepId) {
-        const target = findStepIndex(flow, nextStepId);
+        // 步骤返回的跳转目标 ID 必须在当前执行上下文（主流程或当前子流程）内解析
+        const target = findStepIndex(currentSteps, nextStepId);
         if (target < 0) {
           store.appendLog(
             "warn",
@@ -180,11 +310,9 @@ export function useFlowExecutor() {
       } else {
         nextIndex++;
       }
-      if (nextIndex >= flow.steps.length) {
-        store.appendLog("info", null, "动作流执行完毕");
-        break;
-      }
     }
+    // 清空调用栈
+    store.runtime.currentCallStack = [];
     if (store.runtime.status !== "idle") {
       store.runtime.status = "idle";
     }

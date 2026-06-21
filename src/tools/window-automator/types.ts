@@ -51,7 +51,8 @@ export type StepType =
   | "goto"
   | "counter"
   | "log"
-  | "ocr";
+  | "ocr"
+  | "call";
 
 export type MouseButton = "left" | "right" | "middle";
 export type ClickType = "single" | "double";
@@ -149,6 +150,11 @@ export interface OcrStepParams {
   saveToVariable?: string;
 }
 
+export interface CallStepParams {
+  /** 调用的子流程 ID（对应 ActionFlow.subFlows[].id）；空字符串表示未配置 */
+  targetSubFlowId: string;
+}
+
 // --- 步骤联合 ---
 
 export type StepParams =
@@ -159,7 +165,8 @@ export type StepParams =
   | { type: "goto"; params: GotoStepParams }
   | { type: "counter"; params: CounterStepParams }
   | { type: "log"; params: LogStepParams }
-  | { type: "ocr"; params: OcrStepParams };
+  | { type: "ocr"; params: OcrStepParams }
+  | { type: "call"; params: CallStepParams };
 
 /** 单个步骤 */
 export interface FlowStep {
@@ -174,6 +181,23 @@ export interface FlowStep {
 
 // ===================== 动作流方案 =====================
 
+/**
+ * 自定义函数 / 子流程（sub-flow）。
+ *
+ * 归属于某个 ActionFlow，保存在 ActionFlow.subFlows 中，
+ * 导入导出时与主流程一起作为完整单元迁移，避免跨文件引用丢失。
+ *
+ * 子流程内部跳转（goto / colorCheck / counter / ocr）只能跳转到
+ * 自身 steps 列表中的步骤；跨流程跳转被禁止。调用通过 call 步骤实现。
+ */
+export interface SubFlow {
+  /** nanoid 生成的唯一 ID */
+  id: string;
+  /** 用户自定义名称（如"打坐回血"） */
+  name: string;
+  steps: FlowStep[];
+}
+
 /** 完整的动作流方案（可保存/加载的单元） */
 export interface ActionFlow {
   id: string;
@@ -185,6 +209,8 @@ export interface ActionFlow {
     className: string;
   } | null;
   steps: FlowStep[];
+  /** 子流程/自定义函数列表（可选，向下兼容旧方案文件） */
+  subFlows?: SubFlow[];
   createdAt: string;
   updatedAt: string;
 }
@@ -196,7 +222,11 @@ export type ExecutorStatus = "idle" | "running" | "paused" | "stopping";
 /** 运行时上下文 */
 export interface ExecutorRuntime {
   status: ExecutorStatus;
-  /** 当前执行的步骤索引（0-based） */
+  /**
+   * 当前正在执行的"主流程步骤"索引（0-based）。
+   * 当正在执行子流程时，这里记录的是触发该调用的主流程 call 步骤索引，
+   * 便于主流程编辑器把 call 卡片保持高亮。
+   */
   currentStepIndex: number;
   /** 各 counter 步骤的计数器，key = step.id */
   counters: Record<string, number>;
@@ -209,6 +239,24 @@ export interface ExecutorRuntime {
   currentFlowId: string | null;
   /** 当前绑定的窗口信息（运行时快照） */
   boundHwnd: number | null;
+  /**
+   * 当前调用栈快照：空数组表示正在执行主流程；
+   * 数组最后一个元素是最深层子流程。用于面包屑/日志展示，
+   * 也供子流程编辑器判断"哪个步骤正在跑"。
+   */
+  currentCallStack: ExecutorCallFrame[];
+}
+
+/** 执行器调用栈中的一帧（描述当前所在子流程的上下文） */
+export interface ExecutorCallFrame {
+  /** 所在子流程的 ID */
+  subFlowId: string;
+  /** 子流程名称（日志/面包屑用） */
+  subFlowName: string;
+  /** 触发该次调用的原步骤 ID（主流程 call 步骤的 id，或上级子流程 call 步骤的 id） */
+  callerStepId: string;
+  /** 当前在该子流程内执行到的步骤索引（0-based） */
+  stepIndex: number;
 }
 
 export type ExecutorLogLevel = "info" | "warn" | "error" | "debug";

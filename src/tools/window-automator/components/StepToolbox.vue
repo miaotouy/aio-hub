@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 /**
  * 步骤工具箱
  *
@@ -16,14 +17,111 @@ import {
   FileText,
   TextCursorInput,
   Crosshair,
+  Workflow,
+  Pencil,
+  Trash2,
+  Plus,
 } from "lucide-vue-next";
+import { ElMessageBox } from "element-plus";
+import { customMessage } from "@/utils/customMessage";
 import WindowSelector from "./WindowSelector.vue";
-import type { WindowInfo, StepType } from "../types";
+import { useWindowAutomatorStore } from "../stores/windowAutomator.store";
+import type { SubFlow, WindowInfo, StepType } from "../types";
+
+const store = useWindowAutomatorStore();
 
 const emit = defineEmits<{
   (e: "add-step", type: StepType): void;
   (e: "bound", window: WindowInfo | null): void;
+  (e: "edit-sub-flow", subFlowId: string): void;
 }>();
+
+/** 当前方案下的自定义函数列表 */
+const subFlows = computed<SubFlow[]>(() => store.currentFlow?.subFlows ?? []);
+
+/** 当前正在编辑的子流程（用于在工具箱上打高亮标记） */
+const editingSubFlowId = computed(() => store.currentEditingSubFlowId);
+
+/** 新建一个空函数（追加到当前方案的 subFlows） */
+async function onCreateSubFlow() {
+  let name = "新函数";
+  try {
+    const { value } = await ElMessageBox.prompt("输入函数名称", "新建函数", {
+      inputValue: name,
+      confirmButtonText: "创建",
+      cancelButtonText: "取消",
+      lockScroll: false,
+    });
+    if (!value) return;
+    name = value.trim() || "新函数";
+  } catch {
+    return;
+  }
+  const sub = store.addSubFlow(name);
+  if (!sub) {
+    customMessage.warning("请先在编辑器中打开一个方案");
+    return;
+  }
+  customMessage.success(`已创建函数: ${sub.name}`);
+}
+
+/** 点击函数行：在当前编辑上下文的步骤末尾追加一个 call 步骤 */
+function onCallSubFlow(sub: SubFlow) {
+  const type: StepType = "call";
+  const editingSubId = store.currentEditingSubFlowId;
+  const mainFlow = store.currentFlow;
+  let created: ReturnType<typeof store.addStep> = null;
+  if (editingSubId) {
+    created = store.addSubFlowStep(editingSubId, type);
+  } else if (mainFlow) {
+    created = store.addStep(mainFlow.id, type);
+  }
+  if (!created || !mainFlow) {
+    customMessage.warning("请先在编辑器中打开一个方案");
+    return;
+  }
+  // 默认绑定到被点击的函数
+  const next = {
+    stepConfig: {
+      type: "call" as const,
+      params: { targetSubFlowId: sub.id },
+    },
+    label: `调用 ${sub.name}`,
+  };
+  if (editingSubId) {
+    store.updateSubFlowStep(editingSubId, created.id, next);
+  } else {
+    store.updateStep(mainFlow.id, created.id, next);
+  }
+  store.selectStep(created.id);
+}
+
+function onEditSubFlow(sub: SubFlow) {
+  emit("edit-sub-flow", sub.id);
+}
+
+async function onDeleteSubFlow(sub: SubFlow) {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除函数 "${sub.name}" 吗？引用了它的 call 步骤会被清空目标。`,
+      "删除函数",
+      {
+        confirmButtonText: "删除",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    );
+  } catch {
+    return;
+  }
+  const cleared = store.deleteSubFlow(sub.id);
+  if (cleared > 0) {
+    customMessage.warning(`已清空 ${cleared} 处 call 引用`);
+  } else {
+    customMessage.success("已删除");
+  }
+}
 
 const stepTypes: Array<{
   type: StepType;
@@ -119,6 +217,65 @@ function onBound(w: WindowInfo | null) {
         </el-tooltip>
       </div>
     </div>
+
+    <div class="toolbox-section library-section">
+      <div class="section-title">
+        <Workflow :size="14" />
+        <span>函数库</span>
+        <el-tooltip content="新建函数" placement="top">
+          <button
+            class="mini-add-btn"
+            type="button"
+            aria-label="新建函数"
+            @click="onCreateSubFlow"
+          >
+            <Plus :size="12" />
+          </button>
+        </el-tooltip>
+      </div>
+      <div v-if="subFlows.length === 0" class="library-empty">
+        暂无自定义函数，点击右上角 + 创建
+      </div>
+      <div v-else class="library-list">
+        <div
+          v-for="sub in subFlows"
+          :key="sub.id"
+          class="library-item"
+          :class="{ editing: editingSubFlowId === sub.id }"
+        >
+          <button
+            class="library-call"
+            type="button"
+            :title="`在当前步骤流末尾追加一个调用 ${sub.name} 的步骤`"
+            @click="onCallSubFlow(sub)"
+          >
+            <Workflow :size="14" class="lib-icon" />
+            <span class="lib-name">{{ sub.name }}</span>
+            <span class="lib-count">{{ sub.steps.length }}步</span>
+          </button>
+          <el-tooltip content="编辑函数" placement="top">
+            <button
+              class="icon-btn"
+              type="button"
+              aria-label="编辑函数"
+              @click="onEditSubFlow(sub)"
+            >
+              <Pencil :size="12" />
+            </button>
+          </el-tooltip>
+          <el-tooltip content="删除函数" placement="top">
+            <button
+              class="icon-btn danger"
+              type="button"
+              aria-label="删除函数"
+              @click="onDeleteSubFlow(sub)"
+            >
+              <Trash2 :size="12" />
+            </button>
+          </el-tooltip>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -207,5 +364,125 @@ function onBound(w: WindowInfo | null) {
 .step-type-btn .label {
   font-size: 13px;
   font-weight: 500;
+}
+.library-section {
+  flex: 0 0 auto;
+  max-height: 45%;
+}
+.library-empty {
+  font-size: 12px;
+  color: var(--el-text-color-placeholder);
+  padding: 4px 2px;
+}
+.mini-add-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: var(--border-width) solid var(--border-color);
+  background-color: var(--bg-color);
+  color: var(--el-text-color-secondary);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s;
+}
+.mini-add-btn:hover {
+  border-color: var(--el-color-primary);
+  color: var(--el-color-primary);
+}
+.library-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  max-height: 240px;
+  padding-right: 2px;
+}
+.library-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 4px 4px 0;
+  border: var(--border-width) solid transparent;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+.library-item:hover {
+  border-color: var(--border-color);
+  background-color: rgba(
+    var(--el-text-color-primary-rgb, 128, 128, 128),
+    calc(var(--card-opacity, 1) * 0.05)
+  );
+}
+.library-item.editing {
+  border-color: var(--el-color-primary);
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.08)
+  );
+}
+.library-call {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 4px;
+  background-color: var(--bg-color);
+  color: var(--el-text-color-primary);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  min-width: 0;
+  transition: all 0.15s;
+}
+.library-call:hover {
+  border-color: var(--el-color-primary);
+  color: var(--el-color-primary);
+}
+.library-call .lib-icon {
+  color: var(--el-color-primary);
+  flex-shrink: 0;
+}
+.library-call .lib-name {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.library-call .lib-count {
+  font-size: 11px;
+  color: var(--el-text-color-placeholder);
+  font-family: ui-monospace, Consolas, monospace;
+  flex-shrink: 0;
+}
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: var(--border-width) solid var(--border-color);
+  background-color: var(--bg-color);
+  color: var(--el-text-color-secondary);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.icon-btn:hover {
+  border-color: var(--el-color-primary);
+  color: var(--el-color-primary);
+}
+.icon-btn.danger:hover {
+  border-color: var(--el-color-danger);
+  color: var(--el-color-danger);
 }
 </style>

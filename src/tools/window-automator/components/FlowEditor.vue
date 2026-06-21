@@ -30,6 +30,8 @@ import {
   GripVertical,
   ChevronDown,
   ChevronRight,
+  Workflow,
+  ArrowLeftToLine,
 } from "lucide-vue-next";
 import draggable from "vuedraggable";
 import { useWindowAutomatorStore } from "../stores/windowAutomator.store";
@@ -41,6 +43,7 @@ import GotoConfig from "./step-configs/GotoConfig.vue";
 import CounterConfig from "./step-configs/CounterConfig.vue";
 import LogConfig from "./step-configs/LogConfig.vue";
 import OcrConfig from "./step-configs/OcrConfig.vue";
+import CallConfig from "./step-configs/CallConfig.vue";
 import ScreenshotPicker from "./ScreenshotPicker.vue";
 import type {
   FlowStep,
@@ -55,12 +58,47 @@ import type {
 
 const store = useWindowAutomatorStore();
 
+/**
+ * 当前编辑器显示的步骤：主流程或当前编辑的子流程。
+ * store.editingSteps 已经做完了主/子流程切换，
+ * 这里只需把 setter 也分发到对应的 setSteps / setSubFlowSteps。
+ */
 const steps = computed<FlowStep[]>({
-  get: () => store.currentFlow?.steps ?? [],
+  get: () => store.editingSteps,
   set: (val) => {
-    if (store.currentFlow) store.setSteps(store.currentFlow.id, val);
+    if (!store.currentFlow) return;
+    if (store.currentEditingSubFlowId) {
+      store.setSubFlowSteps(store.currentEditingSubFlowId, val);
+    } else {
+      store.setSteps(store.currentFlow.id, val);
+    }
   },
 });
+
+/** 是否正在编辑子流程（用于头部面包屑与按钮） */
+const isEditingSubFlow = computed(() => !!store.currentEditingSubFlowId);
+
+/**
+ * 根据当前编辑上下文，把步骤 CRUD 操作分发到主流程或子流程。
+ * 这样原有 step 列表内的所有拖拽/选中/删除/更新逻辑零改动直接复用。
+ */
+function deleteStepByContext(stepId: string) {
+  if (!store.currentFlow) return;
+  if (store.currentEditingSubFlowId) {
+    store.deleteSubFlowStep(store.currentEditingSubFlowId, stepId);
+  } else {
+    store.deleteStep(store.currentFlow.id, stepId);
+  }
+}
+
+function updateStepByContext(stepId: string, patch: Partial<FlowStep>) {
+  if (!store.currentFlow) return;
+  if (store.currentEditingSubFlowId) {
+    store.updateSubFlowStep(store.currentEditingSubFlowId, stepId, patch);
+  } else {
+    store.updateStep(store.currentFlow.id, stepId, patch);
+  }
+}
 
 /** 当前展开的步骤 ID；同时只允许一个展开（accordion 行为） */
 const expandedStepId = ref<string | null>(null);
@@ -87,6 +125,7 @@ const typeMeta: Record<
   counter: { color: "#10b981", label: "循环计数", icon: Repeat },
   log: { color: "#64748b", label: "日志", icon: FileText },
   ocr: { color: "#22c55e", label: "OCR 识别", icon: TextCursorInput },
+  call: { color: "#0ea5e9", label: "调用函数", icon: Workflow },
 };
 
 function metaFor(type: StepType) {
@@ -130,6 +169,12 @@ function describeStep(step: FlowStep): string {
       return `${c.params.level}: ${c.params.message || "(空)"}`;
     case "ocr":
       return `${c.params.engineType} (${c.params.rect.width}x${c.params.rect.height}) "${c.params.keyword || "(任意)"}"`;
+    case "call": {
+      const target = store.currentFlow?.subFlows?.find(
+        (s) => s.id === c.params.targetSubFlowId
+      );
+      return target ? `→ ${target.name}` : "→ (未选择函数)";
+    }
   }
 }
 
@@ -199,39 +244,40 @@ function selectStep(step: FlowStep) {
 }
 
 function toggleEnabled(step: FlowStep) {
-  if (!store.currentFlow) return;
-  store.updateStep(store.currentFlow.id, step.id, { enabled: !step.enabled });
+  updateStepByContext(step.id, { enabled: !step.enabled });
 }
 
 function removeStep(step: FlowStep) {
-  if (!store.currentFlow) return;
   if (expandedStepId.value === step.id) expandedStepId.value = null;
-  store.deleteStep(store.currentFlow.id, step.id);
+  deleteStepByContext(step.id);
 }
 
 function updateLabel(step: FlowStep, value: string) {
-  if (!store.currentFlow) return;
-  store.updateStep(store.currentFlow.id, step.id, { label: value });
+  updateStepByContext(step.id, { label: value });
 }
 
 /** 内嵌配置的 update:params 回写 */
 function onInlineParamsUpdate(step: FlowStep, next: StepParams["params"]) {
-  if (!store.currentFlow) return;
-  store.updateStep(store.currentFlow.id, step.id, {
+  updateStepByContext(step.id, {
     stepConfig: { type: step.stepConfig.type, params: next } as StepParams,
   });
 }
 
 /** 延时步骤的 quick edit：直接更新 duration */
 function updateDelayDuration(step: FlowStep, value: number | undefined) {
-  if (!store.currentFlow || step.stepConfig.type !== "delay") return;
+  if (step.stepConfig.type !== "delay") return;
   const next: DelayStepParams = {
     ...step.stepConfig.params,
     duration: Math.max(0, Number(value) || 0),
   };
-  store.updateStep(store.currentFlow.id, step.id, {
+  updateStepByContext(step.id, {
     stepConfig: { type: "delay", params: next },
   });
+}
+
+function backToMainFlow() {
+  store.exitSubFlow();
+  expandedStepId.value = null;
 }
 
 // ===================== 徽章交互 =====================
@@ -278,7 +324,7 @@ function onPickerConfirm(result: ScreenshotPickerResult) {
       ...c.params,
       coordinate: { mode: "pixel", x: result.x, y: result.y },
     };
-    store.updateStep(store.currentFlow.id, step.id, {
+    updateStepByContext(step.id, {
       stepConfig: { type: "click", params: next },
     });
   } else if (c.type === "colorCheck" && result.rect) {
@@ -294,7 +340,7 @@ function onPickerConfirm(result: ScreenshotPickerResult) {
       },
       coordinate: undefined,
     };
-    store.updateStep(store.currentFlow.id, step.id, {
+    updateStepByContext(step.id, {
       stepConfig: { type: "colorCheck", params: next },
     });
   } else if (c.type === "ocr" && result.rect) {
@@ -308,7 +354,7 @@ function onPickerConfirm(result: ScreenshotPickerResult) {
         mode: "pixel",
       },
     };
-    store.updateStep(store.currentFlow.id, step.id, {
+    updateStepByContext(step.id, {
       stepConfig: { type: "ocr", params: next },
     });
   }
@@ -327,16 +373,49 @@ const supportsRectPick = (type: StepType) =>
 
 // ===================== 当前活动步骤 =====================
 
-const isStepActive = (index: number) =>
-  store.runtime.status === "running" &&
-  store.runtime.currentStepIndex === index;
+/**
+ * 当前编辑上下文下的"活动步骤"判定。
+ *  - 编辑主流程：主流程高亮步骤（currentStepIndex）= 正在执行的主流程步骤；
+ *    当嵌套在子流程里时，currentStepIndex 会被 executor 锁定为调用方 call 步骤。
+ *  - 编辑子流程：调用栈最后一帧的 stepIndex 才是该子流程内正在跑的步骤。
+ */
+const isStepActive = (index: number) => {
+  if (store.runtime.status !== "running") return false;
+  if (isEditingSubFlow.value) {
+    const stack = store.runtime.currentCallStack;
+    const last = stack[stack.length - 1];
+    if (!last) return false;
+    if (last.subFlowId !== store.currentEditingSubFlowId) return false;
+    return last.stepIndex === index;
+  }
+  return store.runtime.currentStepIndex === index;
+};
 </script>
 
 <template>
   <div class="flow-editor">
     <div class="editor-header">
       <div class="header-title">
-        步骤流 <span class="count">({{ steps.length }})</span>
+        <el-tooltip
+          v-if="isEditingSubFlow"
+          content="返回主流程"
+          placement="bottom"
+        >
+          <button
+            class="back-btn"
+            type="button"
+            aria-label="返回主流程"
+            @click="backToMainFlow"
+          >
+            <ArrowLeftToLine :size="14" />
+          </button>
+        </el-tooltip>
+        <span class="title-text">步骤流</span>
+        <span v-if="isEditingSubFlow" class="subflow-tag">
+          (函数: {{ store.currentEditingSubFlow?.name }})
+        </span>
+        <span v-else class="main-tag">(主流程)</span>
+        <span class="count">({{ steps.length }})</span>
       </div>
       <div class="header-hint">点击卡片展开/收起配置</div>
     </div>
@@ -613,6 +692,14 @@ const isStepActive = (index: number) =>
                 :steps="steps"
                 @update:params="(v) => onInlineParamsUpdate(element, v)"
               />
+              <CallConfig
+                v-else-if="element.stepConfig.type === 'call'"
+                :params="
+                  (element.stepConfig as Extract<StepParams, { type: 'call' }>)
+                    .params
+                "
+                @update:params="(v) => onInlineParamsUpdate(element, v)"
+              />
             </div>
           </transition>
         </div>
@@ -650,13 +737,55 @@ const isStepActive = (index: number) =>
   background-color: var(--header-bg);
 }
 .header-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 500;
   font-size: 14px;
+  min-width: 0;
+}
+.header-title .title-text {
+  font-weight: 500;
 }
 .header-title .count {
   color: var(--el-text-color-secondary);
   font-weight: 400;
   margin-left: 2px;
+}
+.header-title .main-tag,
+.header-title .subflow-tag {
+  color: var(--el-text-color-secondary);
+  font-weight: 400;
+  font-size: 12px;
+}
+.header-title .subflow-tag {
+  color: var(--el-color-primary);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: var(--border-width) solid var(--border-color);
+  background-color: var(--bg-color);
+  color: var(--el-text-color-secondary);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s;
+}
+.back-btn:hover {
+  border-color: var(--el-color-primary);
+  color: var(--el-color-primary);
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.08)
+  );
 }
 .header-hint {
   font-size: 11px;

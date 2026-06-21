@@ -36,7 +36,13 @@ export async function resolveCoordinate(
 
 /** 把区域按客户区尺寸从百分比换算为像素（同步版本） */
 export function resolveRect(
-  rect: { x: number; y: number; width: number; height: number; mode: Coordinate["mode"] },
+  rect: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    mode: Coordinate["mode"];
+  },
   size: ClientSize | null
 ): { x: number; y: number; width: number; height: number } {
   if (rect.mode === "pixel" || !size) {
@@ -65,7 +71,9 @@ export function sleepWithRandom(base: number, range: number): Promise<void> {
 // ===================== 颜色 =====================
 
 /** 把 #RRGGBB 解析为 0~255 的 RGB 三元组 */
-export function parseHex(hex: string): { r: number; g: number; b: number } | null {
+export function parseHex(
+  hex: string
+): { r: number; g: number; b: number } | null {
   const m = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim());
   if (!m || !m[1]) return null;
   const v = parseInt(m[1], 16);

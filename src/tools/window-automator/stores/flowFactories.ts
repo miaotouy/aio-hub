@@ -12,6 +12,7 @@ import type {
   RectArea,
   StepParams,
   StepType,
+  SubFlow,
 } from "../types";
 
 /** 默认坐标 */
@@ -111,6 +112,13 @@ export function createDefaultStepParams(type: StepType): StepParams {
           mismatchGoto: "",
         },
       };
+    case "call":
+      return {
+        type: "call",
+        params: {
+          targetSubFlowId: "",
+        },
+      };
   }
 }
 
@@ -133,6 +141,8 @@ export function defaultStepLabel(type: StepType): string {
       return "日志";
     case "ocr":
       return "OCR 识别";
+    case "call":
+      return "调用函数";
   }
 }
 
@@ -155,7 +165,17 @@ export function createEmptyFlow(name = "未命名方案"): ActionFlow {
     description: "",
     targetWindow: null,
     steps: [],
+    subFlows: [],
     createdAt: now,
     updatedAt: now,
+  };
+}
+
+/** 创建一个空白子流程 / 自定义函数 */
+export function createSubFlow(name = "新函数"): SubFlow {
+  return {
+    id: nanoid(8),
+    name,
+    steps: [],
   };
 }

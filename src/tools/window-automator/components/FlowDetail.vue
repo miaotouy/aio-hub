@@ -62,7 +62,13 @@ watch(
 
 function addStep(type: StepType) {
   if (!flow.value) return;
-  const step = store.addStep(flow.value.id, type);
+  // 如果正在编辑子流程，步骤实际添加到子流程里
+  let step: ReturnType<typeof store.addStep> = null;
+  if (store.currentEditingSubFlowId) {
+    step = store.addSubFlowStep(store.currentEditingSubFlowId, type);
+  } else {
+    step = store.addStep(flow.value.id, type);
+  }
   if (step) {
     store.selectStep(step.id);
     saveCanceller?.trigger();
@@ -72,6 +78,10 @@ function addStep(type: StepType) {
 function onWindowBound(_w: WindowInfo | null) {
   // 绑定/解绑时立即触发一次保存，便于会话恢复
   saveCanceller?.trigger();
+}
+
+function onEditSubFlow(subFlowId: string) {
+  store.enterSubFlow(subFlowId);
 }
 
 function back() {
@@ -241,7 +251,11 @@ onBeforeUnmount(() => {
 
     <div class="detail-body">
       <div v-show="showSidebar" class="left-pane">
-        <StepToolbox @add-step="addStep" @bound="onWindowBound" />
+        <StepToolbox
+          @add-step="addStep"
+          @bound="onWindowBound"
+          @edit-sub-flow="onEditSubFlow"
+        />
       </div>
       <div class="right-pane">
         <div class="right-top">

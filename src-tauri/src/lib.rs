@@ -205,6 +205,8 @@ use commands::{
     bring_danmaku_overlay_to_top, close_danmaku_overlay_window, create_danmaku_overlay_window,
     find_player_windows, get_external_player_status, get_mpc_be_status, get_player_window_rect,
     is_window_valid, set_danmaku_overlay_ignore_cursor, set_danmaku_overlay_zorder,
+    wa_capture_window, wa_get_client_rect, wa_get_pixel, wa_get_windows, wa_is_window_valid,
+    wa_send_click, wa_send_keypress,
 };
 // 导入全局鼠标监听器
 // 条件导入：仅在非 macOS 上导入
@@ -622,6 +624,21 @@ pub fn run() {
             bring_danmaku_overlay_to_top,
             #[cfg(windows)]
             set_danmaku_overlay_zorder,
+            // 窗口自动化助手 (Window Automator) 命令
+            #[cfg(windows)]
+            wa_capture_window,
+            #[cfg(windows)]
+            wa_get_client_rect,
+            #[cfg(windows)]
+            wa_get_pixel,
+            #[cfg(windows)]
+            wa_get_windows,
+            #[cfg(windows)]
+            wa_is_window_valid,
+            #[cfg(windows)]
+            wa_send_click,
+            #[cfg(windows)]
+            wa_send_keypress,
             // 窗口管理命令
             create_tool_window,
             focus_window,

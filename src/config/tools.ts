@@ -40,6 +40,9 @@ export const DEFAULT_TOOLS_ORDER = [
   "/dir-search",
   "/content-deduplicator",
 
+  // 自动化
+  "/window-automator",
+
   // 开发工具
   "/api-tester",
   "/llm-inspector",

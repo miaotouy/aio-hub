@@ -25,6 +25,8 @@ pub mod sidecar_plugin;
 pub mod skill_manager;
 pub mod system;
 pub mod system_pulse;
+#[cfg(windows)]
+pub mod window_automator;
 pub mod window_config;
 pub mod window_effects;
 pub mod window_manager;
@@ -58,6 +60,9 @@ pub use sidecar_plugin::*;
 pub use skill_manager::*;
 pub use system::*;
 pub use system_pulse::*;
+
+#[cfg(windows)]
+pub use window_automator::*;
 pub use window_config::*;
 pub use window_effects::*;
 pub use window_manager::*;

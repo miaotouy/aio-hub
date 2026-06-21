@@ -107,13 +107,15 @@ rand = "0.8"
 
 font-kit = "0.14"
 
-# OCR 依赖 + DPAPI 加密
+# OCR 依赖 + DPAPI 加密 + windows 10/11 特定功能
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = [
     "Graphics_Imaging",
     "Media_Ocr",
     "Storage_Streams",
+    "Win32_Storage_Xps",
     "Globalization",
+    "Win32_System_Threading",
     "Win32_UI_WindowsAndMessaging",
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
@@ -127,3 +129,4 @@ windows = { version = "0.58", features = [
 # macOS 特定依赖
 [target."cfg(target_os = \"macos\")".dependencies]
 cocoa = "0.26"
+

@@ -91,6 +91,28 @@ export interface SidecarConfig {
   executable: Partial<Record<PlatformKey, string>>;
   /** 命令行参数模板 */
   args?: string[];
+  /**
+   * 是否启用常驻进程模式
+   *
+   * 常驻模式会启动一个长期运行的进程，通过 JSON-RPC 协议通信。
+   * 适用于需要低延迟重复调用或需要持续推送事件的场景（如 OCR 引擎、自动化引擎）。
+   *
+   * @default false
+   */
+  resident?: boolean;
+  /**
+   * 常驻模式的初始化/启动方法
+   *
+   * 进程启动后会自动执行此方法进行初始化（如加载模型）。
+   * 仅当 resident 为 true 时有效。
+   */
+  startupMethod?: string;
+  /**
+   * 启动方法的参数
+   *
+   * 仅当 resident 为 true 时有效。
+   */
+  startupParams?: Record<string, unknown>;
 }
 
 /**

@@ -4,6 +4,7 @@
 
 - 插件类型：`sidecar`（基础设施层）
 - 变更类型：新增常驻进程管理模式
+- 状态：**阶段 A（Rust 后端）+ 阶段 B（前端 SDK）已实现** 🟢
 - 关联计划：[`paddle-ocr-plugin-migration.md`](paddle-ocr-plugin-migration.md)、[`window-automator-plugin-migration.md`](window-automator-plugin-migration.md)
 
 ## 1. 背景与目标
@@ -228,39 +229,41 @@ ${appDataDir}/temp/aiohub-shared/
 
 ## 6. 实施步骤
 
-### 阶段 A：Rust 后端 — 常驻进程管理器
+### 阶段 A：Rust 后端 — 常驻进程管理器 ✅ 已完成
 
 1. **创建 `SidecarPluginManager` 状态**：
-   - 在 `src-tauri/src/commands/` 下新建 `sidecar_plugin_manager.rs`。
-   - 定义 `ResidentProcess` 结构体，持有 `Child` 句柄、`stdin` writer、事件回调。
+   - 在 [`src-tauri/src/commands/sidecar_plugin_manager.rs`](../../src-tauri/src/commands/sidecar_plugin_manager.rs) 完成。
+   - 定义 `ResidentProcess` 结构体，持有 `Child` 句柄、`Mutex<ChildStdin>`、请求 ID 计数器、`pending_requests`。
    - 使用 `Arc<Mutex<HashMap<String, ResidentProcess>>>` 管理多个常驻进程。
 
 2. **实现进程生命周期**：
-   - `spawn_resident`：启动进程，spawn 异步任务持续读取 stdout/stderr，解析 JSON 事件并匹配 `id` 或触发回调。
-   - `send_command`：生成唯一 `id`，写入 stdin，返回 `oneshot::Receiver` 等待匹配的响应。
-   - `kill_resident`：发送 `shutdown` 指令，等待进程退出（超时 5s 后强制 kill）。
+   - `sidecar_spawn_resident`：启动进程，spawn 异步任务持续读取 stdout/stderr，解析 JSON 事件并匹配 `id` 或触发回调。
+   - `sidecar_send_command`：生成唯一 `id`，写入 stdin，通过 `oneshot::Receiver` 等待匹配的响应（300s 超时）。
+   - `sidecar_kill_resident`：发送 `shutdown` 指令，等待进程退出（超时 5s 后强制 kill）。
 
-3. **实现 Broker 中转逻辑（新增）**：
+3. **实现 Broker 中转逻辑**：
    - 在 stdout 事件循环中识别 `type === "forward"` 的事件。
-   - 调用 `forward_command(src, target, method, params)`：查找目标进程，调用 `send_command`，将返回结果通过 `sidecar_resident_event` 推回给源 Sidecar。
+   - 自动查找目标进程，调用目标进程的 `send_command`，将返回结果通过 `sidecar_resident_event` 推回给源 Sidecar。
 
 4. **注册 Tauri Commands**：
-   - `sidecar_spawn_resident(plugin_id, executable_path, args)`
-   - `sidecar_send_command(plugin_id, method, params)` → `Promise<Response>`
-   - `sidecar_kill_resident(plugin_id)`
-   - `write_temp_files(source, files)`（新增）
-   - `cleanup_temp_files(paths)`（新增）
-   - 在 [`src-tauri/src/lib.rs`](../../src-tauri/src/lib.rs:508) 的 `invoke_handler` 中注册。
+   - `sidecar_spawn_resident`、`sidecar_send_command`、`sidecar_kill_resident`
+   - `write_temp_files`、`cleanup_temp_files`
+   - 已在 [`src-tauri/src/lib.rs`](../../src-tauri/src/lib.rs:508) 的 `invoke_handler` 中注册。
+   - `cleanup_expired_temp_files` 在应用启动时自动调用。
 
-### 阶段 B：前端 SDK / 插件系统扩展
+### 阶段 B：前端 SDK / 插件系统扩展 ✅ 已完成
 
-1. **扩展 `aiohub-sdk` 的 `execute` 函数**：
-   - 读取插件 manifest，判断 `sidecar.resident` 是否为 `true`。
+1. **扩展 `SidecarPluginAdapter`**：
+   - 读取 plugin manifest，判断 `sidecar.resident` 是否为 `true`。
    - 若常驻，调用 `invoke('sidecar_send_command', { pluginId, method, params })`。
-   - 若一次性，走现有 `invoke('execute_sidecar', ...)` 流程。
+   - 若一次性，走现有 `execute_sidecar` 流程。
+   - `enable()` 时自动启动常驻进程并执行 `startupMethod`。
+   - `disable()` 时自动调用 `sidecar_kill_resident` 停止进程。
 
 2. **增加事件监听 API**：
-   - 暴露 `onSidecarEvent(pluginId, callback)` 供插件 UI 订阅 Sidecar 主动推送的事件。
+   - 暴露 `onSidecarEvent(eventName, callback)` 供订阅特定事件名称。
+   - 暴露 `onAnySidecarEvent(callback)` 供订阅所有主动推送事件。
+   - 均支持返回 `unlisten` 函数进行取消。
 
 ### 阶段 C：集成验证
 

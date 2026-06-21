@@ -38,6 +38,7 @@ use commands::{
     check_ffmpeg_availability,
     clean_temp_dir,
     cleanup_items,
+    cleanup_temp_files,
     clear_all_window_configs,
     close_all_canvas_windows,
     close_canvas_window,
@@ -173,6 +174,9 @@ use commands::{
     search_media_generator_data,
     set_window_position,
     set_window_shadow,
+    sidecar_kill_resident,
+    sidecar_send_command,
+    sidecar_spawn_resident,
     start_clipboard_monitor,
     start_llm_inspector,
     start_llm_proxy_server,
@@ -195,10 +199,12 @@ use commands::{
     validate_regex_pattern,
     write_file_force,
     write_skill_resource,
+    write_temp_files,
     write_text_file_force,
     // 状态结构体
     AssetCatalog,
     ClipboardMonitorState,
+    SidecarPluginManager,
 };
 #[cfg(windows)]
 use commands::{
@@ -504,6 +510,7 @@ pub fn run() {
         .manage(Arc::new(CancellationToken::new()))
         .manage(knowledge::KnowledgeState::new())
         .manage(commands::system_pulse::PulseState::default())
+        .manage(SidecarPluginManager::default())
         // 注册命令处理器
         .invoke_handler(tauri::generate_handler![
             greet,
@@ -713,6 +720,13 @@ pub fn run() {
             preflight_plugin_zip,
             // Sidecar 插件命令
             execute_sidecar,
+            // 常驻 Sidecar 进程命令
+            sidecar_spawn_resident,
+            sidecar_send_command,
+            sidecar_kill_resident,
+            // 临时文件管理命令
+            write_temp_files,
+            cleanup_temp_files,
             // 原生插件命令
             commands::native_plugin::load_native_plugin,
             commands::native_plugin::unload_native_plugin,
@@ -987,6 +1001,9 @@ pub fn run() {
             // 初始化全局鼠标监听器（用于基于 rdev 的拖拽, 仅在非 macOS 上启用）
             #[cfg(not(target_os = "macos"))]
             init_global_mouse_listener();
+
+            // 启动时清理过期临时文件（超过 24 小时）
+            commands::sidecar_plugin_manager::cleanup_expired_temp_files(app.app_handle());
 
             Ok(())
         })

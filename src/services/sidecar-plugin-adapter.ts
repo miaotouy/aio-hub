@@ -2,6 +2,7 @@
  * Sidecar 插件适配器
  *
  * 将 Sidecar 插件包装成符合 ToolRegistry 接口的代理对象
+ * 支持一次性模式和常驻模式（Resident Mode）
  */
 
 import type { ServiceMetadata } from "./types";
@@ -20,7 +21,7 @@ const errorHandler = createModuleErrorHandler(
 );
 
 /**
- * Sidecar 输出事件
+ * Sidecar 输出事件（一次性模式）
  */
 interface SidecarOutputEvent {
   plugin_id: string;
@@ -29,7 +30,17 @@ interface SidecarOutputEvent {
 }
 
 /**
- * Sidecar 执行请求
+ * 常驻 Sidecar 事件（常驻模式）
+ */
+interface SidecarResidentEvent {
+  plugin_id: string;
+  event_type: string;
+  event_name: string | null;
+  data: string;
+}
+
+/**
+ * Sidecar 执行请求（一次性模式）
  */
 interface SidecarExecuteRequest {
   plugin_id: string;
@@ -43,7 +54,9 @@ interface SidecarExecuteRequest {
 /**
  * Sidecar 插件适配器类
  *
- * 将一个 Sidecar 插件包装成 ToolRegistry 接口
+ * 根据 manifest 中 sidecar.resident 的值自动选择：
+ * - 一次性模式：每次调用 spawn 新进程（默认）
+ * - 常驻模式：保持长连接，通过 JSON-RPC 通信
  */
 export class SidecarPluginAdapter implements PluginProxy {
   public readonly id: string;
@@ -55,9 +68,19 @@ export class SidecarPluginAdapter implements PluginProxy {
   public readonly devMode: boolean;
   public enabled: boolean = false;
 
+  /** 是否为常驻模式 */
+  public readonly isResident: boolean;
+
   private unlisten: UnlistenFn | null = null;
+  private residentEventUnlisten: UnlistenFn | null = null;
   private eventHandlers: Map<string, (event: SidecarOutputEvent) => void> =
     new Map();
+  /** 常驻模式自定义事件回调 */
+  private residentEventCallbacks: Map<string, Array<(data: any) => void>> =
+    new Map();
+  /** 常驻模式通用事件回调（对应 onSidecarEvent） */
+  private sidecarEventCallbacks: Set<(eventName: string, data: any) => void> =
+    new Set();
 
   constructor(
     manifest: PluginManifest,
@@ -72,14 +95,21 @@ export class SidecarPluginAdapter implements PluginProxy {
     this.description = manifest.description;
     this.devMode = devMode;
 
+    // 判断是否为常驻模式
+    this.isResident = manifest.sidecar?.resident === true;
+
     logger.debug(`创建 Sidecar 插件适配器: ${this.id}`, {
       devMode,
       installPath,
+      isResident: this.isResident,
     });
   }
 
   /**
-   * 启用插件 - 设置事件监听
+   * 启用插件
+   *
+   * - 一次性模式：监听 sidecar-output 事件
+   * - 常驻模式：启动常驻进程 + 监听 sidecar-resident-event
    */
   async enable(): Promise<void> {
     if (this.enabled) {
@@ -87,21 +117,36 @@ export class SidecarPluginAdapter implements PluginProxy {
       return;
     }
 
-    logger.info(`启用 Sidecar 插件: ${this.id}`);
+    logger.info(
+      `启用 Sidecar 插件: ${this.id} (${
+        this.isResident ? "常驻模式" : "一次性模式"
+      })`
+    );
 
-    // 监听 Sidecar 输出事件
+    if (this.isResident) {
+      await this.enableResident();
+    } else {
+      await this.enableOneshot();
+    }
+
+    this.enabled = true;
+    await pluginManager.updateRuntimeState(this.id, true);
+  }
+
+  /**
+   * 一次性模式启用
+   */
+  private async enableOneshot(): Promise<void> {
     this.unlisten = await listen<SidecarOutputEvent>(
       "sidecar-output",
       (event) => {
         const data = event.payload;
 
-        // 只处理本插件的事件
         if (data.plugin_id === this.manifest.id) {
           logger.debug(`收到 Sidecar 输出事件: ${data.event_type}`, {
             data: data.data,
           });
 
-          // 触发对应的事件处理器
           const handler = this.eventHandlers.get(data.event_type);
           if (handler) {
             handler(data);
@@ -109,13 +154,112 @@ export class SidecarPluginAdapter implements PluginProxy {
         }
       }
     );
-
-    this.enabled = true;
-    await pluginManager.updateRuntimeState(this.id, true);
   }
 
   /**
-   * 禁用插件 - 移除事件监听
+   * 常驻模式启用：启动进程 + 监听事件
+   */
+  private async enableResident(): Promise<void> {
+    const executablePath = this.getExecutablePath();
+    const args = this.manifest.sidecar?.args || [];
+
+    // 启动常驻进程
+    await invoke("sidecar_spawn_resident", {
+      pluginId: this.manifest.id,
+      executablePath,
+      args,
+    });
+
+    // 监听常驻 Sidecar 事件
+    this.residentEventUnlisten = await listen<SidecarResidentEvent>(
+      "sidecar-resident-event",
+      (event) => {
+        const data = event.payload;
+
+        // 只处理本插件的事件
+        if (data.plugin_id === this.manifest.id) {
+          logger.debug(`收到常驻 Sidecar 事件: ${data.event_type}`, {
+            eventName: data.event_name,
+            data: data.data,
+          });
+
+          // 如果是主动推送的 event 类型，触发回调
+          if (data.event_type === "event" && data.event_name) {
+            // 触发通用的 onSidecarEvent 回调
+            this.sidecarEventCallbacks.forEach((cb) => {
+              try {
+                const parsed = JSON.parse(data.data);
+                cb(data.event_name!, parsed.data || parsed);
+              } catch {
+                cb(data.event_name!, data.data);
+              }
+            });
+
+            // 触发按名称分类的回调
+            const eventCallbacks = this.residentEventCallbacks.get(
+              data.event_name
+            );
+            if (eventCallbacks) {
+              eventCallbacks.forEach((cb) => {
+                try {
+                  const parsed = JSON.parse(data.data);
+                  cb(parsed.data || parsed);
+                } catch {
+                  cb(data.data);
+                }
+              });
+            }
+          }
+
+          // 如果是 progress/result/error 类型，映射回 handlers
+          if (
+            data.event_type === "progress" ||
+            data.event_type === "result" ||
+            data.event_type === "error"
+          ) {
+            const wrappedEvent: SidecarOutputEvent = {
+              plugin_id: data.plugin_id,
+              event_type: data.event_type,
+              data: data.data,
+            };
+            const handler = this.eventHandlers.get(data.event_type);
+            if (handler) {
+              handler(wrappedEvent);
+            }
+          }
+        }
+      }
+    );
+
+    // 如果声明了 startupMethod，自动执行启动初始化
+    if (this.manifest.sidecar?.startupMethod) {
+      const startupMethod = this.manifest.sidecar.startupMethod;
+      const startupParams = this.manifest.sidecar.startupParams || {};
+
+      logger.info(`执行常驻插件启动方法: ${this.id}.${startupMethod}`);
+
+      try {
+        const startupResult = await this.executeSidecarResident(
+          startupMethod,
+          startupParams
+        );
+        logger.info(`常驻插件初始化完成: ${this.id}`, {
+          result: startupResult,
+        });
+      } catch (error) {
+        errorHandler.error(error, `常驻插件初始化失败: ${this.id}`, {
+          context: { startupMethod },
+        });
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * 禁用插件
+   *
+   * - 一次性模式：移除事件监听
+   * - 常驻模式：停止进程 + 移除事件监听
    */
   async disable(): Promise<void> {
     if (!this.enabled) {
@@ -125,14 +269,34 @@ export class SidecarPluginAdapter implements PluginProxy {
 
     logger.info(`禁用 Sidecar 插件: ${this.id}`);
 
-    // 移除事件监听
+    // 移除一次性模式的事件监听
     if (this.unlisten) {
       this.unlisten();
       this.unlisten = null;
     }
 
-    // 清空事件处理器
+    // 移除常驻模式的事件监听
+    if (this.residentEventUnlisten) {
+      this.residentEventUnlisten();
+      this.residentEventUnlisten = null;
+    }
+
+    // 如果是常驻模式，请求停止进程
+    if (this.isResident) {
+      try {
+        await invoke("sidecar_kill_resident", {
+          pluginId: this.manifest.id,
+        });
+        logger.info(`常驻进程已停止: ${this.id}`);
+      } catch (error) {
+        errorHandler.error(error, `停止常驻进程失败: ${this.id}`);
+      }
+    }
+
+    // 清空处理器
     this.eventHandlers.clear();
+    this.residentEventCallbacks.clear();
+    this.sidecarEventCallbacks.clear();
 
     this.enabled = false;
     await pluginManager.updateRuntimeState(this.id, false);
@@ -170,7 +334,6 @@ export class SidecarPluginAdapter implements PluginProxy {
       throw new Error(`插件 ${this.id} 缺少 sidecar 配置`);
     }
 
-    // 获取当前平台标识
     const platform = this.getCurrentPlatform();
     const executablePath = this.manifest.sidecar.executable[platform];
 
@@ -178,7 +341,30 @@ export class SidecarPluginAdapter implements PluginProxy {
       throw new Error(`插件 ${this.id} 不支持当前平台: ${platform}`);
     }
 
-    return executablePath;
+    return this.resolveExecutableFullPath(executablePath);
+  }
+
+  /**
+   * 解析可执行文件的完整路径
+   *
+   * 在开发模式下，executable 是相对于项目根目录的路径。
+   * 在生产模式下，executable 是相对于插件安装目录的路径。
+   */
+  private resolveExecutableFullPath(executablePath: string): string {
+    // 如果已经是绝对路径，直接返回
+    if (/^[a-zA-Z]:[\\/]/.test(executablePath)) {
+      return executablePath;
+    }
+
+    if (this.devMode) {
+      // 开发模式：相对于插件源码目录
+      const basePath = this.installPath;
+      const cleanBase = basePath.replace(/^\/plugins\//, "plugins/");
+      return `${cleanBase}/${executablePath}`;
+    } else {
+      // 生产模式：相对于插件安装目录
+      return `${this.installPath}/${executablePath}`;
+    }
   }
 
   /**
@@ -201,22 +387,69 @@ export class SidecarPluginAdapter implements PluginProxy {
 
   /**
    * 执行 Sidecar 插件方法
+   *
+   * 自动判断常驻/一次性模式
    */
   private async executeSidecar(methodName: string, params: any): Promise<any> {
     if (!this.enabled) {
       throw new Error(`插件 ${this.id} 未启用`);
     }
 
-    logger.info(`执行 Sidecar 方法: ${this.id}.${methodName}`, { params });
+    logger.info(`执行 Sidecar 方法: ${this.id}.${methodName}`, {
+      params,
+      mode: this.isResident ? "常驻" : "一次性",
+    });
 
-    // 获取可执行文件路径
+    if (this.isResident) {
+      return this.executeSidecarResident(methodName, params);
+    } else {
+      return this.executeSidecarOneshot(methodName, params);
+    }
+  }
+
+  /**
+   * 常驻模式：通过 JSON-RPC 发送命令并等待结果
+   */
+  private async executeSidecarResident(
+    methodName: string,
+    params: any
+  ): Promise<any> {
+    const resultJson = await invoke<string>("sidecar_send_command", {
+      pluginId: this.manifest.id,
+      method: methodName,
+      params: params || {},
+    });
+
+    try {
+      const response = JSON.parse(resultJson);
+      const type = response.type;
+
+      if (type === "error") {
+        const errorMsg = response.data || "未知错误";
+        throw new Error(errorMsg);
+      }
+
+      return response.data ?? response;
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        logger.warn("常驻模式响应非 JSON 格式，直接返回原始字符串");
+        return resultJson;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * 一次性模式：spawn 进程执行
+   */
+  private async executeSidecarOneshot(
+    methodName: string,
+    params: any
+  ): Promise<any> {
     const executablePath = this.getExecutablePath();
-
-    // 获取配置
-    // 注意：使用 this.id 而不是 manifest.id
     const settings = pluginConfigService.createPluginSettingsAPI(this.id);
+    const args = this.manifest.sidecar?.args || [];
 
-    // 准备输入数据
     const inputData = {
       method: methodName,
       params,
@@ -224,10 +457,6 @@ export class SidecarPluginAdapter implements PluginProxy {
       environment: pluginEnvironmentService.get(),
     };
 
-    // 准备命令行参数
-    const args = this.manifest.sidecar?.args || [];
-
-    // 构建执行请求
     const request: SidecarExecuteRequest = {
       plugin_id: this.manifest.id,
       install_path: this.installPath,
@@ -237,11 +466,9 @@ export class SidecarPluginAdapter implements PluginProxy {
       dev_mode: this.devMode,
     };
 
-    // 返回一个 Promise，监听事件并解析结果
     return new Promise((resolve, reject) => {
       let hasResult = false;
 
-      // 注册临时事件处理器
       const progressHandler = (event: SidecarOutputEvent) => {
         try {
           const data = JSON.parse(event.data);
@@ -257,9 +484,10 @@ export class SidecarPluginAdapter implements PluginProxy {
 
         try {
           const data = JSON.parse(event.data);
-          logger.info(`方法执行成功: ${methodName}`, { result: data.data });
+          logger.info(`方法执行成功: ${methodName}`, {
+            result: data.data,
+          });
 
-          // 清理临时处理器
           this.eventHandlers.delete("progress");
           this.eventHandlers.delete("result");
           this.eventHandlers.delete("error");
@@ -281,7 +509,6 @@ export class SidecarPluginAdapter implements PluginProxy {
           context: { methodName },
         });
 
-        // 清理临时处理器
         this.eventHandlers.delete("progress");
         this.eventHandlers.delete("result");
         this.eventHandlers.delete("error");
@@ -289,22 +516,18 @@ export class SidecarPluginAdapter implements PluginProxy {
         reject(new Error(event.data));
       };
 
-      // 注册临时处理器
       this.eventHandlers.set("progress", progressHandler);
       this.eventHandlers.set("result", resultHandler);
       this.eventHandlers.set("error", customErrorHandler);
 
-      // 调用后端命令
       invoke<string>("execute_sidecar", { request })
         .then((result) => {
-          // 如果后端直接返回了结果（而不是通过事件）
           if (!hasResult) {
             try {
               const data = JSON.parse(result);
               if (data.type === "result") {
                 hasResult = true;
 
-                // 清理临时处理器
                 this.eventHandlers.delete("progress");
                 this.eventHandlers.delete("result");
                 this.eventHandlers.delete("error");
@@ -320,7 +543,6 @@ export class SidecarPluginAdapter implements PluginProxy {
           if (!hasResult) {
             hasResult = true;
 
-            // 清理临时处理器
             this.eventHandlers.delete("progress");
             this.eventHandlers.delete("result");
             this.eventHandlers.delete("error");
@@ -332,6 +554,54 @@ export class SidecarPluginAdapter implements PluginProxy {
           }
         });
     });
+  }
+
+  /**
+   * 监听常驻 Sidecar 主动推送事件
+   *
+   * @param eventName 事件名称（如 "status"、"forward_result"）
+   * @param callback 回调函数
+   * @returns 取消监听的函数
+   */
+  public onSidecarEvent(
+    eventName: string,
+    callback: (data: any) => void
+  ): () => void {
+    if (!this.isResident) {
+      logger.warn(`插件 ${this.id} 不是常驻模式，onSidecarEvent 不会触发`);
+      return () => {};
+    }
+
+    const existingCallbacks = this.residentEventCallbacks.get(eventName) || [];
+    existingCallbacks.push(callback);
+    this.residentEventCallbacks.set(eventName, existingCallbacks);
+
+    return () => {
+      const callbacks = this.residentEventCallbacks.get(eventName) || [];
+      const idx = callbacks.indexOf(callback);
+      if (idx !== -1) {
+        callbacks.splice(idx, 1);
+        if (callbacks.length === 0) {
+          this.residentEventCallbacks.delete(eventName);
+        }
+      }
+    };
+  }
+
+  /**
+   * 注册通用 Sidecar 事件监听器（所有主动推送事件都会触发）
+   *
+   * @param callback 回调函数 (eventName, data) => void
+   * @returns 取消监听的函数
+   */
+  public onAnySidecarEvent(
+    callback: (eventName: string, data: any) => void
+  ): () => void {
+    this.sidecarEventCallbacks.add(callback);
+
+    return () => {
+      this.sidecarEventCallbacks.delete(callback);
+    };
   }
 
   /**

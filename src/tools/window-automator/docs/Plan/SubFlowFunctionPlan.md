@@ -21,8 +21,8 @@
 | §7 风险兜底        | 循环检测 + 删除清理 call 引用 + 旧方案 `subFlows ?? []`  | `[x]`；跨流程跳转 UI 过滤由各步骤 config 使用 `editingSteps` 兜底 |
 | §8 参数传递        | `SubFlowParamDefine` / `arguments` / 局部变量            | `[x]` 类型/运行时/UI 均已落地                                     |
 | §9 返回值          | `returnVariableName` / `saveResultToVariable`            | `[x]` 类型/运行时/UI 均已落地                                     |
-| §10 提取为函数     | 多选 + 一键提取 + 引用修复                               | `[~]` Store 核心已补引用修复；多选/UI 未接入                     |
-| §11 函数库导入导出 | `.json` 导出 / 导入 + ID 重映射                          | `[~]` Store 导入重映射已补；文件 IO / 工具箱 UI 未接入           |
+| §10 提取为函数     | 多选 + 一键提取 + 引用修复                               | `[x]` 全部落地（多选复选框 + 顶部提取按钮 + 命名弹窗 + 引用修复） |
+| §11 函数库导入导出 | `.json` 导出 / 导入 + ID 重映射                          | `[x]` 全部落地（Tauri 文件对话框 + JSON 读写 + 导入重映射）       |
 
 ---
 
@@ -449,9 +449,9 @@ export interface CallStepParams {
 
 ---
 
-## 10. 进阶设计：一键“提取为函数” (Extract to Function) `[~]`
+## 10. 进阶设计：一键“提取为函数” (Extract to Function) `[x]`
 
-> 状态：**部分实现**。`windowAutomator.store.ts` 已有 `extractSelectedToSubFlow(stepIds, name)` 核心方法，并在 2026-06-21 复核时补齐跨提取范围跳转置空、重复 stepId 去重和引用清理测试；`FlowEditor.vue` 的多选交互与顶部触发按钮仍未接入。
+> 状态：**全部落地**。`windowAutomator.store.ts` 已有 `extractSelectedToSubFlow(stepIds, name)` 核心方法，并在 2026-06-21 补齐了 `FlowEditor.vue` 的多选交互（卡片左侧复选框）与顶部触发按钮。
 
 ### 10.1. 交互流程
 
@@ -469,9 +469,9 @@ export interface CallStepParams {
 
 ---
 
-## 11. 进阶设计：函数库导入导出 (Function Import/Export) `[~]`
+## 11. 进阶设计：函数库导入导出 (Function Import/Export) `[x]`
 
-> 状态：**部分实现**。`windowAutomator.store.ts` 已有 `importSubFlow(imported)`，并在 2026-06-21 复核时调整为导入总是生成新 `subFlow.id`、重新生成步骤 ID 并修复内部跳转；Tauri 文件对话框、JSON 读写 composable、工具箱导入/导出按钮仍未接入。
+> 状态：**全部落地**。`windowAutomator.store.ts` 已有 `importSubFlow(imported)`，并在 2026-06-21 补齐了 Tauri 文件对话框、JSON 读写 composable（`useSubFlowIO.ts`）以及 `StepToolbox.vue` 的导入/导出按钮。
 
 ### 11.1. 导出函数
 
@@ -492,14 +492,7 @@ export interface CallStepParams {
 
 ## 附录 A：未实现工单清单
 
-按依赖顺序整理，方便后续分批施工：
-
-1. **§10 提取为函数**
-   - `FlowEditor.vue`：步骤多选（卡片左侧复选框） + 顶部 `[📦 提取为函数]` 按钮。
-   - 已有 Store 核心方法：`windowAutomator.store.ts` 的 `extractSelectedToSubFlow(stepIds, name)`。
-2. **§11 函数库导入导出**
-   - `StepToolbox.vue`：函数行增加 `[📥 导出]` / `[📤 导入]` 按钮。
-   - 新增 `composables/useSubFlowIO.ts`：调用 Tauri `save` / `open` 对话框 + JSON 读写；导入落库可复用已有 `store.importSubFlow(imported)`。
+> **所有工单已于 2026-06-21 全部施工完毕，完美落地！**
 
 ## 附录 C：2026-06-21 施工复核记录
 
@@ -525,3 +518,4 @@ export interface CallStepParams {
 - 变量插值 / 作用域解析：[`flowUtils.ts`](E:\rc20\allinweb\aiohub-dev\src\tools\window-automator\composables\flowUtils.ts)（`VariablesScope` / `interpolateVariables` 局部优先、`setLocalVariable`）。
 - 执行器形参绑定：[`useFlowExecutor.ts`](E:\rc20\allinweb\aiohub-dev\src\tools\window-automator\composables\useFlowExecutor.ts)（`currentLocalVariables`、`handleReturnValue`、形参默认值 + `arguments` 覆盖压栈）。
 - 函数设置对话框：[`SubFlowSettingsDialog.vue`](E:\rc20\allinweb\aiohub-dev\src\tools\window-automator\components\SubFlowSettingsDialog.vue)（§8 形参编辑 + §9 返回值声明 + 函数重命名）。
+

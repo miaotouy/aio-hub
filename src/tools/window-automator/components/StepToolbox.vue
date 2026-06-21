@@ -21,14 +21,18 @@ import {
   Pencil,
   Trash2,
   Plus,
+  Download,
+  Upload,
 } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import WindowSelector from "./WindowSelector.vue";
 import { useWindowAutomatorStore } from "../stores/windowAutomator.store";
+import { useSubFlowIO } from "../composables/useSubFlowIO";
 import type { SubFlow, WindowInfo, StepType } from "../types";
 
 const store = useWindowAutomatorStore();
+const { exportSubFlow, importSubFlow } = useSubFlowIO();
 
 const emit = defineEmits<{
   (e: "add-step", type: StepType): void;
@@ -222,16 +226,28 @@ function onBound(w: WindowInfo | null) {
       <div class="section-title">
         <Workflow :size="14" />
         <span>函数库</span>
-        <el-tooltip content="新建函数" placement="top">
-          <button
-            class="mini-add-btn"
-            type="button"
-            aria-label="新建函数"
-            @click="onCreateSubFlow"
-          >
-            <Plus :size="12" />
-          </button>
-        </el-tooltip>
+        <div class="title-actions">
+          <el-tooltip content="导入函数" placement="top">
+            <button
+              class="mini-add-btn"
+              type="button"
+              aria-label="导入函数"
+              @click="importSubFlow"
+            >
+              <Upload :size="12" />
+            </button>
+          </el-tooltip>
+          <el-tooltip content="新建函数" placement="top">
+            <button
+              class="mini-add-btn"
+              type="button"
+              aria-label="新建函数"
+              @click="onCreateSubFlow"
+            >
+              <Plus :size="12" />
+            </button>
+          </el-tooltip>
+        </div>
       </div>
       <div v-if="subFlows.length === 0" class="library-empty">
         暂无自定义函数，点击右上角 + 创建
@@ -261,6 +277,16 @@ function onBound(w: WindowInfo | null) {
               @click="onEditSubFlow(sub)"
             >
               <Pencil :size="12" />
+            </button>
+          </el-tooltip>
+          <el-tooltip content="导出函数" placement="top">
+            <button
+              class="icon-btn"
+              type="button"
+              aria-label="导出函数"
+              @click="exportSubFlow(sub)"
+            >
+              <Download :size="12" />
             </button>
           </el-tooltip>
           <el-tooltip content="删除函数" placement="top">
@@ -311,6 +337,12 @@ function onBound(w: WindowInfo | null) {
   color: var(--el-text-color-secondary);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+.title-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 .section-sub {
   margin-left: auto;

@@ -35,6 +35,8 @@ import {
   Settings,
 } from "lucide-vue-next";
 import draggable from "vuedraggable";
+import { ElMessageBox } from "element-plus";
+import { customMessage } from "@/utils/customMessage";
 import { useWindowAutomatorStore } from "../stores/windowAutomator.store";
 import ClickConfig from "./step-configs/ClickConfig.vue";
 import KeyPressConfig from "./step-configs/KeyPressConfig.vue";
@@ -59,6 +61,60 @@ import type {
 } from "../types";
 
 const store = useWindowAutomatorStore();
+
+/** 步骤多选状态（用于提取为函数） */
+const selectedStepIds = ref<string[]>([]);
+const isIdle = computed(() => store.runtime.status === "idle");
+
+function toggleStepSelection(stepId: string) {
+  const idx = selectedStepIds.value.indexOf(stepId);
+  if (idx >= 0) {
+    selectedStepIds.value.splice(idx, 1);
+  } else {
+    selectedStepIds.value.push(stepId);
+  }
+}
+
+function clearSelection() {
+  selectedStepIds.value = [];
+}
+
+async function extractToFunction() {
+  if (selectedStepIds.value.length === 0) return;
+  let name = "新提取函数";
+  try {
+    const { value } = await ElMessageBox.prompt(
+      "输入提取的函数名称",
+      "提取为函数",
+      {
+        inputValue: name,
+        confirmButtonText: "提取",
+        cancelButtonText: "取消",
+        lockScroll: false,
+      }
+    );
+    if (!value) return;
+    name = value.trim() || "新提取函数";
+  } catch {
+    return;
+  }
+
+  const { subFlow, clearedRefs } = store.extractSelectedToSubFlow(
+    selectedStepIds.value,
+    name
+  );
+
+  if (subFlow) {
+    customMessage.success(`已成功提取函数: ${subFlow.name}`);
+    if (clearedRefs > 0) {
+      customMessage.warning(`已自动清理 ${clearedRefs} 处跨提取范围的跳转引用`);
+    }
+    selectedStepIds.value = [];
+    expandedStepId.value = null;
+  } else {
+    customMessage.error("提取失败");
+  }
+}
 
 /**
  * 当前编辑器显示的步骤：主流程或当前编辑的子流程。
@@ -298,9 +354,7 @@ const subFlowSignature = _computedForSig(() => {
   const params = (sub.params ?? [])
     .map((p) => p.label?.trim() || p.name)
     .join(", ");
-  const ret = sub.returnVariableName
-    ? ` -> ${sub.returnVariableName}`
-    : "";
+  const ret = sub.returnVariableName ? ` -> ${sub.returnVariableName}` : "";
   return `${sub.name}(${params})${ret}`;
 });
 
@@ -455,7 +509,18 @@ const isStepActive = (index: number) => {
           </button>
         </el-tooltip>
       </div>
-      <div v-if="isEditingSubFlow && subFlowSignature" class="header-sig">
+      <div v-if="selectedStepIds.length > 0" class="header-actions">
+        <el-button
+          type="primary"
+          size="small"
+          :icon="Workflow"
+          @click="extractToFunction"
+        >
+          提取为函数 ({{ selectedStepIds.length }})
+        </el-button>
+        <el-button size="small" @click="clearSelection"> 取消选择 </el-button>
+      </div>
+      <div v-else-if="isEditingSubFlow && subFlowSignature" class="header-sig">
         签名: <code>{{ subFlowSignature }}</code>
       </div>
       <div v-else class="header-hint">点击卡片展开/收起配置</div>
@@ -483,6 +548,7 @@ const isStepActive = (index: number) => {
             disabled: !element.enabled,
             expanded: expandedStepId === element.id,
             highlighted: highlightedStepIds.has(element.id),
+            'multi-selected': selectedStepIds.includes(element.id),
           }"
           :style="{
             '--type-color': metaFor(element.stepConfig.type).color,
@@ -490,6 +556,14 @@ const isStepActive = (index: number) => {
           @click="selectStep(element)"
         >
           <div class="step-strip" aria-hidden="true"></div>
+
+          <!-- 多选复选框 -->
+          <div v-if="isIdle" class="step-checkbox" @click.stop>
+            <el-checkbox
+              :model-value="selectedStepIds.includes(element.id)"
+              @change="toggleStepSelection(element.id)"
+            />
+          </div>
 
           <button
             class="expand-toggle"
@@ -783,6 +857,11 @@ const isStepActive = (index: number) => {
   border-bottom: var(--border-width) solid var(--border-color);
   background-color: var(--header-bg);
 }
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .header-title {
   display: inline-flex;
   align-items: center;
@@ -902,6 +981,20 @@ const isStepActive = (index: number) => {
 .step-item.selected {
   border-color: var(--el-color-primary);
   box-shadow: 0 0 0 1px var(--el-color-primary) inset;
+}
+.step-item.multi-selected {
+  border-color: var(--el-color-primary);
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.04)
+  );
+}
+.step-checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 4px;
+  flex-shrink: 0;
 }
 .step-item.active {
   background-color: rgba(

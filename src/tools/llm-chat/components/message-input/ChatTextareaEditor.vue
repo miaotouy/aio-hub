@@ -257,15 +257,19 @@ defineExpose({
     const before = localValue.value.slice(0, insertFrom);
     const after = localValue.value.slice(insertTo);
     localValue.value = before + text + after;
-    // 移动光标到插入后
+    // 移动光标到插入后 —— 必须在 nextTick 中执行，
+    // 等 Vue v-model 将新值 flush 到 DOM 后再设置光标，
+    // 否则浏览器在 textarea.value 被程序化写入时会重置光标到 0
     const newPos = insertFrom + text.length;
-    el.setSelectionRange(newPos, newPos);
-    el.focus();
     // 程序化变更立即入栈
     pushToUndoStack({
       value: localValue.value,
       cursorStart: newPos,
       cursorEnd: newPos,
+    });
+    nextTick(() => {
+      el.setSelectionRange(newPos, newPos);
+      el.focus();
     });
   },
   replaceRange: (text: string, from: number, to: number) => {

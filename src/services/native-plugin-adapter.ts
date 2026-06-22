@@ -5,7 +5,7 @@
  */
 
 import type { ServiceMetadata } from "./types";
-import type { PluginProxy, PluginManifest, PlatformKey } from "./plugin-types";
+import type { PluginProxy, PluginManifest } from "./plugin-types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { pluginConfigService } from "./plugin-config.service";
@@ -13,6 +13,7 @@ import { pluginManager } from "./plugin-manager";
 import { pluginEnvironmentService } from "./plugin-environment.service";
 import { invoke } from "@tauri-apps/api/core";
 import { path } from "@tauri-apps/api";
+import { getCurrentPlatform } from "./plugin-loader";
 
 const logger = createModuleLogger("services/native-plugin-adapter");
 const errorHandler = createModuleErrorHandler("services/native-plugin-adapter");
@@ -117,7 +118,7 @@ export class NativePluginAdapter implements PluginProxy {
     }
 
     // 获取当前平台标识
-    const platform = this.getCurrentPlatform();
+    const platform = getCurrentPlatform();
     const libraryFile = this.manifest.native.library[platform];
 
     if (!libraryFile) {
@@ -126,24 +127,6 @@ export class NativePluginAdapter implements PluginProxy {
 
     // 构建完整的库文件路径
     return await path.join(this.installPath, libraryFile);
-  }
-
-  /**
-   * 获取当前平台标识
-   */
-  private getCurrentPlatform(): PlatformKey {
-    const platform = window.navigator.platform.toLowerCase();
-    const arch = navigator.userAgent.includes("x64") ? "x64" : "arm64";
-
-    if (platform.includes("win")) {
-      return `win32-${arch}` as PlatformKey;
-    } else if (platform.includes("mac")) {
-      return `darwin-${arch}` as PlatformKey;
-    } else if (platform.includes("linux")) {
-      return `linux-${arch}` as PlatformKey;
-    }
-
-    throw new Error(`不支持的平台: ${platform}`);
   }
 
   /**

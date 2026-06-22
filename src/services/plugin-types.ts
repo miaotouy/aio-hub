@@ -207,6 +207,8 @@ export interface PluginManifest {
     appVersion: string;
     /** 插件 API 版本要求 (整数) */
     apiVersion?: number;
+    /** 支持的系统类型/平台列表 (可选，若不提供则默认支持所有平台) */
+    platforms?: PlatformKey[];
   };
 
   /** 插件类型 */

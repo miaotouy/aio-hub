@@ -6,7 +6,7 @@
  */
 
 import type { ServiceMetadata } from "./types";
-import type { PluginProxy, PluginManifest, PlatformKey } from "./plugin-types";
+import type { PluginProxy, PluginManifest } from "./plugin-types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { pluginConfigService } from "./plugin-config.service";
@@ -14,6 +14,7 @@ import { pluginManager } from "./plugin-manager";
 import { pluginEnvironmentService } from "./plugin-environment.service";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentPlatform } from "./plugin-loader";
 
 const logger = createModuleLogger("services/sidecar-plugin-adapter");
 const errorHandler = createModuleErrorHandler(
@@ -363,7 +364,7 @@ export class SidecarPluginAdapter implements PluginProxy {
       throw new Error(`插件 ${this.id} 缺少 sidecar 配置`);
     }
 
-    const platform = this.getCurrentPlatform();
+    const platform = getCurrentPlatform();
     const executablePath = this.manifest.sidecar.executable[platform];
 
     if (!executablePath) {
@@ -408,24 +409,6 @@ export class SidecarPluginAdapter implements PluginProxy {
     } else {
       return basePath;
     }
-  }
-
-  /**
-   * 获取当前平台标识
-   */
-  private getCurrentPlatform(): PlatformKey {
-    const platform = window.navigator.platform.toLowerCase();
-    const arch = navigator.userAgent.includes("x64") ? "x64" : "arm64";
-
-    if (platform.includes("win")) {
-      return `win32-${arch}` as PlatformKey;
-    } else if (platform.includes("mac")) {
-      return `darwin-${arch}` as PlatformKey;
-    } else if (platform.includes("linux")) {
-      return `linux-${arch}` as PlatformKey;
-    }
-
-    throw new Error(`不支持的平台: ${platform}`);
   }
 
   /**

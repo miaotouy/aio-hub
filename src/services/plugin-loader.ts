@@ -14,12 +14,14 @@ declare global {
 import { path } from "@tauri-apps/api";
 import { getAppConfigDir } from "@/utils/appPath";
 import { readTextFile, readDir, exists } from "@tauri-apps/plugin-fs";
+import { satisfies } from "compare-versions";
 import type {
   PluginManifest,
   PluginLoadOptions,
   PluginLoadResult,
   JsPluginExport,
   PluginProxy,
+  PlatformKey,
 } from "./plugin-types";
 import { createJsPluginProxy } from "./js-plugin-adapter";
 import type { JsPluginAdapter } from "./js-plugin-adapter";
@@ -29,6 +31,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { pluginConfigService } from "./plugin-config.service";
 import { pluginStateService } from "./plugin-state.service";
+import { getAppContext } from "@/config/appContext";
 
 const logger = createModuleLogger("services/plugin-loader");
 const errorHandler = createModuleErrorHandler("services/plugin-loader");
@@ -194,6 +197,9 @@ export class PluginLoader {
             );
             continue;
           }
+
+          // 校验插件兼容性（仅提示，不阻止加载）
+          validatePluginCompatibility(manifest, proxy);
 
           // 根据持久化状态决定是否启用插件
           // 注意：使用 proxy.id (可能带 -dev 后缀) 而不是 manifest.id
@@ -403,6 +409,9 @@ export class PluginLoader {
       // 设置插件导出对象
       (proxy as unknown as JsPluginAdapter).setPluginExport(pluginExport);
 
+      // 校验插件兼容性（仅提示，不阻止加载）
+      validatePluginCompatibility(manifest, proxy);
+
       // 根据持久化状态决定是否启用插件
       const shouldEnable = await pluginStateService.isEnabled(proxy.id);
       if (shouldEnable) {
@@ -451,6 +460,9 @@ export class PluginLoader {
       // 创建 Sidecar 插件代理（标记为生产模式）
       const proxy = createSidecarPluginProxy(manifest, pluginPath, false);
 
+      // 校验插件兼容性（仅提示，不阻止加载）
+      validatePluginCompatibility(manifest, proxy);
+
       // 记录加载状态，启用逻辑由 PluginManager 统一处理
       logger.debug(`Sidecar 插件 ${proxy.id} 已加载`);
 
@@ -487,6 +499,9 @@ export class PluginLoader {
     try {
       // 创建原生插件代理（标记为生产模式）
       const proxy = createNativePluginProxy(manifest, pluginPath, false);
+
+      // 校验插件兼容性（仅提示，不阻止加载）
+      validatePluginCompatibility(manifest, proxy);
 
       // 记录加载状态，启用逻辑由 PluginManager 统一处理
       logger.debug(`原生插件 ${proxy.id} 已加载`);
@@ -550,6 +565,175 @@ export class PluginLoader {
       errorHandler.error(error, "卸载插件失败", { context: { pluginId } });
       throw error;
     }
+  }
+}
+
+/**
+ * 获取当前平台标识
+ */
+export function getCurrentPlatform(): PlatformKey {
+  const platform = window.navigator.platform.toLowerCase();
+  const arch = navigator.userAgent.includes("x64") ? "x64" : "arm64";
+
+  if (platform.includes("win")) {
+    return `win32-${arch}` as PlatformKey;
+  } else if (platform.includes("mac")) {
+    return `darwin-${arch}` as PlatformKey;
+  } else if (platform.includes("linux")) {
+    return `linux-${arch}` as PlatformKey;
+  }
+
+  throw new Error(`不支持的平台: ${platform}`);
+}
+
+/**
+ * 当前插件系统支持的最高 API 版本
+ */
+export const CURRENT_API_VERSION = 2;
+
+/**
+ * 净化版本号，剥离预发布后缀
+ * 例如: "0.6.3-alpha.9" -> "0.6.3"
+ */
+function cleanVersion(version: string): string {
+  return version.split("-")[0];
+}
+
+/**
+ * 校验插件兼容性（仅提示，不阻止加载）
+ *
+ * 将兼容性警告信息挂载到插件代理对象的 compatibilityWarning 属性上。
+ * 应用版本不匹配 → 日志 warn + 轻量提示
+ * 系统平台不匹配 → 日志 warn + 较显眼提示
+ *
+ * @param manifest 插件清单
+ * @param proxy 插件代理对象（用于挂载警告信息）
+ */
+export function validatePluginCompatibility(
+  manifest: PluginManifest,
+  proxy: PluginProxy
+): void {
+  const { host, type } = manifest;
+  const warnings: string[] = [];
+
+  // 1. 校验应用版本 (appVersion)
+  if (host?.appVersion) {
+    const currentAppVersion = getAppContext().appVersion;
+    const cleanCurrentVersion = cleanVersion(currentAppVersion);
+
+    try {
+      // 先用净化后的主版本号匹配
+      const isCleanSatisfied = satisfies(cleanCurrentVersion, host.appVersion);
+      if (!isCleanSatisfied) {
+        // 主版本号都不满足，说明版本确实不够
+        warnings.push(
+          `应用版本可能不兼容。当前版本为 ${currentAppVersion}，插件推荐版本为 ${host.appVersion}`
+        );
+        logger.warn(`插件 ${manifest.id} 应用版本不兼容`, {
+          currentVersion: currentAppVersion,
+          cleanVersion: cleanCurrentVersion,
+          required: host.appVersion,
+        });
+      } else {
+        // 主版本号满足，但预发布版本可能不满足严格 semver
+        try {
+          const isStrictSatisfied = satisfies(
+            currentAppVersion,
+            host.appVersion
+          );
+          if (!isStrictSatisfied) {
+            logger.info(`插件 ${manifest.id} 当前应用为预发布版本`, {
+              currentVersion: currentAppVersion,
+              required: host.appVersion,
+            });
+          }
+        } catch {
+          // 严格匹配失败忽略，不影响加载
+        }
+      }
+    } catch (err) {
+      logger.warn(`插件 ${manifest.id} 版本范围解析失败`, {
+        appVersion: host.appVersion,
+        err,
+      });
+    }
+  }
+
+  // 2. 校验 API 版本 (apiVersion)
+  if (host?.apiVersion !== undefined) {
+    if (host.apiVersion > CURRENT_API_VERSION) {
+      warnings.push(
+        `插件 API 版本可能不兼容。当前系统支持的最高 API 版本为 ${CURRENT_API_VERSION}，插件要求 API 版本为 ${host.apiVersion}`
+      );
+      logger.warn(`插件 ${manifest.id} API 版本不兼容`, {
+        currentApiVersion: CURRENT_API_VERSION,
+        requiredApiVersion: host.apiVersion,
+      });
+    }
+  }
+
+  // 3. 校验系统类型/平台兼容性
+  let currentPlatform: PlatformKey;
+  try {
+    currentPlatform = getCurrentPlatform();
+  } catch (err) {
+    warnings.push(
+      `无法识别当前操作系统平台: ${err instanceof Error ? err.message : String(err)}`
+    );
+    logger.warn(`插件 ${manifest.id} 无法识别当前平台`, { err });
+    // 无法识别平台时，挂载警告并返回
+    if (warnings.length > 0) {
+      (proxy as any).compatibilityWarning = warnings.join("；");
+    }
+    return;
+  }
+
+  // 3.1 校验显式声明的 platforms 字段
+  if (host?.platforms && host.platforms.length > 0) {
+    if (!host.platforms.includes(currentPlatform)) {
+      const supportedList = host.platforms.join(", ");
+      warnings.push(
+        `系统平台可能不兼容。当前平台为 ${currentPlatform}，插件支持的平台为: ${supportedList}`
+      );
+      logger.warn(`插件 ${manifest.id} 系统平台不兼容`, {
+        currentPlatform,
+        supportedPlatforms: host.platforms,
+      });
+    }
+  }
+
+  // 3.2 针对 native 和 sidecar 插件，自动校验是否包含当前平台的配置
+  if (type === "native") {
+    if (!manifest.native) {
+      warnings.push(`原生插件缺少 native 配置块`);
+      logger.warn(`插件 ${manifest.id} 缺少 native 配置块`);
+    } else if (!manifest.native.library[currentPlatform]) {
+      warnings.push(
+        `原生插件缺少当前平台 (${currentPlatform}) 的二进制文件，可能无法正常工作`
+      );
+      logger.warn(`插件 ${manifest.id} 缺少当前平台的二进制文件`, {
+        currentPlatform,
+        availablePlatforms: Object.keys(manifest.native.library),
+      });
+    }
+  } else if (type === "sidecar") {
+    if (!manifest.sidecar) {
+      warnings.push(`Sidecar 插件缺少 sidecar 配置块`);
+      logger.warn(`插件 ${manifest.id} 缺少 sidecar 配置块`);
+    } else if (!manifest.sidecar.executable[currentPlatform]) {
+      warnings.push(
+        `Sidecar 插件缺少当前平台 (${currentPlatform}) 的可执行文件，可能无法正常工作`
+      );
+      logger.warn(`插件 ${manifest.id} 缺少当前平台的可执行文件`, {
+        currentPlatform,
+        availablePlatforms: Object.keys(manifest.sidecar.executable),
+      });
+    }
+  }
+
+  // 挂载兼容性警告
+  if (warnings.length > 0) {
+    (proxy as any).compatibilityWarning = warnings.join("；");
   }
 }
 

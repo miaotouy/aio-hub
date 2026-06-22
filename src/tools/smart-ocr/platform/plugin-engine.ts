@@ -80,7 +80,8 @@ function blockToOcrImage(block: ImageBlock): OcrImageInput {
   return {
     id: block.id,
     groupId: block.imageId,
-    dataUrl: block.dataUrl,
+    path: block.path,
+    dataUrl: block.path ? undefined : block.dataUrl,
     width: block.width,
     height: block.height,
     metadata: {

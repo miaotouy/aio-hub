@@ -38,7 +38,10 @@ export type {
 export interface OcrImageInput {
   id: string;
   groupId?: string;
-  dataUrl: string;
+  /** 本地临时图片路径（零拷贝优先） */
+  path?: string;
+  /** 兼容现有行为：path 不存在时回退到 dataUrl */
+  dataUrl?: string;
   width: number;
   height: number;
   metadata?: Record<string, unknown>;

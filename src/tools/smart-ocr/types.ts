@@ -122,6 +122,8 @@ export interface ImageBlock {
   imageId: string; // 所属图片ID
   canvas: HTMLCanvasElement;
   dataUrl: string;
+  /** 本地临时图片路径（零拷贝传输时使用） */
+  path?: string;
   startY: number;
   endY: number;
   width: number;

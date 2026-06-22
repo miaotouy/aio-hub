@@ -25,7 +25,8 @@ export function imageBlockToOcrImage(block: ImageBlock): OcrImageInput {
   return {
     id: block.id,
     groupId: block.imageId,
-    dataUrl: block.dataUrl,
+    path: block.path,
+    dataUrl: block.path ? undefined : block.dataUrl,
     width: block.width,
     height: block.height,
     metadata: {
@@ -39,7 +40,8 @@ export function ocrImageToPluginImage(image: OcrImageInput) {
   return {
     blockId: image.id,
     imageId: image.groupId ?? image.id,
-    dataUrl: image.dataUrl,
+    path: image.path,
+    dataUrl: image.path ? undefined : image.dataUrl,
     width: image.width,
     height: image.height,
     metadata: image.metadata,
@@ -55,7 +57,8 @@ export function ocrImageToImageBlock(image: OcrImageInput): ImageBlock {
     id: image.id,
     imageId: image.groupId ?? image.id,
     canvas,
-    dataUrl: image.dataUrl,
+    dataUrl: image.dataUrl ?? "",
+    path: image.path,
     startY: Number(image.metadata?.startY ?? 0),
     endY: Number(image.metadata?.endY ?? image.height),
     width: image.width,

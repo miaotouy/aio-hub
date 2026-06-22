@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { useSmartOcrStore } from "../stores/smartOcr.store";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
@@ -19,6 +20,73 @@ const logger = createModuleLogger("use-smart-ocr-runner");
 const errorHandler = createModuleErrorHandler("use-smart-ocr-runner");
 
 let activeOcrAbortController: AbortController | null = null;
+
+// ==================== 临时文件管理 ====================
+
+/**
+ * 从 dataUrl 中提取纯 base64 内容（去掉 data:image/... 前缀）
+ */
+function _extractBase64FromDataUrl(dataUrl: string): string {
+  const commaIdx = dataUrl.indexOf(",");
+  return commaIdx !== -1 ? dataUrl.slice(commaIdx + 1) : dataUrl;
+}
+
+/**
+ * 将 ImageBlock 批量写入共享临时目录，绑定 path
+ */
+async function _writeBlocksToTemp(blocks: ImageBlock[]): Promise<string[]> {
+  if (blocks.length === 0) return [];
+
+  const files = blocks.map((block, i) => ({
+    filename: `ocr_${block.imageId}_${i}.png`,
+    content_base64: _extractBase64FromDataUrl(block.dataUrl),
+  }));
+
+  const paths = await invoke<string[]>("write_temp_files", {
+    source: "ocr",
+    files,
+  });
+
+  // 绑定 path 到 blocks，保留 dataUrl 以供前端渲染和重试
+  blocks.forEach((block, i) => {
+    block.path = paths[i];
+  });
+
+  logger.info("临时图片文件已写入", {
+    count: paths.length,
+    samplePath: paths[0],
+  });
+
+  return paths;
+}
+
+/**
+ * 清除 ImageBlock 的临时路径绑定
+ */
+function _clearBlocksTempPaths(blocks: ImageBlock[]): void {
+  blocks.forEach((block) => {
+    block.path = undefined;
+  });
+}
+
+/**
+ * 清理指定的临时文件
+ */
+async function _cleanupTempFiles(paths: string[]): Promise<void> {
+  if (paths.length === 0) return;
+
+  await errorHandler.wrapAsync(
+    async () => {
+      await invoke("cleanup_temp_files", { paths });
+      logger.info("临时图片文件已清理", { count: paths.length });
+    },
+    {
+      level: ErrorLevel.WARNING,
+      userMessage: "清理 OCR 临时文件失败",
+      context: { paths },
+    }
+  );
+}
 
 // ==================== 类型定义 ====================
 
@@ -325,6 +393,10 @@ export function useSmartOcrRunner() {
     const abortController = _createActiveAbortController();
     const { signal } = abortController;
 
+    // 提升到外部以便在 finally 中清理
+    let tempPaths: string[] = [];
+    let allBlocks: ImageBlock[] = [];
+
     const result = await errorHandler.wrapAsync(
       async () => {
         store.setProcessing(true);
@@ -347,7 +419,7 @@ export function useSmartOcrRunner() {
         store.clearOcrResults(Array.from(imageIdsToProcess));
 
         // 收集所有图片的块
-        const allBlocks: ImageBlock[] = [];
+        allBlocks = [];
         for (const image of imagesToProcess) {
           let blocks = store.imageBlocksMap.get(image.id);
 
@@ -365,6 +437,13 @@ export function useSmartOcrRunner() {
           blocksCount: allBlocks.length,
           engineType: store.fullConfig.currentEngineType,
         });
+
+        // === 零拷贝优化：将 blocks 写入临时文件，绑定 path ===
+        // 只有插件引擎才启用零拷贝（插件通过 path 读取文件），
+        // 其他内置引擎仍使用 dataUrl
+        if (store.fullConfig.currentEngineType === "plugin") {
+          tempPaths = await _writeBlocksToTemp(allBlocks);
+        }
 
         // 执行 OCR 识别，并实时更新结果
         const { runOcr } = useOcrRunner();
@@ -406,6 +485,12 @@ export function useSmartOcrRunner() {
       }
     );
 
+    // 清理临时文件（无论成功/失败/取消）
+    if (tempPaths.length > 0) {
+      await _cleanupTempFiles(tempPaths);
+      _clearBlocksTempPaths(allBlocks);
+    }
+
     // 确保处理状态被重置
     store.setProcessing(false);
     _clearActiveAbortController(abortController);
@@ -421,6 +506,10 @@ export function useSmartOcrRunner() {
   ): Promise<OcrResult | null> {
     const abortController = _createActiveAbortController();
     const { signal } = abortController;
+
+    // 提升到外部以便在 finally 中清理
+    let tempPaths: string[] = [];
+    let blockToCleanup: ImageBlock | null = null;
 
     return await errorHandler
       .wrapAsync(
@@ -445,6 +534,8 @@ export function useSmartOcrRunner() {
             throw new Error("未找到对应的图片块");
           }
 
+          blockToCleanup = block;
+
           // 更新状态为处理中
           const updatingResult = {
             ...result,
@@ -453,6 +544,11 @@ export function useSmartOcrRunner() {
           };
           store.updateOcrResults([updatingResult]);
           onProgress?.(updatingResult);
+
+          // === 零拷贝优化：将 block 写入临时文件，绑定 path ===
+          if (store.fullConfig.currentEngineType === "plugin") {
+            tempPaths = await _writeBlocksToTemp([block]);
+          }
 
           // 重新识别这个块
           const { runOcr } = useOcrRunner();
@@ -499,7 +595,16 @@ export function useSmartOcrRunner() {
           context: options,
         }
       )
-      .finally(() => _clearActiveAbortController(abortController));
+      .finally(async () => {
+        // 清理临时文件
+        if (tempPaths.length > 0) {
+          await _cleanupTempFiles(tempPaths);
+          if (blockToCleanup) {
+            _clearBlocksTempPaths([blockToCleanup]);
+          }
+        }
+        _clearActiveAbortController(abortController);
+      });
   }
 
   /**
@@ -510,6 +615,10 @@ export function useSmartOcrRunner() {
   ): Promise<OcrResult[]> {
     const abortController = _createActiveAbortController();
     const { signal } = abortController;
+
+    // 提升到外部以便在 finally 中清理
+    let tempPaths: string[] = [];
+    let blocksToCleanup: ImageBlock[] = [];
 
     return (
       (await errorHandler
@@ -538,6 +647,8 @@ export function useSmartOcrRunner() {
               return [];
             }
 
+            blocksToCleanup = blocksToRetry;
+
             logger.info("开始批量重试失败的块", {
               count: blocksToRetry.length,
             });
@@ -549,6 +660,11 @@ export function useSmartOcrRunner() {
               error: undefined,
             }));
             store.updateOcrResults(processingResults);
+
+            // === 零拷贝优化：将 blocks 写入临时文件，绑定 path ===
+            if (store.fullConfig.currentEngineType === "plugin") {
+              tempPaths = await _writeBlocksToTemp(blocksToRetry);
+            }
 
             // 执行 OCR 识别
             const { runOcr } = useOcrRunner();
@@ -589,7 +705,16 @@ export function useSmartOcrRunner() {
             userMessage: "批量重试识别失败",
           }
         )
-        .finally(() => _clearActiveAbortController(abortController))) || []
+        .finally(async () => {
+          // 清理临时文件
+          if (tempPaths.length > 0) {
+            await _cleanupTempFiles(tempPaths);
+            if (blocksToCleanup.length > 0) {
+              _clearBlocksTempPaths(blocksToCleanup);
+            }
+          }
+          _clearActiveAbortController(abortController);
+        })) || []
     );
   }
 

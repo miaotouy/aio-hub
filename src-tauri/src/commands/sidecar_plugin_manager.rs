@@ -93,12 +93,14 @@ pub async fn sidecar_spawn_resident(
     plugin_id: String,
     executable_path: String,
     args: Vec<String>,
+    install_path: Option<String>,
     state: tauri::State<'_, SidecarPluginManager>,
 ) -> Result<(), String> {
     log::info!(
-        "[SIDECAR_RESIDENT] 启动常驻进程: {}, 可执行文件: {}",
+        "[SIDECAR_RESIDENT] 启动常驻进程: {}, 可执行文件: {}, 插件目录: {:?}",
         plugin_id,
-        executable_path
+        executable_path,
+        install_path
     );
 
     // 检查是否已存在
@@ -144,17 +146,37 @@ pub async fn sidecar_spawn_resident(
         ));
     }
 
+    // 解析工作目录：优先使用传入的 install_path（插件根目录），否则回退到 executable 的父目录
+    let working_dir = if let Some(ref ip) = install_path {
+        let mut ip_path = PathBuf::from(ip);
+        if ip_path.is_relative() {
+            if let Ok(cwd) = std::env::current_dir() {
+                if cwd.ends_with("src-tauri") {
+                    if let Some(parent) = cwd.parent() {
+                        ip_path = parent.join(ip);
+                    }
+                } else {
+                    ip_path = cwd.join(ip);
+                }
+            }
+        }
+        ip_path
+    } else {
+        executable_full_path
+            .parent()
+            .unwrap_or_else(|| std::path::Path::new("."))
+            .to_path_buf()
+    };
+
+    log::info!("[SIDECAR_RESIDENT] 工作目录: {}", working_dir.display());
+
     // 启动子进程
     let mut child = Command::new(&executable_full_path)
         .args(&args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .current_dir(
-            executable_full_path
-                .parent()
-                .unwrap_or_else(|| std::path::Path::new(".")),
-        )
+        .current_dir(&working_dir)
         .spawn()
         .map_err(|e| format!("启动进程失败: {}", e))?;
 

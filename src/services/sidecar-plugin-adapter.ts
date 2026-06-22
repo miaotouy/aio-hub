@@ -165,12 +165,16 @@ export class SidecarPluginAdapter implements PluginProxy {
 
     let processSpawned = false;
 
+    // 解析插件安装目录作为工作目录
+    const installPath = this.resolveInstallPath();
+
     try {
       // 启动常驻进程
       await invoke("sidecar_spawn_resident", {
         pluginId: this.manifest.id,
         executablePath,
         args,
+        installPath,
       });
       processSpawned = true;
 
@@ -389,6 +393,20 @@ export class SidecarPluginAdapter implements PluginProxy {
     } else {
       // 生产模式：相对于插件安装目录
       return `${this.installPath}/${executablePath}`;
+    }
+  }
+
+  /**
+   * 解析插件安装目录的路径（用作 sidecar 进程的工作目录）
+   */
+  private resolveInstallPath(): string {
+    const basePath = this.installPath;
+
+    if (this.devMode) {
+      // 开发模式：去掉可能的前导 /plugins/ 前缀
+      return basePath.replace(/^\/plugins\//, "plugins/");
+    } else {
+      return basePath;
     }
   }
 

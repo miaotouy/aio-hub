@@ -261,11 +261,17 @@ fn get_tray_setting(state: tauri::State<AppState>) -> Result<bool, String> {
 }
 
 // 退出应用命令
+// 退出应用命令
 #[tauri::command]
-fn exit_app(app: tauri::AppHandle) {
+async fn exit_app(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, SidecarPluginManager>,
+) -> Result<(), String> {
+    // 清理所有常驻 Sidecar 进程
+    state.kill_all().await;
     app.exit(0);
+    Ok(())
 }
-
 // 动态设置托盘图标显示/隐藏
 #[tauri::command]
 fn set_show_tray_icon(app: tauri::AppHandle, show: bool) -> Result<(), String> {

@@ -79,6 +79,22 @@ impl Default for SidecarPluginManager {
     }
 }
 
+impl SidecarPluginManager {
+    /// 强制终止所有常驻进程（用于应用退出时清理）
+    pub async fn kill_all(&self) {
+        let mut processes = self.processes.lock().await;
+        for (id, mut process) in processes.drain() {
+            log::info!("[SIDECAR_RESIDENT] 退出清理: kill 进程 {}", id);
+            // 关闭 stdin，让进程收到 EOF
+            drop(process.stdin.take());
+            // 强制 kill 进程
+            if let Some(child) = process.child.as_mut() {
+                let _ = child.start_kill();
+            }
+        }
+    }
+}
+
 // ============================================================================
 // Tauri Commands
 // ============================================================================
@@ -105,9 +121,50 @@ pub async fn sidecar_spawn_resident(
 
     // 检查是否已存在
     {
-        let processes = state.processes.lock().await;
+        let mut processes = state.processes.lock().await;
         if processes.contains_key(&plugin_id) {
-            return Err(format!("插件 {} 的常驻进程已存在", plugin_id));
+            // 检查进程是否仍然存活
+            let should_remove = if let Some(process) = processes.get_mut(&plugin_id) {
+                if let Some(child) = process.child.as_mut() {
+                    match child.try_wait() {
+                        Ok(Some(status)) => {
+                            // 进程已退出，清理旧记录后重新启动
+                            log::info!(
+                                "[SIDECAR_RESIDENT] 插件 {} 的旧进程已退出 (status: {})，将重新启动",
+                                plugin_id,
+                                status
+                            );
+                            true
+                        }
+                        Ok(None) => {
+                            // 进程仍在运行，直接复用
+                            log::info!(
+                                "[SIDECAR_RESIDENT] 插件 {} 的常驻进程仍在运行，复用已有进程",
+                                plugin_id
+                            );
+                            return Ok(());
+                        }
+                        Err(e) => {
+                            // 无法确定状态，清理后重新启动
+                            log::warn!(
+                                "[SIDECAR_RESIDENT] 无法检查插件 {} 的进程状态: {}，将清理后重新启动",
+                                plugin_id,
+                                e
+                            );
+                            true
+                        }
+                    }
+                } else {
+                    // child 为 None（异常情况），清理
+                    true
+                }
+            } else {
+                false
+            };
+
+            if should_remove {
+                processes.remove(&plugin_id);
+            }
         }
     }
 

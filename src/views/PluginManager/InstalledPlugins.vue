@@ -143,24 +143,12 @@ async function togglePlugin(plugin: PluginProxy) {
       logger.info("插件已禁用", { pluginId: plugin.id });
     } else {
       // 启用插件
+      // enable() 内部会自动调用 pluginManager.updateRuntimeState()，
+      // 而 updateRuntimeState() 已负责 registerPluginUi()，无需再手动注册 UI
       await plugin.enable(pluginManager.createPluginContext(plugin.id));
       // 保存启用状态
       // 注意：使用 plugin.id (带 -dev 后缀) 而不是 manifest.id
       await pluginStateService.setEnabled(plugin.id, true);
-      // 重新注册插件 UI（如果有）
-      if (plugin.manifest.ui) {
-        try {
-          // 调用插件管理器重新加载所有插件（会自动注册启用的插件 UI）
-          await pluginManager.loadAllPlugins();
-          logger.info("已重新注册插件 UI", { pluginId: plugin.id });
-        } catch (error) {
-          errorHandler.handle(error as Error, {
-            userMessage: "重新注册插件 UI 失败",
-            context: { pluginId: plugin.id },
-            showToUser: false,
-          });
-        }
-      }
       customMessage.success(`已启用插件: ${plugin.name}`);
       logger.info("插件已启用", { pluginId: plugin.id });
     }

@@ -107,88 +107,159 @@ mobile/src/tools/agent-manager/
 
 ---
 
-## 3. 核心类型定义
+## 3. 核心类型定义与数据结构对齐
 
-### 3.1. ChatAgent
+为了确保移动端与桌面端之间的**无损导入导出**以及未来的**双端数据同步**，移动端在数据结构上必须与桌面端保持 **100% 全量对齐**。严禁使用裁剪版的“精简数据结构”，未在移动端 UI 中提供编辑的高级字段在读写时必须予以保留。
+
+### 3.1. 核心类型定义
+
+移动端将直接复用或完全对齐桌面端的类型定义。
 
 ```typescript
 // mobile/src/tools/agent-manager/types/agent.ts
+import type { ChatMessageNode } from "../../llm-chat/types/message";
+import type { LlmParameters } from "../../llm-chat/types/llm";
+import type { AgentCategory } from "../../llm-chat/types/agent";
 
-export interface PresetMessage {
-  id: string;
-  role: "system" | "user" | "assistant";
-  content: string;
-  enabled: boolean;
-}
-
-export interface AgentParameters {
-  temperature?: number;
-  topP?: number;
-  maxTokens?: number;
-  frequencyPenalty?: number;
-  presencePenalty?: number;
-}
-
-export interface ChatAgent {
-  /** 唯一标识，格式 agent-{timestamp}-{random} */
-  id: string;
-  /** 内部名称 */
-  name: string;
-  /** 显示名称（用于 UI，优先于 name） */
-  displayName?: string;
-  /** 头像路径（appdata:// 协议、Base64 或相对路径） */
-  avatar?: string;
-  /** 简短描述 */
-  description?: string;
-  /** 系统提示词（核心） */
-  systemPrompt?: string;
-  /** 绑定的 LLM 渠道 ID */
-  profileId: string;
-  /** 绑定的模型 ID */
-  modelId: string;
-  /** 预设消息列表 */
-  presetMessages?: PresetMessage[];
-  /** 模型参数覆盖 */
-  parameters?: AgentParameters;
-  /** 版本号（用于未来迁移） */
+/**
+ * 智能体共有配置基础接口（完全对齐桌面端 AgentBaseConfig）
+ */
+export interface AgentBaseConfig {
+  /** 预设配置的版本号（格式版本），默认为 2 */
   version?: number;
-  /** 时间戳 */
+  /** 智能体自身的版本号（用于升级对比） */
+  agentVersion?: string;
+  /** 智能体名称（用作唯一标识符的一部分，也是宏替换的 ID） */
+  name: string;
+  /** 显示名称（UI 显示优先使用） */
+  displayName?: string;
+  /** 智能体描述 */
+  description?: string;
+  /** 智能体图标/头像（emoji、图标路径或相对文件名，如 avatar-xxx.png） */
+  icon?: string;
+  /** 预设消息序列（支持完整的树形结构、注入策略、模型匹配等） */
+  presetMessages?: ChatMessageNode[];
+  /** 开局消息列表 */
+  greetings?: any[]; // 对应 GreetingMessage[]
+  /** 在聊天界面显示的预设消息数量 */
+  displayPresetCount?: number;
+  /** 参数配置 */
+  parameters?: LlmParameters;
+  /** LLM 思考块规则配置 */
+  llmThinkRules?: any[];
+  /** 富文本渲染器样式配置 */
+  richTextStyleOptions?: any;
+  /** 工具调用默认折叠 */
+  defaultToolCallCollapsed?: boolean;
+  /** 虚拟时间配置 */
+  virtualTimeConfig?: {
+    virtualBaseTime: string;
+    realBaseTime: string;
+    timeScale?: number;
+  };
+  /** 筛选标签 */
+  tags?: string[];
+  /** 智能体分类 */
+  category?: AgentCategory;
+  /** 正则管道配置 */
+  regexConfig?: any;
+  /** 交互行为配置 */
+  interactionConfig?: {
+    sendButtonCreateBranch?: boolean;
+    defaultMediaVolume?: number;
+  };
+  /** 智能体资产分组定义 */
+  assetGroups?: any[];
+  /** 智能体专属资产 */
+  assets?: any[];
+  /** 关联的世界书 ID 列表 */
+  worldbookIds?: string[];
+  /** 关联的快捷操作组 ID 列表 */
+  quickActionSetIds?: string[];
+  /** 世界书覆盖设置 */
+  worldbookSettings?: any;
+  /** 知识库关联配置 */
+  knowledgeBaseConfig?: any;
+  /** 知识库全局设置 (检索参数) */
+  knowledgeSettings?: any;
+  /** 工具调用配置 */
+  toolCallConfig?: any;
+  /** 环境增强配置 */
+  extensionConfig?: any;
+  /** 视觉化输出指南 */
+  visualGuideline?: string;
+  /** 会话变量配置 */
+  variableConfig?: any;
+  /** 预设消息组定义 */
+  presetGroups?: any[];
+}
+
+/**
+ * 智能体（Agent）完整定义（完全对齐桌面端 ChatAgent）
+ */
+export interface ChatAgent extends AgentBaseConfig {
+  /** 智能体的唯一标识符 (运行时生成的 UUID) */
+  id: string;
+  /** 历史头像列表（相对文件名），用于在头像选择器中快速显示 */
+  avatarHistory?: string[];
+  /** 使用的 Profile ID */
+  profileId: string;
+  /** 使用的模型 ID */
+  modelId: string;
+  /** 绑定的用户档案 ID（可选） */
+  userProfileId?: string | null;
+  /** 创建时间 (ISO 8601 格式) */
   createdAt: string;
-  updatedAt: string;
+  /** 最后使用时间 (ISO 8601 格式) */
   lastUsedAt?: string;
 }
 ```
 
-### 3.2. 存储结构
+### 3.2. 存储结构对齐
+
+为了支持智能体专属资产（如自定义头像、背景图等）的物理隔离与无损迁移，移动端必须完全对齐桌面端的**“一智能体一目录”**分离式存储结构。
 
 ```
 {appConfigDir}/agent-manager/
-├── agents-index.json          # 索引文件
+├── agents-index.json          # 索引文件（轻量级，用于快速列表渲染）
 └── agents/
-    ├── {agentId1}.json        # 单个智能体完整数据
-    └── {agentId2}.json
+    ├── {agentId1}/
+    │   ├── agent.json         # 智能体完整数据（ChatAgent 格式）
+    │   └── avatar-xxx.png     # 智能体专属头像（icon 字段保存为相对路径 "avatar-xxx.png"）
+    └── {agentId2}/
+        └── agent.json
 ```
 
-**索引文件格式**：
+**索引文件格式（完全对齐桌面端 AgentIndexItem）**：
 
 ```typescript
+interface AgentIndexItem {
+  id: string;
+  name: string;
+  displayName?: string;
+  agentVersion?: string;
+  description?: string;
+  icon?: string; // 头像/图标
+  profileId: string;
+  modelId: string;
+  lastUsedAt?: string;
+  createdAt: string;
+  category?: AgentCategory;
+  tags?: string[];
+}
+
 interface AgentsIndex {
-  version: string; // "1.0.0"
+  version: string; // "1.1.0"
   currentAgentId: string | null;
-  agents: Array<{
-    id: string;
-    name: string;
-    displayName?: string;
-    avatar?: string;
-    profileId: string;
-    modelId: string;
-    updatedAt: string;
-    lastUsedAt?: string;
-  }>;
+  agents: AgentIndexItem[]; // 智能体元数据列表（用于排序和快速显示）
 }
 ```
 
-> **注意**：存储路径使用 `agent-manager/` 而非 `llm-chat/agents/`，物理上与 Chat 的会话数据完全隔离。如果未来需要从桌面端迁移数据，通过 migration 脚本处理。
+> **存储设计优势**：
+>
+> 1. **轻量化加载**：列表页仅加载 `agents-index.json`，避免一次性读取数十个完整智能体 JSON 导致的 I/O 瓶颈。
+> 2. **资产自治**：智能体专属头像与配置文件存放在同一目录下，删除智能体时可一并清理，且打包导出时极易归档。
+> 3. **无损兼容**：存储路径使用独立的 `agent-manager/`，物理上与 Chat 的会话数据完全隔离，但目录层级和文件格式与桌面端 `llm-chat/agents/` 完美一致。
 
 ---
 
@@ -245,13 +316,13 @@ sequenceDiagram
 
 ### 阶段 1：基础设施搭建（地基）
 
-| 任务                | 产出文件                         | 说明                                                   |
-| ------------------- | -------------------------------- | ------------------------------------------------------ |
-| 定义 ChatAgent 类型 | `types/agent.ts`                 | 精简版，保留核心字段                                   |
-| 实现本地存储        | `composables/useAgentStorage.ts` | createConfigManager 管理索引，独立 JSON 存储每个 Agent |
-| 实现核心 Store      | `stores/agentStore.ts`           | CRUD + 列表管理 + 当前选中                             |
-| 工具注册            | `agent-manager.registry.ts`      | 路由、语言包、图标                                     |
-| 创建默认 Agent      | Store 初始化逻辑                 | 首次启动时创建一个"默认助手"                           |
+| 任务                | 产出文件                         | 说明                                                                                       |
+| ------------------- | -------------------------------- | ------------------------------------------------------------------------------------------ |
+| 定义 ChatAgent 类型 | `types/agent.ts`                 | **完全对齐桌面端**，包含所有高级字段（如 `ChatMessageNode` 树形结构、`toolCallConfig` 等） |
+| 实现本地存储        | `composables/useAgentStorage.ts` | **完全对齐桌面端的分离式存储（一智能体一目录）**，支持索引同步、相对头像路径迁移与防抖保存 |
+| 实现核心 Store      | `stores/agentStore.ts`           | CRUD + 列表管理 + 当前选中，支持按需加载详情                                               |
+| 工具注册            | `agent-manager.registry.ts`      | 路由、语言包、图标（使用 `markRaw` 包裹）                                                  |
+| 创建默认 Agent      | Store 初始化逻辑                 | 首次启动时创建一个"默认助手"                                                               |
 
 ### 阶段 2：UI 实现（骨架）
 
@@ -276,12 +347,13 @@ sequenceDiagram
 
 ## 6. 与桌面端的兼容策略
 
-| 维度         | 策略                                                                       |
-| ------------ | -------------------------------------------------------------------------- |
-| **存储路径** | 移动端使用独立的 `agent-manager/` 路径，不与桌面端 `llm-chat/agents/` 冲突 |
-| **类型定义** | 移动端 `ChatAgent` 是桌面端的精简子集，字段名保持一致，方便未来做双端同步  |
-| **导入格式** | 支持桌面端的 `AIO_Agent_Export` JSON 格式，确保角色卡可以跨端迁移          |
-| **未来演进** | 如果桌面端也决定拆分 Agent，可以参照移动端的架构模式进行渐进式重构         |
+| 维度         | 策略                                                                                                                                                                                                                                               |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **存储路径** | 移动端使用独立的 `agent-manager/` 路径，不与桌面端 `llm-chat/agents/` 冲突，但目录层级和文件格式完全一致                                                                                                                                           |
+| **类型定义** | **100% 全量对齐**。移动端 `ChatAgent` 与桌面端完全一致，绝不裁剪字段，确保数据无损流转                                                                                                                                                             |
+| **无损编辑** | **核心策略（Lossless Editing）**：移动端在编辑并保存 Agent 时，必须使用**深拷贝合并（Deep Merge）**保留所有移动端 UI 暂不支持编辑的桌面端高级字段（如 `toolCallConfig`、`knowledgeBaseConfig`、`worldbookIds` 等），确保数据在双端流转时绝对不丢失 |
+| **导入格式** | 完美支持桌面端的 `AIO_Agent_Export` JSON 格式，确保角色卡可以跨端**无损迁移**                                                                                                                                                                      |
+| **未来演进** | 如果桌面端也决定拆分 Agent，可以参照移动端的架构模式进行渐进式重构                                                                                                                                                                                 |
 
 ---
 

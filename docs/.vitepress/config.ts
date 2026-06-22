@@ -11,9 +11,21 @@ export default withMermaid({
   head: [
     ["link", { rel: "icon", href: "/aio-icon-color.svg" }],
     ["meta", { name: "author", content: "miaotouy" }],
-    ["meta", { name: "keywords", content: "AIO Hub, AI Tools, Tauri, Vue, Desktop App, LLM, OCR" }],
+    [
+      "meta",
+      {
+        name: "keywords",
+        content: "AIO Hub, AI Tools, Tauri, Vue, Desktop App, LLM, OCR",
+      },
+    ],
     ["meta", { property: "og:title", content: "AIO Hub Documentation" }],
-    ["meta", { property: "og:description", content: "Documentation for AIO Hub - The all-in-one AI tool hub." }],
+    [
+      "meta",
+      {
+        property: "og:description",
+        content: "Documentation for AIO Hub - The all-in-one AI tool hub.",
+      },
+    ],
   ],
   vite: {
     plugins: [
@@ -47,7 +59,11 @@ export default withMermaid({
               modal: {
                 noResultsText: "无法找到相关结果",
                 resetButtonTitle: "清除查询条件",
-                footer: { selectText: "选择", navigateText: "切换", closeText: "关闭" },
+                footer: {
+                  selectText: "选择",
+                  navigateText: "切换",
+                  closeText: "关闭",
+                },
               },
             },
           },
@@ -71,7 +87,10 @@ export default withMermaid({
             { text: "项目概览", link: "/user-guide/project-overview" },
             { text: "工作区基础", link: "/user-guide/workspace-basics" },
             { text: "故障排除", link: "/user-guide/troubleshooting" },
-            { text: "macOS Gatekeeper 修复", link: "/user-guide/faq/macos-gatekeeper-fix" },
+            {
+              text: "macOS Gatekeeper 修复",
+              link: "/user-guide/faq/macos-gatekeeper-fix",
+            },
             // ==== UG_BASICS 插入点 ====
           ],
         },
@@ -82,14 +101,32 @@ export default withMermaid({
             { text: "设置概览", link: "/user-guide/settings/index" },
             { text: "外观与壁纸", link: "/user-guide/settings/appearance" },
             { text: "工具管理", link: "/user-guide/settings/tool-management" },
-            { text: "LLM AI 服务配置", link: "/user-guide/settings/llm-service" },
-            { text: "LLM 服务高级配置", link: "/user-guide/settings/llm-service-advanced" },
-            { text: "AI 模型元数据配置", link: "/user-guide/settings/model-metadata" },
+            {
+              text: "LLM AI 服务配置",
+              link: "/user-guide/settings/llm-service",
+            },
+            {
+              text: "LLM 服务高级配置",
+              link: "/user-guide/settings/llm-service-advanced",
+            },
+            {
+              text: "AI 模型元数据配置",
+              link: "/user-guide/settings/model-metadata",
+            },
             { text: "云端 OCR 服务", link: "/user-guide/settings/ocr-service" },
-            { text: "用户档案管理", link: "/user-guide/settings/user-profiles" },
-            { text: "通用与启动项", link: "/user-guide/settings/general-startup" },
+            {
+              text: "用户档案管理",
+              link: "/user-guide/settings/user-profiles",
+            },
+            {
+              text: "通用与启动项",
+              link: "/user-guide/settings/general-startup",
+            },
             { text: "CSS 样式覆盖", link: "/user-guide/settings/custom-css" },
-            { text: "日志与资产管理", link: "/user-guide/settings/logs-assets" },
+            {
+              text: "日志与资产管理",
+              link: "/user-guide/settings/logs-assets",
+            },
             { text: "关于与许可", link: "/user-guide/settings/about" },
             // ==== UG_SETTINGS 插入点 ====
           ],
@@ -108,105 +145,270 @@ export default withMermaid({
                   text: "智能体 (Agent)",
                   collapsed: true,
                   items: [
-                    { text: "概览", link: "/user-guide/tools/llm-chat/agents/index" },
-                    { text: "编辑器指南", link: "/user-guide/tools/llm-chat/agents/editor-guide" },
-                    { text: "参数配置", link: "/user-guide/tools/llm-chat/agents/parameters" },
-                    { text: "资产管理", link: "/user-guide/tools/llm-chat/agents/assets" },
-                    { text: "虚拟时间线", link: "/user-guide/tools/llm-chat/agents/virtual-timeline" },
-                    { text: "用户档案", link: "/user-guide/tools/llm-chat/agents/user-profiles" },
-                    { text: "酒馆兼容性", link: "/user-guide/tools/llm-chat/agents/st-compatibility" },
+                    {
+                      text: "概览",
+                      link: "/user-guide/tools/llm-chat/agents/index",
+                    },
+                    {
+                      text: "编辑器指南",
+                      link: "/user-guide/tools/llm-chat/agents/editor-guide",
+                    },
+                    {
+                      text: "参数配置",
+                      link: "/user-guide/tools/llm-chat/agents/parameters",
+                    },
+                    {
+                      text: "资产管理",
+                      link: "/user-guide/tools/llm-chat/agents/assets",
+                    },
+                    {
+                      text: "虚拟时间线",
+                      link: "/user-guide/tools/llm-chat/agents/virtual-timeline",
+                    },
+                    {
+                      text: "用户档案",
+                      link: "/user-guide/tools/llm-chat/agents/user-profiles",
+                    },
+                    {
+                      text: "酒馆兼容性",
+                      link: "/user-guide/tools/llm-chat/agents/st-compatibility",
+                    },
                   ],
                 },
                 {
                   text: "消息与分支",
                   collapsed: true,
                   items: [
-                    { text: "消息操作概览", link: "/user-guide/tools/llm-chat/messages/index" },
-                    { text: "列表与操作栏", link: "/user-guide/tools/llm-chat/messages/message-list" },
-                    { text: "树图视图", link: "/user-guide/tools/llm-chat/sessions/tree-graph" },
-                    { text: "续写与补全", link: "/user-guide/tools/llm-chat/messages/continue-completion" },
-                    { text: "路径转附件", link: "/user-guide/tools/llm-chat/messages/path-to-attachment" },
-                    { text: "数据编辑器", link: "/user-guide/tools/llm-chat/messages/message-data-editor" },
+                    {
+                      text: "消息操作概览",
+                      link: "/user-guide/tools/llm-chat/messages/index",
+                    },
+                    {
+                      text: "列表与操作栏",
+                      link: "/user-guide/tools/llm-chat/messages/message-list",
+                    },
+                    {
+                      text: "树图视图",
+                      link: "/user-guide/tools/llm-chat/sessions/tree-graph",
+                    },
+                    {
+                      text: "续写与补全",
+                      link: "/user-guide/tools/llm-chat/messages/continue-completion",
+                    },
+                    {
+                      text: "路径转附件",
+                      link: "/user-guide/tools/llm-chat/messages/path-to-attachment",
+                    },
+                    {
+                      text: "数据编辑器",
+                      link: "/user-guide/tools/llm-chat/messages/message-data-editor",
+                    },
                   ],
                 },
                 {
                   text: "快捷操作",
                   collapsed: true,
                   items: [
-                    { text: "功能概览", link: "/user-guide/tools/llm-chat/quick-actions/index" },
-                    { text: "模板语法", link: "/user-guide/tools/llm-chat/quick-actions/template-syntax" },
-                    { text: "库管理", link: "/user-guide/tools/llm-chat/quick-actions/management" },
+                    {
+                      text: "功能概览",
+                      link: "/user-guide/tools/llm-chat/quick-actions/index",
+                    },
+                    {
+                      text: "模板语法",
+                      link: "/user-guide/tools/llm-chat/quick-actions/template-syntax",
+                    },
+                    {
+                      text: "库管理",
+                      link: "/user-guide/tools/llm-chat/quick-actions/management",
+                    },
                   ],
                 },
                 {
                   text: "上下文管道",
                   collapsed: true,
                   items: [
-                    { text: "工作原理", link: "/user-guide/tools/llm-chat/context-pipeline/index" },
-                    { text: "处理器详解", link: "/user-guide/tools/llm-chat/context-pipeline/processors" },
-                    { text: "上下文分析器", link: "/user-guide/tools/llm-chat/context-pipeline/analyzer" },
-                    { text: "知识库 (RAG)", link: "/user-guide/tools/llm-chat/context-pipeline/knowledge-processor" },
-                    { text: "正则管道", link: "/user-guide/tools/llm-chat/context-pipeline/regex-pipeline" },
-                    { text: "上下文压缩", link: "/user-guide/tools/llm-chat/context-pipeline/context-compression" },
-                    { text: "Token 预算管理", link: "/user-guide/tools/llm-chat/context-pipeline/token-management" },
+                    {
+                      text: "工作原理",
+                      link: "/user-guide/tools/llm-chat/context-pipeline/index",
+                    },
+                    {
+                      text: "处理器详解",
+                      link: "/user-guide/tools/llm-chat/context-pipeline/processors",
+                    },
+                    {
+                      text: "上下文分析器",
+                      link: "/user-guide/tools/llm-chat/context-pipeline/analyzer",
+                    },
+                    {
+                      text: "知识库 (RAG)",
+                      link: "/user-guide/tools/llm-chat/context-pipeline/knowledge-processor",
+                    },
+                    {
+                      text: "正则管道",
+                      link: "/user-guide/tools/llm-chat/context-pipeline/regex-pipeline",
+                    },
+                    {
+                      text: "上下文压缩",
+                      link: "/user-guide/tools/llm-chat/context-pipeline/context-compression",
+                    },
+                    {
+                      text: "Token 预算管理",
+                      link: "/user-guide/tools/llm-chat/context-pipeline/token-management",
+                    },
                   ],
                 },
                 {
                   text: "世界书 (Worldbook)",
                   collapsed: true,
                   items: [
-                    { text: "功能概览", link: "/user-guide/tools/llm-chat/worldbook/index" },
-                    { text: "条目管理", link: "/user-guide/tools/llm-chat/worldbook/entry-management" },
-                    { text: "扫描策略", link: "/user-guide/tools/llm-chat/worldbook/scanning-strategy" },
+                    {
+                      text: "功能概览",
+                      link: "/user-guide/tools/llm-chat/worldbook/index",
+                    },
+                    {
+                      text: "条目管理",
+                      link: "/user-guide/tools/llm-chat/worldbook/entry-management",
+                    },
+                    {
+                      text: "扫描策略",
+                      link: "/user-guide/tools/llm-chat/worldbook/scanning-strategy",
+                    },
                   ],
                 },
                 {
                   text: "变量与宏系统",
                   collapsed: true,
                   items: [
-                    { text: "宏系统概览", link: "/user-guide/tools/llm-chat/macro-system/index" },
-                    { text: "宏参考手册", link: "/user-guide/tools/llm-chat/macro-system/macro-reference" },
-                    { text: "会话变量", link: "/user-guide/tools/llm-chat/macro-system/session-variables" },
-                    { text: "CSS 变量指南", link: "/user-guide/tools/llm-chat/macro-system/css-variables-guide" },
+                    {
+                      text: "宏系统概览",
+                      link: "/user-guide/tools/llm-chat/macro-system/index",
+                    },
+                    {
+                      text: "宏参考手册",
+                      link: "/user-guide/tools/llm-chat/macro-system/macro-reference",
+                    },
+                    {
+                      text: "会话变量",
+                      link: "/user-guide/tools/llm-chat/macro-system/session-variables",
+                    },
+                    {
+                      text: "CSS 变量指南",
+                      link: "/user-guide/tools/llm-chat/macro-system/css-variables-guide",
+                    },
                   ],
                 },
                 {
                   text: "聊天设置",
                   collapsed: true,
                   items: [
-                    { text: "设置概览", link: "/user-guide/tools/llm-chat/settings/index" },
-                    { text: "通用设置", link: "/user-guide/tools/llm-chat/settings/general" },
-                    { text: "UI 偏好", link: "/user-guide/tools/llm-chat/settings/ui-preferences" },
-                    { text: "渲染与显示", link: "/user-guide/tools/llm-chat/settings/rendering" },
-                    { text: "消息管理", link: "/user-guide/tools/llm-chat/settings/message-management" },
-                    { text: "快捷键", link: "/user-guide/tools/llm-chat/settings/shortcuts" },
-                    { text: "话题命名", link: "/user-guide/tools/llm-chat/settings/topic-naming" },
-                    { text: "翻译助手", link: "/user-guide/tools/llm-chat/settings/translation" },
-                    { text: "附件转写", link: "/user-guide/tools/llm-chat/settings/transcription" },
-                    { text: "文本处理", link: "/user-guide/tools/llm-chat/settings/text-processing" },
-                    { text: "知识库设置", link: "/user-guide/tools/llm-chat/settings/knowledge-base" },
-                    { text: "世界书", link: "/user-guide/tools/llm-chat/settings/worldbook" },
-                    { text: "快捷操作", link: "/user-guide/tools/llm-chat/settings/quick-actions" },
-                    { text: "样式设置", link: "/user-guide/tools/llm-chat/settings/styling" },
-                    { text: "上下文管道", link: "/user-guide/tools/llm-chat/settings/context-pipeline" },
-                    { text: "请求设置", link: "/user-guide/tools/llm-chat/settings/request" },
-                    { text: "开发者选项", link: "/user-guide/tools/llm-chat/settings/developer" },
+                    {
+                      text: "设置概览",
+                      link: "/user-guide/tools/llm-chat/settings/index",
+                    },
+                    {
+                      text: "通用设置",
+                      link: "/user-guide/tools/llm-chat/settings/general",
+                    },
+                    {
+                      text: "UI 偏好",
+                      link: "/user-guide/tools/llm-chat/settings/ui-preferences",
+                    },
+                    {
+                      text: "渲染与显示",
+                      link: "/user-guide/tools/llm-chat/settings/rendering",
+                    },
+                    {
+                      text: "消息管理",
+                      link: "/user-guide/tools/llm-chat/settings/message-management",
+                    },
+                    {
+                      text: "快捷键",
+                      link: "/user-guide/tools/llm-chat/settings/shortcuts",
+                    },
+                    {
+                      text: "话题命名",
+                      link: "/user-guide/tools/llm-chat/settings/topic-naming",
+                    },
+                    {
+                      text: "翻译助手",
+                      link: "/user-guide/tools/llm-chat/settings/translation",
+                    },
+                    {
+                      text: "附件转写",
+                      link: "/user-guide/tools/llm-chat/settings/transcription",
+                    },
+                    {
+                      text: "文本处理",
+                      link: "/user-guide/tools/llm-chat/settings/text-processing",
+                    },
+                    {
+                      text: "知识库设置",
+                      link: "/user-guide/tools/llm-chat/settings/knowledge-base",
+                    },
+                    {
+                      text: "世界书",
+                      link: "/user-guide/tools/llm-chat/settings/worldbook",
+                    },
+                    {
+                      text: "快捷操作",
+                      link: "/user-guide/tools/llm-chat/settings/quick-actions",
+                    },
+                    {
+                      text: "样式设置",
+                      link: "/user-guide/tools/llm-chat/settings/styling",
+                    },
+                    {
+                      text: "上下文管道",
+                      link: "/user-guide/tools/llm-chat/settings/context-pipeline",
+                    },
+                    {
+                      text: "请求设置",
+                      link: "/user-guide/tools/llm-chat/settings/request",
+                    },
+                    {
+                      text: "开发者选项",
+                      link: "/user-guide/tools/llm-chat/settings/developer",
+                    },
                   ],
                 },
-                { text: "会话管理", link: "/user-guide/tools/llm-chat/sessions" },
-                { text: "附件管理", link: "/user-guide/tools/llm-chat/attachments" },
+                {
+                  text: "会话管理",
+                  link: "/user-guide/tools/llm-chat/sessions",
+                },
+                {
+                  text: "附件管理",
+                  link: "/user-guide/tools/llm-chat/attachments",
+                },
                 {
                   text: "工具调用 (Tool Calling)",
                   collapsed: true,
                   items: [
-                    { text: "概览", link: "/user-guide/tools/llm-chat/tool-calling/index" },
-                    { text: "工具定义", link: "/user-guide/tools/llm-chat/tool-calling/tool-definition" },
-                    { text: "审批策略", link: "/user-guide/tools/llm-chat/tool-calling/approval-strategy" },
-                    { text: "执行与调试", link: "/user-guide/tools/llm-chat/tool-calling/execution-debug" },
+                    {
+                      text: "概览",
+                      link: "/user-guide/tools/llm-chat/tool-calling/index",
+                    },
+                    {
+                      text: "工具定义",
+                      link: "/user-guide/tools/llm-chat/tool-calling/tool-definition",
+                    },
+                    {
+                      text: "审批策略",
+                      link: "/user-guide/tools/llm-chat/tool-calling/approval-strategy",
+                    },
+                    {
+                      text: "执行与调试",
+                      link: "/user-guide/tools/llm-chat/tool-calling/execution-debug",
+                    },
                   ],
                 },
-                { text: "导出与导入", link: "/user-guide/tools/llm-chat/export-import" },
-                { text: "快捷键与技巧", link: "/user-guide/tools/llm-chat/shortcuts-tips" },
+                {
+                  text: "导出与导入",
+                  link: "/user-guide/tools/llm-chat/export-import",
+                },
+                {
+                  text: "快捷键与技巧",
+                  link: "/user-guide/tools/llm-chat/shortcuts-tips",
+                },
                 { text: "常见问题", link: "/user-guide/tools/llm-chat/faq" },
               ],
             },
@@ -215,19 +417,40 @@ export default withMermaid({
               text: "知识库",
               collapsed: true,
               items: [
-                { text: "快速上手", link: "/user-guide/tools/knowledge-base/index" },
-                { text: "索引引擎", link: "/user-guide/tools/knowledge-base/indexing" },
-                { text: "条目管理", link: "/user-guide/tools/knowledge-base/entry-management" },
-                { text: "Agent 集成", link: "/user-guide/tools/knowledge-base/agent-integration" },
+                {
+                  text: "快速上手",
+                  link: "/user-guide/tools/knowledge-base/index",
+                },
+                {
+                  text: "索引引擎",
+                  link: "/user-guide/tools/knowledge-base/indexing",
+                },
+                {
+                  text: "条目管理",
+                  link: "/user-guide/tools/knowledge-base/entry-management",
+                },
+                {
+                  text: "Agent 集成",
+                  link: "/user-guide/tools/knowledge-base/agent-integration",
+                },
               ],
             },
             {
               text: "资产管理器",
               collapsed: true,
               items: [
-                { text: "快速上手", link: "/user-guide/tools/asset-manager/index" },
-                { text: "来源追踪", link: "/user-guide/tools/asset-manager/source-tracking" },
-                { text: "缩略图管理", link: "/user-guide/tools/asset-manager/thumbnails-batch" },
+                {
+                  text: "快速上手",
+                  link: "/user-guide/tools/asset-manager/index",
+                },
+                {
+                  text: "来源追踪",
+                  link: "/user-guide/tools/asset-manager/source-tracking",
+                },
+                {
+                  text: "缩略图管理",
+                  link: "/user-guide/tools/asset-manager/thumbnails-batch",
+                },
               ],
             },
             {
@@ -235,22 +458,34 @@ export default withMermaid({
               collapsed: true,
               items: [
                 { text: "快速上手", link: "/user-guide/tools/smart-ocr/index" },
-                { text: "进阶配置", link: "/user-guide/tools/smart-ocr/advanced" },
+                {
+                  text: "进阶配置",
+                  link: "/user-guide/tools/smart-ocr/advanced",
+                },
               ],
             },
             {
               text: "媒体生成中心",
               collapsed: true,
               items: [
-                { text: "快速上手", link: "/user-guide/tools/media-generator/index" },
-                { text: "资产管理", link: "/user-guide/tools/media-generator/asset-management" },
+                {
+                  text: "快速上手",
+                  link: "/user-guide/tools/media-generator/index",
+                },
+                {
+                  text: "资产管理",
+                  link: "/user-guide/tools/media-generator/asset-management",
+                },
               ],
             },
             {
               text: "Web Canvas",
               collapsed: true,
               items: [
-                { text: "快速上手", link: "/user-guide/tools/web-canvas/index" },
+                {
+                  text: "快速上手",
+                  link: "/user-guide/tools/web-canvas/index",
+                },
                 { text: "进阶", link: "/user-guide/tools/web-canvas/advanced" },
               ],
             },
@@ -260,29 +495,59 @@ export default withMermaid({
             { text: "正则批量替换", link: "/user-guide/tools/regex-applier" },
             { text: "文本差异对比", link: "/user-guide/tools/text-diff" },
             { text: "代码格式化", link: "/user-guide/tools/code-formatter" },
-            { text: "Token 计算器", link: "/user-guide/tools/token-calculator" },
-            { text: "富文本渲染测试", link: "/user-guide/tools/rich-text-renderer" },
+            {
+              text: "Token 计算器",
+              link: "/user-guide/tools/token-calculator",
+            },
+            {
+              text: "富文本渲染测试",
+              link: "/user-guide/tools/rich-text-renderer",
+            },
             { text: "组件测试器", link: "/user-guide/tools/component-tester" },
             { text: "工具调用测试", link: "/user-guide/tools/tool-calling" },
             { text: "API 测试工具", link: "/user-guide/tools/api-tester" },
             { text: "Git 分析器", link: "/user-guide/tools/git-analyzer" },
-            { text: "服务注册表浏览器", link: "/user-guide/tools/service-monitor" },
+            {
+              text: "服务注册表浏览器",
+              link: "/user-guide/tools/service-monitor",
+            },
             { text: "VCP 连接器", link: "/user-guide/tools/vcp-connector" },
             { text: "网页蒸馏室", link: "/user-guide/tools/web-distillery" },
-            { text: "内容查重", link: "/user-guide/tools/content-deduplicator" },
-            { text: "目录清洁工具", link: "/user-guide/tools/directory-janitor" },
-            { text: "目录结构浏览器", link: "/user-guide/tools/directory-tree" },
-            { text: "符号链接搬家工具", link: "/user-guide/tools/symlink-mover" },
+            {
+              text: "内容查重",
+              link: "/user-guide/tools/content-deduplicator",
+            },
+            {
+              text: "目录清洁工具",
+              link: "/user-guide/tools/directory-janitor",
+            },
+            {
+              text: "目录结构浏览器",
+              link: "/user-guide/tools/directory-tree",
+            },
+            {
+              text: "符号链接搬家工具",
+              link: "/user-guide/tools/symlink-mover",
+            },
             { text: "数据筛选工具", link: "/user-guide/tools/data-filter" },
             { text: "图片色彩分析", link: "/user-guide/tools/color-picker" },
             { text: "FFmpeg 工具", link: "/user-guide/tools/ffmpeg-tools" },
             { text: "画板", link: "/user-guide/tools/sketch-pad" },
             { text: "弹幕播放器", link: "/user-guide/tools/danmaku-player" },
-            { text: "AI 信息解析", link: "/user-guide/tools/media-info-reader" },
+            {
+              text: "AI 信息解析",
+              link: "/user-guide/tools/media-info-reader",
+            },
             { text: "系统脉搏", link: "/user-guide/tools/system-pulse" },
             { text: "LLM 检查器", link: "/user-guide/tools/llm-inspector" },
-            { text: "Embedding 测试", link: "/user-guide/tools/embedding-playground" },
-            { text: "ST 世界书编辑器", link: "/user-guide/tools/st-worldbook-editor" },
+            {
+              text: "Embedding 测试",
+              link: "/user-guide/tools/embedding-playground",
+            },
+            {
+              text: "ST 世界书编辑器",
+              link: "/user-guide/tools/st-worldbook-editor",
+            },
             // ==== UG_SINGLE_TOOLS 插入点 ====
           ],
         },
@@ -292,8 +557,14 @@ export default withMermaid({
           items: [
             { text: "多窗口模式", link: "/user-guide/advanced/multi-window" },
             { text: "插件使用", link: "/user-guide/advanced/plugins" },
-            { text: "Agent 工具调用", link: "/user-guide/advanced/agent-tool-calling" },
-            { text: "CSS 变量宏", link: "/user-guide/advanced/css-variables-guide" },
+            {
+              text: "Agent 工具调用",
+              link: "/user-guide/advanced/agent-tool-calling",
+            },
+            {
+              text: "CSS 变量宏",
+              link: "/user-guide/advanced/css-variables-guide",
+            },
             // ==== UG_ADVANCED 插入点 ====
           ],
         },
@@ -332,15 +603,29 @@ export default withMermaid({
         {
           text: "插件开发",
           items: [
-            { text: "插件开发总览", link: "/guide/plugin-development-guide" },
-            { text: "插件 UI 开发", link: "/guide/plugin-ui-development-guide" },
+            { text: "插件开发总览", link: "/guide/plugins/index" },
+            { text: "JavaScript 插件开发", link: "/guide/plugins/js-plugin" },
+            { text: "原生插件开发", link: "/guide/plugins/native-plugin" },
+            { text: "Sidecar 插件开发", link: "/guide/plugins/sidecar-plugin" },
+            {
+              text: "钩子与扩展系统",
+              link: "/guide/plugins/hooks-and-extensions",
+            },
+            { text: "异步任务与进度汇报", link: "/guide/plugins/async-tasks" },
+            {
+              text: "插件 UI 开发",
+              link: "/guide/plugin-ui-development-guide",
+            },
             // ==== GUIDE_PLUGINS 插入点 ====
           ],
         },
         {
           text: "资产管理",
           items: [
-            { text: "资产来源模块指南", link: "/guide/asset-source-module-guide" },
+            {
+              text: "资产来源模块指南",
+              link: "/guide/asset-source-module-guide",
+            },
             // ==== GUIDE_ASSETS 插入点 ====
           ],
         },
@@ -387,10 +672,19 @@ export default withMermaid({
           text: "总览",
           items: [
             { text: "架构概览", link: "/architecture/overview" },
-            { text: "工具架构总览", link: "/architecture/tools-architecture-overview" },
-            { text: "设置系统架构", link: "/architecture/settings-architecture-overview" },
+            {
+              text: "工具架构总览",
+              link: "/architecture/tools-architecture-overview",
+            },
+            {
+              text: "设置系统架构",
+              link: "/architecture/settings-architecture-overview",
+            },
             { text: "服务层架构", link: "/architecture/services-architecture" },
-            { text: "Composables 概览", link: "/architecture/composables-overview" },
+            {
+              text: "Composables 概览",
+              link: "/architecture/composables-overview",
+            },
             { text: "UI 结构图谱", link: "/architecture/ui-structure-diagram" },
             // ==== ARCH_OVERVIEW 插入点 ====
           ],
@@ -398,32 +692,56 @@ export default withMermaid({
         {
           text: "LLM 系统",
           items: [
-            { text: "LLM 服务架构", link: "/architecture/llm-apis-architecture" },
-            { text: "聊天 UI 结构", link: "/architecture/llm-chat-ui-structure" },
-            { text: "多媒体基础设施", link: "/architecture/llm-media-infrastructure" },
-            { text: "模型元数据系统", link: "/architecture/model-metadata-system" },
+            {
+              text: "LLM 服务架构",
+              link: "/architecture/llm-apis-architecture",
+            },
+            {
+              text: "聊天 UI 结构",
+              link: "/architecture/llm-chat-ui-structure",
+            },
+            {
+              text: "多媒体基础设施",
+              link: "/architecture/llm-media-infrastructure",
+            },
+            {
+              text: "模型元数据系统",
+              link: "/architecture/model-metadata-system",
+            },
             // ==== ARCH_LLM 插入点 ====
           ],
         },
         {
           text: "基础设施",
           items: [
-            { text: "主题系统", link: "/architecture/theme-system-architecture" },
-            { text: "Embedding 基础设施", link: "/architecture/embedding-infrastructure" },
+            {
+              text: "主题系统",
+              link: "/architecture/theme-system-architecture",
+            },
+            {
+              text: "Embedding 基础设施",
+              link: "/architecture/embedding-infrastructure",
+            },
             // ==== ARCH_INFRA 插入点 ====
           ],
         },
         {
           text: "窗口与通信",
           items: [
-            { text: "窗口同步", link: "/architecture/window-sync-architecture" },
+            {
+              text: "窗口同步",
+              link: "/architecture/window-sync-architecture",
+            },
             // ==== ARCH_WINDOW 插入点 ====
           ],
         },
         {
           text: "扩展系统",
           items: [
-            { text: "插件异步任务支持", link: "/architecture/plugin-async-task-support" },
+            {
+              text: "插件异步任务支持",
+              link: "/architecture/plugin-async-task-support",
+            },
             // ==== ARCH_EXTEND 插入点 ====
           ],
         },
@@ -431,12 +749,21 @@ export default withMermaid({
           text: "设计方案",
           collapsed: true,
           items: [
-            { text: "浏览器连接器设计", link: "/design/Browser-Connector-design" },
+            {
+              text: "浏览器连接器设计",
+              link: "/design/Browser-Connector-design",
+            },
             { text: "动态壁纸设计", link: "/design/dynamic-wallpaper-design" },
             { text: "插件配置系统", link: "/design/plugin-config-system" },
             { text: "插件 Hook 系统", link: "/design/plugin-hook-system" },
-            { text: "代理上下文中间件", link: "/design/proxy-context-middleware-memo" },
-            { text: "翻译工作台设计", link: "/design/translation-workbench-design" },
+            {
+              text: "代理上下文中间件",
+              link: "/design/proxy-context-middleware-memo",
+            },
+            {
+              text: "翻译工作台设计",
+              link: "/design/translation-workbench-design",
+            },
           ],
         },
         {
@@ -448,13 +775,18 @@ export default withMermaid({
         {
           text: "Tauri 后端",
           items: [
-            { text: "转写系统架构", link: "/architecture/transcription-architecture" },
+            {
+              text: "转写系统架构",
+              link: "/architecture/transcription-architecture",
+            },
             // ==== ARCH_TAURI 插入点 ====
           ],
         },
       ],
     },
-    socialLinks: [{ icon: "github", link: "https://github.com/miaotouy/aio-hub" }],
+    socialLinks: [
+      { icon: "github", link: "https://github.com/miaotouy/aio-hub" },
+    ],
     footer: {
       message: "Released under the Apache-2.0 License.",
       copyright: "Copyright © 2024-present miaotouy",

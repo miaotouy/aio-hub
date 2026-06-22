@@ -49,7 +49,10 @@ plugins/
   - 相对于插件根目录的图片路径（如 `"icon.png"`）
   - 或 `appdata://` 协议的路径
 - **tags**: 标签数组，用于插件的分类和搜索（如 `["工具", "文本处理"]`）
-- **settingsSchema**: 插件配置项的定义（详见配置系统文档）
+- **settingsSchema**: 插件配置项的定义（详见下文 [插件配置系统](#插件配置系统-plugin-config-system)）
+- **dependencies**: (可选) 插件依赖的其他插件及其版本范围（如 `{"chat-core": ">=1.0.0"}`）
+- **optionalDependencies**: (可选) 可选依赖的插件（如 `{"theme-manager": "*"}`）
+- **incompatibleWith**: (可选) 冲突的插件 ID 数组（如 `["old-chat-plugin"]`）
 - **ui**: UI 组件配置（详见 UI 开发指南）
 - **contributions**: 插件向宿主应用声明的扩展能力数组。每一项通过 `type` 标识扩展点，宿主模块按需消费对应类型。
 - **permissions**: 权限声明（未来功能）
@@ -423,6 +426,138 @@ Sidecar 插件通过 stdio 与主进程进行基于 JSON-RPC 的通信。
 
 你需要自行编译你的 Sidecar 插件，并将可执行文件放置在 `manifest.json` 中指定的路径。
 
+### 4. 持久型 Sidecar 插件 (Resident Sidecar Plugin)
+
+对于需要长连接、低延迟、事件流或需要常驻后台运行的场景（如本地 OCR 引擎、自动化执行引擎），AIO Hub 支持**持久型 Sidecar 插件（Resident Mode）**。
+
+#### 4.1 声明常驻模式
+
+在 [`manifest.json`](plugins/README.md) 的 `sidecar` 配置块中声明 `"resident": true`：
+
+```json
+{
+  "id": "paddle-ocr",
+  "type": "sidecar",
+  "sidecar": {
+    "executable": {
+      "win32-x64": "bin/aiohub-paddle-ocr-windows-x64.exe"
+    },
+    "resident": true,
+    "startupMethod": "recognizeBatch",
+    "startupParams": { "images": [] }
+  }
+}
+```
+
+- **`resident`**: 必须设为 `true`。
+- **`startupMethod`** (可选): 进程启动后自动执行的初始化方法。
+- **`startupParams`** (可选): 初始化方法所需的参数。
+
+#### 4.2 进程生命周期
+
+- **启动**: 当插件被启用（`enable`）时，主应用会自动启动常驻进程，并保持其 `stdin`、`stdout`、`stderr` 句柄。
+- **退出**: 当插件被禁用（`disable`）或应用关闭时，主应用会向常驻进程的 `stdin` 发送 `shutdown` 指令。常驻进程应在收到指令后优雅退出，超时（默认 5 秒）未退出则会被主应用强制 kill。
+
+#### 4.3 JSON-RPC 通信协议规范
+
+常驻 Sidecar 进程通过 `stdin` 接收命令，并通过 `stdout` 输出响应或主动推送事件。
+
+##### 前端 → Sidecar (命令格式)
+
+```typescript
+interface ResidentCommand {
+  id: number; // 唯一请求 ID，用于匹配响应
+  method: string; // 调用的方法名
+  params: Record<string, unknown>; // 方法参数
+}
+```
+
+##### Sidecar → 前端 (响应与事件格式)
+
+所有输出必须是**单行 JSON**（JSON Lines 格式）。
+
+```typescript
+type SidecarOutput =
+  | { id: number; type: "progress" | "result" | "error"; data: unknown }
+  | { type: "event"; event: string; data: unknown };
+```
+
+- **进度事件 (带 id)**:
+  ```json
+  {
+    "id": 42,
+    "type": "progress",
+    "data": { "message": "正在识别 1/2", "percent": 50 }
+  }
+  ```
+- **成功结果 (带 id)**:
+  ```json
+  { "id": 42, "type": "result", "data": { "results": [...] } }
+  ```
+- **错误事件 (带 id)**:
+  ```json
+  { "id": 42, "type": "error", "data": "模型文件损坏" }
+  ```
+- **主动推送事件 (无 id)**: 用于向前端实时推送状态变更、日志等。
+  ```json
+  {
+    "type": "event",
+    "event": "status",
+    "data": { "status": "running", "stepIndex": 4 }
+  }
+  ```
+
+#### 4.4 Sidecar 间中转协议 (Broker 模式)
+
+当常驻 Sidecar A（如自动化引擎）需要调用常驻 Sidecar B（如 OCR 引擎）时，**不允许直接启动 B**，必须通过主应用进行中转。
+
+##### 1. Sidecar A 发送中转请求 (通过 stdout)
+
+```json
+{
+  "type": "forward",
+  "id": 100,
+  "target": "paddle-ocr",
+  "method": "recognizeBatch",
+  "params": {
+    "images": [
+      { "blockId": "wa", "imageId": "cap_1", "path": "C:/Temp/aio_cap_123.png" }
+    ]
+  }
+}
+```
+
+- `type`: 固定为 `"forward"`。
+- `id`: 调用方侧的唯一 ID，用于匹配最终响应。
+- `target`: 目标常驻 Sidecar 的插件 ID。
+- `method` / `params`: 目标 Sidecar 的方法名和参数。
+
+##### 2. 主应用转发并推回结果
+
+主应用会自动调用目标 Sidecar B，并将结果通过 `forward_result` 事件推回给 Sidecar A 的 `stdin`：
+
+```json
+{
+  "type": "event",
+  "event": "forward_result",
+  "data": {
+    "id": 100,
+    "targetId": "paddle-ocr",
+    "result": { "results": [...] },
+    "error": null
+  }
+}
+```
+
+#### 4.5 统一临时文件管理规范
+
+为了避免临时文件混乱，所有 Sidecar 插件应遵循主应用的统一临时文件规范：
+
+- **临时目录**: `${appDataDir}/temp/aiohub-shared/`
+- **文件命名**: `{sourceId}_{timestamp}_{uuid}.png`
+- **自动清理**: 主应用启动时会自动扫描并删除超过 24 小时的残留临时文件。
+- **优先路径**: 插件接口应优先支持 `path` 文件路径输入，以减少 base64 传输压力。
+
 ## 调用插件
 
 所有插件的方法都会被自动发现并注册到服务注册表，可以通过统一的 `execute` 执行器调用：
@@ -443,6 +578,257 @@ if (result.success) {
   console.error(result.error);
 }
 ```
+
+## 插件配置系统 (Plugin Config System)
+
+AIO Hub 提供了一个统一、健壮且类型安全的配置管理机制。插件的所有配置需求都在 [`manifest.json`](plugins/README.md) 中明确声明，作为唯一的“事实来源”。
+
+### 1. 声明配置 Schema (`settingsSchema`)
+
+插件开发者通过在 [`manifest.json`](plugins/README.md:22) 中定义 `settingsSchema` 对象来声明其配置项。主应用会根据此定义**自动生成设置界面**。
+
+```json
+{
+  "id": "my-translator-plugin",
+  "settingsSchema": {
+    "version": "1.1.0",
+    "properties": {
+      "apiKey": {
+        "type": "string",
+        "secret": true,
+        "default": "",
+        "label": "API Key",
+        "description": "请输入您的翻译服务 API Key。"
+      },
+      "defaultLanguage": {
+        "type": "string",
+        "default": "en",
+        "label": "默认目标语言",
+        "description": "设置默认翻译的目标语言。",
+        "enum": ["en", "zh", "jp", "fr"]
+      },
+      "enableCache": {
+        "type": "boolean",
+        "default": true,
+        "label": "启用缓存",
+        "description": "缓存翻译结果以提高性能和节省配额。"
+      }
+    }
+  }
+}
+```
+
+#### 字段详解
+
+- **`version` (必填)**: 配置的语义化版本号 (SemVer)。当 `properties` 结构发生变化时（增/删/改），开发者**必须**提升此版本号，以触发自动迁移逻辑。
+- **`properties` (必填)**: 包含配置项定义的键值对对象。
+  - `type`: 配置项类型，可选值：`string`、`number`、`boolean`。
+  - `default`: 默认值，类型必须与 `type` 一致。
+  - `label`: 在设置 UI 中显示的友好名称。
+  - `description`: 在 UI 中显示的详细说明或提示。
+  - `secret` (可选): 若为 `true`，UI 会将其渲染为密码输入框，且其值在日志中会被屏蔽。
+  - `enum` (可选): 提供一个可选值列表，UI 会自动渲染为下拉选择框。
+
+### 2. 配置存储与隔离
+
+插件配置与插件包本身分离存储，确保在插件更新或重装时配置数据不会丢失。
+
+- **存储路径**: `{appDataDir}/plugins-config/{plugin-id}/config.json`
+- **卸载清理**: 卸载插件时，系统会自动删除对应的配置目录，彻底清理数据。
+
+### 3. 配置自动迁移与升级
+
+当主应用加载插件时，如果检测到已保存的配置版本低于 [`manifest.json`](plugins/README.md:22) 中的版本，将自动执行智能合并：
+
+1. **保留用户数据**: 用户已修改的配置项值会被保留。
+2. **添加新配置**: 新增的配置项及其默认值会被自动加入。
+3. **移除旧配置**: 新版 Schema 中已不存在的旧配置项会被自动舍弃。
+
+### 4. 插件内部 API
+
+在插件逻辑中，可以通过注入的 [`PluginContext`](docs/guide/plugin-development-guide.md) 对象的 `settings` 属性与配置系统交互：
+
+```typescript
+export default {
+  async translate(params, toolContext) {
+    // 获取注入的插件上下文（包含 settings）
+    const context = params.context;
+
+    // 安全地获取配置
+    const apiKey = await context.settings.get("apiKey");
+    const lang = await context.settings.get("defaultLanguage");
+
+    if (!apiKey) {
+      throw new Error("API Key 未配置！");
+    }
+
+    // 更新配置（保存操作会自动进行防抖处理）
+    await context.settings.set("enableCache", false);
+
+    return "...";
+  },
+};
+```
+
+- **`context.settings.get(key: string): Promise<T>`**: 获取单个配置项的值。
+- **`context.settings.getAll(): Promise<Record<string, T>>`**: 获取所有配置项。
+- **`context.settings.set(key: string, value: T): Promise<void>`**: 更新单个配置项的值。
+
+---
+
+## 插件钩子与动态注入系统 (Hook & Patch System)
+
+为了给开发者提供不同层级的扩展能力，AIO Hub 引入了**“结构化接口保底，动态 Patch 赋能”**的插件钩子与动态注入系统。
+
+| 层级                 | 机制                     | 稳定性 | 灵活性 | 适用场景                     |
+| :------------------- | :----------------------- | :----- | :----- | :--------------------------- |
+| **L1: 结构化钩子**   | `hooks.tap()`            | 极高   | 低     | 核心数据加工、拦截关键逻辑   |
+| **L2: UI 占位符**    | `registerSlot()`         | 高     | 中     | 在预留位置注入按钮、面板     |
+| **L3: Service 代理** | `patch(service, method)` | 中     | 高     | 官方未预留钩子时的“魔改”拦截 |
+| **L4: 自由注入**     | 全局 CSS / DOM Patch     | 低     | 极高   | 深度修改样式、强行注入 DOM   |
+
+### 1. 依赖管理与拓扑排序
+
+为了解决“魔改”插件之间的冲突，并确保插件按正确顺序加载，您可以在 [`manifest.json`](plugins/README.md) 中声明依赖关系：
+
+```json
+{
+  "id": "my-advanced-plugin",
+  "dependencies": {
+    "chat-core": ">=1.0.0"
+  },
+  "optionalDependencies": {
+    "theme-manager": "*"
+  },
+  "incompatibleWith": ["old-chat-plugin"]
+}
+```
+
+主应用的插件加载器在激活插件前会构建依赖图并执行**拓扑排序**，确保被依赖的插件先初始化，且其 API 已暴露。同时，系统会自动执行 **DAG 环路检测**，若存在循环依赖（如 `A -> B -> A`）将拒绝加载并记录错误。
+
+### 2. L1: 结构化钩子系统 (Hook System)
+
+用于宿主主动预留的扩展点，支持三种类型的钩子：
+
+- **Waterfall**: 数据加工（如：修改发送的消息文本）。
+- **Bail**: 逻辑拦截（如：前置权限检查，返回 `false` 则中断操作）。
+- **Sync**: 事件广播（如：应用启动完成）。
+
+#### 注册钩子示例
+
+```typescript
+export default {
+  activate(context: PluginContext) {
+    // 注册一个消息发送前置处理器
+    context.hooks.tap(
+      "beforeSendMessage",
+      async (message) => {
+        // 加工数据并返回
+        message.text = message.text.trim();
+        return message;
+      },
+      { priority: 100 }
+    ); // 支持设置优先级
+  },
+};
+```
+
+### 3. L2: UI 插槽系统 (UI Slot System)
+
+允许插件在主应用预留的 `ExtensionPoint` 占位符处动态注入自定义的 Vue 组件。
+
+```typescript
+import MyButton from "./components/MyButton.vue";
+
+export default {
+  activate(context: PluginContext) {
+    // 在聊天输入区工具栏注入一个自定义按钮
+    context.ui.registerSlot("chat-input-toolbar", MyButton, {
+      customProp: "value",
+    });
+  },
+};
+```
+
+### 4. L3: Service Patch (Monkey Patch API)
+
+这是最强大的“魔改”能力。插件可以直接拦截并替换宿主内部 Service 的方法。
+
+```typescript
+export default {
+  activate(context: PluginContext) {
+    // 拦截 chatStore 的 sendMessage 方法
+    context.patch("chatStore", "sendMessage", async (original, ...args) => {
+      console.log("拦截到发送请求，参数为:", args);
+
+      // 执行原逻辑（洋葱模型）
+      const result = await original(...args);
+
+      console.log("发送完成，结果为:", result);
+      return result;
+    });
+  },
+};
+```
+
+#### 冲突处理与洋葱模型
+
+当多个插件 Patch 同一个方法时，系统遵循**洋葱模型**：
+
+1. **执行顺序**: 根据拓扑排序结果，依赖图顶层的插件（被依赖最少的）处于洋葱最外层。
+2. **传递责任**: 每个 Patch 处理器接收 `original` 参数。插件**必须**决定是否调用 `await original(...args)`。
+3. **隔离性**: 如果某个插件的 Patch 崩溃，内部的 `try...catch` 会自动回退到 `original` 逻辑，确保后续插件和宿主功能不受阻断。
+
+### 5. L4: 自由注入 (Oil Monkey Style)
+
+#### 全局 CSS 注入
+
+在 [`manifest.json`](plugins/README.md) 中声明样式表，系统会在加载时自动注入：
+
+```json
+"contributes": {
+  "stylesheets": ["style.css"]
+}
+```
+
+#### DOM Patch (MutationObserver 辅助)
+
+插件可以使用宿主提供的工具函数，在特定 DOM 元素出现时挂载自定义组件或注入样式：
+
+```typescript
+import MyFloatingPanel from "./components/MyFloatingPanel.vue";
+
+export default {
+  activate(context: PluginContext) {
+    // 注入全局样式
+    context.ui.injectStyle(`
+      .my-custom-highlight {
+        border: 2px solid var(--el-color-primary);
+      }
+    `);
+
+    // 监听特定 DOM 出现并挂载组件
+    context.ui.observe(".chat-input-area", (el) => {
+      const container = document.createElement("div");
+      el.appendChild(container);
+
+      // 手动挂载 Vue 组件
+      context.ui.mount(MyFloatingPanel, container, {
+        title: "快捷面板",
+      });
+    });
+  },
+};
+```
+
+### 6. 自动清理与容错机制
+
+为了防止插件卸载后留下“烂摊子”，系统提供了完善的自动清理机制：
+
+- **自动撤销**: 插件注销（`deactivate`）时，系统会自动清理该插件关联的所有 `Proxy` 拦截器、`Hook` 监听器、注入的 `<style>` 标签以及挂载的 Vue 实例。
+- **错误边界 (Error Boundary)**: 所有插件生命周期函数（`activate`）和回调（`tap`/`patch`/`observe`）均运行在宿主的错误边界内，单个插件崩溃绝不会导致主应用白屏。
+
+---
 
 ## 开发模式
 

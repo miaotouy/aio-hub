@@ -31,7 +31,9 @@ const store = useWindowAutomatorStore();
 /** 当前正在编辑的子流程对象（从 store 实时推导） */
 const editingSub = computed(() => {
   if (!props.subFlowId) return null;
-  return store.currentFlow?.subFlows?.find((s) => s.id === props.subFlowId) ?? null;
+  return (
+    store.currentFlow?.subFlows?.find((s) => s.id === props.subFlowId) ?? null
+  );
 });
 
 /** 本地草稿状态，不直接改 store，点“保存”才提交 */
@@ -51,9 +53,7 @@ const formValid = computed(() => {
 function isNameDuplicate(idx: number): boolean {
   const me = paramsDraft.value[idx]?.name?.trim();
   if (!me) return false;
-  return paramsDraft.value.some(
-    (p, i) => i !== idx && p.name.trim() === me
-  );
+  return paramsDraft.value.some((p, i) => i !== idx && p.name.trim() === me);
 }
 
 watch(
@@ -134,8 +134,9 @@ function save() {
 
       <div class="section-title">形参列表</div>
       <div class="params-hint">
-        在他处调用本函数时会作为实参传入。
-        在函数内部可用 <code v-pre>{{name}}</code> 引用，也会作为局部变量在 log / goto 等场景插值。
+        在他处调用本函数时会作为实参传入。 在函数内部可用
+        <code v-pre>{{ name }}</code> 引用，也会作为局部变量在 log / goto
+        等场景插值。
       </div>
 
       <div v-if="paramsDraft.length === 0" class="empty-hint">
@@ -143,16 +144,12 @@ function save() {
       </div>
 
       <div v-else class="params-list">
-        <div
-          v-for="(p, idx) in paramsDraft"
-          :key="idx"
-          class="param-row"
-        >
+        <div v-for="(p, idx) in paramsDraft" :key="idx" class="param-row">
           <el-input
             v-model="p.name"
             placeholder="名称（英文 ID）"
             size="small"
-            :class="{ 'name-input': true, 'invalid': isNameDuplicate(idx) }"
+            :class="{ 'name-input': true, invalid: isNameDuplicate(idx) }"
           />
           <el-input
             v-model="p.label"
@@ -177,21 +174,28 @@ function save() {
             </button>
           </el-tooltip>
         </div>
-        <div v-if="paramsDraft.some((_, i) => isNameDuplicate(i))" class="row-warning">
+        <div
+          v-if="paramsDraft.some((_, i) => isNameDuplicate(i))"
+          class="row-warning"
+        >
           存在重复的形参名，请修改后再保存。
         </div>
       </div>
 
-      <el-button class="add-param-btn" :icon="Plus" size="small" @click="addParam">
+      <el-button
+        class="add-param-btn"
+        :icon="Plus"
+        size="small"
+        @click="addParam"
+      >
         添加形参
       </el-button>
 
       <div class="section-title">返回值</div>
       <div class="return-hint">
         填写一个局部变量名（例如 <code>ocr_result</code>），
-        子流程跳出时会把该变量的值传回调用方。
-        调用方可以在 call 步骤中配置“保存到变量”来接收。
-        留空表示不返回任何值。
+        子流程跳出时会把该变量的值传回调用方。 调用方可以在 call
+        步骤中配置“保存到变量”来接收。 留空表示不返回任何值。
       </div>
       <el-input
         v-model="returnVarDraft"
@@ -202,7 +206,9 @@ function save() {
 
     <template #footer>
       <el-button @click="close">取消</el-button>
-      <el-button type="primary" :disabled="!formValid" @click="save">保存</el-button>
+      <el-button type="primary" :disabled="!formValid" @click="save"
+        >保存</el-button
+      >
     </template>
   </BaseDialog>
 </template>

@@ -23,7 +23,10 @@ export function cloneStep(step: FlowStep): FlowStep {
   return JSON.parse(JSON.stringify(step)) as FlowStep;
 }
 
-export function clearDeletedStepRefs(step: FlowStep, removedId: string): number {
+export function clearDeletedStepRefs(
+  step: FlowStep,
+  removedId: string
+): number {
   const c = step.stepConfig;
   let cleared = 0;
   const clearField = (params: object, field: string) => {
@@ -190,7 +193,8 @@ export function extractSelectedToSubFlow(
   if (options.stepIds.length === 0) return { subFlow: null, clearedRefs: 0 };
 
   const sourceSubFlow = options.currentSubFlowId
-    ? flow.subFlows?.find((sub) => sub.id === options.currentSubFlowId) ?? null
+    ? (flow.subFlows?.find((sub) => sub.id === options.currentSubFlowId) ??
+      null)
     : null;
   const sourceSteps = sourceSubFlow ? sourceSubFlow.steps : flow.steps;
   const selectedIds = Array.from(new Set(options.stepIds));

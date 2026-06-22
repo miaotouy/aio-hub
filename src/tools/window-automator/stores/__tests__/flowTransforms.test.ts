@@ -69,9 +69,10 @@ describe("flowTransforms", () => {
       ...step("sub-call", "call"),
       stepConfig: { type: "call", params: { targetSubFlowId: "sub-old" } },
     };
-    const source = makeFlow([mainGoto, target, mainCall], [
-      { id: "sub-old", name: "Sub", steps: [subOcr, subTarget, subCall] },
-    ]);
+    const source = makeFlow(
+      [mainGoto, target, mainCall],
+      [{ id: "sub-old", name: "Sub", steps: [subOcr, subTarget, subCall] }]
+    );
 
     const cloned = cloneFlowWithFreshIds(source, {
       flowId: "flow-new",
@@ -92,12 +93,20 @@ describe("flowTransforms", () => {
     expect(cloned.name).toBe("Flow copy");
     expect(cloned.subFlows?.[0]?.id).toBe("sub-new");
     expect(
-      (cloned.steps[0]!.stepConfig as Extract<FlowStep["stepConfig"], { type: "goto" }>).params
-        .targetStepId
+      (
+        cloned.steps[0]!.stepConfig as Extract<
+          FlowStep["stepConfig"],
+          { type: "goto" }
+        >
+      ).params.targetStepId
     ).toBe("main-target-new");
     expect(
-      (cloned.steps[2]!.stepConfig as Extract<FlowStep["stepConfig"], { type: "call" }>).params
-        .targetSubFlowId
+      (
+        cloned.steps[2]!.stepConfig as Extract<
+          FlowStep["stepConfig"],
+          { type: "call" }
+        >
+      ).params.targetSubFlowId
     ).toBe("sub-new");
     const clonedSub = cloned.subFlows![0]!;
     const clonedOcr = clonedSub.steps[0]!.stepConfig as Extract<
@@ -107,8 +116,12 @@ describe("flowTransforms", () => {
     expect(clonedOcr.params.matchGoto).toBe("sub-target-new");
     expect(clonedOcr.params.mismatchGoto).toBe("sub-target-new");
     expect(
-      (clonedSub.steps[2]!.stepConfig as Extract<FlowStep["stepConfig"], { type: "call" }>).params
-        .targetSubFlowId
+      (
+        clonedSub.steps[2]!.stepConfig as Extract<
+          FlowStep["stepConfig"],
+          { type: "call" }
+        >
+      ).params.targetSubFlowId
     ).toBe("sub-new");
   });
 
@@ -128,12 +141,20 @@ describe("flowTransforms", () => {
 
     expect(cleared).toBe(1);
     expect(
-      (flow.steps[0]!.stepConfig as Extract<FlowStep["stepConfig"], { type: "goto" }>).params
-        .targetStepId
+      (
+        flow.steps[0]!.stepConfig as Extract<
+          FlowStep["stepConfig"],
+          { type: "goto" }
+        >
+      ).params.targetStepId
     ).toBe("");
     expect(
-      (flow.steps[1]!.stepConfig as Extract<FlowStep["stepConfig"], { type: "call" }>).params
-        .targetSubFlowId
+      (
+        flow.steps[1]!.stepConfig as Extract<
+          FlowStep["stepConfig"],
+          { type: "call" }
+        >
+      ).params.targetSubFlowId
     ).toBe(removedId);
   });
 

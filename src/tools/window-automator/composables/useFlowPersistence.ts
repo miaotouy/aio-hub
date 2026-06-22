@@ -102,8 +102,7 @@ export function normalizeActionFlow(value: unknown): ActionFlow | null {
   if (!subFlows) return null;
   return {
     ...(value as unknown as ActionFlow),
-    description:
-      typeof value.description === "string" ? value.description : "",
+    description: typeof value.description === "string" ? value.description : "",
     targetWindow: isRecord(value.targetWindow)
       ? {
           title:

@@ -145,9 +145,10 @@ export function interpolateVariables(
   variables: Record<string, string> | VariablesScope
 ): string {
   // 兼容旧版签名：传入纯 Record 时包成 { global } 走新逻辑。
-  const scope: VariablesScope = variables && !('local' in variables)
-    ? { global: variables as Record<string, string> }
-    : (variables as VariablesScope);
+  const scope: VariablesScope =
+    variables && !("local" in variables)
+      ? { global: variables as Record<string, string> }
+      : (variables as VariablesScope);
   return text.replace(/\{([a-zA-Z0-9_]+)\}/g, (full, key: string) => {
     const v = lookup(scope, key);
     return v ?? full;

@@ -22,10 +22,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useWindowAutomatorStore } from "../stores/windowAutomator.store";
 import { executeStep, StepExecContext } from "./stepExecutors";
-import {
-  ClientSize,
-  interpolateVariables,
-} from "./flowUtils";
+import { ClientSize, interpolateVariables } from "./flowUtils";
 import type {
   ActionFlow,
   ExecutorCallFrame,
@@ -236,7 +233,7 @@ export function useFlowExecutor() {
           subFlowId: activeSubFlowId,
           subFlowName: findSubFlow(activeSubFlowId)?.name ?? "(已删除)",
           callerStepId: f.steps[f.stepIndex]?.id ?? "",
-          stepIndex: isLast ? nextIndex : nextFrame?.stepIndex ?? f.stepIndex,
+          stepIndex: isLast ? nextIndex : (nextFrame?.stepIndex ?? f.stepIndex),
         });
       }
       store.runtime.currentCallStack = cleaned;
@@ -346,10 +343,9 @@ export function useFlowExecutor() {
         if (Array.isArray(target.params)) {
           for (const p of target.params) {
             if (!p?.name) continue;
-            newLocal[p.name] = interpolateVariables(
-              p.defaultValue ?? "",
-              { global: store.runtime.variables }
-            );
+            newLocal[p.name] = interpolateVariables(p.defaultValue ?? "", {
+              global: store.runtime.variables,
+            });
           }
         }
         const argOverrides = params.params.arguments;

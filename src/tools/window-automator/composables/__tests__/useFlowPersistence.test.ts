@@ -74,7 +74,9 @@ describe("parseActionFlowText", () => {
         JSON.stringify({
           id: "flow-1",
           name: "Flow",
-          steps: [{ ...validStep, stepConfig: { type: "unknown", params: {} } }],
+          steps: [
+            { ...validStep, stepConfig: { type: "unknown", params: {} } },
+          ],
         })
       )
     ).toBeNull();

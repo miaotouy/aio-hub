@@ -33,36 +33,47 @@
 
 ## 前置要求
 
-### 技术栈
+### 运行时约束
 
-- **Vue 3**：使用 Composition API（推荐）。
-- **ES Modules**：组件必须是编译后的 ESM 格式。
-- **Tauri API**：用于与后端通信。
+插件 UI 的**唯一硬性约束**是：最终产物必须是一个 **ESM 格式的 JavaScript 文件**，且 `export default` 导出一个 **Vue 组件对象**。
+
+这是因为主应用使用 Vue 3 作为渲染引擎，插件组件最终会被 Vue 的路由和渲染系统消费。但这并不意味着你必须使用 Vue 框架来编写 UI——你只需要确保导出的对象符合 Vue 组件的接口即可。
+
+**满足约束的方式有很多**：
+
+- **Vue SFC**（推荐，开发体验最好）：使用 `.vue` 单文件组件，开发模式下享受 HMR。
+- **纯 JavaScript**：直接手写一个带 `setup()` 或 `render()` 函数的对象，用 `h()` 构建 DOM——这不需要任何构建工具。
+- **原生 DOM**：在组件的 `onMounted` 生命周期中使用原生 DOM API 操控容器元素，适合不想学 Vue 模板语法的开发者。
+- **iframe 嵌入**：渲染一个 `<iframe>` 加载你自己的 HTML 页面，内部用任何技术栈（React、Svelte、纯 HTML/CSS/JS 皆可）。
+- **其他框架编译产物**：用 React/Preact/Solid 等框架开发，最终在 Vue 组件的 `setup` 中将其挂载到容器 DOM 节点上。
 
 ### 开发模式支持
 
-在开发模式下（`bun run dev`），插件可以直接使用 `.vue` 单文件组件，无需手动编译。
-
-- 直接使用 `.vue` 单文件组件，无需手动编译。
-- 享受 Vite 提供的 HMR（热模块替换）。
-- 使用完整的 Vue SFC 特性（`<template>`、`<script setup>`、`<style scoped>`）。
+- **Vue 插件（一等支持）**：当主应用以开发模式运行（`bun run dev`）时，Vite 开发服务器会自动接管 `/plugins/` 目录。Vue 插件可以直接使用 `.vue` 单文件组件，无需手动编译，并享受 HMR（热模块替换）和完整的 SFC 特性（`<template>`、`<script setup>`、`<style scoped>`）。
+- **纯 JS 插件**：直接在插件目录放一个 `.js` 或 `.mjs` 文件，导出 Vue 组件对象即可。Vite 同样会自动发现并加载。
+- **非 Vue 技术栈/独立开发服务器**：如果插件使用非 Vue 技术栈（如 React、Preact、纯 HTML 等），开发者可以在插件目录内自行开启独立的开发服务器。在开发时，可以通过配置将主应用指向该本地开发服务器的 URL（例如 `http://localhost:6173/`），从而实现跨框架的开发与调试。
 
 ### 生产模式约束
 
-生产模式下插件 UI 组件仍需编译为 JavaScript 文件（`.js` 或 `.mjs`）。
+生产模式下，插件 UI 必须是已经就绪的 JavaScript 文件（`.js` 或 `.mjs`）。
+
+- 如果你使用 Vue SFC 开发，需要通过构建工具（如 Vite）将 `.vue` 编译为 `.js`。
+- 如果你直接用纯 JS 编写组件，**无需任何编译步骤**，直接提供 `.js` 文件即可。
+- 如果你用其他框架开发，需要将其构建为 ESM 格式的 JS 文件，并在其中导出一个 Vue 组件包装器。
 
 原因：
 
 - 生产环境的插件位于用户的 appData 目录。
-- 无法通过 Vite 动态编译。
-- 需要通过 `convertFileSrc` API 加载。
+- 无法通过 Vite 动态编译 `.vue` 文件。
+- 通过 `convertFileSrc` API 加载本地文件。
 
 ### 开发工具链
 
-- **开发模式**：直接使用 `.vue` 文件，无需构建工具，自动 HMR。
-- **生产模式**：需要构建流程将 `.vue` 编译为 `.js`。
-  - **推荐方案**：使用 `vite` + `@vitejs/plugin-vue`。
-  - **备选方案**：使用 Vue 3 的 `h()` 渲染函数手写组件。
+- **纯 JS 方案（零构建）**：直接编写 `.js` 文件，导出 Vue 组件对象。开发和生产都不需要构建步骤。
+- **Vue SFC 方案（推荐）**：
+  - 开发模式：直接使用 `.vue` 文件，自动 HMR，无需构建。
+  - 生产模式：使用 `vite` + `@vitejs/plugin-vue` 编译为 `.js`。
+- **其他框架方案**：自行搭建构建流程，最终产出 ESM 格式的 JS 文件。
 
 ---
 
@@ -104,14 +115,126 @@
 
 ## UI 组件开发
 
-无论插件的后端类型（JavaScript, Native, Sidecar）是什么，UI 的开发方式都是统一的。核心技术栈是 **Vue 3**，开发体验由主应用的 **Vite** 服务器驱动。
+无论插件的后端类型（JavaScript, Native, Sidecar）是什么，UI 的开发方式都是统一的：导出一个 Vue 组件对象。开发体验由主应用的 **Vite** 服务器驱动。
 
-### 核心开发模式：使用 Vue 单文件组件
+### 方式一：纯 JavaScript（零依赖，零构建）
 
-这是开发插件 UI 的 **唯一推荐方式**。
+对于不想引入任何框架和构建工具的开发者，直接手写一个 JS 文件是最轻量的方案：
 
-- **简单插件**：可以只有一个入口 `.vue` 文件。
-- **复杂插件**：可以将 UI 拆分成多个组件，放在 `components/` 目录下，由一个主入口 `.vue` 文件导入和组织。
+```javascript
+// MyPlugin.js
+import { ref, h, onMounted, onUnmounted } from "vue";
+import { execute } from "aiohub-sdk";
+
+export default {
+  setup() {
+    const container = ref(null);
+    const result = ref("");
+
+    async function doSomething() {
+      const res = await execute({
+        service: "my-plugin",
+        method: "process",
+        params: {},
+      });
+      result.value = res.success ? res.data : "失败";
+    }
+
+    return () =>
+      h("div", { style: "padding: 20px;" }, [
+        h("h2", "我的插件"),
+        h("button", { onClick: doSomething }, "执行"),
+        h("p", result.value),
+      ]);
+  },
+};
+```
+
+对应的 `manifest.json`：
+
+```json
+{
+  "ui": {
+    "displayName": "My Plugin",
+    "component": "MyPlugin.js",
+    "icon": "🔧"
+  }
+}
+```
+
+这种方式开发和发布都不需要任何编译步骤。
+
+#### 原生 DOM 方案
+
+如果你更习惯操作原生 DOM（比如从纯 HTML/JS 背景来的开发者），可以在 Vue 组件的生命周期中接管容器：
+
+```javascript
+// MyNativePlugin.js
+import { ref, h, onMounted, onUnmounted } from "vue";
+
+export default {
+  setup() {
+    const containerRef = ref(null);
+
+    onMounted(() => {
+      const el = containerRef.value;
+      // 从这里开始，你可以完全用原生 DOM API
+      el.innerHTML = `
+        <h2>原生 DOM 插件</h2>
+        <input id="my-input" placeholder="输入内容..." />
+        <button id="my-btn">提交</button>
+        <div id="my-output"></div>
+      `;
+
+      el.querySelector("#my-btn").addEventListener("click", () => {
+        const value = el.querySelector("#my-input").value;
+        el.querySelector("#my-output").textContent = `你输入了: ${value}`;
+      });
+    });
+
+    onUnmounted(() => {
+      // 清理资源（如果有）
+    });
+
+    return () => h("div", { ref: containerRef, style: "padding: 20px;" });
+  },
+};
+```
+
+#### iframe 方案
+
+如果你有现成的 HTML 页面，或者想使用完全独立的技术栈（React、Svelte 等），可以通过 iframe 嵌入：
+
+```javascript
+// MyIframePlugin.js
+import { h } from "vue";
+
+export default {
+  setup() {
+    // 指向你自己的 HTML 文件（放在插件目录中）
+    // 注意：生产模式下需要用 convertFileSrc 处理路径
+    return () =>
+      h("iframe", {
+        src: "./my-app.html", // 相对于插件目录
+        style: "width: 100%; height: 100%; border: none;",
+      });
+  },
+};
+```
+
+### 方式二：Vue 单文件组件（推荐）
+
+这是开发体验最好的方式，尤其适合使用主应用提供的 UI 组件库和 SDK。
+
+> 💡 **澄清误区：支持完整的组件化开发**
+>
+> 这里的"单文件组件（SFC）"指的是 Vue 的开发格式，**绝不意味着**你必须把成百上千行的 UI 代码全部塞进一个单一的 `.vue` 文件中。
+>
+> 插件完全支持标准的模块化与组件化开发：
+>
+> - **简单插件**：可以只有一个入口 `.vue` 文件。
+> - **复杂插件**：你可以在插件目录中自由创建子目录和子组件（例如 `components/SubCard.vue`、`utils/helper.ts`），并在主入口 `.vue` 文件中通过相对路径直接导入（如 `import SubCard from './components/SubCard.vue'`）。
+> - **自动解析与 HMR**：在开发模式下，主应用的 Vite 服务器会自动递归解析这些相对导入，并为所有子组件、子模块提供同样丝滑的 HMR（热重载）支持。
 
 Vite 会自动处理组件之间的依赖关系，无论你的项目结构如何。
 
@@ -527,6 +650,17 @@ A:
 - **开发模式**：支持直接使用 `.vue` 文件，享受 Vite HMR，无需手动编译。
 - **生产模式**：需要预先将 `.vue` 编译为 `.js` 文件，因为生产环境无法动态编译。
 
+### Q: 必须把所有 UI 代码写在一个 `.vue` 文件里吗？
+
+A: 完全不需要！你可以像开发普通 Vue 项目一样，将 UI 拆分为任意多个子组件（如 `components/Header.vue`、`components/List.vue` 等），并在入口 `.vue` 文件中通过相对路径导入。主应用的 Vite 开发服务器会自动解析并热重载所有关联的子组件。
+
+### Q: 如果我想用 React 或其他非 Vue 框架开发插件 UI 可以吗？
+
+A: 可以。虽然主应用默认对 Vue `.vue` 文件提供了开箱即用的免编译 HMR 支持，但对于非 Vue 框架，你可以：
+
+1. **开发阶段**：在插件目录内自行初始化一个前端项目，启动你自己的本地开发服务器（如 `localhost:3000`），并在开发配置中让主应用加载该本地服务地址。
+2. **生产阶段**：使用你自己的构建工具（如 Vite、Webpack）将项目打包编译为单体 JavaScript 文件（ESM 格式），并在 `manifest.json` 的 `component` 字段中指向该编译产物。
+
 ### Q: 如何访问主应用的功能？
 
 A: 通过导入主应用的 composables、工具函数和组件：
@@ -566,13 +700,18 @@ import { ElButton } from "element-plus";
 </script>
 ```
 
+### Q: 必须使用 Vue 框架吗？
+
+A: 不是。你只需要导出一个符合 Vue 组件接口的对象（最简单的形式就是一个带 `setup()` 函数的对象）。组件内部你可以用原生 DOM API、iframe 嵌入其他框架的页面，或者在 `onMounted` 中挂载 React/Preact 等其他框架的组件树。Vue 只是宿主环境的渲染引擎，不是插件开发的强制依赖。
+
 ### Q: 推荐使用哪种开发方式？
 
 A:
 
-- **开发阶段**：优先使用 `.vue` 文件，开发体验最好。
-- **发布阶段**：编译为 `.js` 文件，确保跨环境兼容性。
-- **简单组件**：可以直接手写 `h()` 函数，无需编译。
+- **想要最好的开发体验**：使用 `.vue` 文件，享受 HMR 和 scoped CSS。
+- **想要零构建零依赖**：直接写 `.js` 文件，用 `h()` 或原生 DOM，开发和发布都不需要编译。
+- **想用其他框架**：用 iframe 嵌入，或者在 Vue 组件的 `onMounted` 中挂载你的框架。
+- **发布阶段**：确保最终产物是 `.js` 文件（纯 JS 方案无需额外步骤）。
 
 ---
 

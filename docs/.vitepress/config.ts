@@ -614,7 +614,7 @@ export default withMermaid({
             { text: "异步任务与进度汇报", link: "/guide/plugins/async-tasks" },
             {
               text: "插件 UI 开发",
-              link: "/guide/plugin-ui-development-guide",
+              link: "/guide/plugins/plugin-ui",
             },
             // ==== GUIDE_PLUGINS 插入点 ====
           ],

@@ -12,15 +12,15 @@ AIO Hub 的插件系统基于现有的服务架构，支持三种类型的插件
 
 ## 文档导航
 
-| 文档                                              | 内容                                                              |
-| ------------------------------------------------- | ----------------------------------------------------------------- |
-| [JavaScript 插件开发](./js-plugin.md)             | JS 插件完整开发流程：目录结构、manifest、生命周期、Agent 暴露方法 |
-| [原生插件开发](./native-plugin.md)                | Native 插件：ABI 契约、Rust 示例、内存管理、热重载                |
-| [Sidecar 插件开发](./sidecar-plugin.md)           | Sidecar 插件：通信协议、持久型模式、Broker 中转                   |
-| [钩子与扩展系统](./hooks-and-extensions.md)       | L1-L4 四层扩展能力：结构化钩子、UI 插槽、Service Patch、自由注入  |
-| [异步任务与进度汇报](./async-tasks.md)            | 耗时操作的异步执行、进度反馈与取消支持                            |
-| [插件 UI 开发](../plugin-ui-development-guide.md) | Vue 组件集成、Vite 构建配置、UI 插槽                              |
-| [LLM Chat 插件开发](../llm-chat-plugin-guide.md)  | 聊天模块扩展：Context Pipeline、设置面板                          |
+| 文档                                             | 内容                                                              |
+| ------------------------------------------------ | ----------------------------------------------------------------- |
+| [JavaScript 插件开发](./js-plugin.md)            | JS 插件完整开发流程：目录结构、manifest、生命周期、Agent 暴露方法 |
+| [原生插件开发](./native-plugin.md)               | Native 插件：ABI 契约、Rust 示例、内存管理、热重载                |
+| [Sidecar 插件开发](./sidecar-plugin.md)          | Sidecar 插件：通信协议、持久型模式、Broker 中转                   |
+| [钩子与扩展系统](./hooks-and-extensions.md)      | L1-L4 四层扩展能力：结构化钩子、UI 插槽、Service Patch、自由注入  |
+| [异步任务与进度汇报](./async-tasks.md)           | 耗时操作的异步执行、进度反馈与取消支持                            |
+| [插件 UI 开发](./plugin-ui.md)                   | Vue 组件集成、Vite 构建配置、UI 插槽                              |
+| [LLM Chat 插件开发](../llm-chat-plugin-guide.md) | 聊天模块扩展：Context Pipeline、设置面板                          |
 
 ## Manifest 通用字段
 
@@ -50,7 +50,7 @@ AIO Hub 的插件系统基于现有的服务架构，支持三种类型的插件
 - **dependencies**: 插件依赖的其他插件及其版本范围（如 `{"chat-core": ">=1.0.0"}`）
 - **optionalDependencies**: 可选依赖的插件（如 `{"theme-manager": "*"}`）
 - **incompatibleWith**: 冲突的插件 ID 数组（如 `["old-chat-plugin"]`）
-- **ui**: UI 组件配置（详见 [插件 UI 开发](../plugin-ui-development-guide.md)）
+- **ui**: UI 组件配置（详见 [插件 UI 开发](./plugin-ui.md)）
 - **contributions**: 插件向宿主应用声明的扩展能力数组
 - **permissions**: 权限声明（未来功能）
 

@@ -14,6 +14,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { detectFileType } from "@/utils/fileTypeDetector";
+import { sanitizeImageFiles } from "../utils/fileName";
 
 const props = defineProps<{
   uploadedImages: UploadedImage[];
@@ -158,39 +159,11 @@ const handleFiles = async (files: FileList | File[]) => {
   // 获取当前已有的文件名集合，用于查重
   const existingNames = new Set(props.uploadedImages.map((img) => img.name));
 
-  for (let file of imageFiles) {
+  // 使用工具函数进行批量清洗与查重
+  const sanitizedFiles = sanitizeImageFiles(imageFiles, existingNames);
+
+  for (const file of sanitizedFiles) {
     try {
-      let fileName = file.name;
-
-      // 1. 如果是默认的粘贴截图名字，赋予一个带时间戳的友好名字
-      if (fileName === "image.png") {
-        const now = new Date();
-        const timeStr = `${String(now.getHours()).padStart(2, "0")}${String(
-          now.getMinutes()
-        ).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
-        fileName = `截图_${timeStr}.png`;
-      }
-
-      // 2. 如果重名，自动加上序号后缀，如 "file (1).png"
-      let finalName = fileName;
-      let counter = 1;
-      const lastDotIndex = fileName.lastIndexOf(".");
-      const baseName =
-        lastDotIndex !== -1 ? fileName.slice(0, lastDotIndex) : fileName;
-      const ext = lastDotIndex !== -1 ? fileName.slice(lastDotIndex) : "";
-
-      while (existingNames.has(finalName)) {
-        finalName = `${baseName} (${counter})${ext}`;
-        counter++;
-      }
-
-      existingNames.add(finalName);
-
-      // 如果名字改变了，重新包装成 File 对象
-      if (finalName !== file.name) {
-        file = new File([file], finalName, { type: file.type });
-      }
-
       const img = await loadImage(file);
       const id = `img-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 

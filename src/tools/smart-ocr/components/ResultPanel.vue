@@ -47,6 +47,7 @@ const emit = defineEmits<{
   cancelActive: [];
   toggleIgnore: [blockId: string];
   updateText: [blockId: string, text: string];
+  selectImage: [imageId: string];
 }>();
 
 // 是否有失败的结果
@@ -205,9 +206,15 @@ const handleRetry = (blockId: string) => {
 const handleToggleIgnore = (blockId: string) => {
   emit("toggleIgnore", blockId);
 };
-
 // 切换图片组折叠状态
 const toggleGroupCollapse = (imageId: string) => {
+  // 反向联动：如果点击的不是当前选中的图片，同步切换选中状态
+  if (imageId !== props.selectedImageId) {
+    emit("selectImage", imageId);
+    return;
+  }
+
+  // 点击当前选中的分组，切换折叠
   if (collapsedGroups.value.has(imageId)) {
     collapsedGroups.value.delete(imageId);
   } else {
@@ -265,12 +272,17 @@ const cancelEdit = () => {
 const isEditing = (blockId: string) => {
   return editingBlockId.value === blockId;
 };
-// 监听选中图片变化，自动展开对应分组并滚动到可视区域
+// 监听选中图片变化：智能聚焦折叠 + 自动滚动
 watch(
   () => props.selectedImageId,
   async (newId) => {
     if (newId) {
-      // 1. 确保当前选中的图片分组不被折叠
+      // 1. 智能聚焦折叠：折叠其他分组，展开当前选中
+      props.uploadedImages.forEach((img) => {
+        if (img.id !== newId) {
+          collapsedGroups.value.add(img.id);
+        }
+      });
       collapsedGroups.value.delete(newId);
 
       // 2. 自动滚动到对应分组

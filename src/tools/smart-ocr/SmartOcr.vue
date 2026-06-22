@@ -255,8 +255,13 @@ const handleLoadRecord = async (recordId: string) => {
       return;
     }
 
+    // 从 assetPath 中提取原始文件名
+    const originalName =
+      fullRecord.assetPath.split(/[/\\]/).pop() ||
+      `历史记录_${fullRecord.id.slice(0, 8)}.png`;
+
     const assetBinary = await getAssetBinary(fullRecord.assetPath);
-    const file = new File([assetBinary], fullRecord.id, {
+    const file = new File([assetBinary], originalName, {
       type: fullRecord.assetMimeType,
     });
 
@@ -287,8 +292,13 @@ const handleReRecognize = async (recordId: string) => {
       return;
     }
 
+    // 从 assetPath 中提取原始文件名
+    const originalName =
+      fullRecord.assetPath.split(/[/\\]/).pop() ||
+      `历史记录_${fullRecord.id.slice(0, 8)}.png`;
+
     const assetBinary = await getAssetBinary(fullRecord.assetPath);
-    const file = new File([assetBinary], fullRecord.id, {
+    const file = new File([assetBinary], originalName, {
       type: fullRecord.assetMimeType,
     });
 
@@ -473,6 +483,7 @@ const handleReRecognize = async (recordId: string) => {
             @cancel-active="handleCancelActive"
             @toggle-ignore="handleToggleIgnore"
             @update-text="handleUpdateText"
+            @select-image="handleImageSelect"
           />
         </div>
       </div>

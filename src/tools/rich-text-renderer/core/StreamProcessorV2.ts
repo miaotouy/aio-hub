@@ -1038,6 +1038,18 @@ export class StreamProcessorV2 {
 
       // 检查子节点
       if (oldNode.children || newNode.children) {
+        const oldLen = oldNode.children?.length ?? 0;
+        const newLen = newNode.children?.length ?? 0;
+
+        // 如果子节点从无到有或从有到无，直接 replace-node
+        // 因为 diffAst 在非根级别无法正确处理 "旧列表为空" 的情况（缺少插入锚点）
+        if ((oldLen === 0) !== (newLen === 0)) {
+          if (oldNode.children && newNode.children) {
+            this.syncChildrenIds(oldNode.children, newNode.children);
+          }
+          return [{ op: "replace-node", id: oldNode.id, newNode }];
+        }
+
         // 同步子节点 ID 后再进行 diff
         if (oldNode.children && newNode.children) {
           this.syncChildrenIds(oldNode.children, newNode.children);

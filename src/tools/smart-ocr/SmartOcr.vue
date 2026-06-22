@@ -467,6 +467,7 @@ const handleReRecognize = async (recordId: string) => {
             :is-processing="isProcessing"
             :uploaded-images="uploadedImages"
             :image-blocks-map="imageBlocksMap"
+            :selected-image-id="selectedImageId"
             @retry-block="handleRetryBlock"
             @retry-all-failed="handleRetryAllFailed"
             @cancel-active="handleCancelActive"

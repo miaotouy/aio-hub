@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch, nextTick } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import {
   CopyDocument,
@@ -38,6 +38,7 @@ const props = defineProps<{
   isProcessing: boolean;
   uploadedImages: UploadedImage[];
   imageBlocksMap: Map<string, ImageBlock[]>;
+  selectedImageId?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -264,6 +265,24 @@ const cancelEdit = () => {
 const isEditing = (blockId: string) => {
   return editingBlockId.value === blockId;
 };
+// 监听选中图片变化，自动展开对应分组并滚动到可视区域
+watch(
+  () => props.selectedImageId,
+  async (newId) => {
+    if (newId) {
+      // 1. 确保当前选中的图片分组不被折叠
+      collapsedGroups.value.delete(newId);
+
+      // 2. 自动滚动到对应分组
+      await nextTick();
+      const element = document.getElementById(`group-${newId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    }
+  },
+  { immediate: true }
+);
 </script>
 
 <template>
@@ -326,9 +345,15 @@ const isEditing = (blockId: string) => {
           <div
             v-for="[imageId, results] in groupedResults"
             :key="imageId"
+            :id="`group-${imageId}`"
             class="image-group"
+            :class="{ 'is-selected-group': imageId === selectedImageId }"
           >
-            <div class="group-header" @click="toggleGroupCollapse(imageId)">
+            <div
+              class="group-header"
+              :class="{ 'is-active': imageId === selectedImageId }"
+              @click="toggleGroupCollapse(imageId)"
+            >
               <div class="group-header-left">
                 <el-icon class="collapse-icon">
                   <component
@@ -598,8 +623,33 @@ const isEditing = (blockId: string) => {
   border-radius: 6px;
   border: var(--border-width) solid var(--border-color);
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.2s ease;
   user-select: none;
+}
+
+.group-header.is-active {
+  border-color: var(--el-color-primary);
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.08)
+  );
+  box-shadow: 0 0 8px rgba(var(--el-color-primary-rgb), 0.15);
+}
+
+.image-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  padding: 2px;
+}
+
+.image-group.is-selected-group {
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.02)
+  );
 }
 .group-header-left {
   display: flex;

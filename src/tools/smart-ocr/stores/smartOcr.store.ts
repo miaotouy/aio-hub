@@ -67,7 +67,11 @@ export const useSmartOcrStore = defineStore("smart-ocr", {
     updateOcrResults(results: OcrResult[]) {
       const newResults = [...this.ocrResults];
       for (const result of results) {
-        const index = newResults.findIndex((r) => r.blockId === result.blockId);
+        // 必须同时匹配 blockId 和 imageId，因为 blockId 只在单张图片内唯一
+        // （整图识别模式下所有图片的 blockId 都是 "full"）
+        const index = newResults.findIndex(
+          (r) => r.blockId === result.blockId && r.imageId === result.imageId
+        );
         if (index !== -1) {
           newResults[index] = result;
         } else {

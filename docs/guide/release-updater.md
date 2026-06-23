@@ -76,7 +76,44 @@ TAURI_SIGNING_PRIVATE_KEY_PASSWORD
    - 对应 `.sig`
    - `latest.json`
 5. 发布草稿 Release。
-6. 从旧版本应用内点击“检查更新”，验证下载、安装、重启。
+6. 从旧版本应用内点击"检查更新"，验证下载、安装、重启。
+
+## 更新通道 (Update Channel)
+
+应用内置两种更新通道，用户可在**设置 > 关于 > 更新通道**中查看和切换：
+
+| 通道                | 说明                                  | 检查源                                | 安装方式                           |
+| ------------------- | ------------------------------------- | ------------------------------------- | ---------------------------------- |
+| **稳定版 (Stable)** | 仅检查经过充分测试的正式版本          | Tauri Updater → GitHub Latest Release | 应用内自动安装                     |
+| **预发布版 (Beta)** | 包含最新的 Alpha / Beta / RC 预览版本 | GitHub All Releases（取最新）         | 稳定版可自动安装；预发布版手动下载 |
+
+### 自动识别默认通道
+
+应用启动时会自动判断当前版本，决定默认的更新通道：
+
+- 如果当前版本号包含非数字字符（如 `alpha`、`beta`、`rc`、`-` 等），默认通道为 **预发布版 (Beta)**。
+- 如果当前版本号是纯数字版本（如 `0.6.2`），默认通道为 **稳定版 (Stable)**。
+
+用户手动选择的通道会持久化到 `localStorage`（key: `aiohub_update_channel`），覆盖自动识别的结果。
+
+### 检查逻辑
+
+**稳定版通道**：
+
+1. 优先调用 Tauri Updater（`tauri-plugin-updater` 的 `check()`），使用配置的 `latest.json`。
+2. 如果 Tauri updater 发现新版本 → 支持应用内自动安装。
+3. 如果 Tauri updater 无新版本，或检查失败 → 回退到 GitHub API (`/releases/latest`) 兜底展示。
+4. 兜底结果的 `installable: false`，用户需手动下载。
+
+**预发布版通道**：
+
+1. 直接请求 GitHub API (`/releases`)，获取所有 releases 列表，取第一个（最新的）release。
+2. 如果该 release 的版本号是稳定版（无 pre-release 标识）→ 再尝试 Tauri Updater，如果匹配则支持应用内自动安装。
+3. 如果该 release 是预发布版（版本号包含 alpha/beta/rc 等）→ 仅展示更新信息，用户需前往 GitHub 手动下载（`installable: false`）。
+
+### 持久化存储
+
+用户选择的更新通道存储在 `localStorage` 中，key 为 `aiohub_update_channel`，值为 `"stable"` 或 `"beta"`。因 localStorage 是应用自有域的持久化存储，版本更新不会丢失用户偏好。
 
 ## GitHub latest 的限制
 

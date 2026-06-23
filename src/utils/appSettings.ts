@@ -177,6 +177,9 @@ export interface AppSettings {
   // 时区设置
   timezone?: string;
 
+  // 更新通道（稳定版 / 预发布版）
+  updateChannel?: "stable" | "prerelease";
+
   // 下载设置
   download?: DownloadSettings;
 

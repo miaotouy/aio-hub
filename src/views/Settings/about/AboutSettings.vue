@@ -41,6 +41,9 @@ const {
   canInstallUpdate,
   checkForUpdates,
   installUpdate,
+  updateChannel,
+  initChannel,
+  setChannel,
 } = useAppUpdater();
 
 const showUpdateProgress = computed(
@@ -162,11 +165,22 @@ const openUrl = (url: string) => {
   window.open(url, "_blank");
 };
 
+// 通道切换
+const handleChannelChange = (channel: string) => {
+  setChannel(channel as "stable" | "prerelease");
+  customMessage.success(
+    channel === "prerelease"
+      ? "已切换至预发布版更新通道"
+      : "已切换至稳定版更新通道"
+  );
+};
+
 // 初始化
 onMounted(async () => {
   try {
     appInfo.value.name = await getName();
     appInfo.value.version = await getVersion();
+    initChannel(appInfo.value.version);
   } catch (error) {
     errorHandler.handle(error as Error, {
       userMessage: "获取应用信息失败",
@@ -204,6 +218,50 @@ onMounted(async () => {
         </div>
         <p class="app-description">
           提供多种实用的开发和日常工具，以及高可控性的LLM交互。
+        </p>
+      </div>
+    </div>
+
+    <!-- 更新通道配置 -->
+    <div class="section">
+      <div class="channel-config">
+        <div class="channel-config__header">
+          <span class="channel-config__label">更新通道</span>
+          <el-tooltip
+            :content="`当前版本 ${appInfo.version} 默认通道为 ${updateChannel === 'prerelease' ? '预发布版' : '稳定版'}`"
+            placement="top"
+          >
+            <el-icon class="channel-config__hint" :size="14">
+              <Present />
+            </el-icon>
+          </el-tooltip>
+        </div>
+        <el-radio-group
+          :model-value="updateChannel"
+          class="channel-config__radios"
+          @change="handleChannelChange"
+        >
+          <el-radio-button value="stable">
+            <div class="channel-option">
+              <span class="channel-option__name">稳定版</span>
+              <span class="channel-option__desc">正式发布的版本</span>
+            </div>
+          </el-radio-button>
+          <el-radio-button value="prerelease">
+            <div class="channel-option">
+              <span class="channel-option__name">预发布版</span>
+              <span class="channel-option__desc"
+                >包含最新的 Alpha / Beta / RC 预览等，体验最新功能</span
+              >
+            </div>
+          </el-radio-button>
+        </el-radio-group>
+        <p class="channel-config__tip">
+          <template v-if="updateChannel === 'prerelease'">
+            将检查最新的 Alpha / Beta / RC 预览版本，部分版本可能需要前往 GitHub
+            手动下载
+          </template>
+          <template v-else> 仅检查正式版本，支持应用内自动安装 </template>
         </p>
       </div>
     </div>

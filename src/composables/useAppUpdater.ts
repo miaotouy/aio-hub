@@ -4,8 +4,11 @@ import {
   checkForAppUpdate,
   downloadAndInstallAppUpdate,
   relaunchApp,
+  setStoredUpdateChannel,
+  getActiveUpdateChannel,
   type AppUpdateCheckOptions,
   type AppUpdateInfo,
+  type UpdateChannel,
 } from "@/services/app-updater";
 
 export type AppUpdateStatus =
@@ -25,6 +28,16 @@ export function useAppUpdater() {
   const downloadedBytes = ref(0);
   const contentLength = ref<number | null>(null);
   const lastError = ref<string | null>(null);
+  const updateChannel = ref<UpdateChannel>("stable");
+
+  function initChannel(currentVersion: string) {
+    updateChannel.value = getActiveUpdateChannel(currentVersion);
+  }
+
+  function setChannel(channel: UpdateChannel) {
+    updateChannel.value = channel;
+    setStoredUpdateChannel(channel);
+  }
 
   const isCheckingUpdate = computed(() => status.value === "checking");
   const isUpdating = computed(
@@ -34,7 +47,8 @@ export function useAppUpdater() {
       status.value === "relaunching"
   );
   const canInstallUpdate = computed(
-    () => Boolean(updateInfo.value?.installable) && Boolean(updateResource.value)
+    () =>
+      Boolean(updateInfo.value?.installable) && Boolean(updateResource.value)
   );
   const downloadPercent = computed(() => {
     if (!contentLength.value) return 0;
@@ -93,13 +107,15 @@ export function useAppUpdater() {
       lastError.value = null;
       resetDownloadProgress();
       status.value = "downloading";
-      await downloadAndInstallAppUpdate(updateResource.value, handleDownloadEvent);
+      await downloadAndInstallAppUpdate(
+        updateResource.value,
+        handleDownloadEvent
+      );
       status.value = "relaunching";
       await relaunchApp();
     } catch (error) {
       status.value = "failed";
-      lastError.value =
-        error instanceof Error ? error.message : String(error);
+      lastError.value = error instanceof Error ? error.message : String(error);
       throw error;
     }
   }
@@ -116,6 +132,9 @@ export function useAppUpdater() {
     canInstallUpdate,
     checkForUpdates,
     installUpdate,
+    updateChannel,
+    initChannel,
+    setChannel,
   };
 }
 

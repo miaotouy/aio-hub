@@ -21,6 +21,7 @@ llm-chat/
 ├── ARCHITECTURE.md            # 本文档
 ├── components/                # 可复用的 Vue 组件
 │   ├── BranchSwitcher.vue     # 分支切换器（树形对话的兄弟节点导航）
+│   ├── BranchSelector.vue     # 分支选择抽屉（移动端版本列表）
 │   ├── ChatInput.vue          # 聊天输入框
 │   ├── ChatMessage.vue        # 单条消息展示
 │   ├── MessageContent.vue     # 消息内容渲染（纯文本/富文本）
@@ -52,7 +53,8 @@ llm-chat/
 │   ├── session.ts             # ChatSession（树形会话）
 │   └── settings.ts            # ChatSettings（用户偏好）
 ├── utils/
-│   └── BranchNavigator.ts     # 分支导航工具类
+│   ├── BranchNavigator.ts     # 分支导航工具类
+│   └── chatFeedback.ts        # 移动端提示/确认封装
 └── views/
     ├── ChatHome.vue           # 主页（入口卡片）
     ├── ChatSettingsView.vue   # 设置页
@@ -266,6 +268,7 @@ LlamaChatView.send() → useChatExecutor.execute()
 | `ChatMessage.vue`    | 单条消息的整体排版（头像、气泡、元信息）         |
 | `MessageMenubar.vue` | 操作菜单（重新生成、复制、编辑、删除、分支切换） |
 | `BranchSwitcher.vue` | 兄弟分支切换器（上一分支/下一分支）              |
+| `BranchSelector.vue` | 底部抽屉式分支列表，支持直接切换到任意同级分支   |
 
 ### 6.2. 输入组件
 
@@ -321,6 +324,7 @@ LlamaChatView.send() → useChatExecutor.execute()
 - [x] 分支记忆（`lastSelectedChildId`）
 - [x] 删除节点（级联删除子节点）
 - [x] 编辑已有消息
+- [x] 将编辑结果另存为同级分支
 - [x] 重新生成（重试）
 
 ### ✅ 上下文管道架构

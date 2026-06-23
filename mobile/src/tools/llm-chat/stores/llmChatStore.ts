@@ -49,6 +49,14 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     return path.filter((node) => node.id !== session.rootNodeId);
   });
 
+  /**
+   * 获取指定节点的兄弟节点。
+   */
+  function getSiblings(nodeId: string): ChatMessageNode[] {
+    if (!currentSessionDetail.value) return [];
+    return BranchNavigator.getSiblings(currentSessionDetail.value, nodeId);
+  }
+
   // ==================== Actions ====================
 
   /**
@@ -205,6 +213,71 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     }
   }
 
+  /**
+   * 直接切换到指定分支节点，并沿着该分支的记忆路径走到叶节点。
+   */
+  async function switchBranch(nodeId: string) {
+    if (!currentSessionDetail.value) return;
+
+    const leafId = BranchNavigator.findLeafOfBranch(
+      currentSessionDetail.value,
+      nodeId
+    );
+
+    if (leafId !== currentSessionDetail.value.activeLeafId) {
+      nodeManager.updateActiveLeaf(currentSessionDetail.value, leafId);
+      await persistCurrentSession();
+      logger.info("Switched branch", { nodeId, leafId });
+    }
+  }
+
+  /**
+   * 原地编辑消息。
+   */
+  async function editMessage(nodeId: string, content: string) {
+    if (!currentSessionDetail.value) return false;
+
+    const node = currentSessionDetail.value.nodes[nodeId];
+    if (!node || node.id === currentSessionDetail.value.rootNodeId) {
+      return false;
+    }
+
+    node.content = content;
+    node.status = "complete";
+    if (node.metadata?.error) {
+      const metadata = { ...node.metadata };
+      delete metadata.error;
+      node.metadata = metadata;
+    }
+    currentSessionDetail.value.updatedAt = new Date().toISOString();
+    await persistCurrentSession();
+    logger.info("Edited message", { nodeId, contentLength: content.length });
+    return true;
+  }
+
+  /**
+   * 把编辑后的内容保存为同级分支。
+   */
+  async function saveEditAsBranch(nodeId: string, content: string) {
+    if (!currentSessionDetail.value) return null;
+
+    const branchNode = nodeManager.createSiblingBranch(
+      currentSessionDetail.value,
+      nodeId,
+      content
+    );
+
+    if (branchNode) {
+      await persistCurrentSession();
+      logger.info("Saved edit as branch", {
+        sourceNodeId: nodeId,
+        branchNodeId: branchNode.id,
+      });
+    }
+
+    return branchNode;
+  }
+
   return {
     // 状态
     sessionMetas,
@@ -216,6 +289,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     // Getters
     currentSession,
     currentActivePath,
+    getSiblings,
 
     // Actions
     init,
@@ -225,5 +299,8 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     persistCurrentSession,
     syncSelectedModel,
     switchSibling,
+    switchBranch,
+    editMessage,
+    saveEditAsBranch,
   };
 });

@@ -14,8 +14,16 @@ defineProps<{
 const emit = defineEmits<{
   (e: "click"): void;
   (e: "close"): void;
+  (e: "copy", message: ChatMessageNode): void;
+  (e: "edit", message: ChatMessageNode): void;
   (e: "regenerate", message: ChatMessageNode): void;
   (e: "delete", message: ChatMessageNode): void;
+  (
+    e: "switch-sibling",
+    message: ChatMessageNode,
+    direction: "prev" | "next"
+  ): void;
+  (e: "switch-branch", nodeId: string): void;
 }>();
 
 const chatStore = useLlmChatStore();
@@ -65,8 +73,14 @@ const chatStore = useLlmChatStore();
             :session="chatStore.currentSession"
             :message="message"
             @close="emit('close')"
+            @copy="emit('copy', message)"
+            @edit="emit('edit', message)"
             @regenerate="emit('regenerate', message)"
             @delete="emit('delete', message)"
+            @switch-sibling="
+              (direction) => emit('switch-sibling', message, direction)
+            "
+            @switch-branch="(nodeId) => emit('switch-branch', nodeId)"
           />
         </div>
       </transition>

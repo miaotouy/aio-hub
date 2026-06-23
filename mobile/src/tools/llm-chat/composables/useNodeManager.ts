@@ -80,6 +80,55 @@ export function useNodeManager() {
   };
 
   /**
+   * 基于现有节点创建一个同级分支。
+   */
+  const createSiblingBranch = (
+    session: ChatSession,
+    sourceNodeId: string,
+    content: string
+  ): ChatMessageNode | null => {
+    const sourceNode = session.nodes[sourceNodeId];
+    if (!sourceNode || !sourceNode.parentId) {
+      logger.warn("创建同级分支失败：源节点不存在或没有父节点", {
+        sessionId: session.id,
+        sourceNodeId,
+      });
+      return null;
+    }
+
+    const branchNode = createNode({
+      role: sourceNode.role,
+      content,
+      parentId: sourceNode.parentId,
+      status: "complete",
+      metadata: sourceNode.metadata
+        ? JSON.parse(JSON.stringify(toRaw(sourceNode.metadata)))
+        : undefined,
+    });
+
+    session.nodes[branchNode.id] = branchNode;
+
+    const parentNode = session.nodes[sourceNode.parentId];
+    if (parentNode) {
+      const sourceIndex = parentNode.childrenIds.indexOf(sourceNodeId);
+      const insertIndex =
+        sourceIndex >= 0 ? sourceIndex + 1 : parentNode.childrenIds.length;
+      parentNode.childrenIds.splice(insertIndex, 0, branchNode.id);
+    }
+
+    updateActiveLeaf(session, branchNode.id);
+    session.updatedAt = new Date().toISOString();
+
+    logger.info("已创建同级分支", {
+      sessionId: session.id,
+      sourceNodeId,
+      branchNodeId: branchNode.id,
+    });
+
+    return branchNode;
+  };
+
+  /**
    * 更新活跃叶节点
    */
   const updateActiveLeaf = (session: ChatSession, nodeId: string): boolean => {
@@ -195,6 +244,7 @@ export function useNodeManager() {
     generateNodeId,
     createNode,
     addNodeToSession,
+    createSiblingBranch,
     updateActiveLeaf,
     hardDeleteNode,
   };

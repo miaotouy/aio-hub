@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import {
   ChevronLeft,
   ChevronRight,
@@ -7,12 +7,11 @@ import {
   RotateCcw,
   Trash2,
   Edit3,
+  GitBranch,
 } from "lucide-vue-next";
-import { Snackbar } from "@varlet/ui";
 import type { ChatMessageNode, ChatSession } from "../types";
 import { BranchNavigator } from "../utils/BranchNavigator";
-import { useBranchManager } from "../composables/useBranchManager";
-import { useLlmChatStore } from "../stores/llmChatStore";
+import BranchSelector from "./BranchSelector.vue";
 
 const props = defineProps<{
   session: ChatSession | null;
@@ -25,12 +24,17 @@ const emit = defineEmits<{
   (e: "regenerate"): void;
   (e: "delete"): void;
   (e: "close"): void;
+  (e: "switch-sibling", direction: "prev" | "next"): void;
+  (e: "switch-branch", nodeId: string): void;
 }>();
 
-const branchManager = useBranchManager();
-const chatStore = useLlmChatStore();
+const showBranchSelector = ref(false);
 
-// 分支信息
+const siblings = computed(() => {
+  if (!props.session) return [];
+  return BranchNavigator.getSiblings(props.session, props.message.id);
+});
+
 const branchInfo = computed(() => {
   if (!props.session) return { index: 0, total: 0 };
   return BranchNavigator.getSiblingIndex(props.session, props.message.id);
@@ -41,22 +45,22 @@ const hasSiblings = computed(() => branchInfo.value.total > 1);
 // 切换分支
 const handleSwitchBranch = async (direction: "prev" | "next") => {
   if (!props.session) return;
-  await chatStore.switchSibling(props.message.id, direction);
+  emit("switch-sibling", direction);
 };
 
-// 操作处理
-const handleCopy = () => {
-  navigator.clipboard.writeText(props.message.content);
-  Snackbar.success("已复制内容");
-  emit("copy");
-  emit("close");
+const handleCopy = async () => {
+  try {
+    await navigator.clipboard.writeText(props.message.content);
+    emit("copy");
+    emit("close");
+  } catch {
+    emit("close");
+  }
 };
 
 const handleDelete = () => {
-  if (props.session) {
-    branchManager.deleteMessage(props.session, props.message.id);
-    emit("delete");
-  }
+  emit("delete");
+  emit("close");
 };
 
 const handleEdit = () => {
@@ -66,6 +70,11 @@ const handleEdit = () => {
 
 const handleRegenerate = () => {
   emit("regenerate");
+  emit("close");
+};
+
+const handleSwitchToBranch = (nodeId: string) => {
+  emit("switch-branch", nodeId);
   emit("close");
 };
 </script>
@@ -83,9 +92,10 @@ const handleRegenerate = () => {
       >
         <ChevronLeft :size="14" />
       </var-button>
-      <span class="branch-indicator"
-        >{{ branchInfo.index + 1 }} / {{ branchInfo.total }}</span
-      >
+      <button class="branch-indicator" @click="showBranchSelector = true">
+        <GitBranch :size="12" />
+        <span>{{ branchInfo.index + 1 }} / {{ branchInfo.total }}</span>
+      </button>
       <var-button
         text
         round
@@ -126,6 +136,13 @@ const handleRegenerate = () => {
         <Trash2 :size="14" />
       </var-button>
     </div>
+
+    <BranchSelector
+      v-model:show="showBranchSelector"
+      :siblings="siblings"
+      :current-sibling-index="branchInfo.index"
+      @switch-branch="handleSwitchToBranch"
+    />
   </div>
 </template>
 
@@ -150,11 +167,23 @@ const handleRegenerate = () => {
 }
 
 .branch-indicator {
+  border: none;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
   font-size: 0.7rem;
   padding: 0 4px;
   color: var(--el-text-color-secondary);
-  min-width: 32px;
+  min-width: 42px;
   text-align: center;
+  height: 28px;
+  border-radius: 6px;
+}
+
+.branch-indicator:active {
+  background: var(--input-bg);
 }
 
 .separator {

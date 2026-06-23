@@ -153,14 +153,12 @@ export function useChatExecutor() {
   ) {
     if (chatStore.isSending) return;
 
-    // 如果是 assistant 消息，使用其父节点 (通常是 user)
-    // 如果是 user 消息，使用其父节点 (通常是 assistant 或 system)
-    const parentNodeId = messageNode.parentId;
-    if (!parentNodeId) return;
+    const parentNodeId =
+      messageNode.role === "assistant" ? messageNode.parentId : messageNode.id;
 
-    // 找到父节点的内容（如果是重试 user 消息，需要父节点内容作为输入吗？不，重试通常是指基于同样的上下文再跑一次）
-    // 这里我们简单处理：如果是重试 AI 消息，我们就用同样的上下文再请求一次
-    await execute(session, "", parentNodeId);
+    if (!parentNodeId || messageNode.role === "system") return;
+
+    await execute(session, messageNode.content, parentNodeId);
   }
 
   return {

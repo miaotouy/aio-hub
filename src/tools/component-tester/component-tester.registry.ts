@@ -30,6 +30,17 @@ export default class ComponentTesterRegistry implements ToolRegistry {
         listeners: {},
       }),
     },
+    // 拖拽配置与高频事件监听测试组件
+    "component-tester:drag-drop-playground": {
+      component: () => import("./components/DragDropPlayground.vue"),
+      logicHook: () => ({
+        props: ref({
+          isDetached: true,
+          title: "拖放测试区 (已分离)",
+        }),
+        listeners: {},
+      }),
+    },
     // 布局预览演示组件
     ...["top", "bottom", "left", "right"].reduce(
       (acc, pos) => {

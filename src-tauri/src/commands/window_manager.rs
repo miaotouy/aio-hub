@@ -364,6 +364,10 @@ pub struct DetachableConfig {
     /// 是否禁用原生窗口边缘的拖拽响应（即禁用窗口缩放）
     #[serde(default)]
     pub disable_native_resize: bool,
+    /// 是否禁用 Tauri 内置的拖拽拦截器
+    /// 设为 true 时，原生 HTML5 拖拽和外部文件拖入将恢复正常
+    #[serde(default)]
+    pub disable_drag_drop_handler: bool,
 }
 
 /// 统一的拖拽分离会话状态
@@ -430,6 +434,10 @@ async fn create_preview_window_internal(
         .shadow(false)
         .skip_taskbar(true)
         .visible(false);
+
+    if config.disable_drag_drop_handler {
+        builder = builder.disable_drag_drop_handler();
+    }
 
     #[cfg(target_os = "macos")]
     {
@@ -753,6 +761,7 @@ pub async fn create_tool_window(app: AppHandle, config: WindowConfig) -> Result<
         handle_offset_x: 0.0,
         handle_offset_y: 0.0,
         disable_native_resize: false,
+        disable_drag_drop_handler: false,
     };
 
     finalize_window_internal(&app, &config.label, &detachable_config).await

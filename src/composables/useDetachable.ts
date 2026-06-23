@@ -28,6 +28,8 @@ export interface DetachableConfig {
   metadata?: Record<string, any>;
   /** 是否禁用原生窗口边缘的拖拽响应（即禁用窗口缩放） */
   disableNativeResize?: boolean;
+  /** 是否禁用 Tauri 内置的拖拽拦截器 */
+  disableDragDropHandler?: boolean;
   /** 如果未触发拖拽（视为点击），调用此回调 */
   onClickInstead?: () => void;
 }

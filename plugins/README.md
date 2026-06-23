@@ -18,19 +18,25 @@
 ```
 plugins/
 ├── README.md                      # 本文件
+├── AGENTS.template.md             # 插件仓库 AGENTS.md 模板
 └── example-text-processor/        # 示例插件
     ├── manifest.json              # 插件清单
     ├── index.ts                   # 插件实现
+    ├── AGENTS.md                  # AI 编码代理协作规范
     └── README.md                  # 插件说明
 ```
 
 ## 开发模式
 
-在开发模式下（`npm run dev`），你可以在此目录下创建插件进行测试：
+在开发模式下（`bun run tauri dev`），你可以在此目录下创建插件进行测试：
 
 1. 创建插件目录（如 `my-plugin/`）
 2. 添加 `manifest.json` 和 `index.ts`
 3. 插件会自动加载并支持热重载
+
+## AGENTS.md 模板
+
+新建独立插件仓库时，建议将 [`AGENTS.template.md`](./AGENTS.template.md) 复制为插件仓库根目录的 `AGENTS.md`，再按插件类型（JavaScript / Native / Sidecar）补充本插件的构建、测试、发布和高风险约束。
 
 ## 示例插件
 
@@ -38,7 +44,7 @@ plugins/
 
 ## 插件开发指南
 
-完整的插件开发指南请查看：[`docs/plugin-development-guide.md`](../docs/plugin-development-guide.md)
+完整的插件开发指南请查看：[`docs/guide/plugins/`](../docs/guide/plugins/index.md)
 
 ## 生产环境
 

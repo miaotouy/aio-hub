@@ -186,8 +186,7 @@
     "vue-draggable-next": "^2.2.1",
     "vue-json-pretty": "^2.5.0",
     "vue-pdf-embed": "^2.1.3",
-    "vue-router": "^4.5.1",
-    "vuedraggable": "^4.1.0"
+    "vue-router": "^4.5.1"
   },
   "devDependencies": {
     "@babel/runtime": "^7.28.4",
@@ -243,3 +242,4 @@
     "@lezer/highlight": "^1.2.1"
   }
 }
+

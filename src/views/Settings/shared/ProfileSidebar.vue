@@ -6,7 +6,7 @@
 import { computed, watch, nextTick, ref } from "vue";
 import { Plus } from "@element-plus/icons-vue";
 import { GripVertical } from "lucide-vue-next";
-import VueDraggable from "vuedraggable";
+import { VueDraggableNext } from "vue-draggable-next";
 
 interface Props {
   title: string;
@@ -92,7 +92,7 @@ const draggableProfiles = computed({
     </div>
 
     <div class="sidebar-content" ref="sidebarContentRef">
-      <VueDraggable
+      <VueDraggableNext
         v-model="draggableProfiles"
         item-key="id"
         handle=".drag-handle"
@@ -102,34 +102,34 @@ const draggableProfiles = computed({
         :force-fallback="true"
         :fallback-tolerance="3"
       >
-        <template #item="{ element: profile }">
-          <div
-            class="sidebar-item"
-            :class="{ active: selectedId === profile.id }"
-            @click="emit('select', profile.id)"
-          >
-            <div v-if="sortable" class="drag-handle" @click.stop>
-              <GripVertical :size="14" class="icon" />
-            </div>
-
-            <!-- 自定义列表项内容插槽 -->
-            <slot name="item" :profile="profile">
-              <div class="item-info">
-                <div class="item-name">{{ profile.name }}</div>
-              </div>
-            </slot>
-
-            <div class="switch-container">
-              <el-switch
-                :model-value="profile.enabled"
-                size="small"
-                @click.stop
-                @change="emit('toggle', profile)"
-              />
-            </div>
+        <div
+          v-for="profile in draggableProfiles"
+          :key="profile.id"
+          class="sidebar-item"
+          :class="{ active: selectedId === profile.id }"
+          @click="emit('select', profile.id)"
+        >
+          <div v-if="sortable" class="drag-handle" @click.stop>
+            <GripVertical :size="14" class="icon" />
           </div>
-        </template>
-      </VueDraggable>
+
+          <!-- 自定义列表项内容插槽 -->
+          <slot name="item" :profile="profile">
+            <div class="item-info">
+              <div class="item-name">{{ profile.name }}</div>
+            </div>
+          </slot>
+
+          <div class="switch-container">
+            <el-switch
+              :model-value="profile.enabled"
+              size="small"
+              @click.stop
+              @change="emit('toggle', profile)"
+            />
+          </div>
+        </div>
+      </VueDraggableNext>
 
       <div v-if="profiles.length === 0" class="sidebar-empty">
         <p>还没有配置</p>

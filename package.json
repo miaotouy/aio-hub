@@ -25,6 +25,7 @@
   ],
   "scripts": {
     "generate:shims": "bun scripts/generate-shims.ts",
+    "release:updater-manifest": "bun scripts/generate-updater-manifest.ts",
     "dev": "bun run generate:shims ; bun scripts/dev.ts",
     "vite": "vite",
     "download:libs": "bun scripts/download-libs.ts",
@@ -112,8 +113,10 @@
     "@tauri-apps/plugin-http": "^2.5.2",
     "@tauri-apps/plugin-opener": "^2.2.0",
     "@tauri-apps/plugin-os": "^2.3.1",
+    "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-shell": "^2.3.1",
     "@tauri-apps/plugin-store": "^2.4.0",
+    "@tauri-apps/plugin-updater": "^2.10.1",
     "@types/turndown": "^5.0.6",
     "@uiw/codemirror-theme-github": "^4.25.2",
     "@uiw/codemirror-theme-tokyo-night": "^4.25.2",
@@ -240,4 +243,3 @@
     "@lezer/highlight": "^1.2.1"
   }
 }
-

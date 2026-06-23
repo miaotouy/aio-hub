@@ -81,6 +81,8 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           # 不传递 tagName/releaseName/releaseBody，禁用自动创建 Release
           args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
@@ -196,6 +198,9 @@ jobs:
               find src-tauri/target/${{ matrix.target }}/release/bundle -name "*.dmg" -exec cp {} dist-artifacts/ \; 2>/dev/null || true
               ;;
           esac
+
+          # 提取 updater 专用产物和签名。未启用 createUpdaterArtifacts 时这里不会复制到文件。
+          find src-tauri/target/${{ matrix.target }}/release/bundle -type f \( -name "*.sig" -o -name "*.zip" -o -name "*.tar.gz" \) -exec cp {} dist-artifacts/ \; 2>/dev/null || true
 
           # 显示准备好的文件列表
           echo "准备上传的文件："
@@ -319,6 +324,11 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
 
+      - name: 设置 Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
       - name: 获取发布信息
         id: get-release-info
         shell: bash
@@ -356,36 +366,52 @@ jobs:
 
           echo "=== 复制文件到 release-files ==="
           # 复制所有构建产物（排除目录）
-          find artifacts -type f \( -name "*.exe" -o -name "*.msi" -o -name "*.dmg" -o -name "*.deb" -o -name "*.AppImage" -o -name "*.flatpak" \) -exec cp {} release-files/ \;
+          find artifacts -type f \( -name "*.exe" -o -name "*.msi" -o -name "*.dmg" -o -name "*.deb" -o -name "*.AppImage" -o -name "*.flatpak" -o -name "*.zip" -o -name "*.tar.gz" -o -name "*.sig" \) -exec cp {} release-files/ \;
 
           echo "=== 准备上传的文件 ==="
           ls -lh release-files/
+
+      - name: 生成发布说明
+        shell: bash
+        run: |
+          cat > release-notes.md <<'EOF'
+          ## 🎉 新版本发布
+
+
+
+          ### 下载说明
+          - **Windows**:
+            - `.exe` (x64 安装程序)
+            - `-Portable.exe` (绿色便携版，数据存放在同级 data 目录)
+          - **macOS**:
+            - `_aarch64.dmg` (Apple Silicon: M1/M2/M3)
+            - `_x64.dmg` (Intel 芯片)
+          - **Linux**:
+            - `.deb` (Debian/Ubuntu)
+            - `.AppImage` (通用)
+            - `.flatpak` (沙盒版)
+
+          ### 注意事项
+          - macOS 用户首次打开可能需要在"系统偏好设置 > 安全性与隐私"中允许运行，或参考 https://github.com/miaotouy/aio-hub/blob/main/docs/guide/macos-gatekeeper-fix.md 中的运行方法
+          - Linux 用户使用 AppImage 需要先添加执行权限: `chmod +x *.AppImage`
+          EOF
+
+      - name: 生成 updater 清单
+        shell: bash
+        run: |
+          bun run release:updater-manifest -- \
+            --dir release-files \
+            --tag "${{ steps.get-release-info.outputs.version }}" \
+            --repo "${{ github.repository }}" \
+            --notes-file release-notes.md \
+            --out release-files/latest.json
 
       - name: 创建 Release 并上传所有文件
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.get-release-info.outputs.version }}
           name: ${{ steps.get-release-info.outputs.name }}
-          body: |
-            ## 🎉 新版本发布
-
-
-
-            ### 下载说明
-            - **Windows**:
-              - `.exe` (x64 安装程序)
-              - `-Portable.exe` (绿色便携版，数据存放在同级 data 目录)
-            - **macOS**:
-              - `_aarch64.dmg` (Apple Silicon: M1/M2/M3)
-              - `_x64.dmg` (Intel 芯片)
-            - **Linux**:
-              - `.deb` (Debian/Ubuntu)
-              - `.AppImage` (通用)
-              - `.flatpak` (沙盒版)
-
-            ### 注意事项
-            - macOS 用户首次打开可能需要在"系统偏好设置 > 安全性与隐私"中允许运行，或参考 https://github.com/miaotouy/aio-hub/blob/main/docs/guide/macos-gatekeeper-fix.md 中的运行方法
-            - Linux 用户使用 AppImage 需要先添加执行权限: `chmod +x *.AppImage`
+          body_path: release-notes.md
           draft: true
           prerelease: ${{ steps.get-release-info.outputs.is_main_draft == 'true' || contains(steps.get-release-info.outputs.version, 'beta') || contains(steps.get-release-info.outputs.version, 'alpha') || contains(steps.get-release-info.outputs.version, 'dev') }}
           make_latest: ${{ steps.get-release-info.outputs.is_main_draft != 'true' }}

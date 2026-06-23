@@ -22,8 +22,9 @@
 3. 缓存 Rust 编译产物
 4. 安装前端依赖
 5. 使用 Tauri Action 构建应用
-6. 自动创建 GitHub Release（草稿模式）
-7. 上传构建产物到 Release
+6. 整理安装包、updater 产物和签名文件
+7. 如存在签名 updater 产物，生成 `latest.json`
+8. 自动创建 GitHub Release（草稿模式）并上传构建产物
 
 ### 2. `pr-check.yml` - PR 检查
 
@@ -120,12 +121,21 @@ bun tauri build
 
 ### 环境变量
 
-目前不需要额外配置环境变量，所有必需的 token 都由 GitHub 自动提供。
+普通安装包构建不需要额外配置环境变量，`GITHUB_TOKEN` 由 GitHub 自动提供。
 
-如果将来需要添加代码签名等功能，可以在仓库设置中添加 Secrets：
+应用内更新需要 Tauri updater 签名密钥。启用 `bundle.createUpdaterArtifacts` 前，需要在仓库设置中添加 Secrets：
+
+```text
+TAURI_SIGNING_PRIVATE_KEY
+TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+```
+
+配置位置：
 1. 前往仓库的 Settings > Secrets and variables > Actions
 2. 点击 "New repository secret"
 3. 添加所需的密钥
+
+详细步骤见 `docs/guide/release-updater.md`。
 
 ### 修改构建配置
 
@@ -181,7 +191,7 @@ A:
 
 **Q: 如何修改 Release 说明模板？**
 
-A: 编辑 `build.yml` 中的 `releaseBody` 字段。
+A: 编辑 `build.yml` 中“生成发布说明”步骤写出的 `release-notes.md` 内容。该文件同时用于 GitHub Release 正文和 updater `latest.json` 的 `notes` 字段。
 
 **Q: 能否支持更多平台？**
 

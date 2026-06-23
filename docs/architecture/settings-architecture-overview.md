@@ -219,13 +219,14 @@
 **应用信息与支持页面**，展示版本信息和项目生态。
 
 - **应用信息**: 名称、版本（来自 Tauri API）、图标、简介。
-- **检查更新**: 从 GitHub Releases API 获取最新版本，支持 Semantic Version 对比。
-- **更新弹窗**: 使用 `RichTextRenderer` 渲染 Release Notes。
+- **检查更新**: 优先调用 Tauri updater 插件检查可安装更新，未配置或检查失败时回退 GitHub Releases API。
+- **应用内更新**: 支持通过 updater 下载、安装并重启；发布公钥与更新清单接入前保留手动下载兜底。
+- **更新弹窗**: 使用 `RichTextRenderer` 渲染 Release Notes，并展示下载 / 安装进度。
 - **项目链接**: 开发者信息、仓库地址、许可证。
 - **支持项目**: GitHub Star（外链）、爱发电赞助（高亮卡片）。
 - **版权信息**: 页脚展示。
 
-**亮点**: GitHub API 版本检查、RichTextRenderer 渲染更新日志、Alt+点击强制检测机制。
+**亮点**: Tauri updater 应用内安装、GitHub Releases 兜底、RichTextRenderer 渲染更新日志、Alt+点击强制检测机制。
 
 ---
 

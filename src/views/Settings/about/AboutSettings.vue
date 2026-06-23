@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted, markRaw } from "vue";
+import { computed, ref, onMounted, markRaw } from "vue";
 import { getName, getVersion } from "@tauri-apps/api/app";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
 import iconUrl from "@/assets/aio-icon-color.svg";
-import { compareVersions } from "compare-versions";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import { RendererVersion } from "@/tools/rich-text-renderer/types";
+import { useAppUpdater } from "@/composables/useAppUpdater";
 import {
   User,
   Link,
@@ -30,36 +30,53 @@ const appInfo = ref({
   name: "",
   version: "",
 });
-const isCheckingUpdate = ref(false);
 const showUpdateDialog = ref(false);
-const updateInfo = ref({
-  version: "",
-  body: "",
-  url: "",
+const {
+  status: updateStatus,
+  updateInfo,
+  contentLength,
+  downloadPercent,
+  isCheckingUpdate,
+  isUpdating,
+  canInstallUpdate,
+  checkForUpdates,
+  installUpdate,
+} = useAppUpdater();
+
+const showUpdateProgress = computed(
+  () =>
+    updateStatus.value === "downloading" ||
+    updateStatus.value === "installing" ||
+    updateStatus.value === "relaunching"
+);
+const updateStatusText = computed(() => {
+  switch (updateStatus.value) {
+    case "downloading":
+      return "正在下载更新";
+    case "installing":
+      return "正在安装更新";
+    case "relaunching":
+      return "更新已安装，正在重启";
+    case "failed":
+      return "更新失败，可尝试手动下载";
+    default:
+      return "";
+  }
+});
+const updateButtonText = computed(() => {
+  if (!canInstallUpdate.value) return "前往下载";
+  if (updateStatus.value === "downloading") return "正在下载";
+  if (updateStatus.value === "installing") return "正在安装";
+  if (updateStatus.value === "relaunching") return "正在重启";
+  return "立即更新";
 });
 
 // 检查更新
 const checkUpdate = async (event?: MouseEvent) => {
   const forceShow = event?.altKey; // 按住 Alt 键强制显示
-  isCheckingUpdate.value = true;
   try {
-    const response = await fetch(
-      "https://api.github.com/repos/miaotouy/aio-hub/releases/latest"
-    );
-    if (!response.ok) {
-      throw new Error(`GitHub API error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const latestVersion = data.tag_name.replace(/^v/, "");
-    const currentVersion = appInfo.value.version;
-
-    if (forceShow || compareVersions(latestVersion, currentVersion) > 0) {
-      updateInfo.value = {
-        version: data.tag_name,
-        body: data.body,
-        url: data.html_url,
-      };
+    const result = await checkForUpdates({ forceShow });
+    if (result.available) {
       showUpdateDialog.value = true;
       if (forceShow) {
         customMessage.success("已强制显示更新弹窗 (Alt Key Detected)");
@@ -69,14 +86,27 @@ const checkUpdate = async (event?: MouseEvent) => {
     }
   } catch (error) {
     errorHandler.error(error as Error, "检查更新失败", { showToUser: true });
-  } finally {
-    isCheckingUpdate.value = false;
   }
 };
 
-const handleUpdateConfirm = () => {
-  openUrl(updateInfo.value.url);
+const handleManualDownload = () => {
+  if (updateInfo.value?.url) {
+    openUrl(updateInfo.value.url);
+  }
   showUpdateDialog.value = false;
+};
+
+const handleUpdateConfirm = async () => {
+  if (!canInstallUpdate.value) {
+    handleManualDownload();
+    return;
+  }
+
+  try {
+    await installUpdate();
+  } catch (error) {
+    errorHandler.error(error as Error, "安装更新失败", { showToUser: true });
+  }
 };
 // 链接
 const links = [
@@ -239,22 +269,44 @@ onMounted(async () => {
     <!-- 更新弹窗 -->
     <BaseDialog
       v-model="showUpdateDialog"
-      :title="`发现新版本 ${updateInfo.version}`"
+      :title="`发现新版本 ${updateInfo?.version || ''}`"
       width="70vw"
       height="80vh"
     >
       <template #content>
         <div class="update-content">
+          <div v-if="showUpdateProgress" class="update-progress">
+            <el-progress
+              :percentage="downloadPercent"
+              :indeterminate="!contentLength"
+            />
+            <p v-if="updateStatusText" class="update-status">
+              {{ updateStatusText }}
+            </p>
+          </div>
           <RichTextRenderer
-            :content="updateInfo.body"
+            :content="updateInfo?.body || '此版本没有更新说明。'"
             :version="rendererVersion.V2_CUSTOM_PARSER"
           />
         </div>
       </template>
       <template #footer>
-        <el-button @click="showUpdateDialog = false">暂不更新</el-button>
-        <el-button type="primary" @click="handleUpdateConfirm">
-          前往下载
+        <el-button :disabled="isUpdating" @click="showUpdateDialog = false">
+          稍后
+        </el-button>
+        <el-button
+          v-if="canInstallUpdate"
+          :disabled="isUpdating"
+          @click="handleManualDownload"
+        >
+          手动下载
+        </el-button>
+        <el-button
+          type="primary"
+          :loading="isUpdating"
+          @click="handleUpdateConfirm"
+        >
+          {{ updateButtonText }}
         </el-button>
       </template>
     </BaseDialog>
@@ -490,6 +542,16 @@ onMounted(async () => {
 
 .update-content {
   padding: 0 8px;
+}
+
+.update-progress {
+  padding: 8px 0 16px;
+}
+
+.update-status {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--el-text-color-regular);
 }
 
 /* 响应式 */

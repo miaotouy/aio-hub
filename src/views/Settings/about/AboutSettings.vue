@@ -244,15 +244,11 @@ onMounted(async () => {
           <el-radio-button value="stable">
             <div class="channel-option">
               <span class="channel-option__name">稳定版</span>
-              <span class="channel-option__desc">正式发布的版本</span>
             </div>
           </el-radio-button>
           <el-radio-button value="prerelease">
             <div class="channel-option">
               <span class="channel-option__name">预发布版</span>
-              <span class="channel-option__desc"
-                >包含最新的 Alpha / Beta / RC 预览等，体验最新功能</span
-              >
             </div>
           </el-radio-button>
         </el-radio-group>

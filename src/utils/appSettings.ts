@@ -134,6 +134,7 @@ export interface AppSettings {
   showTrayIcon?: boolean; // 是否显示托盘图标（需要重启）
   minimizeToTray?: boolean; // 关闭时是否最小化到托盘（实时生效）
   autoAdjustWindowPosition?: boolean; // 新增：是否自动调整窗口位置
+  disableTauriDragDropHandler?: boolean; // 是否禁用 Tauri 拖拽拦截器以启用 H5 原生拖放
 
   // 主题颜色配置
   themeColor?: string; // 主色调 hex 值
@@ -328,6 +329,7 @@ export const defaultAppSettings: AppSettings = {
   showTrayIcon: true, // 默认显示托盘图标
   minimizeToTray: true, // 默认最小化到托盘
   autoAdjustWindowPosition: true, // 默认开启
+  disableTauriDragDropHandler: true, // 默认启用 H5 原生拖放
   // 默认主题颜色
   themeColor: "#409eff", // 主色调 - Element Plus 蓝色
   successColor: "#67c23a", // 成功色 - Element Plus 绿色

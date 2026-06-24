@@ -347,7 +347,14 @@ pub fn run() {
     let context = tauri::generate_context!();
 
     // 读取配置以获取时区、窗口特效和窗口位置
-    let (show_tray_icon, minimize_to_tray, timezone_str, window_effects_config, main_window_config) = {
+    let (
+        show_tray_icon,
+        minimize_to_tray,
+        timezone_str,
+        window_effects_config,
+        main_window_config,
+        disable_drag_drop,
+    ) = {
         let app_data_dir = get_app_data_dir(context.config());
         let settings_path = app_data_dir.join("settings.json");
 
@@ -357,6 +364,7 @@ pub fn run() {
         let mut enable_effects = false;
         let mut effect_type = "none".to_string();
         let mut show_shadow = true;
+        let mut disable_drag_drop = true;
 
         if settings_path.exists() {
             if let Ok(contents) = std::fs::read_to_string(&settings_path) {
@@ -391,6 +399,12 @@ pub fn run() {
                             .and_then(|v| v.as_bool())
                             .unwrap_or(true);
                     }
+
+                    // 读取拖拽拦截器设置
+                    disable_drag_drop = json
+                        .get("disableTauriDragDropHandler")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(true);
                 }
             }
         }
@@ -416,6 +430,7 @@ pub fn run() {
             tz,
             (enable_effects, effect_type, show_shadow),
             win_config,
+            disable_drag_drop,
         )
     };
     // 解析时区并计算偏移量
@@ -885,8 +900,11 @@ pub fn run() {
             )
             .title("AIO Hub")
             .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-            .min_inner_size(360.0, 112.0)
-            .disable_drag_drop_handler();
+            .min_inner_size(360.0, 112.0);
+
+            if disable_drag_drop {
+                win_builder = win_builder.disable_drag_drop_handler();
+            }
             // 始终隐藏创建主窗口，由前端 mount 后调用 show（避免白屏闪烁）
             win_builder = win_builder.visible(false);
 

@@ -42,6 +42,14 @@ export const useAppSettingsStore = defineStore("appSettings", () => {
   }
 
   /**
+   * 立即保存当前设置，用于变更后马上需要后端读取 settings.json 的场景
+   */
+  async function saveNow(): Promise<void> {
+    _debouncedSave.cancel();
+    await appSettingsManager.save(settings.value);
+  }
+
+  /**
    * 重置所有设置为默认值
    */
   async function reset(): Promise<AppSettings> {
@@ -91,6 +99,7 @@ export const useAppSettingsStore = defineStore("appSettings", () => {
     isLoaded,
     load,
     update,
+    saveNow,
     reset,
     appearance,
     environment,

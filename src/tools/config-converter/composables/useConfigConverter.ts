@@ -89,6 +89,18 @@ export function useConfigConverter() {
     }
   };
 
+  const loadSingleFileObject = async (file: File) => {
+    try {
+      const content = await file.text();
+      const detected = detectFormat(file.name, content);
+      singleFrom.value = detected;
+      singleInput.value = content;
+      customMessage.success(`已成功加载文件: ${file.name}`);
+    } catch (error: any) {
+      errorHandler.error(error, `加载文件失败: ${file.name}`);
+    }
+  };
+
   /**
    * 处理单文件模式下的拖放/导入
    */
@@ -105,6 +117,16 @@ export function useConfigConverter() {
 
     // 单个文件/目录
     await loadSingleFile(paths[0]);
+  };
+
+  const handleSingleImportFiles = async (files: File[]) => {
+    if (files.length === 0) return;
+
+    if (files.length > 1) {
+      customMessage.warning("原生拖放无法提供批量转换所需的文件路径，已加载第一个文件");
+    }
+
+    await loadSingleFileObject(files[0]);
   };
 
   const convertSingleInternal = () => {
@@ -401,6 +423,7 @@ export function useConfigConverter() {
     singleOptions,
     convertSingle,
     handleSingleImport,
+    handleSingleImportFiles,
     // 批量
     batchItems,
     batchTo,

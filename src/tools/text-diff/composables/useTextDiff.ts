@@ -6,7 +6,7 @@ import { customMessage } from "@/utils/customMessage";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { loadFile, generatePatch } from "../engine";
+import { inferLanguage, loadFile, generatePatch } from "../engine";
 import type { FileReadResult } from "../types";
 
 const logger = createModuleLogger("tools/text-diff/composable");
@@ -300,6 +300,38 @@ export function useTextDiff() {
     }
   };
 
+  const loadFileObjectToSide = async (file: File, side: "left" | "right") => {
+    try {
+      const content = await file.text();
+      if (content.includes("\0")) {
+        customMessage.error("不支持二进制文件");
+        return;
+      }
+
+      if (side === "left") {
+        textA.value = content;
+        leftFilePath.value = "";
+        leftFileName.value = file.name;
+      } else {
+        textB.value = content;
+        rightFilePath.value = "";
+        rightFileName.value = file.name;
+      }
+
+      language.value = inferLanguage(file.name);
+
+      if (content.length > 10 * 1024 * 1024) {
+        customMessage.warning("文件较大（>10MB），可能影响性能");
+      }
+    } catch (error) {
+      errorHandler.handle(error as Error, {
+        userMessage: "读取文件失败",
+        showToUser: false,
+      });
+      customMessage.error(`加载文件失败: ${file.name}`);
+    }
+  };
+
   /**
    * 保存文件
    */
@@ -401,6 +433,32 @@ export function useTextDiff() {
       } else {
         await loadFileToSide(paths[0], side);
       }
+    }
+  };
+
+  const handleFilesDrop = async (files: File[], side: "left" | "right") => {
+    if (files.length === 0) return;
+
+    if (files.length === 2) {
+      const [file1, file2] = [...files].sort((a, b) =>
+        a.name.localeCompare(b.name)
+      );
+      await loadFileObjectToSide(file1, "left");
+      await loadFileObjectToSide(file2, "right");
+      return;
+    }
+
+    const file = files[0];
+    if (!textA.value && side === "left") {
+      await loadFileObjectToSide(file, "left");
+    } else if (!textB.value && side === "right") {
+      await loadFileObjectToSide(file, "right");
+    } else if (!textA.value) {
+      await loadFileObjectToSide(file, "left");
+    } else if (!textB.value) {
+      await loadFileObjectToSide(file, "right");
+    } else {
+      await loadFileObjectToSide(file, side);
     }
   };
 
@@ -643,6 +701,7 @@ export function useTextDiff() {
     loadFileToSide,
     saveFile,
     handleFileDrop,
+    handleFilesDrop,
     copyToClipboard,
     pasteFromClipboard,
     exportPatch,

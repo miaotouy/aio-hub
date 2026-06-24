@@ -36,7 +36,7 @@ const LANGUAGE_MAP: Record<string, string> = {
 /**
  * 从文件扩展名推断语言类型
  */
-function inferLanguage(filePath: string): string {
+export function inferLanguage(filePath: string): string {
   const ext = filePath.substring(filePath.lastIndexOf(".")).toLowerCase();
   return LANGUAGE_MAP[ext] || "plaintext";
 }

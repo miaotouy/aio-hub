@@ -298,6 +298,20 @@ const { isDraggingOver } = useFileDrop({
       importLoading.value = false;
     }
   },
+  onFiles: async (files) => {
+    if (files.length === 0) return;
+
+    importLoading.value = true;
+    try {
+      const result = await agentStore.preflightImportAgents(files);
+      importPreflightResult.value = result;
+      importDialogVisible.value = true;
+    } catch (error) {
+      errorHandler.error(error, "读取拖放文件失败");
+    } finally {
+      importLoading.value = false;
+    }
+  },
 });
 
 const virtualizer = useVirtualizer({

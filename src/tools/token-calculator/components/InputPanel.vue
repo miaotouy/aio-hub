@@ -119,7 +119,7 @@ import {
 import { useFileDrop } from "@/composables/useFileDrop";
 import { useFFmpeg } from "@/composables/useFFmpeg";
 import { customMessage } from "@/utils/customMessage";
-import { detectFileType } from "@/utils/fileTypeDetector";
+import { detectFileType, isTextFile } from "@/utils/fileTypeDetector";
 import type {
   MediaItem,
   MediaType,
@@ -204,6 +204,45 @@ const getMediaDescription = (item: MediaItem) => {
   return item.name;
 };
 
+const getImageDimensionsFromFile = (
+  file: File
+): Promise<{ width: number; height: number }> => {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const dimensions = { width: img.naturalWidth, height: img.naturalHeight };
+      URL.revokeObjectURL(url);
+      resolve(dimensions);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("图片加载失败"));
+    };
+    img.src = url;
+  });
+};
+
+const getMediaDurationFromFile = (file: File): Promise<number> => {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const media = file.type.startsWith("audio/")
+      ? new Audio()
+      : document.createElement("video");
+    media.preload = "metadata";
+    media.onloadedmetadata = () => {
+      const duration = Math.round(media.duration || 60);
+      URL.revokeObjectURL(url);
+      resolve(duration);
+    };
+    media.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("媒体元数据读取失败"));
+    };
+    media.src = url;
+  });
+};
+
 // === 拖放逻辑 ===
 
 // 处理原生文本拖放
@@ -216,9 +255,91 @@ const handleNativeDrop = (e: DragEvent) => {
   }
 };
 
+const handleDroppedFiles = async (files: File[]) => {
+  let accumulatedText = props.inputText;
+  let hasTextChanges = false;
+
+  for (const file of files) {
+    const fileName = file.name;
+
+    if (isTextFile(file.name, file.type)) {
+      try {
+        const content = await file.text();
+        if (content) {
+          const separator = accumulatedText ? "\n\n" : "";
+          accumulatedText += separator + content;
+          hasTextChanges = true;
+          customMessage.success(`已读取文本文件: ${fileName}`);
+        }
+      } catch (error) {
+        console.error("读取文件失败:", error);
+        customMessage.error(`读取文件失败: ${fileName}`);
+      }
+      continue;
+    }
+
+    const lowerName = fileName.toLowerCase();
+    const imgExtensions = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"];
+    const videoExtensions = [".mp4", ".mkv", ".avi", ".mov", ".webm"];
+    const audioExtensions = [".mp3", ".wav", ".ogg", ".m4a", ".flac"];
+
+    let mediaType: MediaType | null = null;
+    if (
+      file.type.startsWith("image/") ||
+      imgExtensions.some((ext) => lowerName.endsWith(ext))
+    ) {
+      mediaType = "image";
+    } else if (
+      file.type.startsWith("video/") ||
+      videoExtensions.some((ext) => lowerName.endsWith(ext))
+    ) {
+      mediaType = "video";
+    } else if (
+      file.type.startsWith("audio/") ||
+      audioExtensions.some((ext) => lowerName.endsWith(ext))
+    ) {
+      mediaType = "audio";
+    }
+
+    if (mediaType) {
+      const item: Omit<MediaItem, "id" | "tokenCount"> = {
+        type: mediaType,
+        name: fileName,
+        params: {},
+      };
+
+      try {
+        if (mediaType === "image") {
+          const dims = await getImageDimensionsFromFile(file);
+          item.params = { width: dims.width, height: dims.height };
+          item.name = `${fileName} (${dims.width}x${dims.height})`;
+        } else {
+          const duration = await getMediaDurationFromFile(file);
+          item.params = { duration };
+          item.name = `${fileName} (${duration}s)`;
+        }
+      } catch {
+        item.params =
+          mediaType === "image" ? { width: 1024, height: 1024 } : { duration: 60 };
+      }
+
+      emit("add-media", item);
+      customMessage.success(`已添加媒体: ${fileName}`);
+      continue;
+    }
+
+    customMessage.warning(`不支持的文件类型: ${fileName}`);
+  }
+
+  if (hasTextChanges) {
+    emit("update:inputText", accumulatedText);
+  }
+};
+
 // 处理文件拖放 (Tauri)
 const { isDraggingOver } = useFileDrop({
   element: rootEl,
+  onFiles: handleDroppedFiles,
   onDrop: async (paths) => {
     let accumulatedText = props.inputText;
     let hasTextChanges = false;

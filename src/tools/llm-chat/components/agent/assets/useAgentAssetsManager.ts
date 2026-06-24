@@ -464,7 +464,51 @@ export function useAgentAssetsManager(props: Props, emit: any) {
     return "file";
   };
 
-  // 处理文件上传
+  const saveAssetBytes = async (fileName: string, bytes: Uint8Array) => {
+    const customId = extractBaseName(fileName);
+
+    const info = await invoke<any>("save_agent_asset", {
+      agentId: props.agentId,
+      fileName,
+      data: bytes,
+      customId,
+    });
+
+    const actualId = extractBaseName(info.filename);
+
+    const newAsset: AgentAsset = {
+      id: actualId,
+      path: info.path,
+      filename: fileName,
+      type: inferAssetType(info.mimeType),
+      size: info.size,
+      mimeType: info.mimeType,
+      usage: "inline",
+      group:
+        selectedGroup.value === "all" || selectedGroup.value === "default"
+          ? "default"
+          : selectedGroup.value,
+      thumbnailPath: info.thumbnailPath,
+    };
+
+    assets.value.push(newAsset);
+  };
+
+  const finalizeUpload = (totalCount: number, skipCount: number) => {
+    notifyUpdate();
+    emit("physical-change");
+
+    const successCount = totalCount - skipCount;
+    if (successCount > 0) {
+      customMessage.success(
+        `成功上传 ${successCount} 个资产${skipCount > 0 ? `（跳过 ${skipCount} 个同名资产）` : ""}`
+      );
+    } else if (skipCount > 0) {
+      customMessage.warning(`所选资产已全部存在，已跳过`);
+    }
+  };
+
+  // 处理路径上传（Tauri 拖放或路径选择）
   const handleFileUpload = async (paths: string[]) => {
     if (props.disabled || !props.agentId) return;
 
@@ -480,46 +524,35 @@ export function useAgentAssetsManager(props: Props, emit: any) {
         }
 
         const data = await invoke<number[]>("read_file_binary", { path });
-        const customId = extractBaseName(fileName);
-
-        const info = await invoke<any>("save_agent_asset", {
-          agentId: props.agentId,
-          fileName,
-          data: new Uint8Array(data),
-          customId,
-        });
-
-        const actualId = extractBaseName(info.filename);
-
-        const newAsset: AgentAsset = {
-          id: actualId,
-          path: info.path,
-          filename: fileName,
-          type: inferAssetType(info.mimeType),
-          size: info.size,
-          mimeType: info.mimeType,
-          usage: "inline",
-          group:
-            selectedGroup.value === "all" || selectedGroup.value === "default"
-              ? "default"
-              : selectedGroup.value,
-          thumbnailPath: info.thumbnailPath,
-        };
-
-        assets.value.push(newAsset);
+        await saveAssetBytes(fileName, new Uint8Array(data));
       }
 
-      notifyUpdate();
-      emit("physical-change");
+      finalizeUpload(paths.length, skipCount);
+    } catch (error) {
+      errorHandler.error(error, "上传资产失败");
+    } finally {
+      isUploading.value = false;
+    }
+  };
 
-      const successCount = paths.length - skipCount;
-      if (successCount > 0) {
-        customMessage.success(
-          `成功上传 ${successCount} 个资产${skipCount > 0 ? `（跳过 ${skipCount} 个同名资产）` : ""}`
-        );
-      } else if (skipCount > 0) {
-        customMessage.warning(`所选资产已全部存在，已跳过`);
+  // 处理 File 对象上传（H5 文件选择/拖放）
+  const handleFileObjectsUpload = async (files: File[]) => {
+    if (props.disabled || !props.agentId) return;
+
+    isUploading.value = true;
+    let skipCount = 0;
+    try {
+      for (const file of files) {
+        if (assets.value.some((a) => a.filename === file.name)) {
+          skipCount++;
+          continue;
+        }
+
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        await saveAssetBytes(file.name, bytes);
       }
+
+      finalizeUpload(files.length, skipCount);
     } catch (error) {
       errorHandler.error(error, "上传资产失败");
     } finally {
@@ -612,6 +645,7 @@ export function useAgentAssetsManager(props: Props, emit: any) {
     handleOpenAssetsDir,
     getAssetUrl,
     handleFileUpload,
+    handleFileObjectsUpload,
     handleDeleteAsset,
     saveEdit,
   };

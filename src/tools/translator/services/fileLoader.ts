@@ -194,6 +194,68 @@ export function useTranslatorFileLoader() {
     };
   }
 
+  async function loadTextFromFile(
+    file: File,
+    options: LoadFileOptions = {}
+  ): Promise<LoadedFile | null> {
+    const fileName = file.name || "未命名文件";
+    const buffer = new Uint8Array(await file.arrayBuffer());
+    const mimeType = file.type || (await detectMimeTypeFromBuffer(buffer, fileName));
+    const isText = isTextFile(fileName, mimeType);
+
+    if (!isText) {
+      logger.info("拒绝非文本文件", { fileName, mimeType });
+      customMessage.warning(
+        `「${fileName}」不是文本文件（${mimeType}），无法作为翻译输入`
+      );
+      return null;
+    }
+
+    let content: string;
+    try {
+      content = smartDecode(buffer);
+    } catch (error) {
+      errorHandler.error(error, `「${fileName}」无法解码为有效文本`, {
+        fileName,
+        mimeType,
+      });
+      return null;
+    }
+
+    if (content.length === 0) {
+      customMessage.warning(`「${fileName}」是空文件`);
+      return null;
+    }
+
+    const threshold = options.largeFileCharThreshold;
+    if (
+      threshold !== undefined &&
+      content.length > threshold &&
+      options.onLargeFileConfirm
+    ) {
+      const confirmed = await options.onLargeFileConfirm({
+        fileName,
+        charCount: content.length,
+      });
+      if (!confirmed) return null;
+    }
+
+    logger.info("文件加载成功", {
+      fileName,
+      mimeType,
+      byteSize: buffer.length,
+      charCount: content.length,
+    });
+
+    return {
+      path: "",
+      fileName,
+      content,
+      mimeType,
+      byteSize: buffer.length,
+    };
+  }
+
   /**
    * 弹出系统文件选择对话框，选中后加载为文本。
    *
@@ -227,6 +289,7 @@ export function useTranslatorFileLoader() {
 
   return {
     loadTextFromPath,
+    loadTextFromFile,
     pickAndLoad,
   };
 }

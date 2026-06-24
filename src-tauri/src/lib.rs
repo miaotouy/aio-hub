@@ -885,8 +885,8 @@ pub fn run() {
             )
             .title("AIO Hub")
             .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-            .min_inner_size(360.0, 112.0);
-
+            .min_inner_size(360.0, 112.0)
+            .disable_drag_drop_handler();
             // 始终隐藏创建主窗口，由前端 mount 后调用 show（避免白屏闪烁）
             win_builder = win_builder.visible(false);
 

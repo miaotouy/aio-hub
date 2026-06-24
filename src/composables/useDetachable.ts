@@ -66,13 +66,19 @@ export function useDetachable() {
   const startDragging = (config: DetachableConfig) => {
     if (isDragging.value || dragState.isPreparing) return;
 
+    // 默认禁用 Tauri 拖拽拦截器，让 H5 原生拖拽正常工作
+    const normalizedConfig: DetachableConfig = {
+      ...config,
+      disableDragDropHandler: config.disableDragDropHandler ?? true,
+    };
+
     // 进入准备阶段，记录起始位置、时间和配置
     dragState.isPreparing = true;
-    dragState.startX = config.mouseX;
-    dragState.startY = config.mouseY;
+    dragState.startX = normalizedConfig.mouseX;
+    dragState.startY = normalizedConfig.mouseY;
     dragState.startTime = Date.now();
     dragState.canDetach = false;
-    dragState.config = config;
+    dragState.config = normalizedConfig;
 
     console.log("[DETACH] 准备拖拽", {
       startX: config.mouseX,
@@ -245,10 +251,10 @@ export function useDetachable() {
     try {
       console.log("[DETACH] 通过点击分离窗口", config);
 
-      // 调用 begin_detach_session 命令直接创建分离窗口
-      // 这个命令不依赖 rdev，在所有平台上都可用
+      // 默认禁用 Tauri 拖拽拦截器
       const fullConfig: DetachableConfig = {
         ...config,
+        disableDragDropHandler: config.disableDragDropHandler ?? true,
         mouseX: 0,
         mouseY: 0,
         handleOffsetX: 0,

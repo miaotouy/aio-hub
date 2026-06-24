@@ -4,7 +4,10 @@ import { UploadFilled } from "@element-plus/icons-vue";
 import WorldbookOverview from "./WorldbookOverview.vue";
 import WorldbookManagerDialog from "./WorldbookManagerDialog.vue";
 import { useFileDrop } from "@/composables/useFileDrop";
-import { importSTWorldbookFromPath } from "../../services/worldbookImportService";
+import {
+  importSTWorldbook,
+  importSTWorldbookFromPath,
+} from "../../services/worldbookImportService";
 import { useWorldbookStore } from "../../stores/worldbookStore";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -18,11 +21,39 @@ const openFullManager = () => {
   showFullManager.value = true;
 };
 
-// 处理文件拖放导入 (Tauri 路径模式)
+const processImportFiles = async (files: File[]) => {
+  let successCount = 0;
+  let failCount = 0;
+
+  for (const file of files) {
+    try {
+      const result = await importSTWorldbook(file);
+      if (result) {
+        successCount++;
+      } else {
+        failCount++;
+      }
+    } catch (error) {
+      errorHandler.error(error, `导入世界书失败: ${file.name}`);
+      failCount++;
+    }
+  }
+
+  if (successCount > 0) {
+    customMessage.success(`成功导入 ${successCount} 本世界书`);
+    await worldbookStore.loadWorldbooks();
+  }
+
+  if (failCount > 0 && successCount === 0) {
+    customMessage.warning("导入失败，请检查文件格式是否正确");
+  }
+};
+
+// 处理文件拖放导入
 const { isDraggingOver: isDragging } = useFileDrop({
   element: dropZoneRef,
   fileOnly: true,
-  accept: [".json"],
+  accept: [".json", ".lorebook", ".png"],
   onDrop: async (paths) => {
     if (paths.length === 0) return;
 
@@ -53,6 +84,7 @@ const { isDraggingOver: isDragging } = useFileDrop({
       customMessage.warning("导入失败，请检查文件格式是否正确");
     }
   },
+  onFiles: processImportFiles,
 });
 </script>
 

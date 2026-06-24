@@ -186,8 +186,7 @@ const handleUploadClick = () => {
 const handleFileInputChange = (e: Event) => {
   const input = e.target as HTMLInputElement;
   const files = Array.from(input.files || []);
-  const paths = files.map((f) => (f as any).path || f.name);
-  manager.handleFileUpload(paths);
+  manager.handleFileObjectsUpload(files);
   // 重置 input 防止重复选择同一文件不触发 change
   input.value = "";
 };
@@ -284,7 +283,9 @@ const dropZoneHint = computed(() => {
           :hint="dropZoneHint"
           :icon="Plus"
           :disabled="disabled || !agentId"
+          emit-files
           @drop="manager.handleFileUpload"
+          @files-dropped="manager.handleFileObjectsUpload"
         />
       </div>
 

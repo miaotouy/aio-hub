@@ -5,8 +5,10 @@ import {
   Files,
   InfoFilled,
   Search,
+  QuestionFilled,
 } from "@element-plus/icons-vue";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
+import ToolCallingHelpDialog from "../../../common/ToolCallingHelpDialog.vue";
 import { useToolSearch } from "@/tools/tool-calling/composables/useToolSearch";
 import { DEFAULT_TOOL_CALL_CONFIG } from "@/tools/llm-chat/types/agent";
 import { customMessage } from "@/utils/customMessage";
@@ -49,6 +51,7 @@ const { filteredTools } = useToolSearch(discoveredTools, searchQuery);
 
 // 展开配置的工具ID
 const expandedToolId = ref<string | null>(null);
+const showHelpDialog = ref(false);
 
 const ensureConfig = () => {
   if (!editForm.toolCallConfig) {
@@ -126,7 +129,22 @@ const pasteAllToolSettings = async () => {
   <div class="agent-section">
     <div class="section-group" data-setting-id="toolCalling">
       <div class="section-header">
-        <div class="section-group-title">工具调用 (Agent)</div>
+        <div
+          class="section-group-title"
+          style="display: flex; align-items: center; gap: 6px"
+        >
+          <span>工具调用 (Agent)</span>
+          <el-button
+            link
+            :icon="QuestionFilled"
+            style="
+              font-size: 16px;
+              color: var(--el-text-color-secondary);
+              padding: 0;
+            "
+            @click="showHelpDialog = true"
+          />
+        </div>
         <el-switch
           v-model="editForm.toolCallConfig.enabled"
           @change="ensureConfig"
@@ -349,6 +367,9 @@ const pasteAllToolSettings = async () => {
         </div>
       </template>
     </div>
+
+    <!-- 说明弹窗 -->
+    <ToolCallingHelpDialog v-model="showHelpDialog" />
   </div>
 </template>
 

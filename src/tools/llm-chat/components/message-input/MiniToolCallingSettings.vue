@@ -9,8 +9,10 @@ import {
   Share2,
   ChevronDown,
   Search,
+  HelpCircle,
 } from "lucide-vue-next";
 import { useAgentStore } from "../../stores/agentStore";
+import ToolCallingHelpDialog from "../common/ToolCallingHelpDialog.vue";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
 import { useToolSearch } from "@/tools/tool-calling/composables/useToolSearch";
 import { useToolsStore } from "@/stores/tools";
@@ -25,6 +27,7 @@ const { isVcpChannel } = useIsVcpChannel();
 // 展开的工具ID
 const expandedToolId = ref<string | null>(null);
 const searchQuery = ref("");
+const showHelpDialog = ref(false);
 
 const currentAgent = computed(() => {
   return agentStore.currentAgentId
@@ -184,9 +187,27 @@ const effectiveIsVcp = computed(() => {
 <template>
   <div class="mini-tool-settings">
     <div class="settings-header">
-      <div class="header-title">
+      <div
+        class="header-title"
+        style="display: flex; align-items: center; gap: 6px"
+      >
         <Cpu :size="14" />
         <span>工具调用 (Agent)</span>
+        <button
+          class="help-btn"
+          style="
+            background: transparent;
+            border: none;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            color: var(--el-text-color-secondary);
+          "
+          @click="showHelpDialog = true"
+        >
+          <HelpCircle :size="13" />
+        </button>
       </div>
       <div class="header-actions">
         <el-switch
@@ -414,6 +435,9 @@ const effectiveIsVcp = computed(() => {
         <span>高级设置</span>
       </button>
     </div>
+
+    <!-- 说明弹窗 -->
+    <ToolCallingHelpDialog v-model="showHelpDialog" />
   </div>
 </template>
 

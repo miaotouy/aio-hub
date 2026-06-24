@@ -35,6 +35,12 @@ export { pluginManager } from "./plugin-manager";
 import { execute, executeMany } from "./executor";
 export { execute, executeMany };
 
+// 导出 Tauri 插件 API
+export {
+  open as openDialog,
+  save as saveDialog,
+} from "@tauri-apps/plugin-dialog";
+
 // 导出常用工具 (Utils)
 export * from "@/utils/customMessage";
 export * from "@/utils/errorHandler";

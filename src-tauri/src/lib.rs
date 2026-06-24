@@ -356,7 +356,7 @@ pub fn run() {
         disable_drag_drop,
     ) = {
         let app_data_dir = get_app_data_dir(context.config());
-        let settings_path = app_data_dir.join("settings.json");
+        let settings_path = app_data_dir.join("app-settings").join("settings.json");
 
         let mut show = true;
         let mut minimize = true;

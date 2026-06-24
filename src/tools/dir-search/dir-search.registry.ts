@@ -1,9 +1,10 @@
 import type {
   ToolRegistry,
   ToolConfig,
-  ServiceMetadata,
   ToolContext,
+  ServiceMetadata,
 } from "@/services/types";
+import type { SettingItem } from "@/types/settings-renderer";
 import { FolderSearch } from "lucide-vue-next";
 import { markRaw } from "vue";
 import { searchDirectory, replaceInDirectory } from "./actions";
@@ -22,6 +23,35 @@ export default class DirSearchRegistry implements ToolRegistry {
   public readonly name = "目录搜索";
   public readonly description =
     "在指定目录中搜索文件内容，支持正则表达式、全词匹配和批量替换";
+
+  public readonly settingsSchema: SettingItem[] = [
+    {
+      id: "ds-display-files",
+      label: "结果展示文件数",
+      component: "SliderWithInput",
+      modelPath: "maxDisplayFiles",
+      hint: "Agent 返回结果时最多展示的文件数（0 表示不限制）",
+      keywords: "展示 文件数 截断 结果",
+      defaultValue: 50,
+      props: {
+        min: 0,
+        max: 500,
+      },
+    },
+    {
+      id: "ds-matches-per-file",
+      label: "每文件匹配数",
+      component: "SliderWithInput",
+      modelPath: "maxMatchesPerFile",
+      hint: "每个文件中最多展示的匹配行数（0 表示不限制）",
+      keywords: "匹配数 截断 行数",
+      defaultValue: 20,
+      props: {
+        min: 0,
+        max: 200,
+      },
+    },
+  ];
 
   /**
    * 搜索目录内容（Agent Facade）
@@ -44,6 +74,14 @@ export default class DirSearchRegistry implements ToolRegistry {
       maxResults: args.maxResults !== undefined ? Number(args.maxResults) : 200,
       contextLines:
         args.contextLines !== undefined ? Number(args.contextLines) : 0,
+      maxDisplayFiles:
+        args.maxDisplayFiles !== undefined
+          ? Number(args.maxDisplayFiles)
+          : undefined,
+      maxMatchesPerFile:
+        args.maxMatchesPerFile !== undefined
+          ? Number(args.maxMatchesPerFile)
+          : undefined,
     };
     return searchDirectory(searchArgs, context);
   }
@@ -150,6 +188,22 @@ export default class DirSearchRegistry implements ToolRegistry {
               description: "每个匹配项显示的上下文行数",
               required: false,
               defaultValue: 0,
+            },
+            {
+              name: "maxDisplayFiles",
+              type: "number",
+              description:
+                "结果展示中最多显示的文件数（0 表示不限制，默认 50）",
+              required: false,
+              defaultValue: 50,
+            },
+            {
+              name: "maxMatchesPerFile",
+              type: "number",
+              description:
+                "每个文件中最多展示的匹配行数（0 表示不限制，默认 20）",
+              required: false,
+              defaultValue: 20,
             },
           ],
           returnType: "string",

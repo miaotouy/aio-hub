@@ -29,6 +29,10 @@ export interface AgentSearchArgs {
   useGitignore?: boolean;
   maxResults?: number;
   contextLines?: number;
+  /** 结果展示中最多显示的文件数（默认 50） */
+  maxDisplayFiles?: number;
+  /** 每个文件中最多展示的匹配数（默认 20） */
+  maxMatchesPerFile?: number;
 }
 
 /** Agent 替换参数 */
@@ -282,7 +286,7 @@ function formatSearchResults(
   }
 
   // 结果截断提示
-  const maxDisplay = 50; // 最多展示 50 个文件的详细结果
+  const maxDisplay = args.maxDisplayFiles ?? 50; // 最多展示 N 个文件的详细结果
   const displayResults = results.slice(0, maxDisplay);
   const truncated = results.length > maxDisplay;
 
@@ -291,8 +295,8 @@ function formatSearchResults(
     lines.push(`### ${file.relativePath}`);
     lines.push("");
 
-    // 每个文件最多展示 20 个匹配
-    const maxMatchesPerFile = 20;
+    // 每个文件最多展示 N 个匹配
+    const maxMatchesPerFile = args.maxMatchesPerFile ?? 20;
     const displayMatches = file.matches.slice(0, maxMatchesPerFile);
 
     for (const match of displayMatches) {

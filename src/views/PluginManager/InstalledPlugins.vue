@@ -571,28 +571,31 @@ onUnmounted(() => {
     </div>
 
     <!-- 空状态 -->
-    <el-empty
+    <div
       v-else
       ref="pluginsListRef"
-      :description="searchText ? '未找到匹配的插件' : '暂无已安装的插件'"
-      :image-size="120"
       :class="{ 'drop-zone-active': isDraggingOver }"
-      class="empty-drop-zone"
+      class="empty-drop-zone-wrapper"
     >
-      <template v-if="!searchText" #default>
-        <div v-if="isDraggingOver" class="drop-hint">
-          <el-icon :size="48" class="drop-icon">
-            <i-ep-upload />
-          </el-icon>
-          <p class="drop-text">释放以安装插件</p>
-        </div>
-        <div v-else>
-          <p class="empty-hint">前往"发现"标签页浏览并安装插件</p>
-          <p class="empty-hint-secondary">或将插件 ZIP 文件拖放到此处</p>
-        </div>
-      </template>
-    </el-empty>
-
+      <el-empty
+        :description="searchText ? '未找到匹配的插件' : '暂无已安装的插件'"
+        :image-size="120"
+        class="empty-drop-zone"
+      >
+        <template v-if="!searchText" #default>
+          <div v-if="isDraggingOver" class="drop-hint">
+            <el-icon :size="48" class="drop-icon">
+              <i-ep-upload />
+            </el-icon>
+            <p class="drop-text">释放以安装插件</p>
+          </div>
+          <div v-else>
+            <p class="empty-hint">前往"发现"标签页浏览并安装插件</p>
+            <p class="empty-hint-secondary">或将插件 ZIP 文件拖放到此处</p>
+          </div>
+        </template>
+      </el-empty>
+    </div>
     <!-- 预检对话框 -->
     <PluginInstallDialog
       v-model:visible="showPreflightDialog"
@@ -763,7 +766,17 @@ onUnmounted(() => {
   color: var(--el-text-color-placeholder);
 }
 
-.empty-drop-zone {
+.empty-drop-zone-wrapper {
+  position: relative;
+  transition: all 0.3s ease;
   min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.empty-drop-zone {
+  width: 100%;
 }
 </style>

@@ -1,4 +1,4 @@
-import { ref, onMounted, onUnmounted, Ref } from "vue";
+import { ref, onMounted, onUnmounted, Ref, watch } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { customMessage } from "@/utils/customMessage";
@@ -243,7 +243,15 @@ export function useFileDrop(options: FileDropOptions = {}) {
       return document.querySelector(options.element) as HTMLElement;
     }
 
-    return options.element.value || null;
+    const val = options.element.value;
+    if (!val) return null;
+
+    // 兼容 Vue 组件实例，获取其根 DOM 元素
+    if (typeof val === "object" && "$el" in val) {
+      return (val as any).$el || null;
+    }
+
+    return val as HTMLElement;
   };
 
   // 检查是否禁用
@@ -774,6 +782,17 @@ export function useFileDrop(options: FileDropOptions = {}) {
     // 清除挂起的 drop
     clearPendingDrop();
   };
+
+  // 监听 element 变化，动态重新绑定
+  if (options.element && typeof options.element !== "string") {
+    watch(options.element, async (newVal, oldVal) => {
+      if (newVal !== oldVal) {
+        console.log("[useFileDrop] 检测到目标元素发生变化，重新初始化监听器");
+        cleanup();
+        await setupFileDropListener();
+      }
+    });
+  }
 
   // 生命周期
   onMounted(async () => {

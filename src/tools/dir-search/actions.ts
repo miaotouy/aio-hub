@@ -198,6 +198,59 @@ export async function replaceInDirectory(
 }
 
 /**
+ * 智能裁切超长行，以匹配项为中心保留适量上下文
+ */
+function truncateLine(
+  content: string,
+  matchStart: number,
+  matchEnd: number,
+  maxLength = 200
+): string {
+  if (content.length <= maxLength) {
+    return content.trimEnd();
+  }
+
+  // 默认向左保留 50 字符，向右保留 100 字符
+  const leftKeep = 50;
+  const rightKeep = 100;
+
+  // 确保 matchStart 和 matchEnd 有效，否则退化为截取头部
+  const startIdx =
+    typeof matchStart === "number" && matchStart >= 0 ? matchStart : 0;
+  const endIdx =
+    typeof matchEnd === "number" && matchEnd >= startIdx
+      ? matchEnd
+      : content.length;
+
+  let start = Math.max(0, startIdx - leftKeep);
+  let end = Math.min(content.length, endIdx + rightKeep);
+
+  // 如果裁切后的长度依然超出 maxLength，则以匹配项为中心进行二次收缩
+  if (end - start > maxLength) {
+    const matchLen = endIdx - startIdx;
+    const remain = maxLength - matchLen;
+    if (remain > 0) {
+      start = Math.max(0, startIdx - Math.floor(remain / 2));
+      end = Math.min(content.length, endIdx + Math.ceil(remain / 2));
+    } else {
+      // 匹配项本身就极长，那就只展示匹配项本身
+      start = startIdx;
+      end = endIdx;
+    }
+  }
+
+  let result = content.slice(start, end);
+  if (start > 0) {
+    result = "..." + result;
+  }
+  if (end < content.length) {
+    result = result + "...";
+  }
+
+  return result.trimEnd();
+}
+
+/**
  * 格式化搜索结果为 LLM 可读文本
  */
 function formatSearchResults(
@@ -244,7 +297,11 @@ function formatSearchResults(
 
     for (const match of displayMatches) {
       const linePrefix = `L${match.lineNumber}`;
-      const content = match.lineContent.trimEnd();
+      const content = truncateLine(
+        match.lineContent,
+        match.matchStart,
+        match.matchEnd
+      );
       lines.push(`- **${linePrefix}**: \`${escapeBackticks(content)}\``);
     }
 

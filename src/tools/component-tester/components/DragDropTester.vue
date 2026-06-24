@@ -7,16 +7,16 @@
         对比窗口创建器
       </div>
       <p class="desc">
-        创建两个不同配置的独立窗口，对比 Tauri 内置拖拽拦截器对拖拽行为的影响。
+        创建两个不同配置的独立窗口，对比路径优先拖放和 H5 原生拖放的行为差异。
       </p>
       <div class="button-group">
         <el-button type="primary" @click="createWindow(false)">
-          <span class="btn-label">创建普通窗口</span>
-          <span class="btn-sub-label">(Tauri 拦截)</span>
+          <span class="btn-label">创建路径优先窗口</span>
+          <span class="btn-sub-label">(Tauri 路径事件)</span>
         </el-button>
         <el-button type="success" plain @click="createWindow(true)">
-          <span class="btn-label">创建原生穿透窗口</span>
-          <span class="btn-sub-label">(Tauri 禁用)</span>
+          <span class="btn-label">创建 H5 兼容窗口</span>
+          <span class="btn-sub-label">(原生 File 对象)</span>
         </el-button>
       </div>
       <div v-if="windowLog" class="window-log">
@@ -59,7 +59,7 @@ onUnmounted(() => {
 });
 
 const createWindow = async (disableDragDropHandler: boolean) => {
-  const modeLabel = disableDragDropHandler ? "原生穿透窗口" : "普通窗口";
+  const modeLabel = disableDragDropHandler ? "H5 兼容窗口" : "路径优先窗口";
   try {
     windowLog.value = {
       type: "info",

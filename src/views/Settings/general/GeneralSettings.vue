@@ -431,9 +431,9 @@ const handleImportConfig = async () => {
 
     <div class="setting-item">
       <div class="setting-label">
-        <span>禁用 Tauri 拖拽拦截器</span>
+        <span>H5 原生拖放兼容模式</span>
         <el-tooltip
-          content="启用后使用 H5 原生拖放；切换后需要重启应用才能生效"
+          content="关闭时使用路径优先拖放；启用后使用 H5 原生 File 对象拖放。切换后需要重启应用"
           placement="top"
         >
           <el-icon class="info-icon">

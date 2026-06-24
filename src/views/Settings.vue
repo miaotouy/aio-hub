@@ -213,14 +213,14 @@ const onConfigImported = async (resultMessage: string) => {
   }
 };
 const handleDisableTauriDragDropHandlerChange = async (newValue: boolean) => {
-  const currentValue = settings.value.disableTauriDragDropHandler ?? true;
+  const currentValue = settings.value.disableTauriDragDropHandler ?? false;
   if (newValue === currentValue) {
     return;
   }
 
   try {
     await ElMessageBox.confirm(
-      "切换 Tauri 拖拽拦截器行为需要重启应用后才能生效。确认后将立即重启应用。",
+      "切换拖放兼容模式需要重启应用后才能生效。确认后将立即重启应用。",
       "重启应用",
       {
         confirmButtonText: "确认重启",
@@ -507,7 +507,7 @@ onUnmounted(() => {
                 :theme="settings.theme"
                 :auto-adjust-window-position="settings.autoAdjustWindowPosition"
                 :disable-tauri-drag-drop-handler="
-                  settings.disableTauriDragDropHandler ?? true
+                  settings.disableTauriDragDropHandler ?? false
                 "
                 :sidebar-mode="settings.sidebarMode"
                 :proxy="settings.proxy"

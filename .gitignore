@@ -22,6 +22,9 @@ src/components.d.ts
 # Rust build artifacts
 target/
 
+# wry 补丁运行时目录（由 postinstall 脚本自动补全，不入库）
+src-tauri/patches/wry/
+
 # Editor directories and files
 .vscode/*
 

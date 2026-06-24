@@ -283,6 +283,39 @@ const nativeDroppedFiles = ref<DroppedFile[]>([]);
 const areaBRef = ref<HTMLElement>();
 const tauriDragOver = ref(false);
 const tauriDroppedPaths = ref<string[]>([]);
+let lastTauriDrop:
+  | { signature: string; receivedAt: number }
+  | null = null;
+
+const recordTauriDrop = (
+  paths: string[] | undefined,
+  position: { x: number; y: number } | undefined,
+  isInside: boolean
+) => {
+  const normalizedPaths = Array.isArray(paths) ? paths : [];
+  const signature = JSON.stringify({
+    paths: normalizedPaths,
+    position: position ? { x: position.x, y: position.y } : null,
+    isInside,
+  });
+  const nowMs = performance.now();
+
+  if (
+    lastTauriDrop &&
+    lastTauriDrop.signature === signature &&
+    nowMs - lastTauriDrop.receivedAt < 150
+  ) {
+    return false;
+  }
+
+  lastTauriDrop = { signature, receivedAt: nowMs };
+
+  if (isInside && normalizedPaths.length > 0) {
+    tauriDroppedPaths.value = [...tauriDroppedPaths.value, ...normalizedPaths];
+  }
+
+  return true;
+};
 
 // Tauri 监听器注销函数列表
 const unlistens: (() => void)[] = [];
@@ -558,9 +591,8 @@ const setupTauriListeners = async () => {
     const { paths, position } = event.payload;
     const isInside = isPositionInElement(position, element);
 
-    if (isInside && paths && paths.length > 0) {
-      tauriDroppedPaths.value = [...tauriDroppedPaths.value, ...paths];
-    }
+    const shouldLog = recordTauriDrop(paths, position, isInside);
+    if (!shouldLog) return;
 
     logEntry({
       source: "tauri",
@@ -628,9 +660,9 @@ const setupTauriListeners = async () => {
         });
       } else if (type === "drop") {
         tauriDragOver.value = false;
-        if (isInside && paths && paths.length > 0) {
-          tauriDroppedPaths.value = [...tauriDroppedPaths.value, ...paths];
-        }
+        const shouldLog = recordTauriDrop(paths, coords, isInside);
+        if (!shouldLog) return;
+
         logEntry({
           source: "tauri",
           type: `webview-file-drop (${paths?.length || 0} 个文件)`,

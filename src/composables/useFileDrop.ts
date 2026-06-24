@@ -101,13 +101,13 @@ const parsePathsFromDataTransfer = (dt: DataTransfer): string[] => {
  *
  * 在 Tauri 环境中，文件拖放可能通过两条路径到达：
  *
- * 路径 A - H5 原生事件：当 Tauri 拖拽拦截器被禁用时（disableDragDropHandler=true），
+ * 路径 A - H5 原生事件：当 H5 兼容模式启用时（disableDragDropHandler=true），
  *   HTML5 原生 dragenter/dragover/dragleave/drop 事件正常触发。
  *   - 优点：DOM 级别精准，即时响应，isDraggingOver 状态极其灵敏。
  *   - 缺点：drop 时通过 e.dataTransfer.files 只能拿到文件名、大小和 MIME 类型，
  *           拿不到文件系统绝对路径；需要通过 onFiles 走字节导入。
  *
- * 路径 B - Tauri 窗口级事件：
+ * 路径 B - Tauri 窗口级事件（默认路径优先模式）：
  *   - custom-drag-enter/custom-drag-over/custom-drag-leave（通过 Tauri 事件系统）
  *     只会在 Tauri 拖拽拦截器启用时触发。
  *   - getCurrentWebview().onDragDropEvent（Tauri v2 最底层 Webview 拖放事件）

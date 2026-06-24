@@ -28,7 +28,7 @@ export interface DetachableConfig {
   metadata?: Record<string, any>;
   /** 是否禁用原生窗口边缘的拖拽响应（即禁用窗口缩放） */
   disableNativeResize?: boolean;
-  /** 是否禁用 Tauri 内置的拖拽拦截器 */
+  /** 是否使用 H5 原生拖放兼容模式 */
   disableDragDropHandler?: boolean;
   /** 如果未触发拖拽（视为点击），调用此回调 */
   onClickInstead?: () => void;
@@ -66,10 +66,10 @@ export function useDetachable() {
   const startDragging = (config: DetachableConfig) => {
     if (isDragging.value || dragState.isPreparing) return;
 
-    // 默认禁用 Tauri 拖拽拦截器，让 H5 原生拖拽正常工作
+    // 默认使用 Tauri 路径优先拖放模式
     const normalizedConfig: DetachableConfig = {
       ...config,
-      disableDragDropHandler: config.disableDragDropHandler ?? true,
+      disableDragDropHandler: config.disableDragDropHandler ?? false,
     };
 
     // 进入准备阶段，记录起始位置、时间和配置
@@ -251,10 +251,10 @@ export function useDetachable() {
     try {
       console.log("[DETACH] 通过点击分离窗口", config);
 
-      // 默认禁用 Tauri 拖拽拦截器
+      // 默认使用 Tauri 路径优先拖放模式
       const fullConfig: DetachableConfig = {
         ...config,
-        disableDragDropHandler: config.disableDragDropHandler ?? true,
+        disableDragDropHandler: config.disableDragDropHandler ?? false,
         mouseX: 0,
         mouseY: 0,
         handleOffsetX: 0,

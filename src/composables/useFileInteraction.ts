@@ -7,6 +7,7 @@ import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { formatDateTime } from "@/utils/time";
 import { useFileDrop, type FileDropOptions } from "./useFileDrop";
+import { assetManagerEngine } from "./useAssetManager";
 import type { Asset } from "@/types/asset-management";
 
 const logger = createModuleLogger("useFileInteraction");
@@ -378,10 +379,28 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
     if (onPaths) {
       // 直接使用路径
       await onPaths(paths);
-    } else if (onFiles) {
-      // 这里不进行路径到 File 的转换，因为这需要后端支持
-      // 如果需要，用户应该使用 onPaths 回调
-      logger.warn("拖放文件时提供了路径，但未配置 onPaths 回调");
+      return;
+    }
+
+    if (pasteMode === "asset" && onAssets) {
+      const assets: Asset[] = [];
+      for (const path of paths) {
+        const asset = await assetManagerEngine.importAssetFromPath(path, {
+          ...assetOptions,
+          origin: {
+            type: "local",
+            source: path,
+            sourceModule,
+          },
+        });
+        assets.push(asset);
+      }
+      await onAssets(assets);
+      return;
+    }
+
+    if (onFiles) {
+      logger.warn("拖放文件时提供了路径，但未配置 onPaths/onAssets 回调");
     }
   };
 

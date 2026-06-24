@@ -24,6 +24,7 @@
     "mobile"
   ],
   "scripts": {
+    "postinstall": "bun run scripts/setup-wry-patch.ts",
     "generate:shims": "bun scripts/generate-shims.ts",
     "release:updater-manifest": "bun scripts/generate-updater-manifest.ts",
     "dev": "bun run generate:shims ; bun scripts/dev.ts",

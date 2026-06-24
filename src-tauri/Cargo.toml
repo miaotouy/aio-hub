@@ -131,3 +131,6 @@ windows = { version = "0.58", features = [
 # macOS 特定依赖
 [target."cfg(target_os = \"macos\")".dependencies]
 cocoa = "0.26"
+
+[patch.crates-io]
+wry = { path = "patches/wry" }

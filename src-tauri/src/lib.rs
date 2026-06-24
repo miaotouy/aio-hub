@@ -55,7 +55,7 @@ fn load_startup_config(config: &tauri::Config) -> StartupConfig {
     let mut enable_effects = false;
     let mut effect_type = "none".to_string();
     let mut show_shadow = true;
-    let mut disable_drag_drop = true;
+    let mut disable_drag_drop = false;
 
     if settings_path.exists() {
         if let Ok(contents) = std::fs::read_to_string(&settings_path) {
@@ -91,11 +91,11 @@ fn load_startup_config(config: &tauri::Config) -> StartupConfig {
                         .unwrap_or(true);
                 }
 
-                // 读取拖拽拦截器设置
+                // 读取拖放兼容模式设置。false 表示使用 Tauri 路径优先模式。
                 disable_drag_drop = json
                     .get("disableTauriDragDropHandler")
                     .and_then(|v| v.as_bool())
-                    .unwrap_or(true);
+                    .unwrap_or(false);
             }
         }
     }

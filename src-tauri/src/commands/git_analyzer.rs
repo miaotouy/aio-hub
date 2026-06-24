@@ -671,7 +671,15 @@ pub async fn git_get_commit_detail(path: String, hash: String) -> Result<GitComm
     let repo =
         Repository::open(repo_path).map_err(|e| format!("Failed to open repository: {}", e))?;
 
-    let oid = Oid::from_str(&hash).map_err(|e| format!("Invalid commit hash: {}", e))?;
+    // 支持短哈希：长度不足 40 时使用 revparse 前缀匹配
+    let oid = if hash.len() < 40 {
+        let obj = repo
+            .revparse_single(&hash)
+            .map_err(|e| format!("Cannot resolve short hash '{}': {}", hash, e))?;
+        obj.id()
+    } else {
+        Oid::from_str(&hash).map_err(|e| format!("Invalid commit hash: {}", e))?
+    };
 
     parse_commit(&repo, oid, true)
 }

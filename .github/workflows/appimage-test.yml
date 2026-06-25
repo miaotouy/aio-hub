@@ -43,6 +43,16 @@ jobs:
       - name: 安装前端依赖
         run: bun install
 
+      - name: 检查并处理无签名构建配置
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
+            echo "⚠️ 未检测到 TAURI_SIGNING_PRIVATE_KEY，正在动态修改 tauri.conf.json 以支持无签名构建..."
+            bun scripts/build.ts --patch-config
+          else
+            echo "🔑 检测到 TAURI_SIGNING_PRIVATE_KEY，将进行带签名的完整构建。"
+          fi
+
       - name: 构建应用
         uses: tauri-apps/tauri-action@v0
         env:

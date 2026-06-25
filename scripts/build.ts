@@ -5,7 +5,7 @@ import dotenv from "dotenv";
 
 console.log("⚙️ [Build] 正在加载环境变量...");
 
-// 1. 加载环境变量
+//  加载环境变量
 const envPaths = [".env.local", ".env"];
 let loaded = false;
 for (const envPath of envPaths) {
@@ -22,7 +22,47 @@ if (!loaded) {
   );
 }
 
-// 2. 检查关键变量是否存在
+// 检查是否仅就地修改配置 (用于 CI 无 key 降级)
+if (process.argv.includes("--patch-config")) {
+  console.log("[Build] 🛠️ 正在就地修改 tauri.conf.json 以支持无签名构建...");
+  try {
+    const tauriConfPath = path.resolve(
+      process.cwd(),
+      "src-tauri",
+      "tauri.conf.json"
+    );
+    if (fs.existsSync(tauriConfPath)) {
+      const tauriConf = JSON.parse(fs.readFileSync(tauriConfPath, "utf-8"));
+      let modified = false;
+      if (tauriConf.plugins?.updater?.pubkey) {
+        delete tauriConf.plugins.updater.pubkey;
+        console.log(
+          "[Build] 已从 tauri.conf.json 中移除 plugins.updater.pubkey"
+        );
+        modified = true;
+      }
+      if (tauriConf.bundle) {
+        tauriConf.bundle.createUpdaterArtifacts = false;
+        console.log(
+          "[Build] 已将 tauri.conf.json 中的 bundle.createUpdaterArtifacts 设为 false"
+        );
+        modified = true;
+      }
+      if (modified) {
+        fs.writeFileSync(tauriConfPath, JSON.stringify(tauriConf, null, 2));
+        console.log("[Build] tauri.conf.json 修改成功。");
+      } else {
+        console.log("[Build] tauri.conf.json 无需修改。");
+      }
+    }
+    process.exit(0);
+  } catch (err) {
+    console.error("[Build] ❌ 就地修改 tauri.conf.json 失败:", err);
+    process.exit(1);
+  }
+}
+
+// 检查关键变量是否存在
 const hasKey = !!process.env.TAURI_SIGNING_PRIVATE_KEY;
 let tempConfPath: string | null = null;
 
@@ -73,7 +113,7 @@ if (hasKey) {
   }
 }
 
-// 3. 构造并执行 Tauri Build 命令
+// 构造并执行 Tauri Build 命令
 const extraArgs = process.argv.slice(2);
 if (extraArgs.length > 0) {
   tauriArgs.push(...extraArgs);

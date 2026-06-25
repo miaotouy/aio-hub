@@ -52,7 +52,7 @@ jobs:
         run: bun install
 
       - name: 构建应用 (使用 tauri build 确保资源嵌入)
-        run: bun tauri build
+        run: bun run tauri:build
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}

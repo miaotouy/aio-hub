@@ -1,7 +1,7 @@
 name: 手动测试 Flatpak 构建
 
 on:
-  workflow_dispatch:  # 允许手动触发
+  workflow_dispatch: # 允许手动触发
 
 permissions:
   contents: read
@@ -12,7 +12,7 @@ env:
 jobs:
   build-flatpak:
     runs-on: ubuntu-22.04
-    
+
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -43,7 +43,7 @@ jobs:
       - name: Rust 缓存
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
+          workspaces: "./src-tauri -> target"
 
       - name: 准备 Tauri 打包工具缓存
         uses: ./.github/actions/prepare-tauri-bundler-tools
@@ -53,6 +53,9 @@ jobs:
 
       - name: 构建应用 (使用 tauri build 确保资源嵌入)
         run: bun tauri build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - name: 准备 Flatpak 源文件
         run: |
@@ -85,3 +88,4 @@ jobs:
           name: aio-hub-test-linux-x64.flatpak
           path: aio-hub-test.flatpak
           if-no-files-found: error
+

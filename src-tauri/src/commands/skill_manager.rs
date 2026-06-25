@@ -245,7 +245,65 @@ fn parse_skill_directory_sync(path: &Path, source: &str) -> Option<SkillManifest
 
     let yaml_str = parts[1];
     let instructions = parts[2..].join("---");
-    let frontmatter: SkillFrontmatter = serde_yaml::from_str(yaml_str).ok()?;
+
+    // 辅助函数：修剪两端的引号
+    let trim_quotes = |s: &str| -> String {
+        let s = s.trim();
+        if (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')) {
+            if s.len() >= 2 {
+                s[1..s.len() - 1].to_string()
+            } else {
+                s.to_string()
+            }
+        } else {
+            s.to_string()
+        }
+    };
+
+    let frontmatter: SkillFrontmatter = match serde_yaml::from_str(yaml_str) {
+        Ok(fm) => fm,
+        Err(e) => {
+            // YAML 解析失败，使用正则容错解析（防止 description 中包含未加引号的冒号等特殊字符导致解析失败）
+            let name_re = regex::Regex::new(r"(?m)^name:\s*(.+)$").unwrap();
+            let desc_re = regex::Regex::new(r"(?m)^description:\s*(.+)$").unwrap();
+            let license_re = regex::Regex::new(r"(?m)^license:\s*(.+)$").unwrap();
+            let comp_re = regex::Regex::new(r"(?m)^compatibility:\s*(.+)$").unwrap();
+
+            let name = name_re
+                .captures(yaml_str)
+                .and_then(|c| c.get(1))
+                .map(|m| trim_quotes(m.as_str()));
+
+            let description = desc_re
+                .captures(yaml_str)
+                .and_then(|c| c.get(1))
+                .map(|m| trim_quotes(m.as_str()));
+
+            if let (Some(n), Some(d)) = (name, description) {
+                let license = license_re
+                    .captures(yaml_str)
+                    .and_then(|c| c.get(1))
+                    .map(|m| trim_quotes(m.as_str()));
+
+                let compatibility = comp_re
+                    .captures(yaml_str)
+                    .and_then(|c| c.get(1))
+                    .map(|m| trim_quotes(m.as_str()));
+
+                SkillFrontmatter {
+                    name: n,
+                    description: d,
+                    license,
+                    compatibility,
+                    metadata: None,
+                    allowed_tools: None,
+                }
+            } else {
+                println!("Skill Frontmatter 容错解析失败: {}", e);
+                return None;
+            }
+        }
+    };
 
     // 规范校验
     if !is_valid_skill_name(&frontmatter.name) {
@@ -665,8 +723,12 @@ async fn install_skill_internal(
     source_path: &Path,
     custom_name: Option<String>,
 ) -> Result<SkillManifest, String> {
+    // 自动定位到真正包含 SKILL.md 的目录
+    let actual_source_path = find_skill_directory(source_path)
+        .ok_or_else(|| "该目录或其子目录下未找到有效的 SKILL.md 文件".to_string())?;
+
     // 预检并获取当前清单
-    let mut manifest = parse_skill_directory(source_path, "user")
+    let mut manifest = parse_skill_directory(&actual_source_path, "user")
         .await
         .ok_or("该目录不是有效的 Skill 目录（缺少 SKILL.md 或格式错误）")?;
 
@@ -677,7 +739,7 @@ async fn install_skill_internal(
         }
 
         // 更新文件内容（直接在源目录修改，因为通常源目录是临时的或即将被复制）
-        let skill_md_path = source_path.join("SKILL.md");
+        let skill_md_path = actual_source_path.join("SKILL.md");
         let content = fs::read_to_string(&skill_md_path).map_err(|e| e.to_string())?;
 
         // 简单的 YAML 替换，使用 [^\n]* 避免跨行匹配导致内容被截断
@@ -707,11 +769,11 @@ async fn install_skill_internal(
     let mut options = fs_extra::dir::CopyOptions::new();
     options.copy_inside = true;
     // 确保复制后的目录名与 manifest.name 严格一致
-    fs_extra::dir::copy(source_path, &skills_dir, &options)
+    fs_extra::dir::copy(&actual_source_path, &skills_dir, &options)
         .map_err(|e| format!("安装复制失败: {}", e))?;
 
     // 如果源目录名不等于 manifest.name，fs_extra 会按原名复制，我们需要重命名
-    let source_dir_name = source_path.file_name().unwrap();
+    let source_dir_name = actual_source_path.file_name().unwrap();
     let actual_copied_dir = skills_dir.join(source_dir_name);
 
     if actual_copied_dir != target_skills_dir {
@@ -1382,6 +1444,13 @@ fn detect_package_internal(
     path: &Path,
     app_handle: &AppHandle,
 ) -> Result<SkillPackageInfo, String> {
+    // 如果是文件，自动获取其父目录
+    let mut path_buf = path.to_path_buf();
+    if path_buf.is_file() {
+        path_buf = path_buf.parent().ok_or("无法获取父目录")?.to_path_buf();
+    }
+    let path = path_buf.as_path();
+
     // 1. 检查是否有 bundle.yaml 或 bundle.yml
     let mut bundle_yaml_path = path.join("bundle.yaml");
     if !bundle_yaml_path.exists() {
@@ -1704,13 +1773,16 @@ pub async fn prepare_and_detect_package(
 
     match input_type.as_str() {
         "local" => {
-            let p = PathBuf::from(&path_or_url);
+            let mut p = PathBuf::from(&path_or_url);
             if !p.exists() {
                 return Err("路径不存在".to_string());
             }
+            if p.is_file() {
+                p = p.parent().ok_or("无法获取父目录")?.to_path_buf();
+            }
             let package_info = detect_package_internal(&p, &app)?;
             Ok(PrepareDetectResult {
-                temp_path: path_or_url,
+                temp_path: p.to_string_lossy().to_string(),
                 package_info,
             })
         }

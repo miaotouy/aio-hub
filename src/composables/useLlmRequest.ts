@@ -66,6 +66,14 @@ export function useLlmRequest() {
       ];
     }
 
+    // 优先复用调用方已生成的 requestId（可能用于主动停止），否则生成新的
+    if (!options.requestId) {
+      options.requestId =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `req-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
+
     // ============ LLM Inspector 上下文透传（B3）============
     // 自动补全 requestId（若调用方未传），并合并 inspectorContext 后写入
     // hookRegistry 的 contextStore，供 fetchWithTimeout 通过 X-Request-ID
@@ -75,13 +83,6 @@ export function useLlmRequest() {
     const captureInspector = inspectorHookRegistry.shouldCaptureInternal();
     let inspectorRequestId: string | undefined;
     if (captureInspector) {
-      // 优先复用调用方已生成的 requestId（可能用于主动停止），否则生成新的
-      if (!options.requestId) {
-        options.requestId =
-          typeof crypto !== "undefined" && "randomUUID" in crypto
-            ? crypto.randomUUID()
-            : `req-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      }
       inspectorRequestId = options.requestId;
 
       // 合并：调用方传的 inspectorContext（toolName/sessionId/purpose 等）
@@ -223,7 +224,6 @@ export function useLlmRequest() {
           logger.debug("自动检测到本地文件协议，已开启 Rust 代理模式");
         }
       }
-
       // 根据 Provider 和 Model 能力智能过滤参数
       // 使用 any 避开 LlmRequestOptions 和 MediaGenerationOptions 之间 responseFormat 的类型冲突
       let filteredOptions = filterParametersByCapabilities(
@@ -235,6 +235,11 @@ export function useLlmRequest() {
       // 确保 signal 被透传，filterParametersByCapabilities 可能会漏掉它
       if (options.signal) {
         filteredOptions.signal = options.signal;
+      }
+
+      // 确保 requestId 被透传，filterParametersByCapabilities 可能会漏掉它
+      if (options.requestId) {
+        filteredOptions.requestId = options.requestId;
       }
 
       // 合并模型的自定义参数

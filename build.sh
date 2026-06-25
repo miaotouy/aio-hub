@@ -27,4 +27,4 @@ if [[ "$CURRENT_DIR" == /mnt/hgfs/* ]]; then
   echo "✅ 已切换到原生目录，开始执行 build..."
 fi
 
-bun run tauri:build
+bun run tauri:build:local

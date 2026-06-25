@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import dotenv from "dotenv";
@@ -62,11 +62,51 @@ if (process.argv.includes("--patch-config")) {
   }
 }
 
-// 检查关键变量是否存在
+// 检查关键变量和参数
 const hasKey = !!process.env.TAURI_SIGNING_PRIVATE_KEY;
+const isLocal = process.argv.includes("--local");
 let tempConfPath: string | null = null;
 
 const tauriArgs = ["tauri", "build"];
+
+// 获取 Git 提交短哈希
+function getGitCommitHash(): string | null {
+  try {
+    return execSync("git rev-parse --short HEAD", { encoding: "utf-8" }).trim();
+  } catch (err) {
+    console.warn("[Build] ⚠️ 获取 Git 提交哈希失败:", err);
+    return null;
+  }
+}
+
+// 动态计算本地构建版本号
+let localVersion: string | null = null;
+if (isLocal) {
+  const gitHash = getGitCommitHash();
+  if (gitHash) {
+    try {
+      const tauriConfPath = path.resolve(
+        process.cwd(),
+        "src-tauri",
+        "tauri.conf.json"
+      );
+      if (fs.existsSync(tauriConfPath)) {
+        const tauriConf = JSON.parse(fs.readFileSync(tauriConfPath, "utf-8"));
+        const originalVersion = tauriConf.version;
+        if (originalVersion.includes("-")) {
+          localVersion = `${originalVersion}.build.${gitHash}`;
+        } else {
+          localVersion = `${originalVersion}-build.${gitHash}`;
+        }
+        console.log(
+          `[Build] 🏷️ 检测到 --local 参数，将动态版本号设为: ${localVersion}`
+        );
+      }
+    } catch (err) {
+      console.error("[Build] ❌ 计算本地版本号失败:", err);
+    }
+  }
+}
 
 if (hasKey) {
   console.log(
@@ -74,9 +114,11 @@ if (hasKey) {
   );
 } else {
   console.warn("[Build] ⚠️ 未检测到 TAURI_SIGNING_PRIVATE_KEY。");
-  console.log(
-    "[Build] 🛠️ 为了防止 Tauri 因“配置了公钥但缺少私钥”而报错，正在动态生成无签名构建配置..."
-  );
+}
+
+// 如果需要无签名构建，或者需要注入本地版本号，则生成临时配置文件
+if (!hasKey || localVersion) {
+  console.log("[Build] 🛠️ 正在动态生成临时构建配置...");
 
   try {
     const tauriConfPath = path.resolve(
@@ -87,14 +129,22 @@ if (hasKey) {
     if (fs.existsSync(tauriConfPath)) {
       const tauriConf = JSON.parse(fs.readFileSync(tauriConfPath, "utf-8"));
 
-      // 动态移除 pubkey 和禁用 updater 产物生成，避免构建报错
-      if (tauriConf.plugins?.updater?.pubkey) {
-        delete tauriConf.plugins.updater.pubkey;
-        console.log("[Build] 已从临时配置中移除 plugins.updater.pubkey");
+      // 1. 如果无签名，动态移除 pubkey 和禁用 updater 产物生成，避免构建报错
+      if (!hasKey) {
+        if (tauriConf.plugins?.updater?.pubkey) {
+          delete tauriConf.plugins.updater.pubkey;
+          console.log("[Build] 已从临时配置中移除 plugins.updater.pubkey");
+        }
+        if (tauriConf.bundle) {
+          tauriConf.bundle.createUpdaterArtifacts = false;
+          console.log("[Build] 已将 bundle.createUpdaterArtifacts 设为 false");
+        }
       }
-      if (tauriConf.bundle) {
-        tauriConf.bundle.createUpdaterArtifacts = false;
-        console.log("[Build] 已将 bundle.createUpdaterArtifacts 设为 false");
+
+      // 2. 如果是本地构建，注入带 Git 哈希的版本号
+      if (localVersion) {
+        tauriConf.version = localVersion;
+        console.log(`[Build] 已将临时配置中的版本号修改为: ${localVersion}`);
       }
 
       tempConfPath = path.resolve(
@@ -103,7 +153,7 @@ if (hasKey) {
         "tauri.conf.build.json"
       );
       fs.writeFileSync(tempConfPath, JSON.stringify(tauriConf, null, 2));
-      console.log(`[Build] 已生成临时无签名构建配置: ${tempConfPath}`);
+      console.log(`[Build] 已生成临时构建配置: ${tempConfPath}`);
 
       // 使用临时配置文件
       tauriArgs.push("-c", tempConfPath);
@@ -114,7 +164,8 @@ if (hasKey) {
 }
 
 // 构造并执行 Tauri Build 命令
-const extraArgs = process.argv.slice(2);
+// 过滤掉我们自定义 of --local 参数，避免传给 tauri build 报错
+const extraArgs = process.argv.slice(2).filter((arg) => arg !== "--local");
 if (extraArgs.length > 0) {
   tauriArgs.push(...extraArgs);
 }

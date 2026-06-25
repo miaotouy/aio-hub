@@ -19,6 +19,7 @@ import type { QuickAction } from "../types/quick-action";
 import { open } from "@tauri-apps/plugin-dialog";
 import { processInlineData } from "@/composables/useAttachmentProcessor";
 import { useTranscriptionManager } from "../composables/features/useTranscriptionManager";
+import { assetManagerEngine } from "@/composables/useAssetManager";
 import type { PendingInputData } from "../types/context";
 
 export interface InputToolbarSettings {
@@ -515,30 +516,43 @@ export const useMessageInputStore = defineStore(
         }
       }
     };
-
     // 转写相关
-    const handleTranscribeAll = () => {
-      attachments.value.forEach((asset) => {
-        const status = transcriptionManager.getTranscriptionStatus(asset);
+    const handleTranscribeAll = async () => {
+      for (const asset of attachments.value) {
+        const latestAsset = await assetManagerEngine.getAssetById(asset.id);
+        const assetToCheck = latestAsset || asset;
+        const status =
+          transcriptionManager.getTranscriptionStatus(assetToCheck);
         if (status === "none" || status === "error") {
-          transcriptionManager.addTask(asset);
+          transcriptionManager.addTask(assetToCheck);
         }
-      });
+      }
     };
 
-    const handleSmartTranscribeAll = (
+    const handleSmartTranscribeAll = async (
       getWillUseTranscription: (asset: any) => boolean
     ) => {
-      attachments.value.forEach((asset) => {
-        if (getWillUseTranscription(asset)) {
-          const status = transcriptionManager.getTranscriptionStatus(asset);
+      for (const asset of attachments.value) {
+        const latestAsset = await assetManagerEngine.getAssetById(asset.id);
+        const assetToCheck = latestAsset || asset;
+        if (getWillUseTranscription(assetToCheck)) {
+          const status =
+            transcriptionManager.getTranscriptionStatus(assetToCheck);
           if (status === "none" || status === "error") {
-            transcriptionManager.addTask(asset);
+            transcriptionManager.addTask(assetToCheck);
           }
         }
-      });
+      }
     };
 
+    const handleForceTranscribeAll = async () => {
+      for (const asset of attachments.value) {
+        const latestAsset = await assetManagerEngine.getAssetById(asset.id);
+        const assetToCheck = latestAsset || asset;
+        // 只要是支持转写的类型，不管当前状态是什么，全部重新添加任务
+        transcriptionManager.addTask(assetToCheck);
+      }
+    };
     const handleStopAllTranscriptions = () => {
       attachments.value.forEach((asset) => {
         const status = transcriptionManager.getTranscriptionStatus(asset);
@@ -548,6 +562,7 @@ export const useMessageInputStore = defineStore(
       });
     };
 
+    // 翻译输入
     // 翻译输入
     const handleTranslateInput = async () => {
       if (isTranslating.value) return;
@@ -685,6 +700,7 @@ export const useMessageInputStore = defineStore(
       handlePaste,
       handleTranscribeAll,
       handleSmartTranscribeAll,
+      handleForceTranscribeAll,
       handleStopAllTranscriptions,
       handleTranslateInput,
       handleCompressContext,

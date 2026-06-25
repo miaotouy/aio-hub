@@ -323,14 +323,7 @@ export function useTranscriptionManager() {
       if (task.status === "pending") return "pending";
       if (task.status === "cancelled") return "none";
       if (task.status === "completed" && task.resultPath) {
-        // 关键：如果任务已完成，但资产元数据中没有转写信息，说明转写已被删除
-        const derived = asset.metadata?.derived?.transcription;
-        if (!derived || !derived.path) {
-          // 顺便从 store 中移除这个失效的任务，防止脏数据残留
-          transcriptionStore.removeTask(task.id);
-          return "none";
-        }
-        if (derived.warning) return "warning";
+        // 只要任务已完成，就认为转写成功，避免因前端 asset 对象 metadata 未同步更新而误判
         return "success";
       }
       return "processing";
@@ -345,10 +338,6 @@ export function useTranscriptionManager() {
 
     return "none";
   };
-
-  /**
-   * 重试
-   */
   const retryTranscription = (
     asset: Asset,
     options?: {

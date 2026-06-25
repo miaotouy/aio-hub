@@ -89,7 +89,7 @@ export default class DirectoryTreeRegistry implements ToolRegistry {
       showDirSize: args.showDirSize === true || args.showDirSize === "true",
       maxDepth: args.maxDepth !== undefined ? Number(args.maxDepth) : 5,
       filterMode:
-        (args.filterMode as GenerateTreeOptions["filterMode"]) || "none",
+        (args.filterMode as GenerateTreeOptions["filterMode"]) || "gitignore",
       customPattern: String(args.customPattern || ""),
       includeMetadata:
         args.includeMetadata === true || args.includeMetadata === "true",
@@ -167,7 +167,7 @@ export default class DirectoryTreeRegistry implements ToolRegistry {
               description:
                 "过滤模式：none-不过滤，gitignore-使用.gitignore规则，custom-自定义规则，both-同时使用两者",
               required: false,
-              defaultValue: "none",
+              defaultValue: "gitignore",
             },
             {
               name: "customPattern",

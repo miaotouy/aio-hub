@@ -36,7 +36,9 @@
             hide-content
             :show-overlay-on-drag="true"
             :multiple="true"
+            emit-files
             @drop="handleSingleImport"
+            @files-dropped="handleSingleImportFiles"
           />
         </div>
       </template>
@@ -94,6 +96,7 @@ const {
   singleWarnings,
   singleOptions,
   handleSingleImport,
+  handleSingleImportFiles,
   batchItems,
   batchTo,
   batchOptions,

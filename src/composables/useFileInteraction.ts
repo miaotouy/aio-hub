@@ -7,6 +7,7 @@ import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { formatDateTime } from "@/utils/time";
 import { useFileDrop, type FileDropOptions } from "./useFileDrop";
+import { assetManagerEngine } from "./useAssetManager";
 import type { Asset } from "@/types/asset-management";
 
 const logger = createModuleLogger("useFileInteraction");
@@ -127,14 +128,17 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
   };
 
   // 处理文件对象到 Asset 的转换（优化版：立即返回临时 Asset，后台异步上传）
-  const convertFilesToAssets = async (files: File[]): Promise<Asset[]> => {
+  const convertFilesToAssets = async (
+    files: File[],
+    sourceType: "clipboard" | "drop" = "clipboard"
+  ): Promise<Asset[]> => {
     const assets: Asset[] = [];
 
     for (const file of files) {
       try {
         // 生成文件名（如果文件名为空或是默认名称，使用类型生成）
         let filename = file.name;
-        if (!filename || filename === "image.png") {
+        if (!filename || (sourceType === "clipboard" && filename === "image.png")) {
           // 使用应用时区生成时间戳
           const timestamp = formatDateTime(
             new Date(),
@@ -142,8 +146,22 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
           );
           const extension = file.type.split("/")[1] || "bin";
           const typePrefix = file.type.startsWith("image/") ? "image" : "file";
-          filename = `pasted-${typePrefix}-${timestamp}.${extension}`;
+          const sourcePrefix = sourceType === "clipboard" ? "pasted" : "dropped";
+          filename = `${sourcePrefix}-${typePrefix}-${timestamp}.${extension}`;
         }
+
+        const origin =
+          sourceType === "clipboard"
+            ? {
+                type: "clipboard" as const,
+                source: "clipboard",
+                sourceModule,
+              }
+            : {
+                type: "local" as const,
+                source: filename,
+                sourceModule,
+              };
 
         // 1. 创建临时 Asset 用于立即展示
         // 使用 reactive 确保属性变更能被 Vue 追踪
@@ -160,11 +178,7 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
           createdAt: new Date().toISOString(),
           sourceModule,
           origins: [
-            {
-              type: "clipboard",
-              source: "clipboard",
-              sourceModule,
-            },
+            origin,
           ],
           importStatus: "importing", // 标记为正在导入
           originalPath: blobUrl, // 暂存原始路径
@@ -187,11 +201,7 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
                   "find_asset_by_hash",
                   {
                     hash,
-                    sourceToAdd: {
-                      type: "clipboard",
-                      source: "clipboard",
-                      sourceModule,
-                    },
+                    sourceToAdd: origin,
                   }
                 );
 
@@ -217,11 +227,7 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
                 originalName: filename,
                 options: {
                   ...assetOptions,
-                  origin: {
-                    type: "clipboard",
-                    source: "clipboard",
-                    sourceModule,
-                  },
+                  origin,
                 },
               });
             }
@@ -336,7 +342,7 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
 
       if (pasteMode === "asset" && onAssets) {
         // 转换为 Asset
-        const assets = await convertFilesToAssets(pastedFiles);
+        const assets = await convertFilesToAssets(pastedFiles, "clipboard");
         await onAssets(assets);
 
         if (showPasteMessage && assets.length > 0) {
@@ -373,10 +379,45 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
     if (onPaths) {
       // 直接使用路径
       await onPaths(paths);
+      return;
+    }
+
+    if (pasteMode === "asset" && onAssets) {
+      const assets: Asset[] = [];
+      for (const path of paths) {
+        const asset = await assetManagerEngine.importAssetFromPath(path, {
+          ...assetOptions,
+          origin: {
+            type: "local",
+            source: path,
+            sourceModule,
+          },
+        });
+        assets.push(asset);
+      }
+      await onAssets(assets);
+      return;
+    }
+
+    if (onFiles) {
+      logger.warn("拖放文件时提供了路径，但未配置 onPaths/onAssets 回调");
+    }
+  };
+
+  const handleDropFiles = async (files: File[]) => {
+    logger.info("拖放文件对象", {
+      count: files.length,
+      names: files.map((file) => file.name),
+      types: files.map((file) => file.type),
+    });
+
+    if (pasteMode === "asset" && onAssets) {
+      const assets = await convertFilesToAssets(files, "drop");
+      await onAssets(assets);
     } else if (onFiles) {
-      // 这里不进行路径到 File 的转换，因为这需要后端支持
-      // 如果需要，用户应该使用 onPaths 回调
-      logger.warn("拖放文件时提供了路径，但未配置 onPaths 回调");
+      await onFiles(files);
+    } else {
+      logger.warn("拖放文件时提供了 File 对象，但未配置 onFiles/onAssets 回调");
     }
   };
 
@@ -384,6 +425,7 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
   const { isDraggingOver, isProcessing, lastDroppedPaths } = useFileDrop({
     ...dropOptions,
     onDrop: handleDropPaths,
+    onFiles: handleDropFiles,
   });
 
   // 获取目标元素（用于粘贴事件）

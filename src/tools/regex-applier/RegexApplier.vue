@@ -515,6 +515,21 @@ const onDragEnd = () => {
 // ===== 文本模式文件拖放处理 =====
 const { isDraggingOver: isTextInputDraggingOver } = useFileInteraction({
   element: textInputCardRef,
+  onFiles: async (files) => {
+    if (processingMode.value !== "text") return;
+    if (files.length === 0) return;
+
+    try {
+      const file = files[0];
+      addLog(`读取拖入的文件: ${file.name}`);
+      sourceText.value = await file.text();
+      customMessage.success("已读取文件内容到输入框");
+    } catch (error) {
+      errorHandler.error(error, "读取文件失败", {
+        context: { files: files.map((file) => file.name) },
+      });
+    }
+  },
   onPaths: async (paths) => {
     if (processingMode.value !== "text") return;
     if (paths.length === 0) return;

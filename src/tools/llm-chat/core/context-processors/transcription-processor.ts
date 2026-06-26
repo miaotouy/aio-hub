@@ -5,8 +5,9 @@ import {
   getTranscriptionAsset,
   resolveAttachmentsBatch,
 } from "../../core/context-utils/attachment-resolver";
-import { splitDocxIntoImageAssets } from "../../core/context-utils/docx-image-splitter";
+import { splitZipDocumentIntoImageAssets } from "../../core/context-utils/zip-document-image-splitter";
 import { isDocxAssetLike } from "@/utils/docxParser";
+import { isPptxAssetLike, isXlsxAssetLike } from "@/utils/zipDocumentParser";
 import { useTranscriptionManager } from "../../composables/features/useTranscriptionManager";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
@@ -212,7 +213,11 @@ export const transcriptionProcessor: ContextProcessor = {
         const transcriptionManager = useTranscriptionManager();
 
         for (const asset of assetsToProcess) {
-          if (isDocxAssetLike(asset)) {
+          const isDocx = isDocxAssetLike(asset);
+          const isPptx = isPptxAssetLike(asset);
+          const isXlsx = isXlsxAssetLike(asset);
+
+          if (isDocx || isPptx || isXlsx) {
             const transcriptionAsset = await getTranscriptionAsset(asset);
             // 已有转写结果且应优先使用转写文本时，回退到正常路径（不走虚拟图片附件）
             if (
@@ -225,7 +230,9 @@ export const transcriptionProcessor: ContextProcessor = {
               nonDocxAssets.push(asset);
               continue;
             }
-            const splitResult = await splitDocxIntoImageAssets(asset);
+
+            const splitResult = await splitZipDocumentIntoImageAssets(asset);
+
             if (splitResult.success) {
               // 文本（含 [图片 N] 占位符）注入转写结果
               const formattedText = `\n[文件: ${asset.name}]\n${splitResult.text}\n`;
@@ -234,7 +241,7 @@ export const transcriptionProcessor: ContextProcessor = {
               // 临时图片 Asset 加入 remainingAttachments，下游 asset-resolver 会处理
               remainingAttachments.push(...splitResult.imageAssets);
             } else if (splitResult.text) {
-              // 无图片但有文本（DOCX 无插图），仍作为文本注入
+              // 无图片但有文本，仍作为文本注入
               const formattedText = `\n[文件: ${asset.name}]\n${splitResult.text}\n`;
               transcriptionResults.set(asset.id, formattedText);
               processedCount++;

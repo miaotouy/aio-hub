@@ -92,6 +92,8 @@
     },
     "deep-link:default",
     "deep-link:allow-get-current",
-    "deep-link:allow-register"
+    "deep-link:allow-register",
+    "updater:default",
+    "process:default"
   ]
 }

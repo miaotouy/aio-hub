@@ -275,6 +275,7 @@ const {
   openFile,
   saveFile,
   handleFileDrop,
+  handleFilesDrop,
   copyToClipboard,
   pasteFromClipboard,
   exportPatch,
@@ -286,6 +287,7 @@ const { isDraggingOver: isLeftDragging } = useFileDrop({
   fileOnly: true,
   multiple: true,
   onDrop: (paths) => handleFileDrop(paths, "left"),
+  onFiles: (files) => handleFilesDrop(files, "left"),
 });
 
 const { isDraggingOver: isRightDragging } = useFileDrop({
@@ -293,6 +295,7 @@ const { isDraggingOver: isRightDragging } = useFileDrop({
   fileOnly: true,
   multiple: true,
   onDrop: (paths) => handleFileDrop(paths, "right"),
+  onFiles: (files) => handleFilesDrop(files, "right"),
 });
 </script>
 

@@ -1,3 +1,9 @@
+# Environment variables
+.env
+.env.local
+.env.*
+!.env.example
+
 # Logs
 logs
 *.log
@@ -22,6 +28,9 @@ src/components.d.ts
 # Rust build artifacts
 target/
 
+# wry 补丁运行时目录（由 postinstall 脚本自动补全，不入库）
+src-tauri/patches/wry/
+
 # Editor directories and files
 .vscode/*
 
@@ -45,6 +54,7 @@ src-tauri/tauri.conf.dev.json
 # Plugins (单独仓库管理)
 plugins/*
 !plugins/README.md
+!plugins/AGENTS.template.md
 .gitnexus
 
 

@@ -196,9 +196,12 @@ import { invoke } from "@tauri-apps/api/core";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import DropZone from "@/components/common/DropZone.vue";
 import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useSkillManager } from "../composables/useSkillManager";
 import { skillLoader } from "../services/SkillLoader";
 import type { SkillPackageInfo } from "../types/index";
+
+const errorHandler = createModuleErrorHandler("skill-manager/install-dialog");
 
 const emit = defineEmits<{
   close: [];
@@ -340,7 +343,7 @@ async function processSelectedPath(path: string) {
       }
     }
   } catch (err: any) {
-    customMessage.error(`识别失败: ${err}`);
+    errorHandler.error(err, "识别失败");
     selectedDir.value = "";
   } finally {
     checking.value = false;
@@ -432,7 +435,7 @@ async function handleInstall() {
 
     emit("installed");
   } catch (err: any) {
-    customMessage.error(`安装失败: ${err}`);
+    errorHandler.error(err, "安装失败");
   } finally {
     installing.value = false;
   }

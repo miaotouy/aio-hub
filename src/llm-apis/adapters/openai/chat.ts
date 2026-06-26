@@ -308,6 +308,10 @@ export const callOpenAiChatApi = async (
     temperature: commonParams.temperature ?? 0.5,
   };
 
+  if (options.requestId) {
+    body.requestId = options.requestId;
+  }
+
   if (commonParams.maxTokens !== undefined) {
     body.max_tokens = commonParams.maxTokens;
   }
@@ -393,7 +397,7 @@ export const callOpenAiChatApi = async (
       {
         method: "POST",
         headers,
-        body: serializedBody,
+        body: serializedBody as any,
         hasLocalFile: options.hasLocalFile,
         forceProxy: options.forceProxy,
         relaxIdCerts: options.relaxIdCerts,
@@ -492,7 +496,7 @@ export const callOpenAiChatApi = async (
     {
       method: "POST",
       headers,
-      body: serializedBody,
+      body: serializedBody as any,
       hasLocalFile: options.hasLocalFile,
       forceProxy: options.forceProxy,
       relaxIdCerts: options.relaxIdCerts,

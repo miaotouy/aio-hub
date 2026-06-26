@@ -446,24 +446,36 @@ const handleRemoveAttachment = (asset: Asset) => {
 };
 
 // 编辑模式附件快捷操作
-const handleEditTranscribeAll = () => {
-  attachmentManager.attachments.value.forEach((asset) => {
-    const status = transcriptionManager.getTranscriptionStatus(asset);
+const handleEditTranscribeAll = async () => {
+  for (const asset of attachmentManager.attachments.value) {
+    const latestAsset = await assetManagerEngine.getAssetById(asset.id);
+    const assetToCheck = latestAsset || asset;
+    const status = transcriptionManager.getTranscriptionStatus(assetToCheck);
     if (status === "none" || status === "error") {
-      transcriptionManager.addTask(asset);
+      transcriptionManager.addTask(assetToCheck);
     }
-  });
+  }
 };
 
-const handleEditSmartTranscribeAll = () => {
-  attachmentManager.attachments.value.forEach((asset) => {
-    if (getWillUseTranscription(asset)) {
-      const status = transcriptionManager.getTranscriptionStatus(asset);
+const handleEditSmartTranscribeAll = async () => {
+  for (const asset of attachmentManager.attachments.value) {
+    const latestAsset = await assetManagerEngine.getAssetById(asset.id);
+    const assetToCheck = latestAsset || asset;
+    if (getWillUseTranscription(assetToCheck)) {
+      const status = transcriptionManager.getTranscriptionStatus(assetToCheck);
       if (status === "none" || status === "error") {
-        transcriptionManager.addTask(asset);
+        transcriptionManager.addTask(assetToCheck);
       }
     }
-  });
+  }
+};
+
+const handleEditForceTranscribeAll = async () => {
+  for (const asset of attachmentManager.attachments.value) {
+    const latestAsset = await assetManagerEngine.getAssetById(asset.id);
+    const assetToCheck = latestAsset || asset;
+    transcriptionManager.addTask(assetToCheck);
+  }
 };
 
 const handleEditStopAllTranscriptions = () => {
@@ -982,11 +994,15 @@ watch(
               <el-dropdown-menu>
                 <el-dropdown-item @click="handleEditTranscribeAll">
                   <template #icon><FileAudio :size="14" /></template>
-                  一键转写所有
+                  一键转写未转写
                 </el-dropdown-item>
                 <el-dropdown-item @click="handleEditSmartTranscribeAll">
                   <template #icon><Wand2 :size="14" /></template>
-                  智能转写所有
+                  智能转写未转写
+                </el-dropdown-item>
+                <el-dropdown-item @click="handleEditForceTranscribeAll">
+                  <template #icon><FileAudio :size="14" /></template>
+                  强制重新转写所有
                 </el-dropdown-item>
                 <el-dropdown-item @click="handleEditStopAllTranscriptions">
                   <template #icon><Square :size="14" /></template>

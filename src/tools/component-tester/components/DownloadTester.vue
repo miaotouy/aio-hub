@@ -241,6 +241,7 @@ const downloadDroppedFile = async () => {
 
         <div class="drop-area-container">
           <DropZone
+            emit-files
             @files-dropped="handleFileDrop"
             placeholder="将文件拖到此处加载，然后点击下方按钮重新下载"
             class="tester-dropzone"

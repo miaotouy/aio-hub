@@ -34,7 +34,7 @@ import {
   ArrowLeftToLine,
   Settings,
 } from "lucide-vue-next";
-import draggable from "vuedraggable";
+import { VueDraggableNext } from "vue-draggable-next";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { useWindowAutomatorStore } from "../stores/windowAutomator.store";
@@ -529,296 +529,295 @@ const isStepActive = (index: number) => {
       暂无步骤，请从左侧工具箱添加第一个步骤
     </div>
 
-    <draggable
+    <VueDraggableNext
       v-else
       v-model="steps"
       item-key="id"
       handle=".drag-handle"
       ghost-class="step-ghost"
+      drag-class="drag-step"
       class="step-list"
+      :force-fallback="true"
+      :animation="200"
     >
-      <template #item="{ element, index }">
-        <div
-          :data-step-id="element.id"
-          class="step-item"
-          :class="{
-            selected: store.selectedStepId === element.id,
-            active: isStepActive(index),
-            disabled: !element.enabled,
-            expanded: expandedStepId === element.id,
-            highlighted: highlightedStepIds.has(element.id),
-            'multi-selected': selectedStepIds.includes(element.id),
-          }"
-          :style="{
-            '--type-color': metaFor(element.stepConfig.type).color,
-          }"
-          @click="selectStep(element)"
+      <div
+        v-for="(element, index) in steps"
+        :key="element.id"
+        :data-step-id="element.id"
+        class="step-item"
+        :class="{
+          selected: store.selectedStepId === element.id,
+          active: isStepActive(index),
+          disabled: !element.enabled,
+          expanded: expandedStepId === element.id,
+          highlighted: highlightedStepIds.has(element.id),
+          'multi-selected': selectedStepIds.includes(element.id),
+        }"
+        :style="{
+          '--type-color': metaFor(element.stepConfig.type).color,
+        }"
+        @click="selectStep(element)"
+      >
+        <div class="step-strip" aria-hidden="true"></div>
+
+        <!-- 多选复选框 -->
+        <div v-if="isIdle" class="step-checkbox" @click.stop>
+          <el-checkbox
+            :model-value="selectedStepIds.includes(element.id)"
+            @change="toggleStepSelection(element.id)"
+          />
+        </div>
+
+        <button
+          class="expand-toggle"
+          type="button"
+          :aria-label="expandedStepId === element.id ? '收起' : '展开'"
+          @click.stop="toggleExpand(element)"
         >
-          <div class="step-strip" aria-hidden="true"></div>
+          <component
+            :is="expandedStepId === element.id ? ChevronDown : ChevronRight"
+            :size="14"
+          />
+        </button>
 
-          <!-- 多选复选框 -->
-          <div v-if="isIdle" class="step-checkbox" @click.stop>
-            <el-checkbox
-              :model-value="selectedStepIds.includes(element.id)"
-              @change="toggleStepSelection(element.id)"
-            />
-          </div>
+        <div class="drag-handle" @click.stop>
+          <GripVertical :size="14" />
+        </div>
 
-          <button
-            class="expand-toggle"
-            type="button"
-            :aria-label="expandedStepId === element.id ? '收起' : '展开'"
-            @click.stop="toggleExpand(element)"
-          >
-            <component
-              :is="expandedStepId === element.id ? ChevronDown : ChevronRight"
-              :size="14"
-            />
-          </button>
+        <div class="index">{{ index + 1 }}</div>
 
-          <div class="drag-handle" @click.stop>
-            <GripVertical :size="14" />
-          </div>
+        <div class="type-chip">
+          <component :is="metaFor(element.stepConfig.type).icon" :size="13" />
+          <span>{{ metaFor(element.stepConfig.type).label }}</span>
+        </div>
 
-          <div class="index">{{ index + 1 }}</div>
-
-          <div class="type-chip">
-            <component :is="metaFor(element.stepConfig.type).icon" :size="13" />
-            <span>{{ metaFor(element.stepConfig.type).label }}</span>
-          </div>
-
-          <div class="content">
-            <div class="row1">
-              <input
-                class="label-input"
-                :value="element.label"
-                placeholder="步骤标签"
-                @click.stop
-                @input="
-                  (e: Event) =>
-                    updateLabel(element, (e.target as HTMLInputElement).value)
-                "
-              />
-            </div>
-            <div class="row2">{{ describeStep(element) }}</div>
-          </div>
-
-          <!-- 延时 quick edit -->
-          <div
-            v-if="element.stepConfig.type === 'delay'"
-            class="quick-edit"
-            @click.stop
-          >
-            <el-input-number
-              :model-value="element.stepConfig.params.duration"
-              :min="0"
-              :step="100"
-              :precision="0"
-              size="small"
-              controls-position="right"
-              style="width: 110px"
-              @update:model-value="
-                (v: number | undefined) => updateDelayDuration(element, v)
+        <div class="content">
+          <div class="row1">
+            <input
+              class="label-input"
+              :value="element.label"
+              placeholder="步骤标签"
+              @click.stop
+              @input="
+                (e: Event) =>
+                  updateLabel(element, (e.target as HTMLInputElement).value)
               "
             />
-            <span class="quick-unit">ms</span>
           </div>
-
-          <!-- 跳转源徽章 -->
-          <div
-            v-if="isJumper(element)"
-            class="badges"
-            @click.stop
-            @mouseleave="clearHighlight()"
-          >
-            <el-tooltip
-              v-for="target in outboundTargets(element)"
-              :key="`out-${target}`"
-              :content="`跳转到 #${indexOf(target)}`"
-              placement="top"
-            >
-              <span
-                class="badge badge-out"
-                @mouseenter="highlightTargets([target])"
-                @click="scrollToStep(target)"
-              >
-                → #{{ indexOf(target) }}
-              </span>
-            </el-tooltip>
-          </div>
-
-          <!-- 跳转目标徽章（来自谁） -->
-          <div
-            v-if="incomingSources(element.id).length"
-            class="badges"
-            @click.stop
-          >
-            <el-tooltip
-              :content="`被 ${incomingSources(element.id).length} 个步骤引用`"
-              placement="top"
-            >
-              <span
-                class="badge badge-in"
-                @click="scrollToStep(incomingSources(element.id)[0])"
-              >
-                ← {{ formatIncomingLabel(element.id) }}
-              </span>
-            </el-tooltip>
-          </div>
-
-          <div class="actions" @click.stop>
-            <el-tooltip
-              :content="element.enabled ? '禁用此步骤' : '启用此步骤'"
-              placement="top"
-            >
-              <el-button
-                size="small"
-                link
-                :icon="element.enabled ? Power : PowerOff"
-                @click="toggleEnabled(element)"
-              />
-            </el-tooltip>
-            <el-tooltip content="删除" placement="top">
-              <el-button
-                size="small"
-                link
-                :icon="Trash2"
-                @click="removeStep(element)"
-              />
-            </el-tooltip>
-          </div>
-
-          <!-- 内嵌配置区 -->
-          <transition name="expand">
-            <div
-              v-if="expandedStepId === element.id"
-              class="inline-config"
-              @click.stop
-            >
-              <div
-                v-if="
-                  supportsPointPick(element.stepConfig.type) ||
-                  supportsRectPick(element.stepConfig.type)
-                "
-                class="inline-toolbar"
-              >
-                <el-button
-                  v-if="supportsPointPick(element.stepConfig.type)"
-                  :icon="Camera"
-                  size="small"
-                  :disabled="!store.boundWindow"
-                  @click="openScreenshotPicker(element, 'point')"
-                >
-                  截图取点
-                </el-button>
-                <el-button
-                  v-if="supportsRectPick(element.stepConfig.type)"
-                  :icon="Crop"
-                  size="small"
-                  :disabled="!store.boundWindow"
-                  @click="openScreenshotPicker(element, 'rect')"
-                >
-                  截图框选
-                </el-button>
-                <span v-if="!store.boundWindow" class="toolbar-hint">
-                  <Camera :size="12" /> 需先在左侧工具箱绑定目标窗口
-                </span>
-              </div>
-
-              <ClickConfig
-                v-if="element.stepConfig.type === 'click'"
-                :params="
-                  (element.stepConfig as Extract<StepParams, { type: 'click' }>)
-                    .params
-                "
-                @update:params="(v) => onInlineParamsUpdate(element, v)"
-              />
-              <KeyPressConfig
-                v-else-if="element.stepConfig.type === 'keypress'"
-                :params="
-                  (
-                    element.stepConfig as Extract<
-                      StepParams,
-                      { type: 'keypress' }
-                    >
-                  ).params
-                "
-                @update:params="(v) => onInlineParamsUpdate(element, v)"
-              />
-              <DelayConfig
-                v-else-if="element.stepConfig.type === 'delay'"
-                :params="
-                  (element.stepConfig as Extract<StepParams, { type: 'delay' }>)
-                    .params
-                "
-                @update:params="(v) => onInlineParamsUpdate(element, v)"
-              />
-              <ColorCheckConfig
-                v-else-if="element.stepConfig.type === 'colorCheck'"
-                :params="
-                  (
-                    element.stepConfig as Extract<
-                      StepParams,
-                      { type: 'colorCheck' }
-                    >
-                  ).params
-                "
-                :steps="steps"
-                @update:params="(v) => onInlineParamsUpdate(element, v)"
-              />
-              <GotoConfig
-                v-else-if="element.stepConfig.type === 'goto'"
-                :params="
-                  (element.stepConfig as Extract<StepParams, { type: 'goto' }>)
-                    .params
-                "
-                :steps="steps"
-                :self-id="element.id"
-                @update:params="(v) => onInlineParamsUpdate(element, v)"
-              />
-              <CounterConfig
-                v-else-if="element.stepConfig.type === 'counter'"
-                :params="
-                  (
-                    element.stepConfig as Extract<
-                      StepParams,
-                      { type: 'counter' }
-                    >
-                  ).params
-                "
-                :steps="steps"
-                @update:params="(v) => onInlineParamsUpdate(element, v)"
-              />
-              <LogConfig
-                v-else-if="element.stepConfig.type === 'log'"
-                :params="
-                  (element.stepConfig as Extract<StepParams, { type: 'log' }>)
-                    .params
-                "
-                @update:params="(v) => onInlineParamsUpdate(element, v)"
-              />
-              <OcrConfig
-                v-else-if="element.stepConfig.type === 'ocr'"
-                :params="
-                  (element.stepConfig as Extract<StepParams, { type: 'ocr' }>)
-                    .params
-                "
-                :steps="steps"
-                @update:params="(v) => onInlineParamsUpdate(element, v)"
-              />
-              <CallConfig
-                v-else-if="element.stepConfig.type === 'call'"
-                :params="
-                  (element.stepConfig as Extract<StepParams, { type: 'call' }>)
-                    .params
-                "
-                @update:params="(v) => onInlineParamsUpdate(element, v)"
-              />
-            </div>
-          </transition>
+          <div class="row2">{{ describeStep(element) }}</div>
         </div>
-      </template>
-    </draggable>
+
+        <!-- 延时 quick edit -->
+        <div
+          v-if="element.stepConfig.type === 'delay'"
+          class="quick-edit"
+          @click.stop
+        >
+          <el-input-number
+            :model-value="element.stepConfig.params.duration"
+            :min="0"
+            :step="100"
+            :precision="0"
+            size="small"
+            controls-position="right"
+            style="width: 110px"
+            @update:model-value="
+              (v: number | undefined) => updateDelayDuration(element, v)
+            "
+          />
+          <span class="quick-unit">ms</span>
+        </div>
+
+        <!-- 跳转源徽章 -->
+        <div
+          v-if="isJumper(element)"
+          class="badges"
+          @click.stop
+          @mouseleave="clearHighlight()"
+        >
+          <el-tooltip
+            v-for="target in outboundTargets(element)"
+            :key="`out-${target}`"
+            :content="`跳转到 #${indexOf(target)}`"
+            placement="top"
+          >
+            <span
+              class="badge badge-out"
+              @mouseenter="highlightTargets([target])"
+              @click="scrollToStep(target)"
+            >
+              → #{{ indexOf(target) }}
+            </span>
+          </el-tooltip>
+        </div>
+
+        <!-- 跳转目标徽章（来自谁） -->
+        <div
+          v-if="incomingSources(element.id).length"
+          class="badges"
+          @click.stop
+        >
+          <el-tooltip
+            :content="`被 ${incomingSources(element.id).length} 个步骤引用`"
+            placement="top"
+          >
+            <span
+              class="badge badge-in"
+              @click="scrollToStep(incomingSources(element.id)[0])"
+            >
+              ← {{ formatIncomingLabel(element.id) }}
+            </span>
+          </el-tooltip>
+        </div>
+
+        <div class="actions" @click.stop>
+          <el-tooltip
+            :content="element.enabled ? '禁用此步骤' : '启用此步骤'"
+            placement="top"
+          >
+            <el-button
+              size="small"
+              link
+              :icon="element.enabled ? Power : PowerOff"
+              @click="toggleEnabled(element)"
+            />
+          </el-tooltip>
+          <el-tooltip content="删除" placement="top">
+            <el-button
+              size="small"
+              link
+              :icon="Trash2"
+              @click="removeStep(element)"
+            />
+          </el-tooltip>
+        </div>
+
+        <!-- 内嵌配置区 -->
+        <transition name="expand">
+          <div
+            v-if="expandedStepId === element.id"
+            class="inline-config"
+            @click.stop
+          >
+            <div
+              v-if="
+                supportsPointPick(element.stepConfig.type) ||
+                supportsRectPick(element.stepConfig.type)
+              "
+              class="inline-toolbar"
+            >
+              <el-button
+                v-if="supportsPointPick(element.stepConfig.type)"
+                :icon="Camera"
+                size="small"
+                :disabled="!store.boundWindow"
+                @click="openScreenshotPicker(element, 'point')"
+              >
+                截图取点
+              </el-button>
+              <el-button
+                v-if="supportsRectPick(element.stepConfig.type)"
+                :icon="Crop"
+                size="small"
+                :disabled="!store.boundWindow"
+                @click="openScreenshotPicker(element, 'rect')"
+              >
+                截图框选
+              </el-button>
+              <span v-if="!store.boundWindow" class="toolbar-hint">
+                <Camera :size="12" /> 需先在左侧工具箱绑定目标窗口
+              </span>
+            </div>
+
+            <ClickConfig
+              v-if="element.stepConfig.type === 'click'"
+              :params="
+                (element.stepConfig as Extract<StepParams, { type: 'click' }>)
+                  .params
+              "
+              @update:params="(v) => onInlineParamsUpdate(element, v)"
+            />
+            <KeyPressConfig
+              v-else-if="element.stepConfig.type === 'keypress'"
+              :params="
+                (
+                  element.stepConfig as Extract<
+                    StepParams,
+                    { type: 'keypress' }
+                  >
+                ).params
+              "
+              @update:params="(v) => onInlineParamsUpdate(element, v)"
+            />
+            <DelayConfig
+              v-else-if="element.stepConfig.type === 'delay'"
+              :params="
+                (element.stepConfig as Extract<StepParams, { type: 'delay' }>)
+                  .params
+              "
+              @update:params="(v) => onInlineParamsUpdate(element, v)"
+            />
+            <ColorCheckConfig
+              v-else-if="element.stepConfig.type === 'colorCheck'"
+              :params="
+                (
+                  element.stepConfig as Extract<
+                    StepParams,
+                    { type: 'colorCheck' }
+                  >
+                ).params
+              "
+              :steps="steps"
+              @update:params="(v) => onInlineParamsUpdate(element, v)"
+            />
+            <GotoConfig
+              v-else-if="element.stepConfig.type === 'goto'"
+              :params="
+                (element.stepConfig as Extract<StepParams, { type: 'goto' }>)
+                  .params
+              "
+              :steps="steps"
+              :self-id="element.id"
+              @update:params="(v) => onInlineParamsUpdate(element, v)"
+            />
+            <CounterConfig
+              v-else-if="element.stepConfig.type === 'counter'"
+              :params="
+                (element.stepConfig as Extract<StepParams, { type: 'counter' }>)
+                  .params
+              "
+              :steps="steps"
+              @update:params="(v) => onInlineParamsUpdate(element, v)"
+            />
+            <LogConfig
+              v-else-if="element.stepConfig.type === 'log'"
+              :params="
+                (element.stepConfig as Extract<StepParams, { type: 'log' }>)
+                  .params
+              "
+              @update:params="(v) => onInlineParamsUpdate(element, v)"
+            />
+            <OcrConfig
+              v-else-if="element.stepConfig.type === 'ocr'"
+              :params="
+                (element.stepConfig as Extract<StepParams, { type: 'ocr' }>)
+                  .params
+              "
+              :steps="steps"
+              @update:params="(v) => onInlineParamsUpdate(element, v)"
+            />
+            <CallConfig
+              v-else-if="element.stepConfig.type === 'call'"
+              :params="
+                (element.stepConfig as Extract<StepParams, { type: 'call' }>)
+                  .params
+              "
+              @update:params="(v) => onInlineParamsUpdate(element, v)"
+            />
+          </div>
+        </transition>
+      </div>
+    </VueDraggableNext>
 
     <ScreenshotPicker
       v-if="showScreenshotPicker && store.boundWindow && screenshotStepId"

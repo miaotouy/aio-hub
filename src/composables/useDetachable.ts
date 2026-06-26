@@ -28,6 +28,8 @@ export interface DetachableConfig {
   metadata?: Record<string, any>;
   /** 是否禁用原生窗口边缘的拖拽响应（即禁用窗口缩放） */
   disableNativeResize?: boolean;
+  /** 是否使用 H5 原生拖放兼容模式 */
+  disableDragDropHandler?: boolean;
   /** 如果未触发拖拽（视为点击），调用此回调 */
   onClickInstead?: () => void;
 }
@@ -64,13 +66,19 @@ export function useDetachable() {
   const startDragging = (config: DetachableConfig) => {
     if (isDragging.value || dragState.isPreparing) return;
 
+    // 默认使用 Tauri 路径优先拖放模式
+    const normalizedConfig: DetachableConfig = {
+      ...config,
+      disableDragDropHandler: config.disableDragDropHandler ?? false,
+    };
+
     // 进入准备阶段，记录起始位置、时间和配置
     dragState.isPreparing = true;
-    dragState.startX = config.mouseX;
-    dragState.startY = config.mouseY;
+    dragState.startX = normalizedConfig.mouseX;
+    dragState.startY = normalizedConfig.mouseY;
     dragState.startTime = Date.now();
     dragState.canDetach = false;
-    dragState.config = config;
+    dragState.config = normalizedConfig;
 
     console.log("[DETACH] 准备拖拽", {
       startX: config.mouseX,
@@ -243,10 +251,10 @@ export function useDetachable() {
     try {
       console.log("[DETACH] 通过点击分离窗口", config);
 
-      // 调用 begin_detach_session 命令直接创建分离窗口
-      // 这个命令不依赖 rdev，在所有平台上都可用
+      // 默认使用 Tauri 路径优先拖放模式
       const fullConfig: DetachableConfig = {
         ...config,
+        disableDragDropHandler: config.disableDragDropHandler ?? false,
         mouseX: 0,
         mouseY: 0,
         handleOffsetX: 0,

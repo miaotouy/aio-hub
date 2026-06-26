@@ -1,7 +1,7 @@
 {
   "name": "aiohub",
   "private": true,
-  "version": "0.6.3-alpha.9",
+  "version": "0.6.3-beta.2",
   "packageManager": "bun@1.3.11",
   "type": "module",
   "license": "Apache-2.0",
@@ -24,7 +24,9 @@
     "mobile"
   ],
   "scripts": {
+    "postinstall": "bun run scripts/setup-wry-patch.ts",
     "generate:shims": "bun scripts/generate-shims.ts",
+    "release:updater-manifest": "bun scripts/generate-updater-manifest.ts",
     "dev": "bun run generate:shims ; bun scripts/dev.ts",
     "vite": "vite",
     "download:libs": "bun scripts/download-libs.ts",
@@ -35,11 +37,15 @@
     "check:model-icons": "bun scripts/check-model-icons.ts",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build",
+    "tauri:build": "bun scripts/build.ts",
+    "tauri:build:local": "bun scripts/build.ts --local",
     "build:portable": "bun scripts/build-portable.ts",
+    "build:portable:local": "bun scripts/build-portable.ts --local",
     "b:p": "bun scripts/build-portable.ts",
+    "b:p:l": "bun scripts/build-portable.ts --local",
     "t:d": "tauri dev",
-    "t:b": "tauri build",
+    "t:b": "bun scripts/build.ts",
+    "b:l": "bun scripts/build.ts --local",
     "mtad": "cd mobile ; bun run tauri android dev",
     "mtab": "cd mobile ; bun run tauri android build",
     "mtid": "cd mobile ; bun run tauri ios dev",
@@ -112,8 +118,10 @@
     "@tauri-apps/plugin-http": "^2.5.2",
     "@tauri-apps/plugin-opener": "^2.2.0",
     "@tauri-apps/plugin-os": "^2.3.1",
+    "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-shell": "^2.3.1",
     "@tauri-apps/plugin-store": "^2.4.0",
+    "@tauri-apps/plugin-updater": "^2.10.1",
     "@types/turndown": "^5.0.6",
     "@uiw/codemirror-theme-github": "^4.25.2",
     "@uiw/codemirror-theme-tokyo-night": "^4.25.2",
@@ -183,8 +191,7 @@
     "vue-draggable-next": "^2.2.1",
     "vue-json-pretty": "^2.5.0",
     "vue-pdf-embed": "^2.1.3",
-    "vue-router": "^4.5.1",
-    "vuedraggable": "^4.1.0"
+    "vue-router": "^4.5.1"
   },
   "devDependencies": {
     "@babel/runtime": "^7.28.4",

@@ -74,10 +74,22 @@ jobs:
       - name: 安装前端依赖
         run: bun install
 
+      - name: 检查并处理无签名构建配置
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
+            echo "⚠️ 未检测到 TAURI_SIGNING_PRIVATE_KEY，正在动态修改 tauri.conf.json 以支持无签名构建..."
+            bun scripts/build.ts --patch-config
+          else
+            echo "🔑 检测到 TAURI_SIGNING_PRIVATE_KEY，将进行带签名的完整构建。"
+          fi
+
       - name: 构建应用 (仅构建，不创建 Release)
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           # 不传递 tagName/releaseName/releaseBody，禁用自动创建 Release
           args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
@@ -249,7 +261,7 @@ jobs:
         run: bun install
 
       - name: 构建应用 (使用 tauri build 确保资源嵌入)
-        run: bun tauri build
+        run: bun run tauri:build
 
       - name: 准备 Flatpak 源文件
         run: |

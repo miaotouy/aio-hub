@@ -552,7 +552,7 @@ fn try_get_custom_path_from_config(config_path: &Path) -> Option<String> {
 pub fn get_asset_base_path(app: AppHandle) -> Result<String, String> {
     let app_data_dir = crate::get_app_data_dir(app.config());
 
-    let config_path = app_data_dir.join("settings.json");
+    let config_path = app_data_dir.join("app-settings").join("settings.json");
 
     // 尝试从配置文件读取自定义路径
     if let Some(custom_path_str) = try_get_custom_path_from_config(&config_path) {

@@ -93,6 +93,8 @@ interface Props {
   fileOnly?: boolean;
   /** 接受的文件后缀列表，如 ['.png', '.jpg'] */
   accept?: string[];
+  /** 是否把 H5 原生拖放得到的 File 对象通过 files-dropped 事件抛出 */
+  emitFiles?: boolean;
 
   /** 自定义验证函数，返回 false 将阻止 drop 事件 */
   validator?: (paths: string[]) => Promise<boolean> | boolean;
@@ -122,6 +124,7 @@ const props = withDefaults(defineProps<Props>(), {
   directoryOnly: false,
   fileOnly: false,
   accept: () => [],
+  emitFiles: false,
   silent: false,
   variant: "default",
   bare: false,
@@ -132,6 +135,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   drop: [paths: string[]];
+  filesDropped: [files: File[]];
   dragenter: [];
   dragleave: [];
   error: [message: string];
@@ -153,6 +157,11 @@ const { isDraggingOver } = useFileDrop({
   onDrop: (paths) => {
     emit("drop", paths);
   },
+  onFiles: props.emitFiles
+    ? (files) => {
+        emit("filesDropped", files);
+      }
+    : undefined,
   onDragEnter: () => emit("dragenter"),
   onDragLeave: () => emit("dragleave"),
   onError: (msg) => emit("error", msg),

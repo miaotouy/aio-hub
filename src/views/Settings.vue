@@ -12,6 +12,7 @@ import { useToolsStore } from "@/stores/tools";
 import { useTheme } from "../composables/useTheme";
 import { useLogConfig } from "../composables/useLogConfig";
 import { useAppSettingsStore } from "@/stores/appSettingsStore";
+import { relaunch } from "@tauri-apps/plugin-process";
 
 const errorHandler = createModuleErrorHandler("Settings");
 const { isDark, applyTheme: applyThemeFromComposable } = useTheme();
@@ -209,6 +210,37 @@ const onConfigImported = async (resultMessage: string) => {
     customMessage.success(resultMessage);
   } catch (error) {
     errorHandler.error(error, "导入配置后刷新设置失败");
+  }
+};
+const handleDisableTauriDragDropHandlerChange = async (newValue: boolean) => {
+  const currentValue = settings.value.disableTauriDragDropHandler ?? false;
+  if (newValue === currentValue) {
+    return;
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      "切换拖放兼容模式需要重启应用后才能生效。确认后将立即重启应用。",
+      "重启应用",
+      {
+        confirmButtonText: "确认重启",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    );
+
+    appSettingsStore.update({ disableTauriDragDropHandler: newValue });
+    await appSettingsStore.saveNow();
+    try {
+      await relaunch();
+    } catch (relaunchErr) {
+      errorHandler.error(relaunchErr, "重启应用失败，请手动重启");
+    }
+  } catch (error) {
+    if (error !== "cancel") {
+      errorHandler.error(error, "重启应用失败");
+    }
   }
 };
 
@@ -474,6 +506,9 @@ onUnmounted(() => {
                 :minimize-to-tray="settings.minimizeToTray"
                 :theme="settings.theme"
                 :auto-adjust-window-position="settings.autoAdjustWindowPosition"
+                :disable-tauri-drag-drop-handler="
+                  settings.disableTauriDragDropHandler ?? false
+                "
                 :sidebar-mode="settings.sidebarMode"
                 :proxy="settings.proxy"
                 :timezone="settings.timezone"
@@ -490,6 +525,9 @@ onUnmounted(() => {
                 @update:auto-adjust-window-position="
                   (val: any) =>
                     appSettingsStore.update({ autoAdjustWindowPosition: val })
+                "
+                @update:disable-tauri-drag-drop-handler="
+                  handleDisableTauriDragDropHandlerChange
                 "
                 @update:sidebar-mode="
                   (val: any) => appSettingsStore.update({ sidebarMode: val })

@@ -12,7 +12,12 @@ import type {
   LlmResponse,
   MediaGenerationOptions,
 } from "../llm-apis/common";
-import { TimeoutError, isAbortError, isTimeoutError } from "../llm-apis/common";
+import {
+  TimeoutError,
+  isAbortError,
+  isTimeoutError,
+  fetchWithTimeout,
+} from "../llm-apis/common";
 import { adapters } from "../llm-apis/adapters";
 import { filterParametersByCapabilities } from "../llm-apis/request-builder";
 import type { LlmProfile } from "../types/llm-profiles";
@@ -61,6 +66,14 @@ export function useLlmRequest() {
       ];
     }
 
+    // 优先复用调用方已生成的 requestId（可能用于主动停止），否则生成新的
+    if (!options.requestId) {
+      options.requestId =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `req-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
+
     // ============ LLM Inspector 上下文透传（B3）============
     // 自动补全 requestId（若调用方未传），并合并 inspectorContext 后写入
     // hookRegistry 的 contextStore，供 fetchWithTimeout 通过 X-Request-ID
@@ -70,13 +83,6 @@ export function useLlmRequest() {
     const captureInspector = inspectorHookRegistry.shouldCaptureInternal();
     let inspectorRequestId: string | undefined;
     if (captureInspector) {
-      // 优先复用调用方已生成的 requestId（可能用于主动停止），否则生成新的
-      if (!options.requestId) {
-        options.requestId =
-          typeof crypto !== "undefined" && "randomUUID" in crypto
-            ? crypto.randomUUID()
-            : `req-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      }
       inspectorRequestId = options.requestId;
 
       // 合并：调用方传的 inspectorContext（toolName/sessionId/purpose 等）
@@ -218,7 +224,6 @@ export function useLlmRequest() {
           logger.debug("自动检测到本地文件协议，已开启 Rust 代理模式");
         }
       }
-
       // 根据 Provider 和 Model 能力智能过滤参数
       // 使用 any 避开 LlmRequestOptions 和 MediaGenerationOptions 之间 responseFormat 的类型冲突
       let filteredOptions = filterParametersByCapabilities(
@@ -230,6 +235,11 @@ export function useLlmRequest() {
       // 确保 signal 被透传，filterParametersByCapabilities 可能会漏掉它
       if (options.signal) {
         filteredOptions.signal = options.signal;
+      }
+
+      // 确保 requestId 被透传，filterParametersByCapabilities 可能会漏掉它
+      if (options.requestId) {
+        filteredOptions.requestId = options.requestId;
       }
 
       // 合并模型的自定义参数
@@ -409,36 +419,53 @@ export function useLlmRequest() {
           const profile = getProfileById(options.profileId);
           if (profile?.baseUrl) {
             // 构造停止端点：/v1/interrupt
-            const interruptUrl = profile.baseUrl.endsWith("/")
-              ? `${profile.baseUrl}v1/interrupt`
-              : `${profile.baseUrl}/v1/interrupt`;
+            // 需要与 openAiUrlHandler.buildUrl 保持一致的智能路径处理，
+            // 避免 baseUrl 已包含 /v1 时产生 /v1/v1/interrupt 的重复路径
+            const baseHost = profile.baseUrl.endsWith("/")
+              ? profile.baseUrl
+              : `${profile.baseUrl}/`;
+            const hasVersionPath =
+              baseHost.includes("/v1") ||
+              baseHost.includes("/v2") ||
+              baseHost.includes("/v3") ||
+              baseHost.includes("/api/v");
+            const interruptUrl = hasVersionPath
+              ? `${baseHost}interrupt`
+              : `${baseHost}v1/interrupt`;
 
             logger.debug("发送主动停止信号到上游", {
               requestId: options.requestId,
               url: interruptUrl,
             });
 
-            // 补发停止请求，不等待结果，不使用原有的 signal
-            window
-              .fetch(interruptUrl, {
+            // 补发停止请求，通过 Rust 代理发送以保证与正常请求相同的网络路径
+            // 使用独立的 AbortController（不使用原有已中止的 signal），超时 5 秒
+            fetchWithTimeout(
+              interruptUrl,
+              {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
-                  // 如果有 API Key 也带上，虽然 interrupt 通常是内部接口
+                  // 带上 API Key 用于 VCP Bearer Token 认证
                   ...(selectedApiKey
                     ? { Authorization: `Bearer ${selectedApiKey}` }
                     : {}),
                 },
                 body: JSON.stringify({
-                  requestId: options.requestId, // 使用 camelCase 匹配上游的参数名
-                }),
-              })
-              .catch((e) => {
-                logger.warn("发送主动停止信号失败", {
-                  error: String(e),
                   requestId: options.requestId,
-                });
+                }),
+                forceProxy: options.forceProxy,
+                relaxIdCerts: options.relaxIdCerts,
+                http1Only: options.http1Only,
+                networkStrategy: options.networkStrategy,
+              },
+              5000 // 5 秒超时，interrupt 不应该等太久
+            ).catch((e) => {
+              logger.warn("发送主动停止信号失败", {
+                error: String(e),
+                requestId: options.requestId,
               });
+            });
           }
         }
       } else {

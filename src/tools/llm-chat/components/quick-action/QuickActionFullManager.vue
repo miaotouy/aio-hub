@@ -108,6 +108,14 @@ const handleFilesDrop = async (paths: string[]) => {
   }
 };
 
+const handleDroppedFiles = async (files: File[]) => {
+  for (const file of files) {
+    if (file.name.toLowerCase().endsWith(".json")) {
+      await processImportFile(file);
+    }
+  }
+};
+
 const handleCreate = async () => {
   try {
     const { value: name } = await ElMessageBox.prompt(
@@ -438,7 +446,9 @@ const handleBatchExport = async () => {
           v-if="!selectedSetId"
           clickable
           click-zone
+          emit-files
           @drop="handleFilesDrop"
+          @files-dropped="handleDroppedFiles"
           :accept="['.json']"
           placeholder="拖拽或点击导入快捷操作 JSON 文件"
           class="empty-drop-zone"

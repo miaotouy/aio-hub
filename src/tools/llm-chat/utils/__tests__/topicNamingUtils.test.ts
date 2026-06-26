@@ -96,6 +96,41 @@ describe("topicNamingUtils", () => {
 
       expect(sanitized).toBe("正文前正文后");
     });
+
+    it("replaces base64 data urls with placeholder", () => {
+      const sanitized = sanitizeTopicContextContent(
+        "图片数据：data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg=="
+      );
+
+      expect(sanitized).toBe("图片数据：[Base64 Data]");
+    });
+
+    it("folds long code blocks", () => {
+      const longCode =
+        "```typescript\nconst a = 1;\nconst b = 2;\nconst c = 3;\nconst d = 4;\nconst e = 5;\nconst f = 6;\nconst g = 7;\nconst h = 8;\nconst i = 9;\nconst j = 10;\n```";
+      const sanitized = sanitizeTopicContextContent(longCode);
+
+      expect(sanitized).toContain("[代码折叠: 省略 5 行]");
+      expect(sanitized).toContain("const a = 1;");
+      expect(sanitized).toContain("const j = 10;");
+    });
+
+    it("performs smart head-tail truncation for extremely long messages", () => {
+      // 构造一个超过 1200 字符的文本
+      const headPart = "今天天气真好。我想写一个 Vue 3 的 Composable。";
+      const middlePart = "这里是无意义的填充文本。".repeat(150); // 150 * 11 = 1650 字符
+      const tailPart = "请帮我重构上面这段代码，让它支持状态持久化。";
+      const content = `${headPart}\n${middlePart}\n${tailPart}`;
+
+      const sanitized = sanitizeTopicContextContent(content);
+
+      // 应该保留头部和尾部
+      expect(sanitized).toContain("今天天气真好");
+      expect(sanitized).toContain("请帮我重构上面这段代码");
+      expect(sanitized).toContain("[省略");
+      // 长度应该被限制在合理范围内
+      expect(sanitized.length).toBeLessThan(1200);
+    });
   });
 
   describe("buildTopicNamingRequestOptions", () => {

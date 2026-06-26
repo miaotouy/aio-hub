@@ -3,7 +3,7 @@
  */
 
 if (!window.AiohubSDK) {
-  console.error('[AIO Hub] window.AiohubSDK is not defined.');
+  console.error("[AIO Hub] window.AiohubSDK is not defined.");
 }
 
 const SDK = window.AiohubSDK;
@@ -37,6 +37,8 @@ export const {
   ocrImageToPluginImage,
   useAppSettingsStore,
   ui,
+  openDialog,
+  saveDialog,
   // 如果未来有更多导出，可以在这里添加
 } = SDK;
 

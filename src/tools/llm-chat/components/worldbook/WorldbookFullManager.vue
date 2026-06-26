@@ -109,6 +109,16 @@ const handleFilesDrop = async (paths: string[]) => {
   }
 };
 
+const handleDroppedFiles = async (files: File[]) => {
+  const validExts = [".json", ".lorebook", ".png"];
+  for (const file of files) {
+    const ext = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
+    if (validExts.includes(ext)) {
+      await processImportFile(file);
+    }
+  }
+};
+
 const handleCreate = async () => {
   try {
     const { value: name } = await ElMessageBox.prompt(
@@ -435,7 +445,9 @@ const handleBatchExport = async () => {
           v-if="!selectedWbId"
           clickable
           click-zone
+          emit-files
           @drop="handleFilesDrop"
+          @files-dropped="handleDroppedFiles"
           :accept="['.json', '.lorebook', '.png']"
           placeholder="拖拽或点击导入世界书 JSON/Lorebook/PNG 文件"
           class="empty-drop-zone"

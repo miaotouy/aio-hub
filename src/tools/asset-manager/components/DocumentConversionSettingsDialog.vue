@@ -61,8 +61,8 @@ const providerOptions: Array<{
   },
   {
     value: "microsoftWord",
-    label: "Microsoft Word",
-    description: "Windows 上调用 Word COM 自动化",
+    label: "Microsoft Office",
+    description: "Windows 上调用 Office COM 自动化 (Word/PowerPoint/Excel)",
     requiresPath: false,
   },
   {
@@ -293,7 +293,7 @@ function handleSave() {
   >
     <div class="document-conversion-settings">
       <div class="setting-item">
-        <div class="setting-label">自动转换旧版 DOC</div>
+        <div class="setting-label">自动转换旧版 DOC/PPT/XLS</div>
         <el-switch v-model="localSettings.autoConvertLegacyDoc" />
       </div>
 

@@ -285,7 +285,9 @@ export function determineAssetType(mimeType: string): Asset["type"] {
   if (
     mimeType.startsWith("application/pdf") ||
     mimeType.startsWith("application/msword") ||
-    mimeType.startsWith("application/vnd.openxmlformats-officedocument") ||
+    mimeType.startsWith("application/vnd.ms-powerpoint") || // 旧版 PPT
+    mimeType.startsWith("application/vnd.ms-excel") || // 旧版 Excel
+    mimeType.startsWith("application/vnd.openxmlformats-officedocument") || // docx, xlsx, pptx
     mimeType.startsWith("text/") ||
     isTextMimeType(mimeType)
   ) {

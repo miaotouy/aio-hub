@@ -53,6 +53,8 @@ const { isDraggingOver: isTauriDragging } = useFileDrop({
   fileOnly: true,
   multiple: true,
   accept: [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"],
+  // 原生 drop 已由模板上的 handleDrop 处理，这里只避免 H5 文件被误当路径兜底。
+  onFiles: async () => {},
   onDrop: async (paths: string[]) => {
     // 将文件路径转换为 File 对象
     const files: File[] = [];

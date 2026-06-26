@@ -1,7 +1,7 @@
 name: macOS 测试构建
 
 on:
-  workflow_dispatch:  # 允许手动触发
+  workflow_dispatch: # 允许手动触发
 
 permissions:
   contents: read
@@ -15,15 +15,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: 'macos-latest'
-            target: 'aarch64-apple-darwin'
-            arch: 'arm64'
-          - platform: 'macos-latest'
-            target: 'x86_64-apple-darwin'
-            arch: 'x64'
+          - platform: "macos-latest"
+            target: "aarch64-apple-darwin"
+            arch: "arm64"
+          - platform: "macos-latest"
+            target: "x86_64-apple-darwin"
+            arch: "x64"
 
     runs-on: ${{ matrix.platform }}
-    
+
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -49,7 +49,7 @@ jobs:
       - name: Rust 缓存
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
+          workspaces: "./src-tauri -> target"
 
       - name: 安装前端依赖
         run: bun install
@@ -62,16 +62,16 @@ jobs:
 
       - name: 构建应用
         run: |
-          bun run tauri build --target ${{ matrix.target }} --bundles dmg
+          bun run tauri:build -- --target ${{ matrix.target }} --bundles dmg
 
       - name: 准备构建产物
         run: |
           # 创建临时目录用于存放构建文件
           mkdir -p dist-artifacts
-          
+
           # 从 dmg/ 目录中提取 .dmg
           find src-tauri/target/${{ matrix.target }}/release/bundle -name "*.dmg" -exec cp {} dist-artifacts/ \; 2>/dev/null || true
-          
+
           # 显示准备好的文件列表
           echo "准备上传的文件："
           ls -lh dist-artifacts/
@@ -82,7 +82,7 @@ jobs:
           name: aio-hub-${{ steps.get-version.outputs.version }}-macos-${{ matrix.arch }}-dmg
           path: dist-artifacts/*.dmg
           if-no-files-found: warn
-          retention-days: 7  # 测试构建保留7天
+          retention-days: 7 # 测试构建保留7天
 
       - name: 构建摘要
         run: |
@@ -97,3 +97,4 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
           ls -lh dist-artifacts/ >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
+

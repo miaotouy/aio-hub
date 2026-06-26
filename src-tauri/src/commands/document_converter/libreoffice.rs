@@ -132,6 +132,162 @@ pub async fn convert_legacy_doc_to_docx(
         .ok_or_else(|| "LibreOffice 已结束，但未找到转换后的 DOCX 文件".to_string())
 }
 
+/// 使用 LibreOffice 将旧版 PPT 转换为 PPTX
+pub async fn convert_legacy_ppt_to_pptx(
+    source_path: &Path,
+    output_dir: &Path,
+    config: &DocumentConversionConfig,
+) -> Result<PathBuf, String> {
+    fs::create_dir_all(output_dir).map_err(|e| format!("创建文档转换目录失败: {}", e))?;
+
+    let mut args = vec![
+        "--headless".to_string(),
+        "--nologo".to_string(),
+        "--nofirststartwizard".to_string(),
+        "--nolockcheck".to_string(),
+        "--nodefault".to_string(),
+    ];
+
+    let profile_dir = if config.isolated_profile {
+        let profile_dir = make_libreoffice_profile_dir()?;
+        args.push(libreoffice_user_installation_arg(&profile_dir));
+        Some(profile_dir)
+    } else {
+        None
+    };
+
+    args.extend([
+        "--convert-to".to_string(),
+        "pptx".to_string(),
+        "--outdir".to_string(),
+        output_dir.to_string_lossy().to_string(),
+        source_path.to_string_lossy().to_string(),
+    ]);
+
+    let mut command = Command::new(config.libre_office_path.trim());
+    #[cfg(target_os = "windows")]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let output = timeout(
+        Duration::from_secs(config.timeout_seconds.max(10)),
+        command.args(&args).output(),
+    )
+    .await
+    .map_err(|_| "旧版 PPT 转换超时".to_string())?
+    .map_err(|e| format!("执行 LibreOffice 失败: {}", e))?;
+
+    if let Some(dir) = profile_dir {
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        return Err(format!("LibreOffice 转换失败: {}{}", stderr, stdout));
+    }
+
+    let stem = source_path
+        .file_stem()
+        .ok_or_else(|| "无法获取 PPT 文件名".to_string())?
+        .to_string_lossy();
+    let expected_path = output_dir.join(format!("{}.pptx", stem));
+    if expected_path.exists() {
+        return Ok(expected_path);
+    }
+
+    fs::read_dir(output_dir)
+        .map_err(|e| format!("读取文档转换目录失败: {}", e))?
+        .flatten()
+        .map(|entry| entry.path())
+        .find(|path| {
+            path.extension()
+                .map(|ext| ext.to_string_lossy().eq_ignore_ascii_case("pptx"))
+                .unwrap_or(false)
+        })
+        .ok_or_else(|| "LibreOffice 已结束，但未找到转换后的 PPTX 文件".to_string())
+}
+
+/// 使用 LibreOffice 将旧版 XLS 转换为 XLSX
+pub async fn convert_legacy_xls_to_xlsx(
+    source_path: &Path,
+    output_dir: &Path,
+    config: &DocumentConversionConfig,
+) -> Result<PathBuf, String> {
+    fs::create_dir_all(output_dir).map_err(|e| format!("创建文档转换目录失败: {}", e))?;
+
+    let mut args = vec![
+        "--headless".to_string(),
+        "--nologo".to_string(),
+        "--nofirststartwizard".to_string(),
+        "--nolockcheck".to_string(),
+        "--nodefault".to_string(),
+    ];
+
+    let profile_dir = if config.isolated_profile {
+        let profile_dir = make_libreoffice_profile_dir()?;
+        args.push(libreoffice_user_installation_arg(&profile_dir));
+        Some(profile_dir)
+    } else {
+        None
+    };
+
+    args.extend([
+        "--convert-to".to_string(),
+        "xlsx".to_string(),
+        "--outdir".to_string(),
+        output_dir.to_string_lossy().to_string(),
+        source_path.to_string_lossy().to_string(),
+    ]);
+
+    let mut command = Command::new(config.libre_office_path.trim());
+    #[cfg(target_os = "windows")]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let output = timeout(
+        Duration::from_secs(config.timeout_seconds.max(10)),
+        command.args(&args).output(),
+    )
+    .await
+    .map_err(|_| "旧版 XLS 转换超时".to_string())?
+    .map_err(|e| format!("执行 LibreOffice 失败: {}", e))?;
+
+    if let Some(dir) = profile_dir {
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        return Err(format!("LibreOffice 转换失败: {}{}", stderr, stdout));
+    }
+
+    let stem = source_path
+        .file_stem()
+        .ok_or_else(|| "无法获取 XLS 文件名".to_string())?
+        .to_string_lossy();
+    let expected_path = output_dir.join(format!("{}.xlsx", stem));
+    if expected_path.exists() {
+        return Ok(expected_path);
+    }
+
+    fs::read_dir(output_dir)
+        .map_err(|e| format!("读取文档转换目录失败: {}", e))?
+        .flatten()
+        .map(|entry| entry.path())
+        .find(|path| {
+            path.extension()
+                .map(|ext| ext.to_string_lossy().eq_ignore_ascii_case("xlsx"))
+                .unwrap_or(false)
+        })
+        .ok_or_else(|| "LibreOffice 已结束，但未找到转换后的 XLSX 文件".to_string())
+}
+
 /// 在常见安装路径中嗅探 LibreOffice 可执行文件
 pub async fn detect_libreoffice_path() -> Option<String> {
     let candidates = get_libreoffice_candidates();

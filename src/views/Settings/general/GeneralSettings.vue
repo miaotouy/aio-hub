@@ -24,6 +24,7 @@ const props = defineProps<{
   minimizeToTray: boolean;
   theme: string;
   autoAdjustWindowPosition: boolean;
+  disableTauriDragDropHandler: boolean;
   sidebarMode: string;
   proxy: ProxySettings;
   timezone: string;
@@ -35,6 +36,7 @@ const emit = defineEmits([
   "update:minimizeToTray",
   "update:theme",
   "update:autoAdjustWindowPosition",
+  "update:disableTauriDragDropHandler",
   "update:sidebarMode",
   "update:proxy",
   "update:timezone",
@@ -60,6 +62,11 @@ const theme = computed({
 const autoAdjustWindowPosition = computed({
   get: () => props.autoAdjustWindowPosition,
   set: (value) => emit("update:autoAdjustWindowPosition", value),
+});
+
+const disableTauriDragDropHandler = computed({
+  get: () => props.disableTauriDragDropHandler,
+  set: (value) => emit("update:disableTauriDragDropHandler", value),
 });
 
 const sidebarMode = computed({
@@ -420,6 +427,22 @@ const handleImportConfig = async () => {
         </el-tooltip>
       </div>
       <el-switch v-model="autoAdjustWindowPosition" />
+    </div>
+
+    <div class="setting-item">
+      <div class="setting-label">
+        <span>H5 原生拖放兼容模式</span>
+        <el-tooltip
+          content="关闭时使用路径优先拖放；启用后使用 H5 原生 File 对象拖放。切换后需要重启应用"
+          placement="top"
+        >
+          <el-icon class="info-icon">
+            <InfoFilled />
+          </el-icon>
+        </el-tooltip>
+        <span class="setting-hint warning">需要重启应用</span>
+      </div>
+      <el-switch v-model="disableTauriDragDropHandler" />
     </div>
 
     <div class="setting-item">

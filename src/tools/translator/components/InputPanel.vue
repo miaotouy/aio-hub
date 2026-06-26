@@ -59,7 +59,9 @@
         file-only
         :multiple="false"
         :disabled="store.isTranslating"
+        emit-files
         @drop="handleEditorDrop"
+        @files-dropped="handleEditorFilesDrop"
       />
     </div>
 
@@ -499,6 +501,15 @@ async function handleReadFromFile() {
 async function handleEditorDrop(paths: string[]) {
   if (!paths.length || store.isTranslating) return;
   const loaded = await fileLoader.loadTextFromPath(paths[0], {
+    largeFileCharThreshold: LARGE_FILE_CHAR_THRESHOLD,
+    onLargeFileConfirm: confirmLargeFile,
+  });
+  if (loaded) await applyLoadedFile(loaded);
+}
+
+async function handleEditorFilesDrop(files: File[]) {
+  if (!files.length || store.isTranslating) return;
+  const loaded = await fileLoader.loadTextFromFile(files[0], {
     largeFileCharThreshold: LARGE_FILE_CHAR_THRESHOLD,
     onLargeFileConfirm: confirmLargeFile,
   });

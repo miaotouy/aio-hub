@@ -20,7 +20,7 @@ import { useWebDistilleryStore } from "../../stores/store";
 import { useLivePreview } from "../../composables/useLivePreview";
 import { actionRunner } from "../../core/action-runner";
 import type { ActionStep } from "../../types";
-import { VueDraggableNext as Draggable } from "vue-draggable-next";
+import { VueDraggableNext } from "vue-draggable-next";
 
 const store = useWebDistilleryStore();
 const { triggerLivePreview } = useLivePreview();
@@ -208,11 +208,12 @@ const runTest = async () => {
     <div class="actions-list-container">
       <el-empty v-if="actions.length === 0" description="暂无动作步骤" />
 
-      <Draggable
+      <VueDraggableNext
         v-else
         v-model="actions"
         item-key="index"
         handle=".drag-handle"
+        :force-fallback="true"
         class="actions-list"
         ghost-class="ghost-step"
       >
@@ -383,7 +384,7 @@ const runTest = async () => {
             </div>
           </template>
         </div>
-      </Draggable>
+      </VueDraggableNext>
     </div>
   </div>
 </template>

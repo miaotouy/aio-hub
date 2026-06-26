@@ -51,6 +51,10 @@
         <el-tab-pane label="截图方案测试" name="screenshot">
           <ScreenshotTester />
         </el-tab-pane>
+
+        <el-tab-pane label="拖拽配置测试" name="drag-drop">
+          <DragDropTester />
+        </el-tab-pane>
       </el-tabs>
     </div>
   </div>
@@ -69,6 +73,7 @@ import StoragePerformanceTester from "./components/StoragePerformanceTester.vue"
 import DownloadTester from "./components/DownloadTester.vue";
 import IMEInputTester from "./components/IMEInputTester.vue";
 import ScreenshotTester from "./components/ScreenshotTester.vue";
+import DragDropTester from "./components/DragDropTester.vue";
 
 const activeTab = ref("native");
 </script>

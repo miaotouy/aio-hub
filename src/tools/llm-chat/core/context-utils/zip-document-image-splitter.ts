@@ -1,20 +1,24 @@
 /**
- * DOCX 插图临时拆分工具
+ * OpenXML (DOCX/PPTX/XLSX) 插图临时拆分工具
  *
- * 当主对话模型支持视觉能力时，将 .docx 文件中的内嵌图片提取为
+ * 当主对话模型支持视觉能力时，将 .docx/.pptx/.xlsx 文件中的内嵌图片提取为
  * 临时 PipelineAttachment（inline source），直接作为多模态内容发送给模型。
  *
  * 设计约束：
  * - 不注册到 AssetManager（不污染资产库）
  * - base64 不进入文本分词器（走 _attachments 路径）
- * - CSP 合规：使用 atob() + Uint8Array 解码，不使用 fetch(dataUrl)
  */
 
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { parseDocx, isDocxAssetLike } from "@/utils/docxParser";
+import {
+  parsePptx,
+  parseXlsx,
+  isPptxAssetLike,
+  isXlsxAssetLike,
+} from "@/utils/zipDocumentParser";
 import { getImageDimensions } from "@/utils/imageProcessor";
-import type { DocxImage } from "@/utils/docxParser";
 import { getAttachmentBuffer } from "./attachment-binary";
 import {
   toPipelineAttachment,
@@ -22,14 +26,16 @@ import {
   type PipelineAttachment,
 } from "../../types/pipeline-attachment";
 
-const logger = createModuleLogger("llm-chat/docx-image-splitter");
-const errorHandler = createModuleErrorHandler("llm-chat/docx-image-splitter");
+const logger = createModuleLogger("llm-chat/zip-document-image-splitter");
+const errorHandler = createModuleErrorHandler(
+  "llm-chat/zip-document-image-splitter"
+);
 
-// 模块级缓存，避免高频重复解析 DOCX 附件（如 Token 统计高频触发场景）
-const splitCache = new Map<string, DocxSplitResult>();
+// 模块级缓存，避免高频重复解析附件（如 Token 统计高频触发场景）
+const splitCache = new Map<string, ZipDocumentSplitResult>();
 const MAX_CACHE_SIZE = 20;
 
-function getCachedResult(key: string): DocxSplitResult | undefined {
+function getCachedResult(key: string): ZipDocumentSplitResult | undefined {
   const result = splitCache.get(key);
   if (result) {
     // 移动到末尾，维持 LRU 顺序
@@ -39,7 +45,7 @@ function getCachedResult(key: string): DocxSplitResult | undefined {
   return result;
 }
 
-function setCacheResult(key: string, value: DocxSplitResult) {
+function setCacheResult(key: string, value: ZipDocumentSplitResult) {
   if (splitCache.size >= MAX_CACHE_SIZE) {
     const firstKey = splitCache.keys().next().value;
     if (firstKey !== undefined) {
@@ -49,8 +55,8 @@ function setCacheResult(key: string, value: DocxSplitResult) {
   splitCache.set(key, value);
 }
 
-export interface DocxSplitResult {
-  /** 含 [图片 N] 占位符的纯文本 */
+export interface ZipDocumentSplitResult {
+  /** 含图片占位符的纯文本 */
   text: string;
   /** 拆分出的临时图片附件列表 */
   imageAssets: PipelineAttachment[];
@@ -74,8 +80,14 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
  * 为单张图片构造临时 Asset
  */
 async function buildImageAsset(
-  img: DocxImage,
-  docxAsset: PipelineAttachment
+  img: {
+    base64: string;
+    mimeType: string;
+    estimatedBytes: number;
+    name?: string;
+  },
+  index: number,
+  parentAsset: PipelineAttachment
 ): Promise<PipelineAttachment | null> {
   // 提前过滤浏览器已知不支持的图片格式，避免调用 getImageDimensions 触发 imageProcessor 的加载失败警告
   const UNSUPPORTED_MIMES = [
@@ -87,8 +99,8 @@ async function buildImageAsset(
 
   if (UNSUPPORTED_MIMES.includes(img.mimeType.toLowerCase())) {
     logger.debug("跳过浏览器不支持的图片格式", {
-      imgIndex: img.index,
-      docxAssetId: docxAsset.id,
+      imgIndex: index,
+      parentAssetId: parentAsset.id,
       mimeType: img.mimeType,
     });
     return null;
@@ -103,8 +115,8 @@ async function buildImageAsset(
       logger.warn(
         "图片无法被浏览器加载（尺寸为 0），可能是损坏的图片或不支持的格式（如 wmf/emf），将跳过该图片",
         {
-          imgIndex: img.index,
-          docxAssetId: docxAsset.id,
+          imgIndex: index,
+          parentAssetId: parentAsset.id,
           mimeType: img.mimeType,
         }
       );
@@ -112,9 +124,9 @@ async function buildImageAsset(
     }
 
     return {
-      id: `docx-img-${docxAsset.id}-${img.index}`,
+      id: `zip-img-${parentAsset.id}-${index}`,
       type: "image",
-      name: `${docxAsset.name} - 图片 ${img.index}`,
+      name: `${parentAsset.name} - 图片 ${index}`,
       mimeType: img.mimeType,
       size: img.estimatedBytes,
       metadata: {
@@ -129,8 +141,8 @@ async function buildImageAsset(
     };
   } catch (error) {
     logger.warn("构建临时图片 Asset 失败，跳过该图片", {
-      imgIndex: img.index,
-      docxAssetId: docxAsset.id,
+      imgIndex: index,
+      parentAssetId: parentAsset.id,
       error,
     });
     return null;
@@ -138,84 +150,113 @@ async function buildImageAsset(
 }
 
 /**
- * 将 DOCX 附件拆分为文本 + 临时图片 Asset 列表
+ * 将 OpenXML (DOCX/PPTX/XLSX) 附件拆分为文本 + 临时图片 Asset 列表
  *
- * @param docxAsset 原始 DOCX 资产
- * @returns 拆分结果；如果 DOCX 无图片或解析失败，返回 success: false
+ * @param assetLike 原始资产
+ * @returns 拆分结果；如果无图片或解析失败，返回 success: false
  */
-export async function splitDocxIntoImageAssets(
-  docxAssetLike: AttachmentLike
-): Promise<DocxSplitResult> {
-  const docxAsset = toPipelineAttachment(docxAssetLike);
+export async function splitZipDocumentIntoImageAssets(
+  assetLike: AttachmentLike
+): Promise<ZipDocumentSplitResult> {
+  const asset = toPipelineAttachment(assetLike);
+  const isDocx = isDocxAssetLike(asset);
+  const isPptx = isPptxAssetLike(asset);
+  const isXlsx = isXlsxAssetLike(asset);
 
   // 安全检查
-  if (!isDocxAssetLike(docxAsset)) {
+  if (!isDocx && !isPptx && !isXlsx) {
     return { text: "", imageAssets: [], success: false };
   }
 
   // 检查缓存
-  const cached = getCachedResult(docxAsset.id);
+  const cached = getCachedResult(asset.id);
   if (cached) {
-    logger.debug("命中 DOCX 拆分缓存", { docxAssetId: docxAsset.id });
+    logger.debug("命中 OpenXML 拆分缓存", { assetId: asset.id });
     return cached;
   }
 
   try {
-    // 1. 读取 DOCX 二进制
-    const buffer = await getAttachmentBuffer(docxAsset);
+    // 1. 读取二进制数据
+    const buffer = await getAttachmentBuffer(asset);
 
-    // 2. 解析 DOCX
-    const parseResult = await parseDocx(buffer);
+    // 2. 根据类型解析
+    let text = "";
+    let images: Array<{
+      base64: string;
+      mimeType: string;
+      estimatedBytes: number;
+    }> = [];
+    let hasImages = false;
+
+    if (isDocx) {
+      const parseResult = await parseDocx(buffer);
+      text = parseResult.text;
+      images = parseResult.images;
+      hasImages = parseResult.hasImages;
+    } else if (isPptx) {
+      const parseResult = await parsePptx(buffer);
+      text = parseResult.text;
+      images = parseResult.images;
+      hasImages = parseResult.hasImages;
+    } else {
+      const parseResult = await parseXlsx(buffer);
+      text = parseResult.text;
+      images = parseResult.images;
+      hasImages = parseResult.hasImages;
+    }
 
     // 无图片则不拆分
-    if (!parseResult.hasImages) {
-      return { text: parseResult.text, imageAssets: [], success: false };
+    if (!hasImages) {
+      const result = { text, imageAssets: [], success: false };
+      setCacheResult(asset.id, result);
+      return result;
     }
 
     // 3. 为每张图片构建临时 Asset
     const imageAssets: PipelineAttachment[] = [];
-    for (const img of parseResult.images) {
-      const asset = await buildImageAsset(img, docxAsset);
-      if (asset) {
-        imageAssets.push(asset);
+    let imgIndex = 1;
+    for (const img of images) {
+      const imgAsset = await buildImageAsset(img, imgIndex++, asset);
+      if (imgAsset) {
+        imageAssets.push(imgAsset);
       }
     }
 
     // 至少有一张图片成功
     if (imageAssets.length === 0) {
       logger.warn("所有图片构建失败，回退到原始路径", {
-        docxAssetId: docxAsset.id,
+        assetId: asset.id,
       });
       const result = {
-        text: parseResult.text,
+        text,
         imageAssets: [],
         success: false,
       };
-      setCacheResult(docxAsset.id, result);
+      setCacheResult(asset.id, result);
       return result;
     }
 
-    logger.info("DOCX 插图拆分完成", {
-      docxAssetName: docxAsset.name,
-      totalImages: parseResult.images.length,
+    logger.info("OpenXML 插图拆分完成", {
+      assetName: asset.name,
+      totalImages: images.length,
       successImages: imageAssets.length,
     });
 
     const result = {
-      text: parseResult.text,
+      text,
       imageAssets,
       success: true,
     };
-    setCacheResult(docxAsset.id, result);
+    setCacheResult(asset.id, result);
     return result;
   } catch (error) {
     errorHandler.handle(error as Error, {
-      userMessage: "DOCX 图片拆分失败",
+      userMessage: "OpenXML 图片拆分失败",
       showToUser: false,
-      context: { docxAssetId: docxAsset.id, docxAssetName: docxAsset.name },
+      context: { assetId: asset.id, assetName: asset.name },
     });
     const result = { text: "", imageAssets: [], success: false };
-    setCacheResult(docxAsset.id, result);
+    setCacheResult(asset.id, result);
     return result;
   }
 }

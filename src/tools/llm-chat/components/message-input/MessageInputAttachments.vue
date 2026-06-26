@@ -18,6 +18,7 @@ const emit = defineEmits<{
   (e: "clear"): void;
   (e: "transcribe-all"): void;
   (e: "smart-transcribe-all"): void;
+  (e: "force-transcribe-all"): void;
   (e: "stop-all"): void;
 }>();
 
@@ -63,11 +64,15 @@ const handleClear = async () => {
           <el-dropdown-menu>
             <el-dropdown-item @click="emit('transcribe-all')">
               <template #icon><FileAudio :size="14" /></template>
-              一键转写所有
+              一键转写未转写
             </el-dropdown-item>
             <el-dropdown-item @click="emit('smart-transcribe-all')">
               <template #icon><Wand2 :size="14" /></template>
-              智能转写所有
+              智能转写未转写
+            </el-dropdown-item>
+            <el-dropdown-item @click="emit('force-transcribe-all')">
+              <template #icon><FileAudio :size="14" /></template>
+              强制重新转写所有
             </el-dropdown-item>
             <el-dropdown-item @click="emit('stop-all')">
               <template #icon><Square :size="14" /></template>

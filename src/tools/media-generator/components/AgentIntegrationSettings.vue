@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import VueDraggable from "vuedraggable";
+import { VueDraggableNext } from "vue-draggable-next";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import type { AgentIntegrationConfig, MediaTaskType } from "../types";
@@ -393,7 +393,7 @@ function typeIcon(type: MediaTaskType) {
                 >拖拽渠道行可调整同名模型的路由优先级</span
               >
             </div>
-            <VueDraggable
+            <VueDraggableNext
               :model-value="getSortedProfilesForModel(activeEditingModel)"
               item-key="profile.id"
               handle=".drag-handle"
@@ -404,30 +404,34 @@ function typeIcon(type: MediaTaskType) {
               class="dialog-channel-list"
               @update:model-value="handleProfilesReorder"
             >
-              <template #item="{ element, index }">
-                <div class="channel-row">
-                  <div
-                    class="drag-handle"
-                    v-if="activeEditingModel.profiles.length > 1"
-                  >
-                    <GripVertical :size="14" />
-                  </div>
-                  <div class="channel-info">
-                    <span class="channel-name">{{ element.profile.name }}</span>
-                    <span class="channel-type">{{ element.profile.type }}</span>
-                  </div>
-                  <div class="channel-badge">
-                    <el-tag
-                      :type="index === 0 ? 'success' : 'info'"
-                      size="small"
-                      effect="light"
-                    >
-                      {{ index === 0 ? "首选" : `备选 ${index}` }}
-                    </el-tag>
-                  </div>
+              <div
+                v-for="(element, index) in getSortedProfilesForModel(
+                  activeEditingModel
+                )"
+                :key="element.profile.id"
+                class="channel-row"
+              >
+                <div
+                  class="drag-handle"
+                  v-if="activeEditingModel.profiles.length > 1"
+                >
+                  <GripVertical :size="14" />
                 </div>
-              </template>
-            </VueDraggable>
+                <div class="channel-info">
+                  <span class="channel-name">{{ element.profile.name }}</span>
+                  <span class="channel-type">{{ element.profile.type }}</span>
+                </div>
+                <div class="channel-badge">
+                  <el-tag
+                    :type="index === 0 ? 'success' : 'info'"
+                    size="small"
+                    effect="light"
+                  >
+                    {{ index === 0 ? "首选" : `备选 ${index}` }}
+                  </el-tag>
+                </div>
+              </div>
+            </VueDraggableNext>
           </div>
 
           <!-- 参数说明 -->

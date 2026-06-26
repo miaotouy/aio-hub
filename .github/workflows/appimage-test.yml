@@ -1,7 +1,7 @@
 name: 手动测试 AppImage 构建
 
 on:
-  workflow_dispatch:  # 允许手动触发
+  workflow_dispatch: # 允许手动触发
 
 permissions:
   contents: read
@@ -12,7 +12,7 @@ env:
 jobs:
   build-appimage:
     runs-on: ubuntu-22.04
-    
+
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -35,7 +35,7 @@ jobs:
       - name: Rust 缓存
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
+          workspaces: "./src-tauri -> target"
 
       - name: 准备 Tauri 打包工具缓存
         uses: ./.github/actions/prepare-tauri-bundler-tools
@@ -43,10 +43,22 @@ jobs:
       - name: 安装前端依赖
         run: bun install
 
+      - name: 检查并处理无签名构建配置
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
+            echo "⚠️ 未检测到 TAURI_SIGNING_PRIVATE_KEY，正在动态修改 tauri.conf.json 以支持无签名构建..."
+            bun scripts/build.ts --patch-config
+          else
+            echo "🔑 检测到 TAURI_SIGNING_PRIVATE_KEY，将进行带签名的完整构建。"
+          fi
+
       - name: 构建应用
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           args: --target x86_64-unknown-linux-gnu --bundles appimage
 
@@ -54,19 +66,19 @@ jobs:
         run: |
           # 查找生成的 AppImage
           APPIMAGE_PATH=$(find src-tauri/target/x86_64-unknown-linux-gnu/release/bundle -name "*.AppImage" | head -n 1)
-          
+
           if [ -z "$APPIMAGE_PATH" ]; then
             echo "错误: 未找到 AppImage 文件"
             exit 1
           fi
-          
+
           echo "正在处理 AppImage: $APPIMAGE_PATH"
-          
+
           # 解包 AppImage 到 app-content 目录
           chmod +x "$APPIMAGE_PATH"
           "$APPIMAGE_PATH" --appimage-extract
           mv squashfs-root app-content
-          
+
           # 删除底层图形栈库（避免与宿主系统冲突）
           echo "移除底层图形栈库..."
           rm -f app-content/usr/lib/libwayland-*.so.* || true
@@ -75,7 +87,7 @@ jobs:
           rm -f app-content/usr/lib/libgbm*.so.* || true
           rm -f app-content/usr/lib/libdrm*.so.* || true
           rm -f app-content/usr/lib/libGLESv2*.so.* || true
-          
+
           echo "已删除的库："
           echo "- libwayland-*.so.*"
           echo "- libepoxy.so.*"
@@ -83,35 +95,35 @@ jobs:
           echo "- libgbm*.so.*"
           echo "- libdrm*.so.*"
           echo "- libGLESv2*.so.*"
-          
+
           # 添加 Wayland 兼容性环境变量到 AppRun
           if [ -f app-content/AppRun ]; then
             echo "添加 Wayland 兼容性环境变量..."
             sed -i '2i\# Wayland compatibility\nexport WEBKIT_DISABLE_DMABUF_RENDERER=1' app-content/AppRun
           fi
-          
+
           # 解包 appimagetool (避免 FUSE 依赖)
           echo "准备 appimagetool..."
           cp "${XDG_CACHE_HOME:-$HOME/.cache}/tauri/appimagetool-x86_64.AppImage" appimagetool-x86_64.AppImage
           chmod +x appimagetool-x86_64.AppImage
-          
+
           echo "解包 appimagetool..."
           ./appimagetool-x86_64.AppImage --appimage-extract >/dev/null 2>&1
-          
+
           # 重新打包 AppImage (直接使用解包后的 appimagetool)
           echo "重新打包 AppImage..."
           ARCH=x86_64 ./squashfs-root/AppRun app-content "$APPIMAGE_PATH"
-          
+
           # 清理临时目录
           rm -rf squashfs-root app-content
-          
+
           # 移动到输出目录
           mkdir -p appimage-output
           cp "$APPIMAGE_PATH" appimage-output/
-          
+
           # 清理临时文件
           rm -f appimagetool-x86_64.AppImage
-          
+
           echo "AppImage 后处理完成"
           echo "输出文件："
           ls -lh appimage-output/
@@ -129,3 +141,4 @@ jobs:
           name: aio-hub-test-${{ steps.get-version.outputs.version }}-linux-x64-appimage
           path: appimage-output/*.AppImage
           if-no-files-found: error
+

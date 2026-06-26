@@ -187,7 +187,7 @@ pub async fn export_all_configs_to_zip(app: AppHandle) -> Result<Vec<u8>, String
     // 获取时区设置
     let timezone_str = {
         let app_data_dir = get_app_data_dir(&app)?;
-        let settings_path = app_data_dir.join("settings.json");
+        let settings_path = app_data_dir.join("app-settings").join("settings.json");
         if settings_path.exists() {
             let contents = fs::read_to_string(settings_path).unwrap_or_default();
             let json: serde_json::Value = serde_json::from_str(&contents).unwrap_or_default();
@@ -238,7 +238,7 @@ pub async fn export_all_configs_to_zip(app: AppHandle) -> Result<Vec<u8>, String
 /// 从 settings.json 获取代理配置
 pub fn get_proxy_settings(app: &AppHandle) -> ProxySettings {
     let app_data_dir = crate::get_app_data_dir(app.config());
-    let settings_path = app_data_dir.join("settings.json");
+    let settings_path = app_data_dir.join("app-settings").join("settings.json");
 
     if settings_path.exists() {
         if let Ok(contents) = std::fs::read_to_string(&settings_path) {

@@ -528,6 +528,7 @@ const handleDragStart = (e: MouseEvent) => {
             @smart-transcribe-all="
               inputStore.handleSmartTranscribeAll(getWillUseTranscription)
             "
+            @force-transcribe-all="inputStore.handleForceTranscribeAll"
             @stop-all="inputStore.handleStopAllTranscriptions"
           />
         </div>

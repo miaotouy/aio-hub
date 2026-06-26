@@ -1,2 +1,2 @@
 chcp 65001
-bun run tauri build
+bun run tauri:build:local

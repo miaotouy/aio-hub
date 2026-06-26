@@ -2,7 +2,7 @@
 import { ref } from "vue";
 import { AlertCircle, ChevronDown, ChevronRight, Brain } from "lucide-vue-next";
 import type { ChatMessageNode } from "../types";
-import RichTextRenderer from "@/components/common/RichTextRenderer.vue";
+import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 
 defineProps<{
   message: ChatMessageNode;
@@ -15,7 +15,10 @@ const isReasoningExpanded = ref(true);
   <div class="message-content">
     <!-- 思考过程折叠框 -->
     <div v-if="message.metadata?.reasoningContent" class="reasoning-container">
-      <div class="reasoning-header" @click="isReasoningExpanded = !isReasoningExpanded">
+      <div
+        class="reasoning-header"
+        @click="isReasoningExpanded = !isReasoningExpanded"
+      >
         <div class="reasoning-title">
           <Brain :size="14" class="brain-icon" />
           <span>AI 思考过程</span>
@@ -29,14 +32,21 @@ const isReasoningExpanded = ref(true);
     </div>
 
     <div
-      v-if="message.status === 'generating' && !message.content && !message.metadata?.reasoningContent"
+      v-if="
+        message.status === 'generating' &&
+        !message.content &&
+        !message.metadata?.reasoningContent
+      "
       class="loading-dots"
     >
       <span>.</span><span>.</span><span>.</span>
     </div>
-    
+
     <div v-if="message.content" class="text-content">
-      <RichTextRenderer :content="message.content" :is-streaming="message.status === 'generating'" />
+      <RichTextRenderer
+        :content="message.content"
+        :is-streaming="message.status === 'generating'"
+      />
     </div>
 
     <div v-if="message.status === 'error'" class="error-info">

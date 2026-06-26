@@ -2,6 +2,12 @@ import { useTranscriptionManager } from "../../composables/features/useTranscrip
 import { isTextFile } from "@/utils/fileTypeDetector";
 import { smartDecode } from "@/utils/encoding";
 import { isDocxAssetLike, parseDocx } from "@/utils/docxParser";
+import {
+  isPptxAssetLike,
+  isXlsxAssetLike,
+  parsePptx,
+  parseXlsx,
+} from "@/utils/zipDocumentParser";
 import { createModuleLogger } from "@/utils/logger";
 import type { Asset } from "@/types/asset-management";
 import { assetManagerEngine } from "@/composables/useAssetManager";
@@ -111,7 +117,6 @@ export async function resolveAttachmentContent<
         // 读取失败，继续走下面的流程（虽然下面可能也处理不了，最终会留给 asset-resolver 报错或作为媒体处理）
       }
     }
-
     // 处理 DOCX 文件
     if (isDocxAssetLike(attachment)) {
       try {
@@ -126,6 +131,46 @@ export async function resolveAttachmentContent<
         };
       } catch (err) {
         logger.warn("解析 DOCX 附件失败，将尝试作为媒体附件处理", {
+          assetId: attachment.id,
+          error: err,
+        });
+      }
+    }
+
+    // 处理 PPTX 文件
+    if (isPptxAssetLike(attachment)) {
+      try {
+        const buffer = await getAttachmentBuffer(attachment);
+        const parseResult = await parsePptx(buffer);
+        return {
+          type: "text",
+          content: `\n[文件: ${attachment.name}]\n${parseResult.text}\n`,
+          rawText: parseResult.text,
+          asset,
+          source: "file",
+        };
+      } catch (err) {
+        logger.warn("解析 PPTX 附件失败，将尝试作为媒体附件处理", {
+          assetId: attachment.id,
+          error: err,
+        });
+      }
+    }
+
+    // 处理 XLSX 文件
+    if (isXlsxAssetLike(attachment)) {
+      try {
+        const buffer = await getAttachmentBuffer(attachment);
+        const parseResult = await parseXlsx(buffer);
+        return {
+          type: "text",
+          content: `\n[文件: ${attachment.name}]\n${parseResult.text}\n`,
+          rawText: parseResult.text,
+          asset,
+          source: "file",
+        };
+      } catch (err) {
+        logger.warn("解析 XLSX 附件失败，将尝试作为媒体附件处理", {
           assetId: attachment.id,
           error: err,
         });

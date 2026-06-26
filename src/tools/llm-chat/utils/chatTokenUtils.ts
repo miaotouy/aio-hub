@@ -9,7 +9,8 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import type { Asset } from "@/types/asset-management";
 import { resolveAttachmentsBatch } from "../core/context-utils/attachment-resolver";
 import { isDocxAssetLike } from "@/utils/docxParser";
-import { splitDocxIntoImageAssets } from "../core/context-utils/docx-image-splitter";
+import { isPptxAssetLike, isXlsxAssetLike } from "@/utils/zipDocumentParser";
+import { splitZipDocumentIntoImageAssets } from "../core/context-utils/zip-document-image-splitter";
 import { useTranscriptionManager } from "../composables/features/useTranscriptionManager";
 import {
   fromAsset,
@@ -43,14 +44,17 @@ export async function prepareMessageForTokenCalc(
   // 检查模型是否支持视觉（与 transcription-processor 保持一致）
   const model = profile?.models.find((m) => m.id === modelId);
   const hasVision = model?.capabilities?.vision === true;
-
-  // 分离 DOCX 附件（模型支持视觉时需要特殊处理）
+  // 分离 OpenXML 附件（模型支持视觉时需要特殊处理）
   let assetsForBatch = attachments;
   if (hasVision) {
-    const nonDocxAssets: Asset[] = [];
+    const nonZipAssets: Asset[] = [];
     const transcriptionManager = useTranscriptionManager();
     for (const asset of attachments) {
-      if (isDocxAssetLike(asset)) {
+      const isDocx = isDocxAssetLike(asset);
+      const isPptx = isPptxAssetLike(asset);
+      const isXlsx = isXlsxAssetLike(asset);
+
+      if (isDocx || isPptx || isXlsx) {
         // 已有转写结果且应优先使用时，回退到正常路径（不走虚拟图片附件）
         if (
           transcriptionManager.computeWillUseTranscription(
@@ -59,26 +63,26 @@ export async function prepareMessageForTokenCalc(
             profileId
           )
         ) {
-          nonDocxAssets.push(asset);
+          nonZipAssets.push(asset);
           continue;
         }
-        const splitResult = await splitDocxIntoImageAssets(asset);
+        const splitResult = await splitZipDocumentIntoImageAssets(asset);
         if (splitResult.success) {
           // 对齐 transcription-processor 的文本格式
           combinedText += `\n[文件: ${asset.name}]\n${splitResult.text}\n`;
           mediaAttachments.push(...splitResult.imageAssets);
         } else if (splitResult.text) {
-          // DOCX 无内嵌图片，只有文本
+          // 无内嵌图片，只有文本
           combinedText += `\n[文件: ${asset.name}]\n${splitResult.text}\n`;
         } else {
           // 拆分失败，回退到普通附件解析
-          nonDocxAssets.push(asset);
+          nonZipAssets.push(asset);
         }
       } else {
-        nonDocxAssets.push(asset);
+        nonZipAssets.push(asset);
       }
     }
-    assetsForBatch = nonDocxAssets;
+    assetsForBatch = nonZipAssets;
   }
 
   const resolvedResults = await resolveAttachmentsBatch(

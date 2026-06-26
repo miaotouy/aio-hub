@@ -275,37 +275,20 @@ const sortedLogs = computed(() => {
 
 // 初始化
 onMounted(async () => {
-  loadConfig();
-  refreshLogs();
+  await loadConfig();
+  await refreshLogs();
   checkDistributedStatus();
 });
 
 // 加载配置
-function loadConfig() {
-  const saved = localStorage.getItem("aio-file-operator-config");
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved);
-      config.value = { ...config.value, ...parsed };
-      maxFileSizeMB.value = Math.round(config.value.maxFileSize / 1024 / 1024);
-      actions.setConfig(config.value);
-    } catch (e) {
-      console.error("加载配置失败", e);
-    }
-  } else {
-    // 默认配置
-    config.value = actions.getConfig();
-    maxFileSizeMB.value = Math.round(config.value.maxFileSize / 1024 / 1024);
-  }
+async function loadConfig() {
+  config.value = await actions.getConfig();
+  maxFileSizeMB.value = Math.round(config.value.maxFileSize / 1024 / 1024);
 }
 
 // 保存配置
-function saveConfig() {
-  localStorage.setItem(
-    "aio-file-operator-config",
-    JSON.stringify(config.value)
-  );
-  actions.setConfig(config.value);
+async function saveConfig() {
+  await actions.setConfig(config.value);
   customMessage.success("配置已保存");
 }
 
@@ -377,15 +360,14 @@ function resetToDefault() {
 }
 
 // 刷新日志
-function refreshLogs() {
-  logs.value = actions.getOperationLogs();
+async function refreshLogs() {
+  logs.value = await actions.getOperationLogs();
 }
 
 // 清空日志
-function clearLogs() {
-  actions.getOperationLogs().length = 0;
-  refreshLogs();
-  customMessage.success("审计日志已清空");
+async function clearLogs() {
+  await actions.clearLogs();
+  await refreshLogs();
 }
 
 // 检查分布式桥接状态

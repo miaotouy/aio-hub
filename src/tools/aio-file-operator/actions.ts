@@ -4,6 +4,7 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { createConfigManager } from "@/utils/configManager";
 import { validatePath, validateFileSize } from "./utils/security";
 import { createLineEndingHelper } from "./utils/lineEnding";
 import { DEFAULT_CONFIG } from "./config";
@@ -16,31 +17,75 @@ import type {
 
 const errorHandler = createModuleErrorHandler("AioFileOperator/Actions");
 
+export const configManager = createConfigManager<AioFileOperatorConfig>({
+  moduleName: "aio-file-operator",
+  fileName: "config.json",
+  createDefault: () => DEFAULT_CONFIG,
+});
+
+export const logManager = createConfigManager<{ logs: OperationLogEntry[] }>({
+  moduleName: "aio-file-operator",
+  fileName: "audit-logs.json",
+  createDefault: () => ({ logs: [] }),
+});
+
 /** 操作日志列表 */
 const operationLogs: OperationLogEntry[] = [];
 
 /** 当前配置 */
 let currentConfig: AioFileOperatorConfig = { ...DEFAULT_CONFIG };
 
+const initPromise = (async () => {
+  try {
+    currentConfig = await configManager.load();
+    const loadedLogs = await logManager.load();
+    operationLogs.push(...(loadedLogs.logs || []));
+  } catch (e) {
+    errorHandler.handle(e as Error, {
+      userMessage: "初始化 AioFileOperator 存储失败",
+      showToUser: false,
+    });
+  }
+})();
+
+export async function ensureInitialized() {
+  await initPromise;
+}
+
 /**
  * 设置配置
  */
-export function setConfig(config: Partial<AioFileOperatorConfig>): void {
+export async function setConfig(
+  config: Partial<AioFileOperatorConfig>
+): Promise<void> {
+  await ensureInitialized();
   currentConfig = { ...currentConfig, ...config };
+  await configManager.save(currentConfig);
 }
 
 /**
  * 获取当前配置
  */
-export function getConfig(): AioFileOperatorConfig {
+export async function getConfig(): Promise<AioFileOperatorConfig> {
+  await ensureInitialized();
   return { ...currentConfig };
 }
 
 /**
  * 获取操作日志
  */
-export function getOperationLogs(): OperationLogEntry[] {
+export async function getOperationLogs(): Promise<OperationLogEntry[]> {
+  await ensureInitialized();
   return [...operationLogs];
+}
+
+/**
+ * 清空日志
+ */
+export async function clearLogs(): Promise<void> {
+  await ensureInitialized();
+  operationLogs.length = 0;
+  await logManager.save({ logs: [] });
 }
 
 /**
@@ -64,6 +109,9 @@ function recordLog(
   if (operationLogs.length > 100) {
     operationLogs.shift();
   }
+
+  // 异步保存日志（防抖）
+  logManager.saveDebounced({ logs: operationLogs });
 }
 
 /**
@@ -88,6 +136,7 @@ function buildErrorResult(
  */
 export async function readFile(path: string): Promise<FileOperationResult> {
   try {
+    await ensureInitialized();
     validatePath(path, currentConfig.allowedDirectories);
 
     // 检查文件元数据
@@ -217,6 +266,7 @@ export async function writeFile(
   allowOverwrite?: boolean
 ): Promise<FileOperationResult> {
   try {
+    await ensureInitialized();
     validatePath(path, currentConfig.allowedDirectories);
 
     // 检查文件是否已存在，如果存在则根据策略决定是否覆盖
@@ -286,6 +336,7 @@ export async function appendFile(
   content: string
 ): Promise<FileOperationResult> {
   try {
+    await ensureInitialized();
     validatePath(path, currentConfig.allowedDirectories);
 
     await invoke("append_file_force", {
@@ -310,6 +361,7 @@ export async function appendFile(
  */
 export async function deleteFile(path: string): Promise<FileOperationResult> {
   try {
+    await ensureInitialized();
     validatePath(path, currentConfig.allowedDirectories);
 
     await invoke("delete_file_to_trash", { filePath: path });
@@ -333,6 +385,7 @@ export async function listDirectory(
   path: string
 ): Promise<FileOperationResult> {
   try {
+    await ensureInitialized();
     validatePath(path, currentConfig.allowedDirectories);
 
     const fileNames = await invoke<string[]>("list_directory", { path });
@@ -394,6 +447,7 @@ export async function applyDiff(
   startLine?: number
 ): Promise<FileOperationResult> {
   try {
+    await ensureInitialized();
     validatePath(path, currentConfig.allowedDirectories);
 
     // 读取原始文件内容
@@ -470,6 +524,7 @@ export async function createDirectory(
   path: string
 ): Promise<FileOperationResult> {
   try {
+    await ensureInitialized();
     validatePath(path, currentConfig.allowedDirectories);
 
     await invoke("create_dir_force", { path });
@@ -491,6 +546,7 @@ export async function createDirectory(
  */
 export async function pathExists(path: string): Promise<FileOperationResult> {
   try {
+    await ensureInitialized();
     validatePath(path, currentConfig.allowedDirectories);
 
     const exists = await invoke<boolean>("path_exists", { path });

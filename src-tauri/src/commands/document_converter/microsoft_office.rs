@@ -127,3 +127,65 @@ pub async fn convert_legacy_doc_to_docx(
 ) -> Result<PathBuf, String> {
     Err("Microsoft Word COM 转换仅支持 Windows".to_string())
 }
+
+#[cfg(target_os = "windows")]
+pub async fn convert_legacy_ppt_to_pptx(
+    source_path: &Path,
+    output_dir: &Path,
+    config: &DocumentConversionConfig,
+) -> Result<PathBuf, String> {
+    fs::create_dir_all(output_dir).map_err(|e| format!("创建文档转换目录失败: {}", e))?;
+    let stem = source_path
+        .file_stem()
+        .ok_or_else(|| "无法获取 PPT 文件名".to_string())?
+        .to_string_lossy();
+    let target_path = output_dir.join(format!("{}.pptx", stem));
+
+    let script = r#"
+param([string]$sourcePath, [string]$targetPath)
+$ErrorActionPreference = 'Stop'
+$ppt = $null
+$presentation = $null
+try {
+  $ppt = New-Object -ComObject PowerPoint.Application
+  # PowerPoint Open 参数: FileName, ReadOnly, Untitled, WithWindow
+  # ReadOnly = $true (1), Untitled = $false (0), WithWindow = $false (0)
+  $presentation = $ppt.Presentations.Open($sourcePath, 1, 0, 0)
+  # SaveAs 参数: FileName, FileFormat (24 = ppSaveAsOpenXMLPresentation)
+  $presentation.SaveAs($targetPath, 24)
+  $presentation.Close()
+  $presentation = $null
+  "OK"
+} finally {
+  if ($null -ne $presentation) {
+    $presentation.Close() | Out-Null
+    [System.Runtime.InteropServices.Marshal]::ReleaseComObject($presentation) | Out-Null
+  }
+  if ($null -ne $ppt) {
+    $ppt.Quit() | Out-Null
+    [System.Runtime.InteropServices.Marshal]::ReleaseComObject($ppt) | Out-Null
+  }
+}
+"#;
+
+    let args = vec![
+        source_path.to_string_lossy().to_string(),
+        target_path.to_string_lossy().to_string(),
+    ];
+    run_powershell(script, &args, config.timeout_seconds.max(10)).await?;
+
+    if target_path.exists() {
+        Ok(target_path)
+    } else {
+        Err("Microsoft PowerPoint 已结束，但未找到转换后的 PPTX 文件".to_string())
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub async fn convert_legacy_ppt_to_pptx(
+    _source_path: &Path,
+    _output_dir: &Path,
+    _config: &DocumentConversionConfig,
+) -> Result<PathBuf, String> {
+    Err("Microsoft PowerPoint COM 转换仅支持 Windows".to_string())
+}

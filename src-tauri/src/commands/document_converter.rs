@@ -6,7 +6,7 @@
 mod abiword;
 mod config;
 mod libreoffice;
-mod microsoft_word;
+mod microsoft_office;
 mod textutil;
 
 use std::fs;
@@ -18,7 +18,9 @@ use uuid::Uuid;
 
 // 重新导出供 asset_manager 使用的类型和函数
 use config::DocumentConversionConfig;
-pub use config::{active_document_conversion_config, is_legacy_word_document};
+pub use config::{
+    active_document_conversion_config, is_legacy_ppt_document, is_legacy_word_document,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DocumentConverterProvider {
@@ -94,7 +96,7 @@ impl DocumentConverterProvider {
         match self {
             Self::Auto => "自动选择",
             Self::LibreOffice => "LibreOffice",
-            Self::MicrosoftWord => "Microsoft Word",
+            Self::MicrosoftWord => "Microsoft Office (Word/PowerPoint)",
             Self::AbiWord => "AbiWord",
             Self::Textutil => "macOS textutil",
         }
@@ -176,7 +178,7 @@ pub async fn detect_asset_manager_document_converters(
         ),
     };
 
-    let microsoft_word = match microsoft_word::check_converter().await {
+    let microsoft_word = match microsoft_office::check_converter().await {
         Ok(version) => candidate(
             DocumentConverterProvider::MicrosoftWord,
             true,
@@ -262,7 +264,7 @@ pub async fn check_asset_manager_document_converter(
             }
         }
         DocumentConverterProvider::LibreOffice => libreoffice::check_converter(path.trim()).await,
-        DocumentConverterProvider::MicrosoftWord => microsoft_word::check_converter().await,
+        DocumentConverterProvider::MicrosoftWord => microsoft_office::check_converter().await,
         DocumentConverterProvider::AbiWord => abiword::check_converter(path.trim()).await,
         DocumentConverterProvider::Textutil => textutil::check_converter().await,
     };
@@ -315,7 +317,7 @@ async fn resolve_specific_converter(
             Ok(ResolvedConverter { provider, config })
         }
         DocumentConverterProvider::MicrosoftWord => {
-            microsoft_word::check_converter().await?;
+            microsoft_office::check_converter().await?;
             Ok(ResolvedConverter { provider, config })
         }
         DocumentConverterProvider::AbiWord => {
@@ -349,7 +351,7 @@ async fn resolve_auto_converter(
         });
     }
 
-    if microsoft_word::check_converter().await.is_ok() {
+    if microsoft_office::check_converter().await.is_ok() {
         return Ok(ResolvedConverter {
             provider: DocumentConverterProvider::MicrosoftWord,
             config: config.clone(),
@@ -409,7 +411,7 @@ async fn convert_legacy_doc_to_docx(
             libreoffice::convert_legacy_doc_to_docx(source_path, output_dir, &resolved.config).await
         }
         DocumentConverterProvider::MicrosoftWord => {
-            microsoft_word::convert_legacy_doc_to_docx(source_path, output_dir, &resolved.config)
+            microsoft_office::convert_legacy_doc_to_docx(source_path, output_dir, &resolved.config)
                 .await
         }
         DocumentConverterProvider::AbiWord => {
@@ -421,8 +423,6 @@ async fn convert_legacy_doc_to_docx(
         DocumentConverterProvider::Auto => Err("未解析文档转换后端".to_string()),
     }
 }
-
-/// 准备导入源：如果是旧版 DOC 文件且配置了转换器，则自动转换为 DOCX
 pub async fn prepare_import_source(
     app: &AppHandle,
     original_path: &Path,
@@ -430,7 +430,10 @@ pub async fn prepare_import_source(
     base_dir: &Path,
 ) -> Result<PreparedImportSource, String> {
     let mime_type = crate::utils::mime::guess_mime_type(original_path);
-    if !is_legacy_word_document(original_path, &mime_type) {
+    let is_doc = is_legacy_word_document(original_path, &mime_type);
+    let is_ppt = is_legacy_ppt_document(original_path, &mime_type);
+
+    if !is_doc && !is_ppt {
         return Ok(PreparedImportSource {
             path: original_path.to_path_buf(),
             cleanup_dir: None,
@@ -438,38 +441,79 @@ pub async fn prepare_import_source(
         });
     }
 
-    let Some(conv_config) = active_document_conversion_config(app) else {
-        log::info!(
-            "[DocumentConverter] 检测到旧版 DOC，但未配置转换程序，按原文件入库: {}",
-            original_path_str
-        );
-        let file_name = original_path
-            .file_name()
-            .map(|name| name.to_string_lossy().to_string())
-            .unwrap_or_else(|| original_path_str.to_string());
-        return Ok(PreparedImportSource {
-            path: original_path.to_path_buf(),
-            cleanup_dir: None,
-            warnings: vec![converter_not_configured_warning(
-                &file_name,
-                original_path_str,
-            )],
-        });
-    };
+    let doc_type_label = if is_ppt { "PPT" } else { "DOC" };
+    let doc_target_label = if is_ppt { "PPTX" } else { "DOCX" };
 
     let file_name = original_path
         .file_name()
         .map(|name| name.to_string_lossy().to_string())
         .unwrap_or_else(|| original_path_str.to_string());
+
+    let Some(conv_config) = active_document_conversion_config(app) else {
+        log::info!(
+            "[DocumentConverter] 检测到旧版 {}，但未配置转换程序，按原文件入库: {}",
+            doc_type_label,
+            original_path_str
+        );
+        let mut warning = converter_not_configured_warning(&file_name, original_path_str);
+        if is_ppt {
+            warning.code = "legacyPptConverterNotConfigured".to_string();
+            warning.title = "旧版 PPT 未自动转换".to_string();
+            warning.message = format!(
+                "检测到旧版 PowerPoint PPT 文件「{}」，但资产管理器没有启用可用的文档转换依赖。文件已按原始 .ppt 入库，预览、全文解析或后续处理可能受限。请在资产管理器右上角「文件操作」→「文档转换设置」中启用自动转换，并配置 LibreOffice；保存后重新导入该文件即可转换为 PPTX。",
+                file_name
+            );
+        }
+        return Ok(PreparedImportSource {
+            path: original_path.to_path_buf(),
+            cleanup_dir: None,
+            warnings: vec![warning],
+        });
+    };
+
     let resolved = match resolve_converter(conv_config).await {
-        Ok(resolved) => resolved,
+        Ok(resolved) => {
+            if is_ppt
+                && resolved.provider != DocumentConverterProvider::LibreOffice
+                && resolved.provider != DocumentConverterProvider::MicrosoftWord
+            {
+                log::info!(
+                    "[DocumentConverter] 检测到旧版 PPT，但当前转换器 {} 不支持 PPT 转换，按原文件入库: {}",
+                    resolved.provider.label(),
+                    original_path_str
+                );
+                let mut warning = converter_not_configured_warning(&file_name, original_path_str);
+                warning.code = "legacyPptConverterNotSupported".to_string();
+                warning.title = "旧版 PPT 未自动转换".to_string();
+                warning.message = format!(
+                    "检测到旧版 PowerPoint PPT 文件「{}」，但当前配置的转换器 {} 不支持 PPT 转换（仅 LibreOffice 和 Microsoft Office 支持）。文件已按原始 .ppt 入库，预览或后续处理可能受限。请在设置中配置并启用 LibreOffice 或 Microsoft Office 转换器。",
+                    file_name,
+                    resolved.provider.label()
+                );
+                return Ok(PreparedImportSource {
+                    path: original_path.to_path_buf(),
+                    cleanup_dir: None,
+                    warnings: vec![warning],
+                });
+            }
+            resolved
+        }
         Err(message) => {
             log::info!(
-                "[DocumentConverter] 检测到旧版 DOC，但未找到可用转换依赖，按原文件入库: {} ({})",
+                "[DocumentConverter] 检测到旧版 {}，但未找到可用转换依赖，按原文件入库: {} ({})",
+                doc_type_label,
                 original_path_str,
                 message
             );
             let mut warning = converter_not_configured_warning(&file_name, original_path_str);
+            if is_ppt {
+                warning.code = "legacyPptConverterNotConfigured".to_string();
+                warning.title = "旧版 PPT 未自动转换".to_string();
+                warning.message = format!(
+                    "检测到旧版 PowerPoint PPT 文件「{}」，但资产管理器没有启用可用的文档转换依赖。文件已按原始 .ppt 入库，预览、全文解析或后续处理可能受限。请在资产管理器右上角「文件操作」→「文档转换设置」中启用自动转换，并配置 LibreOffice；保存后重新导入该文件即可转换为 PPTX。",
+                    file_name
+                );
+            }
             warning.message = format!("{} 当前检测结果：{}。", warning.message, message);
             return Ok(PreparedImportSource {
                 path: original_path.to_path_buf(),
@@ -483,8 +527,10 @@ pub async fn prepare_import_source(
         .join(".conversion-cache")
         .join(Uuid::new_v4().to_string());
     log::info!(
-        "[DocumentConverter] 检测到旧版 DOC，使用 {} 入库前转换为 DOCX: {}",
+        "[DocumentConverter] 检测到旧版 {}，使用 {} 入库前转换为 {}: {}",
+        doc_type_label,
         resolved.provider.label(),
+        doc_target_label,
         original_path_str
     );
 
@@ -493,11 +539,37 @@ pub async fn prepare_import_source(
         app,
         original_path_str,
         "converting",
-        Some(format!("使用 {} 转换为 DOCX", resolved.provider.label())),
+        Some(format!(
+            "使用 {} 转换为 {}",
+            resolved.provider.label(),
+            doc_target_label
+        )),
         None,
     );
 
-    let converted_path = convert_legacy_doc_to_docx(original_path, &output_dir, &resolved).await?;
+    let converted_path = if is_ppt {
+        match resolved.provider {
+            DocumentConverterProvider::LibreOffice => {
+                libreoffice::convert_legacy_ppt_to_pptx(
+                    original_path,
+                    &output_dir,
+                    &resolved.config,
+                )
+                .await?
+            }
+            DocumentConverterProvider::MicrosoftWord => {
+                microsoft_office::convert_legacy_ppt_to_pptx(
+                    original_path,
+                    &output_dir,
+                    &resolved.config,
+                )
+                .await?
+            }
+            _ => return Err("当前转换器不支持 PPT 转换".to_string()),
+        }
+    } else {
+        convert_legacy_doc_to_docx(original_path, &output_dir, &resolved).await?
+    };
 
     Ok(PreparedImportSource {
         path: converted_path,

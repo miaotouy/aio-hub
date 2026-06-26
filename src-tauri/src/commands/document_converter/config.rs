@@ -87,3 +87,11 @@ pub fn is_legacy_word_document(path: &Path, mime: &str) -> bool {
         .unwrap_or(false)
         || mime.starts_with("application/msword")
 }
+
+/// 判断文件是否为旧版 PowerPoint PPT 格式
+pub fn is_legacy_ppt_document(path: &Path, mime: &str) -> bool {
+    path.extension()
+        .map(|ext| ext.to_string_lossy().eq_ignore_ascii_case("ppt"))
+        .unwrap_or(false)
+        || mime.starts_with("application/vnd.ms-powerpoint")
+}

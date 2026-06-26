@@ -239,6 +239,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         check_asset_manager_document_converter,
         detect_asset_manager_document_converters,
         detect_libreoffice_path,
+        convert_legacy_document,
         get_asset_base_path,
         import_asset_from_path,
         import_asset_from_bytes,

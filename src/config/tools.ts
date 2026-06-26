@@ -33,6 +33,7 @@ export const DEFAULT_TOOLS_ORDER = [
   "/media-info-reader",
 
   // 文件管理
+  "/aio-file-operator",
   "/asset-manager",
   "/symlink-mover",
   "/directory-tree",

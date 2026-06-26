@@ -640,10 +640,50 @@ pub async fn prepare_import_source(
     } else {
         convert_legacy_doc_to_docx(original_path, &output_dir, &resolved).await?
     };
-
     Ok(PreparedImportSource {
         path: converted_path,
         cleanup_dir: Some(output_dir),
         warnings: Vec::new(),
     })
+}
+
+/// 将旧版文档转换为现代格式，并返回转换后的临时文件路径。
+#[tauri::command]
+pub async fn convert_legacy_document(
+    app: AppHandle,
+    path: String,
+) -> Result<Option<String>, String> {
+    let original_path = Path::new(&path);
+    let mime_type = crate::utils::mime::guess_mime_type(original_path);
+    let is_doc = is_legacy_word_document(original_path, &mime_type);
+    let is_ppt = is_legacy_ppt_document(original_path, &mime_type);
+    let is_xls = is_legacy_excel_document(original_path, &mime_type);
+
+    if !is_doc && !is_ppt && !is_xls {
+        return Ok(None);
+    }
+
+    // 转换后的临时目录，放在 app_data_dir 下的 temp_conversions 目录中
+    let app_data_dir = crate::get_app_data_dir(app.config());
+    let base_dir = app_data_dir.join("temp_conversions");
+
+    // 确保临时目录存在
+    fs::create_dir_all(&base_dir).map_err(|e| format!("创建临时目录失败: {}", e))?;
+
+    let prepared = prepare_import_source(&app, original_path, &path, &base_dir).await?;
+
+    // 如果转换成功，将文件复制到 base_dir 下的一个持久路径
+    let file_name = prepared
+        .path
+        .file_name()
+        .ok_or_else(|| "无法获取转换后的文件名".to_string())?;
+    let target_path = base_dir.join(file_name);
+
+    // 如果目标路径已存在，先删除
+    if target_path.exists() {
+        let _ = fs::remove_file(&target_path);
+    }
+    fs::copy(&prepared.path, &target_path).map_err(|e| format!("复制转换后的文件失败: {}", e))?;
+
+    Ok(Some(target_path.to_string_lossy().to_string()))
 }

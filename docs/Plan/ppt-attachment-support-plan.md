@@ -1,17 +1,17 @@
-# PPT/PPTX 附件全链路支持与自动转换计划
+# PPT/PPTX 与 XLS/XLSX 附件全链路支持与自动转换计划
 
-本计划旨在为 AIO Hub 的附件系统提供完整的 PPT/PPTX 支持。通过复刻现有的 `.doc` -> `.docx` 自动转换与解析链路，实现新版 `.pptx` 的直接发送，以及旧版 `.ppt` 的自动转换与发送。
+本计划旨在为 AIO Hub 的附件系统提供完整的 PPT/PPTX 和 XLS/XLSX 支持。通过复刻并扩展现有的 `.doc` -> `.docx` 自动转换与解析链路，实现新版 `.pptx`/`.xlsx` 的直接发送，以及旧版 `.ppt`/`.xls` 的自动转换与发送。
 
 ## 1. 现状分析
 
-1. **新版 PPT (`.pptx`)**：
-   - MIME 类型为 `application/vnd.openxmlformats-officedocument.presentationml.presentation`。
+1. **新版 PPT (`.pptx`) 与 Excel (`.xlsx`)**：
+   - MIME 类型分别为 `application/vnd.openxmlformats-officedocument.presentationml.presentation` 和 `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`。
    - 在前端 `determineAssetType` 中匹配 `officedocument` 前缀，已被归类为 `"document"`。
    - 在 `asset-resolver.ts` 中会作为原生文档转成 Base64 发送给模型。
    - **痛点**：如果模型不支持原生文档，目前没有前端文本提取器。
 
-2. **旧版 PPT (`.ppt`)**：
-   - MIME 类型为 `application/vnd.ms-powerpoint`。
+2. **旧版 PPT (`.ppt`) 与 Excel (`.xls`)**：
+   - MIME 类型分别为 `application/vnd.ms-powerpoint` 和 `application/vnd.ms-excel`。
    - 在前端 `determineAssetType` 中不匹配任何文档前缀，被归类为 `"other"`。
    - 在 `asset-resolver.ts` 中，`"other"` 类型的附件会被直接跳过，导致**完全无法发送**。
 
@@ -20,16 +20,16 @@
 我们将参考 `.doc` 的处理链路，实现以下全链路支持：
 
 ```
-[用户上传 .ppt] ──> [Rust 后端检测到旧版 PPT] ──> [调用 LibreOffice 转换为 .pptx] ──> [以 .pptx 入库]
-                                                                                   │
-                                                                                   ▼
-[用户上传 .pptx] ───────────────────────────────────────────────────────────> [归类为 "document"]
-                                                                                   │
-                                                                                   ▼
-                                                                      [Base64 资源解析器]
-                                                                                   │
-                                                                                   ▼
-                                                                      [发送给支持原生文档的模型]
+[用户上传 .ppt/.xls] ──> [Rust 后端检测到旧版 PPT/XLS] ──> [调用 LibreOffice/Office 转换为 .pptx/.xlsx] ──> [以 .pptx/.xlsx 入库]
+                                                                                                           │
+                                                                                                           ▼
+[用户上传 .pptx/.xlsx] ─────────────────────────────────────────────────────────────────────────────> [归类为 "document"]
+                                                                                                           │
+                                                                                                           ▼
+                                                                                              [Base64 资源解析器]
+                                                                                                           │
+                                                                                                           ▼
+                                                                                              [发送给支持原生文档的模型]
 ```
 
 ### 2.1 前端：文件类型与 UI 适配
@@ -37,18 +37,18 @@
 - 修改 `src/utils/fileTypeDetector.ts` 中的 `determineAssetType`，将 `.ppt`（`application/vnd.ms-powerpoint`）和 `.xls`（`application/vnd.ms-excel`）也归类为 `"document"`。
 - 这样它们在前端会自动显示为文档长条卡片，并支持拖拽、预览等操作。
 
-### 2.2 后端：旧版 `.ppt` 自动转换为 `.pptx`
+### 2.2 后端：旧版 `.ppt`/`.xls` 自动转换为 `.pptx`/`.xlsx`
 
-- 在 Rust 后端 `config.rs` 中，新增 `is_legacy_ppt_document` 判定。
-- 在 `document_converter.rs` 的 `prepare_import_source` 中，当检测到旧版 `.ppt` 时，调用 LibreOffice 或 Microsoft Office (PowerPoint COM) 转换器将其自动转换为 `.pptx`，然后再入库。
+- 在 Rust 后端 `config.rs` 中，新增 `is_legacy_ppt_document` 和 `is_legacy_excel_document` 判定。
+- 在 `document_converter.rs` 的 `prepare_import_source` 中，当检测到旧版 `.ppt`/`.xls` 时，调用 LibreOffice 或 Microsoft Office (PowerPoint/Excel COM) 转换器将其自动转换为 `.pptx`/`.xlsx`，然后再入库。
 - **多后端支持**：
-  - **LibreOffice**：跨平台支持，使用 `--convert-to pptx` 参数。
-  - **Microsoft Office (PowerPoint COM)**：Windows 平台特有，通过 PowerShell 调用 `PowerPoint.Application` COM 自动化接口，在后台静默打开并另存为 `.pptx`。
-- **安全降级**：如果当前配置的转换器不支持 PPT 转换（如 AbiWord、macOS textutil 等），则优雅降级，不进行转换，直接按原文件入库，并给出友好提示。
+  - **LibreOffice**：跨平台支持，使用 `--convert-to pptx` 或 `--convert-to xlsx` 参数。
+  - **Microsoft Office (PowerPoint/Excel COM)**：Windows 平台特有，通过 PowerShell 调用 `PowerPoint.Application` 或 `Excel.Application` COM 自动化接口，在后台静默打开并另存为 `.pptx`/`.xlsx`。
+- **安全降级**：如果当前配置的转换器不支持 PPT/XLS 转换（如 AbiWord、macOS textutil 等），则优雅降级，不进行转换，直接按原文件入库，并给出友好提示。
 
 ### 2.3 前端 UI：设置页面适配
 
-- 在 `DocumentConversionSettingsDialog.vue` 中，将文案和逻辑从“自动转换旧版 DOC”扩展为“自动转换旧版 DOC/PPT”。
+- 在 `DocumentConversionSettingsDialog.vue` 中，将文案和逻辑从“自动转换旧版 DOC”扩展为“自动转换旧版 DOC/PPT/XLS”。
 
 ---
 

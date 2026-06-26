@@ -19,7 +19,8 @@ use uuid::Uuid;
 // 重新导出供 asset_manager 使用的类型和函数
 use config::DocumentConversionConfig;
 pub use config::{
-    active_document_conversion_config, is_legacy_ppt_document, is_legacy_word_document,
+    active_document_conversion_config, is_legacy_excel_document, is_legacy_ppt_document,
+    is_legacy_word_document,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -91,12 +92,11 @@ impl DocumentConverterProvider {
             Self::Textutil => "textutil",
         }
     }
-
     fn label(self) -> &'static str {
         match self {
             Self::Auto => "自动选择",
             Self::LibreOffice => "LibreOffice",
-            Self::MicrosoftWord => "Microsoft Office (Word/PowerPoint)",
+            Self::MicrosoftWord => "Microsoft Office (Word/PowerPoint/Excel)",
             Self::AbiWord => "AbiWord",
             Self::Textutil => "macOS textutil",
         }
@@ -423,6 +423,7 @@ async fn convert_legacy_doc_to_docx(
         DocumentConverterProvider::Auto => Err("未解析文档转换后端".to_string()),
     }
 }
+
 pub async fn prepare_import_source(
     app: &AppHandle,
     original_path: &Path,
@@ -432,8 +433,9 @@ pub async fn prepare_import_source(
     let mime_type = crate::utils::mime::guess_mime_type(original_path);
     let is_doc = is_legacy_word_document(original_path, &mime_type);
     let is_ppt = is_legacy_ppt_document(original_path, &mime_type);
+    let is_xls = is_legacy_excel_document(original_path, &mime_type);
 
-    if !is_doc && !is_ppt {
+    if !is_doc && !is_ppt && !is_xls {
         return Ok(PreparedImportSource {
             path: original_path.to_path_buf(),
             cleanup_dir: None,
@@ -441,8 +443,20 @@ pub async fn prepare_import_source(
         });
     }
 
-    let doc_type_label = if is_ppt { "PPT" } else { "DOC" };
-    let doc_target_label = if is_ppt { "PPTX" } else { "DOCX" };
+    let doc_type_label = if is_ppt {
+        "PPT"
+    } else if is_xls {
+        "XLS"
+    } else {
+        "DOC"
+    };
+    let doc_target_label = if is_ppt {
+        "PPTX"
+    } else if is_xls {
+        "XLSX"
+    } else {
+        "DOCX"
+    };
 
     let file_name = original_path
         .file_name()
@@ -461,6 +475,13 @@ pub async fn prepare_import_source(
             warning.title = "旧版 PPT 未自动转换".to_string();
             warning.message = format!(
                 "检测到旧版 PowerPoint PPT 文件「{}」，但资产管理器没有启用可用的文档转换依赖。文件已按原始 .ppt 入库，预览、全文解析或后续处理可能受限。请在资产管理器右上角「文件操作」→「文档转换设置」中启用自动转换，并配置 LibreOffice；保存后重新导入该文件即可转换为 PPTX。",
+                file_name
+            );
+        } else if is_xls {
+            warning.code = "legacyXlsConverterNotConfigured".to_string();
+            warning.title = "旧版 XLS 未自动转换".to_string();
+            warning.message = format!(
+                "检测到旧版 Excel XLS 文件「{}」，但资产管理器没有启用可用的文档转换依赖。文件已按原始 .xls 入库，预览、全文解析或后续处理可能受限。请在资产管理器右上角「文件操作」→「文档转换设置」中启用自动转换，并配置 LibreOffice；保存后重新导入该文件即可转换为 XLSX。",
                 file_name
             );
         }
@@ -495,6 +516,28 @@ pub async fn prepare_import_source(
                     cleanup_dir: None,
                     warnings: vec![warning],
                 });
+            } else if is_xls
+                && resolved.provider != DocumentConverterProvider::LibreOffice
+                && resolved.provider != DocumentConverterProvider::MicrosoftWord
+            {
+                log::info!(
+                    "[DocumentConverter] 检测到旧版 XLS，但当前转换器 {} 不支持 XLS 转换，按原文件入库: {}",
+                    resolved.provider.label(),
+                    original_path_str
+                );
+                let mut warning = converter_not_configured_warning(&file_name, original_path_str);
+                warning.code = "legacyXlsConverterNotSupported".to_string();
+                warning.title = "旧版 XLS 未自动转换".to_string();
+                warning.message = format!(
+                    "检测到旧版 Excel XLS 文件「{}」，但当前配置的转换器 {} 不支持 XLS 转换（仅 LibreOffice 和 Microsoft Office 支持）。文件已按原始 .xls 入库，预览或后续处理可能受限。请在设置中配置并启用 LibreOffice 或 Microsoft Office 转换器。",
+                    file_name,
+                    resolved.provider.label()
+                );
+                return Ok(PreparedImportSource {
+                    path: original_path.to_path_buf(),
+                    cleanup_dir: None,
+                    warnings: vec![warning],
+                });
             }
             resolved
         }
@@ -511,6 +554,13 @@ pub async fn prepare_import_source(
                 warning.title = "旧版 PPT 未自动转换".to_string();
                 warning.message = format!(
                     "检测到旧版 PowerPoint PPT 文件「{}」，但资产管理器没有启用可用的文档转换依赖。文件已按原始 .ppt 入库，预览、全文解析或后续处理可能受限。请在资产管理器右上角「文件操作」→「文档转换设置」中启用自动转换，并配置 LibreOffice；保存后重新导入该文件即可转换为 PPTX。",
+                    file_name
+                );
+            } else if is_xls {
+                warning.code = "legacyXlsConverterNotConfigured".to_string();
+                warning.title = "旧版 XLS 未自动转换".to_string();
+                warning.message = format!(
+                    "检测到旧版 Excel XLS 文件「{}」，但资产管理器没有启用可用的文档转换依赖。文件已按原始 .xls 入库，预览、全文解析或后续处理可能受限。请在资产管理器右上角「文件操作」→「文档转换设置」中启用自动转换，并配置 LibreOffice；保存后重新导入该文件即可转换为 XLSX。",
                     file_name
                 );
             }
@@ -566,6 +616,26 @@ pub async fn prepare_import_source(
                 .await?
             }
             _ => return Err("当前转换器不支持 PPT 转换".to_string()),
+        }
+    } else if is_xls {
+        match resolved.provider {
+            DocumentConverterProvider::LibreOffice => {
+                libreoffice::convert_legacy_xls_to_xlsx(
+                    original_path,
+                    &output_dir,
+                    &resolved.config,
+                )
+                .await?
+            }
+            DocumentConverterProvider::MicrosoftWord => {
+                microsoft_office::convert_legacy_xls_to_xlsx(
+                    original_path,
+                    &output_dir,
+                    &resolved.config,
+                )
+                .await?
+            }
+            _ => return Err("当前转换器不支持 XLS 转换".to_string()),
         }
     } else {
         convert_legacy_doc_to_docx(original_path, &output_dir, &resolved).await?

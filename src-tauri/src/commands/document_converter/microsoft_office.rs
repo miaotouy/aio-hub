@@ -180,7 +180,6 @@ try {
         Err("Microsoft PowerPoint 已结束，但未找到转换后的 PPTX 文件".to_string())
     }
 }
-
 #[cfg(not(target_os = "windows"))]
 pub async fn convert_legacy_ppt_to_pptx(
     _source_path: &Path,
@@ -188,4 +187,67 @@ pub async fn convert_legacy_ppt_to_pptx(
     _config: &DocumentConversionConfig,
 ) -> Result<PathBuf, String> {
     Err("Microsoft PowerPoint COM 转换仅支持 Windows".to_string())
+}
+
+#[cfg(target_os = "windows")]
+pub async fn convert_legacy_xls_to_xlsx(
+    source_path: &Path,
+    output_dir: &Path,
+    config: &DocumentConversionConfig,
+) -> Result<PathBuf, String> {
+    fs::create_dir_all(output_dir).map_err(|e| format!("创建文档转换目录失败: {}", e))?;
+    let stem = source_path
+        .file_stem()
+        .ok_or_else(|| "无法获取 XLS 文件名".to_string())?
+        .to_string_lossy();
+    let target_path = output_dir.join(format!("{}.xlsx", stem));
+
+    let script = r#"
+param([string]$sourcePath, [string]$targetPath)
+$ErrorActionPreference = 'Stop'
+$excel = $null
+$workbook = $null
+try {
+  $excel = New-Object -ComObject Excel.Application
+  $excel.Visible = $false
+  $excel.DisplayAlerts = $false
+  # Excel Open 参数: FileName, UpdateLinks (0 = No), ReadOnly ($true)
+  $workbook = $excel.Workbooks.Open($sourcePath, 0, $true)
+  # SaveAs 参数: FileName, FileFormat (51 = xlOpenXMLWorkbook)
+  $workbook.SaveAs($targetPath, 51)
+  $workbook.Close($false)
+  $workbook = $null
+  "OK"
+} finally {
+  if ($null -ne $workbook) {
+    $workbook.Close($false) | Out-Null
+    [System.Runtime.InteropServices.Marshal]::ReleaseComObject($workbook) | Out-Null
+  }
+  if ($null -ne $excel) {
+    $excel.Quit() | Out-Null
+    [System.Runtime.InteropServices.Marshal]::ReleaseComObject($excel) | Out-Null
+  }
+}
+"#;
+
+    let args = vec![
+        source_path.to_string_lossy().to_string(),
+        target_path.to_string_lossy().to_string(),
+    ];
+    run_powershell(script, &args, config.timeout_seconds.max(10)).await?;
+
+    if target_path.exists() {
+        Ok(target_path)
+    } else {
+        Err("Microsoft Excel 已结束，但未找到转换后的 XLSX 文件".to_string())
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub async fn convert_legacy_xls_to_xlsx(
+    _source_path: &Path,
+    _output_dir: &Path,
+    _config: &DocumentConversionConfig,
+) -> Result<PathBuf, String> {
+    Err("Microsoft Excel COM 转换仅支持 Windows".to_string())
 }

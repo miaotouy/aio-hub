@@ -270,10 +270,21 @@ export class VcpNodeProtocol {
     const fileUrl = args.fileUrl as string;
     if (!fileUrl) throw new Error("Missing fileUrl in internal_request_file");
 
-    // 移除 file:/// 前缀
-    const filePath = fileUrl
-      .replace(/^file:\/\/\//, "")
-      .replace(/^file:\/\//, "");
+    let filePath = "";
+    try {
+      const url = new URL(fileUrl);
+      let decodedPath = decodeURIComponent(url.pathname);
+      // Windows 下 url.pathname 可能是 "/C:/Users/..."，需要去掉开头的斜杠
+      if (decodedPath.startsWith("/") && decodedPath.match(/^\/[a-zA-Z]:/)) {
+        decodedPath = decodedPath.slice(1);
+      }
+      filePath = decodedPath;
+    } catch (e) {
+      // fallback
+      filePath = decodeURIComponent(
+        fileUrl.replace(/^file:\/\/\//, "").replace(/^file:\/\//, "")
+      );
+    }
 
     logger.info(`Handling internal_request_file: ${filePath}`);
 
@@ -292,6 +303,7 @@ export class VcpNodeProtocol {
       requestId,
       status: "success",
       result: {
+        status: "success", // 🌟 必须嵌套 status: "success"
         fileData,
         mimeType,
       },

@@ -1,21 +1,43 @@
 <script setup lang="ts">
-import { AlertCircle } from "lucide-vue-next";
+import { ref } from "vue";
+import { AlertCircle, ChevronDown, ChevronRight, Brain } from "lucide-vue-next";
 import type { ChatMessageNode } from "../types";
+import RichTextRenderer from "@/components/common/RichTextRenderer.vue";
 
 defineProps<{
   message: ChatMessageNode;
 }>();
+
+const isReasoningExpanded = ref(true);
 </script>
 
 <template>
   <div class="message-content">
+    <!-- 思考过程折叠框 -->
+    <div v-if="message.metadata?.reasoningContent" class="reasoning-container">
+      <div class="reasoning-header" @click="isReasoningExpanded = !isReasoningExpanded">
+        <div class="reasoning-title">
+          <Brain :size="14" class="brain-icon" />
+          <span>AI 思考过程</span>
+        </div>
+        <ChevronDown v-if="isReasoningExpanded" :size="16" />
+        <ChevronRight v-else :size="16" />
+      </div>
+      <div v-show="isReasoningExpanded" class="reasoning-content">
+        <RichTextRenderer :content="message.metadata.reasoningContent" />
+      </div>
+    </div>
+
     <div
-      v-if="message.status === 'generating' && !message.content"
+      v-if="message.status === 'generating' && !message.content && !message.metadata?.reasoningContent"
       class="loading-dots"
     >
       <span>.</span><span>.</span><span>.</span>
     </div>
-    <div class="text-content">{{ message.content }}</div>
+    
+    <div v-if="message.content" class="text-content">
+      <RichTextRenderer :content="message.content" :is-streaming="message.status === 'generating'" />
+    </div>
 
     <div v-if="message.status === 'error'" class="error-info">
       <AlertCircle :size="14" />
@@ -37,7 +59,44 @@ defineProps<{
 }
 
 .text-content {
-  white-space: pre-wrap;
+  margin-top: 4px;
+}
+
+.reasoning-container {
+  margin-bottom: 12px;
+  border-left: 3px solid var(--el-border-color-darker);
+  background: var(--el-fill-color-lighter);
+  border-radius: 0 8px 8px 0;
+  overflow: hidden;
+}
+
+.reasoning-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.reasoning-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.brain-icon {
+  color: var(--el-color-primary);
+}
+
+.reasoning-content {
+  padding: 0 12px 12px 12px;
+  font-size: 0.85rem;
+  color: var(--el-text-color-regular);
+  opacity: 0.85;
 }
 
 .error-info {

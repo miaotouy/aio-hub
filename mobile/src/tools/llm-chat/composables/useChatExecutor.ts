@@ -3,6 +3,8 @@ import { useLlmRequest } from "../../llm-api/composables/useLlmRequest";
 import { useLlmProfilesStore } from "../../llm-api/stores/llmProfiles";
 import { useNodeManager } from "./useNodeManager";
 import { useContextPipelineStore } from "../stores/contextPipelineStore";
+import { useChatResponseHandler } from "./useChatResponseHandler";
+import { useTopicNamer } from "./useTopicNamer";
 import type { ChatSession, PipelineContext, ChatMessageNode } from "../types";
 import { createModuleLogger } from "@/utils/logger";
 
@@ -14,6 +16,8 @@ export function useChatExecutor() {
   const profilesStore = useLlmProfilesStore();
   const nodeManager = useNodeManager();
   const pipelineStore = useContextPipelineStore();
+  const { handleStreamUpdate, finalizeNode, handleNodeError } = useChatResponseHandler();
+  const { shouldAutoName, generateTopicName } = useTopicNamer();
 
   /**
    * 执行对话请求
@@ -112,8 +116,10 @@ export function useChatExecutor() {
         messages: requestMessages,
         stream: true,
         onStream: (chunk) => {
-          assistantNode.content += chunk;
-          session.updatedAt = new Date().toISOString();
+          handleStreamUpdate(session, assistantNode.id, chunk, false);
+        },
+        onReasoningStream: (chunk) => {
+          handleStreamUpdate(session, assistantNode.id, chunk, true);
         },
       });
 
@@ -122,20 +128,17 @@ export function useChatExecutor() {
         throw new Error("Request failed or was cancelled");
       }
 
-      if (!result.isStream) {
-        assistantNode.content = result.content || "";
-      }
+      await finalizeNode(session, assistantNode.id, result);
 
-      assistantNode.status = "complete";
+      // 自动命名会话
+      if (shouldAutoName(session)) {
+        generateTopicName(session).catch((err) => {
+          logger.error("Failed to auto name session", err);
+        });
+      }
     } catch (error: any) {
       logger.error("Chat execution failed", error);
-      assistantNode.status = "error";
-      assistantNode.metadata = {
-        ...assistantNode.metadata,
-        error: error.message || "Unknown error",
-      };
-      // 确保 session 状态更新以触发 UI
-      session.updatedAt = new Date().toISOString();
+      handleNodeError(session, assistantNode.id, error, "对话执行");
     } finally {
       chatStore.isSending = false;
       session.updatedAt = new Date().toISOString();

@@ -67,5 +67,25 @@ export interface ChatMessageNode {
     reasoningStartTime?: number;
     /** 推理结束时间戳 */
     reasoningEndTime?: number;
+    /** Token 使用情况（API 返回的完整请求统计） */
+    usage?: {
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+    };
+    /**
+     * 单条消息内容的 Token 数量（本地计算）
+     * - 对于用户消息：本地计算的文本 + 附件 token 总数
+     * - 对于助手消息：直接使用 API 返回的 completionTokens
+     */
+    contentTokens?: number;
+    /** 请求开始时间戳 */
+    requestStartTime?: number;
+    /** 请求结束时间戳 */
+    requestEndTime?: number;
+    /** 首字生成时间戳（用于计算 TTFT） */
+    firstTokenTime?: number;
+    /** 平均生成速度 (tokens/s) */
+    tokensPerSecond?: number;
   };
 }

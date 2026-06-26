@@ -1,7 +1,7 @@
 # 移动端 LLM Chat — 实现情况
 
-> **文档状态**: Implementing  
-> **最后更新**: 2026-06-23  
+> **文档状态**: Implementing
+> **最后更新**: 2026-06-26
 > **对应路径**: `mobile/src/tools/llm-chat/`
 
 ## 1. 概述
@@ -316,6 +316,8 @@ LlamaChatView.send() → useChatExecutor.execute()
 - [x] 模型选择与校验
 - [x] 会话历史持久化
 - [x] 重启恢复上次会话
+- [x] 会话名称自动生成（基于首条消息）
+- [x] 通用思考过程展示（reasoningContent）
 
 ### ✅ 树形分支对话
 
@@ -377,12 +379,10 @@ LlamaChatView.send() → useChatExecutor.execute()
 
 ### 🔄 体验优化
 
-- [ ] 会话名称自动生成（基于首条消息）
 - [ ] 消息搜索/过滤
 - [ ] 消息引用（回复模式）
 - [ ] 会话列表的搜索和排序
 - [ ] 删除/编辑前的确认弹窗
-- [ ] DeepSeek 推理内容的展示（reasoningContent）
 - [ ] Token 用量统计展示
 - [ ] 模型切换下拉按钮（当前仅在设置页切换默认模型）
 

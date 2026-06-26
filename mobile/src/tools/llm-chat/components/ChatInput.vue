@@ -12,6 +12,13 @@ const { isKeyboardVisible } = useKeyboardAvoidance();
 
 const inputText = ref("");
 
+const handleKeyDown = (e: KeyboardEvent) => {
+  if (e.ctrlKey && e.key === "Enter") {
+    e.preventDefault();
+    handleSend();
+  }
+};
+
 const handleSend = async () => {
   if (!inputText.value.trim() || chatStore.isSending) return;
 
@@ -35,8 +42,8 @@ const handleSend = async () => {
         v-model="inputText"
         class="text-area"
         rows="1"
-        placeholder="输入消息..."
-        @keydown.enter.prevent="handleSend"
+        placeholder="输入消息 (Ctrl+Enter 发送)..."
+        @keydown="handleKeyDown"
       ></textarea>
 
       <button

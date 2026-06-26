@@ -15,6 +15,9 @@ import RichTextRenderer from "../RichTextRenderer.vue";
 import { presets } from "../presets/test-cases";
 import { marked } from "marked";
 import { Snackbar } from "@varlet/ui";
+import { useI18n } from "@/i18n";
+
+const { tRaw } = useI18n();
 
 // 标签页状态：edit (编辑), preview (预览), curtain (帘幕), debug (调试)
 const activeTab = ref<"edit" | "preview" | "curtain" | "debug">("preview");
@@ -359,7 +362,7 @@ const normalizeWhitespace = (text: string): string => {
 // 复制原文和渲染结果的对比报告
 const copyComparison = async () => {
   if (!inputContent.value.trim()) {
-    Snackbar.warning("没有可复制的原文内容");
+    Snackbar.warning(tRaw("tools.rich-text-renderer.tester.无原文可复制"));
     return;
   }
 
@@ -367,7 +370,7 @@ const copyComparison = async () => {
     ".rich-text-renderer"
   );
   if (!rendererEl) {
-    Snackbar.warning("渲染容器不存在或尚未渲染");
+    Snackbar.warning(tRaw("tools.rich-text-renderer.tester.无渲染容器"));
     return;
   }
 
@@ -385,13 +388,23 @@ const copyComparison = async () => {
   const isMatched = normalizedDiff === 0;
 
   // 拼接测试配置信息
-  let configInfo = `流式输出: ${streamEnabled.value ? "启用" : "禁用"}`;
+  const streamLabel = streamEnabled.value
+    ? tRaw("tools.rich-text-renderer.tester.流式输出启用")
+    : tRaw("tools.rich-text-renderer.tester.流式输出禁用");
+  let configInfo = streamLabel;
   if (streamEnabled.value) {
-    configInfo += `\n输出速度: ${streamSpeed.value} token/秒`;
-    configInfo += `\n首包延迟: ${initialDelay.value} 毫秒`;
-    configInfo += `\n波动模式: ${fluctuationEnabled.value ? "启用" : "禁用"}`;
+    configInfo += `\n${tRaw("tools.rich-text-renderer.tester.输出速度配置", { speed: streamSpeed.value })}`;
+    configInfo += `\n${tRaw("tools.rich-text-renderer.tester.首包延迟配置", { delay: initialDelay.value })}`;
+    const fluctuationLabel = fluctuationEnabled.value
+      ? tRaw("tools.rich-text-renderer.tester.波动模式启用")
+      : tRaw("tools.rich-text-renderer.tester.波动模式禁用");
+    configInfo += `\n${fluctuationLabel}`;
   }
-  configInfo += `\n预设用例: ${selectedPreset.value}`;
+  configInfo += `\n${tRaw("tools.rich-text-renderer.tester.预设用例", { id: selectedPreset.value })}`;
+
+  const matchLabel = isMatched
+    ? tRaw("tools.rich-text-renderer.tester.完全匹配")
+    : tRaw("tools.rich-text-renderer.tester.不匹配");
 
   const comparisonText = `========== 测试配置 ==========
 ${configInfo}
@@ -411,7 +424,7 @@ ${htmlContent}
 规范化后原文字符数: ${normalizedInput.length}
 规范化后渲染字符数: ${normalizedRendered.length}
 字符差异（规范化后）: ${normalizedDiff}
-文本匹配: ${isMatched ? "✅ 完全匹配" : "❌ 不匹配"}
+文本匹配: ${matchLabel}
 ---
 HTML 完整字符数: ${htmlContent.length}
 渲染时间: ${new Date().toLocaleString("zh-CN")}
@@ -419,9 +432,9 @@ HTML 完整字符数: ${htmlContent.length}
 
   try {
     await navigator.clipboard.writeText(comparisonText);
-    Snackbar.success("对比报告已复制到剪贴板");
+    Snackbar.success(tRaw("tools.rich-text-renderer.tester.对比报告已复制"));
   } catch (err) {
-    Snackbar.error("复制失败，请检查剪贴板权限");
+    Snackbar.error(tRaw("tools.rich-text-renderer.tester.复制失败权限"));
     console.error("Failed to copy comparison:", err);
   }
 };
@@ -429,15 +442,15 @@ HTML 完整字符数: ${htmlContent.length}
 // 复制完整 AST JSON
 const copyAstJson = async () => {
   if (!currentContent.value) {
-    Snackbar.warning("暂无 AST 数据可复制");
+    Snackbar.warning(tRaw("tools.rich-text-renderer.tester.无AST数据"));
     return;
   }
   try {
     const jsonStr = JSON.stringify(astJson.value, null, 2);
     await navigator.clipboard.writeText(jsonStr);
-    Snackbar.success("AST JSON 已复制到剪贴板");
+    Snackbar.success(tRaw("tools.rich-text-renderer.tester.AST已复制"));
   } catch (err) {
-    Snackbar.error("复制失败");
+    Snackbar.error(tRaw("tools.rich-text-renderer.tester.复制失败"));
     console.error("Failed to copy AST:", err);
   }
 };
@@ -448,14 +461,14 @@ const copyHtml = async () => {
     ".rich-text-renderer"
   );
   if (!rendererEl) {
-    Snackbar.warning("暂无渲染内容可复制");
+    Snackbar.warning(tRaw("tools.rich-text-renderer.tester.无渲染内容"));
     return;
   }
   try {
     await navigator.clipboard.writeText(rendererEl.innerHTML || "");
-    Snackbar.success("HTML 源码已复制到剪贴板");
+    Snackbar.success(tRaw("tools.rich-text-renderer.tester.HTML已复制"));
   } catch (err) {
-    Snackbar.error("复制失败");
+    Snackbar.error(tRaw("tools.rich-text-renderer.tester.复制失败"));
   }
 };
 
@@ -503,7 +516,7 @@ onUnmounted(() => {
             @click="startRender"
           >
             <Play :size="14" />
-            <span>渲染</span>
+            <span>{{ tRaw("tools.rich-text-renderer.tester.渲染") }}</span>
           </var-button>
           <var-button
             v-else
@@ -514,7 +527,7 @@ onUnmounted(() => {
             @click="stopRender"
           >
             <Square :size="14" />
-            <span>停止</span>
+            <span>{{ tRaw("tools.rich-text-renderer.tester.停止") }}</span>
           </var-button>
           <var-button
             type="success"
@@ -525,7 +538,7 @@ onUnmounted(() => {
             @click="copyComparison"
           >
             <Copy :size="14" />
-            <span>对比</span>
+            <span>{{ tRaw("tools.rich-text-renderer.tester.对比") }}</span>
           </var-button>
           <var-button
             type="info"
@@ -535,7 +548,7 @@ onUnmounted(() => {
             @click="clearOutput"
           >
             <Trash2 :size="14" />
-            <span>清空</span>
+            <span>{{ tRaw("tools.rich-text-renderer.tester.清空") }}</span>
           </var-button>
         </div>
       </div>
@@ -548,7 +561,7 @@ onUnmounted(() => {
           @click="activeTab = 'edit'"
         >
           <FileText :size="16" />
-          <span>编辑</span>
+          <span>{{ tRaw("tools.rich-text-renderer.tester.编辑") }}</span>
         </button>
         <button
           class="tab-item"
@@ -556,7 +569,7 @@ onUnmounted(() => {
           @click="activeTab = 'preview'"
         >
           <Eye :size="16" />
-          <span>预览</span>
+          <span>{{ tRaw("tools.rich-text-renderer.tester.预览") }}</span>
         </button>
         <button
           class="tab-item"
@@ -564,7 +577,7 @@ onUnmounted(() => {
           @click="activeTab = 'curtain'"
         >
           <Sparkles :size="16" />
-          <span>帘幕</span>
+          <span>{{ tRaw("tools.rich-text-renderer.tester.帘幕") }}</span>
         </button>
         <button
           class="tab-item"
@@ -572,7 +585,7 @@ onUnmounted(() => {
           @click="activeTab = 'debug'"
         >
           <Settings :size="16" />
-          <span>配置</span>
+          <span>{{ tRaw("tools.rich-text-renderer.tester.配置") }}</span>
         </button>
       </div>
     </header>
@@ -583,7 +596,7 @@ onUnmounted(() => {
       <div v-show="activeTab === 'edit'" class="workspace-pane edit-pane">
         <textarea
           v-model="inputContent"
-          placeholder="在此输入 Markdown 内容..."
+          :placeholder="tRaw('tools.rich-text-renderer.tester.输入提示')"
           class="markdown-textarea"
         ></textarea>
       </div>
@@ -596,7 +609,9 @@ onUnmounted(() => {
       >
         <div v-if="currentContent" class="render-wrapper">
           <div class="render-header">
-            <span class="render-title">渲染结果</span>
+            <span class="render-title">{{
+              tRaw("tools.rich-text-renderer.tester.渲染结果")
+            }}</span>
             <var-button
               type="primary"
               text
@@ -605,7 +620,9 @@ onUnmounted(() => {
               @click="copyHtml"
             >
               <Copy :size="12" style="margin-right: 2px" />
-              <span>复制 HTML</span>
+              <span>{{
+                tRaw("tools.rich-text-renderer.tester.复制HTML")
+              }}</span>
             </var-button>
           </div>
           <RichTextRenderer
@@ -614,9 +631,9 @@ onUnmounted(() => {
           />
         </div>
         <div v-else class="empty-state">
-          <var-button type="primary" text @click="startRender"
-            >暂无内容，点击开始渲染</var-button
-          >
+          <var-button type="primary" text @click="startRender">{{
+            tRaw("tools.rich-text-renderer.tester.暂无内容")
+          }}</var-button>
         </div>
       </div>
 
@@ -647,7 +664,11 @@ onUnmounted(() => {
             {{ line || "\u200B" }}
           </div>
           <div v-if="futureLines.length > 5" class="karaoke-more">
-            ... 还有 {{ futureLines.length - 5 }} 行 ...
+            {{
+              tRaw("tools.rich-text-renderer.tester.剩余行", {
+                count: futureLines.length - 5,
+              })
+            }}
           </div>
         </div>
       </div>
@@ -655,15 +676,21 @@ onUnmounted(() => {
       <!-- 4. 配置视图 -->
       <div v-show="activeTab === 'debug'" class="workspace-pane debug-pane">
         <div class="config-group">
-          <h3 class="config-title">流式输出模拟</h3>
+          <h3 class="config-title">
+            {{ tRaw("tools.rich-text-renderer.tester.流式输出模拟") }}
+          </h3>
           <div class="config-item">
-            <span class="config-label">启用流式模拟</span>
+            <span class="config-label">{{
+              tRaw("tools.rich-text-renderer.tester.启用流式模拟")
+            }}</span>
             <var-switch v-model="streamEnabled" size="20" />
           </div>
           <div class="config-item" v-if="streamEnabled">
-            <span class="config-label"
-              >输出速度 ({{ streamSpeed }} token/s)</span
-            >
+            <span class="config-label">{{
+              tRaw("tools.rich-text-renderer.tester.输出速度", {
+                speed: streamSpeed,
+              })
+            }}</span>
             <var-slider
               v-model="streamSpeed"
               :min="5"
@@ -672,7 +699,11 @@ onUnmounted(() => {
             />
           </div>
           <div class="config-item" v-if="streamEnabled">
-            <span class="config-label">首包延迟 ({{ initialDelay }} ms)</span>
+            <span class="config-label">{{
+              tRaw("tools.rich-text-renderer.tester.首包延迟", {
+                delay: initialDelay,
+              })
+            }}</span>
             <var-slider
               v-model="initialDelay"
               :min="0"
@@ -684,16 +715,22 @@ onUnmounted(() => {
         </div>
 
         <div class="config-group" v-if="streamEnabled">
-          <h3 class="config-title">时间债务补偿波动模拟</h3>
+          <h3 class="config-title">
+            {{ tRaw("tools.rich-text-renderer.tester.时间债务补偿波动模拟") }}
+          </h3>
           <div class="config-item">
-            <span class="config-label">启用波动模式</span>
+            <span class="config-label">{{
+              tRaw("tools.rich-text-renderer.tester.启用波动模式")
+            }}</span>
             <var-switch v-model="fluctuationEnabled" size="20" />
           </div>
           <div class="config-item" v-if="fluctuationEnabled">
-            <span class="config-label"
-              >延迟波动范围 ({{ delayFluctuation.min }} ~
-              {{ delayFluctuation.max }} ms)</span
-            >
+            <span class="config-label">{{
+              tRaw("tools.rich-text-renderer.tester.延迟波动范围", {
+                min: delayFluctuation.min,
+                max: delayFluctuation.max,
+              })
+            }}</span>
             <div class="range-inputs">
               <var-slider
                 v-model="delayFluctuation.min"
@@ -712,7 +749,9 @@ onUnmounted(() => {
         </div>
 
         <div class="config-group">
-          <h3 class="config-title">AST 调试</h3>
+          <h3 class="config-title">
+            {{ tRaw("tools.rich-text-renderer.tester.AST调试") }}
+          </h3>
           <var-button
             type="primary"
             block
@@ -720,7 +759,7 @@ onUnmounted(() => {
             @click="isDebugDrawerOpen = true"
           >
             <Code :size="14" />
-            <span>查看 Marked AST (JSON)</span>
+            <span>{{ tRaw("tools.rich-text-renderer.tester.查看AST") }}</span>
           </var-button>
         </div>
       </div>
@@ -730,21 +769,29 @@ onUnmounted(() => {
     <footer class="tester-footer">
       <div class="stat-item">
         <span class="stat-val">{{ renderStats.renderedTokens }}</span>
-        <span class="stat-lbl">Tokens</span>
+        <span class="stat-lbl">{{
+          tRaw("tools.rich-text-renderer.tester.Tokens")
+        }}</span>
       </div>
       <div class="stat-item" v-if="streamEnabled && renderStats.speed > 0">
         <span class="stat-val">{{ renderStats.speed.toFixed(1) }}</span>
-        <span class="stat-lbl">T/s</span>
+        <span class="stat-lbl">{{
+          tRaw("tools.rich-text-renderer.tester.T_s")
+        }}</span>
       </div>
       <div class="stat-item">
         <span class="stat-val">{{
           formatElapsedTime(renderStats.elapsedTime)
         }}</span>
-        <span class="stat-lbl">耗时</span>
+        <span class="stat-lbl">{{
+          tRaw("tools.rich-text-renderer.tester.耗时")
+        }}</span>
       </div>
       <div class="stat-item">
         <span class="stat-val">{{ renderStats.totalChars }}</span>
-        <span class="stat-lbl">字符</span>
+        <span class="stat-lbl">{{
+          tRaw("tools.rich-text-renderer.tester.字符")
+        }}</span>
       </div>
     </footer>
 
@@ -755,7 +802,7 @@ onUnmounted(() => {
       class="ast-drawer"
     >
       <div class="drawer-header">
-        <h3>Marked AST 树状结构</h3>
+        <h3>{{ tRaw("tools.rich-text-renderer.tester.AST标题") }}</h3>
         <div class="drawer-header-actions">
           <var-button
             type="primary"
@@ -765,14 +812,14 @@ onUnmounted(() => {
             style="margin-right: 8px"
           >
             <Copy :size="14" style="margin-right: 4px" />
-            <span>复制 JSON</span>
+            <span>{{ tRaw("tools.rich-text-renderer.tester.复制JSON") }}</span>
           </var-button>
           <var-button
             type="primary"
             text
             size="small"
             @click="isDebugDrawerOpen = false"
-            >关闭</var-button
+            >{{ tRaw("tools.rich-text-renderer.tester.关闭") }}</var-button
           >
         </div>
       </div>

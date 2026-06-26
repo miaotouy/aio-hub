@@ -65,12 +65,7 @@ export class Tokenizer {
     "wbr",
   ]);
 
-  private static readonly rawElements = new Set([
-    "code",
-    "pre",
-    "script",
-    "style",
-  ]);
+  private static readonly rawElements = new Set(["script", "style"]);
 
   /**
    * 将完整文本转换为令牌序列

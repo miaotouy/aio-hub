@@ -6,7 +6,7 @@
 
 ### 1.1. 什么是 VCP？
 
-**VCP (Variable & Command Protocol)** 是一个开源的 AI 能力增强与进化中间层（[GitHub: VCPToolBox](https://github.com/lioensky/VCPToolBox)）。它不是一个简单的聊天框架，而是一套完整的 **AI Agent 运行时生态系统**，其核心目标是在 API 层面深度整合三大要素：
+**VCP (Variable & Command Protocol)** 是一个开源的 AI 能力增强与进化中间层（[GitHub: VCPToolBox](https://github.com/lioensky/VCPToolBox)）。它是一套完整的 **AI Agent 运行时生态系统**，其核心目标是在 API 层面深度整合三大要素：
 
 - 🧠 **AI 推理引擎** — 对接各类大语言模型，提供统一的对话与工具调用管道
 - 🛠️ **外部工具执行** — 通过 70+ 官方插件（涵盖文生图/视频、联网搜索、浏览器控制、文件操作、物联网等）赋予 Agent 丰富的执行能力

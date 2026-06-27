@@ -1,6 +1,10 @@
 /**
  * 通用配置管理基类
  * 提供配置文件的持久化、加载和保存功能
+ *
+ * 环境自适应：
+ * - Tauri 环境：使用 invoke / writeTextFile 进行真实的文件系统读写
+ * - 非 Tauri 环境（Vitest / Bun 脚本）：自动降级为内存存储模式，不依赖任何 Tauri API
  */
 
 import { invoke } from "@tauri-apps/api/core";
@@ -13,6 +17,18 @@ import { createModuleErrorHandler } from "./errorHandler";
 
 const logger = createModuleLogger("ConfigManager");
 const errorHandler = createModuleErrorHandler("ConfigManager");
+
+// 检测是否处于 Tauri 运行时环境
+const isTauri =
+  typeof window !== "undefined" && !!(window as any).__TAURI_INTERNALS__;
+
+// 非 Tauri 环境下的全局内存存储（跨实例共享，模拟文件系统）
+const memoryStore = new Map<string, string>();
+
+/** 生成内存存储的虚拟 key */
+function memoryKey(moduleName: string, fileName: string): string {
+  return `${moduleName}/${fileName}`;
+}
 
 export type FileType = "json" | "yaml" | "jsonl";
 
@@ -109,6 +125,12 @@ export class ConfigManager<T extends Record<string, any>> {
     if (this._cachedConfigPath) {
       return this._cachedConfigPath;
     }
+    // 非 Tauri 环境：返回虚拟路径
+    if (!isTauri) {
+      const virtualPath = memoryKey(this.moduleName, this.fileName);
+      this._cachedConfigPath = virtualPath;
+      return virtualPath;
+    }
     try {
       const appDir = await getAppConfigDir();
       const moduleDir = await join(appDir, this.moduleName);
@@ -135,6 +157,11 @@ export class ConfigManager<T extends Record<string, any>> {
    */
   async ensureModuleDir(): Promise<void> {
     if (this._dirEnsured) {
+      return;
+    }
+    // 非 Tauri 环境：无需创建目录
+    if (!isTauri) {
+      this._dirEnsured = true;
       return;
     }
     try {
@@ -171,6 +198,36 @@ export class ConfigManager<T extends Record<string, any>> {
       await this.ensureModuleDir();
       const configPath = await this.getConfigPath();
 
+      // 非 Tauri 环境：从内存存储读取
+      if (!isTauri) {
+        const key = memoryKey(this.moduleName, this.fileName);
+        const stored = memoryStore.get(key);
+        if (stored === undefined) {
+          // 首次访问，创建默认配置并存入内存
+          const defaultConfig = this.createDefault();
+          memoryStore.set(key, JSON.stringify(defaultConfig));
+          logger.debug(`[Memory] 配置不存在，创建默认配置`, {
+            moduleName: this.moduleName,
+          });
+          return defaultConfig;
+        }
+        const loadedConfig = JSON.parse(stored) as Partial<T>;
+        const defaultConfig = this.createDefault();
+        let mergedConfig: T;
+        if (this.mergeConfig) {
+          mergedConfig = this.mergeConfig(defaultConfig, loadedConfig);
+        } else {
+          mergedConfig = {
+            ...defaultConfig,
+            ...loadedConfig,
+            version: this.version,
+          } as T;
+        }
+        logger.debug(`[Memory] 配置加载成功`, { moduleName: this.moduleName });
+        return mergedConfig;
+      }
+
+      // Tauri 环境：从文件系统读取
       const isExists = await invoke<boolean>("path_exists", {
         path: configPath,
       });
@@ -257,6 +314,15 @@ export class ConfigManager<T extends Record<string, any>> {
         version: this.version,
       };
 
+      // 非 Tauri 环境：写入内存存储
+      if (!isTauri) {
+        const key = memoryKey(this.moduleName, this.fileName);
+        memoryStore.set(key, JSON.stringify(configWithVersion));
+        logger.debug(`[Memory] 配置保存成功`, { moduleName: this.moduleName });
+        return;
+      }
+
+      // Tauri 环境：写入文件系统
       let content = "";
       switch (this.fileType) {
         case "json":

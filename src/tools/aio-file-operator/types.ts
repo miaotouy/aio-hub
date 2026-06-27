@@ -91,4 +91,8 @@ export interface AioFileOperatorConfig {
   enableAuditLog: boolean;
   /** 文件覆盖策略 */
   overwritePolicy: "follow" | "always" | "never";
+  /** 日志面板宽度 */
+  logPanelWidth?: number;
+  /** 日志面板是否折叠 */
+  isLogCollapsed?: boolean;
 }

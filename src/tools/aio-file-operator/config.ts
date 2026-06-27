@@ -24,4 +24,6 @@ export const DEFAULT_CONFIG: AioFileOperatorConfig = {
   maxFileSize: DEFAULT_MAX_FILE_SIZE,
   enableAuditLog: true,
   overwritePolicy: "follow",
+  logPanelWidth: 350,
+  isLogCollapsed: false,
 };

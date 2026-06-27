@@ -71,35 +71,100 @@ export function getUserHomeDir(): string {
   return process.env.USERPROFILE || process.env.HOME || "";
 }
 
+import type { AioFileOperatorConfig } from "../types";
+
 /**
  * 校验目标路径是否在允许的目录列表中
  * @param targetPath 目标路径（绝对路径）
- * @param allowedDirectories 允许的目录列表
+ * @param config 工具配置
  * @returns 如果路径安全返回 true，否则抛出错误
  */
 export function validatePath(
   targetPath: string,
-  allowedDirectories: string[]
+  config: AioFileOperatorConfig
 ): boolean {
+  const policy = checkSecurityPolicy("validate", { path: targetPath }, config);
+  if (policy.status === "block") {
+    logger.warn("路径安全校验失败", {
+      targetPath,
+      message: policy.message,
+    });
+    throw new Error(
+      policy.message || `路径安全校验失败：不允许访问 "${targetPath}"。`
+    );
+  }
+  return true;
+}
+
+/**
+ * 动态安全策略校验
+ * @param methodName 方法名称
+ * @param args 方法参数
+ * @param config 工具配置
+ * @returns 安全策略结果
+ */
+export function checkSecurityPolicy(
+  _methodName: string,
+  args: Record<string, any>,
+  config: AioFileOperatorConfig
+): { status: "allow" | "approve" | "block"; message?: string } {
+  const targetPath = args.path;
+  if (!targetPath || typeof targetPath !== "string") {
+    return { status: "allow" };
+  }
+
   const normalizedTarget = normalizePath(targetPath);
 
-  // 检查是否在允许的目录列表中
-  for (const dir of allowedDirectories) {
-    const normalizedDir = normalizePath(dir);
-    if (normalizedTarget.startsWith(normalizedDir)) {
-      return true;
+  // 1. 基础沙箱校验（白名单/黑名单模式）
+  if (config.sandboxMode === "whitelist") {
+    let inWhitelist = false;
+    const allowedDirs = config.allowedDirectories || [];
+    for (const dir of allowedDirs) {
+      const normalizedDir = normalizePath(dir);
+      if (normalizedTarget.startsWith(normalizedDir)) {
+        inWhitelist = true;
+        break;
+      }
+    }
+
+    if (!inWhitelist) {
+      return {
+        status: "block",
+        message: `安全沙箱拦截：路径 "${targetPath}" 不在允许的白名单目录中。`,
+      };
     }
   }
 
-  logger.warn("路径安全校验失败", {
-    targetPath,
-    normalizedTarget,
-    allowedDirectories,
-  });
+  // 2. 细分规则校验（黑名单规则）
+  const rules = config.blackListRules || [];
+  let matchedRule: { path: string; type: "block" | "approve" } | null = null;
 
-  throw new Error(
-    `路径安全校验失败：不允许访问 "${targetPath}"。请确保路径在允许的沙箱目录中。`
-  );
+  for (const rule of rules) {
+    if (!rule.path) continue;
+    const normalizedRulePath = normalizePath(rule.path);
+    if (normalizedTarget.startsWith(normalizedRulePath)) {
+      // 如果匹配了多个规则，优先应用 'block' (死区)
+      if (!matchedRule || rule.type === "block") {
+        matchedRule = rule;
+      }
+    }
+  }
+
+  if (matchedRule) {
+    if (matchedRule.type === "block") {
+      return {
+        status: "block",
+        message: `安全沙箱拦截：路径 "${targetPath}" 属于完全禁止访问的死区（匹配规则: "${matchedRule.path}"）。`,
+      };
+    } else if (matchedRule.type === "approve") {
+      return {
+        status: "approve",
+        message: `安全沙箱提示：访问路径 "${targetPath}" 属于高风险审批区，必须人工审批（匹配规则: "${matchedRule.path}"）。`,
+      };
+    }
+  }
+
+  return { status: "allow" };
 }
 
 /**

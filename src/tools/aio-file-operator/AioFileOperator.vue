@@ -3,9 +3,8 @@
     <!-- 头部区域 -->
     <div class="header-section">
       <div class="title-area">
-        <el-icon class="main-icon"><FolderOpened /></el-icon>
         <div class="text-info">
-          <h2>AIO 本地文件操作器</h2>
+          <h2>本地文件操作器</h2>
           <p>为 AI 智能体提供安全、受控的本地物理文件读写与目录管理能力</p>
         </div>
       </div>
@@ -25,12 +24,49 @@
           </h3>
         </div>
         <div class="panel-body">
-          <!-- 沙箱目录配置 -->
+          <!-- 沙箱安全模式 -->
           <div class="config-item">
             <div class="item-header">
-              <span class="label">安全沙箱目录</span>
+              <span class="label">沙箱安全模式</span>
+            </div>
+            <el-segmented
+              v-model="config.sandboxMode"
+              :options="[
+                { label: '白名单模式', value: 'whitelist' },
+                { label: '黑名单模式', value: 'blacklist' },
+              ]"
+              @change="saveConfig"
+              style="width: 100%"
+            />
+            <p class="hint-text">
+              {{
+                config.sandboxMode === "whitelist"
+                  ? "白名单模式：仅允许访问白名单目录，其他目录一律禁止（死区）。"
+                  : "黑名单模式：默认允许访问所有目录，但黑名单规则中的目录除外。"
+              }}
+            </p>
+          </div>
+
+          <el-divider />
+
+          <!-- 沙箱目录配置 -->
+          <div
+            class="config-item"
+            :class="{ 'disabled-section': config.sandboxMode === 'blacklist' }"
+          >
+            <div class="item-header">
+              <span class="label">
+                安全白名单目录
+                <el-tag
+                  v-if="config.sandboxMode === 'blacklist'"
+                  type="info"
+                  size="small"
+                  style="margin-left: 8px"
+                  >已禁用</el-tag
+                >
+              </span>
               <el-tooltip
-                content="AI 仅被允许读写这些目录及其子目录下的文件，防止目录穿越攻击。"
+                content="白名单模式下，AI 仅被允许读写这些目录及其子目录下的文件，防止目录穿越攻击。"
               >
                 <el-icon class="info-icon"><QuestionFilled /></el-icon>
               </el-tooltip>
@@ -48,7 +84,10 @@
                   link
                   :icon="Delete"
                   @click="removeDirectory(index)"
-                  :disabled="config.allowedDirectories.length <= 1"
+                  :disabled="
+                    config.allowedDirectories.length <= 1 ||
+                    config.sandboxMode === 'blacklist'
+                  "
                 />
               </div>
             </div>
@@ -58,15 +97,20 @@
                 :directory-only="true"
                 :multiple="false"
                 hide-content
+                :disabled="config.sandboxMode === 'blacklist'"
                 @drop="handlePathDrop"
               >
                 <div class="path-input-group">
                   <el-input
                     v-model="newDirectoryPath"
                     placeholder="输入或选择目录路径（支持拖拽）"
+                    :disabled="config.sandboxMode === 'blacklist'"
                     @keyup.enter="addNewDirectory"
                   />
-                  <el-button @click="selectDirectory" :icon="FolderOpened"
+                  <el-button
+                    @click="selectDirectory"
+                    :icon="FolderOpened"
+                    :disabled="config.sandboxMode === 'blacklist'"
                     >选择</el-button
                   >
                 </div>
@@ -76,7 +120,9 @@
                   type="primary"
                   :icon="Plus"
                   @click="addNewDirectory"
-                  :disabled="!newDirectoryPath"
+                  :disabled="
+                    !newDirectoryPath || config.sandboxMode === 'blacklist'
+                  "
                   class="add-btn"
                 >
                   添加目录
@@ -85,9 +131,99 @@
                   type="info"
                   plain
                   @click="resetToDefault"
+                  :disabled="config.sandboxMode === 'blacklist'"
                   class="reset-btn"
                 >
                   重置默认
+                </el-button>
+              </div>
+            </div>
+          </div>
+
+          <el-divider />
+
+          <!-- 黑名单与安全规则 -->
+          <div class="config-item">
+            <div class="item-header">
+              <span class="label">黑名单与安全规则</span>
+              <el-tooltip
+                content="对特定目录或文件设置更细粒度的安全规则。死区：完全禁止访问；审批区：无论如何都要审批，自动审批不绕过。"
+              >
+                <el-icon class="info-icon"><QuestionFilled /></el-icon>
+              </el-tooltip>
+            </div>
+            <div class="rules-list">
+              <el-empty
+                v-if="
+                  !config.blackListRules || config.blackListRules.length === 0
+                "
+                description="暂无安全规则"
+                :image-size="40"
+              />
+              <div
+                v-else
+                v-for="(rule, index) in config.blackListRules"
+                :key="rule.id"
+                class="rule-item"
+              >
+                <el-icon class="rule-icon" :class="rule.type"
+                  ><Warning
+                /></el-icon>
+                <span class="path-text" :title="rule.path">{{
+                  rule.path
+                }}</span>
+                <el-tag
+                  :type="rule.type === 'block' ? 'danger' : 'warning'"
+                  size="small"
+                  effect="dark"
+                >
+                  {{ rule.type === "block" ? "死区 (禁止)" : "审批区 (审批)" }}
+                </el-tag>
+                <el-button
+                  type="danger"
+                  link
+                  :icon="Delete"
+                  @click="removeRule(index)"
+                />
+              </div>
+            </div>
+            <div class="rule-input-section">
+              <DropZone
+                variant="input"
+                :directory-only="true"
+                :multiple="false"
+                hide-content
+                @drop="handleRulePathDrop"
+              >
+                <div class="path-input-group">
+                  <el-input
+                    v-model="newRulePath"
+                    placeholder="输入或选择规则目录（支持拖拽）"
+                    @keyup.enter="addNewRule"
+                  />
+                  <el-button @click="selectRulePath" :icon="FolderOpened"
+                    >选择</el-button
+                  >
+                </div>
+              </DropZone>
+              <div class="rule-actions">
+                <el-radio-group v-model="newRuleType" size="small">
+                  <el-radio-button value="block"
+                    >死区 (完全禁止)</el-radio-button
+                  >
+                  <el-radio-button value="approve"
+                    >审批区 (必须审批)</el-radio-button
+                  >
+                </el-radio-group>
+                <el-button
+                  type="primary"
+                  :icon="Plus"
+                  @click="addNewRule"
+                  :disabled="!newRulePath"
+                  size="small"
+                  class="add-rule-btn"
+                >
+                  添加规则
                 </el-button>
               </div>
             </div>
@@ -247,6 +383,7 @@ import {
   Plus,
   QuestionFilled,
   Memo,
+  Warning,
 } from "@element-plus/icons-vue";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { customMessage } from "@/utils/customMessage";
@@ -258,6 +395,8 @@ import type { AioFileOperatorConfig, OperationLogEntry } from "./types";
 // 状态变量
 const config = ref<AioFileOperatorConfig>({
   allowedDirectories: [],
+  blackListRules: [],
+  sandboxMode: "whitelist",
   maxFileSize: 10 * 1024 * 1024,
   enableAuditLog: true,
   overwritePolicy: "follow",
@@ -267,6 +406,8 @@ const maxFileSizeMB = ref(10);
 const logs = ref<OperationLogEntry[]>([]);
 const isDistributedExposed = ref(false);
 const newDirectoryPath = ref("");
+const newRulePath = ref("");
+const newRuleType = ref<"block" | "approve">("block");
 
 // 排序后的日志（最新的在最上面）
 const sortedLogs = computed(() => {
@@ -349,14 +490,82 @@ function addNewDirectory() {
 
 // 删除目录
 function removeDirectory(index: number) {
+  if (config.value.sandboxMode === "blacklist") return;
   config.value.allowedDirectories.splice(index, 1);
   saveConfig();
 }
 
 // 重置为默认
 function resetToDefault() {
+  if (config.value.sandboxMode === "blacklist") return;
   config.value.allowedDirectories = [...DEFAULT_ALLOWED_DIRECTORIES];
   saveConfig();
+}
+
+// 选择规则路径
+async function selectRulePath() {
+  try {
+    const selected = await openDialog({
+      directory: true,
+      multiple: false,
+      title: "选择规则目录",
+    });
+
+    if (typeof selected === "string") {
+      newRulePath.value = selected;
+    }
+  } catch (e) {
+    console.error("选择目录失败", e);
+  }
+}
+
+// 处理规则路径拖放
+const handleRulePathDrop = (paths: string[]) => {
+  if (paths.length > 0) {
+    newRulePath.value = paths[0];
+    customMessage.success(`已选择路径: ${paths[0]}`);
+  }
+};
+
+// 添加安全规则
+function addNewRule() {
+  const path = newRulePath.value.trim();
+  if (!path) return;
+
+  // 校验是否是绝对路径
+  const isAbsolute = /^(?:[a-zA-Z]:[\\/]|[\\/]).+$/.test(path);
+  if (!isAbsolute) {
+    customMessage.error("请输入有效的绝对路径");
+    return;
+  }
+
+  const normalized = path.replace(/\\/g, "/");
+
+  if (!config.value.blackListRules) {
+    config.value.blackListRules = [];
+  }
+
+  if (config.value.blackListRules.some((r) => r.path === normalized)) {
+    customMessage.warning("该路径已在规则列表中");
+    return;
+  }
+
+  config.value.blackListRules.push({
+    id: Math.random().toString(36).substring(2, 9),
+    path: normalized,
+    type: newRuleType.value,
+  });
+
+  saveConfig();
+  newRulePath.value = "";
+  customMessage.success("成功添加安全规则");
+}
+
+// 删除安全规则
+function removeRule(index: number) {
+  config.value.blackListRules.splice(index, 1);
+  saveConfig();
+  customMessage.success("成功删除安全规则");
 }
 
 // 刷新日志

@@ -69,10 +69,22 @@ export interface OperationLogEntry {
   result: FileOperationResult;
 }
 
+/** 安全规则条目 */
+export interface SecurityRule {
+  id: string;
+  path: string;
+  /** 规则类型：'block' (死区，完全禁止) | 'approve' (审批区，必须审批) */
+  type: "block" | "approve";
+}
+
 /** 工具配置 */
 export interface AioFileOperatorConfig {
-  /** 允许访问的沙箱目录列表 */
+  /** 允许访问的沙箱目录列表（白名单） */
   allowedDirectories: string[];
+  /** 黑名单规则列表（包含死区和审批区） */
+  blackListRules: SecurityRule[];
+  /** 沙箱模式：'whitelist' (白名单模式) | 'blacklist' (黑名单模式) */
+  sandboxMode: "whitelist" | "blacklist";
   /** 最大文件大小（字节），默认 10MB */
   maxFileSize: number;
   /** 是否启用操作日志 */

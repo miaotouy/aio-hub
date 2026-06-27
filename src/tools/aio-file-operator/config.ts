@@ -19,6 +19,8 @@ export const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024;
 /** 默认配置 */
 export const DEFAULT_CONFIG: AioFileOperatorConfig = {
   allowedDirectories: DEFAULT_ALLOWED_DIRECTORIES,
+  blackListRules: [],
+  sandboxMode: "whitelist",
   maxFileSize: DEFAULT_MAX_FILE_SIZE,
   enableAuditLog: true,
   overwritePolicy: "follow",

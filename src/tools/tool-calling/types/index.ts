@@ -38,3 +38,8 @@ export type ToolApprovalResult = "approved" | "rejected";
 export type ToolCallStatus = "executing" | "completed" | "error";
 
 export type ToolCallConfig = AgentToolCallConfig;
+
+export interface ToolSecurityPolicyResult {
+  status: "allow" | "approve" | "block";
+  message?: string;
+}

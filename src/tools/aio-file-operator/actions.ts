@@ -137,7 +137,7 @@ function buildErrorResult(
 export async function readFile(path: string): Promise<FileOperationResult> {
   try {
     await ensureInitialized();
-    validatePath(path, currentConfig.allowedDirectories);
+    validatePath(path, currentConfig);
 
     // 检查文件元数据
     const metadata = await invoke<{
@@ -267,7 +267,7 @@ export async function writeFile(
 ): Promise<FileOperationResult> {
   try {
     await ensureInitialized();
-    validatePath(path, currentConfig.allowedDirectories);
+    validatePath(path, currentConfig);
 
     // 检查文件是否已存在，如果存在则根据策略决定是否覆盖
     const exists = await invoke<boolean>("path_exists", { path });
@@ -337,7 +337,7 @@ export async function appendFile(
 ): Promise<FileOperationResult> {
   try {
     await ensureInitialized();
-    validatePath(path, currentConfig.allowedDirectories);
+    validatePath(path, currentConfig);
 
     await invoke("append_file_force", {
       path,
@@ -362,7 +362,7 @@ export async function appendFile(
 export async function deleteFile(path: string): Promise<FileOperationResult> {
   try {
     await ensureInitialized();
-    validatePath(path, currentConfig.allowedDirectories);
+    validatePath(path, currentConfig);
 
     await invoke("delete_file_to_trash", { filePath: path });
 
@@ -386,7 +386,7 @@ export async function listDirectory(
 ): Promise<FileOperationResult> {
   try {
     await ensureInitialized();
-    validatePath(path, currentConfig.allowedDirectories);
+    validatePath(path, currentConfig);
 
     const fileNames = await invoke<string[]>("list_directory", { path });
 
@@ -448,7 +448,7 @@ export async function applyDiff(
 ): Promise<FileOperationResult> {
   try {
     await ensureInitialized();
-    validatePath(path, currentConfig.allowedDirectories);
+    validatePath(path, currentConfig);
 
     // 读取原始文件内容
     const originalContent = await invoke<string>("read_text_file_force", {
@@ -525,7 +525,7 @@ export async function createDirectory(
 ): Promise<FileOperationResult> {
   try {
     await ensureInitialized();
-    validatePath(path, currentConfig.allowedDirectories);
+    validatePath(path, currentConfig);
 
     await invoke("create_dir_force", { path });
 
@@ -547,7 +547,7 @@ export async function createDirectory(
 export async function pathExists(path: string): Promise<FileOperationResult> {
   try {
     await ensureInitialized();
-    validatePath(path, currentConfig.allowedDirectories);
+    validatePath(path, currentConfig);
 
     const exists = await invoke<boolean>("path_exists", { path });
 

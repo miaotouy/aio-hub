@@ -60,10 +60,111 @@ async function withTimeout<T>(
   });
 }
 
+interface RequestSecurityContext {
+  isBlocked: boolean;
+  blockMessage?: string;
+  forceApproval: boolean;
+  mergedArgs: Record<string, unknown>;
+  toolInstance?: any;
+  methodMeta?: any;
+}
+
+async function prepareRequestContext(
+  request: ParsedToolRequest,
+  config: ToolCallConfig
+): Promise<RequestSecurityContext> {
+  const context: RequestSecurityContext = {
+    isBlocked: false,
+    forceApproval: false,
+    mergedArgs: {},
+  };
+
+  if (request.validation && !request.validation.isValid) {
+    return context;
+  }
+
+  const toolId = request.toolId;
+  const methodName = request.methodName;
+
+  if (!toolRegistryManager.hasTool(toolId)) {
+    return context;
+  }
+
+  try {
+    const toolInstance = toolRegistryManager.getRegistry(toolId) as any;
+    context.toolInstance = toolInstance;
+
+    const method = toolInstance[methodName];
+    if (typeof method !== "function") {
+      return context;
+    }
+
+    const metadata =
+      typeof toolInstance.getMetadata === "function"
+        ? toolInstance.getMetadata()
+        : undefined;
+    const methodMeta = metadata?.methods?.find(
+      (m: any) => m.name === methodName
+    );
+    context.methodMeta = methodMeta;
+
+    // 参数合并
+    const schemaDefaults: Record<string, unknown> = {};
+    const schema = toolInstance.settingsSchema;
+    if (schema) {
+      for (const item of schema) {
+        if (item.defaultValue !== undefined) {
+          schemaDefaults[item.modelPath] = item.defaultValue;
+        }
+      }
+    }
+    const agentPreset = config.toolSettings?.[toolId] ?? {};
+    const { command: _, ...cleanArgs } = request.args ?? {};
+    const mergedArgs = { ...schemaDefaults, ...agentPreset, ...cleanArgs };
+
+    // 类型适配
+    if (methodMeta?.parameters) {
+      for (const param of methodMeta.parameters) {
+        const val = mergedArgs[param.name];
+        if (val !== undefined) {
+          if (param.type === "boolean") {
+            mergedArgs[param.name] =
+              String(val).toLowerCase() === "true" || val === true;
+          } else if (param.type === "number") {
+            const num = Number(val);
+            if (!isNaN(num)) mergedArgs[param.name] = num;
+          }
+        }
+      }
+    }
+    context.mergedArgs = mergedArgs;
+
+    // 安全策略检查
+    if (typeof toolInstance.checkSecurityPolicy === "function") {
+      const policy = await Promise.resolve(
+        toolInstance.checkSecurityPolicy(methodName, mergedArgs)
+      );
+      if (policy && typeof policy === "object") {
+        if (policy.status === "block") {
+          context.isBlocked = true;
+          context.blockMessage = policy.message;
+        } else if (policy.status === "approve") {
+          context.forceApproval = true;
+        }
+      }
+    }
+  } catch (e) {
+    logger.error(`准备请求安全上下文失败: ${toolId}.${methodName}`, e);
+  }
+
+  return context;
+}
+
 async function executeSingleRequest(
   request: ParsedToolRequest,
   options: ExecutorOptions,
-  approvalCache?: Map<string, Promise<ToolApprovalResult | boolean>>
+  approvalCache?: Map<string, Promise<ToolApprovalResult | boolean>>,
+  securityContext?: RequestSecurityContext
 ): Promise<ToolExecutionResult> {
   const startedAt = Date.now();
 
@@ -95,18 +196,39 @@ async function executeSingleRequest(
     );
   }
 
-  if (!shouldAutoApprove(request, options.config)) {
+  // 获取或准备安全上下文
+  const ctx =
+    securityContext || (await prepareRequestContext(request, options.config));
+
+  // 1. 检查是否被安全策略拦截（死区）
+  if (ctx.isBlocked) {
+    return {
+      requestId: request.requestId,
+      toolName: request.toolName,
+      status: "denied",
+      result: ctx.blockMessage || "安全策略拦截：完全禁止访问此范围（死区）",
+      durationMs: Date.now() - startedAt,
+    };
+  }
+
+  const forceApproval = ctx.forceApproval;
+  const mergedArgs = ctx.mergedArgs;
+  const toolInstance = ctx.toolInstance;
+  const methodMeta = ctx.methodMeta;
+
+  // 2. 检查是否需要审批
+  if (forceApproval || !shouldAutoApprove(request, options.config)) {
     // 方案 2.3：在进入审批挂起状态前，允许工具实例先接收到“预览数据”
     try {
-      const toolInstance = toolRegistryManager.getRegistry(
-        target.toolId
-      ) as any;
-      if (typeof toolInstance?.onToolCallPreview === "function") {
+      if (
+        toolInstance &&
+        typeof toolInstance.onToolCallPreview === "function"
+      ) {
         await Promise.resolve(
           toolInstance.onToolCallPreview(
             request.requestId,
             target.methodName,
-            request.args ?? {}
+            mergedArgs
           )
         );
       }
@@ -121,15 +243,15 @@ async function executeSingleRequest(
     if (approvalResult === false || approvalResult === "rejected") {
       // 尝试通知工具实例执行清理逻辑
       try {
-        const toolInstance = toolRegistryManager.getRegistry(
-          target.toolId
-        ) as any;
-        if (typeof toolInstance?.onToolCallDiscarded === "function") {
+        if (
+          toolInstance &&
+          typeof toolInstance.onToolCallDiscarded === "function"
+        ) {
           await Promise.resolve(
             toolInstance.onToolCallDiscarded(
               request.requestId,
               target.methodName,
-              request.args ?? {}
+              mergedArgs
             )
           );
         }
@@ -158,16 +280,10 @@ async function executeSingleRequest(
     );
   }
 
-  let toolInstance: Record<string, unknown>;
-  try {
-    toolInstance = toolRegistryManager.getRegistry(
-      target.toolId
-    ) as unknown as Record<string, unknown>;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+  if (!toolInstance) {
     return buildErrorResult(
       request,
-      `获取工具实例失败：${message}`,
+      `获取工具实例失败`,
       Date.now() - startedAt
     );
   }
@@ -181,78 +297,12 @@ async function executeSingleRequest(
     );
   }
 
-  const metadata =
-    typeof (
-      toolInstance as {
-        getMetadata?: () => {
-          methods?: Array<{
-            name: string;
-            agentCallable?: boolean;
-            executionMode?: "sync" | "async";
-            parameters?: Array<{ name: string; type: string }>;
-          }>;
-        };
-      }
-    ).getMetadata === "function"
-      ? (
-          toolInstance as {
-            getMetadata: () => {
-              methods?: Array<{
-                name: string;
-                agentCallable?: boolean;
-                executionMode?: "sync" | "async";
-                parameters?: Array<{ name: string; type: string }>;
-              }>;
-            };
-          }
-        ).getMetadata()
-      : undefined;
-
-  const methodMeta = metadata?.methods?.find(
-    (m) => m.name === target.methodName
-  );
   if (methodMeta?.agentCallable !== true) {
     return buildErrorResult(
       request,
       `方法不可调用：${target.toolId}.${target.methodName} 未标记为 agentCallable`,
       Date.now() - startedAt
     );
-  }
-
-  // 参数合并策略：Default (settingsSchema) < Agent Preset (toolSettings) < LLM Call (request.args)
-  const schemaDefaults: Record<string, unknown> = {};
-  const schema = (
-    toolInstance as {
-      settingsSchema?: Array<{ modelPath: string; defaultValue?: unknown }>;
-    }
-  ).settingsSchema;
-  if (schema) {
-    for (const item of schema) {
-      if (item.defaultValue !== undefined) {
-        schemaDefaults[item.modelPath] = item.defaultValue;
-      }
-    }
-  }
-  const agentPreset = options.config.toolSettings?.[target.toolId] ?? {};
-
-  // 从 request.args 中移除 command 字段（如果存在），因为它已经被用于路由
-  const { command: _, ...cleanArgs } = request.args ?? {};
-  const mergedArgs = { ...schemaDefaults, ...agentPreset, ...cleanArgs };
-
-  // 💡 修复：根据元数据进行参数类型适配 (Type Coercion)
-  if (methodMeta?.parameters) {
-    for (const param of methodMeta.parameters) {
-      const val = mergedArgs[param.name];
-      if (val !== undefined) {
-        if (param.type === "boolean") {
-          mergedArgs[param.name] =
-            String(val).toLowerCase() === "true" || val === true;
-        } else if (param.type === "number") {
-          const num = Number(val);
-          if (!isNaN(num)) mergedArgs[param.name] = num;
-        }
-      }
-    }
   }
 
   // 检查是否为异步方法
@@ -373,31 +423,48 @@ export async function executeToolRequests(
     return [];
   }
 
+  // 1. 准备所有请求的安全上下文
+  const securityContexts = new Map<string, RequestSecurityContext>();
+  for (const request of requests) {
+    const ctx = await prepareRequestContext(request, options.config);
+    securityContexts.set(request.requestId, ctx);
+  }
+
   // 审批缓存，用于解耦审批发起与执行等待
   const approvalCache = new Map<
     string,
     Promise<ToolApprovalResult | boolean>
   >();
 
-  // 1. 统一处理预审批逻辑
-  // 无论是否并行，如果提供了审批回调，我们都先发起所有必要的审批
+  // 2. 统一处理预审批逻辑
   if (options.onBeforeExecute) {
     for (const request of requests) {
-      const needsApproval = !shouldAutoApprove(request, options.config);
+      const ctx = securityContexts.get(request.requestId);
+      const isBlocked = ctx?.isBlocked ?? false;
+      const forceApproval = ctx?.forceApproval ?? false;
+
+      // 如果已被安全策略拦截（死区），则不需要发起审批，直接在执行阶段返回 denied
+      if (isBlocked) {
+        continue;
+      }
+
+      const needsApproval =
+        forceApproval || !shouldAutoApprove(request, options.config);
       const isParsedValid = !request.validation || request.validation.isValid;
 
       if (needsApproval && isParsedValid) {
         // 💡 兼容预览钩子：在进入审批挂起状态前，允许工具实例先接收到“预览数据”
         try {
-          const toolInstance = toolRegistryManager.getRegistry(
-            request.toolId
-          ) as any;
-          if (typeof toolInstance?.onToolCallPreview === "function") {
+          const toolInstance = ctx?.toolInstance;
+          if (
+            toolInstance &&
+            typeof toolInstance.onToolCallPreview === "function"
+          ) {
             Promise.resolve(
               toolInstance.onToolCallPreview(
                 request.requestId,
                 request.methodName,
-                request.args ?? {}
+                ctx?.mergedArgs ?? {}
               )
             ).catch((e) =>
               logger.debug(`预审批预览分发失败: ${request.toolId}`, e)
@@ -418,18 +485,28 @@ export async function executeToolRequests(
     }
   }
 
-  // 2. 执行阶段
+  // 3. 执行阶段
   if (options.config.parallelExecution) {
     return await Promise.all(
       requests.map((request) =>
-        executeSingleRequest(request, options, approvalCache)
+        executeSingleRequest(
+          request,
+          options,
+          approvalCache,
+          securityContexts.get(request.requestId)
+        )
       )
     );
   }
 
   const results: ToolExecutionResult[] = [];
   for (const request of requests) {
-    const result = await executeSingleRequest(request, options, approvalCache);
+    const result = await executeSingleRequest(
+      request,
+      options,
+      approvalCache,
+      securityContexts.get(request.requestId)
+    );
     results.push(result);
   }
   return results;

@@ -9,7 +9,7 @@ import { FileCog } from "lucide-vue-next";
 import * as actions from "./actions";
 
 export const toolConfig: ToolConfig = {
-  name: "AIO 本地文件操作器",
+  name: "本地文件操作器",
   path: "/aio-file-operator",
   icon: markRaw(FileCog),
   component: () => import("./AioFileOperator.vue"),
@@ -20,7 +20,7 @@ export const toolConfig: ToolConfig = {
 
 export class AioFileOperatorRegistry implements ToolRegistry {
   public readonly id = "aio-file-operator";
-  public readonly name = "AIO 本地文件操作器";
+  public readonly name = "本地文件操作器";
   public readonly description = "本地文件安全读写、目录管理与差异修改工具";
 
   public readonly settingsSchema: SettingItem[] = [
@@ -251,6 +251,18 @@ export class AioFileOperatorRegistry implements ToolRegistry {
         },
       ],
     };
+  }
+
+  // ==================== Security Policy Hook ====================
+
+  public async checkSecurityPolicy(
+    methodName: string,
+    args: Record<string, any>
+  ) {
+    const { getConfig } = await import("./actions");
+    const { checkSecurityPolicy } = await import("./utils/security");
+    const config = await getConfig();
+    return checkSecurityPolicy(methodName, args, config);
   }
 
   // ==================== Agent Callable Methods ====================

@@ -213,11 +213,11 @@ describe("JSON Formatter 核心逻辑测试", () => {
 
 - **目标**：覆盖涉及外部服务、复杂协议和异步任务的工具。
 - **覆盖工具**：
-  - `web-distillery`
-  - `knowledge-base`
-  - `git-analyzer`
-  - `ffmpeg-tools`
-  - `skill-manager`
+  - `web-distillery` -已完成（覆盖 quickFetch/smartExtract Agent facade、参数适配、上下文透传、格式化调用与错误路径；同步修复 cleanMode 字符串 false 误判）
+  - `knowledge-base` -已完成（覆盖搜索格式化、upsert、精确替换预览、删除确认、批量元数据更新、列表过滤统计、basic/admin registry 元数据与错误路径）
+  - `git-analyzer` -已完成（覆盖分析摘要、作者提交、提交详情、分支列表 Agent facade、布尔/数值参数适配、格式化输出与错误路径）
+  - `ffmpeg-tools` -已完成（覆盖命令/管道参数校验、异步上下文要求、IPC 参数、进度/日志事件桥接、临时文件清理、媒体信息与 registry 元数据）
+  - `skill-manager` -已完成（覆盖 SkillManagerProxy 动态 activate 方法、宿主环境注入、脚本执行成功/失败/null 降级、资源读取、目录列表与空结果）
 
 ---
 

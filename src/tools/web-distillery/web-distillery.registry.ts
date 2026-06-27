@@ -9,6 +9,10 @@ import { GlassWater } from "lucide-vue-next";
 import { quickFetch, smartExtract } from "./actions";
 import { formatFetchResult } from "./formatters";
 
+function parseBoolean(value: unknown): boolean {
+  return value === true || value === "true";
+}
+
 export default class WebDistilleryRegistry implements ToolRegistry {
   public readonly id = "web-distillery";
   public readonly runMode = "any";
@@ -27,7 +31,7 @@ export default class WebDistilleryRegistry implements ToolRegistry {
       {
         url: String(args.url || ""),
         format: (args.format as any) || "markdown",
-        cleanMode: Boolean(args.cleanMode),
+        cleanMode: parseBoolean(args.cleanMode),
       },
       context
     );
@@ -44,7 +48,7 @@ export default class WebDistilleryRegistry implements ToolRegistry {
         url: String(args.url || ""),
         format: (args.format as any) || "markdown",
         waitFor: args.waitFor ? String(args.waitFor) : undefined,
-        cleanMode: Boolean(args.cleanMode),
+        cleanMode: parseBoolean(args.cleanMode),
       },
       context
     );

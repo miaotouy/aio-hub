@@ -195,9 +195,9 @@ describe("JSON Formatter 核心逻辑测试", () => {
 - **目标**：打通测试链路，覆盖最基础、最频繁被调用的工具。
 - **覆盖工具**：
   - `aio-file-operator` -已完成
-  - `json-formatter`
-  - `token-calculator`
-  - `text-diff`
+  - `json-formatter` -已完成（覆盖解析/格式化层级、Agent facade、文件读取优先级与错误路径）
+  - `token-calculator` -已完成（覆盖估算、profile 解析、loader/cache、calibration 与多模态成本）
+  - `text-diff` -已完成（覆盖文件读取、语言推断、统一 diff、空白策略、Agent facade；同步修复相同内容误判为成功）
 
 ### 阶段二：数据与文件管理工具
 

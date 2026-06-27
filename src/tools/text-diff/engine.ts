@@ -151,6 +151,14 @@ export function generatePatch(
         .join("\n");
     }
 
+    if (processedOld === processedNew) {
+      return {
+        patch: "",
+        success: false,
+        error: "两侧内容相同，无差异",
+      };
+    }
+
     const patch = createTwoFilesPatch(
       oldFileName,
       newFileName,

@@ -131,7 +131,6 @@ const onCopy = async () => {
   background-color: transparent;
   cursor: col-resize;
   flex-shrink: 0;
-  transition: background-color 0.2s;
   position: relative;
 }
 
@@ -144,7 +143,6 @@ const onCopy = async () => {
   width: 1px;
   background-color: var(--border-color);
   transform: translateX(-50%);
-  transition: background-color 0.2s;
 }
 
 .divider:hover::before,

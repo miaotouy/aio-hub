@@ -320,7 +320,9 @@ const handleDroppedFiles = async (files: File[]) => {
         }
       } catch {
         item.params =
-          mediaType === "image" ? { width: 1024, height: 1024 } : { duration: 60 };
+          mediaType === "image"
+            ? { width: 1024, height: 1024 }
+            : { duration: 60 };
       }
 
       emit("add-media", item);
@@ -448,7 +450,6 @@ const { isDraggingOver } = useFileDrop({
   min-width: 100px;
   overflow: hidden;
   box-sizing: border-box;
-  transition: all 0.3s;
 }
 
 .input-panel.is-dragging {

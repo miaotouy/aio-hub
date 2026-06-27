@@ -7,6 +7,7 @@ import type { SettingItem } from "@/types/settings-renderer";
 import { markRaw } from "vue";
 import { FileCog } from "lucide-vue-next";
 import * as actions from "./actions";
+import { parseAgentBoolean } from "@/utils/agentArgs";
 
 export const toolConfig: ToolConfig = {
   name: "本地文件操作器",
@@ -274,12 +275,13 @@ export class AioFileOperatorRegistry implements ToolRegistry {
   public async write_file(args: {
     path: string;
     content: string;
-    allowOverwrite?: boolean;
+    allowOverwrite?: unknown;
   }) {
+    const allowOverwrite = parseAgentBoolean(args.allowOverwrite);
     return await actions.writeFile(
       args.path,
       args.content,
-      args.allowOverwrite
+      allowOverwrite
     );
   }
 

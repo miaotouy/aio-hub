@@ -8,10 +8,7 @@ import { markRaw } from "vue";
 import { GlassWater } from "lucide-vue-next";
 import { quickFetch, smartExtract } from "./actions";
 import { formatFetchResult } from "./formatters";
-
-function parseBoolean(value: unknown): boolean {
-  return value === true || value === "true";
-}
+import { coerceAgentBoolean } from "@/utils/agentArgs";
 
 export default class WebDistilleryRegistry implements ToolRegistry {
   public readonly id = "web-distillery";
@@ -31,7 +28,7 @@ export default class WebDistilleryRegistry implements ToolRegistry {
       {
         url: String(args.url || ""),
         format: (args.format as any) || "markdown",
-        cleanMode: parseBoolean(args.cleanMode),
+        cleanMode: coerceAgentBoolean(args.cleanMode),
       },
       context
     );
@@ -48,7 +45,7 @@ export default class WebDistilleryRegistry implements ToolRegistry {
         url: String(args.url || ""),
         format: (args.format as any) || "markdown",
         waitFor: args.waitFor ? String(args.waitFor) : undefined,
-        cleanMode: parseBoolean(args.cleanMode),
+        cleanMode: coerceAgentBoolean(args.cleanMode),
       },
       context
     );

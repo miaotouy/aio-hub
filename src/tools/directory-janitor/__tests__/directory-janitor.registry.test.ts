@@ -123,6 +123,18 @@ describe("directory-janitor registry", () => {
     expect(result?.details.items).toEqual(scanResult.details.items);
   });
 
+  it("scanDirectory 应将 includeDetails 字符串 false 解析为 false", async () => {
+    mockRunner.getFormattedScanResult.mockReturnValue(scanResult);
+
+    const registry = new DirectoryJanitorRegistry();
+    const result = await registry.scanDirectory({
+      path: "C:/repo",
+      includeDetails: "false",
+    } as any);
+
+    expect(result?.details.items).toEqual([]);
+  });
+
   it("cleanupItems 应格式化成功和失败统计", async () => {
     mockRunner.cleanupItems.mockResolvedValue({
       successCount: 2,

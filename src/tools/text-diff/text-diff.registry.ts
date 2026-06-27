@@ -6,6 +6,7 @@ import type {
 import { markRaw } from "vue";
 import TextDiffIcon from "@/components/icons/TextDiffIcon.vue";
 import { createModuleLogger } from "@/utils/logger";
+import { coerceAgentBoolean } from "@/utils/agentArgs";
 import { loadFile, generatePatch, formatPatchResult } from "./engine";
 import type { FileReadResult, PatchOptions } from "./types";
 
@@ -37,17 +38,17 @@ export default class TextDiffRegistry implements ToolRegistry {
    * @param args 扁平化参数对象
    * @returns 补丁生成结果
    */
-  public generatePatch(args: Record<string, string>): string {
+  public generatePatch(args: Record<string, unknown>): string {
     const options: PatchOptions = {
-      oldFileName: args.oldFileName || "original",
-      newFileName: args.newFileName || "modified",
-      ignoreWhitespace: args.ignoreWhitespace !== "false",
-      context: args.context ? Number(args.context) : 3,
+      oldFileName: args.oldFileName ? String(args.oldFileName) : "original",
+      newFileName: args.newFileName ? String(args.newFileName) : "modified",
+      ignoreWhitespace: coerceAgentBoolean(args.ignoreWhitespace, true),
+      context: args.context !== undefined ? Number(args.context) : 3,
     };
     logger.info("生成补丁", { options });
     const result = generatePatch(
-      args.oldText || "",
-      args.newText || "",
+      args.oldText ? String(args.oldText) : "",
+      args.newText ? String(args.newText) : "",
       options
     );
     return formatPatchResult(result);

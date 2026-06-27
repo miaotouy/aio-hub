@@ -7,6 +7,7 @@ import type {
   ToolContext,
 } from "@/services/types";
 import { createModuleLogger } from "@/utils/logger";
+import { normalizeAgentBooleanFields } from "@/utils/agentArgs";
 import * as actions from "./actions";
 
 const logger = createModuleLogger("ffmpeg-tools/registry");
@@ -30,7 +31,11 @@ export default class FFmpegToolsRegistry implements ToolRegistry {
     args: actions.ExecuteCommandArgs,
     context?: ToolContext
   ): Promise<string> {
-    return actions.executeCommand(args, context);
+    const normalizedArgs = normalizeAgentBooleanFields(
+      args as unknown as Record<string, unknown>,
+      ["hwaccel"]
+    ) as unknown as actions.ExecuteCommandArgs;
+    return actions.executeCommand(normalizedArgs, context);
   }
 
   /**
@@ -40,14 +45,28 @@ export default class FFmpegToolsRegistry implements ToolRegistry {
     args: actions.ExecutePipelineArgs,
     context?: ToolContext
   ): Promise<string> {
-    return actions.executePipeline(args, context);
+    const normalizedArgs = normalizeAgentBooleanFields(
+      args as unknown as Record<string, unknown>,
+      ["cleanupIntermediates"]
+    ) as unknown as actions.ExecutePipelineArgs;
+    normalizedArgs.steps = normalizedArgs.steps?.map((step) =>
+      normalizeAgentBooleanFields(
+        step as unknown as Record<string, unknown>,
+        ["hwaccel"]
+      )
+    ) as unknown as actions.PipelineStep[];
+    return actions.executePipeline(normalizedArgs, context);
   }
 
   /**
    * [Agent] 获取媒体文件信息
    */
   public getMediaInfo(args: actions.GetMediaInfoArgs): Promise<string> {
-    return actions.getMediaInfo(args);
+    const normalizedArgs = normalizeAgentBooleanFields(
+      args as unknown as Record<string, unknown>,
+      ["detailed"]
+    ) as unknown as actions.GetMediaInfoArgs;
+    return actions.getMediaInfo(normalizedArgs);
   }
 
   // ==================== 元数据 ====================

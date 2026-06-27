@@ -12,6 +12,7 @@ import { useMediaGenerationManager } from "../composables/useMediaGenerationMana
 import { useMediaTaskManager } from "../composables/useMediaTaskManager";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { createModuleLogger } from "@/utils/logger";
+import { normalizeAgentBooleanFields } from "@/utils/agentArgs";
 
 const logger = createModuleLogger("media-generator/agent-methods");
 
@@ -575,7 +576,16 @@ function normalizeGenerationArgs(args: Record<string, any>) {
         : {}),
     };
   }
-  return normalized;
+  return normalizeAgentBooleanFields(normalized, [
+    "make_instrumental",
+    "prompt_enhancement",
+    "promptEnhancement",
+    "generate_audio",
+    "generateAudio",
+    "watermark",
+    "camera_fixed",
+    "cameraFixed",
+  ]);
 }
 
 function toAssetPath(asset: Asset): string {

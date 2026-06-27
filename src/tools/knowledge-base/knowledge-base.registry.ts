@@ -6,6 +6,7 @@ import type {
 import { markRaw } from "vue";
 import { Database } from "lucide-vue-next";
 import * as agentActions from "./actions/agentActions";
+import { normalizeAgentBooleanFields } from "@/utils/agentArgs";
 
 /**
  * 知识库 (基础) 实例 - 日常 Agent 常驻
@@ -208,19 +209,28 @@ const kbBasic: ToolRegistry = {
   async searchEntries(
     args: Record<string, unknown>
   ): Promise<Record<string, unknown>> {
-    return (await agentActions.searchEntries(args as any)) as any;
+    const normalizedArgs = normalizeAgentBooleanFields(args, ["enabledOnly"]);
+    return (await agentActions.searchEntries(normalizedArgs as any)) as any;
   },
 
   async upsertEntry(
     args: Record<string, unknown>
   ): Promise<Record<string, unknown>> {
-    return (await agentActions.upsertEntry(args as any)) as any;
+    const normalizedArgs = normalizeAgentBooleanFields(args, [
+      "enabled",
+      "autoVectorize",
+    ]);
+    return (await agentActions.upsertEntry(normalizedArgs as any)) as any;
   },
 
   async updateEntryContent(
     args: Record<string, unknown>
   ): Promise<Record<string, unknown>> {
-    return (await agentActions.updateEntryContent(args as any)) as any;
+    const normalizedArgs = normalizeAgentBooleanFields(args, [
+      "dryRun",
+      "autoVectorize",
+    ]);
+    return (await agentActions.updateEntryContent(normalizedArgs as any)) as any;
   },
 };
 
@@ -415,25 +425,29 @@ const kbAdmin: ToolRegistry = {
   async listKnowledgeBases(
     args: Record<string, unknown>
   ): Promise<Record<string, unknown>> {
-    return (await agentActions.listKnowledgeBases(args as any)) as any;
+    const normalizedArgs = normalizeAgentBooleanFields(args, ["includeStats"]);
+    return (await agentActions.listKnowledgeBases(normalizedArgs as any)) as any;
   },
 
   async listEntriesMetadata(
     args: Record<string, unknown>
   ): Promise<Record<string, unknown>> {
-    return (await agentActions.listEntriesMetadata(args as any)) as any;
+    const normalizedArgs = normalizeAgentBooleanFields(args, ["enabled"]);
+    return (await agentActions.listEntriesMetadata(normalizedArgs as any)) as any;
   },
 
   async batchUpdateMetadata(
     args: Record<string, unknown>
   ): Promise<Record<string, unknown>> {
-    return (await agentActions.batchUpdateMetadata(args as any)) as any;
+    const normalizedArgs = normalizeAgentBooleanFields(args, ["enabled"]);
+    return (await agentActions.batchUpdateMetadata(normalizedArgs as any)) as any;
   },
 
   async deleteEntry(
     args: Record<string, unknown>
   ): Promise<Record<string, unknown>> {
-    return (await agentActions.deleteEntry(args as any)) as any;
+    const normalizedArgs = normalizeAgentBooleanFields(args, ["confirm"]);
+    return (await agentActions.deleteEntry(normalizedArgs as any)) as any;
   },
 };
 

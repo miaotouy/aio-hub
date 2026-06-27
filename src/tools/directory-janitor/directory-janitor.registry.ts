@@ -3,6 +3,7 @@ import { markRaw } from "vue";
 import DirectoryJanitorIcon from "@/components/icons/DirectoryJanitorIcon.vue";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
+import { normalizeAgentBooleanFields } from "@/utils/agentArgs";
 import {
   useDirectoryJanitorRunner,
   type ScanOptions,
@@ -71,7 +72,11 @@ export default class DirectoryJanitorRegistry implements ToolRegistry {
   public async scanDirectory(
     options: ScanDirectoryOptions
   ): Promise<FormattedScanResult | null> {
-    const { includeDetails = false, ...scanOptions } = options;
+    const normalizedOptions = normalizeAgentBooleanFields(
+      options as unknown as Record<string, unknown>,
+      ["includeDetails"]
+    ) as unknown as ScanDirectoryOptions;
+    const { includeDetails = false, ...scanOptions } = normalizedOptions;
     logger.info("开始扫描目录 (Agent 调用)", scanOptions);
 
     return await errorHandler.wrapAsync(
@@ -183,7 +188,11 @@ export default class DirectoryJanitorRegistry implements ToolRegistry {
     scanResult: FormattedScanResult;
     cleanupResult: FormattedCleanupResult;
   } | null> {
-    logger.info("开始扫描并清理 (Agent 调用)", scanOptions);
+    const normalizedScanOptions = normalizeAgentBooleanFields(
+      scanOptions as unknown as Record<string, unknown>,
+      ["includeDetails"]
+    ) as unknown as ScanDirectoryOptions;
+    logger.info("开始扫描并清理 (Agent 调用)", normalizedScanOptions);
 
     return await errorHandler.wrapAsync(
       async () => {
@@ -193,7 +202,7 @@ export default class DirectoryJanitorRegistry implements ToolRegistry {
 
         try {
           // 执行扫描
-          await runner.analyzePath(scanOptions);
+          await runner.analyzePath(normalizedScanOptions);
 
           // 获取扫描结果
           const scanResult = runner.getFormattedScanResult();
@@ -254,7 +263,7 @@ export default class DirectoryJanitorRegistry implements ToolRegistry {
       {
         level: ErrorLevel.ERROR,
         userMessage: "扫描并清理失败",
-        context: scanOptions,
+        context: normalizedScanOptions,
       }
     );
   }

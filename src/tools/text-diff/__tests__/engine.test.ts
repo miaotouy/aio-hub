@@ -151,6 +151,18 @@ describe("text-diff engine", () => {
       expect(result).toContain("+c");
     });
 
+    it("registry 应正确处理布尔 false 参数", () => {
+      const registry = new TextDiffRegistry();
+      const result = registry.generatePatch({
+        oldText: "alpha   \n",
+        newText: "alpha\n",
+        ignoreWhitespace: false,
+      });
+
+      expect(result).toContain("-alpha   ");
+      expect(result).toContain("+alpha");
+    });
+
     it("registry 元数据应标记 generatePatch 为 agentCallable", () => {
       const registry = new TextDiffRegistry();
       const metadata = registry.getMetadata();

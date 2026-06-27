@@ -408,7 +408,7 @@ function searchNodeAndPathByFragment(
     pathParts: string[]
   ): { node: TreeNode; path: string[] } | null => {
     let curr = startNode;
-    const path = [...currentPath];
+    const path = [...currentPath, startNode.name];
     // 路径的第一部分就是 startNode 自己的名字，已经包含在 currentPath 传入前了
     for (let i = 1; i < pathParts.length; i++) {
       const part = pathParts[i];
@@ -462,7 +462,7 @@ function searchAllNodesAndPathsByFragment(
     pathParts: string[]
   ): { node: TreeNode; path: string[] } | null => {
     let curr = startNode;
-    const path = [...currentPath];
+    const path = [...currentPath, startNode.name];
     for (let i = 1; i < pathParts.length; i++) {
       const part = pathParts[i];
       const found: TreeNode | undefined = curr.children.find(

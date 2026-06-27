@@ -70,7 +70,7 @@ export function applyFilter(input: any, options: FilterOptions): FilterResult {
 
     // 2. 执行过滤
     const filteredData = target.filter((item) => {
-      return options.conditions.every((cond) => {
+      const matched = options.conditions.every((cond) => {
         // 跳过未启用的条件
         if (cond.enabled === false) {
           return true;
@@ -136,6 +136,8 @@ export function applyFilter(input: any, options: FilterOptions): FilterResult {
         // 只要有一个键满足条件即可 (OR 逻辑)
         return keys.some((key) => checkSingleKey(key));
       });
+
+      return options.keepUnmatched ? !matched : matched;
     });
 
     logger.info("过滤完成", { total, filtered: filteredData.length });

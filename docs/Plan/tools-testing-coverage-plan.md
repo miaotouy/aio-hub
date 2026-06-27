@@ -203,11 +203,11 @@ describe("JSON Formatter 核心逻辑测试", () => {
 
 - **目标**：覆盖涉及复杂算法和磁盘操作的工具，确保文件安全。
 - **覆盖工具**：
-  - `dir-search`
-  - `directory-tree`
-  - `directory-janitor`
-  - `data-filter`
-  - `content-deduplicator`
+  - `dir-search` -已完成（覆盖事件流搜索聚合、glob/布尔/数值参数适配、结果截断、批量替换 IPC 契约、Agent facade 与错误路径）
+  - `directory-tree` -已完成（覆盖前端树渲染、深度/路径/模式筛选、元数据输出、Rust command 参数适配与 Agent facade）
+  - `directory-janitor` -已完成（覆盖扫描/清理/扫描并清理 Agent facade、runner 生命周期、默认隐藏明细、防大响应、null 与异常路径）
+  - `data-filter` -已完成（覆盖 dataPath 定位、多条件/多键过滤、keepUnmatched 反向保留、YAML/JSON 文件读取、Agent facade 与错误路径）
+  - `content-deduplicator` -已完成（覆盖 Agent facade、预设/自定义配置合并、runner 生命周期、结果摘要格式化与错误/null 路径）
 
 ### 阶段三：AI、媒体与高级集成工具
 

@@ -17,7 +17,7 @@
               :loading="isLoading"
               @click="handleBatchEmbedding"
               :disabled="
-                !store.selectedProfile || store.knowledgeBase.length === 0
+                !store.retrievalProfile || store.knowledgeBase.length === 0
               "
             >
               一键向量化
@@ -36,6 +36,11 @@
         </div>
 
         <div class="panel-content scrollbar-custom">
+          <div class="model-section">
+            <label class="section-label">Embedding 模型</label>
+            <EmbeddingModelPicker v-model="retrievalModelCombo" />
+          </div>
+
           <div v-if="store.knowledgeBase.length === 0" class="empty-docs">
             <el-empty :image-size="60" description="暂无文档">
               <el-button type="primary" plain size="small" @click="addDocument"
@@ -233,25 +238,37 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useEmbeddingPlaygroundStore } from "../store";
 import { useEmbeddingRunner } from "../composables/useEmbeddingRunner";
 import { useVectorMath } from "../composables/useVectorMath";
+import { useEmbeddingModelOptions } from "../composables/useEmbeddingModelOptions";
 import { Plus, X, Search, Target, Trash2, Edit3 } from "lucide-vue-next";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { customMessage } from "@/utils/customMessage";
 import { ElMessageBox } from "element-plus";
+import EmbeddingModelPicker from "./EmbeddingModelPicker.vue";
 
 const store = useEmbeddingPlaygroundStore();
 const { isLoading, runEmbedding } = useEmbeddingRunner();
 const { calculateSimilarity } = useVectorMath();
+const { resolveModelCombo, buildSingleModelCombo } = useEmbeddingModelOptions();
 
-const topK = ref(3);
 const searchResults = ref<{ text: string; score: number }[]>([]);
 
 const isEditDialogVisible = ref(false);
 const editingIndex = ref<number | null>(null);
+
+const retrievalModelCombo = computed({
+  get: () =>
+    buildSingleModelCombo(store.retrievalProfile, store.retrievalModelId),
+  set: (value: string | string[]) => {
+    const target = resolveModelCombo(Array.isArray(value) ? value[0] : value);
+    store.retrievalProfile = target?.profile ?? null;
+    store.retrievalModelId = target?.modelId ?? "";
+  },
+});
 
 const openEditDialog = (index: number) => {
   editingIndex.value = index;
@@ -284,6 +301,7 @@ const clearKnowledgeBase = async () => {
         confirmButtonText: "确定",
         cancelButtonText: "取消",
         type: "warning",
+        lockScroll: false,
       }
     );
     store.knowledgeBase = [];
@@ -308,8 +326,9 @@ const updateSearchResults = () => {
         store.similarityAlgorithm
       ),
     }))
+    .filter((item) => item.score >= store.searchThreshold)
     .sort((a, b) => b.score - a.score)
-    .slice(0, topK.value);
+    .slice(0, store.searchTopK);
 
   searchResults.value = results;
   if (results.length === 0) {
@@ -318,14 +337,24 @@ const updateSearchResults = () => {
 };
 
 // 监听算法或 TopK 变化自动重算
-watch([() => store.similarityAlgorithm, topK], () => {
+watch([() => store.similarityAlgorithm, () => store.searchTopK, () => store.searchThreshold], () => {
   if (lastQueryEmbedding.value) {
     updateSearchResults();
   }
 });
 
+watch(retrievalModelCombo, (newValue, oldValue) => {
+  if (!oldValue || newValue === oldValue) return;
+  store.knowledgeBase.forEach((doc) => {
+    doc.embedding = undefined;
+  });
+  lastQueryEmbedding.value = null;
+  lastQueryInputs.value = null;
+  searchResults.value = [];
+});
+
 const handleBatchEmbedding = async () => {
-  if (!store.selectedProfile || !store.selectedModelId) {
+  if (!store.retrievalProfile || !store.retrievalModelId) {
     customMessage.warning("请先选择 Profile 和模型");
     return;
   }
@@ -333,8 +362,8 @@ const handleBatchEmbedding = async () => {
   const texts = store.knowledgeBase.map((d) => d.text).filter((t) => t.trim());
   if (texts.length === 0) return;
 
-  const response = await runEmbedding(store.selectedProfile, {
-    modelId: store.selectedModelId,
+  const response = await runEmbedding(store.retrievalProfile, {
+    modelId: store.retrievalModelId,
     input: texts,
     taskType: "RETRIEVAL_DOCUMENT",
   });
@@ -357,14 +386,14 @@ const handleBatchEmbedding = async () => {
 
 const handleSearch = async () => {
   if (!store.searchQuery.trim()) return;
-  if (!store.selectedProfile || !store.selectedModelId) {
+  if (!store.retrievalProfile || !store.retrievalModelId) {
     customMessage.warning("请先选择 Profile 和模型");
     return;
   }
 
   const currentInputs = {
-    profileId: store.selectedProfile.id,
-    modelId: store.selectedModelId,
+    profileId: store.retrievalProfile.id,
+    modelId: store.retrievalModelId,
     query: store.searchQuery,
   };
 
@@ -381,8 +410,8 @@ const handleSearch = async () => {
   }
 
   // 先获取查询语句的 Embedding
-  const response = await runEmbedding(store.selectedProfile, {
-    modelId: store.selectedModelId,
+  const response = await runEmbedding(store.retrievalProfile, {
+    modelId: store.retrievalModelId,
     input: store.searchQuery,
     taskType: "RETRIEVAL_QUERY",
   });
@@ -580,6 +609,18 @@ const handleSearch = async () => {
 .header-actions {
   display: flex;
   align-items: center;
+}
+
+.model-section {
+  margin-bottom: 18px;
+}
+
+.section-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-color);
+  margin-bottom: 8px;
 }
 
 /* 检索区 */

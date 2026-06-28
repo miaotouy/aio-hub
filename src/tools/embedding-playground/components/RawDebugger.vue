@@ -12,7 +12,7 @@
             type="primary"
             :loading="isLoading"
             @click="handleRun"
-            :disabled="!store.selectedProfile || !store.selectedModelId"
+            :disabled="!store.rawProfile || !store.rawModelId"
             class="run-btn"
           >
             <template #icon>
@@ -23,6 +23,11 @@
         </div>
 
         <div class="panel-content scrollbar-custom">
+          <div class="config-section">
+            <label class="section-label">Embedding 模型</label>
+            <EmbeddingModelPicker v-model="rawModelCombo" />
+          </div>
+
           <div class="config-section">
             <label class="section-label">维度 (Optional)</label>
             <el-select
@@ -131,13 +136,16 @@ import {
 } from "lucide-vue-next";
 import { useEmbeddingPlaygroundStore } from "../store";
 import { useEmbeddingRunner } from "../composables/useEmbeddingRunner";
+import { useEmbeddingModelOptions } from "../composables/useEmbeddingModelOptions";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
+import EmbeddingModelPicker from "./EmbeddingModelPicker.vue";
 
 const store = useEmbeddingPlaygroundStore();
 const { isLoading, lastResponse, executionTime, runEmbedding } =
   useEmbeddingRunner();
+const { resolveModelCombo, buildSingleModelCombo } = useEmbeddingModelOptions();
 
 const errorHandler = createModuleErrorHandler(
   "embedding-playground/RawDebugger"
@@ -153,6 +161,15 @@ const COMMON_DIMENSIONS = [
   { label: "1536", value: 1536 },
   { label: "3072", value: 3072 },
 ] as const;
+
+const rawModelCombo = computed({
+  get: () => buildSingleModelCombo(store.rawProfile, store.rawModelId),
+  set: (value: string | string[]) => {
+    const target = resolveModelCombo(Array.isArray(value) ? value[0] : value);
+    store.rawProfile = target?.profile ?? null;
+    store.rawModelId = target?.modelId ?? "";
+  },
+});
 
 const handleDimensionChange = (val: any) => {
   if (val === "") {
@@ -179,8 +196,8 @@ const vectorPreview = computed(() => {
 });
 
 const handleRun = async () => {
-  if (!store.selectedProfile || !store.selectedModelId) {
-    errorHandler.warn("请先在顶部选择 Profile 和模型");
+  if (!store.rawProfile || !store.rawModelId) {
+    errorHandler.warn("请先选择 Profile 和模型");
     return;
   }
 
@@ -190,14 +207,14 @@ const handleRun = async () => {
   }
 
   logger.info("开始运行原始向量化调试", {
-    modelId: store.selectedModelId,
+    modelId: store.rawModelId,
     dimensions: store.rawDimensions,
   });
 
   await errorHandler.wrapAsync(
     async () => {
-      await runEmbedding(store.selectedProfile!, {
-        modelId: store.selectedModelId!,
+      await runEmbedding(store.rawProfile!, {
+        modelId: store.rawModelId!,
         input: store.rawInput,
         dimensions: store.rawDimensions || undefined,
       });

@@ -1,19 +1,18 @@
 <template>
   <div class="similarity-arena">
     <div class="arena-layout">
-      <!-- 左侧：输入与配置 -->
       <div class="config-panel">
         <div class="panel-header">
           <div class="title-group">
-            <span class="panel-title">对比设置</span>
-            <span class="panel-subtitle">配置基准文本与对比组</span>
+            <span class="panel-title">1:N 语义排行</span>
+            <span class="panel-subtitle">单模型下验证 Anchor 与文本组的相似度</span>
           </div>
           <el-button
             type="primary"
             :loading="isLoading"
-            @click="handleCompare"
-            :disabled="!store.selectedProfile || !store.selectedModelId"
+            :disabled="!store.similarityProfile || !store.similarityModelId"
             class="run-btn"
+            @click="handleCompare"
           >
             开始对比
           </el-button>
@@ -21,19 +20,18 @@
 
         <div class="panel-content scrollbar-custom">
           <div class="config-section">
+            <label class="section-label">Embedding 模型</label>
+            <EmbeddingModelPicker v-model="similarityModelCombo" />
+          </div>
+
+          <div class="config-section">
             <label class="section-label">对比算法</label>
             <el-select
               v-model="store.similarityAlgorithm"
               class="w-full custom-select"
             >
-              <el-option
-                label="Cosine Similarity (余弦相似度)"
-                value="cosine"
-              />
-              <el-option
-                label="Euclidean Distance (欧氏距离)"
-                value="euclidean"
-              />
+              <el-option label="Cosine Similarity (余弦相似度)" value="cosine" />
+              <el-option label="Euclidean Distance (欧氏距离)" value="euclidean" />
               <el-option label="Dot Product (点积)" value="dot" />
               <el-option
                 label="Manhattan Distance (曼哈顿距离)"
@@ -41,7 +39,7 @@
               />
             </el-select>
             <p class="section-tip">
-              注：距离类算法已转换为相似度分数 (1/(1+d))。
+              距离类算法会转换为相似度分数，数值越大表示越相近。
             </p>
           </div>
 
@@ -58,16 +56,17 @@
           </div>
 
           <div class="config-section">
-            <div class="flex items-center justify-between mb-2">
+            <div class="section-heading-row">
               <label class="section-label m-0">对比文本组</label>
               <el-button
                 type="primary"
                 link
                 :icon="Plus"
-                @click="addText"
                 size="small"
-                >添加文本</el-button
+                @click="addText"
               >
+                添加文本
+              </el-button>
             </div>
             <div class="comparison-list">
               <div
@@ -84,8 +83,8 @@
                   type="danger"
                   link
                   :icon="X"
-                  @click="removeText(index)"
                   class="remove-btn"
+                  @click="removeText(index)"
                 />
               </div>
             </div>
@@ -93,30 +92,33 @@
         </div>
       </div>
 
-      <!-- 分割线 -->
       <div class="divider"></div>
 
-      <!-- 右侧：结果展示 -->
       <div class="result-panel">
         <div class="panel-header">
           <div class="title-group">
             <span class="panel-title">语义相似度排行</span>
-            <span v-if="results.length" class="panel-subtitle"
-              >基于向量空间的语义距离计算</span
-            >
+            <span v-if="results.length" class="panel-subtitle">
+              {{ selectedModelLabel }} · {{ results.length }} 条结果
+            </span>
           </div>
           <div v-if="results.length" class="header-actions">
-            <el-tag type="info" size="small" effect="plain" class="count-tag">
-              {{ results.length }} 条结果
+            <el-tag type="info" size="small" effect="plain">
+              {{ currentDimension }} 维
+            </el-tag>
+            <el-tag type="success" size="small" effect="plain">
+              {{ lastExecutionTime }}ms
             </el-tag>
             <el-tooltip content="复制排行结果" placement="top">
-              <el-button
-                circle
-                size="small"
-                :icon="isCopied ? Check : Copy"
-                @click="copyResults"
-                class="copy-btn"
-              />
+              <div>
+                <el-button
+                  circle
+                  size="small"
+                  :icon="isCopied ? Check : Copy"
+                  class="copy-btn"
+                  @click="copyResults"
+                />
+              </div>
             </el-tooltip>
           </div>
         </div>
@@ -125,13 +127,13 @@
           <div v-if="results.length" class="results-list">
             <div
               v-for="(item, index) in sortedResults"
-              :key="index"
+              :key="`${item.text}-${index}`"
               class="result-card"
               :style="{ '--score-color': getScoreColor(item.score) }"
             >
               <div
                 class="card-bg-progress"
-                :style="{ width: `${item.score * 100}%` }"
+                :style="{ width: `${toPercent(item.score)}%` }"
               ></div>
               <div class="card-content">
                 <div class="text-info">
@@ -148,7 +150,7 @@
           <div v-else class="empty-state">
             <el-icon class="empty-icon"><BarChart3 /></el-icon>
             <p>准备就绪</p>
-            <span>点击“开始对比”查看语义距离排行</span>
+            <span>选择模型后点击“开始对比”查看语义距离排行</span>
           </div>
         </div>
       </div>
@@ -157,38 +159,44 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
-import { useEmbeddingPlaygroundStore } from "../store";
-import { useEmbeddingRunner } from "../composables/useEmbeddingRunner";
-import { useVectorMath } from "../composables/useVectorMath";
-import { Plus, X, BarChart3, Copy, Check } from "lucide-vue-next";
+import { computed, ref, watch } from "vue";
+import { BarChart3, Check, Copy, Plus, X } from "lucide-vue-next";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { customMessage } from "@/utils/customMessage";
-import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { useEmbeddingPlaygroundStore } from "../store";
+import { useEmbeddingCache } from "../composables/useEmbeddingCache";
+import { useEmbeddingModelOptions } from "../composables/useEmbeddingModelOptions";
+import { useVectorMath } from "../composables/useVectorMath";
+import EmbeddingModelPicker from "./EmbeddingModelPicker.vue";
 
 const store = useEmbeddingPlaygroundStore();
-const errorHandler = createModuleErrorHandler(
-  "EmbeddingPlayground/SimilarityArena"
-);
-const { isLoading, runEmbedding } = useEmbeddingRunner();
 const { calculateSimilarity } = useVectorMath();
+const { embedTexts } = useEmbeddingCache();
+const { resolveModelCombo, buildSingleModelCombo } = useEmbeddingModelOptions();
 
-const results = ref<{ text: string; score: number }[]>([]);
-
-// 缓存机制
-// 结构: Map<ModelId, Map<TextContent, EmbeddingVector>>
-const embeddingCache = ref<Map<string, Map<string, number[]>>>(new Map());
-
-// 当前展示用的向量数据
-const currentEmbeddings = ref<number[][]>([]);
-// 记录当前参与计算的文本列表，用于后续重算分数
-const currentTexts = ref<string[]>([]);
-
+const isLoading = ref(false);
 const isCopied = ref(false);
+const results = ref<{ text: string; score: number }[]>([]);
+const currentEmbeddings = ref<number[][]>([]);
+const currentTexts = ref<string[]>([]);
+const currentDimension = ref(0);
+const lastExecutionTime = ref(0);
+const selectedModelLabel = ref("");
 
-const sortedResults = computed(() => {
-  return [...results.value].sort((a, b) => b.score - a.score);
+const similarityModelCombo = computed({
+  get: () =>
+    buildSingleModelCombo(store.similarityProfile, store.similarityModelId),
+  set: (value: string | string[]) => {
+    const target = resolveModelCombo(Array.isArray(value) ? value[0] : value);
+    store.similarityProfile = target?.profile ?? null;
+    store.similarityModelId = target?.modelId ?? "";
+    selectedModelLabel.value = target?.label ?? "";
+  },
 });
+
+const sortedResults = computed(() =>
+  [...results.value].sort((a, b) => b.score - a.score)
+);
 
 const addText = () => {
   store.comparisonTexts.push("");
@@ -198,16 +206,42 @@ const removeText = (index: number) => {
   store.comparisonTexts.splice(index, 1);
 };
 
+const toPercent = (score: number) => Math.max(0, Math.min(100, score * 100));
+
 const getScoreColor = (score: number) => {
   if (score > 0.8) return "var(--el-color-success)";
   if (score > 0.5) return "var(--el-color-warning)";
   return "var(--el-color-danger)";
 };
 
+const updateScores = () => {
+  if (currentEmbeddings.value.length < 2 || currentTexts.value.length < 2) {
+    results.value = [];
+    return;
+  }
+
+  const anchorVec = currentEmbeddings.value[0];
+  results.value = currentEmbeddings.value.slice(1).map((compareVec, index) => ({
+    text: currentTexts.value[index + 1],
+    score: calculateSimilarity(
+      anchorVec,
+      compareVec,
+      store.similarityAlgorithm
+    ),
+  }));
+};
+
+watch(
+  () => store.similarityAlgorithm,
+  () => {
+    if (currentEmbeddings.value.length > 0) updateScores();
+  }
+);
+
 const copyResults = async () => {
   if (sortedResults.value.length === 0) return;
 
-  const header = `语义相似度排行 (算法: ${store.similarityAlgorithm})\n基准文本: ${store.anchorText}\n\n`;
+  const header = `语义相似度排行 (算法: ${store.similarityAlgorithm})\n模型: ${selectedModelLabel.value}\n基准文本: ${store.anchorText}\n\n`;
   const content = sortedResults.value
     .map(
       (item, index) => `#${index + 1} [${item.score.toFixed(4)}] ${item.text}`
@@ -220,61 +254,22 @@ const copyResults = async () => {
     customMessage.success("结果已复制到剪贴板");
     setTimeout(() => {
       isCopied.value = false;
-    }, 200);
-  } catch (err) {
+    }, 800);
+  } catch {
     customMessage.error("复制失败");
   }
 };
 
-// 纯计算逻辑
-const updateScores = () => {
-  if (currentEmbeddings.value.length < 2 || currentTexts.value.length < 2)
-    return;
-
-  const anchorVec = currentEmbeddings.value[0];
-  const newResults = [];
-
-  // 从索引 1 开始，因为 0 是 Anchor
-  for (let i = 1; i < currentEmbeddings.value.length; i++) {
-    const compareVec = currentEmbeddings.value[i];
-    const score = calculateSimilarity(
-      anchorVec,
-      compareVec,
-      store.similarityAlgorithm
-    );
-    newResults.push({
-      text: currentTexts.value[i],
-      score: score,
-    });
-  }
-
-  results.value = newResults;
-};
-
-// 监听算法变化，自动重算
-watch(
-  () => store.similarityAlgorithm,
-  () => {
-    if (currentEmbeddings.value.length > 0) {
-      updateScores();
-    }
-  }
-);
-
-/**
- * 核心逻辑：增量 Embedding
- */
 const handleCompare = async () => {
-  if (!store.selectedProfile || !store.selectedModelId) {
-    customMessage.warning("请先选择 Profile 和模型");
+  const target = resolveModelCombo(similarityModelCombo.value);
+  if (!target) {
+    customMessage.warning("请先选择 Embedding 模型");
     return;
   }
 
-  // 1. 准备数据
-  const modelId = store.selectedModelId;
   const allTexts = [
     store.anchorText,
-    ...store.comparisonTexts.filter((t) => t.trim()),
+    ...store.comparisonTexts.filter((text) => text.trim()),
   ];
 
   if (allTexts.length < 2) {
@@ -282,62 +277,22 @@ const handleCompare = async () => {
     return;
   }
 
-  // 2. 初始化该模型的缓存池
-  if (!embeddingCache.value.has(modelId)) {
-    embeddingCache.value.set(modelId, new Map());
-  }
-  const modelCache = embeddingCache.value.get(modelId)!;
-
-  // 3. 找出未缓存的文本
-  const textsToEmbed: string[] = [];
-  const textIndicesToFetch: number[] = []; // 记录需要请求的文本在 allTexts 中的原始索引
-
-  allTexts.forEach((text, index) => {
-    if (!modelCache.has(text)) {
-      textsToEmbed.push(text);
-      textIndicesToFetch.push(index);
-    }
-  });
-
-  // 4. 如果有未命中的，发起请求
-  if (textsToEmbed.length > 0) {
-    const response = await runEmbedding(store.selectedProfile, {
-      modelId: modelId,
-      input: textsToEmbed,
+  isLoading.value = true;
+  try {
+    const result = await embedTexts(target, allTexts, {
       taskType: "SEMANTIC_SIMILARITY",
     });
+    if (!result) return;
 
-    if (!response || response.data.length !== textsToEmbed.length) {
-      // 错误处理已在 useEmbeddingRunner 中完成，这里直接中断
-      return;
-    }
-
-    // 5. 将新结果存入缓存
-    response.data.forEach((item, i) => {
-      const text = textsToEmbed[i];
-      modelCache.set(text, item.embedding);
-    });
+    currentEmbeddings.value = result.embeddings;
+    currentTexts.value = allTexts;
+    currentDimension.value = result.embeddings[0]?.length ?? 0;
+    lastExecutionTime.value = result.executionTime;
+    selectedModelLabel.value = target.label;
+    updateScores();
+  } finally {
+    isLoading.value = false;
   }
-
-  // 6. 从缓存中组装最终的向量列表
-  // 此时所有文本在 modelCache 中都应该有值了
-  const finalEmbeddings: number[][] = [];
-
-  for (const text of allTexts) {
-    const vec = modelCache.get(text);
-    if (vec) {
-      finalEmbeddings.push(vec);
-    } else {
-      // 理论上不应执行到这里，除非上面的请求失败了但没被捕获
-      errorHandler.error(`无法获取文本向量: ${text.slice(0, 10)}...`);
-      return;
-    }
-  }
-
-  // 7. 更新状态并计算分数
-  currentEmbeddings.value = finalEmbeddings;
-  currentTexts.value = allTexts;
-  updateScores();
 };
 </script>
 
@@ -355,7 +310,6 @@ const handleCompare = async () => {
   overflow: hidden;
 }
 
-/* 面板通用样式 */
 .config-panel,
 .result-panel {
   display: flex;
@@ -373,10 +327,11 @@ const handleCompare = async () => {
 }
 
 .panel-header {
-  height: 52px;
+  min-height: 52px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   padding: 0 20px;
   flex-shrink: 0;
 }
@@ -384,6 +339,7 @@ const handleCompare = async () => {
 .title-group {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .panel-title {
@@ -396,12 +352,16 @@ const handleCompare = async () => {
   font-size: 11px;
   color: var(--text-color-secondary);
   margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .header-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .copy-btn {
@@ -421,16 +381,21 @@ const handleCompare = async () => {
   padding: 20px;
 }
 
-/* 分割线 */
 .divider {
   width: 1px;
   background-color: var(--border-color);
   flex-shrink: 0;
 }
 
-/* 配置项样式 */
 .config-section {
   margin-bottom: 24px;
+}
+
+.section-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
 }
 
 .section-label {
@@ -462,7 +427,6 @@ const handleCompare = async () => {
   padding: 0 4px;
 }
 
-/* 结果卡片样式 */
 .results-list {
   display: flex;
   flex-direction: column;
@@ -492,7 +456,7 @@ const handleCompare = async () => {
   bottom: 0;
   background-color: var(--score-color);
   opacity: 0.08;
-  transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: width 0.45s ease;
 }
 
 .card-content {
@@ -518,7 +482,7 @@ const handleCompare = async () => {
   font-size: 16px;
   font-weight: 700;
   color: var(--score-color);
-  opacity: 0.6;
+  opacity: 0.65;
 }
 
 .main-text {
@@ -541,7 +505,6 @@ const handleCompare = async () => {
   font-size: 10px;
   color: var(--text-color-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .score-value {
@@ -551,9 +514,9 @@ const handleCompare = async () => {
   color: var(--score-color);
 }
 
-/* 空状态 */
 .empty-state {
   height: 100%;
+  min-height: 320px;
   display: flex;
   flex-direction: column;
   align-items: center;

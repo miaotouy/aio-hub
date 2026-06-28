@@ -70,3 +70,10 @@ export interface GitLoadConfig {
   includeLineStats: boolean;
   includeBranchInference: boolean;
 }
+
+export interface ExportPreset {
+  id: string;
+  name: string;
+  repoPath: string; // 绑定的仓库路径，为空表示全局通用
+  config: ExportConfig;
+}

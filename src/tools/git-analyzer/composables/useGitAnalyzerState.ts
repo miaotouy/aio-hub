@@ -5,6 +5,7 @@ import type {
   RepoStatistics,
   ExportConfig,
   GitLoadConfig,
+  ExportPreset,
 } from "../types";
 import { commitCache } from "./useCommitCache";
 
@@ -75,6 +76,99 @@ const exportConfig = ref<ExportConfig>({
   includeFilterInfo: true,
   htmlTheme: "light",
 });
+
+// 导出预设
+const exportPresets = ref<ExportPreset[]>([]);
+const currentPresetId = ref<string>("");
+const repoLastPreset = ref<Record<string, string>>({});
+
+// 保存当前配置为新预设
+function savePreset(name: string, isRepoSpecific: boolean) {
+  const id = `preset-${Date.now()}`;
+  const newPreset: ExportPreset = {
+    id,
+    name,
+    repoPath: isRepoSpecific ? repoPath.value : "",
+    config: JSON.parse(JSON.stringify(exportConfig.value)),
+  };
+  exportPresets.value.push(newPreset);
+  currentPresetId.value = id;
+
+  if (isRepoSpecific && repoPath.value) {
+    repoLastPreset.value[repoPath.value] = id;
+  }
+}
+
+// 更新已有预设的配置
+function updatePreset(id: string) {
+  const preset = exportPresets.value.find((p) => p.id === id);
+  if (preset) {
+    preset.config = JSON.parse(JSON.stringify(exportConfig.value));
+  }
+}
+
+// 重命名预设
+function renamePreset(id: string, newName: string) {
+  const preset = exportPresets.value.find((p) => p.id === id);
+  if (preset) {
+    preset.name = newName;
+  }
+}
+
+// 删除预设
+function deletePreset(id: string) {
+  const index = exportPresets.value.findIndex((p) => p.id === id);
+  if (index !== -1) {
+    exportPresets.value.splice(index, 1);
+    // 如果删除的是当前选中的预设，则清空选中
+    if (currentPresetId.value === id) {
+      currentPresetId.value = "";
+    }
+  }
+}
+
+// 应用预设配置
+function applyPreset(id: string) {
+  const preset = exportPresets.value.find((p) => p.id === id);
+  if (preset) {
+    exportConfig.value = JSON.parse(JSON.stringify(preset.config));
+    currentPresetId.value = id;
+    if (repoPath.value) {
+      repoLastPreset.value[repoPath.value] = id;
+    }
+  }
+}
+
+// 切换仓库时，自动加载并应用最合适的预设
+function loadPresetsForRepo(path: string) {
+  if (!path) return;
+
+  // 1. 检查该仓库上次使用的预设
+  const lastPresetId = repoLastPreset.value[path];
+  if (lastPresetId && exportPresets.value.some((p) => p.id === lastPresetId)) {
+    applyPreset(lastPresetId);
+    return;
+  }
+
+  // 2. 检查是否有该仓库专属的预设
+  const repoSpecificPreset = exportPresets.value.find(
+    (p) => p.repoPath === path
+  );
+  if (repoSpecificPreset) {
+    applyPreset(repoSpecificPreset.id);
+    return;
+  }
+
+  // 3. 降级到默认 Markdown 预设
+  const defaultPreset = exportPresets.value.find(
+    (p) => p.id === "preset-default-markdown"
+  );
+  if (defaultPreset) {
+    applyPreset(defaultPreset.id);
+  } else if (exportPresets.value.length > 0) {
+    applyPreset(exportPresets.value[0].id);
+  }
+}
 
 const lastLoadedRepo = ref("");
 const lastLoadedBranch = ref("");
@@ -240,6 +334,9 @@ export function useGitAnalyzerState() {
     currentPage,
     pageSize,
     exportConfig,
+    exportPresets,
+    currentPresetId,
+    repoLastPreset,
     lastLoadedRepo,
     lastLoadedBranch,
     lastLoadedLimit,
@@ -260,5 +357,11 @@ export function useGitAnalyzerState() {
     resetCommits,
     updateLoadConfig,
     resetLoadConfig,
+    savePreset,
+    updatePreset,
+    renamePreset,
+    deletePreset,
+    applyPreset,
+    loadPresetsForRepo,
   };
 }

@@ -1,19 +1,18 @@
 <template>
-  <BaseDialog
-    :modelValue="visible"
-    @update:modelValue="visible = $event"
-    title="导出分析报告"
-    width="1000px"
-    height="85vh"
-    :close-on-backdrop-click="false"
-  >
-    <template #content>
-      <div class="export-module">
-        <!-- 导出配置 -->
-        <ExportConfiguration
-          v-model:config="exportConfig"
-          :total-commits="totalCommits"
-        />
+  <div class="export-panel">
+    <div class="export-content-layout">
+      <!-- 左侧配置区 -->
+      <div class="config-section">
+        <!-- 预设管理区（收纳到配置区顶部） -->
+        <PresetManager :repo-path="repoPath" @change="updatePreview" />
+
+        <div class="section-title">导出配置</div>
+        <div class="config-scroll-container">
+          <ExportConfiguration
+            v-model:config="exportConfig"
+            :total-commits="totalCommits"
+          />
+        </div>
 
         <div v-if="needsEnrichment" class="enrich-panel">
           <div class="enrich-content">
@@ -63,35 +62,28 @@
             >
           </div>
         </div>
-
-        <!-- 预览区域 -->
-        <ExportPreview
-          :content="previewContent"
-          :format="exportConfig.format"
-          :generating="generating"
-          :loading-files="loadingFiles"
-          @refresh="updatePreview"
-          @copy="copyToClipboard"
-          @download="downloadFile"
-          @send-to-chat="handleSendToChat"
-        />
       </div>
-    </template>
 
-    <template #footer>
-      <el-space>
-        <el-button @click="visible = false">取消</el-button>
-        <el-button
-          type="primary"
-          @click="handleExport"
-          :loading="exporting"
-          :disabled="needsEnrichment"
-        >
-          导出文件
-        </el-button>
-      </el-space>
-    </template>
-  </BaseDialog>
+      <!-- 右侧预览区 -->
+      <div class="preview-area">
+        <div class="preview-card">
+          <ExportPreview
+            :content="previewContent"
+            :format="exportConfig.format"
+            :generating="generating"
+            :loading-files="loadingFiles"
+            :exporting="exporting"
+            :disabled-export="needsEnrichment"
+            @refresh="updatePreview"
+            @copy="copyToClipboard"
+            @download="downloadFile"
+            @export="handleExport"
+            @send-to-chat="handleSendToChat"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -106,6 +98,7 @@ import { useSendToChat } from "@/composables/useSendToChat";
 import { commitCache } from "../composables/useCommitCache";
 import ExportConfiguration from "./ExportConfiguration.vue";
 import ExportPreview from "./ExportPreview.vue";
+import PresetManager from "./PresetManager.vue";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const errorHandler = createModuleErrorHandler("ExportModule");
@@ -134,15 +127,23 @@ const emit = defineEmits<{
   "cancel-enrich": [];
 }>();
 
-const visible = defineModel<boolean>("visible", { required: true });
 const generating = ref(false);
 const exporting = ref(false);
 const previewContent = ref("");
 
-// 移除本地 exportConfig ref，直接使用来自 state 的 exportConfig
-
+// 预设管理本地状态
 const totalCommits = computed(() => props.commits.length);
 
+// 从 state 获取共享状态
+const {
+  loadingFiles,
+  filterSummary,
+  hasActiveFilters,
+  exportConfig,
+  enriching,
+  enrichProgress,
+  enrichedHashes,
+} = useGitAnalyzerState();
 // 生成导出文件名
 function generateFileName(extension: string): string {
   // 从仓库路径提取项目名
@@ -159,6 +160,7 @@ function generateFileName(extension: string): string {
 
   return `${projectName}_提交统计_${dateStr}.${extension}`;
 }
+
 // 获取要导出的提交记录
 function getCommitsToExport(): GitCommit[] {
   // 先根据范围获取基础提交列表
@@ -184,16 +186,6 @@ function getCommitsToExport(): GitCommit[] {
   return getMergedCommits(base);
 }
 
-// 从 state 获取共享状态（文件变更信息在仓库加载完成后自动加载）
-const {
-  loadingFiles,
-  filterSummary,
-  hasActiveFilters,
-  exportConfig,
-  enriching,
-  enrichProgress,
-  enrichedHashes,
-} = useGitAnalyzerState();
 const requiredEnrichHashes = computed(() => {
   if (!exportConfig.value.includeStats && !exportConfig.value.includeFiles) {
     return [];
@@ -249,6 +241,7 @@ function getMergedCommits(commits: GitCommit[]): GitCommit[] {
     return commit;
   });
 }
+
 // 初始化报告生成器
 const { generateReport } = useReportGenerator({
   config: exportConfig,
@@ -280,7 +273,6 @@ async function updatePreview() {
     generating.value = false;
   }
 }
-
 // 复制到剪贴板
 async function copyToClipboard() {
   try {
@@ -325,6 +317,7 @@ async function downloadFile() {
   customMessage.success(`已下载: ${fileName}`);
 }
 
+// 发送到聊天
 // 发送到聊天
 function handleSendToChat() {
   const format = exportConfig.value.format;
@@ -372,7 +365,6 @@ async function handleExport() {
     if (filePath) {
       await writeTextFile(filePath, previewContent.value);
       customMessage.success(`文件已保存: ${filePath}`);
-      visible.value = false;
     }
   } catch (error) {
     errorHandler.error(error, "导出报告文件失败", {
@@ -398,28 +390,22 @@ function startEnrich() {
   });
 }
 
-// 监听对话框打开时更新预览
-watch(
-  () => visible.value,
-  (val) => {
-    if (val) {
-      updatePreview();
-    }
-  }
-);
+// 暴露更新预览方法给父组件
+defineExpose({
+  updatePreview,
+});
 
 // 监听需要补充数据的导出选项变化，更新预览
 watch(
   () => [exportConfig.value.includeFiles, exportConfig.value.includeStats],
   () => {
-    if (!visible.value) return;
     updatePreview();
   }
 );
 
 // 监听 loadingFiles 变化，加载完成后自动刷新预览
 watch(loadingFiles, (loading) => {
-  if (!loading && visible.value && exportConfig.value.includeFiles) {
+  if (!loading && exportConfig.value.includeFiles) {
     updatePreview();
   }
 });
@@ -436,10 +422,48 @@ watch(
 </script>
 
 <style scoped>
-.export-module {
+.export-panel {
   display: flex;
   flex-direction: column;
+  height: 100%;
+  gap: 16px;
+  overflow: hidden;
+}
+
+.export-content-layout {
+  flex: 1;
+  display: flex;
   gap: 20px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.config-section {
+  width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--container-bg);
+  border-radius: 8px;
+  border: 1px solid var(--border-color-light);
+  padding: 16px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-color);
+  border-bottom: 1px solid var(--border-color-light);
+  padding-bottom: 8px;
+  flex-shrink: 0;
+}
+
+.config-scroll-container {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .enrich-panel {
@@ -452,6 +476,7 @@ watch(
   border: 1px solid color-mix(in srgb, var(--el-color-warning) 30%, transparent);
   border-radius: 6px;
   background: color-mix(in srgb, var(--el-color-warning) 5%, var(--card-bg));
+  flex-shrink: 0;
 }
 
 .enrich-content {
@@ -490,5 +515,52 @@ watch(
   gap: 8px;
   align-items: center;
   flex-shrink: 0;
+}
+
+.preview-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.preview-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 让 ExportPreview 内部高度占满 */
+.preview-card :deep(.preview-section) {
+  height: 100%;
+}
+
+/* 响应式布局：窄屏适配 */
+@media (max-width: 1200px) {
+  .export-content-layout {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .config-section {
+    width: 100%;
+    height: auto;
+    flex-shrink: 0;
+    overflow: visible;
+  }
+
+  .config-scroll-container {
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  .preview-area {
+    width: 100%;
+    height: 800px;
+    min-height: 600px;
+    flex-shrink: 0;
+  }
 }
 </style>

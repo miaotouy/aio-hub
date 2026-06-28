@@ -85,6 +85,27 @@
                 v-model:frequency-granularity="frequencyGranularity"
               />
             </el-tab-pane>
+
+            <!-- 导出报告视图 -->
+            <el-tab-pane
+              label="导出报告"
+              name="export"
+              :disabled="commits.length === 0"
+            >
+              <ExportModule
+                ref="exportModuleRef"
+                :commits="commits"
+                :filtered-commits="filteredCommits"
+                :statistics="statistics"
+                :repo-path="repoPath"
+                :branch="selectedBranch"
+                :reverse-order="reverseOrder"
+                :initial-config="config?.exportConfig"
+                @enrich-commits="enrichCommits"
+                @cancel-enrich="cancelEnrich"
+                @update:exportConfig="handleExportConfigUpdate"
+              />
+            </el-tab-pane>
           </el-tabs>
         </div>
       </div>
@@ -97,21 +118,6 @@
       :loading="loading"
       @copy-hash="copyCommitHash"
       @update-message="updateCommitMessage"
-    />
-
-    <!-- 导出模块 -->
-    <ExportModule
-      v-model:visible="showExport"
-      :commits="commits"
-      :filtered-commits="filteredCommits"
-      :statistics="statistics"
-      :repo-path="repoPath"
-      :branch="selectedBranch"
-      :reverse-order="reverseOrder"
-      :initial-config="config?.exportConfig"
-      @enrich-commits="enrichCommits"
-      @cancel-enrich="cancelEnrich"
-      @update:exportConfig="handleExportConfigUpdate"
     />
 
     <LoadConfigDialog
@@ -177,6 +183,8 @@ const {
   currentPage,
   pageSize,
   exportConfig,
+  exportPresets,
+  repoLastPreset,
   loadConfig: gitLoadConfig,
   progress,
   statistics,
@@ -184,6 +192,7 @@ const {
   hasActiveFilters,
   filterSummary,
   updateLoadConfig,
+  loadPresetsForRepo,
 } = useGitAnalyzerState();
 
 // 使用运行器（业务编排层）
@@ -206,10 +215,10 @@ const chartsViewRef = ref<InstanceType<typeof ChartsView>>();
 
 // 本地状态
 const activeTab = ref("list");
-const showExport = ref(false);
 const showLoadConfig = ref(false);
 const filterControlsCollapsed = ref(false);
 const frequencyGranularity = ref<CommitFrequencyGranularity>("day");
+const exportModuleRef = ref<InstanceType<typeof ExportModule>>();
 
 // 计算图表视图是否可见
 const isChartTabActive = computed(() => activeTab.value === "chart");
@@ -252,14 +261,13 @@ function handleSetRangeEnd(index: number) {
   filterCommits();
 }
 
-// 显示导出对话框
-
+// 切换到导出面板
 function showExportDialog() {
   if (commits.value.length === 0) {
     customMessage.warning("请先加载仓库数据");
     return;
   }
-  showExport.value = true;
+  activeTab.value = "export";
 }
 
 // 处理导出配置更新
@@ -300,6 +308,14 @@ async function loadConfig() {
         ...exportConfig.value,
         ...loadedConfig.exportConfig,
       };
+    }
+
+    // 恢复预设
+    if (loadedConfig.exportPresets) {
+      exportPresets.value = loadedConfig.exportPresets;
+    }
+    if (loadedConfig.repoLastPreset) {
+      repoLastPreset.value = loadedConfig.repoLastPreset;
     }
 
     // 恢复日期范围（需要将字符串转换为 Date 对象）
@@ -352,13 +368,18 @@ function saveCurrentConfig() {
     commitTypeFilter: commitTypeFilter.value,
     frequencyGranularity: frequencyGranularity.value,
     exportConfig: exportConfig.value,
+    exportPresets: exportPresets.value,
+    repoLastPreset: repoLastPreset.value,
   };
 
   debouncedSaveConfig(updatedConfig);
 }
-// 监听仓库路径变化，清空缓存
-watch(repoPath, () => {
+// 监听仓库路径变化，清空缓存并加载预设
+watch(repoPath, (newPath) => {
   clearCache(); // 切换仓库时清空缓存
+  if (newPath) {
+    loadPresetsForRepo(newPath);
+  }
 });
 
 // 监听配置变化并自动保存
@@ -379,6 +400,8 @@ watch(
     commitTypeFilter,
     frequencyGranularity,
     exportConfig,
+    exportPresets,
+    repoLastPreset,
   ],
   () => {
     saveCurrentConfig();
@@ -393,10 +416,14 @@ watch(filteredCommits, () => {
   }
 });
 
-// 监听标签页切换，如果切换到图表页，则更新图表
+// 监听标签页切换，如果切换到图表页，则更新图表；如果切换到导出页，则更新预览
 watch(activeTab, (newTab) => {
   if (newTab === "chart") {
     nextTick(updateCharts);
+  } else if (newTab === "export") {
+    nextTick(() => {
+      exportModuleRef.value?.updatePreview();
+    });
   }
 });
 
@@ -404,6 +431,11 @@ watch(activeTab, (newTab) => {
 onMounted(async () => {
   // 加载配置
   await loadConfig();
+
+  // 加载预设
+  if (repoPath.value) {
+    loadPresetsForRepo(repoPath.value);
+  }
 
   // 设置图表 ResizeObserver
   const mainContent = document.querySelector(".main-content");

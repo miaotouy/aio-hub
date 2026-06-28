@@ -1,16 +1,18 @@
 <template>
   <div class="preview-section">
     <div class="preview-header">
-      <span>内容预览</span>
-      <el-tag
-        v-if="loadingFiles"
-        type="warning"
-        size="small"
-        style="margin-left: 10px"
-      >
-        正在加载文件信息...
-      </el-tag>
-      <el-button-group>
+      <div class="preview-header-left">
+        <span>内容预览</span>
+        <el-tag
+          v-if="loadingFiles"
+          type="warning"
+          size="small"
+          style="margin-left: 10px"
+        >
+          正在加载文件信息...
+        </el-tag>
+      </div>
+      <div class="preview-actions">
         <el-button
           size="small"
           @click="$emit('refresh')"
@@ -22,6 +24,18 @@
         <el-button size="small" @click="$emit('copy')" :icon="CopyDocument">
           复制
         </el-button>
+        <el-button size="small" @click="$emit('download')" :icon="Download">
+          下载
+        </el-button>
+        <el-button
+          size="small"
+          @click="$emit('export')"
+          :icon="FolderOpened"
+          :loading="exporting"
+          :disabled="disabledExport"
+        >
+          导出文件
+        </el-button>
         <el-button
           size="small"
           type="success"
@@ -30,10 +44,7 @@
         >
           发送到聊天
         </el-button>
-        <el-button size="small" @click="$emit('download')" :icon="Download">
-          下载
-        </el-button>
-      </el-button-group>
+      </div>
     </div>
     <div class="preview-content" v-loading="generating">
       <el-scrollbar>
@@ -50,6 +61,7 @@ import {
   Download,
   RefreshRight,
   ChatDotRound,
+  FolderOpened,
 } from "@element-plus/icons-vue";
 
 defineProps<{
@@ -57,12 +69,15 @@ defineProps<{
   format: string;
   generating: boolean;
   loadingFiles: boolean;
+  exporting?: boolean;
+  disabledExport?: boolean;
 }>();
 
 defineEmits<{
   refresh: [];
   copy: [];
   download: [];
+  export: [];
   sendToChat: [];
 }>();
 </script>
@@ -87,6 +102,31 @@ defineEmits<{
   border-bottom: var(--border-width) solid var(--border-color);
   font-weight: 500;
   flex-shrink: 0; /* 防止头部收缩 */
+  gap: 12px;
+}
+
+.preview-header-left {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.preview-header-left span {
+  white-space: nowrap;
+  min-width: 64px;
+}
+
+.preview-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.preview-actions :deep(.el-button) {
+  margin-left: 0 !important;
 }
 
 .preview-content {

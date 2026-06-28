@@ -2,9 +2,20 @@
  * aio-file-operator 单元测试
  * 覆盖所有 agentCallable 方法、安全策略、审计日志、换行符转换
  */
-import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  vi,
+} from "vitest";
 import { AioFileOperatorRegistry } from "../aio-file-operator.registry";
 import * as actions from "../actions";
+import { toolRegistryManager } from "@/services/registry";
+import { executeToolRequests } from "../../tool-calling/core/executor";
+import type { ParsedToolRequest } from "../../tool-calling/types";
 
 // ==================== Mock Tauri invoke ====================
 // 使用 vi.hoisted 确保 mock 在 vi.mock 工厂之前初始化
@@ -47,6 +58,11 @@ describe("AioFileOperator Registry", () => {
 
   beforeAll(async () => {
     registry = new AioFileOperatorRegistry();
+    await toolRegistryManager.register(registry);
+  });
+
+  afterAll(async () => {
+    await toolRegistryManager.unregister(registry.id);
   });
 
   // ==================== writeFile ====================
@@ -818,6 +834,151 @@ describe("AioFileOperator Registry", () => {
       for (const method of metadata.methods) {
         expect(method.agentCallable).toBe(true);
       }
+    });
+  });
+
+  // ==================== 工具调用系统集成 ====================
+
+  describe("工具调用系统集成 (Tool Calling Integration)", () => {
+    const defaultToolConfig = {
+      enabled: true,
+      mode: "auto" as const,
+      toolToggles: {},
+      autoApproveTools: { "aio-file-operator": true },
+      autoApproveMethods: {},
+      methodToggles: {},
+      defaultToolEnabled: true,
+      defaultAutoApprove: true,
+      maxIterations: 5,
+      timeout: 30000,
+      parallelExecution: false,
+      protocol: "vcp" as const,
+    };
+
+    beforeEach(async () => {
+      resetInvokeMock();
+    });
+
+    it("白名单模式 + 路径不在白名单 → executor 拦截并返回 denied", async () => {
+      await whitelistDirs(["C:/Safe"]);
+
+      const requests: ParsedToolRequest[] = [
+        {
+          requestId: "req-block-1",
+          toolId: "aio-file-operator",
+          methodName: "read_file",
+          toolName: "本地文件操作器",
+          rawBlock: "",
+          args: {
+            path: "C:/Unsafe/file.txt",
+          },
+        },
+      ];
+
+      const results = await executeToolRequests(requests, {
+        config: defaultToolConfig,
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0].status).toBe("denied");
+      expect(results[0].result).toContain("安全沙箱拦截");
+    });
+
+    it("白名单模式 + 路径在白名单 → executor 正常放行并执行成功", async () => {
+      await whitelistDirs(["C:/Safe"]);
+      mockInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === "get_file_metadata")
+          return {
+            size: 100,
+            isFile: true,
+            isDir: false,
+            modified: null,
+            created: null,
+          };
+        if (cmd === "read_text_file_force") return "safe content";
+        return null;
+      });
+
+      const requests: ParsedToolRequest[] = [
+        {
+          requestId: "req-allow-1",
+          toolId: "aio-file-operator",
+          methodName: "read_file",
+          toolName: "本地文件操作器",
+          rawBlock: "",
+          args: {
+            path: "C:/Safe/file.txt",
+          },
+        },
+      ];
+
+      const results = await executeToolRequests(requests, {
+        config: defaultToolConfig,
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0].status).toBe("success");
+      expect(JSON.parse(results[0].result).data.content).toBe("safe content");
+    });
+
+    it("黑名单模式 + 路径匹配死区 → executor 拦截并返回 denied", async () => {
+      await actions.setConfig({
+        sandboxMode: "blacklist",
+        blackListRules: [{ id: "1", path: "C:/Secret", type: "block" }],
+      });
+
+      const requests: ParsedToolRequest[] = [
+        {
+          requestId: "req-block-2",
+          toolId: "aio-file-operator",
+          methodName: "read_file",
+          toolName: "本地文件操作器",
+          rawBlock: "",
+          args: {
+            path: "C:/Secret/data.txt",
+          },
+        },
+      ];
+
+      const results = await executeToolRequests(requests, {
+        config: defaultToolConfig,
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0].status).toBe("denied");
+      expect(results[0].result).toContain("死区");
+    });
+
+    it("黑名单模式 + 路径匹配审批区 → executor 触发审批流程 (拒绝时返回 denied)", async () => {
+      await actions.setConfig({
+        sandboxMode: "blacklist",
+        blackListRules: [{ id: "1", path: "C:/Risky", type: "approve" }],
+      });
+
+      const requests: ParsedToolRequest[] = [
+        {
+          requestId: "req-approve-1",
+          toolId: "aio-file-operator",
+          methodName: "read_file",
+          toolName: "本地文件操作器",
+          rawBlock: "",
+          args: {
+            path: "C:/Risky/data.txt",
+          },
+        },
+      ];
+
+      const results = await executeToolRequests(requests, {
+        config: {
+          ...defaultToolConfig,
+          mode: "manual", // 强制手动审批模式
+        },
+        onBeforeExecute: async () => "rejected" as const, // 模拟用户拒绝
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0].status).toBe("denied");
+      expect(results[0].result).toContain("被拒绝：用户未授权");
     });
   });
 });

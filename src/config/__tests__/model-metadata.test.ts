@@ -100,6 +100,22 @@ describe("model-metadata presets", () => {
         vision: true,
       },
     });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "agnes-image-2.1-flash")
+    ).toMatchObject({
+      capabilities: {
+        imageGeneration: true,
+        iterativeRefinement: true,
+      },
+      mediaGenParams: {
+        size: {
+          default: "1024x1024",
+        },
+        style: { supported: false },
+        quality: { supported: false },
+      },
+    });
   });
 
   it("applies Gemma 4 family metadata across common model id forms", () => {

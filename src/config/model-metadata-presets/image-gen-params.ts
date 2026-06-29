@@ -209,6 +209,50 @@ export const imageGenParamsRules: ModelMetadataRule[] = [
       "GPT Image 2 生成参数规则（background 仅支持 opaque/auto，不含 transparent）",
   },
 
+  // === Agnes Image ===
+  {
+    id: "media-params-agnes-image",
+    matchType: "modelPrefix",
+    matchValue: "agnes-image-",
+    properties: {
+      capabilities: {
+        imageGeneration: true,
+        iterativeRefinement: true,
+      },
+      mediaGenParams: {
+        size: {
+          mode: "preset",
+          presets: [{ label: "1:1 (1024×1024)", value: "1024x1024" }],
+          default: "1024x1024",
+        },
+        quality: { supported: false },
+        style: { supported: false },
+        negativePrompt: { supported: false },
+        seed: { supported: false },
+        steps: { supported: false },
+        guidanceScale: { supported: false },
+        background: { supported: false },
+        inputFidelity: { supported: false },
+        moderation: { supported: false },
+        outputFormat: {
+          supported: true,
+          options: [
+            { label: "URL", value: "url" },
+            { label: "Base64", value: "b64_json" },
+          ],
+          default: "url",
+        },
+        outputCompression: { supported: false },
+        batchSize: { supported: false },
+        partialImages: { supported: false },
+      },
+    },
+    priority: 26,
+    enabled: true,
+    description:
+      "Agnes Image 系列参数规则（OpenAI 兼容 Images API，不支持 style/quality 等 DALL-E 参数）",
+  },
+
   // === Microsoft MAI Image 2 / 2e ===
   {
     id: "media-params-mai-image",

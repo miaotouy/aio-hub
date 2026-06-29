@@ -20,19 +20,25 @@ export async function callOpenAiImageApi(
     prompt,
     n = 1,
     size = "1024x1024",
-    quality = "standard",
+    quality,
     style,
-    responseFormat = "url",
+    responseFormat,
     timeout,
     signal,
   } = options;
 
   const ext = options as any;
+  const resolvedResponseFormat = resolveImageResponseFormat(
+    responseFormat,
+    ext.outputFormat,
+    ext.output_format
+  );
   const baseUrl = profile.baseUrl || "https://api.openai.com/v1";
   // 根据 2026.04 文档，如果有参考图（inputAttachments）也要走 edits 端点
   const hasReferences =
     options.inputAttachments && options.inputAttachments.length > 0;
-  const isEditMode = options.mask || hasReferences;
+  const isAgnesImage = isAgnesImageModel(modelId);
+  const isEditMode = !isAgnesImage && (options.mask || hasReferences);
   const endpoint = isEditMode ? "images/edits" : "images/generations";
   const url = openAiUrlHandler.buildUrl(baseUrl, endpoint, profile);
 
@@ -49,7 +55,7 @@ export async function callOpenAiImageApi(
     formData.append("prompt", prompt || "");
     formData.append("n", n.toString());
     formData.append("size", size);
-    formData.append("quality", quality);
+    if (quality) formData.append("quality", quality);
     if (ext.moderation) formData.append("moderation", ext.moderation);
     if (ext.background) formData.append("background", ext.background);
     if (ext.partialImages !== undefined)
@@ -82,31 +88,36 @@ export async function callOpenAiImageApi(
     delete (finalHeaders as any)["Content-Type"];
   } else {
     // 构建原始 body 对象
-    const rawBody = {
-      model: modelId,
-      prompt: prompt || "",
-      negative_prompt: options.negativePrompt,
-      n,
-      size,
-      quality,
-      style,
-      // 兼容性修复：如果 responseFormat 是默认的 'url'，则不发送该参数。
-      // 某些不完全兼容的代理商（如 CPA）会因为收到未知参数 'response_format' 而报错 400。
-      output_format: responseFormat === "url" ? undefined : responseFormat,
-      seed: options.seed,
-      guidance_scale: options.guidanceScale,
-      num_inference_steps: options.numInferenceSteps,
-      user: options.user,
-      // 新增特性支持
-      background: ext.background,
-      input_fidelity: ext.inputFidelity,
-      partial_images: ext.partialImages,
-      output_compression: ext.outputCompression,
-      moderation: ext.moderation,
-      // xAI 参数
-      aspect_ratio: ext.aspect_ratio,
-      resolution: ext.resolution,
-    };
+    const rawBody = isAgnesImage
+      ? await buildAgnesImageBody(options, resolvedResponseFormat)
+      : {
+          model: modelId,
+          prompt: prompt || "",
+          negative_prompt: options.negativePrompt,
+          n,
+          size,
+          quality,
+          style,
+          // 兼容性修复：如果 responseFormat 是默认的 'url'，则不发送该参数。
+          // 某些不完全兼容的代理商（如 CPA）会因为收到未知参数 'response_format' 而报错 400。
+          output_format:
+            resolvedResponseFormat === "url"
+              ? undefined
+              : resolvedResponseFormat,
+          seed: options.seed,
+          guidance_scale: options.guidanceScale,
+          num_inference_steps: options.numInferenceSteps,
+          user: options.user,
+          // 新增特性支持
+          background: ext.background,
+          input_fidelity: ext.inputFidelity,
+          partial_images: ext.partialImages,
+          output_compression: ext.outputCompression,
+          moderation: ext.moderation,
+          // xAI 参数
+          aspect_ratio: ext.aspect_ratio,
+          resolution: ext.resolution,
+        };
 
     // 移除所有 undefined/null 值，避免发送 "null" 字符串
     const cleanBody = Object.fromEntries(
@@ -152,6 +163,80 @@ export async function callOpenAiImageApi(
     timings: data.timings,
     systemFingerprint: data.system_fingerprint,
   };
+}
+
+function isAgnesImageModel(modelId: string): boolean {
+  return modelId.toLowerCase().includes("agnes-image-");
+}
+
+function resolveImageResponseFormat(...candidates: unknown[]): string {
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+  return "url";
+}
+
+async function buildAgnesImageBody(
+  options: MediaGenerationOptions,
+  responseFormat: string
+): Promise<Record<string, any>> {
+  const references = (
+    await Promise.all(
+      (options.inputAttachments || []).map((attachment) =>
+        attachmentToImageReference(attachment)
+      )
+    )
+  ).filter(Boolean);
+
+  const agnesResponseFormat =
+    responseFormat === "b64_json" ? "b64_json" : "url";
+  const extraBody: Record<string, any> = {};
+
+  if (references.length > 0) {
+    extraBody.image = references;
+    extraBody.response_format = agnesResponseFormat;
+  }
+
+  return {
+    model: options.modelId,
+    prompt: options.prompt || "",
+    size: options.size || "1024x1024",
+    return_base64:
+      references.length === 0 && agnesResponseFormat === "b64_json"
+        ? true
+        : undefined,
+    extra_body: Object.keys(extraBody).length > 0 ? extraBody : undefined,
+  };
+}
+
+async function attachmentToImageReference(
+  attachment: any
+): Promise<string | null> {
+  if (!attachment) return null;
+  if (typeof attachment === "string") return attachment;
+  if (
+    attachment.type &&
+    attachment.type !== "image" &&
+    attachment.type !== "mask"
+  ) {
+    return null;
+  }
+  if (attachment.b64) return String(attachment.b64);
+  if (attachment.url) return String(attachment.url);
+  if (attachment instanceof Blob) return blobToDataUrl(attachment);
+  return null;
+}
+
+async function blobToDataUrl(blob: Blob): Promise<string> {
+  const buffer = await blob.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return `data:${blob.type || "image/png"};base64,${btoa(binary)}`;
 }
 
 /**

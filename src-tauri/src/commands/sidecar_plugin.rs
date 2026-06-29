@@ -106,6 +106,13 @@ pub async fn execute_sidecar(
         executable_full_path.display()
     );
 
+    let plugin_data_dir = crate::utils::ensure_plugin_data_dir(app.config(), &request.plugin_id)?;
+    log::info!(
+        "[SIDECAR] 注入 {}: {}",
+        crate::utils::AIOHUB_PLUGIN_DATA_DIR_ENV,
+        plugin_data_dir.display()
+    );
+
     // 启动子进程
     let mut child = Command::new(&executable_full_path)
         .args(&request.args)
@@ -113,6 +120,7 @@ pub async fn execute_sidecar(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .current_dir(&plugin_dir)
+        .env(crate::utils::AIOHUB_PLUGIN_DATA_DIR_ENV, &plugin_data_dir)
         .spawn()
         .map_err(|e| format!("启动进程失败: {}", e))?;
 

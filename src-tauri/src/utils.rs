@@ -4,6 +4,8 @@ use tauri::Manager;
 
 pub mod mime;
 
+pub(crate) const AIOHUB_PLUGIN_DATA_DIR_ENV: &str = "AIOHUB_PLUGIN_DATA_DIR";
+
 /// 获取应用数据目录，支持便携模式
 pub fn get_app_data_dir(config: &tauri::Config) -> PathBuf {
     // 优先检查显式设置的数据目录
@@ -34,6 +36,26 @@ pub fn get_app_data_dir(config: &tauri::Config) -> PathBuf {
     data_dir()
         .map(|p| p.join(&config.identifier))
         .expect("Failed to get app data dir")
+}
+
+/// 确保插件专属持久化数据目录存在。
+pub(crate) fn ensure_plugin_data_dir(
+    config: &tauri::Config,
+    plugin_id: &str,
+) -> Result<PathBuf, String> {
+    let plugin_data_dir = get_app_data_dir(config)
+        .join("plugins-data")
+        .join(plugin_id);
+
+    std::fs::create_dir_all(&plugin_data_dir).map_err(|e| {
+        format!(
+            "创建插件数据目录失败: {} ({})",
+            plugin_data_dir.display(),
+            e
+        )
+    })?;
+
+    Ok(plugin_data_dir)
 }
 
 // 打印当前窗口列表

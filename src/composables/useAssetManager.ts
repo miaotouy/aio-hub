@@ -2,6 +2,10 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
 import { ref, computed, getCurrentInstance, onUnmounted } from "vue";
 import { createModuleLogger } from "@/utils/logger";
+import {
+  sampleAudioWaveform,
+  needsWaveformSampling,
+} from "@/utils/audioSampler";
 import type {
   Asset,
   AssetImportOptions,
@@ -20,6 +24,7 @@ import { customMessage } from "@/utils/customMessage";
 
 // 缓存资产根目录，避免重复 IPC 调用
 let _cachedBasePath: string | null = null;
+const _audioWaveformTasks = new Map<string, Promise<Asset>>();
 
 // 动态注册的附属操作
 const _registeredSidecarActions = ref<AssetSidecarAction[]>([]);
@@ -303,6 +308,85 @@ export const assetManagerEngine = {
       assetId,
       base64Data,
     });
+  },
+
+  /**
+   * 更新音频资产的波形采样数据
+   * @param assetId 资产 ID
+   * @param waveform 0-255 的波形采样数组
+   */
+  updateAudioWaveform: async (
+    assetId: string,
+    waveform: number[]
+  ): Promise<Asset> => {
+    return await invoke<Asset>("update_audio_waveform", {
+      assetId,
+      waveform,
+    });
+  },
+
+  /**
+   * 确保音频资产有波形采样数据
+   * 如果资产是音频且没有波形数据，则自动在后台采样并保存
+   * @param asset 资产对象
+   * @returns 更新后的资产对象（如果发生了采样），或原资产
+   */
+  ensureAudioWaveform: async (asset: Asset): Promise<Asset> => {
+    if (!needsWaveformSampling(asset)) return asset;
+
+    const pendingTask = _audioWaveformTasks.get(asset.id);
+    if (pendingTask) return pendingTask;
+
+    const task = (async () => {
+      try {
+        logger.debug("开始为音频资产生成波形采样", {
+          assetId: asset.id,
+          name: asset.name,
+        });
+
+        // 获取资产 URL
+        const url = await assetManagerEngine.getAssetUrl(asset);
+        if (!url) {
+          logger.warn("无法获取音频资产 URL", { assetId: asset.id });
+          return asset;
+        }
+
+        // 采样
+        const waveform = await sampleAudioWaveform(url);
+        if (waveform.length === 0) {
+          logger.warn("波形采样结果为空", { assetId: asset.id });
+          return asset;
+        }
+
+        // 保存到后端
+        const updatedAsset = await assetManagerEngine.updateAudioWaveform(
+          asset.id,
+          waveform
+        );
+
+        logger.debug("音频波形采样已保存", {
+          assetId: asset.id,
+          points: waveform.length,
+        });
+
+        return updatedAsset;
+      } catch (error) {
+        logger.error("音频波形采样失败", error as Error, {
+          assetId: asset.id,
+        });
+        return asset;
+      }
+    })();
+
+    _audioWaveformTasks.set(asset.id, task);
+
+    try {
+      return await task;
+    } finally {
+      if (_audioWaveformTasks.get(asset.id) === task) {
+        _audioWaveformTasks.delete(asset.id);
+      }
+    }
   },
 
   /**
@@ -896,6 +980,8 @@ export function useAssetManager() {
     rebuildHashIndex,
     rebuildCatalogIndex,
     saveAssetThumbnail: assetManagerEngine.saveAssetThumbnail,
+    updateAudioWaveform: assetManagerEngine.updateAudioWaveform,
+    ensureAudioWaveform: assetManagerEngine.ensureAudioWaveform,
     getSidecarActions: assetManagerEngine.getSidecarActions,
     registerSidecarAction: assetManagerEngine.registerSidecarAction,
   };

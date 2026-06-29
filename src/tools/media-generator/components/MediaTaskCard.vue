@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { format } from "date-fns";
 import {
   Film,
@@ -21,6 +21,7 @@ import {
 import type { MediaTask } from "../types";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
+import AudioWaveform from "@/components/common/AudioWaveform.vue";
 
 const props = defineProps<{
   task: MediaTask;
@@ -36,8 +37,12 @@ const emit = defineEmits<{
   (e: "open", task: MediaTask): void;
 }>();
 
-const { getAssetUrl, getAssetBasePath, convertToAssetProtocol } =
-  useAssetManager();
+const {
+  getAssetUrl,
+  getAssetBasePath,
+  convertToAssetProtocol,
+  ensureAudioWaveform,
+} = useAssetManager();
 const imageViewer = useImageViewer();
 
 // 结果多图支持
@@ -48,12 +53,15 @@ const referenceAssetUrls = ref<string[]>([]);
 const hasReferenceImages = computed(() => referenceAssetUrls.value.length > 0);
 const hasMultipleResults = computed(() => resultAssetUrls.value.length > 1);
 
-const loadResultUrls = async () => {
-  const assets = props.task.resultAssets?.length
+const getResultAssets = () =>
+  props.task.resultAssets?.length
     ? props.task.resultAssets
     : props.task.resultAsset
       ? [props.task.resultAsset]
       : [];
+
+const loadResultUrls = async () => {
+  const assets = getResultAssets();
   if (assets.length === 0) {
     resultAssetUrls.value = [];
     return;
@@ -103,18 +111,65 @@ const nextResult = () => {
     activeResultIndex.value++;
 };
 
+/** 音频波形数据（从 resultAsset 的 metadata 中提取） */
+const audioWaveform = ref<number[]>([]);
+const samplingAssetIds = new Set<string>();
+let isUnmounted = false;
+
+/** 加载音频波形数据 */
+const loadAudioWaveform = async () => {
+  const assets = getResultAssets();
+  const asset = assets[activeResultIndex.value] || assets[0];
+  if (!asset || asset.type !== "audio") {
+    audioWaveform.value = [];
+    return;
+  }
+
+  // 如果有波形数据，直接使用
+  if (asset.metadata?.audioWaveform?.length) {
+    audioWaveform.value = asset.metadata.audioWaveform;
+    return;
+  }
+
+  // 没有波形数据，尝试在后台采样
+  if (samplingAssetIds.has(asset.id)) return;
+  samplingAssetIds.add(asset.id);
+  try {
+    const updatedAsset = await ensureAudioWaveform(asset);
+    if (isUnmounted) return;
+
+    const currentAssets = getResultAssets();
+    const currentAsset =
+      currentAssets[activeResultIndex.value] || currentAssets[0];
+    if (
+      currentAsset?.id === asset.id &&
+      updatedAsset.metadata?.audioWaveform?.length
+    ) {
+      audioWaveform.value = updatedAsset.metadata.audioWaveform;
+    }
+  } finally {
+    samplingAssetIds.delete(asset.id);
+  }
+};
+
 onMounted(() => {
   loadResultUrls();
   loadReferenceUrls();
+  loadAudioWaveform();
 });
 
 watch(
-  () => props.task.resultAssets,
+  () => [props.task.resultAsset, props.task.resultAssets],
   () => {
     loadResultUrls();
+    loadAudioWaveform();
   },
   { deep: true }
 );
+
+watch(activeResultIndex, () => {
+  loadAudioWaveform();
+});
 
 watch(
   () => props.task.input.referenceAssetIds,
@@ -123,6 +178,11 @@ watch(
   },
   { deep: true }
 );
+
+onUnmounted(() => {
+  isUnmounted = true;
+  samplingAssetIds.clear();
+});
 
 const getTaskIcon = (type: string) => {
   switch (type) {
@@ -253,11 +313,20 @@ const getTaskResolution = (task: MediaTask) => {
                 <el-icon><Film /></el-icon>
                 <span>点击查看视频</span>
               </div>
-              <div v-else class="audio-placeholder">
-                <el-icon><component :is="getTaskIcon(task.type)" /></el-icon>
-                <span>{{
-                  task.type === "speech" ? "点击播放语音" : "点击播放音乐"
-                }}</span>
+              <div v-else class="audio-preview">
+                <AudioWaveform
+                  :waveform="audioWaveform"
+                  :height="80"
+                  :bar-width="4"
+                  :bar-gap="2"
+                  color="var(--el-color-primary)"
+                />
+                <div class="audio-overlay">
+                  <el-icon><ExternalLink /></el-icon>
+                  <span>{{
+                    task.type === "speech" ? "点击播放语音" : "点击播放音乐"
+                  }}</span>
+                </div>
               </div>
               <div class="overlay">
                 <el-icon><ExternalLink /></el-icon>
@@ -617,8 +686,7 @@ const getTaskResolution = (task: MediaTask) => {
   object-fit: cover;
 }
 
-.video-placeholder,
-.audio-placeholder {
+.video-placeholder {
   width: 100%;
   height: 100%;
   display: flex;
@@ -628,6 +696,38 @@ const getTaskResolution = (task: MediaTask) => {
   gap: 8px;
   color: var(--el-text-color-secondary);
   font-size: 12px;
+}
+
+.audio-preview {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.audio-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  transition: opacity 0.2s;
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.audio-preview:hover .audio-overlay {
+  opacity: 1;
 }
 
 .media-preview .overlay {

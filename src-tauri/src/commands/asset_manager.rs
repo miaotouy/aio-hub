@@ -287,6 +287,8 @@ pub struct AssetMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio_waveform: Option<Vec<u8>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sha256: Option<String>,
     /// 入库前原始文件的 SHA-256。用于记录转换类资产（如 DOC -> DOCX）的源文件哈希，
     /// 让后续导入可以在转换前完成去重。
@@ -766,6 +768,7 @@ pub async fn import_asset_from_path(
         width: None,
         height: None,
         duration: None,
+        audio_waveform: None,
         sha256: file_hash.clone(),
         original_sha256: if prepared_source.cleanup_dir.is_some() {
             pre_conversion_hash.clone()
@@ -928,6 +931,7 @@ pub async fn import_asset_from_bytes(
         width: None,
         height: None,
         duration: None,
+        audio_waveform: None,
         sha256: file_hash.clone(),
         original_sha256: None,
         derived: None,
@@ -1415,6 +1419,7 @@ fn build_asset_from_path(file_path: &Path, base_dir: &Path) -> Result<Asset, Str
         width: None,
         height: None,
         duration: None,
+        audio_waveform: None,
         sha256: file_hash,
         original_sha256: None,
         derived: None,
@@ -1868,6 +1873,14 @@ pub(crate) struct CatalogEntry {
     original_sha256: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     derived: Option<HashMap<String, DerivedDataInfo>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    audio_waveform: Option<Vec<u8>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    width: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    height: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    duration: Option<f64>,
 
     // 旧版本字段，仅用于向后兼容
     #[serde(skip_serializing)]
@@ -1931,6 +1944,13 @@ fn convert_asset_to_catalog_entry(asset: &Asset) -> CatalogEntry {
             .as_ref()
             .and_then(|m| m.original_sha256.clone()),
         derived: asset.metadata.as_ref().and_then(|m| m.derived.clone()),
+        audio_waveform: asset
+            .metadata
+            .as_ref()
+            .and_then(|m| m.audio_waveform.clone()),
+        width: asset.metadata.as_ref().and_then(|m| m.width),
+        height: asset.metadata.as_ref().and_then(|m| m.height),
+        duration: asset.metadata.as_ref().and_then(|m| m.duration),
         // 旧字段设为 None，仅用于反序列化兼容
         source_module: None,
         origin_type: None,
@@ -1964,9 +1984,10 @@ fn convert_entry_to_asset(entry: CatalogEntry, base_dir: &Path) -> Asset {
         source_module, // For backward compatibility, use the first one
         origins: entry.origins,
         metadata: Some(AssetMetadata {
-            width: None,
-            height: None,
-            duration: None,
+            width: entry.width,
+            height: entry.height,
+            duration: entry.duration,
+            audio_waveform: entry.audio_waveform.clone(),
             sha256: entry.sha256,
             original_sha256: entry.original_sha256,
             derived: entry.derived,
@@ -2194,6 +2215,10 @@ pub async fn rebuild_catalog_index(
                     asset.source_module = first_origin.source_module.clone();
                 }
                 if let Some(metadata) = asset.metadata.as_mut() {
+                    metadata.width = old_entry.width;
+                    metadata.height = old_entry.height;
+                    metadata.duration = old_entry.duration;
+                    metadata.audio_waveform = old_entry.audio_waveform.clone();
                     metadata.original_sha256 = old_entry.original_sha256.clone();
                     metadata.derived = old_entry.derived.clone();
                 }
@@ -2534,4 +2559,44 @@ pub async fn get_asset_by_id(
         Some(entry) => Ok(Some(convert_entry_to_asset(entry.clone(), &base_dir))),
         None => Ok(None),
     }
+}
+
+/// 更新音频资产的波形采样数据
+#[tauri::command]
+pub async fn update_audio_waveform(
+    app: AppHandle,
+    catalog: tauri::State<'_, AssetCatalog>,
+    asset_id: String,
+    waveform: Vec<u8>,
+) -> Result<Asset, String> {
+    let base_path = get_asset_base_path(app.clone())?;
+    let base_dir = PathBuf::from(&base_path);
+
+    let mut entries = catalog.entries.write().map_err(|e| e.to_string())?;
+    let entry = entries
+        .get_mut(&asset_id)
+        .ok_or_else(|| format!("找不到 ID 为 '{}' 的资产", asset_id))?;
+
+    if entry.asset_type != AssetType::Audio {
+        return Err(format!(
+            "资产 '{}' 不是音频类型，无法写入波形数据",
+            asset_id
+        ));
+    }
+    if waveform.is_empty() || waveform.len() > 1024 {
+        return Err("音频波形数据长度必须在 1 到 1024 之间".to_string());
+    }
+
+    entry.audio_waveform = Some(waveform);
+
+    let updated = convert_entry_to_asset(entry.clone(), &base_dir);
+    drop(entries);
+    catalog.mark_dirty(&app);
+
+    // 广播资产更新事件，让所有模块同步状态
+    if let Err(e) = app.emit("asset-updated", &updated) {
+        log::error!("发出 asset-updated 事件失败: {}", e);
+    }
+
+    Ok(updated)
 }

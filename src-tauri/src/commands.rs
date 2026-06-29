@@ -264,6 +264,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         remove_asset_derived_data,
         update_asset_derived_data,
         get_asset_by_id,
+        update_audio_waveform,
         // Agent 资产管理命令
         save_agent_asset,
         read_agent_asset_binary,

@@ -53,6 +53,8 @@ export interface AssetMetadata {
   height?: number;
   /** 音视频时长（秒） */
   duration?: number;
+  /** 音频波形采样数据 (0-255 的整数数组，长度通常为 100) */
+  audioWaveform?: number[];
   /** 文件 SHA-256 哈希值，用于去重 */
   sha256?: string;
   /** 转换前原始文件 SHA-256，用于 DOC 等转换类资产在转换前去重 */

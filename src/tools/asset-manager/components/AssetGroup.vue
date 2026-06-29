@@ -84,7 +84,7 @@ const loadAssetUrls = async () => {
     if (
       asset.type === "image" ||
       asset.type === "video" || // 视频总是生成 URL（用于前端生成缩略图）
-      (asset.type === "audio" && asset.thumbnailPath)
+      asset.type === "audio" // 音频总是生成 URL（用于前端波形采样和播放）
     ) {
       try {
         // 优先使用缩略图，如果没有缩略图（或者是图片/视频且没生成缩略图）则使用原路径

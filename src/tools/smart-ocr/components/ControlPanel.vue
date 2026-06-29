@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRouter } from "vue-router";
-import { customMessage } from "@/utils/customMessage";
-import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { Setting } from "@element-plus/icons-vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { useSettingsNavigator } from "@/composables/useSettingsNavigator";
@@ -18,9 +16,6 @@ import { useOcrProfiles } from "@/composables/useOcrProfiles";
 import { useOcrExtensions } from "../platform";
 import { getTesseractLanguageOptions } from "../config/language-packs";
 import { History } from "lucide-vue-next";
-
-// 创建模块错误处理器
-const errorHandler = createModuleErrorHandler("SmartOCR.ControlPanel");
 
 const router = useRouter();
 
@@ -39,7 +34,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   updateEngineConfig: [config: Partial<OcrEngineConfig>];
   updateSlicerConfig: [config: Partial<SlicerConfig>];
-  runFullOcrProcess: [options: { imageIds?: string[] }];
   "open-history": [];
 }>();
 
@@ -62,8 +56,6 @@ const builtInEngineOptions: Array<{
 ];
 
 // 从 props 获取响应式状态
-const uploadedImages = computed(() => props.uploadedImages);
-const isProcessing = computed(() => props.isProcessing);
 const engineConfig = computed(() => props.engineConfig);
 const slicerConfig = computed(() => props.slicerConfig);
 
@@ -333,12 +325,6 @@ const slicerCutLineOffset = computed({
   },
 });
 
-// 获取选中的图片
-const selectedImage = computed(() => {
-  if (!props.selectedImageId) return null;
-  return uploadedImages.value.find((img) => img.id === props.selectedImageId);
-});
-
 // 当前选中的模型组合值
 const selectedModelCombo = computed({
   get: () => {
@@ -359,53 +345,6 @@ const selectedModelCombo = computed({
 });
 
 // 开始识别当前图片
-const handleStartOcr = async () => {
-  if (!selectedImage.value) {
-    customMessage.warning("请先上传并选择图片");
-    return;
-  }
-
-  try {
-    emit("runFullOcrProcess", { imageIds: [selectedImage.value.id] });
-    // 父组件会处理消息
-    // customMessage.success("识别完成");
-  } catch (error) {
-    errorHandler.error(error as Error, "单张图片OCR识别失败", {
-      context: {
-        imageId: selectedImage.value?.id,
-        imageName: selectedImage.value?.name,
-        engineType: engineConfig.value.type,
-      },
-    });
-  }
-};
-
-// 批量识别所有图片
-const handleBatchOcr = async () => {
-  if (uploadedImages.value.length === 0) {
-    customMessage.warning("请先上传图片");
-    return;
-  }
-
-  customMessage.info(`准备批量识别 ${uploadedImages.value.length} 张图片`);
-
-  try {
-    // 一次性处理所有图片，避免结果被覆盖
-    emit("runFullOcrProcess", {
-      imageIds: uploadedImages.value.map((img) => img.id),
-    });
-    // 父组件会处理消息
-    // customMessage.success("批量识别完成");
-  } catch (error) {
-    errorHandler.error(error as Error, "批量OCR识别失败", {
-      context: {
-        totalImages: uploadedImages.value.length,
-        engineType: engineConfig.value.type,
-      },
-    });
-  }
-};
-
 // 根据引擎类型跳转到对应设置
 const handleNavigateToSettings = () => {
   const type = engineConfig.value.type;
@@ -924,57 +863,6 @@ const handleNavigateToSettings = () => {
             </el-form-item>
           </template>
         </el-form>
-      </div>
-    </div>
-
-    <!-- 操作按钮 - 固定在底部 -->
-    <div class="panel-footer">
-      <div
-        class="button-group"
-        :class="{ 'has-batch': uploadedImages.length > 1 }"
-      >
-        <el-tooltip
-          :content="
-            !selectedImage
-              ? '请先上传并选择一张图片'
-              : isProcessing
-                ? '正在处理中，请稍候...'
-                : '开始识别当前选中的图片'
-          "
-          :disabled="!!selectedImage && !isProcessing"
-        >
-          <el-button
-            type="primary"
-            size="large"
-            :disabled="!selectedImage || isProcessing"
-            :loading="isProcessing"
-            @click="handleStartOcr"
-          >
-            {{ isProcessing ? "识别中..." : "识别当前图片" }}
-          </el-button>
-        </el-tooltip>
-
-        <el-tooltip
-          v-if="uploadedImages.length > 1"
-          :content="
-            uploadedImages.length === 0
-              ? '请先上传图片'
-              : isProcessing
-                ? '正在处理中，请稍候...'
-                : `批量识别全部 ${uploadedImages.length} 张图片`
-          "
-          :disabled="uploadedImages.length > 0 && !isProcessing"
-        >
-          <el-button
-            type="success"
-            size="large"
-            :disabled="uploadedImages.length === 0 || isProcessing"
-            :loading="isProcessing"
-            @click="handleBatchOcr"
-          >
-            批量识别全部
-          </el-button>
-        </el-tooltip>
       </div>
     </div>
   </div>

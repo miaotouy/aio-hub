@@ -406,12 +406,14 @@ const handleReRecognize = async (recordId: string) => {
           :selected-image-id="selectedImageId"
           :cut-lines-map="cutLinesMap"
           :image-blocks-map="imageBlocksMap"
+          :is-processing="isProcessing"
           @images-upload="handleImagesUpload"
           @image-remove="handleImageRemove"
           @image-select="handleImageSelect"
           @slice-image="handleSliceImage"
           @slice-all-images="handleSliceAllImages"
           @clear-all-images="handleClearAllImages"
+          @run-full-ocr-process="runFullOcrProcess"
         />
 
         <!-- 右侧面板折叠时的展开按钮 -->

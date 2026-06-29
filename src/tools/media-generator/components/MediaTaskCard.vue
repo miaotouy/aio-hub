@@ -171,6 +171,10 @@ const getStatusLabel = (status: string) => {
 };
 
 const getTaskResolution = (task: MediaTask) => {
+  // 音频类型不显示分辨率（audio 已在 normalizeMediaTaskType 中归一化为 speech）
+  if (task.type === "speech" || task.type === "music") {
+    return "";
+  }
   const asset = task.resultAssets?.[0] || task.resultAsset;
   if (asset?.metadata?.width && asset?.metadata?.height) {
     return `${asset.metadata.width}x${asset.metadata.height}`;

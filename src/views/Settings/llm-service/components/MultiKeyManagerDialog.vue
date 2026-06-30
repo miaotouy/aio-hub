@@ -305,13 +305,15 @@ const maskKey = (key: string) => {
       <!-- 顶部统计卡片 -->
       <div class="stats-cards">
         <div class="stats-card enabled">
-          <div class="card-header">
-            <el-icon><CircleCheck /></el-icon>
-            <span>健康可用</span>
-          </div>
-          <div class="card-value">
-            <span class="current">{{ stats.enabled }}</span>
-            <span class="total">/ {{ stats.total }}</span>
+          <div class="card-body">
+            <div class="card-header">
+              <el-icon><CircleCheck /></el-icon>
+              <span>健康可用</span>
+            </div>
+            <div class="card-value">
+              <span class="current">{{ stats.enabled }}</span>
+              <span class="total">/ {{ stats.total }}</span>
+            </div>
           </div>
           <el-progress
             :percentage="stats.enabledPercent"
@@ -321,13 +323,15 @@ const maskKey = (key: string) => {
         </div>
 
         <div class="stats-card manually-disabled">
-          <div class="card-header">
-            <el-icon><VideoPause /></el-icon>
-            <span>手动禁用</span>
-          </div>
-          <div class="card-value">
-            <span class="current">{{ stats.manuallyDisabled }}</span>
-            <span class="total">/ {{ stats.total }}</span>
+          <div class="card-body">
+            <div class="card-header">
+              <el-icon><VideoPause /></el-icon>
+              <span>手动禁用</span>
+            </div>
+            <div class="card-value">
+              <span class="current">{{ stats.manuallyDisabled }}</span>
+              <span class="total">/ {{ stats.total }}</span>
+            </div>
           </div>
           <el-progress
             :percentage="stats.manualPercent"
@@ -337,13 +341,15 @@ const maskKey = (key: string) => {
         </div>
 
         <div class="stats-card automatically-disabled">
-          <div class="card-header">
-            <el-icon><Warning /></el-icon>
-            <span>熔断禁用</span>
-          </div>
-          <div class="card-value">
-            <span class="current">{{ stats.automaticallyDisabled }}</span>
-            <span class="total">/ {{ stats.total }}</span>
+          <div class="card-body">
+            <div class="card-header">
+              <el-icon><Warning /></el-icon>
+              <span>熔断禁用</span>
+            </div>
+            <div class="card-value">
+              <span class="current">{{ stats.automaticallyDisabled }}</span>
+              <span class="total">/ {{ stats.total }}</span>
+            </div>
           </div>
           <el-progress
             :percentage="stats.autoPercent"
@@ -686,8 +692,8 @@ const maskKey = (key: string) => {
 .stats-cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
 @media (max-width: 850px) {
@@ -705,32 +711,39 @@ const maskKey = (key: string) => {
 .stats-card {
   background: var(--card-bg);
   border: var(--border-width) solid var(--border-color);
-  border-radius: 12px;
-  padding: 16px;
+  border-radius: 10px;
+  padding: 12px 16px;
   backdrop-filter: blur(var(--ui-blur));
   transition: all 0.3s ease;
 }
 
 .stats-card:hover {
   border-color: var(--el-color-primary-light-5);
-  transform: translateY(-2px);
+  transform: translateY(-1px);
+}
+
+.stats-card .card-body {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
 }
 
 .stats-card .card-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
+  gap: 6px;
+  font-size: 13px;
   color: var(--text-color-secondary);
-  margin-bottom: 12px;
 }
 
 .stats-card .card-value {
-  margin-bottom: 12px;
+  display: flex;
+  align-items: baseline;
 }
 
 .stats-card .card-value .current {
-  font-size: 28px;
+  font-size: 20px;
   font-weight: bold;
   color: var(--text-color-primary);
 }
@@ -778,9 +791,9 @@ const maskKey = (key: string) => {
 }
 
 .stats-card .card-value .total {
-  font-size: 14px;
+  font-size: 12px;
   color: var(--text-color-secondary);
-  margin-left: 6px;
+  margin-left: 4px;
 }
 
 .toolbar {

@@ -245,18 +245,20 @@ export class SidecarPluginAdapter implements PluginProxy {
         const startupMethod = this.manifest.sidecar.startupMethod;
         const startupParams = this.manifest.sidecar.startupParams || {};
 
-        logger.info(`执行常驻插件启动方法: ${this.id}.${startupMethod}`);
+        logger.info(`执行常驻插件启动检查/初始化: ${this.id}.${startupMethod}`, {
+          startupParams,
+        });
 
         try {
           const startupResult = await this.executeSidecarResident(
             startupMethod,
             startupParams
           );
-          logger.info(`常驻插件初始化完成: ${this.id}`, {
+          logger.info(`常驻插件启动检查/初始化完成: ${this.id}`, {
             result: startupResult,
           });
         } catch (error) {
-          errorHandler.error(error, `常驻插件初始化失败: ${this.id}`, {
+          errorHandler.error(error, `常驻插件启动检查/初始化失败: ${this.id}`, {
             context: { startupMethod },
           });
           throw error;

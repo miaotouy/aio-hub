@@ -72,6 +72,10 @@ pub use window_manager::*;
 pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
     builder.invoke_handler(tauri::generate_handler![
         greet,
+        crate::frontend_monitor::frontend_probe_ready,
+        crate::frontend_monitor::frontend_probe_heartbeat,
+        crate::frontend_monitor::frontend_probe_error,
+        crate::frontend_monitor::get_frontend_probe_status,
         open_url,
         get_local_ips,
         get_app_config_dir,

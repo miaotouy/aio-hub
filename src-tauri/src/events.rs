@@ -79,6 +79,7 @@ pub fn handle_window_event(window: &tauri::Window, event: &WindowEvent) {
 pub fn handle_global_window_event(window: &tauri::Window, event: &WindowEvent) {
     // 先处理文件拖放事件
     handle_window_event(window, event);
+    crate::frontend_monitor::record_window_event(window, event);
 
     // 处理窗口关闭事件（托盘功能和工具窗口）
     if let WindowEvent::CloseRequested { api, .. } = event {

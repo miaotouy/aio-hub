@@ -13,6 +13,7 @@ import "element-plus/dist/index.css";
 import "element-plus/theme-chalk/dark/css-vars.css";
 import router, { initDynamicRoutes } from "./router"; // 从 ./router/index.ts 导入
 import "./styles/index.css"; // 导入全局样式（已包含暗色模式样式）
+import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ElNotification } from "element-plus";
 import { extname } from "@tauri-apps/api/path"; // 导入 path 模块用于获取文件扩展名
@@ -42,6 +43,134 @@ if (typeof (window as any).Buffer === "undefined") {
 (window as any).AiohubUI = PluginUI;
 
 const logger = createModuleLogger("Main");
+
+const FRONTEND_PROBE_HEARTBEAT_MS = 5000;
+const FRONTEND_PROBE_TEXT_LIMIT = 4000;
+let frontendProbeSequence = 0;
+let frontendHeartbeatTimer: number | null = null;
+
+const truncateProbeText = (value: string, limit = FRONTEND_PROBE_TEXT_LIMIT) => {
+  if (value.length <= limit) return value;
+  return `${value.slice(0, limit)}... [truncated, chars=${value.length}]`;
+};
+
+const getCurrentRouteForProbe = () => {
+  try {
+    return router.currentRoute.value.fullPath;
+  } catch {
+    return undefined;
+  }
+};
+
+const buildFrontendProbeSnapshot = (phase: string) => ({
+  sequence: ++frontendProbeSequence,
+  phase,
+  timestamp: new Date().toISOString(),
+  performanceNow: performance.now(),
+  pathname: window.location.pathname,
+  href: window.location.href,
+  route: getCurrentRouteForProbe(),
+  visibilityState: document.visibilityState,
+  documentReadyState: document.readyState,
+  focused: document.hasFocus(),
+  online: navigator.onLine,
+  viewport: {
+    width: window.innerWidth,
+    height: window.innerHeight,
+    devicePixelRatio: window.devicePixelRatio,
+  },
+  userAgent: navigator.userAgent,
+});
+
+const sendFrontendProbe = (command: string, payload: unknown) => {
+  invoke(command, { payload }).catch((error) => {
+    if (import.meta.env.DEV) {
+      console.debug("[FrontendProbe] 发送探针失败", command, error);
+    }
+  });
+};
+
+const normalizeErrorForProbe = (error: unknown) => {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: truncateProbeText(error.message || String(error)),
+      stack: error.stack ? truncateProbeText(error.stack) : undefined,
+    };
+  }
+
+  if (typeof error === "string") {
+    return {
+      name: undefined,
+      message: truncateProbeText(error),
+      stack: undefined,
+    };
+  }
+
+  try {
+    return {
+      name:
+        error && typeof error === "object" && "name" in error
+          ? String((error as { name?: unknown }).name)
+          : undefined,
+      message: truncateProbeText(JSON.stringify(error)),
+      stack:
+        error && typeof error === "object" && "stack" in error
+          ? truncateProbeText(String((error as { stack?: unknown }).stack))
+          : undefined,
+    };
+  } catch {
+    return {
+      name: undefined,
+      message: truncateProbeText(String(error)),
+      stack: undefined,
+    };
+  }
+};
+
+const reportFrontendReady = (phase: string) => {
+  sendFrontendProbe(
+    "frontend_probe_ready",
+    buildFrontendProbeSnapshot(phase)
+  );
+};
+
+const reportFrontendHeartbeat = (phase = "heartbeat") => {
+  sendFrontendProbe(
+    "frontend_probe_heartbeat",
+    buildFrontendProbeSnapshot(phase)
+  );
+};
+
+const reportFrontendError = (
+  kind: string,
+  error: unknown,
+  context?: Record<string, unknown>
+) => {
+  sendFrontendProbe("frontend_probe_error", {
+    ...normalizeErrorForProbe(error),
+    kind,
+    context,
+    snapshot: buildFrontendProbeSnapshot(`error:${kind}`),
+  });
+};
+
+const startFrontendHeartbeat = () => {
+  if (frontendHeartbeatTimer !== null) return;
+
+  reportFrontendHeartbeat("heartbeat-start");
+  frontendHeartbeatTimer = window.setInterval(
+    () => reportFrontendHeartbeat(),
+    FRONTEND_PROBE_HEARTBEAT_MS
+  );
+
+  document.addEventListener("visibilitychange", () => {
+    reportFrontendHeartbeat("visibilitychange");
+  });
+  window.addEventListener("focus", () => reportFrontendHeartbeat("focus"));
+  window.addEventListener("online", () => reportFrontendHeartbeat("online"));
+  window.addEventListener("offline", () => reportFrontendHeartbeat("offline"));
+};
 
 // 检查是否为独立工具窗口（需要标题栏和标准布局）
 const isDetachedWindow = () => {
@@ -94,6 +223,11 @@ app.use(pinia); // 注册 Pinia（必须在所有依赖它的模块之前）
 
 // 全局错误处理
 app.config.errorHandler = (err, instance, info) => {
+  reportFrontendError("vue.error", err, {
+    component: instance?.$options?.name,
+    info,
+  });
+
   errorHandler.handle(err, {
     module: "Vue",
     level: ErrorLevel.ERROR,
@@ -127,6 +261,8 @@ window.addEventListener("unhandledrejection", (event) => {
     return;
   }
 
+  reportFrontendError("unhandledrejection", reason, { message });
+
   errorHandler.handle(reason, {
     module: "Promise",
     level: ErrorLevel.ERROR,
@@ -149,6 +285,11 @@ window.addEventListener("error", (event) => {
   }
 
   const errorToHandle = event.error || event.message || "Unknown Global Error";
+  reportFrontendError("window.error", errorToHandle, {
+    filename: event.filename,
+    line: event.lineno,
+    column: event.colno,
+  });
 
   errorHandler.handle(errorToHandle, {
     module: "Global",
@@ -177,6 +318,8 @@ const mountApp = async () => {
     // 3. 挂载 Vue 应用
     app.mount("#app");
     logger.info("应用挂载完成");
+    reportFrontendReady("vue-mounted");
+    startFrontendHeartbeat();
 
     // 4. 主窗口挂载后显示（避免窗口位置或白屏闪烁，窗口在 Rust 端以 visible(false) 创建）
     if (
@@ -193,6 +336,7 @@ const mountApp = async () => {
       await emit("frontend-ready");
     }
   } catch (error) {
+    reportFrontendError("mount.failed", error);
     errorHandler.handle(error, {
       module: "Main",
       level: ErrorLevel.CRITICAL,

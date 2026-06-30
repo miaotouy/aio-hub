@@ -1,6 +1,7 @@
 // 模块声明
 mod commands;
 mod events;
+mod frontend_monitor;
 mod knowledge;
 mod tray;
 mod utils;
@@ -245,7 +246,9 @@ pub fn run() {
         .manage(Arc::new(CancellationToken::new()))
         .manage(knowledge::KnowledgeState::new())
         .manage(commands::system_pulse::PulseState::default())
-        .manage(SidecarPluginManager::default());
+        .manage(SidecarPluginManager::default())
+        .manage(frontend_monitor::FrontendMonitorState::default())
+        .on_page_load(frontend_monitor::record_page_load);
 
     // 注册命令处理器
     let builder = commands::register_commands(builder);
@@ -350,6 +353,7 @@ pub fn run() {
             }
 
             let main_window = win_builder.build()?;
+            frontend_monitor::start_frontend_monitor(app.app_handle().clone());
 
             // 如果有保存的配置，用物理坐标精确设置位置（窗口仍隐藏，由前端 show）
             if let Some(ref config) = main_window_config {

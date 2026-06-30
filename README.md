@@ -104,6 +104,18 @@ AIO Hub 的聊天功能是一个专为复杂任务和深度探索而设计的、
 - **Native 插件 (Rust)**: 高性能后端扩展，通过 DLL 动态加载。
 - **Sidecar 插件**: 支持任意语言编写的独立进程插件。
 
+### 📦 插件精选
+
+| 插件                                                                             | 类型       | 描述                                                            |
+| :------------------------------------------------------------------------------- | :--------- | :-------------------------------------------------------------- |
+| [Paddle OCR](https://github.com/miaotouy/aiohub-paddle-ocr)                      | Sidecar    | 基于 PaddleOCR 的本地离线 OCR 引擎，支持 PP-OCRv5/v6 多语言模型 |
+| [文件哈希计算器](https://github.com/miaotouy/aiohub-plugin-example-file-hasher)  | Sidecar    | 计算文件 SHA-256 哈希值的示例 Sidecar 插件                      |
+| [Hello World Vue](https://github.com/miaotouy/aiohub-plugin-example-hello-world) | JavaScript | 使用 Vue SFC 开发的入门示例插件，享受 Vite HMR                  |
+| [原生示例](https://github.com/miaotouy/aiohub-plugin-example-native)             | Native     | 展示 Rust 原生插件能力的示例，含系统信息获取                    |
+| [文本处理器](https://github.com/miaotouy/aiohub-plugin-example-text-processor)   | JavaScript | 文本处理示例插件，演示前缀/后缀、大小写转换等配置化功能         |
+
+> 💡 更多插件开发详情请参阅 [`plugins/README.md`](plugins/README.md) 和 [插件开发指南](docs/guide/plugin-development-guide.md)。
+
 ---
 
 ## 🚀 效率与创作工具链
@@ -279,3 +291,4 @@ bun run tauri build
 - [**VCPToolBox**](https://github.com/lioensky/VCPToolBox) - **VCP (Variable & Command Protocol)** 核心协议与工具箱。AIO Hub 深度适配 VCP 协议，支持作为其分布式网络节点，并提供可视化的实时监控与工具调用联动。
 
 - [linux.do 社区](https://linux.do)
+

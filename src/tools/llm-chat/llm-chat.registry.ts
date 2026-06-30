@@ -203,7 +203,7 @@ class LlmChatRegistry implements ToolRegistry {
   /** 发送消息 */
   public async sendMessage(
     content: string,
-    options?: { parentId?: string }
+    options?: { parentId?: string; agentId?: string; sessionId?: string }
   ): Promise<void> {
     return llmChatService.sendMessage(content, options);
   }

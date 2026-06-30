@@ -1,13 +1,13 @@
 # 多会话架构现状调查与重构对齐报告
 
-> **状态**: Draft / 现状调查与重构规划
+> **状态**: Phase 1/2 已施工 / Phase 3/4 待施工
 > **作者**: 咕咕 (Gugu_Kilo)
 > **日期**: 2026-07-01
 > **针对文档**: [`multi-session-architecture.md`](src/tools/llm-chat/docs/Plan/multi-session-architecture.md)
 
 ---
 
-## 1. 现状大盘点：我们现在站在哪里？
+## 1. 施工前现状大盘点
 
 在动手重构之前，我对 [`llmChatStore.ts`](src/tools/llm-chat/stores/llmChatStore.ts)、[`useChatHandler.ts`](src/tools/llm-chat/composables/chat/useChatHandler.ts)、[`useChatExecutor.ts`](src/tools/llm-chat/composables/chat/useChatExecutor.ts) 和 [`useGraphActions.ts`](src/tools/llm-chat/composables/visualization/useGraphActions.ts) 进行了深入的源码级调查。
 
@@ -23,9 +23,9 @@
    - `findSessionIdByNodeId(nodeId)`：通过节点 ID 反查所属会话。
 4. **排队机制已会话隔离**：`queuedSessionIds` 记录了排队中的会话，`triggerQueuedGenerationForSession(sessionId)` 也是会话级触发的，避免了全局锁。
 
-### 1.2 隐式绑定与全局瓶颈（负债）
+### 1.2 施工前隐式绑定与全局瓶颈（负债）
 
-1. **`isSending` 依然是全局 Ref**：`isSending` 在 Store 中定义为 `ref(false)`。在 `sendMessage`、`continueGeneration`、`regenerateFromNode` 等主流程中，存在大量手动的 `isSending.value = true/false` 赋值。
+1. **`isSending` 曾是全局 Ref**：`isSending` 在 Store 中定义为 `ref(false)`。在 `sendMessage`、`continueGeneration`、`regenerateFromNode` 等主流程中，存在大量手动的 `isSending.value = true/false` 赋值。
 2. **`historyManager` 绑定当前会话**：Store 中只有一个全局的 `historyManager` 实例，它在初始化时绑定了 `currentSessionDetail` 的 computed ref。
 3. **`useGraphActions` 深度绑定当前会话和全局历史管理器**：
    - 初始化签名：`useGraphActions(currentSession, currentSessionId, historyManager, sessionIndexMap)`。
@@ -256,3 +256,27 @@
 | **撤销/重做** | 执行编辑、删除后进行撤销/重做      | 树结构正确恢复，活动路径正确跳转                 |
 
 ---
+
+## 5. 施工记录（2026-07-01）
+
+### 5.1 已完成范围
+
+1. **Phase 1: `isSending` 只读化**
+   - `llmChatStore.isSending` 已从全局可写 `ref(false)` 改为 `computed(() => generatingNodes.value.size > 0)`。
+   - 已清理 `sendMessage`、`continueGeneration`、`regenerateFromNode`、`triggerQueuedGenerationForSession`、`abortSending`、`abortNodeGeneration` 中的手动 `isSending.value = ...` 写入。
+   - `useLlmChatStateConsumer` 不再写入 `store.isSending`；分离窗口的发送态由同步后的 `generatingNodes` 推导。
+
+2. **Phase 2: 主发送链路 Agent / Session 解耦**
+   - `store.sendMessage(content, { sessionId, agentId })` 已支持向指定会话发送，并保持默认回退当前会话 / 当前 Agent 的兼容行为。
+   - `useChatHandler.sendMessage`、`regenerateFromNode`、`continueGeneration` 已支持显式 `agentId`。
+   - `useChatExecutor.executeRequest` 已支持显式 `agentId`，执行 Agent 与传入的 `agentConfig` 对齐。
+   - `llmChatService` 和 `llm-chat.registry` 的 `sendMessage` 类型已开放 `agentId` / `sessionId`。
+
+### 5.2 实际实现补充
+
+- 为排队生成新增了 `queuedSessionAgentIds`，用于保存同会话排队发送时显式传入的 Agent，避免后台会话排队后回落到 UI 当前 Agent。
+- 对非当前会话调用 `sendMessage` 时，不会清空当前输入框，也不会清理当前会话的历史管理器；Phase 3 前仍不对非当前会话提供独立撤销/重做管理器。
+
+### 5.3 已验证
+
+- 已运行 `bun run check:frontend`，通过 `vue-tsc --noEmit`。

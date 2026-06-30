@@ -70,6 +70,7 @@ export function useChatHandler() {
       parentId?: string;
       disableMacroParsing?: boolean;
       skipGeneration?: boolean;
+      agentId?: string;
     },
     currentSessionId?: string | null
   ): Promise<void> => {
@@ -91,13 +92,15 @@ export function useChatHandler() {
       // 压缩失败仅记录日志，不阻断发送流程
       logger.error("自动上下文压缩执行出错", error);
     }
-    // 获取当前智能体（在函数开头，以便后续宏处理使用）
-    const currentAgent = agentStore.currentAgentId
-      ? agentStore.getAgentById(agentStore.currentAgentId)
+    const effectiveAgentId = options?.agentId || agentStore.currentAgentId;
+
+    // 获取执行智能体（在函数开头，以便后续宏处理使用）
+    const currentAgent = effectiveAgentId
+      ? agentStore.getAgentById(effectiveAgentId)
       : null;
 
-    // 使用当前选中的智能体
-    if (!agentStore.currentAgentId) {
+    // 默认使用当前选中的智能体，也支持调用方显式指定后台 Agent
+    if (!effectiveAgentId) {
       errorHandler.handle(new Error("No agent selected"), {
         userMessage: "发送消息失败：没有选中智能体",
         showToUser: false,
@@ -105,7 +108,7 @@ export function useChatHandler() {
       throw new Error("请先选择一个智能体");
     }
 
-    const agentConfig = agentStore.getAgentConfig(agentStore.currentAgentId, {
+    const agentConfig = agentStore.getAgentConfig(effectiveAgentId, {
       parameterOverrides: session.parameterOverrides,
     });
     if (!agentConfig) {
@@ -216,7 +219,7 @@ export function useChatHandler() {
     // 4. 在助手节点中设置基本 metadata（包括 Agent 名称和图标的快照）
     if (session.nodes) {
       session.nodes[assistantNode.id].metadata = {
-        agentId: agentStore.currentAgentId,
+        agentId: effectiveAgentId,
         agentName: currentAgent?.name,
         agentDisplayName: currentAgent?.displayName || currentAgent?.name,
         agentIcon: currentAgent?.icon,
@@ -360,7 +363,7 @@ export function useChatHandler() {
 
     logger.debug("已设置助手节点元数据", {
       nodeId: assistantNode.id,
-      agentId: agentStore.currentAgentId,
+      agentId: effectiveAgentId,
       agentName: currentAgent?.name,
       modelId: agentConfig.modelId,
     });
@@ -374,6 +377,7 @@ export function useChatHandler() {
       abortControllers,
       generatingNodes,
       agentConfig,
+      agentId: effectiveAgentId,
     });
   };
 
@@ -387,7 +391,7 @@ export function useChatHandler() {
     _activePath: ChatMessageNode[],
     abortControllers: Map<string, AbortController>,
     generatingNodes: Set<string>,
-    options?: { modelId?: string; profileId?: string }
+    options?: { modelId?: string; profileId?: string; agentId?: string }
   ): Promise<void> => {
     const agentStore = useAgentStore();
     const nodeManager = useNodeManager();
@@ -402,8 +406,10 @@ export function useChatHandler() {
       return;
     }
 
-    // 使用当前选中的智能体
-    if (!agentStore.currentAgentId) {
+    const effectiveAgentId = options?.agentId || agentStore.currentAgentId;
+
+    // 默认使用当前选中的智能体，也支持调用方显式指定后台 Agent
+    if (!effectiveAgentId) {
       errorHandler.handle(new Error("No agent selected"), {
         userMessage: "重新生成失败：没有选中智能体",
         showToUser: false,
@@ -411,7 +417,7 @@ export function useChatHandler() {
       return;
     }
 
-    const agentConfig = agentStore.getAgentConfig(agentStore.currentAgentId, {
+    const agentConfig = agentStore.getAgentConfig(effectiveAgentId, {
       parameterOverrides: session.parameterOverrides,
     });
 
@@ -478,13 +484,13 @@ export function useChatHandler() {
     const { getProfileById } = useLlmProfiles();
     const profile = getProfileById(agentConfig.profileId);
     const model = profile?.models.find((m) => m.id === agentConfig.modelId);
-    const currentAgent = agentStore.getAgentById(agentStore.currentAgentId);
+    const currentAgent = agentStore.getAgentById(effectiveAgentId);
 
     // 在助手节点中设置基本 metadata（包括 Agent 名称和图标的快照）
     // 直接修改 session.nodes 中的节点，确保响应式更新
     if (session.nodes) {
       session.nodes[assistantNode.id].metadata = {
-        agentId: agentStore.currentAgentId,
+        agentId: effectiveAgentId,
         agentName: currentAgent?.name,
         agentDisplayName: currentAgent?.displayName || currentAgent?.name,
         agentIcon: currentAgent?.icon,
@@ -504,14 +510,14 @@ export function useChatHandler() {
       targetRole: targetNode.role,
       userNodeId: userNode.id,
       newNodeId: assistantNode.id,
-      agentId: agentStore.currentAgentId,
+      agentId: effectiveAgentId,
       profileId: agentConfig.profileId,
       modelId: agentConfig.modelId,
     });
 
     logger.debug("已设置助手节点元数据", {
       nodeId: assistantNode.id,
-      agentId: agentStore.currentAgentId,
+      agentId: effectiveAgentId,
       agentName: currentAgent?.name,
       modelId: agentConfig.modelId,
     });
@@ -525,6 +531,7 @@ export function useChatHandler() {
       abortControllers,
       generatingNodes,
       agentConfig, // 传递包含正确模型信息的 agentConfig
+      agentId: effectiveAgentId,
     });
   };
 
@@ -536,7 +543,7 @@ export function useChatHandler() {
     nodeId: string,
     abortControllers: Map<string, AbortController>,
     generatingNodes: Set<string>,
-    options?: { modelId?: string; profileId?: string }
+    options?: { modelId?: string; profileId?: string; agentId?: string }
   ): Promise<void> => {
     const agentStore = useAgentStore();
     const nodeManager = useNodeManager();
@@ -562,13 +569,24 @@ export function useChatHandler() {
         ? assistantNode.id
         : userNode?.id || nodeId
     );
+    const sourceNode = session.nodes ? session.nodes[nodeId] : undefined;
+    const effectiveAgentId =
+      options?.agentId ||
+      agentStore.currentAgentId ||
+      sourceNode?.metadata?.agentId;
+
+    if (!effectiveAgentId) {
+      errorHandler.handle(new Error("No agent selected"), {
+        userMessage: "续写失败：没有选中智能体",
+        showToUser: false,
+      });
+      return;
+    }
+
     // 4. 获取配置
-    const agentConfig = agentStore.getAgentConfig(
-      agentStore.currentAgentId || "",
-      {
-        parameterOverrides: session.parameterOverrides,
-      }
-    );
+    const agentConfig = agentStore.getAgentConfig(effectiveAgentId, {
+      parameterOverrides: session.parameterOverrides,
+    });
 
     if (!agentConfig) {
       errorHandler.handle(new Error("Agent config not found"), {
@@ -609,14 +627,12 @@ export function useChatHandler() {
     const { getProfileById } = useLlmProfiles();
     const profile = getProfileById(agentConfig.profileId);
     const model = profile?.models.find((m) => m.id === agentConfig.modelId);
-    const currentAgent = agentStore.getAgentById(
-      agentStore.currentAgentId || ""
-    );
+    const currentAgent = agentStore.getAgentById(effectiveAgentId);
 
     if (session.nodes) {
       session.nodes[assistantNode.id].metadata = {
         ...session.nodes[assistantNode.id].metadata,
-        agentId: agentStore.currentAgentId || undefined,
+        agentId: effectiveAgentId,
         agentName: currentAgent?.name,
         agentDisplayName: currentAgent?.displayName || currentAgent?.name,
         agentIcon: currentAgent?.icon,
@@ -640,6 +656,7 @@ export function useChatHandler() {
       abortControllers,
       generatingNodes,
       agentConfig,
+      agentId: effectiveAgentId,
     });
   };
 

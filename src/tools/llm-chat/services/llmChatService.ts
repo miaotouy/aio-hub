@@ -460,7 +460,7 @@ export class LlmChatService {
    */
   public async sendMessage(
     content: string,
-    options?: { parentId?: string }
+    options?: { parentId?: string; agentId?: string; sessionId?: string }
   ): Promise<void> {
     await errorHandler.wrapAsync(
       async () => {

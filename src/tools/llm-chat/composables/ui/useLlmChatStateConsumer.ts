@@ -195,8 +195,8 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
   );
 
   watch(syncedIsSending, (newValue) => {
-    // logger.info('接收到 isSending 同步数据', { isSending: newValue });
-    store.isSending = newValue;
+    // isSending 已由 generatingNodes 推导；这里只保留订阅，兼容上游旧状态包。
+    void newValue;
   });
 
   watch(syncedGeneratingNodes, (newNodes) => {

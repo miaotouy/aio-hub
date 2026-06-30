@@ -58,6 +58,8 @@ interface ExecuteRequestParams {
     modelId: string;
     parameters: LlmParameters;
   };
+  /** 执行所使用的 Agent ID（可选，默认回退当前 UI Agent） */
+  agentId?: string;
 }
 
 export function useChatExecutor() {
@@ -73,20 +75,22 @@ export function useChatExecutor() {
     abortControllers,
     generatingNodes,
     agentConfig: providedAgentConfig,
+    agentId,
   }: ExecuteRequestParams): Promise<void> => {
     const agentStore = useAgentStore();
+    const effectiveAgentId = agentId || agentStore.currentAgentId;
 
     // 获取当前 Agent 配置片段
     const agentConfigSnippet =
       providedAgentConfig ||
-      (agentStore.currentAgentId
-        ? agentStore.getAgentConfig(agentStore.currentAgentId, {
+      (effectiveAgentId
+        ? agentStore.getAgentConfig(effectiveAgentId, {
             parameterOverrides: session.parameterOverrides,
           })
         : null);
 
-    const currentAgent = agentStore.currentAgentId
-      ? agentStore.getAgentById(agentStore.currentAgentId)
+    const currentAgent = effectiveAgentId
+      ? agentStore.getAgentById(effectiveAgentId)
       : null;
 
     if (!agentConfigSnippet || !currentAgent) {

@@ -1,4 +1,5 @@
 import type { Asset } from "@/types/asset-management";
+import type { OcrEngineType } from "@/tools/smart-ocr/types";
 
 /**
  * 转写任务状态
@@ -46,6 +47,27 @@ export interface TypeSpecificConfig {
   temperature: number;
   maxTokens: number;
   enableRepetitionDetection?: boolean;
+}
+
+export type ImageTranscriptionMode = "vlm" | "ocr";
+export type ImageOcrEngineType =
+  | "default"
+  | Exclude<OcrEngineType, "vlm">;
+
+/**
+ * 图片特定配置
+ */
+export interface ImageSpecificConfig extends TypeSpecificConfig {
+  /** 图片转写模式：vlm 走视觉大模型，ocr 走 Smart OCR 纯文字提取 */
+  mode: ImageTranscriptionMode;
+  /** OCR 模式使用的引擎；default 表示跟随 Smart OCR 当前默认引擎 */
+  ocrEngineType?: ImageOcrEngineType;
+  /** OCR 插件扩展 ID，格式来自 Smart OCR extension registry */
+  ocrPluginExtensionId?: string;
+  /** OCR 插件模型档位 */
+  ocrPluginModelProfile?: string;
+  /** OCR 插件识别语言 */
+  ocrPluginLanguage?: string;
 }
 
 /**
@@ -101,7 +123,7 @@ export interface TranscriptionConfig {
     cutLineOffset: number;
   };
   ffmpegPath?: string;
-  image: TypeSpecificConfig;
+  image: ImageSpecificConfig;
   audio: AudioSpecificConfig;
   video: VideoSpecificConfig;
   document: TypeSpecificConfig;

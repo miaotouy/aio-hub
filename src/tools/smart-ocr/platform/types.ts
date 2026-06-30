@@ -49,6 +49,7 @@ export interface OcrImageInput {
 
 export interface OcrRunOptions {
   onProgress?: (results: OcrResult[]) => void;
+  signal?: AbortSignal;
 }
 
 export interface OcrBox {

@@ -22,6 +22,21 @@ import type { ChatSettings } from "../../types/settings";
 import { availableVersions } from "@/tools/rich-text-renderer/stores/store";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { DEFAULT_SETTINGS } from "../../types/settings";
+import { useOcrExtensions } from "@/tools/smart-ocr/platform";
+import type { OcrExtension } from "@/tools/smart-ocr/platform";
+
+const getOcrExtensions = (): OcrExtension[] => {
+  const { ocrExtensions } = useOcrExtensions();
+  return ocrExtensions.value;
+};
+
+const getSelectedOcrExtension = (
+  settings: ChatSettings
+): OcrExtension | undefined => {
+  const extensionId = settings.transcription.image.ocrPluginExtensionId;
+  if (!extensionId) return undefined;
+  return getOcrExtensions().find((extension) => extension.id === extensionId);
+};
 
 // 异步加载大型业务组件
 const MarkdownStyleEditor = defineAsyncComponent(
@@ -1289,6 +1304,158 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
 
       // 3. 图片转写配置
       {
+        id: "transImageMode",
+        label: "图片转写模式",
+        component: "ElRadioGroup",
+        props: { type: "button" },
+        options: [
+          { label: "视觉大模型 (VLM)", value: "vlm" },
+          { label: "纯文字提取 (OCR)", value: "ocr" },
+        ],
+        modelPath: "transcription.image.mode",
+        hint: "VLM 适合图片理解和描述；OCR 适合截图、代码、文档扫描等纯文字提取场景。",
+        keywords: "transcription image mode vlm ocr 图片 转写 模式",
+        visible: (settings) => settings.transcription.enabled,
+        defaultValue: DEFAULT_SETTINGS.transcription.image.mode,
+        groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
+      },
+      {
+        id: "transImageOcrEngineType",
+        label: "OCR 引擎",
+        component: "ElSelect",
+        props: { placeholder: "选择 OCR 引擎" },
+        options: [
+          {
+            label: "跟随智能 OCR 默认设置",
+            value: "default",
+            description: "使用 Smart OCR 工具当前选择的引擎与配置。",
+          },
+          {
+            label: "Tesseract.js",
+            value: "tesseract",
+            description: "本地 Tesseract 识别，适合中英文截图和文档。",
+          },
+          {
+            label: "Native OCR",
+            value: "native",
+            description: "调用系统原生 OCR 能力，速度快，依赖平台支持。",
+          },
+          {
+            label: "Cloud OCR",
+            value: "cloud",
+            description: "使用 Smart OCR 中配置的云端 OCR 服务。",
+          },
+          {
+            label: "Plugin OCR",
+            value: "plugin",
+            description: "使用 Smart OCR 中配置的 OCR 扩展插件。",
+          },
+        ],
+        modelPath: "transcription.image.ocrEngineType",
+        hint: "OCR 模式会复用智能 OCR 的对应引擎配置。",
+        keywords: "transcription image ocr engine 图片 引擎",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.image.mode === "ocr",
+        defaultValue: DEFAULT_SETTINGS.transcription.image.ocrEngineType,
+        groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
+      },
+      {
+        id: "transImageOcrPluginExtension",
+        label: "OCR 插件扩展",
+        component: "ElSelect",
+        props: {
+          placeholder: "选择 OCR 插件扩展",
+          filterable: true,
+          clearable: true,
+        },
+        options: () => {
+          const extensions = getOcrExtensions();
+          if (extensions.length === 0) {
+            return [
+              {
+                label: "未发现可用 OCR 插件",
+                value: "",
+                description: "请先在插件管理中安装并启用 OCR 扩展插件。",
+              },
+            ];
+          }
+
+          return extensions.map((extension) => ({
+            label: extension.name,
+            value: extension.id,
+            description: `${extension.pluginName} / ${extension.method}${
+              extension.enabled && !extension.broken ? "" : "（当前不可用）"
+            }`,
+          }));
+        },
+        modelPath: "transcription.image.ocrPluginExtensionId",
+        hint: "指定聊天转写使用的 OCR 插件扩展；留空则使用智能 OCR 中配置的插件引擎。",
+        keywords: "transcription image ocr plugin extension 插件 扩展",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.image.mode === "ocr" &&
+          settings.transcription.image.ocrEngineType === "plugin",
+        defaultValue:
+          DEFAULT_SETTINGS.transcription.image.ocrPluginExtensionId,
+        groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
+      },
+      {
+        id: "transImageOcrPluginModelProfile",
+        label: "插件模型 Profile",
+        component: "ElSelect",
+        props: {
+          placeholder: "跟随插件默认模型",
+          clearable: true,
+        },
+        options: (settings) =>
+          (getSelectedOcrExtension(settings)?.modelProfiles ?? []).map(
+            (profile) => ({
+              label: profile.name,
+              value: profile.id,
+            })
+          ),
+        modelPath: "transcription.image.ocrPluginModelProfile",
+        hint: "选择插件暴露的模型档位；留空则使用插件默认值。",
+        keywords: "transcription image ocr plugin model profile 插件 模型",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.image.mode === "ocr" &&
+          settings.transcription.image.ocrEngineType === "plugin" &&
+          !!settings.transcription.image.ocrPluginExtensionId &&
+          (getSelectedOcrExtension(settings)?.modelProfiles.length ?? 0) > 0,
+        defaultValue:
+          DEFAULT_SETTINGS.transcription.image.ocrPluginModelProfile,
+        groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
+      },
+      {
+        id: "transImageOcrPluginLanguage",
+        label: "插件识别语言",
+        component: "ElSelect",
+        props: {
+          placeholder: "跟随插件默认语言",
+          clearable: true,
+        },
+        options: (settings) =>
+          (getSelectedOcrExtension(settings)?.languages ?? []).map(
+            (language) => ({
+              label: language.name,
+              value: language.id,
+            })
+          ),
+        modelPath: "transcription.image.ocrPluginLanguage",
+        hint: "选择插件暴露的识别语言；留空则使用插件默认值。",
+        keywords: "transcription image ocr plugin language 插件 语言",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.image.mode === "ocr" &&
+          settings.transcription.image.ocrEngineType === "plugin" &&
+          !!settings.transcription.image.ocrPluginExtensionId &&
+          (getSelectedOcrExtension(settings)?.languages.length ?? 0) > 0,
+        defaultValue: DEFAULT_SETTINGS.transcription.image.ocrPluginLanguage,
+        groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
+      },
+      {
         id: "transImageModel",
         label: "图片转写模型",
         component: LlmModelSelector,
@@ -1298,7 +1465,9 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.image.modelIdentifier",
         hint: "专门用于图片转写的模型。留空则使用上述兜底模型。",
         keywords: "transcription image model 图片 转写 模型",
-        visible: (settings) => settings.transcription.enabled,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.image.mode !== "ocr",
         defaultValue: "",
         groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
       },
@@ -1314,7 +1483,9 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.image.customPrompt",
         hint: "用于指导模型如何转写图片内容。<br />支持占位符：<code>{filename}</code> - 附件的原始文件名。",
         keywords: "transcription image prompt 图片 提示词 filename 文件名",
-        visible: (settings) => settings.transcription.enabled,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.image.mode !== "ocr",
         groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
       },
       {
@@ -1325,7 +1496,9 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.image.temperature",
         hint: "较低的温度会产生更确定性的转写结果",
         keywords: "transcription image temperature 图片 转写 温度",
-        visible: (settings) => settings.transcription.enabled,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.image.mode !== "ocr",
         groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
       },
       {
@@ -1336,7 +1509,9 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.image.maxTokens",
         hint: "图片转写结果的最大 token 数",
         keywords: "transcription image max tokens 图片 转写 上限",
-        visible: (settings) => settings.transcription.enabled,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.image.mode !== "ocr",
         groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
       },
       {

@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { writeTextFile, mkdir } from "@tauri-apps/plugin-fs";
 import { assetManagerEngine } from "@/composables/useAssetManager";
+import { merge } from "lodash-es";
 import type { DerivedDataInfo } from "@/types/asset-management";
 import type { EngineContext } from "../types";
 
@@ -9,7 +10,7 @@ import type { EngineContext } from "../types";
  */
 export function getEffectiveConfig(ctx: EngineContext) {
   const { task, config } = ctx;
-  return { ...config, ...task.overrideConfig };
+  return merge({}, config, task.overrideConfig || {});
 }
 
 /**

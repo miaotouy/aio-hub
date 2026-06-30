@@ -9,6 +9,21 @@ import {
 import type { SettingsSection } from "@/types/settings-renderer";
 import type { TranscriptionConfig } from "./types";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
+import { useOcrExtensions } from "@/tools/smart-ocr/platform";
+import type { OcrExtension } from "@/tools/smart-ocr/platform";
+
+const getOcrExtensions = (): OcrExtension[] => {
+  const { ocrExtensions } = useOcrExtensions();
+  return ocrExtensions.value;
+};
+
+const getSelectedOcrExtension = (
+  settings: TranscriptionConfig
+): OcrExtension | undefined => {
+  const extensionId = settings.image.ocrPluginExtensionId;
+  if (!extensionId) return undefined;
+  return getOcrExtensions().find((extension) => extension.id === extensionId);
+};
 
 /**
  * 默认转写配置
@@ -52,6 +67,11 @@ export const DEFAULT_TRANSCRIPTION_CONFIG: TranscriptionConfig = {
     cutLineOffset: 0.2,
   },
   image: {
+    mode: "vlm",
+    ocrEngineType: "default",
+    ocrPluginExtensionId: "",
+    ocrPluginModelProfile: "",
+    ocrPluginLanguage: "",
     modelIdentifier: "",
     customPrompt: `## 任务
 执行图像内容分析。正在处理图像：{filename}。具备高精度视觉识别和 OCR 能力。
@@ -329,6 +349,147 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
       icon: ImageIcon,
       items: [
         {
+          id: "imageMode",
+          label: "图片转写模式",
+          component: "ElRadioGroup",
+          props: { type: "button" },
+          options: [
+            { label: "视觉大模型 (VLM)", value: "vlm" },
+            { label: "纯文字提取 (OCR)", value: "ocr" },
+          ],
+          modelPath: "image.mode",
+          defaultValue: DEFAULT_TRANSCRIPTION_CONFIG.image.mode,
+          hint: "VLM 适合图片理解和描述；OCR 适合截图、代码、文档扫描等纯文字提取场景。",
+          keywords: "image mode vlm ocr 图片 模式",
+        },
+        {
+          id: "imageOcrEngineType",
+          label: "OCR 引擎",
+          component: "ElSelect",
+          props: {
+            placeholder: "选择 OCR 引擎",
+          },
+          options: [
+            {
+              label: "跟随智能 OCR 默认设置",
+              value: "default",
+              description: "使用 Smart OCR 工具当前选择的引擎与配置。",
+            },
+            {
+              label: "Tesseract.js",
+              value: "tesseract",
+              description: "本地 Tesseract 识别，适合中英文截图和文档。",
+            },
+            {
+              label: "Native OCR",
+              value: "native",
+              description: "调用系统原生 OCR 能力，速度快，依赖平台支持。",
+            },
+            {
+              label: "Cloud OCR",
+              value: "cloud",
+              description: "使用 Smart OCR 中配置的云端 OCR 服务。",
+            },
+            {
+              label: "Plugin OCR",
+              value: "plugin",
+              description: "使用 Smart OCR 中配置的 OCR 扩展插件。",
+            },
+          ],
+          modelPath: "image.ocrEngineType",
+          defaultValue: DEFAULT_TRANSCRIPTION_CONFIG.image.ocrEngineType,
+          hint: "OCR 模式会复用智能 OCR 的对应引擎配置。",
+          keywords: "image ocr engine 图片 引擎",
+          visible: (s) => s.image.mode === "ocr",
+        },
+        {
+          id: "imageOcrPluginExtension",
+          label: "OCR 插件扩展",
+          component: "ElSelect",
+          props: {
+            placeholder: "选择 OCR 插件扩展",
+            filterable: true,
+            clearable: true,
+          },
+          options: () => {
+            const extensions = getOcrExtensions();
+            if (extensions.length === 0) {
+              return [
+                {
+                  label: "未发现可用 OCR 插件",
+                  value: "",
+                  description: "请先在插件管理中安装并启用 OCR 扩展插件。",
+                },
+              ];
+            }
+
+            return extensions.map((extension) => ({
+              label: extension.name,
+              value: extension.id,
+              description: `${extension.pluginName} / ${extension.method}${
+                extension.enabled && !extension.broken
+                  ? ""
+                  : "（当前不可用）"
+              }`,
+            }));
+          },
+          modelPath: "image.ocrPluginExtensionId",
+          defaultValue: DEFAULT_TRANSCRIPTION_CONFIG.image.ocrPluginExtensionId,
+          hint: "指定本工具使用的 OCR 插件扩展；留空则使用智能 OCR 中配置的插件引擎。",
+          keywords: "image ocr plugin extension 插件 扩展",
+          visible: (s) =>
+            s.image.mode === "ocr" && s.image.ocrEngineType === "plugin",
+        },
+        {
+          id: "imageOcrPluginModelProfile",
+          label: "插件模型 Profile",
+          component: "ElSelect",
+          props: {
+            placeholder: "跟随插件默认模型",
+            clearable: true,
+          },
+          options: (s) =>
+            (getSelectedOcrExtension(s)?.modelProfiles ?? []).map(
+              (profile) => ({
+                label: profile.name,
+                value: profile.id,
+              })
+            ),
+          modelPath: "image.ocrPluginModelProfile",
+          defaultValue:
+            DEFAULT_TRANSCRIPTION_CONFIG.image.ocrPluginModelProfile,
+          hint: "选择插件暴露的模型档位；留空则使用插件默认值。",
+          keywords: "image ocr plugin model profile 插件 模型",
+          visible: (s) =>
+            s.image.mode === "ocr" &&
+            s.image.ocrEngineType === "plugin" &&
+            !!s.image.ocrPluginExtensionId &&
+            (getSelectedOcrExtension(s)?.modelProfiles.length ?? 0) > 0,
+        },
+        {
+          id: "imageOcrPluginLanguage",
+          label: "插件识别语言",
+          component: "ElSelect",
+          props: {
+            placeholder: "跟随插件默认语言",
+            clearable: true,
+          },
+          options: (s) =>
+            (getSelectedOcrExtension(s)?.languages ?? []).map((language) => ({
+              label: language.name,
+              value: language.id,
+            })),
+          modelPath: "image.ocrPluginLanguage",
+          defaultValue: DEFAULT_TRANSCRIPTION_CONFIG.image.ocrPluginLanguage,
+          hint: "选择插件暴露的识别语言；留空则使用插件默认值。",
+          keywords: "image ocr plugin language 插件 语言",
+          visible: (s) =>
+            s.image.mode === "ocr" &&
+            s.image.ocrEngineType === "plugin" &&
+            !!s.image.ocrPluginExtensionId &&
+            (getSelectedOcrExtension(s)?.languages.length ?? 0) > 0,
+        },
+        {
           id: "imageModel",
           label: "图片模型",
           component: LlmModelSelector,
@@ -338,6 +499,7 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
           modelPath: "image.modelIdentifier",
           hint: "专门用于图片转写的模型。留空则使用上述兜底模型。",
           keywords: "image model 图片 模型",
+          visible: (s) => s.image.mode !== "ocr",
         },
         {
           id: "imagePrompt",
@@ -351,6 +513,7 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
           modelPath: "image.customPrompt",
           hint: "用于指导模型如何转写图片内容",
           keywords: "image prompt 图片 提示词",
+          visible: (s) => s.image.mode !== "ocr",
         },
         {
           id: "imageTemperature",
@@ -360,6 +523,7 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
           modelPath: "image.temperature",
           hint: "较低的温度会产生更确定性的转写结果",
           keywords: "image temperature 图片 温度",
+          visible: (s) => s.image.mode !== "ocr",
         },
         {
           id: "imageMaxTokens",
@@ -369,6 +533,7 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
           modelPath: "image.maxTokens",
           hint: "图片转写结果的最大 token 数",
           keywords: "image max tokens 图片",
+          visible: (s) => s.image.mode !== "ocr",
         },
         {
           id: "enableImageSlicer",

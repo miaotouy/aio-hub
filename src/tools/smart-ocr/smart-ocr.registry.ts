@@ -58,7 +58,7 @@ export default class SmartOcrRegistry implements ToolRegistry {
     options?: OcrRunOptions
   ): Promise<OcrResult[]> {
     const { runOcr } = useOcrRunner();
-    return await runOcr(blocks, config, options?.onProgress);
+    return await runOcr(blocks, config, options?.onProgress, options?.signal);
   }
 
   /**

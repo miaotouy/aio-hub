@@ -5,14 +5,24 @@ import { getImageDimensions, resizeImage } from "@/utils/imageProcessor";
 import { createModuleLogger } from "@/utils/logger";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import SmartOcrRegistry from "@/tools/smart-ocr/smart-ocr.registry";
+import {
+  getCurrentEngineConfig,
+  loadSmartOcrConfig,
+} from "@/tools/smart-ocr/config/config";
 import type { Asset } from "@/types/asset-management";
 import type { LlmMessageContent } from "@/llm-apis/common";
-import { getModelParams } from "./base";
+import type { OcrEngineConfig } from "@/tools/smart-ocr/types";
+import {
+  getEffectiveConfig,
+  getModelParams,
+} from "./base";
 import { cleanLlmOutput, detectRepetition } from "../utils/text";
 import type {
   ITranscriptionEngine,
   EngineContext,
   EngineResult,
+  ImageOcrEngineType,
+  ImageSpecificConfig,
 } from "../types";
 
 const logger = createModuleLogger("transcription/engines/image");
@@ -29,13 +39,183 @@ function dataUrlToArrayBuffer(dataUrl: string): ArrayBuffer {
   return bytes.buffer;
 }
 
+async function loadImageFromTask(task: EngineContext["task"]) {
+  const buffer = await assetManagerEngine.getAssetBinary(task.path);
+  const blob = new Blob([buffer], { type: task.mimeType });
+  const objectUrl = URL.createObjectURL(blob);
+  const img = new Image();
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("图片加载失败"));
+      img.src = objectUrl;
+    });
+
+    return { img, objectUrl };
+  } catch (error) {
+    URL.revokeObjectURL(objectUrl);
+    throw error;
+  }
+}
+
 export class ImageTranscriptionEngine implements ITranscriptionEngine {
   canHandle(asset: Asset): boolean {
     return asset.type === "image";
   }
 
   async execute(ctx: EngineContext): Promise<EngineResult> {
-    const { task, config } = ctx;
+    const config = getEffectiveConfig(ctx);
+    const mode = config.image?.mode ?? "vlm";
+
+    if (mode === "ocr") {
+      return this.executeOcr(ctx);
+    }
+
+    return this.executeVlm(ctx);
+  }
+
+  private async executeOcr(ctx: EngineContext): Promise<EngineResult> {
+    const { task } = ctx;
+    const config = getEffectiveConfig(ctx);
+    const imageConfig = config.image;
+    const ocrRegistry = new SmartOcrRegistry();
+    const smartOcrConfig = await loadSmartOcrConfig();
+    const ocrEngineConfig =
+      imageConfig.ocrEngineType && imageConfig.ocrEngineType !== "default"
+        ? this.resolveOcrEngineConfig(
+            smartOcrConfig,
+            imageConfig.ocrEngineType,
+            imageConfig
+          )
+        : getCurrentEngineConfig(smartOcrConfig);
+
+    const { img, objectUrl } = await loadImageFromTask(task);
+
+    try {
+      const slicerConfig = {
+        ...config.imageSlicerConfig,
+        enabled: config.enableImageSlicer,
+        aspectRatioThreshold: config.enableImageSlicer
+          ? config.imageSlicerConfig.aspectRatioThreshold
+          : 99999,
+      };
+      const { blocks } = await ocrRegistry.sliceImage(
+        img,
+        slicerConfig,
+        task.assetId
+      );
+
+      logger.info(`开始 OCR 图片转写，共 ${blocks.length} 个切片`, {
+        assetId: task.assetId,
+        engineType: ocrEngineConfig.type,
+      });
+
+      const results = await ocrRegistry.runOcr(blocks, ocrEngineConfig, {
+        signal: ctx.signal,
+      });
+      const failedResults = results.filter((r) => r.status === "error");
+      const cancelledResults = results.filter((r) => r.status === "cancelled");
+      const text = results
+        .filter((r) => !r.ignored && r.text?.trim())
+        .map((r) => r.text.trim())
+        .join("\n\n");
+
+      if (cancelledResults.length > 0 && !text) {
+        throw new Error("OCR 识别已取消");
+      }
+
+      if (failedResults.length === results.length) {
+        const firstError = failedResults.find((r) => r.error)?.error;
+        throw new Error(firstError || "OCR 识别失败");
+      }
+
+      return {
+        text,
+        isEmpty: text.length === 0,
+        warning:
+          failedResults.length > 0
+            ? `OCR 有 ${failedResults.length} 个切片识别失败`
+            : undefined,
+      };
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+
+  private resolveOcrEngineConfig(
+    config: Awaited<ReturnType<typeof loadSmartOcrConfig>>,
+    engineType: Exclude<ImageOcrEngineType, "default">,
+    imageConfig: ImageSpecificConfig
+  ): OcrEngineConfig {
+    switch (engineType) {
+      case "tesseract":
+        return {
+          type: "tesseract",
+          ...config.engineConfigs.tesseract,
+        };
+      case "native":
+        return {
+          type: "native",
+          ...config.engineConfigs.native,
+        };
+      case "cloud":
+        return {
+          type: "cloud",
+          ...config.engineConfigs.cloud,
+        };
+      case "plugin":
+        return this.resolvePluginOcrEngineConfig(config, imageConfig);
+    }
+  }
+
+  private resolvePluginOcrEngineConfig(
+    config: Awaited<ReturnType<typeof loadSmartOcrConfig>>,
+    imageConfig: ImageSpecificConfig
+  ): OcrEngineConfig {
+    if (imageConfig.ocrPluginExtensionId) {
+      const ocrRegistry = new SmartOcrRegistry();
+      const extension = ocrRegistry
+        .listOcrExtensions()
+        .find((item) => item.id === imageConfig.ocrPluginExtensionId);
+
+      if (!extension) {
+        throw new Error(
+          `未找到 OCR 插件扩展: ${imageConfig.ocrPluginExtensionId}`
+        );
+      }
+      const modelProfile =
+        extension.modelProfiles.find(
+          (profile) => profile.id === imageConfig.ocrPluginModelProfile
+        )?.id ||
+        extension.defaultModelProfile ||
+        extension.modelProfiles[0]?.id;
+      const language =
+        extension.languages.find(
+          (item) => item.id === imageConfig.ocrPluginLanguage
+        )?.id ||
+        extension.defaultLanguage ||
+        extension.languages[0]?.id;
+
+      return {
+        type: "plugin",
+        name: extension.name,
+        pluginId: extension.pluginId,
+        method: extension.method,
+        modelProfile,
+        language,
+      };
+    }
+
+    return {
+      type: "plugin",
+      ...config.engineConfigs.plugin,
+    };
+  }
+
+  private async executeVlm(ctx: EngineContext): Promise<EngineResult> {
+    const { task } = ctx;
+    const config = getEffectiveConfig(ctx);
     const { sendRequest } = useLlmRequest();
     const { getProfileById } = useLlmProfiles();
 
@@ -63,18 +243,9 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
     const slicerConfig = config.imageSlicerConfig;
 
     if (enableSlicer) {
-      const buffer = await assetManagerEngine.getAssetBinary(task.path);
-      const blob = new Blob([buffer], { type: task.mimeType });
-      const dataUrl = URL.createObjectURL(blob);
+      const { img, objectUrl } = await loadImageFromTask(task);
 
       try {
-        const img = new Image();
-        await new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = reject;
-          img.src = dataUrl;
-        });
-
         const ocrRegistry = new SmartOcrRegistry();
         const { blocks } = await ocrRegistry.sliceImage(
           img,
@@ -118,7 +289,7 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
       } catch (e) {
         logger.warn("图片切图检查失败，将使用原图", e);
       } finally {
-        URL.revokeObjectURL(dataUrl);
+        URL.revokeObjectURL(objectUrl);
       }
     }
 

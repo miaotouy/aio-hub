@@ -13,6 +13,7 @@ import { smartDecode } from "@/utils/encoding";
 import { getPureModelId } from "@/utils/modelIdUtils";
 import { remove } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
+import { merge } from "lodash-es";
 import type { Asset } from "@/types/asset-management";
 import type {
   TranscriptionTask,
@@ -75,10 +76,11 @@ export function useTranscriptionManager() {
       });
 
       // 合并覆盖配置
-      const finalConfig = {
-        ...store.config,
-        ...(pendingTask.overrideConfig || {}),
-      };
+      const finalConfig = merge(
+        {},
+        store.config,
+        pendingTask.overrideConfig || {}
+      );
 
       // 处理提示词合并逻辑：如果存在附加提示词，则追加到主提示词后面
       if (finalConfig.additionalPrompt) {

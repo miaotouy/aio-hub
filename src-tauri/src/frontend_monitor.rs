@@ -55,6 +55,8 @@ struct FrontendWindowProbe {
     last_frontend_error: Option<FrontendErrorSummary>,
     last_backend_snapshot: Option<BackendWindowSnapshot>,
     backend_snapshot_error_active: bool,
+    probe_exempt_active: bool,
+    last_probe_exempt_url: Option<String>,
     destroyed: bool,
 }
 
@@ -88,6 +90,8 @@ impl FrontendWindowProbe {
             last_frontend_error: None,
             last_backend_snapshot: None,
             backend_snapshot_error_active: false,
+            probe_exempt_active: false,
+            last_probe_exempt_url: None,
             destroyed: false,
         }
     }
@@ -223,6 +227,10 @@ impl BackendWindowSnapshot {
         self.visible == Some(true) && self.minimized != Some(true)
     }
 
+    fn expects_frontend_probe(&self) -> bool {
+        self.url.as_deref().is_none_or(is_aio_frontend_url)
+    }
+
     fn summary(&self) -> String {
         format!(
             "visible={:?}, minimized={:?}, maximized={:?}, focused={:?}, inner={:?}, outer={:?}, pos={:?}, scale={:?}, url={:?}, errors={:?}",
@@ -271,6 +279,47 @@ fn truncate_for_log(value: &str, limit: usize) -> String {
         let head: String = value.chars().take(limit).collect();
         format!("{}... [truncated, chars={}]", head, char_count)
     }
+}
+
+fn configured_dev_server_port() -> u16 {
+    std::env::var("VITE_PORT")
+        .ok()
+        .and_then(|port| port.parse::<u16>().ok())
+        .unwrap_or(1420)
+}
+
+fn is_loopback_host(host: &str) -> bool {
+    host.eq_ignore_ascii_case("localhost") || host == "127.0.0.1" || host == "::1"
+}
+
+fn is_configured_dev_host(host: &str) -> bool {
+    std::env::var("TAURI_DEV_HOST")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .is_some_and(|configured| configured.eq_ignore_ascii_case(host))
+}
+
+fn is_aio_frontend_url(value: &str) -> bool {
+    let Ok(url) = url::Url::parse(value) else {
+        return false;
+    };
+
+    match url.scheme() {
+        "tauri" => return url.host_str().is_none_or(|host| host == "localhost"),
+        "http" | "https" => {}
+        _ => return false,
+    }
+
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+
+    if host.eq_ignore_ascii_case("tauri.localhost") {
+        return true;
+    }
+
+    url.port() == Some(configured_dev_server_port())
+        && (is_loopback_host(host) || is_configured_dev_host(host))
 }
 
 fn ensure_probe<'a>(
@@ -535,8 +584,19 @@ impl FrontendMonitorState {
                     );
                 }
 
-                let should_check_heartbeat = snapshot.is_active_visible();
+                let should_check_heartbeat =
+                    snapshot.is_active_visible() && snapshot.expects_frontend_probe();
                 if should_check_heartbeat {
+                    if probe.probe_exempt_active {
+                        log::info!(
+                            "[FRONTEND_MONITOR] 窗口恢复为 AIO 前端页面，重新启用心跳检查: label={}, url={:?}",
+                            label,
+                            snapshot.url
+                        );
+                    }
+                    probe.probe_exempt_active = false;
+                    probe.last_probe_exempt_url = None;
+
                     if let Some(last_heartbeat) = probe.last_heartbeat_at {
                         let elapsed = now.saturating_duration_since(last_heartbeat);
                         if elapsed >= STALE_HEARTBEAT_AFTER {
@@ -587,6 +647,27 @@ impl FrontendMonitorState {
                             );
                         }
                     }
+                } else {
+                    if snapshot.is_active_visible() {
+                        let exempt_url = snapshot.url.clone();
+                        if !probe.probe_exempt_active
+                            || probe.last_probe_exempt_url.as_ref() != exempt_url.as_ref()
+                        {
+                            log::info!(
+                                "[FRONTEND_MONITOR] 窗口当前不是 AIO 前端页面，跳过前端心跳检查: label={}, url={:?}",
+                                label,
+                                exempt_url
+                            );
+                        }
+                        probe.probe_exempt_active = true;
+                        probe.last_probe_exempt_url = exempt_url;
+                    } else {
+                        probe.probe_exempt_active = false;
+                        probe.last_probe_exempt_url = None;
+                    }
+                    probe.no_heartbeat_warned = false;
+                    probe.missed_warning_active = false;
+                    probe.missed_warning_checks = 0;
                 }
 
                 probe.last_backend_snapshot = Some(snapshot);

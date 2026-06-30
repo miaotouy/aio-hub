@@ -6,6 +6,8 @@ import * as actions from "../actions";
 import { DEFAULT_ALLOWED_DIRECTORIES } from "../config";
 import type { AioFileOperatorConfig, OperationLogEntry } from "../types";
 
+const FILE_OPERATOR_TOOL_ID = "aio-file-operator";
+
 export function useFileOperator() {
   const distStore = useVcpDistributedStore();
 
@@ -27,9 +29,37 @@ export function useFileOperator() {
   const newRulePath = ref("");
   const newRuleType = ref<"block" | "approve">("block");
 
-  // 真实核对分布式桥接状态
+  const isFileOperatorSyncedToVcp = computed(() => {
+    return distStore.exposedTools.some(
+      (tool) => tool.name === FILE_OPERATOR_TOOL_ID
+    );
+  });
+
+  const isFileOperatorPendingSync = computed(() => {
+    return distStore.pendingExposedTools.some(
+      (tool) => tool.name === FILE_OPERATOR_TOOL_ID
+    );
+  });
+
+  // 真实核对分布式桥接状态：连接通道打开且 VCP 已确认当前工具清单。
   const isDistributedExposed = computed(() => {
-    return distStore.status === "connected";
+    return distStore.status === "connected" && isFileOperatorSyncedToVcp.value;
+  });
+
+  const distributedStatusText = computed(() => {
+    switch (distStore.status) {
+      case "connecting":
+        return "分布式连接中";
+      case "connected":
+        if (isFileOperatorSyncedToVcp.value) return "分布式已桥接";
+        if (isFileOperatorPendingSync.value) return "分布式同步中";
+        if (!distStore.nodeId) return "等待节点确认";
+        return "分布式未暴露";
+      case "error":
+        return "分布式异常";
+      default:
+        return "本地就绪";
+    }
   });
 
   // 排序后的日志（最新的在最上面）
@@ -202,6 +232,7 @@ export function useFileOperator() {
     newRulePath,
     newRuleType,
     isDistributedExposed,
+    distributedStatusText,
     sortedLogs,
     loadConfig,
     saveConfig,

@@ -10,7 +10,7 @@
       </div>
       <div class="status-badge" :class="{ active: isDistributedExposed }">
         <span class="dot"></span>
-        {{ isDistributedExposed ? "分布式已桥接" : "本地就绪" }}
+        {{ distributedStatusText }}
       </div>
     </div>
 
@@ -83,6 +83,7 @@ const {
   newRulePath,
   newRuleType,
   isDistributedExposed,
+  distributedStatusText,
   sortedLogs,
   loadConfig,
   saveConfig,

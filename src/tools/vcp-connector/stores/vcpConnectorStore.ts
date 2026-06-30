@@ -618,6 +618,9 @@ export const useVcpStore = defineStore("vcp-connector", () => {
 
     try {
       isDistributedConnecting.value = true;
+      const distStore = useVcpDistributedStore();
+      distStore.setStatus("connecting");
+      distStore.clearExposedTools();
       distributedWs.value = new WebSocket(fullUrl);
 
       distributedWs.value.onopen = () => {
@@ -631,7 +634,6 @@ export const useVcpStore = defineStore("vcp-connector", () => {
           }
         });
 
-        const distStore = useVcpDistributedStore();
         distStore.setStatus("connected");
 
         // 初始化桥接工厂
@@ -658,6 +660,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
         const distStore = useVcpDistributedStore();
         distStore.setStatus("disconnected");
         distStore.setNodeId(null);
+        distStore.clearExposedTools();
         nodeProtocol.value = null;
 
         // 清理桥接工厂
@@ -678,6 +681,8 @@ export const useVcpStore = defineStore("vcp-connector", () => {
 
         const distStore = useVcpDistributedStore();
         distStore.setStatus("error");
+        distStore.setNodeId(null);
+        distStore.clearExposedTools();
       };
 
       distributedWs.value.onmessage = (event) => {
@@ -691,6 +696,10 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     } catch (e) {
       isDistributedConnecting.value = false;
       logger.error("Failed to connect distributed WebSocket", e);
+      const distStore = useVcpDistributedStore();
+      distStore.setStatus("error");
+      distStore.setNodeId(null);
+      distStore.clearExposedTools();
     }
   }
   function handleDistributedMessage(data: any) {
@@ -722,6 +731,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     } else if (data.type === "register_tools_ack") {
       logger.info("Tools registered successfully to VCP");
       const distStore = useVcpDistributedStore();
+      distStore.confirmPendingExposedTools();
       const nodeId = extractNodeId(data);
       if (nodeId) {
         distStore.setNodeId(nodeId);

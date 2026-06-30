@@ -263,7 +263,7 @@ export function useVcpDistributedNode() {
       }
 
       const tools = discoverTools();
-      distStore.setExposedTools(tools);
+      distStore.setPendingExposedTools(tools);
       store.nodeProtocol.sendRegisterTools(distStore.config.serverName, tools);
       logger.info(`Requested registration of ${tools.length} tools`);
       reregisterTimer = null;

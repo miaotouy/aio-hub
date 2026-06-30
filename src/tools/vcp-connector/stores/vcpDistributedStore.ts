@@ -44,6 +44,7 @@ export const useVcpDistributedStore = defineStore("vcp-distributed", () => {
     "disconnected"
   );
   const exposedTools = ref<VcpToolManifest[]>([]);
+  const pendingExposedTools = ref<VcpToolManifest[]>([]);
   const lastHeartbeat = ref<number | null>(null);
 
   // 桥接相关的状态
@@ -70,6 +71,21 @@ export const useVcpDistributedStore = defineStore("vcp-distributed", () => {
 
   function setExposedTools(tools: VcpToolManifest[]) {
     exposedTools.value = tools;
+  }
+
+  function setPendingExposedTools(tools: VcpToolManifest[]) {
+    pendingExposedTools.value = tools;
+  }
+
+  function confirmPendingExposedTools() {
+    if (pendingExposedTools.value.length === 0) return;
+    exposedTools.value = pendingExposedTools.value;
+    pendingExposedTools.value = [];
+  }
+
+  function clearExposedTools() {
+    exposedTools.value = [];
+    pendingExposedTools.value = [];
   }
 
   function setBridgeManifests(manifests: VcpBridgeManifest[]) {
@@ -141,6 +157,7 @@ export const useVcpDistributedStore = defineStore("vcp-distributed", () => {
     nodeId,
     status,
     exposedTools,
+    pendingExposedTools,
     lastHeartbeat,
     bridgeManifests,
     bridgeStatus,
@@ -148,6 +165,9 @@ export const useVcpDistributedStore = defineStore("vcp-distributed", () => {
     setStatus,
     updateHeartbeat,
     setExposedTools,
+    setPendingExposedTools,
+    confirmPendingExposedTools,
+    clearExposedTools,
     setBridgeManifests,
     setBridgeStatus,
     initPromise,

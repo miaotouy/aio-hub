@@ -225,7 +225,10 @@
     },
     "plugins/aiohub-paddle-ocr": {
       "name": "aiohub-paddle-ocr-plugin",
-      "version": "0.5.0",
+      "version": "0.6.1",
+      "dependencies": {
+        "lucide-vue-next": "^1.0.0",
+      },
       "devDependencies": {
         "@vitejs/plugin-vue": "^6.0.7",
         "archiver": "^7.0.1",

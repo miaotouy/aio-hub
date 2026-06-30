@@ -54,9 +54,13 @@ const getOverride = (id: string) => {
 };
 
 const startEditingOverride = (id: string, original: any) => {
-  if (editingOverrideId.value === id) {
+  if (editingOverrideId.value === id && props.expanded) {
     editingOverrideId.value = null;
     return;
+  }
+
+  if (!props.expanded) {
+    emit("toggle-expand");
   }
 
   editingOverrideId.value = id;

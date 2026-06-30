@@ -65,14 +65,25 @@
 /* Element Plus 全局主题适配 - 单选按钮组 */
 .el-radio-group {
   --el-radio-text-color: var(--text-color);
-  --el-radio-input-border-color: var(--border-color);
+  --el-radio-input-border: 1px solid var(--control-border-color);
+  --el-radio-input-border-color: var(--control-border-color);
   --el-radio-input-border-color-hover: var(--primary-color);
 }
 
 .el-radio {
   --el-radio-text-color: var(--text-color);
-  --el-radio-input-border-color: var(--border-color);
+  --el-radio-input-border: 1px solid var(--control-border-color);
+  --el-radio-input-border-color: var(--control-border-color);
   --el-radio-input-border-color-hover: var(--primary-color);
+}
+
+/* 普通复选框用于表格选择、列表选择等关键操作，边线不应随装饰边线变得过淡 */
+.el-checkbox {
+  --el-checkbox-input-border: 1px solid var(--control-border-color);
+  --el-checkbox-disabled-border-color: var(--control-border-color);
+  --el-checkbox-disabled-checked-input-border-color: var(
+    --control-border-color
+  );
 }
 
 .el-radio__input.is-checked .el-radio__inner {
@@ -86,8 +97,8 @@
 
 /* Element Plus 单选按钮禁用状态 */
 .el-radio.is-disabled .el-radio__inner {
-  background-color: var(--border-color-light);
-  border-color: var(--border-color);
+  background-color: var(--control-border-color-light);
+  border-color: var(--control-border-color);
 }
 
 .el-radio.is-disabled .el-radio__label {
@@ -96,8 +107,8 @@
 }
 
 .el-radio.is-disabled.is-checked .el-radio__inner {
-  background-color: var(--border-color);
-  border-color: var(--border-color);
+  background-color: var(--control-border-color);
+  border-color: var(--control-border-color);
 }
 
 /* Element Plus 全局主题适配 - 单选按钮按钮样式 */

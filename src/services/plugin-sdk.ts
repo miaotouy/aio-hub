@@ -69,6 +69,8 @@ export * from "@/composables/useImageViewer";
 export * from "@/composables/useModelMetadata";
 export * from "@/composables/useLlmProfiles";
 export * from "@/composables/useLlmRequest";
+export * from "@/composables/useFileInteraction";
+export * from "@/composables/useSendToChat";
 
 // 导出核心 Store (按需)
 export { useAppSettingsStore } from "@/stores/appSettingsStore";

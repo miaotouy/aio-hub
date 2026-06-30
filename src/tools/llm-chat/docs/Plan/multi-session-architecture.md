@@ -1,6 +1,6 @@
 # 多会话架构设计方案
 
-> **状态**: Manager 拆分 + 多会话核心/草稿已落地；完整多窗口 UI 与生命周期瘦身待施工
+> **状态**: Manager 拆分 + 多会话核心/草稿/生命周期已落地；完整多窗口 UI 与后台会话服务待施工
 > **作者**: 咕咕
 > **日期**: 2026-04-12
 > **最后核对**: 2026-07-01
@@ -123,7 +123,7 @@ graph TD
 | `SessionContext` / `SessionRuntimeState` 类型  | 尚未新增                                                                            | RFC 中的 Session Context 模式还没进入类型层。                                         |
 | `backgroundSessionService.ts`                  | 尚未新增                                                                            | Phase 4 后台会话执行引擎不存在。                                                      |
 | 会话级输入草稿                                 | ✅ `useChatInputManager` 内部维护 `sessionId -> draft`                              | 文本、附件、临时模型、续写模型按会话隔离，旧单草稿首次绑定会话时迁移。                |
-| Store 子管理器拆分                             | ⚠️ access/runtime/history/generation 已拆；lifecycle 仍在 facade                    | `llmChatStore.ts` 已瘦身主生成流程，但会话生命周期仍需后续搬迁。                      |
+| Store 子管理器拆分                             | ✅ access/runtime/history/generation/lifecycle 已拆                                  | `llmChatStore.ts` 已继续瘦身，生命周期逻辑迁入 `sessionLifecycleManager.ts`。          |
 
 #### 2.4.3 阶段完成度快照
 
@@ -142,9 +142,9 @@ graph TD
 | Session Runtime    | `stores/session/sessionRuntimeManager.ts`    | 管理 `generatingNodes`、`abortControllers`、会话队列和按会话中止。                           |
 | Session History    | `stores/session/sessionHistoryManager.ts`    | 按 `sessionId` 缓存撤销/重做管理器，删除会话时清理。                                         |
 | Session Generation | `stores/session/sessionGenerationManager.ts` | 承接发送、续写、重生成、输入补全和排队自动触发；非当前会话使用目标会话 active path。         |
+| Session Lifecycle  | `stores/session/sessionLifecycleManager.ts`  | 承接创建、删除、加载、切换、导入导出、收藏夹、自动命名与清空，并集中联动 runtime/history/draft 清理。 |
 | Draft              | `useChatInputManager.ts`                     | 作为输入子管理器维护会话级草稿；暴露 `moveDraftToSession(from, to, mode)`。                  |
 | Graph              | `useGraphActions.ts`                         | 已支持显式 `sessionId`，但尚未单独落成 `sessionGraphManager.ts` 文件。                       |
-| Lifecycle          | `llmChatStore.ts`                            | 仍在 Pinia facade 内，后续应继续迁到 `sessionLifecycleManager.ts`，降低 store 体积。         |
 
 ---
 

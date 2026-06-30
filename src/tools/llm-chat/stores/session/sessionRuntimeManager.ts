@@ -105,6 +105,17 @@ export function createSessionRuntimeManager(state: RuntimeState) {
   }
 
   function clearSessionRuntime(sessionId: string): void {
+    const detail = state.sessionDetailMap.value.get(sessionId);
+    if (detail?.nodes) {
+      Object.keys(detail.nodes).forEach((nodeId) => {
+        const controller = state.abortControllers.value.get(nodeId);
+        controller?.abort();
+        state.abortControllers.value.delete(nodeId);
+        state.generatingNodes.value.delete(nodeId);
+        state.userAbortedNodeIds.value.delete(nodeId);
+        completeAndDisposeStreamingMessageSource(nodeId);
+      });
+    }
     state.queuedSessionIds.value.delete(sessionId);
     state.queuedSessionAgentIds.value.delete(sessionId);
   }

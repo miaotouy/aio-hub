@@ -1,6 +1,6 @@
 # 多会话架构现状调查与重构对齐报告
 
-> **状态**: Manager 拆分 + 多会话核心/草稿已施工；完整多窗口 UI 与生命周期瘦身待施工
+> **状态**: Manager 拆分 + 多会话核心/草稿/生命周期已施工；完整多窗口 UI 与后台会话服务待施工
 > **作者**: 咕咕 (Gugu_Kilo)
 > **日期**: 2026-07-01
 > **针对文档**: [`multi-session-architecture.md`](src/tools/llm-chat/docs/Plan/multi-session-architecture.md)
@@ -291,6 +291,12 @@
    - 旧 `llm-chat-input-draft` 会在首次绑定真实会话时迁移到该会话；新存储 key 为 `llm-chat-input-drafts`。
    - 新增 `moveDraftToSession(fromSessionId, toSessionId, mode)`，支持 `move` / `copy` 且保留附件。
 
+6. **会话生命周期 Manager 剥离**
+   - 新增 `stores/session/sessionLifecycleManager.ts`，承接创建、删除、批删、导入、清空空会话、索引刷新、更新、加载、切换、收藏夹、自动命名、导出 Markdown 与清空全部会话。
+   - `llmChatStore.ts` 改为初始化并展开 `sessionLifecycle`，对外 API 名称保持不变。
+   - 删除 / 批删 / 清理空会话 / 清空全部会话会统一联动 runtime、history 与 input draft 清理。
+   - `sessionRuntimeManager.clearSessionRuntime(sessionId)` 已补强，会释放该会话节点关联的 `AbortController`、`generatingNodes` 与流式消息源。
+
 ### 5.2 实际实现补充
 
 - 为排队生成新增了 `queuedSessionAgentIds`，用于保存同会话排队发送时显式传入的 Agent，避免后台会话排队后回落到 UI 当前 Agent。
@@ -308,9 +314,9 @@
 
 ### 5.4 尚未完成 / 后续范围
 
-- `llmChatStore.ts` 已抽出生成、运行态、历史和访问管理，但会话生命周期（创建、加载、导入、收藏夹、批量移动等）仍在 store facade 内；后续应继续迁到 `sessionLifecycleManager.ts`。
 - 本轮没有实现完整 QQ 式多窗口 UI，也没有新增 `backgroundSessionService.ts`。
 - `sessionGraphManager.ts` 尚未单独成文件；本轮是在 `useGraphActions` 内完成 session-aware 改造，并由 store 注入 `sessionDetailMap/getHistoryManager`。
+- `CHAT_STATE_KEYS.IS_SENDING` 同步包仍存在；虽然发送态已由 `generatingNodes` 推导，后续仍可继续做同步状态降维。
 
 ---
 

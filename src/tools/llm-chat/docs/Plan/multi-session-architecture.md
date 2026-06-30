@@ -1,8 +1,9 @@
 # 多会话架构设计方案
 
-> **状态**: RFC (Request for Comments)
+> **状态**: RFC (Request for Comments) / 代码已有局部前置实现
 > **作者**: 咕咕
 > **日期**: 2026-04-12
+> **最后核对**: 2026-07-01
 > **影响范围**: llmChatStore, useChatHandler, useChatExecutor, useGraphActions, useSessionNodeHistory, agentStore
 
 ---
@@ -91,6 +92,46 @@ graph TD
 | `executeOrProxy` 代理模式               | [`llmChatStore.ts:231-237`](src/tools/llm-chat/stores/llmChatStore.ts:231) | 已有分离窗口代理机制             |
 | `ChatSessionDetail.parameterOverrides`  | [`session.ts:69`](src/tools/llm-chat/types/session.ts:69)                  | 会话级参数覆盖已存在             |
 
+### 2.4 实际代码对照（2026-07-01）✅/⚠️
+
+当前代码尚未完整进入本 RFC 的目标架构，但为了排队生成、分离窗口、节点级中止、历史模型展示等现有功能，已经提前实现了一部分多会话友好能力。后续施工时应优先复用这些已有入口，避免重复设计。
+
+#### 2.4.1 已提前实现的能力
+
+| 能力                      | 当前实现                                                                    | 说明                                                                                 |
+| ------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| 按会话查询生成中节点      | `getSessionGeneratingNodeIds(sessionId)` / `isSessionGenerating(sessionId)` | 基于 `generatingNodes` + `sessionDetailMap` 计算，已经能回答“某个会话是否正在生成”。 |
+| 按节点反查会话            | `findSessionIdByNodeId(nodeId)`                                             | `abortNodeGeneration(nodeId)` 已用它定位非当前会话里的节点。                         |
+| 同会话排队生成            | `queuedSessionIds` / `triggerQueuedGenerationForSession(sessionId)`         | 解决连续发送时的“合并回复/链式生成”需求，避免跨会话生成被误判成全局队列锁。          |
+| 分离窗口操作代理          | `executeOrProxy()` + `useLlmChatSync` action handler                        | `detached-component` 不直接修改本地 store，而是把操作代理到数据拥有窗口。            |
+| 分离窗口生成态同步        | `CHAT_STATE_KEYS.IS_SENDING` / `CHAT_STATE_KEYS.GENERATING_NODES`           | 分离窗口可以同步看到发送状态与生成节点集合。                                         |
+| 消息级 Agent 快照         | `ChatMessageNode.metadata.agentId` 等字段                                   | 助手节点记录生成时使用的 Agent / Profile / Model 快照，用于历史展示和部分回放场景。  |
+| 会话列表显示 Agent        | `ChatSessionIndex.displayAgentId` / `updateSessionDisplayAgent()`           | 会从当前活跃路径向上找到最近助手消息的 Agent，更新列表展示图标。                     |
+| 上下文预览局部 Agent 解耦 | `getContextForPreview(session, targetNodeId, agentId?)`                     | 预览可以显式传 `agentId`，也会读取节点 metadata 中的历史 Agent。                     |
+| 会话级数据结构            | `parameterOverrides` / `history` / `historyIndex`                           | 数据字段已在 `ChatSessionDetail` 内，具备会话级存储基础。                            |
+
+#### 2.4.2 仍未完成的目标能力
+
+| 目标                                           | 当前状态                                                                                         | 影响                                                 |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| `isSending` 改为 computed                      | 仍是全局可写 `ref(false)`                                                                        | 多会话并行时仍需小心全局发送态语义。                 |
+| `sendMessage(content, { sessionId, agentId })` | store 层签名尚未支持                                                                             | 不能对非当前会话直接发送，也不能显式指定后台 Agent。 |
+| `useChatHandler` 主流程 Agent 解耦             | `sendMessage` / `regenerateFromNode` / `continueGeneration` 仍主要读 `agentStore.currentAgentId` | 后台 SubAgent 还不能独立于 UI 当前 Agent 运行。      |
+| `useChatExecutor.executeRequest` 完全解耦      | 可接收 `agentConfig`，但仍需要 `agentStore.currentAgentId` 对应的 `currentAgent`                 | 只传配置还不足以表达完整执行 Agent。                 |
+| 会话级历史管理器 Map                           | 仍是单个 `historyManager = useSessionNodeHistory(currentSessionDetail)`                          | 多窗口/非当前会话撤销重做还未支持。                  |
+| `useGraphActions` 任意会话操作                 | 仍接收 `currentSession` / `currentSessionId` Ref                                                 | 图操作仍绑定当前会话。                               |
+| `SessionContext` / `SessionRuntimeState` 类型  | 尚未新增                                                                                         | RFC 中的 Session Context 模式还没进入类型层。        |
+| `backgroundSessionService.ts`                  | 尚未新增                                                                                         | Phase 4 后台会话执行引擎不存在。                     |
+
+#### 2.4.3 阶段完成度快照
+
+| 阶段                               | 完成度      | 备注                                                                                  |
+| ---------------------------------- | ----------- | ------------------------------------------------------------------------------------- |
+| Phase 1: 消除 `isSending` 全局瓶颈 | ⚠️ 部分前置 | 已有按会话生成查询和节点级中止，但 `isSending` 本体仍是全局 ref。                     |
+| Phase 2: 解耦 Agent 依赖           | ⚠️ 局部前置 | 上下文预览、历史节点 metadata 已支持部分历史 Agent 语义；主发送/续写/重生成仍未解耦。 |
+| Phase 3: 会话级历史管理器          | ❌ 未施工   | 数据字段会话级存在，但 manager 实例仍绑定当前会话。                                   |
+| Phase 4: 后台会话执行引擎          | ❌ 未施工   | 分离窗口代理已存在，但不是后台会话服务。                                              |
+
 ---
 
 ## 3. 设计方案
@@ -166,6 +207,8 @@ export interface SessionRuntimeState {
 
 **策略**: 保留 `isSending` 作为向后兼容的 computed，但其值从 `generatingNodes` 推导而来（当前已有的 `isCurrentSessionGenerating` 就是这个思路）。
 
+> 2026-07-01 对照：当前代码已经有 `isSessionGenerating(sessionId)`、`getSessionGeneratingNodeIds(sessionId)`、`queuedSessionIds` 和节点级中止逻辑，但 `isSending` 仍是全局 `ref(false)`，本 Phase 尚未完成。
+
 ```typescript
 // 废弃全局 isSending ref，改为 computed
 // const isSending = ref(false); // 删除
@@ -177,7 +220,9 @@ const isSending = computed(() => generatingNodes.value.size > 0);
 function isSessionGenerating(sessionId: string): boolean {
   const detail = sessionDetailMap.value.get(sessionId);
   if (!detail?.nodes) return false;
-  return Object.values(detail.nodes).some((node) => generatingNodes.value.has(node.id));
+  return Object.values(detail.nodes).some((node) =>
+    generatingNodes.value.has(node.id)
+  );
 }
 ```
 
@@ -197,6 +242,8 @@ function isSessionGenerating(sessionId: string): boolean {
 
 **策略**: 在 `sendMessage` 等方法的 options 中新增可选的 `agentId` 参数，不传则回退到 `agentStore.currentAgentId`（向后兼容）。
 
+> 2026-07-01 对照：上下文预览 `getContextForPreview()` 已支持显式/历史 `agentId`，助手节点 metadata 也已记录生成 Agent；但主发送、续写、重新生成仍主要依赖 `agentStore.currentAgentId`，store 层 `sendMessage` 尚未支持 `sessionId` / `agentId` 选项。
+
 ```typescript
 // useChatHandler.ts - sendMessage 签名变更
 const sendMessage = async (
@@ -212,7 +259,7 @@ const sendMessage = async (
     disableMacroParsing?: boolean;
     agentId?: string; // ★ 新增：显式指定 Agent
   },
-  currentSessionId?: string | null,
+  currentSessionId?: string | null
 ): Promise<void> => {
   // ...
 
@@ -240,7 +287,7 @@ async function sendMessage(
     disableMacroParsing?: boolean;
     agentId?: string; // ★ 新增
     sessionId?: string; // ★ 新增：可指定非当前会话
-  },
+  }
 ): Promise<void> {
   // 确定目标会话
   const targetSessionId = options?.sessionId || currentSessionId.value;
@@ -270,21 +317,30 @@ async function sendMessage(
 
 **策略**: 引入 `SessionHistoryManager` Map，按 sessionId 缓存历史管理器实例。
 
+> 2026-07-01 对照：`ChatSessionDetail.history` / `historyIndex` 已是会话级字段，但 `llmChatStore` 仍只有一个绑定 `currentSessionDetail` 的 `historyManager`，`useGraphActions` 也仍绑定当前会话。
+
 ```typescript
 // llmChatStore.ts
 
 // 替换：const historyManager = useSessionNodeHistory(currentSessionDetail);
 // 改为：
-const historyManagerMap = new Map<string, ReturnType<typeof useSessionNodeHistory>>();
+const historyManagerMap = new Map<
+  string,
+  ReturnType<typeof useSessionNodeHistory>
+>();
 
 /**
  * 获取指定会话的历史管理器（懒创建）
  */
-function getHistoryManager(sessionId: string): ReturnType<typeof useSessionNodeHistory> {
+function getHistoryManager(
+  sessionId: string
+): ReturnType<typeof useSessionNodeHistory> {
   let manager = historyManagerMap.get(sessionId);
   if (!manager) {
     // 创建一个指向特定会话 detail 的 computed ref
-    const detailRef = computed(() => sessionDetailMap.value.get(sessionId) || null);
+    const detailRef = computed(
+      () => sessionDetailMap.value.get(sessionId) || null
+    );
     manager = useSessionNodeHistory(detailRef as any);
     historyManagerMap.set(sessionId, manager);
   }
@@ -305,10 +361,14 @@ const historyManager = computed(() => {
 export function useGraphActions(
   getSessionDetail: (sessionId: string) => ChatSessionDetail | null,
   getHistoryManager: (sessionId: string) => HistoryManager | null,
-  sessionIndexMap: Ref<Map<string, ChatSessionIndex>>,
+  sessionIndexMap: Ref<Map<string, ChatSessionIndex>>
 ) {
   // 所有方法新增 sessionId 参数
-  async function editMessage(sessionId: string, nodeId: string, newContent: string): Promise<void> {
+  async function editMessage(
+    sessionId: string,
+    nodeId: string,
+    newContent: string
+  ): Promise<void> {
     const session = getSessionDetail(sessionId);
     const hm = getHistoryManager(sessionId);
     if (!session || !hm) return;
@@ -324,6 +384,8 @@ export function useGraphActions(
 **目标**: 提供一个独立于 UI 的后台会话执行能力，支持 SubAgent 和自动化任务。
 
 **改动范围**: 新增文件
+
+> 2026-07-01 对照：当前已有分离窗口同步与代理机制（`executeOrProxy` / `useLlmChatSync`），但它服务的是窗口数据拥有权与 UI 同步，不等价于后台会话执行服务；`backgroundSessionService.ts` 尚未存在。
 
 **新增模块**:
 
@@ -348,7 +410,10 @@ export class BackgroundSessionService {
   /**
    * 创建后台会话
    */
-  async createBackgroundSession(agentId: string, name?: string): Promise<string> {
+  async createBackgroundSession(
+    agentId: string,
+    name?: string
+  ): Promise<string> {
     return this.store.createSession(agentId, name);
   }
 
@@ -359,7 +424,7 @@ export class BackgroundSessionService {
     sessionId: string,
     content: string,
     agentId: string,
-    options?: { attachments?: Asset[] },
+    options?: { attachments?: Asset[] }
   ): Promise<void> {
     await this.store.sendMessage(content, {
       sessionId,
@@ -371,7 +436,10 @@ export class BackgroundSessionService {
   /**
    * 等待会话生成完成
    */
-  async waitForCompletion(sessionId: string, timeout?: number): Promise<ChatMessageNode | null> {
+  async waitForCompletion(
+    sessionId: string,
+    timeout?: number
+  ): Promise<ChatMessageNode | null> {
     // 轮询 generatingNodes 直到该会话无生成中的节点
   }
 

@@ -278,3 +278,4 @@ bun run tauri build
 
 - [**VCPToolBox**](https://github.com/lioensky/VCPToolBox) - **VCP (Variable & Command Protocol)** 核心协议与工具箱。AIO Hub 深度适配 VCP 协议，支持作为其分布式网络节点，并提供可视化的实时监控与工具调用联动。
 
+- [linux.do 社区](https://linux.do)

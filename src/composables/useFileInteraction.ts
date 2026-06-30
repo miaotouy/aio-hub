@@ -138,7 +138,10 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
       try {
         // 生成文件名（如果文件名为空或是默认名称，使用类型生成）
         let filename = file.name;
-        if (!filename || (sourceType === "clipboard" && filename === "image.png")) {
+        if (
+          !filename ||
+          (sourceType === "clipboard" && filename === "image.png")
+        ) {
           // 使用应用时区生成时间戳
           const timestamp = formatDateTime(
             new Date(),
@@ -146,7 +149,8 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
           );
           const extension = file.type.split("/")[1] || "bin";
           const typePrefix = file.type.startsWith("image/") ? "image" : "file";
-          const sourcePrefix = sourceType === "clipboard" ? "pasted" : "dropped";
+          const sourcePrefix =
+            sourceType === "clipboard" ? "pasted" : "dropped";
           filename = `${sourcePrefix}-${typePrefix}-${timestamp}.${extension}`;
         }
 
@@ -177,9 +181,7 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
           size: file.size,
           createdAt: new Date().toISOString(),
           sourceModule,
-          origins: [
-            origin,
-          ],
+          origins: [origin],
           importStatus: "importing", // 标记为正在导入
           originalPath: blobUrl, // 暂存原始路径
         });

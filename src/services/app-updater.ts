@@ -279,4 +279,3 @@ export async function downloadAndInstallAppUpdate(
 export async function relaunchApp(): Promise<void> {
   await relaunch();
 }
-

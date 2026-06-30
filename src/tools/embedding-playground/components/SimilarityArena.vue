@@ -5,7 +5,9 @@
         <div class="panel-header">
           <div class="title-group">
             <span class="panel-title">1:N 语义排行</span>
-            <span class="panel-subtitle">单模型下验证 Anchor 与文本组的相似度</span>
+            <span class="panel-subtitle"
+              >单模型下验证 Anchor 与文本组的相似度</span
+            >
           </div>
           <el-button
             type="primary"
@@ -30,8 +32,14 @@
               v-model="store.similarityAlgorithm"
               class="w-full custom-select"
             >
-              <el-option label="Cosine Similarity (余弦相似度)" value="cosine" />
-              <el-option label="Euclidean Distance (欧氏距离)" value="euclidean" />
+              <el-option
+                label="Cosine Similarity (余弦相似度)"
+                value="cosine"
+              />
+              <el-option
+                label="Euclidean Distance (欧氏距离)"
+                value="euclidean"
+              />
               <el-option label="Dot Product (点积)" value="dot" />
               <el-option
                 label="Manhattan Distance (曼哈顿距离)"

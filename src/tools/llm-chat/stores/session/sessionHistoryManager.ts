@@ -27,7 +27,9 @@ export function createSessionHistoryManager(state: HistoryState) {
       const detailRef = computed(
         () => state.sessionDetailMap.value.get(targetSessionId) || null
       );
-      manager = useSessionNodeHistory(detailRef as Ref<ChatSessionDetail | null>);
+      manager = useSessionNodeHistory(
+        detailRef as Ref<ChatSessionDetail | null>
+      );
       historyManagerMap.set(targetSessionId, manager);
     }
     return manager;
@@ -94,11 +96,13 @@ export function createSessionHistoryManager(state: HistoryState) {
 
     manager.jumpToState(index);
     persistHistoryMutation(detail);
-    logger.info(`已跳转到历史记录索引 ${index}`, { sessionId: targetSessionId });
+    logger.info(`已跳转到历史记录索引 ${index}`, {
+      sessionId: targetSessionId,
+    });
   }
 
-  const currentHistoryManager = computed(
-    () => getHistoryManager(state.currentSessionId.value)
+  const currentHistoryManager = computed(() =>
+    getHistoryManager(state.currentSessionId.value)
   );
   const canUndo: ComputedRef<boolean> = computed(
     () => currentHistoryManager.value?.canUndo.value ?? false

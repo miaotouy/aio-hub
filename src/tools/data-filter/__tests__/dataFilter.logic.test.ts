@@ -212,7 +212,9 @@ describe("data-filter logic", () => {
       expect(result.error).toBeUndefined();
       expect(result.total).toBe(3);
       expect(result.filtered).toBe(2);
-      expect(result.data.map((item: { id: number }) => item.id)).toEqual([2, 3]);
+      expect(result.data.map((item: { id: number }) => item.id)).toEqual([
+        2, 3,
+      ]);
     });
   });
 
@@ -244,7 +246,9 @@ describe("data-filter logic", () => {
 
       const registry = new DataFilterRegistry();
       const metadata = registry.getMetadata();
-      const method = metadata.methods.find((item) => item.name === "applyFilter");
+      const method = metadata.methods.find(
+        (item) => item.name === "applyFilter"
+      );
       const result = await registry.applyFilter({
         path: "C:/tmp/data.json",
         dataPath: "data.items",

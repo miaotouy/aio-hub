@@ -283,9 +283,7 @@ const nativeDroppedFiles = ref<DroppedFile[]>([]);
 const areaBRef = ref<HTMLElement>();
 const tauriDragOver = ref(false);
 const tauriDroppedPaths = ref<string[]>([]);
-let lastTauriDrop:
-  | { signature: string; receivedAt: number }
-  | null = null;
+let lastTauriDrop: { signature: string; receivedAt: number } | null = null;
 
 const recordTauriDrop = (
   paths: string[] | undefined,

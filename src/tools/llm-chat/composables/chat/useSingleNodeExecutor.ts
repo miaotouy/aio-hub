@@ -1,7 +1,4 @@
-import type {
-  LlmMessage,
-  LlmReasoningArtifact,
-} from "@/llm-apis/common";
+import type { LlmMessage, LlmReasoningArtifact } from "@/llm-apis/common";
 import type {
   ChatSessionDetail,
   ChatMessageNode,

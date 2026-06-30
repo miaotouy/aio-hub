@@ -427,9 +427,7 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
               label: extension.name,
               value: extension.id,
               description: `${extension.pluginName} / ${extension.method}${
-                extension.enabled && !extension.broken
-                  ? ""
-                  : "（当前不可用）"
+                extension.enabled && !extension.broken ? "" : "（当前不可用）"
               }`,
             }));
           },

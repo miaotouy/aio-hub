@@ -99,9 +99,9 @@ describe("web-distillery registry", () => {
 
     const registry = new WebDistilleryRegistry();
 
-    await expect(registry.quickFetch({ url: "https://bad.test" })).resolves.toBe(
-      "错误: 网页内容获取失败。"
-    );
+    await expect(
+      registry.quickFetch({ url: "https://bad.test" })
+    ).resolves.toBe("错误: 网页内容获取失败。");
     await expect(
       registry.smartExtract({ url: "https://bad.test" })
     ).resolves.toContain("错误: 智能提取失败");

@@ -105,7 +105,9 @@ describe("directory-tree actions", () => {
       const included = collectIncludedNodes(tree, ["*.vue"]);
       const names = [...included].map((node) => node.name);
 
-      expect(names).toEqual(expect.arrayContaining(["repo", "src", "Button.vue"]));
+      expect(names).toEqual(
+        expect.arrayContaining(["repo", "src", "Button.vue"])
+      );
       expect(names).not.toContain("README.md");
     });
 
@@ -113,7 +115,9 @@ describe("directory-tree actions", () => {
       const included = collectIncludedNodes(tree, ["docs"]);
       const names = [...included].map((node) => node.name);
 
-      expect(names).toEqual(expect.arrayContaining(["repo", "docs", "README.md"]));
+      expect(names).toEqual(
+        expect.arrayContaining(["repo", "docs", "README.md"])
+      );
     });
 
     it("findNodeAndPath 应支持精确路径、片段路径和根路径", () => {

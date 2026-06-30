@@ -2,11 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import ContentDeduplicatorRegistry from "../content-deduplicator.registry";
 import type { DedupAnalysisResult } from "../types";
 
-const {
-  mockRunner,
-  mockStore,
-  mockWrapAsync,
-} = vi.hoisted(() => ({
+const { mockRunner, mockStore, mockWrapAsync } = vi.hoisted(() => ({
   mockRunner: {
     initialize: vi.fn(),
     scanDirectory: vi.fn(),
@@ -260,7 +256,9 @@ describe("content-deduplicator registry", () => {
   it("getMetadata 应声明 scanDuplicates 为 agentCallable", () => {
     const registry = new ContentDeduplicatorRegistry();
     const metadata = registry.getMetadata();
-    const method = metadata.methods.find((item) => item.name === "scanDuplicates");
+    const method = metadata.methods.find(
+      (item) => item.name === "scanDuplicates"
+    );
 
     expect(method?.agentCallable).toBe(true);
     expect(method?.returnType).toBe("Promise<FormattedDedupResult | null>");

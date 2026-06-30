@@ -1396,8 +1396,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
           settings.transcription.enabled &&
           settings.transcription.image.mode === "ocr" &&
           settings.transcription.image.ocrEngineType === "plugin",
-        defaultValue:
-          DEFAULT_SETTINGS.transcription.image.ocrPluginExtensionId,
+        defaultValue: DEFAULT_SETTINGS.transcription.image.ocrPluginExtensionId,
         groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
       },
       {

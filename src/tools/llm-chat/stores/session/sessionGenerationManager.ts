@@ -1,9 +1,6 @@
 import type { Ref } from "vue";
 import { BranchNavigator } from "../../utils/BranchNavigator";
-import type {
-  ChatSessionDetail,
-  ChatSessionIndex,
-} from "../../types/session";
+import type { ChatSessionDetail, ChatSessionIndex } from "../../types/session";
 import type { ModelIdentifier } from "../../types/llm";
 import type { Asset } from "@/types/asset-management";
 import { createModuleLogger } from "@/utils/logger";
@@ -67,24 +64,39 @@ export function createSessionGenerationManager(
 ) {
   async function getChatHandler() {
     if (managers.createChatHandler) return managers.createChatHandler();
-    const { useChatHandler } = await import("../../composables/chat/useChatHandler");
+    const { useChatHandler } =
+      await import("../../composables/chat/useChatHandler");
     return useChatHandler();
   }
 
   async function getSessionManager() {
     if (managers.createSessionManager) return managers.createSessionManager();
-    const { useSessionManager } = await import("../../composables/session/useSessionManager");
+    const { useSessionManager } =
+      await import("../../composables/session/useSessionManager");
     return useSessionManager();
   }
 
-  async function persistGeneratedSession(index: ChatSessionIndex, detail: ChatSessionDetail): Promise<void> {
+  async function persistGeneratedSession(
+    index: ChatSessionIndex,
+    detail: ChatSessionDetail
+  ): Promise<void> {
     const sessionManager = await getSessionManager();
-    sessionManager.updateMessageCount(index.id, detail.nodes, state.sessionIndexMap.value);
-    sessionManager.updateSessionDisplayAgent(index.id, detail, state.sessionIndexMap.value);
+    sessionManager.updateMessageCount(
+      index.id,
+      detail.nodes,
+      state.sessionIndexMap.value
+    );
+    sessionManager.updateSessionDisplayAgent(
+      index.id,
+      detail,
+      state.sessionIndexMap.value
+    );
     sessionManager.persistSession(index, detail, state.currentSessionId.value);
   }
 
-  async function triggerQueuedGenerationForSession(sessionId: string): Promise<void> {
+  async function triggerQueuedGenerationForSession(
+    sessionId: string
+  ): Promise<void> {
     const index = state.sessionIndexMap.value.get(sessionId);
     const detail = state.sessionDetailMap.value.get(sessionId);
     if (!index || !detail || !detail.nodes) {
@@ -95,7 +107,8 @@ export function createSessionGenerationManager(
 
     if (managers.runtime.isSessionGenerating(sessionId)) return;
 
-    const { useChatSettings } = await import("../../composables/settings/useChatSettings");
+    const { useChatSettings } =
+      await import("../../composables/settings/useChatSettings");
     const { settings } = useChatSettings();
     const queueMode = settings.value.uiPreferences.queueReplyMode ?? "combined";
     const chatHandler = await getChatHandler();
@@ -103,7 +116,9 @@ export function createSessionGenerationManager(
 
     try {
       if (queueMode === "combined") {
-        const activeLeaf = detail.activeLeafId ? detail.nodes[detail.activeLeafId] : null;
+        const activeLeaf = detail.activeLeafId
+          ? detail.nodes[detail.activeLeafId]
+          : null;
         if (
           !activeLeaf ||
           activeLeaf.role !== "user" ||
@@ -131,7 +146,8 @@ export function createSessionGenerationManager(
         );
       } else {
         const pendingAssistant = Object.values(detail.nodes).find(
-          (node) => node.role === "assistant" && (node.status as string) === "pending"
+          (node) =>
+            node.role === "assistant" && (node.status as string) === "pending"
         );
         if (!pendingAssistant) {
           state.queuedSessionIds.value.delete(sessionId);
@@ -157,73 +173,106 @@ export function createSessionGenerationManager(
         );
       }
 
-      sessionManager.updateMessageCount(index.id, detail.nodes, state.sessionIndexMap.value);
-      sessionManager.updateSessionDisplayAgent(index.id, detail, state.sessionIndexMap.value);
-      sessionManager.persistSession(index, detail, state.currentSessionId.value);
+      sessionManager.updateMessageCount(
+        index.id,
+        detail.nodes,
+        state.sessionIndexMap.value
+      );
+      sessionManager.updateSessionDisplayAgent(
+        index.id,
+        detail,
+        state.sessionIndexMap.value
+      );
+      sessionManager.persistSession(
+        index,
+        detail,
+        state.currentSessionId.value
+      );
     } catch (error) {
-      sessionManager.persistSession(index, detail, state.currentSessionId.value);
+      sessionManager.persistSession(
+        index,
+        detail,
+        state.currentSessionId.value
+      );
       throw error;
     }
   }
 
-  async function sendMessage(content: string, options?: SendMessageOptions): Promise<void> {
-    return managers.executeOrProxy("send-message", { content, options }, async () => {
-      const { sessionId, index, detail } = managers.access.resolveSessionContext(
-        options?.sessionId
-      );
-      const skipGeneration = managers.runtime.isSessionGenerating(sessionId);
-      if (skipGeneration) {
-        state.queuedSessionIds.value.add(sessionId);
-        if (options?.agentId) state.queuedSessionAgentIds.value.set(sessionId, options.agentId);
-      }
-
-      try {
-        const chatHandler = await getChatHandler();
-        const handlerOptions = skipGeneration
-          ? { ...options, skipGeneration: true }
-          : options;
-        const sendPromise = chatHandler.sendMessage(
-          detail,
-          content,
-          managers.access.getActivePath(sessionId),
-          state.abortControllers.value,
-          state.generatingNodes.value,
-          handlerOptions,
-          state.currentSessionId.value
-        );
+  async function sendMessage(
+    content: string,
+    options?: SendMessageOptions
+  ): Promise<void> {
+    return managers.executeOrProxy(
+      "send-message",
+      { content, options },
+      async () => {
+        const { sessionId, index, detail } =
+          managers.access.resolveSessionContext(options?.sessionId);
+        const skipGeneration = managers.runtime.isSessionGenerating(sessionId);
+        if (skipGeneration) {
+          state.queuedSessionIds.value.add(sessionId);
+          if (options?.agentId)
+            state.queuedSessionAgentIds.value.set(sessionId, options.agentId);
+        }
 
         try {
-          const { useChatInputManager } = await import("../../composables/input/useChatInputManager");
-          const inputManager = useChatInputManager();
-          inputManager.clear(sessionId);
-          logger.info("消息已进入发送流程，已清空目标会话输入框", { sessionId });
-        } catch (error) {
-          logger.warn("反向驱动清空输入框失败", error);
-        }
+          const chatHandler = await getChatHandler();
+          const handlerOptions = skipGeneration
+            ? { ...options, skipGeneration: true }
+            : options;
+          const sendPromise = chatHandler.sendMessage(
+            detail,
+            content,
+            managers.access.getActivePath(sessionId),
+            state.abortControllers.value,
+            state.generatingNodes.value,
+            handlerOptions,
+            state.currentSessionId.value
+          );
 
-        await sendPromise;
-        if (!skipGeneration) {
+          try {
+            const { useChatInputManager } =
+              await import("../../composables/input/useChatInputManager");
+            const inputManager = useChatInputManager();
+            inputManager.clear(sessionId);
+            logger.info("消息已进入发送流程，已清空目标会话输入框", {
+              sessionId,
+            });
+          } catch (error) {
+            logger.warn("反向驱动清空输入框失败", error);
+          }
+
+          await sendPromise;
+          if (!skipGeneration) {
+            state.queuedSessionIds.value.delete(sessionId);
+            state.queuedSessionAgentIds.value.delete(sessionId);
+          }
+
+          await persistGeneratedSession(index, detail);
+          managers.history.clearHistory(sessionId);
+        } catch (error) {
           state.queuedSessionIds.value.delete(sessionId);
           state.queuedSessionAgentIds.value.delete(sessionId);
+          const sessionManager = await getSessionManager();
+          sessionManager.persistSession(
+            index,
+            detail,
+            state.currentSessionId.value
+          );
+          throw error;
         }
-
-        await persistGeneratedSession(index, detail);
-        managers.history.clearHistory(sessionId);
-      } catch (error) {
-        state.queuedSessionIds.value.delete(sessionId);
-        state.queuedSessionAgentIds.value.delete(sessionId);
-        const sessionManager = await getSessionManager();
-        sessionManager.persistSession(index, detail, state.currentSessionId.value);
-        throw error;
       }
-    });
+    );
   }
 
   async function continueGeneration(
     nodeId: string,
     options?: GenerationOptions
   ): Promise<void> {
-    const sessionId = managers.access.resolveSessionIdForNode(nodeId, options?.sessionId);
+    const sessionId = managers.access.resolveSessionIdForNode(
+      nodeId,
+      options?.sessionId
+    );
     if (!sessionId) return;
 
     const { index, detail } = managers.access.resolveSessionContext(sessionId);
@@ -240,7 +289,11 @@ export function createSessionGenerationManager(
       managers.history.clearHistory(sessionId);
     } catch (error) {
       const sessionManager = await getSessionManager();
-      sessionManager.persistSession(index, detail, state.currentSessionId.value);
+      sessionManager.persistSession(
+        index,
+        detail,
+        state.currentSessionId.value
+      );
       throw error;
     }
   }
@@ -255,9 +308,14 @@ export function createSessionGenerationManager(
     const { detail } = managers.access.resolveSessionContext(sessionId);
     try {
       const chatHandler = await getChatHandler();
-      const completion = await chatHandler.completeInput(content, detail, options);
+      const completion = await chatHandler.completeInput(
+        content,
+        detail,
+        options
+      );
       if (completion) {
-        const { useChatInputManager } = await import("../../composables/input/useChatInputManager");
+        const { useChatInputManager } =
+          await import("../../composables/input/useChatInputManager");
         const inputManager = useChatInputManager();
         inputManager.addContent(completion, "append", sessionId);
       }
@@ -280,7 +338,8 @@ export function createSessionGenerationManager(
         );
         if (!sessionId) return;
 
-        const { index, detail } = managers.access.resolveSessionContext(sessionId);
+        const { index, detail } =
+          managers.access.resolveSessionContext(sessionId);
         try {
           const chatHandler = await getChatHandler();
           await chatHandler.regenerateFromNode(
@@ -295,7 +354,11 @@ export function createSessionGenerationManager(
           managers.history.clearHistory(sessionId);
         } catch (error) {
           const sessionManager = await getSessionManager();
-          sessionManager.persistSession(index, detail, state.currentSessionId.value);
+          sessionManager.persistSession(
+            index,
+            detail,
+            state.currentSessionId.value
+          );
           throw error;
         }
       }
@@ -304,11 +367,16 @@ export function createSessionGenerationManager(
 
   async function regenerateLastMessage(): Promise<void> {
     const { detail } = managers.access.resolveSessionContext();
-    const { useBranchManager } = await import("../../composables/session/useBranchManager");
+    const { useBranchManager } =
+      await import("../../composables/session/useBranchManager");
     const branchManager = useBranchManager();
     const result = branchManager.prepareRegenerateLastMessage(detail);
 
-    if (!result.shouldRegenerate || !result.userContent || !result.newActiveLeafId) {
+    if (
+      !result.shouldRegenerate ||
+      !result.userContent ||
+      !result.newActiveLeafId
+    ) {
       return;
     }
 

@@ -462,14 +462,9 @@ export function useGraphActions(
           newNode,
           parentBeforeCreate
         );
-        recordHistory(
-          session.id,
-          "BRANCH_CREATE",
-          [...solidifyDeltas, delta],
-          {
-            targetNodeId: newNodeId,
-          }
-        );
+        recordHistory(session.id, "BRANCH_CREATE", [...solidifyDeltas, delta], {
+          targetNodeId: newNodeId,
+        });
       }
 
       if (sessionIndexMap?.value) {

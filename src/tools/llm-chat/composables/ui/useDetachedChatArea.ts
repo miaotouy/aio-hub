@@ -120,7 +120,10 @@ export function useDetachedChatArea() {
   };
 
   const createBranch = (nodeId: string) => {
-    logger.info("代理创建分支操作", { nodeId, sessionId: store.currentSessionId });
+    logger.info("代理创建分支操作", {
+      nodeId,
+      sessionId: store.currentSessionId,
+    });
     return bus.requestAction("llm-chat:create-branch", {
       nodeId,
       sessionId: store.currentSessionId,

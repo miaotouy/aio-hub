@@ -2,7 +2,9 @@ import { describe, it, expect, vi } from "vitest";
 import { TokenCalculatorEngine } from "../tokenCalculatorEngine";
 import type { TokenizerProfile } from "../../types/tokenizer-profile";
 
-function createProfile(overrides: Partial<TokenizerProfile> = {}): TokenizerProfile {
+function createProfile(
+  overrides: Partial<TokenizerProfile> = {}
+): TokenizerProfile {
   return {
     id: "test-profile",
     name: "Test Profile",
@@ -67,7 +69,9 @@ describe("TokenCalculatorEngine", () => {
       ],
     });
 
-    expect(engine.resolveProfile("test-model")?.profile.id).toBe("rule-profile");
+    expect(engine.resolveProfile("test-model")?.profile.id).toBe(
+      "rule-profile"
+    );
   });
 
   it("禁用的 profile 不应被自动匹配", async () => {

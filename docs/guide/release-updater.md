@@ -140,4 +140,3 @@ TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 ```
 
 `signature` 必须是 `.sig` 文件内容。不能写 `.sig` 文件路径，也不能写 `.sig` 下载 URL。
-

@@ -1,7 +1,4 @@
-import type {
-  LlmMessage,
-  LlmReasoningArtifact,
-} from "@/llm-apis/common";
+import type { LlmMessage, LlmReasoningArtifact } from "@/llm-apis/common";
 
 export const DEEPSEEK_PROVIDER = "deepseek";
 export const DEEPSEEK_REASONING_CONTENT_KIND = "reasoning_content";

@@ -18,7 +18,10 @@ interface RuntimeState {
 
 export function createSessionRuntimeManager(state: RuntimeState) {
   function isNodeGenerating(nodeId: string): boolean {
-    return state.generatingNodes.value.size >= 0 && state.generatingNodes.value.has(nodeId);
+    return (
+      state.generatingNodes.value.size >= 0 &&
+      state.generatingNodes.value.has(nodeId)
+    );
   }
 
   function getSessionGeneratingNodeIds(sessionId: string): string[] {
@@ -34,7 +37,10 @@ export function createSessionRuntimeManager(state: RuntimeState) {
     return getSessionGeneratingNodeIds(sessionId).length > 0;
   }
 
-  function markNodeAsUserAborted(nodeId: string, detail?: ChatSessionDetail | null): void {
+  function markNodeAsUserAborted(
+    nodeId: string,
+    detail?: ChatSessionDetail | null
+  ): void {
     if (detail?.nodes?.[nodeId]) {
       const node = detail.nodes[nodeId];
       if (node.content?.trim()) {

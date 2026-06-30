@@ -11,32 +11,31 @@ import {
 } from "../actions/agentActions";
 import type { Caiu, KnowledgeBaseMeta } from "../types";
 
-const {
-  mockInvoke,
-  mockKbStorage,
-  mockStore,
-  mockCalculateHash,
-} = vi.hoisted(() => ({
-  mockInvoke: vi.fn(),
-  mockKbStorage: {
-    loadWorkspace: vi.fn(),
-    loadBaseMeta: vi.fn(),
-    loadEntry: vi.fn(),
-    saveEntry: vi.fn(),
-    deleteEntry: vi.fn(),
-  },
-  mockStore: {
-    activeBaseId: "kb-1",
-    activeEntryId: "entry-1",
-    config: {
-      defaultEmbeddingModel: "",
-      embeddingRequestSettings: {},
+const { mockInvoke, mockKbStorage, mockStore, mockCalculateHash } = vi.hoisted(
+  () => ({
+    mockInvoke: vi.fn(),
+    mockKbStorage: {
+      loadWorkspace: vi.fn(),
+      loadBaseMeta: vi.fn(),
+      loadEntry: vi.fn(),
+      saveEntry: vi.fn(),
+      deleteEntry: vi.fn(),
     },
-    validateVectorStatus: vi.fn(async () => undefined),
-    updateGlobalStats: vi.fn(async () => undefined),
-  },
-  mockCalculateHash: vi.fn(async (content: string) => `hash:${content.length}`),
-}));
+    mockStore: {
+      activeBaseId: "kb-1",
+      activeEntryId: "entry-1",
+      config: {
+        defaultEmbeddingModel: "",
+        embeddingRequestSettings: {},
+      },
+      validateVectorStatus: vi.fn(async () => undefined),
+      updateGlobalStats: vi.fn(async () => undefined),
+    },
+    mockCalculateHash: vi.fn(
+      async (content: string) => `hash:${content.length}`
+    ),
+  })
+);
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: mockInvoke,
@@ -164,14 +163,17 @@ describe("knowledge-base agent actions", () => {
     meta = createMeta();
     entries = new Map([
       ["entry-1", createEntry()],
-      ["entry-2", createEntry({
-        id: "entry-2",
-        key: "Vue Notes",
-        content: "Vue composition API notes",
-        tags: [{ name: "vue", weight: 1 }],
-        priority: 80,
-        enabled: false,
-      })],
+      [
+        "entry-2",
+        createEntry({
+          id: "entry-2",
+          key: "Vue Notes",
+          content: "Vue composition API notes",
+          tags: [{ name: "vue", weight: 1 }],
+          priority: 80,
+          enabled: false,
+        }),
+      ],
     ]);
 
     mockInvoke.mockReset();

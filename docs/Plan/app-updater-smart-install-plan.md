@@ -430,8 +430,8 @@ TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 使用模块级 logger：
 
 ```ts
-createModuleLogger("AppUpdater")
-createModuleErrorHandler("AppUpdater")
+createModuleLogger("AppUpdater");
+createModuleErrorHandler("AppUpdater");
 ```
 
 记录：
@@ -553,15 +553,15 @@ Linux：
 
 ## 14. 风险与对策
 
-| 风险 | 影响 | 对策 |
-| --- | --- | --- |
-| 签名私钥泄露 | 高 | 私钥只放 CI Secret，定期轮换，泄露后更换 pubkey 并发布安全公告 |
-| 清单先于 artifact 发布 | 中 | 清单更新作为发布最后一步 |
-| 预发布通道误推 stable 用户 | 中 | stable / preview endpoint 分离 |
-| Windows 权限不足 | 中 | 默认使用 passive，保留手动安装兜底 |
-| 更新时打断任务 | 中 | 第二期接入任务保护，第一期安装前明确提示 |
-| GitHub 访问不稳定 | 中 | 后续迁移到可控静态域名或 CDN |
-| 文档与行为不一致 | 低 | 每期改动同步更新用户文档和架构文档 |
+| 风险                       | 影响 | 对策                                                           |
+| -------------------------- | ---- | -------------------------------------------------------------- |
+| 签名私钥泄露               | 高   | 私钥只放 CI Secret，定期轮换，泄露后更换 pubkey 并发布安全公告 |
+| 清单先于 artifact 发布     | 中   | 清单更新作为发布最后一步                                       |
+| 预发布通道误推 stable 用户 | 中   | stable / preview endpoint 分离                                 |
+| Windows 权限不足           | 中   | 默认使用 passive，保留手动安装兜底                             |
+| 更新时打断任务             | 中   | 第二期接入任务保护，第一期安装前明确提示                       |
+| GitHub 访问不稳定          | 中   | 后续迁移到可控静态域名或 CDN                                   |
+| 文档与行为不一致           | 低   | 每期改动同步更新用户文档和架构文档                             |
 
 ## 15. 决策记录
 

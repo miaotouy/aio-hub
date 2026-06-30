@@ -99,7 +99,9 @@
           >
             <div
               class="score-ring"
-              :style="{ '--score-angle': `${toPercent(singleResult.score) * 3.6}deg` }"
+              :style="{
+                '--score-angle': `${toPercent(singleResult.score) * 3.6}deg`,
+              }"
             >
               <div class="score-ring-inner">
                 <span class="score-main">
@@ -112,7 +114,9 @@
             <div class="metric-strip">
               <div class="metric-item">
                 <span class="metric-label">原始分数</span>
-                <span class="metric-value">{{ singleResult.score.toFixed(6) }}</span>
+                <span class="metric-value">{{
+                  singleResult.score.toFixed(6)
+                }}</span>
               </div>
               <div class="metric-item">
                 <span class="metric-label">维度</span>
@@ -120,7 +124,9 @@
               </div>
               <div class="metric-item">
                 <span class="metric-label">耗时</span>
-                <span class="metric-value">{{ singleResult.executionTime }}ms</span>
+                <span class="metric-value"
+                  >{{ singleResult.executionTime }}ms</span
+                >
               </div>
               <div class="metric-item">
                 <span class="metric-label">Tokens</span>
@@ -140,7 +146,9 @@
             >
               <div class="model-row">
                 <span class="model-name">{{ item.modelLabel }}</span>
-                <span class="model-score">{{ (item.score * 100).toFixed(2) }}%</span>
+                <span class="model-score"
+                  >{{ (item.score * 100).toFixed(2) }}%</span
+                >
               </div>
               <div class="score-track">
                 <div
@@ -210,10 +218,7 @@ const modeValue = computed({
 
 const quickModelCombo = computed({
   get: () =>
-    buildSingleModelCombo(
-      store.quickCompareProfile,
-      store.quickCompareModelId
-    ),
+    buildSingleModelCombo(store.quickCompareProfile, store.quickCompareModelId),
   set: (value: string | string[]) => {
     const target = resolveModelCombo(Array.isArray(value) ? value[0] : value);
     store.quickCompareProfile = target?.profile ?? null;
@@ -240,7 +245,11 @@ const canRun = computed(() => {
 });
 
 const resultCount = computed(() =>
-  store.quickCompareIsMulti ? multiResults.value.length : singleResult.value ? 1 : 0
+  store.quickCompareIsMulti
+    ? multiResults.value.length
+    : singleResult.value
+      ? 1
+      : 0
 );
 
 const sortedMultiResults = computed(() =>

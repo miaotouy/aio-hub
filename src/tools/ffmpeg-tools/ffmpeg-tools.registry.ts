@@ -50,10 +50,9 @@ export default class FFmpegToolsRegistry implements ToolRegistry {
       ["cleanupIntermediates"]
     ) as unknown as actions.ExecutePipelineArgs;
     normalizedArgs.steps = normalizedArgs.steps?.map((step) =>
-      normalizeAgentBooleanFields(
-        step as unknown as Record<string, unknown>,
-        ["hwaccel"]
-      )
+      normalizeAgentBooleanFields(step as unknown as Record<string, unknown>, [
+        "hwaccel",
+      ])
     ) as unknown as actions.PipelineStep[];
     return actions.executePipeline(normalizedArgs, context);
   }

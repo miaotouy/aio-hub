@@ -245,9 +245,12 @@ export class SidecarPluginAdapter implements PluginProxy {
         const startupMethod = this.manifest.sidecar.startupMethod;
         const startupParams = this.manifest.sidecar.startupParams || {};
 
-        logger.info(`执行常驻插件启动检查/初始化: ${this.id}.${startupMethod}`, {
-          startupParams,
-        });
+        logger.info(
+          `执行常驻插件启动检查/初始化: ${this.id}.${startupMethod}`,
+          {
+            startupParams,
+          }
+        );
 
         try {
           const startupResult = await this.executeSidecarResident(

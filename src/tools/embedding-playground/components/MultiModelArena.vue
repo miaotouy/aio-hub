@@ -34,8 +34,14 @@
           <div class="config-section">
             <label class="section-label">相似度算法</label>
             <el-select v-model="store.similarityAlgorithm" class="w-full">
-              <el-option label="Cosine Similarity (余弦相似度)" value="cosine" />
-              <el-option label="Euclidean Distance (欧氏距离)" value="euclidean" />
+              <el-option
+                label="Cosine Similarity (余弦相似度)"
+                value="cosine"
+              />
+              <el-option
+                label="Euclidean Distance (欧氏距离)"
+                value="euclidean"
+              />
               <el-option label="Dot Product (点积)" value="dot" />
               <el-option
                 label="Manhattan Distance (曼哈顿距离)"
@@ -163,7 +169,9 @@
                     >
                       <span class="rank-index">#{{ item.rank }}</span>
                       <span class="rank-text">{{ item.text }}</span>
-                      <span class="rank-score">{{ item.score.toFixed(3) }}</span>
+                      <span class="rank-score">{{
+                        item.score.toFixed(3)
+                      }}</span>
                     </div>
                   </div>
                 </div>
@@ -299,7 +307,9 @@ const matrixRows = computed(() => {
 
 const sortedScoresForThreshold = (combo: string) => {
   const model = modelResults.value.find((item) => item.combo === combo);
-  return model ? model.sortedScores.map((item) => item.score).sort((a, b) => a - b) : [];
+  return model
+    ? model.sortedScores.map((item) => item.score).sort((a, b) => a - b)
+    : [];
 };
 
 const percentileRank = (scores: number[], threshold: number) => {

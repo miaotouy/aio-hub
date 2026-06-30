@@ -318,7 +318,10 @@ export function useLlmChatSync() {
           params.sessionId
         );
       case "toggle-enabled":
-        return (store as any).toggleNodeEnabled(params.nodeId, params.sessionId);
+        return (store as any).toggleNodeEnabled(
+          params.nodeId,
+          params.sessionId
+        );
       case "edit-message":
         return (store as any).editMessage(
           params.nodeId,

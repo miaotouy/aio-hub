@@ -46,26 +46,33 @@ export function createSessionLifecycleManager(
   }
 
   async function getStorage() {
-    const { useChatStorageSeparated } = await import(
-      "../../composables/storage/useChatStorageSeparated"
-    );
+    const { useChatStorageSeparated } =
+      await import("../../composables/storage/useChatStorageSeparated");
     return useChatStorageSeparated();
   }
 
   async function getInputManager() {
-    const { useChatInputManager } = await import(
-      "../../composables/input/useChatInputManager"
-    );
+    const { useChatInputManager } =
+      await import("../../composables/input/useChatInputManager");
     return useChatInputManager();
   }
 
   function normalizeLoadedDetail(
     sessionId: string,
-    fullSession: { index: ChatSessionIndex; detail?: Partial<ChatSessionDetail> }
+    fullSession: {
+      index: ChatSessionIndex;
+      detail?: Partial<ChatSessionDetail>;
+    }
   ): ChatSessionDetail | null {
     if (!fullSession.detail) return null;
-    const { nodes, rootNodeId, activeLeafId, history, historyIndex, updatedAt } =
-      fullSession.detail;
+    const {
+      nodes,
+      rootNodeId,
+      activeLeafId,
+      history,
+      historyIndex,
+      updatedAt,
+    } = fullSession.detail;
     if (!nodes || !rootNodeId || !activeLeafId) return null;
 
     return {
@@ -147,7 +154,11 @@ export function createSessionLifecycleManager(
           detail.nodes,
           state.sessionIndexMap.value
         );
-        sessionManager.persistSession(index, detail, state.currentSessionId.value);
+        sessionManager.persistSession(
+          index,
+          detail,
+          state.currentSessionId.value
+        );
         managers.history.clearHistory(sessionId);
 
         return sessionId;
@@ -156,28 +167,32 @@ export function createSessionLifecycleManager(
   }
 
   async function deleteSession(sessionId: string): Promise<void> {
-    return managers.executeOrProxy("delete-session", { sessionId }, async () => {
-      const sessionManager = getSessionManager();
-      const { newCurrentSessionId } = await sessionManager.deleteSession(
-        Array.from(state.sessionIndexMap.value.values()),
-        sessionId,
-        state.currentSessionId.value
-      );
+    return managers.executeOrProxy(
+      "delete-session",
+      { sessionId },
+      async () => {
+        const sessionManager = getSessionManager();
+        const { newCurrentSessionId } = await sessionManager.deleteSession(
+          Array.from(state.sessionIndexMap.value.values()),
+          sessionId,
+          state.currentSessionId.value
+        );
 
-      cleanupSessionMemory(sessionId);
-      state.sessionIndexMap.value.delete(sessionId);
-      state.sessionDetailMap.value.delete(sessionId);
-      await cleanupSessionDraft(sessionId);
+        cleanupSessionMemory(sessionId);
+        state.sessionIndexMap.value.delete(sessionId);
+        state.sessionDetailMap.value.delete(sessionId);
+        await cleanupSessionDraft(sessionId);
 
-      if (state.currentSessionId.value === sessionId) {
-        state.currentSessionId.value = newCurrentSessionId;
-        if (state.currentSessionId.value) {
-          await switchSession(state.currentSessionId.value);
+        if (state.currentSessionId.value === sessionId) {
+          state.currentSessionId.value = newCurrentSessionId;
+          if (state.currentSessionId.value) {
+            await switchSession(state.currentSessionId.value);
+          }
         }
-      }
 
-      persistSessions();
-    });
+        persistSessions();
+      }
+    );
   }
 
   async function batchDeleteSessions(sessionIds: string[]): Promise<void> {
@@ -193,7 +208,9 @@ export function createSessionLifecycleManager(
         const storage = await getStorage();
         const inputManager = await getInputManager();
         const deleteIdSet = new Set(idsToDelete);
-        const remainingSessions = Array.from(state.sessionIndexMap.value.values())
+        const remainingSessions = Array.from(
+          state.sessionIndexMap.value.values()
+        )
           .filter((session) => !deleteIdSet.has(session.id))
           .sort(
             (a, b) =>
@@ -263,7 +280,11 @@ export function createSessionLifecycleManager(
 
           state.sessionIndexMap.value.set(index.id, index);
           state.sessionDetailMap.value.set(index.id, detail);
-          await storage.persistSession(index, detail, state.currentSessionId.value);
+          await storage.persistSession(
+            index,
+            detail,
+            state.currentSessionId.value
+          );
         }
 
         persistSessions();
@@ -411,7 +432,11 @@ export function createSessionLifecycleManager(
         const index = state.sessionIndexMap.value.get(sessionId);
         const detail = state.sessionDetailMap.value.get(sessionId);
         if (index && detail) {
-          sessionManager.persistSession(index, detail, state.currentSessionId.value);
+          sessionManager.persistSession(
+            index,
+            detail,
+            state.currentSessionId.value
+          );
         }
       }
     );
@@ -484,61 +509,67 @@ export function createSessionLifecycleManager(
   }
 
   async function switchSession(sessionId: string): Promise<void> {
-    return managers.executeOrProxy("switch-session", { sessionId }, async () => {
-      const index = state.sessionIndexMap.value.get(sessionId);
-      if (!index) {
-        logger.warn("切换会话失败：会话不存在", { sessionId });
-        return;
-      }
+    return managers.executeOrProxy(
+      "switch-session",
+      { sessionId },
+      async () => {
+        const index = state.sessionIndexMap.value.get(sessionId);
+        if (!index) {
+          logger.warn("切换会话失败：会话不存在", { sessionId });
+          return;
+        }
 
-      const detail = await ensureSessionDetail(sessionId);
-      if (
-        detail &&
-        (detail.history === undefined ||
-          detail.historyIndex === undefined ||
-          detail.history.length === 0)
-      ) {
-        managers.history.clearHistory(sessionId);
-        logger.info("为会话初始化了历史堆栈", { sessionId });
-      }
+        const detail = await ensureSessionDetail(sessionId);
+        if (
+          detail &&
+          (detail.history === undefined ||
+            detail.historyIndex === undefined ||
+            detail.history.length === 0)
+        ) {
+          managers.history.clearHistory(sessionId);
+          logger.info("为会话初始化了历史堆栈", { sessionId });
+        }
 
-      if (detail && index.displayAgentId) {
-        const { useAgentStore } = await import("../agentStore");
-        const { useUserProfileStore } = await import("../userProfileStore");
-        const agentStore = useAgentStore();
-        const userProfileStore = useUserProfileStore();
-        const agent = await agentStore.ensureAgentLoaded(index.displayAgentId);
-        if (agent) {
-          const effectiveUserProfile = userProfileStore.getEffectiveProfile(
-            agent.userProfileId
+        if (detail && index.displayAgentId) {
+          const { useAgentStore } = await import("../agentStore");
+          const { useUserProfileStore } = await import("../userProfileStore");
+          const agentStore = useAgentStore();
+          const userProfileStore = useUserProfileStore();
+          const agent = await agentStore.ensureAgentLoaded(
+            index.displayAgentId
           );
-          const changed = await refreshLiveGreetingsIfNeeded(
-            index,
-            detail,
-            agent,
-            effectiveUserProfile
-          );
-          if (changed) {
-            const sessionManager = getSessionManager();
-            sessionManager.updateMessageCount(
-              sessionId,
-              detail.nodes,
-              state.sessionIndexMap.value
+          if (agent) {
+            const effectiveUserProfile = userProfileStore.getEffectiveProfile(
+              agent.userProfileId
             );
-            sessionManager.persistSession(index, detail, sessionId);
-            logger.info("切换会话时已同步未固化开场白", {
-              sessionId,
-              agentId: agent.id,
-            });
+            const changed = await refreshLiveGreetingsIfNeeded(
+              index,
+              detail,
+              agent,
+              effectiveUserProfile
+            );
+            if (changed) {
+              const sessionManager = getSessionManager();
+              sessionManager.updateMessageCount(
+                sessionId,
+                detail.nodes,
+                state.sessionIndexMap.value
+              );
+              sessionManager.persistSession(index, detail, sessionId);
+              logger.info("切换会话时已同步未固化开场白", {
+                sessionId,
+                agentId: agent.id,
+              });
+            }
           }
         }
-      }
 
-      state.currentSessionId.value = sessionId;
-      const sessionManager = getSessionManager();
-      sessionManager.updateCurrentSessionId(sessionId);
-      logger.info("切换会话", { sessionId, sessionName: index.name });
-    });
+        state.currentSessionId.value = sessionId;
+        const sessionManager = getSessionManager();
+        sessionManager.updateCurrentSessionId(sessionId);
+        logger.info("切换会话", { sessionId, sessionName: index.name });
+      }
+    );
   }
 
   function createFavoriteFolderId(): string {
@@ -730,11 +761,11 @@ export function createSessionLifecycleManager(
       return;
     }
 
-    const { useTopicNamer } = await import(
-      "../../composables/chat/useTopicNamer"
-    );
+    const { useTopicNamer } =
+      await import("../../composables/chat/useTopicNamer");
     const { shouldAutoName, generateTopicName } = useTopicNamer();
-    const shouldName = force || shouldAutoName(detail, state.sessionIndexMap.value);
+    const shouldName =
+      force || shouldAutoName(detail, state.sessionIndexMap.value);
     logger.info("generateSessionTopic: 命名检查", {
       sessionId: id,
       shouldName,

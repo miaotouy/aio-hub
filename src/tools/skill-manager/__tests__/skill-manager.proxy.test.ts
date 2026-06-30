@@ -121,7 +121,9 @@ describe("skill-manager proxy", () => {
     expect(instructions).toContain("`references/guide.md` (2.0 KB)");
     expect(instructions).toContain("`hello`: Say hello");
     expect(instructions).toContain("操作系统: windows 10.0.0 (windows)");
-    expect(instructions).toContain("可用运行时: bun.exe, python.exe, bash, powershell.exe");
+    expect(instructions).toContain(
+      "可用运行时: bun.exe, python.exe, bash, powershell.exe"
+    );
   });
 
   it("skill_run_script 应合并环境变量并格式化成功、失败和 null 结果", async () => {
@@ -180,7 +182,10 @@ describe("skill-manager proxy", () => {
     const proxy = new SkillManagerProxy();
     mockReadResource.mockResolvedValueOnce("# Guide");
     mockReadResource.mockResolvedValueOnce("");
-    mockListDirectory.mockResolvedValueOnce(["SKILL.md", "references/guide.md"]);
+    mockListDirectory.mockResolvedValueOnce([
+      "SKILL.md",
+      "references/guide.md",
+    ]);
     mockListDirectory.mockResolvedValueOnce([]);
 
     await expect(

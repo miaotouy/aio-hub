@@ -337,11 +337,18 @@ const updateSearchResults = () => {
 };
 
 // 监听算法或 TopK 变化自动重算
-watch([() => store.similarityAlgorithm, () => store.searchTopK, () => store.searchThreshold], () => {
-  if (lastQueryEmbedding.value) {
-    updateSearchResults();
+watch(
+  [
+    () => store.similarityAlgorithm,
+    () => store.searchTopK,
+    () => store.searchThreshold,
+  ],
+  () => {
+    if (lastQueryEmbedding.value) {
+      updateSearchResults();
+    }
   }
-});
+);
 
 watch(retrievalModelCombo, (newValue, oldValue) => {
   if (!oldValue || newValue === oldValue) return;

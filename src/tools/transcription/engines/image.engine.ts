@@ -12,10 +12,7 @@ import {
 import type { Asset } from "@/types/asset-management";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { OcrEngineConfig } from "@/tools/smart-ocr/types";
-import {
-  getEffectiveConfig,
-  getModelParams,
-} from "./base";
+import { getEffectiveConfig, getModelParams } from "./base";
 import { cleanLlmOutput, detectRepetition } from "../utils/text";
 import type {
   ITranscriptionEngine,

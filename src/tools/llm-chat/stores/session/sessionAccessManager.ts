@@ -18,7 +18,9 @@ export interface ResolvedSessionContext {
 }
 
 export function createSessionAccessManager(state: SessionMaps) {
-  function resolveSessionContext(sessionId?: string | null): ResolvedSessionContext {
+  function resolveSessionContext(
+    sessionId?: string | null
+  ): ResolvedSessionContext {
     const targetSessionId = sessionId || state.currentSessionId.value;
     if (!targetSessionId) throw new Error("请先创建或选择一个会话");
 
@@ -48,7 +50,11 @@ export function createSessionAccessManager(state: SessionMaps) {
     nodeId: string,
     explicitSessionId?: string | null
   ): string | null {
-    return explicitSessionId || findSessionIdByNodeId(nodeId) || state.currentSessionId.value;
+    return (
+      explicitSessionId ||
+      findSessionIdByNodeId(nodeId) ||
+      state.currentSessionId.value
+    );
   }
 
   function getActivePath(sessionId?: string | null): ChatMessageNode[] {

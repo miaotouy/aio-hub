@@ -102,7 +102,9 @@ describe("git-analyzer registry", () => {
     expect(output).toContain("| Alice | 2 | 100.0% |");
     expect(output).toContain("Alice <alice@example.com>");
     expect(output).toContain("Cover agent facade paths.");
-    expect(output).toContain("`src/tools/git-analyzer/git-analyzer.registry.ts`");
+    expect(output).toContain(
+      "`src/tools/git-analyzer/git-analyzer.registry.ts`"
+    );
     expect(output).toContain("+12 -3");
   });
 

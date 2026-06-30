@@ -123,7 +123,9 @@ export function useConfigConverter() {
     if (files.length === 0) return;
 
     if (files.length > 1) {
-      customMessage.warning("原生拖放无法提供批量转换所需的文件路径，已加载第一个文件");
+      customMessage.warning(
+        "原生拖放无法提供批量转换所需的文件路径，已加载第一个文件"
+      );
     }
 
     await loadSingleFileObject(files[0]);

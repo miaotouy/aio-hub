@@ -49,7 +49,10 @@ const FRONTEND_PROBE_TEXT_LIMIT = 4000;
 let frontendProbeSequence = 0;
 let frontendHeartbeatTimer: number | null = null;
 
-const truncateProbeText = (value: string, limit = FRONTEND_PROBE_TEXT_LIMIT) => {
+const truncateProbeText = (
+  value: string,
+  limit = FRONTEND_PROBE_TEXT_LIMIT
+) => {
   if (value.length <= limit) return value;
   return `${value.slice(0, limit)}... [truncated, chars=${value.length}]`;
 };
@@ -129,10 +132,7 @@ const normalizeErrorForProbe = (error: unknown) => {
 };
 
 const reportFrontendReady = (phase: string) => {
-  sendFrontendProbe(
-    "frontend_probe_ready",
-    buildFrontendProbeSnapshot(phase)
-  );
+  sendFrontendProbe("frontend_probe_ready", buildFrontendProbeSnapshot(phase));
 };
 
 const reportFrontendHeartbeat = (phase = "heartbeat") => {

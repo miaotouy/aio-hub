@@ -4,7 +4,10 @@ import { createSessionAccessManager } from "../sessionAccessManager";
 import { createSessionGenerationManager } from "../sessionGenerationManager";
 import { createSessionRuntimeManager } from "../sessionRuntimeManager";
 import type { ChatMessageNode } from "../../../types/message";
-import type { ChatSessionDetail, ChatSessionIndex } from "../../../types/session";
+import type {
+  ChatSessionDetail,
+  ChatSessionIndex,
+} from "../../../types/session";
 
 const mocks = vi.hoisted(() => ({
   sendMessage: vi.fn(),
@@ -65,7 +68,11 @@ function node(
   };
 }
 
-function session(id: string, leafId: string, nodes: Record<string, ChatMessageNode>): ChatSessionDetail {
+function session(
+  id: string,
+  leafId: string,
+  nodes: Record<string, ChatMessageNode>
+): ChatSessionDetail {
   return {
     id,
     updatedAt: "2026-01-01T00:00:00.000Z",
@@ -100,7 +107,11 @@ describe("llm-chat session managers", () => {
 
     const targetRoot = node("target-root", null, "system");
     const targetUser = node("target-user", "target-root", "user");
-    const targetAssistant = node("target-assistant", "target-user", "assistant");
+    const targetAssistant = node(
+      "target-assistant",
+      "target-user",
+      "assistant"
+    );
     targetRoot.childrenIds = ["target-user"];
     targetUser.childrenIds = ["target-assistant"];
 
@@ -112,15 +123,21 @@ describe("llm-chat session managers", () => {
     );
     const sessionDetailMap = ref(
       new Map([
-        ["current", session("current", "current-user", {
-          "current-root": currentRoot,
-          "current-user": currentUser,
-        })],
-        ["target", session("target", "target-assistant", {
-          "target-root": targetRoot,
-          "target-user": targetUser,
-          "target-assistant": targetAssistant,
-        })],
+        [
+          "current",
+          session("current", "current-user", {
+            "current-root": currentRoot,
+            "current-user": currentUser,
+          }),
+        ],
+        [
+          "target",
+          session("target", "target-assistant", {
+            "target-root": targetRoot,
+            "target-user": targetUser,
+            "target-assistant": targetAssistant,
+          }),
+        ],
       ])
     );
     const currentSessionId = ref<string | null>("current");

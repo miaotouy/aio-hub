@@ -278,11 +278,7 @@ export class AioFileOperatorRegistry implements ToolRegistry {
     allowOverwrite?: unknown;
   }) {
     const allowOverwrite = parseAgentBoolean(args.allowOverwrite);
-    return await actions.writeFile(
-      args.path,
-      args.content,
-      allowOverwrite
-    );
+    return await actions.writeFile(args.path, args.content, allowOverwrite);
   }
 
   public async append_file(args: { path: string; content: string }) {

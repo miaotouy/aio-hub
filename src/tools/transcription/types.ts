@@ -50,9 +50,7 @@ export interface TypeSpecificConfig {
 }
 
 export type ImageTranscriptionMode = "vlm" | "ocr";
-export type ImageOcrEngineType =
-  | "default"
-  | Exclude<OcrEngineType, "vlm">;
+export type ImageOcrEngineType = "default" | Exclude<OcrEngineType, "vlm">;
 
 /**
  * 图片特定配置

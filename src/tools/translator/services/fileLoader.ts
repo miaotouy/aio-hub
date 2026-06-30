@@ -200,7 +200,8 @@ export function useTranslatorFileLoader() {
   ): Promise<LoadedFile | null> {
     const fileName = file.name || "未命名文件";
     const buffer = new Uint8Array(await file.arrayBuffer());
-    const mimeType = file.type || (await detectMimeTypeFromBuffer(buffer, fileName));
+    const mimeType =
+      file.type || (await detectMimeTypeFromBuffer(buffer, fileName));
     const isText = isTextFile(fileName, mimeType);
 
     if (!isText) {

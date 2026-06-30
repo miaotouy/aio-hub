@@ -118,10 +118,16 @@ describe("ffmpeg-tools agent actions", () => {
 
   it("executeCommand 应校验必需参数和异步上下文", async () => {
     await expect(
-      executeCommand({ inputPath: "", args: ["-c:v", "copy"] }, createContext() as any)
+      executeCommand(
+        { inputPath: "", args: ["-c:v", "copy"] },
+        createContext() as any
+      )
     ).resolves.toContain("缺少必需参数: inputPath");
     await expect(
-      executeCommand({ inputPath: "C:/in.mp4", args: [] }, createContext() as any)
+      executeCommand(
+        { inputPath: "C:/in.mp4", args: [] },
+        createContext() as any
+      )
     ).resolves.toContain("缺少必需参数: args");
     await expect(
       executeCommand({ inputPath: "C:/in.mp4", args: ["-c:v", "copy"] })

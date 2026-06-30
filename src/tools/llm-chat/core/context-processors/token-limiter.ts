@@ -196,7 +196,11 @@ export const tokenLimiter: ContextProcessor = {
             };
 
             if (hasReplayArtifacts(msg)) {
-              recordDroppedReasoningArtifacts(context, [msg], "历史消息被部分截断");
+              recordDroppedReasoningArtifacts(
+                context,
+                [msg],
+                "历史消息被部分截断"
+              );
             }
 
             currentHistoryTokens += truncatedTokens;

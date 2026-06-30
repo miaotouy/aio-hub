@@ -180,7 +180,11 @@ describe("dir-search actions", () => {
         replaceInDirectory({ path: "C:/repo", pattern: "", replacement: "b" })
       ).resolves.toBe("错误: 必须指定搜索模式 (pattern)。");
       await expect(
-        replaceInDirectory({ path: "C:/repo", pattern: "a", replacement: null as any })
+        replaceInDirectory({
+          path: "C:/repo",
+          pattern: "a",
+          replacement: null as any,
+        })
       ).resolves.toBe("错误: 必须指定替换文本 (replacement)，可以为空字符串。");
     });
 
@@ -353,7 +357,9 @@ describe("dir-search actions", () => {
         "searchDirectory",
         "replaceInDirectory",
       ]);
-      expect(metadata.methods.every((method) => method.agentCallable)).toBe(true);
+      expect(metadata.methods.every((method) => method.agentCallable)).toBe(
+        true
+      );
       expect(searchOutput).toContain("## 搜索结果");
       expect(mockInvoke).toHaveBeenCalledWith("dir_search", {
         request: expect.objectContaining({

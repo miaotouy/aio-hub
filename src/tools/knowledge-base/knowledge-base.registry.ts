@@ -230,7 +230,9 @@ const kbBasic: ToolRegistry = {
       "dryRun",
       "autoVectorize",
     ]);
-    return (await agentActions.updateEntryContent(normalizedArgs as any)) as any;
+    return (await agentActions.updateEntryContent(
+      normalizedArgs as any
+    )) as any;
   },
 };
 
@@ -426,21 +428,27 @@ const kbAdmin: ToolRegistry = {
     args: Record<string, unknown>
   ): Promise<Record<string, unknown>> {
     const normalizedArgs = normalizeAgentBooleanFields(args, ["includeStats"]);
-    return (await agentActions.listKnowledgeBases(normalizedArgs as any)) as any;
+    return (await agentActions.listKnowledgeBases(
+      normalizedArgs as any
+    )) as any;
   },
 
   async listEntriesMetadata(
     args: Record<string, unknown>
   ): Promise<Record<string, unknown>> {
     const normalizedArgs = normalizeAgentBooleanFields(args, ["enabled"]);
-    return (await agentActions.listEntriesMetadata(normalizedArgs as any)) as any;
+    return (await agentActions.listEntriesMetadata(
+      normalizedArgs as any
+    )) as any;
   },
 
   async batchUpdateMetadata(
     args: Record<string, unknown>
   ): Promise<Record<string, unknown>> {
     const normalizedArgs = normalizeAgentBooleanFields(args, ["enabled"]);
-    return (await agentActions.batchUpdateMetadata(normalizedArgs as any)) as any;
+    return (await agentActions.batchUpdateMetadata(
+      normalizedArgs as any
+    )) as any;
   },
 
   async deleteEntry(

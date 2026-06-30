@@ -232,7 +232,9 @@ describe("directory-janitor registry", () => {
       "C:/repo/debug.log",
     ]);
     expect(result?.scanResult).toBe(scanResult);
-    expect(result?.cleanupResult.summary).toBe("清理完成: 2 项成功，释放 3072 B");
+    expect(result?.cleanupResult.summary).toBe(
+      "清理完成: 2 项成功，释放 3072 B"
+    );
   });
 
   it("runner 异常时 wrapAsync 应返回 null 且释放 runner", async () => {

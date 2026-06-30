@@ -606,7 +606,10 @@ class ChatInputManager {
     }
   }
 
-  private pushDraftState(sessionId: string | null, draft: ChatInputDraft): void {
+  private pushDraftState(
+    sessionId: string | null,
+    draft: ChatInputDraft
+  ): void {
     this.syncState.value = {
       sessionId,
       ...this.cloneDraft(draft),
@@ -746,12 +749,15 @@ class ChatInputManager {
       this.stateVersion = payload.version;
       this.lastSyncedValue = JSON.parse(JSON.stringify(incomingState));
       this.debouncedSaveToStorage();
-      logger.info(`已应用${payload.isFull ? "全量" : "增量"}非当前会话输入状态`, {
-        version: payload.version,
-        sessionId: incomingState.sessionId,
-        textLength: incomingDraft.text.length,
-        attachmentCount: incomingDraft.attachments.length,
-      });
+      logger.info(
+        `已应用${payload.isFull ? "全量" : "增量"}非当前会话输入状态`,
+        {
+          version: payload.version,
+          sessionId: incomingState.sessionId,
+          textLength: incomingDraft.text.length,
+          attachmentCount: incomingDraft.attachments.length,
+        }
+      );
       return;
     }
 
@@ -1008,7 +1014,9 @@ class ChatInputManager {
           }
           draft.text += content;
         } else {
-          const contentToAdd = content.endsWith("\n") ? content : content + "\n";
+          const contentToAdd = content.endsWith("\n")
+            ? content
+            : content + "\n";
           draft.text = contentToAdd + draft.text;
         }
       });

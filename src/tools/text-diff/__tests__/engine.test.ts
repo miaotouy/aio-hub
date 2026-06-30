@@ -129,9 +129,9 @@ describe("text-diff engine", () => {
 
   describe("formatPatchResult / registry", () => {
     it("formatPatchResult 应格式化失败消息", () => {
-      expect(formatPatchResult({ patch: "", success: false, error: "empty" })).toBe(
-        "❌ Diff 生成失败：empty"
-      );
+      expect(
+        formatPatchResult({ patch: "", success: false, error: "empty" })
+      ).toBe("❌ Diff 生成失败：empty");
     });
 
     it("registry 应适配扁平化 Agent 参数", () => {
@@ -166,7 +166,9 @@ describe("text-diff engine", () => {
     it("registry 元数据应标记 generatePatch 为 agentCallable", () => {
       const registry = new TextDiffRegistry();
       const metadata = registry.getMetadata();
-      const method = metadata.methods.find((item) => item.name === "generatePatch");
+      const method = metadata.methods.find(
+        (item) => item.name === "generatePatch"
+      );
 
       expect(method?.agentCallable).toBe(true);
     });

@@ -1,12 +1,8 @@
-import type {
-  LlmMessage,
-  LlmReasoningArtifact,
-} from "@/llm-apis/common";
+import type { LlmMessage, LlmReasoningArtifact } from "@/llm-apis/common";
 
 export const OPENAI_RESPONSES_PROVIDER = "openai-responses";
 export const OPENAI_RESPONSE_OUTPUT_ITEM_KIND = "response.output_item";
-export const OPENAI_REASONING_ENCRYPTED_CONTENT =
-  "reasoning.encrypted_content";
+export const OPENAI_REASONING_ENCRYPTED_CONTENT = "reasoning.encrypted_content";
 
 export function extractOpenAiResponsesReasoningArtifacts(
   output: unknown,

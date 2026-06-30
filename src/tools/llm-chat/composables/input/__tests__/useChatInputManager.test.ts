@@ -56,7 +56,9 @@ vi.mock("../../features/useAttachmentManager", () => ({
       return assetsToAdd.length;
     },
     removeAttachmentById: (assetId: string) => {
-      attachments.value = attachments.value.filter((asset) => asset.id !== assetId);
+      attachments.value = attachments.value.filter(
+        (asset) => asset.id !== assetId
+      );
     },
     clearAttachments: () => {
       attachments.value = [];
@@ -103,13 +105,13 @@ describe("useChatInputManager session drafts", () => {
     manager.moveDraftToSession("session-a", "session-b", "copy");
 
     expect(manager.getDraftSnapshot("session-a").text).toBe("draft text");
-    expect(manager.getDraftSnapshot("session-a").attachments.map((item) => item.id)).toEqual([
-      "asset-copy",
-    ]);
+    expect(
+      manager.getDraftSnapshot("session-a").attachments.map((item) => item.id)
+    ).toEqual(["asset-copy"]);
     expect(manager.getDraftSnapshot("session-b").text).toBe("draft text");
-    expect(manager.getDraftSnapshot("session-b").attachments.map((item) => item.id)).toEqual([
-      "asset-copy",
-    ]);
+    expect(
+      manager.getDraftSnapshot("session-b").attachments.map((item) => item.id)
+    ).toEqual(["asset-copy"]);
   });
 
   it("moves a draft with attachments and clears the source session", async () => {
@@ -125,8 +127,8 @@ describe("useChatInputManager session drafts", () => {
     expect(manager.getDraftSnapshot("session-a").text).toBe("");
     expect(manager.getDraftSnapshot("session-a").attachments).toEqual([]);
     expect(manager.getDraftSnapshot("session-b").text).toBe("move me");
-    expect(manager.getDraftSnapshot("session-b").attachments.map((item) => item.id)).toEqual([
-      "asset-move",
-    ]);
+    expect(
+      manager.getDraftSnapshot("session-b").attachments.map((item) => item.id)
+    ).toEqual(["asset-move"]);
   });
 });

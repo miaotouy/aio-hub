@@ -114,7 +114,7 @@ export function useDetachedChatArea() {
   return {
     // 状态（直接从 Store 读取）
     messages: computed(() => store.currentActivePathWithPresets),
-    isSending: computed(() => store.isSending),
+    isSending: computed(() => store.isCurrentSessionGenerating),
     disabled: computed(() => !store.currentSession),
     currentAgentId,
     currentModelId,

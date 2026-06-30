@@ -59,6 +59,8 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   const isSending = ref(false);
   // 用户主动中止的节点集合，用于区分"用户中止"与"自然结束"，防止错误触发排队
   const userAbortedNodeIds = ref(new Set<string>());
+  // 只记录同一会话连续发送产生的队列，避免跨会话生成被误判成全局队列锁
+  const queuedSessionIds = ref(new Set<string>());
 
   // 上下文分析器状态
   const contextAnalyzerVisible = ref(false);
@@ -121,49 +123,27 @@ export const useLlmChatStore = defineStore("llmChat", () => {
           }
         }
 
-        // 排队自动触发：仅在 generatingNodes 降为 0 时检查
-        if (newSize === 0) {
-          if (userAbortedNodeIds.value.size > 0) {
-            userAbortedNodeIds.value.clear();
-            return;
-          }
+        if (userAbortedNodeIds.value.size > 0) {
+          userAbortedNodeIds.value.forEach((nodeId) => {
+            const sessionId = findSessionIdByNodeId(nodeId);
+            if (sessionId) queuedSessionIds.value.delete(sessionId);
+          });
+          userAbortedNodeIds.value.clear();
+        }
+
+        // 排队自动触发：生成节点减少时，只检查本次同会话连续发送产生的队列
+        if (queuedSessionIds.value.size > 0) {
           const { useChatSettings } =
             await import("../composables/settings/useChatSettings");
           const { settings } = useChatSettings();
           if (!settings.value.uiPreferences.autoTriggerGenerationAfterQueue) {
             return;
           }
-          const queueMode =
-            settings.value.uiPreferences.queueReplyMode ?? "combined";
-          if (queueMode === "combined") {
-            const activeLeaf = detail.activeLeafId
-              ? detail.nodes?.[detail.activeLeafId]
-              : null;
-            if (
-              activeLeaf &&
-              activeLeaf.role === "user" &&
-              (!activeLeaf.childrenIds || activeLeaf.childrenIds.length === 0)
-            ) {
-              isSending.value = true;
-              logger.info("检测到排队中的 User 消息，自动触发合并回复", {
-                nodeId: activeLeaf.id,
-              });
-              regenerateFromNode(activeLeaf.id);
-            }
-          } else {
-            const pendingAssistant = currentActivePath.value.find(
-              (node) =>
-                node.role === "assistant" &&
-                (node.status as string) === "pending"
-            );
-            if (pendingAssistant) {
-              isSending.value = true;
-              logger.info(
-                "检测到排队中的 Assistant 占位节点，自动触发链式生成",
-                { nodeId: pendingAssistant.id }
-              );
-              continueGeneration(pendingAssistant.id);
-            }
+          const queuedIds = Array.from(queuedSessionIds.value).filter(
+            (sessionId) => !isSessionGenerating(sessionId)
+          );
+          for (const sessionId of queuedIds) {
+            await triggerQueuedGenerationForSession(sessionId);
           }
         }
       }
@@ -213,12 +193,9 @@ export const useLlmChatStore = defineStore("llmChat", () => {
    * 只检查当前会话的节点，不受其他会话生成状态影响
    */
   const isCurrentSessionGenerating = computed(() => {
-    const detail = currentSessionDetail.value;
-    if (!detail || !detail.nodes) return false;
-    // 只要当前会话中有任何一个节点在生成中，就认为当前会话正在生成
-    return Object.values(detail.nodes).some((node) =>
-      generatingNodes.value.has(node.id)
-    );
+    return currentSessionId.value
+      ? isSessionGenerating(currentSessionId.value)
+      : false;
   });
 
   const currentActivePath = computed((): ChatMessageNode[] => {
@@ -314,6 +291,28 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     // 访问 size 以建立响应式依赖，Set 内部的 add/delete 不会自动触发响应式
     // 除非替换整个 Set 引用，或者监听 size
     return generatingNodes.value.size >= 0 && generatingNodes.value.has(nodeId);
+  };
+
+  const getSessionGeneratingNodeIds = (sessionId: string): string[] => {
+    const detail = sessionDetailMap.value.get(sessionId);
+    if (!detail?.nodes) return [];
+
+    // 访问 size 以建立响应式依赖，确保 Set add/delete 后计算属性会更新
+    if (generatingNodes.value.size === 0) return [];
+    return Object.values(detail.nodes)
+      .filter((node) => generatingNodes.value.has(node.id))
+      .map((node) => node.id);
+  };
+
+  const isSessionGenerating = (sessionId: string): boolean => {
+    return getSessionGeneratingNodeIds(sessionId).length > 0;
+  };
+
+  const findSessionIdByNodeId = (nodeId: string): string | null => {
+    for (const [sessionId, detail] of sessionDetailMap.value.entries()) {
+      if (detail.nodes?.[nodeId]) return sessionId;
+    }
+    return null;
   };
 
   const currentMessageCount = computed((): number => {
@@ -1132,6 +1131,98 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     }
   }
 
+  async function triggerQueuedGenerationForSession(
+    sessionId: string
+  ): Promise<void> {
+    const index = sessionIndexMap.value.get(sessionId);
+    const detail = sessionDetailMap.value.get(sessionId);
+    if (!index || !detail || !detail.nodes) {
+      queuedSessionIds.value.delete(sessionId);
+      return;
+    }
+
+    if (isSessionGenerating(sessionId)) return;
+
+    const { useChatSettings } = await import(
+      "../composables/settings/useChatSettings"
+    );
+    const { settings } = useChatSettings();
+    const queueMode = settings.value.uiPreferences.queueReplyMode ?? "combined";
+    const chatHandler = useChatHandler();
+    const sessionManager = useSessionManager();
+
+    try {
+      if (queueMode === "combined") {
+        const activeLeaf = detail.activeLeafId
+          ? detail.nodes[detail.activeLeafId]
+          : null;
+        if (
+          !activeLeaf ||
+          activeLeaf.role !== "user" ||
+          (activeLeaf.childrenIds && activeLeaf.childrenIds.length > 0)
+        ) {
+          queuedSessionIds.value.delete(sessionId);
+          return;
+        }
+
+        queuedSessionIds.value.delete(sessionId);
+        isSending.value = true;
+        logger.info("检测到排队中的 User 消息，自动触发合并回复", {
+          sessionId,
+          nodeId: activeLeaf.id,
+        });
+        await chatHandler.regenerateFromNode(
+          detail,
+          activeLeaf.id,
+          [],
+          abortControllers.value,
+          generatingNodes.value
+        );
+      } else {
+        const pendingAssistant = Object.values(detail.nodes).find(
+          (node) =>
+            node.role === "assistant" && (node.status as string) === "pending"
+        );
+        if (!pendingAssistant) {
+          queuedSessionIds.value.delete(sessionId);
+          return;
+        }
+
+        queuedSessionIds.value.delete(sessionId);
+        isSending.value = true;
+        logger.info("检测到排队中的 Assistant 占位节点，自动触发链式生成", {
+          sessionId,
+          nodeId: pendingAssistant.id,
+        });
+        await chatHandler.continueGeneration(
+          detail,
+          pendingAssistant.id,
+          abortControllers.value,
+          generatingNodes.value
+        );
+      }
+
+      sessionManager.updateMessageCount(
+        index.id,
+        detail.nodes,
+        sessionIndexMap.value
+      );
+      sessionManager.updateSessionDisplayAgent(
+        index.id,
+        detail,
+        sessionIndexMap.value
+      );
+      sessionManager.persistSession(index, detail, currentSessionId.value);
+    } catch (error) {
+      sessionManager.persistSession(index, detail, currentSessionId.value);
+      throw error;
+    } finally {
+      if (generatingNodes.value.size === 0) {
+        isSending.value = false;
+      }
+    }
+  }
+
   // ==================== 发送/生成操作 ====================
 
   /**
@@ -1151,8 +1242,11 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       const detail = currentSessionDetail.value;
       if (!index || !detail) throw new Error("请先创建或选择一个会话");
 
-      const skipGeneration = generatingNodes.value.size > 0;
+      const skipGeneration = isSessionGenerating(detail.id);
       isSending.value = true;
+      if (skipGeneration) {
+        queuedSessionIds.value.add(detail.id);
+      }
 
       try {
         const chatHandler = useChatHandler();
@@ -1178,6 +1272,9 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         }
 
         await sendPromise;
+        if (!skipGeneration) {
+          queuedSessionIds.value.delete(detail.id);
+        }
 
         const sessionManager = useSessionManager();
         sessionManager.updateMessageCount(
@@ -1194,6 +1291,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         sessionManager.persistSession(index, detail, currentSessionId.value);
         historyManager.clearHistory();
       } catch (error) {
+        queuedSessionIds.value.delete(detail.id);
         const sessionManager = useSessionManager();
         sessionManager.persistSession(index, detail, currentSessionId.value);
         throw error;
@@ -1356,14 +1454,19 @@ export const useLlmChatStore = defineStore("llmChat", () => {
    * 中止当前发送
    */
   function abortSending(): void {
-    if (abortControllers.value.size > 0) {
-      const detail = currentSessionDetail.value;
+    const detail = currentSessionDetail.value;
+    if (!currentSessionId.value || !detail?.nodes) return;
 
-      abortControllers.value.forEach((controller, nodeId) => {
+    const nodeIds = getSessionGeneratingNodeIds(currentSessionId.value);
+    if (nodeIds.length > 0) {
+      queuedSessionIds.value.delete(currentSessionId.value);
+
+      nodeIds.forEach((nodeId) => {
+        const controller = abortControllers.value.get(nodeId);
         userAbortedNodeIds.value.add(nodeId);
-        controller.abort();
+        controller?.abort();
 
-        if (detail && detail.nodes && detail.nodes[nodeId]) {
+        if (detail.nodes && detail.nodes[nodeId]) {
           const node = detail.nodes[nodeId];
           if (node.content?.trim()) {
             node.status = "complete";
@@ -1376,11 +1479,17 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
         logger.info("已中止节点生成", { nodeId });
         completeAndDisposeStreamingMessageSource(nodeId);
+        abortControllers.value.delete(nodeId);
+        generatingNodes.value.delete(nodeId);
       });
-      abortControllers.value.clear();
-      generatingNodes.value.clear();
-      isSending.value = false;
-      logger.info("已中止所有消息发送");
+
+      if (generatingNodes.value.size === 0) {
+        isSending.value = false;
+      }
+      logger.info("已中止当前会话消息发送", {
+        sessionId: currentSessionId.value,
+        count: nodeIds.length,
+      });
     }
   }
 
@@ -1392,7 +1501,10 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     if (controller) {
       controller.abort();
 
-      const detail = currentSessionDetail.value;
+      const sessionId = findSessionIdByNodeId(nodeId);
+      const detail = sessionId
+        ? sessionDetailMap.value.get(sessionId)
+        : currentSessionDetail.value;
       if (detail && detail.nodes && detail.nodes[nodeId]) {
         const node = detail.nodes[nodeId];
         if (node.content?.trim()) {
@@ -1410,6 +1522,9 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       }
 
       userAbortedNodeIds.value.add(nodeId);
+      if (sessionId) {
+        queuedSessionIds.value.delete(sessionId);
+      }
       abortControllers.value.delete(nodeId);
       generatingNodes.value.delete(nodeId);
 
@@ -1557,6 +1672,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     getSiblings,
     isNodeInActivePath,
     isNodeGenerating,
+    isSessionGenerating,
     currentMessageCount,
 
     // 历史记录

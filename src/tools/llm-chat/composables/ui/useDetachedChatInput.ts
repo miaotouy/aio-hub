@@ -52,7 +52,7 @@ export function useDetachedChatInput() {
       isDetached: true,
       // 如果没有当前会话，则禁用输入框
       disabled: !store.currentSession,
-      isSending: store.isSending,
+      isSending: store.isCurrentSessionGenerating,
       // 注意：不需要在这里传递 isStreamingEnabled
       // MessageInput 组件内部会通过 useChatSettings() 自己读取
       // 但为了调试，我们在日志中输出当前值

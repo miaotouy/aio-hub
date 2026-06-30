@@ -164,6 +164,7 @@ const handleClearWindowState = async () => {
         confirmButtonText: "确定",
         cancelButtonText: "取消",
         type: "warning",
+        lockScroll: false,
       }
     );
 
@@ -198,6 +199,7 @@ const handleOpenConfigDir = async () => {
         {
           confirmButtonText: "确定",
           type: "info",
+          lockScroll: false,
         }
       );
     }
@@ -277,6 +279,7 @@ const handleImportConfig = async () => {
         distinguishCancelAndClose: true,
         closeOnClickModal: false,
         type: "info",
+        lockScroll: false,
       });
       // 用户选择了"合并导入"
       mergeMode = true;

@@ -574,6 +574,7 @@ const handleCreatePreset = async () => {
       cancelButtonText: "取消",
       inputPattern: /.+/,
       inputErrorMessage: "预设名称不能为空",
+      lockScroll: false,
     }
   ).catch(() => ({ value: null })); // 捕获取消操作
 
@@ -597,6 +598,7 @@ const handleDuplicatePreset = async () => {
       inputValue: `${currentPreset.name} (副本)`,
       inputPattern: /.+/,
       inputErrorMessage: "预设名称不能为空",
+      lockScroll: false,
     }
   ).catch(() => ({ value: null })); // 捕获取消操作
 
@@ -620,6 +622,7 @@ const handleRenamePreset = async () => {
       inputValue: currentPreset.name,
       inputPattern: /.+/,
       inputErrorMessage: "预设名称不能为空",
+      lockScroll: false,
     }
   ).catch(() => ({ value: null })); // 捕获取消操作
 
@@ -646,6 +649,7 @@ const handleDeletePreset = async () => {
         confirmButtonText: "确定",
         cancelButtonText: "取消",
         type: "warning",
+        lockScroll: false,
       }
     );
 
@@ -709,6 +713,7 @@ const importFromClipboard = async () => {
         cancelButtonText: "取消",
         inputType: "textarea",
         inputPlaceholder: "粘贴 JSON 内容...",
+        lockScroll: false,
         inputValidator: (value) => {
           if (!value || !value.trim()) {
             return "请输入 JSON 内容";
@@ -829,6 +834,7 @@ const handleRemoveRule = async (index: number) => {
         confirmButtonText: "确定",
         cancelButtonText: "取消",
         type: "warning",
+        lockScroll: false,
       }
     ).catch(() => ({ value: false }));
 

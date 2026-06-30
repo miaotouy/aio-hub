@@ -129,6 +129,7 @@ const handleCreate = async () => {
         cancelButtonText: "取消",
         inputPattern: /\S+/,
         inputErrorMessage: "名称不能为空",
+        lockScroll: false,
       }
     );
     if (name) {
@@ -156,6 +157,7 @@ const handleRename = async () => {
         inputValue: wb.name,
         inputPattern: /\S+/,
         inputErrorMessage: "名称不能为空",
+        lockScroll: false,
       }
     );
     if (newName && newName !== wb.name) {
@@ -240,6 +242,7 @@ const handleBatchDelete = async () => {
         confirmButtonText: "删除",
         cancelButtonText: "取消",
         type: "warning",
+        lockScroll: false,
       }
     );
 

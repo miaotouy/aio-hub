@@ -158,6 +158,7 @@ const handleDelete = async () => {
         cancelButtonText: "取消",
         type: "warning",
         confirmButtonClass: "el-button--danger",
+        lockScroll: false,
       }
     );
     // 用户确认后才执行删除

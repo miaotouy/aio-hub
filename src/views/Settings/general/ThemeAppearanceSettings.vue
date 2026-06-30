@@ -787,6 +787,7 @@ const confirmClearWallpaper = async () => {
         confirmButtonText: "确定",
         cancelButtonText: "取消",
         type: "warning",
+        lockScroll: false,
       }
     );
     // 用户确认后执行清除操作

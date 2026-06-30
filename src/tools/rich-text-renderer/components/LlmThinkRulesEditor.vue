@@ -284,6 +284,7 @@ function resetToDefault() {
       confirmButtonText: "确定重置",
       cancelButtonText: "取消",
       type: "warning",
+      lockScroll: false,
     }
   )
     .then(() => {
@@ -301,6 +302,7 @@ function deleteRule(index: number) {
     confirmButtonText: "删除",
     cancelButtonText: "取消",
     type: "warning",
+    lockScroll: false,
   })
     .then(() => {
       localRules.value.splice(index, 1);

@@ -158,6 +158,7 @@ const handleBatchDelete = async () => {
         confirmButtonText: "确定删除",
         cancelButtonText: "取消",
         confirmButtonClass: "el-button--danger",
+        lockScroll: false,
       }
     );
     for (const id of Array.from(selectedIds.value)) {
@@ -201,6 +202,7 @@ const handleRename = async (id?: string) => {
         inputValue: currentName,
         inputPattern: /\S+/,
         inputErrorMessage: "名称不能为空",
+        lockScroll: false,
       }
     );
 
@@ -225,6 +227,7 @@ const handleDelete = async (id?: string) => {
         confirmButtonText: "确定删除",
         cancelButtonText: "取消",
         confirmButtonClass: "el-button--danger",
+        lockScroll: false,
       }
     );
     await deleteBase(targetId);

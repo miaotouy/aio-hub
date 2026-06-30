@@ -200,6 +200,7 @@ export function useProfileEditor() {
           confirmButtonText: "确定",
           cancelButtonText: "取消",
           type: "warning",
+          lockScroll: false,
         }
       );
       deleteProfile(selectedProfile.value.id);

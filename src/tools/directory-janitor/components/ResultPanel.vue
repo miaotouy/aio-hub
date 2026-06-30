@@ -369,6 +369,7 @@ const handleConfirmCleanup = async () => {
         cancelButtonText: "取消",
         type: "warning",
         distinguishCancelAndClose: true,
+        lockScroll: false,
       }
     );
 

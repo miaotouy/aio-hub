@@ -87,6 +87,7 @@ async function handleClearCompleted() {
         type: "warning",
         confirmButtonText: "确定",
         cancelButtonText: "取消",
+        lockScroll: false,
       }
     );
 
@@ -116,6 +117,7 @@ async function handleClearFailed() {
         type: "warning",
         confirmButtonText: "确定",
         cancelButtonText: "取消",
+        lockScroll: false,
       }
     );
 
@@ -145,6 +147,7 @@ async function handleClearAll() {
         type: "warning",
         confirmButtonText: "确定",
         cancelButtonText: "取消",
+        lockScroll: false,
       }
     );
 
@@ -171,6 +174,7 @@ async function handleCancelTask(taskId: string) {
       type: "warning",
       confirmButtonText: "确定",
       cancelButtonText: "取消",
+      lockScroll: false,
     });
 
     const result = await execute({
@@ -213,6 +217,7 @@ async function handleDeleteTask(taskId: string) {
       type: "warning",
       confirmButtonText: "确定",
       cancelButtonText: "取消",
+      lockScroll: false,
     });
 
     const result = await execute({

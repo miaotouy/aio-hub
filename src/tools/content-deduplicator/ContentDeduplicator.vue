@@ -58,6 +58,7 @@ async function handleDelete() {
         type: "warning",
         confirmButtonText: "删除",
         cancelButtonText: "取消",
+        lockScroll: false,
       }
     );
   } catch {

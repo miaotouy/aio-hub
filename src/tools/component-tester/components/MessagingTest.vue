@@ -295,6 +295,7 @@ const showAlert = async () => {
   try {
     await ElMessageBox.alert("这是一段内容", "标题名称", {
       confirmButtonText: "确定",
+      lockScroll: false,
     });
     lastResult.value = "Alert 已确认";
   } catch {
@@ -308,6 +309,7 @@ const showConfirm = async () => {
       confirmButtonText: "确定",
       cancelButtonText: "取消",
       type: "warning",
+      lockScroll: false,
     });
     lastResult.value = "Confirm 已确认";
   } catch {
@@ -323,6 +325,7 @@ const showPrompt = async () => {
       inputPattern:
         /[\w!#$%&'*+/=?^_`{|}~-]+(?:\.[\w!#$%&'*+/=?^_`{|}~-]+)*@(?:[\w](?:[\w-]*[\w])?\.)+[\w](?:[\w-]*[\w])?/,
       inputErrorMessage: "邮箱格式不正确",
+      lockScroll: false,
     });
     lastResult.value = `Prompt 输入: ${value}`;
   } catch {
@@ -337,6 +340,7 @@ const showCustomIcon = async () => {
       cancelButtonText: "取消",
       type: "warning",
       icon: h(WarningFilled, { style: { color: "#f56c6c" } }),
+      lockScroll: false,
     });
     lastResult.value = "自定义图标已确认";
   } catch {
@@ -353,6 +357,7 @@ const showHTMLContent = async () => {
         confirmButtonText: "确定",
         cancelButtonText: "取消",
         dangerouslyUseHTMLString: true,
+        lockScroll: false,
       }
     );
     lastResult.value = "HTML 内容已确认";
@@ -367,6 +372,7 @@ const showCenterAlign = async () => {
       confirmButtonText: "确定",
       cancelButtonText: "取消",
       type: "info",
+      lockScroll: false,
     });
     lastResult.value = "对话框已确认";
   } catch {
@@ -379,6 +385,7 @@ const showLongMessageBox = async () => {
     await ElMessageBox.alert(LONG_TEXT, "长内容测试", {
       confirmButtonText: "了解",
       customStyle: { maxWidth: "500px" },
+      lockScroll: false,
     });
     lastResult.value = "长内容弹窗已关闭";
   } catch {

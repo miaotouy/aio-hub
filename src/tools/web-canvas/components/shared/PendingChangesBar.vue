@@ -36,6 +36,7 @@ const handleDiscard = () => {
       confirmButtonText: "确定丢弃",
       cancelButtonText: "取消",
       type: "warning",
+      lockScroll: false,
     }
   )
     .then(() => {

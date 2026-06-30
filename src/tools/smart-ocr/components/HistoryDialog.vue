@@ -280,6 +280,7 @@ async function handleDelete(record: OcrHistoryIndexItem) {
         confirmButtonText: "确定",
         cancelButtonText: "取消",
         type: "warning",
+        lockScroll: false,
       }
     );
     await deleteRecord(record.id);

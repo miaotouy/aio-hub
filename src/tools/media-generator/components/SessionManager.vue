@@ -83,6 +83,7 @@ const handleDelete = (sessionId: string, name: string) => {
     confirmButtonText: "删除",
     cancelButtonText: "取消",
     type: "warning",
+    lockScroll: false,
   }).then(() => {
     store.deleteSession(sessionId);
     customMessage.success("会话已删除");

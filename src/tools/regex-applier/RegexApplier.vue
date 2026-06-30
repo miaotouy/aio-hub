@@ -986,6 +986,7 @@ const clearFiles = () => {
     confirmButtonText: "确定",
     cancelButtonText: "取消",
     type: "warning",
+    lockScroll: false,
   })
     .then(() => {
       files.value = [];

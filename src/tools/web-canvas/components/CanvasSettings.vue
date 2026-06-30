@@ -38,6 +38,7 @@ const handleReset = async () => {
         confirmButtonText: "确定重置",
         cancelButtonText: "取消",
         type: "warning",
+        lockScroll: false,
       }
     );
     store.resetConfig();

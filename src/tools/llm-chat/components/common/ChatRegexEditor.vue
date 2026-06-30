@@ -737,6 +737,7 @@ async function executeImport(jsonContent: string) {
               confirmButtonText: "继续导入",
               cancelButtonText: "取消",
               type: riskLevel === 2 ? "error" : "warning",
+              lockScroll: false,
             }
           );
         } catch {

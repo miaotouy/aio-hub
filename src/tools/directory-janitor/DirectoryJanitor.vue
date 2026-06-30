@@ -108,7 +108,7 @@ const executeCleanup = async (pathsToClean: string[]) => {
     ElMessageBox.alert(
       `成功: ${result.successCount} 项\n失败: ${result.errorCount} 项\n释放空间: ${formatBytes(result.freedSpace)}\n\n错误详情:\n${result.errors.join("\n")}`,
       "清理结果",
-      { type: "warning" }
+      { type: "warning", lockScroll: false }
     );
   } else {
     // customMessage 已在 runner 中处理

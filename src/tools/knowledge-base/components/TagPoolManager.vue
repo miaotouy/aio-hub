@@ -212,6 +212,7 @@ async function handleClearPool() {
         confirmButtonText: "确定清空",
         cancelButtonText: "取消",
         type: "warning",
+        lockScroll: false,
       }
     );
 
@@ -240,6 +241,7 @@ async function handleClearOtherModels() {
         confirmButtonText: "确定清除",
         cancelButtonText: "取消",
         type: "warning",
+        lockScroll: false,
       }
     );
 

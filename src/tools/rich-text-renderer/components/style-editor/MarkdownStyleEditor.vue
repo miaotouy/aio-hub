@@ -306,6 +306,7 @@ const handleReset = () => {
       confirmButtonText: "重置",
       cancelButtonText: "取消",
       type: "warning",
+      lockScroll: false,
     }
   )
     .then(() => {
@@ -350,6 +351,7 @@ const handlePasteConfig = async () => {
           confirmButtonText: "覆盖",
           cancelButtonText: "取消",
           type: "warning",
+          lockScroll: false,
         }
       )
         .then(() => {

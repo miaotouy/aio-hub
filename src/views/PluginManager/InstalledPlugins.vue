@@ -120,6 +120,7 @@ async function togglePlugin(plugin: PluginProxy) {
               confirmButtonText: "仍然禁用",
               cancelButtonText: "取消",
               type: "warning",
+              lockScroll: false,
             }
           );
         } catch {
@@ -202,6 +203,7 @@ async function uninstallPlugin(plugin: PluginProxy) {
         confirmButtonText: "确定卸载",
         cancelButtonText: "取消",
         type: "warning",
+        lockScroll: false,
       }
     );
 

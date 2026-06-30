@@ -35,6 +35,7 @@ const handleResetToDefault = async () => {
           confirmButtonText: "确定恢复",
           cancelButtonText: "取消",
           type: "warning",
+          lockScroll: false,
         }
       );
       return true;

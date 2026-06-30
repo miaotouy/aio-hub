@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { findLastIndex } from "lodash-es";
 import { invoke } from "@tauri-apps/api/core";
 import { writeTextFile, mkdir } from "@tauri-apps/plugin-fs";
+import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import { useMediaTaskManager } from "./useMediaTaskManager";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useAssetManager } from "@/composables/useAssetManager";
@@ -1139,11 +1140,24 @@ export function useMediaGenerationManager() {
     ) {
       const { convertFileSrc } = await import("@tauri-apps/api/core");
       const response = await fetch(convertFileSrc(url));
+      if (!response.ok) {
+        throw new Error(
+          `读取本地媒体失败：${response.status} ${response.statusText}`
+        );
+      }
       return await response.arrayBuffer();
     }
 
-    // 处理远程 URL
-    const response = await fetch(url);
+    // 处理远程 URL。走 Tauri HTTP 插件，绕开 WebView CORS 限制。
+    const response = await tauriFetch(url, {
+      method: "GET",
+      connectTimeout: 30000,
+    });
+    if (!response.ok) {
+      throw new Error(
+        `下载远程媒体失败：${response.status} ${response.statusText}`
+      );
+    }
     return await response.arrayBuffer();
   }
 

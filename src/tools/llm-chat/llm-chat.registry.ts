@@ -32,6 +32,7 @@ import type {
   ChatSessionIndex,
   ChatSessionDetail,
   ChatAgent,
+  ModelIdentifier,
   UserProfile,
 } from "./types";
 import * as agentManagementService from "./services/agentManagementService";
@@ -203,7 +204,14 @@ class LlmChatRegistry implements ToolRegistry {
   /** 发送消息 */
   public async sendMessage(
     content: string,
-    options?: { parentId?: string; agentId?: string; sessionId?: string }
+    options?: {
+      parentId?: string;
+      agentId?: string;
+      sessionId?: string;
+      attachments?: Asset[];
+      temporaryModel?: ModelIdentifier | null;
+      disableMacroParsing?: boolean;
+    }
   ): Promise<void> {
     return llmChatService.sendMessage(content, options);
   }

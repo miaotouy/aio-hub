@@ -266,12 +266,21 @@ export const useMessageInputStore = defineStore(
         attachments: attachmentsVal,
         temporaryModel: temporaryModelVal,
         disableMacroParsing,
+        sessionId: chatStore.currentSessionId || undefined,
       };
 
       if (isDetached.value) {
-        bus.requestAction("llm-chat:send-message", payload);
+        bus.requestAction("llm-chat:send-message", {
+          content: payload.content,
+          options: {
+            attachments: payload.attachments,
+            temporaryModel: payload.temporaryModel,
+            disableMacroParsing: payload.disableMacroParsing,
+            sessionId: payload.sessionId || chatStore.currentSessionId,
+          },
+        });
         // 发送后清空输入（模拟主窗口行为）
-        inputText.value = "";
+        inputManager.clear(chatStore.currentSessionId);
       } else {
         _sendCallback?.(payload);
       }
@@ -280,7 +289,9 @@ export const useMessageInputStore = defineStore(
     // 处理中止
     const handleAbort = () => {
       if (isDetached.value) {
-        bus.requestAction("llm-chat:abort-sending", {});
+        bus.requestAction("llm-chat:abort-sending", {
+          sessionId: chatStore.currentSessionId,
+        });
         return;
       }
 
@@ -459,8 +470,9 @@ export const useMessageInputStore = defineStore(
         ? {
             modelId: continuationModel.value.modelId,
             profileId: continuationModel.value.profileId,
+            sessionId: chatStore.currentSessionId || undefined,
           }
-        : undefined;
+        : { sessionId: chatStore.currentSessionId || undefined };
 
       if (isDetached.value) {
         bus.requestAction("llm-chat:complete-input", {

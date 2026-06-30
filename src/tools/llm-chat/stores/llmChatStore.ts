@@ -6,12 +6,11 @@
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
 import { useSessionManager } from "../composables/session/useSessionManager";
-import { useChatHandler } from "../composables/chat/useChatHandler";
-import { useBranchManager } from "../composables/session/useBranchManager";
 import { BranchNavigator } from "../utils/BranchNavigator";
 import { useAgentStore } from "./agentStore";
-import { useSessionNodeHistory } from "../composables/session/useSessionNodeHistory";
 import { useGraphActions } from "../composables/visualization/useGraphActions";
+import { useChatHandler } from "../composables/chat/useChatHandler";
+import { useChatInputManager } from "../composables/input/useChatInputManager";
 import { useChatContextStats } from "../composables/features/useChatContextStats";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -24,7 +23,6 @@ import {
   recalculateNodeTokens as recalculateNodeTokensService,
   fillMissingTokenMetadata as fillMissingTokenMetadataService,
 } from "../utils/chatTokenUtils";
-import { completeAndDisposeStreamingMessageSource } from "../composables/chat/useStreamingMessageSources";
 import type {
   ChatSessionIndex,
   ChatSessionDetail,
@@ -43,6 +41,10 @@ import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
 import { createModuleLogger } from "@utils/logger";
 import { clearRetrievalCache } from "@/tools/knowledge-base/services/api";
+import { createSessionAccessManager } from "./session/sessionAccessManager";
+import { createSessionRuntimeManager } from "./session/sessionRuntimeManager";
+import { createSessionHistoryManager } from "./session/sessionHistoryManager";
+import { createSessionGenerationManager } from "./session/sessionGenerationManager";
 
 const logger = createModuleLogger("llm-chat/store");
 
@@ -71,6 +73,36 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   const abortControllers = ref(new Map<string, AbortController>());
   const generatingNodes = ref(new Set<string>());
   const isSending = computed(() => generatingNodes.value.size > 0);
+
+  const sessionAccess = createSessionAccessManager({
+    sessionIndexMap,
+    sessionDetailMap,
+    currentSessionId,
+  });
+  const sessionRuntime = createSessionRuntimeManager({
+    sessionDetailMap,
+    currentSessionId,
+    abortControllers,
+    generatingNodes,
+    queuedSessionIds,
+    queuedSessionAgentIds,
+    userAbortedNodeIds,
+    findSessionIdByNodeId: sessionAccess.findSessionIdByNodeId,
+  });
+  const sessionHistory = createSessionHistoryManager({
+    sessionIndexMap,
+    sessionDetailMap,
+    currentSessionId,
+  });
+  const inputManager = useChatInputManager();
+
+  watch(
+    currentSessionId,
+    (sessionId) => {
+      inputManager.setActiveSessionId(sessionId);
+    },
+    { immediate: true }
+  );
 
   /**
    * 自动修复僵死节点的生成状态
@@ -147,7 +179,9 @@ export const useLlmChatStore = defineStore("llmChat", () => {
             (sessionId) => !isSessionGenerating(sessionId)
           );
           for (const sessionId of queuedIds) {
-            await triggerQueuedGenerationForSession(sessionId);
+            await sessionGeneration.triggerQueuedGenerationForSession(
+              sessionId
+            );
           }
         }
       }
@@ -203,28 +237,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   });
 
   const currentActivePath = computed((): ChatMessageNode[] => {
-    const detail = currentSessionDetail.value;
-    if (!detail || !detail.nodes || !detail.activeLeafId) return [];
-
-    const nodes = detail.nodes;
-    const path: ChatMessageNode[] = [];
-    let currentId: string | null = detail.activeLeafId;
-
-    while (currentId !== null) {
-      const node: ChatMessageNode | undefined = nodes[currentId];
-      if (!node) {
-        logger.warn("活动路径中断：节点不存在", {
-          sessionId: detail.id,
-          nodeId: currentId,
-        });
-        break;
-      }
-
-      path.unshift(node);
-      currentId = node.parentId;
-    }
-
-    return path.filter((node) => node.id !== detail.rootNodeId);
+    return sessionAccess.getActivePath(currentSessionId.value);
   });
 
   const currentActivePathWithPresets = computed((): ChatMessageNode[] => {
@@ -292,31 +305,19 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   };
 
   const isNodeGenerating = (nodeId: string): boolean => {
-    // 访问 size 以建立响应式依赖，Set 内部的 add/delete 不会自动触发响应式
-    // 除非替换整个 Set 引用，或者监听 size
-    return generatingNodes.value.size >= 0 && generatingNodes.value.has(nodeId);
+    return sessionRuntime.isNodeGenerating(nodeId);
   };
 
   const getSessionGeneratingNodeIds = (sessionId: string): string[] => {
-    const detail = sessionDetailMap.value.get(sessionId);
-    if (!detail?.nodes) return [];
-
-    // 访问 size 以建立响应式依赖，确保 Set add/delete 后计算属性会更新
-    if (generatingNodes.value.size === 0) return [];
-    return Object.values(detail.nodes)
-      .filter((node) => generatingNodes.value.has(node.id))
-      .map((node) => node.id);
+    return sessionRuntime.getSessionGeneratingNodeIds(sessionId);
   };
 
   const isSessionGenerating = (sessionId: string): boolean => {
-    return getSessionGeneratingNodeIds(sessionId).length > 0;
+    return sessionRuntime.isSessionGenerating(sessionId);
   };
 
   const findSessionIdByNodeId = (nodeId: string): string | null => {
-    for (const [sessionId, detail] of sessionDetailMap.value.entries()) {
-      if (detail.nodes?.[nodeId]) return sessionId;
-    }
-    return null;
+    return sessionAccess.findSessionIdByNodeId(nodeId);
   };
 
   const currentMessageCount = computed((): number => {
@@ -336,7 +337,19 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   });
 
   // ==================== 历史记录管理 ====================
-  const historyManager = useSessionNodeHistory(currentSessionDetail as any);
+  const historyManager = {
+    undo: () => sessionHistory.undo(),
+    redo: () => sessionHistory.redo(),
+    recordHistory: (...args: any[]) =>
+      (sessionHistory.getHistoryManager()?.recordHistory as any)?.(...args),
+    clearHistory: () => sessionHistory.clearHistory(),
+    jumpToState: (index: number) => sessionHistory.jumpToHistory(index),
+    canUndo: sessionHistory.canUndo,
+    canRedo: sessionHistory.canRedo,
+    historyStack: computed(
+      () => sessionHistory.getHistoryManager()?.historyStack.value ?? []
+    ),
+  };
 
   // ==================== 代理辅助函数 ====================
   const bus = useWindowSyncBus();
@@ -357,73 +370,38 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     return localFn();
   }
 
-  function undo() {
-    const detail = currentSessionDetail.value;
-    if (!detail || !historyManager.canUndo.value) return;
-
-    historyManager.undo();
-    // 状态跳转后，确保活动叶节点仍然有效
-    BranchNavigator.ensureValidActiveLeaf(detail);
-
-    const sessionManager = useSessionManager();
-    const index = sessionIndexMap.value.get(detail.id);
-    if (index) {
-      sessionManager.updateMessageCount(
-        detail.id,
-        detail.nodes,
-        sessionIndexMap.value
-      );
-      sessionManager.persistSession(index, detail, currentSessionId.value);
+  const sessionGeneration = createSessionGenerationManager(
+    {
+      sessionIndexMap,
+      sessionDetailMap,
+      currentSessionId,
+      abortControllers,
+      generatingNodes,
+      queuedSessionIds,
+      queuedSessionAgentIds,
+    },
+    {
+      access: sessionAccess,
+      runtime: sessionRuntime,
+      history: sessionHistory,
+      executeOrProxy,
     }
+  );
+
+  function undo(sessionId?: string) {
+    sessionHistory.undo(sessionId);
   }
 
-  function redo() {
-    const detail = currentSessionDetail.value;
-    if (!detail || !historyManager.canRedo.value) return;
-
-    historyManager.redo();
-    // 状态跳转后，确保活动叶节点仍然有效
-    BranchNavigator.ensureValidActiveLeaf(detail);
-
-    const sessionManager = useSessionManager();
-    const index = sessionIndexMap.value.get(detail.id);
-    if (index) {
-      sessionManager.updateMessageCount(
-        detail.id,
-        detail.nodes,
-        sessionIndexMap.value
-      );
-      sessionManager.persistSession(index, detail, currentSessionId.value);
-    }
+  function redo(sessionId?: string) {
+    sessionHistory.redo(sessionId);
   }
 
-  function jumpToHistory(index: number) {
-    const detail = currentSessionDetail.value;
-    if (!detail) return;
+  function jumpToHistory(index: number, sessionId?: string) {
+    sessionHistory.jumpToHistory(index, sessionId);
+  }
 
-    historyManager.jumpToState(index);
-
-    BranchNavigator.ensureValidActiveLeaf(detail);
-    const sessionManager = useSessionManager();
-    const sessionIndex = sessionIndexMap.value.get(detail.id);
-    if (sessionIndex) {
-      sessionManager.updateMessageCount(
-        detail.id,
-        detail.nodes,
-        sessionIndexMap.value
-      );
-      sessionManager.updateSessionDisplayAgent(
-        detail.id,
-        detail,
-        sessionIndexMap.value
-      );
-      sessionManager.persistSession(
-        sessionIndex,
-        detail,
-        currentSessionId.value
-      );
-    }
-    logger.info(`已跳转到历史记录索引 ${index}`);
+  function getHistoryManager(sessionId?: string | null) {
+    return sessionHistory.getHistoryManager(sessionId);
   }
 
   // ==================== 图操作 (委托给 useGraphActions) ====================
@@ -431,7 +409,11 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     currentSessionDetail,
     currentSessionId,
     historyManager,
-    sessionIndexMap
+    sessionIndexMap,
+    {
+      sessionDetailMap,
+      getHistoryManager,
+    }
   );
 
   // ==================== 会话操作 ====================
@@ -482,8 +464,9 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
       sessionIndexMap.value.delete(sessionId);
       sessionDetailMap.value.delete(sessionId);
-      queuedSessionIds.value.delete(sessionId);
-      queuedSessionAgentIds.value.delete(sessionId);
+      sessionRuntime.clearSessionRuntime(sessionId);
+      sessionHistory.cleanupSession(sessionId);
+      inputManager.clearDraft(sessionId);
 
       if (currentSessionId.value === sessionId) {
         currentSessionId.value = newCurrentSessionId;
@@ -523,8 +506,9 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         await storage.deleteSession(sessionId);
         sessionIndexMap.value.delete(sessionId);
         sessionDetailMap.value.delete(sessionId);
-        queuedSessionIds.value.delete(sessionId);
-        queuedSessionAgentIds.value.delete(sessionId);
+        sessionRuntime.clearSessionRuntime(sessionId);
+        sessionHistory.cleanupSession(sessionId);
+        inputManager.clearDraft(sessionId);
       }
 
       currentSessionId.value = nextCurrentSessionId;
@@ -1096,6 +1080,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     sessionIndexMap.value.clear();
     sessionDetailMap.value.clear();
     currentSessionId.value = null;
+    inputManager.clearAllDrafts();
     persistSessions();
     await clearRetrievalCache();
     const sessionManager = useSessionManager();
@@ -1141,102 +1126,6 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     }
   }
 
-  async function triggerQueuedGenerationForSession(
-    sessionId: string
-  ): Promise<void> {
-    const index = sessionIndexMap.value.get(sessionId);
-    const detail = sessionDetailMap.value.get(sessionId);
-    if (!index || !detail || !detail.nodes) {
-      queuedSessionIds.value.delete(sessionId);
-      queuedSessionAgentIds.value.delete(sessionId);
-      return;
-    }
-
-    if (isSessionGenerating(sessionId)) return;
-
-    const { useChatSettings } =
-      await import("../composables/settings/useChatSettings");
-    const { settings } = useChatSettings();
-    const queueMode = settings.value.uiPreferences.queueReplyMode ?? "combined";
-    const chatHandler = useChatHandler();
-    const sessionManager = useSessionManager();
-
-    try {
-      if (queueMode === "combined") {
-        const activeLeaf = detail.activeLeafId
-          ? detail.nodes[detail.activeLeafId]
-          : null;
-        if (
-          !activeLeaf ||
-          activeLeaf.role !== "user" ||
-          (activeLeaf.childrenIds && activeLeaf.childrenIds.length > 0)
-        ) {
-          queuedSessionIds.value.delete(sessionId);
-          return;
-        }
-
-        queuedSessionIds.value.delete(sessionId);
-        const queuedAgentId = queuedSessionAgentIds.value.get(sessionId);
-        queuedSessionAgentIds.value.delete(sessionId);
-        logger.info("检测到排队中的 User 消息，自动触发合并回复", {
-          sessionId,
-          nodeId: activeLeaf.id,
-          agentId: queuedAgentId,
-        });
-        await chatHandler.regenerateFromNode(
-          detail,
-          activeLeaf.id,
-          [],
-          abortControllers.value,
-          generatingNodes.value,
-          queuedAgentId ? { agentId: queuedAgentId } : undefined
-        );
-      } else {
-        const pendingAssistant = Object.values(detail.nodes).find(
-          (node) =>
-            node.role === "assistant" && (node.status as string) === "pending"
-        );
-        if (!pendingAssistant) {
-          queuedSessionIds.value.delete(sessionId);
-          return;
-        }
-
-        queuedSessionIds.value.delete(sessionId);
-        const queuedAgentId =
-          queuedSessionAgentIds.value.get(sessionId) ||
-          pendingAssistant.metadata?.agentId;
-        queuedSessionAgentIds.value.delete(sessionId);
-        logger.info("检测到排队中的 Assistant 占位节点，自动触发链式生成", {
-          sessionId,
-          nodeId: pendingAssistant.id,
-          agentId: queuedAgentId,
-        });
-        await chatHandler.continueGeneration(
-          detail,
-          pendingAssistant.id,
-          abortControllers.value,
-          generatingNodes.value,
-          queuedAgentId ? { agentId: queuedAgentId } : undefined
-        );
-      }
-
-      sessionManager.updateMessageCount(
-        index.id,
-        detail.nodes,
-        sessionIndexMap.value
-      );
-      sessionManager.updateSessionDisplayAgent(
-        index.id,
-        detail,
-        sessionIndexMap.value
-      );
-      sessionManager.persistSession(index, detail, currentSessionId.value);
-    } catch (error) {
-      sessionManager.persistSession(index, detail, currentSessionId.value);
-      throw error;
-    }
-  }
-
   // ==================== 发送/生成操作 ====================
 
   /**
@@ -1253,80 +1142,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       sessionId?: string;
     }
   ): Promise<void> {
-    return executeOrProxy("send-message", { content, options }, async () => {
-      const targetSessionId = options?.sessionId || currentSessionId.value;
-      if (!targetSessionId) throw new Error("请先创建或选择一个会话");
-
-      const index = sessionIndexMap.value.get(targetSessionId) || null;
-      const detail = sessionDetailMap.value.get(targetSessionId) || null;
-      if (!index || !detail) throw new Error("请先创建或选择一个会话");
-
-      const skipGeneration = isSessionGenerating(detail.id);
-      if (skipGeneration) {
-        queuedSessionIds.value.add(detail.id);
-        if (options?.agentId) {
-          queuedSessionAgentIds.value.set(detail.id, options.agentId);
-        }
-      }
-
-      try {
-        const chatHandler = useChatHandler();
-        const handlerOptions = skipGeneration
-          ? { ...options, skipGeneration: true }
-          : options;
-
-        const sendPromise = chatHandler.sendMessage(
-          detail,
-          content,
-          currentActivePath.value,
-          abortControllers.value,
-          generatingNodes.value,
-          handlerOptions,
-          currentSessionId.value
-        );
-
-        if (targetSessionId === currentSessionId.value) {
-          try {
-            const { useChatInputManager } =
-              await import("../composables/input/useChatInputManager");
-            const inputManager = useChatInputManager();
-            inputManager.clear();
-            logger.info("消息已进入发送流程，已反向驱动清空输入框");
-          } catch (e) {
-            logger.warn("反向驱动清空输入框失败", e);
-          }
-        }
-
-        await sendPromise;
-        if (!skipGeneration) {
-          queuedSessionIds.value.delete(detail.id);
-          queuedSessionAgentIds.value.delete(detail.id);
-        }
-
-        const sessionManager = useSessionManager();
-        sessionManager.updateMessageCount(
-          index.id,
-          detail.nodes,
-          sessionIndexMap.value
-        );
-        sessionManager.updateSessionDisplayAgent(
-          index.id,
-          detail,
-          sessionIndexMap.value
-        );
-
-        sessionManager.persistSession(index, detail, currentSessionId.value);
-        if (targetSessionId === currentSessionId.value) {
-          historyManager.clearHistory();
-        }
-      } catch (error) {
-        queuedSessionIds.value.delete(detail.id);
-        queuedSessionAgentIds.value.delete(detail.id);
-        const sessionManager = useSessionManager();
-        sessionManager.persistSession(index, detail, currentSessionId.value);
-        throw error;
-      }
-    });
+    return sessionGeneration.sendMessage(content, options);
   }
 
   /**
@@ -1334,35 +1150,14 @@ export const useLlmChatStore = defineStore("llmChat", () => {
    */
   async function continueGeneration(
     nodeId: string,
-    options?: { modelId?: string; profileId?: string; agentId?: string }
-  ): Promise<void> {
-    const index = currentSession.value;
-    const detail = currentSessionDetail.value;
-    if (!index || !detail) return;
-
-    try {
-      const chatHandler = useChatHandler();
-      await chatHandler.continueGeneration(
-        detail,
-        nodeId,
-        abortControllers.value,
-        generatingNodes.value,
-        options
-      );
-
-      const sessionManager = useSessionManager();
-      sessionManager.updateMessageCount(
-        index.id,
-        detail.nodes,
-        sessionIndexMap.value
-      );
-      sessionManager.persistSession(index, detail, currentSessionId.value);
-      historyManager.clearHistory();
-    } catch (error) {
-      const sessionManager = useSessionManager();
-      sessionManager.persistSession(index, detail, currentSessionId.value);
-      throw error;
+    options?: {
+      modelId?: string;
+      profileId?: string;
+      agentId?: string;
+      sessionId?: string;
     }
+  ): Promise<void> {
+    return sessionGeneration.continueGeneration(nodeId, options);
   }
 
   /**
@@ -1370,28 +1165,9 @@ export const useLlmChatStore = defineStore("llmChat", () => {
    */
   async function completeInput(
     content: string,
-    options?: { modelId?: string; profileId?: string }
+    options?: { modelId?: string; profileId?: string; sessionId?: string }
   ): Promise<void> {
-    const index = currentSession.value;
-    const detail = currentSessionDetail.value;
-    if (!index || !detail) return;
-
-    try {
-      const chatHandler = useChatHandler();
-      const completion = await chatHandler.completeInput(
-        content,
-        detail,
-        options
-      );
-      if (completion) {
-        const { useChatInputManager } =
-          await import("../composables/input/useChatInputManager");
-        const inputManager = useChatInputManager();
-        inputManager.inputText.value += completion;
-      }
-    } catch (error) {
-      logger.error("补全输入失败", error);
-    }
+    return sessionGeneration.completeInput(content, options);
   }
 
   /**
@@ -1399,154 +1175,35 @@ export const useLlmChatStore = defineStore("llmChat", () => {
    */
   async function regenerateFromNode(
     nodeId: string,
-    options?: { modelId?: string; profileId?: string; agentId?: string }
+    options?: {
+      modelId?: string;
+      profileId?: string;
+      agentId?: string;
+      sessionId?: string;
+    }
   ): Promise<void> {
-    return executeOrProxy(
-      "regenerate-from-node",
-      { nodeId, options },
-      async () => {
-        const index = currentSession.value;
-        const detail = currentSessionDetail.value;
-        if (!index || !detail) return;
-
-        try {
-          const chatHandler = useChatHandler();
-          await chatHandler.regenerateFromNode(
-            detail,
-            nodeId,
-            currentActivePath.value,
-            abortControllers.value,
-            generatingNodes.value,
-            options
-          );
-
-          const sessionManager = useSessionManager();
-          sessionManager.updateMessageCount(
-            index.id,
-            detail.nodes,
-            sessionIndexMap.value
-          );
-          sessionManager.updateSessionDisplayAgent(
-            index.id,
-            detail,
-            sessionIndexMap.value
-          );
-          sessionManager.persistSession(index, detail, currentSessionId.value);
-
-          historyManager.clearHistory();
-        } catch (error) {
-          const sessionManager = useSessionManager();
-          sessionManager.persistSession(index, detail, currentSessionId.value);
-          throw error;
-        }
-      }
-    );
+    return sessionGeneration.regenerateFromNode(nodeId, options);
   }
 
   /**
    * 重新生成最后一条助手消息（向后兼容）
    */
   async function regenerateLastMessage(): Promise<void> {
-    const index = currentSession.value;
-    const detail = currentSessionDetail.value;
-    if (!index || !detail) return;
-
-    const branchManager = useBranchManager();
-    const result = branchManager.prepareRegenerateLastMessage(detail);
-
-    if (
-      !result.shouldRegenerate ||
-      !result.userContent ||
-      !result.newActiveLeafId
-    ) {
-      return;
-    }
-
-    detail.activeLeafId = result.newActiveLeafId;
-    BranchNavigator.updateSelectionMemory(detail, result.newActiveLeafId);
-    await sendMessage(result.userContent);
+    return sessionGeneration.regenerateLastMessage();
   }
 
   /**
    * 中止当前发送
    */
-  function abortSending(): void {
-    const detail = currentSessionDetail.value;
-    if (!currentSessionId.value || !detail?.nodes) return;
-
-    const nodeIds = getSessionGeneratingNodeIds(currentSessionId.value);
-    if (nodeIds.length > 0) {
-      queuedSessionIds.value.delete(currentSessionId.value);
-      queuedSessionAgentIds.value.delete(currentSessionId.value);
-
-      nodeIds.forEach((nodeId) => {
-        const controller = abortControllers.value.get(nodeId);
-        userAbortedNodeIds.value.add(nodeId);
-        controller?.abort();
-
-        if (detail.nodes && detail.nodes[nodeId]) {
-          const node = detail.nodes[nodeId];
-          if (node.content?.trim()) {
-            node.status = "complete";
-          } else {
-            node.status = "error";
-            if (!node.metadata) node.metadata = {};
-            node.metadata.error = "用户手动停止";
-          }
-        }
-
-        logger.info("已中止节点生成", { nodeId });
-        completeAndDisposeStreamingMessageSource(nodeId);
-        abortControllers.value.delete(nodeId);
-        generatingNodes.value.delete(nodeId);
-      });
-
-      logger.info("已中止当前会话消息发送", {
-        sessionId: currentSessionId.value,
-        count: nodeIds.length,
-      });
-    }
+  function abortSending(sessionId?: string): void {
+    sessionRuntime.abortSessionGeneration(sessionId);
   }
 
   /**
    * 中止指定节点的生成
    */
   function abortNodeGeneration(nodeId: string): void {
-    const controller = abortControllers.value.get(nodeId);
-    if (controller) {
-      controller.abort();
-
-      const sessionId = findSessionIdByNodeId(nodeId);
-      const detail = sessionId
-        ? sessionDetailMap.value.get(sessionId)
-        : currentSessionDetail.value;
-      if (detail && detail.nodes && detail.nodes[nodeId]) {
-        const node = detail.nodes[nodeId];
-        if (node.content?.trim()) {
-          node.status = "complete";
-        } else {
-          node.status = "error";
-          if (!node.metadata) node.metadata = {};
-          node.metadata.error = "用户手动停止";
-        }
-        logger.info("已更新手动停止节点的状态", {
-          nodeId,
-          status: node.status,
-          hasContent: !!node.content?.trim(),
-        });
-      }
-
-      userAbortedNodeIds.value.add(nodeId);
-      if (sessionId) {
-        queuedSessionIds.value.delete(sessionId);
-        queuedSessionAgentIds.value.delete(sessionId);
-      }
-      abortControllers.value.delete(nodeId);
-      generatingNodes.value.delete(nodeId);
-
-      logger.info("已中止节点生成", { nodeId });
-      completeAndDisposeStreamingMessageSource(nodeId);
-    }
+    sessionRuntime.abortNodeGeneration(nodeId);
   }
 
   // ==================== 参数管理 ====================
@@ -1684,6 +1341,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     getSiblings,
     isNodeInActivePath,
     isNodeGenerating,
+    getSessionGeneratingNodeIds,
     isSessionGenerating,
     currentMessageCount,
 
@@ -1691,6 +1349,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     undo,
     redo,
     jumpToHistory,
+    getHistoryManager,
     canUndo: historyManager.canUndo,
     canRedo: historyManager.canRedo,
 

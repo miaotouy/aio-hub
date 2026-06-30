@@ -1,6 +1,6 @@
 # 多会话架构现状调查与重构对齐报告
 
-> **状态**: Phase 1/2 已施工 / Phase 3/4 待施工
+> **状态**: Manager 拆分 + 多会话核心/草稿已施工；完整多窗口 UI 与生命周期瘦身待施工
 > **作者**: 咕咕 (Gugu_Kilo)
 > **日期**: 2026-07-01
 > **针对文档**: [`multi-session-architecture.md`](src/tools/llm-chat/docs/Plan/multi-session-architecture.md)
@@ -272,11 +272,42 @@
    - `useChatExecutor.executeRequest` 已支持显式 `agentId`，执行 Agent 与传入的 `agentConfig` 对齐。
    - `llmChatService` 和 `llm-chat.registry` 的 `sendMessage` 类型已开放 `agentId` / `sessionId`。
 
+3. **Manager 拆分与 Pinia facade 初步瘦身**
+   - 新增 `stores/session/sessionAccessManager.ts`，统一 `sessionId/index/detail` 解析、active path 计算和 `nodeId -> sessionId` 反查。
+   - 新增 `stores/session/sessionRuntimeManager.ts`，集中管理生成节点、AbortController、会话队列和按会话中止。
+   - 新增 `stores/session/sessionHistoryManager.ts`，按会话懒创建历史管理器，提供 `getHistoryManager(sessionId)` / `undo(sessionId)` / `redo(sessionId)`。
+   - 新增 `stores/session/sessionGenerationManager.ts`，承接 `sendMessage`、`continueGeneration`、`regenerateFromNode`、`completeInput` 和排队自动触发逻辑。
+
+4. **多会话核心修正**
+   - 非当前会话 `sendMessage` 使用目标会话的 active path，不再读取 `currentActivePath.value`。
+   - `continueGeneration` / `regenerateFromNode` 会优先通过 `nodeId` 反查会话，并允许显式 `sessionId` 覆盖。
+   - `abortSending(sessionId?)` 可按会话中止；无参数时保持当前会话兼容行为。
+   - `useGraphActions` 兼容旧调用，同时支持显式 `sessionId`，图操作历史写入目标会话的 history manager。
+   - `useLlmChatSync`、分离输入/聊天区域代理、`LlmChat.vue` 发送入口已补齐 `sessionId` 透传。
+
+5. **会话级输入草稿**
+   - `useChatInputManager` 内部改为 `sessionId -> draft`，draft 包含文本、附件、临时模型、续写模型。
+   - `currentSessionId` 变化时由 store 驱动 `inputManager.setActiveSessionId(sessionId)`，切换会话会恢复各自草稿。
+   - 旧 `llm-chat-input-draft` 会在首次绑定真实会话时迁移到该会话；新存储 key 为 `llm-chat-input-drafts`。
+   - 新增 `moveDraftToSession(fromSessionId, toSessionId, mode)`，支持 `move` / `copy` 且保留附件。
+
 ### 5.2 实际实现补充
 
 - 为排队生成新增了 `queuedSessionAgentIds`，用于保存同会话排队发送时显式传入的 Agent，避免后台会话排队后回落到 UI 当前 Agent。
-- 对非当前会话调用 `sendMessage` 时，不会清空当前输入框，也不会清理当前会话的历史管理器；Phase 3 前仍不对非当前会话提供独立撤销/重做管理器。
+- 对非当前会话调用 `sendMessage` 时，会清空目标会话 draft，不会清空当前输入框。
+- 删除 / 批量删除 / 清空会话时会清理 runtime、history manager 和 draft，避免运行态残留。
+- `sessionGenerationManager` 对 chat handler / session manager 采用惰性加载与测试可注入依赖，避免 manager 初始化时拉起完整聊天执行链。
 
 ### 5.3 已验证
 
 - 已运行 `bun run check:frontend`，通过 `vue-tsc --noEmit`。
+- 已新增并通过 manager 级测试：
+  - 非当前会话发送使用目标会话 active path。
+  - 两个会话并发生成时按会话中止互不污染。
+  - draft copy/move 保留附件，源/目标状态符合预期。
+
+### 5.4 尚未完成 / 后续范围
+
+- `llmChatStore.ts` 已抽出生成、运行态、历史和访问管理，但会话生命周期（创建、加载、导入、收藏夹、批量移动等）仍在 store facade 内；后续应继续迁到 `sessionLifecycleManager.ts`。
+- 本轮没有实现完整 QQ 式多窗口 UI，也没有新增 `backgroundSessionService.ts`。
+- `sessionGraphManager.ts` 尚未单独成文件；本轮是在 `useGraphActions` 内完成 session-aware 改造，并由 store 注入 `sessionDetailMap/getHistoryManager`。

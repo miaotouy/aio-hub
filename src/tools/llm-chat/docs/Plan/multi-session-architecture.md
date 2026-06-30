@@ -1,6 +1,6 @@
 # 多会话架构设计方案
 
-> **状态**: Phase 1/2 已落地 / Phase 3/4 待施工
+> **状态**: Manager 拆分 + 多会话核心/草稿已落地；完整多窗口 UI 与生命周期瘦身待施工
 > **作者**: 咕咕
 > **日期**: 2026-04-12
 > **最后核对**: 2026-07-01
@@ -112,16 +112,18 @@ graph TD
 
 #### 2.4.2 仍未完成的目标能力
 
-| 目标                                           | 当前状态                                                                            | 影响                                               |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `isSending` 改为 computed                      | ✅ 已由 `generatingNodes.size` 推导，并清理 store / 分离窗口消费者的写入点          | 全局发送态变为只读派生状态。                       |
-| `sendMessage(content, { sessionId, agentId })` | ✅ store / service / registry 层已支持                                              | 可对非当前会话发送，并可显式指定后台 Agent。       |
-| `useChatHandler` 主流程 Agent 解耦             | ✅ `sendMessage` / `regenerateFromNode` / `continueGeneration` 已支持显式 `agentId` | 后台 SubAgent 基础发送链路不再依赖 UI 当前 Agent。 |
-| `useChatExecutor.executeRequest` 完全解耦      | ✅ 已接收 `agentId` 并用其解析执行 Agent                                            | 传入配置和执行 Agent 已对齐。                      |
-| 会话级历史管理器 Map                           | 仍是单个 `historyManager = useSessionNodeHistory(currentSessionDetail)`             | 多窗口/非当前会话撤销重做还未支持。                |
-| `useGraphActions` 任意会话操作                 | 仍接收 `currentSession` / `currentSessionId` Ref                                    | 图操作仍绑定当前会话。                             |
-| `SessionContext` / `SessionRuntimeState` 类型  | 尚未新增                                                                            | RFC 中的 Session Context 模式还没进入类型层。      |
-| `backgroundSessionService.ts`                  | 尚未新增                                                                            | Phase 4 后台会话执行引擎不存在。                   |
+| 目标                                           | 当前状态                                                                            | 影响                                                                                  |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `isSending` 改为 computed                      | ✅ 已由 `generatingNodes.size` 推导，并清理 store / 分离窗口消费者的写入点          | 全局发送态变为只读派生状态。                                                          |
+| `sendMessage(content, { sessionId, agentId })` | ✅ store / service / registry 层已支持                                              | 可对非当前会话发送，并可显式指定后台 Agent。                                          |
+| `useChatHandler` 主流程 Agent 解耦             | ✅ `sendMessage` / `regenerateFromNode` / `continueGeneration` 已支持显式 `agentId` | 后台 SubAgent 基础发送链路不再依赖 UI 当前 Agent。                                    |
+| `useChatExecutor.executeRequest` 完全解耦      | ✅ 已接收 `agentId` 并用其解析执行 Agent                                            | 传入配置和执行 Agent 已对齐。                                                         |
+| 会话级历史管理器 Map                           | ✅ `sessionHistoryManager` 按 `sessionId` 懒创建 `useSessionNodeHistory`            | `store.getHistoryManager(sessionId)` / `undo(sessionId)` / `redo(sessionId)` 已可用。 |
+| `useGraphActions` 任意会话操作                 | ✅ 兼容旧签名，同时支持显式 `sessionId` / `nodeId` 反查目标会话                     | edit/delete/switch/toggle/create branch 会写入目标会话历史栈。                        |
+| `SessionContext` / `SessionRuntimeState` 类型  | 尚未新增                                                                            | RFC 中的 Session Context 模式还没进入类型层。                                         |
+| `backgroundSessionService.ts`                  | 尚未新增                                                                            | Phase 4 后台会话执行引擎不存在。                                                      |
+| 会话级输入草稿                                 | ✅ `useChatInputManager` 内部维护 `sessionId -> draft`                              | 文本、附件、临时模型、续写模型按会话隔离，旧单草稿首次绑定会话时迁移。                |
+| Store 子管理器拆分                             | ⚠️ access/runtime/history/generation 已拆；lifecycle 仍在 facade                    | `llmChatStore.ts` 已瘦身主生成流程，但会话生命周期仍需后续搬迁。                      |
 
 #### 2.4.3 阶段完成度快照
 
@@ -129,8 +131,20 @@ graph TD
 | ---------------------------------- | --------- | --------------------------------------------------------------------------------- |
 | Phase 1: 消除 `isSending` 全局瓶颈 | ✅ 已完成 | `isSending` 已改为 computed，分离窗口通过 `generatingNodes` 推导发送态。          |
 | Phase 2: 解耦 Agent 依赖           | ✅ 已完成 | 主发送、续写、重生成、executor 均支持显式 `agentId`，store 发送支持 `sessionId`。 |
-| Phase 3: 会话级历史管理器          | ❌ 未施工 | 数据字段会话级存在，但 manager 实例仍绑定当前会话。                               |
+| Phase 3: 会话级历史管理器          | ✅ 已完成 | history manager 已按 sessionId 缓存，graph action 可写入目标会话历史。            |
 | Phase 4: 后台会话执行引擎          | ❌ 未施工 | 分离窗口代理已存在，但不是后台会话服务。                                          |
+
+#### 2.4.4 2026-07-01 本轮施工后的 manager 边界
+
+| Manager            | 文件                                         | 职责                                                                                         |
+| ------------------ | -------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Session Access     | `stores/session/sessionAccessManager.ts`     | 统一解析 `sessionId/index/detail`，按会话计算 active path，支持 `nodeId -> sessionId` 反查。 |
+| Session Runtime    | `stores/session/sessionRuntimeManager.ts`    | 管理 `generatingNodes`、`abortControllers`、会话队列和按会话中止。                           |
+| Session History    | `stores/session/sessionHistoryManager.ts`    | 按 `sessionId` 缓存撤销/重做管理器，删除会话时清理。                                         |
+| Session Generation | `stores/session/sessionGenerationManager.ts` | 承接发送、续写、重生成、输入补全和排队自动触发；非当前会话使用目标会话 active path。         |
+| Draft              | `useChatInputManager.ts`                     | 作为输入子管理器维护会话级草稿；暴露 `moveDraftToSession(from, to, mode)`。                  |
+| Graph              | `useGraphActions.ts`                         | 已支持显式 `sessionId`，但尚未单独落成 `sessionGraphManager.ts` 文件。                       |
+| Lifecycle          | `llmChatStore.ts`                            | 仍在 Pinia facade 内，后续应继续迁到 `sessionLifecycleManager.ts`，降低 store 体积。         |
 
 ---
 

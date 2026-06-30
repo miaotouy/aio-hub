@@ -16,6 +16,7 @@ import type {
   ChatSessionIndex,
   ChatSessionDetail,
   ChatAgent,
+  ModelIdentifier,
   UserProfile,
 } from "../types";
 
@@ -460,7 +461,14 @@ export class LlmChatService {
    */
   public async sendMessage(
     content: string,
-    options?: { parentId?: string; agentId?: string; sessionId?: string }
+    options?: {
+      parentId?: string;
+      agentId?: string;
+      sessionId?: string;
+      attachments?: Asset[];
+      temporaryModel?: ModelIdentifier | null;
+      disableMacroParsing?: boolean;
+    }
   ): Promise<void> {
     await errorHandler.wrapAsync(
       async () => {
@@ -469,7 +477,8 @@ export class LlmChatService {
         const store = this.chatStore;
 
         // 如果没有当前会话，尝试自动选择或创建
-        if (!store.currentSession) {
+        const targetSessionId = options?.sessionId || store.currentSessionId;
+        if (!targetSessionId || !store.sessionIndexMap.has(targetSessionId)) {
           if (store.sessions.length > 0) {
             // 情况1：有历史会话但未选中 -> 自动切换到最近使用的会话
             const sortedSessions = [...store.sessions].sort(
@@ -500,7 +509,8 @@ export class LlmChatService {
         }
 
         // 自动携带输入框中选择的临时模型
-        const temporaryModel = this.inputManager.temporaryModel.value;
+        const temporaryModel =
+          options?.temporaryModel ?? this.inputManager.temporaryModel.value;
         const sendOptions = {
           ...options,
           temporaryModel,

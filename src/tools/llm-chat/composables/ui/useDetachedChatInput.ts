@@ -37,13 +37,22 @@ export function useDetachedChatInput() {
     logger.info("代理发送消息操作", {
       content,
       attachmentCount: attachments?.length,
+      sessionId: store.currentSessionId,
     });
-    bus.requestAction("llm-chat:send-message", { content, attachments });
+    bus.requestAction("llm-chat:send-message", {
+      content,
+      options: {
+        attachments,
+        sessionId: store.currentSessionId,
+      },
+    });
   };
 
   const handleAbort = () => {
-    logger.info("代理中止发送操作");
-    bus.requestAction("llm-chat:abort-sending", {});
+    logger.info("代理中止发送操作", { sessionId: store.currentSessionId });
+    bus.requestAction("llm-chat:abort-sending", {
+      sessionId: store.currentSessionId,
+    });
   };
 
   // 5. 返回 props 和事件监听器（与 useDetachedChatArea 保持一致的结构）

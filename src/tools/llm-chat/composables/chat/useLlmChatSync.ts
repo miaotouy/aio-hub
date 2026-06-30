@@ -290,30 +290,44 @@ export function useLlmChatSync() {
   const handleActionRequest = (action: string, params: any): Promise<any> => {
     logger.info("收到操作请求", { action, params });
     switch (action) {
-      case "send-message":
-        return store.sendMessage(params.content, params.options);
+      case "send-message": {
+        const options = params.options ?? {
+          attachments: params.attachments,
+          temporaryModel: params.temporaryModel,
+          parentId: params.parentId,
+          disableMacroParsing: params.disableMacroParsing,
+          agentId: params.agentId,
+          sessionId: params.sessionId,
+        };
+        return store.sendMessage(params.content, options);
+      }
       case "abort-sending":
-        store.abortSending();
+        store.abortSending(params.sessionId);
         return Promise.resolve();
       case "regenerate-from-node":
-        return store.regenerateFromNode(params.nodeId, params.options);
+        return store.regenerateFromNode(params.nodeId || params.messageId, {
+          ...params.options,
+          sessionId: params.options?.sessionId || params.sessionId,
+        });
       case "delete-message":
-        return (store as any).deleteMessage(params.messageId);
+        return (store as any).deleteMessage(params.messageId, params.sessionId);
       case "switch-sibling":
         return (store as any).switchToSiblingBranch(
           params.nodeId,
-          params.direction
+          params.direction,
+          params.sessionId
         );
       case "toggle-enabled":
-        return (store as any).toggleNodeEnabled(params.nodeId);
+        return (store as any).toggleNodeEnabled(params.nodeId, params.sessionId);
       case "edit-message":
         return (store as any).editMessage(
           params.nodeId,
           params.newContent,
-          params.attachments
+          params.attachments,
+          params.sessionId
         );
       case "create-branch":
-        return (store as any).createBranch(params.nodeId);
+        return (store as any).createBranch(params.nodeId, params.sessionId);
       case "abort-node":
         store.abortNodeGeneration(params.nodeId);
         return Promise.resolve();
@@ -379,7 +393,10 @@ export function useLlmChatSync() {
       case "select-agent":
         return (agentStore as any).selectAgent(params.agentId, params.options);
       case "complete-input":
-        return (store as any).completeInput(params.content, params.options);
+        return (store as any).completeInput(params.content, {
+          ...params.options,
+          sessionId: params.options?.sessionId || params.sessionId,
+        });
       case "analyze-context":
         store.contextAnalyzerNodeId = params.nodeId;
         store.contextAnalyzerVisible = true;

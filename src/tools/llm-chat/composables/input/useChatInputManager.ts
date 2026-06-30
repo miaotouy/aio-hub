@@ -48,7 +48,9 @@ import {
 const logger = createModuleLogger("ChatInputManager");
 const errorHandler = createModuleErrorHandler("ChatInputManager");
 
-const STORAGE_KEY = "llm-chat-input-draft";
+const LEGACY_STORAGE_KEY = "llm-chat-input-draft";
+const STORAGE_KEY = "llm-chat-input-drafts";
+const FALLBACK_DRAFT_SESSION_ID = "__legacy_active__";
 
 /**
  * 持久化的状态结构
@@ -59,6 +61,16 @@ interface ChatInputDraft {
   temporaryModel?: ModelIdentifier | null;
   continuationModel?: ModelIdentifier | null;
   timestamp: number;
+}
+
+interface ChatInputDraftStorage {
+  version: 2;
+  activeSessionId: string | null;
+  drafts: Record<string, ChatInputDraft>;
+}
+
+interface ChatInputSyncState extends ChatInputDraft {
+  sessionId: string | null;
 }
 
 /**
@@ -77,18 +89,19 @@ class ChatInputManager {
   public temporaryModel: Ref<ModelIdentifier | null> = ref(null);
   // 续写指定的模型
   public continuationModel: Ref<ModelIdentifier | null> = ref(null);
+  // 当前输入区绑定的会话；UI 仍消费上面的 ref，但 ref 内容来自该会话草稿
+  public activeSessionId: Ref<string | null> = ref(null);
+  private draftMap = new Map<string, ChatInputDraft>();
+  private isSwitchingDraft = false;
 
   // 用于跨窗口同步的状态对象（可写的 ref）
-  public syncState: Ref<{
-    text: string;
-    attachments: Asset[];
-    temporaryModel: ModelIdentifier | null;
-    continuationModel: ModelIdentifier | null;
-  }> = ref({
+  public syncState: Ref<ChatInputSyncState> = ref({
+    sessionId: null,
     text: "",
     attachments: [],
     temporaryModel: null,
     continuationModel: null,
+    timestamp: Date.now(),
   });
 
   // 附件管理器实例
@@ -110,16 +123,13 @@ class ChatInputManager {
   private stateVersion = 0;
 
   // 上次同步的值
-  private lastSyncedValue: {
-    text: string;
-    attachments: Asset[];
-    temporaryModel: ModelIdentifier | null;
-    continuationModel: ModelIdentifier | null;
-  } = {
+  private lastSyncedValue: ChatInputSyncState = {
+    sessionId: null,
     text: "",
     attachments: [],
     temporaryModel: null,
     continuationModel: null,
+    timestamp: Date.now(),
   };
 
   // 防抖推送计时器
@@ -201,25 +211,32 @@ class ChatInputManager {
 
     // 初始化同步状态（从 attachmentManager 获取当前附件）
     this.syncState.value = {
+      sessionId: this.activeSessionId.value,
       text: this.inputText.value,
       attachments: [...this.attachmentManager.attachments.value],
       temporaryModel: this.temporaryModel.value,
       continuationModel: this.continuationModel.value,
+      timestamp: Date.now(),
     };
     this.lastSyncedValue = {
+      sessionId: this.activeSessionId.value,
       text: this.inputText.value,
       attachments: [...this.attachmentManager.attachments.value],
       temporaryModel: this.temporaryModel.value,
       continuationModel: this.continuationModel.value,
+      timestamp: Date.now(),
     };
 
     // 监听输入框文本变化，同步到 syncState（用于跨窗口同步）
     watch(this.inputText, (newText) => {
-      if (!this.isApplyingSyncState) {
+      if (!this.isApplyingSyncState && !this.isSwitchingDraft) {
         this.markLocalChange();
+        this.saveCurrentDraftSnapshot();
         this.syncState.value = {
           ...this.syncState.value,
+          sessionId: this.activeSessionId.value,
           text: newText,
+          timestamp: Date.now(),
         };
         // 防抖推送到其他窗口
         this.debouncedPushState();
@@ -285,11 +302,14 @@ class ChatInputManager {
           }
         });
 
-        if (!this.isApplyingSyncState) {
+        if (!this.isApplyingSyncState && !this.isSwitchingDraft) {
           this.markLocalChange();
+          this.saveCurrentDraftSnapshot();
           this.syncState.value = {
             ...this.syncState.value,
+            sessionId: this.activeSessionId.value,
             attachments: [...newAttachments],
+            timestamp: Date.now(),
           };
           // 防抖推送到其他窗口
           this.debouncedPushState();
@@ -302,11 +322,14 @@ class ChatInputManager {
 
     // 监听临时模型变化
     watch(this.temporaryModel, (newModel) => {
-      if (!this.isApplyingSyncState) {
+      if (!this.isApplyingSyncState && !this.isSwitchingDraft) {
         this.markLocalChange();
+        this.saveCurrentDraftSnapshot();
         this.syncState.value = {
           ...this.syncState.value,
+          sessionId: this.activeSessionId.value,
           temporaryModel: newModel,
+          timestamp: Date.now(),
         };
         this.debouncedPushState();
       }
@@ -315,11 +338,14 @@ class ChatInputManager {
 
     // 监听续写模型变化
     watch(this.continuationModel, (newModel) => {
-      if (!this.isApplyingSyncState) {
+      if (!this.isApplyingSyncState && !this.isSwitchingDraft) {
         this.markLocalChange();
+        this.saveCurrentDraftSnapshot();
         this.syncState.value = {
           ...this.syncState.value,
+          sessionId: this.activeSessionId.value,
           continuationModel: newModel,
+          timestamp: Date.now(),
         };
         this.debouncedPushState();
       }
@@ -330,6 +356,19 @@ class ChatInputManager {
     watch(
       this.syncState,
       (newState) => {
+        const stateKey = this.getDraftKey(newState.sessionId);
+        if (stateKey !== this.getActiveDraftKey()) {
+          this.draftMap.set(stateKey, {
+            text: newState.text || "",
+            attachments: [...(newState.attachments || [])],
+            temporaryModel: newState.temporaryModel || null,
+            continuationModel: newState.continuationModel || null,
+            timestamp: newState.timestamp || Date.now(),
+          });
+          this.debouncedSaveToStorage();
+          return;
+        }
+
         // 如果是本地修改导致的 syncState 变化（isApplyingSyncState 为 false 时触发的本地 push），
         // 我们不需要再同步回 inputText，否则会产生竞态
         if (
@@ -369,7 +408,7 @@ class ChatInputManager {
           JSON.stringify(newState.temporaryModel) !==
           JSON.stringify(this.temporaryModel.value)
         ) {
-          this.temporaryModel.value = newState.temporaryModel;
+          this.temporaryModel.value = newState.temporaryModel || null;
           logger.debug("从同步状态更新临时模型", {
             model: newState.temporaryModel,
           });
@@ -380,7 +419,7 @@ class ChatInputManager {
           JSON.stringify(newState.continuationModel) !==
           JSON.stringify(this.continuationModel.value)
         ) {
-          this.continuationModel.value = newState.continuationModel;
+          this.continuationModel.value = newState.continuationModel || null;
           logger.debug("从同步状态更新续写模型", {
             model: newState.continuationModel,
           });
@@ -443,6 +482,7 @@ class ChatInputManager {
           this.pushState(isFullSync, targetWindowLabel, silent);
         },
         getStatePayload: async (_isFullSync) => {
+          this.saveCurrentDraftSnapshot();
           const newValue = this.syncState.value;
           const newVersion = VersionGenerator.next();
           return {
@@ -461,6 +501,197 @@ class ChatInputManager {
 
   private markLocalChange(): void {
     this.lastLocalChangeAt = Date.now();
+  }
+
+  private getActiveDraftKey(): string {
+    return this.activeSessionId.value || FALLBACK_DRAFT_SESSION_ID;
+  }
+
+  private createEmptyDraft(): ChatInputDraft {
+    return {
+      text: "",
+      attachments: [],
+      temporaryModel: null,
+      continuationModel: null,
+      timestamp: Date.now(),
+    };
+  }
+
+  private cloneDraft(draft: ChatInputDraft): ChatInputDraft {
+    return {
+      text: draft.text || "",
+      attachments: [...(draft.attachments || [])],
+      temporaryModel: draft.temporaryModel || null,
+      continuationModel: draft.continuationModel || null,
+      timestamp: draft.timestamp || Date.now(),
+    };
+  }
+
+  private getDraftKey(sessionId?: string | null): string {
+    return sessionId || this.getActiveDraftKey();
+  }
+
+  private getDraft(sessionId?: string | null): ChatInputDraft {
+    const key = this.getDraftKey(sessionId);
+    const existing = this.draftMap.get(key);
+    if (existing) return existing;
+
+    const draft = this.createEmptyDraft();
+    this.draftMap.set(key, draft);
+    return draft;
+  }
+
+  private isEmptyDraft(draft: ChatInputDraft | undefined): boolean {
+    if (!draft) return true;
+    return (
+      !draft.text &&
+      (!draft.attachments || draft.attachments.length === 0) &&
+      !draft.temporaryModel &&
+      !draft.continuationModel
+    );
+  }
+
+  private saveCurrentDraftSnapshot(): void {
+    const key = this.getActiveDraftKey();
+    this.draftMap.set(key, {
+      text: this.inputText.value,
+      attachments: [...this.attachmentManager.attachments.value],
+      temporaryModel: this.temporaryModel.value,
+      continuationModel: this.continuationModel.value,
+      timestamp: Date.now(),
+    });
+  }
+
+  private updateDraft(
+    sessionId: string | null | undefined,
+    updater: (draft: ChatInputDraft) => ChatInputDraft | void
+  ): void {
+    const key = this.getDraftKey(sessionId);
+    const draft = this.cloneDraft(this.getDraft(key));
+    const result = updater(draft);
+    const nextDraft = result ? this.cloneDraft(result) : draft;
+    nextDraft.timestamp = Date.now();
+    this.draftMap.set(key, nextDraft);
+
+    if (key === this.getActiveDraftKey()) {
+      this.applyDraftToActiveRefs(nextDraft);
+    } else {
+      this.debouncedSaveToStorage();
+      this.pushDraftState(key, nextDraft);
+    }
+  }
+
+  private applyDraftToActiveRefs(draft: ChatInputDraft): void {
+    this.isSwitchingDraft = true;
+    this.isApplyingSyncState = true;
+    try {
+      this.inputText.value = draft.text || "";
+      this.attachmentManager.syncAttachments([...(draft.attachments || [])]);
+      this.temporaryModel.value = draft.temporaryModel || null;
+      this.continuationModel.value = draft.continuationModel || null;
+      this.syncState.value = {
+        sessionId: this.activeSessionId.value,
+        text: this.inputText.value,
+        attachments: [...this.attachmentManager.attachments.value],
+        temporaryModel: this.temporaryModel.value,
+        continuationModel: this.continuationModel.value,
+        timestamp: draft.timestamp || Date.now(),
+      };
+      this.lastSyncedValue = JSON.parse(JSON.stringify(this.syncState.value));
+    } finally {
+      nextTick(() => {
+        this.isApplyingSyncState = false;
+        this.isSwitchingDraft = false;
+      });
+    }
+  }
+
+  private pushDraftState(sessionId: string | null, draft: ChatInputDraft): void {
+    this.syncState.value = {
+      sessionId,
+      ...this.cloneDraft(draft),
+    };
+    this.debouncedPushState();
+  }
+
+  public setActiveSessionId(sessionId: string | null): void {
+    if (this.activeSessionId.value === sessionId) return;
+
+    this.saveCurrentDraftSnapshot();
+
+    const legacyDraft = this.draftMap.get(FALLBACK_DRAFT_SESSION_ID);
+    if (
+      sessionId &&
+      legacyDraft &&
+      !this.isEmptyDraft(legacyDraft) &&
+      this.isEmptyDraft(this.draftMap.get(sessionId))
+    ) {
+      this.draftMap.set(sessionId, this.cloneDraft(legacyDraft));
+      this.draftMap.delete(FALLBACK_DRAFT_SESSION_ID);
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+      logger.info("已将旧输入草稿迁移到当前会话", { sessionId });
+    }
+
+    this.activeSessionId.value = sessionId;
+    const draft = this.cloneDraft(this.getDraft(sessionId));
+    this.applyDraftToActiveRefs(draft);
+    this.saveToStorageImmediate();
+    this.pushState(true, undefined, true);
+  }
+
+  public getDraftSnapshot(sessionId?: string | null): ChatInputDraft {
+    if (this.getDraftKey(sessionId) === this.getActiveDraftKey()) {
+      this.saveCurrentDraftSnapshot();
+    }
+    return this.cloneDraft(this.getDraft(sessionId));
+  }
+
+  public moveDraftToSession(
+    fromSessionId: string,
+    toSessionId: string,
+    mode: "move" | "copy"
+  ): void {
+    if (!fromSessionId || !toSessionId || fromSessionId === toSessionId) return;
+
+    if (fromSessionId === this.getActiveDraftKey()) {
+      this.saveCurrentDraftSnapshot();
+    }
+
+    const fromDraft = this.cloneDraft(this.getDraft(fromSessionId));
+    this.draftMap.set(toSessionId, {
+      ...fromDraft,
+      timestamp: Date.now(),
+    });
+
+    if (mode === "move") {
+      const sourceDraft = this.createEmptyDraft();
+      this.draftMap.set(fromSessionId, sourceDraft);
+      if (fromSessionId === this.getActiveDraftKey()) {
+        this.applyDraftToActiveRefs(sourceDraft);
+      }
+    }
+
+    if (toSessionId === this.getActiveDraftKey()) {
+      this.applyDraftToActiveRefs(fromDraft);
+    }
+
+    this.saveToStorageImmediate();
+    this.pushDraftState(toSessionId, fromDraft);
+    logger.info("已转移输入草稿", { fromSessionId, toSessionId, mode });
+  }
+
+  public clearDraft(sessionId: string): void {
+    this.draftMap.delete(sessionId);
+    if (sessionId === this.getActiveDraftKey()) {
+      this.applyDraftToActiveRefs(this.createEmptyDraft());
+    }
+    this.saveToStorageImmediate();
+  }
+
+  public clearAllDrafts(): void {
+    this.draftMap.clear();
+    this.applyDraftToActiveRefs(this.createEmptyDraft());
+    this.saveToStorageImmediate();
   }
 
   private applyIncomingSyncPayload(
@@ -485,18 +716,41 @@ class ChatInputManager {
       return;
     }
 
-    let incomingState: typeof this.syncState.value;
+    let incomingState: ChatInputSyncState;
     try {
       incomingState = payload.isFull
-        ? (payload.data as typeof this.syncState.value)
+        ? (payload.data as ChatInputSyncState)
         : (applyPatches(
             this.syncState.value,
             payload.patches as JsonPatchOperation[]
-          ) as typeof this.syncState.value);
+          ) as ChatInputSyncState);
     } catch (error) {
       errorHandler.handle(error as Error, {
         userMessage: "解析输入状态更新失败",
         showToUser: false,
+      });
+      return;
+    }
+
+    const incomingSessionKey = this.getDraftKey(incomingState.sessionId);
+    const incomingDraft: ChatInputDraft = {
+      text: incomingState.text || "",
+      attachments: [...(incomingState.attachments || [])],
+      temporaryModel: incomingState.temporaryModel || null,
+      continuationModel: incomingState.continuationModel || null,
+      timestamp: incomingState.timestamp || Date.now(),
+    };
+
+    this.draftMap.set(incomingSessionKey, incomingDraft);
+    if (incomingSessionKey !== this.getActiveDraftKey()) {
+      this.stateVersion = payload.version;
+      this.lastSyncedValue = JSON.parse(JSON.stringify(incomingState));
+      this.debouncedSaveToStorage();
+      logger.info(`已应用${payload.isFull ? "全量" : "增量"}非当前会话输入状态`, {
+        version: payload.version,
+        sessionId: incomingState.sessionId,
+        textLength: incomingDraft.text.length,
+        attachmentCount: incomingDraft.attachments.length,
       });
       return;
     }
@@ -562,6 +816,7 @@ class ChatInputManager {
   ): void {
     if (this.isApplyingSyncState) return;
 
+    this.saveCurrentDraftSnapshot();
     const newValue = this.syncState.value;
 
     // 性能优化：如果数据没有变化，跳过同步计算
@@ -653,26 +908,34 @@ class ChatInputManager {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        const draft: ChatInputDraft = JSON.parse(stored);
-        this.inputText.value = draft.text || "";
-        this.temporaryModel.value = draft.temporaryModel || null;
-        this.continuationModel.value = draft.continuationModel || null;
-
-        // 恢复附件列表
-        if (draft.attachments && Array.isArray(draft.attachments)) {
-          this.attachmentManager.addAssets(draft.attachments);
-          logger.info("从 localStorage 恢复输入状态（含附件和临时模型）", {
-            textLength: this.inputText.value.length,
-            attachmentCount: draft.attachments.length,
-            temporaryModel: this.temporaryModel.value,
-            timestamp: draft.timestamp,
+        const storage: ChatInputDraftStorage = JSON.parse(stored);
+        if (storage?.drafts) {
+          Object.entries(storage.drafts).forEach(([sessionId, draft]) => {
+            this.draftMap.set(sessionId, this.cloneDraft(draft));
           });
-        } else {
-          logger.info("从 localStorage 恢复输入状态", {
-            textLength: this.inputText.value.length,
-            timestamp: draft.timestamp,
+          this.activeSessionId.value = storage.activeSessionId || null;
+          this.applyDraftToActiveRefs(this.getDraft(storage.activeSessionId));
+          logger.info("从 localStorage 恢复会话级输入草稿", {
+            draftCount: this.draftMap.size,
+            activeSessionId: this.activeSessionId.value,
           });
+          return;
         }
+      }
+
+      const legacyStored = localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (legacyStored) {
+        const legacyDraft: ChatInputDraft = JSON.parse(legacyStored);
+        this.draftMap.set(
+          FALLBACK_DRAFT_SESSION_ID,
+          this.cloneDraft(legacyDraft)
+        );
+        this.applyDraftToActiveRefs(this.getDraft(FALLBACK_DRAFT_SESSION_ID));
+        logger.info("已读取旧版输入草稿，等待首次会话绑定后迁移", {
+          textLength: legacyDraft.text?.length || 0,
+          attachmentCount: legacyDraft.attachments?.length || 0,
+          timestamp: legacyDraft.timestamp,
+        });
       }
     } catch (error) {
       errorHandler.handle(error as Error, {
@@ -700,18 +963,23 @@ class ChatInputManager {
    */
   private saveToStorageImmediate(): void {
     try {
-      const draft: ChatInputDraft = {
-        text: this.inputText.value,
-        attachments: [...this.attachmentManager.attachments.value],
-        temporaryModel: this.temporaryModel.value,
-        continuationModel: this.continuationModel.value,
-        timestamp: Date.now(),
+      this.saveCurrentDraftSnapshot();
+      const drafts: Record<string, ChatInputDraft> = {};
+      for (const [sessionId, draft] of this.draftMap.entries()) {
+        if (!this.isEmptyDraft(draft)) {
+          drafts[sessionId] = this.cloneDraft(draft);
+        }
+      }
+
+      const storage: ChatInputDraftStorage = {
+        version: 2,
+        activeSessionId: this.activeSessionId.value,
+        drafts,
       };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
-      logger.debug("保存输入状态到 localStorage", {
-        textLength: this.inputText.value.length,
-        attachmentCount: this.attachmentManager.attachments.value.length,
-        temporaryModel: this.temporaryModel.value,
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(storage));
+      logger.debug("保存会话级输入草稿到 localStorage", {
+        draftCount: Object.keys(drafts).length,
+        activeSessionId: this.activeSessionId.value,
       });
     } catch (error) {
       errorHandler.handle(error as Error, {
@@ -724,8 +992,33 @@ class ChatInputManager {
   /**
    * 向输入框添加内容
    */
-  addContent(content: string, position: "append" | "prepend" = "append"): void {
+  addContent(
+    content: string,
+    position: "append" | "prepend" = "append",
+    sessionId?: string | null
+  ): void {
     if (!content) return;
+
+    const targetKey = this.getDraftKey(sessionId);
+    if (targetKey !== this.getActiveDraftKey()) {
+      this.updateDraft(sessionId, (draft) => {
+        if (position === "append") {
+          if (draft.text && !draft.text.endsWith("\n")) {
+            draft.text += "\n";
+          }
+          draft.text += content;
+        } else {
+          const contentToAdd = content.endsWith("\n") ? content : content + "\n";
+          draft.text = contentToAdd + draft.text;
+        }
+      });
+      logger.info("添加内容到非当前会话输入草稿", {
+        sessionId: targetKey,
+        position,
+        contentLength: content.length,
+      });
+      return;
+    }
 
     if (position === "append") {
       // 如果已有内容且最后没有空行，添加换行
@@ -749,7 +1042,19 @@ class ChatInputManager {
   /**
    * 设置输入框内容（完全覆盖）
    */
-  setContent(content: string): void {
+  setContent(content: string, sessionId?: string | null): void {
+    const targetKey = this.getDraftKey(sessionId);
+    if (targetKey !== this.getActiveDraftKey()) {
+      this.updateDraft(sessionId, (draft) => {
+        draft.text = content;
+      });
+      logger.info("设置非当前会话输入草稿", {
+        sessionId: targetKey,
+        contentLength: content.length,
+      });
+      return;
+    }
+
     this.inputText.value = content;
     logger.info("设置输入框内容", { contentLength: content.length });
   }
@@ -757,16 +1062,31 @@ class ChatInputManager {
   /**
    * 获取输入框内容
    */
-  getContent(): string {
+  getContent(sessionId?: string | null): string {
+    const targetKey = this.getDraftKey(sessionId);
+    if (targetKey !== this.getActiveDraftKey()) {
+      return this.getDraft(sessionId).text;
+    }
     return this.inputText.value;
   }
 
   /**
    * 清空输入框和附件
    */
-  clear(): void {
+  clear(sessionId?: string | null): void {
+    const targetKey = this.getDraftKey(sessionId);
+    if (targetKey !== this.getActiveDraftKey()) {
+      this.updateDraft(sessionId, (draft) => {
+        draft.text = "";
+        draft.attachments = [];
+      });
+      logger.info("清空非当前会话输入草稿和附件", { sessionId: targetKey });
+      return;
+    }
+
     this.inputText.value = "";
     this.attachmentManager.clearAttachments();
+    this.saveCurrentDraftSnapshot();
     // 清空 ID 变更历史，避免内存泄漏
     this.idUpdateLog.clear();
     // 注意：临时模型不在此处清除，保持"粘性"，允许用户连续使用同一模型发送多条消息
@@ -1345,6 +1665,18 @@ export function useChatInputManager() {
     temporaryModel: manager.temporaryModel,
     /** 续写指定的模型 */
     continuationModel: manager.continuationModel,
+    /** 当前绑定的会话 */
+    activeSessionId: manager.activeSessionId,
+    /** 切换输入区绑定会话 */
+    setActiveSessionId: manager.setActiveSessionId.bind(manager),
+    /** 获取指定会话草稿快照 */
+    getDraftSnapshot: manager.getDraftSnapshot.bind(manager),
+    /** 转移或复制草稿到另一个会话 */
+    moveDraftToSession: manager.moveDraftToSession.bind(manager),
+    /** 删除指定会话草稿 */
+    clearDraft: manager.clearDraft.bind(manager),
+    /** 删除所有会话草稿 */
+    clearAllDrafts: manager.clearAllDrafts.bind(manager),
 
     // ========== 附件管理 ==========
     /** 附件列表（只读） */

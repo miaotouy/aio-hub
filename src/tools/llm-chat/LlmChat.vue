@@ -238,6 +238,7 @@ const handleSendMessage = async (payload: {
     return;
   }
   await store.sendMessage(payload.content, {
+    sessionId: store.currentSessionId || undefined,
     attachments: payload.attachments,
     temporaryModel: payload.temporaryModel,
     disableMacroParsing: payload.disableMacroParsing,
@@ -246,7 +247,7 @@ const handleSendMessage = async (payload: {
 
 // 处理中止发送
 const handleAbortSending = () => {
-  store.abortSending();
+  store.abortSending(store.currentSessionId || undefined);
 };
 
 // 处理输入补全
@@ -254,7 +255,10 @@ const handleCompleteInput = (
   content: string,
   options?: { modelId?: string; profileId?: string }
 ) => {
-  store.completeInput(content, options);
+  store.completeInput(content, {
+    ...options,
+    sessionId: store.currentSessionId || undefined,
+  });
 };
 
 // 处理续写模型选择

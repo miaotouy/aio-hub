@@ -29,39 +29,75 @@ export function useDetachedChatArea() {
     logger.info("代理发送消息操作", {
       content,
       attachmentCount: attachments?.length,
+      sessionId: store.currentSessionId,
     });
-    return bus.requestAction("llm-chat:send-message", { content, attachments });
+    return bus.requestAction("llm-chat:send-message", {
+      content,
+      options: {
+        attachments,
+        sessionId: store.currentSessionId,
+      },
+    });
   };
 
   const abortSending = () => {
-    logger.info("代理中止发送操作");
-    return bus.requestAction("llm-chat:abort-sending", {});
+    logger.info("代理中止发送操作", { sessionId: store.currentSessionId });
+    return bus.requestAction("llm-chat:abort-sending", {
+      sessionId: store.currentSessionId,
+    });
   };
 
   const regenerateLastMessage = (
     messageId: string,
     options?: { modelId?: string; profileId?: string }
   ) => {
-    logger.info("代理重新生成操作", { messageId, options });
-    return bus.requestAction("llm-chat:regenerate-from-node", {
+    logger.info("代理重新生成操作", {
       messageId,
       options,
+      sessionId: store.currentSessionId,
+    });
+    return bus.requestAction("llm-chat:regenerate-from-node", {
+      nodeId: messageId,
+      options: {
+        ...options,
+        sessionId: store.currentSessionId,
+      },
     });
   };
 
   const deleteMessage = (messageId: string) => {
-    logger.info("代理删除消息操作", { messageId });
-    return bus.requestAction("llm-chat:delete-message", { messageId });
+    logger.info("代理删除消息操作", {
+      messageId,
+      sessionId: store.currentSessionId,
+    });
+    return bus.requestAction("llm-chat:delete-message", {
+      messageId,
+      sessionId: store.currentSessionId,
+    });
   };
 
   const switchSibling = (nodeId: string, direction: "prev" | "next") => {
-    logger.info("代理切换兄弟分支操作", { nodeId, direction });
-    return bus.requestAction("llm-chat:switch-sibling", { nodeId, direction });
+    logger.info("代理切换兄弟分支操作", {
+      nodeId,
+      direction,
+      sessionId: store.currentSessionId,
+    });
+    return bus.requestAction("llm-chat:switch-sibling", {
+      nodeId,
+      direction,
+      sessionId: store.currentSessionId,
+    });
   };
 
   const toggleEnabled = (nodeId: string) => {
-    logger.info("代理切换节点启用状态操作", { nodeId });
-    return bus.requestAction("llm-chat:toggle-enabled", { nodeId });
+    logger.info("代理切换节点启用状态操作", {
+      nodeId,
+      sessionId: store.currentSessionId,
+    });
+    return bus.requestAction("llm-chat:toggle-enabled", {
+      nodeId,
+      sessionId: store.currentSessionId,
+    });
   };
 
   const editMessage = (
@@ -73,17 +109,22 @@ export function useDetachedChatArea() {
       nodeId,
       contentLength: newContent.length,
       attachmentCount: attachments?.length,
+      sessionId: store.currentSessionId,
     });
     return bus.requestAction("llm-chat:edit-message", {
       nodeId,
       newContent,
       attachments,
+      sessionId: store.currentSessionId,
     });
   };
 
   const createBranch = (nodeId: string) => {
-    logger.info("代理创建分支操作", { nodeId });
-    return bus.requestAction("llm-chat:create-branch", { nodeId });
+    logger.info("代理创建分支操作", { nodeId, sessionId: store.currentSessionId });
+    return bus.requestAction("llm-chat:create-branch", {
+      nodeId,
+      sessionId: store.currentSessionId,
+    });
   };
 
   const abortNode = (nodeId: string) => {

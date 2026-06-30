@@ -34,13 +34,50 @@ export function useGraphActions(
   currentSession: Ref<ChatSessionDetail | null>,
   currentSessionId: Ref<string | null>,
   historyManager: HistoryManager,
-  sessionIndexMap?: Ref<Map<string, ChatSessionIndex>> // 传入索引 Map 以便更新
+  sessionIndexMap?: Ref<Map<string, ChatSessionIndex>>, // 传入索引 Map 以便更新
+  options?: {
+    sessionDetailMap?: Ref<Map<string, ChatSessionDetail>>;
+    getHistoryManager?: (sessionId?: string | null) => HistoryManager | null;
+  }
 ) {
   const branchManager = useBranchManager();
   const sessionManager = useSessionManager();
 
   function cloneNodeForHistory(node: ChatMessageNode): ChatMessageNode {
     return JSON.parse(JSON.stringify(toRaw(node)));
+  }
+
+  function resolveSession(
+    nodeId?: string,
+    explicitSessionId?: string | null
+  ): ChatSessionDetail | null {
+    if (explicitSessionId) {
+      return options?.sessionDetailMap?.value.get(explicitSessionId) || null;
+    }
+
+    const current = currentSession.value;
+    if (!nodeId || current?.nodes?.[nodeId] || nodeId.startsWith("preset-")) {
+      return current;
+    }
+
+    if (options?.sessionDetailMap?.value) {
+      for (const detail of options.sessionDetailMap.value.values()) {
+        if (detail.nodes?.[nodeId]) return detail;
+      }
+    }
+
+    return current;
+  }
+
+  function getHistoryForSession(sessionId: string): HistoryManager {
+    return options?.getHistoryManager?.(sessionId) || historyManager;
+  }
+
+  function recordHistory(
+    sessionId: string,
+    ...args: Parameters<HistoryManager["recordHistory"]>
+  ): void {
+    getHistoryForSession(sessionId).recordHistory(...args);
   }
 
   function solidifyLiveGreetingsForMutation(
@@ -128,9 +165,10 @@ export function useGraphActions(
    */
   async function updateNodeData(
     nodeId: string,
-    updates: Partial<ChatMessageNode>
+    updates: Partial<ChatMessageNode>,
+    sessionId?: string | null
   ): Promise<void> {
-    const session = currentSession.value;
+    const session = resolveSession(nodeId, sessionId);
     if (!session) return;
 
     if (nodeId.startsWith("preset-")) {
@@ -162,7 +200,7 @@ export function useGraphActions(
       payload: { nodeId, previousNodeState, finalNodeState },
     };
     // 使用自定义的操作类型名称，或者复用 NODE_EDIT
-    historyManager.recordHistory("NODE_DATA_UPDATE", [delta], {
+    recordHistory(session.id, "NODE_DATA_UPDATE", [delta], {
       targetNodeId: nodeId,
     });
 
@@ -196,9 +234,10 @@ export function useGraphActions(
   async function editMessage(
     nodeId: string,
     newContent: string,
-    attachments?: Asset[]
+    attachments?: Asset[],
+    sessionId?: string | null
   ): Promise<void> {
-    const session = currentSession.value;
+    const session = resolveSession(nodeId, sessionId);
     if (!session) return;
 
     if (nodeId.startsWith("preset-")) {
@@ -240,7 +279,7 @@ export function useGraphActions(
         type: "update",
         payload: { nodeId, previousNodeState, finalNodeState },
       };
-      historyManager.recordHistory("NODE_EDIT", [...solidifyDeltas, delta], {
+      recordHistory(session.id, "NODE_EDIT", [...solidifyDeltas, delta], {
         targetNodeId: nodeId,
       });
 
@@ -268,8 +307,8 @@ export function useGraphActions(
   /**
    * 删除消息节点
    */
-  function deleteMessage(nodeId: string): void {
-    const session = currentSession.value;
+  function deleteMessage(nodeId: string, sessionId?: string | null): void {
+    const session = resolveSession(nodeId, sessionId);
     if (!session) return;
 
     const { success, deletedNodes } = branchManager.deleteMessage(
@@ -286,7 +325,7 @@ export function useGraphActions(
         };
       });
 
-      historyManager.recordHistory("NODES_DELETE", deltas, {
+      recordHistory(session.id, "NODES_DELETE", deltas, {
         targetNodeId: nodeId,
         affectedNodeCount: deletedNodes.length,
       });
@@ -313,8 +352,8 @@ export function useGraphActions(
   /**
    * 切换到指定分支
    */
-  function switchBranch(nodeId: string): void {
-    const session = currentSession.value;
+  function switchBranch(nodeId: string, sessionId?: string | null): void {
+    const session = resolveSession(nodeId, sessionId);
     if (!session) return;
 
     const oldLeafId = session.activeLeafId;
@@ -329,7 +368,7 @@ export function useGraphActions(
           type: "active_leaf_change",
           payload: { oldLeafId: oldLeafId || "", newLeafId: newLeafId || "" },
         };
-        historyManager.recordHistory("ACTIVE_NODE_SWITCH", [delta], {
+        recordHistory(session.id, "ACTIVE_NODE_SWITCH", [delta], {
           sourceNodeId: oldLeafId,
           targetNodeId: newLeafId,
         });
@@ -359,9 +398,10 @@ export function useGraphActions(
    */
   function switchToSiblingBranch(
     nodeId: string,
-    direction: "prev" | "next"
+    direction: "prev" | "next",
+    sessionId?: string | null
   ): void {
-    const session = currentSession.value;
+    const session = resolveSession(nodeId, sessionId);
     if (!session) return;
 
     const oldLeafId = session.activeLeafId;
@@ -394,8 +434,8 @@ export function useGraphActions(
   /**
    * 创建分支
    */
-  function createBranch(sourceNodeId: string): void {
-    const session = currentSession.value;
+  function createBranch(sourceNodeId: string, sessionId?: string | null): void {
+    const session = resolveSession(sourceNodeId, sessionId);
     if (!session) return;
 
     const sourceNode = session.nodes?.[sourceNodeId];
@@ -422,7 +462,8 @@ export function useGraphActions(
           newNode,
           parentBeforeCreate
         );
-        historyManager.recordHistory(
+        recordHistory(
+          session.id,
           "BRANCH_CREATE",
           [...solidifyDeltas, delta],
           {
@@ -453,8 +494,8 @@ export function useGraphActions(
   /**
    * 切换节点启用状态
    */
-  function toggleNodeEnabled(nodeId: string): void {
-    const session = currentSession.value;
+  function toggleNodeEnabled(nodeId: string, sessionId?: string | null): void {
+    const session = resolveSession(nodeId, sessionId);
     if (!session) return;
 
     if (nodeId.startsWith("preset-")) {
@@ -477,7 +518,7 @@ export function useGraphActions(
         type: "update",
         payload: { nodeId, previousNodeState, finalNodeState },
       };
-      historyManager.recordHistory("NODE_TOGGLE_ENABLED", [delta], {
+      recordHistory(session.id, "NODE_TOGGLE_ENABLED", [delta], {
         targetNodeId: nodeId,
       });
 
@@ -498,8 +539,12 @@ export function useGraphActions(
   /**
    * 嫁接分支
    */
-  function graftBranch(nodeId: string, newParentId: string): void {
-    const session = currentSession.value;
+  function graftBranch(
+    nodeId: string,
+    newParentId: string,
+    sessionId?: string | null
+  ): void {
+    const session = resolveSession(nodeId, sessionId);
     if (!session) return;
 
     const relationChanges = captureRelationChangesForGraft(
@@ -514,7 +559,7 @@ export function useGraphActions(
         type: "relation",
         payload: { changes: relationChanges },
       };
-      historyManager.recordHistory("BRANCH_GRAFT", [delta], {
+      recordHistory(session.id, "BRANCH_GRAFT", [delta], {
         targetNodeId: nodeId,
         destinationNodeId: newParentId,
       });
@@ -541,8 +586,12 @@ export function useGraphActions(
   /**
    * 移动单个节点
    */
-  function moveNode(nodeId: string, newParentId: string): void {
-    const session = currentSession.value;
+  function moveNode(
+    nodeId: string,
+    newParentId: string,
+    sessionId?: string | null
+  ): void {
+    const session = resolveSession(nodeId, sessionId);
     if (!session) return;
 
     const relationChanges = captureRelationChangesForMove(
@@ -557,7 +606,7 @@ export function useGraphActions(
         type: "relation",
         payload: { changes: relationChanges },
       };
-      historyManager.recordHistory("NODE_MOVE", [delta], {
+      recordHistory(session.id, "NODE_MOVE", [delta], {
         targetNodeId: nodeId,
         destinationNodeId: newParentId,
       });
@@ -584,8 +633,12 @@ export function useGraphActions(
   /**
    * 更新消息翻译
    */
-  function updateMessageTranslation(nodeId: string, translation: any): void {
-    const session = currentSession.value;
+  function updateMessageTranslation(
+    nodeId: string,
+    translation: any,
+    sessionId?: string | null
+  ): void {
+    const session = resolveSession(nodeId, sessionId);
     if (!session) return;
 
     const node = session.nodes ? session.nodes[nodeId] : undefined;
@@ -620,9 +673,10 @@ export function useGraphActions(
   async function createBranchFromEdit(
     sourceNodeId: string,
     newContent: string,
-    attachments?: Asset[]
+    attachments?: Asset[],
+    sessionId?: string | null
   ): Promise<void> {
-    const session = currentSession.value;
+    const session = resolveSession(sourceNodeId, sessionId);
     if (!session) return;
 
     const nodeManager = useNodeManager();
@@ -650,7 +704,8 @@ export function useGraphActions(
 
     // 记录历史
     const delta = createNodeCreateDelta(session, newNode, parentBeforeCreate);
-    historyManager.recordHistory(
+    recordHistory(
+      session.id,
       "BRANCH_CREATE_FROM_EDIT",
       [...solidifyDeltas, delta],
       {

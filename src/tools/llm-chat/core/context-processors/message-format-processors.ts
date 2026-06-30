@@ -41,6 +41,11 @@ const contentToString = (
   return "";
 };
 
+const hasReplayArtifacts = (msg: ProcessableMessage): boolean =>
+  !!msg.reasoningArtifacts?.some(
+    (artifact) => artifact.replayPolicy !== "never"
+  );
+
 export const handleMergeSystemToHead = (
   messages: ProcessableMessage[],
   separator: string
@@ -49,7 +54,7 @@ export const handleMergeSystemToHead = (
   const nonSystemMessages: ProcessableMessage[] = [];
 
   for (const msg of messages) {
-    if (msg.role === "system") {
+    if (msg.role === "system" && !hasReplayArtifacts(msg)) {
       systemMessages.push(msg);
     } else {
       nonSystemMessages.push(msg);
@@ -87,47 +92,44 @@ export const handleMergeConsecutiveRoles = (
   if (messages.length < 2) return messages;
 
   const result: ProcessableMessage[] = [];
-  let currentGroup: ProcessableMessage[] = [messages[0]];
+  let currentGroup: ProcessableMessage[] = [];
 
-  for (let i = 1; i < messages.length; i++) {
+  const flushGroup = () => {
+    if (currentGroup.length > 1) {
+      const mergedContent = currentGroup
+        .map((msg) => contentToString(msg.content))
+        .join(separator);
+      result.push({
+        role: currentGroup[0].role,
+        content: mergedContent,
+        sourceType: "merged",
+        _mergedSources: currentGroup,
+        _attachments: currentGroup.flatMap((msg) => msg._attachments || []),
+      });
+    } else if (currentGroup.length === 1) {
+      result.push(currentGroup[0]);
+    }
+    currentGroup = [];
+  };
+
+  for (let i = 0; i < messages.length; i++) {
     const current = messages[i];
-    const previous = messages[i - 1];
+    if (hasReplayArtifacts(current)) {
+      flushGroup();
+      result.push(current);
+      continue;
+    }
 
-    if (current.role === previous.role) {
+    const previous = currentGroup[currentGroup.length - 1];
+    if (previous && current.role === previous.role) {
       currentGroup.push(current);
     } else {
-      if (currentGroup.length > 1) {
-        const mergedContent = currentGroup
-          .map((msg) => contentToString(msg.content))
-          .join(separator);
-        result.push({
-          role: currentGroup[0].role,
-          content: mergedContent,
-          sourceType: "merged",
-          _mergedSources: currentGroup,
-          _attachments: currentGroup.flatMap((msg) => msg._attachments || []),
-        });
-      } else {
-        result.push(currentGroup[0]);
-      }
+      flushGroup();
       currentGroup = [current];
     }
   }
 
-  if (currentGroup.length > 1) {
-    const mergedContent = currentGroup
-      .map((msg) => contentToString(msg.content))
-      .join(separator);
-    result.push({
-      role: currentGroup[0].role,
-      content: mergedContent,
-      sourceType: "merged",
-      _mergedSources: currentGroup,
-      _attachments: currentGroup.flatMap((msg) => msg._attachments || []),
-    });
-  } else if (currentGroup.length === 1) {
-    result.push(currentGroup[0]);
-  }
+  flushGroup();
 
   return result;
 };
@@ -146,6 +148,9 @@ export const handleEnsureAlternatingRoles = (
 
     if (i < messages.length - 1) {
       const next = messages[i + 1];
+      if (hasReplayArtifacts(current) || hasReplayArtifacts(next)) {
+        continue;
+      }
       if (current.role === "assistant" && next.role === "assistant") {
         result.push({ role: "user", content: userPlaceholder });
       } else if (current.role === "user" && next.role === "user") {
@@ -160,7 +165,7 @@ export const handleConvertSystemToUser = (
   messages: ProcessableMessage[]
 ): ProcessableMessage[] => {
   return messages.map((msg) => {
-    if (msg.role === "system") {
+    if (msg.role === "system" && !hasReplayArtifacts(msg)) {
       return { ...msg, role: "user" as const };
     }
     return msg;

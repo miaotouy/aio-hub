@@ -86,6 +86,10 @@ export interface LlmParameters {
   logitBias?: Record<string, number>;
   /** 是否存储输出用于模型蒸馏 */
   store?: boolean;
+  /** OpenAI Responses: 是否在服务器端保留对话状态 */
+  responsesStore?: boolean;
+  /** OpenAI Responses: 包含的响应内容类型 */
+  include?: string[];
   /** 用户标识符 */
   user?: string;
   /** 服务层级 */

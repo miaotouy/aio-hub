@@ -280,6 +280,10 @@ export function useContextCompressor() {
     nodesToCompress.forEach(
       (n) => (originalTokenCount += n.metadata?.tokenCount || 0)
     );
+    const compressedReasoningArtifactCount = nodesToCompress.reduce(
+      (count, node) => count + (node.metadata?.reasoningArtifacts?.length || 0),
+      0
+    );
 
     // 1. 创建压缩节点
     const summaryNode = createNode({
@@ -301,6 +305,12 @@ export function useContextCompressor() {
           },
           summaryRole: config.summaryRole || "system",
         },
+        reasoningStateStatus:
+          compressedReasoningArtifactCount > 0 ? "broken" : undefined,
+        reasoningStateWarning:
+          compressedReasoningArtifactCount > 0
+            ? `上下文压缩隐藏了 ${compressedReasoningArtifactCount} 个 provider reasoning replay artifact，后续请求不会回放这些状态。`
+            : undefined,
         // 估算摘要节点的 Token
         tokenCount: Math.ceil(summaryContent.length * 1.5), // 粗略估算
       },
@@ -373,6 +383,7 @@ export function useContextCompressor() {
     logger.info("压缩节点创建并插入成功", {
       summaryNodeId: summaryNode.id,
       compressedCount: nodesToCompress.length,
+      compressedReasoningArtifactCount,
     });
 
     return summaryNode;

@@ -24,6 +24,7 @@ import {
   buildVertexAiTools,
   buildVertexAiToolConfig,
 } from "./utils";
+import { extractGeminiReasoningArtifacts } from "@/llm-apis/adapters/gemini/reasoning-artifacts";
 import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 
 const logger = createModuleLogger("VertexAiGoogle");
@@ -181,6 +182,7 @@ export async function callVertexAiGemini(
     let finishReason: LlmResponse["finishReason"] = null;
     let toolCalls: LlmResponse["toolCalls"] = undefined;
     let reasoningContent = "";
+    const streamReplayParts: any[] = [];
 
     await parseSSEStream(
       reader,
@@ -204,6 +206,7 @@ export async function callVertexAiGemini(
 
           const parts = json.candidates?.[0]?.content?.parts;
           if (parts && Array.isArray(parts)) {
+            streamReplayParts.push(...parts);
             for (const part of parts) {
               if (part.text) {
                 if (part.thought) {
@@ -251,6 +254,11 @@ export async function callVertexAiGemini(
 
     if (reasoningContent) {
       result.reasoningContent = reasoningContent;
+    }
+    const reasoningArtifacts =
+      extractGeminiReasoningArtifacts(streamReplayParts);
+    if (reasoningArtifacts) {
+      result.reasoningArtifacts = reasoningArtifacts;
     }
 
     return result;
@@ -331,6 +339,12 @@ export async function callVertexAiGemini(
 
   if (reasoningContent) {
     result.reasoningContent = reasoningContent;
+  }
+  const reasoningArtifacts = extractGeminiReasoningArtifacts(
+    candidate.content?.parts
+  );
+  if (reasoningArtifacts) {
+    result.reasoningArtifacts = reasoningArtifacts;
   }
 
   return result;

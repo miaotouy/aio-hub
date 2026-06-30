@@ -844,6 +844,12 @@ export function filterParametersByCapabilities(
     if (options.n !== undefined) filtered.n = options.n;
     if (options.logitBias !== undefined) filtered.logitBias = options.logitBias;
     if (options.store !== undefined) filtered.store = options.store;
+    if (options.responsesStore !== undefined) {
+      (filtered as any).responsesStore = options.responsesStore;
+    }
+    if (options.include !== undefined) {
+      (filtered as any).include = options.include;
+    }
     if (options.user !== undefined) filtered.user = options.user;
     if (options.serviceTier !== undefined)
       filtered.serviceTier = options.serviceTier;
@@ -1067,6 +1073,8 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   "serviceTier", // OpenAI
   "logitBias", // OpenAI
   "store", // OpenAI
+  "responsesStore", // OpenAI Responses
+  "include", // OpenAI Responses
   "metadata", // OpenAI, Claude
   "stopSequences", // Claude
   "claudeMetadata", // Claude

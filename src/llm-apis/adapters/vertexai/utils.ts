@@ -10,6 +10,7 @@ import type {
   LlmMessage,
 } from "@/llm-apis/common";
 import type { LlmModelInfo } from "@/types/llm-profiles";
+import { getGeminiReplayParts } from "@/llm-apis/adapters/gemini/reasoning-artifacts";
 import { DEFAULT_METADATA_RULES, testRuleMatch } from "@/config/model-metadata";
 
 /**
@@ -57,6 +58,9 @@ export interface VertexAiPart {
     response: Record<string, any>;
   };
   thought?: boolean; // 支持思考摘要
+  thoughtSignature?: string;
+  thought_signature?: string;
+  signature?: string;
 }
 
 export interface VertexAiContent {
@@ -189,10 +193,13 @@ export function buildVertexAiContents(
   for (const msg of messages) {
     if (msg.role === "system") continue;
 
+    const replayParts =
+      msg.role === "assistant" ? getGeminiReplayParts(msg) : undefined;
     const parts =
-      typeof msg.content === "string"
+      replayParts ||
+      (typeof msg.content === "string"
         ? [{ text: msg.content }]
-        : buildVertexAiParts(msg.content);
+        : buildVertexAiParts(msg.content));
 
     contents.push({
       role: msg.role === "assistant" ? "model" : "user",

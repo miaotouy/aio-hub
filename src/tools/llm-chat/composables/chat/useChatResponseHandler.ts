@@ -491,6 +491,7 @@ export function useChatResponseHandler() {
 
     // 保留流式更新时设置的推理内容和时间戳
     const existingReasoningContent = finalNode.metadata?.reasoningContent;
+    const existingReasoningArtifacts = finalNode.metadata?.reasoningArtifacts;
     const existingReasoningStartTime = finalNode.metadata?.reasoningStartTime;
     const existingReasoningEndTime = finalNode.metadata?.reasoningEndTime;
 
@@ -525,6 +526,11 @@ export function useChatResponseHandler() {
       usage: response.usage,
       contentTokens,
       reasoningContent: response.reasoningContent || existingReasoningContent,
+      reasoningArtifacts:
+        response.reasoningArtifacts || existingReasoningArtifacts,
+      reasoningStateStatus: response.reasoningArtifacts
+        ? "intact"
+        : finalNode.metadata?.reasoningStateStatus,
       requestEndTime,
       tokensPerSecond,
     };

@@ -171,6 +171,78 @@ describe("OpenAI Adapter - Chat", () => {
 
     expect(result.content).toBe("The answer is 2.");
     expect(result.reasoningContent).toBe("I need to add 1 and 1. 1+1=2.");
+    expect(result.reasoningArtifacts?.[0]).toMatchObject({
+      provider: "deepseek",
+      kind: "reasoning_content",
+      replayPolicy: "never",
+      visibleText: "I need to add 1 and 1. 1+1=2.",
+    });
+  });
+
+  it("should not replay DeepSeek reasoning_content from display-only reasoningContent", async () => {
+    const options: LlmRequestOptions = {
+      profileId: "test-profile",
+      modelId: "deepseek-reasoner",
+      messages: [
+        {
+          role: "assistant",
+          content: "The answer is 2.",
+          reasoningContent: "Display-only thought.",
+        },
+        { role: "user", content: "Continue." },
+      ],
+    };
+
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: "Done." }, finish_reason: "stop" }],
+      }),
+    });
+
+    await callOpenAiChatApi(mockProfile, options);
+
+    const [, fetchOptions] = (fetchWithTimeout as any).mock.calls[0];
+    const body = JSON.parse(fetchOptions.body);
+    expect(body.messages[0]).toEqual({
+      role: "assistant",
+      content: "The answer is 2.",
+    });
+  });
+
+  it("should replay DeepSeek reasoning_content only from replay artifacts", async () => {
+    const options: LlmRequestOptions = {
+      profileId: "test-profile",
+      modelId: "deepseek-reasoner",
+      messages: [
+        {
+          role: "assistant",
+          content: "Calling tool.",
+          reasoningArtifacts: [
+            {
+              provider: "deepseek",
+              kind: "reasoning_content",
+              replayPolicy: "with_tool_calls",
+              payload: { reasoning_content: "Tool-call thought." },
+            },
+          ],
+        },
+        { role: "user", content: "Continue." },
+      ],
+    };
+
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: "Done." }, finish_reason: "stop" }],
+      }),
+    });
+
+    await callOpenAiChatApi(mockProfile, options);
+
+    const [, fetchOptions] = (fetchWithTimeout as any).mock.calls[0];
+    const body = JSON.parse(fetchOptions.body);
+    expect(body.messages[0].reasoning_content).toBe("Tool-call thought.");
   });
 
   it("should extract generated images from OpenAI-compatible data responses", async () => {

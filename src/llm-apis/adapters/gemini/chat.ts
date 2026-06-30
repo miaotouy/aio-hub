@@ -16,6 +16,7 @@ import {
   buildGeminiSafetySettings,
   GeminiRequest,
 } from "./utils";
+import { extractGeminiReasoningArtifacts } from "./reasoning-artifacts";
 import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 
 /**
@@ -197,6 +198,10 @@ export function parseGeminiResponse(data: any): LlmResponse {
 
   if (toolCalls) result.toolCalls = toolCalls;
   if (thoughtsContent) result.reasoningContent = thoughtsContent;
+  const reasoningArtifacts = extractGeminiReasoningArtifacts(
+    candidate.content?.parts
+  );
+  if (reasoningArtifacts) result.reasoningArtifacts = reasoningArtifacts;
   if (candidate.logprobsResult)
     result.logprobs = parseGeminiLogprobs(candidate.logprobsResult);
 
@@ -287,6 +292,7 @@ export const callGeminiChatApi = async (
     let toolCalls: LlmResponse["toolCalls"] = undefined;
     let reasoningContent = "";
     let streamAnnotations: LlmResponse["annotations"] = undefined;
+    const streamReplayParts: any[] = [];
 
     await parseSSEStream(
       reader,
@@ -306,6 +312,7 @@ export const callGeminiChatApi = async (
             );
           const parts = json.candidates?.[0]?.content?.parts;
           if (parts && Array.isArray(parts)) {
+            streamReplayParts.push(...parts);
             for (const part of parts) {
               if (part.text) {
                 if (part.thought) {
@@ -392,6 +399,9 @@ export const callGeminiChatApi = async (
       isStream: true,
     };
     if (reasoningContent) result.reasoningContent = reasoningContent;
+    const reasoningArtifacts =
+      extractGeminiReasoningArtifacts(streamReplayParts);
+    if (reasoningArtifacts) result.reasoningArtifacts = reasoningArtifacts;
     if (streamAnnotations) result.annotations = streamAnnotations;
     return result;
   }

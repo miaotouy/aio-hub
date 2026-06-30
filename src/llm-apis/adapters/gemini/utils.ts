@@ -15,6 +15,7 @@ import {
   inferMediaMimeType,
   buildBase64DataUrl,
 } from "@/llm-apis/request-builder";
+import { getGeminiReplayParts } from "./reasoning-artifacts";
 
 /**
  * Gemini API 类型定义
@@ -54,6 +55,10 @@ export interface GeminiPart {
     endOffset?: string;
     fps?: number;
   };
+  thought?: boolean;
+  thoughtSignature?: string;
+  thought_signature?: string;
+  signature?: string;
 }
 
 export interface GeminiContent {
@@ -306,10 +311,13 @@ export function buildGeminiContents(messages: LlmMessage[]): GeminiContent[] {
   const contents: GeminiContent[] = [];
   for (const msg of messages) {
     if (msg.role === "system") continue;
+    const replayParts =
+      msg.role === "assistant" ? getGeminiReplayParts(msg) : undefined;
     const parts =
-      typeof msg.content === "string"
+      replayParts ||
+      (typeof msg.content === "string"
         ? [{ text: msg.content }]
-        : buildGeminiParts(msg.content);
+        : buildGeminiParts(msg.content));
     contents.push({
       role: msg.role === "assistant" ? "model" : "user",
       parts,

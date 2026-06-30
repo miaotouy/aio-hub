@@ -37,13 +37,25 @@ const dynamicFileName = computed(() => {
 
 // 将上下文数据转换为 API 请求格式的 JSON
 const formattedJson = computed(() => {
-  // 过滤掉内部元数据，只保留发送给 LLM 的标准字段
-  const cleanMessages = props.contextData.finalMessages.map(
-    ({ role, content }: { role: string; content: any }) => ({
-      role,
-      content,
-    })
-  );
+  // 过滤掉内部元数据，只保留会影响请求构建/状态回放的字段
+  const cleanMessages = props.contextData.finalMessages.map((message) => {
+    const cleanMessage: Record<string, any> = {
+      role: message.role,
+      content: message.content,
+    };
+
+    if (message.reasoningContent) {
+      cleanMessage.reasoningContent = message.reasoningContent;
+    }
+    if (message.reasoningArtifacts?.length) {
+      cleanMessage.reasoningArtifacts = message.reasoningArtifacts;
+    }
+    if (message.reasoningArtifactsDropped) {
+      cleanMessage.reasoningArtifactsDropped = true;
+    }
+
+    return cleanMessage;
+  });
 
   // 模拟请求构建器的逻辑，过滤掉内部控制参数，但展开并保留自定义参数
   const internalKeys = [

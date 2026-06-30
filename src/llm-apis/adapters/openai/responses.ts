@@ -11,6 +11,11 @@ import {
 } from "@/llm-apis/request-builder";
 import { asyncJsonStringify } from "@/utils/serialization";
 import { openAiResponsesUrlHandler } from "./utils";
+import {
+  extractOpenAiResponsesReasoningArtifacts,
+  getOpenAiResponsesReplayItems,
+  mergeReasoningEncryptedContentInclude,
+} from "./reasoning-artifacts";
 import { createModuleLogger } from "@/utils/logger";
 import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 
@@ -87,6 +92,14 @@ export const callOpenAiResponsesApi = async (
   }
 
   for (const msg of userAssistantMessages) {
+    if (msg.role === "assistant") {
+      const replayItems = getOpenAiResponsesReplayItems(msg);
+      if (replayItems.length > 0) {
+        messages.push(...replayItems);
+        continue;
+      }
+    }
+
     if (typeof msg.content === "string") {
       messages.push({
         role: msg.role,
@@ -255,7 +268,11 @@ export const callOpenAiResponsesApi = async (
     body.audio = options.audio;
   }
 
-  if (options.include) {
+  const shouldRequestEncryptedReasoning =
+    options.responsesStore === false || options.store === false;
+  if (shouldRequestEncryptedReasoning) {
+    body.include = mergeReasoningEncryptedContentInclude(options.include);
+  } else if (options.include) {
     body.include = options.include;
   }
 
@@ -297,6 +314,7 @@ export const callOpenAiResponsesApi = async (
     const reader = response.body.getReader();
     let fullContent = "";
     let fullReasoning = "";
+    let reasoningArtifacts: LlmResponse["reasoningArtifacts"] | undefined;
     let usage: LlmResponse["usage"] | undefined;
     let refusal: string | null = null;
     let finishReason: LlmResponse["finishReason"] = null;
@@ -364,6 +382,10 @@ export const callOpenAiResponsesApi = async (
             }
 
             if (resp.output && Array.isArray(resp.output)) {
+              reasoningArtifacts = extractOpenAiResponsesReasoningArtifacts(
+                resp.output,
+                resp.id
+              );
               for (const item of resp.output) {
                 if (item.type === "image_generation_call") {
                   // 这是 Responses API 返回的图像生成结果
@@ -430,6 +452,7 @@ export const callOpenAiResponsesApi = async (
       usage,
       refusal,
       finishReason,
+      reasoningArtifacts,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       annotations: annotations.length > 0 ? annotations : undefined,
       images: images.length > 0 ? images : undefined,
@@ -462,6 +485,10 @@ export const callOpenAiResponsesApi = async (
 
   let content = "";
   let reasoningContent = "";
+  const reasoningArtifacts = extractOpenAiResponsesReasoningArtifacts(
+    data.output,
+    data.id
+  );
   let refusal: string | null = null;
   let finishReason: LlmResponse["finishReason"] = null;
   const toolCalls: LlmResponse["toolCalls"] = [];
@@ -544,6 +571,7 @@ export const callOpenAiResponsesApi = async (
       content ||
       (images.length > 0 ? `Generated ${images.length} images.` : ""),
     reasoningContent: reasoningContent || undefined,
+    reasoningArtifacts,
     refusal,
     finishReason,
     images: images.length > 0 ? images : undefined,

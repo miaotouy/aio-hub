@@ -111,6 +111,21 @@ export type LlmMessageContent =
   | ToolResultContent;
 
 /**
+ * Provider-owned reasoning state that may need exact replay in future turns.
+ *
+ * This is intentionally separate from reasoningContent:
+ * - reasoningContent is display/search/export text.
+ * - reasoningArtifacts are opaque API state and must not be rewritten.
+ */
+export interface LlmReasoningArtifact {
+  provider: string;
+  kind: string;
+  replayPolicy: "always" | "with_tool_calls" | "never";
+  payload: unknown;
+  visibleText?: string;
+}
+
+/**
  * LLM 消息结构
  */
 export interface LlmMessage {
@@ -121,6 +136,10 @@ export interface LlmMessage {
    * 在多轮对话中，如果存在工具调用，必须回传此内容
    */
   reasoningContent?: string;
+  /**
+   * Provider-owned reasoning state for exact replay.
+   */
+  reasoningArtifacts?: LlmReasoningArtifact[];
   /**
    * 是否作为续写前缀 (DeepSeek / Claude Prefill)
    * 如果为 true，该消息必须是列表中的最后一条，且 role 通常为 assistant
@@ -506,6 +525,8 @@ export interface LlmResponse {
   };
   /** 推理内容（DeepSeek reasoning 模式） */
   reasoningContent?: string;
+  /** Provider-owned reasoning state for exact replay in later turns. */
+  reasoningArtifacts?: LlmReasoningArtifact[];
   /** 消息注释（如网络搜索的URL引用、文件搜索的文件引用） */
   annotations?: Annotation[];
   /** 音频响应数据 */

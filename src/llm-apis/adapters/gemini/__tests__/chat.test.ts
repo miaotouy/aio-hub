@@ -208,4 +208,79 @@ describe("Gemini Adapter - Chat", () => {
     expect(result.content).toBe("Final answer.");
     expect(result.reasoningContent).toBe("Thinking process...");
   });
+
+  it("should preserve Gemini thought signature parts as replay artifacts", async () => {
+    const signedParts = [
+      { text: "Thinking process...", thought: true },
+      { text: "Final answer.", thoughtSignature: "sig-a" },
+    ];
+    const options: LlmRequestOptions = {
+      profileId: "test-profile-gemini",
+      modelId: "gemini-3.5-flash",
+      messages: [{ role: "user", content: "Explain." }],
+    };
+
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        candidates: [{ content: { parts: signedParts } }],
+      }),
+    });
+
+    const result = await callGeminiChatApi(mockProfile, options);
+
+    expect(result.reasoningArtifacts).toHaveLength(1);
+    expect((result.reasoningArtifacts![0].payload as any).parts).toBe(
+      signedParts
+    );
+    expect(result.reasoningArtifacts![0]).toMatchObject({
+      provider: "gemini",
+      kind: "model.parts",
+      replayPolicy: "always",
+      visibleText: "Thinking process...",
+    });
+  });
+
+  it("should replay Gemini signed model parts in later assistant turns", async () => {
+    const signedParts = [
+      { text: "Thinking process...", thought: true },
+      { text: "Final answer.", thought_signature: "sig-a" },
+    ];
+    const options: LlmRequestOptions = {
+      profileId: "test-profile-gemini",
+      modelId: "gemini-3.5-flash",
+      messages: [
+        { role: "user", content: "Explain." },
+        {
+          role: "assistant",
+          content: "Final answer.",
+          reasoningArtifacts: [
+            {
+              provider: "gemini",
+              kind: "model.parts",
+              replayPolicy: "always",
+              payload: { parts: signedParts },
+            },
+          ],
+        },
+        { role: "user", content: "Continue." },
+      ],
+    };
+
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        candidates: [{ content: { parts: [{ text: "Next." }] } }],
+      }),
+    });
+
+    await callGeminiChatApi(mockProfile, options);
+
+    const [, fetchOptions] = (fetchWithTimeout as any).mock.calls[0];
+    const body = JSON.parse(fetchOptions.body);
+    expect(body.contents[1]).toEqual({
+      role: "model",
+      parts: signedParts,
+    });
+  });
 });

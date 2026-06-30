@@ -1,4 +1,8 @@
 import type {
+  LlmMessage,
+  LlmReasoningArtifact,
+} from "@/llm-apis/common";
+import type {
   ChatSessionDetail,
   ChatMessageNode,
   LlmParameters,
@@ -48,7 +52,9 @@ export interface SingleNodeExecuteResult {
   /** LLM 返回的原始响应 */
   response: any;
   /** 实际发送给 LLM 的消息列表 */
-  messagesForRequest: Array<{ role: string; content: any; prefix?: boolean }>;
+  messagesForRequest: Array<
+    LlmMessage & { role: any; reasoningArtifacts?: LlmReasoningArtifact[] }
+  >;
 }
 
 export function useSingleNodeExecutor() {
@@ -218,6 +224,7 @@ export function useSingleNodeExecutor() {
         role: msg.role as any,
         content: msg.content,
         reasoningContent: msg.reasoningContent,
+        reasoningArtifacts: msg.reasoningArtifacts,
         prefix: isContinuation && isLast ? true : undefined,
       };
     });

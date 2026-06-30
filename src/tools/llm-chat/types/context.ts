@@ -1,4 +1,7 @@
-import type { LlmMessageContent } from "@/llm-apis/common";
+import type {
+  LlmMessageContent,
+  LlmReasoningArtifact,
+} from "@/llm-apis/common";
 import type { LlmParameters } from "./llm";
 import type { ModelIdentifier } from "./llm";
 import type { Asset, AssetMetadata } from "@/types/asset-management";
@@ -39,6 +42,10 @@ export interface ProcessableMessage {
   content: string | LlmMessageContent[];
   /** 思考/推理内容（用于 DeepSeek 等模型的多轮对话回传） */
   reasoningContent?: string;
+  /** Provider-owned reasoning state that must be preserved exactly. */
+  reasoningArtifacts?: LlmReasoningArtifact[];
+  /** True when replay artifacts were intentionally dropped by truncation/compression. */
+  reasoningArtifactsDropped?: boolean;
   /** 消息来源类型 */
   sourceType?:
     | "agent_preset"
@@ -220,6 +227,12 @@ export interface ContextPreviewData {
   finalMessages: Array<{
     role: "system" | "user" | "assistant";
     content: string | LlmMessageContent[];
+    /** Display/search/export reasoning text. */
+    reasoningContent?: string;
+    /** Provider-owned replay state kept separate from display reasoning. */
+    reasoningArtifacts?: LlmReasoningArtifact[];
+    /** True when replay artifacts were intentionally dropped. */
+    reasoningArtifactsDropped?: boolean;
     /** 消息来源类型 */
     sourceType?:
       | "agent_preset"

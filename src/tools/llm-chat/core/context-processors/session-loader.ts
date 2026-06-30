@@ -250,6 +250,7 @@ export const sessionLoader: ContextProcessor = {
         role: role as any,
         content: finalContent,
         reasoningContent,
+        reasoningArtifacts: node.metadata?.reasoningArtifacts,
         sourceType: "session_history",
         sourceId: node.id,
         _attachments: node.attachments?.map(fromAsset),

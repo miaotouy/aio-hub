@@ -1,6 +1,7 @@
 import type { Asset } from "@/types/asset-management";
 import type { MessageRole, MessageStatus, MessageType } from "./common";
 import type { SessionVariableSnapshot } from "./sessionVariable";
+import type { LlmReasoningArtifact } from "@/llm-apis/common";
 
 /**
  * 预设消息附件引用
@@ -261,6 +262,12 @@ export interface ChatMessageNode {
     tokenCountEstimated?: boolean;
     /** 推理内容（DeepSeek reasoning 模式） */
     reasoningContent?: string;
+    /** Provider-owned reasoning state that may need exact replay. */
+    reasoningArtifacts?: LlmReasoningArtifact[];
+    /** Replay state status after context truncation/compression. */
+    reasoningStateStatus?: "intact" | "broken";
+    /** Human-readable reason why replay state became unavailable. */
+    reasoningStateWarning?: string;
     /** 推理开始时间戳 */
     reasoningStartTime?: number;
     /** 推理结束时间戳 */

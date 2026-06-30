@@ -25,6 +25,8 @@ export const ALL_LLM_PARAMETER_KEYS = [
   "maxCompletionTokens",
   "logitBias",
   "store",
+  "responsesStore",
+  "include",
   "user",
   "serviceTier",
   // 响应格式

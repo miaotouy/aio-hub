@@ -235,13 +235,17 @@ pub async fn sidecar_spawn_resident(
     );
 
     // 启动子进程
-    let mut child = Command::new(&executable_full_path)
+    let mut command = Command::new(&executable_full_path);
+    command
         .args(&args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .current_dir(&working_dir)
-        .env(crate::utils::AIOHUB_PLUGIN_DATA_DIR_ENV, &plugin_data_dir)
+        .env(crate::utils::AIOHUB_PLUGIN_DATA_DIR_ENV, &plugin_data_dir);
+    crate::utils::hide_child_process_window(&mut command);
+
+    let mut child = command
         .spawn()
         .map_err(|e| format!("启动进程失败: {}", e))?;
 

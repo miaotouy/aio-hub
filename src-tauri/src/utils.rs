@@ -6,6 +6,26 @@ pub mod mime;
 
 pub(crate) const AIOHUB_PLUGIN_DATA_DIR_ENV: &str = "AIOHUB_PLUGIN_DATA_DIR";
 
+#[cfg(windows)]
+pub(crate) fn hide_child_process_window(command: &mut tokio::process::Command) {
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    command.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(windows))]
+pub(crate) fn hide_child_process_window(_command: &mut tokio::process::Command) {}
+
+#[cfg(windows)]
+pub(crate) fn hide_std_child_process_window(command: &mut std::process::Command) {
+    use std::os::windows::process::CommandExt;
+
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    command.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(windows))]
+pub(crate) fn hide_std_child_process_window(_command: &mut std::process::Command) {}
+
 /// 获取应用数据目录，支持便携模式
 pub fn get_app_data_dir(config: &tauri::Config) -> PathBuf {
     // 优先检查显式设置的数据目录

@@ -567,6 +567,7 @@ pub async fn run_skill_script(
             .current_dir(&base_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        crate::utils::hide_child_process_window(&mut cmd);
 
         // 注入用户配置的环境变量
         if let Some(envs) = &env_vars {
@@ -608,13 +609,11 @@ fn check_command_exists(cmd: &str) -> bool {
     #[cfg(not(windows))]
     let check_cmd = "which";
 
-    std::process::Command::new(check_cmd)
-        .arg(cmd)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+    let mut command = std::process::Command::new(check_cmd);
+    command.arg(cmd).stdout(Stdio::null()).stderr(Stdio::null());
+    crate::utils::hide_std_child_process_window(&mut command);
+
+    command.status().map(|s| s.success()).unwrap_or(false)
 }
 
 /// 安全读取 Skill 目录内的文本文件
@@ -839,11 +838,15 @@ pub async fn install_skill_from_git(
     let clone_dir = temp_path.join("repo");
 
     // 使用系统 git 命令进行 clone（避免 git2 的 openssl-sys 依赖与 boring-sys2 符号冲突）
-    let output = Command::new("git")
+    let mut command = Command::new("git");
+    command
         .args(["clone", "--depth", "1", "--single-branch", &normalized_url])
         .arg(&clone_dir)
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+    crate::utils::hide_child_process_window(&mut command);
+
+    let output = command
         .output()
         .await
         .map_err(|e| format!("执行 git clone 失败（请确保系统已安装 git）: {}", e))?;
@@ -1833,11 +1836,15 @@ pub async fn prepare_and_detect_package(
 
             let clone_dir = app_temp_dir.join("repo");
 
-            let output = Command::new("git")
+            let mut command = Command::new("git");
+            command
                 .args(["clone", "--depth", "1", "--single-branch", &normalized_url])
                 .arg(&clone_dir)
                 .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
+                .stderr(Stdio::piped());
+            crate::utils::hide_child_process_window(&mut command);
+
+            let output = command
                 .output()
                 .await
                 .map_err(|e| format!("执行 git clone 失败（请确保系统已安装 git）: {}", e))?;

@@ -14,9 +14,131 @@ import type {
   VcpToolExecutionResult,
   VcpToolApprovalRequest,
 } from "../types/distributed";
+import type { ToolContext } from "@/services/types";
 
 const logger = createModuleLogger("vcp-connector/node-protocol");
 const errorHandler = createModuleErrorHandler("vcp-connector/node-protocol");
+const DISTRIBUTED_TOOL_TIMEOUT_MS = 115_000;
+
+interface NormalizedExecuteToolRequest {
+  requestId: string;
+  toolName: string;
+  toolArgs: Record<string, any>;
+}
+
+function pickString(source: Record<string, any>, keys: string[]): string {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "string" && value.trim()) {
+      return value;
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return String(value);
+    }
+  }
+  return "";
+}
+
+function parseToolArgs(value: unknown): Record<string, any> | null {
+  if (!value) return null;
+  if (typeof value === "object") return { ...(value as Record<string, any>) };
+  if (typeof value !== "string" || !value.trim()) return null;
+
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object"
+      ? { ...(parsed as Record<string, any>) }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeExecuteToolRequest(
+  request: ExecuteToolRequest | Record<string, any>
+): NormalizedExecuteToolRequest {
+  const source = (request || {}) as Record<string, any>;
+  const data =
+    source.data && typeof source.data === "object"
+      ? (source.data as Record<string, any>)
+      : source;
+  const toolArgs =
+    parseToolArgs(
+      data.toolArgs ||
+        data.tool_args ||
+        data.args ||
+        data.arguments ||
+        data.params
+    ) || stripTransportFields(data);
+
+  return {
+    requestId: pickString(data, ["requestId", "request_id", "id"]),
+    toolName: pickString(data, ["toolName", "tool_name", "name"]),
+    toolArgs,
+  };
+}
+
+function stripTransportFields(
+  source: Record<string, any>
+): Record<string, any> {
+  const {
+    requestId: _requestId,
+    request_id: _request_id,
+    id: _id,
+    toolName: _toolName,
+    tool_name: _tool_name,
+    name: _name,
+    ...args
+  } = source;
+  return args;
+}
+
+function resolveCommandName(args: Record<string, any>): string {
+  return pickString(args, [
+    "command",
+    "commandName",
+    "command_name",
+    "toolCommand",
+    "tool_command",
+  ]);
+}
+
+function stripProtocolArgs(args: Record<string, any>): Record<string, any> {
+  const {
+    command: _command,
+    commandName: _commandName,
+    command_name: _command_name,
+    toolCommand: _toolCommand,
+    tool_command: _tool_command,
+    ...cleanArgs
+  } = args;
+  return cleanArgs;
+}
+
+async function withDistributedTimeout<T>(
+  promise: Promise<T>,
+  label: string
+): Promise<T> {
+  return await new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(
+        new Error(
+          `${label} 分布式执行超时（${DISTRIBUTED_TOOL_TIMEOUT_MS}ms），已提前返回以避免 VCP 服务端 60s 等待超时`
+        )
+      );
+    }, DISTRIBUTED_TOOL_TIMEOUT_MS);
+
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
 
 export class VcpNodeProtocol {
   constructor(private sendJson: (data: any) => void) {}
@@ -61,7 +183,10 @@ export class VcpNodeProtocol {
   public sendToolResult(response: ToolResultResponse) {
     this.sendJson({
       type: "tool_result",
-      data: response,
+      data: {
+        ...response,
+        request_id: response.requestId,
+      },
     });
   }
 
@@ -145,8 +270,9 @@ export class VcpNodeProtocol {
   /**
    * VCP -> AIO: 执行请求 (execute_tool)
    */
-  public async handleExecuteTool(request: ExecuteToolRequest) {
-    const { requestId, toolName, toolArgs } = request;
+  public async handleExecuteTool(request: ExecuteToolRequest | any) {
+    const { requestId, toolName, toolArgs } =
+      normalizeExecuteToolRequest(request);
     logger.info(`Executing tool: ${toolName}`, { requestId, toolArgs });
 
     try {
@@ -159,7 +285,7 @@ export class VcpNodeProtocol {
       // 1. 解析 toolName 和 methodName
       // VCP 协议标准模式：tool_name 为工具 ID，command 在 toolArgs 中传递
       const rawToolId = toolName;
-      const rawMethodName = (toolArgs?.command as string) || "";
+      const rawMethodName = resolveCommandName(toolArgs);
 
       if (!rawToolId || !rawMethodName) {
         throw new Error(
@@ -201,15 +327,21 @@ export class VcpNodeProtocol {
       // 3. 校验权限 (检查是否在暴露名单中)
       const distStore = useVcpDistributedStore();
       const metadata = registry.getMetadata?.();
-      const method = metadata?.methods.find((m) => m.name === methodName);
+      const method = metadata?.methods.find(
+        (m) =>
+          m.name === methodName ||
+          m.protocolConfig?.vcpCommand?.trim() === methodName
+      );
 
       if (!method) {
         throw new Error(`Method ${methodName} not found in tool ${toolId}`);
       }
 
+      const resolvedMethodName = method.name;
+
       // 校验逻辑必须与 ExposedToolsList.vue 保持一致
       // 注意：store 中的 fullId 依然使用冒号分隔符，这里需要保持一致
-      const fullId = `${toolId}:${methodName}`;
+      const fullId = `${toolId}:${resolvedMethodName}`;
       const isAutoRegister = distStore.config.autoRegisterTools;
       const isDisabled = (distStore.config.disabledToolIds || []).includes(
         fullId
@@ -222,12 +354,14 @@ export class VcpNodeProtocol {
       // A. 是自动发现的 AI 工具且未被禁用
       // B. 是手动添加的工具
       const isAllowed =
-        (isAutoRegister && method.agentCallable && !isDisabled) ||
+        (isAutoRegister &&
+          (method.agentCallable || method.distributedExposed) &&
+          !isDisabled) ||
         isManuallyExposed;
 
       if (!isAllowed) {
         throw new Error(
-          `Method ${methodName} in tool ${toolId} is not exposed or is disabled for distributed calling`
+          `Method ${resolvedMethodName} in tool ${toolId} is not exposed or is disabled for distributed calling`
         );
       }
 
@@ -235,13 +369,28 @@ export class VcpNodeProtocol {
       // 注意：这里假设 registry 实例上有对应的 methodName 方法
       // 在 AIO 架构中，通常 registry 就是服务本身
       const service = registry as any;
-      if (typeof service[methodName] !== "function") {
+      if (typeof service[resolvedMethodName] !== "function") {
         throw new Error(
-          `Method ${methodName} not implemented in tool ${toolId}`
+          `Method ${resolvedMethodName} not implemented in tool ${toolId}`
         );
       }
 
-      const result = await service[methodName](toolArgs);
+      const cleanArgs = stripProtocolArgs(toolArgs);
+      const context: ToolContext = {
+        isAsync: false,
+        reportStatus: (message: string) => {
+          logger.debug(`Distributed tool progress: ${toolId}`, {
+            requestId,
+            methodName: resolvedMethodName,
+            message,
+          });
+        },
+      };
+
+      const result = await withDistributedTimeout(
+        Promise.resolve(service[resolvedMethodName](cleanArgs, context)),
+        `${toolId}.${resolvedMethodName}`
+      );
 
       // 5. 回传成功结果
       this.sendToolResult({

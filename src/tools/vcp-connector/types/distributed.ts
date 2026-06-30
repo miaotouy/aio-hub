@@ -27,6 +27,7 @@ export interface VcpToolManifest {
   };
   communication?: {
     protocol: "stdio" | "http" | "direct";
+    timeout?: number;
   };
   capabilities?: {
     invocationCommands?: Array<{

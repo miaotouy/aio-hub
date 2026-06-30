@@ -172,7 +172,9 @@ flowchart TD
     M -- 异常 --> ERR4[sendToolResult: error]
 ```
 
-**安全校验**: 即使工具方法存在，也必须在 [`getMetadata()`](../services/vcpNodeProtocol.ts) 中标记 `distributedExposed: true` 才允许远程执行，防止未授权调用。
+**安全校验**: 即使工具方法存在，也必须在 [`getMetadata()`](../services/vcpNodeProtocol.ts) 中标记 `agentCallable: true` 或 `distributedExposed: true`，并且没有被分布式配置禁用，才允许远程执行，防止未授权调用。
+
+**超时约定**: VCP 主服务器的分布式执行默认超时为 60 秒，并会优先读取工具 manifest 的 `communication.timeout`。AIO 在注册分布式工具时统一声明 120 秒超时；节点本地执行再用 115 秒保护提前返回 `tool_result` 错误，避免主服务器只收到硬超时。
 
 ---
 
@@ -214,6 +216,10 @@ flowchart TD
 
 1. **状态监听**: 当 `distStore.status` 变为 `connected` 时，自动注册工具并启动心跳。若 VCP 返回 `register_tools_ack`，立即确认工具清单；若当前 VCP 实现未返回 ack，则短延迟后兼容确认，避免 UI 永久停留在同步中。
 2. **配置监听**: 当 `exposedToolIds` 或 `autoRegisterTools` 变化时，自动重新注册工具
+
+#### Manifest 超时声明
+
+`discoverTools()` 生成的每个 AIO 分布式工具 manifest 都会在 `communication` 中带上 `protocol: "direct"` 与 `timeout: 120000`。这是对齐 VCPToolBox `executeDistributedTool()` 的约定：主服务器会使用该字段覆盖默认 60 秒等待时间。
 
 #### 心跳机制
 

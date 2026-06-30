@@ -23,6 +23,7 @@ const errorHandler = createModuleErrorHandler(
 const HEARTBEAT_INTERVAL = 30000;
 const INITIAL_RECONNECT_DELAY = 2000;
 const REGISTER_ACK_COMPATIBILITY_DELAY = 1500;
+const DEFAULT_DISTRIBUTED_TOOL_TIMEOUT_MS = 120000;
 
 /**
  * 内置工具列表，所有 VCP 节点强制暴露
@@ -41,6 +42,7 @@ export const BUILTIN_VCP_TOOLS: VcpToolManifest[] = [
     },
     communication: {
       protocol: "direct",
+      timeout: DEFAULT_DISTRIBUTED_TOOL_TIMEOUT_MS,
     },
     parameters: {
       type: "object",
@@ -237,6 +239,7 @@ export function useVcpDistributedNode() {
       },
       communication: {
         protocol: "direct",
+        timeout: DEFAULT_DISTRIBUTED_TOOL_TIMEOUT_MS,
       },
       capabilities: {
         invocationCommands: invocationCommands,

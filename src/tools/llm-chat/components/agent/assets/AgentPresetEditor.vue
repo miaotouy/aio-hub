@@ -1,5 +1,8 @@
 <template>
-  <div class="agent-preset-editor" :class="{ compact: props.compact }">
+  <div
+    class="agent-preset-editor"
+    :class="{ compact: props.compact, 'auto-height': isAutoHeight }"
+  >
     <!-- 头部操作栏 + 预设组面板 共用容器 -->
     <div v-if="!props.compact" class="header-group">
       <PresetGroupPanel
@@ -122,6 +125,7 @@
       <div
         v-show="!isCollapsed || props.compact"
         class="messages-container"
+        :class="{ 'auto-height': isAutoHeight }"
         :style="{ height: containerHeight }"
       >
         <div class="messages-scroll-wrapper">
@@ -394,6 +398,7 @@ const isNarrow = computed(
 );
 const isCollapsed = ref(false);
 const containerHeight = computed(() => props.height);
+const isAutoHeight = computed(() => props.height === "auto");
 
 const effectiveUserProfile = computed(
   () =>
@@ -801,7 +806,8 @@ function handleSaveUserProfile(
 .agent-preset-editor {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: auto;
+  min-height: 0;
   width: 100%;
 }
 
@@ -899,12 +905,17 @@ function handleSaveUserProfile(
 }
 
 .messages-container {
-  flex: 1;
+  flex: 0 0 auto;
   overflow: hidden;
   position: relative;
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+.messages-container.auto-height {
+  height: auto !important;
+  overflow: visible;
 }
 
 .messages-scroll-wrapper {
@@ -913,6 +924,11 @@ function handleSaveUserProfile(
   overflow-x: hidden;
   padding: 16px;
   box-sizing: border-box;
+}
+
+.messages-container.auto-height .messages-scroll-wrapper {
+  flex: 0 0 auto;
+  overflow: visible;
 }
 
 .pagination-container {

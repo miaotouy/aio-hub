@@ -244,7 +244,7 @@ const personalitySettings = computed<SettingItem[]>(() => [
       modelId: editForm.modelId,
       agentName: editForm.name,
       agent: editForm,
-      height: "300px",
+      height: "auto",
     },
   },
 ]);

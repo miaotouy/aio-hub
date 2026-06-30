@@ -175,6 +175,8 @@ export interface LlmRequestOptions {
   requestId?: string;
   /** 是否静默记录请求错误（用于有明确降级路径的探测性请求） */
   suppressErrorLog?: boolean;
+  /** 是否允许测试/探测请求绕过 profile 启用状态检查 */
+  allowDisabledProfile?: boolean;
 
   // --- 特种模型参数 ---
   /** 嵌入 (Embedding) 输入内容 */

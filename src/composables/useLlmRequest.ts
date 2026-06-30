@@ -112,8 +112,8 @@ export function useLlmRequest() {
         });
         throw error;
       }
-      // 检查配置是否启用
-      if (!profile.enabled) {
+      // 检查配置是否启用。设置页测试请求允许绕过，便于验证未启用渠道。
+      if (!profile.enabled && !options.allowDisabledProfile) {
         const error = new Error(`配置 "${profile.name}" 未启用`);
         errorHandler.error(error, "配置未启用", {
           context: {

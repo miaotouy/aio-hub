@@ -997,6 +997,7 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   "signal",
   "timeout",
   "suppressErrorLog",
+  "allowDisabledProfile",
 
   // 通用采样参数 (LlmParameters)
   "temperature",
@@ -1099,6 +1100,7 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   "http1Only",
   "apiKey",
   "suppressErrorLog",
+  "allowDisabledProfile",
   "inspectorContext", // LLM Inspector 内部监控上下文，前端专用，绝不能透传到 API body
 
   // 其他任务特有参数
@@ -1189,6 +1191,7 @@ export function cleanPayload(body: any): any {
     "relaxIdCerts",
     "http1Only",
     "apiKey",
+    "allowDisabledProfile",
     "inspectorContext", // LLM Inspector 内部监控上下文，前端专用，绝不能透传到 API body
   ];
 

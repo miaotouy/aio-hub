@@ -78,9 +78,10 @@ export const useVcpDistributedStore = defineStore("vcp-distributed", () => {
   }
 
   function confirmPendingExposedTools() {
-    if (pendingExposedTools.value.length === 0) return;
-    exposedTools.value = pendingExposedTools.value;
+    if (pendingExposedTools.value.length === 0) return false;
+    exposedTools.value = [...pendingExposedTools.value];
     pendingExposedTools.value = [];
+    return true;
   }
 
   function clearExposedTools() {

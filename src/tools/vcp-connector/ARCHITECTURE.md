@@ -239,7 +239,8 @@ sequenceDiagram
 
     Note over Proto,Tool: 工具注册阶段
     Proto->>VCP: register_tools (工具清单)
-    VCP-->>Store: register_tools_ack + nodeId
+    VCP-->>Store: register_tools_ack + nodeId（可选）
+    Note over Store: 若 VCP 实现不返回 ack，AIO 会短延迟后兼容确认本次清单
 
     Note over VCP,Tool: 远程调用阶段
     VCP->>Store: execute_tool (requestId, tool_name, command, args)
@@ -292,4 +293,3 @@ sequenceDiagram
    - 如何添加新的协议级内置工具。
    - 如何添加新的分布式协议消息。
    - 如何将本地 AIO 工具方法标记并暴露给 VCP 远程调用。
-

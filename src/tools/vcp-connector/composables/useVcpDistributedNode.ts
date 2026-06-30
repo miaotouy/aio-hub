@@ -22,6 +22,7 @@ const errorHandler = createModuleErrorHandler(
 
 const HEARTBEAT_INTERVAL = 30000;
 const INITIAL_RECONNECT_DELAY = 2000;
+const REGISTER_ACK_COMPATIBILITY_DELAY = 1500;
 
 /**
  * 内置工具列表，所有 VCP 节点强制暴露
@@ -249,6 +250,30 @@ export function useVcpDistributedNode() {
   }
 
   let reregisterTimer: ReturnType<typeof setTimeout> | null = null;
+  let registerAckFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function clearRegisterAckFallback() {
+    if (registerAckFallbackTimer) {
+      clearTimeout(registerAckFallbackTimer);
+      registerAckFallbackTimer = null;
+    }
+  }
+
+  function scheduleRegisterAckFallback() {
+    clearRegisterAckFallback();
+    registerAckFallbackTimer = setTimeout(() => {
+      registerAckFallbackTimer = null;
+
+      if (distStore.status !== "connected") return;
+
+      const confirmed = distStore.confirmPendingExposedTools();
+      if (confirmed) {
+        logger.info(
+          "Confirmed distributed tools without explicit register_tools_ack for VCP compatibility"
+        );
+      }
+    }, REGISTER_ACK_COMPATIBILITY_DELAY);
+  }
 
   /**
    * 注册工具到 VCP (带防抖)
@@ -259,12 +284,14 @@ export function useVcpDistributedNode() {
     reregisterTimer = setTimeout(() => {
       if (distStore.status !== "connected" || !store.nodeProtocol) {
         logger.debug("Skip reregister: Not connected");
+        reregisterTimer = null;
         return;
       }
 
       const tools = discoverTools();
       distStore.setPendingExposedTools(tools);
       store.nodeProtocol.sendRegisterTools(distStore.config.serverName, tools);
+      scheduleRegisterAckFallback();
       logger.info(`Requested registration of ${tools.length} tools`);
       reregisterTimer = null;
     }, 500); // 500ms 防抖，避开连接初期的多次状态抖动
@@ -331,6 +358,7 @@ export function useVcpDistributedNode() {
           reregisterTools();
           startHeartbeat();
         } else {
+          clearRegisterAckFallback();
           stopHeartbeat();
         }
       },
@@ -356,6 +384,11 @@ export function useVcpDistributedNode() {
   function stopDistributedNode() {
     isStarted.value = false;
     stopHeartbeat();
+    clearRegisterAckFallback();
+    if (reregisterTimer) {
+      clearTimeout(reregisterTimer);
+      reregisterTimer = null;
+    }
     lastReportedIPs.value = "";
     logger.info("Stopped VCP Distributed Node logic");
   }

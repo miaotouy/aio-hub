@@ -13,7 +13,7 @@ import { normalizeAgentBooleanFields } from "@/utils/agentArgs";
  */
 const kbBasic: ToolRegistry = {
   id: "kb-basic",
-  name: "知识库",
+  name: "知识和记忆库",
   description: "知识库的日常读写操作：搜索、创建和更新条目",
 
   getMetadata(): ServiceMetadata {
@@ -466,11 +466,12 @@ export default [kbBasic, kbAdmin];
  * UI 工具配置
  */
 export const toolConfig: ToolConfig = {
-  name: "知识库",
+  name: "知识和记忆库",
   path: "/knowledge-base",
   icon: markRaw(Database),
   component: () => import("./KnowledgeBase.vue"),
-  description: "管理和检索结构化知识，支持 RAG 向量化",
+  description:
+    "管理和检索结构化知识和记忆，支持 RAG 向量化、TAG 检索和 Agent 调用",
   category: ["AI 工具"],
   version: "1.2.0",
 };

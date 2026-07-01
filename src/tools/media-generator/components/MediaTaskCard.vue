@@ -21,6 +21,7 @@ import {
 import type { MediaTask } from "../types";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
+import { useMediaGenStore } from "../stores/mediaGenStore";
 import AudioWaveform from "@/components/common/AudioWaveform.vue";
 
 const props = defineProps<{
@@ -45,6 +46,7 @@ const {
   getAssetById,
 } = useAssetManager();
 const imageViewer = useImageViewer();
+const store = useMediaGenStore();
 
 // 结果多图支持
 const resultAssetUrls = ref<string[]>([]);
@@ -134,6 +136,7 @@ const nextResult = () => {
 /** 音频波形数据（从 resultAsset 的 metadata 中提取） */
 const audioWaveform = ref<number[]>([]);
 const samplingAssetIds = new Set<string>();
+const localWaveformCache = new Map<string, number[]>();
 let isUnmounted = false;
 
 /** 加载音频波形数据 */
@@ -145,13 +148,20 @@ const loadAudioWaveform = async () => {
     return;
   }
 
-  // 如果有波形数据，直接使用
+  // 1. 优先从本地组件缓存中获取，避免重复的 IPC 状态查询
+  if (localWaveformCache.has(asset.id)) {
+    audioWaveform.value = localWaveformCache.get(asset.id)!;
+    return;
+  }
+
+  // 2. 如果传入的资产对象本身就带有波形数据，直接缓存并使用
   if (asset.metadata?.audioWaveform?.length) {
+    localWaveformCache.set(asset.id, asset.metadata.audioWaveform);
     audioWaveform.value = asset.metadata.audioWaveform;
     return;
   }
 
-  // 没有波形数据，尝试在后台采样
+  // 没有波形数据，尝试在后台采样（内部会先校验后端数据库，有了就不重复采样）
   if (samplingAssetIds.has(asset.id)) return;
   samplingAssetIds.add(asset.id);
   try {
@@ -165,7 +175,35 @@ const loadAudioWaveform = async () => {
       currentAsset?.id === asset.id &&
       updatedAsset.metadata?.audioWaveform?.length
     ) {
+      localWaveformCache.set(asset.id, updatedAsset.metadata.audioWaveform);
       audioWaveform.value = updatedAsset.metadata.audioWaveform;
+
+      // 4. 将更新后的资产写回到全局任务状态和会话节点中，实现状态自愈与持久化闭环
+      try {
+        // 更新全局任务池状态
+        store.updateTaskStatus(props.task.id, props.task.status, {
+          resultAsset: updatedAsset,
+          resultAssets: [updatedAsset],
+        });
+
+        // 如果关联了会话节点，同步更新节点快照以持久化到本地 JSON
+        const node = store.nodes[props.task.id];
+        if (node) {
+          const updatedTask = {
+            ...props.task,
+            resultAsset: updatedAsset,
+            resultAssets: [updatedAsset],
+          };
+          store.updateNodeData(props.task.id, {
+            metadata: {
+              ...node.metadata,
+              taskSnapshot: updatedTask,
+            },
+          });
+        }
+      } catch (err) {
+        console.error("同步更新音频波形任务状态失败", err);
+      }
     }
   } finally {
     samplingAssetIds.delete(asset.id);

@@ -330,7 +330,26 @@ export const assetManagerEngine = {
    * @returns 更新后的资产对象（如果发生了采样），或原资产
    */
   ensureAudioWaveform: async (asset: Asset): Promise<Asset> => {
+    // 1. 如果传入的资产已经有波形数据，直接返回
     if (!needsWaveformSampling(asset)) return asset;
+
+    // 2. 传入的资产没有波形，但可能后端数据库中已经存在（例如之前已采样并保存，但调用方持有的是旧快照）
+    // 先尝试从后端获取最新的资产数据进行校验，避免重复采样
+    try {
+      const latestAsset = await assetManagerEngine.getAssetById(asset.id);
+      if (latestAsset && !needsWaveformSampling(latestAsset)) {
+        logger.debug("音频资产在后端已存在波形采样，无需重复生成", {
+          assetId: asset.id,
+          name: asset.name,
+        });
+        return latestAsset;
+      }
+    } catch (err) {
+      logger.warn("尝试获取最新音频资产失败", {
+        assetId: asset.id,
+        error: err,
+      });
+    }
 
     const pendingTask = _audioWaveformTasks.get(asset.id);
     if (pendingTask) return pendingTask;

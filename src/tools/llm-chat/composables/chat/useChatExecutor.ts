@@ -377,6 +377,7 @@ export function useChatExecutor() {
     }
 
     pipelineContext.sharedData.set("pathToUserNode", pathToUserNode);
+    pipelineContext.sharedData.set("contextPreviewTargetNodeId", targetNodeId);
     if (options?.pendingInput) {
       pipelineContext.sharedData.set("pendingInput", options.pendingInput);
     }

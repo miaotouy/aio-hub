@@ -83,13 +83,17 @@ function postProcessMarkdown(md: string): string {
 }
 
 /**
- * 从会话的树状结构中提取当前活动分支的线性历史记录。
+ * 从会话的树状结构中提取指定终点所在分支的线性历史记录。
  * @param session - 聊天会话对象
+ * @param leafNodeId - 可选的历史终点；未传时使用当前活动叶节点
  * @returns 线性消息节点数组
  */
-function getActiveBranchHistory(session: ChatSessionDetail): ChatMessageNode[] {
+function getBranchHistory(
+  session: ChatSessionDetail,
+  leafNodeId?: string | null
+): ChatMessageNode[] {
   const history: ChatMessageNode[] = [];
-  let currentId: string | null = session.activeLeafId || null;
+  let currentId: string | null = leafNodeId || session.activeLeafId || null;
 
   // 1. 收集被压缩节点 ID (这些节点应该被隐藏)
   const hiddenNodeIds = new Set<string>();
@@ -97,7 +101,7 @@ function getActiveBranchHistory(session: ChatSessionDetail): ChatMessageNode[] {
   // 第一遍遍历：收集 hiddenNodeIds
   // 注意：我们需要从叶子往上遍历，因为摘要节点通常在被压缩节点之后（或作为其子节点）
   // 但在这个树结构中，Summary 节点是 LastCompressedNode 的子节点。
-  // 所以从 activeLeafId 往上遍历时，会先遇到 Summary 节点。
+  // 所以从终点节点往上遍历时，会先遇到 Summary 节点。
   let tempId: string | null = currentId;
   while (tempId) {
     const node: ChatMessageNode = (session.nodes || {})[tempId];
@@ -151,7 +155,10 @@ export const sessionLoader: ContextProcessor = {
       return;
     }
 
-    const historyNodes = getActiveBranchHistory(context.detail);
+    const previewTargetNodeId = context.sharedData.get(
+      "contextPreviewTargetNodeId"
+    ) as string | undefined;
+    const historyNodes = getBranchHistory(context.detail, previewTargetNodeId);
 
     const { convertHtmlToMd, htmlToMdLastMessages } = context.settings
       .contextOptimization || {

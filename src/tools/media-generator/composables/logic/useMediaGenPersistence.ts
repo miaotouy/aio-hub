@@ -217,9 +217,11 @@ export function useMediaGenPersistence(options: {
       }
 
       inputPrompt.value = session.inputPrompt || "";
-      if (session.generationConfig) {
-        currentConfig.value = generationConfig;
-      }
+
+      // 加载全局媒体生成配置，不再跟随会话
+      const globalGenConfig = await storage.loadGenerationConfig();
+      currentConfig.value =
+        sessionManager.normalizeGenerationConfig(globalGenConfig);
 
       isInitialized.value = true;
       logger.info("Store 初始化完成", {

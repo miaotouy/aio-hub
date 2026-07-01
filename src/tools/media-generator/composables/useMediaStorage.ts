@@ -20,6 +20,7 @@ import type {
   MediaSessionIndexItem,
   MediaGeneratorSettings,
   MediaTask,
+  MediaGenerationConfig,
 } from "../types";
 import { DEFAULT_MEDIA_GENERATOR_SETTINGS } from "../config";
 import { createModuleLogger } from "@/utils/logger";
@@ -76,6 +77,20 @@ const settingsManager = createConfigManager<MediaGeneratorSettings>({
   fileName: "settings.json",
   version: "1.0.0",
   createDefault: () => DEFAULT_MEDIA_GENERATOR_SETTINGS,
+});
+
+/**
+ * 媒体生成全局配置管理器
+ */
+const generationConfigManager = createConfigManager<MediaGenerationConfig>({
+  moduleName: MODULE_NAME,
+  fileName: "generation-config.json",
+  version: "1.0.0",
+  createDefault: () => ({
+    activeType: "image",
+    includeContext: false,
+    types: {} as any, // 留空，加载时由 sessionManager.normalizeGenerationConfig 自动填充默认值
+  }),
 });
 
 /**
@@ -509,6 +524,15 @@ export function useMediaStorage() {
     loadSettings,
     saveSettings,
     saveSettingsDebounced: settingsManager.saveDebounced.bind(settingsManager),
+    loadGenerationConfig: async () => {
+      return await generationConfigManager.load();
+    },
+    saveGenerationConfig: async (config: MediaGenerationConfig) => {
+      await generationConfigManager.save(config);
+    },
+    saveGenerationConfigDebounced: (config: MediaGenerationConfig) => {
+      generationConfigManager.saveDebounced(config);
+    },
     loadTasks,
     saveTasks,
     saveTasksDebounced,

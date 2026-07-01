@@ -374,11 +374,6 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       rootNodeId.value = detail.rootNodeId || "";
       activeLeafId.value = detail.activeLeafId || "";
       inputPrompt.value = detail.inputPrompt || "";
-      if (detail.generationConfig) {
-        currentConfig.value = sessionManager.normalizeGenerationConfig(
-          detail.generationConfig
-        );
-      }
 
       // 仅更新当前活跃 ID，不触发全量持久化，也不更新时间戳
       await persistence.updateCurrentSessionIdInStorage(sessionId);
@@ -403,9 +398,6 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     rootNodeId.value = detail.rootNodeId || "";
     activeLeafId.value = detail.activeLeafId || "";
     inputPrompt.value = "";
-    currentConfig.value = sessionManager.normalizeGenerationConfig(
-      detail.generationConfig
-    );
     await sessionManager.persistSession({ ...index, ...detail });
   };
 

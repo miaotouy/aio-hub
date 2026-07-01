@@ -29,6 +29,13 @@ pub fn build_system_tray(app_handle: &AppHandle) -> tauri::Result<()> {
             &MenuItem::with_id(app_handle, "hide", "隐藏主窗口", true, None::<&str>)?,
             &MenuItem::with_id(
                 app_handle,
+                "reload_frontend",
+                "重启前端",
+                true,
+                None::<&str>,
+            )?,
+            &MenuItem::with_id(
+                app_handle,
                 "clear_window_configs",
                 "清除窗口配置",
                 true,
@@ -69,6 +76,26 @@ pub fn build_system_tray(app_handle: &AppHandle) -> tauri::Result<()> {
                         } else {
                             let _ = main_window.hide();
                         }
+                    }
+                }
+                "reload_frontend" => {
+                    if let Some(window) = app_handle.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.unminimize();
+                        let _ = window.set_focus();
+
+                        let reload_script = r#"
+                            (() => {
+                                window.location.reload();
+                            })();
+                        "#;
+
+                        match window.eval(reload_script) {
+                            Ok(_) => log::info!("[TRAY] 已通过托盘菜单请求重启前端"),
+                            Err(e) => log::error!("[TRAY] 重启前端请求失败: {}", e),
+                        }
+                    } else {
+                        log::error!("[TRAY] 重启前端失败: 主窗口不存在");
                     }
                 }
                 "clear_window_configs" => {

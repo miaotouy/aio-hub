@@ -11,7 +11,7 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useMediaGenParamRules } from "./useMediaGenParamRules";
 import { convertArrayBufferToBase64 } from "@/utils/base64";
 import { getImageDimensions, resizeImage } from "@/utils/imageProcessor";
-import { DEFAULT_MEDIA_TIMEOUT } from "@/llm-apis/common";
+import { DEFAULT_MEDIA_TIMEOUT, fetchWithTimeout } from "@/llm-apis/common";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { embedMetadata } from "@/utils/mediaMetadataManager";
@@ -1163,11 +1163,33 @@ export function useMediaGenerationManager() {
       return await response.arrayBuffer();
     }
 
-    // 处理远程 URL。走 Tauri HTTP 插件，绕开 WebView CORS 限制。
-    const response = await tauriFetch(url, {
-      method: "GET",
-      connectTimeout: 30000,
-    });
+    const remoteUrl = normalizeRemoteMediaUrl(url);
+    let response: Response;
+
+    try {
+      // 处理远程 URL。走 Tauri HTTP 插件，绕开 WebView CORS 限制。
+      response = await tauriFetch(remoteUrl, {
+        method: "GET",
+        connectTimeout: 30000,
+      });
+    } catch (error) {
+      logger.warn("Tauri HTTP 下载远程媒体失败，改用代理下载", {
+        error: String(error),
+        url: summarizeUrlForLog(remoteUrl),
+      });
+      response = await fetchWithTimeout(
+        remoteUrl,
+        {
+          method: "GET",
+          headers: { Accept: "*/*" },
+          forceProxy: true,
+          relaxIdCerts: true,
+          http1Only: true,
+        },
+        DEFAULT_MEDIA_TIMEOUT
+      );
+    }
+
     if (!response.ok) {
       throw new Error(
         `下载远程媒体失败：${response.status} ${response.statusText}`
@@ -1186,4 +1208,21 @@ export function useMediaGenerationManager() {
     abortTask,
     abortAll,
   };
+}
+
+function normalizeRemoteMediaUrl(url: string): string {
+  try {
+    return new URL(url).toString();
+  } catch {
+    return encodeURI(url);
+  }
+}
+
+function summarizeUrlForLog(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return url.slice(0, 120);
+  }
 }

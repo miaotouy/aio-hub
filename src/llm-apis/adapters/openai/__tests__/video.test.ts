@@ -76,6 +76,120 @@ describe("OpenAI Adapter - Video", () => {
     expect(result.videos?.[0]?.url).toBe("https://example.com/video.mp4");
   });
 
+  it("reads nested Ark video URL objects from the task response", async () => {
+    const profile: LlmProfile = {
+      id: "ark",
+      name: "Ark",
+      baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+      apiKeys: ["ark-key"],
+      type: "openai",
+      enabled: true,
+      models: [],
+    };
+    const options: MediaGenerationOptions & { pollIntervalMs: number } = {
+      profileId: "ark",
+      modelId: "doubao-seedance-1-5-pro-251215",
+      prompt: "a drone flies through a canyon",
+      durationSeconds: 5,
+      pollIntervalMs: 0,
+    };
+
+    (fetchWithTimeout as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: "task-1", status: "running" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "task-1",
+          status: "succeeded",
+          content: { video_url: { url: "https://example.com/ark-video.mp4" } },
+        }),
+      });
+
+    const result = await callOpenAiVideoApi(profile, options);
+
+    expect(result.videos?.[0]?.url).toBe("https://example.com/ark-video.mp4");
+    expect(fetchWithTimeout).toHaveBeenCalledTimes(2);
+  });
+
+  it("polls Ark tasks when creation only returns an id", async () => {
+    const profile: LlmProfile = {
+      id: "ark",
+      name: "Ark",
+      baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+      apiKeys: ["ark-key"],
+      type: "openai",
+      enabled: true,
+      models: [],
+    };
+    const options: MediaGenerationOptions & { pollIntervalMs: number } = {
+      profileId: "ark",
+      modelId: "doubao-seedance-1-5-pro-251215",
+      prompt: "a drone flies through a canyon",
+      durationSeconds: 5,
+      pollIntervalMs: 0,
+    };
+
+    (fetchWithTimeout as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: "cgt-1" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "cgt-1",
+          status: "succeeded",
+          content: { video_url: "https://example.com/ark-video.mp4" },
+        }),
+      });
+
+    const result = await callOpenAiVideoApi(profile, options);
+
+    const [statusUrl] = (fetchWithTimeout as any).mock.calls[1];
+    expect(statusUrl).toBe(
+      "https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks/cgt-1"
+    );
+    expect(result.videos?.[0]?.url).toBe("https://example.com/ark-video.mp4");
+  });
+
+  it("does not fall back to OpenAI content download for Ark tasks without URLs", async () => {
+    const profile: LlmProfile = {
+      id: "ark",
+      name: "Ark",
+      baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+      apiKeys: ["ark-key"],
+      type: "openai",
+      enabled: true,
+      models: [],
+    };
+    const options: MediaGenerationOptions & { pollIntervalMs: number } = {
+      profileId: "ark",
+      modelId: "doubao-seedance-1-5-pro-251215",
+      prompt: "a drone flies through a canyon",
+      durationSeconds: 5,
+      pollIntervalMs: 0,
+    };
+
+    (fetchWithTimeout as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: "task-1", status: "running" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: "task-1", status: "succeeded" }),
+      });
+
+    await expect(callOpenAiVideoApi(profile, options)).rejects.toThrow(
+      "finished without a video URL"
+    );
+
+    expect(fetchWithTimeout).toHaveBeenCalledTimes(2);
+  });
+
   it("downloads OpenAI video content with authorization before returning", async () => {
     const profile: LlmProfile = {
       id: "openai",

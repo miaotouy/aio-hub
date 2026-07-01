@@ -100,7 +100,7 @@ export async function callOpenAiVideoApi(
       : 5000; // 5秒轮询一次
   const statusUrl = buildVideoStatusUrl(baseUrl, profile, jobId, isArkVideo);
 
-  while (isVideoJobPending(job)) {
+  while (shouldPollVideoJob(job, isArkVideo)) {
     // 检查是否已取消
     if (signal?.aborted) {
       throw new Error("Video generation cancelled by user.");
@@ -149,6 +149,13 @@ export async function callOpenAiVideoApi(
       ],
       progress: 100,
     };
+  }
+
+  if (isArkVideo) {
+    const status = getVideoJobStatus(job) || "unknown";
+    throw new Error(
+      `Ark video generation task ${jobId} finished without a video URL in the status response (status: ${status}).`
+    );
   }
 
   // 3. 获取内容 (视频 URL)
@@ -348,8 +355,22 @@ function isVideoJobPending(job: any): boolean {
   ].includes(getVideoJobStatus(job));
 }
 
+function shouldPollVideoJob(job: any, isArkVideo: boolean): boolean {
+  if (isVideoJobFailed(job) || extractVideoUrl(job)) {
+    return false;
+  }
+
+  if (isVideoJobPending(job)) {
+    return true;
+  }
+
+  // Ark creation can return only { id } first; the status and content arrive
+  // from the task query endpoint.
+  return isArkVideo && !getVideoJobStatus(job);
+}
+
 function isVideoJobFailed(job: any): boolean {
-  return ["failed", "cancelled", "canceled", "error"].includes(
+  return ["failed", "cancelled", "canceled", "expired", "error"].includes(
     getVideoJobStatus(job)
   );
 }
@@ -362,27 +383,39 @@ function getVideoJobError(job: any): string | undefined {
 function extractVideoUrl(job: any): string | undefined {
   const candidates = [
     job?.content?.video_url,
+    job?.content?.video_url?.url,
     job?.content?.videoUrl,
+    job?.content?.videoUrl?.url,
     job?.video_url,
+    job?.video_url?.url,
     job?.videoUrl,
+    job?.videoUrl?.url,
     job?.remixed_from_video_id,
     job?.remixedFromVideoId,
     job?.url,
     job?.output?.video_url,
+    job?.output?.video_url?.url,
     job?.output?.videoUrl,
+    job?.output?.videoUrl?.url,
     job?.result?.video_url,
+    job?.result?.video_url?.url,
     job?.result?.videoUrl,
+    job?.result?.videoUrl?.url,
     job?.data?.content?.video_url,
+    job?.data?.content?.video_url?.url,
     job?.data?.content?.videoUrl,
+    job?.data?.content?.videoUrl?.url,
     job?.data?.video_url,
+    job?.data?.video_url?.url,
     job?.data?.videoUrl,
+    job?.data?.videoUrl?.url,
     job?.data?.remixed_from_video_id,
     job?.data?.remixedFromVideoId,
     job?.data?.url,
     job?.videos?.[0]?.url,
     job?.data?.videos?.[0]?.url,
   ];
-  return candidates.find((url) => typeof url === "string" && url.trim());
+  return findFirstUrl(candidates);
 }
 
 function collectAttachmentUrls(options: MediaGenerationOptions): string[] {
@@ -397,13 +430,34 @@ function collectAttachmentUrls(options: MediaGenerationOptions): string[] {
 function extractThumbnailUrl(job: any): string | undefined {
   const candidates = [
     job?.content?.image_url,
+    job?.content?.image_url?.url,
     job?.content?.imageUrl,
+    job?.content?.imageUrl?.url,
     job?.thumbnail_url,
+    job?.thumbnail_url?.url,
     job?.thumbnailUrl,
+    job?.thumbnailUrl?.url,
     job?.data?.content?.image_url,
+    job?.data?.content?.image_url?.url,
     job?.data?.content?.imageUrl,
+    job?.data?.content?.imageUrl?.url,
   ];
-  return candidates.find((url) => typeof url === "string" && url.trim());
+  return findFirstUrl(candidates);
+}
+
+function findFirstUrl(candidates: unknown[]): string | undefined {
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate;
+    }
+    if (candidate && typeof candidate === "object") {
+      const url = (candidate as { url?: unknown }).url;
+      if (typeof url === "string" && url.trim()) {
+        return url;
+      }
+    }
+  }
+  return undefined;
 }
 
 async function fetchVideoContent(

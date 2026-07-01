@@ -42,9 +42,13 @@ export function useMediaGenParameterState() {
   const mediaType = computed({
     get: () => store.currentConfig.activeType,
     set: (val: MediaTaskType) => {
+      if (store.currentConfig.activeType === val) return;
+
       currentTypeConfig.value.includeContext =
         store.currentConfig.includeContext;
       store.currentConfig.activeType = val;
+      store.currentConfig.includeContext =
+        store.currentConfig.types[val]?.includeContext ?? false;
     },
   });
 

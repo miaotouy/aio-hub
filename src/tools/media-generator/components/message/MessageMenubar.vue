@@ -140,13 +140,21 @@ const handleSwitchToBranch = (nodeId: string) => {
     <!-- 重试 -->
     <div class="retry-group">
       <el-tooltip content="重试" placement="top" :show-after="500">
-        <button class="menu-btn" @click.stop="emit('retry', false)">
-          <RefreshCw :size="16" />
+        <button
+          class="menu-btn"
+          :disabled="isSending"
+          @click.stop="emit('retry', false)"
+        >
+          <RefreshCw :size="16" :class="{ spinning: isSending }" />
         </button>
       </el-tooltip>
 
       <el-tooltip content="切换模型重试" placement="top" :show-after="500">
-        <button class="menu-btn" @click.stop="emit('retry', true)">
+        <button
+          class="menu-btn"
+          :disabled="isSending"
+          @click.stop="emit('retry', true)"
+        >
           <AtSign :size="16" />
         </button>
       </el-tooltip>
@@ -400,6 +408,19 @@ const handleSwitchToBranch = (nodeId: string) => {
   background-color: var(--error-color);
   border-color: var(--error-color);
   color: white;
+}
+
+.spinning {
+  animation: menu-btn-spin 1s linear infinite;
+}
+
+@keyframes menu-btn-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .menu-btn-abort {

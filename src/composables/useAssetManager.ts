@@ -160,18 +160,16 @@ export const assetManagerEngine = {
   getAssetUrl: async (asset: Asset, useThumbnail = false): Promise<string> => {
     try {
       if (useThumbnail && asset.thumbnailPath) {
-        // 获取缩略图二进制数据 (缩略图通常较小，适合 Blob)
-        const bytes = await invoke<number[]>("get_asset_binary", {
-          relativePath: asset.thumbnailPath,
-        });
-        const uint8Array = new Uint8Array(bytes);
-        const blob = new Blob([uint8Array], { type: "image/jpeg" }); // 缩略图通常是 JPEG
-        return URL.createObjectURL(blob);
-      } else {
-        // 获取原始文件，使用 asset:// 协议
         const basePath = await assetManagerEngine.getAssetBasePath();
-        return assetManagerEngine.convertToAssetProtocol(asset.path, basePath);
+        return assetManagerEngine.convertToAssetProtocol(
+          asset.thumbnailPath,
+          basePath
+        );
       }
+
+      // 获取原始文件，使用 asset:// 协议
+      const basePath = await assetManagerEngine.getAssetBasePath();
+      return assetManagerEngine.convertToAssetProtocol(asset.path, basePath);
     } catch (error) {
       console.error("获取资产 URL 失败:", error, asset);
       return "";

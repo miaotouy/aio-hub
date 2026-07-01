@@ -16,7 +16,7 @@ import type { MediaTask, MediaTaskType } from "../types";
 
 const store = useMediaGenStore();
 const inputManager = useMediaGenInputManager();
-const { getAssetUrl, getAssetBasePath } = useAssetManager();
+const { getAssetBasePath } = useAssetManager();
 
 const scrollContainer = ref<HTMLElement | null>(null);
 
@@ -151,22 +151,6 @@ const handleDownloadTask = async (task: MediaTask) => {
   }
 };
 
-// 资产 URL 映射缓存
-const assetUrls = ref<Record<string, string>>({});
-
-// 监听任务变化，更新资产 URL
-watch(
-  () => store.tasks,
-  async (newTasks) => {
-    if (!Array.isArray(newTasks)) return;
-    for (const task of newTasks) {
-      if (task?.resultAsset && !assetUrls.value[task.id]) {
-        assetUrls.value[task.id] = await getAssetUrl(task.resultAsset);
-      }
-    }
-  },
-  { deep: true, immediate: true }
-);
 </script>
 
 <template>

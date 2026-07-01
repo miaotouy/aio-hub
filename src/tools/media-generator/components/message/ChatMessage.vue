@@ -36,6 +36,7 @@ const modelSelectDialog = useModelSelectDialog();
 const isEditing = ref(false);
 const isRawEditing = ref(false);
 const isExporting = ref(false);
+const isRetrying = ref(false);
 
 const handleEdit = () => {
   isEditing.value = true;
@@ -62,18 +63,25 @@ const handleCreateBranch = () => {
 };
 
 const handleRetry = async (useNewModel = false) => {
+  if (isRetrying.value) return;
+
+  isRetrying.value = true;
   let temporaryModel: { profileId: string; modelId: string } | undefined;
 
-  if (useNewModel) {
-    const result = await modelSelectDialog.open();
-    if (!result) return;
-    temporaryModel = {
-      profileId: result.profile.id,
-      modelId: result.model.id,
-    };
-  }
+  try {
+    if (useNewModel) {
+      const result = await modelSelectDialog.open();
+      if (!result) return;
+      temporaryModel = {
+        profileId: result.profile.id,
+        modelId: result.model.id,
+      };
+    }
 
-  store.regenerateFromNode(props.message.id, temporaryModel);
+    await store.regenerateFromNode(props.message.id, temporaryModel);
+  } finally {
+    isRetrying.value = false;
+  }
 };
 
 const handleSaveEdit = (newContent: string, attachments?: Asset[]) => {
@@ -171,6 +179,7 @@ defineExpose({
     <div v-if="!isBatchMode && !isEditing" class="menubar-wrapper">
       <MessageMenubar
         :message="message"
+        :is-sending="isRetrying"
         :siblings="siblings"
         :current-sibling-index="currentSiblingIndex"
         @edit="handleEdit"

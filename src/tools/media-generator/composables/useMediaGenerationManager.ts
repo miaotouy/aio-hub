@@ -811,8 +811,17 @@ export function useMediaGenerationManager() {
         } else if (itemType === "video") {
           mimeType = "video/mp4";
           extension = "mp4";
-          if (item.url) {
-            bytes = await fetchAsArrayBuffer(item.url);
+          if (mediaItem.b64_json) {
+            bytes = decodeBase64ToArrayBuffer(mediaItem.b64_json);
+          } else if (mediaItem.url) {
+            const dataUrlMatch = parseDataUrl(mediaItem.url);
+            if (dataUrlMatch) {
+              if (dataUrlMatch.mimeType) mimeType = dataUrlMatch.mimeType;
+              extension = mimeTypeToExtension(mimeType, "mp4");
+              bytes = decodeBase64ToArrayBuffer(dataUrlMatch.base64);
+            } else {
+              bytes = await fetchAsArrayBuffer(mediaItem.url);
+            }
           }
         } else if (itemType === "audio") {
           const audioFormat = String(mediaItem.format || "mp3").toLowerCase();
@@ -912,6 +921,8 @@ export function useMediaGenerationManager() {
         taskId,
         count: resultAssets.length,
       });
+    } else {
+      throw new Error("生成已返回媒体结果，但所有媒体文件入库失败");
     }
   };
 
@@ -982,6 +993,10 @@ export function useMediaGenerationManager() {
       "image/gif": "gif",
       "image/svg+xml": "svg",
       "video/mp4": "mp4",
+      "video/mpeg": "mpeg",
+      "video/quicktime": "mov",
+      "video/webm": "webm",
+      "video/x-msvideo": "avi",
       "audio/mpeg": "mp3",
       "audio/mp3": "mp3",
       "audio/wav": "wav",

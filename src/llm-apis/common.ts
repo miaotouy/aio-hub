@@ -561,6 +561,7 @@ export interface LlmResponse {
   /** 生成的视频列表 */
   videos?: Array<{
     url?: string;
+    b64_json?: string | ArrayBuffer;
     id?: string;
     status?: "pending" | "processing" | "completed" | "failed";
     thumbnailUrl?: string;

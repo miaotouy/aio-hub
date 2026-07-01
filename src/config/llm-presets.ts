@@ -1041,6 +1041,10 @@ export const llmPresets: LlmPreset[] = [
         url: "https://www.volcengine.com/docs/82379/1099722",
       },
     ],
+    customEndpoints: {
+      videos: "/contents/generations/tasks",
+      videoStatus: "/contents/generations/tasks/{video_id}",
+    },
     defaultModels: [
       {
         id: "doubao-1.6",

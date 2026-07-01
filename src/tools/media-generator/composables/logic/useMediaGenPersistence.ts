@@ -310,6 +310,16 @@ export function useMediaGenPersistence(options: {
     { deep: true }
   );
 
+  // 监听全局媒体生成配置变化自动保存
+  watch(
+    () => currentConfig.value,
+    (newConfig) => {
+      if (!isInitialized.value) return;
+      storage.saveGenerationConfigDebounced(newConfig);
+    },
+    { deep: true }
+  );
+
   /**
    * 更新当前活跃会话 ID（不触发全量保存）
    */

@@ -42,6 +42,7 @@ const {
   getAssetBasePath,
   convertToAssetProtocol,
   ensureAudioWaveform,
+  getAssetById,
 } = useAssetManager();
 const imageViewer = useImageViewer();
 
@@ -73,8 +74,21 @@ const loadResultUrls = async () => {
     const url = await getAssetUrl(asset);
     if (url) urls.push(url);
 
-    if (asset.type === "video" && asset.thumbnailPath) {
-      videoPosterUrl.value = await getAssetUrl(asset, true);
+    if (asset.type === "video") {
+      let currentAsset = asset;
+      if (!currentAsset.thumbnailPath) {
+        try {
+          const latest = await getAssetById(asset.id);
+          if (latest) {
+            currentAsset = latest;
+          }
+        } catch (e) {
+          console.error("获取最新资产失败", e);
+        }
+      }
+      if (currentAsset.thumbnailPath) {
+        videoPosterUrl.value = await getAssetUrl(currentAsset, true);
+      }
     }
   }
   resultAssetUrls.value = urls;
@@ -165,7 +179,7 @@ onMounted(() => {
 });
 
 watch(
-  () => [props.task.resultAsset, props.task.resultAssets],
+  () => [props.task.status, props.task.resultAsset, props.task.resultAssets],
   () => {
     loadResultUrls();
     loadAudioWaveform();

@@ -46,20 +46,6 @@ const assetUrls = ref<Record<string, string>>({});
 const videoPosterUrls = ref<Record<string, string>>({});
 const generationInfoCache = ref<Record<string, any>>({});
 
-const handleVideoEnter = (e: Event) => {
-  const video = e.target as HTMLVideoElement;
-  if (video) {
-    video.play().catch(() => {});
-  }
-};
-
-const handleVideoLeave = (e: Event) => {
-  const video = e.target as HTMLVideoElement;
-  if (video) {
-    video.pause();
-  }
-};
-
 const getInlineGenerationInfo = (asset: Asset) => {
   const metadata = asset.metadata as any;
   if (metadata?.generation) return metadata.generation;
@@ -313,16 +299,7 @@ const handleRefresh = () => {
             <img :src="assetUrls[asset.id]" loading="lazy" />
           </template>
           <template v-else-if="asset.type === 'video'">
-            <video
-              :src="assetUrls[asset.id]"
-              :poster="videoPosterUrls[asset.id]"
-              muted
-              loop
-              playsinline
-              preload="none"
-              @mouseenter="handleVideoEnter"
-              @mouseleave="handleVideoLeave"
-            ></video>
+            <img :src="videoPosterUrls[asset.id]" loading="lazy" />
             <div class="media-badge">
               <VideoIcon :size="14" />
             </div>

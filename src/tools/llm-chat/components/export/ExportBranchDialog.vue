@@ -320,56 +320,83 @@ watch([useContextPipeline, () => props.messageId], () => {
   refreshPipelinePreview();
 });
 
-// 生成预览内容
-const previewContent = computed(() => {
-  if (!props.session || !props.messageId || !props.sessionIndex) {
-    return "暂无会话数据";
-  }
+const previewContent = ref("正在生成预览...");
 
-  const options: ExportOptions = {
-    format: exportFormat.value,
-    includePreset: includePreset.value,
-    mergePresetIntoMessages: mergePresetIntoMessages.value,
-    includeUserProfile: includeUserProfile.value,
-    includeAgentInfo: includeAgentInfo.value,
-    includeModelInfo: includeModelInfo.value,
-    includeTokenUsage: includeTokenUsage.value,
-    includeAttachments: includeAttachments.value,
-    includeErrors: includeErrors.value,
-    range: [...exportRange.value] as [number, number],
-    useContextPipeline: useContextPipeline.value,
-    processedMessages: pipelineResult.value?.finalMessages || [],
-  };
+// 异步更新预览内容
+watch(
+  [
+    () => props.session,
+    () => props.messageId,
+    () => props.sessionIndex,
+    exportFormat,
+    includePreset,
+    mergePresetIntoMessages,
+    includeUserProfile,
+    includeAgentInfo,
+    includeModelInfo,
+    includeTokenUsage,
+    includeAttachments,
+    includeErrors,
+    exportRange,
+    useContextPipeline,
+    pipelineResult,
+  ],
+  async () => {
+    if (!props.session || !props.messageId || !props.sessionIndex) {
+      previewContent.value = "暂无会话数据";
+      return;
+    }
 
-  if (exportFormat.value === "raw") {
-    return exportBranchAsRaw(
-      props.sessionIndex,
-      props.session,
-      props.messageId,
-      options
-    );
-  } else if (exportFormat.value === "json") {
-    const jsonData = exportBranchAsJson(
-      props.sessionIndex,
-      props.session,
-      props.messageId,
-      includePreset.value,
-      props.presetMessages,
-      options
-    );
-    return JSON.stringify(jsonData, null, 2);
-  } else {
-    // Markdown 导出保持原始协议，不做字符串替换
-    return exportBranchAsMarkdown(
-      props.sessionIndex,
-      props.session,
-      props.messageId,
-      includePreset.value,
-      props.presetMessages,
-      options
-    );
-  }
-});
+    const options: ExportOptions = {
+      format: exportFormat.value,
+      includePreset: includePreset.value,
+      mergePresetIntoMessages: mergePresetIntoMessages.value,
+      includeUserProfile: includeUserProfile.value,
+      includeAgentInfo: includeAgentInfo.value,
+      includeModelInfo: includeModelInfo.value,
+      includeTokenUsage: includeTokenUsage.value,
+      includeAttachments: includeAttachments.value,
+      includeErrors: includeErrors.value,
+      range: [...exportRange.value] as [number, number],
+      useContextPipeline: useContextPipeline.value,
+      processedMessages: pipelineResult.value?.finalMessages || [],
+    };
+
+    try {
+      if (exportFormat.value === "raw") {
+        previewContent.value = exportBranchAsRaw(
+          props.sessionIndex,
+          props.session,
+          props.messageId,
+          options
+        );
+      } else if (exportFormat.value === "json") {
+        const jsonData = await exportBranchAsJson(
+          props.sessionIndex,
+          props.session,
+          props.messageId,
+          includePreset.value,
+          props.presetMessages,
+          options
+        );
+        previewContent.value = JSON.stringify(jsonData, null, 2);
+      } else {
+        previewContent.value = await exportBranchAsMarkdown(
+          props.sessionIndex,
+          props.session,
+          props.messageId,
+          includePreset.value,
+          props.presetMessages,
+          options
+        );
+      }
+    } catch (err) {
+      logger.error("生成预览内容失败", err);
+      previewContent.value = "生成预览失败";
+    }
+  },
+  { immediate: true, deep: true }
+);
 // 资产路径解析钩子：在预览渲染时动态解析 agent-asset://
 const resolveAsset = (content: string) => {
   let processed = content;

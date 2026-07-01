@@ -67,7 +67,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { ElButton } from "element-plus";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import ExportOptionsPanel from "./ExportOptionsPanel.vue";
@@ -147,58 +147,81 @@ const branchCount = computed(() => {
 });
 
 // 生成预览内容
-const previewContent = computed(() => {
-  if (!props.sessionIndex) {
-    return "暂无会话数据";
-  }
+const previewContent = ref<string>("正在生成预览...");
 
-  if (!props.sessionDetail) {
-    return "正在加载会话详情...";
-  }
+const { exportSessionAsMarkdownTree } = useExportManager();
 
-  const { exportSessionAsMarkdownTree } = useExportManager();
-  const options: any = {
-    includeUserProfile: includeUserProfile.value,
-    includeAgentInfo: includeAgentInfo.value,
-    includeModelInfo: includeModelInfo.value,
-    includeTokenUsage: includeTokenUsage.value,
-    includeAttachments: includeAttachments.value,
-    includeErrors: includeErrors.value,
-  };
+// 异步更新预览内容
+watch(
+  [
+    () => props.sessionIndex,
+    () => props.sessionDetail,
+    exportFormat,
+    includeUserProfile,
+    includeAgentInfo,
+    includeModelInfo,
+    includeTokenUsage,
+    includeAttachments,
+    includeErrors,
+  ],
+  async () => {
+    if (!props.sessionIndex) {
+      previewContent.value = "暂无会话数据";
+      return;
+    }
 
-  if (exportFormat.value === "raw") {
-    return JSON.stringify(
-      {
-        index: props.sessionIndex,
-        detail: props.sessionDetail,
-      },
-      null,
-      2
-    );
-  } else if (exportFormat.value === "json") {
-    // 简化的 JSON 导出（包含完整节点树）
-    const jsonData = {
-      session: {
-        id: props.sessionIndex.id,
-        name: props.sessionIndex.name,
-        createdAt: props.sessionIndex.createdAt,
-        updatedAt: props.sessionIndex.updatedAt,
-      },
-      exportTime: new Date().toISOString(),
-      totalNodes: totalMessageCount.value,
-      branchCount: branchCount.value,
-      nodes: props.sessionDetail.nodes || {},
+    if (!props.sessionDetail) {
+      previewContent.value = "正在加载会话详情...";
+      return;
+    }
+
+    const options: any = {
+      includeUserProfile: includeUserProfile.value,
+      includeAgentInfo: includeAgentInfo.value,
+      includeModelInfo: includeModelInfo.value,
+      includeTokenUsage: includeTokenUsage.value,
+      includeAttachments: includeAttachments.value,
+      includeErrors: includeErrors.value,
     };
-    return JSON.stringify(jsonData, null, 2);
-  } else {
-    return exportSessionAsMarkdownTree(
-      props.sessionIndex,
-      props.sessionDetail,
-      options
-    );
-  }
-});
 
+    try {
+      if (exportFormat.value === "raw") {
+        previewContent.value = JSON.stringify(
+          {
+            index: props.sessionIndex,
+            detail: props.sessionDetail,
+          },
+          null,
+          2
+        );
+      } else if (exportFormat.value === "json") {
+        // 简化的 JSON 导出（包含完整节点树）
+        const jsonData = {
+          session: {
+            id: props.sessionIndex.id,
+            name: props.sessionIndex.name,
+            createdAt: props.sessionIndex.createdAt,
+            updatedAt: props.sessionIndex.updatedAt,
+          },
+          exportTime: new Date().toISOString(),
+          totalNodes: totalMessageCount.value,
+          branchCount: branchCount.value,
+          nodes: props.sessionDetail.nodes || {},
+        };
+        previewContent.value = JSON.stringify(jsonData, null, 2);
+      } else {
+        previewContent.value = await exportSessionAsMarkdownTree(
+          props.sessionIndex,
+          props.sessionDetail,
+          options
+        );
+      }
+    } catch (err) {
+      previewContent.value = "生成预览失败";
+    }
+  },
+  { immediate: true, deep: true }
+);
 // 资产路径解析钩子
 const resolveAsset = (content: string) => {
   if (!props.sessionDetail) return content;

@@ -91,6 +91,17 @@ export async function parseSSEStream(
         }
       }
     }
+
+    const tail = decoder.decode();
+    if (tail) buffer += tail;
+
+    const finalLine = buffer.endsWith("\r") ? buffer.slice(0, -1) : buffer;
+    if (finalLine.startsWith("data: ")) {
+      const data = finalLine.slice(6);
+      if (data && data !== "[DONE]") {
+        onChunk(data);
+      }
+    }
   } catch (error) {
     if (onError) {
       onError(error as Error);

@@ -268,6 +268,8 @@ export interface ChatMessageNode {
     reasoningStateStatus?: "intact" | "broken";
     /** Human-readable reason why replay state became unavailable. */
     reasoningStateWarning?: string;
+    /** Successful API response had no visible text; stores a diagnostic hint. */
+    emptyResponseDiagnostic?: string;
     /** 推理开始时间戳 */
     reasoningStartTime?: number;
     /** 推理结束时间戳 */

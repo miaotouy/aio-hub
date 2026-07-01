@@ -230,6 +230,7 @@ const editingContent = ref("");
 
 // 错误信息复制状态
 const errorCopied = ref(false);
+const emptyDiagnosticCopied = ref(false);
 
 // 文档预览状态
 const documentPreviewVisible = ref(false);
@@ -578,6 +579,24 @@ const copyError = async () => {
   }
 };
 
+const copyEmptyDiagnostic = async () => {
+  if (!props.message.metadata?.emptyResponseDiagnostic) return;
+
+  try {
+    await navigator.clipboard.writeText(
+      props.message.metadata.emptyResponseDiagnostic
+    );
+    emptyDiagnosticCopied.value = true;
+    customMessage.success("诊断信息已复制");
+
+    setTimeout(() => {
+      emptyDiagnosticCopied.value = false;
+    }, 2000);
+  } catch (err) {
+    customMessage.error("复制失败");
+  }
+};
+
 // 监听消息内容或相关上下文变化，异步处理宏
 watch(
   [
@@ -841,7 +860,8 @@ const showMeta = computed(() => {
     return (
       !!metadata.usage ||
       metadata.contentTokens !== undefined ||
-      !!metadata.error
+      !!metadata.error ||
+      !!metadata.emptyResponseDiagnostic
     );
   }
 
@@ -855,12 +875,16 @@ const showMeta = computed(() => {
   if (!metadata) return false;
   return (
     (showToken && (!!metadata.usage || metadata.contentTokens !== undefined)) ||
-    !!metadata.error
+    !!metadata.error ||
+    !!metadata.emptyResponseDiagnostic
   );
 });
 const usageInfo = computed(() => messageMetadata.value?.usage);
 const contentTokensValue = computed(() => messageMetadata.value?.contentTokens);
 const errorMessage = computed(() => messageMetadata.value?.error);
+const emptyResponseDiagnostic = computed(
+  () => messageMetadata.value?.emptyResponseDiagnostic
+);
 
 const charCount = ref(0);
 
@@ -1287,6 +1311,18 @@ watch(
         />
         <span class="error-text"> {{ errorMessage }}</span>
       </div>
+      <div v-if="emptyResponseDiagnostic" class="diagnostic-info">
+        <el-button
+          @click="copyEmptyDiagnostic"
+          class="diagnostic-copy-btn"
+          :class="{ copied: emptyDiagnosticCopied }"
+          :title="emptyDiagnosticCopied ? '已复制' : '复制诊断信息'"
+          :icon="emptyDiagnosticCopied ? Check : Copy"
+          size="small"
+          text
+        />
+        <span class="diagnostic-text"> {{ emptyResponseDiagnostic }}</span>
+      </div>
     </div>
 
     <!-- 文档预览对话框 -->
@@ -1464,6 +1500,25 @@ watch(
   word-break: break-word;
 }
 .error-copy-btn.copied {
+  color: var(--success-color, #67c23a);
+}
+
+.diagnostic-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--warning-color, #e6a23c);
+  margin-top: 8px;
+  margin-bottom: 42px;
+}
+
+.diagnostic-text {
+  flex: 1;
+  font-size: 14px;
+  word-break: break-word;
+}
+
+.diagnostic-copy-btn.copied {
   color: var(--success-color, #67c23a);
 }
 

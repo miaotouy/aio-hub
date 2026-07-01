@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { extractReasoningFromSSE, extractTextFromSSE } from "../sse-parser";
+import {
+  extractReasoningFromSSE,
+  extractTextFromSSE,
+  parseSSEStream,
+} from "../sse-parser";
 
 describe("sse-parser", () => {
   it("extracts Cohere v2 content-delta text without requiring content.type", () => {
@@ -32,5 +36,20 @@ describe("sse-parser", () => {
     });
 
     expect(extractReasoningFromSSE(data, "cohere")).toBe("reasoning");
+  });
+
+  it("flushes a final SSE data line without trailing newline", async () => {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('data: {"text":"tail"}'));
+        controller.close();
+      },
+    });
+    const chunks: string[] = [];
+
+    await parseSSEStream(stream.getReader(), (chunk) => chunks.push(chunk));
+
+    expect(chunks).toEqual(['{"text":"tail"}']);
   });
 });

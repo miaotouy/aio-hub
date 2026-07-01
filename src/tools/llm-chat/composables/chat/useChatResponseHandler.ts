@@ -18,6 +18,7 @@ import {
   appendStreamingMessageChunk,
   completeAndDisposeStreamingMessageSource,
 } from "./useStreamingMessageSources";
+import { buildEmptyResponseDiagnostic } from "./emptyResponseDiagnostics";
 
 const logger = createModuleLogger("llm-chat/response-handler");
 const errorHandler = createModuleErrorHandler("llm-chat/response-handler");
@@ -578,7 +579,35 @@ export function useChatResponseHandler() {
         duration:
           finalNode.metadata.reasoningEndTime -
           finalNode.metadata.reasoningStartTime,
+        });
+    }
+
+    const emptyResponseDiagnostic = buildEmptyResponseDiagnostic({
+      response,
+      visibleText: [
+        finalNode.content,
+        finalNode.metadata.reasoningContent,
+        finalNode.metadata.translation?.content,
+      ]
+        .filter((part) => typeof part === "string")
+        .join("\n"),
+      attachmentCount: finalNode.attachments?.length || 0,
+    });
+    if (emptyResponseDiagnostic) {
+      finalNode.metadata.emptyResponseDiagnostic = emptyResponseDiagnostic;
+      logger.warn("检测到成功但正文为空的 LLM 响应", {
+        nodeId,
+        modelId: finalNode.metadata.modelId,
+        providerType: finalNode.metadata.providerType,
+        isStream: response.isStream === true,
+        finishReason: response.finishReason,
+        usage: response.usage,
+        hasReasoningContent: !!response.reasoningContent,
+        reasoningArtifactsCount: response.reasoningArtifacts?.length || 0,
+        toolCallCount: response.toolCalls?.length || 0,
       });
+    } else if (finalNode.metadata.emptyResponseDiagnostic) {
+      delete finalNode.metadata.emptyResponseDiagnostic;
     }
 
     // 清理缓冲和保存状态

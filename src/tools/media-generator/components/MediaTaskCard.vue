@@ -69,16 +69,12 @@ const loadResultUrls = async () => {
     return;
   }
   const urls: string[] = [];
-  const basePath = await getAssetBasePath();
   for (const asset of assets) {
     const url = await getAssetUrl(asset);
     if (url) urls.push(url);
 
     if (asset.type === "video" && asset.thumbnailPath) {
-      videoPosterUrl.value = convertToAssetProtocol(
-        asset.thumbnailPath,
-        basePath
-      );
+      videoPosterUrl.value = await getAssetUrl(asset, true);
     }
   }
   resultAssetUrls.value = urls;

@@ -27,7 +27,6 @@ const {
   loadAssetsPaginated,
   getAssetUrl,
   getAssetBasePath,
-  convertToAssetProtocol,
   removeSourceFromAsset,
 } = useAssetManager();
 const { show: showImageViewer } = useImageViewer();
@@ -108,17 +107,13 @@ const getAssetPrompt = (asset: Asset) => {
 };
 
 const hydrateVisibleAssets = async () => {
-  const basePath = await getAssetBasePath();
   await Promise.all(
     assets.value.map(async (asset) => {
       if (!assetUrls.value[asset.id]) {
         assetUrls.value[asset.id] = await getAssetUrl(asset);
       }
       if (asset.type === "video" && asset.thumbnailPath) {
-        videoPosterUrls.value[asset.id] = convertToAssetProtocol(
-          asset.thumbnailPath,
-          basePath
-        );
+        videoPosterUrls.value[asset.id] = await getAssetUrl(asset, true);
       }
       await loadGenerationInfo(asset);
     })

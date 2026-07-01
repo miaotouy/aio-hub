@@ -649,7 +649,9 @@ async function parseMetadata() {
         // 解析封面
         if (metadata.common.picture && metadata.common.picture.length > 0) {
           const pic = metadata.common.picture[0];
-          const blob = new Blob([pic.data], { type: pic.format });
+          const blob = new Blob([new Uint8Array(pic.data)], {
+            type: pic.format,
+          });
           metaPoster.value = URL.createObjectURL(blob);
         }
       }

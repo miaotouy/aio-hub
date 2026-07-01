@@ -49,6 +49,7 @@ const imageViewer = useImageViewer();
 const resultAssetUrls = ref<string[]>([]);
 const activeResultIndex = ref(0);
 const referenceAssetUrls = ref<string[]>([]);
+const videoPosterUrl = ref<string>("");
 
 const hasReferenceImages = computed(() => referenceAssetUrls.value.length > 0);
 const hasMultipleResults = computed(() => resultAssetUrls.value.length > 1);
@@ -64,12 +65,21 @@ const loadResultUrls = async () => {
   const assets = getResultAssets();
   if (assets.length === 0) {
     resultAssetUrls.value = [];
+    videoPosterUrl.value = "";
     return;
   }
   const urls: string[] = [];
+  const basePath = await getAssetBasePath();
   for (const asset of assets) {
     const url = await getAssetUrl(asset);
     if (url) urls.push(url);
+
+    if (asset.type === "video" && asset.thumbnailPath) {
+      videoPosterUrl.value = convertToAssetProtocol(
+        asset.thumbnailPath,
+        basePath
+      );
+    }
   }
   resultAssetUrls.value = urls;
   // 重置索引
@@ -244,6 +254,20 @@ const getTaskResolution = (task: MediaTask) => {
   }
   return "";
 };
+
+const handleVideoEnter = (e: Event) => {
+  const video = e.target as HTMLVideoElement;
+  if (video) {
+    video.play().catch(() => {});
+  }
+};
+
+const handleVideoLeave = (e: Event) => {
+  const video = e.target as HTMLVideoElement;
+  if (video) {
+    video.pause();
+  }
+};
 </script>
 
 <template>
@@ -309,9 +333,24 @@ const getTaskResolution = (task: MediaTask) => {
                 alt="result"
                 loading="lazy"
               />
-              <div v-else-if="task.type === 'video'" class="video-placeholder">
-                <el-icon><Film /></el-icon>
-                <span>点击查看视频</span>
+              <div
+                v-else-if="task.type === 'video'"
+                class="video-preview-wrapper"
+              >
+                <video
+                  :src="resultAssetUrls[activeResultIndex] || ''"
+                  :poster="videoPosterUrl"
+                  muted
+                  loop
+                  playsinline
+                  preload="none"
+                  @mouseenter="handleVideoEnter"
+                  @mouseleave="handleVideoLeave"
+                  class="video-preview"
+                ></video>
+                <div class="video-badge">
+                  <el-icon><Film /></el-icon>
+                </div>
               </div>
               <div v-else class="audio-preview">
                 <AudioWaveform
@@ -696,6 +735,33 @@ const getTaskResolution = (task: MediaTask) => {
   gap: 8px;
   color: var(--el-text-color-secondary);
   font-size: 12px;
+}
+
+.video-preview-wrapper {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background-color: var(--el-fill-color-dark);
+}
+
+.video-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.video-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  backdrop-filter: blur(4px);
+  z-index: 1;
 }
 
 .audio-preview {

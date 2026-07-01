@@ -27,6 +27,7 @@ const {
   loadAssetsPaginated,
   getAssetUrl,
   getAssetBasePath,
+  convertToAssetProtocol,
   removeSourceFromAsset,
 } = useAssetManager();
 const { show: showImageViewer } = useImageViewer();
@@ -43,7 +44,22 @@ const galleryContainer = ref<HTMLElement | null>(null);
 
 // 资产 URL 缓存
 const assetUrls = ref<Record<string, string>>({});
+const videoPosterUrls = ref<Record<string, string>>({});
 const generationInfoCache = ref<Record<string, any>>({});
+
+const handleVideoEnter = (e: Event) => {
+  const video = e.target as HTMLVideoElement;
+  if (video) {
+    video.play().catch(() => {});
+  }
+};
+
+const handleVideoLeave = (e: Event) => {
+  const video = e.target as HTMLVideoElement;
+  if (video) {
+    video.pause();
+  }
+};
 
 const getInlineGenerationInfo = (asset: Asset) => {
   const metadata = asset.metadata as any;
@@ -92,10 +108,17 @@ const getAssetPrompt = (asset: Asset) => {
 };
 
 const hydrateVisibleAssets = async () => {
+  const basePath = await getAssetBasePath();
   await Promise.all(
     assets.value.map(async (asset) => {
       if (!assetUrls.value[asset.id]) {
         assetUrls.value[asset.id] = await getAssetUrl(asset);
+      }
+      if (asset.type === "video" && asset.thumbnailPath) {
+        videoPosterUrls.value[asset.id] = convertToAssetProtocol(
+          asset.thumbnailPath,
+          basePath
+        );
       }
       await loadGenerationInfo(asset);
     })
@@ -297,11 +320,13 @@ const handleRefresh = () => {
           <template v-else-if="asset.type === 'video'">
             <video
               :src="assetUrls[asset.id]"
+              :poster="videoPosterUrls[asset.id]"
               muted
               loop
+              playsinline
               preload="none"
-              onmouseover="this.play()"
-              onmouseout="this.pause()"
+              @mouseenter="handleVideoEnter"
+              @mouseleave="handleVideoLeave"
             ></video>
             <div class="media-badge">
               <VideoIcon :size="14" />

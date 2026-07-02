@@ -285,16 +285,42 @@ export function useSingleNodeExecutor() {
           (("code" in error && (error as any).code === 400) ||
             ("status" in error &&
               (error as any).status === "INVALID_ARGUMENT"));
+
+        // 识别 429 (限流) 错误
+        const isRateLimit =
+          error &&
+          typeof error === "object" &&
+          (("code" in error && (error as any).code === 429) ||
+            ("status" in error && (error as any).status === 429) ||
+            (error instanceof Error &&
+              /429|too many requests|rate limit/i.test(error.message)));
+
         const shouldRetry =
           !isAbort &&
           !isBadRequest &&
           !hasReceivedStreamData &&
           attempt < maxRetries;
+
         if (shouldRetry) {
-          const delayTime =
+          let delayTime =
             retryMode === "exponential"
               ? retryInterval * Math.pow(2, attempt)
               : retryInterval;
+
+          // 如果是限流错误，追加 5000ms 惩罚性等待
+          if (isRateLimit) {
+            delayTime += 5000;
+            logger.warn(
+              `⚠️ 遭遇 429 限流，将进行惩罚性等待 ${delayTime}ms 后重试...`,
+              { attempt: attempt + 1, error }
+            );
+          } else {
+            logger.info(`请求失败，准备进行第 ${attempt + 1} 次重试...`, {
+              delayTime,
+              error,
+            });
+          }
+
           await new Promise((resolve) => setTimeout(resolve, delayTime));
           continue;
         }

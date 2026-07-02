@@ -196,8 +196,11 @@ export interface ToolCallConfig {
       example?: string;
     }
   >;
+  /** 是否在结束时速率限制 */
+  rateLimitEnabled?: boolean;
+  /** API 请求频率限制（秒） */
+  rateLimitInterval?: number;
 }
-
 /**
  * Agent 扩展配置
  */
@@ -251,6 +254,8 @@ export const DEFAULT_TOOL_CALL_CONFIG: ToolCallConfig = {
   toolSettings: {},
   autoInjectIfMacroMissing: false,
   overrides: {},
+  rateLimitEnabled: false,
+  rateLimitInterval: 0,
 };
 
 /**

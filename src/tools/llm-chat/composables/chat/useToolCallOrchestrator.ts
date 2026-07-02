@@ -92,6 +92,10 @@ export function useToolCallOrchestrator() {
     let iterationCount = 0;
     const maxIterations = executionAgent.toolCallConfig?.maxIterations ?? 5;
 
+    // 速率限制状态
+    let lastRequestStartTime = 0;
+    let lastStreamEndTime = 0;
+
     try {
       while (iterationCount < maxIterations) {
         iterationCount++;
@@ -108,10 +112,42 @@ export function useToolCallOrchestrator() {
             logger.info(`🔄 开始第 ${iterationCount} 轮工具调用迭代...`);
           }
 
+          // --- 速率限制等待逻辑 ---
+          const rateLimitEnabled =
+            executionAgent.toolCallConfig?.rateLimitEnabled ?? false;
+          const rateLimitInterval =
+            executionAgent.toolCallConfig?.rateLimitInterval ?? 0;
+
+          if (rateLimitInterval > 0) {
+            let delayMs = 0;
+            const now = Date.now();
+            if (rateLimitEnabled) {
+              // 在结束时速率限制：从上一次流结束（即上一次请求完成）开始算起
+              if (lastStreamEndTime > 0) {
+                delayMs = rateLimitInterval * 1000 - (now - lastStreamEndTime);
+              }
+            } else {
+              // 默认速率限制：从上一次请求开始算起
+              if (lastRequestStartTime > 0) {
+                delayMs =
+                  rateLimitInterval * 1000 - (now - lastRequestStartTime);
+              }
+            }
+
+            if (delayMs > 0) {
+              logger.info(
+                `⏳ 触发速率限制，等待 ${Math.ceil(delayMs / 1000)} 秒...`
+              );
+              await new Promise((resolve) => setTimeout(resolve, delayMs));
+            }
+          }
+
           // 确保节点已注册
           if (!generatingNodes.has(currentAssistantNode.id)) {
             registerNode(currentAssistantNode.id);
           }
+
+          lastRequestStartTime = Date.now();
 
           const { response } = await executeSingleNode({
             session,
@@ -123,6 +159,8 @@ export function useToolCallOrchestrator() {
             effectiveUserProfile,
             abortController,
           });
+
+          lastStreamEndTime = Date.now();
 
           // 节点完成后立即从生成集合中移除
           generatingNodes.delete(currentAssistantNode.id);
@@ -373,7 +411,7 @@ export function useToolCallOrchestrator() {
     } catch (error) {
       handleNodeError(
         session,
-        assistantNode.id,
+        currentAssistantNode.id,
         error,
         isReparse ? "重新解析执行" : "请求执行"
       );

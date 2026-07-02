@@ -54,6 +54,7 @@ const expandedToolId = ref<string | null>(null);
 const showHelpDialog = ref(false);
 
 const ensureConfig = () => {
+  if (!editForm) return;
   if (!editForm.toolCallConfig) {
     editForm.toolCallConfig = JSON.parse(
       JSON.stringify(DEFAULT_TOOL_CALL_CONFIG)
@@ -83,7 +84,16 @@ const ensureConfig = () => {
   if (!editForm.toolCallConfig.overrides) {
     editForm.toolCallConfig.overrides = {};
   }
+  if (editForm.toolCallConfig.rateLimitEnabled === undefined) {
+    editForm.toolCallConfig.rateLimitEnabled = false;
+  }
+  if (editForm.toolCallConfig.rateLimitInterval === undefined) {
+    editForm.toolCallConfig.rateLimitInterval = 0;
+  }
 };
+
+// 初始化时确保配置完整
+ensureConfig();
 
 // 切换配置展开状态
 const toggleToolSettings = (toolId: string) => {
@@ -282,6 +292,46 @@ const pasteAllToolSettings = async () => {
               v-model="editForm.toolCallConfig.autoInjectIfMacroMissing"
             />
           </el-form-item>
+
+          <el-form-item label="频率限制 (s)">
+            <template #label>
+              <el-tooltip
+                content="设置 API 请求的最小间隔时间（秒）。设置为 0 可禁用。"
+                placement="top"
+              >
+                <div style="display: flex; align-items: center; gap: 4px">
+                  <span>频率限制 (s)</span>
+                  <el-icon :size="14"><InfoFilled /></el-icon>
+                </div>
+              </el-tooltip>
+            </template>
+            <el-input-number
+              v-model="editForm.toolCallConfig.rateLimitInterval"
+              :min="0"
+              :max="30"
+              size="small"
+              @change="ensureConfig"
+            />
+          </el-form-item>
+
+          <el-form-item label="结束时限速">
+            <template #label>
+              <el-tooltip
+                content="开启后，在 API 流结束后开始计算速率限制间隔；否则从请求开始时计算。"
+                placement="top"
+              >
+                <div style="display: flex; align-items: center; gap: 4px">
+                  <span>结束时限速</span>
+                  <el-icon :size="14"><InfoFilled /></el-icon>
+                </div>
+              </el-tooltip>
+            </template>
+            <el-switch
+              v-model="editForm.toolCallConfig.rateLimitEnabled"
+              :disabled="!editForm.toolCallConfig.rateLimitInterval"
+              @change="ensureConfig"
+            />
+          </el-form-item>
         </div>
 
         <!-- 工具发现列表 -->
@@ -429,8 +479,7 @@ const pasteAllToolSettings = async () => {
   gap: 8px 24px;
   margin-bottom: 16px;
   padding: 16px;
-  background: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
+  background: var(--container-bg);
   border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
 }
@@ -454,8 +503,7 @@ const pasteAllToolSettings = async () => {
 
 .discovered-tools-box {
   margin-top: 16px;
-  background: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
+  background: var(--container-bg);
   border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;

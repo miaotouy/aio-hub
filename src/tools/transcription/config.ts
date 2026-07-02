@@ -25,6 +25,14 @@ const getSelectedOcrExtension = (
   return getOcrExtensions().find((extension) => extension.id === extensionId);
 };
 
+const getSelectedDocumentOcrExtension = (
+  settings: TranscriptionConfig
+): OcrExtension | undefined => {
+  const extensionId = settings.document.ocrPluginExtensionId;
+  if (!extensionId) return undefined;
+  return getOcrExtensions().find((extension) => extension.id === extensionId);
+};
+
 /**
  * 默认转写配置
  */
@@ -188,6 +196,11 @@ export const DEFAULT_TRANSCRIPTION_CONFIG: TranscriptionConfig = {
     autoAdjustResolution: true,
   },
   document: {
+    mode: "llm",
+    ocrEngineType: "default",
+    ocrPluginExtensionId: "",
+    ocrPluginModelProfile: "",
+    ocrPluginLanguage: "",
     modelIdentifier: "",
     customPrompt: `## 任务
 执行文档解析。正在处理文档：{filename}。具备极高的文档结构理解和文字提取能力。
@@ -774,6 +787,148 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
       icon: FileText,
       items: [
         {
+          id: "documentMode",
+          label: "文档转写模式",
+          component: "ElRadioGroup",
+          props: { type: "button" },
+          options: [
+            { label: "大模型智能解析 (LLM)", value: "llm" },
+            { label: "纯文字提取 (OCR)", value: "ocr" },
+          ],
+          modelPath: "document.mode",
+          defaultValue: DEFAULT_TRANSCRIPTION_CONFIG.document.mode,
+          hint: "LLM 适合结构化解析、表格还原和公式提取；OCR 适合扫描版、双栏或大体积 PDF 的纯文字提取。",
+          keywords: "document mode llm ocr 文档 模式",
+        },
+        {
+          id: "documentOcrEngineType",
+          label: "OCR 引擎",
+          component: "ElSelect",
+          props: {
+            placeholder: "选择 OCR 引擎",
+          },
+          options: [
+            {
+              label: "跟随图片转写配置",
+              value: "default",
+              description: "使用【图片转写配置】中选择的引擎与配置。",
+            },
+            {
+              label: "Tesseract.js",
+              value: "tesseract",
+              description: "本地 Tesseract 识别，适合中英文截图和文档。",
+            },
+            {
+              label: "Native OCR",
+              value: "native",
+              description: "调用系统原生 OCR 能力，速度快，依赖平台支持。",
+            },
+            {
+              label: "Cloud OCR",
+              value: "cloud",
+              description: "使用 Smart OCR 中配置的云端 OCR 服务。",
+            },
+            {
+              label: "Plugin OCR",
+              value: "plugin",
+              description: "使用 Smart OCR 中配置的 OCR 扩展插件。",
+            },
+          ],
+          modelPath: "document.ocrEngineType",
+          defaultValue: DEFAULT_TRANSCRIPTION_CONFIG.document.ocrEngineType,
+          hint: "OCR 模式会复用智能 OCR 的对应引擎配置。",
+          keywords: "document ocr engine 文档 引擎",
+          visible: (s) => s.document.mode === "ocr",
+        },
+        {
+          id: "documentOcrPluginExtension",
+          label: "OCR 插件扩展",
+          component: "ElSelect",
+          props: {
+            placeholder: "选择 OCR 插件扩展",
+            filterable: true,
+            clearable: true,
+          },
+          options: () => {
+            const extensions = getOcrExtensions();
+            if (extensions.length === 0) {
+              return [
+                {
+                  label: "未发现可用 OCR 插件",
+                  value: "",
+                  description: "请先在插件管理中安装并启用 OCR 扩展插件。",
+                },
+              ];
+            }
+
+            return extensions.map((extension) => ({
+              label: extension.name,
+              value: extension.id,
+              description: `${extension.pluginName} / ${extension.method}${
+                extension.enabled && !extension.broken ? "" : "（当前不可用）"
+              }`,
+            }));
+          },
+          modelPath: "document.ocrPluginExtensionId",
+          defaultValue:
+            DEFAULT_TRANSCRIPTION_CONFIG.document.ocrPluginExtensionId,
+          hint: "指定本工具使用的 OCR 插件扩展；留空则使用智能 OCR 中配置的插件引擎。",
+          keywords: "document ocr plugin extension 插件 扩展",
+          visible: (s) =>
+            s.document.mode === "ocr" && s.document.ocrEngineType === "plugin",
+        },
+        {
+          id: "documentOcrPluginModelProfile",
+          label: "插件模型 Profile",
+          component: "ElSelect",
+          props: {
+            placeholder: "跟随插件默认模型",
+            clearable: true,
+          },
+          options: (s) =>
+            (getSelectedDocumentOcrExtension(s)?.modelProfiles ?? []).map(
+              (profile) => ({
+                label: profile.name,
+                value: profile.id,
+              })
+            ),
+          modelPath: "document.ocrPluginModelProfile",
+          defaultValue:
+            DEFAULT_TRANSCRIPTION_CONFIG.document.ocrPluginModelProfile,
+          hint: "选择插件暴露的模型档位；留空则使用插件默认值。",
+          keywords: "document ocr plugin model profile 插件 模型",
+          visible: (s) =>
+            s.document.mode === "ocr" &&
+            s.document.ocrEngineType === "plugin" &&
+            !!s.document.ocrPluginExtensionId &&
+            (getSelectedDocumentOcrExtension(s)?.modelProfiles.length ?? 0) > 0,
+        },
+        {
+          id: "documentOcrPluginLanguage",
+          label: "插件识别语言",
+          component: "ElSelect",
+          props: {
+            placeholder: "跟随插件默认语言",
+            clearable: true,
+          },
+          options: (s) =>
+            (getSelectedDocumentOcrExtension(s)?.languages ?? []).map(
+              (language) => ({
+                label: language.name,
+                value: language.id,
+              })
+            ),
+          modelPath: "document.ocrPluginLanguage",
+          defaultValue: DEFAULT_TRANSCRIPTION_CONFIG.document.ocrPluginLanguage,
+          hint: "选择插件暴露的识别语言；留空则使用插件默认值。",
+          keywords: "document ocr plugin language 插件 语言",
+          visible: (s) =>
+            s.document.mode === "ocr" &&
+            s.document.ocrEngineType === "plugin" &&
+            !!s.document.ocrPluginExtensionId &&
+            (getSelectedDocumentOcrExtension(s)?.languages.length ?? 0) > 0,
+        },
+        {
           id: "documentModel",
           label: "文档模型",
           component: LlmModelSelector,
@@ -788,6 +943,7 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
           modelPath: "document.modelIdentifier",
           hint: "专门用于文档转写的模型。留空则使用上述兜底模型。",
           keywords: "document model 文档 模型",
+          visible: (s) => s.document.mode !== "ocr",
         },
         {
           id: "documentPrompt",
@@ -801,6 +957,7 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
           modelPath: "document.customPrompt",
           hint: "用于指导模型如何解析和转录文档内容",
           keywords: "document prompt 文档 提示词",
+          visible: (s) => s.document.mode !== "ocr",
         },
         {
           id: "documentTemperature",
@@ -810,6 +967,7 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
           modelPath: "document.temperature",
           hint: "较低的温度会产生更确定性的转写结果",
           keywords: "document temperature 文档 温度",
+          visible: (s) => s.document.mode !== "ocr",
         },
         {
           id: "documentMaxTokens",
@@ -819,6 +977,7 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
           modelPath: "document.maxTokens",
           hint: "文档转写结果的最大 token 数",
           keywords: "document max tokens 文档",
+          visible: (s) => s.document.mode !== "ocr",
         },
       ],
     },

@@ -52,12 +52,30 @@ export interface TypeSpecificConfig {
 export type ImageTranscriptionMode = "vlm" | "ocr";
 export type ImageOcrEngineType = "default" | Exclude<OcrEngineType, "vlm">;
 
+export type DocumentTranscriptionMode = "llm" | "ocr";
+
 /**
  * 图片特定配置
  */
 export interface ImageSpecificConfig extends TypeSpecificConfig {
   /** 图片转写模式：vlm 走视觉大模型，ocr 走 Smart OCR 纯文字提取 */
   mode: ImageTranscriptionMode;
+  /** OCR 模式使用的引擎；default 表示跟随 Smart OCR 当前默认引擎 */
+  ocrEngineType?: ImageOcrEngineType;
+  /** OCR 插件扩展 ID，格式来自 Smart OCR extension registry */
+  ocrPluginExtensionId?: string;
+  /** OCR 插件模型档位 */
+  ocrPluginModelProfile?: string;
+  /** OCR 插件识别语言 */
+  ocrPluginLanguage?: string;
+}
+
+/**
+ * 文档特定配置
+ */
+export interface DocumentSpecificConfig extends TypeSpecificConfig {
+  /** 文档转写模式：llm 走大模型解析，ocr 走 Smart OCR 纯文字提取 */
+  mode: DocumentTranscriptionMode;
   /** OCR 模式使用的引擎；default 表示跟随 Smart OCR 当前默认引擎 */
   ocrEngineType?: ImageOcrEngineType;
   /** OCR 插件扩展 ID，格式来自 Smart OCR extension registry */
@@ -124,7 +142,7 @@ export interface TranscriptionConfig {
   image: ImageSpecificConfig;
   audio: AudioSpecificConfig;
   video: VideoSpecificConfig;
-  document: TypeSpecificConfig;
+  document: DocumentSpecificConfig;
 }
 
 /**

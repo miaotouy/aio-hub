@@ -36,46 +36,12 @@ interface PluginOcrBatchResult {
   }>;
 }
 
-function findPlugin(pluginId: string) {
-  const isDevId = pluginId.endsWith("-dev");
-  const baseId = isDevId ? pluginId.replace(/-dev$/, "") : pluginId;
-  const devId = isDevId ? pluginId : `${pluginId}-dev`;
-
-  const prodPlugin = pluginManager.getPlugin(baseId);
-  const devPlugin = pluginManager.getPlugin(devId);
-
-  // 辅助函数：检查插件是否已启用且未损坏
-  const isPluginActive = (plugin: any) => {
-    if (!plugin) return false;
-    const state = pluginManager.pluginStates[plugin.id];
-    if (state?.isBroken) return false;
-    return state?.enabled ?? plugin.enabled;
-  };
-
-  // 1. 如果开发版存在且已启用，优先使用开发版（无论请求的是 prod 还是 dev）
-  if (isPluginActive(devPlugin)) {
-    return devPlugin;
-  }
-
-  // 2. 否则，如果生产版存在且已启用，使用生产版
-  if (isPluginActive(prodPlugin)) {
-    return prodPlugin;
-  }
-
-  // 3. 如果都未启用，则按请求的偏好返回（优先返回请求的那个，以便 assertPluginReady 抛出准确的“未启用”错误）
-  if (isDevId) {
-    return devPlugin ?? prodPlugin;
-  } else {
-    return prodPlugin ?? devPlugin;
-  }
-}
-
 function assertPluginReady(pluginId: string, method: string): string {
   if (!pluginId || !method) {
     throw new Error("未选择可用的 OCR 插件引擎，请先安装并选择 OCR 扩展插件");
   }
 
-  const plugin = findPlugin(pluginId);
+  const plugin = pluginManager.getActivePlugin(pluginId);
 
   if (!plugin) {
     throw new Error(

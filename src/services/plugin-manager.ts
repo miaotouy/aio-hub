@@ -816,6 +816,44 @@ class PluginManager {
   }
 
   /**
+   * 获取活跃（已启用且未损坏）的插件，支持自动在开发版和生产版之间切换
+   * @param pluginId 插件 ID（可以是原 ID 或带 -dev 后缀的 ID）
+   */
+  getActivePlugin(pluginId: string): PluginProxy | undefined {
+    const isDevId = pluginId.endsWith("-dev");
+    const baseId = isDevId ? pluginId.replace(/-dev$/, "") : pluginId;
+    const devId = isDevId ? pluginId : `${pluginId}-dev`;
+
+    const prodPlugin = this.getPlugin(baseId);
+    const devPlugin = this.getPlugin(devId);
+
+    // 辅助函数：检查插件是否已启用且未损坏
+    const isPluginActive = (plugin: PluginProxy | undefined) => {
+      if (!plugin) return false;
+      const state = this.pluginStates[plugin.id];
+      if (state?.isBroken) return false;
+      return state?.enabled ?? plugin.enabled;
+    };
+
+    // 1. 如果开发版存在且已启用，优先使用开发版（无论请求的是 prod 还是 dev）
+    if (isPluginActive(devPlugin)) {
+      return devPlugin;
+    }
+
+    // 2. 否则，如果生产版存在且已启用，使用生产版
+    if (isPluginActive(prodPlugin)) {
+      return prodPlugin;
+    }
+
+    // 3. 如果都未启用，则按请求的偏好返回（优先返回请求的那个，以便调用方抛出准确的“未启用”错误）
+    if (isDevId) {
+      return devPlugin ?? prodPlugin;
+    } else {
+      return prodPlugin ?? devPlugin;
+    }
+  }
+
+  /**
    * 从 ZIP 文件安装插件
    * @param zipPath ZIP 文件路径
    * @returns 安装结果

@@ -241,22 +241,39 @@ function createPluginComponentLoader(
           finalComponentFile = componentFile.replace(/\.vue$/, ".js");
         }
 
-        // 尝试加载配套的 CSS
+        // 调试：扫描并打印插件目录下的所有文件，帮助诊断分块丢失问题
         try {
-          const stylePath = await join(pluginPath, "style.css");
-          const { exists } = await import("@tauri-apps/plugin-fs");
-          if (await exists(stylePath)) {
-            const styleUrl = convertFileSrc(stylePath.replace(/\\/g, "/"));
+          const { readDir } = await import("@tauri-apps/plugin-fs");
+          const files = await readDir(pluginPath);
+          logger.info("【调试】扫描插件安装目录文件列表", {
+            pluginId: pluginPath.split(/[/\\]/).pop(),
+            files: files.map((f) => ({
+              name: f.name,
+              isFile: f.isFile,
+              isDirectory: f.isDirectory,
+            })),
+          });
+
+          // 自动寻找并加载配套的 CSS（不再硬编码 style.css）
+          const cssFiles = files.filter((f) => f.name.endsWith(".css"));
+          for (const cssFile of cssFiles) {
+            const stylePath = await join(pluginPath, cssFile.name);
+            let styleUrl = convertFileSrc(stylePath.replace(/\\/g, "/"));
+            styleUrl = styleUrl.replace(/%2F/g, "/");
+
             if (!document.querySelector(`link[href="${styleUrl}"]`)) {
               const link = document.createElement("link");
               link.rel = "stylesheet";
               link.href = styleUrl;
               document.head.appendChild(link);
-              logger.info("已加载插件样式表", { styleUrl });
+              logger.info("【调试】已自动加载插件样式表", {
+                cssFile: cssFile.name,
+                styleUrl,
+              });
             }
           }
         } catch (e) {
-          logger.warn("尝试加载插件样式表失败", e);
+          logger.warn("【调试】扫描插件目录或加载样式表失败", e);
         }
 
         // 直接使用插件根目录下的组件文件
@@ -269,18 +286,30 @@ function createPluginComponentLoader(
         });
 
         // 使用 convertFileSrc 将本地文件路径转换为可访问的 URL
-        const componentUrl = convertFileSrc(componentPath.replace(/\\/g, "/"));
+        let componentUrl = convertFileSrc(componentPath.replace(/\\/g, "/"));
+
+        // 修复相对路径加载问题：
+        // convertFileSrc 可能会对路径中的盘符和斜杠进行 URL 编码（如 %3A, %2F），
+        // 这会导致浏览器在解析 JS 内部的相对导入（如 import("./chunk.js")）时，
+        // 无法正确识别目录层级，从而把相对路径解析到根域名下（如 http://asset.localhost/chunk.js）。
+        // 我们需要将 %2F 替换回 /，但保留盘符的编码（%3A），以保持 URL 的合法性。
+        componentUrl = componentUrl.replace(/%2F/g, "/");
 
         logger.info("插件组件 URL 已生成", { componentUrl });
 
         // 动态导入 ESM 模块
         const module = await import(/* @vite-ignore */ componentUrl);
 
+        logger.info("插件模块导入结果", {
+          componentFile,
+          hasDefault: !!module.default,
+          keys: Object.keys(module),
+          moduleType: typeof module.default,
+        });
+
         if (!module.default) {
           throw new Error(`插件组件 ${componentFile} 必须有默认导出`);
         }
-
-        logger.info("插件组件加载成功（生产模式）", { componentFile });
 
         return module.default;
       }

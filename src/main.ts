@@ -8,6 +8,7 @@ import * as ElementPlus from "element-plus";
 import * as ElementPlusIconsVue from "@element-plus/icons-vue";
 import * as PluginSDK from "@/services/plugin-sdk";
 import * as PluginUI from "@/services/plugin-ui";
+import * as TauriAppsApiCore from "@tauri-apps/api/core";
 import zhCn from "element-plus/es/locale/lang/zh-cn";
 import "element-plus/dist/index.css";
 import "element-plus/theme-chalk/dark/css-vars.css";
@@ -41,6 +42,7 @@ if (typeof (window as any).Buffer === "undefined") {
 (window as any).ElementPlusIconsVue = ElementPlusIconsVue;
 (window as any).AiohubSDK = PluginSDK;
 (window as any).AiohubUI = PluginUI;
+(window as any).TauriAppsApiCore = TauriAppsApiCore;
 
 const logger = createModuleLogger("Main");
 

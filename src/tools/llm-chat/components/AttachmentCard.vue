@@ -191,14 +191,6 @@ const transcriptionStatus = computed(() => {
   return getTranscriptionStatus(internalAsset.value);
 });
 
-const isTranscribable = computed(
-  () =>
-    props.asset.type === "image" ||
-    props.asset.type === "audio" ||
-    props.asset.type === "video" ||
-    isDocxAssetLike(props.asset)
-);
-
 const isAssetTranscribable = (asset: Asset) => {
   return (
     asset.type === "image" ||
@@ -208,6 +200,8 @@ const isAssetTranscribable = (asset: Asset) => {
       (asset.mimeType === "application/pdf" || isDocxAssetLike(asset)))
   );
 };
+
+const isTranscribable = computed(() => isAssetTranscribable(props.asset));
 
 const hasMultipleTranscribableAssets = computed(() => {
   if (!props.allAssets || props.allAssets.length <= 1) return false;

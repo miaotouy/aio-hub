@@ -254,9 +254,32 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
       height: img.height || 1100,
     }));
 
-    const results = (await ocrRegistry.runOcr(blocks, ocrEngineConfig, {
-      signal: ctx.signal,
-    })) as OcrResult[];
+    const batchSize = documentConfig.ocrBatchSize ?? 3;
+    const results: OcrResult[] = [];
+
+    for (let i = 0; i < blocks.length; i += batchSize) {
+      if (ctx.signal?.aborted) {
+        break;
+      }
+
+      const batchBlocks = blocks.slice(i, i + batchSize);
+      logger.info(
+        `正在识别第 ${Math.floor(i / batchSize) + 1}/${Math.ceil(blocks.length / batchSize)} 批 OCR (${batchBlocks.length} 页)...`,
+        {
+          assetId: task.assetId,
+        }
+      );
+
+      const batchResults = (await ocrRegistry.runOcr(
+        batchBlocks,
+        ocrEngineConfig,
+        {
+          signal: ctx.signal,
+        }
+      )) as OcrResult[];
+
+      results.push(...batchResults);
+    }
 
     const failedResults = results.filter(
       (r: OcrResult) => r.status === "error"
@@ -274,7 +297,7 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
       .filter((t: string) => t)
       .join("\n\n---\n\n");
 
-    if (cancelledResults.length > 0 && !text) {
+    if ((ctx.signal?.aborted || cancelledResults.length > 0) && !text) {
       throw new Error("OCR 识别已取消");
     }
 

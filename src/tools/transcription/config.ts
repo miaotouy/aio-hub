@@ -80,6 +80,7 @@ export const DEFAULT_TRANSCRIPTION_CONFIG: TranscriptionConfig = {
     ocrPluginExtensionId: "",
     ocrPluginModelProfile: "",
     ocrPluginLanguage: "",
+    ocrBatchSize: 3,
     modelIdentifier: "",
     customPrompt: `## 任务
 执行图像内容分析。正在处理图像：{filename}。具备高精度视觉识别和 OCR 能力。
@@ -201,6 +202,7 @@ export const DEFAULT_TRANSCRIPTION_CONFIG: TranscriptionConfig = {
     ocrPluginExtensionId: "",
     ocrPluginModelProfile: "",
     ocrPluginLanguage: "",
+    ocrBatchSize: 3,
     modelIdentifier: "",
     customPrompt: `## 任务
 执行文档解析。正在处理文档：{filename}。具备极高的文档结构理解和文字提取能力。
@@ -499,6 +501,17 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
             s.image.ocrEngineType === "plugin" &&
             !!s.image.ocrPluginExtensionId &&
             (getSelectedOcrExtension(s)?.languages.length ?? 0) > 0,
+        },
+        {
+          id: "imageOcrBatchSize",
+          label: "OCR 分批大小 ({{ localSettings.image.ocrBatchSize }}切片/批)",
+          component: "SliderWithInput",
+          props: { min: 1, max: 10, step: 1 },
+          modelPath: "image.ocrBatchSize",
+          defaultValue: DEFAULT_TRANSCRIPTION_CONFIG.image.ocrBatchSize,
+          hint: "控制每次提交给 OCR 引擎的图片切片数。较小的值可以避免本地引擎过载和内存溢出，并能更及时地响应取消操作。",
+          keywords: "image ocr batch size 分批 大小 切片数",
+          visible: (s) => s.image.mode === "ocr",
         },
         {
           id: "imageModel",
@@ -927,6 +940,18 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
             s.document.ocrEngineType === "plugin" &&
             !!s.document.ocrPluginExtensionId &&
             (getSelectedDocumentOcrExtension(s)?.languages.length ?? 0) > 0,
+        },
+        {
+          id: "documentOcrBatchSize",
+          label:
+            "OCR 分批大小 ({{ localSettings.document.ocrBatchSize }}页/批)",
+          component: "SliderWithInput",
+          props: { min: 1, max: 10, step: 1 },
+          modelPath: "document.ocrBatchSize",
+          defaultValue: DEFAULT_TRANSCRIPTION_CONFIG.document.ocrBatchSize,
+          hint: "控制每次提交给 OCR 引擎的图片页数。较小的值可以避免本地引擎过载和内存溢出，并能更及时地响应取消操作。",
+          keywords: "document ocr batch size 分批 大小 页数",
+          visible: (s) => s.document.mode === "ocr",
         },
         {
           id: "documentModel",

@@ -1463,6 +1463,21 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
       },
       {
+        id: "transImageOcrBatchSize",
+        label:
+          "OCR 分批大小 ({{ localSettings.transcription.image.ocrBatchSize }}切片/批)",
+        component: "SliderWithInput",
+        props: { min: 1, max: 10, step: 1 },
+        modelPath: "transcription.image.ocrBatchSize",
+        defaultValue: DEFAULT_SETTINGS.transcription.image.ocrBatchSize,
+        hint: "控制每次提交给 OCR 引擎的图片切片数。较小的值可以避免本地引擎过载和内存溢出，并能更及时地响应取消操作。",
+        keywords: "transcription image ocr batch size 分批 大小 切片数",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.image.mode === "ocr",
+        groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
+      },
+      {
         id: "transImageModel",
         label: "图片转写模型",
         component: LlmModelSelector,
@@ -1974,6 +1989,21 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
           (getSelectedDocumentOcrExtension(settings)?.languages.length ?? 0) >
             0,
         defaultValue: DEFAULT_SETTINGS.transcription.document.ocrPluginLanguage,
+        groupCollapsible: { name: "documentConfig", title: "文档转写配置" },
+      },
+      {
+        id: "transDocumentOcrBatchSize",
+        label:
+          "OCR 分批大小 ({{ localSettings.transcription.document.ocrBatchSize }}页/批)",
+        component: "SliderWithInput",
+        props: { min: 1, max: 10, step: 1 },
+        modelPath: "transcription.document.ocrBatchSize",
+        defaultValue: DEFAULT_SETTINGS.transcription.document.ocrBatchSize,
+        hint: "控制每次提交给 OCR 引擎的图片页数。较小的值可以避免本地引擎过载和内存溢出，并能更及时地响应取消操作。",
+        keywords: "transcription document ocr batch size 分批 大小 页数",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.document.mode === "ocr",
         groupCollapsible: { name: "documentConfig", title: "文档转写配置" },
       },
       {

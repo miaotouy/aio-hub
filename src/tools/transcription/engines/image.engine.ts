@@ -108,9 +108,33 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
         engineType: ocrEngineConfig.type,
       });
 
-      const results = await ocrRegistry.runOcr(blocks, ocrEngineConfig, {
-        signal: ctx.signal,
-      });
+      const batchSize = imageConfig.ocrBatchSize ?? 3;
+      const results: any[] = [];
+
+      for (let i = 0; i < blocks.length; i += batchSize) {
+        if (ctx.signal?.aborted) {
+          break;
+        }
+
+        const batchBlocks = blocks.slice(i, i + batchSize);
+        logger.info(
+          `正在识别第 ${Math.floor(i / batchSize) + 1}/${Math.ceil(blocks.length / batchSize)} 批 OCR (${batchBlocks.length} 个切片)...`,
+          {
+            assetId: task.assetId,
+          }
+        );
+
+        const batchResults = await ocrRegistry.runOcr(
+          batchBlocks,
+          ocrEngineConfig,
+          {
+            signal: ctx.signal,
+          }
+        );
+
+        results.push(...batchResults);
+      }
+
       const failedResults = results.filter((r) => r.status === "error");
       const cancelledResults = results.filter((r) => r.status === "cancelled");
       const text = results
@@ -118,7 +142,7 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
         .map((r) => r.text.trim())
         .join("\n\n");
 
-      if (cancelledResults.length > 0 && !text) {
+      if ((ctx.signal?.aborted || cancelledResults.length > 0) && !text) {
         throw new Error("OCR 识别已取消");
       }
 

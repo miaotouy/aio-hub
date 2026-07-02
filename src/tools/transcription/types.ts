@@ -68,6 +68,8 @@ export interface ImageSpecificConfig extends TypeSpecificConfig {
   ocrPluginModelProfile?: string;
   /** OCR 插件识别语言 */
   ocrPluginLanguage?: string;
+  /** OCR 模式分批识别大小 */
+  ocrBatchSize?: number;
 }
 
 /**
@@ -84,6 +86,8 @@ export interface DocumentSpecificConfig extends TypeSpecificConfig {
   ocrPluginModelProfile?: string;
   /** OCR 插件识别语言 */
   ocrPluginLanguage?: string;
+  /** OCR 模式分批识别大小 */
+  ocrBatchSize?: number;
 }
 
 /**

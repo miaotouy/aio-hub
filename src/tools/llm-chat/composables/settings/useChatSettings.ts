@@ -8,7 +8,8 @@ import { ref } from "vue";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
-import { DEFAULT_SETTINGS, type ChatSettings } from "../../types/settings";
+import { type ChatSettings } from "../../types/settings";
+import { DEFAULT_SETTINGS } from "../../config/defaultSettings";
 
 const logger = createModuleLogger("useChatSettings");
 const moduleErrorHandler = createModuleErrorHandler("useChatSettings");

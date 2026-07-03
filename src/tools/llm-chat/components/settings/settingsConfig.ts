@@ -21,7 +21,7 @@ import type { SettingsSection } from "@/types/settings-renderer";
 import type { ChatSettings } from "../../types/settings";
 import { availableVersions } from "@/tools/rich-text-renderer/stores/store";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
-import { DEFAULT_SETTINGS } from "../../types/settings";
+import { DEFAULT_SETTINGS } from "../../config/defaultSettings";
 import { useOcrExtensions } from "@/tools/smart-ocr/platform";
 import type { OcrExtension } from "@/tools/smart-ocr/platform";
 

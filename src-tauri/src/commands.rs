@@ -29,6 +29,7 @@ pub mod ffmpeg_processor;
 pub mod file_operations;
 pub mod font_list;
 pub mod git_analyzer;
+pub mod git_committer;
 pub mod llm_inspector;
 pub mod llm_proxy;
 pub mod llmchat_search;
@@ -63,6 +64,7 @@ pub use ffmpeg_processor::*;
 pub use file_operations::*;
 pub use font_list::*;
 pub use git_analyzer::*;
+pub use git_committer::*;
 pub use llm_inspector::*;
 pub use llm_proxy::*;
 pub use llmchat_search::*;
@@ -184,6 +186,14 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         git_enrich_commits_stream,
         git_cancel_enrich,
         git_cancel_load,
+        // Git 提交助手命令
+        git_get_repo_status,
+        git_get_file_diff,
+        git_stage_files,
+        git_unstage_files,
+        git_commit,
+        git_push,
+        git_pull,
         // OCR命令
         native_ocr,
         // 外部播放器透明弹幕覆盖层命令 (Windows)

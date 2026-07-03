@@ -62,6 +62,7 @@ export const DEFAULT_TOOLS_ORDER = [
   "/api-tester",
   "/llm-inspector",
   "/git-analyzer",
+  "/git-committer",
   "/system-pulse",
   "/token-calculator",
   "/embedding-playground",

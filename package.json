@@ -64,7 +64,9 @@
     "check:backend": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings",
     "check:mobile": "cd mobile ; bun run check",
     "check:mobile:frontend": "cd mobile ; bun run check:frontend",
-    "check:mobile:backend": "cd mobile ; bun run check:backend"
+    "check:mobile:backend": "cd mobile ; bun run check:backend",
+    "license:add": "bun run scripts/add-license.ts",
+    "license:check": "bun run scripts/add-license.ts --dry-run"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.1",

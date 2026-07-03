@@ -141,8 +141,7 @@ export function useMediaGenerationManager() {
 
   const collectSingleTurnReferenceAssets = (
     contextMessages: MediaMessage[],
-    task: MediaTask,
-    autoIncludeLastResult: boolean
+    task: MediaTask
   ): Asset[] => {
     const { model } = resolveModelSelection(
       task.input.profileId,
@@ -161,7 +160,8 @@ export function useMediaGenerationManager() {
       );
     }
 
-    if (!autoIncludeLastResult) return [];
+    // 如果用户关闭了参考上一轮，绝对不自动带入
+    if (!task.input.includeContext) return [];
 
     const lastUserIndex = findLastIndex(
       contextMessages,
@@ -335,8 +335,7 @@ export function useMediaGenerationManager() {
    */
   const applyContextRules = (
     contextMessages: MediaMessage[],
-    task: MediaTask,
-    autoIncludeLastResult: boolean = false
+    task: MediaTask
   ): MediaMessage[] => {
     let finalContext = [...contextMessages];
     const shouldIncludeContext = task.input.includeContext;
@@ -353,32 +352,7 @@ export function useMediaGenerationManager() {
         (m: MediaMessage) => m.role === "user"
       );
       if (lastUserIndex !== -1) {
-        const lastUser = finalContext[lastUserIndex];
-        const { model } = resolveModelSelection(
-          task.input.profileId,
-          task.input.modelId
-        );
-        const hasVisualInput = supportsReferenceInput(task, model);
-
-        if (autoIncludeLastResult && hasVisualInput && lastUserIndex > 0) {
-          const prevAssistant = finalContext[lastUserIndex - 1];
-          if (prevAssistant.role === "assistant") {
-            const resultAssets = getMessageResultAssets(prevAssistant);
-            if (resultAssets.length > 0) {
-              const augmentedUser = {
-                ...lastUser,
-                attachments: [...(lastUser.attachments || []), ...resultAssets],
-              };
-              finalContext = [augmentedUser];
-            } else {
-              finalContext = [lastUser];
-            }
-          } else {
-            finalContext = [lastUser];
-          }
-        } else {
-          finalContext = [lastUser];
-        }
+        finalContext = [finalContext[lastUserIndex]];
       }
     }
     return finalContext;
@@ -441,11 +415,7 @@ export function useMediaGenerationManager() {
         );
 
         if (canUseConversationContext) {
-          finalContext = applyContextRules(
-            filteredContext,
-            task,
-            config?.autoIncludeLastResult
-          );
+          finalContext = applyContextRules(filteredContext, task);
         } else if (task.input.includeContext) {
           logger.debug("当前生成端点不支持多轮上下文，已降级为单轮请求", {
             profileType: selectedProfile?.type,
@@ -456,11 +426,7 @@ export function useMediaGenerationManager() {
 
       const singleTurnReferenceAttachments = canUseConversationContext
         ? undefined
-        : (collectSingleTurnReferenceAssets(
-            filteredContext,
-            task,
-            config?.autoIncludeLastResult === true
-          )
+        : (collectSingleTurnReferenceAssets(filteredContext, task)
             .map((asset) => assetToInputAttachment(asset))
             .filter(Boolean) as MediaGenerationOptions["inputAttachments"]);
 

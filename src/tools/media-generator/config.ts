@@ -216,7 +216,6 @@ export const DEFAULT_MEDIA_GENERATOR_SETTINGS: MediaGeneratorSettings = {
   autoOpenAsset: false,
   maxConcurrentTasks: 3,
   enableNotifications: true,
-  autoIncludeLastResult: true,
   topicNaming: {
     modelCombo: "",
     prompt: `
@@ -560,15 +559,6 @@ export const mediaGeneratorSettingsConfig: SettingsSection<MediaGeneratorSetting
           modelPath: "requestSettings.timeout",
           hint: "媒体生成请求的超时时间。图片/视频生成通常较慢，建议设置在 5 分钟以上。",
           keywords: "request timeout 请求 超时",
-        },
-        {
-          id: "autoIncludeLastResult",
-          label: "自动关联上一轮结果",
-          layout: "inline",
-          component: "ElSwitch",
-          modelPath: "autoIncludeLastResult",
-          hint: "单轮模式下，如果模型支持视觉输入，自动将上一轮生成结果作为参考图带入",
-          keywords: "auto include last result 自动 关联 结果 参考图 vlm",
         },
         {
           id: "maxRetries",

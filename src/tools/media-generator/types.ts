@@ -265,8 +265,6 @@ export interface MediaGeneratorSettings {
   maxConcurrentTasks: number;
   /** 是否启用通知 */
   enableNotifications: boolean;
-  /** 单轮模式下是否自动带入上一轮生成结果作为参考图 (VLM 增强) */
-  autoIncludeLastResult: boolean;
   /** 提示词优化配置 */
   promptOptimization: PromptOptimizationConfig;
   /** 左侧面板折叠状态 */

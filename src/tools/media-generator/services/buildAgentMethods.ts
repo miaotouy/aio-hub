@@ -243,7 +243,6 @@ function addMusicParameters(
 }
 
 function buildParameters(
-  model: LlmModelInfo,
   supportedMediaTypes: MediaTaskType[],
   mediaGenParams?: MediaGenParamRules
 ): AgentMethodParameter[] {
@@ -760,7 +759,6 @@ export function buildAgentMethods(
         visibleModel.paramNotes
       ),
       parameters: buildParameters(
-        visibleModel.model,
         visibleModel.supportedMediaTypes,
         mediaGenParams
       ),

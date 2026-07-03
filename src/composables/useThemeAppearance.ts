@@ -557,7 +557,7 @@ function _updateCssVariables(settings: AppearanceSettings) {
     root.style.removeProperty("--scrollbar-track-color");
   }
 
-  logger.debug("CSS 变量已更新", { settings });
+  logger.debug("CSS 变量已更新", { settings }, true);
 }
 
 function _stopSlideshow() {

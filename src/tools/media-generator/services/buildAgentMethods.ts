@@ -497,10 +497,6 @@ function buildParameters(
   addSpeechParameters(parameters, supportedMediaTypes);
   addMusicParameters(parameters, supportedMediaTypes);
 
-  logger.debug("已构建媒体生成 Agent 参数", {
-    modelId: model.id,
-    count: parameters.length,
-  });
   return parameters;
 }
 
@@ -781,6 +777,18 @@ export function buildAgentMethods(
     });
     handlers[methodName] = createHandler(visibleModel);
   }
+
+  logger.debug(
+    "已批量构建媒体生成 Agent 参数",
+    {
+      modelCount: visibleModels.length,
+      methods: methods.map((m) => ({
+        name: m.name,
+        displayName: m.displayName,
+      })),
+    },
+    true
+  );
 
   return { methods, handlers };
 }

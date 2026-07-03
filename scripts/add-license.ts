@@ -60,7 +60,8 @@ function scanDirectory(dir: string, fileList: string[] = []): string[] {
         file === "node_modules" ||
         file === "dist" ||
         file === "target" ||
-        file === ".git"
+        file === ".git" ||
+        file === "mobile"
       ) {
         continue;
       }
@@ -82,11 +83,9 @@ function scanDirectory(dir: string, fileList: string[] = []): string[] {
 async function main() {
   const args = process.argv.slice(2);
   const isDryRun = args.includes("--dry-run");
-
   const scanDirs = [
     path.join(process.cwd(), "src"),
     path.join(process.cwd(), "src-tauri/src"),
-    path.join(process.cwd(), "mobile/src"),
     path.join(process.cwd(), "scripts"),
   ];
 

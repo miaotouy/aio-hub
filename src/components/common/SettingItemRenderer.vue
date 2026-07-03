@@ -74,7 +74,6 @@
           :class="componentClasses"
           :model-value="modelValue"
           @update:model-value="handleUpdate"
-          @update:modelValue="handleUpdate"
           v-bind="resolvedProps"
         >
           <!-- RadioGroup options -->
@@ -177,7 +176,6 @@
           :class="componentClasses"
           :model-value="modelValue"
           @update:model-value="handleUpdate"
-          @update:modelValue="handleUpdate"
           v-bind="resolvedProps"
         />
         <div

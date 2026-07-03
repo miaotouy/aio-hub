@@ -166,11 +166,19 @@ pub async fn execute_sidecar(
     let plugin_id_clone = request.plugin_id.clone();
     let app_clone = app.clone();
     let stdout_handle = tokio::spawn(async move {
-        let reader = BufReader::new(stdout);
-        let mut lines = reader.lines();
+        let mut reader = BufReader::new(stdout);
+        let mut buf = Vec::new();
         let mut last_result: Option<String> = None;
 
-        while let Ok(Some(line)) = lines.next_line().await {
+        while let Ok(n) = reader.read_until(b'\n', &mut buf).await {
+            if n == 0 {
+                break; // EOF
+            }
+            let line = String::from_utf8_lossy(&buf)
+                .trim_end_matches(['\r', '\n'])
+                .to_string();
+            buf.clear();
+
             log::info!("[SIDECAR] stdout: {}", line);
 
             // 尝试解析为 JSON 事件
@@ -210,10 +218,18 @@ pub async fn execute_sidecar(
     let plugin_id_clone = request.plugin_id.clone();
     let app_clone = app.clone();
     let stderr_handle = tokio::spawn(async move {
-        let reader = BufReader::new(stderr);
-        let mut lines = reader.lines();
+        let mut reader = BufReader::new(stderr);
+        let mut buf = Vec::new();
 
-        while let Ok(Some(line)) = lines.next_line().await {
+        while let Ok(n) = reader.read_until(b'\n', &mut buf).await {
+            if n == 0 {
+                break; // EOF
+            }
+            let line = String::from_utf8_lossy(&buf)
+                .trim_end_matches(['\r', '\n'])
+                .to_string();
+            buf.clear();
+
             log::info!("[SIDECAR] stderr: {}", line);
 
             let event = SidecarOutputEvent {

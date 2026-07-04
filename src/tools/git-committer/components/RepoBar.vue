@@ -2,13 +2,12 @@
   <div
     class="repo-bar-container"
     :class="{ 'is-pinned': isPinned, 'is-hovered': isHovered }"
-    @mouseenter="isHovered = true"
-    @mouseleave="isHovered = false"
+    @mouseenter="handleMouseEnter"
+    @mouseleave="handleMouseLeave"
   >
     <div class="repo-bar-content">
       <!-- 顶部固定按钮与标题 -->
       <div class="repo-bar-header">
-        <span v-if="isPinned || isHovered" class="header-title">代码仓库</span>
         <el-tooltip
           :content="isPinned ? '取消固定仓库栏' : '固定仓库栏'"
           placement="right"
@@ -19,9 +18,10 @@
             class="pin-btn"
             @click="$emit('toggle-pin')"
           >
-            <component :is="isPinned ? PinOff : Pin" class="w-3.5 h-3.5" />
+            <component :is="isPinned ? PinOff : Pin" :size="14" />
           </el-button>
         </el-tooltip>
+        <span v-if="isPinned || isHovered" class="header-title">代码仓库</span>
       </div>
 
       <!-- 仓库列表 -->
@@ -35,7 +35,7 @@
         >
           <div class="repo-avatar-wrapper">
             <div class="panorama-icon-wrapper">
-              <LayoutGrid class="w-5 h-5 text-primary" />
+              <LayoutGrid :size="16" class="text-primary" />
             </div>
             <!-- 聚合状态徽章 -->
             <div class="badges-container">
@@ -48,7 +48,10 @@
             </div>
           </div>
 
-          <div v-if="isPinned || isHovered" class="repo-info">
+          <div
+            class="repo-info"
+            :class="{ 'show-info': isPinned || isHovered }"
+          >
             <div class="repo-name">全景模式</div>
             <div class="repo-branch">所有仓库看板</div>
           </div>
@@ -84,7 +87,10 @@
           </div>
 
           <!-- 仓库详细信息（展开时显示） -->
-          <div v-if="isPinned || isHovered" class="repo-info">
+          <div
+            class="repo-info"
+            :class="{ 'show-info': isPinned || isHovered }"
+          >
             <div class="repo-name" :title="repo.alias || repo.name">
               {{ repo.alias || repo.name }}
             </div>
@@ -97,17 +103,25 @@
 
       <!-- 底部操作区 -->
       <div class="repo-bar-footer">
-        <el-tooltip content="刷新所有仓库状态" placement="right">
-          <el-button circle :loading="isRefreshing" @click="refreshAllStatuses">
-            <RefreshCw v-if="!isRefreshing" class="w-4 h-4" />
-          </el-button>
-        </el-tooltip>
+        <div class="footer-item">
+          <el-tooltip content="刷新所有仓库状态" placement="right">
+            <el-button
+              circle
+              :loading="isRefreshing"
+              @click="refreshAllStatuses"
+            >
+              <RefreshCw v-if="!isRefreshing" :size="16" />
+            </el-button>
+          </el-tooltip>
+        </div>
 
-        <el-tooltip content="仓库管理与设置" placement="right">
-          <el-button circle @click="$emit('open-settings')">
-            <Settings class="w-4 h-4" />
-          </el-button>
-        </el-tooltip>
+        <div class="footer-item">
+          <el-tooltip content="仓库管理与设置" placement="right">
+            <el-button circle @click="$emit('open-settings')">
+              <Settings :size="16" />
+            </el-button>
+          </el-tooltip>
+        </div>
       </div>
     </div>
   </div>
@@ -138,6 +152,19 @@ defineEmits<{
 }>();
 
 const isHovered = ref(false);
+let hoverTimeout: number | null = null;
+
+const handleMouseEnter = () => {
+  if (hoverTimeout) clearTimeout(hoverTimeout);
+  hoverTimeout = window.setTimeout(() => {
+    isHovered.value = true;
+  }, 200); // 悬停展开加 200ms 延迟
+};
+
+const handleMouseLeave = () => {
+  if (hoverTimeout) clearTimeout(hoverTimeout);
+  isHovered.value = false;
+};
 
 // ===== 状态获取辅助函数 =====
 const getUncommittedCount = (path: string) => {
@@ -183,7 +210,6 @@ const getAllAheadCount = () => {
   transition: width 0.2s ease;
   border-right: var(--border-width) solid var(--border-color);
   background-color: var(--sidebar-bg);
-  backdrop-filter: blur(var(--ui-blur));
   z-index: 100;
 }
 
@@ -213,7 +239,7 @@ const getAllAheadCount = () => {
   background-color: var(--sidebar-bg);
   backdrop-filter: blur(var(--ui-blur));
   border-right: var(--border-width) solid var(--border-color);
-  box-shadow: 4px 0 16px rgba(0, 0, 0, 0.05);
+  box-shadow: 4px 0 16px rgba(0, 0, 0, 0.15);
 }
 
 /* 头部 */
@@ -221,20 +247,31 @@ const getAllAheadCount = () => {
   height: 48px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 0 16px;
   border-bottom: var(--border-width) solid var(--border-color);
   flex-shrink: 0;
+  gap: 12px;
 }
 
 .header-title {
   font-size: 14px;
   font-weight: 600;
   color: var(--el-text-color-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.repo-bar-container.is-pinned .header-title,
+.repo-bar-container.is-hovered .header-title {
+  opacity: 1;
+  /* 延迟显示文字，等宽度展开得差不多了再淡入，避免竖排抖动 */
+  transition-delay: 0.1s;
 }
 
 .pin-btn {
-  margin-left: auto;
+  flex-shrink: 0;
 }
 
 /* 仓库列表 */
@@ -354,6 +391,20 @@ const getAllAheadCount = () => {
   flex-direction: column;
   overflow: hidden;
   flex: 1;
+  opacity: 0;
+  width: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.15s ease,
+    width 0.15s ease;
+}
+
+.repo-info.show-info {
+  opacity: 1;
+  width: auto;
+  pointer-events: auto;
+  /* 延迟显示文字，等宽度展开得差不多了再淡入，避免竖排抖动 */
+  transition-delay: 0.1s;
 }
 
 .repo-name {
@@ -377,15 +428,23 @@ const getAllAheadCount = () => {
 .repo-bar-footer {
   padding: 12px 16px;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   justify-content: center;
   gap: 12px;
   border-top: var(--border-width) solid var(--border-color);
   flex-shrink: 0;
 }
 
-.repo-bar-container.is-pinned .repo-bar-footer,
-.repo-bar-container.is-hovered .repo-bar-footer {
-  justify-content: flex-start;
+.footer-item {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.footer-item :deep(.el-button) {
+  margin: 0;
 }
 </style>

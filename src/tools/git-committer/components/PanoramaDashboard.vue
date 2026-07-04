@@ -3,7 +3,7 @@
     <!-- 顶部全局操作栏 -->
     <div class="global-action-bar">
       <div class="title-section">
-        <LayoutGrid class="w-5 h-5 text-primary mr-2" />
+        <LayoutGrid :size="18" class="text-primary title-icon" />
         <span class="title">全景模式看板</span>
         <span class="subtitle">聚合管理所有仓库的变更与提交</span>
       </div>
@@ -17,7 +17,7 @@
             :loading="isGlobalStaging"
             @click="handleStageAllRepos"
           >
-            <Plus class="w-3.5 h-3.5 mr-1" />
+            <Plus :size="12" class="btn-icon" />
             一键暂存所有
           </el-button>
           <el-button
@@ -27,7 +27,7 @@
             :loading="isGlobalGenerating"
             @click="handleGenerateAllMessages"
           >
-            <Sparkles class="w-3.5 h-3.5 mr-1" />
+            <Sparkles :size="12" class="btn-icon" />
             一键 AI 生成
           </el-button>
           <el-button
@@ -36,7 +36,7 @@
             :loading="isGlobalCommitting"
             @click="handleCommitAllRepos"
           >
-            <Check class="w-3.5 h-3.5 mr-1" />
+            <Check :size="12" class="btn-icon" />
             一键提交所有
           </el-button>
           <el-button
@@ -45,7 +45,7 @@
             :loading="isGlobalPushing"
             @click="handlePushAllRepos"
           >
-            <ArrowUp class="w-3.5 h-3.5 mr-1" />
+            <ArrowUp :size="12" class="btn-icon" />
             一键推送所有
           </el-button>
         </el-button-group>
@@ -56,9 +56,9 @@
             size="small"
             :loading="isRefreshing"
             @click="refreshAllStatuses"
-            class="ml-2"
+            class="refresh-btn"
           >
-            <RefreshCw v-if="!isRefreshing" class="w-3.5 h-3.5" />
+            <RefreshCw v-if="!isRefreshing" :size="12" />
           </el-button>
         </el-tooltip>
       </div>
@@ -67,9 +67,9 @@
     <!-- 仓库卡片网格 -->
     <div class="dashboard-content">
       <div v-if="activeRepos.length === 0" class="empty-state">
-        <CheckCircle2 class="w-16 h-16 text-success mb-4" />
-        <h3 class="text-lg font-semibold mb-2">所有仓库都很干净</h3>
-        <p class="text-sm text-secondary">
+        <CheckCircle2 :size="64" class="text-success empty-icon" />
+        <h3 class="empty-title">所有仓库都很干净</h3>
+        <p class="text-secondary empty-desc">
           当前没有检测到任何未提交的更改或未推送的提交。
         </p>
       </div>
@@ -89,7 +89,7 @@
                   {{ repo.alias || repo.name }}
                 </span>
                 <span class="repo-branch" :title="getBranchName(repo.path)">
-                  <GitBranch class="w-3 h-3 mr-1" />
+                  <GitBranch :size="12" class="branch-icon" />
                   {{ getBranchName(repo.path) }}
                 </span>
               </div>
@@ -104,7 +104,7 @@
                   :loading="repoLoadingStates[repo.path]?.pulling"
                   @click="handlePullRepo(repo.path)"
                 >
-                  <ArrowDown class="w-3 h-3" />
+                  <ArrowDown :size="12" />
                 </el-button>
               </el-tooltip>
               <el-tooltip content="推送" placement="top">
@@ -115,12 +115,12 @@
                   @click="handlePushRepo(repo.path)"
                   :disabled="getAheadCount(repo.path) === 0"
                 >
-                  <ArrowUp class="w-3 h-3" />
+                  <ArrowUp :size="12" />
                 </el-button>
               </el-tooltip>
               <el-tooltip content="刷新" placement="top">
                 <el-button circle size="small" @click="refreshRepo(repo.path)">
-                  <RefreshCw class="w-3 h-3" />
+                  <RefreshCw :size="12" />
                 </el-button>
               </el-tooltip>
             </div>
@@ -142,7 +142,7 @@
                 link
                 type="primary"
                 size="small"
-                class="ml-2"
+                class="action-btn"
                 @click="handleUnstageAllFiles(repo.path)"
               >
                 全部取消
@@ -162,7 +162,7 @@
                 link
                 type="primary"
                 size="small"
-                class="ml-2"
+                class="action-btn"
                 @click="handleStageAllFiles(repo.path)"
               >
                 全部暂存
@@ -188,7 +188,7 @@
                 @click="handleGenerateMessageForRepo(repo.path)"
                 :disabled="!canGenerateMessage(repo.path)"
               >
-                <Sparkles class="w-3 h-3 mr-1" />
+                <Sparkles :size="12" class="ai-icon" />
                 AI 生成
               </el-button>
             </div>
@@ -522,6 +522,45 @@ onMounted(() => {
 .title-section {
   display: flex;
   align-items: center;
+}
+
+.title-icon {
+  margin-right: 8px;
+}
+
+.btn-icon {
+  margin-right: 4px;
+}
+
+.refresh-btn {
+  margin-left: 8px;
+}
+
+.empty-icon {
+  margin-bottom: 16px;
+}
+
+.empty-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--el-text-color-primary);
+}
+
+.empty-desc {
+  font-size: 14px;
+}
+
+.branch-icon {
+  margin-right: 4px;
+}
+
+.action-btn {
+  margin-left: 8px;
+}
+
+.ai-icon {
+  margin-right: 4px;
 }
 
 .title {

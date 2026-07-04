@@ -3,13 +3,13 @@
     <!-- 上半部分：简易 Commit 历史树 -->
     <div class="section-wrapper history-section">
       <div class="section-header">
-        <History class="w-4 h-4 mr-1.5" />
+        <History :size="16" class="history-icon" />
         <span class="section-title">最近提交历史</span>
       </div>
       <div class="section-content">
         <div v-if="isLoadingHistory" class="loading-wrapper">
           <el-icon class="is-loading" :size="18"><Loading /></el-icon>
-          <span class="ml-2 text-xs text-secondary">正在加载历史...</span>
+          <span class="loading-text text-secondary">正在加载历史...</span>
         </div>
         <div v-else-if="commits.length === 0" class="empty-tip">
           暂无提交记录
@@ -48,7 +48,7 @@
     <!-- 下半部分：提交统计图表 -->
     <div class="section-wrapper chart-section">
       <div class="section-header">
-        <BarChart3 class="w-4 h-4 mr-1.5" />
+        <BarChart3 :size="16" class="chart-icon" />
         <span class="section-title">近 14 天提交频次</span>
       </div>
       <div class="section-content">
@@ -132,7 +132,6 @@ const formatTime = (dateStr: string) => {
   flex-direction: column;
   height: 100%;
   background-color: var(--sidebar-bg);
-  backdrop-filter: blur(var(--ui-blur));
   flex-shrink: 0;
   border-left: var(--border-width) solid var(--border-color);
 }
@@ -159,6 +158,19 @@ const formatTime = (dateStr: string) => {
   align-items: center;
   margin-bottom: 12px;
   flex-shrink: 0;
+}
+
+.history-icon {
+  margin-right: 6px;
+}
+
+.chart-icon {
+  margin-right: 6px;
+}
+
+.loading-text {
+  margin-left: 8px;
+  font-size: 12px;
 }
 
 .section-title {

@@ -34,7 +34,7 @@
               class="tab-close"
               @click.stop="closeDiffTab(tab.path, tab.isStaged)"
             >
-              <X class="w-3 h-3" />
+              <X :size="12" />
             </span>
           </div>
         </div>
@@ -45,10 +45,10 @@
         <template v-if="activeTab">
           <!-- 二进制文件降级提示 -->
           <div v-if="activeTab.isBinary" class="binary-fallback-card">
-            <FileCode class="w-12 h-12 text-placeholder mb-4" />
-            <h3 class="text-lg font-semibold mb-2">二进制文件无法查看差异</h3>
-            <p class="text-sm text-secondary mb-4">{{ activeTab.path }}</p>
-            <div class="flex gap-4">
+            <FileCode :size="48" class="text-placeholder binary-icon" />
+            <h3 class="binary-title">二进制文件无法查看差异</h3>
+            <p class="text-secondary binary-desc">{{ activeTab.path }}</p>
+            <div class="binary-actions">
               <el-button
                 v-if="activeTab.isStaged"
                 type="danger"
@@ -71,7 +71,7 @@
           <!-- 文本 Diff 编辑器 -->
           <div v-else-if="activeTab.loading" class="loading-wrapper">
             <el-icon class="is-loading" :size="24"><Loading /></el-icon>
-            <span class="ml-2 text-sm text-secondary">正在加载差异...</span>
+            <span class="loading-text text-secondary">正在加载差异...</span>
           </div>
 
           <RichCodeEditor
@@ -88,9 +88,9 @@
 
         <!-- 空状态引导页 -->
         <div v-else class="empty-guide">
-          <GitCommitHorizontal class="w-16 h-16 text-placeholder mb-4" />
-          <h2 class="text-xl font-semibold mb-2">AI 提交助手</h2>
-          <p class="text-sm text-secondary max-w-md text-center mb-6">
+          <GitCommitHorizontal :size="64" class="text-placeholder guide-icon" />
+          <h2 class="guide-title">AI 提交助手</h2>
+          <p class="text-secondary max-w-md text-center guide-desc">
             在左侧选择文件查看代码差异，暂存需要提交的更改，然后让 AI
             帮您生成完美的提交信息。
           </p>
@@ -419,6 +419,11 @@ const getFileStatus = (path: string, isStaged: boolean): string => {
   z-index: 5;
 }
 
+.loading-text {
+  margin-left: 8px;
+  font-size: 14px;
+}
+
 /* 二进制降级卡片 */
 .binary-fallback-card {
   position: absolute;
@@ -430,6 +435,27 @@ const getFileStatus = (path: string, isStaged: boolean): string => {
   padding: 24px;
   background-color: var(--card-bg);
   z-index: 5;
+}
+
+.binary-icon {
+  margin-bottom: 16px;
+}
+
+.binary-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--el-text-color-primary);
+}
+
+.binary-desc {
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.binary-actions {
+  display: flex;
+  gap: 16px;
 }
 
 .text-placeholder {
@@ -444,6 +470,22 @@ const getFileStatus = (path: string, isStaged: boolean): string => {
   justify-content: center;
   height: 100%;
   padding: 24px;
+}
+
+.guide-icon {
+  margin-bottom: 16px;
+}
+
+.guide-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--el-text-color-primary);
+}
+
+.guide-desc {
+  font-size: 14px;
+  margin-bottom: 24px;
 }
 
 .shortcut-tips {

@@ -67,7 +67,7 @@
         <el-button circle>
           <component
             :is="isRightSidebarExpanded ? PanelRightClose : PanelRight"
-            class="w-4 h-4"
+            :size="16"
           />
         </el-button>
       </el-tooltip>
@@ -149,9 +149,11 @@ onMounted(async () => {
   display: flex;
   width: 100%;
   height: 100%;
-  background-color: transparent;
-  position: relative;
+  background-color: var(--container-bg);
+  border-radius: 8px;
   overflow: hidden;
+  backdrop-filter: blur(var(--ui-blur));
+  position: relative;
 }
 
 .main-content-wrapper {

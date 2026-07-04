@@ -2,8 +2,8 @@
   <div class="git-committer-settings">
     <!-- 顶部标题栏 -->
     <div class="settings-header">
-      <h2 class="text-lg font-semibold flex items-center">
-        <Settings class="w-5 h-5 mr-2 text-primary" />
+      <h2 class="settings-title">
+        <Settings :size="18" class="settings-icon" />
         AI 提交助手设置
       </h2>
       <el-button type="primary" size="small" @click="$emit('close')">
@@ -21,16 +21,20 @@
             size="small"
             @click="showAddRepoDialog = true"
           >
-            <Plus class="w-3.5 h-3.5 mr-1" />
+            <Plus :size="14" />
             添加仓库
           </el-button>
         </div>
 
         <!-- 拖拽添加区域 -->
-        <DropZone variant="input" class="mb-4" @drop="handleFolderDrop">
+        <DropZone
+          variant="input"
+          class="drop-zone-wrapper"
+          @drop="handleFolderDrop"
+        >
           <div class="drop-zone-inner">
-            <FolderOpen class="w-8 h-8 text-placeholder mb-2" />
-            <p class="text-xs text-secondary">
+            <FolderOpen :size="32" class="text-placeholder" />
+            <p class="text-secondary drop-desc">
               支持直接拖放本地 Git 项目文件夹到此处快速添加
             </p>
           </div>
@@ -45,7 +49,12 @@
             <div class="repo-info">
               <div class="repo-name-row">
                 <span class="repo-name">{{ repo.name }}</span>
-                <el-tag v-if="repo.alias" size="small" type="info" class="ml-2">
+                <el-tag
+                  v-if="repo.alias"
+                  size="small"
+                  type="info"
+                  class="alias-tag"
+                >
                   {{ repo.alias }}
                 </el-tag>
               </div>
@@ -86,7 +95,7 @@
         <h3 class="section-title">AI 偏好设置</h3>
         <el-form label-position="top" size="small">
           <el-form-item label="默认 AI 模型">
-            <LlmModelSelector v-model="defaultModel" class="w-full" />
+            <LlmModelSelector v-model="defaultModel" class="model-selector" />
           </el-form-item>
           <el-form-item label="System Prompt (系统提示词)">
             <el-input
@@ -147,7 +156,7 @@
     >
       <el-form label-position="top" size="small">
         <el-form-item label="仓库绝对路径" required>
-          <div class="flex gap-2 w-full">
+          <div class="path-input-row">
             <el-input
               v-model="newRepoPath"
               placeholder="请输入或选择本地 Git 仓库的绝对路径"
@@ -160,7 +169,7 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <div class="flex justify-end gap-2">
+        <div class="dialog-footer">
           <el-button size="small" @click="showAddRepoDialog = false"
             >取消</el-button
           >
@@ -326,6 +335,19 @@ const showInFileManager = async (path: string) => {
   flex-shrink: 0;
 }
 
+.settings-title {
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  margin: 0;
+}
+
+.settings-icon {
+  color: var(--el-color-primary);
+  margin-right: 8px;
+}
+
 .settings-content {
   flex: 1;
   overflow-y: auto;
@@ -358,12 +380,21 @@ const showInFileManager = async (path: string) => {
 }
 
 /* 拖放区域 */
+.drop-zone-wrapper {
+  margin-bottom: 16px;
+}
+
 .drop-zone-inner {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 16px;
+}
+
+.drop-desc {
+  font-size: 12px;
+  margin-top: 8px;
 }
 
 .text-placeholder {
@@ -402,6 +433,26 @@ const showInFileManager = async (path: string) => {
 .repo-name-row {
   display: flex;
   align-items: center;
+}
+
+.alias-tag {
+  margin-left: 8px;
+}
+
+.model-selector {
+  width: 100%;
+}
+
+.path-input-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .repo-name {

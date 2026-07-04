@@ -10,7 +10,7 @@
           {{ currentRepo?.alias || currentRepo?.name }}
         </div>
         <div class="repo-branch" :title="currentStatus?.branch">
-          <GitBranch class="w-3.5 h-3.5 inline mr-1" />
+          <GitBranch :size="14" class="branch-icon" />
           {{ currentStatus?.branch || "HEAD" }}
         </div>
       </div>
@@ -23,7 +23,7 @@
             :loading="isPulling"
             @click="handlePull"
           >
-            <ArrowDown v-if="!isPulling" class="w-3.5 h-3.5" />
+            <ArrowDown v-if="!isPulling" :size="14" />
           </el-button>
         </el-tooltip>
         <el-tooltip content="推送本地提交" placement="bottom">
@@ -33,7 +33,7 @@
             :loading="isPushing"
             @click="handlePush"
           >
-            <ArrowUp v-if="!isPushing" class="w-3.5 h-3.5" />
+            <ArrowUp v-if="!isPushing" :size="14" />
           </el-button>
         </el-tooltip>
         <el-tooltip content="刷新状态" placement="bottom">
@@ -43,7 +43,7 @@
             :loading="isRefreshing"
             @click="refreshCurrentStatus"
           >
-            <RefreshCw v-if="!isRefreshing" class="w-3.5 h-3.5" />
+            <RefreshCw v-if="!isRefreshing" :size="14" />
           </el-button>
         </el-tooltip>
       </div>
@@ -60,7 +60,7 @@
           :loading="isGenerating"
           @click="handleGenerateCommitMessage"
         >
-          <Sparkles class="w-3.5 h-3.5 mr-1" />
+          <Sparkles :size="14" class="ai-icon" />
           AI 生成
         </el-button>
       </div>
@@ -77,18 +77,18 @@
       </div>
 
       <div class="commit-btn-row">
-        <el-button-group class="w-full flex">
+        <el-button-group class="commit-btn-group">
           <el-button
             type="primary"
-            class="flex-1"
+            class="commit-main-btn"
             :loading="isCommitting"
             @click="handleCommit"
           >
             {{ commitActionText }}
           </el-button>
           <el-dropdown trigger="click" @command="handleCommitCommand">
-            <el-button type="primary" class="px-2">
-              <ChevronDown class="w-4 h-4" />
+            <el-button type="primary" class="commit-dropdown-btn">
+              <ChevronDown :size="16" />
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
@@ -117,14 +117,14 @@
                 :value="currentStatus?.staged.length || 0"
                 :max="99"
                 type="info"
-                class="ml-2"
+                class="badge-margin"
               />
               <el-button
                 v-if="currentStatus?.staged.length"
                 link
                 type="primary"
                 size="small"
-                class="ml-auto mr-2"
+                class="action-all-btn"
                 @click.stop="unstageAll"
               >
                 全部取消
@@ -152,7 +152,7 @@
                 class="action-btn"
                 @click.stop="handleUnstageFile(file.path)"
               >
-                <Minus class="w-3.5 h-3.5" />
+                <Minus :size="12" />
               </el-button>
             </div>
             <div v-if="!currentStatus?.staged.length" class="empty-tip">
@@ -170,14 +170,14 @@
                 :value="currentStatus?.unstaged.length || 0"
                 :max="99"
                 type="warning"
-                class="ml-2"
+                class="badge-margin"
               />
               <el-button
                 v-if="currentStatus?.unstaged.length"
                 link
                 type="primary"
                 size="small"
-                class="ml-auto mr-2"
+                class="action-all-btn"
                 @click.stop="stageAll"
               >
                 全部暂存
@@ -205,7 +205,7 @@
                 class="action-btn"
                 @click.stop="handleStageFile(file.path)"
               >
-                <Plus class="w-3.5 h-3.5" />
+                <Plus :size="12" />
               </el-button>
             </div>
             <div v-if="!currentStatus?.unstaged.length" class="empty-tip">
@@ -219,7 +219,7 @@
     <!-- 底部：设置入口 -->
     <div class="sidebar-footer">
       <el-button link class="settings-btn" @click="$emit('open-settings')">
-        <Settings class="w-4 h-4 mr-1.5" />
+        <Settings :size="16" class="settings-icon" />
         设置与仓库管理
       </el-button>
     </div>
@@ -370,7 +370,6 @@ const getFileDir = (path: string) => {
   flex-direction: column;
   height: 100%;
   background-color: var(--sidebar-bg);
-  backdrop-filter: blur(var(--ui-blur));
   flex-shrink: 0;
 }
 
@@ -410,6 +409,41 @@ const getFileDir = (path: string) => {
   text-overflow: ellipsis;
   display: flex;
   align-items: center;
+}
+
+.branch-icon {
+  margin-right: 4px;
+}
+
+.ai-icon {
+  margin-right: 4px;
+}
+
+.commit-btn-group {
+  width: 100%;
+  display: flex;
+}
+
+.commit-main-btn {
+  flex: 1;
+}
+
+.commit-dropdown-btn {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.badge-margin {
+  margin-left: 8px;
+}
+
+.action-all-btn {
+  margin-left: auto;
+  margin-right: 8px;
+}
+
+.settings-icon {
+  margin-right: 6px;
 }
 
 .repo-actions {

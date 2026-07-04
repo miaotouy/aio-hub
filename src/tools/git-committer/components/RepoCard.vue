@@ -105,7 +105,7 @@
       <el-input
         v-model="draft"
         type="textarea"
-        :rows="3"
+        :autosize="{ minRows: 3, maxRows: 10 }"
         placeholder="输入提交信息... (Ctrl+Enter 提交)"
         class="commit-input"
         @keydown.ctrl.enter="handleCommit"

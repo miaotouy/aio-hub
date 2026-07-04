@@ -131,7 +131,6 @@ const formatTime = (dateStr: string) => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: var(--sidebar-bg);
   flex-shrink: 0;
   border-left: var(--border-width) solid var(--border-color);
 }
@@ -141,6 +140,7 @@ const formatTime = (dateStr: string) => {
   flex-direction: column;
   padding: 12px;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .history-section {

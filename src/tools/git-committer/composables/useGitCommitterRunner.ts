@@ -100,15 +100,17 @@ export async function stageFiles(
   }
 
   const ok = await errorHandler.wrapAsync(
-    () =>
-      invoke<void>("git_stage_files", {
+    async () => {
+      await invoke<void>("git_stage_files", {
         path: repoPath,
         files,
-      }),
+      });
+      return true;
+    },
     { userMessage: "暂存文件失败" }
   );
 
-  if (ok !== null) {
+  if (ok) {
     // 后端成功，刷新真实状态
     await refreshStatus(repoPath);
   } else {
@@ -139,15 +141,17 @@ export async function unstageFiles(
   }
 
   const ok = await errorHandler.wrapAsync(
-    () =>
-      invoke<void>("git_unstage_files", {
+    async () => {
+      await invoke<void>("git_unstage_files", {
         path: repoPath,
         files,
-      }),
+      });
+      return true;
+    },
     { userMessage: "取消暂存失败" }
   );
 
-  if (ok !== null) {
+  if (ok) {
     // 后端成功，刷新真实状态
     await refreshStatus(repoPath);
   } else {
@@ -263,14 +267,16 @@ export async function executeCommit(
     return false;
   }
   const ok = await errorHandler.wrapAsync(
-    () =>
-      invoke<void>("git_commit", {
+    async () => {
+      await invoke<void>("git_commit", {
         path: repoPath,
         message,
-      }),
+      });
+      return true;
+    },
     { userMessage: "提交失败" }
   );
-  if (ok === null) return false;
+  if (!ok) return false;
 
   customMessage.success(`提交成功: ${repoPath.split(/[/\\]/).pop()}`);
   if (repoPath === currentRepoPath.value) {
@@ -288,10 +294,13 @@ export async function executeCommit(
 export async function pushRepo(repoPath: string): Promise<boolean> {
   if (!repoPath || repoPath === "__panorama__") return false;
   const ok = await errorHandler.wrapAsync(
-    () => invoke<void>("git_push", { path: repoPath }),
+    async () => {
+      await invoke<void>("git_push", { path: repoPath });
+      return true;
+    },
     { userMessage: "推送失败" }
   );
-  if (ok !== null) {
+  if (ok) {
     customMessage.success("推送成功");
     await refreshStatus(repoPath);
     return true;
@@ -303,10 +312,13 @@ export async function pushRepo(repoPath: string): Promise<boolean> {
 export async function pullRepo(repoPath: string): Promise<boolean> {
   if (!repoPath || repoPath === "__panorama__") return false;
   const ok = await errorHandler.wrapAsync(
-    () => invoke<void>("git_pull", { path: repoPath }),
+    async () => {
+      await invoke<void>("git_pull", { path: repoPath });
+      return true;
+    },
     { userMessage: "拉取失败" }
   );
-  if (ok !== null) {
+  if (ok) {
     customMessage.success("拉取成功");
     await refreshStatus(repoPath);
     return true;

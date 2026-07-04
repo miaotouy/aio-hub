@@ -69,7 +69,7 @@
         <el-input
           v-model="commitMessage"
           type="textarea"
-          :rows="4"
+          :autosize="{ minRows: 4, maxRows: 12 }"
           placeholder="输入提交信息... (Ctrl+Enter 提交)"
           class="commit-input"
           @keydown.ctrl.enter="handleCommit"
@@ -319,8 +319,8 @@ const unstageAll = async () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: var(--sidebar-bg);
   flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 /* 顶部仓库信息 */

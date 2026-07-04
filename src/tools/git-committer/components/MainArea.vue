@@ -116,7 +116,6 @@ import { X, FileCode, GitCommitHorizontal } from "lucide-vue-next";
 import { Loading } from "@element-plus/icons-vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import PanoramaDashboard from "./PanoramaDashboard.vue";
-import { getExtension } from "@/utils/fileTypeDetector";
 import {
   currentRepoPath,
   currentSession as session,
@@ -129,6 +128,7 @@ import {
   unstageFile,
 } from "../composables/useGitCommitterRunner";
 import type { DiffTab } from "../types";
+import { getFileName, getFileLanguage } from "../utils";
 
 const props = defineProps<{
   sidebarWidth: number;
@@ -247,27 +247,6 @@ const handleUnstageFile = async (path: string) => {
 };
 
 // ===== 辅助函数 =====
-const getFileName = (path: string) => {
-  const parts = path.split(/[/\\]/);
-  return parts[parts.length - 1];
-};
-
-const getFileLanguage = (path: string) => {
-  const ext = getExtension(path);
-  if (!ext) return "plaintext";
-  const map: Record<string, string> = {
-    ts: "typescript",
-    js: "javascript",
-    vue: "html",
-    rs: "rust",
-    json: "json",
-    md: "markdown",
-    css: "css",
-    html: "html",
-  };
-  return map[ext.toLowerCase()] || "plaintext";
-};
-
 const getFileStatus = (path: string, isStaged: boolean): string => {
   const list = isStaged
     ? currentStatus.value?.staged

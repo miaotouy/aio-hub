@@ -234,3 +234,16 @@ export function updateCommitDraft(text: string): void {
   session.commitDraft = text;
 }
 
+/** 更新指定仓库的 commit 草稿 */
+export function updateRepoCommitDraft(path: string, text: string): void {
+  if (!path) return;
+  if (!repoSessions.value[path]) {
+    repoSessions.value[path] = {
+      openTabs: [],
+      activeTabPath: "",
+      commitDraft: "",
+    };
+  }
+  repoSessions.value[path].commitDraft = text;
+}
+

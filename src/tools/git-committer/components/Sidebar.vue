@@ -244,10 +244,8 @@ import {
   currentRepo,
   currentRepoPath,
   currentStatus,
-  currentSession,
   defaultModel,
   isRefreshing,
-  updateCommitDraft,
 } from "../composables/useGitCommitterState";
 import {
   refreshCurrentStatus,
@@ -256,28 +254,29 @@ import {
   stageFiles,
   unstageFiles,
   openDiffTab,
-  executeCommit,
-  pushRepo,
-  pullRepo,
-  generateCommitMessage,
 } from "../composables/useGitCommitterRunner";
+import { useGitRepoWorkflow } from "../composables/useGitRepoWorkflow";
+import { getFileName, getFileDir } from "../utils";
 
 defineEmits<{
   (e: "open-settings"): void;
 }>();
 
-const isPulling = ref(false);
-const isPushing = ref(false);
-const isGenerating = ref(false);
-const isCommitting = ref(false);
 const activeCollapseNames = ref(["staged", "unstaged"]);
 const commitAction = ref<"commit" | "commit-push">("commit");
 
-// ===== Commit Message 绑定与草稿同步 =====
-const commitMessage = computed({
-  get: () => currentSession.value.commitDraft || "",
-  set: (val) => updateCommitDraft(val),
-});
+// 使用统一的工作流 Composable
+const {
+  isPulling,
+  isPushing,
+  isGenerating,
+  isCommitting,
+  draft: commitMessage,
+  pull: handlePull,
+  push: handlePush,
+  generateMsg: handleGenerateCommitMessage,
+  commit,
+} = useGitRepoWorkflow(currentRepoPath);
 
 const commitActionText = computed(() => {
   return commitAction.value === "commit"
@@ -289,46 +288,9 @@ const handleCommitCommand = (command: "commit" | "commit-push") => {
   commitAction.value = command;
 };
 
-// ===== 业务操作 =====
-const handlePull = async () => {
-  isPulling.value = true;
-  try {
-    await pullRepo(currentRepoPath.value);
-  } finally {
-    isPulling.value = false;
-  }
-};
-
-const handlePush = async () => {
-  isPushing.value = true;
-  try {
-    await pushRepo(currentRepoPath.value);
-  } finally {
-    isPushing.value = false;
-  }
-};
-
-const handleGenerateCommitMessage = async () => {
-  isGenerating.value = true;
-  commitMessage.value = "";
-  try {
-    await generateCommitMessage(currentRepoPath.value, (chunk) => {
-      commitMessage.value += chunk;
-    });
-  } finally {
-    isGenerating.value = false;
-  }
-};
-
 const handleCommit = async () => {
-  if (isCommitting.value) return;
-  isCommitting.value = true;
-  try {
-    const pushAfter = commitAction.value === "commit-push";
-    await executeCommit(currentRepoPath.value, commitMessage.value, pushAfter);
-  } finally {
-    isCommitting.value = false;
-  }
+  const pushAfter = commitAction.value === "commit-push";
+  await commit(pushAfter);
 };
 
 const handleStageFile = async (path: string) => {
@@ -349,18 +311,6 @@ const unstageAll = async () => {
   if (!currentStatus.value) return;
   const files = currentStatus.value.staged.map((f) => f.path);
   await unstageFiles(currentRepoPath.value, files);
-};
-
-// ===== 文件路径处理辅助函数 =====
-const getFileName = (path: string) => {
-  const parts = path.split(/[/\\]/);
-  return parts[parts.length - 1];
-};
-
-const getFileDir = (path: string) => {
-  const parts = path.split(/[/\\]/);
-  if (parts.length <= 1) return "";
-  return parts.slice(0, -1).join("/");
 };
 </script>
 

@@ -17,6 +17,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { format } from "date-fns";
+import { invoke } from "@tauri-apps/api/core";
+import { join } from "@tauri-apps/api/path";
 import {
   Film,
   Mic,
@@ -33,6 +35,7 @@ import {
   Trash2 as TrashIcon,
   ChevronLeft,
   ChevronRight,
+  FolderOpen,
 } from "lucide-vue-next";
 import type { MediaTask } from "../types";
 import { useAssetManager } from "@/composables/useAssetManager";
@@ -332,6 +335,20 @@ const handleVideoLeave = (e: Event) => {
     video.pause();
   }
 };
+
+/** 打开文件所在位置 */
+const openFileDirectory = async () => {
+  const assets = getResultAssets();
+  const asset = assets[activeResultIndex.value] || assets[0];
+  if (!asset || !asset.path) return;
+  try {
+    const basePath = await getAssetBasePath();
+    const absolutePath = await join(basePath, asset.path);
+    await invoke("open_file_directory", { filePath: absolutePath });
+  } catch (err) {
+    console.error("打开文件所在目录失败", err);
+  }
+};
 </script>
 
 <template>
@@ -558,6 +575,18 @@ const handleVideoLeave = (e: Event) => {
             circle
             size="small"
             @click="emit('download', task)"
+          />
+        </el-tooltip>
+        <el-tooltip
+          v-if="task.status === 'completed'"
+          content="打开文件所在位置"
+          placement="top"
+        >
+          <el-button
+            :icon="FolderOpen"
+            circle
+            size="small"
+            @click="openFileDirectory"
           />
         </el-tooltip>
         <el-tooltip content="删除" placement="top">

@@ -28,17 +28,15 @@ import { errorHandler } from "./useGitCommitterErrorHandler";
 import {
   repositories,
   currentRepoPath,
-  currentStatus,
   currentSession,
   repoStatuses,
   isRefreshing,
   setRepoStatus,
   updateCommitDraft,
-  autoPullOnSwitchRef,
-  autoPushAfterCommitRef,
-  aiIncludeUnstagedRef,
-  defaultModelRef,
-  systemPromptRef,
+  autoPullOnSwitch,
+  aiIncludeUnstaged,
+  defaultModel,
+  systemPrompt,
   switchRepo,
 } from "./useGitCommitterState";
 
@@ -83,67 +81,66 @@ export async function refreshCurrentStatus(): Promise<void> {
 
 // ===== 暂存 / 取消暂存 =====
 
-export async function stageFiles(files: string[]): Promise<void> {
-  if (
-    !currentRepoPath.value ||
-    currentRepoPath.value === "__panorama__" ||
-    files.length === 0
-  )
-    return;
+export async function stageFiles(
+  repoPath: string,
+  files: string[]
+): Promise<void> {
+  if (!repoPath || repoPath === "__panorama__" || files.length === 0) return;
   const ok = await errorHandler.wrapAsync(
     () =>
       invoke<void>("git_stage_files", {
-        path: currentRepoPath.value,
+        path: repoPath,
         files,
       }),
     { userMessage: "暂存文件失败" }
   );
   if (ok !== null) {
-    await refreshCurrentStatus();
+    await refreshStatus(repoPath);
   }
 }
 
-export async function unstageFiles(files: string[]): Promise<void> {
-  if (
-    !currentRepoPath.value ||
-    currentRepoPath.value === "__panorama__" ||
-    files.length === 0
-  )
-    return;
+export async function unstageFiles(
+  repoPath: string,
+  files: string[]
+): Promise<void> {
+  if (!repoPath || repoPath === "__panorama__" || files.length === 0) return;
   const ok = await errorHandler.wrapAsync(
     () =>
       invoke<void>("git_unstage_files", {
-        path: currentRepoPath.value,
+        path: repoPath,
         files,
       }),
     { userMessage: "取消暂存失败" }
   );
   if (ok !== null) {
-    await refreshCurrentStatus();
+    await refreshStatus(repoPath);
   }
 }
 
-export async function stageFile(file: string): Promise<void> {
-  await stageFiles([file]);
+export async function stageFile(repoPath: string, file: string): Promise<void> {
+  await stageFiles(repoPath, [file]);
 }
 
-export async function unstageFile(file: string): Promise<void> {
-  await unstageFiles([file]);
+export async function unstageFile(
+  repoPath: string,
+  file: string
+): Promise<void> {
+  await unstageFiles(repoPath, [file]);
 }
 
 // ===== Diff Tab 管理 =====
 
 /** 加载单个文件的 diff 内容 */
 export async function loadFileDiff(
+  repoPath: string,
   filePath: string,
   isStaged: boolean
 ): Promise<DiffTab | null> {
-  if (!currentRepoPath.value || currentRepoPath.value === "__panorama__")
-    return null;
+  if (!repoPath || repoPath === "__panorama__") return null;
   const result = await errorHandler.wrapAsync(
     () =>
       invoke<[string, string]>("git_get_file_diff", {
-        path: currentRepoPath.value,
+        path: repoPath,
         filePath,
         isStaged,
       }),
@@ -214,11 +211,11 @@ function buildTabKey(filePath: string, isStaged: boolean): string {
 
 /** 执行提交 */
 export async function executeCommit(
+  repoPath: string,
   message: string,
   pushAfter: boolean = false
 ): Promise<boolean> {
-  if (!currentRepoPath.value || currentRepoPath.value === "__panorama__")
-    return false;
+  if (!repoPath || repoPath === "__panorama__") return false;
   if (!message.trim()) {
     customMessage.warning("提交信息不能为空");
     return false;
@@ -226,89 +223,91 @@ export async function executeCommit(
   const ok = await errorHandler.wrapAsync(
     () =>
       invoke<void>("git_commit", {
-        path: currentRepoPath.value,
+        path: repoPath,
         message,
       }),
     { userMessage: "提交失败" }
   );
   if (ok === null) return false;
 
-  customMessage.success("提交成功");
-  updateCommitDraft("");
-  await refreshCurrentStatus();
+  customMessage.success(`提交成功: ${repoPath.split(/[/\\]/).pop()}`);
+  if (repoPath === currentRepoPath.value) {
+    updateCommitDraft("");
+  }
+  await refreshStatus(repoPath);
 
   if (pushAfter) {
-    await pushCurrent();
+    await pushRepo(repoPath);
   }
   return true;
 }
 
-/** 推送当前仓库 */
-export async function pushCurrent(): Promise<boolean> {
-  if (!currentRepoPath.value || currentRepoPath.value === "__panorama__")
-    return false;
+/** 推送指定仓库 */
+export async function pushRepo(repoPath: string): Promise<boolean> {
+  if (!repoPath || repoPath === "__panorama__") return false;
   const ok = await errorHandler.wrapAsync(
-    () => invoke<void>("git_push", { path: currentRepoPath.value }),
+    () => invoke<void>("git_push", { path: repoPath }),
     { userMessage: "推送失败" }
   );
   if (ok !== null) {
     customMessage.success("推送成功");
-    await refreshCurrentStatus();
+    await refreshStatus(repoPath);
     return true;
   }
   return false;
 }
 
-/** 拉取当前仓库 */
-export async function pullCurrent(): Promise<boolean> {
-  if (!currentRepoPath.value || currentRepoPath.value === "__panorama__")
-    return false;
+/** 拉取指定仓库 */
+export async function pullRepo(repoPath: string): Promise<boolean> {
+  if (!repoPath || repoPath === "__panorama__") return false;
   const ok = await errorHandler.wrapAsync(
-    () => invoke<void>("git_pull", { path: currentRepoPath.value }),
+    () => invoke<void>("git_pull", { path: repoPath }),
     { userMessage: "拉取失败" }
   );
   if (ok !== null) {
     customMessage.success("拉取成功");
-    await refreshCurrentStatus();
+    await refreshStatus(repoPath);
     return true;
   }
   return false;
 }
+
 /** 切换仓库（带可选的自动拉取） */
 export async function switchRepoWithAutoPull(path: string): Promise<void> {
   if (path === currentRepoPath.value) return;
   switchRepo(path);
   if (path === "__panorama__") return;
-  if (autoPullOnSwitchRef.value) {
-    await pullCurrent();
+  if (autoPullOnSwitch.value) {
+    await pullRepo(path);
   }
   await refreshStatus(path);
 }
 
 // ===== AI 生成 Commit Message =====
 
-/** 当前需提交的文件列表（staged 优先，可选包含 unstaged） */
-export function getCommitCandidateFiles(): {
+/** 获取指定仓库需提交的文件列表（staged 优先，可选包含 unstaged） */
+export function getCommitCandidateFiles(repoPath: string): {
   files: FileStatus[];
   isStaged: boolean;
 } {
-  const status = currentStatus.value;
+  const status = repoStatuses.value[repoPath];
   if (!status) return { files: [], isStaged: false };
 
   if (status.staged.length > 0) {
     return { files: status.staged, isStaged: true };
   }
-  if (aiIncludeUnstagedRef.value && status.unstaged.length > 0) {
+  if (aiIncludeUnstaged.value && status.unstaged.length > 0) {
     return { files: status.unstaged, isStaged: false };
   }
   return { files: [], isStaged: false };
 }
 
-/** 组装当前候选文件的 diff 文本（用于 LLM Prompt） */
-export async function buildDiffPrompt(): Promise<string | null> {
-  const { files, isStaged } = getCommitCandidateFiles();
+/** 组装指定仓库候选文件的 diff 文本（用于 LLM Prompt） */
+export async function buildDiffPrompt(
+  repoPath: string
+): Promise<string | null> {
+  const { files, isStaged } = getCommitCandidateFiles(repoPath);
   if (files.length === 0) {
-    customMessage.warning("没有可生成提交信息的文件变更");
     return null;
   }
 
@@ -318,12 +317,11 @@ export async function buildDiffPrompt(): Promise<string | null> {
       parts.push(`### ${f.path}\n[二进制文件，无文本差异]`);
       continue;
     }
-    const diff = await loadFileDiff(f.path, isStaged);
+    const diff = await loadFileDiff(repoPath, f.path, isStaged);
     if (!diff || diff.isBinary) {
       parts.push(`### ${f.path}\n[二进制文件，无文本差异]`);
       continue;
     }
-    // 简易 diff 文本：仅展示修改后内容片段（避免完整 patch 过长）
     parts.push(
       `### ${f.path} (${f.status})\n--- original ---\n${diff.original}\n--- modified ---\n${diff.modified}`
     );
@@ -331,33 +329,34 @@ export async function buildDiffPrompt(): Promise<string | null> {
   return parts.join("\n\n");
 }
 
-/** 调用 LLM 流式生成 commit message */
+/** 调用 LLM 流式生成指定仓库的 commit message */
 export async function generateCommitMessage(
+  repoPath: string,
   onStream: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<string | null> {
-  const combo = defaultModelRef.value;
+  const combo = defaultModel.value;
   const [profileId, modelId] = parseModelCombo(combo);
   if (!profileId || !modelId) {
     customMessage.warning("请先在设置中选择 AI 模型");
     return null;
   }
 
-  const diffText = await buildDiffPrompt();
-  if (!diffText) return null;
+  const diffText = await buildDiffPrompt(repoPath);
+  if (!diffText) {
+    customMessage.warning("没有可生成提交信息的文件变更");
+    return null;
+  }
 
-  const systemPrompt = systemPromptRef.value;
-  const requestId =
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `gc-${Date.now()}`;
+  const systemPromptText = systemPrompt.value;
+  const requestId = `gc-${repoPath.split(/[/\\]/).pop()}-${Date.now()}`;
 
   try {
     const response = await sendRequest({
       profileId,
       modelId,
       messages: [
-        { role: "system", content: systemPrompt },
+        { role: "system", content: systemPromptText },
         { role: "user", content: diffText },
       ],
       stream: true,
@@ -371,24 +370,58 @@ export async function generateCommitMessage(
     } as any);
     return response?.content || null;
   } catch (error) {
-    logger.error("AI 生成提交信息失败", error as Error);
-    customMessage.error("AI 生成提交信息失败");
+    logger.error(`AI 生成提交信息失败 (${repoPath})`, error as Error);
+    customMessage.error(
+      `AI 生成提交信息失败: ${repoPath.split(/[/\\]/).pop()}`
+    );
     return null;
   }
 }
 
-// 重新导出常用 state，方便组件统一引用
-export {
-  repositories,
-  currentRepoPath,
-  currentStatus,
-  currentSession,
-  repoStatuses,
-  isRefreshing,
-  autoPullOnSwitchRef,
-  autoPushAfterCommitRef,
-  aiIncludeUnstagedRef,
-  defaultModelRef,
-  systemPromptRef,
-};
+// ===== 全局一键操作 (全景模式下沉逻辑) =====
+
+/** 一键暂存所有活跃仓库 */
+export async function stageAllRepos(
+  activeRepos: { path: string }[]
+): Promise<void> {
+  await Promise.all(
+    activeRepos.map(async (repo) => {
+      const status = repoStatuses.value[repo.path];
+      if (!status) return;
+      const files = status.unstaged.map((f) => f.path);
+      if (files.length > 0) {
+        await stageFiles(repo.path, files);
+      }
+    })
+  );
+}
+
+/** 一键取消暂存所有活跃仓库 */
+export async function unstageAllRepos(
+  activeRepos: { path: string }[]
+): Promise<void> {
+  await Promise.all(
+    activeRepos.map(async (repo) => {
+      const status = repoStatuses.value[repo.path];
+      if (!status) return;
+      const files = status.staged.map((f) => f.path);
+      if (files.length > 0) {
+        await unstageFiles(repo.path, files);
+      }
+    })
+  );
+}
+
+/** 一键推送所有有未推送提交的仓库 */
+export async function pushAllRepos(): Promise<number> {
+  let successCount = 0;
+  for (const repo of repositories.value) {
+    const status = repoStatuses.value[repo.path];
+    if (status && status.ahead > 0) {
+      const ok = await pushRepo(repo.path);
+      if (ok) successCount++;
+    }
+  }
+  return successCount;
+}
 

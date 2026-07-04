@@ -52,7 +52,7 @@
     <!-- 中部：AI 提交面板 -->
     <div class="commit-panel">
       <div class="ai-model-row">
-        <LlmModelSelector v-model="defaultModelRef" class="model-selector" />
+        <LlmModelSelector v-model="defaultModel" class="model-selector" />
         <el-button
           type="primary"
           size="small"
@@ -150,7 +150,7 @@
                 type="danger"
                 size="small"
                 class="action-btn"
-                @click.stop="unstageFile(file.path)"
+                @click.stop="handleUnstageFile(file.path)"
               >
                 <Minus class="w-3.5 h-3.5" />
               </el-button>
@@ -203,7 +203,7 @@
                 type="primary"
                 size="small"
                 class="action-btn"
-                @click.stop="stageFile(file.path)"
+                @click.stop="handleStageFile(file.path)"
               >
                 <Plus class="w-3.5 h-3.5" />
               </el-button>
@@ -242,9 +242,10 @@ import {
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import {
   currentRepo,
+  currentRepoPath,
   currentStatus,
   currentSession,
-  defaultModelRef,
+  defaultModel,
   isRefreshing,
   updateCommitDraft,
 } from "../composables/useGitCommitterState";
@@ -256,8 +257,8 @@ import {
   unstageFiles,
   openDiffTab,
   executeCommit,
-  pushCurrent,
-  pullCurrent,
+  pushRepo,
+  pullRepo,
   generateCommitMessage,
 } from "../composables/useGitCommitterRunner";
 
@@ -292,7 +293,7 @@ const handleCommitCommand = (command: "commit" | "commit-push") => {
 const handlePull = async () => {
   isPulling.value = true;
   try {
-    await pullCurrent();
+    await pullRepo(currentRepoPath.value);
   } finally {
     isPulling.value = false;
   }
@@ -301,7 +302,7 @@ const handlePull = async () => {
 const handlePush = async () => {
   isPushing.value = true;
   try {
-    await pushCurrent();
+    await pushRepo(currentRepoPath.value);
   } finally {
     isPushing.value = false;
   }
@@ -311,7 +312,7 @@ const handleGenerateCommitMessage = async () => {
   isGenerating.value = true;
   commitMessage.value = "";
   try {
-    await generateCommitMessage((chunk) => {
+    await generateCommitMessage(currentRepoPath.value, (chunk) => {
       commitMessage.value += chunk;
     });
   } finally {
@@ -324,22 +325,30 @@ const handleCommit = async () => {
   isCommitting.value = true;
   try {
     const pushAfter = commitAction.value === "commit-push";
-    await executeCommit(commitMessage.value, pushAfter);
+    await executeCommit(currentRepoPath.value, commitMessage.value, pushAfter);
   } finally {
     isCommitting.value = false;
   }
 };
 
+const handleStageFile = async (path: string) => {
+  await stageFile(currentRepoPath.value, path);
+};
+
+const handleUnstageFile = async (path: string) => {
+  await unstageFile(currentRepoPath.value, path);
+};
+
 const stageAll = async () => {
   if (!currentStatus.value) return;
   const files = currentStatus.value.unstaged.map((f) => f.path);
-  await stageFiles(files);
+  await stageFiles(currentRepoPath.value, files);
 };
 
 const unstageAll = async () => {
   if (!currentStatus.value) return;
   const files = currentStatus.value.staged.map((f) => f.path);
-  await unstageFiles(files);
+  await unstageFiles(currentRepoPath.value, files);
 };
 
 // ===== 文件路径处理辅助函数 =====

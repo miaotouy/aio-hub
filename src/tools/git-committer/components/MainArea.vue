@@ -53,7 +53,7 @@
                 v-if="activeTab.isStaged"
                 type="danger"
                 size="small"
-                @click="unstageFile(activeTab.path)"
+                @click="handleUnstageFile(activeTab.path)"
               >
                 取消暂存
               </el-button>
@@ -61,7 +61,7 @@
                 v-else
                 type="primary"
                 size="small"
-                @click="stageFile(activeTab.path)"
+                @click="handleStageFile(activeTab.path)"
               >
                 暂存文件
               </el-button>
@@ -224,7 +224,11 @@ watch(
       loading: true,
     };
 
-    const diff = await loadFileDiff(tabInfo.path, tabInfo.isStaged);
+    const diff = await loadFileDiff(
+      currentRepoPath.value,
+      tabInfo.path,
+      tabInfo.isStaged
+    );
     if (diff && session.value.activeTabPath === newKey) {
       activeTab.value = diff;
       triggerEditorLayout();
@@ -232,6 +236,15 @@ watch(
   },
   { immediate: true }
 );
+
+// ===== 暂存/取消暂存操作 =====
+const handleStageFile = async (path: string) => {
+  await stageFile(currentRepoPath.value, path);
+};
+
+const handleUnstageFile = async (path: string) => {
+  await unstageFile(currentRepoPath.value, path);
+};
 
 // ===== 辅助函数 =====
 const getFileName = (path: string) => {

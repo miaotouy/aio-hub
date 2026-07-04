@@ -82,7 +82,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, onMounted } from "vue";
 import { PanelRight, PanelRightClose } from "lucide-vue-next";
 import RepoBar from "./components/RepoBar.vue";
 import Sidebar from "./components/Sidebar.vue";
@@ -98,63 +98,40 @@ import {
   loadRepositories,
 } from "./composables/useGitCommitterState";
 import { refreshAllStatuses } from "./composables/useGitCommitterRunner";
+import { useResizable } from "./composables/useResizable";
 
 const showSettings = ref(false);
-const isResizingSidebar = ref(false);
-const isResizingRightSidebar = ref(false);
 
 // ===== 侧边栏拖拽调整宽度 =====
-const startResizeSidebar = (e: MouseEvent) => {
-  e.preventDefault();
-  isResizingSidebar.value = true;
-  document.addEventListener("mousemove", handleResizeSidebar);
-  document.addEventListener("mouseup", stopResizeSidebar);
-};
-
-const handleResizeSidebar = (e: MouseEvent) => {
-  if (!isResizingSidebar.value) return;
-  // 减去最左侧 RepoBar 的宽度（RepoBar 占位 64px 或 240px）
-  const repoBarWidth = isRepoBarPinned.value ? 240 : 64;
-  const newWidth = e.clientX - repoBarWidth;
-  if (newWidth >= 200 && newWidth <= 480) {
-    sidebarWidth.value = newWidth;
-  }
-};
-
-const stopResizeSidebar = () => {
-  isResizingSidebar.value = false;
-  document.removeEventListener("mousemove", handleResizeSidebar);
-  document.removeEventListener("mouseup", stopResizeSidebar);
-};
+const {
+  isResizing: isResizingSidebar,
+  startResize: startResizeSidebar,
+  resetWidth: resetSidebarWidthRef,
+} = useResizable({
+  initialWidth: sidebarWidth,
+  minWidth: 200,
+  maxWidth: 480,
+  getOffset: () => (isRepoBarPinned.value ? 240 : 64),
+});
 
 const resetSidebarWidth = () => {
-  sidebarWidth.value = 260;
+  resetSidebarWidthRef(260);
 };
 
 // ===== 右侧栏拖拽调整宽度 =====
-const startResizeRightSidebar = (e: MouseEvent) => {
-  e.preventDefault();
-  isResizingRightSidebar.value = true;
-  document.addEventListener("mousemove", handleResizeRightSidebar);
-  document.addEventListener("mouseup", stopResizeRightSidebar);
-};
-
-const handleResizeRightSidebar = (e: MouseEvent) => {
-  if (!isResizingRightSidebar.value) return;
-  const newWidth = window.innerWidth - e.clientX;
-  if (newWidth >= 220 && newWidth <= 500) {
-    rightSidebarWidth.value = newWidth;
-  }
-};
-
-const stopResizeRightSidebar = () => {
-  isResizingRightSidebar.value = false;
-  document.removeEventListener("mousemove", handleResizeRightSidebar);
-  document.removeEventListener("mouseup", stopResizeRightSidebar);
-};
+const {
+  isResizing: isResizingRightSidebar,
+  startResize: startResizeRightSidebar,
+  resetWidth: resetRightSidebarWidthRef,
+} = useResizable({
+  initialWidth: rightSidebarWidth,
+  minWidth: 220,
+  maxWidth: 500,
+  isRight: true,
+});
 
 const resetRightSidebarWidth = () => {
-  rightSidebarWidth.value = 280;
+  resetRightSidebarWidthRef(280);
 };
 
 onMounted(async () => {
@@ -164,13 +141,6 @@ onMounted(async () => {
   if (currentRepoPath.value === "") {
     showSettings.value = true;
   }
-});
-
-onUnmounted(() => {
-  document.removeEventListener("mousemove", handleResizeSidebar);
-  document.removeEventListener("mouseup", stopResizeSidebar);
-  document.removeEventListener("mousemove", handleResizeRightSidebar);
-  document.removeEventListener("mouseup", stopResizeRightSidebar);
 });
 </script>
 

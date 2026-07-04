@@ -86,11 +86,11 @@
         <h3 class="section-title">AI 偏好设置</h3>
         <el-form label-position="top" size="small">
           <el-form-item label="默认 AI 模型">
-            <LlmModelSelector v-model="defaultModelRef" class="w-full" />
+            <LlmModelSelector v-model="defaultModel" class="w-full" />
           </el-form-item>
           <el-form-item label="System Prompt (系统提示词)">
             <el-input
-              v-model="systemPromptRef"
+              v-model="systemPrompt"
               type="textarea"
               :rows="4"
               placeholder="教 AI 怎么写 commit message..."
@@ -110,7 +110,7 @@
                 >本地提交成功后，自动触发 git push 推送到远程仓库</span
               >
             </div>
-            <el-switch v-model="autoPushAfterCommitRef" />
+            <el-switch v-model="autoPushAfterCommit" />
           </div>
 
           <div class="switch-item">
@@ -120,7 +120,7 @@
                 >在左侧切换当前激活仓库时，自动触发 git pull 拉取最新更改</span
               >
             </div>
-            <el-switch v-model="autoPullOnSwitchRef" />
+            <el-switch v-model="autoPullOnSwitch" />
           </div>
 
           <div class="switch-item">
@@ -133,7 +133,7 @@
                 闪亮按钮会自动提取工作区所有未暂存的修改生成提交信息</span
               >
             </div>
-            <el-switch v-model="aiIncludeUnstagedRef" />
+            <el-switch v-model="aiIncludeUnstaged" />
           </div>
         </div>
       </div>
@@ -190,11 +190,11 @@ import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { customMessage } from "@/utils/customMessage";
 import {
   repositories,
-  autoPushAfterCommitRef,
-  autoPullOnSwitchRef,
-  aiIncludeUnstagedRef,
-  defaultModelRef,
-  systemPromptRef,
+  autoPushAfterCommit,
+  autoPullOnSwitch,
+  aiIncludeUnstaged,
+  defaultModel,
+  systemPrompt,
   addRepository,
   removeRepository,
 } from "../composables/useGitCommitterState";

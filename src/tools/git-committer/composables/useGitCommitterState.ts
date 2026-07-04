@@ -60,6 +60,13 @@ export const isRightSidebarExpanded = ref<boolean>(true);
 export const isRepoBarPinned = ref<boolean>(false);
 export const repoSessions = ref<Record<string, RepoSession>>({});
 
+// 设置项（也持久化）
+export const autoPushAfterCommit = ref<boolean>(false);
+export const autoPullOnSwitch = ref<boolean>(false);
+export const aiIncludeUnstaged = ref<boolean>(false);
+export const defaultModel = ref<string>("");
+export const systemPrompt = ref<string>("");
+
 // 运行时状态（不持久化）
 export const repoStatuses = ref<Record<string, RepoStatus>>({});
 export const isRefreshing = ref<boolean>(false);
@@ -115,6 +122,15 @@ export async function loadRepositories(): Promise<void> {
   isRepoBarPinned.value = config.isRepoBarPinned ?? false;
   repoSessions.value = config.repoSessions || {};
 
+  // 恢复设置项
+  autoPushAfterCommit.value = config.autoPushAfterCommit ?? false;
+  autoPullOnSwitch.value = config.autoPullOnSwitch ?? false;
+  aiIncludeUnstaged.value = config.aiIncludeUnstaged ?? false;
+  defaultModel.value = config.defaultModel ?? "";
+  systemPrompt.value =
+    config.systemPrompt ??
+    "你是一个专业的 Git 提交信息生成助手。请根据提供的代码差异（diff），生成符合 Conventional Commits 规范的提交信息。请直接输出提交信息，不要包含任何解释或 Markdown 标记。";
+
   // 校正 currentRepoPath（可能指向已被删除的仓库，且排除全景模式）
   if (
     currentRepoPath.value &&
@@ -140,20 +156,13 @@ function snapshot(): GitCommitterConfig {
     isRightSidebarExpanded: isRightSidebarExpanded.value,
     isRepoBarPinned: isRepoBarPinned.value,
     repoSessions: repoSessions.value,
-    autoPushAfterCommit: autoPushAfterCommitRef.value,
-    autoPullOnSwitch: autoPullOnSwitchRef.value,
-    aiIncludeUnstaged: aiIncludeUnstagedRef.value,
-    defaultModel: defaultModelRef.value,
-    systemPrompt: systemPromptRef.value,
+    autoPushAfterCommit: autoPushAfterCommit.value,
+    autoPullOnSwitch: autoPullOnSwitch.value,
+    aiIncludeUnstaged: aiIncludeUnstaged.value,
+    defaultModel: defaultModel.value,
+    systemPrompt: systemPrompt.value,
   };
 }
-
-// 设置项（也持久化）—— 用独立 ref + watch 联动
-export const autoPushAfterCommitRef = ref<boolean>(false);
-export const autoPullOnSwitchRef = ref<boolean>(false);
-export const aiIncludeUnstagedRef = ref<boolean>(false);
-export const defaultModelRef = ref<string>("");
-export const systemPromptRef = ref<string>("");
 
 /** 触发防抖保存 */
 function persist(): void {
@@ -170,11 +179,11 @@ watch(
     isRightSidebarExpanded,
     isRepoBarPinned,
     repoSessions,
-    autoPushAfterCommitRef,
-    autoPullOnSwitchRef,
-    aiIncludeUnstagedRef,
-    defaultModelRef,
-    systemPromptRef,
+    autoPushAfterCommit,
+    autoPullOnSwitch,
+    aiIncludeUnstaged,
+    defaultModel,
+    systemPrompt,
   ],
   () => {
     if (initialized) persist();

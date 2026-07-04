@@ -15,7 +15,7 @@
             plain
             size="small"
             :loading="isGlobalStaging"
-            @click="stageAllRepos"
+            @click="handleStageAllRepos"
           >
             <Plus class="w-3.5 h-3.5 mr-1" />
             一键暂存所有
@@ -25,7 +25,7 @@
             plain
             size="small"
             :loading="isGlobalGenerating"
-            @click="generateAllMessages"
+            @click="handleGenerateAllMessages"
           >
             <Sparkles class="w-3.5 h-3.5 mr-1" />
             一键 AI 生成
@@ -34,7 +34,7 @@
             type="primary"
             size="small"
             :loading="isGlobalCommitting"
-            @click="commitAllRepos"
+            @click="handleCommitAllRepos"
           >
             <Check class="w-3.5 h-3.5 mr-1" />
             一键提交所有
@@ -43,7 +43,7 @@
             type="success"
             size="small"
             :loading="isGlobalPushing"
-            @click="pushAllRepos"
+            @click="handlePushAllRepos"
           >
             <ArrowUp class="w-3.5 h-3.5 mr-1" />
             一键推送所有
@@ -102,7 +102,7 @@
                   circle
                   size="small"
                   :loading="repoLoadingStates[repo.path]?.pulling"
-                  @click="pullRepo(repo.path)"
+                  @click="handlePullRepo(repo.path)"
                 >
                   <ArrowDown class="w-3 h-3" />
                 </el-button>
@@ -112,7 +112,7 @@
                   circle
                   size="small"
                   :loading="repoLoadingStates[repo.path]?.pushing"
-                  @click="pushRepo(repo.path)"
+                  @click="handlePushRepo(repo.path)"
                   :disabled="getAheadCount(repo.path) === 0"
                 >
                   <ArrowUp class="w-3 h-3" />
@@ -143,7 +143,7 @@
                 type="primary"
                 size="small"
                 class="ml-2"
-                @click="unstageAllFiles(repo.path)"
+                @click="handleUnstageAllFiles(repo.path)"
               >
                 全部取消
               </el-button>
@@ -163,7 +163,7 @@
                 type="primary"
                 size="small"
                 class="ml-2"
-                @click="stageAllFiles(repo.path)"
+                @click="handleStageAllFiles(repo.path)"
               >
                 全部暂存
               </el-button>
@@ -185,7 +185,7 @@
                 type="primary"
                 size="small"
                 :loading="repoLoadingStates[repo.path]?.generating"
-                @click="generateMessageForRepo(repo.path)"
+                @click="handleGenerateMessageForRepo(repo.path)"
                 :disabled="!canGenerateMessage(repo.path)"
               >
                 <Sparkles class="w-3 h-3 mr-1" />
@@ -198,7 +198,7 @@
               :rows="3"
               placeholder="输入提交信息... (Ctrl+Enter 提交)"
               class="commit-input"
-              @keydown.ctrl.enter="commitRepo(repo.path)"
+              @keydown.ctrl.enter="handleCommitRepo(repo.path)"
             />
             <div class="commit-btn-row">
               <el-button
@@ -206,7 +206,7 @@
                 size="small"
                 class="w-full"
                 :loading="repoLoadingStates[repo.path]?.committing"
-                @click="commitRepo(repo.path)"
+                @click="handleCommitRepo(repo.path)"
                 :disabled="!canCommit(repo.path)"
               >
                 提交更改
@@ -232,29 +232,26 @@ import {
   GitBranch,
   CheckCircle2,
 } from "lucide-vue-next";
-import { invoke } from "@tauri-apps/api/core";
-import { useLlmRequest } from "@/composables/useLlmRequest";
-import { parseModelCombo } from "@/utils/modelIdUtils";
 import { customMessage } from "@/utils/customMessage";
-import { createModuleLogger } from "@/utils/logger";
 import {
   repositories,
   repoStatuses,
   repoSessions,
   isRefreshing,
-  defaultModelRef,
-  systemPromptRef,
-  aiIncludeUnstagedRef,
+  aiIncludeUnstaged,
 } from "../composables/useGitCommitterState";
 import {
   refreshAllStatuses,
   refreshStatus,
+  stageFiles,
+  unstageFiles,
+  pullRepo,
+  pushRepo,
+  generateCommitMessage,
+  executeCommit,
+  stageAllRepos,
+  pushAllRepos,
 } from "../composables/useGitCommitterRunner";
-import { errorHandler } from "../composables/useGitCommitterErrorHandler";
-import type { FileStatus } from "../types";
-
-const logger = createModuleLogger("git-committer/panorama");
-const { sendRequest } = useLlmRequest();
 
 // ===== 全局 Loading 状态 =====
 const isGlobalStaging = ref(false);
@@ -351,7 +348,7 @@ const hasChanges = (path: string) => {
 const canGenerateMessage = (path: string) => {
   const staged = getStagedCount(path);
   const unstaged = getUnstagedCount(path);
-  return staged > 0 || (aiIncludeUnstagedRef.value && unstaged > 0);
+  return staged > 0 || (aiIncludeUnstaged.value && unstaged > 0);
 };
 
 const canCommit = (path: string) => {
@@ -363,178 +360,63 @@ const refreshRepo = async (path: string) => {
   await refreshStatus(path);
 };
 
-const stageAllFiles = async (path: string) => {
+const handleStageAllFiles = async (path: string) => {
   const status = repoStatuses.value[path];
   if (!status) return;
   const files = status.unstaged.map((f) => f.path);
-
-  const ok = await errorHandler.wrapAsync(
-    () => invoke<void>("git_stage_files", { path, files }),
-    { userMessage: "暂存文件失败" }
-  );
-  if (ok !== null) {
-    await refreshStatus(path);
-  }
+  await stageFiles(path, files);
 };
 
-const unstageAllFiles = async (path: string) => {
+const handleUnstageAllFiles = async (path: string) => {
   const status = repoStatuses.value[path];
   if (!status) return;
   const files = status.staged.map((f) => f.path);
-
-  const ok = await errorHandler.wrapAsync(
-    () => invoke<void>("git_unstage_files", { path, files }),
-    { userMessage: "取消暂存失败" }
-  );
-  if (ok !== null) {
-    await refreshStatus(path);
-  }
+  await unstageFiles(path, files);
 };
 
-const pullRepo = async (path: string) => {
+const handlePullRepo = async (path: string) => {
   if (!repoLoadingStates[path]) return;
   repoLoadingStates[path].pulling = true;
   try {
-    const ok = await errorHandler.wrapAsync(
-      () => invoke<void>("git_pull", { path }),
-      { userMessage: "拉取失败" }
-    );
-    if (ok !== null) {
-      customMessage.success("拉取成功");
-      await refreshStatus(path);
-    }
+    await pullRepo(path);
   } finally {
     repoLoadingStates[path].pulling = false;
   }
 };
 
-const pushRepo = async (path: string) => {
+const handlePushRepo = async (path: string) => {
   if (!repoLoadingStates[path]) return;
   repoLoadingStates[path].pushing = true;
   try {
-    const ok = await errorHandler.wrapAsync(
-      () => invoke<void>("git_push", { path }),
-      { userMessage: "推送失败" }
-    );
-    if (ok !== null) {
-      customMessage.success("推送成功");
-      await refreshStatus(path);
-    }
+    await pushRepo(path);
   } finally {
     repoLoadingStates[path].pushing = false;
   }
 };
 
-// 组装单仓库的 diff 文本
-const buildDiffPromptForRepo = async (path: string): Promise<string | null> => {
-  const status = repoStatuses.value[path];
-  if (!status) return null;
-
-  let files: FileStatus[] = [];
-  let isStaged = true;
-
-  if (status.staged.length > 0) {
-    files = status.staged;
-    isStaged = true;
-  } else if (aiIncludeUnstagedRef.value && status.unstaged.length > 0) {
-    files = status.unstaged;
-    isStaged = false;
-  }
-
-  if (files.length === 0) return null;
-
-  const parts: string[] = [];
-  for (const f of files) {
-    if (f.isBinary) {
-      parts.push(`### ${f.path}\n[二进制文件，无文本差异]`);
-      continue;
-    }
-    const diff = await errorHandler.wrapAsync(
-      () =>
-        invoke<[string, string]>("git_get_file_diff", {
-          path,
-          filePath: f.path,
-          isStaged,
-        }),
-      { showToUser: false }
-    );
-    if (!diff) {
-      parts.push(`### ${f.path}\n[二进制文件，无文本差异]`);
-      continue;
-    }
-    parts.push(
-      `### ${f.path} (${f.status})\n--- original ---\n${diff[0]}\n--- modified ---\n${diff[1]}`
-    );
-  }
-  return parts.join("\n\n");
-};
-
-const generateMessageForRepo = async (path: string) => {
-  const combo = defaultModelRef.value;
-  const [profileId, modelId] = parseModelCombo(combo);
-  if (!profileId || !modelId) {
-    customMessage.warning("请先在设置中选择 AI 模型");
-    return;
-  }
-
+const handleGenerateMessageForRepo = async (path: string) => {
   if (!repoLoadingStates[path]) return;
   repoLoadingStates[path].generating = true;
   repoDrafts.value[path] = "";
 
   try {
-    const diffText = await buildDiffPromptForRepo(path);
-    if (!diffText) {
-      customMessage.warning("没有可生成提交信息的文件变更");
-      return;
-    }
-
-    const systemPrompt = systemPromptRef.value;
-    const requestId = `gc-panorama-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-
-    await sendRequest({
-      profileId,
-      modelId,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: diffText },
-      ],
-      stream: true,
-      onStream: (chunk: string) => {
-        repoDrafts.value[path] += chunk;
-      },
-      requestId,
-      inspectorContext: {
-        toolName: "git-committer",
-        purpose: "generate-commit-message-panorama",
-      },
-    } as any);
-  } catch (error) {
-    logger.error(`AI 生成提交信息失败 (${path})`, error as Error);
-    customMessage.error(`AI 生成提交信息失败: ${path}`);
+    await generateCommitMessage(path, (chunk) => {
+      repoDrafts.value[path] += chunk;
+    });
   } finally {
     repoLoadingStates[path].generating = false;
   }
 };
 
-const commitRepo = async (path: string) => {
+const handleCommitRepo = async (path: string) => {
   const msg = repoDrafts.value[path];
-  if (!msg?.trim()) {
-    customMessage.warning("提交信息不能为空");
-    return;
-  }
-
   if (!repoLoadingStates[path]) return;
   repoLoadingStates[path].committing = true;
 
   try {
-    const ok = await errorHandler.wrapAsync(
-      () => invoke<void>("git_commit", { path, message: msg }),
-      { userMessage: "提交失败" }
-    );
-    if (ok !== null) {
-      customMessage.success(`提交成功: ${path.split(/[/\\]/).pop()}`);
+    const ok = await executeCommit(path, msg);
+    if (ok) {
       repoDrafts.value[path] = "";
-      await refreshStatus(path);
     }
   } finally {
     repoLoadingStates[path].committing = false;
@@ -542,35 +424,26 @@ const commitRepo = async (path: string) => {
 };
 
 // ===== 全局一键操作 =====
-const stageAllRepos = async () => {
+const handleStageAllRepos = async () => {
   isGlobalStaging.value = true;
   try {
-    await Promise.all(
-      activeRepos.value.map((repo) =>
-        stageAllFiles(repo.path).catch(() => null)
-      )
-    );
+    await stageAllRepos(activeRepos.value);
     customMessage.success("一键暂存完成");
   } finally {
     isGlobalStaging.value = false;
   }
 };
 
-const generateAllMessages = async () => {
-  const combo = defaultModelRef.value;
-  const [profileId, modelId] = parseModelCombo(combo);
-  if (!profileId || !modelId) {
-    customMessage.warning("请先在设置中选择 AI 模型");
-    return;
-  }
-
+const handleGenerateAllMessages = async () => {
   isGlobalGenerating.value = true;
   try {
     // 并发为所有符合条件的仓库生成提交消息
     await Promise.all(
       activeRepos.value
         .filter((repo) => canGenerateMessage(repo.path))
-        .map((repo) => generateMessageForRepo(repo.path).catch(() => null))
+        .map((repo) =>
+          handleGenerateMessageForRepo(repo.path).catch(() => null)
+        )
     );
     customMessage.success("一键 AI 生成完成");
   } finally {
@@ -578,23 +451,17 @@ const generateAllMessages = async () => {
   }
 };
 
-const commitAllRepos = async () => {
+const handleCommitAllRepos = async () => {
   isGlobalCommitting.value = true;
   try {
     let successCount = 0;
     for (const repo of activeRepos.value) {
       if (canCommit(repo.path)) {
         const msg = repoDrafts.value[repo.path];
-        const ok = await errorHandler.wrapAsync(
-          () => invoke<void>("git_commit", { path: repo.path, message: msg }),
-          { showToUser: false }
-        );
-        if (ok !== null) {
+        const ok = await executeCommit(repo.path, msg);
+        if (ok) {
           successCount++;
           repoDrafts.value[repo.path] = "";
-          await refreshStatus(repo.path);
-        } else {
-          customMessage.error(`提交失败: ${repo.alias || repo.name}`);
         }
       }
     }
@@ -610,25 +477,10 @@ const commitAllRepos = async () => {
   }
 };
 
-const pushAllRepos = async () => {
+const handlePushAllRepos = async () => {
   isGlobalPushing.value = true;
   try {
-    let successCount = 0;
-    for (const repo of repositories.value) {
-      const status = repoStatuses.value[repo.path];
-      if (status && status.ahead > 0) {
-        const ok = await errorHandler.wrapAsync(
-          () => invoke<void>("git_push", { path: repo.path }),
-          { showToUser: false }
-        );
-        if (ok !== null) {
-          successCount++;
-          await refreshStatus(repo.path);
-        } else {
-          customMessage.error(`推送失败: ${repo.alias || repo.name}`);
-        }
-      }
-    }
+    const successCount = await pushAllRepos();
     if (successCount > 0) {
       customMessage.success(`成功推送了 ${successCount} 个仓库`);
     } else {

@@ -82,7 +82,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, watch } from "vue";
 import { PanelRight, PanelRightClose } from "lucide-vue-next";
 import RepoBar from "./components/RepoBar.vue";
 import Sidebar from "./components/Sidebar.vue";
@@ -101,6 +101,11 @@ import { refreshAllStatuses } from "./composables/useGitCommitterRunner";
 import { useResizable } from "./composables/useResizable";
 
 const showSettings = ref(false);
+
+// 监听当前仓库路径变化，自动关闭设置面板
+watch(currentRepoPath, () => {
+  showSettings.value = false;
+});
 
 // ===== 侧边栏拖拽调整宽度 =====
 const {

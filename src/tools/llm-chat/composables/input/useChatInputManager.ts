@@ -81,10 +81,12 @@ interface ChatInputDraftStorage {
   version: 2;
   activeSessionId: string | null;
   drafts: Record<string, ChatInputDraft>;
+  draftClipboard?: ChatInputDraft | null;
 }
 
 interface ChatInputSyncState extends ChatInputDraft {
   sessionId: string | null;
+  draftClipboard?: ChatInputDraft | null;
 }
 
 /**
@@ -103,6 +105,8 @@ class ChatInputManager {
   public temporaryModel: Ref<ModelIdentifier | null> = ref(null);
   // 续写指定的模型
   public continuationModel: Ref<ModelIdentifier | null> = ref(null);
+  // 全局草稿剪贴板
+  public draftClipboard: Ref<ChatInputDraft | null> = ref(null);
   // 当前输入区绑定的会话；UI 仍消费上面的 ref，但 ref 内容来自该会话草稿
   public activeSessionId: Ref<string | null> = ref(null);
   private draftMap = new Map<string, ChatInputDraft>();
@@ -115,6 +119,7 @@ class ChatInputManager {
     attachments: [],
     temporaryModel: null,
     continuationModel: null,
+    draftClipboard: null,
     timestamp: Date.now(),
   });
 
@@ -230,6 +235,7 @@ class ChatInputManager {
       attachments: [...this.attachmentManager.attachments.value],
       temporaryModel: this.temporaryModel.value,
       continuationModel: this.continuationModel.value,
+      draftClipboard: this.draftClipboard.value,
       timestamp: Date.now(),
     };
     this.lastSyncedValue = {
@@ -238,6 +244,7 @@ class ChatInputManager {
       attachments: [...this.attachmentManager.attachments.value],
       temporaryModel: this.temporaryModel.value,
       continuationModel: this.continuationModel.value,
+      draftClipboard: this.draftClipboard.value,
       timestamp: Date.now(),
     };
 
@@ -250,6 +257,7 @@ class ChatInputManager {
           ...this.syncState.value,
           sessionId: this.activeSessionId.value,
           text: newText,
+          draftClipboard: this.draftClipboard.value,
           timestamp: Date.now(),
         };
         // 防抖推送到其他窗口
@@ -323,6 +331,7 @@ class ChatInputManager {
             ...this.syncState.value,
             sessionId: this.activeSessionId.value,
             attachments: [...newAttachments],
+            draftClipboard: this.draftClipboard.value,
             timestamp: Date.now(),
           };
           // 防抖推送到其他窗口
@@ -343,6 +352,7 @@ class ChatInputManager {
           ...this.syncState.value,
           sessionId: this.activeSessionId.value,
           temporaryModel: newModel,
+          draftClipboard: this.draftClipboard.value,
           timestamp: Date.now(),
         };
         this.debouncedPushState();
@@ -359,6 +369,7 @@ class ChatInputManager {
           ...this.syncState.value,
           sessionId: this.activeSessionId.value,
           continuationModel: newModel,
+          draftClipboard: this.draftClipboard.value,
           timestamp: Date.now(),
         };
         this.debouncedPushState();
@@ -436,6 +447,17 @@ class ChatInputManager {
           this.continuationModel.value = newState.continuationModel || null;
           logger.debug("从同步状态更新续写模型", {
             model: newState.continuationModel,
+          });
+        }
+
+        // 同步草稿剪贴板
+        if (
+          JSON.stringify(newState.draftClipboard) !==
+          JSON.stringify(this.draftClipboard.value)
+        ) {
+          this.draftClipboard.value = newState.draftClipboard || null;
+          logger.debug("从同步状态更新草稿剪贴板", {
+            hasClipboard: !!newState.draftClipboard,
           });
         }
 
@@ -609,6 +631,7 @@ class ChatInputManager {
         attachments: [...this.attachmentManager.attachments.value],
         temporaryModel: this.temporaryModel.value,
         continuationModel: this.continuationModel.value,
+        draftClipboard: this.draftClipboard.value,
         timestamp: draft.timestamp || Date.now(),
       };
       this.lastSyncedValue = JSON.parse(JSON.stringify(this.syncState.value));
@@ -627,6 +650,7 @@ class ChatInputManager {
     this.syncState.value = {
       sessionId,
       ...this.cloneDraft(draft),
+      draftClipboard: this.draftClipboard.value,
     };
     this.debouncedPushState();
   }
@@ -934,10 +958,12 @@ class ChatInputManager {
             this.draftMap.set(sessionId, this.cloneDraft(draft));
           });
           this.activeSessionId.value = storage.activeSessionId || null;
+          this.draftClipboard.value = storage.draftClipboard || null;
           this.applyDraftToActiveRefs(this.getDraft(storage.activeSessionId));
           logger.info("从 localStorage 恢复会话级输入草稿", {
             draftCount: this.draftMap.size,
             activeSessionId: this.activeSessionId.value,
+            hasClipboard: !!this.draftClipboard.value,
           });
           return;
         }
@@ -995,11 +1021,13 @@ class ChatInputManager {
         version: 2,
         activeSessionId: this.activeSessionId.value,
         drafts,
+        draftClipboard: this.draftClipboard.value,
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(storage));
       logger.debug("保存会话级输入草稿到 localStorage", {
         draftCount: Object.keys(drafts).length,
         activeSessionId: this.activeSessionId.value,
+        hasClipboard: !!this.draftClipboard.value,
       });
     } catch (error) {
       errorHandler.handle(error as Error, {
@@ -1660,6 +1688,50 @@ class ChatInputManager {
   clearContinuationModel(): void {
     this.continuationModel.value = null;
   }
+
+  // ========== 草稿剪贴板操作 ==========
+  public cutDraft(sessionId?: string | null): void {
+    const targetSessionId = sessionId || this.activeSessionId.value;
+    this.saveCurrentDraftSnapshot();
+    const currentDraft = this.getDraft(targetSessionId);
+
+    if (this.isEmptyDraft(currentDraft)) {
+      return;
+    }
+
+    this.draftClipboard.value = this.cloneDraft(currentDraft);
+    this.clear(targetSessionId);
+
+    this.syncState.value = {
+      ...this.syncState.value,
+      draftClipboard: this.draftClipboard.value,
+    };
+    this.debouncedPushState();
+    this.saveToStorageImmediate();
+  }
+
+  public pasteDraft(sessionId?: string | null): void {
+    if (!this.draftClipboard.value) return;
+
+    const targetSessionId = sessionId || this.activeSessionId.value;
+    const clipboard = this.cloneDraft(this.draftClipboard.value);
+
+    this.updateDraft(targetSessionId, (draft) => {
+      draft.text = clipboard.text;
+      draft.attachments = [...clipboard.attachments];
+      draft.temporaryModel = clipboard.temporaryModel;
+      draft.continuationModel = clipboard.continuationModel;
+    });
+
+    this.draftClipboard.value = null;
+
+    this.syncState.value = {
+      ...this.syncState.value,
+      draftClipboard: null,
+    };
+    this.debouncedPushState();
+    this.saveToStorageImmediate();
+  }
 }
 
 /**
@@ -1773,6 +1845,14 @@ export function useChatInputManager() {
     setContinuationModel: manager.setContinuationModel.bind(manager),
     /** 清除续写模型 */
     clearContinuationModel: manager.clearContinuationModel.bind(manager),
+
+    // ========== 草稿剪贴板操作 ==========
+    /** 草稿剪贴板（响应式） */
+    draftClipboard: manager.draftClipboard,
+    /** 剪切当前草稿到剪贴板 */
+    cutDraft: manager.cutDraft.bind(manager),
+    /** 从剪贴板粘贴草稿到当前会话 */
+    pasteDraft: manager.pasteDraft.bind(manager),
 
     // 暴露给 useLlmChatSync 用于手动触发推送
     pushState: manager.pushState.bind(manager),

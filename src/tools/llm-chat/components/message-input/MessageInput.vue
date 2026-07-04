@@ -350,14 +350,14 @@ onMounted(async () => {
   }
   // 注册回调到 Store
   inputStore.registerTextareaRef(textareaRef);
-  inputStore.registerSendCallback((payload) => {
+  inputStore.registerSendCallback((payload: any) => {
     isExpanded.value = false;
     emit("send", payload);
   });
   inputStore.registerAbortCallback(() => {
     emit("abort");
   });
-  inputStore.registerCompleteInputCallback((content, options) => {
+  inputStore.registerCompleteInputCallback((content: string, options: any) => {
     emit("complete-input", content, options);
   });
 

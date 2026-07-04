@@ -31,6 +31,8 @@ import {
   ScanSearch,
   Grip,
   Unlock,
+  Scissors,
+  ClipboardPaste,
 } from "lucide-vue-next";
 import { useMessageInputStore } from "../../../stores/messageInputStore";
 
@@ -170,6 +172,33 @@ const emit = defineEmits<{
           <div class="dropdown-item-content">
             <ScanSearch :size="16" />
             <span>分析当前上下文</span>
+          </div>
+        </el-dropdown-item>
+
+        <div class="dropdown-divider"></div>
+
+        <!-- 剪切输入草稿 -->
+        <el-dropdown-item
+          :disabled="
+            props.disabled ||
+            (!props.inputText.trim() && inputStore.attachmentCount === 0)
+          "
+          @click="inputStore.handleCutDraft()"
+        >
+          <div class="dropdown-item-content">
+            <Scissors :size="16" />
+            <span>剪切输入草稿</span>
+          </div>
+        </el-dropdown-item>
+
+        <!-- 粘贴输入草稿 -->
+        <el-dropdown-item
+          :disabled="props.disabled || !inputStore.hasClipboardDraft"
+          @click="inputStore.handlePasteDraft()"
+        >
+          <div class="dropdown-item-content">
+            <ClipboardPaste :size="16" />
+            <span>粘贴输入草稿</span>
           </div>
         </el-dropdown-item>
 

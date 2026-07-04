@@ -87,8 +87,10 @@ export const useMessageInputStore = defineStore(
     const attachments = inputManager.attachments;
     const isProcessingAttachments = inputManager.isProcessingAttachments;
     const hasAttachments = inputManager.hasAttachments;
+    const attachmentCount = inputManager.attachmentCount;
     const temporaryModel = inputManager.temporaryModel;
     const continuationModel = inputManager.continuationModel;
+    const draftClipboard = inputManager.draftClipboard;
 
     // === 4. Token 预览 ===
     const {
@@ -676,6 +678,16 @@ export const useMessageInputStore = defineStore(
     const clearContinuationModel = () =>
       inputManager.setContinuationModel(null);
 
+    const hasClipboardDraft = computed(() => draftClipboard.value !== null);
+
+    const handleCutDraft = () => {
+      inputManager.cutDraft(chatStore.currentSessionId);
+    };
+
+    const handlePasteDraft = () => {
+      inputManager.pasteDraft(chatStore.currentSessionId);
+    };
+
     return {
       // 菜单可见性
       macroSelectorVisible,
@@ -692,6 +704,7 @@ export const useMessageInputStore = defineStore(
       attachments,
       isProcessingAttachments,
       hasAttachments,
+      attachmentCount,
       temporaryModel,
       continuationModel,
       // Token 预览
@@ -712,6 +725,10 @@ export const useMessageInputStore = defineStore(
       handleSelectContinuationModel,
       clearTemporaryModel,
       clearContinuationModel,
+      draftClipboard,
+      hasClipboardDraft,
+      handleCutDraft,
+      handlePasteDraft,
       registerTextareaRef,
       registerSendCallback,
       registerAbortCallback,

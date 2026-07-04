@@ -1047,4 +1047,8 @@ const openFileDirectory = async () => {
     transform: rotate(360deg);
   }
 }
+
+.el-button {
+  margin-left: 4px;
+}
 </style>

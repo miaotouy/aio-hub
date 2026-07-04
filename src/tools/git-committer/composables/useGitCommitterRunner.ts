@@ -86,6 +86,19 @@ export async function stageFiles(
   files: string[]
 ): Promise<void> {
   if (!repoPath || repoPath === "__panorama__" || files.length === 0) return;
+
+  // 乐观更新：在请求发送前，立即在前端将文件从 unstaged 移到 staged
+  const status = repoStatuses.value[repoPath];
+  const backupStaged = status ? [...status.staged] : [];
+  const backupUnstaged = status ? [...status.unstaged] : [];
+
+  if (status) {
+    const filesSet = new Set(files);
+    const movingFiles = status.unstaged.filter((f) => filesSet.has(f.path));
+    status.unstaged = status.unstaged.filter((f) => !filesSet.has(f.path));
+    status.staged = [...status.staged, ...movingFiles];
+  }
+
   const ok = await errorHandler.wrapAsync(
     () =>
       invoke<void>("git_stage_files", {
@@ -94,8 +107,16 @@ export async function stageFiles(
       }),
     { userMessage: "暂存文件失败" }
   );
+
   if (ok !== null) {
+    // 后端成功，刷新真实状态
     await refreshStatus(repoPath);
+  } else {
+    // 后端失败，回滚状态
+    if (status) {
+      status.staged = backupStaged;
+      status.unstaged = backupUnstaged;
+    }
   }
 }
 
@@ -104,6 +125,19 @@ export async function unstageFiles(
   files: string[]
 ): Promise<void> {
   if (!repoPath || repoPath === "__panorama__" || files.length === 0) return;
+
+  // 乐观更新：在请求发送前，立即在前端将文件从 staged 移到 unstaged
+  const status = repoStatuses.value[repoPath];
+  const backupStaged = status ? [...status.staged] : [];
+  const backupUnstaged = status ? [...status.unstaged] : [];
+
+  if (status) {
+    const filesSet = new Set(files);
+    const movingFiles = status.staged.filter((f) => filesSet.has(f.path));
+    status.staged = status.staged.filter((f) => !filesSet.has(f.path));
+    status.unstaged = [...status.unstaged, ...movingFiles];
+  }
+
   const ok = await errorHandler.wrapAsync(
     () =>
       invoke<void>("git_unstage_files", {
@@ -112,8 +146,16 @@ export async function unstageFiles(
       }),
     { userMessage: "取消暂存失败" }
   );
+
   if (ok !== null) {
+    // 后端成功，刷新真实状态
     await refreshStatus(repoPath);
+  } else {
+    // 后端失败，回滚状态
+    if (status) {
+      status.staged = backupStaged;
+      status.unstaged = backupUnstaged;
+    }
   }
 }
 

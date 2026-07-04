@@ -82,7 +82,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted, onUnmounted, watch } from "vue";
 import { PanelRight, PanelRightClose } from "lucide-vue-next";
 import RepoBar from "./components/RepoBar.vue";
 import Sidebar from "./components/Sidebar.vue";
@@ -96,6 +96,9 @@ import {
   isRightSidebarExpanded,
   isRepoBarPinned,
   loadRepositories,
+  enableAutoRefresh,
+  autoRefreshInterval,
+  isRefreshing,
 } from "./composables/useGitCommitterState";
 import { refreshAllStatuses } from "./composables/useGitCommitterRunner";
 import { useResizable } from "./composables/useResizable";
@@ -139,13 +142,60 @@ const resetRightSidebarWidth = () => {
   resetRightSidebarWidthRef(280);
 };
 
+// ===== 自动刷新与智能轮询逻辑 =====
+let refreshTimer: number | null = null;
+
+const handleWindowFocus = () => {
+  // 窗口聚焦时，如果未在刷新且有仓库，则自动刷新
+  if (!isRefreshing.value && currentRepoPath.value) {
+    refreshAllStatuses();
+  }
+};
+
+const startPolling = () => {
+  stopPolling();
+  if (!enableAutoRefresh.value) return;
+
+  const intervalMs = Math.max(3, autoRefreshInterval.value) * 1000; // 最小限制 3 秒，防止高频刷新
+  refreshTimer = window.setInterval(() => {
+    // 仅在窗口处于前台、未在刷新、且有仓库时轮询
+    if (!document.hidden && !isRefreshing.value && currentRepoPath.value) {
+      refreshAllStatuses();
+    }
+  }, intervalMs);
+};
+
+const stopPolling = () => {
+  if (refreshTimer) {
+    clearInterval(refreshTimer);
+    refreshTimer = null;
+  }
+};
+
+// 监听自动刷新配置变化，动态调整轮询
+watch([enableAutoRefresh, autoRefreshInterval], () => {
+  startPolling();
+});
+
 onMounted(async () => {
   await loadRepositories();
   await refreshAllStatuses();
+
+  // 注册窗口聚焦事件
+  window.addEventListener("focus", handleWindowFocus);
+  // 启动智能轮询
+  startPolling();
+
   // 如果没有仓库，默认打开设置面板
   if (currentRepoPath.value === "") {
     showSettings.value = true;
   }
+});
+
+onUnmounted(() => {
+  // 注销事件与清除定时器
+  window.removeEventListener("focus", handleWindowFocus);
+  stopPolling();
 });
 </script>
 

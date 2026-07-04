@@ -50,6 +50,8 @@ const configManager = createConfigManager<GitCommitterConfig>({
     aiIncludeUnstaged: false,
     defaultModel: "",
     systemPrompt: DEFAULT_SYSTEM_PROMPT,
+    enableAutoRefresh: true,
+    autoRefreshInterval: 10,
   }),
 });
 
@@ -68,6 +70,8 @@ export const autoPullOnSwitch = ref<boolean>(false);
 export const aiIncludeUnstaged = ref<boolean>(false);
 export const defaultModel = ref<string>("");
 export const systemPrompt = ref<string>(DEFAULT_SYSTEM_PROMPT);
+export const enableAutoRefresh = ref<boolean>(true);
+export const autoRefreshInterval = ref<number>(10);
 
 // 运行时状态（不持久化）
 export const repoStatuses = ref<Record<string, RepoStatus>>({});
@@ -130,6 +134,8 @@ export async function loadRepositories(): Promise<void> {
   aiIncludeUnstaged.value = config.aiIncludeUnstaged ?? false;
   defaultModel.value = config.defaultModel ?? "";
   systemPrompt.value = config.systemPrompt?.trim() || DEFAULT_SYSTEM_PROMPT;
+  enableAutoRefresh.value = config.enableAutoRefresh ?? true;
+  autoRefreshInterval.value = config.autoRefreshInterval ?? 10;
 
   // 校正 currentRepoPath（可能指向已被删除的仓库，且排除全景模式）
   if (
@@ -161,6 +167,8 @@ function snapshot(): GitCommitterConfig {
     aiIncludeUnstaged: aiIncludeUnstaged.value,
     defaultModel: defaultModel.value,
     systemPrompt: systemPrompt.value,
+    enableAutoRefresh: enableAutoRefresh.value,
+    autoRefreshInterval: autoRefreshInterval.value,
   };
 }
 
@@ -184,6 +192,8 @@ watch(
     aiIncludeUnstaged,
     defaultModel,
     systemPrompt,
+    enableAutoRefresh,
+    autoRefreshInterval,
   ],
   () => {
     if (initialized) persist();

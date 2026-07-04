@@ -72,6 +72,10 @@ export interface GitCommitterConfig {
   /** 默认 AI 模型（profileId:modelId 组合） */
   defaultModel: string;
   systemPrompt: string;
+  /** 是否启用自动刷新 */
+  enableAutoRefresh: boolean;
+  /** 自动刷新间隔（秒） */
+  autoRefreshInterval: number;
 }
 
 /** Diff 标签页运行时态 */
@@ -83,3 +87,4 @@ export interface DiffTab {
   isBinary: boolean;
   loading: boolean;
 }
+

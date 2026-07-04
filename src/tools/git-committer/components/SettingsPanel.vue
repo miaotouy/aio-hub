@@ -157,6 +157,30 @@
             </div>
             <el-switch v-model="aiIncludeUnstaged" />
           </div>
+
+          <div class="switch-item">
+            <div class="switch-label-group">
+              <span class="switch-label">自动刷新仓库状态</span>
+              <span class="switch-desc"
+                >当窗口聚焦或在前台静默轮询时，自动刷新所有关联仓库的 Git
+                状态</span
+              >
+            </div>
+            <div class="refresh-control-group">
+              <el-select
+                v-if="enableAutoRefresh"
+                v-model="autoRefreshInterval"
+                size="small"
+                style="width: 100px; margin-right: 12px"
+              >
+                <el-option :value="5" label="5 秒" />
+                <el-option :value="10" label="10 秒" />
+                <el-option :value="30" label="30 秒" />
+                <el-option :value="60" label="1 分钟" />
+              </el-select>
+              <el-switch v-model="enableAutoRefresh" />
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -220,6 +244,8 @@ import {
   addRepository,
   removeRepository,
   restoreDefaultSystemPrompt,
+  enableAutoRefresh,
+  autoRefreshInterval,
 } from "../composables/useGitCommitterState";
 import { switchRepoWithAutoPull } from "../composables/useGitCommitterRunner";
 
@@ -511,6 +537,11 @@ const showInFileManager = async (path: string) => {
   justify-content: space-between;
   padding: 16px;
   border-bottom: var(--border-width) solid var(--border-color);
+}
+
+.refresh-control-group {
+  display: flex;
+  align-items: center;
 }
 
 .switch-item:last-child {

@@ -51,6 +51,7 @@ const { sendRequest } = useLlmRequest();
 export async function refreshStatus(
   repoPath: string
 ): Promise<RepoStatus | null> {
+  if (!repoPath || repoPath === "__panorama__") return null;
   const status = await errorHandler.wrapAsync(
     () => invoke<RepoStatus>("git_get_repo_status", { path: repoPath }),
     { userMessage: "刷新仓库状态失败" }
@@ -83,7 +84,12 @@ export async function refreshCurrentStatus(): Promise<void> {
 // ===== 暂存 / 取消暂存 =====
 
 export async function stageFiles(files: string[]): Promise<void> {
-  if (!currentRepoPath.value || files.length === 0) return;
+  if (
+    !currentRepoPath.value ||
+    currentRepoPath.value === "__panorama__" ||
+    files.length === 0
+  )
+    return;
   const ok = await errorHandler.wrapAsync(
     () =>
       invoke<void>("git_stage_files", {
@@ -98,7 +104,12 @@ export async function stageFiles(files: string[]): Promise<void> {
 }
 
 export async function unstageFiles(files: string[]): Promise<void> {
-  if (!currentRepoPath.value || files.length === 0) return;
+  if (
+    !currentRepoPath.value ||
+    currentRepoPath.value === "__panorama__" ||
+    files.length === 0
+  )
+    return;
   const ok = await errorHandler.wrapAsync(
     () =>
       invoke<void>("git_unstage_files", {
@@ -127,7 +138,8 @@ export async function loadFileDiff(
   filePath: string,
   isStaged: boolean
 ): Promise<DiffTab | null> {
-  if (!currentRepoPath.value) return null;
+  if (!currentRepoPath.value || currentRepoPath.value === "__panorama__")
+    return null;
   const result = await errorHandler.wrapAsync(
     () =>
       invoke<[string, string]>("git_get_file_diff", {
@@ -205,7 +217,8 @@ export async function executeCommit(
   message: string,
   pushAfter: boolean = false
 ): Promise<boolean> {
-  if (!currentRepoPath.value) return false;
+  if (!currentRepoPath.value || currentRepoPath.value === "__panorama__")
+    return false;
   if (!message.trim()) {
     customMessage.warning("提交信息不能为空");
     return false;
@@ -232,10 +245,10 @@ export async function executeCommit(
 
 /** 推送当前仓库 */
 export async function pushCurrent(): Promise<boolean> {
-  if (!currentRepoPath.value) return false;
+  if (!currentRepoPath.value || currentRepoPath.value === "__panorama__")
+    return false;
   const ok = await errorHandler.wrapAsync(
-    () =>
-      invoke<void>("git_push", { path: currentRepoPath.value }),
+    () => invoke<void>("git_push", { path: currentRepoPath.value }),
     { userMessage: "推送失败" }
   );
   if (ok !== null) {
@@ -248,10 +261,10 @@ export async function pushCurrent(): Promise<boolean> {
 
 /** 拉取当前仓库 */
 export async function pullCurrent(): Promise<boolean> {
-  if (!currentRepoPath.value) return false;
+  if (!currentRepoPath.value || currentRepoPath.value === "__panorama__")
+    return false;
   const ok = await errorHandler.wrapAsync(
-    () =>
-      invoke<void>("git_pull", { path: currentRepoPath.value }),
+    () => invoke<void>("git_pull", { path: currentRepoPath.value }),
     { userMessage: "拉取失败" }
   );
   if (ok !== null) {
@@ -261,11 +274,11 @@ export async function pullCurrent(): Promise<boolean> {
   }
   return false;
 }
-
 /** 切换仓库（带可选的自动拉取） */
 export async function switchRepoWithAutoPull(path: string): Promise<void> {
   if (path === currentRepoPath.value) return;
   switchRepo(path);
+  if (path === "__panorama__") return;
   if (autoPullOnSwitchRef.value) {
     await pullCurrent();
   }
@@ -378,3 +391,4 @@ export {
   defaultModelRef,
   systemPromptRef,
 };
+

@@ -9,12 +9,12 @@
 
     <!-- 中部操作栏 (Sidebar) -->
     <Sidebar
-      v-if="currentRepoPath"
+      v-if="currentRepoPath && currentRepoPath !== '__panorama__'"
       :style="{ width: sidebarWidth + 'px' }"
       @open-settings="showSettings = true"
     />
     <div
-      v-if="currentRepoPath"
+      v-if="currentRepoPath && currentRepoPath !== '__panorama__'"
       class="resize-handle"
       :class="{ active: isResizingSidebar }"
       @mousedown="startResizeSidebar"
@@ -33,7 +33,11 @@
     </div>
 
     <!-- 右侧图表侧边栏 (RightSidebar) -->
-    <template v-if="currentRepoPath && !showSettings">
+    <template
+      v-if="
+        currentRepoPath && currentRepoPath !== '__panorama__' && !showSettings
+      "
+    >
       <div
         v-if="isRightSidebarExpanded"
         class="resize-handle right"
@@ -49,7 +53,9 @@
 
     <!-- 右侧栏折叠/展开悬浮按钮 -->
     <div
-      v-if="currentRepoPath && !showSettings"
+      v-if="
+        currentRepoPath && currentRepoPath !== '__panorama__' && !showSettings
+      "
       class="toggle-right-sidebar-btn"
       :class="{ 'is-expanded': isRightSidebarExpanded }"
       @click="isRightSidebarExpanded = !isRightSidebarExpanded"

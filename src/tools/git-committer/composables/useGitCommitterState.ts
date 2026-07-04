@@ -65,12 +65,23 @@ export const repoStatuses = ref<Record<string, RepoStatus>>({});
 export const isRefreshing = ref<boolean>(false);
 
 // ===== 计算属性 =====
-export const currentRepo = computed<RepositoryConfig | null>(
-  () => repositories.value.find((r) => r.path === currentRepoPath.value) || null
-);
+export const currentRepo = computed<RepositoryConfig | null>(() => {
+  if (currentRepoPath.value === "__panorama__") {
+    return {
+      path: "__panorama__",
+      name: "全景模式",
+      alias: "全景模式",
+    };
+  }
+  return (
+    repositories.value.find((r) => r.path === currentRepoPath.value) || null
+  );
+});
 
 export const currentStatus = computed<RepoStatus | null>(() =>
-  currentRepoPath.value ? repoStatuses.value[currentRepoPath.value] || null : null
+  currentRepoPath.value
+    ? repoStatuses.value[currentRepoPath.value] || null
+    : null
 );
 
 export const currentSession = computed<RepoSession>(() => {
@@ -79,7 +90,11 @@ export const currentSession = computed<RepoSession>(() => {
     return { openTabs: [], activeTabPath: "", commitDraft: "" };
   }
   if (!repoSessions.value[key]) {
-    repoSessions.value[key] = { openTabs: [], activeTabPath: "", commitDraft: "" };
+    repoSessions.value[key] = {
+      openTabs: [],
+      activeTabPath: "",
+      commitDraft: "",
+    };
   }
   return repoSessions.value[key];
 });
@@ -100,9 +115,10 @@ export async function loadRepositories(): Promise<void> {
   isRepoBarPinned.value = config.isRepoBarPinned ?? false;
   repoSessions.value = config.repoSessions || {};
 
-  // 校正 currentRepoPath（可能指向已被删除的仓库）
+  // 校正 currentRepoPath（可能指向已被删除的仓库，且排除全景模式）
   if (
     currentRepoPath.value &&
+    currentRepoPath.value !== "__panorama__" &&
     !repositories.value.some((r) => r.path === currentRepoPath.value)
   ) {
     currentRepoPath.value = repositories.value[0]?.path || "";
@@ -208,3 +224,4 @@ export function updateCommitDraft(text: string): void {
   const session = currentSession.value;
   session.commitDraft = text;
 }
+

@@ -26,6 +26,36 @@
 
       <!-- 仓库列表 -->
       <div class="repo-list">
+        <!-- 全景模式虚拟项 -->
+        <div
+          v-if="repositories.length > 0"
+          class="repo-item panorama-item"
+          :class="{ active: currentRepoPath === '__panorama__' }"
+          @click="switchRepoWithAutoPull('__panorama__')"
+        >
+          <div class="repo-avatar-wrapper">
+            <div class="panorama-icon-wrapper">
+              <LayoutGrid class="w-5 h-5 text-primary" />
+            </div>
+            <!-- 聚合状态徽章 -->
+            <div class="badges-container">
+              <span v-if="getAllUncommittedCount() > 0" class="badge badge-red">
+                {{ getAllUncommittedCount() }}
+              </span>
+              <span v-if="getAllAheadCount() > 0" class="badge badge-blue">
+                {{ getAllAheadCount() }}
+              </span>
+            </div>
+          </div>
+
+          <div v-if="isPinned || isHovered" class="repo-info">
+            <div class="repo-name">全景模式</div>
+            <div class="repo-branch">所有仓库看板</div>
+          </div>
+        </div>
+
+        <div class="divider" v-if="repositories.length > 0" />
+
         <div
           v-for="repo in repositories"
           :key="repo.path"
@@ -85,7 +115,7 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { Pin, PinOff, RefreshCw, Settings } from "lucide-vue-next";
+import { Pin, PinOff, RefreshCw, Settings, LayoutGrid } from "lucide-vue-next";
 import Avatar from "@/components/common/Avatar.vue";
 import {
   repositories,
@@ -126,6 +156,21 @@ const getBranchName = (path: string) => {
   const status = repoStatuses.value[path];
   if (!status) return "未加载";
   return status.branch || "HEAD";
+};
+
+// ===== 聚合状态获取 =====
+const getAllUncommittedCount = () => {
+  return repositories.value.reduce(
+    (acc, repo) => acc + getUncommittedCount(repo.path),
+    0
+  );
+};
+
+const getAllAheadCount = () => {
+  return repositories.value.reduce(
+    (acc, repo) => acc + getAheadCount(repo.path),
+    0
+  );
 };
 </script>
 
@@ -200,6 +245,23 @@ const getBranchName = (path: string) => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.divider {
+  height: 1px;
+  background-color: var(--border-color);
+  margin: 4px 12px;
+  flex-shrink: 0;
+}
+
+.panorama-icon-wrapper {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background-color: rgba(var(--el-color-primary-rgb), 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .repo-item {

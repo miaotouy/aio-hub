@@ -1,106 +1,112 @@
 <template>
   <div class="git-committer-main-area" ref="mainAreaRef">
-    <!-- 顶部：多 Tab 文件标签栏 -->
-    <div v-if="session.openTabs.length > 0" class="tabs-header">
-      <div class="tabs-scroll-container">
-        <div
-          v-for="tab in session.openTabs"
-          :key="buildTabKey(tab.path, tab.isStaged)"
-          class="tab-item"
-          :class="{
-            active:
-              session.activeTabPath === buildTabKey(tab.path, tab.isStaged),
-          }"
-          @click="session.activeTabPath = buildTabKey(tab.path, tab.isStaged)"
-        >
-          <span
-            class="tab-status"
-            :class="getFileStatus(tab.path, tab.isStaged).toLowerCase()"
+    <!-- 全景模式看板 -->
+    <PanoramaDashboard v-if="currentRepoPath === '__panorama__'" />
+
+    <!-- 单仓库模式 -->
+    <template v-else>
+      <!-- 顶部：多 Tab 文件标签栏 -->
+      <div v-if="session.openTabs.length > 0" class="tabs-header">
+        <div class="tabs-scroll-container">
+          <div
+            v-for="tab in session.openTabs"
+            :key="buildTabKey(tab.path, tab.isStaged)"
+            class="tab-item"
+            :class="{
+              active:
+                session.activeTabPath === buildTabKey(tab.path, tab.isStaged),
+            }"
+            @click="session.activeTabPath = buildTabKey(tab.path, tab.isStaged)"
           >
-            {{ getFileStatus(tab.path, tab.isStaged) }}
-          </span>
-          <span class="tab-name" :title="tab.path">{{
-            getFileName(tab.path)
-          }}</span>
-          <span class="tab-stage-badge" :class="{ staged: tab.isStaged }">
-            {{ tab.isStaged ? "暂存" : "工作区" }}
-          </span>
-          <span
-            class="tab-close"
-            @click.stop="closeDiffTab(tab.path, tab.isStaged)"
-          >
-            <X class="w-3 h-3" />
-          </span>
-        </div>
-      </div>
-    </div>
-
-    <!-- 中部：Diff 编辑器或空状态 -->
-    <div class="main-content">
-      <template v-if="activeTab">
-        <!-- 二进制文件降级提示 -->
-        <div v-if="activeTab.isBinary" class="binary-fallback-card">
-          <FileCode class="w-12 h-12 text-placeholder mb-4" />
-          <h3 class="text-lg font-semibold mb-2">二进制文件无法查看差异</h3>
-          <p class="text-sm text-secondary mb-4">{{ activeTab.path }}</p>
-          <div class="flex gap-4">
-            <el-button
-              v-if="activeTab.isStaged"
-              type="danger"
-              size="small"
-              @click="unstageFile(activeTab.path)"
+            <span
+              class="tab-status"
+              :class="getFileStatus(tab.path, tab.isStaged).toLowerCase()"
             >
-              取消暂存
-            </el-button>
-            <el-button
-              v-else
-              type="primary"
-              size="small"
-              @click="stageFile(activeTab.path)"
+              {{ getFileStatus(tab.path, tab.isStaged) }}
+            </span>
+            <span class="tab-name" :title="tab.path">{{
+              getFileName(tab.path)
+            }}</span>
+            <span class="tab-stage-badge" :class="{ staged: tab.isStaged }">
+              {{ tab.isStaged ? "暂存" : "工作区" }}
+            </span>
+            <span
+              class="tab-close"
+              @click.stop="closeDiffTab(tab.path, tab.isStaged)"
             >
-              暂存文件
-            </el-button>
-          </div>
-        </div>
-
-        <!-- 文本 Diff 编辑器 -->
-        <div v-else-if="activeTab.loading" class="loading-wrapper">
-          <el-icon class="is-loading" :size="24"><Loading /></el-icon>
-          <span class="ml-2 text-sm text-secondary">正在加载差异...</span>
-        </div>
-
-        <RichCodeEditor
-          v-else
-          ref="editorRef"
-          diff
-          :original="activeTab.original"
-          :modified="activeTab.modified"
-          :language="getFileLanguage(activeTab.path)"
-          :options="editorOptions"
-          class="diff-editor"
-        />
-      </template>
-
-      <!-- 空状态引导页 -->
-      <div v-else class="empty-guide">
-        <GitCommitHorizontal class="w-16 h-16 text-placeholder mb-4" />
-        <h2 class="text-xl font-semibold mb-2">AI 提交助手</h2>
-        <p class="text-sm text-secondary max-w-md text-center mb-6">
-          在左侧选择文件查看代码差异，暂存需要提交的更改，然后让 AI
-          帮您生成完美的提交信息。
-        </p>
-        <div class="shortcut-tips">
-          <div class="tip-item">
-            <span class="key">Ctrl</span> + <span class="key">Enter</span>
-            <span class="desc">快速提交暂存更改</span>
-          </div>
-          <div class="tip-item">
-            <span class="key">双击手柄</span>
-            <span class="desc">恢复侧边栏默认宽度</span>
+              <X class="w-3 h-3" />
+            </span>
           </div>
         </div>
       </div>
-    </div>
+
+      <!-- 中部：Diff 编辑器或空状态 -->
+      <div class="main-content">
+        <template v-if="activeTab">
+          <!-- 二进制文件降级提示 -->
+          <div v-if="activeTab.isBinary" class="binary-fallback-card">
+            <FileCode class="w-12 h-12 text-placeholder mb-4" />
+            <h3 class="text-lg font-semibold mb-2">二进制文件无法查看差异</h3>
+            <p class="text-sm text-secondary mb-4">{{ activeTab.path }}</p>
+            <div class="flex gap-4">
+              <el-button
+                v-if="activeTab.isStaged"
+                type="danger"
+                size="small"
+                @click="unstageFile(activeTab.path)"
+              >
+                取消暂存
+              </el-button>
+              <el-button
+                v-else
+                type="primary"
+                size="small"
+                @click="stageFile(activeTab.path)"
+              >
+                暂存文件
+              </el-button>
+            </div>
+          </div>
+
+          <!-- 文本 Diff 编辑器 -->
+          <div v-else-if="activeTab.loading" class="loading-wrapper">
+            <el-icon class="is-loading" :size="24"><Loading /></el-icon>
+            <span class="ml-2 text-sm text-secondary">正在加载差异...</span>
+          </div>
+
+          <RichCodeEditor
+            v-else
+            ref="editorRef"
+            diff
+            :original="activeTab.original"
+            :modified="activeTab.modified"
+            :language="getFileLanguage(activeTab.path)"
+            :options="editorOptions"
+            class="diff-editor"
+          />
+        </template>
+
+        <!-- 空状态引导页 -->
+        <div v-else class="empty-guide">
+          <GitCommitHorizontal class="w-16 h-16 text-placeholder mb-4" />
+          <h2 class="text-xl font-semibold mb-2">AI 提交助手</h2>
+          <p class="text-sm text-secondary max-w-md text-center mb-6">
+            在左侧选择文件查看代码差异，暂存需要提交的更改，然后让 AI
+            帮您生成完美的提交信息。
+          </p>
+          <div class="shortcut-tips">
+            <div class="tip-item">
+              <span class="key">Ctrl</span> + <span class="key">Enter</span>
+              <span class="desc">快速提交暂存更改</span>
+            </div>
+            <div class="tip-item">
+              <span class="key">双击手柄</span>
+              <span class="desc">恢复侧边栏默认宽度</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -109,8 +115,10 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { X, FileCode, GitCommitHorizontal } from "lucide-vue-next";
 import { Loading } from "@element-plus/icons-vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
+import PanoramaDashboard from "./PanoramaDashboard.vue";
 import { getExtension } from "@/utils/fileTypeDetector";
 import {
+  currentRepoPath,
   currentSession as session,
   currentStatus,
 } from "../composables/useGitCommitterState";

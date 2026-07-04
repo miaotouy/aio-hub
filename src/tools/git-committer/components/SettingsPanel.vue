@@ -97,7 +97,20 @@
           <el-form-item label="默认 AI 模型">
             <LlmModelSelector v-model="defaultModel" class="model-selector" />
           </el-form-item>
-          <el-form-item label="System Prompt (系统提示词)">
+          <el-form-item>
+            <template #label>
+              <div class="prompt-label-row">
+                <span>System Prompt (系统提示词)</span>
+                <el-button
+                  link
+                  type="primary"
+                  size="small"
+                  @click="restoreDefaultSystemPrompt"
+                >
+                  恢复默认
+                </el-button>
+              </div>
+            </template>
             <el-input
               v-model="systemPrompt"
               type="textarea"
@@ -206,6 +219,7 @@ import {
   systemPrompt,
   addRepository,
   removeRepository,
+  restoreDefaultSystemPrompt,
 } from "../composables/useGitCommitterState";
 import { switchRepoWithAutoPull } from "../composables/useGitCommitterRunner";
 
@@ -440,6 +454,13 @@ const showInFileManager = async (path: string) => {
 }
 
 .model-selector {
+  width: 100%;
+}
+
+.prompt-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   width: 100%;
 }
 

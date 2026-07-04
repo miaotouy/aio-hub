@@ -31,6 +31,9 @@ import type {
 
 const logger = createModuleLogger("git-committer/state");
 
+export const DEFAULT_SYSTEM_PROMPT =
+  "你是一个专业的 Git 提交信息生成助手。请根据提供的代码差异（diff），生成符合 Conventional Commits 规范的提交信息。请直接输出提交信息，不要包含任何解释或 Markdown 标记。";
+
 const configManager = createConfigManager<GitCommitterConfig>({
   moduleName: "git-committer",
   fileName: "config.json",
@@ -46,8 +49,7 @@ const configManager = createConfigManager<GitCommitterConfig>({
     autoPullOnSwitch: false,
     aiIncludeUnstaged: false,
     defaultModel: "",
-    systemPrompt:
-      "你是一个专业的 Git 提交信息生成助手。请根据提供的代码差异（diff），生成符合 Conventional Commits 规范的提交信息。请直接输出提交信息，不要包含任何解释或 Markdown 标记。",
+    systemPrompt: DEFAULT_SYSTEM_PROMPT,
   }),
 });
 
@@ -65,7 +67,7 @@ export const autoPushAfterCommit = ref<boolean>(false);
 export const autoPullOnSwitch = ref<boolean>(false);
 export const aiIncludeUnstaged = ref<boolean>(false);
 export const defaultModel = ref<string>("");
-export const systemPrompt = ref<string>("");
+export const systemPrompt = ref<string>(DEFAULT_SYSTEM_PROMPT);
 
 // 运行时状态（不持久化）
 export const repoStatuses = ref<Record<string, RepoStatus>>({});
@@ -127,9 +129,7 @@ export async function loadRepositories(): Promise<void> {
   autoPullOnSwitch.value = config.autoPullOnSwitch ?? false;
   aiIncludeUnstaged.value = config.aiIncludeUnstaged ?? false;
   defaultModel.value = config.defaultModel ?? "";
-  systemPrompt.value =
-    config.systemPrompt ??
-    "你是一个专业的 Git 提交信息生成助手。请根据提供的代码差异（diff），生成符合 Conventional Commits 规范的提交信息。请直接输出提交信息，不要包含任何解释或 Markdown 标记。";
+  systemPrompt.value = config.systemPrompt?.trim() || DEFAULT_SYSTEM_PROMPT;
 
   // 校正 currentRepoPath（可能指向已被删除的仓库，且排除全景模式）
   if (
@@ -245,5 +245,10 @@ export function updateRepoCommitDraft(path: string, text: string): void {
     };
   }
   repoSessions.value[path].commitDraft = text;
+}
+
+/** 恢复默认系统提示词 */
+export function restoreDefaultSystemPrompt(): void {
+  systemPrompt.value = DEFAULT_SYSTEM_PROMPT;
 }
 

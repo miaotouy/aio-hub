@@ -21,7 +21,7 @@ import { markRaw } from "vue";
 import { GitCommitHorizontal } from "lucide-vue-next";
 
 /**
- * Git Committer (AI 提交助手) 服务注册器
+ * Git Committer (Git 提交助手) 服务注册器
  *
  * 多仓库并发的轻量级 Git 提交工作流工具，聚焦暂存、AI 生成 commit message、提交/推送。
  * 首版不提供 Agent facade（与 text-diff 首版一致），仅作 UI 工具。
@@ -29,7 +29,7 @@ import { GitCommitHorizontal } from "lucide-vue-next";
 export default class GitCommitterRegistry implements ToolRegistry {
   public readonly id = "git-committer";
   public readonly runMode = "any";
-  public readonly name = "AI 提交助手";
+  public readonly name = "Git 提交助手";
   public readonly description =
     "多仓库并发的 Git 提交工作流：暂存、AI 生成提交信息、提交与推送";
 
@@ -47,7 +47,7 @@ export default class GitCommitterRegistry implements ToolRegistry {
  * UI 工具配置
  */
 export const toolConfig: ToolConfig = {
-  name: "AI 提交助手",
+  name: "Git 提交助手",
   path: "/git-committer",
   runMode: "any",
   icon: markRaw(GitCommitHorizontal),
@@ -56,3 +56,4 @@ export const toolConfig: ToolConfig = {
   category: ["开发工具"],
   version: "0.1.0",
 };
+

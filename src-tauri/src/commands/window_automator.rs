@@ -74,6 +74,14 @@ pub struct WaClientRect {
     pub height: i32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CaptureResult {
+    pub changed: bool,
+    pub hash: String,
+    pub image_bytes: Option<Vec<u8>>,
+}
+
 // =============================================================================
 // 辅助函数
 // =============================================================================
@@ -396,7 +404,9 @@ pub fn wa_capture_window(hwnd: i64) -> Result<tauri::ipc::Response, String> {
 }
 
 /// 屏幕区域截屏：抓取屏幕指定物理坐标区域 (x, y, width, height) 的像素，
-/// BGRA → RGBA 后 PNG 编码返回。用于“实时字幕 OCR”工具的高频低开销采样。
+/// 计算 aHash 并与 last_hash 对比。若汉明距离小于 threshold，则判定为无变化，
+/// 不进行 PNG 编码，直接返回 changed: false。否则进行 PNG 编码并返回 changed: true。
+/// 用于“实时字幕 OCR”工具的高频低开销采样。
 ///
 /// 注意：参数均为**物理像素**坐标（相对于主显示器左上角，跨屏时可为负值）。
 #[tauri::command]
@@ -405,7 +415,9 @@ pub fn capture_screen_rect(
     y: i32,
     width: i32,
     height: i32,
-) -> Result<tauri::ipc::Response, String> {
+    last_hash: Option<String>,
+    threshold: Option<i32>,
+) -> Result<CaptureResult, String> {
     if width <= 0 || height <= 0 {
         return Err("截屏区域尺寸无效".to_string());
     }
@@ -498,20 +510,75 @@ pub fn capture_screen_rect(
         }
     }
 
-    // PNG 编码（保持原始分辨率，不做缩放，避免字幕文字模糊）
-    let mut png_bytes: Vec<u8> = Vec::new();
-    {
-        use image::ImageEncoder;
-        image::codecs::png::PngEncoder::new(&mut png_bytes)
-            .write_image(
-                &rgba,
-                width as u32,
-                height as u32,
-                image::ExtendedColorType::Rgba8,
-            )
-            .map_err(|e| format!("PNG 编码失败: {}", e))?;
+    // 1. 构造 RgbaImage
+    let src_img = image::RgbaImage::from_raw(width as u32, height as u32, rgba.clone())
+        .ok_or_else(|| "构造图像失败".to_string())?;
+
+    // 2. 缩放到 8x8
+    let resized = image::imageops::resize(&src_img, 8, 8, image::imageops::FilterType::Triangle);
+
+    // 3. 计算灰度并生成 64 位二进制指纹
+    let mut grays = [0u8; 64];
+    let mut sum = 0u32;
+    for (i, pixel) in resized.pixels().enumerate() {
+        let r = pixel[0] as u32;
+        let g = pixel[1] as u32;
+        let b = pixel[2] as u32;
+        // ITU-R BT.601 加权灰度
+        let gray = ((r * 299 + g * 587 + b * 114) / 1000) as u8;
+        grays[i] = gray;
+        sum += gray as u32;
     }
-    Ok(tauri::ipc::Response::new(png_bytes))
+    let avg = (sum / 64) as u8;
+    let mut current_hash = String::with_capacity(64);
+    for gray in grays {
+        if gray >= avg {
+            current_hash.push('1');
+        } else {
+            current_hash.push('0');
+        }
+    }
+
+    // 4. 对比汉明距离
+    let mut changed = true;
+    if let Some(lh) = last_hash {
+        let th = threshold.unwrap_or(4);
+        if lh.len() == current_hash.len() {
+            let distance = lh
+                .chars()
+                .zip(current_hash.chars())
+                .filter(|(c1, c2)| c1 != c2)
+                .count() as i32;
+            if distance < th {
+                changed = false;
+            }
+        }
+    }
+
+    // 5. 如果有变化，进行 PNG 编码
+    let image_bytes = if changed {
+        let mut png_bytes: Vec<u8> = Vec::new();
+        {
+            use image::ImageEncoder;
+            image::codecs::png::PngEncoder::new(&mut png_bytes)
+                .write_image(
+                    &rgba,
+                    width as u32,
+                    height as u32,
+                    image::ExtendedColorType::Rgba8,
+                )
+                .map_err(|e| format!("PNG 编码失败: {}", e))?;
+        }
+        Some(png_bytes)
+    } else {
+        None
+    };
+
+    Ok(CaptureResult {
+        changed,
+        hash: current_hash,
+        image_bytes,
+    })
 }
 
 /// 后台点击：构造 WM_*BUTTONDOWN / WM_*BUTTONUP 消息。

@@ -36,12 +36,7 @@ import type { ImageBlock, OcrEngineConfig } from "@/tools/smart-ocr/types";
 import type { StateSyncPayload } from "@/types/window-sync";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import {
-  calculateAHash,
-  getHammingDistance,
-  getSimilarity,
-  buildSrt,
-} from "../utils/algorithms";
+import { getSimilarity, buildSrt } from "../utils/algorithms";
 import type {
   DedupSensitivity,
   MonitorConfig,
@@ -177,11 +172,18 @@ export function useScreenMonitor() {
     }
   }
 
-  /** 截屏 → Image → 计算 aHash → 返回 { hash, image } */
-  async function captureAndHash(): Promise<{
+  interface CaptureResult {
+    changed: boolean;
     hash: string;
-    image: HTMLImageElement;
-    url: string;
+    imageBytes: number[] | null;
+  }
+
+  /** 截屏 ➔ 后端去重 ➔ 返回 { changed, hash, image, url } */
+  async function captureAndHash(): Promise<{
+    changed: boolean;
+    hash: string;
+    image: HTMLImageElement | null;
+    url: string | null;
   } | null> {
     const logicalRect = getCaptureRect();
     if (!logicalRect) return null;
@@ -196,13 +198,34 @@ export function useScreenMonitor() {
     const width = Math.round(logicalRect.width * cachedScaleFactor);
     const height = Math.round(logicalRect.height * cachedScaleFactor);
 
-    const buffer = await errorHandler.wrapAsync(
-      () => invoke<ArrayBuffer>("capture_screen_rect", { x, y, width, height }),
+    const threshold = DEDUP_THRESHOLD[config.value.dedupSensitivity];
+
+    const result = await errorHandler.wrapAsync(
+      () =>
+        invoke<CaptureResult>("capture_screen_rect", {
+          x,
+          y,
+          width,
+          height,
+          lastHash: lastHash.value || null,
+          threshold,
+        }),
       { userMessage: "屏幕截屏失败", showToUser: false } // 静默处理，避免高频弹窗
     );
-    if (!buffer) return null;
+    if (!result) return null;
 
-    const blob = new Blob([buffer], { type: "image/png" });
+    if (!result.changed || !result.imageBytes) {
+      return {
+        changed: false,
+        hash: result.hash,
+        image: null,
+        url: null,
+      };
+    }
+
+    const blob = new Blob([new Uint8Array(result.imageBytes)], {
+      type: "image/png",
+    });
     const url = URL.createObjectURL(blob);
     const image = new Image();
     await new Promise<void>((resolve) => {
@@ -214,8 +237,7 @@ export function useScreenMonitor() {
       URL.revokeObjectURL(url);
       return null;
     }
-    const hash = calculateAHash(image);
-    return { hash, image, url };
+    return { changed: true, hash: result.hash, image, url };
   }
 
   // 复用 Canvas 实例，避免高频采样时频繁创建 DOM 元素导致 GC 压力
@@ -257,29 +279,34 @@ export function useScreenMonitor() {
 
       // 异步操作后，检查是否在截屏期间停止了监控，防止内存泄漏
       if (status.value !== "running") {
-        URL.revokeObjectURL(captured.url);
+        if (captured.url) URL.revokeObjectURL(captured.url);
         return;
       }
 
       // 释放上一帧 Object URL
-      if (lastFrameUrl.value && lastFrameUrl.value !== captured.url) {
+      if (
+        captured.url &&
+        lastFrameUrl.value &&
+        lastFrameUrl.value !== captured.url
+      ) {
         URL.revokeObjectURL(lastFrameUrl.value);
       }
-      lastFrameUrl.value = captured.url;
+      if (captured.url) {
+        lastFrameUrl.value = captured.url;
+      }
 
-      // aHash 去重
-      const threshold = DEDUP_THRESHOLD[config.value.dedupSensitivity];
-      if (
-        lastHash.value &&
-        getHammingDistance(lastHash.value, captured.hash) < threshold
-      ) {
+      // 后端去重判断
+      if (!captured.changed) {
         // 画面无变化：顺延当前字幕结束时间
         const now = Date.now() - monitorStartedAt;
         const last = subtitles.value[subtitles.value.length - 1];
         if (last) last.endMs = now;
+        lastHash.value = captured.hash;
         return;
       }
       lastHash.value = captured.hash;
+
+      if (!captured.image) return;
 
       // 调用 OCR
       const imageId = `img-${Date.now()}`;

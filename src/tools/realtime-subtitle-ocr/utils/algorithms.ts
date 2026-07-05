@@ -13,68 +13,11 @@
 // limitations under the License.
 
 /**
- * 纯算法工具：aHash 图像去重 + Levenshtein 编辑距离 + SRT 格式化。
+ * 纯算法工具：Levenshtein 编辑距离 + SRT 格式化。
  * 全部为纯函数，无副作用，便于单测。
  */
 
 import type { SubtitleEntry } from "../types";
-
-// 复用全局 Canvas 实例，避免高频采样时频繁创建 DOM 元素导致 GC 压力
-let sharedCanvas: HTMLCanvasElement | null = null;
-
-/**
- * 计算 8x8 灰度 aHash 指纹。
- * 将任意 Canvas/Image 缩放到 8x8 灰度，按平均灰度生成 64 位二进制指纹字符串。
- *
- * @param source HTMLImageElement / HTMLCanvasElement / ImageBitmap
- * @returns 64 字符的 "0"/"1" 指纹字符串；失败时返回空串
- */
-export function calculateAHash(
-  source: HTMLImageElement | HTMLCanvasElement | ImageBitmap
-): string {
-  if (!sharedCanvas) {
-    sharedCanvas = document.createElement("canvas");
-    sharedCanvas.width = 8;
-    sharedCanvas.height = 8;
-  }
-  const canvas = sharedCanvas;
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  if (!ctx) return "";
-  // 清除历史像素
-  ctx.clearRect(0, 0, 8, 8);
-  ctx.drawImage(source as CanvasImageSource, 0, 0, 8, 8);
-  const { data } = ctx.getImageData(0, 0, 8, 8);
-
-  // 计算灰度值
-  const grays: number[] = [];
-  for (let i = 0; i < 64; i++) {
-    const r = data[i * 4];
-    const g = data[i * 4 + 1];
-    const b = data[i * 4 + 2];
-    // ITU-R BT.601 加权
-    grays.push((r * 299 + g * 587 + b * 114) / 1000);
-  }
-  const avg = grays.reduce((a, b) => a + b, 0) / 64;
-
-  let hash = "";
-  for (let i = 0; i < 64; i++) {
-    hash += grays[i] >= avg ? "1" : "0";
-  }
-  return hash;
-}
-
-/**
- * 计算两个等长 aHash 指纹的汉明距离。
- * 长度不等或为空时返回较大值以判定为“差异大”。
- */
-export function getHammingDistance(hash1: string, hash2: string): number {
-  if (!hash1 || !hash2 || hash1.length !== hash2.length) return 64;
-  let distance = 0;
-  for (let i = 0; i < hash1.length; i++) {
-    if (hash1[i] !== hash2[i]) distance++;
-  }
-  return distance;
-}
 
 /**
  * 标准编辑距离（Levenshtein Distance）。

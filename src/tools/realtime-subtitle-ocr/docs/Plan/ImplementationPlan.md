@@ -16,7 +16,7 @@
   - `pinia`：状态管理（可选，若逻辑简单可直接用 Composable 闭环）。
 - **后端 (Rust)**：
   - `windows` crate：用于调用 Windows GDI API 进行区域截屏。
-  - `image` crate：用于将截取的像素数据编码为 PNG 格式。
+  - `image` crate：用于图像缩放、灰度化、aHash 计算以及将截取的像素数据编码为 PNG 格式。
 
 ### 1.2. 共享能力导入
 
@@ -38,17 +38,26 @@
 - **函数签名**（实际实现中采用 Tauri v2 推荐的二进制响应包装）：
   ```rust
   #[tauri::command]
-  pub fn capture_screen_rect(x: i32, y: i32, width: i32, height: i32) -> Result<tauri::ipc::Response, String>
+  pub fn capture_screen_rect(
+      x: i32,
+      y: i32,
+      width: i32,
+      height: i32,
+      last_hash: Option<String>,
+      threshold: Option<i32>,
+  ) -> Result<CaptureResult, String>
   ```
-- **实现逻辑 (Windows GDI)**：
+- **实现逻辑 (Windows GDI + aHash 去重)**：
   1. 获取屏幕设备上下文：`hdc_screen = GetDC(HWND(0))`。
   2. 创建兼容的内存设备上下文：`hdc_mem = CreateCompatibleDC(hdc_screen)`。
   3. 创建兼容的位图：`h_bitmap = CreateCompatibleBitmap(hdc_screen, width, height)`。
   4. 将位图选入内存上下文：`SelectObject(hdc_mem, h_bitmap)`。
   5. 拷贝屏幕指定区域像素到位图：`BitBlt(hdc_mem, 0, 0, width, height, hdc_screen, x, y, SRCCOPY)`。
-  6. 将位图数据转换为 `image::RgbImage` 或直接编码为 PNG 字节流。
-  7. 释放资源：`DeleteObject(h_bitmap)`，`DeleteDC(hdc_mem)`，`ReleaseDC(HWND(0), hdc_screen)`。
-  8. 返回 PNG 字节数组。
+  6. 将位图数据转换为 `image::RgbaImage`。
+  7. 在内存中将图像缩放到 8x8 并计算 aHash。
+  8. 对比 `last_hash`，若汉明距离小于 `threshold`，则直接返回 `changed: false`，不进行 PNG 编码。
+  9. 若有变化，将图像编码为 PNG 字节流，返回 `changed: true`。
+  10. 释放资源：`DeleteObject(h_bitmap)`，`DeleteDC(hdc_mem)`，`ReleaseDC(HWND(0), hdc_screen)`。
 
 #### 2. 注册命令
 
@@ -58,28 +67,9 @@
 
 ### 阶段二：前端核心业务逻辑 `useScreenMonitor.ts` 实现
 
-在 `src/tools/realtime-subtitle-ocr/composables/useScreenMonitor.ts` 中实现核心逻辑：
+In `src/tools/realtime-subtitle-ocr/composables/useScreenMonitor.ts` 中实现核心逻辑：
 
-#### 1. 图像去重 (aHash)
-
-```typescript
-async function calculateAHash(imageBytes: ArrayBuffer): Promise<string> {
-  // 1. 将字节流加载为 HTMLImageElement 或通过 Canvas 渲染
-  // 2. 缩放到 8x8 像素并转为灰度
-  // 3. 计算平均灰度值
-  // 4. 生成 64 位二进制指纹字符串
-}
-
-function getHammingDistance(hash1: string, hash2: string): number {
-  let distance = 0;
-  for (let i = 0; i < hash1.length; i++) {
-    if (hash1[i] !== hash2[i]) distance++;
-  }
-  return distance;
-}
-```
-
-#### 2. 文本合并与断句 (编辑距离)
+#### 1. 文本合并与断句 (编辑距离)
 
 ```typescript
 function getLevenshteinDistance(s1: string, s2: string): number {

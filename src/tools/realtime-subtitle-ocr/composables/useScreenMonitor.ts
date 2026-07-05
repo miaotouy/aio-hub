@@ -36,6 +36,7 @@ import type { ImageBlock, OcrEngineConfig } from "@/tools/smart-ocr/types";
 import type { StateSyncPayload } from "@/types/window-sync";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { createConfigManager } from "@/utils/configManager";
 import { getSimilarity, buildSrt } from "../utils/algorithms";
 import type {
   DedupSensitivity,
@@ -49,6 +50,17 @@ const logger = createModuleLogger("realtime-subtitle-ocr/useScreenMonitor");
 const errorHandler = createModuleErrorHandler(
   "realtime-subtitle-ocr/useScreenMonitor"
 );
+
+const configManager = createConfigManager<MonitorConfig>({
+  moduleName: "realtime-subtitle-ocr",
+  fileName: "config.json",
+  version: "1.0.0",
+  createDefault: () => ({
+    intervalMs: 1000,
+    dedupSensitivity: "medium",
+    engineConfig: { type: "native", name: "native" },
+  }),
+});
 
 /** 监控框几何信息在窗口同步总线上的状态键 */
 const MONITOR_BOX_GEOMETRY_STATE_KEY =
@@ -84,6 +96,8 @@ export function useScreenMonitor() {
   const monitorRect = ref<MonitorRect | null>(null);
   const lastHash = shallowRef<string>("");
   const lastFrameUrl = ref<string | null>(null);
+  const activeUrls = new Set<string>();
+  const latency = ref<number>(0);
 
   /** 当前采样配置 */
   const config = ref<MonitorConfig>({
@@ -92,7 +106,30 @@ export function useScreenMonitor() {
     engineConfig: { type: "native", name: "native" },
   });
 
+  // 初始化加载配置
+  configManager.load().then((loaded) => {
+    config.value = loaded;
+  });
+
   const isRunning = computed(() => status.value === "running");
+
+  function registerUrl(url: string) {
+    activeUrls.add(url);
+  }
+
+  function revokeUrl(url: string) {
+    if (activeUrls.has(url)) {
+      URL.revokeObjectURL(url);
+      activeUrls.delete(url);
+    }
+  }
+
+  function revokeAllUrls() {
+    for (const url of activeUrls) {
+      URL.revokeObjectURL(url);
+    }
+    activeUrls.clear();
+  }
 
   let timer: ReturnType<typeof setInterval> | null = null;
   let monitorStartedAt = 0;
@@ -227,6 +264,7 @@ export function useScreenMonitor() {
       type: "image/png",
     });
     const url = URL.createObjectURL(blob);
+    registerUrl(url);
     const image = new Image();
     await new Promise<void>((resolve) => {
       image.onload = () => resolve();
@@ -234,7 +272,7 @@ export function useScreenMonitor() {
       image.src = url;
     });
     if (!image.naturalWidth || !image.naturalHeight) {
-      URL.revokeObjectURL(url);
+      revokeUrl(url);
       return null;
     }
     return { changed: true, hash: result.hash, image, url };
@@ -279,7 +317,7 @@ export function useScreenMonitor() {
 
       // 异步操作后，检查是否在截屏期间停止了监控，防止内存泄漏
       if (status.value !== "running") {
-        if (captured.url) URL.revokeObjectURL(captured.url);
+        if (captured.url) revokeUrl(captured.url);
         return;
       }
 
@@ -289,7 +327,7 @@ export function useScreenMonitor() {
         lastFrameUrl.value &&
         lastFrameUrl.value !== captured.url
       ) {
-        URL.revokeObjectURL(lastFrameUrl.value);
+        revokeUrl(lastFrameUrl.value);
       }
       if (captured.url) {
         lastFrameUrl.value = captured.url;
@@ -313,12 +351,14 @@ export function useScreenMonitor() {
       const block = buildImageBlock(captured.image, imageId);
       abortController = new AbortController();
       const { runOcr } = useOcrRunner();
+      const startTime = Date.now();
       const results = await runOcr(
         [block],
         config.value.engineConfig,
         undefined,
         abortController.signal
       );
+      latency.value = Date.now() - startTime;
 
       // 异步 OCR 后，再次检查是否已停止监控
       if (status.value !== "running") {
@@ -388,20 +428,23 @@ export function useScreenMonitor() {
       status.value = "stopped";
     }
     if (lastFrameUrl.value) {
-      URL.revokeObjectURL(lastFrameUrl.value);
+      revokeUrl(lastFrameUrl.value);
       lastFrameUrl.value = null;
     }
+    revokeAllUrls();
     logger.info("监控停止");
   }
 
   /** 更新引擎配置 */
   function setEngineConfig(engineConfig: OcrEngineConfig) {
     config.value.engineConfig = engineConfig;
+    configManager.saveDebounced(config.value);
   }
 
   /** 更新采样间隔 */
   function setIntervalMs(intervalMs: number) {
     config.value.intervalMs = intervalMs;
+    configManager.saveDebounced(config.value);
     if (status.value === "running") {
       if (timer) clearInterval(timer);
       timer = setInterval(() => tick(), intervalMs);
@@ -411,6 +454,7 @@ export function useScreenMonitor() {
   /** 更新去重灵敏度 */
   function setDedupSensitivity(s: DedupSensitivity) {
     config.value.dedupSensitivity = s;
+    configManager.saveDebounced(config.value);
   }
 
   /** 删除单条字幕 */
@@ -463,6 +507,9 @@ export function useScreenMonitor() {
     isRunning,
     monitorRect,
     config,
+    lastHash,
+    lastFrameUrl,
+    latency,
     // control
     start,
     stop,

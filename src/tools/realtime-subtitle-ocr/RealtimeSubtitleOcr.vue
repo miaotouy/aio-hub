@@ -15,18 +15,29 @@
 -->
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { ElButton, ElMessageBox, ElInput } from "element-plus";
+import {
+  SquareDashedMousePointer as SquareDashedIcon,
+  Play as PlayIcon,
+  Square as SquareIcon,
+  Copy as CopyIcon,
+  Download as DownloadIcon,
+  Trash2 as TrashIcon,
+  Crosshair as CrosshairIcon,
+} from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { useResizable } from "@/composables/useResizable";
 import { useDetachable } from "@/composables/useDetachable";
 import { useDetachedManager } from "@/composables/useDetachedManager";
-import SidebarToggleIcon from "@/components/icons/SidebarToggleIcon.vue";
 import SubtitleTimeline from "./components/SubtitleTimeline.vue";
 import MonitorConfig from "./components/MonitorConfig.vue";
+import LivePreview from "./components/LivePreview.vue";
 import { useScreenMonitor } from "./composables/useScreenMonitor";
-import type { DedupSensitivity, MonitorRect } from "./types";
+import { formatSrtTime } from "./utils/algorithms";
+import type { DedupSensitivity } from "./types";
 
 /** 监控框可分离组件 ID（与 registry.ts 中 detachableComponents 的 key 一致） */
 const MONITOR_BOX_ID = "realtime-subtitle-ocr:monitor-box";
@@ -34,29 +45,18 @@ const MONITOR_BOX_ID = "realtime-subtitle-ocr:monitor-box";
 const MONITOR_BOX_DEFAULT_WIDTH = 360;
 const MONITOR_BOX_DEFAULT_HEIGHT = 200;
 
-// ===== 侧栏拖拽调整宽度 =====
-const leftPanelWidth = ref(560);
-const rightPanelWidth = ref(360);
-const isLeftPanelCollapsed = ref(false);
-const isRightPanelCollapsed = ref(false);
-
-const { isResizing: isDraggingLeft, startResize: handleLeftDragStart } =
-  useResizable({
-    size: leftPanelWidth,
-    minSize: 360,
-    maxSize: 900,
-    direction: "left",
-  });
-const { isResizing: isDraggingRight, startResize: handleRightDragStart } =
-  useResizable({
-    size: rightPanelWidth,
-    minSize: 280,
-    maxSize: 600,
-    direction: "right",
-  });
-
 const { detachByClick } = useDetachable();
 const detachedManager = useDetachedManager();
+
+// ===== 上方区域高度拖拽调整 =====
+const topSectionHeight = ref(260);
+const { isResizing: isDraggingHeight, startResize: handleHeightDragStart } =
+  useResizable({
+    size: topSectionHeight,
+    minSize: 180,
+    maxSize: 600,
+    direction: "top",
+  });
 
 const {
   subtitles,
@@ -64,6 +64,9 @@ const {
   isRunning,
   monitorRect,
   config,
+  lastHash,
+  lastFrameUrl,
+  latency,
   start,
   stop,
   setEngineConfig,
@@ -78,6 +81,65 @@ const {
 const isMonitorBoxDetached = computed(() =>
   detachedManager.isDetached(MONITOR_BOX_ID)
 );
+
+const statusText = computed(() => {
+  switch (status.value) {
+    case "running":
+      return "监控中";
+    case "stopped":
+      return "已停止";
+    default:
+      return "空闲";
+  }
+});
+
+const selectedId = ref<string | null>(null);
+
+const activeSubtitleIndex = computed(() => {
+  if (!subtitles.value.length) return -1;
+  if (!selectedId.value) return subtitles.value.length - 1;
+  const idx = subtitles.value.findIndex((s) => s.id === selectedId.value);
+  return idx !== -1 ? idx : subtitles.value.length - 1;
+});
+
+const activeSubtitle = computed(() => {
+  const idx = activeSubtitleIndex.value;
+  if (idx === -1) return null;
+  return subtitles.value[idx];
+});
+
+function handleSelectSubtitle(id: string) {
+  selectedId.value = id;
+}
+
+// ===== 当前字幕大字编辑框逻辑 =====
+const localSubtitleText = ref("");
+const editorInputRef = ref<any>(null);
+
+watch(
+  () => activeSubtitle.value,
+  (newVal) => {
+    localSubtitleText.value = newVal ? newVal.text : "";
+    // 自动聚焦到大编辑框
+    if (newVal) {
+      setTimeout(() => {
+        const textarea = editorInputRef.value?.$el?.querySelector("textarea");
+        textarea?.focus();
+      }, 50);
+    }
+  },
+  { immediate: true }
+);
+
+function commitSubtitleEdit() {
+  if (!activeSubtitle.value) return;
+  updateSubtitleText(activeSubtitle.value.id, localSubtitleText.value);
+  customMessage.success("字幕已保存");
+}
+
+function formatTime(ms: number): string {
+  return formatSrtTime(ms);
+}
 
 /** 查找监控框分离窗口的 label */
 function findMonitorBoxLabel(): string | undefined {
@@ -174,6 +236,26 @@ function onExportSrt() {
   customMessage.success("SRT 已导出");
 }
 
+async function clearAll() {
+  try {
+    await ElMessageBox.confirm(
+      "确定要清空所有字幕吗？此操作不可撤销。",
+      "提示",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    );
+    subtitles.value = [];
+    selectedId.value = null;
+    customMessage.success("已清空所有字幕");
+  } catch {
+    // 取消
+  }
+}
+
 onMounted(() => {
   // 监控框几何信息由 useScreenMonitor 通过窗口同步总线接收
 });
@@ -187,157 +269,138 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="rsocr-wrapper">
-    <div class="rsocr-container">
-      <!-- 左栏：字幕时间轴 -->
+    <!-- 顶部工具栏 -->
+    <div class="rsocr-toolbar">
+      <div class="toolbar-left">
+        <span class="toolbar-title">实时字幕 OCR</span>
+        <span class="status-badge" :class="status">
+          {{ statusText }}
+        </span>
+      </div>
+      <div class="toolbar-right">
+        <el-button
+          type="primary"
+          size="small"
+          :disabled="isRunning"
+          @click="openMonitorBox"
+        >
+          <SquareDashedIcon :size="14" /> 打开监控框
+        </el-button>
+        <el-button
+          size="small"
+          :disabled="!isMonitorBoxDetached"
+          @click="focusMonitorBox"
+        >
+          <CrosshairIcon :size="14" /> 聚焦监控框
+        </el-button>
+        <el-button
+          :type="isRunning ? 'danger' : 'success'"
+          size="small"
+          :disabled="!monitorRect && !isRunning"
+          @click="toggleMonitor"
+        >
+          <component :is="isRunning ? SquareIcon : PlayIcon" :size="14" />
+          {{ isRunning ? "停止监控" : "开始监控" }}
+        </el-button>
+        <el-button
+          size="small"
+          :disabled="!subtitles.length"
+          @click="onCopyAll"
+        >
+          <CopyIcon :size="14" /> 复制全部
+        </el-button>
+        <el-button
+          type="primary"
+          size="small"
+          :disabled="!subtitles.length"
+          @click="onExportSrt"
+        >
+          <DownloadIcon :size="14" /> 导出 SRT
+        </el-button>
+        <el-button
+          type="warning"
+          size="small"
+          :disabled="!subtitles.length"
+          @click="clearAll"
+        >
+          <TrashIcon :size="14" /> 一键清空
+        </el-button>
+      </div>
+    </div>
+
+    <!-- 主体区域：上下分栏 -->
+    <div class="rsocr-main">
+      <!-- 上方：左右分栏 -->
       <div
-        v-if="!isLeftPanelCollapsed"
-        class="panel left-panel"
-        :style="{ width: `${leftPanelWidth}px` }"
+        class="rsocr-top-section"
+        :style="{ height: topSectionHeight + 'px' }"
       >
-        <div class="panel-content">
-          <SubtitleTimeline
-            :subtitles="subtitles"
-            @remove="removeSubtitle"
-            @update-text="updateSubtitleText"
-            @export-srt="onExportSrt"
-            @copy-all="onCopyAll"
+        <!-- 左上：实时截图预览区 -->
+        <div class="preview-panel">
+          <LivePreview
+            :last-frame-url="lastFrameUrl"
+            :last-hash="lastHash"
+            :latency="latency"
+            :is-running="isRunning"
           />
         </div>
 
-        <div
-          class="resize-handle right-handle"
-          :class="{ dragging: isDraggingLeft }"
-          @mousedown="handleLeftDragStart"
-        ></div>
-
-        <div
-          class="collapse-button left-collapse"
-          @click="isLeftPanelCollapsed = true"
-        >
-          <SidebarToggleIcon class="collapse-icon trapezoid" />
-          <svg
-            class="arrow-icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-          >
-            <polyline
-              points="15 18 9 12 15 6"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
+        <!-- 中上：当前字幕大字编辑框 -->
+        <div class="editor-panel">
+          <div class="editor-panel__header">
+            <span class="editor-panel__title">当前字幕编辑</span>
+            <span class="editor-panel__tip" v-if="activeSubtitle">
+              正在编辑 #{{ activeSubtitleIndex + 1 }} ({{
+                formatTime(activeSubtitle.startMs)
+              }})
+            </span>
+          </div>
+          <div class="editor-panel__body">
+            <el-input
+              ref="editorInputRef"
+              v-model="localSubtitleText"
+              type="textarea"
+              :disabled="!activeSubtitle"
+              placeholder="双击下方时间轴列表中的字幕，或等待最新识别结果在此处编辑。Ctrl+Enter 提交保存。"
+              class="large-subtitle-input"
+              @keydown.enter.ctrl.prevent="commitSubtitleEdit"
             />
-          </svg>
-        </div>
-      </div>
-
-      <!-- 中栏：占位/说明 -->
-      <div class="main-content">
-        <div
-          v-if="isLeftPanelCollapsed"
-          class="expand-button left-expand"
-          @click="isLeftPanelCollapsed = false"
-        >
-          <SidebarToggleIcon class="expand-icon trapezoid" />
-          <svg
-            class="arrow-icon expanded"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-          >
-            <polyline
-              points="9 18 15 12 9 6"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
+          </div>
         </div>
 
-        <div class="rsocr-hint">
-          <h2>实时字幕 OCR</h2>
-          <ol>
-            <li>点击右侧“打开监控框”，将悬浮框拖到屏幕字幕区域；</li>
-            <li>调整采样频率、去重灵敏度与 OCR 引擎；</li>
-            <li>点击“开始监控”，识别结果将实时追加到左侧时间轴；</li>
-            <li>双击字幕可编辑，完成后可一键复制或导出 SRT。</li>
-          </ol>
-          <p class="rsocr-hint__note">
-            提示：监控框中间完全透明，仅保留虚线边框与顶部控制栏；截图时会自动避开边框与控制栏。
-          </p>
-        </div>
-
-        <div
-          v-if="isRightPanelCollapsed"
-          class="expand-button right-expand"
-          @click="isRightPanelCollapsed = false"
-        >
-          <SidebarToggleIcon class="expand-icon trapezoid" flip />
-          <svg
-            class="arrow-icon expanded"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-          >
-            <polyline
-              points="15 18 9 12 15 6"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-        </div>
-      </div>
-
-      <!-- 右栏：控制面板 -->
-      <div
-        v-if="!isRightPanelCollapsed"
-        class="panel right-panel"
-        :style="{ width: `${rightPanelWidth}px` }"
-      >
-        <div
-          class="collapse-button right-collapse"
-          @click="isRightPanelCollapsed = true"
-        >
-          <SidebarToggleIcon class="collapse-icon trapezoid" flip />
-          <svg
-            class="arrow-icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-          >
-            <polyline
-              points="9 18 15 12 9 6"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-        </div>
-
-        <div class="panel-content">
+        <!-- 右上：监控设置与区域选择 -->
+        <div class="config-panel">
           <MonitorConfig
-            :monitor-rect="monitorRect as MonitorRect | null"
             :is-running="isRunning"
             :interval-ms="config.intervalMs"
             :dedup-sensitivity="config.dedupSensitivity"
             :engine-config="config.engineConfig"
-            @open-monitor-box="openMonitorBox"
-            @focus-monitor-box="focusMonitorBox"
-            @toggle-monitor="toggleMonitor"
-            @update:interval-ms="(v: number) => setIntervalMs(v)"
-            @update:dedup-sensitivity="
-              (v: DedupSensitivity) => setDedupSensitivity(v)
-            "
+            @update:interval-ms="setIntervalMs"
+            @update:dedup-sensitivity="setDedupSensitivity"
             @update:engine-config="setEngineConfig"
           />
         </div>
+      </div>
 
-        <div
-          class="resize-handle left-handle"
-          :class="{ dragging: isDraggingRight }"
-          @mousedown="handleRightDragStart"
-        ></div>
+      <!-- 拖拽条 -->
+      <div
+        class="resize-trigger-y"
+        :class="{ 'is-resizing': isDraggingHeight }"
+        @mousedown="handleHeightDragStart"
+      >
+        <div class="resize-handle-line"></div>
+      </div>
+
+      <!-- 下方：字幕时间轴列表 -->
+      <div class="rsocr-bottom-section">
+        <SubtitleTimeline
+          :subtitles="subtitles"
+          @remove="removeSubtitle"
+          @update-text="updateSubtitleText"
+          @export-srt="onExportSrt"
+          @copy-all="onCopyAll"
+          @select="handleSelectSubtitle"
+        />
       </div>
     </div>
   </div>
@@ -348,146 +411,183 @@ onBeforeUnmount(() => {
   height: 100%;
   width: 100%;
   overflow: hidden;
-}
-
-.rsocr-container {
   display: flex;
-  height: 100%;
-  width: 100%;
-  position: relative;
+  flex-direction: column;
   background: var(--container-bg);
 }
 
-.panel {
-  position: relative;
-  height: 100%;
-  flex-shrink: 0;
+.rsocr-toolbar {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--sidebar-bg);
+  border-bottom: var(--border-width) solid var(--border-color);
+  flex-shrink: 0;
 }
 
-.panel-content {
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toolbar-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.status-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+  background: var(--el-fill-color-darker);
+  color: var(--el-text-color-secondary);
+}
+
+.status-badge.running {
+  background: rgba(var(--el-color-success-rgb), 0.15);
+  color: var(--el-color-success);
+}
+
+.status-badge.stopped {
+  background: rgba(var(--el-color-danger-rgb), 0.15);
+  color: var(--el-color-danger);
+}
+
+.toolbar-right {
+  display: flex;
+  gap: 8px;
+}
+
+.rsocr-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 12px;
+  gap: 12px;
+}
+
+.rsocr-top-section {
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+  min-height: 180px;
+}
+
+.preview-panel {
+  flex: 1;
+  min-width: 240px;
+  height: 100%;
+}
+
+.editor-panel {
+  flex: 1.5;
+  min-width: 200px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.editor-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+
+.editor-panel__title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--el-text-color-primary);
+}
+
+.editor-panel__tip {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+}
+
+.editor-panel__body {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+}
+
+.large-subtitle-input {
+  height: 100%;
+}
+
+.large-subtitle-input :deep(.el-textarea__inner) {
+  height: 100% !important;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.6;
+  padding: 12px;
+  resize: none;
+  background: var(--input-bg);
+  border-color: var(--border-color);
+}
+
+.large-subtitle-input :deep(.el-textarea__inner:focus) {
+  border-color: var(--el-color-primary);
+}
+
+.config-panel {
+  width: 320px;
+  height: 100%;
+  flex-shrink: 0;
+}
+
+.resize-trigger-y {
+  height: 8px;
+  cursor: row-resize;
+  background: transparent;
+  transition: background 0.2s;
+  flex-shrink: 0;
+  margin: -4px 0;
+  z-index: 10;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.resize-handle-line {
+  width: 36px;
+  height: 3px;
+  border-radius: 1.5px;
+  background: rgba(128, 128, 128, 0.4);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition:
+    background 0.2s,
+    width 0.2s;
+}
+
+.resize-trigger-y:hover,
+.resize-trigger-y.is-resizing {
+  background: rgba(var(--el-color-primary-rgb), 0.1);
+}
+
+.resize-trigger-y:hover .resize-handle-line,
+.resize-trigger-y.is-resizing .resize-handle-line {
+  background: var(--el-color-primary);
+  width: 48px;
+}
+
+.rsocr-bottom-section {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-}
-
-.main-content {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-
-.rsocr-hint {
-  max-width: 480px;
-  color: var(--el-text-color-regular);
-  line-height: 1.8;
-}
-
-.rsocr-hint h2 {
-  margin: 0 0 12px;
-  font-size: 18px;
-}
-
-.rsocr-hint ol {
-  margin: 0 0 12px;
-  padding-left: 20px;
-}
-
-.rsocr-hint__note {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.resize-handle {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  cursor: col-resize;
-  z-index: 10;
-  transition: background-color 0.2s;
-}
-
-.resize-handle.right-handle {
-  right: -2px;
-}
-
-.resize-handle.left-handle {
-  left: -2px;
-}
-
-.resize-handle:hover,
-.resize-handle.dragging {
-  background-color: var(--el-color-primary);
-}
-
-.collapse-button {
-  position: absolute;
-  top: 12px;
-  width: 18px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 11;
-  color: var(--el-text-color-secondary);
-  background: var(--el-fill-color-light);
-  border-radius: 4px;
-}
-
-.collapse-button:hover {
-  color: var(--el-color-primary);
-  background: var(--el-fill-color);
-}
-
-.left-collapse {
-  right: 6px;
-}
-
-.right-collapse {
-  left: 6px;
-}
-
-.expand-button {
-  position: absolute;
-  top: 12px;
-  width: 18px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 11;
-  color: var(--el-text-color-secondary);
-  background: var(--el-fill-color-light);
-  border-radius: 4px;
-}
-
-.left-expand {
-  left: 6px;
-}
-
-.right-expand {
-  right: 6px;
-}
-
-.expand-button:hover {
-  color: var(--el-color-primary);
-  background: var(--el-fill-color);
-}
-
-.arrow-icon {
-  width: 14px;
-  height: 14px;
 }
 </style>
 

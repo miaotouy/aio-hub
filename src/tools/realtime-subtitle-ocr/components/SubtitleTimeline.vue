@@ -36,45 +36,51 @@
       </div>
     </div>
 
-    <div class="subtitle-timeline__list" ref="listRef">
-      <div
-        v-for="sub in subtitles"
-        :key="sub.id"
-        class="subtitle-item"
-        :class="{ 'subtitle-item--editing': editingId === sub.id }"
-      >
-        <div class="subtitle-item__time">
-          {{ formatTime(sub.startMs) }} --> {{ formatTime(sub.endMs) }}
-        </div>
-        <div
-          v-if="editingId !== sub.id"
-          class="subtitle-item__text"
-          @dblclick="startEdit(sub.id)"
-          :title="'双击编辑'"
-        >
-          {{ sub.text || "(空)" }}
-        </div>
-        <el-input
-          v-else
-          v-model="editingText"
-          type="textarea"
-          :autosize="{ minRows: 1, maxRows: 6 }"
-          autofocus
-          @blur="commitEdit(sub.id)"
-          @keydown.esc="cancelEdit"
-          @keydown.enter.ctrl="commitEdit(sub.id)"
-          placeholder="Ctrl+Enter 提交保存"
-        />
-        <div class="subtitle-item__ops">
-          <button class="icon-btn" title="编辑" @click="startEdit(sub.id)">
-            <PencilIcon :size="13" />
-          </button>
-          <button class="icon-btn" title="删除" @click="remove(sub.id)">
-            <TrashIcon :size="13" />
-          </button>
-        </div>
-      </div>
-      <div v-if="!subtitles.length" class="subtitle-timeline__empty">
+    <div class="subtitle-timeline__table-wrapper" ref="listRef">
+      <table class="subtitle-table" v-if="subtitles.length">
+        <thead>
+          <tr>
+            <th class="col-index">#</th>
+            <th class="col-time">开始</th>
+            <th class="col-time">结束</th>
+            <th class="col-duration">持续</th>
+            <th class="col-text">字幕文本</th>
+            <th class="col-ops">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="(sub, index) in subtitles"
+            :key="sub.id"
+            class="subtitle-row"
+            @click="selectRow(sub.id)"
+          >
+            <td class="col-index">{{ index + 1 }}</td>
+            <td class="col-time">{{ formatTime(sub.startMs) }}</td>
+            <td class="col-time">{{ formatTime(sub.endMs) }}</td>
+            <td class="col-duration">
+              {{ formatDuration(sub.endMs - sub.startMs) }}
+            </td>
+            <td class="col-text">
+              <div class="text-cell" title="点击编辑">
+                {{ sub.text || "(空)" }}
+              </div>
+            </td>
+            <td class="col-ops">
+              <div class="ops-cell">
+                <button
+                  class="icon-btn"
+                  title="删除"
+                  @click.stop="remove(sub.id)"
+                >
+                  <TrashIcon :size="13" />
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div v-else class="subtitle-timeline__empty">
         暂无字幕，开始监控后将在此显示
       </div>
     </div>
@@ -82,18 +88,16 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref } from "vue";
-import { ElButton, ElInput } from "element-plus";
+import { ElButton } from "element-plus";
 import {
   Copy as CopyIcon,
   Download as DownloadIcon,
-  Pencil as PencilIcon,
   Trash2 as TrashIcon,
 } from "lucide-vue-next";
 import { formatSrtTime } from "../utils/algorithms";
 import type { SubtitleEntry } from "../types";
 
-const props = defineProps<{
+defineProps<{
   subtitles: SubtitleEntry[];
 }>();
 const emit = defineEmits<{
@@ -101,39 +105,20 @@ const emit = defineEmits<{
   (e: "update-text", id: string, text: string): void;
   (e: "export-srt"): void;
   (e: "copy-all"): void;
+  (e: "select", id: string): void;
 }>();
-
-const listRef = ref<HTMLElement | null>(null);
-const editingId = ref<string | null>(null);
-const editingText = ref("");
 
 function formatTime(ms: number): string {
   return formatSrtTime(ms);
 }
 
-function startEdit(id: string) {
-  const target = props.subtitles.find((s) => s.id === id);
-  if (!target) return;
-  editingId.value = id;
-  editingText.value = target.text;
-  nextTick(() => {
-    const el = listRef.value?.querySelector<HTMLTextAreaElement>(
-      ".subtitle-item--editing textarea"
-    );
-    el?.focus();
-  });
+function formatDuration(ms: number): string {
+  const seconds = (ms / 1000).toFixed(2);
+  return `${seconds}s`;
 }
 
-function commitEdit(id: string) {
-  if (editingId.value !== id) return;
-  emit("update-text", id, editingText.value);
-  editingId.value = null;
-  editingText.value = "";
-}
-
-function cancelEdit() {
-  editingId.value = null;
-  editingText.value = "";
+function selectRow(id: string) {
+  emit("select", id);
 }
 
 function remove(id: string) {
@@ -270,4 +255,3 @@ function onExportSrt() {
   color: #fff;
 }
 </style>
-

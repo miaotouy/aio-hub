@@ -16,125 +16,81 @@
 
 <template>
   <div class="monitor-config">
-    <!-- 区域选择 -->
-    <div class="monitor-config__section">
-      <div class="monitor-config__section-title">区域选择</div>
-      <div class="monitor-config__row">
-        <el-button
-          type="primary"
-          :disabled="isRunning"
-          @click="$emit('open-monitor-box')"
-        >
-          <SquareDashedIcon :size="14" /> 打开监控框
-        </el-button>
-        <el-button :disabled="!monitorRect" @click="$emit('focus-monitor-box')">
-          <CrosshairIcon :size="14" /> 聚焦监控框
-        </el-button>
-      </div>
-      <div v-if="monitorRect" class="monitor-config__rect">
-        当前区域：{{ monitorRect.width }}×{{ monitorRect.height }} @ ({{
-          monitorRect.x
-        }}, {{ monitorRect.y }})
-      </div>
-      <div v-else class="monitor-config__rect monitor-config__rect--empty">
-        未打开监控框
-      </div>
-    </div>
-
     <!-- 监控设置 -->
     <div class="monitor-config__section">
       <div class="monitor-config__section-title">监控设置</div>
 
-      <div class="monitor-config__field">
-        <label>采样频率（{{ (intervalMs / 1000).toFixed(1) }}s）</label>
-        <el-slider
-          :model-value="intervalMs"
-          :min="500"
-          :max="3000"
-          :step="100"
-          :disabled="false"
-          @update:model-value="$emit('update:intervalMs', $event as number)"
-        />
-      </div>
-
-      <div class="monitor-config__field">
-        <label>去重灵敏度</label>
-        <el-select
-          :model-value="dedupSensitivity"
-          @update:model-value="
-            $emit('update:dedupSensitivity', $event as DedupSensitivity)
-          "
-        >
-          <el-option label="高（微小变化即触发）" value="high" />
-          <el-option label="中（默认）" value="medium" />
-          <el-option label="低（仅较大变化触发）" value="low" />
-        </el-select>
-      </div>
-
-      <div class="monitor-config__field">
-        <label>OCR 引擎</label>
-        <el-select
-          :model-value="engineType"
-          @update:model-value="onEngineTypeChange"
-        >
-          <el-option label="Windows Native OCR" value="native" />
-          <el-option label="Tesseract.js" value="tesseract" />
-          <el-option label="VLM 多模态大模型" value="vlm" />
-          <el-option label="云端 OCR" value="cloud" />
-        </el-select>
-      </div>
-
-      <div v-if="engineType === 'cloud'" class="monitor-config__field">
-        <label>云端 OCR 配置</label>
-        <el-select
-          :model-value="activeProfileId"
-          placeholder="选择已启用的云端 OCR 配置"
-          @update:model-value="onProfileChange"
-        >
-          <el-option
-            v-for="p in enabledProfiles"
-            :key="p.id"
-            :label="p.name"
-            :value="p.id"
+      <div class="monitor-config__grid">
+        <div class="monitor-config__field">
+          <label>采样频率（{{ (intervalMs / 1000).toFixed(1) }}s）</label>
+          <el-slider
+            :model-value="intervalMs"
+            :min="500"
+            :max="3000"
+            :step="100"
+            :disabled="false"
+            @update:model-value="$emit('update:intervalMs', $event as number)"
           />
-        </el-select>
-        <div v-if="!enabledProfiles.length" class="monitor-config__hint">
-          请先在 Smart OCR 中配置并启用云端 OCR 配置
+        </div>
+
+        <div class="monitor-config__field">
+          <label>去重灵敏度</label>
+          <el-select
+            :model-value="dedupSensitivity"
+            @update:model-value="
+              $emit('update:dedupSensitivity', $event as DedupSensitivity)
+            "
+          >
+            <el-option label="高（微小变化即触发）" value="high" />
+            <el-option label="中（默认）" value="medium" />
+            <el-option label="低（仅较大变化触发）" value="low" />
+          </el-select>
+        </div>
+
+        <div class="monitor-config__field">
+          <label>OCR 引擎</label>
+          <el-select
+            :model-value="engineType"
+            @update:model-value="onEngineTypeChange"
+          >
+            <el-option label="Windows Native OCR" value="native" />
+            <el-option label="Tesseract.js" value="tesseract" />
+            <el-option label="VLM 多模态大模型" value="vlm" />
+            <el-option label="云端 OCR" value="cloud" />
+          </el-select>
+        </div>
+
+        <div v-if="engineType === 'cloud'" class="monitor-config__field">
+          <label>云端 OCR 配置</label>
+          <el-select
+            :model-value="activeProfileId"
+            placeholder="选择已启用的云端 OCR 配置"
+            @update:model-value="onProfileChange"
+          >
+            <el-option
+              v-for="p in enabledProfiles"
+              :key="p.id"
+              :label="p.name"
+              :value="p.id"
+            />
+          </el-select>
+          <div v-if="!enabledProfiles.length" class="monitor-config__hint">
+            请先在 Smart OCR 中配置并启用云端 OCR 配置
+          </div>
         </div>
       </div>
-    </div>
-
-    <!-- 控制按钮 -->
-    <div class="monitor-config__section">
-      <el-button
-        size="large"
-        :type="isRunning ? 'danger' : 'success'"
-        class="monitor-config__run-btn"
-        :disabled="!monitorRect && !isRunning"
-        @click="$emit('toggle-monitor')"
-      >
-        <component :is="isRunning ? SquareIcon : PlayIcon" :size="18" />
-        {{ isRunning ? "停止监控" : "开始监控" }}
-      </el-button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { ElButton, ElSelect, ElOption, ElSlider } from "element-plus";
-import {
-  SquareDashedMousePointer as SquareDashedIcon,
-  Crosshair,
-  Play,
-  Square,
-} from "lucide-vue-next";
+import { ElSelect, ElOption, ElSlider } from "element-plus";
 import { useOcrProfiles } from "@/tools/smart-ocr/platform";
 import type { OcrEngineConfig } from "@/tools/smart-ocr/types";
-import type { DedupSensitivity, MonitorRect } from "../types";
+import type { DedupSensitivity } from "../types";
 
 const props = defineProps<{
-  monitorRect: MonitorRect | null;
   isRunning: boolean;
   intervalMs: number;
   dedupSensitivity: DedupSensitivity;
@@ -142,17 +98,10 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: "open-monitor-box"): void;
-  (e: "focus-monitor-box"): void;
-  (e: "toggle-monitor"): void;
   (e: "update:intervalMs", v: number): void;
   (e: "update:dedupSensitivity", v: DedupSensitivity): void;
   (e: "update:engineConfig", v: OcrEngineConfig): void;
 }>();
-
-const CrosshairIcon = Crosshair;
-const PlayIcon = Play;
-const SquareIcon = Square;
 
 const { enabledProfiles } = useOcrProfiles();
 
@@ -206,7 +155,7 @@ function onProfileChange(id: string) {
 .monitor-config {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   padding: 12px;
   height: 100%;
   overflow-y: auto;
@@ -221,6 +170,29 @@ function onProfileChange(id: string) {
   backdrop-filter: blur(var(--ui-blur));
   border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
+}
+
+.active-subtitle-section {
+  border-color: var(--el-color-primary-light-5);
+}
+
+.large-subtitle-input :deep(.el-textarea__inner) {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.5;
+  padding: 8px 12px;
+}
+
+.subtitle-edit-tip {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  text-align: right;
+}
+
+.monitor-config__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
 }
 
 .monitor-config__section-title {
@@ -258,12 +230,6 @@ function onProfileChange(id: string) {
 .monitor-config__hint {
   font-size: 11px;
   color: var(--el-color-warning);
-}
-
-.monitor-config__run-btn {
-  width: 100%;
-  font-size: 16px;
-  font-weight: 600;
 }
 </style>
 

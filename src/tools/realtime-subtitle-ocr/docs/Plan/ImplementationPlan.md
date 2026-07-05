@@ -1,192 +1,126 @@
-# 实时字幕OCR (Realtime Subtitle OCR) 实施计划书
+# 实时字幕OCR (Realtime Subtitle OCR) 前端重构实施计划书
 
-本文档详细规划了“实时字幕OCR”独立模块的开发步骤、核心代码实现细节以及验证方法，作为后续施工的指导路线图。
+本文档详细规划了“实时字幕OCR”前端模块的重构步骤、核心代码实现细节以及验证方法，作为后续施工的指导路线图。
 
-> 创建时间：2026-07-05
-
----
-
-## 1. 准备工作与依赖分析
-
-### 1.1. 核心依赖
-
-- **前端**：
-  - `lucide-vue-next`：图标支持。
-  - `element-plus`：UI 组件支持。
-  - `pinia`：状态管理（可选，若逻辑简单可直接用 Composable 闭环）。
-- **后端 (Rust)**：
-  - `windows` crate：用于调用 Windows GDI API 进行区域截屏。
-  - `image` crate：用于图像缩放、灰度化、aHash 计算以及将截取的像素数据编码为 PNG 格式。
-
-### 1.2. 共享能力导入
-
-- **OCR 调度器**：`src/tools/smart-ocr/platform/runner.ts` 中的 `useOcrRunner`。
-- **OCR 配置管理**：`src/tools/smart-ocr/platform/cloud/profiles.ts` 中的 `useOcrProfiles`。
+> 修订时间：2026-07-05
+> 修订人：Gugu_Kilo (雪鸮妹妹)
+> 状态：Implementing (重构中)
 
 ---
 
-## 2. 实施步骤规划
+## 1. 重构背景与核心痛点
 
-整个开发过程分为四个阶段，每个阶段都有明确的交付物和验证标准。
+原 GLM 施工的前端版本存在以下严重问题：
 
-### 阶段一：Rust 后端极速区域截屏命令实现
-
-#### 1. 编写 Rust 命令
-
-在 `src-tauri/src/commands/window_automator.rs`（或新建 `src-tauri/src/commands/screen_capture.rs`）中实现 `capture_screen_rect` 命令：
-
-- **函数签名**（实际实现中采用 Tauri v2 推荐的二进制响应包装）：
-  ```rust
-  #[tauri::command]
-  pub fn capture_screen_rect(
-      x: i32,
-      y: i32,
-      width: i32,
-      height: i32,
-      last_hash: Option<String>,
-      threshold: Option<i32>,
-  ) -> Result<CaptureResult, String>
-  ```
-- **实现逻辑 (Windows GDI + aHash 去重)**：
-  1. 获取屏幕设备上下文：`hdc_screen = GetDC(HWND(0))`。
-  2. 创建兼容的内存设备上下文：`hdc_mem = CreateCompatibleDC(hdc_screen)`。
-  3. 创建兼容的位图：`h_bitmap = CreateCompatibleBitmap(hdc_screen, width, height)`。
-  4. 将位图选入内存上下文：`SelectObject(hdc_mem, h_bitmap)`。
-  5. 拷贝屏幕指定区域像素到位图：`BitBlt(hdc_mem, 0, 0, width, height, hdc_screen, x, y, SRCCOPY)`。
-  6. 将位图数据转换为 `image::RgbaImage`。
-  7. 在内存中将图像缩放到 8x8 并计算 aHash。
-  8. 对比 `last_hash`，若汉明距离小于 `threshold`，则直接返回 `changed: false`，不进行 PNG 编码。
-  9. 若有变化，将图像编码为 PNG 字节流，返回 `changed: true`。
-  10. 释放资源：`DeleteObject(h_bitmap)`，`DeleteDC(hdc_mem)`，`ReleaseDC(HWND(0), hdc_screen)`。
-
-#### 2. 注册命令
-
-在 `src-tauri/src/lib.rs` 的 `tauri::generate_handler![]` 中注册 `capture_screen_rect`。
+1. **布局混乱且无反馈**：采用生硬的三栏式布局，中栏仅有静态说明，监控开始后中栏依然是死的。用户无法确认监控框是否截到了正确的画面，缺乏专业字幕软件的直观感。
+2. **无配置持久化**：每次打开工具，采样频率、去重灵敏度、OCR 引擎等配置都会重置，用户体验极差。
+3. **内存泄漏隐患**：高频采样产生的 `ObjectURL` 释放逻辑不严密，在异常或停止监控时容易遗漏释放；Canvas 实例缺乏生命周期管理。
+4. **高频 IPC 性能开销**：监控框在拖拽/缩放时高频广播 `state-sync`，导致主窗口卡顿。
+5. **交互不规范**：字幕编辑框未严格限制 Ctrl+Enter 发送，普通 Enter 会触发意外行为，不符合 AIO Hub 交互规范。
 
 ---
 
-### 阶段二：前端核心业务逻辑 `useScreenMonitor.ts` 实现
+## 2. 重构设计方案：Aegisub 风格专业布局
 
-In `src/tools/realtime-subtitle-ocr/composables/useScreenMonitor.ts` 中实现核心逻辑：
+为了提供专业、高效的字幕处理体验，我们将彻底摒弃花哨的特效，采用经典的 **Aegisub 风格上下分栏布局**：
 
-#### 1. 文本合并与断句 (编辑距离)
-
-```typescript
-function getLevenshteinDistance(s1: string, s2: string): number {
-  // 标准编辑距离算法实现
-}
-
-function getSimilarity(s1: string, s2: string): number {
-  const distance = getLevenshteinDistance(s1, s2);
-  const maxLength = Math.max(s1.length, s2.length);
-  return maxLength === 0 ? 1 : 1 - distance / maxLength;
-}
+```
+┌────────────────────────────────────────────────────────┐
+│                     顶部工具栏 (Toolbar)                │
+│  [打开监控框] [开始/停止监控] [复制全部] [导出 SRT] [清空] │
+├───────────────────────────┬────────────────────────────┤
+│                           │                            │
+│     实时截图预览区         │       当前字幕编辑与配置    │
+│    (Live Preview)         │       (Editor & Config)    │
+│                           │                            │
+├───────────────────────────┴────────────────────────────┤
+│                                                        │
+│                     字幕时间轴列表                      │
+│                  (Subtitle Grid/List)                  │
+│                                                        │
+└────────────────────────────────────────────────────────┘
 ```
 
-#### 3. 定时采样与 OCR 调度
+### 2.1. 界面布局设计
 
-- 维护 `subtitleList` 响应式数组。
-- 启动 `setInterval`，定时调用 `capture_screen_rect`。
-- 对比 aHash，若画面有变化，调用 `useOcrRunner().runOcr` 进行识别。
-- 根据相似度合并或追加字幕。
+- **顶部工具栏 (Toolbar)**：
+  - 统一收纳全局操作：`打开监控框`、`开始/停止监控`、`复制全部`、`导出 SRT`、`一键清空`。
+  - 按钮样式精致、紧凑，状态（如监控中）通过按钮颜色和图标动态反馈。
+- **左上：实时截图预览区 (Live Preview)**：
+  - 纯净、无任何花哨特效的截图画面展示，用于确认监控区域是否对齐。
+  - 画面下方显示当前帧的 aHash 值和识别延迟，作为专业调试信息。
+- **右上：当前字幕编辑与配置 (Editor & Config)**：
+  - **当前字幕大字编辑框**：展示当前最新识别到（或用户选中）的字幕，支持大字号快速编辑，Ctrl+Enter 提交。
+  - **配置面板**：采样频率（滑块）、去重灵敏度（下拉框）、OCR 引擎选择（下拉框），紧凑地排在编辑框下方。
+- **下方：字幕时间轴列表 (Subtitle Grid/List)**：
+  - 占据下方大面积区域，采用类似 Aegisub 的表格/网格样式。
+  - 每一行展示：`序号` | `时间轴 (开始 --> 结束)` | `字幕文本` | `操作`。
+  - 支持点击某一行将其载入右上方的编辑框进行精细修改，或者双击直接在行内编辑。
 
----
+### 2.2. 核心逻辑与性能优化 (Core Logic & Performance)
 
-### 阶段三：UI 组件与悬浮监控框实现
-
-#### 1. 悬浮监控框 `MonitorBox.vue` (可分离组件)
-
-- **视觉设计**：
-  - 整体背景完全透明：`background: transparent !important;`。
-  - 边缘保留 2px 主题色虚线边框（`border: 2px dashed var(--el-color-primary)`），并带微弱呼吸灯发光效果。
-  - 顶部提供一个 24px 高的极简半透明控制栏（`background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);`），包含拖拽手柄（`data-tauri-drag-region`）、实时坐标尺寸显示、置顶切换和关闭按钮。
-- **坐标同步**：
-  - 监听窗口的 `resize` 和 `move` 事件，高频防抖将当前窗口的绝对屏幕坐标 $(X, Y, W, H)$ 同步到 `monitorStore`。
-  - 截图时，自动将坐标向内收缩（如 $X+2, Y+26, W-4, H-30$），完美避开监控框自身的边框和控制栏。
-
-#### 2. 主界面 `RealtimeSubtitleOcr.vue`
-
-- **左侧：字幕时间轴**
-  - 滚动展示已识别的字幕列表，每条字幕包含 `[开始时间 --> 结束时间]` 和 `文本内容`。
-  - 支持双击文本直接编辑，支持删除单条字幕。
-  - 底部提供“一键复制全部文本”和“导出 SRT 字幕”按钮。
-- **右侧：控制面板**
-  - **区域选择**：提供“打开监控框” / “聚焦监控框”按钮，显示当前监控框的绝对坐标。
-  - **监控设置**：
-    - 采样频率（滑块，0.5s ~ 3s）。
-    - 去重灵敏度（下拉框，高/中/低，对应汉明距离阈值）。
-    - OCR 引擎选择（下拉框，直接读取并渲染 `useOcrProfiles().profiles`）。
-  - **控制按钮**：大而醒目的“开始监控” / “停止监控”按钮。
+- **引入 `ConfigManager`**：
+  - 使用 `createConfigManager` 统一管理 `intervalMs`、`dedupSensitivity`、`engineConfig` 等配置，实现防抖保存（`saveDebounced`），确保用户设置不丢失。
+- **优化 Object URL 释放与内存管理**：
+  - 引入 `activeUrls` 集合，记录所有处于活跃状态的 `ObjectURL`。
+  - 确保在 `stop`、`tick` 异常、组件销毁时，集合中的所有 URL 均被 `URL.revokeObjectURL` 释放，杜绝内存泄漏。
+- **优化 Canvas 与 GC 压力**：
+  - 在 `useScreenMonitor` 中，将 `ocrCanvas` 升级为单例或在 Composable 内部妥善销毁，避免高频创建 Canvas 导致浏览器垃圾回收（GC）引起瞬时卡顿。
+- **优化 IPC 广播频率**：
+  - 优化 `MonitorBox.vue` 的 `reportGeometry` 防抖逻辑，在拖拽/缩放过程中使用极低开销的本地状态更新，仅在停止拖拽后进行一次高精度的 `state-sync` 广播。
 
 ---
 
-### 阶段四：工具注册与集成
+## 3. 实施步骤规划
 
-#### 1. 注册工具
+### 阶段一：配置持久化与内存安全重构 (`useScreenMonitor.ts`)
 
-在 `src/tools/realtime-subtitle-ocr/realtime-subtitle-ocr.registry.ts` 中注册工具：
+1. **引入 `ConfigManager`**：
+   - 在 `useScreenMonitor.ts` 中创建 `configManager` 实例，模块名为 `realtime-subtitle-ocr`。
+   - 在初始化时加载配置，在配置变更时调用 `saveDebounced`。
+2. **重构 `ObjectURL` 释放逻辑**：
+   - 引入 `activeUrls` 集合，记录所有处于活跃状态的 `ObjectURL`。
+   - 确保在 `stop`、`tick` 异常、组件销毁时，集合中的所有 URL 均被 `URL.revokeObjectURL` 释放。
+3. **重构 Canvas 实例管理**：
+   - 在 Composable 销毁时，将 `ocrCanvas` 设为 `null`，释放内存。
 
-```typescript
-import { markRaw } from "vue";
-import { Video } from "lucide-vue-next";
-import type { ToolConfig } from "@/types/tools";
+### 阶段二：Aegisub 风格组件开发
 
-export default class RealtimeSubtitleOcrRegistry implements ToolRegistry {
-  public readonly id = "realtime-subtitle-ocr";
-  public readonly runMode = "any";
-  public readonly name = "实时字幕OCR";
-  public readonly description =
-    "高频、低开销的屏幕动态监控与流式字幕 OCR 识别工具";
+1. **重构 `SubtitleTimeline.vue` (下方时间轴列表)**：
+   - 改为宽屏表格/网格样式，占据下方区域。
+   - 每一行展示序号、时间轴、字幕文本，支持双击编辑和单行删除。
+   - 严格限制编辑框快捷键：**Ctrl+Enter 提交保存，Esc 取消，普通 Enter 换行**。
+2. **重构 `MonitorConfig.vue` (右上配置面板)**：
+   - 整合当前最新字幕的大字编辑框。
+   - 紧凑排列采样率、灵敏度、OCR 引擎等配置项。
+3. **新建 `components/LivePreview.vue` (左上截图预览区)**：
+   - 纯净展示最新截图画面，带优雅的未就绪占位。
+   - 下方展示 aHash 和延迟等专业调试信息。
 
-  public readonly detachableComponents: Record<
-    string,
-    DetachableComponentRegistration
-  > = {
-    "realtime-subtitle-ocr:monitor-box": {
-      component: () => import("./components/MonitorBox.vue"),
-      logicHook: () => {
-        return {
-          props: ref({
-            isDetached: true,
-          }),
-          listeners: {},
-        };
-      },
-    },
-  };
-}
+### 阶段三：主入口集成与验证
 
-export const toolConfig: ToolConfig = {
-  id: "realtime-subtitle-ocr",
-  name: "实时字幕OCR",
-  icon: markRaw(Video),
-  path: "/realtime-subtitle-ocr",
-  component: () => import("./RealtimeSubtitleOcr.vue"),
-  description: "高频、低开销的屏幕动态监控与流式字幕 OCR 识别工具",
-  category: ["媒体工具"],
-  version: "1.0.0",
-};
-```
-
-#### 2. 配置默认顺序
-
-在 `src/config/tools.ts` 的 `DEFAULT_TOOLS_ORDER` 中，将 `"/realtime-subtitle-ocr"` 插入到合适的位置（建议排在 `"/smart-ocr"` 后面）。
+1. **重构 `RealtimeSubtitleOcr.vue`**：
+   - 采用上下分栏布局，上方为左右分栏（左预览，右编辑配置），下方为时间轴列表。
+   - 顶部集成精致的工具栏。
+   - 优化整体样式，确保通透感和毛玻璃效果完美适配主题外观系统。
 
 ---
 
-## 3. 验证与测试标准
+## 4. 验证与测试标准
 
-### 3.1. 后端截图验证
+### 4.1. 内存泄漏验证
 
-- 运行 `check:backend` 确保 Rust 代码无 Clippy 错误。
-- 在前端调用 `capture_screen_rect`，将返回的字节流转为 Object URL 渲染到 `<img>` 标签上，验证截图区域和画面是否完全正确。
+- 启动监控，高频采样（如 500ms）运行 5 分钟。
+- 在 Chrome DevTools 中观察内存占用曲线，确保 JS Heap 和 Document/ObjectURL 数量保持平稳，无阶梯式上升。
 
-### 3.2. 去重算法验证
+### 4.2. 交互规范验证
 
-- 播放一段静止画面或无字幕视频，验证 aHash 算法是否能正确拦截，控制台不应输出新的 OCR 请求。
-- 播放带字幕视频，验证字幕出现时是否能精准触发 OCR。
+- 双击字幕进入编辑状态：
+  - 按下 `Enter`：输入框换行，不保存，不退出编辑。
+  - 按下 `Ctrl+Enter`：保存修改，退出编辑。
+- 点击“清空”按钮：
+  - 弹出确认对话框，验证背景无抖动，无全局滚动条（`lockScroll: false` 验证）。
 
-### 3.3. 字幕合并验证
+### 4.3. 视觉与主题验证
 
-- 验证当字幕未发生变化时，时间轴上的结束时间戳是否在持续顺延，而不是疯狂刷屏追加重复文本。
-- 验证当字幕切换时，是否能优雅地断句并开启新的一行。
+- 切换应用主题（明亮/暗黑），验证监控框、时间轴、看板、配置面板的背景色、边框色、文字颜色是否完美自适应。

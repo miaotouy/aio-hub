@@ -24,6 +24,7 @@ export const DEFAULT_TOOLS_ORDER = [
   "/web-canvas",
   "/media-generator",
   "/smart-ocr",
+  "/realtime-subtitle-ocr",
   "/transcription",
   "/translator",
   "/web-distillery",

@@ -232,6 +232,9 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         wa_send_click,
         #[cfg(windows)]
         wa_send_keypress,
+        // 实时字幕 OCR - 屏幕区域截屏
+        #[cfg(windows)]
+        capture_screen_rect,
         // 窗口管理命令
         create_tool_window,
         focus_window,

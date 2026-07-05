@@ -35,10 +35,10 @@
 
 在 `src-tauri/src/commands/window_automator.rs`（或新建 `src-tauri/src/commands/screen_capture.rs`）中实现 `capture_screen_rect` 命令：
 
-- **函数签名**：
+- **函数签名**（实际实现中采用 Tauri v2 推荐的二进制响应包装）：
   ```rust
   #[tauri::command]
-  pub async fn capture_screen_rect(x: i32, y: i32, width: i32, height: i32) -> Result<Vec<u8>, String>
+  pub fn capture_screen_rect(x: i32, y: i32, width: i32, height: i32) -> Result<tauri::ipc::Response, String>
   ```
 - **实现逻辑 (Windows GDI)**：
   1. 获取屏幕设备上下文：`hdc_screen = GetDC(HWND(0))`。

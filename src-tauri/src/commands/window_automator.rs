@@ -395,6 +395,125 @@ pub fn wa_capture_window(hwnd: i64) -> Result<tauri::ipc::Response, String> {
     Ok(tauri::ipc::Response::new(png_bytes))
 }
 
+/// 屏幕区域截屏：抓取屏幕指定物理坐标区域 (x, y, width, height) 的像素，
+/// BGRA → RGBA 后 PNG 编码返回。用于“实时字幕 OCR”工具的高频低开销采样。
+///
+/// 注意：参数均为**物理像素**坐标（相对于主显示器左上角，跨屏时可为负值）。
+#[tauri::command]
+pub fn capture_screen_rect(
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+) -> Result<tauri::ipc::Response, String> {
+    if width <= 0 || height <= 0 {
+        return Err("截屏区域尺寸无效".to_string());
+    }
+
+    // GetDC(NULL) 获取整个屏幕（多显示器合并）的设备上下文
+    let hwnd = HWND(std::ptr::null_mut());
+    let src_dc = unsafe { GetDC(hwnd) };
+    if src_dc.is_invalid() {
+        return Err("获取屏幕 DC 失败".to_string());
+    }
+    defer!(unsafe {
+        windows::Win32::Graphics::Gdi::ReleaseDC(hwnd, src_dc);
+    });
+
+    let mem_dc = unsafe { CreateCompatibleDC(src_dc) };
+    if mem_dc.is_invalid() {
+        return Err("创建内存 DC 失败".to_string());
+    }
+    defer!(unsafe {
+        let _ = DeleteDC(mem_dc);
+    });
+
+    let bitmap = unsafe { CreateCompatibleBitmap(src_dc, width, height) };
+    if bitmap.is_invalid() {
+        return Err("创建位图失败".to_string());
+    }
+    defer!(unsafe {
+        let _ = DeleteObject(bitmap);
+    });
+
+    let prev: HGDIOBJ = unsafe { SelectObject(mem_dc, HGDIOBJ(bitmap.0)) };
+    defer!(unsafe {
+        let _ = SelectObject(mem_dc, prev);
+    });
+
+    // 直接 BitBlt 屏幕指定区域
+    let blt = unsafe { BitBlt(mem_dc, 0, 0, width, height, src_dc, x, y, SRCCOPY) };
+    if blt.is_err() {
+        return Err("BitBlt 截屏失败".to_string());
+    }
+
+    // 读取像素（BGRA Top-down）
+    let mut bmi = BITMAPINFO {
+        bmiHeader: BITMAPINFOHEADER {
+            biSize: size_of::<BITMAPINFOHEADER>() as u32,
+            biWidth: width,
+            biHeight: -height, // top-down
+            biPlanes: 1,
+            biBitCount: 32,
+            biCompression: BI_RGB.0,
+            biSizeImage: 0,
+            biXPelsPerMeter: 0,
+            biYPelsPerMeter: 0,
+            biClrUsed: 0,
+            biClrImportant: 0,
+        },
+        bmiColors: [windows::Win32::Graphics::Gdi::RGBQUAD::default(); 1],
+    };
+    let row_bytes = (width as usize) * 4;
+    let mut pixels: Vec<u8> = vec![0u8; row_bytes * height as usize];
+    let scan_lines = unsafe {
+        GetDIBits(
+            mem_dc,
+            bitmap,
+            0,
+            height as u32,
+            Some(pixels.as_mut_ptr() as *mut _),
+            &mut bmi,
+            windows::Win32::Graphics::Gdi::DIB_RGB_COLORS,
+        )
+    };
+    if scan_lines == 0 {
+        return Err("GetDIBits 读取像素失败".to_string());
+    }
+
+    // BGRA -> RGBA
+    let mut rgba: Vec<u8> = vec![0u8; (width as usize) * (height as usize) * 4];
+    for y in 0..height as usize {
+        for x in 0..width as usize {
+            let src = (y * width as usize + x) * 4;
+            let b = pixels[src];
+            let g = pixels[src + 1];
+            let r = pixels[src + 2];
+            let a = pixels[src + 3];
+            let dst = (y * width as usize + x) * 4;
+            rgba[dst] = r;
+            rgba[dst + 1] = g;
+            rgba[dst + 2] = b;
+            rgba[dst + 3] = if a == 0 { 255 } else { a };
+        }
+    }
+
+    // PNG 编码（保持原始分辨率，不做缩放，避免字幕文字模糊）
+    let mut png_bytes: Vec<u8> = Vec::new();
+    {
+        use image::ImageEncoder;
+        image::codecs::png::PngEncoder::new(&mut png_bytes)
+            .write_image(
+                &rgba,
+                width as u32,
+                height as u32,
+                image::ExtendedColorType::Rgba8,
+            )
+            .map_err(|e| format!("PNG 编码失败: {}", e))?;
+    }
+    Ok(tauri::ipc::Response::new(png_bytes))
+}
+
 /// 后台点击：构造 WM_*BUTTONDOWN / WM_*BUTTONUP 消息。
 #[tauri::command]
 pub fn wa_send_click(

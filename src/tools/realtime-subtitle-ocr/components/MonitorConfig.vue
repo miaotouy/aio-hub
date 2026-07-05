@@ -25,7 +25,7 @@ import {
 } from "element-plus";
 import { Settings as SettingsIcon } from "lucide-vue-next";
 import { useScreenMonitor } from "../composables/useScreenMonitor";
-import { useOcrProfiles } from "@/tools/smart-ocr/platform";
+import { useOcrProfiles, useOcrExtensions } from "@/tools/smart-ocr/platform";
 import type { OcrEngineConfig } from "@/tools/smart-ocr/types";
 import type { DedupSensitivity } from "../types";
 
@@ -33,41 +33,135 @@ const { config, setIntervalMs, setDedupSensitivity, setEngineConfig } =
   useScreenMonitor();
 
 const { enabledProfiles } = useOcrProfiles();
+const { ocrExtensions, getOcrExtensionById } = useOcrExtensions();
 
-const engineType = computed(() => config.value.engineConfig.type);
+const engineType = computed(() => {
+  const cfg = config.value.engineConfig;
+  if (cfg.type === "plugin") {
+    const ext = ocrExtensions.value.find(
+      (e) => e.pluginId === cfg.pluginId && e.method === cfg.method
+    );
+    return ext ? `plugin:${ext.id}` : "plugin";
+  }
+  return cfg.type;
+});
+
 const activeProfileId = computed(() =>
   config.value.engineConfig.type === "cloud"
     ? config.value.engineConfig.activeProfileId
     : ""
 );
 
-function onEngineTypeChange(type: string) {
+const currentPluginOcrExtension = computed(() => {
+  const cfg = config.value.engineConfig;
+  if (cfg.type !== "plugin") return null;
+  return (
+    ocrExtensions.value.find(
+      (e) => e.pluginId === cfg.pluginId && e.method === cfg.method
+    ) ?? null
+  );
+});
+
+const pluginModelProfileOptions = computed(
+  () => currentPluginOcrExtension.value?.modelProfiles ?? []
+);
+
+const pluginModelProfile = computed({
+  get: () => {
+    const cfg = config.value.engineConfig;
+    const extension = currentPluginOcrExtension.value;
+    if (cfg.type !== "plugin" || !extension) return "";
+    return (
+      cfg.modelProfile ??
+      extension.defaultModelProfile ??
+      extension.modelProfiles[0]?.id ??
+      ""
+    );
+  },
+  set: (value) => {
+    const cfg = config.value.engineConfig;
+    if (cfg.type !== "plugin") return;
+    setEngineConfig({
+      ...cfg,
+      modelProfile: value,
+    });
+  },
+});
+
+const pluginLanguageOptions = computed(
+  () => currentPluginOcrExtension.value?.languages ?? []
+);
+
+const pluginLanguage = computed({
+  get: () => {
+    const cfg = config.value.engineConfig;
+    const extension = currentPluginOcrExtension.value;
+    if (cfg.type !== "plugin" || !extension) return "";
+    return (
+      cfg.language ??
+      extension.defaultLanguage ??
+      extension.languages[0]?.id ??
+      ""
+    );
+  },
+  set: (value) => {
+    const cfg = config.value.engineConfig;
+    if (cfg.type !== "plugin") return;
+    setEngineConfig({
+      ...cfg,
+      language: value,
+    });
+  },
+});
+
+function onEngineTypeChange(val: string) {
   let next: OcrEngineConfig;
-  switch (type) {
-    case "native":
-      next = { type: "native", name: "native" };
-      break;
-    case "tesseract":
-      next = { type: "tesseract", name: "tesseract", language: "chi_sim+eng" };
-      break;
-    case "vlm":
+  if (val.startsWith("plugin:")) {
+    const extId = val.substring(7);
+    const ext = getOcrExtensionById(extId);
+    if (ext) {
       next = {
-        type: "vlm",
-        name: "vlm",
-        profileId: "",
-        modelId: "",
-        prompt: "请识别图片中的文字，仅输出识别结果。",
+        type: "plugin",
+        name: ext.name,
+        pluginId: ext.pluginId,
+        method: ext.method,
+        modelProfile: ext.defaultModelProfile ?? ext.modelProfiles[0]?.id,
+        language: ext.defaultLanguage ?? ext.languages[0]?.id,
       };
-      break;
-    case "cloud":
-      next = {
-        type: "cloud",
-        name: "cloud",
-        activeProfileId: enabledProfiles.value[0]?.id ?? "",
-      };
-      break;
-    default:
+    } else {
       return;
+    }
+  } else {
+    switch (val) {
+      case "native":
+        next = { type: "native", name: "native" };
+        break;
+      case "tesseract":
+        next = {
+          type: "tesseract",
+          name: "tesseract",
+          language: "chi_sim+eng",
+        };
+        break;
+      case "vlm":
+        next = {
+          type: "vlm",
+          name: "vlm",
+          profileId: "",
+          modelId: "",
+          prompt: "请识别图片中的文字，仅输出识别结果。",
+        };
+        break;
+      case "cloud":
+        next = {
+          type: "cloud",
+          name: "cloud",
+          activeProfileId: enabledProfiles.value[0]?.id ?? "",
+        };
+        break;
+      default:
+        return;
+    }
   }
   setEngineConfig(next);
 }
@@ -83,55 +177,35 @@ function onProfileChange(id: string) {
 
 <template>
   <div class="monitor-config">
-    <!-- 采样频率 -->
-    <div class="toolbar-item">
-      <span class="toolbar-label">采样频率:</span>
-      <el-slider
-        :model-value="config.intervalMs"
-        :min="500"
-        :max="3000"
-        :step="100"
-        style="width: 100px"
-        @update:model-value="setIntervalMs($event as number)"
-      />
-      <span class="toolbar-value"
-        >{{ (config.intervalMs / 1000).toFixed(1) }}s</span
-      >
-    </div>
-
-    <!-- 去重灵敏度 -->
-    <div class="toolbar-item">
-      <span class="toolbar-label">去重灵敏度:</span>
-      <el-select
-        :model-value="config.dedupSensitivity"
-        size="small"
-        style="width: 100px"
-        @update:model-value="setDedupSensitivity($event as DedupSensitivity)"
-      >
-        <el-option label="高" value="high" />
-        <el-option label="中" value="medium" />
-        <el-option label="低" value="low" />
-      </el-select>
-    </div>
-
     <!-- OCR 引擎 -->
     <div class="toolbar-item">
       <span class="toolbar-label">OCR 引擎:</span>
       <el-select
         :model-value="engineType"
         size="small"
-        style="width: 150px"
+        style="width: 180px"
         @update:model-value="onEngineTypeChange"
       >
         <el-option label="Windows Native OCR" value="native" />
         <el-option label="Tesseract.js" value="tesseract" />
         <el-option label="VLM 多模态大模型" value="vlm" />
         <el-option label="云端 OCR" value="cloud" />
+        <!-- 动态渲染插件引擎 -->
+        <el-option
+          v-for="ext in ocrExtensions"
+          :key="ext.id"
+          :label="ext.name"
+          :value="`plugin:${ext.id}`"
+          :disabled="!ext.enabled || ext.broken"
+        />
       </el-select>
-
       <!-- 引擎额外配置气泡 -->
       <el-popover
-        v-if="engineType === 'cloud' || engineType === 'tesseract'"
+        v-if="
+          engineType === 'cloud' ||
+          engineType === 'tesseract' ||
+          config.engineConfig.type === 'plugin'
+        "
         placement="bottom"
         title="引擎额外配置"
         :width="240"
@@ -186,8 +260,106 @@ function onProfileChange(id: string) {
               <el-option label="纯日文" value="jpn" />
             </el-select>
           </div>
+          <div
+            v-if="config.engineConfig.type === 'plugin'"
+            class="popover-field"
+          >
+            <template v-if="currentPluginOcrExtension">
+              <!-- 模型配置 -->
+              <div
+                v-if="pluginModelProfileOptions.length > 0"
+                class="popover-sub-field"
+              >
+                <label
+                  style="
+                    font-size: 11px;
+                    color: var(--el-text-color-secondary);
+                    font-weight: 500;
+                    display: block;
+                    margin-bottom: 4px;
+                  "
+                  >模型配置</label
+                >
+                <el-select
+                  v-model="pluginModelProfile"
+                  size="small"
+                  placeholder="选择模型配置"
+                >
+                  <el-option
+                    v-for="opt in pluginModelProfileOptions"
+                    :key="opt.id"
+                    :label="opt.name"
+                    :value="opt.id"
+                  />
+                </el-select>
+              </div>
+              <!-- 识别语言 -->
+              <div
+                v-if="pluginLanguageOptions.length > 0"
+                class="popover-sub-field"
+                style="margin-top: 8px"
+              >
+                <label
+                  style="
+                    font-size: 11px;
+                    color: var(--el-text-color-secondary);
+                    font-weight: 500;
+                    display: block;
+                    margin-bottom: 4px;
+                  "
+                  >识别语言</label
+                >
+                <el-select
+                  v-model="pluginLanguage"
+                  size="small"
+                  placeholder="选择识别语言"
+                >
+                  <el-option
+                    v-for="opt in pluginLanguageOptions"
+                    :key="opt.id"
+                    :label="opt.name"
+                    :value="opt.id"
+                  />
+                </el-select>
+              </div>
+            </template>
+            <div v-else class="popover-hint">
+              当前插件不可用，请检查插件状态
+            </div>
+          </div>
         </div>
       </el-popover>
+
+      <!-- 采样频率 -->
+      <div class="toolbar-item">
+        <span class="toolbar-label">采样频率:</span>
+        <el-slider
+          :model-value="config.intervalMs"
+          :min="500"
+          :max="3000"
+          :step="100"
+          style="width: 100px"
+          @update:model-value="setIntervalMs($event as number)"
+        />
+        <span class="toolbar-value"
+          >{{ (config.intervalMs / 1000).toFixed(1) }}s</span
+        >
+      </div>
+
+      <!-- 去重灵敏度 -->
+      <div class="toolbar-item">
+        <span class="toolbar-label">去重灵敏度:</span>
+        <el-select
+          :model-value="config.dedupSensitivity"
+          size="small"
+          style="width: 100px"
+          @update:model-value="setDedupSensitivity($event as DedupSensitivity)"
+        >
+          <el-option label="高" value="high" />
+          <el-option label="中" value="medium" />
+          <el-option label="低" value="low" />
+        </el-select>
+      </div>
     </div>
   </div>
 </template>

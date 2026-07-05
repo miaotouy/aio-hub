@@ -182,8 +182,15 @@ async function openMonitorBox() {
     return;
   }
 
-  // detachByClick 默认位置由后端窗口配置恢复决定；首次创建时定位到主窗口右侧
+  // 检查是否有保存的窗口配置，如果有则完全依赖后端恢复，不进行手动定位
   try {
+    const label = `detached-${MONITOR_BOX_ID}`;
+    const savedLabels = await invoke<string[]>("get_saved_window_labels");
+    if (savedLabels.includes(label)) {
+      return;
+    }
+
+    // 首次创建时定位到主窗口右侧
     const win = getCurrentWindow();
     const [pos, size, scaleFactor] = await Promise.all([
       win.outerPosition(),
@@ -199,7 +206,6 @@ async function openMonitorBox() {
       x = Math.round(mainX + 40);
       y = Math.round(mainY + 120);
     }
-    const label = `detached-${MONITOR_BOX_ID}`;
     await invoke("set_window_position", { label, x, y, center: false });
   } catch {
     // ignore：定位失败不影响功能

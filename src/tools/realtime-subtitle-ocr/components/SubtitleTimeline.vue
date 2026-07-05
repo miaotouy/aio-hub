@@ -33,6 +33,14 @@
         >
           <DownloadIcon :size="14" /> 导出 SRT
         </el-button>
+        <el-button
+          size="small"
+          type="warning"
+          :disabled="!subtitles.length"
+          @click="$emit('clear-all')"
+        >
+          <TrashIcon :size="14" /> 一键清空
+        </el-button>
       </div>
     </div>
 
@@ -106,6 +114,7 @@ const emit = defineEmits<{
   (e: "export-srt"): void;
   (e: "copy-all"): void;
   (e: "select", id: string): void;
+  (e: "clear-all"): void;
 }>();
 
 function formatTime(ms: number): string {

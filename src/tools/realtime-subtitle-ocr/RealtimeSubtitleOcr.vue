@@ -18,22 +18,23 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { ElButton, ElMessageBox, ElInput } from "element-plus";
 import {
-  SquareDashedMousePointer as SquareDashedIcon,
-  Play as PlayIcon,
-  Square as SquareIcon,
-  Copy as CopyIcon,
-  Download as DownloadIcon,
-  Trash2 as TrashIcon,
-  Crosshair as CrosshairIcon,
-} from "lucide-vue-next";
+  ElMessageBox,
+  ElInput,
+  ElSelect,
+  ElOption,
+  ElSlider,
+  ElPopover,
+  ElButton,
+} from "element-plus";
+import { Settings as SettingsIcon } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { useResizable } from "@/composables/useResizable";
 import { useDetachable } from "@/composables/useDetachable";
 import { useDetachedManager } from "@/composables/useDetachedManager";
+import { useOcrProfiles } from "@/tools/smart-ocr/platform";
+import type { OcrEngineConfig } from "@/tools/smart-ocr/types";
 import SubtitleTimeline from "./components/SubtitleTimeline.vue";
-import MonitorConfig from "./components/MonitorConfig.vue";
 import LivePreview from "./components/LivePreview.vue";
 import { useScreenMonitor } from "./composables/useScreenMonitor";
 import { formatSrtTime } from "./utils/algorithms";
@@ -77,6 +78,54 @@ const {
   exportPlainText,
   downloadSrt,
 } = useScreenMonitor();
+
+const { enabledProfiles } = useOcrProfiles();
+
+const engineType = computed(() => config.value.engineConfig.type);
+const activeProfileId = computed(() =>
+  config.value.engineConfig.type === "cloud"
+    ? config.value.engineConfig.activeProfileId
+    : ""
+);
+
+function onEngineTypeChange(type: string) {
+  let next: OcrEngineConfig;
+  switch (type) {
+    case "native":
+      next = { type: "native", name: "native" };
+      break;
+    case "tesseract":
+      next = { type: "tesseract", name: "tesseract", language: "chi_sim+eng" };
+      break;
+    case "vlm":
+      next = {
+        type: "vlm",
+        name: "vlm",
+        profileId: "",
+        modelId: "",
+        prompt: "请识别图片中的文字，仅输出识别结果。",
+      };
+      break;
+    case "cloud":
+      next = {
+        type: "cloud",
+        name: "cloud",
+        activeProfileId: enabledProfiles.value[0]?.id ?? "",
+      };
+      break;
+    default:
+      return;
+  }
+  setEngineConfig(next);
+}
+
+function onProfileChange(id: string) {
+  if (config.value.engineConfig.type !== "cloud") return;
+  setEngineConfig({
+    ...config.value.engineConfig,
+    activeProfileId: id,
+  });
+}
 
 const isMonitorBoxDetached = computed(() =>
   detachedManager.isDetached(MONITOR_BOX_ID)
@@ -278,74 +327,140 @@ onBeforeUnmount(() => {
         </span>
       </div>
       <div class="toolbar-right">
-        <el-button
-          type="primary"
-          size="small"
-          :disabled="isRunning"
-          @click="openMonitorBox"
-        >
-          <SquareDashedIcon :size="14" /> 打开监控框
-        </el-button>
-        <el-button
-          size="small"
-          :disabled="!isMonitorBoxDetached"
-          @click="focusMonitorBox"
-        >
-          <CrosshairIcon :size="14" /> 聚焦监控框
-        </el-button>
-        <el-button
-          :type="isRunning ? 'danger' : 'success'"
-          size="small"
-          :disabled="!monitorRect && !isRunning"
-          @click="toggleMonitor"
-        >
-          <component :is="isRunning ? SquareIcon : PlayIcon" :size="14" />
-          {{ isRunning ? "停止监控" : "开始监控" }}
-        </el-button>
-        <el-button
-          size="small"
-          :disabled="!subtitles.length"
-          @click="onCopyAll"
-        >
-          <CopyIcon :size="14" /> 复制全部
-        </el-button>
-        <el-button
-          type="primary"
-          size="small"
-          :disabled="!subtitles.length"
-          @click="onExportSrt"
-        >
-          <DownloadIcon :size="14" /> 导出 SRT
-        </el-button>
-        <el-button
-          type="warning"
-          size="small"
-          :disabled="!subtitles.length"
-          @click="clearAll"
-        >
-          <TrashIcon :size="14" /> 一键清空
-        </el-button>
+        <!-- 采样频率 -->
+        <div class="toolbar-item">
+          <span class="toolbar-label">采样频率:</span>
+          <el-slider
+            :model-value="config.intervalMs"
+            :min="500"
+            :max="3000"
+            :step="100"
+            style="width: 100px"
+            @update:model-value="setIntervalMs($event as number)"
+          />
+          <span class="toolbar-value"
+            >{{ (config.intervalMs / 1000).toFixed(1) }}s</span
+          >
+        </div>
+
+        <!-- 去重灵敏度 -->
+        <div class="toolbar-item">
+          <span class="toolbar-label">去重灵敏度:</span>
+          <el-select
+            :model-value="config.dedupSensitivity"
+            size="small"
+            style="width: 100px"
+            @update:model-value="
+              setDedupSensitivity($event as DedupSensitivity)
+            "
+          >
+            <el-option label="高" value="high" />
+            <el-option label="中" value="medium" />
+            <el-option label="低" value="low" />
+          </el-select>
+        </div>
+
+        <!-- OCR 引擎 -->
+        <div class="toolbar-item">
+          <span class="toolbar-label">OCR 引擎:</span>
+          <el-select
+            :model-value="engineType"
+            size="small"
+            style="width: 150px"
+            @update:model-value="onEngineTypeChange"
+          >
+            <el-option label="Windows Native OCR" value="native" />
+            <el-option label="Tesseract.js" value="tesseract" />
+            <el-option label="VLM 多模态大模型" value="vlm" />
+            <el-option label="云端 OCR" value="cloud" />
+          </el-select>
+
+          <!-- 引擎额外配置气泡 -->
+          <el-popover
+            v-if="engineType === 'cloud' || engineType === 'tesseract'"
+            placement="bottom"
+            title="引擎额外配置"
+            :width="240"
+            trigger="click"
+          >
+            <template #reference>
+              <el-button size="small" circle style="margin-left: 4px">
+                <SettingsIcon :size="14" />
+              </el-button>
+            </template>
+            <div class="engine-popover-content">
+              <div v-if="engineType === 'cloud'" class="popover-field">
+                <label>云端 OCR 配置</label>
+                <el-select
+                  :model-value="activeProfileId"
+                  size="small"
+                  placeholder="选择已启用的云端 OCR 配置"
+                  @update:model-value="onProfileChange"
+                >
+                  <el-option
+                    v-for="p in enabledProfiles"
+                    :key="p.id"
+                    :label="p.name"
+                    :value="p.id"
+                  />
+                </el-select>
+                <div v-if="!enabledProfiles.length" class="popover-hint">
+                  请先在 Smart OCR 中配置并启用云端 OCR 配置
+                </div>
+              </div>
+              <div v-if="engineType === 'tesseract'" class="popover-field">
+                <label>识别语言</label>
+                <el-select
+                  :model-value="
+                    config.engineConfig.type === 'tesseract'
+                      ? config.engineConfig.language
+                      : 'chi_sim+eng'
+                  "
+                  size="small"
+                  @update:model-value="
+                    setEngineConfig({
+                      ...config.engineConfig,
+                      type: 'tesseract',
+                      name: 'tesseract',
+                      language: $event as string,
+                    })
+                  "
+                >
+                  <el-option label="简体中文 + 英文" value="chi_sim+eng" />
+                  <el-option label="繁体中文 + 英文" value="chi_tra+eng" />
+                  <el-option label="纯英文" value="eng" />
+                  <el-option label="纯日文" value="jpn" />
+                </el-select>
+              </div>
+            </div>
+          </el-popover>
+        </div>
       </div>
     </div>
 
     <!-- 主体区域：上下分栏 -->
     <div class="rsocr-main">
-      <!-- 上方：左右分栏 -->
+      <!-- 上方：左右分栏 (7:3 比例) -->
       <div
         class="rsocr-top-section"
         :style="{ height: topSectionHeight + 'px' }"
       >
-        <!-- 左上：实时截图预览区 -->
+        <!-- 左上：实时截图预览与控制区 (70% 宽度) -->
         <div class="preview-panel">
           <LivePreview
             :last-frame-url="lastFrameUrl"
             :last-hash="lastHash"
             :latency="latency"
             :is-running="isRunning"
+            :is-monitor-box-detached="isMonitorBoxDetached"
+            :monitor-rect="monitorRect"
+            @open-monitor-box="openMonitorBox"
+            @focus-monitor-box="focusMonitorBox"
+            @toggle-monitor="toggleMonitor"
           />
         </div>
 
-        <!-- 中上：当前字幕大字编辑框 -->
+        <!-- 右上：当前字幕大字编辑框 (30% 宽度) -->
         <div class="editor-panel">
           <div class="editor-panel__header">
             <span class="editor-panel__title">当前字幕编辑</span>
@@ -367,19 +482,6 @@ onBeforeUnmount(() => {
             />
           </div>
         </div>
-
-        <!-- 右上：监控设置与区域选择 -->
-        <div class="config-panel">
-          <MonitorConfig
-            :is-running="isRunning"
-            :interval-ms="config.intervalMs"
-            :dedup-sensitivity="config.dedupSensitivity"
-            :engine-config="config.engineConfig"
-            @update:interval-ms="setIntervalMs"
-            @update:dedup-sensitivity="setDedupSensitivity"
-            @update:engine-config="setEngineConfig"
-          />
-        </div>
       </div>
 
       <!-- 拖拽条 -->
@@ -400,6 +502,7 @@ onBeforeUnmount(() => {
           @export-srt="onExportSrt"
           @copy-all="onCopyAll"
           @select="handleSelectSubtitle"
+          @clear-all="clearAll"
         />
       </div>
     </div>
@@ -479,13 +582,13 @@ onBeforeUnmount(() => {
 }
 
 .preview-panel {
-  flex: 1;
-  min-width: 240px;
+  flex: 7;
+  min-width: 320px;
   height: 100%;
 }
 
 .editor-panel {
-  flex: 1.5;
+  flex: 3;
   min-width: 200px;
   height: 100%;
   display: flex;
@@ -541,10 +644,48 @@ onBeforeUnmount(() => {
   border-color: var(--el-color-primary);
 }
 
-.config-panel {
-  width: 320px;
-  height: 100%;
-  flex-shrink: 0;
+.toolbar-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--el-text-color-regular);
+}
+
+.toolbar-label {
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+}
+
+.toolbar-value {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  color: var(--el-text-color-primary);
+  min-width: 28px;
+}
+
+.engine-popover-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.popover-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.popover-field > label {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  font-weight: 500;
+}
+
+.popover-hint {
+  font-size: 11px;
+  color: var(--el-color-warning);
+  line-height: 1.4;
 }
 
 .resize-trigger-y {

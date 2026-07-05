@@ -30,29 +30,72 @@
         </div>
       </div>
     </div>
-    <div class="live-preview__info">
-      <div class="info-item">
-        <span class="info-label">aHash:</span>
-        <span class="info-value font-mono">{{ lastHash || "N/A" }}</span>
+    <div class="live-preview__control-bar">
+      <div class="control-left">
+        <el-button
+          type="primary"
+          size="small"
+          :disabled="isRunning"
+          @click="$emit('open-monitor-box')"
+        >
+          <SquareDashedIcon :size="14" /> 打开监控框
+        </el-button>
+        <el-button
+          size="small"
+          :disabled="!isMonitorBoxDetached"
+          @click="$emit('focus-monitor-box')"
+        >
+          <CrosshairIcon :size="14" /> 聚焦监控框
+        </el-button>
+        <el-button
+          :type="isRunning ? 'danger' : 'success'"
+          size="small"
+          :disabled="!monitorRect && !isRunning"
+          @click="$emit('toggle-monitor')"
+        >
+          <component :is="isRunning ? SquareIcon : PlayIcon" :size="14" />
+          {{ isRunning ? "停止监控" : "开始监控" }}
+        </el-button>
       </div>
-      <div class="info-item">
-        <span class="info-label">延迟:</span>
-        <span class="info-value font-mono">{{
-          latency ? `${latency}ms` : "N/A"
-        }}</span>
+      <div class="control-right">
+        <div class="info-item">
+          <span class="info-label">aHash:</span>
+          <span class="info-value font-mono">{{ lastHash || "N/A" }}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">延迟:</span>
+          <span class="info-value font-mono">{{
+            latency ? `${latency}ms` : "N/A"
+          }}</span>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Tv as TvIcon } from "lucide-vue-next";
+import { ElButton } from "element-plus";
+import {
+  Tv as TvIcon,
+  SquareDashedMousePointer as SquareDashedIcon,
+  Crosshair as CrosshairIcon,
+  Play as PlayIcon,
+  Square as SquareIcon,
+} from "lucide-vue-next";
 
 defineProps<{
   lastFrameUrl: string | null;
   lastHash: string;
   latency: number;
   isRunning: boolean;
+  isMonitorBoxDetached: boolean;
+  monitorRect: any;
+}>();
+
+defineEmits<{
+  (e: "open-monitor-box"): void;
+  (e: "focus-monitor-box"): void;
+  (e: "toggle-monitor"): void;
 }>();
 </script>
 
@@ -73,7 +116,8 @@ defineProps<{
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #000;
+  background: var(--input-bg);
+  backdrop-filter: blur(var(--ui-blur));
   min-height: 0;
   position: relative;
 }
@@ -110,14 +154,29 @@ defineProps<{
     opacity: 0.8;
   }
 }
-
-.live-preview__info {
+.live-preview__control-bar {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
   background: var(--sidebar-bg);
   border-top: var(--border-width) solid var(--border-color);
   font-size: 12px;
+  gap: 12px;
+}
+
+.control-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.control-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
 }
 
 .info-item {

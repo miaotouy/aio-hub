@@ -18,6 +18,7 @@
 import { ref, onMounted, onUnmounted } from "vue";
 import { storeToRefs } from "pinia";
 import { customMessage } from "@/utils/customMessage";
+import { useResizable } from "@/composables/useResizable";
 import ControlPanel from "./components/ControlPanel.vue";
 import HistoryDialog from "./components/HistoryDialog.vue";
 import PreviewPanel from "./components/PreviewPanel.vue";
@@ -76,13 +77,6 @@ const {
   loadUiState,
   startWatching,
 } = useSmartOcrUiState();
-
-// 拖拽状态
-const isDraggingLeft = ref(false);
-const isDraggingRight = ref(false);
-const dragStartX = ref(0);
-const dragStartWidth = ref(0);
-
 // UI 状态
 const selectedImageId = ref<string | null>(null);
 const isHistoryDialogVisible = ref(false);
@@ -90,47 +84,22 @@ const isHistoryDialogVisible = ref(false);
 // ControlPanel 组件引用（保留用于未来可能需要的方法调用）
 // const controlPanelRef = ref<InstanceType<typeof ControlPanel>>();
 
-// 拖拽处理
-const handleLeftDragStart = (e: MouseEvent) => {
-  isDraggingLeft.value = true;
-  dragStartX.value = e.clientX;
-  dragStartWidth.value = leftPanelWidth.value;
-  e.preventDefault();
-  document.body.style.cursor = "col-resize";
-  document.body.style.userSelect = "none";
-};
+// ===== 侧边栏拖拽调整宽度 =====
+const { isResizing: isDraggingLeft, startResize: handleLeftDragStart } =
+  useResizable({
+    size: leftPanelWidth,
+    minSize: 280,
+    maxSize: 600,
+    direction: "left",
+  });
 
-const handleRightDragStart = (e: MouseEvent) => {
-  isDraggingRight.value = true;
-  dragStartX.value = e.clientX;
-  dragStartWidth.value = rightPanelWidth.value;
-  e.preventDefault();
-  document.body.style.cursor = "col-resize";
-  document.body.style.userSelect = "none";
-};
-
-const handleMouseMove = (e: MouseEvent) => {
-  if (isDraggingLeft.value) {
-    const delta = e.clientX - dragStartX.value;
-    const newWidth = dragStartWidth.value + delta;
-    if (newWidth >= 280 && newWidth <= 600) {
-      leftPanelWidth.value = newWidth;
-    }
-  } else if (isDraggingRight.value) {
-    const delta = e.clientX - dragStartX.value;
-    const newWidth = dragStartWidth.value - delta;
-    if (newWidth >= 300 && newWidth <= 600) {
-      rightPanelWidth.value = newWidth;
-    }
-  }
-};
-
-const handleMouseUp = () => {
-  isDraggingLeft.value = false;
-  isDraggingRight.value = false;
-  document.body.style.cursor = "";
-  document.body.style.userSelect = "";
-};
+const { isResizing: isDraggingRight, startResize: handleRightDragStart } =
+  useResizable({
+    size: rightPanelWidth,
+    minSize: 300,
+    maxSize: 600,
+    direction: "right",
+  });
 
 // 组件挂载时初始化
 onMounted(async () => {
@@ -142,15 +111,9 @@ onMounted(async () => {
   await initialize();
 
   log.info("SmartOCR 组件已挂载，Store 和 Runner 已初始化");
-
-  // 注册鼠标事件监听
-  document.addEventListener("mousemove", handleMouseMove);
-  document.addEventListener("mouseup", handleMouseUp);
 });
 
 onUnmounted(() => {
-  document.removeEventListener("mousemove", handleMouseMove);
-  document.removeEventListener("mouseup", handleMouseUp);
   log.info("SmartOCR 组件已卸载");
 });
 

@@ -15,13 +15,7 @@
 -->
 
 <script setup lang="ts">
-import {
-  onMounted,
-  computed,
-  ref,
-  onUnmounted,
-  defineAsyncComponent,
-} from "vue";
+import { onMounted, computed, ref, defineAsyncComponent } from "vue";
 import { useLlmChatStore } from "./stores/llmChatStore";
 import { useAgentStore } from "./stores/agentStore";
 import { useUserProfileStore } from "./stores/userProfileStore";
@@ -77,6 +71,8 @@ logger.info("LlmChat 窗口类型", {
 // 该 Composable 现在会自动管理其生命周期，无需手动初始化
 useLlmChatSync();
 
+import { useResizable } from "@/composables/useResizable";
+
 // UI状态持久化
 const {
   isLeftSidebarCollapsed,
@@ -87,65 +83,22 @@ const {
   startWatching,
 } = useLlmChatUiState();
 
-// 拖拽状态
-const isDraggingLeft = ref(false);
-const isDraggingRight = ref(false);
+// ===== 侧边栏拖拽调整宽度 =====
+const { isResizing: isDraggingLeft, startResize: handleLeftDragStart } =
+  useResizable({
+    size: leftSidebarWidth,
+    minSize: 200,
+    maxSize: 600,
+    direction: "left",
+  });
 
-// 拖拽初始状态
-const dragStartX = ref(0);
-const dragStartWidth = ref(0);
-
-// 拖拽处理
-const handleLeftDragStart = (e: MouseEvent) => {
-  isDraggingLeft.value = true;
-  dragStartX.value = e.clientX;
-  dragStartWidth.value = leftSidebarWidth.value;
-  e.preventDefault();
-  document.body.style.cursor = "col-resize";
-  document.body.style.userSelect = "none";
-};
-
-const handleRightDragStart = (e: MouseEvent) => {
-  isDraggingRight.value = true;
-  dragStartX.value = e.clientX;
-  dragStartWidth.value = rightSidebarWidth.value;
-  e.preventDefault();
-  document.body.style.cursor = "col-resize";
-  document.body.style.userSelect = "none";
-};
-
-const handleMouseMove = (e: MouseEvent) => {
-  if (isDraggingLeft.value) {
-    const delta = e.clientX - dragStartX.value;
-    const newWidth = dragStartWidth.value + delta;
-    if (newWidth >= 200 && newWidth <= 600) {
-      leftSidebarWidth.value = newWidth;
-    }
-  } else if (isDraggingRight.value) {
-    const delta = e.clientX - dragStartX.value;
-    const newWidth = dragStartWidth.value - delta; // 右侧边栏向左移动时宽度增加
-    if (newWidth >= 200 && newWidth <= 600) {
-      rightSidebarWidth.value = newWidth;
-    }
-  }
-};
-
-const handleMouseUp = () => {
-  isDraggingLeft.value = false;
-  isDraggingRight.value = false;
-  document.body.style.cursor = "";
-  document.body.style.userSelect = "";
-};
-
-onMounted(() => {
-  document.addEventListener("mousemove", handleMouseMove);
-  document.addEventListener("mouseup", handleMouseUp);
-});
-
-onUnmounted(() => {
-  document.removeEventListener("mousemove", handleMouseMove);
-  document.removeEventListener("mouseup", handleMouseUp);
-});
+const { isResizing: isDraggingRight, startResize: handleRightDragStart } =
+  useResizable({
+    size: rightSidebarWidth,
+    minSize: 200,
+    maxSize: 600,
+    direction: "right",
+  });
 
 // 分离组件管理
 const { isDetached } = useDetachedManager();

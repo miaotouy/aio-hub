@@ -86,8 +86,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, watch } from "vue";
 import { useFileOperator } from "./composables/useFileOperator";
+import { useResizable } from "@/composables/useResizable";
 import SecurityConfigPanel from "./components/SecurityConfigPanel.vue";
 import AuditLogPanel from "./components/AuditLogPanel.vue";
 
@@ -116,53 +117,47 @@ const {
   refreshLogs,
   clearLogs,
 } = useFileOperator();
+// 拖拽调整大小
+const logPanelWidthRef = ref(config.value.logPanelWidth || 350);
 
-// 拖拽状态
-const isDragging = ref(false);
+// 监听 config.logPanelWidth 的变化，同步到本地 ref
+watch(
+  () => config.value.logPanelWidth,
+  (newVal) => {
+    if (newVal) {
+      logPanelWidthRef.value = newVal;
+    }
+  }
+);
+
+const { isResizing: isDragging, startResize } = useResizable({
+  size: logPanelWidthRef,
+  minSize: 250,
+  maxSize: 600,
+  direction: "right", // 右侧面板，往左拖拽变大
+});
+
+// 监听拖拽状态，结束时保存配置
+watch(isDragging, (newVal) => {
+  if (!newVal) {
+    config.value.logPanelWidth = logPanelWidthRef.value;
+    saveConfig();
+  }
+});
 
 // 初始化
 onMounted(async () => {
   await loadConfig();
   await refreshLogs();
+  if (config.value.logPanelWidth) {
+    logPanelWidthRef.value = config.value.logPanelWidth;
+  }
 });
 
 // 处理折叠状态变化
 const handleCollapsedChange = (val: boolean) => {
   config.value.isLogCollapsed = val;
   saveConfig();
-};
-
-// 拖拽调整大小
-const startResize = (e: MouseEvent) => {
-  isDragging.value = true;
-  const startX = e.clientX;
-  const startWidth = config.value.logPanelWidth || 350;
-
-  const onMouseMove = (moveEvent: MouseEvent) => {
-    if (!isDragging.value) return;
-    const deltaX = moveEvent.clientX - startX;
-    // 因为日志面板在右侧，往左拖拽（deltaX 为负）会使宽度变大，往右拖拽（deltaX 为正）会使宽度变小
-    const newWidth = startWidth - deltaX;
-    if (newWidth >= 250 && newWidth <= 600) {
-      config.value.logPanelWidth = newWidth;
-    }
-  };
-
-  const onMouseUp = () => {
-    isDragging.value = false;
-    document.removeEventListener("mousemove", onMouseMove);
-    document.removeEventListener("mouseup", onMouseUp);
-    document.body.style.cursor = "";
-    document.body.style.userSelect = "";
-
-    // 拖拽结束时，保存一次配置，避免高频 I/O
-    saveConfig();
-  };
-
-  document.addEventListener("mousemove", onMouseMove);
-  document.addEventListener("mouseup", onMouseUp);
-  document.body.style.cursor = "col-resize";
-  document.body.style.userSelect = "none";
 };
 </script>
 

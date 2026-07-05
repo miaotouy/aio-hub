@@ -101,7 +101,7 @@ import {
   isRefreshing,
 } from "./composables/useGitCommitterState";
 import { refreshAllStatuses } from "./composables/useGitCommitterRunner";
-import { useResizable } from "./composables/useResizable";
+import { useResizable } from "@/composables/useResizable";
 
 const showSettings = ref(false);
 
@@ -114,12 +114,12 @@ watch(currentRepoPath, () => {
 const {
   isResizing: isResizingSidebar,
   startResize: startResizeSidebar,
-  resetWidth: resetSidebarWidthRef,
+  resetSize: resetSidebarWidthRef,
 } = useResizable({
-  initialWidth: sidebarWidth,
-  minWidth: 200,
-  maxWidth: 480,
-  getOffset: () => (isRepoBarPinned.value ? 240 : 64),
+  size: sidebarWidth,
+  minSize: 200,
+  maxSize: 480,
+  direction: "left",
 });
 
 const resetSidebarWidth = () => {
@@ -130,12 +130,12 @@ const resetSidebarWidth = () => {
 const {
   isResizing: isResizingRightSidebar,
   startResize: startResizeRightSidebar,
-  resetWidth: resetRightSidebarWidthRef,
+  resetSize: resetRightSidebarWidthRef,
 } = useResizable({
-  initialWidth: rightSidebarWidth,
-  minWidth: 220,
-  maxWidth: 500,
-  isRight: true,
+  size: rightSidebarWidth,
+  minSize: 220,
+  maxSize: 500,
+  direction: "right",
 });
 
 const resetRightSidebarWidth = () => {

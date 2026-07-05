@@ -79,6 +79,7 @@
 <script setup lang="ts">
 import { ref, computed, onUnmounted, provide, h } from "vue";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-vue-next";
+import { useResizable } from "@/composables/useResizable";
 import { ElMessageBox } from "element-plus";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -585,40 +586,16 @@ async function handleOrganizeFiles(files: string[], action: "copy" | "move") {
     errorHandler.error(e, `文件${action === "copy" ? "复制" : "移动"}失败`);
   }
 }
-
-// 拖拽调整宽度
-let isResizing = false;
-let startX = 0;
-let startWidth = 0;
-
-function startResize(e: MouseEvent) {
-  isResizing = true;
-  startX = e.clientX;
-  startWidth = panelWidth.value;
-  document.body.style.cursor = "col-resize";
-  document.body.style.userSelect = "none";
-  document.addEventListener("mousemove", onResize);
-  document.addEventListener("mouseup", stopResize);
-}
-
-function onResize(e: MouseEvent) {
-  if (!isResizing) return;
-  const delta = e.clientX - startX;
-  panelWidth.value = Math.max(280, Math.min(600, startWidth + delta));
-}
-
-function stopResize() {
-  isResizing = false;
-  document.body.style.cursor = "";
-  document.body.style.userSelect = "";
-  document.removeEventListener("mousemove", onResize);
-  document.removeEventListener("mouseup", stopResize);
-}
+// ===== 侧边栏拖拽调整宽度 =====
+const { startResize } = useResizable({
+  size: panelWidth,
+  minSize: 280,
+  maxSize: 600,
+  direction: "left",
+});
 
 onUnmounted(() => {
   search.dispose();
-  document.removeEventListener("mousemove", onResize);
-  document.removeEventListener("mouseup", stopResize);
 });
 
 // 暴露给子组件通过 inject 使用的事件处理器

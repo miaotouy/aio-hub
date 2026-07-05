@@ -515,6 +515,7 @@ onBeforeUnmount(() => {
   width: 100%;
   overflow: hidden;
   display: flex;
+  border-radius: 8px;
   flex-direction: column;
   background: var(--container-bg);
 }

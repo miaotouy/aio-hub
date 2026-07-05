@@ -18,27 +18,16 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import {
-  ElMessageBox,
-  ElInput,
-  ElSelect,
-  ElOption,
-  ElSlider,
-  ElPopover,
-  ElButton,
-} from "element-plus";
-import { Settings as SettingsIcon } from "lucide-vue-next";
+import { ElMessageBox, ElInput } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { useResizable } from "@/composables/useResizable";
 import { useDetachable } from "@/composables/useDetachable";
 import { useDetachedManager } from "@/composables/useDetachedManager";
-import { useOcrProfiles } from "@/tools/smart-ocr/platform";
-import type { OcrEngineConfig } from "@/tools/smart-ocr/types";
 import SubtitleTimeline from "./components/SubtitleTimeline.vue";
 import LivePreview from "./components/LivePreview.vue";
+import MonitorConfig from "./components/MonitorConfig.vue";
 import { useScreenMonitor } from "./composables/useScreenMonitor";
 import { formatSrtTime } from "./utils/algorithms";
-import type { DedupSensitivity } from "./types";
 
 /** 监控框可分离组件 ID（与 registry.ts 中 detachableComponents 的 key 一致） */
 const MONITOR_BOX_ID = "realtime-subtitle-ocr:monitor-box";
@@ -64,68 +53,16 @@ const {
   status,
   isRunning,
   monitorRect,
-  config,
   lastHash,
   lastFrameUrl,
   latency,
   start,
   stop,
-  setEngineConfig,
-  setIntervalMs,
-  setDedupSensitivity,
   removeSubtitle,
   updateSubtitleText,
   exportPlainText,
   downloadSrt,
 } = useScreenMonitor();
-
-const { enabledProfiles } = useOcrProfiles();
-
-const engineType = computed(() => config.value.engineConfig.type);
-const activeProfileId = computed(() =>
-  config.value.engineConfig.type === "cloud"
-    ? config.value.engineConfig.activeProfileId
-    : ""
-);
-
-function onEngineTypeChange(type: string) {
-  let next: OcrEngineConfig;
-  switch (type) {
-    case "native":
-      next = { type: "native", name: "native" };
-      break;
-    case "tesseract":
-      next = { type: "tesseract", name: "tesseract", language: "chi_sim+eng" };
-      break;
-    case "vlm":
-      next = {
-        type: "vlm",
-        name: "vlm",
-        profileId: "",
-        modelId: "",
-        prompt: "请识别图片中的文字，仅输出识别结果。",
-      };
-      break;
-    case "cloud":
-      next = {
-        type: "cloud",
-        name: "cloud",
-        activeProfileId: enabledProfiles.value[0]?.id ?? "",
-      };
-      break;
-    default:
-      return;
-  }
-  setEngineConfig(next);
-}
-
-function onProfileChange(id: string) {
-  if (config.value.engineConfig.type !== "cloud") return;
-  setEngineConfig({
-    ...config.value.engineConfig,
-    activeProfileId: id,
-  });
-}
 
 const isMonitorBoxDetached = computed(() =>
   detachedManager.isDetached(MONITOR_BOX_ID)
@@ -164,13 +101,24 @@ function handleSelectSubtitle(id: string) {
 // ===== 当前字幕大字编辑框逻辑 =====
 const localSubtitleText = ref("");
 const editorInputRef = ref<any>(null);
+const isEditing = ref(false);
+let lastActiveId = "";
 
 watch(
   () => activeSubtitle.value,
   (newVal) => {
-    localSubtitleText.value = newVal ? newVal.text : "";
-    // 自动聚焦到大编辑框
-    if (newVal) {
+    if (!newVal) {
+      localSubtitleText.value = "";
+      lastActiveId = "";
+      return;
+    }
+
+    // 如果切换了字幕条目（ID 变了），或者用户当前没有在编辑，则同步文本
+    if (newVal.id !== lastActiveId || !isEditing.value) {
+      localSubtitleText.value = newVal.text;
+      lastActiveId = newVal.id;
+
+      // 自动聚焦到大编辑框
       setTimeout(() => {
         const textarea = editorInputRef.value?.$el?.querySelector("textarea");
         textarea?.focus();
@@ -180,9 +128,22 @@ watch(
   { immediate: true }
 );
 
+function onEditorFocus() {
+  isEditing.value = true;
+}
+
+function onEditorBlur() {
+  // 延迟失焦，防止点击保存按钮时先触发失焦导致状态重置
+  setTimeout(() => {
+    isEditing.value = false;
+  }, 200);
+}
+
 function commitSubtitleEdit() {
   if (!activeSubtitle.value) return;
   updateSubtitleText(activeSubtitle.value.id, localSubtitleText.value);
+  isEditing.value = false;
+  lastActiveId = activeSubtitle.value.id; // 保持 ID 一致
   customMessage.success("字幕已保存");
 }
 
@@ -327,114 +288,7 @@ onBeforeUnmount(() => {
         </span>
       </div>
       <div class="toolbar-right">
-        <!-- 采样频率 -->
-        <div class="toolbar-item">
-          <span class="toolbar-label">采样频率:</span>
-          <el-slider
-            :model-value="config.intervalMs"
-            :min="500"
-            :max="3000"
-            :step="100"
-            style="width: 100px"
-            @update:model-value="setIntervalMs($event as number)"
-          />
-          <span class="toolbar-value"
-            >{{ (config.intervalMs / 1000).toFixed(1) }}s</span
-          >
-        </div>
-
-        <!-- 去重灵敏度 -->
-        <div class="toolbar-item">
-          <span class="toolbar-label">去重灵敏度:</span>
-          <el-select
-            :model-value="config.dedupSensitivity"
-            size="small"
-            style="width: 100px"
-            @update:model-value="
-              setDedupSensitivity($event as DedupSensitivity)
-            "
-          >
-            <el-option label="高" value="high" />
-            <el-option label="中" value="medium" />
-            <el-option label="低" value="low" />
-          </el-select>
-        </div>
-
-        <!-- OCR 引擎 -->
-        <div class="toolbar-item">
-          <span class="toolbar-label">OCR 引擎:</span>
-          <el-select
-            :model-value="engineType"
-            size="small"
-            style="width: 150px"
-            @update:model-value="onEngineTypeChange"
-          >
-            <el-option label="Windows Native OCR" value="native" />
-            <el-option label="Tesseract.js" value="tesseract" />
-            <el-option label="VLM 多模态大模型" value="vlm" />
-            <el-option label="云端 OCR" value="cloud" />
-          </el-select>
-
-          <!-- 引擎额外配置气泡 -->
-          <el-popover
-            v-if="engineType === 'cloud' || engineType === 'tesseract'"
-            placement="bottom"
-            title="引擎额外配置"
-            :width="240"
-            trigger="click"
-          >
-            <template #reference>
-              <el-button size="small" circle style="margin-left: 4px">
-                <SettingsIcon :size="14" />
-              </el-button>
-            </template>
-            <div class="engine-popover-content">
-              <div v-if="engineType === 'cloud'" class="popover-field">
-                <label>云端 OCR 配置</label>
-                <el-select
-                  :model-value="activeProfileId"
-                  size="small"
-                  placeholder="选择已启用的云端 OCR 配置"
-                  @update:model-value="onProfileChange"
-                >
-                  <el-option
-                    v-for="p in enabledProfiles"
-                    :key="p.id"
-                    :label="p.name"
-                    :value="p.id"
-                  />
-                </el-select>
-                <div v-if="!enabledProfiles.length" class="popover-hint">
-                  请先在 Smart OCR 中配置并启用云端 OCR 配置
-                </div>
-              </div>
-              <div v-if="engineType === 'tesseract'" class="popover-field">
-                <label>识别语言</label>
-                <el-select
-                  :model-value="
-                    config.engineConfig.type === 'tesseract'
-                      ? config.engineConfig.language
-                      : 'chi_sim+eng'
-                  "
-                  size="small"
-                  @update:model-value="
-                    setEngineConfig({
-                      ...config.engineConfig,
-                      type: 'tesseract',
-                      name: 'tesseract',
-                      language: $event as string,
-                    })
-                  "
-                >
-                  <el-option label="简体中文 + 英文" value="chi_sim+eng" />
-                  <el-option label="繁体中文 + 英文" value="chi_tra+eng" />
-                  <el-option label="纯英文" value="eng" />
-                  <el-option label="纯日文" value="jpn" />
-                </el-select>
-              </div>
-            </div>
-          </el-popover>
-        </div>
+        <MonitorConfig />
       </div>
     </div>
 
@@ -478,6 +332,8 @@ onBeforeUnmount(() => {
               :disabled="!activeSubtitle"
               placeholder="双击下方时间轴列表中的字幕，或等待最新识别结果在此处编辑。Ctrl+Enter 提交保存。"
               class="large-subtitle-input"
+              @focus="onEditorFocus"
+              @blur="onEditorBlur"
               @keydown.enter.ctrl.prevent="commitSubtitleEdit"
             />
           </div>

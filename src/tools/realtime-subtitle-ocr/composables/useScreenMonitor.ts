@@ -90,56 +90,58 @@ function nextEntryId(): string {
   return `sub-${Date.now()}-${entryIdCounter}`;
 }
 
+// ===== 全局单例状态 =====
+const subtitles = ref<SubtitleEntry[]>([]);
+const status = ref<MonitorStatus>("idle");
+const monitorRect = ref<MonitorRect | null>(null);
+const lastHash = shallowRef<string>("");
+const lastFrameUrl = ref<string | null>(null);
+const activeUrls = new Set<string>();
+const latency = ref<number>(0);
+
+// Canvas 缓存，避免高频采样时频繁创建 DOM 元素导致 GC 压力
+let ocrCanvas: HTMLCanvasElement | null = null;
+
+/** 当前采样配置 */
+const config = ref<MonitorConfig>({
+  intervalMs: 1000,
+  dedupSensitivity: "medium",
+  engineConfig: { type: "native", name: "native" },
+});
+
+// 初始化加载配置
+configManager.load().then((loaded) => {
+  config.value = loaded;
+});
+
+const isRunning = computed(() => status.value === "running");
+
+function registerUrl(url: string) {
+  activeUrls.add(url);
+}
+
+function revokeUrl(url: string) {
+  if (activeUrls.has(url)) {
+    URL.revokeObjectURL(url);
+    activeUrls.delete(url);
+  }
+}
+
+function revokeAllUrls() {
+  for (const url of activeUrls) {
+    URL.revokeObjectURL(url);
+  }
+  activeUrls.clear();
+}
+
+let timer: ReturnType<typeof setInterval> | null = null;
+let monitorStartedAt = 0;
+let abortController: AbortController | null = null;
+let geometryUnlisten: UnlistenFn | null = null;
+let inFlight = false; // 防止采样重叠
+let activeInstances = 0; // 引用计数，管理几何信息监听器
+
 export function useScreenMonitor() {
-  const subtitles = ref<SubtitleEntry[]>([]);
-  const status = ref<MonitorStatus>("idle");
-  const monitorRect = ref<MonitorRect | null>(null);
-  const lastHash = shallowRef<string>("");
-  const lastFrameUrl = ref<string | null>(null);
-  const activeUrls = new Set<string>();
-  const latency = ref<number>(0);
-
-  // 每个实例独立的 Canvas 缓存，避免高频采样时频繁创建 DOM 元素导致 GC 压力，同时实现实例隔离
-  let ocrCanvas: HTMLCanvasElement | null = null;
-
-  /** 当前采样配置 */
-  const config = ref<MonitorConfig>({
-    intervalMs: 1000,
-    dedupSensitivity: "medium",
-    engineConfig: { type: "native", name: "native" },
-  });
-
-  // 初始化加载配置
-  configManager.load().then((loaded) => {
-    config.value = loaded;
-  });
-
-  const isRunning = computed(() => status.value === "running");
-
-  function registerUrl(url: string) {
-    activeUrls.add(url);
-  }
-
-  function revokeUrl(url: string) {
-    if (activeUrls.has(url)) {
-      URL.revokeObjectURL(url);
-      activeUrls.delete(url);
-    }
-  }
-
-  function revokeAllUrls() {
-    for (const url of activeUrls) {
-      URL.revokeObjectURL(url);
-    }
-    activeUrls.clear();
-  }
-
-  let timer: ReturnType<typeof setInterval> | null = null;
-  let monitorStartedAt = 0;
-  let abortController: AbortController | null = null;
-  let geometryUnlisten: UnlistenFn | null = null;
-  let inFlight = false; // 防止采样重叠
-
   /** 当前监控框对应的物理坐标截图区域（已向内收缩） */
   function getCaptureRect(): {
     x: number;
@@ -492,12 +494,19 @@ export function useScreenMonitor() {
     URL.revokeObjectURL(url);
   }
 
-  // 提前启动几何信息监听，解决“未开始监控时 monitorRect 始终为 null 导致按钮死锁禁用”的 Bug
-  startListeningGeometry();
+  // 增加引用计数并按需启动几何信息监听
+  activeInstances += 1;
+  if (activeInstances === 1) {
+    startListeningGeometry();
+  }
 
-  // 在 Composable 销毁时自动注销监听器，防止内存泄漏
+  // 在 Composable 销毁时减少引用计数，并在无活跃实例时注销监听器，防止内存泄漏
   onBeforeUnmount(() => {
-    stopListeningGeometry();
+    activeInstances -= 1;
+    if (activeInstances <= 0) {
+      activeInstances = 0;
+      stopListeningGeometry();
+    }
   });
 
   return {

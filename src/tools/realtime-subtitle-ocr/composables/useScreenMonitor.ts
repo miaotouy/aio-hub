@@ -99,6 +99,9 @@ export function useScreenMonitor() {
   const activeUrls = new Set<string>();
   const latency = ref<number>(0);
 
+  // 每个实例独立的 Canvas 缓存，避免高频采样时频繁创建 DOM 元素导致 GC 压力，同时实现实例隔离
+  let ocrCanvas: HTMLCanvasElement | null = null;
+
   /** 当前采样配置 */
   const config = ref<MonitorConfig>({
     intervalMs: 1000,
@@ -278,18 +281,12 @@ export function useScreenMonitor() {
     return { changed: true, hash: result.hash, image, url };
   }
 
-  // 复用 Canvas 实例，避免高频采样时频繁创建 DOM 元素导致 GC 压力
-  let ocrCanvas: HTMLCanvasElement | null = null;
-
   /** 将 Image 绘制到 canvas 并构造 ImageBlock 供 runOcr 使用 */
   function buildImageBlock(
     image: HTMLImageElement,
-    imageId: string
+    imageId: string,
+    canvas: HTMLCanvasElement
   ): ImageBlock {
-    if (!ocrCanvas) {
-      ocrCanvas = document.createElement("canvas");
-    }
-    const canvas = ocrCanvas;
     canvas.width = image.naturalWidth;
     canvas.height = image.naturalHeight;
     const ctx = canvas.getContext("2d");
@@ -348,7 +345,10 @@ export function useScreenMonitor() {
 
       // 调用 OCR
       const imageId = `img-${Date.now()}`;
-      const block = buildImageBlock(captured.image, imageId);
+      if (!ocrCanvas) {
+        ocrCanvas = document.createElement("canvas");
+      }
+      const block = buildImageBlock(captured.image, imageId, ocrCanvas);
       abortController = new AbortController();
       const { runOcr } = useOcrRunner();
       const startTime = Date.now();

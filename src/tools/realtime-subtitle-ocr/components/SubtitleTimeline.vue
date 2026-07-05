@@ -176,73 +176,95 @@ function onExportSrt() {
   gap: 8px;
 }
 
-.subtitle-timeline__list {
+.subtitle-timeline__table-wrapper {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 12px;
   min-height: 0;
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
 }
 
 .subtitle-timeline__empty {
   color: var(--el-text-color-secondary);
   text-align: center;
-  padding: 32px 0;
+  padding: 48px 0;
   font-size: 13px;
 }
 
-.subtitle-item {
-  position: relative;
-  padding: 8px 64px 8px 8px;
-  border-radius: 6px;
-  margin-bottom: 6px;
-  background: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
-  border: var(--border-width) solid var(--border-color);
-  transition:
-    background 0.15s,
-    border-color 0.15s;
+.subtitle-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
 }
 
-.subtitle-item:hover {
-  background: rgba(
+.subtitle-table th,
+.subtitle-table td {
+  padding: 10px 12px;
+  border-bottom: var(--border-width) solid var(--border-color);
+}
+
+.subtitle-table th {
+  background: var(--sidebar-bg);
+  color: var(--el-text-color-secondary);
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.subtitle-row {
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.subtitle-row:hover {
+  background-color: rgba(
     var(--el-color-primary-rgb),
     calc(var(--card-opacity) * 0.08)
   );
-  border-color: var(--el-color-primary-light-5);
 }
 
-.subtitle-item--editing {
-  background: var(--input-bg);
-  border-color: var(--el-color-primary);
-}
-
-.subtitle-item__time {
-  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
-  font-size: 11px;
+.col-index {
+  width: 40px;
+  text-align: center;
   color: var(--el-text-color-secondary);
-  margin-bottom: 4px;
 }
 
-.subtitle-item__text {
-  font-size: 14px;
-  line-height: 1.5;
+.col-time {
+  width: 110px;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  color: var(--el-text-color-regular);
+}
+
+.col-duration {
+  width: 70px;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  color: var(--el-text-color-secondary);
+}
+
+.col-text {
+  color: var(--el-text-color-primary);
+  font-weight: 500;
+}
+
+.text-cell {
   white-space: pre-wrap;
-  word-break: break-word;
-  cursor: text;
+  word-break: break-all;
+  line-height: 1.5;
 }
 
-.subtitle-item__ops {
-  position: absolute;
-  top: 8px;
-  right: 8px;
+.col-ops {
+  width: 60px;
+  text-align: center;
+}
+
+.ops-cell {
   display: flex;
+  justify-content: center;
   gap: 4px;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.subtitle-item:hover .subtitle-item__ops {
-  opacity: 1;
 }
 
 .icon-btn {
@@ -257,10 +279,13 @@ function onExportSrt() {
   background: var(--el-fill-color);
   color: var(--el-text-color-regular);
   cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
 }
 
 .icon-btn:hover {
-  background: var(--el-color-primary);
+  background: var(--el-color-danger);
   color: #fff;
 }
 </style>

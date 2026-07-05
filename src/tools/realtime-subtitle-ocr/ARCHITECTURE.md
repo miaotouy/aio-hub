@@ -1,8 +1,8 @@
-# 实时字幕OCR (Realtime Subtitle OCR): 架构与设计说明书
+# 实时字幕OCR (Realtime Subtitle OCR) 架构说明
 
 本文档详细记录了“实时字幕OCR”工具的内部架构、设计理念、数据流以及核心算法，为后续的开发、维护和迭代提供清晰的指引。
 
-> 创建时间：2026-07-05
+> 更新时间：2026-07-05
 
 ---
 
@@ -13,7 +13,7 @@
 ### 1.1. 核心功能
 
 - **屏幕选区监控**：用户可在屏幕上自由框选任意区域（如视频播放器的字幕区），进行高频、低开销的定时采样。
-- **像素级图像去重**：在 Rust 后端利用高效的图像哈希算法（aHash）对采样帧进行对比，过滤掉无变化或微弱变化的帧，避免高频大图片通过 IPC 传输，极大节省算力和大模型 API 消耗。
+- **像素级图像去重**：在 Rust 后端利用高效的平均哈希算法（aHash）对采样帧进行对比，过滤掉无变化或微弱变化的帧，避免高频大图片通过 IPC 传输，极大节省算力和大模型 API 消耗。
 - **多引擎 OCR 识别**：直接复用 `Smart OCR` 的底层平台能力，支持 Windows Native OCR、VLM（多模态大模型）、Tesseract.js 等引擎。
 - **流式字幕时间轴**：将识别出的文字与相对时间戳结合，流式追加到时间轴上，支持实时编辑、合并与一键复制。
 - **标准字幕导出**：支持一键导出为标准的 `.srt` 字幕文件。
@@ -53,27 +53,29 @@
 
 #### 1. UI 交互层 (UI Layer)
 
-- `RealtimeSubtitleOcr.vue`: 工具主入口，采用左右分栏布局。左侧为流式字幕时间轴，右侧为监控配置面板。
-- `components/MonitorConfig.vue`: 监控参数配置面板，包含采样频率、去重灵敏度、OCR 引擎选择、开始/停止控制。
-- `components/SubtitleTimeline.vue`: 字幕时间轴展示，支持单条字幕的编辑、删除、合并、一键复制和导出 SRT。
-- `components/MonitorBox.vue`: 屏幕监控框悬浮窗。点击“打开监控框”时，通过 `useDetachable` 弹出一个独立的、无边框、中间 100% 完全透明的悬浮窗口。用户可以像拖动普通窗口一样，把它拖到屏幕上的任何地方（如视频播放器的字幕区域），并拉伸调整它的大小。
+- [`RealtimeSubtitleOcr.vue`](src/tools/realtime-subtitle-ocr/RealtimeSubtitleOcr.vue): 工具主入口，采用左右分栏布局。左侧为流式字幕时间轴，右侧为监控配置面板与实时预览。
+- [`components/MonitorConfig.vue`](src/tools/realtime-subtitle-ocr/components/MonitorConfig.vue): 监控参数配置面板，包含采样频率、去重灵敏度、OCR 引擎选择、开始/停止控制。
+- [`components/SubtitleTimeline.vue`](src/tools/realtime-subtitle-ocr/components/SubtitleTimeline.vue): 字幕时间轴展示，支持单条字幕的编辑、删除、合并、一键复制和导出 SRT。
+- [`components/LivePreview.vue`](src/tools/realtime-subtitle-ocr/components/LivePreview.vue): 实时预览组件，展示当前截取的最新帧画面。
+- [`components/MonitorBox.vue`](src/tools/realtime-subtitle-ocr/components/MonitorBox.vue): 屏幕监控框悬浮窗。通过统一的 `detachableComponents` 体系注册为 `type: "component"` 可分离组件：透明 + 无边框 + 置顶 + 可缩放 + 无阴影，由 `DetachedComponentContainer.vue` 在 `/detached-component/:componentId` 路由下加载，复用 `useDetachable` / `useDetachedManager` / `useWindowSyncBus` 全套悬浮窗基础设施，无需自造独立窗口。
 
 #### 2. 业务逻辑层 (Business Logic Layer)
 
-- `composables/useScreenMonitor.ts`: 核心业务控制器。负责：
+- [`composables/useScreenMonitor.ts`](src/tools/realtime-subtitle-ocr/composables/useScreenMonitor.ts): 核心业务控制器。负责：
   - 管理定时采样器（`setInterval`）。
   - 调度 Rust 后端进行区域截屏与去重。
+  - 监听 `MonitorBox` 悬浮窗通过窗口同步总线上报的几何信息（`monitor-box:geometry`）。
   - 实现基于编辑距离（Levenshtein Distance）的文本合并与断句算法。
   - 生成并导出 SRT 格式字幕。
 
 #### 3. OCR 平台能力层 (Shared Platform Layer)
 
-- 直接导入并复用 `src/tools/smart-ocr/platform/runner.ts` 中的 `useOcrRunner`。
+- 直接导入并复用 [`src/tools/smart-ocr/platform/runner.ts`](src/tools/smart-ocr/platform/runner.ts) 中的 `useOcrRunner`。
 - 共享全局统一的 OCR Profile 配置，用户在 `Smart OCR` 中配置好的 API Key 和引擎参数在此处直接生效，无需重复配置。
 
 #### 4. Rust 后端原生能力层 (Rust Backend Layer)
 
-- 在 `src-tauri/src/commands/window_automator.rs` 或新增的 commands 中，提供 Windows 专属的 `capture_screen_rect` 命令。
+- 在 [`src-tauri/src/commands/window_automator.rs`](src-tauri/src/commands/window_automator.rs) 中，提供 Windows 专属的 `capture_screen_rect` 命令。
 - 利用 Windows GDI API 直接抓取指定绝对坐标区域的屏幕像素，避免全屏截图和高频 IPC 传输开销。
 
 ---
@@ -84,10 +86,10 @@
 
 为了防止视频背景微弱变化导致重复调用 OCR，我们在 Rust 后端对“字幕监控框”进行预处理和去重，避免无变化的大图片高频通过 IPC 传输：
 
-1. **置灰与缩放**：将截取的原始像素缩放到 $8 \times 8$ 像素，并转换为灰度图。
-2. **计算平均值**：计算这 64 个像素的灰度平均值。
-3. **生成指纹**：将每个像素的灰度值与平均值进行对比，$\ge$ 平均值记为 `1`，否则记为 `0`。得到一个 64 位的二进制指纹字符串。
-4. **汉明距离对比**：对比当前帧与前端传入的 `lastHash`。若汉明距离小于设定阈值，则判定为“画面无变化”，直接返回 `changed: false`，不进行 PNG 编码，极大节省 CPU 与 IPC 带宽。
+1. **抓取像素**：利用 Windows GDI API 抓取指定绝对坐标区域的屏幕像素（BGRA 格式），并转换为 RGBA 格式。
+2. **缩放到 8x8**：将截取的原始像素缩放到 $8 \times 8$ 像素。
+3. **计算灰度并生成 64 位二进制指纹**：使用 ITU-R BT.601 加权灰度公式 $Gray = (R \times 299 + G \times 587 + B \times 114) / 1000$ 计算灰度值，计算这 64 个像素的灰度平均值。将每个像素的灰度值与平均值进行对比，$\ge$ 平均值记为 `1`，否则记为 `0`。得到一个 64 位的二进制指纹字符串。
+4. **汉明距离对比**：对比当前帧与前端传入的 `lastHash`。若汉明距离小于设定阈值（高灵敏度：2，中灵敏度：4，低灵敏度：8），则判定为“画面无变化”，直接返回 `changed: false`，不进行 PNG 编码，极大节省 CPU 与 IPC 带宽。
 
 ### 3.2. 文本合并与断句算法：编辑距离 (Levenshtein Distance)
 
@@ -95,7 +97,7 @@
 
 - 计算当前帧文本 $W_{new}$ 与上一条字幕文本 $W_{last}$ 的相似度：
   $$\text{Similarity} = 1 - \frac{\text{LevenshteinDistance}(W_{new}, W_{last})}{\max(\text{Length}(W_{new}), \text{Length}(W_{last}))}$$
-- **相似度 $\ge 90\%$**：判定为同一条字幕。不追加新条目，仅将上一条字幕的结束时间戳更新为当前时间。
+- **相似度 $\ge 90\%$**：判定为同一条字幕。不追加新条目，仅将上一条字幕的结束时间戳更新为当前时间。若新文本更长，采用新文本以修正 OCR 增量识别。
 - **相似度 $< 90\%$**：判定为新字幕。结束上一条字幕，并以当前时间戳开启新的一条字幕追加到时间轴。
 
 ---

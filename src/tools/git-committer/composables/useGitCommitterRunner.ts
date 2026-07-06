@@ -22,7 +22,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import { customMessage } from "@/utils/customMessage";
-import { createModuleLogger } from "@/utils/logger";
 import type { RepoStatus, FileStatus, DiffTab } from "../types";
 import { errorHandler } from "./useGitCommitterErrorHandler";
 import {
@@ -40,7 +39,6 @@ import {
   switchRepo,
 } from "./useGitCommitterState";
 
-const logger = createModuleLogger("git-committer/runner");
 const { sendRequest } = useLlmRequest();
 
 // ===== 状态刷新 =====
@@ -424,8 +422,8 @@ export async function generateCommitMessage(
     } as any);
     return response?.content || null;
   } catch (error) {
-    logger.error(`AI 生成提交信息失败 (${repoPath})`, error as Error);
-    customMessage.error(
+    errorHandler.error(
+      error,
       `AI 生成提交信息失败: ${repoPath.split(/[/\\]/).pop()}`
     );
     return null;

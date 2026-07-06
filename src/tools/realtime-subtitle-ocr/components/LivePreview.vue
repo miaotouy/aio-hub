@@ -156,13 +156,13 @@ defineEmits<{
 }
 .live-preview__control-bar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 10px 12px;
   background: var(--sidebar-bg);
   border-top: var(--border-width) solid var(--border-color);
   font-size: 12px;
-  gap: 12px;
+  gap: 10px;
 }
 
 .control-left {
@@ -176,7 +176,9 @@ defineEmits<{
   display: flex;
   align-items: center;
   gap: 16px;
-  flex-shrink: 0;
+  flex-wrap: wrap;
+  border-top: 1px dashed var(--border-color);
+  padding-top: 8px;
 }
 
 .info-item {
@@ -192,6 +194,7 @@ defineEmits<{
 .info-value {
   color: var(--el-text-color-primary);
   font-weight: 500;
+  word-break: break-all;
 }
 
 .font-mono {

@@ -23,6 +23,7 @@ import { customMessage } from "@/utils/customMessage";
 import { useResizable } from "@/composables/useResizable";
 import { useDetachable } from "@/composables/useDetachable";
 import { useDetachedManager } from "@/composables/useDetachedManager";
+import { useSendToChat } from "@/composables/useSendToChat";
 import SubtitleTimeline from "./components/SubtitleTimeline.vue";
 import LivePreview from "./components/LivePreview.vue";
 import MonitorConfig from "./components/MonitorConfig.vue";
@@ -61,8 +62,11 @@ const {
   removeSubtitle,
   updateSubtitleText,
   exportPlainText,
+  exportTextWithTime,
   downloadSrt,
 } = useScreenMonitor();
+
+const { sendToChat } = useSendToChat();
 
 const isMonitorBoxDetached = computed(() =>
   detachedManager.isDetached(MONITOR_BOX_ID)
@@ -182,16 +186,33 @@ async function toggleMonitor() {
   }
 }
 
-function onCopyAll() {
-  const text = exportPlainText();
+function onCopyAll(withTime = false) {
+  const text = withTime ? exportTextWithTime() : exportPlainText();
   if (!text) {
     customMessage.warning("暂无字幕可复制");
     return;
   }
   navigator.clipboard
     .writeText(text)
-    .then(() => customMessage.success("已复制全部字幕"))
+    .then(() =>
+      customMessage.success(
+        withTime ? "已复制全部字幕(带时间)" : "已复制全部字幕"
+      )
+    )
     .catch(() => customMessage.error("复制失败"));
+}
+
+function onSendToChat(withTime = false) {
+  const text = withTime ? exportTextWithTime() : exportPlainText();
+  if (!text) {
+    customMessage.warning("暂无字幕可发送");
+    return;
+  }
+  sendToChat(text, {
+    successMessage: withTime
+      ? "已发送带时间字幕到聊天输入框"
+      : "已发送纯文本字幕到聊天输入框",
+  });
 }
 
 function onExportSrt() {
@@ -298,6 +319,7 @@ onBeforeUnmount(() => {
           @update-text="updateSubtitleText"
           @export-srt="onExportSrt"
           @copy-all="onCopyAll"
+          @send-to-chat="onSendToChat"
           @select="handleSelectSubtitle"
           @clear-all="clearAll"
         />

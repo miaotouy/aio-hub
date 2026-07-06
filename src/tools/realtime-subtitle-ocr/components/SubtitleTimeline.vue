@@ -22,9 +22,42 @@
         <span class="subtitle-timeline__count">({{ subtitles.length }})</span>
       </span>
       <div class="subtitle-timeline__actions">
-        <el-button size="small" :disabled="!subtitles.length" @click="copyAll">
-          <CopyIcon :size="14" /> 复制全部
-        </el-button>
+        <!-- 复制全部下拉菜单 -->
+        <el-dropdown trigger="click" :disabled="!subtitles.length">
+          <el-button size="small" :disabled="!subtitles.length">
+            <CopyIcon :size="14" class="btn-icon-left" /> 复制全部
+            <ChevronDownIcon :size="12" class="btn-icon-right" />
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item @click="copyAll(false)"
+                >复制纯文本</el-dropdown-item
+              >
+              <el-dropdown-item @click="copyAll(true)"
+                >复制带时间文本</el-dropdown-item
+              >
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+
+        <!-- 发送到 Chat 下拉菜单 -->
+        <el-dropdown trigger="click" :disabled="!subtitles.length">
+          <el-button size="small" type="success" :disabled="!subtitles.length">
+            <MessageSquareIcon :size="14" class="btn-icon-left" /> 发送到 Chat
+            <ChevronDownIcon :size="12" class="btn-icon-right" />
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item @click="sendToChat(false)"
+                >发送纯文本</el-dropdown-item
+              >
+              <el-dropdown-item @click="sendToChat(true)"
+                >发送带时间文本</el-dropdown-item
+              >
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+
         <el-button
           size="small"
           type="primary"
@@ -97,11 +130,18 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from "vue";
-import { ElButton } from "element-plus";
+import {
+  ElButton,
+  ElDropdown,
+  ElDropdownMenu,
+  ElDropdownItem,
+} from "element-plus";
 import {
   Copy as CopyIcon,
   Download as DownloadIcon,
   Trash2 as TrashIcon,
+  MessageSquare as MessageSquareIcon,
+  ChevronDown as ChevronDownIcon,
 } from "lucide-vue-next";
 import { formatSrtTime } from "../utils/algorithms";
 import type { SubtitleEntry } from "../types";
@@ -113,7 +153,8 @@ const emit = defineEmits<{
   (e: "remove", id: string): void;
   (e: "update-text", id: string, text: string): void;
   (e: "export-srt"): void;
-  (e: "copy-all"): void;
+  (e: "copy-all", withTime: boolean): void;
+  (e: "send-to-chat", withTime: boolean): void;
   (e: "select", id: string): void;
   (e: "clear-all"): void;
 }>();
@@ -159,8 +200,12 @@ function remove(id: string) {
   emit("remove", id);
 }
 
-function copyAll() {
-  emit("copy-all");
+function copyAll(withTime: boolean) {
+  emit("copy-all", withTime);
+}
+
+function sendToChat(withTime: boolean) {
+  emit("send-to-chat", withTime);
 }
 
 function onExportSrt() {
@@ -199,6 +244,15 @@ function onExportSrt() {
 .subtitle-timeline__actions {
   display: flex;
   gap: 8px;
+  align-items: center;
+}
+
+.btn-icon-left {
+  margin-right: 4px;
+}
+
+.btn-icon-right {
+  margin-left: 4px;
 }
 
 .subtitle-timeline__table-wrapper {

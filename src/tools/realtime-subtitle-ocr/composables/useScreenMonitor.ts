@@ -37,7 +37,7 @@ import type { StateSyncPayload } from "@/types/window-sync";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createConfigManager } from "@/utils/configManager";
-import { getSimilarity, buildSrt } from "../utils/algorithms";
+import { getSimilarity, buildSrt, formatSrtTime } from "../utils/algorithms";
 import { createImageBlock } from "../utils/image";
 import type {
   DedupSensitivity,
@@ -452,6 +452,17 @@ export function useScreenMonitor() {
     return subtitles.value.map((s) => s.text.trim()).join("\n");
   }
 
+  /** 导出带时间的字幕文本 */
+  function exportTextWithTime(): string {
+    return subtitles.value
+      .map((s) => {
+        const start = formatSrtTime(s.startMs);
+        const end = formatSrtTime(s.endMs);
+        return `[${start} --> ${end}] ${s.text.trim()}`;
+      })
+      .join("\n");
+  }
+
   /** 导出 SRT 字符串 */
   function exportSrt(): string {
     return buildSrt(subtitles.value);
@@ -506,6 +517,7 @@ export function useScreenMonitor() {
     removeSubtitle,
     updateSubtitleText,
     exportPlainText,
+    exportTextWithTime,
     exportSrt,
     downloadSrt,
   };

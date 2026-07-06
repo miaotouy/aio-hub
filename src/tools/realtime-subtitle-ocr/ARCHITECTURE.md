@@ -2,7 +2,7 @@
 
 本文档详细记录了“实时字幕OCR”工具的内部架构、设计理念、数据流以及核心算法，为后续的开发、维护和迭代提供清晰的指引。
 
-> 更新时间：2026-07-05
+> 更新时间：2026-07-07
 
 ---
 
@@ -14,9 +14,10 @@
 
 - **屏幕选区监控**：用户可在屏幕上自由框选任意区域（如视频播放器的字幕区），进行高频、低开销的定时采样。
 - **像素级图像去重**：在 Rust 后端利用高效的平均哈希算法（aHash）对采样帧进行对比，过滤掉无变化或微弱变化的帧，避免高频大图片通过 IPC 传输，极大节省算力和大模型 API 消耗。
-- **多引擎 OCR 识别**：直接复用 `Smart OCR` 的底层平台能力，支持 Windows Native OCR、VLM（多模态大模型）、Tesseract.js 等引擎。
+- **多引擎 OCR 识别**：直接复用 `Smart OCR` 的底层平台能力，支持 Windows Native OCR、VLM（多模态大模型）、Tesseract.js、云端 OCR 以及动态插件 OCR 引擎。
 - **流式字幕时间轴**：将识别出的文字与相对时间戳结合，流式追加到时间轴上，支持实时编辑、合并与一键复制。
-- **标准字幕导出**：支持一键导出为标准的 `.srt` 字幕文件。
+- **大字实时编辑**：提供独立的大字编辑面板，支持对当前最新识别的字幕进行快速微调，支持 `Ctrl+Enter` 快捷键提交保存。
+- **标准字幕导出与发送**：支持一键导出为标准的 `.srt` 字幕文件，或一键发送纯文本/带时间戳文本到全局 Chat 聊天输入框。
 
 ---
 
@@ -25,46 +26,54 @@
 工具采用“前端极简交互 + 共享 OCR 平台能力 + Rust 原生区域截屏”的混合架构。
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                UI 交互层 (Vue Components)                        │
-│  [RealtimeSubtitleOcr.vue] [SubtitleTimeline.vue] [MonitorConfig]│
-└─────────────────────────────────┬────────────────────────────────┘
-                                  │ 驱动 / 监听状态
-┌─────────────────────────────────▼────────────────────────────────┐
-│               业务逻辑层 (useScreenMonitor Composable)           │
-│  (管理定时器、编辑距离文本合并、SRT格式化)                       │
-└─────────────────────────────────┬────────────────────────────────┘
-                                  │ 调用
-┌─────────────────────────────────▼────────────────────────────────┐
-│               OCR 平台能力层 (Shared Platform)                   │
-│  [src/tools/smart-ocr/platform/runner.ts]                        │
-│  (复用已有的多引擎调度器与全局统一 of OCR Profile 配置)          │
-└─────────────────────────────────┬────────────────────────────────┘
-                                  │ 跨进程 IPC (Tauri Command)
-                                  ▼
-┌──────────────────────────────────────────────────────────────────┐
-│               Rust 后端原生能力层 (Windows GDI + aHash 去重)     │
-│  [capture_screen_rect] (抓取屏幕像素，在内存中直接计算 aHash     │
-│   并进行去重对比，无变化时仅返回状态，有变化时才返回 PNG 字节流) │
-└──────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                               UI 交互层 (Vue Components)                               │
+│  [RealtimeSubtitleOcr.vue] (上下分栏主容器)                                            │
+│  ├── [components/LivePreview.vue] (实时预览与控制)                                     │
+│  ├── [components/ActiveSubtitleEditor.vue] (当前字幕大字编辑)                          │
+│  ├── [components/SubtitleTimeline.vue] (字幕时间轴列表)                                │
+│  └── [components/MonitorConfig.vue] (监控参数配置)                                     │
+└───────────────────────────────────────────┬────────────────────────────────────────────┘
+                                            │ 驱动 / 监听状态
+┌───────────────────────────────────────────▼────────────────────────────────────────────┐
+│                        业务逻辑层 (useScreenMonitor Composable)                        │
+│  (管理定时器、ConfigManager配置持久化、编辑距离文本合并、引用计数防内存泄漏、SRT格式化)│
+└───────────────────────────────────────────┬────────────────────────────────────────────┘
+                                            │ 调用
+┌───────────────────────────────────────────▼────────────────────────────────────────────┐
+│                        OCR 平台能力层 (Shared Platform Layer)                          │
+│  [src/tools/smart-ocr/platform/runner.ts]                                              │
+│  (复用已有的多引擎调度器与全局统一 of OCR Profile 配置)                                │
+└───────────────────────────────────────────┬────────────────────────────────────────────┘
+                                            │ 跨进程 IPC (Tauri Command)
+                                            ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        Rust 后端原生能力层 (Windows GDI + aHash 去重)                  │
+│  [capture_screen_rect] (抓取屏幕像素，在内存中直接计算 aHash                           │
+│   并进行去重对比，无变化时仅返回状态，有变化时才返回 PNG 字节流)                       │
+└────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 2.1. 模块职责说明
 
 #### 1. UI 交互层 (UI Layer)
 
-- [`RealtimeSubtitleOcr.vue`](src/tools/realtime-subtitle-ocr/RealtimeSubtitleOcr.vue): 工具主入口，采用左右分栏布局。左侧为流式字幕时间轴，右侧为监控配置面板与实时预览。
-- [`components/MonitorConfig.vue`](src/tools/realtime-subtitle-ocr/components/MonitorConfig.vue): 监控参数配置面板，包含采样频率、去重灵敏度、OCR 引擎选择、开始/停止控制。
-- [`components/SubtitleTimeline.vue`](src/tools/realtime-subtitle-ocr/components/SubtitleTimeline.vue): 字幕时间轴展示，支持单条字幕的编辑、删除、合并、一键复制和导出 SRT。
-- [`components/LivePreview.vue`](src/tools/realtime-subtitle-ocr/components/LivePreview.vue): 实时预览组件，展示当前截取的最新帧画面。
+- [`RealtimeSubtitleOcr.vue`](src/tools/realtime-subtitle-ocr/RealtimeSubtitleOcr.vue): 工具主入口，采用**上下分栏布局**。上方为左右分栏（7:3 比例），左侧为 `LivePreview` 实时预览与控制区，右侧为 `ActiveSubtitleEditor` 当前字幕大字编辑框；下方为 `SubtitleTimeline` 字幕时间轴列表。中间提供可拖拽的 Y 轴高度调整条。
+- [`components/MonitorConfig.vue`](src/tools/realtime-subtitle-ocr/components/MonitorConfig.vue): 监控参数配置面板，包含采样频率（500ms - 3000ms）、去重灵敏度（高、中、低）、OCR 引擎选择（Native, Tesseract, VLM, Cloud, Plugin）及引擎额外配置气泡。
+- [`components/SubtitleTimeline.vue`](src/tools/realtime-subtitle-ocr/components/SubtitleTimeline.vue): 字幕时间轴展示，支持单条字幕的删除、一键复制（纯文本/带时间戳）、发送到 Chat（纯文本/带时间戳）、导出 SRT 和一键清空。
+- [`components/ActiveSubtitleEditor.vue`](src/tools/realtime-subtitle-ocr/components/ActiveSubtitleEditor.vue): 当前字幕大字编辑框，支持双击下方时间轴列表中的字幕，或等待最新识别结果在此处编辑，支持 `Ctrl+Enter` 快捷键提交保存。
+- [`components/LivePreview.vue`](src/tools/realtime-subtitle-ocr/components/LivePreview.vue): 实时预览组件，展示当前截取的最新帧画面，并提供打开/关闭监控框、聚焦监控框、开始/停止监控的控制按钮，以及 aHash 指纹和延迟（ms）的实时显示。
 - [`components/MonitorBox.vue`](src/tools/realtime-subtitle-ocr/components/MonitorBox.vue): 屏幕监控框悬浮窗。通过统一的 `detachableComponents` 体系注册为 `type: "component"` 可分离组件：透明 + 无边框 + 置顶 + 可缩放 + 无阴影，由 `DetachedComponentContainer.vue` 在 `/detached-component/:componentId` 路由下加载，复用 `useDetachable` / `useDetachedManager` / `useWindowSyncBus` 全套悬浮窗基础设施，无需自造独立窗口。
 
 #### 2. 业务逻辑层 (Business Logic Layer)
 
 - [`composables/useScreenMonitor.ts`](src/tools/realtime-subtitle-ocr/composables/useScreenMonitor.ts): 核心业务控制器。负责：
   - 管理定时采样器（`setInterval`）。
+  - 使用 `createConfigManager` 统一管理并防抖持久化监控配置（采样频率、去重灵敏度、引擎配置）。
   - 调度 Rust 后端进行区域截屏与去重。
-  - 监听 `MonitorBox` 悬浮窗通过窗口同步总线上报的几何信息（`monitor-box:geometry`）。
+  - 缓存 `scaleFactor`（屏幕缩放因子），避免高频采样时频繁通过 IPC 获取，提升性能。
+  - 引入 `activeInstances` 引用计数机制，在 Composable 挂载时启动几何信息监听，销毁时按需注销，防止内存泄漏。
+  - 监听 `MonitorBox` 悬浮窗通过窗口同步总线上报的几何信息（`realtime-subtitle-ocr:monitor-box-geometry`）。
   - 实现基于编辑距离（Levenshtein Distance）的文本合并与断句算法。
   - 生成并导出 SRT 格式字幕。
 

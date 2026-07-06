@@ -96,6 +96,7 @@
 </template>
 
 <script setup lang="ts">
+import { ref, watch, nextTick } from "vue";
 import { ElButton } from "element-plus";
 import {
   Copy as CopyIcon,
@@ -105,7 +106,7 @@ import {
 import { formatSrtTime } from "../utils/algorithms";
 import type { SubtitleEntry } from "../types";
 
-defineProps<{
+const props = defineProps<{
   subtitles: SubtitleEntry[];
 }>();
 const emit = defineEmits<{
@@ -116,6 +117,30 @@ const emit = defineEmits<{
   (e: "select", id: string): void;
   (e: "clear-all"): void;
 }>();
+const listRef = ref<HTMLDivElement | null>(null);
+
+// 监听字幕长度变化，自动滚动到底部
+watch(
+  () => props.subtitles.length,
+  (newLen, oldLen) => {
+    if (newLen > oldLen) {
+      nextTick(() => {
+        const el = listRef.value;
+        if (!el) return;
+        // 判断是否接近底部（允许 50px 的偏差）
+        const isAtBottom =
+          el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+        // 如果是第一条字幕，或者用户本来就在底部，就自动滚动
+        if (oldLen === 0 || isAtBottom) {
+          el.scrollTo({
+            top: el.scrollHeight,
+            behavior: "smooth",
+          });
+        }
+      });
+    }
+  }
+);
 
 function formatTime(ms: number): string {
   return formatSrtTime(ms);

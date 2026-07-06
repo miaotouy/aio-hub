@@ -62,4 +62,3 @@ export const toolConfig: ToolConfig = {
   version: "1.0.0",
   runMode: "any",
 };
-

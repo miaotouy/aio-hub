@@ -150,4 +150,3 @@ describe("emptyResponseDiagnostics", () => {
     expect(paths).toContain("unadaptedField");
   });
 });
-

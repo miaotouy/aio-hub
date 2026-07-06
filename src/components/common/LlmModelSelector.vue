@@ -163,7 +163,9 @@ const modelGroups = computed(() => {
       :placeholder="placeholder"
       :clearable="clearable"
       style="width: 100%"
-      :disabled="disabled || (selectableModels.length === 0 && !selectedModelInfo)"
+      :disabled="
+        disabled || (selectableModels.length === 0 && !selectedModelInfo)
+      "
       :teleported="teleported"
       :popper-class="popperClass"
       class="custom-select"

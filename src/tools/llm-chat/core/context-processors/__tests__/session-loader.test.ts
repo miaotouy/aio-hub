@@ -14,7 +14,10 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { sessionLoader } from "../session-loader";
-import type { ChatMessageNode, ChatSessionDetail } from "@/tools/llm-chat/types";
+import type {
+  ChatMessageNode,
+  ChatSessionDetail,
+} from "@/tools/llm-chat/types";
 import type { PipelineContext } from "@/tools/llm-chat/types/pipeline";
 
 vi.mock("@/utils/logger", () => ({

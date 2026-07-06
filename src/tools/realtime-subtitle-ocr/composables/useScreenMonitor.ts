@@ -510,4 +510,3 @@ export function useScreenMonitor() {
     downloadSrt,
   };
 }
-

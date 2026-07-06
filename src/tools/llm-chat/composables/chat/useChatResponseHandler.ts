@@ -593,7 +593,7 @@ export function useChatResponseHandler() {
         duration:
           finalNode.metadata.reasoningEndTime -
           finalNode.metadata.reasoningStartTime,
-        });
+      });
     }
 
     const emptyResponseDiagnostic = buildEmptyResponseDiagnostic({

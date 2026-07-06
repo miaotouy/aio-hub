@@ -204,4 +204,3 @@ export function buildEmptyResponseDiagnostic({
   const uniqueDetails = Array.from(new Set(details));
   return `空回复诊断：${uniqueDetails.join(" ")}`;
 }
-

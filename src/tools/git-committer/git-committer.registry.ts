@@ -56,4 +56,3 @@ export const toolConfig: ToolConfig = {
   category: ["开发工具"],
   version: "0.1.0",
 };
-

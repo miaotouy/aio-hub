@@ -478,4 +478,3 @@ export async function pushAllRepos(): Promise<number> {
   }
   return successCount;
 }
-

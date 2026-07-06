@@ -97,4 +97,3 @@ export function buildSrt(subtitles: SubtitleEntry[]): string {
     })
     .join("\n");
 }
-

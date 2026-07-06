@@ -261,4 +261,3 @@ export function updateRepoCommitDraft(path: string, text: string): void {
 export function restoreDefaultSystemPrompt(): void {
   systemPrompt.value = DEFAULT_SYSTEM_PROMPT;
 }
-

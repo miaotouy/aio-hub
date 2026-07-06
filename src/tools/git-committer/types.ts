@@ -87,4 +87,3 @@ export interface DiffTab {
   isBinary: boolean;
   loading: boolean;
 }
-

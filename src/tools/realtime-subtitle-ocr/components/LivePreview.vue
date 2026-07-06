@@ -33,12 +33,22 @@
     <div class="live-preview__control-bar">
       <div class="control-left">
         <el-button
+          v-if="!isMonitorBoxDetached"
           type="primary"
           size="small"
           :disabled="isRunning"
           @click="$emit('open-monitor-box')"
         >
           <SquareDashedIcon :size="14" /> 打开监控框
+        </el-button>
+        <el-button
+          v-else
+          type="danger"
+          size="small"
+          :disabled="isRunning"
+          @click="$emit('close-monitor-box')"
+        >
+          <XIcon :size="14" /> 关闭监控框
         </el-button>
         <el-button
           size="small"
@@ -81,6 +91,7 @@ import {
   Crosshair as CrosshairIcon,
   Play as PlayIcon,
   Square as SquareIcon,
+  X as XIcon,
 } from "lucide-vue-next";
 
 defineProps<{
@@ -94,6 +105,7 @@ defineProps<{
 
 defineEmits<{
   (e: "open-monitor-box"): void;
+  (e: "close-monitor-box"): void;
   (e: "focus-monitor-box"): void;
   (e: "toggle-monitor"): void;
 }>();

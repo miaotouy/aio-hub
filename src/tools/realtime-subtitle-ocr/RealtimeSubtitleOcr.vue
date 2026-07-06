@@ -159,6 +159,10 @@ async function openMonitorBox() {
   }
 }
 
+async function closeMonitorBox() {
+  await detachedManager.closeWindow(MONITOR_BOX_ID).catch(() => {});
+}
+
 async function focusMonitorBox() {
   const label = findMonitorBoxLabel();
   if (label) {
@@ -262,6 +266,7 @@ onBeforeUnmount(() => {
             :is-monitor-box-detached="isMonitorBoxDetached"
             :monitor-rect="monitorRect"
             @open-monitor-box="openMonitorBox"
+            @close-monitor-box="closeMonitorBox"
             @focus-monitor-box="focusMonitorBox"
             @toggle-monitor="toggleMonitor"
           />

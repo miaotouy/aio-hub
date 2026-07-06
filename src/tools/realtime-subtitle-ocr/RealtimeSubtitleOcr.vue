@@ -15,10 +15,10 @@
 -->
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { ElMessageBox, ElInput } from "element-plus";
+import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { useResizable } from "@/composables/useResizable";
 import { useDetachable } from "@/composables/useDetachable";
@@ -26,8 +26,8 @@ import { useDetachedManager } from "@/composables/useDetachedManager";
 import SubtitleTimeline from "./components/SubtitleTimeline.vue";
 import LivePreview from "./components/LivePreview.vue";
 import MonitorConfig from "./components/MonitorConfig.vue";
+import ActiveSubtitleEditor from "./components/ActiveSubtitleEditor.vue";
 import { useScreenMonitor } from "./composables/useScreenMonitor";
-import { formatSrtTime } from "./utils/algorithms";
 
 /** 监控框可分离组件 ID（与 registry.ts 中 detachableComponents 的 key 一致） */
 const MONITOR_BOX_ID = "realtime-subtitle-ocr:monitor-box";
@@ -78,7 +78,6 @@ const statusText = computed(() => {
       return "空闲";
   }
 });
-
 const selectedId = ref<string | null>(null);
 
 const activeSubtitleIndex = computed(() => {
@@ -98,59 +97,7 @@ function handleSelectSubtitle(id: string) {
   selectedId.value = id;
 }
 
-// ===== 当前字幕大字编辑框逻辑 =====
-const localSubtitleText = ref("");
-const editorInputRef = ref<any>(null);
-const isEditing = ref(false);
-let lastActiveId = "";
-
-watch(
-  () => activeSubtitle.value,
-  (newVal) => {
-    if (!newVal) {
-      localSubtitleText.value = "";
-      lastActiveId = "";
-      return;
-    }
-
-    // 如果切换了字幕条目（ID 变了），或者用户当前没有在编辑，则同步文本
-    if (newVal.id !== lastActiveId || !isEditing.value) {
-      localSubtitleText.value = newVal.text;
-      lastActiveId = newVal.id;
-
-      // 自动聚焦到大编辑框
-      setTimeout(() => {
-        const textarea = editorInputRef.value?.$el?.querySelector("textarea");
-        textarea?.focus();
-      }, 50);
-    }
-  },
-  { immediate: true }
-);
-
-function onEditorFocus() {
-  isEditing.value = true;
-}
-
-function onEditorBlur() {
-  // 延迟失焦，防止点击保存按钮时先触发失焦导致状态重置
-  setTimeout(() => {
-    isEditing.value = false;
-  }, 200);
-}
-
-function commitSubtitleEdit() {
-  if (!activeSubtitle.value) return;
-  updateSubtitleText(activeSubtitle.value.id, localSubtitleText.value);
-  isEditing.value = false;
-  lastActiveId = activeSubtitle.value.id; // 保持 ID 一致
-  customMessage.success("字幕已保存");
-}
-
-function formatTime(ms: number): string {
-  return formatSrtTime(ms);
-}
-
+/** 查找监控框分离窗口的 label */
 /** 查找监控框分离窗口的 label */
 function findMonitorBoxLabel(): string | undefined {
   for (const win of detachedManager.detachedWindows.value.values()) {
@@ -321,29 +268,12 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- 右上：当前字幕大字编辑框 (30% 宽度) -->
-        <div class="editor-panel">
-          <div class="editor-panel__header">
-            <span class="editor-panel__title">当前字幕编辑</span>
-            <span class="editor-panel__tip" v-if="activeSubtitle">
-              正在编辑 #{{ activeSubtitleIndex + 1 }} ({{
-                formatTime(activeSubtitle.startMs)
-              }})
-            </span>
-          </div>
-          <div class="editor-panel__body">
-            <el-input
-              ref="editorInputRef"
-              v-model="localSubtitleText"
-              type="textarea"
-              :disabled="!activeSubtitle"
-              placeholder="双击下方时间轴列表中的字幕，或等待最新识别结果在此处编辑。Ctrl+Enter 提交保存。"
-              class="large-subtitle-input"
-              @focus="onEditorFocus"
-              @blur="onEditorBlur"
-              @keydown.enter.ctrl.prevent="commitSubtitleEdit"
-            />
-          </div>
-        </div>
+        <ActiveSubtitleEditor
+          class="editor-panel"
+          :active-subtitle="activeSubtitle"
+          :active-subtitle-index="activeSubtitleIndex"
+          @update-text="updateSubtitleText"
+        />
       </div>
 
       <!-- 拖拽条 -->
@@ -454,57 +384,6 @@ onBeforeUnmount(() => {
   flex: 3;
   min-width: 200px;
   height: 100%;
-  display: flex;
-  flex-direction: column;
-  background: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
-  border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
-  padding: 12px;
-  box-sizing: border-box;
-}
-
-.editor-panel__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  flex-shrink: 0;
-}
-
-.editor-panel__title {
-  font-weight: 600;
-  font-size: 13px;
-  color: var(--el-text-color-primary);
-}
-
-.editor-panel__tip {
-  font-size: 11px;
-  color: var(--el-text-color-secondary);
-}
-
-.editor-panel__body {
-  flex: 1;
-  min-height: 0;
-}
-
-.large-subtitle-input {
-  height: 100%;
-}
-
-.large-subtitle-input :deep(.el-textarea__inner) {
-  height: 100% !important;
-  font-size: 16px;
-  font-weight: 500;
-  line-height: 1.6;
-  padding: 12px;
-  resize: none;
-  background: var(--input-bg);
-  border-color: var(--border-color);
-}
-
-.large-subtitle-input :deep(.el-textarea__inner:focus) {
-  border-color: var(--el-color-primary);
 }
 
 .toolbar-item {

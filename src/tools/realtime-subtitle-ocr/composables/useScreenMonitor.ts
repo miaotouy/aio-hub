@@ -32,12 +32,13 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useOcrRunner } from "@/tools/smart-ocr/platform";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
-import type { ImageBlock, OcrEngineConfig } from "@/tools/smart-ocr/types";
+import type { OcrEngineConfig } from "@/tools/smart-ocr/types";
 import type { StateSyncPayload } from "@/types/window-sync";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createConfigManager } from "@/utils/configManager";
 import { getSimilarity, buildSrt } from "../utils/algorithms";
+import { createImageBlock } from "../utils/image";
 import type {
   DedupSensitivity,
   MonitorConfig,
@@ -213,19 +214,21 @@ export function useScreenMonitor() {
       logger.warn("获取 scaleFactor 失败，降级为 1", err);
     }
   }
-
   interface CaptureResult {
     changed: boolean;
     hash: string;
     imageBytes: number[] | null;
   }
 
-  /** 截屏 ➔ 后端去重 ➔ 返回 { changed, hash, image, url } */
-  async function captureAndHash(): Promise<{
-    changed: boolean;
+  /**
+   * 物理坐标转换、调用 Rust 截屏、处理去重
+   *
+   * @returns 有新画面时返回 HTMLImageElement 及其 Object URL，无变化或停止时返回 null
+   */
+  async function performCapture(): Promise<{
+    image: HTMLImageElement;
+    url: string;
     hash: string;
-    image: HTMLImageElement | null;
-    url: string | null;
   } | null> {
     const logicalRect = getCaptureRect();
     if (!logicalRect) return null;
@@ -256,13 +259,19 @@ export function useScreenMonitor() {
     );
     if (!result) return null;
 
+    // 异步操作后，检查是否在截屏期间停止了监控，防止内存泄漏
+    if (status.value !== "running") {
+      return null;
+    }
+
+    lastHash.value = result.hash;
+
     if (!result.changed || !result.imageBytes) {
-      return {
-        changed: false,
-        hash: result.hash,
-        image: null,
-        url: null,
-      };
+      // 画面无变化：顺延当前字幕结束时间
+      const now = Date.now() - monitorStartedAt;
+      const last = subtitles.value[subtitles.value.length - 1];
+      if (last) last.endMs = now;
+      return null;
     }
 
     const blob = new Blob([new Uint8Array(result.imageBytes)], {
@@ -280,30 +289,64 @@ export function useScreenMonitor() {
       revokeUrl(url);
       return null;
     }
-    return { changed: true, hash: result.hash, image, url };
+
+    // 再次检查状态
+    if (status.value !== "running") {
+      revokeUrl(url);
+      return null;
+    }
+
+    // 释放上一帧 Object URL
+    if (lastFrameUrl.value && lastFrameUrl.value !== url) {
+      revokeUrl(lastFrameUrl.value);
+    }
+    lastFrameUrl.value = url;
+
+    return { image, url, hash: result.hash };
   }
 
-  /** 将 Image 绘制到 canvas 并构造 ImageBlock 供 runOcr 使用 */
-  function buildImageBlock(
-    image: HTMLImageElement,
-    imageId: string,
-    canvas: HTMLCanvasElement
-  ): ImageBlock {
-    canvas.width = image.naturalWidth;
-    canvas.height = image.naturalHeight;
-    const ctx = canvas.getContext("2d");
-    ctx?.clearRect(0, 0, canvas.width, canvas.height);
-    ctx?.drawImage(image, 0, 0);
-    return {
-      id: `blk-${imageId}`,
-      imageId,
-      canvas,
-      dataUrl: canvas.toDataURL("image/png"),
-      startY: 0,
-      endY: canvas.height,
-      width: canvas.width,
-      height: canvas.height,
-    };
+  /**
+   * 调度 OCR 引擎并返回文本
+   */
+  async function performOcr(image: HTMLImageElement): Promise<string> {
+    const imageId = `img-${Date.now()}`;
+    if (!ocrCanvas) {
+      ocrCanvas = document.createElement("canvas");
+    }
+    const block = createImageBlock(image, imageId, ocrCanvas);
+    abortController = new AbortController();
+    const { runOcr } = useOcrRunner();
+    const startTime = Date.now();
+    const results = await runOcr(
+      [block],
+      config.value.engineConfig,
+      undefined,
+      abortController.signal
+    );
+    latency.value = Date.now() - startTime;
+
+    return results[0]?.text?.trim() ?? "";
+  }
+
+  /**
+   * 负责编辑距离对比、追加或更新时间轴
+   */
+  function mergeOrAppendSubtitle(text: string) {
+    if (!text) return;
+    const now = Date.now() - monitorStartedAt;
+    const last = subtitles.value[subtitles.value.length - 1];
+    if (last && getSimilarity(last.text, text) >= MERGE_SIMILARITY_THRESHOLD) {
+      last.endMs = now;
+      // 若新文本更长，采用新文本以修正 OCR 增量识别
+      if (text.length > last.text.length) last.text = text;
+    } else {
+      subtitles.value.push({
+        id: nextEntryId(),
+        text,
+        startMs: now,
+        endMs: now,
+      });
+    }
   }
 
   /** 单次采样循环 */
@@ -311,83 +354,17 @@ export function useScreenMonitor() {
     if (inFlight) return;
     inFlight = true;
     try {
-      const captured = await captureAndHash();
+      const captured = await performCapture();
       if (!captured) return;
 
-      // 异步操作后，检查是否在截屏期间停止了监控，防止内存泄漏
-      if (status.value !== "running") {
-        if (captured.url) revokeUrl(captured.url);
-        return;
-      }
-
-      // 释放上一帧 Object URL
-      if (
-        captured.url &&
-        lastFrameUrl.value &&
-        lastFrameUrl.value !== captured.url
-      ) {
-        revokeUrl(lastFrameUrl.value);
-      }
-      if (captured.url) {
-        lastFrameUrl.value = captured.url;
-      }
-
-      // 后端去重判断
-      if (!captured.changed) {
-        // 画面无变化：顺延当前字幕结束时间
-        const now = Date.now() - monitorStartedAt;
-        const last = subtitles.value[subtitles.value.length - 1];
-        if (last) last.endMs = now;
-        lastHash.value = captured.hash;
-        return;
-      }
-      lastHash.value = captured.hash;
-
-      if (!captured.image) return;
-
-      // 调用 OCR
-      const imageId = `img-${Date.now()}`;
-      if (!ocrCanvas) {
-        ocrCanvas = document.createElement("canvas");
-      }
-      const block = buildImageBlock(captured.image, imageId, ocrCanvas);
-      abortController = new AbortController();
-      const { runOcr } = useOcrRunner();
-      const startTime = Date.now();
-      const results = await runOcr(
-        [block],
-        config.value.engineConfig,
-        undefined,
-        abortController.signal
-      );
-      latency.value = Date.now() - startTime;
+      const text = await performOcr(captured.image);
 
       // 异步 OCR 后，再次检查是否已停止监控
       if (status.value !== "running") {
         return;
       }
 
-      const text = results[0]?.text?.trim() ?? "";
-      if (!text) return;
-
-      // 编辑距离合并/断句
-      const now = Date.now() - monitorStartedAt;
-      const last = subtitles.value[subtitles.value.length - 1];
-      if (
-        last &&
-        getSimilarity(last.text, text) >= MERGE_SIMILARITY_THRESHOLD
-      ) {
-        last.endMs = now;
-        // 若新文本更长，采用新文本以修正 OCR 增量识别
-        if (text.length > last.text.length) last.text = text;
-      } else {
-        subtitles.value.push({
-          id: nextEntryId(),
-          text,
-          startMs: now,
-          endMs: now,
-        });
-      }
+      mergeOrAppendSubtitle(text);
     } catch (err) {
       // 高频采样循环中的异常采用静默记录，避免弹窗轰炸用户
       errorHandler.handle(err, {

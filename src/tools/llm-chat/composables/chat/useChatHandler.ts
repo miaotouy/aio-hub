@@ -359,10 +359,22 @@ export function useChatHandler() {
       if (queueMode === "combined") {
         nodeManager.hardDeleteNode(session, assistantNode.id);
         nodeManager.updateActiveLeaf(session, userNode.id);
+        // 标记 userNode 为排队中，防止并发状态覆盖导致 activeLeafId 丢失
+        if (session.nodes?.[userNode.id]) {
+          if (!session.nodes[userNode.id].metadata) {
+            session.nodes[userNode.id].metadata = {};
+          }
+          session.nodes[userNode.id].metadata!.isQueued = true;
+        }
       } else {
         // Chained: 保留 assistant 占位节点，标记为 pending
         if (session.nodes?.[assistantNode.id]) {
           (session.nodes[assistantNode.id] as any).status = "pending";
+          // 标记 assistantNode 为排队中，防止并发状态覆盖导致 activeLeafId 丢失
+          if (!session.nodes[assistantNode.id].metadata) {
+            session.nodes[assistantNode.id].metadata = {};
+          }
+          session.nodes[assistantNode.id].metadata!.isQueued = true;
         }
       }
       if (sessionIndex) {

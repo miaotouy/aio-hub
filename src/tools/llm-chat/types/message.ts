@@ -252,6 +252,8 @@ export interface ChatMessageNode {
     modelName?: string;
     /** 使用的模型显示名称 */
     modelDisplayName?: string;
+    /** 是否是排队待生成的节点 */
+    isQueued?: boolean;
     /** 是否被截断 */
     isTruncated?: boolean;
     /** 错误信息 */

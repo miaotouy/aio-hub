@@ -15,7 +15,7 @@
 import type { ToolRegistry, ToolConfig } from "@/services/types";
 import type { DetachableComponentRegistration } from "@/types/detachable";
 import { markRaw, ref } from "vue";
-import { Video } from "lucide-vue-next";
+import { Subtitles } from "lucide-vue-next";
 
 /**
  * 实时字幕 OCR 注册表
@@ -55,10 +55,11 @@ export default class RealtimeSubtitleOcrRegistry implements ToolRegistry {
 export const toolConfig: ToolConfig = {
   name: "实时字幕OCR",
   path: "/realtime-subtitle-ocr",
-  icon: markRaw(Video),
+  icon: markRaw(Subtitles),
   component: () => import("./RealtimeSubtitleOcr.vue"),
   description: "高频、低开销的屏幕动态监控与流式字幕 OCR 识别工具",
   category: ["AI 工具"],
   version: "1.0.0",
   runMode: "any",
 };
+

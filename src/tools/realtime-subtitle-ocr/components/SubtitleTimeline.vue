@@ -82,6 +82,7 @@
         <thead>
           <tr>
             <th class="col-index">#</th>
+            <th class="col-preview">画面</th>
             <th class="col-time">开始</th>
             <th class="col-time">结束</th>
             <th class="col-duration">持续</th>
@@ -94,9 +95,19 @@
             v-for="(sub, index) in subtitles"
             :key="sub.id"
             class="subtitle-row"
+            :class="{
+              'row-processing': sub.status === 'processing',
+              'row-pending': sub.status === 'pending',
+            }"
             @click="selectRow(sub.id)"
           >
             <td class="col-index">{{ index + 1 }}</td>
+            <td class="col-preview">
+              <div class="frame-preview-box" v-if="sub.frameUrl">
+                <img :src="sub.frameUrl" class="frame-preview-img" />
+              </div>
+              <span v-else class="no-frame">-</span>
+            </td>
             <td class="col-time">{{ formatTime(sub.startMs) }}</td>
             <td class="col-time">{{ formatTime(sub.endMs) }}</td>
             <td class="col-duration">
@@ -104,7 +115,20 @@
             </td>
             <td class="col-text">
               <div class="text-cell" title="点击编辑">
-                {{ sub.text || "(空)" }}
+                <span v-if="sub.status === 'pending'" class="status-tag pending"
+                  >等待识别...</span
+                >
+                <span
+                  v-else-if="sub.status === 'processing'"
+                  class="status-tag processing"
+                  >正在识别...</span
+                >
+                <span
+                  v-else-if="sub.status === 'error'"
+                  class="status-tag error"
+                  >识别失败</span
+                >
+                <span v-else>{{ sub.text || "(空)" }}</span>
               </div>
             </td>
             <td class="col-ops">
@@ -312,10 +336,78 @@ function onExportSrt() {
   color: var(--el-text-color-secondary);
 }
 
+.col-preview {
+  width: 80px;
+  text-align: center;
+}
+
+.frame-preview-box {
+  width: 64px;
+  height: 36px;
+  border-radius: 4px;
+  overflow: hidden;
+  border: var(--border-width) solid var(--border-color);
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.frame-preview-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.no-frame {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+}
+
 .col-time {
   width: 110px;
   font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
   color: var(--el-text-color-regular);
+}
+
+.status-tag {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: normal;
+}
+
+.status-tag.pending {
+  background: rgba(var(--el-color-info-rgb), 0.1);
+  color: var(--el-text-color-secondary);
+}
+
+.status-tag.processing {
+  background: rgba(var(--el-color-primary-rgb), 0.1);
+  color: var(--el-color-primary);
+  animation: pulse 1.5s infinite;
+}
+
+.status-tag.error {
+  background: rgba(var(--el-color-danger-rgb), 0.1);
+  color: var(--el-color-danger);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.subtitle-row.row-processing {
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.03)
+  );
 }
 
 .col-duration {

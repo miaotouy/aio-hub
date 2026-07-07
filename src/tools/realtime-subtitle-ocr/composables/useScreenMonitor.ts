@@ -100,6 +100,10 @@ const lastFrameUrl = ref<string | null>(null);
 const activeUrls = new Set<string>();
 const latency = ref<number>(0);
 
+// 异步 OCR 队列状态
+const ocrQueue = ref<SubtitleEntry[]>([]);
+const isProcessingQueue = ref(false);
+
 // Canvas 缓存，避免高频采样时频繁创建 DOM 元素导致 GC 压力
 let ocrCanvas: HTMLCanvasElement | null = null;
 
@@ -329,27 +333,84 @@ export function useScreenMonitor() {
   }
 
   /**
-   * 负责编辑距离对比、追加或更新时间轴
+   * 异步消费 OCR 队列
    */
-  function mergeOrAppendSubtitle(text: string) {
-    if (!text) return;
-    const now = Date.now() - monitorStartedAt;
-    const last = subtitles.value[subtitles.value.length - 1];
-    if (last && getSimilarity(last.text, text) >= MERGE_SIMILARITY_THRESHOLD) {
-      last.endMs = now;
-      // 若新文本更长，采用新文本以修正 OCR 增量识别
-      if (text.length > last.text.length) last.text = text;
-    } else {
-      subtitles.value.push({
-        id: nextEntryId(),
-        text,
-        startMs: now,
-        endMs: now,
-      });
+  async function processOcrQueue() {
+    if (isProcessingQueue.value) return;
+    isProcessingQueue.value = true;
+
+    try {
+      while (ocrQueue.value.length > 0 && status.value === "running") {
+        const entry = ocrQueue.value[0];
+        if (!entry.frameUrl) {
+          ocrQueue.value.shift();
+          continue;
+        }
+
+        entry.status = "processing";
+
+        // 异步加载图片
+        const image = new Image();
+        const loaded = await new Promise<boolean>((resolve) => {
+          image.onload = () => resolve(true);
+          image.onerror = () => resolve(false);
+          image.src = entry.frameUrl!;
+        });
+
+        if (!loaded || !image.naturalWidth || !image.naturalHeight) {
+          entry.status = "error";
+          entry.text = "[图片加载失败]";
+          ocrQueue.value.shift();
+          continue;
+        }
+
+        try {
+          const text = await performOcr(image);
+
+          // 再次检查状态
+          if (status.value !== "running") {
+            break;
+          }
+
+          entry.text = text;
+          entry.status = "done";
+
+          // 尝试与上一条已完成的字幕合并
+          // 注意：因为当前 entry 已经设置了 status = 'done'，所以 completedSubtitles 会包含当前 entry。
+          // 我们需要找的是在当前 entry 之前已经完成的最后一条字幕。
+          const completedSubtitles = subtitles.value.filter(
+            (s) => s.status === "done" && s.id !== entry.id
+          );
+          const lastDone = completedSubtitles[completedSubtitles.length - 1];
+
+          if (
+            text &&
+            lastDone &&
+            getSimilarity(lastDone.text, text) >= MERGE_SIMILARITY_THRESHOLD
+          ) {
+            // 相似度高，合并：更新上一条的结束时间，并删除当前这条
+            lastDone.endMs = entry.endMs;
+            if (text.length > lastDone.text.length) {
+              lastDone.text = text;
+            }
+            // 从总列表中移除当前条目
+            subtitles.value = subtitles.value.filter((s) => s.id !== entry.id);
+          }
+        } catch (err) {
+          entry.status = "error";
+          entry.text = "[识别失败]";
+          logger.error("队列 OCR 识别失败", err);
+        }
+
+        // 消费完毕，移出队列
+        ocrQueue.value.shift();
+      }
+    } finally {
+      isProcessingQueue.value = false;
     }
   }
 
-  /** 单次采样循环 */
+  /** 单次采样循环：只负责截图、去重、生成待识别条目 */
   async function tick() {
     if (inFlight) return;
     inFlight = true;
@@ -357,14 +418,28 @@ export function useScreenMonitor() {
       const captured = await performCapture();
       if (!captured) return;
 
-      const text = await performOcr(captured.image);
-
-      // 异步 OCR 后，再次检查是否已停止监控
+      // 异步截图后，再次检查是否已停止监控
       if (status.value !== "running") {
         return;
       }
 
-      mergeOrAppendSubtitle(text);
+      const now = Date.now() - monitorStartedAt;
+
+      // 创建一个新的待识别字幕条目，并带上截图 URL
+      const newEntry: SubtitleEntry = {
+        id: nextEntryId(),
+        text: "正在识别...",
+        startMs: now,
+        endMs: now,
+        frameUrl: captured.url,
+        status: "pending",
+      };
+
+      subtitles.value.push(newEntry);
+      ocrQueue.value.push(newEntry);
+
+      // 异步触发队列消费，不阻塞截图循环
+      processOcrQueue();
     } catch (err) {
       // 高频采样循环中的异常采用静默记录，避免弹窗轰炸用户
       errorHandler.handle(err, {
@@ -386,6 +461,8 @@ export function useScreenMonitor() {
       return;
     }
     subtitles.value = [];
+    ocrQueue.value = [];
+    isProcessingQueue.value = false;
     lastHash.value = "";
     monitorStartedAt = Date.now();
     status.value = "running";
@@ -406,6 +483,8 @@ export function useScreenMonitor() {
     if (status.value === "running") {
       status.value = "stopped";
     }
+    ocrQueue.value = [];
+    isProcessingQueue.value = false;
     if (lastFrameUrl.value) {
       revokeUrl(lastFrameUrl.value);
       lastFrameUrl.value = null;
@@ -500,6 +579,8 @@ export function useScreenMonitor() {
   return {
     // state
     subtitles,
+    ocrQueue,
+    isProcessingQueue,
     status,
     isRunning,
     monitorRect,

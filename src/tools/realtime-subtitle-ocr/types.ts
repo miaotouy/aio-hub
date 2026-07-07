@@ -24,6 +24,10 @@ export interface SubtitleEntry {
   startMs: number;
   /** 结束时间戳（毫秒，相对于监控开始时刻） */
   endMs: number;
+  /** 截图的 Object URL，用于在表格中预览和人工修 */
+  frameUrl?: string;
+  /** 识别状态：'pending' | 'processing' | 'done' | 'error' */
+  status?: "pending" | "processing" | "done" | "error";
 }
 
 /** 监控框几何信息（逻辑坐标） */

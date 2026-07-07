@@ -133,8 +133,15 @@ export async function insertLiveGreetings(
     rootNode.childrenIds.push(node.id);
   }
 
-  detail.activeLeafId = greetingNodes[0].id;
-  rootNode.lastSelectedChildId = greetingNodes[0].id;
+  // 默认选中逻辑：寻找是否有匹配 defaultGreetingId 的 greeting 对应的节点
+  const defaultGreetingId = agent.defaultGreetingId;
+  const defaultGreetingIndex = defaultGreetingId
+    ? greetings.findIndex((g) => g.id === defaultGreetingId)
+    : -1;
+  const activeIndex = defaultGreetingIndex !== -1 ? defaultGreetingIndex : 0;
+
+  detail.activeLeafId = greetingNodes[activeIndex].id;
+  rootNode.lastSelectedChildId = greetingNodes[activeIndex].id;
 
   logger.info("已插入开局消息", {
     sessionId: detail.id,

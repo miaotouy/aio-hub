@@ -47,6 +47,16 @@ const userProfileStore = useUserProfileStore();
 // 折叠状态
 const isCollapsed = ref(false);
 
+// 默认选中的开局消息 ID
+const defaultGreetingId = computed({
+  get: () => editForm?.defaultGreetingId || "",
+  set: (val) => {
+    if (editForm) {
+      editForm.defaultGreetingId = val || undefined;
+    }
+  },
+});
+
 // 当前生效的用户档案
 const effectiveUserProfile = computed(() => {
   return userProfileStore.getEffectiveProfile(editForm?.userProfileId);
@@ -133,9 +143,15 @@ function handleEditorSave(form: {
 }
 
 function removeGreeting(index: number) {
+  const removed = greetings.value[index];
   const next = cloneGreetings();
   next.splice(index, 1);
   greetings.value = next;
+
+  // 如果删除了默认选中的开场白，清空默认选中
+  if (removed && removed.id === defaultGreetingId.value) {
+    defaultGreetingId.value = "";
+  }
 }
 
 function moveGreeting(index: number, direction: -1 | 1) {
@@ -175,6 +191,25 @@ function truncateText(text: string, maxLength: number): string {
 
     <Transition name="collapse">
       <div v-show="!isCollapsed" class="greeting-content">
+        <!-- 默认选中开场白设置 -->
+        <div v-if="greetings.length > 0" class="default-greeting-setting">
+          <span class="setting-label">默认选中开场白</span>
+          <el-select
+            v-model="defaultGreetingId"
+            placeholder="默认选中第一条"
+            clearable
+            size="small"
+            style="width: 220px"
+          >
+            <el-option
+              v-for="g in greetings"
+              :key="g.id"
+              :label="g.name || '未命名开场白'"
+              :value="g.id"
+            />
+          </el-select>
+        </div>
+
         <el-empty
           v-if="greetings.length === 0"
           description="暂无开局消息"
@@ -200,6 +235,15 @@ function truncateText(text: string, maxLength: number): string {
                 <span v-if="greeting.name" class="item-name">{{
                   greeting.name
                 }}</span>
+                <el-tag
+                  v-if="greeting.id === defaultGreetingId"
+                  type="warning"
+                  size="small"
+                  effect="dark"
+                  class="default-badge"
+                >
+                  默认
+                </el-tag>
               </div>
               <div class="item-actions" @click.stop>
                 <el-tooltip content="编辑" placement="top">
@@ -266,6 +310,26 @@ function truncateText(text: string, maxLength: number): string {
   flex-direction: column;
   gap: 12px;
   width: 100%;
+}
+
+.default-greeting-setting {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: var(--border-width) dashed var(--border-color);
+}
+
+.setting-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--el-text-color-regular);
+}
+
+.default-badge {
+  margin-left: 4px;
+  font-weight: bold;
 }
 
 .editor-toolbar {

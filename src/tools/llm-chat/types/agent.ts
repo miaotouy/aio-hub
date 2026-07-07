@@ -413,6 +413,11 @@ export interface AgentBaseConfig {
   greetings?: GreetingMessage[];
 
   /**
+   * 默认选中的开局消息 ID
+   */
+  defaultGreetingId?: string;
+
+  /**
    * 在聊天界面显示的预设消息数量
    *
    * 从 chat_history 占位符位置开始，向前倒数 N 条预设消息显示在聊天列表中。

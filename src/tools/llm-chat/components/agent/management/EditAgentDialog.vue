@@ -99,6 +99,7 @@ const defaultFormState = {
   presetMessages: [] as ChatMessageNode[],
   presetGroups: [] as PresetMessageGroup[],
   greetings: [] as GreetingMessage[],
+  defaultGreetingId: "", // 默认选中的开局消息 ID
   displayPresetCount: 0, // 显示的预设消息数量
   llmThinkRules: [] as LlmThinkRule[], // LLM 思考块规则配置
   richTextStyleOptions: {} as RichTextRendererStyleOptions, // 富文本样式配置
@@ -341,6 +342,7 @@ const handleSave = (
       presetMessages: editForm.presetMessages,
       presetGroups: editForm.presetGroups,
       greetings: editForm.greetings,
+      defaultGreetingId: editForm.defaultGreetingId,
       displayPresetCount: editForm.displayPresetCount,
       parameters,
       llmThinkRules: editForm.llmThinkRules,

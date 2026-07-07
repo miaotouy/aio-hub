@@ -22,6 +22,15 @@
         <span class="subtitle-timeline__count">({{ subtitles.length }})</span>
       </span>
       <div class="subtitle-timeline__actions">
+        <!-- 自动滚动开关 -->
+        <el-checkbox
+          v-model="autoScroll"
+          size="small"
+          style="margin-right: 8px"
+        >
+          自动滚动
+        </el-checkbox>
+
         <!-- 复制全部下拉菜单 -->
         <el-dropdown trigger="click" :disabled="!subtitles.length">
           <el-button size="small" :disabled="!subtitles.length">
@@ -103,8 +112,17 @@
           >
             <td class="col-index">{{ index + 1 }}</td>
             <td class="col-preview">
-              <div class="frame-preview-box" v-if="sub.frameUrl">
-                <img :src="sub.frameUrl" class="frame-preview-img" />
+              <div
+                class="frame-preview-box"
+                v-if="sub.frameUrl"
+                @click.stop="viewImage(sub.frameUrl)"
+                title="点击查看大图"
+              >
+                <img
+                  :src="sub.frameUrl"
+                  class="frame-preview-img"
+                  @load="onImageLoad"
+                />
               </div>
               <span v-else class="no-frame">-</span>
             </td>
@@ -159,6 +177,7 @@ import {
   ElDropdown,
   ElDropdownMenu,
   ElDropdownItem,
+  ElCheckbox,
 } from "element-plus";
 import {
   Copy as CopyIcon,
@@ -168,6 +187,7 @@ import {
   ChevronDown as ChevronDownIcon,
 } from "lucide-vue-next";
 import { formatSrtTime } from "../utils/algorithms";
+import { useImageViewer } from "@/composables/useImageViewer";
 import type { SubtitleEntry } from "../types";
 
 const props = defineProps<{
@@ -182,30 +202,43 @@ const emit = defineEmits<{
   (e: "select", id: string): void;
   (e: "clear-all"): void;
 }>();
+
 const listRef = ref<HTMLDivElement | null>(null);
+const autoScroll = ref(true);
+const imageViewer = useImageViewer();
+
+function viewImage(url: string) {
+  imageViewer.show(url);
+}
+
+function scrollToBottom() {
+  if (!autoScroll.value) return;
+  nextTick(() => {
+    const el = listRef.value;
+    if (!el) return;
+    el.scrollTo({
+      top: el.scrollHeight,
+      behavior: "smooth",
+    });
+  });
+}
 
 // 监听字幕长度变化，自动滚动到底部
 watch(
   () => props.subtitles.length,
   (newLen, oldLen) => {
     if (newLen > oldLen) {
-      nextTick(() => {
-        const el = listRef.value;
-        if (!el) return;
-        // 判断是否接近底部（允许 50px 的偏差）
-        const isAtBottom =
-          el.scrollHeight - el.scrollTop - el.clientHeight < 50;
-        // 如果是第一条字幕，或者用户本来就在底部，就自动滚动
-        if (oldLen === 0 || isAtBottom) {
-          el.scrollTo({
-            top: el.scrollHeight,
-            behavior: "smooth",
-          });
-        }
-      });
+      scrollToBottom();
     }
   }
 );
+
+// 图片加载完成时，如果开启了自动滚动，再次滚动到底部，防止图片撑开高度导致滚动不到位
+function onImageLoad() {
+  if (autoScroll.value) {
+    scrollToBottom();
+  }
+}
 
 function formatTime(ms: number): string {
   return formatSrtTime(ms);
@@ -342,20 +375,29 @@ function onExportSrt() {
 }
 
 .frame-preview-box {
-  width: 64px;
-  height: 36px;
+  width: 80px;
+  max-height: 40px;
   border-radius: 4px;
   overflow: hidden;
   border: var(--border-width) solid var(--border-color);
-  background: #000;
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
+  transition:
+    transform 0.2s,
+    border-color 0.2s;
+}
+
+.frame-preview-box:hover {
+  transform: scale(1.05);
+  border-color: var(--el-color-primary);
 }
 
 .frame-preview-img {
-  max-width: 100%;
-  max-height: 100%;
+  width: 100%;
+  height: auto;
+  max-height: 40px;
   object-fit: contain;
 }
 

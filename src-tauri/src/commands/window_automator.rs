@@ -555,19 +555,24 @@ pub fn capture_screen_rect(
         }
     }
 
-    // 5. 如果有变化，进行 PNG 编码
+    // 5. 如果有变化，进行 PNG 编码（使用最快压缩和无过滤器，极大提升高频采样性能）
     let image_bytes = if changed {
         let mut png_bytes: Vec<u8> = Vec::new();
         {
+            use image::codecs::png::{CompressionType, FilterType, PngEncoder};
             use image::ImageEncoder;
-            image::codecs::png::PngEncoder::new(&mut png_bytes)
-                .write_image(
-                    &rgba,
-                    width as u32,
-                    height as u32,
-                    image::ExtendedColorType::Rgba8,
-                )
-                .map_err(|e| format!("PNG 编码失败: {}", e))?;
+            PngEncoder::new_with_quality(
+                &mut png_bytes,
+                CompressionType::Fast,
+                FilterType::NoFilter,
+            )
+            .write_image(
+                &rgba,
+                width as u32,
+                height as u32,
+                image::ExtendedColorType::Rgba8,
+            )
+            .map_err(|e| format!("PNG 编码失败: {}", e))?;
         }
         Some(png_bytes)
     } else {

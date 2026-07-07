@@ -335,7 +335,7 @@ function onProfileChange(id: string) {
         <span class="toolbar-label">采样频率:</span>
         <el-slider
           :model-value="config.intervalMs"
-          :min="500"
+          :min="200"
           :max="3000"
           :step="100"
           style="width: 100px"

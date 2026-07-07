@@ -833,6 +833,7 @@ function handleSave() {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 600px; /* 维持编辑器在整体窗口变小时的最小高度，防止容器缩没 */
   gap: 16px;
 }
 
@@ -905,7 +906,7 @@ function handleSave() {
 
 .editor-content-area {
   flex: 1;
-  min-height: 0; /* 关键：允许 flex 子项收缩以触发内部滚动 */
+  min-height: 600px; /* 确保编辑器/预览区域本身也有一个最小高度，不会被其他配置项完全挤压 */
   display: flex;
   flex-direction: column;
 }

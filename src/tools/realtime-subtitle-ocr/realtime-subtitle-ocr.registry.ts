@@ -28,10 +28,8 @@ import { Subtitles } from "lucide-vue-next";
  */
 export default class RealtimeSubtitleOcrRegistry implements ToolRegistry {
   public readonly id = "realtime-subtitle-ocr";
-  public readonly runMode = "any" as const;
+  public readonly runMode = "any";
   public readonly name = "实时字幕OCR";
-  public readonly description =
-    "高频、低开销的屏幕动态监控与流式字幕 OCR 识别工具";
 
   public readonly detachableComponents: Record<
     string,
@@ -57,8 +55,8 @@ export const toolConfig: ToolConfig = {
   path: "/realtime-subtitle-ocr",
   icon: markRaw(Subtitles),
   component: () => import("./RealtimeSubtitleOcr.vue"),
-  description: "高频、低开销的屏幕动态监控与流式字幕 OCR 识别工具",
-  category: ["AI 工具"],
+  description: "windouws 字幕 OCR 识别工具",
+  category: ["媒体工具"],
   version: "1.0.0",
   runMode: "any",
 };

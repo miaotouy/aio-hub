@@ -232,8 +232,8 @@ export const useAgentStore = defineStore("llmChatAgent", {
       );
 
       // 物理复制整个智能体目录（包含头像、资产附件等所有文件）
-      const sourceDir = `llm-chat/agents/${originalAgent.id}`;
-      const targetDir = `llm-chat/agents/${newAgentId}`;
+      const sourceDir = `agent-manager/agents/${originalAgent.id}`;
+      const targetDir = `agent-manager/agents/${newAgentId}`;
 
       try {
         const { getAgentDirPath } = useAgentStorage();

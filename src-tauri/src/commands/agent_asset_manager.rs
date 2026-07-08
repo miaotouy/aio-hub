@@ -50,7 +50,7 @@ pub struct AgentAssetInfo {
 
 /// 获取 Agent 资产目录的基础路径
 ///
-/// 返回 `{app_data_dir}/llm-chat/agents/{agent_id}/assets` 路径
+/// 返回 `{app_data_dir}/agent-manager/agents/{agent_id}/assets` 路径
 fn get_agent_assets_dir(app: &AppHandle, agent_id: &str) -> Result<PathBuf, String> {
     // 验证 agent_id，防止路径遍历攻击
     if agent_id.contains("..") || agent_id.contains('/') || agent_id.contains('\\') {
@@ -60,7 +60,7 @@ fn get_agent_assets_dir(app: &AppHandle, agent_id: &str) -> Result<PathBuf, Stri
     let app_data_dir = crate::get_app_data_dir(app.config());
 
     Ok(app_data_dir
-        .join("llm-chat")
+        .join("agent-manager")
         .join("agents")
         .join(agent_id)
         .join("assets"))
@@ -345,7 +345,10 @@ pub async fn delete_agent_asset(
         return Err("无效的 Agent ID：包含非法字符".to_string());
     }
 
-    let agent_dir = app_data_dir.join("llm-chat").join("agents").join(&agent_id);
+    let agent_dir = app_data_dir
+        .join("agent-manager")
+        .join("agents")
+        .join(&agent_id);
 
     let assets_dir = agent_dir.join("assets");
     let file_path = agent_dir.join(&asset_path);
@@ -397,7 +400,10 @@ pub async fn batch_delete_agent_assets(
     }
 
     let app_data_dir = crate::get_app_data_dir(app.config());
-    let agent_dir = app_data_dir.join("llm-chat").join("agents").join(&agent_id);
+    let agent_dir = app_data_dir
+        .join("agent-manager")
+        .join("agents")
+        .join(&agent_id);
     let assets_dir = agent_dir.join("assets");
 
     let mut errors = Vec::new();
@@ -569,7 +575,7 @@ pub async fn get_agent_asset_path(
     let app_data_dir = crate::get_app_data_dir(app.config());
 
     let file_path = app_data_dir
-        .join("llm-chat")
+        .join("agent-manager")
         .join("agents")
         .join(&agent_id)
         .join(&asset_path);
@@ -609,7 +615,7 @@ pub async fn read_agent_asset_binary(
     let app_data_dir = crate::get_app_data_dir(app.config());
 
     let file_path = app_data_dir
-        .join("llm-chat")
+        .join("agent-manager")
         .join("agents")
         .join(&agent_id)
         .join(&asset_path);

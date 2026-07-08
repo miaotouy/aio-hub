@@ -17,11 +17,21 @@
  * 使用 ConfigManager 管理索引文件，每个智能体存储为独立文件
  */
 
-import { exists, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import {
+  exists,
+  readTextFile,
+  writeTextFile,
+  mkdir,
+  readDir,
+  remove,
+  rename,
+  copyFile,
+} from "@tauri-apps/plugin-fs";
 import { join, extname } from "@tauri-apps/api/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import { invoke } from "@tauri-apps/api/core";
 import { createConfigManager } from "@/utils/configManager";
+import { customMessage } from "@/utils/customMessage";
 import {
   type ChatAgent,
   AgentCategory,
@@ -37,7 +47,7 @@ const errorHandler = createModuleErrorHandler(
   "llm-chat/agent-storage-separated"
 );
 
-const MODULE_NAME = "llm-chat";
+const MODULE_NAME = "agent-manager";
 const AGENTS_SUBDIR = "agents";
 
 /**
@@ -346,10 +356,9 @@ export function useAgentStorage() {
         stripDefaultContextCompressionPromptsFromParameters(
           agentToSave.parameters
         );
-
       // 如果 icon 是完整的 appdata 路径（指向自己的目录），转换为相对文件名
       const icon = agentToSave.icon?.trim();
-      const selfAssetPathPrefix = `appdata://llm-chat/agents/${agent.id}/`;
+      const selfAssetPathPrefix = `appdata://agent-manager/agents/${agent.id}/`;
       if (icon && icon.startsWith(selfAssetPathPrefix)) {
         agentToSave.icon = icon.substring(selfAssetPathPrefix.length);
       }
@@ -594,6 +603,118 @@ export function useAgentStorage() {
   }
 
   /**
+   * 递归复制目录
+   */
+  async function deepCopyDirectory(src: string, dest: string): Promise<void> {
+    await mkdir(dest, { recursive: true });
+    const entries = await readDir(src);
+    for (const entry of entries) {
+      const srcPath = await join(src, entry.name);
+      const destPath = await join(dest, entry.name);
+      if (entry.isDirectory) {
+        await deepCopyDirectory(srcPath, destPath);
+      } else if (entry.isFile) {
+        await copyFile(srcPath, destPath);
+      }
+    }
+  }
+
+  /**
+   * 校验迁移结果（对比文件数量）
+   */
+  async function verifyMigration(src: string, dest: string): Promise<boolean> {
+    try {
+      const srcEntries = await readDir(src);
+      const destEntries = await readDir(dest);
+      // 过滤掉临时标记文件
+      const destFiles = destEntries.filter(
+        (e) => e.name !== ".migration_in_progress"
+      );
+      return srcEntries.length === destFiles.length;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /**
+   * 冷启动自动检测与物理迁移
+   */
+  async function triggerDataMigration(): Promise<void> {
+    try {
+      const configDir = await getAppConfigDir();
+      const oldPath = await join(configDir, "llm-chat", "agents");
+      const newPath = await join(configDir, "agent-manager", "agents");
+
+      // 1. 幂等性检查：如果新路径已经存在数据，说明已经迁移过，直接跳过
+      if (await exists(newPath)) {
+        const newFiles = await readDir(newPath);
+        // 排除可能残留的临时标记文件
+        const actualFiles = newFiles.filter(
+          (f) => f.name !== ".migration_in_progress"
+        );
+        if (actualFiles.length > 0) return; // 已有数据，无需迁移
+      }
+
+      // 2. 检测旧路径是否存在数据
+      if (!(await exists(oldPath))) return; // 无旧数据，纯净新安装
+      const oldFiles = await readDir(oldPath);
+      if (oldFiles.length === 0) return;
+
+      logger.info("检测到历史智能体数据，启动自动迁移管道...");
+
+      const timestamp = Date.now();
+      const backupPath = await join(
+        configDir,
+        "backups",
+        `migration_backup_${timestamp}`
+      );
+
+      // 引入临时标记文件，确保迁移的原子性
+      const progressFlagPath = await join(newPath, ".migration_in_progress");
+
+      try {
+        // 3. 安全备份：将旧数据完整复制到备份目录
+        await mkdir(backupPath, { recursive: true });
+        await deepCopyDirectory(oldPath, backupPath);
+        logger.info("历史数据备份成功", { backupPath });
+
+        // 4. 物理迁移：创建新目录并复制数据
+        await mkdir(newPath, { recursive: true });
+        // 写入临时标记文件，表示迁移正在进行中
+        await writeTextFile(progressFlagPath, "in_progress");
+        await deepCopyDirectory(oldPath, newPath);
+        logger.info("数据物理迁移完成，开始完整性校验...");
+
+        // 5. 完整性校验：对比新旧目录文件数量
+        const isVerified = await verifyMigration(oldPath, newPath);
+        if (!isVerified) {
+          throw new Error("迁移校验失败：文件数量不一致");
+        }
+
+        // 校验通过，安全删除临时标记文件
+        await remove(progressFlagPath);
+
+        // 6. 清理旧路径：为了绝对安全，第一阶段仅重命名旧路径为 .bak，稳定运行一个版本后再物理删除
+        const oldPathBak = `${oldPath}.migrated.bak`;
+        await rename(oldPath, oldPathBak);
+        logger.info("旧数据已安全归档", { oldPathBak });
+      } catch (error) {
+        logger.error("数据迁移失败，启动自动回滚！", error);
+        // 异常回滚：如果新路径创建了一半，清理掉，防止残留脏数据
+        if (await exists(newPath)) {
+          await remove(newPath, { recursive: true });
+        }
+        // 提示用户，但不阻断程序启动（降级为使用空数据启动）
+        customMessage.error(
+          "历史数据迁移失败，已安全回滚。请在群里反馈、提交 Issue 或检查日志。"
+        );
+      }
+    } catch (e) {
+      logger.error("迁移检测过程发生异常", e as Error);
+    }
+  }
+
+  /**
    * 加载智能体索引（轻量级，仅包含元数据）
    */
   async function loadAgentsIndex(): Promise<{
@@ -601,6 +722,9 @@ export function useAgentStorage() {
   }> {
     try {
       logger.debug("开始加载智能体索引");
+
+      // 在加载前执行冷启动物理迁移
+      await triggerDataMigration();
 
       // 在加载前执行数据迁移
       await runMigration();

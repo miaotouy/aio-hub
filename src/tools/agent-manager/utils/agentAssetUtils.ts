@@ -227,7 +227,7 @@ export function buildAgentAssetPath(
   const normalizedBase = _cachedAppDataDir.replace(/\\/g, "/");
 
   const separator = normalizedBase.endsWith("/") ? "" : "/";
-  return `${normalizedBase}${separator}llm-chat/agents/${agentId}/${normalizedAssetPath}`;
+  return `${normalizedBase}${separator}agent-manager/agents/${agentId}/${normalizedAssetPath}`;
 }
 
 /**

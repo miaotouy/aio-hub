@@ -21,7 +21,7 @@ import type { ModelIdentifier } from "./llm";
 import type { Asset, AssetMetadata } from "@/types/asset-management";
 import type { ChatMessageNode, InjectionStrategy } from "./message";
 import type { ChatSessionIndex, ChatSessionDetail } from "./session";
-import type { STWorldbookPosition } from "./worldbook";
+import type { STWorldbookPosition } from "@/tools/st-worldbook-manager/types/worldbook";
 import type { PipelineAttachment } from "./pipeline-attachment";
 
 /**

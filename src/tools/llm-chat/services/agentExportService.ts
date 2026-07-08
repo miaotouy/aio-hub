@@ -41,7 +41,7 @@ import type {
 import { embedDataIntoPng } from "@/utils/pngMetadataWriter";
 import { convertArrayBufferToBase64 } from "@/utils/base64";
 import { sanitizeFilename } from "@/utils/fileUtils";
-import { useWorldbookStore } from "../stores/worldbookStore";
+import { useWorldbookStore } from "@/tools/st-worldbook-manager/stores/worldbookStore";
 
 const logger = createModuleLogger("llm-chat/agentExportService");
 const errorHandler = createModuleErrorHandler("llm-chat/agentExportService");

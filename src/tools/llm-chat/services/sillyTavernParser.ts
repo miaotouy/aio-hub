@@ -31,7 +31,7 @@ import {
   convertSillyTavernArrayToPreset,
   type SillyTavernRegexScript,
 } from "../utils/chatRegexUtils";
-import type { STWorldbook } from "../types/worldbook";
+import type { STWorldbook } from "@/tools/st-worldbook-manager/types/worldbook";
 
 const logger = createModuleLogger("llm-chat/sillyTavernParser");
 

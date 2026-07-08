@@ -31,7 +31,7 @@ import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
-import { useWorldbookStore } from "../../stores/worldbookStore";
+import { useWorldbookStore } from "@/tools/st-worldbook-manager/stores/worldbookStore";
 import { useLlmChatUiState } from "./useLlmChatUiState";
 import { createModuleLogger } from "@/utils/logger";
 import type {

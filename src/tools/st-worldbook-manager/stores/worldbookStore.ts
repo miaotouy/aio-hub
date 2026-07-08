@@ -17,18 +17,23 @@
  */
 
 import { defineStore } from "pinia";
-import { useWorldbookStorageSeparated } from "../composables/storage/useWorldbookStorageSeparated";
+import { useWorldbookStorage } from "../composables/storage/useWorldbookStorage";
 import type { STWorldbook, WorldbookMetadata } from "../types/worldbook";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { getLocalISOString } from "@/utils/time";
 import { useStateSyncEngine } from "@/composables/useStateSyncEngine";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
-import { CHAT_STATE_KEYS, createChatSyncConfig } from "../types/sync";
+import {
+  CHAT_STATE_KEYS,
+  createChatSyncConfig,
+} from "@/tools/llm-chat/types/sync";
 import { toRef, watch } from "vue";
 
-const logger = createModuleLogger("llm-chat/worldbookStore");
-const errorHandler = createModuleErrorHandler("llm-chat/worldbookStore");
+const logger = createModuleLogger("st-worldbook-manager/worldbookStore");
+const errorHandler = createModuleErrorHandler(
+  "st-worldbook-manager/worldbookStore"
+);
 
 interface WorldbookStoreState {
   /** 世界书元数据列表 */
@@ -37,7 +42,7 @@ interface WorldbookStoreState {
   loadedWorldbooks: Map<string, STWorldbook>;
 }
 
-export const useWorldbookStore = defineStore("llmChatWorldbook", {
+export const useWorldbookStore = defineStore("stWorldbookManager", {
   state: (): WorldbookStoreState => ({
     worldbooks: [],
     loadedWorldbooks: new Map(),
@@ -93,7 +98,10 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
      */
     async loadWorldbooks() {
       try {
-        const storage = useWorldbookStorageSeparated();
+        const storage = useWorldbookStorage();
+        // 触发冷启动迁移管道
+        await storage.triggerWorldbookDataMigration();
+
         const index = await storage.loadIndex();
         this.worldbooks = await storage.syncIndex(index);
         logger.info("世界书索引加载成功", { count: this.worldbooks.length });
@@ -112,7 +120,7 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
         return this.loadedWorldbooks.get(id)!;
       }
 
-      const storage = useWorldbookStorageSeparated();
+      const storage = useWorldbookStorage();
       const content = await storage.loadWorldbookContent(id);
       if (content) {
         this.loadedWorldbooks.set(id, content);
@@ -175,7 +183,7 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
       };
 
       try {
-        const storage = useWorldbookStorageSeparated();
+        const storage = useWorldbookStorage();
         // 保存内容
         await storage.saveWorldbookContent(id, content);
 
@@ -218,7 +226,7 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
       };
 
       try {
-        const storage = useWorldbookStorageSeparated();
+        const storage = useWorldbookStorage();
         await storage.saveWorldbookContent(id, content);
 
         this.worldbooks[index] = newMetadata;
@@ -258,7 +266,7 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
       };
 
       try {
-        const storage = useWorldbookStorageSeparated();
+        const storage = useWorldbookStorage();
         const indexConfig = await storage.loadIndex();
         indexConfig.worldbooks = this.worldbooks;
         await storage.saveIndex(indexConfig);
@@ -289,7 +297,7 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
      */
     async deleteWorldbook(id: string) {
       try {
-        const storage = useWorldbookStorageSeparated();
+        const storage = useWorldbookStorage();
         await storage.deleteWorldbookFile(id);
 
         this.worldbooks = this.worldbooks.filter((wb) => wb.id !== id);
@@ -310,7 +318,7 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
      */
     async deleteWorldbooks(ids: string[]) {
       try {
-        const storage = useWorldbookStorageSeparated();
+        const storage = useWorldbookStorage();
 
         // 1. 并行删除物理文件
         await Promise.all(ids.map((id) => storage.deleteWorldbookFile(id)));

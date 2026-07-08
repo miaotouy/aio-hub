@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from "vue";
-import { useWorldbookStore } from "../../stores/worldbookStore";
+import { useWorldbookStore } from "../stores/worldbookStore";
 import { Book, Plus, Search } from "lucide-vue-next";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 

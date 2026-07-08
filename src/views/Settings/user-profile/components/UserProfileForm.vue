@@ -83,7 +83,7 @@
       <WorldbookSelector
         :model-value="formData.worldbookIds || []"
         @update:model-value="
-          (val) => {
+          (val: string[]) => {
             formData.worldbookIds = val;
             handleInput();
           }
@@ -198,7 +198,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, defineAsyncComponent } from "vue";
 import AvatarSelector from "@/components/common/AvatarSelector.vue";
-import WorldbookSelector from "@/tools/llm-chat/components/worldbook/WorldbookSelector.vue";
+import WorldbookSelector from "@/tools/st-worldbook-manager/components/WorldbookSelector.vue";
 import QuickActionSelector from "@/tools/llm-chat/components/quick-action/QuickActionSelector.vue";
 import type { RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 import type { ChatRegexConfig } from "@/tools/llm-chat/types";
@@ -215,7 +215,7 @@ const ChatRegexEditor = defineAsyncComponent(
 );
 const WorldbookManagerDialog = defineAsyncComponent(
   () =>
-    import("@/tools/llm-chat/components/worldbook/WorldbookManagerDialog.vue")
+    import("@/tools/st-worldbook-manager/components/WorldbookManagerDialog.vue")
 );
 const QuickActionManagerDialog = defineAsyncComponent(
   () =>

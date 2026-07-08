@@ -16,12 +16,12 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from "vue";
-import { useWorldbookStore } from "../../stores/worldbookStore";
-import { importSTWorldbook } from "../../services/worldbookImportService";
+import { useWorldbookStore } from "../stores/worldbookStore";
+import { importSTWorldbook } from "../services/worldbookImportService";
 import {
   exportWorldbook,
   exportWorldbooksBatch,
-} from "../../services/worldbookExportService";
+} from "../services/worldbookExportService";
 import { customMessage } from "@/utils/customMessage";
 import {
   Book,

@@ -72,10 +72,10 @@ const PipelineConfig = defineAsyncComponent(
   () => import("./PipelineConfig.vue")
 );
 const WorldbookManager = defineAsyncComponent(
-  () => import("../worldbook/WorldbookManager.vue")
+  () => import("@/tools/st-worldbook-manager/components/WorldbookManager.vue")
 );
 const WorldbookSelector = defineAsyncComponent(
-  () => import("../worldbook/WorldbookSelector.vue")
+  () => import("@/tools/st-worldbook-manager/components/WorldbookSelector.vue")
 );
 const KbEmbeddingInfo = defineAsyncComponent(
   () => import("./KbEmbeddingInfo.vue")

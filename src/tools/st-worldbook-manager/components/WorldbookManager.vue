@@ -23,8 +23,8 @@ import { useFileDrop } from "@/composables/useFileDrop";
 import {
   importSTWorldbook,
   importSTWorldbookFromPath,
-} from "../../services/worldbookImportService";
-import { useWorldbookStore } from "../../stores/worldbookStore";
+} from "../services/worldbookImportService";
+import { useWorldbookStore } from "../stores/worldbookStore";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 

@@ -37,7 +37,7 @@ export interface BundledWorldbook {
   /** 相对路径（如果是独立文件打包） */
   fileName?: string;
   /** 世界书内容（如果是内嵌到配置文件） */
-  content?: import("./worldbook").STWorldbook;
+  content?: import("@/tools/st-worldbook-manager/types/worldbook").STWorldbook;
 }
 
 /**
@@ -101,7 +101,10 @@ export interface ParsedAgentImportBundle {
   agents: ExportableAgent[];
   assets: Record<string, Record<string, ArrayBuffer>>;
   bundledWorldbooks?: Record<string, BundledWorldbook[]>;
-  embeddedWorldbooks?: Record<string, import("./worldbook").STWorldbook>;
+  embeddedWorldbooks?: Record<
+    string,
+    import("@/tools/st-worldbook-manager/types/worldbook").STWorldbook
+  >;
   sourceMeta?: Record<string, AgentImportSourceMeta>;
   modelRecommendations?: Record<string, AgentImportModelRecommendation>;
 }
@@ -117,7 +120,10 @@ export interface AgentImportPreflightResult {
   /** 随包导出的世界书内容 { agentId: BundledWorldbook[] } */
   bundledWorldbooks?: Record<string, BundledWorldbook[]>;
   /** 待导入的世界书内容 { agentId: STWorldbook } (针对角色卡中嵌入的世界书) */
-  embeddedWorldbooks?: Record<string, import("./worldbook").STWorldbook>;
+  embeddedWorldbooks?: Record<
+    string,
+    import("@/tools/st-worldbook-manager/types/worldbook").STWorldbook
+  >;
   /** 来源元信息 { agentId: AgentImportSourceMeta } */
   sourceMeta?: Record<string, AgentImportSourceMeta>;
   /** 模型推荐 { agentId: AgentImportModelRecommendation } */
@@ -168,5 +174,8 @@ export interface ConfirmImportParams {
   /** 随包导出的世界书内容 { agentId: BundledWorldbook[] } */
   bundledWorldbooks?: Record<string, BundledWorldbook[]>;
   /** 待导入的世界书内容 { agentId: STWorldbook } */
-  embeddedWorldbooks?: Record<string, import("./worldbook").STWorldbook>;
+  embeddedWorldbooks?: Record<
+    string,
+    import("@/tools/st-worldbook-manager/types/worldbook").STWorldbook
+  >;
 }

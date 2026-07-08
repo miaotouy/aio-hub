@@ -22,11 +22,16 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import { parsePngMetadata } from "@/utils/pngMetadataReader";
-import { isCharacterCard, convertMacros } from "./sillyTavernParser";
+import {
+  isCharacterCard,
+  convertMacros,
+} from "@/tools/llm-chat/services/sillyTavernParser";
 
-const logger = createModuleLogger("llm-chat/worldbookImportService");
+const logger = createModuleLogger(
+  "st-worldbook-manager/worldbookImportService"
+);
 const errorHandler = createModuleErrorHandler(
-  "llm-chat/worldbookImportService"
+  "st-worldbook-manager/worldbookImportService"
 );
 
 /**

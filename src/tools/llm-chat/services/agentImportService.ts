@@ -25,15 +25,15 @@ import type {
   ParsedAgentImportBundle,
 } from "../types/agentImportExport";
 import { AgentCategory, AgentCategoryLabels } from "../types";
-import { STWorldbook } from "../types/worldbook";
+import { STWorldbook } from "@/tools/st-worldbook-manager/types/worldbook";
 import {
   isCharacterCard,
   parseCharacterCard,
   SillyTavernCharacterCard,
 } from "./sillyTavernParser";
 import { parsePngMetadata } from "@/utils/pngMetadataReader";
-import { normalizeWorldbook } from "./worldbookImportService";
-import { useWorldbookStore } from "../stores/worldbookStore";
+import { normalizeWorldbook } from "@/tools/st-worldbook-manager/services/worldbookImportService";
+import { useWorldbookStore } from "@/tools/st-worldbook-manager/stores/worldbookStore";
 import { invoke } from "@tauri-apps/api/core";
 import { useAgentStore } from "../stores/agentStore";
 import { useChatSettings } from "../composables/settings/useChatSettings";

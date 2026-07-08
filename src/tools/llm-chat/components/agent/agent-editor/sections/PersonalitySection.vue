@@ -20,7 +20,7 @@ import AgentPresetEditor from "@/tools/llm-chat/components/agent/assets/AgentPre
 import AgentGreetingEditor from "@/tools/llm-chat/components/agent/assets/AgentGreetingEditor.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { parseModelCombo } from "@/utils/modelIdUtils";
-import WorldbookSelector from "@/tools/llm-chat/components/worldbook/WorldbookSelector.vue";
+import WorldbookSelector from "@/tools/st-worldbook-manager/components/WorldbookSelector.vue";
 import QuickActionSelector from "@/tools/llm-chat/components/quick-action/QuickActionSelector.vue";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 import { useUserProfileStore } from "@/tools/llm-chat/stores/userProfileStore";

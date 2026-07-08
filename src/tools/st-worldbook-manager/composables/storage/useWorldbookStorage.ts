@@ -30,10 +30,12 @@ import type { STWorldbook, WorldbookMetadata } from "../../types/worldbook";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
-const logger = createModuleLogger("llm-chat/worldbook-storage");
-const errorHandler = createModuleErrorHandler("llm-chat/worldbook-storage");
+const logger = createModuleLogger("st-worldbook-manager/worldbook-storage");
+const errorHandler = createModuleErrorHandler(
+  "st-worldbook-manager/worldbook-storage"
+);
 
-const MODULE_NAME = "llm-chat";
+const MODULE_NAME = "st-worldbook-manager";
 const WORLDBOOKS_SUBDIR = "worldbooks";
 
 /**
@@ -64,7 +66,127 @@ const indexManager = createConfigManager<WorldbooksIndex>({
   createDefault: createDefaultIndex,
 });
 
-export function useWorldbookStorageSeparated() {
+export function useWorldbookStorage() {
+  /**
+   * 冷启动自动检测与物理迁移管道
+   */
+  async function triggerWorldbookDataMigration(): Promise<void> {
+    try {
+      const appDir = await getAppConfigDir();
+      const oldModuleDir = await join(appDir, "llm-chat");
+      const oldIndexFile = await join(oldModuleDir, "worldbooks-index.json");
+      const oldWbDir = await join(oldModuleDir, "worldbooks");
+
+      const newModuleDir = await join(appDir, MODULE_NAME);
+      const newIndexFile = await join(newModuleDir, "worldbooks-index.json");
+      const newWbDir = await join(newModuleDir, "worldbooks");
+
+      // 1. 幂等性检查：如果新路径已经存在索引文件，说明已经迁移过，直接跳过
+      if (await exists(newIndexFile)) {
+        return;
+      }
+
+      // 2. 检测旧路径是否存在数据
+      if (!(await exists(oldIndexFile))) {
+        return; // 无旧数据，纯净新安装
+      }
+
+      logger.info("检测到历史世界书数据，启动自动迁移管道...");
+
+      const timestamp = Date.now();
+      const backupDir = await join(
+        appDir,
+        "backups",
+        `worldbook_migration_backup_${timestamp}`
+      );
+      const { mkdir, copyFile, readDir, rename } =
+        await import("@tauri-apps/plugin-fs");
+
+      // 3. 安全备份：将旧数据完整复制到备份目录
+      await mkdir(backupDir, { recursive: true });
+      await copyFile(
+        oldIndexFile,
+        await join(backupDir, "worldbooks-index.json")
+      );
+
+      if (await exists(oldWbDir)) {
+        const backupWbDir = await join(backupDir, "worldbooks");
+        await mkdir(backupWbDir, { recursive: true });
+        const entries = await readDir(oldWbDir);
+        for (const entry of entries) {
+          if (entry.name && entry.name.endsWith(".json")) {
+            await copyFile(
+              await join(oldWbDir, entry.name),
+              await join(backupWbDir, entry.name)
+            );
+          }
+        }
+      }
+      logger.info("历史世界书数据备份成功", { backupDir });
+
+      // 4. 物理迁移：创建新目录并复制数据
+      await mkdir(newModuleDir, { recursive: true });
+      await mkdir(newWbDir, { recursive: true });
+
+      await copyFile(oldIndexFile, newIndexFile);
+
+      if (await exists(oldWbDir)) {
+        const entries = await readDir(oldWbDir);
+        for (const entry of entries) {
+          if (entry.name && entry.name.endsWith(".json")) {
+            await copyFile(
+              await join(oldWbDir, entry.name),
+              await join(newWbDir, entry.name)
+            );
+          }
+        }
+      }
+      logger.info("世界书数据物理迁移完成，开始完整性校验...");
+
+      // 5. 完整性校验：对比新旧目录文件数量
+      let oldFileCount = 0;
+      let newFileCount = 0;
+      if (await exists(oldWbDir)) {
+        oldFileCount = (await readDir(oldWbDir)).filter((e) =>
+          e.name?.endsWith(".json")
+        ).length;
+      }
+      if (await exists(newWbDir)) {
+        newFileCount = (await readDir(newWbDir)).filter((e) =>
+          e.name?.endsWith(".json")
+        ).length;
+      }
+
+      if (oldFileCount !== newFileCount) {
+        throw new Error(
+          `迁移校验失败：文件数量不一致 (旧: ${oldFileCount}, 新: ${newFileCount})`
+        );
+      }
+
+      // 6. 清理旧路径：为了绝对安全，第一阶段仅重命名旧路径为 .bak，稳定运行一个版本后再物理删除
+      const oldIndexFileBak = `${oldIndexFile}.migrated.bak`;
+      await rename(oldIndexFile, oldIndexFileBak);
+
+      if (await exists(oldWbDir)) {
+        const oldWbDirBak = `${oldWbDir}.migrated.bak`;
+        await rename(oldWbDir, oldWbDirBak);
+      }
+
+      logger.info("旧世界书数据已安全归档", { oldIndexFileBak });
+
+      const { customMessage } = await import("@/utils/customMessage");
+      customMessage.success("历史世界书数据已成功迁移至新路径！");
+    } catch (error) {
+      logger.error("世界书数据迁移失败，启动自动回滚！", error);
+      const newModuleDir = await join(await getAppConfigDir(), MODULE_NAME);
+      if (await exists(newModuleDir)) {
+        await remove(newModuleDir, { recursive: true });
+      }
+      const { customMessage } = await import("@/utils/customMessage");
+      customMessage.error("历史世界书数据迁移失败，已安全回滚。请检查日志。");
+    }
+  }
+
   /**
    * 获取世界书文件路径
    */
@@ -241,6 +363,7 @@ export function useWorldbookStorageSeparated() {
   }
 
   return {
+    triggerWorldbookDataMigration,
     loadIndex,
     saveIndex,
     loadWorldbookContent,

@@ -26,7 +26,7 @@ import { useTranscriptionManager } from "../../composables/features/useTranscrip
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import type { Asset } from "@/types/asset-management";
 import type { ProcessableMessage } from "../../types/context";
-import type { MatchedWorldbookEntry } from "../../types/worldbook";
+import type { MatchedWorldbookEntry } from "@/tools/st-worldbook-manager/types/worldbook";
 
 /**
  * 从已完成的管道上下文中构建用于 UI 展示的预览数据。

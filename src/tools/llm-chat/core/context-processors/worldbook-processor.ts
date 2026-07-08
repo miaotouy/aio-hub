@@ -19,7 +19,7 @@ import {
   STWorldbookPosition,
   MatchedWorldbookEntry,
   STWorldbook,
-} from "../../types/worldbook";
+} from "@/tools/st-worldbook-manager/types/worldbook";
 import { ProcessableMessage } from "../../types/context";
 import { createModuleLogger } from "@/utils/logger";
 

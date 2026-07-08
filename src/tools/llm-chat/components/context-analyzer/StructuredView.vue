@@ -765,7 +765,7 @@ import { useModelMetadata } from "@/composables/useModelMetadata";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useTranscriptionManager } from "../../composables/features/useTranscriptionManager";
-import { STWorldbookPosition } from "../../types/worldbook";
+import { STWorldbookPosition } from "@/tools/st-worldbook-manager/types/worldbook";
 
 const props = defineProps<{
   contextData: ContextPreviewData;

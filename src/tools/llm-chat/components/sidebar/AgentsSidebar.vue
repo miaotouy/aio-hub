@@ -78,7 +78,8 @@ const VcpChatAgentImportDialog = defineAsyncComponent(
   () => import("../export/VcpChatAgentImportDialog.vue")
 );
 const WorldbookManagerDialog = defineAsyncComponent(
-  () => import("../worldbook/WorldbookManagerDialog.vue")
+  () =>
+    import("@/tools/st-worldbook-manager/components/WorldbookManagerDialog.vue")
 );
 
 const agentStore = useAgentStore();

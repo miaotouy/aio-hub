@@ -41,7 +41,8 @@ const EditUserProfileDialog = defineAsyncComponent(
   () => import("../../user-profile/EditUserProfileDialog.vue")
 );
 const WorldbookManagerDialog = defineAsyncComponent(
-  () => import("../../worldbook/WorldbookManagerDialog.vue")
+  () =>
+    import("@/tools/st-worldbook-manager/components/WorldbookManagerDialog.vue")
 );
 
 interface Props {

@@ -16,8 +16,8 @@
 
 <script setup lang="ts">
 import { onMounted } from "vue";
-import WorldbookFullManager from "../llm-chat/components/worldbook/WorldbookFullManager.vue";
-import { useWorldbookStore } from "../llm-chat/stores/worldbookStore";
+import WorldbookFullManager from "./components/WorldbookFullManager.vue";
+import { useWorldbookStore } from "./stores/worldbookStore";
 
 const worldbookStore = useWorldbookStore();
 
@@ -28,7 +28,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="st-worldbook-editor-container">
+  <div class="st-worldbook-manager-container">
     <div class="editor-content">
       <WorldbookFullManager />
     </div>
@@ -36,7 +36,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.st-worldbook-editor-container {
+.st-worldbook-manager-container {
   display: flex;
   flex-direction: column;
   height: 100%;

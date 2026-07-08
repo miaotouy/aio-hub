@@ -154,7 +154,9 @@ export function useSingleNodeExecutor() {
     // 预加载世界书
     const worldbookStore = import.meta.env.SSR
       ? null
-      : (await import("../../stores/worldbookStore")).useWorldbookStore();
+      : (
+          await import("@/tools/st-worldbook-manager/stores/worldbookStore")
+        ).useWorldbookStore();
     const allWorldbookIds = Array.from(
       new Set([
         ...(settings.value.worldbookIds || []),

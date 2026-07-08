@@ -16,9 +16,9 @@
 
 <script setup lang="ts">
 import { onMounted, computed } from "vue";
-import { useWorldbookStore } from "../../stores/worldbookStore";
+import { useWorldbookStore } from "../stores/worldbookStore";
 import { Book, Settings2, Plus } from "lucide-vue-next";
-import { importSTWorldbook } from "../../services/worldbookImportService";
+import { importSTWorldbook } from "../services/worldbookImportService";
 import { customMessage } from "@/utils/customMessage";
 
 const emit = defineEmits<{

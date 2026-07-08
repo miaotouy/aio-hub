@@ -26,9 +26,11 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import JSZip from "jszip";
 
-const logger = createModuleLogger("llm-chat/worldbookExportService");
+const logger = createModuleLogger(
+  "st-worldbook-manager/worldbookExportService"
+);
 const errorHandler = createModuleErrorHandler(
-  "llm-chat/worldbookExportService"
+  "st-worldbook-manager/worldbookExportService"
 );
 
 /**

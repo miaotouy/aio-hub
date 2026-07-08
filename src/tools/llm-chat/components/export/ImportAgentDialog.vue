@@ -49,7 +49,7 @@ const emit = defineEmits<{
       >;
       embeddedWorldbooks: Record<
         string,
-        import("../../types/worldbook").STWorldbook
+        import("@/tools/st-worldbook-manager/types/worldbook").STWorldbook
       >;
     },
   ];
@@ -196,7 +196,7 @@ const handleConfirm = () => {
   > = {};
   const filteredEmbeddedWorldbooks: Record<
     string,
-    import("../../types/worldbook").STWorldbook
+    import("@/tools/st-worldbook-manager/types/worldbook").STWorldbook
   > = {};
 
   // 将 UI 层的选项应用回数据结构

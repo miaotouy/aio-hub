@@ -38,7 +38,7 @@ import MessageList from "./message/MessageList.vue";
 import MessageInput from "./message-input/MessageInput.vue";
 import ToolCallingApprovalBar from "./message-input/ToolCallingApprovalBar.vue";
 import MessageNavigator from "./message/MessageNavigator.vue";
-import EditUserProfileDialog from "./user-profile/EditUserProfileDialog.vue";
+import EditUserProfileDialog from "@/tools/user-profile-manager/components/user-profile/EditUserProfileDialog.vue";
 import EditAgentDialog from "./agent/management/EditAgentDialog.vue";
 import ChatSettingsDialog from "./settings/ChatSettingsDialog.vue";
 import FlowTreeGraph from "./conversation-tree-graph/flow/FlowTreeGraph.vue";

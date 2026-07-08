@@ -347,7 +347,7 @@ import { customMessage } from "@/utils/customMessage";
 import PresetGroupPanel from "./PresetGroupPanel.vue";
 import PresetGroupEditDialog from "./PresetGroupEditDialog.vue";
 import PresetMessageEditor from "../editors/PresetMessageEditor.vue";
-import EditUserProfileDialog from "../../user-profile/EditUserProfileDialog.vue";
+import EditUserProfileDialog from "@/tools/user-profile-manager/components/user-profile/EditUserProfileDialog.vue";
 import STPresetImportDialog from "./STPresetImportDialog.vue";
 import AgentPresetBatchDialog from "./AgentPresetBatchDialog.vue";
 import PresetMessageCard from "./PresetMessageCard.vue";

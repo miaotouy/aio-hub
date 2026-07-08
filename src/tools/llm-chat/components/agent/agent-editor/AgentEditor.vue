@@ -38,7 +38,8 @@ import { useUserProfileStore } from "../../../stores/userProfileStore";
 import AgentAssetsDialog from "../assets/AgentAssetsDialog.vue";
 
 const EditUserProfileDialog = defineAsyncComponent(
-  () => import("../../user-profile/EditUserProfileDialog.vue")
+  () =>
+    import("@/tools/user-profile-manager/components/user-profile/EditUserProfileDialog.vue")
 );
 const WorldbookManagerDialog = defineAsyncComponent(
   () =>

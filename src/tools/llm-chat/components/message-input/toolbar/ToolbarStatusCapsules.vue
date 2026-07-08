@@ -15,14 +15,15 @@
 -->
 
 <script setup lang="ts">
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { ElTooltip, ElPopover } from "element-plus";
 import { AtSign, X, Sparkles, Brush } from "lucide-vue-next";
 import { ref } from "vue";
 import MiniCanvasControl from "../MiniCanvasControl.vue";
 import type { ContextPreviewData } from "../../../types/context";
-import { useAgentStore } from "../../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useMessageInputStore } from "../../../stores/messageInputStore";
-import { DEFAULT_TOOL_CALL_CONFIG } from "../../../types/agent";
+import { DEFAULT_TOOL_CALL_CONFIG } from "@/tools/agent-manager/types/agent";
 
 const props = defineProps<{
   isDetached?: boolean;
@@ -36,13 +37,14 @@ const emit = defineEmits<{
   (e: "canvas-visible-change", visible: boolean): void;
 }>();
 
+const { currentAgentId } = useLlmChatUiState();
 const canvasControlVisible = ref(false);
 const agentStore = useAgentStore();
 const inputStore = useMessageInputStore();
 
 const unbindCanvas = () => {
-  const agent = agentStore.currentAgentId
-    ? agentStore.getAgentById(agentStore.currentAgentId)
+  const agent = currentAgentId.value
+    ? agentStore.getAgentById(currentAgentId.value)
     : null;
   if (!agent) return;
   if (!agent.toolCallConfig) {

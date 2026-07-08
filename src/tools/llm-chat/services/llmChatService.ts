@@ -21,8 +21,9 @@
 
 import { useChatInputManager } from "../composables/input/useChatInputManager";
 import { useLlmChatStore } from "../stores/llmChatStore";
-import { useAgentStore } from "../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../stores/userProfileStore";
+import { useLlmChatUiState } from "../composables/ui/useLlmChatUiState";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import type { Asset } from "@/types/asset-management";
@@ -435,7 +436,8 @@ export class LlmChatService {
    * 获取当前选中的智能体
    */
   public getCurrentAgent(): ChatAgent | null {
-    const agentId = this.agentStore.currentAgentId;
+    const { currentAgentId } = useLlmChatUiState();
+    const agentId = currentAgentId.value;
     return agentId ? this.agentStore.getAgentById(agentId) || null : null;
   }
 
@@ -508,13 +510,13 @@ export class LlmChatService {
             store.switchSession(targetSession.id);
           } else {
             // 情况2：完全没有会话 -> 尝试自动创建新会话
-            const agentStore = this.agentStore;
+            const { currentAgentId } = useLlmChatUiState();
 
-            if (agentStore.currentAgentId) {
+            if (currentAgentId.value) {
               logger.info("没有可用会话，自动创建新会话", {
-                agentId: agentStore.currentAgentId,
+                agentId: currentAgentId.value,
               });
-              store.createSession(agentStore.currentAgentId);
+              store.createSession(currentAgentId.value);
             } else {
               // 情况3：连 Agent 都没选 -> 抛出错误让用户去选
               throw new Error("请先选择一个智能体或创建一个会话");

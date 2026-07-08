@@ -15,6 +15,7 @@
 -->
 
 <script setup lang="ts">
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import {
   computed,
   ref,
@@ -49,7 +50,7 @@ import {
   Eye,
 } from "lucide-vue-next";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
@@ -385,9 +386,11 @@ const formattedTime = computed(() => {
   });
 });
 
+const { currentAgentId } = useLlmChatUiState();
+
 const currentAgent = computed(() => {
   const agentId =
-    props.message.metadata?.agentId ?? agentStore.currentAgentId ?? undefined;
+    props.message.metadata?.agentId ?? currentAgentId.value ?? undefined;
   return agentId ? agentStore.getAgentById(agentId) : undefined;
 });
 
@@ -465,7 +468,7 @@ const displayContent = computed(() =>
 
 const activeRules = computed(() => {
   const agentId =
-    props.message.metadata?.agentId ?? agentStore.currentAgentId ?? undefined;
+    props.message.metadata?.agentId ?? currentAgentId.value ?? undefined;
   const userProfileId =
     props.message.metadata?.userProfileId ??
     userProfileStore.globalProfileId ??

@@ -20,6 +20,7 @@ export type { InputToolbarSettings } from "../../stores/messageInputStore";
 </script>
 
 <script setup lang="ts">
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { ElTooltip, ElPopover, ElIcon } from "element-plus";
 import {
   Paperclip,
@@ -30,7 +31,7 @@ import {
   Wrench,
 } from "lucide-vue-next";
 import { MagicStick } from "@element-plus/icons-vue";
-import MacroSelector from "../agent/selectors/MacroSelector.vue";
+import MacroSelector from "@/tools/agent-manager/components/selectors/MacroSelector.vue";
 import MiniSessionList from "./MiniSessionList.vue";
 import MiniToolCallingSettings from "./MiniToolCallingSettings.vue";
 import QuickActionsBar from "./toolbar/QuickActionsBar.vue";
@@ -40,7 +41,7 @@ import ToolbarStatusCapsules from "./toolbar/ToolbarStatusCapsules.vue";
 import type { ContextPreviewData } from "../../types/context";
 import type { MacroDefinition } from "../../macro-engine";
 import { useQuickActionStore } from "../../stores/quickActionStore";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useCanvasStore } from "@/tools/web-canvas/stores/canvasStore";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
@@ -105,6 +106,7 @@ const {
   settings: inputSettings,
 } = storeToRefs(inputStore);
 
+const { currentAgentId } = useLlmChatUiState();
 const quickActionStore = useQuickActionStore();
 const agentStore = useAgentStore();
 const profileStore = useUserProfileStore();
@@ -112,15 +114,15 @@ const bus = useWindowSyncBus();
 const { settings: chatSettings } = useChatSettings();
 
 const isToolCallingEnabled = computed(() => {
-  const agent = agentStore.currentAgentId
-    ? agentStore.getAgentById(agentStore.currentAgentId)
+  const agent = currentAgentId.value
+    ? agentStore.getAgentById(currentAgentId.value)
     : null;
   return agent?.toolCallConfig?.enabled ?? false;
 });
 
 const isContextCompressionEnabled = computed(() => {
-  const agent = agentStore.currentAgentId
-    ? agentStore.getAgentById(agentStore.currentAgentId)
+  const agent = currentAgentId.value
+    ? agentStore.getAgentById(currentAgentId.value)
     : null;
   return agent?.parameters?.contextCompression?.enabled ?? false;
 });
@@ -134,8 +136,8 @@ onMounted(() => {
 
 const activeActionSets = computed(() => {
   const globalIds = chatSettings.value.quickActionSetIds || [];
-  const agent = agentStore.currentAgentId
-    ? agentStore.getAgentById(agentStore.currentAgentId)
+  const agent = currentAgentId.value
+    ? agentStore.getAgentById(currentAgentId.value)
     : null;
   const agentIds = agent?.quickActionSetIds || [];
   const effectiveProfile = profileStore.getEffectiveProfile(
@@ -155,15 +157,15 @@ const miniSessionListRef = ref<any>(null);
 
 const isCanvasEnabled = computed(() => {
   if (!isToolCallingEnabled.value) return false;
-  const agent = agentStore.currentAgentId
-    ? agentStore.getAgentById(agentStore.currentAgentId)
+  const agent = currentAgentId.value
+    ? agentStore.getAgentById(currentAgentId.value)
     : null;
   return agent?.toolCallConfig?.toolToggles?.["web-canvas"] === true;
 });
 
 const boundCanvasId = computed(() => {
-  const agent = agentStore.currentAgentId
-    ? agentStore.getAgentById(agentStore.currentAgentId)
+  const agent = currentAgentId.value
+    ? agentStore.getAgentById(currentAgentId.value)
     : null;
   return agent?.toolCallConfig?.toolSettings?.["web-canvas"]?.canvasId || null;
 });

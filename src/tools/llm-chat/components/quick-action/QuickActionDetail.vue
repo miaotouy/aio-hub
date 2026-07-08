@@ -30,7 +30,7 @@ import {
 import { MagicStick } from "@element-plus/icons-vue";
 import { customMessage } from "@/utils/customMessage";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
-import MacroSelector from "../agent/selectors/MacroSelector.vue";
+import MacroSelector from "@/tools/agent-manager/components/selectors/MacroSelector.vue";
 import {
   MacroRegistry,
   initializeMacroEngine,

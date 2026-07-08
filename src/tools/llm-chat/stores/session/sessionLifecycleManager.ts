@@ -545,13 +545,12 @@ export function createSessionLifecycleManager(
         }
 
         if (detail && index.displayAgentId) {
-          const { useAgentStore } = await import("../agentStore");
+          const { useAgentStore } =
+            await import("@/tools/agent-manager/stores/agentStore");
           const { useUserProfileStore } = await import("../userProfileStore");
           const agentStore = useAgentStore();
           const userProfileStore = useUserProfileStore();
-          const agent = await agentStore.ensureAgentLoaded(
-            index.displayAgentId
-          );
+          const agent = await agentStore.loadAgentDetails(index.displayAgentId);
           if (agent) {
             const effectiveUserProfile = userProfileStore.getEffectiveProfile(
               agent.userProfileId

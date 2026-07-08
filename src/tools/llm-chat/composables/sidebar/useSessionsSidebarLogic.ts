@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { ref, computed, watch } from "vue";
 import type { ChatSessionIndex } from "../../types";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import {
   useLlmSearch,
   type MatchDetail,
@@ -52,6 +53,7 @@ export function useSessionsSidebarLogic({
   props,
   emit,
 }: UseSessionsSidebarLogicOptions) {
+  const { currentAgentId } = useLlmChatUiState();
   const agentStore = useAgentStore();
   const searchQuery = ref("");
   const { isGenerating } = useTopicNamer();
@@ -102,7 +104,7 @@ export function useSessionsSidebarLogic({
   const newSessionName = ref("");
 
   const handleQuickNewSession = () => {
-    const agentId = agentStore.currentAgentId || agentStore.defaultAgent?.id;
+    const agentId = currentAgentId.value || agentStore.defaultAgent?.id;
     if (!agentId) {
       customMessage.warning("没有可用的智能体来创建新会话");
       return;

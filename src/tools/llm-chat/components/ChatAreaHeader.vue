@@ -30,7 +30,7 @@ import { createModuleLogger } from "@utils/logger";
 import { useChatSettings } from "../composables/settings/useChatSettings";
 import { useChatAreaContext } from "../composables/useChatAreaContext";
 import ViewModeSwitcher from "./message/ViewModeSwitcher.vue";
-import QuickAgentSwitch from "./agent/selectors/QuickAgentSwitch.vue";
+import QuickAgentSwitch from "@/tools/agent-manager/components/selectors/QuickAgentSwitch.vue";
 
 interface Props {
   containerWidth: number;

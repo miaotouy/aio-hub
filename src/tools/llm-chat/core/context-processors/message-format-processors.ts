@@ -357,12 +357,12 @@ export const messageFormatter: ContextProcessor = {
     });
 
     // 模型规则覆盖
-    modelRules.forEach((rule) => {
+    modelRules.forEach((rule: any) => {
       mergedRulesMap.set(rule.type, rule);
     });
 
     // Agent 规则覆盖
-    agentRules.forEach((rule) => {
+    agentRules.forEach((rule: any) => {
       mergedRulesMap.set(rule.type, rule);
     });
 

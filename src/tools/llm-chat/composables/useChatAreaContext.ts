@@ -16,13 +16,14 @@ import { computed, inject, provide, ref } from "vue";
 import type { ComputedRef, Ref } from "vue";
 import type { ChatAgent, UserProfile, AgentEditData } from "../types";
 import type { LlmModelInfo } from "@/types/llm-profiles";
-import { useAgentStore } from "../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../stores/userProfileStore";
 import { useLlmChatStore } from "../stores/llmChatStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useResolvedAvatar } from "./ui/useResolvedAvatar";
+import { useLlmChatUiState } from "./ui/useLlmChatUiState";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -68,6 +69,7 @@ export function provideChatAreaContext(options: {
 }): ChatAreaContext {
   const agentStore = useAgentStore();
   const userProfileStore = useUserProfileStore();
+  const { selectAgent } = useLlmChatUiState();
   const llmChatStore = useLlmChatStore();
   const bus = useWindowSyncBus();
   const { getProfileById } = useLlmProfiles();
@@ -238,7 +240,7 @@ export function provideChatAreaContext(options: {
         errorHandler.error(error, "请求切换智能体失败");
       }
     } else {
-      agentStore.selectAgent(agentId, {
+      selectAgent(agentId, {
         sessionId: llmChatStore.currentSessionId,
       });
     }

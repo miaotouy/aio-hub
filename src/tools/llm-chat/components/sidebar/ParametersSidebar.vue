@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/ui/useLlmChatUiState";
@@ -24,9 +24,9 @@ import { useResolvedAvatar } from "../../composables/ui/useResolvedAvatar";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import Avatar from "@/components/common/Avatar.vue";
-import AgentPresetEditor from "../agent/assets/AgentPresetEditor.vue";
-import EditAgentDialog from "../agent/management/EditAgentDialog.vue";
-import ModelParametersEditor from "../agent/parameters/ModelParametersEditor.vue";
+import AgentPresetEditor from "@/tools/agent-manager/components/assets/AgentPresetEditor.vue";
+import EditAgentDialog from "@/tools/agent-manager/components/management/EditAgentDialog.vue";
+import ModelParametersEditor from "@/tools/agent-manager/components/parameters/ModelParametersEditor.vue";
 import ModelEditDialog from "@/views/Settings/llm-service/components/ModelEditDialog.vue";
 import ConfigSection from "../common/ConfigSection.vue";
 import { customMessage } from "@/utils/customMessage";
@@ -38,14 +38,15 @@ import type {
 import type { LlmModelInfo } from "@/types/llm-profiles";
 import { Edit, Setting, ChatLineRound, Refresh } from "@element-plus/icons-vue";
 
+const { currentAgentId } = useLlmChatUiState();
 const agentStore = useAgentStore();
 const chatStore = useLlmChatStore();
 const { enabledProfiles, getProfileById, saveProfile } = useLlmProfiles();
 
 // 获取当前智能体（从 store 读取）
 const currentAgent = computed(() => {
-  if (!agentStore.currentAgentId) return null;
-  return agentStore.getAgentById(agentStore.currentAgentId);
+  if (!currentAgentId.value) return null;
+  return agentStore.getAgentById(currentAgentId.value);
 });
 
 const agentAvatarSrc = useResolvedAvatar(currentAgent, "agent");
@@ -96,10 +97,10 @@ const selectedModelCombo = computed({
     return `${agent.profileId}:${agent.modelId}`;
   },
   set: (value: string) => {
-    if (!value || !currentAgent.value || !agentStore.currentAgentId) return;
+    if (!value || !currentAgent.value || !currentAgentId.value) return;
     const [profileId, modelId] = parseModelCombo(value);
     // 直接更新 Agent 的模型配置
-    agentStore.updateAgent(agentStore.currentAgentId, { profileId, modelId });
+    agentStore.updateAgent(currentAgentId.value, { profileId, modelId });
     customMessage.success("模型已更新");
   },
 });
@@ -115,8 +116,8 @@ const modelParameters = computed<LlmParameters>({
     );
   },
   set: (value: LlmParameters) => {
-    if (!currentAgent.value || !agentStore.currentAgentId) return;
-    agentStore.updateAgent(agentStore.currentAgentId, {
+    if (!currentAgent.value || !currentAgentId.value) return;
+    agentStore.updateAgent(currentAgentId.value, {
       parameters: value,
     });
   },
@@ -130,8 +131,8 @@ const presetMessages = computed<ChatMessageNode[]>({
     return currentAgent.value?.presetMessages ?? [];
   },
   set: (value: ChatMessageNode[]) => {
-    if (!currentAgent.value || !agentStore.currentAgentId) return;
-    agentStore.updateAgent(agentStore.currentAgentId, {
+    if (!currentAgent.value || !currentAgentId.value) return;
+    agentStore.updateAgent(currentAgentId.value, {
       presetMessages: value,
     });
     customMessage.success("预设消息已更新");
@@ -181,7 +182,7 @@ const handleSaveEdit = (
   data: AgentEditData,
   options: { silent?: boolean; agentId?: string } = {}
 ) => {
-  const targetId = options.agentId || agentStore.currentAgentId;
+  const targetId = options.agentId || currentAgentId.value;
   if (!targetId) return;
 
   agentStore.updateAgent(targetId, data);

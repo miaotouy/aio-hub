@@ -15,6 +15,7 @@
 -->
 
 <script setup lang="ts">
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { ref, computed } from "vue";
 import { ElMessageBox } from "element-plus";
 import { useVirtualizer } from "@tanstack/vue-virtual";
@@ -278,6 +279,8 @@ const scrollToCurrentSession = () => {
   }
 };
 
+const { selectAgent } = useLlmChatUiState();
+
 // 处理会话点击
 const handleSessionClick = (session: ChatSessionIndex) => {
   if (
@@ -286,7 +289,7 @@ const handleSessionClick = (session: ChatSessionIndex) => {
   ) {
     const agent = agentStore.getAgentById(session.displayAgentId);
     if (agent) {
-      agentStore.selectAgent(session.displayAgentId, {
+      selectAgent(session.displayAgentId, {
         syncCurrentSessionGreetings: false,
       });
     }

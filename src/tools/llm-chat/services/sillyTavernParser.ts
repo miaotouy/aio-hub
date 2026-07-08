@@ -20,7 +20,10 @@
  */
 
 import { createModuleLogger } from "@/utils/logger";
-import type { ChatAgent, GreetingMessage } from "../types/agent";
+import type {
+  ChatAgent,
+  GreetingMessage,
+} from "@/tools/agent-manager/types/agent";
 import type { ChatMessageNode, InjectionStrategy } from "../types/message";
 import type { MessageRole } from "../types/common";
 import { ANCHOR_IDS } from "../types/context";

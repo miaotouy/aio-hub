@@ -27,18 +27,20 @@ import {
   Search,
   HelpCircle,
 } from "lucide-vue-next";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import ToolCallingHelpDialog from "../common/ToolCallingHelpDialog.vue";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
 import { useToolSearch } from "@/tools/tool-calling/composables/useToolSearch";
 import { useToolsStore } from "@/stores/tools";
-import { DEFAULT_TOOL_CALL_CONFIG } from "../../types/agent";
+import { DEFAULT_TOOL_CALL_CONFIG } from "@/tools/agent-manager/types/agent";
 import { useIsVcpChannel } from "../../composables/useIsVcpChannel";
+import { useLlmChatUiState } from "../../composables/ui/useLlmChatUiState";
 
 const agentStore = useAgentStore();
 const toolsStore = useToolsStore();
 const { getDiscoveredMethods } = useToolCalling();
 const { isVcpChannel } = useIsVcpChannel();
+const { currentAgentId } = useLlmChatUiState();
 
 // 展开的工具ID
 const expandedToolId = ref<string | null>(null);
@@ -46,8 +48,8 @@ const searchQuery = ref("");
 const showHelpDialog = ref(false);
 
 const currentAgent = computed(() => {
-  return agentStore.currentAgentId
-    ? agentStore.getAgentById(agentStore.currentAgentId)
+  return currentAgentId.value
+    ? agentStore.getAgentById(currentAgentId.value)
     : null;
 });
 

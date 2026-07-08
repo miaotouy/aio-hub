@@ -115,6 +115,7 @@
 </template>
 
 <script setup lang="ts">
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { ref, computed, watch } from "vue";
 import { ElButton, ElIcon } from "element-plus";
 import { Camera } from "lucide-vue-next";
@@ -129,7 +130,7 @@ import {
   useExportManager,
   type ExportOptions,
 } from "../../composables/features/useExportManager";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useChatExecutor } from "../../composables/chat/useChatExecutor";
 import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
 import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
@@ -167,6 +168,8 @@ const handleShareScreenshot = () => {
   localVisible.value = false;
   emit("screenshot");
 };
+
+const { currentAgentId } = useLlmChatUiState();
 
 const localVisible = computed({
   get: () => props.visible,
@@ -249,8 +252,8 @@ const participatingAgents = computed(() => {
   const result = Array.from(agentsMap.values());
 
   // 如果路径中没有智能体信息，回退到当前智能体（如果是正在进行的会话导出）
-  if (result.length === 0 && agentStore.currentAgentId) {
-    const current = agentStore.getAgentById(agentStore.currentAgentId);
+  if (result.length === 0 && currentAgentId.value) {
+    const current = agentStore.getAgentById(currentAgentId.value);
     if (current) {
       const avatarSrc = resolveAvatarPath(current, "agent");
       return [

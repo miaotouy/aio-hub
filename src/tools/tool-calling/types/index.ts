@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { ToolCallConfig as AgentToolCallConfig } from "@/tools/llm-chat/types/agent";
+import type { ToolCallConfig as AgentToolCallConfig } from "@/tools/agent-manager/types/agent";
 
 export interface ParsedToolRequest {
   requestId: string;

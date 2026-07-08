@@ -15,6 +15,7 @@
 -->
 
 <script setup lang="ts">
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { ref, computed, watch } from "vue";
 import {
   Copy,
@@ -43,7 +44,7 @@ import {
 import { useChatInputManager } from "@/tools/llm-chat/composables/input/useChatInputManager";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { useAgentStore } from "../../../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "../../../../stores/llmChatStore";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
@@ -123,6 +124,8 @@ const handleRegenerate = () => {
 };
 const handleCreateBranch = () => emit("create-branch");
 
+const { currentAgentId } = useLlmChatUiState();
+
 // 续写消息
 const handleContinue = () => {
   const inputManager = useChatInputManager();
@@ -179,8 +182,8 @@ const handleReparseTools = () => {
 
 // 获取当前预设消息列表
 const currentPresetMessages = computed(() => {
-  if (!agentStore.currentAgentId) return [];
-  const agent = agentStore.getAgentById(agentStore.currentAgentId);
+  if (!currentAgentId.value) return [];
+  const agent = agentStore.getAgentById(currentAgentId.value);
   if (!agent?.presetMessages) return [];
   return agent.presetMessages.filter(
     (msg: ChatMessageNode) =>
@@ -214,8 +217,8 @@ const handleSelectModelAndRegenerate = async () => {
 
   // 2. 如果还是没有，尝试使用当前智能体的默认模型
   if (!targetModelId || !targetProfileId) {
-    if (agentStore.currentAgentId) {
-      const agent = agentStore.getAgentById(agentStore.currentAgentId);
+    if (currentAgentId.value) {
+      const agent = agentStore.getAgentById(currentAgentId.value);
       if (agent) {
         targetModelId = agent.modelId;
         targetProfileId = agent.profileId;

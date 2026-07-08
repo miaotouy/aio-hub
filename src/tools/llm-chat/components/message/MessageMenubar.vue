@@ -15,6 +15,7 @@
 -->
 
 <script setup lang="ts">
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { ref, computed } from "vue";
 import {
   ElMessageBox,
@@ -58,7 +59,7 @@ import type {
 } from "../../types";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useChatInputManager } from "../../composables/input/useChatInputManager";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -183,6 +184,8 @@ const handleDelete = async () => {
     // 用户取消，不做任何操作
   }
 };
+const { currentAgentId } = useLlmChatUiState();
+
 const handleContinue = () => {
   // 检查是否有临时模型
   const inputManager = useChatInputManager();
@@ -205,8 +208,8 @@ const handleContinueWithModel = async () => {
   let targetProfileId = props.message.metadata?.profileId;
 
   if (!targetModelId || !targetProfileId) {
-    if (agentStore.currentAgentId) {
-      const agent = agentStore.getAgentById(agentStore.currentAgentId);
+    if (currentAgentId.value) {
+      const agent = agentStore.getAgentById(currentAgentId.value);
       if (agent) {
         targetModelId = targetModelId || agent.modelId;
         targetProfileId = targetProfileId || agent.profileId;
@@ -259,8 +262,8 @@ const handleRegenerateWithModel = async () => {
   let targetProfileId = props.message.metadata?.profileId;
 
   if (!targetModelId || !targetProfileId) {
-    if (agentStore.currentAgentId) {
-      const agent = agentStore.getAgentById(agentStore.currentAgentId);
+    if (currentAgentId.value) {
+      const agent = agentStore.getAgentById(currentAgentId.value);
       if (agent) {
         targetModelId = targetModelId || agent.modelId;
         targetProfileId = targetProfileId || agent.profileId;
@@ -379,8 +382,8 @@ const handleRecalculateTokens = async () => {
 
 // 获取当前预设消息列表
 const currentPresetMessages = computed(() => {
-  if (!agentStore.currentAgentId) return [];
-  const agent = agentStore.getAgentById(agentStore.currentAgentId);
+  if (!currentAgentId.value) return [];
+  const agent = agentStore.getAgentById(currentAgentId.value);
   if (!agent?.presetMessages) return [];
   return agent.presetMessages.filter(
     (msg: ChatMessageNode) =>

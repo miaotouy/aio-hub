@@ -19,7 +19,7 @@ import type {
 import type { UserProfile } from "@/tools/user-profile-manager/types/profile";
 import type { ProcessableMessage } from "@/tools/llm-chat/types/context";
 import type { ModelCapabilities } from "@/types/llm-profiles";
-import type { ChatAgent } from "@/tools/llm-chat/types/agent";
+import type { ChatAgent } from "@/tools/agent-manager/types/agent";
 import type { ChatSettings } from "@/tools/llm-chat/types/settings";
 
 export interface PipelineContext {

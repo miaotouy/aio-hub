@@ -15,9 +15,10 @@
 -->
 
 <script setup lang="ts">
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { computed, ref, watch } from "vue";
 import { useVirtualList } from "@vueuse/core";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import type { ChatSessionIndex } from "../../types";
 import {
@@ -176,6 +177,8 @@ const { list, containerProps, wrapperProps, scrollTo } = useVirtualList(
   }
 );
 
+const { selectAgent } = useLlmChatUiState();
+
 // 获取会话当前显示的智能体信息
 const getSessionDisplayAgent = (session: ChatSessionIndex) => {
   if (!session.displayAgentId) return null;
@@ -190,7 +193,7 @@ const handleSessionClick = (session: ChatSessionIndex) => {
   ) {
     const agent = agentStore.getAgentById(session.displayAgentId);
     if (agent) {
-      agentStore.selectAgent(session.displayAgentId, {
+      selectAgent(session.displayAgentId, {
         syncCurrentSessionGreetings: false,
       });
     }

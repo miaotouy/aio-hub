@@ -33,7 +33,7 @@ import { useLlmSearch } from "../../composables/chat/useLlmSearch";
 import Avatar from "@/components/common/Avatar.vue";
 import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
 import { formatRelativeTime } from "@/utils/time";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 
 interface Props {
   session: ChatSessionIndex;

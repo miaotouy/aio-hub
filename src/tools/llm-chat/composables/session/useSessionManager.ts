@@ -22,7 +22,7 @@ import type {
   ChatSessionDetail,
   ChatMessageNode,
 } from "../../types";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useChatStorageSeparated as useChatStorage } from "../storage/useChatStorageSeparated";
 import type { FavoriteFolder } from "../storage/useChatStorageSeparated";

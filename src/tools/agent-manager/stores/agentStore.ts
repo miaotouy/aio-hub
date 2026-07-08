@@ -1,0 +1,742 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+/**
+ * 智能体管理 Store
+ */
+
+import { defineStore } from "pinia";
+import { invoke } from "@tauri-apps/api/core";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { createDefaultAgentTemplate } from "../config/defaultAgentTemplate";
+import { useAgentStorage } from "../composables/storage/useAgentStorage";
+import type { ChatAgent } from "../types/agent";
+import type { LlmParameters } from "@/tools/llm-chat/types/llm";
+import { DEFAULT_AGENT_EXTENSION_CONFIG } from "../types/agent";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { customMessage } from "@/utils/customMessage";
+import { getLocalISOString } from "@/utils/time";
+import { exportAgents } from "../services/agentExportService";
+import {
+  preflightImportAgents,
+  preflightParsedAgentImportBundle,
+  commitImportAgents,
+} from "../services/agentImportService";
+import { ensurePresetAssetsImported as ensurePresetAssetsImportedService } from "../services/agentAssetService";
+import type {
+  ConfirmImportParams,
+  ParsedAgentImportBundle,
+} from "../types/agentImportExport";
+
+const logger = createModuleLogger("llm-chat/agentStore");
+const errorHandler = createModuleErrorHandler("llm-chat/agentStore");
+
+// 重新导出类型，保持向后兼容
+export type {
+  ExportableAgent,
+  AgentExportFile,
+  AgentImportPreflightResult,
+  ResolvedAgentToImport,
+  ConfirmImportParams,
+  ParsedAgentImportBundle,
+} from "../types/agentImportExport";
+
+interface AgentStoreState {
+  /** 所有智能体列表 */
+  agents: ChatAgent[];
+}
+
+export const useAgentStore = defineStore("llmChatAgent", {
+  state: (): AgentStoreState => ({
+    agents: [],
+  }),
+
+  getters: {
+    /**
+     * 根据 ID 获取智能体
+     */
+    getAgentById:
+      (state) =>
+      (id: string): ChatAgent | undefined => {
+        return state.agents.find((agent) => agent.id === id);
+      },
+
+    /**
+     * 按最后使用时间排序的智能体列表
+     */
+    sortedAgents: (state): ChatAgent[] => {
+      return [...state.agents].sort((a, b) => {
+        const aTime = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
+        const bTime = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
+        return bTime - aTime;
+      });
+    },
+
+    /**
+     * 默认智能体（最近使用的或第一个）
+     */
+    defaultAgent: (state): ChatAgent | null => {
+      if (state.agents.length === 0) return null;
+
+      // 返回最近使用的智能体
+      const sorted = [...state.agents].sort((a, b) => {
+        const aTime = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
+        const bTime = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
+        return bTime - aTime;
+      });
+
+      return sorted[0];
+    },
+  },
+  actions: {
+    /**
+     * 创建新智能体
+     * @param name 智能体名称
+     * @param profileId 服务配置 ID
+     * @param modelId 模型 ID
+     * @param options 可选的智能体配置（使用黑名单模式，自动支持未来新增字段和插件扩展）
+     */
+    createAgent(
+      name: string,
+      profileId: string,
+      modelId: string,
+      options?: Partial<
+        Omit<
+          ChatAgent,
+          "id" | "name" | "profileId" | "modelId" | "createdAt" | "lastUsedAt"
+        >
+      >
+    ): string {
+      const agentId = `agent-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+      const now = getLocalISOString();
+
+      // 使用黑名单模式展开所有可选配置字段
+      // 这样可以自动支持未来新增的字段和插件扩展字段
+      const agent: ChatAgent = {
+        // 先展开所有可选配置
+        ...options,
+        // 然后覆盖必填字段和系统生成字段
+        version: options?.version ?? 2,
+        id: agentId,
+        name,
+        profileId,
+        modelId,
+        // 特殊处理 userProfileId 的默认值
+        userProfileId: options?.userProfileId ?? null,
+        // 特殊处理 parameters 的默认值和合并逻辑
+        parameters: {
+          // 默认值
+          temperature: 1,
+          maxTokens: 4096,
+          // 传入的标准参数会覆盖默认值
+          ...(options?.parameters || {}),
+          // 单独处理自定义参数容器，确保它不会被上面的展开覆盖掉
+          custom: options?.parameters?.custom || undefined,
+        },
+        createdAt: now,
+        avatarHistory: options?.avatarHistory ?? [],
+        quickActionSetIds: options?.quickActionSetIds ?? [],
+        extensionConfig:
+          options?.extensionConfig ??
+          JSON.parse(JSON.stringify(DEFAULT_AGENT_EXTENSION_CONFIG)),
+      };
+
+      this.agents.push(agent);
+      this.persistAgent(agent);
+
+      logger.info("创建新智能体", {
+        agentId,
+        name,
+        profileId,
+        modelId,
+        hasPresetMessages: !!options?.presetMessages,
+      });
+
+      return agentId;
+    },
+
+    /**
+     * 更新智能体
+     */
+    updateAgent(
+      agentId: string,
+      updates: Partial<Omit<ChatAgent, "id" | "createdAt">>
+    ): void {
+      const agent = this.agents.find((a) => a.id === agentId);
+      if (!agent) {
+        logger.warn("更新智能体失败：智能体不存在", { agentId });
+        return;
+      }
+
+      Object.assign(agent, updates);
+      this.persistAgent(agent);
+
+      logger.info("更新智能体", { agentId, updates });
+    },
+    /**
+     * 复制智能体
+     * @param agentId 要复制的智能体 ID
+     * @returns 新智能体的 ID
+     */
+    async duplicateAgent(agentId: string): Promise<string | null> {
+      const originalAgent = this.getAgentById(agentId);
+      if (!originalAgent) {
+        logger.warn("复制智能体失败：原始智能体不存在", { agentId });
+        return null;
+      }
+
+      // 深度复制智能体的数据
+      const newAgentData = JSON.parse(JSON.stringify(originalAgent));
+
+      // 创建新的唯一 ID
+      const newAgentId = `agent-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+
+      // 保持 name 不变，因为这可能被宏引用（如 {{char}}）使用
+      const newName = originalAgent.name;
+
+      // 生成唯一的显示名称
+      // 逻辑：优先使用 displayName，没有则使用 name，然后加上“副本”后缀并自动编号
+      const baseDisplayName = originalAgent.displayName || originalAgent.name;
+
+      // 获取所有现有的“显示名称”（用于冲突检查）
+      // 如果 agent 有 displayName 则取之，否则取 name
+      const existingVisibleNames = this.agents.map(
+        (a) => a.displayName || a.name
+      );
+
+      const generateUniqueDisplayName = (base: string, existing: string[]) => {
+        let name = `${base} 副本`;
+        let counter = 1;
+        while (existing.includes(name)) {
+          name = `${base} 副本 (${counter})`;
+          counter++;
+        }
+        return name;
+      };
+
+      const newDisplayName = generateUniqueDisplayName(
+        baseDisplayName,
+        existingVisibleNames
+      );
+
+      // 物理复制整个智能体目录（包含头像、资产附件等所有文件）
+      const sourceDir = `llm-chat/agents/${originalAgent.id}`;
+      const targetDir = `llm-chat/agents/${newAgentId}`;
+
+      try {
+        const { getAgentDirPath } = useAgentStorage();
+        const sourceFullDir = await getAgentDirPath(originalAgent.id);
+        const sourceExists = await invoke<boolean>("path_exists", {
+          path: sourceFullDir,
+        });
+
+        if (sourceExists) {
+          logger.debug("检测到源智能体目录，开始物理复制", {
+            sourceDir,
+            targetDir,
+          });
+          await invoke("copy_directory_in_app_data", {
+            sourceRelativePath: sourceDir,
+            targetRelativePath: targetDir,
+          });
+          logger.info("成功物理复制智能体目录", { sourceDir, targetDir });
+        } else {
+          logger.debug("源智能体目录不存在，跳过物理复制", {
+            agentId: originalAgent.id,
+          });
+        }
+      } catch (error) {
+        // 只有在源目录确实存在但复制失败时，才中断流程
+        logger.error("物理复制智能体目录失败", error as Error, {
+          agentId: originalAgent.id,
+          sourceDir,
+          targetDir,
+        });
+        errorHandler.error(error, "复制智能体资产失败");
+        return null; // 中断流程，防止产生“半成品”
+      }
+
+      // 准备新的智能体对象
+      const newAgent: ChatAgent = {
+        ...newAgentData,
+        id: newAgentId,
+        name: newName,
+        displayName: newDisplayName,
+        createdAt: getLocalISOString(),
+        lastUsedAt: undefined, // 复制出的智能体不应继承使用时间
+      };
+
+      this.agents.push(newAgent);
+      this.persistAgent(newAgent);
+
+      logger.info("智能体已复制", {
+        originalAgentId: agentId,
+        newAgentId,
+        newName,
+      });
+
+      return newAgentId;
+    },
+
+    /**
+     * 删除智能体
+     */
+    async deleteAgent(agentId: string): Promise<void> {
+      const index = this.agents.findIndex((a) => a.id === agentId);
+      if (index === -1) {
+        logger.warn("删除智能体失败：智能体不存在", { agentId });
+        return;
+      }
+
+      const agent = this.agents[index];
+
+      // 调用存储层删除（会移入回收站）
+      const { deleteAgent } = useAgentStorage();
+      await deleteAgent(agentId);
+
+      // 从内存中移除
+      this.agents.splice(index, 1);
+
+      logger.info("智能体已删除", { agentId, name: agent.name });
+    },
+
+    /**
+     * 按需加载特定智能体的完整配置与资产
+     */
+    async loadAgentDetails(agentId: string): Promise<ChatAgent | null> {
+      const agent = this.agents.find((a) => a.id === agentId);
+      if (!agent) return null;
+
+      // 如果详情已加载（以 parameters 是否为 undefined 为判断标准），直接返回
+      if (agent.parameters !== undefined) {
+        return agent;
+      }
+
+      try {
+        const { loadAgent } = useAgentStorage();
+        const fullAgent = await loadAgent(agentId);
+        if (fullAgent) {
+          const index = this.agents.findIndex((a) => a.id === agentId);
+          if (index !== -1) {
+            this.agents[index] = fullAgent;
+            logger.info("智能体详情按需加载完成", { agentId });
+            return fullAgent;
+          }
+        }
+      } catch (error) {
+        logger.error("按需加载智能体详情失败", error as Error, { agentId });
+      }
+
+      return agent;
+    },
+
+    /**
+     * 确保智能体详情已加载（向后兼容接口）
+     */
+    async ensureAgentLoaded(agentId: string): Promise<ChatAgent | null> {
+      return this.loadAgentDetails(agentId);
+    },
+
+    /**
+     * 确保来自内置预设的资产已被正确导入到用户的 Agent 目录
+     */
+    async ensurePresetAssetsImported(agentId: string): Promise<void> {
+      const agent = this.getAgentById(agentId);
+      if (!agent) return;
+
+      const hasChanges = await ensurePresetAssetsImportedService(agent);
+
+      if (hasChanges) {
+        this.persistAgent(agent);
+        logger.info("Agent 预设资产导入完成", { agentId });
+      }
+    },
+
+    /**
+     * 更新智能体的最后使用时间
+     */
+    updateLastUsed(agentId: string): void {
+      const agent = this.agents.find((a) => a.id === agentId);
+      if (agent) {
+        agent.lastUsedAt = getLocalISOString();
+        this.persistAgent(agent);
+      }
+    },
+
+    /**
+     * 更新智能体的预设消息内容
+     */
+    updatePresetMessage(
+      agentId: string,
+      presetNodeId: string,
+      newContent: string
+    ): boolean {
+      const agent = this.agents.find((a) => a.id === agentId);
+      if (!agent || !agent.presetMessages) {
+        logger.warn("更新预设消息失败：智能体或预设消息不存在", {
+          agentId,
+          presetNodeId,
+        });
+        return false;
+      }
+
+      // 查找并更新预设消息
+      const presetMessage = agent.presetMessages.find(
+        (msg) => msg.id === presetNodeId
+      );
+      if (!presetMessage) {
+        logger.warn("更新预设消息失败：预设节点不存在", {
+          agentId,
+          presetNodeId,
+        });
+        return false;
+      }
+
+      // 更新内容
+      presetMessage.content = newContent;
+
+      // 持久化智能体
+      this.persistAgent(agent);
+
+      logger.info("预设消息已更新", {
+        agentId,
+        presetNodeId,
+        role: presetMessage.role,
+        contentLength: newContent.length,
+      });
+
+      return true;
+    },
+
+    /**
+     * 切换预设消息的启用状态
+     */
+    togglePresetMessageEnabled(agentId: string, presetNodeId: string): boolean {
+      const agent = this.agents.find((a) => a.id === agentId);
+      if (!agent || !agent.presetMessages) {
+        logger.warn("切换预设消息状态失败：智能体或预设消息不存在", {
+          agentId,
+          presetNodeId,
+        });
+        return false;
+      }
+
+      // 查找预设消息
+      const presetMessage = agent.presetMessages.find(
+        (msg) => msg.id === presetNodeId
+      );
+      if (!presetMessage) {
+        logger.warn("切换预设消息状态失败：预设节点不存在", {
+          agentId,
+          presetNodeId,
+        });
+        return false;
+      }
+
+      // 切换启用状态
+      presetMessage.isEnabled = !(presetMessage.isEnabled ?? true);
+
+      // 持久化智能体
+      this.persistAgent(agent);
+
+      logger.info("预设消息启用状态已切换", {
+        agentId,
+        presetNodeId,
+        role: presetMessage.role,
+        isEnabled: presetMessage.isEnabled,
+      });
+
+      return true;
+    },
+
+    /**
+     * 持久化单个智能体到文件（仅保存指定智能体）
+     */
+    persistAgent(agent: ChatAgent): void {
+      const { persistAgent: persistAgentToStorage } = useAgentStorage();
+      persistAgentToStorage(agent).catch((error) =>
+        errorHandler.handle(error as Error, {
+          userMessage: "持久化智能体失败",
+          showToUser: false,
+          context: { agentId: agent.id },
+        })
+      );
+    },
+
+    /**
+     * 持久化所有智能体到文件（批量操作）
+     */
+    persistAgents(): void {
+      const { saveAgents } = useAgentStorage();
+      saveAgents(this.agents).catch((error) =>
+        errorHandler.handle(error as Error, {
+          userMessage: "持久化所有智能体失败",
+          showToUser: false,
+          context: { agentCount: this.agents.length },
+        })
+      );
+    },
+
+    /**
+     * 从文件加载智能体（优化后的按需加载）
+     */
+    async loadAgents(): Promise<void> {
+      try {
+        const { loadAgentsIndex } = useAgentStorage();
+        const { agents: indexItems } = await loadAgentsIndex();
+
+        if (indexItems.length > 0) {
+          // 1. 将元数据转换为轻量智能体对象放入 store
+          this.agents = indexItems.map(
+            (item) =>
+              ({
+                ...item,
+                // 详情字段设为 undefined，待按需加载
+                parameters: undefined,
+                presetMessages: undefined,
+              }) as any
+          );
+
+          logger.info("加载智能体索引成功", { agentCount: this.agents.length });
+        } else {
+          // 首次加载，创建默认智能体
+          this.createDefaultAgents();
+        }
+      } catch (error) {
+        errorHandler.handle(error as Error, {
+          userMessage: "加载智能体失败",
+          showToUser: false,
+        });
+        this.agents = [];
+        this.createDefaultAgents();
+      }
+    },
+
+    /**
+     * 从磁盘上的 agent.json 刷新单个智能体，并同步内存列表与索引。
+     */
+    async refreshAgentFromFile(agentId: string): Promise<{
+      agent: ChatAgent | null;
+      removed: boolean;
+      missing: boolean;
+    }> {
+      const { refreshAgentFromFile } = useAgentStorage();
+      const result = await refreshAgentFromFile(agentId);
+      const index = this.agents.findIndex((agent) => agent.id === agentId);
+
+      if (result.agent) {
+        if (index >= 0) {
+          this.agents.splice(index, 1, result.agent);
+        } else {
+          this.agents.push(result.agent);
+        }
+
+        logger.info("智能体内存状态已刷新", { agentId });
+        return result;
+      }
+
+      if (result.missing) {
+        logger.warn("智能体配置文件不存在，内存状态保持不变", { agentId });
+        return result;
+      }
+
+      if (result.removed && index >= 0) {
+        this.agents.splice(index, 1);
+        logger.info("智能体已从内存列表移除", { agentId });
+      }
+
+      return result;
+    },
+
+    /**
+     * 创建默认智能体
+     */
+    async createDefaultAgents(): Promise<void> {
+      const { enabledProfiles } = useLlmProfiles();
+
+      if (enabledProfiles.value.length === 0) {
+        logger.warn("无法创建默认智能体：没有可用的 Profile");
+        return;
+      }
+
+      const firstProfile = enabledProfiles.value[0];
+
+      if (firstProfile.models.length === 0) {
+        logger.warn("无法创建默认智能体：Profile 没有可用模型");
+        return;
+      }
+
+      const targetModelId = firstProfile.models[0].id;
+
+      // 从模板获取默认智能体配置
+      const template = createDefaultAgentTemplate();
+
+      // 创建默认智能体（占位角色）
+      const defaultAgentId = this.createAgent(
+        template.name,
+        firstProfile.id,
+        targetModelId,
+        {
+          description: template.description,
+          icon: template.icon,
+          presetMessages: template.presetMessages,
+          parameters: template.parameters,
+        }
+      );
+
+      this.persistAgents();
+      logger.info("创建默认智能体", { agentId: defaultAgentId });
+    },
+    /**
+     * 从智能体获取完整配置（包括参数覆盖）
+     */
+    getAgentConfig(
+      agentId: string,
+      overrides?: {
+        parameterOverrides?: Partial<LlmParameters>;
+      }
+    ) {
+      const agent = this.getAgentById(agentId);
+      if (!agent) {
+        logger.warn("获取智能体配置失败：智能体不存在", { agentId });
+        return null;
+      }
+
+      // 检查详情是否已加载
+      if (agent.parameters === undefined) {
+        logger.warn(
+          "获取智能体配置时详情尚未加载，将使用默认参数。请确保在调用前执行了 ensureAgentLoaded",
+          {
+            agentId,
+          }
+        );
+      }
+
+      // 分别合并基础参数和自定义参数容器
+      // 合并参数时需要更智能地处理 custom 结构
+      const baseParams = agent.parameters || {
+        temperature: 1,
+        maxTokens: 4096,
+      };
+      const overrideParams = overrides?.parameterOverrides || {};
+
+      const parameters: LlmParameters = {
+        ...baseParams,
+        ...overrideParams,
+        // 智能合并 custom
+        custom: {
+          enabled:
+            overrideParams.custom?.enabled ??
+            baseParams.custom?.enabled ??
+            false,
+          params: {
+            ...(baseParams.custom?.params || {}),
+            ...(overrideParams.custom?.params || {}),
+          },
+        },
+      };
+
+      return {
+        profileId: agent.profileId,
+        modelId: agent.modelId,
+        presetMessages: agent.presetMessages ?? [],
+        parameters,
+      };
+    },
+
+    /**
+     * ===== 导入导出功能 =====
+     */
+
+    /**
+     * 导出选定的智能体
+     * @param agentIds 要导出的智能体 ID 数组
+     * @param options 导出选项
+     */
+    async exportAgents(
+      agentIds: string[],
+      options: {
+        includeAssets: boolean;
+        format?: "json" | "yaml";
+        exportType?: "zip" | "folder" | "file" | "png";
+        separateFolders?: boolean;
+        previewImage?: File | string;
+      }
+    ): Promise<void> {
+      const agentsToExport = this.agents.filter((agent) =>
+        agentIds.includes(agent.id)
+      );
+      await exportAgents(agentsToExport, options);
+    },
+
+    /**
+     * 预检导入文件（支持单个或批量）
+     * @param files 导入的文件或文件数组
+     * @returns 预检结果
+     */
+    async preflightImportAgents(files: File | File[]) {
+      const { enabledProfiles } = useLlmProfiles();
+      const availableModelIds = enabledProfiles.value.flatMap((p) =>
+        p.models.map((m) => m.id)
+      );
+      // 收集所有现有的显示名称（用于冲突检测，避免 UI 上混淆）
+      const existingDisplayNames = this.agents.map(
+        (a) => a.displayName || a.name
+      );
+
+      return await preflightImportAgents(files, {
+        existingAgentNames: existingDisplayNames, // 这里传递的是显示名称列表
+        availableModelIds,
+      });
+    },
+
+    async preflightParsedAgentImportBundle(bundle: ParsedAgentImportBundle) {
+      const { enabledProfiles } = useLlmProfiles();
+      const availableModelIds = enabledProfiles.value.flatMap((p) =>
+        p.models.map((m) => m.id)
+      );
+      const existingDisplayNames = this.agents.map(
+        (a) => a.displayName || a.name
+      );
+
+      return await preflightParsedAgentImportBundle(bundle, {
+        existingAgentNames: existingDisplayNames,
+        availableModelIds,
+      });
+    },
+
+    /**
+     * 确认导入智能体
+     * @param params 导入参数，包含已解决冲突的 Agent 列表和资产
+     */
+    async confirmImportAgents(params: ConfirmImportParams): Promise<void> {
+      try {
+        logger.info("开始确认导入智能体", {
+          agentCount: params.resolvedAgents.length,
+        });
+
+        // 将所有复杂的处理逻辑委托给 agentImportService
+        await commitImportAgents(params);
+
+        customMessage.success(
+          `成功导入 ${params.resolvedAgents.length} 个智能体`
+        );
+      } catch (error) {
+        // commitImportAgents 内部已经处理了错误，这里只记录顶层失败
+        errorHandler.handle(error as Error, { userMessage: "确认导入失败" });
+      }
+    },
+  },
+});

@@ -15,6 +15,7 @@
 -->
 
 <script setup lang="ts">
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { ref, computed, watch, provide, nextTick, shallowRef } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import {
@@ -41,7 +42,7 @@ import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useTranscriptionManager } from "../../composables/features/useTranscriptionManager";
 import { useImageViewer } from "@/composables/useImageViewer";
@@ -117,6 +118,7 @@ provide("messageId", props.message.id);
 provide("chatSettings", settings);
 const emit = defineEmits<Emits>();
 
+const { currentAgentId } = useLlmChatUiState();
 const agentStore = useAgentStore();
 const llmChatStore = useLlmChatStore();
 const userProfileStore = useUserProfileStore();
@@ -133,7 +135,7 @@ function getAgentAndUserProfileIds(
 
   if (bindingMode === "message") {
     // 消息绑定模式：优先使用消息元数据，回退到当前激活的 Agent/User 配置
-    agentId = metadata?.agentId ?? agentStore.currentAgentId ?? undefined;
+    agentId = metadata?.agentId ?? currentAgentId.value ?? undefined;
     // 确定 User Profile ID (Message-Bound 优先，Agent 绑定回退，Global 回退)
     userProfileId = metadata?.userProfileId;
     if (!userProfileId) {
@@ -144,7 +146,7 @@ function getAgentAndUserProfileIds(
     }
   } else {
     // 会话绑定模式：忽略消息元数据，使用当前激活的 Agent 和全局档案
-    agentId = agentStore.currentAgentId ?? undefined;
+    agentId = currentAgentId.value ?? undefined;
     const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
     userProfileId = userProfileStore.getEffectiveProfile(
       agent?.userProfileId
@@ -203,9 +205,9 @@ const resolvedModelAndProfile = computed(() => {
 
   // 回退到当前激活的 Agent 配置
   if (!modelId || !profileId) {
-    const currentAgentId = agentStore.currentAgentId;
-    if (currentAgentId) {
-      const agentConfig = agentStore.getAgentConfig(currentAgentId);
+    const activeAgentId = currentAgentId.value;
+    if (activeAgentId) {
+      const agentConfig = agentStore.getAgentConfig(activeAgentId);
       if (agentConfig) {
         modelId = modelId || agentConfig.modelId;
         profileId = profileId || agentConfig.profileId;

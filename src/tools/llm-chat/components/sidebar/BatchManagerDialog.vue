@@ -254,7 +254,7 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { formatDateTime } from "@/utils/time";
 import type { ChatSessionIndex } from "../../types";
 import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import {
   exportSessionsAsZip,

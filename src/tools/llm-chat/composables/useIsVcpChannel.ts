@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { computed } from "vue";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useVcpStore } from "@/tools/vcp-connector/stores/vcpConnectorStore";
-import { useAgentStore } from "../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 
 /** 将本地回环地址规范化为统一形式，避免 localhost 与 127.0.0.1 不匹配 */
 function normalizeHostname(hostname: string): string {
@@ -55,6 +56,7 @@ export function isSameHost(urlA: string, urlB: string): boolean {
 export function useIsVcpChannel(
   overrideProfileId?: string | import("vue").Ref<string | undefined>
 ) {
+  const { currentAgentId } = useLlmChatUiState();
   const agentStore = useAgentStore();
   const vcpStore = useVcpStore();
   const { getProfileById } = useLlmProfiles();
@@ -76,8 +78,8 @@ export function useIsVcpChannel(
 
     if (!targetProfileId) {
       // 如果没传，则获取当前 Agent 的默认 profileId
-      const agent = agentStore.currentAgentId
-        ? agentStore.getAgentById(agentStore.currentAgentId)
+      const agent = currentAgentId.value
+        ? agentStore.getAgentById(currentAgentId.value)
         : null;
       targetProfileId = agent?.profileId;
     }

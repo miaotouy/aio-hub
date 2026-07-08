@@ -15,6 +15,7 @@
 -->
 
 <script setup lang="ts">
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { ref, toRef, computed, onMounted, watch } from "vue";
 import { useElementSize } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
@@ -24,7 +25,7 @@ import { useWindowResize } from "@/composables/useWindowResize";
 import { useChatFileInteraction } from "@/composables/useFileInteraction";
 import { useChatInputManager } from "@/tools/llm-chat/composables/input/useChatInputManager";
 import { useLlmChatStore } from "../../stores/llmChatStore";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useChatSettings } from "@/tools/llm-chat/composables/settings/useChatSettings";
 import { useMessageInputStore } from "../../stores/messageInputStore";
 import type { Asset } from "@/types/asset-management";
@@ -165,6 +166,8 @@ const {
   },
 });
 
+const { currentAgentId } = useLlmChatUiState();
+
 /**
  * 检查附件是否会使用转写
  */
@@ -176,8 +179,8 @@ const getWillUseTranscription = (asset: Asset): boolean => {
   if (temporaryModel) {
     modelId = temporaryModel.modelId;
     profileId = temporaryModel.profileId;
-  } else if (agentStore.currentAgentId) {
-    const agent = agentStore.getAgentById(agentStore.currentAgentId);
+  } else if (currentAgentId.value) {
+    const agent = agentStore.getAgentById(currentAgentId.value);
     if (agent) {
       modelId = agent.modelId;
       profileId = agent.profileId;

@@ -24,7 +24,7 @@
  */
 import { computed } from "vue";
 import type { ChatMessageNode } from "../../types";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useResolvedAvatar } from "../../composables/ui/useResolvedAvatar";
 import Avatar from "@/components/common/Avatar.vue";

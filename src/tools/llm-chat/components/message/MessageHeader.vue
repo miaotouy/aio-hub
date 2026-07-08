@@ -18,7 +18,7 @@
 import { computed } from "vue";
 import { Wrench, CheckCircle2, XCircle, Clock } from "lucide-vue-next";
 import type { ChatMessageNode } from "../../types";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";

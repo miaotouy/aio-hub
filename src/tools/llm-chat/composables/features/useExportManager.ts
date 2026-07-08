@@ -24,7 +24,7 @@ import type {
 } from "../../types";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useUserProfileStore } from "../../stores/userProfileStore";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { createModuleLogger } from "@/utils/logger";
 import { formatDateTime } from "@/utils/time";
 import { getEffectiveMessageCount } from "../../utils/sessionMessageCount";

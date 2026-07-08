@@ -502,6 +502,7 @@
 </template>
 
 <script setup lang="ts">
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import {
   ref,
   watch,
@@ -537,7 +538,7 @@ import customMessage from "@/utils/customMessage";
 import type { ChatSessionDetail, ChatMessageNode } from "../../../types";
 import { useFlowTreeGraph } from "./composables/useFlowTreeGraph";
 import { useLlmChatStore } from "../../../stores/llmChatStore";
-import { useAgentStore } from "../../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useChatSettings } from "../../../composables/settings/useChatSettings";
 import GraphNode from "./components/GraphNode.vue";
 import GraphNodeDetailPopup from "./components/GraphNodeDetailPopup.vue";
@@ -577,6 +578,7 @@ useResizeObserver(wrapperRef, (entries) => {
 });
 
 // Composable
+const { currentAgentId } = useLlmChatUiState();
 const agentStore = useAgentStore();
 const llmChatStore = useLlmChatStore();
 const {
@@ -777,9 +779,7 @@ const agentConfigForDetail = computed(() => {
   const agentId = selectedNodeForDetail.value.metadata?.agentId;
   if (!agentId) {
     // 如果消息没有关联 Agent，则尝试使用当前激活的 Agent
-    const currentAgent = agentStore.getAgentById(
-      agentStore.currentAgentId ?? ""
-    );
+    const currentAgent = agentStore.getAgentById(currentAgentId.value ?? "");
     return {
       llmThinkRules: currentAgent?.llmThinkRules,
       richTextStyleOptions: currentAgent?.richTextStyleOptions,

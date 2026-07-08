@@ -15,6 +15,7 @@
 -->
 
 <script setup lang="ts">
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { computed, ref, watch, provide, nextTick } from "vue";
 import { useResizeObserver } from "@vueuse/core";
 import type {
@@ -34,7 +35,7 @@ import {
   Trash2,
 } from "lucide-vue-next";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import {
   resolveRawRules,
@@ -99,6 +100,8 @@ watch(isEditing, () => {
   });
 });
 
+const { currentAgentId } = useLlmChatUiState();
+
 const backgroundBlocks = computed(() => {
   if (messageHeight.value <= 0) return 1;
   return Math.ceil(messageHeight.value / BLOCK_SIZE);
@@ -109,7 +112,7 @@ function getAgentAndUserProfileIds(metadata: any): {
   agentId: string | undefined;
   userProfileId: string | undefined;
 } {
-  const agentId = metadata?.agentId ?? agentStore.currentAgentId ?? undefined;
+  const agentId = metadata?.agentId ?? currentAgentId.value ?? undefined;
   // 确定 User Profile ID (Message-Bound 优先，Agent 绑定回退，Global 回退)
   let userProfileId = metadata?.userProfileId;
   if (!userProfileId) {

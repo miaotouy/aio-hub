@@ -17,7 +17,7 @@
 <script setup lang="ts">
 import { onMounted, computed, ref, defineAsyncComponent } from "vue";
 import { useLlmChatStore } from "./stores/llmChatStore";
-import { useAgentStore } from "./stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "./stores/userProfileStore";
 import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
@@ -79,6 +79,7 @@ const {
   isRightSidebarCollapsed,
   leftSidebarWidth,
   rightSidebarWidth,
+  currentAgentId: uiCurrentAgentId,
   loadUiState,
   startWatching,
 } = useLlmChatUiState();
@@ -143,8 +144,8 @@ onMounted(async () => {
       logger.info("主窗口：状态同步服务已激活");
 
       // 3. 处理初始会话
-      if (store.sessions.length === 0 && agentStore.currentAgentId) {
-        handleNewSession({ agentId: agentStore.currentAgentId });
+      if (store.sessions.length === 0 && uiCurrentAgentId.value) {
+        handleNewSession({ agentId: uiCurrentAgentId.value });
       }
     } catch (error) {
       errorHandler.handle(error, {
@@ -186,7 +187,7 @@ onMounted(async () => {
   }
 });
 // 当前选中的智能体ID（独立于会话）
-const currentAgentId = computed(() => agentStore.currentAgentId || "");
+const currentAgentId = computed(() => uiCurrentAgentId.value || "");
 
 // 动态注入智能体自定义样式（如会话变量样式）
 const agentCustomStyles = computed(() => {
@@ -424,8 +425,8 @@ useStateSyncEngine(parametersToSync, {
             :disabled="!store.currentSession"
             :current-agent-id="currentAgentId"
             :current-model-id="
-              agentStore.currentAgentId
-                ? agentStore.getAgentById(agentStore.currentAgentId)?.modelId
+              currentAgentId
+                ? agentStore.getAgentById(currentAgentId)?.modelId
                 : undefined
             "
             @send="handleSendMessage"

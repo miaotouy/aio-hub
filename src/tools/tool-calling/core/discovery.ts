@@ -22,7 +22,7 @@ import { useToolsStore } from "@/stores/tools";
 import type {
   AgentExtensionConfig,
   ToolCallConfig,
-} from "@/tools/llm-chat/types/agent";
+} from "@/tools/agent-manager/types/agent";
 import { createModuleLogger } from "@/utils/logger";
 import type {
   ToolCallingProtocol,

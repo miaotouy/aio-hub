@@ -22,10 +22,11 @@ import { Brush, Plus, Eye, FolderOpen, X } from "lucide-vue-next";
 import { useCanvasStore } from "@/tools/web-canvas/stores/canvasStore";
 import { formatDateTime } from "@/utils/time";
 import { useToolsStore } from "@/stores/tools";
-import { useAgentStore } from "../../stores/agentStore";
-import { DEFAULT_TOOL_CALL_CONFIG } from "../../types/agent";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
+import { DEFAULT_TOOL_CALL_CONFIG } from "@/tools/agent-manager/types/agent";
 import { createModuleLogger } from "@/utils/logger";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
+import { useLlmChatUiState } from "../../composables/ui/useLlmChatUiState";
 
 const logger = createModuleLogger("llm-chat/MiniCanvasControl");
 const router = useRouter();
@@ -44,9 +45,9 @@ const getCanvasStore = () => {
 };
 
 const canvasStore = getCanvasStore();
+const { currentAgentId } = useLlmChatUiState();
 
 const canvasList = computed(() => canvasStore?.canvasList || []);
-const currentAgentId = computed(() => agentStore.currentAgentId);
 
 const boundCanvasId = computed(() => {
   const agent = currentAgentId.value

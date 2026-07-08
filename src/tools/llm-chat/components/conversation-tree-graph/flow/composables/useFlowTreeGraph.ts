@@ -16,7 +16,7 @@ import { ref, watch, onUnmounted, type Ref } from "vue";
 import { useChatSettings } from "../../../../composables/settings/useChatSettings";
 import type { ChatSessionDetail, ChatMessageNode } from "../../../../types";
 import { useLlmChatStore } from "../../../../stores/llmChatStore";
-import { useAgentStore } from "../../../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../../../../stores/userProfileStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";

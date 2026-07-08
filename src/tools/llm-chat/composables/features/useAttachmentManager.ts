@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { ref, computed, type Ref, type ComputedRef } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -25,7 +26,7 @@ import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { nanoid } from "nanoid";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useChatSettings } from "../settings/useChatSettings";
 import {
@@ -107,6 +108,7 @@ export function useAttachmentManager(
     generateThumbnail = true,
   } = options;
 
+  const { currentAgentId } = useLlmChatUiState();
   const attachments = ref<Asset[]>([]);
   const importCallbacks = new Set<(oldId: string, newAsset: Asset) => void>();
   let unlistenProgress: (() => void) | null = null;
@@ -199,12 +201,12 @@ export function useAttachmentManager(
     }
 
     // 如果没有选中的 Agent，跳过检查
-    if (!agentStore.currentAgentId) {
+    if (!currentAgentId.value) {
       logger.debug("未选中 Agent，跳过能力检查");
       return null;
     }
 
-    const agentConfig = agentStore.getAgentConfig(agentStore.currentAgentId);
+    const agentConfig = agentStore.getAgentConfig(currentAgentId.value);
     if (!agentConfig) {
       logger.debug("无法获取 Agent 配置，跳过能力检查");
       return null;

@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onBeforeUnmount } from "vue";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
 
 import BaseDialog from "@/components/common/BaseDialog.vue";
@@ -63,7 +63,7 @@ const separateFolders = ref(false);
 const hasWorldbooks = computed(() => {
   if (selectedAgentIds.value.length === 0) return false;
   return selectedAgentIds.value.some((id) => {
-    const agent = agents.value.find((a) => a.id === id);
+    const agent = agents.value.find((a: any) => a.id === id);
     return agent?.worldbookIds && agent.worldbookIds.length > 0;
   });
 });
@@ -101,7 +101,9 @@ const isAllSelected = computed(() => {
 });
 
 const handleCheckAllChange = (val: CheckboxValueType) => {
-  selectedAgentIds.value = val ? agents.value.map((agent) => agent.id) : [];
+  selectedAgentIds.value = val
+    ? agents.value.map((agent: any) => agent.id)
+    : [];
 };
 const handleExport = async () => {
   if (selectedAgentIds.value.length === 0) {
@@ -154,7 +156,7 @@ const handleOpen = () => {
   if (props.initialSelection && props.initialSelection.length > 0) {
     selectedAgentIds.value = [...props.initialSelection];
   } else {
-    selectedAgentIds.value = agents.value.map((agent) => agent.id);
+    selectedAgentIds.value = agents.value.map((agent: any) => agent.id);
   }
 
   // 初始化世界书包含状态
@@ -194,7 +196,7 @@ onBeforeUnmount(() => {
 const isSingleMode = computed(() => props.initialSelection?.length === 1);
 const singleTargetAgent = computed(() => {
   if (!isSingleMode.value) return null;
-  return agents.value.find((a) => a.id === props.initialSelection![0]);
+  return agents.value.find((a: any) => a.id === props.initialSelection![0]);
 });
 
 // 计算 PNG 导出时预览图是否就绪

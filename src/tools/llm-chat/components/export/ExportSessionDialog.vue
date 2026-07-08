@@ -90,7 +90,7 @@ import ExportOptionsPanel from "./ExportOptionsPanel.vue";
 import ExportPreviewSection from "./ExportPreviewSection.vue";
 import type { ChatSessionDetail, ChatSessionIndex } from "../../types";
 import { useExportManager } from "../../composables/features/useExportManager";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
 import { sanitizeFilename } from "@/utils/fileUtils";
 import { save } from "@tauri-apps/plugin-dialog";

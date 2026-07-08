@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import type { LlmMessage, LlmReasoningArtifact } from "@/llm-apis/common";
 import type {
   ChatSessionDetail,
@@ -22,7 +23,6 @@ import type {
   ChatSessionIndex,
 } from "../../types";
 import type { Asset } from "@/types/asset-management";
-import { useAgentStore } from "../../stores/agentStore";
 import { useChatSettings } from "../settings/useChatSettings";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useLlmRequest } from "@/composables/useLlmRequest";
@@ -69,6 +69,7 @@ export interface SingleNodeExecuteResult {
 }
 
 export function useSingleNodeExecutor() {
+  const { currentAgentId } = useLlmChatUiState();
   const { handleStreamUpdate, validateAndFixUsage, finalizeNode } =
     useChatResponseHandler();
   const { checkAndCompress } = useContextCompressor();
@@ -93,7 +94,6 @@ export function useSingleNodeExecutor() {
     } = params;
 
     const { settings } = useChatSettings();
-    const agentStore = useAgentStore();
     const chatStore = useLlmChatStore();
 
     // 1. 准备参数
@@ -354,7 +354,7 @@ export function useSingleNodeExecutor() {
         session,
         assistantNode.id,
         response,
-        agentStore.currentAgentId || ""
+        currentAgentId.value || ""
       );
 
       try {

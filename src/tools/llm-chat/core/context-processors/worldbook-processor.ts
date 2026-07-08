@@ -193,16 +193,16 @@ export class WorldbookProcessor implements ContextProcessor {
     if (allEntries.length === 0) return;
 
     const historyTexts = messages
-      .filter((m) => m.sourceType === "session_history")
-      .map((m) => (typeof m.content === "string" ? m.content : ""))
+      .filter((m: any) => m.sourceType === "session_history")
+      .map((m: any) => (typeof m.content === "string" ? m.content : ""))
       .reverse();
 
     // 提取智能体配置中的各个字段
     const globalScanData = {
       personaDescription: agentConfig.description || "",
       characterDescription:
-        agentConfig.presetMessages?.find((m) => m.role === "system")?.content ||
-        "",
+        agentConfig.presetMessages?.find((m: any) => m.role === "system")
+          ?.content || "",
       characterPersonality: (agentConfig as any).personality || "",
       characterDepthPrompt: (agentConfig as any).depthPrompt || "",
       scenario: (agentConfig as any).scenario || "",

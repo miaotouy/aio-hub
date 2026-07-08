@@ -170,38 +170,6 @@ graph TD
 
 ---
 
-## 4. Git 移动指令集 (Git Move Commands)
-
-为了完美继承 Git 历史记录，**严禁直接复制文件**。必须在 Windows PowerShell 终端中按顺序执行以下 `git mv` 命令：
-
-```powershell
-# 1. 创建目标目录结构
-New-Item -ItemType Directory -Force -Path "src/tools/agent-manager/stores"
-New-Item -ItemType Directory -Force -Path "src/tools/agent-manager/composables/storage"
-New-Item -ItemType Directory -Force -Path "src/tools/agent-manager/services"
-New-Item -ItemType Directory -Force -Path "src/tools/agent-manager/utils"
-New-Item -ItemType Directory -Force -Path "src/tools/agent-manager/types"
-New-Item -ItemType Directory -Force -Path "src/tools/agent-manager/config"
-New-Item -ItemType Directory -Force -Path "src/tools/agent-manager/components"
-
-# 2. 使用 git mv 移动文件，保留 Git 历史
-git mv "src/tools/llm-chat/stores/agentStore.ts" "src/tools/agent-manager/stores/agentStore.ts"
-git mv "src/tools/llm-chat/composables/storage/useAgentStorageSeparated.ts" "src/tools/agent-manager/composables/storage/useAgentStorage.ts"
-git mv "src/tools/llm-chat/services/agentManagementService.ts" "src/tools/agent-manager/services/agentManagementService.ts"
-git mv "src/tools/llm-chat/services/agentImportService.ts" "src/tools/agent-manager/services/agentImportService.ts"
-git mv "src/tools/llm-chat/services/agentExportService.ts" "src/tools/agent-manager/services/agentExportService.ts"
-git mv "src/tools/llm-chat/services/agentMigrationService.ts" "src/tools/agent-manager/services/agentMigrationService.ts"
-git mv "src/tools/llm-chat/services/vcpChatAgentImportService.ts" "src/tools/agent-manager/services/vcpChatAgentImportService.ts"
-git mv "src/tools/llm-chat/services/agentAssetService.ts" "src/tools/agent-manager/services/agentAssetService.ts"
-git mv "src/tools/llm-chat/utils/agentAssetUtils.ts" "src/tools/agent-manager/utils/agentAssetUtils.ts"
-git mv "src/tools/llm-chat/types/agent.ts" "src/tools/agent-manager/types/agent.ts"
-git mv "src/tools/llm-chat/types/agentImportExport.ts" "src/tools/agent-manager/types/agentImportExport.ts"
-git mv "src/tools/llm-chat/config/defaultAgentTemplate.ts" "src/tools/agent-manager/config/defaultAgentTemplate.ts"
-
-# 3. 移动整个组件目录
-git mv "src/tools/llm-chat/components/agent" "src/tools/agent-manager/components/agent"
-```
-
 ---
 
 ## 5. 数据迁移与历史兼容方案 (Data Migration & Compatibility)
@@ -355,3 +323,36 @@ export async function triggerDataMigration() {
    ```
 
 通过这种“运行时动态拼接 + 保存时截断”的机制，保存在 `agent.json` 中的相对路径完全不需要任何修改，就能在新路径下无缝加载，实现 100% 安全、优雅的平滑过渡！
+
+---
+
+## 6. 当前施工进度 (Implementation Progress)
+
+> 更新时间：2026-07-08 (运行时状态同步)
+
+目前，智能体配置管理解耦及智能体大厅建设已取得阶段性突破，核心物理迁移与解耦架构已基本落地：
+
+### 6.1. 已完成要点 (Completed)
+
+1. **独立工具门户建立**：
+   - 创建了 [`src/tools/agent-manager/agent-manager.registry.ts`](src/tools/agent-manager/agent-manager.registry.ts) 注册文件，正式将智能体管理器注册为 AIO Hub 的平级独立工具。
+   - 建立了智能体大厅主入口 [`src/tools/agent-manager/AgentManager.vue`](src/tools/agent-manager/AgentManager.vue)。
+
+2. **物理目录大迁移**：
+   - 成功将原寄生在 `llm-chat` 内部的智能体编辑器（`AgentEditor.vue`）、预设向导（`agent-config-wizard.ts`）、各类编辑子面板（基本信息、性格、知识库、会话变量等）物理迁移至 [`src/tools/agent-manager/components/`](src/tools/agent-manager/components/)。
+   - 迁移并重构了核心存储与状态管理：
+     - [`src/tools/agent-manager/stores/agentStore.ts`](src/tools/agent-manager/stores/agentStore.ts) (纯粹的数据管理，不感知聊天 UI 状态)。
+     - [`src/tools/agent-manager/services/agentImportService.ts`](src/tools/agent-manager/services/agentImportService.ts) (解耦后的智能体导入服务)。
+
+3. **双向联动与解耦设计落地**：
+   - 实现了 `currentAgentId` 状态彻底留在 `llm-chat` 侧（[`src/tools/llm-chat/composables/ui/useLlmChatUiState.ts`](src/tools/llm-chat/composables/ui/useLlmChatUiState.ts)），`agentStore` 保持无状态的单向按需加载设计。
+   - 问候语同步逻辑从 `agentStore` 剥离，改由 `llm-chat` 侧在保存回调中就地触发或通过历史会话切换时懒加载重建，彻底斩断了配置层对聊天运行时的反向依赖。
+
+### 6.2. 进行中与下一步计划 (In Progress & Next Steps)
+
+- [ ] **物理路径自治与数据迁移**：
+  - 目前 [`src/tools/agent-manager/composables/storage/useAgentStorage.ts`](src/tools/agent-manager/composables/storage/useAgentStorage.ts) 中的 `MODULE_NAME` 依然硬编码为 `"llm-chat"`，尚未切换为 `"agent-manager"`。
+  - 需要实现 5.1 和 5.2 节设计的冷启动自动迁移管道（`triggerDataMigration`），将数据从 `{appConfigDir}/llm-chat/agents/` 物理迁移到 `{appConfigDir}/agent-manager/agents/`。
+  - 需要同步更新 Rust 后端 `agent_asset_manager.rs` 中的存储路径。
+- [ ] 进一步完善智能体大厅（`AgentManager.vue`）的 UI 视觉表现，对齐项目的主题外观系统。
+- [ ] 联调“大厅选人 -> 自动开聊”的无缝闭环体验。

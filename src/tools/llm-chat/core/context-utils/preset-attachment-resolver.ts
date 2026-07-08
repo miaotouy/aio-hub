@@ -14,7 +14,7 @@
 
 import { createModuleLogger } from "@/utils/logger";
 import type { PresetAttachmentRef } from "../../types/message";
-import type { AgentAsset } from "../../types/agent";
+import type { AgentAsset } from "@/tools/agent-manager/types/agent";
 import type { AssetType } from "@/types/asset-management";
 import type { PipelineAttachment } from "../../types/pipeline-attachment";
 

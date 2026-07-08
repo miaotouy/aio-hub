@@ -23,15 +23,17 @@
  * 2. 提供一系列函数，将组件的操作请求通过 WindowSyncBus 代理到主窗口。
  * 3. 不再包含任何状态同步或数据填充逻辑。
  */
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { computed, onUnmounted, getCurrentInstance } from "vue";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useLlmChatStore } from "../../stores/llmChatStore";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("DetachedChatArea");
 
 export function useDetachedChatArea() {
+  const { currentAgentId: uiCurrentAgentId } = useLlmChatUiState();
   const bus = useWindowSyncBus();
   const store = useLlmChatStore();
   const agentStore = useAgentStore();
@@ -157,9 +159,9 @@ export function useDetachedChatArea() {
   // 4. 导出的计算属性和操作（现在可以直接从 Store 获取）
   // 使用全局的 currentAgentId，而不是会话的 displayAgentId
   // 这样即使切换到新会话，智能体信息也不会消失
-  const currentAgentId = computed(() => agentStore.currentAgentId || undefined);
+  const currentAgentId = computed(() => uiCurrentAgentId.value || undefined);
   const currentModelId = computed(() => {
-    const agentId = agentStore.currentAgentId;
+    const agentId = currentAgentId.value;
     return agentId ? agentStore.getAgentById(agentId)?.modelId : undefined;
   });
 

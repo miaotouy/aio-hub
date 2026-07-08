@@ -251,7 +251,7 @@ import {
 } from "../../macro-engine/MacroContext";
 import type { MacroProcessResult } from "../../macro-engine";
 import type { ContextPreviewData } from "../../types/context";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { diffLines, diffWordsWithSpace, type Change } from "diff";
 

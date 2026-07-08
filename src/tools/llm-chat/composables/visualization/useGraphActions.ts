@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { toRaw, type Ref } from "vue";
 import type {
   ChatSessionDetail,
@@ -22,7 +23,7 @@ import type { Asset } from "@/types/asset-management";
 import { useBranchManager } from "../session/useBranchManager";
 import { useSessionManager } from "../session/useSessionManager";
 import { useNodeManager } from "../session/useNodeManager";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import {
   extractRelationChange,
   captureRelationChangesForGraft,
@@ -54,6 +55,7 @@ export function useGraphActions(
     getHistoryManager?: (sessionId?: string | null) => HistoryManager | null;
   }
 ) {
+  const { currentAgentId } = useLlmChatUiState();
   const branchManager = useBranchManager();
   const sessionManager = useSessionManager();
 
@@ -256,12 +258,8 @@ export function useGraphActions(
 
     if (nodeId.startsWith("preset-")) {
       const agentStore = useAgentStore();
-      if (!agentStore.currentAgentId) return;
-      agentStore.updatePresetMessage(
-        agentStore.currentAgentId,
-        nodeId,
-        newContent
-      );
+      if (!currentAgentId.value) return;
+      agentStore.updatePresetMessage(currentAgentId.value, nodeId, newContent);
       return;
     }
 
@@ -509,8 +507,8 @@ export function useGraphActions(
 
     if (nodeId.startsWith("preset-")) {
       const agentStore = useAgentStore();
-      if (!agentStore.currentAgentId) return;
-      agentStore.togglePresetMessageEnabled(agentStore.currentAgentId, nodeId);
+      if (!currentAgentId.value) return;
+      agentStore.togglePresetMessageEnabled(currentAgentId.value, nodeId);
       return;
     }
 

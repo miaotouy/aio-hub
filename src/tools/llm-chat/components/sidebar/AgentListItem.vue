@@ -29,15 +29,15 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import Avatar from "@/components/common/Avatar.vue";
 import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
-import { useAgentStorageSeparated } from "../../composables/storage/useAgentStorageSeparated";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStorage } from "@/tools/agent-manager/composables/storage/useAgentStorage";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { customMessage } from "@/utils/customMessage";
-import type { ChatAgent } from "../../types";
+import type { ChatAgent } from "@/tools/agent-manager/types/agent";
 import {
   useLlmSearch,
   type MatchDetail,
 } from "../../composables/chat/useLlmSearch";
-import AgentUpgradeDialog from "../agent/management/AgentUpgradeDialog.vue";
+import AgentUpgradeDialog from "@/tools/agent-manager/components/management/AgentUpgradeDialog.vue";
 
 const props = defineProps<{
   agent: ChatAgent;
@@ -98,7 +98,7 @@ const filteredMatches = computed(() => {
 // 打开智能体目录并选中配置文件
 const handleOpenDirectory = async () => {
   try {
-    const { getAgentConfigPath } = useAgentStorageSeparated();
+    const { getAgentConfigPath } = useAgentStorage();
     const configPath = await getAgentConfigPath(props.agent.id);
     await invoke("open_file_directory", { filePath: configPath });
   } catch (error) {

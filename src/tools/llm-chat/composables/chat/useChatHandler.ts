@@ -26,8 +26,9 @@
 
 import type { ChatSessionDetail, ChatMessageNode } from "../../types";
 import type { Asset } from "@/types/asset-management";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
+import { useLlmChatUiState } from "../ui/useLlmChatUiState";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useNodeManager } from "../session/useNodeManager";
 import { useSessionManager } from "../session/useSessionManager";
@@ -106,7 +107,8 @@ export function useChatHandler() {
       // 压缩失败仅记录日志，不阻断发送流程
       logger.error("自动上下文压缩执行出错", error);
     }
-    const effectiveAgentId = options?.agentId || agentStore.currentAgentId;
+    const { currentAgentId } = useLlmChatUiState();
+    const effectiveAgentId = options?.agentId || currentAgentId.value;
 
     // 获取执行智能体（在函数开头，以便后续宏处理使用）
     const currentAgent = effectiveAgentId
@@ -432,7 +434,8 @@ export function useChatHandler() {
       return;
     }
 
-    const effectiveAgentId = options?.agentId || agentStore.currentAgentId;
+    const { currentAgentId } = useLlmChatUiState();
+    const effectiveAgentId = options?.agentId || currentAgentId.value;
 
     // 默认使用当前选中的智能体，也支持调用方显式指定后台 Agent
     if (!effectiveAgentId) {
@@ -596,10 +599,9 @@ export function useChatHandler() {
         : userNode?.id || nodeId
     );
     const sourceNode = session.nodes ? session.nodes[nodeId] : undefined;
+    const { currentAgentId } = useLlmChatUiState();
     const effectiveAgentId =
-      options?.agentId ||
-      agentStore.currentAgentId ||
-      sourceNode?.metadata?.agentId;
+      options?.agentId || currentAgentId.value || sourceNode?.metadata?.agentId;
 
     if (!effectiveAgentId) {
       errorHandler.handle(new Error("No agent selected"), {
@@ -696,17 +698,19 @@ export function useChatHandler() {
   ): Promise<string> => {
     const { sendRequest } = useLlmRequest();
     const agentStore = useAgentStore();
-
     let profileId = options?.profileId;
     let modelId = options?.modelId;
 
     if (!profileId || !modelId) {
-      const agentConfig = agentStore.getAgentConfig(
-        agentStore.currentAgentId || ""
-      );
+      const { currentAgentId } = useLlmChatUiState();
+      const agentConfig = agentStore.getAgentConfig(currentAgentId.value || "");
       if (!agentConfig) throw new Error("Agent config not found");
       profileId = profileId || agentConfig.profileId;
       modelId = modelId || agentConfig.modelId;
+    }
+
+    if (!profileId || !modelId) {
+      throw new Error("Profile ID or Model ID is missing for input completion");
     }
 
     // 构建补全请求的消息列表
@@ -763,8 +767,9 @@ export function useChatHandler() {
     // 处理宏（如果启用且有待发送消息）
     let processedPendingInput = undefined;
     if (pendingInput) {
+      const { currentAgentId } = useLlmChatUiState();
       const currentAgent = agentStore.getAgentById(
-        historicalAgentId || agentStore.currentAgentId || ""
+        historicalAgentId || currentAgentId.value || ""
       );
       const macroProcessor = new MacroProcessor();
 
@@ -858,8 +863,8 @@ export function useChatHandler() {
     }
 
     // 获取配置
-    const agentId =
-      assistantNode.metadata?.agentId || agentStore.currentAgentId;
+    const { currentAgentId } = useLlmChatUiState();
+    const agentId = assistantNode.metadata?.agentId || currentAgentId.value;
     if (!agentId) {
       logger.warn("重新解析失败：无法确定 Agent ID", { nodeId });
       return;

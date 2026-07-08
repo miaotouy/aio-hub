@@ -20,6 +20,7 @@ import { ref, watch } from "vue";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 
 const logger = createModuleLogger("LlmChatUiState");
 const errorHandler = createModuleErrorHandler("LlmChatUiState");
@@ -123,6 +124,19 @@ const viewMode = ref<"linear" | "force-graph">(defaultUiState.viewMode);
 
 // 是否已初始化
 let isInitialized = false;
+
+// 监听智能体列表变化，如果当前选中的智能体被删除了，安全回退
+watch(
+  () => useAgentStore().agents,
+  (newAgents) => {
+    if (
+      currentAgentId.value &&
+      !newAgents.some((a) => a.id === currentAgentId.value)
+    ) {
+      currentAgentId.value = newAgents[0]?.id || null;
+    }
+  }
+);
 
 /**
  * LLM Chat UI 状态管理 Composable
@@ -273,6 +287,30 @@ export function useLlmChatUiState() {
     }
   };
 
+  /**
+   * 选择智能体
+   */
+  const selectAgent = (
+    agentId: string,
+    options?: {
+      sessionId?: string | null;
+      syncCurrentSessionGreetings?: boolean;
+    }
+  ) => {
+    currentAgentId.value = agentId;
+
+    const agentStore = useAgentStore();
+    agentStore.updateLastUsed(agentId);
+
+    const sessionId = options?.sessionId;
+    if (sessionId) {
+      import("../../stores/llmChatStore").then(({ useLlmChatStore }) => {
+        const chatStore = useLlmChatStore();
+        chatStore.updateSession(sessionId, { displayAgentId: agentId });
+      });
+    }
+  };
+
   return {
     // 状态
     isLeftSidebarCollapsed,
@@ -298,5 +336,6 @@ export function useLlmChatUiState() {
     saveUiState,
     startWatching,
     resetUiState,
+    selectAgent,
   };
 }

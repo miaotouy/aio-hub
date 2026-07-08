@@ -20,8 +20,7 @@ import { useVirtualizer } from "@tanstack/vue-virtual";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import yaml from "js-yaml";
-import { useAgentStore } from "../../stores/agentStore";
-import { useLlmChatStore } from "../../stores/llmChatStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/ui/useLlmChatUiState";
 import {
@@ -42,20 +41,26 @@ import {
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import type { ChatAgent, AgentEditData } from "../../types";
-import type { AgentPreset } from "../../types";
-import { AgentCategory, AgentCategoryLabels } from "../../types";
+import type {
+  ChatAgent,
+  AgentEditData,
+} from "@/tools/agent-manager/types/agent";
+import type { AgentPreset } from "@/tools/agent-manager/types/agent";
+import {
+  AgentCategory,
+  AgentCategoryLabels,
+} from "@/tools/agent-manager/types/agent";
 import type {
   ExportableAgent,
   AgentExportFile,
-} from "../../types/agentImportExport";
+} from "@/tools/agent-manager/types/agentImportExport";
 import AgentListItem from "./AgentListItem.vue";
 import {
   convertVcpChatScanItemsToImportBundle,
   scanVcpChatAgents,
   type VcpChatAgentScanItem,
   type VcpChatAgentScanResult,
-} from "../../services/vcpChatAgentImportService";
+} from "@/tools/agent-manager/services/vcpChatAgentImportService";
 
 // 创建模块错误处理器
 const errorHandler = createModuleErrorHandler("llm-chat/AgentsSidebar");
@@ -63,10 +68,12 @@ const errorHandler = createModuleErrorHandler("llm-chat/AgentsSidebar");
 console.log("[AgentsSidebar] Setup started");
 
 const CreateAgentDialog = defineAsyncComponent(
-  () => import("../agent/management/CreateAgentDialog.vue")
+  () =>
+    import("@/tools/agent-manager/components/management/CreateAgentDialog.vue")
 );
 const EditAgentDialog = defineAsyncComponent(
-  () => import("../agent/management/EditAgentDialog.vue")
+  () =>
+    import("@/tools/agent-manager/components/management/EditAgentDialog.vue")
 );
 const ExportAgentDialog = defineAsyncComponent(
   () => import("../export/ExportAgentDialog.vue")
@@ -83,10 +90,9 @@ const WorldbookManagerDialog = defineAsyncComponent(
 );
 
 const agentStore = useAgentStore();
-const chatStore = useLlmChatStore();
 
 // 使用持久化的UI状态
-const { agentSortBy } = useLlmChatUiState();
+const { agentSortBy, currentAgentId, selectAgent } = useLlmChatUiState();
 
 // 后端搜索功能
 const {
@@ -346,14 +352,6 @@ const totalSize = computed(() => virtualizer.value.getTotalSize());
 onMounted(() => {
   console.log("[AgentsSidebar] Mounted");
 });
-
-// 当前选中的智能体ID（从 store 读取）
-const currentAgentId = computed(() => agentStore.currentAgentId);
-
-// 选择智能体（直接调用 store）
-const selectAgent = (agentId: string) => {
-  agentStore.selectAgent(agentId, { sessionId: chatStore.currentSessionId });
-};
 
 // 判断智能体是否被选中
 const isAgentSelected = (agentId: string) => {

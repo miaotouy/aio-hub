@@ -17,6 +17,7 @@
  * 负责核心的 LLM 请求执行逻辑，消除重复代码
  */
 
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import type {
   ChatSessionDetail,
   ChatMessageNode,
@@ -25,7 +26,7 @@ import type {
 } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import type { LlmModelInfo } from "@/types/llm-profiles";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useChatSettings } from "../settings/useChatSettings";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -77,6 +78,8 @@ interface ExecuteRequestParams {
 }
 
 export function useChatExecutor() {
+  const { currentAgentId } = useLlmChatUiState();
+
   /**
    * 执行 LLM 请求的核心逻辑
    */
@@ -92,7 +95,7 @@ export function useChatExecutor() {
     agentId,
   }: ExecuteRequestParams): Promise<void> => {
     const agentStore = useAgentStore();
-    const effectiveAgentId = agentId || agentStore.currentAgentId;
+    const effectiveAgentId = agentId || currentAgentId.value;
 
     // 获取当前 Agent 配置片段
     const agentConfigSnippet =
@@ -297,8 +300,8 @@ export function useChatExecutor() {
 
     const currentAgentFromStore = historicalAgentId
       ? agentStore.getAgentById(historicalAgentId)
-      : agentStore.currentAgentId
-        ? agentStore.getAgentById(agentStore.currentAgentId)
+      : currentAgentId.value
+        ? agentStore.getAgentById(currentAgentId.value)
         : null;
 
     if (!currentAgentFromStore) return null;

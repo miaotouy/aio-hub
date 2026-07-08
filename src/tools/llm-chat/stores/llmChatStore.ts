@@ -21,7 +21,8 @@ import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
 import { useSessionManager } from "../composables/session/useSessionManager";
 import { BranchNavigator } from "../utils/BranchNavigator";
-import { useAgentStore } from "./agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
+import { useLlmChatUiState } from "../composables/ui/useLlmChatUiState";
 import { useGraphActions } from "../composables/visualization/useGraphActions";
 import { useChatHandler } from "../composables/chat/useChatHandler";
 import { useChatInputManager } from "../composables/input/useChatInputManager";
@@ -249,8 +250,9 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
   const currentActivePathWithPresets = computed((): ChatMessageNode[] => {
     const agentStore = useAgentStore();
-    const agent = agentStore.currentAgentId
-      ? agentStore.getAgentById(agentStore.currentAgentId)
+    const { currentAgentId } = useLlmChatUiState();
+    const agent = currentAgentId.value
+      ? agentStore.getAgentById(currentAgentId.value)
       : null;
     const fullSession = currentFullSession.value;
     if (!fullSession) return [];

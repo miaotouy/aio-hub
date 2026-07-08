@@ -39,7 +39,7 @@ import MessageInput from "./message-input/MessageInput.vue";
 import ToolCallingApprovalBar from "./message-input/ToolCallingApprovalBar.vue";
 import MessageNavigator from "./message/MessageNavigator.vue";
 import EditUserProfileDialog from "@/tools/user-profile-manager/components/user-profile/EditUserProfileDialog.vue";
-import EditAgentDialog from "./agent/management/EditAgentDialog.vue";
+import EditAgentDialog from "@/tools/agent-manager/components/management/EditAgentDialog.vue";
 import ChatSettingsDialog from "./settings/ChatSettingsDialog.vue";
 import FlowTreeGraph from "./conversation-tree-graph/flow/FlowTreeGraph.vue";
 import ChatSearchPanel from "./search/ChatSearchPanel.vue";

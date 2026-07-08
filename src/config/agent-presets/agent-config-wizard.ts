@@ -27,7 +27,7 @@ import { AgentCategory } from "@/tools/llm-chat/types";
 
 // 动态导入核心类型定义和架构文档，确保预设内容与源码同步
 // @ts-ignore
-import agentTypes from "@/tools/llm-chat/types/agent.ts?raw";
+import agentTypes from "@/tools/agent-manager/types/agent.ts?raw";
 // @ts-ignore
 import messageTypes from "@/tools/llm-chat/types/message.ts?raw";
 // @ts-ignore

@@ -17,6 +17,7 @@
  * 负责压缩检测、摘要生成和压缩节点创建
  */
 
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import {
   DEFAULT_CONTEXT_COMPRESSION_CONFIG,
   DEFAULT_CONTEXT_COMPRESSION_PROMPT,
@@ -31,7 +32,7 @@ import {
 import { useNodeManager } from "../session/useNodeManager";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useChatSettings } from "../settings/useChatSettings";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createModuleLogger } from "@/utils/logger";
@@ -42,6 +43,7 @@ const logger = createModuleLogger("llm-chat/context-compressor");
 const errorHandler = createModuleErrorHandler("llm-chat/context-compressor");
 
 export function useContextCompressor() {
+  const { currentAgentId } = useLlmChatUiState();
   const { getNodePath, createNode, addNodeToSession } = useNodeManager();
   const { sendRequest } = useLlmRequest();
   const agentStore = useAgentStore();
@@ -207,7 +209,7 @@ export function useContextCompressor() {
     } else {
       // 使用当前 Agent 的模型
       // 如果没有指定 agentId，尝试获取当前选中的 Agent
-      const targetAgentId = agentId || agentStore.currentAgentId;
+      const targetAgentId = agentId || currentAgentId.value;
       const agent = targetAgentId
         ? agentStore.getAgentById(targetAgentId)
         : null;
@@ -329,12 +331,11 @@ export function useContextCompressor() {
         tokenCount: Math.ceil(summaryContent.length * 1.5), // 粗略估算
       },
     });
-
     // 尝试使用 TokenCalculator 计算精确的 Token 数
     try {
-      const currentAgentId = agentStore.currentAgentId;
-      const agent = currentAgentId
-        ? agentStore.getAgentById(currentAgentId)
+      const activeAgentId = currentAgentId.value;
+      const agent = activeAgentId
+        ? agentStore.getAgentById(activeAgentId)
         : null;
       // 如果没有指定模型，TokenCalculator 会自动回退到默认估算策略
       const tokenResult = await tokenCalculatorService.calculateTokens(
@@ -416,9 +417,9 @@ export function useContextCompressor() {
     };
 
     // 1. 尝试获取当前 Agent 的配置覆盖
-    const currentAgentId = agentStore.currentAgentId;
-    if (currentAgentId) {
-      const agent = agentStore.getAgentById(currentAgentId);
+    const activeAgentId = currentAgentId.value;
+    if (activeAgentId) {
+      const agent = agentStore.getAgentById(activeAgentId);
       if (agent?.parameters?.contextCompression) {
         effectiveConfig = {
           ...effectiveConfig,

@@ -24,7 +24,8 @@ import { useLlmChatStore } from "./llmChatStore";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
-import { useAgentStore } from "./agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
+import { useLlmChatUiState } from "../composables/ui/useLlmChatUiState";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useUserProfileStore } from "./userProfileStore";
 import { MacroProcessor, createMacroContext } from "../macro-engine";
@@ -134,7 +135,6 @@ export const useMessageInputStore = defineStore(
     const bus = useWindowSyncBus();
     const { open: openModelSelectDialog } = useModelSelectDialog();
     const agentStore = useAgentStore();
-
     // 1. 会话管理
     const handleSwitchSession = (sessionId: string) => {
       if (isDetached.value) {
@@ -146,7 +146,8 @@ export const useMessageInputStore = defineStore(
     };
 
     const handleNewSession = () => {
-      const agentId = agentStore.currentAgentId || agentStore.defaultAgent?.id;
+      const { currentAgentId } = useLlmChatUiState();
+      const agentId = currentAgentId.value || agentStore.defaultAgent?.id;
       if (!agentId) {
         customMessage.warning("没有可用的智能体来创建新会话");
         return;
@@ -163,6 +164,7 @@ export const useMessageInputStore = defineStore(
     const getCurrentModelSelection = (modelRef: {
       value: { profileId: string; modelId: string } | null | undefined;
     }) => {
+      const { currentAgentId } = useLlmChatUiState();
       const model = modelRef.value;
       if (model) {
         const profile = getProfileById(model.profileId);
@@ -172,8 +174,8 @@ export const useMessageInputStore = defineStore(
           );
           if (m) return { profile, model: m };
         }
-      } else if (agentStore.currentAgentId) {
-        const agent = agentStore.getAgentById(agentStore.currentAgentId);
+      } else if (currentAgentId.value) {
+        const agent = agentStore.getAgentById(currentAgentId.value);
         if (agent) {
           const profile = getProfileById(agent.profileId);
           if (profile) {
@@ -340,8 +342,9 @@ export const useMessageInputStore = defineStore(
       try {
         // 准备完整的宏上下文
         const session = chatStore.currentFullSession;
-        const agent = agentStore.currentAgentId
-          ? agentStore.getAgentById(agentStore.currentAgentId)
+        const { currentAgentId } = useLlmChatUiState();
+        const agent = currentAgentId.value
+          ? agentStore.getAgentById(currentAgentId.value)
           : null;
         const userProfile = profileStore.getEffectiveProfile(
           agent?.userProfileId

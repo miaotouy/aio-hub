@@ -19,7 +19,7 @@ import { computed, ref, watch } from "vue";
 import type {
   AgentImportPreflightResult,
   ResolvedAgentToImport,
-} from "../../stores/agentStore";
+} from "@/tools/agent-manager/stores/agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { getPureModelId, parseModelCombo } from "@/utils/modelIdUtils";
 import BaseDialog from "@/components/common/BaseDialog.vue";
@@ -45,7 +45,7 @@ const emit = defineEmits<{
     worldbookOptions: {
       bundledWorldbooks: Record<
         string,
-        import("../../types/agentImportExport").BundledWorldbook[]
+        import("@/tools/agent-manager/types/agentImportExport").BundledWorldbook[]
       >;
       embeddedWorldbooks: Record<
         string,
@@ -70,7 +70,7 @@ const resolvedAgents = ref<
 
 // 当预检结果变化时，初始化 resolvedAgents
 const initializeResolvedAgents = (result: AgentImportPreflightResult) => {
-  resolvedAgents.value = result.agents.map((agent) => {
+  resolvedAgents.value = result.agents.map((agent: any) => {
     const tempId = agent.id || "";
     const recommendation = result.modelRecommendations?.[tempId];
 
@@ -135,7 +135,7 @@ const hasProblem = (index: number, agentId?: string) => {
   if (!props.preflightResult) return false;
   return (
     !!props.preflightResult.unmatchedModels.find(
-      (m) => m.agentIndex === index
+      (m: any) => m.agentIndex === index
     ) ||
     !!props.preflightResult.worldbookConflicts?.[agentId || ""] ||
     !!props.preflightResult.sourceMeta?.[agentId || ""]?.warnings?.length
@@ -145,9 +145,9 @@ const hasProblem = (index: number, agentId?: string) => {
 const displayEntries = computed(() => {
   if (!props.preflightResult) return [];
   return props.preflightResult.agents
-    .map((agent, index) => ({ agent, index }))
+    .map((agent: any, index: number) => ({ agent, index }))
     .filter(
-      ({ agent, index }) =>
+      ({ agent, index }: any) =>
         !showProblemsOnly.value || hasProblem(index, agent.id)
     );
 });
@@ -166,9 +166,9 @@ const applyBatchModel = () => {
   if (!batchModelValue.value) return;
   const [profileId, modelId] = parseModelCombo(batchModelValue.value);
   const visibleIndexes = new Set(
-    displayEntries.value.map((entry) => entry.index)
+    displayEntries.value.map((entry: any) => entry.index)
   );
-  resolvedAgents.value.forEach((agent, index) => {
+  resolvedAgents.value.forEach((agent: any, index: number) => {
     if (!visibleIndexes.has(index)) return;
     agent.finalProfileId = profileId;
     agent.finalModelId = modelId;
@@ -192,7 +192,7 @@ const handleConfirm = () => {
   // 根据用户选择过滤世界书数据
   const filteredBundledWorldbooks: Record<
     string,
-    import("../../types/agentImportExport").BundledWorldbook[]
+    import("@/tools/agent-manager/types/agentImportExport").BundledWorldbook[]
   > = {};
   const filteredEmbeddedWorldbooks: Record<
     string,
@@ -200,7 +200,7 @@ const handleConfirm = () => {
   > = {};
 
   // 将 UI 层的选项应用回数据结构
-  const finalResolved = resolvedAgents.value.map((agent) => {
+  const finalResolved = resolvedAgents.value.map((agent: any) => {
     const { importBundledWorldbooks, importEmbeddedWorldbook, ...rest } = agent;
     const agentId = agent.id || "";
 
@@ -407,14 +407,15 @@ const handleCancel = () => {
                       v-if="
                         preflightResult.worldbookConflicts?.[
                           agent.id!
-                        ]?.bundled?.find((b) => b.name === wb.name) as any
+                        ]?.bundled?.find((b: any) => b.name === wb.name) as any
                       "
                     >
                       <ElTooltip
                         v-if="
                           preflightResult.worldbookConflicts![
                             agent.id!
-                          ].bundled.find((b) => b.name === wb.name)?.isDuplicate
+                          ].bundled.find((b: any) => b.name === wb.name)
+                            ?.isDuplicate
                         "
                         content="已存在完全相同的世界书，将自动复用"
                         placement="top"
@@ -427,7 +428,7 @@ const handleCancel = () => {
                         v-else-if="
                           preflightResult.worldbookConflicts![
                             agent.id!
-                          ].bundled.find((b) => b.name === wb.name)
+                          ].bundled.find((b: any) => b.name === wb.name)
                             ?.hasNameConflict
                         "
                         content="存在同名世界书但内容不同，将自动重命名导入"

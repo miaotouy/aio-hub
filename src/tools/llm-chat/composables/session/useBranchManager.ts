@@ -17,17 +17,20 @@
  * 负责所有与用户交互的树结构操作：编辑、删除、切换分支等
  */
 
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import type { ChatSessionDetail, ChatMessageNode } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import { useNodeManager } from "./useNodeManager";
 import { BranchNavigator } from "../../utils/BranchNavigator";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("llm-chat/branch-manager");
 
 export function useBranchManager() {
+  const { currentAgentId } = useLlmChatUiState();
+
   /**
    * 删除消息节点（硬删除：从节点树中移除）
    * @returns 返回一个包含成功状态和被删除节点列表的对象
@@ -213,8 +216,8 @@ export function useBranchManager() {
         const agentStore = useAgentStore();
         const userProfileStore = useUserProfileStore();
 
-        const agent = agentStore.currentAgentId
-          ? agentStore.getAgentById(agentStore.currentAgentId)
+        const agent = currentAgentId.value
+          ? agentStore.getAgentById(currentAgentId.value)
           : null;
         const effectiveProfile = userProfileStore.getEffectiveProfile(
           agent?.userProfileId

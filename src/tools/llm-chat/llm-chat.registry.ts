@@ -49,7 +49,7 @@ import type {
   ModelIdentifier,
   UserProfile,
 } from "./types";
-import * as agentManagementService from "./services/agentManagementService";
+import * as agentManagementService from "@/tools/agent-manager/services/agentManagementService";
 
 /**
  * UI 工具配置

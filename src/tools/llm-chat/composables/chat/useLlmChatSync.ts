@@ -19,7 +19,7 @@
  */
 import { toRef, type Ref, watch, computed, onUnmounted } from "vue";
 import { useLlmChatStore } from "../../stores/llmChatStore";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useWorldbookStore } from "@/tools/st-worldbook-manager/stores/worldbookStore";
 import { useDetachedManager } from "@/composables/useDetachedManager";

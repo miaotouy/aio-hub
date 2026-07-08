@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import BaseDialog from "@/components/common/BaseDialog.vue";
-import UserProfileSettings from "../UserProfileSettings.vue";
+import UserProfileManager from "../UserProfileManager.vue";
 
 interface Props {
   visible: boolean;
@@ -46,7 +46,7 @@ const handleClose = () => {
   >
     <template #content>
       <div class="dialog-content-wrapper">
-        <UserProfileSettings />
+        <UserProfileManager />
       </div>
     </template>
   </BaseDialog>

@@ -17,7 +17,7 @@ export * from "./llm";
 export * from "./message";
 export * from "./history";
 export * from "./session";
-export * from "./profile";
+export * from "@/tools/user-profile-manager/types/profile";
 export * from "./agent";
 export * from "./ui";
 export * from "./agentImportExport";

@@ -53,7 +53,7 @@ import {
   type UserProfile,
   type UserProfileUpdateData,
   createDefaultUserProfileConfig,
-} from "../../types";
+} from "../../types/profile";
 
 interface Props {
   visible: boolean;

@@ -43,7 +43,7 @@ import { useThemeAppearance } from "@/composables/useThemeAppearance";
 import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useDownloadStore } from "@/stores/downloadStore";
 import SystemThemeIcon from "./icons/SystemThemeIcon.vue";
-import { useUserProfileStore } from "@/tools/llm-chat/stores/userProfileStore";
+import { useUserProfileStore } from "@/tools/user-profile-manager/stores/userProfileStore";
 import Avatar from "@/components/common/Avatar.vue";
 import SidebarMenu from "@/components/SidebarMenu.vue";
 import NotificationBell from "@/components/notification/NotificationBell.vue";
@@ -53,7 +53,7 @@ import {
   useResolvedAvatar,
   resolveAvatarPath,
 } from "@/tools/llm-chat/composables/ui/useResolvedAvatar";
-import UserProfileManagerDialog from "@/views/Settings/user-profile/components/UserProfileManagerDialog.vue";
+import UserProfileManagerDialog from "@/tools/user-profile-manager/components/UserProfileManagerDialog.vue";
 
 // 接收可选的标题和图标 prop（用于分离窗口）
 const props = defineProps<{

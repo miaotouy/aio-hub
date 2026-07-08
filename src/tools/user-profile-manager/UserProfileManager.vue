@@ -116,20 +116,20 @@ import { ElMessageBox } from "element-plus";
 import { RefreshLeft, FolderOpened } from "@element-plus/icons-vue";
 import { invoke } from "@tauri-apps/api/core";
 import { customMessage } from "@/utils/customMessage";
-import { useUserProfileStore } from "@/tools/llm-chat/stores/userProfileStore";
-import type { UserProfile } from "@/tools/llm-chat/types";
+import { useUserProfileStore } from "./stores/userProfileStore";
+import type { UserProfile } from "./types/profile";
 import Avatar from "@/components/common/Avatar.vue";
-import ProfileSidebar from "../shared/ProfileSidebar.vue";
-import ProfileEditor from "../shared/ProfileEditor.vue";
-import CreateUserProfileDialog from "./components/CreateUserProfileDialog.vue";
-import UserProfileForm from "./components/UserProfileForm.vue";
+import ProfileSidebar from "@/views/Settings/shared/ProfileSidebar.vue";
+import ProfileEditor from "@/views/Settings/shared/ProfileEditor.vue";
+import CreateUserProfileDialog from "@/views/Settings/user-profile/components/CreateUserProfileDialog.vue";
+import UserProfileForm from "@/views/Settings/user-profile/components/UserProfileForm.vue";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { resolveAvatarPath } from "@/tools/llm-chat/composables/ui/useResolvedAvatar";
-import { useUserProfileStorage } from "@/tools/llm-chat/composables/storage/useUserProfileStorage";
+import { useUserProfileStorage } from "./composables/storage/useUserProfileStorage";
 
-const logger = createModuleLogger("UserProfileSettings");
-const errorHandler = createModuleErrorHandler("UserProfileSettings");
+const logger = createModuleLogger("UserProfileManager");
+const errorHandler = createModuleErrorHandler("UserProfileManager");
 const userProfileStore = useUserProfileStore();
 
 // 加载状态

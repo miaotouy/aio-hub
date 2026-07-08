@@ -19,7 +19,7 @@ import { applyLogConfig } from "@/utils/logConfig";
 import { initTheme } from "@/composables/useTheme";
 import { autoRegisterServices, startupManager } from "@/services";
 import { refreshCurrentRoute } from "@/router";
-import { useUserProfileStore } from "@/tools/llm-chat/stores/userProfileStore";
+import { useUserProfileStore } from "@/tools/user-profile-manager/stores/userProfileStore";
 import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { createModuleLogger } from "@/utils/logger";

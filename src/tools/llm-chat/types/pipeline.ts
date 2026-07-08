@@ -16,7 +16,7 @@ import type {
   ChatSessionIndex,
   ChatSessionDetail,
 } from "@/tools/llm-chat/types/session";
-import type { UserProfile } from "@/tools/llm-chat/types/profile";
+import type { UserProfile } from "@/tools/user-profile-manager/types/profile";
 import type { ProcessableMessage } from "@/tools/llm-chat/types/context";
 import type { ModelCapabilities } from "@/types/llm-profiles";
 import type { ChatAgent } from "@/tools/llm-chat/types/agent";

@@ -14,7 +14,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
-import type { UserProfile } from "../../types";
+import type { UserProfile } from "../../types/profile";
 import { useUserProfileStore } from "../userProfileStore";
 
 const storageMocks = vi.hoisted(() => ({

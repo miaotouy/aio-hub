@@ -83,7 +83,7 @@ export interface UserProfile {
    * 正则管道配置
    * 用于对消息内容进行动态清洗、格式转换等
    */
-  regexConfig?: import("./chatRegex").ChatRegexConfig;
+  regexConfig?: import("@/tools/llm-chat/types/chatRegex").ChatRegexConfig;
 
   /**
    * 关联的世界书 ID 列表

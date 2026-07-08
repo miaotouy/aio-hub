@@ -13,7 +13,8 @@
 // limitations under the License.
 
 import { computed, type Ref } from "vue";
-import type { ChatAgent, UserProfile } from "../../types";
+import type { ChatAgent } from "../../types";
+import type { UserProfile } from "@/tools/user-profile-manager/types/profile";
 
 type EntityType = "agent" | "user-profile";
 // 兼容智能体、用户档案以及消息元数据中的快照
@@ -61,7 +62,7 @@ export function resolveAvatarPath(
       return `appdata://llm-chat/agents/${entity.id}/${icon}`;
     } else {
       // user-profile
-      return `appdata://llm-chat/user-profiles/${entity.id}/${icon}`;
+      return `appdata://user-profile-manager/profiles/${entity.id}/${icon}`;
     }
   }
 

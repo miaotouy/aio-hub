@@ -221,7 +221,7 @@ export function useUserProfileStorage() {
 
           await invoke("copy_file_to_app_data", {
             sourcePath,
-            subdirectory: await join(MODULE_NAME, "profiles", profileId),
+            subdirectory: await join(MODULE_NAME, PROFILES_SUBDIR, profileId),
             newFilename: newAvatarName,
           });
 
@@ -356,7 +356,7 @@ export function useUserProfileStorage() {
 
       // 如果 icon 是完整的 appdata 路径（指向自己的目录），转换为相对文件名
       const icon = profileToSave.icon?.trim();
-      const selfAssetPathPrefix = `appdata://user-profile-manager/profiles/${profile.id}/`;
+      const selfAssetPathPrefix = `appdata://user-profile-manager/${PROFILES_SUBDIR}/${profile.id}/`;
       if (icon && icon.startsWith(selfAssetPathPrefix)) {
         profileToSave.icon = icon.substring(selfAssetPathPrefix.length);
       }
@@ -572,7 +572,7 @@ export function useUserProfileStorage() {
             // 复制头像到新目录
             await invoke("copy_file_to_app_data", {
               sourcePath: assetFullPath,
-              subdirectory: await join(MODULE_NAME, "profiles", profileId),
+              subdirectory: await join(MODULE_NAME, PROFILES_SUBDIR, profileId),
               newFilename: newAvatarName,
             });
 
@@ -694,7 +694,7 @@ export function useUserProfileStorage() {
                         sourcePath: oldAssetPath,
                         subdirectory: await join(
                           newModuleName,
-                          "profiles",
+                          PROFILES_SUBDIR,
                           profileId
                         ),
                         newFilename: pEntry.name,

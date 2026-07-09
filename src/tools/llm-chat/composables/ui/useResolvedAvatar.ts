@@ -59,10 +59,10 @@ export function resolveAvatarPath(
   // 否则认为是完整路径、URL 或 Emoji，直接返回。
   if (isLikelyFilename(icon)) {
     if (type === "agent") {
-      return `appdata://llm-chat/agents/${entity.id}/${icon}`;
+      return `appdata://agent-manager/agents/${entity.id}/${icon}`;
     } else {
       // user-profile
-      return `appdata://user-profile-manager/profiles/${entity.id}/${icon}`;
+      return `appdata://user-profile-manager/user-profiles/${entity.id}/${icon}`;
     }
   }
 

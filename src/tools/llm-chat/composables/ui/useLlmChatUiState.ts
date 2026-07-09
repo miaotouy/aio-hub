@@ -16,7 +16,7 @@
  * LLM Chat UI 状态持久化管理
  */
 
-import { ref, watch } from "vue";
+import { reactive, toRefs, watch } from "vue";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -98,29 +98,7 @@ const uiStateManager = createConfigManager<LlmChatUiState>({
 const debouncedSave = uiStateManager.saveDebounced;
 
 // 将响应式状态提升到模块级别，使其成为真正的单例
-const isLeftSidebarCollapsed = ref(defaultUiState.isLeftSidebarCollapsed);
-const isRightSidebarCollapsed = ref(defaultUiState.isRightSidebarCollapsed);
-const leftSidebarWidth = ref(defaultUiState.leftSidebarWidth);
-const rightSidebarWidth = ref(defaultUiState.rightSidebarWidth);
-const leftSidebarActiveTab = ref<"agents" | "parameters">(
-  defaultUiState.leftSidebarActiveTab
-);
-const agentSortBy = ref<"lastUsed" | "name" | "createdAt">(
-  defaultUiState.agentSortBy
-);
-const currentAgentId = ref<string | null>(defaultUiState.currentAgentId);
-const presetMessagesExpanded = ref(defaultUiState.presetMessagesExpanded);
-const basicParamsExpanded = ref(defaultUiState.basicParamsExpanded);
-const advancedParamsExpanded = ref(defaultUiState.advancedParamsExpanded);
-const contextManagementExpanded = ref(defaultUiState.contextManagementExpanded);
-const contextCompressionExpanded = ref(
-  defaultUiState.contextCompressionExpanded
-);
-const postProcessingExpanded = ref(defaultUiState.postProcessingExpanded);
-const safetySettingsExpanded = ref(defaultUiState.safetySettingsExpanded);
-const specialFeaturesExpanded = ref(defaultUiState.specialFeaturesExpanded);
-const customParamsExpanded = ref(defaultUiState.customParamsExpanded);
-const viewMode = ref<"linear" | "force-graph">(defaultUiState.viewMode);
+const state = reactive<LlmChatUiState>({ ...defaultUiState });
 
 // 是否已初始化
 let isInitialized = false;
@@ -134,31 +112,14 @@ export function useLlmChatUiState() {
    */
   const loadUiState = async () => {
     try {
-      const state = await uiStateManager.load();
+      const loadedState = await uiStateManager.load();
 
-      isLeftSidebarCollapsed.value = state.isLeftSidebarCollapsed;
-      isRightSidebarCollapsed.value = state.isRightSidebarCollapsed;
-      leftSidebarWidth.value = state.leftSidebarWidth;
-      rightSidebarWidth.value = state.rightSidebarWidth;
-      leftSidebarActiveTab.value = state.leftSidebarActiveTab;
-      agentSortBy.value = state.agentSortBy;
-      currentAgentId.value = state.currentAgentId ?? null;
-      presetMessagesExpanded.value = state.presetMessagesExpanded;
-      basicParamsExpanded.value = state.basicParamsExpanded;
-      advancedParamsExpanded.value = state.advancedParamsExpanded;
-      contextManagementExpanded.value =
-        state.contextManagementExpanded ??
-        defaultUiState.contextManagementExpanded;
-      contextCompressionExpanded.value =
-        state.contextCompressionExpanded ??
-        defaultUiState.contextCompressionExpanded;
-      postProcessingExpanded.value =
-        state.postProcessingExpanded ?? defaultUiState.postProcessingExpanded;
-      safetySettingsExpanded.value =
-        state.safetySettingsExpanded ?? defaultUiState.safetySettingsExpanded;
-      specialFeaturesExpanded.value = state.specialFeaturesExpanded;
-      customParamsExpanded.value = state.customParamsExpanded;
-      viewMode.value = state.viewMode;
+      // 合并加载的状态，并对可能缺失的字段使用默认值兜底
+      Object.assign(state, {
+        ...defaultUiState,
+        ...loadedState,
+        currentAgentId: loadedState.currentAgentId ?? null,
+      });
 
       isInitialized = true;
       logger.info("UI状态加载成功", state);
@@ -181,27 +142,8 @@ export function useLlmChatUiState() {
       return;
     }
 
-    const state: LlmChatUiState = {
-      isLeftSidebarCollapsed: isLeftSidebarCollapsed.value,
-      isRightSidebarCollapsed: isRightSidebarCollapsed.value,
-      leftSidebarWidth: leftSidebarWidth.value,
-      rightSidebarWidth: rightSidebarWidth.value,
-      leftSidebarActiveTab: leftSidebarActiveTab.value,
-      agentSortBy: agentSortBy.value,
-      currentAgentId: currentAgentId.value,
-      presetMessagesExpanded: presetMessagesExpanded.value,
-      basicParamsExpanded: basicParamsExpanded.value,
-      advancedParamsExpanded: advancedParamsExpanded.value,
-      contextManagementExpanded: contextManagementExpanded.value,
-      contextCompressionExpanded: contextCompressionExpanded.value,
-      postProcessingExpanded: postProcessingExpanded.value,
-      safetySettingsExpanded: safetySettingsExpanded.value,
-      specialFeaturesExpanded: specialFeaturesExpanded.value,
-      customParamsExpanded: customParamsExpanded.value,
-      viewMode: viewMode.value,
-    };
-
-    debouncedSave(state);
+    // 浅拷贝当前状态进行保存
+    debouncedSave({ ...state });
   };
 
   /**
@@ -209,30 +151,13 @@ export function useLlmChatUiState() {
    * 当状态变化时自动保存
    */
   const startWatching = () => {
-    // 监听所有UI状态变化
+    // 监听整个响应式状态对象的变化
     watch(
-      [
-        isLeftSidebarCollapsed,
-        isRightSidebarCollapsed,
-        leftSidebarWidth,
-        rightSidebarWidth,
-        leftSidebarActiveTab,
-        agentSortBy,
-        currentAgentId,
-        presetMessagesExpanded,
-        basicParamsExpanded,
-        advancedParamsExpanded,
-        contextManagementExpanded,
-        contextCompressionExpanded,
-        postProcessingExpanded,
-        safetySettingsExpanded,
-        specialFeaturesExpanded,
-        customParamsExpanded,
-        viewMode,
-      ],
+      () => state,
       () => {
         saveUiState();
-      }
+      },
+      { deep: true }
     );
 
     // 监听智能体列表变化，如果当前选中的智能体被删除了，安全回退
@@ -240,10 +165,10 @@ export function useLlmChatUiState() {
       () => useAgentStore().agents,
       (newAgents) => {
         if (
-          currentAgentId.value &&
-          !newAgents.some((a) => a.id === currentAgentId.value)
+          state.currentAgentId &&
+          !newAgents.some((a) => a.id === state.currentAgentId)
         ) {
-          currentAgentId.value = newAgents[0]?.id || null;
+          state.currentAgentId = newAgents[0]?.id || null;
         }
       }
     );
@@ -257,27 +182,7 @@ export function useLlmChatUiState() {
   const resetUiState = async () => {
     try {
       await uiStateManager.save(defaultUiState);
-
-      isLeftSidebarCollapsed.value = defaultUiState.isLeftSidebarCollapsed;
-      isRightSidebarCollapsed.value = defaultUiState.isRightSidebarCollapsed;
-      leftSidebarWidth.value = defaultUiState.leftSidebarWidth;
-      rightSidebarWidth.value = defaultUiState.rightSidebarWidth;
-      leftSidebarActiveTab.value = defaultUiState.leftSidebarActiveTab;
-      agentSortBy.value = defaultUiState.agentSortBy;
-      currentAgentId.value = defaultUiState.currentAgentId;
-      presetMessagesExpanded.value = defaultUiState.presetMessagesExpanded;
-      basicParamsExpanded.value = defaultUiState.basicParamsExpanded;
-      advancedParamsExpanded.value = defaultUiState.advancedParamsExpanded;
-      contextManagementExpanded.value =
-        defaultUiState.contextManagementExpanded;
-      contextCompressionExpanded.value =
-        defaultUiState.contextCompressionExpanded;
-      postProcessingExpanded.value = defaultUiState.postProcessingExpanded;
-      safetySettingsExpanded.value = defaultUiState.safetySettingsExpanded;
-      specialFeaturesExpanded.value = defaultUiState.specialFeaturesExpanded;
-      customParamsExpanded.value = defaultUiState.customParamsExpanded;
-      viewMode.value = defaultUiState.viewMode;
-
+      Object.assign(state, defaultUiState);
       logger.info("UI状态已重置");
     } catch (error) {
       errorHandler.handle(error as Error, {
@@ -297,7 +202,7 @@ export function useLlmChatUiState() {
       syncCurrentSessionGreetings?: boolean;
     }
   ) => {
-    currentAgentId.value = agentId;
+    state.currentAgentId = agentId;
 
     const agentStore = useAgentStore();
     agentStore.updateLastUsed(agentId);
@@ -312,24 +217,8 @@ export function useLlmChatUiState() {
   };
 
   return {
-    // 状态
-    isLeftSidebarCollapsed,
-    isRightSidebarCollapsed,
-    leftSidebarWidth,
-    rightSidebarWidth,
-    leftSidebarActiveTab,
-    agentSortBy,
-    currentAgentId,
-    presetMessagesExpanded,
-    basicParamsExpanded,
-    advancedParamsExpanded,
-    contextManagementExpanded,
-    contextCompressionExpanded,
-    postProcessingExpanded,
-    safetySettingsExpanded,
-    specialFeaturesExpanded,
-    customParamsExpanded,
-    viewMode,
+    // 状态 (通过 toRefs 保持解构后的响应式)
+    ...toRefs(state),
 
     // 方法
     loadUiState,

@@ -25,6 +25,7 @@ import {
   Files,
 } from "@element-plus/icons-vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
+import DropZone from "@/components/common/DropZone.vue";
 import { customMessage } from "@/utils/customMessage";
 import type { ChatAgent } from "../../types/agent";
 import { useAgentStore } from "../../stores/agentStore";
@@ -64,7 +65,6 @@ const parsedAssets = ref<Record<string, ArrayBuffer>>({});
 const parsedBundledWorldbooks = ref<any[]>([]);
 const parsedEmbeddedWorldbook = ref<any>(null);
 const parseError = ref<string | null>(null);
-const isDragging = ref(false);
 const isParsing = ref(false);
 
 // ========== 常量 ==========
@@ -122,9 +122,20 @@ const handleFileUpload = async (file: File | File[]) => {
   isParsing.value = true;
   parseError.value = null;
   const fileList = Array.isArray(file) ? file : [file];
-  importText.value = fileList.map((f) => f.name).join(", ");
 
   try {
+    // 如果是单个 yaml/json 文本文件，直接读取内容并填入输入框
+    if (fileList.length === 1) {
+      const firstFile = fileList[0];
+      const ext = firstFile.name.split(".").pop()?.toLowerCase() || "";
+      if (["yaml", "yml", "json"].includes(ext)) {
+        const text = await firstFile.text();
+        importText.value = text;
+        return; // 赋值给 importText 后，watch 会自动触发 parseTextConfig 进行解析
+      }
+    }
+
+    importText.value = fileList.map((f) => f.name).join(", ");
     const result = await agentStore.preflightImportAgents(file);
 
     if (result.agents.length === 0) {
@@ -197,11 +208,20 @@ const collectFilesFromDirectory = async (
 
 // ========== 用户交互处理 ==========
 
-const onDrop = (e: DragEvent) => {
-  isDragging.value = false;
-  const files = e.dataTransfer?.files;
-  if (files && files.length > 0) {
-    handleFileUpload(Array.from(files));
+const handlePathsDropped = async (paths: string[]) => {
+  if (!paths || paths.length === 0) return;
+  try {
+    const files = await Promise.all(
+      paths.map(async (path) => {
+        const content = await readFile(path);
+        const name = path.split(/[/\\]/).pop() || "unnamed";
+        return new File([content], name);
+      })
+    );
+    handleFileUpload(files);
+  } catch (error) {
+    logger.error("处理拖放文件失败", error as Error);
+    customMessage.error("读取拖放文件失败");
   }
 };
 
@@ -480,39 +500,43 @@ const previewInfo = computed(() => {
         >
       </div>
 
-      <div
+      <DropZone
         class="import-area"
-        :class="{ 'is-dragging': isDragging }"
         v-loading="isParsing"
         element-loading-text="正在解析配置..."
-        @dragover.prevent="isDragging = true"
-        @dragleave.prevent="isDragging = false"
-        @drop.prevent="onDrop"
+        :multiple="true"
+        :accept="['.json', '.yaml', '.yml', '.zip', '.png', '.jpg', '.jpeg']"
+        @drop="handlePathsDropped"
+        bare
       >
-        <el-input
-          v-model="importText"
-          type="textarea"
-          :rows="8"
-          placeholder="在此粘贴 JSON/YAML 配置内容，或将配置文件拖入此处..."
-          resize="none"
-        />
-        <div class="upload-hint" v-if="!importText && !isParsing">
-          <el-icon><Upload /></el-icon>
-          <span>支持拖拽文件上传</span>
-        </div>
-        <div class="import-actions">
-          <el-button :icon="Files" @click="handleSelectFile" size="small"
-            >选择文件</el-button
-          >
-          <el-button
-            :icon="FolderOpened"
-            @click="handleSelectDirectory"
-            size="small"
-          >
-            选择目录
-          </el-button>
-        </div>
-      </div>
+        <template #default="{ dragging }">
+          <div class="import-area-inner" :class="{ 'is-dragging': dragging }">
+            <el-input
+              v-model="importText"
+              type="textarea"
+              :rows="8"
+              placeholder="在此粘贴 JSON/YAML 配置内容，或将配置文件拖入此处..."
+              resize="none"
+            />
+            <div class="upload-hint" v-if="!importText && !isParsing">
+              <el-icon><Upload /></el-icon>
+              <span>支持拖拽文件上传</span>
+            </div>
+            <div class="import-actions">
+              <el-button :icon="Files" @click="handleSelectFile" size="small"
+                >选择文件</el-button
+              >
+              <el-button
+                :icon="FolderOpened"
+                @click="handleSelectDirectory"
+                size="small"
+              >
+                选择目录
+              </el-button>
+            </div>
+          </div>
+        </template>
+      </DropZone>
 
       <div v-if="parseError" class="error-msg">
         <el-icon><Warning /></el-icon>
@@ -646,12 +670,18 @@ const previewInfo = computed(() => {
 
 .import-area {
   position: relative;
+  border-radius: 8px;
+  transition: all 0.3s;
+}
+
+.import-area-inner {
+  position: relative;
   border: 1px dashed var(--border-color);
   border-radius: 8px;
   transition: all 0.3s;
 }
 
-.import-area.is-dragging {
+.import-area-inner.is-dragging {
   border-color: var(--el-color-primary);
   background: rgba(var(--el-color-primary-rgb), 0.1);
 }

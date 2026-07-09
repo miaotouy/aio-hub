@@ -146,11 +146,10 @@
                       )
                     "
                     :src="
-                      resolveAvatarPath(
+                      resolveAgentAvatarPath(
                         getSessionDisplayAgent(
                           filteredSessions[virtualItem.index]
-                        ),
-                        'agent'
+                        )
                       ) || ''
                     "
                     :alt="getAgentName(filteredSessions[virtualItem.index])"
@@ -253,7 +252,7 @@ import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { formatDateTime } from "@/utils/time";
 import type { ChatSessionIndex } from "../../types";
-import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
+import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import {

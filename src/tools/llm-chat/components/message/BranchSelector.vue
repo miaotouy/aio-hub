@@ -20,7 +20,8 @@ import { ElScrollbar } from "element-plus";
 import type { ChatMessageNode } from "../../types";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
-import { useResolvedAvatar } from "../../composables/ui/useResolvedAvatar";
+import { useResolvedAgentAvatar } from "@/tools/agent-manager/utils/agentAssetUtils";
+import { useResolvedProfileAvatar } from "@/tools/user-profile-manager/utils/profileAssetUtils";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import Avatar from "@/components/common/Avatar.vue";
@@ -124,7 +125,7 @@ const siblingsWithDisplayInfo = computed(() => {
           sibling.metadata?.userProfileId
         );
       });
-      avatarSrc = useResolvedAvatar(avatarTarget, "user-profile").value;
+      avatarSrc = useResolvedProfileAvatar(avatarTarget).value;
     } else if (sibling.role === "assistant") {
       // 助手消息：优先使用快照，否则回退到当前智能体
       const agentId = sibling.metadata?.agentId;
@@ -146,7 +147,7 @@ const siblingsWithDisplayInfo = computed(() => {
         }
         return agent;
       });
-      avatarSrc = useResolvedAvatar(avatarTarget, "agent").value;
+      avatarSrc = useResolvedAgentAvatar(avatarTarget).value;
 
       // 获取模型信息
       const metadata = sibling.metadata;

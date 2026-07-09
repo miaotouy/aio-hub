@@ -27,7 +27,7 @@ import {
 } from "../../composables/chat/useLlmSearch";
 import { Plus, Search, Loading } from "@element-plus/icons-vue";
 import Avatar from "@/components/common/Avatar.vue";
-import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
+import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 import { formatRelativeTime } from "@/utils/time";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useMessageInputStore } from "../../stores/messageInputStore";
@@ -294,8 +294,7 @@ defineExpose({
               <Avatar
                 v-if="getSessionDisplayAgent(session)"
                 :src="
-                  resolveAvatarPath(getSessionDisplayAgent(session), 'agent') ||
-                  ''
+                  resolveAgentAvatarPath(getSessionDisplayAgent(session)) || ''
                 "
                 :alt="getSessionDisplayAgent(session)?.name"
                 :size="16"

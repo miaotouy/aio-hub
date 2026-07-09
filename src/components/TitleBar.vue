@@ -50,9 +50,9 @@ import NotificationBell from "@/components/notification/NotificationBell.vue";
 import DownloadManager from "@/components/DownloadManager.vue";
 import { useDebounceFn } from "@vueuse/core";
 import {
-  useResolvedAvatar,
-  resolveAvatarPath,
-} from "@/tools/llm-chat/composables/ui/useResolvedAvatar";
+  useResolvedProfileAvatar,
+  resolveProfileAvatarPath,
+} from "@/tools/user-profile-manager/utils/profileAssetUtils";
 import UserProfileManagerDialog from "@/tools/user-profile-manager/components/UserProfileManagerDialog.vue";
 
 // 接收可选的标题和图标 prop（用于分离窗口）
@@ -75,9 +75,8 @@ const detachedManager = useDetachedManager();
 const downloadStore = useDownloadStore();
 
 // 解析当前选中的全局用户档案头像
-const globalProfileAvatarSrc = useResolvedAvatar(
-  computed(() => userProfileStore.globalProfile),
-  "user-profile"
+const globalProfileAvatarSrc = useResolvedProfileAvatar(
+  computed(() => userProfileStore.globalProfile)
 );
 
 const appWindow = getCurrentWindow();
@@ -376,7 +375,7 @@ const openProfileManager = () => {
 
 // 获取档案头像路径（用于列表）
 const getProfileAvatarSrc = (profile: any) => {
-  return resolveAvatarPath(profile, "user-profile");
+  return resolveProfileAvatarPath(profile);
 };
 
 const handleMenuSelect = () => {

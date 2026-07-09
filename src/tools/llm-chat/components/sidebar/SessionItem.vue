@@ -31,7 +31,7 @@ import type { ChatSessionIndex } from "../../types";
 import type { MatchDetail } from "../../composables/chat/useLlmSearch";
 import { useLlmSearch } from "../../composables/chat/useLlmSearch";
 import Avatar from "@/components/common/Avatar.vue";
-import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
+import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 import { formatRelativeTime } from "@/utils/time";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 
@@ -94,7 +94,7 @@ const handleToggleFavorite = () => {
             :show-after="50"
           >
             <Avatar
-              :src="resolveAvatarPath(displayAgent, 'agent') || ''"
+              :src="resolveAgentAvatarPath(displayAgent) || ''"
               :alt="displayAgent.displayName || displayAgent.name"
               :size="20"
               shape="square"

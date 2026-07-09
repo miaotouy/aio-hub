@@ -25,7 +25,8 @@ import { useModelMetadata } from "@/composables/useModelMetadata";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import Avatar from "@/components/common/Avatar.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
-import { useResolvedAvatar } from "../../composables/ui/useResolvedAvatar";
+import { useResolvedAgentAvatar } from "@/tools/agent-manager/utils/agentAssetUtils";
+import { useResolvedProfileAvatar } from "@/tools/user-profile-manager/utils/profileAssetUtils";
 import { formatRelativeTime } from "@/utils/time";
 
 interface Props {
@@ -169,9 +170,9 @@ const assistantAvatarTarget = computed(() => {
   return agent.value;
 });
 
-// 使用 useResolvedAvatar 解析最终的头像路径
-const userAvatarSrc = useResolvedAvatar(userAvatarTarget, "user-profile");
-const assistantAvatarSrc = useResolvedAvatar(assistantAvatarTarget, "agent");
+// 使用各自领域的 Composable 解析最终的头像路径
+const userAvatarSrc = useResolvedProfileAvatar(userAvatarTarget);
+const assistantAvatarSrc = useResolvedAgentAvatar(assistantAvatarTarget);
 
 // 根据角色选择最终要显示的图标
 const displayIcon = computed<any>(() => {

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { computed, type Ref } from "vue";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { getAppConfigDir } from "@/utils/appPath";
 import type { ChatAgent, AgentAsset } from "../types/agent";
@@ -674,4 +675,56 @@ export async function processMessageAssets(
   }
 
   return result;
+}
+
+/**
+ * 判断一个图标字符串是否像一个内置的文件名
+ * @param icon 图标字符串
+ */
+function isLikelyFilename(icon: string): boolean {
+  if (!icon) return false;
+  // 排除 DataURL 和 协议头
+  if (icon.startsWith("data:") || icon.includes("://")) return false;
+  // 一个简单的检查：包含点（用于扩展名）且不包含路径分隔符
+  return (
+    icon.includes(".") &&
+    !icon.includes("/") &&
+    !icon.includes("\\") &&
+    !icon.includes(":")
+  );
+}
+
+/**
+ * 解析智能体头像路径的纯函数
+ */
+export function resolveAgentAvatarPath(
+  agent: { id: string; icon?: string } | undefined | null
+): string | null {
+  if (!agent) {
+    return null;
+  }
+
+  const icon = agent.icon?.trim();
+  if (!icon) {
+    return null;
+  }
+
+  // 自动推断：如果看起来像文件名（包含扩展名且无路径分隔符），
+  // 则认为是 AppData 中的资源，自动拼接路径。
+  if (isLikelyFilename(icon)) {
+    return `appdata://agent-manager/agents/${agent.id}/${icon}`;
+  }
+
+  return icon;
+}
+
+/**
+ * 一个用于解析智能体最终头像路径的 Composable。
+ */
+export function useResolvedAgentAvatar(
+  agentRef: Ref<{ id: string; icon?: string } | undefined | null>
+) {
+  return computed(() => {
+    return resolveAgentAvatarPath(agentRef.value);
+  });
 }

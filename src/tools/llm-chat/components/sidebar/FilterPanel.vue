@@ -15,7 +15,7 @@
 -->
 
 <script setup lang="ts">
-import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
+import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 import Avatar from "@/components/common/Avatar.vue";
 
 export type SortBy = "updatedAt" | "createdAt" | "messageCount" | "name";
@@ -99,7 +99,7 @@ const emit = defineEmits<{
           @click="agent && emit('update:filterAgent', agent.id)"
         >
           <Avatar
-            :src="resolveAvatarPath(agent, 'agent') || ''"
+            :src="resolveAgentAvatarPath(agent) || ''"
             :alt="agent.displayName || agent.name"
             :size="16"
             shape="square"

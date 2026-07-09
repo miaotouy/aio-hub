@@ -22,13 +22,10 @@
         <Avatar
           v-if="contextData.agentInfo.icon"
           :src="
-            resolveAvatarPath(
-              {
-                id: contextData.agentInfo.id,
-                icon: contextData.agentInfo.icon,
-              },
-              'agent'
-            ) || ''
+            resolveAgentAvatarPath({
+              id: contextData.agentInfo.id,
+              icon: contextData.agentInfo.icon,
+            }) || ''
           "
           :alt="agentDisplayName"
           :size="96"
@@ -758,7 +755,7 @@ import {
   isVirtualPendingInputNode,
 } from "../../types/context";
 import type { Asset } from "@/types/asset-management";
-import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
+import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
@@ -1284,22 +1281,19 @@ function getAssistantAvatarSrc(msg: UnifiedMessage): string {
     // 检查是否需要解析（可能是文件名格式）
     // 但由于历史消息没有存储 agentId，我们无法正确解析
     // 只能尝试用当前 agent 的 id 来解析（假设是同一个 agent）
-    const resolved = resolveAvatarPath(
-      { id: props.contextData.agentInfo.id, icon: msg.agentIcon },
-      "agent"
-    );
+    const resolved = resolveAgentAvatarPath({
+      id: props.contextData.agentInfo.id,
+      icon: msg.agentIcon,
+    });
     if (resolved) return resolved;
   }
 
   // 回退到当前 agent 的头像
   return (
-    resolveAvatarPath(
-      {
-        id: props.contextData.agentInfo.id,
-        icon: props.contextData.agentInfo.icon,
-      },
-      "agent"
-    ) || ""
+    resolveAgentAvatarPath({
+      id: props.contextData.agentInfo.id,
+      icon: props.contextData.agentInfo.icon,
+    }) || ""
   );
 }
 

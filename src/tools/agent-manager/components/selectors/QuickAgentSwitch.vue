@@ -17,7 +17,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
 import Avatar from "@/components/common/Avatar.vue";
-import { useResolvedAvatar } from "@/tools/llm-chat/composables/ui/useResolvedAvatar";
+import { useResolvedAgentAvatar } from "@/tools/agent-manager/utils/agentAssetUtils";
 import { computed } from "vue";
 
 interface Props {
@@ -47,12 +47,7 @@ onUnmounted(() => {
 });
 
 const getAgentAvatar = (agent: any) => {
-  return (
-    useResolvedAvatar(
-      computed(() => agent),
-      "agent"
-    ).value || ""
-  );
+  return useResolvedAgentAvatar(computed(() => agent)).value || "";
 };
 </script>
 

@@ -19,7 +19,7 @@ import { ref, computed, onMounted } from "vue";
 import { useAgentStore } from "./stores/agentStore";
 import { useToolsStore } from "@/stores/tools";
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
-import { resolveAvatarPath } from "@/tools/llm-chat/composables/ui/useResolvedAvatar";
+import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 import { customMessage } from "@/utils/customMessage";
 import { ElMessageBox } from "element-plus";
 import Avatar from "@/components/common/Avatar.vue";
@@ -199,7 +199,7 @@ const handleImportAgents = () => {
           <div class="card-body">
             <div class="agent-avatar-wrapper">
               <Avatar
-                :src="resolveAvatarPath(agent, 'agent') || ''"
+                :src="resolveAgentAvatarPath(agent) || ''"
                 :name="agent.name"
                 :size="64"
                 class="agent-avatar"

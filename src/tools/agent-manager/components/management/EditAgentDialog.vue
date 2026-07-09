@@ -30,7 +30,7 @@ import { Users } from "lucide-vue-next";
 import { useChatSettings } from "@/tools/llm-chat/composables/settings/useChatSettings";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useAgentStore } from "../../stores/agentStore";
-import { resolveAvatarPath } from "@/tools/llm-chat/composables/ui/useResolvedAvatar";
+import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { createDefaultChatRegexConfig } from "@/tools/llm-chat/types/chatRegex";
 import { DEFAULT_TOOL_CALL_CONFIG, DEFAULT_KB_CONFIG } from "../../types/agent";
@@ -416,7 +416,7 @@ const handleSave = (
             </el-popover>
             <div v-if="currentEditingAgent" class="current-editing-info">
               <Avatar
-                :src="resolveAvatarPath(currentEditingAgent, 'agent') || ''"
+                :src="resolveAgentAvatarPath(currentEditingAgent) || ''"
                 :name="currentEditingAgent.name"
                 :size="24"
               />

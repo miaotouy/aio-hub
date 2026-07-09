@@ -132,7 +132,7 @@ import {
 } from "../../composables/features/useExportManager";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useChatExecutor } from "../../composables/chat/useChatExecutor";
-import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
+import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
@@ -233,11 +233,11 @@ const participatingAgents = computed(() => {
       const key = agentId || agentName;
 
       if (!agentsMap.has(key)) {
-        // 使用 resolveAvatarPath 纯函数解析头像路径
+        // 使用 resolveAgentAvatarPath 纯函数解析头像路径
         const entity = agentId
           ? { id: agentId, icon: node.metadata.agentIcon }
           : null;
-        const avatarSrc = entity ? resolveAvatarPath(entity, "agent") : null;
+        const avatarSrc = entity ? resolveAgentAvatarPath(entity) : null;
 
         agentsMap.set(key, {
           id: agentId,
@@ -255,7 +255,7 @@ const participatingAgents = computed(() => {
   if (result.length === 0 && currentAgentId.value) {
     const current = agentStore.getAgentById(currentAgentId.value);
     if (current) {
-      const avatarSrc = resolveAvatarPath(current, "agent");
+      const avatarSrc = resolveAgentAvatarPath(current);
       return [
         {
           id: current.id,

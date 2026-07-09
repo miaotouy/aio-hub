@@ -20,7 +20,8 @@ import type { ChatMessageNode } from "../../types";
 import type { ChatSessionDetail, ChatSessionIndex } from "../../types/session";
 import type { ScreenshotBrandConfig } from "./screenshotTypes";
 import Avatar from "@/components/common/Avatar.vue";
-import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
+import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
+import { resolveProfileAvatarPath } from "@/tools/user-profile-manager/utils/profileAssetUtils";
 import aioIconColor from "@/assets/aio-icon-color.svg";
 import { Link } from "lucide-vue-next";
 import QRCode from "qrcode";
@@ -180,7 +181,7 @@ const displayUrl = computed(() => {
                   :size="20"
                   shape="circle"
                   :border="false"
-                  :src="resolveAvatarPath(agent, 'agent') ?? ''"
+                  :src="resolveAgentAvatarPath(agent) ?? ''"
                   :alt="agent.name"
                 />
               </div>
@@ -204,7 +205,7 @@ const displayUrl = computed(() => {
                   :size="20"
                   shape="circle"
                   :border="false"
-                  :src="resolveAvatarPath(user, 'user-profile') ?? ''"
+                  :src="resolveProfileAvatarPath(user) ?? ''"
                   :alt="user.name"
                 />
               </div>

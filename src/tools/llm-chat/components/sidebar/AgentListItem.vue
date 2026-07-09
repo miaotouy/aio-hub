@@ -28,7 +28,7 @@ import {
 } from "@element-plus/icons-vue";
 import { invoke } from "@tauri-apps/api/core";
 import Avatar from "@/components/common/Avatar.vue";
-import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
+import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 import { useAgentStorage } from "@/tools/agent-manager/composables/storage/useAgentStorage";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { customMessage } from "@/utils/customMessage";
@@ -63,7 +63,7 @@ const clickMenuRef = ref<any>(null);
 const agentStore = useAgentStore();
 
 const avatarSrc = computed(() => {
-  return resolveAvatarPath(props.agent, "agent");
+  return resolveAgentAvatarPath(props.agent);
 });
 
 const { getFieldLabel, formatMatchContext } = useLlmSearch();

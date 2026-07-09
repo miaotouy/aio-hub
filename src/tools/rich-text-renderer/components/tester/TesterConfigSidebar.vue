@@ -78,7 +78,7 @@
             >
               <div class="agent-option">
                 <Avatar
-                  :src="resolveAvatarPath(agent, 'agent') || ''"
+                  :src="resolveAgentAvatarPath(agent) || ''"
                   :alt="agent.displayName || agent.name"
                   :size="24"
                 />
@@ -102,7 +102,7 @@
             >
               <div class="agent-option">
                 <Avatar
-                  :src="resolveAvatarPath(profile, 'user-profile') || ''"
+                  :src="resolveProfileAvatarPath(profile) || ''"
                   :alt="profile.displayName || profile.name"
                   :size="24"
                 />
@@ -520,10 +520,9 @@ import {
   availableVersions,
 } from "../../stores/store";
 import { presets } from "../../config/presets";
-import {
-  llmChatRegistry,
-  resolveAvatarPath,
-} from "@/tools/llm-chat/llm-chat.registry";
+import { llmChatRegistry } from "@/tools/llm-chat/llm-chat.registry";
+import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
+import { resolveProfileAvatarPath } from "@/tools/user-profile-manager/utils/profileAssetUtils";
 import { tokenCalculatorRegistry } from "@/tools/token-calculator/token-calculator.registry";
 import Avatar from "@/components/common/Avatar.vue";
 import InfoCard from "@/components/common/InfoCard.vue";

@@ -22,7 +22,8 @@ import { useLlmChatStore } from "../stores/llmChatStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
-import { useResolvedAvatar } from "./ui/useResolvedAvatar";
+import { useResolvedAgentAvatar } from "@/tools/agent-manager/utils/agentAssetUtils";
+import { useResolvedProfileAvatar } from "@/tools/user-profile-manager/utils/profileAssetUtils";
 import { useLlmChatUiState } from "./ui/useLlmChatUiState";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { createModuleLogger } from "@utils/logger";
@@ -82,7 +83,7 @@ export function provideChatAreaContext(options: {
     return agentStore.getAgentById(agentId) ?? null;
   });
 
-  const agentAvatarSrc = useResolvedAvatar(currentAgent, "agent");
+  const agentAvatarSrc = useResolvedAgentAvatar(currentAgent);
 
   const currentModel = computed(() => {
     if (!currentAgent.value) return null;
@@ -96,7 +97,6 @@ export function provideChatAreaContext(options: {
     if (!currentModel.value) return null;
     return getModelIcon(currentModel.value);
   });
-
   const effectiveUserProfile = computed(() => {
     return (
       userProfileStore.getEffectiveProfile(currentAgent.value?.userProfileId) ??
@@ -104,10 +104,7 @@ export function provideChatAreaContext(options: {
     );
   });
 
-  const userProfileAvatarSrc = useResolvedAvatar(
-    effectiveUserProfile,
-    "user-profile"
-  );
+  const userProfileAvatarSrc = useResolvedProfileAvatar(effectiveUserProfile);
 
   const sortedAgents = computed(() => agentStore.sortedAgents);
 

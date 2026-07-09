@@ -21,7 +21,7 @@ import { useAgentStore } from "../../stores/agentStore";
 import type { ChatAgent } from "../../types/agent";
 import { Search, Plus } from "@element-plus/icons-vue";
 import Avatar from "@/components/common/Avatar.vue";
-import { resolveAvatarPath } from "@/tools/llm-chat/composables/ui/useResolvedAvatar";
+import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 
 interface Emits {
   (e: "switch", agent: ChatAgent): void;
@@ -94,7 +94,7 @@ const handleCreate = () => {
           @click="handleAgentClick(agent)"
         >
           <Avatar
-            :src="resolveAvatarPath(agent, 'agent') || ''"
+            :src="resolveAgentAvatarPath(agent) || ''"
             :name="agent.name"
             :size="24"
             shape="square"

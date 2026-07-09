@@ -26,7 +26,8 @@ import { computed } from "vue";
 import type { ChatMessageNode } from "../../types";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
-import { useResolvedAvatar } from "../../composables/ui/useResolvedAvatar";
+import { useResolvedAgentAvatar } from "@/tools/agent-manager/utils/agentAssetUtils";
+import { useResolvedProfileAvatar } from "@/tools/user-profile-manager/utils/profileAssetUtils";
 import Avatar from "@/components/common/Avatar.vue";
 
 interface Props {
@@ -82,8 +83,8 @@ const assistantAvatarTarget = computed(() => {
   return agent.value;
 });
 
-const userAvatarSrc = useResolvedAvatar(userAvatarTarget, "user-profile");
-const assistantAvatarSrc = useResolvedAvatar(assistantAvatarTarget, "agent");
+const userAvatarSrc = useResolvedProfileAvatar(userAvatarTarget);
+const assistantAvatarSrc = useResolvedAgentAvatar(assistantAvatarTarget);
 
 const resolvedAvatar = computed(() => {
   if (role.value === "user") return userAvatarSrc.value;

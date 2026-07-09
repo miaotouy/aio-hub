@@ -20,7 +20,7 @@ import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/ui/useLlmChatUiState";
-import { useResolvedAvatar } from "../../composables/ui/useResolvedAvatar";
+import { useResolvedAgentAvatar } from "@/tools/agent-manager/utils/agentAssetUtils";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import Avatar from "@/components/common/Avatar.vue";
@@ -49,7 +49,7 @@ const currentAgent = computed(() => {
   return agentStore.getAgentById(currentAgentId.value);
 });
 
-const agentAvatarSrc = useResolvedAvatar(currentAgent, "agent");
+const agentAvatarSrc = useResolvedAgentAvatar(currentAgent);
 
 // 获取当前选中的 profile
 const currentProfile = computed(() => {

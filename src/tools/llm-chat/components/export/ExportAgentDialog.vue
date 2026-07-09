@@ -17,7 +17,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onBeforeUnmount } from "vue";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
-import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
+import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import Avatar from "@/components/common/Avatar.vue";
@@ -116,7 +116,7 @@ const handleExport = async () => {
     if (previewImageSource.value === "avatar" && singleTargetAgent.value) {
       // 使用头像作为预览图
       // 尝试解析头像路径
-      const avatarPath = resolveAvatarPath(singleTargetAgent.value, "agent");
+      const avatarPath = resolveAgentAvatarPath(singleTargetAgent.value);
       if (avatarPath) {
         previewImage = avatarPath;
       } else {
@@ -207,7 +207,7 @@ const isPngPreviewReady = computed(() => {
     // 使用头像时，需要确保单选模式且智能体有头像
     if (!isSingleMode.value) return false;
     const avatarPath = singleTargetAgent.value
-      ? resolveAvatarPath(singleTargetAgent.value, "agent")
+      ? resolveAgentAvatarPath(singleTargetAgent.value)
       : null;
     return !!avatarPath;
   } else {
@@ -255,7 +255,7 @@ const canExport = computed(() => {
             >
               <div class="agent-item">
                 <Avatar
-                  :src="resolveAvatarPath(agent, 'agent') || ''"
+                  :src="resolveAgentAvatarPath(agent) || ''"
                   :alt="agent.name"
                   :size="18"
                   shape="square"
@@ -273,7 +273,7 @@ const canExport = computed(() => {
         <!-- 单个 Agent 信息 (仅单选模式显示) -->
         <div v-else-if="singleTargetAgent" class="single-agent-info">
           <Avatar
-            :src="resolveAvatarPath(singleTargetAgent, 'agent') || ''"
+            :src="resolveAgentAvatarPath(singleTargetAgent) || ''"
             :alt="singleTargetAgent.name"
             :size="48"
             shape="square"

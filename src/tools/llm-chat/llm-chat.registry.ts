@@ -35,7 +35,6 @@ import { ChatDotRound } from "@element-plus/icons-vue";
 import { useDetachedChatArea } from "./composables/ui/useDetachedChatArea";
 import { useDetachedChatInput } from "./composables/ui/useDetachedChatInput";
 import { useLlmChatStateConsumer } from "./composables/ui/useLlmChatStateConsumer";
-import { resolveAvatarPath } from "./composables/ui/useResolvedAvatar";
 import {
   llmChatService,
   type InputOperationResult,
@@ -620,6 +619,3 @@ export default [llmChatMain, agentManagement];
 export { llmChatMain as llmChatRegistry };
 // 导出类型供 useSendToChat 等使用
 export type { LlmChatRegistry };
-
-// 重导出工具函数供跨工具使用
-export { resolveAvatarPath };

@@ -15,7 +15,7 @@
 -->
 
 <script setup lang="ts">
-import { onMounted, computed, ref, defineAsyncComponent } from "vue";
+import { onMounted, computed, ref, watch, defineAsyncComponent } from "vue";
 import { useLlmChatStore } from "./stores/llmChatStore";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "./stores/userProfileStore";
@@ -186,6 +186,18 @@ onMounted(async () => {
     }
   }
 });
+// 监听当前选中的智能体ID，自动加载其详情
+watch(
+  () => uiCurrentAgentId.value,
+  async (newId) => {
+    if (newId) {
+      logger.info("当前智能体变化，开始加载详情...", { agentId: newId });
+      await agentStore.loadAgentDetails(newId);
+    }
+  },
+  { immediate: true }
+);
+
 // 当前选中的智能体ID（独立于会话）
 const currentAgentId = computed(() => uiCurrentAgentId.value || "");
 

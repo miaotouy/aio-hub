@@ -125,19 +125,6 @@ const viewMode = ref<"linear" | "force-graph">(defaultUiState.viewMode);
 // 是否已初始化
 let isInitialized = false;
 
-// 监听智能体列表变化，如果当前选中的智能体被删除了，安全回退
-watch(
-  () => useAgentStore().agents,
-  (newAgents) => {
-    if (
-      currentAgentId.value &&
-      !newAgents.some((a) => a.id === currentAgentId.value)
-    ) {
-      currentAgentId.value = newAgents[0]?.id || null;
-    }
-  }
-);
-
 /**
  * LLM Chat UI 状态管理 Composable
  */
@@ -245,6 +232,19 @@ export function useLlmChatUiState() {
       ],
       () => {
         saveUiState();
+      }
+    );
+
+    // 监听智能体列表变化，如果当前选中的智能体被删除了，安全回退
+    watch(
+      () => useAgentStore().agents,
+      (newAgents) => {
+        if (
+          currentAgentId.value &&
+          !newAgents.some((a) => a.id === currentAgentId.value)
+        ) {
+          currentAgentId.value = newAgents[0]?.id || null;
+        }
       }
     );
 

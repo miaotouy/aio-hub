@@ -328,6 +328,39 @@ export function useAgentStorage() {
   }
 
   /**
+   * 校验智能体是否完整，防止损坏或未完全加载的文件覆盖磁盘
+   */
+  function validateAgent(agent: ChatAgent): {
+    valid: boolean;
+    reason?: string;
+  } {
+    if (!agent.id) return { valid: false, reason: "缺少 id" };
+    if (!agent.name) return { valid: false, reason: "缺少 name (智能体名称)" };
+    if (!agent.profileId) return { valid: false, reason: "缺少 profileId" };
+    if (!agent.modelId) return { valid: false, reason: "缺少 modelId" };
+    if (!agent.createdAt) return { valid: false, reason: "缺少 createdAt" };
+
+    // 关键详情字段校验：如果 parameters 为 undefined，说明详情未加载，绝对不能保存
+    if (agent.parameters === undefined) {
+      return { valid: false, reason: "详情未加载 (parameters 为 undefined)" };
+    }
+
+    // 结构检查：检查关键配置项是否存在
+    if (typeof agent.parameters !== "object" || agent.parameters === null) {
+      return { valid: false, reason: "parameters 结构损坏" };
+    }
+
+    if (
+      agent.presetMessages !== undefined &&
+      !Array.isArray(agent.presetMessages)
+    ) {
+      return { valid: false, reason: "presetMessages 必须是数组" };
+    }
+
+    return { valid: true };
+  }
+
+  /**
    * 确保智能体目录存在
    */
   async function ensureAgentDir(agentId: string): Promise<void> {
@@ -347,6 +380,17 @@ export function useAgentStorage() {
     forceWrite: boolean = false
   ): Promise<void> {
     try {
+      // 保存前的严格校验
+      const validation = validateAgent(agent);
+      if (!validation.valid) {
+        logger.error("拒绝保存不完整的智能体，防止数据丢失", {
+          agentId: agent.id,
+          reason: validation.reason,
+          agentName: agent.name,
+        });
+        throw new Error(`智能体校验失败: ${validation.reason}`);
+      }
+
       await ensureAgentDir(agent.id); // 确保智能体目录存在
       const agentPath = await getAgentConfigPath(agent.id);
 

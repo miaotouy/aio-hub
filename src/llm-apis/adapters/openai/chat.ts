@@ -384,8 +384,19 @@ export const callOpenAiChatApi = async (
       thinking: { type: options.thinkingEnabled ? "enabled" : "disabled" },
       ...(options.extraBody || {}),
     };
-  } else if (options.extraBody) {
-    body.extra_body = options.extraBody;
+  } else {
+    if (options.extraBody) {
+      body.extra_body = options.extraBody;
+    }
+    // 对于非 DeepSeek 的 OpenAI 兼容模型（如豆包、NewAPI 等），如果启用了思考，直接在根部注入 thinking 参数
+    if (options.thinkingEnabled !== undefined) {
+      body.thinking = {
+        type: options.thinkingEnabled ? "enabled" : "disabled",
+      };
+      if (options.thinkingBudget) {
+        body.thinking.budget_tokens = options.thinkingBudget;
+      }
+    }
   }
 
   const extendedOptions = options as any;

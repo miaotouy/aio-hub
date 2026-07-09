@@ -562,7 +562,6 @@ body.el-popup-parent--hidden {
 */
 .el-radio-group:has(.el-radio-button):not(.separated-group),
 .el-checkbox-group:has(.el-checkbox-button):not(.separated-group) {
-  backdrop-filter: blur(var(--ui-blur));
   border-radius: var(--el-border-radius-base, 4px);
   border: var(--border-width) solid var(--border-color);
   overflow: hidden;

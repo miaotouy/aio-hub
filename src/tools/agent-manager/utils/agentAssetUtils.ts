@@ -709,6 +709,14 @@ export function resolveAgentAvatarPath(
     return null;
   }
 
+  // 历史兼容：如果传入的已经是旧的 appdata 协议路径，动态重定向到新路径
+  if (icon.startsWith("appdata://llm-chat/agents/")) {
+    return icon.replace(
+      "appdata://llm-chat/agents/",
+      "appdata://agent-manager/agents/"
+    );
+  }
+
   // 自动推断：如果看起来像文件名（包含扩展名且无路径分隔符），
   // 则认为是 AppData 中的资源，自动拼接路径。
   if (isLikelyFilename(icon)) {

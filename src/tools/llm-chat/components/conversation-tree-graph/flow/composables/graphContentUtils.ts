@@ -130,7 +130,7 @@ export function getRoleDisplay(
 
     if (icon && icon !== "👤") {
       if (isLikelyFilename(icon) && target?.id) {
-        icon = `appdata://llm-chat/user-profiles/${target.id}/${icon}`;
+        icon = `appdata://user-profile-manager/user-profiles/${target.id}/${icon}`;
       }
     }
 
@@ -160,7 +160,7 @@ export function getRoleDisplay(
 
     if (icon && icon !== "🤖") {
       if (isLikelyFilename(icon) && target?.id) {
-        icon = `appdata://llm-chat/agents/${target.id}/${icon}`;
+        icon = `appdata://agent-manager/agents/${target.id}/${icon}`;
       }
     }
 

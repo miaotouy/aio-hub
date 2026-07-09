@@ -133,6 +133,11 @@ onMounted(async () => {
         chatSettings.loadSettings(),
       ]);
 
+      // 确保当前选中的智能体详情被加载
+      if (uiCurrentAgentId.value) {
+        await agentStore.loadAgentDetails(uiCurrentAgentId.value);
+      }
+
       logger.info("主窗口：核心数据加载完成", {
         sessionCount: store.sessions.length,
         agentCount: agentStore.agents.length,
@@ -166,6 +171,11 @@ onMounted(async () => {
         store.loadSessions(),
         chatSettings.loadSettings(),
       ]);
+
+      // 确保当前选中的智能体详情被加载
+      if (uiCurrentAgentId.value) {
+        await agentStore.loadAgentDetails(uiCurrentAgentId.value);
+      }
 
       logger.info("分离窗口：核心数据加载完成", {
         sessionCount: store.sessions.length,

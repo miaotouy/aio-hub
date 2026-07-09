@@ -60,12 +60,6 @@ export function useChatContextStats(
     isLoadingContextStats.value = true;
 
     try {
-      // 确保当前智能体详情已加载
-      if (currentAgentId.value) {
-        const agentStore = useAgentStore();
-        await agentStore.ensureAgentLoaded(currentAgentId.value);
-      }
-
       const { getLlmContextForPreview } = useChatHandler();
 
       // 考虑临时模型覆盖

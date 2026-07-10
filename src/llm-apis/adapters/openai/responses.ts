@@ -257,7 +257,13 @@ export const callOpenAiResponsesApi = async (
   }
 
   const reasoning: any = {};
-  if (options.reasoningEffort && isOpenAIModel(options.modelId)) {
+  const isCompatibleReasoningModel =
+    isOpenAIModel(options.modelId) ||
+    options.modelId.toLowerCase().includes("doubao") ||
+    options.modelId.toLowerCase().includes("seed") ||
+    options.modelId.toLowerCase().includes("glm") ||
+    options.modelId.toLowerCase().includes("deepseek");
+  if (options.reasoningEffort && isCompatibleReasoningModel) {
     reasoning.effort = options.reasoningEffort;
   }
 
@@ -312,7 +318,7 @@ export const callOpenAiResponsesApi = async (
       {
         method: "POST",
         headers,
-        body: await asyncJsonStringify(body),
+        body: (await asyncJsonStringify(body)) as any,
         isStreaming: true,
       },
       options.timeout,
@@ -487,7 +493,7 @@ export const callOpenAiResponsesApi = async (
     {
       method: "POST",
       headers,
-      body: await asyncJsonStringify(body),
+      body: (await asyncJsonStringify(body)) as any,
     },
     options.timeout,
     options.signal

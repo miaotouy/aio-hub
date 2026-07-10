@@ -43,9 +43,14 @@ function shouldSendOpenAiReasoningEffort(
   profile: LlmProfile,
   modelId: string
 ): boolean {
+  const id = modelId.toLowerCase();
   return (
     (profile.type === "openai" || profile.type === "openai-compatible") &&
-    isOpenAIModel(modelId)
+    (isOpenAIModel(modelId) ||
+      id.includes("doubao") ||
+      id.includes("seed") ||
+      id.includes("glm") ||
+      id.includes("deepseek"))
   );
 }
 

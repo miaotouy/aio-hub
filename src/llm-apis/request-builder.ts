@@ -794,10 +794,15 @@ export function filterParametersByCapabilities(
   // reasoning_effort 字段；Gemini/Vertex 则把它映射为 thinkingLevel。
   const isOpenAiReasoningEffortProvider =
     profile.type === "openai" || profile.type === "openai-responses";
+  const isCompatibleReasoningModel =
+    isOpenAIModel(options.modelId, model?.provider) ||
+    options.modelId.toLowerCase().includes("doubao") ||
+    options.modelId.toLowerCase().includes("seed") ||
+    options.modelId.toLowerCase().includes("glm") ||
+    options.modelId.toLowerCase().includes("deepseek");
   const supportsProviderReasoningEffort =
     supported.reasoningEffort &&
-    (!isOpenAiReasoningEffortProvider ||
-      isOpenAIModel(options.modelId, model?.provider));
+    (!isOpenAiReasoningEffortProvider || isCompatibleReasoningModel);
   const supportsThinkingLevelAlias =
     (profile.type === "gemini" || profile.type === "vertexai") &&
     supported.thinking &&

@@ -16,6 +16,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
+import { useRouter } from "vue-router";
 import { useAgentStore } from "./stores/agentStore";
 import { useToolsStore } from "@/stores/tools";
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
@@ -25,6 +26,7 @@ import { ElMessageBox } from "element-plus";
 import Avatar from "@/components/common/Avatar.vue";
 import EditAgentDialog from "./components/management/EditAgentDialog.vue";
 import type { ChatAgent } from "./types/agent";
+import { AgentCategoryLabels } from "./types/agent";
 import {
   Plus,
   Search,
@@ -37,6 +39,7 @@ import {
 
 const agentStore = useAgentStore();
 const toolsStore = useToolsStore();
+const router = useRouter();
 
 // 搜索与过滤状态
 const searchQuery = ref("");
@@ -93,7 +96,8 @@ onMounted(async () => {
 const handleStartChat = async (agent: ChatAgent) => {
   const { currentAgentId } = useLlmChatUiState();
   currentAgentId.value = agent.id;
-  await toolsStore.openTool("llm-chat");
+  toolsStore.openTool("/llm-chat");
+  router.push("/llm-chat");
   customMessage.success(`已切换到智能体: ${agent.displayName || agent.name}`);
 };
 
@@ -187,7 +191,10 @@ const handleImportAgents = () => {
           <el-option
             v-for="cat in categories"
             :key="cat"
-            :label="cat"
+            :label="
+              AgentCategoryLabels[cat as keyof typeof AgentCategoryLabels] ||
+              cat
+            "
             :value="cat"
           />
         </el-select>
@@ -208,7 +215,11 @@ const handleImportAgents = () => {
             <div class="agent-info">
               <h3 class="agent-name">{{ agent.displayName || agent.name }}</h3>
               <span v-if="agent.category" class="agent-category-tag">
-                {{ agent.category }}
+                {{
+                  AgentCategoryLabels[
+                    agent.category as keyof typeof AgentCategoryLabels
+                  ] || agent.category
+                }}
               </span>
               <p class="agent-desc">
                 {{ agent.description || "暂无描述" }}
@@ -218,7 +229,7 @@ const handleImportAgents = () => {
           <div class="card-footer">
             <el-button
               type="primary"
-              link
+              size="small"
               :icon="MessageSquare"
               @click="handleStartChat(agent)"
             >
@@ -376,7 +387,10 @@ const handleImportAgents = () => {
   padding: 2px 8px;
   font-size: 11px;
   border-radius: 4px;
-  background-color: rgba(var(--el-color-primary-rgb), 0.1);
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
   color: var(--el-color-primary);
   margin-bottom: 8px;
 }

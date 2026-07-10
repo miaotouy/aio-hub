@@ -84,12 +84,9 @@ const categories = computed(() => {
 
 // 初始化加载
 onMounted(async () => {
-  const { loadAgentsIndex } =
-    await import("./composables/storage/useAgentStorage").then((m) =>
-      m.useAgentStorage()
-    );
-  const { agents } = await loadAgentsIndex();
-  agentStore.agents = agents as any;
+  if (agentStore.agents.length === 0) {
+    await agentStore.loadAgents();
+  }
 });
 
 // 发起对话

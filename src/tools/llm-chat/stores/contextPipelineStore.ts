@@ -22,18 +22,10 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createConfigManager } from "@/utils/configManager";
 import {
-  sessionLoader,
-  regexProcessor,
-  injectionAssembler,
-  transcriptionProcessor,
-  worldbookProcessor,
-  knowledgeProcessor,
-  tokenLimiter,
-  asyncTaskProcessor,
-  messageFormatter,
-  assetResolver,
-  variableProcessor,
-} from "../core/context-processors";
+  getInitialProcessors,
+  getDefaultEnabledProcessorIds,
+} from "../core/pipeline/defaultProcessors";
+import { PipelineEngine } from "../core/pipeline/PipelineEngine";
 
 const logger = createModuleLogger("contextPipelineStore");
 const errorHandler = createModuleErrorHandler("contextPipelineStore");
@@ -53,21 +45,6 @@ const settingsManager = createConfigManager<PipelineSettings>({
     orderedProcessorIds: [],
   }),
 });
-const getInitialProcessors = (): ContextProcessor[] => {
-  return [
-    sessionLoader,
-    regexProcessor,
-    injectionAssembler,
-    knowledgeProcessor,
-    transcriptionProcessor,
-    worldbookProcessor,
-    tokenLimiter,
-    asyncTaskProcessor,
-    variableProcessor,
-    messageFormatter,
-    assetResolver,
-  ];
-};
 
 export const useContextPipelineStore = defineStore("contextPipeline", () => {
   const initialProcessors = getInitialProcessors();
@@ -75,7 +52,7 @@ export const useContextPipelineStore = defineStore("contextPipeline", () => {
 
   // 默认启用所有 defaultEnabled !== false 的处理器
   const enabledProcessorIds = ref<string[]>(
-    initialProcessors.filter((p) => p.defaultEnabled !== false).map((p) => p.id)
+    getDefaultEnabledProcessorIds(initialProcessors)
   );
 
   // 初始化标志
@@ -225,26 +202,7 @@ export const useContextPipelineStore = defineStore("contextPipeline", () => {
   async function executePipeline(
     context: PipelineContext
   ): Promise<PipelineContext> {
-    logger.info("开始执行上下文管道", {
-      processorCount: sortedAndEnabledProcessors.value.length,
-      processors: sortedAndEnabledProcessors.value.map((p) => p.id),
-    });
-
-    for (const processor of sortedAndEnabledProcessors.value) {
-      await errorHandler.wrapAsync(
-        async () => {
-          logger.debug("执行处理器", { id: processor.id });
-          await processor.execute(context);
-        },
-        {
-          userMessage: `处理步骤 [${processor.name}] 失败`,
-          context: { processorId: processor.id },
-        }
-      );
-    }
-
-    logger.info("上下文管道执行完毕");
-    return context;
+    return PipelineEngine.execute(context, sortedAndEnabledProcessors.value);
   }
 
   return {

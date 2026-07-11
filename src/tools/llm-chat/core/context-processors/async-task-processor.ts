@@ -25,6 +25,7 @@ import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import { useAsyncTaskStore } from "@/tools/tool-calling/stores/asyncTaskStore";
 import { extractTaskId } from "@/tools/tool-calling/core/utils/task-id-extractor";
 import { createModuleLogger } from "@/utils/logger";
+import { getActivePinia } from "pinia";
 
 const logger = createModuleLogger("llm-chat/async-task-processor");
 
@@ -144,6 +145,12 @@ export const asyncTaskProcessor: ContextProcessor = {
   defaultEnabled: true,
 
   execute: async (context: PipelineContext) => {
+    // 检查是否有活跃的 Pinia 实例，支持非 UI 环境下的安全降级
+    if (!getActivePinia()) {
+      logger.debug("未检测到活跃的 Pinia 实例，跳过异步任务状态注入");
+      return;
+    }
+
     const asyncTaskStore = useAsyncTaskStore();
 
     // 如果 Store 未初始化，跳过处理

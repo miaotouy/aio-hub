@@ -145,6 +145,35 @@ export const useAgentStore = defineStore("llmChatAgent", {
           // 单独处理自定义参数容器，确保它不会被上面的展开覆盖掉
           custom: options?.parameters?.custom || undefined,
         },
+        presetMessages: options?.presetMessages ?? [], // 🌟 补齐
+        greetings: options?.greetings ?? [], // 🌟 补齐
+        worldbookIds: options?.worldbookIds ?? [], // 🌟 补齐
+        presetGroups: options?.presetGroups ?? [], // 🌟 补齐
+        knowledgeSettings: options?.knowledgeSettings ?? {}, // 🌟 补齐
+        knowledgeBaseConfig: options?.knowledgeBaseConfig ?? {
+          // 🌟 补齐
+          enabled: false,
+          bindings: [],
+          groups: [],
+          autoInjectIfMacroMissing: true,
+          autoInjectPosition: "context_head",
+        },
+        toolCallConfig: options?.toolCallConfig ?? {
+          // 🌟 补齐
+          enabled: false,
+          mode: "auto",
+          toolToggles: {},
+          methodToggles: {},
+          autoApproveTools: {},
+          autoApproveMethods: {},
+          defaultToolEnabled: false,
+          defaultAutoApprove: false,
+          maxIterations: 20,
+          timeout: 30000,
+          parallelExecution: false,
+          protocol: "vcp",
+          convertToolRoleToUser: true,
+        },
         createdAt: now,
         avatarHistory: options?.avatarHistory ?? [],
         quickActionSetIds: options?.quickActionSetIds ?? [],

@@ -40,9 +40,59 @@ import {
   convertVcpChatConfigToImportBundle,
   isVcpChatConfig,
 } from "./vcpChatAgentImportService";
+import { DEFAULT_AGENT_EXTENSION_CONFIG } from "../types/agent";
 
 const logger = createModuleLogger("llm-chat/agentImportService");
 const errorHandler = createModuleErrorHandler("llm-chat/agentImportService");
+
+/**
+ * 对导入的智能体数据进行强力补全，确保写入磁盘的每一份 agent.json 都是结构完美的
+ */
+function sanitizeImportedAgent(agent: any): any {
+  return {
+    ...agent,
+    parameters: {
+      temperature: 1,
+      maxTokens: 4096,
+      ...(agent.parameters || {}),
+    },
+    presetMessages: agent.presetMessages ?? [],
+    greetings: agent.greetings ?? [],
+    avatarHistory: agent.avatarHistory ?? [],
+    worldbookIds: agent.worldbookIds ?? [],
+    quickActionSetIds: agent.quickActionSetIds ?? [],
+    presetGroups: agent.presetGroups ?? [],
+    extensionConfig: agent.extensionConfig ?? {
+      ...DEFAULT_AGENT_EXTENSION_CONFIG,
+      enabled: true,
+      extensionToggles: {},
+      defaultExtensionEnabled: true,
+    },
+    toolCallConfig: agent.toolCallConfig ?? {
+      enabled: false,
+      mode: "auto",
+      toolToggles: {},
+      methodToggles: {},
+      autoApproveTools: {},
+      autoApproveMethods: {},
+      defaultToolEnabled: false,
+      defaultAutoApprove: false,
+      maxIterations: 20,
+      timeout: 30000,
+      parallelExecution: false,
+      protocol: "vcp",
+      convertToolRoleToUser: true,
+    },
+    knowledgeBaseConfig: agent.knowledgeBaseConfig ?? {
+      enabled: false,
+      bindings: [],
+      groups: [],
+      autoInjectIfMacroMissing: true,
+      autoInjectPosition: "context_head",
+    },
+    knowledgeSettings: agent.knowledgeSettings ?? {},
+  };
+}
 
 export interface PreflightContext {
   existingAgentNames: string[];
@@ -850,7 +900,7 @@ export async function commitImportAgents(
         }
       }
 
-      const agentOptions = {
+      const agentOptions = sanitizeImportedAgent({
         ...cleanRestOptions,
         icon: originalIcon?.startsWith("assets/") ? undefined : originalIcon,
         assets: originalAssets?.filter((a) => !a.path.startsWith("assets/")),
@@ -859,7 +909,7 @@ export async function commitImportAgents(
           importedWorldbookIds.length > 0
             ? importedWorldbookIds
             : resolvedAgent.worldbookIds,
-      };
+      });
 
       let finalAgentId: string;
       if (resolvedAgent.overwriteExisting) {
@@ -868,6 +918,10 @@ export async function commitImportAgents(
         );
         if (existingAgent) {
           finalAgentId = existingAgent.id;
+
+          // 🌟 核心修复：强制加载磁盘上的完整详情，防止用残缺索引覆盖
+          await agentStore.loadAgentDetails(existingAgent.id);
+
           agentStore.updateAgent(existingAgent.id, {
             ...agentOptions,
             profileId: resolvedAgent.finalProfileId,

@@ -340,21 +340,41 @@ export function useAgentStorage() {
     if (!agent.modelId) return { valid: false, reason: "缺少 modelId" };
     if (!agent.createdAt) return { valid: false, reason: "缺少 createdAt" };
 
-    // 关键详情字段校验：如果 parameters 为 undefined，说明详情未加载，绝对不能保存
+    // 🌟 严格校验：如果以下关键详情字段为 undefined，说明详情未加载或数据损坏，绝对不能保存
     if (agent.parameters === undefined) {
       return { valid: false, reason: "详情未加载 (parameters 为 undefined)" };
     }
+    if (agent.presetMessages === undefined) {
+      return {
+        valid: false,
+        reason: "详情未加载 (presetMessages 为 undefined)",
+      };
+    }
+    if (agent.greetings === undefined) {
+      return { valid: false, reason: "详情未加载 (greetings 为 undefined)" };
+    }
+    if (agent.toolCallConfig === undefined) {
+      return {
+        valid: false,
+        reason: "详情未加载 (toolCallConfig 为 undefined)",
+      };
+    }
+    if (agent.extensionConfig === undefined) {
+      return {
+        valid: false,
+        reason: "详情未加载 (extensionConfig 为 undefined)",
+      };
+    }
 
-    // 结构检查：检查关键配置项是否存在
+    // 结构检查
     if (typeof agent.parameters !== "object" || agent.parameters === null) {
       return { valid: false, reason: "parameters 结构损坏" };
     }
-
-    if (
-      agent.presetMessages !== undefined &&
-      !Array.isArray(agent.presetMessages)
-    ) {
+    if (!Array.isArray(agent.presetMessages)) {
       return { valid: false, reason: "presetMessages 必须是数组" };
+    }
+    if (!Array.isArray(agent.greetings)) {
+      return { valid: false, reason: "greetings 必须是数组" };
     }
 
     return { valid: true };

@@ -16,6 +16,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
+import { Edit } from "lucide-vue-next";
+import { ElIcon } from "element-plus";
 import Avatar from "@/components/common/Avatar.vue";
 import { useResolvedAgentAvatar } from "@/tools/agent-manager/utils/agentAssetUtils";
 import { computed } from "vue";
@@ -28,7 +30,7 @@ interface Props {
 }
 
 defineProps<Props>();
-const emit = defineEmits(["select", "close"]);
+const emit = defineEmits(["select", "close", "edit"]);
 
 const containerRef = ref<HTMLElement | null>(null);
 
@@ -77,6 +79,15 @@ const getAgentAvatar = (agent: any) => {
             <span class="name">{{ agent.displayName || agent.name }}</span>
           </div>
         </div>
+
+        <div class="switch-footer">
+          <div class="footer-action-item" @click="emit('edit')">
+            <el-icon :size="14">
+              <Edit />
+            </el-icon>
+            <span>编辑当前智能体</span>
+          </div>
+        </div>
       </div>
     </Transition>
   </Teleport>
@@ -110,6 +121,30 @@ const getAgentAvatar = (agent: any) => {
 .agent-list {
   padding: 4px;
   overflow-y: auto;
+  max-height: 320px;
+}
+
+.switch-footer {
+  padding: 4px;
+  border-top: var(--border-width) solid var(--border-color);
+  background-color: rgba(var(--el-fill-color-rgb), 0.2);
+}
+
+.footer-action-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  font-size: 13px;
+  color: var(--text-color-secondary);
+}
+
+.footer-action-item:hover {
+  background-color: var(--el-fill-color-light);
+  color: var(--primary-color);
 }
 
 .agent-item {

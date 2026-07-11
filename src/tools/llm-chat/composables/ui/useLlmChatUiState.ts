@@ -195,7 +195,7 @@ export function useLlmChatUiState() {
   /**
    * 选择智能体
    */
-  const selectAgent = (
+  const selectAgent = async (
     agentId: string,
     options?: {
       sessionId?: string | null;
@@ -207,12 +207,25 @@ export function useLlmChatUiState() {
     const agentStore = useAgentStore();
     agentStore.updateLastUsed(agentId);
 
+    // 如果是主动切换（没有 options），尝试关联当前活跃会话
+    if (options === undefined) {
+      const { useLlmChatStore } =
+        await import("@/tools/llm-chat/stores/llmChatStore");
+      const chatStore = useLlmChatStore();
+      if (chatStore.currentSessionId) {
+        await chatStore.updateSession(chatStore.currentSessionId, {
+          displayAgentId: agentId,
+        });
+      }
+      return;
+    }
+
     const sessionId = options?.sessionId;
     if (sessionId) {
-      import("../../stores/llmChatStore").then(({ useLlmChatStore }) => {
-        const chatStore = useLlmChatStore();
-        chatStore.updateSession(sessionId, { displayAgentId: agentId });
-      });
+      const { useLlmChatStore } =
+        await import("@/tools/llm-chat/stores/llmChatStore");
+      const chatStore = useLlmChatStore();
+      await chatStore.updateSession(sessionId, { displayAgentId: agentId });
     }
   };
 

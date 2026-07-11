@@ -436,6 +436,50 @@ export function createSessionLifecycleManager(
       { sessionId, updates },
       async () => {
         const sessionManager = getSessionManager();
+
+        // 如果更新了智能体绑定，尝试同步切换开场白
+        if (updates.displayAgentId) {
+          const index = state.sessionIndexMap.value.get(sessionId);
+          const detail = await ensureSessionDetail(sessionId);
+
+          if (
+            index &&
+            detail &&
+            index.displayAgentId !== updates.displayAgentId
+          ) {
+            const { useAgentStore } =
+              await import("@/tools/agent-manager/stores/agentStore");
+            const { useUserProfileStore } = await import("../userProfileStore");
+            const { switchAgentGreetings } =
+              await import("../../services/greetingService");
+
+            const agentStore = useAgentStore();
+            const userProfileStore = useUserProfileStore();
+            const agent = await agentStore.loadAgentDetails(
+              updates.displayAgentId
+            );
+
+            if (agent) {
+              const effectiveUserProfile = userProfileStore.getEffectiveProfile(
+                agent.userProfileId
+              );
+              const changed = await switchAgentGreetings(
+                index,
+                detail,
+                agent,
+                effectiveUserProfile
+              );
+              if (changed) {
+                sessionManager.updateMessageCount(
+                  sessionId,
+                  detail.nodes,
+                  state.sessionIndexMap.value
+                );
+              }
+            }
+          }
+        }
+
         sessionManager.updateSession(
           sessionId,
           updates,

@@ -43,6 +43,17 @@ vi.mock("@/tools/agent-manager/stores/agentStore", () => ({
   }),
 }));
 
+// 模拟 llmChatStore 以避免 Pinia 未激活错误
+const mockUpdateSession = vi.fn();
+const mockCurrentSessionId = ref<string | null>(null);
+
+vi.mock("@/tools/llm-chat/stores/llmChatStore", () => ({
+  useLlmChatStore: () => ({
+    currentSessionId: mockCurrentSessionId.value,
+    updateSession: mockUpdateSession,
+  }),
+}));
+
 describe("useLlmChatUiState", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -66,13 +77,42 @@ describe("useLlmChatUiState", () => {
     expect(isLeftSidebarCollapsed.value).toBe(true);
   });
 
-  it("should select agent and update last used", () => {
+  it("should select agent and update last used (without active session)", async () => {
+    mockCurrentSessionId.value = null;
     const { selectAgent, currentAgentId } = useLlmChatUiState();
 
-    selectAgent("agent-2");
+    await selectAgent("agent-2");
 
     expect(currentAgentId.value).toBe("agent-2");
     expect(mockUpdateLastUsed).toHaveBeenCalledWith("agent-2");
+    expect(mockUpdateSession).not.toHaveBeenCalled();
+  });
+
+  it("should select agent and automatically bind to active session", async () => {
+    mockCurrentSessionId.value = "session-123";
+    const { selectAgent, currentAgentId } = useLlmChatUiState();
+
+    await selectAgent("agent-2");
+
+    expect(currentAgentId.value).toBe("agent-2");
+    expect(mockUpdateLastUsed).toHaveBeenCalledWith("agent-2");
+    expect(mockUpdateSession).toHaveBeenCalledWith("session-123", {
+      displayAgentId: "agent-2",
+    });
+  });
+
+  it("should select agent and bind to specified session in options", async () => {
+    mockCurrentSessionId.value = "session-123"; // 活跃会话是 123
+    const { selectAgent, currentAgentId } = useLlmChatUiState();
+
+    // 但 options 指定了 session-456
+    await selectAgent("agent-2", { sessionId: "session-456" });
+
+    expect(currentAgentId.value).toBe("agent-2");
+    expect(mockUpdateLastUsed).toHaveBeenCalledWith("agent-2");
+    expect(mockUpdateSession).toHaveBeenCalledWith("session-456", {
+      displayAgentId: "agent-2",
+    });
   });
 
   it("should fallback currentAgentId when selected agent is deleted", async () => {

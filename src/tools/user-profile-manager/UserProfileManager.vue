@@ -374,11 +374,12 @@ onMounted(async () => {
 
 <style scoped>
 .user-profile-settings-page {
-  flex: 1;
-  display: flex;
-  padding: 0;
+  height: 100%;
+  padding: 12px;
   box-sizing: border-box;
-  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .loading-state {
@@ -399,12 +400,13 @@ onMounted(async () => {
   margin: 0;
   font-size: 14px;
 }
-
 .settings-layout {
   display: grid;
   grid-template-columns: 280px 1fr;
   gap: 20px;
   flex: 1;
+  min-height: 0;
+  height: 100%;
 }
 
 .profile-icon {

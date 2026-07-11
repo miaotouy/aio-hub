@@ -107,7 +107,7 @@ const handleCreateAgent = () => {
 
 // 编辑智能体
 const handleEditAgent = async (agent: ChatAgent) => {
-  const fullAgent = await agentStore.ensureAgentLoaded(agent.id);
+  const fullAgent = await agentStore.loadAgentDetails(agent.id);
   if (fullAgent) {
     editDialogMode.value = "edit";
     selectedAgentForEdit.value = fullAgent;

@@ -157,7 +157,7 @@ const loadFormData = async () => {
   let sourceData: Partial<AgentEditData> | ChatAgent = props.initialData || {};
 
   if (props.mode === "edit" && editingAgentId) {
-    const loadedAgent = await agentStore.ensureAgentLoaded(editingAgentId);
+    const loadedAgent = await agentStore.loadAgentDetails(editingAgentId);
     if (
       requestId !== loadFormRequestId ||
       localAgentId.value !== editingAgentId

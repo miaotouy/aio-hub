@@ -152,11 +152,19 @@ const handleClose = () => {
 };
 
 // 当对话框打开时，根据 props 初始化选中状态
-const handleOpen = () => {
+const handleOpen = async () => {
   if (props.initialSelection && props.initialSelection.length > 0) {
     selectedAgentIds.value = [...props.initialSelection];
+    // 显式确保选中的智能体详情已加载，双重保险
+    await Promise.all(
+      props.initialSelection.map((id) => agentStore.loadAgentDetails(id))
+    );
   } else {
     selectedAgentIds.value = agents.value.map((agent: any) => agent.id);
+    // 显式确保所有智能体详情已加载，双重保险
+    await Promise.all(
+      agents.value.map((agent: any) => agentStore.loadAgentDetails(agent.id))
+    );
   }
 
   // 初始化世界书包含状态

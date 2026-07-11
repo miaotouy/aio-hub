@@ -344,6 +344,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
 
     /**
      * 确保智能体详情已加载（向后兼容接口）
+     * @deprecated 请优先使用 loadAgentDetails
      */
     async ensureAgentLoaded(agentId: string): Promise<ChatAgent | null> {
       return this.loadAgentDetails(agentId);
@@ -490,26 +491,16 @@ export const useAgentStore = defineStore("llmChatAgent", {
     },
 
     /**
-     * 从文件加载智能体（优化后的按需加载）
+     * 从文件加载智能体（全量加载，杜绝没详情的索引导致数据损坏）
      */
     async loadAgents(): Promise<void> {
       try {
-        const { loadAgentsIndex } = useAgentStorage();
-        const { agents: indexItems } = await loadAgentsIndex();
+        const { loadAgentsAll } = useAgentStorage();
+        const allAgents = await loadAgentsAll();
 
-        if (indexItems.length > 0) {
-          // 1. 将元数据转换为轻量智能体对象放入 store
-          this.agents = indexItems.map(
-            (item) =>
-              ({
-                ...item,
-                // 详情字段设为 undefined，待按需加载
-                parameters: undefined,
-                presetMessages: undefined,
-              }) as any
-          );
-
-          logger.info("加载智能体索引成功", { agentCount: this.agents.length });
+        if (allAgents.length > 0) {
+          this.agents = allAgents;
+          logger.info("全量加载智能体成功", { agentCount: this.agents.length });
         } else {
           // 首次加载，创建默认智能体
           this.createDefaultAgents();
@@ -617,7 +608,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
       // 检查详情是否已加载
       if (agent.parameters === undefined) {
         logger.warn(
-          "获取智能体配置时详情尚未加载，将使用默认参数。请确保在调用前执行了 ensureAgentLoaded",
+          "获取智能体配置时详情尚未加载，将使用默认参数。请确保在调用前执行了 loadAgentDetails",
           {
             agentId,
           }
@@ -675,6 +666,9 @@ export const useAgentStore = defineStore("llmChatAgent", {
         previewImage?: File | string;
       }
     ): Promise<void> {
+      // 导出前，显式确保所有要导出的智能体详情已加载，双重保险
+      await Promise.all(agentIds.map((id) => this.loadAgentDetails(id)));
+
       const agentsToExport = this.agents.filter((agent) =>
         agentIds.includes(agent.id)
       );

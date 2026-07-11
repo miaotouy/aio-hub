@@ -410,12 +410,11 @@ export async function read_agent_config(params: {
 }): Promise<string> {
   try {
     const agentStore = useAgentStore();
-    const agent = await agentStore.ensureAgentLoaded(params.agentId);
+    const agent = await agentStore.loadAgentDetails(params.agentId);
 
     if (!agent) {
       return `错误: 未找到智能体 (id: ${params.agentId})`;
     }
-
     let data: any;
 
     if (!params.section || params.section === "all") {
@@ -455,12 +454,11 @@ export async function export_agent_as_text(params: {
 }): Promise<string> {
   try {
     const agentStore = useAgentStore();
-    const agent = await agentStore.ensureAgentLoaded(params.agentId);
+    const agent = await agentStore.loadAgentDetails(params.agentId);
 
     if (!agent) {
       return `错误: 未找到智能体 (id: ${params.agentId})`;
     }
-
     // 排除系统维护字段
     const {
       id: _id,
@@ -506,7 +504,7 @@ export async function set_agent_field(params: {
     }
 
     // 确保智能体数据已完整加载
-    const agent = await agentStore.ensureAgentLoaded(params.agentId);
+    const agent = await agentStore.loadAgentDetails(params.agentId);
     if (!agent) {
       return `错误: 未找到智能体 (id: ${params.agentId})`;
     }
@@ -585,7 +583,7 @@ export async function find_replace_in_presets(params: {
 }): Promise<string> {
   try {
     const agentStore = useAgentStore();
-    const agent = await agentStore.ensureAgentLoaded(params.agentId);
+    const agent = await agentStore.loadAgentDetails(params.agentId);
 
     if (!agent) {
       return JSON.stringify({ error: `未找到智能体 (id: ${params.agentId})` });
@@ -681,7 +679,7 @@ export async function add_preset_message(params: {
 }): Promise<string> {
   try {
     const agentStore = useAgentStore();
-    const agent = await agentStore.ensureAgentLoaded(params.agentId);
+    const agent = await agentStore.loadAgentDetails(params.agentId);
 
     if (!agent) {
       return `错误: 未找到智能体 (id: ${params.agentId})`;
@@ -796,7 +794,7 @@ export async function delete_preset_message(params: {
 }): Promise<string> {
   try {
     const agentStore = useAgentStore();
-    const agent = await agentStore.ensureAgentLoaded(params.agentId);
+    const agent = await agentStore.loadAgentDetails(params.agentId);
 
     if (!agent) {
       return `错误: 未找到智能体 (id: ${params.agentId})`;
@@ -851,7 +849,7 @@ export async function move_preset_message(params: {
 }): Promise<string> {
   try {
     const agentStore = useAgentStore();
-    const agent = await agentStore.ensureAgentLoaded(params.agentId);
+    const agent = await agentStore.loadAgentDetails(params.agentId);
 
     if (!agent) {
       return `错误: 未找到智能体 (id: ${params.agentId})`;

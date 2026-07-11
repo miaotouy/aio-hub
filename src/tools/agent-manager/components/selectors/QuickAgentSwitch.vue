@@ -62,7 +62,15 @@ const getAgentAvatar = (agent: any) => {
         class="quick-agent-switch-container"
         :style="{ top: `${position.y}px`, left: `${position.x}px` }"
       >
-        <div class="switch-header">快捷切换智能体</div>
+        <div class="switch-header">
+          <span>快捷切换智能体</span>
+          <div class="header-action-btn" @click.stop="emit('edit')">
+            <el-icon :size="12">
+              <Edit />
+            </el-icon>
+            <span>编辑当前</span>
+          </div>
+        </div>
         <div class="agent-list">
           <div
             v-for="agent in agents"
@@ -77,15 +85,6 @@ const getAgentAvatar = (agent: any) => {
               :radius="4"
             />
             <span class="name">{{ agent.displayName || agent.name }}</span>
-          </div>
-        </div>
-
-        <div class="switch-footer">
-          <div class="footer-action-item" @click="emit('edit')">
-            <el-icon :size="14">
-              <Edit />
-            </el-icon>
-            <span>编辑当前智能体</span>
           </div>
         </div>
       </div>
@@ -111,6 +110,9 @@ const getAgentAvatar = (agent: any) => {
 }
 
 .switch-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 8px 12px;
   font-size: 12px;
   color: var(--text-color-secondary);
@@ -118,35 +120,26 @@ const getAgentAvatar = (agent: any) => {
   background-color: rgba(var(--el-fill-color-rgb), 0.5);
 }
 
+.header-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: var(--primary-color);
+  transition: opacity 0.2s ease;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.header-action-btn:hover {
+  background-color: rgba(var(--primary-color-rgb), 0.1);
+}
+
 .agent-list {
   padding: 4px;
   overflow-y: auto;
   max-height: 320px;
 }
-
-.switch-footer {
-  padding: 4px;
-  border-top: var(--border-width) solid var(--border-color);
-  background-color: rgba(var(--el-fill-color-rgb), 0.2);
-}
-
-.footer-action-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  cursor: pointer;
-  border-radius: 6px;
-  transition: all 0.2s ease;
-  font-size: 13px;
-  color: var(--text-color-secondary);
-}
-
-.footer-action-item:hover {
-  background-color: var(--el-fill-color-light);
-  color: var(--primary-color);
-}
-
 .agent-item {
   display: flex;
   align-items: center;

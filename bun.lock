@@ -225,7 +225,7 @@
     },
     "plugins/aiohub-paddle-ocr": {
       "name": "aiohub-paddle-ocr-plugin",
-      "version": "0.6.1",
+      "version": "0.7.0",
       "dependencies": {
         "lucide-vue-next": "^1.0.0",
       },
@@ -264,6 +264,16 @@
         "archiver": "^7.0.1",
         "fs-extra": "^11.2.0",
         "rimraf": "^5.0.7",
+        "vite": "^8.0.16",
+      },
+    },
+    "plugins/example-pipeline-extension": {
+      "name": "example-pipeline-extension",
+      "version": "1.0.0",
+      "devDependencies": {
+        "@vitejs/plugin-vue": "^6.0.7",
+        "archiver": "^7.0.1",
+        "typescript": "^5.3.3",
         "vite": "^8.0.16",
       },
     },
@@ -1591,6 +1601,8 @@
 
     "example-hello-world": ["example-hello-world@workspace:plugins/example-hello-world"],
 
+    "example-pipeline-extension": ["example-pipeline-extension@workspace:plugins/example-pipeline-extension"],
+
     "example-text-processor": ["example-text-processor@workspace:plugins/example-text-processor"],
 
     "exif-parser": ["exif-parser@0.1.12", "", {}, "sha512-c2bQfLNbMzLPmzQuOr8fy0csy84WmwnER81W88DzTp9CYNPJ6yzOj2EZAh9pywYpqHnshVLHQJ8WzldAyfY+Iw=="],
@@ -2615,6 +2627,8 @@
 
     "example-hello-world/@vitejs/plugin-vue": ["@vitejs/plugin-vue@6.0.7", "", { "dependencies": { "@rolldown/pluginutils": "^1.0.1" }, "peerDependencies": { "vite": "^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0", "vue": "^3.2.25" } }, "sha512-km+p+XdSz9Sxm5rqUbqcSfZYaAniKxWBj1KURl+Jr7UaPvvX7BmaWMdP69I5rrFDeQGyxAG7NXdc57vz+snhWg=="],
 
+    "example-pipeline-extension/@vitejs/plugin-vue": ["@vitejs/plugin-vue@6.0.7", "", { "dependencies": { "@rolldown/pluginutils": "^1.0.1" }, "peerDependencies": { "vite": "^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0", "vue": "^3.2.25" } }, "sha512-km+p+XdSz9Sxm5rqUbqcSfZYaAniKxWBj1KURl+Jr7UaPvvX7BmaWMdP69I5rrFDeQGyxAG7NXdc57vz+snhWg=="],
+
     "example-text-processor/@vitejs/plugin-vue": ["@vitejs/plugin-vue@6.0.7", "", { "dependencies": { "@rolldown/pluginutils": "^1.0.1" }, "peerDependencies": { "vite": "^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0", "vue": "^3.2.25" } }, "sha512-km+p+XdSz9Sxm5rqUbqcSfZYaAniKxWBj1KURl+Jr7UaPvvX7BmaWMdP69I5rrFDeQGyxAG7NXdc57vz+snhWg=="],
 
     "file-hasher-plugin/@vitejs/plugin-vue": ["@vitejs/plugin-vue@6.0.7", "", { "dependencies": { "@rolldown/pluginutils": "^1.0.1" }, "peerDependencies": { "vite": "^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0", "vue": "^3.2.25" } }, "sha512-km+p+XdSz9Sxm5rqUbqcSfZYaAniKxWBj1KURl+Jr7UaPvvX7BmaWMdP69I5rrFDeQGyxAG7NXdc57vz+snhWg=="],
@@ -2760,6 +2774,8 @@
     "element-plus/@vueuse/core/@vueuse/shared": ["@vueuse/shared@12.0.0", "", { "dependencies": { "vue": "^3.5.13" } }, "sha512-3i6qtcq2PIio5i/vVYidkkcgvmTjCqrf26u+Fd4LhnbBmIT6FN8y6q/GJERp8lfcB9zVEfjdV0Br0443qZuJpw=="],
 
     "example-hello-world/@vitejs/plugin-vue/@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.1", "", {}, "sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw=="],
+
+    "example-pipeline-extension/@vitejs/plugin-vue/@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.1", "", {}, "sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw=="],
 
     "example-text-processor/@vitejs/plugin-vue/@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.1", "", {}, "sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw=="],
 

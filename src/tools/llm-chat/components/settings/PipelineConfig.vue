@@ -216,7 +216,6 @@ const handleReset = () => {
   transition:
     border-color 0.2s ease,
     background-color 0.2s ease;
-  user-select: none;
 }
 
 /* 最后一个元素不需要 margin-bottom */
@@ -232,6 +231,7 @@ const handleReset = () => {
 .drag-handle {
   cursor: grab;
   margin-right: 12px;
+  user-select: none;
   padding: 4px;
   color: var(--el-text-color-placeholder);
   display: flex;

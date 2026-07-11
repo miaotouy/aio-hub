@@ -31,6 +31,10 @@ import { pluginConfigService } from "./plugin-config.service";
 import { pluginEnvironmentService } from "./plugin-environment.service";
 import type { PluginContext, PluginStorageAPI } from "./plugin-types";
 import { useContextPipelineStore } from "@/tools/llm-chat/stores/contextPipelineStore";
+import {
+  registerSettingsSection,
+  registerSettingItem,
+} from "@/tools/llm-chat/composables/settings/usePluginSettings";
 import { getAppConfigDir } from "@/utils/appPath";
 import { emit, listen } from "@tauri-apps/api/event";
 
@@ -535,6 +539,18 @@ class PluginManager {
             `插件正在注销上下文处理器: ${processorId} (Plugin: ${pluginId})`
           );
           contextPipelineStore.unregisterProcessor(processorId);
+        },
+        registerSettingsSection: (section: any) => {
+          logger.info(
+            `插件正在注册聊天设置分区: ${section.title} (Plugin: ${pluginId})`
+          );
+          registerSettingsSection(section);
+        },
+        registerSettingItem: (sectionTitle: string, item: any) => {
+          logger.info(
+            `插件正在向分区 "${sectionTitle}" 注册设置项: ${item.id} (Plugin: ${pluginId})`
+          );
+          registerSettingItem(sectionTitle, item);
         },
       },
     };

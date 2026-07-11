@@ -368,6 +368,17 @@ export interface PluginContext {
      * @param processorId 处理器 ID
      */
     unregisterProcessor: (processorId: string) => void;
+    /**
+     * 动态注册聊天设置分区
+     * @param section 设置分区配置
+     */
+    registerSettingsSection: (section: any) => void;
+    /**
+     * 动态注册聊天设置项
+     * @param sectionTitle 目标分区标题
+     * @param item 设置项配置
+     */
+    registerSettingItem: (sectionTitle: string, item: any) => void;
   };
 
   // 未来可扩展其他 API，例如 ui.showNotification, commands.registerCommand 等

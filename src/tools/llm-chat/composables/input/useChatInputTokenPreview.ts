@@ -1,8 +1,23 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { ref, watch, computed, type Ref } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useLlmChatStore } from "../../stores/llmChatStore";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { MacroProcessor } from "../../macro-engine/MacroProcessor";
 import {
@@ -31,6 +46,7 @@ export interface TokenPreviewOptions {
 export function useChatInputTokenPreview(options: TokenPreviewOptions) {
   const { inputText, attachments, temporaryModel, debounceMs = 800 } = options;
 
+  const { currentAgentId } = useLlmChatUiState();
   const chatStore = useLlmChatStore();
   const agentStore = useAgentStore();
   const transcriptionManager = useTranscriptionManager();
@@ -91,8 +107,8 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
     }
 
     // 5. 最后尝试使用当前选中的智能体
-    if (agentStore.currentAgentId) {
-      const agent = agentStore.getAgentById(agentStore.currentAgentId);
+    if (currentAgentId.value) {
+      const agent = agentStore.getAgentById(currentAgentId.value);
       if (agent?.modelId) {
         return agent.modelId;
       }
@@ -117,7 +133,7 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
       if (!macroProcessor) {
         macroProcessor = new MacroProcessor();
       }
-      const agentId = agentStore.currentAgentId || index?.displayAgentId;
+      const agentId = currentAgentId.value || index?.displayAgentId;
       const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
 
       const context = buildMacroContext({
@@ -223,18 +239,15 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
   );
 
   // 监听会话或智能体变更（可能导致模型 ID 变化）
-  watch(
-    [() => chatStore.currentSessionId, () => agentStore.currentAgentId],
-    () => {
-      triggerCalculation();
-    }
-  );
+  watch([() => chatStore.currentSessionId, () => currentAgentId.value], () => {
+    triggerCalculation();
+  });
 
   // 监听智能体内部模型变化
   watch(
     () => {
-      if (!agentStore.currentAgentId) return null;
-      const agent = agentStore.getAgentById(agentStore.currentAgentId);
+      if (!currentAgentId.value) return null;
+      const agent = agentStore.getAgentById(currentAgentId.value);
       return agent?.modelId;
     },
     () => {

@@ -1,3 +1,19 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <script setup lang="ts">
 import { computed, markRaw, ref } from "vue";
 import { ElSwitch, ElEmpty, ElIcon, ElTooltip, ElInput } from "element-plus";
@@ -11,18 +27,20 @@ import {
   Search,
   HelpCircle,
 } from "lucide-vue-next";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import ToolCallingHelpDialog from "../common/ToolCallingHelpDialog.vue";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
 import { useToolSearch } from "@/tools/tool-calling/composables/useToolSearch";
 import { useToolsStore } from "@/stores/tools";
-import { DEFAULT_TOOL_CALL_CONFIG } from "../../types/agent";
+import { DEFAULT_TOOL_CALL_CONFIG } from "@/tools/agent-manager/types/agent";
 import { useIsVcpChannel } from "../../composables/useIsVcpChannel";
+import { useLlmChatUiState } from "../../composables/ui/useLlmChatUiState";
 
 const agentStore = useAgentStore();
 const toolsStore = useToolsStore();
 const { getDiscoveredMethods } = useToolCalling();
 const { isVcpChannel } = useIsVcpChannel();
+const { currentAgentId } = useLlmChatUiState();
 
 // 展开的工具ID
 const expandedToolId = ref<string | null>(null);
@@ -30,8 +48,8 @@ const searchQuery = ref("");
 const showHelpDialog = ref(false);
 
 const currentAgent = computed(() => {
-  return agentStore.currentAgentId
-    ? agentStore.getAgentById(agentStore.currentAgentId)
+  return currentAgentId.value
+    ? agentStore.getAgentById(currentAgentId.value)
     : null;
 });
 

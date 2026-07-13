@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { useStorage } from "@vueuse/core";
@@ -10,7 +24,8 @@ import { useLlmChatStore } from "./llmChatStore";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
-import { useAgentStore } from "./agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
+import { useLlmChatUiState } from "../composables/ui/useLlmChatUiState";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useUserProfileStore } from "./userProfileStore";
 import { MacroProcessor, createMacroContext } from "../macro-engine";
@@ -73,8 +88,10 @@ export const useMessageInputStore = defineStore(
     const attachments = inputManager.attachments;
     const isProcessingAttachments = inputManager.isProcessingAttachments;
     const hasAttachments = inputManager.hasAttachments;
+    const attachmentCount = inputManager.attachmentCount;
     const temporaryModel = inputManager.temporaryModel;
     const continuationModel = inputManager.continuationModel;
+    const draftClipboard = inputManager.draftClipboard;
 
     // === 4. Token 预览 ===
     const {
@@ -118,7 +135,6 @@ export const useMessageInputStore = defineStore(
     const bus = useWindowSyncBus();
     const { open: openModelSelectDialog } = useModelSelectDialog();
     const agentStore = useAgentStore();
-
     // 1. 会话管理
     const handleSwitchSession = (sessionId: string) => {
       if (isDetached.value) {
@@ -130,7 +146,8 @@ export const useMessageInputStore = defineStore(
     };
 
     const handleNewSession = () => {
-      const agentId = agentStore.currentAgentId || agentStore.defaultAgent?.id;
+      const { currentAgentId } = useLlmChatUiState();
+      const agentId = currentAgentId.value || agentStore.defaultAgent?.id;
       if (!agentId) {
         customMessage.warning("没有可用的智能体来创建新会话");
         return;
@@ -147,6 +164,7 @@ export const useMessageInputStore = defineStore(
     const getCurrentModelSelection = (modelRef: {
       value: { profileId: string; modelId: string } | null | undefined;
     }) => {
+      const { currentAgentId } = useLlmChatUiState();
       const model = modelRef.value;
       if (model) {
         const profile = getProfileById(model.profileId);
@@ -156,8 +174,8 @@ export const useMessageInputStore = defineStore(
           );
           if (m) return { profile, model: m };
         }
-      } else if (agentStore.currentAgentId) {
-        const agent = agentStore.getAgentById(agentStore.currentAgentId);
+      } else if (currentAgentId.value) {
+        const agent = agentStore.getAgentById(currentAgentId.value);
         if (agent) {
           const profile = getProfileById(agent.profileId);
           if (profile) {
@@ -266,12 +284,21 @@ export const useMessageInputStore = defineStore(
         attachments: attachmentsVal,
         temporaryModel: temporaryModelVal,
         disableMacroParsing,
+        sessionId: chatStore.currentSessionId || undefined,
       };
 
       if (isDetached.value) {
-        bus.requestAction("llm-chat:send-message", payload);
+        bus.requestAction("llm-chat:send-message", {
+          content: payload.content,
+          options: {
+            attachments: payload.attachments,
+            temporaryModel: payload.temporaryModel,
+            disableMacroParsing: payload.disableMacroParsing,
+            sessionId: payload.sessionId || chatStore.currentSessionId,
+          },
+        });
         // 发送后清空输入（模拟主窗口行为）
-        inputText.value = "";
+        inputManager.clear(chatStore.currentSessionId);
       } else {
         _sendCallback?.(payload);
       }
@@ -280,7 +307,9 @@ export const useMessageInputStore = defineStore(
     // 处理中止
     const handleAbort = () => {
       if (isDetached.value) {
-        bus.requestAction("llm-chat:abort-sending", {});
+        bus.requestAction("llm-chat:abort-sending", {
+          sessionId: chatStore.currentSessionId,
+        });
         return;
       }
 
@@ -313,8 +342,9 @@ export const useMessageInputStore = defineStore(
       try {
         // 准备完整的宏上下文
         const session = chatStore.currentFullSession;
-        const agent = agentStore.currentAgentId
-          ? agentStore.getAgentById(agentStore.currentAgentId)
+        const { currentAgentId } = useLlmChatUiState();
+        const agent = currentAgentId.value
+          ? agentStore.getAgentById(currentAgentId.value)
           : null;
         const userProfile = profileStore.getEffectiveProfile(
           agent?.userProfileId
@@ -459,8 +489,9 @@ export const useMessageInputStore = defineStore(
         ? {
             modelId: continuationModel.value.modelId,
             profileId: continuationModel.value.profileId,
+            sessionId: chatStore.currentSessionId || undefined,
           }
-        : undefined;
+        : { sessionId: chatStore.currentSessionId || undefined };
 
       if (isDetached.value) {
         bus.requestAction("llm-chat:complete-input", {
@@ -650,6 +681,16 @@ export const useMessageInputStore = defineStore(
     const clearContinuationModel = () =>
       inputManager.setContinuationModel(null);
 
+    const hasClipboardDraft = computed(() => draftClipboard.value !== null);
+
+    const handleCutDraft = () => {
+      inputManager.cutDraft(chatStore.currentSessionId);
+    };
+
+    const handlePasteDraft = () => {
+      inputManager.pasteDraft(chatStore.currentSessionId);
+    };
+
     return {
       // 菜单可见性
       macroSelectorVisible,
@@ -666,6 +707,7 @@ export const useMessageInputStore = defineStore(
       attachments,
       isProcessingAttachments,
       hasAttachments,
+      attachmentCount,
       temporaryModel,
       continuationModel,
       // Token 预览
@@ -686,6 +728,10 @@ export const useMessageInputStore = defineStore(
       handleSelectContinuationModel,
       clearTemporaryModel,
       clearContinuationModel,
+      draftClipboard,
+      hasClipboardDraft,
+      handleCutDraft,
+      handlePasteDraft,
       registerTextareaRef,
       registerSendCallback,
       registerAbortCallback,

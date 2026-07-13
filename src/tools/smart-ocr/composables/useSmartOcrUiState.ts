@@ -1,8 +1,22 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 /**
  * Smart OCR UI 状态持久化管理
  */
 
-import { ref, watch } from "vue";
+import { reactive, toRefs, watch } from "vue";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -45,10 +59,7 @@ const uiStateManager = createConfigManager<SmartOcrUiState>({
 const debouncedSave = uiStateManager.saveDebounced;
 
 // 将响应式状态提升到模块级别，使其成为真正的单例
-const isLeftPanelCollapsed = ref(defaultUiState.isLeftPanelCollapsed);
-const isRightPanelCollapsed = ref(defaultUiState.isRightPanelCollapsed);
-const leftPanelWidth = ref(defaultUiState.leftPanelWidth);
-const rightPanelWidth = ref(defaultUiState.rightPanelWidth);
+const state = reactive<SmartOcrUiState>({ ...defaultUiState });
 
 // 是否已初始化
 let isInitialized = false;
@@ -62,12 +73,12 @@ export function useSmartOcrUiState() {
    */
   const loadUiState = async () => {
     try {
-      const state = await uiStateManager.load();
+      const loadedState = await uiStateManager.load();
 
-      isLeftPanelCollapsed.value = state.isLeftPanelCollapsed;
-      isRightPanelCollapsed.value = state.isRightPanelCollapsed;
-      leftPanelWidth.value = state.leftPanelWidth;
-      rightPanelWidth.value = state.rightPanelWidth;
+      Object.assign(state, {
+        ...defaultUiState,
+        ...loadedState,
+      });
 
       isInitialized = true;
       logger.info("UI状态加载成功", state);
@@ -90,14 +101,7 @@ export function useSmartOcrUiState() {
       return;
     }
 
-    const state: SmartOcrUiState = {
-      isLeftPanelCollapsed: isLeftPanelCollapsed.value,
-      isRightPanelCollapsed: isRightPanelCollapsed.value,
-      leftPanelWidth: leftPanelWidth.value,
-      rightPanelWidth: rightPanelWidth.value,
-    };
-
-    debouncedSave(state);
+    debouncedSave({ ...state });
   };
 
   /**
@@ -105,17 +109,13 @@ export function useSmartOcrUiState() {
    * 当状态变化时自动保存
    */
   const startWatching = () => {
-    // 监听所有UI状态变化
+    // 监听整个响应式状态对象的变化
     watch(
-      [
-        isLeftPanelCollapsed,
-        isRightPanelCollapsed,
-        leftPanelWidth,
-        rightPanelWidth,
-      ],
+      () => state,
       () => {
         saveUiState();
-      }
+      },
+      { deep: true }
     );
 
     logger.info("UI状态监听已启动");
@@ -127,12 +127,7 @@ export function useSmartOcrUiState() {
   const resetUiState = async () => {
     try {
       await uiStateManager.save(defaultUiState);
-
-      isLeftPanelCollapsed.value = defaultUiState.isLeftPanelCollapsed;
-      isRightPanelCollapsed.value = defaultUiState.isRightPanelCollapsed;
-      leftPanelWidth.value = defaultUiState.leftPanelWidth;
-      rightPanelWidth.value = defaultUiState.rightPanelWidth;
-
+      Object.assign(state, defaultUiState);
       logger.info("UI状态已重置");
     } catch (error) {
       errorHandler.handle(error as Error, { userMessage: "重置UI状态失败" });
@@ -140,11 +135,8 @@ export function useSmartOcrUiState() {
   };
 
   return {
-    // 状态
-    isLeftPanelCollapsed,
-    isRightPanelCollapsed,
-    leftPanelWidth,
-    rightPanelWidth,
+    // 状态 (通过 toRefs 保持解构后的响应式)
+    ...toRefs(state),
 
     // 方法
     loadUiState,

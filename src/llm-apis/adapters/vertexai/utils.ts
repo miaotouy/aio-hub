@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import {
   parseMessageContents,
   inferImageMimeType,
@@ -10,6 +24,7 @@ import type {
   LlmMessage,
 } from "@/llm-apis/common";
 import type { LlmModelInfo } from "@/types/llm-profiles";
+import { getGeminiReplayParts } from "@/llm-apis/adapters/gemini/reasoning-artifacts";
 import { DEFAULT_METADATA_RULES, testRuleMatch } from "@/config/model-metadata";
 
 /**
@@ -57,6 +72,9 @@ export interface VertexAiPart {
     response: Record<string, any>;
   };
   thought?: boolean; // 支持思考摘要
+  thoughtSignature?: string;
+  thought_signature?: string;
+  signature?: string;
 }
 
 export interface VertexAiContent {
@@ -189,10 +207,13 @@ export function buildVertexAiContents(
   for (const msg of messages) {
     if (msg.role === "system") continue;
 
+    const replayParts =
+      msg.role === "assistant" ? getGeminiReplayParts(msg) : undefined;
     const parts =
-      typeof msg.content === "string"
+      replayParts ||
+      (typeof msg.content === "string"
         ? [{ text: msg.content }]
-        : buildVertexAiParts(msg.content);
+        : buildVertexAiParts(msg.content));
 
     contents.push({
       role: msg.role === "assistant" ? "model" : "user",

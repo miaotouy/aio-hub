@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 /**
  * LLM Chat 核心业务服务
  *
@@ -7,8 +21,9 @@
 
 import { useChatInputManager } from "../composables/input/useChatInputManager";
 import { useLlmChatStore } from "../stores/llmChatStore";
-import { useAgentStore } from "../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../stores/userProfileStore";
+import { useLlmChatUiState } from "../composables/ui/useLlmChatUiState";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import type { Asset } from "@/types/asset-management";
@@ -16,6 +31,7 @@ import type {
   ChatSessionIndex,
   ChatSessionDetail,
   ChatAgent,
+  ModelIdentifier,
   UserProfile,
 } from "../types";
 
@@ -420,7 +436,8 @@ export class LlmChatService {
    * 获取当前选中的智能体
    */
   public getCurrentAgent(): ChatAgent | null {
-    const agentId = this.agentStore.currentAgentId;
+    const { currentAgentId } = useLlmChatUiState();
+    const agentId = currentAgentId.value;
     return agentId ? this.agentStore.getAgentById(agentId) || null : null;
   }
 
@@ -460,7 +477,14 @@ export class LlmChatService {
    */
   public async sendMessage(
     content: string,
-    options?: { parentId?: string }
+    options?: {
+      parentId?: string;
+      agentId?: string;
+      sessionId?: string;
+      attachments?: Asset[];
+      temporaryModel?: ModelIdentifier | null;
+      disableMacroParsing?: boolean;
+    }
   ): Promise<void> {
     await errorHandler.wrapAsync(
       async () => {
@@ -469,7 +493,8 @@ export class LlmChatService {
         const store = this.chatStore;
 
         // 如果没有当前会话，尝试自动选择或创建
-        if (!store.currentSession) {
+        const targetSessionId = options?.sessionId || store.currentSessionId;
+        if (!targetSessionId || !store.sessionIndexMap.has(targetSessionId)) {
           if (store.sessions.length > 0) {
             // 情况1：有历史会话但未选中 -> 自动切换到最近使用的会话
             const sortedSessions = [...store.sessions].sort(
@@ -485,13 +510,13 @@ export class LlmChatService {
             store.switchSession(targetSession.id);
           } else {
             // 情况2：完全没有会话 -> 尝试自动创建新会话
-            const agentStore = this.agentStore;
+            const { currentAgentId } = useLlmChatUiState();
 
-            if (agentStore.currentAgentId) {
+            if (currentAgentId.value) {
               logger.info("没有可用会话，自动创建新会话", {
-                agentId: agentStore.currentAgentId,
+                agentId: currentAgentId.value,
               });
-              store.createSession(agentStore.currentAgentId);
+              store.createSession(currentAgentId.value);
             } else {
               // 情况3：连 Agent 都没选 -> 抛出错误让用户去选
               throw new Error("请先选择一个智能体或创建一个会话");
@@ -500,7 +525,8 @@ export class LlmChatService {
         }
 
         // 自动携带输入框中选择的临时模型
-        const temporaryModel = this.inputManager.temporaryModel.value;
+        const temporaryModel =
+          options?.temporaryModel ?? this.inputManager.temporaryModel.value;
         const sendOptions = {
           ...options,
           temporaryModel,

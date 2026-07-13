@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import type {
   AgentExtensionContext,
   MethodMetadata,
@@ -8,7 +22,7 @@ import { useToolsStore } from "@/stores/tools";
 import type {
   AgentExtensionConfig,
   ToolCallConfig,
-} from "@/tools/llm-chat/types/agent";
+} from "@/tools/agent-manager/types/agent";
 import { createModuleLogger } from "@/utils/logger";
 import type {
   ToolCallingProtocol,
@@ -17,6 +31,17 @@ import type {
 import { VcpToolCallingProtocol } from "./protocols/vcp-protocol";
 
 const logger = createModuleLogger("tool-calling/discovery");
+
+/**
+ * 安全获取 toolsStore，在非 Pinia 环境（如 Vitest / Bun 脚本）下优雅降级
+ */
+function getToolsStoreSafe() {
+  try {
+    return useToolsStore();
+  } catch {
+    return null;
+  }
+}
 
 type DiscoveredToolMethods = {
   toolId: string;
@@ -174,12 +199,12 @@ export function createToolDiscoveryService(): {
 
   function getDiscoveredExtensions(): DiscoveredExtension[] {
     const allTools = toolRegistryManager.getAllTools();
-    const toolsStore = useToolsStore();
+    const toolsStore = getToolsStoreSafe();
 
     return allTools
       .filter((ext) => typeof ext.getExtraPromptContext === "function")
       .map((ext) => {
-        const toolConfig = toolsStore.tools.find((t) =>
+        const toolConfig = toolsStore?.tools?.find((t: any) =>
           t.path.includes(ext.id)
         );
         return {
@@ -196,7 +221,7 @@ export function createToolDiscoveryService(): {
     filter?: (method: MethodMetadata) => boolean
   ): DiscoveredToolMethods[] {
     const allTools = toolRegistryManager.getAllTools();
-    const toolsStore = useToolsStore();
+    const toolsStore = getToolsStoreSafe();
     const discovered: DiscoveredToolMethods[] = [];
 
     for (const tool of allTools) {
@@ -236,7 +261,9 @@ export function createToolDiscoveryService(): {
       }
 
       // 尝试从 toolsStore 获取图标
-      const toolConfig = toolsStore.tools.find((t) => t.path.includes(tool.id));
+      const toolConfig = toolsStore?.tools?.find((t: any) =>
+        t.path.includes(tool.id)
+      );
 
       discovered.push({
         toolId: tool.id,

@@ -1,6 +1,21 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import type { Asset } from "@/types/asset-management";
 import type { MessageRole, MessageStatus, MessageType } from "./common";
 import type { SessionVariableSnapshot } from "./sessionVariable";
+import type { LlmReasoningArtifact } from "@/llm-apis/common";
 
 /**
  * 预设消息附件引用
@@ -237,6 +252,8 @@ export interface ChatMessageNode {
     modelName?: string;
     /** 使用的模型显示名称 */
     modelDisplayName?: string;
+    /** 是否是排队待生成的节点 */
+    isQueued?: boolean;
     /** 是否被截断 */
     isTruncated?: boolean;
     /** 错误信息 */
@@ -261,6 +278,14 @@ export interface ChatMessageNode {
     tokenCountEstimated?: boolean;
     /** 推理内容（DeepSeek reasoning 模式） */
     reasoningContent?: string;
+    /** Provider-owned reasoning state that may need exact replay. */
+    reasoningArtifacts?: LlmReasoningArtifact[];
+    /** Replay state status after context truncation/compression. */
+    reasoningStateStatus?: "intact" | "broken";
+    /** Human-readable reason why replay state became unavailable. */
+    reasoningStateWarning?: string;
+    /** Successful API response had no visible text; stores a diagnostic hint. */
+    emptyResponseDiagnostic?: string;
     /** 推理开始时间戳 */
     reasoningStartTime?: number;
     /** 推理结束时间戳 */

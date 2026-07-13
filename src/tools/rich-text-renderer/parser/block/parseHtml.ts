@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import { Token, ParserContext } from "../types";
 import { AstNode, GenericHtmlNode, LlmThinkNode } from "../../types";
 import { decodeHtmlEntities, isFuzzyMatchCloseTag } from "../utils/text-utils";
@@ -70,6 +84,95 @@ function normalizeHtmlTokens(tokens: Token[], tagName: string): Token[] {
 }
 
 /**
+ * 解析预格式化标签（如 pre, code）内部的混合内容，保留所有空白和换行
+ */
+function parsePreFormattedContent(tokens: Token[]): AstNode[] {
+  const nodes: AstNode[] = [];
+  let i = 0;
+  let accumulatedText = "";
+
+  const flushText = () => {
+    if (accumulatedText) {
+      nodes.push({
+        id: "",
+        type: "text",
+        props: { content: accumulatedText },
+        meta: { range: { start: 0, end: 0 }, status: "stable" },
+      });
+      accumulatedText = "";
+    }
+  };
+
+  while (i < tokens.length) {
+    const token = tokens[i];
+
+    if (token.type === "newline") {
+      accumulatedText += "\n".repeat(token.count || 1);
+      i++;
+      continue;
+    }
+
+    if (token.type === "text") {
+      accumulatedText += decodeHtmlEntities(token.content);
+      i++;
+      continue;
+    }
+
+    if (token.type === "html_open") {
+      flushText();
+      const tagName = token.tagName.toLowerCase();
+
+      // 收集内部 tokens 直到闭合标签
+      const innerTokens: Token[] = [];
+      let depth = 1;
+      i++;
+
+      while (i < tokens.length && depth > 0) {
+        const t = tokens[i];
+        if (t.type === "html_open" && t.tagName === tagName && !t.selfClosing) {
+          depth++;
+          innerTokens.push(t);
+        } else if (t.type === "html_close" && t.tagName === tagName) {
+          depth--;
+          if (depth === 0) {
+            i++;
+            break;
+          }
+          innerTokens.push(t);
+        } else {
+          innerTokens.push(t);
+        }
+        i++;
+      }
+
+      nodes.push({
+        id: "",
+        type: "generic_html",
+        props: { tagName, attributes: token.attributes },
+        children: parsePreFormattedContent(innerTokens),
+        meta: { range: { start: 0, end: 0 }, status: "stable" },
+      });
+      continue;
+    }
+
+    if (token.type === "html_close") {
+      i++;
+      continue;
+    }
+
+    if ("raw" in token && token.raw) {
+      accumulatedText += token.raw;
+    } else if ("marker" in token && token.marker) {
+      accumulatedText += token.marker;
+    }
+    i++;
+  }
+
+  flushText();
+  return nodes;
+}
+
+/**
  * 解析 HTML 块（仅处理块级标签）
  */
 export function parseHtmlBlock(
@@ -139,6 +242,20 @@ export function parseHtmlBlock(
       // 预处理 tokens，处理换行符
       const normalizedTokens = normalizeHtmlTokens(contentTokens, tagName);
       htmlNode.children = ctx.parseInlines(normalizedTokens);
+    } else if (PRE_FORMATTED_TAGS.has(tagName)) {
+      // 预格式化标签特殊处理：保留所有空白和换行，支持内部 HTML 标签
+      // 移除首尾换行 (通常 HTML 会忽略 <pre> 后紧跟的第一个换行和 </pre> 前紧跟的最后一个换行)
+      const cleanedTokens = [...contentTokens];
+      if (cleanedTokens.length > 0 && cleanedTokens[0].type === "newline") {
+        cleanedTokens.shift();
+      }
+      if (
+        cleanedTokens.length > 0 &&
+        cleanedTokens[cleanedTokens.length - 1].type === "newline"
+      ) {
+        cleanedTokens.pop();
+      }
+      htmlNode.children = parsePreFormattedContent(cleanedTokens);
     } else {
       // 对于其他所有块级标签（如 <div>, <td>, <li> 等），
       // 使用 parseHtmlContent 进行混合内容解析。

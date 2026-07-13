@@ -84,14 +84,14 @@ Sidecar 插件通过 stdio 与主进程进行基于 JSON-RPC 的通信。
       "win32-x64": "bin/aiohub-paddle-ocr-windows-x64.exe"
     },
     "resident": true,
-    "startupMethod": "recognizeBatch",
-    "startupParams": { "images": [] }
+    "startupMethod": "healthCheck",
+    "startupParams": {}
   }
 }
 ```
 
 - **`resident`**: 必须设为 `true`。
-- **`startupMethod`** (可选): 进程启动后自动执行的初始化方法。
+- **`startupMethod`** (可选): 进程启动后自动执行的健康检查或初始化方法。推荐使用 `healthCheck` / `warmup` 这类语义明确的方法，避免复用业务方法和空参数伪造检查。
 - **`startupParams`** (可选): 初始化方法所需的参数。
 
 ### 进程生命周期

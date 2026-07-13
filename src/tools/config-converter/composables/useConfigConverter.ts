@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import { ref, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -123,7 +137,9 @@ export function useConfigConverter() {
     if (files.length === 0) return;
 
     if (files.length > 1) {
-      customMessage.warning("原生拖放无法提供批量转换所需的文件路径，已加载第一个文件");
+      customMessage.warning(
+        "原生拖放无法提供批量转换所需的文件路径，已加载第一个文件"
+      );
     }
 
     await loadSingleFileObject(files[0]);

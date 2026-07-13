@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import { invoke } from "@tauri-apps/api/core";
 import {
   open as openDialog,
@@ -408,7 +422,7 @@ function searchNodeAndPathByFragment(
     pathParts: string[]
   ): { node: TreeNode; path: string[] } | null => {
     let curr = startNode;
-    const path = [...currentPath];
+    const path = [...currentPath, startNode.name];
     // 路径的第一部分就是 startNode 自己的名字，已经包含在 currentPath 传入前了
     for (let i = 1; i < pathParts.length; i++) {
       const part = pathParts[i];
@@ -462,7 +476,7 @@ function searchAllNodesAndPathsByFragment(
     pathParts: string[]
   ): { node: TreeNode; path: string[] } | null => {
     let curr = startNode;
-    const path = [...currentPath];
+    const path = [...currentPath, startNode.name];
     for (let i = 1; i < pathParts.length; i++) {
       const part = pathParts[i];
       const found: TreeNode | undefined = curr.children.find(

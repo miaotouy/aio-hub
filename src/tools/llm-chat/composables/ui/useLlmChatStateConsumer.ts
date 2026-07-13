@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 /**
  * LLM Chat 状态消费者 Composable
  *
@@ -15,9 +29,9 @@ import { ref, watch } from "vue";
 import { useStateSyncEngine } from "@/composables/useStateSyncEngine";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useLlmChatStore } from "../../stores/llmChatStore";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
-import { useWorldbookStore } from "../../stores/worldbookStore";
+import { useWorldbookStore } from "@/tools/st-worldbook-manager/stores/worldbookStore";
 import { useLlmChatUiState } from "./useLlmChatUiState";
 import { createModuleLogger } from "@/utils/logger";
 import type {
@@ -195,8 +209,8 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
   );
 
   watch(syncedIsSending, (newValue) => {
-    // logger.info('接收到 isSending 同步数据', { isSending: newValue });
-    store.isSending = newValue;
+    // isSending 已由 generatingNodes 推导；这里只保留订阅，兼容上游旧状态包。
+    void newValue;
   });
 
   watch(syncedGeneratingNodes, (newNodes) => {

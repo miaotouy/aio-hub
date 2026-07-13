@@ -1,7 +1,24 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <script setup lang="ts">
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { computed, ref, watch } from "vue";
 import { useVirtualList } from "@vueuse/core";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import type { ChatSessionIndex } from "../../types";
 import {
@@ -10,7 +27,7 @@ import {
 } from "../../composables/chat/useLlmSearch";
 import { Plus, Search, Loading } from "@element-plus/icons-vue";
 import Avatar from "@/components/common/Avatar.vue";
-import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
+import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 import { formatRelativeTime } from "@/utils/time";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useMessageInputStore } from "../../stores/messageInputStore";
@@ -160,6 +177,8 @@ const { list, containerProps, wrapperProps, scrollTo } = useVirtualList(
   }
 );
 
+const { selectAgent } = useLlmChatUiState();
+
 // 获取会话当前显示的智能体信息
 const getSessionDisplayAgent = (session: ChatSessionIndex) => {
   if (!session.displayAgentId) return null;
@@ -174,7 +193,7 @@ const handleSessionClick = (session: ChatSessionIndex) => {
   ) {
     const agent = agentStore.getAgentById(session.displayAgentId);
     if (agent) {
-      agentStore.selectAgent(session.displayAgentId, {
+      selectAgent(session.displayAgentId, {
         syncCurrentSessionGreetings: false,
       });
     }
@@ -275,8 +294,7 @@ defineExpose({
               <Avatar
                 v-if="getSessionDisplayAgent(session)"
                 :src="
-                  resolveAvatarPath(getSessionDisplayAgent(session), 'agent') ||
-                  ''
+                  resolveAgentAvatarPath(getSessionDisplayAgent(session)) || ''
                 "
                 :alt="getSessionDisplayAgent(session)?.name"
                 :size="16"

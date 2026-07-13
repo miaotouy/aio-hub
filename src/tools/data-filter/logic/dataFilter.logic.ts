@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import { get } from "lodash-es";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import yaml from "js-yaml";
@@ -70,7 +84,7 @@ export function applyFilter(input: any, options: FilterOptions): FilterResult {
 
     // 2. 执行过滤
     const filteredData = target.filter((item) => {
-      return options.conditions.every((cond) => {
+      const matched = options.conditions.every((cond) => {
         // 跳过未启用的条件
         if (cond.enabled === false) {
           return true;
@@ -136,6 +150,8 @@ export function applyFilter(input: any, options: FilterOptions): FilterResult {
         // 只要有一个键满足条件即可 (OR 逻辑)
         return keys.some((key) => checkSingleKey(key));
       });
+
+      return options.keepUnmatched ? !matched : matched;
     });
 
     logger.info("过滤完成", { total, filtered: filteredData.length });

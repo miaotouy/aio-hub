@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 /**
  * Media Generator 会话持久化存储
  * 参考 llm-chat 的分离式存储方案
@@ -20,6 +34,7 @@ import type {
   MediaSessionIndexItem,
   MediaGeneratorSettings,
   MediaTask,
+  MediaGenerationConfig,
 } from "../types";
 import { DEFAULT_MEDIA_GENERATOR_SETTINGS } from "../config";
 import { createModuleLogger } from "@/utils/logger";
@@ -76,6 +91,20 @@ const settingsManager = createConfigManager<MediaGeneratorSettings>({
   fileName: "settings.json",
   version: "1.0.0",
   createDefault: () => DEFAULT_MEDIA_GENERATOR_SETTINGS,
+});
+
+/**
+ * 媒体生成全局配置管理器
+ */
+const generationConfigManager = createConfigManager<MediaGenerationConfig>({
+  moduleName: MODULE_NAME,
+  fileName: "generation-config.json",
+  version: "1.0.0",
+  createDefault: () => ({
+    activeType: "image",
+    includeContext: false,
+    types: {} as any, // 留空，加载时由 sessionManager.normalizeGenerationConfig 自动填充默认值
+  }),
 });
 
 /**
@@ -509,6 +538,15 @@ export function useMediaStorage() {
     loadSettings,
     saveSettings,
     saveSettingsDebounced: settingsManager.saveDebounced.bind(settingsManager),
+    loadGenerationConfig: async () => {
+      return await generationConfigManager.load();
+    },
+    saveGenerationConfig: async (config: MediaGenerationConfig) => {
+      await generationConfigManager.save(config);
+    },
+    saveGenerationConfigDebounced: (config: MediaGenerationConfig) => {
+      generationConfigManager.saveDebounced(config);
+    },
     loadTasks,
     saveTasks,
     saveTasksDebounced,

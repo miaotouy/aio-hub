@@ -6,7 +6,7 @@
 
 ### 1.1. 什么是 VCP？
 
-**VCP (Variable & Command Protocol)** 是一个开源的 AI 能力增强与进化中间层（[GitHub: VCPToolBox](https://github.com/lioensky/VCPToolBox)）。它不是一个简单的聊天框架，而是一套完整的 **AI Agent 运行时生态系统**，其核心目标是在 API 层面深度整合三大要素：
+**VCP (Variable & Command Protocol)** 是一个开源的 AI 能力增强与进化中间层（[GitHub: VCPToolBox](https://github.com/lioensky/VCPToolBox)）。它是一套完整的 **AI Agent 运行时生态系统**，其核心目标是在 API 层面深度整合三大要素：
 
 - 🧠 **AI 推理引擎** — 对接各类大语言模型，提供统一的对话与工具调用管道
 - 🛠️ **外部工具执行** — 通过 70+ 官方插件（涵盖文生图/视频、联网搜索、浏览器控制、文件操作、物联网等）赋予 Agent 丰富的执行能力
@@ -78,6 +78,10 @@ VCP 服务器广播的消息分为六种类型，每种对应不同的 AI 运行
 - **任务映射**: VCP 返回 `taskId` 时，AIO 自动创建 `vcp_{id}` 格式的外部任务。
 - **进度回传**: 通过 `vcp_tool_status` 消息实时更新 AIO 任务面板的进度条和日志。
 - **结果同步**: 任务完成后，通过 `vcp_tool_result` 将最终结果推送到 AIO 执行器。
+
+### 2.4.1. 分布式执行超时
+
+AIO 暴露给 VCP 主服务器的分布式工具 manifest 会在 `communication.timeout` 中声明 120 秒超时，避免 VCP 主服务器按默认 60 秒提前判定长耗时文件、目录或解析操作失败。AIO 节点本地执行侧保留略短的 115 秒保护，确保真正卡住时由 AIO 先回传明确的 `tool_result` 错误。
 
 ### 2.5. 工具调用审批系统
 
@@ -239,7 +243,8 @@ sequenceDiagram
 
     Note over Proto,Tool: 工具注册阶段
     Proto->>VCP: register_tools (工具清单)
-    VCP-->>Store: register_tools_ack + nodeId
+    VCP-->>Store: register_tools_ack + nodeId（可选）
+    Note over Store: 若 VCP 实现不返回 ack，AIO 会短延迟后兼容确认本次清单
 
     Note over VCP,Tool: 远程调用阶段
     VCP->>Store: execute_tool (requestId, tool_name, command, args)
@@ -292,4 +297,3 @@ sequenceDiagram
    - 如何添加新的协议级内置工具。
    - 如何添加新的分布式协议消息。
    - 如何将本地 AIO 工具方法标记并暴露给 VCP 远程调用。
-

@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
@@ -9,6 +23,7 @@ import { splitZipDocumentIntoImageAssets } from "../../core/context-utils/zip-do
 import { isDocxAssetLike } from "@/utils/docxParser";
 import { isPptxAssetLike, isXlsxAssetLike } from "@/utils/zipDocumentParser";
 import { useTranscriptionManager } from "../../composables/features/useTranscriptionManager";
+import { getActivePinia } from "pinia";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
 import type { ChatTranscriptionConfig } from "../../types/settings";
@@ -210,7 +225,12 @@ export const transcriptionProcessor: ContextProcessor = {
       const hasVision = context.capabilities?.vision === true;
       if (hasVision) {
         const nonDocxAssets: PipelineAttachment[] = [];
-        const transcriptionManager = useTranscriptionManager();
+
+        // 检查 Pinia 实例以支持非 UI 环境下的安全降级
+        let transcriptionManager: any = null;
+        if (getActivePinia()) {
+          transcriptionManager = useTranscriptionManager();
+        }
 
         for (const asset of assetsToProcess) {
           const isDocx = isDocxAssetLike(asset);
@@ -219,14 +239,31 @@ export const transcriptionProcessor: ContextProcessor = {
 
           if (isDocx || isPptx || isXlsx) {
             const transcriptionAsset = await getTranscriptionAsset(asset);
+
+            let willUseTranscription = false;
+            if (transcriptionManager) {
+              // 正常 UI 环境逻辑
+              willUseTranscription =
+                transcriptionManager.computeWillUseTranscription(
+                  transcriptionAsset,
+                  modelId,
+                  profileId
+                );
+            } else {
+              // 降级逻辑：如果没有 Pinia，我们通过检查 asset 自身的 metadata 来判断是否有转写结果
+              const hasTranscription =
+                !!transcriptionAsset.metadata?.derived?.transcription?.path;
+              if (
+                hasTranscription &&
+                (transcriptionConfig?.smartPrioritizeTranscription ||
+                  transcriptionConfig?.strategy === "always")
+              ) {
+                willUseTranscription = true;
+              }
+            }
+
             // 已有转写结果且应优先使用转写文本时，回退到正常路径（不走虚拟图片附件）
-            if (
-              transcriptionManager.computeWillUseTranscription(
-                transcriptionAsset,
-                modelId,
-                profileId
-              )
-            ) {
+            if (willUseTranscription) {
               nonDocxAssets.push(asset);
               continue;
             }

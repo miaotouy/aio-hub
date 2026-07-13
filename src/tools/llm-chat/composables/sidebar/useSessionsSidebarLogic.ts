@@ -1,6 +1,21 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { ref, computed, watch } from "vue";
 import type { ChatSessionIndex } from "../../types";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import {
   useLlmSearch,
   type MatchDetail,
@@ -38,6 +53,7 @@ export function useSessionsSidebarLogic({
   props,
   emit,
 }: UseSessionsSidebarLogicOptions) {
+  const { currentAgentId } = useLlmChatUiState();
   const agentStore = useAgentStore();
   const searchQuery = ref("");
   const { isGenerating } = useTopicNamer();
@@ -88,7 +104,7 @@ export function useSessionsSidebarLogic({
   const newSessionName = ref("");
 
   const handleQuickNewSession = () => {
-    const agentId = agentStore.currentAgentId || agentStore.defaultAgent?.id;
+    const agentId = currentAgentId.value || agentStore.defaultAgent?.id;
     if (!agentId) {
       customMessage.warning("没有可用的智能体来创建新会话");
       return;

@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // 命令模块汇总
 pub mod agent_asset_manager;
 pub mod asset_manager;
@@ -15,6 +29,7 @@ pub mod ffmpeg_processor;
 pub mod file_operations;
 pub mod font_list;
 pub mod git_analyzer;
+pub mod git_committer;
 pub mod llm_inspector;
 pub mod llm_proxy;
 pub mod llmchat_search;
@@ -49,6 +64,7 @@ pub use ffmpeg_processor::*;
 pub use file_operations::*;
 pub use font_list::*;
 pub use git_analyzer::*;
+pub use git_committer::*;
 pub use llm_inspector::*;
 pub use llm_proxy::*;
 pub use llmchat_search::*;
@@ -72,6 +88,10 @@ pub use window_manager::*;
 pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
     builder.invoke_handler(tauri::generate_handler![
         greet,
+        crate::frontend_monitor::frontend_probe_ready,
+        crate::frontend_monitor::frontend_probe_heartbeat,
+        crate::frontend_monitor::frontend_probe_error,
+        crate::frontend_monitor::get_frontend_probe_status,
         open_url,
         get_local_ips,
         get_app_config_dir,
@@ -166,6 +186,14 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         git_enrich_commits_stream,
         git_cancel_enrich,
         git_cancel_load,
+        // Git 提交助手命令
+        git_get_repo_status,
+        git_get_file_diff,
+        git_stage_files,
+        git_unstage_files,
+        git_commit,
+        git_push,
+        git_pull,
         // OCR命令
         native_ocr,
         // 外部播放器透明弹幕覆盖层命令 (Windows)
@@ -204,6 +232,9 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         wa_send_click,
         #[cfg(windows)]
         wa_send_keypress,
+        // 实时字幕 OCR - 屏幕区域截屏
+        #[cfg(windows)]
+        capture_screen_rect,
         // 窗口管理命令
         create_tool_window,
         focus_window,
@@ -239,6 +270,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         check_asset_manager_document_converter,
         detect_asset_manager_document_converters,
         detect_libreoffice_path,
+        convert_legacy_document,
         get_asset_base_path,
         import_asset_from_path,
         import_asset_from_bytes,
@@ -263,6 +295,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         remove_asset_derived_data,
         update_asset_derived_data,
         get_asset_by_id,
+        update_audio_waveform,
         // Agent 资产管理命令
         save_agent_asset,
         read_agent_asset_binary,

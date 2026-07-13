@@ -1,3 +1,19 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <script setup lang="ts">
 import { ref, onMounted, watch } from "vue";
 import {
@@ -43,6 +59,7 @@ const galleryContainer = ref<HTMLElement | null>(null);
 
 // 资产 URL 缓存
 const assetUrls = ref<Record<string, string>>({});
+const videoPosterUrls = ref<Record<string, string>>({});
 const generationInfoCache = ref<Record<string, any>>({});
 
 const getInlineGenerationInfo = (asset: Asset) => {
@@ -96,6 +113,9 @@ const hydrateVisibleAssets = async () => {
     assets.value.map(async (asset) => {
       if (!assetUrls.value[asset.id]) {
         assetUrls.value[asset.id] = await getAssetUrl(asset);
+      }
+      if (asset.type === "video" && asset.thumbnailPath) {
+        videoPosterUrls.value[asset.id] = await getAssetUrl(asset, true);
       }
       await loadGenerationInfo(asset);
     })
@@ -295,14 +315,7 @@ const handleRefresh = () => {
             <img :src="assetUrls[asset.id]" loading="lazy" />
           </template>
           <template v-else-if="asset.type === 'video'">
-            <video
-              :src="assetUrls[asset.id]"
-              muted
-              loop
-              preload="none"
-              onmouseover="this.play()"
-              onmouseout="this.pause()"
-            ></video>
+            <img :src="videoPosterUrls[asset.id]" loading="lazy" />
             <div class="media-badge">
               <VideoIcon :size="14" />
             </div>

@@ -1,14 +1,30 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import { computed, inject, provide, ref } from "vue";
 import type { ComputedRef, Ref } from "vue";
 import type { ChatAgent, UserProfile, AgentEditData } from "../types";
 import type { LlmModelInfo } from "@/types/llm-profiles";
-import { useAgentStore } from "../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../stores/userProfileStore";
 import { useLlmChatStore } from "../stores/llmChatStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
-import { useResolvedAvatar } from "./ui/useResolvedAvatar";
+import { useResolvedAgentAvatar } from "@/tools/agent-manager/utils/agentAssetUtils";
+import { useResolvedProfileAvatar } from "@/tools/user-profile-manager/utils/profileAssetUtils";
+import { useLlmChatUiState } from "./ui/useLlmChatUiState";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -54,6 +70,7 @@ export function provideChatAreaContext(options: {
 }): ChatAreaContext {
   const agentStore = useAgentStore();
   const userProfileStore = useUserProfileStore();
+  const { selectAgent } = useLlmChatUiState();
   const llmChatStore = useLlmChatStore();
   const bus = useWindowSyncBus();
   const { getProfileById } = useLlmProfiles();
@@ -66,7 +83,7 @@ export function provideChatAreaContext(options: {
     return agentStore.getAgentById(agentId) ?? null;
   });
 
-  const agentAvatarSrc = useResolvedAvatar(currentAgent, "agent");
+  const agentAvatarSrc = useResolvedAgentAvatar(currentAgent);
 
   const currentModel = computed(() => {
     if (!currentAgent.value) return null;
@@ -80,7 +97,6 @@ export function provideChatAreaContext(options: {
     if (!currentModel.value) return null;
     return getModelIcon(currentModel.value);
   });
-
   const effectiveUserProfile = computed(() => {
     return (
       userProfileStore.getEffectiveProfile(currentAgent.value?.userProfileId) ??
@@ -88,10 +104,7 @@ export function provideChatAreaContext(options: {
     );
   });
 
-  const userProfileAvatarSrc = useResolvedAvatar(
-    effectiveUserProfile,
-    "user-profile"
-  );
+  const userProfileAvatarSrc = useResolvedProfileAvatar(effectiveUserProfile);
 
   const sortedAgents = computed(() => agentStore.sortedAgents);
 
@@ -224,7 +237,7 @@ export function provideChatAreaContext(options: {
         errorHandler.error(error, "请求切换智能体失败");
       }
     } else {
-      agentStore.selectAgent(agentId, {
+      selectAgent(agentId, {
         sessionId: llmChatStore.currentSessionId,
       });
     }

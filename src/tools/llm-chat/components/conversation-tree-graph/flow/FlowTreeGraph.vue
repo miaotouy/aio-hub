@@ -1,3 +1,19 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <template>
   <div
     ref="wrapperRef"
@@ -486,6 +502,7 @@
 </template>
 
 <script setup lang="ts">
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import {
   ref,
   watch,
@@ -521,7 +538,7 @@ import customMessage from "@/utils/customMessage";
 import type { ChatSessionDetail, ChatMessageNode } from "../../../types";
 import { useFlowTreeGraph } from "./composables/useFlowTreeGraph";
 import { useLlmChatStore } from "../../../stores/llmChatStore";
-import { useAgentStore } from "../../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useChatSettings } from "../../../composables/settings/useChatSettings";
 import GraphNode from "./components/GraphNode.vue";
 import GraphNodeDetailPopup from "./components/GraphNodeDetailPopup.vue";
@@ -561,6 +578,7 @@ useResizeObserver(wrapperRef, (entries) => {
 });
 
 // Composable
+const { currentAgentId } = useLlmChatUiState();
 const agentStore = useAgentStore();
 const llmChatStore = useLlmChatStore();
 const {
@@ -761,9 +779,7 @@ const agentConfigForDetail = computed(() => {
   const agentId = selectedNodeForDetail.value.metadata?.agentId;
   if (!agentId) {
     // 如果消息没有关联 Agent，则尝试使用当前激活的 Agent
-    const currentAgent = agentStore.getAgentById(
-      agentStore.currentAgentId ?? ""
-    );
+    const currentAgent = agentStore.getAgentById(currentAgentId.value ?? "");
     return {
       llmThinkRules: currentAgent?.llmThinkRules,
       richTextStyleOptions: currentAgent?.richTextStyleOptions,

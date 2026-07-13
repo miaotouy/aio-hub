@@ -1,10 +1,25 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { watch, computed } from "vue";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useChatInputManager } from "../input/useChatInputManager";
 import { useChatSettings } from "../settings/useChatSettings";
 import { transcriptionRegistry } from "@/tools/transcription/transcription.registry";
@@ -34,6 +49,7 @@ let unlistenAssetImport: UnlistenFn | null = null;
 const { settings } = useChatSettings();
 
 export function useTranscriptionManager() {
+  const { currentAgentId } = useLlmChatUiState();
   const transcriptionStore = useTranscriptionStore();
 
   /**
@@ -132,8 +148,8 @@ export function useTranscriptionManager() {
 
     // 4. 获取当前聊天上下文的模型 (用于判断必要性)
     const agentStore = useAgentStore();
-    const currentAgent = agentStore.currentAgentId
-      ? agentStore.getAgentById(agentStore.currentAgentId)
+    const currentAgent = currentAgentId.value
+      ? agentStore.getAgentById(currentAgentId.value)
       : null;
 
     // 5. 确定执行转写的模型
@@ -413,8 +429,8 @@ export function useTranscriptionManager() {
 
     if (!refModelId) {
       const agentStore = useAgentStore();
-      const currentAgent = agentStore.currentAgentId
-        ? agentStore.getAgentById(agentStore.currentAgentId)
+      const currentAgent = currentAgentId.value
+        ? agentStore.getAgentById(currentAgentId.value)
         : null;
       const fullId = getTranscribeModelIdentifier(asset, currentAgent);
 
@@ -520,8 +536,8 @@ export function useTranscriptionManager() {
       if (status === "none" || status === "error") {
         // 确定执行转写的模型
         const agentStore = useAgentStore();
-        const currentAgent = agentStore.currentAgentId
-          ? agentStore.getAgentById(agentStore.currentAgentId)
+        const currentAgent = currentAgentId.value
+          ? agentStore.getAgentById(currentAgentId.value)
           : null;
         const transcribeModelId = getTranscribeModelIdentifier(
           assetToCheck,

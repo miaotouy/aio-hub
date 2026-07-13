@@ -1,12 +1,27 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 /**
  * 上下文统计管理 Composable
  * 负责监听会话和智能体状态变化，并异步刷新上下文统计数据
  */
 
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { ref, watch, type Ref } from "vue";
 import { useDebounceFn } from "@vueuse/core";
 import { useLlmChatStore } from "../../stores/llmChatStore";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useChatHandler } from "../chat/useChatHandler";
 import { useChatInputManager } from "../input/useChatInputManager";
 import type { ChatSessionIndex, ChatSessionDetail } from "../../types/session";
@@ -20,6 +35,7 @@ export function useChatContextStats(
   currentSessionDetail: Ref<ChatSessionDetail | null>,
   currentSessionId: Ref<string | null>
 ) {
+  const { currentAgentId } = useLlmChatUiState();
   const contextStats = ref<ContextPreviewData["statistics"] | null>(null);
   const isLoadingContextStats = ref(false);
 
@@ -40,7 +56,6 @@ export function useChatContextStats(
       return;
     }
 
-    const agentStore = useAgentStore();
     const inputManager = useChatInputManager();
     isLoadingContextStats.value = true;
 
@@ -53,7 +68,7 @@ export function useChatContextStats(
       const previewData = await getLlmContextForPreview(
         detail,
         detail.activeLeafId,
-        agentStore.currentAgentId ?? undefined,
+        currentAgentId.value ?? undefined,
         {
           pendingInput: temporaryModel
             ? {
@@ -86,10 +101,7 @@ export function useChatContextStats(
         const chatStore = useLlmChatStore();
         return chatStore.isSending;
       },
-      () => {
-        const agentStore = useAgentStore();
-        return agentStore.currentAgentId;
-      },
+      () => currentAgentId.value,
       () => {
         const inputManager = useChatInputManager();
         // 监听临时模型的变化，确保统计口径同步
@@ -97,8 +109,8 @@ export function useChatContextStats(
       },
       () => {
         const agentStore = useAgentStore();
-        if (!agentStore.currentAgentId) return null;
-        const agent = agentStore.getAgentById(agentStore.currentAgentId);
+        if (!currentAgentId.value) return null;
+        const agent = agentStore.getAgentById(currentAgentId.value);
 
         // 仅监听影响上下文计算的核心配置
         return JSON.stringify({

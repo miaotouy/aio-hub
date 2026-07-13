@@ -1,3 +1,19 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <template>
   <div class="preset-rule-manager">
     <!-- 左侧面板：预设选择 + 规则列表 -->
@@ -574,6 +590,7 @@ const handleCreatePreset = async () => {
       cancelButtonText: "取消",
       inputPattern: /.+/,
       inputErrorMessage: "预设名称不能为空",
+      lockScroll: false,
     }
   ).catch(() => ({ value: null })); // 捕获取消操作
 
@@ -597,6 +614,7 @@ const handleDuplicatePreset = async () => {
       inputValue: `${currentPreset.name} (副本)`,
       inputPattern: /.+/,
       inputErrorMessage: "预设名称不能为空",
+      lockScroll: false,
     }
   ).catch(() => ({ value: null })); // 捕获取消操作
 
@@ -620,6 +638,7 @@ const handleRenamePreset = async () => {
       inputValue: currentPreset.name,
       inputPattern: /.+/,
       inputErrorMessage: "预设名称不能为空",
+      lockScroll: false,
     }
   ).catch(() => ({ value: null })); // 捕获取消操作
 
@@ -646,6 +665,7 @@ const handleDeletePreset = async () => {
         confirmButtonText: "确定",
         cancelButtonText: "取消",
         type: "warning",
+        lockScroll: false,
       }
     );
 
@@ -709,6 +729,7 @@ const importFromClipboard = async () => {
         cancelButtonText: "取消",
         inputType: "textarea",
         inputPlaceholder: "粘贴 JSON 内容...",
+        lockScroll: false,
         inputValidator: (value) => {
           if (!value || !value.trim()) {
             return "请输入 JSON 内容";
@@ -829,6 +850,7 @@ const handleRemoveRule = async (index: number) => {
         confirmButtonText: "确定",
         cancelButtonText: "取消",
         type: "warning",
+        lockScroll: false,
       }
     ).catch(() => ({ value: false }));
 

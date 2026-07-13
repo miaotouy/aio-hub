@@ -448,3 +448,10 @@ export const toolConfig: ToolConfig = {
 **Q: `getMetadata()` 中的 `methods` 需要列出所有方法吗？**
 
 不需要。只列出需要对外暴露的方法（`agentCallable: true` 或 `distributedExposed: true` 的方法）。内部辅助方法不需要出现在 metadata 中。
+
+---
+
+## 8. 延伸阅读
+
+- [添加新工具指南](./adding-new-tool.md) — 了解如何从零开始创建一个完整的工具。
+- [工具方法测试覆盖指南](./tool-testing-guide.md) — 了解如何为你的 Registry 方法编写不依赖 UI 的自动化单元测试。

@@ -132,9 +132,67 @@
 
 - **日志输出**: 日志会同时输出到开发者控制台和本地日志文件 (`appDataDir/logs/app-YYYY-MM-DD.log`)。
 
-## 3. Element Plus 使用规范
+## 3. 配置管理规范 (ConfigManager)
 
-### 3.1. Dropdown 与 Tooltip 组合使用
+项目提供了统一的、带防抖和缓存优化的配置管理器，定义于 [`src/utils/configManager.ts`](src/utils/configManager.ts)。
+
+### 3.1. 核心规范：优先使用统一配置管理器
+
+- **优先复用**: 对于工具的常规、扁平的持久化配置（如开关、字号、API Key、简单列表等），**优先**使用 `createConfigManager` 统一管理，避免重复编写读写、合并默认值和防抖保存的样板代码。
+- **特殊场景自治**: 如果工具涉及复杂的索引数据库、多文件关联、二进制数据或大文件分片等 `ConfigManager` 无法覆盖的场景，允许使用自定义的读写逻辑，但应遵循项目安全规范。
+
+### 3.2. 核心方法与防抖保存
+
+- **`load()`**: 加载配置。如果文件不存在，会自动创建并保存默认配置；如果加载失败，会自动降级返回默认配置。
+- **`save(config)`**: 立即保存配置。
+- **`saveDebounced(config)`**: **防抖保存**。对于高频触发的配置修改（如窗口拖拽、滑块拖动、文本框实时输入等），**必须**使用 `saveDebounced`，默认延迟 500ms。这能极大减少 IPC 通信频率，防止后端 IO 阻塞。
+- **`update(partial)`**: 增量更新部分配置字段。
+
+### 3.3. 示例
+
+```typescript
+import { createConfigManager } from "@/utils/configManager";
+
+// 1. 定义配置接口
+interface MyToolConfig {
+  theme: "light" | "dark";
+  fontSize: number;
+  recentFiles: string[];
+}
+
+// 2. 创建配置管理器实例（通常作为单例或在 store 中初始化）
+const configManager = createConfigManager<MyToolConfig>({
+  moduleName: "my-tool-folder", // 存储在 appConfigDir/my-tool-folder/ 下
+  fileName: "config.json", // 可选，默认 config.json
+  fileType: "json", // 支持 "json" | "yaml" | "jsonl"
+  version: "1.0.0", // 配置版本号
+  createDefault: () => ({
+    theme: "light",
+    fontSize: 14,
+    recentFiles: [],
+  }),
+  // 可选：自定义合并逻辑，默认是浅合并
+  mergeConfig: (defaultConfig, loadedConfig) => ({
+    ...defaultConfig,
+    ...loadedConfig,
+    // 可以在这里做一些版本兼容或深层合并
+  }),
+});
+
+// 3. 使用
+// 加载配置
+const config = await configManager.load();
+
+// 增量更新并保存
+await configManager.update({ theme: "dark" });
+
+// 高频场景下防抖保存
+configManager.saveDebounced({ ...config, fontSize: 16 });
+```
+
+## 4. Element Plus 使用规范
+
+### 4.1. Dropdown 与 Tooltip 组合使用
 
 当需要在 `el-dropdown` 的触发器上添加 `el-tooltip` 时，**必须**使用一个包裹层（如 `div`）来包裹 `el-tooltip`，而不是直接将 `el-tooltip` 作为 `el-dropdown` 的直接子元素。
 

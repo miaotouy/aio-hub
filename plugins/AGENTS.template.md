@@ -51,6 +51,7 @@
   - 可被宿主调用的业务方法
 - 访问宿主能力时优先使用 `aiohub-sdk` 和 `PluginContext`。
 - 插件 UI 使用 Vue 组件时，优先遵循 AIO Hub 现有主题变量和交互习惯。
+- 插件打包时，必须在 `vite.config.js` 的 `rollupOptions.output` 中配置 `codeSplitting: false`（Vite 8 / Rolldown 推荐写法），禁用代码分割，消灭分块 JS，彻底解决相对路径加载问题。
 
 ## 6. Sidecar 插件
 

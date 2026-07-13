@@ -1,7 +1,23 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <script setup lang="ts">
 import { ref, computed, watch, onBeforeUnmount } from "vue";
-import { useAgentStore } from "../../stores/agentStore";
-import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
+import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import Avatar from "@/components/common/Avatar.vue";
@@ -47,7 +63,7 @@ const separateFolders = ref(false);
 const hasWorldbooks = computed(() => {
   if (selectedAgentIds.value.length === 0) return false;
   return selectedAgentIds.value.some((id) => {
-    const agent = agents.value.find((a) => a.id === id);
+    const agent = agents.value.find((a: any) => a.id === id);
     return agent?.worldbookIds && agent.worldbookIds.length > 0;
   });
 });
@@ -85,7 +101,9 @@ const isAllSelected = computed(() => {
 });
 
 const handleCheckAllChange = (val: CheckboxValueType) => {
-  selectedAgentIds.value = val ? agents.value.map((agent) => agent.id) : [];
+  selectedAgentIds.value = val
+    ? agents.value.map((agent: any) => agent.id)
+    : [];
 };
 const handleExport = async () => {
   if (selectedAgentIds.value.length === 0) {
@@ -98,7 +116,7 @@ const handleExport = async () => {
     if (previewImageSource.value === "avatar" && singleTargetAgent.value) {
       // 使用头像作为预览图
       // 尝试解析头像路径
-      const avatarPath = resolveAvatarPath(singleTargetAgent.value, "agent");
+      const avatarPath = resolveAgentAvatarPath(singleTargetAgent.value);
       if (avatarPath) {
         previewImage = avatarPath;
       } else {
@@ -134,11 +152,19 @@ const handleClose = () => {
 };
 
 // 当对话框打开时，根据 props 初始化选中状态
-const handleOpen = () => {
+const handleOpen = async () => {
   if (props.initialSelection && props.initialSelection.length > 0) {
     selectedAgentIds.value = [...props.initialSelection];
+    // 显式确保选中的智能体详情已加载，双重保险
+    await Promise.all(
+      props.initialSelection.map((id) => agentStore.loadAgentDetails(id))
+    );
   } else {
-    selectedAgentIds.value = agents.value.map((agent) => agent.id);
+    selectedAgentIds.value = agents.value.map((agent: any) => agent.id);
+    // 显式确保所有智能体详情已加载，双重保险
+    await Promise.all(
+      agents.value.map((agent: any) => agentStore.loadAgentDetails(agent.id))
+    );
   }
 
   // 初始化世界书包含状态
@@ -178,7 +204,7 @@ onBeforeUnmount(() => {
 const isSingleMode = computed(() => props.initialSelection?.length === 1);
 const singleTargetAgent = computed(() => {
   if (!isSingleMode.value) return null;
-  return agents.value.find((a) => a.id === props.initialSelection![0]);
+  return agents.value.find((a: any) => a.id === props.initialSelection![0]);
 });
 
 // 计算 PNG 导出时预览图是否就绪
@@ -189,7 +215,7 @@ const isPngPreviewReady = computed(() => {
     // 使用头像时，需要确保单选模式且智能体有头像
     if (!isSingleMode.value) return false;
     const avatarPath = singleTargetAgent.value
-      ? resolveAvatarPath(singleTargetAgent.value, "agent")
+      ? resolveAgentAvatarPath(singleTargetAgent.value)
       : null;
     return !!avatarPath;
   } else {
@@ -237,7 +263,7 @@ const canExport = computed(() => {
             >
               <div class="agent-item">
                 <Avatar
-                  :src="resolveAvatarPath(agent, 'agent') || ''"
+                  :src="resolveAgentAvatarPath(agent) || ''"
                   :alt="agent.name"
                   :size="18"
                   shape="square"
@@ -255,7 +281,7 @@ const canExport = computed(() => {
         <!-- 单个 Agent 信息 (仅单选模式显示) -->
         <div v-else-if="singleTargetAgent" class="single-agent-info">
           <Avatar
-            :src="resolveAvatarPath(singleTargetAgent, 'agent') || ''"
+            :src="resolveAgentAvatarPath(singleTargetAgent) || ''"
             :alt="singleTargetAgent.name"
             :size="48"
             shape="square"

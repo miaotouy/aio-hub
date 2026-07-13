@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import { watch } from "vue";
 import type {
   MethodMetadata,
@@ -12,6 +26,7 @@ import { useMediaGenerationManager } from "../composables/useMediaGenerationMana
 import { useMediaTaskManager } from "../composables/useMediaTaskManager";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { createModuleLogger } from "@/utils/logger";
+import { normalizeAgentBooleanFields } from "@/utils/agentArgs";
 
 const logger = createModuleLogger("media-generator/agent-methods");
 
@@ -242,7 +257,6 @@ function addMusicParameters(
 }
 
 function buildParameters(
-  model: LlmModelInfo,
   supportedMediaTypes: MediaTaskType[],
   mediaGenParams?: MediaGenParamRules
 ): AgentMethodParameter[] {
@@ -496,10 +510,6 @@ function buildParameters(
   addSpeechParameters(parameters, supportedMediaTypes);
   addMusicParameters(parameters, supportedMediaTypes);
 
-  logger.debug("已构建媒体生成 Agent 参数", {
-    modelId: model.id,
-    count: parameters.length,
-  });
   return parameters;
 }
 
@@ -575,7 +585,16 @@ function normalizeGenerationArgs(args: Record<string, any>) {
         : {}),
     };
   }
-  return normalized;
+  return normalizeAgentBooleanFields(normalized, [
+    "make_instrumental",
+    "prompt_enhancement",
+    "promptEnhancement",
+    "generate_audio",
+    "generateAudio",
+    "watermark",
+    "camera_fixed",
+    "cameraFixed",
+  ]);
 }
 
 function toAssetPath(asset: Asset): string {
@@ -754,7 +773,6 @@ export function buildAgentMethods(
         visibleModel.paramNotes
       ),
       parameters: buildParameters(
-        visibleModel.model,
         visibleModel.supportedMediaTypes,
         mediaGenParams
       ),
@@ -771,6 +789,18 @@ export function buildAgentMethods(
     });
     handlers[methodName] = createHandler(visibleModel);
   }
+
+  logger.debug(
+    "已批量构建媒体生成 Agent 参数",
+    {
+      modelCount: visibleModels.length,
+      methods: methods.map((m) => ({
+        name: m.name,
+        displayName: m.displayName,
+      })),
+    },
+    true
+  );
 
   return { methods, handlers };
 }

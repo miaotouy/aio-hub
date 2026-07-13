@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import { markRaw } from "vue";
 import type {
   ToolConfig,
@@ -11,6 +25,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { useToolCallingStore } from "@/tools/llm-chat/stores/toolCallingStore";
 import { useAsyncTaskStore } from "./stores/asyncTaskStore";
 import { executeToolRequests as internalExecuteToolRequests } from "./core/executor";
+import { normalizeAgentBooleanFields } from "@/utils/agentArgs";
 
 // actions 层 — 仅存放复杂业务逻辑或耗时测试任务
 import * as actions from "./actions";
@@ -155,17 +170,25 @@ export class ToolCallingRegistry implements ToolRegistry {
   }
 
   testAsyncTask(
-    args: { duration?: number; shouldFail?: boolean },
+    args: { duration?: number; shouldFail?: unknown },
     context?: ToolContext
   ): Promise<string> {
-    return actions.testAsyncTask(args, context);
+    const normalizedArgs = normalizeAgentBooleanFields(
+      args as Record<string, unknown>,
+      ["shouldFail"]
+    ) as { duration?: number; shouldFail?: boolean };
+    return actions.testAsyncTask(normalizedArgs, context);
   }
 
   testSyncTask(
-    args: { duration?: number; shouldFail?: boolean },
+    args: { duration?: number; shouldFail?: unknown },
     context?: ToolContext
   ): Promise<string> {
-    return actions.testSyncTask(args, context);
+    const normalizedArgs = normalizeAgentBooleanFields(
+      args as Record<string, unknown>,
+      ["shouldFail"]
+    ) as { duration?: number; shouldFail?: boolean };
+    return actions.testSyncTask(normalizedArgs, context);
   }
 
   // ==================== 审批（供跨窗口转发使用） ====================

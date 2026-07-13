@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import type { LlmProfile } from "@/types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
 import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
@@ -16,6 +30,7 @@ import {
   buildGeminiSafetySettings,
   GeminiRequest,
 } from "./utils";
+import { extractGeminiReasoningArtifacts } from "./reasoning-artifacts";
 import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 
 /**
@@ -197,6 +212,10 @@ export function parseGeminiResponse(data: any): LlmResponse {
 
   if (toolCalls) result.toolCalls = toolCalls;
   if (thoughtsContent) result.reasoningContent = thoughtsContent;
+  const reasoningArtifacts = extractGeminiReasoningArtifacts(
+    candidate.content?.parts
+  );
+  if (reasoningArtifacts) result.reasoningArtifacts = reasoningArtifacts;
   if (candidate.logprobsResult)
     result.logprobs = parseGeminiLogprobs(candidate.logprobsResult);
 
@@ -287,6 +306,7 @@ export const callGeminiChatApi = async (
     let toolCalls: LlmResponse["toolCalls"] = undefined;
     let reasoningContent = "";
     let streamAnnotations: LlmResponse["annotations"] = undefined;
+    const streamReplayParts: any[] = [];
 
     await parseSSEStream(
       reader,
@@ -306,6 +326,7 @@ export const callGeminiChatApi = async (
             );
           const parts = json.candidates?.[0]?.content?.parts;
           if (parts && Array.isArray(parts)) {
+            streamReplayParts.push(...parts);
             for (const part of parts) {
               if (part.text) {
                 if (part.thought) {
@@ -392,6 +413,9 @@ export const callGeminiChatApi = async (
       isStream: true,
     };
     if (reasoningContent) result.reasoningContent = reasoningContent;
+    const reasoningArtifacts =
+      extractGeminiReasoningArtifacts(streamReplayParts);
+    if (reasoningArtifacts) result.reasoningArtifacts = reasoningArtifacts;
     if (streamAnnotations) result.annotations = streamAnnotations;
     return result;
   }

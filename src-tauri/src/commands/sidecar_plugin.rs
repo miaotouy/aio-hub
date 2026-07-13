@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 //! Sidecar 插件执行模块
 //!
 //! 负责启动和管理 Sidecar 插件进程，通过 stdin/stdout 进行通信
@@ -106,13 +120,25 @@ pub async fn execute_sidecar(
         executable_full_path.display()
     );
 
+    let plugin_data_dir = crate::utils::ensure_plugin_data_dir(app.config(), &request.plugin_id)?;
+    log::info!(
+        "[SIDECAR] 注入 {}: {}",
+        crate::utils::AIOHUB_PLUGIN_DATA_DIR_ENV,
+        plugin_data_dir.display()
+    );
+
     // 启动子进程
-    let mut child = Command::new(&executable_full_path)
+    let mut command = Command::new(&executable_full_path);
+    command
         .args(&request.args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .current_dir(&plugin_dir)
+        .env(crate::utils::AIOHUB_PLUGIN_DATA_DIR_ENV, &plugin_data_dir);
+    crate::utils::hide_child_process_window(&mut command);
+
+    let mut child = command
         .spawn()
         .map_err(|e| format!("启动进程失败: {}", e))?;
 
@@ -154,11 +180,19 @@ pub async fn execute_sidecar(
     let plugin_id_clone = request.plugin_id.clone();
     let app_clone = app.clone();
     let stdout_handle = tokio::spawn(async move {
-        let reader = BufReader::new(stdout);
-        let mut lines = reader.lines();
+        let mut reader = BufReader::new(stdout);
+        let mut buf = Vec::new();
         let mut last_result: Option<String> = None;
 
-        while let Ok(Some(line)) = lines.next_line().await {
+        while let Ok(n) = reader.read_until(b'\n', &mut buf).await {
+            if n == 0 {
+                break; // EOF
+            }
+            let line = String::from_utf8_lossy(&buf)
+                .trim_end_matches(['\r', '\n'])
+                .to_string();
+            buf.clear();
+
             log::info!("[SIDECAR] stdout: {}", line);
 
             // 尝试解析为 JSON 事件
@@ -198,10 +232,18 @@ pub async fn execute_sidecar(
     let plugin_id_clone = request.plugin_id.clone();
     let app_clone = app.clone();
     let stderr_handle = tokio::spawn(async move {
-        let reader = BufReader::new(stderr);
-        let mut lines = reader.lines();
+        let mut reader = BufReader::new(stderr);
+        let mut buf = Vec::new();
 
-        while let Ok(Some(line)) = lines.next_line().await {
+        while let Ok(n) = reader.read_until(b'\n', &mut buf).await {
+            if n == 0 {
+                break; // EOF
+            }
+            let line = String::from_utf8_lossy(&buf)
+                .trim_end_matches(['\r', '\n'])
+                .to_string();
+            buf.clear();
+
             log::info!("[SIDECAR] stderr: {}", line);
 
             let event = SidecarOutputEvent {

@@ -1,0 +1,181 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import type { ChatMessageNode } from "@/tools/llm-chat/types/message";
+import type { LlmParameters } from "@/tools/llm-chat/types/llm";
+import type {
+  AgentCategory,
+  AgentAsset,
+  AssetGroup,
+  GreetingMessage,
+  PresetMessageGroup,
+} from "./agent";
+import type {
+  LlmThinkRule,
+  RichTextRendererStyleOptions,
+} from "@/tools/rich-text-renderer/types";
+
+/**
+ * 随包导出的世界书定义
+ */
+export interface BundledWorldbook {
+  /** 原始 ID 或临时标识符 */
+  id: string;
+  /** 世界书名称 */
+  name: string;
+  /** 相对路径（如果是独立文件打包） */
+  fileName?: string;
+  /** 世界书内容（如果是内嵌到配置文件） */
+  content?: import("@/tools/st-worldbook-manager/types/worldbook").STWorldbook;
+}
+
+/**
+ * 可导出的 Agent 数据结构（不包含本地元数据）
+ */
+export interface ExportableAgent {
+  id?: string;
+  name: string;
+  displayName?: string;
+  description?: string;
+  icon?: string;
+  modelId: string;
+  userProfileId?: string | null;
+  presetMessages?: ChatMessageNode[];
+  presetGroups?: PresetMessageGroup[];
+  greetings?: GreetingMessage[];
+  displayPresetCount?: number;
+  parameters: LlmParameters;
+  llmThinkRules?: LlmThinkRule[];
+  richTextStyleOptions?: RichTextRendererStyleOptions;
+  virtualTimeConfig?: {
+    virtualBaseTime: string;
+    realBaseTime: string;
+    timeScale?: number;
+  };
+  tags?: string[];
+  category?: AgentCategory;
+  regexConfig?: import("@/tools/llm-chat/types/chatRegex").ChatRegexConfig;
+  assetGroups?: AssetGroup[];
+  assets?: AgentAsset[];
+  worldbookIds?: string[];
+  /** 随包导出的世界书信息 */
+  bundledWorldbooks?: BundledWorldbook[];
+}
+
+/**
+ * 导出文件格式
+ */
+export interface AgentExportFile {
+  version: number;
+  type: "AIO_Agent_Export";
+  agents: ExportableAgent[];
+}
+
+export interface AgentImportSourceMeta {
+  source: "aio" | "silly-tavern" | "vcp-chat";
+  sourceLabel?: string;
+  originalId?: string;
+  originalPath?: string;
+  warnings?: string[];
+}
+
+export interface AgentImportModelRecommendation {
+  profileId?: string;
+  modelId?: string;
+  reason: "vcp-host" | "exact-model" | "fallback";
+  note?: string;
+}
+
+export interface ParsedAgentImportBundle {
+  agents: ExportableAgent[];
+  assets: Record<string, Record<string, ArrayBuffer>>;
+  bundledWorldbooks?: Record<string, BundledWorldbook[]>;
+  embeddedWorldbooks?: Record<
+    string,
+    import("@/tools/st-worldbook-manager/types/worldbook").STWorldbook
+  >;
+  sourceMeta?: Record<string, AgentImportSourceMeta>;
+  modelRecommendations?: Record<string, AgentImportModelRecommendation>;
+}
+
+/**
+ * 导入预检结果
+ */
+export interface AgentImportPreflightResult {
+  /** 解析出的可导出 Agent 列表 */
+  agents: ExportableAgent[];
+  /** 资源文件映射 { agentId: { relativePath: ArrayBuffer } } */
+  assets: Record<string, Record<string, ArrayBuffer>>;
+  /** 随包导出的世界书内容 { agentId: BundledWorldbook[] } */
+  bundledWorldbooks?: Record<string, BundledWorldbook[]>;
+  /** 待导入的世界书内容 { agentId: STWorldbook } (针对角色卡中嵌入的世界书) */
+  embeddedWorldbooks?: Record<
+    string,
+    import("@/tools/st-worldbook-manager/types/worldbook").STWorldbook
+  >;
+  /** 来源元信息 { agentId: AgentImportSourceMeta } */
+  sourceMeta?: Record<string, AgentImportSourceMeta>;
+  /** 模型推荐 { agentId: AgentImportModelRecommendation } */
+  modelRecommendations?: Record<string, AgentImportModelRecommendation>;
+  /** 模型不匹配的 Agent { agentIndex: number, agentName: string, modelId: string } */
+  unmatchedModels: Array<{
+    agentIndex: number;
+    agentName: string;
+    modelId: string;
+  }>;
+  /** 名称冲突的 Agent { agentIndex: number, agentName: string } */
+  nameConflicts: Array<{ agentIndex: number; agentName: string }>;
+  /** 世界书查重结果 { agentId: { bundled: Array<{ name, isDuplicate, hasNameConflict }>, embedded? } } */
+  worldbookConflicts?: Record<
+    string,
+    {
+      bundled: Array<{
+        name: string;
+        isDuplicate: boolean;
+        hasNameConflict: boolean;
+      }>;
+      embedded?: { isDuplicate: boolean; hasNameConflict: boolean };
+    }
+  >;
+}
+
+/**
+ * 确认导入时的 Agent 解决方案
+ */
+export interface ResolvedAgentToImport extends ExportableAgent {
+  /** 最终选择的 profileId */
+  finalProfileId: string;
+  /** 最终选择的 modelId */
+  finalModelId: string;
+  /** 是否覆盖同名 Agent */
+  overwriteExisting: boolean;
+  /** 新的名称（如果重命名） */
+  newName?: string;
+}
+
+/**
+ * 确认导入的参数
+ */
+export interface ConfirmImportParams {
+  resolvedAgents: ResolvedAgentToImport[];
+  /** 资源文件映射 { agentId: { relativePath: ArrayBuffer } } */
+  assets: Record<string, Record<string, ArrayBuffer>>;
+  /** 随包导出的世界书内容 { agentId: BundledWorldbook[] } */
+  bundledWorldbooks?: Record<string, BundledWorldbook[]>;
+  /** 待导入的世界书内容 { agentId: STWorldbook } */
+  embeddedWorldbooks?: Record<
+    string,
+    import("@/tools/st-worldbook-manager/types/worldbook").STWorldbook
+  >;
+}

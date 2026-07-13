@@ -1,15 +1,32 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <script setup lang="ts">
 import { computed } from "vue";
 import { Wrench, CheckCircle2, XCircle, Clock } from "lucide-vue-next";
 import type { ChatMessageNode } from "../../types";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import Avatar from "@/components/common/Avatar.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
-import { useResolvedAvatar } from "../../composables/ui/useResolvedAvatar";
+import { useResolvedAgentAvatar } from "@/tools/agent-manager/utils/agentAssetUtils";
+import { useResolvedProfileAvatar } from "@/tools/user-profile-manager/utils/profileAssetUtils";
 import { formatRelativeTime } from "@/utils/time";
 
 interface Props {
@@ -153,9 +170,9 @@ const assistantAvatarTarget = computed(() => {
   return agent.value;
 });
 
-// 使用 useResolvedAvatar 解析最终的头像路径
-const userAvatarSrc = useResolvedAvatar(userAvatarTarget, "user-profile");
-const assistantAvatarSrc = useResolvedAvatar(assistantAvatarTarget, "agent");
+// 使用各自领域的 Composable 解析最终的头像路径
+const userAvatarSrc = useResolvedProfileAvatar(userAvatarTarget);
+const assistantAvatarSrc = useResolvedAgentAvatar(assistantAvatarTarget);
 
 // 根据角色选择最终要显示的图标
 const displayIcon = computed<any>(() => {

@@ -1,17 +1,41 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { convertPdfToImages } from "@/utils/pdfUtils";
 import { parseModelCombo } from "@/utils/modelIdUtils";
+import SmartOcrRegistry from "@/tools/smart-ocr/smart-ocr.registry";
+import {
+  getCurrentEngineConfig,
+  loadSmartOcrConfig,
+} from "@/tools/smart-ocr/config/config";
+import type { OcrResult } from "@/tools/smart-ocr/types";
+import { createModuleLogger } from "@/utils/logger";
 import type { Asset } from "@/types/asset-management";
 import type { LlmMessageContent } from "@/llm-apis/common";
-import { getModelParams } from "./base";
+import { getEffectiveConfig, getModelParams } from "./base";
 import { cleanLlmOutput, detectRepetition } from "../utils/text";
 import type {
   ITranscriptionEngine,
   EngineContext,
   EngineResult,
+  DocumentSpecificConfig,
 } from "../types";
+
+const logger = createModuleLogger("transcription/engines/pdf");
 
 // 文件大小阈值：超过此值使用 Rust 代理，避免 IPC 阻塞（10MB）
 const FILE_SIZE_THRESHOLD = 10 * 1024 * 1024;
@@ -23,6 +47,14 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
 
   async execute(ctx: EngineContext): Promise<EngineResult> {
     const { task } = ctx;
+    const config = getEffectiveConfig(ctx);
+    const documentConfig = config.document;
+    const mode = documentConfig.mode ?? "llm";
+
+    if (mode === "ocr") {
+      return this.executeOcr(ctx);
+    }
+
     const { sendRequest, getNetworkStrategy } = useLlmRequest();
     const { getProfileById } = useLlmProfiles();
 
@@ -190,6 +222,200 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
     return {
       text: cleanedText,
       isEmpty: !cleanedText || cleanedText.trim().length === 0,
+    };
+  }
+
+  private async executeOcr(ctx: EngineContext): Promise<EngineResult> {
+    const { task } = ctx;
+    const config = getEffectiveConfig(ctx);
+    const documentConfig = config.document;
+    const imageConfig = config.image;
+    const ocrRegistry = new SmartOcrRegistry();
+    const smartOcrConfig = await loadSmartOcrConfig();
+
+    const ocrEngineConfig = this.resolveOcrEngineConfig(
+      smartOcrConfig,
+      documentConfig.ocrEngineType ?? "default",
+      documentConfig,
+      imageConfig
+    );
+
+    logger.info(`开始 PDF OCR 转写，正在将 PDF 转换为图片...`, {
+      assetId: task.assetId,
+      engineType: ocrEngineConfig.type,
+    });
+
+    const pdfBuffer = await assetManagerEngine.getAssetBinary(task.path);
+    const images = await convertPdfToImages(pdfBuffer);
+    if (images.length === 0) {
+      throw new Error("PDF 转图片失败：未生成任何图片");
+    }
+
+    logger.info(`PDF 转换图片成功，共 ${images.length} 页，开始 OCR 识别...`, {
+      assetId: task.assetId,
+    });
+
+    const blocks = images.map((img, index) => ({
+      id: `${task.assetId}_page_${index}`,
+      imageId: task.assetId,
+      canvas: null as any,
+      dataUrl: `data:image/png;base64,${img.base64}`,
+      startY: 0,
+      endY: img.height || 1100,
+      x: 0,
+      y: 0,
+      width: img.width || 800,
+      height: img.height || 1100,
+    }));
+
+    const batchSize = documentConfig.ocrBatchSize ?? 3;
+    const results: OcrResult[] = [];
+
+    for (let i = 0; i < blocks.length; i += batchSize) {
+      if (ctx.signal?.aborted) {
+        break;
+      }
+
+      const batchBlocks = blocks.slice(i, i + batchSize);
+      logger.info(
+        `正在识别第 ${Math.floor(i / batchSize) + 1}/${Math.ceil(blocks.length / batchSize)} 批 OCR (${batchBlocks.length} 页)...`,
+        {
+          assetId: task.assetId,
+        }
+      );
+
+      const batchResults = (await ocrRegistry.runOcr(
+        batchBlocks,
+        ocrEngineConfig,
+        {
+          signal: ctx.signal,
+        }
+      )) as OcrResult[];
+
+      results.push(...batchResults);
+    }
+
+    const failedResults = results.filter(
+      (r: OcrResult) => r.status === "error"
+    );
+    const cancelledResults = results.filter(
+      (r: OcrResult) => r.status === "cancelled"
+    );
+
+    // 拼接每一页的识别结果，并加上页码标识
+    const text = results
+      .map((r: OcrResult, index: number) => {
+        if (r.ignored || !r.text?.trim()) return "";
+        return `## 第 ${index + 1} 页\n\n${r.text.trim()}`;
+      })
+      .filter((t: string) => t)
+      .join("\n\n---\n\n");
+
+    if ((ctx.signal?.aborted || cancelledResults.length > 0) && !text) {
+      throw new Error("OCR 识别已取消");
+    }
+
+    if (failedResults.length === results.length) {
+      const firstError = failedResults.find((r) => r.error)?.error;
+      throw new Error(firstError || "OCR 识别失败");
+    }
+
+    return {
+      text,
+      isEmpty: text.length === 0,
+      warning:
+        failedResults.length > 0
+          ? `OCR 有 ${failedResults.length} 页识别失败`
+          : undefined,
+    };
+  }
+
+  private resolveOcrEngineConfig(
+    smartOcrConfig: any,
+    engineType: string,
+    documentConfig: DocumentSpecificConfig,
+    imageConfig: any
+  ): any {
+    if (engineType === "default") {
+      const imgEngineType = imageConfig.ocrEngineType ?? "default";
+      if (imgEngineType === "default") {
+        return getCurrentEngineConfig(smartOcrConfig);
+      }
+      return this.resolveOcrEngineConfig(
+        smartOcrConfig,
+        imgEngineType,
+        imageConfig,
+        imageConfig
+      );
+    }
+
+    switch (engineType) {
+      case "tesseract":
+        return {
+          type: "tesseract",
+          ...smartOcrConfig.engineConfigs.tesseract,
+        };
+      case "native":
+        return {
+          type: "native",
+          ...smartOcrConfig.engineConfigs.native,
+        };
+      case "cloud":
+        return {
+          type: "cloud",
+          ...smartOcrConfig.engineConfigs.cloud,
+        };
+      case "plugin":
+        return this.resolvePluginOcrEngineConfig(
+          smartOcrConfig,
+          documentConfig
+        );
+      default:
+        return getCurrentEngineConfig(smartOcrConfig);
+    }
+  }
+
+  private resolvePluginOcrEngineConfig(
+    smartOcrConfig: any,
+    documentConfig: DocumentSpecificConfig
+  ): any {
+    if (documentConfig.ocrPluginExtensionId) {
+      const ocrRegistry = new SmartOcrRegistry();
+      const extension = ocrRegistry
+        .listOcrExtensions()
+        .find((item) => item.id === documentConfig.ocrPluginExtensionId);
+
+      if (!extension) {
+        throw new Error(
+          `未找到 OCR 插件扩展: ${documentConfig.ocrPluginExtensionId}`
+        );
+      }
+      const modelProfile =
+        extension.modelProfiles.find(
+          (profile) => profile.id === documentConfig.ocrPluginModelProfile
+        )?.id ||
+        extension.defaultModelProfile ||
+        extension.modelProfiles[0]?.id;
+      const language =
+        extension.languages.find(
+          (item) => item.id === documentConfig.ocrPluginLanguage
+        )?.id ||
+        extension.defaultLanguage ||
+        extension.languages[0]?.id;
+
+      return {
+        type: "plugin",
+        name: extension.name,
+        pluginId: extension.pluginId,
+        method: extension.method,
+        modelProfile,
+        language,
+      };
+    }
+
+    return {
+      type: "plugin",
+      ...smartOcrConfig.engineConfigs.plugin,
     };
   }
 }

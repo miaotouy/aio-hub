@@ -1,8 +1,23 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 /**
  * 上下文压缩核心逻辑
  * 负责压缩检测、摘要生成和压缩节点创建
  */
 
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import {
   DEFAULT_CONTEXT_COMPRESSION_CONFIG,
   DEFAULT_CONTEXT_COMPRESSION_PROMPT,
@@ -17,7 +32,7 @@ import {
 import { useNodeManager } from "../session/useNodeManager";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useChatSettings } from "../settings/useChatSettings";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createModuleLogger } from "@/utils/logger";
@@ -28,6 +43,7 @@ const logger = createModuleLogger("llm-chat/context-compressor");
 const errorHandler = createModuleErrorHandler("llm-chat/context-compressor");
 
 export function useContextCompressor() {
+  const { currentAgentId } = useLlmChatUiState();
   const { getNodePath, createNode, addNodeToSession } = useNodeManager();
   const { sendRequest } = useLlmRequest();
   const agentStore = useAgentStore();
@@ -193,7 +209,7 @@ export function useContextCompressor() {
     } else {
       // 使用当前 Agent 的模型
       // 如果没有指定 agentId，尝试获取当前选中的 Agent
-      const targetAgentId = agentId || agentStore.currentAgentId;
+      const targetAgentId = agentId || currentAgentId.value;
       const agent = targetAgentId
         ? agentStore.getAgentById(targetAgentId)
         : null;
@@ -280,6 +296,10 @@ export function useContextCompressor() {
     nodesToCompress.forEach(
       (n) => (originalTokenCount += n.metadata?.tokenCount || 0)
     );
+    const compressedReasoningArtifactCount = nodesToCompress.reduce(
+      (count, node) => count + (node.metadata?.reasoningArtifacts?.length || 0),
+      0
+    );
 
     // 1. 创建压缩节点
     const summaryNode = createNode({
@@ -301,16 +321,21 @@ export function useContextCompressor() {
           },
           summaryRole: config.summaryRole || "system",
         },
+        reasoningStateStatus:
+          compressedReasoningArtifactCount > 0 ? "broken" : undefined,
+        reasoningStateWarning:
+          compressedReasoningArtifactCount > 0
+            ? `上下文压缩隐藏了 ${compressedReasoningArtifactCount} 个 provider reasoning replay artifact，后续请求不会回放这些状态。`
+            : undefined,
         // 估算摘要节点的 Token
         tokenCount: Math.ceil(summaryContent.length * 1.5), // 粗略估算
       },
     });
-
     // 尝试使用 TokenCalculator 计算精确的 Token 数
     try {
-      const currentAgentId = agentStore.currentAgentId;
-      const agent = currentAgentId
-        ? agentStore.getAgentById(currentAgentId)
+      const activeAgentId = currentAgentId.value;
+      const agent = activeAgentId
+        ? agentStore.getAgentById(activeAgentId)
         : null;
       // 如果没有指定模型，TokenCalculator 会自动回退到默认估算策略
       const tokenResult = await tokenCalculatorService.calculateTokens(
@@ -373,6 +398,7 @@ export function useContextCompressor() {
     logger.info("压缩节点创建并插入成功", {
       summaryNodeId: summaryNode.id,
       compressedCount: nodesToCompress.length,
+      compressedReasoningArtifactCount,
     });
 
     return summaryNode;
@@ -391,9 +417,9 @@ export function useContextCompressor() {
     };
 
     // 1. 尝试获取当前 Agent 的配置覆盖
-    const currentAgentId = agentStore.currentAgentId;
-    if (currentAgentId) {
-      const agent = agentStore.getAgentById(currentAgentId);
+    const activeAgentId = currentAgentId.value;
+    if (activeAgentId) {
+      const agent = agentStore.getAgentById(activeAgentId);
       if (agent?.parameters?.contextCompression) {
         effectiveConfig = {
           ...effectiveConfig,

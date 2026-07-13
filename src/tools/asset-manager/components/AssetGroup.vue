@@ -1,3 +1,19 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <template>
   <div class="asset-group">
     <div class="group-header">
@@ -84,7 +100,7 @@ const loadAssetUrls = async () => {
     if (
       asset.type === "image" ||
       asset.type === "video" || // 视频总是生成 URL（用于前端生成缩略图）
-      (asset.type === "audio" && asset.thumbnailPath)
+      asset.type === "audio" // 音频总是生成 URL（用于前端波形采样和播放）
     ) {
       try {
         // 优先使用缩略图，如果没有缩略图（或者是图片/视频且没生成缩略图）则使用原路径

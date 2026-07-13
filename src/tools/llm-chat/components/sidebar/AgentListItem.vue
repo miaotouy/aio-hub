@@ -1,3 +1,19 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import {
@@ -12,16 +28,16 @@ import {
 } from "@element-plus/icons-vue";
 import { invoke } from "@tauri-apps/api/core";
 import Avatar from "@/components/common/Avatar.vue";
-import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
-import { useAgentStorageSeparated } from "../../composables/storage/useAgentStorageSeparated";
-import { useAgentStore } from "../../stores/agentStore";
+import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
+import { useAgentStorage } from "@/tools/agent-manager/composables/storage/useAgentStorage";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { customMessage } from "@/utils/customMessage";
-import type { ChatAgent } from "../../types";
+import type { ChatAgent } from "@/tools/agent-manager/types/agent";
 import {
   useLlmSearch,
   type MatchDetail,
 } from "../../composables/chat/useLlmSearch";
-import AgentUpgradeDialog from "../agent/management/AgentUpgradeDialog.vue";
+import AgentUpgradeDialog from "@/tools/agent-manager/components/management/AgentUpgradeDialog.vue";
 
 const props = defineProps<{
   agent: ChatAgent;
@@ -47,7 +63,7 @@ const clickMenuRef = ref<any>(null);
 const agentStore = useAgentStore();
 
 const avatarSrc = computed(() => {
-  return resolveAvatarPath(props.agent, "agent");
+  return resolveAgentAvatarPath(props.agent);
 });
 
 const { getFieldLabel, formatMatchContext } = useLlmSearch();
@@ -82,7 +98,7 @@ const filteredMatches = computed(() => {
 // 打开智能体目录并选中配置文件
 const handleOpenDirectory = async () => {
   try {
-    const { getAgentConfigPath } = useAgentStorageSeparated();
+    const { getAgentConfigPath } = useAgentStorage();
     const configPath = await getAgentConfigPath(props.agent.id);
     await invoke("open_file_directory", { filePath: configPath });
   } catch (error) {

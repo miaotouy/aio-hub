@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 //! Skill 管理模块：后端引擎
 //!
 //! 负责 Skill 的扫描、YAML frontmatter 解析、安全执行脚本和资源访问。
@@ -567,6 +581,7 @@ pub async fn run_skill_script(
             .current_dir(&base_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        crate::utils::hide_child_process_window(&mut cmd);
 
         // 注入用户配置的环境变量
         if let Some(envs) = &env_vars {
@@ -608,13 +623,11 @@ fn check_command_exists(cmd: &str) -> bool {
     #[cfg(not(windows))]
     let check_cmd = "which";
 
-    std::process::Command::new(check_cmd)
-        .arg(cmd)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+    let mut command = std::process::Command::new(check_cmd);
+    command.arg(cmd).stdout(Stdio::null()).stderr(Stdio::null());
+    crate::utils::hide_std_child_process_window(&mut command);
+
+    command.status().map(|s| s.success()).unwrap_or(false)
 }
 
 /// 安全读取 Skill 目录内的文本文件
@@ -839,11 +852,15 @@ pub async fn install_skill_from_git(
     let clone_dir = temp_path.join("repo");
 
     // 使用系统 git 命令进行 clone（避免 git2 的 openssl-sys 依赖与 boring-sys2 符号冲突）
-    let output = Command::new("git")
+    let mut command = Command::new("git");
+    command
         .args(["clone", "--depth", "1", "--single-branch", &normalized_url])
         .arg(&clone_dir)
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+    crate::utils::hide_child_process_window(&mut command);
+
+    let output = command
         .output()
         .await
         .map_err(|e| format!("执行 git clone 失败（请确保系统已安装 git）: {}", e))?;
@@ -1833,11 +1850,15 @@ pub async fn prepare_and_detect_package(
 
             let clone_dir = app_temp_dir.join("repo");
 
-            let output = Command::new("git")
+            let mut command = Command::new("git");
+            command
                 .args(["clone", "--depth", "1", "--single-branch", &normalized_url])
                 .arg(&clone_dir)
                 .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
+                .stderr(Stdio::piped());
+            crate::utils::hide_child_process_window(&mut command);
+
+            let output = command
                 .output()
                 .await
                 .map_err(|e| format!("执行 git clone 失败（请确保系统已安装 git）: {}", e))?;

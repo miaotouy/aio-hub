@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 /**
  * 全局资产管理系统类型定义
  *
@@ -53,6 +67,8 @@ export interface AssetMetadata {
   height?: number;
   /** 音视频时长（秒） */
   duration?: number;
+  /** 音频波形采样数据 (0-255 的整数数组，长度通常为 100) */
+  audioWaveform?: number[];
   /** 文件 SHA-256 哈希值，用于去重 */
   sha256?: string;
   /** 转换前原始文件 SHA-256，用于 DOC 等转换类资产在转换前去重 */

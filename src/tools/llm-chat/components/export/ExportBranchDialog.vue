@@ -1,3 +1,19 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <template>
   <BaseDialog
     v-model="localVisible"
@@ -99,6 +115,7 @@
 </template>
 
 <script setup lang="ts">
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { ref, computed, watch } from "vue";
 import { ElButton, ElIcon } from "element-plus";
 import { Camera } from "lucide-vue-next";
@@ -113,9 +130,9 @@ import {
   useExportManager,
   type ExportOptions,
 } from "../../composables/features/useExportManager";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useChatExecutor } from "../../composables/chat/useChatExecutor";
-import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
+import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
@@ -151,6 +168,8 @@ const handleShareScreenshot = () => {
   localVisible.value = false;
   emit("screenshot");
 };
+
+const { currentAgentId } = useLlmChatUiState();
 
 const localVisible = computed({
   get: () => props.visible,
@@ -214,11 +233,11 @@ const participatingAgents = computed(() => {
       const key = agentId || agentName;
 
       if (!agentsMap.has(key)) {
-        // 使用 resolveAvatarPath 纯函数解析头像路径
+        // 使用 resolveAgentAvatarPath 纯函数解析头像路径
         const entity = agentId
           ? { id: agentId, icon: node.metadata.agentIcon }
           : null;
-        const avatarSrc = entity ? resolveAvatarPath(entity, "agent") : null;
+        const avatarSrc = entity ? resolveAgentAvatarPath(entity) : null;
 
         agentsMap.set(key, {
           id: agentId,
@@ -233,10 +252,10 @@ const participatingAgents = computed(() => {
   const result = Array.from(agentsMap.values());
 
   // 如果路径中没有智能体信息，回退到当前智能体（如果是正在进行的会话导出）
-  if (result.length === 0 && agentStore.currentAgentId) {
-    const current = agentStore.getAgentById(agentStore.currentAgentId);
+  if (result.length === 0 && currentAgentId.value) {
+    const current = agentStore.getAgentById(currentAgentId.value);
     if (current) {
-      const avatarSrc = resolveAvatarPath(current, "agent");
+      const avatarSrc = resolveAgentAvatarPath(current);
       return [
         {
           id: current.id,
@@ -320,56 +339,83 @@ watch([useContextPipeline, () => props.messageId], () => {
   refreshPipelinePreview();
 });
 
-// 生成预览内容
-const previewContent = computed(() => {
-  if (!props.session || !props.messageId || !props.sessionIndex) {
-    return "暂无会话数据";
-  }
+const previewContent = ref("正在生成预览...");
 
-  const options: ExportOptions = {
-    format: exportFormat.value,
-    includePreset: includePreset.value,
-    mergePresetIntoMessages: mergePresetIntoMessages.value,
-    includeUserProfile: includeUserProfile.value,
-    includeAgentInfo: includeAgentInfo.value,
-    includeModelInfo: includeModelInfo.value,
-    includeTokenUsage: includeTokenUsage.value,
-    includeAttachments: includeAttachments.value,
-    includeErrors: includeErrors.value,
-    range: [...exportRange.value] as [number, number],
-    useContextPipeline: useContextPipeline.value,
-    processedMessages: pipelineResult.value?.finalMessages || [],
-  };
+// 异步更新预览内容
+watch(
+  [
+    () => props.session,
+    () => props.messageId,
+    () => props.sessionIndex,
+    exportFormat,
+    includePreset,
+    mergePresetIntoMessages,
+    includeUserProfile,
+    includeAgentInfo,
+    includeModelInfo,
+    includeTokenUsage,
+    includeAttachments,
+    includeErrors,
+    exportRange,
+    useContextPipeline,
+    pipelineResult,
+  ],
+  async () => {
+    if (!props.session || !props.messageId || !props.sessionIndex) {
+      previewContent.value = "暂无会话数据";
+      return;
+    }
 
-  if (exportFormat.value === "raw") {
-    return exportBranchAsRaw(
-      props.sessionIndex,
-      props.session,
-      props.messageId,
-      options
-    );
-  } else if (exportFormat.value === "json") {
-    const jsonData = exportBranchAsJson(
-      props.sessionIndex,
-      props.session,
-      props.messageId,
-      includePreset.value,
-      props.presetMessages,
-      options
-    );
-    return JSON.stringify(jsonData, null, 2);
-  } else {
-    // Markdown 导出保持原始协议，不做字符串替换
-    return exportBranchAsMarkdown(
-      props.sessionIndex,
-      props.session,
-      props.messageId,
-      includePreset.value,
-      props.presetMessages,
-      options
-    );
-  }
-});
+    const options: ExportOptions = {
+      format: exportFormat.value,
+      includePreset: includePreset.value,
+      mergePresetIntoMessages: mergePresetIntoMessages.value,
+      includeUserProfile: includeUserProfile.value,
+      includeAgentInfo: includeAgentInfo.value,
+      includeModelInfo: includeModelInfo.value,
+      includeTokenUsage: includeTokenUsage.value,
+      includeAttachments: includeAttachments.value,
+      includeErrors: includeErrors.value,
+      range: [...exportRange.value] as [number, number],
+      useContextPipeline: useContextPipeline.value,
+      processedMessages: pipelineResult.value?.finalMessages || [],
+    };
+
+    try {
+      if (exportFormat.value === "raw") {
+        previewContent.value = exportBranchAsRaw(
+          props.sessionIndex,
+          props.session,
+          props.messageId,
+          options
+        );
+      } else if (exportFormat.value === "json") {
+        const jsonData = await exportBranchAsJson(
+          props.sessionIndex,
+          props.session,
+          props.messageId,
+          includePreset.value,
+          props.presetMessages,
+          options
+        );
+        previewContent.value = JSON.stringify(jsonData, null, 2);
+      } else {
+        previewContent.value = await exportBranchAsMarkdown(
+          props.sessionIndex,
+          props.session,
+          props.messageId,
+          includePreset.value,
+          props.presetMessages,
+          options
+        );
+      }
+    } catch (err) {
+      logger.error("生成预览内容失败", err);
+      previewContent.value = "生成预览失败";
+    }
+  },
+  { immediate: true, deep: true }
+);
 // 资产路径解析钩子：在预览渲染时动态解析 agent-asset://
 const resolveAsset = (content: string) => {
   let processed = content;

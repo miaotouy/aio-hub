@@ -1,8 +1,23 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 /**
  * 聊天执行器 Composable
  * 负责核心的 LLM 请求执行逻辑，消除重复代码
  */
 
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import type {
   ChatSessionDetail,
   ChatMessageNode,
@@ -11,7 +26,7 @@ import type {
 } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import type { LlmModelInfo } from "@/types/llm-profiles";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useChatSettings } from "../settings/useChatSettings";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -58,9 +73,13 @@ interface ExecuteRequestParams {
     modelId: string;
     parameters: LlmParameters;
   };
+  /** 执行所使用的 Agent ID（可选，默认回退当前 UI Agent） */
+  agentId?: string;
 }
 
 export function useChatExecutor() {
+  const { currentAgentId } = useLlmChatUiState();
+
   /**
    * 执行 LLM 请求的核心逻辑
    */
@@ -73,20 +92,22 @@ export function useChatExecutor() {
     abortControllers,
     generatingNodes,
     agentConfig: providedAgentConfig,
+    agentId,
   }: ExecuteRequestParams): Promise<void> => {
     const agentStore = useAgentStore();
+    const effectiveAgentId = agentId || currentAgentId.value;
 
     // 获取当前 Agent 配置片段
     const agentConfigSnippet =
       providedAgentConfig ||
-      (agentStore.currentAgentId
-        ? agentStore.getAgentConfig(agentStore.currentAgentId, {
+      (effectiveAgentId
+        ? agentStore.getAgentConfig(effectiveAgentId, {
             parameterOverrides: session.parameterOverrides,
           })
         : null);
 
-    const currentAgent = agentStore.currentAgentId
-      ? agentStore.getAgentById(agentStore.currentAgentId)
+    const currentAgent = effectiveAgentId
+      ? agentStore.getAgentById(effectiveAgentId)
       : null;
 
     if (!agentConfigSnippet || !currentAgent) {
@@ -279,8 +300,8 @@ export function useChatExecutor() {
 
     const currentAgentFromStore = historicalAgentId
       ? agentStore.getAgentById(historicalAgentId)
-      : agentStore.currentAgentId
-        ? agentStore.getAgentById(agentStore.currentAgentId)
+      : currentAgentId.value
+        ? agentStore.getAgentById(currentAgentId.value)
         : null;
 
     if (!currentAgentFromStore) return null;
@@ -357,7 +378,9 @@ export function useChatExecutor() {
 
     const worldbookStore = import.meta.env.SSR
       ? null
-      : (await import("../../stores/worldbookStore")).useWorldbookStore();
+      : (
+          await import("@/tools/st-worldbook-manager/stores/worldbookStore")
+        ).useWorldbookStore();
     const allWorldbookIds = Array.from(
       new Set([
         ...(settings.value.worldbookIds || []),
@@ -373,6 +396,7 @@ export function useChatExecutor() {
     }
 
     pipelineContext.sharedData.set("pathToUserNode", pathToUserNode);
+    pipelineContext.sharedData.set("contextPreviewTargetNodeId", targetNodeId);
     if (options?.pendingInput) {
       pipelineContext.sharedData.set("pendingInput", options.pendingInput);
     }

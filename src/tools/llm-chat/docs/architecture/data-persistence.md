@@ -40,3 +40,19 @@
       └── ...
   ```
 - **历史迁移**: 加载索引时会自动检测旧版 `agents/{agentId}.json` 单文件结构，将其升级为 `agents/{agentId}/agent.json` 目录结构，并把 `appdata://` 形式的头像迁移为智能体目录内的相对文件名。
+
+## 3. 多会话架构与子管理器 (Multi-Session Sub-Managers)
+
+系统采用多会话架构，支持多窗口 UI 并发操作与后台会话独立执行。核心状态管理（`llmChatStore`）采用职责聚合的设计模式，将复杂的会话控制委托给一组专职的子管理器：
+
+- **`sessionAccessManager`**: 负责解析会话标识（ID/索引/详情），计算会话的活跃路径（active path），并提供节点 ID 到所属会话的反查索引。
+- **`sessionRuntimeManager`**: 集中管理生成中的节点、`AbortController` 实例以及会话级发送队列。支持按会话粒度中止生成，并在会话销毁时联动清理所有关联的运行态资源。
+- **`sessionHistoryManager`**: 维护会话级的撤销/重做历史栈，按会话 ID 延迟创建并缓存 `HistoryManager` 实例。
+- **`sessionGenerationManager`**: 封装消息发送、续写、重生成、输入补全及排队自动触发等核心生成链路。
+- **`sessionLifecycleManager`**: 集中管理会话的创建、删除、切换、导入导出、收藏夹归档及自动命名等生命周期行为。
+
+此外，多会话架构在数据流与状态上实现了以下隔离与解耦：
+
+- **会话级输入草稿隔离**: `useChatInputManager` 内部维护 `sessionId -> draft` 的映射关系，使文本、附件、临时模型及续写模型在会话间完全隔离。
+- **生成状态只读化**: 全局 `isSending` 状态是由 `generatingNodes` 集合大小推导的计算属性，避免了手动维护全局可写状态引入的竞态风险。
+- **发送链路与 UI 状态解耦**: 核心发送函数（如 `sendMessage`）支持显式指定 `sessionId` 与 `agentId`，允许后台 SubAgent 向非当前活动会话发送消息，而不干扰前台 UI 焦点。

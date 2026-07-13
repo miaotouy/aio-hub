@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import type { LlmProfile } from "@/types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
 import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
@@ -11,6 +25,11 @@ import {
 } from "@/llm-apis/request-builder";
 import { asyncJsonStringify } from "@/utils/serialization";
 import { openAiResponsesUrlHandler } from "./utils";
+import {
+  extractOpenAiResponsesReasoningArtifacts,
+  getOpenAiResponsesReplayItems,
+  mergeReasoningEncryptedContentInclude,
+} from "./reasoning-artifacts";
 import { createModuleLogger } from "@/utils/logger";
 import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 
@@ -87,6 +106,14 @@ export const callOpenAiResponsesApi = async (
   }
 
   for (const msg of userAssistantMessages) {
+    if (msg.role === "assistant") {
+      const replayItems = getOpenAiResponsesReplayItems(msg);
+      if (replayItems.length > 0) {
+        messages.push(...replayItems);
+        continue;
+      }
+    }
+
     if (typeof msg.content === "string") {
       messages.push({
         role: msg.role,
@@ -230,7 +257,13 @@ export const callOpenAiResponsesApi = async (
   }
 
   const reasoning: any = {};
-  if (options.reasoningEffort && isOpenAIModel(options.modelId)) {
+  const isCompatibleReasoningModel =
+    isOpenAIModel(options.modelId) ||
+    options.modelId.toLowerCase().includes("doubao") ||
+    options.modelId.toLowerCase().includes("seed") ||
+    options.modelId.toLowerCase().includes("glm") ||
+    options.modelId.toLowerCase().includes("deepseek");
+  if (options.reasoningEffort && isCompatibleReasoningModel) {
     reasoning.effort = options.reasoningEffort;
   }
 
@@ -255,7 +288,11 @@ export const callOpenAiResponsesApi = async (
     body.audio = options.audio;
   }
 
-  if (options.include) {
+  const shouldRequestEncryptedReasoning =
+    options.responsesStore === false || options.store === false;
+  if (shouldRequestEncryptedReasoning) {
+    body.include = mergeReasoningEncryptedContentInclude(options.include);
+  } else if (options.include) {
     body.include = options.include;
   }
 
@@ -281,7 +318,7 @@ export const callOpenAiResponsesApi = async (
       {
         method: "POST",
         headers,
-        body: await asyncJsonStringify(body),
+        body: (await asyncJsonStringify(body)) as any,
         isStreaming: true,
       },
       options.timeout,
@@ -297,6 +334,7 @@ export const callOpenAiResponsesApi = async (
     const reader = response.body.getReader();
     let fullContent = "";
     let fullReasoning = "";
+    let reasoningArtifacts: LlmResponse["reasoningArtifacts"] | undefined;
     let usage: LlmResponse["usage"] | undefined;
     let refusal: string | null = null;
     let finishReason: LlmResponse["finishReason"] = null;
@@ -364,6 +402,10 @@ export const callOpenAiResponsesApi = async (
             }
 
             if (resp.output && Array.isArray(resp.output)) {
+              reasoningArtifacts = extractOpenAiResponsesReasoningArtifacts(
+                resp.output,
+                resp.id
+              );
               for (const item of resp.output) {
                 if (item.type === "image_generation_call") {
                   // 这是 Responses API 返回的图像生成结果
@@ -430,6 +472,7 @@ export const callOpenAiResponsesApi = async (
       usage,
       refusal,
       finishReason,
+      reasoningArtifacts,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       annotations: annotations.length > 0 ? annotations : undefined,
       images: images.length > 0 ? images : undefined,
@@ -450,7 +493,7 @@ export const callOpenAiResponsesApi = async (
     {
       method: "POST",
       headers,
-      body: await asyncJsonStringify(body),
+      body: (await asyncJsonStringify(body)) as any,
     },
     options.timeout,
     options.signal
@@ -462,6 +505,10 @@ export const callOpenAiResponsesApi = async (
 
   let content = "";
   let reasoningContent = "";
+  const reasoningArtifacts = extractOpenAiResponsesReasoningArtifacts(
+    data.output,
+    data.id
+  );
   let refusal: string | null = null;
   let finishReason: LlmResponse["finishReason"] = null;
   const toolCalls: LlmResponse["toolCalls"] = [];
@@ -544,6 +591,7 @@ export const callOpenAiResponsesApi = async (
       content ||
       (images.length > 0 ? `Generated ${images.length} images.` : ""),
     reasoningContent: reasoningContent || undefined,
+    reasoningArtifacts,
     refusal,
     finishReason,
     images: images.length > 0 ? images : undefined,

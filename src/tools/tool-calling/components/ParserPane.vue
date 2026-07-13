@@ -1,6 +1,30 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <script setup lang="ts">
 import { ref } from "vue";
-import { Play, Search, Trash2, ScanText } from "lucide-vue-next";
+import {
+  Play,
+  Search,
+  Trash2,
+  ScanText,
+  Copy,
+  ClipboardList,
+  FileJson,
+} from "lucide-vue-next";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { customMessage } from "@/utils/customMessage";
 import { parseToolRequests } from "../core/parser";
@@ -60,6 +84,133 @@ const validateTool = (toolName: string) => {
   }
   return { exists: false };
 };
+
+/**
+ * 模拟 executor 的类型转换逻辑，生成适配后的参数预览
+ */
+interface AdaptedParam {
+  name: string;
+  rawValue: string;
+  expectedType: string;
+  adaptedValue: any;
+  required: boolean;
+  status: "ok" | "missing" | "type_error" | "optional_ok";
+  statusMessage: string;
+}
+
+interface AdaptedArgsResult {
+  adapted: AdaptedParam[];
+  adaptedJson: Record<string, any>;
+  hasErrors: boolean;
+}
+
+const getAdaptedArgs = (req: any): AdaptedArgsResult => {
+  const validation = validateTool(req.toolName);
+  const method = validation?.method;
+  const params = method?.parameters ?? [];
+  const adapted: AdaptedParam[] = [];
+  const adaptedJson: Record<string, any> = {};
+  let hasErrors = false;
+
+  // 遍历方法定义的参数
+  for (const param of params) {
+    const rawValue = req.args[param.name];
+    const isRequired = param.required !== false;
+    const expectedType = param.type || "string";
+
+    if (rawValue === undefined || rawValue === null || rawValue === "") {
+      if (isRequired) {
+        adapted.push({
+          name: param.name,
+          rawValue: "",
+          expectedType,
+          adaptedValue: undefined,
+          required: true,
+          status: "missing",
+          statusMessage: "缺失必填参数",
+        });
+        hasErrors = true;
+      } else {
+        adapted.push({
+          name: param.name,
+          rawValue: "",
+          expectedType,
+          adaptedValue: param.defaultValue,
+          required: false,
+          status: "optional_ok",
+          statusMessage: "可选，未提供",
+        });
+      }
+      continue;
+    }
+
+    // 模拟 executor 的类型转换逻辑
+    let adaptedValue: any = rawValue;
+    let status: AdaptedParam["status"] = "ok";
+    let statusMessage = "转换成功";
+
+    if (expectedType === "boolean") {
+      adaptedValue =
+        String(rawValue).toLowerCase() === "true" || rawValue === true;
+    } else if (expectedType === "number") {
+      const num = Number(rawValue);
+      if (!isNaN(num)) {
+        adaptedValue = num;
+      } else {
+        status = "type_error";
+        statusMessage = `无法转换为 number: "${rawValue}"`;
+        hasErrors = true;
+      }
+    } else if (expectedType === "object" || expectedType === "array") {
+      try {
+        adaptedValue = JSON.parse(rawValue);
+      } catch {
+        // 保持字符串，可能是复杂对象类型
+        adaptedValue = rawValue;
+      }
+    }
+
+    adaptedJson[param.name] = adaptedValue;
+    adapted.push({
+      name: param.name,
+      rawValue,
+      expectedType,
+      adaptedValue,
+      required: isRequired,
+      status,
+      statusMessage,
+    });
+  }
+
+  // 检查是否有额外参数（不在方法定义中但被 LLM 传入了）
+  const definedNames = new Set(params.map((p: any) => p.name));
+  for (const [key, value] of Object.entries(req.args)) {
+    if (!definedNames.has(key)) {
+      adapted.push({
+        name: key,
+        rawValue: String(value),
+        expectedType: "unknown",
+        adaptedValue: value,
+        required: false,
+        status: "ok",
+        statusMessage: "未在方法定义中声明",
+      });
+      adaptedJson[key] = value;
+    }
+  }
+
+  return { adapted, adaptedJson, hasErrors };
+};
+
+/** 一键复制 */
+const copyToClipboard = async (text: string, label: string) => {
+  try {
+    await navigator.clipboard.writeText(text);
+    customMessage.success(`已复制 ${label}`);
+  } catch {
+    customMessage.error("复制失败，请手动选择文本复制");
+  }
+};
 </script>
 
 <template>
@@ -91,6 +242,15 @@ const validateTool = (toolName: string) => {
               props.protocol?.id ?? "VCP"
             }}</span>
           </div>
+          <el-button
+            v-if="testText"
+            link
+            size="small"
+            :icon="Copy"
+            @click="copyToClipboard(testText, '输入文本')"
+          >
+            复制输入
+          </el-button>
         </div>
         <div class="config-content">
           <div class="editor-wrapper">
@@ -154,42 +314,52 @@ const validateTool = (toolName: string) => {
                 <span class="req-num">#{{ idx + 1 }}</span>
                 <code class="req-name">{{ req.toolName }}</code>
               </div>
-              <div class="req-status">
-                <template v-if="!req.validation?.isValid">
-                  <el-tooltip placement="top">
-                    <template #content>
-                      <div class="error-tooltip-content">
-                        <strong>格式解析错误:</strong>
-                        <ul>
-                          <li
-                            v-for="(err, eIdx) in req.validation?.errors"
-                            :key="eIdx"
-                          >
-                            {{ err }}
-                          </li>
-                        </ul>
-                      </div>
-                    </template>
-                    <el-tag size="small" effect="dark" type="danger"
-                      >格式错误</el-tag
+              <div class="req-head-actions">
+                <div class="req-status">
+                  <template v-if="!req.validation?.isValid">
+                    <el-tooltip placement="top">
+                      <template #content>
+                        <div class="error-tooltip-content">
+                          <strong>格式解析错误:</strong>
+                          <ul>
+                            <li
+                              v-for="(err, eIdx) in req.validation?.errors"
+                              :key="eIdx"
+                            >
+                              {{ err }}
+                            </li>
+                          </ul>
+                        </div>
+                      </template>
+                      <el-tag size="small" effect="dark" type="danger"
+                        >格式错误</el-tag
+                      >
+                    </el-tooltip>
+                  </template>
+                  <template v-else-if="validateTool(req.toolName).exists">
+                    <el-tag size="small" effect="plain" type="success"
+                      >已就绪</el-tag
                     >
-                  </el-tooltip>
-                </template>
-                <template v-else-if="validateTool(req.toolName).exists">
-                  <el-tag size="small" effect="plain" type="success"
-                    >已就绪</el-tag
-                  >
-                </template>
-                <template v-else>
-                  <el-tooltip
-                    content="该工具或方法未在系统中注册，无法执行"
-                    placement="top"
-                  >
-                    <el-tag size="small" effect="light" type="danger"
-                      >工具不存在</el-tag
+                  </template>
+                  <template v-else>
+                    <el-tooltip
+                      content="该工具或方法未在系统中注册，无法执行"
+                      placement="top"
                     >
-                  </el-tooltip>
-                </template>
+                      <el-tag size="small" effect="light" type="danger"
+                        >工具不存在</el-tag
+                      >
+                    </el-tooltip>
+                  </template>
+                </div>
+                <el-button
+                  link
+                  size="small"
+                  :icon="ClipboardList"
+                  @click="copyToClipboard(req.rawBlock, '原始 VCP 块')"
+                >
+                  复制块
+                </el-button>
               </div>
             </div>
             <div class="req-body">
@@ -202,10 +372,152 @@ const validateTool = (toolName: string) => {
                   <span class="error-bullet">•</span> {{ err }}
                 </div>
               </div>
-              <div class="req-args-label">提取参数</div>
-              <pre class="req-args">{{
-                JSON.stringify(req.args, null, 2)
-              }}</pre>
+
+              <!-- 参数详情表格 -->
+              <template v-if="validateTool(req.toolName).method">
+                <div class="req-args-label">
+                  参数详情
+                  <el-button
+                    link
+                    size="small"
+                    :icon="FileJson"
+                    @click="
+                      copyToClipboard(
+                        JSON.stringify(
+                          getAdaptedArgs(req).adaptedJson,
+                          null,
+                          2
+                        ),
+                        '转换后 JSON'
+                      )
+                    "
+                  >
+                    复制 JSON
+                  </el-button>
+                </div>
+                <div class="param-table-wrapper">
+                  <table class="param-table">
+                    <thead>
+                      <tr>
+                        <th>参数名</th>
+                        <th>原始值</th>
+                        <th>预期类型</th>
+                        <th>转换后</th>
+                        <th>状态</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr
+                        v-for="param in getAdaptedArgs(req).adapted"
+                        :key="param.name"
+                        :class="{
+                          'param-missing': param.status === 'missing',
+                          'param-type-error': param.status === 'type_error',
+                          'param-optional': param.status === 'optional_ok',
+                          'param-unknown': param.expectedType === 'unknown',
+                        }"
+                      >
+                        <td class="param-name">{{ param.name }}</td>
+                        <td class="param-raw">
+                          <code>{{ param.rawValue || "—" }}</code>
+                        </td>
+                        <td class="param-type">
+                          <el-tag
+                            size="small"
+                            :type="
+                              param.expectedType === 'unknown'
+                                ? 'warning'
+                                : 'info'
+                            "
+                            effect="plain"
+                          >
+                            {{ param.expectedType }}
+                          </el-tag>
+                        </td>
+                        <td class="param-adapted">
+                          <code
+                            v-if="
+                              param.status === 'ok' ||
+                              param.status === 'type_error'
+                            "
+                            >{{
+                              typeof param.adaptedValue === "object"
+                                ? JSON.stringify(param.adaptedValue)
+                                : String(param.adaptedValue)
+                            }}</code
+                          >
+                          <span v-else class="param-empty">—</span>
+                        </td>
+                        <td class="param-status">
+                          <el-tag
+                            v-if="param.status === 'ok'"
+                            size="small"
+                            type="success"
+                            effect="plain"
+                          >
+                            ✅
+                          </el-tag>
+                          <el-tag
+                            v-else-if="param.status === 'missing'"
+                            size="small"
+                            type="danger"
+                            effect="dark"
+                          >
+                            缺失
+                          </el-tag>
+                          <el-tag
+                            v-else-if="param.status === 'type_error'"
+                            size="small"
+                            type="warning"
+                            effect="dark"
+                          >
+                            类型错误
+                          </el-tag>
+                          <el-tag
+                            v-else-if="param.status === 'optional_ok'"
+                            size="small"
+                            type="info"
+                            effect="plain"
+                          >
+                            可选
+                          </el-tag>
+                          <el-tag
+                            v-else
+                            size="small"
+                            type="warning"
+                            effect="plain"
+                          >
+                            未知
+                          </el-tag>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </template>
+
+              <!-- 无方法元数据时，回退到纯 JSON 展示 -->
+              <template v-else>
+                <div class="req-args-label">
+                  提取参数
+                  <el-button
+                    link
+                    size="small"
+                    :icon="FileJson"
+                    @click="
+                      copyToClipboard(
+                        JSON.stringify(req.args, null, 2),
+                        '解析 JSON'
+                      )
+                    "
+                  >
+                    复制 JSON
+                  </el-button>
+                </div>
+                <pre class="req-args">{{
+                  JSON.stringify(req.args, null, 2)
+                }}</pre>
+              </template>
             </div>
           </div>
         </div>
@@ -433,6 +745,12 @@ const validateTool = (toolName: string) => {
   gap: 8px;
 }
 
+.req-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .req-num {
   font-size: 11px;
   font-weight: 700;
@@ -482,6 +800,9 @@ const validateTool = (toolName: string) => {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .req-args {
@@ -496,6 +817,90 @@ const validateTool = (toolName: string) => {
   word-break: break-all;
   color: var(--text-color);
   line-height: 1.6;
+}
+
+/* 参数详情表格 */
+.param-table-wrapper {
+  overflow-x: auto;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--vscode-editor-background);
+}
+
+.param-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: var(--el-font-family-mono);
+}
+
+.param-table th {
+  padding: 6px 10px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-color-secondary);
+  background-color: rgba(var(--text-color-rgb), 0.03);
+  border-bottom: var(--border-width) solid var(--border-color);
+  white-space: nowrap;
+}
+
+.param-table td {
+  padding: 5px 10px;
+  border-bottom: 1px solid rgba(var(--border-color-rgb), 0.3);
+  vertical-align: middle;
+}
+
+.param-table tr:last-child td {
+  border-bottom: none;
+}
+
+.param-table tr:hover {
+  background-color: rgba(var(--el-color-primary-rgb), 0.03);
+}
+
+.param-table .param-name {
+  font-weight: 600;
+  color: var(--text-color);
+  white-space: nowrap;
+}
+
+.param-table .param-raw code {
+  color: var(--text-color-secondary);
+  word-break: break-all;
+}
+
+.param-table .param-adapted code {
+  color: var(--el-color-primary);
+  word-break: break-all;
+}
+
+.param-table .param-empty {
+  color: var(--text-color-disabled);
+}
+
+.param-table .param-type {
+  white-space: nowrap;
+}
+
+.param-table .param-status {
+  white-space: nowrap;
+}
+
+/* 参数状态行高亮 */
+.param-missing {
+  background-color: rgba(var(--el-color-danger-rgb), 0.04) !important;
+}
+
+.param-type-error {
+  background-color: rgba(var(--el-color-warning-rgb), 0.04) !important;
+}
+
+.param-optional {
+  opacity: 0.6;
+}
+
+.param-unknown {
+  opacity: 0.7;
 }
 
 .scrollbar-styled::-webkit-scrollbar {

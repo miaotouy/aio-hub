@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 /**
  * 插件管理服务
  *
@@ -17,6 +31,10 @@ import { pluginConfigService } from "./plugin-config.service";
 import { pluginEnvironmentService } from "./plugin-environment.service";
 import type { PluginContext, PluginStorageAPI } from "./plugin-types";
 import { useContextPipelineStore } from "@/tools/llm-chat/stores/contextPipelineStore";
+import {
+  registerSettingsSection,
+  registerSettingItem,
+} from "@/tools/llm-chat/composables/settings/usePluginSettings";
 import { getAppConfigDir } from "@/utils/appPath";
 import { emit, listen } from "@tauri-apps/api/event";
 
@@ -241,22 +259,39 @@ function createPluginComponentLoader(
           finalComponentFile = componentFile.replace(/\.vue$/, ".js");
         }
 
-        // 尝试加载配套的 CSS
+        // 调试：扫描并打印插件目录下的所有文件，帮助诊断分块丢失问题
         try {
-          const stylePath = await join(pluginPath, "style.css");
-          const { exists } = await import("@tauri-apps/plugin-fs");
-          if (await exists(stylePath)) {
-            const styleUrl = convertFileSrc(stylePath.replace(/\\/g, "/"));
+          const { readDir } = await import("@tauri-apps/plugin-fs");
+          const files = await readDir(pluginPath);
+          logger.info("【调试】扫描插件安装目录文件列表", {
+            pluginId: pluginPath.split(/[/\\]/).pop(),
+            files: files.map((f) => ({
+              name: f.name,
+              isFile: f.isFile,
+              isDirectory: f.isDirectory,
+            })),
+          });
+
+          // 自动寻找并加载配套的 CSS（不再硬编码 style.css）
+          const cssFiles = files.filter((f) => f.name.endsWith(".css"));
+          for (const cssFile of cssFiles) {
+            const stylePath = await join(pluginPath, cssFile.name);
+            let styleUrl = convertFileSrc(stylePath.replace(/\\/g, "/"));
+            styleUrl = styleUrl.replace(/%2F/g, "/");
+
             if (!document.querySelector(`link[href="${styleUrl}"]`)) {
               const link = document.createElement("link");
               link.rel = "stylesheet";
               link.href = styleUrl;
               document.head.appendChild(link);
-              logger.info("已加载插件样式表", { styleUrl });
+              logger.info("【调试】已自动加载插件样式表", {
+                cssFile: cssFile.name,
+                styleUrl,
+              });
             }
           }
         } catch (e) {
-          logger.warn("尝试加载插件样式表失败", e);
+          logger.warn("【调试】扫描插件目录或加载样式表失败", e);
         }
 
         // 直接使用插件根目录下的组件文件
@@ -269,18 +304,30 @@ function createPluginComponentLoader(
         });
 
         // 使用 convertFileSrc 将本地文件路径转换为可访问的 URL
-        const componentUrl = convertFileSrc(componentPath.replace(/\\/g, "/"));
+        let componentUrl = convertFileSrc(componentPath.replace(/\\/g, "/"));
+
+        // 修复相对路径加载问题：
+        // convertFileSrc 可能会对路径中的盘符和斜杠进行 URL 编码（如 %3A, %2F），
+        // 这会导致浏览器在解析 JS 内部的相对导入（如 import("./chunk.js")）时，
+        // 无法正确识别目录层级，从而把相对路径解析到根域名下（如 http://asset.localhost/chunk.js）。
+        // 我们需要将 %2F 替换回 /，但保留盘符的编码（%3A），以保持 URL 的合法性。
+        componentUrl = componentUrl.replace(/%2F/g, "/");
 
         logger.info("插件组件 URL 已生成", { componentUrl });
 
         // 动态导入 ESM 模块
         const module = await import(/* @vite-ignore */ componentUrl);
 
+        logger.info("插件模块导入结果", {
+          componentFile,
+          hasDefault: !!module.default,
+          keys: Object.keys(module),
+          moduleType: typeof module.default,
+        });
+
         if (!module.default) {
           throw new Error(`插件组件 ${componentFile} 必须有默认导出`);
         }
-
-        logger.info("插件组件加载成功（生产模式）", { componentFile });
 
         return module.default;
       }
@@ -492,6 +539,18 @@ class PluginManager {
             `插件正在注销上下文处理器: ${processorId} (Plugin: ${pluginId})`
           );
           contextPipelineStore.unregisterProcessor(processorId);
+        },
+        registerSettingsSection: (section: any) => {
+          logger.info(
+            `插件正在注册聊天设置分区: ${section.title} (Plugin: ${pluginId})`
+          );
+          registerSettingsSection(section);
+        },
+        registerSettingItem: (sectionTitle: string, item: any) => {
+          logger.info(
+            `插件正在向分区 "${sectionTitle}" 注册设置项: ${item.id} (Plugin: ${pluginId})`
+          );
+          registerSettingItem(sectionTitle, item);
         },
       },
     };
@@ -784,6 +843,44 @@ class PluginManager {
       // 工具不存在
     }
     return undefined;
+  }
+
+  /**
+   * 获取活跃（已启用且未损坏）的插件，支持自动在开发版和生产版之间切换
+   * @param pluginId 插件 ID（可以是原 ID 或带 -dev 后缀的 ID）
+   */
+  getActivePlugin(pluginId: string): PluginProxy | undefined {
+    const isDevId = pluginId.endsWith("-dev");
+    const baseId = isDevId ? pluginId.replace(/-dev$/, "") : pluginId;
+    const devId = isDevId ? pluginId : `${pluginId}-dev`;
+
+    const prodPlugin = this.getPlugin(baseId);
+    const devPlugin = this.getPlugin(devId);
+
+    // 辅助函数：检查插件是否已启用且未损坏
+    const isPluginActive = (plugin: PluginProxy | undefined) => {
+      if (!plugin) return false;
+      const state = this.pluginStates[plugin.id];
+      if (state?.isBroken) return false;
+      return state?.enabled ?? plugin.enabled;
+    };
+
+    // 1. 如果开发版存在且已启用，优先使用开发版（无论请求的是 prod 还是 dev）
+    if (isPluginActive(devPlugin)) {
+      return devPlugin;
+    }
+
+    // 2. 否则，如果生产版存在且已启用，使用生产版
+    if (isPluginActive(prodPlugin)) {
+      return prodPlugin;
+    }
+
+    // 3. 如果都未启用，则按请求的偏好返回（优先返回请求的那个，以便调用方抛出准确的“未启用”错误）
+    if (isDevId) {
+      return devPlugin ?? prodPlugin;
+    } else {
+      return prodPlugin ?? devPlugin;
+    }
   }
 
   /**

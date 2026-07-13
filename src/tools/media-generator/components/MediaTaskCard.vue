@@ -1,6 +1,24 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { format } from "date-fns";
+import { invoke } from "@tauri-apps/api/core";
+import { join } from "@tauri-apps/api/path";
 import {
   Film,
   Mic,
@@ -17,10 +35,13 @@ import {
   Trash2 as TrashIcon,
   ChevronLeft,
   ChevronRight,
+  FolderOpen,
 } from "lucide-vue-next";
 import type { MediaTask } from "../types";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
+import { useMediaGenStore } from "../stores/mediaGenStore";
+import AudioWaveform from "@/components/common/AudioWaveform.vue";
 
 const props = defineProps<{
   task: MediaTask;
@@ -36,32 +57,60 @@ const emit = defineEmits<{
   (e: "open", task: MediaTask): void;
 }>();
 
-const { getAssetUrl, getAssetBasePath, convertToAssetProtocol } =
-  useAssetManager();
+const {
+  getAssetUrl,
+  getAssetBasePath,
+  convertToAssetProtocol,
+  ensureAudioWaveform,
+  getAssetById,
+} = useAssetManager();
 const imageViewer = useImageViewer();
+const store = useMediaGenStore();
 
 // 结果多图支持
 const resultAssetUrls = ref<string[]>([]);
 const activeResultIndex = ref(0);
 const referenceAssetUrls = ref<string[]>([]);
+const videoPosterUrl = ref<string>("");
 
 const hasReferenceImages = computed(() => referenceAssetUrls.value.length > 0);
 const hasMultipleResults = computed(() => resultAssetUrls.value.length > 1);
 
-const loadResultUrls = async () => {
-  const assets = props.task.resultAssets?.length
+const getResultAssets = () =>
+  props.task.resultAssets?.length
     ? props.task.resultAssets
     : props.task.resultAsset
       ? [props.task.resultAsset]
       : [];
+
+const loadResultUrls = async () => {
+  const assets = getResultAssets();
   if (assets.length === 0) {
     resultAssetUrls.value = [];
+    videoPosterUrl.value = "";
     return;
   }
   const urls: string[] = [];
   for (const asset of assets) {
     const url = await getAssetUrl(asset);
     if (url) urls.push(url);
+
+    if (asset.type === "video") {
+      let currentAsset = asset;
+      if (!currentAsset.thumbnailPath) {
+        try {
+          const latest = await getAssetById(asset.id);
+          if (latest) {
+            currentAsset = latest;
+          }
+        } catch (e) {
+          console.error("获取最新资产失败", e);
+        }
+      }
+      if (currentAsset.thumbnailPath) {
+        videoPosterUrl.value = await getAssetUrl(currentAsset, true);
+      }
+    }
   }
   resultAssetUrls.value = urls;
   // 重置索引
@@ -103,18 +152,101 @@ const nextResult = () => {
     activeResultIndex.value++;
 };
 
+/** 音频波形数据（从 resultAsset 的 metadata 中提取） */
+const audioWaveform = ref<number[]>([]);
+const samplingAssetIds = new Set<string>();
+const localWaveformCache = new Map<string, number[]>();
+let isUnmounted = false;
+
+/** 加载音频波形数据 */
+const loadAudioWaveform = async () => {
+  const assets = getResultAssets();
+  const asset = assets[activeResultIndex.value] || assets[0];
+  if (!asset || asset.type !== "audio") {
+    audioWaveform.value = [];
+    return;
+  }
+
+  // 1. 优先从本地组件缓存中获取，避免重复的 IPC 状态查询
+  if (localWaveformCache.has(asset.id)) {
+    audioWaveform.value = localWaveformCache.get(asset.id)!;
+    return;
+  }
+
+  // 2. 如果传入的资产对象本身就带有波形数据，直接缓存并使用
+  if (asset.metadata?.audioWaveform?.length) {
+    localWaveformCache.set(asset.id, asset.metadata.audioWaveform);
+    audioWaveform.value = asset.metadata.audioWaveform;
+    return;
+  }
+
+  // 没有波形数据，尝试在后台采样（内部会先校验后端数据库，有了就不重复采样）
+  if (samplingAssetIds.has(asset.id)) return;
+  samplingAssetIds.add(asset.id);
+  try {
+    const updatedAsset = await ensureAudioWaveform(asset);
+    if (isUnmounted) return;
+
+    const currentAssets = getResultAssets();
+    const currentAsset =
+      currentAssets[activeResultIndex.value] || currentAssets[0];
+    if (
+      currentAsset?.id === asset.id &&
+      updatedAsset.metadata?.audioWaveform?.length
+    ) {
+      localWaveformCache.set(asset.id, updatedAsset.metadata.audioWaveform);
+      audioWaveform.value = updatedAsset.metadata.audioWaveform;
+
+      // 4. 将更新后的资产写回到全局任务状态和会话节点中，实现状态自愈与持久化闭环
+      try {
+        // 更新全局任务池状态
+        store.updateTaskStatus(props.task.id, props.task.status, {
+          resultAsset: updatedAsset,
+          resultAssets: [updatedAsset],
+        });
+
+        // 如果关联了会话节点，同步更新节点快照以持久化到本地 JSON
+        const node = store.nodes[props.task.id];
+        if (node) {
+          const updatedTask = {
+            ...props.task,
+            resultAsset: updatedAsset,
+            resultAssets: [updatedAsset],
+          };
+          store.updateNodeData(props.task.id, {
+            metadata: {
+              ...node.metadata,
+              taskSnapshot: updatedTask,
+            },
+          });
+        }
+      } catch (err) {
+        console.error("同步更新音频波形任务状态失败", err);
+      }
+    }
+  } finally {
+    samplingAssetIds.delete(asset.id);
+  }
+};
+
 onMounted(() => {
   loadResultUrls();
   loadReferenceUrls();
+  loadAudioWaveform();
 });
 
 watch(
-  () => props.task.resultAssets,
+  () => [props.task.status, props.task.resultAsset, props.task.resultAssets],
   () => {
     loadResultUrls();
+    loadAudioWaveform();
   },
   { deep: true }
 );
+
+watch(activeResultIndex, () => {
+  loadAudioWaveform();
+});
 
 watch(
   () => props.task.input.referenceAssetIds,
@@ -123,6 +255,11 @@ watch(
   },
   { deep: true }
 );
+
+onUnmounted(() => {
+  isUnmounted = true;
+  samplingAssetIds.clear();
+});
 
 const getTaskIcon = (type: string) => {
   switch (type) {
@@ -171,6 +308,10 @@ const getStatusLabel = (status: string) => {
 };
 
 const getTaskResolution = (task: MediaTask) => {
+  // 音频类型不显示分辨率（audio 已在 normalizeMediaTaskType 中归一化为 speech）
+  if (task.type === "speech" || task.type === "music") {
+    return "";
+  }
   const asset = task.resultAssets?.[0] || task.resultAsset;
   if (asset?.metadata?.width && asset?.metadata?.height) {
     return `${asset.metadata.width}x${asset.metadata.height}`;
@@ -179,6 +320,34 @@ const getTaskResolution = (task: MediaTask) => {
     return task.input.params.size;
   }
   return "";
+};
+
+const handleVideoEnter = (e: Event) => {
+  const video = e.target as HTMLVideoElement;
+  if (video) {
+    video.play().catch(() => {});
+  }
+};
+
+const handleVideoLeave = (e: Event) => {
+  const video = e.target as HTMLVideoElement;
+  if (video) {
+    video.pause();
+  }
+};
+
+/** 打开文件所在位置 */
+const openFileDirectory = async () => {
+  const assets = getResultAssets();
+  const asset = assets[activeResultIndex.value] || assets[0];
+  if (!asset || !asset.path) return;
+  try {
+    const basePath = await getAssetBasePath();
+    const absolutePath = await join(basePath, asset.path);
+    await invoke("open_file_directory", { filePath: absolutePath });
+  } catch (err) {
+    console.error("打开文件所在目录失败", err);
+  }
 };
 </script>
 
@@ -245,15 +414,39 @@ const getTaskResolution = (task: MediaTask) => {
                 alt="result"
                 loading="lazy"
               />
-              <div v-else-if="task.type === 'video'" class="video-placeholder">
-                <el-icon><Film /></el-icon>
-                <span>点击查看视频</span>
+              <div
+                v-else-if="task.type === 'video'"
+                class="video-preview-wrapper"
+              >
+                <video
+                  :src="resultAssetUrls[activeResultIndex] || ''"
+                  :poster="videoPosterUrl"
+                  muted
+                  loop
+                  playsinline
+                  preload="none"
+                  @mouseenter="handleVideoEnter"
+                  @mouseleave="handleVideoLeave"
+                  class="video-preview"
+                ></video>
+                <div class="video-badge">
+                  <el-icon><Film /></el-icon>
+                </div>
               </div>
-              <div v-else class="audio-placeholder">
-                <el-icon><component :is="getTaskIcon(task.type)" /></el-icon>
-                <span>{{
-                  task.type === "speech" ? "点击播放语音" : "点击播放音乐"
-                }}</span>
+              <div v-else class="audio-preview">
+                <AudioWaveform
+                  :waveform="audioWaveform"
+                  :height="80"
+                  :bar-width="4"
+                  :bar-gap="2"
+                  color="var(--el-color-primary)"
+                />
+                <div class="audio-overlay">
+                  <el-icon><ExternalLink /></el-icon>
+                  <span>{{
+                    task.type === "speech" ? "点击播放语音" : "点击播放音乐"
+                  }}</span>
+                </div>
               </div>
               <div class="overlay">
                 <el-icon><ExternalLink /></el-icon>
@@ -382,6 +575,18 @@ const getTaskResolution = (task: MediaTask) => {
             circle
             size="small"
             @click="emit('download', task)"
+          />
+        </el-tooltip>
+        <el-tooltip
+          v-if="task.status === 'completed'"
+          content="打开文件所在位置"
+          placement="top"
+        >
+          <el-button
+            :icon="FolderOpen"
+            circle
+            size="small"
+            @click="openFileDirectory"
           />
         </el-tooltip>
         <el-tooltip content="删除" placement="top">
@@ -613,8 +818,7 @@ const getTaskResolution = (task: MediaTask) => {
   object-fit: cover;
 }
 
-.video-placeholder,
-.audio-placeholder {
+.video-placeholder {
   width: 100%;
   height: 100%;
   display: flex;
@@ -624,6 +828,65 @@ const getTaskResolution = (task: MediaTask) => {
   gap: 8px;
   color: var(--el-text-color-secondary);
   font-size: 12px;
+}
+
+.video-preview-wrapper {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background-color: var(--el-fill-color-dark);
+}
+
+.video-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.video-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  backdrop-filter: blur(4px);
+  z-index: 1;
+}
+
+.audio-preview {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.audio-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  transition: opacity 0.2s;
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.audio-preview:hover .audio-overlay {
+  opacity: 1;
 }
 
 .media-preview .overlay {
@@ -783,5 +1046,9 @@ const getTaskResolution = (task: MediaTask) => {
   to {
     transform: rotate(360deg);
   }
+}
+
+.el-button {
+  margin-left: 4px;
 }
 </style>

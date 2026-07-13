@@ -1,10 +1,26 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import type {
   VcpChatAgentScanItem,
   VcpChatAgentScanResult,
-} from "../../services/vcpChatAgentImportService";
+} from "@/tools/agent-manager/services/vcpChatAgentImportService";
 
 const props = defineProps<{
   visible: boolean;
@@ -23,14 +39,17 @@ const searchQuery = ref("");
 const selectedIds = ref<Set<string>>(new Set());
 
 const selectableItems = computed(
-  () => props.scanResult?.items.filter((item) => item.selectable) || []
+  () =>
+    props.scanResult?.items.filter(
+      (item: VcpChatAgentScanItem) => item.selectable
+    ) || []
 );
 
 const filteredItems = computed(() => {
   const query = searchQuery.value.trim().toLowerCase();
   const items = props.scanResult?.items || [];
   if (!query) return items;
-  return items.filter((item) =>
+  return items.filter((item: VcpChatAgentScanItem) =>
     [item.name, item.vcpAgentId, item.model || ""]
       .join("\n")
       .toLowerCase()
@@ -39,19 +58,23 @@ const filteredItems = computed(() => {
 });
 
 const filteredSelectableItems = computed(() =>
-  filteredItems.value.filter((item) => item.selectable)
+  filteredItems.value.filter((item: VcpChatAgentScanItem) => item.selectable)
 );
 
 const selectedItems = computed(() =>
-  selectableItems.value.filter((item) => selectedIds.value.has(item.vcpAgentId))
+  selectableItems.value.filter((item: VcpChatAgentScanItem) =>
+    selectedIds.value.has(item.vcpAgentId)
+  )
 );
 
 const summary = computed(() => {
   const items = props.scanResult?.items || [];
   return {
     total: items.length,
-    selectable: items.filter((item) => item.selectable).length,
-    failed: items.filter((item) => !item.selectable).length,
+    selectable: items.filter((item: VcpChatAgentScanItem) => item.selectable)
+      .length,
+    failed: items.filter((item: VcpChatAgentScanItem) => !item.selectable)
+      .length,
     selected: selectedItems.value.length,
   };
 });
@@ -61,8 +84,8 @@ watch(
   (result) => {
     selectedIds.value = new Set(
       result?.items
-        .filter((item) => item.selectable)
-        .map((item) => item.vcpAgentId) || []
+        .filter((item: VcpChatAgentScanItem) => item.selectable)
+        .map((item: VcpChatAgentScanItem) => item.vcpAgentId) || []
     );
   },
   { immediate: true }

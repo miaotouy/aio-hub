@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 /**
  * 导出管理 Composable
  * 负责会话和分支的导出功能
@@ -10,10 +24,11 @@ import type {
 } from "../../types";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useUserProfileStore } from "../../stores/userProfileStore";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { createModuleLogger } from "@/utils/logger";
 import { formatDateTime } from "@/utils/time";
 import { getEffectiveMessageCount } from "../../utils/sessionMessageCount";
+import { resolveAttachmentsBatch } from "../../core/context-utils/attachment-resolver";
 
 const logger = createModuleLogger("llm-chat/export-manager");
 
@@ -59,11 +74,11 @@ export function useExportManager() {
   /**
    * 导出当前会话为 Markdown
    */
-  const exportSessionAsMarkdown = (
+  const exportSessionAsMarkdown = async (
     index: ChatSessionIndex | null,
     detail: ChatSessionDetail | null,
     currentActivePath: ChatMessageNode[]
-  ): string => {
+  ): Promise<string> => {
     if (!index || !detail) {
       logger.warn("导出失败：会话不存在或详情未加载");
       return "";
@@ -92,9 +107,9 @@ export function useExportManager() {
     });
 
     // 使用传入的活动路径（包括禁用节点，以便用户看到完整历史）
-    currentActivePath.forEach((node: ChatMessageNode) => {
-      if (node.role === "system") return; // 跳过系统根节点
-      if (hiddenNodeIds.has(node.id)) return; // 跳过被压缩隐藏的节点
+    for (const node of currentActivePath) {
+      if (node.role === "system") continue; // 跳过系统根节点
+      if (hiddenNodeIds.has(node.id)) continue; // 跳过被压缩隐藏的节点
 
       const role = node.role === "user" ? "用户" : "助手";
       const nameStr = node.name ? ` - ${node.name}` : "";
@@ -104,7 +119,62 @@ export function useExportManager() {
 
       lines.push(`## ${role}${nameStr} (${time})`);
       lines.push("");
-      lines.push(node.content);
+
+      let messageContent = node.content;
+      // 解析附件并替换占位符/追加内容
+      if (node.attachments && node.attachments.length > 0) {
+        try {
+          const resolved = await resolveAttachmentsBatch(
+            node.attachments,
+            node.metadata?.modelId || "",
+            node.metadata?.profileId || "",
+            { force: true, silent: true }
+          );
+
+          const textAttachmentsMap = new Map<string, string>();
+          const claimedAssetIds = new Set<string>();
+
+          resolved.forEach((r) => {
+            if (r.type === "text" && r.content) {
+              textAttachmentsMap.set(r.asset.id, r.content);
+            }
+          });
+
+          // 1. 替换占位符 【file::assetId】
+          const placeholderRegex = /【file::([a-zA-Z0-9_-]+)】/g;
+          messageContent = messageContent.replace(
+            placeholderRegex,
+            (match, assetId) => {
+              const textContent = textAttachmentsMap.get(assetId);
+              if (textContent) {
+                claimedAssetIds.add(assetId);
+                return textContent;
+              }
+              return match;
+            }
+          );
+
+          // 2. 追加未被占位符认领的转写内容
+          const unclaimedTexts: string[] = [];
+          resolved.forEach((r) => {
+            if (
+              r.type === "text" &&
+              r.content &&
+              !claimedAssetIds.has(r.asset.id)
+            ) {
+              unclaimedTexts.push(r.content);
+            }
+          });
+
+          if (unclaimedTexts.length > 0) {
+            messageContent += "\n" + unclaimedTexts.join("\n");
+          }
+        } catch (err) {
+          logger.warn("导出会话时解析附件失败", err);
+        }
+      }
+
+      lines.push(messageContent);
       lines.push("");
 
       if (node.metadata?.usage) {
@@ -119,7 +189,7 @@ export function useExportManager() {
         lines.push(`**错误**: ${node.metadata.error}`);
         lines.push("");
       }
-    });
+    }
 
     logger.info("导出会话为 Markdown", { sessionId: index.id });
     return lines.join("\n");
@@ -156,14 +226,14 @@ export function useExportManager() {
       .join("\n");
   };
 
-  const exportBranchAsMarkdown = (
+  const exportBranchAsMarkdown = async (
     index: ChatSessionIndex,
     detail: ChatSessionDetail,
     nodeId: string,
     includePreset: boolean = false,
     presetMessages: ChatMessageNode[] = [],
     options: ExportOptions = {}
-  ): string => {
+  ): Promise<string> => {
     // 设置默认值
     const {
       mergePresetIntoMessages = true,
@@ -334,7 +404,7 @@ export function useExportManager() {
     }
 
     // 添加消息
-    allMessages.forEach((node) => {
+    for (const node of allMessages) {
       const time = node.timestamp
         ? formatDateTime(node.timestamp, "HH:mm:ss")
         : "";
@@ -420,7 +490,65 @@ export function useExportManager() {
       }
 
       // 消息内容
-      lines.push(node.content);
+      let messageContent = node.content;
+      // 解析附件并替换占位符/追加内容
+      if (
+        includeAttachments &&
+        node.attachments &&
+        node.attachments.length > 0
+      ) {
+        try {
+          const resolved = await resolveAttachmentsBatch(
+            node.attachments,
+            node.metadata?.modelId || "",
+            node.metadata?.profileId || "",
+            { force: true, silent: true }
+          );
+
+          const textAttachmentsMap = new Map<string, string>();
+          const claimedAssetIds = new Set<string>();
+
+          resolved.forEach((r) => {
+            if (r.type === "text" && r.content) {
+              textAttachmentsMap.set(r.asset.id, r.content);
+            }
+          });
+
+          // 1. 替换占位符 【file::assetId】
+          const placeholderRegex = /【file::([a-zA-Z0-9_-]+)】/g;
+          messageContent = messageContent.replace(
+            placeholderRegex,
+            (match, assetId) => {
+              const textContent = textAttachmentsMap.get(assetId);
+              if (textContent) {
+                claimedAssetIds.add(assetId);
+                return textContent;
+              }
+              return match;
+            }
+          );
+
+          // 2. 追加未被占位符认领的转写内容
+          const unclaimedTexts: string[] = [];
+          resolved.forEach((r) => {
+            if (
+              r.type === "text" &&
+              r.content &&
+              !claimedAssetIds.has(r.asset.id)
+            ) {
+              unclaimedTexts.push(r.content);
+            }
+          });
+
+          if (unclaimedTexts.length > 0) {
+            messageContent += "\n" + unclaimedTexts.join("\n");
+          }
+        } catch (err) {
+          logger.warn("导出分支时解析附件失败", err);
+        }
+      }
+
+      lines.push(messageContent);
       lines.push("");
 
       // 添加附件信息
@@ -454,7 +582,7 @@ export function useExportManager() {
       // 添加分隔线（在消息之间）
       lines.push("---");
       lines.push("");
-    });
+    }
 
     logger.info("导出分支为 Markdown", {
       sessionId: index.id,
@@ -476,14 +604,14 @@ export function useExportManager() {
    * @param presetMessages 预设消息列表（如果需要包含）
    * @param options 细粒度导出选项
    */
-  const exportBranchAsJson = (
+  const exportBranchAsJson = async (
     index: ChatSessionIndex,
     detail: ChatSessionDetail,
     nodeId: string,
     includePreset: boolean = false,
     presetMessages: ChatMessageNode[] = [],
     options: ExportOptions = {}
-  ): any => {
+  ): Promise<any> => {
     // 设置默认值
     const {
       mergePresetIntoMessages = true,
@@ -718,11 +846,11 @@ export function useExportManager() {
    * @param detail 会话详情
    * @param options 导出选项
    */
-  const exportSessionAsMarkdownTree = (
+  const exportSessionAsMarkdownTree = async (
     index: ChatSessionIndex,
     detail: ChatSessionDetail,
     options: ExportOptions = {}
-  ): string => {
+  ): Promise<string> => {
     // 设置默认值
     const {
       includeUserProfile = true,

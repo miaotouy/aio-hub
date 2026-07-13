@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import type { LlmProfile } from "@/types/llm-profiles";
 import type {
   LlmRequestOptions,
@@ -24,6 +38,7 @@ import {
   buildVertexAiTools,
   buildVertexAiToolConfig,
 } from "./utils";
+import { extractGeminiReasoningArtifacts } from "@/llm-apis/adapters/gemini/reasoning-artifacts";
 import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 
 const logger = createModuleLogger("VertexAiGoogle");
@@ -181,6 +196,7 @@ export async function callVertexAiGemini(
     let finishReason: LlmResponse["finishReason"] = null;
     let toolCalls: LlmResponse["toolCalls"] = undefined;
     let reasoningContent = "";
+    const streamReplayParts: any[] = [];
 
     await parseSSEStream(
       reader,
@@ -204,6 +220,7 @@ export async function callVertexAiGemini(
 
           const parts = json.candidates?.[0]?.content?.parts;
           if (parts && Array.isArray(parts)) {
+            streamReplayParts.push(...parts);
             for (const part of parts) {
               if (part.text) {
                 if (part.thought) {
@@ -251,6 +268,11 @@ export async function callVertexAiGemini(
 
     if (reasoningContent) {
       result.reasoningContent = reasoningContent;
+    }
+    const reasoningArtifacts =
+      extractGeminiReasoningArtifacts(streamReplayParts);
+    if (reasoningArtifacts) {
+      result.reasoningArtifacts = reasoningArtifacts;
     }
 
     return result;
@@ -331,6 +353,12 @@ export async function callVertexAiGemini(
 
   if (reasoningContent) {
     result.reasoningContent = reasoningContent;
+  }
+  const reasoningArtifacts = extractGeminiReasoningArtifacts(
+    candidate.content?.parts
+  );
+  if (reasoningArtifacts) {
+    result.reasoningArtifacts = reasoningArtifacts;
   }
 
   return result;

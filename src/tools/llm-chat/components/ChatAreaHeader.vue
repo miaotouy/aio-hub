@@ -1,8 +1,23 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { onLongPress } from "@vueuse/core";
 import { ElTooltip, ElIcon } from "element-plus";
-import { Settings2, Search, AlertCircle } from "lucide-vue-next";
+import { Settings2, Search, AlertCircle, ChevronDown } from "lucide-vue-next";
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
@@ -10,11 +25,10 @@ import {
   useThemeAppearance,
   getBlendedBackgroundColor,
 } from "@/composables/useThemeAppearance";
-import { createModuleLogger } from "@utils/logger";
 import { useChatSettings } from "../composables/settings/useChatSettings";
 import { useChatAreaContext } from "../composables/useChatAreaContext";
 import ViewModeSwitcher from "./message/ViewModeSwitcher.vue";
-import QuickAgentSwitch from "./agent/selectors/QuickAgentSwitch.vue";
+import QuickAgentSwitch from "@/tools/agent-manager/components/selectors/QuickAgentSwitch.vue";
 
 interface Props {
   containerWidth: number;
@@ -31,7 +45,6 @@ const props = withDefaults(defineProps<Props>(), {
 });
 const emit = defineEmits<Emits>();
 
-const logger = createModuleLogger("ChatAreaHeader");
 const { settings } = useChatSettings();
 useThemeAppearance();
 
@@ -56,43 +69,19 @@ const headerRef = ref<InstanceType<typeof ComponentHeader>>();
 const agentInfoRef = ref<HTMLElement | null>(null);
 const isAgentSwitchVisible = ref(false);
 const agentSwitchPosition = ref({ x: 0, y: 0 });
-const isLongPressConsumed = ref(false);
-
-onLongPress(
-  agentInfoRef,
-  (e) => {
-    logger.info("长按触发智能体快捷切换菜单");
-    isLongPressConsumed.value = true;
-
-    const rect = agentInfoRef.value?.getBoundingClientRect();
-    if (rect) {
-      agentSwitchPosition.value = {
-        x: rect.left,
-        y: rect.bottom + 8,
-      };
-    } else if (e instanceof MouseEvent) {
-      agentSwitchPosition.value = { x: e.clientX, y: e.clientY };
-    }
-
-    isAgentSwitchVisible.value = true;
-  },
-  { delay: 500 }
-);
-
-const handleAgentInfoMouseDown = () => {
-  isLongPressConsumed.value = false;
-};
 
 const handleAgentInfoClick = (e: MouseEvent) => {
-  if (isLongPressConsumed.value) {
-    logger.info("拦截长按后的松手点击事件");
-    isLongPressConsumed.value = false;
-    e.preventDefault();
-    e.stopPropagation();
-    e.stopImmediatePropagation();
-    return;
+  const rect = agentInfoRef.value?.getBoundingClientRect();
+  if (rect) {
+    agentSwitchPosition.value = {
+      x: rect.left,
+      y: rect.bottom + 8,
+    };
+  } else {
+    agentSwitchPosition.value = { x: e.clientX, y: e.clientY };
   }
-  handleEditAgent();
+
+  isAgentSwitchVisible.value = true;
 };
 
 const handleAgentSwitchSelect = async (agentId: string) => {
@@ -140,13 +129,12 @@ defineExpose({ headerRef });
     <div class="agent-model-info">
       <el-tooltip
         v-if="currentAgent"
-        content="点击编辑 / 长按快捷切换"
+        content="点击切换当前绑定的智能体"
         placement="bottom"
       >
         <div
           ref="agentInfoRef"
           class="agent-info clickable"
-          @mousedown="handleAgentInfoMouseDown"
           @click.capture="handleAgentInfoClick"
           @contextmenu.prevent
         >
@@ -160,6 +148,9 @@ defineExpose({ headerRef });
           <span v-if="showAgentName" class="agent-name">
             {{ currentAgent.displayName || currentAgent.name }}
           </span>
+          <el-icon class="dropdown-icon" :size="12">
+            <ChevronDown />
+          </el-icon>
         </div>
       </el-tooltip>
 
@@ -170,6 +161,12 @@ defineExpose({ headerRef });
         :current-agent-id="currentAgent.id"
         :position="agentSwitchPosition"
         @select="handleAgentSwitchSelect"
+        @edit="
+          () => {
+            isAgentSwitchVisible = false;
+            handleEditAgent();
+          }
+        "
         @close="isAgentSwitchVisible = false"
       />
 
@@ -380,9 +377,21 @@ defineExpose({ headerRef });
   transform: translateY(0);
 }
 
+.dropdown-icon {
+  color: var(--text-color-secondary);
+  opacity: 0.5;
+  transition: all 0.2s ease;
+  margin-left: -2px;
+}
+
+.agent-info:hover .dropdown-icon {
+  opacity: 1;
+  color: var(--primary-color);
+  transform: translateY(1px);
+}
+
 .agent-name,
 .profile-name {
-  flex: 1;
   min-width: 0;
   font-size: 14px;
   font-weight: 500;

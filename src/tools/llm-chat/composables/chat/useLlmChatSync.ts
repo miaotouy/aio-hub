@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 /**
  * LLM Chat 状态同步 Composable
  *
@@ -5,9 +19,9 @@
  */
 import { toRef, type Ref, watch, computed, onUnmounted } from "vue";
 import { useLlmChatStore } from "../../stores/llmChatStore";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
-import { useWorldbookStore } from "../../stores/worldbookStore";
+import { useWorldbookStore } from "@/tools/st-worldbook-manager/stores/worldbookStore";
 import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useLlmChatUiState } from "../ui/useLlmChatUiState";
 import { useChatSettings } from "../settings/useChatSettings";
@@ -290,30 +304,47 @@ export function useLlmChatSync() {
   const handleActionRequest = (action: string, params: any): Promise<any> => {
     logger.info("收到操作请求", { action, params });
     switch (action) {
-      case "send-message":
-        return store.sendMessage(params.content, params.options);
+      case "send-message": {
+        const options = params.options ?? {
+          attachments: params.attachments,
+          temporaryModel: params.temporaryModel,
+          parentId: params.parentId,
+          disableMacroParsing: params.disableMacroParsing,
+          agentId: params.agentId,
+          sessionId: params.sessionId,
+        };
+        return store.sendMessage(params.content, options);
+      }
       case "abort-sending":
-        store.abortSending();
+        store.abortSending(params.sessionId);
         return Promise.resolve();
       case "regenerate-from-node":
-        return store.regenerateFromNode(params.nodeId, params.options);
+        return store.regenerateFromNode(params.nodeId || params.messageId, {
+          ...params.options,
+          sessionId: params.options?.sessionId || params.sessionId,
+        });
       case "delete-message":
-        return (store as any).deleteMessage(params.messageId);
+        return (store as any).deleteMessage(params.messageId, params.sessionId);
       case "switch-sibling":
         return (store as any).switchToSiblingBranch(
           params.nodeId,
-          params.direction
+          params.direction,
+          params.sessionId
         );
       case "toggle-enabled":
-        return (store as any).toggleNodeEnabled(params.nodeId);
+        return (store as any).toggleNodeEnabled(
+          params.nodeId,
+          params.sessionId
+        );
       case "edit-message":
         return (store as any).editMessage(
           params.nodeId,
           params.newContent,
-          params.attachments
+          params.attachments,
+          params.sessionId
         );
       case "create-branch":
-        return (store as any).createBranch(params.nodeId);
+        return (store as any).createBranch(params.nodeId, params.sessionId);
       case "abort-node":
         store.abortNodeGeneration(params.nodeId);
         return Promise.resolve();
@@ -377,9 +408,12 @@ export function useLlmChatSync() {
             return sessionId;
           });
       case "select-agent":
-        return (agentStore as any).selectAgent(params.agentId, params.options);
+        return useLlmChatUiState().selectAgent(params.agentId, params.options);
       case "complete-input":
-        return (store as any).completeInput(params.content, params.options);
+        return (store as any).completeInput(params.content, {
+          ...params.options,
+          sessionId: params.options?.sessionId || params.sessionId,
+        });
       case "analyze-context":
         store.contextAnalyzerNodeId = params.nodeId;
         store.contextAnalyzerVisible = true;

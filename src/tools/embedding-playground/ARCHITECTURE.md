@@ -2,13 +2,14 @@
 
 ## 1. 概述
 
-`Embedding 测试场` 是一个专为开发者设计的交互式工具，用于调试、评估和验证 LLM Embedding API。它解决了向量化模型在实际应用（如 RAG）中的“黑盒”问题，通过直观的对比和模拟环境，帮助开发者选择最适合其业务场景的模型和算法。
+`Embedding 测试场` 是一个面向开发者的 Embedding 调试、评估与 RAG 阈值校准工具。它提供从极简 A/B 相似度对比，到 1:N 排行、多模型横向评估、检索模拟和原始向量调试的完整工作流。
 
 ### 核心价值
 
-- **透明化**: 直观查看原始向量数据及其维度。
-- **效率**: 内置增量缓存机制，大幅降低重复测试的 API 成本和耗时。
-- **原型验证**: 无需编写代码即可快速验证 RAG 召回效果。
+- **直观对比**：支持两个文本直接出分，也支持批量 1:N 语义排行。
+- **多模型评估**：通过打分矩阵、排序一致性和阈值校准辅助 RAG 模型迁移。
+- **透明调试**：可查看原始向量响应、维度、耗时和 Token 统计。
+- **低成本复测**：按模型隔离的增量缓存减少重复 Embedding API 调用。
 
 ---
 
@@ -17,120 +18,150 @@
 ```text
 embedding-playground/
 ├── components/
-│   ├── SimilarityArena.vue       # [核心] 语义相似度对比面板
-│   ├── RetrievalSimulator.vue    # [核心] 检索模拟面板（RAG 原型）
-│   └── RawDebugger.vue           # [工具] 基础向量化调试面板
+│   ├── EmbeddingModelPicker.vue  # Embedding 模型单选/多选控件
+│   ├── QuickCompare.vue          # 极简 A vs B 对比
+│   ├── SimilarityArena.vue       # 单模型 1:N 语义排行
+│   ├── MultiModelArena.vue       # 多模型竞技场与阈值校准
+│   ├── RetrievalSimulator.vue    # RAG 检索模拟
+│   └── RawDebugger.vue           # 原始向量化调试
 ├── composables/
+│   ├── useEmbeddingCache.ts      # 按模型隔离的增量缓存与请求封装
+│   ├── useEmbeddingModelOptions.ts # Embedding 模型筛选与 combo 解析
 │   ├── useEmbeddingRunner.ts     # API 调用封装与执行统计
-│   └── useVectorMath.ts          # 向量数学工具集（相似度与距离算法）
-├── store.ts                      # Pinia Store（持久化与共享状态管理）
-├── EmbeddingPlayground.vue       # 主入口组件（布局与导航控制）
-├── embeddingPlayground.registry.ts # 工具注册信息
-└── ARCHITECTURE.md               # 本文档
+│   └── useVectorMath.ts          # 向量数学工具集
+├── store.ts                      # Pinia Store，共享文本与各模式独立模型状态
+├── EmbeddingPlayground.vue       # 主入口，负责 5 标签页导航
+├── embedding-playground.registry.ts
+└── ARCHITECTURE.md
 ```
 
 ---
 
-## 3. 技术实现细节
+## 3. 五大模式
 
-### 3.1 向量数学引擎 (`useVectorMath.ts`)
+### 3.1 极简 A vs B (`QuickCompare.vue`)
 
-支持四种主流的向量空间计算方法：
+- 输入文本 A 与文本 B，直接计算相似度。
+- 支持单模型仪表盘展示，也支持多模型并排卡片对比。
+- 复用 `anchorText` 和 `comparisonTexts[0]`，方便用户把 A/B 样本切到其他模式继续分析。
 
-- **余弦相似度 (Cosine)**: 关注向量方向，忽略绝对模长，最常用的语义相似度指标。
-- **点积 (Dot Product)**: 衡量向量在同一方向上的累积效应，适用于已归一化的向量。
-- **欧氏距离 (Euclidean)**: 计算空间绝对距离（L2 范数）。
-- **曼哈顿距离 (Manhattan)**: 计算坐标轴距离之和（L1 范数）。
+### 3.2 1:N 语义排行 (`SimilarityArena.vue`)
 
-> **直觉优化**: 为了统一 UI 表现，距离类算法（越小越优）在展示前会通过 `1 / (1 + d)` 转换为 `[0, 1]` 范围的相似度分数（越大越优）。
+- 单模型模式，内部维护 `similarityProfile` / `similarityModelId`。
+- 通过 `useEmbeddingCache` 只请求未命中的文本向量。
+- 算法变化时基于已有向量重算分数，不重复请求 API。
 
-### 3.2 智能缓存策略
+### 3.3 多模型竞技场 (`MultiModelArena.vue`)
 
-在 `SimilarityArena.vue` 中实现了二级缓存机制：
+- 多选模型并行评估同一组 Anchor 与对比文本。
+- 输出打分矩阵 Heatmap，用于观察不同模型的绝对分数分布。
+- 输出各模型 Top 排序，用于观察召回顺序是否稳定。
+- 阈值校准器使用百分位数对齐，将基准模型阈值映射为其他模型的推荐阈值。
 
-1. **模型隔离**: 缓存按 `modelId` 进行物理隔离，防止不同模型间的向量混用。
-2. **增量请求**:
-   - 每次对比时，系统会自动对比“当前文本组”与“缓存池”。
-   - 仅对未命中的文本发起 API 请求。
-   - 请求成功后自动合并新旧向量，确保响应速度随使用次数增加而提升。
+### 3.4 检索模拟 (`RetrievalSimulator.vue`)
 
-### 3.3 布局设计规范
+- 内部维护 `retrievalProfile` / `retrievalModelId`。
+- 文档向量化使用 `RETRIEVAL_DOCUMENT`，查询向量化使用 `RETRIEVAL_QUERY`。
+- 切换模型时会清空旧文档向量和查询缓存，避免跨模型 embedding 混用。
+- Top-K 与相似度阈值都会参与结果过滤。
 
-采用 **“左配置、右结果”** 的非对称双栏布局：
+### 3.5 基础调试 (`RawDebugger.vue`)
 
-- **左侧 (Fixed 400px)**: 包含模型微调参数、输入编辑器、算法切换。
-- **右侧 (Flex 1)**: 动态排行列表、可视化分数条、JSON 预览。
-- **毛玻璃效果**: 深度集成项目 `theme-appearance` 系统，背景支持 `var(--ui-blur)` 适配。
-
----
-
-## 4. 三大核心功能模块
-
-### 4.1 相似度对比 (SimilarityArena)
-
-- **场景**: 验证模型对近义词、相关概念的区分能力。
-- **特性**:
-  - 支持 1:N 批量对比。
-  - 结果实时排行，根据分数自动切换颜色编码（绿/黄/红）。
-  - 支持一键导出对比报告至剪贴板。
-
-### 4.2 检索模拟 (RetrievalSimulator)
-
-- **场景**: 模拟 RAG 系统的 `Retrieval` 阶段。
-- **工作流**:
-  1. **构建索引**: 手动添加文档片段，执行“一键向量化”。
-  2. **查询召回**: 输入 Query，系统自动将其向量化并与本地文档库进行 Top-K 检索。
-  3. **阈值过滤**: 支持滑动调整相似度阈值，过滤低相关度结果。
-
-### 4.3 基础调试 (RawDebugger)
-
-- **场景**: 接入新模型时的协议对接与性能测试。
-- **特性**:
-  - **自定义维度**: 支持 OpenAI `text-embedding-3` 等模型的可变维度参数。
-  - **向量预览**: 自动提取向量首尾数值，快速感知数值分布。
-  - **统计**: 实时显示 Tokens 消耗与网络耗时。
+- 内部维护 `rawProfile` / `rawModelId`。
+- 支持自定义维度参数。
+- 展示向量首尾预览、完整 JSON、维度、耗时和 Token 统计。
 
 ---
 
-## 5. 数据流图
+## 4. Store 设计
+
+`store.ts` 不再维护全局 `selectedProfile` / `selectedModelId`。模型选择状态按模式拆分，避免切换标签页时互相覆盖：
+
+- `quickCompareProfile` / `quickCompareModelId` / `quickCompareCombos`
+- `similarityProfile` / `similarityModelId`
+- `multiArenaCombos`
+- `retrievalProfile` / `retrievalModelId`
+- `rawProfile` / `rawModelId`
+
+共享数据仍保留在 Store 中，包括 `anchorText`、`comparisonTexts`、`rawInput`、`searchQuery`、`similarityAlgorithm` 和检索知识库。
+
+---
+
+## 5. 计算与缓存
+
+### 5.1 向量数学 (`useVectorMath.ts`)
+
+支持四种算法：
+
+- 余弦相似度
+- 点积
+- 欧氏距离
+- 曼哈顿距离
+
+距离类算法会通过 `1 / (1 + d)` 转换为“数值越大越相似”的展示分数。
+
+### 5.2 增量缓存 (`useEmbeddingCache.ts`)
+
+缓存结构为：
+
+```text
+Map<ModelCombo, Map<TextContent, EmbeddingVector>>
+```
+
+执行流程：
+
+1. 根据模型 combo 获取独立缓存池。
+2. 对当前文本去重并检查缓存命中。
+3. 仅对未缓存文本调用 `callEmbeddingApi`。
+4. 请求成功后写入缓存。
+5. 按原始文本顺序组装向量结果返回给组件。
+
+---
+
+## 6. 数据流
 
 ```mermaid
 graph TD
     User[用户操作] --> TabSelect{选择模式}
 
-    subgraph "计算层 (Composables)"
+    subgraph UI[模式组件]
+        Quick[QuickCompare]
+        Sim[SimilarityArena]
+        Multi[MultiModelArena]
+        Retrieval[RetrievalSimulator]
+        Raw[RawDebugger]
+    end
+
+    subgraph Support[共享能力]
+        Picker[EmbeddingModelPicker]
+        Options[useEmbeddingModelOptions]
+        Cache[useEmbeddingCache]
         Runner[useEmbeddingRunner]
         Math[useVectorMath]
-    end
-
-    subgraph "存储层 (Store & Cache)"
         Store[Pinia Store]
-        Cache[(Local Embedding Cache)]
     end
 
-    TabSelect -- 相似度/检索 --> Prepare[准备文本组]
-    Prepare --> CheckCache{命中缓存?}
-    CheckCache -- 否 --> Runner --> API[LLM 后端 API]
-    API --> UpdateCache[更新缓存]
-    CheckCache -- 是 --> Math
-    UpdateCache --> Math
-    Math --> UI[渲染排行列表/命中结果]
+    TabSelect --> Quick
+    TabSelect --> Sim
+    TabSelect --> Multi
+    TabSelect --> Retrieval
+    TabSelect --> Raw
 
-    TabSelect -- 基础调试 --> Runner --> UI_JSON[渲染原始响应 JSON]
+    Quick --> Picker
+    Sim --> Picker
+    Multi --> Picker
+    Retrieval --> Picker
+    Raw --> Picker
+    Picker --> Options
+
+    Quick --> Cache --> Math
+    Sim --> Cache --> Math
+    Multi --> Cache --> Math
+    Retrieval --> Runner --> Math
+    Raw --> Runner
+    Store --> Quick
+    Store --> Sim
+    Store --> Multi
+    Store --> Retrieval
+    Store --> Raw
 ```
-
----
-
-## 6. 依赖项说明
-
-- **`@/llm-apis/embedding`**: 统一的 API 适配层，处理不同供应商的协议差异。
-- **`RichCodeEditor`**: 提供 Markdown 输入和 JSON 结果的高亮显示。
-- **`BaseDialog`**: 用于知识库片段的精细化编辑的弹窗。
-- **`lucide-vue-next`**: 提供语义化的图标支持。
-
----
-
-## 7. 后续演进方向
-
-- [ ] 增加可视化向量空间分布图
-- [ ] 支持 Rerank 模型的集成对比。

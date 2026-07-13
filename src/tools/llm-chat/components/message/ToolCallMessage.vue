@@ -1,4 +1,21 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <script setup lang="ts">
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import {
   computed,
   ref,
@@ -33,7 +50,7 @@ import {
   Eye,
 } from "lucide-vue-next";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
@@ -369,9 +386,11 @@ const formattedTime = computed(() => {
   });
 });
 
+const { currentAgentId } = useLlmChatUiState();
+
 const currentAgent = computed(() => {
   const agentId =
-    props.message.metadata?.agentId ?? agentStore.currentAgentId ?? undefined;
+    props.message.metadata?.agentId ?? currentAgentId.value ?? undefined;
   return agentId ? agentStore.getAgentById(agentId) : undefined;
 });
 
@@ -449,7 +468,7 @@ const displayContent = computed(() =>
 
 const activeRules = computed(() => {
   const agentId =
-    props.message.metadata?.agentId ?? agentStore.currentAgentId ?? undefined;
+    props.message.metadata?.agentId ?? currentAgentId.value ?? undefined;
   const userProfileId =
     props.message.metadata?.userProfileId ??
     userProfileStore.globalProfileId ??

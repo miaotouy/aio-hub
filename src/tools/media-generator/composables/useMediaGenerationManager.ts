@@ -1,8 +1,23 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import { ref, computed } from "vue";
 import { v4 as uuidv4 } from "uuid";
 import { findLastIndex } from "lodash-es";
 import { invoke } from "@tauri-apps/api/core";
 import { writeTextFile, mkdir } from "@tauri-apps/plugin-fs";
+import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import { useMediaTaskManager } from "./useMediaTaskManager";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useAssetManager } from "@/composables/useAssetManager";
@@ -10,7 +25,7 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useMediaGenParamRules } from "./useMediaGenParamRules";
 import { convertArrayBufferToBase64 } from "@/utils/base64";
 import { getImageDimensions, resizeImage } from "@/utils/imageProcessor";
-import { DEFAULT_MEDIA_TIMEOUT } from "@/llm-apis/common";
+import { DEFAULT_MEDIA_TIMEOUT, fetchWithTimeout } from "@/llm-apis/common";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { embedMetadata } from "@/utils/mediaMetadataManager";
@@ -140,8 +155,7 @@ export function useMediaGenerationManager() {
 
   const collectSingleTurnReferenceAssets = (
     contextMessages: MediaMessage[],
-    task: MediaTask,
-    autoIncludeLastResult: boolean
+    task: MediaTask
   ): Asset[] => {
     const { model } = resolveModelSelection(
       task.input.profileId,
@@ -160,7 +174,8 @@ export function useMediaGenerationManager() {
       );
     }
 
-    if (!autoIncludeLastResult) return [];
+    // 如果用户关闭了参考上一轮，绝对不自动带入
+    if (!task.input.includeContext) return [];
 
     const lastUserIndex = findLastIndex(
       contextMessages,
@@ -334,8 +349,7 @@ export function useMediaGenerationManager() {
    */
   const applyContextRules = (
     contextMessages: MediaMessage[],
-    task: MediaTask,
-    autoIncludeLastResult: boolean = false
+    task: MediaTask
   ): MediaMessage[] => {
     let finalContext = [...contextMessages];
     const shouldIncludeContext = task.input.includeContext;
@@ -352,32 +366,7 @@ export function useMediaGenerationManager() {
         (m: MediaMessage) => m.role === "user"
       );
       if (lastUserIndex !== -1) {
-        const lastUser = finalContext[lastUserIndex];
-        const { model } = resolveModelSelection(
-          task.input.profileId,
-          task.input.modelId
-        );
-        const hasVisualInput = supportsReferenceInput(task, model);
-
-        if (autoIncludeLastResult && hasVisualInput && lastUserIndex > 0) {
-          const prevAssistant = finalContext[lastUserIndex - 1];
-          if (prevAssistant.role === "assistant") {
-            const resultAssets = getMessageResultAssets(prevAssistant);
-            if (resultAssets.length > 0) {
-              const augmentedUser = {
-                ...lastUser,
-                attachments: [...(lastUser.attachments || []), ...resultAssets],
-              };
-              finalContext = [augmentedUser];
-            } else {
-              finalContext = [lastUser];
-            }
-          } else {
-            finalContext = [lastUser];
-          }
-        } else {
-          finalContext = [lastUser];
-        }
+        finalContext = [finalContext[lastUserIndex]];
       }
     }
     return finalContext;
@@ -440,11 +429,7 @@ export function useMediaGenerationManager() {
         );
 
         if (canUseConversationContext) {
-          finalContext = applyContextRules(
-            filteredContext,
-            task,
-            config?.autoIncludeLastResult
-          );
+          finalContext = applyContextRules(filteredContext, task);
         } else if (task.input.includeContext) {
           logger.debug("当前生成端点不支持多轮上下文，已降级为单轮请求", {
             profileType: selectedProfile?.type,
@@ -455,11 +440,7 @@ export function useMediaGenerationManager() {
 
       const singleTurnReferenceAttachments = canUseConversationContext
         ? undefined
-        : (collectSingleTurnReferenceAssets(
-            filteredContext,
-            task,
-            config?.autoIncludeLastResult === true
-          )
+        : (collectSingleTurnReferenceAssets(filteredContext, task)
             .map((asset) => assetToInputAttachment(asset))
             .filter(Boolean) as MediaGenerationOptions["inputAttachments"]);
 
@@ -810,8 +791,17 @@ export function useMediaGenerationManager() {
         } else if (itemType === "video") {
           mimeType = "video/mp4";
           extension = "mp4";
-          if (item.url) {
-            bytes = await fetchAsArrayBuffer(item.url);
+          if (mediaItem.b64_json) {
+            bytes = decodeBase64ToArrayBuffer(mediaItem.b64_json);
+          } else if (mediaItem.url) {
+            const dataUrlMatch = parseDataUrl(mediaItem.url);
+            if (dataUrlMatch) {
+              if (dataUrlMatch.mimeType) mimeType = dataUrlMatch.mimeType;
+              extension = mimeTypeToExtension(mimeType, "mp4");
+              bytes = decodeBase64ToArrayBuffer(dataUrlMatch.base64);
+            } else {
+              bytes = await fetchAsArrayBuffer(mediaItem.url);
+            }
           }
         } else if (itemType === "audio") {
           const audioFormat = String(mediaItem.format || "mp3").toLowerCase();
@@ -911,6 +901,8 @@ export function useMediaGenerationManager() {
         taskId,
         count: resultAssets.length,
       });
+    } else {
+      throw new Error("生成已返回媒体结果，但所有媒体文件入库失败");
     }
   };
 
@@ -981,6 +973,10 @@ export function useMediaGenerationManager() {
       "image/gif": "gif",
       "image/svg+xml": "svg",
       "video/mp4": "mp4",
+      "video/mpeg": "mpeg",
+      "video/quicktime": "mov",
+      "video/webm": "webm",
+      "video/x-msvideo": "avi",
       "audio/mpeg": "mp3",
       "audio/mp3": "mp3",
       "audio/wav": "wav",
@@ -1139,11 +1135,46 @@ export function useMediaGenerationManager() {
     ) {
       const { convertFileSrc } = await import("@tauri-apps/api/core");
       const response = await fetch(convertFileSrc(url));
+      if (!response.ok) {
+        throw new Error(
+          `读取本地媒体失败：${response.status} ${response.statusText}`
+        );
+      }
       return await response.arrayBuffer();
     }
 
-    // 处理远程 URL
-    const response = await fetch(url);
+    const remoteUrl = normalizeRemoteMediaUrl(url);
+    let response: Response;
+
+    try {
+      // 处理远程 URL。走 Tauri HTTP 插件，绕开 WebView CORS 限制。
+      response = await tauriFetch(remoteUrl, {
+        method: "GET",
+        connectTimeout: 30000,
+      });
+    } catch (error) {
+      logger.warn("Tauri HTTP 下载远程媒体失败，改用代理下载", {
+        error: String(error),
+        url: summarizeUrlForLog(remoteUrl),
+      });
+      response = await fetchWithTimeout(
+        remoteUrl,
+        {
+          method: "GET",
+          headers: { Accept: "*/*" },
+          forceProxy: true,
+          relaxIdCerts: true,
+          http1Only: true,
+        },
+        DEFAULT_MEDIA_TIMEOUT
+      );
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        `下载远程媒体失败：${response.status} ${response.statusText}`
+      );
+    }
     return await response.arrayBuffer();
   }
 
@@ -1157,4 +1188,21 @@ export function useMediaGenerationManager() {
     abortTask,
     abortAll,
   };
+}
+
+function normalizeRemoteMediaUrl(url: string): string {
+  try {
+    return new URL(url).toString();
+  } catch {
+    return encodeURI(url);
+  }
+}
+
+function summarizeUrlForLog(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return url.slice(0, 120);
+  }
 }

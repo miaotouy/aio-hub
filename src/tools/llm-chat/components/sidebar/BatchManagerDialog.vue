@@ -1,3 +1,19 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <template>
   <BaseDialog
     v-model="localVisible"
@@ -130,11 +146,10 @@
                       )
                     "
                     :src="
-                      resolveAvatarPath(
+                      resolveAgentAvatarPath(
                         getSessionDisplayAgent(
                           filteredSessions[virtualItem.index]
-                        ),
-                        'agent'
+                        )
                       ) || ''
                     "
                     :alt="getAgentName(filteredSessions[virtualItem.index])"
@@ -237,8 +252,8 @@ import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { formatDateTime } from "@/utils/time";
 import type { ChatSessionIndex } from "../../types";
-import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
-import { useAgentStore } from "../../stores/agentStore";
+import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import {
   exportSessionsAsZip,

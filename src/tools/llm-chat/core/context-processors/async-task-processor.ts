@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 /**
  * 异步任务上下文处理器
  *
@@ -11,6 +25,7 @@ import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import { useAsyncTaskStore } from "@/tools/tool-calling/stores/asyncTaskStore";
 import { extractTaskId } from "@/tools/tool-calling/core/utils/task-id-extractor";
 import { createModuleLogger } from "@/utils/logger";
+import { getActivePinia } from "pinia";
 
 const logger = createModuleLogger("llm-chat/async-task-processor");
 
@@ -130,6 +145,12 @@ export const asyncTaskProcessor: ContextProcessor = {
   defaultEnabled: true,
 
   execute: async (context: PipelineContext) => {
+    // 检查是否有活跃的 Pinia 实例，支持非 UI 环境下的安全降级
+    if (!getActivePinia()) {
+      logger.debug("未检测到活跃的 Pinia 实例，跳过异步任务状态注入");
+      return;
+    }
+
     const asyncTaskStore = useAsyncTaskStore();
 
     // 如果 Store 未初始化，跳过处理

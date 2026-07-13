@@ -1,3 +1,19 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
+import type { LlmMessage, LlmReasoningArtifact } from "@/llm-apis/common";
 import type {
   ChatSessionDetail,
   ChatMessageNode,
@@ -7,7 +23,6 @@ import type {
   ChatSessionIndex,
 } from "../../types";
 import type { Asset } from "@/types/asset-management";
-import { useAgentStore } from "../../stores/agentStore";
 import { useChatSettings } from "../settings/useChatSettings";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useLlmRequest } from "@/composables/useLlmRequest";
@@ -48,10 +63,13 @@ export interface SingleNodeExecuteResult {
   /** LLM 返回的原始响应 */
   response: any;
   /** 实际发送给 LLM 的消息列表 */
-  messagesForRequest: Array<{ role: string; content: any; prefix?: boolean }>;
+  messagesForRequest: Array<
+    LlmMessage & { role: any; reasoningArtifacts?: LlmReasoningArtifact[] }
+  >;
 }
 
 export function useSingleNodeExecutor() {
+  const { currentAgentId } = useLlmChatUiState();
   const { handleStreamUpdate, validateAndFixUsage, finalizeNode } =
     useChatResponseHandler();
   const { checkAndCompress } = useContextCompressor();
@@ -76,7 +94,6 @@ export function useSingleNodeExecutor() {
     } = params;
 
     const { settings } = useChatSettings();
-    const agentStore = useAgentStore();
     const chatStore = useLlmChatStore();
 
     // 1. 准备参数
@@ -137,7 +154,9 @@ export function useSingleNodeExecutor() {
     // 预加载世界书
     const worldbookStore = import.meta.env.SSR
       ? null
-      : (await import("../../stores/worldbookStore")).useWorldbookStore();
+      : (
+          await import("@/tools/st-worldbook-manager/stores/worldbookStore")
+        ).useWorldbookStore();
     const allWorldbookIds = Array.from(
       new Set([
         ...(settings.value.worldbookIds || []),
@@ -218,6 +237,7 @@ export function useSingleNodeExecutor() {
         role: msg.role as any,
         content: msg.content,
         reasoningContent: msg.reasoningContent,
+        reasoningArtifacts: msg.reasoningArtifacts,
         prefix: isContinuation && isLast ? true : undefined,
       };
     });
@@ -281,16 +301,42 @@ export function useSingleNodeExecutor() {
           (("code" in error && (error as any).code === 400) ||
             ("status" in error &&
               (error as any).status === "INVALID_ARGUMENT"));
+
+        // 识别 429 (限流) 错误
+        const isRateLimit =
+          error &&
+          typeof error === "object" &&
+          (("code" in error && (error as any).code === 429) ||
+            ("status" in error && (error as any).status === 429) ||
+            (error instanceof Error &&
+              /429|too many requests|rate limit/i.test(error.message)));
+
         const shouldRetry =
           !isAbort &&
           !isBadRequest &&
           !hasReceivedStreamData &&
           attempt < maxRetries;
+
         if (shouldRetry) {
-          const delayTime =
+          let delayTime =
             retryMode === "exponential"
               ? retryInterval * Math.pow(2, attempt)
               : retryInterval;
+
+          // 如果是限流错误，追加 5000ms 惩罚性等待
+          if (isRateLimit) {
+            delayTime += 5000;
+            logger.warn(
+              `⚠️ 遭遇 429 限流，将进行惩罚性等待 ${delayTime}ms 后重试...`,
+              { attempt: attempt + 1, error }
+            );
+          } else {
+            logger.info(`请求失败，准备进行第 ${attempt + 1} 次重试...`, {
+              delayTime,
+              error,
+            });
+          }
+
           await new Promise((resolve) => setTimeout(resolve, delayTime));
           continue;
         }
@@ -308,7 +354,7 @@ export function useSingleNodeExecutor() {
         session,
         assistantNode.id,
         response,
-        agentStore.currentAgentId || ""
+        currentAgentId.value || ""
       );
 
       try {

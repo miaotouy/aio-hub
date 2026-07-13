@@ -1,6 +1,21 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // 模块声明
 mod commands;
 mod events;
+mod frontend_monitor;
 mod knowledge;
 mod tray;
 mod utils;
@@ -245,7 +260,9 @@ pub fn run() {
         .manage(Arc::new(CancellationToken::new()))
         .manage(knowledge::KnowledgeState::new())
         .manage(commands::system_pulse::PulseState::default())
-        .manage(SidecarPluginManager::default());
+        .manage(SidecarPluginManager::default())
+        .manage(frontend_monitor::FrontendMonitorState::default())
+        .on_page_load(frontend_monitor::record_page_load);
 
     // 注册命令处理器
     let builder = commands::register_commands(builder);
@@ -350,6 +367,7 @@ pub fn run() {
             }
 
             let main_window = win_builder.build()?;
+            frontend_monitor::start_frontend_monitor(app.app_handle().clone());
 
             // 如果有保存的配置，用物理坐标精确设置位置（窗口仍隐藏，由前端 show）
             if let Some(ref config) = main_window_config {

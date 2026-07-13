@@ -119,3 +119,19 @@
 ### 3.7 `enabledParameters` 智能初始化
 
 首次加载或外部 `modelValue` 变化时，[`initLocalParams()`](../../components/agent/parameters/ModelParametersEditor.vue:83) 会检测 `enabledParameters` 字段——不存在则取所有"已有非 undefined 值且不属于 custom"的 key 自动构造白名单，兼容旧版未带白名单的 Agent 配置，避免在升级后误把已设值的参数置为"未启用"。
+
+## 4. 推理状态精确回放 (Reasoning Artifacts)
+
+针对 DeepSeek、Gemini 和 OpenAI Responses 等提供商专属的推理状态，系统引入了统一的推理状态回放机制：
+
+- **数据与展示分离**: 引入 `LlmReasoningArtifact` 类型，将不透明的 API 推理状态（如 Gemini 的 `thought` 签名 parts、OpenAI 的 `response.output`）与用于前端展示的 `reasoningContent` 文本分离。
+- **精确回放**: 在多轮对话或工具调用时，上下文处理器会保护 `reasoningArtifacts` 不被合并、转换或截断，确保其能被原样回传给 API。
+- **安全降级**: 当触发 Token 限制或上下文压缩导致 artifact 被迫丢弃时，系统会记录警告并向用户展示对应的丢弃状态提示。
+
+## 5. 空回复诊断系统 (Empty Response Diagnostics)
+
+当 LLM API 响应成功但未返回任何可见文本时，系统通过 `emptyResponseDiagnostics` 模块进行启发式扫描与诊断：
+
+- **启发式扫描**: 递归扫描响应对象，过滤掉已知的元数据字段（如 ID、模型、结束原因等），寻找隐藏的非空 string 字段、未展示的工具调用或拒绝字段。
+- **元数据存储**: 诊断出的异常信息存储在消息节点的元数据（`metadata.emptyResponseDiagnostics`）中，避免污染后续的 LLM 对话上下文。
+- **UI 友好展示**: 在消息元数据区域直观展示诊断报告，并提供一键复制功能，方便用户排查 API 异常。

@@ -1,13 +1,23 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <script setup lang="ts">
-import {
-  onMounted,
-  computed,
-  ref,
-  onUnmounted,
-  defineAsyncComponent,
-} from "vue";
+import { onMounted, computed, ref, watch, defineAsyncComponent } from "vue";
 import { useLlmChatStore } from "./stores/llmChatStore";
-import { useAgentStore } from "./stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "./stores/userProfileStore";
 import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
@@ -61,75 +71,35 @@ logger.info("LlmChat 窗口类型", {
 // 该 Composable 现在会自动管理其生命周期，无需手动初始化
 useLlmChatSync();
 
+import { useResizable } from "@/composables/useResizable";
+
 // UI状态持久化
 const {
   isLeftSidebarCollapsed,
   isRightSidebarCollapsed,
   leftSidebarWidth,
   rightSidebarWidth,
+  currentAgentId: uiCurrentAgentId,
   loadUiState,
   startWatching,
 } = useLlmChatUiState();
 
-// 拖拽状态
-const isDraggingLeft = ref(false);
-const isDraggingRight = ref(false);
+// ===== 侧边栏拖拽调整宽度 =====
+const { isResizing: isDraggingLeft, startResize: handleLeftDragStart } =
+  useResizable({
+    size: leftSidebarWidth,
+    minSize: 200,
+    maxSize: 600,
+    direction: "left",
+  });
 
-// 拖拽初始状态
-const dragStartX = ref(0);
-const dragStartWidth = ref(0);
-
-// 拖拽处理
-const handleLeftDragStart = (e: MouseEvent) => {
-  isDraggingLeft.value = true;
-  dragStartX.value = e.clientX;
-  dragStartWidth.value = leftSidebarWidth.value;
-  e.preventDefault();
-  document.body.style.cursor = "col-resize";
-  document.body.style.userSelect = "none";
-};
-
-const handleRightDragStart = (e: MouseEvent) => {
-  isDraggingRight.value = true;
-  dragStartX.value = e.clientX;
-  dragStartWidth.value = rightSidebarWidth.value;
-  e.preventDefault();
-  document.body.style.cursor = "col-resize";
-  document.body.style.userSelect = "none";
-};
-
-const handleMouseMove = (e: MouseEvent) => {
-  if (isDraggingLeft.value) {
-    const delta = e.clientX - dragStartX.value;
-    const newWidth = dragStartWidth.value + delta;
-    if (newWidth >= 200 && newWidth <= 600) {
-      leftSidebarWidth.value = newWidth;
-    }
-  } else if (isDraggingRight.value) {
-    const delta = e.clientX - dragStartX.value;
-    const newWidth = dragStartWidth.value - delta; // 右侧边栏向左移动时宽度增加
-    if (newWidth >= 200 && newWidth <= 600) {
-      rightSidebarWidth.value = newWidth;
-    }
-  }
-};
-
-const handleMouseUp = () => {
-  isDraggingLeft.value = false;
-  isDraggingRight.value = false;
-  document.body.style.cursor = "";
-  document.body.style.userSelect = "";
-};
-
-onMounted(() => {
-  document.addEventListener("mousemove", handleMouseMove);
-  document.addEventListener("mouseup", handleMouseUp);
-});
-
-onUnmounted(() => {
-  document.removeEventListener("mousemove", handleMouseMove);
-  document.removeEventListener("mouseup", handleMouseUp);
-});
+const { isResizing: isDraggingRight, startResize: handleRightDragStart } =
+  useResizable({
+    size: rightSidebarWidth,
+    minSize: 200,
+    maxSize: 600,
+    direction: "right",
+  });
 
 // 分离组件管理
 const { isDetached } = useDetachedManager();
@@ -163,6 +133,11 @@ onMounted(async () => {
         chatSettings.loadSettings(),
       ]);
 
+      // 确保当前选中的智能体详情被加载
+      if (uiCurrentAgentId.value) {
+        await agentStore.loadAgentDetails(uiCurrentAgentId.value);
+      }
+
       logger.info("主窗口：核心数据加载完成", {
         sessionCount: store.sessions.length,
         agentCount: agentStore.agents.length,
@@ -174,8 +149,8 @@ onMounted(async () => {
       logger.info("主窗口：状态同步服务已激活");
 
       // 3. 处理初始会话
-      if (store.sessions.length === 0 && agentStore.currentAgentId) {
-        handleNewSession({ agentId: agentStore.currentAgentId });
+      if (store.sessions.length === 0 && uiCurrentAgentId.value) {
+        handleNewSession({ agentId: uiCurrentAgentId.value });
       }
     } catch (error) {
       errorHandler.handle(error, {
@@ -197,6 +172,11 @@ onMounted(async () => {
         chatSettings.loadSettings(),
       ]);
 
+      // 确保当前选中的智能体详情被加载
+      if (uiCurrentAgentId.value) {
+        await agentStore.loadAgentDetails(uiCurrentAgentId.value);
+      }
+
       logger.info("分离窗口：核心数据加载完成", {
         sessionCount: store.sessions.length,
         agentCount: agentStore.agents.length,
@@ -216,8 +196,20 @@ onMounted(async () => {
     }
   }
 });
+// 监听当前选中的智能体ID，自动加载其详情
+watch(
+  () => uiCurrentAgentId.value,
+  async (newId) => {
+    if (newId) {
+      logger.info("当前智能体变化，开始加载详情...", { agentId: newId });
+      await agentStore.loadAgentDetails(newId);
+    }
+  },
+  { immediate: true }
+);
+
 // 当前选中的智能体ID（独立于会话）
-const currentAgentId = computed(() => agentStore.currentAgentId || "");
+const currentAgentId = computed(() => uiCurrentAgentId.value || "");
 
 // 动态注入智能体自定义样式（如会话变量样式）
 const agentCustomStyles = computed(() => {
@@ -238,6 +230,7 @@ const handleSendMessage = async (payload: {
     return;
   }
   await store.sendMessage(payload.content, {
+    sessionId: store.currentSessionId || undefined,
     attachments: payload.attachments,
     temporaryModel: payload.temporaryModel,
     disableMacroParsing: payload.disableMacroParsing,
@@ -246,7 +239,7 @@ const handleSendMessage = async (payload: {
 
 // 处理中止发送
 const handleAbortSending = () => {
-  store.abortSending();
+  store.abortSending(store.currentSessionId || undefined);
 };
 
 // 处理输入补全
@@ -254,7 +247,10 @@ const handleCompleteInput = (
   content: string,
   options?: { modelId?: string; profileId?: string }
 ) => {
-  store.completeInput(content, options);
+  store.completeInput(content, {
+    ...options,
+    sessionId: store.currentSessionId || undefined,
+  });
 };
 
 // 处理续写模型选择
@@ -451,8 +447,8 @@ useStateSyncEngine(parametersToSync, {
             :disabled="!store.currentSession"
             :current-agent-id="currentAgentId"
             :current-model-id="
-              agentStore.currentAgentId
-                ? agentStore.getAgentById(agentStore.currentAgentId)?.modelId
+              currentAgentId
+                ? agentStore.getAgentById(currentAgentId)?.modelId
                 : undefined
             "
             @send="handleSendMessage"

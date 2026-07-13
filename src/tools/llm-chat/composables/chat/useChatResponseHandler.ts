@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 /**
  * 聊天响应处理 Composable
  * 负责处理来自 LLM 的响应，并更新节点状态
@@ -18,6 +32,7 @@ import {
   appendStreamingMessageChunk,
   completeAndDisposeStreamingMessageSource,
 } from "./useStreamingMessageSources";
+import { buildEmptyResponseDiagnostic } from "./emptyResponseDiagnostics";
 
 const logger = createModuleLogger("llm-chat/response-handler");
 const errorHandler = createModuleErrorHandler("llm-chat/response-handler");
@@ -491,6 +506,7 @@ export function useChatResponseHandler() {
 
     // 保留流式更新时设置的推理内容和时间戳
     const existingReasoningContent = finalNode.metadata?.reasoningContent;
+    const existingReasoningArtifacts = finalNode.metadata?.reasoningArtifacts;
     const existingReasoningStartTime = finalNode.metadata?.reasoningStartTime;
     const existingReasoningEndTime = finalNode.metadata?.reasoningEndTime;
 
@@ -525,6 +541,11 @@ export function useChatResponseHandler() {
       usage: response.usage,
       contentTokens,
       reasoningContent: response.reasoningContent || existingReasoningContent,
+      reasoningArtifacts:
+        response.reasoningArtifacts || existingReasoningArtifacts,
+      reasoningStateStatus: response.reasoningArtifacts
+        ? "intact"
+        : finalNode.metadata?.reasoningStateStatus,
       requestEndTime,
       tokensPerSecond,
     };
@@ -573,6 +594,34 @@ export function useChatResponseHandler() {
           finalNode.metadata.reasoningEndTime -
           finalNode.metadata.reasoningStartTime,
       });
+    }
+
+    const emptyResponseDiagnostic = buildEmptyResponseDiagnostic({
+      response,
+      visibleText: [
+        finalNode.content,
+        finalNode.metadata.reasoningContent,
+        finalNode.metadata.translation?.content,
+      ]
+        .filter((part) => typeof part === "string")
+        .join("\n"),
+      attachmentCount: finalNode.attachments?.length || 0,
+    });
+    if (emptyResponseDiagnostic) {
+      finalNode.metadata.emptyResponseDiagnostic = emptyResponseDiagnostic;
+      logger.warn("检测到成功但正文为空的 LLM 响应", {
+        nodeId,
+        modelId: finalNode.metadata.modelId,
+        providerType: finalNode.metadata.providerType,
+        isStream: response.isStream === true,
+        finishReason: response.finishReason,
+        usage: response.usage,
+        hasReasoningContent: !!response.reasoningContent,
+        reasoningArtifactsCount: response.reasoningArtifacts?.length || 0,
+        toolCallCount: response.toolCalls?.length || 0,
+      });
+    } else if (finalNode.metadata.emptyResponseDiagnostic) {
+      delete finalNode.metadata.emptyResponseDiagnostic;
     }
 
     // 清理缓冲和保存状态

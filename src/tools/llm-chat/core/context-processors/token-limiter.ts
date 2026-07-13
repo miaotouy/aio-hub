@@ -1,8 +1,57 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import { createModuleLogger } from "@/utils/logger";
 import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
 
 const logger = createModuleLogger("primary:token-limiter");
+
+const hasReplayArtifacts = (msg: any): boolean =>
+  !!msg.reasoningArtifacts?.some(
+    (artifact: any) => artifact?.replayPolicy !== "never"
+  );
+
+const recordDroppedReasoningArtifacts = (
+  context: PipelineContext,
+  messages: any[],
+  reason: string
+): void => {
+  const dropped = messages.filter(hasReplayArtifacts);
+  if (dropped.length === 0) return;
+
+  const existing =
+    (context.sharedData.get("reasoningArtifactsDropped") as any[]) || [];
+  const records = dropped.map((msg) => ({
+    sourceId: msg.sourceId,
+    role: msg.role,
+    reason,
+    artifactCount: msg.reasoningArtifacts?.length || 0,
+  }));
+  context.sharedData.set("reasoningArtifactsDropped", [
+    ...existing,
+    ...records,
+  ]);
+
+  const message = `已丢弃 ${records.length} 条消息的 reasoning replay state：${reason}`;
+  logger.warn(message, { records });
+  context.logs.push({
+    processorId: "primary:token-limiter",
+    level: "warn",
+    message,
+  });
+};
 
 export const tokenLimiter: ContextProcessor = {
   id: "primary:token-limiter",
@@ -83,6 +132,11 @@ export const tokenLimiter: ContextProcessor = {
         message,
       });
       // 只保留预设消息
+      recordDroppedReasoningArtifacts(
+        context,
+        messages.filter((m) => m.sourceType === "session_history"),
+        "历史消息被 Token 限制器完全截断"
+      );
       context.messages = messages.filter(
         (m) => m.sourceType !== "session_history"
       );
@@ -140,10 +194,28 @@ export const tokenLimiter: ContextProcessor = {
             const truncatedMsg = {
               ...msg,
               content: truncatedContent,
+              reasoningArtifacts: undefined,
+              reasoningArtifactsDropped: hasReplayArtifacts(msg) || undefined,
+              metadata: hasReplayArtifacts(msg)
+                ? {
+                    ...msg.metadata,
+                    reasoningStateStatus: "broken",
+                    reasoningStateWarning:
+                      "消息内容被 Token 限制器部分截断，reasoning replay state 已丢弃。",
+                  }
+                : msg.metadata,
               tokenCount: truncatedTokens,
               charCount: truncatedContent.length,
               isTruncated: true, // 标记已被截断
             };
+
+            if (hasReplayArtifacts(msg)) {
+              recordDroppedReasoningArtifacts(
+                context,
+                [msg],
+                "历史消息被部分截断"
+              );
+            }
 
             currentHistoryTokens += truncatedTokens;
             currentHistoryChars += truncatedMsg.charCount;
@@ -214,6 +286,17 @@ export const tokenLimiter: ContextProcessor = {
     const newContextMessages = messages
       .filter((m) => finalMsgMap.has(m))
       .map((m) => finalMsgMap.get(m));
+
+    recordDroppedReasoningArtifacts(
+      context,
+      historyMessages
+        .map((msg) => {
+          const msgIndex = messagesWithTokens.indexOf(msg);
+          return msgIndex >= 0 ? messages[msgIndex] : msg;
+        })
+        .filter((msg) => !finalMsgMap.has(msg)),
+      "历史消息超出 Token 预算被删除"
+    );
 
     const originalHistoryCount = historyMessages.length;
     const finalHistoryCount = keepCount;

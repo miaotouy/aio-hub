@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import { createModuleLogger } from "@/utils/logger";
 import { buildMacroContext, processMacros } from "../context-utils/macro";
@@ -111,7 +125,9 @@ const applyDepthInjections = <T extends { role: string; content: any }>(
   processedContents: Map<string, string>,
   presetMessages: ChatMessageNode[],
   agentId: string,
-  agentAssets: import("../../types/agent").AgentAsset[] | undefined
+  agentAssets:
+    | import("@/tools/agent-manager/types/agent").AgentAsset[]
+    | undefined
 ): (
   | T
   | {
@@ -334,7 +350,7 @@ export const injectionAssembler: ContextProcessor = {
       | undefined;
 
     // 根据模型匹配规则等动态调整预设消息的启用状态
-    const presetMessages = allPresetMessages.map((msg) => {
+    const presetMessages = allPresetMessages.map((msg: ChatMessageNode) => {
       // 如果消息本身已被禁用，则直接返回
       if (msg.isEnabled === false) {
         return msg;
@@ -359,14 +375,14 @@ export const injectionAssembler: ContextProcessor = {
     });
     // 过滤出有效的消息用于后续处理，但保留完整列表用于查找 sourceIndex
     const activePresetMessages = presetMessages.filter(
-      (msg) => msg.isEnabled !== false
+      (msg: ChatMessageNode) => msg.isEnabled !== false
     );
 
     // 1. 检查是否需要保底注入工具相关宏 (tools, tool_usage, tool_context)，兼容带参数的宏调用
     const toolCallConfig = agentConfig.toolCallConfig;
     if (toolCallConfig?.enabled && toolCallConfig.autoInjectIfMacroMissing) {
       const toolMacros = ["{{tools", "{{tool_usage", "{{tool_context"];
-      const hasToolMacros = activePresetMessages.some((msg) =>
+      const hasToolMacros = activePresetMessages.some((msg: ChatMessageNode) =>
         toolMacros.some((macro) => msg.content.includes(macro))
       );
 

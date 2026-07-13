@@ -1,7 +1,22 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import type { ToolRegistry, ToolConfig } from "@/services/types";
 import type { SettingItem } from "@/types/settings-renderer";
 import { markRaw } from "vue";
 import DirectoryTreeIcon from "@/components/icons/DirectoryTreeIcon.vue";
+import { coerceAgentBoolean } from "@/utils/agentArgs";
 import type { GenerateTreeOptions } from "./actions";
 
 /**
@@ -83,16 +98,15 @@ export default class DirectoryTreeRegistry implements ToolRegistry {
 
     const options: GenerateTreeOptions = {
       path: String(args.path || ""),
-      showFiles: args.showFiles !== false && args.showFiles !== "false",
-      showHidden: args.showHidden === true || args.showHidden === "true",
-      showSize: args.showSize === true || args.showSize === "true",
-      showDirSize: args.showDirSize === true || args.showDirSize === "true",
+      showFiles: coerceAgentBoolean(args.showFiles, true),
+      showHidden: coerceAgentBoolean(args.showHidden),
+      showSize: coerceAgentBoolean(args.showSize),
+      showDirSize: coerceAgentBoolean(args.showDirSize),
       maxDepth: args.maxDepth !== undefined ? Number(args.maxDepth) : 5,
       filterMode:
         (args.filterMode as GenerateTreeOptions["filterMode"]) || "gitignore",
       customPattern: String(args.customPattern || ""),
-      includeMetadata:
-        args.includeMetadata === true || args.includeMetadata === "true",
+      includeMetadata: coerceAgentBoolean(args.includeMetadata),
     };
     const result = await generateTree(options);
     return renderTree(

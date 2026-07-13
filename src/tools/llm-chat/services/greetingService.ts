@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import type {
   ChatAgent,
   ChatMessageNode,
@@ -119,8 +133,15 @@ export async function insertLiveGreetings(
     rootNode.childrenIds.push(node.id);
   }
 
-  detail.activeLeafId = greetingNodes[0].id;
-  rootNode.lastSelectedChildId = greetingNodes[0].id;
+  // 默认选中逻辑：寻找是否有匹配 defaultGreetingId 的 greeting 对应的节点
+  const defaultGreetingId = agent.defaultGreetingId;
+  const defaultGreetingIndex = defaultGreetingId
+    ? greetings.findIndex((g) => g.id === defaultGreetingId)
+    : -1;
+  const activeIndex = defaultGreetingIndex !== -1 ? defaultGreetingIndex : 0;
+
+  detail.activeLeafId = greetingNodes[activeIndex].id;
+  rootNode.lastSelectedChildId = greetingNodes[activeIndex].id;
 
   logger.info("已插入开局消息", {
     sessionId: detail.id,

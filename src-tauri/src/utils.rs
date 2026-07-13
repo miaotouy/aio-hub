@@ -1,8 +1,44 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use dirs_next::data_dir;
 use std::path::PathBuf;
 use tauri::Manager;
 
 pub mod mime;
+
+pub(crate) const AIOHUB_PLUGIN_DATA_DIR_ENV: &str = "AIOHUB_PLUGIN_DATA_DIR";
+
+#[cfg(windows)]
+pub(crate) fn hide_child_process_window(command: &mut tokio::process::Command) {
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    command.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(windows))]
+pub(crate) fn hide_child_process_window(_command: &mut tokio::process::Command) {}
+
+#[cfg(windows)]
+pub(crate) fn hide_std_child_process_window(command: &mut std::process::Command) {
+    use std::os::windows::process::CommandExt;
+
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    command.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(windows))]
+pub(crate) fn hide_std_child_process_window(_command: &mut std::process::Command) {}
 
 /// 获取应用数据目录，支持便携模式
 pub fn get_app_data_dir(config: &tauri::Config) -> PathBuf {
@@ -34,6 +70,26 @@ pub fn get_app_data_dir(config: &tauri::Config) -> PathBuf {
     data_dir()
         .map(|p| p.join(&config.identifier))
         .expect("Failed to get app data dir")
+}
+
+/// 确保插件专属持久化数据目录存在。
+pub(crate) fn ensure_plugin_data_dir(
+    config: &tauri::Config,
+    plugin_id: &str,
+) -> Result<PathBuf, String> {
+    let plugin_data_dir = get_app_data_dir(config)
+        .join("plugins-data")
+        .join(plugin_id);
+
+    std::fs::create_dir_all(&plugin_data_dir).map_err(|e| {
+        format!(
+            "创建插件数据目录失败: {} ({})",
+            plugin_data_dir.display(),
+            e
+        )
+    })?;
+
+    Ok(plugin_data_dir)
 }
 
 // 打印当前窗口列表

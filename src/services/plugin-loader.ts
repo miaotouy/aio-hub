@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 /**
  * 插件加载器
  *
@@ -390,7 +404,14 @@ export class PluginLoader {
       // 3. 使用 ESM 动态导入加载插件
       const { convertFileSrc } = await import("@tauri-apps/api/core");
       // 转换路径为浏览器可加载的 URL，处理 Windows 分隔符
-      const assetUrl = convertFileSrc(entryPath.replace(/\\/g, "/"));
+      let assetUrl = convertFileSrc(entryPath.replace(/\\/g, "/"));
+
+      // 修复相对路径加载问题：
+      // convertFileSrc 可能会对路径中的盘符和斜杠进行 URL 编码（如 %3A, %2F），
+      // 这会导致浏览器在解析 JS 内部的相对导入（如 import("./chunk.js")）时，
+      // 无法正确识别目录层级，从而把相对路径解析到根域名下（如 http://asset.localhost/chunk.js）。
+      // 我们需要将 %2F 替换回 /，但保留盘符的编码（%3A），以保持 URL 的合法性。
+      assetUrl = assetUrl.replace(/%2F/g, "/");
 
       logger.info(`开始通过 ESM 加载插件: ${manifest.id}`, { assetUrl });
 

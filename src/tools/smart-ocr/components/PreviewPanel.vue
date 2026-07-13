@@ -1,3 +1,19 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { customMessage } from "@/utils/customMessage";
@@ -21,6 +37,7 @@ const props = defineProps<{
   selectedImageId: string | null;
   cutLinesMap: Map<string, CutLine[]>;
   imageBlocksMap: Map<string, ImageBlock[]>;
+  isProcessing: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -30,6 +47,7 @@ const emit = defineEmits<{
   sliceImage: [imageId: string];
   sliceAllImages: [];
   clearAllImages: [];
+  runFullOcrProcess: [options: { imageIds?: string[] }];
 }>();
 
 // 预览容器引用
@@ -405,6 +423,53 @@ const handleViewBlock = (block: ImageBlock) => {
   imageViewer.show(block.dataUrl);
 };
 
+// 开始识别当前图片
+const handleStartOcr = async () => {
+  if (!selectedImage.value) {
+    customMessage.warning("请先上传并选择图片");
+    return;
+  }
+
+  try {
+    emit("runFullOcrProcess", { imageIds: [selectedImage.value.id] });
+  } catch (error) {
+    errorHandler.error(error as Error, "单张图片OCR识别失败", {
+      context: {
+        imageId: selectedImage.value?.id,
+        imageName: selectedImage.value?.name,
+      },
+    });
+  }
+};
+
+// 批量识别所有图片
+const handleBatchOcr = async () => {
+  if (props.uploadedImages.length === 0) {
+    customMessage.warning("请先上传图片");
+    return;
+  }
+
+  customMessage.info(`准备批量识别 ${props.uploadedImages.length} 张图片`);
+
+  try {
+    emit("runFullOcrProcess", {
+      imageIds: props.uploadedImages.map((img) => img.id),
+    });
+  } catch (error) {
+    errorHandler.error(error as Error, "批量OCR识别失败", {
+      context: {
+        totalImages: props.uploadedImages.length,
+      },
+    });
+  }
+};
+
+// 暴露方法给模板，防止 vue-tsc 报未读取错误
+defineExpose({
+  handleStartOcr,
+  handleBatchOcr,
+});
+
 // 生命周期
 onMounted(() => {
   // 监听全局粘贴事件
@@ -604,6 +669,57 @@ onUnmounted(() => {
             </div>
           </div>
         </template>
+      </div>
+    </div>
+
+    <!-- 操作按钮 - 固定在底部 -->
+    <div class="panel-footer">
+      <div
+        class="button-group"
+        :class="{ 'has-batch': uploadedImages.length > 1 }"
+      >
+        <el-tooltip
+          :content="
+            !selectedImage
+              ? '请先上传并选择一张图片'
+              : isProcessing
+                ? '正在处理中，请稍候...'
+                : '开始识别当前选中的图片'
+          "
+          :disabled="!!selectedImage && !isProcessing"
+        >
+          <el-button
+            type="primary"
+            size="large"
+            :disabled="!selectedImage || isProcessing"
+            :loading="isProcessing"
+            @click="handleStartOcr"
+          >
+            {{ isProcessing ? "识别中..." : "识别当前图片" }}
+          </el-button>
+        </el-tooltip>
+
+        <el-tooltip
+          v-if="uploadedImages.length > 1"
+          :content="
+            uploadedImages.length === 0
+              ? '请先上传图片'
+              : isProcessing
+                ? '正在处理中，请稍候...'
+                : `批量识别全部 ${uploadedImages.length} 张图片`
+          "
+          :disabled="uploadedImages.length > 0 && !isProcessing"
+        >
+          <el-button
+            type="success"
+            size="large"
+            :disabled="uploadedImages.length === 0 || isProcessing"
+            :loading="isProcessing"
+            @click="handleBatchOcr"
+          >
+            批量识别全部
+          </el-button>
+        </el-tooltip>
       </div>
     </div>
   </div>
@@ -919,6 +1035,34 @@ onUnmounted(() => {
 .clickable-block:hover {
   transform: scale(1.02);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.panel-footer {
+  padding: 12px;
+  border-top: var(--border-width) solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.button-group {
+  display: flex;
+  gap: 12px;
+}
+
+.button-group:not(.has-batch) {
+  flex-direction: column;
+}
+
+.button-group.has-batch {
+  flex-direction: row;
+  align-items: center;
+}
+
+.button-group .el-button {
+  flex: 1;
+}
+
+.button-group:not(.has-batch) .el-button {
+  width: 100%;
 }
 
 /* 自定义滚动条 */

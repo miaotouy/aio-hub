@@ -1,3 +1,19 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, nextTick, watch } from "vue";
 import type { Component } from "vue";
@@ -16,7 +32,7 @@ import type { MediaTask, MediaTaskType } from "../types";
 
 const store = useMediaGenStore();
 const inputManager = useMediaGenInputManager();
-const { getAssetUrl, getAssetBasePath } = useAssetManager();
+const { getAssetBasePath } = useAssetManager();
 
 const scrollContainer = ref<HTMLElement | null>(null);
 
@@ -150,23 +166,6 @@ const handleDownloadTask = async (task: MediaTask) => {
     customMessage.error("下载失败，请重试");
   }
 };
-
-// 资产 URL 映射缓存
-const assetUrls = ref<Record<string, string>>({});
-
-// 监听任务变化，更新资产 URL
-watch(
-  () => store.tasks,
-  async (newTasks) => {
-    if (!Array.isArray(newTasks)) return;
-    for (const task of newTasks) {
-      if (task?.resultAsset && !assetUrls.value[task.id]) {
-        assetUrls.value[task.id] = await getAssetUrl(task.resultAsset);
-      }
-    }
-  },
-  { deep: true, immediate: true }
-);
 </script>
 
 <template>

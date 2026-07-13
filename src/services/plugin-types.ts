@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 /**
  * 插件系统核心类型定义
  *
@@ -354,6 +368,17 @@ export interface PluginContext {
      * @param processorId 处理器 ID
      */
     unregisterProcessor: (processorId: string) => void;
+    /**
+     * 动态注册聊天设置分区
+     * @param section 设置分区配置
+     */
+    registerSettingsSection: (section: any) => void;
+    /**
+     * 动态注册聊天设置项
+     * @param sectionTitle 目标分区标题
+     * @param item 设置项配置
+     */
+    registerSettingItem: (sectionTitle: string, item: any) => void;
   };
 
   // 未来可扩展其他 API，例如 ui.showNotification, commands.registerCommand 等

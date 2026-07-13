@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 /**
  * LLM Chat 外观服务 (Registry)
  *
@@ -21,7 +35,6 @@ import { ChatDotRound } from "@element-plus/icons-vue";
 import { useDetachedChatArea } from "./composables/ui/useDetachedChatArea";
 import { useDetachedChatInput } from "./composables/ui/useDetachedChatInput";
 import { useLlmChatStateConsumer } from "./composables/ui/useLlmChatStateConsumer";
-import { resolveAvatarPath } from "./composables/ui/useResolvedAvatar";
 import {
   llmChatService,
   type InputOperationResult,
@@ -32,9 +45,10 @@ import type {
   ChatSessionIndex,
   ChatSessionDetail,
   ChatAgent,
+  ModelIdentifier,
   UserProfile,
 } from "./types";
-import * as agentManagementService from "./services/agentManagementService";
+import * as agentManagementService from "@/tools/agent-manager/services/agentManagementService";
 
 /**
  * UI 工具配置
@@ -203,7 +217,14 @@ class LlmChatRegistry implements ToolRegistry {
   /** 发送消息 */
   public async sendMessage(
     content: string,
-    options?: { parentId?: string }
+    options?: {
+      parentId?: string;
+      agentId?: string;
+      sessionId?: string;
+      attachments?: Asset[];
+      temporaryModel?: ModelIdentifier | null;
+      disableMacroParsing?: boolean;
+    }
   ): Promise<void> {
     return llmChatService.sendMessage(content, options);
   }
@@ -598,6 +619,3 @@ export default [llmChatMain, agentManagement];
 export { llmChatMain as llmChatRegistry };
 // 导出类型供 useSendToChat 等使用
 export type { LlmChatRegistry };
-
-// 重导出工具函数供跨工具使用
-export { resolveAvatarPath };

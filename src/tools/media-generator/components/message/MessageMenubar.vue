@@ -1,3 +1,19 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { ElTooltip, ElPopover } from "element-plus";
@@ -140,13 +156,21 @@ const handleSwitchToBranch = (nodeId: string) => {
     <!-- 重试 -->
     <div class="retry-group">
       <el-tooltip content="重试" placement="top" :show-after="500">
-        <button class="menu-btn" @click.stop="emit('retry', false)">
-          <RefreshCw :size="16" />
+        <button
+          class="menu-btn"
+          :disabled="isSending"
+          @click.stop="emit('retry', false)"
+        >
+          <RefreshCw :size="16" :class="{ spinning: isSending }" />
         </button>
       </el-tooltip>
 
       <el-tooltip content="切换模型重试" placement="top" :show-after="500">
-        <button class="menu-btn" @click.stop="emit('retry', true)">
+        <button
+          class="menu-btn"
+          :disabled="isSending"
+          @click.stop="emit('retry', true)"
+        >
           <AtSign :size="16" />
         </button>
       </el-tooltip>
@@ -400,6 +424,19 @@ const handleSwitchToBranch = (nodeId: string) => {
   background-color: var(--error-color);
   border-color: var(--error-color);
   color: white;
+}
+
+.spinning {
+  animation: menu-btn-spin 1s linear infinite;
+}
+
+@keyframes menu-btn-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .menu-btn-abort {

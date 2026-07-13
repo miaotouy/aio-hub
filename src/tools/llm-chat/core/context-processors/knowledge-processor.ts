@@ -1,8 +1,22 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import { ProcessableMessage } from "../../types/context";
 import { resolvePlaceholderRetrieval } from "@/tools/knowledge-base/services/api";
 import type { KbRetrievalRequest } from "@/tools/knowledge-base/types/retrieval";
-import type { AgentKnowledgeBaseConfig } from "../../types/agent";
+import type { AgentKnowledgeBaseConfig } from "@/tools/agent-manager/types/agent";
 
 /**
  * 知识库占位符解析结果接口
@@ -133,8 +147,8 @@ export class KnowledgeProcessor implements ContextProcessor {
 
     const enabledBindings =
       agentConfig.knowledgeBaseConfig?.bindings
-        ?.filter((b) => b.enabled)
-        .map((b) => ({ kbId: b.kbId, kbName: b.kbName })) || [];
+        ?.filter((b: any) => b.enabled)
+        .map((b: any) => ({ kbId: b.kbId, kbName: b.kbName })) || [];
 
     // 3. 遍历占位符并处理
     for (const ph of placeholders) {
@@ -252,7 +266,7 @@ export class KnowledgeProcessor implements ContextProcessor {
     excludeKbNames: Set<string> = new Set()
   ): KBPlaceholder[] {
     const enabledBindings = kbConfig.bindings.filter(
-      (b) => b.enabled && !excludeKbNames.has(b.kbName)
+      (b: any) => b.enabled && !excludeKbNames.has(b.kbName)
     );
     if (enabledBindings.length === 0) return [];
 

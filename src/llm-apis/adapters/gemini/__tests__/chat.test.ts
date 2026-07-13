@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { callGeminiChatApi } from "../chat";
 import type { LlmProfile } from "@/types/llm-profiles";
@@ -207,5 +221,80 @@ describe("Gemini Adapter - Chat", () => {
 
     expect(result.content).toBe("Final answer.");
     expect(result.reasoningContent).toBe("Thinking process...");
+  });
+
+  it("should preserve Gemini thought signature parts as replay artifacts", async () => {
+    const signedParts = [
+      { text: "Thinking process...", thought: true },
+      { text: "Final answer.", thoughtSignature: "sig-a" },
+    ];
+    const options: LlmRequestOptions = {
+      profileId: "test-profile-gemini",
+      modelId: "gemini-3.5-flash",
+      messages: [{ role: "user", content: "Explain." }],
+    };
+
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        candidates: [{ content: { parts: signedParts } }],
+      }),
+    });
+
+    const result = await callGeminiChatApi(mockProfile, options);
+
+    expect(result.reasoningArtifacts).toHaveLength(1);
+    expect((result.reasoningArtifacts![0].payload as any).parts).toBe(
+      signedParts
+    );
+    expect(result.reasoningArtifacts![0]).toMatchObject({
+      provider: "gemini",
+      kind: "model.parts",
+      replayPolicy: "always",
+      visibleText: "Thinking process...",
+    });
+  });
+
+  it("should replay Gemini signed model parts in later assistant turns", async () => {
+    const signedParts = [
+      { text: "Thinking process...", thought: true },
+      { text: "Final answer.", thought_signature: "sig-a" },
+    ];
+    const options: LlmRequestOptions = {
+      profileId: "test-profile-gemini",
+      modelId: "gemini-3.5-flash",
+      messages: [
+        { role: "user", content: "Explain." },
+        {
+          role: "assistant",
+          content: "Final answer.",
+          reasoningArtifacts: [
+            {
+              provider: "gemini",
+              kind: "model.parts",
+              replayPolicy: "always",
+              payload: { parts: signedParts },
+            },
+          ],
+        },
+        { role: "user", content: "Continue." },
+      ],
+    };
+
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        candidates: [{ content: { parts: [{ text: "Next." }] } }],
+      }),
+    });
+
+    await callGeminiChatApi(mockProfile, options);
+
+    const [, fetchOptions] = (fetchWithTimeout as any).mock.calls[0];
+    const body = JSON.parse(fetchOptions.body);
+    expect(body.contents[1]).toEqual({
+      role: "model",
+      parts: signedParts,
+    });
   });
 });

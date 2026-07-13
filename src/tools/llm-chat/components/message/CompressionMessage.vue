@@ -1,4 +1,21 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <script setup lang="ts">
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { computed, ref, watch, provide, nextTick } from "vue";
 import { useResizeObserver } from "@vueuse/core";
 import type {
@@ -18,7 +35,7 @@ import {
   Trash2,
 } from "lucide-vue-next";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import {
   resolveRawRules,
@@ -83,6 +100,8 @@ watch(isEditing, () => {
   });
 });
 
+const { currentAgentId } = useLlmChatUiState();
+
 const backgroundBlocks = computed(() => {
   if (messageHeight.value <= 0) return 1;
   return Math.ceil(messageHeight.value / BLOCK_SIZE);
@@ -93,7 +112,7 @@ function getAgentAndUserProfileIds(metadata: any): {
   agentId: string | undefined;
   userProfileId: string | undefined;
 } {
-  const agentId = metadata?.agentId ?? agentStore.currentAgentId ?? undefined;
+  const agentId = metadata?.agentId ?? currentAgentId.value ?? undefined;
   // 确定 User Profile ID (Message-Bound 优先，Agent 绑定回退，Global 回退)
   let userProfileId = metadata?.userProfileId;
   if (!userProfileId) {

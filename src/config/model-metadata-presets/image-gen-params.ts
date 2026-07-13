@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 /**
  * 图片生成参数预设规则
  *
@@ -207,6 +221,50 @@ export const imageGenParamsRules: ModelMetadataRule[] = [
     enabled: true,
     description:
       "GPT Image 2 生成参数规则（background 仅支持 opaque/auto，不含 transparent）",
+  },
+
+  // === Agnes Image ===
+  {
+    id: "media-params-agnes-image",
+    matchType: "modelPrefix",
+    matchValue: "agnes-image-",
+    properties: {
+      capabilities: {
+        imageGeneration: true,
+        iterativeRefinement: true,
+      },
+      mediaGenParams: {
+        size: {
+          mode: "preset",
+          presets: [{ label: "1:1 (1024×1024)", value: "1024x1024" }],
+          default: "1024x1024",
+        },
+        quality: { supported: false },
+        style: { supported: false },
+        negativePrompt: { supported: false },
+        seed: { supported: false },
+        steps: { supported: false },
+        guidanceScale: { supported: false },
+        background: { supported: false },
+        inputFidelity: { supported: false },
+        moderation: { supported: false },
+        outputFormat: {
+          supported: true,
+          options: [
+            { label: "URL", value: "url" },
+            { label: "Base64", value: "b64_json" },
+          ],
+          default: "url",
+        },
+        outputCompression: { supported: false },
+        batchSize: { supported: false },
+        partialImages: { supported: false },
+      },
+    },
+    priority: 26,
+    enabled: true,
+    description:
+      "Agnes Image 系列参数规则（OpenAI 兼容 Images API，不支持 style/quality 等 DALL-E 参数）",
   },
 
   // === Microsoft MAI Image 2 / 2e ===

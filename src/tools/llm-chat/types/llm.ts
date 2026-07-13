@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 /**
  * 上下文后处理规则
  * 现在 `type` 字段为任意字符串，对应注册到 contextPipelineStore 中的处理器 ID。
@@ -86,6 +100,10 @@ export interface LlmParameters {
   logitBias?: Record<string, number>;
   /** 是否存储输出用于模型蒸馏 */
   store?: boolean;
+  /** OpenAI Responses: 是否在服务器端保留对话状态 */
+  responsesStore?: boolean;
+  /** OpenAI Responses: 包含的响应内容类型 */
+  include?: string[];
   /** 用户标识符 */
   user?: string;
   /** 服务层级 */

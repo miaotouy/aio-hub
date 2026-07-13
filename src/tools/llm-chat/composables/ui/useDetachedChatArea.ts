@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 /**
  * 分离的 ChatArea Composable (简化版)
  *
@@ -9,15 +23,17 @@
  * 2. 提供一系列函数，将组件的操作请求通过 WindowSyncBus 代理到主窗口。
  * 3. 不再包含任何状态同步或数据填充逻辑。
  */
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { computed, onUnmounted, getCurrentInstance } from "vue";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useLlmChatStore } from "../../stores/llmChatStore";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("DetachedChatArea");
 
 export function useDetachedChatArea() {
+  const { currentAgentId: uiCurrentAgentId } = useLlmChatUiState();
   const bus = useWindowSyncBus();
   const store = useLlmChatStore();
   const agentStore = useAgentStore();
@@ -29,39 +45,75 @@ export function useDetachedChatArea() {
     logger.info("代理发送消息操作", {
       content,
       attachmentCount: attachments?.length,
+      sessionId: store.currentSessionId,
     });
-    return bus.requestAction("llm-chat:send-message", { content, attachments });
+    return bus.requestAction("llm-chat:send-message", {
+      content,
+      options: {
+        attachments,
+        sessionId: store.currentSessionId,
+      },
+    });
   };
 
   const abortSending = () => {
-    logger.info("代理中止发送操作");
-    return bus.requestAction("llm-chat:abort-sending", {});
+    logger.info("代理中止发送操作", { sessionId: store.currentSessionId });
+    return bus.requestAction("llm-chat:abort-sending", {
+      sessionId: store.currentSessionId,
+    });
   };
 
   const regenerateLastMessage = (
     messageId: string,
     options?: { modelId?: string; profileId?: string }
   ) => {
-    logger.info("代理重新生成操作", { messageId, options });
-    return bus.requestAction("llm-chat:regenerate-from-node", {
+    logger.info("代理重新生成操作", {
       messageId,
       options,
+      sessionId: store.currentSessionId,
+    });
+    return bus.requestAction("llm-chat:regenerate-from-node", {
+      nodeId: messageId,
+      options: {
+        ...options,
+        sessionId: store.currentSessionId,
+      },
     });
   };
 
   const deleteMessage = (messageId: string) => {
-    logger.info("代理删除消息操作", { messageId });
-    return bus.requestAction("llm-chat:delete-message", { messageId });
+    logger.info("代理删除消息操作", {
+      messageId,
+      sessionId: store.currentSessionId,
+    });
+    return bus.requestAction("llm-chat:delete-message", {
+      messageId,
+      sessionId: store.currentSessionId,
+    });
   };
 
   const switchSibling = (nodeId: string, direction: "prev" | "next") => {
-    logger.info("代理切换兄弟分支操作", { nodeId, direction });
-    return bus.requestAction("llm-chat:switch-sibling", { nodeId, direction });
+    logger.info("代理切换兄弟分支操作", {
+      nodeId,
+      direction,
+      sessionId: store.currentSessionId,
+    });
+    return bus.requestAction("llm-chat:switch-sibling", {
+      nodeId,
+      direction,
+      sessionId: store.currentSessionId,
+    });
   };
 
   const toggleEnabled = (nodeId: string) => {
-    logger.info("代理切换节点启用状态操作", { nodeId });
-    return bus.requestAction("llm-chat:toggle-enabled", { nodeId });
+    logger.info("代理切换节点启用状态操作", {
+      nodeId,
+      sessionId: store.currentSessionId,
+    });
+    return bus.requestAction("llm-chat:toggle-enabled", {
+      nodeId,
+      sessionId: store.currentSessionId,
+    });
   };
 
   const editMessage = (
@@ -73,17 +125,25 @@ export function useDetachedChatArea() {
       nodeId,
       contentLength: newContent.length,
       attachmentCount: attachments?.length,
+      sessionId: store.currentSessionId,
     });
     return bus.requestAction("llm-chat:edit-message", {
       nodeId,
       newContent,
       attachments,
+      sessionId: store.currentSessionId,
     });
   };
 
   const createBranch = (nodeId: string) => {
-    logger.info("代理创建分支操作", { nodeId });
-    return bus.requestAction("llm-chat:create-branch", { nodeId });
+    logger.info("代理创建分支操作", {
+      nodeId,
+      sessionId: store.currentSessionId,
+    });
+    return bus.requestAction("llm-chat:create-branch", {
+      nodeId,
+      sessionId: store.currentSessionId,
+    });
   };
 
   const abortNode = (nodeId: string) => {
@@ -99,9 +159,9 @@ export function useDetachedChatArea() {
   // 4. 导出的计算属性和操作（现在可以直接从 Store 获取）
   // 使用全局的 currentAgentId，而不是会话的 displayAgentId
   // 这样即使切换到新会话，智能体信息也不会消失
-  const currentAgentId = computed(() => agentStore.currentAgentId || undefined);
+  const currentAgentId = computed(() => uiCurrentAgentId.value || undefined);
   const currentModelId = computed(() => {
-    const agentId = agentStore.currentAgentId;
+    const agentId = currentAgentId.value;
     return agentId ? agentStore.getAgentById(agentId)?.modelId : undefined;
   });
 
@@ -114,7 +174,7 @@ export function useDetachedChatArea() {
   return {
     // 状态（直接从 Store 读取）
     messages: computed(() => store.currentActivePathWithPresets),
-    isSending: computed(() => store.isSending),
+    isSending: computed(() => store.isCurrentSessionGenerating),
     disabled: computed(() => !store.currentSession),
     currentAgentId,
     currentModelId,

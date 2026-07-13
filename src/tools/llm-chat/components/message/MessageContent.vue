@@ -1,4 +1,21 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <script setup lang="ts">
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { ref, computed, watch, provide, nextTick, shallowRef } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import {
@@ -25,7 +42,7 @@ import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useTranscriptionManager } from "../../composables/features/useTranscriptionManager";
 import { useImageViewer } from "@/composables/useImageViewer";
@@ -101,6 +118,7 @@ provide("messageId", props.message.id);
 provide("chatSettings", settings);
 const emit = defineEmits<Emits>();
 
+const { currentAgentId } = useLlmChatUiState();
 const agentStore = useAgentStore();
 const llmChatStore = useLlmChatStore();
 const userProfileStore = useUserProfileStore();
@@ -117,7 +135,7 @@ function getAgentAndUserProfileIds(
 
   if (bindingMode === "message") {
     // 消息绑定模式：优先使用消息元数据，回退到当前激活的 Agent/User 配置
-    agentId = metadata?.agentId ?? agentStore.currentAgentId ?? undefined;
+    agentId = metadata?.agentId ?? currentAgentId.value ?? undefined;
     // 确定 User Profile ID (Message-Bound 优先，Agent 绑定回退，Global 回退)
     userProfileId = metadata?.userProfileId;
     if (!userProfileId) {
@@ -128,7 +146,7 @@ function getAgentAndUserProfileIds(
     }
   } else {
     // 会话绑定模式：忽略消息元数据，使用当前激活的 Agent 和全局档案
-    agentId = agentStore.currentAgentId ?? undefined;
+    agentId = currentAgentId.value ?? undefined;
     const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
     userProfileId = userProfileStore.getEffectiveProfile(
       agent?.userProfileId
@@ -187,9 +205,9 @@ const resolvedModelAndProfile = computed(() => {
 
   // 回退到当前激活的 Agent 配置
   if (!modelId || !profileId) {
-    const currentAgentId = agentStore.currentAgentId;
-    if (currentAgentId) {
-      const agentConfig = agentStore.getAgentConfig(currentAgentId);
+    const activeAgentId = currentAgentId.value;
+    if (activeAgentId) {
+      const agentConfig = agentStore.getAgentConfig(activeAgentId);
       if (agentConfig) {
         modelId = modelId || agentConfig.modelId;
         profileId = profileId || agentConfig.profileId;
@@ -230,6 +248,7 @@ const editingContent = ref("");
 
 // 错误信息复制状态
 const errorCopied = ref(false);
+const emptyDiagnosticCopied = ref(false);
 
 // 文档预览状态
 const documentPreviewVisible = ref(false);
@@ -578,6 +597,24 @@ const copyError = async () => {
   }
 };
 
+const copyEmptyDiagnostic = async () => {
+  if (!props.message.metadata?.emptyResponseDiagnostic) return;
+
+  try {
+    await navigator.clipboard.writeText(
+      props.message.metadata.emptyResponseDiagnostic
+    );
+    emptyDiagnosticCopied.value = true;
+    customMessage.success("诊断信息已复制");
+
+    setTimeout(() => {
+      emptyDiagnosticCopied.value = false;
+    }, 2000);
+  } catch (err) {
+    customMessage.error("复制失败");
+  }
+};
+
 // 监听消息内容或相关上下文变化，异步处理宏
 watch(
   [
@@ -841,7 +878,8 @@ const showMeta = computed(() => {
     return (
       !!metadata.usage ||
       metadata.contentTokens !== undefined ||
-      !!metadata.error
+      !!metadata.error ||
+      !!metadata.emptyResponseDiagnostic
     );
   }
 
@@ -855,12 +893,16 @@ const showMeta = computed(() => {
   if (!metadata) return false;
   return (
     (showToken && (!!metadata.usage || metadata.contentTokens !== undefined)) ||
-    !!metadata.error
+    !!metadata.error ||
+    !!metadata.emptyResponseDiagnostic
   );
 });
 const usageInfo = computed(() => messageMetadata.value?.usage);
 const contentTokensValue = computed(() => messageMetadata.value?.contentTokens);
 const errorMessage = computed(() => messageMetadata.value?.error);
+const emptyResponseDiagnostic = computed(
+  () => messageMetadata.value?.emptyResponseDiagnostic
+);
 
 const charCount = ref(0);
 
@@ -1287,6 +1329,18 @@ watch(
         />
         <span class="error-text"> {{ errorMessage }}</span>
       </div>
+      <div v-if="emptyResponseDiagnostic" class="diagnostic-info">
+        <el-button
+          @click="copyEmptyDiagnostic"
+          class="diagnostic-copy-btn"
+          :class="{ copied: emptyDiagnosticCopied }"
+          :title="emptyDiagnosticCopied ? '已复制' : '复制诊断信息'"
+          :icon="emptyDiagnosticCopied ? Check : Copy"
+          size="small"
+          text
+        />
+        <span class="diagnostic-text"> {{ emptyResponseDiagnostic }}</span>
+      </div>
     </div>
 
     <!-- 文档预览对话框 -->
@@ -1464,6 +1518,25 @@ watch(
   word-break: break-word;
 }
 .error-copy-btn.copied {
+  color: var(--success-color, #67c23a);
+}
+
+.diagnostic-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--warning-color, #e6a23c);
+  margin-top: 8px;
+  margin-bottom: 42px;
+}
+
+.diagnostic-text {
+  flex: 1;
+  font-size: 14px;
+  word-break: break-word;
+}
+
+.diagnostic-copy-btn.copied {
   color: var(--success-color, #67c23a);
 }
 

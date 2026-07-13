@@ -1,4 +1,19 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import type { Asset } from "@/types/asset-management";
+import type { OcrEngineType } from "@/tools/smart-ocr/types";
 
 /**
  * 转写任务状态
@@ -46,6 +61,47 @@ export interface TypeSpecificConfig {
   temperature: number;
   maxTokens: number;
   enableRepetitionDetection?: boolean;
+}
+
+export type ImageTranscriptionMode = "vlm" | "ocr";
+export type ImageOcrEngineType = "default" | Exclude<OcrEngineType, "vlm">;
+
+export type DocumentTranscriptionMode = "llm" | "ocr";
+
+/**
+ * 图片特定配置
+ */
+export interface ImageSpecificConfig extends TypeSpecificConfig {
+  /** 图片转写模式：vlm 走视觉大模型，ocr 走 Smart OCR 纯文字提取 */
+  mode: ImageTranscriptionMode;
+  /** OCR 模式使用的引擎；default 表示跟随 Smart OCR 当前默认引擎 */
+  ocrEngineType?: ImageOcrEngineType;
+  /** OCR 插件扩展 ID，格式来自 Smart OCR extension registry */
+  ocrPluginExtensionId?: string;
+  /** OCR 插件模型档位 */
+  ocrPluginModelProfile?: string;
+  /** OCR 插件识别语言 */
+  ocrPluginLanguage?: string;
+  /** OCR 模式分批识别大小 */
+  ocrBatchSize?: number;
+}
+
+/**
+ * 文档特定配置
+ */
+export interface DocumentSpecificConfig extends TypeSpecificConfig {
+  /** 文档转写模式：llm 走大模型解析，ocr 走 Smart OCR 纯文字提取 */
+  mode: DocumentTranscriptionMode;
+  /** OCR 模式使用的引擎；default 表示跟随 Smart OCR 当前默认引擎 */
+  ocrEngineType?: ImageOcrEngineType;
+  /** OCR 插件扩展 ID，格式来自 Smart OCR extension registry */
+  ocrPluginExtensionId?: string;
+  /** OCR 插件模型档位 */
+  ocrPluginModelProfile?: string;
+  /** OCR 插件识别语言 */
+  ocrPluginLanguage?: string;
+  /** OCR 模式分批识别大小 */
+  ocrBatchSize?: number;
 }
 
 /**
@@ -101,10 +157,10 @@ export interface TranscriptionConfig {
     cutLineOffset: number;
   };
   ffmpegPath?: string;
-  image: TypeSpecificConfig;
+  image: ImageSpecificConfig;
   audio: AudioSpecificConfig;
   video: VideoSpecificConfig;
-  document: TypeSpecificConfig;
+  document: DocumentSpecificConfig;
 }
 
 /**

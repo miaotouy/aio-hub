@@ -1,3 +1,19 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <script setup lang="ts">
 import { ref, onMounted, computed, onUnmounted, watch } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -27,17 +43,17 @@ import { useThemeAppearance } from "@/composables/useThemeAppearance";
 import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useDownloadStore } from "@/stores/downloadStore";
 import SystemThemeIcon from "./icons/SystemThemeIcon.vue";
-import { useUserProfileStore } from "@/tools/llm-chat/stores/userProfileStore";
+import { useUserProfileStore } from "@/tools/user-profile-manager/stores/userProfileStore";
 import Avatar from "@/components/common/Avatar.vue";
 import SidebarMenu from "@/components/SidebarMenu.vue";
 import NotificationBell from "@/components/notification/NotificationBell.vue";
 import DownloadManager from "@/components/DownloadManager.vue";
 import { useDebounceFn } from "@vueuse/core";
 import {
-  useResolvedAvatar,
-  resolveAvatarPath,
-} from "@/tools/llm-chat/composables/ui/useResolvedAvatar";
-import UserProfileManagerDialog from "@/views/Settings/user-profile/components/UserProfileManagerDialog.vue";
+  useResolvedProfileAvatar,
+  resolveProfileAvatarPath,
+} from "@/tools/user-profile-manager/utils/profileAssetUtils";
+import UserProfileManagerDialog from "@/tools/user-profile-manager/components/UserProfileManagerDialog.vue";
 
 // 接收可选的标题和图标 prop（用于分离窗口）
 const props = defineProps<{
@@ -59,9 +75,8 @@ const detachedManager = useDetachedManager();
 const downloadStore = useDownloadStore();
 
 // 解析当前选中的全局用户档案头像
-const globalProfileAvatarSrc = useResolvedAvatar(
-  computed(() => userProfileStore.globalProfile),
-  "user-profile"
+const globalProfileAvatarSrc = useResolvedProfileAvatar(
+  computed(() => userProfileStore.globalProfile)
 );
 
 const appWindow = getCurrentWindow();
@@ -360,7 +375,7 @@ const openProfileManager = () => {
 
 // 获取档案头像路径（用于列表）
 const getProfileAvatarSrc = (profile: any) => {
-  return resolveAvatarPath(profile, "user-profile");
+  return resolveProfileAvatarPath(profile);
 };
 
 const handleMenuSelect = () => {

@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import { ref, watch } from "vue";
 import { debounce } from "lodash-es";
 import type {
@@ -217,9 +231,11 @@ export function useMediaGenPersistence(options: {
       }
 
       inputPrompt.value = session.inputPrompt || "";
-      if (session.generationConfig) {
-        currentConfig.value = generationConfig;
-      }
+
+      // 加载全局媒体生成配置，不再跟随会话
+      const globalGenConfig = await storage.loadGenerationConfig();
+      currentConfig.value =
+        sessionManager.normalizeGenerationConfig(globalGenConfig);
 
       isInitialized.value = true;
       logger.info("Store 初始化完成", {
@@ -304,6 +320,16 @@ export function useMediaGenPersistence(options: {
     (newSettings) => {
       if (!isInitialized.value) return;
       storage.saveSettingsDebounced(newSettings);
+    },
+    { deep: true }
+  );
+
+  // 监听全局媒体生成配置变化自动保存
+  watch(
+    () => currentConfig.value,
+    (newConfig) => {
+      if (!isInitialized.value) return;
+      storage.saveGenerationConfigDebounced(newConfig);
     },
     { deep: true }
   );

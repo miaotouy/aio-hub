@@ -1,7 +1,25 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
 import { ref, computed, getCurrentInstance, onUnmounted } from "vue";
 import { createModuleLogger } from "@/utils/logger";
+import {
+  sampleAudioWaveform,
+  needsWaveformSampling,
+} from "@/utils/audioSampler";
 import type {
   Asset,
   AssetImportOptions,
@@ -20,6 +38,7 @@ import { customMessage } from "@/utils/customMessage";
 
 // 缓存资产根目录，避免重复 IPC 调用
 let _cachedBasePath: string | null = null;
+const _audioWaveformTasks = new Map<string, Promise<Asset>>();
 
 // 动态注册的附属操作
 const _registeredSidecarActions = ref<AssetSidecarAction[]>([]);
@@ -155,18 +174,16 @@ export const assetManagerEngine = {
   getAssetUrl: async (asset: Asset, useThumbnail = false): Promise<string> => {
     try {
       if (useThumbnail && asset.thumbnailPath) {
-        // 获取缩略图二进制数据 (缩略图通常较小，适合 Blob)
-        const bytes = await invoke<number[]>("get_asset_binary", {
-          relativePath: asset.thumbnailPath,
-        });
-        const uint8Array = new Uint8Array(bytes);
-        const blob = new Blob([uint8Array], { type: "image/jpeg" }); // 缩略图通常是 JPEG
-        return URL.createObjectURL(blob);
-      } else {
-        // 获取原始文件，使用 asset:// 协议
         const basePath = await assetManagerEngine.getAssetBasePath();
-        return assetManagerEngine.convertToAssetProtocol(asset.path, basePath);
+        return assetManagerEngine.convertToAssetProtocol(
+          asset.thumbnailPath,
+          basePath
+        );
       }
+
+      // 获取原始文件，使用 asset:// 协议
+      const basePath = await assetManagerEngine.getAssetBasePath();
+      return assetManagerEngine.convertToAssetProtocol(asset.path, basePath);
     } catch (error) {
       console.error("获取资产 URL 失败:", error, asset);
       return "";
@@ -303,6 +320,104 @@ export const assetManagerEngine = {
       assetId,
       base64Data,
     });
+  },
+
+  /**
+   * 更新音频资产的波形采样数据
+   * @param assetId 资产 ID
+   * @param waveform 0-255 的波形采样数组
+   */
+  updateAudioWaveform: async (
+    assetId: string,
+    waveform: number[]
+  ): Promise<Asset> => {
+    return await invoke<Asset>("update_audio_waveform", {
+      assetId,
+      waveform,
+    });
+  },
+
+  /**
+   * 确保音频资产有波形采样数据
+   * 如果资产是音频且没有波形数据，则自动在后台采样并保存
+   * @param asset 资产对象
+   * @returns 更新后的资产对象（如果发生了采样），或原资产
+   */
+  ensureAudioWaveform: async (asset: Asset): Promise<Asset> => {
+    // 1. 如果传入的资产已经有波形数据，直接返回
+    if (!needsWaveformSampling(asset)) return asset;
+
+    // 2. 传入的资产没有波形，但可能后端数据库中已经存在（例如之前已采样并保存，但调用方持有的是旧快照）
+    // 先尝试从后端获取最新的资产数据进行校验，避免重复采样
+    try {
+      const latestAsset = await assetManagerEngine.getAssetById(asset.id);
+      if (latestAsset && !needsWaveformSampling(latestAsset)) {
+        logger.debug("音频资产在后端已存在波形采样，无需重复生成", {
+          assetId: asset.id,
+          name: asset.name,
+        });
+        return latestAsset;
+      }
+    } catch (err) {
+      logger.warn("尝试获取最新音频资产失败", {
+        assetId: asset.id,
+        error: err,
+      });
+    }
+
+    const pendingTask = _audioWaveformTasks.get(asset.id);
+    if (pendingTask) return pendingTask;
+
+    const task = (async () => {
+      try {
+        logger.debug("开始为音频资产生成波形采样", {
+          assetId: asset.id,
+          name: asset.name,
+        });
+
+        // 获取资产 URL
+        const url = await assetManagerEngine.getAssetUrl(asset);
+        if (!url) {
+          logger.warn("无法获取音频资产 URL", { assetId: asset.id });
+          return asset;
+        }
+
+        // 采样
+        const waveform = await sampleAudioWaveform(url);
+        if (waveform.length === 0) {
+          logger.warn("波形采样结果为空", { assetId: asset.id });
+          return asset;
+        }
+
+        // 保存到后端
+        const updatedAsset = await assetManagerEngine.updateAudioWaveform(
+          asset.id,
+          waveform
+        );
+
+        logger.debug("音频波形采样已保存", {
+          assetId: asset.id,
+          points: waveform.length,
+        });
+
+        return updatedAsset;
+      } catch (error) {
+        logger.error("音频波形采样失败", error as Error, {
+          assetId: asset.id,
+        });
+        return asset;
+      }
+    })();
+
+    _audioWaveformTasks.set(asset.id, task);
+
+    try {
+      return await task;
+    } finally {
+      if (_audioWaveformTasks.get(asset.id) === task) {
+        _audioWaveformTasks.delete(asset.id);
+      }
+    }
   },
 
   /**
@@ -896,6 +1011,8 @@ export function useAssetManager() {
     rebuildHashIndex,
     rebuildCatalogIndex,
     saveAssetThumbnail: assetManagerEngine.saveAssetThumbnail,
+    updateAudioWaveform: assetManagerEngine.updateAudioWaveform,
+    ensureAudioWaveform: assetManagerEngine.ensureAudioWaveform,
     getSidecarActions: assetManagerEngine.getSidecarActions,
     registerSidecarAction: assetManagerEngine.registerSidecarAction,
   };

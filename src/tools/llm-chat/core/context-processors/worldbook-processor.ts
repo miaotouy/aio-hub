@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import {
   STWorldbookEntry,
@@ -5,7 +19,7 @@ import {
   STWorldbookPosition,
   MatchedWorldbookEntry,
   STWorldbook,
-} from "../../types/worldbook";
+} from "@/tools/st-worldbook-manager/types/worldbook";
 import { ProcessableMessage } from "../../types/context";
 import { createModuleLogger } from "@/utils/logger";
 
@@ -179,16 +193,16 @@ export class WorldbookProcessor implements ContextProcessor {
     if (allEntries.length === 0) return;
 
     const historyTexts = messages
-      .filter((m) => m.sourceType === "session_history")
-      .map((m) => (typeof m.content === "string" ? m.content : ""))
+      .filter((m: any) => m.sourceType === "session_history")
+      .map((m: any) => (typeof m.content === "string" ? m.content : ""))
       .reverse();
 
     // 提取智能体配置中的各个字段
     const globalScanData = {
       personaDescription: agentConfig.description || "",
       characterDescription:
-        agentConfig.presetMessages?.find((m) => m.role === "system")?.content ||
-        "",
+        agentConfig.presetMessages?.find((m: any) => m.role === "system")
+          ?.content || "",
       characterPersonality: (agentConfig as any).personality || "",
       characterDepthPrompt: (agentConfig as any).depthPrompt || "",
       scenario: (agentConfig as any).scenario || "",

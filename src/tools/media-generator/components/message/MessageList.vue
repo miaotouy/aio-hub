@@ -1,5 +1,21 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <script setup lang="ts">
-import { ref, watch, nextTick } from "vue";
+import { computed, ref, watch, nextTick } from "vue";
 import { useThrottleFn } from "@vueuse/core";
 import type { MediaMessage, MediaTask } from "../../types";
 import { useMediaGenStore } from "../../stores/mediaGenStore";
@@ -19,18 +35,29 @@ const emit = defineEmits<{
 
 const store = useMediaGenStore();
 
-// 为每条消息计算兄弟节点信息
-const getMessageSiblings = (messageId: string) => {
-  const siblings = store.getSiblings(messageId);
-  // 找到在当前活动路径上的兄弟节点索引
-  const currentIndex = siblings.findIndex((s: MediaMessage) =>
-    store.isNodeInActivePath(s.id)
-  );
-  return {
-    siblings,
-    currentIndex: currentIndex >= 0 ? currentIndex : 0,
-  };
-};
+const siblingMetaById = computed(() => {
+  const meta = new Map<
+    string,
+    { siblings: MediaMessage[]; currentIndex: number }
+  >();
+
+  for (const message of props.messages) {
+    const siblings = store.getSiblings(message.id);
+    const currentIndex = siblings.findIndex((s: MediaMessage) =>
+      store.isNodeInActivePath(s.id)
+    );
+
+    meta.set(message.id, {
+      siblings,
+      currentIndex: currentIndex >= 0 ? currentIndex : 0,
+    });
+  }
+
+  return meta;
+});
+
+const getMessageSiblings = (messageId: string) =>
+  siblingMetaById.value.get(messageId) || { siblings: [], currentIndex: 0 };
 
 // 容器引用
 const messagesContainer = ref<HTMLElement | null>(null);

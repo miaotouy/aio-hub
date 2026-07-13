@@ -1,3 +1,19 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <template>
   <aside class="config-sidebar">
     <InfoCard title="渲染配置" class="config-card">
@@ -62,7 +78,7 @@
             >
               <div class="agent-option">
                 <Avatar
-                  :src="resolveAvatarPath(agent, 'agent') || ''"
+                  :src="resolveAgentAvatarPath(agent) || ''"
                   :alt="agent.displayName || agent.name"
                   :size="24"
                 />
@@ -86,7 +102,7 @@
             >
               <div class="agent-option">
                 <Avatar
-                  :src="resolveAvatarPath(profile, 'user-profile') || ''"
+                  :src="resolveProfileAvatarPath(profile) || ''"
                   :alt="profile.displayName || profile.name"
                   :size="24"
                 />
@@ -504,10 +520,9 @@ import {
   availableVersions,
 } from "../../stores/store";
 import { presets } from "../../config/presets";
-import {
-  llmChatRegistry,
-  resolveAvatarPath,
-} from "@/tools/llm-chat/llm-chat.registry";
+import { llmChatRegistry } from "@/tools/llm-chat/llm-chat.registry";
+import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
+import { resolveProfileAvatarPath } from "@/tools/user-profile-manager/utils/profileAssetUtils";
 import { tokenCalculatorRegistry } from "@/tools/token-calculator/token-calculator.registry";
 import Avatar from "@/components/common/Avatar.vue";
 import InfoCard from "@/components/common/InfoCard.vue";

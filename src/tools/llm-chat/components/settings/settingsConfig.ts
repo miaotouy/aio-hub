@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import { defineAsyncComponent } from "vue";
 import {
   Settings2,
@@ -21,7 +35,30 @@ import type { SettingsSection } from "@/types/settings-renderer";
 import type { ChatSettings } from "../../types/settings";
 import { availableVersions } from "@/tools/rich-text-renderer/stores/store";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
-import { DEFAULT_SETTINGS } from "../../types/settings";
+import { DEFAULT_SETTINGS } from "../../config/defaultSettings";
+import { useOcrExtensions } from "@/tools/smart-ocr/platform";
+import type { OcrExtension } from "@/tools/smart-ocr/platform";
+
+const getOcrExtensions = (): OcrExtension[] => {
+  const { ocrExtensions } = useOcrExtensions();
+  return ocrExtensions.value;
+};
+
+const getSelectedOcrExtension = (
+  settings: ChatSettings
+): OcrExtension | undefined => {
+  const extensionId = settings.transcription.image.ocrPluginExtensionId;
+  if (!extensionId) return undefined;
+  return getOcrExtensions().find((extension) => extension.id === extensionId);
+};
+
+const getSelectedDocumentOcrExtension = (
+  settings: ChatSettings
+): OcrExtension | undefined => {
+  const extensionId = settings.transcription.document.ocrPluginExtensionId;
+  if (!extensionId) return undefined;
+  return getOcrExtensions().find((extension) => extension.id === extensionId);
+};
 
 // 异步加载大型业务组件
 const MarkdownStyleEditor = defineAsyncComponent(
@@ -35,10 +72,10 @@ const PipelineConfig = defineAsyncComponent(
   () => import("./PipelineConfig.vue")
 );
 const WorldbookManager = defineAsyncComponent(
-  () => import("../worldbook/WorldbookManager.vue")
+  () => import("@/tools/st-worldbook-manager/components/WorldbookManager.vue")
 );
 const WorldbookSelector = defineAsyncComponent(
-  () => import("../worldbook/WorldbookSelector.vue")
+  () => import("@/tools/st-worldbook-manager/components/WorldbookSelector.vue")
 );
 const KbEmbeddingInfo = defineAsyncComponent(
   () => import("./KbEmbeddingInfo.vue")
@@ -1289,6 +1326,172 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
 
       // 3. 图片转写配置
       {
+        id: "transImageMode",
+        label: "图片转写模式",
+        component: "ElRadioGroup",
+        props: { type: "button" },
+        options: [
+          { label: "视觉大模型 (VLM)", value: "vlm" },
+          { label: "纯文字提取 (OCR)", value: "ocr" },
+        ],
+        modelPath: "transcription.image.mode",
+        hint: "VLM 适合图片理解和描述；OCR 适合截图、代码、文档扫描等纯文字提取场景。",
+        keywords: "transcription image mode vlm ocr 图片 转写 模式",
+        visible: (settings) => settings.transcription.enabled,
+        defaultValue: DEFAULT_SETTINGS.transcription.image.mode,
+        groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
+      },
+      {
+        id: "transImageOcrEngineType",
+        label: "OCR 引擎",
+        component: "ElSelect",
+        props: { placeholder: "选择 OCR 引擎" },
+        options: [
+          {
+            label: "跟随智能 OCR 默认设置",
+            value: "default",
+            description: "使用 Smart OCR 工具当前选择的引擎与配置。",
+          },
+          {
+            label: "Tesseract.js",
+            value: "tesseract",
+            description: "本地 Tesseract 识别，适合中英文截图和文档。",
+          },
+          {
+            label: "Native OCR",
+            value: "native",
+            description: "调用系统原生 OCR 能力，速度快，依赖平台支持。",
+          },
+          {
+            label: "Cloud OCR",
+            value: "cloud",
+            description: "使用 Smart OCR 中配置的云端 OCR 服务。",
+          },
+          {
+            label: "Plugin OCR",
+            value: "plugin",
+            description: "使用 Smart OCR 中配置的 OCR 扩展插件。",
+          },
+        ],
+        modelPath: "transcription.image.ocrEngineType",
+        hint: "OCR 模式会复用智能 OCR 的对应引擎配置。",
+        keywords: "transcription image ocr engine 图片 引擎",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.image.mode === "ocr",
+        defaultValue: DEFAULT_SETTINGS.transcription.image.ocrEngineType,
+        groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
+      },
+      {
+        id: "transImageOcrPluginExtension",
+        label: "OCR 插件扩展",
+        component: "ElSelect",
+        props: {
+          placeholder: "选择 OCR 插件扩展",
+          filterable: true,
+          clearable: true,
+        },
+        options: () => {
+          const extensions = getOcrExtensions();
+          if (extensions.length === 0) {
+            return [
+              {
+                label: "未发现可用 OCR 插件",
+                value: "",
+                description: "请先在插件管理中安装并启用 OCR 扩展插件。",
+              },
+            ];
+          }
+
+          return extensions.map((extension) => ({
+            label: extension.name,
+            value: extension.id,
+            description: `${extension.pluginName} / ${extension.method}${
+              extension.enabled && !extension.broken ? "" : "（当前不可用）"
+            }`,
+          }));
+        },
+        modelPath: "transcription.image.ocrPluginExtensionId",
+        hint: "指定聊天转写使用的 OCR 插件扩展；留空则使用智能 OCR 中配置的插件引擎。",
+        keywords: "transcription image ocr plugin extension 插件 扩展",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.image.mode === "ocr" &&
+          settings.transcription.image.ocrEngineType === "plugin",
+        defaultValue: DEFAULT_SETTINGS.transcription.image.ocrPluginExtensionId,
+        groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
+      },
+      {
+        id: "transImageOcrPluginModelProfile",
+        label: "插件模型 Profile",
+        component: "ElSelect",
+        props: {
+          placeholder: "跟随插件默认模型",
+          clearable: true,
+        },
+        options: (settings) =>
+          (getSelectedOcrExtension(settings)?.modelProfiles ?? []).map(
+            (profile) => ({
+              label: profile.name,
+              value: profile.id,
+            })
+          ),
+        modelPath: "transcription.image.ocrPluginModelProfile",
+        hint: "选择插件暴露的模型档位；留空则使用插件默认值。",
+        keywords: "transcription image ocr plugin model profile 插件 模型",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.image.mode === "ocr" &&
+          settings.transcription.image.ocrEngineType === "plugin" &&
+          !!settings.transcription.image.ocrPluginExtensionId &&
+          (getSelectedOcrExtension(settings)?.modelProfiles.length ?? 0) > 0,
+        defaultValue:
+          DEFAULT_SETTINGS.transcription.image.ocrPluginModelProfile,
+        groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
+      },
+      {
+        id: "transImageOcrPluginLanguage",
+        label: "插件识别语言",
+        component: "ElSelect",
+        props: {
+          placeholder: "跟随插件默认语言",
+          clearable: true,
+        },
+        options: (settings) =>
+          (getSelectedOcrExtension(settings)?.languages ?? []).map(
+            (language) => ({
+              label: language.name,
+              value: language.id,
+            })
+          ),
+        modelPath: "transcription.image.ocrPluginLanguage",
+        hint: "选择插件暴露的识别语言；留空则使用插件默认值。",
+        keywords: "transcription image ocr plugin language 插件 语言",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.image.mode === "ocr" &&
+          settings.transcription.image.ocrEngineType === "plugin" &&
+          !!settings.transcription.image.ocrPluginExtensionId &&
+          (getSelectedOcrExtension(settings)?.languages.length ?? 0) > 0,
+        defaultValue: DEFAULT_SETTINGS.transcription.image.ocrPluginLanguage,
+        groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
+      },
+      {
+        id: "transImageOcrBatchSize",
+        label:
+          "OCR 分批大小 ({{ localSettings.transcription.image.ocrBatchSize }}切片/批)",
+        component: "SliderWithInput",
+        props: { min: 1, max: 10, step: 1 },
+        modelPath: "transcription.image.ocrBatchSize",
+        defaultValue: DEFAULT_SETTINGS.transcription.image.ocrBatchSize,
+        hint: "控制每次提交给 OCR 引擎的图片切片数。较小的值可以避免本地引擎过载和内存溢出，并能更及时地响应取消操作。",
+        keywords: "transcription image ocr batch size 分批 大小 切片数",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.image.mode === "ocr",
+        groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
+      },
+      {
         id: "transImageModel",
         label: "图片转写模型",
         component: LlmModelSelector,
@@ -1298,7 +1501,9 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.image.modelIdentifier",
         hint: "专门用于图片转写的模型。留空则使用上述兜底模型。",
         keywords: "transcription image model 图片 转写 模型",
-        visible: (settings) => settings.transcription.enabled,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.image.mode !== "ocr",
         defaultValue: "",
         groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
       },
@@ -1314,7 +1519,9 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.image.customPrompt",
         hint: "用于指导模型如何转写图片内容。<br />支持占位符：<code>{filename}</code> - 附件的原始文件名。",
         keywords: "transcription image prompt 图片 提示词 filename 文件名",
-        visible: (settings) => settings.transcription.enabled,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.image.mode !== "ocr",
         groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
       },
       {
@@ -1325,7 +1532,9 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.image.temperature",
         hint: "较低的温度会产生更确定性的转写结果",
         keywords: "transcription image temperature 图片 转写 温度",
-        visible: (settings) => settings.transcription.enabled,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.image.mode !== "ocr",
         groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
       },
       {
@@ -1336,7 +1545,9 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.image.maxTokens",
         hint: "图片转写结果的最大 token 数",
         keywords: "transcription image max tokens 图片 转写 上限",
-        visible: (settings) => settings.transcription.enabled,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.image.mode !== "ocr",
         groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
       },
       {
@@ -1641,6 +1852,175 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
 
       // 6. 文档转写配置
       {
+        id: "transDocumentMode",
+        label: "文档转写模式",
+        component: "ElRadioGroup",
+        props: { type: "button" },
+        options: [
+          { label: "智能解析 (LLM)", value: "llm" },
+          { label: "纯文字提取 (OCR)", value: "ocr" },
+        ],
+        modelPath: "transcription.document.mode",
+        hint: "LLM 模式适合文档理解、总结和结构化提取；OCR 模式适合扫描版 PDF、双栏排版或大体积文档的纯文字提取。",
+        keywords: "transcription document mode llm ocr 文档 转写 模式",
+        visible: (settings) => settings.transcription.enabled,
+        defaultValue: DEFAULT_SETTINGS.transcription.document.mode,
+        groupCollapsible: { name: "documentConfig", title: "文档转写配置" },
+      },
+      {
+        id: "transDocumentOcrEngineType",
+        label: "OCR 引擎",
+        component: "ElSelect",
+        props: { placeholder: "选择 OCR 引擎" },
+        options: [
+          {
+            label: "跟随图片转写配置",
+            value: "default",
+            description: "使用图片转写中配置的 OCR 引擎与参数。",
+          },
+          {
+            label: "Tesseract.js",
+            value: "tesseract",
+            description: "本地 Tesseract 识别，适合中英文截图和文档。",
+          },
+          {
+            label: "Native OCR",
+            value: "native",
+            description: "调用系统原生 OCR 能力，速度快，依赖平台支持。",
+          },
+          {
+            label: "Cloud OCR",
+            value: "cloud",
+            description: "使用 Smart OCR 中配置的云端 OCR 服务。",
+          },
+          {
+            label: "Plugin OCR",
+            value: "plugin",
+            description: "使用 Smart OCR 中配置的 OCR 扩展插件。",
+          },
+        ],
+        modelPath: "transcription.document.ocrEngineType",
+        hint: "OCR 模式会复用智能 OCR 的对应引擎配置。",
+        keywords: "transcription document ocr engine 文档 引擎",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.document.mode === "ocr",
+        defaultValue: DEFAULT_SETTINGS.transcription.document.ocrEngineType,
+        groupCollapsible: { name: "documentConfig", title: "文档转写配置" },
+      },
+      {
+        id: "transDocumentOcrPluginExtension",
+        label: "OCR 插件扩展",
+        component: "ElSelect",
+        props: {
+          placeholder: "选择 OCR 插件扩展",
+          filterable: true,
+          clearable: true,
+        },
+        options: () => {
+          const extensions = getOcrExtensions();
+          if (extensions.length === 0) {
+            return [
+              {
+                label: "未发现可用 OCR 插件",
+                value: "",
+                description: "请先在插件管理中安装并启用 OCR 扩展插件。",
+              },
+            ];
+          }
+
+          return extensions.map((extension) => ({
+            label: extension.name,
+            value: extension.id,
+            description: `${extension.pluginName} / ${extension.method}${
+              extension.enabled && !extension.broken ? "" : "（当前不可用）"
+            }`,
+          }));
+        },
+        modelPath: "transcription.document.ocrPluginExtensionId",
+        hint: "指定聊天转写使用的 OCR 插件扩展；留空则使用智能 OCR 中配置的插件引擎。",
+        keywords: "transcription document ocr plugin extension 插件 扩展",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.document.mode === "ocr" &&
+          settings.transcription.document.ocrEngineType === "plugin",
+        defaultValue:
+          DEFAULT_SETTINGS.transcription.document.ocrPluginExtensionId,
+        groupCollapsible: { name: "documentConfig", title: "文档转写配置" },
+      },
+      {
+        id: "transDocumentOcrPluginModelProfile",
+        label: "插件模型 Profile",
+        component: "ElSelect",
+        props: {
+          placeholder: "跟随插件默认模型",
+          clearable: true,
+        },
+        options: (settings) =>
+          (getSelectedDocumentOcrExtension(settings)?.modelProfiles ?? []).map(
+            (profile) => ({
+              label: profile.name,
+              value: profile.id,
+            })
+          ),
+        modelPath: "transcription.document.ocrPluginModelProfile",
+        hint: "选择插件暴露的模型档位；留空则使用插件默认值。",
+        keywords: "transcription document ocr plugin model profile 插件 模型",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.document.mode === "ocr" &&
+          settings.transcription.document.ocrEngineType === "plugin" &&
+          !!settings.transcription.document.ocrPluginExtensionId &&
+          (getSelectedDocumentOcrExtension(settings)?.modelProfiles.length ??
+            0) > 0,
+        defaultValue:
+          DEFAULT_SETTINGS.transcription.document.ocrPluginModelProfile,
+        groupCollapsible: { name: "documentConfig", title: "文档转写配置" },
+      },
+      {
+        id: "transDocumentOcrPluginLanguage",
+        label: "插件识别语言",
+        component: "ElSelect",
+        props: {
+          placeholder: "跟随插件默认语言",
+          clearable: true,
+        },
+        options: (settings) =>
+          (getSelectedDocumentOcrExtension(settings)?.languages ?? []).map(
+            (language) => ({
+              label: language.name,
+              value: language.id,
+            })
+          ),
+        modelPath: "transcription.document.ocrPluginLanguage",
+        hint: "选择插件暴露的识别语言；留空则使用插件默认值。",
+        keywords: "transcription document ocr plugin language 插件 语言",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.document.mode === "ocr" &&
+          settings.transcription.document.ocrEngineType === "plugin" &&
+          !!settings.transcription.document.ocrPluginExtensionId &&
+          (getSelectedDocumentOcrExtension(settings)?.languages.length ?? 0) >
+            0,
+        defaultValue: DEFAULT_SETTINGS.transcription.document.ocrPluginLanguage,
+        groupCollapsible: { name: "documentConfig", title: "文档转写配置" },
+      },
+      {
+        id: "transDocumentOcrBatchSize",
+        label:
+          "OCR 分批大小 ({{ localSettings.transcription.document.ocrBatchSize }}页/批)",
+        component: "SliderWithInput",
+        props: { min: 1, max: 10, step: 1 },
+        modelPath: "transcription.document.ocrBatchSize",
+        defaultValue: DEFAULT_SETTINGS.transcription.document.ocrBatchSize,
+        hint: "控制每次提交给 OCR 引擎的图片页数。较小的值可以避免本地引擎过载和内存溢出，并能更及时地响应取消操作。",
+        keywords: "transcription document ocr batch size 分批 大小 页数",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.document.mode === "ocr",
+        groupCollapsible: { name: "documentConfig", title: "文档转写配置" },
+      },
+      {
         id: "transDocumentModel",
         label: "文档转写模型",
         component: LlmModelSelector,
@@ -1650,7 +2030,9 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.document.modelIdentifier",
         hint: "专门用于文档（PDF/Word等）转写的模型。留空则使用上述兜底模型。",
         keywords: "transcription document model 文档 转写 模型",
-        visible: (settings) => settings.transcription.enabled,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.document.mode !== "ocr",
         defaultValue: "",
         groupCollapsible: { name: "documentConfig", title: "文档转写配置" },
       },
@@ -1666,7 +2048,9 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.document.customPrompt",
         hint: "用于指导模型如何解析和转录文档内容。<br />支持占位符：<code>{filename}</code> - 附件的原始文件名。",
         keywords: "transcription document prompt 文档 提示词 filename 文件名",
-        visible: (settings) => settings.transcription.enabled,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.document.mode !== "ocr",
         groupCollapsible: { name: "documentConfig", title: "文档转写配置" },
       },
       {
@@ -1678,7 +2062,9 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.document.temperature",
         hint: "较低的温度会产生更确定性的转写结果",
         keywords: "transcription document temperature 文档 转写 温度",
-        visible: (settings) => settings.transcription.enabled,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.document.mode !== "ocr",
         groupCollapsible: { name: "documentConfig", title: "文档转写配置" },
       },
       {
@@ -1689,7 +2075,9 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.document.maxTokens",
         hint: "文档转写结果的最大 token 数",
         keywords: "transcription document max tokens 文档 转写 上限",
-        visible: (settings) => settings.transcription.enabled,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.document.mode !== "ocr",
         groupCollapsible: { name: "documentConfig", title: "文档转写配置" },
       },
     ],

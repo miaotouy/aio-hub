@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import type {
   LlmRequestOptions,
   LlmMessageContent,
@@ -15,6 +29,7 @@ import {
   inferMediaMimeType,
   buildBase64DataUrl,
 } from "@/llm-apis/request-builder";
+import { getGeminiReplayParts } from "./reasoning-artifacts";
 
 /**
  * Gemini API 类型定义
@@ -54,6 +69,10 @@ export interface GeminiPart {
     endOffset?: string;
     fps?: number;
   };
+  thought?: boolean;
+  thoughtSignature?: string;
+  thought_signature?: string;
+  signature?: string;
 }
 
 export interface GeminiContent {
@@ -306,10 +325,13 @@ export function buildGeminiContents(messages: LlmMessage[]): GeminiContent[] {
   const contents: GeminiContent[] = [];
   for (const msg of messages) {
     if (msg.role === "system") continue;
+    const replayParts =
+      msg.role === "assistant" ? getGeminiReplayParts(msg) : undefined;
     const parts =
-      typeof msg.content === "string"
+      replayParts ||
+      (typeof msg.content === "string"
         ? [{ text: msg.content }]
-        : buildGeminiParts(msg.content);
+        : buildGeminiParts(msg.content));
     contents.push({
       role: msg.role === "assistant" ? "model" : "user",
       parts,

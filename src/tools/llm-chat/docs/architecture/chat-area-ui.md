@@ -174,6 +174,15 @@
 - **实现路径**: **不复用 `useBranchManager.createBranch`**（后者仅创建空白分支节点）。实际由 [`useGraphActions.createBranchFromEdit`](../../composables/visualization/useGraphActions.ts:515) 内部调用 [`useNodeManager.createBranchFromEdit`](../../composables/session/useNodeManager.ts:1075) 完成——后者会**保留源节点角色**（user 编辑得到 user 分支，assistant 编辑得到 assistant 分支）+ **直接附带新内容与附件**（无需事后再调 `editMessage`），等同于 "createBranch + editMessage" 的原子化合并版本。
 - **历史与持久化**: 写入历史栈使用专属 `BRANCH_CREATE_FROM_EDIT` 标签，与普通 `BRANCH_CREATE` 区分；新节点写入后调用 `nodeManager.updateActiveLeaf` 切换为活跃叶节点，并自动重算 Token + 持久化。
 
+### 7.3 输入草稿剪切与粘贴 (Draft Cut & Paste)
+
+- **跨会话复用**: 系统支持在不同会话间剪切和粘贴输入草稿。通过全局草稿剪贴板，用户可一键将当前会话的输入框文本、附件及临时模型配置剪切并粘贴到另一个会话中。
+- **状态同步与持久化**: 草稿剪贴板状态同步至 `localStorage` 和跨窗口状态，确保存久化与多窗口间的一致性。
+
+### 7.4 面板尺寸调整 (Resizable Panels)
+
+- **统一拖拽行为**: 采用通用的 `useResizable` 组合函数，支持左、右、上、下四个方向的尺寸调整，自动管理鼠标事件、光标样式与面板宽度配置的持久化，移除了各工具本地冗余的拖拽处理代码。
+
 ## 8. 气泡布局模式 (Bubble Layout Mode)
 
 为了同时满足"知识型工作流"和"沉浸式聊天"等多种使用场景，消息列表支持在 **卡片模式 (Card)** 和 **气泡模式 (Bubble)** 之间无缝切换。该能力由 `BubbleLayoutConfig` 配置驱动，并通过 CSS 变量 + `data-*` 属性实现，**完全不影响**默认卡片模式的渲染路径，确保零回归。

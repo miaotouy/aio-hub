@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import { execute } from "@/services/executor";
 import { pluginManager } from "@/services/plugin-manager";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -36,19 +50,12 @@ interface PluginOcrBatchResult {
   }>;
 }
 
-function findPlugin(pluginId: string) {
-  return (
-    pluginManager.getPlugin(pluginId) ??
-    pluginManager.getPlugin(`${pluginId}-dev`)
-  );
-}
-
 function assertPluginReady(pluginId: string, method: string): string {
   if (!pluginId || !method) {
     throw new Error("未选择可用的 OCR 插件引擎，请先安装并选择 OCR 扩展插件");
   }
 
-  const plugin = findPlugin(pluginId);
+  const plugin = pluginManager.getActivePlugin(pluginId);
 
   if (!plugin) {
     throw new Error(

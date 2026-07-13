@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
 import { useAppSettingsStore } from "@/stores/appSettingsStore";
@@ -111,6 +125,21 @@ export type LlmMessageContent =
   | ToolResultContent;
 
 /**
+ * Provider-owned reasoning state that may need exact replay in future turns.
+ *
+ * This is intentionally separate from reasoningContent:
+ * - reasoningContent is display/search/export text.
+ * - reasoningArtifacts are opaque API state and must not be rewritten.
+ */
+export interface LlmReasoningArtifact {
+  provider: string;
+  kind: string;
+  replayPolicy: "always" | "with_tool_calls" | "never";
+  payload: unknown;
+  visibleText?: string;
+}
+
+/**
  * LLM 消息结构
  */
 export interface LlmMessage {
@@ -121,6 +150,10 @@ export interface LlmMessage {
    * 在多轮对话中，如果存在工具调用，必须回传此内容
    */
   reasoningContent?: string;
+  /**
+   * Provider-owned reasoning state for exact replay.
+   */
+  reasoningArtifacts?: LlmReasoningArtifact[];
   /**
    * 是否作为续写前缀 (DeepSeek / Claude Prefill)
    * 如果为 true，该消息必须是列表中的最后一条，且 role 通常为 assistant
@@ -156,6 +189,8 @@ export interface LlmRequestOptions {
   requestId?: string;
   /** 是否静默记录请求错误（用于有明确降级路径的探测性请求） */
   suppressErrorLog?: boolean;
+  /** 是否允许测试/探测请求绕过 profile 启用状态检查 */
+  allowDisabledProfile?: boolean;
 
   // --- 特种模型参数 ---
   /** 嵌入 (Embedding) 输入内容 */
@@ -506,6 +541,8 @@ export interface LlmResponse {
   };
   /** 推理内容（DeepSeek reasoning 模式） */
   reasoningContent?: string;
+  /** Provider-owned reasoning state for exact replay in later turns. */
+  reasoningArtifacts?: LlmReasoningArtifact[];
   /** 消息注释（如网络搜索的URL引用、文件搜索的文件引用） */
   annotations?: Annotation[];
   /** 音频响应数据 */
@@ -538,6 +575,7 @@ export interface LlmResponse {
   /** 生成的视频列表 */
   videos?: Array<{
     url?: string;
+    b64_json?: string | ArrayBuffer;
     id?: string;
     status?: "pending" | "processing" | "completed" | "failed";
     thumbnailUrl?: string;

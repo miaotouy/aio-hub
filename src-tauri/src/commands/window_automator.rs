@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // 窗口自动化助手 (Window Automator) - 所有 Tauri Commands
 //
 // 实现 ImplementationPlan.md 中描述的命令集：
@@ -58,6 +72,14 @@ pub struct WaWindowInfo {
 pub struct WaClientRect {
     pub width: i32,
     pub height: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CaptureResult {
+    pub changed: bool,
+    pub hash: String,
+    pub image_bytes: Option<Vec<u8>>,
 }
 
 // =============================================================================
@@ -379,6 +401,189 @@ pub fn wa_capture_window(hwnd: i64) -> Result<tauri::ipc::Response, String> {
             .map_err(|e| format!("PNG 编码失败: {}", e))?;
     }
     Ok(tauri::ipc::Response::new(png_bytes))
+}
+
+/// 屏幕区域截屏：抓取屏幕指定物理坐标区域 (x, y, width, height) 的像素，
+/// 计算 aHash 并与 last_hash 对比。若汉明距离小于 threshold，则判定为无变化，
+/// 不进行 PNG 编码，直接返回 changed: false。否则进行 PNG 编码并返回 changed: true。
+/// 用于“实时字幕 OCR”工具的高频低开销采样。
+///
+/// 注意：参数均为**物理像素**坐标（相对于主显示器左上角，跨屏时可为负值）。
+#[tauri::command]
+pub fn capture_screen_rect(
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+    last_hash: Option<String>,
+    threshold: Option<i32>,
+) -> Result<CaptureResult, String> {
+    if width <= 0 || height <= 0 {
+        return Err("截屏区域尺寸无效".to_string());
+    }
+
+    // GetDC(NULL) 获取整个屏幕（多显示器合并）的设备上下文
+    let hwnd = HWND(std::ptr::null_mut());
+    let src_dc = unsafe { GetDC(hwnd) };
+    if src_dc.is_invalid() {
+        return Err("获取屏幕 DC 失败".to_string());
+    }
+    defer!(unsafe {
+        windows::Win32::Graphics::Gdi::ReleaseDC(hwnd, src_dc);
+    });
+
+    let mem_dc = unsafe { CreateCompatibleDC(src_dc) };
+    if mem_dc.is_invalid() {
+        return Err("创建内存 DC 失败".to_string());
+    }
+    defer!(unsafe {
+        let _ = DeleteDC(mem_dc);
+    });
+
+    let bitmap = unsafe { CreateCompatibleBitmap(src_dc, width, height) };
+    if bitmap.is_invalid() {
+        return Err("创建位图失败".to_string());
+    }
+    defer!(unsafe {
+        let _ = DeleteObject(bitmap);
+    });
+
+    let prev: HGDIOBJ = unsafe { SelectObject(mem_dc, HGDIOBJ(bitmap.0)) };
+    defer!(unsafe {
+        let _ = SelectObject(mem_dc, prev);
+    });
+
+    // 直接 BitBlt 屏幕指定区域
+    let blt = unsafe { BitBlt(mem_dc, 0, 0, width, height, src_dc, x, y, SRCCOPY) };
+    if blt.is_err() {
+        return Err("BitBlt 截屏失败".to_string());
+    }
+
+    // 读取像素（BGRA Top-down）
+    let mut bmi = BITMAPINFO {
+        bmiHeader: BITMAPINFOHEADER {
+            biSize: size_of::<BITMAPINFOHEADER>() as u32,
+            biWidth: width,
+            biHeight: -height, // top-down
+            biPlanes: 1,
+            biBitCount: 32,
+            biCompression: BI_RGB.0,
+            biSizeImage: 0,
+            biXPelsPerMeter: 0,
+            biYPelsPerMeter: 0,
+            biClrUsed: 0,
+            biClrImportant: 0,
+        },
+        bmiColors: [windows::Win32::Graphics::Gdi::RGBQUAD::default(); 1],
+    };
+    let row_bytes = (width as usize) * 4;
+    let mut pixels: Vec<u8> = vec![0u8; row_bytes * height as usize];
+    let scan_lines = unsafe {
+        GetDIBits(
+            mem_dc,
+            bitmap,
+            0,
+            height as u32,
+            Some(pixels.as_mut_ptr() as *mut _),
+            &mut bmi,
+            windows::Win32::Graphics::Gdi::DIB_RGB_COLORS,
+        )
+    };
+    if scan_lines == 0 {
+        return Err("GetDIBits 读取像素失败".to_string());
+    }
+
+    // BGRA -> RGBA
+    let mut rgba: Vec<u8> = vec![0u8; (width as usize) * (height as usize) * 4];
+    for y in 0..height as usize {
+        for x in 0..width as usize {
+            let src = (y * width as usize + x) * 4;
+            let b = pixels[src];
+            let g = pixels[src + 1];
+            let r = pixels[src + 2];
+            let a = pixels[src + 3];
+            let dst = (y * width as usize + x) * 4;
+            rgba[dst] = r;
+            rgba[dst + 1] = g;
+            rgba[dst + 2] = b;
+            rgba[dst + 3] = if a == 0 { 255 } else { a };
+        }
+    }
+
+    // 1. 构造 RgbaImage
+    let src_img = image::RgbaImage::from_raw(width as u32, height as u32, rgba.clone())
+        .ok_or_else(|| "构造图像失败".to_string())?;
+
+    // 2. 缩放到 8x8
+    let resized = image::imageops::resize(&src_img, 8, 8, image::imageops::FilterType::Triangle);
+
+    // 3. 计算灰度并生成 64 位二进制指纹
+    let mut grays = [0u8; 64];
+    let mut sum = 0u32;
+    for (i, pixel) in resized.pixels().enumerate() {
+        let r = pixel[0] as u32;
+        let g = pixel[1] as u32;
+        let b = pixel[2] as u32;
+        // ITU-R BT.601 加权灰度
+        let gray = ((r * 299 + g * 587 + b * 114) / 1000) as u8;
+        grays[i] = gray;
+        sum += gray as u32;
+    }
+    let avg = (sum / 64) as u8;
+    let mut current_hash = String::with_capacity(64);
+    for gray in grays {
+        if gray >= avg {
+            current_hash.push('1');
+        } else {
+            current_hash.push('0');
+        }
+    }
+
+    // 4. 对比汉明距离
+    let mut changed = true;
+    if let Some(lh) = last_hash {
+        let th = threshold.unwrap_or(4);
+        if lh.len() == current_hash.len() {
+            let distance = lh
+                .chars()
+                .zip(current_hash.chars())
+                .filter(|(c1, c2)| c1 != c2)
+                .count() as i32;
+            if distance < th {
+                changed = false;
+            }
+        }
+    }
+
+    // 5. 如果有变化，进行 PNG 编码（使用最快压缩和无过滤器，极大提升高频采样性能）
+    let image_bytes = if changed {
+        let mut png_bytes: Vec<u8> = Vec::new();
+        {
+            use image::codecs::png::{CompressionType, FilterType, PngEncoder};
+            use image::ImageEncoder;
+            PngEncoder::new_with_quality(
+                &mut png_bytes,
+                CompressionType::Fast,
+                FilterType::NoFilter,
+            )
+            .write_image(
+                &rgba,
+                width as u32,
+                height as u32,
+                image::ExtendedColorType::Rgba8,
+            )
+            .map_err(|e| format!("PNG 编码失败: {}", e))?;
+        }
+        Some(png_bytes)
+    } else {
+        None
+    };
+
+    Ok(CaptureResult {
+        changed,
+        hash: current_hash,
+        image_bytes,
+    })
 }
 
 /// 后台点击：构造 WM_*BUTTONDOWN / WM_*BUTTONUP 消息。

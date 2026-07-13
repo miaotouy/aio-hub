@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import type { LlmProfile } from "@/types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
 import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
@@ -17,6 +31,11 @@ import {
 import { asyncJsonStringify } from "@/utils/serialization";
 // import { createModuleLogger } from "@/utils/logger";
 import { openAiUrlHandler, buildOpenAiHeaders } from "./utils";
+import {
+  extractDeepSeekReasoningArtifacts,
+  getDeepSeekReplayReasoningContent,
+  isDeepSeekModel,
+} from "../deepseek/reasoning-artifacts";
 
 // const logger = createModuleLogger("openai-chat");
 
@@ -24,9 +43,14 @@ function shouldSendOpenAiReasoningEffort(
   profile: LlmProfile,
   modelId: string
 ): boolean {
+  const id = modelId.toLowerCase();
   return (
     (profile.type === "openai" || profile.type === "openai-compatible") &&
-    isOpenAIModel(modelId)
+    (isOpenAIModel(modelId) ||
+      id.includes("doubao") ||
+      id.includes("seed") ||
+      id.includes("glm") ||
+      id.includes("deepseek"))
   );
 }
 
@@ -189,11 +213,9 @@ export const callOpenAiChatApi = async (
       };
       // 支持回传推理内容（DeepSeek 等模型多轮对话需要）
       // ⚠️ 只有 DeepSeek 模型才支持 reasoning_content 回传，非 DS 模型传此字段可能会报错
-      if (
-        msg.reasoningContent &&
-        options.modelId.toLowerCase().includes("deepseek")
-      ) {
-        messageObj.reasoning_content = msg.reasoningContent;
+      const deepSeekReplayReasoning = getDeepSeekReplayReasoningContent(msg);
+      if (isDeepSeekModel(options.modelId) && deepSeekReplayReasoning) {
+        messageObj.reasoning_content = deepSeekReplayReasoning;
       }
       // 支持 DeepSeek prefix 模式
       if (msg.prefix) {
@@ -287,11 +309,9 @@ export const callOpenAiChatApi = async (
         content: contentArray,
       };
       // 支持回传推理内容
-      if (
-        msg.reasoningContent &&
-        options.modelId.toLowerCase().includes("deepseek")
-      ) {
-        messageObj.reasoning_content = msg.reasoningContent;
+      const deepSeekReplayReasoning = getDeepSeekReplayReasoningContent(msg);
+      if (isDeepSeekModel(options.modelId) && deepSeekReplayReasoning) {
+        messageObj.reasoning_content = deepSeekReplayReasoning;
       }
       if (msg.prefix) {
         messageObj.prefix = true;
@@ -369,8 +389,19 @@ export const callOpenAiChatApi = async (
       thinking: { type: options.thinkingEnabled ? "enabled" : "disabled" },
       ...(options.extraBody || {}),
     };
-  } else if (options.extraBody) {
-    body.extra_body = options.extraBody;
+  } else {
+    if (options.extraBody) {
+      body.extra_body = options.extraBody;
+    }
+    // 对于非 DeepSeek 的 OpenAI 兼容模型（如豆包、NewAPI 等），如果启用了思考，直接在根部注入 thinking 参数
+    if (options.thinkingEnabled !== undefined) {
+      body.thinking = {
+        type: options.thinkingEnabled ? "enabled" : "disabled",
+      };
+      if (options.thinkingBudget) {
+        body.thinking.budget_tokens = options.thinkingBudget;
+      }
+    }
   }
 
   const extendedOptions = options as any;
@@ -478,6 +509,9 @@ export const callOpenAiChatApi = async (
     return {
       content: fullContent,
       reasoningContent: fullReasoningContent || undefined,
+      reasoningArtifacts: isDeepSeekModel(options.modelId)
+        ? extractDeepSeekReasoningArtifacts(fullReasoningContent, false)
+        : undefined,
       usage,
       isStream: true,
     };
@@ -581,14 +615,22 @@ export const callOpenAiChatApi = async (
     };
   }
 
+  const responseReasoningContent =
+    message?.reasoning_content ||
+    message?.reasoning ||
+    message?.thinking ||
+    message?.thought ||
+    undefined;
+
   return {
     content: message?.content || "",
-    reasoningContent:
-      message?.reasoning_content ||
-      message?.reasoning ||
-      message?.thinking ||
-      message?.thought ||
-      undefined,
+    reasoningContent: responseReasoningContent,
+    reasoningArtifacts: isDeepSeekModel(options.modelId)
+      ? extractDeepSeekReasoningArtifacts(
+          responseReasoningContent,
+          !!message?.tool_calls?.length
+        )
+      : undefined,
     refusal: message?.refusal || null,
     finishReason: choice.finish_reason,
     toolCalls: message?.tool_calls,

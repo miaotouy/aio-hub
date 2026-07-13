@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import type {
   ToolRegistry,
   ToolConfig,
@@ -6,6 +20,7 @@ import type {
 import type { SettingItem } from "@/types/settings-renderer";
 import { markRaw } from "vue";
 import GitBranchIcon from "@/components/icons/GitBranchIcon.vue";
+import { coerceAgentBoolean } from "@/utils/agentArgs";
 import {
   analyzeRepository,
   getAuthorCommits,
@@ -92,25 +107,17 @@ export default class GitAnalyzerRegistry implements ToolRegistry {
       limit: args.limit !== undefined ? Number(args.limit) : 100,
       dateFormat:
         (args.dateFormat as AnalyzeRepositoryOptions["dateFormat"]) || "iso",
-      includeStatistics:
-        args.includeStatistics !== false && args.includeStatistics !== "false",
-      includeCommits:
-        args.includeCommits !== false && args.includeCommits !== "false",
-      includeContributors:
-        args.includeContributors !== false &&
-        args.includeContributors !== "false",
-      includeTimeline:
-        args.includeTimeline === true || args.includeTimeline === "true",
-      includeCharts:
-        args.includeCharts === true || args.includeCharts === "true",
-      includeAuthor:
-        args.includeAuthor !== false && args.includeAuthor !== "false",
-      includeEmail: args.includeEmail === true || args.includeEmail === "true",
-      includeFullMessage:
-        args.includeFullMessage === true || args.includeFullMessage === "true",
-      includeFiles: args.includeFiles === true || args.includeFiles === "true",
-      includeTags: args.includeTags === true || args.includeTags === "true",
-      includeStats: args.includeStats === true || args.includeStats === "true",
+      includeStatistics: coerceAgentBoolean(args.includeStatistics, true),
+      includeCommits: coerceAgentBoolean(args.includeCommits, true),
+      includeContributors: coerceAgentBoolean(args.includeContributors, true),
+      includeTimeline: coerceAgentBoolean(args.includeTimeline),
+      includeCharts: coerceAgentBoolean(args.includeCharts),
+      includeAuthor: coerceAgentBoolean(args.includeAuthor, true),
+      includeEmail: coerceAgentBoolean(args.includeEmail),
+      includeFullMessage: coerceAgentBoolean(args.includeFullMessage),
+      includeFiles: coerceAgentBoolean(args.includeFiles),
+      includeTags: coerceAgentBoolean(args.includeTags),
+      includeStats: coerceAgentBoolean(args.includeStats),
     };
 
     let result: Awaited<ReturnType<typeof analyzeRepository>>;
@@ -193,12 +200,11 @@ export default class GitAnalyzerRegistry implements ToolRegistry {
       limit: args.limit !== undefined ? Number(args.limit) : 100,
       dateFormat:
         (args.dateFormat as GetAuthorCommitsOptions["dateFormat"]) || "iso",
-      includeEmail: args.includeEmail === true || args.includeEmail === "true",
-      includeFullMessage:
-        args.includeFullMessage === true || args.includeFullMessage === "true",
-      includeFiles: args.includeFiles === true || args.includeFiles === "true",
-      includeTags: args.includeTags === true || args.includeTags === "true",
-      includeStats: args.includeStats === true || args.includeStats === "true",
+      includeEmail: coerceAgentBoolean(args.includeEmail),
+      includeFullMessage: coerceAgentBoolean(args.includeFullMessage),
+      includeFiles: coerceAgentBoolean(args.includeFiles),
+      includeTags: coerceAgentBoolean(args.includeTags),
+      includeStats: coerceAgentBoolean(args.includeStats),
     };
 
     let result: Awaited<ReturnType<typeof getAuthorCommits>>;

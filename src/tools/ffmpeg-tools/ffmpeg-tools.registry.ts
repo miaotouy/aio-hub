@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import { markRaw } from "vue";
 import { Video } from "lucide-vue-next";
 import type {
@@ -7,6 +21,7 @@ import type {
   ToolContext,
 } from "@/services/types";
 import { createModuleLogger } from "@/utils/logger";
+import { normalizeAgentBooleanFields } from "@/utils/agentArgs";
 import * as actions from "./actions";
 
 const logger = createModuleLogger("ffmpeg-tools/registry");
@@ -30,7 +45,11 @@ export default class FFmpegToolsRegistry implements ToolRegistry {
     args: actions.ExecuteCommandArgs,
     context?: ToolContext
   ): Promise<string> {
-    return actions.executeCommand(args, context);
+    const normalizedArgs = normalizeAgentBooleanFields(
+      args as unknown as Record<string, unknown>,
+      ["hwaccel"]
+    ) as unknown as actions.ExecuteCommandArgs;
+    return actions.executeCommand(normalizedArgs, context);
   }
 
   /**
@@ -40,14 +59,27 @@ export default class FFmpegToolsRegistry implements ToolRegistry {
     args: actions.ExecutePipelineArgs,
     context?: ToolContext
   ): Promise<string> {
-    return actions.executePipeline(args, context);
+    const normalizedArgs = normalizeAgentBooleanFields(
+      args as unknown as Record<string, unknown>,
+      ["cleanupIntermediates"]
+    ) as unknown as actions.ExecutePipelineArgs;
+    normalizedArgs.steps = normalizedArgs.steps?.map((step) =>
+      normalizeAgentBooleanFields(step as unknown as Record<string, unknown>, [
+        "hwaccel",
+      ])
+    ) as unknown as actions.PipelineStep[];
+    return actions.executePipeline(normalizedArgs, context);
   }
 
   /**
    * [Agent] 获取媒体文件信息
    */
   public getMediaInfo(args: actions.GetMediaInfoArgs): Promise<string> {
-    return actions.getMediaInfo(args);
+    const normalizedArgs = normalizeAgentBooleanFields(
+      args as unknown as Record<string, unknown>,
+      ["detailed"]
+    ) as unknown as actions.GetMediaInfoArgs;
+    return actions.getMediaInfo(normalizedArgs);
   }
 
   // ==================== 元数据 ====================

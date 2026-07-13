@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import type {
   ToolRegistry,
   ToolConfig,
@@ -7,6 +21,7 @@ import type {
 import type { SettingItem } from "@/types/settings-renderer";
 import { FolderSearch } from "lucide-vue-next";
 import { markRaw } from "vue";
+import { coerceAgentBoolean } from "@/utils/agentArgs";
 import { searchDirectory, replaceInDirectory } from "./actions";
 import type { AgentSearchArgs, AgentReplaceArgs } from "./actions";
 
@@ -63,14 +78,12 @@ export default class DirSearchRegistry implements ToolRegistry {
     const searchArgs: AgentSearchArgs = {
       path: String(args.path || ""),
       pattern: String(args.pattern || ""),
-      isRegex: args.isRegex === true || args.isRegex === "true",
-      caseSensitive:
-        args.caseSensitive === true || args.caseSensitive === "true",
-      wholeWord: args.wholeWord === true || args.wholeWord === "true",
+      isRegex: coerceAgentBoolean(args.isRegex),
+      caseSensitive: coerceAgentBoolean(args.caseSensitive),
+      wholeWord: coerceAgentBoolean(args.wholeWord),
       includeGlobs: args.includeGlobs ? String(args.includeGlobs) : undefined,
       excludeGlobs: args.excludeGlobs ? String(args.excludeGlobs) : undefined,
-      useGitignore:
-        args.useGitignore !== false && args.useGitignore !== "false",
+      useGitignore: coerceAgentBoolean(args.useGitignore, true),
       maxResults: args.maxResults !== undefined ? Number(args.maxResults) : 200,
       contextLines:
         args.contextLines !== undefined ? Number(args.contextLines) : 0,
@@ -97,15 +110,13 @@ export default class DirSearchRegistry implements ToolRegistry {
       path: String(args.path || ""),
       pattern: String(args.pattern || ""),
       replacement: String(args.replacement ?? ""),
-      isRegex: args.isRegex === true || args.isRegex === "true",
-      caseSensitive:
-        args.caseSensitive === true || args.caseSensitive === "true",
-      wholeWord: args.wholeWord === true || args.wholeWord === "true",
-      preserveCase: args.preserveCase === true || args.preserveCase === "true",
+      isRegex: coerceAgentBoolean(args.isRegex),
+      caseSensitive: coerceAgentBoolean(args.caseSensitive),
+      wholeWord: coerceAgentBoolean(args.wholeWord),
+      preserveCase: coerceAgentBoolean(args.preserveCase),
       includeGlobs: args.includeGlobs ? String(args.includeGlobs) : undefined,
       excludeGlobs: args.excludeGlobs ? String(args.excludeGlobs) : undefined,
-      useGitignore:
-        args.useGitignore !== false && args.useGitignore !== "false",
+      useGitignore: coerceAgentBoolean(args.useGitignore, true),
     };
     return replaceInDirectory(replaceArgs, context);
   }

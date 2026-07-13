@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 /**
  * LLM API 请求构建辅助模块
  *
@@ -780,10 +794,15 @@ export function filterParametersByCapabilities(
   // reasoning_effort 字段；Gemini/Vertex 则把它映射为 thinkingLevel。
   const isOpenAiReasoningEffortProvider =
     profile.type === "openai" || profile.type === "openai-responses";
+  const isCompatibleReasoningModel =
+    isOpenAIModel(options.modelId, model?.provider) ||
+    options.modelId.toLowerCase().includes("doubao") ||
+    options.modelId.toLowerCase().includes("seed") ||
+    options.modelId.toLowerCase().includes("glm") ||
+    options.modelId.toLowerCase().includes("deepseek");
   const supportsProviderReasoningEffort =
     supported.reasoningEffort &&
-    (!isOpenAiReasoningEffortProvider ||
-      isOpenAIModel(options.modelId, model?.provider));
+    (!isOpenAiReasoningEffortProvider || isCompatibleReasoningModel);
   const supportsThinkingLevelAlias =
     (profile.type === "gemini" || profile.type === "vertexai") &&
     supported.thinking &&
@@ -844,6 +863,12 @@ export function filterParametersByCapabilities(
     if (options.n !== undefined) filtered.n = options.n;
     if (options.logitBias !== undefined) filtered.logitBias = options.logitBias;
     if (options.store !== undefined) filtered.store = options.store;
+    if (options.responsesStore !== undefined) {
+      (filtered as any).responsesStore = options.responsesStore;
+    }
+    if (options.include !== undefined) {
+      (filtered as any).include = options.include;
+    }
     if (options.user !== undefined) filtered.user = options.user;
     if (options.serviceTier !== undefined)
       filtered.serviceTier = options.serviceTier;
@@ -991,6 +1016,7 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   "signal",
   "timeout",
   "suppressErrorLog",
+  "allowDisabledProfile",
 
   // 通用采样参数 (LlmParameters)
   "temperature",
@@ -1067,6 +1093,8 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   "serviceTier", // OpenAI
   "logitBias", // OpenAI
   "store", // OpenAI
+  "responsesStore", // OpenAI Responses
+  "include", // OpenAI Responses
   "metadata", // OpenAI, Claude
   "stopSequences", // Claude
   "claudeMetadata", // Claude
@@ -1091,6 +1119,7 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   "http1Only",
   "apiKey",
   "suppressErrorLog",
+  "allowDisabledProfile",
   "inspectorContext", // LLM Inspector 内部监控上下文，前端专用，绝不能透传到 API body
 
   // 其他任务特有参数
@@ -1181,6 +1210,7 @@ export function cleanPayload(body: any): any {
     "relaxIdCerts",
     "http1Only",
     "apiKey",
+    "allowDisabledProfile",
     "inspectorContext", // LLM Inspector 内部监控上下文，前端专用，绝不能透传到 API body
   ];
 

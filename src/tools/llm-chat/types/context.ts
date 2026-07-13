@@ -1,10 +1,27 @@
-import type { LlmMessageContent } from "@/llm-apis/common";
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import type {
+  LlmMessageContent,
+  LlmReasoningArtifact,
+} from "@/llm-apis/common";
 import type { LlmParameters } from "./llm";
 import type { ModelIdentifier } from "./llm";
 import type { Asset, AssetMetadata } from "@/types/asset-management";
 import type { ChatMessageNode, InjectionStrategy } from "./message";
 import type { ChatSessionIndex, ChatSessionDetail } from "./session";
-import type { STWorldbookPosition } from "./worldbook";
+import type { STWorldbookPosition } from "@/tools/st-worldbook-manager/types/worldbook";
 import type { PipelineAttachment } from "./pipeline-attachment";
 
 /**
@@ -39,6 +56,10 @@ export interface ProcessableMessage {
   content: string | LlmMessageContent[];
   /** 思考/推理内容（用于 DeepSeek 等模型的多轮对话回传） */
   reasoningContent?: string;
+  /** Provider-owned reasoning state that must be preserved exactly. */
+  reasoningArtifacts?: LlmReasoningArtifact[];
+  /** True when replay artifacts were intentionally dropped by truncation/compression. */
+  reasoningArtifactsDropped?: boolean;
   /** 消息来源类型 */
   sourceType?:
     | "agent_preset"
@@ -220,6 +241,12 @@ export interface ContextPreviewData {
   finalMessages: Array<{
     role: "system" | "user" | "assistant";
     content: string | LlmMessageContent[];
+    /** Display/search/export reasoning text. */
+    reasoningContent?: string;
+    /** Provider-owned replay state kept separate from display reasoning. */
+    reasoningArtifacts?: LlmReasoningArtifact[];
+    /** True when replay artifacts were intentionally dropped. */
+    reasoningArtifactsDropped?: boolean;
     /** 消息来源类型 */
     sourceType?:
       | "agent_preset"

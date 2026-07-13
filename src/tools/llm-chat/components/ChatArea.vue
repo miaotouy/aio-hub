@@ -1,3 +1,19 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <script setup lang="ts">
 import {
   ref,
@@ -22,8 +38,8 @@ import MessageList from "./message/MessageList.vue";
 import MessageInput from "./message-input/MessageInput.vue";
 import ToolCallingApprovalBar from "./message-input/ToolCallingApprovalBar.vue";
 import MessageNavigator from "./message/MessageNavigator.vue";
-import EditUserProfileDialog from "./user-profile/EditUserProfileDialog.vue";
-import EditAgentDialog from "./agent/management/EditAgentDialog.vue";
+import EditUserProfileDialog from "@/tools/user-profile-manager/components/user-profile/EditUserProfileDialog.vue";
+import EditAgentDialog from "@/tools/agent-manager/components/management/EditAgentDialog.vue";
 import ChatSettingsDialog from "./settings/ChatSettingsDialog.vue";
 import FlowTreeGraph from "./conversation-tree-graph/flow/FlowTreeGraph.vue";
 import ChatSearchPanel from "./search/ChatSearchPanel.vue";

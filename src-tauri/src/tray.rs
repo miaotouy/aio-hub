@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use crate::commands::window_config;
 use tauri::{
     image::Image,
@@ -27,6 +41,13 @@ pub fn build_system_tray(app_handle: &AppHandle) -> tauri::Result<()> {
         &[
             &MenuItem::with_id(app_handle, "show", "显示主窗口", true, None::<&str>)?,
             &MenuItem::with_id(app_handle, "hide", "隐藏主窗口", true, None::<&str>)?,
+            &MenuItem::with_id(
+                app_handle,
+                "reload_frontend",
+                "重启前端",
+                true,
+                None::<&str>,
+            )?,
             &MenuItem::with_id(
                 app_handle,
                 "clear_window_configs",
@@ -69,6 +90,26 @@ pub fn build_system_tray(app_handle: &AppHandle) -> tauri::Result<()> {
                         } else {
                             let _ = main_window.hide();
                         }
+                    }
+                }
+                "reload_frontend" => {
+                    if let Some(window) = app_handle.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.unminimize();
+                        let _ = window.set_focus();
+
+                        let reload_script = r#"
+                            (() => {
+                                window.location.reload();
+                            })();
+                        "#;
+
+                        match window.eval(reload_script) {
+                            Ok(_) => log::info!("[TRAY] 已通过托盘菜单请求重启前端"),
+                            Err(e) => log::error!("[TRAY] 重启前端请求失败: {}", e),
+                        }
+                    } else {
+                        log::error!("[TRAY] 重启前端失败: 主窗口不存在");
                     }
                 }
                 "clear_window_configs" => {

@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 /**
  * SillyTavern 格式解析器
  *
@@ -6,7 +20,10 @@
  */
 
 import { createModuleLogger } from "@/utils/logger";
-import type { ChatAgent, GreetingMessage } from "../types/agent";
+import type {
+  ChatAgent,
+  GreetingMessage,
+} from "@/tools/agent-manager/types/agent";
 import type { ChatMessageNode, InjectionStrategy } from "../types/message";
 import type { MessageRole } from "../types/common";
 import { ANCHOR_IDS } from "../types/context";
@@ -17,7 +34,7 @@ import {
   convertSillyTavernArrayToPreset,
   type SillyTavernRegexScript,
 } from "../utils/chatRegexUtils";
-import type { STWorldbook } from "../types/worldbook";
+import type { STWorldbook } from "@/tools/st-worldbook-manager/types/worldbook";
 
 const logger = createModuleLogger("llm-chat/sillyTavernParser");
 

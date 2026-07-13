@@ -1,6 +1,29 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { Loader2, AlertCircle, XCircle, GitBranch } from "lucide-vue-next";
+import {
+  Loader2,
+  AlertCircle,
+  XCircle,
+  GitBranch,
+  Copy,
+  Check,
+} from "lucide-vue-next";
 import type { MediaMessage } from "../../types";
 import { isAudioOutputTaskType } from "../../types";
 import type { Asset } from "@/types/asset-management";
@@ -15,6 +38,7 @@ import AudioPlayer from "@/components/common/AudioPlayer.vue";
 import AttachmentCard from "@/tools/llm-chat/components/AttachmentCard.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import LlmThinkNode from "@/tools/rich-text-renderer/components/nodes/LlmThinkNode.vue";
+import { customMessage } from "@/utils/customMessage";
 
 interface Props {
   message: MediaMessage;
@@ -43,6 +67,25 @@ const editAreaRef = ref<HTMLElement | undefined>(undefined);
 
 // 编辑状态
 const editingContent = ref("");
+
+// 错误信息复制状态
+const errorCopied = ref(false);
+
+const copyError = async () => {
+  if (!task.value?.error) return;
+
+  try {
+    await navigator.clipboard.writeText(task.value.error);
+    errorCopied.value = true;
+    customMessage.success("错误信息已复制");
+
+    setTimeout(() => {
+      errorCopied.value = false;
+    }, 2000);
+  } catch (err) {
+    customMessage.error("复制失败");
+  }
+};
 
 const initEditMode = () => {
   editingContent.value = props.message.content;
@@ -346,7 +389,16 @@ const generationMetaForRenderer = computed(() => {
         </div>
         <div v-else-if="task.status === 'error'" class="status-error">
           <AlertCircle :size="20" />
-          <span>生成失败: {{ task.error }}</span>
+          <span class="error-text">生成失败: {{ task.error }}</span>
+          <el-button
+            @click="copyError"
+            class="error-copy-btn"
+            :class="{ copied: errorCopied }"
+            :title="errorCopied ? '已复制' : '复制错误信息'"
+            :icon="errorCopied ? Check : Copy"
+            size="small"
+            text
+          />
         </div>
         <div v-else-if="task.status === 'cancelled'" class="status-cancelled">
           <XCircle :size="20" />
@@ -581,8 +633,7 @@ const generationMetaForRenderer = computed(() => {
   border-top: var(--border-width) solid var(--border-color);
 }
 
-.status-loading,
-.status-error {
+.status-loading {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -590,10 +641,29 @@ const generationMetaForRenderer = computed(() => {
   min-width: 0;
 }
 
-.status-error span {
+.status-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  min-width: 0;
+  width: 100%;
+}
+
+.error-text {
+  flex: 1;
   overflow-wrap: break-word;
   word-break: break-word;
   min-width: 0;
+}
+
+.error-copy-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.error-copy-btn.copied {
+  color: var(--success-color, #67c23a);
 }
 
 .status-loading {

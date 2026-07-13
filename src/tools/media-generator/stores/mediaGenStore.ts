@@ -1,3 +1,17 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import { defineStore } from "pinia";
 import { ref, computed, watch } from "vue";
 import type {
@@ -50,6 +64,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
   const activeLeafId = ref("");
   const { tasks } = taskManager; // 使用全局任务池
   const generatingNodes = ref(new Set<string>()); // 正在生成的节点集合
+  const retryingSourceMessageIds = ref(new Set<string>());
   const activeTaskId = ref<string | null>(null);
   const currentSessionId = ref<string | null>(null);
   const inputPrompt = ref("");
@@ -236,7 +251,6 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     const config = {
       timeout: settings.value.requestSettings?.timeout,
       maxRetries: settings.value.requestSettings?.maxRetries,
-      autoIncludeLastResult: settings.value.autoIncludeLastResult,
       metadataWrite: settings.value.metadataWrite,
     };
 
@@ -373,11 +387,6 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       rootNodeId.value = detail.rootNodeId || "";
       activeLeafId.value = detail.activeLeafId || "";
       inputPrompt.value = detail.inputPrompt || "";
-      if (detail.generationConfig) {
-        currentConfig.value = sessionManager.normalizeGenerationConfig(
-          detail.generationConfig
-        );
-      }
 
       // 仅更新当前活跃 ID，不触发全量持久化，也不更新时间戳
       await persistence.updateCurrentSessionIdInStorage(sessionId);
@@ -402,9 +411,6 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     rootNodeId.value = detail.rootNodeId || "";
     activeLeafId.value = detail.activeLeafId || "";
     inputPrompt.value = "";
-    currentConfig.value = sessionManager.normalizeGenerationConfig(
-      detail.generationConfig
-    );
     await sessionManager.persistSession({ ...index, ...detail });
   };
 
@@ -487,77 +493,87 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     const fullSession = currentFullSession.value;
     if (!fullSession) return;
 
-    // 1. 调用 nodeManager 创建兄弟分支
-    const branch = nodeManager.createRegenerateBranch(fullSession, messageId);
-    if (!branch) {
-      logger.warn("创建重试分支失败");
+    if (retryingSourceMessageIds.value.has(messageId)) {
+      logger.warn("重复重试请求已忽略", { messageId });
       return;
     }
 
-    const { assistantNode } = branch;
+    retryingSourceMessageIds.value.add(messageId);
 
-    // 2. 获取重试参数
-    const params = taskActionManager.getRetryParams(messageId);
-    if (!params || !params.isMediaTask) {
-      logger.warn("无法获取重试参数");
-      return;
+    try {
+      // 1. 先获取重试参数，避免参数解析失败后留下空的 generating 分支。
+      const params = taskActionManager.getRetryParams(messageId);
+      if (!params || !params.isMediaTask) {
+        logger.warn("无法获取重试参数");
+        return;
+      }
+
+      // 2. 调用 nodeManager 创建兄弟分支
+      const branch = nodeManager.createRegenerateBranch(fullSession, messageId);
+      if (!branch) {
+        logger.warn("创建重试分支失败");
+        return;
+      }
+
+      const { assistantNode } = branch;
+
+      // 3. 构造新 Task
+      const generationOptions = { ...params.options } as any;
+      if (temporaryModel) {
+        generationOptions.profileId = temporaryModel.profileId;
+        generationOptions.modelId = temporaryModel.modelId;
+      }
+
+      logger.info("准备重生成媒体任务", {
+        sourceMessageId: messageId,
+        newAssistantNodeId: assistantNode.id,
+        requestedType: params.type,
+        temporaryModel,
+        generationProfileId: generationOptions.profileId,
+        generationModelId: generationOptions.modelId,
+        optionKeys: Object.keys(generationOptions),
+      });
+
+      const type = normalizeMediaTaskType(
+        params.type ||
+          assistantNode.metadata?.taskSnapshot?.type ||
+          currentConfig.value.activeType,
+        currentConfig.value.activeType
+      );
+
+      const { useMediaGenerationManager } =
+        await import("../composables/useMediaGenerationManager");
+      const mediaGenManager = useMediaGenerationManager();
+
+      // 复用 buildTask，但强制使用 assistantNode.id 作为 taskId
+      const task = mediaGenManager.buildTask(generationOptions, type);
+      task.id = assistantNode.id; // 强制关联到节点 ID
+
+      // 4. 写入节点元数据
+      assistantNode.metadata = {
+        ...assistantNode.metadata,
+        taskId: task.id,
+        isMediaTask: true,
+        includeContext: task.input.includeContext,
+        taskSnapshot: JSON.parse(JSON.stringify(task)),
+      };
+
+      // 5. 加入任务池并追踪
+      tasks.value.unshift(task);
+      generatingNodes.value.add(task.id);
+      activeLeafId.value = task.id;
+
+      persistence.persist(true);
+
+      // 6. 启动生成
+      await mediaGenManager.startGenerationWithTask(task, messages.value, {
+        timeout: settings.value.requestSettings?.timeout,
+        maxRetries: settings.value.requestSettings?.maxRetries,
+        metadataWrite: settings.value.metadataWrite,
+      });
+    } finally {
+      retryingSourceMessageIds.value.delete(messageId);
     }
-
-    // 3. 构造新 Task
-    const generationOptions = { ...params.options } as any;
-    if (temporaryModel) {
-      generationOptions.profileId = temporaryModel.profileId;
-      generationOptions.modelId = temporaryModel.modelId;
-    }
-
-    logger.info("准备重生成媒体任务", {
-      sourceMessageId: messageId,
-      newAssistantNodeId: assistantNode.id,
-      requestedType: params.type,
-      temporaryModel,
-      generationProfileId: generationOptions.profileId,
-      generationModelId: generationOptions.modelId,
-      optionKeys: Object.keys(generationOptions),
-    });
-
-    const type = normalizeMediaTaskType(
-      params.type ||
-        assistantNode.metadata?.taskSnapshot?.type ||
-        currentConfig.value.activeType,
-      currentConfig.value.activeType
-    );
-
-    const { useMediaGenerationManager } =
-      await import("../composables/useMediaGenerationManager");
-    const mediaGenManager = useMediaGenerationManager();
-
-    // 复用 buildTask，但强制使用 assistantNode.id 作为 taskId
-    const task = mediaGenManager.buildTask(generationOptions, type);
-    task.id = assistantNode.id; // 强制关联到节点 ID
-
-    // 4. 写入节点元数据
-    assistantNode.metadata = {
-      ...assistantNode.metadata,
-      taskId: task.id,
-      isMediaTask: true,
-      includeContext: task.input.includeContext,
-      taskSnapshot: JSON.parse(JSON.stringify(task)),
-    };
-
-    // 5. 加入任务池并追踪
-    tasks.value.unshift(task);
-    generatingNodes.value.add(task.id);
-    activeLeafId.value = task.id;
-
-    persistence.persist(true);
-
-    // 6. 启动生成
-    await mediaGenManager.startGenerationWithTask(task, messages.value, {
-      timeout: settings.value.requestSettings?.timeout,
-      maxRetries: settings.value.requestSettings?.maxRetries,
-      autoIncludeLastResult: settings.value.autoIncludeLastResult,
-      metadataWrite: settings.value.metadataWrite,
-    });
   };
 
   return {

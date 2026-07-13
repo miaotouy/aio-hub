@@ -1,3 +1,19 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRouter } from "vue-router";
@@ -37,68 +53,76 @@ const router = useRouter();
 const { enabledProfiles } = useLlmProfiles();
 const { getModelIcon } = useModelMetadata();
 
+type ModelOption = {
+  value: string;
+  label: string;
+  group: string;
+  profile: LlmProfile;
+  model: LlmModelInfo;
+  profileIndex: number;
+};
+
 const goToLlmSettings = () => {
   router.push({ path: "/settings", query: { section: "llm-service" } });
 };
 
-// 筛选并格式化所有可用模型
-const availableModels = computed(() => {
-  const models: Array<{
-    value: string; // 格式: profileId:modelId
-    label: string;
-    group: string;
-    profile: LlmProfile;
-    model: LlmModelInfo;
-    profileIndex: number;
-  }> = [];
+const matchesCapabilities = (model: LlmModelInfo) => {
+  const capabilities = props.capabilities ?? {};
+  const requiredCaps = Object.keys(capabilities) as Array<
+    keyof ModelCapabilities
+  >;
 
-  enabledProfiles.value.forEach((profile, profileIndex) => {
-    profile.models.forEach((model) => {
-      // 根据能力要求进行筛选
-      const capabilities = props.capabilities ?? {};
-      const requiredCaps = Object.keys(capabilities) as Array<
-        keyof ModelCapabilities
-      >;
+  return requiredCaps.every((key) => {
+    const requiredValue = capabilities[key];
+    // 如果没有为某个能力指定要求的值，则跳过检查
+    if (requiredValue === undefined) {
+      return true;
+    }
 
-      const meetsRequirements = requiredCaps.every((key) => {
-        const requiredValue = capabilities[key];
-        // 如果没有为某个能力指定要求的值，则跳过检查
-        if (requiredValue === undefined) {
-          return true;
-        }
+    const modelHasCap = !!model.capabilities?.[key];
 
-        const modelHasCap = !!model.capabilities?.[key];
-
-        if (requiredValue === true) {
-          // 必须具备该能力
-          return modelHasCap;
-        } else {
-          // 必须不具备该能力 (requiredValue === false)
-          return !modelHasCap;
-        }
-      });
-
-      if (meetsRequirements) {
-        models.push({
-          value: `${profile.id}:${model.id}`,
-          label: model.name,
-          group: `${profile.name} (${profile.type})`,
-          profile,
-          model,
-          profileIndex,
-        });
-      }
-    });
+    if (requiredValue === true) {
+      // 必须具备该能力
+      return modelHasCap;
+    }
+    // 必须不具备该能力 (requiredValue === false)
+    return !modelHasCap;
   });
+};
 
-  // 排序：优先按用户配置的渠道顺序排序，同一渠道内按 ID 排序
-  return models.sort((a, b) => {
+const sortModelOptions = (models: ModelOption[]) =>
+  models.sort((a, b) => {
     if (a.profileIndex !== b.profileIndex) {
       return a.profileIndex - b.profileIndex;
     }
 
     return a.model.id.localeCompare(b.model.id);
   });
+
+const allModelOptions = computed(() => {
+  const models: ModelOption[] = [];
+  enabledProfiles.value.forEach((profile, profileIndex) => {
+    profile.models.forEach((model) => {
+      const value = `${profile.id}:${model.id}`;
+      models.push({
+        value,
+        label: model.name,
+        group: `${profile.name} (${profile.type})`,
+        profile,
+        model,
+        profileIndex,
+      });
+    });
+  });
+
+  return sortModelOptions(models);
+});
+
+// 筛选并格式化所有可选模型
+const selectableModels = computed(() => {
+  return sortModelOptions(
+    allModelOptions.value.filter((item) => matchesCapabilities(item.model))
+  );
 });
 
 // 当前选中的模型组合值
@@ -112,14 +136,18 @@ const selectedModelCombo = computed({
 
 // 获取当前选中的模型对象以便显示
 const selectedModelInfo = computed(() => {
-  return availableModels.value.find((m) => m.value === props.modelValue);
+  return allModelOptions.value.find((m) => m.value === props.modelValue);
+});
+
+const selectedModelIsSelectable = computed(() => {
+  return selectableModels.value.some((m) => m.value === props.modelValue);
 });
 
 // 分组
 const modelGroups = computed(() => {
-  // 保持 availableModels 的顺序提取分组
+  // 保持 selectableModels 的顺序提取分组
   const groups: string[] = [];
-  availableModels.value.forEach((m) => {
+  selectableModels.value.forEach((m) => {
     if (!groups.includes(m.group)) {
       groups.push(m.group);
     }
@@ -135,7 +163,9 @@ const modelGroups = computed(() => {
       :placeholder="placeholder"
       :clearable="clearable"
       style="width: 100%"
-      :disabled="disabled || availableModels.length === 0"
+      :disabled="
+        disabled || (selectableModels.length === 0 && !selectedModelInfo)
+      "
       :teleported="teleported"
       :popper-class="popperClass"
       class="custom-select"
@@ -152,7 +182,7 @@ const modelGroups = computed(() => {
 
       <el-option-group v-for="group in modelGroups" :key="group" :label="group">
         <el-option
-          v-for="item in availableModels.filter((m) => m.group === group)"
+          v-for="item in selectableModels.filter((m) => m.group === group)"
           :key="item.value"
           :label="item.label"
           :value="item.value"
@@ -176,9 +206,27 @@ const modelGroups = computed(() => {
           </div>
         </el-option>
       </el-option-group>
+      <el-option
+        v-if="selectedModelInfo && !selectedModelIsSelectable"
+        :label="selectedModelInfo.label"
+        :value="selectedModelInfo.value"
+      >
+        <div class="option-item selected-fallback">
+          <DynamicIcon
+            :src="getModelIcon(selectedModelInfo.model) || ''"
+            :alt="selectedModelInfo.label"
+            class="model-icon"
+            lazy
+          />
+          <span class="model-name">{{ selectedModelInfo.label }}</span>
+          <el-text size="small" type="warning" class="model-group-tag">
+            当前已选
+          </el-text>
+        </div>
+      </el-option>
     </el-select>
     <el-link
-      v-if="availableModels.length === 0"
+      v-if="selectableModels.length === 0"
       type="warning"
       underline="never"
       style="margin-top: 8px; display: block; cursor: pointer"

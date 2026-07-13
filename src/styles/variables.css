@@ -43,6 +43,16 @@
     var(--border-color-light-rgb),
     var(--border-opacity)
   );
+  /* 交互控件边线需要保持可辨认，不完全跟随装饰性边线透明度 */
+  --control-border-opacity: max(var(--border-opacity), 0.62);
+  --control-border-color: rgba(
+    var(--border-color-rgb),
+    var(--control-border-opacity)
+  );
+  --control-border-color-light: rgba(
+    var(--border-color-light-rgb),
+    var(--control-border-opacity)
+  );
   --scrollbar-thumb-color-rgb: 193, 193, 193;
   --scrollbar-thumb-hover-color-rgb: 168, 168, 168;
   --scrollbar-thumb-opacity: 0.5;

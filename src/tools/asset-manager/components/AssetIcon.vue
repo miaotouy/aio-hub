@@ -1,3 +1,19 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <template>
   <div class="asset-icon-wrapper">
     <template v-if="shouldShowThumbnail(asset)">
@@ -39,6 +55,35 @@
       </div>
     </template>
 
+    <!-- 音频波形展示 (大尺寸图标时) -->
+    <template v-else-if="asset.type === 'audio' && iconSize >= 40">
+      <div class="audio-waveform-container">
+        <AudioWaveform
+          :waveform="audioWaveform"
+          height="60%"
+          :bar-width="3"
+          :bar-gap="1.5"
+          color="var(--el-color-primary)"
+        />
+        <div class="audio-tag">
+          <svg
+            viewBox="0 0 24 24"
+            width="12"
+            height="12"
+            stroke="currentColor"
+            stroke-width="2"
+            fill="none"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M9 18V5l12-2v13"></path>
+            <circle cx="6" cy="18" r="3"></circle>
+            <circle cx="18" cy="16" r="3"></circle>
+          </svg>
+        </div>
+      </div>
+    </template>
+
     <!-- 文件类型图标 fallback -->
     <div v-else class="file-icon-wrapper">
       <FileIcon
@@ -55,6 +100,7 @@ import { ref, computed, watch, onUnmounted } from "vue";
 import type { Asset } from "@/types/asset-management";
 import { useAssetManager } from "@/composables/useAssetManager";
 import FileIcon from "@/components/common/FileIcon.vue";
+import AudioWaveform from "@/components/common/AudioWaveform.vue";
 import { generateVideoThumbnail } from "@/utils/mediaThumbnailUtils";
 
 interface Props {
@@ -71,9 +117,12 @@ const props = withDefaults(defineProps<Props>(), {
   showLoading: false,
 });
 
-const { saveAssetThumbnail } = useAssetManager();
+const { saveAssetThumbnail, ensureAudioWaveform } = useAssetManager();
 const localThumbnail = ref<string | null>(null);
 const isProcessing = ref(false);
+const audioWaveform = ref<number[]>([]);
+const samplingAssetIds = new Set<string>();
+let isUnmounted = false;
 
 // 判断是否应该显示缩略图
 const shouldShowThumbnail = (asset: Asset) => {
@@ -127,12 +176,53 @@ const processVideoThumbnail = async () => {
   }
 };
 
-// 监听变化以触发视频缩略图生成
+// 加载音频波形数据
+const loadAudioWaveform = async () => {
+  const asset = props.asset;
+
+  if (asset.type !== "audio") {
+    audioWaveform.value = [];
+    return;
+  }
+
+  // 如果有专辑封面，我们显示封面，不需要波形数据
+  if (asset.thumbnailPath) {
+    audioWaveform.value = [];
+    return;
+  }
+
+  // 如果有波形数据，直接使用
+  if (asset.metadata?.audioWaveform?.length) {
+    audioWaveform.value = asset.metadata.audioWaveform;
+    return;
+  }
+
+  // 没有波形数据，尝试在后台采样
+  if (props.assetUrl && !samplingAssetIds.has(asset.id)) {
+    samplingAssetIds.add(asset.id);
+    try {
+      const updatedAsset = await ensureAudioWaveform(asset);
+      if (isUnmounted || props.asset.id !== asset.id) return;
+      if (updatedAsset.metadata?.audioWaveform?.length) {
+        audioWaveform.value = updatedAsset.metadata.audioWaveform;
+      }
+    } catch (error) {
+      console.error("音频波形采样失败:", asset.name, error);
+    } finally {
+      samplingAssetIds.delete(asset.id);
+    }
+  }
+};
+
+// 监听变化以触发视频缩略图生成和音频波形加载
 watch(
   [() => props.asset, () => props.assetUrl],
   ([newAsset, newUrl]) => {
     if (newAsset.type === "video" && !newAsset.thumbnailPath && newUrl) {
       processVideoThumbnail();
+    }
+    if (newAsset.type === "audio") {
+      loadAudioWaveform();
     }
   },
   { immediate: true }
@@ -140,6 +230,7 @@ watch(
 
 // 清理
 onUnmounted(() => {
+  isUnmounted = true;
   localThumbnail.value = null;
 });
 </script>
@@ -173,6 +264,31 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.audio-waveform-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+  position: relative;
+  background-color: rgba(var(--el-color-primary-rgb), 0.03);
+}
+
+.audio-tag {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  background-color: rgba(0, 0, 0, 0.5);
+  border-radius: 4px;
+  padding: 2px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
 }
 
 .video-overlay {

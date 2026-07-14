@@ -327,7 +327,7 @@ sequenceDiagram
 
 实现偏差：移动端 MVP 当前全量加载智能体详情，以降低首版状态复杂度；列表使用页面内紧凑行而非独立 `AgentCard`。存储格式仍保持 `agent-manager/agents/{id}/agent.json` 与轻量索引分离，后续可在数据规模需要时切换为按需加载，不影响磁盘格式。
 
-阶段 2 实现说明：移动端当前没有可调用的本地精确 Token 计算服务，因此编辑期统一使用轻量字符估算，并正确排除禁用消息和禁用消息组；等移动端接入 tokenizer 服务后，可在 `usePresetTokenCalculator` 内替换为精确计算，不影响编辑器数据结构。AIO Agent JSON 与 SillyTavern JSON/PNG 角色数据已支持导入，头像和随包二进制资产仍归入后续“头像与资产管理”阶段。
+阶段 2 实现说明：移动端当前没有可调用的本地 Token 计算能力，因此编辑期暂时使用轻量字符估算，并正确排除禁用消息和禁用消息组。后续按 [`mobile-token-counting-plan.md`](./mobile-token-counting-plan.md) 在 Rust 后端接入单一 `o200k_base` 词表，前端只保留薄 IPC 封装和业务消费层；结果始终标记为 o200k 预估，不建设移动端独立 Token 工具模块。AIO Agent JSON 与 SillyTavern JSON/PNG 角色数据已支持导入，头像和随包二进制资产仍归入后续“头像与资产管理”阶段。
 
 ### 阶段 1：基础设施搭建（地基）
 
@@ -383,7 +383,7 @@ sequenceDiagram
 | **单条消息属性编辑器**   | `components/SinglePresetMessageEditor.vue` | **自研全屏编辑器组件**（纯 Vue + CSS 实现全屏遮罩层，拒绝 `var-popup`）。提供角色、名称、内容、所属组的编辑，以及注入策略、模型匹配的高级折叠配置区，为长文本输入提供最宽敞的视野。 |
 | **消息组编辑器**         | `components/PresetGroupEditDialog.vue`     | 弹窗组件。用于新建或编辑消息组（名称、选择模式：单选/多选、启用状态）。                                                                                                             |
 | **批量管理器**           | `components/AgentPresetBatchDialog.vue`    | 弹窗组件。支持多选消息进行批量删除、批量启用/禁用、批量移动到指定消息组。                                                                                                           |
-| **Token 估算器**         | `composables/usePresetTokenCalculator.ts`  | 移动端轻量版 Token 计算器。在未连接本地服务时，使用字符数估算；连接服务时，调用后端接口精准计算，并在顶部展示总 Token 数。                                                          |
+| **Token 估算器**         | `composables/usePresetTokenCalculator.ts`  | 消费 Rust 后端统一的 `o200k_base` 本地计数能力，批量计算启用消息并展示总 Token 数；该结果用于上下文占比参考，明确标记为 o200k 预估。                                                 |
 | **角色卡导入**           | `composables/useAgentImporter.ts`          | 支持 AIO Agent JSON 和 SillyTavern 角色卡（PNG/JSON）的解析与导入，自动将角色卡属性转化为多轮预设消息。                                                                             |
 
 ### 阶段 3：打通对话连接（合体）

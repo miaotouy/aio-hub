@@ -5,9 +5,17 @@ import { useNodeManager } from "./useNodeManager";
 import { useContextPipelineStore } from "../stores/contextPipelineStore";
 import { useChatResponseHandler } from "./useChatResponseHandler";
 import { useTopicNamer } from "./useTopicNamer";
+import { useChatSettings } from "./useChatSettings";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import type { ChatSession, PipelineContext, ChatMessageNode } from "../types";
 import { createModuleLogger } from "@/utils/logger";
+import { countTokensBatch } from "@/utils/tokenCounting";
+import { customMessage } from "@/utils/feedback";
+import { useI18n } from "@/i18n";
+import {
+  contentToTokenText,
+  createLocalContextUsage,
+} from "../utils/contextTokenUsage";
 
 const logger = createModuleLogger("llm-chat/useChatExecutor");
 
@@ -20,6 +28,9 @@ export function useChatExecutor() {
   const agentStore = useAgentStore();
   const { handleStreamUpdate, finalizeNode, handleNodeError } = useChatResponseHandler();
   const { shouldAutoName, generateTopicName } = useTopicNamer();
+  const { settings, loadSettings } = useChatSettings();
+  const { tRaw } = useI18n();
+  const t = (key: string) => tRaw(`tools.llm-chat.TokenUsage.${key}`);
 
   /**
    * 执行对话请求
@@ -32,6 +43,7 @@ export function useChatExecutor() {
     if (chatStore.isSending) return;
 
     if (!agentStore.isLoaded) await agentStore.init();
+    await loadSettings();
     const activeAgent = agentStore.getAgentById(session.displayAgentId);
 
     // 智能体绑定优先；普通会话继续使用聊天页当前选择的模型。
@@ -94,7 +106,7 @@ export function useChatExecutor() {
         messages: [],
         session,
         agentConfig: activeAgent,
-        settings: {}, // 移动端暂未引入完整的 ChatSettings
+        settings: settings.value,
         capabilities: model.capabilities,
         timestamp: Date.now(),
         sharedData: new Map(),
@@ -103,20 +115,52 @@ export function useChatExecutor() {
 
       await pipelineStore.executePipeline(pipelineContext);
 
-      // 5. 发起请求
-      // 转换为 llmRequest 期望的格式，保留多模态内容能力
-      const requestMessages = pipelineContext.messages
-        .filter((m) => {
+      const requestContextMessages = pipelineContext.messages.filter((message) => {
           // 过滤掉空内容的消息，除非是 user 角色（有时候 user 发送空内容是为了触发某些特定逻辑，但通常不建议）
-          if (Array.isArray(m.content)) {
-            return m.content.length > 0;
+          if (Array.isArray(message.content)) {
+            return message.content.length > 0;
           }
-          return !!m.content || m.role === "user";
-        })
-        .map((m) => ({
-          role: m.role as any, // 映射到 LlmMessage['role']
-          content: m.content,
-        }));
+          return !!message.content || message.role === "user";
+        });
+
+      const tokenResult = await countTokensBatch(
+        requestContextMessages.map((message) => contentToTokenText(message.content))
+      );
+      const contextUsage = createLocalContextUsage(
+        tokenResult,
+        model.tokenLimits?.contextLength,
+        settings.value.contextManagement
+      );
+      assistantNode.metadata = {
+        ...assistantNode.metadata,
+        contextUsage,
+      };
+
+      requestContextMessages.forEach((message, index) => {
+        if (message.sourceType !== "session_history" || typeof message.sourceId !== "string") {
+          return;
+        }
+        const sourceNode = session.nodes[message.sourceId];
+        if (!sourceNode || sourceNode.metadata?.contentTokenSource === "api") return;
+        sourceNode.metadata = {
+          ...sourceNode.metadata,
+          contentTokens: tokenResult.counts[index] ?? 0,
+          contentTokenSource: tokenResult.fallback ? "fallback" : "local",
+          contentTokenizer: tokenResult.tokenizer,
+        };
+      });
+
+      if (contextUsage.riskLevel === "critical") {
+        customMessage(t("上下文高风险提示"), "error");
+      } else if (contextUsage.riskLevel === "warning") {
+        customMessage(t("上下文紧张提示"), "warning");
+      }
+
+      // 5. 发起请求
+      const requestMessages = requestContextMessages.map((message) => ({
+        role: message.role as any,
+        content: message.content,
+      }));
 
       const result = await llmRequest.sendRequest(
         {
@@ -153,7 +197,6 @@ export function useChatExecutor() {
         });
       }
     } catch (error: any) {
-      logger.error("Chat execution failed", error);
       handleNodeError(session, assistantNode.id, error, "对话执行");
     } finally {
       chatStore.isSending = false;

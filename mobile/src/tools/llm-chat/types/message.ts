@@ -1,5 +1,21 @@
 import type { MessageRole, MessageStatus, MessageType } from "./common";
 
+export type TokenCountSource = "api" | "local" | "fallback";
+export type ContextRiskLevel = "normal" | "warning" | "critical";
+
+export interface ContextTokenUsage {
+  tokenCount: number;
+  localTokenCount: number;
+  contextLength?: number;
+  usageRatio?: number;
+  tokenizer?: string;
+  estimated: boolean;
+  source: TokenCountSource;
+  riskLevel: ContextRiskLevel;
+  warningRatio: number;
+  criticalRatio: number;
+}
+
 /**
  * 消息节点（树形结构基础版）
  */
@@ -81,6 +97,12 @@ export interface ChatMessageNode {
      * - 对于助手消息：直接使用 API 返回的 completionTokens
      */
     contentTokens?: number;
+    /** 单条消息 Token 的数据来源 */
+    contentTokenSource?: TokenCountSource;
+    /** 本地计算单条消息时使用的 tokenizer */
+    contentTokenizer?: string;
+    /** 生成本条助手消息时的完整请求上下文占用 */
+    contextUsage?: ContextTokenUsage;
     /** 请求开始时间戳 */
     requestStartTime?: number;
     /** 请求结束时间戳 */

@@ -34,9 +34,11 @@ AgentList --route query(agentId)--> ChatHome
   -> useLlmRequest uses the agent profile/model/parameters
 ```
 
+预设编辑器通过 `mobile/src/utils/tokenCounting.ts` 批量调用 Rust `count_tokens_batch`，以 500ms 防抖更新启用消息的 `o200k` 估算。禁用消息、禁用消息组和过期异步结果不会进入总数；IPC 异常时只退回字符估算。
+
 `agent-manager` 发起对话时只传递路由参数，不 import `llm-chat`，从而避免循环依赖。
 
 ## 当前边界
 
-- **已支持**：基础 CRUD、搜索与分类筛选、模型绑定、会话绑定、预设注入，以及完整预设消息编辑器体系（多轮消息、消息组、注入策略、模型匹配、触摸排序、批量管理、Token 估算、AIO/SillyTavern 导入与预设导入导出）。
+- **已支持**：基础 CRUD、搜索与分类筛选、模型绑定、会话绑定、预设注入，以及完整预设消息编辑器体系（多轮消息、消息组、注入策略、模型匹配、触摸排序、批量管理、Rust o200k Token 估算、AIO/SillyTavern 导入与预设导入导出）。
 - **待移植**：头像与资产管理、完整参数编辑和用户档案。

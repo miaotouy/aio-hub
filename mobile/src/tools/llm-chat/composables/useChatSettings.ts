@@ -39,6 +39,10 @@ const settingsManager = createConfigManager<ChatSettings>({
         ...defaultConfig.requestSettings,
         ...(loadedConfig.requestSettings || {}),
       },
+      contextManagement: {
+        ...defaultConfig.contextManagement,
+        ...(loadedConfig.contextManagement || {}),
+      },
     };
   },
 });
@@ -111,6 +115,10 @@ async function updateSettings(updates: Partial<ChatSettings>): Promise<void> {
       requestSettings: {
         ...settings.value.requestSettings,
         ...(updates.requestSettings || {}),
+      },
+      contextManagement: {
+        ...settings.value.contextManagement,
+        ...(updates.contextManagement || {}),
       },
     };
     await saveSettings();

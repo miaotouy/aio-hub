@@ -1,7 +1,7 @@
 # 移动端 LLM Chat — 实现情况
 
 > **文档状态**: Implementing
-> **最后更新**: 2026-06-26
+> **最后更新**: 2026-07-14
 > **对应路径**: `mobile/src/tools/llm-chat/`
 
 ## 1. 概述
@@ -192,6 +192,7 @@ Actions:
 
 2. primary:agent-preset-loader (priority: 200)
    ├── 读取会话绑定的 ChatAgent
+   ├── 过滤禁用消息和禁用消息组
    ├── 保留预设消息顺序与角色
    └── 将非空预设消息插入会话历史之前
 
@@ -205,7 +206,14 @@ LlamaChatView.send() → useChatExecutor.execute()
 
 **扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载与智能体预设加载；宏替换、深度注入、用户档案注入等仍待移植。
 
-### 4.3. 对话执行流程
+### 4.3. Token 统计与上下文预警
+
+- `useContextTokenUsage` 对当前分支、启用的智能体预设和输入草稿执行 500ms 防抖批量计数，输入变化后用请求序号丢弃过期结果。
+- 发送前，`useChatExecutor` 对管道最终文本调用同一 `count_tokens_batch`，保存消息级估算和本次请求的上下文快照；工具 schema、附件和非文本多模态开销不在该通用计数中。
+- API 返回 usage 后，助手消息的 `completionTokens` 和本次请求的 `promptTokens` 优先显示为实际值；usage 缺失时使用 Rust `o200k`，IPC 异常时使用字符 fallback。已有实际值不会被后续估算覆盖。
+- 上下文窗口来自模型对象自身的 `tokenLimits.contextLength`。80% / 90% 阈值集中在 `ChatSettings.contextManagement`，Rust 后端不持有业务预警策略。
+
+### 4.4. 对话执行流程
 
 ```
 用户输入 → useChatExecutor.execute(session, content, parentNodeId?)

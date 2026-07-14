@@ -25,7 +25,8 @@ const messages = defineModel<PresetMessage[]>("messages", { default: () => [] })
 const groups = defineModel<PresetMessageGroup[]>("groups", { default: () => [] });
 const { tRaw } = useI18n();
 const t = (key: string) => tRaw(`tools.agent-manager.PresetEditor.${key}`);
-const { totalTokens, estimate } = usePresetTokenCalculator(messages, groups);
+const { totalTokens, isCalculating, isFallback, getTokenCount } =
+  usePresetTokenCalculator(messages, groups);
 const editMessage = ref<PresetMessage | null>(null);
 const editorOpen = ref(false);
 const groupOpen = ref(false);
@@ -374,7 +375,10 @@ onBeforeUnmount(stopDrag);
     <header class="editor-header">
       <div>
         <h2>{{ t("预设消息") }}</h2>
-        <p>{{ t("已启用") }} {{ totalTokens }} tokens · {{ t("估算") }}</p>
+        <p>
+          {{ t("已启用") }} {{ totalTokens }} tokens ·
+          {{ isCalculating ? t("计算中") : isFallback ? t("字符估算") : t("o200k 预估") }}
+        </p>
       </div>
       <button class="primary" type="button" @click="openNewMessage">
         <Plus :size="19" />{{ t("新增") }}
@@ -418,7 +422,8 @@ onBeforeUnmount(stopDrag);
         :message="message"
         :group="messageGroup(message)"
         :groups="groups"
-        :token-count="estimate(message.content)"
+        :token-count="getTokenCount(message.id)"
+        :tokenizer-label="isFallback ? t('字符估算') : t('o200k 预估')"
         :expanded="expandedId === message.id"
         :can-move-up="canMove(message, 'up')"
         :can-move-down="canMove(message, 'down')"

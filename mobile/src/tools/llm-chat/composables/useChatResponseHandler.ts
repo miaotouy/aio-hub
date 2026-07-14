@@ -6,6 +6,9 @@
 import type { ChatSession } from "../types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
+import { countTokens } from "@/utils/tokenCounting";
+import { applyApiPromptUsage } from "../utils/contextTokenUsage";
+import type { TokenCountSource } from "../types/message";
 
 const logger = createModuleLogger("llm-chat/response-handler");
 const errorHandler = createModuleErrorHandler("llm-chat/response-handler");
@@ -106,10 +109,36 @@ export function useChatResponseHandler() {
 
     // 计算性能指标
     const requestEndTime = Date.now();
-    const contentTokens = response.usage?.completionTokens;
+    const apiCompletionTokens = response.usage?.completionTokens;
+    let contentTokens: number;
+    let contentTokenSource: TokenCountSource;
+    let contentTokenizer: string | undefined;
+
+    if (typeof apiCompletionTokens === "number" && Number.isFinite(apiCompletionTokens)) {
+      contentTokens = apiCompletionTokens;
+      contentTokenSource = "api";
+    } else {
+      const localResult = await countTokens(finalNode.content);
+      contentTokens = localResult.count;
+      contentTokenSource = localResult.fallback ? "fallback" : "local";
+      contentTokenizer = localResult.tokenizer;
+    }
+
+    const apiPromptTokens = response.usage?.promptTokens;
+    if (
+      finalNode.metadata.contextUsage &&
+      typeof apiPromptTokens === "number" &&
+      Number.isFinite(apiPromptTokens)
+    ) {
+      finalNode.metadata.contextUsage = applyApiPromptUsage(
+        finalNode.metadata.contextUsage,
+        apiPromptTokens
+      );
+    }
+
     let tokensPerSecond: number | undefined;
 
-    if (contentTokens && finalNode.metadata.firstTokenTime) {
+    if (contentTokens > 0 && finalNode.metadata.firstTokenTime) {
       // 计算生成时间（毫秒）
       const generationTime = requestEndTime - finalNode.metadata.firstTokenTime;
       if (generationTime > 0) {
@@ -122,8 +151,10 @@ export function useChatResponseHandler() {
 
     finalNode.metadata = {
       ...finalNode.metadata,
-      usage: response.usage,
+      usage: response.usage || finalNode.metadata.usage,
       contentTokens,
+      contentTokenSource,
+      contentTokenizer,
       requestEndTime,
       tokensPerSecond,
     };

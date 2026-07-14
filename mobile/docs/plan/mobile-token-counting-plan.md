@@ -1,6 +1,6 @@
 # 移动端本地 Token 计算方案
 
-> 状态：方案确认，等待 Rust 技术验证  
+> 状态：代码实现与 Android 构建完成，待真机性能和 iOS 验证
 > 日期：2026-07-14
 
 ## 1. 背景
@@ -250,29 +250,39 @@ Rust 技术验证必须在实现接入前完成以下检查：
 | 首次初始化 | 不阻塞页面交互 |
 | 运行时内存 | 显著低于直接加载 `@lenml/tokenizer-gpt4o` 的前端方案 |
 
+### 7.1. 2026-07-14 施工记录
+
+- Rust 方案采用 `tiktoken-rs 0.12.0`（MIT，最低 Rust 1.85；项目当前为 Rust 1.91）。`o200k_base.tiktoken` 通过 `include_str!` 离线打包，运行时不下载词表。
+- 固定样本覆盖英文、中文、中英混排、代码、emoji / 多语种和空字符串，Rust 结果 `11 / 12 / 14 / 19 / 10 / 0`，与仓库 `@lenml/tokenizer-gpt4o 3.7.2` 关闭特殊 Token 后完全一致。
+- `cargo test --manifest-path src-tauri/Cargo.toml token_counting`、`bun run test:run`、`bun run check:frontend`、`bun run check:backend`、`bun run build` 均通过。
+- `bun run tauri android build --debug` 成功，四个 Android ABI 均完成 Rust / NDK 编译与 Tauri 打包。
+- release 全 ABI 构建在命令 10 分钟上限前已生成 unsigned APK 和 AAB，之后命令超时；产物分别为 78.82 MiB 和 33.21 MiB，release `.so` 为 15.10-20.63 MiB，`o200k` 原始词表为 3.45 MiB。仓库缺少改动前同配置 release 基线，因此当前只能记录绝对值，不能给出可靠增量。
+- 100 条消息批量单元测试通过；前端测试覆盖 IPC 成功/fallback、禁用消息组过滤、快速连续输入的过期结果丢弃。
+- 当前 Windows 环境不能执行 iOS 构建，也没有连接真实 Android 设备，因此首次/二次耗时、真机峰值内存和页面交互流畅度仍需设备补测。
+
 ## 8. 实施阶段
 
 ### 阶段 1：Rust 可行性验证
 
-- [ ] 选择并验证支持 o200k 的 Rust crate；
-- [ ] 完成 Android target 编译；
-- [ ] 用固定样本对齐桌面 tokenizer；
+- [x] 选择并验证支持 o200k 的 Rust crate；
+- [x] 完成 Android target 编译；
+- [x] 用固定样本对齐桌面 tokenizer；
 - [ ] 测量真实设备初始化耗时、批量性能与峰值内存；
-- [ ] 记录依赖许可证和打包体积变化。
+- [x] 记录依赖许可证和当前打包体积（增量待取得同配置基线）。
 
 ### 阶段 2：后端能力与薄封装
 
-- [ ] 新增 `token_counting.rs`；
-- [ ] 注册单条和批量 Tauri command；
-- [ ] 新增前端 IPC 类型与调用封装；
-- [ ] 添加 Rust 单元测试和前端 mock 测试。
+- [x] 新增 `token_counting.rs`；
+- [x] 注册单条和批量 Tauri command；
+- [x] 新增前端 IPC 类型与调用封装；
+- [x] 添加 Rust 单元测试和前端 mock 测试。
 
 ### 阶段 3：业务接入
 
-- [ ] 替换 Agent Manager 的 `/3.5` 字符估算；
-- [ ] 接入 LLM Chat 上下文占比；
-- [ ] 统一实际 usage 与本地估算的展示优先级；
-- [ ] 增加上下文 80% / 90% 分级预警。
+- [x] 替换 Agent Manager 的 `/3.5` 字符估算；
+- [x] 接入 LLM Chat 上下文占比；
+- [x] 统一实际 usage 与本地估算的展示优先级；
+- [x] 增加上下文 80% / 90% 分级预警。
 
 ## 9. 与桌面端的边界
 

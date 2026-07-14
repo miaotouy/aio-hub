@@ -9,6 +9,7 @@ const props = defineProps<{
   group?: PresetMessageGroup;
   groups: PresetMessageGroup[];
   tokenCount: number;
+  tokenizerLabel: string;
   expanded?: boolean;
   canMoveUp?: boolean;
   canMoveDown?: boolean;
@@ -59,7 +60,7 @@ function moveGroup(event: Event): void {
       </div>
       <p :class="{ unclamped: expanded }">{{ preview }}</p>
       <small>
-        {{ tokenCount }} tokens
+        ~{{ tokenCount }} tokens · {{ tokenizerLabel }}
         <span v-if="message.injectionStrategy"> · {{ t("注入策略") }}</span>
         <span v-if="message.modelMatch?.enabled"> · {{ t("模型限定") }}</span>
       </small>

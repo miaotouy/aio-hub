@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from "vue";
+import { computed, ref, onMounted, nextTick, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useLlmChatStore } from "../stores/llmChatStore";
 import { useLlmProfilesStore } from "../../llm-api/stores/llmProfiles";
@@ -13,10 +13,12 @@ import { ChevronLeft } from "lucide-vue-next";
 import { useRouter } from "vue-router";
 import MessageList from "../components/MessageList.vue";
 import ChatInput from "../components/ChatInput.vue";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 const route = useRoute();
 const router = useRouter();
 const chatStore = useLlmChatStore();
 const profilesStore = useLlmProfilesStore();
+const agentStore = useAgentStore();
 const { isKeyboardVisible } = useKeyboardAvoidance();
 const { regenerate } = useChatExecutor();
 const nodeManager = useNodeManager();
@@ -26,11 +28,17 @@ const messageListRef = ref<any>(null);
 const editingMessage = ref<ChatMessageNode | null>(null);
 const editContent = ref("");
 const showEditDialog = ref(false);
+const activeAgent = computed(() =>
+  agentStore.getAgentById(chatStore.currentSession?.displayAgentId)
+);
 
 // 初始化会话
 onMounted(async () => {
   if (!profilesStore.isLoaded) {
     await profilesStore.init();
+  }
+  if (!agentStore.isLoaded) {
+    await agentStore.init();
   }
 
   await loadSettings();
@@ -155,6 +163,18 @@ const goToChatHome = () => {
           <ChevronLeft :size="24" />
         </var-button>
       </template>
+      <template #right>
+        <div
+          v-if="activeAgent"
+          class="active-agent"
+          :title="activeAgent.displayName || activeAgent.name"
+        >
+          <span class="active-agent-avatar">
+            {{ activeAgent.icon?.length && activeAgent.icon.length <= 4 ? activeAgent.icon : "AI" }}
+          </span>
+          <span class="active-agent-name">{{ activeAgent.displayName || activeAgent.name }}</span>
+        </div>
+      </template>
     </var-app-bar>
     <div class="nav-bar-placeholder"></div>
 
@@ -224,6 +244,34 @@ const goToChatHome = () => {
   height: 54px;
   padding-top: env(safe-area-inset-top);
   flex-shrink: 0;
+}
+
+.active-agent {
+  max-width: 132px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.active-agent-avatar {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--color-primary);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.active-agent-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.78rem;
 }
 
 .chat-container {

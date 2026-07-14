@@ -55,6 +55,8 @@ export interface ChatMessageNode {
   metadata?: {
     /** 使用的模型 ID */
     modelId?: string;
+    /** 生成该消息时绑定的智能体 ID */
+    agentId?: string;
     /** 使用的模型名称 */
     modelName?: string;
     /** 使用的模型显示名称 */

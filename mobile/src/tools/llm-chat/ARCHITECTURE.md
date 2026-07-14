@@ -36,7 +36,8 @@ llm-chat/
 ├── core/
 │   └── pipeline/
 │       └── processors/
-│           └── session-loader.ts  # 管道处理器：会话历史加载器
+│           ├── session-loader.ts       # 管道处理器：会话历史加载器
+│           └── agent-preset-loader.ts  # 管道处理器：智能体预设加载器
 ├── docs/                      # 规划文档（已删除，仅 Git 记录中存在）
 ├── locales/
 │   ├── zh-CN.json             # 中文语言包
@@ -129,7 +130,7 @@ type MessageType = "message" | string;
 PipelineContext
 ├── messages: ProcessableMessage[]   # 核心可变数据，处理器可增删改
 ├── session（只读）                    # 当前会话
-├── agentConfig / settings（只读）     # 配置（移动端暂为 {}）
+├── agentConfig / settings（只读）     # 当前 ChatAgent（可空）与聊天配置
 ├── capabilities （只读）              # 模型能力信息
 ├── sharedData: Map<string, any>     # 共享黑板
 └── logs: Array<{processorId, level, message, details?}>
@@ -189,15 +190,20 @@ Actions:
    ├── 过滤掉空内容和根节点
    └── 转换为 ProcessableMessage[] 放入 context.messages
 
+2. primary:agent-preset-loader (priority: 200)
+   ├── 读取会话绑定的 ChatAgent
+   ├── 保留预设消息顺序与角色
+   └── 将非空预设消息插入会话历史之前
+
 管道执行流程：
 LlamaChatView.send() → useChatExecutor.execute()
   → 构建 PipelineContext
   → pipelineStore.executePipeline(context)
-  → [session-loader, ...其他处理器]
+  → [session-loader, agent-preset-loader, ...其他处理器]
   → 输出 messages[] 给 llmRequest.sendRequest()
 ```
 
-**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前仅内置 `session-loader`，桌面端的其他处理器（如宏替换、深度注入、用户档案注入等）尚未移植。
+**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载与智能体预设加载；宏替换、深度注入、用户档案注入等仍待移植。
 
 ### 4.3. 对话执行流程
 
@@ -233,7 +239,7 @@ LlamaChatView.send() → useChatExecutor.execute()
 - 4个操作卡片：
   - **开启新对话** — `createSession()` + 跳转
   - **历史会话** — 跳转到 `SessionList`
-  - **角色大厅** — 禁用状态（"敬请期待"）
+  - **角色大厅** — 跳转到独立 `agent-manager`，可选择智能体发起绑定会话
   - **用户档案** — 禁用状态（"敬请期待"）
 - 使用 SafeTop 组件处理刘海屏
 
@@ -334,7 +340,7 @@ LlamaChatView.send() → useChatExecutor.execute()
 - [x] PipelineContext 定义
 - [x] ContextProcessor 接口
 - [x] 处理器注册/注销/排序/启用
-- [x] 核心处理器：session-loader
+- [x] 核心处理器：session-loader、agent-preset-loader
 - [x] 待处理器的执行、日志和共享黑板
 
 ### ✅ 设置与管理
@@ -361,7 +367,7 @@ LlamaChatView.send() → useChatExecutor.execute()
 - [ ] `macros-renderer`：宏替换/模板渲染
 - [ ] `depth-injector`：深度注入（系统提示词）
 - [ ] `user-profile-injector`：用户档案注入
-- [ ] `agent-preset-loader`：智能体预设加载
+- [x] `agent-preset-loader`：智能体预设加载
 - [ ] `token-counter`：Token 计数（与桌面端对齐）
 - [ ] 对于ProcessableMessage中的多媒体`_attachments`字段的完整解析
 
@@ -373,9 +379,9 @@ LlamaChatView.send() → useChatExecutor.execute()
 
 ### 🔄 智能体支持
 
-- [ ] 角色大厅（市场）
+- [x] 本地角色大厅与基础编辑
 - [ ] 用户档案管理
-- [ ] 智能体预设加载
+- [x] 智能体预设加载
 
 ### 🔄 体验优化
 
@@ -391,8 +397,8 @@ LlamaChatView.send() → useChatExecutor.execute()
 | 维度           | 桌面端 (`src/tools/llm-chat`)                                                  | 移动端 (`mobile/src/tools/llm-chat`)            |
 | -------------- | ------------------------------------------------------------------------------ | ----------------------------------------------- |
 | **UI 框架**    | Element Plus                                                                   | Varlet                                          |
-| **类型**       | 完整 `ChatAgent`, `Asset`, `ChatSettings`                                      | 精简版，部分类型用 `any` 占位                   |
-| **管道处理器** | 完整：session-loader + macros + depth-injection + user-profile + token-counter | 仅 `session-loader`                             |
+| **类型**       | 完整 `ChatAgent`, `Asset`, `ChatSettings`                                      | 已接入兼容 `ChatAgent`；Asset 仍为占位          |
+| **管道处理器** | 完整：session-loader + macros + depth-injection + user-profile + token-counter | `session-loader` + `agent-preset-loader`        |
 | **组件**       | 丰富（BaseDialog, ImageViewer 等）                                             | 基础的列表/输入组件                             |
 | **编辑器**     | RichCodeEditor（双引擎）                                                       | 纯文本输入                                      |
 | **路由**       | `main`, `settings` 两页                                                        | `home`, `sessions`, `chat/:id`, `settings` 四页 |

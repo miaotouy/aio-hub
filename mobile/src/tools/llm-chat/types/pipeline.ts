@@ -1,6 +1,7 @@
 import type { ChatSession } from "./session";
 import type { ProcessableMessage } from "./context";
 import type { ModelCapabilities } from "@/tools/llm-api/types";
+import type { ChatAgent } from "@/tools/agent-manager/types/agent";
 
 export interface PipelineContext {
   // --- 核心可变数据 ---
@@ -12,7 +13,7 @@ export interface PipelineContext {
 
   // --- 只读元数据 ---
   readonly session: ChatSession;
-  readonly agentConfig: any; // 移动端暂未引入完整的 ChatAgent 类型
+  readonly agentConfig: ChatAgent | null;
   readonly settings: any; // 移动端暂未引入完整的 ChatSettings 类型
   readonly capabilities?: ModelCapabilities;
   readonly timestamp: number;

@@ -1,0 +1,31 @@
+{
+  "common": {
+    "智能体管理": "Agent Manager",
+    "管理角色设定与模型绑定": "Manage personas and model bindings",
+    "智能体大厅": "Agent Hub",
+    "编辑智能体": "Edit Agent"
+  },
+  "AgentList": {
+    "搜索智能体": "Search names, descriptions, or tags",
+    "新建": "New",
+    "暂无智能体": "No agents yet",
+    "先配置可用模型": "Add and enable at least one model first",
+    "开始对话": "Start chat",
+    "编辑": "Edit",
+    "删除": "Delete",
+    "删除确认": "Delete this agent and its local data?",
+    "创建失败": "No available model. Agent could not be created."
+  },
+  "AgentDetail": {
+    "显示名称": "Display name",
+    "内部名称": "Internal name",
+    "描述": "Description",
+    "图标": "Icon or emoji",
+    "模型渠道": "Profile",
+    "模型": "Model",
+    "系统提示词": "System prompt",
+    "保存": "Save",
+    "保存成功": "Agent saved",
+    "必填提示": "Display name, internal name, and model are required"
+  }
+}

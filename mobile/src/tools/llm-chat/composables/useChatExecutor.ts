@@ -5,6 +5,7 @@ import { useNodeManager } from "./useNodeManager";
 import { useContextPipelineStore } from "../stores/contextPipelineStore";
 import { useChatResponseHandler } from "./useChatResponseHandler";
 import { useTopicNamer } from "./useTopicNamer";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import type { ChatSession, PipelineContext, ChatMessageNode } from "../types";
 import { createModuleLogger } from "@/utils/logger";
 
@@ -16,6 +17,7 @@ export function useChatExecutor() {
   const profilesStore = useLlmProfilesStore();
   const nodeManager = useNodeManager();
   const pipelineStore = useContextPipelineStore();
+  const agentStore = useAgentStore();
   const { handleStreamUpdate, finalizeNode, handleNodeError } = useChatResponseHandler();
   const { shouldAutoName, generateTopicName } = useTopicNamer();
 
@@ -29,8 +31,13 @@ export function useChatExecutor() {
   ) {
     if (chatStore.isSending) return;
 
-    // 解析当前选中的模型
-    const [profileId, modelId] = chatStore.selectedModelValue.split(":");
+    if (!agentStore.isLoaded) await agentStore.init();
+    const activeAgent = agentStore.getAgentById(session.displayAgentId);
+
+    // 智能体绑定优先；普通会话继续使用聊天页当前选择的模型。
+    const [selectedProfileId, selectedModelId] = chatStore.selectedModelValue.split(":");
+    const profileId = activeAgent?.profileId || selectedProfileId;
+    const modelId = activeAgent?.modelId || selectedModelId;
     if (!profileId || !modelId) {
       logger.warn("No model selected");
       return;
@@ -71,6 +78,7 @@ export function useChatExecutor() {
       metadata: {
         modelId: modelId,
         modelDisplayName: model?.name || modelId,
+        agentId: activeAgent?.id,
       },
     });
     nodeManager.addNodeToSession(session, assistantNode);
@@ -85,7 +93,7 @@ export function useChatExecutor() {
       const pipelineContext: PipelineContext = {
         messages: [],
         session,
-        agentConfig: {}, // 移动端暂未引入完整的 ChatAgent
+        agentConfig: activeAgent,
         settings: {}, // 移动端暂未引入完整的 ChatSettings
         capabilities: model.capabilities,
         timestamp: Date.now(),
@@ -110,18 +118,26 @@ export function useChatExecutor() {
           content: m.content,
         }));
 
-      const result = await llmRequest.sendRequest({
-        profileId,
-        modelId,
-        messages: requestMessages,
-        stream: true,
-        onStream: (chunk) => {
-          handleStreamUpdate(session, assistantNode.id, chunk, false);
+      const result = await llmRequest.sendRequest(
+        {
+          modelId,
+          messages: requestMessages,
+          maxTokens: activeAgent?.parameters?.maxTokens,
+          temperature: activeAgent?.parameters?.temperature,
+          topP: activeAgent?.parameters?.topP,
+          frequencyPenalty: activeAgent?.parameters?.frequencyPenalty,
+          presencePenalty: activeAgent?.parameters?.presencePenalty,
+          stop: activeAgent?.parameters?.stop,
+          stream: true,
+          onStream: (chunk) => {
+            handleStreamUpdate(session, assistantNode.id, chunk, false);
+          },
+          onReasoningStream: (chunk) => {
+            handleStreamUpdate(session, assistantNode.id, chunk, true);
+          },
         },
-        onReasoningStream: (chunk) => {
-          handleStreamUpdate(session, assistantNode.id, chunk, true);
-        },
-      });
+        profileId
+      );
 
       // 如果返回 null，说明请求在底层被拦截或报错了（errorHandler 处理了）
       if (!result) {

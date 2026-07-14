@@ -5,6 +5,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createConfigManager } from "@/utils/configManager";
 import { sessionLoader } from "../core/pipeline/processors/session-loader";
+import { agentPresetLoader } from "../core/pipeline/processors/agent-preset-loader";
 
 const logger = createModuleLogger("contextPipelineStore");
 const errorHandler = createModuleErrorHandler("contextPipelineStore");
@@ -26,7 +27,7 @@ const settingsManager = createConfigManager<PipelineSettings>({
 });
 
 const getInitialProcessors = (): ContextProcessor[] => {
-  return [sessionLoader];
+  return [sessionLoader, agentPresetLoader];
 };
 
 export const useContextPipelineStore = defineStore("contextPipeline", () => {
@@ -50,8 +51,15 @@ export const useContextPipelineStore = defineStore("contextPipeline", () => {
         const validIds = settings.enabledProcessorIds.filter((id) =>
           processors.value.some((p) => p.id === id)
         );
+        const newlyAddedDefaultIds = processors.value
+          .filter(
+            (processor) =>
+              processor.defaultEnabled !== false &&
+              !settings.orderedProcessorIds?.includes(processor.id)
+          )
+          .map((processor) => processor.id);
         if (validIds.length > 0) {
-          enabledProcessorIds.value = validIds;
+          enabledProcessorIds.value = [...new Set([...validIds, ...newlyAddedDefaultIds])];
         }
       }
 

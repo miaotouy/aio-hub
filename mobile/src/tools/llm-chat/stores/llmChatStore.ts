@@ -80,7 +80,10 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   /**
    * 创建新会话
    */
-  async function createSession(name: string = "New Chat"): Promise<string> {
+  async function createSession(
+    name: string = "New Chat",
+    agentId: string | null = null
+  ): Promise<string> {
     const sessionId = uuidv4();
     const rootNodeId = uuidv4();
 
@@ -102,6 +105,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       },
       rootNodeId,
       activeLeafId: rootNodeId,
+      displayAgentId: agentId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -116,7 +120,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     const { sessionMetas: metas } = await sessionManager.loadSessions();
     sessionMetas.value = metas;
 
-    logger.info("Created new session", { sessionId, name });
+    logger.info("Created new session", { sessionId, name, agentId });
     return sessionId;
   }
 

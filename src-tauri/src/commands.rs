@@ -187,6 +187,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         git_cancel_enrich,
         git_cancel_load,
         // Git 提交助手命令
+        git_scan_repositories,
         git_get_repo_status,
         git_get_file_diff,
         git_stage_files,

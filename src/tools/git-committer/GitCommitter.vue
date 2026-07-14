@@ -94,12 +94,27 @@
       v-if="isResizingSidebar || isResizingRightSidebar"
       class="drag-overlay"
     />
+
+    <DropZone
+      overlay
+      hide-content
+      show-overlay-on-drag
+      directory-only
+      multiple
+      :disabled="isImportingRepositories"
+      @drop="importRepositories"
+    />
+    <div v-if="isImportingRepositories" class="repository-scan-overlay">
+      <LoaderCircle :size="22" class="spin" />
+      <span>正在扫描 Git 仓库...</span>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from "vue";
-import { PanelRight, PanelRightClose } from "lucide-vue-next";
+import { LoaderCircle, PanelRight, PanelRightClose } from "lucide-vue-next";
+import DropZone from "@/components/common/DropZone.vue";
 import RepoBar from "./components/RepoBar.vue";
 import Sidebar from "./components/Sidebar.vue";
 import MainArea from "./components/MainArea.vue";
@@ -118,6 +133,10 @@ import {
 } from "./composables/useGitCommitterState";
 import { refreshAllStatuses } from "./composables/useGitCommitterRunner";
 import { useResizable } from "@/composables/useResizable";
+import {
+  importRepositories,
+  isImportingRepositories,
+} from "./composables/useGitRepositoryImport";
 
 const showSettings = ref(false);
 
@@ -290,5 +309,28 @@ onUnmounted(() => {
   z-index: 9999;
   cursor: col-resize;
   background-color: transparent;
+}
+
+.repository-scan-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--el-color-primary);
+  background-color: color-mix(in srgb, var(--container-bg) 88%, transparent);
+  backdrop-filter: blur(var(--ui-blur));
+}
+
+.spin {
+  animation: repository-scan-spin 0.9s linear infinite;
+}
+
+@keyframes repository-scan-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

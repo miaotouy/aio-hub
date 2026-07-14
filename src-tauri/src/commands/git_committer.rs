@@ -24,13 +24,44 @@
 
 use git2::{BranchType, Oid, Repository, Status};
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::collections::{HashSet, VecDeque};
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tauri::AppHandle;
 use tokio::process::Command;
 
 /// 限制文本 Diff 读取的最大文件大小（1MB），防止大文件导致 IPC 崩溃或内存暴涨
 const MAX_DIFF_FILE_SIZE: u64 = 1024 * 1024;
+
+/// 拖入工作区时最多向下扫描 4 层，避免误拖磁盘根目录后遍历失控。
+const MAX_REPOSITORY_SCAN_DEPTH: usize = 4;
+const MAX_SCANNED_DIRECTORIES: usize = 10_000;
+
+const IGNORED_SCAN_DIRECTORIES: &[&str] = &[
+    ".git",
+    ".cache",
+    ".venv",
+    "build",
+    "dist",
+    "node_modules",
+    "target",
+    "venv",
+];
+
+#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscoveredRepository {
+    pub path: String,
+    pub name: String,
+}
+
+#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RepositoryScanResult {
+    pub repositories: Vec<DiscoveredRepository>,
+    pub invalid_paths: Vec<String>,
+    pub scan_limit_reached: bool,
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -123,6 +154,113 @@ fn repo_workdir(repo: &Repository, fallback: &str) -> std::path::PathBuf {
     repo.workdir().map(|p| p.to_path_buf()).unwrap_or_else(|| {
         Path::new(if fallback.is_empty() { "." } else { fallback }).to_path_buf()
     })
+}
+
+fn is_repository_root(path: &Path) -> bool {
+    let git_marker = path.join(".git");
+    git_marker.exists()
+        && Repository::open(path)
+            .map(|repo| repo.workdir().is_some())
+            .unwrap_or(false)
+}
+
+fn repository_identity(path: &Path) -> PathBuf {
+    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
+fn should_skip_scan_directory(path: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+        return false;
+    };
+    IGNORED_SCAN_DIRECTORIES
+        .iter()
+        .any(|ignored| name.eq_ignore_ascii_case(ignored))
+}
+
+fn scan_repository_paths(paths: Vec<String>) -> RepositoryScanResult {
+    let mut repositories = Vec::new();
+    let mut invalid_paths = Vec::new();
+    let mut visited = HashSet::new();
+    let mut discovered = HashSet::new();
+    let mut queue = VecDeque::new();
+    let mut scanned_directories = 0usize;
+    let mut scan_limit_reached = false;
+
+    for raw_path in paths {
+        let path = PathBuf::from(&raw_path);
+        if !path.is_dir() {
+            invalid_paths.push(raw_path);
+            continue;
+        }
+        queue.push_back((path, 0usize));
+    }
+
+    while let Some((path, depth)) = queue.pop_front() {
+        if scanned_directories >= MAX_SCANNED_DIRECTORIES {
+            scan_limit_reached = true;
+            break;
+        }
+
+        let identity = repository_identity(&path);
+        if !visited.insert(identity.clone()) {
+            continue;
+        }
+        scanned_directories += 1;
+
+        if is_repository_root(&path) {
+            if discovered.insert(identity) {
+                let name = path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .filter(|name| !name.is_empty())
+                    .unwrap_or("未知仓库")
+                    .to_string();
+                repositories.push(DiscoveredRepository {
+                    path: path.to_string_lossy().into_owned(),
+                    name,
+                });
+            }
+            // 仓库内部可能包含依赖或子模块，不继续向下扫描。
+            continue;
+        }
+
+        if depth >= MAX_REPOSITORY_SCAN_DEPTH {
+            continue;
+        }
+
+        let Ok(entries) = std::fs::read_dir(&path) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            if !file_type.is_dir() || file_type.is_symlink() {
+                continue;
+            }
+            let child = entry.path();
+            if !should_skip_scan_directory(&child) {
+                queue.push_back((child, depth + 1));
+            }
+        }
+    }
+
+    repositories.sort_by(|a, b| a.path.to_lowercase().cmp(&b.path.to_lowercase()));
+    invalid_paths.sort();
+
+    RepositoryScanResult {
+        repositories,
+        invalid_paths,
+        scan_limit_reached,
+    }
+}
+
+/// 扫描拖入的目录及其有限层级子目录，返回可加入提交助手的 Git 工作区。
+#[tauri::command]
+pub async fn git_scan_repositories(paths: Vec<String>) -> Result<RepositoryScanResult, String> {
+    tokio::task::spawn_blocking(move || scan_repository_paths(paths))
+        .await
+        .map_err(|error| format!("扫描 Git 仓库失败: {}", error))
 }
 
 /// 获取仓库状态：分支名、暂存/未暂存文件列表、ahead/behind。
@@ -460,4 +598,61 @@ pub async fn git_pull(app: AppHandle, path: String) -> Result<(), String> {
 #[allow(dead_code)]
 fn short_oid(oid: Oid) -> String {
     oid.to_string().chars().take(7).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_tempdir() -> tempfile::TempDir {
+        let target_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("target");
+        std::fs::create_dir_all(&target_dir).expect("create cargo target directory");
+        tempfile::tempdir_in(target_dir).expect("create temp directory")
+    }
+
+    #[test]
+    fn scans_direct_and_nested_repositories_without_descending_into_worktrees() {
+        let temp = test_tempdir();
+        let direct = temp.path().join("direct-repo");
+        let nested = temp.path().join("group").join("nested-repo");
+        let ignored_nested = direct.join("packages").join("inner-repo");
+
+        std::fs::create_dir_all(&nested).expect("create nested repository directory");
+        std::fs::create_dir_all(&ignored_nested)
+            .expect("create repository directory inside worktree");
+        Repository::init(&direct).expect("init direct repository");
+        Repository::init(&nested).expect("init nested repository");
+        Repository::init(&ignored_nested).expect("init repository inside worktree");
+
+        let result = scan_repository_paths(vec![temp.path().to_string_lossy().into_owned()]);
+        let discovered_paths: HashSet<PathBuf> = result
+            .repositories
+            .iter()
+            .map(|repo| repository_identity(Path::new(&repo.path)))
+            .collect();
+
+        assert_eq!(discovered_paths.len(), 2);
+        assert!(discovered_paths.contains(&repository_identity(&direct)));
+        assert!(discovered_paths.contains(&repository_identity(&nested)));
+        assert!(!discovered_paths.contains(&repository_identity(&ignored_nested)));
+        assert!(result.invalid_paths.is_empty());
+        assert!(!result.scan_limit_reached);
+    }
+
+    #[test]
+    fn reports_invalid_roots_and_deduplicates_overlapping_inputs() {
+        let temp = test_tempdir();
+        let repository = temp.path().join("repo");
+        Repository::init(&repository).expect("init repository");
+        let missing = temp.path().join("missing");
+
+        let result = scan_repository_paths(vec![
+            temp.path().to_string_lossy().into_owned(),
+            repository.to_string_lossy().into_owned(),
+            missing.to_string_lossy().into_owned(),
+        ]);
+
+        assert_eq!(result.repositories.len(), 1);
+        assert_eq!(result.invalid_paths, vec![missing.to_string_lossy()]);
+    }
 }

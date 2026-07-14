@@ -43,18 +43,28 @@
         </div>
 
         <!-- 拖拽添加区域 -->
-        <DropZone
-          variant="input"
+        <button
+          type="button"
           class="drop-zone-wrapper"
-          @drop="handleFolderDrop"
+          :disabled="isImportingRepositories"
+          @click="selectScanFolders"
         >
           <div class="drop-zone-inner">
-            <FolderOpen :size="32" class="text-placeholder" />
+            <LoaderCircle
+              v-if="isImportingRepositories"
+              :size="32"
+              class="scan-icon spin"
+            />
+            <FolderSearch v-else :size="32" class="text-placeholder" />
             <p class="text-secondary drop-desc">
-              支持直接拖放本地 Git 项目文件夹到此处快速添加
+              {{
+                isImportingRepositories
+                  ? "正在扫描 Git 仓库..."
+                  : "拖入一个或多个目录，或点击选择目录扫描"
+              }}
             </p>
           </div>
-        </DropZone>
+        </button>
 
         <!-- 仓库列表 -->
         <div v-if="repositories.length === 0" class="empty-tip">
@@ -242,12 +252,11 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { Settings, Plus, FolderOpen } from "lucide-vue-next";
+import { FolderSearch, LoaderCircle, Plus, Settings } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import BaseDialog from "@/components/common/BaseDialog.vue";
-import DropZone from "@/components/common/DropZone.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { customMessage } from "@/utils/customMessage";
 import {
@@ -257,13 +266,15 @@ import {
   aiIncludeUnstaged,
   defaultModel,
   systemPrompt,
-  addRepository,
   removeRepository,
   restoreDefaultSystemPrompt,
   enableAutoRefresh,
   autoRefreshInterval,
 } from "../composables/useGitCommitterState";
-import { switchRepoWithAutoPull } from "../composables/useGitCommitterRunner";
+import {
+  importRepositories,
+  isImportingRepositories,
+} from "../composables/useGitRepositoryImport";
 
 const emit = defineEmits<{
   (e: "close"): void;
@@ -274,11 +285,15 @@ const newRepoPath = ref("");
 const newRepoAlias = ref("");
 const isAdding = ref(false);
 
-// ===== 拖放文件夹添加 =====
-const handleFolderDrop = async (paths: string[]) => {
-  if (paths.length === 0) return;
-  const path = paths[0];
-  await tryAddRepo(path);
+// ===== 扫描目录添加 =====
+const selectScanFolders = async () => {
+  const selected = await openDialog({
+    directory: true,
+    multiple: true,
+    title: "选择要扫描的目录",
+  });
+  if (!selected) return;
+  await importRepositories(Array.isArray(selected) ? selected : [selected]);
 };
 
 // ===== 选择本地目录 =====
@@ -312,38 +327,10 @@ const confirmAddRepo = async () => {
 
 // ===== 核心添加逻辑与安全校验 =====
 const tryAddRepo = async (path: string, alias?: string) => {
-  // 1. 校验路径是否存在且为目录
-  const exists = await invoke<boolean>("path_exists", { path });
-  if (!exists) {
-    customMessage.error("路径不存在，请检查输入");
-    return;
+  const result = await importRepositories([path], alias);
+  if (result && result.addedPaths.length > 0) {
+    emit("close");
   }
-  const isDir = await invoke<boolean>("is_directory", { path });
-  if (!isDir) {
-    customMessage.error("该路径不是一个目录");
-    return;
-  }
-
-  // 2. 校验是否为 Git 仓库（后端打开校验）
-  try {
-    await invoke("git_get_repo_status", { path });
-  } catch (e) {
-    customMessage.error("该目录不是一个有效的 Git 仓库");
-    return;
-  }
-
-  // 3. 提取目录名作为默认仓库名
-  const parts = path.split(/[/\\]/);
-  const name = parts[parts.length - 1] || "未知仓库";
-
-  // 4. 添加到状态
-  const repo = { path, name, alias };
-  addRepository(repo);
-  customMessage.success("成功关联仓库");
-
-  // 5. 自动闭环：切换到新仓库并自动拉取/刷新，关闭设置面板
-  await switchRepoWithAutoPull(path);
-  emit("close");
 };
 
 // ===== 修改别名 =====
@@ -438,6 +425,36 @@ const showInFileManager = async (path: string) => {
 /* 拖放区域 */
 .drop-zone-wrapper {
   margin-bottom: 16px;
+  width: 100%;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  border: var(--border-width) dashed var(--border-color);
+  border-radius: 6px;
+  background-color: var(--input-bg);
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.drop-zone-wrapper:hover:not(:disabled) {
+  border-color: var(--el-color-primary);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary) 7%,
+    var(--input-bg)
+  );
+}
+
+.drop-zone-wrapper:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
+}
+
+.drop-zone-wrapper:disabled {
+  cursor: wait;
+  opacity: 0.75;
 }
 
 .drop-zone-inner {
@@ -455,6 +472,20 @@ const showInFileManager = async (path: string) => {
 
 .text-placeholder {
   color: var(--el-text-color-placeholder);
+}
+
+.scan-icon {
+  color: var(--el-color-primary);
+}
+
+.spin {
+  animation: repository-scan-spin 0.9s linear infinite;
+}
+
+@keyframes repository-scan-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* 仓库列表 */

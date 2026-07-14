@@ -203,16 +203,25 @@ watch(
 
 // ===== 仓库与 Session 操作 =====
 
-/** 添加仓库 */
-export function addRepository(repo: RepositoryConfig): void {
-  if (repositories.value.some((r) => r.path === repo.path)) {
-    return;
+function repositoryPathKey(path: string): string {
+  const normalized = path.replace(/\\/g, "/").replace(/\/+$/, "");
+  return /^[a-zA-Z]:\//.test(normalized) || normalized.startsWith("//")
+    ? normalized.toLowerCase()
+    : normalized;
+}
+
+/** 添加仓库，返回是否实际加入了列表。 */
+export function addRepository(repo: RepositoryConfig): boolean {
+  const pathKey = repositoryPathKey(repo.path);
+  if (repositories.value.some((r) => repositoryPathKey(r.path) === pathKey)) {
+    return false;
   }
   repositories.value.push(repo);
   if (!currentRepoPath.value) {
     currentRepoPath.value = repo.path;
   }
   persist();
+  return true;
 }
 
 /** 移除仓库 */

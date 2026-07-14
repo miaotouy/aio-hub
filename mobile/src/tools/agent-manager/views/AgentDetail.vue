@@ -8,6 +8,7 @@ import { customMessage } from "@/utils/feedback";
 import { useLlmProfilesStore } from "@/tools/llm-api/stores/llmProfiles";
 import { useAgentStore } from "../stores/agentStore";
 import type { ChatAgent } from "../types/agent";
+import PresetMessageEditor from "../components/PresetMessageEditor.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -15,7 +16,6 @@ const { tRaw } = useI18n();
 const agentStore = useAgentStore();
 const profilesStore = useLlmProfilesStore();
 const draft = ref<ChatAgent | null>(null);
-const systemPrompt = ref("");
 
 const enabledProfiles = computed(() => profilesStore.enabledProfiles);
 const selectedProfile = computed(() => enabledProfiles.value.find((profile) => profile.id === draft.value?.profileId));
@@ -35,7 +35,6 @@ onMounted(async () => {
     return;
   }
   draft.value = structuredClone(agent);
-  systemPrompt.value = agent.presetMessages?.find((message) => message.role === "system")?.content || "";
 });
 
 async function save() {
@@ -45,35 +44,12 @@ async function save() {
     return;
   }
 
-  const existing = draft.value.presetMessages || [];
-  const systemIndex = existing.findIndex((message) => message.role === "system");
-  const nextPresetMessages = [...existing];
-  if (systemPrompt.value.trim()) {
-    const current = systemIndex >= 0 ? existing[systemIndex] : undefined;
-    const systemMessage = {
-      ...current,
-      id: current?.id || crypto.randomUUID(),
-      parentId: current?.parentId ?? null,
-      childrenIds: current?.childrenIds || [],
-      role: "system" as const,
-      status: "complete" as const,
-      content: systemPrompt.value,
-      timestamp: current?.timestamp || new Date().toISOString(),
-    };
-    if (systemIndex >= 0) nextPresetMessages[systemIndex] = systemMessage;
-    else nextPresetMessages.unshift(systemMessage);
-  } else if (systemIndex >= 0) {
-    nextPresetMessages[systemIndex] = {
-      ...existing[systemIndex],
-      content: "",
-    };
-  }
-
   await agentStore.updateAgent(draft.value.id, {
     ...draft.value,
     displayName: draft.value.displayName.trim(),
     name: draft.value.name.trim(),
-    presetMessages: nextPresetMessages,
+    presetMessages: draft.value.presetMessages || [],
+    presetGroups: draft.value.presetGroups || [],
   });
   customMessage(tRaw("tools.agent-manager.AgentDetail.保存成功"), "success");
   router.back();
@@ -100,9 +76,7 @@ async function save() {
         <label><span>{{ tRaw("tools.agent-manager.AgentDetail.模型渠道") }}</span><select v-model="draft.profileId"><option v-for="profile in enabledProfiles" :key="profile.id" :value="profile.id">{{ profile.name }}</option></select></label>
         <label><span>{{ tRaw("tools.agent-manager.AgentDetail.模型") }}</span><select v-model="draft.modelId"><option v-for="model in availableModels" :key="model.id" :value="model.id">{{ model.name || model.id }}</option></select></label>
       </section>
-      <section class="form-section">
-        <label><span>{{ tRaw("tools.agent-manager.AgentDetail.系统提示词") }}</span><textarea v-model="systemPrompt" rows="12"></textarea></label>
-      </section>
+      <PresetMessageEditor v-model:messages="draft.presetMessages" v-model:groups="draft.presetGroups" />
     </main>
   </div>
 </template>

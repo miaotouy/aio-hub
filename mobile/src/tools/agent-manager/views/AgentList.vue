@@ -1,26 +1,33 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { Bot, ChevronLeft, MessageCircle, Pencil, Plus, Search, Trash2 } from "lucide-vue-next";
+import { Bot, ChevronLeft, MessageCircle, Pencil, Plus, Search, Trash2, Upload } from "lucide-vue-next";
 import SafeTop from "@/components/SafeTop.vue";
 import { useI18n } from "@/i18n";
 import { customDialog, customMessage } from "@/utils/feedback";
+import { useLlmProfilesStore } from "@/tools/llm-api/stores/llmProfiles";
+import { useAgentImporter } from "../composables/useAgentImporter";
 import { useAgentStore } from "../stores/agentStore";
-import type { ChatAgent } from "../types/agent";
+import type { AgentCategory, ChatAgent } from "../types/agent";
 
 const router = useRouter();
 const agentStore = useAgentStore();
+const profilesStore = useLlmProfilesStore();
+const { parseFile } = useAgentImporter();
 const { tRaw } = useI18n();
 const search = ref("");
+const category = ref<AgentCategory | "all">("all");
+const importFileInput = ref<HTMLInputElement | null>(null);
 
 const filteredAgents = computed(() => {
   const keyword = search.value.trim().toLowerCase();
-  if (!keyword) return agentStore.sortedAgents;
-  return agentStore.sortedAgents.filter((agent) =>
-    [agent.displayName, agent.name, agent.description, ...(agent.tags || [])]
+  return agentStore.sortedAgents.filter((agent) => {
+    if (category.value !== "all" && agent.category !== category.value) return false;
+    if (!keyword) return true;
+    return [agent.displayName, agent.name, agent.description, ...(agent.tags || [])]
       .filter(Boolean)
-      .some((value) => String(value).toLowerCase().includes(keyword))
-  );
+      .some((value) => String(value).toLowerCase().includes(keyword));
+  });
 });
 
 onMounted(() => agentStore.init());
@@ -46,6 +53,58 @@ async function deleteAgent(agent: ChatAgent) {
   });
   if (confirmed) await agentStore.removeAgent(agent.id);
 }
+
+function uniqueAgentName(baseName: string): string {
+  const names = new Set(agentStore.agents.map((agent) => agent.name));
+  if (!names.has(baseName)) return baseName;
+  let suffix = 2;
+  while (names.has(`${baseName}-${suffix}`)) suffix++;
+  return `${baseName}-${suffix}`;
+}
+
+async function importAgents(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement;
+  const files = Array.from(input.files || []);
+  if (files.length === 0) return;
+  let importedCount = 0;
+  let failedCount = 0;
+  try {
+    if (!profilesStore.isLoaded) await profilesStore.init();
+    for (const file of files) {
+      try {
+        const result = await parseFile(file);
+        for (const draft of result.agents) {
+          const importedProfile = profilesStore.enabledProfiles.find(
+            (profile) => profile.id === draft.profileId && profile.models.some((model) => model.id === draft.modelId)
+          );
+          const modelProfile = profilesStore.enabledProfiles.find((profile) =>
+            profile.models.some((model) => model.id === draft.modelId)
+          );
+          const profile = importedProfile || modelProfile || profilesStore.enabledProfiles.find((item) => item.models.length > 0);
+          if (!profile) throw new Error("No enabled model profile");
+          const modelId = profile.models.some((model) => model.id === draft.modelId)
+            ? String(draft.modelId)
+            : profile.models[0].id;
+          const overrides = structuredClone(draft) as Partial<ChatAgent>;
+          delete overrides.id;
+          delete overrides.createdAt;
+          delete overrides.lastUsedAt;
+          overrides.name = uniqueAgentName(draft.name);
+          overrides.displayName ||= draft.name;
+          overrides.profileId = profile.id;
+          overrides.modelId = modelId;
+          if (await agentStore.createAgent(overrides)) importedCount++;
+        }
+      } catch {
+        failedCount++;
+      }
+    }
+    if (importedCount > 0) customMessage(`${tRaw("tools.agent-manager.AgentList.导入成功")} ${importedCount}`, "success");
+    if (failedCount > 0) customMessage(`${tRaw("tools.agent-manager.AgentList.导入失败")} ${failedCount}`, "warning");
+  } finally {
+    input.value = "";
+  }
+}
 </script>
 
 <template>
@@ -59,15 +118,30 @@ async function deleteAgent(agent: ChatAgent) {
         <h1>{{ tRaw("tools.agent-manager.common.智能体大厅") }}</h1>
         <p>{{ tRaw("tools.agent-manager.common.管理角色设定与模型绑定") }}</p>
       </div>
-      <button class="icon-button primary" type="button" :title="tRaw('tools.agent-manager.AgentList.新建')" @click="createAgent">
-        <Plus :size="22" />
-      </button>
+      <div class="header-actions">
+        <button class="icon-button" type="button" :title="tRaw('tools.agent-manager.AgentList.导入')" @click="importFileInput?.click()">
+          <Upload :size="20" />
+        </button>
+        <button class="icon-button primary" type="button" :title="tRaw('tools.agent-manager.AgentList.新建')" @click="createAgent">
+          <Plus :size="22" />
+        </button>
+        <input ref="importFileInput" class="file-input" type="file" accept="application/json,image/png,.json,.png" multiple @change="importAgents" />
+      </div>
     </header>
 
-    <label class="search-box">
-      <Search :size="19" />
-      <input v-model="search" :placeholder="tRaw('tools.agent-manager.AgentList.搜索智能体')" />
-    </label>
+    <div class="filter-bar">
+      <label class="search-box">
+        <Search :size="19" />
+        <input v-model="search" :placeholder="tRaw('tools.agent-manager.AgentList.搜索智能体')" />
+      </label>
+      <select v-model="category" :aria-label="tRaw('tools.agent-manager.AgentList.分类')">
+        <option value="all">{{ tRaw("tools.agent-manager.AgentList.全部分类") }}</option>
+        <option value="assistant">{{ tRaw("tools.agent-manager.AgentList.助手") }}</option>
+        <option value="character">{{ tRaw("tools.agent-manager.AgentList.角色") }}</option>
+        <option value="expert">{{ tRaw("tools.agent-manager.AgentList.专家") }}</option>
+        <option value="custom">{{ tRaw("tools.agent-manager.AgentList.自定义") }}</option>
+      </select>
+    </div>
 
     <main class="agent-list">
       <div v-if="agentStore.isLoading" class="empty-state"><var-loading /></div>
@@ -101,7 +175,7 @@ async function deleteAgent(agent: ChatAgent) {
 
 <style scoped>
 .agent-list-page { min-height: 100%; padding: 16px; box-sizing: border-box; color: var(--text-color); }
-.page-header { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 10px; align-items: center; margin-bottom: 18px; }
+.page-header { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 10px; align-items: center; margin-bottom: 18px; }
 .header-copy { min-width: 0; }
 .header-copy h1 { margin: 0; font-size: 1.35rem; }
 .header-copy p { margin: 3px 0 0; color: var(--color-on-surface-variant); font-size: .82rem; }
@@ -110,6 +184,10 @@ async function deleteAgent(agent: ChatAgent) {
 .icon-button.primary { color: white; background: var(--color-primary); }
 .icon-button.accent { color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 12%, transparent); }
 .icon-button.danger { color: var(--color-danger, #d14343); }
+.header-actions { display: flex; gap: 2px; }
+.file-input { display: none; }
+.filter-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.filter-bar select { max-width: 116px; padding: 0 10px; border: var(--border-width) solid var(--border-color); border-radius: 8px; color: var(--text-color); background: var(--input-bg); }
 .search-box { height: 46px; display: flex; align-items: center; gap: 10px; padding: 0 14px; border: var(--border-width) solid var(--border-color); border-radius: 8px; background: var(--input-bg); }
 .search-box input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--text-color); font-size: .95rem; }
 .agent-list { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; padding-bottom: max(20px, env(safe-area-inset-bottom)); }

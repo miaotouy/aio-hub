@@ -23,7 +23,7 @@ export interface AgentBaseConfig {
   displayName?: string;
   description?: string;
   icon?: string;
-  presetMessages?: ChatMessageNode[];
+  presetMessages?: PresetMessage[];
   greetings?: unknown[];
   displayPresetCount?: number;
   parameters?: LlmParameters;
@@ -53,7 +53,47 @@ export interface AgentBaseConfig {
   extensionConfig?: unknown;
   visualGuideline?: string;
   variableConfig?: unknown;
-  presetGroups?: unknown[];
+  presetGroups?: PresetMessageGroup[];
+  [key: string]: unknown;
+}
+
+/** 移动端可编辑字段；其余桌面端字段通过索引签名无损保留。 */
+export interface PresetMessage extends ChatMessageNode {
+  name?: string;
+  groupId?: string;
+  isEnabled?: boolean;
+  injectionStrategy?: {
+    type?: "default" | "depth" | "advanced_depth" | "anchor";
+    depth?: number;
+    depthConfig?: string;
+    anchorTarget?: string;
+    anchorPosition?: "before" | "after";
+    order?: number;
+    [key: string]: unknown;
+  };
+  modelMatch?: {
+    enabled: boolean;
+    mode?: "any" | "all";
+    exclude?: boolean;
+    patterns: string[];
+    profilePatterns?: string[];
+    matchProfileName?: boolean;
+    [key: string]: unknown;
+  };
+  presetAttachments?: Array<{
+    assetId: string;
+    description?: string;
+    [key: string]: unknown;
+  }>;
+  [key: string]: unknown;
+}
+
+export interface PresetMessageGroup {
+  id: string;
+  name: string;
+  description?: string;
+  selectionMode: "checkbox" | "radio";
+  enabled: boolean;
   [key: string]: unknown;
 }
 

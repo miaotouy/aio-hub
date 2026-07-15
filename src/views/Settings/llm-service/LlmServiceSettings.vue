@@ -22,6 +22,7 @@ import { useElementSize } from "@vueuse/core";
 import ProfileSidebar from "../shared/ProfileSidebar.vue";
 import ProfileEditor from "../shared/ProfileEditor.vue";
 import ModelList from "./components/ModelList.vue";
+import ModelProbeDialog from "./components/ModelProbeDialog.vue";
 import ModelFetcherDialog from "./components/ModelFetcherDialog.vue";
 import ModelEditDialog from "./components/ModelEditDialog.vue";
 import CreateProfileDialog from "./components/CreateProfileDialog.vue";
@@ -90,12 +91,34 @@ const {
 
 const {
   isTestingConnection,
+  isBatchTesting,
   modelTestLoading,
   keyTestLoading,
+  modelListResult,
+  modelProbeResults,
+  batchProgress,
   testConnection,
   handleTestModel,
   handleTestKey,
+  handleBatchTestModels,
+  cancelBatchTest,
 } = useConnectionTest(editForm, selectedProfile);
+
+const showModelProbeDialog = ref(false);
+const modelProbeInitialId = ref<string>();
+
+const openModelProbeDialog = (model?: LlmModelInfo) => {
+  modelProbeInitialId.value = model?.id;
+  showModelProbeDialog.value = true;
+};
+
+watch(
+  () => selectedProfile.value?.id,
+  () => {
+    showModelProbeDialog.value = false;
+    modelProbeInitialId.value = undefined;
+  }
+);
 
 // ─── 图标 ───
 const { getDisplayIconPath, getIconPath, getMatchedProperties } =
@@ -694,8 +717,25 @@ const networkSettingSummary = computed(() => {
                   :loading="isTestingConnection"
                   @click="testConnection"
                 >
-                  测试连接
+                  检查模型列表
                 </el-button>
+              </div>
+              <div v-if="modelListResult" class="probe-summary">
+                <el-tag
+                  :type="modelListResult.success ? 'success' : 'danger'"
+                  size="small"
+                >
+                  {{
+                    modelListResult.success ? "模型列表正常" : "模型列表失败"
+                  }}
+                </el-tag>
+                <span>
+                  {{
+                    modelListResult.responsePreview ||
+                    modelListResult.errorMessage
+                  }}
+                  · {{ Math.round(modelListResult.totalMs) }} ms
+                </span>
               </div>
               <div
                 v-if="editForm.apiKeys.length > 0"
@@ -722,10 +762,13 @@ const networkSettingSummary = computed(() => {
                   :expand-state="editForm.modelGroupsExpandState || {}"
                   :loading="isFetchingModels"
                   :test-loading="modelTestLoading"
+                  :test-results="modelProbeResults"
+                  :batch-testing="isBatchTesting"
                   :provider-type="editForm.type"
                   @add="addModel"
                   @edit="editModel"
-                  @test="handleTestModel"
+                  @test="openModelProbeDialog"
+                  @batch-test="openModelProbeDialog()"
                   @delete="deleteModel"
                   @delete-group="deleteModelGroup"
                   @clear="clearAllModels"
@@ -798,6 +841,19 @@ const networkSettingSummary = computed(() => {
       @add-models="handleAddModels"
     />
 
+    <ModelProbeDialog
+      v-model="showModelProbeDialog"
+      :models="editForm.models"
+      :initial-model-id="modelProbeInitialId"
+      :results="modelProbeResults"
+      :loading="modelTestLoading"
+      :batch-running="isBatchTesting"
+      :batch-progress="batchProgress"
+      @test="handleTestModel"
+      @batch="handleBatchTestModels"
+      @cancel="cancelBatchTest"
+    />
+
     <!-- 自定义请求头配置弹窗 -->
     <CustomHeadersEditor
       v-model:visible="showCustomHeadersDialog"
@@ -815,7 +871,7 @@ const networkSettingSummary = computed(() => {
     <MultiKeyManagerDialog
       v-if="selectedProfile"
       v-model="showMultiKeyManager"
-      :profile="selectedProfile"
+      :profile="editForm"
       :test-loading="keyTestLoading"
       @update:profile="saveProfile"
       @test-key="handleTestKey"
@@ -1036,6 +1092,16 @@ const networkSettingSummary = computed(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.probe-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 6px;
+  color: var(--text-color-secondary);
+  font-size: 12px;
 }
 
 /* 快捷链接样式 */

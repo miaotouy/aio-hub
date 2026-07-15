@@ -1019,6 +1019,7 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   "signal",
   "timeout",
   "suppressErrorLog",
+  "transportObserver",
   "allowDisabledProfile",
 
   // 通用采样参数 (LlmParameters)

@@ -15,7 +15,7 @@
 -->
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { computed, ref, watch } from "vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import {
   CircleCheck,
@@ -65,6 +65,22 @@ const selectedTestModelId = ref("");
 if (props.profile.models.length > 0) {
   selectedTestModelId.value = props.profile.models[0].id;
 }
+
+watch(
+  () => [
+    props.profile.id,
+    props.profile.models.map((model) => model.id).join("\n"),
+  ],
+  () => {
+    if (
+      !props.profile.models.some(
+        (model) => model.id === selectedTestModelId.value
+      )
+    ) {
+      selectedTestModelId.value = props.profile.models[0]?.id ?? "";
+    }
+  }
+);
 const selectedKeys = ref<any[]>([]);
 const isImporting = ref(false);
 const importText = ref("");

@@ -47,6 +47,7 @@ export async function callGeminiImageApi(
       requestId: options.requestId ?? `gemini-image-${Date.now()}`,
       signal: options.signal,
       timeoutMs: options.timeout,
+      observer: options.transportObserver,
       network: {
         strategy: options.forceProxy ? "proxy" : options.networkStrategy,
         relaxInvalidCerts: options.relaxIdCerts,

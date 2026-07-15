@@ -52,6 +52,7 @@ export const callCohereChatApi = async (
       requestId: request.requestId ?? createRequestId(),
       timeoutMs: options.timeout,
       signal: options.signal,
+      observer: options.transportObserver,
       network: {
         strategy: options.forceProxy ? "proxy" : options.networkStrategy,
         relaxInvalidCerts: options.relaxIdCerts,

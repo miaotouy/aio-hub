@@ -191,6 +191,8 @@ export interface LlmRequestOptions {
   suppressErrorLog?: boolean;
   /** 是否允许测试/探测请求绕过 profile 启用状态检查 */
   allowDisabledProfile?: boolean;
+  /** 共享 Transport 观察器，用于探测等基础设施采集 TTFB */
+  transportObserver?: import("@aiohub/llm-core").TransportObserver;
 
   // --- 特种模型参数 ---
   /** 嵌入 (Embedding) 输入内容 */

@@ -216,11 +216,23 @@ export function useLlmKeyManager() {
   /**
    * 报告请求失败
    */
-  const reportFailure = (profileId: string, key: string, error: any) => {
+  const reportFailure = (
+    profileId: string,
+    key: string,
+    error: any,
+    options: {
+      allowAutoDisable?: boolean;
+      countTowardThreshold?: boolean;
+      treatRateLimitAsImmediateBreak?: boolean;
+      forceBroken?: boolean;
+    } = {}
+  ) => {
     const profileStates = keyStates.value.states[profileId];
     if (profileStates && profileStates[key]) {
       const state = profileStates[key];
-      state.errorCount++;
+      if (options.countTowardThreshold !== false) {
+        state.errorCount++;
+      }
       state.lastErrorTime = Date.now();
 
       // 关键修复：截断错误消息，防止配置文件爆炸 (22MB 文件惨案)
@@ -240,17 +252,26 @@ export function useLlmKeyManager() {
       // 熔断逻辑：如果是频率限制则直接熔断，否则连续错误超过 3 次触发
       // 仅在启用自动禁用开关时生效
       if (
-        keyStates.value.enableAutoDisable &&
+        (options.forceBroken || keyStates.value.enableAutoDisable) &&
+        options.allowAutoDisable !== false &&
         !state.isBroken &&
-        (isRateLimit || state.errorCount >= 3)
+        (options.forceBroken ||
+          (isRateLimit && options.treatRateLimitAsImmediateBreak !== false) ||
+          state.errorCount >= 3)
       ) {
         state.isBroken = true;
         state.disabledTime = Date.now();
-        state.note = isRateLimit
-          ? "触发频率限制 (429)，已自动熔断"
-          : "连续多次请求失败，已自动熔断";
+        state.note = options.forceBroken
+          ? "凭据认证失败，已标记为不可用"
+          : isRateLimit
+            ? "触发频率限制 (429)，已自动熔断"
+            : "连续多次请求失败，已自动熔断";
         logger.error(
-          isRateLimit ? "API Key 触发 429 熔断" : "API Key 连续失败熔断",
+          options.forceBroken
+            ? "API Key 凭据认证失败"
+            : isRateLimit
+              ? "API Key 触发 429 熔断"
+              : "API Key 连续失败熔断",
           {
             profileId,
             key: key.substring(0, 8) + "...",

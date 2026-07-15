@@ -34,6 +34,7 @@ import {
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import { getActiveModelProperties } from "@/config/model-metadata";
 import { customMessage } from "@/utils/customMessage";
+import type { ChannelProbeResult } from "../probe/types";
 
 const MAX_VISIBLE_CAPS = 4;
 
@@ -43,6 +44,8 @@ interface Props {
   expandState?: Record<string, boolean>;
   loading?: boolean;
   testLoading?: Record<string, boolean>;
+  testResults?: Record<string, ChannelProbeResult>;
+  batchTesting?: boolean;
   providerType?: string;
 }
 
@@ -51,6 +54,8 @@ const props = withDefaults(defineProps<Props>(), {
   expandState: () => ({}),
   loading: false,
   testLoading: () => ({}),
+  testResults: () => ({}),
+  batchTesting: false,
 });
 
 interface Emits {
@@ -61,6 +66,7 @@ interface Emits {
   (e: "clear"): void;
   (e: "fetch"): void;
   (e: "test", model: LlmModelInfo): void;
+  (e: "batch-test"): void;
   (e: "update:expandState", state: Record<string, boolean>): void;
   (e: "batch-apply-presets", models: LlmModelInfo[]): void;
 }
@@ -199,6 +205,18 @@ const getVisibleCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
   // 如果超过最大显示数量，留一个位置给省略号，所以减1
   return enabled.slice(0, MAX_VISIBLE_CAPS - 1);
 };
+
+const formatTestDuration = (duration: number): string =>
+  duration < 1_000
+    ? Math.round(duration) + " ms"
+    : (duration / 1_000).toFixed(2) + " s";
+
+const getTestResultTitle = (result: ChannelProbeResult): string => {
+  const summary = result.success
+    ? result.responsePreview || "模型响应正常"
+    : result.errorMessage || result.category || "模型检查失败";
+  return summary + " (" + formatTestDuration(result.totalMs) + ")";
+};
 </script>
 
 <template>
@@ -206,6 +224,15 @@ const getVisibleCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
     <div class="list-header">
       <span class="model-count">已添加 {{ models.length }} 个模型</span>
       <div class="list-actions">
+        <el-button
+          v-if="editable && models.length > 0"
+          size="small"
+          :icon="VideoPlay"
+          :loading="batchTesting"
+          @click="emit('batch-test')"
+        >
+          批量检查
+        </el-button>
         <el-popconfirm
           v-if="editable && models.length > 0"
           title="将为所有模型填充缺失的分组、图标、能力等预设元数据，不覆盖已有配置，确定继续？"
@@ -307,6 +334,36 @@ const getVisibleCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
                   <div class="model-id">{{ item.model.id }}</div>
                 </div>
 
+                <el-tooltip
+                  v-if="testResults[item.model.id]"
+                  :content="getTestResultTitle(testResults[item.model.id])"
+                  placement="top"
+                >
+                  <div class="model-test-result">
+                    <el-tag
+                      :type="
+                        testResults[item.model.id].success
+                          ? 'success'
+                          : testResults[item.model.id].category === 'cancelled'
+                            ? 'info'
+                            : 'danger'
+                      "
+                      size="small"
+                    >
+                      {{
+                        testResults[item.model.id].success
+                          ? "正常"
+                          : testResults[item.model.id].category === "cancelled"
+                            ? "已停止"
+                            : "失败"
+                      }}
+                    </el-tag>
+                    <span>{{
+                      formatTestDuration(testResults[item.model.id].totalMs)
+                    }}</span>
+                  </div>
+                </el-tooltip>
+
                 <!-- 能力图标 -->
                 <div class="model-capabilities">
                   <!-- 显示可见的能力图标 -->
@@ -372,6 +429,7 @@ const getVisibleCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
                     :icon="VideoPlay"
                     title="测试模型"
                     :loading="testLoading[item.model.id]"
+                    :disabled="batchTesting"
                     @click="emit('test', item.model)"
                   />
                   <el-button
@@ -589,6 +647,15 @@ const getVisibleCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.model-test-result {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  color: var(--text-color-secondary);
+  font-size: 12px;
 }
 
 .capability-icon {

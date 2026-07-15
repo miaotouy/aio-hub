@@ -48,6 +48,7 @@ export async function callOpenAiAudioApi(
       requestId: options.requestId ?? `audio-${Date.now()}`,
       signal: options.signal,
       timeoutMs: options.timeout,
+      observer: options.transportObserver,
       network: {
         strategy: options.forceProxy ? "proxy" : options.networkStrategy,
         relaxInvalidCerts: options.relaxIdCerts,

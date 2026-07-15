@@ -77,6 +77,8 @@ export interface EmbeddingRequestOptions {
 
   /** AbortSignal */
   signal?: AbortSignal;
+  /** 共享 Transport 观察器，用于探测等基础设施采集 TTFB */
+  transportObserver?: import("@aiohub/llm-core").TransportObserver;
 
   /** 用于主动停止请求的唯一标识符 */
   requestId?: string;

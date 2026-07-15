@@ -44,6 +44,7 @@ export async function callSharedEmbeddingApi(
       requestId: request.requestId ?? createRequestId(),
       timeoutMs: options.timeout,
       signal: options.signal,
+      observer: options.transportObserver,
       network: {
         strategy: options.forceProxy ? "proxy" : profile.networkStrategy,
         relaxInvalidCerts: options.relaxIdCerts,

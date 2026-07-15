@@ -22,8 +22,18 @@ export interface ModelFetchResult {
   rawResponse: unknown;
 }
 
+export interface ModelFetchOptions {
+  apiKey?: string;
+  requestId?: string;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+  observer?: import("@aiohub/llm-core").TransportObserver;
+  silent?: boolean;
+}
+
 export async function fetchModelsFromApi(
-  profile: LlmProfile
+  profile: LlmProfile,
+  options: ModelFetchOptions = {}
 ): Promise<ModelFetchResult> {
   const providerInfo = getProviderTypeInfo(profile.type);
   if (!providerInfo?.supportsModelList || !providerInfo.modelListEndpoint) {
@@ -39,7 +49,7 @@ export async function fetchModelsFromApi(
     const providerProfile: ProviderProfile = {
       provider: profile.type,
       baseUrl: profile.baseUrl,
-      apiKey: profile.apiKeys?.[0],
+      apiKey: options.apiKey ?? profile.apiKeys?.[0],
       headers: resolveCustomHeaders(profile.customHeaders),
       endpoints: profile.customEndpoints?.models
         ? { models: profile.customEndpoints.models }
@@ -56,8 +66,10 @@ export async function fetchModelsFromApi(
       },
       transport: desktopLlmTransport,
       transportOptions: {
-        requestId: `models-${profile.id}-${Date.now()}`,
-        timeoutMs: 60_000,
+        requestId: options.requestId ?? `models-${profile.id}-${Date.now()}`,
+        timeoutMs: options.timeoutMs ?? 60_000,
+        signal: options.signal,
+        observer: options.observer,
         network: {
           strategy: "proxy",
           relaxInvalidCerts: profile.relaxIdCerts,
@@ -72,9 +84,11 @@ export async function fetchModelsFromApi(
     });
     return { models, rawResponse: result.raw };
   } catch (error) {
-    errorHandler.error(error, "获取模型列表失败", {
-      context: { profileName: profile.name, providerType: profile.type },
-    });
+    if (!options.silent) {
+      errorHandler.error(error, "获取模型列表失败", {
+        context: { profileName: profile.name, providerType: profile.type },
+      });
+    }
     throw error;
   }
 }

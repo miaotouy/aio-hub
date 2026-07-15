@@ -122,6 +122,8 @@ type MessageType = "message" | string;
 | `_originalContent` | 原始内容快照（宏调试用）                                            |
 | `_mergedSources`   | 被合并的原始消息                                                    |
 
+当前 `_attachments` 只是管道扩展点，不代表已经确定持久化结构。后续聊天附件必须遵循 [`mobile-asset-manager-design.md`](../../../docs/plan/mobile-asset-manager-design.md) 的全局可回收资产契约，使用 `assetId + 轻量快照`，不能直接移植桌面端包含路径的完整 `Asset` 对象。
+
 ### 3.5. 管道上下文 (`types/pipeline.ts`)
 
 `PipelineContext` 是处理器之间的数据总线：
@@ -320,6 +322,18 @@ LlamaChatView.send() → useChatExecutor.execute()
 - 持久化处理器顺序和启用状态
 - 版本 `1.0.0`
 
+### 7.4. 计划中的 SQLite 与资产引用
+
+本节描述目标边界，当前尚未实现。会话仍使用 7.1 节的 JSON 文件方案，实施顺序以 [`mobile-sqlite-migration-plan.md`](../../../docs/plan/mobile-sqlite-migration-plan.md) 为准。
+
+- 聊天消息附件使用 `ManagedAssetRef`：持久化 `assetId`、`usagePolicy` 和名称、类型、MIME、大小、提取文本等轻量快照，不保存资产路径。
+- `chat_attachments` 归 `llm_chat.db` 所有；资产原件和 tombstone 归 `asset_manager.db` 所有，两者不建立跨数据库外键。
+- 消息、分支和会话变更在聊天事务内写 usage outbox，再由幂等投递器调用资产服务整体替换业务实体的 usage。
+- `session-loader` 需要把消息与附件引用一起加载到 `_attachments`；只有文本为空但存在附件的消息不能被过滤。
+- 附件预览使用资产服务返回的受控预览来源；发送给模型时传递 `managed-asset-ref`，由 Rust 解析并流式读取，不把原件读入 JS 后再经 base64 IPC 复制。
+- 资产为 `reclaimed` 时保留消息和附件快照，界面显示“原件已清理”；`missing` 表示异常缺失，两者不能合并处理。
+- 智能体预设附件继续引用 Agent 私有资产 Handle，随 Agent 资源包迁移，不登记为全局聊天资产。
+
 ## 8. 已实现的功能清单
 
 ### ✅ 基础对话
@@ -382,7 +396,9 @@ LlamaChatView.send() → useChatExecutor.execute()
 ### 🔄 多模态支持
 
 - [ ] 消息中的图片/文件附件发送与展示
-- [ ] Asset 系统的完整引入（当前 `_attachments` 用 `any[]` 占位）
+- [ ] 按移动端资产设计引入 `ManagedAssetRef`（当前 `_attachments` 用 `any[]` 占位）
+- [ ] 接入 `chat_attachments`、usage outbox 和消息/分支/会话删除释放流程
+- [ ] 接入 `managed-asset-ref` 原生发送与 `reclaimed` 降级展示
 - [ ] 图片预览（`ImageViewer`）
 
 ### 🔄 智能体支持
@@ -405,13 +421,13 @@ LlamaChatView.send() → useChatExecutor.execute()
 | 维度           | 桌面端 (`src/tools/llm-chat`)                                                  | 移动端 (`mobile/src/tools/llm-chat`)            |
 | -------------- | ------------------------------------------------------------------------------ | ----------------------------------------------- |
 | **UI 框架**    | Element Plus                                                                   | Varlet                                          |
-| **类型**       | 完整 `ChatAgent`, `Asset`, `ChatSettings`                                      | 已接入兼容 `ChatAgent`；Asset 仍为占位          |
+| **类型**       | 完整 `ChatAgent`, `Asset`, `ChatSettings`                                      | 已接入兼容 `ChatAgent`；目标使用轻量 `ManagedAssetRef`，当前仍为占位 |
 | **管道处理器** | 完整：session-loader + macros + depth-injection + user-profile + token-counter | `session-loader` + `agent-preset-loader`        |
 | **组件**       | 丰富（BaseDialog, ImageViewer 等）                                             | 基础的列表/输入组件                             |
 | **编辑器**     | RichCodeEditor（双引擎）                                                       | 纯文本输入                                      |
 | **路由**       | `main`, `settings` 两页                                                        | `home`, `sessions`, `chat/:id`, `settings` 四页 |
-| **存储**       | 同（ConfigManager + 独立文件）                                                 | 同                                              |
-| **多模态**     | 支持完整 Asset 系统                                                            | 仅占位                                          |
+| **存储**       | ConfigManager + 独立文件                                                       | 当前为独立文件；发布前计划迁移到 `llm_chat.db` |
+| **多模态**     | 支持完整 Asset 系统                                                            | 当前仅占位；目标接入移动端可回收资产契约        |
 
 ## 11. 关键代码约定
 
@@ -421,3 +437,5 @@ LlamaChatView.send() → useChatExecutor.execute()
 4. **分支切换策略**: 优先使用 `lastSelectedChildId` 记忆，无记忆时用第一个子节点
 5. **空消息过滤**: `session-loader` 处理器会跳过纯文本空内容的消息
 6. **错误处理**: 使用 `createModuleErrorHandler(moduleName)` 和 `createModuleLogger(moduleName)`
+7. **附件引用**: 消费者只持久化 `assetId + 轻量快照`；不得把全局资产路径写入聊天数据
+8. **Agent 附件边界**: 智能体预设附件属于 Agent 私有资源，不转换成全局资产 ID

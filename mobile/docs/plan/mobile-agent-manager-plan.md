@@ -71,6 +71,8 @@ graph LR
     AStorage -->|持久化| AS
 ```
 
+`agent-manager` 同时拥有智能体随包资源的生命周期。头像、背景、预设消息附件等二进制资产存放在智能体私有目录，使用 Agent 内稳定 Handle 和相对路径引用，不接入全局 `asset_manager.db`，也不登记全局 usage。全局资产与智能体私有资产之间只提供用户明确触发的内容复制，复制后两侧独立演进和清理。该边界与 [`mobile-asset-manager-design.md`](./mobile-asset-manager-design.md) 以及桌面端的 [`preset-message-multimodal-attachments.md`](../../../docs/design/preset-message-multimodal-attachments.md) 保持一致。
+
 ### 2.2. 依赖方向（单向依赖）
 
 | 模块            | 可以依赖                                      | 不可以依赖             |
@@ -79,6 +81,8 @@ graph LR
 | `llm-chat`      | `agent-manager`（获取 Agent 配置）, `llm-api` | —                      |
 
 **特别说明**：`agent-manager` 提供"发起对话"的交互时，通过**路由跳转 + query 参数**传递 `agentId`，而非直接 import `llmChatStore`。这保持了依赖方向的纯净性。
+
+头像与二进制资产管理也不得为了复用文件能力而依赖全局 `asset-manager` 的数据模型。需要从全局资产添加资源时，通过独立的“复制到智能体”应用服务完成，`agent-manager` 最终仍只持有自己的文件和 Handle。
 
 ### 2.3. 物理目录结构
 
@@ -237,7 +241,9 @@ export interface ChatAgent extends AgentBaseConfig {
 └── agents/
     ├── {agentId1}/
     │   ├── agent.json         # 智能体完整数据（ChatAgent 格式）
-    │   └── avatar-xxx.png     # 智能体专属头像（icon 字段保存为相对路径 "avatar-xxx.png"）
+    │   ├── avatar-xxx.png     # 智能体专属头像（icon 字段保存为相对路径 "avatar-xxx.png"）
+    │   └── assets/            # 智能体附带资产与预设消息附件
+    │       └── ...
     └── {agentId2}/
         └── agent.json
 ```
@@ -271,6 +277,8 @@ interface AgentsIndex {
 > 1. **轻量化加载**：列表页仅加载 `agents-index.json`，避免一次性读取数十个完整智能体 JSON 导致的 I/O 瓶颈。
 > 2. **资产自治**：智能体专属头像与配置文件存放在同一目录下，删除智能体时可一并清理，且打包导出时极易归档。
 > 3. **无损兼容**：存储路径使用独立的 `agent-manager/`，物理上与 Chat 的会话数据完全隔离，但目录层级和文件格式与桌面端 `llm-chat/agents/` 完美一致。
+
+智能体资产自治还意味着：全局资产按月份回收、批量转写或清理缓存时，不得扫描或删除 Agent 私有目录；删除智能体时也不影响内容相同的全局资产副本。
 
 ---
 
@@ -334,12 +342,12 @@ sequenceDiagram
 - [x] 阶段 3 主链路：角色大厅入口、会话绑定、模型与基础参数绑定、基础预设管道注入、聊天栏智能体标识。
 - [ ] 阶段 3 增强：执行 `injectionStrategy`、执行 `modelMatch`、聊天内切换 Agent、开局消息实例化。
 - [x] 后续增强（已提前完成）：AIO Agent JSON、SillyTavern JSON/PNG 导入和预设 JSON 导入导出。
-- [ ] 后续增强（未完成）：头像与二进制资产管理、完整参数编辑、用户档案。
+- [ ] 后续增强（未完成）：Agent 私有头像与二进制资产管理、完整参数编辑、用户档案；不得将私有资产改存为全局 `assetId`。
 - [ ] 兼容性收尾：将移动端显式类型和分类筛选项同步到桌面端最新定义。
 
 实现偏差：移动端当前全量加载智能体详情，以降低首版状态复杂度；列表使用页面内紧凑行而非独立 `AgentCard`。存储格式仍保持 `agent-manager/agents/{id}/agent.json` 与轻量索引分离，后续可在数据规模需要时切换为按需加载，不影响磁盘格式。索引不保存 `currentAgentId`，Agent 选择状态以聊天会话的 `displayAgentId` 为准。
 
-阶段 2 实现说明：Rust 后端已经接入单一 `o200k_base` 词表，前端通过 `mobile/src/utils/tokenCounting.ts` 批量调用 `count_tokens_batch`，编辑器以 500ms 防抖更新启用消息的 Token 估算，并排除禁用消息和禁用消息组。IPC 失败时回退为字符估算。AIO Agent JSON 与 SillyTavern JSON/PNG 角色数据已支持导入，头像和随包二进制资产仍归入后续“头像与资产管理”阶段。详见 [`mobile-token-counting-plan.md`](./mobile-token-counting-plan.md)。
+阶段 2 实现说明：Rust 后端已经接入单一 `o200k_base` 词表，前端通过 `mobile/src/utils/tokenCounting.ts` 批量调用 `count_tokens_batch`，编辑器以 500ms 防抖更新启用消息的 Token 估算，并排除禁用消息和禁用消息组。IPC 失败时回退为字符估算。AIO Agent JSON 与 SillyTavern JSON/PNG 角色数据已支持导入，头像和随包二进制资产仍归入后续“Agent 私有头像与资产管理”阶段。详见 [`mobile-token-counting-plan.md`](./mobile-token-counting-plan.md)。
 
 阶段 3 实现说明：当前管道处理器会注入已启用且所属组未禁用的预设消息，并将 Agent 的模型和常用生成参数传给请求层；但所有预设消息目前统一前置，尚未执行编辑器中保存的注入策略和模型匹配规则。聊天页当前仅展示 Agent 标识，尚未提供切换入口。
 
@@ -421,7 +429,8 @@ sequenceDiagram
 | **存储路径** | 移动端与桌面端当前都采用各自应用配置目录下的 `agent-manager/agents/{id}/agent.json` 与 `agents-index.json` 布局；跨端迁移通过导入导出完成                                                                                                                                                                                                                                                   |
 | **类型定义** | 运行时通过完整对象克隆和未知字段保留确保未编辑字段不被裁剪；显式 TypeScript 类型需持续跟随桌面端演进，当前仍存在 `defaultGreetingId` 和分类枚举差异                                                                                                                                                                                                                                         |
 | **无损编辑** | **核心策略（Lossless Editing）**：<br>1. 移动端编辑时从完整 Agent 对象执行 `structuredClone`，保存时提交完整草稿，从而保留 UI 暂不支持的桌面端高级字段（如 `toolCallConfig`、`knowledgeBaseConfig`、`worldbookIds`、`quickActionSetIds` 等）。<br>2. 编辑单条预设消息时同样克隆完整 `ChatMessageNode`，原样保留 `presetAttachments`、`childrenIds` 等未编辑字段，只覆盖用户明确修改的内容。 |
-| **导入格式** | 完美支持桌面端的 `AIO_Agent_Export` JSON 格式，确保角色卡可以跨端**无损迁移**                                                                                                                                                                                                                                                                                                               |
+| **导入格式** | 当前支持 `AIO_Agent_Export` JSON 字段和 SillyTavern JSON/PNG 角色数据；未知字段可保留，但随包二进制资产尚未迁移，因此在 Agent 私有资产阶段完成前不能宣称完整资源包无损迁移 |
+| **资产生命周期** | 头像、`assets[]` 和 `presetAttachments` 属于 Agent 私有资源包，使用 Handle 与相对路径；不转换为全局 `assetId`。从全局资产添加时复制文件，导入导出时携带私有二进制内容。 |
 | **未来演进** | 如果桌面端也决定拆分 Agent，可以参照移动端的架构模式进行渐进式重构                                                                                                                                                                                                                                                                                                                          |
 
 ---
@@ -434,6 +443,7 @@ sequenceDiagram
 | 桌面端数据迁移到移动端时格式不兼容       | 用户丢失配置 | 兼容字段与未知字段原样保留，编辑时仅覆盖移动端明确支持的字段 |
 | 移动端内存限制导致大量 Agent 加载卡顿    | UI 卡顿      | 磁盘保留轻量索引；当前全量加载，数据规模增长后切换为按需加载 |
 | PresetMessages 过长导致 Token 超限       | 请求失败     | 请求前统计完整上下文并按阈值显示 warning / critical 提示     |
+| 将 Agent 私有资产错误接入全局资产库       | 按月清理后角色包损坏 | 保持一智能体一目录；跨库操作只复制内容，不共享 ID 或生命周期 |
 
 ---
 

@@ -387,6 +387,8 @@ export interface LlmRequestOptions {
   onStream?: (chunk: string) => void;
   /** 流式推理内容回调（DeepSeek reasoning 等） */
   onReasoningStream?: (chunk: string) => void;
+  /** OpenAI Responses 流式预览图回调 */
+  onPartialImage?: (base64: string, index: number) => void;
   /** 请求超时时间（毫秒），默认 60000 */
   timeout?: number;
   /** 用于中止请求的 AbortSignal */
@@ -450,6 +452,10 @@ export interface LlmRequestOptions {
   maxCompletionTokens?: number;
   /** 是否存储输出用于模型蒸馏 */
   store?: boolean;
+  /** OpenAI Responses: 是否在服务器端保留对话状态 */
+  responsesStore?: boolean;
+  /** OpenAI Responses: 需要额外返回的内容类型 */
+  include?: string[];
   /** o系列模型的推理工作约束 */
   reasoningEffort?: string;
   /** 是否启用思考模式 */
@@ -643,4 +649,11 @@ export interface LlmResponse {
   systemFingerprint?: string;
   /** 使用的服务层级 */
   serviceTier?: string;
+  /** 图片生成结果 */
+  images?: Array<{
+    url?: string;
+    b64_json?: string;
+    revisedPrompt?: string;
+  }>;
+  revisedPrompt?: string;
 }

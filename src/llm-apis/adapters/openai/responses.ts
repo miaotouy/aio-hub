@@ -12,598 +12,403 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { LlmProfile } from "@/types/llm-profiles";
-import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
-import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
-import { parseSSEStream } from "@utils/sse-parser";
 import {
-  parseMessageContents,
-  extractCommonParameters,
+  executeProviderRequest,
+  OPENAI_RESPONSES_ID_METADATA_KEY,
+  OPENAI_RESPONSES_OUTPUT_METADATA_KEY,
+  OPENAI_RESPONSES_REPLAY_ITEMS_METADATA_KEY,
+  openAiResponsesAdapter,
+  type JsonValue,
+  type LlmMessage as CoreLlmMessage,
+  type LlmMessageContent as CoreLlmMessageContent,
+  type LlmRequest as CoreLlmRequest,
+  type LlmResponse as CoreLlmResponse,
+  type LlmStreamEvent,
+  type MediaAssetRef,
+  type ProviderProfile,
+} from "@aiohub/llm-core";
+import type { LlmMessage, LlmMessageContent } from "@/llm-apis/common";
+import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
+import type { LlmProfile } from "@/types/llm-profiles";
+import {
   applyCustomParameters,
   buildBase64DataUrl,
+  cleanPayload,
   isOpenAIModel,
+  parseMessageContents,
 } from "@/llm-apis/request-builder";
-import { asyncJsonStringify } from "@/utils/serialization";
-import { openAiResponsesUrlHandler } from "./utils";
+import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
+import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 import {
   extractOpenAiResponsesReasoningArtifacts,
   getOpenAiResponsesReplayItems,
   mergeReasoningEncryptedContentInclude,
 } from "./reasoning-artifacts";
-import { createModuleLogger } from "@/utils/logger";
-import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 
-const logger = createModuleLogger("llm-apis/openai-responses");
-
-/**
- * 调用 OpenAI Responses API
- */
 export const callOpenAiResponsesApi = async (
   profile: LlmProfile,
   options: LlmRequestOptions
 ): Promise<LlmResponse> => {
-  const url = openAiResponsesUrlHandler.buildUrl(
-    profile.baseUrl,
-    "responses",
-    profile
-  );
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-
-  if (profile.apiKeys && profile.apiKeys.length > 0) {
-    headers["Authorization"] = `Bearer ${profile.apiKeys[0]}`;
-  }
-
-  Object.assign(headers, resolveCustomHeaders(profile.customHeaders));
-
-  const systemMessages = (options.messages || []).filter(
-    (m) => m.role === "system"
-  );
-  const userAssistantMessages = (options.messages || []).filter(
-    (m) => m.role !== "system"
-  );
-
-  const messages: any[] = [];
-
-  // 如果提供了 prompt (MediaGenerationOptions)，我们将其视为 user 消息
-  // 注意：useLlmRequest.ts 可能会先将 prompt 转为 messages，所以这里做个兜底判断
-  const mediaOpts = options as any;
-  if (
-    mediaOpts.prompt &&
-    userAssistantMessages.length === 0 &&
-    (!options.messages || options.messages.length === 0)
-  ) {
-    const hasAttachments =
-      mediaOpts.inputAttachments && mediaOpts.inputAttachments.length > 0;
-
-    if (!hasAttachments) {
-      messages.push({
-        role: "user",
-        content: mediaOpts.prompt,
-      });
-    } else {
-      // 如果有附件，构造复合消息
-      const contentArray: any[] = [
-        { type: "input_text", text: mediaOpts.prompt },
-      ];
-
-      for (const attachment of mediaOpts.inputAttachments) {
-        if (attachment.type === "image") {
-          contentArray.push({
-            type: "input_image",
-            image_url: attachment.b64 || attachment.url,
-          });
-        }
-      }
-
-      messages.push({
-        role: "user",
-        content: contentArray,
-      });
-    }
-  }
-
-  for (const msg of userAssistantMessages) {
-    if (msg.role === "assistant") {
-      const replayItems = getOpenAiResponsesReplayItems(msg);
-      if (replayItems.length > 0) {
-        messages.push(...replayItems);
-        continue;
-      }
-    }
-
-    if (typeof msg.content === "string") {
-      messages.push({
-        role: msg.role,
-        content: msg.content,
-      });
-    } else {
-      const parsed = parseMessageContents(msg.content);
-      const contentArray: any[] = [];
-
-      for (const textPart of parsed.textParts) {
-        contentArray.push({ type: "input_text", text: textPart.text });
-      }
-
-      for (const imagePart of parsed.imageParts) {
-        contentArray.push({
-          type: "input_image",
-          image_url: buildBase64DataUrl(imagePart.base64, imagePart.mimeType),
-        });
-      }
-
-      for (const documentPart of parsed.documentParts) {
-        const source = documentPart.source;
-
-        if (source.type === "file_url") {
-          contentArray.push({
-            type: "input_file",
-            file_url: source.file_url,
-          });
-        } else if (source.type === "file_id") {
-          contentArray.push({
-            type: "input_file",
-            file_id: source.file_id,
-          });
-        } else if (source.type === "file_data") {
-          contentArray.push({
-            type: "input_file",
-            filename: source.filename || "document.pdf",
-            file_data: buildBase64DataUrl(source.file_data, source.media_type),
-          });
-        } else if (source.type === "base64") {
-          contentArray.push({
-            type: "input_file",
-            filename: (source as any).filename || "document.pdf",
-            file_data: buildBase64DataUrl(source.data, source.media_type),
-          });
-        }
-      }
-
-      messages.push({
-        role: msg.role,
-        content: contentArray,
-      });
-    }
-  }
-
-  const input =
-    messages.length === 1 && typeof messages[0].content === "string"
-      ? messages[0].content
-      : messages;
-
-  const commonParams = extractCommonParameters(options);
-
-  const body: any = {
-    model: options.modelId,
-    input,
-    temperature: commonParams.temperature ?? 1.0,
-  };
-
-  logger.debug("[ResponsesAPI] 构建请求体", {
-    model: body.model,
-    hasInput: !!body.input,
-    inputType: Array.isArray(body.input) ? "array" : typeof body.input,
+  const request = buildCoreRequest(options);
+  const response = await executeProviderRequest({
+    adapter: openAiResponsesAdapter,
+    profile: buildProviderProfile(profile),
+    request,
+    transport: desktopLlmTransport,
+    transportOptions: {
+      requestId: options.requestId ?? createRequestId(),
+      signal: options.signal,
+      timeoutMs: options.timeout,
+      network: {
+        strategy: options.forceProxy ? "proxy" : options.networkStrategy,
+        relaxInvalidCerts: options.relaxIdCerts,
+        http1Only: options.http1Only,
+      },
+    },
+    onEvent: (event: LlmStreamEvent) => mapStreamEvent(event, options),
   });
 
-  if (commonParams.maxTokens !== undefined) {
-    body.max_output_tokens = commonParams.maxTokens;
-  }
+  return mapCoreResponse(response, request.stream === true);
+};
 
-  if (systemMessages.length > 0) {
-    const systemContent = systemMessages
-      .map((m) =>
-        typeof m.content === "string" ? m.content : JSON.stringify(m.content)
-      )
-      .join("\n\n");
-    body.instructions = systemContent;
-  }
+function buildProviderProfile(profile: LlmProfile): ProviderProfile {
+  return {
+    provider: profile.type,
+    baseUrl: profile.baseUrl,
+    apiKey: profile.apiKeys[0],
+    headers: resolveCustomHeaders(profile.customHeaders),
+    endpoints: profile.customEndpoints,
+  };
+}
 
-  if (commonParams.topP !== undefined) {
-    body.top_p = commonParams.topP;
-  }
+function buildCoreRequest(options: LlmRequestOptions): CoreLlmRequest {
+  const mediaOptions = options as LlmRequestOptions & {
+    prompt?: string;
+    inputAttachments?: Array<{ type: string; b64?: string; url?: string }>;
+    quality?: JsonValue;
+    size?: JsonValue;
+    style?: JsonValue;
+    background?: JsonValue;
+    moderation?: JsonValue;
+    outputFormat?: JsonValue;
+    outputCompression?: JsonValue;
+  };
+  const messages = (options.messages ?? []).map(toCoreMessage);
 
-  if (options.tools !== undefined) {
-    body.tools = options.tools;
-  } else if (options.modelId.includes("image") || mediaOpts.prompt) {
-    // 针对图像生成任务，如果没传 tools，我们自动补上 image_generation 工具
-    // 这样在 openai-responses 渠道下就能正常触发图像生成了
-    const imgTool: any = {
-      type: "image_generation",
-    };
-
-    // 根据文档，Responses API 的 image_generation 工具支持 quality, size 等参数
-    // 映射逻辑对齐 OpenAI 规范
-    if (mediaOpts.quality) imgTool.quality = mediaOpts.quality;
-    if (mediaOpts.size) imgTool.size = mediaOpts.size;
-    if (mediaOpts.style) imgTool.style = mediaOpts.style;
-    if (mediaOpts.background) imgTool.background = mediaOpts.background;
-    if (mediaOpts.moderation) imgTool.moderation = mediaOpts.moderation;
-
-    // 处理响应格式映射
-    const respFormat = mediaOpts.responseFormat;
-    if (typeof respFormat === "string") {
-      imgTool.output_format = respFormat;
-    } else if (mediaOpts.outputFormat) {
-      imgTool.output_format = mediaOpts.outputFormat;
+  if (mediaOptions.prompt && messages.length === 0) {
+    const content: CoreLlmMessageContent[] = [
+      { type: "text", text: mediaOptions.prompt },
+    ];
+    for (const attachment of mediaOptions.inputAttachments ?? []) {
+      if (attachment.type !== "image") continue;
+      const url = attachment.b64 ?? attachment.url;
+      if (url) content.push({ type: "image", source: url });
     }
-
-    if (mediaOpts.outputCompression !== undefined) {
-      imgTool.output_compression = mediaOpts.outputCompression;
-    }
-
-    // 使用我们新定义的规范化参数
-    if (options.partialImages !== undefined)
-      imgTool.partial_images = options.partialImages;
-    if (options.inputFidelity !== undefined)
-      imgTool.input_fidelity = options.inputFidelity;
-
-    body.tools = [imgTool];
+    messages.push({
+      role: "user",
+      content: content.length === 1 ? mediaOptions.prompt : content,
+    });
   }
 
-  if (options.toolChoice !== undefined) {
-    body.tool_choice = options.toolChoice;
-  }
-  if (options.parallelToolCalls !== undefined) {
-    body.parallel_tool_calls = options.parallelToolCalls;
+  const extensions: Record<string, JsonValue> = {};
+  applyCustomParameters(extensions, options);
+  cleanPayload(extensions);
+
+  if (
+    !options.tools &&
+    (options.modelId.includes("image") || mediaOptions.prompt)
+  ) {
+    extensions.tools = [buildImageGenerationTool(options, mediaOptions)];
   }
 
-  if (options.responseFormat !== undefined) {
-    body.text = {
-      format: options.responseFormat,
-    };
-  }
-
-  const reasoning: any = {};
-  const isCompatibleReasoningModel =
+  const compatibleReasoningModel =
     isOpenAIModel(options.modelId) ||
-    options.modelId.toLowerCase().includes("doubao") ||
-    options.modelId.toLowerCase().includes("seed") ||
-    options.modelId.toLowerCase().includes("glm") ||
-    options.modelId.toLowerCase().includes("deepseek");
-  if (options.reasoningEffort && isCompatibleReasoningModel) {
-    reasoning.effort = options.reasoningEffort;
-  }
-
-  if (Object.keys(reasoning).length > 0) {
-    body.reasoning = reasoning;
-  }
-
-  if (options.thinkingEnabled) {
-    body.thinking = {
-      type: "enabled",
-    };
-    if (options.thinkingBudget) {
-      body.thinking.budget_tokens = options.thinkingBudget;
-    }
-  }
-
-  if (options.modalities) {
-    body.modalities = options.modalities;
-  }
-
-  if (options.audio) {
-    body.audio = options.audio;
-  }
-
-  const shouldRequestEncryptedReasoning =
-    options.responsesStore === false || options.store === false;
-  if (shouldRequestEncryptedReasoning) {
-    body.include = mergeReasoningEncryptedContentInclude(options.include);
-  } else if (options.include) {
-    body.include = options.include;
-  }
-
-  // 支持 store 参数，让用户决定是否在服务器端保留对话状态
-  // 优先使用规范化的 responsesStore 参数
-  if (options.responsesStore !== undefined) {
-    body.store = options.responsesStore;
-  } else if (options.store !== undefined) {
-    body.store = options.store;
-  }
-
-  if (commonParams.stop !== undefined) {
-    body.truncation = commonParams.stop === "auto" ? "auto" : "disabled";
-  }
-
-  applyCustomParameters(body, options);
-
-  if (options.stream && options.onStream) {
-    body.stream = true;
-
-    const response = await fetchWithTimeout(
-      url,
-      {
-        method: "POST",
-        headers,
-        body: (await asyncJsonStringify(body)) as any,
-        isStreaming: true,
-      },
-      options.timeout,
-      options.signal
+    ["doubao", "seed", "glm", "deepseek"].some((name) =>
+      options.modelId.toLowerCase().includes(name)
     );
-
-    await ensureResponseOk(response);
-
-    if (!response.body) {
-      throw new Error("响应体为空");
-    }
-
-    const reader = response.body.getReader();
-    let fullContent = "";
-    let fullReasoning = "";
-    let reasoningArtifacts: LlmResponse["reasoningArtifacts"] | undefined;
-    let usage: LlmResponse["usage"] | undefined;
-    let refusal: string | null = null;
-    let finishReason: LlmResponse["finishReason"] = null;
-    const toolCalls: LlmResponse["toolCalls"] = [];
-    const annotations: LlmResponse["annotations"] = [];
-    const images: NonNullable<LlmResponse["images"]> = [];
-
-    await parseSSEStream(
-      reader,
-      (data) => {
-        try {
-          if (!data || data === "[DONE]") return;
-          const json = JSON.parse(data);
-
-          if (json.type === "response.output_text.delta" && json.delta) {
-            const text = json.delta;
-            fullContent += text;
-            options.onStream!(text);
-          } else if (
-            json.type === "response.reasoning_text.delta" &&
-            json.delta
-          ) {
-            // 这是推理模型的思维链输出
-            fullReasoning += json.delta;
-            if (options.onReasoningStream) {
-              options.onReasoningStream(json.delta);
-            }
-          } else if (json.type === "error") {
-            // 显式抛出 API 返回的错误，不再默默吞掉
-            throw new Error(
-              `OpenAI Responses Error: ${json.error?.message || JSON.stringify(json.error)}`
-            );
-          }
-
-          // 处理图像生成工具的流式预览 (Partial Image)
-          if (
-            json.type === "response.image_generation_call.partial_image" &&
-            json.partial_image_b64
-          ) {
-            // 这是 gpt-image-2 的特性，可以将预览图传给前端展示
-            const base64 = `data:image/png;base64,${json.partial_image_b64}`;
-            if (options.onPartialImage) {
-              options.onPartialImage(base64, json.partial_image_index || 0);
-            } else if (options.onStream) {
-              // 兜底：如果没传专门的回调，我们通过特殊的协议格式传给 onStream
-              // 前端 UI 需要识别这种格式
-              options.onStream(`__PARTIAL_IMAGE__:${base64}`);
-            }
-          }
-
-          if (json.type === "response.completed" && json.response) {
-            const resp = json.response;
-            if (resp.usage) {
-              usage = {
-                promptTokens: resp.usage.input_tokens,
-                completionTokens: resp.usage.output_tokens,
-                totalTokens: resp.usage.total_tokens,
-              };
-            }
-
-            if (resp.status === "completed") {
-              finishReason = "stop";
-            } else if (resp.status === "incomplete") {
-              finishReason = "length";
-            }
-
-            if (resp.output && Array.isArray(resp.output)) {
-              reasoningArtifacts = extractOpenAiResponsesReasoningArtifacts(
-                resp.output,
-                resp.id
-              );
-              for (const item of resp.output) {
-                if (item.type === "image_generation_call") {
-                  // 这是 Responses API 返回的图像生成结果
-                  if (item.result) {
-                    images.push({
-                      b64_json: item.result,
-                      revisedPrompt: item.revised_prompt,
-                    });
-                  }
-                } else if (item.type === "function_call") {
-                  toolCalls.push({
-                    id: item.call_id || item.id,
-                    type: "function",
-                    function: {
-                      name: item.name,
-                      arguments: item.arguments,
-                    },
-                  });
-                  finishReason = "tool_calls";
-                } else if (item.type === "message" && item.content) {
-                  for (const contentItem of item.content) {
-                    if (
-                      contentItem.type === "output_text" &&
-                      contentItem.annotations
-                    ) {
-                      for (const annotation of contentItem.annotations) {
-                        if (annotation.type === "url_citation") {
-                          annotations.push({
-                            type: "url_citation",
-                            urlCitation: {
-                              startIndex: annotation.start_index,
-                              endIndex: annotation.end_index,
-                              url: annotation.url,
-                              title: annotation.title,
-                            },
-                          });
-                        } else if (annotation.type === "file_citation") {
-                          annotations.push({
-                            type: "file_citation",
-                            fileCitation: {
-                              startIndex: annotation.start_index,
-                              endIndex: annotation.end_index,
-                              fileId: annotation.file_id,
-                              quote: annotation.quote,
-                            },
-                          });
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        } catch (e) {}
-      },
-      undefined,
-      options.signal
-    );
-
-    const finalResponse: LlmResponse = {
-      content: fullContent,
-      reasoningContent: fullReasoning || undefined,
-      usage,
-      refusal,
-      finishReason,
-      reasoningArtifacts,
-      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-      annotations: annotations.length > 0 ? annotations : undefined,
-      images: images.length > 0 ? images : undefined,
-      revisedPrompt: images[0]?.revisedPrompt,
-      isStream: true,
-    };
-
-    // 如果有生成的图片，且没有正文，加个提示
-    if (images.length > 0 && !finalResponse.content) {
-      finalResponse.content = `Generated ${images.length} images via Responses API.`;
-    }
-
-    return finalResponse;
-  }
-
-  const response = await fetchWithTimeout(
-    url,
-    {
-      method: "POST",
-      headers,
-      body: (await asyncJsonStringify(body)) as any,
-    },
-    options.timeout,
-    options.signal
-  );
-
-  await ensureResponseOk(response);
-
-  const data = await response.json();
-
-  let content = "";
-  let reasoningContent = "";
-  const reasoningArtifacts = extractOpenAiResponsesReasoningArtifacts(
-    data.output,
-    data.id
-  );
-  let refusal: string | null = null;
-  let finishReason: LlmResponse["finishReason"] = null;
-  const toolCalls: LlmResponse["toolCalls"] = [];
-  const annotations: LlmResponse["annotations"] = [];
-
-  const images: any[] = [];
-  if (data.output && Array.isArray(data.output)) {
-    for (const item of data.output) {
-      if (item.type === "image_generation_call") {
-        // 非流式响应也要解析图片
-        if (item.result) {
-          images.push({
-            b64_json: item.result,
-            revisedPrompt: item.revised_prompt,
-          });
-        }
-      } else if (item.type === "message" && item.content) {
-        for (const contentItem of item.content) {
-          if (contentItem.type === "output_text") {
-            content += contentItem.text;
-
-            if (
-              contentItem.annotations &&
-              Array.isArray(contentItem.annotations)
-            ) {
-              for (const annotation of contentItem.annotations) {
-                if (annotation.type === "url_citation") {
-                  annotations.push({
-                    type: "url_citation",
-                    urlCitation: {
-                      startIndex: annotation.start_index,
-                      endIndex: annotation.end_index,
-                      url: annotation.url,
-                      title: annotation.title,
-                    },
-                  });
-                } else if (annotation.type === "file_citation") {
-                  annotations.push({
-                    type: "file_citation",
-                    fileCitation: {
-                      startIndex: annotation.start_index,
-                      endIndex: annotation.end_index,
-                      fileId: annotation.file_id,
-                      quote: annotation.quote,
-                    },
-                  });
-                }
-              }
-            }
-          } else if (contentItem.type === "reasoning_text") {
-            reasoningContent += contentItem.text;
-          } else if (contentItem.type === "refusal") {
-            refusal = contentItem.refusal;
-          }
-        }
-      } else if (item.type === "function_call") {
-        toolCalls.push({
-          id: item.call_id || item.id,
-          type: "function",
-          function: {
-            name: item.name,
-            arguments: item.arguments,
-          },
-        });
-        finishReason = "tool_calls";
-      }
-    }
-  }
-
-  if (!finishReason) {
-    if (data.status === "completed") {
-      finishReason = "stop";
-    } else if (data.status === "incomplete") {
-      finishReason = "length";
-    }
-  }
+  const store = options.responsesStore ?? options.store;
+  const include =
+    store === false
+      ? mergeReasoningEncryptedContentInclude(options.include)
+      : options.include;
 
   return {
-    content:
-      content ||
-      (images.length > 0 ? `Generated ${images.length} images.` : ""),
-    reasoningContent: reasoningContent || undefined,
-    reasoningArtifacts,
-    refusal,
-    finishReason,
-    images: images.length > 0 ? images : undefined,
-    revisedPrompt: images[0]?.revisedPrompt,
-    toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-    annotations: annotations.length > 0 ? annotations : undefined,
-    usage: data.usage
-      ? {
-          promptTokens: data.usage.input_tokens,
-          completionTokens: data.usage.output_tokens,
-          totalTokens: data.usage.total_tokens,
-        }
+    model: options.modelId,
+    messages,
+    stream: Boolean(options.stream && options.onStream),
+    maxTokens: options.maxTokens,
+    maxCompletionTokens: options.maxCompletionTokens,
+    temperature: options.temperature,
+    topP: options.topP,
+    stop: options.stop,
+    tools: options.tools?.map((tool) => ({
+      type: "function",
+      function: {
+        name: tool.function.name,
+        description: tool.function.description,
+        parameters: toJsonValue(tool.function.parameters) ?? {},
+        strict: tool.function.strict,
+      },
+    })),
+    toolChoice: options.toolChoice,
+    parallelToolCalls: options.parallelToolCalls,
+    responseFormat: toJsonValue(options.responseFormat),
+    reasoningEffort: compatibleReasoningModel
+      ? options.reasoningEffort
       : undefined,
+    thinkingEnabled: options.thinkingEnabled,
+    thinkingBudget: options.thinkingBudget,
+    modalities: options.modalities,
+    audio: toJsonValue(options.audio),
+    store,
+    include,
+    metadata: toJsonObject(options.metadata),
+    extraBody: toJsonObject(options.extraBody),
+    extensions,
   };
-};
+}
+
+function toCoreMessage(message: LlmMessage): CoreLlmMessage {
+  const replayItems =
+    message.role === "assistant" ? getOpenAiResponsesReplayItems(message) : [];
+  return {
+    role: message.role,
+    content:
+      typeof message.content === "string"
+        ? message.content
+        : toCoreContents(message.content),
+    reasoningContent: message.reasoningContent,
+    prefix: message.prefix,
+    ...(replayItems.length
+      ? {
+          metadata: {
+            [OPENAI_RESPONSES_REPLAY_ITEMS_METADATA_KEY]:
+              toJsonValue(replayItems) ?? [],
+          },
+        }
+      : {}),
+  };
+}
+
+function toCoreContents(
+  contents: LlmMessageContent[]
+): CoreLlmMessageContent[] {
+  const parsed = parseMessageContents(contents);
+  return [
+    ...parsed.textParts.map((part) => ({
+      type: "text" as const,
+      text: part.text,
+    })),
+    ...parsed.imageParts.map((part) => ({
+      type: "image" as const,
+      source: buildBase64DataUrl(toBase64(part.base64), part.mimeType),
+    })),
+    ...parsed.documentParts.map((part) => ({
+      type: "document" as const,
+      source: toJsonValue(part.source) ?? {},
+    })),
+    ...parsed.audioParts.map((part) => ({
+      type: "audio" as const,
+      source: toJsonValue(part.source) ?? {},
+    })),
+    ...parsed.videoParts.map((part) => ({
+      type: "video" as const,
+      source: toJsonValue(part.source) ?? {},
+      metadata: toJsonValue(part.videoMetadata),
+    })),
+    ...parsed.toolUseParts.map((part) => ({
+      type: "tool_use" as const,
+      id: part.id,
+      name: part.name,
+      input: toJsonValue(part.input) ?? {},
+    })),
+    ...parsed.toolResultParts.map((part) => ({
+      type: "tool_result" as const,
+      toolUseId: part.id,
+      content:
+        typeof part.content === "string"
+          ? part.content
+          : (toJsonValue(part.content) ?? []),
+      isError: part.isError,
+    })),
+  ];
+}
+
+function buildImageGenerationTool(
+  options: LlmRequestOptions,
+  mediaOptions: {
+    quality?: unknown;
+    size?: unknown;
+    style?: unknown;
+    background?: unknown;
+    moderation?: unknown;
+    outputFormat?: unknown;
+    outputCompression?: unknown;
+  }
+): JsonValue {
+  const tool: Record<string, JsonValue> = { type: "image_generation" };
+  assignJson(tool, "quality", mediaOptions.quality);
+  assignJson(tool, "size", mediaOptions.size);
+  assignJson(tool, "style", mediaOptions.style);
+  assignJson(tool, "background", mediaOptions.background);
+  assignJson(tool, "moderation", mediaOptions.moderation);
+  const responseFormat =
+    typeof options.responseFormat === "string"
+      ? options.responseFormat
+      : mediaOptions.outputFormat;
+  assignJson(tool, "output_format", responseFormat);
+  assignJson(tool, "output_compression", mediaOptions.outputCompression);
+  assignJson(tool, "partial_images", options.partialImages);
+  assignJson(tool, "input_fidelity", options.inputFidelity);
+  return tool;
+}
+
+function mapStreamEvent(
+  event: LlmStreamEvent,
+  options: LlmRequestOptions
+): void {
+  if (event.type === "text-delta") options.onStream?.(event.delta);
+  if (event.type === "reasoning-delta") {
+    options.onReasoningStream?.(event.delta);
+  }
+  if (event.type === "partial-image") {
+    const data = toPartialImageDataUrl(event.asset);
+    if (!data) return;
+    if (options.onPartialImage) {
+      options.onPartialImage(data, event.index);
+    } else {
+      options.onStream?.(`__PARTIAL_IMAGE__:${data}`);
+    }
+  }
+}
+
+function mapCoreResponse(
+  response: CoreLlmResponse,
+  isStream: boolean
+): LlmResponse {
+  const metadata = response.metadata as Record<string, JsonValue> | undefined;
+  const output = metadata?.[OPENAI_RESPONSES_OUTPUT_METADATA_KEY];
+  const responseId = metadata?.[OPENAI_RESPONSES_ID_METADATA_KEY];
+  const images = response.images?.map(mapImage);
+  return {
+    content: response.content,
+    reasoningContent: response.reasoningContent,
+    reasoningArtifacts: extractOpenAiResponsesReasoningArtifacts(
+      output,
+      typeof responseId === "string" ? responseId : undefined
+    ),
+    refusal: response.refusal,
+    finishReason: response.finishReason as LlmResponse["finishReason"],
+    toolCalls: response.toolCalls,
+    annotations: response.annotations?.map(mapAnnotation),
+    images,
+    revisedPrompt: images?.[0]?.revisedPrompt,
+    usage: response.usage,
+    ...(isStream ? { isStream: true } : {}),
+  };
+}
+
+function mapAnnotation(annotation: Record<string, JsonValue>) {
+  if (annotation.type === "file_citation") {
+    return {
+      type: "file_citation" as const,
+      fileCitation: {
+        startIndex: readNumber(annotation.start_index) ?? 0,
+        endIndex: readNumber(annotation.end_index) ?? 0,
+        fileId: readString(annotation.file_id) ?? "",
+        quote: readString(annotation.quote),
+      },
+    };
+  }
+  return {
+    type: "url_citation" as const,
+    urlCitation: {
+      startIndex: readNumber(annotation.start_index) ?? 0,
+      endIndex: readNumber(annotation.end_index) ?? 0,
+      url: readString(annotation.url) ?? "",
+      title: readString(annotation.title) ?? "",
+    },
+  };
+}
+
+function mapImage(image: MediaAssetRef) {
+  if (image.kind === "inline-base64") {
+    return { b64_json: image.data, revisedPrompt: image.revisedPrompt };
+  }
+  return {
+    url: image.kind === "remote-url" ? image.url : image.id,
+    revisedPrompt: image.revisedPrompt,
+  };
+}
+
+function toPartialImageDataUrl(asset: MediaAssetRef): string | undefined {
+  if (asset.kind === "inline-base64") {
+    return `data:${asset.contentType};base64,${asset.data}`;
+  }
+  return asset.kind === "remote-url" ? asset.url : undefined;
+}
+
+function toBase64(value: string | ArrayBuffer | Uint8Array): string {
+  if (typeof value === "string") return value;
+  const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+function toJsonObject(value: unknown): Record<string, JsonValue> | undefined {
+  const result = toJsonValue(value);
+  return result && typeof result === "object" && !Array.isArray(result)
+    ? result
+    : undefined;
+}
+
+function toJsonValue(value: unknown): JsonValue | undefined {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean" ||
+    (typeof value === "number" && Number.isFinite(value))
+  ) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map(toJsonValue)
+      .filter((item): item is JsonValue => item !== undefined);
+  }
+  if (typeof value === "object" && value !== null) {
+    const result: Record<string, JsonValue> = {};
+    for (const [key, item] of Object.entries(value)) {
+      const json = toJsonValue(item);
+      if (json !== undefined) result[key] = json;
+    }
+    return result;
+  }
+  return undefined;
+}
+
+function assignJson(
+  target: Record<string, JsonValue>,
+  key: string,
+  value: unknown
+): void {
+  const json = toJsonValue(value);
+  if (json !== undefined) target[key] = json;
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function readNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
+}
+
+function createRequestId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `llm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}

@@ -161,6 +161,7 @@ export function toOpenAiCompatibleCoreRequest(
     user: options.user,
     logitBias: options.logitBias,
     store: options.store,
+    include: options.include,
     metadata: options.metadata,
     modalities: options.modalities,
     prediction: toJsonValue(options.prediction),
@@ -311,12 +312,21 @@ function toCoreContent(content: LlmMessageContent): CoreLlmMessageContent {
   }
 }
 
-function toMobileResponse(
+export function toMobileResponse(
   response: CoreLlmResponse,
   isStream: boolean
 ): LlmResponse {
   const metadata = asRecord(response.metadata);
   const audio = asRecord(metadata?.audio);
+  const images = response.images?.map((image) => {
+    if (image.kind === "inline-base64") {
+      return { b64_json: image.data, revisedPrompt: image.revisedPrompt };
+    }
+    return {
+      url: image.kind === "remote-url" ? image.url : image.id,
+      revisedPrompt: image.revisedPrompt,
+    };
+  });
 
   return {
     content: response.content,
@@ -341,6 +351,8 @@ function toMobileResponse(
       : undefined,
     systemFingerprint: readString(metadata?.systemFingerprint),
     serviceTier: readString(metadata?.serviceTier),
+    images,
+    revisedPrompt: images?.[0]?.revisedPrompt,
   };
 }
 

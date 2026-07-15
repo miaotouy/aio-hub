@@ -103,6 +103,7 @@ export interface LlmRequest {
   user?: string;
   logitBias?: Record<string, number>;
   store?: boolean;
+  include?: string[];
   metadata?: Record<string, JsonValue>;
   modalities?: string[];
   prediction?: JsonValue;

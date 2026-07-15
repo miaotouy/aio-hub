@@ -1,6 +1,6 @@
 # LLM Provider Adapter 多端共享与 Rust 边界调查
 
-> 状态：实施中（共享基础设施与 OpenAI-Compatible 双端接入已完成，下一批进入主流文本协议族合并）
+> 状态：实施中（OpenAI Responses 共享与双端接入已完成，批次 7 继续施工 Claude/Cohere）
 >
 > 最后更新：2026-07-15
 >
@@ -60,7 +60,15 @@
 - canonical OpenAI-Compatible 映射补齐工具定义 `strict`、视频 `video_metadata`、图片 MIME 推断和 image-document 转换；未知 Provider 扩展参数继续透传，`relaxIdCerts`、`http1Only` 等 Transport 控制字段不会进入 Provider JSON。
 - 共享包 6 个测试文件/30 个用例、根 Vitest 全集 62 个测试文件/430 个用例、移动端全量 5 个测试文件/16 个用例、lint、两端前端类型检查和两端 Vite 生产构建通过。首次并发全量验证时 AIO File Operator 的一个无关用例触发 5 秒超时，单独复跑及无构建争用的第二次根全量验证均通过；lint 仅保留 `mermaidFixer.ts` 既有的 4 条 unreachable warning，构建仅保留既有第三方 `eval`、大 chunk、动态导入、Node 外部化和插件耗时提示。
 
-实施顺序相对原计划有一处受控调整：仓库已经存在多组 Provider Adapter 单测，因此先落地阶段 1 的无业务侵入骨架和公共分帧器，再继续补齐阶段 0 的完整 wire fixture、两端差分记录和性能基线。现阶段阶段 0 已完成移动端 Facade 与 OpenAI-Compatible 首批基线，但其他 Provider fixture、两端差分记录和性能基线仍未完成；阶段 1.5 已完成移动 Facade、移动端 OpenAI-Compatible 的 Transport/logger 隔离及桌面 OpenAI Chat 的平台请求隔离，其余移动端 Provider 与桌面 Adapter 仍待解耦；阶段 2 已完成共享 OpenAI-Compatible 纯 Adapter、桌面 `LlmTransport` 和统一执行链接入；阶段 3 已完成移动端 OpenAI-Compatible 的共享 Adapter、移动 Transport 与兼容 Facade 接入，Android/iOS 真机流式读取、取消和后台切换行为仍待验证。桌面请求构建仍在 Facade 中保留多媒体预处理、DeepSeek 回放和未知参数注入，再以过渡 `WireRequest` 入口进入共享执行器；将这些映射完全 canonical 化并改为直接调用 `ProviderAdapter.buildRequest` 仍待后续批次。
+已完成第七个可验证子批次（批次 7 尚未整体完成）：
+
+- 在 `@aiohub/llm-core` 新增完整的 OpenAI Responses Provider，实现 canonical 消息、system instructions、多模态输入、reasoning artifact 回放、扁平函数工具、参数与自定义端点到 `WireRequest` 的映射，以及非流式 parser 和增量流式 Decoder。
+- Responses 流式 Decoder 覆盖正文、推理、拒绝、partial image、usage、tool call、Provider error 和最终 `response.completed`，并通过逐字节 UTF-8、CRLF/LF fixture 验证；原始 `response.output` 与 response id 通过 canonical metadata 保真交付，供桌面 Facade 生成下一轮回放 artifact。
+- 桌面与移动端 `callOpenAiResponsesApi` 均改为直接调用共享 `ProviderAdapter.buildRequest`、统一执行器和各自 Transport；删除两端重复的请求 builder、非流式 parser、直接 fetch 与 SSE 循环，同时保留桌面自定义 Header resolver、网络策略、图像生成工具、reasoning artifact，以及两端既有正文/推理/partial image 回调契约。
+- 移动端补齐显式 `responsesStore`、`include`、`onPartialImage` 与图片响应类型；Responses 内部控制字段不再被未知参数机制误透传。函数工具在共享 builder 中按 Responses API wire contract 扁平化为 `type/name/parameters/strict`，不再沿用 Chat Completions 的嵌套 `function` 结构。
+- 共享包现为 7 个测试文件/33 个用例，根 Vitest 全集 63 个测试文件/435 个用例，移动端全量 6 个测试文件/18 个用例；lint、共享包及两端类型检查、两端 Vite 生产构建均通过。lint 仅保留 `mermaidFixer.ts` 既有的 4 条 unreachable warning，构建仅保留既有第三方 `eval`、大 chunk、动态导入、Node 外部化和插件耗时提示。
+
+实施顺序相对原计划有一处受控调整：仓库已经存在多组 Provider Adapter 单测，因此先落地阶段 1 的无业务侵入骨架和公共分帧器，再继续补齐阶段 0 的完整 wire fixture、两端差分记录和性能基线。现阶段阶段 0 已完成移动 Facade、OpenAI-Compatible 与 OpenAI Responses 基线，但 Claude、Gemini、Cohere、Vertex fixture、其余双端差分记录和性能基线仍未完成；阶段 1.5 已完成移动 Facade、双端 OpenAI-Compatible、双端 OpenAI Responses 与桌面 OpenAI Chat 的平台请求隔离，其余文本 Provider 仍待解耦；阶段 2/3 已完成 OpenAI-Compatible 共享与双端接入，阶段 4 已完成 OpenAI Responses 子批次，Claude/Cohere 仍是批次 7 的剩余主线。Android/iOS 真机流式读取、取消和后台切换行为仍待批次 9 验证。桌面 OpenAI-Compatible 请求构建仍在 Facade 中保留多媒体预处理、DeepSeek 回放和未知参数注入，再以过渡 `WireRequest` 入口进入共享执行器；将这些映射完全 canonical 化并改为直接调用 `ProviderAdapter.buildRequest` 仍待批次 7 后续收口。
 
 此前记录的全仓验证阻塞均已处理：Smart OCR 历史表格引用改用 Element Plus 导出的 `TableInstance`；OpenAI Adapter 测试已与第三方兼容模型支持 `reasoning_effort` 的现行契约对齐，并保留不支持模型的负向覆盖；聊天草稿测试将一次性模块加载移出 `beforeEach`，避免全量并发时触发 hook 超时。桌面 `check:frontend`、根 Vitest 全集（59 个测试文件、417 个用例）及桌面 Vite 生产构建均已通过。
 
@@ -466,15 +474,15 @@ export interface TransportObserver {
 
 ### 8.1. 当前状态核查（2026-07-15）
 
-| 原阶段                         | 状态               | 已落地                                                                                        | 未闭环                                                                                                      |
-| ------------------------------ | ------------------ | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| 阶段 0：契约冻结与基线         | 部分完成           | 移动 `sendRequest` Facade、OpenAI-Compatible wire/stream fixture、正文/推理/usage 契约已冻结  | Responses、Claude、Gemini、Cohere、Vertex fixture 与双端差分记录尚缺；大文本、文件和媒体性能基线尚缺        |
-| 阶段 1：共享包骨架             | 已完成             | `packages/llm-core`、canonical DTO、Wire 类型、LocalFileRef、SSE/JSONL 分帧器及独立测试已落地 | 无阻塞项，后续按 Provider 扩展类型                                                                          |
-| 阶段 1.5：应用依赖解耦         | 部分完成           | 移动请求入口、双端 OpenAI-Compatible 和双端 Transport 已完成依赖收束                          | 其余文本 Provider 仍直接依赖应用 fetch、logger、error handler、i18n、Header resolver 等模块                 |
-| 阶段 2：桌面 OpenAI-Compatible | 主链路完成         | 共享纯 Adapter、统一执行器、桌面 Transport、流式与非流式接线和差分回归已完成                  | 桌面多媒体预处理、DeepSeek 回放和部分扩展参数仍通过过渡 `WireRequest` 入口进入执行器，尚未完全 canonical 化 |
-| 阶段 3：移动 OpenAI-Compatible | 代码完成，真机待验 | 移动 Transport、canonical 映射、兼容 Facade、旧 builder/parser/SSE 循环删除和回归测试已完成   | Android/iOS 的真实流式读取、取消与后台切换尚未验证                                                          |
-| 阶段 4：其他 Provider          | 未开始             | 已有两端旧实现和部分桌面单测可作为迁移基线                                                    | Responses、Claude、Gemini、Cohere、Vertex、Embedding、模型列表和媒体能力仍未共享                            |
-| 阶段 5：Rust Transport 优化    | 未开始             | 桌面 Transport 已对暂不支持的 tagged FileRef 显式拒绝，避免静默误发                           | raw/json-expand、multipart/file-ref 原生展开、Client 池、capability token、严格 CORS 和性能复测均未落地     |
+| 原阶段                         | 状态               | 已落地                                                                                                    | 未闭环                                                                                                      |
+| ------------------------------ | ------------------ | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| 阶段 0：契约冻结与基线         | 部分完成           | 移动 `sendRequest` Facade、OpenAI-Compatible 与 Responses wire/stream fixture、正文/推理/usage 契约已冻结 | Claude、Gemini、Cohere、Vertex fixture 与其余双端差分记录尚缺；大文本、文件和媒体性能基线尚缺               |
+| 阶段 1：共享包骨架             | 已完成             | `packages/llm-core`、canonical DTO、Wire 类型、LocalFileRef、SSE/JSONL 分帧器及独立测试已落地             | 无阻塞项，后续按 Provider 扩展类型                                                                          |
+| 阶段 1.5：应用依赖解耦         | 部分完成           | 移动请求入口、双端 OpenAI-Compatible、双端 OpenAI Responses 和双端 Transport 已完成依赖收束               | Claude、Gemini、Cohere、Vertex 仍直接依赖应用 fetch、logger、error handler、i18n、Header resolver 等模块    |
+| 阶段 2：桌面 OpenAI-Compatible | 主链路完成         | 共享纯 Adapter、统一执行器、桌面 Transport、流式与非流式接线和差分回归已完成                              | 桌面多媒体预处理、DeepSeek 回放和部分扩展参数仍通过过渡 `WireRequest` 入口进入执行器，尚未完全 canonical 化 |
+| 阶段 3：移动 OpenAI-Compatible | 代码完成，真机待验 | 移动 Transport、canonical 映射、兼容 Facade、旧 builder/parser/SSE 循环删除和回归测试已完成               | Android/iOS 的真实流式读取、取消与后台切换尚未验证                                                          |
+| 阶段 4：其他 Provider          | 进行中             | OpenAI Responses 共享 Adapter、双端 Facade、wire/stream fixture 与差分回归已完成                          | Claude、Gemini、Cohere、Vertex、Embedding、模型列表和媒体能力仍未共享                                       |
+| 阶段 5：Rust Transport 优化    | 未开始             | 桌面 Transport 已对暂不支持的 tagged FileRef 显式拒绝，避免静默误发                                       | raw/json-expand、multipart/file-ref 原生展开、Client 池、capability token、严格 CORS 和性能复测均未落地     |
 
 当前不存在需要先停工清债的架构阻塞。下一步的主要成本已经从“搭骨架”转为“迁移重复协议实现”；如果继续把依赖解耦、共享 Adapter、桌面接线、移动接线分别算作独立批次，会反复支付差分测试、全量类型检查和两端构建成本。
 
@@ -495,6 +503,8 @@ export interface TransportObserver {
 该里程碑仍有两个明确尾项，但不再各自拆成小批：桌面 OpenAI-Compatible 的过渡 `WireRequest` 映射并入批次 7 收口；Android/iOS 真机行为并入批次 9 的 Transport 验收。
 
 #### 批次 7：主流文本协议族 I（OpenAI Responses + Anthropic Claude + Cohere）
+
+当前子进度：OpenAI Responses 已完成共享 Core、桌面/移动接线、旧实现删除和全量验收；Anthropic Claude、Cohere 及桌面 OpenAI-Compatible canonical 收口尚未完成，因此批次 7 保持进行中。
 
 - 一次补齐三类协议的固定 wire/stream fixture、异常/取消用例和桌面/移动差分记录。
 - 在共享 Core 中实现 OpenAI Responses、Anthropic Messages 和 Cohere Chat 的 builder、非流式 parser 与增量 Decoder，并复用统一执行器。

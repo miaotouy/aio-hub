@@ -83,8 +83,12 @@ describe("OpenAI Adapter - Responses", () => {
 
     expect(result.content).toBe("Done.");
     expect(result.reasoningArtifacts).toHaveLength(2);
-    expect((result.reasoningArtifacts![0].payload as any).item).toBe(output[0]);
-    expect((result.reasoningArtifacts![1].payload as any).item).toBe(output[1]);
+    expect((result.reasoningArtifacts![0].payload as any).item).toEqual(
+      output[0]
+    );
+    expect((result.reasoningArtifacts![1].payload as any).item).toEqual(
+      output[1]
+    );
   });
 
   it("replays stored output items in the next request", async () => {
@@ -180,5 +184,127 @@ describe("OpenAI Adapter - Responses", () => {
     expect(body.store).toBe(false);
     expect(body.include).toContain("reasoning.encrypted_content");
     expect(body.responsesStore).toBeUndefined();
+  });
+
+  it("builds the shared Responses wire format with flattened tools", async () => {
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: "resp_1",
+        status: "completed",
+        output: [{ type: "message", content: [] }],
+      }),
+    });
+
+    await callOpenAiResponsesApi(mockProfile, {
+      profileId: "responses-profile",
+      modelId: "gpt-5",
+      messages: [
+        { role: "system", content: "Be concise." },
+        { role: "user", content: "Look it up." },
+      ],
+      maxTokens: 512,
+      temperature: 0.2,
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "lookup",
+            description: "Lookup",
+            parameters: { type: "object" },
+            strict: true,
+          },
+        },
+      ],
+      toolChoice: { type: "function", function: { name: "lookup" } },
+    });
+
+    const [url, fetchOptions] = (fetchWithTimeout as any).mock.calls[0];
+    expect(url).toBe("https://api.openai.com/v1/responses");
+    expect(JSON.parse(fetchOptions.body)).toEqual(
+      expect.objectContaining({
+        model: "gpt-5",
+        input: "Look it up.",
+        instructions: "Be concise.",
+        max_output_tokens: 512,
+        temperature: 0.2,
+        tools: [
+          {
+            type: "function",
+            name: "lookup",
+            description: "Lookup",
+            parameters: { type: "object" },
+            strict: true,
+          },
+        ],
+        tool_choice: { type: "function", name: "lookup" },
+      })
+    );
+  });
+
+  it("maps shared streaming events to desktop callbacks and final response", async () => {
+    const completed = {
+      id: "resp_stream",
+      status: "completed",
+      output: [
+        {
+          type: "message",
+          content: [
+            { type: "output_text", text: "Done." },
+            { type: "reasoning_text", text: "Think." },
+          ],
+        },
+      ],
+      usage: { input_tokens: 3, output_tokens: 2, total_tokens: 5 },
+    };
+    const fixture = [
+      'data: {"type":"response.reasoning_text.delta","delta":"Think."}\n\n',
+      'data: {"type":"response.output_text.delta","delta":"Done."}\n\n',
+      'data: {"type":"response.image_generation_call.partial_image","partial_image_b64":"aW1hZ2U=","partial_image_index":0}\n\n',
+      `data: ${JSON.stringify({ type: "response.completed", response: completed })}\n\n`,
+    ].join("");
+    const bytes = new TextEncoder().encode(fixture);
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const byte of bytes) controller.enqueue(new Uint8Array([byte]));
+        controller.close();
+      },
+    });
+    (fetchWithTimeout as any).mockResolvedValue(
+      new Response(stream, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      })
+    );
+    const onStream = vi.fn();
+    const onReasoningStream = vi.fn();
+    const onPartialImage = vi.fn();
+
+    const result = await callOpenAiResponsesApi(mockProfile, {
+      profileId: "responses-profile",
+      modelId: "gpt-5",
+      messages: [{ role: "user", content: "Think." }],
+      stream: true,
+      onStream,
+      onReasoningStream,
+      onPartialImage,
+    });
+
+    expect(onStream).toHaveBeenCalledWith("Done.");
+    expect(onReasoningStream).toHaveBeenCalledWith("Think.");
+    expect(onPartialImage).toHaveBeenCalledWith(
+      "data:image/png;base64,aW1hZ2U=",
+      0
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        content: "Done.",
+        reasoningContent: "Think.",
+        finishReason: "stop",
+        isStream: true,
+        usage: { promptTokens: 3, completionTokens: 2, totalTokens: 5 },
+      })
+    );
+    expect(result.reasoningArtifacts).toHaveLength(1);
   });
 });

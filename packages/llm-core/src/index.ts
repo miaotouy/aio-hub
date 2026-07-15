@@ -1,5 +1,6 @@
 export * from "./executor";
 export * from "./providers/openai-compatible";
+export * from "./providers/openai-responses";
 export * from "./stream-parser/jsonl";
 export * from "./stream-parser/provider-delta";
 export * from "./stream-parser/sse";

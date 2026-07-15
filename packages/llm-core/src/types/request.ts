@@ -21,6 +21,7 @@ export interface LlmAudioContent {
 export interface LlmVideoContent {
   type: "video";
   source: JsonValue;
+  metadata?: JsonValue;
 }
 
 export interface LlmDocumentContent {
@@ -67,6 +68,7 @@ export interface LlmToolDefinition {
     name: string;
     description?: string;
     parameters: JsonValue;
+    strict?: boolean;
   };
 }
 

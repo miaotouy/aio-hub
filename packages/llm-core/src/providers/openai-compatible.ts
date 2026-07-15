@@ -441,11 +441,20 @@ function mapOpenAiContent(part: LlmMessageContent): {
         content: {
           type: "image_url",
           image_url: { url: mediaSourceToUrl(part.source) },
+          ...(part.metadata ? { video_metadata: part.metadata } : {}),
         },
       };
     case "document": {
       const source = asObject(part.source);
       const contentType = readMediaType(source);
+      if (contentType.startsWith("image/")) {
+        return {
+          content: {
+            type: "image_url",
+            image_url: { url: mediaSourceToUrl(part.source) },
+          },
+        };
+      }
       if (contentType === "application/pdf") {
         return {
           content: {

@@ -1,42 +1,43 @@
-import type { LlmProfile } from "../../types";
-import type { LlmRequestOptions, LlmResponse } from "../common";
-// import type { EmbeddingRequestOptions, EmbeddingResponse } from "./embedding-types";
-import { fetchWithTimeout, ensureResponseOk } from "../common";
 import {
-  parseSSEStream,
-  extractTextFromSSE,
-  extractReasoningFromSSE,
-} from "@/utils/sse-parser";
+  buildOpenAiCompatibleRequest as buildSharedOpenAiCompatibleRequest,
+  executeProviderRequest,
+  openAiCompatibleAdapter,
+  parseOpenAiCompatibleResponseValue,
+  type JsonValue,
+  type LlmMessage as CoreLlmMessage,
+  type LlmMessageContent as CoreLlmMessageContent,
+  type LlmRequest as CoreLlmRequest,
+  type LlmResponse as CoreLlmResponse,
+  type LlmTransport,
+  type ProviderProfile,
+  type WireJsonValue,
+} from "@aiohub/llm-core";
 import { useI18n } from "@/i18n";
-import {
-  parseMessageContents,
-  extractCommonParameters,
-  buildBase64DataUrl,
-  applyCustomParameters,
-  cleanPayload,
-} from "../request-builder";
-
 import { createModuleLogger } from "@/utils/logger";
+import type { LlmProfile } from "../../types";
+import type {
+  Annotation,
+  LlmMessageContent,
+  LlmRequestOptions,
+  LlmResponse,
+} from "../common";
+import {
+  inferImageMimeType,
+  KNOWN_NON_MODEL_OPTIONS_KEYS,
+} from "../request-builder";
+import { mobileLlmTransport } from "../transports/mobile";
 
 const logger = createModuleLogger("openai-compatible");
 
-type OpenAiCompatibleRequestInit = RequestInit & {
-  relaxIdCerts?: boolean;
-  http1Only?: boolean;
-};
-
-export interface OpenAiCompatibleTransport {
-  send(
-    url: string,
-    init: OpenAiCompatibleRequestInit,
-    timeout?: number,
-    signal?: AbortSignal
-  ): Promise<Response>;
-}
+const CANONICAL_EXTENSION_KEYS = new Set([
+  ...KNOWN_NON_MODEL_OPTIONS_KEYS,
+  "repetitionPenalty",
+  "extraBody",
+  "extensions",
+]);
 
 export interface OpenAiCompatibleAdapterDependencies {
-  transport: OpenAiCompatibleTransport;
-  ensureResponseOk(response: Response): Promise<void>;
+  transport: LlmTransport;
   logger: {
     warn(message: string, context?: Record<string, unknown>): void;
   };
@@ -45,12 +46,9 @@ export interface OpenAiCompatibleAdapterDependencies {
 export interface OpenAiCompatibleWireRequest {
   url: string;
   headers: Record<string, string>;
-  body: Record<string, any>;
+  body: Record<string, WireJsonValue>;
 }
 
-/**
- * OpenAI 适配器的 URL 处理逻辑
- */
 export const openAiUrlHandler = {
   buildUrl: (
     baseUrl: string,
@@ -58,60 +56,42 @@ export const openAiUrlHandler = {
     profile?: LlmProfile,
     pathParams?: Record<string, string>
   ): string => {
-    // 如果提供了 profile 且有对应的自定义端点，则优先使用
-    if (profile?.customEndpoints) {
-      const custom = profile.customEndpoints as Record<
-        string,
-        string | undefined
-      >;
-      // 根据 endpoint 映射到对应的自定义配置键
-      const mapping: Record<
-        string,
-        keyof NonNullable<LlmProfile["customEndpoints"]>
-      > = {
-        "chat/completions": "chatCompletions",
-        completions: "completions",
-        models: "models",
-        embeddings: "embeddings",
-        rerank: "rerank",
-        "images/generations": "imagesGenerations",
-        "images/edits": "imagesEdits",
-        "images/variations": "imagesVariations",
-        "audio/speech": "audioSpeech",
-        "audio/transcriptions": "audioTranscriptions",
-        "audio/translations": "audioTranslations",
-        moderations: "moderations",
-        videos: "videos",
-        videoStatus: "videoStatus",
-      };
+    const endpointMapping: Record<
+      string,
+      keyof NonNullable<LlmProfile["customEndpoints"]>
+    > = {
+      "chat/completions": "chatCompletions",
+      completions: "completions",
+      models: "models",
+      embeddings: "embeddings",
+      rerank: "rerank",
+      "images/generations": "imagesGenerations",
+      "images/edits": "imagesEdits",
+      "images/variations": "imagesVariations",
+      "audio/speech": "audioSpeech",
+      "audio/transcriptions": "audioTranscriptions",
+      "audio/translations": "audioTranslations",
+      moderations: "moderations",
+      videos: "videos",
+      videoStatus: "videoStatus",
+    };
+    const customKey = endpoint
+      ? endpointMapping[endpoint]
+      : "chatCompletions";
+    let customEndpoint = customKey
+      ? profile?.customEndpoints?.[customKey]
+      : undefined;
 
-      const customKey = endpoint ? mapping[endpoint] : "chatCompletions";
-      if (customKey && custom[customKey]) {
-        let customEndpoint = custom[customKey]!;
-
-        // 处理路径参数替换，例如 /v1/videos/{video_id}
-        if (pathParams) {
-          for (const [key, value] of Object.entries(pathParams)) {
-            customEndpoint = customEndpoint.replace(`{${key}}`, value);
-          }
-        }
-
-        // 如果自定义端点是完整的 URL，直接返回
-        if (customEndpoint.startsWith("http")) return customEndpoint;
-        // 否则将其拼接到 baseUrl
-        const host = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-        // 去掉自定义端点开头的 /
-        const cleanEndpoint = customEndpoint.startsWith("/")
-          ? customEndpoint.substring(1)
-          : customEndpoint;
-        return `${host}${cleanEndpoint}`;
+    if (customEndpoint) {
+      for (const [key, value] of Object.entries(pathParams ?? {})) {
+        customEndpoint = customEndpoint.replace(`{${key}}`, value);
       }
+      if (customEndpoint.startsWith("http")) return customEndpoint;
+      const host = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+      return `${host}${customEndpoint.replace(/^\//, "")}`;
     }
 
-    // 确保 baseUrl 以 / 结尾
     const host = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-    // 智能添加 v1 版本路径（如果没加的话）
-    // 如果已经包含 /v1, /v2, /v3 或 /api/v3 等，则不再添加
     const versionedHost =
       host.includes("/v1") ||
       host.includes("/v2") ||
@@ -129,346 +109,103 @@ export const openAiUrlHandler = {
   },
 };
 
-/**
- * 调用 OpenAI 兼容格式的 API
- */
+export function toOpenAiCompatibleProviderProfile(
+  profile: LlmProfile
+): ProviderProfile {
+  return {
+    provider: profile.type,
+    baseUrl: profile.baseUrl,
+    apiKey: profile.apiKeys[0],
+    headers: profile.customHeaders,
+    endpoints: profile.customEndpoints,
+  };
+}
+
+export function toOpenAiCompatibleCoreRequest(
+  options: LlmRequestOptions
+): CoreLlmRequest {
+  const extraBody = asJsonObject(options.extraBody);
+  const explicitExtensions = asJsonObject(options.extensions);
+  const safetySettings = toJsonValue(options.safetySettings);
+
+  return {
+    model: options.modelId,
+    messages: options.messages.map(toCoreMessage),
+    stream: options.stream,
+    maxTokens: options.maxTokens,
+    maxCompletionTokens: options.maxCompletionTokens,
+    temperature: options.temperature,
+    topP: options.topP,
+    topK: options.topK,
+    frequencyPenalty: options.frequencyPenalty,
+    presencePenalty: options.presencePenalty,
+    repetitionPenalty: readFiniteNumber(options.repetitionPenalty),
+    stop: options.stop,
+    seed: options.seed,
+    n: options.n,
+    logprobs: options.logprobs,
+    topLogprobs: options.topLogprobs,
+    reasoningEffort: options.reasoningEffort,
+    tools: options.tools?.map((tool) => ({
+      type: "function" as const,
+      function: {
+        name: tool.function.name,
+        description: tool.function.description,
+        parameters: toJsonValue(tool.function.parameters) ?? {},
+        strict: tool.function.strict,
+      },
+    })),
+    toolChoice: options.toolChoice,
+    parallelToolCalls: options.parallelToolCalls,
+    responseFormat: toJsonValue(options.responseFormat),
+    user: options.user,
+    logitBias: options.logitBias,
+    store: options.store,
+    metadata: options.metadata,
+    modalities: options.modalities,
+    prediction: toJsonValue(options.prediction),
+    audio: toJsonValue(options.audio),
+    serviceTier: options.serviceTier,
+    webSearchOptions: toJsonValue(options.webSearchOptions),
+    streamOptions: toJsonValue(options.streamOptions),
+    thinkingEnabled: options.thinkingEnabled,
+    thinkingBudget: options.thinkingBudget,
+    extraBody,
+    extensions: {
+      ...explicitExtensions,
+      ...collectUnknownExtensions(options),
+      ...(safetySettings === undefined
+        ? {}
+        : { safety_settings: safetySettings }),
+    },
+  };
+}
+
 export const buildOpenAiCompatibleRequest = (
   profile: LlmProfile,
   options: LlmRequestOptions
 ): OpenAiCompatibleWireRequest => {
-  const url = openAiUrlHandler.buildUrl(
-    profile.baseUrl,
-    "chat/completions",
-    profile
+  const request = buildSharedOpenAiCompatibleRequest(
+    toOpenAiCompatibleProviderProfile(profile),
+    toOpenAiCompatibleCoreRequest(options)
   );
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+  if (
+    request.body?.kind !== "json" ||
+    Array.isArray(request.body.value) ||
+    request.body.value === null ||
+    typeof request.body.value !== "object"
+  ) {
+    throw new Error("OpenAI-compatible adapter produced a non-object JSON body");
+  }
+  return {
+    url: request.url,
+    headers: request.headers,
+    body: request.body.value as Record<string, WireJsonValue>,
   };
-
-  // 使用第一个可用的 API Key
-  if (profile.apiKeys && profile.apiKeys.length > 0) {
-    headers["Authorization"] = `Bearer ${profile.apiKeys[0]}`;
-  }
-
-  // 应用自定义请求头
-  if (profile.customHeaders) {
-    Object.assign(headers, profile.customHeaders);
-  }
-
-  const messages: any[] = [];
-
-  // 直接转换所有消息（包括 system 角色）
-  for (const msg of options.messages) {
-    // 如果消息内容是字符串，直接使用
-    if (typeof msg.content === "string") {
-      const messageObj: any = {
-        role: msg.role,
-        content: msg.content,
-      };
-      // 支持 DeepSeek prefix 模式
-      if (msg.prefix) {
-        messageObj.prefix = true;
-      }
-      messages.push(messageObj);
-    } else {
-      // 如果是复杂内容，需要转换格式
-      const parsed = parseMessageContents(msg.content);
-      const contentArray: any[] = [];
-
-      for (const textPart of parsed.textParts) {
-        contentArray.push({ type: "text", text: textPart.text });
-      }
-
-      for (const imagePart of parsed.imageParts) {
-        contentArray.push({
-          type: "image_url",
-          image_url: {
-            url: buildBase64DataUrl(imagePart.base64, imagePart.mimeType),
-          },
-        });
-      }
-
-      // 分别处理不同类型的媒体，避免类型混淆
-      // 注意：OpenAI 官方 API 目前对音频、视频和文档的支持各不相同
-      // 这里的处理旨在尽可能兼容各种聚合渠道
-
-      // 处理文档
-      for (const docPart of parsed.documentParts) {
-        if (docPart.source.type === "base64") {
-          const mediaType = docPart.source.media_type;
-          const isPdf = mediaType === "application/pdf";
-
-          if (mediaType.startsWith("image/")) {
-            contentArray.push({
-              type: "image_url",
-              image_url: {
-                url: buildBase64DataUrl(docPart.source.data, mediaType),
-              },
-            });
-          } else if (isPdf) {
-            // 针对 PDF 的兼容性处理：使用 OpenRouter 风格的 type: "file"
-            // 这在大多数聚合渠道（如 OpenRouter, OneAPI）中对 PDF 的支持较好
-            contentArray.push({
-              type: "file",
-              file: {
-                filename: "document.pdf",
-                file_data: buildBase64DataUrl(docPart.source.data, mediaType),
-              },
-            });
-          } else {
-            // 其他类型文档尝试使用 document 格式（非标，仅部分渠道支持）
-            contentArray.push({
-              type: "document",
-              source: docPart.source,
-            });
-          }
-        }
-      }
-
-      // 处理音频
-      for (const audioPart of parsed.audioParts) {
-        if (audioPart.source.type === "base64") {
-          // OpenAI 官方支持 input_audio 格式
-          contentArray.push({
-            type: "input_audio",
-            input_audio: {
-              data: audioPart.source.data,
-              format:
-                audioPart.source.media_type === "audio/wav" ? "wav" : "mp3", // 粗略适配
-            },
-          });
-        }
-      }
-
-      // 处理视频
-      for (const videoPart of parsed.videoParts) {
-        if (videoPart.source.type === "base64") {
-          // 视频目前没有统一标准，暂时作为 image_url 尝试（某些多模态模型支持）
-          const part: any = {
-            type: "image_url",
-            image_url: {
-              url: buildBase64DataUrl(
-                videoPart.source.data,
-                videoPart.source.media_type
-              ),
-            },
-          };
-          if (videoPart.videoMetadata) {
-            part.video_metadata = videoPart.videoMetadata;
-          }
-          contentArray.push(part);
-        }
-      }
-
-      const messageObj: any = {
-        role: msg.role,
-        content: contentArray,
-      };
-      // 支持 DeepSeek prefix 模式
-      if (msg.prefix) {
-        messageObj.prefix = true;
-      }
-      messages.push(messageObj);
-    }
-  }
-
-  // 使用共享函数提取通用参数
-  const commonParams = extractCommonParameters(options);
-
-  const body: any = {
-    model: options.modelId,
-    messages,
-    temperature: commonParams.temperature ?? 0.5,
-  };
-
-  // max_tokens 和 max_completion_tokens（优先使用新参数）
-  if (options.maxCompletionTokens !== undefined) {
-    body.max_completion_tokens = options.maxCompletionTokens;
-  } else if (commonParams.maxTokens !== undefined) {
-    body.max_tokens = commonParams.maxTokens;
-  }
-
-  // 添加通用参数
-  if (commonParams.topP !== undefined) {
-    body.top_p = commonParams.topP;
-  }
-  if (commonParams.frequencyPenalty !== undefined) {
-    body.frequency_penalty = commonParams.frequencyPenalty;
-  }
-  if (commonParams.presencePenalty !== undefined) {
-    body.presence_penalty = commonParams.presencePenalty;
-  }
-  if (commonParams.stop !== undefined) {
-    body.stop = commonParams.stop;
-  }
-  if (commonParams.seed !== undefined) {
-    body.seed = commonParams.seed;
-  }
-
-  // 添加 OpenAI 特有的参数
-  if (options.n !== undefined) {
-    body.n = options.n;
-  }
-  if (options.logprobs !== undefined) {
-    body.logprobs = options.logprobs;
-  }
-  if (options.topLogprobs !== undefined) {
-    body.top_logprobs = options.topLogprobs;
-  }
-  if (options.responseFormat !== undefined) {
-    body.response_format = options.responseFormat;
-  }
-  if (options.tools !== undefined) {
-    body.tools = options.tools;
-  }
-  if (options.toolChoice !== undefined) {
-    body.tool_choice = options.toolChoice;
-  }
-  if (options.parallelToolCalls !== undefined) {
-    body.parallel_tool_calls = options.parallelToolCalls;
-  }
-  if (options.user !== undefined) {
-    body.user = options.user;
-  }
-  if (options.logitBias !== undefined) {
-    body.logit_bias = options.logitBias;
-  }
-  if (options.store !== undefined) {
-    body.store = options.store;
-  }
-  if (options.reasoningEffort !== undefined) {
-    body.reasoning_effort = options.reasoningEffort;
-  }
-  if (options.metadata !== undefined) {
-    body.metadata = options.metadata;
-  }
-  if (options.modalities !== undefined) {
-    body.modalities = options.modalities;
-  }
-  if (options.prediction !== undefined) {
-    body.prediction = options.prediction;
-  }
-  if (options.audio !== undefined) {
-    body.audio = options.audio;
-  }
-  if (options.serviceTier !== undefined) {
-    body.service_tier = options.serviceTier;
-  }
-  if (options.webSearchOptions !== undefined) {
-    body.web_search_options = options.webSearchOptions;
-  }
-  if (options.streamOptions !== undefined) {
-    body.stream_options = options.streamOptions;
-  }
-
-  // 透传 Gemini 安全设置 (如果存在)
-  // 许多聚合网关（如 One API）支持通过 safety_settings 字段透传 Gemini 安全配置
-  const extendedOptions = options as any;
-  if (extendedOptions.safetySettings) {
-    body.safety_settings = extendedOptions.safetySettings;
-  }
-
-  // 动态透传所有未知的自定义参数
-  applyCustomParameters(body, options);
-
-  // 额外清理：确保内部对象不会泄露到顶层
-  cleanPayload(body);
-
-  if (options.stream && options.onStream) {
-    body.stream = true;
-  }
-
-  return { url, headers, body };
 };
 
-function mapOpenAiUsage(usage: any): LlmResponse["usage"] | undefined {
-  if (!usage) return undefined;
-
-  return {
-    promptTokens: usage.prompt_tokens,
-    completionTokens: usage.completion_tokens,
-    totalTokens: usage.total_tokens,
-    promptTokensDetails: usage.prompt_tokens_details
-      ? {
-          cachedTokens: usage.prompt_tokens_details.cached_tokens,
-          audioTokens: usage.prompt_tokens_details.audio_tokens,
-        }
-      : undefined,
-    completionTokensDetails: usage.completion_tokens_details
-      ? {
-          reasoningTokens: usage.completion_tokens_details.reasoning_tokens,
-          audioTokens: usage.completion_tokens_details.audio_tokens,
-          acceptedPredictionTokens:
-            usage.completion_tokens_details.accepted_prediction_tokens,
-          rejectedPredictionTokens:
-            usage.completion_tokens_details.rejected_prediction_tokens,
-        }
-      : undefined,
-  };
-}
-
-export function parseOpenAiCompatibleResponse(data: any): LlmResponse {
-  const choice = data.choices?.[0];
-  if (!choice) {
-    throw new Error(`OpenAI API 响应格式异常: ${JSON.stringify(data)}`);
-  }
-
-  const message = choice.message;
-  const annotations = message?.annotations?.map((ann: any) => ({
-    type: "url_citation" as const,
-    urlCitation: {
-      startIndex: ann.url_citation?.start_index,
-      endIndex: ann.url_citation?.end_index,
-      url: ann.url_citation?.url,
-      title: ann.url_citation?.title,
-    },
-  }));
-  const audio = message?.audio
-    ? {
-        id: message.audio.id,
-        data: message.audio.data,
-        transcript: message.audio.transcript,
-        expiresAt: message.audio.expires_at,
-      }
-    : undefined;
-  const logprobs = choice.logprobs
-    ? {
-        content: choice.logprobs.content,
-        refusal: choice.logprobs.refusal,
-      }
-    : undefined;
-  const usage = mapOpenAiUsage(data.usage);
-
-  if (message?.refusal) {
-    return {
-      content: "",
-      refusal: message.refusal,
-      finishReason: choice.finish_reason,
-      systemFingerprint: data.system_fingerprint,
-      serviceTier: data.service_tier,
-      usage,
-    };
-  }
-
-  return {
-    content: message?.content || "",
-    reasoningContent:
-      message?.reasoning_content ||
-      message?.reasoning ||
-      message?.thinking ||
-      message?.thought ||
-      undefined,
-    refusal: message?.refusal || null,
-    finishReason: choice.finish_reason,
-    toolCalls: message?.tool_calls,
-    logprobs,
-    annotations,
-    audio,
-    systemFingerprint: data.system_fingerprint,
-    serviceTier: data.service_tier,
-    usage,
-  };
+export function parseOpenAiCompatibleResponse(data: unknown): LlmResponse {
+  return toMobileResponse(parseOpenAiCompatibleResponseValue(data), false);
 }
 
 export const createOpenAiCompatibleApi =
@@ -477,182 +214,243 @@ export const createOpenAiCompatibleApi =
     profile: LlmProfile,
     options: LlmRequestOptions
   ): Promise<LlmResponse> => {
-    const { url, headers, body } = buildOpenAiCompatibleRequest(
-      profile,
-      options
-    );
-    const extendedOptions = options as any;
-
-    if (
-      extendedOptions.custom &&
-      typeof extendedOptions.custom === "object" &&
-      Object.keys(extendedOptions.custom).length > 0
-    ) {
+    if (isNonEmptyRecord(options.custom)) {
       dependencies.logger.warn(
         "检测到 'custom' 参数容器，但它未被上游逻辑解包。这可能是一个错误。",
-        { customParams: extendedOptions.custom }
+        { customParams: options.custom }
       );
     }
 
-    // 如果启用流式响应
-    if (options.stream && options.onStream) {
-      const response = await dependencies.transport.send(
-        url,
-        {
-          method: "POST",
-          headers,
-          body: JSON.stringify(body),
-          relaxIdCerts: options.relaxIdCerts,
+    const request = toOpenAiCompatibleCoreRequest(options);
+    const response = await executeProviderRequest({
+      adapter: openAiCompatibleAdapter,
+      profile: toOpenAiCompatibleProviderProfile(profile),
+      request,
+      transport: dependencies.transport,
+      transportOptions: {
+        requestId: readRequestId(options),
+        timeoutMs: options.timeout,
+        signal: options.signal,
+        network: {
+          strategy: profile.networkStrategy,
+          relaxInvalidCerts: options.relaxIdCerts,
           http1Only: options.http1Only,
         },
-        options.timeout,
-        options.signal
-      );
-
-      await dependencies.ensureResponseOk(response);
-
-      // 处理流式响应
-      if (!response.body) {
-        throw new Error("响应体为空");
-      }
-
-      const reader = response.body.getReader();
-      let fullContent = "";
-      let fullReasoningContent = "";
-      let usage: LlmResponse["usage"] | undefined;
-
-      await parseSSEStream(
-        reader,
-        (data) => {
-          const text = extractTextFromSSE(data, "openai");
-          if (text) {
-            fullContent += text;
-            options.onStream!(text);
-          }
-
-          // 提取推理内容（DeepSeek reasoning）
-          const reasoningText = extractReasoningFromSSE(data, "openai");
-          if (reasoningText) {
-            fullReasoningContent += reasoningText;
-            // 实时回调推理内容
-            if (options.onReasoningStream) {
-              options.onReasoningStream(reasoningText);
-            }
-          }
-
-          // 尝试从流数据中提取 usage 信息（OpenAI 在流结束时会发送 usage）
-          try {
-            const json = JSON.parse(data);
-            if (json.usage) {
-              usage = mapOpenAiUsage(json.usage);
-            }
-          } catch {
-            // 忽略非 JSON 数据
-          }
-        },
-        undefined,
-        options.signal
-      );
-
-      return {
-        content: fullContent,
-        reasoningContent: fullReasoningContent || undefined,
-        usage,
-        isStream: true,
-      };
-    }
-
-    // 非流式响应
-    const response = await dependencies.transport.send(
-      url,
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-        relaxIdCerts: options.relaxIdCerts,
-        http1Only: options.http1Only,
       },
-      options.timeout,
-      options.signal
-    );
+      onEvent(event) {
+        if (event.type === "text-delta") options.onStream?.(event.delta);
+        if (event.type === "reasoning-delta") {
+          options.onReasoningStream?.(event.delta);
+        }
+      },
+    });
 
-    await dependencies.ensureResponseOk(response);
-
-    const data = await response.json();
-    return parseOpenAiCompatibleResponse(data);
+    return toMobileResponse(response, request.stream === true);
   };
 
 export const callOpenAiCompatibleApi = createOpenAiCompatibleApi({
-  transport: { send: fetchWithTimeout },
-  ensureResponseOk,
+  transport: mobileLlmTransport,
   logger,
 });
 
-/**
- * 调用 OpenAI 兼容的 Embedding API
- * (移动端暂未启用)
- */
-// export const callOpenAiEmbeddingApi = async (
-//   profile: LlmProfile,
-//   options: any
-// ): Promise<any> => {
-//   const url = openAiUrlHandler.buildUrl(profile.baseUrl, "embeddings");
-//
-//   const headers: Record<string, string> = {
-//     "Content-Type": "application/json",
-//   };
-//
-//   if (profile.apiKeys && profile.apiKeys.length > 0) {
-//     headers["Authorization"] = `Bearer ${profile.apiKeys[0]}`;
-//   }
-//
-//   if (profile.customHeaders) {
-//     Object.assign(headers, profile.customHeaders);
-//   }
-//
-//   const body: any = {
-//     model: options.modelId,
-//     input: options.input,
-//   };
-//
-//   if (options.dimensions !== undefined) {
-//     body.dimensions = options.dimensions;
-//   }
-//
-//   if (options.user !== undefined) {
-//     body.user = options.user;
-//   }
-//
-//   if (options.encodingFormat !== undefined) {
-//     body.encoding_format = options.encodingFormat;
-//   }
-//
-//   const response = await fetchWithTimeout(
-//     url,
-//     {
-//       method: "POST",
-//       headers,
-//       body: JSON.stringify(body),
-//     },
-//     options.timeout,
-//     options.signal
-//   );
-//
-//   await ensureResponseOk(response);
-//
-//   const data = await response.json();
-//
-//   return {
-//     object: "list",
-//     data: data.data.map((item: any) => ({
-//       object: "embedding",
-//       index: item.index,
-//       embedding: item.embedding,
-//     })),
-//     model: data.model,
-//     usage: {
-//       promptTokens: data.usage.prompt_tokens,
-//       totalTokens: data.usage.total_tokens,
-//     },
-//   };
-// };
+function toCoreMessage(message: {
+  role: "system" | "user" | "assistant" | "tool";
+  content: string | LlmMessageContent[];
+  prefix?: boolean;
+}): CoreLlmMessage {
+  return {
+    role: message.role,
+    content:
+      typeof message.content === "string"
+        ? message.content
+        : message.content.map(toCoreContent),
+    prefix: message.prefix,
+  };
+}
+
+function toCoreContent(content: LlmMessageContent): CoreLlmMessageContent {
+  switch (content.type) {
+    case "text":
+      return { type: "text", text: content.text };
+    case "image":
+      return {
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: content.mimeType ?? inferImageMimeType(content.imageBase64),
+          data: content.imageBase64,
+        },
+      };
+    case "audio":
+      return { type: "audio", source: content.source };
+    case "video":
+      return {
+        type: "video",
+        source: content.source,
+        metadata: toJsonValue(content.videoMetadata),
+      };
+    case "document":
+      return { type: "document", source: content.source };
+    case "tool_use":
+      return {
+        type: "tool_use",
+        id: content.toolUseId,
+        name: content.toolName,
+        input: toJsonValue(content.toolInput) ?? {},
+      };
+    case "tool_result":
+      return {
+        type: "tool_result",
+        toolUseId: content.toolResultId,
+        content:
+          typeof content.toolResultContent === "string"
+            ? content.toolResultContent
+            : (toJsonValue(content.toolResultContent) ?? []),
+        isError: content.isError,
+      };
+  }
+}
+
+function toMobileResponse(
+  response: CoreLlmResponse,
+  isStream: boolean
+): LlmResponse {
+  const metadata = asRecord(response.metadata);
+  const audio = asRecord(metadata?.audio);
+
+  return {
+    content: response.content,
+    usage: response.usage,
+    ...(isStream ? { isStream: true } : {}),
+    refusal: response.refusal,
+    finishReason: response.finishReason as LlmResponse["finishReason"],
+    toolCalls: response.toolCalls,
+    reasoningContent: response.reasoningContent,
+    annotations: mapAnnotations(response.annotations),
+    logprobs: metadata?.logprobs as LlmResponse["logprobs"],
+    audio: audio
+      ? {
+          id: readString(audio.id) ?? "",
+          data: readString(audio.data) ?? "",
+          transcript: readString(audio.transcript) ?? "",
+          expiresAt:
+            readFiniteNumber(audio.expires_at) ??
+            readFiniteNumber(audio.expiresAt) ??
+            0,
+        }
+      : undefined,
+    systemFingerprint: readString(metadata?.systemFingerprint),
+    serviceTier: readString(metadata?.serviceTier),
+  };
+}
+
+function mapAnnotations(
+  annotations: CoreLlmResponse["annotations"]
+): Annotation[] | undefined {
+  if (!annotations?.length) return undefined;
+
+  return annotations.map((annotation) => {
+    if (annotation.type === "file_citation") {
+      const citation = asRecord(
+        annotation.file_citation ?? annotation.fileCitation
+      );
+      return {
+        type: "file_citation" as const,
+        fileCitation: {
+          startIndex: readFiniteNumber(citation?.start_index) ?? 0,
+          endIndex: readFiniteNumber(citation?.end_index) ?? 0,
+          fileId:
+            readString(citation?.file_id) ?? readString(citation?.fileId) ?? "",
+          quote: readString(citation?.quote),
+        },
+      };
+    }
+
+    const citation = asRecord(
+      annotation.url_citation ?? annotation.urlCitation
+    );
+    return {
+      type: "url_citation" as const,
+      urlCitation: {
+        startIndex: readFiniteNumber(citation?.start_index) ?? 0,
+        endIndex: readFiniteNumber(citation?.end_index) ?? 0,
+        url: readString(citation?.url) ?? "",
+        title: readString(citation?.title) ?? "",
+      },
+    };
+  });
+}
+
+function collectUnknownExtensions(
+  options: LlmRequestOptions
+): Record<string, JsonValue> {
+  const result: Record<string, JsonValue> = {};
+  for (const [key, value] of Object.entries(options)) {
+    if (CANONICAL_EXTENSION_KEYS.has(key)) continue;
+    const jsonValue = toJsonValue(value);
+    if (jsonValue !== undefined) result[key] = jsonValue;
+  }
+  return result;
+}
+
+function toJsonValue(value: unknown): JsonValue | undefined {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean" ||
+    (typeof value === "number" && Number.isFinite(value))
+  ) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    const result: JsonValue[] = [];
+    for (const item of value) {
+      const jsonValue = toJsonValue(item);
+      if (jsonValue !== undefined) result.push(jsonValue);
+    }
+    return result;
+  }
+  if (typeof value === "object" && value !== null) {
+    const result: Record<string, JsonValue> = {};
+    for (const [key, item] of Object.entries(value)) {
+      const jsonValue = toJsonValue(item);
+      if (jsonValue !== undefined) result[key] = jsonValue;
+    }
+    return result;
+  }
+  return undefined;
+}
+
+function asJsonObject(value: unknown): Record<string, JsonValue> | undefined {
+  const jsonValue = toJsonValue(value);
+  return jsonValue && !Array.isArray(jsonValue) && typeof jsonValue === "object"
+    ? jsonValue
+    : undefined;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function isNonEmptyRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(asRecord(value) && Object.keys(value as object).length > 0);
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function readFiniteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
+}
+
+function readRequestId(options: LlmRequestOptions): string {
+  if (typeof options.requestId === "string" && options.requestId) {
+    return options.requestId;
+  }
+  return globalThis.crypto?.randomUUID?.() ?? `mobile-${Date.now()}`;
+}

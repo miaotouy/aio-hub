@@ -26,6 +26,7 @@ import {
   ElOption,
   ElDatePicker,
 } from "element-plus";
+import type { TableInstance } from "element-plus";
 import { Loading, Search } from "@element-plus/icons-vue";
 import { useClipboard } from "@vueuse/core";
 import { useOcrHistory } from "../composables/useOcrHistory";
@@ -66,7 +67,7 @@ const isLoading = ref(false);
 const isLoadingMore = ref(false);
 const thumbnailUrls = ref<Record<string, string>>({});
 const assetBasePath = ref("");
-const tableRef = ref<InstanceType<typeof ElTable>>();
+const tableRef = ref<TableInstance>();
 
 const searchQuery = ref("");
 const filterEngine = ref<string>("");

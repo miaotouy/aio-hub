@@ -83,6 +83,8 @@ vi.mock("../../features/useAttachmentManager", () => ({
   }),
 }));
 
+const { useChatInputManager } = await import("../useChatInputManager");
+
 function createAsset(id: string): Asset {
   return {
     id,
@@ -98,18 +100,16 @@ function createAsset(id: string): Asset {
 }
 
 describe("useChatInputManager session drafts", () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     attachments.value = [];
     syncStateMock.mockReset();
     localStorage.clear();
-    const { useChatInputManager } = await import("../useChatInputManager");
     const manager = useChatInputManager();
     manager.clearAllDrafts();
     manager.setActiveSessionId(null);
   });
 
-  it("copies a draft with attachments to another session without clearing source", async () => {
-    const { useChatInputManager } = await import("../useChatInputManager");
+  it("copies a draft with attachments to another session without clearing source", () => {
     const manager = useChatInputManager();
     const asset = createAsset("asset-copy");
 
@@ -128,8 +128,7 @@ describe("useChatInputManager session drafts", () => {
     ).toEqual(["asset-copy"]);
   });
 
-  it("moves a draft with attachments and clears the source session", async () => {
-    const { useChatInputManager } = await import("../useChatInputManager");
+  it("moves a draft with attachments and clears the source session", () => {
     const manager = useChatInputManager();
     const asset = createAsset("asset-move");
 

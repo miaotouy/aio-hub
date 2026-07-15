@@ -30,7 +30,7 @@
 
 实施顺序相对原计划有一处受控调整：仓库已经存在多组 Provider Adapter 单测，因此先落地阶段 1 的无业务侵入骨架和公共分帧器，再继续补齐阶段 0 的完整 wire fixture、两端差分记录和性能基线。现阶段阶段 0 已完成移动端 Facade 与 OpenAI-Compatible 首批基线，但其他 Provider fixture、两端差分记录和性能基线仍未完成；阶段 1.5 已开始移动 Facade 依赖解耦，尚未完成 Adapter Transport/logger 隔离，也尚未进入阶段 2 的共享 OpenAI-Compatible 迁移。
 
-当前全仓验证仍有两项非本批次阻塞：桌面 `check:frontend` 在 `src/tools/smart-ocr/components/HistoryDialog.vue` 的 Element Plus 泛型实例类型处失败；根 Vitest 全集有 2 个既有失败，分别为 OpenAI `reasoning_effort` 参数期望不一致和聊天草稿测试 hook 超时。上述问题未通过本次迁移顺手修改。
+此前记录的全仓验证阻塞均已处理：Smart OCR 历史表格引用改用 Element Plus 导出的 `TableInstance`；OpenAI Adapter 测试已与第三方兼容模型支持 `reasoning_effort` 的现行契约对齐，并保留不支持模型的负向覆盖；聊天草稿测试将一次性模块加载移出 `beforeEach`，避免全量并发时触发 hook 超时。桌面 `check:frontend`、根 Vitest 全集（59 个测试文件、417 个用例）及桌面 Vite 生产构建均已通过。
 
 ## 1. 背景
 

@@ -436,7 +436,7 @@ describe("OpenAI Adapter - Chat", () => {
     expect(body.reasoning_effort).toBe("low");
   });
 
-  it("should not send reasoning_effort for non-OpenAI models behind OpenAI-compatible endpoints", async () => {
+  it("should send reasoning_effort for supported models behind OpenAI-compatible endpoints", async () => {
     const options: LlmRequestOptions = {
       profileId: "test-profile",
       modelId: "deepseek-v4-flash",
@@ -448,6 +448,28 @@ describe("OpenAI Adapter - Chat", () => {
       ok: true,
       json: async () => ({
         choices: [{ message: { content: "DeepSeek" }, finish_reason: "stop" }],
+      }),
+    });
+
+    await callOpenAiChatApi(mockProfile, options);
+
+    const [, fetchOptions] = (fetchWithTimeout as any).mock.calls[0];
+    const body = JSON.parse(fetchOptions.body);
+    expect(body.reasoning_effort).toBe("low");
+  });
+
+  it("should not send reasoning_effort for unsupported models behind OpenAI-compatible endpoints", async () => {
+    const options: LlmRequestOptions = {
+      profileId: "test-profile",
+      modelId: "qwen-plus",
+      messages: [{ role: "user", content: "Name this topic" }],
+      reasoningEffort: "low",
+    };
+
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: "Qwen" }, finish_reason: "stop" }],
       }),
     });
 

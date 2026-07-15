@@ -4,6 +4,8 @@
 >
 > 最后更新：2026-07-15
 >
+> 移动端校准基线：`af864a1f0a8ac82d46460e80bf6cdc8df862f466`
+>
 > 关联现状文档：[`docs/architecture/llm-apis-architecture.md`](../architecture/llm-apis-architecture.md)
 
 ## 1. 背景
@@ -49,6 +51,18 @@ Provider Adapter 属于变化频繁的协议防腐层，常见变更包括：
 - `Record<string, unknown>`、自定义参数和非标准响应兼容成本较低。
 
 请求对象的字段映射和普通 JSON 解析通常不是性能瓶颈。当前更明显的成本来自大请求序列化、重复 JSON 编解码、Base64 跨边界传输和二进制流处理。
+
+### 2.3. `af864a1f` 合并后的校准结论
+
+本次移动端合并没有修改 `mobile/src/tools/llm-api/` 下的 Provider Adapter、请求类型或请求入口，因此“共享 TypeScript Provider Core + 平台 Transport”的主决策保持不变。合并后需要纳入迁移约束的是 Adapter 上下游已经扩展的业务契约：
+
+- `useChatExecutor` 会优先使用智能体绑定的 Profile 和 Model，并将 `maxTokens`、`temperature`、`topP`、`frequencyPenalty`、`presencePenalty`、`stop` 传入 `useLlmRequest`。
+- 移动端聊天运行时分别消费 `onStream` 和 `onReasoningStream`，最终再从 `LlmResponse` 合并正文、推理内容和 usage。
+- `useChatResponseHandler` 优先使用 API 返回的 `promptTokens` / `completionTokens`，缺失时调用移动端 Rust Token Counting command 做本地估算。
+- Agent Preset 注入、上下文 Token 风险计算、会话树和自动命名均位于 Provider Adapter 上游，不能随 Adapter 一起迁入共享 Core。
+- 移动端已增加独立的 `test:run` 脚本，可以承担共享 Adapter 接入后的移动端契约与回归测试。
+
+因此，阶段 0 不能只冻结 Provider wire fixture，还必须冻结当前移动端 `useLlmRequest.sendRequest(options, profileId?)` 的兼容入口，以及正文流、推理流、最终 usage 三类消费行为。共享事件模型可以作为 Core 内部的 canonical contract，但移动端迁移期间需要由兼容层映射回现有回调和最终响应，避免同时重构 LLM Chat。
 
 ## 3. 当前边界与问题
 
@@ -106,6 +120,15 @@ useLlmRequest
 
 移动端则直接依赖自己的请求工具和类型。这些依赖使 Adapter 不能直接作为共享包使用。
 
+#### 移动端业务层与请求入口的契约已加深
+
+合并 `af864a1f` 后，移动端 `useLlmRequest` 不再只服务简单文本聊天。智能体绑定、预设注入、推理流展示、API usage 校准和生成速度统计都通过该入口串联。这里的耦合不应进入共享 Provider Core，但迁移必须提供稳定的 Facade：
+
+- 保留显式 `profileId` 覆盖能力，不能退回只读取当前选中 Profile。
+- 保留调用方已传入的标准生成参数和未知扩展参数；当前 Agent 已接线的六类参数不得丢失，参数清理仍由 Provider Adapter 完成。
+- 同时交付正文增量和推理增量，并在完成时返回完整的 canonical response。
+- 保留 API usage 的精度；本地 Token Counting 只作为聊天业务层回退，不能混入 Provider 解析。
+
 #### 回环代理安全边界
 
 当前 Axum 服务绑定 `127.0.0.1`，使用宽松 CORS，并接受调用方提供的目标 URL、Headers 和 Body。即使暂不移除回环代理，也应增加每次应用启动生成的 capability token，并收紧 Origin/CORS 策略，避免它成为无鉴权的本地通用 HTTP 代理。
@@ -148,7 +171,9 @@ flowchart TD
 - Profile 的 CRUD 和持久化。
 - API Key 轮询、熔断和恢复。
 - 模型能力与参数过滤策略。
+- Agent Manager 的模型绑定、生成参数、预设消息和导入兼容字段。
 - LLM Chat 上下文管道、会话树和持久化。
+- 上下文 Token 预估、风险阈值、生成速度等会话指标。
 - VCP 工具发现、审批、执行和迭代循环。
 - UI 消息、错误展示和生成状态。
 - Inspector 的界面状态和跨窗口同步。
@@ -245,6 +270,18 @@ export interface ProviderAdapter {
 ### 6.2. Wire Request
 
 ```typescript
+export interface LocalFileRef {
+  kind: "local-file-ref";
+  path: string;
+  contentType?: string;
+}
+
+export type WireJsonValue =
+  | JsonPrimitive
+  | LocalFileRef
+  | WireJsonValue[]
+  | { [key: string]: WireJsonValue };
+
 export interface WireRequest {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   url: string;
@@ -254,13 +291,14 @@ export interface WireRequest {
 }
 
 export type WireBody =
-  | { kind: "json"; value: JsonValue }
+  | { kind: "json"; value: WireJsonValue }
   | { kind: "text"; value: string; contentType?: string }
   | { kind: "bytes"; value: Uint8Array; contentType: string }
-  | { kind: "multipart"; parts: MultipartPart[] };
+  | { kind: "multipart"; parts: MultipartPart[] }
+  | { kind: "file-ref"; ref: LocalFileRef };
 ```
 
-Provider Adapter 构建 JSON-safe 的 payload；Transport 负责进行一次最终序列化。
+Provider Adapter 构建由 JSON 值和受控 `LocalFileRef` 组成的结构化 payload；Transport 负责校验文件引用并进行一次最终序列化。`LocalFileRef` 还必须允许作为 multipart part 的数据源，不能只覆盖“整个请求体就是一个文件”的少数场景。普通 Provider JSON 不得被误判为文件引用。
 
 ### 6.3. Transport
 
@@ -305,6 +343,8 @@ export interface ProviderStreamDecoder {
 ```
 
 Decoder 自己维护 UTF-8 边界、SSE/JSONL 缓冲和 Provider 累积状态。调用方消费统一事件，不再通过多个可选回调拼装最终结果。
+
+移动端首次接入时不要求同步改造 LLM Chat。应用侧 Facade 应将 `text-delta` 映射到现有 `onStream`，将 `reasoning-delta` 映射到 `onReasoningStream`，并将 `completed.response` 返回给 `useChatResponseHandler`。`usage`、`reasoningContent`、`finishReason`、`toolCalls` 和 annotations 必须以最终 response 为准，流式事件不能导致最终结果缺字段。
 
 ### 6.5. Observer
 
@@ -374,6 +414,8 @@ export interface TransportObserver {
 - 收集 OpenAI Chat、Responses、Claude、Gemini、Cohere、Vertex 的流式响应 fixture。
 - 覆盖 UTF-8 跨 chunk、CRLF、粘包、拆包、`[DONE]`、异常事件和中途取消。
 - 记录桌面端与移动端当前行为差异。
+- 以 `af864a1f` 为移动端基线，冻结 `sendRequest(options, profileId?)` Facade 契约。
+- 覆盖智能体 Profile/Model 优先级、生成参数透传、正文/推理双流和最终 usage 回填。
 - 建立大文本、本地文件和媒体请求的序列化时间及内存基线。
 
 ### 阶段 1：建立共享包骨架
@@ -382,6 +424,13 @@ export interface TransportObserver {
 - 迁移统一 JSON 类型、WireRequest、WireResponse 和 Adapter 接口。
 - 迁移通用 SSE/JSONL 分帧器和纯工具函数。
 - 配置独立 Vitest 测试，不依赖桌面端或移动端 alias。
+
+### 阶段 1.5：原地解耦应用依赖
+
+- 在桌面端原地将 `fetchWithTimeout`、logger、error handler、Inspector 和 Header 模板解析抽到 Facade、Transport 或 Observer。
+- 在移动端原地隔离 `@tauri-apps/plugin-http`、Store 和 `useLlmKeyManager`，使 Adapter 只接收显式 Profile、Request 和平台依赖。
+- 保持桌面端 `useLlmRequest` 和移动端 `sendRequest(options, profileId?)` 的现有业务入口不变。
+- 为旧 Adapter 与新纯 Adapter 建立差分测试，确认解耦本身不改变 wire payload 和解析结果。
 
 ### 阶段 2：迁移 OpenAI-Compatible
 
@@ -394,6 +443,9 @@ export interface TransportObserver {
 
 - 移动端使用共享 OpenAI-Compatible Adapter。
 - 注入移动端 Transport、logger 和 error mapping。
+- 先通过兼容 Facade 映射 `text-delta`、`reasoning-delta`、`usage` 和 `completed`，不在同一批次重构 LLM Chat。
+- 验证智能体绑定的 Profile/Model 优先级，以及当前已接线的 `maxTokens`、`temperature`、`topP`、`frequencyPenalty`、`presencePenalty`、`stop` 仍能进入共享请求构建器。
+- 保持 API usage 优先、本地 Rust Token Counting 回退的现有策略；Token Counting 不进入共享 Provider Core。
 - 删除移动端对应的重复 Adapter 实现。
 - 验证 Android/iOS 流式读取、取消和后台切换行为。
 
@@ -460,12 +512,22 @@ export interface TransportObserver {
 - 本地文件引用。
 - multipart 与二进制响应。
 
-### 9.4. 构建验证
+### 9.4. 移动端 Facade 回归测试
+
+- 显式 `profileId` 覆盖当前选中 Profile，且 Key 轮询/熔断仍作用于最终选中的 Profile。
+- Agent 的 `maxTokens`、`temperature`、`topP`、penalty 和 stop 参数无损进入 WireRequest。
+- `text-delta` 与 `reasoning-delta` 分别且有序地进入现有两个回调。
+- 流结束后返回的 `LlmResponse` 保留 usage、reasoning、finish reason、tool calls 和 annotations。
+- API usage 缺失时仍由聊天业务层触发本地 Token Counting 回退；共享 Core 不伪造 usage。
+- 取消、超时和 Provider 错误仍能触发 KeyManager 上报与当前错误处理路径。
+
+### 9.5. 构建验证
 
 实施阶段每个迁移批次至少执行：
 
 - `bun run check:frontend`
 - `bun run build`
+- `cd mobile && bun run test:run`
 - `cd mobile && bun run check:frontend`
 - `cd mobile && bun run build`
 
@@ -488,6 +550,9 @@ export interface TransportObserver {
 - Key 轮询、熔断、取消、超时和主动 interrupt 行为无回归。
 - reasoning artifact、tool call、usage、annotations 和媒体元数据不丢失。
 - `extraBody` 与非标准 OpenAI-Compatible 字段保持兼容。
+- 移动端智能体绑定的 Profile、Model 和生成参数在迁移后保持等价。
+- 正文流、推理流和最终 response 三条交付路径不重复、不丢失且顺序稳定。
+- API usage 缺失时仍可走移动端本地 Token Counting 回退，Core 不生成虚假的精确 usage。
 
 ### 性能验收
 
@@ -505,15 +570,17 @@ export interface TransportObserver {
 
 ## 11. 风险与应对
 
-| 风险                                | 影响                       | 应对                                                |
-| ----------------------------------- | -------------------------- | --------------------------------------------------- |
-| 当前 Adapter 混入 UI/Store 依赖     | 无法直接迁移共享包         | 先通过 Transport、Observer、HeaderResolver 接口解耦 |
-| 桌面与移动类型已发生漂移            | 共享类型迁移困难           | 先建立 canonical DTO，再写兼容转换层                |
-| 第三方 OpenAI-Compatible 行为不标准 | 严格类型导致兼容下降       | 保留 JsonValue、extraBody 和 Header 扩展口          |
-| 流式解析重构造成边界问题            | 丢字、重复字或完成状态异常 | 使用多切块 fixture 和差分测试                       |
-| 媒体请求包含大二进制                | 共享层或 IPC 内存膨胀      | 使用 FileRef/AssetRef，Transport 负责读取和上传     |
-| Workspace/alias 配置不一致          | Vite 或 Vitest 构建失败    | 共享包只用包内相对路径和 package exports            |
-| 一次迁移范围过大                    | 难以定位回归               | 按 Provider 逐个迁移，保留短期 fallback             |
+| 风险                                | 影响                        | 应对                                                |
+| ----------------------------------- | --------------------------- | --------------------------------------------------- |
+| 当前 Adapter 混入 UI/Store 依赖     | 无法直接迁移共享包          | 先通过 Transport、Observer、HeaderResolver 接口解耦 |
+| 桌面与移动类型已发生漂移            | 共享类型迁移困难            | 先建立 canonical DTO，再写兼容转换层                |
+| 第三方 OpenAI-Compatible 行为不标准 | 严格类型导致兼容下降        | 保留 JsonValue、extraBody 和 Header 扩展口          |
+| 流式解析重构造成边界问题            | 丢字、重复字或完成状态异常  | 使用多切块 fixture 和差分测试                       |
+| 媒体请求包含大二进制                | 共享层或 IPC 内存膨胀       | 使用 FileRef/AssetRef，Transport 负责读取和上传     |
+| Workspace/alias 配置不一致          | Vite 或 Vitest 构建失败     | 共享包只用包内相对路径和 package exports            |
+| 移动端聊天依赖旧回调式流接口        | 接入共享 Decoder 时行为回归 | 先保留 Facade 映射，再单独迁移消费接口              |
+| usage 缺失或字段命名不一致          | Token 展示和上下文风险失真  | fixture 覆盖 Provider usage，并保留应用层本地回退   |
+| 一次迁移范围过大                    | 难以定位回归                | 按 Provider 逐个迁移，保留短期 fallback             |
 
 ## 12. 暂不实施的内容
 
@@ -522,6 +589,7 @@ export interface TransportObserver {
 - 将 LLM Chat 会话和上下文管道迁移到 Rust。
 - 将 VCP 工具调用引擎迁移到 Rust。
 - 将 Profile 或 KeyManager 的持久化迁移到 Rust。
+- 将 Agent Manager、Preset 注入或移动端 Token Counting command 纳入共享 Provider Core。
 - 立即移除所有桌面端 Adapter 文件。
 - 立即使用 Tauri Channel 替代所有流式 HTTP 响应。
 - 在没有基准测试的情况下迁移 Provider 响应解析到 Rust。
@@ -552,22 +620,21 @@ export interface TransportObserver {
   3.  **请求校验**：前端在向本地代理发送请求时，必须在 Header 中携带 `X-Proxy-Token: <token>`。
   4.  **严格 CORS**：Rust 端的 Axum 拒绝任何不带正确 Token 或 Origin 不匹配的请求。
 
-### 14.2. 内存优化：WireBody 显式支持 FileRef
+### 14.2. 内存优化：WireBody 与结构化内容显式支持 FileRef
 
-为了彻底避免大文件（如音视频、大图片）在 TS 端被读取为 `Uint8Array` 导致 WebView 内存暴涨，我们需要在 `WireBody` 中显式支持 `FileRef`（即本地路径或资产 ID）。
+为了避免大文件（如音视频、大图片）在 TS 端被读取为 `Uint8Array` 导致 WebView 内存暴涨，需要在 `WireBody`、JSON 结构化内容和 multipart part 中显式支持 `LocalFileRef`（即本地路径或资产 ID）。只给顶层 `WireBody` 增加文件分支并不足以覆盖 Provider 常见的嵌套多模态 JSON。
 
 - **设计补充**：
   ```typescript
   export type WireBody =
-    | { kind: "json"; value: JsonValue }
+    | { kind: "json"; value: WireJsonValue }
     | { kind: "text"; value: string; contentType?: string }
     | { kind: "bytes"; value: Uint8Array; contentType: string }
     | { kind: "multipart"; parts: MultipartPart[] }
-    | { kind: "file-ref"; path: string; contentType: string }; // 显式支持本地大文件引用
+    | { kind: "file-ref"; ref: LocalFileRef };
   ```
-  当 Adapter 构建请求时，如果发现是本地媒体文件，直接输出 `{ kind: "file-ref", path: "E:/path/to/video.mp4" }`。桌面端 Transport 收到后，直接走 `/proxy/json-expand` 路径，由 Rust 读取文件并流式上传，**全程不经过 WebView 内存**。
+  当整个请求体就是本地文件时可使用顶层 `file-ref`；当文件位于 Provider JSON 或 multipart 中时，应在对应叶子节点放置 tagged `LocalFileRef`。桌面端 Transport 仅对包含嵌套引用的 JSON 走 `/proxy/json-expand`，顶层文件和 multipart 则走对应的 raw/upload 路径，由 Rust 读取并上传，**文件内容全程不经过 WebView 内存**。
 
-### 14.3. 迁移步骤微调：增加阶段 1.5 依赖解耦
+### 14.3. 迁移步骤微调：阶段 1.5 依赖解耦
 
-目前桌面端的部分 Adapter 隐式依赖了 `fetchWithTimeout`、`logger` 和 `inspectorHookRegistry`。在把代码搬到 `packages/llm-core` 之前，必须在桌面端**原地**进行重构，将这些依赖抽象为接口，通过构造函数或配置项注入（Dependency Injection），避免搬迁到共享包时引发大面积的编译报错。
-
+目前桌面端的部分 Adapter 隐式依赖了 `fetchWithTimeout`、`logger` 和 `inspectorHookRegistry`，移动端 Adapter 则直接依赖 Tauri HTTP 与应用类型。在把代码搬到 `packages/llm-core` 之前，必须在两端**原地**进行解耦，将这些依赖抽象为接口，通过构造函数或配置项注入（Dependency Injection），避免搬迁到共享包时引发大面积的编译报错。该步骤已正式并入第 8 节迁移计划。

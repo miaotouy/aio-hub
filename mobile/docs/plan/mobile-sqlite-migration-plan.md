@@ -57,6 +57,7 @@ AIO Hub 采用模块化工具架构，每个工具作为独立单元接入。为
 
 1. **轻量配置保留 JSON**：`app_settings.json`、`llm_profiles.json` 等配置继续使用 `ConfigManager`，保持轻量和高开发效率。
 2. **海量数据落地专属 SQLite**：每个需要数据库支持的工具，拥有自己独立的 `.db` 文件。例如 `llm-chat` 模块独占 `llm_chat.db`。
+3. **文件与索引保持同一事务边界**：资产管理等同时修改大文件与索引的模块，仍遵循“一模块一数据库”，但数据库写入必须由 Rust 模块服务统一编排，不能让前端通过 SQL 插件直接修改核心资产表。具体边界见 [`mobile-asset-manager-design.md`](./mobile-asset-manager-design.md)。
 
 **多数据库架构的优势**：
 

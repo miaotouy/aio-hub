@@ -1,6 +1,6 @@
 # LLM Provider Adapter 多端共享与 Rust 边界调查
 
-> 状态：实施中（阶段 3 移动 OpenAI-Compatible 已接入共享执行链）
+> 状态：实施中（共享基础设施与 OpenAI-Compatible 双端接入已完成，下一批进入主流文本协议族合并）
 >
 > 最后更新：2026-07-15
 >
@@ -462,70 +462,81 @@ export interface TransportObserver {
 
 在 Provider 解析继续保留于 TypeScript 的前提下，现阶段保留流式 HTTP Response 比把原始字节改走 Channel 更直接。
 
-## 8. 迁移计划
+## 8. 施工状态与批次计划
 
-### 阶段 0：契约冻结与基线测试
+### 8.1. 当前状态核查（2026-07-15）
 
-- 为桌面端现有 Adapter 补齐请求体 snapshot/fixture。
-- 收集 OpenAI Chat、Responses、Claude、Gemini、Cohere、Vertex 的流式响应 fixture。
-- 覆盖 UTF-8 跨 chunk、CRLF、粘包、拆包、`[DONE]`、异常事件和中途取消。
-- 记录桌面端与移动端当前行为差异。
-- 以 `af864a1f` 为移动端基线，冻结 `sendRequest(options, profileId?)` Facade 契约。
-- 覆盖智能体 Profile/Model 优先级、生成参数透传、正文/推理双流和最终 usage 回填。
-- 建立大文本、本地文件和媒体请求的序列化时间及内存基线。
+| 原阶段                         | 状态               | 已落地                                                                                        | 未闭环                                                                                                      |
+| ------------------------------ | ------------------ | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| 阶段 0：契约冻结与基线         | 部分完成           | 移动 `sendRequest` Facade、OpenAI-Compatible wire/stream fixture、正文/推理/usage 契约已冻结  | Responses、Claude、Gemini、Cohere、Vertex fixture 与双端差分记录尚缺；大文本、文件和媒体性能基线尚缺        |
+| 阶段 1：共享包骨架             | 已完成             | `packages/llm-core`、canonical DTO、Wire 类型、LocalFileRef、SSE/JSONL 分帧器及独立测试已落地 | 无阻塞项，后续按 Provider 扩展类型                                                                          |
+| 阶段 1.5：应用依赖解耦         | 部分完成           | 移动请求入口、双端 OpenAI-Compatible 和双端 Transport 已完成依赖收束                          | 其余文本 Provider 仍直接依赖应用 fetch、logger、error handler、i18n、Header resolver 等模块                 |
+| 阶段 2：桌面 OpenAI-Compatible | 主链路完成         | 共享纯 Adapter、统一执行器、桌面 Transport、流式与非流式接线和差分回归已完成                  | 桌面多媒体预处理、DeepSeek 回放和部分扩展参数仍通过过渡 `WireRequest` 入口进入执行器，尚未完全 canonical 化 |
+| 阶段 3：移动 OpenAI-Compatible | 代码完成，真机待验 | 移动 Transport、canonical 映射、兼容 Facade、旧 builder/parser/SSE 循环删除和回归测试已完成   | Android/iOS 的真实流式读取、取消与后台切换尚未验证                                                          |
+| 阶段 4：其他 Provider          | 未开始             | 已有两端旧实现和部分桌面单测可作为迁移基线                                                    | Responses、Claude、Gemini、Cohere、Vertex、Embedding、模型列表和媒体能力仍未共享                            |
+| 阶段 5：Rust Transport 优化    | 未开始             | 桌面 Transport 已对暂不支持的 tagged FileRef 显式拒绝，避免静默误发                           | raw/json-expand、multipart/file-ref 原生展开、Client 池、capability token、严格 CORS 和性能复测均未落地     |
 
-### 阶段 1：建立共享包骨架
+当前不存在需要先停工清债的架构阻塞。下一步的主要成本已经从“搭骨架”转为“迁移重复协议实现”；如果继续把依赖解耦、共享 Adapter、桌面接线、移动接线分别算作独立批次，会反复支付差分测试、全量类型检查和两端构建成本。
 
-- 新增 `packages/llm-core` workspace。
-- 迁移统一 JSON 类型、WireRequest、WireResponse 和 Adapter 接口。
-- 迁移通用 SSE/JSONL 分帧器和纯工具函数。
-- 配置独立 Vitest 测试，不依赖桌面端或移动端 alias。
+### 8.2. 批次调整原则
 
-### 阶段 1.5：原地解耦应用依赖
+- **批次按可交付能力划分，不按单个文件或单个重构动作划分。** 一个迁移批次必须同时包含 fixture/差分基线、共享 Adapter、桌面 Facade、移动 Facade、旧重复实现清理和验收。
+- **同协议族合并施工。** OpenAI Responses 与 Anthropic/Cohere、Gemini 与 Vertex AI 分别共享大量事件、消息、工具调用和鉴权映射，应在同批内提取公共构件，避免连续复制临时兼容层。
+- **阶段 0 与阶段 1.5 不再单独排尾批。** 缺失的 fixture、差分记录和应用依赖解耦随对应 Provider 批次一并完成；性能基线随 Transport 批次完成。
+- **一个宏批次允许包含多个原子提交。** 中间提交用于降低审查和回退风险，但只有整批通过共享包测试、两端回归、类型检查和 Vite 生产构建后才标记批次完成。
+- **旧实现只保留到同批差分验证结束。** 批次验收时删除已被共享 Core 取代的 builder、parser 和流循环，不把长期双实现留给下一批。
 
-- 在桌面端原地将 `fetchWithTimeout`、logger、error handler、Inspector 和 Header 模板解析抽到 Facade、Transport 或 Observer。
-- 在移动端原地隔离 `@tauri-apps/plugin-http`、Store 和 `useLlmKeyManager`，使 Adapter 只接收显式 Profile、Request 和平台依赖。
-- 保持桌面端 `useLlmRequest` 和移动端 `sendRequest(options, profileId?)` 的现有业务入口不变。
-- 为旧 Adapter 与新纯 Adapter 建立差分测试，确认解耦本身不改变 wire payload 和解析结果。
+### 8.3. 调整后的施工批次
 
-### 阶段 2：迁移 OpenAI-Compatible
+#### 批次 1-6：共享基础设施与 OpenAI-Compatible 双端闭环（已完成）
 
-- 将 OpenAI Chat 请求构建与响应解析抽为纯 Adapter。
-- 桌面端通过 Transport 注入继续使用现有 Rust 代理。
-- 保持现有 `useLlmRequest`、KeyManager、Inspector 和 UI 行为不变。
-- 使用差分测试比较迁移前后的请求体和最终响应。
+对应本文件顶部记录的六个可验证批次，已经完成共享包骨架、公共流解析、移动 Facade 契约、OpenAI-Compatible 纯 Adapter、统一执行器以及桌面/移动 Transport 接入。
 
-### 阶段 3：接入移动端
+该里程碑仍有两个明确尾项，但不再各自拆成小批：桌面 OpenAI-Compatible 的过渡 `WireRequest` 映射并入批次 7 收口；Android/iOS 真机行为并入批次 9 的 Transport 验收。
 
-- 移动端使用共享 OpenAI-Compatible Adapter。
-- 注入移动端 Transport、logger 和 error mapping。
-- 先通过兼容 Facade 映射 `text-delta`、`reasoning-delta`、`usage` 和 `completed`，不在同一批次重构 LLM Chat。
-- 验证智能体绑定的 Profile/Model 优先级，以及当前已接线的 `maxTokens`、`temperature`、`topP`、`frequencyPenalty`、`presencePenalty`、`stop` 仍能进入共享请求构建器。
-- 保持 API usage 优先、本地 Rust Token Counting 回退的现有策略；Token Counting 不进入共享 Provider Core。
-- 删除移动端对应的重复 Adapter 实现。
-- 验证 Android/iOS 流式读取、取消和后台切换行为。
+#### 批次 7：主流文本协议族 I（OpenAI Responses + Anthropic Claude + Cohere）
 
-### 阶段 4：迁移其他 Provider
+- 一次补齐三类协议的固定 wire/stream fixture、异常/取消用例和桌面/移动差分记录。
+- 在共享 Core 中实现 OpenAI Responses、Anthropic Messages 和 Cohere Chat 的 builder、非流式 parser 与增量 Decoder，并复用统一执行器。
+- 同批完成桌面与移动 Facade 接线，保留 Profile、KeyManager、Inspector、i18n/error mapping 和现有回调契约。
+- 收口桌面 OpenAI-Compatible 尚存的多媒体预处理、DeepSeek reasoning artifact 回放和扩展参数映射，使聊天主链统一直接调用 `ProviderAdapter.buildRequest`。
+- 删除两端被取代的 Responses、Claude、Cohere 请求构建、响应解析和 SSE 循环；保留仅属于应用层的兼容映射。
+- 验收以三类 Provider 的最终 `WireRequest`、流式事件、`LlmResponse` 双端等价为准，不把“完成某一个 Provider”提前算作整批完成。
 
-建议顺序：
+#### 批次 8：Google 协议族与向量能力（Gemini + Vertex AI + Embedding）
 
-1. OpenAI Responses
-2. Anthropic Claude
-3. Gemini
-4. Cohere
-5. Vertex AI
-6. Embedding 与模型列表
-7. 图片、音频、视频和音乐等媒体 Adapter
+- 将 Gemini Developer API、Vertex Gemini 和 Vertex Anthropic 的共有消息、内容 part、工具、reasoning、usage 与流事件归一化为共享构件。
+- 同批迁移 Gemini、Vertex AI 的桌面与移动聊天链路，覆盖 Vertex 鉴权/Header 差异，但不把认证状态放入共享 Core。
+- 扩展 canonical Embedding 请求/响应，并迁移 OpenAI、Gemini、Cohere 的 Embedding builder/parser；模型列表只复用 URL/Header/Transport 构件，不强行塞入聊天 Adapter 接口。
+- 补齐多模态输入、tool call/tool result、Gemini thought、Vertex Claude、批量 Embedding 和维度/usage 差分 fixture。
+- 删除已取代的两端 Gemini/Vertex 聊天实现和桌面重复 Embedding 协议逻辑，并完成共享包、桌面、移动全量验收。
 
-每个 Provider 单独迁移、验证和删除重复实现，不进行一次性目录搬迁。
+#### 批次 9：Transport、文件引用、安全与真机闭环
 
-### 阶段 5：优化 Rust Transport
+- 将桌面 Rust 代理拆分为 `/proxy/raw` 与 `/proxy/json-expand`，支持 JSON 嵌套 tagged `LocalFileRef`、multipart part 和顶层 `file-ref` 的受控原生读取。
+- 增加按稳定网络策略复用的 `reqwest::Client` 池，以及 capability token、严格 Origin/CORS 和敏感 Header/日志保护。
+- 为桌面与移动 Transport 建立同一组合约用例，覆盖状态/Header 保真、流式字节、取消、超时、流中断、multipart、二进制和文件引用。
+- 完成大文本、本地文件和媒体请求的序列化次数、峰值内存、TTFB 基线与复测，结果写回本文件；没有基准证据时不下沉 Provider 语义解析。
+- 使用项目真实 Tauri 运行方式验证 Android/iOS 流式读取、取消和后台切换，并记录无法自动化的设备/系统版本边界。
+- 本批涉及 Rust，除两端前端验证外必须通过桌面端与移动端后端检查。
 
-- 实现 `/proxy/raw` 和 `/proxy/json-expand`。
-- 增加 Client 池。
-- 增加 capability token 和严格 CORS。
-- 重新测量 JSON 编解码次数、峰值内存和 TTFB。
-- 根据实测结果决定是否还需要下沉任何响应解析逻辑。
+#### 批次 10：同步媒体能力（图片 + 音频 + 模型列表）
+
+- 扩展共享 Core 的媒体请求、媒体资产和二进制/URL 响应契约，复用批次 9 的 FileRef 与 multipart 能力。
+- 迁移 OpenAI、Gemini、SiliconFlow、xAI 图片生成以及 OpenAI 音频生成的请求构建和响应解析；Provider 特有参数继续通过显式扩展字段承载。
+- 统一桌面和移动可复用的模型列表请求路径、URL/Header 规则与错误语义，同时保留应用侧模型元数据写入边界。
+- 覆盖输入图片编辑、Base64/URL 资产、音频二进制、Provider JSON 错误和大文件不穿过 WebView 内存的回归。
+- 接入现有媒体生成业务 Facade 后删除重复协议代码；不在运行时读取全局模型元数据规则补齐 `mediaGenParams`。
+
+#### 批次 11：异步媒体任务（视频 + 音乐）与总验收
+
+- 为创建任务、轮询、进度、取消、完成资产和 Provider 错误建立共享的异步任务契约，不将轮询状态塞入一次性聊天响应模型。
+- 迁移 OpenAI/Gemini 视频、Suno NewAPI 和 MiniMax Music 等异步媒体 Adapter，统一可共享的任务生命周期，保留 Provider 专有状态映射。
+- 覆盖任务创建后恢复、轮询超时、主动取消、失败终态、多资产结果和应用重启后的兼容行为。
+- 清点并删除两端剩余的重复 Provider builder/parser/stream loop，确认共享包不导入 Vue、Pinia、Tauri、Store 或 UI 模块。
+- 执行第 9 节全量测试和第 10 节架构、行为、性能、安全验收，更新架构文档后结束本计划。
+
+批次 7-11 是交付批次，不等同于单个 Git 提交。建议每批内部按“共享协议与 fixture -> 桌面/移动接线 -> 删除旧实现与全量验收”组织 2-4 个可审查提交；任一中间提交均不得宣称该宏批次完成。
 
 ## 9. 测试策略
 

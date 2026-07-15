@@ -1,6 +1,6 @@
 # LLM Provider Adapter 多端共享与 Rust 边界调查
 
-> 状态：实施中（批次 7 已完成，下一主线为批次 8 Gemini/Vertex/Embedding）
+> 状态：实施中（批次 8 已完成，下一主线为批次 9 Transport/文件引用/安全/真机）
 >
 > 最后更新：2026-07-15
 >
@@ -72,7 +72,17 @@
 - 桌面与移动 Cohere Chat 均改接共享执行器并删除重复 builder/parser/SSE 循环；桌面 OpenAI-Compatible 同期完成 canonical 收口，多媒体、DeepSeek reasoning artifact 回放、`extra_body`、联网搜索和未知扩展均通过 `LlmRequest` 进入 `ProviderAdapter.buildRequest`，不再构造过渡 `WireRequest`。
 - 共享包现为 9 个测试文件/41 个用例，根 Vitest 全集 65 个测试文件/445 个用例，移动端全量 8 个测试文件/22 个用例；lint、共享包及两端类型检查、两端 Vite 生产构建均通过。lint 仅保留 `mermaidFixer.ts` 既有的 4 条 unreachable warning，构建仅保留既有第三方 `eval`、大 chunk、动态导入、Node 外部化和插件耗时提示。
 
-实施顺序相对原计划有一处受控调整：仓库已经存在多组 Provider Adapter 单测，因此先落地阶段 1 的无业务侵入骨架和公共分帧器，再继续补齐阶段 0 的完整 wire fixture、两端差分记录和性能基线。现阶段阶段 0 已完成移动 Facade、OpenAI-Compatible、OpenAI Responses、Claude 与 Cohere 基线，Gemini、Vertex fixture、其余双端差分记录和性能基线仍未完成；阶段 1.5 已完成移动 Facade、双端 OpenAI-Compatible、双端 OpenAI Responses、双端 Claude/Cohere 与桌面 OpenAI Chat 的平台请求隔离，Gemini/Vertex 仍待解耦；阶段 2/3 与批次 7 已完成。下一主线进入批次 8 的 Gemini/Vertex/Embedding，Android/iOS 真机流式读取、取消和后台切换行为仍待批次 9 验证。
+已完成第八个可验证批次：
+
+- 在 `@aiohub/llm-core` 新增 Google GenerateContent Provider，由同一套 canonical 消息 part、system、工具、thinking、usage、grounding citation、内联媒体与增量 SSE Decoder 同时服务 Gemini Developer API 和 Vertex Google Publisher；逐字节 UTF-8、CRLF/LF、正文/推理/tool call/usage fixture 已覆盖。
+- 桌面与移动 Gemini、Vertex Google 聊天 Facade 均改接共享执行器和各自 Transport，删除两端直接 fetch、重复 builder/parser/SSE 循环；Gemini thought signature 通过 canonical metadata 保真，移动端补齐 `reasoningArtifacts` 后也可在下一轮精确回放。
+- 新增 Vertex Anthropic rawPredict 共享外壳，复用批次 7 的 Anthropic Messages body、非流式 parser 和流式 Decoder；认证 Token 只由 Facade 注入 `Authorization` Header，Provider Core 不持有认证状态。
+- Vertex URL 构建现正式使用 Profile 中已有的 `projectId` 与 `location`，生成完整的 `/v1/projects/{project}/locations/{location}/publishers/{publisher}/models/{model}:{action}` 资源路径；仍兼容完整自定义端点与已包含资源路径的 Base URL。
+- 新增独立的 canonical `EmbeddingRequest`、`EmbeddingResponse`、`EmbeddingProviderAdapter` 与执行器，统一 OpenAI、Gemini、Cohere 和 Vertex 的单条/批量输入、任务类型、维度、编码格式、usage 与错误语义；Gemini Embedding 2 的任务前缀和 Vertex predict 路径由共享 Core 构建。
+- 桌面 OpenAI/Gemini/Cohere/Vertex Embedding 与移动 Gemini/Vertex 兼容入口均接入共享 Embedding 执行器，删除桌面重复协议与直接 fetch；模型列表终态仍按批次 10 统一，本批不把列表响应强行并入聊天或 Embedding 接口。
+- 共享包现为 12 个测试文件/51 个用例，根 Vitest 全集 70 个测试文件/459 个用例，移动端全量 10 个测试文件/28 个用例；lint、共享包及两端类型检查、两端 Vite 生产构建均通过。lint 仅保留 `mermaidFixer.ts` 既有的 4 条 unreachable warning，构建仅保留既有第三方 `eval`、大 chunk、动态导入、Node 外部化和插件耗时提示。
+
+实施顺序相对原计划有一处受控调整：仓库已经存在多组 Provider Adapter 单测，因此先落地阶段 1 的无业务侵入骨架和公共分帧器，再继续补齐阶段 0 的完整 wire fixture、两端差分记录和性能基线。现阶段阶段 0 已完成移动 Facade、OpenAI-Compatible、OpenAI Responses、Claude、Cohere、Gemini、Vertex 与 Embedding 基线，其余双端差分记录和大文本/文件/媒体性能基线仍未完成；阶段 1.5 已完成移动 Facade及双端 OpenAI-Compatible、OpenAI Responses、Claude、Cohere、Gemini、Vertex 的平台请求隔离；阶段 2/3 与批次 7/8 已完成。下一主线进入批次 9 的 Transport、文件引用、安全与真机闭环，Android/iOS 真机流式读取、取消和后台切换行为也在该批验证。
 
 此前记录的全仓验证阻塞均已处理：Smart OCR 历史表格引用改用 Element Plus 导出的 `TableInstance`；OpenAI Adapter 测试已与第三方兼容模型支持 `reasoning_effort` 的现行契约对齐，并保留不支持模型的负向覆盖；聊天草稿测试将一次性模块加载移出 `beforeEach`，避免全量并发时触发 hook 超时。桌面 `check:frontend`、根 Vitest 全集（59 个测试文件、417 个用例）及桌面 Vite 生产构建均已通过。
 
@@ -478,15 +488,15 @@ export interface TransportObserver {
 
 ### 8.1. 当前状态核查（2026-07-15）
 
-| 原阶段                         | 状态               | 已落地                                                                                                    | 未闭环                                                                                                      |
-| ------------------------------ | ------------------ | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| 阶段 0：契约冻结与基线         | 部分完成           | 移动 `sendRequest` Facade、OpenAI-Compatible、Responses、Claude 与 Cohere wire/stream fixture、正文/推理/usage 契约已冻结 | Gemini、Vertex fixture 与其余双端差分记录尚缺；大文本、文件和媒体性能基线尚缺                              |
-| 阶段 1：共享包骨架             | 已完成             | `packages/llm-core`、canonical DTO、Wire 类型、LocalFileRef、SSE/JSONL 分帧器及独立测试已落地             | 无阻塞项，后续按 Provider 扩展类型                                                                          |
-| 阶段 1.5：应用依赖解耦         | 部分完成           | 移动请求入口、双端 OpenAI-Compatible/Responses/Claude/Cohere 和双端 Transport 已完成依赖收束               | Gemini、Vertex 仍直接依赖应用 fetch、logger、error handler、i18n、Header resolver 等模块                   |
-| 阶段 2：桌面 OpenAI-Compatible | 已完成             | 共享纯 Adapter、统一执行器、桌面 Transport、canonical 多媒体/DeepSeek/扩展映射、流式与非流式接线和差分回归已完成 | 无；真实移动端行为统一留待批次 9                                                                          |
-| 阶段 3：移动 OpenAI-Compatible | 代码完成，真机待验 | 移动 Transport、canonical 映射、兼容 Facade、旧 builder/parser/SSE 循环删除和回归测试已完成               | Android/iOS 的真实流式读取、取消与后台切换尚未验证                                                          |
-| 阶段 4：其他 Provider          | 进行中             | OpenAI Responses、Anthropic Messages、Cohere Chat 共享 Adapter、双端 Facade、wire/stream fixture 与差分回归已完成 | Gemini、Vertex、Embedding、模型列表和媒体能力仍未共享                                                       |
-| 阶段 5：Rust Transport 优化    | 未开始             | 桌面 Transport 已对暂不支持的 tagged FileRef 显式拒绝，避免静默误发                                       | raw/json-expand、multipart/file-ref 原生展开、Client 池、capability token、严格 CORS 和性能复测均未落地     |
+| 原阶段                         | 状态               | 已落地                                                                                                                                               | 未闭环                                                                                                  |
+| ------------------------------ | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| 阶段 0：契约冻结与基线         | 部分完成           | 移动 `sendRequest` Facade、OpenAI-Compatible、Responses、Claude、Cohere、Gemini、Vertex 与 Embedding wire/stream fixture、正文/推理/usage 契约已冻结 | 其余双端差分记录尚缺；大文本、文件和媒体性能基线尚缺                                                    |
+| 阶段 1：共享包骨架             | 已完成             | `packages/llm-core`、canonical DTO、Wire 类型、LocalFileRef、SSE/JSONL 分帧器及独立测试已落地                                                        | 无阻塞项，后续按 Provider 扩展类型                                                                      |
+| 阶段 1.5：应用依赖解耦         | 已完成             | 移动请求入口、双端 OpenAI-Compatible/Responses/Claude/Cohere/Gemini/Vertex 和双端 Transport 已完成依赖收束                                           | 无；媒体与模型列表按后续能力批次接入                                                                    |
+| 阶段 2：桌面 OpenAI-Compatible | 已完成             | 共享纯 Adapter、统一执行器、桌面 Transport、canonical 多媒体/DeepSeek/扩展映射、流式与非流式接线和差分回归已完成                                     | 无；真实移动端行为统一留待批次 9                                                                        |
+| 阶段 3：移动 OpenAI-Compatible | 代码完成，真机待验 | 移动 Transport、canonical 映射、兼容 Facade、旧 builder/parser/SSE 循环删除和回归测试已完成                                                          | Android/iOS 的真实流式读取、取消与后台切换尚未验证                                                      |
+| 阶段 4：其他 Provider          | 进行中             | OpenAI Responses、Anthropic Messages、Cohere Chat、Gemini、Vertex 与四类 Embedding 共享 Adapter、双端 Facade、fixture 与差分回归已完成               | 模型列表、同步媒体与异步媒体能力仍未共享                                                                |
+| 阶段 5：Rust Transport 优化    | 未开始             | 桌面 Transport 已对暂不支持的 tagged FileRef 显式拒绝，避免静默误发                                                                                  | raw/json-expand、multipart/file-ref 原生展开、Client 池、capability token、严格 CORS 和性能复测均未落地 |
 
 当前不存在需要先停工清债的架构阻塞。下一步的主要成本已经从“搭骨架”转为“迁移重复协议实现”；如果继续把依赖解耦、共享 Adapter、桌面接线、移动接线分别算作独立批次，会反复支付差分测试、全量类型检查和两端构建成本。
 
@@ -517,11 +527,13 @@ export interface TransportObserver {
 - 删除两端被取代的 Responses、Claude、Cohere 请求构建、响应解析和 SSE 循环；保留仅属于应用层的兼容映射。
 - 验收以三类 Provider 的最终 `WireRequest`、流式事件、`LlmResponse` 双端等价为准，不把“完成某一个 Provider”提前算作整批完成。
 
-#### 批次 8：Google 协议族与向量能力（Gemini + Vertex AI + Embedding）
+#### 批次 8：Google 协议族与向量能力（Gemini + Vertex AI + Embedding，已完成）
+
+完成状态：Gemini Developer API、Vertex Google、Vertex Anthropic 与 OpenAI/Gemini/Cohere/Vertex Embedding 已完成共享 Core、桌面/移动接线、旧实现删除和全量验收；移动端同步补齐 Gemini thought signature 回放。批次 8 于 2026-07-15 闭环。
 
 - 将 Gemini Developer API、Vertex Gemini 和 Vertex Anthropic 的共有消息、内容 part、工具、reasoning、usage 与流事件归一化为共享构件。
 - 同批迁移 Gemini、Vertex AI 的桌面与移动聊天链路，覆盖 Vertex 鉴权/Header 差异，但不把认证状态放入共享 Core。
-- 扩展 canonical Embedding 请求/响应，并迁移 OpenAI、Gemini、Cohere 的 Embedding builder/parser；模型列表只复用 URL/Header/Transport 构件，不强行塞入聊天 Adapter 接口。
+- 扩展 canonical Embedding 请求/响应，并迁移 OpenAI、Gemini、Cohere、Vertex 的 Embedding builder/parser；模型列表终态统一归入批次 10，不强行塞入聊天或 Embedding Adapter 接口。
 - 补齐多模态输入、tool call/tool result、Gemini thought、Vertex Claude、批量 Embedding 和维度/usage 差分 fixture。
 - 删除已取代的两端 Gemini/Vertex 聊天实现和桌面重复 Embedding 协议逻辑，并完成共享包、桌面、移动全量验收。
 

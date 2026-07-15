@@ -12,442 +12,336 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {
+  executeProviderRequest,
+  googleGenerateContentAdapter,
+  parseGoogleGenerateContentResponseValue,
+  type JsonValue,
+  type LlmMessage as CoreLlmMessage,
+  type LlmMessageContent as CoreLlmMessageContent,
+  type LlmRequest as CoreLlmRequest,
+  type LlmResponse as CoreLlmResponse,
+  type LlmStreamEvent,
+  type MediaAssetRef,
+  type ProviderProfile,
+} from "@aiohub/llm-core";
+import type {
+  LlmMessage,
+  LlmMessageContent,
+  LlmRequestOptions,
+  LlmResponse,
+} from "@/llm-apis/common";
 import type { LlmProfile } from "@/types/llm-profiles";
-import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
-import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
-import { parseSSEStream, extractTextFromSSE } from "@utils/sse-parser";
 import {
   applyCustomParameters,
   cleanPayload,
+  inferImageMimeType,
 } from "@/llm-apis/request-builder";
-import { asyncJsonStringify } from "@/utils/serialization";
-import {
-  geminiUrlHandler,
-  buildGeminiContents,
-  buildGeminiGenerationConfig,
-  buildGeminiTools,
-  buildGeminiToolConfig,
-  buildGeminiSafetySettings,
-  GeminiRequest,
-} from "./utils";
-import { extractGeminiReasoningArtifacts } from "./reasoning-artifacts";
+import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
 import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
+import {
+  extractGeminiReasoningArtifacts,
+  getGeminiReplayParts,
+} from "./reasoning-artifacts";
 
-/**
- * 映射 Gemini finishReason 到通用格式
- */
-function mapGeminiFinishReason(
-  reason: string | undefined
-): LlmResponse["finishReason"] {
-  if (!reason) return null;
-  const reasonMap: Record<string, LlmResponse["finishReason"]> = {
-    STOP: "stop",
-    MAX_TOKENS: "max_tokens",
-    SAFETY: "content_filter",
-    RECITATION: "content_filter",
-    LANGUAGE: "content_filter",
-    OTHER: "stop",
-    BLOCKLIST: "content_filter",
-    PROHIBITED_CONTENT: "content_filter",
-    SPII: "content_filter",
-    MALFORMED_FUNCTION_CALL: "stop",
-    IMAGE_SAFETY: "content_filter",
-  };
-  return reasonMap[reason] || "stop";
-}
+type GeminiRequestOptions = LlmRequestOptions & {
+  cachedContent?: string;
+  enableCodeExecution?: boolean;
+  enableEnhancedCivicAnswers?: boolean;
+  mediaResolution?: string;
+  responseModalities?: string[];
+  safetySettings?: unknown;
+  speechConfig?: unknown;
+  thinkingLevel?: string;
+};
 
-/**
- * 解析 Gemini Logprobs 结果
- */
-function parseGeminiLogprobs(logprobsResult: any): LlmResponse["logprobs"] {
-  if (!logprobsResult?.topCandidates) return undefined;
-  const content = logprobsResult.topCandidates
-    .map((topCandidate: any) => {
-      if (!topCandidate.candidates?.[0]) return null;
-      const candidate = topCandidate.candidates[0];
-      return {
-        token: candidate.token || "",
-        logprob: candidate.logProbability || 0,
-        bytes: null,
-        topLogprobs: topCandidate.candidates.slice(0, 5).map((c: any) => ({
-          token: c.token || "",
-          logprob: c.logProbability || 0,
-          bytes: null,
-        })),
-      };
-    })
-    .filter(Boolean);
-  return content.length > 0 ? { content } : undefined;
-}
-
-/**
- * 解析 Gemini API 响应
- */
-export function parseGeminiResponse(data: any): LlmResponse {
-  const candidate = data.candidates?.[0];
-  if (!candidate) throw new Error(`Gemini API 响应格式异常: 没有候选回答`);
-
-  let content = "";
-  let toolCalls: LlmResponse["toolCalls"] = undefined;
-  let thoughtsContent = "";
-  const images: LlmResponse["images"] = [];
-  const audios: LlmResponse["audios"] = [];
-
-  if (candidate.content?.parts) {
-    for (const part of candidate.content.parts) {
-      if (
-        !part.text &&
-        !part.functionCall &&
-        !part.executableCode &&
-        !part.codeExecutionResult &&
-        !part.inlineData
-      )
-        continue;
-      if (part.thought && part.text) {
-        thoughtsContent += part.text;
-        continue;
-      }
-      if (part.text) content += part.text;
-      else if (part.inlineData) {
-        const mimeType = part.inlineData.mimeType;
-        const base64Data = part.inlineData.data;
-        if (mimeType.startsWith("image/")) {
-          images.push({
-            b64_json: base64Data,
-          });
-        } else if (mimeType.startsWith("audio/")) {
-          audios.push({
-            b64_json: base64Data,
-            format: mimeType.split("/")[1],
-          });
-        }
-      } else if (part.functionCall) {
-        if (!toolCalls) toolCalls = [];
-        toolCalls.push({
-          id: `call_${Date.now()}_${toolCalls.length}`,
-          type: "function",
-          function: {
-            name: part.functionCall.name,
-            arguments: JSON.stringify(part.functionCall.args || {}),
-          },
-        });
-      } else if (part.executableCode) {
-        content += `\n\`\`\`${part.executableCode.language.toLowerCase()}\n${part.executableCode.code}\n\`\`\`\n`;
-      } else if (part.codeExecutionResult) {
-        const outcomeText =
-          part.codeExecutionResult.outcome === "OUTCOME_OK" ? "成功" : "失败";
-        content += `\n**代码执行结果 (${outcomeText}):**\n\`\`\n${part.codeExecutionResult.output}\n\`\`\`\n`;
-      }
-    }
-  }
-
-  if (!content && !toolCalls) {
-    if (data.promptFeedback?.blockReason)
-      throw new Error(`请求被屏蔽: ${data.promptFeedback.blockReason}`);
-    throw new Error(`Gemini API 响应格式异常: ${JSON.stringify(data)}`);
-  }
-
-  const result: LlmResponse = {
-    content,
-    finishReason: mapGeminiFinishReason(candidate.finishReason),
-  };
-
-  if (images.length > 0) result.images = images;
-  if (audios.length > 0) result.audios = audios;
-
-  if (data.usageMetadata) {
-    result.usage = {
-      promptTokens: data.usageMetadata.promptTokenCount || 0,
-      completionTokens: data.usageMetadata.candidatesTokenCount || 0,
-      totalTokens: data.usageMetadata.totalTokenCount || 0,
-    };
-  }
-
-  // 解析 Grounding 元数据（Google Search 引用）
-  if (candidate.groundingMetadata) {
-    const gm = candidate.groundingMetadata;
-    const annotations: any[] = [];
-
-    // 优先使用 groundingSupports（提供精确的文本位置映射）
-    if (gm.groundingSupports && gm.groundingChunks) {
-      for (const support of gm.groundingSupports) {
-        const segment = support.segment;
-        if (!segment || !support.groundingChunkIndices) continue;
-        for (const chunkIndex of support.groundingChunkIndices) {
-          const chunk = gm.groundingChunks[chunkIndex];
-          if (chunk?.web) {
-            annotations.push({
-              type: "url_citation" as const,
-              urlCitation: {
-                startIndex: segment.startIndex || 0,
-                endIndex: segment.endIndex || 0,
-                url: chunk.web.uri,
-                title: chunk.web.title || chunk.web.uri,
-              },
-            });
-          }
-        }
-      }
-    } else if (gm.groundingChunks) {
-      // 回退：只有 chunks 没有 supports 时，使用简单映射
-      for (const chunk of gm.groundingChunks) {
-        if (chunk.web) {
-          annotations.push({
-            type: "url_citation" as const,
-            urlCitation: {
-              startIndex: 0,
-              endIndex: 0,
-              url: chunk.web.uri,
-              title: chunk.web.title || chunk.web.uri,
-            },
-          });
-        }
-      }
-    }
-
-    if (annotations.length > 0) {
-      result.annotations = annotations;
-    }
-  }
-
-  if (toolCalls) result.toolCalls = toolCalls;
-  if (thoughtsContent) result.reasoningContent = thoughtsContent;
-  const reasoningArtifacts = extractGeminiReasoningArtifacts(
-    candidate.content?.parts
+export function parseGeminiResponse(data: unknown): LlmResponse {
+  return toDesktopGeminiResponse(
+    parseGoogleGenerateContentResponseValue(data),
+    false
   );
-  if (reasoningArtifacts) result.reasoningArtifacts = reasoningArtifacts;
-  if (candidate.logprobsResult)
-    result.logprobs = parseGeminiLogprobs(candidate.logprobsResult);
-
-  return result;
 }
 
-/**
- * 调用 Google Gemini API
- */
 export const callGeminiChatApi = async (
   profile: LlmProfile,
   options: LlmRequestOptions
 ): Promise<LlmResponse> => {
-  const apiKey =
-    profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
-  const endpoint =
-    options.stream && options.onStream
-      ? `models/${options.modelId}:streamGenerateContent`
-      : `models/${options.modelId}:generateContent`;
-  const baseUrl = geminiUrlHandler.buildUrl(profile.baseUrl, endpoint);
-  const url = `${baseUrl}?key=${apiKey}${options.stream ? "&alt=sse" : ""}`;
-
-  const body: GeminiRequest = {
-    contents: buildGeminiContents(options.messages || []),
-    generationConfig: buildGeminiGenerationConfig(options),
-  };
-
-  const systemMessages = (options.messages || []).filter(
-    (m) => m.role === "system"
-  );
-  if (systemMessages.length > 0) {
-    const systemContent = systemMessages
-      .map((m) =>
-        typeof m.content === "string" ? m.content : JSON.stringify(m.content)
-      )
-      .join("\n\n");
-    body.systemInstruction = { parts: [{ text: systemContent }] };
-  }
-
-  const tools = buildGeminiTools(options);
-  if (tools) body.tools = tools;
-  const toolConfig = buildGeminiToolConfig(options);
-  if (toolConfig) body.toolConfig = toolConfig;
-  const safetySettings = buildGeminiSafetySettings(options);
-  if (safetySettings) body.safetySettings = safetySettings;
-
-  applyCustomParameters(body, options);
-  cleanPayload(body);
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  if (options.requestId) {
-    headers["X-Request-ID"] = options.requestId;
-  }
-
-  // Gemini 不支持 requestId 作为请求体参数，主动清理掉
-  if ("requestId" in body) {
-    delete body.requestId;
-  }
-
-  Object.assign(headers, resolveCustomHeaders(profile.customHeaders));
-
-  if (options.stream && options.onStream) {
-    const response = await fetchWithTimeout(
-      url,
-      {
-        method: "POST",
-        headers,
-        body: await asyncJsonStringify(body),
-        hasLocalFile: options.hasLocalFile,
-        forceProxy: options.forceProxy,
-        relaxIdCerts: options.relaxIdCerts,
+  const request = toGeminiCoreRequest(options as GeminiRequestOptions);
+  const response = await executeProviderRequest({
+    adapter: googleGenerateContentAdapter,
+    profile: toGeminiProviderProfile(profile),
+    request,
+    transport: desktopLlmTransport,
+    transportOptions: {
+      requestId: request.requestId ?? createRequestId(),
+      signal: options.signal,
+      timeoutMs: options.timeout,
+      network: {
+        strategy: options.forceProxy ? "proxy" : options.networkStrategy,
+        relaxInvalidCerts: options.relaxIdCerts,
         http1Only: options.http1Only,
-        isStreaming: true,
       },
-      options.timeout,
-      options.signal
-    );
+    },
+    onEvent: (event: LlmStreamEvent) => {
+      if (event.type === "text-delta") options.onStream?.(event.delta);
+      if (event.type === "reasoning-delta") {
+        options.onReasoningStream?.(event.delta);
+      }
+    },
+  });
 
-    await ensureResponseOk(response);
-    if (!response.body) throw new Error("响应体为空");
+  return toDesktopGeminiResponse(response, request.stream === true);
+};
 
-    const reader = response.body.getReader();
-    let fullContent = "";
-    let usage: LlmResponse["usage"] | undefined;
-    let finishReason: LlmResponse["finishReason"] = null;
-    let toolCalls: LlmResponse["toolCalls"] = undefined;
-    let reasoningContent = "";
-    let streamAnnotations: LlmResponse["annotations"] = undefined;
-    const streamReplayParts: any[] = [];
+export function toGeminiProviderProfile(
+  profile: LlmProfile,
+  options?: Record<string, JsonValue>
+): ProviderProfile {
+  return {
+    provider: profile.type,
+    baseUrl: profile.baseUrl,
+    apiKey: profile.apiKeys?.[0],
+    headers: resolveCustomHeaders(profile.customHeaders),
+    endpoints: profile.customEndpoints,
+    options,
+  };
+}
 
-    await parseSSEStream(
-      reader,
-      (data) => {
-        try {
-          const json = JSON.parse(data);
-          if (json.usageMetadata) {
-            usage = {
-              promptTokens: json.usageMetadata.promptTokenCount || 0,
-              completionTokens: json.usageMetadata.candidatesTokenCount || 0,
-              totalTokens: json.usageMetadata.totalTokenCount || 0,
-            };
-          }
-          if (json.candidates?.[0]?.finishReason)
-            finishReason = mapGeminiFinishReason(
-              json.candidates[0].finishReason
-            );
-          const parts = json.candidates?.[0]?.content?.parts;
-          if (parts && Array.isArray(parts)) {
-            streamReplayParts.push(...parts);
-            for (const part of parts) {
-              if (part.text) {
-                if (part.thought) {
-                  reasoningContent += part.text;
-                  if (options.onReasoningStream)
-                    options.onReasoningStream(part.text);
-                } else {
-                  fullContent += part.text;
-                  options.onStream!(part.text);
-                }
-              } else if (part.functionCall) {
-                toolCalls = [
-                  {
-                    id: `call_${Date.now()}`,
-                    type: "function",
-                    function: {
-                      name: part.functionCall.name,
-                      arguments: JSON.stringify(part.functionCall.args || {}),
-                    },
-                  },
-                ];
-              }
-            }
-          }
-          // 解析流式 Grounding 元数据
-          const gm = json.candidates?.[0]?.groundingMetadata;
-          if (gm) {
-            const annotations: any[] = [];
-            if (gm.groundingSupports && gm.groundingChunks) {
-              for (const support of gm.groundingSupports) {
-                const segment = support.segment;
-                if (!segment || !support.groundingChunkIndices) continue;
-                for (const chunkIndex of support.groundingChunkIndices) {
-                  const chunk = gm.groundingChunks[chunkIndex];
-                  if (chunk?.web) {
-                    annotations.push({
-                      type: "url_citation" as const,
-                      urlCitation: {
-                        startIndex: segment.startIndex || 0,
-                        endIndex: segment.endIndex || 0,
-                        url: chunk.web.uri,
-                        title: chunk.web.title || chunk.web.uri,
-                      },
-                    });
-                  }
-                }
-              }
-            } else if (gm.groundingChunks) {
-              for (const chunk of gm.groundingChunks) {
-                if (chunk.web) {
-                  annotations.push({
-                    type: "url_citation" as const,
-                    urlCitation: {
-                      startIndex: 0,
-                      endIndex: 0,
-                      url: chunk.web.uri,
-                      title: chunk.web.title || chunk.web.uri,
-                    },
-                  });
-                }
-              }
-            }
-            if (annotations.length > 0) {
-              streamAnnotations = annotations;
-            }
-          }
-        } catch {
-          const text = extractTextFromSSE(data, "gemini");
-          if (text) {
-            fullContent += text;
-            options.onStream!(text);
-          }
-        }
+export function toGeminiCoreRequest(
+  options: GeminiRequestOptions
+): CoreLlmRequest {
+  const extensions: Record<string, JsonValue> = {};
+  applyCustomParameters(extensions, options);
+  cleanPayload(extensions);
+
+  return {
+    model: options.modelId,
+    messages: (options.messages ?? []).map(toCoreMessage),
+    stream: Boolean(
+      options.stream && (options.onStream || options.onReasoningStream)
+    ),
+    maxTokens: options.maxTokens,
+    maxCompletionTokens: options.maxCompletionTokens,
+    temperature: options.temperature,
+    topP: options.topP,
+    topK: options.topK,
+    frequencyPenalty: options.frequencyPenalty,
+    presencePenalty: options.presencePenalty,
+    stop: options.stop,
+    seed: options.seed,
+    logprobs: options.logprobs,
+    topLogprobs: options.topLogprobs,
+    reasoningEffort: options.reasoningEffort,
+    tools: options.tools?.map((tool) => ({
+      type: "function" as const,
+      function: {
+        name: tool.function.name,
+        description: tool.function.description,
+        parameters: toJsonValue(tool.function.parameters) ?? {},
+        strict: tool.function.strict,
       },
-      undefined,
-      options.signal
-    );
+    })),
+    toolChoice: options.toolChoice,
+    responseFormat: toJsonValue(options.responseFormat),
+    requestId: options.requestId,
+    webSearchEnabled: options.webSearchEnabled === true,
+    thinkingEnabled: options.thinkingEnabled,
+    thinkingBudget: options.thinkingBudget,
+    thinkingLevel: options.thinkingLevel,
+    includeThoughts: options.includeThoughts,
+    safetySettings: toJsonValue(options.safetySettings),
+    enableCodeExecution: options.enableCodeExecution,
+    speechConfig: toJsonValue(options.speechConfig),
+    responseModalities: options.responseModalities,
+    mediaResolution: options.mediaResolution,
+    enableEnhancedCivicAnswers: options.enableEnhancedCivicAnswers,
+    cachedContent: options.cachedContent,
+    extraBody: toJsonObject(options.extraBody),
+    extensions,
+  };
+}
 
-    const result: LlmResponse = {
-      content: fullContent,
-      usage,
-      finishReason,
-      toolCalls,
-      isStream: true,
+function toCoreMessage(message: LlmMessage): CoreLlmMessage {
+  const replayParts =
+    message.role === "assistant" ? getGeminiReplayParts(message) : undefined;
+  return {
+    role: message.role,
+    content:
+      typeof message.content === "string"
+        ? message.content
+        : message.content.map(toCoreContent),
+    prefix: message.prefix,
+    ...(replayParts
+      ? { metadata: { geminiReplayParts: toJsonValue(replayParts) ?? [] } }
+      : {}),
+  };
+}
+
+function toCoreContent(content: LlmMessageContent): CoreLlmMessageContent {
+  switch (content.type) {
+    case "text":
+      return { type: "text", text: content.text };
+    case "image": {
+      const data = toBase64(content.imageBase64);
+      return {
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: inferImageMimeType(data),
+          data,
+        },
+      };
+    }
+    case "audio":
+      return { type: "audio", source: toJsonValue(content.source) ?? {} };
+    case "video":
+      return {
+        type: "video",
+        source: toJsonValue(content.source) ?? {},
+        metadata: toJsonValue(content.videoMetadata),
+      };
+    case "document":
+      return { type: "document", source: toJsonValue(content.source) ?? {} };
+    case "tool_use":
+      return {
+        type: "tool_use",
+        id: content.toolUseId,
+        name: content.toolName,
+        input: toJsonValue(content.toolInput) ?? {},
+      };
+    case "tool_result":
+      return {
+        type: "tool_result",
+        toolUseId: content.toolResultId,
+        content:
+          typeof content.toolResultContent === "string"
+            ? content.toolResultContent
+            : (toJsonValue(content.toolResultContent.map(toCoreContent)) ?? []),
+        isError: content.isError,
+      };
+  }
+}
+
+export function toDesktopGeminiResponse(
+  response: CoreLlmResponse,
+  isStream: boolean
+): LlmResponse {
+  const metadata = asRecord(response.metadata);
+  const geminiParts = metadata?.geminiParts;
+  const reasoningArtifacts = extractGeminiReasoningArtifacts(geminiParts);
+  const images = response.images?.map(mapCoreImage);
+  const audios = response.audios?.map(mapCoreAudio);
+
+  return {
+    content: response.content,
+    reasoningContent: response.reasoningContent,
+    reasoningArtifacts,
+    finishReason: response.finishReason as LlmResponse["finishReason"],
+    usage: response.usage,
+    toolCalls: response.toolCalls,
+    annotations: response.annotations?.map((annotation) => {
+      const citation = asRecord(
+        annotation.url_citation ?? annotation.urlCitation
+      );
+      return {
+        type: "url_citation" as const,
+        urlCitation: {
+          startIndex: readNumber(citation?.start_index) ?? 0,
+          endIndex: readNumber(citation?.end_index) ?? 0,
+          url: readString(citation?.url) ?? "",
+          title: readString(citation?.title) ?? "",
+        },
+      };
+    }),
+    logprobs: metadata?.logprobs as LlmResponse["logprobs"],
+    images,
+    revisedPrompt: images?.[0]?.revisedPrompt,
+    audios,
+    ...(isStream ? { isStream: true } : {}),
+  };
+}
+
+function mapCoreImage(image: MediaAssetRef) {
+  if (image.kind === "inline-base64") {
+    return { b64_json: image.data, revisedPrompt: image.revisedPrompt };
+  }
+  return {
+    url: image.kind === "remote-url" ? image.url : image.id,
+    revisedPrompt: image.revisedPrompt,
+  };
+}
+
+function mapCoreAudio(audio: MediaAssetRef) {
+  if (audio.kind === "inline-base64") {
+    return {
+      b64_json: audio.data,
+      format: audio.contentType.split("/")[1],
     };
-    if (reasoningContent) result.reasoningContent = reasoningContent;
-    const reasoningArtifacts =
-      extractGeminiReasoningArtifacts(streamReplayParts);
-    if (reasoningArtifacts) result.reasoningArtifacts = reasoningArtifacts;
-    if (streamAnnotations) result.annotations = streamAnnotations;
+  }
+  return { url: audio.kind === "remote-url" ? audio.url : audio.id };
+}
+
+function toBase64(value: string | ArrayBuffer | Uint8Array): string {
+  if (typeof value === "string") return value;
+  const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+function toJsonObject(value: unknown): Record<string, JsonValue> | undefined {
+  const result = toJsonValue(value);
+  return result && typeof result === "object" && !Array.isArray(result)
+    ? result
+    : undefined;
+}
+
+function toJsonValue(value: unknown): JsonValue | undefined {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean" ||
+    (typeof value === "number" && Number.isFinite(value))
+  ) {
+    return value;
+  }
+  if (value instanceof ArrayBuffer || value instanceof Uint8Array) {
+    return toBase64(value);
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map(toJsonValue)
+      .filter((item): item is JsonValue => item !== undefined);
+  }
+  if (typeof value === "object" && value !== null) {
+    const result: Record<string, JsonValue> = {};
+    for (const [key, item] of Object.entries(value)) {
+      const json = toJsonValue(item);
+      if (json !== undefined) result[key] = json;
+    }
     return result;
   }
+  return undefined;
+}
 
-  const stringifyStart = performance.now();
-  const serializedBody = await asyncJsonStringify(body);
-  const stringifyEnd = performance.now();
-  console.log(
-    `[Gemini] 序列化总耗时: ${(stringifyEnd - stringifyStart).toFixed(2)}ms, 类型: ${typeof serializedBody === "string" ? "string" : "Uint8Array"}`
-  );
+function asRecord(value: unknown): Record<string, any> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, any>)
+    : undefined;
+}
 
-  const fetchStart = performance.now();
-  const response = await fetchWithTimeout(
-    url,
-    {
-      method: "POST",
-      headers,
-      body: serializedBody,
-      hasLocalFile: options.hasLocalFile,
-      forceProxy: options.forceProxy,
-      relaxIdCerts: options.relaxIdCerts,
-      http1Only: options.http1Only,
-    },
-    options.timeout,
-    options.signal
-  );
-  const fetchEnd = performance.now();
-  console.log(
-    `[Gemini] fetch 调用耗时: ${(fetchEnd - fetchStart).toFixed(2)}ms`
-  );
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
 
-  await ensureResponseOk(response);
-  const data = await response.json();
-  return parseGeminiResponse(data);
-};
+function readNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
+}
+
+function createRequestId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `llm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}

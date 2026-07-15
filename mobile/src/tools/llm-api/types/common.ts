@@ -101,6 +101,14 @@ export type LlmMessageContent =
   | ToolUseContent
   | ToolResultContent;
 
+export interface LlmReasoningArtifact {
+  provider: string;
+  kind: string;
+  replayPolicy: "always" | "with_tool_calls" | "never";
+  payload: unknown;
+  visibleText?: string;
+}
+
 /**
  * LLM 消息结构
  */
@@ -112,6 +120,8 @@ export interface LlmMessage {
    * 如果为 true，该消息必须是列表中的最后一条，且 role 通常为 assistant
    */
   prefix?: boolean;
+  /** Provider-owned reasoning state for exact replay in later turns. */
+  reasoningArtifacts?: LlmReasoningArtifact[];
 }
 
 /**
@@ -636,6 +646,8 @@ export interface LlmResponse {
   };
   /** 推理内容（DeepSeek reasoning 模式） */
   reasoningContent?: string;
+  /** Provider-owned reasoning state for exact replay in later turns. */
+  reasoningArtifacts?: LlmReasoningArtifact[];
   /** 消息注释（如网络搜索的URL引用、文件搜索的文件引用） */
   annotations?: Annotation[];
   /** 音频响应数据 */

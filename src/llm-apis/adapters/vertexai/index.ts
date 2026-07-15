@@ -20,7 +20,7 @@ import type {
 } from "@/llm-apis/embedding-types";
 import { createModuleLogger } from "@utils/logger";
 import type { LlmAdapter } from "../index";
-import { vertexAiUrlHandler, detectPublisher } from "./utils";
+import { detectPublisher } from "./utils";
 import { callVertexAiGemini, callVertexAiEmbeddingApi } from "./google";
 import { callVertexAiClaude } from "./anthropic";
 
@@ -35,24 +35,7 @@ export const vertexAiAdapter: LlmAdapter = {
     profile: LlmProfile,
     options: LlmRequestOptions
   ): Promise<LlmResponse> => {
-    const apiKey = profile.apiKeys?.[0] || "";
     const publisher = detectPublisher(options.modelId);
-
-    // 构建端点 URL
-    let endpoint: string;
-    if (publisher === "google") {
-      endpoint =
-        options.stream && options.onStream
-          ? `publishers/google/models/${options.modelId}:streamGenerateContent`
-          : `publishers/google/models/${options.modelId}:generateContent`;
-    } else {
-      endpoint =
-        options.stream && options.onStream
-          ? `publishers/anthropic/models/${options.modelId}:streamRawPredict`
-          : `publishers/anthropic/models/${options.modelId}:rawPredict`;
-    }
-
-    const url = vertexAiUrlHandler.buildUrl(profile.baseUrl, endpoint);
 
     logger.info("分发 Vertex AI 请求", {
       publisher,
@@ -61,9 +44,9 @@ export const vertexAiAdapter: LlmAdapter = {
     });
 
     if (publisher === "google") {
-      return callVertexAiGemini(profile, options, url, apiKey);
+      return callVertexAiGemini(profile, options);
     } else {
-      return callVertexAiClaude(profile, options, url, apiKey);
+      return callVertexAiClaude(profile, options);
     }
   },
 
@@ -71,11 +54,6 @@ export const vertexAiAdapter: LlmAdapter = {
     profile: LlmProfile,
     options: EmbeddingRequestOptions
   ): Promise<EmbeddingResponse> => {
-    const apiKey = profile.apiKeys?.[0] || "";
-    // 目前 Vertex AI 仅支持 Google 模型的向量化
-    const endpoint = `publishers/google/models/${options.modelId}:predict`;
-    const url = vertexAiUrlHandler.buildUrl(profile.baseUrl, endpoint);
-
-    return callVertexAiEmbeddingApi(profile, options, url, apiKey);
+    return callVertexAiEmbeddingApi(profile, options);
   },
 };

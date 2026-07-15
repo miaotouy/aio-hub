@@ -118,6 +118,15 @@ export interface LlmRequest {
   webSearchEnabled?: boolean;
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
+  thinkingLevel?: string;
+  includeThoughts?: boolean;
+  safetySettings?: JsonValue;
+  enableCodeExecution?: boolean;
+  speechConfig?: JsonValue;
+  responseModalities?: string[];
+  mediaResolution?: string;
+  enableEnhancedCivicAnswers?: boolean;
+  cachedContent?: string;
   extraBody?: Record<string, JsonValue>;
   extensions?: Record<string, JsonValue>;
 }

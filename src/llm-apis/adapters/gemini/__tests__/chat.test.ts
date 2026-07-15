@@ -244,7 +244,7 @@ describe("Gemini Adapter - Chat", () => {
     const result = await callGeminiChatApi(mockProfile, options);
 
     expect(result.reasoningArtifacts).toHaveLength(1);
-    expect((result.reasoningArtifacts![0].payload as any).parts).toBe(
+    expect((result.reasoningArtifacts![0].payload as any).parts).toEqual(
       signedParts
     );
     expect(result.reasoningArtifacts![0]).toMatchObject({

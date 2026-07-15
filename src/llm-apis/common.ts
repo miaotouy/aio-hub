@@ -714,16 +714,21 @@ export const ensureResponseOk = async (response: Response): Promise<void> => {
  * Windows 上常因 Hyper-V/WinNAT 动态保留端口段导致默认端口绑定失败 (os error 10013)，
  * 后端会自动 fallback 到可用端口并通过返回值告知前端实际使用的端口。
  */
-let cachedProxyPort: number | null = null;
-let proxyServerPromise: Promise<number> | null = null;
+interface ProxyServerInfo {
+  port: number;
+  token: string;
+}
+
+let cachedProxyServer: ProxyServerInfo | null = null;
+let proxyServerPromise: Promise<ProxyServerInfo> | null = null;
 
 /**
- * 确保 LLM 代理服务已启动，返回实际绑定的端口
+ * 确保 LLM 代理服务已启动，返回实际端口与本次运行的 capability token。
  * 单例模式：并发调用共享同一个启动 Promise，避免重复 invoke
  */
-async function ensureProxyServer(): Promise<number> {
-  if (cachedProxyPort !== null) {
-    return cachedProxyPort;
+async function ensureProxyServer(): Promise<ProxyServerInfo> {
+  if (cachedProxyServer !== null) {
+    return cachedProxyServer;
   }
   if (proxyServerPromise) {
     return proxyServerPromise;
@@ -735,10 +740,10 @@ async function ensureProxyServer(): Promise<number> {
 
   proxyServerPromise = (async () => {
     try {
-      const info = await invoke<{ port: number }>("start_llm_proxy_server", {
+      const info = await invoke<ProxyServerInfo>("start_llm_proxy_server", {
         port: preferredPort,
       });
-      cachedProxyPort = info.port;
+      cachedProxyServer = info;
       if (info.port !== preferredPort) {
         logger.warn("LLM 代理服务端口已自动 fallback", {
           preferredPort,
@@ -747,7 +752,7 @@ async function ensureProxyServer(): Promise<number> {
       } else {
         logger.info("LLM 代理服务已启动", { port: info.port });
       }
-      return info.port;
+      return info;
     } catch (e) {
       // 启动失败：清理 Promise 以允许下次重试
       proxyServerPromise = null;
@@ -771,6 +776,7 @@ export const fetchWithTimeout = async (
     http1Only?: boolean;
     networkStrategy?: "auto" | "proxy" | "native";
     isStreaming?: boolean;
+    proxyBodyKind?: "raw" | "file-ref" | "multipart-manifest";
     /**
      * LLM Inspector 内部监控上下文。由上游 `useLlmRequest` / adapter 透传。
      * 当 `inspectorHookRegistry.shouldCaptureInternal()` 为 true 时，
@@ -1017,66 +1023,20 @@ export const fetchWithTimeout = async (
   };
 
   try {
-    // 劫持检测：如果显式指定了 hasLocalFile/forceProxy，或者开启了底层代理行为配置，则使用 Rust 代理发送请求
-    // hasLocalFile: 绕过浏览器在 JS 侧序列化巨型 Body 导致的 IPC 阻塞
-    // forceProxy: 绕过前端 Capabilities/CORS 限制
-    // relaxIdCerts/http1Only: 前端 fetch 不支持这些底层配置，必须走 Rust 代理
-    // 劫持检测：如果显式指定了 hasLocalFile/forceProxy，或者开启了底层代理行为配置，则使用 Rust 代理发送请求
-    // networkStrategy === 'native' 具有最高优先级，除非是前端 fetch 无法实现的底层配置
-    // 劫持检测逻辑：
-    // 默认全面转向 Rust 代理。
-    // 逃生通道：如果显式指定 networkStrategy 为 'native'，则强制走前端直连。
-    // 即使包含 local-file://，只要指定了 'native' 也会在前端处理（作为兜底）。
+    // 默认全面转向 Rust 代理。显式 native 可直连，但需要原生文件读取的请求
+    // 必须走代理，避免把 LocalFileRef 对象或本地路径直接发给 Provider。
     const isNative = options.networkStrategy === "native";
-    const useProxy = !isNative;
+    const requiresNativeFileAccess =
+      options.hasLocalFile ||
+      options.proxyBodyKind === "file-ref" ||
+      options.proxyBodyKind === "multipart-manifest";
+    const useProxy = !isNative || requiresNativeFileAccess;
 
     // 仅用于日志记录
     const bodyString = typeof options.body === "string" ? options.body : "";
     const hasLocalFileInBody = bodyString.includes("local-file://");
 
     if (useProxy) {
-      // ── FormData 分支（透明转发）：检测 body 是否为 FormData，直接转发到 /proxy ──
-      if (options.body instanceof FormData) {
-        const PROXY_PORT = await ensureProxyServer();
-
-        const appSettingsStore = useAppSettingsStore();
-        const settings = appSettingsStore.settings;
-
-        // 提取需要转发的原始 Header (如 Authorization)
-        const forwardHeaders: Record<string, string> = {};
-        if (options.headers) {
-          for (const [k, v] of Object.entries(options.headers)) {
-            const lowerK = k.toLowerCase();
-            // 过滤掉我们自己生成的元 Header 和 Content-Type (由 fetch 自动生成 boundary)
-            if (!lowerK.startsWith("x-") && lowerK !== "content-type") {
-              forwardHeaders[k] = v as string;
-            }
-          }
-        }
-
-        const formDataResponse = await window.fetch(
-          `http://127.0.0.1:${PROXY_PORT}/proxy`,
-          {
-            method: "POST",
-            headers: {
-              ...forwardHeaders,
-              "X-Target-URL": url,
-              "X-Request-ID":
-                (options.headers as Record<string, string>)?.["X-Request-ID"] ||
-                "",
-              "X-Proxy-Mode": settings.proxy?.mode || "system",
-              "X-Proxy-URL": settings.proxy?.customUrl || "",
-              "X-Relax-Certs": String(options.relaxIdCerts ?? true),
-              "X-HTTP1-Only": String(options.http1Only ?? true),
-            },
-            body: options.body, // FormData 原样传递
-            signal: controller.signal,
-          }
-        );
-        triggerInspectorResponse(formDataResponse);
-        return formDataResponse;
-      }
-
       logger.debug("触发代理模式", {
         hasLocalFile: options.hasLocalFile,
         hasLocalFileInBody,
@@ -1086,125 +1046,41 @@ export const fetchWithTimeout = async (
         isStreaming: options.isStreaming,
         networkStrategy: options.networkStrategy,
       });
-
-      let bodyObjForProxy: any = {}; // 默认为空对象
-
-      if (options.body) {
-        if (typeof options.body === "string") {
-          const bodySize = options.body.length;
-          logger.debug("代理 body 解析 (string)", {
-            sizeKB: (bodySize / 1024).toFixed(1),
-          });
-          const t0 = performance.now();
-          try {
-            bodyObjForProxy = JSON.parse(options.body);
-            logger.debug("代理 body JSON.parse 完成", {
-              elapsedMs: (performance.now() - t0).toFixed(2),
-            });
-          } catch (e) {
-            logger.warn("代理 body JSON.parse 失败", { error: String(e) });
-            // 如果不是 JSON，则无法通过代理处理
-            if (!options.forceProxy) {
-              return await window.fetch(url, {
-                ...options,
-                signal: controller.signal,
-              });
-            }
-          }
-        } else if (options.body instanceof Uint8Array) {
-          const bodySize = options.body.byteLength;
-          logger.debug("代理 body 解析 (Uint8Array)", {
-            sizeKB: (bodySize / 1024).toFixed(1),
-          });
-          const t0 = performance.now();
-          try {
-            const decoder = new TextDecoder();
-            const decoded = decoder.decode(options.body);
-            const t1 = performance.now();
-            logger.debug("代理 body TextDecoder.decode 完成", {
-              decodeMs: (t1 - t0).toFixed(2),
-            });
-            bodyObjForProxy = JSON.parse(decoded);
-            logger.debug("代理 body JSON.parse 完成", {
-              parseMs: (performance.now() - t1).toFixed(2),
-            });
-          } catch (e) {
-            logger.warn("代理 body Uint8Array decode/parse 失败", {
-              error: String(e),
-            });
-            if (!options.forceProxy) {
-              return await window.fetch(url, {
-                ...options,
-                signal: controller.signal,
-              });
-            }
-          }
-        }
-      }
-      // 确保代理服务已启动（端口由后端智能选择，失败会自动 fallback）
-      const PROXY_PORT = await ensureProxyServer();
-
-      // 获取当前代理设置
+      const proxyServer = await ensureProxyServer();
       const appSettingsStore = useAppSettingsStore();
       const settings = appSettingsStore.settings;
-      const proxySettings = settings.proxy
-        ? {
-            mode: settings.proxy.mode,
-            custom_url: settings.proxy.customUrl,
-          }
-        : undefined;
-
-      // 使用原生 fetch 请求本地代理
-      const proxyPayload = {
-        url,
-        method: options.method || "POST",
-        headers: (() => {
-          const h = { ...(options.headers as Record<string, string>) };
-          // 确保 Content-Type 被透传，且处理大小写不一致的问题
-          const hasContentType = Object.keys(h).some(
-            (k) => k.toLowerCase() === "content-type"
-          );
-          if (!hasContentType) {
-            h["Content-Type"] = "application/json";
-          }
-          return h;
-        })(),
-        body: bodyObjForProxy,
-        relax_invalid_certs: options.relaxIdCerts ?? true, // 默认开启以获得最大兼容性
-        http1_only: options.http1Only ?? true, // 默认开启以获得最大兼容性
-        proxy_settings: proxySettings,
-        is_streaming: options.isStreaming || false,
-      };
-      const t2 = performance.now();
-      const proxyBodyStr = JSON.stringify(proxyPayload);
-      logger.debug("代理请求 payload 序列化完成", {
-        stringifyMs: (performance.now() - t2).toFixed(2),
-        finalSizeKB: (proxyBodyStr.length / 1024).toFixed(1),
-      });
-
-      // 仅对非模型列表端点检查 model 字段（/v1/models 等 GET 请求本身不需要 model）
-      const isModelListEndpoint = /\/(?:models|api\/tags)\/?$/.test(
-        proxyPayload.url
-      );
-      if (
-        proxyPayload.body &&
-        !proxyPayload.body.model &&
-        !isModelListEndpoint
-      ) {
-        logger.warn("检测到代理请求体中缺失 model 字段!", {
-          url: proxyPayload.url,
-          bodyKeys: Object.keys(proxyPayload.body),
-        });
+      const proxyHeaders = new Headers(options.headers);
+      if (options.body instanceof FormData) {
+        proxyHeaders.delete("content-type");
       }
+      proxyHeaders.set("X-Proxy-Token", proxyServer.token);
+      proxyHeaders.set("X-AIO-Target-URL", url);
+      proxyHeaders.set("X-AIO-Proxy-Mode", settings.proxy?.mode || "system");
+      proxyHeaders.set("X-AIO-Proxy-URL", settings.proxy?.customUrl || "");
+      proxyHeaders.set(
+        "X-AIO-Relax-Certs",
+        String(options.relaxIdCerts ?? true)
+      );
+      proxyHeaders.set("X-AIO-HTTP1-Only", String(options.http1Only ?? true));
+      proxyHeaders.set("X-AIO-Streaming", String(options.isStreaming ?? false));
+      proxyHeaders.set("X-AIO-Body-Kind", options.proxyBodyKind || "raw");
 
+      const needsJsonExpansion =
+        options.proxyBodyKind === undefined &&
+        (options.hasLocalFile || hasLocalFileInBody);
+      if (needsJsonExpansion) {
+        proxyHeaders.set("X-AIO-JSON-Expand", "true");
+      }
+      const proxyPath = needsJsonExpansion
+        ? "/proxy/json-expand"
+        : "/proxy/raw";
+      const method = (options.method || "POST").toUpperCase();
       const proxyResponse = await window.fetch(
-        `http://127.0.0.1:${PROXY_PORT}/proxy`,
+        `http://127.0.0.1:${proxyServer.port}${proxyPath}`,
         {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: proxyBodyStr,
+          method,
+          headers: proxyHeaders,
+          body: method === "GET" || method === "HEAD" ? undefined : options.body,
           signal: controller.signal,
         }
       );

@@ -7,6 +7,10 @@
     ".": {
       "types": "./src/index.ts",
       "import": "./src/index.ts"
+    },
+    "./testing": {
+      "types": "./src/testing/transport-contract.ts",
+      "import": "./src/testing/transport-contract.ts"
     }
   },
   "scripts": {

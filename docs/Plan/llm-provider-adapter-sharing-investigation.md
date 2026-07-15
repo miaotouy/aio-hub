@@ -1,6 +1,6 @@
 # LLM Provider Adapter 多端共享与 Rust 边界调查
 
-> 状态：实施中（批次 8 已完成，下一主线为批次 9 Transport/文件引用/安全/真机）
+> 状态：实施中（批次 9 桌面 Transport/文件引用/安全增量已完成，下一步为真实 Tauri 基准、移动文件引用与真机）
 >
 > 最后更新：2026-07-15
 >
@@ -82,7 +82,16 @@
 - 桌面 OpenAI/Gemini/Cohere/Vertex Embedding 与移动 Gemini/Vertex 兼容入口均接入共享 Embedding 执行器，删除桌面重复协议与直接 fetch；模型列表终态仍按批次 10 统一，本批不把列表响应强行并入聊天或 Embedding 接口。
 - 共享包现为 12 个测试文件/51 个用例，根 Vitest 全集 70 个测试文件/459 个用例，移动端全量 10 个测试文件/28 个用例；lint、共享包及两端类型检查、两端 Vite 生产构建均通过。lint 仅保留 `mermaidFixer.ts` 既有的 4 条 unreachable warning，构建仅保留既有第三方 `eval`、大 chunk、动态导入、Node 外部化和插件耗时提示。
 
-实施顺序相对原计划有一处受控调整：仓库已经存在多组 Provider Adapter 单测，因此先落地阶段 1 的无业务侵入骨架和公共分帧器，再继续补齐阶段 0 的完整 wire fixture、两端差分记录和性能基线。现阶段阶段 0 已完成移动 Facade、OpenAI-Compatible、OpenAI Responses、Claude、Cohere、Gemini、Vertex 与 Embedding 基线，其余双端差分记录和大文本/文件/媒体性能基线仍未完成；阶段 1.5 已完成移动 Facade及双端 OpenAI-Compatible、OpenAI Responses、Claude、Cohere、Gemini、Vertex 的平台请求隔离；阶段 2/3 与批次 7/8 已完成。下一主线进入批次 9 的 Transport、文件引用、安全与真机闭环，Android/iOS 真机流式读取、取消和后台切换行为也在该批验证。
+批次 9 已完成第一个可验证增量：
+
+- 桌面 Axum 代理已拆分为 `/proxy/raw` 与 `/proxy/json-expand`：普通 JSON、文本、二进制与浏览器 `FormData` 直接流式转发，不再经过前端 `JSON.parse`、代理 envelope `JSON.stringify` 和 Rust envelope 解码；只有包含 tagged/兼容期文件引用的 JSON 才进入受控展开路径。
+- `LocalFileRef` 已在桌面端开放 JSON 嵌套、顶层文件体和 multipart part 三种形态。顶层文件与 multipart 本地文件由 Rust 使用文件流上传，文件内容不进入 WebView；嵌套 JSON 在 Rust 中读取并转换为 data URL。tagged 对象严格限制为 `kind/path/contentType`，普通 Provider JSON 和带额外字段的伪引用不会触发文件读取。
+- 代理启动时签发 48 字符的内存 capability token，并由当前 WebView 在 `X-Proxy-Token` 中携带；Rust 同时校验 Tauri/loopback Origin，CORS 只镜像已请求 Header，不再使用 permissive 模式。代理元 Header、token、Origin 和浏览器 fetch Header 不会上送 Provider，日志 URL 会删除 query/fragment，避免 API Key 与 token 落盘。
+- `reqwest::Client` 现按代理模式/URL、证书策略、HTTP 版本和是否绕过代理缓存复用；上游响应始终按字节流回传，状态与可转发 Header 保真，客户端断开继续通过 drop response stream 取消上游请求。
+- 新增 `@aiohub/llm-core/testing` 共享 Transport 合约套件，桌面与移动共同覆盖状态/Header、流式字节、超时/取消参数转发、状态校验错误和流中断；桌面另覆盖 legacy/tagged JSON、顶层文件和原生 multipart manifest。移动端 tagged/multipart/顶层文件引用仍显式拒绝，待移动原生上传边界落地。
+- 本增量通过共享 Core 51 个用例、根 Vitest 70 个文件/465 个用例、移动 Vitest 10 个文件/32 个用例、两端前端类型检查、两端后端 Clippy、lint 与两端 Vite 生产构建；lint 与构建仅保留既有 warning。Rust 代理新增 6 个安全/契约单测并通过。
+
+实施顺序相对原计划有一处受控调整：仓库已经存在多组 Provider Adapter 单测，因此先落地阶段 1 的无业务侵入骨架和公共分帧器，再继续补齐阶段 0 的完整 wire fixture、两端差分记录和性能基线。现阶段阶段 0 已完成移动 Facade、OpenAI-Compatible、OpenAI Responses、Claude、Cohere、Gemini、Vertex 与 Embedding 基线，其余双端差分记录和大文本/文件/媒体性能基线仍未完成；阶段 1.5 已完成移动 Facade及双端 OpenAI-Compatible、OpenAI Responses、Claude、Cohere、Gemini、Vertex 的平台请求隔离；阶段 2/3 与批次 7/8 已完成。批次 9 已完成桌面 raw/json-expand、文件引用、安全、Client 池与首组共享合约增量；下一主线是用真实 Tauri 运行态完成代理端到端/性能复测，设计移动端不经 WebView 大内存的文件上传边界，并验证 Android/iOS 流式读取、取消和后台切换。
 
 此前记录的全仓验证阻塞均已处理：Smart OCR 历史表格引用改用 Element Plus 导出的 `TableInstance`；OpenAI Adapter 测试已与第三方兼容模型支持 `reasoning_effort` 的现行契约对齐，并保留不支持模型的负向覆盖；聊天草稿测试将一次性模块加载移出 `beforeEach`，避免全量并发时触发 hook 超时。桌面 `check:frontend`、根 Vitest 全集（59 个测试文件、417 个用例）及桌面 Vite 生产构建均已通过。
 
@@ -496,7 +505,7 @@ export interface TransportObserver {
 | 阶段 2：桌面 OpenAI-Compatible | 已完成             | 共享纯 Adapter、统一执行器、桌面 Transport、canonical 多媒体/DeepSeek/扩展映射、流式与非流式接线和差分回归已完成                                     | 无；真实移动端行为统一留待批次 9                                                                        |
 | 阶段 3：移动 OpenAI-Compatible | 代码完成，真机待验 | 移动 Transport、canonical 映射、兼容 Facade、旧 builder/parser/SSE 循环删除和回归测试已完成                                                          | Android/iOS 的真实流式读取、取消与后台切换尚未验证                                                      |
 | 阶段 4：其他 Provider          | 进行中             | OpenAI Responses、Anthropic Messages、Cohere Chat、Gemini、Vertex 与四类 Embedding 共享 Adapter、双端 Facade、fixture 与差分回归已完成               | 模型列表、同步媒体与异步媒体能力仍未共享                                                                |
-| 阶段 5：Rust Transport 优化    | 未开始             | 桌面 Transport 已对暂不支持的 tagged FileRef 显式拒绝，避免静默误发                                                                                  | raw/json-expand、multipart/file-ref 原生展开、Client 池、capability token、严格 CORS 和性能复测均未落地 |
+| 阶段 5：Rust Transport 优化    | 进行中             | 桌面 raw/json-expand、嵌套/顶层/multipart FileRef、Client 池、capability token、Origin/CORS 与日志脱敏已落地；首组双端共享 Transport 合约已接线        | 真实 Tauri 端到端代理与性能复测、移动原生 FileRef 上传、Android/iOS 真机行为尚未闭环                    |
 
 当前不存在需要先停工清债的架构阻塞。下一步的主要成本已经从“搭骨架”转为“迁移重复协议实现”；如果继续把依赖解耦、共享 Adapter、桌面接线、移动接线分别算作独立批次，会反复支付差分测试、全量类型检查和两端构建成本。
 
@@ -538,6 +547,8 @@ export interface TransportObserver {
 - 删除已取代的两端 Gemini/Vertex 聊天实现和桌面重复 Embedding 协议逻辑，并完成共享包、桌面、移动全量验收。
 
 #### 批次 9：Transport、文件引用、安全与真机闭环
+
+完成状态：桌面代理、桌面三类文件引用、安全边界、Client 池和首组双端共享合约已完成；真实 Tauri 代理集成/性能数据、移动文件引用及 Android/iOS 真机验证仍在施工，本批尚未闭环。
 
 - 将桌面 Rust 代理拆分为 `/proxy/raw` 与 `/proxy/json-expand`，支持 JSON 嵌套 tagged `LocalFileRef`、multipart part 和顶层 `file-ref` 的受控原生读取。
 - 增加按稳定网络策略复用的 `reqwest::Client` 池，以及 capability token、严格 Origin/CORS 和敏感 Header/日志保护。

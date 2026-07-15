@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { runTransportContract } from "@aiohub/llm-core/testing";
 
 vi.mock("../../common", () => ({
   ensureResponseOk: vi.fn(),
@@ -6,6 +7,12 @@ vi.mock("../../common", () => ({
 }));
 
 import { createMobileLlmTransport } from "../mobile";
+
+runTransportContract({
+  name: "mobile shared transport contract",
+  createTransport: ({ fetch, ensureResponseOk }) =>
+    createMobileLlmTransport({ fetch, ensureResponseOk }),
+});
 
 describe("mobile LLM transport", () => {
   it("serializes JSON and preserves response status, headers, and chunks", async () => {

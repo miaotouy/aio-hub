@@ -14,9 +14,9 @@
 
 use axum::{
     body::Body,
-    extract::DefaultBodyLimit,
-    http::{HeaderMap as AxumHeaderMap, StatusCode},
-    routing::post,
+    extract::{DefaultBodyLimit, State},
+    http::{HeaderMap as AxumHeaderMap, Method, StatusCode},
+    routing::any,
     Router,
 };
 use base64::{engine::general_purpose::STANDARD, Engine as _};
@@ -26,8 +26,11 @@ use once_cell::sync::Lazy;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::path::Path;
+use std::sync::{Arc, Mutex as StdMutex};
 use tokio::sync::Mutex;
+use tokio_util::io::ReaderStream;
+use tower_http::cors::{AllowHeaders, AllowOrigin, CorsLayer};
 
 // 全局代理服务状态
 pub static PROXY_STATE: Lazy<Arc<Mutex<ProxyServiceState>>> =
@@ -37,39 +40,88 @@ pub static PROXY_STATE: Lazy<Arc<Mutex<ProxyServiceState>>> =
 pub struct ProxyServiceState {
     is_running: bool,
     port: u16,
+    token: String,
 }
 
-/// 启动结果：返回真实绑定的端口
+/// 启动结果：返回真实绑定的端口和仅在本次运行有效的 capability token。
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProxyServerInfo {
     pub port: u16,
+    pub token: String,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct ProxySettings {
-    pub mode: String,
-    pub custom_url: Option<String>,
+#[derive(Clone)]
+struct ProxyRouterState {
+    token: String,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct ProxyRequest {
-    pub url: String,
-    pub method: String,
-    pub headers: HashMap<String, String>,
-    pub body: serde_json::Value,
-    pub relax_invalid_certs: Option<bool>, // 是否放宽证书校验
-    pub http1_only: Option<bool>,          // 是否强制 HTTP/1.1
-    pub proxy_settings: Option<ProxySettings>, // 代理设置
-    pub is_streaming: Option<bool>,        // 是否为流式请求（SSE）
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct LocalFileRefPayload {
+    kind: String,
+    path: String,
+    content_type: Option<String>,
 }
 
-/// 递归处理 Body，查找并替换以 local-file:// 开头的本地路径
+fn parse_tagged_local_file_ref(
+    map: &serde_json::Map<String, serde_json::Value>,
+) -> Result<Option<LocalFileRefPayload>, String> {
+    if map.get("kind").and_then(serde_json::Value::as_str) != Some("local-file-ref") {
+        return Ok(None);
+    }
+
+    if map
+        .keys()
+        .any(|key| !matches!(key.as_str(), "kind" | "path" | "contentType"))
+    {
+        return Err("Invalid tagged local file reference".into());
+    }
+
+    let file_ref =
+        serde_json::from_value::<LocalFileRefPayload>(serde_json::Value::Object(map.clone()))
+            .map_err(|_| "Invalid tagged local file reference".to_string())?;
+    validate_local_file_ref(&file_ref)?;
+    Ok(Some(file_ref))
+}
+
+fn validate_local_file_ref(file_ref: &LocalFileRefPayload) -> Result<(), String> {
+    if file_ref.kind != "local-file-ref"
+        || file_ref.path.is_empty()
+        || file_ref.path.len() > 4096
+        || file_ref
+            .content_type
+            .as_deref()
+            .is_some_and(|value| value.is_empty() || value.len() > 255)
+    {
+        return Err("Invalid tagged local file reference".into());
+    }
+    Ok(())
+}
+
+async fn expand_tagged_local_file_ref(file_ref: &LocalFileRefPayload) -> Result<String, String> {
+    let bytes = tokio::fs::read(&file_ref.path)
+        .await
+        .map_err(|_| "Failed to read tagged local file reference".to_string())?;
+    let content_type = file_ref
+        .content_type
+        .as_deref()
+        .unwrap_or("application/octet-stream");
+    Ok(format!(
+        "data:{content_type};base64,{}",
+        STANDARD.encode(bytes)
+    ))
+}
+
+/// 只展开明确标记的 tagged LocalFileRef 和兼容期 data URL 引用。
 async fn process_body_recursive(value: &mut serde_json::Value) -> Result<(), String> {
     match value {
         serde_json::Value::Object(map) => {
+            if let Some(file_ref) = parse_tagged_local_file_ref(map)? {
+                *value = serde_json::Value::String(expand_tagged_local_file_ref(&file_ref).await?);
+                return Ok(());
+            }
             for (_, v) in map.iter_mut() {
-                // 使用 Box::pin 处理递归异步
                 Box::pin(process_body_recursive(v)).await?;
             }
         }
@@ -103,12 +155,7 @@ async fn process_body_recursive(value: &mut serde_json::Value) -> Result<(), Str
 
                 let path_str = &s[pos + "local-file://".len()..];
 
-                // 额外的安全检查：路径长度限制
-                // Windows 最大路径长度为 260 字符（包括驱动器字母和终止符）
-                // Unix 系统通常为 4096 字节
-                // 这里设置 1024 作为合理的上限，超过此长度的很可能是误识别的文本内容
-                if path_str.len() > 1024 {
-                    // 不是合法的文件路径，跳过处理
+                if path_str.len() > 4096 {
                     return Ok(());
                 }
 
@@ -117,17 +164,10 @@ async fn process_body_recursive(value: &mut serde_json::Value) -> Result<(), Str
                     .map_err(|e| format!("Failed to decode path: {}", e))?;
 
                 // 切换为异步读取，避免阻塞运行时
-                match tokio::fs::read(decoded_path.as_ref()).await {
-                    Ok(bytes) => {
-                        let b64 = STANDARD.encode(bytes);
-                        *value = serde_json::Value::String(format!("{}{}", prefix, b64));
-                    }
-                    Err(e) => {
-                        let err_msg = format!("Failed to read local file {}: {}", decoded_path, e);
-                        error!("{}", err_msg);
-                        return Err(err_msg);
-                    }
-                }
+                let bytes = tokio::fs::read(decoded_path.as_ref())
+                    .await
+                    .map_err(|_| "Failed to read legacy local file reference".to_string())?;
+                *value = serde_json::Value::String(format!("{}{}", prefix, STANDARD.encode(bytes)));
             }
         }
         _ => {}
@@ -260,9 +300,10 @@ async fn find_available_port(preferred: u16) -> Result<(tokio::net::TcpListener,
 pub async fn start_llm_proxy_server(port: u16) -> Result<ProxyServerInfo, String> {
     let mut state = PROXY_STATE.lock().await;
     if state.is_running {
-        // 服务已运行：忽略调用方指定的 port，直接返回真实端口
-        // 这是关键变更——前端不再要求"指定端口必须可用"，而是"获取实际可用端口"
-        return Ok(ProxyServerInfo { port: state.port });
+        return Ok(ProxyServerInfo {
+            port: state.port,
+            token: state.token.clone(),
+        });
     }
 
     // 智能寻找可用端口
@@ -274,182 +315,455 @@ pub async fn start_llm_proxy_server(port: u16) -> Result<ProxyServerInfo, String
     );
     state.is_running = true;
     state.port = actual_port;
+    state.token = nanoid::nanoid!(48);
+    let capability_token = state.token.clone();
 
     // 释放锁，然后再启动异步任务，防止死锁
     drop(state);
 
     let state_clone = PROXY_STATE.clone();
+    let router_state = ProxyRouterState {
+        token: capability_token.clone(),
+    };
     tokio::spawn(async move {
+        let cors = CorsLayer::new()
+            .allow_origin(AllowOrigin::predicate(|origin: &HeaderValue, _| {
+                origin.to_str().is_ok_and(is_allowed_origin)
+            }))
+            .allow_methods([
+                Method::GET,
+                Method::POST,
+                Method::PUT,
+                Method::PATCH,
+                Method::DELETE,
+                Method::OPTIONS,
+            ])
+            .allow_headers(AllowHeaders::mirror_request());
         let app = Router::new()
-            .route("/proxy", post(handle_proxy_request_router))
-            .layer(DefaultBodyLimit::max(256 * 1024 * 1024)) // 限制 body 大小为 256MB，更加安全
-            .layer(tower_http::cors::CorsLayer::permissive());
+            .route("/proxy/raw", any(handle_raw_proxy_router))
+            .route("/proxy/json-expand", any(handle_json_expand_proxy_router))
+            .layer(DefaultBodyLimit::max(256 * 1024 * 1024))
+            .layer(cors)
+            .with_state(router_state);
 
         if let Err(e) = axum::serve(listener, app).await {
             error!("LLM Proxy Server error: {}", e);
             // 发生错误时重置状态
             let mut s = state_clone.lock().await;
             s.is_running = false;
+            s.port = 0;
+            s.token.clear();
         }
     });
 
-    Ok(ProxyServerInfo { port: actual_port })
+    Ok(ProxyServerInfo {
+        port: actual_port,
+        token: capability_token,
+    })
 }
 
-/// 路由入口：根据 Content-Type 分流
-async fn handle_proxy_request_router(
+const MAX_EXPAND_BODY_SIZE: usize = 256 * 1024 * 1024;
+const MAX_UPLOAD_MANIFEST_SIZE: usize = 16 * 1024 * 1024;
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct ClientPoolKey {
+    proxy_mode: String,
+    proxy_url: Option<String>,
+    relax_certs: bool,
+    http1_only: bool,
+    bypass_proxy: bool,
+}
+
+static CLIENT_POOL: Lazy<StdMutex<HashMap<ClientPoolKey, reqwest::Client>>> =
+    Lazy::new(|| StdMutex::new(HashMap::new()));
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct MultipartManifest {
+    parts: Vec<MultipartManifestPart>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct MultipartManifestPart {
+    name: String,
+    body: MultipartManifestPartBody,
+    filename: Option<String>,
+    content_type: Option<String>,
+    headers: Option<HashMap<String, String>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+enum MultipartManifestPartBody {
+    Text { value: String },
+    Bytes { base64: String },
+    FileRef { r#ref: LocalFileRefPayload },
+}
+
+async fn handle_raw_proxy_router(
+    State(state): State<ProxyRouterState>,
+    method: Method,
     headers: AxumHeaderMap,
     body: Body,
 ) -> (StatusCode, AxumHeaderMap, Body) {
-    let content_type = headers
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
+    if let Err(error) = validate_proxy_request(&headers, &state) {
+        return error_response(error);
+    }
+    into_router_response(handle_raw_proxy(method, headers, body).await)
+}
 
-    match content_type.starts_with("application/json") {
-        true => {
-            // JSON 路径：读取 body → 反序列化 → 走现有业务逻辑
-            let max_body_size: usize = 256 * 1024 * 1024;
-            match axum::body::to_bytes(body, max_body_size).await {
-                Ok(bytes) => match serde_json::from_slice::<ProxyRequest>(&bytes) {
-                    Ok(request) => match handle_json_proxy(request).await {
-                        Ok(resp) => resp,
-                        Err((status, msg)) => {
-                            error!("JSON proxy error: {}", msg);
-                            (status, AxumHeaderMap::new(), Body::from(msg))
-                        }
-                    },
-                    Err(e) => {
-                        let msg = format!("Invalid JSON: {}", e);
-                        error!("{}", msg);
-                        (
-                            StatusCode::BAD_REQUEST,
-                            AxumHeaderMap::new(),
-                            Body::from(msg),
-                        )
-                    }
-                },
-                Err(e) => {
-                    let msg = format!("Failed to read body: {}", e);
-                    error!("{}", msg);
-                    (
-                        StatusCode::BAD_REQUEST,
-                        AxumHeaderMap::new(),
-                        Body::from(msg),
-                    )
-                }
-            }
-        }
-        false => {
-            // 透明转发路径（multipart/form-data、binary 等）
-            match handle_raw_proxy(headers, body).await {
-                Ok(resp) => resp,
-                Err((status, msg)) => {
-                    error!("Raw proxy error: {}", msg);
-                    (status, AxumHeaderMap::new(), Body::from(msg))
-                }
-            }
-        }
+async fn handle_json_expand_proxy_router(
+    State(state): State<ProxyRouterState>,
+    method: Method,
+    headers: AxumHeaderMap,
+    body: Body,
+) -> (StatusCode, AxumHeaderMap, Body) {
+    if let Err(error) = validate_proxy_request(&headers, &state) {
+        return error_response(error);
+    }
+    into_router_response(handle_json_expand_proxy(method, headers, body).await)
+}
+
+fn into_router_response(
+    result: Result<(StatusCode, AxumHeaderMap, Body), (StatusCode, String)>,
+) -> (StatusCode, AxumHeaderMap, Body) {
+    match result {
+        Ok(response) => response,
+        Err(error) => error_response(error),
     }
 }
 
-/// JSON 代理路径：保留所有现有业务逻辑（process_body_recursive、流式 SSE 等）
-async fn handle_json_proxy(
-    mut request: ProxyRequest,
+fn error_response(error: (StatusCode, String)) -> (StatusCode, AxumHeaderMap, Body) {
+    (error.0, AxumHeaderMap::new(), Body::from(error.1))
+}
+
+fn validate_proxy_request(
+    headers: &AxumHeaderMap,
+    state: &ProxyRouterState,
+) -> Result<(), (StatusCode, String)> {
+    let token_matches = get_header_str(headers, "x-proxy-token")
+        .is_some_and(|token| token.as_bytes() == state.token.as_bytes());
+    if !token_matches {
+        return Err((StatusCode::UNAUTHORIZED, "Invalid proxy capability".into()));
+    }
+
+    get_header_str(headers, "origin")
+        .filter(|origin| is_allowed_origin(origin))
+        .map(|_| ())
+        .ok_or((StatusCode::FORBIDDEN, "Proxy origin is not allowed".into()))
+}
+
+fn is_allowed_origin(origin: &str) -> bool {
+    if matches!(
+        origin,
+        "tauri://localhost" | "http://tauri.localhost" | "https://tauri.localhost"
+    ) {
+        return true;
+    }
+
+    reqwest::Url::parse(origin).is_ok_and(|url| {
+        matches!(url.scheme(), "http" | "https")
+            && url
+                .host_str()
+                .is_some_and(|host| host.eq_ignore_ascii_case("localhost") || host == "127.0.0.1")
+    })
+}
+
+async fn handle_json_expand_proxy(
+    method: Method,
+    headers: AxumHeaderMap,
+    body: Body,
 ) -> Result<(StatusCode, AxumHeaderMap, Body), (StatusCode, String)> {
-    let request_id = nanoid::nanoid!(8);
-    let url_for_log = request.url.clone();
-
-    // 尝试获取业务层透传的 X-Request-ID
-    let business_id = request
-        .headers
-        .get("X-Request-ID")
-        .or_else(|| request.headers.get("x-request-id"))
-        .cloned()
-        .unwrap_or_else(|| "none".to_string());
-
-    info!(
-        "[Proxy-{}] New request (BizID: {}): {} {}",
-        request_id, business_id, request.method, url_for_log
-    );
-
-    // 构建客户端（复用函数）
-    let client = build_proxy_client(
-        &request.url,
-        request
-            .proxy_settings
-            .as_ref()
-            .map(|s| s.mode.as_str())
-            .unwrap_or("system"),
-        request
-            .proxy_settings
-            .as_ref()
-            .and_then(|s| s.custom_url.as_deref()),
-        request.relax_invalid_certs.unwrap_or(true),
-        request.http1_only.unwrap_or(true),
+    let mut value = serde_json::from_slice::<serde_json::Value>(
+        &axum::body::to_bytes(body, MAX_EXPAND_BODY_SIZE)
+            .await
+            .map_err(|_| (StatusCode::BAD_REQUEST, "JSON body is too large".into()))?,
     )
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid JSON body".into()))?;
+    process_body_recursive(&mut value)
+        .await
+        .map_err(|message| (StatusCode::BAD_REQUEST, message))?;
+    let expanded = serde_json::to_vec(&value).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            "Failed to serialize JSON body".into(),
+        )
+    })?;
+    send_upstream_request(method, headers, Some(reqwest::Body::from(expanded)), None).await
+}
 
-    let mut headers = HeaderMap::new();
-    for (k, v) in request.headers {
-        let name_lower = k.to_lowercase();
-        // 过滤掉 host 和 accept-encoding，由 reqwest 自动处理或禁用
-        if name_lower == "host" || name_lower == "accept-encoding" {
-            continue;
+async fn handle_raw_proxy(
+    method: Method,
+    headers: AxumHeaderMap,
+    body: Body,
+) -> Result<(StatusCode, AxumHeaderMap, Body), (StatusCode, String)> {
+    match get_header_str(&headers, "x-aio-body-kind").unwrap_or("raw") {
+        "raw" => {
+            let has_body = headers.contains_key(axum::http::header::CONTENT_TYPE)
+                || headers.contains_key(axum::http::header::CONTENT_LENGTH);
+            let upstream_body = has_body.then(|| {
+                let stream = body
+                    .into_data_stream()
+                    .map(|result| result.map_err(std::io::Error::other));
+                reqwest::Body::wrap_stream(stream)
+            });
+            send_upstream_request(method, headers, upstream_body, None).await
+        }
+        "file-ref" => {
+            let bytes = axum::body::to_bytes(body, MAX_UPLOAD_MANIFEST_SIZE)
+                .await
+                .map_err(|_| {
+                    (
+                        StatusCode::BAD_REQUEST,
+                        "File reference is too large".into(),
+                    )
+                })?;
+            let file_ref = serde_json::from_slice::<LocalFileRefPayload>(&bytes)
+                .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid file reference".into()))?;
+            validate_local_file_ref(&file_ref)
+                .map_err(|message| (StatusCode::BAD_REQUEST, message))?;
+            let (file_body, content_type) = open_file_body(&file_ref).await?;
+            send_upstream_request(method, headers, Some(file_body), Some(content_type)).await
+        }
+        "multipart-manifest" => {
+            let bytes = axum::body::to_bytes(body, MAX_UPLOAD_MANIFEST_SIZE)
+                .await
+                .map_err(|_| {
+                    (
+                        StatusCode::BAD_REQUEST,
+                        "Multipart manifest is too large".into(),
+                    )
+                })?;
+            let manifest = serde_json::from_slice::<MultipartManifest>(&bytes)
+                .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid multipart manifest".into()))?;
+            let form = build_multipart_form(manifest).await?;
+            send_upstream_request_with_form(method, headers, form).await
+        }
+        _ => Err((
+            StatusCode::BAD_REQUEST,
+            "Unsupported proxy body kind".into(),
+        )),
+    }
+}
+
+async fn build_multipart_form(
+    manifest: MultipartManifest,
+) -> Result<reqwest::multipart::Form, (StatusCode, String)> {
+    let mut form = reqwest::multipart::Form::new();
+    for manifest_part in manifest.parts {
+        if manifest_part.name.is_empty() || manifest_part.name.len() > 1024 {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Invalid multipart part name".into(),
+            ));
         }
 
-        if let Ok(name) = HeaderName::from_bytes(k.as_bytes()) {
-            // 使用 from_bytes 允许非 ASCII 字符，增强对不规范渠道的兼容性
-            if let Ok(value) = HeaderValue::from_bytes(v.as_bytes()) {
-                headers.insert(name, value);
+        let mut part = match manifest_part.body {
+            MultipartManifestPartBody::Text { value } => reqwest::multipart::Part::text(value),
+            MultipartManifestPartBody::Bytes { base64 } => {
+                let bytes = STANDARD.decode(base64).map_err(|_| {
+                    (
+                        StatusCode::BAD_REQUEST,
+                        "Invalid multipart byte payload".into(),
+                    )
+                })?;
+                reqwest::multipart::Part::bytes(bytes)
             }
+            MultipartManifestPartBody::FileRef { r#ref } => {
+                validate_local_file_ref(&r#ref)
+                    .map_err(|message| (StatusCode::BAD_REQUEST, message))?;
+                let file = tokio::fs::File::open(&r#ref.path).await.map_err(|_| {
+                    (
+                        StatusCode::BAD_REQUEST,
+                        "Failed to read multipart file".into(),
+                    )
+                })?;
+                let length = file
+                    .metadata()
+                    .await
+                    .map_err(|_| {
+                        (
+                            StatusCode::BAD_REQUEST,
+                            "Failed to inspect multipart file".into(),
+                        )
+                    })?
+                    .len();
+                let body = reqwest::Body::wrap_stream(ReaderStream::new(file));
+                let mut part = reqwest::multipart::Part::stream_with_length(body, length);
+                if manifest_part.filename.is_none() {
+                    if let Some(filename) = Path::new(&r#ref.path).file_name() {
+                        part = part.file_name(filename.to_string_lossy().into_owned());
+                    }
+                }
+                if manifest_part.content_type.is_none() {
+                    if let Some(content_type) = r#ref.content_type.as_deref() {
+                        part = part.mime_str(content_type).map_err(|_| {
+                            (
+                                StatusCode::BAD_REQUEST,
+                                "Invalid multipart content type".into(),
+                            )
+                        })?;
+                    }
+                }
+                part
+            }
+        };
+
+        if let Some(filename) = manifest_part.filename {
+            part = part.file_name(filename);
         }
+        if let Some(content_type) = manifest_part.content_type {
+            part = part.mime_str(&content_type).map_err(|_| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    "Invalid multipart content type".into(),
+                )
+            })?;
+        }
+        if let Some(headers) = manifest_part.headers {
+            part = part.headers(parse_manifest_headers(headers)?);
+        }
+        form = form.part(manifest_part.name, part);
+    }
+    Ok(form)
+}
+
+fn parse_manifest_headers(
+    headers: HashMap<String, String>,
+) -> Result<HeaderMap, (StatusCode, String)> {
+    let mut parsed = HeaderMap::new();
+    for (name, value) in headers {
+        let name = HeaderName::from_bytes(name.as_bytes())
+            .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid multipart header".into()))?;
+        let value = HeaderValue::from_bytes(value.as_bytes())
+            .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid multipart header".into()))?;
+        parsed.append(name, value);
+    }
+    Ok(parsed)
+}
+
+async fn open_file_body(
+    file_ref: &LocalFileRefPayload,
+) -> Result<(reqwest::Body, String), (StatusCode, String)> {
+    let file = tokio::fs::File::open(&file_ref.path)
+        .await
+        .map_err(|_| (StatusCode::BAD_REQUEST, "Failed to read local file".into()))?;
+    let content_type = file_ref
+        .content_type
+        .clone()
+        .unwrap_or_else(|| "application/octet-stream".into());
+    Ok((
+        reqwest::Body::wrap_stream(ReaderStream::new(file)),
+        content_type,
+    ))
+}
+
+async fn send_upstream_request(
+    method: Method,
+    headers: AxumHeaderMap,
+    body: Option<reqwest::Body>,
+    content_type: Option<String>,
+) -> Result<(StatusCode, AxumHeaderMap, Body), (StatusCode, String)> {
+    let metadata = ProxyRequestMetadata::from_headers(&headers)?;
+    let client = get_proxy_client(
+        &metadata.target_url,
+        &metadata.proxy_mode,
+        metadata.proxy_url.as_deref(),
+        metadata.relax_certs,
+        metadata.http1_only,
+    )
+    .map_err(|message| (StatusCode::INTERNAL_SERVER_ERROR, message))?;
+    let reqwest_method = reqwest::Method::from_bytes(method.as_str().as_bytes())
+        .map_err(|_| (StatusCode::METHOD_NOT_ALLOWED, "Unsupported method".into()))?;
+    let mut forward_headers = collect_forward_headers(&headers);
+    if let Some(content_type) = content_type {
+        let value = HeaderValue::from_str(&content_type)
+            .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid content type".into()))?;
+        forward_headers.insert(reqwest::header::CONTENT_TYPE, value);
     }
 
-    // 处理本地文件读取
-    if let Err(e) = process_body_recursive(&mut request.body).await {
-        return Err((StatusCode::BAD_REQUEST, e));
+    let mut request = client
+        .request(reqwest_method, &metadata.target_url)
+        .headers(forward_headers);
+    if let Some(body) = body {
+        request = request.body(body);
     }
+    let response = send_request(request, &metadata).await?;
+    relay_upstream_response(response, &metadata)
+}
 
-    let req_builder = match request.method.to_uppercase().as_str() {
-        "POST" => client.post(&request.url),
-        "GET" => client.get(&request.url),
-        "PUT" => client.put(&request.url),
-        "DELETE" => client.delete(&request.url),
-        "PATCH" => client.patch(&request.url),
-        _ => return Err((StatusCode::METHOD_NOT_ALLOWED, "Unsupported method".into())),
-    };
+async fn send_upstream_request_with_form(
+    method: Method,
+    headers: AxumHeaderMap,
+    form: reqwest::multipart::Form,
+) -> Result<(StatusCode, AxumHeaderMap, Body), (StatusCode, String)> {
+    let metadata = ProxyRequestMetadata::from_headers(&headers)?;
+    let client = get_proxy_client(
+        &metadata.target_url,
+        &metadata.proxy_mode,
+        metadata.proxy_url.as_deref(),
+        metadata.relax_certs,
+        metadata.http1_only,
+    )
+    .map_err(|message| (StatusCode::INTERNAL_SERVER_ERROR, message))?;
+    let reqwest_method = reqwest::Method::from_bytes(method.as_str().as_bytes())
+        .map_err(|_| (StatusCode::METHOD_NOT_ALLOWED, "Unsupported method".into()))?;
+    let mut forward_headers = collect_forward_headers(&headers);
+    forward_headers.remove(reqwest::header::CONTENT_TYPE);
+    let request = client
+        .request(reqwest_method, &metadata.target_url)
+        .headers(forward_headers)
+        .multipart(form);
+    let response = send_request(request, &metadata).await?;
+    relay_upstream_response(response, &metadata)
+}
 
-    let mut req = req_builder.headers(headers);
-    // 移除后端的整体超时设置，完全交给前端 common.ts 控制。
-    // 前端已经实现了 TTFB (Time to First Byte) 超时检测。
-    // 后端仅保留 connect_timeout 保护连接建立阶段。
-    let is_streaming = request.is_streaming.unwrap_or(false);
-    if is_streaming {
-        info!(
-            "[Proxy] Streaming mode: relaying stream for {}",
-            request.url
+async fn send_request(
+    request: reqwest::RequestBuilder,
+    metadata: &ProxyRequestMetadata,
+) -> Result<reqwest::Response, (StatusCode, String)> {
+    info!(
+        "[Proxy-{}] {} request to {}",
+        metadata.request_id, metadata.body_path, metadata.safe_target
+    );
+    request.send().await.map_err(|error| {
+        let safe_error = error.without_url();
+        error!(
+            "[Proxy-{}] Upstream request failed: {safe_error}",
+            metadata.request_id
+        );
+        (
+            StatusCode::BAD_GATEWAY,
+            format!("Upstream request failed: {safe_error}"),
+        )
+    })
+}
+
+fn relay_upstream_response(
+    response: reqwest::Response,
+    metadata: &ProxyRequestMetadata,
+) -> Result<(StatusCode, AxumHeaderMap, Body), (StatusCode, String)> {
+    let status = StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::OK);
+    let mut headers = copy_response_headers(response.headers());
+    if metadata.streaming {
+        headers.insert(
+            axum::http::header::CACHE_CONTROL,
+            axum::http::HeaderValue::from_static("no-cache"),
+        );
+        headers.insert(
+            axum::http::HeaderName::from_static("x-accel-buffering"),
+            axum::http::HeaderValue::from_static("no"),
         );
     }
+    let stream = response
+        .bytes_stream()
+        .map(|item| item.map_err(std::io::Error::other));
+    Ok((status, headers, Body::from_stream(stream)))
+}
 
-    // 非 GET 请求附加 JSON body
-    if request.method.to_uppercase() != "GET" {
-        req = req.json(&request.body);
-    }
-
-    // 发送请求。
-    // 注意：Rust 的 Future 机制保证了如果客户端断开连接，Axum 会 drop 这个 handler future，
-    // 从而触发 reqwest 请求的 drop，实现自动取消。不需要额外的 CancellationToken。
-    let response = req.send().await.map_err(|e| {
-        error!("[Proxy-{}] Request failed: {}", request_id, e);
-        (StatusCode::BAD_GATEWAY, format!("Request failed: {}", e))
-    })?;
-
-    let status = StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::OK);
-    let mut resp_headers = AxumHeaderMap::new();
-
-    // 定义需要过滤的逐跳头部和敏感头部
-    let hop_by_hop = [
+fn copy_response_headers(headers: &HeaderMap) -> AxumHeaderMap {
+    const HOP_BY_HOP: &[&str] = &[
         "connection",
         "keep-alive",
         "proxy-authenticate",
@@ -465,218 +779,135 @@ async fn handle_json_proxy(
         "access-control-allow-headers",
         "access-control-allow-credentials",
     ];
-
-    for (name, value) in response.headers().iter() {
-        let name_str = name.as_str().to_lowercase();
-        if hop_by_hop.contains(&name_str.as_str()) {
+    let mut result = AxumHeaderMap::new();
+    for (name, value) in headers {
+        if HOP_BY_HOP.contains(&name.as_str().to_ascii_lowercase().as_str()) {
             continue;
         }
-
-        if let Ok(axum_name) = axum::http::HeaderName::from_bytes(name.as_str().as_bytes()) {
-            if let Ok(axum_value) = axum::http::HeaderValue::from_bytes(value.as_bytes()) {
-                resp_headers.insert(axum_name, axum_value);
-            }
-        }
-    }
-
-    // 为流式请求强制添加必要的 SSE 头部，防止被缓存或压缩
-    if is_streaming {
-        resp_headers.insert(
-            axum::http::header::CACHE_CONTROL,
-            axum::http::HeaderValue::from_static("no-cache"),
-        );
-        resp_headers.insert(
-            axum::http::header::CONNECTION,
-            axum::http::HeaderValue::from_static("keep-alive"),
-        );
-        if let Ok(x_accel_name) = axum::http::HeaderName::from_bytes(b"x-accel-buffering") {
-            resp_headers.insert(x_accel_name, axum::http::HeaderValue::from_static("no"));
-        }
-    }
-
-    if is_streaming {
-        let mut upstream_stream = response.bytes_stream();
-        let request_id_stream = request_id.clone();
-        let url_stream = url_for_log.clone();
-
-        // 注意：Axum 的 Body::from_stream 在客户端断开时会自动 drop stream。
-        // 由于 upstream_stream 持有 reqwest 的连接，drop stream 会自动中止上游请求。
-        let stream = async_stream::stream! {
-            let mut total_bytes = 0;
-
-            while let Some(item) = upstream_stream.next().await {
-                match item {
-                    Ok(bytes) => {
-                        total_bytes += bytes.len();
-                        // 降低日志频率，仅在 1MB 整数倍时记录
-                        if total_bytes > 0 && total_bytes % (1024 * 1024) < bytes.len() {
-                            info!(
-                                "[Proxy-{}] Stream progress for {}: {}KB",
-                                request_id_stream, url_stream, total_bytes / 1024
-                            );
-                        }
-                        yield Ok(bytes);
-                    }
-                    Err(e) => {
-                        error!(
-                            "[Proxy-{}] Stream error for {} after {}KB: {}",
-                            request_id_stream, url_stream, total_bytes / 1024, e
-                        );
-                        yield Err(std::io::Error::other(e));
-                        break;
-                    }
-                }
-            }
-            info!("[Proxy-{}] Stream completed for {}, total {}KB", request_id_stream, url_stream, total_bytes / 1024);
-        };
-
-        info!(
-            "[Proxy-{}] Starting stream relay for {}",
-            request_id, url_for_log
-        );
-        Ok((status, resp_headers, Body::from_stream(stream)))
-    } else {
-        // 非流式请求：直接获取全部字节，避免复杂的流转换逻辑
-        let bytes = response.bytes().await.map_err(|e| {
-            error!("[Proxy-{}] Failed to read full response: {}", request_id, e);
-            (
-                StatusCode::BAD_GATEWAY,
-                format!("Failed to read response: {}", e),
-            )
-        })?;
-
-        info!(
-            "[Proxy-{}] Request completed, total {}KB",
-            request_id,
-            bytes.len() / 1024
-        );
-        Ok((status, resp_headers, Body::from(bytes)))
-    }
-}
-
-/// 透明代理：直接转发任意 Content-Type 的请求体，不解析、不修改
-/// 仅用于附件已在前端预处理为 Blob 的场景（如图片编辑 multipart/form-data）
-async fn handle_raw_proxy(
-    headers: AxumHeaderMap,
-    body: Body,
-) -> Result<(StatusCode, AxumHeaderMap, Body), (StatusCode, String)> {
-    let request_id = nanoid::nanoid!(8);
-
-    // 从 Header 提取目标 URL（必填）
-    let target_url = get_header_str(&headers, "x-target-url").ok_or((
-        StatusCode::BAD_REQUEST,
-        "Missing X-Target-URL header".into(),
-    ))?;
-
-    let business_id = get_header_str(&headers, "x-request-id").unwrap_or("none");
-    let proxy_mode = get_header_str(&headers, "x-proxy-mode").unwrap_or("system");
-    let proxy_url = get_header_str(&headers, "x-proxy-url");
-    let relax_certs = get_header_str(&headers, "x-relax-certs")
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(true);
-    let http1_only = get_header_str(&headers, "x-http1-only")
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(true);
-
-    info!("[Proxy-{request_id}] Raw proxy (BizID: {business_id}): POST {target_url}");
-
-    // 构建客户端（复用 build_proxy_client）
-    let client = build_proxy_client(target_url, proxy_mode, proxy_url, relax_certs, http1_only)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
-
-    // 转发 Header：保留业务 Header，过滤元信息 Header
-    let meta_headers = [
-        "x-target-url",
-        "x-request-id",
-        "x-proxy-mode",
-        "x-proxy-url",
-        "x-relax-certs",
-        "x-http1-only",
-        "host",
-        "accept-encoding",
-    ];
-    let mut forward_headers = HeaderMap::new();
-    for (name, value) in headers.iter() {
-        let lower = name.as_str().to_lowercase();
-        if meta_headers.contains(&lower.as_str()) {
-            continue;
-        }
-        if let (Ok(n), Ok(v)) = (
-            HeaderName::from_bytes(name.as_str().as_bytes()),
-            HeaderValue::from_bytes(value.as_bytes()),
-        ) {
-            forward_headers.insert(n, v);
-        }
-    }
-
-    // 管道转发 Body（零拷贝流）
-    let body_stream = body
-        .into_data_stream()
-        .map(|result| result.map_err(std::io::Error::other));
-
-    let upstream_response = client
-        .post(target_url)
-        .headers(forward_headers)
-        .body(reqwest::Body::wrap_stream(body_stream))
-        .send()
-        .await
-        .map_err(|e| {
-            error!("[Proxy-{request_id}] Request failed: {e}");
-            (StatusCode::BAD_GATEWAY, format!("Request failed: {e}"))
-        })?;
-
-    // 先提取状态码和响应头
-    let status =
-        StatusCode::from_u16(upstream_response.status().as_u16()).unwrap_or(StatusCode::OK);
-    let mut resp_headers = AxumHeaderMap::new();
-    let hop_by_hop = [
-        "connection",
-        "keep-alive",
-        "proxy-authenticate",
-        "proxy-authorization",
-        "te",
-        "trailers",
-        "transfer-encoding",
-        "upgrade",
-        "content-length",
-        "host",
-        "access-control-allow-origin",
-        "access-control-allow-methods",
-        "access-control-allow-headers",
-    ];
-    for (name, value) in upstream_response.headers().iter() {
-        if hop_by_hop.contains(&name.as_str().to_lowercase().as_str()) {
-            continue;
-        }
-        if let (Ok(n), Ok(v)) = (
+        if let (Ok(name), Ok(value)) = (
             axum::http::HeaderName::from_bytes(name.as_str().as_bytes()),
             axum::http::HeaderValue::from_bytes(value.as_bytes()),
         ) {
-            resp_headers.insert(n, v);
+            result.append(name, value);
         }
     }
-
-    // 流式返回响应体，实现端到端透明转发
-    let stream = upstream_response
-        .bytes_stream()
-        .map(|item| item.map_err(std::io::Error::other));
-
-    info!("[Proxy-{request_id}] Raw proxy relaying response stream");
-    Ok((status, resp_headers, Body::from_stream(stream)))
+    result
 }
 
-/// 构建 reqwest Client，供 JSON 代理路径和透明转发路径复用
-fn build_proxy_client(
+#[derive(Debug)]
+struct ProxyRequestMetadata {
+    target_url: String,
+    safe_target: String,
+    proxy_mode: String,
+    proxy_url: Option<String>,
+    relax_certs: bool,
+    http1_only: bool,
+    streaming: bool,
+    request_id: String,
+    body_path: &'static str,
+}
+
+impl ProxyRequestMetadata {
+    fn from_headers(headers: &AxumHeaderMap) -> Result<Self, (StatusCode, String)> {
+        let target_url = get_header_str(headers, "x-aio-target-url")
+            .ok_or((StatusCode::BAD_REQUEST, "Missing target URL".into()))?
+            .to_string();
+        let parsed = reqwest::Url::parse(&target_url)
+            .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid target URL".into()))?;
+        if !matches!(parsed.scheme(), "http" | "https") {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Unsupported target URL scheme".into(),
+            ));
+        }
+        let safe_target = {
+            let mut safe = parsed;
+            safe.set_query(None);
+            safe.set_fragment(None);
+            safe.to_string()
+        };
+        let body_path = match get_header_str(headers, "x-aio-body-kind") {
+            Some("file-ref") => "file-ref",
+            Some("multipart-manifest") => "multipart",
+            _ if get_header_str(headers, "x-aio-json-expand") == Some("true") => "json-expand",
+            _ => "raw",
+        };
+        Ok(Self {
+            target_url,
+            safe_target,
+            proxy_mode: get_header_str(headers, "x-aio-proxy-mode")
+                .unwrap_or("system")
+                .to_string(),
+            proxy_url: get_header_str(headers, "x-aio-proxy-url")
+                .filter(|value| !value.is_empty())
+                .map(str::to_string),
+            relax_certs: parse_bool_header(headers, "x-aio-relax-certs", true),
+            http1_only: parse_bool_header(headers, "x-aio-http1-only", true),
+            streaming: parse_bool_header(headers, "x-aio-streaming", false),
+            request_id: nanoid::nanoid!(8),
+            body_path,
+        })
+    }
+}
+
+fn parse_bool_header(headers: &AxumHeaderMap, name: &str, default: bool) -> bool {
+    get_header_str(headers, name)
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(default)
+}
+
+fn collect_forward_headers(headers: &AxumHeaderMap) -> HeaderMap {
+    let mut result = HeaderMap::new();
+    for (name, value) in headers {
+        let lower = name.as_str().to_ascii_lowercase();
+        if lower.starts_with("x-aio-")
+            || lower == "x-proxy-token"
+            || matches!(
+                lower.as_str(),
+                "host" | "origin" | "accept-encoding" | "content-length"
+            )
+            || lower.starts_with("sec-fetch-")
+        {
+            continue;
+        }
+        if let (Ok(name), Ok(value)) = (
+            HeaderName::from_bytes(name.as_str().as_bytes()),
+            HeaderValue::from_bytes(value.as_bytes()),
+        ) {
+            result.append(name, value);
+        }
+    }
+    result
+}
+
+fn get_proxy_client(
     target_url: &str,
     proxy_mode: &str,
     proxy_url: Option<&str>,
     relax_certs: bool,
     http1_only: bool,
 ) -> Result<reqwest::Client, String> {
-    let is_ip = reqwest::Url::parse(target_url)
+    let bypass_proxy = reqwest::Url::parse(target_url)
         .ok()
-        .and_then(|u| u.host_str().map(|h| h.parse::<std::net::IpAddr>().is_ok()))
-        .unwrap_or(false);
+        .and_then(|url| {
+            url.host_str()
+                .map(|host| host.parse::<std::net::IpAddr>().is_ok())
+        })
+        .unwrap_or(false)
+        || proxy_mode == "none";
+    let key = ClientPoolKey {
+        proxy_mode: proxy_mode.to_string(),
+        proxy_url: proxy_url.filter(|url| !url.is_empty()).map(str::to_string),
+        relax_certs,
+        http1_only,
+        bypass_proxy,
+    };
+    let mut pool = CLIENT_POOL
+        .lock()
+        .map_err(|_| "LLM proxy client pool is unavailable".to_string())?;
+    if let Some(client) = pool.get(&key) {
+        return Ok(client.clone());
+    }
 
     let mut builder = reqwest::Client::builder()
         .danger_accept_invalid_certs(relax_certs)
@@ -686,35 +917,108 @@ fn build_proxy_client(
         .no_gzip()
         .no_brotli()
         .no_deflate();
-
     if http1_only {
         builder = builder.http1_only();
     }
-
-    if is_ip {
+    if bypass_proxy {
         builder = builder.no_proxy();
-    } else {
-        match proxy_mode {
-            "none" => {
-                builder = builder.no_proxy();
-            }
-            "custom" => {
-                if let Some(url) = proxy_url.filter(|u| !u.is_empty()) {
-                    builder = builder.proxy(
-                        reqwest::Proxy::all(url).map_err(|e| format!("Invalid proxy URL: {e}"))?,
-                    );
-                }
-            }
-            _ => {} // 系统代理（默认）
+    } else if proxy_mode == "custom" {
+        if let Some(url) = proxy_url.filter(|url| !url.is_empty()) {
+            builder = builder
+                .proxy(reqwest::Proxy::all(url).map_err(|_| "Invalid proxy URL".to_string())?);
         }
     }
 
-    builder
+    let client = builder
         .build()
-        .map_err(|e| format!("Failed to build client: {e}"))
+        .map_err(|error| format!("Failed to build client: {error}"))?;
+    pool.insert(key, client.clone());
+    Ok(client)
 }
 
-/// 从 Axum HeaderMap 中提取字符串值
 fn get_header_str<'a>(headers: &'a AxumHeaderMap, name: &str) -> Option<&'a str> {
-    headers.get(name).and_then(|v| v.to_str().ok())
+    headers.get(name).and_then(|value| value.to_str().ok())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_allows_tauri_and_loopback_origins() {
+        assert!(is_allowed_origin("tauri://localhost"));
+        assert!(is_allowed_origin("http://tauri.localhost"));
+        assert!(is_allowed_origin("http://localhost:1420"));
+        assert!(is_allowed_origin("http://127.0.0.1:1420"));
+        assert!(!is_allowed_origin("https://example.com"));
+        assert!(!is_allowed_origin("null"));
+    }
+
+    #[test]
+    fn rejects_malformed_tagged_file_references() {
+        let value = serde_json::json!({
+            "kind": "local-file-ref",
+            "path": "C:/media/image.png",
+            "providerField": true
+        });
+        assert!(parse_tagged_local_file_ref(value.as_object().unwrap()).is_err());
+    }
+
+    #[test]
+    fn requires_matching_capability_and_allowed_origin() {
+        let state = ProxyRouterState {
+            token: "current-token".into(),
+        };
+        let mut headers = AxumHeaderMap::new();
+        headers.insert("origin", "http://localhost:1420".parse().unwrap());
+        assert_eq!(
+            validate_proxy_request(&headers, &state).unwrap_err().0,
+            StatusCode::UNAUTHORIZED
+        );
+
+        headers.insert("x-proxy-token", "current-token".parse().unwrap());
+        assert!(validate_proxy_request(&headers, &state).is_ok());
+        headers.insert("origin", "https://example.com".parse().unwrap());
+        assert_eq!(
+            validate_proxy_request(&headers, &state).unwrap_err().0,
+            StatusCode::FORBIDDEN
+        );
+    }
+
+    #[tokio::test]
+    async fn expands_nested_tagged_file_references() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(file.path(), b"aiohub").unwrap();
+        let mut value = serde_json::json!({
+            "input": [{
+                "kind": "local-file-ref",
+                "path": file.path().to_string_lossy(),
+                "contentType": "text/plain"
+            }]
+        });
+
+        process_body_recursive(&mut value).await.unwrap();
+        assert_eq!(value["input"][0], "data:text/plain;base64,YWlvaHVi");
+    }
+
+    #[test]
+    fn top_level_file_reference_rejects_unknown_fields() {
+        let value = br#"{
+            "kind":"local-file-ref",
+            "path":"C:/media/image.png",
+            "providerField":true
+        }"#;
+        assert!(serde_json::from_slice::<LocalFileRefPayload>(value).is_err());
+    }
+
+    #[test]
+    fn strips_query_parameters_from_logged_target() {
+        let mut headers = AxumHeaderMap::new();
+        headers.insert(
+            "x-aio-target-url",
+            "https://example.com/chat?key=secret".parse().unwrap(),
+        );
+        let metadata = ProxyRequestMetadata::from_headers(&headers).unwrap();
+        assert_eq!(metadata.safe_target, "https://example.com/chat");
+    }
 }

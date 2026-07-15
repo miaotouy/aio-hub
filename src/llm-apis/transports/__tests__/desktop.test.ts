@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { runTransportContract } from "@aiohub/llm-core/testing";
 
 vi.mock("@/llm-apis/common", () => ({
   ensureResponseOk: vi.fn(),
@@ -9,6 +10,16 @@ vi.mock("@/utils/serialization", () => ({
 }));
 
 import { createDesktopLlmTransport } from "../desktop";
+
+runTransportContract({
+  name: "desktop shared transport contract",
+  createTransport: ({ fetch, ensureResponseOk }) =>
+    createDesktopLlmTransport({
+      fetch,
+      ensureResponseOk,
+      serializeJson: async (value) => JSON.stringify(value),
+    }),
+});
 
 describe("desktop LLM transport", () => {
   it("serializes JSON and preserves the response stream contract", async () => {
@@ -104,28 +115,129 @@ describe("desktop LLM transport", () => {
     );
   });
 
-  it("rejects tagged file references until the Rust transport supports them", async () => {
+  it("routes tagged JSON file references through native expansion", async () => {
+    const fetch = vi.fn(async () => new Response("{}"));
     const transport = createDesktopLlmTransport({
-      fetch: vi.fn(),
-      ensureResponseOk: vi.fn(),
-      serializeJson: vi.fn(),
+      fetch,
+      ensureResponseOk: vi.fn(async () => undefined),
+      serializeJson: vi.fn(async (value) => JSON.stringify(value)),
     });
 
-    await expect(
-      transport.send(
-        {
-          method: "POST",
-          url: "https://example.com/chat",
-          headers: {},
-          body: {
-            kind: "json",
-            value: { image: { kind: "local-file-ref", path: "image.png" } },
+    await transport.send(
+      {
+        method: "POST",
+        url: "https://example.com/chat",
+        headers: {},
+        body: {
+          kind: "json",
+          value: {
+            image: {
+              kind: "local-file-ref",
+              path: "image.png",
+              contentType: "image/png",
+            },
           },
-          streaming: false,
         },
-        { requestId: "request-3" }
-      )
-    ).rejects.toThrow("tagged LocalFileRef");
+        streaming: false,
+      },
+      { requestId: "request-3" }
+    );
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        hasLocalFile: true,
+        body: expect.stringContaining('"kind":"local-file-ref"'),
+      }),
+      undefined,
+      undefined
+    );
+  });
+
+  it("sends top-level file references as native file bodies", async () => {
+    const fetch = vi.fn(async () => new Response("{}"));
+    const transport = createDesktopLlmTransport({
+      fetch,
+      ensureResponseOk: vi.fn(async () => undefined),
+      serializeJson: vi.fn(async (value) => JSON.stringify(value)),
+    });
+
+    await transport.send(
+      {
+        method: "PUT",
+        url: "https://example.com/upload",
+        headers: {},
+        body: {
+          kind: "file-ref",
+          ref: {
+            kind: "local-file-ref",
+            path: "video.mp4",
+            contentType: "video/mp4",
+          },
+        },
+        streaming: false,
+      },
+      { requestId: "request-4", network: { strategy: "native" } }
+    );
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        hasLocalFile: true,
+        proxyBodyKind: "file-ref",
+        networkStrategy: "native",
+      }),
+      undefined,
+      undefined
+    );
+  });
+
+  it("uses a native multipart manifest when a part references a file", async () => {
+    const fetch = vi.fn(async () => new Response("{}"));
+    const transport = createDesktopLlmTransport({
+      fetch,
+      ensureResponseOk: vi.fn(async () => undefined),
+      serializeJson: vi.fn(async (value) => JSON.stringify(value)),
+    });
+
+    await transport.send(
+      {
+        method: "POST",
+        url: "https://example.com/images/edits",
+        headers: {},
+        body: {
+          kind: "multipart",
+          parts: [
+            { name: "prompt", body: { kind: "text", value: "edit" } },
+            {
+              name: "image",
+              filename: "input.png",
+              body: {
+                kind: "file-ref",
+                ref: {
+                  kind: "local-file-ref",
+                  path: "input.png",
+                  contentType: "image/png",
+                },
+              },
+            },
+          ],
+        },
+        streaming: false,
+      },
+      { requestId: "request-5" }
+    );
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        hasLocalFile: true,
+        proxyBodyKind: "multipart-manifest",
+        body: expect.stringContaining('"kind":"file-ref"'),
+      }),
+      undefined,
+      undefined
+    );
   });
 });
 

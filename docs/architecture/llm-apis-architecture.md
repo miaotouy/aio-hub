@@ -301,8 +301,9 @@ type LlmMessageContent =
 - 默认超时：145 秒 (`DEFAULT_TIMEOUT`)
 - 媒体生成超时：600 秒 (`DEFAULT_MEDIA_TIMEOUT`)
 - 超时控制：[`fetchWithTimeout()`](/src/llm-apis/common.ts:612) — 带双重中止信号管理
-- 代理劫持：检测 `local-file://` / `forceProxy` / 底层网络配置，自动切到 Rust 代理
-- FormData 透明转发：`options.body instanceof FormData` 时，直接透传给代理服务
+- 代理传输：桌面默认经带 capability token 的 Rust 回环代理；普通请求走 `/proxy/raw` 原样流式转发，含 tagged/兼容期文件引用的 JSON 才走 `/proxy/json-expand`
+- 文件上传：浏览器 `FormData` 透明转发；顶层 `file-ref` 与含本地文件的 multipart manifest 由 Rust 流式读取，本地文件内容不进入 WebView
+- 安全边界：代理只接受当次运行 token 与 Tauri/loopback Origin，过滤代理元 Header，并在日志 URL 中移除 query/fragment
 - 错误类型：`TimeoutError`, `LlmApiError`, `isAbortError()`
 
 ### 3.7 嵌入任务入口 — [`embedding.ts`](/src/llm-apis/embedding.ts) + [`embedding-types.ts`](/src/llm-apis/embedding-types.ts)
@@ -420,4 +421,4 @@ useLlmRequest.sendRequest(options)
 - **利用 Request Builder**: 优先使用 `filterParametersByCapabilities` 和 `cleanPayload` 处理请求体，确保 API 兼容性
 - **统一媒体处理**: 图片、音频、视频应通过 `ParsedMessageContent` 统一处理，由适配器决定映射方式（`inline_data` vs `url`）
 - **Key 管理**: 合理配置 `autoRecoveryTime`，429 熔断后自动恢复，无需人工干预
-- **代理策略**: 本地地址和 `local-file://` 协议会强制走 Rust 代理，外部地址默认走代理，可通过 `networkStrategy: "native"` 强制直连
+- **代理策略**: 桌面外部请求默认走 Rust 代理，可通过 `networkStrategy: "native"` 直连；涉及 `LocalFileRef` 或兼容期 `local-file://` 时始终走 Rust 原生文件路径，不能把路径或引用对象直接发送给 Provider

@@ -17,6 +17,7 @@ export interface DesktopFetchOptions extends RequestInit {
   http1Only?: boolean;
   networkStrategy?: "auto" | "proxy" | "native";
   isStreaming?: boolean;
+  proxyBodyKind?: "raw" | "file-ref" | "multipart-manifest";
 }
 
 export interface DesktopLlmTransportDependencies {
@@ -46,7 +47,7 @@ export function createDesktopLlmTransport(
       });
 
       try {
-        const { body, hasLocalFile } = await serializeBody(
+        const { body, hasLocalFile, proxyBodyKind } = await serializeBody(
           request.body,
           dependencies.serializeJson
         );
@@ -63,6 +64,7 @@ export function createDesktopLlmTransport(
             http1Only: options.network?.http1Only,
             networkStrategy: strategy,
             isStreaming: request.streaming,
+            proxyBodyKind,
           },
           options.timeoutMs,
           options.signal
@@ -105,19 +107,20 @@ export const desktopLlmTransport = createDesktopLlmTransport({
 async function serializeBody(
   body: WireBody | undefined,
   serializeJson: DesktopLlmTransportDependencies["serializeJson"]
-): Promise<{ body?: BodyInit | Uint8Array; hasLocalFile: boolean }> {
+): Promise<{
+  body?: BodyInit | Uint8Array;
+  hasLocalFile: boolean;
+  proxyBodyKind?: "file-ref" | "multipart-manifest";
+}> {
   if (!body) return { hasLocalFile: false };
 
   switch (body.kind) {
     case "json": {
-      if (containsLocalFileRef(body.value)) {
-        throw new Error(
-          "Desktop transport does not support tagged LocalFileRef JSON yet"
-        );
-      }
+      const hasTaggedLocalFile = containsLocalFileRef(body.value);
       return {
         body: await serializeJson(body.value),
-        hasLocalFile: containsLegacyLocalFileProtocol(body.value),
+        hasLocalFile:
+          hasTaggedLocalFile || containsLegacyLocalFileProtocol(body.value),
       };
     }
     case "text":
@@ -125,17 +128,39 @@ async function serializeBody(
     case "bytes":
       return { body: body.value, hasLocalFile: false };
     case "multipart": {
+      const hasLocalFile = body.parts.some(
+        (part) => part.body.kind === "file-ref"
+      );
+      if (hasLocalFile) {
+        const manifest: WireJsonValue = {
+          parts: body.parts.map((part) => ({
+            name: part.name,
+            ...(part.filename === undefined
+              ? {}
+              : { filename: part.filename }),
+            ...(part.contentType === undefined
+              ? {}
+              : { contentType: part.contentType }),
+            ...(part.headers === undefined ? {} : { headers: part.headers }),
+            body:
+              part.body.kind === "bytes"
+                ? { kind: "bytes", base64: encodeBase64(part.body.value) }
+                : part.body,
+          })),
+        };
+        return {
+          body: await serializeJson(manifest),
+          hasLocalFile: true,
+          proxyBodyKind: "multipart-manifest",
+        };
+      }
       const formData = new FormData();
       for (const part of body.parts) {
-        if (part.body.kind === "file-ref") {
-          throw new Error(
-            "Desktop transport does not support multipart LocalFileRef yet"
-          );
-        }
         if (part.body.kind === "text") {
           formData.append(part.name, part.body.value);
           continue;
         }
+        if (part.body.kind === "file-ref") continue;
         const bytes = part.body.value.slice().buffer as ArrayBuffer;
         const blob = new Blob([bytes], {
           type: part.contentType ?? "application/octet-stream",
@@ -145,8 +170,21 @@ async function serializeBody(
       return { body: formData, hasLocalFile: false };
     }
     case "file-ref":
-      throw new Error("Desktop transport does not support top-level file-ref yet");
+      return {
+        body: await serializeJson(body.ref),
+        hasLocalFile: true,
+        proxyBodyKind: "file-ref",
+      };
   }
+}
+
+function encodeBase64(value: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < value.length; offset += chunkSize) {
+    binary += String.fromCharCode(...value.subarray(offset, offset + chunkSize));
+  }
+  return btoa(binary);
 }
 
 function containsLegacyLocalFileProtocol(value: WireJsonValue): boolean {

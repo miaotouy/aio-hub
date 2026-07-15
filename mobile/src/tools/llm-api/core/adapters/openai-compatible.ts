@@ -20,6 +20,34 @@ import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("openai-compatible");
 
+type OpenAiCompatibleRequestInit = RequestInit & {
+  relaxIdCerts?: boolean;
+  http1Only?: boolean;
+};
+
+export interface OpenAiCompatibleTransport {
+  send(
+    url: string,
+    init: OpenAiCompatibleRequestInit,
+    timeout?: number,
+    signal?: AbortSignal
+  ): Promise<Response>;
+}
+
+export interface OpenAiCompatibleAdapterDependencies {
+  transport: OpenAiCompatibleTransport;
+  ensureResponseOk(response: Response): Promise<void>;
+  logger: {
+    warn(message: string, context?: Record<string, unknown>): void;
+  };
+}
+
+export interface OpenAiCompatibleWireRequest {
+  url: string;
+  headers: Record<string, string>;
+  body: Record<string, any>;
+}
+
 /**
  * OpenAI 适配器的 URL 处理逻辑
  */
@@ -104,11 +132,15 @@ export const openAiUrlHandler = {
 /**
  * 调用 OpenAI 兼容格式的 API
  */
-export const callOpenAiCompatibleApi = async (
+export const buildOpenAiCompatibleRequest = (
   profile: LlmProfile,
   options: LlmRequestOptions
-): Promise<LlmResponse> => {
-  const url = openAiUrlHandler.buildUrl(profile.baseUrl, "chat/completions");
+): OpenAiCompatibleWireRequest => {
+  const url = openAiUrlHandler.buildUrl(
+    profile.baseUrl,
+    "chat/completions",
+    profile
+  );
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -337,142 +369,52 @@ export const callOpenAiCompatibleApi = async (
     body.safety_settings = extendedOptions.safetySettings;
   }
 
-  // 警告：如果 custom 字段仍然存在，说明上游逻辑可能存在问题
-  if (
-    extendedOptions.custom &&
-    typeof extendedOptions.custom === "object" &&
-    Object.keys(extendedOptions.custom).length > 0
-  ) {
-    logger.warn(
-      "检测到 'custom' 参数容器，但它未被上游逻辑解包。这可能是一个错误。",
-      { customParams: extendedOptions.custom }
-    );
-  }
-
   // 动态透传所有未知的自定义参数
   applyCustomParameters(body, options);
 
   // 额外清理：确保内部对象不会泄露到顶层
   cleanPayload(body);
 
-  // 如果启用流式响应
   if (options.stream && options.onStream) {
     body.stream = true;
-
-    const response = await fetchWithTimeout(
-      url,
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-      },
-      options.timeout,
-      options.signal
-    );
-
-    await ensureResponseOk(response);
-
-    // 处理流式响应
-    if (!response.body) {
-      throw new Error("响应体为空");
-    }
-
-    const reader = response.body.getReader();
-    let fullContent = "";
-    let fullReasoningContent = "";
-    let usage: LlmResponse["usage"] | undefined;
-
-    await parseSSEStream(
-      reader,
-      (data) => {
-        const text = extractTextFromSSE(data, "openai");
-        if (text) {
-          fullContent += text;
-          options.onStream!(text);
-        }
-
-        // 提取推理内容（DeepSeek reasoning）
-        const reasoningText = extractReasoningFromSSE(data, "openai");
-        if (reasoningText) {
-          fullReasoningContent += reasoningText;
-          // 实时回调推理内容
-          if (options.onReasoningStream) {
-            options.onReasoningStream(reasoningText);
-          }
-        }
-
-        // 尝试从流数据中提取 usage 信息（OpenAI 在流结束时会发送 usage）
-        try {
-          const json = JSON.parse(data);
-          if (json.usage) {
-            usage = {
-              promptTokens: json.usage.prompt_tokens,
-              completionTokens: json.usage.completion_tokens,
-              totalTokens: json.usage.total_tokens,
-              promptTokensDetails: json.usage.prompt_tokens_details
-                ? {
-                    cachedTokens:
-                      json.usage.prompt_tokens_details.cached_tokens,
-                    audioTokens: json.usage.prompt_tokens_details.audio_tokens,
-                  }
-                : undefined,
-              completionTokensDetails: json.usage.completion_tokens_details
-                ? {
-                    reasoningTokens:
-                      json.usage.completion_tokens_details.reasoning_tokens,
-                    audioTokens:
-                      json.usage.completion_tokens_details.audio_tokens,
-                    acceptedPredictionTokens:
-                      json.usage.completion_tokens_details
-                        .accepted_prediction_tokens,
-                    rejectedPredictionTokens:
-                      json.usage.completion_tokens_details
-                        .rejected_prediction_tokens,
-                  }
-                : undefined,
-            };
-          }
-        } catch {
-          // 忽略非 JSON 数据
-        }
-      },
-      undefined,
-      options.signal
-    );
-
-    return {
-      content: fullContent,
-      reasoningContent: fullReasoningContent || undefined,
-      usage,
-      isStream: true,
-    };
   }
 
-  // 非流式响应
-  const response = await fetchWithTimeout(
-    url,
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    },
-    options.timeout,
-    options.signal
-  );
+  return { url, headers, body };
+};
 
-  await ensureResponseOk(response);
+function mapOpenAiUsage(usage: any): LlmResponse["usage"] | undefined {
+  if (!usage) return undefined;
 
-  const data = await response.json();
+  return {
+    promptTokens: usage.prompt_tokens,
+    completionTokens: usage.completion_tokens,
+    totalTokens: usage.total_tokens,
+    promptTokensDetails: usage.prompt_tokens_details
+      ? {
+          cachedTokens: usage.prompt_tokens_details.cached_tokens,
+          audioTokens: usage.prompt_tokens_details.audio_tokens,
+        }
+      : undefined,
+    completionTokensDetails: usage.completion_tokens_details
+      ? {
+          reasoningTokens: usage.completion_tokens_details.reasoning_tokens,
+          audioTokens: usage.completion_tokens_details.audio_tokens,
+          acceptedPredictionTokens:
+            usage.completion_tokens_details.accepted_prediction_tokens,
+          rejectedPredictionTokens:
+            usage.completion_tokens_details.rejected_prediction_tokens,
+        }
+      : undefined,
+  };
+}
 
-  // 验证响应格式
+export function parseOpenAiCompatibleResponse(data: any): LlmResponse {
   const choice = data.choices?.[0];
   if (!choice) {
     throw new Error(`OpenAI API 响应格式异常: ${JSON.stringify(data)}`);
   }
 
   const message = choice.message;
-
-  // 提取注释信息（如网络搜索的URL引用）
   const annotations = message?.annotations?.map((ann: any) => ({
     type: "url_citation" as const,
     urlCitation: {
@@ -482,8 +424,6 @@ export const callOpenAiCompatibleApi = async (
       title: ann.url_citation?.title,
     },
   }));
-
-  // 提取音频信息
   const audio = message?.audio
     ? {
         id: message.audio.id,
@@ -492,42 +432,14 @@ export const callOpenAiCompatibleApi = async (
         expiresAt: message.audio.expires_at,
       }
     : undefined;
-
-  // 处理 logprobs（包括 refusal）
   const logprobs = choice.logprobs
     ? {
         content: choice.logprobs.content,
         refusal: choice.logprobs.refusal,
       }
     : undefined;
+  const usage = mapOpenAiUsage(data.usage);
 
-  // 构建 usage 信息
-  const usage = data.usage
-    ? {
-        promptTokens: data.usage.prompt_tokens,
-        completionTokens: data.usage.completion_tokens,
-        totalTokens: data.usage.total_tokens,
-        promptTokensDetails: data.usage.prompt_tokens_details
-          ? {
-              cachedTokens: data.usage.prompt_tokens_details.cached_tokens,
-              audioTokens: data.usage.prompt_tokens_details.audio_tokens,
-            }
-          : undefined,
-        completionTokensDetails: data.usage.completion_tokens_details
-          ? {
-              reasoningTokens:
-                data.usage.completion_tokens_details.reasoning_tokens,
-              audioTokens: data.usage.completion_tokens_details.audio_tokens,
-              acceptedPredictionTokens:
-                data.usage.completion_tokens_details.accepted_prediction_tokens,
-              rejectedPredictionTokens:
-                data.usage.completion_tokens_details.rejected_prediction_tokens,
-            }
-          : undefined,
-      }
-    : undefined;
-
-  // 如果有拒绝消息，优先返回拒绝消息
   if (message?.refusal) {
     return {
       content: "",
@@ -557,7 +469,124 @@ export const callOpenAiCompatibleApi = async (
     serviceTier: data.service_tier,
     usage,
   };
-};
+}
+
+export const createOpenAiCompatibleApi =
+  (dependencies: OpenAiCompatibleAdapterDependencies) =>
+  async (
+    profile: LlmProfile,
+    options: LlmRequestOptions
+  ): Promise<LlmResponse> => {
+    const { url, headers, body } = buildOpenAiCompatibleRequest(
+      profile,
+      options
+    );
+    const extendedOptions = options as any;
+
+    if (
+      extendedOptions.custom &&
+      typeof extendedOptions.custom === "object" &&
+      Object.keys(extendedOptions.custom).length > 0
+    ) {
+      dependencies.logger.warn(
+        "检测到 'custom' 参数容器，但它未被上游逻辑解包。这可能是一个错误。",
+        { customParams: extendedOptions.custom }
+      );
+    }
+
+    // 如果启用流式响应
+    if (options.stream && options.onStream) {
+      const response = await dependencies.transport.send(
+        url,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+          relaxIdCerts: options.relaxIdCerts,
+          http1Only: options.http1Only,
+        },
+        options.timeout,
+        options.signal
+      );
+
+      await dependencies.ensureResponseOk(response);
+
+      // 处理流式响应
+      if (!response.body) {
+        throw new Error("响应体为空");
+      }
+
+      const reader = response.body.getReader();
+      let fullContent = "";
+      let fullReasoningContent = "";
+      let usage: LlmResponse["usage"] | undefined;
+
+      await parseSSEStream(
+        reader,
+        (data) => {
+          const text = extractTextFromSSE(data, "openai");
+          if (text) {
+            fullContent += text;
+            options.onStream!(text);
+          }
+
+          // 提取推理内容（DeepSeek reasoning）
+          const reasoningText = extractReasoningFromSSE(data, "openai");
+          if (reasoningText) {
+            fullReasoningContent += reasoningText;
+            // 实时回调推理内容
+            if (options.onReasoningStream) {
+              options.onReasoningStream(reasoningText);
+            }
+          }
+
+          // 尝试从流数据中提取 usage 信息（OpenAI 在流结束时会发送 usage）
+          try {
+            const json = JSON.parse(data);
+            if (json.usage) {
+              usage = mapOpenAiUsage(json.usage);
+            }
+          } catch {
+            // 忽略非 JSON 数据
+          }
+        },
+        undefined,
+        options.signal
+      );
+
+      return {
+        content: fullContent,
+        reasoningContent: fullReasoningContent || undefined,
+        usage,
+        isStream: true,
+      };
+    }
+
+    // 非流式响应
+    const response = await dependencies.transport.send(
+      url,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+        relaxIdCerts: options.relaxIdCerts,
+        http1Only: options.http1Only,
+      },
+      options.timeout,
+      options.signal
+    );
+
+    await dependencies.ensureResponseOk(response);
+
+    const data = await response.json();
+    return parseOpenAiCompatibleResponse(data);
+  };
+
+export const callOpenAiCompatibleApi = createOpenAiCompatibleApi({
+  transport: { send: fetchWithTimeout },
+  ensureResponseOk,
+  logger,
+});
 
 /**
  * 调用 OpenAI 兼容的 Embedding API

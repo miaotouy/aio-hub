@@ -1,25 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { LlmProfile } from "../../../types";
 import type { LlmRequestOptions } from "../../common";
 import { OPENAI_COMPATIBLE_STREAM_FIXTURE } from "./fixtures/openai-compatible";
+import {
+  buildOpenAiCompatibleRequest,
+  createOpenAiCompatibleApi,
+  parseOpenAiCompatibleResponse,
+  type OpenAiCompatibleTransport,
+} from "../openai-compatible";
 
-const { ensureResponseOkMock, fetchWithTimeoutMock } = vi.hoisted(() => ({
-  ensureResponseOkMock: vi.fn(),
-  fetchWithTimeoutMock: vi.fn(),
-}));
-
-vi.mock("../../common", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../common")>();
-  return {
-    ...actual,
-    ensureResponseOk: ensureResponseOkMock,
-    fetchWithTimeout: fetchWithTimeoutMock,
-  };
-});
-
-import { callOpenAiCompatibleApi } from "../openai-compatible";
-
-function createProfile(): LlmProfile {
+function createProfile(overrides: Partial<LlmProfile> = {}): LlmProfile {
   return {
     id: "openai-profile",
     name: "OpenAI Compatible",
@@ -29,6 +19,7 @@ function createProfile(): LlmProfile {
     enabled: true,
     models: [],
     customHeaders: { "X-Tenant": "tenant-a" },
+    ...overrides,
   };
 }
 
@@ -45,14 +36,26 @@ function createSseResponse(chunks: readonly string[]): Response {
   );
 }
 
-describe("mobile OpenAI-compatible adapter baseline", () => {
-  beforeEach(() => {
-    ensureResponseOkMock.mockReset().mockResolvedValue(undefined);
-    fetchWithTimeoutMock.mockReset();
-  });
+function createAdapter(response: Response) {
+  const send = vi.fn<OpenAiCompatibleTransport["send"]>(async () => response);
+  const ensureResponseOk = vi.fn(async () => undefined);
+  const warn = vi.fn();
 
+  return {
+    callApi: createOpenAiCompatibleApi({
+      transport: { send },
+      ensureResponseOk,
+      logger: { warn },
+    }),
+    send,
+    ensureResponseOk,
+    warn,
+  };
+}
+
+describe("mobile OpenAI-compatible adapter baseline", () => {
   it("maps agent generation parameters into the provider wire payload", async () => {
-    fetchWithTimeoutMock.mockResolvedValue(
+    const adapter = createAdapter(
       new Response(
         JSON.stringify({
           choices: [
@@ -83,20 +86,24 @@ describe("mobile OpenAI-compatible adapter baseline", () => {
       frequencyPenalty: 0.1,
       presencePenalty: 0.3,
       stop: ["END"],
+      relaxIdCerts: true,
+      http1Only: true,
       vendor_extension: { enabled: true },
     };
 
-    const result = await callOpenAiCompatibleApi(createProfile(), options);
+    const result = await adapter.callApi(createProfile(), options);
 
-    expect(fetchWithTimeoutMock).toHaveBeenCalledOnce();
-    const [url, requestOptions] = fetchWithTimeoutMock.mock.calls[0];
+    expect(adapter.send).toHaveBeenCalledOnce();
+    const [url, requestOptions] = adapter.send.mock.calls[0];
     expect(url).toBe("https://api.example.com/v1/chat/completions");
     expect(requestOptions.headers).toEqual({
       "Content-Type": "application/json",
       Authorization: "Bearer secret-key",
       "X-Tenant": "tenant-a",
     });
-    expect(JSON.parse(requestOptions.body)).toEqual({
+    expect(requestOptions.relaxIdCerts).toBe(true);
+    expect(requestOptions.http1Only).toBe(true);
+    expect(JSON.parse(requestOptions.body as string)).toEqual({
       model: "compatible-model",
       messages: [
         { role: "system", content: "be concise" },
@@ -126,13 +133,13 @@ describe("mobile OpenAI-compatible adapter baseline", () => {
   });
 
   it("delivers text and reasoning separately while retaining final usage", async () => {
-    fetchWithTimeoutMock.mockResolvedValue(
+    const adapter = createAdapter(
       createSseResponse(OPENAI_COMPATIBLE_STREAM_FIXTURE)
     );
     const textChunks: string[] = [];
     const reasoningChunks: string[] = [];
 
-    const result = await callOpenAiCompatibleApi(createProfile(), {
+    const result = await adapter.callApi(createProfile(), {
       modelId: "reasoning-model",
       messages: [{ role: "user", content: "solve" }],
       stream: true,
@@ -162,6 +169,52 @@ describe("mobile OpenAI-compatible adapter baseline", () => {
       },
       isStream: true,
     });
-    expect(ensureResponseOkMock).toHaveBeenCalledOnce();
+    expect(adapter.ensureResponseOk).toHaveBeenCalledOnce();
+  });
+
+  it("builds custom endpoints without executing platform transport", () => {
+    const wireRequest = buildOpenAiCompatibleRequest(
+      createProfile({
+        customEndpoints: {
+          chatCompletions: "/gateway/chat",
+        },
+      }),
+      {
+        modelId: "compatible-model",
+        messages: [{ role: "user", content: "hello" }],
+        stream: false,
+      }
+    );
+
+    expect(wireRequest.url).toBe("https://api.example.com/gateway/chat");
+    expect(wireRequest.body).toEqual({
+      model: "compatible-model",
+      messages: [{ role: "user", content: "hello" }],
+      temperature: 0.5,
+    });
+  });
+
+  it("parses non-stream response semantics without platform dependencies", () => {
+    expect(
+      parseOpenAiCompatibleResponse({
+        choices: [
+          {
+            message: {
+              content: "",
+              refusal: "blocked",
+            },
+            finish_reason: "content_filter",
+          },
+        ],
+        system_fingerprint: "fp-1",
+      })
+    ).toEqual({
+      content: "",
+      refusal: "blocked",
+      finishReason: "content_filter",
+      systemFingerprint: "fp-1",
+      serviceTier: undefined,
+      usage: undefined,
+    });
   });
 });

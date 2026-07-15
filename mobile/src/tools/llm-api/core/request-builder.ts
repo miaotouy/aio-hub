@@ -360,6 +360,8 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   "onReasoningStream",
   "signal",
   "timeout",
+  "relaxIdCerts",
+  "http1Only",
   "temperature",
   "maxTokens",
   "topP",

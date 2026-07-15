@@ -1,136 +1,71 @@
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// Licensed under the Apache License, Version 2.0.
 
-import type { LlmProfile } from "@/types/llm-profiles";
 import {
-  type MediaGenerationOptions,
-  type LlmResponse,
-  fetchWithTimeout,
-  ensureResponseOk,
-} from "@/llm-apis/common";
-import { buildOpenAiHeaders, openAiUrlHandler } from "../openai/utils";
-import { createModuleLogger } from "@/utils/logger";
+  executeSyncMediaRequest,
+  siliconFlowImageAdapter,
+  type ProviderProfile,
+} from "@aiohub/llm-core";
+import type { MediaGenerationOptions, LlmResponse } from "@/llm-apis/common";
+import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
+import type { LlmProfile } from "@/types/llm-profiles";
+import { buildOpenAiHeaders } from "../openai/utils";
+import { toCoreImageRequest } from "../openai/image";
 
-const logger = createModuleLogger("siliconflow/image");
-
-/**
- * 调用硅基流动 (SiliconFlow) 的图片生成 API
- */
 export async function callSiliconFlowImageApi(
   profile: LlmProfile,
   options: MediaGenerationOptions
 ): Promise<LlmResponse> {
-  const {
-    modelId,
-    prompt,
-    negativePrompt,
-    size,
-    seed,
-    n = 1,
-    guidanceScale,
-    numInferenceSteps,
-    timeout,
-    signal,
-  } = options;
-
-  const baseUrl = profile.baseUrl || "https://api.siliconflow.cn/v1";
-  const url = openAiUrlHandler.buildUrl(baseUrl, "images/generations", profile);
-  const headers = buildOpenAiHeaders(profile, options.requestId);
-
-  // 构建硅基流动特有的请求体
-  const body: any = {
-    model: modelId,
-    prompt: prompt || "",
+  const request = await toCoreImageRequest(options);
+  const extendedOptions = options as unknown as Record<string, unknown>;
+  request.extensions = {
+    ...request.extensions,
+    ...((typeof extendedOptions.cfg === "number" && {
+      cfg: extendedOptions.cfg,
+    }) || {}),
   };
-
-  if (negativePrompt) body.negative_prompt = negativePrompt;
-  // 硅基流动 seed 必须是正整数，-1 代表随机，但最好直接不传让服务端处理
-  if (seed !== undefined && seed !== null && seed !== -1) body.seed = seed;
-  if (numInferenceSteps !== undefined && numInferenceSteps !== null)
-    body.num_inference_steps = numInferenceSteps;
-  if (guidanceScale !== undefined && guidanceScale !== null)
-    body.guidance_scale = guidanceScale;
-
-  // 根据文档，Qwen-Image-Edit 系列不支持 image_size 字段
-  const isQwenEdit = modelId.includes("Qwen-Image-Edit");
-  if (size && !isQwenEdit) {
-    body.image_size = size;
-  }
-
-  // batch_size 仅适用于 Kolors 模型
-  if (modelId.includes("Kolors")) {
-    body.batch_size = n;
-  }
-
-  // 处理 Qwen 系列特有的 cfg 参数
-  if ((options as any).cfg !== undefined) {
-    body.cfg = (options as any).cfg;
-  }
-
-  // 处理图片输入 (用于以图生图或图片编辑)
-  if (options.inputAttachments && options.inputAttachments.length > 0) {
-    const images = options.inputAttachments.filter((a) => a.type === "image");
-    if (images.length > 0) {
-      // Qwen-Image-Edit-2509 支持 image, image2, image3
-      if (images[0].b64 || images[0].url) {
-        body.image = images[0].b64 || images[0].url;
-      }
-      if (images[1] && (images[1].b64 || images[1].url)) {
-        body.image2 = images[1].b64 || images[1].url;
-      }
-      if (images[2] && (images[2].b64 || images[2].url)) {
-        body.image3 = images[2].b64 || images[2].url;
-      }
-    }
-  }
-
-  logger.info("发送 SiliconFlow 图片生成请求", {
-    url,
-    body: { ...body, image: body.image ? "(image data)" : undefined },
-  });
-
-  const response = await fetchWithTimeout(
-    url,
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-      forceProxy: options.forceProxy,
-      relaxIdCerts: options.relaxIdCerts,
-      http1Only: options.http1Only,
+  const providerProfile: ProviderProfile = {
+    provider: "siliconflow",
+    baseUrl: profile.baseUrl || "https://api.siliconflow.cn/v1",
+    apiKey: profile.apiKeys?.[0],
+    headers: buildOpenAiHeaders(profile, options.requestId),
+    endpoints: profile.customEndpoints as Record<string, string> | undefined,
+  };
+  const result = await executeSyncMediaRequest({
+    adapter: siliconFlowImageAdapter,
+    profile: providerProfile,
+    request,
+    transport: desktopLlmTransport,
+    transportOptions: {
+      requestId: options.requestId ?? `silicon-image-${Date.now()}`,
+      signal: options.signal,
+      timeoutMs: options.timeout,
+      network: {
+        strategy: options.forceProxy ? "proxy" : options.networkStrategy,
+        relaxInvalidCerts: options.relaxIdCerts,
+        http1Only: options.http1Only,
+      },
     },
-    timeout,
-    signal
-  );
-
-  await ensureResponseOk(response);
-  const data = await response.json();
-
-  // 硅基流动的响应结构可能是 { images: [{ url: "..." }] }
-  const rawImages = data.images || data.data || [];
-  const images = rawImages.map((item: any) => ({
-    url: item.url,
-    b64_json: item.b64_json,
-  }));
-
+  });
   return {
-    content:
-      images.length > 0
-        ? `Generated ${images.length} images.`
-        : "No images generated.",
-    images,
-    seed: data.seed,
-    timings: data.timings,
+    content: result.content,
+    images: result.assets.map((asset) =>
+      asset.kind === "inline-base64"
+        ? { b64_json: asset.data, revisedPrompt: asset.revisedPrompt }
+        : {
+            url: asset.kind === "remote-url" ? asset.url : asset.id,
+            revisedPrompt: asset.revisedPrompt,
+          }
+    ),
+    seed:
+      typeof result.metadata?.seed === "number"
+        ? result.metadata.seed
+        : undefined,
+    timings:
+      typeof result.metadata?.timings === "object" &&
+      result.metadata.timings !== null &&
+      !Array.isArray(result.metadata.timings)
+        ? result.metadata.timings
+        : undefined,
   };
 }

@@ -1,106 +1,86 @@
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// Licensed under the Apache License, Version 2.0.
 
+import {
+  executeSyncMediaRequest,
+  geminiImageAdapter,
+  type JsonValue,
+} from "@aiohub/llm-core";
+import type { MediaGenerationOptions, LlmResponse } from "@/llm-apis/common";
+import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
 import type { LlmProfile } from "@/types/llm-profiles";
+import { toCoreImageRequest } from "../openai/image";
 import {
-  type MediaGenerationOptions,
-  type LlmResponse,
-  fetchWithTimeout,
-  ensureResponseOk,
-} from "@/llm-apis/common";
-import {
-  buildGeminiUrl,
-  buildGeminiHeaders,
-  buildGeminiContents,
-} from "./utils";
-import { parseGeminiResponse } from "./chat";
+  toGeminiCoreRequest,
+  toGeminiProviderProfile,
+} from "./chat";
 
-/**
- * 调用 Gemini 图片生成 API (基于 generateContent)
- * 对应文档中的 "谷歌香蕉" (Gemini 2.5 Flash Image / Gemini 3 Pro Image)
- */
 export async function callGeminiImageApi(
   profile: LlmProfile,
   options: MediaGenerationOptions
 ): Promise<LlmResponse> {
-  const {
-    modelId,
-    messages,
-    prompt,
-    size, // 映射到 imageSize: "1K", "2K", "4K"
-    aspectRatio,
-    timeout,
-    signal,
-  } = options;
-
-  // 如果提供了 prompt，包装为 messages
-  const effectiveMessages =
-    messages || (prompt ? [{ role: "user", content: prompt }] : []);
-
-  const baseUrl =
-    profile.baseUrl || "https://generativelanguage.googleapis.com";
-  const url = buildGeminiUrl(baseUrl, modelId, "generateContent", profile);
-  const headers = buildGeminiHeaders(profile, options.requestId);
-
-  // 构建 Gemini 特有的图片配置
-  const imageConfig: any = {};
-  if (aspectRatio) imageConfig.aspectRatio = aspectRatio;
-
-  // 映射 resolution/size 到 imageSize (要求大写 K)
-  if (size) {
-    const upperSize = size.toUpperCase();
-    if (["1K", "2K", "4K"].includes(upperSize)) {
-      imageConfig.imageSize = upperSize;
-    } else {
-      imageConfig.imageSize = upperSize;
-    }
-  }
-
-  const body = JSON.stringify({
-    contents: buildGeminiContents(effectiveMessages),
-    generationConfig: {
-      responseModalities: ["TEXT", "IMAGE"],
-      imageConfig:
-        Object.keys(imageConfig).length > 0 ? imageConfig : undefined,
+  const request = await toCoreImageRequest(options);
+  const { responseFormat: _responseFormat, ...geminiOptions } = options;
+  request.messages = toGeminiCoreRequest({
+    ...geminiOptions,
+    stream: false,
+  }).messages;
+  request.extensions = {
+    ...request.extensions,
+    ...definedJson({
       temperature: options.temperature,
       topP: options.topP,
       topK: options.topK,
-      maxOutputTokens: options.maxTokens,
-      stopSequences: options.stop,
+      maxTokens: options.maxTokens,
+      stop: options.stop,
+      webSearch: (options.tools as Array<{ type: string }> | undefined)?.some(
+        (tool) => tool.type === "web_search"
+      ),
+    }),
+  };
+  const result = await executeSyncMediaRequest({
+    adapter: geminiImageAdapter,
+    profile: toGeminiProviderProfile(profile),
+    request,
+    transport: desktopLlmTransport,
+    transportOptions: {
+      requestId: options.requestId ?? `gemini-image-${Date.now()}`,
+      signal: options.signal,
+      timeoutMs: options.timeout,
+      network: {
+        strategy: options.forceProxy ? "proxy" : options.networkStrategy,
+        relaxInvalidCerts: options.relaxIdCerts,
+        http1Only: options.http1Only,
+      },
     },
-    // 支持 Google Search 增强
-    tools: (options.tools as any)?.some((t: any) => t.type === "web_search")
-      ? [{ google_search: {} }]
-      : undefined,
   });
-
-  const response = await fetchWithTimeout(
-    url,
-    {
-      method: "POST",
-      headers,
-      body,
-      forceProxy: options.forceProxy,
-      relaxIdCerts: options.relaxIdCerts,
-      http1Only: options.http1Only,
-    },
-    timeout,
-    signal
+  const images = result.assets.map((asset) =>
+    asset.kind === "inline-base64"
+      ? { b64_json: asset.data, revisedPrompt: asset.revisedPrompt }
+      : {
+          url: asset.kind === "remote-url" ? asset.url : asset.id,
+          revisedPrompt: asset.revisedPrompt,
+        }
   );
+  return {
+    content: result.content,
+    images,
+    revisedPrompt: images[0]?.revisedPrompt,
+  };
+}
 
-  await ensureResponseOk(response);
-  const data = await response.json();
-
-  return parseGeminiResponse(data);
+function definedJson(values: Record<string, unknown>): Record<string, JsonValue> {
+  const result: Record<string, JsonValue> = {};
+  for (const [key, value] of Object.entries(values)) {
+    if (value === undefined) continue;
+    if (value === null || ["string", "number", "boolean"].includes(typeof value)) {
+      result[key] = value as JsonValue;
+    } else if (Array.isArray(value)) {
+      result[key] = value.filter(
+        (item): item is string | number | boolean | null =>
+          item === null || ["string", "number", "boolean"].includes(typeof item)
+      );
+    }
+  }
+  return result;
 }

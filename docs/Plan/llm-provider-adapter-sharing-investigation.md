@@ -1,6 +1,6 @@
 # LLM Provider Adapter 多端共享与 Rust 边界调查
 
-> 状态：实施中（批次 9 桌面 Transport/文件引用/安全增量已完成，下一步为真实 Tauri 基准、移动文件引用与真机）
+> 状态：代码与自动化验收已完成（仅保留真实 Tauri 性能观测及 Android/iOS 真机验收）
 >
 > 最后更新：2026-07-15
 >
@@ -91,7 +91,30 @@
 - 新增 `@aiohub/llm-core/testing` 共享 Transport 合约套件，桌面与移动共同覆盖状态/Header、流式字节、超时/取消参数转发、状态校验错误和流中断；桌面另覆盖 legacy/tagged JSON、顶层文件和原生 multipart manifest。移动端 tagged/multipart/顶层文件引用仍显式拒绝，待移动原生上传边界落地。
 - 本增量通过共享 Core 51 个用例、根 Vitest 70 个文件/465 个用例、移动 Vitest 10 个文件/32 个用例、两端前端类型检查、两端后端 Clippy、lint 与两端 Vite 生产构建；lint 与构建仅保留既有 warning。Rust 代理新增 6 个安全/契约单测并通过。
 
-实施顺序相对原计划有一处受控调整：仓库已经存在多组 Provider Adapter 单测，因此先落地阶段 1 的无业务侵入骨架和公共分帧器，再继续补齐阶段 0 的完整 wire fixture、两端差分记录和性能基线。现阶段阶段 0 已完成移动 Facade、OpenAI-Compatible、OpenAI Responses、Claude、Cohere、Gemini、Vertex 与 Embedding 基线，其余双端差分记录和大文本/文件/媒体性能基线仍未完成；阶段 1.5 已完成移动 Facade及双端 OpenAI-Compatible、OpenAI Responses、Claude、Cohere、Gemini、Vertex 的平台请求隔离；阶段 2/3 与批次 7/8 已完成。批次 9 已完成桌面 raw/json-expand、文件引用、安全、Client 池与首组共享合约增量；下一主线是用真实 Tauri 运行态完成代理端到端/性能复测，设计移动端不经 WebView 大内存的文件上传边界，并验证 Android/iOS 流式读取、取消和后台切换。
+批次 9 已完成第二个可验证增量：
+
+- 移动端新增原生 `send_llm_file_request` / `cancel_llm_file_request` command。普通请求继续使用现有 Tauri HTTP 流式 Transport；只有 tagged JSON、顶层和 multipart `LocalFileRef` 请求进入原生边界。
+- 移动 Rust 严格校验 tagged 对象、HTTP(S) URL、Header、路径与 content type；顶层和 multipart 文件使用 `ReaderStream` 交给 reqwest，不把本地文件字节读入 WebView。嵌套 JSON 文件在 Rust 内展开为 data URL。
+- 原生文件请求按 `requestId` 注册 `CancellationToken`，前端 `AbortSignal` 会触发取消 command；超时、证书策略、HTTP/1 与显式代理配置继续透传。响应设置 128 MiB 上限并保留状态、Header 与二进制字节。
+- 移动 Transport 自动化合约新增 JSON/顶层/multipart FileRef 和取消覆盖；移动 Rust 新增 tagged 伪引用与 URL scheme 安全测试。移动端 34 个用例、移动前端类型检查、Clippy、Rust 单测、Rustfmt 与 Vite 生产构建均通过。
+
+批次 10 已完成：
+
+- 共享 Core 新增同步媒体请求、输入源、资产响应、Adapter 与执行器；OpenAI/xAI 图片、Gemini 图片、SiliconFlow 图片和 OpenAI TTS 的最终 URL/Header/body 与 JSON/二进制响应语义均由共享实现负责。
+- OpenAI 图片编辑的本地 `path` 会转换成 multipart `LocalFileRef`，桌面和移动 Transport 均可由原生层读取；data URL 使用纯 JS 解码，不通过 `fetch(dataUrl)`。
+- 桌面图片/音频 Facade 已接入共享执行器，保留 Agnes、xAI、Gemini、SiliconFlow 特有参数、自定义 Header/端点、网络策略及现有 `LlmResponse` 形状。
+- 共享 Core 新增模型列表请求/响应契约与解析器，统一 OpenAI 系、Anthropic、Gemini、Cohere、Vertex 和 Ollama URL、鉴权、错误与响应归一化；桌面和移动仅在返回后执行各自模型元数据增强。
+- 同步媒体与模型列表新增 6 个共享 fixture 用例；既有 OpenAI 图片与 Ollama 模型列表回归通过。
+
+批次 11 已完成代码与自动化验收：
+
+- 共享 Core 新增异步媒体任务契约与执行器，明确区分创建、轮询、进度、失败、取消、结果资产获取和同步完成 Provider；轮询可配置间隔/上限，等待支持 `AbortSignal`，Provider cancel 作为可选能力。
+- OpenAI/Ark/Agnes 视频与 Gemini Veo 已迁移到共享任务 Adapter；OpenAI 无直链结果继续通过带鉴权的 content 请求获取二进制，Ark 继续要求状态响应提供可用 URL。
+- Suno NewAPI 音乐主生成链迁移到共享创建/轮询/feed 结果解析；MiniMax 音乐最终生成请求作为立即完成任务进入同一执行器。歌词、拼接和翻唱预处理仍是独立低级能力，不被塞进一次性媒体生成契约。
+- 异步任务新增 5 个共享 fixture/执行器用例，覆盖 OpenAI 三阶段、Gemini LRO、Suno feed、MiniMax hex 音频与可取消等待；既有 OpenAI 视频 6 个、MiniMax 11 个回归用例通过。
+- 最终自动化验收通过共享 Core 15 个文件/62 个用例、根 Vitest 73 个文件/476 个用例、移动 Vitest 10 个文件/34 个用例、lint、两端前端类型检查、两端 Clippy、移动 Rust 单测、Rustfmt 和两端 Vite 生产构建。lint 与构建仅保留既有 warning。
+
+实施顺序相对原计划有一处受控调整：仓库已经存在多组 Provider Adapter 单测，因此先落地阶段 1 的无业务侵入骨架和公共分帧器，再随 Provider 批次补齐 wire fixture、差分记录和应用依赖隔离。阶段 1-5 的代码与可自动化验收现已完成；没有基准证据，因此 Provider 语义解析仍保留在共享 TypeScript Core。剩余项目均依赖真实桌面 WebView 或 Android/iOS 设备观测，见 8.4 节。
 
 此前记录的全仓验证阻塞均已处理：Smart OCR 历史表格引用改用 Element Plus 导出的 `TableInstance`；OpenAI Adapter 测试已与第三方兼容模型支持 `reasoning_effort` 的现行契约对齐，并保留不支持模型的负向覆盖；聊天草稿测试将一次性模块加载移出 `beforeEach`，避免全量并发时触发 hook 超时。桌面 `check:frontend`、根 Vitest 全集（59 个测试文件、417 个用例）及桌面 Vite 生产构建均已通过。
 
@@ -499,13 +522,13 @@ export interface TransportObserver {
 
 | 原阶段                         | 状态               | 已落地                                                                                                                                               | 未闭环                                                                                                  |
 | ------------------------------ | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| 阶段 0：契约冻结与基线         | 部分完成           | 移动 `sendRequest` Facade、OpenAI-Compatible、Responses、Claude、Cohere、Gemini、Vertex 与 Embedding wire/stream fixture、正文/推理/usage 契约已冻结 | 其余双端差分记录尚缺；大文本、文件和媒体性能基线尚缺                                                    |
+| 阶段 0：契约冻结与基线         | 自动化部分已完成   | 文本、Embedding、同步媒体、模型列表和异步媒体均有固定 wire/response/stream fixture 与应用回归                                                     | 真实 Tauri 峰值内存、主线程阻塞和 TTFB 需人工采样                                                       |
 | 阶段 1：共享包骨架             | 已完成             | `packages/llm-core`、canonical DTO、Wire 类型、LocalFileRef、SSE/JSONL 分帧器及独立测试已落地                                                        | 无阻塞项，后续按 Provider 扩展类型                                                                      |
 | 阶段 1.5：应用依赖解耦         | 已完成             | 移动请求入口、双端 OpenAI-Compatible/Responses/Claude/Cohere/Gemini/Vertex 和双端 Transport 已完成依赖收束                                           | 无；媒体与模型列表按后续能力批次接入                                                                    |
 | 阶段 2：桌面 OpenAI-Compatible | 已完成             | 共享纯 Adapter、统一执行器、桌面 Transport、canonical 多媒体/DeepSeek/扩展映射、流式与非流式接线和差分回归已完成                                     | 无；真实移动端行为统一留待批次 9                                                                        |
 | 阶段 3：移动 OpenAI-Compatible | 代码完成，真机待验 | 移动 Transport、canonical 映射、兼容 Facade、旧 builder/parser/SSE 循环删除和回归测试已完成                                                          | Android/iOS 的真实流式读取、取消与后台切换尚未验证                                                      |
-| 阶段 4：其他 Provider          | 进行中             | OpenAI Responses、Anthropic Messages、Cohere Chat、Gemini、Vertex 与四类 Embedding 共享 Adapter、双端 Facade、fixture 与差分回归已完成               | 模型列表、同步媒体与异步媒体能力仍未共享                                                                |
-| 阶段 5：Rust Transport 优化    | 进行中             | 桌面 raw/json-expand、嵌套/顶层/multipart FileRef、Client 池、capability token、Origin/CORS 与日志脱敏已落地；首组双端共享 Transport 合约已接线        | 真实 Tauri 端到端代理与性能复测、移动原生 FileRef 上传、Android/iOS 真机行为尚未闭环                    |
+| 阶段 4：其他 Provider          | 已完成             | 文本、Embedding、模型列表、同步媒体和异步媒体共享 Adapter/执行器、应用 Facade、fixture 与回归已完成                                                 | 无代码项；移动端当前没有媒体生成业务 Facade，后续新增时直接复用共享 Core                                |
+| 阶段 5：Rust Transport 优化    | 代码完成，人工待验 | 桌面代理/安全/Client 池与双端三类 FileRef 原生边界、取消和共享 Transport 合约均已落地                                                                | 真实 Tauri 性能复测及 Android/iOS 真机行为尚未闭环                                                     |
 
 当前不存在需要先停工清债的架构阻塞。下一步的主要成本已经从“搭骨架”转为“迁移重复协议实现”；如果继续把依赖解耦、共享 Adapter、桌面接线、移动接线分别算作独立批次，会反复支付差分测试、全量类型检查和两端构建成本。
 
@@ -548,7 +571,7 @@ export interface TransportObserver {
 
 #### 批次 9：Transport、文件引用、安全与真机闭环
 
-完成状态：桌面代理、桌面三类文件引用、安全边界、Client 池和首组双端共享合约已完成；真实 Tauri 代理集成/性能数据、移动文件引用及 Android/iOS 真机验证仍在施工，本批尚未闭环。
+完成状态：桌面代理、安全边界、Client 池、双端三类文件引用和自动化合约已完成；仅真实 Tauri 性能数据及 Android/iOS 真机验证留待人工。
 
 - 将桌面 Rust 代理拆分为 `/proxy/raw` 与 `/proxy/json-expand`，支持 JSON 嵌套 tagged `LocalFileRef`、multipart part 和顶层 `file-ref` 的受控原生读取。
 - 增加按稳定网络策略复用的 `reqwest::Client` 池，以及 capability token、严格 Origin/CORS 和敏感 Header/日志保护。
@@ -557,7 +580,7 @@ export interface TransportObserver {
 - 使用项目真实 Tauri 运行方式验证 Android/iOS 流式读取、取消和后台切换，并记录无法自动化的设备/系统版本边界。
 - 本批涉及 Rust，除两端前端验证外必须通过桌面端与移动端后端检查。
 
-#### 批次 10：同步媒体能力（图片 + 音频 + 模型列表）
+#### 批次 10：同步媒体能力（图片 + 音频 + 模型列表，已完成）
 
 - 扩展共享 Core 的媒体请求、媒体资产和二进制/URL 响应契约，复用批次 9 的 FileRef 与 multipart 能力。
 - 迁移 OpenAI、Gemini、SiliconFlow、xAI 图片生成以及 OpenAI 音频生成的请求构建和响应解析；Provider 特有参数继续通过显式扩展字段承载。
@@ -565,7 +588,7 @@ export interface TransportObserver {
 - 覆盖输入图片编辑、Base64/URL 资产、音频二进制、Provider JSON 错误和大文件不穿过 WebView 内存的回归。
 - 接入现有媒体生成业务 Facade 后删除重复协议代码；不在运行时读取全局模型元数据规则补齐 `mediaGenParams`。
 
-#### 批次 11：异步媒体任务（视频 + 音乐）与总验收
+#### 批次 11：异步媒体任务（视频 + 音乐）与总验收（自动化部分已完成）
 
 - 为创建任务、轮询、进度、取消、完成资产和 Provider 错误建立共享的异步任务契约，不将轮询状态塞入一次性聊天响应模型。
 - 迁移 OpenAI/Gemini 视频、Suno NewAPI 和 MiniMax Music 等异步媒体 Adapter，统一可共享的任务生命周期，保留 Provider 专有状态映射。
@@ -574,6 +597,14 @@ export interface TransportObserver {
 - 执行第 9 节全量测试和第 10 节架构、行为、性能、安全验收，更新架构文档后结束本计划。
 
 批次 7-11 是交付批次，不等同于单个 Git 提交。建议每批内部按“共享协议与 fixture -> 桌面/移动接线 -> 删除旧实现与全量验收”组织 2-4 个可审查提交；任一中间提交均不得宣称该宏批次完成。
+
+### 8.4. 仅保留给人工的验收项
+
+以下项目必须观察真实 WebView、操作系统调度或设备生命周期，不能用普通浏览器、Vitest 或宿主机 Clippy 代替：
+
+1. 使用桌面 `tauri dev` 连接可控上游，分别发送大文本、嵌套 JSON FileRef、顶层文件与 multipart 媒体，采集迁移前后序列化次数、WebView/Rust 峰值内存、主线程阻塞和 TTFB；同时在 DevTools 确认流式首 chunk 未等待完整响应。
+2. 在至少一台 Android 与一台 iOS 真机记录系统版本和 WebView 版本，验证长流逐段交付、用户取消、FileRef 顶层/multipart/嵌套 JSON 请求，以及前后台切换后的继续、失败或系统终止行为。
+3. 人工验收只记录环境相关结果和性能数值；若发现协议 body、响应解析或自动化契约错误，应回到对应批次补测试，不在人工记录中豁免。
 
 ## 9. 测试策略
 

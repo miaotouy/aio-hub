@@ -242,7 +242,7 @@ describe("OpenAI Adapter - Video", () => {
       .calls[2];
     expect(contentUrl).toBe("https://api.openai.com/v1/videos/vid-1/content");
     expect(contentOptions.headers.Authorization).toBe("Bearer sk-test");
-    expect(result.videos?.[0]?.b64_json).toBe(bytes);
+    expect(result.videos?.[0]?.b64_json).toStrictEqual(bytes);
   });
 
   it("keeps Agnes reference images in extra_body and reads remixed video url", async () => {

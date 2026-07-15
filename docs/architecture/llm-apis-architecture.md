@@ -1,6 +1,6 @@
 # LLM API 系统架构
 
-本文档系统性地介绍 AIO Hub 的 LLM API 调用体系。整个系统分为 **三层架构**，从上层配置到底层协议适配逐层递进：
+本文档系统性地介绍 AIO Hub 的 LLM API 调用体系。系统由应用配置/编排、应用 Facade、共享 Provider Core 与平台 Transport 组成；桌面和移动共享协议语义，但保留各自运行时边界：
 
 ```
 ┌──────────────────────────────────────────────────┐
@@ -12,13 +12,14 @@
 │  useLlmKeyManager.ts — 多 Key 轮询 / 熔断/恢复    │
 │  useLlmRequest.ts    — 请求编排 / 中间件           │
 ├──────────────────────────────────────────────────┤
-│                 适配器层 (Adapter)                 │
-│  common.ts            — 统一请求/响应接口           │
-│  request-builder.ts   — 参数过滤 / 消息解析         │
-│  model-fetcher.ts     — 模型列表发现 / 元数据增强    │
-│  embedding.ts         — 嵌入任务统一入口             │
-│  embedding-types.ts   — 嵌入类型定义                │
-│  adapters/            — 各服务商协议适配实现         │
+│              应用 Facade 层 (Desktop/Mobile)        │
+│  Profile/Key/元数据映射、回调兼容、错误与日志接入      │
+├──────────────────────────────────────────────────┤
+│            @aiohub/llm-core (Shared Core)         │
+│  canonical DTO / Provider Adapter / 执行器 / fixture │
+├──────────────────────────────────────────────────┤
+│                 平台 Transport 层                  │
+│  Desktop Rust Proxy / Mobile HTTP + Native FileRef │
 └──────────────────────────────────────────────────┘
 ```
 
@@ -200,6 +201,16 @@ src/llm-apis/
 │   ├── siliconflow/        # SiliconFlow 图片生成（独立于 OpenAI 兼容）
 │   └── suno-newapi/        # Suno 音乐生成 (NewAPI 协议)
 └── 参考docs/               # 各 API 的参考文档（非代码）
+
+packages/llm-core/src/
+├── types/                  # canonical 聊天、Embedding、媒体、模型列表与任务类型
+├── providers/              # 纯 URL/Header/body 构建和响应语义解析
+├── executor.ts             # 聊天统一执行器
+├── embedding-executor.ts   # Embedding 执行器
+├── media-executor.ts       # 同步媒体执行器
+├── model-list-executor.ts  # 模型列表执行器
+├── async-media-executor.ts # 异步媒体任务生命周期
+└── stream-parser/          # 增量 SSE / JSONL 分帧
 ```
 
 ### 3.2 统一适配器接口 — [`LlmAdapter`](/src/llm-apis/adapters/index.ts:16)
@@ -303,6 +314,7 @@ type LlmMessageContent =
 - 超时控制：[`fetchWithTimeout()`](/src/llm-apis/common.ts:612) — 带双重中止信号管理
 - 代理传输：桌面默认经带 capability token 的 Rust 回环代理；普通请求走 `/proxy/raw` 原样流式转发，含 tagged/兼容期文件引用的 JSON 才走 `/proxy/json-expand`
 - 文件上传：浏览器 `FormData` 透明转发；顶层 `file-ref` 与含本地文件的 multipart manifest 由 Rust 流式读取，本地文件内容不进入 WebView
+- 移动文件上传：普通请求继续走 Tauri HTTP；含 tagged JSON、顶层或 multipart `LocalFileRef` 的请求改走移动 Rust command，并按 `requestId` 支持取消。本地文件字节不进入 WebView
 - 安全边界：代理只接受当次运行 token 与 Tauri/loopback Origin，过滤代理元 Header，并在日志 URL 中移除 query/fragment
 - 错误类型：`TimeoutError`, `LlmApiError`, `isAbortError()`
 
@@ -312,9 +324,19 @@ type LlmMessageContent =
 
 ### 3.8 模型获取与元数据 — [`model-fetcher.ts`](/src/llm-apis/model-fetcher.ts)
 
-- 动态发现：调用服务商 `models` 端点获取模型列表
-- 元数据丰富：结合 `model-metadata.ts` 推断模型分组、Token 限制、能力标识（thinkingConfigType 等）
+- 动态发现：共享 `modelListAdapter` 负责 Provider URL、鉴权、错误和响应归一化
+- 元数据丰富：桌面/移动 Facade 在模型写入阶段结合各自 `model-metadata` 规则增强分组、Token 限制与能力；运行时请求不会反向读取规则
 - 图标匹配：通过 `normalizeIconPath()` 和 `getModelIconPath()` 自动匹配预设图标
+
+### 3.9 共享 Core 与执行器
+
+- `ProviderAdapter`：聊天、Responses、Claude、Cohere、Gemini、Vertex 的纯请求构建、非流式解析和增量 Decoder
+- `EmbeddingProviderAdapter`：OpenAI、Gemini、Cohere、Vertex 单条/批量 Embedding
+- `SyncMediaProviderAdapter`：OpenAI/xAI/Gemini/SiliconFlow 图片与 OpenAI TTS
+- `ModelListProviderAdapter`：OpenAI 系、Anthropic、Gemini、Cohere、Vertex、Ollama 模型发现
+- `AsyncMediaTaskAdapter`：OpenAI/Ark/Agnes 视频、Gemini Veo、Suno 与 MiniMax 的创建、轮询、进度、取消和资产终态
+
+共享包禁止导入 Vue、Pinia、Tauri、应用 Store、logger 或 UI。Provider Adapter 不执行 `fetch`/`invoke`，Transport 不理解 Provider 语义。
 
 ---
 
@@ -342,15 +364,16 @@ useLlmRequest.sendRequest(options)
     │   ├── forceProxy → 代理
     │   └── 本地/IP 地址 → 自动代理
     │
-    ├── 适配器分发 (adapters[profile.type])
+    ├── 应用 Facade 分发 (adapters[profile.type])
     │   ├── adapter.video()
     │   ├── adapter.image()
     │   ├── adapter.audio()
     │   └── adapter.chat()
     │       │
-    │       ├── fetchWithTimeout (含超时 + 代理劫持)
-    │       ├── 流式解析 (onStream / onReasoningStream)
-    │       └── 响应标准化 → LlmResponse
+    │       ├── 映射 canonical DTO + 注入 Profile/TransportOptions
+    │       ├── @aiohub/llm-core 构建 WireRequest / 解析响应
+    │       ├── Desktop/Mobile Transport 执行网络与文件 I/O
+    │       └── Facade 映射回现有 LlmResponse/回调
     │
     ├── 成功 → reportSuccess() → 返回响应
     │
@@ -419,6 +442,7 @@ useLlmRequest.sendRequest(options)
 
 - **能力驱动开发**: 业务逻辑应依赖 `ModelCapabilities` 检测（如 `capabilities.thinking`），而非硬编码模型 ID
 - **利用 Request Builder**: 优先使用 `filterParametersByCapabilities` 和 `cleanPayload` 处理请求体，确保 API 兼容性
-- **统一媒体处理**: 图片、音频、视频应通过 `ParsedMessageContent` 统一处理，由适配器决定映射方式（`inline_data` vs `url`）
+- **统一媒体处理**: 新 Provider 的图片、音频、视频、音乐和模型列表协议优先实现于 `@aiohub/llm-core`，应用目录只保留 Profile、业务参数和响应兼容映射
+- **文件引用**: 大文件使用 tagged `LocalFileRef`，不要在 Facade 中预读成 Base64；Provider JSON、multipart part 与顶层请求体均已有明确契约
 - **Key 管理**: 合理配置 `autoRecoveryTime`，429 熔断后自动恢复，无需人工干预
 - **代理策略**: 桌面外部请求默认走 Rust 代理，可通过 `networkStrategy: "native"` 直连；涉及 `LocalFileRef` 或兼容期 `local-file://` 时始终走 Rust 原生文件路径，不能把路径或引用对象直接发送给 Provider

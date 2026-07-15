@@ -14,6 +14,14 @@
 
 import type { LlmProfile } from "@/types/llm-profiles";
 import type { LlmResponse, MediaGenerationOptions } from "@/llm-apis/common";
+import {
+  executeAsyncMediaTask,
+  minimaxMusicTaskAdapter,
+  type JsonValue,
+  type ProviderProfile,
+} from "@aiohub/llm-core";
+import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
+import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 import type { LlmAdapter } from "../index";
 import { MinimaxMusicClient } from "./client";
 import type {
@@ -24,7 +32,6 @@ import type {
 } from "./types";
 import {
   MINIMAX_MUSIC_DEFAULTS,
-  normalizeMinimaxMusicResponse,
   stripBase64DataUrl,
 } from "./utils";
 
@@ -90,13 +97,64 @@ export const minimaxMusicAdapter: LlmAdapter = {
       params,
     });
 
-    const response = await client.generateMusic(request);
-    return normalizeMinimaxMusicResponse(
-      response,
-      outputFormat,
-      audioFormat,
-      generatedLyrics
-    );
+    const providerProfile: ProviderProfile = {
+      provider: "minimax-music",
+      baseUrl: profile.baseUrl || MINIMAX_MUSIC_DEFAULTS.baseUrl,
+      apiKey: profile.apiKeys?.[0],
+      headers: resolveCustomHeaders(profile.customHeaders),
+    };
+    const task = await executeAsyncMediaTask({
+      adapter: minimaxMusicTaskAdapter,
+      profile: providerProfile,
+      request: {
+        kind: "music",
+        model,
+        prompt: options.prompt || "",
+        parameters: {
+          outputFormat,
+          audioFormat,
+          body: toJsonValue(request) as Record<string, JsonValue>,
+        },
+      },
+      transport: desktopLlmTransport,
+      transportOptions: {
+        requestId: options.requestId ?? `minimax-music-${Date.now()}`,
+        signal: options.signal,
+        timeoutMs: options.timeout,
+        network: {
+          strategy: options.forceProxy ? "proxy" : options.networkStrategy,
+          relaxInvalidCerts: options.relaxIdCerts,
+          http1Only: options.http1Only,
+        },
+      },
+    });
+    if (!task.assets?.length) {
+      throw new Error("MiniMax 音乐生成响应中没有音频");
+    }
+    const duration =
+      typeof task.metadata?.duration === "number"
+        ? task.metadata.duration
+        : undefined;
+    const title = generatedLyrics?.song_title;
+    const styleTags = generatedLyrics?.style_tags;
+    const summary = [
+      title ? `标题：${title}` : "",
+      styleTags ? `风格：${styleTags}` : "",
+    ].filter(Boolean);
+    return {
+      content: summary.length ? `音乐生成完成\n${summary.join("\n")}` : "音乐生成完成",
+      audios: task.assets.map((asset) =>
+        asset.kind === "inline-base64"
+          ? { b64_json: asset.data, format: audioFormat, duration }
+          : {
+              url: asset.kind === "remote-url" ? asset.url : asset.id,
+              format: audioFormat,
+              duration,
+            }
+      ),
+      revisedPrompt: generatedLyrics?.lyrics,
+      progress: task.progress ?? 100,
+    };
   },
 };
 
@@ -146,6 +204,25 @@ function normalizeString(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function toJsonValue(value: unknown): JsonValue | undefined {
+  if (value === null || ["string", "number", "boolean"].includes(typeof value)) {
+    return value as JsonValue;
+  }
+  if (Array.isArray(value)) {
+    const result = value.map(toJsonValue);
+    return result.every((item) => item !== undefined) ? (result as JsonValue[]) : undefined;
+  }
+  if (typeof value === "object" && value !== null) {
+    const result: Record<string, JsonValue> = {};
+    for (const [key, item] of Object.entries(value)) {
+      const normalized = toJsonValue(item);
+      if (normalized !== undefined) result[key] = normalized;
+    }
+    return result;
+  }
+  return undefined;
 }
 
 export function buildMusicRequest(input: {

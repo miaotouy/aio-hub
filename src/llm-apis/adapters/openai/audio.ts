@@ -1,77 +1,64 @@
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// Licensed under the Apache License, Version 2.0.
 
-import type { LlmProfile } from "@/types/llm-profiles";
 import {
-  type MediaGenerationOptions,
-  type LlmResponse,
-  fetchWithTimeout,
-  ensureResponseOk,
-} from "@/llm-apis/common";
-import { asyncJsonStringify } from "@/utils/serialization";
-import { openAiUrlHandler, buildOpenAiHeaders } from "./utils";
+  executeSyncMediaRequest,
+  openAiAudioAdapter,
+  type ProviderProfile,
+} from "@aiohub/llm-core";
+import type { MediaGenerationOptions, LlmResponse } from "@/llm-apis/common";
+import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
+import type { LlmProfile } from "@/types/llm-profiles";
+import { buildOpenAiHeaders } from "./utils";
 
-/**
- * 调用 OpenAI 兼容的语音合成 (TTS) API
- */
 export async function callOpenAiAudioApi(
   profile: LlmProfile,
   options: MediaGenerationOptions
 ): Promise<LlmResponse> {
-  const { modelId, prompt, audioConfig, timeout, signal } = options;
-
-  const baseUrl = profile.baseUrl || "https://api.openai.com/v1";
-  const url = openAiUrlHandler.buildUrl(baseUrl, "audio/speech", profile);
-
-  const headers = buildOpenAiHeaders(profile, options.requestId);
-
-  const body = {
-    model: modelId,
-    input: prompt || "",
-    voice: audioConfig?.voice || "alloy",
-    response_format: audioConfig?.responseFormat || "mp3",
-    speed: audioConfig?.speed || 1.0,
-    // 新增特性支持
-    instructions: (options as any).instructions,
+  const format = options.audioConfig?.responseFormat ?? "mp3";
+  const extendedOptions = options as unknown as Record<string, unknown>;
+  const providerProfile: ProviderProfile = {
+    provider: profile.type,
+    baseUrl: profile.baseUrl || "https://api.openai.com/v1",
+    apiKey: profile.apiKeys?.[0],
+    headers: buildOpenAiHeaders(profile, options.requestId),
+    endpoints: profile.customEndpoints as Record<string, string> | undefined,
   };
-
-  const response = await fetchWithTimeout(
-    url,
-    {
-      method: "POST",
-      headers,
-      body: await asyncJsonStringify(body),
-      forceProxy: options.forceProxy,
-      relaxIdCerts: options.relaxIdCerts,
-      http1Only: options.http1Only,
-    },
-    timeout,
-    signal
-  );
-
-  await ensureResponseOk(response);
-
-  // TTS 返回的是二进制音频流
-  const arrayBuffer = await response.arrayBuffer();
-  return {
-    content: "Audio generated successfully.",
-    audioData: arrayBuffer,
-    audios: [
-      {
-        b64_json: arrayBuffer,
-        format: audioConfig?.responseFormat || "mp3",
+  const result = await executeSyncMediaRequest({
+    adapter: openAiAudioAdapter,
+    profile: providerProfile,
+    request: {
+      kind: "audio",
+      model: options.modelId,
+      prompt: options.prompt ?? "",
+      audio: {
+        voice: options.audioConfig?.voice,
+        format,
+        speed: options.audioConfig?.speed,
+        pitch: options.audioConfig?.pitch,
       },
-    ],
+      extensions: {
+        ...((typeof extendedOptions.instructions === "string" && {
+          instructions: extendedOptions.instructions,
+        }) || {}),
+      },
+    },
+    transport: desktopLlmTransport,
+    transportOptions: {
+      requestId: options.requestId ?? `audio-${Date.now()}`,
+      signal: options.signal,
+      timeoutMs: options.timeout,
+      network: {
+        strategy: options.forceProxy ? "proxy" : options.networkStrategy,
+        relaxInvalidCerts: options.relaxIdCerts,
+        http1Only: options.http1Only,
+      },
+    },
+  });
+  const buffer = result.binary?.slice().buffer as ArrayBuffer | undefined;
+  return {
+    content: result.content,
+    audioData: buffer,
+    audios: [{ b64_json: buffer, format }],
   };
 }

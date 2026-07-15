@@ -101,7 +101,10 @@ export function createDesktopLlmTransport(
 export const desktopLlmTransport = createDesktopLlmTransport({
   fetch: fetchWithTimeout,
   ensureResponseOk,
-  serializeJson: asyncJsonStringify,
+  serializeJson: (value) =>
+    typeof Worker === "undefined"
+      ? Promise.resolve(JSON.stringify(value))
+      : asyncJsonStringify(value),
 });
 
 async function serializeBody(
@@ -216,6 +219,11 @@ async function* responseBodyToAsyncIterable(
   options: TransportOptions
 ): AsyncIterable<Uint8Array> {
   if (!response.body) {
+    if (typeof response.arrayBuffer === "function") {
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      if (bytes.length > 0) yield bytes;
+      return;
+    }
     const fallbackValue =
       typeof response.text === "function"
         ? await response.text()

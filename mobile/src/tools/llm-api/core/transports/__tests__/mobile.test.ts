@@ -129,29 +129,147 @@ describe("mobile LLM transport", () => {
     );
   });
 
-  it("rejects tagged file references until native expansion is implemented", async () => {
+  it("routes tagged JSON file references through the native command", async () => {
     const fetch = vi.fn();
+    const sendFileRequest = vi.fn(async () =>
+      new Response('{"ok":true}', {
+        status: 202,
+        headers: { "X-Native": "yes" },
+      })
+    );
     const transport = createMobileLlmTransport({
       fetch,
-      ensureResponseOk: vi.fn(),
+      ensureResponseOk: vi.fn(async () => undefined),
+      sendFileRequest,
     });
 
-    await expect(
-      transport.send(
-        {
-          method: "POST",
-          url: "https://example.com/chat",
-          headers: {},
-          body: {
-            kind: "json",
-            value: { image: { kind: "local-file-ref", path: "image.png" } },
+    const response = await transport.send(
+      {
+        method: "POST",
+        url: "https://example.com/chat",
+        headers: {},
+        body: {
+          kind: "json",
+          value: {
+            image: {
+              kind: "local-file-ref",
+              path: "image.png",
+              contentType: "image/png",
+            },
           },
-          streaming: false,
         },
-        { requestId: "request-4" }
-      )
-    ).rejects.toThrow("tagged LocalFileRef");
+        streaming: false,
+      },
+      { requestId: "request-4", timeoutMs: 5000 }
+    );
+
     expect(fetch).not.toHaveBeenCalled();
+    expect(sendFileRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: "request-4",
+        timeoutMs: 5000,
+        body: expect.objectContaining({ kind: "json" }),
+      })
+    );
+    expect(response.status).toBe(202);
+  });
+
+  it("serializes top-level and multipart file refs without reading file bytes", async () => {
+    const sendFileRequest = vi.fn(async () => new Response("{}"));
+    const transport = createMobileLlmTransport({
+      fetch: vi.fn(),
+      ensureResponseOk: vi.fn(async () => undefined),
+      sendFileRequest,
+    });
+
+    await transport.send(
+      {
+        method: "PUT",
+        url: "https://example.com/upload",
+        headers: {},
+        body: {
+          kind: "file-ref",
+          ref: { kind: "local-file-ref", path: "video.mp4" },
+        },
+        streaming: false,
+      },
+      { requestId: "request-file" }
+    );
+    await transport.send(
+      {
+        method: "POST",
+        url: "https://example.com/edit",
+        headers: {},
+        body: {
+          kind: "multipart",
+          parts: [
+            { name: "prompt", body: { kind: "text", value: "edit" } },
+            {
+              name: "image",
+              filename: "image.png",
+              body: {
+                kind: "file-ref",
+                ref: { kind: "local-file-ref", path: "image.png" },
+              },
+            },
+          ],
+        },
+        streaming: false,
+      },
+      { requestId: "request-multipart" }
+    );
+
+    expect(sendFileRequest).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ body: expect.objectContaining({ kind: "file-ref" }) })
+    );
+    expect(sendFileRequest).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        body: expect.objectContaining({
+          kind: "multipart",
+          parts: expect.arrayContaining([
+            expect.objectContaining({
+              body: expect.objectContaining({ kind: "file-ref" }),
+            }),
+          ]),
+        }),
+      })
+    );
+  });
+
+  it("cancels an in-flight native file request", async () => {
+    const controller = new AbortController();
+    const cancelFileRequest = vi.fn(async () => true);
+    const sendFileRequest = vi.fn(
+      () =>
+        new Promise<Response>((_, reject) => {
+          controller.signal.addEventListener("abort", () => reject(new Error("cancelled")));
+        })
+    );
+    const transport = createMobileLlmTransport({
+      fetch: vi.fn(),
+      ensureResponseOk: vi.fn(),
+      sendFileRequest,
+      cancelFileRequest,
+    });
+    const pending = transport.send(
+      {
+        method: "PUT",
+        url: "https://example.com/upload",
+        headers: {},
+        body: {
+          kind: "file-ref",
+          ref: { kind: "local-file-ref", path: "video.mp4" },
+        },
+        streaming: false,
+      },
+      { requestId: "request-cancel", signal: controller.signal }
+    );
+    controller.abort();
+
+    await expect(pending).rejects.toThrow("cancelled");
+    expect(cancelFileRequest).toHaveBeenCalledWith("request-cancel");
   });
 });
 

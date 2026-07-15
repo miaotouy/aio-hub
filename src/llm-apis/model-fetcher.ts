@@ -1,58 +1,31 @@
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// Licensed under the Apache License, Version 2.0.
 
-/**
- * LLM 模型列表获取工具
- * 支持从不同提供商 API 获取可用模型列表
- */
-
-import type {
-  LlmProfile,
-  LlmModelInfo,
-  ProviderType,
-} from "../types/llm-profiles";
-import { getProviderTypeInfo } from "../config/llm-providers";
-import { buildLlmApiUrl } from "@/utils/llm-api-url";
-import { fetchWithTimeout, ensureResponseOk } from "./common";
-import { createModuleLogger } from "@utils/logger";
-import { createModuleErrorHandler } from "@utils/errorHandler";
-import { parseOpenAiModelsResponse } from "./adapters/openai/utils";
-import { parseGeminiModelsResponse } from "./adapters/gemini/utils";
-import { parseAnthropicModelsResponse } from "./adapters/anthropic/utils";
-import { parseVertexAiModelsResponse } from "./adapters/vertexai/utils";
-import { parseCohereModelsResponse } from "./adapters/cohere/utils";
-import { parseSiliconFlowModelsResponse } from "./adapters/siliconflow/utils";
+import {
+  executeModelListRequest,
+  modelListAdapter,
+  type ProviderModelInfo,
+  type ProviderProfile,
+} from "@aiohub/llm-core";
+import { getProviderTypeInfo } from "@/config/llm-providers";
+import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
+import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { createModuleLogger } from "@/utils/logger";
+import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 
 const logger = createModuleLogger("ModelFetcher");
 const errorHandler = createModuleErrorHandler("ModelFetcher");
 
-/**
- * 模型获取结果接口
- */
 export interface ModelFetchResult {
   models: LlmModelInfo[];
-  rawResponse: any;
+  rawResponse: unknown;
 }
 
-/**
- * 从 API 获取模型列表
- */
 export async function fetchModelsFromApi(
   profile: LlmProfile
 ): Promise<ModelFetchResult> {
   const providerInfo = getProviderTypeInfo(profile.type);
-
   if (!providerInfo?.supportsModelList || !providerInfo.modelListEndpoint) {
     throw new Error(`提供商 ${providerInfo?.name} 不支持自动获取模型列表`);
   }
@@ -62,175 +35,89 @@ export async function fetchModelsFromApi(
     providerType: profile.type,
     endpoint: providerInfo.modelListEndpoint,
   });
-
-  let url = buildLlmApiUrl(
-    profile.baseUrl,
-    profile.type,
-    providerInfo.modelListEndpoint,
-    profile
-  );
-
-  // OpenRouter 默认只返回 text 类型模型，需要添加 output_modalities=all 获取完整列表
-  // 同时兼容用户以 openai/openai-compatible 类型配置 OpenRouter baseUrl 的情况
-  if (
-    profile.type === "openrouter" ||
-    profile.baseUrl.includes("openrouter.ai")
-  ) {
-    const separator = url.includes("?") ? "&" : "?";
-    url += `${separator}output_modalities=all`;
-  }
-  const apiKey =
-    profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
-
-  // 根据不同提供商构建请求头
-  const headers = buildRequestHeaders(profile.type, apiKey);
-
   try {
-    // 模型列表获取通常不需要很长的超时，默认 60s 足够
-    // 强制走后端代理以绕过前端 Capabilities/CORS 限制
-    const response = await fetchWithTimeout(
-      url,
-      {
-        method: "GET",
-        headers,
-        forceProxy: true,
-        relaxIdCerts: profile.relaxIdCerts,
-        http1Only: profile.http1Only,
+    const providerProfile: ProviderProfile = {
+      provider: profile.type,
+      baseUrl: profile.baseUrl,
+      apiKey: profile.apiKeys?.[0],
+      headers: resolveCustomHeaders(profile.customHeaders),
+      endpoints: profile.customEndpoints?.models
+        ? { models: profile.customEndpoints.models }
+        : undefined,
+    };
+    const result = await executeModelListRequest({
+      adapter: modelListAdapter,
+      profile: providerProfile,
+      request: {
+        provider: profile.type,
+        endpoint: providerInfo.modelListEndpoint,
+        includeAllOutputModalities:
+          profile.type === "openrouter" || profile.baseUrl.includes("openrouter.ai"),
       },
-      60000
-    );
-
-    await ensureResponseOk(response);
-
-    const data = await response.json();
-    const models = parseModelsResponse(data, profile.type);
-
+      transport: desktopLlmTransport,
+      transportOptions: {
+        requestId: `models-${profile.id}-${Date.now()}`,
+        timeoutMs: 60_000,
+        network: {
+          strategy: "proxy",
+          relaxInvalidCerts: profile.relaxIdCerts,
+          http1Only: profile.http1Only,
+        },
+      },
+    });
+    const models = result.models.map(toDesktopModelInfo);
     logger.info("模型列表获取成功", {
       profileName: profile.name,
       modelCount: models.length,
     });
-
-    return {
-      models,
-      rawResponse: data,
-    };
+    return { models, rawResponse: result.raw };
   } catch (error) {
     errorHandler.error(error, "获取模型列表失败", {
-      context: {
-        profileName: profile.name,
-        providerType: profile.type,
-      },
+      context: { profileName: profile.name, providerType: profile.type },
     });
     throw error;
   }
 }
 
-/**
- * 根据提供商类型构建请求头
- */
-function buildRequestHeaders(
-  providerType: ProviderType,
-  apiKey: string
-): Record<string, string> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+function toDesktopModelInfo(model: ProviderModelInfo): LlmModelInfo {
+  const pricing = model.pricing
+    ? Object.fromEntries(
+        Object.entries(model.pricing).map(([key, value]) => [key, String(value)])
+      )
+    : undefined;
+  return {
+    id: model.id,
+    name: model.name,
+    group: model.group,
+    provider: model.provider,
+    description: model.description,
+    capabilities: {
+      vision: model.inputModalities?.includes("image") ?? false,
+      thinking:
+        model.supportedParameters?.includes("reasoning") ||
+        model.supportedParameters?.includes("include_reasoning"),
+    },
+    tokenLimits:
+      model.contextLength !== undefined || model.maxOutputTokens !== undefined
+        ? {
+            contextLength: model.contextLength,
+            output: model.maxOutputTokens,
+          }
+        : undefined,
+    architecture:
+      model.inputModalities || model.outputModalities
+        ? {
+            inputModalities: model.inputModalities,
+            outputModalities: model.outputModalities,
+          }
+        : undefined,
+    supportedFeatures:
+      model.supportedParameters || model.supportedGenerationMethods
+        ? {
+            parameters: model.supportedParameters,
+            generationMethods: model.supportedGenerationMethods,
+          }
+        : undefined,
+    pricing: pricing as LlmModelInfo["pricing"],
   };
-
-  switch (providerType) {
-    case "openai":
-    case "openai-compatible":
-    case "deepseek":
-    case "siliconflow":
-    case "groq":
-    case "xai":
-    case "openrouter":
-    case "openai-responses":
-      if (apiKey) {
-        headers["Authorization"] = `Bearer ${apiKey}`;
-      }
-      break;
-
-    case "claude":
-      if (apiKey) {
-        headers["x-api-key"] = apiKey;
-        headers["anthropic-version"] = "2023-06-01";
-      }
-      break;
-
-    case "gemini":
-      // 模型列表获取使用 header 传递 API Key
-      if (apiKey) {
-        headers["x-goog-api-key"] = apiKey;
-      }
-      // 添加 x-goog-api-client header 模拟官方 SDK
-      headers["x-goog-api-client"] = "google-genai-sdk/1.0.1 gl-node/web";
-      break;
-
-    case "cohere":
-      if (apiKey) {
-        headers["Authorization"] = `Bearer ${apiKey}`;
-      }
-      break;
-
-    case "vertexai":
-      if (apiKey) {
-        headers["Authorization"] = `Bearer ${apiKey}`;
-      }
-      break;
-  }
-
-  return headers;
-}
-
-function parseModelsResponse(
-  data: any,
-  providerType: ProviderType
-): LlmModelInfo[] {
-  switch (providerType) {
-    case "openai":
-    case "openai-compatible":
-    case "deepseek":
-    case "groq":
-    case "xai":
-    case "openrouter":
-    case "openai-responses":
-      return parseOpenAiModelsResponse(data);
-    case "siliconflow":
-      return parseSiliconFlowModelsResponse(data);
-    case "claude":
-      return parseAnthropicModelsResponse(data);
-    case "gemini":
-      return parseGeminiModelsResponse(data);
-    case "vertexai":
-      return parseVertexAiModelsResponse(data);
-    case "cohere":
-      return parseCohereModelsResponse(data);
-    case "ollama":
-      return parseOllamaModelsResponse(data);
-    default:
-      return [];
-  }
-}
-
-/**
- * 解析 Ollama 模型列表响应 (api/tags)
- */
-function parseOllamaModelsResponse(data: any): LlmModelInfo[] {
-  const models: LlmModelInfo[] = [];
-
-  if (data.models && Array.isArray(data.models)) {
-    for (const model of data.models) {
-      models.push({
-        id: model.name,
-        name: model.name,
-        group: "Ollama",
-        provider: "ollama",
-        description: model.size
-          ? `Size: ${(model.size / 1024 / 1024 / 1024).toFixed(2)} GB`
-          : undefined,
-      });
-    }
-  }
-
-  return models;
 }

@@ -1,3 +1,4 @@
+export * from "./executor";
 export * from "./providers/openai-compatible";
 export * from "./stream-parser/jsonl";
 export * from "./stream-parser/provider-delta";

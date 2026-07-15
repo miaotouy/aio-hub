@@ -1,6 +1,6 @@
 # LLM Provider Adapter 多端共享与 Rust 边界调查
 
-> 状态：实施中（阶段 2 共享 OpenAI-Compatible 首批已接入桌面端）
+> 状态：实施中（阶段 2 桌面 Transport 与统一执行链已接入）
 >
 > 最后更新：2026-07-15
 >
@@ -44,7 +44,15 @@
 - 新增桌面差分 payload 与流式回归，确认标准参数、未知 Provider 扩展、`extra_body`、thinking、requestId、正文/推理回调、usage、finish reason 和 tool calls 接线等价；同时修复 `repetitionPenalty` 声明但未提取，以及 `extraBody` 同时泄漏为 camelCase 顶层字段的既有问题。
 - 共享包 28 个用例、根 Vitest 全集 60 个测试文件/424 个用例、移动端全量 12 个用例及两端 Vite 生产构建通过；构建仅保留既有的第三方 `vconsole` eval、大 chunk、动态导入和插件耗时提示。
 
-实施顺序相对原计划有一处受控调整：仓库已经存在多组 Provider Adapter 单测，因此先落地阶段 1 的无业务侵入骨架和公共分帧器，再继续补齐阶段 0 的完整 wire fixture、两端差分记录和性能基线。现阶段阶段 0 已完成移动端 Facade 与 OpenAI-Compatible 首批基线，但其他 Provider fixture、两端差分记录和性能基线仍未完成；阶段 1.5 已完成移动 Facade 及移动端 OpenAI-Compatible 的 Transport/logger 隔离，其余移动端 Provider 与桌面 Adapter 仍待解耦；阶段 2 已完成共享 OpenAI-Compatible 纯 Adapter 与桌面协议语义接线首批，桌面 `LlmTransport` 包装及由统一 Adapter orchestration 直接驱动网络请求仍待后续批次。
+已完成第五个可验证批次：
+
+- 在 `@aiohub/llm-core` 新增通用 Provider 执行器，统一串联 Adapter 请求构建、`LlmTransport.send`、非流式解析、流式 Decoder、canonical 事件派发和最终响应交付；同时提供接收已构建 `WireRequest` 的过渡入口，允许应用 Facade 分批迁移复杂请求映射。
+- 新增桌面 `LlmTransport`，将 `WireRequest` 收束到现有 `fetchWithTimeout` 平台入口，保留 Rust 代理、Inspector、超时、取消、TLS/HTTP 选项和异步 JSON 序列化，并将 Fetch `Response` 转为状态、Header 和原始字节流保真的 `WireResponse`。
+- 桌面 OpenAI Chat 的流式与非流式路径现均由共享执行器、共享 Adapter 响应语义和桌面 Transport 驱动，移除 Adapter 内直接 fetch、二次 SSE Facade 分帧和重复图片扫描；桌面兼容层继续映射 DeepSeek reasoning artifact、annotations、audio、logprobs、system fingerprint 和 service tier。
+- 当前 Rust 代理仍只展开旧式 `local-file://` 字符串；桌面 Transport 会继续识别并标记该路径，但对 tagged JSON `LocalFileRef`、multipart `LocalFileRef` 和顶层 `file-ref` 显式拒绝，待阶段 5 `/proxy/json-expand` 与 raw/upload 路径实现后再开放，避免把文件引用对象原样误发给 Provider。
+- 共享包现为 6 个测试文件/30 个用例，根 Vitest 全集 62 个测试文件/430 个用例，移动端全量 4 个测试文件/12 个用例；共享包与两端类型检查、两端 Vite 生产构建均通过。构建仅保留既有的第三方 `eval`、大 chunk、动态导入、Node 外部化和插件耗时提示。
+
+实施顺序相对原计划有一处受控调整：仓库已经存在多组 Provider Adapter 单测，因此先落地阶段 1 的无业务侵入骨架和公共分帧器，再继续补齐阶段 0 的完整 wire fixture、两端差分记录和性能基线。现阶段阶段 0 已完成移动端 Facade 与 OpenAI-Compatible 首批基线，但其他 Provider fixture、两端差分记录和性能基线仍未完成；阶段 1.5 已完成移动 Facade、移动端 OpenAI-Compatible 的 Transport/logger 隔离及桌面 OpenAI Chat 的平台请求隔离，其余移动端 Provider 与桌面 Adapter 仍待解耦；阶段 2 已完成共享 OpenAI-Compatible 纯 Adapter、桌面 `LlmTransport` 和统一执行链接入。桌面请求构建仍在 Facade 中保留多媒体预处理、DeepSeek 回放和未知参数注入，再以过渡 `WireRequest` 入口进入共享执行器；将这些映射完全 canonical 化并改为直接调用 `ProviderAdapter.buildRequest` 仍待后续批次。
 
 此前记录的全仓验证阻塞均已处理：Smart OCR 历史表格引用改用 Element Plus 导出的 `TableInstance`；OpenAI Adapter 测试已与第三方兼容模型支持 `reasoning_effort` 的现行契约对齐，并保留不支持模型的负向覆盖；聊天草稿测试将一次性模块加载移出 `beforeEach`，避免全量并发时触发 hook 超时。桌面 `check:frontend`、根 Vitest 全集（59 个测试文件、417 个用例）及桌面 Vite 生产构建均已通过。
 

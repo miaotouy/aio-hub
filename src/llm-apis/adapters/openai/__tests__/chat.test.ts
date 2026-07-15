@@ -117,6 +117,75 @@ describe("OpenAI Adapter - Chat", () => {
     expect(result.usage?.totalTokens).toBe(30);
   });
 
+  it("should map shared response metadata back to the desktop facade", async () => {
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        system_fingerprint: "fp-1",
+        service_tier: "priority",
+        choices: [
+          {
+            message: {
+              content: "Done",
+              annotations: [
+                {
+                  type: "url_citation",
+                  url_citation: {
+                    start_index: 0,
+                    end_index: 4,
+                    url: "https://example.com",
+                    title: "Example",
+                  },
+                },
+              ],
+              audio: {
+                id: "audio-1",
+                data: "audio-data",
+                transcript: "Done",
+                expires_at: 123,
+              },
+            },
+            finish_reason: "stop",
+            logprobs: { content: [], refusal: null },
+          },
+        ],
+      }),
+    });
+
+    const result = await callOpenAiChatApi(mockProfile, {
+      profileId: "test-profile",
+      modelId: "gpt-4",
+      messages: [{ role: "user", content: "Hello" }],
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        content: "Done",
+        systemFingerprint: "fp-1",
+        serviceTier: "priority",
+        logprobs: { content: [], refusal: null },
+        annotations: [
+          {
+            type: "url_citation",
+            urlCitation: {
+              startIndex: 0,
+              endIndex: 4,
+              url: "https://example.com",
+              title: "Example",
+            },
+          },
+        ],
+        audio: {
+          id: "audio-1",
+          data: "audio-data",
+          transcript: "Done",
+          expiresAt: 123,
+        },
+      })
+    );
+    expect(result.isStream).toBeUndefined();
+  });
+
   it("should preserve advanced wire parameters through the shared body builder", async () => {
     const options: LlmRequestOptions = {
       profileId: "test-profile",

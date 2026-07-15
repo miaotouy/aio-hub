@@ -14,17 +14,17 @@
 
 import type { LlmProfile } from "@/types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
-import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
-import { parseSSEStream } from "@utils/sse-parser";
 import {
-  OpenAiCompatibleStreamDecoder,
   buildOpenAiCompatibleBody,
-  parseOpenAiCompatibleResponseValue,
+  executeProviderWireRequest,
+  openAiCompatibleAdapter,
   type JsonValue,
   type LlmRequest as CoreLlmRequest,
   type LlmResponse as CoreLlmResponse,
   type LlmStreamEvent,
+  type MediaAssetRef,
   type WireJsonValue,
+  type WireRequest,
 } from "@aiohub/llm-core";
 import {
   parseMessageContents,
@@ -34,8 +34,8 @@ import {
   cleanPayload,
   isOpenAIModel,
 } from "@/llm-apis/request-builder";
-import { asyncJsonStringify } from "@/utils/serialization";
 // import { createModuleLogger } from "@/utils/logger";
+import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
 import { openAiUrlHandler, buildOpenAiHeaders } from "./utils";
 import {
   extractDeepSeekReasoningArtifacts,
@@ -58,139 +58,6 @@ function shouldSendOpenAiReasoningEffort(
       id.includes("glm") ||
       id.includes("deepseek"))
   );
-}
-
-function collectImagesFromUnknown(value: any): Array<{
-  url?: string;
-  b64_json?: string;
-  revisedPrompt?: string;
-}> {
-  const images: Array<{
-    url?: string;
-    b64_json?: string;
-    revisedPrompt?: string;
-  }> = [];
-
-  const pushImage = (rawUrl?: string, b64?: string, revisedPrompt?: string) => {
-    if (b64) {
-      images.push({
-        b64_json: b64.startsWith("data:") ? b64.split(",")[1] : b64,
-        revisedPrompt,
-      });
-      return;
-    }
-    if (rawUrl) {
-      images.push({ url: rawUrl, revisedPrompt });
-    }
-  };
-
-  const visit = (item: any) => {
-    if (!item) return;
-
-    if (typeof item === "string") {
-      const trimmed = item.trim();
-      if (!trimmed) return;
-
-      try {
-        const parsed = JSON.parse(trimmed);
-        visit(parsed);
-      } catch {
-        // Plain text content can still contain markdown/data-url image links.
-      }
-
-      for (const match of trimmed.matchAll(
-        /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=_-]+/g
-      )) {
-        pushImage(undefined, match[0]);
-      }
-
-      for (const match of trimmed.matchAll(/!\[[^\]]*]\(([^)]+)\)/g)) {
-        pushImage(match[1]);
-      }
-
-      for (const match of trimmed.matchAll(
-        /https?:\/\/[^\s"'<>)]*\.(?:png|jpe?g|webp|gif)(?:\?[^\s"'<>)]*)?/gi
-      )) {
-        pushImage(match[0]);
-      }
-      return;
-    }
-
-    if (Array.isArray(item)) {
-      item.forEach(visit);
-      return;
-    }
-
-    if (typeof item !== "object") return;
-
-    if (
-      typeof item.function?.name === "string" &&
-      item.function.name.toLowerCase().includes("image") &&
-      typeof item.function.arguments === "string"
-    ) {
-      try {
-        const parsedArgs = JSON.parse(item.function.arguments);
-        if (typeof parsedArgs.result === "string") {
-          pushImage(
-            undefined,
-            parsedArgs.result,
-            parsedArgs.revised_prompt || parsedArgs.revisedPrompt
-          );
-        }
-        visit(parsedArgs);
-      } catch {
-        visit(item.function.arguments);
-      }
-    }
-
-    const imageUrl =
-      typeof item.image_url === "string" ? item.image_url : item.image_url?.url;
-    const url =
-      imageUrl ||
-      item.url ||
-      item.imageUrl ||
-      item.output_url ||
-      item.outputUrl;
-    const b64 =
-      item.b64_json ||
-      item.b64 ||
-      item.base64 ||
-      item.image_base64 ||
-      item.imageBase64 ||
-      item.result;
-
-    if (
-      item.type?.includes?.("image") ||
-      imageUrl ||
-      item.b64_json ||
-      item.image_base64 ||
-      item.imageBase64
-    ) {
-      pushImage(url, b64, item.revised_prompt || item.revisedPrompt);
-    }
-
-    for (const key of [
-      "content",
-      "data",
-      "images",
-      "image",
-      "output",
-      "result",
-      "results",
-    ]) {
-      visit(item[key]);
-    }
-  };
-
-  visit(value);
-
-  const seen = new Set<string>();
-  return images.filter((image) => {
-    const key = image.b64_json || image.url;
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
 }
 
 /**
@@ -393,180 +260,101 @@ export const callOpenAiChatApi = async (
   applyCustomParameters(body, options);
   cleanPayload(body);
 
-  if (options.stream && options.onStream) {
-    body.stream = true;
-
-    const stringifyStart = performance.now();
-    const serializedBody = await asyncJsonStringify(body);
-    const stringifyEnd = performance.now();
-    console.log(
-      `[OpenAI-Stream] 序列化总耗时: ${(stringifyEnd - stringifyStart).toFixed(2)}ms, 类型: ${typeof serializedBody === "string" ? "string" : "Uint8Array"}`
-    );
-
-    const fetchStart = performance.now();
-    const response = await fetchWithTimeout(
-      url,
-      {
-        method: "POST",
-        headers,
-        body: serializedBody as any,
-        hasLocalFile: options.hasLocalFile,
-        forceProxy: options.forceProxy,
-        relaxIdCerts: options.relaxIdCerts,
-        http1Only: options.http1Only,
-        isStreaming: true,
-      },
-      options.timeout,
-      options.signal
-    );
-    const fetchEnd = performance.now();
-    console.log(
-      `[OpenAI-Stream] fetch 调用耗时: ${(fetchEnd - fetchStart).toFixed(2)}ms`
-    );
-
-    await ensureResponseOk(response);
-
-    if (!response.body) throw new Error("响应体为空");
-
-    const reader = response.body.getReader();
-    const streamDecoder = new OpenAiCompatibleStreamDecoder();
-    const encoder = new TextEncoder();
-    let completedResponse: CoreLlmResponse | undefined;
-
-    const handleEvents = (events: LlmStreamEvent[]) => {
-      for (const event of events) {
-        if (event.type === "text-delta") {
-          options.onStream!(event.delta);
-        } else if (event.type === "reasoning-delta") {
-          options.onReasoningStream?.(event.delta);
-        } else if (event.type === "completed") {
-          completedResponse = event.response;
-        }
-      }
-    };
-
-    await parseSSEStream(
-      reader,
-      (data) => {
-        handleEvents(streamDecoder.push(encoder.encode(`data: ${data}\n`)));
-      },
-      undefined,
-      options.signal
-    );
-    handleEvents(streamDecoder.finish());
-
-    const result = completedResponse ?? { content: "" };
-
-    return {
-      content: result.content,
-      reasoningContent: result.reasoningContent,
-      reasoningArtifacts: isDeepSeekModel(options.modelId)
-        ? extractDeepSeekReasoningArtifacts(
-            result.reasoningContent ?? "",
-            !!result.toolCalls?.length
-          )
-        : undefined,
-      usage: result.usage,
-      finishReason: result.finishReason as LlmResponse["finishReason"],
-      toolCalls: result.toolCalls,
-      isStream: true,
-    };
-  }
-
-  const stringifyStart = performance.now();
-  const serializedBody = await asyncJsonStringify(body);
-  const stringifyEnd = performance.now();
-  console.log(
-    `[OpenAI] 序列化总耗时: ${(stringifyEnd - stringifyStart).toFixed(2)}ms, 类型: ${typeof serializedBody === "string" ? "string" : "Uint8Array"}`
-  );
-
-  const fetchStart = performance.now();
-  const response = await fetchWithTimeout(
+  const wireRequest: WireRequest = {
+    method: "POST",
     url,
-    {
-      method: "POST",
-      headers,
-      body: serializedBody as any,
-      hasLocalFile: options.hasLocalFile,
-      forceProxy: options.forceProxy,
-      relaxIdCerts: options.relaxIdCerts,
-      http1Only: options.http1Only,
+    headers,
+    body: { kind: "json", value: body },
+    streaming: coreRequest.stream === true,
+  };
+  const result = await executeProviderWireRequest({
+    adapter: openAiCompatibleAdapter,
+    request: coreRequest,
+    wireRequest,
+    transport: desktopLlmTransport,
+    transportOptions: {
+      requestId: options.requestId ?? createRequestId(),
+      signal: options.signal,
+      timeoutMs: options.timeout,
+      network: {
+        strategy: options.forceProxy ? "proxy" : options.networkStrategy,
+        relaxInvalidCerts: options.relaxIdCerts,
+        http1Only: options.http1Only,
+      },
     },
-    options.timeout,
-    options.signal
-  );
-  const fetchEnd = performance.now();
-  console.log(
-    `[OpenAI] fetch 调用耗时: ${(fetchEnd - fetchStart).toFixed(2)}ms`
-  );
-
-  await ensureResponseOk(response);
-  const data = await response.json();
-  const sharedResponse = parseOpenAiCompatibleResponseValue(data);
-  const choice = data.choices[0];
-
-  const message = choice.message;
-  const images = [
-    ...collectImagesFromUnknown(data.images),
-    ...collectImagesFromUnknown(data.data),
-    ...collectImagesFromUnknown(data.output),
-    ...collectImagesFromUnknown(message?.images),
-    ...collectImagesFromUnknown(message?.content),
-    ...collectImagesFromUnknown(message?.tool_calls),
-  ];
-  const annotations = message?.annotations?.map((ann: any) => ({
-    type: "url_citation" as const,
-    urlCitation: {
-      startIndex: ann.url_citation?.start_index,
-      endIndex: ann.url_citation?.end_index,
-      url: ann.url_citation?.url,
-      title: ann.url_citation?.title,
-    },
-  }));
-
-  const audio = message?.audio
-    ? {
-        id: message.audio.id,
-        data: message.audio.data,
-        transcript: message.audio.transcript,
-        expiresAt: message.audio.expires_at,
+    onEvent: (event: LlmStreamEvent) => {
+      if (event.type === "text-delta") options.onStream?.(event.delta);
+      if (event.type === "reasoning-delta") {
+        options.onReasoningStream?.(event.delta);
       }
-    : undefined;
+    },
+  });
 
-  if (sharedResponse.refusal) {
-    return {
-      content: "",
-      refusal: sharedResponse.refusal,
-      finishReason: sharedResponse.finishReason as LlmResponse["finishReason"],
-      systemFingerprint: data.system_fingerprint,
-      serviceTier: data.service_tier,
-      usage: sharedResponse.usage,
-    };
-  }
+  return mapCoreOpenAiResponse(result, options.modelId, wireRequest.streaming);
+};
 
-  const responseReasoningContent = sharedResponse.reasoningContent;
+function mapCoreOpenAiResponse(
+  response: CoreLlmResponse,
+  modelId: string,
+  isStream: boolean
+): LlmResponse {
+  const metadata = response.metadata as Record<string, any> | undefined;
+  const images = response.images?.map(mapCoreImage);
+  const audio = metadata?.audio;
 
   return {
-    content: sharedResponse.content,
-    reasoningContent: responseReasoningContent,
-    reasoningArtifacts: isDeepSeekModel(options.modelId)
+    content: response.content,
+    reasoningContent: response.reasoningContent,
+    reasoningArtifacts: isDeepSeekModel(modelId)
       ? extractDeepSeekReasoningArtifacts(
-          responseReasoningContent,
-          !!message?.tool_calls?.length
+          response.reasoningContent ?? "",
+          !!response.toolCalls?.length
         )
       : undefined,
-    refusal: sharedResponse.refusal,
-    finishReason: sharedResponse.finishReason as LlmResponse["finishReason"],
-    toolCalls: sharedResponse.toolCalls,
-    images: images.length > 0 ? images : undefined,
-    revisedPrompt: images[0]?.revisedPrompt,
-    logprobs: choice.logprobs
-      ? { content: choice.logprobs.content, refusal: choice.logprobs.refusal }
+    refusal: response.refusal,
+    finishReason: response.finishReason as LlmResponse["finishReason"],
+    toolCalls: response.toolCalls,
+    images,
+    revisedPrompt: images?.[0]?.revisedPrompt,
+    logprobs: metadata?.logprobs as LlmResponse["logprobs"],
+    annotations: response.annotations?.map((annotation: any) => ({
+      type: annotation.type ?? "url_citation",
+      urlCitation: annotation.url_citation
+        ? {
+            startIndex: annotation.url_citation.start_index,
+            endIndex: annotation.url_citation.end_index,
+            url: annotation.url_citation.url,
+            title: annotation.url_citation.title,
+          }
+        : annotation.urlCitation,
+    })),
+    audio: audio
+      ? {
+          id: audio.id,
+          data: audio.data,
+          transcript: audio.transcript,
+          expiresAt: audio.expires_at ?? audio.expiresAt,
+        }
       : undefined,
-    annotations,
-    audio,
-    systemFingerprint: data.system_fingerprint,
-    serviceTier: data.service_tier,
-    usage: sharedResponse.usage,
+    systemFingerprint: metadata?.systemFingerprint,
+    serviceTier: metadata?.serviceTier,
+    usage: response.usage,
+    ...(isStream ? { isStream: true } : {}),
   };
-};
+}
+
+function mapCoreImage(image: MediaAssetRef) {
+  if (image.kind === "remote-url") {
+    return { url: image.url, revisedPrompt: image.revisedPrompt };
+  }
+  if (image.kind === "inline-base64") {
+    return { b64_json: image.data, revisedPrompt: image.revisedPrompt };
+  }
+  return { url: image.id, revisedPrompt: image.revisedPrompt };
+}
+
+function createRequestId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `llm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}

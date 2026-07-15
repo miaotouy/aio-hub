@@ -7,15 +7,73 @@ import { callClaudeApi } from "../core/adapters/claude";
 import { callGeminiApi } from "../core/adapters/gemini";
 import { callCohereApi } from "../core/adapters/cohere";
 import { callVertexAiApi } from "../core/adapters/vertexai";
-import type { LlmRequestOptions } from "../types/common";
+import type { LlmProfile } from "../types";
+import type { LlmRequestOptions, LlmResponse } from "../types/common";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const logger = createModuleLogger("llm-api/useLlmRequest");
 const errorHandler = createModuleErrorHandler("llm-api/useLlmRequest");
-export function useLlmRequest() {
-  const store = useLlmProfilesStore();
-  const keyManager = useLlmKeyManager();
+
+type LlmRequestStore = {
+  isLoaded: boolean;
+  init(): Promise<void>;
+  profiles: LlmProfile[];
+  selectedProfile: LlmProfile | null | undefined;
+};
+
+type LlmRequestKeyManager = {
+  pickKey(profile: LlmProfile): string | undefined;
+  reportSuccess(profileId: string, key: string): void;
+  reportFailure(profileId: string, key: string, error: unknown): void;
+};
+
+type LlmRequestLogger = Pick<
+  ReturnType<typeof createModuleLogger>,
+  "info" | "debug"
+>;
+
+type LlmRequestErrorHandler = Pick<
+  ReturnType<typeof createModuleErrorHandler>,
+  "error" | "handle"
+>;
+
+export interface LlmRequestDependencies {
+  store: LlmRequestStore;
+  keyManager: LlmRequestKeyManager;
+  executeAdapter(
+    profile: LlmProfile,
+    options: LlmRequestOptions
+  ): Promise<LlmResponse>;
+  logger: LlmRequestLogger;
+  errorHandler: LlmRequestErrorHandler;
+}
+
+async function executeProviderAdapter(
+  profile: LlmProfile,
+  options: LlmRequestOptions
+): Promise<LlmResponse> {
+  switch (profile.type) {
+    case "openai":
+      return callOpenAiCompatibleApi(profile, options);
+    case "openai-responses":
+      return callOpenAiResponsesApi(profile, options);
+    case "claude":
+      return callClaudeApi(profile, options);
+    case "gemini":
+      return callGeminiApi(profile, options);
+    case "cohere":
+      return callCohereApi(profile, options);
+    case "vertexai":
+      return callVertexAiApi(profile, options);
+    default:
+      return callOpenAiCompatibleApi(profile, options);
+  }
+}
+
+export function createLlmRequest(dependencies: LlmRequestDependencies) {
+  const { store, keyManager, executeAdapter, logger, errorHandler } =
+    dependencies;
   const isSending = ref(false);
 
   /**
@@ -71,30 +129,7 @@ export function useLlmRequest() {
     });
 
     try {
-      let result;
-      switch (profile.type) {
-        case "openai":
-          result = await callOpenAiCompatibleApi(profile, options);
-          break;
-        case "openai-responses":
-          result = await callOpenAiResponsesApi(profile, options);
-          break;
-        case "claude":
-          result = await callClaudeApi(profile, options);
-          break;
-        case "gemini":
-          result = await callGeminiApi(profile, options);
-          break;
-        case "cohere":
-          result = await callCohereApi(profile, options);
-          break;
-        case "vertexai":
-          result = await callVertexAiApi(profile, options);
-          break;
-        default:
-          // 暂时回退到 OpenAI 兼容模式（很多 Provider 都是兼容的）
-          result = await callOpenAiCompatibleApi(profile, options);
-      }
+      const result = await executeAdapter(profile, options);
 
       // 请求成功，上报状态
       if (pickedKey) {
@@ -124,4 +159,14 @@ export function useLlmRequest() {
     sendRequest,
     isSending,
   };
+}
+
+export function useLlmRequest() {
+  return createLlmRequest({
+    store: useLlmProfilesStore(),
+    keyManager: useLlmKeyManager(),
+    executeAdapter: executeProviderAdapter,
+    logger,
+    errorHandler,
+  });
 }

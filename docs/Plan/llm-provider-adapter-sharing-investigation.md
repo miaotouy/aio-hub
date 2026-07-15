@@ -1,6 +1,6 @@
 # LLM Provider Adapter 多端共享与 Rust 边界调查
 
-> 状态：实施中（阶段 1 首批已完成）
+> 状态：实施中（阶段 0 移动端首批与阶段 1.5 Facade 解耦首批已完成）
 >
 > 最后更新：2026-07-15
 >
@@ -20,7 +20,15 @@
 - 将两端正文与推理 delta 提取逻辑合并为共享实现，保留 OpenAI、OpenAI Responses、DeepSeek/OneAPI、Claude、Gemini、Vertex AI、Cohere 和 Hugging Face 行为并集。
 - 共享包独立类型检查通过，独立 Vitest 共 23 个用例通过；桌面 SSE 回归 3 个用例、移动端现有 5 个用例、移动端类型检查和两端 Vite 构建通过。
 
-实施顺序相对原计划有一处受控调整：仓库已经存在多组 Provider Adapter 单测，因此先落地阶段 1 的无业务侵入骨架和公共分帧器，再继续补齐阶段 0 的完整 wire fixture、两端差分记录和性能基线。现阶段尚未完成阶段 0，也尚未进入阶段 1.5 的 Adapter 依赖解耦或阶段 2 的 OpenAI-Compatible 迁移。
+已完成第二个可验证批次：
+
+- 将移动端 `useLlmRequest` 的 Profile Store、KeyManager、Provider 执行器、logger 和 error handler 收束为显式 `LlmRequestDependencies`，新增可直接测试的 `createLlmRequest`；现有无参 `useLlmRequest()` 入口和 Provider 分派行为保持不变。
+- 冻结 `sendRequest(options, profileId?)` 的首批 Facade 契约：显式 Profile 覆盖当前选中 Profile、默认流式与 5 分钟超时、Profile 网络选项注入、Key 轮询结果注入、成功/失败上报及错误重抛。
+- 覆盖 Agent 已接线的 `maxTokens`、`temperature`、`topP`、`frequencyPenalty`、`presencePenalty`、`stop` 透传，并验证正文流、推理流和最终 API usage 三条交付路径保持独立且无丢失。
+- 新增移动端 OpenAI-Compatible wire payload 基线，覆盖 URL、鉴权/自定义 Header、标准生成参数映射和未知 Provider 扩展参数透传。
+- 新增 OpenAI-Compatible 固定 SSE fixture，验证正文 delta、推理 delta、详细 usage 和 `[DONE]` 的解析结果；移动端 Vitest 现为 10 个用例，移动端类型检查通过。
+
+实施顺序相对原计划有一处受控调整：仓库已经存在多组 Provider Adapter 单测，因此先落地阶段 1 的无业务侵入骨架和公共分帧器，再继续补齐阶段 0 的完整 wire fixture、两端差分记录和性能基线。现阶段阶段 0 已完成移动端 Facade 与 OpenAI-Compatible 首批基线，但其他 Provider fixture、两端差分记录和性能基线仍未完成；阶段 1.5 已开始移动 Facade 依赖解耦，尚未完成 Adapter Transport/logger 隔离，也尚未进入阶段 2 的共享 OpenAI-Compatible 迁移。
 
 当前全仓验证仍有两项非本批次阻塞：桌面 `check:frontend` 在 `src/tools/smart-ocr/components/HistoryDialog.vue` 的 Element Plus 泛型实例类型处失败；根 Vitest 全集有 2 个既有失败，分别为 OpenAI `reasoning_effort` 参数期望不一致和聊天草稿测试 hook 超时。上述问题未通过本次迁移顺手修改。
 

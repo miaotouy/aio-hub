@@ -25,7 +25,7 @@ import ModelList from "./components/ModelList.vue";
 import ModelFetcherDialog from "./components/ModelFetcherDialog.vue";
 import ModelEditDialog from "./components/ModelEditDialog.vue";
 import CreateProfileDialog from "./components/CreateProfileDialog.vue";
-import CurlImportDialog from "./components/CurlImportDialog.vue";
+import ConfigImportDialog from "./components/ConfigImportDialog.vue";
 import CustomHeadersEditor from "./components/CustomHeadersEditor.vue";
 import CustomEndpointsEditor from "./components/CustomEndpointsEditor.vue";
 import MultiKeyManagerDialog from "./components/MultiKeyManagerDialog.vue";
@@ -46,7 +46,8 @@ import { useProfileEditor } from "./composables/useProfileEditor";
 import { useModelEditor } from "./composables/useModelEditor";
 import { useConnectionTest } from "./composables/useConnectionTest";
 import type { LlmProfile } from "@/types/llm-profiles";
-import type { ParsedCurlResult } from "@/utils/parseCurlCommand";
+import type { ParsedLlmProfileDraft } from "@/utils/llm-config-import";
+import { customMessage } from "@/utils/customMessage";
 
 // ─── Composables ───
 const {
@@ -63,6 +64,7 @@ const {
   selectProfile,
   createNewProfile,
   createFromPresetTemplate,
+  generateId,
   handleDelete,
   handleToggle,
   resetBaseUrl,
@@ -169,72 +171,114 @@ const showCustomHeadersDialog = ref(false);
 const showCustomEndpointsDialog = ref(false);
 const showMultiKeyManager = ref(false);
 const showLlmServiceInfoDialog = ref(false);
-const showCurlImportForEdit = ref(false);
+const showConfigImportForEdit = ref(false);
 
 const handleAddClick = () => {
   showCreateProfileDialog.value = true;
 };
 
-// ─── curl 导入处理 ───
-const handleCurlImportForCreate = (result: ParsedCurlResult) => {
-  // 创建新渠道并填充解析结果
-  createNewProfile();
-  applyCurlResult(result);
+// ─── 配置导入处理 ───
+const buildImportedModels = (draft: ParsedLlmProfileDraft): LlmModelInfo[] => {
+  const seen = new Set<string>();
+  return draft.models.flatMap((model) => {
+    if (!model.id || seen.has(model.id)) return [];
+    seen.add(model.id);
+    const presetModel = findPresetModel(model.id, draft.providerType);
+    return [
+      applyMatchedModelMetadata(
+        presetModel || { id: model.id, name: model.name || model.id },
+        draft.providerType
+      ),
+    ];
+  });
 };
 
-const handleCurlImportForEdit = (result: ParsedCurlResult) => {
-  // 覆盖当前编辑中的渠道
-  applyCurlResult(result);
-};
+const buildImportedProfile = (draft: ParsedLlmProfileDraft): LlmProfile => ({
+  id: generateId(),
+  name: draft.suggestedName.trim(),
+  type: draft.providerType,
+  baseUrl: draft.baseUrl.trim(),
+  apiKeys: [...draft.apiKeys],
+  enabled: true,
+  models: buildImportedModels(draft),
+  networkStrategy: "auto",
+  relaxIdCerts: false,
+  http1Only: true,
+  ...(draft.customHeaders ? { customHeaders: { ...draft.customHeaders } } : {}),
+  ...(draft.customEndpoints
+    ? { customEndpoints: { ...draft.customEndpoints } }
+    : {}),
+  ...(draft.options ? { options: { ...draft.options } } : {}),
+});
 
-const applyCurlResult = (result: ParsedCurlResult) => {
-  // 填充基础信息
-  if (result.suggestedName && editForm.value.name.startsWith("未命名渠道")) {
-    editForm.value.name = result.suggestedName;
+const createProfilesFromImport = async (drafts: ParsedLlmProfileDraft[]) => {
+  const importedProfiles = drafts.map(buildImportedProfile);
+  const invalidProfile = importedProfiles.find(
+    (profile) => !profile.name || !profile.baseUrl
+  );
+  if (invalidProfile) {
+    customMessage.error("候选渠道缺少名称或 API 地址，无法创建");
+    return;
   }
-  editForm.value.type = result.providerType;
-  editForm.value.baseUrl = result.baseUrl;
 
-  // 填充 API Key
-  if (result.apiKey) {
-    editForm.value.apiKeys = [result.apiKey];
-    apiKeyInput.value = result.apiKey;
-  }
-
-  // 填充模型（从预设中查找完整模型信息）
-  if (result.model) {
-    const existingModel = editForm.value.models.find(
-      (m) => m.id === result.model
-    );
-    if (!existingModel) {
-      const presetModel = findPresetModel(result.model, result.providerType);
-      editForm.value.models.push(
-        applyMatchedModelMetadata(
-          presetModel || {
-            id: result.model,
-            name: result.model,
-          },
-          result.providerType
-        )
+  const completed: LlmProfile[] = [];
+  const failed: LlmProfile[] = [];
+  for (const profile of importedProfiles) {
+    try {
+      await saveProfile(profile);
+      completed.push(profile);
+    } catch {
+      failed.push(profile);
+      const failedIndex = profiles.value.findIndex(
+        (item) => item.id === profile.id
       );
+      if (failedIndex !== -1) profiles.value.splice(failedIndex, 1);
     }
   }
 
-  // 填充自定义请求头
-  if (result.customHeaders) {
+  if (completed[0]) selectProfile(completed[0].id);
+  if (!failed.length) {
+    customMessage.success(`已创建 ${completed.length} 个渠道`);
+  } else if (completed.length) {
+    customMessage.warning(
+      `已创建 ${completed.length} 个渠道，${failed.length} 个保存失败`
+    );
+  } else {
+    customMessage.error("渠道保存失败，请检查配置存储状态后重试");
+  }
+};
+
+const applyImportedProfileDraft = (draft: ParsedLlmProfileDraft) => {
+  editForm.value.name = draft.suggestedName;
+  editForm.value.type = draft.providerType;
+  editForm.value.baseUrl = draft.baseUrl;
+
+  if (draft.apiKeys.length) {
+    editForm.value.apiKeys = [...draft.apiKeys];
+    apiKeyInput.value = draft.apiKeys.join(", ");
+  }
+  if (draft.models.length) {
+    editForm.value.models = buildImportedModels(draft);
+  }
+  if (draft.customHeaders) {
     editForm.value.customHeaders = {
       ...(editForm.value.customHeaders || {}),
-      ...result.customHeaders,
+      ...draft.customHeaders,
     };
   }
-
-  // 填充自定义端点
-  if (result.chatEndpoint) {
-    if (!editForm.value.customEndpoints) {
-      editForm.value.customEndpoints = {};
-    }
-    editForm.value.customEndpoints.chatCompletions = result.chatEndpoint;
+  if (draft.customEndpoints) {
+    editForm.value.customEndpoints = {
+      ...(editForm.value.customEndpoints || {}),
+      ...draft.customEndpoints,
+    };
   }
+  if (draft.options) {
+    editForm.value.options = {
+      ...(editForm.value.options || {}),
+      ...draft.options,
+    };
+  }
+  customMessage.success("已应用导入配置");
 };
 
 /**
@@ -455,8 +499,8 @@ const networkSettingSummary = computed(() => {
                 placeholder="https://api.openai.com"
               >
                 <template #append>
-                  <el-tooltip content="从 curl 命令导入" placement="top">
-                    <el-button @click="showCurlImportForEdit = true">
+                  <el-tooltip content="导入渠道配置" placement="top">
+                    <el-button @click="showConfigImportForEdit = true">
                       <Terminal :size="14" />
                     </el-button>
                   </el-tooltip>
@@ -706,15 +750,19 @@ const networkSettingSummary = computed(() => {
     <!-- 渠道创建对话框 -->
     <CreateProfileDialog
       v-model:visible="showCreateProfileDialog"
+      :existing-profiles="profiles"
       @create-from-preset="createFromPresetTemplate"
       @create-from-blank="createNewProfile"
-      @create-from-curl="handleCurlImportForCreate"
+      @create-from-config="createProfilesFromImport"
     />
 
-    <!-- 编辑界面的 curl 导入对话框 -->
-    <CurlImportDialog
-      v-model:visible="showCurlImportForEdit"
-      @import="handleCurlImportForEdit"
+    <!-- 编辑界面的配置导入对话框 -->
+    <ConfigImportDialog
+      v-model:visible="showConfigImportForEdit"
+      :existing-profiles="
+        profiles.filter((profile) => profile.id !== selectedProfileId)
+      "
+      @import="applyImportedProfileDraft"
     />
 
     <!-- 模型编辑对话框 -->

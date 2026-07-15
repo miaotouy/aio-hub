@@ -15,20 +15,21 @@
 -->
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { providerTypes } from "@/config/llm-providers";
 import { llmPresets } from "@/config/llm-presets";
 import type { LlmPreset } from "@/config/llm-presets";
 import type { ProviderType } from "@/types/llm-profiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
-import CurlImportDialog from "./CurlImportDialog.vue";
-import type { ParsedCurlResult } from "@/utils/parseCurlCommand";
-import { Terminal } from "lucide-vue-next";
+import ConfigImportPanel from "./ConfigImportPanel.vue";
+import type { LlmProfile } from "@/types/llm-profiles";
+import type { ParsedLlmProfileDraft } from "@/utils/llm-config-import";
 
 // Props
 interface Props {
   visible: boolean;
+  existingProfiles?: LlmProfile[];
 }
 
 // Emits
@@ -36,21 +37,31 @@ interface Emits {
   (e: "update:visible", value: boolean): void;
   (e: "create-from-preset", preset: LlmPreset): void;
   (e: "create-from-blank"): void;
-  (e: "create-from-curl", result: ParsedCurlResult): void;
+  (e: "create-from-config", profiles: ParsedLlmProfileDraft[]): void;
 }
 
-defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  existingProfiles: () => [],
+});
 const emit = defineEmits<Emits>();
 
 // 使用统一的图标获取方法
 const { getDisplayIconPath, getIconPath } = useModelMetadata();
 
-// curl 导入对话框
-const showCurlImportDialog = ref(false);
+const creationMode = ref<"preset" | "import">("preset");
 
-// 处理 curl 导入
-const handleCurlImport = (result: ParsedCurlResult) => {
-  emit("create-from-curl", result);
+watch(
+  () => props.visible,
+  (visible) => {
+    if (visible) {
+      creationMode.value = "preset";
+      selectedProviderType.value = "all";
+    }
+  }
+);
+
+const handleConfigImport = (profiles: ParsedLlmProfileDraft[]) => {
+  emit("create-from-config", profiles);
   emit("update:visible", false);
 };
 
@@ -108,89 +119,112 @@ const getCategoryLabel = (category: ProviderType | "all") => {
   <BaseDialog
     :model-value="visible"
     @update:model-value="(val: boolean) => emit('update:visible', val)"
-    title="选择创建方式"
+    title="添加渠道"
     width="80%"
     height="75vh"
   >
     <template #content>
-      <div class="preset-options">
-        <div class="preset-section">
-          <div class="section-header">
-            <h4>从预设模板创建</h4>
-            <div class="header-actions">
-              <el-button size="small" @click="showCurlImportDialog = true">
-                <Terminal :size="14" style="margin-right: 4px" />
-                从 curl 导入
-              </el-button>
+      <div v-if="visible" class="create-profile-content">
+        <el-segmented
+          v-model="creationMode"
+          :options="[
+            { label: '渠道预设', value: 'preset' },
+            { label: '粘贴导入', value: 'import' },
+          ]"
+          class="creation-mode-segmented"
+        />
+
+        <div v-show="creationMode === 'preset'" class="preset-options">
+          <div class="preset-section">
+            <div class="section-header">
+              <h4>选择渠道预设</h4>
               <el-button size="small" type="primary" @click="createFromBlank">
                 从空白创建
               </el-button>
             </div>
-          </div>
-          <p class="preset-section-desc">
-            选择常用服务商快速创建配置，或粘贴 curl 命令自动解析
-          </p>
+            <p class="preset-section-desc">选择常用服务商快速创建配置。</p>
 
-          <!-- 分类标签 -->
-          <div class="category-tabs">
-            <button
-              v-for="category in providerCategories"
-              :key="category"
-              @click="selectedProviderType = category"
-              :class="{ active: selectedProviderType === category }"
-              class="category-tab"
-            >
-              {{ getCategoryLabel(category) }}
-            </button>
-          </div>
-
-          <!-- 预设网格 -->
-          <div class="presets-scroll-area">
-            <div class="preset-grid">
-              <div
-                v-for="preset in filteredPresets"
-                :key="preset.name"
-                class="preset-card"
-                @click="createFromPresetTemplate(preset)"
+            <!-- 分类标签 -->
+            <div class="category-tabs">
+              <button
+                v-for="category in providerCategories"
+                :key="category"
+                @click="selectedProviderType = category"
+                :class="{ active: selectedProviderType === category }"
+                class="category-tab"
               >
-                <DynamicIcon
-                  class="preset-icon"
-                  :src="
-                    preset.logoUrl ||
-                    getProviderIconForPreset(preset.type) ||
-                    ''
-                  "
-                  :alt="preset.name"
-                />
-                <div class="preset-info">
-                  <div class="preset-name">{{ preset.name }}</div>
-                  <el-tooltip
-                    :content="preset.description"
-                    placement="top"
-                    :show-after="500"
-                  >
-                    <div class="preset-desc">{{ preset.description }}</div>
-                  </el-tooltip>
+                {{ getCategoryLabel(category) }}
+              </button>
+            </div>
+
+            <!-- 预设网格 -->
+            <div class="presets-scroll-area">
+              <div class="preset-grid">
+                <div
+                  v-for="preset in filteredPresets"
+                  :key="preset.name"
+                  class="preset-card"
+                  @click="createFromPresetTemplate(preset)"
+                >
+                  <DynamicIcon
+                    class="preset-icon"
+                    :src="
+                      preset.logoUrl ||
+                      getProviderIconForPreset(preset.type) ||
+                      ''
+                    "
+                    :alt="preset.name"
+                  />
+                  <div class="preset-info">
+                    <div class="preset-name">{{ preset.name }}</div>
+                    <el-tooltip
+                      :content="preset.description"
+                      placement="top"
+                      :show-after="500"
+                    >
+                      <div class="preset-desc">{{ preset.description }}</div>
+                    </el-tooltip>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
+
+        <ConfigImportPanel
+          v-show="creationMode === 'import'"
+          mode="create"
+          :existing-profiles="existingProfiles"
+          @import="handleConfigImport"
+        />
       </div>
     </template>
   </BaseDialog>
-
-  <!-- curl 导入对话框 -->
-  <CurlImportDialog
-    v-model:visible="showCurlImportDialog"
-    @import="handleCurlImport"
-  />
 </template>
 
 <style scoped>
-/* 预设选择对话框 */
-.preset-options {
+.create-profile-content {
   height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.creation-mode-segmented {
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.creation-mode-segmented :deep(.el-segmented__group) {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.preset-options {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -212,12 +246,6 @@ const getCategoryLabel = (category: ProviderType | "all") => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
-}
-
-.header-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
 }
 
 .preset-section h4 {
@@ -333,5 +361,16 @@ const getCategoryLabel = (category: ProviderType | "all") => {
   -webkit-box-orient: vertical;
   line-height: 1.4;
   max-height: calc(1.4em * 2);
+}
+
+@media (max-width: 620px) {
+  .section-header {
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .preset-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

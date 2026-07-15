@@ -132,6 +132,7 @@ const STANDARD_HEADERS = new Set([
   "accept",
   "user-agent",
   "x-api-key",
+  "x-goog-api-key",
 ]);
 
 /**
@@ -380,6 +381,15 @@ function extractApiKey(headers: Record<string, string>): {
   const xApiKey = headers["x-api-key"];
   if (xApiKey) {
     return { key: xApiKey, isPlaceholder: isPlaceholderKey(xApiKey) };
+  }
+
+  // Gemini API 常用的 Key Header
+  const googleApiKey = headers["x-goog-api-key"];
+  if (googleApiKey) {
+    return {
+      key: googleApiKey,
+      isPlaceholder: isPlaceholderKey(googleApiKey),
+    };
   }
 
   return { isPlaceholder: true };

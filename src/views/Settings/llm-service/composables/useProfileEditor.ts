@@ -256,6 +256,7 @@ export function useProfileEditor() {
     selectProfile,
     createNewProfile,
     createFromPresetTemplate,
+    generateId,
     saveCurrentProfile,
     handleDelete,
     handleToggle,

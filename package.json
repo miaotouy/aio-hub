@@ -20,6 +20,7 @@
     "url": "https://afdian.com/a/miaotouy"
   },
   "workspaces": [
+    "packages/*",
     "plugins/*",
     "mobile"
   ],
@@ -56,6 +57,7 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest --run",
+    "test:llm-core": "bun run --cwd packages/llm-core test:run",
     "test:coverage": "vitest --coverage",
     "lint": "oxlint .",
     "format": "prettier --write \"src/**/*.{ts,js,vue,json,css,scss}\" \"mobile/src/**/*.{ts,js,vue,json,css,scss}\" \"docs/**/*.md\"",
@@ -69,6 +71,7 @@
     "license:check": "bun run scripts/add-license.ts --dry-run"
   },
   "dependencies": {
+    "@aiohub/llm-core": "workspace:*",
     "@codemirror/autocomplete": "^6.20.1",
     "@codemirror/commands": "^6.10.3",
     "@codemirror/lang-cpp": "^6.0.3",

@@ -5,6 +5,7 @@
     "": {
       "name": "aiohub",
       "dependencies": {
+        "@aiohub/llm-core": "workspace:*",
         "@codemirror/autocomplete": "^6.20.1",
         "@codemirror/commands": "^6.10.3",
         "@codemirror/lang-cpp": "^6.0.3",
@@ -184,6 +185,7 @@
       "name": "aiohub-mobile",
       "version": "0.1.1-m-beta.1",
       "dependencies": {
+        "@aiohub/llm-core": "workspace:*",
         "@material/material-color-utilities": "^0.3.0",
         "@popperjs/core": "^2.11.8",
         "@tauri-apps/api": "^2",
@@ -215,6 +217,14 @@
         "vue-tsc": "^2.1.10",
       },
     },
+    "packages/llm-core": {
+      "name": "@aiohub/llm-core",
+      "version": "0.1.0",
+      "devDependencies": {
+        "typescript": "~5.6.2",
+        "vitest": "^4.1.8",
+      },
+    },
   },
   "overrides": {
     "@lezer/common": "^1.2.3",
@@ -223,6 +233,8 @@
   },
   "packages": {
     "@acemir/cssom": ["@acemir/cssom@0.9.31", "", {}, "sha512-ZnR3GSaH+/vJ0YlHau21FjfLYjMpYVIzTD8M8vIEQvIGxeOXyXdzCI140rrCY862p/C/BbzWsjc1dgnM9mkoTA=="],
+
+    "@aiohub/llm-core": ["@aiohub/llm-core@workspace:packages/llm-core"],
 
     "@algolia/abtesting": ["@algolia/abtesting@1.21.2", "", { "dependencies": { "@algolia/client-common": "5.55.2", "@algolia/requester-browser-xhr": "5.55.2", "@algolia/requester-fetch": "5.55.2", "@algolia/requester-node-http": "5.55.2" } }, "sha512-uXj0rgk30EpsKvOpuS+R+1XFDrnm56hED1Lz56e8uBkZdKCxw99LS2U8eXBqAHYU8kpkbsnV1GC8velBG070Hg=="],
 

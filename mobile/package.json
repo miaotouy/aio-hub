@@ -19,6 +19,7 @@
     "check:backend": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings"
   },
   "dependencies": {
+    "@aiohub/llm-core": "workspace:*",
     "@material/material-color-utilities": "^0.3.0",
     "@popperjs/core": "^2.11.8",
     "@tauri-apps/api": "^2",

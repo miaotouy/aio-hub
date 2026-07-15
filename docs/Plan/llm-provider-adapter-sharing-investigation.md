@@ -1,12 +1,28 @@
 # LLM Provider Adapter 多端共享与 Rust 边界调查
 
-> 状态：调查结论 / 待实施
+> 状态：实施中（阶段 1 首批已完成）
 >
 > 最后更新：2026-07-15
 >
 > 移动端校准基线：`af864a1f0a8ac82d46460e80bf6cdc8df862f466`
 >
 > 关联现状文档：[`docs/architecture/llm-apis-architecture.md`](../architecture/llm-apis-architecture.md)
+
+## 实施进度（2026-07-15）
+
+已完成首个可验证批次：
+
+- 新增 `packages/llm-core` Bun workspace，并由桌面端和移动端通过 `@aiohub/llm-core` 引用。
+- 建立纯 TypeScript 的 canonical `LlmRequest`、`LlmResponse`、`ProviderAdapter`、`WireRequest`、`WireResponse`、`LlmTransport`、Observer 和流式事件类型。
+- 为 JSON、multipart 和顶层请求体定义显式 `LocalFileRef`，并提供严格 tagged 校验与嵌套引用检测，避免把普通 Provider JSON 误判为本地文件。
+- 实现与应用框架无关的增量 SSE / JSONL 分帧器，覆盖 UTF-8 跨 chunk、逐字节切块、CRLF/LF、粘包、流末尾无换行、`[DONE]` 和取消。
+- 将桌面端与移动端原有 `sse-parser` 入口改为共享 Core 的兼容 Facade；现有 Adapter 导入路径和调用签名不变。
+- 将两端正文与推理 delta 提取逻辑合并为共享实现，保留 OpenAI、OpenAI Responses、DeepSeek/OneAPI、Claude、Gemini、Vertex AI、Cohere 和 Hugging Face 行为并集。
+- 共享包独立类型检查通过，独立 Vitest 共 23 个用例通过；桌面 SSE 回归 3 个用例、移动端现有 5 个用例、移动端类型检查和两端 Vite 构建通过。
+
+实施顺序相对原计划有一处受控调整：仓库已经存在多组 Provider Adapter 单测，因此先落地阶段 1 的无业务侵入骨架和公共分帧器，再继续补齐阶段 0 的完整 wire fixture、两端差分记录和性能基线。现阶段尚未完成阶段 0，也尚未进入阶段 1.5 的 Adapter 依赖解耦或阶段 2 的 OpenAI-Compatible 迁移。
+
+当前全仓验证仍有两项非本批次阻塞：桌面 `check:frontend` 在 `src/tools/smart-ocr/components/HistoryDialog.vue` 的 Element Plus 泛型实例类型处失败；根 Vitest 全集有 2 个既有失败，分别为 OpenAI `reasoning_effort` 参数期望不一致和聊天草稿测试 hook 超时。上述问题未通过本次迁移顺手修改。
 
 ## 1. 背景
 

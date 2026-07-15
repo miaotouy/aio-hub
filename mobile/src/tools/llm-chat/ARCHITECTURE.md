@@ -1,14 +1,14 @@
 # 移动端 LLM Chat — 实现情况
 
 > **文档状态**: Implementing
-> **最后更新**: 2026-07-14
+> **最后更新**: 2026-07-15
 > **对应路径**: `mobile/src/tools/llm-chat/`
 
 ## 1. 概述
 
 LLM Chat 是 AIO Hub 移动端的核心交互工具，提供与 LLM 的即时对话体验。本实现为桌面端 `src/tools/llm-chat` 的**移动端适配移植版**，整体架构与桌面端对齐，但针对移动端环境做了精简和调整：
 
-- **UI 框架**: 使用 Varlet 替代 Element Plus
+- **UI 分层**: 页面与聊天骨架由原生 Vue 结构和 AIO Hub 主题 token 主导，Varlet 仅作为按钮、开关、弹层等底层组件库
 - **类型系统**: 精简了部分桌面端复杂类型（如完整 `ChatAgent`、完整 `Asset` 类型），保留核心契约
 - **存储**: 会话采用独立文件存储 + JSON 索引，与桌面端策略一致
 - **组件**: 复用 `llm-api` 工具的模型选择器（`LlmModelSelector`）和请求封装（`useLlmRequest`）
@@ -30,9 +30,12 @@ llm-chat/
 ├── composables/               # 可复用的组合式逻辑
 │   ├── useBranchManager.ts    # 分支管理（切换、编辑、重试）
 │   ├── useChatExecutor.ts     # 对话执行器（构建上下文、发起 LLM 请求）
+│   ├── useChatResponseHandler.ts # 流式响应、usage 和消息状态收口
 │   ├── useChatSettings.ts     # 聊天设置管理（持久化）
+│   ├── useContextTokenUsage.ts # 输入区上下文 Token 统计与预警
 │   ├── useNodeManager.ts      # 消息节点管理（CRUD）
-│   └── useSessionManager.ts   # 会话管理（索引 + 独立文件存储）
+│   ├── useSessionManager.ts   # 会话管理（索引 + 独立文件存储）
+│   └── useTopicNamer.ts       # 首轮消息自动命名
 ├── core/
 │   └── pipeline/
 │       └── processors/
@@ -55,7 +58,8 @@ llm-chat/
 │   └── settings.ts            # ChatSettings（用户偏好）
 ├── utils/
 │   ├── BranchNavigator.ts     # 分支导航工具类
-│   └── chatFeedback.ts        # 移动端提示/确认封装
+│   ├── chatFeedback.ts        # 移动端提示/确认封装
+│   └── contextTokenUsage.ts   # Token usage 优先级、占比与风险计算
 └── views/
     ├── ChatHome.vue           # 主页（入口卡片）
     ├── ChatSettingsView.vue   # 设置页
@@ -100,6 +104,7 @@ type MessageType = "message" | string;
 | `rootNodeId`              | `string`                          | 根节点ID（role: system） |
 | `activeLeafId`            | `string`                          | 当前活跃分支的叶节点     |
 | `name`                    | `string`                          | 会话标题                 |
+| `displayAgentId`          | 可选 `string \| null`             | 当前会话绑定的智能体 ID  |
 | `messageCount`            | 可选 number                       | 消息数量快照             |
 | `createdAt` / `updatedAt` | `string`                          | 时间戳                   |
 
@@ -145,10 +150,12 @@ PipelineContext
 ```
 ChatSettings
 ├── uiPreferences         # 流式输出、时间戳、Token统计、模型信息、自动滚动、字体、消息导航
-├── modelPreferences      # 默认模型
+├── modelPreferences      # 默认模型（当前仅持久化，运行时尚未消费）
 ├── messageManagement     # 删除/清空确认开关
-└── requestSettings       # 超时（60s）、重试次数（2）
+└── requestSettings       # 超时（60s）、重试次数（2，当前仅持久化）
 ```
+
+设置界面和持久化结构已经建立，但运行时接线尚未全部完成。目前明确生效的是 Token 显示、上下文预警阈值和消息删除确认；流式开关、时间戳、模型信息开关、自动滚动开关、消息字号、默认模型、请求超时/重试，以及会话删除/清空确认仍需逐项接入实际执行路径。
 
 ## 4. 数据流架构
 
@@ -224,11 +231,13 @@ LlamaChatView.send() → useChatExecutor.execute()
   ├─ 2. 创建用户消息节点（推入树）
   ├─ 3. 创建助手消息节点（生成中状态）
   ├─ 4. 更新 activeLeaf
-  ├─ 5. 执行 pipeline（加载历史消息 → 构建 ProcessableMessage[]）
-  ├─ 6. 调用 useLlmRequest.sendRequest()（流式）
+  ├─ 5. 读取会话绑定的 Agent 与模型/常用生成参数
+  ├─ 6. 执行 pipeline（加载历史消息和 Agent 预设 → 构建 ProcessableMessage[]）
+  ├─ 7. 统计最终请求上下文 Token 并写入风险快照
+  ├─ 8. 调用 useLlmRequest.sendRequest()（流式）
   │    └─ onStream: 逐 chunk 追加到 assistantNode.content
-  ├─ 7. 更新节点状态（complete / error）
-  └─ 8. 持久化会话
+  ├─ 9. 收口实际/估算 usage，更新节点状态（complete / error）
+  └─ 10. 持久化会话
 ```
 
 ## 5. 路由与页面
@@ -259,12 +268,14 @@ LlamaChatView.send() → useChatExecutor.execute()
 - 使用 `var-app-bar` 作为导航栏
 - 监听键盘弹出状态（`useKeyboardAvoidance`）
 - 消息变化时自动滚动到底部
+- 导航栏展示当前绑定的 Agent 名称和头像标识
+- 输入区可直接切换当前模型；绑定 Agent 时优先使用 Agent 的渠道与模型
 - 支持删除消息、重新生成
 
 ### 5.3. SessionList.vue — 会话列表
 
 - 从 `chatStore.sessionMetas` 渲染列表
-- 支持点击跳转、滑动删除
+- 支持点击跳转和删除按钮
 - 空状态提示
 
 ### 5.4. ChatSettingsView.vue — 设置页
@@ -290,7 +301,7 @@ LlamaChatView.send() → useChatExecutor.execute()
 
 | 组件            | 职责                 |
 | --------------- | -------------------- |
-| `ChatInput.vue` | 消息输入框，发送按钮 |
+| `ChatInput.vue` | 模型选择、上下文 Token 占比与预警、消息输入和发送按钮 |
 
 ## 7. 持久化策略
 
@@ -365,21 +376,35 @@ LlamaChatView.send() → useChatExecutor.execute()
 - [x] 核心处理器：session-loader、agent-preset-loader
 - [x] 待处理器的执行、日志和共享黑板
 
+### ✅ Agent 对话接入
+
+- [x] 从角色大厅创建绑定 Agent 的会话
+- [x] 会话通过 `displayAgentId` 持久化 Agent 绑定
+- [x] 加载并注入启用的 Agent 预设消息
+- [x] Agent 渠道、模型与常用生成参数进入请求层
+- [x] 聊天导航栏展示当前 Agent 标识
+
+### ✅ Token 统计与展示
+
+- [x] Rust `o200k_base` 单条/批量计数与字符 fallback
+- [x] 输入草稿、当前分支和 Agent 预设的防抖批量统计
+- [x] 发送前最终管道上下文统计及 80% / 90% 分级预警
+- [x] API usage 优先、本地估算补位且不覆盖已有实际值
+- [x] 输入区上下文占比和消息级 Token 展示
+
 ### ✅ 设置与管理
 
-- [x] UI 偏好（流式、时间戳、Token、模型信息、自动滚动、字体）
-- [x] 模型偏好（默认模型选择）
-- [x] 消息管理确认开关
-- [x] 请求设置（超时、重试）
+- [x] UI、模型、消息管理、请求和上下文阈值的设置界面与持久化结构
+- [x] Token 显示、上下文预警阈值和消息删除确认运行时接线
 - [x] 重置为默认
-- [x] 中英文双语
+- [x] 中英文语言包与工具级 i18n 注册
 
 ### ✅ 移动端适配
 
 - [x] 全屏聊天界面
 - [x] 键盘避让
 - [x] SafeTop / 刘海屏适配
-- [x] Varlet 组件替换
+- [x] 原生 Vue 页面骨架与 Varlet 叶子控件的移动端适配
 - [x] 手势友好（触摸反馈、放大态）
 
 ## 9. 待实现/待完善的功能
@@ -390,8 +415,8 @@ LlamaChatView.send() → useChatExecutor.execute()
 - [ ] `depth-injector`：深度注入（系统提示词）
 - [ ] `user-profile-injector`：用户档案注入
 - [x] `agent-preset-loader`：智能体预设加载
-- [ ] `token-counter`：Token 计数（与桌面端对齐）
-- [ ] 对于ProcessableMessage中的多媒体`_attachments`字段的完整解析
+- [ ] 是否将现有 Token 统计进一步收敛为独立 `token-counter` 处理器；当前功能已经由 `useContextTokenUsage`、`useChatExecutor` 和 `useChatResponseHandler` 完成，此项属于架构收口而非功能缺失
+- [ ] `ProcessableMessage._attachments` 的完整解析
 
 ### 🔄 多模态支持
 
@@ -406,23 +431,32 @@ LlamaChatView.send() → useChatExecutor.execute()
 - [x] 本地角色大厅与基础编辑
 - [ ] 用户档案管理
 - [x] 智能体预设加载
+- [ ] 执行预设消息的 `injectionStrategy` 和 `modelMatch`
+- [ ] 聊天内切换 Agent
+- [ ] 将 Agent 开局消息实例化到新会话
 
 ### 🔄 体验优化
 
 - [ ] 消息搜索/过滤
 - [ ] 消息引用（回复模式）
 - [ ] 会话列表的搜索和排序
-- [ ] 删除/编辑前的确认弹窗
-- [ ] Token 用量统计展示
-- [ ] 模型切换下拉按钮（当前仅在设置页切换默认模型）
+- [ ] 消息复制真正写入系统剪贴板；当前操作只显示成功提示
+- [x] 消息删除前按设置显示确认弹窗
+- [ ] 会话删除和清空确认设置完整接线
+- [x] Token 用量统计展示
+- [x] 聊天输入区模型切换下拉按钮
+- [ ] 流式开关、时间戳、模型信息开关、自动滚动开关和消息字号运行时接线
+- [ ] 默认模型偏好运行时接线；当前无有效选择时直接回退到第一个可用模型
+- [ ] 请求超时和最大重试次数运行时接线
+- [ ] 清理聊天页、会话列表、编辑弹窗和输入提示中的硬编码中文，完成双语覆盖
 
 ## 10. 与桌面端的差异
 
 | 维度           | 桌面端 (`src/tools/llm-chat`)                                                  | 移动端 (`mobile/src/tools/llm-chat`)            |
 | -------------- | ------------------------------------------------------------------------------ | ----------------------------------------------- |
-| **UI 框架**    | Element Plus                                                                   | Varlet                                          |
+| **UI 分层**    | 自研业务组件 + Element Plus 叶子控件                                           | 原生 Vue/AIO token 骨架 + Varlet 叶子控件       |
 | **类型**       | 完整 `ChatAgent`, `Asset`, `ChatSettings`                                      | 已接入兼容 `ChatAgent`；目标使用轻量 `ManagedAssetRef`，当前仍为占位 |
-| **管道处理器** | 完整：session-loader + macros + depth-injection + user-profile + token-counter | `session-loader` + `agent-preset-loader`        |
+| **管道处理器** | 完整：session-loader + macros + depth-injection + user-profile + token-counter | `session-loader` + `agent-preset-loader`；Token 统计当前位于执行层与 composable |
 | **组件**       | 丰富（BaseDialog, ImageViewer 等）                                             | 基础的列表/输入组件                             |
 | **编辑器**     | RichCodeEditor（双引擎）                                                       | 纯文本输入                                      |
 | **路由**       | `main`, `settings` 两页                                                        | `home`, `sessions`, `chat/:id`, `settings` 四页 |

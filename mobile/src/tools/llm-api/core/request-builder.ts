@@ -385,6 +385,7 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   "thinkingLevel",
   "includeThoughts",
   "webSearchOptions",
+  "webSearchEnabled",
   "streamOptions",
   "user",
   "serviceTier",

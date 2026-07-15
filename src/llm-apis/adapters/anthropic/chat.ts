@@ -12,322 +12,229 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { LlmProfile } from "@/types/llm-profiles";
-import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
-import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
-import { parseSSEStream } from "@utils/sse-parser";
 import {
-  extractCommonParameters,
+  anthropicMessagesAdapter,
+  executeProviderRequest,
+  type JsonValue,
+  type LlmMessage as CoreLlmMessage,
+  type LlmMessageContent as CoreLlmMessageContent,
+  type LlmRequest as CoreLlmRequest,
+  type LlmResponse as CoreLlmResponse,
+  type LlmStreamEvent,
+  type ProviderProfile,
+} from "@aiohub/llm-core";
+import type {
+  LlmMessage,
+  LlmMessageContent,
+  LlmRequestOptions,
+  LlmResponse,
+} from "@/llm-apis/common";
+import type { LlmProfile } from "@/types/llm-profiles";
+import {
   applyCustomParameters,
   cleanPayload,
+  inferImageMimeType,
 } from "@/llm-apis/request-builder";
-import { asyncJsonStringify } from "@/utils/serialization";
-import { createModuleLogger } from "@/utils/logger";
-import { createModuleErrorHandler } from "@/utils/errorHandler";
-import {
-  claudeUrlHandler,
-  convertToClaudeMessages,
-  convertTools,
-  convertToolChoice,
-  ClaudeRequest,
-} from "./utils";
+import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
 import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 
-const logger = createModuleLogger("anthropic-chat");
-const errorHandler = createModuleErrorHandler("anthropic-chat");
-
-/**
- * 解析 SSE 流
- */
-const parseClaudeSSE = async (
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-  onChunk: (text: string) => void,
-  signal?: AbortSignal
-): Promise<{
-  fullContent: string;
-  usage?: LlmResponse["usage"];
-  stopReason?: string;
-  stopSequence?: string | null;
-  toolCalls?: LlmResponse["toolCalls"];
-}> => {
-  let fullContent = "";
-  let usage: LlmResponse["usage"] | undefined;
-  let stopReason: string | undefined;
-  let stopSequence: string | null | undefined;
-  const toolCalls: LlmResponse["toolCalls"] = [];
-  let currentToolCall: { id: string; name: string; input: string } | null =
-    null;
-
-  await parseSSEStream(
-    reader,
-    (data: string) => {
-      try {
-        const event: any = JSON.parse(data);
-        switch (event.type) {
-          case "message_start":
-            logger.debug("Claude 流开始", { messageId: event.message?.id });
-            break;
-          case "content_block_start":
-            if (event.content_block?.type === "tool_use") {
-              currentToolCall = {
-                id: event.content_block.id!,
-                name: event.content_block.name!,
-                input: "",
-              };
-              logger.debug("工具调用块开始", {
-                toolName: currentToolCall.name,
-              });
-            }
-            break;
-          case "content_block_delta":
-            if (event.delta?.type === "text_delta" && event.delta.text) {
-              fullContent += event.delta.text;
-              onChunk(event.delta.text);
-            } else if (
-              event.delta?.type === "input_json_delta" &&
-              event.delta.partial_json &&
-              currentToolCall
-            ) {
-              currentToolCall.input += event.delta.partial_json;
-            }
-            break;
-          case "content_block_stop":
-            if (currentToolCall) {
-              toolCalls.push({
-                id: currentToolCall.id,
-                type: "function",
-                function: {
-                  name: currentToolCall.name,
-                  arguments: currentToolCall.input,
-                },
-              });
-              logger.debug("工具调用块结束", {
-                toolName: currentToolCall.name,
-              });
-              currentToolCall = null;
-            }
-            break;
-          case "message_delta":
-            if (event.delta?.stop_reason) stopReason = event.delta.stop_reason;
-            if (event.delta?.stop_sequence !== undefined)
-              stopSequence = event.delta.stop_sequence;
-            if (event.usage) {
-              usage = {
-                promptTokens: event.usage.input_tokens,
-                completionTokens: event.usage.output_tokens,
-                totalTokens:
-                  event.usage.input_tokens + event.usage.output_tokens,
-              };
-            }
-            break;
-          case "message_stop":
-            logger.debug("Claude 流结束");
-            break;
-          case "error": {
-            const err = new Error(event.error?.message || "未知流错误");
-            errorHandler.error(err, "Claude 流错误", {
-              context: { errorType: event.error?.type },
-            });
-            throw err;
-          }
-        }
-      } catch (e) {
-        if (e instanceof Error && e.message.includes("流错误")) throw e;
-        logger.warn("解析流数据失败", { data, error: e });
-      }
-    },
-    undefined,
-    signal
-  );
-
-  return {
-    fullContent,
-    usage,
-    stopReason,
-    stopSequence,
-    toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-  };
-};
-
-/**
- * 调用 Anthropic Claude API
- */
 export const callClaudeChatApi = async (
   profile: LlmProfile,
   options: LlmRequestOptions
 ): Promise<LlmResponse> => {
-  const url = claudeUrlHandler.buildUrl(profile.baseUrl, "messages");
-  const systemMessages = (options.messages || []).filter(
-    (m) => m.role === "system"
-  );
-  const userAssistantMessages = (options.messages || []).filter(
-    (m) => m.role !== "system"
-  );
-  const messages = convertToClaudeMessages(userAssistantMessages);
-  const commonParams = extractCommonParameters(options);
-
-  const body: ClaudeRequest = {
-    model: options.modelId,
-    messages,
-    max_tokens: commonParams.maxTokens || 4096,
-  };
-
-  if (commonParams.temperature !== undefined)
-    body.temperature = commonParams.temperature;
-  if (commonParams.topK !== undefined) body.top_k = commonParams.topK;
-  if (commonParams.topP !== undefined) body.top_p = commonParams.topP;
-
-  if (systemMessages.length > 0) {
-    body.system = systemMessages
-      .map((m) =>
-        typeof m.content === "string" ? m.content : JSON.stringify(m.content)
-      )
-      .join("\n\n");
-  }
-  if (options.stopSequences && options.stopSequences.length > 0)
-    body.stop_sequences = options.stopSequences;
-  if (options.claudeMetadata) body.metadata = options.claudeMetadata;
-
-  if (options.thinkingEnabled) {
-    body.thinking = {
-      type: "enabled",
-      budget_tokens: options.thinkingBudget || 4096,
-    };
-    delete body.temperature;
-  }
-
-  const tools = convertTools(options.tools);
-  if (tools) body.tools = tools;
-
-  // 注入 Claude Web Search Tool（统一联网开关）
-  if ((options as any).webSearchEnabled) {
-    const webSearchTool = {
-      type: "web_search_20250305",
-      name: "web_search",
-      max_uses: 5,
-    } as any;
-    body.tools = body.tools ? [...body.tools, webSearchTool] : [webSearchTool];
-  }
-
-  const toolChoice = convertToolChoice(
-    options.toolChoice,
-    options.parallelToolCalls
-  );
-  if (toolChoice) body.tool_choice = toolChoice;
-
-  applyCustomParameters(body, options);
-  cleanPayload(body);
-
-  const apiKey =
-    profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    "x-api-key": apiKey,
-    "anthropic-version": "2023-06-01",
-  };
-
-  if (options.requestId) {
-    headers["X-Request-ID"] = options.requestId;
-  }
-
-  const betas: string[] = [];
-  if (options.thinkingEnabled) betas.push("thinking-2025-12-05");
-  betas.push("files-api-2025-04-14");
-  if (betas.length > 0) headers["anthropic-beta"] = betas.join(",");
-  Object.assign(headers, resolveCustomHeaders(profile.customHeaders));
-
-  logger.info("发送 Claude API 请求", {
-    model: options.modelId,
-    messageCount: messages.length,
-    hasTools: !!tools,
-    hasThinking: !!options.thinkingEnabled,
-    stream: !!options.stream,
-  });
-
-  if (options.stream && options.onStream) {
-    body.stream = true;
-    const response = await fetchWithTimeout(
-      url,
-      {
-        method: "POST",
-        headers,
-        body: await asyncJsonStringify(body),
-        hasLocalFile: options.hasLocalFile,
-        forceProxy: options.forceProxy,
-        relaxIdCerts: options.relaxIdCerts,
+  const request = buildCoreRequest(options);
+  const response = await executeProviderRequest({
+    adapter: anthropicMessagesAdapter,
+    profile: buildProviderProfile(profile),
+    request,
+    transport: desktopLlmTransport,
+    transportOptions: {
+      requestId: request.requestId ?? createRequestId(),
+      timeoutMs: options.timeout,
+      signal: options.signal,
+      network: {
+        strategy: options.forceProxy ? "proxy" : options.networkStrategy,
+        relaxInvalidCerts: options.relaxIdCerts,
         http1Only: options.http1Only,
-        isStreaming: true,
       },
-      options.timeout,
-      options.signal
-    );
-    await ensureResponseOk(response);
-    if (!response.body) throw new Error("响应体为空");
-    const reader = response.body.getReader();
-    const result = await parseClaudeSSE(
-      reader,
-      options.onStream,
-      options.signal
-    );
-    return {
-      content: result.fullContent,
-      usage: result.usage,
-      isStream: true,
-      finishReason: result.stopReason as any,
-      stopSequence: result.stopSequence,
-      toolCalls: result.toolCalls,
-    };
-  }
-
-  const response = await fetchWithTimeout(
-    url,
-    {
-      method: "POST",
-      headers,
-      body: await asyncJsonStringify(body),
-      hasLocalFile: options.hasLocalFile,
-      forceProxy: options.forceProxy,
-      relaxIdCerts: options.relaxIdCerts,
-      http1Only: options.http1Only,
     },
-    options.timeout,
-    options.signal
-  );
-  await ensureResponseOk(response);
-  const data: any = await response.json();
-
-  let textContent = "";
-  const toolCalls: LlmResponse["toolCalls"] = [];
-  for (const block of data.content) {
-    if (block.type === "text" && block.text) textContent += block.text;
-    else if (block.type === "tool_use" && block.id && block.name) {
-      toolCalls.push({
-        id: block.id,
-        type: "function",
-        function: {
-          name: block.name,
-          arguments: JSON.stringify(block.input || {}),
-        },
-      });
-    }
-  }
-
-  logger.info("Claude API 响应成功", {
-    contentLength: textContent.length,
-    toolCallsCount: toolCalls.length,
-    stopReason: data.stop_reason,
-    usage: data.usage,
+    onEvent: (event: LlmStreamEvent) => {
+      if (event.type === "text-delta") options.onStream?.(event.delta);
+      if (event.type === "reasoning-delta") {
+        options.onReasoningStream?.(event.delta);
+      }
+    },
   });
+
+  return mapCoreResponse(response, request.stream === true);
+};
+
+function buildProviderProfile(profile: LlmProfile): ProviderProfile {
+  return {
+    provider: profile.type,
+    baseUrl: profile.baseUrl,
+    apiKey: profile.apiKeys[0],
+    headers: resolveCustomHeaders(profile.customHeaders),
+  };
+}
+
+function buildCoreRequest(options: LlmRequestOptions): CoreLlmRequest {
+  const extensions: Record<string, JsonValue> = {};
+  applyCustomParameters(extensions, options);
+  cleanPayload(extensions);
 
   return {
-    content: textContent,
-    usage: {
-      promptTokens: data.usage.input_tokens,
-      completionTokens: data.usage.output_tokens,
-      totalTokens: data.usage.input_tokens + data.usage.output_tokens,
-    },
-    finishReason: data.stop_reason,
-    stopSequence: data.stop_sequence,
-    toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+    model: options.modelId,
+    messages: (options.messages ?? []).map(toCoreMessage),
+    stream: Boolean(
+      options.stream && (options.onStream || options.onReasoningStream)
+    ),
+    requestId: options.requestId,
+    maxTokens: options.maxTokens,
+    maxCompletionTokens: options.maxCompletionTokens,
+    temperature: options.temperature,
+    topK: options.topK,
+    topP: options.topP,
+    stop: options.stopSequences ?? options.stop,
+    metadata: toJsonObject(options.claudeMetadata),
+    thinkingEnabled: options.thinkingEnabled,
+    thinkingBudget: options.thinkingBudget,
+    tools: options.tools?.map((tool) => ({
+      type: "function" as const,
+      function: {
+        name: tool.function.name,
+        description: tool.function.description,
+        parameters: toJsonValue(tool.function.parameters) ?? {},
+        strict: tool.function.strict,
+      },
+    })),
+    toolChoice: options.toolChoice,
+    parallelToolCalls: options.parallelToolCalls,
+    webSearchEnabled: options.webSearchEnabled,
+    extraBody: toJsonObject(options.extraBody),
+    extensions,
   };
-};
+}
+
+function toCoreMessage(message: LlmMessage): CoreLlmMessage {
+  return {
+    role: message.role,
+    content:
+      typeof message.content === "string"
+        ? message.content
+        : message.content.map(toCoreContent),
+    reasoningContent: message.reasoningContent,
+    prefix: message.prefix,
+  };
+}
+
+function toCoreContent(content: LlmMessageContent): CoreLlmMessageContent {
+  if (content.type === "text") {
+    return { type: "text", text: content.text };
+  }
+  if (content.type === "image") {
+    const data = toBase64(content.imageBase64);
+    return {
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: inferImageMimeType(data),
+        data,
+      },
+    };
+  }
+  if (content.type === "document") {
+    return {
+      type: "document",
+      source: toJsonValue(content.source) ?? {},
+    };
+  }
+  if (content.type === "audio") {
+    return { type: "audio", source: toJsonValue(content.source) ?? {} };
+  }
+  if (content.type === "video") {
+    return {
+      type: "video",
+      source: toJsonValue(content.source) ?? {},
+      metadata: toJsonValue(content.videoMetadata),
+    };
+  }
+  if (content.type === "tool_use") {
+    return {
+      type: "tool_use",
+      id: content.toolUseId,
+      name: content.toolName,
+      input: toJsonValue(content.toolInput) ?? {},
+    };
+  }
+  return {
+    type: "tool_result",
+    toolUseId: content.toolResultId,
+    content:
+      typeof content.toolResultContent === "string"
+        ? content.toolResultContent
+        : (toJsonValue(content.toolResultContent.map(toCoreContent)) ?? []),
+    isError: content.isError,
+  };
+}
+
+function mapCoreResponse(
+  response: CoreLlmResponse,
+  isStream: boolean
+): LlmResponse {
+  return {
+    content: response.content,
+    reasoningContent: response.reasoningContent,
+    usage: response.usage,
+    finishReason: response.finishReason as LlmResponse["finishReason"],
+    stopSequence: response.stopSequence,
+    toolCalls: response.toolCalls,
+    ...(isStream ? { isStream: true } : {}),
+  };
+}
+
+function toBase64(value: string | ArrayBuffer | Uint8Array): string {
+  if (typeof value === "string") return value;
+  const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+function toJsonObject(value: unknown): Record<string, JsonValue> | undefined {
+  const result = toJsonValue(value);
+  return result && typeof result === "object" && !Array.isArray(result)
+    ? result
+    : undefined;
+}
+
+function toJsonValue(value: unknown): JsonValue | undefined {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean" ||
+    (typeof value === "number" && Number.isFinite(value))
+  ) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map(toJsonValue)
+      .filter((item): item is JsonValue => item !== undefined);
+  }
+  if (typeof value === "object" && value !== null) {
+    const result: Record<string, JsonValue> = {};
+    for (const [key, item] of Object.entries(value)) {
+      const json = toJsonValue(item);
+      if (json !== undefined) result[key] = json;
+    }
+    return result;
+  }
+  return undefined;
+}
+
+function createRequestId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `llm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}

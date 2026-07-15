@@ -68,6 +68,7 @@ export interface LlmResponse {
   reasoningContent?: string;
   refusal?: string | null;
   finishReason?: LlmFinishReason;
+  stopSequence?: string | null;
   usage?: TokenUsage;
   toolCalls?: LlmToolCall[];
   annotations?: LlmAnnotation[];

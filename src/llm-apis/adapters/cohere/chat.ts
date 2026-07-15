@@ -12,279 +12,226 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {
+  cohereChatAdapter,
+  executeProviderRequest,
+  type JsonValue,
+  type LlmMessage as CoreLlmMessage,
+  type LlmMessageContent as CoreLlmMessageContent,
+  type LlmRequest as CoreLlmRequest,
+  type LlmResponse as CoreLlmResponse,
+  type LlmStreamEvent,
+  type ProviderProfile,
+} from "@aiohub/llm-core";
+import type {
+  LlmMessage,
+  LlmMessageContent,
+  LlmRequestOptions,
+  LlmResponse,
+} from "@/llm-apis/common";
 import type { LlmProfile } from "@/types/llm-profiles";
-import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
-import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
 import {
-  parseSSEStream,
-  extractTextFromSSE,
-  extractReasoningFromSSE,
-} from "@utils/sse-parser";
-import {
-  parseMessageContents,
-  extractCommonParameters,
   applyCustomParameters,
   cleanPayload,
-  buildBase64DataUrl,
+  inferImageMimeType,
 } from "@/llm-apis/request-builder";
-import { asyncJsonStringify } from "@/utils/serialization";
-import { cohereUrlHandler } from "./utils";
+import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
 import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 
-/**
- * 调用 Cohere Chat API
- */
 export const callCohereChatApi = async (
   profile: LlmProfile,
   options: LlmRequestOptions
 ): Promise<LlmResponse> => {
-  const url = cohereUrlHandler.buildUrl(
-    profile.baseUrl || "https://api.cohere.com",
-    "chat"
-  );
-
-  // 获取第一个可用的 API Key
-  const apiKey =
-    profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
-
-  // 使用共享函数提取通用参数
-  const commonParams = extractCommonParameters(options);
-
-  // 构建 messages 数组（V2 API 格式）
-  const messages = [];
-
-  // 直接转换所有消息（包括 system 角色）
-  for (const msg of options.messages || []) {
-    const role = msg.role;
-
-    if (typeof msg.content === "string") {
-      messages.push({
-        role,
-        content: msg.content,
-      });
-    } else {
-      // 处理复杂内容（包含图片等）
-      const parsed = parseMessageContents(msg.content);
-      let contentValue: string | any[];
-
-      if (parsed.imageParts.length > 0) {
-        // 多模态格式
-        contentValue = [];
-        if (parsed.textParts.length > 0) {
-          const textContent = parsed.textParts
-            .map((part) => part.text)
-            .join("\n");
-          contentValue.push({ type: "text", text: textContent });
-        }
-        for (const img of parsed.imageParts) {
-          contentValue.push({
-            type: "image_url",
-            image_url: {
-              url: buildBase64DataUrl(img.base64, img.mimeType),
-            },
-          });
-        }
-      } else {
-        // 纯文本格式
-        contentValue = parsed.textParts.map((part) => part.text).join("\n");
+  const request = buildCoreRequest(options);
+  const response = await executeProviderRequest({
+    adapter: cohereChatAdapter,
+    profile: buildProviderProfile(profile),
+    request,
+    transport: desktopLlmTransport,
+    transportOptions: {
+      requestId: request.requestId ?? createRequestId(),
+      timeoutMs: options.timeout,
+      signal: options.signal,
+      network: {
+        strategy: options.forceProxy ? "proxy" : options.networkStrategy,
+        relaxInvalidCerts: options.relaxIdCerts,
+        http1Only: options.http1Only,
+      },
+    },
+    onEvent: (event: LlmStreamEvent) => {
+      if (event.type === "text-delta") options.onStream?.(event.delta);
+      if (event.type === "reasoning-delta") {
+        options.onReasoningStream?.(event.delta);
       }
+    },
+  });
 
-      messages.push({
-        role,
-        content: contentValue,
-      });
-    }
-  }
+  return mapCoreResponse(response, request.stream === true);
+};
 
-  const body: any = {
-    model: options.modelId,
-    messages: messages,
-    temperature: commonParams.temperature ?? 0.5,
+function buildProviderProfile(profile: LlmProfile): ProviderProfile {
+  return {
+    provider: profile.type,
+    baseUrl: profile.baseUrl || "https://api.cohere.com",
+    apiKey: profile.apiKeys[0],
+    headers: resolveCustomHeaders(profile.customHeaders),
   };
+}
 
-  if (commonParams.maxTokens !== undefined) {
-    body.max_tokens = commonParams.maxTokens;
-  }
+function buildCoreRequest(options: LlmRequestOptions): CoreLlmRequest {
+  const extensions: Record<string, JsonValue> = {};
+  applyCustomParameters(extensions, options);
+  cleanPayload(extensions);
+  delete extensions.requestId;
 
-  // 思考能力配置 (V2 API)
-  if (options.thinkingEnabled !== undefined) {
-    if (options.thinkingEnabled) {
-      const thinkingConfig: any = { type: "enabled" };
-      if (options.thinkingBudget) {
-        thinkingConfig.budget_tokens = options.thinkingBudget;
-      }
-      body.thinking = thinkingConfig;
-    } else {
-      body.thinking = { type: "disabled" };
-    }
-  }
-
-  // 添加通用参数
-  if (commonParams.topP !== undefined) {
-    body.p = commonParams.topP;
-  }
-  if (commonParams.topK !== undefined) {
-    body.k = commonParams.topK;
-  }
-  if (commonParams.frequencyPenalty !== undefined) {
-    body.frequency_penalty = commonParams.frequencyPenalty;
-  }
-  if (commonParams.presencePenalty !== undefined) {
-    body.presence_penalty = commonParams.presencePenalty;
-  }
-  if (commonParams.seed !== undefined) {
-    body.seed = commonParams.seed;
-  }
-  if (commonParams.stop !== undefined) {
-    body.stop_sequences = Array.isArray(commonParams.stop)
-      ? commonParams.stop
-      : [commonParams.stop];
-  }
-
-  // 工具支持
-  if (options.tools && options.tools.length > 0) {
-    body.tools = options.tools.map((tool) => ({
-      type: "function",
+  return {
+    model: options.modelId,
+    messages: (options.messages ?? []).map(toCoreMessage),
+    stream: Boolean(
+      options.stream && (options.onStream || options.onReasoningStream)
+    ),
+    requestId: options.requestId,
+    maxTokens: options.maxTokens,
+    maxCompletionTokens: options.maxCompletionTokens,
+    temperature: options.temperature,
+    topP: options.topP,
+    topK: options.topK,
+    frequencyPenalty: options.frequencyPenalty,
+    presencePenalty: options.presencePenalty,
+    seed: options.seed,
+    stop: options.stop,
+    thinkingEnabled: options.thinkingEnabled,
+    thinkingBudget: options.thinkingBudget,
+    tools: options.tools?.map((tool) => ({
+      type: "function" as const,
       function: {
         name: tool.function.name,
         description: tool.function.description,
-        parameters: tool.function.parameters,
+        parameters: toJsonValue(tool.function.parameters) ?? {},
+        strict: tool.function.strict,
       },
-    }));
-  }
-
-  if (options.toolChoice) {
-    if (typeof options.toolChoice === "string") {
-      body.tool_choice = { type: options.toolChoice };
-    } else if (options.toolChoice.type === "function") {
-      body.tool_choice = {
-        type: "function",
-        function: { name: options.toolChoice.function.name },
-      };
-    }
-  }
-
-  // 应用自定义参数
-  applyCustomParameters(body, options);
-  cleanPayload(body);
-  // Cohere API 不接受 requestId 字段，单独清理（通用 cleanPayload 不清理它，因为 VCP 等渠道需要）
-  delete body.requestId;
-
-  // 构建请求头
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${apiKey}`,
+    })),
+    toolChoice: options.toolChoice,
+    extraBody: toJsonObject(options.extraBody),
+    extensions,
   };
+}
 
-  if (options.requestId) {
-    headers["X-Request-ID"] = options.requestId;
+function toCoreMessage(message: LlmMessage): CoreLlmMessage {
+  return {
+    role: message.role,
+    content:
+      typeof message.content === "string"
+        ? message.content
+        : message.content.map(toCoreContent),
+    reasoningContent: message.reasoningContent,
+    prefix: message.prefix,
+  };
+}
+
+function toCoreContent(content: LlmMessageContent): CoreLlmMessageContent {
+  if (content.type === "text") {
+    return { type: "text", text: content.text };
   }
-
-  Object.assign(headers, resolveCustomHeaders(profile.customHeaders));
-
-  // 如果启用流式响应
-  if (options.stream && options.onStream) {
-    body.stream = true;
-
-    const response = await fetchWithTimeout(
-      url,
-      {
-        method: "POST",
-        headers,
-        body: await asyncJsonStringify(body),
-        forceProxy: options.forceProxy,
-        relaxIdCerts: options.relaxIdCerts,
-        http1Only: options.http1Only,
-        isStreaming: true,
-      },
-      options.timeout,
-      options.signal
-    );
-
-    await ensureResponseOk(response);
-
-    if (!response.body) {
-      throw new Error("响应体为空");
-    }
-
-    const reader = response.body.getReader();
-    let fullContent = "";
-    let fullReasoning = "";
-
-    await parseSSEStream(
-      reader,
-      (data) => {
-        const text = extractTextFromSSE(data, "cohere");
-        if (text) {
-          fullContent += text;
-          options.onStream!(text);
-        }
-
-        const reasoning = extractReasoningFromSSE(data, "cohere");
-        if (reasoning && options.onReasoningStream) {
-          fullReasoning += reasoning;
-          options.onReasoningStream(reasoning);
-        }
-      },
-      undefined,
-      options.signal
-    );
-
+  if (content.type === "image") {
+    const data = toBase64(content.imageBase64);
     return {
-      content: fullContent,
-      reasoningContent: fullReasoning || undefined,
-      isStream: true,
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: inferImageMimeType(data),
+        data,
+      },
     };
   }
-
-  // 非流式响应
-  const response = await fetchWithTimeout(
-    url,
-    {
-      method: "POST",
-      headers,
-      body: await asyncJsonStringify(body),
-      forceProxy: options.forceProxy,
-      relaxIdCerts: options.relaxIdCerts,
-      http1Only: options.http1Only,
-    },
-    options.timeout,
-    options.signal
-  );
-
-  await ensureResponseOk(response);
-
-  const data = await response.json();
-
-  let content = "";
-  if (data.message?.content) {
-    for (const part of data.message.content) {
-      if (part.type === "text") {
-        content += part.text;
-      }
-    }
-  } else if (data.text) {
-    content = data.text;
-  } else {
-    throw new Error(`Cohere API 响应格式异常: ${JSON.stringify(data)}`);
+  if (content.type === "document") {
+    return { type: "document", source: toJsonValue(content.source) ?? {} };
   }
-
+  if (content.type === "audio") {
+    return { type: "audio", source: toJsonValue(content.source) ?? {} };
+  }
+  if (content.type === "video") {
+    return {
+      type: "video",
+      source: toJsonValue(content.source) ?? {},
+      metadata: toJsonValue(content.videoMetadata),
+    };
+  }
+  if (content.type === "tool_use") {
+    return {
+      type: "tool_use",
+      id: content.toolUseId,
+      name: content.toolName,
+      input: toJsonValue(content.toolInput) ?? {},
+    };
+  }
   return {
-    content: content,
-    usage: data.usage?.tokens
-      ? {
-          promptTokens: data.usage.tokens.input_tokens,
-          completionTokens: data.usage.tokens.output_tokens,
-          totalTokens:
-            data.usage.tokens.input_tokens + data.usage.tokens.output_tokens,
-        }
-      : data.meta?.tokens
-        ? {
-            promptTokens: data.meta.tokens.input_tokens,
-            completionTokens: data.meta.tokens.output_tokens,
-            totalTokens:
-              data.meta.tokens.input_tokens + data.meta.tokens.output_tokens,
-          }
-        : undefined,
+    type: "tool_result",
+    toolUseId: content.toolResultId,
+    content:
+      typeof content.toolResultContent === "string"
+        ? content.toolResultContent
+        : (toJsonValue(content.toolResultContent.map(toCoreContent)) ?? []),
+    isError: content.isError,
   };
-};
+}
+
+function mapCoreResponse(
+  response: CoreLlmResponse,
+  isStream: boolean
+): LlmResponse {
+  return {
+    content: response.content,
+    reasoningContent: response.reasoningContent,
+    usage: response.usage,
+    finishReason: response.finishReason as LlmResponse["finishReason"],
+    toolCalls: response.toolCalls,
+    ...(isStream ? { isStream: true } : {}),
+  };
+}
+
+function toBase64(value: string | ArrayBuffer | Uint8Array): string {
+  if (typeof value === "string") return value;
+  const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+function toJsonObject(value: unknown): Record<string, JsonValue> | undefined {
+  const result = toJsonValue(value);
+  return result && typeof result === "object" && !Array.isArray(result)
+    ? result
+    : undefined;
+}
+
+function toJsonValue(value: unknown): JsonValue | undefined {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean" ||
+    (typeof value === "number" && Number.isFinite(value))
+  ) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map(toJsonValue)
+      .filter((item): item is JsonValue => item !== undefined);
+  }
+  if (typeof value === "object" && value !== null) {
+    const result: Record<string, JsonValue> = {};
+    for (const [key, item] of Object.entries(value)) {
+      const json = toJsonValue(item);
+      if (json !== undefined) result[key] = json;
+    }
+    return result;
+  }
+  return undefined;
+}
+
+function createRequestId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `llm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}

@@ -6,11 +6,13 @@ export type LlmMessageRole =
 export interface LlmTextContent {
   type: "text";
   text: string;
+  cacheControl?: JsonValue;
 }
 
 export interface LlmImageContent {
   type: "image";
   source: JsonValue;
+  cacheControl?: JsonValue;
 }
 
 export interface LlmAudioContent {
@@ -27,6 +29,7 @@ export interface LlmVideoContent {
 export interface LlmDocumentContent {
   type: "document";
   source: JsonValue;
+  cacheControl?: JsonValue;
 }
 
 export interface LlmToolUseContent {
@@ -111,6 +114,8 @@ export interface LlmRequest {
   serviceTier?: string;
   webSearchOptions?: JsonValue;
   streamOptions?: JsonValue;
+  requestId?: string;
+  webSearchEnabled?: boolean;
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
   extraBody?: Record<string, JsonValue>;

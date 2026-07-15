@@ -169,6 +169,9 @@ export function toOpenAiCompatibleCoreRequest(
     serviceTier: options.serviceTier,
     webSearchOptions: toJsonValue(options.webSearchOptions),
     streamOptions: toJsonValue(options.streamOptions),
+    requestId:
+      typeof options.requestId === "string" ? options.requestId : undefined,
+    webSearchEnabled: options.webSearchEnabled === true,
     thinkingEnabled: options.thinkingEnabled,
     thinkingBudget: options.thinkingBudget,
     extraBody,
@@ -272,7 +275,11 @@ function toCoreMessage(message: {
 function toCoreContent(content: LlmMessageContent): CoreLlmMessageContent {
   switch (content.type) {
     case "text":
-      return { type: "text", text: content.text };
+      return {
+        type: "text",
+        text: content.text,
+        cacheControl: toJsonValue(content.cacheControl),
+      };
     case "image":
       return {
         type: "image",
@@ -281,6 +288,7 @@ function toCoreContent(content: LlmMessageContent): CoreLlmMessageContent {
           media_type: content.mimeType ?? inferImageMimeType(content.imageBase64),
           data: content.imageBase64,
         },
+        cacheControl: toJsonValue(content.cacheControl),
       };
     case "audio":
       return { type: "audio", source: content.source };
@@ -334,6 +342,7 @@ export function toMobileResponse(
     ...(isStream ? { isStream: true } : {}),
     refusal: response.refusal,
     finishReason: response.finishReason as LlmResponse["finishReason"],
+    stopSequence: response.stopSequence,
     toolCalls: response.toolCalls,
     reasoningContent: response.reasoningContent,
     annotations: mapAnnotations(response.annotations),

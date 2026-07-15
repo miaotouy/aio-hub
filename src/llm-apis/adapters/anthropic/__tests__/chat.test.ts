@@ -231,4 +231,43 @@ describe("Anthropic Adapter - Chat", () => {
     });
     expect(result.finishReason).toBe("tool_use");
   });
+
+  it("should keep thinking and text stream callbacks separate", async () => {
+    const fixture = [
+      'data: {"type":"message_start","message":{"usage":{"input_tokens":5}}}\n\n',
+      'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"Think."}}\r\n\r\n',
+      'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Done."}}\n\n',
+      'data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":3}}\n\n',
+      'data: {"type":"message_stop"}\n\n',
+    ].join("");
+    (fetchWithTimeout as any).mockResolvedValue(
+      new Response(fixture, {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      })
+    );
+    const onStream = vi.fn();
+    const onReasoningStream = vi.fn();
+
+    const result = await callClaudeChatApi(mockProfile, {
+      profileId: mockProfile.id,
+      modelId: "claude-sonnet-4-5",
+      messages: [{ role: "user", content: "Think." }],
+      stream: true,
+      onStream,
+      onReasoningStream,
+    });
+
+    expect(onStream).toHaveBeenCalledWith("Done.");
+    expect(onReasoningStream).toHaveBeenCalledWith("Think.");
+    expect(result).toEqual(
+      expect.objectContaining({
+        content: "Done.",
+        reasoningContent: "Think.",
+        finishReason: "end_turn",
+        usage: { promptTokens: 5, completionTokens: 3, totalTokens: 8 },
+        isStream: true,
+      })
+    );
+  });
 });

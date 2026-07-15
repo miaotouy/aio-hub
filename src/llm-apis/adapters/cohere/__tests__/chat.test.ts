@@ -179,4 +179,41 @@ describe("Cohere Adapter - Chat", () => {
     expect(body.requestId).toBeUndefined();
     expect(fetchOptions.headers["X-Request-ID"]).toBe("req-test-123");
   });
+
+  it("should map text, thinking, usage and finish reason from the stream", async () => {
+    const fixture = [
+      'data: {"type":"content-delta","delta":{"message":{"content":{"thinking":"Think."}}}}\n\n',
+      'data: {"type":"content-delta","delta":{"message":{"content":{"text":"Done."}}}}\r\n\r\n',
+      'data: {"type":"message-end","delta":{"finish_reason":"COMPLETE","usage":{"tokens":{"input_tokens":5,"output_tokens":3}}}}\n\n',
+    ].join("");
+    (fetchWithTimeout as any).mockResolvedValue(
+      new Response(fixture, {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      })
+    );
+    const onStream = vi.fn();
+    const onReasoningStream = vi.fn();
+
+    const result = await callCohereChatApi(mockProfile, {
+      profileId: mockProfile.id,
+      modelId: "command-a-03-2025",
+      messages: [{ role: "user", content: "Think." }],
+      stream: true,
+      onStream,
+      onReasoningStream,
+    });
+
+    expect(onStream).toHaveBeenCalledWith("Done.");
+    expect(onReasoningStream).toHaveBeenCalledWith("Think.");
+    expect(result).toEqual(
+      expect.objectContaining({
+        content: "Done.",
+        reasoningContent: "Think.",
+        finishReason: "stop",
+        usage: { promptTokens: 5, completionTokens: 3, totalTokens: 8 },
+        isStream: true,
+      })
+    );
+  });
 });

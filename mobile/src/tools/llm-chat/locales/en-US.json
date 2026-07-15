@@ -13,6 +13,7 @@
     "查看并继续之前的交流": "View and continue previous chats",
     "角色大厅": "Character Hub",
     "敬请期待": "Coming Soon",
+    "选择智能体并开始对话": "Choose an agent and start chatting",
     "用户档案": "User Profile"
   },
   "ChatSettingsView": {
@@ -32,5 +33,14 @@
     "清空会话前确认": "Confirm before clearing all",
     "请求超时时间": "Request Timeout",
     "最大重试次数": "Max Retries"
+  },
+  "TokenUsage": {
+    "计算中": "Calculating",
+    "字符估算": "character estimate",
+    "o200k 预估": "o200k estimate",
+    "上次实际": "Last actual",
+    "实际": "actual",
+    "上下文紧张提示": "Context is approaching the model limit. Consider trimming history.",
+    "上下文高风险提示": "Context is in the high-risk range and may exceed the model limit."
   }
 }

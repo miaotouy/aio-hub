@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import {
   MessageSquare,
   Users,
@@ -16,6 +16,7 @@ import { useLlmProfilesStore } from "../../llm-api/stores/llmProfiles";
 import { useChatSettings } from "../composables/useChatSettings";
 
 const router = useRouter();
+const route = useRoute();
 const { tRaw } = useI18n();
 const chatStore = useLlmChatStore();
 const profilesStore = useLlmProfilesStore();
@@ -35,6 +36,12 @@ onMounted(async () => {
 
   // 确保有选中的模型且模型有效
   chatStore.syncSelectedModel();
+
+  const agentId = typeof route.query.agentId === "string" ? route.query.agentId : null;
+  if (agentId) {
+    const sessionId = await chatStore.createSession("New Chat", agentId);
+    await router.replace(`/tools/llm-chat/chat/${sessionId}`);
+  }
 });
 
 const handleNewChat = async () => {
@@ -48,6 +55,10 @@ const goToSessions = () => {
 
 const goToSettings = () => {
   router.push("/tools/llm-chat/settings");
+};
+
+const goToAgents = () => {
+  router.push("/tools/agent-manager/list");
 };
 
 const goHome = () => {
@@ -96,13 +107,13 @@ const goHome = () => {
         </div>
       </div>
 
-      <div class="action-card disabled">
+      <div class="action-card" @click="goToAgents">
         <div class="icon-box">
           <Users :size="24" />
         </div>
         <div class="text-box">
           <h3>{{ tRaw("tools.llm-chat.ChatHome.角色大厅") }}</h3>
-          <p>{{ tRaw("tools.llm-chat.ChatHome.敬请期待") }}</p>
+          <p>{{ tRaw("tools.llm-chat.ChatHome.选择智能体并开始对话") }}</p>
         </div>
       </div>
 

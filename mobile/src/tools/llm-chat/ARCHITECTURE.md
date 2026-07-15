@@ -1,7 +1,7 @@
 # 移动端 LLM Chat — 实现情况
 
-> **文档状态**: Implementing  
-> **最后更新**: 2026-06-23  
+> **文档状态**: Implementing
+> **最后更新**: 2026-07-14
 > **对应路径**: `mobile/src/tools/llm-chat/`
 
 ## 1. 概述
@@ -21,6 +21,7 @@ llm-chat/
 ├── ARCHITECTURE.md            # 本文档
 ├── components/                # 可复用的 Vue 组件
 │   ├── BranchSwitcher.vue     # 分支切换器（树形对话的兄弟节点导航）
+│   ├── BranchSelector.vue     # 分支选择抽屉（移动端版本列表）
 │   ├── ChatInput.vue          # 聊天输入框
 │   ├── ChatMessage.vue        # 单条消息展示
 │   ├── MessageContent.vue     # 消息内容渲染（纯文本/富文本）
@@ -35,7 +36,8 @@ llm-chat/
 ├── core/
 │   └── pipeline/
 │       └── processors/
-│           └── session-loader.ts  # 管道处理器：会话历史加载器
+│           ├── session-loader.ts       # 管道处理器：会话历史加载器
+│           └── agent-preset-loader.ts  # 管道处理器：智能体预设加载器
 ├── docs/                      # 规划文档（已删除，仅 Git 记录中存在）
 ├── locales/
 │   ├── zh-CN.json             # 中文语言包
@@ -52,7 +54,8 @@ llm-chat/
 │   ├── session.ts             # ChatSession（树形会话）
 │   └── settings.ts            # ChatSettings（用户偏好）
 ├── utils/
-│   └── BranchNavigator.ts     # 分支导航工具类
+│   ├── BranchNavigator.ts     # 分支导航工具类
+│   └── chatFeedback.ts        # 移动端提示/确认封装
 └── views/
     ├── ChatHome.vue           # 主页（入口卡片）
     ├── ChatSettingsView.vue   # 设置页
@@ -127,7 +130,7 @@ type MessageType = "message" | string;
 PipelineContext
 ├── messages: ProcessableMessage[]   # 核心可变数据，处理器可增删改
 ├── session（只读）                    # 当前会话
-├── agentConfig / settings（只读）     # 配置（移动端暂为 {}）
+├── agentConfig / settings（只读）     # 当前 ChatAgent（可空）与聊天配置
 ├── capabilities （只读）              # 模型能力信息
 ├── sharedData: Map<string, any>     # 共享黑板
 └── logs: Array<{processorId, level, message, details?}>
@@ -187,17 +190,30 @@ Actions:
    ├── 过滤掉空内容和根节点
    └── 转换为 ProcessableMessage[] 放入 context.messages
 
+2. primary:agent-preset-loader (priority: 200)
+   ├── 读取会话绑定的 ChatAgent
+   ├── 过滤禁用消息和禁用消息组
+   ├── 保留预设消息顺序与角色
+   └── 将非空预设消息插入会话历史之前
+
 管道执行流程：
 LlamaChatView.send() → useChatExecutor.execute()
   → 构建 PipelineContext
   → pipelineStore.executePipeline(context)
-  → [session-loader, ...其他处理器]
+  → [session-loader, agent-preset-loader, ...其他处理器]
   → 输出 messages[] 给 llmRequest.sendRequest()
 ```
 
-**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前仅内置 `session-loader`，桌面端的其他处理器（如宏替换、深度注入、用户档案注入等）尚未移植。
+**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载与智能体预设加载；宏替换、深度注入、用户档案注入等仍待移植。
 
-### 4.3. 对话执行流程
+### 4.3. Token 统计与上下文预警
+
+- `useContextTokenUsage` 对当前分支、启用的智能体预设和输入草稿执行 500ms 防抖批量计数，输入变化后用请求序号丢弃过期结果。
+- 发送前，`useChatExecutor` 对管道最终文本调用同一 `count_tokens_batch`，保存消息级估算和本次请求的上下文快照；工具 schema、附件和非文本多模态开销不在该通用计数中。
+- API 返回 usage 后，助手消息的 `completionTokens` 和本次请求的 `promptTokens` 优先显示为实际值；usage 缺失时使用 Rust `o200k`，IPC 异常时使用字符 fallback。已有实际值不会被后续估算覆盖。
+- 上下文窗口来自模型对象自身的 `tokenLimits.contextLength`。80% / 90% 阈值集中在 `ChatSettings.contextManagement`，Rust 后端不持有业务预警策略。
+
+### 4.4. 对话执行流程
 
 ```
 用户输入 → useChatExecutor.execute(session, content, parentNodeId?)
@@ -231,7 +247,7 @@ LlamaChatView.send() → useChatExecutor.execute()
 - 4个操作卡片：
   - **开启新对话** — `createSession()` + 跳转
   - **历史会话** — 跳转到 `SessionList`
-  - **角色大厅** — 禁用状态（"敬请期待"）
+  - **角色大厅** — 跳转到独立 `agent-manager`，可选择智能体发起绑定会话
   - **用户档案** — 禁用状态（"敬请期待"）
 - 使用 SafeTop 组件处理刘海屏
 
@@ -266,6 +282,7 @@ LlamaChatView.send() → useChatExecutor.execute()
 | `ChatMessage.vue`    | 单条消息的整体排版（头像、气泡、元信息）         |
 | `MessageMenubar.vue` | 操作菜单（重新生成、复制、编辑、删除、分支切换） |
 | `BranchSwitcher.vue` | 兄弟分支切换器（上一分支/下一分支）              |
+| `BranchSelector.vue` | 底部抽屉式分支列表，支持直接切换到任意同级分支   |
 
 ### 6.2. 输入组件
 
@@ -313,6 +330,8 @@ LlamaChatView.send() → useChatExecutor.execute()
 - [x] 模型选择与校验
 - [x] 会话历史持久化
 - [x] 重启恢复上次会话
+- [x] 会话名称自动生成（基于首条消息）
+- [x] 通用思考过程展示（reasoningContent）
 
 ### ✅ 树形分支对话
 
@@ -321,6 +340,7 @@ LlamaChatView.send() → useChatExecutor.execute()
 - [x] 分支记忆（`lastSelectedChildId`）
 - [x] 删除节点（级联删除子节点）
 - [x] 编辑已有消息
+- [x] 将编辑结果另存为同级分支
 - [x] 重新生成（重试）
 
 ### ✅ 上下文管道架构
@@ -328,7 +348,7 @@ LlamaChatView.send() → useChatExecutor.execute()
 - [x] PipelineContext 定义
 - [x] ContextProcessor 接口
 - [x] 处理器注册/注销/排序/启用
-- [x] 核心处理器：session-loader
+- [x] 核心处理器：session-loader、agent-preset-loader
 - [x] 待处理器的执行、日志和共享黑板
 
 ### ✅ 设置与管理
@@ -355,7 +375,7 @@ LlamaChatView.send() → useChatExecutor.execute()
 - [ ] `macros-renderer`：宏替换/模板渲染
 - [ ] `depth-injector`：深度注入（系统提示词）
 - [ ] `user-profile-injector`：用户档案注入
-- [ ] `agent-preset-loader`：智能体预设加载
+- [x] `agent-preset-loader`：智能体预设加载
 - [ ] `token-counter`：Token 计数（与桌面端对齐）
 - [ ] 对于ProcessableMessage中的多媒体`_attachments`字段的完整解析
 
@@ -367,18 +387,16 @@ LlamaChatView.send() → useChatExecutor.execute()
 
 ### 🔄 智能体支持
 
-- [ ] 角色大厅（市场）
+- [x] 本地角色大厅与基础编辑
 - [ ] 用户档案管理
-- [ ] 智能体预设加载
+- [x] 智能体预设加载
 
 ### 🔄 体验优化
 
-- [ ] 会话名称自动生成（基于首条消息）
 - [ ] 消息搜索/过滤
 - [ ] 消息引用（回复模式）
 - [ ] 会话列表的搜索和排序
 - [ ] 删除/编辑前的确认弹窗
-- [ ] DeepSeek 推理内容的展示（reasoningContent）
 - [ ] Token 用量统计展示
 - [ ] 模型切换下拉按钮（当前仅在设置页切换默认模型）
 
@@ -387,8 +405,8 @@ LlamaChatView.send() → useChatExecutor.execute()
 | 维度           | 桌面端 (`src/tools/llm-chat`)                                                  | 移动端 (`mobile/src/tools/llm-chat`)            |
 | -------------- | ------------------------------------------------------------------------------ | ----------------------------------------------- |
 | **UI 框架**    | Element Plus                                                                   | Varlet                                          |
-| **类型**       | 完整 `ChatAgent`, `Asset`, `ChatSettings`                                      | 精简版，部分类型用 `any` 占位                   |
-| **管道处理器** | 完整：session-loader + macros + depth-injection + user-profile + token-counter | 仅 `session-loader`                             |
+| **类型**       | 完整 `ChatAgent`, `Asset`, `ChatSettings`                                      | 已接入兼容 `ChatAgent`；Asset 仍为占位          |
+| **管道处理器** | 完整：session-loader + macros + depth-injection + user-profile + token-counter | `session-loader` + `agent-preset-loader`        |
 | **组件**       | 丰富（BaseDialog, ImageViewer 等）                                             | 基础的列表/输入组件                             |
 | **编辑器**     | RichCodeEditor（双引擎）                                                       | 纯文本输入                                      |
 | **路由**       | `main`, `settings` 两页                                                        | `home`, `sessions`, `chat/:id`, `settings` 四页 |

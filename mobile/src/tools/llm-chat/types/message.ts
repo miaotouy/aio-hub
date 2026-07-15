@@ -1,5 +1,21 @@
 import type { MessageRole, MessageStatus, MessageType } from "./common";
 
+export type TokenCountSource = "api" | "local" | "fallback";
+export type ContextRiskLevel = "normal" | "warning" | "critical";
+
+export interface ContextTokenUsage {
+  tokenCount: number;
+  localTokenCount: number;
+  contextLength?: number;
+  usageRatio?: number;
+  tokenizer?: string;
+  estimated: boolean;
+  source: TokenCountSource;
+  riskLevel: ContextRiskLevel;
+  warningRatio: number;
+  criticalRatio: number;
+}
+
 /**
  * 消息节点（树形结构基础版）
  */
@@ -55,6 +71,8 @@ export interface ChatMessageNode {
   metadata?: {
     /** 使用的模型 ID */
     modelId?: string;
+    /** 生成该消息时绑定的智能体 ID */
+    agentId?: string;
     /** 使用的模型名称 */
     modelName?: string;
     /** 使用的模型显示名称 */
@@ -67,5 +85,31 @@ export interface ChatMessageNode {
     reasoningStartTime?: number;
     /** 推理结束时间戳 */
     reasoningEndTime?: number;
+    /** Token 使用情况（API 返回的完整请求统计） */
+    usage?: {
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+    };
+    /**
+     * 单条消息内容的 Token 数量（本地计算）
+     * - 对于用户消息：本地计算的文本 + 附件 token 总数
+     * - 对于助手消息：直接使用 API 返回的 completionTokens
+     */
+    contentTokens?: number;
+    /** 单条消息 Token 的数据来源 */
+    contentTokenSource?: TokenCountSource;
+    /** 本地计算单条消息时使用的 tokenizer */
+    contentTokenizer?: string;
+    /** 生成本条助手消息时的完整请求上下文占用 */
+    contextUsage?: ContextTokenUsage;
+    /** 请求开始时间戳 */
+    requestStartTime?: number;
+    /** 请求结束时间戳 */
+    requestEndTime?: number;
+    /** 首字生成时间戳（用于计算 TTFT） */
+    firstTokenTime?: number;
+    /** 平均生成速度 (tokens/s) */
+    tokensPerSecond?: number;
   };
 }

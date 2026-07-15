@@ -40,6 +40,13 @@ export interface ChatSettings {
     /** 最大重试次数 */
     maxRetries: number;
   };
+  /** 上下文占用策略 */
+  contextManagement: {
+    /** 开始提示上下文紧张的占比 */
+    warningRatio: number;
+    /** 进入高风险状态的占比 */
+    criticalRatio: number;
+  };
 }
 
 /**
@@ -66,5 +73,9 @@ export const DEFAULT_SETTINGS: ChatSettings = {
   requestSettings: {
     timeout: 60000,
     maxRetries: 2,
+  },
+  contextManagement: {
+    warningRatio: 0.8,
+    criticalRatio: 0.9,
   },
 };

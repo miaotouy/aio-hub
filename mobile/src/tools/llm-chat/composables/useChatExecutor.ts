@@ -3,8 +3,19 @@ import { useLlmRequest } from "../../llm-api/composables/useLlmRequest";
 import { useLlmProfilesStore } from "../../llm-api/stores/llmProfiles";
 import { useNodeManager } from "./useNodeManager";
 import { useContextPipelineStore } from "../stores/contextPipelineStore";
+import { useChatResponseHandler } from "./useChatResponseHandler";
+import { useTopicNamer } from "./useTopicNamer";
+import { useChatSettings } from "./useChatSettings";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import type { ChatSession, PipelineContext, ChatMessageNode } from "../types";
 import { createModuleLogger } from "@/utils/logger";
+import { countTokensBatch } from "@/utils/tokenCounting";
+import { customMessage } from "@/utils/feedback";
+import { useI18n } from "@/i18n";
+import {
+  contentToTokenText,
+  createLocalContextUsage,
+} from "../utils/contextTokenUsage";
 
 const logger = createModuleLogger("llm-chat/useChatExecutor");
 
@@ -14,6 +25,12 @@ export function useChatExecutor() {
   const profilesStore = useLlmProfilesStore();
   const nodeManager = useNodeManager();
   const pipelineStore = useContextPipelineStore();
+  const agentStore = useAgentStore();
+  const { handleStreamUpdate, finalizeNode, handleNodeError } = useChatResponseHandler();
+  const { shouldAutoName, generateTopicName } = useTopicNamer();
+  const { settings, loadSettings } = useChatSettings();
+  const { tRaw } = useI18n();
+  const t = (key: string) => tRaw(`tools.llm-chat.TokenUsage.${key}`);
 
   /**
    * 执行对话请求
@@ -25,8 +42,14 @@ export function useChatExecutor() {
   ) {
     if (chatStore.isSending) return;
 
-    // 解析当前选中的模型
-    const [profileId, modelId] = chatStore.selectedModelValue.split(":");
+    if (!agentStore.isLoaded) await agentStore.init();
+    await loadSettings();
+    const activeAgent = agentStore.getAgentById(session.displayAgentId);
+
+    // 智能体绑定优先；普通会话继续使用聊天页当前选择的模型。
+    const [selectedProfileId, selectedModelId] = chatStore.selectedModelValue.split(":");
+    const profileId = activeAgent?.profileId || selectedProfileId;
+    const modelId = activeAgent?.modelId || selectedModelId;
     if (!profileId || !modelId) {
       logger.warn("No model selected");
       return;
@@ -67,6 +90,7 @@ export function useChatExecutor() {
       metadata: {
         modelId: modelId,
         modelDisplayName: model?.name || modelId,
+        agentId: activeAgent?.id,
       },
     });
     nodeManager.addNodeToSession(session, assistantNode);
@@ -81,8 +105,8 @@ export function useChatExecutor() {
       const pipelineContext: PipelineContext = {
         messages: [],
         session,
-        agentConfig: {}, // 移动端暂未引入完整的 ChatAgent
-        settings: {}, // 移动端暂未引入完整的 ChatSettings
+        agentConfig: activeAgent,
+        settings: settings.value,
         capabilities: model.capabilities,
         timestamp: Date.now(),
         sharedData: new Map(),
@@ -91,51 +115,89 @@ export function useChatExecutor() {
 
       await pipelineStore.executePipeline(pipelineContext);
 
-      // 5. 发起请求
-      // 转换为 llmRequest 期望的格式，保留多模态内容能力
-      const requestMessages = pipelineContext.messages
-        .filter((m) => {
+      const requestContextMessages = pipelineContext.messages.filter((message) => {
           // 过滤掉空内容的消息，除非是 user 角色（有时候 user 发送空内容是为了触发某些特定逻辑，但通常不建议）
-          if (Array.isArray(m.content)) {
-            return m.content.length > 0;
+          if (Array.isArray(message.content)) {
+            return message.content.length > 0;
           }
-          return !!m.content || m.role === "user";
-        })
-        .map((m) => ({
-          role: m.role as any, // 映射到 LlmMessage['role']
-          content: m.content,
-        }));
+          return !!message.content || message.role === "user";
+        });
 
-      const result = await llmRequest.sendRequest({
-        profileId,
-        modelId,
-        messages: requestMessages,
-        stream: true,
-        onStream: (chunk) => {
-          assistantNode.content += chunk;
-          session.updatedAt = new Date().toISOString();
-        },
+      const tokenResult = await countTokensBatch(
+        requestContextMessages.map((message) => contentToTokenText(message.content))
+      );
+      const contextUsage = createLocalContextUsage(
+        tokenResult,
+        model.tokenLimits?.contextLength,
+        settings.value.contextManagement
+      );
+      assistantNode.metadata = {
+        ...assistantNode.metadata,
+        contextUsage,
+      };
+
+      requestContextMessages.forEach((message, index) => {
+        if (message.sourceType !== "session_history" || typeof message.sourceId !== "string") {
+          return;
+        }
+        const sourceNode = session.nodes[message.sourceId];
+        if (!sourceNode || sourceNode.metadata?.contentTokenSource === "api") return;
+        sourceNode.metadata = {
+          ...sourceNode.metadata,
+          contentTokens: tokenResult.counts[index] ?? 0,
+          contentTokenSource: tokenResult.fallback ? "fallback" : "local",
+          contentTokenizer: tokenResult.tokenizer,
+        };
       });
+
+      if (contextUsage.riskLevel === "critical") {
+        customMessage(t("上下文高风险提示"), "error");
+      } else if (contextUsage.riskLevel === "warning") {
+        customMessage(t("上下文紧张提示"), "warning");
+      }
+
+      // 5. 发起请求
+      const requestMessages = requestContextMessages.map((message) => ({
+        role: message.role as any,
+        content: message.content,
+      }));
+
+      const result = await llmRequest.sendRequest(
+        {
+          modelId,
+          messages: requestMessages,
+          maxTokens: activeAgent?.parameters?.maxTokens,
+          temperature: activeAgent?.parameters?.temperature,
+          topP: activeAgent?.parameters?.topP,
+          frequencyPenalty: activeAgent?.parameters?.frequencyPenalty,
+          presencePenalty: activeAgent?.parameters?.presencePenalty,
+          stop: activeAgent?.parameters?.stop,
+          stream: true,
+          onStream: (chunk) => {
+            handleStreamUpdate(session, assistantNode.id, chunk, false);
+          },
+          onReasoningStream: (chunk) => {
+            handleStreamUpdate(session, assistantNode.id, chunk, true);
+          },
+        },
+        profileId
+      );
 
       // 如果返回 null，说明请求在底层被拦截或报错了（errorHandler 处理了）
       if (!result) {
         throw new Error("Request failed or was cancelled");
       }
 
-      if (!result.isStream) {
-        assistantNode.content = result.content || "";
-      }
+      await finalizeNode(session, assistantNode.id, result);
 
-      assistantNode.status = "complete";
+      // 自动命名会话
+      if (shouldAutoName(session)) {
+        generateTopicName(session).catch((err) => {
+          logger.error("Failed to auto name session", err);
+        });
+      }
     } catch (error: any) {
-      logger.error("Chat execution failed", error);
-      assistantNode.status = "error";
-      assistantNode.metadata = {
-        ...assistantNode.metadata,
-        error: error.message || "Unknown error",
-      };
-      // 确保 session 状态更新以触发 UI
-      session.updatedAt = new Date().toISOString();
+      handleNodeError(session, assistantNode.id, error, "对话执行");
     } finally {
       chatStore.isSending = false;
       session.updatedAt = new Date().toISOString();
@@ -153,14 +215,12 @@ export function useChatExecutor() {
   ) {
     if (chatStore.isSending) return;
 
-    // 如果是 assistant 消息，使用其父节点 (通常是 user)
-    // 如果是 user 消息，使用其父节点 (通常是 assistant 或 system)
-    const parentNodeId = messageNode.parentId;
-    if (!parentNodeId) return;
+    const parentNodeId =
+      messageNode.role === "assistant" ? messageNode.parentId : messageNode.id;
 
-    // 找到父节点的内容（如果是重试 user 消息，需要父节点内容作为输入吗？不，重试通常是指基于同样的上下文再跑一次）
-    // 这里我们简单处理：如果是重试 AI 消息，我们就用同样的上下文再请求一次
-    await execute(session, "", parentNodeId);
+    if (!parentNodeId || messageNode.role === "system") return;
+
+    await execute(session, messageNode.content, parentNodeId);
   }
 
   return {

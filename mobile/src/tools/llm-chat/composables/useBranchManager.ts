@@ -37,10 +37,11 @@ export function useBranchManager() {
    * 切换到指定分支
    */
   const switchBranch = (session: ChatSession, nodeId: string): boolean => {
-    const success = nodeManager.updateActiveLeaf(session, nodeId);
+    const leafId = BranchNavigator.findLeafOfBranch(session, nodeId);
+    const success = nodeManager.updateActiveLeaf(session, leafId);
 
     if (success) {
-      logger.info("已切换分支", { sessionId: session.id, nodeId });
+      logger.info("已切换分支", { sessionId: session.id, nodeId, leafId });
     }
 
     return success;
@@ -105,6 +106,31 @@ export function useBranchManager() {
   };
 
   /**
+   * 将编辑结果保存为同级分支。
+   */
+  const saveEditAsBranch = (
+    session: ChatSession,
+    nodeId: string,
+    newContent: string
+  ): ChatMessageNode | null => {
+    const branchNode = nodeManager.createSiblingBranch(
+      session,
+      nodeId,
+      newContent
+    );
+
+    if (branchNode) {
+      logger.info("编辑内容已保存为分支", {
+        sessionId: session.id,
+        sourceNodeId: nodeId,
+        branchNodeId: branchNode.id,
+      });
+    }
+
+    return branchNode;
+  };
+
+  /**
    * 准备重新生成（重试）
    * 如果当前是助手消息，回退到父节点（用户消息）并返回内容
    */
@@ -146,6 +172,7 @@ export function useBranchManager() {
     switchBranch,
     switchToSiblingBranch,
     editMessage,
+    saveEditAsBranch,
     prepareRegenerate,
   };
 }

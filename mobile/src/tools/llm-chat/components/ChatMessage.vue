@@ -1,12 +1,15 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import type { ChatMessageNode } from "../types";
 import { User, Bot } from "lucide-vue-next";
 import { useLlmChatStore } from "../stores/llmChatStore";
+import { useChatSettings } from "../composables/useChatSettings";
+import { useI18n } from "@/i18n";
 import MessageContent from "./MessageContent.vue";
 import MessageMenubar from "./MessageMenubar.vue";
 import BranchSwitcher from "./BranchSwitcher.vue";
 
-defineProps<{
+const props = defineProps<{
   message: ChatMessageNode;
   isActive?: boolean;
 }>();
@@ -14,11 +17,27 @@ defineProps<{
 const emit = defineEmits<{
   (e: "click"): void;
   (e: "close"): void;
+  (e: "copy", message: ChatMessageNode): void;
+  (e: "edit", message: ChatMessageNode): void;
   (e: "regenerate", message: ChatMessageNode): void;
   (e: "delete", message: ChatMessageNode): void;
+  (
+    e: "switch-sibling",
+    message: ChatMessageNode,
+    direction: "prev" | "next"
+  ): void;
+  (e: "switch-branch", nodeId: string): void;
 }>();
 
 const chatStore = useLlmChatStore();
+const { settings } = useChatSettings();
+const { tRaw } = useI18n();
+const t = (key: string) => tRaw(`tools.llm-chat.TokenUsage.${key}`);
+const tokenLabel = computed(() => {
+  if (props.message.metadata?.contentTokenSource === "api") return t("实际");
+  if (props.message.metadata?.contentTokenSource === "fallback") return t("字符估算");
+  return t("o200k 预估");
+});
 </script>
 
 <template>
@@ -58,6 +77,19 @@ const chatStore = useLlmChatStore();
       <!-- 分支切换器 -->
       <BranchSwitcher :message="message" />
 
+      <div
+        v-if="
+          settings.uiPreferences.showTokenCount &&
+          message.metadata?.contentTokens !== undefined
+        "
+        class="token-info"
+      >
+        <span v-if="message.metadata.contentTokenSource !== 'api'">~</span>{{
+          message.metadata.contentTokens.toLocaleString()
+        }}
+        tokens · {{ tokenLabel }}
+      </div>
+
       <!-- 悬挂操作栏 -->
       <transition name="fade">
         <div v-if="isActive" class="menubar-wrapper">
@@ -65,8 +97,14 @@ const chatStore = useLlmChatStore();
             :session="chatStore.currentSession"
             :message="message"
             @close="emit('close')"
+            @copy="emit('copy', message)"
+            @edit="emit('edit', message)"
             @regenerate="emit('regenerate', message)"
             @delete="emit('delete', message)"
+            @switch-sibling="
+              (direction) => emit('switch-sibling', message, direction)
+            "
+            @switch-branch="(nodeId) => emit('switch-branch', nodeId)"
           />
         </div>
       </transition>
@@ -168,6 +206,12 @@ const chatStore = useLlmChatStore();
   font-weight: 500;
   color: var(--el-text-color-secondary);
   opacity: 0.9;
+}
+
+.token-info {
+  margin-top: 4px;
+  color: var(--color-on-surface-variant);
+  font-size: 0.7rem;
 }
 
 /* 悬挂操作栏布局 */

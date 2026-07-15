@@ -15,11 +15,17 @@
 import type { LlmProfile } from "@/types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
 import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
+import { parseSSEStream } from "@utils/sse-parser";
 import {
-  parseSSEStream,
-  extractTextFromSSE,
-  extractReasoningFromSSE,
-} from "@utils/sse-parser";
+  OpenAiCompatibleStreamDecoder,
+  buildOpenAiCompatibleBody,
+  parseOpenAiCompatibleResponseValue,
+  type JsonValue,
+  type LlmRequest as CoreLlmRequest,
+  type LlmResponse as CoreLlmResponse,
+  type LlmStreamEvent,
+  type WireJsonValue,
+} from "@aiohub/llm-core";
 import {
   parseMessageContents,
   extractCommonParameters,
@@ -321,93 +327,68 @@ export const callOpenAiChatApi = async (
   }
 
   const commonParams = extractCommonParameters(options);
-
-  const body: any = {
-    model: options.modelId,
-    messages,
-    temperature: commonParams.temperature ?? 0.5,
-  };
-
-  if (options.requestId) {
-    body.requestId = options.requestId;
+  const extendedOptions = options as any;
+  const extensions: Record<string, JsonValue> = {};
+  if (options.requestId) extensions.requestId = options.requestId;
+  if (extendedOptions.safetySettings) {
+    extensions.safety_settings = extendedOptions.safetySettings;
   }
 
-  if (commonParams.maxTokens !== undefined) {
-    body.max_tokens = commonParams.maxTokens;
-  }
-
-  if (commonParams.topP !== undefined) body.top_p = commonParams.topP;
-  if (commonParams.frequencyPenalty !== undefined)
-    body.frequency_penalty = commonParams.frequencyPenalty;
-  if (commonParams.presencePenalty !== undefined)
-    body.presence_penalty = commonParams.presencePenalty;
-  if (commonParams.repetitionPenalty !== undefined)
-    body.repetition_penalty = commonParams.repetitionPenalty;
-  if (commonParams.stop !== undefined) body.stop = commonParams.stop;
-  if (commonParams.seed !== undefined) body.seed = commonParams.seed;
-
-  if (options.n !== undefined) body.n = options.n;
-  if (options.logprobs !== undefined) body.logprobs = options.logprobs;
-  if (options.topLogprobs !== undefined)
-    body.top_logprobs = options.topLogprobs;
-  if (options.responseFormat !== undefined)
-    body.response_format = options.responseFormat;
-  if (options.tools !== undefined) body.tools = options.tools;
-  if (options.toolChoice !== undefined) body.tool_choice = options.toolChoice;
-  if (options.parallelToolCalls !== undefined)
-    body.parallel_tool_calls = options.parallelToolCalls;
-  if (options.user !== undefined) body.user = options.user;
-  if (options.logitBias !== undefined) body.logit_bias = options.logitBias;
-  if (options.store !== undefined) body.store = options.store;
-  if (
-    options.reasoningEffort !== undefined &&
-    shouldSendOpenAiReasoningEffort(profile, options.modelId)
-  )
-    body.reasoning_effort = options.reasoningEffort;
-  if (options.metadata !== undefined) body.metadata = options.metadata;
-  if (options.modalities !== undefined) body.modalities = options.modalities;
-  if (options.prediction !== undefined) body.prediction = options.prediction;
-  if (options.audio !== undefined) body.audio = options.audio;
-  if (options.serviceTier !== undefined)
-    body.service_tier = options.serviceTier;
-  if (options.webSearchOptions !== undefined) {
-    body.web_search_options = options.webSearchOptions;
-  } else if ((options as any).webSearchEnabled) {
-    // 统一联网开关：自动注入默认的 web_search_options
-    body.web_search_options = { search_context_size: "medium" };
-  }
-  if (options.streamOptions !== undefined)
-    body.stream_options = options.streamOptions;
-
-  // 注入 extra_body (DeepSeek 思考模式等需要)
-  // 如果同时存在 options.extraBody 和 thinkingEnabled，进行合并
-  if (
+  const isDeepSeekThinking =
     options.modelId.toLowerCase().includes("deepseek") &&
-    options.thinkingEnabled !== undefined
-  ) {
-    body.extra_body = {
+    options.thinkingEnabled !== undefined;
+  if (isDeepSeekThinking) {
+    extensions.extra_body = {
       thinking: { type: options.thinkingEnabled ? "enabled" : "disabled" },
       ...(options.extraBody || {}),
     };
-  } else {
-    if (options.extraBody) {
-      body.extra_body = options.extraBody;
-    }
-    // 对于非 DeepSeek 的 OpenAI 兼容模型（如豆包、NewAPI 等），如果启用了思考，直接在根部注入 thinking 参数
-    if (options.thinkingEnabled !== undefined) {
-      body.thinking = {
-        type: options.thinkingEnabled ? "enabled" : "disabled",
-      };
-      if (options.thinkingBudget) {
-        body.thinking.budget_tokens = options.thinkingBudget;
-      }
-    }
+  } else if (options.extraBody) {
+    extensions.extra_body = options.extraBody;
   }
 
-  const extendedOptions = options as any;
-  if (extendedOptions.safetySettings) {
-    body.safety_settings = extendedOptions.safetySettings;
-  }
+  const coreRequest: CoreLlmRequest = {
+    model: options.modelId,
+    messages: [],
+    stream: !!(options.stream && options.onStream),
+    maxTokens: commonParams.maxTokens,
+    temperature: commonParams.temperature,
+    topP: commonParams.topP,
+    frequencyPenalty: commonParams.frequencyPenalty,
+    presencePenalty: commonParams.presencePenalty,
+    repetitionPenalty: commonParams.repetitionPenalty,
+    stop: commonParams.stop,
+    seed: commonParams.seed,
+    n: options.n,
+    logprobs: options.logprobs,
+    topLogprobs: options.topLogprobs,
+    reasoningEffort: shouldSendOpenAiReasoningEffort(profile, options.modelId)
+      ? options.reasoningEffort
+      : undefined,
+    responseFormat: options.responseFormat as JsonValue | undefined,
+    tools: options.tools as CoreLlmRequest["tools"],
+    toolChoice: options.toolChoice as CoreLlmRequest["toolChoice"],
+    parallelToolCalls: options.parallelToolCalls,
+    user: options.user,
+    logitBias: options.logitBias,
+    store: options.store,
+    metadata: options.metadata,
+    modalities: options.modalities,
+    prediction: options.prediction as JsonValue | undefined,
+    audio: options.audio as JsonValue | undefined,
+    serviceTier: options.serviceTier,
+    webSearchOptions: (options.webSearchOptions ??
+      (extendedOptions.webSearchEnabled
+        ? { search_context_size: "medium" }
+        : undefined)) as JsonValue | undefined,
+    streamOptions: options.streamOptions as JsonValue | undefined,
+    thinkingEnabled: isDeepSeekThinking ? undefined : options.thinkingEnabled,
+    thinkingBudget: options.thinkingBudget,
+    extensions,
+  };
+  const body = buildOpenAiCompatibleBody(
+    coreRequest,
+    messages as WireJsonValue[]
+  );
 
   applyCustomParameters(body, options);
   cleanPayload(body);
@@ -448,71 +429,46 @@ export const callOpenAiChatApi = async (
     if (!response.body) throw new Error("响应体为空");
 
     const reader = response.body.getReader();
-    let fullContent = "";
-    let fullReasoningContent = "";
-    let usage: LlmResponse["usage"] | undefined;
+    const streamDecoder = new OpenAiCompatibleStreamDecoder();
+    const encoder = new TextEncoder();
+    let completedResponse: CoreLlmResponse | undefined;
+
+    const handleEvents = (events: LlmStreamEvent[]) => {
+      for (const event of events) {
+        if (event.type === "text-delta") {
+          options.onStream!(event.delta);
+        } else if (event.type === "reasoning-delta") {
+          options.onReasoningStream?.(event.delta);
+        } else if (event.type === "completed") {
+          completedResponse = event.response;
+        }
+      }
+    };
 
     await parseSSEStream(
       reader,
       (data) => {
-        const text = extractTextFromSSE(data, "openai");
-        if (text) {
-          fullContent += text;
-          options.onStream!(text);
-        }
-
-        const reasoningText = extractReasoningFromSSE(data, "openai");
-        if (reasoningText) {
-          fullReasoningContent += reasoningText;
-          if (options.onReasoningStream)
-            options.onReasoningStream(reasoningText);
-        }
-
-        try {
-          const json = JSON.parse(data);
-          if (json.usage) {
-            usage = {
-              promptTokens: json.usage.prompt_tokens,
-              completionTokens: json.usage.completion_tokens,
-              totalTokens: json.usage.total_tokens,
-              promptTokensDetails: json.usage.prompt_tokens_details
-                ? {
-                    cachedTokens:
-                      json.usage.prompt_tokens_details.cached_tokens,
-                    audioTokens: json.usage.prompt_tokens_details.audio_tokens,
-                  }
-                : undefined,
-              completionTokensDetails: json.usage.completion_tokens_details
-                ? {
-                    reasoningTokens:
-                      json.usage.completion_tokens_details.reasoning_tokens,
-                    audioTokens:
-                      json.usage.completion_tokens_details.audio_tokens,
-                    acceptedPredictionTokens:
-                      json.usage.completion_tokens_details
-                        .accepted_prediction_tokens,
-                    rejectedPredictionTokens:
-                      json.usage.completion_tokens_details
-                        .rejected_prediction_tokens,
-                  }
-                : undefined,
-            };
-          }
-        } catch {
-          /* ignore */
-        }
+        handleEvents(streamDecoder.push(encoder.encode(`data: ${data}\n`)));
       },
       undefined,
       options.signal
     );
+    handleEvents(streamDecoder.finish());
+
+    const result = completedResponse ?? { content: "" };
 
     return {
-      content: fullContent,
-      reasoningContent: fullReasoningContent || undefined,
+      content: result.content,
+      reasoningContent: result.reasoningContent,
       reasoningArtifacts: isDeepSeekModel(options.modelId)
-        ? extractDeepSeekReasoningArtifacts(fullReasoningContent, false)
+        ? extractDeepSeekReasoningArtifacts(
+            result.reasoningContent ?? "",
+            !!result.toolCalls?.length
+          )
         : undefined,
-      usage,
+      usage: result.usage,
+      finishReason: result.finishReason as LlmResponse["finishReason"],
+      toolCalls: result.toolCalls,
       isStream: true,
     };
   }
@@ -546,10 +502,8 @@ export const callOpenAiChatApi = async (
 
   await ensureResponseOk(response);
   const data = await response.json();
-
-  const choice = data.choices?.[0];
-  if (!choice)
-    throw new Error(`OpenAI API 响应格式异常: ${JSON.stringify(data)}`);
+  const sharedResponse = parseOpenAiCompatibleResponseValue(data);
+  const choice = data.choices[0];
 
   const message = choice.message;
   const images = [
@@ -579,51 +533,21 @@ export const callOpenAiChatApi = async (
       }
     : undefined;
 
-  const usage = data.usage
-    ? {
-        promptTokens: data.usage.prompt_tokens,
-        completionTokens: data.usage.completion_tokens,
-        totalTokens: data.usage.total_tokens,
-        promptTokensDetails: data.usage.prompt_tokens_details
-          ? {
-              cachedTokens: data.usage.prompt_tokens_details.cached_tokens,
-              audioTokens: data.usage.prompt_tokens_details.audio_tokens,
-            }
-          : undefined,
-        completionTokensDetails: data.usage.completion_tokens_details
-          ? {
-              reasoningTokens:
-                data.usage.completion_tokens_details.reasoning_tokens,
-              audioTokens: data.usage.completion_tokens_details.audio_tokens,
-              acceptedPredictionTokens:
-                data.usage.completion_tokens_details.accepted_prediction_tokens,
-              rejectedPredictionTokens:
-                data.usage.completion_tokens_details.rejected_prediction_tokens,
-            }
-          : undefined,
-      }
-    : undefined;
-
-  if (message?.refusal) {
+  if (sharedResponse.refusal) {
     return {
       content: "",
-      refusal: message.refusal,
-      finishReason: choice.finish_reason,
+      refusal: sharedResponse.refusal,
+      finishReason: sharedResponse.finishReason as LlmResponse["finishReason"],
       systemFingerprint: data.system_fingerprint,
       serviceTier: data.service_tier,
-      usage,
+      usage: sharedResponse.usage,
     };
   }
 
-  const responseReasoningContent =
-    message?.reasoning_content ||
-    message?.reasoning ||
-    message?.thinking ||
-    message?.thought ||
-    undefined;
+  const responseReasoningContent = sharedResponse.reasoningContent;
 
   return {
-    content: message?.content || "",
+    content: sharedResponse.content,
     reasoningContent: responseReasoningContent,
     reasoningArtifacts: isDeepSeekModel(options.modelId)
       ? extractDeepSeekReasoningArtifacts(
@@ -631,9 +555,9 @@ export const callOpenAiChatApi = async (
           !!message?.tool_calls?.length
         )
       : undefined,
-    refusal: message?.refusal || null,
-    finishReason: choice.finish_reason,
-    toolCalls: message?.tool_calls,
+    refusal: sharedResponse.refusal,
+    finishReason: sharedResponse.finishReason as LlmResponse["finishReason"],
+    toolCalls: sharedResponse.toolCalls,
     images: images.length > 0 ? images : undefined,
     revisedPrompt: images[0]?.revisedPrompt,
     logprobs: choice.logprobs
@@ -643,6 +567,6 @@ export const callOpenAiChatApi = async (
     audio,
     systemFingerprint: data.system_fingerprint,
     serviceTier: data.service_tier,
-    usage,
+    usage: sharedResponse.usage,
   };
 };

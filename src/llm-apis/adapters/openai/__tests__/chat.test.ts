@@ -117,6 +117,58 @@ describe("OpenAI Adapter - Chat", () => {
     expect(result.usage?.totalTokens).toBe(30);
   });
 
+  it("should preserve advanced wire parameters through the shared body builder", async () => {
+    const options: LlmRequestOptions = {
+      profileId: "test-profile",
+      modelId: "gpt-5",
+      requestId: "request-1",
+      messages: [{ role: "user", content: "Hello" }],
+      topP: 0.8,
+      frequencyPenalty: 0.1,
+      presencePenalty: 0.2,
+      repetitionPenalty: 1.1,
+      stop: ["END"],
+      seed: 7,
+      reasoningEffort: "low",
+      responseFormat: { type: "json_object" },
+      metadata: { purpose: "test" },
+      webSearchEnabled: true,
+      thinkingEnabled: true,
+      thinkingBudget: 512,
+      extraBody: { route: "fast" },
+    };
+    (options as any).vendor_extension = { enabled: true };
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: "Done" }, finish_reason: "stop" }],
+      }),
+    });
+
+    await callOpenAiChatApi(mockProfile, options);
+
+    const [, fetchOptions] = (fetchWithTimeout as any).mock.calls[0];
+    expect(JSON.parse(fetchOptions.body)).toEqual({
+      model: "gpt-5",
+      messages: [{ role: "user", content: "Hello" }],
+      temperature: 0.5,
+      top_p: 0.8,
+      frequency_penalty: 0.1,
+      presence_penalty: 0.2,
+      repetition_penalty: 1.1,
+      stop: ["END"],
+      seed: 7,
+      reasoning_effort: "low",
+      response_format: { type: "json_object" },
+      metadata: { purpose: "test" },
+      web_search_options: { search_context_size: "medium" },
+      thinking: { type: "enabled", budget_tokens: 512 },
+      requestId: "request-1",
+      extra_body: { route: "fast" },
+      vendor_extension: { enabled: true },
+    });
+  });
+
   it("should handle multimodal content (images)", async () => {
     const options: LlmRequestOptions = {
       profileId: "test-profile",
@@ -478,6 +530,58 @@ describe("OpenAI Adapter - Chat", () => {
     const [, fetchOptions] = (fetchWithTimeout as any).mock.calls[0];
     const body = JSON.parse(fetchOptions.body);
     expect(body.reasoning_effort).toBeUndefined();
+  });
+
+  it("should preserve shared stream deltas, usage, finish reason and tool calls", async () => {
+    const textChunks: string[] = [];
+    const reasoningChunks: string[] = [];
+    const fixture = [
+      'data: {"choices":[{"delta":{"reasoning_content":"think"}}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"done","tool_calls":[{"index":0,"id":"call-1","function":{"name":"look","arguments":"{\\"q\\":"}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"name":"up","arguments":"\\"aio\\"}"}}]},"finish_reason":"tool_calls"}]}\n\n',
+      'data: {"choices":[],"usage":{"prompt_tokens":5,"completion_tokens":3,"total_tokens":8}}\n\n',
+      "data: [DONE]\n\n",
+    ].join("");
+    const response = new Response(fixture, {
+      headers: { "Content-Type": "text/event-stream" },
+    });
+    (fetchWithTimeout as any).mockResolvedValue(response);
+
+    const result = await callOpenAiChatApi(mockProfile, {
+      profileId: "test-profile",
+      modelId: "deepseek-reasoner",
+      messages: [{ role: "user", content: "Solve" }],
+      stream: true,
+      onStream: (chunk) => textChunks.push(chunk),
+      onReasoningStream: (chunk) => reasoningChunks.push(chunk),
+    });
+
+    expect(textChunks).toEqual(["done"]);
+    expect(reasoningChunks).toEqual(["think"]);
+    expect(result).toEqual(
+      expect.objectContaining({
+        content: "done",
+        reasoningContent: "think",
+        finishReason: "tool_calls",
+        usage: {
+          promptTokens: 5,
+          completionTokens: 3,
+          totalTokens: 8,
+        },
+        toolCalls: [
+          {
+            id: "call-1",
+            type: "function",
+            function: { name: "lookup", arguments: '{"q":"aio"}' },
+          },
+        ],
+        isStream: true,
+      })
+    );
+    expect(result.reasoningArtifacts?.[0]).toMatchObject({
+      provider: "deepseek",
+      kind: "reasoning_content",
+    });
   });
 
   it("should handle API errors", async () => {

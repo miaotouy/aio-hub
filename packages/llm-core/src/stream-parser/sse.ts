@@ -68,7 +68,7 @@ export class SseDecoder extends Utf8LineDecoder<SseEvent> {
   }
 }
 
-class SseDataLineDecoder extends Utf8LineDecoder<string> {
+export class SseDataLineDecoder extends Utf8LineDecoder<string> {
   protected onLine(line: string): string[] {
     if (!line.startsWith("data:")) return [];
     let data = line.slice(5);

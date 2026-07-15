@@ -56,6 +56,7 @@ export interface LlmMessage {
   content: string | LlmMessageContent[];
   name?: string;
   toolCallId?: string;
+  prefix?: boolean;
   reasoningContent?: string;
   metadata?: Record<string, JsonValue>;
 }
@@ -89,10 +90,26 @@ export interface LlmRequest {
   repetitionPenalty?: number;
   stop?: string | string[];
   seed?: number;
+  n?: number;
+  logprobs?: boolean;
+  topLogprobs?: number;
   reasoningEffort?: string;
   tools?: LlmToolDefinition[];
   toolChoice?: LlmToolChoice;
   parallelToolCalls?: boolean;
   responseFormat?: JsonValue;
+  user?: string;
+  logitBias?: Record<string, number>;
+  store?: boolean;
+  metadata?: Record<string, JsonValue>;
+  modalities?: string[];
+  prediction?: JsonValue;
+  audio?: JsonValue;
+  serviceTier?: string;
+  webSearchOptions?: JsonValue;
+  streamOptions?: JsonValue;
+  thinkingEnabled?: boolean;
+  thinkingBudget?: number;
   extraBody?: Record<string, JsonValue>;
+  extensions?: Record<string, JsonValue>;
 }

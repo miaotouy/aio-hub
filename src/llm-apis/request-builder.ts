@@ -246,6 +246,9 @@ export function extractCommonParameters(
   if (options.presencePenalty !== undefined) {
     params.presencePenalty = options.presencePenalty;
   }
+  if (options.repetitionPenalty !== undefined) {
+    params.repetitionPenalty = options.repetitionPenalty;
+  }
   if (options.seed !== undefined) {
     params.seed = options.seed;
   }
@@ -1048,6 +1051,7 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   "thinkingBudget",
   "thinkingLevel",
   "includeThoughts", // Gemini 特有
+  "extraBody",
   "enabledParameters", // 内部控制
   "contextCompression", // 内部控制
   "enabled", // 内部控制

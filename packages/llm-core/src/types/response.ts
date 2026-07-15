@@ -31,9 +31,24 @@ export interface LlmAnnotation {
 }
 
 export type MediaAssetRef =
-  | { kind: "remote-url"; url: string; contentType?: string }
-  | { kind: "inline-base64"; data: string; contentType: string }
-  | { kind: "local-asset"; id: string; contentType?: string };
+  | {
+      kind: "remote-url";
+      url: string;
+      contentType?: string;
+      revisedPrompt?: string;
+    }
+  | {
+      kind: "inline-base64";
+      data: string;
+      contentType: string;
+      revisedPrompt?: string;
+    }
+  | {
+      kind: "local-asset";
+      id: string;
+      contentType?: string;
+      revisedPrompt?: string;
+    };
 
 export type LlmFinishReason =
   | "stop"

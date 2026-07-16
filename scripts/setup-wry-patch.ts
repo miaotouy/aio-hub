@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { mkdir, stat, cp, rm } from "node:fs/promises";
+import { mkdir, stat, cp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -24,8 +24,9 @@ const WRY_OVERRIDES_DIR = join(
   "wry-overrides"
 );
 const LIB_RS_PATH = join(WRY_PATCH_DIR, "src", "lib.rs");
+const CARGO_TOML_PATH = join(WRY_PATCH_DIR, "Cargo.toml");
 
-const WRY_VERSION = "0.54.4";
+const WRY_VERSION = "0.55.1";
 const DOWNLOAD_URL = `https://static.crates.io/crates/wry/wry-${WRY_VERSION}.crate`;
 
 async function fileExists(path: string) {
@@ -37,15 +38,32 @@ async function fileExists(path: string) {
   }
 }
 
+async function getInstalledWryVersion() {
+  if (!(await fileExists(CARGO_TOML_PATH))) {
+    return null;
+  }
+
+  const cargoToml = await readFile(CARGO_TOML_PATH, "utf8");
+  return cargoToml.match(/^version\s*=\s*"([^"]+)"/m)?.[1] ?? null;
+}
+
 async function main() {
   console.log("🦉 [Gugu] 正在检查 wry 补丁目录完整性...");
 
-  // 1. 如果 lib.rs 已经存在，说明官方源码已经补全
-  const needsDownload = !(await fileExists(LIB_RS_PATH));
+  // 1. 源码缺失或版本不符时，重新补全官方源码
+  const installedVersion = await getInstalledWryVersion();
+  const needsDownload =
+    !(await fileExists(LIB_RS_PATH)) || installedVersion !== WRY_VERSION;
 
   if (!needsDownload) {
     console.log("⏭️  wry 官方源码已完整，跳过下载。");
   } else {
+    if (installedVersion) {
+      console.log(
+        `🔄 检测到 wry 版本变更: ${installedVersion} -> ${WRY_VERSION}，准备刷新源码...`
+      );
+      await rm(WRY_PATCH_DIR, { recursive: true, force: true });
+    }
     console.log("🔍 发现 wry 源码不完整，准备自动补全官方依赖...");
 
     // 2. 创建临时工作目录

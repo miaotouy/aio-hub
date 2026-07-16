@@ -66,13 +66,21 @@ describe("model list adapter", () => {
 
     expect(
       parseProviderModels(
-        { models: [{ name: "models/gemini-2.5-pro", displayName: "Gemini Pro" }] },
+        {
+          models: [
+            { name: "models/gemini-2.5-pro", displayName: "Gemini Pro" },
+          ],
+        },
         "gemini"
       )[0]
     ).toMatchObject({ id: "gemini-2.5-pro", provider: "gemini" });
     expect(
       parseProviderModels(
-        { data: [{ type: "model", id: "claude-sonnet", display_name: "Sonnet" }] },
+        {
+          data: [
+            { type: "model", id: "claude-sonnet", display_name: "Sonnet" },
+          ],
+        },
         "claude"
       )[0]
     ).toMatchObject({ id: "claude-sonnet", provider: "anthropic" });

@@ -115,7 +115,10 @@ describe("sync media adapters", () => {
     );
     expect(silicon.body).toEqual({
       kind: "json",
-      value: expect.not.objectContaining({ image_size: expect.anything(), seed: expect.anything() }),
+      value: expect.not.objectContaining({
+        image_size: expect.anything(),
+        seed: expect.anything(),
+      }),
     });
 
     const gemini = geminiImageAdapter.buildRequest(
@@ -162,7 +165,9 @@ describe("sync media adapters", () => {
     });
 
     const parsed = await openAiAudioAdapter.parseResponse(
-      bytesResponse(new Uint8Array([1, 2, 3]), { "content-type": "audio/mpeg" }),
+      bytesResponse(new Uint8Array([1, 2, 3]), {
+        "content-type": "audio/mpeg",
+      }),
       request
     );
     expect(parsed.binary).toEqual(new Uint8Array([1, 2, 3]));

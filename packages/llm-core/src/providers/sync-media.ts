@@ -26,7 +26,11 @@ export const openAiImageAdapter: SyncMediaProviderAdapter = {
     const editMode = !isAgnes && (hasReferences || request.mask !== undefined);
     const endpoint = editMode ? "images/edits" : "images/generations";
     const headers = buildBearerHeaders(profile);
-    const url = buildEndpointUrl(profile, endpoint, editMode ? "imagesEdits" : "imagesGenerations");
+    const url = buildEndpointUrl(
+      profile,
+      endpoint,
+      editMode ? "imagesEdits" : "imagesGenerations"
+    );
 
     if (editMode) {
       deleteHeader(headers, "content-type");
@@ -37,9 +41,21 @@ export const openAiImageAdapter: SyncMediaProviderAdapter = {
         textPart("size", request.size ?? "1024x1024"),
       ];
       addOptionalText(parts, "quality", request.quality);
-      addOptionalText(parts, "moderation", readString(request.extensions?.moderation));
-      addOptionalText(parts, "background", readString(request.extensions?.background));
-      addOptionalText(parts, "partial_images", readScalar(request.extensions?.partialImages));
+      addOptionalText(
+        parts,
+        "moderation",
+        readString(request.extensions?.moderation)
+      );
+      addOptionalText(
+        parts,
+        "background",
+        readString(request.extensions?.background)
+      );
+      addOptionalText(
+        parts,
+        "partial_images",
+        readScalar(request.extensions?.partialImages)
+      );
       addOptionalText(
         parts,
         "output_compression",
@@ -101,11 +117,13 @@ export const siliconFlowImageAdapter: SyncMediaProviderAdapter = {
         ? undefined
         : request.size,
       batch_size: request.model.includes("Kolors")
-        ? request.count ?? 1
+        ? (request.count ?? 1)
         : undefined,
       cfg: request.extensions?.cfg,
     };
-    const images = (request.inputs ?? []).filter((input) => input.type === "image");
+    const images = (request.inputs ?? []).filter(
+      (input) => input.type === "image"
+    );
     images.slice(0, 3).forEach((input, index) => {
       body[index === 0 ? "image" : `image${index + 1}`] = mediaSourceToJson(
         input.source
@@ -154,7 +172,8 @@ export const geminiImageAdapter: SyncMediaProviderAdapter = {
     });
     const generationConfig = compact({
       responseModalities: ["TEXT", "IMAGE"],
-      imageConfig: Object.keys(imageConfig).length > 0 ? imageConfig : undefined,
+      imageConfig:
+        Object.keys(imageConfig).length > 0 ? imageConfig : undefined,
       temperature: request.extensions?.temperature,
       topP: request.extensions?.topP,
       topK: request.extensions?.topK,
@@ -168,7 +187,10 @@ export const geminiImageAdapter: SyncMediaProviderAdapter = {
     });
     const endpoint = `models/${encodeURIComponent(request.model)}:generateContent`;
     const url = buildEndpointUrl(profile, endpoint, "generateContent");
-    return post(url, buildGeminiHeaders(profile), { kind: "json", value: body });
+    return post(url, buildGeminiHeaders(profile), {
+      kind: "json",
+      value: body,
+    });
   },
   async parseResponse(response) {
     const parsed = parseGoogleGenerateContentResponseValue(
@@ -275,7 +297,8 @@ function buildAgnesBody(
   const references = (request.inputs ?? [])
     .filter((input) => input.type === "image")
     .map((input) => mediaSourceToJson(input.source));
-  const agnesResponseFormat = responseFormat === "b64_json" ? "b64_json" : "url";
+  const agnesResponseFormat =
+    responseFormat === "b64_json" ? "b64_json" : "url";
   const extraBody = compact({
     image: references.length > 0 ? references : undefined,
     response_format: references.length > 0 ? agnesResponseFormat : undefined,
@@ -317,10 +340,14 @@ function mediaInputPart(
   }
 }
 
-function mediaSourceToGeminiPart(source: MediaInputSource): WireJsonValue | undefined {
+function mediaSourceToGeminiPart(
+  source: MediaInputSource
+): WireJsonValue | undefined {
   switch (source.kind) {
     case "remote-url":
-      return { fileData: { fileUri: source.url, mimeType: "application/octet-stream" } };
+      return {
+        fileData: { fileUri: source.url, mimeType: "application/octet-stream" },
+      };
     case "local-file":
       return {
         inlineData: {
@@ -329,7 +356,9 @@ function mediaSourceToGeminiPart(source: MediaInputSource): WireJsonValue | unde
         },
       };
     case "inline-base64":
-      return { inlineData: { mimeType: source.contentType, data: source.data } };
+      return {
+        inlineData: { mimeType: source.contentType, data: source.data },
+      };
     case "bytes":
       return {
         inlineData: {
@@ -363,11 +392,15 @@ function mediaSourceContentType(source: MediaInputSource): string | undefined {
 
 function parseOpenAiImageResponse(value: unknown): SyncMediaResponse {
   const root = asRecord(value);
-  const rawImages = readArray(root.data).length > 0 ? readArray(root.data) : readArray(root.images);
+  const rawImages =
+    readArray(root.data).length > 0
+      ? readArray(root.data)
+      : readArray(root.images);
   const assets: MediaAssetRef[] = [];
   for (const raw of rawImages) {
     const item = asRecord(raw);
-    const revisedPrompt = readString(item.revised_prompt) ?? readString(item.revisedPrompt);
+    const revisedPrompt =
+      readString(item.revised_prompt) ?? readString(item.revisedPrompt);
     const url = readString(item.url);
     const base64 = readString(item.b64_json);
     if (url) assets.push({ kind: "remote-url", url, revisedPrompt });
@@ -381,7 +414,10 @@ function parseOpenAiImageResponse(value: unknown): SyncMediaResponse {
     }
   }
   return {
-    content: assets.length > 0 ? `Generated ${assets.length} images.` : "No images generated.",
+    content:
+      assets.length > 0
+        ? `Generated ${assets.length} images.`
+        : "No images generated.",
     assets,
     metadata: compactJson({
       revisedPrompt:
@@ -411,7 +447,9 @@ function compact(
   value: Record<string, WireJsonValue | undefined>
 ): Record<string, WireJsonValue> {
   return Object.fromEntries(
-    Object.entries(value).filter((entry): entry is [string, WireJsonValue] => entry[1] !== undefined)
+    Object.entries(value).filter(
+      (entry): entry is [string, WireJsonValue] => entry[1] !== undefined
+    )
   );
 }
 
@@ -464,18 +502,25 @@ function asWireRecord(
 }
 
 function readScalar(value: unknown): string | undefined {
-  return typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+  return typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
     ? String(value)
     : undefined;
 }
 
 function toJsonValue(value: unknown): JsonValue | undefined {
-  if (value === null || ["string", "number", "boolean"].includes(typeof value)) {
+  if (
+    value === null ||
+    ["string", "number", "boolean"].includes(typeof value)
+  ) {
     return value as JsonValue;
   }
   if (Array.isArray(value)) {
     const values = value.map(toJsonValue);
-    return values.every((item) => item !== undefined) ? (values as JsonValue[]) : undefined;
+    return values.every((item) => item !== undefined)
+      ? (values as JsonValue[])
+      : undefined;
   }
   if (typeof value === "object" && value !== null) {
     const result: Record<string, JsonValue> = {};
@@ -489,10 +534,13 @@ function toJsonValue(value: unknown): JsonValue | undefined {
 }
 
 function decodeBase64(value: string): Uint8Array {
-  const payload = value.includes(",") ? value.slice(value.indexOf(",") + 1) : value;
+  const payload = value.includes(",")
+    ? value.slice(value.indexOf(",") + 1)
+    : value;
   const binary = atob(payload);
   const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+  for (let index = 0; index < binary.length; index++)
+    bytes[index] = binary.charCodeAt(index);
   return bytes;
 }
 
@@ -500,7 +548,9 @@ function encodeBase64(value: Uint8Array): string {
   let binary = "";
   const chunkSize = 0x8000;
   for (let offset = 0; offset < value.length; offset += chunkSize) {
-    binary += String.fromCharCode(...value.subarray(offset, offset + chunkSize));
+    binary += String.fromCharCode(
+      ...value.subarray(offset, offset + chunkSize)
+    );
   }
   return btoa(binary);
 }

@@ -52,7 +52,10 @@ export interface SyncMediaResponse {
 
 export interface SyncMediaProviderAdapter {
   readonly id: string;
-  buildRequest(profile: ProviderProfile, request: SyncMediaRequest): WireRequest;
+  buildRequest(
+    profile: ProviderProfile,
+    request: SyncMediaRequest
+  ): WireRequest;
   parseResponse(
     response: WireResponse,
     request: SyncMediaRequest

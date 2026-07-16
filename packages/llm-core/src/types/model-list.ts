@@ -30,7 +30,10 @@ export interface ModelListResponse {
 }
 
 export interface ModelListProviderAdapter {
-  buildRequest(profile: ProviderProfile, request: ModelListRequest): WireRequest;
+  buildRequest(
+    profile: ProviderProfile,
+    request: ModelListRequest
+  ): WireRequest;
   parseResponse(
     response: WireResponse,
     request: ModelListRequest

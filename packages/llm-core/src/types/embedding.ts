@@ -10,11 +10,7 @@ export type EmbeddingTaskType =
   | "CLUSTERING";
 
 export type EmbeddingEncodingFormat =
-  | "float"
-  | "int8"
-  | "uint8"
-  | "binary"
-  | "ubinary";
+  "float" | "int8" | "uint8" | "binary" | "ubinary";
 
 export interface EmbeddingRequest {
   model: string;

@@ -231,8 +231,7 @@ describe("Cohere Chat provider adapter", () => {
 
   it("throws provider stream errors", () => {
     const decoder = new CohereChatStreamDecoder();
-    const fixture =
-      'data: {"type":"error","message":"rate limited"}\n\n';
+    const fixture = 'data: {"type":"error","message":"rate limited"}\n\n';
     expect(() => decoder.push(new TextEncoder().encode(fixture))).toThrow(
       "Cohere Chat Error: rate limited"
     );
@@ -241,7 +240,10 @@ describe("Cohere Chat provider adapter", () => {
 
 function decode(values: unknown[]) {
   const fixture = values
-    .map((value, index) => `data: ${JSON.stringify(value)}${index % 2 ? "\r\n\r\n" : "\n\n"}`)
+    .map(
+      (value, index) =>
+        `data: ${JSON.stringify(value)}${index % 2 ? "\r\n\r\n" : "\n\n"}`
+    )
     .join("");
   const decoder = new CohereChatStreamDecoder();
   const events = [];

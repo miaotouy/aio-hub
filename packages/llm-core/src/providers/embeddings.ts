@@ -26,9 +26,7 @@ export function buildOpenAiEmbeddingRequest(
     buildEndpointUrl(profile, "embeddings", "v1/embeddings"),
     {
       "Content-Type": "application/json",
-      ...(profile.apiKey
-        ? { Authorization: `Bearer ${profile.apiKey}` }
-        : {}),
+      ...(profile.apiKey ? { Authorization: `Bearer ${profile.apiKey}` } : {}),
       ...(request.requestId ? { "X-Request-ID": request.requestId } : {}),
       ...profile.headers,
     },
@@ -183,9 +181,7 @@ export function buildCohereEmbeddingRequest(
     profile.endpoints?.embeddings ?? `${baseUrl}/v2/embed`,
     {
       "Content-Type": "application/json",
-      ...(profile.apiKey
-        ? { Authorization: `Bearer ${profile.apiKey}` }
-        : {}),
+      ...(profile.apiKey ? { Authorization: `Bearer ${profile.apiKey}` } : {}),
       ...(request.requestId ? { "X-Request-ID": request.requestId } : {}),
       ...profile.headers,
     },
@@ -234,9 +230,10 @@ export function buildVertexEmbeddingRequest(
   const hasResourcePrefix = /\/projects\/[^/]+\/locations\/[^/]+\/?$/.test(
     versionedHost
   );
-  const resourcePrefix = !hasResourcePrefix && projectId
-    ? `projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(location)}/`
-    : "";
+  const resourcePrefix =
+    !hasResourcePrefix && projectId
+      ? `projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(location)}/`
+      : "";
   const url = customEndpoint
     ? customEndpoint.startsWith("http")
       ? customEndpoint
@@ -248,9 +245,7 @@ export function buildVertexEmbeddingRequest(
     url,
     {
       "Content-Type": "application/json",
-      ...(profile.apiKey
-        ? { Authorization: `Bearer ${profile.apiKey}` }
-        : {}),
+      ...(profile.apiKey ? { Authorization: `Bearer ${profile.apiKey}` } : {}),
       ...(request.requestId ? { "X-Request-ID": request.requestId } : {}),
       ...profile.headers,
     },
@@ -334,7 +329,8 @@ function buildEndpointUrl(
   if (customEndpoint?.startsWith("http")) return customEndpoint;
   const host = ensureTrailingSlash(profile.baseUrl);
   if (customEndpoint) return `${host}${customEndpoint.replace(/^\//, "")}`;
-  if (/\/v1\/?$/.test(host)) return `${host}${defaultPath.replace(/^v1\//, "")}`;
+  if (/\/v1\/?$/.test(host))
+    return `${host}${defaultPath.replace(/^v1\//, "")}`;
   return `${host}${defaultPath}`;
 }
 

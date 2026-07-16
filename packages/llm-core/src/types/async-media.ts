@@ -13,11 +13,7 @@ export interface AsyncMediaRequest {
 }
 
 export type AsyncMediaTaskStatus =
-  | "queued"
-  | "running"
-  | "succeeded"
-  | "failed"
-  | "cancelled";
+  "queued" | "running" | "succeeded" | "failed" | "cancelled";
 
 export interface AsyncMediaTaskSnapshot {
   id: string;

@@ -155,7 +155,10 @@ describe("Google GenerateContent provider adapter", () => {
             { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "OFF" },
             { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "OFF" },
             { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "OFF" },
-            { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "BLOCK_NONE" },
+            {
+              category: "HARM_CATEGORY_CIVIC_INTEGRITY",
+              threshold: "BLOCK_NONE",
+            },
           ],
           vendorFlag: true,
         },
@@ -311,8 +314,9 @@ describe("Google GenerateContent provider adapter", () => {
       },
     ];
     const fixture = values
-      .map((value, index) =>
-        `data: ${JSON.stringify(value)}${index ? "\r\n\r\n" : "\n\n"}`
+      .map(
+        (value, index) =>
+          `data: ${JSON.stringify(value)}${index ? "\r\n\r\n" : "\n\n"}`
       )
       .join("");
     const decoder = new GoogleGenerateContentStreamDecoder();

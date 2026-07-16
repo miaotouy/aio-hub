@@ -72,8 +72,7 @@ describe("Anthropic Messages provider adapter", () => {
         "Content-Type": "application/json",
         "x-api-key": "secret-key",
         "anthropic-version": "2023-06-01",
-        "anthropic-beta":
-          "files-api-2025-04-14,thinking-2025-12-05",
+        "anthropic-beta": "files-api-2025-04-14,thinking-2025-12-05",
         "X-Request-ID": "request-1",
         "X-Tenant": "tenant-a",
       },
@@ -305,7 +304,10 @@ describe("Anthropic Messages provider adapter", () => {
 
 function decode(values: unknown[]) {
   const fixture = values
-    .map((value, index) => `data: ${JSON.stringify(value)}${index % 2 ? "\r\n\r\n" : "\n\n"}`)
+    .map(
+      (value, index) =>
+        `data: ${JSON.stringify(value)}${index % 2 ? "\r\n\r\n" : "\n\n"}`
+    )
     .join("");
   const decoder = new AnthropicMessagesStreamDecoder();
   const events = [];

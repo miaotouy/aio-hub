@@ -21,12 +21,13 @@ export interface TransportContractOptions {
 export function runTransportContract(options: TransportContractOptions): void {
   describe(options.name, () => {
     it("preserves status, headers, and streamed response bytes", async () => {
-      const fetch = vi.fn(async () =>
-        new Response("first-second", {
-          status: 201,
-          statusText: "Created",
-          headers: { "X-Contract": "preserved" },
-        })
+      const fetch = vi.fn(
+        async () =>
+          new Response("first-second", {
+            status: 201,
+            statusText: "Created",
+            headers: { "X-Contract": "preserved" },
+          })
       );
       const transport = options.createTransport({
         fetch,
@@ -130,9 +131,7 @@ export function runTransportContract(options: TransportContractOptions): void {
       });
       const onError = vi.fn();
       const transport = options.createTransport({
-        fetch: vi.fn(
-          async () => new Response(stream, { status: 200 })
-        ),
+        fetch: vi.fn(async () => new Response(stream, { status: 200 })),
         ensureResponseOk: vi.fn(async () => undefined),
       });
       const response = await transport.send(

@@ -72,7 +72,9 @@ export async function executeAsyncMediaTask(
   if (resultRequests?.length && options.adapter.parseResultResponses) {
     const responses = [];
     for (const request of resultRequests) {
-      responses.push(await options.transport.send(request, options.transportOptions));
+      responses.push(
+        await options.transport.send(request, options.transportOptions)
+      );
     }
     task = await options.adapter.parseResultResponses(
       responses,

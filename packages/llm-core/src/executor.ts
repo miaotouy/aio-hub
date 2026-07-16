@@ -20,8 +20,10 @@ export interface ExecuteProviderRequestOptions {
   onEvent?: (event: LlmStreamEvent) => void;
 }
 
-export interface ExecuteProviderWireRequestOptions
-  extends Omit<ExecuteProviderRequestOptions, "profile"> {
+export interface ExecuteProviderWireRequestOptions extends Omit<
+  ExecuteProviderRequestOptions,
+  "profile"
+> {
   wireRequest: WireRequest;
 }
 

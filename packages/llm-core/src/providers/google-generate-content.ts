@@ -40,7 +40,10 @@ export function buildGoogleGenerateContentRequest(
     method: "POST",
     url: buildGoogleGenerateContentUrl(profile, request),
     headers: buildGoogleGenerateContentHeaders(profile, request),
-    body: { kind: "json", value: buildGoogleGenerateContentBody(profile, request) },
+    body: {
+      kind: "json",
+      value: buildGoogleGenerateContentBody(profile, request),
+    },
     streaming: request.stream === true,
   };
 }
@@ -58,9 +61,7 @@ export function buildGoogleGenerateContentUrl(
     return appendGoogleQuery(url, profile, request);
   }
 
-  const action = request.stream
-    ? "streamGenerateContent"
-    : "generateContent";
+  const action = request.stream ? "streamGenerateContent" : "generateContent";
   const style = readString(profile.options?.apiStyle) ?? "developer";
   let url: string;
 
@@ -72,9 +73,10 @@ export function buildGoogleGenerateContentUrl(
     const hasResourcePrefix = /\/projects\/[^/]+\/locations\/[^/]+\/?$/.test(
       versionedHost
     );
-    const resourcePrefix = !hasResourcePrefix && projectId
-      ? `projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(location)}/`
-      : "";
+    const resourcePrefix =
+      !hasResourcePrefix && projectId
+        ? `projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(location)}/`
+        : "";
     url = `${versionedHost}${resourcePrefix}publishers/google/models/${encodeURIComponent(request.model)}:${action}`;
   } else {
     const host = ensureTrailingSlash(profile.baseUrl);
@@ -123,8 +125,7 @@ export function buildGoogleGenerateContentBody(
   const body: GoogleGenerateContentBody = {
     contents: request.messages
       .filter(
-        (message) =>
-          message.role !== "system" && message.role !== "developer"
+        (message) => message.role !== "system" && message.role !== "developer"
       )
       .map(buildGoogleContent),
     generationConfig: buildGenerationConfig(request),
@@ -160,12 +161,11 @@ function buildGoogleContent(message: LlmMessage): WireJsonValue {
   const replayParts = readArray(message.metadata?.geminiReplayParts);
   return {
     role: message.role === "assistant" ? "model" : "user",
-    parts:
-      replayParts?.length
-        ? replayParts
-        : typeof message.content === "string"
-          ? [{ text: message.content }]
-          : message.content.flatMap(buildGooglePart),
+    parts: replayParts?.length
+      ? replayParts
+      : typeof message.content === "string"
+        ? [{ text: message.content }]
+        : message.content.flatMap(buildGooglePart),
   };
 }
 
@@ -276,7 +276,9 @@ function buildGenerationConfig(request: LlmRequest): JsonObject {
   ) {
     const thinkingConfig: JsonObject = {};
     if (shouldIncludeThoughts) thinkingConfig.includeThoughts = true;
-    const level = (request.thinkingLevel ?? request.reasoningEffort)?.toLowerCase();
+    const level = (
+      request.thinkingLevel ?? request.reasoningEffort
+    )?.toLowerCase();
     if (request.model.includes("gemini-3") && level) {
       thinkingConfig.thinkingLevel = normalizeThinkingLevel(level);
     } else if (request.thinkingBudget !== undefined) {
@@ -288,8 +290,10 @@ function buildGenerationConfig(request: LlmRequest): JsonObject {
     config.thinkingConfig = thinkingConfig;
   }
 
-  if (request.speechConfig !== undefined) config.speechConfig = request.speechConfig;
-  if (request.responseModalities) config.responseModalities = request.responseModalities;
+  if (request.speechConfig !== undefined)
+    config.speechConfig = request.speechConfig;
+  if (request.responseModalities)
+    config.responseModalities = request.responseModalities;
   if (request.mediaResolution) config.mediaResolution = request.mediaResolution;
   if (request.enableEnhancedCivicAnswers !== undefined) {
     config.enableEnhancedCivicAnswers = request.enableEnhancedCivicAnswers;
@@ -362,13 +366,15 @@ export function parseGoogleGenerateContentResponseValue(
   value: unknown
 ): LlmResponse {
   const root = asObject(value);
-  if (!root) throw new Error("Google GenerateContent response is not a JSON object");
+  if (!root)
+    throw new Error("Google GenerateContent response is not a JSON object");
   throwGoogleError(root);
   const candidate = asObject(readArray(root.candidates)?.[0]);
   if (!candidate) {
     const feedback = asObject(root.promptFeedback);
     const blockReason = readString(feedback?.blockReason);
-    if (blockReason) throw new Error(`Google GenerateContent blocked: ${blockReason}`);
+    if (blockReason)
+      throw new Error(`Google GenerateContent blocked: ${blockReason}`);
     throw new Error("Google GenerateContent response has no candidate");
   }
 
@@ -486,9 +492,7 @@ export function parseGoogleUsage(value: unknown): TokenUsage | undefined {
   };
 }
 
-export class GoogleGenerateContentStreamDecoder
-  implements ProviderStreamDecoder
-{
+export class GoogleGenerateContentStreamDecoder implements ProviderStreamDecoder {
   private readonly decoder = new SseDataLineDecoder();
   private content = "";
   private reasoningContent = "";

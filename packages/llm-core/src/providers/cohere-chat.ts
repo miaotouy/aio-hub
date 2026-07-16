@@ -12,11 +12,7 @@ import type {
   LlmRequest,
   LlmToolChoice,
 } from "../types/request";
-import type {
-  LlmResponse,
-  LlmToolCall,
-  TokenUsage,
-} from "../types/response";
+import type { LlmResponse, LlmToolCall, TokenUsage } from "../types/response";
 import type { WireRequest, WireResponse } from "../types/transport";
 
 type JsonObject = Record<string, JsonValue>;
@@ -46,9 +42,7 @@ export function buildCohereChatRequest(
     url: buildCohereChatUrl(profile),
     headers: {
       "Content-Type": "application/json",
-      ...(profile.apiKey
-        ? { Authorization: `Bearer ${profile.apiKey}` }
-        : {}),
+      ...(profile.apiKey ? { Authorization: `Bearer ${profile.apiKey}` } : {}),
       ...(request.requestId ? { "X-Request-ID": request.requestId } : {}),
       ...profile.headers,
     },
@@ -138,12 +132,15 @@ export function parseCohereChatResponseValue(value: unknown): LlmResponse {
     if (!part) continue;
     if (part.type === "text") content += readString(part.text) ?? "";
     if (part.type === "thinking") {
-      reasoningContent += readString(part.thinking) ?? readString(part.text) ?? "";
+      reasoningContent +=
+        readString(part.thinking) ?? readString(part.text) ?? "";
     }
   }
   if (!content) content = readString(root.text) ?? "";
   if (!content && !message && root.text === undefined) {
-    throw new Error(`Cohere Chat response format is invalid: ${JSON.stringify(root)}`);
+    throw new Error(
+      `Cohere Chat response format is invalid: ${JSON.stringify(root)}`
+    );
   }
 
   const toolCalls = parseCohereToolCalls(message?.tool_calls);

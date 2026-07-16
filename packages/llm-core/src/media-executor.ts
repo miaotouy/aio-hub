@@ -17,7 +17,10 @@ export interface ExecuteSyncMediaRequestOptions {
 export async function executeSyncMediaRequest(
   options: ExecuteSyncMediaRequestOptions
 ): Promise<SyncMediaResponse> {
-  const wireRequest = options.adapter.buildRequest(options.profile, options.request);
+  const wireRequest = options.adapter.buildRequest(
+    options.profile,
+    options.request
+  );
   const response = await options.transport.send(
     wireRequest,
     options.transportOptions

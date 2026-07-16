@@ -43,7 +43,10 @@ export function parseProviderModels(
 ): ProviderModelInfo[] {
   const root = asRecord(value);
   if (OPENAI_FAMILY.has(provider) || provider === "vertexai") {
-    const entries = readArray(root.data).length > 0 ? readArray(root.data) : readArray(root.models);
+    const entries =
+      readArray(root.data).length > 0
+        ? readArray(root.data)
+        : readArray(root.models);
     return entries.flatMap((entry) => {
       const model = asRecord(entry);
       const id = readString(model.id) ?? readString(model.name);
@@ -55,7 +58,8 @@ export function parseProviderModels(
     return readArray(root.data).flatMap((entry) => {
       const model = asRecord(entry);
       const id = readString(model.id);
-      if (!id || (model.type !== undefined && model.type !== "model")) return [];
+      if (!id || (model.type !== undefined && model.type !== "model"))
+        return [];
       return [
         baseModel(
           model,
@@ -125,7 +129,9 @@ function fromOpenAiModel(
     owner
   );
   result.contextLength = readNumber(model.context_length);
-  result.maxOutputTokens = readNumber(asRecord(model.top_provider).max_completion_tokens);
+  result.maxOutputTokens = readNumber(
+    asRecord(model.top_provider).max_completion_tokens
+  );
   const architecture = asRecord(model.architecture);
   result.inputModalities = readStringArray(architecture.input_modalities);
   result.outputModalities = readStringArray(architecture.output_modalities);
@@ -202,7 +208,10 @@ function joinUrl(base: string, endpoint: string): string {
 }
 
 function normalizeJson(value: unknown): JsonValue {
-  if (value === null || ["string", "number", "boolean"].includes(typeof value)) {
+  if (
+    value === null ||
+    ["string", "number", "boolean"].includes(typeof value)
+  ) {
     return value as JsonValue;
   }
   if (Array.isArray(value)) return value.map(normalizeJson);
@@ -234,6 +243,8 @@ function readNumber(value: JsonValue | undefined): number | undefined {
 
 function readStringArray(value: JsonValue | undefined): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
-  const result = value.filter((item): item is string => typeof item === "string");
+  const result = value.filter(
+    (item): item is string => typeof item === "string"
+  );
   return result.length > 0 ? result : undefined;
 }

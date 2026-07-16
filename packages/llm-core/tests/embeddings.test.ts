@@ -95,9 +95,9 @@ describe("shared Embedding providers", () => {
         outputDimensionality: 256,
       },
     ]);
-    expect(
-      formatGeminiEmbedding2Input("query", "RETRIEVAL_QUERY")
-    ).toBe("task: search result | query: query");
+    expect(formatGeminiEmbedding2Input("query", "RETRIEVAL_QUERY")).toBe(
+      "task: search result | query: query"
+    );
     await expect(
       parseGeminiEmbeddingResponse(
         response({ embeddings: [{ values: [0.1] }, { values: [0.2] }] }),
@@ -137,7 +137,12 @@ describe("shared Embedding providers", () => {
     await expect(
       parseCohereEmbeddingResponse(
         response({
-          embeddings: { int8: [[1, 2], [3, 4]] },
+          embeddings: {
+            int8: [
+              [1, 2],
+              [3, 4],
+            ],
+          },
           meta: { billed_units: { input_tokens: 7 } },
         }),
         cohereRequest

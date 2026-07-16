@@ -12,11 +12,7 @@ import type {
   LlmRequest,
   LlmToolChoice,
 } from "../types/request";
-import type {
-  LlmResponse,
-  LlmToolCall,
-  TokenUsage,
-} from "../types/response";
+import type { LlmResponse, LlmToolCall, TokenUsage } from "../types/response";
 import type { WireRequest, WireResponse } from "../types/transport";
 
 type JsonObject = Record<string, JsonValue>;
@@ -82,8 +78,7 @@ export function buildAnthropicMessagesBody(
     model: request.model,
     messages: request.messages
       .filter(
-        (message) =>
-          message.role !== "system" && message.role !== "developer"
+        (message) => message.role !== "system" && message.role !== "developer"
       )
       .map(buildAnthropicMessage),
     max_tokens: request.maxCompletionTokens ?? request.maxTokens ?? 4096,
@@ -153,7 +148,8 @@ export function parseAnthropicMessagesResponseValue(
   value: unknown
 ): LlmResponse {
   const root = asObject(value);
-  if (!root) throw new Error("Anthropic Messages response is not a JSON object");
+  if (!root)
+    throw new Error("Anthropic Messages response is not a JSON object");
   if (root.type === "error" || asObject(root.error)) {
     const error = asObject(root.error);
     throw new Error(
@@ -215,9 +211,7 @@ interface PendingToolCall {
   input: string;
 }
 
-export class AnthropicMessagesStreamDecoder
-  implements ProviderStreamDecoder
-{
+export class AnthropicMessagesStreamDecoder implements ProviderStreamDecoder {
   private readonly decoder = new SseDataLineDecoder();
   private readonly pendingTools = new Map<number, PendingToolCall>();
   private readonly toolCalls: LlmToolCall[] = [];
@@ -432,9 +426,7 @@ function buildAnthropicContentBlock(
     return {
       type: "text",
       text: content.text,
-      ...(content.cacheControl
-        ? { cache_control: content.cacheControl }
-        : {}),
+      ...(content.cacheControl ? { cache_control: content.cacheControl } : {}),
     };
   }
   if (content.type === "image") {

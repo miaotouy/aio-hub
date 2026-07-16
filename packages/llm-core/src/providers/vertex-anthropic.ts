@@ -24,9 +24,7 @@ export function buildVertexAnthropicRequest(
     url: buildVertexAnthropicUrl(profile, request),
     headers: {
       "Content-Type": "application/json",
-      ...(profile.apiKey
-        ? { Authorization: `Bearer ${profile.apiKey}` }
-        : {}),
+      ...(profile.apiKey ? { Authorization: `Bearer ${profile.apiKey}` } : {}),
       ...(request.requestId ? { "X-Request-ID": request.requestId } : {}),
       ...profile.headers,
     },
@@ -54,9 +52,10 @@ export function buildVertexAnthropicUrl(
   const hasResourcePrefix = /\/projects\/[^/]+\/locations\/[^/]+\/?$/.test(
     versionedHost
   );
-  const resourcePrefix = !hasResourcePrefix && projectId
-    ? `projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(location)}/`
-    : "";
+  const resourcePrefix =
+    !hasResourcePrefix && projectId
+      ? `projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(location)}/`
+      : "";
   const action = request.stream ? "streamRawPredict" : "rawPredict";
   return `${versionedHost}${resourcePrefix}publishers/anthropic/models/${encodeURIComponent(request.model)}:${action}`;
 }

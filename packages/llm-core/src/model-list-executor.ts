@@ -13,7 +13,13 @@ export async function executeModelListRequest(options: {
   transport: LlmTransport;
   transportOptions: TransportOptions;
 }): Promise<ModelListResponse> {
-  const wireRequest = options.adapter.buildRequest(options.profile, options.request);
-  const response = await options.transport.send(wireRequest, options.transportOptions);
+  const wireRequest = options.adapter.buildRequest(
+    options.profile,
+    options.request
+  );
+  const response = await options.transport.send(
+    wireRequest,
+    options.transportOptions
+  );
   return options.adapter.parseResponse(response, options.request);
 }

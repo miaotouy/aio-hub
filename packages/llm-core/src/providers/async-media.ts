@@ -18,7 +18,8 @@ export const openAiVideoTaskAdapter: AsyncMediaTaskAdapter = {
   id: "openai-video-task",
   buildCreateRequest(profile, request) {
     const apiStyle = readString(request.parameters?.apiStyle) ?? "openai";
-    const endpoint = apiStyle === "ark" ? "contents/generations/tasks" : "videos";
+    const endpoint =
+      apiStyle === "ark" ? "contents/generations/tasks" : "videos";
     const endpointKey = apiStyle === "ark" ? "arkVideos" : "videos";
     const body =
       apiStyle === "ark"
@@ -145,7 +146,13 @@ export const sunoMusicTaskAdapter: AsyncMediaTaskAdapter = {
   buildCreateRequest(profile, request) {
     return jsonRequest(
       "POST",
-      buildEndpointUrl(profile, "suno/submit/music", "submitMusic", undefined, false),
+      buildEndpointUrl(
+        profile,
+        "suno/submit/music",
+        "submitMusic",
+        undefined,
+        false
+      ),
       buildBearerHeaders(profile),
       asWireRecord(request.parameters?.body) ?? {}
     );
@@ -153,7 +160,9 @@ export const sunoMusicTaskAdapter: AsyncMediaTaskAdapter = {
   async parseCreateResponse(response) {
     const root = asRecord(normalizeJson(await readWireResponseJson(response)));
     if (readString(root.code)?.toLowerCase() !== "success") {
-      throw new Error(readString(root.message) ?? "Suno task submission failed");
+      throw new Error(
+        readString(root.message) ?? "Suno task submission failed"
+      );
     }
     const id = readString(root.data);
     if (!id) throw new Error("Suno task submission did not return a task id");
@@ -229,7 +238,8 @@ export const sunoMusicTaskAdapter: AsyncMediaTaskAdapter = {
           readString(clip.audio_url) ??
           readString(clip.audioUrl) ??
           readString(clip.url);
-        if (url) assets.push({ kind: "remote-url", url, contentType: "audio/mpeg" });
+        if (url)
+          assets.push({ kind: "remote-url", url, contentType: "audio/mpeg" });
         clips.push(entry);
       }
     }
@@ -246,7 +256,13 @@ export const minimaxMusicTaskAdapter: AsyncMediaTaskAdapter = {
   buildCreateRequest(profile, request) {
     return jsonRequest(
       "POST",
-      buildEndpointUrl(profile, "v1/music_generation", "musicGeneration", undefined, false),
+      buildEndpointUrl(
+        profile,
+        "v1/music_generation",
+        "musicGeneration",
+        undefined,
+        false
+      ),
       buildBearerHeaders(profile),
       asWireRecord(request.parameters?.body) ?? {}
     );
@@ -265,7 +281,8 @@ export const minimaxMusicTaskAdapter: AsyncMediaTaskAdapter = {
       return {
         id: readString(root.trace_id) ?? "minimax-immediate",
         status: "failed",
-        error: readString(data.error_message) ?? "MiniMax music generation failed",
+        error:
+          readString(data.error_message) ?? "MiniMax music generation failed",
       };
     }
     const audio = readString(data.audio_url) ?? readString(data.audio);
@@ -273,7 +290,11 @@ export const minimaxMusicTaskAdapter: AsyncMediaTaskAdapter = {
     const assets: MediaAssetRef[] = [];
     if (audio) {
       if (outputFormat === "url") {
-        assets.push({ kind: "remote-url", url: audio, contentType: "audio/mpeg" });
+        assets.push({
+          kind: "remote-url",
+          url: audio,
+          contentType: "audio/mpeg",
+        });
       } else {
         assets.push({
           kind: "inline-base64",
@@ -291,7 +312,9 @@ export const minimaxMusicTaskAdapter: AsyncMediaTaskAdapter = {
       assets,
       metadata: compactJson({
         duration:
-          durationMs !== undefined ? durationMs / 1000 : readNumber(data.duration),
+          durationMs !== undefined
+            ? durationMs / 1000
+            : readNumber(data.duration),
         lyrics: root.lyrics,
         subtitle: data.subtitle_file,
         extraInfo: root.extra_info,
@@ -299,7 +322,9 @@ export const minimaxMusicTaskAdapter: AsyncMediaTaskAdapter = {
     };
   },
   buildPollRequest() {
-    throw new Error("MiniMax music generation completes in the create response");
+    throw new Error(
+      "MiniMax music generation completes in the create response"
+    );
   },
   async parsePollResponse() {
     throw new Error("MiniMax music generation does not use polling");
@@ -327,7 +352,9 @@ function parseOpenAiVideoTask(
       data.videoId,
     ]) ?? fallbackId;
   if (!id) throw new Error("Video generation did not return a task id");
-  const rawStatus = (firstString([root.status, data.status]) ?? "").toLowerCase();
+  const rawStatus = (
+    firstString([root.status, data.status]) ?? ""
+  ).toLowerCase();
   const url = extractVideoUrl(root);
   const apiStyle = readString(request.parameters?.apiStyle) ?? "openai";
   const status = normalizeVideoStatus(rawStatus, Boolean(url), apiStyle);
@@ -365,7 +392,9 @@ function parseGeminiVideoOperation(value: unknown): AsyncMediaTaskSnapshot {
   const assets = readArray(generated.generatedSamples).flatMap((sample) => {
     const video = asRecord(asRecord(sample).video);
     const url = readString(video.uri);
-    return url ? [{ kind: "remote-url" as const, url, contentType: "video/mp4" }] : [];
+    return url
+      ? [{ kind: "remote-url" as const, url, contentType: "video/mp4" }]
+      : [];
   });
   return { id, status: "succeeded", progress: 100, assets };
 }
@@ -413,7 +442,10 @@ function buildArkVideoBody(request: AsyncMediaRequest): WireJsonValue {
   addFlag("watermark", parameters.watermark);
   addFlag("camerafixed", parameters.cameraFixed);
   const content: WireJsonValue[] = [
-    { type: "text", text: [request.prompt.trim(), ...flags].filter(Boolean).join(" ") },
+    {
+      type: "text",
+      text: [request.prompt.trim(), ...flags].filter(Boolean).join(" "),
+    },
   ];
   for (const input of request.inputs ?? []) {
     if (input.type !== "image" && input.type !== "mask") continue;
@@ -430,12 +462,16 @@ function normalizeVideoStatus(
   hasAsset: boolean,
   apiStyle: string
 ): AsyncMediaTaskStatus {
-  if (hasAsset || ["completed", "succeeded", "success", "done"].includes(status)) {
+  if (
+    hasAsset ||
+    ["completed", "succeeded", "success", "done"].includes(status)
+  ) {
     return "succeeded";
   }
   if (["failed", "expired", "error"].includes(status)) return "failed";
   if (["cancelled", "canceled"].includes(status)) return "cancelled";
-  if (["in_progress", "processing", "running"].includes(status)) return "running";
+  if (["in_progress", "processing", "running"].includes(status))
+    return "running";
   if (["queued", "pending", "created"].includes(status)) return "queued";
   return apiStyle === "ark" ? "queued" : "succeeded";
 }
@@ -444,7 +480,8 @@ function normalizeSunoStatus(status: string): AsyncMediaTaskStatus {
   const normalized = status.toUpperCase();
   if (normalized === "SUCCESS") return "succeeded";
   if (normalized === "FAILURE") return "failed";
-  if (normalized === "CANCELLED" || normalized === "CANCELED") return "cancelled";
+  if (normalized === "CANCELLED" || normalized === "CANCELED")
+    return "cancelled";
   return normalized === "SUBMITTED" ? "queued" : "running";
 }
 
@@ -452,7 +489,11 @@ function extractSunoClips(value: JsonValue | undefined): {
   assets: MediaAssetRef[];
   clipIds: string[];
 } {
-  const entries = Array.isArray(value) ? value : value === undefined ? [] : [value];
+  const entries = Array.isArray(value)
+    ? value
+    : value === undefined
+      ? []
+      : [value];
   const assets: MediaAssetRef[] = [];
   const clipIds: string[] = [];
   for (const entry of entries) {
@@ -463,8 +504,12 @@ function extractSunoClips(value: JsonValue | undefined): {
     const clip = asRecord(entry);
     const id = readString(clip.id);
     if (id) clipIds.push(id);
-    const url = readString(clip.audio_url) ?? readString(clip.audioUrl) ?? readString(clip.url);
-    if (url) assets.push({ kind: "remote-url", url, contentType: "audio/mpeg" });
+    const url =
+      readString(clip.audio_url) ??
+      readString(clip.audioUrl) ??
+      readString(clip.url);
+    if (url)
+      assets.push({ kind: "remote-url", url, contentType: "audio/mpeg" });
   }
   return { assets, clipIds };
 }
@@ -497,7 +542,9 @@ function extractVideoUrl(root: Record<string, JsonValue>): string | undefined {
   ]);
 }
 
-function extractThumbnailUrl(root: Record<string, JsonValue>): string | undefined {
+function extractThumbnailUrl(
+  root: Record<string, JsonValue>
+): string | undefined {
   const data = asRecord(root.data);
   const content = asRecord(root.content);
   const dataContent = asRecord(data.content);
@@ -575,13 +622,20 @@ function jsonRequest(
   headers: Record<string, string>,
   value: WireJsonValue
 ): WireRequest {
-  return { method, url, headers, body: { kind: "json", value }, streaming: false };
+  return {
+    method,
+    url,
+    headers,
+    body: { kind: "json", value },
+    streaming: false,
+  };
 }
 
 function mediaSourceToWire(source: MediaInputSource): WireJsonValue {
   if (source.kind === "remote-url") return source.url;
   if (source.kind === "local-file") return source.ref;
-  const data = source.kind === "bytes" ? encodeBase64(source.data) : source.data;
+  const data =
+    source.kind === "bytes" ? encodeBase64(source.data) : source.data;
   return `data:${source.contentType};base64,${data}`;
 }
 
@@ -612,7 +666,9 @@ function compact(
   value: Record<string, WireJsonValue | undefined>
 ): Record<string, WireJsonValue> {
   return Object.fromEntries(
-    Object.entries(value).filter((entry): entry is [string, WireJsonValue] => entry[1] !== undefined)
+    Object.entries(value).filter(
+      (entry): entry is [string, WireJsonValue] => entry[1] !== undefined
+    )
   );
 }
 
@@ -620,7 +676,9 @@ function compactJson(
   value: Record<string, JsonValue | undefined>
 ): Record<string, JsonValue> {
   return Object.fromEntries(
-    Object.entries(value).filter((entry): entry is [string, JsonValue] => entry[1] !== undefined)
+    Object.entries(value).filter(
+      (entry): entry is [string, JsonValue] => entry[1] !== undefined
+    )
   );
 }
 
@@ -629,7 +687,10 @@ function joinUrl(base: string, endpoint: string): string {
 }
 
 function normalizeJson(value: unknown): JsonValue {
-  if (value === null || ["string", "number", "boolean"].includes(typeof value)) {
+  if (
+    value === null ||
+    ["string", "number", "boolean"].includes(typeof value)
+  ) {
     return value as JsonValue;
   }
   if (Array.isArray(value)) return value.map(normalizeJson);
@@ -677,7 +738,9 @@ function encodeBase64(value: Uint8Array): string {
   let binary = "";
   const chunkSize = 0x8000;
   for (let offset = 0; offset < value.length; offset += chunkSize) {
-    binary += String.fromCharCode(...value.subarray(offset, offset + chunkSize));
+    binary += String.fromCharCode(
+      ...value.subarray(offset, offset + chunkSize)
+    );
   }
   return btoa(binary);
 }
@@ -689,7 +752,10 @@ function hexToBase64(hex: string): string {
   }
   const bytes = new Uint8Array(normalized.length / 2);
   for (let index = 0; index < bytes.length; index++) {
-    bytes[index] = Number.parseInt(normalized.slice(index * 2, index * 2 + 2), 16);
+    bytes[index] = Number.parseInt(
+      normalized.slice(index * 2, index * 2 + 2),
+      16
+    );
   }
   return encodeBase64(bytes);
 }

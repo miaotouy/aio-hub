@@ -4,6 +4,7 @@ import {
   OPENAI_RESPONSES_OUTPUT_METADATA_KEY,
   OPENAI_RESPONSES_REPLAY_ITEMS_METADATA_KEY,
   OpenAiResponsesStreamDecoder,
+  buildOpenAiResponsesUrl,
   buildOpenAiResponsesRequest,
   parseOpenAiResponsesResponseValue,
   type LlmRequest,
@@ -18,6 +19,24 @@ const profile: ProviderProfile = {
 };
 
 describe("OpenAI Responses provider adapter", () => {
+  it("prefers dedicated relative and absolute Responses endpoints", () => {
+    expect(
+      buildOpenAiResponsesUrl({
+        ...profile,
+        endpoints: {
+          chatCompletions: "/legacy/responses",
+          responses: "/custom/responses",
+        },
+      })
+    ).toBe("https://api.example.com/custom/responses");
+    expect(
+      buildOpenAiResponsesUrl({
+        ...profile,
+        endpoints: { responses: "https://gateway.example.com/v2/responses" },
+      })
+    ).toBe("https://gateway.example.com/v2/responses");
+  });
+
   it("builds input items, replay state, tools and Responses parameters", () => {
     const replayItem = {
       id: "rs_1",

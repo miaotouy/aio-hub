@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   GoogleGenerateContentStreamDecoder,
+  buildGoogleGenerateContentUrl,
   buildGoogleGenerateContentRequest,
   parseGoogleGenerateContentResponseValue,
   type LlmRequest,
@@ -26,6 +27,40 @@ function createRequest(overrides: Partial<LlmRequest> = {}): LlmRequest {
 }
 
 describe("Google GenerateContent provider adapter", () => {
+  it("prefers the dedicated endpoint and replaces every model placeholder", () => {
+    const request = createRequest({ model: "gemini-custom" });
+    expect(
+      buildGoogleGenerateContentUrl(
+        {
+          ...developerProfile,
+          endpoints: {
+            chatCompletions: "/legacy/chat",
+            geminiGenerateContent:
+              "/proxy/{model}/models/{model}:generateContent",
+          },
+        },
+        request
+      )
+    ).toBe(
+      "https://generativelanguage.googleapis.com/proxy/gemini-custom/models/gemini-custom:generateContent?key=gemini-key"
+    );
+
+    expect(
+      buildGoogleGenerateContentUrl(
+        {
+          ...developerProfile,
+          endpoints: {
+            geminiGenerateContent:
+              "https://gateway.example.com/{model}:generateContent",
+          },
+        },
+        request
+      )
+    ).toBe(
+      "https://gateway.example.com/gemini-custom:generateContent?key=gemini-key"
+    );
+  });
+
   it("builds Developer API multimodal, tools, thinking and extension fields", () => {
     const wire = buildGoogleGenerateContentRequest(
       developerProfile,

@@ -54,6 +54,7 @@ function result(values: Partial<ChannelProbeResult> = {}): ChannelProbeResult {
     success: true,
     kind: "key",
     modelId: "model-1",
+    endpointType: "auto",
     phase: "semantic-validation",
     totalMs: 10,
     testedAt: 1,
@@ -147,5 +148,82 @@ describe("useConnectionTest", () => {
       allowAutoDisable: false,
       countTowardThreshold: false,
     });
+  });
+
+  it("passes explicit endpoint options to a single model probe", async () => {
+    mocks.probe.mockResolvedValue(
+      result({ kind: "inference", endpointType: "openai-responses" })
+    );
+    const composable = useConnectionTest(
+      ref(source),
+      computed(() => source)
+    );
+
+    await composable.handleTestModel(source.models[0], {
+      endpointType: "openai-responses",
+      stream: true,
+    });
+
+    expect(mocks.probe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endpointType: "openai-responses",
+        modelId: "model-1",
+        stream: true,
+      })
+    );
+  });
+
+  it("reconciles all batch results and final progress after cancellation", async () => {
+    const success = result({
+      kind: "batch-model",
+      endpointType: "openai-responses",
+      modelId: "model-1",
+    });
+    const failure = result({
+      success: false,
+      kind: "batch-model",
+      endpointType: "openai-responses",
+      modelId: "model-2",
+      category: "provider",
+    });
+    const cancelled = result({
+      success: false,
+      kind: "batch-model",
+      endpointType: "openai-responses",
+      modelId: "model-3",
+      category: "cancelled",
+    });
+    mocks.probeBatch.mockImplementation(async (request) => {
+      request.onResult?.(success, 1, 3);
+      return [success, failure, cancelled];
+    });
+    const composable = useConnectionTest(
+      ref(source),
+      computed(() => source)
+    );
+
+    await composable.handleBatchTestModels(["model-1", "model-2", "model-3"], {
+      endpointType: "openai-responses",
+      concurrency: 2,
+    });
+
+    expect(mocks.probeBatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endpointType: "openai-responses",
+        concurrency: 2,
+      })
+    );
+    expect(composable.batchProgress.value).toEqual({
+      completed: 3,
+      total: 3,
+      succeeded: 1,
+      failed: 1,
+      cancelled: 1,
+    });
+    expect(Object.keys(composable.modelProbeResults.value)).toEqual([
+      "model-1",
+      "model-2",
+      "model-3",
+    ]);
   });
 });

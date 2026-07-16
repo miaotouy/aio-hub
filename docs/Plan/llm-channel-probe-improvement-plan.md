@@ -19,11 +19,12 @@ AIO Hub 已经建立共享 `@aiohub/llm-core`、canonical 请求/响应、Provid
 
 ### 1.1. 最终 UI 集成
 
-模型检查复用设置页现有的模型列表，不在列表下方再渲染一套独立模型表格：
+模型检查复用设置页现有模型数据和检查状态，并在统一弹窗中渲染始终可见、固定高度的可滚动模型表格：
 
 - 原模型行的“测试模型”按钮打开统一的模型检查弹窗，并默认选中当前模型。
 - 原模型列表头提供批量检查入口，复用同一个弹窗和同一套探测状态。
-- 检查结果以状态和耗时回显在原模型行，完整阶段、HTTP、TTFB、Usage 与响应摘要在弹窗中查看。
+- 弹窗提供搜索、筛选结果批量检查、选中模型批量检查、行级检查和选择高亮。
+- 检查结果以状态、端点、耗时和摘要显示，完整阶段、HTTP、TTFB、Usage 与响应或错误详情在行内展开查看。
 - 切换渠道时清理当前检查结果和运行状态，避免相同模型 ID 复用旧渠道结果。
 
 本计划基于 AIO Hub 当前实现，并调查以下两个本地项目的渠道检查方案：
@@ -319,9 +320,12 @@ Probe Service 不直接写 `isBroken`，由 `KeyHealthPolicy` 决定动作：
 
 - 展示模型、能力、状态、总耗时、TTFB 和错误摘要。
 - 支持单行检查和选中模型批量检查。
-- 批量并发默认 3，后续可配置，避免本地客户端快速触发 Provider 限流。
+- 模型列表始终可见并支持搜索；“检查全部”在搜索时只检查当前筛选结果。
+- 批量并发默认 3，可在 1-8 范围调整，避免本地客户端快速触发 Provider 限流。
 - 使用一个批量 `AbortController`；停止时取消在途请求，而不是只停止后续批次。
-- 流式开关只在 Chat 能力可用时展示。
+- 可显式选择自动识别、OpenAI Chat、OpenAI Responses、Anthropic Messages、Gemini GenerateContent、Embedding、Jina Rerank 和图片生成端点。
+- 显式协议只修改本次检查使用的不可变 Profile 快照，并继续复用对应正式 Adapter；不会修改渠道类型或模型对象。
+- 非流式端点强制关闭流式开关。
 - 图片和音频探测必须显示会产生真实调用成本，并由用户显式触发。
 - 视频和音乐首批显示“不支持自动检查”，不允许静默回退到聊天请求。
 
@@ -342,6 +346,8 @@ Probe Service 不直接写 `isBroken`，由 `KeyHealthPolicy` 决定动作：
 - [x] Chat、Chat Stream、Embedding、Rerank 接入正式 Provider Adapter / Executor / Transport。
 - [x] 通过 Transport Observer 统计总耗时与 TTFB，并补充 Inspector 的 Probe 上下文。
 - [x] 新增结构化模型检查面板，支持单模型、选中批量、并发限制、在途取消、结果过滤和失败详情。
+- [x] 新增跨协议检查端点覆盖、专用高级端点配置和旧 `chatCompletions` 配置兼容。
+- [x] 检查结果记录实际端点类型，批量进度稳定归档完成、成功、失败和取消计数。
 - [x] 图片、音频只允许显式付费检查；视频、音乐明确返回不支持，禁止回退到 Chat。
 - [x] 补齐共享核心、桌面 Probe Service 和 `useConnectionTest` 自动化测试。
 
@@ -349,7 +355,7 @@ Probe Service 不直接写 `isBroken`，由 `KeyHealthPolicy` 决定动作：
 
 - 共享核心：`packages/llm-core/src/probe/`、`packages/llm-core/src/providers/rerank.ts`、`packages/llm-core/src/rerank-executor.ts`
 - 桌面编排：`src/views/Settings/llm-service/probe/`
-- 设置页交互：`src/views/Settings/llm-service/components/ModelProbePanel.vue`
+- 设置页交互：`src/views/Settings/llm-service/components/ModelProbeDialog.vue`
 - 兼容入口：`src/views/Settings/llm-service/composables/useConnectionTest.ts`
 
 ### 后续可选的运行态健康能力

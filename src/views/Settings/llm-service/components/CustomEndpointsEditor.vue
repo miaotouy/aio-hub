@@ -93,6 +93,9 @@ function handleReset() {
 // OpenAI 兼容格式默认占位符
 const DEFAULT_PLACEHOLDERS: Record<string, string> = {
   chatCompletions: "/v1/chat/completions",
+  responses: "/v1/responses",
+  anthropicMessages: "/v1/messages",
+  geminiGenerateContent: "/v1beta/models/{model}:generateContent",
   completions: "/v1/completions",
   models: "/v1/models",
   embeddings: "/v1/embeddings",
@@ -154,6 +157,27 @@ const placeholders = computed((): Record<string, string> => {
             <el-input
               v-model="tempEndpoints.chatCompletions"
               :placeholder="placeholders.chatCompletions"
+              clearable
+            />
+          </el-form-item>
+          <el-form-item label="OpenAI Responses">
+            <el-input
+              v-model="tempEndpoints.responses"
+              :placeholder="placeholders.responses"
+              clearable
+            />
+          </el-form-item>
+          <el-form-item label="Anthropic Messages">
+            <el-input
+              v-model="tempEndpoints.anthropicMessages"
+              :placeholder="placeholders.anthropicMessages"
+              clearable
+            />
+          </el-form-item>
+          <el-form-item label="Gemini GenerateContent">
+            <el-input
+              v-model="tempEndpoints.geminiGenerateContent"
+              :placeholder="placeholders.geminiGenerateContent"
               clearable
             />
           </el-form-item>
@@ -283,8 +307,12 @@ const placeholders = computed((): Record<string, string> => {
   display: flex;
   gap: 12px;
   padding: 12px 16px;
-  background: rgba(var(--el-color-primary-rgb), 0.1);
-  border: 1px solid rgba(var(--el-color-primary-rgb), 0.2);
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
+  border: 1px solid
+    rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.2));
   border-radius: 8px;
   margin-bottom: 24px;
   color: var(--el-text-color-primary);

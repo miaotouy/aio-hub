@@ -507,6 +507,12 @@ export interface LlmProfile {
   customEndpoints?: {
     /** 聊天补全端点 (Chat Completions)，例如 '/v1/chat/completions' */
     chatCompletions?: string;
+    /** OpenAI Responses 端点，例如 '/v1/responses' */
+    responses?: string;
+    /** Anthropic Messages 端点，例如 '/v1/messages' */
+    anthropicMessages?: string;
+    /** Gemini GenerateContent 端点，例如 '/v1beta/models/{model}:generateContent' */
+    geminiGenerateContent?: string;
     /** 文本补全端点 (Completions)，例如 '/v1/completions' */
     completions?: string;
     /** 模型列表端点 (Models)，例如 '/v1/models' */

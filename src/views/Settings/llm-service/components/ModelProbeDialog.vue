@@ -3,113 +3,220 @@
   Licensed under the Apache License, Version 2.0.
 -->
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import { Play, Square } from "lucide-vue-next";
+import { computed, nextTick, ref, watch } from "vue";
+import { ChevronDown, ChevronUp, Play, Search, Square } from "lucide-vue-next";
 import { resolveProbePlan } from "@aiohub/llm-core";
 import BaseDialog from "@/components/common/BaseDialog.vue";
-import type { LlmModelInfo } from "@/types/llm-profiles";
-import type { ChannelProbeResult } from "../probe/types";
+import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
+import {
+  getConfiguredProbeEndpoint,
+  getProbeEndpointDefinition,
+  PROBE_ENDPOINT_DEFINITIONS,
+} from "../probe/endpoint-options";
+import type {
+  BatchProbeProgress,
+  ChannelProbeResult,
+  ProbeEndpointType,
+} from "../probe/types";
+
+interface ProbeRunOptions {
+  endpointType: ProbeEndpointType;
+  stream: boolean;
+  allowCostlyMedia: boolean;
+}
 
 const props = defineProps<{
   modelValue: boolean;
-  models: LlmModelInfo[];
+  profile: LlmProfile;
   initialModelId?: string;
   results: Record<string, ChannelProbeResult>;
   loading: Record<string, boolean>;
   batchRunning: boolean;
-  batchProgress: { completed: number; total: number };
+  batchProgress: BatchProbeProgress;
 }>();
 
 const emit = defineEmits<{
   (event: "update:modelValue", value: boolean): void;
-  (
-    event: "test",
-    model: LlmModelInfo,
-    options: { stream: boolean; allowCostlyMedia: boolean }
-  ): void;
+  (event: "test", model: LlmModelInfo, options: ProbeRunOptions): void;
   (
     event: "batch",
     modelIds: string[],
-    options: {
-      concurrency: number;
-      stream: boolean;
-      allowCostlyMedia: boolean;
-    }
+    options: ProbeRunOptions & { concurrency: number }
   ): void;
   (event: "cancel"): void;
 }>();
 
+const tableRef = ref<{ setScrollTop?: (top: number) => void }>();
 const selectedIds = ref<string[]>([]);
+const expandedIds = ref<string[]>([]);
+const searchQuery = ref("");
+const endpointType = ref<ProbeEndpointType>("auto");
 const concurrency = ref(3);
 const stream = ref(false);
 const allowCostlyMedia = ref(false);
 
-const selectedModels = computed(() => {
-  const selected = new Set(selectedIds.value);
-  return props.models.filter((model) => selected.has(model.id));
-});
-
-const isRunning = computed(
-  () =>
-    props.batchRunning ||
-    selectedIds.value.some((modelId) => props.loading[modelId])
-);
-
-const hasChatModel = computed(() =>
-  selectedModels.value.some(
-    (model) => resolveProbePlan(model).capability === "chat"
-  )
-);
-
-const hasCostlyMedia = computed(() =>
-  selectedModels.value.some((model) =>
-    ["image", "audio", "video", "music"].includes(
-      resolveProbePlan(model).capability
+const models = computed(() => props.profile.models);
+const filteredModels = computed(() => {
+  const keyword = searchQuery.value.trim().toLowerCase();
+  if (!keyword) return models.value;
+  return models.value.filter((model) =>
+    [model.id, model.name, capabilityLabel(model)].some((value) =>
+      value.toLowerCase().includes(keyword)
     )
-  )
+  );
+});
+const endpointOptions = computed(() =>
+  PROBE_ENDPOINT_DEFINITIONS.map((definition) => ({
+    ...definition,
+    endpoint:
+      getConfiguredProbeEndpoint(props.profile, definition.value) ??
+      definition.defaultPath,
+    configured: Boolean(
+      getConfiguredProbeEndpoint(props.profile, definition.value)
+    ),
+  }))
+);
+const selectedEndpoint = computed(() =>
+  getProbeEndpointDefinition(endpointType.value)
+);
+const isAnyTesting = computed(
+  () => props.batchRunning || Object.values(props.loading).some(Boolean)
+);
+const allFilteredSelected = computed(
+  () =>
+    filteredModels.value.length > 0 &&
+    filteredModels.value.every((model) => selectedIds.value.includes(model.id))
+);
+const someFilteredSelected = computed(
+  () =>
+    !allFilteredSelected.value &&
+    filteredModels.value.some((model) => selectedIds.value.includes(model.id))
+);
+const effectiveStream = computed(
+  () => selectedEndpoint.value.supportsStream && stream.value
+);
+const hasCostlyMedia = computed(
+  () =>
+    selectedEndpoint.value.requiresCostConsent === true ||
+    (endpointType.value === "auto" &&
+      models.value.some((model) =>
+        ["image", "audio"].includes(resolveProbePlan(model).capability)
+      ))
+);
+const batchPercentage = computed(() =>
+  props.batchProgress.total
+    ? Math.round(
+        (props.batchProgress.completed / props.batchProgress.total) * 100
+      )
+    : 0
+);
+const checkAllLabel = computed(() =>
+  searchQuery.value.trim()
+    ? `检查筛选结果 (${filteredModels.value.length})`
+    : `检查全部 (${filteredModels.value.length})`
 );
 
 watch(
   () => [props.modelValue, props.initialModelId] as const,
-  ([visible]) => {
-    if (!visible) return;
-    if (
-      props.initialModelId &&
-      props.models.some((model) => model.id === props.initialModelId)
-    ) {
-      selectedIds.value = [props.initialModelId];
+  async ([visible]) => {
+    if (!visible) {
+      resetDialogState();
       return;
     }
-    selectedIds.value = props.models.map((model) => model.id);
+    resetDialogState();
+    if (
+      props.initialModelId &&
+      models.value.some((model) => model.id === props.initialModelId)
+    ) {
+      selectedIds.value = [props.initialModelId];
+      await nextTick();
+      const index = models.value.findIndex(
+        (model) => model.id === props.initialModelId
+      );
+      tableRef.value?.setScrollTop?.(Math.max(0, index * 64 - 96));
+    }
   },
   { immediate: true }
 );
 
 watch(
-  () => props.models.map((model) => model.id),
+  () => models.value.map((model) => model.id),
   (modelIds) => {
     const available = new Set(modelIds);
     selectedIds.value = selectedIds.value.filter((id) => available.has(id));
+    expandedIds.value = expandedIds.value.filter((id) => available.has(id));
   }
 );
 
-function startProbe() {
-  if (selectedModels.value.length === 1) {
-    emit("test", selectedModels.value[0], {
-      stream: stream.value,
-      allowCostlyMedia: allowCostlyMedia.value,
-    });
-    return;
+watch(endpointType, () => {
+  if (!selectedEndpoint.value.supportsStream) stream.value = false;
+});
+
+function resetDialogState() {
+  selectedIds.value = [];
+  expandedIds.value = [];
+  searchQuery.value = "";
+  endpointType.value = "auto";
+  concurrency.value = 3;
+  stream.value = false;
+  allowCostlyMedia.value = false;
+}
+
+function toggleModel(modelId: string, checked?: boolean) {
+  if (isAnyTesting.value) return;
+  const selected = new Set(selectedIds.value);
+  const shouldSelect = checked ?? !selected.has(modelId);
+  if (shouldSelect) selected.add(modelId);
+  else selected.delete(modelId);
+  selectedIds.value = models.value
+    .map((model) => model.id)
+    .filter((id) => selected.has(id));
+}
+
+function toggleFilteredSelection(checked: boolean) {
+  const selected = new Set(selectedIds.value);
+  for (const model of filteredModels.value) {
+    if (checked) selected.add(model.id);
+    else selected.delete(model.id);
   }
-  emit("batch", [...selectedIds.value], {
-    concurrency: concurrency.value,
-    stream: stream.value,
+  selectedIds.value = models.value
+    .map((model) => model.id)
+    .filter((id) => selected.has(id));
+}
+
+function rowClassName({ row }: { row: LlmModelInfo }): string {
+  return selectedIds.value.includes(row.id) ? "probe-row-selected" : "";
+}
+
+function runOptions(): ProbeRunOptions {
+  return {
+    endpointType: endpointType.value,
+    stream: effectiveStream.value,
     allowCostlyMedia: allowCostlyMedia.value,
+  };
+}
+
+function testSingle(model: LlmModelInfo) {
+  emit("test", model, runOptions());
+}
+
+function testBatch(modelIds: string[]) {
+  if (modelIds.length === 0) return;
+  emit("batch", [...modelIds], {
+    ...runOptions(),
+    concurrency: concurrency.value,
   });
 }
 
+function toggleDetails(modelId: string) {
+  const expanded = new Set(expandedIds.value);
+  if (expanded.has(modelId)) expanded.delete(modelId);
+  else expanded.add(modelId);
+  expandedIds.value = [...expanded];
+}
+
 function closeDialog() {
-  if (!isRunning.value) emit("update:modelValue", false);
+  if (!isAnyTesting.value) emit("update:modelValue", false);
 }
 
 function capabilityLabel(model: LlmModelInfo): string {
@@ -125,9 +232,9 @@ function capabilityLabel(model: LlmModelInfo): string {
 }
 
 function resultLabel(result: ChannelProbeResult): string {
-  if (result.success) return "检查成功";
+  if (result.success) return "成功";
   if (result.category === "cancelled") return "已停止";
-  return "检查失败";
+  return "失败";
 }
 
 function resultTagType(
@@ -137,11 +244,33 @@ function resultTagType(
   return result.category === "cancelled" ? "info" : "danger";
 }
 
+function endpointLabel(value: ProbeEndpointType): string {
+  return getProbeEndpointDefinition(value).label;
+}
+
+function resultSummary(result: ChannelProbeResult): string {
+  return (
+    result.responsePreview ||
+    result.errorMessage ||
+    result.category ||
+    "请求已完成"
+  );
+}
+
+function resultDetail(result: ChannelProbeResult): string {
+  return (
+    result.errorDetail ||
+    result.responsePreview ||
+    result.errorMessage ||
+    "请求已完成"
+  );
+}
+
 function formatDuration(value?: number): string {
   if (value === undefined) return "-";
   return value < 1_000
-    ? Math.round(value) + " ms"
-    : (value / 1_000).toFixed(2) + " s";
+    ? `${Math.round(value)} ms`
+    : `${(value / 1_000).toFixed(2)} s`;
 }
 </script>
 
@@ -149,154 +278,292 @@ function formatDuration(value?: number): string {
   <BaseDialog
     :model-value="modelValue"
     title="模型检查"
-    width="760px"
-    max-height="82vh"
-    :show-close-button="!isRunning"
-    :close-on-backdrop-click="!isRunning"
+    width="960px"
+    max-height="86vh"
+    :show-close-button="!isAnyTesting"
+    :close-on-backdrop-click="!isAnyTesting"
     @update:model-value="closeDialog"
   >
     <template #content>
       <div class="probe-dialog">
-        <div class="probe-controls">
-          <div class="model-selector">
-            <span class="control-label">检查模型</span>
+        <section class="probe-settings" aria-label="检查设置">
+          <div class="setting-field endpoint-field">
+            <label for="probe-endpoint">检查端点</label>
             <el-select
-              v-model="selectedIds"
-              multiple
-              filterable
-              collapse-tags
-              :max-collapse-tags="3"
-              collapse-tags-tooltip
-              placeholder="选择要检查的模型"
-              :disabled="isRunning"
+              id="probe-endpoint"
+              v-model="endpointType"
+              :disabled="isAnyTesting"
+              popper-class="probe-endpoint-popper"
             >
               <el-option
-                v-for="model in models"
-                :key="model.id"
-                :label="model.name || model.id"
-                :value="model.id"
+                v-for="option in endpointOptions"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
               >
-                <div class="model-option">
-                  <span>{{ model.name || model.id }}</span>
-                  <small>{{ capabilityLabel(model) }}</small>
+                <div class="endpoint-option">
+                  <span>{{ option.label }}</span>
+                  <small>
+                    {{ option.endpoint }}
+                    <el-tag
+                      v-if="option.configured"
+                      size="small"
+                      type="info"
+                      effect="plain"
+                    >
+                      渠道配置
+                    </el-tag>
+                  </small>
                 </div>
               </el-option>
             </el-select>
+            <span class="setting-hint">
+              {{
+                getConfiguredProbeEndpoint(profile, endpointType) ||
+                selectedEndpoint.defaultPath
+              }}
+            </span>
           </div>
 
-          <div class="probe-options">
-            <div v-if="selectedIds.length > 1" class="option-item">
-              <span>并发数</span>
-              <el-input-number
-                v-model="concurrency"
-                :min="1"
-                :max="8"
-                controls-position="right"
-                :disabled="isRunning"
-              />
-            </div>
+          <div class="setting-field compact-field">
+            <span class="setting-label">流式模式</span>
             <el-switch
-              v-if="hasChatModel"
               v-model="stream"
-              active-text="流式 Chat"
-              :disabled="isRunning"
+              :disabled="isAnyTesting || !selectedEndpoint.supportsStream"
+              inline-prompt
+              active-text="开"
+              inactive-text="关"
             />
-            <el-checkbox
-              v-if="hasCostlyMedia"
-              v-model="allowCostlyMedia"
-              :disabled="isRunning"
-            >
+            <span class="setting-hint">
+              {{
+                selectedEndpoint.supportsStream
+                  ? "验证流式响应"
+                  : "当前端点不支持"
+              }}
+            </span>
+          </div>
+
+          <div class="setting-field compact-field">
+            <label for="probe-concurrency">并发数</label>
+            <el-input-number
+              id="probe-concurrency"
+              v-model="concurrency"
+              :min="1"
+              :max="8"
+              controls-position="right"
+              :disabled="isAnyTesting"
+            />
+            <span class="setting-hint">仅批量检查使用</span>
+          </div>
+
+          <div v-if="hasCostlyMedia" class="cost-consent">
+            <el-checkbox v-model="allowCostlyMedia" :disabled="isAnyTesting">
               允许付费媒体检查
             </el-checkbox>
           </div>
-        </div>
+        </section>
 
         <div v-if="batchRunning" class="batch-progress" aria-live="polite">
-          <span>正在检查模型</span>
+          <div class="progress-heading">
+            <span>正在批量检查</span>
+            <span>
+              成功 {{ batchProgress.succeeded }} / 失败
+              {{ batchProgress.failed }} / 取消 {{ batchProgress.cancelled }}
+            </span>
+          </div>
           <el-progress
-            :percentage="
-              batchProgress.total
-                ? Math.round(
-                    (batchProgress.completed / batchProgress.total) * 100
-                  )
-                : 0
-            "
+            :percentage="batchPercentage"
             :format="() => batchProgress.completed + '/' + batchProgress.total"
           />
         </div>
 
-        <div v-if="selectedModels.length > 0" class="result-list">
-          <div
-            v-for="model in selectedModels"
-            :key="model.id"
-            class="result-row"
-          >
-            <div class="result-heading">
-              <div class="result-model">
-                <strong>{{ model.name || model.id }}</strong>
-                <span>{{ model.id }} · {{ capabilityLabel(model) }}</span>
-              </div>
-              <el-tag
-                v-if="results[model.id]"
-                :type="resultTagType(results[model.id])"
-                size="small"
+        <section class="model-section" aria-label="渠道模型">
+          <div class="model-toolbar">
+            <div class="toolbar-actions">
+              <el-button
+                v-if="batchRunning"
+                type="danger"
+                plain
+                :icon="Square"
+                @click="emit('cancel')"
               >
-                {{ resultLabel(results[model.id]) }}
-              </el-tag>
-              <span v-else-if="loading[model.id]" class="result-pending">
-                检查中
-              </span>
-              <span v-else class="result-pending">尚未检查</span>
+                停止检查
+              </el-button>
+              <template v-else>
+                <el-button
+                  type="primary"
+                  :icon="Play"
+                  :disabled="isAnyTesting || filteredModels.length === 0"
+                  @click="testBatch(filteredModels.map((model) => model.id))"
+                >
+                  {{ checkAllLabel }}
+                </el-button>
+                <el-button
+                  :disabled="isAnyTesting || selectedIds.length === 0"
+                  @click="testBatch(selectedIds)"
+                >
+                  检查选中 ({{ selectedIds.length }})
+                </el-button>
+              </template>
             </div>
-
-            <div v-if="results[model.id]" class="result-metrics">
-              <span
-                >总耗时 {{ formatDuration(results[model.id].totalMs) }}</span
-              >
-              <span
-                >TTFB {{ formatDuration(results[model.id].firstByteMs) }}</span
-              >
-              <span>HTTP {{ results[model.id].status || "-" }}</span>
-              <span>阶段 {{ results[model.id].phase || "-" }}</span>
-              <span v-if="results[model.id].usage">
-                {{ results[model.id].usage?.totalTokens }} tokens
-              </span>
-            </div>
-
-            <p v-if="results[model.id]" class="result-detail">
-              {{
-                results[model.id].errorDetail ||
-                results[model.id].responsePreview ||
-                results[model.id].errorMessage ||
-                "请求已完成"
-              }}
-            </p>
+            <el-input
+              v-model="searchQuery"
+              class="model-search"
+              placeholder="搜索模型 ID、名称或能力"
+              :prefix-icon="Search"
+              clearable
+            />
           </div>
-        </div>
-        <div v-else class="empty-selection">请选择至少一个模型。</div>
+
+          <el-table
+            ref="tableRef"
+            :data="filteredModels"
+            row-key="id"
+            height="420px"
+            class="model-table"
+            :row-class-name="rowClassName"
+            @row-click="(row: LlmModelInfo) => toggleModel(row.id)"
+          >
+            <el-table-column width="46" align="center">
+              <template #header>
+                <el-checkbox
+                  :model-value="allFilteredSelected"
+                  :indeterminate="someFilteredSelected"
+                  :disabled="isAnyTesting || filteredModels.length === 0"
+                  aria-label="选择当前筛选的全部模型"
+                  @change="toggleFilteredSelection(Boolean($event))"
+                  @click.stop
+                />
+              </template>
+              <template #default="{ row }">
+                <el-checkbox
+                  :model-value="selectedIds.includes(row.id)"
+                  :disabled="isAnyTesting"
+                  :aria-label="`选择模型 ${row.name || row.id}`"
+                  @change="toggleModel(row.id, Boolean($event))"
+                  @click.stop
+                />
+              </template>
+            </el-table-column>
+
+            <el-table-column label="模型" min-width="190">
+              <template #default="{ row }">
+                <div class="model-cell">
+                  <strong>{{ row.name || row.id }}</strong>
+                  <span>{{ row.id }}</span>
+                </div>
+              </template>
+            </el-table-column>
+
+            <el-table-column label="能力" width="104">
+              <template #default="{ row }">
+                <el-tag size="small" effect="plain">
+                  {{ capabilityLabel(row) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+
+            <el-table-column label="状态" width="92">
+              <template #default="{ row }">
+                <el-tag
+                  v-if="results[row.id]"
+                  :type="resultTagType(results[row.id])"
+                  size="small"
+                >
+                  {{ resultLabel(results[row.id]) }}
+                </el-tag>
+                <span v-else-if="loading[row.id]" class="status-pending">
+                  检查中
+                </span>
+                <span v-else class="status-pending">未检查</span>
+              </template>
+            </el-table-column>
+
+            <el-table-column label="结果" min-width="310">
+              <template #default="{ row }">
+                <div v-if="results[row.id]" class="result-cell">
+                  <div class="result-summary">
+                    <span>
+                      {{ endpointLabel(results[row.id].endpointType) }} /
+                      {{ formatDuration(results[row.id].totalMs) }}
+                    </span>
+                    <el-tooltip
+                      :content="
+                        expandedIds.includes(row.id) ? '收起详情' : '展开详情'
+                      "
+                      placement="top"
+                    >
+                      <el-button
+                        link
+                        :icon="
+                          expandedIds.includes(row.id) ? ChevronUp : ChevronDown
+                        "
+                        :aria-label="
+                          expandedIds.includes(row.id)
+                            ? '收起检查详情'
+                            : '展开检查详情'
+                        "
+                        @click.stop="toggleDetails(row.id)"
+                      />
+                    </el-tooltip>
+                  </div>
+                  <p>{{ resultSummary(results[row.id]) }}</p>
+                  <div
+                    v-if="expandedIds.includes(row.id)"
+                    class="result-details"
+                    @click.stop
+                  >
+                    <div class="result-metrics">
+                      <span
+                        >TTFB
+                        {{ formatDuration(results[row.id].firstByteMs) }}</span
+                      >
+                      <span>HTTP {{ results[row.id].status || "-" }}</span>
+                      <span>阶段 {{ results[row.id].phase || "-" }}</span>
+                      <span v-if="results[row.id].usage">
+                        {{ results[row.id].usage?.totalTokens }} tokens
+                      </span>
+                    </div>
+                    <pre>{{ resultDetail(results[row.id]) }}</pre>
+                  </div>
+                </div>
+                <span v-else class="result-empty">等待检查</span>
+              </template>
+            </el-table-column>
+
+            <el-table-column
+              label="操作"
+              width="72"
+              fixed="right"
+              align="center"
+            >
+              <template #default="{ row }">
+                <el-tooltip content="检查此模型" placement="top">
+                  <el-button
+                    :icon="Play"
+                    circle
+                    size="small"
+                    :loading="loading[row.id]"
+                    :disabled="batchRunning || loading[row.id]"
+                    aria-label="检查此模型"
+                    @click.stop="testSingle(row)"
+                  />
+                </el-tooltip>
+              </template>
+            </el-table-column>
+
+            <template #empty>
+              <div class="empty-state">
+                {{ models.length ? "没有匹配的模型" : "当前渠道没有配置模型" }}
+              </div>
+            </template>
+          </el-table>
+        </section>
       </div>
     </template>
 
     <template #footer>
-      <el-button v-if="!isRunning" @click="closeDialog">关闭</el-button>
-      <el-button
-        v-if="batchRunning"
-        type="danger"
-        :icon="Square"
-        @click="emit('cancel')"
-      >
-        停止检查
-      </el-button>
-      <el-button
-        v-else
-        type="primary"
-        :icon="Play"
-        :loading="isRunning"
-        :disabled="selectedIds.length === 0"
-        @click="startProbe"
-      >
-        {{ selectedIds.length > 1 ? "检查选中模型" : "检查模型" }}
-      </el-button>
+      <el-button :disabled="isAnyTesting" @click="closeDialog">关闭</el-button>
     </template>
   </BaseDialog>
 </template>
@@ -308,145 +575,260 @@ function formatDuration(value?: number): string {
   gap: 16px;
 }
 
-.probe-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.probe-settings {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.7fr) minmax(130px, 0.7fr) minmax(
+      140px,
+      0.8fr
+    );
+  gap: 14px;
+  align-items: start;
   padding-bottom: 16px;
   border-bottom: var(--border-width) solid var(--border-color);
 }
 
-.model-selector {
+.setting-field {
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
+  gap: 7px;
+  min-width: 0;
 }
 
-.control-label,
-.option-item > span {
-  color: var(--text-color-secondary);
+.setting-field label,
+.setting-label {
+  color: var(--text-color);
   font-size: 13px;
+  font-weight: 500;
 }
 
-.model-option {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
+.setting-field :deep(.el-select),
+.setting-field :deep(.el-input-number) {
+  width: 100%;
 }
 
-.model-option small {
+.setting-hint {
+  overflow: hidden;
   color: var(--text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.probe-options,
-.option-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.probe-options {
-  padding-left: 84px;
-  flex-wrap: wrap;
-}
-
-.option-item :deep(.el-input-number) {
-  width: 96px;
+.cost-consent {
+  grid-column: 1 / -1;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background-color: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
 }
 
 .batch-progress {
-  display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
-  font-size: 13px;
+  padding: 12px 14px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 6px;
+  background: var(--container-bg);
 }
 
-.result-list {
+.progress-heading {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+  color: var(--text-color-secondary);
+  font-size: 12px;
+}
+
+.progress-heading span:first-child {
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+.model-section {
+  min-width: 0;
+}
+
+.model-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.model-search {
+  width: 260px;
+  flex: 0 1 260px;
+}
+
+.model-table {
+  width: 100%;
   border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   overflow: hidden;
 }
 
-.result-row {
-  padding: 14px 16px;
-  background: var(--card-bg);
+:deep(.model-table .el-table__row) {
+  cursor: pointer;
 }
 
-.result-row + .result-row {
-  border-top: var(--border-width) solid var(--border-color);
+:deep(.model-table .probe-row-selected > .el-table__cell) {
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  ) !important;
 }
 
-.result-heading,
-.result-metrics {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+:deep(.model-table .probe-row-selected > .el-table__cell:first-child) {
+  box-shadow: inset 3px 0 0 var(--el-color-primary);
 }
 
-.result-heading {
-  justify-content: space-between;
-}
-
-.result-model {
+.model-cell,
+.model-cell strong,
+.model-cell span {
   min-width: 0;
 }
 
-.result-model strong,
-.result-model span {
+.model-cell strong,
+.model-cell span {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.result-model strong {
+.model-cell strong {
+  color: var(--text-color);
   font-size: 13px;
   font-weight: 600;
 }
 
-.result-model span,
-.result-pending,
-.result-metrics {
+.model-cell span {
+  margin-top: 3px;
+  color: var(--text-color-secondary);
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.status-pending,
+.result-empty {
   color: var(--text-color-secondary);
   font-size: 12px;
 }
 
-.result-model span {
-  margin-top: 3px;
-  font-family: monospace;
+.result-cell {
+  min-width: 0;
+  padding: 3px 0;
+}
+
+.result-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-color-secondary);
+  font-size: 12px;
+}
+
+.result-cell p {
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: var(--text-color);
+  font-size: 12px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result-details {
+  margin-top: 9px;
+  padding: 9px 10px;
+  border-radius: 4px;
+  background: var(--input-bg);
 }
 
 .result-metrics {
-  margin-top: 10px;
+  display: flex;
   flex-wrap: wrap;
+  gap: 6px 12px;
+  color: var(--text-color-secondary);
+  font-size: 11px;
 }
 
-.result-detail {
+.result-details pre {
+  max-height: 120px;
   margin: 8px 0 0;
+  overflow: auto;
   color: var(--text-color);
-  font-size: 12px;
-  line-height: 1.6;
+  font-family: monospace;
+  font-size: 11px;
+  line-height: 1.5;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
-.empty-selection {
-  padding: 28px;
-  text-align: center;
+.empty-state {
+  padding: 32px 16px;
   color: var(--text-color-secondary);
+  font-size: 13px;
 }
 
-@media (max-width: 640px) {
-  .model-selector {
+@media (max-width: 760px) {
+  .probe-settings {
     grid-template-columns: 1fr;
   }
 
-  .probe-options {
-    padding-left: 0;
+  .cost-consent {
+    grid-column: auto;
   }
+
+  .model-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .model-search {
+    width: 100%;
+    flex-basis: auto;
+  }
+}
+</style>
+
+<style>
+.probe-endpoint-popper {
+  width: min(520px, calc(100vw - 32px));
+}
+
+.probe-endpoint-popper .el-select-dropdown__item {
+  height: auto;
+  min-height: 48px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  line-height: 1.35;
+}
+
+.endpoint-option {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.endpoint-option small {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  color: var(--text-color-secondary);
+  font-family: monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

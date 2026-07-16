@@ -71,11 +71,17 @@ export const callClaudeChatApi = async (
 };
 
 function buildProviderProfile(profile: LlmProfile): ProviderProfile {
+  const anthropicEndpoint =
+    profile.customEndpoints?.anthropicMessages ??
+    profile.customEndpoints?.chatCompletions;
   return {
     provider: profile.type,
     baseUrl: profile.baseUrl,
     apiKey: profile.apiKeys[0],
     headers: resolveCustomHeaders(profile.customHeaders),
+    endpoints: anthropicEndpoint
+      ? { ...profile.customEndpoints, messages: anthropicEndpoint }
+      : profile.customEndpoints,
   };
 }
 

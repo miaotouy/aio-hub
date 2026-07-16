@@ -843,7 +843,7 @@ const networkSettingSummary = computed(() => {
 
     <ModelProbeDialog
       v-model="showModelProbeDialog"
-      :models="editForm.models"
+      :profile="editForm"
       :initial-model-id="modelProbeInitialId"
       :results="modelProbeResults"
       :loading="modelTestLoading"
@@ -1042,7 +1042,10 @@ const networkSettingSummary = computed(() => {
 }
 
 .network-collapse :deep(.el-collapse-item__header:hover) {
-  background-color: rgba(var(--el-color-primary-rgb), 0.05);
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.05)
+  );
 }
 
 .network-collapse :deep(.el-collapse-item__content) {

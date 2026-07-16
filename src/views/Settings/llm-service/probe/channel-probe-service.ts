@@ -4,7 +4,6 @@ import {
   rerankAdapter,
   resolveProbePlan,
   validateProbeResponse,
-  type ChannelProbeResult,
   type ProbePlan,
   type TransportObserver,
 } from "@aiohub/llm-core";
@@ -20,7 +19,16 @@ import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
 import { inspectorHookRegistry } from "@/tools/llm-inspector/core/hookRegistry";
 import { resolveCustomHeaders } from "../config/customHeadersPresets";
-import type { BatchProbeRequest, ChannelProbeRequest } from "./types";
+import {
+  resolveEffectiveProbeEndpointType,
+  resolveProbeTarget,
+} from "./endpoint-options";
+import type {
+  BatchProbeRequest,
+  ChannelProbeRequest,
+  ChannelProbeResult,
+  ProbeEndpointType,
+} from "./types";
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 const MAX_CONCURRENCY = 8;
@@ -50,6 +58,8 @@ export function createChannelProbeService(
     const profile = cloneProfile(request.profile);
     const requestId = `probe-${profile.id}-${now()}-${Math.random().toString(36).slice(2)}`;
     let firstByteMs: number | undefined;
+    let resultCapability = request.capability;
+    let resultEndpointType = request.endpointType ?? "auto";
     const observer: TransportObserver = {
       onResponseStart: () => {
         firstByteMs ??= Math.max(0, monotonicNow() - startedAt);
@@ -73,6 +83,7 @@ export function createChannelProbeService(
         requestId,
         probeKind: request.kind,
         probeCapability: request.capability,
+        probeEndpointType: request.endpointType ?? "auto",
       });
     }
 
@@ -92,16 +103,27 @@ export function createChannelProbeService(
       }
 
       const model = requireModel(profile, request.modelId);
+      const target = resolveProbeTarget(
+        profile,
+        request.endpointType ?? "auto"
+      );
       const plan = resolveProbePlan(model, {
-        capability: request.capability,
-        stream: request.stream,
+        capability: request.capability ?? target.capability,
+        stream: target.supportsStream && request.stream,
       });
+      resultCapability = plan.capability;
+      resultEndpointType = resolveEffectiveProbeEndpointType(
+        profile,
+        plan.capability,
+        request.endpointType
+      );
       if (!plan.supported) {
         return failureResult(request, startedAt, {
           category: "unsupported-capability",
           phase: "prepare",
           message: `${capabilityLabel(plan.capability)}不支持自动检查`,
           capability: plan.capability,
+          endpointType: resultEndpointType,
         });
       }
       if (plan.requiresExplicitConsent && !request.allowCostlyMedia) {
@@ -110,10 +132,11 @@ export function createChannelProbeService(
           phase: "prepare",
           message: "图片和音频检查会产生真实调用费用，需显式确认",
           capability: plan.capability,
+          endpointType: resultEndpointType,
         });
       }
 
-      const effectiveProfile = withExplicitKey(profile, request.apiKey);
+      const effectiveProfile = withExplicitKey(target.profile, request.apiKey);
       const adapter = adapterMap[effectiveProfile.type];
       if (!adapter) {
         throw new Error(`不支持的提供商类型: ${effectiveProfile.type}`);
@@ -135,11 +158,13 @@ export function createChannelProbeService(
           phase: "semantic-validation",
           message: validation.errorMessage ?? "响应语义校验失败",
           capability: plan.capability,
+          endpointType: resultEndpointType,
           firstByteMs,
         });
       }
       return successResult(request, startedAt, firstByteMs, {
         capability: plan.capability,
+        endpointType: resultEndpointType,
         responsePreview: validation.preview,
         usage: execution.response?.usage,
       });
@@ -148,7 +173,8 @@ export function createChannelProbeService(
       return failureResult(request, startedAt, {
         ...classified,
         firstByteMs,
-        capability: request.capability,
+        capability: resultCapability,
+        endpointType: resultEndpointType,
       });
     } finally {
       inspectorHookRegistry.deleteContext(requestId);
@@ -177,6 +203,7 @@ export function createChannelProbeService(
           kind: "batch-model",
           profile,
           modelId,
+          endpointType: request.endpointType,
           stream: request.stream,
           timeoutMs: request.timeoutMs,
           signal: request.signal,
@@ -191,7 +218,11 @@ export function createChannelProbeService(
 
     await Promise.all(Array.from({ length: concurrency }, worker));
     for (let index = 0; index < modelIds.length; index += 1) {
-      results[index] ??= cancelledResult(modelIds[index], now());
+      results[index] ??= cancelledResult(
+        modelIds[index],
+        now(),
+        request.endpointType ?? "auto"
+      );
     }
     return results;
   }
@@ -208,6 +239,7 @@ export function createChannelProbeService(
       success: true,
       kind: request.kind,
       modelId: request.modelId,
+      endpointType: request.endpointType ?? "auto",
       phase: "semantic-validation",
       totalMs: Math.max(0, monotonicNow() - startedAt),
       firstByteMs,
@@ -227,6 +259,7 @@ export function createChannelProbeService(
       status?: number;
       firstByteMs?: number;
       capability?: ChannelProbeResult["capability"];
+      endpointType?: ProbeEndpointType;
     }
   ): ChannelProbeResult {
     return {
@@ -234,6 +267,7 @@ export function createChannelProbeService(
       kind: request.kind,
       capability: values.capability,
       modelId: request.modelId,
+      endpointType: values.endpointType ?? request.endpointType ?? "auto",
       phase: values.phase,
       category: values.category,
       status: values.status,
@@ -418,12 +452,14 @@ function embeddingToResponse(response: EmbeddingResponse): LlmResponse {
 
 function cancelledResult(
   modelId: string,
-  testedAt: number
+  testedAt: number,
+  endpointType: ProbeEndpointType
 ): ChannelProbeResult {
   return {
     success: false,
     kind: "batch-model",
     modelId,
+    endpointType,
     phase: "prepare",
     category: "cancelled",
     totalMs: 0,

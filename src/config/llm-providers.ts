@@ -118,6 +118,7 @@ export const providerTypes: ProviderTypeInfo[] = [
     },
     endpointPlaceholders: {
       chatCompletions: "/v1/messages",
+      anthropicMessages: "/v1/messages",
       completions: "暂不支持",
       embeddings: "暂不支持",
       imagesGenerations: "暂不支持",
@@ -167,6 +168,7 @@ export const providerTypes: ProviderTypeInfo[] = [
     },
     endpointPlaceholders: {
       chatCompletions: "models/{model}:generateContent",
+      geminiGenerateContent: "/v1beta/models/{model}:generateContent",
       completions: "暂不支持",
       models: "models",
       embeddings: "models/{model}:embedContent",
@@ -294,6 +296,7 @@ export const providerTypes: ProviderTypeInfo[] = [
     },
     endpointPlaceholders: {
       chatCompletions: "/v1/responses",
+      responses: "/v1/responses",
       completions: "暂不支持",
       imagesGenerations: "/v1/responses",
       imagesEdits: "/v1/responses",

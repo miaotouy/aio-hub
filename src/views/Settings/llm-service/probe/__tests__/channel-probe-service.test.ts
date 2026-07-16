@@ -46,7 +46,11 @@ describe("createChannelProbeService", () => {
       apiKey: "explicit-key",
     });
 
-    expect(result).toMatchObject({ success: true, firstByteMs: 10 });
+    expect(result).toMatchObject({
+      success: true,
+      firstByteMs: 10,
+      endpointType: "openai-chat",
+    });
     expect(receivedProfile).not.toBe(source);
     expect(receivedProfile?.apiKeys).toEqual(["explicit-key"]);
     expect(source.apiKeys).toEqual(["profile-key"]);
@@ -65,7 +69,82 @@ describe("createChannelProbeService", () => {
       success: false,
       phase: "semantic-validation",
       category: "provider",
+      endpointType: "openai-chat",
     });
+  });
+
+  it.each([
+    ["openai-chat", "openai-compatible", "chatCompletions", true],
+    ["openai-responses", "openai-responses", "responses", true],
+    ["anthropic-messages", "claude", "anthropicMessages", true],
+    ["gemini-generate-content", "gemini", "geminiGenerateContent", true],
+  ] as const)(
+    "routes %s through its formal adapter with an immutable endpoint snapshot",
+    async (endpointType, providerType, endpointKey, expectedStream) => {
+      const source = profile();
+      source.customEndpoints = {
+        chatCompletions: "/legacy/chat",
+        responses: "/custom/responses",
+        anthropicMessages: "/custom/messages",
+        geminiGenerateContent: "/custom/models/{model}:generateContent",
+      };
+      let receivedProfile: LlmProfile | undefined;
+      let receivedStream: boolean | undefined;
+      const chat = vi.fn(async (value: LlmProfile, options) => {
+        receivedProfile = value;
+        receivedStream = options.stream;
+        options.onStream?.("ok");
+        return { content: "ok" };
+      });
+      const service = createChannelProbeService({
+        adapters: { [providerType]: { chat } },
+      });
+
+      const result = await service.probe({
+        kind: "inference",
+        profile: source,
+        modelId: "chat-model",
+        endpointType,
+        stream: true,
+      });
+
+      expect(result).toMatchObject({ success: true, endpointType });
+      expect(receivedProfile?.type).toBe(providerType);
+      expect(receivedProfile?.customEndpoints?.[endpointKey]).toBe(
+        source.customEndpoints[endpointKey]
+      );
+      expect(receivedStream).toBe(expectedStream);
+      expect(source.type).toBe("openai");
+      expect(source.customEndpoints.chatCompletions).toBe("/legacy/chat");
+    }
+  );
+
+  it("forces non-streaming endpoint plans and marks the selected endpoint", async () => {
+    const source = profile(["embedding-model"]);
+    const embedding = vi.fn(async (_value, options) => ({
+      model: options.modelId,
+      data: [{ index: 0, object: "embedding" as const, embedding: [0.1, 0.2] }],
+      usage: { promptTokens: 1, totalTokens: 1 },
+      object: "list" as const,
+    }));
+    const service = createChannelProbeService({
+      adapters: { "openai-compatible": { chat: vi.fn(), embedding } },
+    });
+
+    const result = await service.probe({
+      kind: "inference",
+      profile: source,
+      modelId: "embedding-model",
+      endpointType: "embeddings",
+      stream: true,
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      capability: "embedding",
+      endpointType: "embeddings",
+    });
+    expect(embedding).toHaveBeenCalledOnce();
   });
 
   it("keeps batch concurrency bounded and result order stable", async () => {
@@ -92,6 +171,39 @@ describe("createChannelProbeService", () => {
     expect(maximum).toBe(2);
     expect(results.map((result) => result.modelId)).toEqual(modelIds);
     expect(results.every((result) => result.success)).toBe(true);
+  });
+
+  it("passes the endpoint through a batch and labels unstarted cancellations", async () => {
+    const controller = new AbortController();
+    const adapter: LlmAdapter = {
+      chat: vi.fn(async (_value, options) => {
+        controller.abort();
+        return { content: options.modelId };
+      }),
+    };
+    const service = createChannelProbeService({
+      adapters: { "openai-responses": adapter },
+      now: () => 42,
+    });
+
+    const results = await service.probeBatch({
+      profile: profile(["a", "b", "c"]),
+      modelIds: ["a", "b", "c"],
+      concurrency: 1,
+      endpointType: "openai-responses",
+      signal: controller.signal,
+    });
+
+    expect(results.map((result) => result.endpointType)).toEqual([
+      "openai-responses",
+      "openai-responses",
+      "openai-responses",
+    ]);
+    expect(results.map((result) => result.category)).toEqual([
+      undefined,
+      "cancelled",
+      "cancelled",
+    ]);
   });
 
   it("does not route video models through chat", async () => {

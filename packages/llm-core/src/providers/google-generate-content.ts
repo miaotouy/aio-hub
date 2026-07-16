@@ -52,7 +52,9 @@ export function buildGoogleGenerateContentUrl(
   profile: ProviderProfile,
   request: LlmRequest
 ): string {
-  const customEndpoint = profile.endpoints?.chatCompletions;
+  const customEndpoint =
+    profile.endpoints?.geminiGenerateContent ??
+    profile.endpoints?.chatCompletions;
   if (customEndpoint) {
     const endpoint = customEndpoint.split("{model}").join(request.model);
     const url = endpoint.startsWith("http")

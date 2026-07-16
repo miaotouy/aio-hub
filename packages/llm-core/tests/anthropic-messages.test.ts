@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AnthropicMessagesStreamDecoder,
+  buildAnthropicMessagesUrl,
   buildAnthropicMessagesRequest,
   parseAnthropicMessagesResponseValue,
   type LlmRequest,
@@ -15,6 +16,21 @@ const profile: ProviderProfile = {
 };
 
 describe("Anthropic Messages provider adapter", () => {
+  it("supports relative and absolute Messages endpoint overrides", () => {
+    expect(
+      buildAnthropicMessagesUrl({
+        ...profile,
+        endpoints: { messages: "/custom/messages" },
+      })
+    ).toBe("https://api.anthropic.com/custom/messages");
+    expect(
+      buildAnthropicMessagesUrl({
+        ...profile,
+        endpoints: { messages: "https://gateway.example.com/v1/messages" },
+      })
+    ).toBe("https://gateway.example.com/v1/messages");
+  });
+
   it("builds system, multimodal, tool, thinking and header fields", () => {
     const request: LlmRequest = {
       model: "claude-sonnet-4-5",

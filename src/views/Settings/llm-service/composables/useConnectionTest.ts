@@ -18,7 +18,11 @@ import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
 import { customMessage } from "@/utils/customMessage";
 import { createChannelProbeService } from "../probe/channel-probe-service";
 import { getKeyHealthAction } from "../probe/key-health-policy";
-import type { ChannelProbeResult } from "../probe/types";
+import type {
+  BatchProbeProgress,
+  ChannelProbeResult,
+  ProbeEndpointType,
+} from "../probe/types";
 
 const probeService = createChannelProbeService();
 
@@ -33,7 +37,7 @@ export function useConnectionTest(
   const keyTestLoading = ref<Record<string, boolean>>({});
   const modelListResult = ref<ChannelProbeResult>();
   const modelProbeResults = ref<Record<string, ChannelProbeResult>>({});
-  const batchProgress = ref({ completed: 0, total: 0 });
+  const batchProgress = ref<BatchProbeProgress>(createEmptyBatchProgress());
   let batchController: AbortController | undefined;
 
   watch(
@@ -46,7 +50,7 @@ export function useConnectionTest(
       keyTestLoading.value = {};
       modelListResult.value = undefined;
       modelProbeResults.value = {};
-      batchProgress.value = { completed: 0, total: 0 };
+      batchProgress.value = createEmptyBatchProgress();
     }
   );
 
@@ -68,7 +72,11 @@ export function useConnectionTest(
 
   const handleTestModel = async (
     model: LlmModelInfo,
-    options: { stream?: boolean; allowCostlyMedia?: boolean } = {}
+    options: {
+      endpointType?: ProbeEndpointType;
+      stream?: boolean;
+      allowCostlyMedia?: boolean;
+    } = {}
   ) => {
     if (!selectedProfile.value) return;
     modelTestLoading.value[model.id] = true;
@@ -77,6 +85,7 @@ export function useConnectionTest(
         kind: "inference",
         profile: editForm.value,
         modelId: model.id,
+        endpointType: options.endpointType,
         stream: options.stream,
         allowCostlyMedia: options.allowCostlyMedia,
       });
@@ -127,6 +136,7 @@ export function useConnectionTest(
     modelIds: string[],
     options: {
       concurrency?: number;
+      endpointType?: ProbeEndpointType;
       stream?: boolean;
       allowCostlyMedia?: boolean;
     } = {}
@@ -135,7 +145,10 @@ export function useConnectionTest(
     batchController?.abort();
     batchController = new AbortController();
     isBatchTesting.value = true;
-    batchProgress.value = { completed: 0, total: modelIds.length };
+    batchProgress.value = {
+      ...createEmptyBatchProgress(),
+      total: modelIds.length,
+    };
     modelIds.forEach((modelId) => {
       modelTestLoading.value[modelId] = true;
     });
@@ -145,6 +158,7 @@ export function useConnectionTest(
         profile: editForm.value,
         modelIds,
         concurrency: options.concurrency,
+        endpointType: options.endpointType,
         stream: options.stream,
         allowCostlyMedia: options.allowCostlyMedia,
         signal: batchController.signal,
@@ -156,9 +170,27 @@ export function useConnectionTest(
             };
             modelTestLoading.value[result.modelId] = false;
           }
-          batchProgress.value = { completed, total };
+          const previous = batchProgress.value;
+          batchProgress.value = {
+            completed,
+            total,
+            succeeded: previous.succeeded + (result.success ? 1 : 0),
+            failed:
+              previous.failed +
+              (!result.success && result.category !== "cancelled" ? 1 : 0),
+            cancelled:
+              previous.cancelled + (result.category === "cancelled" ? 1 : 0),
+          };
         },
       });
+      const nextResults = { ...modelProbeResults.value };
+      for (const result of results) {
+        if (!result.modelId) continue;
+        nextResults[result.modelId] = result;
+        modelTestLoading.value[result.modelId] = false;
+      }
+      modelProbeResults.value = nextResults;
+      batchProgress.value = summarizeBatchProgress(results);
       const succeeded = results.filter((result) => result.success).length;
       const cancelled = results.filter(
         (result) => result.category === "cancelled"
@@ -256,4 +288,31 @@ function formatDuration(value: number): string {
 
 function cloneProfile(profile: LlmProfile): LlmProfile {
   return JSON.parse(JSON.stringify(profile));
+}
+
+function createEmptyBatchProgress(): BatchProbeProgress {
+  return {
+    completed: 0,
+    total: 0,
+    succeeded: 0,
+    failed: 0,
+    cancelled: 0,
+  };
+}
+
+function summarizeBatchProgress(
+  results: ChannelProbeResult[]
+): BatchProbeProgress {
+  return results.reduce<BatchProbeProgress>(
+    (progress, result) => ({
+      completed: progress.completed + 1,
+      total: progress.total,
+      succeeded: progress.succeeded + (result.success ? 1 : 0),
+      failed:
+        progress.failed +
+        (!result.success && result.category !== "cancelled" ? 1 : 0),
+      cancelled: progress.cancelled + (result.category === "cancelled" ? 1 : 0),
+    }),
+    { ...createEmptyBatchProgress(), total: results.length }
+  );
 }

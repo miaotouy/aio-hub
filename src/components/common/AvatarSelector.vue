@@ -55,7 +55,8 @@ interface Props {
   avatarHistory?: string[];
   /**
    * AppData 下的存储子目录路径，由调用方传入。
-   * 例如 `llm-chat/agents/{id}` 或 `llm-chat/user-profiles/{id}`。
+   * 例如 `agent-manager/agents/{id}` 或
+   * `user-profile-manager/user-profiles/{id}`。
    * 用于上传、读取历史和删除头像文件。
    */
   storageSubdirectory?: string;
@@ -390,9 +391,9 @@ const clearIcon = () => {
   customMessage.info("已重置为默认图标");
 };
 
-// 解析最终的头像显示路径
-const resolvedAvatarSrc = computed(() => {
-  const icon = props.modelValue?.trim();
+// 统一解析主预览和历史头像，确保调用方的路径工具对所有缩略图生效
+const resolveAvatarSource = (rawIcon: string) => {
+  const icon = rawIcon?.trim();
   if (!icon) return "";
 
   // 优先使用调用方提供的自定义解析函数
@@ -406,7 +407,10 @@ const resolvedAvatarSrc = computed(() => {
   }
 
   return icon;
-});
+};
+
+// 解析最终的头像显示路径
+const resolvedAvatarSrc = computed(() => resolveAvatarSource(props.modelValue));
 
 // 检查图标是否为可点击的图片路径
 const sanitizedModelValue = computed(() => {
@@ -621,7 +625,7 @@ const handleIconClick = async () => {
               @click="selectHistoryAvatar(filename)"
             >
               <Avatar
-                :src="`appdata://${storageSubdirectory}/${filename}`"
+                :src="resolveAvatarSource(filename)"
                 :size="64"
                 shape="square"
                 :radius="8"

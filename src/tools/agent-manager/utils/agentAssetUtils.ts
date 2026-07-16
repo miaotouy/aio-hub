@@ -694,6 +694,11 @@ function isLikelyFilename(icon: string): boolean {
   );
 }
 
+/** 获取智能体目录相对于 AppData 的路径。 */
+export function getAgentStorageSubdirectory(agentId: string): string {
+  return `agent-manager/agents/${agentId}`;
+}
+
 /**
  * 解析智能体头像路径的纯函数
  */
@@ -720,7 +725,7 @@ export function resolveAgentAvatarPath(
   // 自动推断：如果看起来像文件名（包含扩展名且无路径分隔符），
   // 则认为是 AppData 中的资源，自动拼接路径。
   if (isLikelyFilename(icon)) {
-    return `appdata://agent-manager/agents/${agent.id}/${icon}`;
+    return `appdata://${getAgentStorageSubdirectory(agent.id)}/${icon}`;
   }
 
   return icon;

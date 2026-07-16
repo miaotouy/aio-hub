@@ -31,6 +31,11 @@ function isLikelyFilename(icon: string): boolean {
   );
 }
 
+/** 获取用户档案目录相对于 AppData 的路径。 */
+export function getProfileStorageSubdirectory(profileId: string): string {
+  return `user-profile-manager/user-profiles/${profileId}`;
+}
+
 /**
  * 解析用户档案头像路径的纯函数
  */
@@ -46,10 +51,18 @@ export function resolveProfileAvatarPath(
     return null;
   }
 
+  // 历史兼容：迁移后的头像文件位于新模块目录，旧协议路径需同步重定向
+  if (icon.startsWith("appdata://llm-chat/user-profiles/")) {
+    return icon.replace(
+      "appdata://llm-chat/user-profiles/",
+      "appdata://user-profile-manager/user-profiles/"
+    );
+  }
+
   // 自动推断：如果看起来像文件名（包含扩展名且无路径分隔符），
   // 则认为是 AppData 中的资源，自动拼接路径。
   if (isLikelyFilename(icon)) {
-    return `appdata://user-profile-manager/user-profiles/${profile.id}/${icon}`;
+    return `appdata://${getProfileStorageSubdirectory(profile.id)}/${icon}`;
   }
 
   return icon;

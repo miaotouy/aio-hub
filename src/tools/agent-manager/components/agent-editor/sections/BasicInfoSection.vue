@@ -19,6 +19,10 @@ import { inject, computed } from "vue";
 import AvatarSelector from "@/components/common/AvatarSelector.vue";
 import { AgentCategoryLabels } from "../../../types/agent";
 import { useAgentStore } from "../../../stores/agentStore";
+import {
+  getAgentStorageSubdirectory,
+  resolveAgentAvatarPath,
+} from "../../../utils/agentAssetUtils";
 
 // 宏示例常量（避免格式化工具添加空格）
 const charMacro = "{{char}}";
@@ -26,6 +30,15 @@ const charMacro = "{{char}}";
 const editForm = inject<any>("agent-edit-form");
 const agent = inject<any>("agent-instance");
 const agentStore = useAgentStore();
+
+const agentStorageSubdirectory = computed(() =>
+  agent?.id ? getAgentStorageSubdirectory(agent.id) : ""
+);
+
+const resolveAvatarSrc = (icon: string) => {
+  if (!agent?.id) return icon;
+  return resolveAgentAvatarPath({ id: agent.id, icon }) ?? icon;
+};
 
 // 从所有 agent 中提取的不重复标签列表
 const allTags = computed(() => {
@@ -70,7 +83,8 @@ const allTags = computed(() => {
         v-model="editForm.icon"
         v-model:avatar-history="editForm.avatarHistory"
         :entity-id="agent?.id"
-        :storage-subdirectory="agent?.id ? `llm-chat/agents/${agent.id}` : ''"
+        :storage-subdirectory="agentStorageSubdirectory"
+        :resolve-avatar-src="resolveAvatarSrc"
         :name-for-fallback="editForm.name"
       />
     </el-form-item>

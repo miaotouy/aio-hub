@@ -54,9 +54,8 @@
         :model-value="formData.icon || ''"
         :avatar-history="formData.avatarHistory"
         :entity-id="profileId"
-        :storage-subdirectory="
-          profileId ? `llm-chat/user-profiles/${profileId}` : ''
-        "
+        :storage-subdirectory="profileStorageSubdirectory"
+        :resolve-avatar-src="resolveAvatarSrc"
         :name-for-fallback="formData.name"
         @update:model-value="handleIconUpdate"
         @update:avatar-history="handleHistoryUpdate"
@@ -202,6 +201,10 @@ import WorldbookSelector from "@/tools/st-worldbook-manager/components/Worldbook
 import QuickActionSelector from "@/tools/llm-chat/components/quick-action/QuickActionSelector.vue";
 import type { RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 import type { ChatRegexConfig } from "@/tools/llm-chat/types";
+import {
+  getProfileStorageSubdirectory,
+  resolveProfileAvatarPath,
+} from "../../utils/profileAssetUtils";
 
 // 宏示例常量（避免格式化工具添加空格）
 const userMacro = "{{user}}";
@@ -273,6 +276,15 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   "update:modelValue": [value: UserProfileFormData];
 }>();
+
+const profileStorageSubdirectory = computed(() =>
+  props.profileId ? getProfileStorageSubdirectory(props.profileId) : ""
+);
+
+const resolveAvatarSrc = (icon: string) => {
+  if (!props.profileId) return icon;
+  return resolveProfileAvatarPath({ id: props.profileId, icon }) ?? icon;
+};
 
 const formRules = computed(() => {
   if (!props.required) return {};

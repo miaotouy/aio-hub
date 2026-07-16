@@ -366,8 +366,7 @@ export function parsePromptFile(
   // 优先使用 characterId 查找，如果找不到或未提供，则默认使用最后一个配置
   // (根据用户反馈，最后一个通常是当前激活的)
   let orderConfig:
-    | SillyTavernPromptFile["prompt_order"][number]["order"]
-    | undefined;
+    SillyTavernPromptFile["prompt_order"][number]["order"] | undefined;
 
   if (characterId !== undefined) {
     orderConfig = file.prompt_order?.find(

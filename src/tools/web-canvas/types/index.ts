@@ -30,10 +30,7 @@ export interface CanvasState {
 }
 
 export type CanvasProjectHealth =
-  | "healthy"
-  | "missing"
-  | "unindexed"
-  | "corrupted";
+  "healthy" | "missing" | "unindexed" | "corrupted";
 
 // 画布列表项（用于管理界面展示）
 export interface CanvasListItem {

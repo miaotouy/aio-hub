@@ -110,11 +110,7 @@ export interface DanmakuConfig {
 // ============ 外部播放器模式相关类型 ============
 
 export type ExternalPlayerType =
-  | "mpc-be"
-  | "mpc-hc"
-  | "potplayer"
-  | "mpv"
-  | "vlc";
+  "mpc-be" | "mpc-hc" | "potplayer" | "mpv" | "vlc";
 
 /** 外部播放器状态 */
 export interface ExternalPlayerStatus {

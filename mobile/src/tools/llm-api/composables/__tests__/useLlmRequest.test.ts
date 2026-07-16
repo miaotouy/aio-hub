@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { LlmProfile } from "../../types";
-import type {
-  LlmRequestOptions,
-  LlmResponse,
-} from "../../types/common";
+import type { LlmRequestOptions, LlmResponse } from "../../types/common";
 import {
   createLlmRequest,
   type LlmRequestDependencies,
@@ -26,9 +23,10 @@ function createDependencies(
   profiles: LlmProfile[],
   selectedProfile: LlmProfile | null = profiles[0] ?? null
 ) {
-  const executeAdapter = vi.fn<
-    (profile: LlmProfile, options: LlmRequestOptions) => Promise<LlmResponse>
-  >();
+  const executeAdapter =
+    vi.fn<
+      (profile: LlmProfile, options: LlmRequestOptions) => Promise<LlmResponse>
+    >();
   const dependencies: LlmRequestDependencies = {
     store: {
       isLoaded: true,

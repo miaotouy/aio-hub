@@ -126,8 +126,7 @@ const applyDepthInjections = <T extends { role: string; content: any }>(
   presetMessages: ChatMessageNode[],
   agentId: string,
   agentAssets:
-    | import("@/tools/agent-manager/types/agent").AgentAsset[]
-    | undefined
+    import("@/tools/agent-manager/types/agent").AgentAsset[] | undefined
 ): (
   | T
   | {
@@ -343,11 +342,9 @@ export const injectionAssembler: ContextProcessor = {
 
     // 准备模型和渠道信息
     const modelInfo = context.sharedData.get("model") as
-      | LlmModelInfo
-      | undefined;
+      LlmModelInfo | undefined;
     const profileInfo = context.sharedData.get("profile") as
-      | LlmProfile
-      | undefined;
+      LlmProfile | undefined;
 
     // 根据模型匹配规则等动态调整预设消息的启用状态
     const presetMessages = allPresetMessages.map((msg: ChatMessageNode) => {

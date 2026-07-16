@@ -260,8 +260,7 @@ export async function fillMissingTokenMetadata(
           try {
             let fullContent = node.content;
             let mediaAttachments:
-              | Array<Asset | PipelineAttachment>
-              | undefined = node.attachments;
+              Array<Asset | PipelineAttachment> | undefined = node.attachments;
 
             if (
               node.role === "user" &&

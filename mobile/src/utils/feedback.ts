@@ -2,7 +2,10 @@ import { Dialog, Snackbar } from "@varlet/ui";
 
 export type MessageType = "success" | "warning" | "info" | "error";
 
-export function customMessage(message: string, type: MessageType = "info"): void {
+export function customMessage(
+  message: string,
+  type: MessageType = "info"
+): void {
   Snackbar({ content: message, type });
 }
 

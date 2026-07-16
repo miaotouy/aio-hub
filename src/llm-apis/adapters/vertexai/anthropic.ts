@@ -21,10 +21,7 @@ import {
 import type { LlmProfile } from "@/types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
 import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
-import {
-  toGeminiCoreRequest,
-  toGeminiProviderProfile,
-} from "../gemini/chat";
+import { toGeminiCoreRequest, toGeminiProviderProfile } from "../gemini/chat";
 
 export async function callVertexAiClaude(
   profile: LlmProfile,

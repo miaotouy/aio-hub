@@ -224,12 +224,10 @@ const parsedJson = computed(() => {
     }
   }
 
-  if (
-    !(
-      (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
-      (trimmed.startsWith("[") && trimmed.endsWith("]"))
-    )
-  ) {
+  if (!(
+    (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+    (trimmed.startsWith("[") && trimmed.endsWith("]"))
+  )) {
     return null;
   }
   try {

@@ -36,7 +36,11 @@ describe("tokenCounting", () => {
 
   it("normalizes successful single and batch command results", async () => {
     invokeMock
-      .mockResolvedValueOnce({ count: 3, tokenizer: "o200k_base", estimated: true })
+      .mockResolvedValueOnce({
+        count: 3,
+        tokenizer: "o200k_base",
+        estimated: true,
+      })
       .mockResolvedValueOnce({
         counts: [3, 2],
         total: 5,
@@ -73,7 +77,9 @@ describe("tokenCounting", () => {
 
     expect(result).toEqual({
       counts: texts.map(estimateTokensByCharacters),
-      total: texts.map(estimateTokensByCharacters).reduce((sum, count) => sum + count, 0),
+      total: texts
+        .map(estimateTokensByCharacters)
+        .reduce((sum, count) => sum + count, 0),
       tokenizer: "character_fallback",
       estimated: true,
       fallback: true,

@@ -446,16 +446,14 @@ const filteredCoverageItems = computed(() => {
   } else if (mtf === "has-capabilities") {
     result = result.filter((item) => {
       const caps = item.finalProperties?.capabilities as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       return !!caps && Object.values(caps).some(Boolean);
     });
   } else if (mtf === "no-capabilities") {
     result = result.filter((item) => {
       if (!item.isMatched) return false;
       const caps = item.finalProperties?.capabilities as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       return !caps || !Object.values(caps).some(Boolean);
     });
   }

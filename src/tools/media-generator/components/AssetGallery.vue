@@ -61,8 +61,7 @@ const loadGallery = async () => {
     filterSourceModule: "media-generator",
     filterOrigin: "generated",
     filterType: (filterType.value === "all" ? undefined : filterType.value) as
-      | AssetType
-      | undefined,
+      AssetType | undefined,
     sortBy: "date",
     sortOrder: "desc",
   });

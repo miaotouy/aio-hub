@@ -43,7 +43,8 @@ export async function fetchModelsFromApi(
         provider: profile.type,
         endpoint: providerInfo.modelListEndpoint,
         includeAllOutputModalities:
-          profile.type === "openrouter" || profile.baseUrl.includes("openrouter.ai"),
+          profile.type === "openrouter" ||
+          profile.baseUrl.includes("openrouter.ai"),
       },
       transport: mobileLlmTransport,
       transportOptions: {
@@ -74,7 +75,10 @@ function toMobileModelInfo(model: ProviderModelInfo): LlmModelInfo {
   const metadata = getMatchedModelProperties(model.id, model.provider);
   const pricing = model.pricing
     ? Object.fromEntries(
-        Object.entries(model.pricing).map(([key, value]) => [key, String(value)])
+        Object.entries(model.pricing).map(([key, value]) => [
+          key,
+          String(value),
+        ])
       )
     : undefined;
   return {

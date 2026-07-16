@@ -12,7 +12,10 @@ import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmProfilesStore } from "@/tools/llm-api/stores/llmProfiles";
 import { useLlmChatStore } from "../stores/llmChatStore";
 import { useChatSettings } from "./useChatSettings";
-import { contentToTokenText, getContextRiskLevel } from "../utils/contextTokenUsage";
+import {
+  contentToTokenText,
+  getContextRiskLevel,
+} from "../utils/contextTokenUsage";
 
 const CALCULATION_DEBOUNCE_MS = 500;
 
@@ -33,7 +36,8 @@ export function useContextTokenUsage(draft: MaybeRef<string>) {
   );
 
   const activeModel = computed(() => {
-    const [selectedProfileId, selectedModelId] = chatStore.selectedModelValue.split(":");
+    const [selectedProfileId, selectedModelId] =
+      chatStore.selectedModelValue.split(":");
     const profileId = activeAgent.value?.profileId || selectedProfileId;
     const modelId = activeAgent.value?.modelId || selectedModelId;
     return profilesStore.profiles
@@ -41,13 +45,19 @@ export function useContextTokenUsage(draft: MaybeRef<string>) {
       ?.models.find((model) => model.id === modelId);
   });
 
-  const contextLength = computed(() => activeModel.value?.tokenLimits?.contextLength);
+  const contextLength = computed(
+    () => activeModel.value?.tokenLimits?.contextLength
+  );
   const usageRatio = computed(() => {
     const length = contextLength.value;
     return length && length > 0 ? estimatedTokens.value / length : undefined;
   });
   const riskLevel = computed(() =>
-    getContextRiskLevel(estimatedTokens.value, contextLength.value, settings.value.contextManagement)
+    getContextRiskLevel(
+      estimatedTokens.value,
+      contextLength.value,
+      settings.value.contextManagement
+    )
   );
 
   const latestActualPromptTokens = computed<number | undefined>(() => {
@@ -63,18 +73,25 @@ export function useContextTokenUsage(draft: MaybeRef<string>) {
 
   function collectTexts(): string[] {
     const agent = activeAgent.value;
-    const groupMap = new Map((agent?.presetGroups || []).map((group) => [group.id, group]));
+    const groupMap = new Map(
+      (agent?.presetGroups || []).map((group) => [group.id, group])
+    );
     const presetTexts = (agent?.presetMessages || [])
       .filter((message) => {
-        if (!message.content.trim() || message.isEnabled === false) return false;
-        return !message.groupId || groupMap.get(message.groupId)?.enabled !== false;
+        if (!message.content.trim() || message.isEnabled === false)
+          return false;
+        return (
+          !message.groupId || groupMap.get(message.groupId)?.enabled !== false
+        );
       })
       .map((message) => message.content);
     const historyTexts = chatStore.currentActivePath
       .map((message) => contentToTokenText(message.content))
       .filter((content) => content.length > 0);
     const draftText = toValue(draft);
-    return draftText ? [...presetTexts, ...historyTexts, draftText] : [...presetTexts, ...historyTexts];
+    return draftText
+      ? [...presetTexts, ...historyTexts, draftText]
+      : [...presetTexts, ...historyTexts];
   }
 
   async function calculate(sequence: number, texts: string[]): Promise<void> {
@@ -105,7 +122,9 @@ export function useContextTokenUsage(draft: MaybeRef<string>) {
     }, CALCULATION_DEBOUNCE_MS);
   }
 
-  watch(() => JSON.stringify(collectTexts()), scheduleCalculation, { immediate: true });
+  watch(() => JSON.stringify(collectTexts()), scheduleCalculation, {
+    immediate: true,
+  });
 
   if (getCurrentScope()) {
     onScopeDispose(() => {

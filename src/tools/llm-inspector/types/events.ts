@@ -21,9 +21,7 @@
 
 /** Rust 外部代理事件名 */
 export type InspectorEventType =
-  | "inspector-request"
-  | "inspector-response"
-  | "inspector-stream-update";
+  "inspector-request" | "inspector-response" | "inspector-stream-update";
 
 /** 外部代理事件 wrapper */
 export interface InspectorEvent<T = unknown> {

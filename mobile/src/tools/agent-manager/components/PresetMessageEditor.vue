@@ -21,8 +21,12 @@ import PresetGroupEditDialog from "./PresetGroupEditDialog.vue";
 import PresetMessageCard from "./PresetMessageCard.vue";
 import SinglePresetMessageEditor from "./SinglePresetMessageEditor.vue";
 
-const messages = defineModel<PresetMessage[]>("messages", { default: () => [] });
-const groups = defineModel<PresetMessageGroup[]>("groups", { default: () => [] });
+const messages = defineModel<PresetMessage[]>("messages", {
+  default: () => [],
+});
+const groups = defineModel<PresetMessageGroup[]>("groups", {
+  default: () => [],
+});
 const { tRaw } = useI18n();
 const t = (key: string) => tRaw(`tools.agent-manager.PresetEditor.${key}`);
 const { totalTokens, isCalculating, isFallback, getTokenCount } =
@@ -45,7 +49,9 @@ const visibleMessages = computed(() =>
     ? messages.value
     : messages.value.filter((message) => message.groupId === activeGroup.value)
 );
-const totalPages = computed(() => Math.max(1, Math.ceil(visibleMessages.value.length / pageSize)));
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(visibleMessages.value.length / pageSize))
+);
 const pagedMessages = computed(() => {
   const start = (page.value - 1) * pageSize;
   return visibleMessages.value.slice(start, start + pageSize);
@@ -86,7 +92,10 @@ function replaceMessage(message: PresetMessage): void {
   const index = messages.value.findIndex((item) => item.id === message.id);
   if (index >= 0) messages.value.splice(index, 1, message);
   else messages.value.push(message);
-  normalizeRadioGroup(message.groupId, message.isEnabled !== false ? message.id : undefined);
+  normalizeRadioGroup(
+    message.groupId,
+    message.isEnabled !== false ? message.id : undefined
+  );
   editorOpen.value = false;
 }
 
@@ -96,7 +105,8 @@ function toggleMessage(message: PresetMessage): void {
   const enabled = message.isEnabled === false;
   if (enabled && group?.selectionMode === "radio") {
     messages.value.forEach((item) => {
-      if (item.groupId === message.groupId) item.isEnabled = item.id === message.id;
+      if (item.groupId === message.groupId)
+        item.isEnabled = item.id === message.id;
     });
   } else {
     message.isEnabled = enabled;
@@ -109,7 +119,8 @@ function normalizeRadioGroup(groupId?: string, preferredId?: string): void {
   if (group?.selectionMode !== "radio") return;
   if (preferredId) {
     messages.value.forEach((message) => {
-      if (message.groupId === groupId) message.isEnabled = message.id === preferredId;
+      if (message.groupId === groupId)
+        message.isEnabled = message.id === preferredId;
     });
     return;
   }
@@ -122,10 +133,15 @@ function normalizeRadioGroup(groupId?: string, preferredId?: string): void {
 }
 
 function moveMessage(message: PresetMessage, direction: "up" | "down"): void {
-  const visibleIndex = visibleMessages.value.findIndex((item) => item.id === message.id);
-  const target = visibleMessages.value[visibleIndex + (direction === "up" ? -1 : 1)];
+  const visibleIndex = visibleMessages.value.findIndex(
+    (item) => item.id === message.id
+  );
+  const target =
+    visibleMessages.value[visibleIndex + (direction === "up" ? -1 : 1)];
   if (!target) return;
-  const sourceIndex = messages.value.findIndex((item) => item.id === message.id);
+  const sourceIndex = messages.value.findIndex(
+    (item) => item.id === message.id
+  );
   const targetIndex = messages.value.findIndex((item) => item.id === target.id);
   [messages.value[sourceIndex], messages.value[targetIndex]] = [
     messages.value[targetIndex],
@@ -135,12 +151,19 @@ function moveMessage(message: PresetMessage, direction: "up" | "down"): void {
 
 function moveMessageToGroup(message: PresetMessage, groupId?: string): void {
   message.groupId = groupId;
-  normalizeRadioGroup(groupId, message.isEnabled !== false ? message.id : undefined);
+  normalizeRadioGroup(
+    groupId,
+    message.isEnabled !== false ? message.id : undefined
+  );
 }
 
 function canMove(message: PresetMessage, direction: "up" | "down"): boolean {
-  const index = visibleMessages.value.findIndex((item) => item.id === message.id);
-  return direction === "up" ? index > 0 : index >= 0 && index < visibleMessages.value.length - 1;
+  const index = visibleMessages.value.findIndex(
+    (item) => item.id === message.id
+  );
+  return direction === "up"
+    ? index > 0
+    : index >= 0 && index < visibleMessages.value.length - 1;
 }
 
 function startDrag(message: PresetMessage, event: PointerEvent): void {
@@ -154,20 +177,30 @@ function startDrag(message: PresetMessage, event: PointerEvent): void {
 function handleDragMove(event: PointerEvent): void {
   if (dragPointerId !== event.pointerId || !draggingId.value) return;
   event.preventDefault();
-  const targetElement = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>(
-    "[data-message-id]"
-  );
+  const targetElement = document
+    .elementFromPoint(event.clientX, event.clientY)
+    ?.closest<HTMLElement>("[data-message-id]");
   const targetId = targetElement?.dataset.messageId;
   if (!targetId || targetId === draggingId.value) return;
 
-  const fromVisible = visibleMessages.value.findIndex((item) => item.id === draggingId.value);
-  const toVisible = visibleMessages.value.findIndex((item) => item.id === targetId);
-  const sourceIndex = messages.value.findIndex((item) => item.id === draggingId.value);
+  const fromVisible = visibleMessages.value.findIndex(
+    (item) => item.id === draggingId.value
+  );
+  const toVisible = visibleMessages.value.findIndex(
+    (item) => item.id === targetId
+  );
+  const sourceIndex = messages.value.findIndex(
+    (item) => item.id === draggingId.value
+  );
   if (fromVisible < 0 || toVisible < 0 || sourceIndex < 0) return;
 
   const [moving] = messages.value.splice(sourceIndex, 1);
   const targetIndex = messages.value.findIndex((item) => item.id === targetId);
-  messages.value.splice(fromVisible < toVisible ? targetIndex + 1 : targetIndex, 0, moving);
+  messages.value.splice(
+    fromVisible < toVisible ? targetIndex + 1 : targetIndex,
+    0,
+    moving
+  );
 }
 
 function stopDrag(event?: PointerEvent): void {
@@ -184,7 +217,8 @@ async function removeMessage(message: PresetMessage): Promise<void> {
     title: t("删除预设消息"),
     message: t("删除消息确认"),
   });
-  if (confirmed) messages.value = messages.value.filter((item) => item.id !== message.id);
+  if (confirmed)
+    messages.value = messages.value.filter((item) => item.id !== message.id);
 }
 
 function openNewGroup(): void {
@@ -234,7 +268,9 @@ async function batchApply(
       message: t("批量删除确认"),
     });
     if (!confirmed) return;
-    messages.value = messages.value.filter((message) => !ids.includes(message.id));
+    messages.value = messages.value.filter(
+      (message) => !ids.includes(message.id)
+    );
   } else {
     messages.value.forEach((message) => {
       if (!ids.includes(message.id)) return;
@@ -260,13 +296,22 @@ function normalizeImportedMessage(value: unknown): PresetMessage | null {
     parentId: typeof source.parentId === "string" ? source.parentId : null,
     childrenIds: Array.isArray(source.childrenIds) ? source.childrenIds : [],
     role,
-    status: source.status === "generating" || source.status === "error" ? source.status : "complete",
+    status:
+      source.status === "generating" || source.status === "error"
+        ? source.status
+        : "complete",
     content: source.content,
-    timestamp: typeof source.timestamp === "string" ? source.timestamp : new Date().toISOString(),
+    timestamp:
+      typeof source.timestamp === "string"
+        ? source.timestamp
+        : new Date().toISOString(),
   } as PresetMessage;
 }
 
-function parsePresetPayload(value: unknown): { messages: PresetMessage[]; groups: PresetMessageGroup[] } {
+function parsePresetPayload(value: unknown): {
+  messages: PresetMessage[];
+  groups: PresetMessageGroup[];
+} {
   let rawMessages: unknown = value;
   let rawGroups: unknown = [];
   if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -278,19 +323,24 @@ function parsePresetPayload(value: unknown): { messages: PresetMessage[]; groups
   const importedMessages = rawMessages
     .map(normalizeImportedMessage)
     .filter((message): message is PresetMessage => message !== null);
-  if (importedMessages.length === 0 && rawMessages.length > 0) throw new Error("Invalid preset messages");
+  if (importedMessages.length === 0 && rawMessages.length > 0)
+    throw new Error("Invalid preset messages");
   const importedGroups = Array.isArray(rawGroups)
     ? rawGroups.filter((group): group is PresetMessageGroup => {
         if (!group || typeof group !== "object") return false;
         const candidate = group as Partial<PresetMessageGroup>;
         return Boolean(
           typeof candidate.id === "string" &&
-            typeof candidate.name === "string" &&
-            (candidate.selectionMode === "checkbox" || candidate.selectionMode === "radio")
+          typeof candidate.name === "string" &&
+          (candidate.selectionMode === "checkbox" ||
+            candidate.selectionMode === "radio")
         );
       })
     : [];
-  return { messages: importedMessages, groups: structuredClone(importedGroups) };
+  return {
+    messages: importedMessages,
+    groups: structuredClone(importedGroups),
+  };
 }
 
 async function applyImportedPreset(value: unknown): Promise<void> {
@@ -330,11 +380,17 @@ function exportPreset(): void {
     return;
   }
   const content = JSON.stringify(
-    { version: 2, groups: structuredClone(groups.value), messages: structuredClone(messages.value) },
+    {
+      version: 2,
+      groups: structuredClone(groups.value),
+      messages: structuredClone(messages.value),
+    },
     null,
     2
   );
-  const url = URL.createObjectURL(new Blob([content], { type: "application/json" }));
+  const url = URL.createObjectURL(
+    new Blob([content], { type: "application/json" })
+  );
   const link = document.createElement("a");
   link.href = url;
   link.download = `preset-${new Date().toISOString().slice(0, 10)}.json`;
@@ -346,7 +402,11 @@ function exportPreset(): void {
 async function copyPreset(): Promise<void> {
   try {
     await navigator.clipboard.writeText(
-      JSON.stringify({ version: 2, groups: groups.value, messages: messages.value }, null, 2)
+      JSON.stringify(
+        { version: 2, groups: groups.value, messages: messages.value },
+        null,
+        2
+      )
     );
     customMessage(t("复制成功"), "success");
   } catch {
@@ -377,7 +437,13 @@ onBeforeUnmount(stopDrag);
         <h2>{{ t("预设消息") }}</h2>
         <p>
           {{ t("已启用") }} {{ totalTokens }} tokens ·
-          {{ isCalculating ? t("计算中") : isFallback ? t("字符估算") : t("o200k 预估") }}
+          {{
+            isCalculating
+              ? t("计算中")
+              : isFallback
+                ? t("字符估算")
+                : t("o200k 预估")
+          }}
         </p>
       </div>
       <button class="primary" type="button" @click="openNewMessage">
@@ -386,32 +452,78 @@ onBeforeUnmount(stopDrag);
     </header>
 
     <div class="utility-bar">
-      <button type="button" :title="t('新建消息组')" @click="openNewGroup"><Boxes :size="18" />{{ t("消息组") }}</button>
-      <button type="button" :title="t('批量管理')" @click="batchOpen = true"><Settings2 :size="18" />{{ t("批量") }}</button>
-      <button type="button" :title="t('导入')" @click="importFileInput?.click()"><Upload :size="18" />{{ t("导入") }}</button>
-      <button type="button" :title="t('导出')" @click="exportPreset"><Download :size="18" />{{ t("导出") }}</button>
-      <button type="button" :title="t('复制')" @click="copyPreset"><Copy :size="18" />{{ t("复制") }}</button>
-      <button type="button" :title="t('粘贴')" @click="pastePreset"><ClipboardPaste :size="18" />{{ t("粘贴") }}</button>
-      <input ref="importFileInput" class="file-input" type="file" accept="application/json,.json" @change="handleFileSelected" />
+      <button type="button" :title="t('新建消息组')" @click="openNewGroup">
+        <Boxes :size="18" />{{ t("消息组") }}
+      </button>
+      <button type="button" :title="t('批量管理')" @click="batchOpen = true">
+        <Settings2 :size="18" />{{ t("批量") }}
+      </button>
+      <button
+        type="button"
+        :title="t('导入')"
+        @click="importFileInput?.click()"
+      >
+        <Upload :size="18" />{{ t("导入") }}
+      </button>
+      <button type="button" :title="t('导出')" @click="exportPreset">
+        <Download :size="18" />{{ t("导出") }}
+      </button>
+      <button type="button" :title="t('复制')" @click="copyPreset">
+        <Copy :size="18" />{{ t("复制") }}
+      </button>
+      <button type="button" :title="t('粘贴')" @click="pastePreset">
+        <ClipboardPaste :size="18" />{{ t("粘贴") }}
+      </button>
+      <input
+        ref="importFileInput"
+        class="file-input"
+        type="file"
+        accept="application/json,.json"
+        @change="handleFileSelected"
+      />
     </div>
 
     <div class="group-strip">
-      <button class="all-group" :class="{ active: activeGroup === 'all' }" @click="activeGroup = 'all'">
+      <button
+        class="all-group"
+        :class="{ active: activeGroup === 'all' }"
+        @click="activeGroup = 'all'"
+      >
         {{ t("全部") }}
       </button>
-      <div v-for="group in groups" :key="group.id" class="group-control" :class="{ disabled: !group.enabled }">
-        <button class="group-filter" :class="{ active: activeGroup === group.id }" @click="activeGroup = group.id">
+      <div
+        v-for="group in groups"
+        :key="group.id"
+        class="group-control"
+        :class="{ disabled: !group.enabled }"
+      >
+        <button
+          class="group-filter"
+          :class="{ active: activeGroup === group.id }"
+          @click="activeGroup = group.id"
+        >
           {{ group.selectionMode === "radio" ? "◉" : "☐" }} {{ group.name }}
         </button>
         <label class="mini-switch" :title="t('组整体开关')">
-          <input :checked="group.enabled" type="checkbox" @change="toggleGroup(group)" />
+          <input
+            :checked="group.enabled"
+            type="checkbox"
+            @change="toggleGroup(group)"
+          />
           <i />
         </label>
-        <button class="group-edit" type="button" :title="t('编辑消息组')" @click="openExistingGroup(group)">
+        <button
+          class="group-edit"
+          type="button"
+          :title="t('编辑消息组')"
+          @click="openExistingGroup(group)"
+        >
           <Pencil :size="14" />
         </button>
       </div>
-      <button class="group-add" type="button" @click="openNewGroup"><Plus :size="15" />{{ t("组") }}</button>
+      <button class="group-add" type="button" @click="openNewGroup">
+        <Plus :size="15" />{{ t("组") }}
+      </button>
     </div>
 
     <div class="message-list">
@@ -440,9 +552,23 @@ onBeforeUnmount(stopDrag);
     </div>
 
     <nav v-if="totalPages > 1" class="pagination" :aria-label="t('分页')">
-      <button type="button" :disabled="page === 1" :aria-label="t('上一页')" @click="page--"><ChevronLeft :size="18" /></button>
+      <button
+        type="button"
+        :disabled="page === 1"
+        :aria-label="t('上一页')"
+        @click="page--"
+      >
+        <ChevronLeft :size="18" />
+      </button>
       <span>{{ page }} / {{ totalPages }}</span>
-      <button type="button" :disabled="page === totalPages" :aria-label="t('下一页')" @click="page++"><ChevronRight :size="18" /></button>
+      <button
+        type="button"
+        :disabled="page === totalPages"
+        :aria-label="t('下一页')"
+        @click="page++"
+      >
+        <ChevronRight :size="18" />
+      </button>
     </nav>
 
     <SinglePresetMessageEditor
@@ -470,34 +596,184 @@ onBeforeUnmount(stopDrag);
 </template>
 
 <style scoped>
-.preset-editor { display: flex; flex-direction: column; gap: 12px; }
-.editor-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.editor-header h2 { margin: 0; font-size: 1.05rem; }
-.editor-header p { margin: 3px 0 0; color: var(--color-on-surface-variant); font-size: .72rem; }
-.editor-header .primary { padding: 9px 12px; display: inline-flex; align-items: center; gap: 5px; border: 0; border-radius: 7px; color: white; background: var(--color-primary); }
-.utility-bar { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
-.utility-bar button { padding: 8px 9px; display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; border: 0; border-radius: 7px; color: var(--text-color); background: var(--input-bg); font-size: .75rem; }
-.file-input { display: none; }
-.group-strip { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 3px; }
-.all-group, .group-add, .group-control { flex: 0 0 auto; }
-.all-group, .group-add, .group-filter, .group-edit { border: 0; color: var(--text-color); background: transparent; }
-.all-group, .group-add { padding: 8px; display: inline-flex; align-items: center; gap: 3px; border-radius: 7px; background: var(--input-bg); font-size: .76rem; white-space: nowrap; }
-.all-group.active { color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 16%, transparent); }
-.group-control { padding: 3px 4px 3px 8px; display: flex; align-items: center; gap: 4px; border: var(--border-width) solid var(--border-color); border-radius: 7px; background: var(--input-bg); }
-.group-control.disabled { opacity: .58; }
-.group-filter { max-width: 150px; overflow: hidden; font-size: .76rem; text-overflow: ellipsis; white-space: nowrap; }
-.group-filter.active { color: var(--color-primary); }
-.group-edit { padding: 5px; display: inline-flex; }
-.group-add { border: var(--border-width) dashed var(--border-color); background: transparent; }
-.mini-switch input { display: none; }
-.mini-switch i { position: relative; width: 25px; height: 14px; display: block; border-radius: 99px; background: var(--border-color); }
-.mini-switch i::after { position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: #fff; content: ""; transition: .16s; }
-.mini-switch input:checked + i { background: var(--color-primary); }
-.mini-switch input:checked + i::after { transform: translateX(11px); }
-.message-list { display: flex; flex-direction: column; gap: 9px; }
-.empty { margin: 0; padding: 18px 12px; border: var(--border-width) dashed var(--border-color); border-radius: 8px; color: var(--color-on-surface-variant); font-size: .82rem; line-height: 1.55; }
-.pagination { display: flex; align-items: center; justify-content: center; gap: 12px; }
-.pagination button { width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 7px; color: var(--text-color); background: var(--input-bg); }
-.pagination button:disabled { opacity: .4; }
-.pagination span { color: var(--color-on-surface-variant); font-size: .78rem; }
+.preset-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.editor-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.editor-header p {
+  margin: 3px 0 0;
+  color: var(--color-on-surface-variant);
+  font-size: 0.72rem;
+}
+.editor-header .primary {
+  padding: 9px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 7px;
+  color: white;
+  background: var(--color-primary);
+}
+.utility-bar {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.utility-bar button {
+  padding: 8px 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 7px;
+  color: var(--text-color);
+  background: var(--input-bg);
+  font-size: 0.75rem;
+}
+.file-input {
+  display: none;
+}
+.group-strip {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding-bottom: 3px;
+}
+.all-group,
+.group-add,
+.group-control {
+  flex: 0 0 auto;
+}
+.all-group,
+.group-add,
+.group-filter,
+.group-edit {
+  border: 0;
+  color: var(--text-color);
+  background: transparent;
+}
+.all-group,
+.group-add {
+  padding: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border-radius: 7px;
+  background: var(--input-bg);
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+.all-group.active {
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 16%, transparent);
+}
+.group-control {
+  padding: 3px 4px 3px 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 7px;
+  background: var(--input-bg);
+}
+.group-control.disabled {
+  opacity: 0.58;
+}
+.group-filter {
+  max-width: 150px;
+  overflow: hidden;
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.group-filter.active {
+  color: var(--color-primary);
+}
+.group-edit {
+  padding: 5px;
+  display: inline-flex;
+}
+.group-add {
+  border: var(--border-width) dashed var(--border-color);
+  background: transparent;
+}
+.mini-switch input {
+  display: none;
+}
+.mini-switch i {
+  position: relative;
+  width: 25px;
+  height: 14px;
+  display: block;
+  border-radius: 99px;
+  background: var(--border-color);
+}
+.mini-switch i::after {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fff;
+  content: "";
+  transition: 0.16s;
+}
+.mini-switch input:checked + i {
+  background: var(--color-primary);
+}
+.mini-switch input:checked + i::after {
+  transform: translateX(11px);
+}
+.message-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.empty {
+  margin: 0;
+  padding: 18px 12px;
+  border: var(--border-width) dashed var(--border-color);
+  border-radius: 8px;
+  color: var(--color-on-surface-variant);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.pagination button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  color: var(--text-color);
+  background: var(--input-bg);
+}
+.pagination button:disabled {
+  opacity: 0.4;
+}
+.pagination span {
+  color: var(--color-on-surface-variant);
+  font-size: 0.78rem;
+}
 </style>

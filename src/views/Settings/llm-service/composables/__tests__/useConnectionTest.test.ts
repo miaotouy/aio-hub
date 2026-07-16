@@ -120,7 +120,10 @@ describe("useConnectionTest", () => {
         errorMessage: "invalid request body",
       })
     );
-    const composable = useConnectionTest(ref(source), computed(() => source));
+    const composable = useConnectionTest(
+      ref(source),
+      computed(() => source)
+    );
     await composable.handleTestKey({ key: "key-1", modelId: "model-1" });
     expect(mocks.reportFailure).not.toHaveBeenCalled();
     expect(mocks.reportSuccess).not.toHaveBeenCalled();
@@ -135,7 +138,10 @@ describe("useConnectionTest", () => {
         errorMessage: "rate limited",
       })
     );
-    const composable = useConnectionTest(ref(source), computed(() => source));
+    const composable = useConnectionTest(
+      ref(source),
+      computed(() => source)
+    );
     await composable.handleTestKey({ key: "key-1", modelId: "model-1" });
     expect(mocks.reportFailure.mock.calls[0][3]).toEqual({
       allowAutoDisable: false,

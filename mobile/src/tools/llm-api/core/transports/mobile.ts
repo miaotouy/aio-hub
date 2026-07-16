@@ -79,7 +79,12 @@ export function createMobileLlmTransport(
 
       try {
         if (requiresNativeFileRequest(request.body)) {
-          return await sendNativeFileRequest(request, options, dependencies, startedAt);
+          return await sendNativeFileRequest(
+            request,
+            options,
+            dependencies,
+            startedAt
+          );
         }
         const body = serializeBody(
           request.body,
@@ -272,7 +277,9 @@ function encodeBase64(value: Uint8Array): string {
   let binary = "";
   const chunkSize = 0x8000;
   for (let offset = 0; offset < value.length; offset += chunkSize) {
-    binary += String.fromCharCode(...value.subarray(offset, offset + chunkSize));
+    binary += String.fromCharCode(
+      ...value.subarray(offset, offset + chunkSize)
+    );
   }
   return btoa(binary);
 }

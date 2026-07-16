@@ -35,7 +35,8 @@ const { tRaw } = useI18n();
 const t = (key: string) => tRaw(`tools.llm-chat.TokenUsage.${key}`);
 const tokenLabel = computed(() => {
   if (props.message.metadata?.contentTokenSource === "api") return t("实际");
-  if (props.message.metadata?.contentTokenSource === "fallback") return t("字符估算");
+  if (props.message.metadata?.contentTokenSource === "fallback")
+    return t("字符估算");
   return t("o200k 预估");
 });
 </script>
@@ -84,10 +85,9 @@ const tokenLabel = computed(() => {
         "
         class="token-info"
       >
-        <span v-if="message.metadata.contentTokenSource !== 'api'">~</span>{{
-          message.metadata.contentTokens.toLocaleString()
-        }}
-        tokens · {{ tokenLabel }}
+        <span v-if="message.metadata.contentTokenSource !== 'api'">~</span
+        >{{ message.metadata.contentTokens.toLocaleString() }} tokens ·
+        {{ tokenLabel }}
       </div>
 
       <!-- 悬挂操作栏 -->

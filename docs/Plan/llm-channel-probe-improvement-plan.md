@@ -210,13 +210,7 @@ src/views/Settings/llm-service/probe/
 export type ProbeKind = "model-list" | "inference" | "key" | "batch-model";
 
 export type ProbeCapability =
-  | "chat"
-  | "embedding"
-  | "rerank"
-  | "image"
-  | "audio"
-  | "video"
-  | "music";
+  "chat" | "embedding" | "rerank" | "image" | "audio" | "video" | "music";
 
 export interface ChannelProbeRequest {
   kind: ProbeKind;

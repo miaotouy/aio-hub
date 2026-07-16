@@ -23,11 +23,7 @@
 
 /** Suno 模型版本 */
 export type SunoModelVersion =
-  | "chirp-v3-5"
-  | "chirp-v4"
-  | "chirp-auk"
-  | "chirp-bluejay"
-  | "chirp-crow";
+  "chirp-v3-5" | "chirp-v4" | "chirp-auk" | "chirp-bluejay" | "chirp-crow";
 
 // ===== 提交请求 =====
 
@@ -73,8 +69,7 @@ export interface SunoInspirationMusicRequest {
 
 /** 音乐生成请求（联合类型） */
 export type SunoMusicRequest =
-  | SunoCustomMusicRequest
-  | SunoInspirationMusicRequest;
+  SunoCustomMusicRequest | SunoInspirationMusicRequest;
 
 /** 歌词生成请求 */
 export interface SunoLyricsRequest {
@@ -116,12 +111,7 @@ export interface SunoSubmitResponse {
 
 /** 任务状态枚举 */
 export type SunoTaskStatus =
-  | "SUBMITTED"
-  | "QUEUED"
-  | "IN_PROGRESS"
-  | "SUCCESS"
-  | "FAILURE"
-  | "UNKNOWN";
+  "SUBMITTED" | "QUEUED" | "IN_PROGRESS" | "SUCCESS" | "FAILURE" | "UNKNOWN";
 
 /** 任务查询响应 (GET /suno/fetch/{task_id}) */
 export interface SunoFetchResponse {

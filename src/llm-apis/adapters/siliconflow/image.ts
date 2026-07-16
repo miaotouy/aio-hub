@@ -22,7 +22,8 @@ export async function callSiliconFlowImageApi(
     ...request.extensions,
     ...((typeof extendedOptions.cfg === "number" && {
       cfg: extendedOptions.cfg,
-    }) || {}),
+    }) ||
+      {}),
   };
   const providerProfile: ProviderProfile = {
     provider: "siliconflow",

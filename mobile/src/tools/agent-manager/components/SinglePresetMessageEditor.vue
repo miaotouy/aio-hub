@@ -60,8 +60,10 @@ const strategyType = computed({
     }
     const current = form.value.injectionStrategy || {};
     form.value.injectionStrategy = { ...current, type: value };
-    if (value === "depth" && current.depth === undefined) form.value.injectionStrategy.depth = 0;
-    if (value === "advanced_depth" && !current.depthConfig) form.value.injectionStrategy.depthConfig = "0";
+    if (value === "depth" && current.depth === undefined)
+      form.value.injectionStrategy.depth = 0;
+    if (value === "advanced_depth" && !current.depthConfig)
+      form.value.injectionStrategy.depthConfig = "0";
     if (value === "anchor") {
       form.value.injectionStrategy.anchorTarget ||= "chat_history";
       form.value.injectionStrategy.anchorPosition ||= "before";
@@ -84,7 +86,10 @@ function joinLines(values?: string[]): string {
   return values?.join("\n") || "";
 }
 
-function updatePatterns(key: "patterns" | "profilePatterns", event: Event): void {
+function updatePatterns(
+  key: "patterns" | "profilePatterns",
+  event: Event
+): void {
   if (!form.value.modelMatch) return;
   form.value.modelMatch[key] = (event.target as HTMLTextAreaElement).value
     .split("\n")
@@ -105,11 +110,18 @@ function save(): void {
   <Transition name="sheet">
     <section v-if="open" class="editor-overlay" role="dialog" aria-modal="true">
       <header>
-        <button type="button" class="icon-button" :aria-label="t('返回')" @click="emit('close')">
+        <button
+          type="button"
+          class="icon-button"
+          :aria-label="t('返回')"
+          @click="emit('close')"
+        >
           <ChevronLeft :size="24" />
         </button>
         <strong>{{ isNew ? t("新增预设消息") : t("编辑预设消息") }}</strong>
-        <button class="save-button" type="button" @click="save">{{ t("保存") }}</button>
+        <button class="save-button" type="button" @click="save">
+          {{ t("保存") }}
+        </button>
       </header>
 
       <main>
@@ -136,12 +148,18 @@ function save(): void {
           <span>{{ t("所属组") }}</span>
           <select v-model="form.groupId">
             <option :value="undefined">{{ t("不分组") }}</option>
-            <option v-for="group in groups" :key="group.id" :value="group.id">{{ group.name }}</option>
+            <option v-for="group in groups" :key="group.id" :value="group.id">
+              {{ group.name }}
+            </option>
           </select>
         </label>
         <label class="field content-field">
           <span>{{ t("内容") }}</span>
-          <textarea v-model="form.content" rows="14" :placeholder="t('内容占位')" />
+          <textarea
+            v-model="form.content"
+            rows="14"
+            :placeholder="t('内容占位')"
+          />
         </label>
 
         <section class="advanced">
@@ -161,11 +179,18 @@ function save(): void {
             </label>
             <label v-if="strategyType === 'depth'">
               {{ t("深度") }}
-              <input v-model.number="form.injectionStrategy!.depth" type="number" min="0" />
+              <input
+                v-model.number="form.injectionStrategy!.depth"
+                type="number"
+                min="0"
+              />
             </label>
             <label v-if="strategyType === 'advanced_depth'">
               {{ t("高级深度规则") }}
-              <input v-model="form.injectionStrategy!.depthConfig" :placeholder="t('高级深度占位')" />
+              <input
+                v-model="form.injectionStrategy!.depthConfig"
+                :placeholder="t('高级深度占位')"
+              />
             </label>
             <template v-if="strategyType === 'anchor'">
               <label>
@@ -182,7 +207,10 @@ function save(): void {
             </template>
             <label v-if="strategyType !== 'default'">
               {{ t("排序权重") }}
-              <input v-model.number="form.injectionStrategy!.order" type="number" />
+              <input
+                v-model.number="form.injectionStrategy!.order"
+                type="number"
+              />
             </label>
           </div>
         </section>
@@ -228,7 +256,10 @@ function save(): void {
                 />
               </label>
               <label class="check">
-                <input v-model="form.modelMatch.matchProfileName" type="checkbox" />
+                <input
+                  v-model="form.modelMatch.matchProfileName"
+                  type="checkbox"
+                />
                 {{ t("兼容渠道名称匹配") }}
               </label>
             </template>
@@ -240,25 +271,135 @@ function save(): void {
 </template>
 
 <style scoped>
-.editor-overlay { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; color: var(--text-color); background: var(--card-bg); }
-.editor-overlay header { min-height: 58px; padding: env(safe-area-inset-top) 14px 0; display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; border-bottom: var(--border-width) solid var(--border-color); }
-.editor-overlay header strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.editor-overlay main { flex: 1; overflow: auto; padding: 18px 16px max(30px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 18px; }
-.icon-button { padding: 8px; border: 0; color: inherit; background: transparent; }
-.save-button { padding: 8px 13px; border: 0; border-radius: 7px; color: white; background: var(--color-primary); }
-.field { display: flex; flex-direction: column; gap: 7px; color: var(--color-on-surface-variant); font-size: .82rem; }
-input, select, textarea { box-sizing: border-box; width: 100%; padding: 11px; border: var(--border-width) solid var(--border-color); border-radius: 8px; color: var(--text-color); background: var(--input-bg); font: inherit; }
-.content-field textarea { min-height: 40vh; line-height: 1.55; resize: vertical; }
-.role-tabs { display: flex; gap: 7px; }
-.role-tabs button { flex: 1; padding: 9px; border: var(--border-width) solid var(--border-color); border-radius: 7px; color: var(--text-color); background: transparent; text-transform: capitalize; }
-.role-tabs .active { border-color: var(--color-primary); color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 12%, transparent); }
-.advanced { overflow: hidden; border: var(--border-width) solid var(--border-color); border-radius: 8px; }
-.advanced > button { width: 100%; padding: 12px; display: flex; align-items: center; justify-content: space-between; border: 0; color: var(--text-color); background: var(--input-bg); text-align: left; }
-.advanced-body { padding: 12px; display: flex; flex-direction: column; gap: 12px; font-size: .8rem; }
-.advanced-body label { display: flex; flex-direction: column; gap: 6px; }
-.advanced-body .check { flex-direction: row; align-items: center; }
-.advanced-body .check input { width: auto; }
-.rotate { transform: rotate(180deg); }
-.sheet-enter-active, .sheet-leave-active { transition: transform .22s ease; }
-.sheet-enter-from, .sheet-leave-to { transform: translateY(100%); }
+.editor-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  color: var(--text-color);
+  background: var(--card-bg);
+}
+.editor-overlay header {
+  min-height: 58px;
+  padding: env(safe-area-inset-top) 14px 0;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  border-bottom: var(--border-width) solid var(--border-color);
+}
+.editor-overlay header strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.editor-overlay main {
+  flex: 1;
+  overflow: auto;
+  padding: 18px 16px max(30px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.icon-button {
+  padding: 8px;
+  border: 0;
+  color: inherit;
+  background: transparent;
+}
+.save-button {
+  padding: 8px 13px;
+  border: 0;
+  border-radius: 7px;
+  color: white;
+  background: var(--color-primary);
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: var(--color-on-surface-variant);
+  font-size: 0.82rem;
+}
+input,
+select,
+textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 11px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-color);
+  background: var(--input-bg);
+  font: inherit;
+}
+.content-field textarea {
+  min-height: 40vh;
+  line-height: 1.55;
+  resize: vertical;
+}
+.role-tabs {
+  display: flex;
+  gap: 7px;
+}
+.role-tabs button {
+  flex: 1;
+  padding: 9px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 7px;
+  color: var(--text-color);
+  background: transparent;
+  text-transform: capitalize;
+}
+.role-tabs .active {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+.advanced {
+  overflow: hidden;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+}
+.advanced > button {
+  width: 100%;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 0;
+  color: var(--text-color);
+  background: var(--input-bg);
+  text-align: left;
+}
+.advanced-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 0.8rem;
+}
+.advanced-body label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.advanced-body .check {
+  flex-direction: row;
+  align-items: center;
+}
+.advanced-body .check input {
+  width: auto;
+}
+.rotate {
+  transform: rotate(180deg);
+}
+.sheet-enter-active,
+.sheet-leave-active {
+  transition: transform 0.22s ease;
+}
+.sheet-enter-from,
+.sheet-leave-to {
+  transform: translateY(100%);
+}
 </style>

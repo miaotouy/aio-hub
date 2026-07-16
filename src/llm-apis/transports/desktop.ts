@@ -138,9 +138,7 @@ async function serializeBody(
         const manifest: WireJsonValue = {
           parts: body.parts.map((part) => ({
             name: part.name,
-            ...(part.filename === undefined
-              ? {}
-              : { filename: part.filename }),
+            ...(part.filename === undefined ? {} : { filename: part.filename }),
             ...(part.contentType === undefined
               ? {}
               : { contentType: part.contentType }),
@@ -185,7 +183,9 @@ function encodeBase64(value: Uint8Array): string {
   let binary = "";
   const chunkSize = 0x8000;
   for (let offset = 0; offset < value.length; offset += chunkSize) {
-    binary += String.fromCharCode(...value.subarray(offset, offset + chunkSize));
+    binary += String.fromCharCode(
+      ...value.subarray(offset, offset + chunkSize)
+    );
   }
   return btoa(binary);
 }

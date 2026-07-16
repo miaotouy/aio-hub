@@ -30,11 +30,7 @@ import {
  * 安装类型枚举
  */
 export type InstallType =
-  | "new"
-  | "upgrade"
-  | "downgrade"
-  | "reinstall"
-  | "conflict";
+  "new" | "upgrade" | "downgrade" | "reinstall" | "conflict";
 
 /**
  * 预检结果接口

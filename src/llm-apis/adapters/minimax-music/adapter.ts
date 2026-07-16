@@ -30,10 +30,7 @@ import type {
   MinimaxMusicOutputFormat,
   MinimaxMusicRequest,
 } from "./types";
-import {
-  MINIMAX_MUSIC_DEFAULTS,
-  stripBase64DataUrl,
-} from "./utils";
+import { MINIMAX_MUSIC_DEFAULTS, stripBase64DataUrl } from "./utils";
 
 type MinimaxMusicMode = "song" | "instrumental" | "cover";
 type LyricsSource = "optimizer" | "manual" | "generate";
@@ -142,7 +139,9 @@ export const minimaxMusicAdapter: LlmAdapter = {
       styleTags ? `风格：${styleTags}` : "",
     ].filter(Boolean);
     return {
-      content: summary.length ? `音乐生成完成\n${summary.join("\n")}` : "音乐生成完成",
+      content: summary.length
+        ? `音乐生成完成\n${summary.join("\n")}`
+        : "音乐生成完成",
       audios: task.assets.map((asset) =>
         asset.kind === "inline-base64"
           ? { b64_json: asset.data, format: audioFormat, duration }
@@ -207,12 +206,17 @@ function normalizeString(value: unknown): string | undefined {
 }
 
 function toJsonValue(value: unknown): JsonValue | undefined {
-  if (value === null || ["string", "number", "boolean"].includes(typeof value)) {
+  if (
+    value === null ||
+    ["string", "number", "boolean"].includes(typeof value)
+  ) {
     return value as JsonValue;
   }
   if (Array.isArray(value)) {
     const result = value.map(toJsonValue);
-    return result.every((item) => item !== undefined) ? (result as JsonValue[]) : undefined;
+    return result.every((item) => item !== undefined)
+      ? (result as JsonValue[])
+      : undefined;
   }
   if (typeof value === "object" && value !== null) {
     const result: Record<string, JsonValue> = {};

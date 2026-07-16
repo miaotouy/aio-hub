@@ -117,11 +117,7 @@ export interface InspectorContextMetadata {
  * 需要明确的 starting / stopping 过渡态以驱动 UI loading。
  */
 export type ProxyStatus =
-  | "stopped"
-  | "starting"
-  | "running"
-  | "stopping"
-  | "error";
+  "stopped" | "starting" | "running" | "stopping" | "error";
 
 /**
  * Inspector 全局状态机

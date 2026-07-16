@@ -43,8 +43,7 @@ export interface ToolCall<TParams = Record<string, any>> {
  * 标准化的服务返回结果
  */
 export type ServiceResult<TData = any, TError = Error> =
-  | { success: true; data: TData }
-  | { success: false; error: TError };
+  { success: true; data: TData } | { success: false; error: TError };
 
 // ==================== 核心执行器 ====================
 

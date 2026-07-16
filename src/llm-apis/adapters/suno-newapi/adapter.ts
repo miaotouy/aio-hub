@@ -95,11 +95,14 @@ export const sunoNewApiAdapter: LlmAdapter = {
   },
 };
 
-function definedJson(values: Record<string, unknown>): Record<string, JsonValue> {
+function definedJson(
+  values: Record<string, unknown>
+): Record<string, JsonValue> {
   return Object.fromEntries(
     Object.entries(values).filter(
       (entry): entry is [string, JsonValue] =>
-        entry[1] === null || ["string", "number", "boolean"].includes(typeof entry[1])
+        entry[1] === null ||
+        ["string", "number", "boolean"].includes(typeof entry[1])
     )
   );
 }

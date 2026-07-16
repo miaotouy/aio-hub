@@ -163,8 +163,7 @@ export async function buildPreviewDataFromContext(
       // 处理预设附件的 token 估算
       let presetAttachmentTokenCount = 0;
       let presetAttachmentsData:
-        | ContextPreviewData["presetMessages"][0]["attachments"]
-        | undefined;
+        ContextPreviewData["presetMessages"][0]["attachments"] | undefined;
 
       if (msg._attachments && msg._attachments.length > 0) {
         presetAttachmentsData = [];

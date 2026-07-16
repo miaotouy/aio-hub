@@ -11,7 +11,9 @@ export interface ContextThresholds {
   criticalRatio: number;
 }
 
-export function contentToTokenText(content: string | LlmMessageContent[]): string {
+export function contentToTokenText(
+  content: string | LlmMessageContent[]
+): string {
   if (typeof content === "string") return content;
 
   return content
@@ -48,7 +50,10 @@ export function createLocalContextUsage(
     tokenCount: result.total,
     localTokenCount: result.total,
     contextLength,
-    usageRatio: contextLength && contextLength > 0 ? result.total / contextLength : undefined,
+    usageRatio:
+      contextLength && contextLength > 0
+        ? result.total / contextLength
+        : undefined,
     tokenizer: result.tokenizer,
     estimated: true,
     source,
@@ -76,6 +81,10 @@ export function applyApiPromptUsage(
     tokenizer: undefined,
     estimated: false,
     source: "api",
-    riskLevel: getContextRiskLevel(promptTokens, current.contextLength, thresholds),
+    riskLevel: getContextRiskLevel(
+      promptTokens,
+      current.contextLength,
+      thresholds
+    ),
   };
 }

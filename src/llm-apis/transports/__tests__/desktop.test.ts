@@ -23,12 +23,13 @@ runTransportContract({
 
 describe("desktop LLM transport", () => {
   it("serializes JSON and preserves the response stream contract", async () => {
-    const fetch = vi.fn(async () =>
-      new Response("first-second", {
-        status: 201,
-        statusText: "Created",
-        headers: { "X-Test": "value" },
-      })
+    const fetch = vi.fn(
+      async () =>
+        new Response("first-second", {
+          status: 201,
+          statusText: "Created",
+          headers: { "X-Test": "value" },
+        })
     );
     const onResponseChunk = vi.fn();
     const transport = createDesktopLlmTransport({

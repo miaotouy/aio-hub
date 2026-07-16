@@ -25,7 +25,10 @@ export function useTopicNamer() {
   /**
    * 获取会话的线性活跃路径（不含根节点）
    */
-  const getNodePath = (session: ChatSession, leafId: string): ChatMessageNode[] => {
+  const getNodePath = (
+    session: ChatSession,
+    leafId: string
+  ): ChatMessageNode[] => {
     const path: ChatMessageNode[] = [];
     let currentId: string | null = leafId;
 
@@ -73,7 +76,9 @@ export function useTopicNamer() {
   /**
    * 为指定会话生成标题
    */
-  const generateTopicName = async (session: ChatSession): Promise<string | null> => {
+  const generateTopicName = async (
+    session: ChatSession
+  ): Promise<string | null> => {
     if (generatingSessionIds.value.has(session.id)) {
       logger.warn("会话正在生成标题，跳过重复请求", { sessionId: session.id });
       return null;
@@ -92,7 +97,8 @@ export function useTopicNamer() {
       // 获取当前活跃路径上的消息作为上下文
       const activePath = getNodePath(session, session.activeLeafId || "");
       const validMessages = activePath.filter(
-        (node: ChatMessageNode) => node.role === "user" || node.role === "assistant"
+        (node: ChatMessageNode) =>
+          node.role === "user" || node.role === "assistant"
       );
 
       // 取前两条消息（第一条用户消息和第一条助手消息）作为命名依据

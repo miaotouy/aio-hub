@@ -24,11 +24,15 @@ export function usePresetTokenCalculator(
   let disposed = false;
 
   function getEnabledMessages(): Array<{ id: string; content: string }> {
-    const groupMap = new Map((toValue(groups) || []).map((group) => [group.id, group]));
+    const groupMap = new Map(
+      (toValue(groups) || []).map((group) => [group.id, group])
+    );
     return (toValue(messages) || [])
       .filter((message) => {
         if (message.isEnabled === false) return false;
-        return !message.groupId || groupMap.get(message.groupId)?.enabled !== false;
+        return (
+          !message.groupId || groupMap.get(message.groupId)?.enabled !== false
+        );
       })
       .map((message) => ({ id: message.id, content: message.content }));
   }
@@ -37,11 +41,16 @@ export function usePresetTokenCalculator(
     sequence: number,
     enabledMessages: Array<{ id: string; content: string }>
   ): Promise<void> {
-    const result = await countTokensBatch(enabledMessages.map((message) => message.content));
+    const result = await countTokensBatch(
+      enabledMessages.map((message) => message.content)
+    );
     if (disposed || sequence !== requestSequence) return;
 
     tokenCounts.value = Object.fromEntries(
-      enabledMessages.map((message, index) => [message.id, result.counts[index] ?? 0])
+      enabledMessages.map((message, index) => [
+        message.id,
+        result.counts[index] ?? 0,
+      ])
     );
     totalTokens.value = result.total;
     isFallback.value = result.fallback;
@@ -68,11 +77,9 @@ export function usePresetTokenCalculator(
     }, CALCULATION_DEBOUNCE_MS);
   }
 
-  watch(
-    () => JSON.stringify(getEnabledMessages()),
-    scheduleCalculation,
-    { immediate: true }
-  );
+  watch(() => JSON.stringify(getEnabledMessages()), scheduleCalculation, {
+    immediate: true,
+  });
 
   if (getCurrentScope()) {
     onScopeDispose(() => {

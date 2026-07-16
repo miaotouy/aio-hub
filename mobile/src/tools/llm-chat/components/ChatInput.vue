@@ -26,7 +26,9 @@ const {
   isFallback,
   latestActualPromptTokens,
 } = useContextTokenUsage(inputText);
-const meterWidth = computed(() => `${Math.min((usageRatio.value || 0) * 100, 100)}%`);
+const meterWidth = computed(
+  () => `${Math.min((usageRatio.value || 0) * 100, 100)}%`
+);
 const formattedRatio = computed(() =>
   usageRatio.value === undefined ? "" : `${Math.round(usageRatio.value * 100)}%`
 );
@@ -64,13 +66,24 @@ const handleSend = async () => {
           <AlertTriangle v-if="riskLevel !== 'normal'" :size="14" />
           <span>
             ~{{ formatTokens(estimatedTokens) }}
-            <template v-if="contextLength"> / {{ formatTokens(contextLength) }}</template>
+            <template v-if="contextLength">
+              / {{ formatTokens(contextLength) }}</template
+            >
             <template v-if="formattedRatio"> · {{ formattedRatio }}</template>
           </span>
           <span class="source-label">
-            {{ isCalculating ? t("计算中") : isFallback ? t("字符估算") : t("o200k 预估") }}
+            {{
+              isCalculating
+                ? t("计算中")
+                : isFallback
+                  ? t("字符估算")
+                  : t("o200k 预估")
+            }}
           </span>
-          <span v-if="latestActualPromptTokens !== undefined" class="actual-label">
+          <span
+            v-if="latestActualPromptTokens !== undefined"
+            class="actual-label"
+          >
             {{ t("上次实际") }} {{ formatTokens(latestActualPromptTokens) }}
           </span>
         </div>

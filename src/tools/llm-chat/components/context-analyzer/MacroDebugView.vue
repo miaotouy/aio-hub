@@ -376,9 +376,7 @@ const getDiffHunks = (original: string, modified: string): DiffHunk[] => {
         }
         return {
           type: (part.added ? "add" : part.removed ? "remove" : "common") as
-            | "add"
-            | "remove"
-            | "common",
+            "add" | "remove" | "common",
           lines: lines,
         };
       })

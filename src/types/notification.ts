@@ -13,11 +13,7 @@
 // limitations under the License.
 
 export type NotificationType =
-  | "info"
-  | "success"
-  | "warning"
-  | "error"
-  | "system";
+  "info" | "success" | "warning" | "error" | "system";
 
 export interface NotificationMetadata {
   path?: string; // 点击后跳转的路由路径

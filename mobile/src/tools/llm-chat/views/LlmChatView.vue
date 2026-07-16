@@ -170,9 +170,15 @@ const goToChatHome = () => {
           :title="activeAgent.displayName || activeAgent.name"
         >
           <span class="active-agent-avatar">
-            {{ activeAgent.icon?.length && activeAgent.icon.length <= 4 ? activeAgent.icon : "AI" }}
+            {{
+              activeAgent.icon?.length && activeAgent.icon.length <= 4
+                ? activeAgent.icon
+                : "AI"
+            }}
           </span>
-          <span class="active-agent-name">{{ activeAgent.displayName || activeAgent.name }}</span>
+          <span class="active-agent-name">{{
+            activeAgent.displayName || activeAgent.name
+          }}</span>
         </div>
       </template>
     </var-app-bar>

@@ -218,11 +218,12 @@
 3. **备份恢复**：如果你之前手动备份过数据，可以将备份文件复制回数据目录覆盖
 
 **数据目录位置**：
-| 平台 | 路径 |
-| :--- | :--- |
-| **Windows** | `%APPDATA%\com.mty.aiohub` |
-| **macOS** | `~/Library/Application Support/com.mty.aiohub` |
-| **Linux** | `~/.local/share/com.mty.aiohub` |
+
+| 平台        | 路径                                           |
+| :---------- | :--------------------------------------------- |
+| **Windows** | `%APPDATA%\com.mty.aiohub`                     |
+| **macOS**   | `~/Library/Application Support/com.mty.aiohub` |
+| **Linux**   | `~/.local/share/com.mty.aiohub`                |
 
 ### 如何手动备份数据
 

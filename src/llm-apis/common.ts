@@ -1082,7 +1082,8 @@ export const fetchWithTimeout = async (
         {
           method,
           headers: proxyHeaders,
-          body: method === "GET" || method === "HEAD" ? undefined : options.body,
+          body:
+            method === "GET" || method === "HEAD" ? undefined : options.body,
           signal: controller.signal,
         }
       );

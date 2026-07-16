@@ -32,11 +32,7 @@ export interface AssetManagerConfig {
 export interface AssetManagerDocumentConversionConfig {
   autoConvertLegacyDoc: boolean;
   preferredProvider:
-    | "auto"
-    | "libreOffice"
-    | "microsoftWord"
-    | "abiWord"
-    | "textutil";
+    "auto" | "libreOffice" | "microsoftWord" | "abiWord" | "textutil";
   libreOfficePath: string;
   abiWordPath: string;
   timeoutSeconds: number;

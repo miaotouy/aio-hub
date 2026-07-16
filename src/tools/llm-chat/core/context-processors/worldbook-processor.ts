@@ -174,8 +174,7 @@ export class WorldbookProcessor implements ContextProcessor {
 
     // 从共享数据中获取已预加载的世界书内容 (由 useChatExecutor 投喂)
     const worldbooks = sharedData.get("loadedWorldbooks") as
-      | STWorldbook[]
-      | undefined;
+      STWorldbook[] | undefined;
 
     if (!worldbooks || worldbooks.length === 0) return;
 

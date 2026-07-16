@@ -59,7 +59,9 @@ export const useContextPipelineStore = defineStore("contextPipeline", () => {
           )
           .map((processor) => processor.id);
         if (validIds.length > 0) {
-          enabledProcessorIds.value = [...new Set([...validIds, ...newlyAddedDefaultIds])];
+          enabledProcessorIds.value = [
+            ...new Set([...validIds, ...newlyAddedDefaultIds]),
+          ];
         }
       }
 

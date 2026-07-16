@@ -37,7 +37,8 @@ onMounted(async () => {
   // 确保有选中的模型且模型有效
   chatStore.syncSelectedModel();
 
-  const agentId = typeof route.query.agentId === "string" ? route.query.agentId : null;
+  const agentId =
+    typeof route.query.agentId === "string" ? route.query.agentId : null;
   if (agentId) {
     const sessionId = await chatStore.createSession("New Chat", agentId);
     await router.replace(`/tools/llm-chat/chat/${sessionId}`);

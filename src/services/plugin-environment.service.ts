@@ -22,10 +22,7 @@ import {
 
 export type EnvironmentPathKey = "ffmpeg" | "ffprobe" | "git";
 export type EnvironmentRuntimeKey =
-  | "javascript"
-  | "python"
-  | "shell"
-  | "powershell";
+  "javascript" | "python" | "shell" | "powershell";
 export type DocumentConverterKey = "libreOffice" | "abiWord";
 
 export interface PluginEnvironmentAPI {

@@ -520,15 +520,15 @@ export interface TransportObserver {
 
 ### 8.1. 当前状态核查（2026-07-15）
 
-| 原阶段                         | 状态               | 已落地                                                                                                                                               | 未闭环                                                                                                  |
-| ------------------------------ | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| 阶段 0：契约冻结与基线         | 自动化部分已完成   | 文本、Embedding、同步媒体、模型列表和异步媒体均有固定 wire/response/stream fixture 与应用回归                                                     | 真实 Tauri 峰值内存、主线程阻塞和 TTFB 需人工采样                                                       |
-| 阶段 1：共享包骨架             | 已完成             | `packages/llm-core`、canonical DTO、Wire 类型、LocalFileRef、SSE/JSONL 分帧器及独立测试已落地                                                        | 无阻塞项，后续按 Provider 扩展类型                                                                      |
-| 阶段 1.5：应用依赖解耦         | 已完成             | 移动请求入口、双端 OpenAI-Compatible/Responses/Claude/Cohere/Gemini/Vertex 和双端 Transport 已完成依赖收束                                           | 无；媒体与模型列表按后续能力批次接入                                                                    |
-| 阶段 2：桌面 OpenAI-Compatible | 已完成             | 共享纯 Adapter、统一执行器、桌面 Transport、canonical 多媒体/DeepSeek/扩展映射、流式与非流式接线和差分回归已完成                                     | 无；真实移动端行为统一留待批次 9                                                                        |
-| 阶段 3：移动 OpenAI-Compatible | 代码完成，真机待验 | 移动 Transport、canonical 映射、兼容 Facade、旧 builder/parser/SSE 循环删除和回归测试已完成                                                          | Android/iOS 的真实流式读取、取消与后台切换尚未验证                                                      |
-| 阶段 4：其他 Provider          | 已完成             | 文本、Embedding、模型列表、同步媒体和异步媒体共享 Adapter/执行器、应用 Facade、fixture 与回归已完成                                                 | 无代码项；移动端当前没有媒体生成业务 Facade，后续新增时直接复用共享 Core                                |
-| 阶段 5：Rust Transport 优化    | 代码完成，人工待验 | 桌面代理/安全/Client 池与双端三类 FileRef 原生边界、取消和共享 Transport 合约均已落地                                                                | 真实 Tauri 性能复测及 Android/iOS 真机行为尚未闭环                                                     |
+| 原阶段                         | 状态               | 已落地                                                                                                           | 未闭环                                                                   |
+| ------------------------------ | ------------------ | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| 阶段 0：契约冻结与基线         | 自动化部分已完成   | 文本、Embedding、同步媒体、模型列表和异步媒体均有固定 wire/response/stream fixture 与应用回归                    | 真实 Tauri 峰值内存、主线程阻塞和 TTFB 需人工采样                        |
+| 阶段 1：共享包骨架             | 已完成             | `packages/llm-core`、canonical DTO、Wire 类型、LocalFileRef、SSE/JSONL 分帧器及独立测试已落地                    | 无阻塞项，后续按 Provider 扩展类型                                       |
+| 阶段 1.5：应用依赖解耦         | 已完成             | 移动请求入口、双端 OpenAI-Compatible/Responses/Claude/Cohere/Gemini/Vertex 和双端 Transport 已完成依赖收束       | 无；媒体与模型列表按后续能力批次接入                                     |
+| 阶段 2：桌面 OpenAI-Compatible | 已完成             | 共享纯 Adapter、统一执行器、桌面 Transport、canonical 多媒体/DeepSeek/扩展映射、流式与非流式接线和差分回归已完成 | 无；真实移动端行为统一留待批次 9                                         |
+| 阶段 3：移动 OpenAI-Compatible | 代码完成，真机待验 | 移动 Transport、canonical 映射、兼容 Facade、旧 builder/parser/SSE 循环删除和回归测试已完成                      | Android/iOS 的真实流式读取、取消与后台切换尚未验证                       |
+| 阶段 4：其他 Provider          | 已完成             | 文本、Embedding、模型列表、同步媒体和异步媒体共享 Adapter/执行器、应用 Facade、fixture 与回归已完成              | 无代码项；移动端当前没有媒体生成业务 Facade，后续新增时直接复用共享 Core |
+| 阶段 5：Rust Transport 优化    | 代码完成，人工待验 | 桌面代理/安全/Client 池与双端三类 FileRef 原生边界、取消和共享 Transport 合约均已落地                            | 真实 Tauri 性能复测及 Android/iOS 真机行为尚未闭环                       |
 
 当前不存在需要先停工清债的架构阻塞。下一步的主要成本已经从“搭骨架”转为“迁移重复协议实现”；如果继续把依赖解耦、共享 Adapter、桌面接线、移动接线分别算作独立批次，会反复支付差分测试、全量类型检查和两端构建成本。
 

@@ -4,7 +4,10 @@ import { Trash2 } from "lucide-vue-next";
 import { useI18n } from "@/i18n";
 import type { PresetMessageGroup } from "../types/agent";
 
-const props = defineProps<{ open: boolean; group?: PresetMessageGroup | null }>();
+const props = defineProps<{
+  open: boolean;
+  group?: PresetMessageGroup | null;
+}>();
 const emit = defineEmits<{
   close: [];
   save: [group: PresetMessageGroup];
@@ -78,17 +81,79 @@ function save(): void {
 </template>
 
 <style scoped>
-.overlay { position: fixed; inset: 0; z-index: 105; padding: 20px; display: grid; place-items: center; background: #0007; }
-.dialog { box-sizing: border-box; width: min(100%, 430px); padding: 20px; display: flex; flex-direction: column; gap: 14px; border-radius: 8px; color: var(--text-color); background: var(--card-bg); }
-h2 { margin: 0; font-size: 1.1rem; }
-label { display: flex; flex-direction: column; gap: 6px; color: var(--color-on-surface-variant); font-size: .82rem; }
-input, select, textarea { padding: 10px; border: var(--border-width) solid var(--border-color); border-radius: 7px; color: var(--text-color); background: var(--input-bg); font: inherit; }
-.check { flex-direction: row; align-items: center; }
-.check input { width: auto; }
-footer { display: flex; align-items: center; gap: 8px; }
-footer .spacer { flex: 1; }
-footer button { padding: 9px 14px; border: 0; border-radius: 7px; color: var(--text-color); background: var(--input-bg); }
-footer .primary { color: #fff; background: var(--color-primary); }
-footer .danger { color: var(--color-danger, #d14343); }
-.icon-command { display: inline-flex; align-items: center; gap: 6px; }
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 105;
+  padding: 20px;
+  display: grid;
+  place-items: center;
+  background: #0007;
+}
+.dialog {
+  box-sizing: border-box;
+  width: min(100%, 430px);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border-radius: 8px;
+  color: var(--text-color);
+  background: var(--card-bg);
+}
+h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--color-on-surface-variant);
+  font-size: 0.82rem;
+}
+input,
+select,
+textarea {
+  padding: 10px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 7px;
+  color: var(--text-color);
+  background: var(--input-bg);
+  font: inherit;
+}
+.check {
+  flex-direction: row;
+  align-items: center;
+}
+.check input {
+  width: auto;
+}
+footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+footer .spacer {
+  flex: 1;
+}
+footer button {
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--text-color);
+  background: var(--input-bg);
+}
+footer .primary {
+  color: #fff;
+  background: var(--color-primary);
+}
+footer .danger {
+  color: var(--color-danger, #d14343);
+}
+.icon-command {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 </style>

@@ -19,11 +19,7 @@ import type { OcrEngineType } from "@/tools/smart-ocr/types";
  * 转写任务状态
  */
 export type TranscriptionTaskStatus =
-  | "pending"
-  | "processing"
-  | "completed"
-  | "error"
-  | "cancelled";
+  "pending" | "processing" | "completed" | "error" | "cancelled";
 
 /**
  * 转写任务接口

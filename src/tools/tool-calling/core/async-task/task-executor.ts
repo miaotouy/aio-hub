@@ -84,8 +84,7 @@ export class TaskExecutor {
     methodName: string
   ): { agentCallable?: boolean } | null {
     const getMetadata = toolInstance.getMetadata as
-      | (() => ServiceMetadata)
-      | undefined;
+      (() => ServiceMetadata) | undefined;
     if (typeof getMetadata !== "function") {
       return null;
     }

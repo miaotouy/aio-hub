@@ -391,9 +391,7 @@ import { execute } from "aiohub-sdk";
 const result = await execute({
   service: "my-plugin",
   method: "myMethod",
-  params: {
-    /* ... */
-  },
+  params: {/* ... */},
 });
 ```
 

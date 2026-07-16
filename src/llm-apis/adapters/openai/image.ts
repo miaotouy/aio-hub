@@ -115,7 +115,9 @@ export async function toCoreMediaInput(
     };
   }
   const source = readString(value.b64) ?? readString(value.url);
-  const input = source ? fromStringSource(type, source, contentType) : undefined;
+  const input = source
+    ? fromStringSource(type, source, contentType)
+    : undefined;
   if (!input) return undefined;
   input.role = normalizeRole(value.role);
   input.filename = readString(value.name);
@@ -134,7 +136,11 @@ function fromStringSource(
       ? { kind: "inline-base64", contentType: match[1], data: match[2] }
       : /^https?:\/\//i.test(source)
         ? { kind: "remote-url", url: source }
-        : { kind: "inline-base64", contentType: fallbackContentType, data: source },
+        : {
+            kind: "inline-base64",
+            contentType: fallbackContentType,
+            data: source,
+          },
   };
 }
 
@@ -176,7 +182,10 @@ function toJsonExtensions(
 ): Record<string, JsonValue> {
   const result: Record<string, JsonValue> = {};
   for (const [key, value] of Object.entries(values)) {
-    if (value === null || ["string", "number", "boolean"].includes(typeof value)) {
+    if (
+      value === null ||
+      ["string", "number", "boolean"].includes(typeof value)
+    ) {
       result[key] = value as JsonValue;
     }
   }

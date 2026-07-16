@@ -33,13 +33,7 @@ export interface Variable {
 
 // HTTP 方法
 export type HttpMethod =
-  | "GET"
-  | "POST"
-  | "PUT"
-  | "DELETE"
-  | "PATCH"
-  | "HEAD"
-  | "OPTIONS";
+  "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS";
 
 // API 预设
 export interface ApiPreset {

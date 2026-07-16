@@ -58,10 +58,7 @@ export function parseInlineHtmlTag(
   // --- 特殊处理：<button> 标签可能是 ActionButton ---
   if (tagName === "button") {
     const action = openToken.attributes.type as
-      | "send"
-      | "input"
-      | "copy"
-      | undefined;
+      "send" | "input" | "copy" | undefined;
 
     // 安全性检查：只处理白名单内的 action 类型
     if (action && ["send", "input", "copy"].includes(action)) {

@@ -156,7 +156,9 @@ function detectVideoApiStyle(
   return "openai";
 }
 
-function definedJson(values: Record<string, unknown>): Record<string, JsonValue> {
+function definedJson(
+  values: Record<string, unknown>
+): Record<string, JsonValue> {
   const result: Record<string, JsonValue> = {};
   for (const [key, value] of Object.entries(values)) {
     const normalized = toJson(value);
@@ -166,12 +168,17 @@ function definedJson(values: Record<string, unknown>): Record<string, JsonValue>
 }
 
 function toJson(value: unknown): JsonValue | undefined {
-  if (value === null || ["string", "number", "boolean"].includes(typeof value)) {
+  if (
+    value === null ||
+    ["string", "number", "boolean"].includes(typeof value)
+  ) {
     return value as JsonValue;
   }
   if (Array.isArray(value)) {
     const result = value.map(toJson);
-    return result.every((item) => item !== undefined) ? (result as JsonValue[]) : undefined;
+    return result.every((item) => item !== undefined)
+      ? (result as JsonValue[])
+      : undefined;
   }
   if (typeof value === "object" && value !== null) {
     return definedJson(value as Record<string, unknown>);
@@ -186,6 +193,7 @@ function readString(value: unknown): string | undefined {
 function decodeBase64(value: string): ArrayBuffer {
   const binary = atob(value);
   const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+  for (let index = 0; index < binary.length; index++)
+    bytes[index] = binary.charCodeAt(index);
   return bytes.buffer;
 }

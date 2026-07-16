@@ -93,7 +93,10 @@ export function useChatResponseHandler() {
     }
 
     // 如果有推理内容和开始时间，恢复时间戳
-    if (finalNode.metadata.reasoningContent && finalNode.metadata.reasoningStartTime) {
+    if (
+      finalNode.metadata.reasoningContent &&
+      finalNode.metadata.reasoningStartTime
+    ) {
       if (!finalNode.metadata.reasoningEndTime) {
         finalNode.metadata.reasoningEndTime = Date.now();
       }
@@ -114,7 +117,10 @@ export function useChatResponseHandler() {
     let contentTokenSource: TokenCountSource;
     let contentTokenizer: string | undefined;
 
-    if (typeof apiCompletionTokens === "number" && Number.isFinite(apiCompletionTokens)) {
+    if (
+      typeof apiCompletionTokens === "number" &&
+      Number.isFinite(apiCompletionTokens)
+    ) {
       contentTokens = apiCompletionTokens;
       contentTokenSource = "api";
     } else {
@@ -179,8 +185,9 @@ export function useChatResponseHandler() {
       errorNode.metadata = {};
     }
 
-    errorNode.metadata.error = error instanceof Error ? error.message : String(error);
-    
+    errorNode.metadata.error =
+      error instanceof Error ? error.message : String(error);
+
     errorHandler.handle((error as Error) || new Error(String(error)), {
       level: ErrorLevel.ERROR,
       userMessage: `${context}失败`,

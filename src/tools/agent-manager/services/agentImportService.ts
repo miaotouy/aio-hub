@@ -171,8 +171,8 @@ async function createPreflightResultFromBundle(
     );
 
     let embeddedResult:
-      | { isDuplicate: boolean; hasNameConflict: boolean }
-      | undefined = undefined;
+      { isDuplicate: boolean; hasNameConflict: boolean } | undefined =
+      undefined;
     if (embedded) {
       const wbName =
         embedded.metadata?.name ||

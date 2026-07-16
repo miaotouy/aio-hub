@@ -38,22 +38,22 @@ function createMessage(
 
 function normalizePresetMessages(value: unknown): PresetMessage[] {
   if (!Array.isArray(value)) return [];
-  return value
-    .filter(isRecord)
-    .map((message) => ({
-      ...message,
-      id: readString(message, "id") || crypto.randomUUID(),
-      parentId: typeof message.parentId === "string" ? message.parentId : null,
-      childrenIds: Array.isArray(message.childrenIds) ? message.childrenIds : [],
-      role: ["system", "user", "assistant"].includes(readString(message, "role"))
-        ? (readString(message, "role") as PresetMessage["role"])
-        : "system",
-      status: ["generating", "complete", "error"].includes(readString(message, "status"))
-        ? (readString(message, "status") as PresetMessage["status"])
-        : "complete",
-      content: readString(message, "content"),
-      timestamp: readString(message, "timestamp") || new Date().toISOString(),
-    })) as PresetMessage[];
+  return value.filter(isRecord).map((message) => ({
+    ...message,
+    id: readString(message, "id") || crypto.randomUUID(),
+    parentId: typeof message.parentId === "string" ? message.parentId : null,
+    childrenIds: Array.isArray(message.childrenIds) ? message.childrenIds : [],
+    role: ["system", "user", "assistant"].includes(readString(message, "role"))
+      ? (readString(message, "role") as PresetMessage["role"])
+      : "system",
+    status: ["generating", "complete", "error"].includes(
+      readString(message, "status")
+    )
+      ? (readString(message, "status") as PresetMessage["status"])
+      : "complete",
+    content: readString(message, "content"),
+    timestamp: readString(message, "timestamp") || new Date().toISOString(),
+  })) as PresetMessage[];
 }
 
 function normalizeAioAgent(value: unknown): ImportedAgentDraft | null {
@@ -75,7 +75,8 @@ function normalizeAioAgent(value: unknown): ImportedAgentDraft | null {
 
 function isSillyTavernCard(value: unknown): value is UnknownRecord {
   if (!isRecord(value)) return false;
-  if (value.spec === "chara_card_v2" || value.spec === "chara_card_v3") return true;
+  if (value.spec === "chara_card_v2" || value.spec === "chara_card_v3")
+    return true;
   const data = isRecord(value.data) ? value.data : value;
   return Boolean(readString(data, "name") && "first_mes" in data);
 }
@@ -87,7 +88,9 @@ function convertSillyTavernCard(card: UnknownRecord): ImportedAgentDraft {
   const append = (key: string, label: string, prefix?: string) => {
     const content = readString(data, key).trim();
     if (!content) return;
-    messages.push(createMessage(prefix ? `${prefix}\n${content}` : content, label));
+    messages.push(
+      createMessage(prefix ? `${prefix}\n${content}` : content, label)
+    );
   };
 
   append("system_prompt", "System Prompt");
@@ -98,15 +101,19 @@ function convertSillyTavernCard(card: UnknownRecord): ImportedAgentDraft {
 
   const postHistory = readString(data, "post_history_instructions").trim();
   if (postHistory) {
-    messages.push(createMessage(postHistory, "Post History Instructions", {
-      type: "depth",
-      depth: 0,
-      order: 100,
-    }));
+    messages.push(
+      createMessage(postHistory, "Post History Instructions", {
+        type: "depth",
+        depth: 0,
+        order: 100,
+      })
+    );
   }
 
   const alternateGreetings = Array.isArray(data.alternate_greetings)
-    ? data.alternate_greetings.filter((item): item is string => typeof item === "string")
+    ? data.alternate_greetings.filter(
+        (item): item is string => typeof item === "string"
+      )
     : [];
   const firstMessage = readString(data, "first_mes");
 
@@ -114,7 +121,8 @@ function convertSillyTavernCard(card: UnknownRecord): ImportedAgentDraft {
     version: 2,
     name,
     displayName: name,
-    description: readString(data, "description") || readString(data, "creator_notes"),
+    description:
+      readString(data, "description") || readString(data, "creator_notes"),
     category: "character",
     icon: "Bot",
     presetMessages: messages,
@@ -124,7 +132,9 @@ function convertSillyTavernCard(card: UnknownRecord): ImportedAgentDraft {
 }
 
 function decodeBase64Json(value: string): unknown {
-  const bytes = Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
+  const bytes = Uint8Array.from(atob(value), (character) =>
+    character.charCodeAt(0)
+  );
   return JSON.parse(new TextDecoder().decode(bytes));
 }
 
@@ -132,7 +142,11 @@ function extractPngTextChunks(buffer: ArrayBuffer): Record<string, string> {
   const bytes = new Uint8Array(buffer);
   const view = new DataView(buffer);
   const chunks: Record<string, string> = {};
-  if (bytes.length < 8 || view.getUint32(0) !== 0x89504e47 || view.getUint32(4) !== 0x0d0a1a0a) {
+  if (
+    bytes.length < 8 ||
+    view.getUint32(0) !== 0x89504e47 ||
+    view.getUint32(4) !== 0x0d0a1a0a
+  ) {
     return chunks;
   }
 
@@ -143,14 +157,20 @@ function extractPngTextChunks(buffer: ArrayBuffer): Record<string, string> {
     const dataStart = typeStart + 4;
     const dataEnd = dataStart + length;
     if (dataEnd + 4 > bytes.length) break;
-    const type = new TextDecoder("latin1").decode(bytes.subarray(typeStart, dataStart));
+    const type = new TextDecoder("latin1").decode(
+      bytes.subarray(typeStart, dataStart)
+    );
     const data = bytes.subarray(dataStart, dataEnd);
 
     if (type === "tEXt") {
       const separator = data.indexOf(0);
       if (separator >= 0) {
-        const key = new TextDecoder("latin1").decode(data.subarray(0, separator));
-        chunks[key] = new TextDecoder("latin1").decode(data.subarray(separator + 1));
+        const key = new TextDecoder("latin1").decode(
+          data.subarray(0, separator)
+        );
+        chunks[key] = new TextDecoder("latin1").decode(
+          data.subarray(separator + 1)
+        );
       }
     } else if (type === "iTXt") {
       const separator = data.indexOf(0);
@@ -161,8 +181,12 @@ function extractPngTextChunks(buffer: ArrayBuffer): Record<string, string> {
           cursor = languageEnd + 1;
           const translatedEnd = data.indexOf(0, cursor);
           if (translatedEnd >= 0) {
-            const key = new TextDecoder("latin1").decode(data.subarray(0, separator));
-            chunks[key] = new TextDecoder().decode(data.subarray(translatedEnd + 1));
+            const key = new TextDecoder("latin1").decode(
+              data.subarray(0, separator)
+            );
+            chunks[key] = new TextDecoder().decode(
+              data.subarray(translatedEnd + 1)
+            );
           }
         }
       }
@@ -176,14 +200,20 @@ function extractPngTextChunks(buffer: ArrayBuffer): Record<string, string> {
 
 function parseImportPayload(payload: unknown): AgentImportResult {
   if (isSillyTavernCard(payload)) {
-    return { agents: [convertSillyTavernCard(payload)], source: "silly-tavern" };
+    return {
+      agents: [convertSillyTavernCard(payload)],
+      source: "silly-tavern",
+    };
   }
   if (!isRecord(payload)) throw new Error("Unsupported agent file");
 
-  const candidates = payload.type === "AIO_Agent_Export" && Array.isArray(payload.agents)
-    ? payload.agents
-    : [payload];
-  const agents = candidates.map(normalizeAioAgent).filter((agent): agent is ImportedAgentDraft => agent !== null);
+  const candidates =
+    payload.type === "AIO_Agent_Export" && Array.isArray(payload.agents)
+      ? payload.agents
+      : [payload];
+  const agents = candidates
+    .map(normalizeAioAgent)
+    .filter((agent): agent is ImportedAgentDraft => agent !== null);
   if (agents.length === 0) throw new Error("No valid agents found");
   return { agents, source: "aio" };
 }

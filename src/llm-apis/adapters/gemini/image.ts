@@ -10,10 +10,7 @@ import type { MediaGenerationOptions, LlmResponse } from "@/llm-apis/common";
 import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
 import type { LlmProfile } from "@/types/llm-profiles";
 import { toCoreImageRequest } from "../openai/image";
-import {
-  toGeminiCoreRequest,
-  toGeminiProviderProfile,
-} from "./chat";
+import { toGeminiCoreRequest, toGeminiProviderProfile } from "./chat";
 
 export async function callGeminiImageApi(
   profile: LlmProfile,
@@ -70,11 +67,16 @@ export async function callGeminiImageApi(
   };
 }
 
-function definedJson(values: Record<string, unknown>): Record<string, JsonValue> {
+function definedJson(
+  values: Record<string, unknown>
+): Record<string, JsonValue> {
   const result: Record<string, JsonValue> = {};
   for (const [key, value] of Object.entries(values)) {
     if (value === undefined) continue;
-    if (value === null || ["string", "number", "boolean"].includes(typeof value)) {
+    if (
+      value === null ||
+      ["string", "number", "boolean"].includes(typeof value)
+    ) {
       result[key] = value as JsonValue;
     } else if (Array.isArray(value)) {
       result[key] = value.filter(

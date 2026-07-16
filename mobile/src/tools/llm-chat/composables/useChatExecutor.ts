@@ -26,7 +26,8 @@ export function useChatExecutor() {
   const nodeManager = useNodeManager();
   const pipelineStore = useContextPipelineStore();
   const agentStore = useAgentStore();
-  const { handleStreamUpdate, finalizeNode, handleNodeError } = useChatResponseHandler();
+  const { handleStreamUpdate, finalizeNode, handleNodeError } =
+    useChatResponseHandler();
   const { shouldAutoName, generateTopicName } = useTopicNamer();
   const { settings, loadSettings } = useChatSettings();
   const { tRaw } = useI18n();
@@ -47,7 +48,8 @@ export function useChatExecutor() {
     const activeAgent = agentStore.getAgentById(session.displayAgentId);
 
     // 智能体绑定优先；普通会话继续使用聊天页当前选择的模型。
-    const [selectedProfileId, selectedModelId] = chatStore.selectedModelValue.split(":");
+    const [selectedProfileId, selectedModelId] =
+      chatStore.selectedModelValue.split(":");
     const profileId = activeAgent?.profileId || selectedProfileId;
     const modelId = activeAgent?.modelId || selectedModelId;
     if (!profileId || !modelId) {
@@ -115,16 +117,20 @@ export function useChatExecutor() {
 
       await pipelineStore.executePipeline(pipelineContext);
 
-      const requestContextMessages = pipelineContext.messages.filter((message) => {
+      const requestContextMessages = pipelineContext.messages.filter(
+        (message) => {
           // 过滤掉空内容的消息，除非是 user 角色（有时候 user 发送空内容是为了触发某些特定逻辑，但通常不建议）
           if (Array.isArray(message.content)) {
             return message.content.length > 0;
           }
           return !!message.content || message.role === "user";
-        });
+        }
+      );
 
       const tokenResult = await countTokensBatch(
-        requestContextMessages.map((message) => contentToTokenText(message.content))
+        requestContextMessages.map((message) =>
+          contentToTokenText(message.content)
+        )
       );
       const contextUsage = createLocalContextUsage(
         tokenResult,
@@ -137,11 +143,15 @@ export function useChatExecutor() {
       };
 
       requestContextMessages.forEach((message, index) => {
-        if (message.sourceType !== "session_history" || typeof message.sourceId !== "string") {
+        if (
+          message.sourceType !== "session_history" ||
+          typeof message.sourceId !== "string"
+        ) {
           return;
         }
         const sourceNode = session.nodes[message.sourceId];
-        if (!sourceNode || sourceNode.metadata?.contentTokenSource === "api") return;
+        if (!sourceNode || sourceNode.metadata?.contentTokenSource === "api")
+          return;
         sourceNode.metadata = {
           ...sourceNode.metadata,
           contentTokens: tokenResult.counts[index] ?? 0,

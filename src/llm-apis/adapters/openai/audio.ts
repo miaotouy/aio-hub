@@ -40,7 +40,8 @@ export async function callOpenAiAudioApi(
       extensions: {
         ...((typeof extendedOptions.instructions === "string" && {
           instructions: extendedOptions.instructions,
-        }) || {}),
+        }) ||
+          {}),
       },
     },
     transport: desktopLlmTransport,

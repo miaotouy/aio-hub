@@ -228,8 +228,7 @@ export const useMessageInputStore = defineStore(
     let _sendCallback: ((payload?: any) => void) | null = null;
     let _abortCallback: (() => void) | null = null;
     let _completeInputCallback:
-      | ((content: string, options?: any) => void)
-      | null = null;
+      ((content: string, options?: any) => void) | null = null;
 
     const registerTextareaRef = (ref: any) => {
       _textareaRef = ref;

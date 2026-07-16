@@ -17,10 +17,7 @@ import type { BubbleLayoutOverride } from "../../composables/ui/useMessageLayout
 
 /** 折叠策略 */
 export type CollapseStrategy =
-  | "preserve"
-  | "config"
-  | "override-expand"
-  | "override-collapse";
+  "preserve" | "config" | "override-expand" | "override-collapse";
 
 // -------------- V4: 背景与间距配置 --------------
 

@@ -54,9 +54,7 @@ export interface WorkerRequestMessage {
 }
 
 export type WorkerInbound =
-  | WorkerInitMessage
-  | WorkerProfileDataMessage
-  | WorkerRequestMessage;
+  WorkerInitMessage | WorkerProfileDataMessage | WorkerRequestMessage;
 
 // =================================================================
 // Worker → 主线程的消息

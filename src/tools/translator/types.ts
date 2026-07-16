@@ -24,12 +24,7 @@ export type TranslatorLanguageCode = "auto" | (string & {});
 
 /** 语言分组：用于下拉里 el-option-group 分组渲染 */
 export type TranslatorLanguageGroup =
-  | "meta"
-  | "cjk"
-  | "europe"
-  | "mideast"
-  | "south-asia"
-  | "custom";
+  "meta" | "cjk" | "europe" | "mideast" | "south-asia" | "custom";
 
 export interface TranslatorLanguageOption {
   label: string;
@@ -61,12 +56,7 @@ export interface TranslatorPreset {
 
 /** 渠道运行状态 */
 export type TranslationResultStatus =
-  | "idle"
-  | "pending"
-  | "streaming"
-  | "completed"
-  | "aborted"
-  | "failed";
+  "idle" | "pending" | "streaming" | "completed" | "aborted" | "failed";
 
 /** 单个渠道的翻译结果 */
 export interface TranslationResult {
@@ -149,10 +139,7 @@ export interface TranslatorSettings {
 }
 
 export type LongTextChunkStatus =
-  | "waiting"
-  | "translating"
-  | "completed"
-  | "failed";
+  "waiting" | "translating" | "completed" | "failed";
 
 export interface LongTextChunk {
   index: number;
@@ -169,12 +156,7 @@ export interface LongTextChunk {
 }
 
 export type LongTextTaskStatus =
-  | "idle"
-  | "splitting"
-  | "translating"
-  | "completed"
-  | "failed"
-  | "aborted";
+  "idle" | "splitting" | "translating" | "completed" | "failed" | "aborted";
 
 export interface LongTextTask {
   id: string;

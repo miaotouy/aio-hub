@@ -62,7 +62,12 @@ export async function callGeminiVideoApi(
       ? "Video generated successfully."
       : "No video generated.",
     videos: (task.assets ?? []).map((asset) => ({
-      url: asset.kind === "remote-url" ? asset.url : asset.kind === "local-asset" ? asset.id : undefined,
+      url:
+        asset.kind === "remote-url"
+          ? asset.url
+          : asset.kind === "local-asset"
+            ? asset.id
+            : undefined,
       b64_json: asset.kind === "inline-base64" ? asset.data : undefined,
       status: "completed" as const,
     })),
@@ -70,11 +75,16 @@ export async function callGeminiVideoApi(
   };
 }
 
-function definedJson(values: Record<string, unknown>): Record<string, JsonValue> {
+function definedJson(
+  values: Record<string, unknown>
+): Record<string, JsonValue> {
   const result: Record<string, JsonValue> = {};
   for (const [key, value] of Object.entries(values)) {
     if (value === undefined) continue;
-    if (value === null || ["string", "number", "boolean"].includes(typeof value)) {
+    if (
+      value === null ||
+      ["string", "number", "boolean"].includes(typeof value)
+    ) {
       result[key] = value as JsonValue;
     }
   }

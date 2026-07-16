@@ -69,10 +69,7 @@ describe("desktop shared Embedding facade", () => {
   });
 });
 
-function createProfile(
-  type: LlmProfile["type"],
-  baseUrl: string
-): LlmProfile {
+function createProfile(type: LlmProfile["type"], baseUrl: string): LlmProfile {
   return {
     id: `${type}-profile`,
     name: type,

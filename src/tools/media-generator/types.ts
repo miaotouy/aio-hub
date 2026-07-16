@@ -57,11 +57,7 @@ export function mediaTaskTypeToAssetType(
  * 媒体生成任务状态
  */
 export type MediaTaskStatus =
-  | "pending"
-  | "processing"
-  | "completed"
-  | "error"
-  | "cancelled";
+  "pending" | "processing" | "completed" | "error" | "cancelled";
 /**
  * 媒体生成消息
  * 继承自聊天消息节点，增强媒体生成相关的元数据

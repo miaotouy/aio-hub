@@ -16,12 +16,13 @@ runTransportContract({
 
 describe("mobile LLM transport", () => {
   it("serializes JSON and preserves response status, headers, and chunks", async () => {
-    const fetch = vi.fn(async () =>
-      new Response("first-second", {
-        status: 201,
-        statusText: "Created",
-        headers: { "X-Test": "value" },
-      })
+    const fetch = vi.fn(
+      async () =>
+        new Response("first-second", {
+          status: 201,
+          statusText: "Created",
+          headers: { "X-Test": "value" },
+        })
     );
     const ensureResponseOk = vi.fn(async () => undefined);
     const onRequest = vi.fn();
@@ -131,11 +132,12 @@ describe("mobile LLM transport", () => {
 
   it("routes tagged JSON file references through the native command", async () => {
     const fetch = vi.fn();
-    const sendFileRequest = vi.fn(async () =>
-      new Response('{"ok":true}', {
-        status: 202,
-        headers: { "X-Native": "yes" },
-      })
+    const sendFileRequest = vi.fn(
+      async () =>
+        new Response('{"ok":true}', {
+          status: 202,
+          headers: { "X-Native": "yes" },
+        })
     );
     const transport = createMobileLlmTransport({
       fetch,
@@ -221,7 +223,9 @@ describe("mobile LLM transport", () => {
 
     expect(sendFileRequest).toHaveBeenNthCalledWith(
       1,
-      expect.objectContaining({ body: expect.objectContaining({ kind: "file-ref" }) })
+      expect.objectContaining({
+        body: expect.objectContaining({ kind: "file-ref" }),
+      })
     );
     expect(sendFileRequest).toHaveBeenNthCalledWith(
       2,
@@ -244,7 +248,9 @@ describe("mobile LLM transport", () => {
     const sendFileRequest = vi.fn(
       () =>
         new Promise<Response>((_, reject) => {
-          controller.signal.addEventListener("abort", () => reject(new Error("cancelled")));
+          controller.signal.addEventListener("abort", () =>
+            reject(new Error("cancelled"))
+          );
         })
     );
     const transport = createMobileLlmTransport({

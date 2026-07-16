@@ -12,13 +12,7 @@ import { getMatchedModelProperties } from "../config/model-metadata";
  * 模型家族类型
  */
 export type ModelFamily =
-  | "openai"
-  | "claude"
-  | "gemini"
-  | "cohere"
-  | "deepseek"
-  | "qwen"
-  | "unknown";
+  "openai" | "claude" | "gemini" | "cohere" | "deepseek" | "qwen" | "unknown";
 
 /**
  * 解析后的消息内容结构
@@ -199,10 +193,7 @@ export function extractCommonParameters(
  * 工具选择策略类型
  */
 export type ToolChoiceType =
-  | "auto"
-  | "none"
-  | "required"
-  | { functionName: string };
+  "auto" | "none" | "required" | { functionName: string };
 
 /**
  * 解析工具选择策略

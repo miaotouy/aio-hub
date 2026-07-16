@@ -47,9 +47,13 @@ export const useAgentStore = defineStore("agent-manager", () => {
     return agents.value.find((agent) => agent.id === agentId) || null;
   }
 
-  async function createAgent(overrides: Partial<ChatAgent> = {}): Promise<ChatAgent | null> {
+  async function createAgent(
+    overrides: Partial<ChatAgent> = {}
+  ): Promise<ChatAgent | null> {
     if (!profilesStore.isLoaded) await profilesStore.init();
-    const profile = profilesStore.enabledProfiles.find((item) => item.models.length > 0);
+    const profile = profilesStore.enabledProfiles.find(
+      (item) => item.models.length > 0
+    );
     if (!profile) return null;
 
     const now = new Date().toISOString();
@@ -73,7 +77,9 @@ export const useAgentStore = defineStore("agent-manager", () => {
   }
 
   async function createDefaultAgent(): Promise<void> {
-    const profile = profilesStore.enabledProfiles.find((item) => item.models.length > 0);
+    const profile = profilesStore.enabledProfiles.find(
+      (item) => item.models.length > 0
+    );
     if (!profile) {
       logger.info("暂无可用模型，跳过创建默认智能体");
       return;
@@ -81,10 +87,17 @@ export const useAgentStore = defineStore("agent-manager", () => {
     await createAgent();
   }
 
-  async function updateAgent(agentId: string, updates: Partial<ChatAgent>): Promise<ChatAgent | null> {
+  async function updateAgent(
+    agentId: string,
+    updates: Partial<ChatAgent>
+  ): Promise<ChatAgent | null> {
     const index = agents.value.findIndex((agent) => agent.id === agentId);
     if (index < 0) return null;
-    const updated: ChatAgent = { ...agents.value[index], ...updates, id: agentId };
+    const updated: ChatAgent = {
+      ...agents.value[index],
+      ...updates,
+      id: agentId,
+    };
     agents.value[index] = updated;
     await storage.saveAgent(updated);
     return updated;

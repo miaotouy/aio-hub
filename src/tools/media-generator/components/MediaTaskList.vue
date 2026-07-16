@@ -177,8 +177,7 @@ const handleRetryTask = (task: MediaTask) => {
   // 恢复参考图附件
   store.clearAttachments();
   const inputAttachments = task.input.params?.inputAttachments as
-    | any[]
-    | undefined;
+    any[] | undefined;
   if (inputAttachments && inputAttachments.length > 0) {
     for (const att of inputAttachments) {
       if (att && (att.id || att.path)) {

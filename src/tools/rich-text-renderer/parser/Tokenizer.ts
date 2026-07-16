@@ -529,9 +529,7 @@ export class Tokenizer {
             );
             if (roleMatch) {
               const role = roleMatch[1].toLowerCase() as
-                | "user"
-                | "assistant"
-                | "system";
+                "user" | "assistant" | "system";
               const startMarker = roleMatch[0];
               const endMarker = `<<<[END_ROLE_DIVIDE_${roleMatch[1]}]>>>`;
 

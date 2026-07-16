@@ -99,8 +99,7 @@ export interface EditorSessionRuntime {
 
   // 历史应用器（由 SketchPad.vue 注册）
   historyApplicator:
-    | ((entry: HistoryEntry, direction: "undo" | "redo") => void)
-    | null;
+    ((entry: HistoryEntry, direction: "undo" | "redo") => void) | null;
   registerHistoryApplicator(
     fn: (entry: HistoryEntry, direction: "undo" | "redo") => void
   ): void;

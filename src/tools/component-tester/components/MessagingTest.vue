@@ -252,10 +252,7 @@ const showLongCustomMessage = () => {
 const showNotification = (
   type: "success" | "info" | "warning" | "error",
   position:
-    | "top-right"
-    | "top-left"
-    | "bottom-right"
-    | "bottom-left" = "top-right"
+    "top-right" | "top-left" | "bottom-right" | "bottom-left" = "top-right"
 ) => {
   const titles = {
     success: "成功",

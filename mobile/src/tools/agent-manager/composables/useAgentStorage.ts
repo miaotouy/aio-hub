@@ -57,7 +57,9 @@ export function useAgentStorage() {
       if (!(await exists(indexPath))) {
         return { version: INDEX_VERSION, agents: [] };
       }
-      const parsed = JSON.parse(await readTextFile(indexPath)) as Partial<AgentsIndex>;
+      const parsed = JSON.parse(
+        await readTextFile(indexPath)
+      ) as Partial<AgentsIndex>;
       return {
         version: INDEX_VERSION,
         agents: Array.isArray(parsed.agents) ? parsed.agents : [],
@@ -116,14 +118,19 @@ export function useAgentStorage() {
 
   async function loadAgents(): Promise<ChatAgent[]> {
     const index = await loadIndex();
-    const loaded = await Promise.all(index.agents.map((item) => loadAgent(item.id)));
+    const loaded = await Promise.all(
+      index.agents.map((item) => loadAgent(item.id))
+    );
     const agents = loaded.filter((agent): agent is ChatAgent => agent !== null);
     if (agents.length !== index.agents.length) {
       logger.warn("智能体索引包含缺失或损坏的条目，已自动修复", {
         indexed: index.agents.length,
         loaded: agents.length,
       });
-      await saveIndex({ version: INDEX_VERSION, agents: agents.map(toIndexItem) });
+      await saveIndex({
+        version: INDEX_VERSION,
+        agents: agents.map(toIndexItem),
+      });
     }
     return agents;
   }
@@ -132,7 +139,10 @@ export function useAgentStorage() {
     try {
       await ensureStorage();
       const path = await getAgentPath(agent.id);
-      const separatorIndex = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+      const separatorIndex = Math.max(
+        path.lastIndexOf("/"),
+        path.lastIndexOf("\\")
+      );
       const agentDir = path.slice(0, separatorIndex);
       if (!(await exists(agentDir))) {
         await mkdir(agentDir, { recursive: true });

@@ -52,7 +52,9 @@ export async function countTokens(text: string): Promise<TokenCountResult> {
   };
 }
 
-export async function countTokensBatch(texts: string[]): Promise<TokenCountBatchResult> {
+export async function countTokensBatch(
+  texts: string[]
+): Promise<TokenCountBatchResult> {
   const result = await errorHandler.wrapAsync(
     () => invoke<TokenCountBatchCommandResult>("count_tokens_batch", { texts }),
     {

@@ -25,11 +25,7 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { AssetManagerDocumentConversionConfig } from "../config";
 
 type DocumentConverterProvider =
-  | "auto"
-  | "libreOffice"
-  | "microsoftWord"
-  | "abiWord"
-  | "textutil";
+  "auto" | "libreOffice" | "microsoftWord" | "abiWord" | "textutil";
 
 interface ConverterCheckResult {
   available: boolean;

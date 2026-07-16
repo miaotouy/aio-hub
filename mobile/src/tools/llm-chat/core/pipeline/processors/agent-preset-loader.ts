@@ -13,12 +13,18 @@ export const agentPresetLoader: ContextProcessor = {
   execute: async (context) => {
     const presetMessages = context.agentConfig?.presetMessages || [];
     const groupMap = new Map(
-      (context.agentConfig?.presetGroups || []).map((group) => [group.id, group])
+      (context.agentConfig?.presetGroups || []).map((group) => [
+        group.id,
+        group,
+      ])
     );
     const injected: ProcessableMessage[] = presetMessages
       .filter((message) => {
-        if (!message.content.trim() || message.isEnabled === false) return false;
-        return !message.groupId || groupMap.get(message.groupId)?.enabled !== false;
+        if (!message.content.trim() || message.isEnabled === false)
+          return false;
+        return (
+          !message.groupId || groupMap.get(message.groupId)?.enabled !== false
+        );
       })
       .map((message, index) => ({
         role: message.role,

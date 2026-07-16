@@ -4,10 +4,7 @@ import type { ModelCapabilities } from "./common";
  * 匹配规则类型
  */
 export type MetadataMatchType =
-  | "provider"
-  | "model"
-  | "modelPrefix"
-  | "modelGroup";
+  "provider" | "model" | "modelPrefix" | "modelGroup";
 
 /**
  * 模型元数据属性

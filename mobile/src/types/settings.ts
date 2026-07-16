@@ -16,11 +16,7 @@ export interface AppearanceLayerOpacityOffsets {
 }
 
 export type AppearanceWallpaperPreset =
-  | "none"
-  | "aurora"
-  | "morning"
-  | "canyon"
-  | "ink";
+  "none" | "aurora" | "morning" | "canyon" | "ink";
 
 export interface AppearanceWallpaperSettings {
   /** 是否启用壁纸背景 */

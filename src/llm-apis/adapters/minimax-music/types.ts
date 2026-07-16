@@ -13,10 +13,7 @@
 // limitations under the License.
 
 export type MinimaxMusicModel =
-  | "music-2.6"
-  | "music-cover"
-  | "music-2.6-free"
-  | "music-cover-free";
+  "music-2.6" | "music-cover" | "music-2.6-free" | "music-cover-free";
 
 export type MinimaxMusicOutputFormat = "url" | "hex";
 

@@ -335,8 +335,7 @@ export class BilibiliPlayerController {
    * @returns { paused: boolean, currentTime: number } | undefined
    */
   public getVideoStatus():
-    | { paused: boolean; currentTime: number }
-    | undefined {
+    { paused: boolean; currentTime: number } | undefined {
     const video = this.getVideoElement();
     if (video) {
       return {

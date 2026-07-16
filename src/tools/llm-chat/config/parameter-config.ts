@@ -17,6 +17,7 @@ import type {
   LlmParameterSupport,
   ModelCapabilities,
 } from "@/types/llm-profiles";
+import { getModelFamily } from "@/llm-apis/request-builder";
 
 /**
  * 所有支持发送给 LLM 的参数键列表（白名单）
@@ -321,7 +322,9 @@ export const parameterConfigs: ParameterConfig[] = [
 export function isParameterSupportedByModel(
   key: keyof LlmParameters,
   supportedParameters: LlmParameterSupport,
-  capabilities?: ModelCapabilities
+  capabilities?: ModelCapabilities,
+  modelId?: string,
+  provider?: string
 ): boolean {
   const config = parameterConfigs.find((c) => c.key === key);
   if (!config) {
@@ -346,7 +349,15 @@ export function isParameterSupportedByModel(
 
   // 对于 includeThoughts，需要检查 thinkingConfig 支持
   if (key === "includeThoughts") {
-    // 只有支持 thinkingConfig 的 provider 才显示此参数
+    if (modelId) {
+      return (
+        getModelFamily(modelId, provider) === "gemini" &&
+        (supportedParameters.thinkingConfig === true ||
+          capabilities?.thinking === true)
+      );
+    }
+
+    // 兼容没有模型上下文的旧调用方。
     return supportedParameters.thinkingConfig === true;
   }
 
@@ -361,12 +372,16 @@ export function isParameterSupportedByModel(
  * @param parameters 原始参数
  * @param supportedParameters 目标 provider 支持的参数
  * @param capabilities 目标模型的能力
+ * @param modelId 目标模型 ID
+ * @param provider 目标模型或 Profile 的 Provider 标识
  * @returns 过滤后的参数
  */
 export function filterParametersForModel(
   parameters: LlmParameters,
   supportedParameters: LlmParameterSupport,
-  capabilities?: ModelCapabilities
+  capabilities?: ModelCapabilities,
+  modelId?: string,
+  provider?: string
 ): LlmParameters {
   const filteredParams: LlmParameters & Record<string, any> = {};
 
@@ -390,7 +405,9 @@ export function filterParametersForModel(
       isParameterSupportedByModel(
         key as keyof LlmParameters,
         supportedParameters,
-        capabilities
+        capabilities,
+        modelId,
+        provider
       )
     ) {
       filteredParams[key] = value;
@@ -404,7 +421,9 @@ export function filterParametersForModel(
         isParameterSupportedByModel(
           paramKey as keyof LlmParameters,
           supportedParameters,
-          capabilities
+          capabilities,
+          modelId,
+          provider
         )
     );
   }
@@ -440,7 +459,21 @@ export function buildEffectiveParameters(
 
   // 2. 解包并添加自定义参数
   if (params.custom && typeof params.custom === "object") {
-    Object.assign(effectiveParams, params.custom);
+    const custom = params.custom as unknown as Record<string, any>;
+    const isWrappedCustom =
+      typeof custom.enabled === "boolean" &&
+      custom.params !== null &&
+      typeof custom.params === "object" &&
+      !Array.isArray(custom.params);
+
+    if (isWrappedCustom) {
+      if (custom.enabled) {
+        Object.assign(effectiveParams, custom.params);
+      }
+    } else {
+      // 兼容旧版直接存储扁平参数对象的数据。
+      Object.assign(effectiveParams, params.custom);
+    }
   }
 
   return effectiveParams;

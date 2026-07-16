@@ -34,6 +34,7 @@ import type { LlmProfile } from "@/types/llm-profiles";
 import {
   applyCustomParameters,
   cleanPayload,
+  getModelFamily,
   inferImageMimeType,
   isOpenAIModel,
 } from "@/llm-apis/request-builder";
@@ -89,7 +90,11 @@ export const callOpenAiChatApi = async (
     },
   });
 
-  return mapCoreOpenAiResponse(result, options.modelId, request.stream === true);
+  return mapCoreOpenAiResponse(
+    result,
+    options.modelId,
+    request.stream === true
+  );
 };
 
 function buildProviderProfile(
@@ -112,7 +117,9 @@ function buildCoreRequest(
   applyCustomParameters(extensions, options);
   cleanPayload(extensions);
   if (options.requestId) extensions.requestId = options.requestId;
-  if ((options as LlmRequestOptions & { safetySettings?: unknown }).safetySettings) {
+  if (
+    (options as LlmRequestOptions & { safetySettings?: unknown }).safetySettings
+  ) {
     const safetySettings = (
       options as LlmRequestOptions & { safetySettings?: unknown }
     ).safetySettings;
@@ -120,16 +127,28 @@ function buildCoreRequest(
     if (value !== undefined) extensions.safety_settings = value;
   }
 
+  const customExtraBody = toJsonObject(extensions.extra_body);
+  const explicitExtraBody = mergeJsonObjects(
+    customExtraBody,
+    toJsonObject(options.extraBody)
+  );
+  const isGeminiModel =
+    getModelFamily(options.modelId, profile.type) === "gemini";
+  const geminiExtraBody = isGeminiModel
+    ? buildGeminiExtraBody(options, explicitExtraBody)
+    : undefined;
   const isDeepSeekThinking =
     options.modelId.toLowerCase().includes("deepseek") &&
     options.thinkingEnabled !== undefined;
-  if (isDeepSeekThinking) {
+  if (geminiExtraBody) {
+    extensions.extra_body = geminiExtraBody;
+  } else if (isDeepSeekThinking) {
     extensions.extra_body = {
       thinking: { type: options.thinkingEnabled ? "enabled" : "disabled" },
-      ...(toJsonObject(options.extraBody) ?? {}),
+      ...(explicitExtraBody ?? {}),
     };
-  } else if (options.extraBody) {
-    extensions.extra_body = toJsonObject(options.extraBody) ?? {};
+  } else if (explicitExtraBody) {
+    extensions.extra_body = explicitExtraBody;
   }
 
   return {
@@ -153,9 +172,11 @@ function buildCoreRequest(
     n: options.n,
     logprobs: options.logprobs,
     topLogprobs: options.topLogprobs,
-    reasoningEffort: shouldSendOpenAiReasoningEffort(profile, options.modelId)
-      ? options.reasoningEffort
-      : undefined,
+    reasoningEffort:
+      !isGeminiModel &&
+      shouldSendOpenAiReasoningEffort(profile, options.modelId)
+        ? options.reasoningEffort
+        : undefined,
     responseFormat: toJsonValue(options.responseFormat),
     tools: options.tools?.map((tool) => ({
       type: "function" as const,
@@ -182,12 +203,60 @@ function buildCoreRequest(
         ? { search_context_size: "medium" }
         : undefined),
     streamOptions: toJsonValue(options.streamOptions),
-    thinkingEnabled: isDeepSeekThinking
-      ? undefined
-      : options.thinkingEnabled,
-    thinkingBudget: options.thinkingBudget,
+    thinkingEnabled:
+      isDeepSeekThinking || isGeminiModel ? undefined : options.thinkingEnabled,
+    thinkingBudget: isGeminiModel ? undefined : options.thinkingBudget,
     extensions,
   };
+}
+
+function buildGeminiExtraBody(
+  options: LlmRequestOptions,
+  explicitExtraBody?: Record<string, JsonValue>
+): Record<string, JsonValue> | undefined {
+  const thinkingConfig: Record<string, JsonValue> = {};
+  const reasoningEffort = options.reasoningEffort?.trim().toLowerCase();
+
+  if (options.modelId.toLowerCase().includes("gemini-3") && reasoningEffort) {
+    thinkingConfig.thinking_level = reasoningEffort;
+  } else if (options.thinkingBudget !== undefined) {
+    thinkingConfig.thinking_budget = options.thinkingBudget;
+  }
+  if (options.includeThoughts === true) {
+    thinkingConfig.include_thoughts = true;
+  }
+
+  if (Object.keys(thinkingConfig).length === 0) {
+    return explicitExtraBody;
+  }
+
+  const explicitGoogle = toJsonObject(explicitExtraBody?.google);
+  const explicitThinkingConfig = explicitGoogle?.thinking_config;
+  const mergedThinkingConfig = toJsonObject(explicitThinkingConfig)
+    ? {
+        ...thinkingConfig,
+        ...toJsonObject(explicitThinkingConfig),
+      }
+    : explicitThinkingConfig !== undefined
+      ? explicitThinkingConfig
+      : thinkingConfig;
+
+  return {
+    ...(explicitExtraBody ?? {}),
+    google: {
+      ...(explicitGoogle ?? {}),
+      thinking_config: mergedThinkingConfig,
+    },
+  };
+}
+
+function mergeJsonObjects(
+  base?: Record<string, JsonValue>,
+  override?: Record<string, JsonValue>
+): Record<string, JsonValue> | undefined {
+  if (!base) return override;
+  if (!override) return base;
+  return { ...base, ...override };
 }
 
 function toCoreMessage(message: LlmMessage, modelId: string): CoreLlmMessage {

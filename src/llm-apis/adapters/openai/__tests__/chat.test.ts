@@ -557,6 +557,123 @@ describe("OpenAI Adapter - Chat", () => {
     expect(body.reasoning_effort).toBe("low");
   });
 
+  it("should map Gemini 3 thinking level and summaries to NewAPI extra_body", async () => {
+    const options: LlmRequestOptions = {
+      profileId: "test-profile",
+      modelId: "gemini-3.1-pro-preview",
+      messages: [{ role: "user", content: "Think carefully" }],
+      reasoningEffort: "high",
+      includeThoughts: true,
+    };
+
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: "Done",
+              reasoning_content: "Gemini thought summary",
+            },
+            finish_reason: "stop",
+          },
+        ],
+      }),
+    });
+
+    const result = await callOpenAiChatApi(mockProfile, options);
+
+    const [, fetchOptions] = (fetchWithTimeout as any).mock.calls[0];
+    const body = JSON.parse(fetchOptions.body);
+    expect(body.extra_body).toEqual({
+      google: {
+        thinking_config: {
+          thinking_level: "high",
+          include_thoughts: true,
+        },
+      },
+    });
+    expect(body.reasoning_effort).toBeUndefined();
+    expect(body.thinking).toBeUndefined();
+    expect(result.reasoningContent).toBe("Gemini thought summary");
+  });
+
+  it("should map Gemini 2.5 thinking budgets for OpenAI-compatible profiles", async () => {
+    const profile: LlmProfile = {
+      ...mockProfile,
+      type: "openai-compatible",
+      baseUrl: "https://newapi.example/v1",
+    };
+    const options: LlmRequestOptions = {
+      profileId: "test-profile",
+      modelId: "gemini-2.5-pro",
+      messages: [{ role: "user", content: "Think carefully" }],
+      thinkingEnabled: true,
+      thinkingBudget: 4096,
+      includeThoughts: true,
+    };
+
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: "Done" }, finish_reason: "stop" }],
+      }),
+    });
+
+    await callOpenAiChatApi(profile, options);
+
+    const [, fetchOptions] = (fetchWithTimeout as any).mock.calls[0];
+    const body = JSON.parse(fetchOptions.body);
+    expect(body.extra_body.google.thinking_config).toEqual({
+      thinking_budget: 4096,
+      include_thoughts: true,
+    });
+    expect(body.reasoning_effort).toBeUndefined();
+    expect(body.thinking).toBeUndefined();
+  });
+
+  it("should let explicit Gemini extra_body values override generated values", async () => {
+    const options = {
+      profileId: "test-profile",
+      modelId: "gemini-3.1-pro-preview",
+      messages: [{ role: "user", content: "Think carefully" }],
+      reasoningEffort: "high",
+      includeThoughts: true,
+      extra_body: {
+        google: {
+          safety_settings: [{ category: "test" }],
+          thinking_config: {
+            thinking_level: "low",
+            include_thoughts: false,
+          },
+        },
+        provider_option: true,
+      },
+    } as LlmRequestOptions;
+
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: "Done" }, finish_reason: "stop" }],
+      }),
+    });
+
+    await callOpenAiChatApi(mockProfile, options);
+
+    const [, fetchOptions] = (fetchWithTimeout as any).mock.calls[0];
+    const body = JSON.parse(fetchOptions.body);
+    expect(body.extra_body).toEqual({
+      google: {
+        safety_settings: [{ category: "test" }],
+        thinking_config: {
+          thinking_level: "low",
+          include_thoughts: false,
+        },
+      },
+      provider_option: true,
+    });
+  });
+
   it("should send reasoning_effort for supported models behind OpenAI-compatible endpoints", async () => {
     const options: LlmRequestOptions = {
       profileId: "test-profile",

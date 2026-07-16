@@ -263,10 +263,7 @@ export function extractCommonParameters(
  * 工具选择策略类型
  */
 export type ToolChoiceType =
-  | "auto"
-  | "none"
-  | "required"
-  | { functionName: string };
+  "auto" | "none" | "required" | { functionName: string };
 
 /**
  * 解析工具选择策略
@@ -651,6 +648,10 @@ export function filterParametersByCapabilities(
   const providerInfo = getProviderTypeInfo(profile.type);
   const supported = providerInfo?.supportedParameters;
   const capabilities = model?.capabilities;
+  const modelFamily = getModelFamily(
+    options.modelId,
+    model?.provider ?? profile.type
+  );
 
   const filtered: Partial<LlmRequestOptions | MediaGenerationOptions> = {};
 
@@ -796,9 +797,12 @@ export function filterParametersByCapabilities(
   // reasoningEffort 是统一抽象，但只有部分 provider 接受 OpenAI 的
   // reasoning_effort 字段；Gemini/Vertex 则把它映射为 thinkingLevel。
   const isOpenAiReasoningEffortProvider =
-    profile.type === "openai" || profile.type === "openai-responses";
+    profile.type === "openai" ||
+    profile.type === "openai-compatible" ||
+    profile.type === "openai-responses";
   const isCompatibleReasoningModel =
     isOpenAIModel(options.modelId, model?.provider) ||
+    modelFamily === "gemini" ||
     options.modelId.toLowerCase().includes("doubao") ||
     options.modelId.toLowerCase().includes("seed") ||
     options.modelId.toLowerCase().includes("glm") ||
@@ -854,8 +858,6 @@ export function filterParametersByCapabilities(
   // ===== Provider/Model Family 特有参数 =====
   // 使用统一的 getModelFamily 函数判断模型所属家族，而非仅依赖 profile.type
   // 这样可以正确处理通过 OpenAI 兼容渠道访问其他厂商模型的场景
-  const modelFamily = getModelFamily(options.modelId, profile.type);
-
   // OpenAI 特有参数
   // 条件：profile.type 是 openai 系列，且模型家族也是 openai（排除通过 OpenAI 渠道访问其他厂商的情况）
   const isOpenAIProfile =

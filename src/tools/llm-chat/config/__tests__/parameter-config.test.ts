@@ -167,6 +167,30 @@ describe("parameter-config", () => {
       );
       expect(resultWithout.includeThoughts).toBeUndefined();
     });
+
+    it("should preserve includeThoughts for Gemini behind OpenAI-compatible profiles", () => {
+      const result = filterParametersForModel(
+        mockParameters,
+        { thinking: true },
+        { thinking: true, thinkingConfigType: "effort" },
+        "gemini-3.1-pro-preview",
+        "openai-compatible"
+      );
+
+      expect(result.includeThoughts).toBe(true);
+    });
+
+    it("should remove includeThoughts for non-Gemini thinking models", () => {
+      const result = filterParametersForModel(
+        mockParameters,
+        { thinking: true },
+        { thinking: true, thinkingConfigType: "effort" },
+        "gpt-5",
+        "openai"
+      );
+
+      expect(result.includeThoughts).toBeUndefined();
+    });
   });
 
   describe("buildEffectiveParameters", () => {
@@ -197,19 +221,44 @@ describe("parameter-config", () => {
       expect(result.maxTokens).toBe(1000);
     });
 
-    it("should merge custom parameters and override standard ones if necessary", () => {
+    it("should unwrap enabled custom parameters and let them override standard values", () => {
       const params: LlmParameters = {
         temperature: 0.8,
         enabledParameters: ["temperature"],
         custom: {
-          temperature: 0.5, // Override
-          extra_param: "value",
+          enabled: true,
+          params: {
+            temperature: 0.5,
+            extra_body: { google: { safety_settings: [] } },
+          },
         },
-      } as any;
+      };
 
       const result = buildEffectiveParameters(params);
 
-      expect(result.temperature).toBe(0.5); // Merged custom takes precedence
+      expect(result.temperature).toBe(0.5);
+      expect(result.extra_body).toEqual({
+        google: { safety_settings: [] },
+      });
+    });
+
+    it("should ignore disabled wrapped custom parameters", () => {
+      const result = buildEffectiveParameters({
+        custom: { enabled: false, params: { extra_param: "value" } },
+      });
+
+      expect(result.extra_param).toBeUndefined();
+    });
+
+    it("should preserve legacy flat custom parameters", () => {
+      const result = buildEffectiveParameters({
+        custom: {
+          temperature: 0.5,
+          extra_param: "value",
+        },
+      } as any);
+
+      expect(result.temperature).toBe(0.5);
       expect(result.extra_param).toBe("value");
     });
 

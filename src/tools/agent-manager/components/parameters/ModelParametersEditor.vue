@@ -267,6 +267,15 @@ const shouldShowParameter = (key: keyof LlmParameters): boolean => {
   const config = parameterConfigs.find((c) => c.key === key);
   if (!config) return false;
 
+  if (key === "includeThoughts") {
+    return (
+      supportedParameters.value.thinkingConfig === true ||
+      (!!props.modelId &&
+        getModelFamily(props.modelId, props.providerType) === "gemini" &&
+        cap?.thinking === true)
+    );
+  }
+
   // 对于思考相关的参数，直接根据模型自身 capabilities 判断，绕过 provider 检查
   if (config.supportedKey === "thinking") {
     const thinkingType = cap?.thinkingConfigType ?? "none";

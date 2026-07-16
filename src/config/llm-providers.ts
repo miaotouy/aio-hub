@@ -71,6 +71,8 @@ export const providerTypes: ProviderTypeInfo[] = [
       tools: true,
       toolChoice: true,
       parallelToolCalls: true,
+      reasoningEffort: true,
+      thinking: true,
     },
   },
   {

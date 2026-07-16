@@ -1,7 +1,18 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import { Trash2, Edit, Plus, List } from "lucide-vue-next";
-import { Dialog, Snackbar } from "@varlet/ui";
+import { computed, ref } from "vue";
+import {
+  ChevronRight,
+  CircleCheck,
+  CircleX,
+  Edit,
+  List,
+  MoreVertical,
+  Plus,
+  ScanSearch,
+  Trash2,
+} from "lucide-vue-next";
+import type { ChannelProbeResult } from "@aiohub/llm-core";
+import { customDialog, customMessage } from "@/utils/feedback";
 import { useI18n } from "@/i18n";
 import type { LlmModelInfo } from "../types";
 import { useModelMetadata } from "../composables/useModelMetadata";
@@ -15,11 +26,17 @@ interface Props {
   models: LlmModelInfo[];
   editable?: boolean;
   expandState?: string[];
+  loading?: boolean;
+  probeResults?: Record<string, ChannelProbeResult>;
+  probeStale?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   editable: true,
   expandState: () => [],
+  loading: false,
+  probeResults: () => ({}),
+  probeStale: false,
 });
 
 interface Emits {
@@ -29,10 +46,13 @@ interface Emits {
   (e: "delete-group", modelIds: string[]): void;
   (e: "clear"): void;
   (e: "fetch"): void;
+  (e: "probe", modelId?: string): void;
   (e: "update:expandState", state: string[]): void;
 }
 
 const emit = defineEmits<Emits>();
+const showHeaderMenu = ref(false);
+const activeModelMenu = ref<string>();
 
 const { getModelIcon, getModelGroup } = useModelMetadata();
 const { capabilities: translatedCapabilities } = useTranslatedCapabilities();
@@ -67,7 +87,7 @@ const deleteGroup = async (group: {
   name: string;
   models: { model: LlmModelInfo }[];
 }) => {
-  const confirm = await Dialog({
+  const confirm = await customDialog({
     title: tRaw("tools.llm-api.ModelList.确认删除分组"),
     message: tRaw("tools.llm-api.ModelList.确定要删除分组N下的所有M个模型吗", {
       name: group.name,
@@ -77,7 +97,7 @@ const deleteGroup = async (group: {
     cancelButtonText: t("common.取消"),
   });
 
-  if (confirm === "confirm") {
+  if (confirm) {
     const modelIds = group.models.map((item) => item.model.id);
     emit("delete-group", modelIds);
   }
@@ -89,46 +109,80 @@ const getEnabledCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
 };
 
 const showCapabilityDesc = (capability: CapabilityConfig) => {
-  Snackbar.info({
-    content: capability.description,
-    duration: 4000,
-  });
+  customMessage(capability.description, "info");
+};
+
+const resultSummary = (modelId: string) => {
+  const result = props.probeResults[modelId];
+  if (!result) return "尚未检查";
+  if (props.probeStale) return "配置已变化";
+  return result.success
+    ? `检查成功  ${Math.round(result.totalMs)} ms`
+    : result.errorMessage || "检查失败";
+};
+
+const closeMenus = () => {
+  showHeaderMenu.value = false;
+  activeModelMenu.value = undefined;
+};
+
+const handleHeaderAction = (action: "fetch" | "add" | "clear") => {
+  closeMenus();
+  if (action === "fetch") emit("fetch");
+  if (action === "add") emit("add");
+  if (action === "clear") emit("clear");
+};
+
+const handleModelAction = (
+  action: "probe" | "edit" | "delete",
+  model: LlmModelInfo
+) => {
+  closeMenus();
+  if (action === "probe") emit("probe", model.id);
+  if (action === "edit") emit("edit", model);
+  if (action === "delete") emit("delete", model.id);
 };
 </script>
 
 <template>
   <div class="model-list">
     <div class="list-header">
-      <span class="model-count">{{
-        tRaw("tools.llm-api.ModelList.已添加N个模型", { count: models.length })
-      }}</span>
+      <span class="model-count">模型 {{ models.length }}</span>
       <div class="list-actions">
-        <var-button
+        <button
           v-if="editable"
-          size="mini"
-          type="primary"
-          plain
-          @click="emit('fetch')"
+          class="header-action probe-action"
+          :disabled="models.length === 0"
+          @click="emit('probe')"
         >
-          <List :size="14" /> {{ tRaw("tools.llm-api.ModelList.从 API 获取") }}
-        </var-button>
-        <var-button
-          v-if="editable"
-          size="mini"
-          type="primary"
-          @click="emit('add')"
-        >
-          <Plus :size="14" /> {{ tRaw("tools.llm-api.ModelList.手动添加") }}
-        </var-button>
-        <var-button
-          v-if="editable && models.length > 0"
-          size="mini"
-          type="danger"
-          plain
-          @click="emit('clear')"
-        >
-          <Trash2 :size="14" /> {{ t("common.清空") }}
-        </var-button>
+          <ScanSearch :size="17" /> 检查
+        </button>
+        <div v-if="editable" class="menu-wrap">
+          <button
+            class="header-action icon-only"
+            aria-label="更多模型操作"
+            @click="showHeaderMenu = !showHeaderMenu"
+          >
+            <MoreVertical :size="20" />
+          </button>
+          <div v-if="showHeaderMenu" class="action-menu header-menu">
+            <button @click="handleHeaderAction('fetch')">
+              <List :size="17" />{{
+                tRaw("tools.llm-api.ModelList.从 API 获取")
+              }}
+            </button>
+            <button @click="handleHeaderAction('add')">
+              <Plus :size="17" />{{ tRaw("tools.llm-api.ModelList.手动添加") }}
+            </button>
+            <button
+              v-if="models.length"
+              class="danger"
+              @click="handleHeaderAction('clear')"
+            >
+              <Trash2 :size="17" />{{ t("common.清空") }}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -140,6 +194,16 @@ const showCapabilityDesc = (capability: CapabilityConfig) => {
             tRaw("tools.llm-api.ModelList.点击手动添加或从API获取来添加模型")
           }}
         </p>
+        <button
+          class="empty-fetch-button"
+          :disabled="loading"
+          @click="emit('fetch')"
+        >
+          <List :size="17" />
+          {{
+            loading ? "正在获取" : tRaw("tools.llm-api.ModelList.从 API 获取")
+          }}
+        </button>
       </div>
 
       <div v-else class="model-groups">
@@ -194,25 +258,40 @@ const showCapabilityDesc = (capability: CapabilityConfig) => {
                     <div class="model-id">{{ item.model.id }}</div>
                   </div>
 
-                  <div v-if="editable" class="model-actions">
-                    <var-button
-                      size="mini"
-                      type="primary"
-                      plain
-                      round
-                      @click="emit('edit', item.model)"
+                  <div v-if="editable" class="model-actions menu-wrap">
+                    <button
+                      class="model-menu-button"
+                      :aria-label="`${item.model.name} 的更多操作`"
+                      @click.stop="
+                        activeModelMenu =
+                          activeModelMenu === item.model.id
+                            ? undefined
+                            : item.model.id
+                      "
                     >
-                      <Edit :size="14" />
-                    </var-button>
-                    <var-button
-                      size="mini"
-                      type="danger"
-                      plain
-                      round
-                      @click="emit('delete', item.model.id)"
+                      <MoreVertical :size="19" />
+                    </button>
+                    <div
+                      v-if="activeModelMenu === item.model.id"
+                      class="action-menu model-menu"
                     >
-                      <Trash2 :size="14" />
-                    </var-button>
+                      <button
+                        @click.stop="handleModelAction('probe', item.model)"
+                      >
+                        <ScanSearch :size="17" />检查模型
+                      </button>
+                      <button
+                        @click.stop="handleModelAction('edit', item.model)"
+                      >
+                        <Edit :size="17" />编辑模型
+                      </button>
+                      <button
+                        class="danger"
+                        @click.stop="handleModelAction('delete', item.model)"
+                      >
+                        <Trash2 :size="17" />删除模型
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -240,6 +319,24 @@ const showCapabilityDesc = (capability: CapabilityConfig) => {
                     </div>
                   </template>
                 </div>
+
+                <button
+                  class="probe-summary"
+                  @click.stop="emit('probe', item.model.id)"
+                >
+                  <component
+                    :is="
+                      probeResults[item.model.id]?.success
+                        ? CircleCheck
+                        : probeResults[item.model.id]
+                          ? CircleX
+                          : ScanSearch
+                    "
+                    :size="15"
+                  />
+                  <span>{{ resultSummary(item.model.id) }}</span>
+                  <ChevronRight :size="16" />
+                </button>
               </div>
             </div>
           </var-collapse-item>
@@ -261,7 +358,8 @@ const showCapabilityDesc = (capability: CapabilityConfig) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 4px;
+  min-height: 44px;
+  padding: 0 2px;
 }
 
 .model-count {
@@ -272,7 +370,83 @@ const showCapabilityDesc = (capability: CapabilityConfig) => {
 
 .list-actions {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 4px;
+}
+
+.header-action,
+.model-menu-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--app-radius-md, 10px);
+  color: var(--color-on-surface);
+  background: transparent;
+}
+
+.header-action {
+  gap: 6px;
+  padding: 0 10px;
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+.header-action:disabled {
+  opacity: 0.4;
+}
+
+.header-action.icon-only,
+.model-menu-button {
+  width: 44px;
+  padding: 0;
+}
+
+.menu-wrap {
+  position: relative;
+}
+
+.action-menu {
+  position: absolute;
+  z-index: 15;
+  display: grid;
+  min-width: 170px;
+  overflow: hidden;
+  padding: 5px;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--app-radius-md, 10px);
+  background: var(--container-bg, var(--color-surface-container));
+  box-shadow: 0 8px 24px
+    color-mix(in srgb, var(--color-on-surface) 15%, transparent);
+}
+
+.header-menu,
+.model-menu {
+  top: 44px;
+  right: 0;
+}
+
+.action-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: calc(var(--app-radius-md, 10px) - 3px);
+  color: var(--color-on-surface);
+  text-align: left;
+  background: transparent;
+  white-space: nowrap;
+}
+
+.action-menu button:active {
+  background: var(--color-surface-container-high);
+}
+
+.action-menu button.danger {
+  color: var(--danger-color);
 }
 
 .list-content {
@@ -294,6 +468,21 @@ const showCapabilityDesc = (capability: CapabilityConfig) => {
   font-size: 0.85rem;
   margin-top: 8px;
   opacity: 0.7;
+}
+
+.empty-fetch-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  margin-top: 16px;
+  padding: 0 16px;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--app-radius-md, 10px);
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  font-weight: 700;
 }
 
 .model-groups {
@@ -355,7 +544,9 @@ const showCapabilityDesc = (capability: CapabilityConfig) => {
   border-radius: 12px;
   border: 1px solid var(--color-outline-variant);
   background: var(--color-surface);
-  transition: all 0.2s;
+  transition:
+    transform 0.18s,
+    opacity 0.18s;
 }
 
 .model-card:active {
@@ -402,6 +593,40 @@ const showCapabilityDesc = (capability: CapabilityConfig) => {
   display: flex;
   gap: 4px;
   flex-shrink: 0;
+}
+
+.probe-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 44px;
+  padding: 7px 2px 0;
+  border: 0;
+  border-top: 1px dashed var(--color-outline-variant);
+  color: var(--color-on-surface-variant);
+  text-align: left;
+  background: transparent;
+  font-size: 0.76rem;
+}
+
+.probe-summary span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 340px) {
+  .probe-action {
+    padding-inline: 7px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .model-card {
+    transition: none;
+  }
 }
 
 .model-capabilities {

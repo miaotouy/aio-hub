@@ -8,14 +8,17 @@ import {
 import type { LlmProfile } from "../types";
 import { mobileLlmTransport } from "./transports/mobile";
 
-export interface MobileEmbeddingRequestOptions
-  extends Omit<EmbeddingRequest, "model"> {
+export interface MobileEmbeddingRequestOptions extends Omit<
+  EmbeddingRequest,
+  "model"
+> {
   modelId: string;
   timeout?: number;
   signal?: AbortSignal;
   forceProxy?: boolean;
   relaxIdCerts?: boolean;
   http1Only?: boolean;
+  transportObserver?: import("@aiohub/llm-core").TransportObserver;
 }
 
 export function callMobileEmbeddingApi(
@@ -51,6 +54,7 @@ export function callMobileEmbeddingApi(
       requestId: request.requestId ?? createRequestId(),
       timeoutMs: options.timeout,
       signal: options.signal,
+      observer: options.transportObserver,
       network: {
         strategy: options.forceProxy ? "proxy" : profile.networkStrategy,
         relaxInvalidCerts: options.relaxIdCerts,

@@ -3,6 +3,7 @@ import { ref, computed, watch } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import { useI18n } from "@/i18n";
 import { useKeyboardAvoidance } from "@/composables/useKeyboardAvoidance";
+import type { ChannelProbeResult } from "@aiohub/llm-core";
 
 const logger = createModuleLogger("ProfileEditor");
 
@@ -37,6 +38,7 @@ import ModelList from "./ModelList.vue";
 import ModelFetcherPopup from "./ModelFetcherPopup.vue";
 import ModelEditorPopup from "./ModelEditorPopup.vue";
 import KeyStatusManagerPopup from "./KeyStatusManagerPopup.vue";
+import ModelProbeTaskPage from "./probe/ModelProbeTaskPage.vue";
 
 // 密码可见性
 const showApiKey = ref(false);
@@ -64,6 +66,10 @@ const showModelEditorPopup = ref(false);
 const showKeyManagerPopup = ref(false);
 const editingModel = ref<LlmModelInfo | null>(null);
 const fetchedModels = ref<LlmModelInfo[]>([]);
+const showProbePage = ref(false);
+const probeInitialModelId = ref<string>();
+const probeResults = ref<Record<string, ChannelProbeResult>>({});
+const probeStale = ref(false);
 
 const innerProfile = ref<LlmProfile | null>(null);
 
@@ -71,6 +77,10 @@ watch(
   () => props.show,
   (val) => {
     if (val && props.profile) {
+      if (innerProfile.value?.id !== props.profile.id) {
+        probeResults.value = {};
+        probeStale.value = false;
+      }
       innerProfile.value = JSON.parse(JSON.stringify(props.profile));
     }
   },
@@ -191,6 +201,19 @@ const handleClearModels = () => {
   if (!innerProfile.value) return;
   innerProfile.value.models = [];
   Snackbar.success(tRaw("tools.llm-api.ProfileEditor.已清空所有模型"));
+};
+
+const handleOpenProbe = (modelId?: string) => {
+  probeInitialModelId.value = modelId;
+  showProbePage.value = true;
+};
+
+const handleProbeResultsChange = (payload: {
+  results: Record<string, ChannelProbeResult>;
+  stale: boolean;
+}) => {
+  probeResults.value = payload.results;
+  probeStale.value = payload.stale;
 };
 
 const apiEndpointPreview = computed(() => {
@@ -530,6 +553,8 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
             :models="innerProfile.models"
             :expand-state="innerProfile.modelGroupsExpandState || []"
             :loading="isFetchingModels"
+            :probe-results="probeResults"
+            :probe-stale="probeStale"
             @update:expand-state="
               (state) => {
                 if (innerProfile) {
@@ -543,6 +568,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
             @delete-group="handleDeleteGroup"
             @clear="handleClearModels"
             @fetch="handleFetchModels"
+            @probe="handleOpenProbe"
           />
         </div>
 
@@ -595,6 +621,15 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
       :model="editingModel"
       @save="handleSaveModel"
       @delete="handleDeleteModel"
+    />
+
+    <ModelProbeTaskPage
+      v-if="innerProfile"
+      v-model:show="showProbePage"
+      :profile="innerProfile"
+      :initial-model-id="probeInitialModelId"
+      @fetch-models="handleFetchModels"
+      @results-change="handleProbeResultsChange"
     />
   </var-popup>
 </template>

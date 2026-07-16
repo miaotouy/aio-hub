@@ -69,6 +69,7 @@ export const callGeminiApi = async (
       requestId: request.requestId ?? createRequestId(),
       timeoutMs: options.timeout,
       signal: options.signal,
+      observer: options.transportObserver,
       network: {
         strategy: profile.networkStrategy,
         relaxInvalidCerts: options.relaxIdCerts,
@@ -143,7 +144,9 @@ export function toMobileGeminiResponse(
   return result;
 }
 
-function getGeminiReplayParts(message: LlmMessage | undefined): unknown[] | undefined {
+function getGeminiReplayParts(
+  message: LlmMessage | undefined
+): unknown[] | undefined {
   const artifact = message?.reasoningArtifacts?.find(
     (item) =>
       item.provider === "gemini" &&
@@ -162,10 +165,10 @@ function extractGeminiReasoningArtifacts(
     const part = asRecord(rawPart);
     return Boolean(
       part &&
-        (part.thought === true ||
-          part.thoughtSignature ||
-          part.thought_signature ||
-          part.signature)
+      (part.thought === true ||
+        part.thoughtSignature ||
+        part.thought_signature ||
+        part.signature)
     );
   });
   if (!hasState) return undefined;

@@ -48,6 +48,7 @@ export const callClaudeApi = async (
       requestId: request.requestId ?? createRequestId(),
       timeoutMs: options.timeout,
       signal: options.signal,
+      observer: options.transportObserver,
       network: {
         strategy: profile.networkStrategy,
         relaxInvalidCerts: options.relaxIdCerts,

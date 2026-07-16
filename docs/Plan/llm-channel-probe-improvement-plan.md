@@ -6,7 +6,7 @@
 >
 > 适用范围：桌面端 LLM 服务设置；共享探测核心应保持可供移动端复用
 >
-> 关联文档：[`docs/architecture/llm-apis-architecture.md`](../architecture/llm-apis-architecture.md)、[`docs/Plan/llm-provider-adapter-sharing-investigation.md`](./llm-provider-adapter-sharing-investigation.md)
+> 关联文档：[`docs/architecture/llm-apis-architecture.md`](../architecture/llm-apis-architecture.md)、[`docs/Plan/llm-provider-adapter-sharing-investigation.md`](./llm-provider-adapter-sharing-investigation.md)、[`docs/design/mobile-llm-model-probe-interaction-design.md`](../design/mobile-llm-model-probe-interaction-design.md)
 
 ## 1. 背景
 
@@ -210,7 +210,13 @@ src/views/Settings/llm-service/probe/
 export type ProbeKind = "model-list" | "inference" | "key" | "batch-model";
 
 export type ProbeCapability =
-  "chat" | "embedding" | "rerank" | "image" | "audio" | "video" | "music";
+  | "chat"
+  | "embedding"
+  | "rerank"
+  | "image"
+  | "audio"
+  | "video"
+  | "music";
 
 export interface ChannelProbeRequest {
   kind: ProbeKind;
@@ -426,6 +432,8 @@ Probe Service 不直接写 `isBroken`，由 `KeyHealthPolicy` 决定动作：
 
 ## 10. 实施结论
 
-本次已一次性完成设置页探测核心、行为修复和模型批测界面。实现继续复用正式 Provider 行为，错误语义与 Key 健康写入由独立策略控制，纯探测能力位于共享包，可供移动端直接复用。
+本次已一次性完成设置页和移动端的探测核心、行为修复与模型批测界面。实现继续复用正式 Provider 行为，错误语义与 Key 健康写入由独立策略控制，纯探测能力位于共享包，可供移动端直接复用。
+
+移动端已按 [`docs/design/mobile-llm-model-probe-interaction-design.md`](../design/mobile-llm-model-probe-interaction-design.md) 完成首批接入：支持单模型/批量检查、并发 1 至 4、取消、成本确认、失败重试、结构化诊断与当前编辑会话内的结果回显。跨重启历史、后台周期检查和跨渠道批量仍未实现。
 
 后台周期检查、跨重启历史和自动禁用整个 Profile 仍属于可选运行态能力，未随本次设置页施工默认启用；若后续实现，必须继续遵守本地客户端的成本、SSRF 和用户授权边界。

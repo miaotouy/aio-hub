@@ -75,9 +75,7 @@ export const openAiUrlHandler = {
       videos: "videos",
       videoStatus: "videoStatus",
     };
-    const customKey = endpoint
-      ? endpointMapping[endpoint]
-      : "chatCompletions";
+    const customKey = endpoint ? endpointMapping[endpoint] : "chatCompletions";
     let customEndpoint = customKey
       ? profile?.customEndpoints?.[customKey]
       : undefined;
@@ -199,7 +197,9 @@ export const buildOpenAiCompatibleRequest = (
     request.body.value === null ||
     typeof request.body.value !== "object"
   ) {
-    throw new Error("OpenAI-compatible adapter produced a non-object JSON body");
+    throw new Error(
+      "OpenAI-compatible adapter produced a non-object JSON body"
+    );
   }
   return {
     url: request.url,
@@ -235,6 +235,7 @@ export const createOpenAiCompatibleApi =
         requestId: readRequestId(options),
         timeoutMs: options.timeout,
         signal: options.signal,
+        observer: options.transportObserver,
         network: {
           strategy: profile.networkStrategy,
           relaxInvalidCerts: options.relaxIdCerts,
@@ -285,7 +286,8 @@ function toCoreContent(content: LlmMessageContent): CoreLlmMessageContent {
         type: "image",
         source: {
           type: "base64",
-          media_type: content.mimeType ?? inferImageMimeType(content.imageBase64),
+          media_type:
+            content.mimeType ?? inferImageMimeType(content.imageBase64),
           data: content.imageBase64,
         },
         cacheControl: toJsonValue(content.cacheControl),

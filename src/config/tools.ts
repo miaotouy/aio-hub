@@ -55,6 +55,7 @@ export const DEFAULT_TOOLS_ORDER = [
   "/directory-janitor",
   "/dir-search",
   "/content-deduplicator",
+  "/wallpaper-detector",
 
   // 自动化
   "/window-automator",

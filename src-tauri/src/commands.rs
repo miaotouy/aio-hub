@@ -410,5 +410,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         stop_pulse,
         // 字体列表命令
         get_system_fonts,
+        // 壁纸探测命令
+        get_system_wallpapers,
     ])
 }

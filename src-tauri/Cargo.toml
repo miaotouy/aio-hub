@@ -126,6 +126,8 @@ windows = { version = "0.58", features = [
     "Foundation",
     "Foundation_Collections",
     "Media_Control",
+    "Win32_UI_Shell",
+    "Win32_System_Com",
 ] }
 
 # macOS 特定依赖

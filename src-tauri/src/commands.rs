@@ -413,6 +413,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         crate::knowledge::knowledge_delete_document,
         crate::knowledge::knowledge_rebuild_library,
         crate::knowledge::knowledge_save_chunk_vectors,
+        crate::knowledge::knowledge_get_index_status,
         crate::knowledge::knowledge_search,
         // 网页蒸馏室命令
         crate::web_distillery::distillery_quick_fetch,

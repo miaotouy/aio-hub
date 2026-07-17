@@ -1,5 +1,9 @@
 <template>
-  <main class="knowledge-workbench" aria-label="知识资料库">
+  <main
+    v-loading="store.loading"
+    class="knowledge-workbench"
+    aria-label="知识资料库"
+  >
     <aside class="library-sidebar">
       <header class="sidebar-header">
         <div>
@@ -28,19 +32,39 @@
           maxlength="64"
           autofocus
         />
-        <el-button
-          type="primary"
-          :icon="Check"
-          circle
-          aria-label="确认新建"
-          :loading="creatingLibrary"
-          native-type="submit"
+        <el-input
+          v-model="newLibraryDescription"
+          type="textarea"
+          :rows="2"
+          maxlength="160"
+          show-word-limit
+          placeholder="用途说明，可选"
         />
+        <div class="create-actions">
+          <el-button size="small" @click="cancelCreate">取消</el-button>
+          <el-button
+            type="primary"
+            size="small"
+            :loading="creatingLibrary"
+            native-type="submit"
+          >
+            创建
+          </el-button>
+        </div>
       </form>
+
+      <div v-if="store.libraries.length > 6" class="library-filter">
+        <el-input
+          v-model="libraryFilter"
+          clearable
+          :prefix-icon="Search"
+          placeholder="筛选资料库"
+        />
+      </div>
 
       <nav class="library-list" aria-label="资料库列表">
         <button
-          v-for="library in store.libraries"
+          v-for="library in filteredLibraries"
           :key="library.id"
           type="button"
           class="library-row"
@@ -50,203 +74,520 @@
           <BookOpenText :size="18" />
           <span class="library-copy">
             <strong>{{ library.name }}</strong>
-            <small>
-              {{ library.documentCount }} 文档 · {{ library.chunkCount }} 分块
-            </small>
+            <small
+              >{{ library.documentCount }} 文档 /
+              {{ library.chunkCount }} 分块</small
+            >
           </span>
           <ChevronRight :size="16" />
         </button>
+        <div v-if="!filteredLibraries.length" class="sidebar-empty">
+          <span>{{
+            store.libraries.length ? "没有匹配项" : "暂无资料库"
+          }}</span>
+        </div>
       </nav>
     </aside>
 
     <section class="library-content">
       <template v-if="store.activeLibrary">
         <header class="content-header">
-          <div class="library-title">
-            <h2>{{ store.activeLibrary.name }}</h2>
-            <p v-if="store.activeLibrary.description">
-              {{ store.activeLibrary.description }}
-            </p>
+          <div class="library-heading">
+            <div class="library-title">
+              <h2>{{ store.activeLibrary.name }}</h2>
+              <p>{{ store.activeLibrary.description || "本地文档资料库" }}</p>
+            </div>
+            <div class="index-summary" aria-label="索引状态">
+              <span>{{ store.activeLibrary.documentCount }} 文档</span>
+              <span>{{ store.activeLibrary.chunkCount }} 分块</span>
+              <span :class="`status-${indexTone}`">{{
+                vectorStatusLabel
+              }}</span>
+            </div>
           </div>
           <div class="header-actions">
-            <el-tooltip content="导入文档" placement="bottom">
+            <el-button
+              :icon="FileUp"
+              :loading="importBusy"
+              @click="importDocuments"
+            >
+              {{ importActionLabel }}
+            </el-button>
+            <el-button :icon="Binary" @click="vectorDialogVisible = true">
+              语义索引
+            </el-button>
+            <el-dropdown trigger="click" @command="handleLibraryCommand">
               <el-button
-                :icon="FileUp"
+                :icon="MoreHorizontal"
                 circle
-                aria-label="导入文档"
-                :loading="store.importing"
-                @click="importDocuments"
+                aria-label="更多资料库操作"
               />
-            </el-tooltip>
-            <el-tooltip content="重建索引" placement="bottom">
-              <el-button
-                :icon="RefreshCw"
-                circle
-                aria-label="重建索引"
-                @click="rebuildLibrary"
-              />
-            </el-tooltip>
-            <el-tooltip content="删除资料库" placement="bottom">
-              <el-button
-                class="danger-action"
-                :icon="Trash2"
-                circle
-                aria-label="删除资料库"
-                @click="deleteLibrary"
-              />
-            </el-tooltip>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="rebuild" :icon="RefreshCw">
+                    重建分块索引
+                  </el-dropdown-item>
+                  <el-dropdown-item command="delete" :icon="Trash2" divided>
+                    删除资料库
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </div>
         </header>
 
-        <div class="search-toolbar">
-          <el-input
-            v-model="query"
-            class="search-input"
-            clearable
-            placeholder="检索当前资料库"
-            :prefix-icon="Search"
-            @keyup.enter="runSearch"
-          />
-          <el-select
-            v-model="strategy"
-            class="strategy-select"
-            aria-label="检索策略"
-          >
-            <el-option label="自动" value="auto" />
-            <el-option label="关键词" value="keyword" />
-          </el-select>
+        <div class="mode-toolbar">
+          <el-segmented v-model="workspaceMode" :options="modeOptions" />
+          <span class="mode-context">{{ modeContext }}</span>
+        </div>
+
+        <div v-if="importFailures.length" class="import-warning" role="status">
+          <AlertTriangle :size="17" />
+          <span>
+            {{ importFailures.length }}
+            个文件未导入。已保留成功项，可重新选择失败文件重试。
+          </span>
           <el-button
-            type="primary"
-            :icon="Search"
-            :loading="store.searching"
-            @click="runSearch"
-          >
-            检索
-          </el-button>
+            :icon="X"
+            text
+            circle
+            aria-label="关闭提示"
+            @click="importFailures = []"
+          />
         </div>
 
-        <div class="workspace-columns">
-          <section class="document-pane" aria-label="文档列表">
-            <header class="pane-header">
-              <h3>文档</h3>
-              <span>{{ store.documents.length }}</span>
-            </header>
-            <div v-if="store.documents.length" class="document-list">
-              <article
-                v-for="document in store.documents"
-                :key="document.id"
-                class="document-row"
-              >
-                <FileText :size="18" />
-                <div class="document-copy">
-                  <strong>{{ document.title }}</strong>
-                  <span
-                    >{{ document.chunkCount }} 分块 ·
-                    {{ formatSize(document.size) }}</span
-                  >
-                  <small :title="document.sourcePath">{{
-                    document.sourcePath
-                  }}</small>
-                </div>
-                <el-tooltip content="删除文档" placement="left">
-                  <el-button
-                    class="row-action"
-                    :icon="Trash2"
-                    text
-                    circle
-                    aria-label="删除文档"
-                    @click="deleteDocument(document.id, document.title)"
-                  />
-                </el-tooltip>
-              </article>
-            </div>
-            <el-empty v-else description="暂无文档" :image-size="72" />
-          </section>
+        <section v-if="workspaceMode === 'documents'" class="workspace-mode">
+          <div class="document-toolbar">
+            <el-input
+              v-model="documentFilter"
+              class="filter-input"
+              clearable
+              :prefix-icon="Search"
+              placeholder="按标题或路径筛选文档"
+            />
+            <span
+              >{{ filteredDocuments.length }} /
+              {{ store.documents.length }}</span
+            >
+          </div>
 
-          <section class="result-pane" aria-label="检索结果">
-            <header class="pane-header">
-              <h3>检索结果</h3>
-              <span>{{ store.results.length }}</span>
-            </header>
-            <div v-if="store.results.length" class="result-list">
-              <article
-                v-for="result in store.results"
-                :key="result.chunkId"
-                class="result-row"
-              >
-                <header>
-                  <div>
-                    <strong>{{ result.title }}</strong>
-                    <span v-if="result.heading"> / {{ result.heading }}</span>
+          <div class="master-detail">
+            <section class="master-pane" aria-label="文档列表">
+              <div v-if="store.documentsLoading" class="skeleton-list">
+                <el-skeleton
+                  v-for="index in 5"
+                  :key="index"
+                  :rows="2"
+                  animated
+                />
+              </div>
+              <div v-else-if="filteredDocuments.length" class="document-list">
+                <article
+                  v-for="document in filteredDocuments"
+                  :key="document.id"
+                  class="document-row"
+                  :class="{ active: document.id === store.selectedDocumentId }"
+                  role="button"
+                  tabindex="0"
+                  @click="openDocument(document.id)"
+                  @keydown.enter="openDocument(document.id)"
+                >
+                  <FileText :size="18" />
+                  <div class="document-copy">
+                    <strong>{{ document.title }}</strong>
+                    <span
+                      >{{ document.chunkCount }} 分块 /
+                      {{ formatSize(document.size) }}</span
+                    >
+                    <small :title="document.sourcePath">{{
+                      document.sourcePath
+                    }}</small>
                   </div>
-                  <code>#{{ result.chunkIndex + 1 }}</code>
+                  <ChevronRight :size="16" />
+                </article>
+              </div>
+              <div v-else class="pane-empty">
+                <FileText :size="30" />
+                <strong>{{
+                  documentFilter ? "没有匹配文档" : "还没有文档"
+                }}</strong>
+                <el-button
+                  v-if="!documentFilter"
+                  type="primary"
+                  :icon="FileUp"
+                  @click="importDocuments"
+                >
+                  导入文档
+                </el-button>
+              </div>
+            </section>
+
+            <section class="detail-pane" aria-label="文档详情">
+              <template v-if="store.selectedDocument">
+                <header class="detail-header">
+                  <div>
+                    <h3>{{ store.selectedDocument.title }}</h3>
+                    <p :title="store.selectedDocument.sourcePath">
+                      {{ store.selectedDocument.sourcePath }}
+                    </p>
+                  </div>
+                  <el-tooltip content="删除文档" placement="left">
+                    <el-button
+                      class="danger-action"
+                      :icon="Trash2"
+                      text
+                      circle
+                      aria-label="删除文档"
+                      @click="
+                        deleteDocument(
+                          store.selectedDocument.id,
+                          store.selectedDocument.title
+                        )
+                      "
+                    />
+                  </el-tooltip>
                 </header>
-                <p>{{ result.content }}</p>
-                <footer>
-                  <span :title="result.sourcePath">
-                    <FolderOpen :size="14" />
-                    {{ result.sourcePath }}
+                <div class="document-meta">
+                  <span>{{ store.selectedDocument.mimeType }}</span>
+                  <span>{{ formatSize(store.selectedDocument.size) }}</span>
+                  <span>{{
+                    formatDate(store.selectedDocument.updatedAt)
+                  }}</span>
+                </div>
+                <div
+                  v-if="store.chunksLoading"
+                  class="skeleton-list detail-skeleton"
+                >
+                  <el-skeleton
+                    v-for="index in 4"
+                    :key="index"
+                    :rows="3"
+                    animated
+                  />
+                </div>
+                <div v-else class="chunk-list">
+                  <article
+                    v-for="chunk in store.chunks"
+                    :key="chunk.id"
+                    class="chunk-row"
+                  >
+                    <header>
+                      <strong>{{
+                        chunk.heading || `分块 ${chunk.chunkIndex + 1}`
+                      }}</strong>
+                      <code>#{{ chunk.chunkIndex + 1 }}</code>
+                    </header>
+                    <p>{{ chunk.content }}</p>
+                  </article>
+                </div>
+              </template>
+              <div v-else class="pane-empty detail-empty">
+                <PanelRight :size="32" />
+                <strong>选择文档查看分块</strong>
+                <span>这里展示进入检索索引的实际文本。</span>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section v-else class="workspace-mode search-workspace">
+          <form class="search-toolbar" @submit.prevent="runSearch">
+            <el-input
+              v-model="query"
+              class="search-input"
+              clearable
+              placeholder="输入问题、术语或文档内容"
+              :prefix-icon="Search"
+            />
+            <el-select
+              v-model="strategy"
+              class="strategy-select"
+              aria-label="检索策略"
+            >
+              <el-option label="自动" value="auto" />
+              <el-option label="关键词" value="keyword" />
+              <el-option
+                label="混合"
+                value="hybrid"
+                :disabled="!semanticAvailable"
+              />
+              <el-option
+                label="语义"
+                value="semantic"
+                :disabled="!semanticAvailable"
+              />
+            </el-select>
+            <el-button
+              type="primary"
+              :icon="Search"
+              :loading="store.searching"
+              native-type="submit"
+            >
+              检索
+            </el-button>
+          </form>
+          <div v-if="!semanticAvailable" class="search-notice">
+            当前可使用关键词检索。构建语义索引后可启用混合与语义策略。
+          </div>
+
+          <div class="master-detail search-results-layout">
+            <section class="master-pane" aria-label="检索结果">
+              <div v-if="store.searching" class="skeleton-list">
+                <el-skeleton
+                  v-for="index in 5"
+                  :key="index"
+                  :rows="3"
+                  animated
+                />
+              </div>
+              <div v-else-if="store.results.length" class="result-list">
+                <article
+                  v-for="result in store.results"
+                  :key="result.chunkId"
+                  class="result-row"
+                  :class="{ active: result.chunkId === store.selectedResultId }"
+                  role="button"
+                  tabindex="0"
+                  @click="store.selectResult(result.chunkId)"
+                  @keydown.enter="store.selectResult(result.chunkId)"
+                >
+                  <header>
+                    <strong>{{ result.title }}</strong>
+                    <span>{{ formatScore(result.score) }}</span>
+                  </header>
+                  <p>{{ result.content }}</p>
+                  <footer>
+                    <span>{{
+                      result.heading || `分块 ${result.chunkIndex + 1}`
+                    }}</span>
+                    <span>{{ signalSummary(result) }}</span>
+                  </footer>
+                </article>
+              </div>
+              <div v-else class="pane-empty">
+                <Search :size="30" />
+                <strong>{{
+                  hasSearched ? "没有找到相关内容" : "检索当前资料库"
+                }}</strong>
+                <span>{{
+                  hasSearched
+                    ? "尝试更短的关键词或切换策略。"
+                    : "结果会保留来源、分块和命中信号。"
+                }}</span>
+              </div>
+            </section>
+
+            <section class="detail-pane" aria-label="检索结果详情">
+              <template v-if="store.selectedResult">
+                <header class="detail-header result-detail-header">
+                  <div>
+                    <h3>{{ store.selectedResult.title }}</h3>
+                    <p :title="store.selectedResult.sourcePath">
+                      {{ store.selectedResult.sourcePath }}
+                    </p>
+                  </div>
+                  <el-button text :icon="FileText" @click="showResultDocument">
+                    查看文档
+                  </el-button>
+                </header>
+                <div class="signal-strip">
+                  <span
+                    v-for="signal in store.selectedResult.signals"
+                    :key="signal.signalType"
+                  >
+                    {{ signalLabel(signal.signalType) }}
+                    {{ formatScore(signal.score) }}
                   </span>
-                  <span>{{ result.score.toFixed(3) }}</span>
-                </footer>
-              </article>
-            </div>
-            <el-empty v-else description="暂无检索结果" :image-size="72" />
-          </section>
-        </div>
+                </div>
+                <article class="result-content">
+                  <h4>
+                    {{
+                      store.selectedResult.heading ||
+                      `分块 ${store.selectedResult.chunkIndex + 1}`
+                    }}
+                  </h4>
+                  <p>{{ store.selectedResult.content }}</p>
+                </article>
+              </template>
+              <div v-else class="pane-empty detail-empty">
+                <PanelRight :size="32" />
+                <strong>选择结果查看完整内容</strong>
+                <span>命中信号和来源路径会在这里展开。</span>
+              </div>
+            </section>
+          </div>
+        </section>
       </template>
 
       <div v-else class="empty-workspace">
         <BookOpenText :size="40" />
-        <h2>新建资料库</h2>
-        <el-button type="primary" :icon="Plus" @click="creating = true">
-          新建资料库
-        </el-button>
+        <h2>建立第一个资料库</h2>
+        <p>资料库用于管理可追溯的文档、分块与检索索引。</p>
+        <el-button type="primary" :icon="Plus" @click="creating = true"
+          >新建资料库</el-button
+        >
       </div>
     </section>
+
+    <KnowledgeVectorDialog
+      v-if="store.activeLibrary"
+      v-model="vectorDialogVisible"
+      :library="store.activeLibrary"
+      :status="store.indexStatus"
+      @completed="handleVectorCompleted"
+      @status-changed="store.refreshIndexStatus"
+    />
   </main>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import { ElMessageBox } from "element-plus";
 import {
+  AlertTriangle,
+  Binary,
   BookOpenText,
-  Check,
   ChevronRight,
   FileText,
   FileUp,
-  FolderOpen,
+  MoreHorizontal,
+  PanelRight,
   Plus,
   RefreshCw,
   Search,
   Trash2,
+  X,
 } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import KnowledgeVectorDialog from "./components/KnowledgeVectorDialog.vue";
 import { parseKnowledgeFile } from "./fileParser";
 import { useKnowledgeStore } from "./store";
-import type { KnowledgeSearchStrategy } from "./types";
+import type {
+  KnowledgeImportFailure,
+  KnowledgeResult,
+  KnowledgeSearchStrategy,
+  KnowledgeSignalType,
+} from "./types";
+
+type WorkspaceMode = "documents" | "search";
 
 const store = useKnowledgeStore();
 const errorHandler = createModuleErrorHandler("knowledge-base/view");
 const creating = ref(false);
 const creatingLibrary = ref(false);
 const newLibraryName = ref("");
+const newLibraryDescription = ref("");
+const libraryFilter = ref("");
+const documentFilter = ref("");
+const workspaceMode = ref<WorkspaceMode>("documents");
 const query = ref("");
 const strategy = ref<KnowledgeSearchStrategy>("auto");
+const hasSearched = ref(false);
+const vectorDialogVisible = ref(false);
+const preparingImport = ref(false);
+const parseProcessed = ref(0);
+const parseTotal = ref(0);
+const importFailures = ref<KnowledgeImportFailure[]>([]);
+
+const modeOptions = [
+  { label: "文档", value: "documents" },
+  { label: "检索测试", value: "search" },
+];
+
+const filteredLibraries = computed(() => {
+  const filter = libraryFilter.value.trim().toLocaleLowerCase();
+  if (!filter) return store.libraries;
+  return store.libraries.filter((library) =>
+    `${library.name} ${library.description || ""}`
+      .toLocaleLowerCase()
+      .includes(filter)
+  );
+});
+
+const filteredDocuments = computed(() => {
+  const filter = documentFilter.value.trim().toLocaleLowerCase();
+  if (!filter) return store.documents;
+  return store.documents.filter((document) =>
+    `${document.title} ${document.sourcePath}`
+      .toLocaleLowerCase()
+      .includes(filter)
+  );
+});
+
+const semanticAvailable = computed(
+  () => (store.indexStatus?.vectorizedChunks ?? 0) > 0
+);
+const indexTone = computed(() => {
+  if (!store.indexStatus?.embeddingModelId) return "keyword";
+  return store.indexStatus.pendingChunks > 0 ? "partial" : "ready";
+});
+const vectorStatusLabel = computed(() => {
+  const status = store.indexStatus;
+  if (!status?.embeddingModelId) return "关键词索引可用";
+  if (status.pendingChunks > 0) {
+    return `向量 ${status.vectorizedChunks}/${status.totalChunks}`;
+  }
+  return `语义索引就绪 / ${status.dimension} 维`;
+});
+const modeContext = computed(() =>
+  workspaceMode.value === "documents"
+    ? "管理来源与实际分块"
+    : "验证召回结果与命中依据"
+);
+const importBusy = computed(() => preparingImport.value || store.importing);
+const importActionLabel = computed(() => {
+  if (preparingImport.value)
+    return `解析 ${parseProcessed.value}/${parseTotal.value}`;
+  if (store.importing)
+    return `写入 ${store.importProcessed}/${store.importTotal}`;
+  return "导入文档";
+});
 
 onMounted(() => store.initialize());
 
+watch(
+  () => store.activeLibraryId,
+  () => {
+    query.value = "";
+    documentFilter.value = "";
+    hasSearched.value = false;
+    importFailures.value = [];
+    if (!semanticAvailable.value && strategy.value !== "keyword") {
+      strategy.value = "auto";
+    }
+  }
+);
+
+watch(semanticAvailable, (available) => {
+  if (
+    !available &&
+    (strategy.value === "semantic" || strategy.value === "hybrid")
+  ) {
+    strategy.value = "auto";
+  }
+});
+
+function cancelCreate() {
+  creating.value = false;
+  newLibraryName.value = "";
+  newLibraryDescription.value = "";
+}
+
 async function createLibrary() {
   const name = newLibraryName.value.trim();
-  if (!name) return;
+  if (!name) {
+    customMessage.warning("请输入资料库名称");
+    return;
+  }
   creatingLibrary.value = true;
   try {
-    await store.createLibrary(name);
-    newLibraryName.value = "";
-    creating.value = false;
+    await store.createLibrary(
+      name,
+      newLibraryDescription.value.trim() || undefined
+    );
+    cancelCreate();
     customMessage.success("资料库已创建");
   } catch (error) {
     errorHandler.error(error, "创建资料库失败");
@@ -289,13 +630,54 @@ async function importDocuments() {
         ? [selected]
         : [];
     if (!paths.length) return;
-    const files = [];
-    for (const path of paths) files.push(await parseKnowledgeFile(path));
-    await store.importFiles(files);
-    customMessage.success(`已导入 ${files.length} 个文档`);
+
+    preparingImport.value = true;
+    parseProcessed.value = 0;
+    parseTotal.value = paths.length;
+    const parsedFiles = [];
+    const failures: KnowledgeImportFailure[] = [];
+    for (const path of paths) {
+      try {
+        parsedFiles.push(await parseKnowledgeFile(path));
+      } catch (error) {
+        failures.push({
+          sourcePath: path,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        parseProcessed.value += 1;
+      }
+    }
+    preparingImport.value = false;
+
+    const ingestResult = parsedFiles.length
+      ? await store.importFiles(parsedFiles)
+      : { imported: 0, failures: [] };
+    importFailures.value = [...failures, ...ingestResult.failures];
+    if (ingestResult.imported) {
+      customMessage.success(`已导入 ${ingestResult.imported} 个文档`);
+    }
+    if (importFailures.value.length) {
+      customMessage.warning(`${importFailures.value.length} 个文件未能导入`);
+    }
   } catch (error) {
     errorHandler.error(error, "导入知识资料失败");
+  } finally {
+    preparingImport.value = false;
   }
+}
+
+async function openDocument(documentId: string) {
+  try {
+    await store.selectDocument(documentId);
+  } catch (error) {
+    errorHandler.error(error, "读取文档分块失败");
+  }
+}
+
+function handleLibraryCommand(command: string | number | object) {
+  if (command === "rebuild") void rebuildLibrary();
+  if (command === "delete") void deleteLibrary();
 }
 
 async function deleteLibrary() {
@@ -337,19 +719,61 @@ async function deleteDocument(documentId: string, title: string) {
 
 async function rebuildLibrary() {
   try {
+    await ElMessageBox.confirm(
+      "重建会重新切分全部文档，并清除现有语义向量。完成后可再次构建语义索引。",
+      "重建分块索引",
+      {
+        type: "warning",
+        confirmButtonText: "开始重建",
+        cancelButtonText: "取消",
+        lockScroll: false,
+      }
+    );
     const count = await store.rebuild();
     customMessage.success(`已重建 ${count} 个文档`);
   } catch (error) {
+    if (error === "cancel" || error === "close") return;
     errorHandler.error(error, "重建资料库失败");
   }
 }
 
-function runSearch() {
+async function runSearch() {
   if (!query.value.trim()) {
     customMessage.warning("请输入检索内容");
     return;
   }
-  void store.search(query.value, strategy.value);
+  hasSearched.value = true;
+  await store.search(query.value, strategy.value);
+}
+
+async function showResultDocument() {
+  const result = store.selectedResult;
+  if (!result) return;
+  workspaceMode.value = "documents";
+  await openDocument(result.documentId);
+}
+
+async function handleVectorCompleted() {
+  await store.refreshLibraries(store.activeLibraryId || undefined);
+}
+
+function signalLabel(signalType: KnowledgeSignalType) {
+  const labels: Record<KnowledgeSignalType, string> = {
+    "knowledge-bm25": "关键词",
+    "knowledge-vector": "向量",
+    "knowledge-graph": "相邻扩展",
+  };
+  return labels[signalType];
+}
+
+function signalSummary(result: KnowledgeResult) {
+  return result.signals
+    .map((signal) => signalLabel(signal.signalType))
+    .join(" + ");
+}
+
+function formatScore(score: number) {
+  return Number.isFinite(score) ? score.toFixed(3) : "0.000";
 }
 
 function formatSize(size: number) {
@@ -357,12 +781,16 @@ function formatSize(size: number) {
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+function formatDate(timestamp: number) {
+  return new Date(timestamp * 1000).toLocaleString();
+}
 </script>
 
 <style scoped>
 .knowledge-workbench {
   display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  grid-template-columns: minmax(224px, 272px) minmax(0, 1fr);
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -373,6 +801,7 @@ function formatSize(size: number) {
 .library-sidebar {
   display: flex;
   min-width: 0;
+  min-height: 0;
   flex-direction: column;
   border-right: 1px solid var(--el-border-color-light);
   background: var(--sidebar-bg);
@@ -380,9 +809,25 @@ function formatSize(size: number) {
 
 .sidebar-header,
 .content-header,
-.pane-header {
+.detail-header,
+.mode-toolbar,
+.document-toolbar,
+.import-warning,
+.result-row header,
+.result-row footer,
+.chunk-row header,
+.document-meta,
+.signal-strip {
   display: flex;
   align-items: center;
+}
+
+.sidebar-header,
+.content-header,
+.detail-header,
+.result-row header,
+.result-row footer,
+.chunk-row header {
   justify-content: space-between;
 }
 
@@ -394,8 +839,9 @@ function formatSize(size: number) {
 
 .sidebar-header h1,
 .content-header h2,
-.pane-header h3,
-.empty-workspace h2 {
+.detail-header h3,
+.empty-workspace h2,
+.result-content h4 {
   margin: 0;
   letter-spacing: 0;
 }
@@ -406,22 +852,27 @@ function formatSize(size: number) {
 }
 
 .sidebar-header span,
-.pane-header span {
+.mode-context,
+.document-toolbar > span {
   color: var(--el-text-color-secondary);
   font-size: 12px;
 }
 
 .create-library {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 32px;
   gap: 8px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--el-border-color-light);
 }
 
-.create-library :deep(.el-button) {
-  width: 32px;
-  height: 32px;
+.create-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.library-filter {
+  padding: 8px 10px 0;
 }
 
 .library-list {
@@ -446,40 +897,70 @@ function formatSize(size: number) {
   cursor: pointer;
 }
 
-.library-row:hover {
+.library-row:hover,
+.document-row:hover,
+.result-row:hover {
   background: var(--el-fill-color-light);
 }
 
-.library-row.active {
+.library-row.active,
+.document-row.active,
+.result-row.active {
   color: var(--el-color-primary);
   background: var(--el-color-primary-light-9);
 }
 
 .library-copy,
+.document-copy,
+.library-title,
+.library-heading,
+.detail-header > div {
+  min-width: 0;
+}
+
+.library-copy,
 .document-copy {
   display: flex;
-  min-width: 0;
   flex-direction: column;
 }
 
 .library-copy strong,
-.document-copy strong {
+.document-copy strong,
+.library-copy small,
+.document-copy span,
+.document-copy small,
+.detail-header p {
   overflow: hidden;
-  font-size: 14px;
-  line-height: 20px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.library-copy strong,
+.document-copy strong {
+  font-size: 14px;
+  line-height: 20px;
 }
 
 .library-copy small,
 .document-copy span,
 .document-copy small {
-  overflow: hidden;
   color: var(--el-text-color-secondary);
   font-size: 12px;
   line-height: 18px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.sidebar-empty,
+.pane-empty,
+.empty-workspace {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  color: var(--el-text-color-secondary);
+}
+
+.sidebar-empty {
+  min-height: 96px;
+  font-size: 12px;
 }
 
 .library-content {
@@ -490,14 +971,15 @@ function formatSize(size: number) {
 }
 
 .content-header {
-  min-height: 68px;
+  min-height: 76px;
   gap: 16px;
   padding: 10px 18px;
   border-bottom: 1px solid var(--el-border-color-light);
 }
 
-.library-title {
-  min-width: 0;
+.library-heading {
+  display: grid;
+  gap: 7px;
 }
 
 .library-title h2 {
@@ -507,13 +989,31 @@ function formatSize(size: number) {
   white-space: nowrap;
 }
 
-.library-title p {
-  overflow: hidden;
-  margin: 3px 0 0;
+.library-title p,
+.detail-header p {
+  margin: 2px 0 0;
   color: var(--el-text-color-secondary);
   font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.index-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.status-keyword {
+  color: var(--el-text-color-regular);
+}
+
+.status-partial {
+  color: var(--el-color-warning);
+}
+
+.status-ready {
+  color: var(--el-color-success);
 }
 
 .header-actions {
@@ -522,131 +1022,235 @@ function formatSize(size: number) {
   gap: 6px;
 }
 
-.danger-action:hover,
-.row-action:hover {
+.danger-action:hover {
   color: var(--el-color-danger);
 }
 
-.search-toolbar {
-  display: grid;
-  grid-template-columns: minmax(160px, 1fr) 108px auto;
-  gap: 8px;
-  padding: 12px 18px;
+.mode-toolbar {
+  min-height: 48px;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 18px;
   border-bottom: 1px solid var(--el-border-color-light);
   background: var(--input-bg);
 }
 
-.strategy-select {
-  width: 108px;
+.import-warning {
+  gap: 8px;
+  min-height: 40px;
+  padding: 6px 14px 6px 18px;
+  color: var(--el-color-warning-dark-2);
+  font-size: 12px;
+  background: var(--el-color-warning-light-9);
 }
 
-.workspace-columns {
-  display: grid;
+.import-warning span {
+  flex: 1;
+}
+
+.workspace-mode {
+  display: flex;
   min-height: 0;
   flex: 1;
-  grid-template-columns: minmax(260px, 0.42fr) minmax(320px, 0.58fr);
-}
-
-.document-pane,
-.result-pane {
-  display: flex;
-  min-width: 0;
-  min-height: 0;
   flex-direction: column;
 }
 
-.document-pane {
-  border-right: 1px solid var(--el-border-color-light);
-}
-
-.pane-header {
-  min-height: 44px;
-  padding: 0 16px;
+.document-toolbar {
+  min-height: 48px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 18px;
   border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
-.pane-header h3 {
-  font-size: 14px;
+.filter-input {
+  width: min(420px, 100%);
 }
 
-.document-list,
-.result-list {
+.master-detail {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: minmax(300px, 0.42fr) minmax(360px, 0.58fr);
+}
+
+.master-pane,
+.detail-pane {
+  min-width: 0;
   min-height: 0;
   overflow: auto;
 }
 
+.master-pane {
+  border-right: 1px solid var(--el-border-color-light);
+}
+
+.document-list,
+.result-list,
+.chunk-list {
+  min-height: 100%;
+}
+
 .document-row {
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) 32px;
-  min-height: 72px;
+  grid-template-columns: 20px minmax(0, 1fr) 16px;
+  min-height: 76px;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px 10px 16px;
+  padding: 10px 14px 10px 18px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  cursor: pointer;
+}
+
+.detail-header {
+  min-height: 64px;
+  gap: 16px;
+  padding: 10px 18px;
   border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
-.result-row {
-  margin: 12px;
-  padding: 12px 14px;
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 6px;
-  background: var(--card-bg);
-}
-
-.result-row header,
-.result-row footer {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.result-row header > div {
+.detail-header h3 {
   overflow: hidden;
+  font-size: 15px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.result-row header strong {
+.document-meta,
+.signal-strip {
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  min-height: 38px;
+  padding: 7px 18px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  background: var(--input-bg);
+}
+
+.chunk-row {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.chunk-row header {
+  gap: 12px;
+}
+
+.chunk-row strong,
+.result-content h4 {
   font-size: 13px;
 }
 
-.result-row header span,
-.result-row code,
-.result-row footer {
+.chunk-row code {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+}
+
+.chunk-row p,
+.result-content p {
+  margin: 8px 0 0;
+  color: var(--el-text-color-regular);
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pane-empty {
+  min-height: 100%;
+  gap: 9px;
+  padding: 28px;
+  text-align: center;
+}
+
+.pane-empty strong {
+  color: var(--el-text-color-primary);
+  font-size: 14px;
+}
+
+.pane-empty span {
+  max-width: 320px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.skeleton-list {
+  display: grid;
+  gap: 20px;
+  padding: 18px;
+}
+
+.search-toolbar {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 112px auto;
+  gap: 8px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.strategy-select {
+  width: 112px;
+}
+
+.search-notice {
+  padding: 7px 18px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
   color: var(--el-text-color-secondary);
   font-size: 12px;
+  background: var(--el-color-info-light-9);
+}
+
+.result-row {
+  display: grid;
+  gap: 8px;
+  padding: 13px 16px 14px 18px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  cursor: pointer;
+}
+
+.result-row header,
+.result-row footer {
+  min-width: 0;
+  gap: 12px;
+}
+
+.result-row header strong {
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result-row header span,
+.result-row footer {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
 }
 
 .result-row p {
   display: -webkit-box;
   overflow: hidden;
-  margin: 10px 0;
+  margin: 0;
   color: var(--el-text-color-regular);
   font-size: 13px;
-  line-height: 1.65;
+  line-height: 1.6;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 6;
+  -webkit-line-clamp: 3;
 }
 
-.result-row footer span:first-child {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 5px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.result-detail-header :deep(.el-button) {
+  flex: none;
+}
+
+.result-content {
+  padding: 18px;
 }
 
 .empty-workspace {
-  display: grid;
-  place-items: center;
-  align-content: center;
   flex: 1;
-  gap: 12px;
-  color: var(--el-text-color-secondary);
+  gap: 10px;
+  padding: 24px;
 }
 
 .empty-workspace h2 {
@@ -654,17 +1258,47 @@ function formatSize(size: number) {
   font-size: 18px;
 }
 
-@media (max-width: 900px) {
+.empty-workspace p {
+  max-width: 360px;
+  margin: 0 0 4px;
+  font-size: 13px;
+  text-align: center;
+}
+
+@media (max-width: 980px) {
   .knowledge-workbench {
     grid-template-columns: 220px minmax(0, 1fr);
   }
 
-  .workspace-columns {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(180px, 0.4fr) minmax(240px, 0.6fr);
+  .header-actions :deep(.el-button span) {
+    display: none;
   }
 
-  .document-pane {
+  .master-detail {
+    grid-template-columns: minmax(260px, 0.46fr) minmax(300px, 0.54fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .knowledge-workbench {
+    grid-template-columns: 190px minmax(0, 1fr);
+  }
+
+  .content-header {
+    align-items: flex-start;
+  }
+
+  .mode-context,
+  .index-summary {
+    display: none;
+  }
+
+  .master-detail {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(200px, 0.45fr) minmax(240px, 0.55fr);
+  }
+
+  .master-pane {
     border-right: 0;
     border-bottom: 1px solid var(--el-border-color-light);
   }

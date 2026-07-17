@@ -2,10 +2,13 @@ import { invoke } from "@tauri-apps/api/core";
 import { callEmbeddingApi } from "@/llm-apis/embedding";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import type { LlmProfile } from "@/types/llm-profiles";
+import { buildModelCombo, parseModelCombo } from "@/utils/modelIdUtils";
+import { createModuleLogger } from "@/utils/logger";
 import type {
   KnowledgeChunk,
   KnowledgeDocument,
   KnowledgeIngestRequest,
+  KnowledgeIndexStatus,
   KnowledgeLibrary,
   KnowledgeResult,
   KnowledgeSearchRequest,
@@ -13,6 +16,7 @@ import type {
 } from "./types";
 
 let initialization: Promise<void> | null = null;
+const logger = createModuleLogger("knowledge-base/service");
 
 export function ensureKnowledgeInitialized(): Promise<void> {
   if (!initialization) {
@@ -98,6 +102,15 @@ export async function saveKnowledgeChunkVectors(
   });
 }
 
+export async function getKnowledgeIndexStatus(
+  libraryId: string
+): Promise<KnowledgeIndexStatus> {
+  await ensureKnowledgeInitialized();
+  return invoke<KnowledgeIndexStatus>("knowledge_get_index_status", {
+    libraryId,
+  });
+}
+
 export async function searchKnowledge(
   request: KnowledgeSearchRequest
 ): Promise<KnowledgeResult[]> {
@@ -112,17 +125,43 @@ export async function searchKnowledge(
       (item) => item.id === enriched.libraryIds[0]
     );
     if (library?.embeddingModelId) {
-      const { profiles } = useLlmProfiles();
-      const profile = profiles.value.find((item) =>
+      const { enabledProfiles, loadProfiles } = useLlmProfiles();
+      await loadProfiles();
+      const [profileId, parsedModelId] = parseModelCombo(
+        library.embeddingModelId
+      );
+      const exactProfile = enabledProfiles.value.find(
+        (item) =>
+          item.id === profileId &&
+          item.models.some((model) => model.id === parsedModelId)
+      );
+      const legacyProfile = enabledProfiles.value.find((item) =>
         item.models.some((model) => model.id === library.embeddingModelId)
       );
+      const profile = exactProfile || legacyProfile;
+      const requestModelId = exactProfile
+        ? parsedModelId
+        : library.embeddingModelId;
       if (profile) {
-        const response = await callEmbeddingApi(profile, {
-          modelId: library.embeddingModelId,
-          input: enriched.query,
-        });
-        enriched.queryVector = response.data[0]?.embedding;
-        enriched.modelId = library.embeddingModelId;
+        try {
+          const response = await callEmbeddingApi(profile, {
+            modelId: requestModelId,
+            input: enriched.query,
+          });
+          enriched.queryVector = response.data[0]?.embedding;
+          enriched.modelId = library.embeddingModelId;
+        } catch (error) {
+          if (enriched.strategy !== "auto") throw error;
+          logger.warn("Knowledge auto 检索生成查询向量失败，降级为关键词检索", {
+            libraryId: library.id,
+            modelKey: library.embeddingModelId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      } else if (enriched.strategy !== "auto") {
+        throw new Error(
+          `资料库当前使用的 Embedding 模型不可用: ${library.embeddingModelId}`
+        );
       }
     }
   }
@@ -133,9 +172,15 @@ export async function vectorizeKnowledgeLibrary(
   libraryId: string,
   modelId: string,
   profile: LlmProfile,
-  batchSize = 32
+  options: {
+    batchSize?: number;
+    onProgress?: (processed: number, total: number) => void;
+  } = {}
 ): Promise<number> {
   const chunks = await listKnowledgeChunks(libraryId);
+  const batchSize = Math.max(1, options.batchSize ?? 32);
+  const modelKey = buildModelCombo(profile.id, modelId);
+  options.onProgress?.(0, chunks.length);
   for (let offset = 0; offset < chunks.length; offset += batchSize) {
     const batch = chunks.slice(offset, offset + batchSize);
     const response = await callEmbeddingApi(profile, {
@@ -148,7 +193,11 @@ export async function vectorizeKnowledgeLibrary(
     });
     if (records.length !== batch.length)
       throw new Error("Embedding 返回数量与 Knowledge chunk 数量不一致");
-    await saveKnowledgeChunkVectors(libraryId, modelId, records);
+    await saveKnowledgeChunkVectors(libraryId, modelKey, records);
+    options.onProgress?.(
+      Math.min(offset + batch.length, chunks.length),
+      chunks.length
+    );
   }
   return chunks.length;
 }

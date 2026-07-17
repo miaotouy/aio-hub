@@ -1,6 +1,6 @@
 # Recall / Knowledge 领域拆分与重构实施计划
 
-**状态**: Pre-Stage、Stage 0 至 Stage 5 已完成；Stage 6 的后端、协议、被动注入与主动检索接线已完成，Knowledge 前端交互设计及产品化向量化入口按 2026-07-17 决策暂时跳过；Stage 7 的代码边界清理已完成，首次启动迁移接线、独立 appData / 真实目录副本验收与发布 smoke test 仍待执行。整个计划完成前不发布中间版本。
+**状态**: Pre-Stage、Stage 0 至 Stage 6 已完成；Knowledge 前端工作台、索引状态与产品化向量化入口已补齐。Stage 7 的代码边界清理已完成，首次启动迁移接线、独立 appData / 真实目录副本验收与发布 smoke test 仍待执行。整个计划完成前不发布中间版本。
 **创建日期**: 2026-07-17
 **最近修订**: 2026-07-17
 **适用范围**: `src/tools/knowledge-base/`、计划新增的 `src/tools/recall/`、`src/tools/llm-chat/`、`src/tools/agent-manager/`、`src-tauri/src/knowledge/`、计划新增的 `src-tauri/src/recall/`
@@ -470,7 +470,7 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 
 ## 11. Stage 6：建设 Knowledge 资料库
 
-**阶段状态**：后端与检索契约的自动化施工已完成。Knowledge 使用本计划允许的 SQLite manifest + 每库独立 `.kdb` + FTS5 过渡实现；已完成 library/document/chunk CRUD、增量覆盖、事务删除、重建、PDF/DOCX/HTML/文本解析、BM25、chunk embedding 服务、hybrid、相邻 chunk graph 和来源回溯。Agent 使用独立 `knowledgeConfig` / `knowledgeSettings` 与稳定 library ID binding；严格 Knowledge processor、`{{knowledge}}` / `{{knowledge_list}}` 已落地，主动 `recall` / `knowledge` / `mixed` 路由已通过无 UI 的 `retrieval` Agent registry 接入实际工具调用路径，mixed 先保留分域配额再按 RRF 融合。Knowledge 前端交互设计、产品化向量化入口及其 WebView 人工验收按 2026-07-17 用户决策暂时跳过，不计为当前阶段已完成能力，也不得据此宣称 semantic / hybrid 已形成用户操作闭环。当前没有产品化文件夹同步入口，因此未引入 watcher/ingest queue；TriviumDB 继续等待文件组恢复、锁和跨平台验证，不进入本阶段运行路径。
+**阶段状态**：后端、检索契约与前端产品化施工已完成。Knowledge 使用本计划允许的 SQLite manifest + 每库独立 `.kdb` + FTS5 过渡实现；已完成 library/document/chunk CRUD、增量覆盖、事务删除、重建、PDF/DOCX/HTML/文本解析、BM25、chunk embedding、hybrid、相邻 chunk graph 和来源回溯。前端已提供文档/分块主从浏览、批量导入失败隔离、检索信号展示、Embedding 模型选择、向量覆盖率与批次进度。Agent 使用独立 `knowledgeConfig` / `knowledgeSettings` 与稳定 library ID binding；严格 Knowledge processor、`{{knowledge}}` / `{{knowledge_list}}` 已落地，主动 `recall` / `knowledge` / `mixed` 路由已通过无 UI 的 `retrieval` Agent registry 接入实际工具调用路径，mixed 先保留分域配额再按 RRF 融合。当前没有产品化文件夹同步入口，因此未引入 watcher/ingest queue；TriviumDB 继续等待文件组恢复、锁和跨平台验证，不进入本阶段运行路径。真实 WebView 与真实模型调用仍归最终发布验收。
 
 ### 目标
 
@@ -480,7 +480,7 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 
 - 实现 Knowledge library repository、manifest migration 和 library CRUD。
 - 接入文件导入、解析、切片、embedding、BM25、图关系和来源回溯。
-- **暂时跳过（2026-07-17 用户决策）**：Knowledge 前端交互设计和产品化向量化入口；恢复施工时再补模型选择、向量覆盖状态、失败重试和真实 WebView 验收。
+- 实现 Knowledge 前端交互和产品化向量化入口，包括模型选择、向量覆盖状态、批次进度、失败后重试和检索信号说明。
 - 桌面端需要文件夹同步时，引入已调查确认的 debounced watcher 和持久化 ingest queue。
 - 通过 repository 隔离 TriviumDB；运行态、锁、文件组恢复或跨平台验证不通过时，允许使用 SQLite manifest + FTS5 过渡。
 - 新增 Knowledge binding、`{{knowledge}}` / `{{knowledge_list}}` 宏和 1.4 节定义的 `【knowledge::key=value】` processor；目标使用稳定 library ID，不复用 Recall binding 或历史 `【knowledge】` 的 CAIU 语义。

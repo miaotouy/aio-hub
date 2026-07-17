@@ -87,3 +87,17 @@ export interface KnowledgeVectorRecord {
   chunkId: string;
   vector: number[];
 }
+
+export interface KnowledgeIndexStatus {
+  libraryId: string;
+  totalChunks: number;
+  vectorizedChunks: number;
+  pendingChunks: number;
+  embeddingModelId: string;
+  dimension: number;
+}
+
+export interface KnowledgeImportFailure {
+  sourcePath: string;
+  message: string;
+}

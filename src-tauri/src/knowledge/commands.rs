@@ -113,6 +113,14 @@ pub async fn knowledge_save_chunk_vectors(
 }
 
 #[tauri::command]
+pub async fn knowledge_get_index_status(
+    state: State<'_, KnowledgeState>,
+    library_id: String,
+) -> Result<KnowledgeIndexStatus, String> {
+    state.repository()?.get_index_status(&library_id)
+}
+
+#[tauri::command]
 pub async fn knowledge_search(
     state: State<'_, KnowledgeState>,
     request: KnowledgeSearchRequest,

@@ -58,6 +58,17 @@ pub struct KnowledgeVectorRecord {
     pub vector: Vec<f32>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnowledgeIndexStatus {
+    pub library_id: String,
+    pub total_chunks: usize,
+    pub vectorized_chunks: usize,
+    pub pending_chunks: usize,
+    pub embedding_model_id: String,
+    pub dimension: usize,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum KnowledgeSearchStrategy {

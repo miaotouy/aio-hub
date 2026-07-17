@@ -409,6 +409,44 @@ impl KnowledgeRepository {
         Ok(())
     }
 
+    pub fn get_index_status(&self, library_id: &str) -> Result<KnowledgeIndexStatus, String> {
+        let library = self
+            .get_library(library_id)?
+            .ok_or_else(|| format!("Knowledge library 不存在: {library_id}"))?;
+        let path = self.resolve_library_path(library_id)?;
+        let connection = self.open_library(&path)?;
+        let total_chunks = connection
+            .query_row("SELECT COUNT(*) FROM chunks", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .map_err(|error| format!("读取 Knowledge chunk 数量失败: {error}"))?
+            .max(0) as usize;
+        let vectorized_chunks = if library.embedding_model_id.is_empty() || library.dimension == 0 {
+            0
+        } else {
+            connection
+                .query_row(
+                    "SELECT COUNT(*)
+                     FROM chunk_vectors AS vectors
+                     INNER JOIN chunks ON chunks.id = vectors.chunk_id
+                     WHERE vectors.model_id = ?1 AND vectors.dimension = ?2",
+                    params![library.embedding_model_id, library.dimension as i64],
+                    |row| row.get::<_, i64>(0),
+                )
+                .map_err(|error| format!("读取 Knowledge vector 覆盖状态失败: {error}"))?
+                .max(0) as usize
+        };
+
+        Ok(KnowledgeIndexStatus {
+            library_id: library_id.to_string(),
+            total_chunks,
+            vectorized_chunks,
+            pending_chunks: total_chunks.saturating_sub(vectorized_chunks),
+            embedding_model_id: library.embedding_model_id,
+            dimension: library.dimension,
+        })
+    }
+
     pub fn search(&self, request: &KnowledgeSearchRequest) -> Result<Vec<KnowledgeResult>, String> {
         let strategy = match request.strategy {
             KnowledgeSearchStrategy::Auto => {
@@ -1178,5 +1216,57 @@ mod tests {
             })
             .unwrap();
         assert_eq!(vector_count, 0);
+    }
+
+    #[test]
+    fn index_status_tracks_only_the_active_model_coverage() {
+        let directory = tempdir().unwrap();
+        let repository = KnowledgeRepository::new(directory.path());
+        repository.initialize().unwrap();
+        let library = repository.create_library("Coverage", None).unwrap();
+        let document = repository
+            .ingest(&request(
+                &library.id,
+                "coverage.md",
+                &format!(
+                    "# Alpha\n{}\n# Beta\n{}",
+                    "alpha ".repeat(220),
+                    "beta ".repeat(220)
+                ),
+            ))
+            .unwrap();
+        let chunks = repository
+            .list_chunks(&library.id, Some(&document.id))
+            .unwrap();
+        assert!(chunks.len() > 1);
+
+        repository
+            .save_vectors(
+                &library.id,
+                "model-a",
+                &[KnowledgeVectorRecord {
+                    chunk_id: chunks[0].id.clone(),
+                    vector: vec![1.0, 0.0],
+                }],
+            )
+            .unwrap();
+        let partial = repository.get_index_status(&library.id).unwrap();
+        assert_eq!(partial.vectorized_chunks, 1);
+        assert_eq!(partial.pending_chunks, chunks.len() - 1);
+
+        repository
+            .save_vectors(
+                &library.id,
+                "model-b",
+                &[KnowledgeVectorRecord {
+                    chunk_id: chunks[1].id.clone(),
+                    vector: vec![0.0, 1.0],
+                }],
+            )
+            .unwrap();
+        let switched = repository.get_index_status(&library.id).unwrap();
+        assert_eq!(switched.embedding_model_id, "model-b");
+        assert_eq!(switched.vectorized_chunks, 1);
+        assert_eq!(switched.pending_chunks, chunks.len() - 1);
     }
 }

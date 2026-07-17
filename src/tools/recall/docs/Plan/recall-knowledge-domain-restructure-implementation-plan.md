@@ -355,6 +355,8 @@ appData/knowledge/
 
 ## 8. Stage 3：迁移 Agent、Chat 与工具配置
 
+**阶段状态**: 进行中。Agent 读取时已通过 `agentMigrationService` 一次性迁移 `knowledgeBaseConfig` / `knowledgeSettings`、旧 binding 和 `kb-*` 工具权限为版本 3 的 `recallConfig` / `recallSettings` 与 `recall-*` key，并有幂等单测。chat processor、宏、占位符 parser 与编辑器尚待切换到新协议；旧字段目前仅保留作迁移期读取兼容。
+
 ### 目标
 
 让结构化配置自动完成迁名，让自由文本旧语法以可见方式退出。

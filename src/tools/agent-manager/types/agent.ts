@@ -153,6 +153,40 @@ export const DEFAULT_KB_CONFIG: AgentKnowledgeBaseConfig = {
   autoInjectPosition: "context_head",
 };
 
+export type RecallProfile = "semantic" | "associative";
+
+/** Stage 3 后的思绪绑定。集合 ID 是唯一运行时目标，名称仅用于显示。 */
+export interface RecallBinding {
+  recallId: string;
+  recallName: string;
+  enabled: boolean;
+  when?: "always" | "gate" | "turn" | "static";
+  whenParams?: string[];
+  limit?: number;
+  minScore?: number;
+  profile?: RecallProfile;
+  group?: string;
+}
+
+export interface AgentRecallConfig {
+  enabled: boolean;
+  bindings: RecallBinding[];
+  groups?: KnowledgeBaseGroup[];
+  autoInjectIfMacroMissing?: boolean;
+  autoInjectPosition?: "context_head" | "before_last_user";
+}
+
+export interface AgentRecallSettings {
+  defaultProfile?: RecallProfile;
+  defaultLimit?: number;
+  maxRecallChars?: number;
+  defaultMinScore?: number;
+  resultTemplate?: string;
+  emptyText?: string;
+  gateScanDepth?: number;
+  enableCache?: boolean;
+}
+
 /**
  * 工具调用配置
  */
@@ -532,6 +566,12 @@ export interface AgentBaseConfig {
 
   /** 知识库全局设置 (检索参数) */
   knowledgeSettings?: AgentKnowledgeSettings;
+
+  /** Stage 3 思绪绑定配置。 */
+  recallConfig?: AgentRecallConfig;
+
+  /** Stage 3 思绪检索设置。 */
+  recallSettings?: AgentRecallSettings;
 
   /** 工具调用配置 */
   toolCallConfig?: ToolCallConfig;

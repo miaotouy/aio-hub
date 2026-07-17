@@ -25,6 +25,8 @@ import type { ChatMessageNode } from "@/tools/llm-chat/types/message";
 
 const logger = createModuleLogger("llm-chat/agentMigrationService");
 
+const RECALL_AGENT_CONFIG_VERSION = 3;
+
 /**
  * 执行所有智能体迁移逻辑
  * @param agents 待迁移的智能体列表
@@ -80,7 +82,75 @@ export function migrateAgent(agent: ChatAgent): boolean {
   // 6. 迁移旧版 ST 开场白预设到 greetings
   if (migratePresetGreetings(agent)) hasChanges = true;
 
+  // 7. 迁移 Recall 领域配置与工具权限。
+  if (migrateRecallConfiguration(agent)) hasChanges = true;
+
   return hasChanges;
+}
+
+function migrateRecallConfiguration(agent: ChatAgent): boolean {
+  if (agent.recallConfig && agent.recallSettings) return false;
+
+  const legacyConfig = agent.knowledgeBaseConfig;
+  const legacySettings = agent.knowledgeSettings;
+  if (!legacyConfig && !legacySettings) return false;
+
+  const engineId = legacySettings?.defaultEngineId;
+  const defaultProfile =
+    engineId === "lens" || engineId === "blender" ? "associative" : "semantic";
+
+  agent.recallConfig ??= {
+    enabled: legacyConfig?.enabled ?? false,
+    bindings: (legacyConfig?.bindings ?? []).map((binding) => ({
+      recallId: binding.kbId,
+      recallName: binding.kbName,
+      enabled: binding.enabled,
+      when: binding.mode,
+      whenParams: binding.modeParams,
+      limit: binding.limit,
+      minScore: binding.minScore,
+      group: binding.group,
+    })),
+    groups: legacyConfig?.groups,
+    autoInjectIfMacroMissing: legacyConfig?.autoInjectIfMacroMissing,
+    autoInjectPosition: legacyConfig?.autoInjectPosition,
+  };
+  agent.recallSettings ??= {
+    defaultProfile,
+    defaultLimit: legacySettings?.defaultLimit,
+    maxRecallChars: legacySettings?.maxRecallChars,
+    defaultMinScore: legacySettings?.defaultMinScore,
+    resultTemplate: legacySettings?.resultTemplate,
+    emptyText: legacySettings?.emptyText,
+    gateScanDepth: legacySettings?.gateScanDepth,
+    enableCache: legacySettings?.enableCache,
+  };
+
+  const toolConfig = agent.toolCallConfig;
+  if (toolConfig) {
+    const renameKey = (key: string) =>
+      key === "kb-basic"
+        ? "recall-basic"
+        : key === "kb-admin"
+          ? "recall-admin"
+          : key.replace(/^kb-(basic|admin)([:_])/, "recall-$1$2");
+    for (const record of [
+      toolConfig.toolToggles,
+      toolConfig.methodToggles,
+      toolConfig.autoApproveTools,
+      toolConfig.autoApproveMethods,
+      toolConfig.overrides,
+    ]) {
+      if (!record) continue;
+      for (const [key, value] of Object.entries(record)) {
+        const nextKey = renameKey(key);
+        if (nextKey !== key && !(nextKey in record)) record[nextKey] = value as never;
+      }
+    }
+  }
+  agent.version = Math.max(agent.version ?? 0, RECALL_AGENT_CONFIG_VERSION);
+  logger.info("迁移 Agent Recall 配置", { agentId: agent.id });
+  return true;
 }
 
 /**

@@ -17,7 +17,6 @@ use crate::commands::asset_manager::{
 };
 use crate::recall::core::{AssetRef, RecallCollection, RecallCollectionMeta, RecallEntry};
 use crate::recall::index::InMemoryBase;
-use crate::recall::io::{get_bases_dir, get_knowledge_root, get_recall_dir};
 use crate::recall::state::RecallState;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -28,7 +27,7 @@ use std::io::{Cursor, Read, Seek, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
@@ -501,6 +500,7 @@ fn write_backup_zip(
 
 fn export_one(
     app: &AppHandle,
+    state: &RecallState,
     catalog: &AssetCatalog,
     recall_id: Uuid,
     target_directory: &Path,
@@ -508,18 +508,14 @@ fn export_one(
     if !target_directory.is_dir() {
         return Err(format!("导出目标不是目录: {}", target_directory.display()));
     }
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| error.to_string())?;
-    let recall_dir = get_recall_dir(&app_data_dir, &recall_id.to_string());
-    if !recall_dir.is_dir() {
-        return Err(format!("找不到思绪集持久化目录: {}", recall_id));
-    }
-    let library = read_library_directory(&recall_dir)?;
-    if library.meta.id != recall_id {
-        return Err("思绪集目录 ID 与 meta.json ID 不一致".to_string());
-    }
+    let collection = state
+        .repository()?
+        .load_collection(recall_id)?
+        .ok_or_else(|| format!("找不到思绪集: {}", recall_id))?;
+    let library = KnowledgeLibraryDtoV1 {
+        meta: collection.meta,
+        entries: collection.entries,
+    };
     let assets = collect_package_assets(app, catalog, &library)?;
     let library_bytes = serde_json::to_vec_pretty(&library)
         .map_err(|error| format!("序列化 library.json 失败: {}", error))?;
@@ -593,36 +589,6 @@ fn export_one(
         asset_count: manifest.asset_count,
         warnings,
     })
-}
-
-fn list_persisted_library_ids(app_data_dir: &Path) -> Result<Vec<Uuid>, String> {
-    let bases_dir = get_bases_dir(app_data_dir);
-    if !bases_dir.exists() {
-        return Ok(Vec::new());
-    }
-
-    let entries =
-        fs::read_dir(&bases_dir).map_err(|error| format!("读取思绪集存储目录失败: {}", error))?;
-    let mut ids = Vec::new();
-    for entry in entries {
-        let entry = entry.map_err(|error| format!("读取思绪集存储条目失败: {}", error))?;
-        if !entry
-            .file_type()
-            .map_err(|error| format!("读取思绪集存储条目类型失败: {}", error))?
-            .is_dir()
-        {
-            continue;
-        }
-        if let Some(id) = entry
-            .file_name()
-            .to_str()
-            .and_then(|name| Uuid::parse_str(name).ok())
-        {
-            ids.push(id);
-        }
-    }
-    ids.sort();
-    Ok(ids)
 }
 
 fn parse_aio_backup(path: &Path) -> Result<ParsedBackup, String> {
@@ -1079,12 +1045,12 @@ fn parse_backup_source(path: &Path, source_entry: Option<&str>) -> Result<Parsed
 }
 
 fn imported_copy_name(state: &RecallState, source_name: &str) -> Result<String, String> {
-    let imdb = state.imdb.read().map_err(|_| "获取内存数据库读锁失败")?;
-    let names: HashSet<String> = imdb
-        .bases
-        .values()
-        .filter_map(|base| base.read().ok().map(|base| base.meta.name.clone()))
-        .collect();
+    let names = state
+        .repository()?
+        .list_collections()?
+        .into_iter()
+        .map(|collection| collection.name)
+        .collect::<HashSet<_>>();
     let first = format!("{} (导入副本)", source_name);
     if !names.contains(&first) {
         return Ok(first);
@@ -1098,6 +1064,7 @@ fn imported_copy_name(state: &RecallState, source_name: &str) -> Result<String, 
     Ok(format!("{} (导入副本 {})", source_name, Uuid::new_v4()))
 }
 
+#[allow(dead_code)] // 仅保留给备份格式夹具，运行时恢复直接提交 SQLite repository。
 fn write_staged_library(directory: &Path, library: &KnowledgeLibraryDtoV1) -> Result<(), String> {
     let entries_dir = directory.join("entries");
     fs::create_dir_all(&entries_dir)
@@ -1204,12 +1171,8 @@ fn import_one(
 ) -> Result<BackupImportReport, String> {
     let parsed = parse_backup_source(source_path, source_entry)?;
     let original_id = parsed.library.meta.id;
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| error.to_string())?;
-    let original_target = get_recall_dir(&app_data_dir, &original_id.to_string());
-    let has_conflict = original_target.exists();
+    let repository = state.repository()?;
+    let has_conflict = repository.load_collection(original_id)?.is_some();
     if has_conflict && options.conflict_strategy == BackupConflictStrategy::Cancel {
         return Ok(BackupImportReport {
             source_path: source_path.to_string_lossy().to_string(),
@@ -1236,8 +1199,7 @@ fn import_one(
     }
     reset_derived_state(&mut library.meta, &library.entries);
     let target_id = library.meta.id;
-    let target_dir = get_recall_dir(&app_data_dir, &target_id.to_string());
-    if target_dir.exists() && !has_conflict {
+    if repository.load_collection(target_id)?.is_some() && !has_conflict {
         return Err(format!("目标思绪集已存在: {}", target_id));
     }
 
@@ -1253,39 +1215,21 @@ fn import_one(
     reset_derived_state(&mut library.meta, &library.entries);
     validate_library(&library)?;
 
-    let operation_dir = get_knowledge_root(&app_data_dir)
-        .join(".import-staging")
-        .join(Uuid::new_v4().to_string());
-    let _staging_guard = ImportStagingGuard(operation_dir.clone());
-    let staged_dir = operation_dir.join("library");
-    write_staged_library(&staged_dir, &library)?;
-    fs::create_dir_all(get_bases_dir(&app_data_dir))
-        .map_err(|error| format!("创建思绪集目录失败: {}", error))?;
-
     let mut in_memory = InMemoryBase::new(library.meta.clone());
     for entry in &library.entries {
         in_memory.sync_entry(entry.clone());
     }
     in_memory.is_fully_loaded = true;
-
-    let previous_dir = operation_dir.join("previous");
-    let mut imdb = state.imdb.write().map_err(|_| "获取内存数据库写锁失败")?;
-    if target_dir.exists() {
-        if options.conflict_strategy != BackupConflictStrategy::Replace {
-            return Err(format!("目标思绪集已存在且未选择替换: {}", target_id));
-        }
-        fs::rename(&target_dir, &previous_dir)
-            .map_err(|error| format!("暂存现有思绪集失败: {}", error))?;
-    }
-    if let Err(error) = fs::rename(&staged_dir, &target_dir) {
-        if previous_dir.exists() {
-            let _ = fs::rename(&previous_dir, &target_dir);
-        }
-        return Err(format!("提交恢复思绪集失败: {}", error));
-    }
-    imdb.bases
+    repository.save_collection(&RecallCollection {
+        meta: library.meta.clone(),
+        entries: library.entries.clone(),
+    })?;
+    state
+        .imdb
+        .write()
+        .map_err(|_| "获取内存数据库写锁失败")?
+        .bases
         .insert(target_id, Arc::new(RwLock::new(in_memory)));
-    drop(imdb);
 
     let missing_asset_count = warnings
         .iter()
@@ -1311,16 +1255,18 @@ fn import_one(
 #[tauri::command]
 pub async fn recall_export_backup(
     app: AppHandle,
+    state: State<'_, RecallState>,
     catalog: State<'_, AssetCatalog>,
     recall_id: Uuid,
     target_directory: String,
 ) -> Result<BackupExportResult, String> {
-    export_one(&app, &catalog, recall_id, Path::new(&target_directory))
+    export_one(&app, &state, &catalog, recall_id, Path::new(&target_directory))
 }
 
 #[tauri::command]
 pub async fn recall_export_backups(
     app: AppHandle,
+    state: State<'_, RecallState>,
     catalog: State<'_, AssetCatalog>,
     recall_ids: Vec<Uuid>,
     target_directory: String,
@@ -1330,12 +1276,13 @@ pub async fn recall_export_backups(
     if !directory.is_dir() {
         return Err(format!("导出目标不是目录: {}", directory.display()));
     }
-    let ids = if recall_ids.is_empty() {
-        let app_data_dir = app
-            .path()
-            .app_data_dir()
-            .map_err(|error| error.to_string())?;
-        list_persisted_library_ids(&app_data_dir)?
+    let ids: Vec<Uuid> = if recall_ids.is_empty() {
+        state
+            .repository()?
+            .list_collections()?
+            .into_iter()
+            .map(|collection| collection.id)
+            .collect()
     } else {
         let mut unique = HashSet::new();
         recall_ids
@@ -1367,7 +1314,7 @@ pub async fn recall_export_backups(
                 library_id: id.to_string(),
             },
         );
-        match export_one(&app, &catalog, id, &staging_dir) {
+        match export_one(&app, &state, &catalog, id, &staging_dir) {
             Ok(result) => succeeded.push(result),
             Err(error) => failed.push(BackupExportFailure {
                 library_id: id.to_string(),
@@ -1462,31 +1409,23 @@ pub fn recall_cancel_backup_operation() {
 }
 
 fn inspect_parsed_backup(
-    app: &AppHandle,
+    state: &RecallState,
     source_path: String,
     source_entry: Option<String>,
     parsed: ParsedBackup,
 ) -> Result<BackupInspectResult, String> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| error.to_string())?;
-    let target_dir = get_recall_dir(&app_data_dir, &parsed.library.meta.id.to_string());
-    let (has_conflict, conflicting_library_name, conflicting_entry_count) = if target_dir.exists() {
-        let meta_path = target_dir.join("meta.json");
-        let bytes = fs::read(&meta_path).map_err(|error| {
-            format!(
-                "读取冲突思绪集元数据失败 {}: {}",
-                meta_path.display(),
-                error
+    let conflict = state
+        .repository()?
+        .load_collection(parsed.library.meta.id)?;
+    let (has_conflict, conflicting_library_name, conflicting_entry_count) = conflict
+        .map(|collection| {
+            (
+                true,
+                Some(collection.meta.name),
+                Some(collection.entries.len()),
             )
-        })?;
-        let meta: RecallCollectionMeta = serde_json::from_slice(&bytes)
-            .map_err(|error| format!("解析冲突思绪集元数据失败: {}", error))?;
-        (true, Some(meta.name), Some(meta.entries.len()))
-    } else {
-        (false, None, None)
-    };
+        })
+        .unwrap_or((false, None, None));
     let asset_count = parsed
         .manifest
         .as_ref()
@@ -1515,22 +1454,24 @@ fn inspect_parsed_backup(
 
 #[tauri::command]
 pub async fn recall_inspect_backup(
-    app: AppHandle,
+    _app: AppHandle,
+    state: State<'_, RecallState>,
     source_path: String,
 ) -> Result<BackupInspectResult, String> {
     let path = PathBuf::from(&source_path);
     let parsed = parse_backup(&path)?;
-    inspect_parsed_backup(&app, source_path, None, parsed)
+    inspect_parsed_backup(&state, source_path, None, parsed)
 }
 
 #[tauri::command]
 pub async fn recall_inspect_backups(
     app: AppHandle,
+    state: State<'_, RecallState>,
     source_path: String,
 ) -> Result<Vec<BackupInspectItem>, String> {
     let path = PathBuf::from(&source_path);
     if path.extension().and_then(|extension| extension.to_str()) != Some("zip") {
-        return recall_inspect_backup(app, source_path).await.map(|result| {
+        return recall_inspect_backup(app, state, source_path).await.map(|result| {
             vec![BackupInspectItem {
                 source_entry: result.source_entry.clone(),
                 library_name: result.library_name.clone(),
@@ -1550,7 +1491,7 @@ pub async fn recall_inspect_backups(
         let inspected = parse_backup_collection_entry(&path, &source_entry).and_then(|parsed| {
             validate_backup_index_entry(&backup, &parsed)?;
             inspect_parsed_backup(
-                &app,
+                &state,
                 source_path.clone(),
                 Some(source_entry.clone()),
                 parsed,
@@ -1612,6 +1553,7 @@ mod tests {
     use super::*;
     use crate::recall::core::VectorizationMeta;
     use crate::recall::migration_baseline::fixture;
+    use crate::recall::storage::RecallRepository;
     use tempfile::tempdir;
 
     fn empty_library() -> KnowledgeLibraryDtoV1 {
@@ -1683,20 +1625,32 @@ mod tests {
     }
 
     #[test]
-    fn lists_persisted_libraries_without_using_warmup_state() {
+    fn lists_repository_libraries_without_using_warmup_state() {
         let directory = tempdir().unwrap();
         let first = Uuid::new_v4();
         let second = Uuid::new_v4();
-        let bases_dir = get_bases_dir(directory.path());
-        fs::create_dir_all(bases_dir.join(first.to_string())).unwrap();
-        fs::create_dir_all(bases_dir.join(second.to_string())).unwrap();
-        fs::create_dir_all(bases_dir.join("not-a-library")).unwrap();
-        fs::write(bases_dir.join("README.txt"), b"ignored").unwrap();
+        let repository = crate::recall::storage::SqliteRecallRepository::new(directory.path());
+        repository.initialize().unwrap();
+        for id in [first, second] {
+            let mut library = empty_library();
+            library.meta.id = id;
+            repository
+                .save_collection(&RecallCollection {
+                    meta: library.meta,
+                    entries: Vec::new(),
+                })
+                .unwrap();
+        }
 
         let mut expected = vec![first, second];
         expected.sort();
         assert_eq!(
-            list_persisted_library_ids(directory.path()).unwrap(),
+            repository
+                .list_collections()
+                .unwrap()
+                .into_iter()
+                .map(|collection| collection.id)
+                .collect::<Vec<_>>(),
             expected
         );
     }

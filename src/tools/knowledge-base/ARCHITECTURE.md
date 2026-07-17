@@ -1,25 +1,36 @@
 # Knowledge（知识资料库）架构说明
 
-Knowledge 是 AIO Hub 的文档资料与来源回溯领域。当前处于 Recall / Knowledge 拆分计划 Stage 1 的模块空壳阶段，仅提供 `/knowledge-base` 产品入口，不包含文档导入、切片、索引或检索实现。
+Knowledge 是 AIO Hub 的文档资料与来源回溯领域，与 Recall 思绪领域独立持久化、独立绑定和独立检索。
 
-## 当前边界
+## 存储
 
-- `knowledge-base.registry.ts` 只注册 Knowledge UI，不暴露 Agent 工具。
-- `KnowledgeBase.vue` 只展示占位状态，不导入 Recall store、service、action 或 entry 类型。
-- `src-tauri/src/knowledge.rs` 不注册 command，也不持有 `RecallState`。
-- 当前旧 `appData/knowledge/` 目录仍由 Recall 的迁移期 IO 使用，不属于 Knowledge 新领域的运行时实现。
+- `knowledge/knowledge_meta.db` 保存 library manifest、schema migration、embedding 模型与维度。
+- `knowledge/libraries/{libraryId}.kdb` 是每库独立的 SQLite 文件，包含 document、chunk、FTS5、chunk vector 和相邻 chunk graph edge。
+- library 文件采用 UUID 路径约束；删除先隔离为 tombstone，再删除 manifest，失败时恢复文件。
+- 文档增量导入以 `sourcePath` 为稳定键，在单事务中替换 chunk、FTS、向量和图边。
 
-## 目标能力
+当前使用计划允许的 SQLite + FTS5 过渡实现。TriviumDB 的跨平台文件组、锁和恢复验证完成前，不进入运行路径。
 
-后续阶段将在该边界内独立实现：
+## 前端
 
-- document、chunk、source 与 library 数据模型。
-- 文件导入、解析、切片、增量同步和来源回溯。
-- BM25、向量与图关系索引。
-- `knowledge` 检索策略、稳定 library ID binding 及独立占位符协议。
+- `KnowledgeBase.vue` 提供 library CRUD、文件导入、文档删除、重建、搜索和来源展示。
+- `fileParser.ts` 复用现有 PDF、DOCX、HTML 与文本解析能力，不将二进制文档交给 Rust 猜测格式。
+- `service.ts` 是唯一 IPC 边界；`store.ts` 只维护 Knowledge library/document 状态。
+- `vectorizeKnowledgeLibrary()` 通过共享 embedding API 批量向量化 chunk。已有 embedding 模型的资料库在 `auto` 检索时生成 query vector 并使用 hybrid，否则退化为 BM25。
 
-Knowledge 不得写入 `RecallEntry`、复用 Recall priority 或 tag pool，也不得通过导入 Recall store 临时模拟文档资料库。
+Knowledge 前端不导入 Recall store、entry、priority、tag pool 或 workspace。
 
-## 计划与验证
+## Chat 与 Agent
 
-施工顺序、目标存储和跨域检索契约见 `../recall/docs/Plan/recall-knowledge-domain-restructure-implementation-plan.md`。在 Knowledge 实现落地前，变更必须保持空壳可编译、无 Rust command、无 Recall 业务依赖。
+- Agent 使用 `knowledgeConfig`、稳定 `libraryId` binding 和独立 `knowledgeSettings`。
+- 占位符只接受 `library`、`strategy`、`limit`、`min-score`、`when=always`、`citation`。
+- `{{knowledge}}` / `{{knowledge_list}}` 只生成 canonical `【knowledge::key=value】`，不接受位置参数。
+- 检索结果携带 `sourceType=knowledge`、library、source path、document、chunk index、heading、signals 和 score。
+
+## 跨域路由
+
+`src/services/retrievalRouter.ts` 提供主动 `recall | knowledge | mixed` 路由。mixed 先截取 Recall / Knowledge 分域配额，再按 RRF 融合；原始分数仅保留在 trace 中，不参与跨域比较。
+
+## 验证边界
+
+自动测试覆盖 library/document/chunk 往返、增量覆盖、删除级联、向量库隔离、BM25/semantic、来源回溯、严格占位符、未授权 library 和 mixed RRF。真实 Tauri 文件对话框、PDF worker、WebView 和独立 appData smoke test 保留为发布前人工门槛。

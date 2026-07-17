@@ -127,10 +127,11 @@
 - `displayPresetCount`: 在聊天界面显示的预设消息数量。
 - `parameters`: (`LlmParameters`) 强大的 LLM 参数配置中心，详见 [`model-parameter-system.md`](./model-parameter-system.md)。
 
-### 5.2 知识库
+### 5.2 双域检索
 
-- `knowledgeSettings`: (`AgentKnowledgeSettings`) RAG 检索的全局参数配置，包含召回上限、分数阈值、上下文窗口（轮数）、精确文本缓存开关等。
-- `knowledgeBaseConfig`: (`AgentKnowledgeBaseConfig`) 知识库**关联配置**，与 `knowledgeSettings` 不同：管理具体绑定的知识库列表 (`bindings`)、每个 KB 的激活模式覆盖、分组 (`groups`)，以及宏缺失时的自动注入开关与位置 (`context_head` / `before_last_user`)。
+- `recallConfig` / `recallSettings`: 思绪集合 binding、semantic/associative profile 与激活策略。
+- `knowledgeConfig` / `knowledgeSettings`: 文档资料库 binding、keyword/semantic/hybrid strategy、来源引用和保底注入。
+- 两个域使用不同的稳定 ID 和参数白名单；旧 `knowledgeBaseConfig` 只在版本化 migration 内读取。
 
 ### 5.3 工具与扩展
 

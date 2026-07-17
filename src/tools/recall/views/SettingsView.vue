@@ -16,15 +16,43 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from "vue";
-import { RotateCcw, Search } from "lucide-vue-next";
+import { FileDown, RotateCcw, Search, ShieldAlert } from "lucide-vue-next";
+import { invoke } from "@tauri-apps/api/core";
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { ElMessageBox } from "element-plus";
 import { useRecallCollectionStore } from "../stores/recallCollectionStore";
 import { useRecallIndexer } from "../composables/useRecallIndexer";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+
+interface RecallMigrationReport {
+  sourcePath: string;
+  legacyDataPath: string;
+  sourceFingerprint: string;
+  mainStatus: string;
+  vectorStatus: string;
+  sourceCollections: number;
+  migratedCollections: number;
+  sourceEntries: number;
+  migratedEntries: number;
+  skippedEntries: number;
+  sourceVectors: number;
+  migratedVectors: number;
+  pendingVectors: number;
+  sourceVectorModels: number;
+  migratedVectorModels: number;
+  tagVectorCount: number;
+  recoveryInstructions: string[];
+  issues: Array<{ path: string; message: string }>;
+}
 
 const store = useRecallCollectionStore();
 const { detectDimension } = useRecallIndexer();
+const errorHandler = createModuleErrorHandler("recall/settings");
+const legacyReport = ref<RecallMigrationReport | null>(null);
+const legacyLoading = ref(false);
 
 const activeCollapse = ref<string[]>([]);
 const searchQuery = ref("");
@@ -125,8 +153,71 @@ const handleReset = async () => {
   }
 };
 
+async function loadLegacyStatus() {
+  legacyLoading.value = true;
+  try {
+    legacyReport.value = await invoke<RecallMigrationReport | null>(
+      "recall_inspect_legacy_migration"
+    );
+  } catch (error) {
+    errorHandler.error(error, "读取旧 Recall 迁移状态失败");
+  } finally {
+    legacyLoading.value = false;
+  }
+}
+
+async function exportMigrationReport() {
+  if (!legacyReport.value) return;
+  try {
+    const target = await save({
+      title: "导出 Recall 迁移报告",
+      defaultPath: "recall-migration-report.json",
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (!target) return;
+    await writeTextFile(target, JSON.stringify(legacyReport.value, null, 2));
+    customMessage.success("迁移报告已导出");
+  } catch (error) {
+    errorHandler.error(error, "导出迁移报告失败");
+  }
+}
+
+async function confirmLegacyCleanup() {
+  const report = legacyReport.value;
+  if (!report) return;
+  try {
+    await ElMessageBox.confirm(
+      "只会清理旧 bases、vectors、tag_pool 子目录。新 Knowledge 资料库不会被删除。",
+      "确认清理旧 Recall 数据",
+      {
+        type: "warning",
+        confirmButtonText: "继续验证",
+        cancelButtonText: "取消",
+        lockScroll: false,
+      }
+    );
+    await ElMessageBox.prompt("输入 DELETE 确认清理", "最终确认", {
+      confirmButtonText: "清理旧目录",
+      cancelButtonText: "取消",
+      inputPattern: /^DELETE$/,
+      inputErrorMessage: "必须输入 DELETE",
+      lockScroll: false,
+    });
+    const removed = await invoke<string[]>("recall_confirm_legacy_cleanup", {
+      sourceFingerprint: report.sourceFingerprint,
+      confirmed: true,
+    });
+    legacyReport.value = null;
+    customMessage.success(`已清理 ${removed.length} 个旧目录`);
+  } catch (error) {
+    if (error === "cancel" || error === "close") return;
+    errorHandler.error(error, "清理旧 Recall 目录失败");
+  }
+}
+
 onMounted(() => {
   store.loadBases();
+  void loadLegacyStatus();
 });
 </script>
 
@@ -194,6 +285,71 @@ onMounted(() => {
         description="未找到相关设置项，换个关键词试试吧"
         :image-size="100"
       />
+
+      <section v-if="legacyReport" class="migration-panel">
+        <header>
+          <div>
+            <h3>旧 Recall 迁移</h3>
+            <p :title="legacyReport.legacyDataPath">
+              {{ legacyReport.legacyDataPath }}
+            </p>
+          </div>
+          <div class="migration-actions">
+            <el-button :icon="FileDown" @click="exportMigrationReport">
+              导出报告
+            </el-button>
+            <el-button
+              type="danger"
+              :icon="ShieldAlert"
+              :disabled="
+                legacyReport.mainStatus !== 'completed' ||
+                legacyReport.vectorStatus !== 'completed' ||
+                legacyReport.pendingVectors > 0 ||
+                legacyReport.issues.length > 0
+              "
+              @click="confirmLegacyCleanup"
+            >
+              确认清理
+            </el-button>
+          </div>
+        </header>
+        <div class="migration-status">
+          <span>
+            主数据
+            <el-tag
+              size="small"
+              :type="
+                legacyReport.mainStatus === 'completed' ? 'success' : 'warning'
+              "
+            >
+              {{ legacyReport.mainStatus }}
+            </el-tag>
+          </span>
+          <span>
+            向量
+            <el-tag
+              size="small"
+              :type="
+                legacyReport.vectorStatus === 'completed'
+                  ? 'success'
+                  : 'warning'
+              "
+            >
+              {{ legacyReport.vectorStatus }}
+            </el-tag>
+          </span>
+          <span>
+            集合 {{ legacyReport.migratedCollections }} /
+            {{ legacyReport.sourceCollections }}
+          </span>
+          <span>
+            条目 {{ legacyReport.migratedEntries }} /
+            {{ legacyReport.sourceEntries }}
+          </span>
+          <span>待重建向量 {{ legacyReport.pendingVectors }}</span>
+          <span>问题 {{ legacyReport.issues.length }}</span>
+        </div>
+      </section>
     </el-form>
   </div>
 </template>
@@ -273,6 +429,63 @@ onMounted(() => {
   backdrop-filter: blur(var(--ui-blur));
   border: var(--border-width) dashed var(--border-color);
   border-radius: 12px;
+}
+
+.migration-panel {
+  padding-top: 20px;
+  border-top: var(--border-width) solid var(--border-color);
+}
+
+.migration-panel header,
+.migration-actions,
+.migration-status,
+.migration-status span {
+  display: flex;
+  align-items: center;
+}
+
+.migration-panel header {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.migration-panel h3,
+.migration-panel p {
+  margin: 0;
+}
+
+.migration-panel h3 {
+  font-size: 15px;
+}
+
+.migration-panel p {
+  max-width: 440px;
+  overflow: hidden;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.migration-actions,
+.migration-status {
+  gap: 8px;
+}
+
+.migration-status {
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.migration-status span {
+  min-height: 28px;
+  gap: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 6px;
+  color: var(--el-text-color-regular);
+  font-size: 12px;
+  background: var(--input-bg);
 }
 
 :deep(.el-form-item__label) {

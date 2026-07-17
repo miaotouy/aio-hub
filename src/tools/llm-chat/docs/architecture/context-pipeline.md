@@ -148,60 +148,16 @@ graph TD
 - **模型匹配**：支持基于正则表达式的模型/渠道匹配规则，动态启用/禁用预设消息
 - **宏处理**：在注入前处理所有宏占位符
 
-### 4.4. 知识库处理器 (Knowledge Processor)
+### 4.4. 双域检索处理器
 
-**职责**：
+Recall 与 Knowledge 各有独立 processor。共享信封 tokenizer 只负责识别 `【recall…】` / `【knowledge…】` 并跳过 `sourceType === "session_history"`，参数白名单、授权、默认值和请求构造不共享。
 
-- 扫描预设/注入消息中的 `【kb::…】` / `【knowledge::…】` 占位符并执行 RAG 检索。
-- 根据 `knowledgeBaseConfig.autoInjectIfMacroMissing` 在缺失占位符时按 binding 粒度自动注入。
-- 将检索结果按模板渲染回原占位符位置。
-
-**占位符语法**：`【kb::kbName::limit::minScore::mode::modeParams::engineId】`，除 `mode` 外所有段均可省略；`kb` 与 `knowledge` 等价。
-
-**扫描范围**：[`scanPlaceholders()`](../../core/context-processors/knowledge-processor.ts:85) 明确**跳过 `sourceType === "session_history"` 的消息**，对话历史不参与被动召回。
-
-**激活模式**：
-
-- `always`：每次都激活。
-- `gate`：在最近 `gateScanDepth` 条消息中扫描 `modeParams` 中的关键词，命中任一即激活。
-- `turn`：按 user 消息总数对 `modeParams[0]` 取模，控制召回频率。
-- `static`：跳过检索流程，直接通过 `kb_get_entries` 后端命令加载指定条目；`static::all` 可加载指定库（或所有库）的全部已启用条目。
-
-**自动注入 (Auto Inject)**：
-
-- 由 Agent 的 `knowledgeBaseConfig.autoInjectIfMacroMissing` 开关控制。
-- **细粒度判定**：已被手动占位符引用的 binding 跳过自动注入；用户写一个无名 `【kb】` 视为"全量接管"，所有 binding 都不再自动注入。
-- 注入位置由 `autoInjectPosition` 决定：
-  - `context_head`（默认）：追加到 System 消息末尾；无 System 时在最前插入一条独立的 user 消息（用 `【RAG信息】… 【RAG信息结束】` 围栏标记）。
-  - `before_last_user`：插入到最后一条用户消息之前；若前一条是 System 则改为追加到该 System。
-
-**检索引擎选择**（优先级 **宏参数 > Agent 默认 > 全局默认**）：
-
-- `vector`：向量检索（需要 Embedding 模型）。
-- `keyword`：纯关键词检索。
-- `hybrid`：向量 + 关键词混合。
-
-**向量空间融合查询**（[`extractContextParts()`](../../core/context-processors/knowledge-processor.ts:480) + [`buildContextQueryVector()`](../../core/context-processors/knowledge-processor.ts:550)）：
-
-- 从过滤后的 `session_history` 消息中按"轮"提取最近 `contextWindow` 轮历史。
-- **分别拼接 user 文本和 AI 文本**（assistant + tool 归入 AI 侧），**不在文本层面混合角色标记**。
-- user 文本经 [`preprocessQuery()`](../../../knowledge-base/utils/queryPreProcessor.ts:216) 处理（Markdown / HTML / KB 占位符清洗 → `Intl.Segmenter` 分词 → 停用词过滤 → Tag 池 n-gram 匹配），AI 文本直接使用原文。
-- user / AI 分别通过 `vectorCacheManager` 取得向量，再在**向量空间按 `0.7 / 0.3` 加权平均**得到查询向量。
-- 关键词检索使用清洗后的 user 文本；额外提取出的 Tag 直接作为 `requiredTags` 过滤条件。
-
-**缓存机制**（已迁移至后端 Rust LRU，详见 [`knowledge-cache-backend-migration.md`](../Plan/knowledge-cache-backend-migration.md)）：
-
-- **检索结果缓存**：[`kb_retrieval_cache_get`](src-tauri/src/knowledge/commands/retrieval_cache.rs:1) / `_set` / `_clear`。缓存键 = `SHA-256(query + kbIds + tags + limit + minScore + engineId + modelId)`，**完全一致才命中**，无相似度匹配。
-- **全局共享**：缓存活在后端 `KnowledgeState` 内，**不再按 session 隔离**——相同查询跨会话也能命中。容量上限由 `chatSettings.knowledgeBase.retrievalCacheMaxItems` 控制。
-- **Embedding 向量缓存**：由知识库模块的 `vectorCacheManager` 独立管理，与检索结果缓存解耦。
-- **缓存开关**：Agent 级 `knowledgeSettings.enableCache`，缺失时回退到旧版 `aggregation.enableCache`（迁移兼容）。
-- **降级策略**：任何后端 invoke 异常都被 `try/catch` 吞掉并降级为不缓存，不阻塞主流程。
-
-**结果约束**：
-
-- 召回后按 `maxRecallChars` 累加截断（超出阈值的条目被丢弃，**不做摘要**）。
-- 按 `resultTemplate`（支持 `{count}` / `{kbName}` / `{key}` / `{content}` / `{score}` / `{tags}` 变量）渲染最终注入文本。
-- 空结果回退到 `emptyText`，未激活的占位符会被静默替换为空字符串。
+- Recall 接受 `collection`、`profile`、`limit`、`min-score`、`when`、`gate-tags`、`every-turns`、`entries`，目标是 `recallConfig` 中启用的集合 ID。
+- Knowledge 接受 `library`、`strategy`、`limit`、`min-score`、`when=always`、`citation`，目标是 `knowledgeConfig` 中启用的资料库 ID。
+- `{{recall}}` / `{{knowledge}}` 按各自 binding 生成 canonical 占位符；两个 `_list` 宏展示来源域、名称和稳定 ID。
+- 未授权 ID、跨域参数、重复 key、非法值与历史位置参数只产生结构化诊断，不触发检索。
+- Knowledge 结果在正文和 context log 中携带 library、document、source path、chunk index、heading、signals 与 score。
+- 主动 `mixed` 检索不使用提示词占位符，由上层 retrieval router 先保留分域配额，再按 RRF 融合。
 
 ### 4.5. Token 限制器 (Token Limiter)
 
@@ -425,4 +381,3 @@ export interface ProcessorConfigField {
   options?: { label: string; value: any }[];
 }
 ```
-

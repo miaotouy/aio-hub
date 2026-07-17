@@ -94,6 +94,18 @@ function sanitizeImportedAgent(agent: any): any {
       autoInjectPosition: "context_head",
     },
     recallSettings: source.recallSettings ?? { defaultProfile: "semantic" },
+    knowledgeConfig: source.knowledgeConfig ?? {
+      enabled: false,
+      bindings: [],
+      groups: [],
+      autoInjectIfMacroMissing: true,
+      autoInjectPosition: "context_head",
+    },
+    knowledgeSettings: source.knowledgeSettings ?? {
+      defaultStrategy: "auto",
+      defaultLimit: 8,
+      defaultCitation: true,
+    },
   };
   return sanitized;
 }

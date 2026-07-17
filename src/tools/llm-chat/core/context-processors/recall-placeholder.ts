@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { scanRetrievalEnvelopes } from "./retrieval-envelope";
+
 export type RecallPlaceholderWhen = "always" | "gate" | "turn" | "static";
 export type RecallPlaceholderProfile = "semantic" | "associative";
 
@@ -40,7 +42,6 @@ export class RecallPlaceholderError extends Error {
   }
 }
 
-const RECALL_ENVELOPE = /【recall(?:::[^【】]*)?】/g;
 const CANONICAL_KEYS = [
   "collection",
   "profile",
@@ -114,7 +115,10 @@ export function parseRecallPlaceholder(
     if (values.has(key)) {
       return fail("Recall 占位符包含重复参数", messageIndex, raw, key);
     }
-    values.set(key, decode(segment.slice(separator + 1), messageIndex, raw, key));
+    values.set(
+      key,
+      decode(segment.slice(separator + 1), messageIndex, raw, key)
+    );
   }
 
   const result: RecallPlaceholder = { raw, messageIndex };
@@ -141,21 +145,25 @@ export function parseRecallPlaceholder(
         break;
       }
       case "when":
-        if (!(["always", "gate", "turn", "static"] as string[]).includes(value)) {
+        if (
+          !(["always", "gate", "turn", "static"] as string[]).includes(value)
+        ) {
           fail("Recall when 无效", messageIndex, raw, key);
         }
         result.when = value as RecallPlaceholderWhen;
         break;
       case "gate-tags":
         result.gateTags = value.split(",").filter(Boolean);
-        if (!result.gateTags.length) fail("Recall gate-tags 不能为空", messageIndex, raw, key);
+        if (!result.gateTags.length)
+          fail("Recall gate-tags 不能为空", messageIndex, raw, key);
         break;
       case "every-turns":
         result.everyTurns = asPositiveInt(value, messageIndex, raw, key, 1000);
         break;
       case "entries":
         result.entries = value.split(",").filter(Boolean);
-        if (!result.entries.length) fail("Recall entries 不能为空", messageIndex, raw, key);
+        if (!result.entries.length)
+          fail("Recall entries 不能为空", messageIndex, raw, key);
         break;
     }
   }
@@ -174,16 +182,9 @@ export function parseRecallPlaceholder(
 export function scanRecallPlaceholders(
   messages: Array<{ content?: unknown; sourceType?: string }>
 ): RecallPlaceholder[] {
-  const results: RecallPlaceholder[] = [];
-  messages.forEach((message, messageIndex) => {
-    if (message.sourceType === "session_history" || typeof message.content !== "string") return;
-    RECALL_ENVELOPE.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = RECALL_ENVELOPE.exec(message.content)) !== null) {
-      results.push(parseRecallPlaceholder(match[0], messageIndex));
-    }
-  });
-  return results;
+  return scanRetrievalEnvelopes(messages, "recall").map((token) =>
+    parseRecallPlaceholder(token.raw, token.messageIndex)
+  );
 }
 
 export function serializeRecallPlaceholder(

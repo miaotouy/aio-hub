@@ -351,7 +351,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         // 基于 rdev 的拖拽会话命令 (仅在非 macOS 上注册)
         #[cfg(not(target_os = "macos"))]
         start_drag_session,
-        // 知识库命令
+        // Recall 命令
         crate::recall::recall_initialize,
         crate::recall::recall_batch_import_files,
         crate::recall::recall_batch_upsert_entries,
@@ -399,7 +399,21 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         crate::recall::recall_inspect_backup,
         crate::recall::recall_inspect_backups,
         crate::recall::recall_import_backup,
+        crate::recall::recall_inspect_legacy_migration,
+        crate::recall::recall_confirm_legacy_cleanup,
         crate::recall::monitor::recall_monitor_heartbeat,
+        // Knowledge 资料库命令
+        crate::knowledge::knowledge_initialize,
+        crate::knowledge::knowledge_create_library,
+        crate::knowledge::knowledge_list_libraries,
+        crate::knowledge::knowledge_delete_library,
+        crate::knowledge::knowledge_ingest_document,
+        crate::knowledge::knowledge_list_documents,
+        crate::knowledge::knowledge_list_chunks,
+        crate::knowledge::knowledge_delete_document,
+        crate::knowledge::knowledge_rebuild_library,
+        crate::knowledge::knowledge_save_chunk_vectors,
+        crate::knowledge::knowledge_search,
         // 网页蒸馏室命令
         crate::web_distillery::distillery_quick_fetch,
         crate::web_distillery::distillery_start_proxy,

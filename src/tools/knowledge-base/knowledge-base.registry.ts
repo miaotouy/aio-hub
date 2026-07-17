@@ -7,7 +7,7 @@ export const toolConfig: ToolConfig = {
   path: "/knowledge-base",
   icon: markRaw(BookOpenText),
   component: () => import("./KnowledgeBase.vue"),
-  description: "文档资料库能力正在建设中。",
+  description: "导入、索引并检索带来源回溯的本地文档资料。",
   category: ["AI 工具"],
-  version: "1.3.0",
+  version: "2.0.0",
 };

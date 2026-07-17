@@ -260,6 +260,7 @@ pub fn run() {
         .manage(AssetCatalog::new())
         .manage(Arc::new(CancellationToken::new()))
         .manage(recall::RecallState::new())
+        .manage(knowledge::KnowledgeState::new())
         .manage(commands::system_pulse::PulseState::default())
         .manage(SidecarPluginManager::default())
         .manage(frontend_monitor::FrontendMonitorState::default())

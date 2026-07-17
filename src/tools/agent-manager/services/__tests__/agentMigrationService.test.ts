@@ -55,7 +55,7 @@ function legacyAgent(): ChatAgent {
       timeout: 1000,
       parallelExecution: false,
     },
-  };
+  } as unknown as ChatAgent;
 }
 
 describe("agent recall migration", () => {
@@ -103,5 +103,30 @@ describe("agent recall migration", () => {
     expect(agent.recallSettings.defaultProfile).toBe("semantic");
     expect(agent.toolCallConfig?.toolToggles).toEqual({ "recall-basic": true });
     expect(migrateAgent(agent)).toBe(false);
+  });
+
+  it("does not consume the new Knowledge settings as legacy Recall settings", () => {
+    const agent = legacyAgent();
+    agent.knowledgeConfig = {
+      enabled: true,
+      bindings: [
+        {
+          libraryId: "library-1",
+          libraryName: "Docs",
+          enabled: true,
+        },
+      ],
+    };
+    agent.knowledgeSettings = {
+      defaultStrategy: "hybrid",
+      defaultCitation: true,
+    };
+
+    expect(migrateAgent(agent)).toBe(true);
+    expect(agent.knowledgeConfig.bindings[0].libraryId).toBe("library-1");
+    expect(agent.knowledgeSettings).toEqual({
+      defaultStrategy: "hybrid",
+      defaultCitation: true,
+    });
   });
 });

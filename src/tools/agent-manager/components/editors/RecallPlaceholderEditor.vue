@@ -132,11 +132,11 @@
         <el-form-item v-if="staticType === 'select'" label="选择条目">
           <!-- 知识库选择 (用于加载条目列表) -->
           <el-select
-            v-model="staticKbId"
+            v-model="staticRecallId"
             placeholder="先选择一个知识库"
             filterable
             class="full-width"
-            @change="loadKbEntries"
+            @change="loadRecallEntries"
           >
             <el-option
               v-for="base in recallStore.bases"
@@ -148,7 +148,7 @@
 
           <!-- 条目多选列表 -->
           <el-select
-            v-if="staticKbEntries.length > 0"
+            v-if="staticRecallEntries.length > 0"
             v-model="selectedEntryIds"
             multiple
             filterable
@@ -171,11 +171,15 @@
             </el-option>
           </el-select>
 
-          <div v-if="staticKbId && loadingEntries" class="item-tip">
+          <div v-if="staticRecallId && loadingEntries" class="item-tip">
             加载条目中...
           </div>
           <div
-            v-if="staticKbId && !loadingEntries && staticKbEntries.length === 0"
+            v-if="
+              staticRecallId &&
+              !loadingEntries &&
+              staticRecallEntries.length === 0
+            "
             class="item-tip"
           >
             该知识库暂无条目
@@ -253,8 +257,8 @@ const turnInterval = ref(1);
 
 // static 模式相关
 const staticType = ref<"all" | "select">("select");
-const staticKbId = ref("");
-const staticKbEntries = ref<RecallEntryIndexItem[]>([]);
+const staticRecallId = ref("");
+const staticRecallEntries = ref<RecallEntryIndexItem[]>([]);
 const selectedEntryIds = ref<string[]>([]);
 const manualIds = ref("");
 const loadingEntries = ref(false);
@@ -267,9 +271,9 @@ const allTags = computed(() => recallStore.globalStats.allDiscoveredTags || []);
 
 // 过滤后的条目列表
 const filteredEntries = computed(() => {
-  if (!entryFilterText.value) return staticKbEntries.value;
+  if (!entryFilterText.value) return staticRecallEntries.value;
   const keyword = entryFilterText.value.toLowerCase();
-  return staticKbEntries.value.filter(
+  return staticRecallEntries.value.filter(
     (e) =>
       e.key.toLowerCase().includes(keyword) ||
       (e.summary && e.summary.toLowerCase().includes(keyword)) ||
@@ -287,9 +291,9 @@ const filterEntries = (val: string) => {
 /**
  * 加载指定知识库的条目列表
  */
-const loadKbEntries = async (recallId: string) => {
+const loadRecallEntries = async (recallId: string) => {
   if (!recallId) {
-    staticKbEntries.value = [];
+    staticRecallEntries.value = [];
     return;
   }
 
@@ -297,10 +301,10 @@ const loadKbEntries = async (recallId: string) => {
   try {
     form.value.collection = recallId;
     const meta = await loadBaseMeta(recallId);
-    staticKbEntries.value = (meta?.entries as RecallEntryIndexItem[]) || [];
+    staticRecallEntries.value = (meta?.entries as RecallEntryIndexItem[]) || [];
     entryFilterText.value = "";
   } catch {
-    staticKbEntries.value = [];
+    staticRecallEntries.value = [];
   } finally {
     loadingEntries.value = false;
   }

@@ -21,13 +21,10 @@ import {
   serializeRecallPlaceholder,
 } from "./recall-placeholder";
 
-const LEGACY_RECALL_ENVELOPE = /【(?:kb|knowledge)(?:::[^【】]*)?】/g;
+const LEGACY_RECALL_ENVELOPE = /【kb(?:::[^【】]*)?】/g;
 
 function isLegacyRecallEnvelope(raw: string): boolean {
-  if (raw === "【knowledge】") return true;
-  if (raw.startsWith("【kb")) return true;
-  const body = raw.slice("【knowledge::".length, -1);
-  return body.split("::").some((segment) => !segment.includes("="));
+  return raw.startsWith("【kb");
 }
 
 function insertAutoPlaceholders(

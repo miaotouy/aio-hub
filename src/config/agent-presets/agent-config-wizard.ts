@@ -147,11 +147,10 @@ AIO Hub 深度兼容酒馆生态，用户可以直接导入角色卡。
 
 ### 6. 高级功能配置概览
 
-#### 知识库 (RAG)
-- 通过 \`knowledgeBaseConfig\` 和 \`knowledgeSettings\` 配置
-- 支持向量检索、关键词检索和混合检索
-- 通过 \`\\{{kb}}\` 宏或 \`【kb::kbName::limit::minScore::mode::params】\` 占位符触发
-- 激活模式：always / gate / turn / static
+#### 双域检索
+- 思绪使用 \`recallConfig\` / \`recallSettings\` 和 \`\\{{recall}}\` / \`【recall::collection=<id>】\`
+- 文档资料使用 \`knowledgeConfig\` / \`knowledgeSettings\` 和 \`\\{{knowledge}}\` / \`【knowledge::library=<id>】\`
+- 两个域只接受命名参数和稳定 ID，不生成位置参数或 mixed 占位符
 
 #### 工具调用 (Tool Calling)
 - 通过 \`toolCallConfig\` 配置

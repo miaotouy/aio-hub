@@ -182,23 +182,42 @@
                 "
               >
                 <el-icon style="margin-right: 4px"><Book /></el-icon>
-                插入知识库
+                插入检索
               </el-button>
 
               <BaseDialog
                 :modelValue="kbEditorVisible"
                 @update:modelValue="kbEditorVisible = $event"
-                title="插入知识库占位符"
+                title="插入检索占位符"
                 width="480px"
                 height="auto"
                 :closeOnBackdropClick="true"
               >
                 <template #content>
-                  <KBPlaceholderEditor
-                    :value="currentKBSelection"
-                    @insert="handleInsertKBPlaceholder"
-                    @cancel="kbEditorVisible = false"
-                  />
+                  <el-tabs v-model="placeholderDomain" stretch>
+                    <el-tab-pane label="思绪 Recall" name="recall">
+                      <RecallPlaceholderEditor
+                        :value="
+                          placeholderDomain === 'recall'
+                            ? currentKBSelection
+                            : ''
+                        "
+                        @insert="handleInsertKBPlaceholder"
+                        @cancel="kbEditorVisible = false"
+                      />
+                    </el-tab-pane>
+                    <el-tab-pane label="资料 Knowledge" name="knowledge">
+                      <KnowledgePlaceholderEditor
+                        :value="
+                          placeholderDomain === 'knowledge'
+                            ? currentKBSelection
+                            : ''
+                        "
+                        @insert="handleInsertKBPlaceholder"
+                        @cancel="kbEditorVisible = false"
+                      />
+                    </el-tab-pane>
+                  </el-tabs>
                 </template>
               </BaseDialog>
             </template>
@@ -324,7 +343,8 @@ import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import MacroSelector from "../selectors/MacroSelector.vue";
 import VariableSelector from "../selectors/VariableSelector.vue";
-import KBPlaceholderEditor from "./KBPlaceholderEditor.vue";
+import RecallPlaceholderEditor from "./RecallPlaceholderEditor.vue";
+import KnowledgePlaceholderEditor from "./KnowledgePlaceholderEditor.vue";
 import ModelMatchConfig from "./ModelMatchConfig.vue";
 import InjectionConfig from "./InjectionConfig.vue";
 import PresetAttachmentPicker from "./PresetAttachmentPicker.vue";
@@ -460,6 +480,7 @@ const macroSelectorVisible = ref(false);
 const variableSelectorVisible = ref(false);
 const kbEditorVisible = ref(false);
 const currentKBSelection = ref("");
+const placeholderDomain = ref<"recall" | "knowledge">("recall");
 const richEditorRef = ref<InstanceType<typeof RichCodeEditor> | null>(null);
 
 // 模拟当前 Agent 对象，用于资产解析
@@ -719,10 +740,12 @@ function handleKBButtonClick() {
       : "";
   }
 
-  // 检查是否匹配 KB 正则
-  const KB_PLACEHOLDER_REGEX = /【(?:kb|knowledge)(?:::([^【】]*?))?】/;
-  if (selectedText && KB_PLACEHOLDER_REGEX.test(selectedText)) {
+  const retrievalPlaceholder = /【(?:recall|knowledge)(?:::[^【】]*)?】/;
+  if (selectedText && retrievalPlaceholder.test(selectedText)) {
     currentKBSelection.value = selectedText;
+    placeholderDomain.value = selectedText.startsWith("【knowledge")
+      ? "knowledge"
+      : "recall";
   } else {
     currentKBSelection.value = "";
   }

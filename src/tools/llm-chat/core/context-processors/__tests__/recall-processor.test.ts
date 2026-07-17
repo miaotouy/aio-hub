@@ -38,7 +38,7 @@ describe("RecallProcessor", () => {
     });
   });
 
-  it("does not report the new Knowledge namespace as legacy CAIU syntax", async () => {
+  it("leaves the Knowledge namespace to its own processor", async () => {
     const context = createContext({
       messages: [
         {
@@ -51,8 +51,7 @@ describe("RecallProcessor", () => {
 
     await new RecallProcessor().execute(context);
 
-    expect(context.logs).toHaveLength(1);
-    expect(context.logs[0].details.raw).toBe("【knowledge::old::4】");
+    expect(context.logs).toHaveLength(0);
   });
 
   it("injects before session history and processes the generated placeholder", async () => {

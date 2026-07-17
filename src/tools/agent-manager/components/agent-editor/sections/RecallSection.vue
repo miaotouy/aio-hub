@@ -20,7 +20,7 @@ import { InfoFilled, Search, Plus } from "@element-plus/icons-vue";
 import { useRecallCollectionStore } from "@/tools/recall/stores/recallCollectionStore";
 import type { RecallBinding } from "@/tools/agent-manager/types/agent";
 import type { SettingItem } from "@/types/settings-renderer";
-import KnowledgeBaseItem from "./KnowledgeBaseItem.vue";
+import RecallBindingItem from "./RecallBindingItem.vue";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 
 // 宏示例常量
@@ -111,7 +111,8 @@ const filteredBindings = computed(() => {
   const q = searchQuery.value.toLowerCase();
   return bindings.filter(
     (b: RecallBinding) =>
-      b.recallName.toLowerCase().includes(q) || b.recallId.toLowerCase().includes(q)
+      b.recallName.toLowerCase().includes(q) ||
+      b.recallId.toLowerCase().includes(q)
   );
 });
 
@@ -119,7 +120,8 @@ const filteredBindings = computed(() => {
 const expandedRecallId = ref<string | null>(null);
 
 const toggleExpand = (recallId: string) => {
-  expandedRecallId.value = expandedRecallId.value === recallId ? null : recallId;
+  expandedRecallId.value =
+    expandedRecallId.value === recallId ? null : recallId;
 };
 
 // 添加知识库
@@ -310,9 +312,13 @@ onMounted(() => {
         关联知识库后，智能体可在对话中自动检索相关知识。通过
         <code style="color: var(--el-color-primary)">{{ recallMacro }}</code>
         注入所有已启用知识库的检索结果，或使用
-        <code style="color: var(--el-color-primary)">{{ recallNameMacro }}</code>
+        <code style="color: var(--el-color-primary)">{{
+          recallNameMacro
+        }}</code>
         精确指定，还可通过
-        <code style="color: var(--el-color-primary)">{{ recallListMacro }}</code>
+        <code style="color: var(--el-color-primary)">{{
+          recallListMacro
+        }}</code>
         让 LLM 感知可用知识源。
       </div>
 
@@ -330,9 +336,7 @@ onMounted(() => {
           >
             <template #title>
               <div class="alert-title-content">
-                <span
-                  v-if="editForm.recallConfig.autoInjectIfMacroMissing"
-                >
+                <span v-if="editForm.recallConfig.autoInjectIfMacroMissing">
                   自动注入已启用
                 </span>
                 <span v-else>
@@ -340,9 +344,7 @@ onMounted(() => {
                 </span>
                 <div class="alert-actions">
                   <el-button
-                    v-if="
-                      !editForm.recallConfig.autoInjectIfMacroMissing
-                    "
+                    v-if="!editForm.recallConfig.autoInjectIfMacroMissing"
                     type="primary"
                     size="small"
                     @click="
@@ -363,9 +365,7 @@ onMounted(() => {
               </div>
             </template>
             <template #default>
-              <span
-                v-if="editForm.recallConfig.autoInjectIfMacroMissing"
-              >
+              <span v-if="editForm.recallConfig.autoInjectIfMacroMissing">
                 检索结果将自动注入到对话历史之前。你也可以在"角色设定"中手动添加
                 <code>{{ recallMacro }}</code> 宏以精确控制注入位置。
               </span>
@@ -471,7 +471,7 @@ onMounted(() => {
 
           <!-- 知识库列表 -->
           <div v-else class="kb-list">
-            <KnowledgeBaseItem
+            <RecallBindingItem
               v-for="binding in filteredBindings"
               :key="binding.recallId"
               :binding="binding"

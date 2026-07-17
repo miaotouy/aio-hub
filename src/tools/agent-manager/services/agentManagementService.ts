@@ -70,7 +70,12 @@ const SECTION_FIELDS: Record<string, string[]> = {
   parameters: ["parameters"],
   toolCallConfig: ["toolCallConfig"],
   regexConfig: ["regexConfig"],
-  recallConfig: ["recallConfig", "recallSettings"],
+  recallConfig: [
+    "recallConfig",
+    "recallSettings",
+    "knowledgeConfig",
+    "knowledgeSettings",
+  ],
   assets: ["assets", "assetGroups"],
   advanced: [
     "interactionConfig",

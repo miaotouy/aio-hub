@@ -27,6 +27,47 @@ const logger = createModuleLogger("llm-chat/agentMigrationService");
 
 const RECALL_AGENT_CONFIG_VERSION = 3;
 
+interface LegacyRecallBinding {
+  kbId: string;
+  kbName: string;
+  enabled: boolean;
+  mode?: "always" | "gate" | "turn" | "static";
+  modeParams?: string[];
+  limit?: number;
+  minScore?: number;
+  group?: string;
+}
+
+interface LegacyRecallConfig {
+  enabled: boolean;
+  bindings: LegacyRecallBinding[];
+  groups?: Array<{
+    id: string;
+    displayName: string;
+    description?: string;
+    icon?: string;
+    sortOrder?: number;
+  }>;
+  autoInjectIfMacroMissing?: boolean;
+  autoInjectPosition?: "context_head" | "before_last_user";
+}
+
+interface LegacyRecallSettings {
+  defaultEngineId?: string;
+  defaultLimit?: number;
+  maxRecallChars?: number;
+  defaultMinScore?: number;
+  resultTemplate?: string;
+  emptyText?: string;
+  gateScanDepth?: number;
+  enableCache?: boolean;
+}
+
+type LegacyAgentFields = {
+  knowledgeBaseConfig?: LegacyRecallConfig;
+  knowledgeSettings?: LegacyRecallSettings;
+};
+
 /**
  * 执行所有智能体迁移逻辑
  * @param agents 待迁移的智能体列表
@@ -89,8 +130,11 @@ export function migrateAgent(agent: ChatAgent): boolean {
 }
 
 function migrateRecallConfiguration(agent: ChatAgent): boolean {
-  const legacyConfig = agent.knowledgeBaseConfig;
-  const legacySettings = agent.knowledgeSettings;
+  const legacyAgent = agent as ChatAgent & LegacyAgentFields;
+  const legacyConfig = legacyAgent.knowledgeBaseConfig;
+  const legacySettings = agent.knowledgeConfig
+    ? undefined
+    : legacyAgent.knowledgeSettings;
   const toolConfig = agent.toolCallConfig;
   let changed = false;
 
@@ -163,8 +207,8 @@ function migrateRecallConfiguration(agent: ChatAgent): boolean {
     };
     changed = true;
   }
-  delete agent.knowledgeBaseConfig;
-  delete agent.knowledgeSettings;
+  delete legacyAgent.knowledgeBaseConfig;
+  if (legacySettings) delete legacyAgent.knowledgeSettings;
   agent.version = Math.max(agent.version ?? 0, RECALL_AGENT_CONFIG_VERSION);
   logger.info("迁移 Agent Recall 配置", { agentId: agent.id });
   return true;

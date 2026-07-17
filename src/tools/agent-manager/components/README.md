@@ -31,7 +31,8 @@ agent/
 ├── editors/             # 专项编辑器
 │   ├── PresetMessageEditor.vue     # 预设消息编辑器
 │   └── kb-placeholder-editor/
-│       └── KBPlaceholderEditor.vue # 知识库占位符编辑器
+│       ├── RecallPlaceholderEditor.vue # Recall 占位符编辑器
+│       └── KnowledgePlaceholderEditor.vue # Knowledge 占位符编辑器
 │
 └── agent-editor/        # 核心 Agent 编辑器
     ├── agentEditConfig.ts          # 编辑器配置
@@ -50,18 +51,22 @@ agent/
 ## 📝 分类说明
 
 ### management/ - 生命周期管理
+
 管理 Agent 的创建、编辑、升级等核心生命周期操作。
 
 **主要组件：**
+
 - `CreateAgentDialog` - 创建新智能体的对话框
 - `EditAgentDialog` - 编辑现有智能体的对话框
 - `AgentUpgradeDialog` - 处理智能体版本升级
 - `MiniAgentList` - 紧凑的智能体列表，用于快速切换
 
 ### assets/ - 资产管理
+
 处理智能体的资产（图片、文件等）和预设消息的管理。
 
 **主要组件：**
+
 - `AgentAssetsManager` - 完整的资产管理界面
 - `AgentAssetsDialog` - 资产选择对话框
 - `AgentPresetEditor` - 编辑预设消息
@@ -69,31 +74,39 @@ agent/
 - `STPresetImportDialog` - 从 SillyTavern 导入预设
 
 ### selectors/ - 选择器
+
 提供各种选择和切换功能的 UI 组件。
 
 **主要组件：**
+
 - `QuickAgentSwitch` - 快速切换当前使用的智能体
 - `VariableSelector` - 选择会话变量
 - `MacroSelector` - 选择和插入宏
 
 ### parameters/ - 参数配置
+
 管理 LLM 模型参数的配置界面。
 
 **主要组件：**
+
 - `ModelParametersEditor` - 完整的参数编辑器
 - `ParameterItem` - 单个参数项的渲染组件
 
 ### editors/ - 专项编辑器
+
 特定功能的编辑器组件。
 
 **主要组件：**
+
 - `PresetMessageEditor` - 编辑单条预设消息
-- `KBPlaceholderEditor` - 编辑知识库占位符
+- `RecallPlaceholderEditor` / `KnowledgePlaceholderEditor` - 编辑双域检索占位符
 
 ### agent-editor/ - 核心编辑器
+
 Agent 的主编辑器及其各个配置区块。
 
 **主要组件：**
+
 - `AgentEditor` - 主编辑器容器
 - `sections/` - 各个配置区块（基本信息、能力、输出显示等）
 

@@ -92,66 +92,14 @@ export interface AgentAsset {
   thumbnailPath?: string;
 }
 
-/**
- * 单个知识库的关联配置
- */
-export interface AgentKnowledgeBaseBinding {
-  /** 知识库 ID */
-  kbId: string;
-  /** 知识库名称 (冗余存储，用于显示和占位符匹配) */
-  kbName: string;
-  /** 是否启用 */
-  enabled: boolean;
-  /** 激活模式 (覆盖全局默认) */
-  mode?: "always" | "gate" | "turn" | "static";
-  /** 模式参数 */
-  modeParams?: string[];
-  /** 召回上限 (覆盖全局默认) */
-  limit?: number;
-  /** 最低分数阈值 (覆盖全局默认) */
-  minScore?: number;
-  /** 分组标识 (用于 UI 分组展示) */
-  group?: string;
-}
-
-/**
- * 知识库分组定义
- */
-export interface KnowledgeBaseGroup {
+/** Recall 与 Knowledge binding 共用的展示分组。 */
+export interface RetrievalBindingGroup {
   id: string;
   displayName: string;
   description?: string;
   icon?: string;
   sortOrder?: number;
 }
-
-/**
- * 知识库关联总配置
- */
-export interface AgentKnowledgeBaseConfig {
-  /** 全局开关 */
-  enabled: boolean;
-  /** 关联的知识库列表 */
-  bindings: AgentKnowledgeBaseBinding[];
-  /** 知识库分组 */
-  groups?: KnowledgeBaseGroup[];
-  /** 宏缺失时是否自动注入 */
-  autoInjectIfMacroMissing?: boolean;
-  /**
-   * 自动注入的位置
-   * - 'context_head': 上下文最前方（system 之后，若无 system 则为消息列表最前）
-   * - 'before_last_user': 最后一条用户消息之前
-   */
-  autoInjectPosition?: "context_head" | "before_last_user";
-}
-
-export const DEFAULT_KB_CONFIG: AgentKnowledgeBaseConfig = {
-  enabled: false,
-  bindings: [],
-  groups: [],
-  autoInjectIfMacroMissing: true,
-  autoInjectPosition: "context_head",
-};
 
 export type RecallProfile = "semantic" | "associative";
 
@@ -171,7 +119,7 @@ export interface RecallBinding {
 export interface AgentRecallConfig {
   enabled: boolean;
   bindings: RecallBinding[];
-  groups?: KnowledgeBaseGroup[];
+  groups?: RetrievalBindingGroup[];
   autoInjectIfMacroMissing?: boolean;
   autoInjectPosition?: "context_head" | "before_last_user";
 }
@@ -185,6 +133,25 @@ export interface AgentRecallSettings {
   emptyText?: string;
   gateScanDepth?: number;
   enableCache?: boolean;
+}
+
+export interface KnowledgeBinding {
+  libraryId: string;
+  libraryName: string;
+  enabled: boolean;
+  strategy?: "auto" | "keyword" | "semantic" | "hybrid";
+  limit?: number;
+  minScore?: number;
+  citation?: boolean;
+  group?: string;
+}
+
+export interface AgentKnowledgeConfig {
+  enabled: boolean;
+  bindings: KnowledgeBinding[];
+  groups?: RetrievalBindingGroup[];
+  autoInjectIfMacroMissing?: boolean;
+  autoInjectPosition?: "context_head" | "before_last_user";
 }
 
 /**
@@ -306,67 +273,15 @@ export const DEFAULT_TOOL_CALL_CONFIG: ToolCallConfig = {
   rateLimitInterval: 0,
 };
 
-/**
- * 智能体知识库设置
- *
- * 本项目的知识库模块是"条目式记忆系统"，不是文档分片 RAG。
- */
+/** Knowledge 文档分片检索的 Agent 级默认设置。 */
 export interface AgentKnowledgeSettings {
-  /** 默认检索引擎 ID (vector | keyword | blender) */
-  defaultEngineId?: string;
-
-  /**
-   * 召回上限 (1-50)
-   * 这是一个上限，实际截断以 minScore 为准。
-   * 即使设为 50，如果只有 3 条超过分数阈值，就只返回 3 条。
-   */
+  defaultStrategy?: "auto" | "keyword" | "semantic" | "hybrid";
+  defaultCitation?: boolean;
   defaultLimit?: number;
-
-  /** 召回总字数上限 (0表示不限制，超出则丢弃) */
   maxRecallChars?: number;
-
-  /**
-   * 最低相关度分数 (0.0-1.0)
-   * 低于此分数的条目直接丢弃，不会被召回。
-   * 这是实际的截断依据，比 limit 更重要。
-   */
   defaultMinScore?: number;
-
-  /** 检索结果的格式化模板 (支持变量: {count}, {kbName}, {key}, {content}, {score}, {tags}) */
   resultTemplate?: string;
-
-  /** 无结果时的占位文本 */
   emptyText?: string;
-
-  /** 标签门控 (gate) 模式默认扫描消息深度 */
-  gateScanDepth?: number;
-
-  /**
-   * 查询上下文窗口（轮数）
-   * @deprecated 已废弃。检索机制已重构，被动召回现在固定以最近一对 AI/User 消息作为检索查询
-   * （且严格排除 tool 消息），不再支持多轮窗口配置。保留此字段仅用于旧数据加载兼容。
-   */
-  contextWindow?: number;
-
-  /**
-   * 是否启用检索结果缓存
-   * 缓存策略：精确文本匹配，完全一致才命中。
-   */
-  enableCache?: boolean;
-}
-
-/**
- * 旧版 aggregation 子对象类型（仅用于数据迁移）
- * @deprecated 已废弃，字段已提升到 AgentKnowledgeSettings 顶层
- */
-export interface _LegacyAggregationConfig {
-  contextWindow?: number;
-  queryDecay?: number;
-  enableCache?: boolean;
-  cacheSimilarityThreshold?: number;
-  enableResultAggregation?: boolean;
-  resultDecay?: number;
-  maxHistoryTurns?: number;
 }
 
 export type PresetGroupSelectionMode = "checkbox" | "radio";
@@ -561,10 +476,10 @@ export interface AgentBaseConfig {
     defaultScanDepth?: number;
   };
 
-  /** 知识库关联配置 */
-  knowledgeBaseConfig?: AgentKnowledgeBaseConfig;
+  /** Knowledge 文档资料库绑定。 */
+  knowledgeConfig?: AgentKnowledgeConfig;
 
-  /** 知识库全局设置 (检索参数) */
+  /** Knowledge 文档检索设置。 */
   knowledgeSettings?: AgentKnowledgeSettings;
 
   /** Stage 3 思绪绑定配置。 */

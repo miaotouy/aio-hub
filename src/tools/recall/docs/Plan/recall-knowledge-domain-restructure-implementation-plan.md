@@ -470,6 +470,8 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 
 ## 11. Stage 6：建设 Knowledge 资料库
 
+**阶段状态**：自动化施工已完成。Knowledge 使用本计划允许的 SQLite manifest + 每库独立 `.kdb` + FTS5 过渡实现；已完成 library/document/chunk CRUD、增量覆盖、事务删除、重建、PDF/DOCX/HTML/文本解析、BM25、chunk embedding、hybrid、相邻 chunk graph 和来源回溯。Agent 使用独立 `knowledgeConfig` / `knowledgeSettings` 与稳定 library ID binding；严格 Knowledge processor、`{{knowledge}}` / `{{knowledge_list}}`、主动 `knowledge` / `mixed` 路由均已落地，mixed 先保留分域配额再按 RRF 融合。当前没有产品化文件夹同步入口，因此未引入 watcher/ingest queue；TriviumDB 继续等待文件组恢复、锁和跨平台验证，不进入本阶段运行路径。剩余项仅为真实 Tauri WebView、文件对话框、PDF worker、独立 appData 与真实 embedding 服务的人工 smoke test。
+
 ### 目标
 
 在 Recall 边界稳定后，把原 Knowledge 空壳建设为真正的传统 RAG 资料库。
@@ -497,6 +499,8 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 ---
 
 ## 12. Stage 7：清理旧边界
+
+**阶段状态**：代码与文档边界清理已完成，最终发布接线待人工验收。常规 pipeline 只注册 Recall / Knowledge processor 和宏，共享 tokenizer 只登记两个 namespace；Recall 编辑器和公共 Agent 类型已移除长期 `KB` / `KnowledgeBase` 命名，旧 `knowledgeBaseConfig`、`kbId`、旧目录 IO 只保留在版本化 migration、legacy importer、备份恢复和隔离夹具中。设置页已提供只读迁移状态、报告导出和双重确认清理入口；后端只有在主数据/向量报告均完整、无问题且目录指纹一致时才允许删除旧 `bases` / `vectors` / `tag_pool`，并保留同目录下的新 Knowledge manifest 与 libraries。迁移报告样例见 [`recall-knowledge-migration-report-sample.md`](recall-knowledge-migration-report-sample.md)。首次启动自动迁移、真实用户目录只读标记和发布二进制 smoke test 仍按最终发布门槛执行，不在施工期访问真实用户 appData。
 
 ### 工作项
 

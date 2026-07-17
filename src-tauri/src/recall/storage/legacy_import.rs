@@ -73,6 +73,72 @@ impl LegacyFileRecallImporter {
         }
     }
 
+    pub fn inspect(&self) -> Result<Option<RecallMigrationReport>, String> {
+        let roots = [
+            get_bases_dir(&self.source_app_data_dir),
+            get_vectors_dir(&self.source_app_data_dir),
+            get_tag_pool_root(&self.source_app_data_dir),
+        ];
+        if !roots.iter().any(|root| root.exists()) {
+            return Ok(None);
+        }
+        self.repository.initialize()?;
+        let fingerprint = source_fingerprint(&self.source_app_data_dir)?;
+        let source_id = "legacy-file-system-v1";
+        let mut report = self.read_cached_report(source_id, &fingerprint)?;
+        report.source_path = get_bases_dir(&self.source_app_data_dir)
+            .display()
+            .to_string();
+        report.legacy_data_path = get_knowledge_root(&self.source_app_data_dir)
+            .display()
+            .to_string();
+        report.source_fingerprint = fingerprint;
+        if report.main_status.is_empty() {
+            report.main_status = "not_started".to_string();
+        }
+        if report.vector_status.is_empty() {
+            report.vector_status = "not_started".to_string();
+        }
+        if report.recovery_instructions.is_empty() {
+            report.recovery_instructions = recovery_instructions(&report.legacy_data_path);
+        }
+        Ok(Some(report))
+    }
+
+    pub fn confirm_cleanup(&self, expected_fingerprint: &str) -> Result<Vec<String>, String> {
+        let report = self
+            .inspect()?
+            .ok_or_else(|| "未检测到可清理的旧 Recall 目录".to_string())?;
+        if report.source_fingerprint != expected_fingerprint {
+            return Err("旧 Recall 目录指纹已变化，请重新检查迁移状态".to_string());
+        }
+        if report.main_status != "completed"
+            || report.vector_status != "completed"
+            || report.pending_vectors != 0
+            || !report.issues.is_empty()
+        {
+            return Err("迁移尚未完整通过，禁止清理旧 Recall 目录".to_string());
+        }
+        let legacy_root = get_knowledge_root(&self.source_app_data_dir);
+        let roots = [
+            get_bases_dir(&self.source_app_data_dir),
+            get_vectors_dir(&self.source_app_data_dir),
+            get_tag_pool_root(&self.source_app_data_dir),
+        ];
+        let mut removed = Vec::new();
+        for root in roots {
+            if root.parent() != Some(legacy_root.as_path()) {
+                return Err("旧 Recall 清理路径越出受管目录".to_string());
+            }
+            if root.exists() {
+                std::fs::remove_dir_all(&root)
+                    .map_err(|error| format!("清理旧 Recall 目录失败: {error}"))?;
+                removed.push(root.display().to_string());
+            }
+        }
+        Ok(removed)
+    }
+
     pub fn import(&self) -> Result<RecallMigrationReport, String> {
         self.repository.initialize()?;
         let source_path = get_bases_dir(&self.source_app_data_dir);
@@ -788,5 +854,20 @@ mod tests {
         assert_eq!(second.migrated_collections, 1);
         assert_eq!(second.main_status, "completed");
         assert_eq!(second.vector_status, "completed");
+
+        let knowledge_manifest = get_knowledge_root(app_data.path()).join("knowledge_meta.db");
+        fs::write(&knowledge_manifest, b"new knowledge data").unwrap();
+        let cleanup_repository = SqliteRecallRepository::new(app_data.path());
+        let importer = LegacyFileRecallImporter::new(app_data.path(), cleanup_repository);
+        let inspected = importer.inspect().unwrap().unwrap();
+        assert_eq!(inspected.source_fingerprint, second.source_fingerprint);
+        let removed = importer
+            .confirm_cleanup(&inspected.source_fingerprint)
+            .unwrap();
+        assert_eq!(removed.len(), 3);
+        assert!(!get_bases_dir(app_data.path()).exists());
+        assert!(!get_vectors_dir(app_data.path()).exists());
+        assert!(!get_tag_pool_root(app_data.path()).exists());
+        assert_eq!(fs::read(knowledge_manifest).unwrap(), b"new knowledge data");
     }
 }

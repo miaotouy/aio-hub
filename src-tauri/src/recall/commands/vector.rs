@@ -12,16 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::recall::io::*;
 use crate::recall::monitor::{
     emit_monitor_event, IndexMetadata, IndexPayload, IndexStats, RecallMonitorEvent,
     RecallMonitorLevel, RecallMonitorStep, RecallStepStatus,
 };
-use crate::recall::ops::*;
 use crate::recall::state::RecallState;
 use crate::recall::utils::*;
 use sha2::{Digest, Sha256};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, State};
 use uuid::Uuid;
 
 #[derive(serde::Serialize)]
@@ -47,29 +45,19 @@ pub async fn recall_update_entry_vector(
         .lock
         .lock()
         .map_err(|_| "获取状态锁失败".to_string())?;
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-
-    let recall_id_str = recall_id.to_string();
-    let model_dir = get_recall_vector_model_dir(&app_data_dir, &recall_id_str, &model);
-
-    if !model_dir.exists() {
-        std::fs::create_dir_all(&model_dir).map_err(|e| e.to_string())?;
-        let _ = update_recall_models_index(&app_data_dir, &recall_id_str, &model);
-    }
-
-    let vec_file_path =
-        get_recall_vector_file_path(&app_data_dir, &recall_id_str, &model, &entry_id.to_string());
-    let mut json_obj = serde_json::json!({
-        "entry_id": entry_id,
-        "vector": vector,
-        "model": model,
-        "timestamp": get_now()
-    });
-    if let Some(t) = tokens {
-        json_obj["tokens"] = t.into();
-    }
-
-    std::fs::write(vec_file_path, json_obj.to_string()).map_err(|e| e.to_string())?;
+    let repository = state.repository()?;
+    let content_hash = repository
+        .load_entry(recall_id, entry_id)?
+        .and_then(|entry| entry.content_hash);
+    repository.upsert_entry_vector(
+        recall_id,
+        entry_id,
+        &model,
+        &vector,
+        tokens,
+        content_hash.as_deref(),
+        get_now(),
+    )?;
 
     let imdb = state.imdb.read().map_err(|_| "获取内存数据库读锁失败")?;
     if let Some(base_lock) = imdb.bases.get(&recall_id) {
@@ -104,15 +92,6 @@ pub async fn recall_update_entry_vector(
         if let Some(t) = tokens {
             base.meta.vectorization.total_tokens += t as u64;
         }
-
-        // 4. 持久化元数据，确保冷启动索引同步
-        log::debug!(
-            "[KB_VECTOR] 单个向量更新完成，同步元数据索引: recall={}, entry={}, model={}",
-            recall_id_str,
-            entry_id,
-            model
-        );
-        let _ = save_recall_meta(&app_data_dir, &recall_id_str, &base.meta);
     }
 
     let duration = start_time.elapsed().as_millis() as u64;
@@ -151,57 +130,14 @@ pub async fn recall_update_entry_vector(
 
 #[tauri::command]
 pub async fn recall_clear_legacy_vectors(
-    app: AppHandle,
-    _state: State<'_, RecallState>,
+    _app: AppHandle,
+    state: State<'_, RecallState>,
     recall_id: Uuid,
     current_model: String,
 ) -> Result<u32, String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let recall_vec_root = get_recall_vectors_root(&app_data_dir, &recall_id.to_string());
-
-    if !recall_vec_root.exists() {
-        return Ok(0);
-    }
-
-    let mut deleted_count = 0;
-    let safe_current_model = get_safe_model_id(&current_model);
-
-    let index_path = get_recall_models_index_path(&app_data_dir, &recall_id.to_string());
-    let mut models_index: std::collections::HashMap<String, String> = if index_path.exists() {
-        std::fs::read_to_string(&index_path)
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default()
-    } else {
-        std::collections::HashMap::new()
-    };
-
-    let entries = std::fs::read_dir(recall_vec_root).map_err(|e| e.to_string())?;
-    for entry in entries.flatten() {
-        if entry.path().is_dir() {
-            let dirname = entry.file_name().into_string().unwrap_or_default();
-
-            let should_delete = if let Some(original_id) = models_index.get(&dirname) {
-                original_id != &current_model
-            } else {
-                dirname != safe_current_model
-            };
-
-            if should_delete {
-                models_index.remove(&dirname);
-                if let Ok(files) = std::fs::read_dir(entry.path()) {
-                    deleted_count += files.count() as u32;
-                }
-                let _ = std::fs::remove_dir_all(entry.path());
-            }
-        }
-    }
-
-    if let Ok(json) = serde_json::to_string_pretty(&models_index) {
-        let _ = std::fs::write(index_path, json);
-    }
-
-    Ok(deleted_count)
+    state
+        .repository()?
+        .clear_vectors_except_model(Some(recall_id), &current_model)
 }
 
 #[derive(serde::Serialize)]
@@ -216,13 +152,11 @@ pub struct VectorCoverage {
 
 #[tauri::command]
 pub async fn recall_check_vector_coverage(
-    app: AppHandle,
     state: State<'_, RecallState>,
     recall_ids: Vec<Uuid>,
     model_id: String,
 ) -> Result<VectorCoverage, String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let imdb = state.imdb.read().map_err(|_| "获取内存数据库读锁失败")?;
+    let repository = state.repository()?;
 
     let mut total_entries = 0;
     let mut cached_entries = 0;
@@ -235,24 +169,22 @@ pub async fn recall_check_vector_coverage(
     );
 
     for recall_id in recall_ids {
-        if let Some(base_lock) = imdb.bases.get(&recall_id) {
-            let base = base_lock.read().map_err(|_| "获取思绪集读锁失败")?;
-            log::info!(
-                "[KB_COVERAGE] 正在检查思绪集: {} (ID: {})",
-                base.meta.name,
-                recall_id
-            );
-            let model_dir =
-                get_recall_vector_model_dir(&app_data_dir, &recall_id.to_string(), &model_id);
-
-            for entry_id in base.entries.keys() {
-                total_entries += 1;
-                let vec_file = model_dir.join(format!("{}.vec", entry_id));
-                if vec_file.exists() {
-                    cached_entries += 1;
-                } else {
-                    missing_map.push((recall_id, *entry_id));
-                }
+        let entries = repository.load_entries(recall_id)?;
+        let vector_ids = repository
+            .load_vectors(recall_id, &model_id)?
+            .map(|(vectors, _, _)| {
+                vectors
+                    .into_iter()
+                    .map(|(id, _)| id)
+                    .collect::<std::collections::HashSet<_>>()
+            })
+            .unwrap_or_default();
+        for entry in entries {
+            total_entries += 1;
+            if vector_ids.contains(&entry.id) {
+                cached_entries += 1;
+            } else {
+                missing_map.push((recall_id, entry.id));
             }
         }
     }
@@ -268,12 +200,11 @@ pub async fn recall_check_vector_coverage(
 
 #[tauri::command]
 pub async fn recall_load_model_vectors(
-    app: AppHandle,
     state: State<'_, RecallState>,
     recall_id: Uuid,
     model_id: String,
 ) -> Result<LoadStats, String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let repository = state.repository()?;
     let imdb = state.imdb.read().map_err(|_| "获取内存数据库读锁失败")?;
 
     if let Some(base_lock) = imdb.bases.get(&recall_id) {
@@ -290,7 +221,7 @@ pub async fn recall_load_model_vectors(
 
         let mut base = base_lock.write().map_err(|_| "获取思绪集写锁失败")?;
         let recall_name = base.meta.name.clone();
-        match load_vectors_to_vec(&app_data_dir, recall_id, &model_id) {
+        match repository.load_vectors(recall_id, &model_id) {
             Ok(Some((vectors, dimension, total_tokens))) => {
                 log::info!(
                     "[KB_LOAD] 成功加载向量数据: {} (ID: {}), 模型: {}, 数量: {}, 维度: {}, Tokens: {}",
@@ -305,14 +236,12 @@ pub async fn recall_load_model_vectors(
                     .rebuild(model_id.clone(), dimension, total_tokens, vectors);
                 // 刷新内存索引中的向量状态，确保前端显示一致
                 if base.refresh_vector_status() {
-                    // 如果状态有变化，持久化到磁盘，避免下次启动时显示旧状态
                     log::info!(
-                        "[KB_LOAD] 向量状态有变动，同步元数据索引: {} (ID: {}), 模型: {}",
+                        "[RECALL_LOAD] 向量状态已刷新: {} (ID: {}), 模型: {}",
                         recall_name,
                         recall_id,
                         model_id
                     );
-                    let _ = save_recall_meta(&app_data_dir, &recall_id.to_string(), &base.meta);
                 }
             }
             Ok(None) => {
@@ -349,60 +278,13 @@ pub async fn recall_load_model_vectors(
 
 #[tauri::command]
 pub async fn recall_clear_all_other_vectors(
-    app: AppHandle,
+    _app: AppHandle,
     state: State<'_, RecallState>,
     keep_model_id: String,
 ) -> Result<u32, String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let imdb = state.imdb.read().map_err(|_| "获取内存数据库读锁失败")?;
-
-    let mut total_deleted = 0;
-    let safe_keep_model = get_safe_model_id(&keep_model_id);
-
-    for (recall_id, _base_lock) in imdb.bases.iter() {
-        let recall_id_str = recall_id.to_string();
-        let recall_vec_root = get_recall_vectors_root(&app_data_dir, &recall_id_str);
-
-        if !recall_vec_root.exists() {
-            continue;
-        }
-
-        let index_path = get_recall_models_index_path(&app_data_dir, &recall_id_str);
-        let mut models_index: std::collections::HashMap<String, String> = if index_path.exists() {
-            std::fs::read_to_string(&index_path)
-                .ok()
-                .and_then(|s| serde_json::from_str(&s).ok())
-                .unwrap_or_default()
-        } else {
-            std::collections::HashMap::new()
-        };
-
-        if let Ok(entries) = std::fs::read_dir(recall_vec_root) {
-            for entry in entries.flatten() {
-                if entry.path().is_dir() {
-                    let dirname = entry.file_name().into_string().unwrap_or_default();
-
-                    let is_current = if let Some(original_id) = models_index.get(&dirname) {
-                        original_id == &keep_model_id
-                    } else {
-                        dirname == safe_keep_model
-                    };
-
-                    if !is_current {
-                        models_index.remove(&dirname);
-                        if let Ok(files) = std::fs::read_dir(entry.path()) {
-                            total_deleted += files.count() as u32;
-                        }
-                        let _ = std::fs::remove_dir_all(entry.path());
-                    }
-                }
-            }
-        }
-
-        if let Ok(json) = serde_json::to_string_pretty(&models_index) {
-            let _ = std::fs::write(index_path, json);
-        }
-    }
+    let total_deleted = state
+        .repository()?
+        .clear_vectors_except_model(None, &keep_model_id)?;
 
     log::info!(
         "[KB] 全局清理完成，删除了 {} 个非当前模型的向量文件",

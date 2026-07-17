@@ -1,6 +1,6 @@
 # Recall / Knowledge 领域拆分与重构实施计划
 
-**状态**: Pre-Stage、Stage 0 与 Stage 1 已完成；Stage 2.1 数据库基础层已完成，正进入 Stage 2.2 运行时硬切。整个计划完成前不发布中间版本。
+**状态**: Pre-Stage、Stage 0、Stage 1 与 Stage 2.1 已完成；Stage 2.2 运行时硬切已完成代码切换和自动化工程验证，正进入 Stage 2.3 数据库真源闭环验证。整个计划完成前不发布中间版本。
 **创建日期**: 2026-07-17
 **最近修订**: 2026-07-17
 **适用范围**: `src/tools/knowledge-base/`、计划新增的 `src/tools/recall/`、`src/tools/llm-chat/`、`src/tools/agent-manager/`、`src-tauri/src/knowledge/`、计划新增的 `src-tauri/src/recall/`
@@ -282,6 +282,8 @@ appData/knowledge/
 本检查点只证明数据库能力可用；尚未接入正常启动和写路径，不承担用户升级责任。
 
 ### Stage 2.2：运行时硬切
+
+**阶段状态**: 已完成代码切换。`recall_initialize` / `recall_warmup`、集合和条目 CRUD、批量写入、向量及标签池 commands 均已切至 SQLite repository；运行时不再扫描旧 `bases`、`vectors` 或 `tag_pool` 目录。前端 workspace 仅持久化 UI 配置，集合列表每次由 `recall_list_bases` 返回。已通过 TypeScript、Vite build、Rust storage 单测和 backend Clippy；Stage 2.3 将补齐进程重启、删除向量库与查询快照等闭环夹具。
 
 ### 目标
 

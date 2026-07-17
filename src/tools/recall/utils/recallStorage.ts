@@ -30,6 +30,7 @@ const errorHandler = createModuleErrorHandler("KnowledgeStorage");
 export interface WorkspaceData {
   version: string;
   config: WorkspaceConfig;
+  /** 仅为运行时兼容保留；集合列表始终由 Recall repository 返回。 */
   bases: RecallCollectionIndex[];
   lastActiveBaseId?: string;
 }
@@ -40,7 +41,6 @@ export interface WorkspaceData {
  */
 export class KnowledgeStorage {
   private readonly KNOWLEDGE_DIR = "knowledge";
-  private readonly BASES_DIR = "bases";
   private readonly WORKSPACE_FILE = "workspace.json";
 
   // 使用 ConfigManager 管理 Workspace (本地索引)
@@ -61,24 +61,40 @@ export class KnowledgeStorage {
   // ================= Workspace 管理 =================
 
   /**
-   * 加载工作区索引
+   * 加载 UI 配置。历史集合索引会被丢弃，避免 workspace 成为数据真源。
    */
   async loadWorkspace(): Promise<WorkspaceData> {
-    return await this.workspaceManager.load();
+    const workspace = await this.workspaceManager.load();
+    const metas = await invoke<RecallCollectionMeta[]>("recall_list_bases");
+    return {
+      ...workspace,
+      bases: metas.map((meta) => ({
+        id: meta.id,
+        name: meta.name,
+        description: meta.description,
+        entryCount: meta.entries.length,
+        updatedAt: meta.updatedAt,
+        totalTokens: meta.vectorization.totalTokens,
+        isIndexed: meta.vectorization.isIndexed,
+        path: "",
+        tags: meta.tags?.map((tag) => tag.name),
+        icon: meta.icon,
+      })),
+    };
   }
 
   /**
    * 保存工作区索引
    */
   async saveWorkspace(data: WorkspaceData): Promise<void> {
-    await this.workspaceManager.save(data);
+    await this.workspaceManager.save({ ...data, bases: [] });
   }
 
   /**
    * 防抖保存工作区索引
    */
   saveWorkspaceDebounced(data: WorkspaceData): void {
-    this.workspaceManager.saveDebounced(data);
+    this.workspaceManager.saveDebounced({ ...data, bases: [] });
   }
 
   // ================= Base 管理 =================
@@ -148,21 +164,8 @@ export class KnowledgeStorage {
             },
           };
 
-          // 1. 调用后端保存元数据 (后端会自动创建目录并初始化内存索引)
+          // 集合与条目由 SQLite repository 持久化。
           await this.saveBaseMeta(baseId, meta);
-
-          // 2. 更新 Workspace 索引
-          const workspace = await this.loadWorkspace();
-          workspace.bases.push({
-            id: baseId,
-            name,
-            description,
-            entryCount: 0,
-            updatedAt: now,
-            isIndexed: false,
-            path: `${this.BASES_DIR}/${baseId}`,
-          });
-          await this.saveWorkspace(workspace);
 
           return baseId;
         },
@@ -178,30 +181,11 @@ export class KnowledgeStorage {
     return (
       (await errorHandler.wrapAsync(
         async () => {
-          // 1. 调用后端克隆 (包含物理文件、向量和内存索引)
+          // 调用后端 clone，由 repository 复制源条目。
           const newBaseId = await invoke<string>("recall_clone_base", {
             recallId: baseId,
             newName,
           });
-
-          // 2. 加载新库的元数据以更新 Workspace 索引
-          const newMeta = await this.loadBaseMeta(newBaseId);
-          if (!newMeta) throw new Error("克隆成功但无法加载新库元数据");
-
-          // 3. 更新 Workspace 索引
-          const workspace = await this.loadWorkspace();
-          workspace.bases.push({
-            id: newBaseId,
-            name: newMeta.name,
-            description: newMeta.description,
-            entryCount: newMeta.entries.length,
-            updatedAt: newMeta.updatedAt,
-            isIndexed: newMeta.vectorization.isIndexed,
-            path: `${this.BASES_DIR}/${newBaseId}`,
-            tags: (newMeta.tags || []).map((t) => t.name),
-            icon: newMeta.icon,
-          });
-          await this.saveWorkspace(workspace);
 
           return newBaseId;
         },
@@ -228,13 +212,8 @@ export class KnowledgeStorage {
   async deleteBase(baseId: string): Promise<boolean> {
     const deleted = await errorHandler.wrapAsync(
       async () => {
-        // 1. 后端删除物理文件、向量和内存索引
+        // 后端会删除 repository 中的集合和派生向量。
         await invoke("recall_delete_base", { recallId: baseId });
-
-        // 2. 更新 Workspace 索引
-        const workspace = await this.loadWorkspace();
-        workspace.bases = workspace.bases.filter((b) => b.id !== baseId);
-        await this.saveWorkspace(workspace);
 
         return true;
       },

@@ -43,6 +43,7 @@ pub fn get_recall_dir(app_data_dir: &Path, recall_id: &str) -> PathBuf {
 }
 
 /// 获取特定思绪集的条目目录 (bases/{recall_id}/entries/)
+#[allow(dead_code)]
 pub fn get_recall_entries_dir(app_data_dir: &Path, recall_id: &str) -> PathBuf {
     get_recall_dir(app_data_dir, recall_id).join("entries")
 }
@@ -87,6 +88,7 @@ pub fn get_recall_vectors_root(app_data_dir: &Path, recall_id: &str) -> PathBuf 
 }
 
 /// 获取思绪集向量模型索引文件路径 (vectors/{recall_id}/models.json)
+#[allow(dead_code)]
 pub fn get_recall_models_index_path(app_data_dir: &Path, recall_id: &str) -> PathBuf {
     get_recall_vectors_root(app_data_dir, recall_id).join("models.json")
 }
@@ -113,6 +115,7 @@ pub fn get_recall_vector_file_path(
 }
 
 /// 初始化思绪集工作区目录结构
+#[allow(dead_code)]
 pub fn init_workspace(app_data_dir: &Path) -> Result<(), String> {
     let root = get_knowledge_root(app_data_dir);
     let bases = get_bases_dir(app_data_dir);
@@ -128,6 +131,7 @@ pub fn init_workspace(app_data_dir: &Path) -> Result<(), String> {
 }
 
 /// 保存单个条目到磁盘
+#[allow(dead_code)]
 pub fn save_entry(app_data_dir: &Path, recall_id: &str, entry: &RecallEntry) -> Result<(), String> {
     let entries_dir = get_recall_entries_dir(app_data_dir, recall_id);
     if !entries_dir.exists() {
@@ -142,6 +146,7 @@ pub fn save_entry(app_data_dir: &Path, recall_id: &str, entry: &RecallEntry) -> 
 }
 
 /// 从磁盘删除单个条目 (仅 JSON)
+#[allow(dead_code)]
 pub fn delete_entry(app_data_dir: &Path, recall_id: &str, entry_id: &str) -> Result<(), String> {
     let path = get_recall_entries_dir(app_data_dir, recall_id).join(format!("{}.json", entry_id));
     if path.exists() {
@@ -151,6 +156,7 @@ pub fn delete_entry(app_data_dir: &Path, recall_id: &str, entry_id: &str) -> Res
 }
 
 /// 保存思绪集元数据到磁盘
+#[allow(dead_code)]
 pub fn save_recall_meta(
     app_data_dir: &Path,
     recall_id: &str,

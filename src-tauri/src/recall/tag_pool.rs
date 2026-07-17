@@ -59,7 +59,8 @@ impl ModelTagPool {
         }
     }
 
-    /// 加载模型标签池
+    /// 仅供 legacy importer 使用的旧目录加载器。
+    #[allow(dead_code)]
     pub fn load(app_data_dir: &Path, model_id: &str) -> Result<Self, String> {
         let pool_dir = get_model_tag_pool_dir(app_data_dir, model_id);
         let registry_path = pool_dir.join("registry.json");
@@ -119,7 +120,8 @@ impl ModelTagPool {
         Ok(pool)
     }
 
-    /// 保存模型标签池
+    /// 仅供 legacy backup/restore 使用的旧目录保存器。
+    #[allow(dead_code)]
     pub fn save(&self, app_data_dir: &Path) -> Result<(), String> {
         let pool_dir = get_model_tag_pool_dir(app_data_dir, &self.model_id);
         fs::create_dir_all(&pool_dir).map_err(|e| e.to_string())?;
@@ -279,7 +281,7 @@ impl GlobalTagPoolManager {
     /// 获取模型池的引用
     pub fn get_pool(
         &self,
-        app_data_dir: &Path,
+        _app_data_dir: &std::path::Path,
         model_id: &str,
     ) -> Result<Arc<RwLock<ModelTagPool>>, String> {
         // 1. 先尝试读锁
@@ -297,7 +299,7 @@ impl GlobalTagPoolManager {
             return Ok(pool.clone());
         }
 
-        let pool = ModelTagPool::load(app_data_dir, model_id)?;
+        let pool = ModelTagPool::new(model_id.to_string());
         let pool_arc = Arc::new(RwLock::new(pool));
         pools.insert(model_id.to_string(), pool_arc.clone());
         Ok(pool_arc)

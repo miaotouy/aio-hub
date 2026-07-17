@@ -13,16 +13,14 @@
 // limitations under the License.
 
 use crate::recall::core::RecallEntry;
-use crate::recall::io::*;
 use crate::recall::monitor::{
     emit_monitor_event, IndexMetadata, IndexPayload, IndexStats, RecallMonitorEvent,
     RecallMonitorLevel, RecallMonitorStep, RecallStepStatus,
 };
-use crate::recall::ops::*;
 use crate::recall::state::RecallState;
 use crate::recall::utils::*;
 use rayon::prelude::*;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, State};
 use uuid::Uuid;
 
 #[derive(serde::Deserialize)]
@@ -55,7 +53,7 @@ pub async fn recall_load_entry(
             Ok(None)
         }
     } else {
-        Ok(None)
+        state.repository()?.load_entry(recall_id, entry_id)
     }
 }
 
@@ -98,7 +96,12 @@ pub async fn recall_list_entry_ids(
         let base = base_lock.read().map_err(|_| "获取思绪集读锁失败")?;
         Ok(base.entries.keys().cloned().collect())
     } else {
-        Ok(vec![])
+        Ok(state
+            .repository()?
+            .load_entries(recall_id)?
+            .into_iter()
+            .map(|entry| entry.id)
+            .collect())
     }
 }
 
@@ -133,36 +136,25 @@ pub async fn recall_upsert_entry(
     }
 
     let new_hash = calculate_content_hash(&entry.content);
-    if entry.content_hash.as_ref() != Some(&new_hash) {
-        // 内容变动，清理旧向量文件
-        let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-        let _ = crate::recall::ops::delete_entry_files(
-            &app_data_dir,
-            &recall_id.to_string(),
-            &entry.id,
-        );
-    }
     entry.content_hash = Some(new_hash);
 
     if entry.summary.is_empty() {
         entry.summary = generate_summary(&entry.content);
     }
 
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    save_entry(&app_data_dir, &recall_id.to_string(), &entry)?;
+    let repository = state.repository()?;
+    let content_changed = repository
+        .load_entry(recall_id, entry.id)?
+        .is_some_and(|previous| previous.content_hash != entry.content_hash);
+    repository.upsert_entry(recall_id, &entry)?;
 
     let imdb = state.imdb.read().map_err(|_| "获取内存数据库读锁失败")?;
     if let Some(base_lock) = imdb.bases.get(&recall_id) {
         let mut base = base_lock.write().map_err(|_| "获取思绪集写锁失败")?;
+        if content_changed {
+            base.remove_entry(&entry.id);
+        }
         base.sync_entry(entry.clone());
-
-        // 同步持久化元数据索引
-        log::debug!(
-            "[KB_ENTRY] 条目更新，同步元数据索引: recall={}, entry={}",
-            recall_id,
-            entry.id
-        );
-        let _ = save_recall_meta(&app_data_dir, &recall_id.to_string(), &base.meta);
     }
 
     let duration = start_time.elapsed().as_millis() as u64;
@@ -200,26 +192,16 @@ pub async fn recall_upsert_entry(
 
 #[tauri::command]
 pub async fn recall_delete_entry(
-    app: AppHandle,
     state: State<'_, RecallState>,
     recall_id: Uuid,
     entry_id: Uuid,
 ) -> Result<(), String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    crate::recall::ops::delete_entry_files(&app_data_dir, &recall_id.to_string(), &entry_id)?;
+    state.repository()?.delete_entries(recall_id, &[entry_id])?;
 
     let imdb = state.imdb.read().map_err(|_| "获取内存数据库读锁失败")?;
     if let Some(base_lock) = imdb.bases.get(&recall_id) {
         let mut base = base_lock.write().map_err(|_| "获取思绪集写锁失败")?;
         base.remove_entry(&entry_id);
-
-        // 同步持久化元数据索引
-        log::debug!(
-            "[KB_ENTRY] 条目删除，同步元数据索引: recall={}, entry={}",
-            recall_id,
-            entry_id
-        );
-        let _ = save_recall_meta(&app_data_dir, &recall_id.to_string(), &base.meta);
     }
     Ok(())
 }
@@ -234,7 +216,6 @@ pub async fn recall_batch_import_files(
     config: ImportConfig,
 ) -> Result<BatchImportResult, String> {
     let start_time = std::time::Instant::now();
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
 
     let total_paths = paths.len();
 
@@ -359,14 +340,8 @@ pub async fn recall_batch_import_files(
 
     let skipped_count = total_paths - candidates.len();
 
-    let imdb = state.imdb.read().map_err(|_| "获取内存数据库读锁失败")?;
-    let base_lock = imdb
-        .bases
-        .get(&recall_id)
-        .ok_or_else(|| "找不到思绪集".to_string())?;
-
     let (entries, duplicate_count) =
-        batch_upsert_entries_logic(&app_data_dir, base_lock, candidates, deduplicate)?;
+        persist_batch_entries(&state, recall_id, candidates, deduplicate)?;
 
     let duration = start_time.elapsed().as_millis() as u64;
     let imported_count = entries.len();
@@ -420,15 +395,13 @@ pub async fn recall_batch_import_files(
 
 #[tauri::command]
 pub async fn recall_batch_upsert_entries(
-    app: AppHandle,
+    _app: AppHandle,
     state: State<'_, RecallState>,
     recall_id: Uuid,
     mut entries: Vec<RecallEntry>,
     deduplicate: bool,
     config: Option<ImportConfig>,
 ) -> Result<BatchImportResult, String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-
     entries.par_iter_mut().for_each(|entry| {
         if let Some(cfg) = &config {
             if cfg.auto_extract_title {
@@ -452,14 +425,8 @@ pub async fn recall_batch_upsert_entries(
         }
     });
 
-    let imdb = state.imdb.read().map_err(|_| "获取内存数据库读锁失败")?;
-    let base_lock = imdb
-        .bases
-        .get(&recall_id)
-        .ok_or_else(|| "找不到思绪集".to_string())?;
-
     let (filtered_entries, duplicate_count) =
-        batch_upsert_entries_logic(&app_data_dir, base_lock, entries, deduplicate)?;
+        persist_batch_entries(&state, recall_id, entries, deduplicate)?;
 
     Ok(BatchImportResult {
         entries: filtered_entries,
@@ -470,44 +437,19 @@ pub async fn recall_batch_upsert_entries(
 
 #[tauri::command]
 pub async fn recall_batch_patch_entries(
-    app: AppHandle,
+    _app: AppHandle,
     state: State<'_, RecallState>,
     recall_id: Uuid,
     entry_ids: Vec<Uuid>,
     patch: crate::recall::core::RecallEntryPatch,
 ) -> Result<usize, String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let recall_id_str = recall_id.to_string();
     let now = crate::recall::utils::get_now();
 
-    let imdb = state.imdb.read().map_err(|_| "获取内存数据库读锁失败")?;
-    let base_lock = imdb
-        .bases
-        .get(&recall_id)
-        .ok_or_else(|| "找不到思绪集".to_string())?;
-
-    // 1. 用读锁读取所有需要更新的条目（内存优先，回退到磁盘）
-    let entries_to_update: Vec<RecallEntry> = {
-        let base = base_lock.read().map_err(|_| "获取思绪集读锁失败")?;
-        let entries_dir = crate::recall::io::get_recall_entries_dir(&app_data_dir, &recall_id_str);
-        let mut result = Vec::new();
-        for id in &entry_ids {
-            if let Some(entry) = base.entries.get(id) {
-                result.push(entry.clone());
-            } else {
-                // 内存中没有，尝试从磁盘加载
-                let entry_path = entries_dir.join(format!("{}.json", id));
-                if entry_path.exists() {
-                    if let Ok(content) = std::fs::read_to_string(&entry_path) {
-                        if let Ok(entry) = serde_json::from_str::<RecallEntry>(&content) {
-                            result.push(entry);
-                        }
-                    }
-                }
-            }
-        }
-        result
-    };
+    let repository = state.repository()?;
+    let entries_to_update = entry_ids
+        .iter()
+        .filter_map(|id| repository.load_entry(recall_id, *id).transpose())
+        .collect::<Result<Vec<_>, _>>()?;
 
     if entries_to_update.is_empty() {
         return Ok(0);
@@ -534,25 +476,24 @@ pub async fn recall_batch_patch_entries(
         })
         .collect();
 
-    // 3. 并行写磁盘
-    updated_entries.par_iter().for_each(|entry| {
-        let _ = crate::recall::io::save_entry(&app_data_dir, &recall_id_str, entry);
-    });
-
+    repository.upsert_entries(recall_id, &updated_entries)?;
     let updated_count = updated_entries.len();
-
-    // 4. 批量更新内存 + 一次性保存 meta
+    if let Some(base_lock) = state
+        .imdb
+        .read()
+        .map_err(|_| "获取内存数据库读锁失败")?
+        .bases
+        .get(&recall_id)
     {
         let mut base = base_lock.write().map_err(|_| "获取思绪集写锁失败")?;
         for entry in updated_entries {
             base.sync_entry(entry);
         }
-        let _ = crate::recall::io::save_recall_meta(&app_data_dir, &recall_id_str, &base.meta);
     }
 
     log::info!(
         "[KB_ENTRY] 批量 patch 完成: recall={}, 更新 {} 个条目",
-        recall_id_str,
+        recall_id,
         updated_count
     );
 
@@ -561,17 +502,11 @@ pub async fn recall_batch_patch_entries(
 
 #[tauri::command]
 pub async fn recall_batch_delete_entries(
-    app: AppHandle,
     state: State<'_, RecallState>,
     recall_id: Uuid,
     entry_ids: Vec<Uuid>,
 ) -> Result<(), String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let recall_id_str = recall_id.to_string();
-
-    for entry_id in &entry_ids {
-        crate::recall::ops::delete_entry_files(&app_data_dir, &recall_id_str, entry_id)?;
-    }
+    state.repository()?.delete_entries(recall_id, &entry_ids)?;
 
     let imdb = state.imdb.read().map_err(|_| "获取内存数据库读锁失败")?;
     if let Some(base_lock) = imdb.bases.get(&recall_id) {
@@ -579,13 +514,58 @@ pub async fn recall_batch_delete_entries(
         for entry_id in &entry_ids {
             base.remove_entry(entry_id);
         }
-
-        // 同步持久化元数据索引
-        log::debug!(
-            "[KB_ENTRY] 批量条目删除，同步元数据索引: recall={}",
-            recall_id_str
-        );
-        let _ = save_recall_meta(&app_data_dir, &recall_id_str, &base.meta);
     }
     Ok(())
+}
+
+fn persist_batch_entries(
+    state: &RecallState,
+    recall_id: Uuid,
+    mut entries: Vec<RecallEntry>,
+    deduplicate: bool,
+) -> Result<(Vec<RecallEntry>, usize), String> {
+    let repository = state.repository()?;
+    let mut seen_hashes = if deduplicate {
+        repository
+            .load_entries(recall_id)?
+            .into_iter()
+            .filter_map(|entry| entry.content_hash)
+            .collect::<std::collections::HashSet<_>>()
+    } else {
+        std::collections::HashSet::new()
+    };
+    for entry in &mut entries {
+        if entry.content_hash.as_deref().is_none_or(str::is_empty) {
+            entry.content_hash = Some(calculate_content_hash(&entry.content));
+        }
+        if entry.summary.is_empty() {
+            entry.summary = generate_summary(&entry.content);
+        }
+    }
+    let mut duplicates = 0;
+    entries.retain(|entry| match &entry.content_hash {
+        Some(hash) if deduplicate && !seen_hashes.insert(hash.clone()) => {
+            duplicates += 1;
+            false
+        }
+        Some(hash) => {
+            seen_hashes.insert(hash.clone());
+            true
+        }
+        None => true,
+    });
+    repository.upsert_entries(recall_id, &entries)?;
+    if let Some(base_lock) = state
+        .imdb
+        .read()
+        .map_err(|_| "获取内存数据库读锁失败")?
+        .bases
+        .get(&recall_id)
+    {
+        let mut base = base_lock.write().map_err(|_| "获取思绪集写锁失败")?;
+        for entry in &entries {
+            base.sync_entry(entry.clone());
+        }
+    }
+    Ok((entries, duplicates))
 }

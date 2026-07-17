@@ -22,6 +22,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 use uuid::Uuid;
 
+#[allow(dead_code)]
 type VectorizedModelsMap = std::collections::HashMap<Uuid, (Vec<String>, u32)>;
 
 /// 从 Recall repository 恢复完整运行时读模型。
@@ -81,6 +82,7 @@ pub fn warmup_recall_repository(
 }
 
 /// 快速加载思绪集元数据（仅 meta.json，不加载条目内容）
+#[allow(dead_code)]
 pub fn load_knowledge_base_meta_only(
     _app_data_dir: &std::path::Path,
     recall_path: &std::path::Path,
@@ -99,6 +101,7 @@ pub fn load_knowledge_base_meta_only(
 }
 
 /// 全量预热单个思绪集（加载条目内容和向量）
+#[allow(dead_code)]
 pub fn warmup_knowledge_base(
     app_data_dir: &std::path::Path,
     base_lock: &Arc<RwLock<crate::recall::index::InMemoryBase>>,
@@ -222,6 +225,7 @@ pub fn warmup_knowledge_base(
 }
 
 /// 加载思绪集的所有条目到 Vec
+#[allow(dead_code)]
 pub fn load_entries_to_vec(
     recall_path: &std::path::Path,
     _recall_id: &Uuid,
@@ -335,6 +339,7 @@ pub fn load_vectors_to_vec(
 }
 
 /// 扫描思绪集下所有已向量化的模型及其覆盖的条目
+#[allow(dead_code)]
 pub fn scan_all_vectorized_models(
     app_data_dir: &std::path::Path,
     recall_id_str: &str,
@@ -412,6 +417,7 @@ pub fn scan_all_vectorized_models(
 }
 
 /// 删除单个条目的所有相关文件（条目 JSON + 向量文件）
+#[allow(dead_code)]
 pub fn delete_entry_files(
     app_data_dir: &std::path::Path,
     recall_id_str: &str,
@@ -447,6 +453,7 @@ pub fn delete_entry_files(
 }
 
 /// 更新思绪集模型索引表 (vectors/{recall_id}/models.json)
+#[allow(dead_code)]
 pub fn update_recall_models_index(
     app_data_dir: &std::path::Path,
     recall_id: &str,
@@ -469,6 +476,7 @@ pub fn update_recall_models_index(
 }
 
 /// 批量导入/更新条目的核心逻辑
+#[allow(dead_code)]
 pub fn batch_upsert_entries_logic(
     app_data_dir: &std::path::Path,
     base_lock: &Arc<RwLock<crate::recall::index::InMemoryBase>>,

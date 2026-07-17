@@ -224,19 +224,13 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
     async init() {
       this.loading = true;
       try {
-        // 1. 优先加载本地索引 (显示列表) - 快速显示
+        // 1. 先确保 SQLite repository 已建立，再读取集合列表。
+        await invoke("recall_initialize");
+        await invoke("recall_warmup");
         await this.loadBases();
 
-        // 2. 后端初始化目录结构 (同步，很快)
-        await invoke("recall_initialize");
-
-        // 3. 加载引擎列表 (同步，很快)
+        // 2. 加载引擎列表。
         await this.loadEngines();
-
-        // 4. 后端预热 (异步，不阻塞) - 在后台加载完整数据
-        invoke("recall_warmup").catch((e) => {
-          errorHandler.error(e, "后台预热失败", { showToUser: false });
-        });
       } catch (e) {
         errorHandler.error(e, "初始化思绪集失败");
       } finally {
@@ -251,7 +245,20 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
       try {
         const workspace = await recallStorage.loadWorkspace();
         this.workspace = workspace;
-        this.bases = workspace.bases;
+        const metas = await invoke<RecallCollectionMeta[]>("recall_list_bases");
+        this.bases = metas.map((meta) => ({
+          id: meta.id,
+          name: meta.name,
+          description: meta.description,
+          entryCount: meta.entries.length,
+          updatedAt: meta.updatedAt,
+          totalTokens: meta.vectorization.totalTokens,
+          isIndexed: meta.vectorization.isIndexed,
+          path: "",
+          tags: meta.tags?.map((tag) => tag.name),
+          icon: meta.icon,
+        }));
+        this.workspace = { ...workspace, bases: [] };
         this.config = workspace.config;
 
         // 监听模型变化，自动校验状态
@@ -294,23 +301,22 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
      * 同步当前库的元数据和全局索引
      */
     async syncBaseMeta() {
-      if (!this.activeBaseId || !this.activeBaseMeta || !this.workspace) return;
+      if (!this.activeBaseId || !this.activeBaseMeta) return;
 
       const now = Date.now();
       this.activeBaseMeta.updatedAt = now;
 
       await recallStorage.saveBaseMeta(this.activeBaseId, this.activeBaseMeta);
 
-      const idx = this.workspace.bases.findIndex(
+      const idx = this.bases.findIndex(
         (b) => b.id === this.activeBaseId
       );
       if (idx !== -1) {
-        this.workspace.bases[idx].entryCount =
+        this.bases[idx].entryCount =
           this.activeBaseMeta.entries.length;
-        this.workspace.bases[idx].updatedAt = now;
-        this.workspace.bases[idx].totalTokens =
+        this.bases[idx].updatedAt = now;
+        this.bases[idx].totalTokens =
           this.activeBaseMeta.vectorization.totalTokens;
-        await recallStorage.saveWorkspace(this.workspace);
       }
     },
 

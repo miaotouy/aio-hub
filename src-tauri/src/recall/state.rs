@@ -82,6 +82,14 @@ impl RecallState {
         Ok(())
     }
 
+    pub fn repository(&self) -> Result<Arc<dyn RecallRepository>, String> {
+        self.repository
+            .read()
+            .map_err(|_| "获取 Recall repository 读锁失败".to_string())?
+            .clone()
+            .ok_or_else(|| "Recall repository 尚未初始化".to_string())
+    }
+
     pub fn get_engine(&self, id: &str) -> Option<&dyn RetrievalEngine> {
         self.engines
             .iter()

@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::recall::io::*;
 use crate::recall::state::RecallState;
 use tauri::{AppHandle, Manager, State};
 
@@ -129,15 +128,7 @@ pub async fn recall_get_tag_pool_stats(
     let pool_lock = state.tag_pool.get_pool(&app_data_dir, &model_id)?;
     let pool = pool_lock.read().map_err(|_| "获取池读锁失败")?;
 
-    let pool_dir = get_model_tag_pool_dir(&app_data_dir, &model_id);
-    let vectors_path = pool_dir.join("vectors.bin");
-    let tag_pool_size = if vectors_path.exists() {
-        std::fs::metadata(vectors_path)
-            .map(|m| m.len())
-            .unwrap_or(0)
-    } else {
-        0
-    };
+    let tag_pool_size = (pool.vectors.len() * std::mem::size_of::<f32>()) as u64;
 
     Ok(TagPoolStats {
         total_tags: pool.registry.len(),
@@ -172,7 +163,7 @@ pub async fn recall_sync_tag_vectors(
 
     let mut pool = pool_lock.write().map_err(|_| "获取池写锁失败")?;
     pool.sync_vectors(data);
-    pool.save(&app_data_dir)?;
+    state.repository()?.save_tag_pool(&pool)?;
 
     Ok(())
 }
@@ -208,7 +199,7 @@ pub async fn recall_rebuild_tag_pool_index(
             pool.registry.len()
         );
         pool.rebuild_index();
-        pool.save(&app_data_dir)?;
+        state.repository()?.save_tag_pool(&pool)?;
     }
 
     Ok(())
@@ -216,92 +207,69 @@ pub async fn recall_rebuild_tag_pool_index(
 
 #[tauri::command]
 pub async fn recall_clear_tag_pool(
-    app: AppHandle,
+    _app: AppHandle,
     state: State<'_, RecallState>,
     model_id: String,
 ) -> Result<(), String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-
     {
         let mut pools = state.tag_pool.pools.write().map_err(|_| "获取池写锁失败")?;
         pools.remove(&model_id);
     }
-
-    let pool_dir = get_model_tag_pool_dir(&app_data_dir, &model_id);
-    if pool_dir.exists() {
-        std::fs::remove_dir_all(&pool_dir).map_err(|e| format!("删除标签池目录失败: {}", e))?;
-    }
+    state
+        .repository()?
+        .save_tag_pool(&crate::recall::tag_pool::ModelTagPool::new(model_id))?;
 
     Ok(())
 }
 
 #[tauri::command]
-pub async fn recall_list_tag_pool_models(app: AppHandle) -> Result<Vec<String>, String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let tag_pool_root = get_tag_pool_root(&app_data_dir);
-
-    let mut model_ids = Vec::new();
-
-    if tag_pool_root.exists() {
-        if let Ok(entries) = std::fs::read_dir(&tag_pool_root) {
-            for entry in entries.flatten() {
-                if entry.path().is_dir() {
-                    if let Ok(model_id) = entry.file_name().into_string() {
-                        model_ids.push(model_id);
-                    }
-                }
-            }
-        }
-    }
-
+pub async fn recall_list_tag_pool_models(
+    _app: AppHandle,
+    state: State<'_, RecallState>,
+) -> Result<Vec<String>, String> {
+    let mut model_ids = state
+        .tag_pool
+        .pools
+        .read()
+        .map_err(|_| "获取池读锁失败")?
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
     model_ids.sort();
     Ok(model_ids)
 }
 
 #[tauri::command]
 pub async fn recall_clear_other_tag_pools(
-    app: AppHandle,
+    _app: AppHandle,
     state: State<'_, RecallState>,
     keep_model_id: String,
 ) -> Result<u32, String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let tag_pool_root = get_tag_pool_root(&app_data_dir);
-
-    let mut cleared_count = 0;
-
-    if tag_pool_root.exists() {
-        if let Ok(entries) = std::fs::read_dir(&tag_pool_root) {
-            for entry in entries.flatten() {
-                if entry.path().is_dir() {
-                    if let Ok(model_id) = entry.file_name().into_string() {
-                        if model_id != keep_model_id {
-                            {
-                                let mut pools =
-                                    state.tag_pool.pools.write().map_err(|_| "获取池写锁失败")?;
-                                pools.remove(&model_id);
-                            }
-
-                            if let Err(e) = std::fs::remove_dir_all(entry.path()) {
-                                log::error!("[KB] 删除标签池目录失败 {}: {}", model_id, e);
-                            } else {
-                                cleared_count += 1;
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    let mut pools = state.tag_pool.pools.write().map_err(|_| "获取池写锁失败")?;
+    let removed = pools
+        .keys()
+        .filter(|model_id| *model_id != &keep_model_id)
+        .cloned()
+        .collect::<Vec<_>>();
+    for model_id in &removed {
+        pools.remove(model_id);
     }
-
-    Ok(cleared_count)
+    drop(pools);
+    for model_id in &removed {
+        state
+            .repository()?
+            .save_tag_pool(&crate::recall::tag_pool::ModelTagPool::new(
+                model_id.clone(),
+            ))?;
+    }
+    Ok(removed.len() as u32)
 }
 
 #[tauri::command]
 pub async fn recall_flush_all_tag_pools(
-    app: AppHandle,
+    _app: AppHandle,
     state: State<'_, RecallState>,
 ) -> Result<u32, String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let pools = state.tag_pool.pools.read().map_err(|_| "获取池读锁失败")?;
 
     let mut saved_count = 0;
@@ -310,7 +278,7 @@ pub async fn recall_flush_all_tag_pools(
         if pool.index.is_none() && !pool.registry.is_empty() {
             pool.rebuild_index();
         }
-        if let Err(e) = pool.save(&app_data_dir) {
+        if let Err(e) = state.repository()?.save_tag_pool(&pool) {
             log::error!("[KB] 保存标签池失败 {}: {}", model_id, e);
         } else {
             saved_count += 1;

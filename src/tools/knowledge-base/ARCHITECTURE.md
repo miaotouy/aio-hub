@@ -16,7 +16,7 @@ Knowledge 是 AIO Hub 的文档资料与来源回溯领域，与 Recall 思绪�
 - `KnowledgeBase.vue` 提供 library CRUD、文件导入、文档删除、重建、搜索和来源展示。
 - `fileParser.ts` 复用现有 PDF、DOCX、HTML 与文本解析能力，不将二进制文档交给 Rust 猜测格式。
 - `service.ts` 是唯一 IPC 边界；`store.ts` 只维护 Knowledge library/document 状态。
-- `vectorizeKnowledgeLibrary()` 通过共享 embedding API 批量向量化 chunk。已有 embedding 模型的资料库在 `auto` 检索时生成 query vector 并使用 hybrid，否则退化为 BM25。
+- `vectorizeKnowledgeLibrary()` 已提供通过共享 embedding API 批量向量化 chunk 的服务能力。Knowledge 前端交互设计和产品化向量化入口按 2026-07-17 决策暂时跳过；恢复施工前不能把该服务能力描述为用户可操作闭环。已有 embedding 模型的资料库在 `auto` 检索时生成 query vector 并使用 hybrid，否则退化为 BM25。
 
 Knowledge 前端不导入 Recall store、entry、priority、tag pool 或 workspace。
 
@@ -29,7 +29,7 @@ Knowledge 前端不导入 Recall store、entry、priority、tag pool 或 workspa
 
 ## 跨域路由
 
-`src/services/retrievalRouter.ts` 提供主动 `recall | knowledge | mixed` 路由。mixed 先截取 Recall / Knowledge 分域配额，再按 RRF 融合；原始分数仅保留在 trace 中，不参与跨域比较。
+`src/services/retrievalRouter.ts` 提供主动 `recall | knowledge | mixed` 路由，`src/tools/retrieval/retrieval.registry.ts` 将其注册为实际 Agent 工具调用入口。mixed 先截取 Recall / Knowledge 分域配额，再按 RRF 融合；原始分数仅保留在 trace 中，不参与跨域比较。
 
 ## 验证边界
 

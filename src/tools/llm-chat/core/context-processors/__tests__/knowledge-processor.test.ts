@@ -117,4 +117,40 @@ describe("KnowledgeProcessor", () => {
       "Knowledge 占位符引用未授权资料库",
     ]);
   });
+
+  it("keeps invalid placeholders as diagnostics when auto injection rescans", async () => {
+    const context = createContext({
+      messages: [
+        { role: "system", content: "【knowledge::old::4】" },
+        { role: "user", content: "install", sourceType: "session_history" },
+      ],
+      agentConfig: {
+        knowledgeConfig: {
+          enabled: true,
+          autoInjectIfMacroMissing: true,
+          bindings: [
+            {
+              libraryId: "library-1",
+              libraryName: "Docs",
+              enabled: true,
+              strategy: "keyword",
+            },
+          ],
+        },
+      } as PipelineContext["agentConfig"],
+    });
+
+    await expect(
+      new KnowledgeProcessor().execute(context)
+    ).resolves.toBeUndefined();
+
+    expect(searchKnowledge).toHaveBeenCalledTimes(1);
+    expect(
+      context.logs.filter(
+        (log) => log.message === "Knowledge 占位符参数必须使用 key=value"
+      )
+    ).toHaveLength(1);
+    expect(context.messages[0].content).toContain("【knowledge::old::4】");
+    expect(context.messages[0].content).toContain("Use Bun.");
+  });
 });

@@ -351,7 +351,14 @@ impl KnowledgeRepository {
         transaction
             .commit()
             .map_err(|error| format!("提交 Knowledge rebuild 失败: {error}"))?;
-        self.touch_library(library_id)?;
+        self.open_manifest()?
+            .execute(
+                "UPDATE knowledge_libraries
+                 SET embedding_model_id = '', dimension = 0, updated_at = ?2
+                 WHERE id = ?1",
+                params![library_id, now()],
+            )
+            .map_err(|error| format!("重置 Knowledge vector 配置失败: {error}"))?;
         Ok(documents.len())
     }
 
@@ -1131,5 +1138,45 @@ mod tests {
                 .unwrap();
             assert_eq!(count, 0, "{table} should be empty after deletion");
         }
+    }
+
+    #[test]
+    fn rebuilding_library_clears_vectors_and_embedding_configuration() {
+        let directory = tempdir().unwrap();
+        let repository = KnowledgeRepository::new(directory.path());
+        repository.initialize().unwrap();
+        let library = repository.create_library("Rebuild", None).unwrap();
+        let document = repository
+            .ingest(&request(&library.id, "rebuild.md", "alpha beta gamma"))
+            .unwrap();
+        let chunk = repository
+            .list_chunks(&library.id, Some(&document.id))
+            .unwrap()
+            .remove(0);
+        repository
+            .save_vectors(
+                &library.id,
+                "model-a",
+                &[KnowledgeVectorRecord {
+                    chunk_id: chunk.id,
+                    vector: vec![1.0, 0.0],
+                }],
+            )
+            .unwrap();
+
+        repository.rebuild_library(&library.id).unwrap();
+
+        let rebuilt = repository.get_library(&library.id).unwrap().unwrap();
+        assert_eq!(rebuilt.embedding_model_id, "");
+        assert_eq!(rebuilt.dimension, 0);
+        let connection = repository
+            .open_library(&repository.library_file_path(&library.id))
+            .unwrap();
+        let vector_count = connection
+            .query_row("SELECT COUNT(*) FROM chunk_vectors", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .unwrap();
+        assert_eq!(vector_count, 0);
     }
 }

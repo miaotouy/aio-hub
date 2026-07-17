@@ -2,6 +2,8 @@
 
 以下操作必须使用独立临时 appData 或真实用户目录副本；不得直接指向当前真实用户目录。
 
+> 2026-07-17：Knowledge 前端交互设计和产品化向量化入口暂时跳过。下列文件对话框、PDF worker、WebView 与真实 embedding 前端操作项随该工作一起暂停，恢复施工后仍必须完成，不能视为已验收。
+
 ## Tauri smoke
 
 - 启动真实 `tauri dev` 窗口，确认 Recall 与 Knowledge 分别初始化且互不创建对方数据。

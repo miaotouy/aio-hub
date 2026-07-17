@@ -89,6 +89,34 @@ function resolveBindings(
     : bindings;
 }
 
+function collectKnowledgePlaceholders(
+  context: PipelineContext,
+  reportErrors: boolean
+): KnowledgePlaceholder[] {
+  const placeholders: KnowledgePlaceholder[] = [];
+  for (const token of scanRetrievalEnvelopes(context.messages, "knowledge")) {
+    try {
+      placeholders.push(
+        parseKnowledgePlaceholder(token.raw, token.messageIndex)
+      );
+    } catch (error) {
+      if (!(error instanceof KnowledgePlaceholderError)) throw error;
+      if (!reportErrors) continue;
+      context.logs.push({
+        processorId: "primary:knowledge-processor",
+        level: "warn",
+        message: error.message,
+        details: {
+          messageIndex: error.messageIndex,
+          raw: error.raw,
+          key: error.key,
+        },
+      });
+    }
+  }
+  return placeholders;
+}
+
 export class KnowledgeProcessor implements ContextProcessor {
   id = "primary:knowledge-processor";
   name = "资料处理器";
@@ -98,26 +126,7 @@ export class KnowledgeProcessor implements ContextProcessor {
   async execute(context: PipelineContext): Promise<void> {
     const config = context.agentConfig.knowledgeConfig;
     const settings = context.agentConfig.knowledgeSettings;
-    let placeholders: KnowledgePlaceholder[] = [];
-    for (const token of scanRetrievalEnvelopes(context.messages, "knowledge")) {
-      try {
-        placeholders.push(
-          parseKnowledgePlaceholder(token.raw, token.messageIndex)
-        );
-      } catch (error) {
-        if (!(error instanceof KnowledgePlaceholderError)) throw error;
-        context.logs.push({
-          processorId: this.id,
-          level: "warn",
-          message: error.message,
-          details: {
-            messageIndex: error.messageIndex,
-            raw: error.raw,
-            key: error.key,
-          },
-        });
-      }
-    }
+    let placeholders = collectKnowledgePlaceholders(context, true);
     if (!config?.enabled) return;
     const enabledBindings = config.bindings.filter(
       (binding) => binding.enabled
@@ -147,12 +156,7 @@ export class KnowledgeProcessor implements ContextProcessor {
           ),
           config.autoInjectPosition ?? "context_head"
         );
-        placeholders = scanRetrievalEnvelopes(
-          context.messages,
-          "knowledge"
-        ).map((token) =>
-          parseKnowledgePlaceholder(token.raw, token.messageIndex)
-        );
+        placeholders = collectKnowledgePlaceholders(context, false);
       }
     }
 

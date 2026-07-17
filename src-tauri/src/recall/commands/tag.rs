@@ -13,7 +13,15 @@
 // limitations under the License.
 
 use crate::recall::state::RecallState;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, State};
+
+fn repository_pool(
+    state: &RecallState,
+    model_id: &str,
+) -> Result<std::sync::Arc<std::sync::RwLock<crate::recall::tag_pool::ModelTagPool>>, String> {
+    let pool = state.repository()?.load_tag_pool(model_id)?;
+    state.tag_pool.get_or_insert_pool(pool)
+}
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -119,13 +127,11 @@ pub struct TagPoolStats {
 
 #[tauri::command]
 pub async fn recall_get_tag_pool_stats(
-    app: AppHandle,
+    _app: AppHandle,
     state: State<'_, RecallState>,
     model_id: String,
 ) -> Result<TagPoolStats, String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-
-    let pool_lock = state.tag_pool.get_pool(&app_data_dir, &model_id)?;
+    let pool_lock = repository_pool(&state, &model_id)?;
     let pool = pool_lock.read().map_err(|_| "获取池读锁失败")?;
 
     let tag_pool_size = (pool.vectors.len() * std::mem::size_of::<f32>()) as u64;
@@ -140,26 +146,24 @@ pub async fn recall_get_tag_pool_stats(
 
 #[tauri::command]
 pub async fn recall_get_missing_tags(
-    app: AppHandle,
+    _app: AppHandle,
     state: State<'_, RecallState>,
     model_id: String,
     tags: Vec<String>,
 ) -> Result<Vec<String>, String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let pool_lock = state.tag_pool.get_pool(&app_data_dir, &model_id)?;
+    let pool_lock = repository_pool(&state, &model_id)?;
     let pool = pool_lock.read().map_err(|_| "获取池读锁失败")?;
     Ok(pool.get_missing_tags(tags))
 }
 
 #[tauri::command]
 pub async fn recall_sync_tag_vectors(
-    app: AppHandle,
+    _app: AppHandle,
     state: State<'_, RecallState>,
     model_id: String,
     data: Vec<(String, Vec<f32>)>,
 ) -> Result<(), String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let pool_lock = state.tag_pool.get_pool(&app_data_dir, &model_id)?;
+    let pool_lock = repository_pool(&state, &model_id)?;
 
     let mut pool = pool_lock.write().map_err(|_| "获取池写锁失败")?;
     pool.sync_vectors(data);
@@ -170,12 +174,11 @@ pub async fn recall_sync_tag_vectors(
 
 #[tauri::command]
 pub async fn recall_list_all_tags(
-    app: AppHandle,
+    _app: AppHandle,
     state: State<'_, RecallState>,
     model_id: String,
 ) -> Result<Vec<String>, String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let pool_lock = state.tag_pool.get_pool(&app_data_dir, &model_id)?;
+    let pool_lock = repository_pool(&state, &model_id)?;
     let pool = pool_lock.read().map_err(|_| "获取池读锁失败")?;
     let mut tags: Vec<String> = pool.registry.keys().cloned().collect();
     tags.sort();
@@ -184,12 +187,11 @@ pub async fn recall_list_all_tags(
 
 #[tauri::command]
 pub async fn recall_rebuild_tag_pool_index(
-    app: AppHandle,
+    _app: AppHandle,
     state: State<'_, RecallState>,
     model_id: String,
 ) -> Result<(), String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let pool_lock = state.tag_pool.get_pool(&app_data_dir, &model_id)?;
+    let pool_lock = repository_pool(&state, &model_id)?;
 
     let mut pool = pool_lock.write().map_err(|_| "获取池写锁失败")?;
     if pool.index.is_none() && !pool.registry.is_empty() {

@@ -17,6 +17,7 @@ mod commands;
 mod events;
 mod frontend_monitor;
 mod knowledge;
+mod recall;
 mod tray;
 mod utils;
 mod web_distillery;
@@ -258,7 +259,7 @@ pub fn run() {
         .manage(commands::ffmpeg_processor::FFmpegState::default())
         .manage(AssetCatalog::new())
         .manage(Arc::new(CancellationToken::new()))
-        .manage(knowledge::KnowledgeState::new())
+        .manage(recall::RecallState::new())
         .manage(commands::system_pulse::PulseState::default())
         .manage(SidecarPluginManager::default())
         .manage(frontend_monitor::FrontendMonitorState::default())

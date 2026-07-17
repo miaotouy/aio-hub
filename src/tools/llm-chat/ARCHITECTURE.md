@@ -189,9 +189,9 @@ graph TD
 
 详见 [`model-parameter-system.md`](./docs/architecture/model-parameter-system.md) 第 4、5 节。
 
-### 1.12. 知识库系统 (Knowledge Base / RAG)
+### 1.12. Recall 思绪召回（Stage 3 前兼容契约）
 
-系统集成了一套面向"条目式记忆"的 RAG 能力（非文档分片），允许智能体按需调用一个或多个外部知识库。
+系统集成了一套面向完整语义条目的 Recall 能力（非文档分片），运行实现位于 `src/tools/recall/` 与 `src-tauri/src/recall/`。当前仍保留旧 Agent 配置和自由文本语法，待 Recall / Knowledge 拆分计划 Stage 3 统一迁移；这些兼容名不表示运行时仍属于 Knowledge 文档资料域。
 
 - **占位符语法**: `【kb::kbName::limit::minScore::mode::modeParams::engineId】`（`kb` 与 `knowledge` 等价；除 `mode` 外所有段均可省略，缺省时回退到 Agent / 全局默认值）。
 - **扫描范围**: 仅扫描 `sourceType !== 'session_history'` 的消息（预设、深度/锚点注入等），**对话历史不参与被动召回**——历史中的主动检索请走工具调用，定位则交给深度注入的预设。
@@ -203,7 +203,7 @@ graph TD
 - **自动注入 (Auto Inject)**: 当 Agent 开启 `knowledgeBaseConfig.autoInjectIfMacroMissing` 时，未被手动占位符引用的 binding 会**按 binding 粒度自动注入**到 `context_head`（System 末尾，无 System 则插入独立 user 消息）或 `before_last_user` 位置；用户写一个无名 `【kb】` 即视为"全量接管"，跳过所有自动注入。
 - **检索引擎**: `vector`（向量）/ `keyword`（关键词）/ `hybrid`（混合）三选一，优先级为 **宏参数 > Agent 默认 > 全局默认**。
 - **向量空间融合查询**: 取最近 `contextWindow` 轮历史，**分别提取 user 和 AI 文本** → 分别 embed → 在向量空间按 `0.7 / 0.3` 加权平均得到查询向量；user 侧文本先经查询预处理管线（Markdown/HTML/占位符清洗 → `Intl.Segmenter` 分词 → 停用词过滤 → Tag 池 n-gram 匹配），关键词检索使用清洗后文本，向量检索使用融合向量。
-- **后端 LRU 检索缓存**: 检索结果缓存位于 Rust 后端（[`kb_retrieval_cache_*`](src-tauri/src/knowledge/commands/retrieval_cache.rs:1) 系列命令），**全局共享**；缓存键由 `query + kbIds + tags + limit + minScore + engineId + modelId` 计算 SHA-256 得到，任一参数变化即失效。Embedding 向量缓存由 `vectorCacheManager` 独立管理。
+- **后端 LRU 检索缓存**: 检索结果缓存位于 Rust Recall 后端（`src-tauri/src/recall/commands/retrieval_cache.rs` 的 `recall_retrieval_cache_*` 系列命令），**全局共享**；缓存键由 `query + recallIds + tags + limit + minScore + engineId + modelId` 计算 SHA-256 得到，任一参数变化即失效。Embedding 向量缓存由 `vectorCacheManager` 独立管理。
 - **结果约束**: 召回后按 `maxRecallChars` 累加截断（超出则丢弃后续），按 `resultTemplate` 渲染为最终注入文本，空结果回退到 `emptyText`。
 
 ### 1.13. 搜索系统 (Search System)

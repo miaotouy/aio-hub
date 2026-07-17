@@ -1,0 +1,417 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import { invoke } from "@tauri-apps/api/core";
+import { useRecallCollectionStore } from "../stores/recallCollectionStore";
+import { recallStorage } from "../utils/recallStorage";
+import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import type { RecallEntry, RecallEntryInput } from "../types";
+import { useRecallVectorSync } from "./useRecallVectorSync";
+
+const errorHandler = createModuleErrorHandler("useRecallEntryManagement");
+
+export function useRecallEntryManagement() {
+  const store = useRecallCollectionStore();
+  const { updateVectors } = useRecallVectorSync();
+
+  /**
+   * 添加新条目
+   */
+  async function addEntry(
+    key: string,
+    content: string = "",
+    options: { select?: boolean; sync?: boolean; autoVectorize?: boolean } = {}
+  ) {
+    const { select = true, sync = true, autoVectorize = true } = options;
+    if (!store.activeBaseId || !store.activeBaseMeta) return null;
+    try {
+      const entryId = crypto.randomUUID();
+      const now = Date.now();
+
+      const newEntry: RecallEntry = {
+        id: entryId,
+        key,
+        content,
+        contentHash: "",
+        tags: [],
+        assets: [],
+        priority: 100,
+        enabled: true,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      const savedEntry = await invoke<RecallEntry>("recall_upsert_entry", {
+        recallId: store.activeBaseId,
+        entry: newEntry,
+        config: {
+          autoExtractTags: store.config.importSettings?.autoExtractTags ?? true,
+          autoExtractTitle:
+            store.config.importSettings?.autoExtractTitle ?? false,
+        },
+      });
+
+      store.entriesCache.set(entryId, savedEntry);
+      if (!store.loadedEntryIds.includes(entryId)) {
+        store.loadedEntryIds.push(entryId);
+      }
+
+      if (select) {
+        store.activeEntryId = entryId;
+      }
+
+      store.activeBaseMeta.entries.push({
+        id: entryId,
+        key: savedEntry.key,
+        summary: savedEntry.summary || content.substring(0, 100),
+        tags: (savedEntry.tags || []).map((t: any) =>
+          typeof t === "string" ? t : t.name
+        ),
+        priority: 100,
+        enabled: savedEntry.enabled ?? true,
+        updatedAt: now,
+        vectorStatus: "none",
+        vectorizedModels: [],
+        contentHash: savedEntry.contentHash,
+      });
+
+      if (sync) {
+        await store.syncBaseMeta();
+      }
+
+      if (autoVectorize && store.config.importSettings?.autoVectorize) {
+        updateVectors(undefined, [entryId]).catch((err) => {
+          errorHandler.handle(err, {
+            userMessage: `自动向量化失败 [${entryId}]`,
+            showToUser: false,
+          });
+        });
+      }
+
+      return entryId;
+    } catch (e) {
+      errorHandler.error(e, "创建条目失败");
+      return null;
+    }
+  }
+
+  /**
+   * 批量导入本地文件路径
+   */
+  async function batchImportFiles(paths: string[]) {
+    if (!store.activeBaseId || !store.activeBaseMeta || paths.length === 0) {
+      return { ids: [], skippedCount: 0, dupeCount: 0 };
+    }
+
+    store.loading = true;
+    try {
+      const result = await invoke<{
+        entries: RecallEntry[];
+        skippedCount: number;
+        duplicateCount: number;
+      }>("recall_batch_import_files", {
+        recallId: store.activeBaseId,
+        paths,
+        deduplicate: store.config.importSettings?.deduplicate ?? true,
+        config: {
+          autoExtractTags: store.config.importSettings?.autoExtractTags ?? true,
+          autoExtractTitle:
+            store.config.importSettings?.autoExtractTitle ?? false,
+        },
+      });
+
+      if (result.entries.length > 0) {
+        for (const entry of result.entries) {
+          store.activeBaseMeta.entries.push({
+            id: entry.id,
+            key: entry.key,
+            summary: entry.summary || "",
+            tags: (entry.tags || []).map((t: any) =>
+              typeof t === "string" ? t : t.name
+            ),
+            priority: entry.priority,
+            enabled: entry.enabled ?? true,
+            updatedAt: entry.updatedAt,
+            vectorStatus: "none",
+            vectorizedModels: [],
+            contentHash: entry.contentHash,
+          });
+          store.entriesCache.set(entry.id, entry);
+        }
+        await store.syncBaseMeta();
+
+        if (store.config.importSettings?.autoVectorize) {
+          const ids = result.entries.map((e: any) => e.id);
+          updateVectors(undefined, ids).catch(() => {});
+        }
+      }
+
+      return {
+        ids: result.entries.map((e: any) => e.id),
+        skippedCount: result.skippedCount,
+        dupeCount: result.duplicateCount,
+      };
+    } catch (e) {
+      errorHandler.error(e, "批量导入文件失败");
+      return { ids: [], skippedCount: paths.length, dupeCount: 0 };
+    } finally {
+      store.loading = false;
+    }
+  }
+
+  /**
+   * 批量添加条目内容
+   */
+  async function addEntries(
+    items: { key: string; content: string }[],
+    options: { deduplicate?: boolean } = {}
+  ) {
+    const {
+      deduplicate = options.deduplicate ??
+        store.config.importSettings.deduplicate ??
+        true,
+    } = options;
+    if (!store.activeBaseId || !store.activeBaseMeta || items.length === 0) {
+      return { ids: [], skippedCount: 0, dupeCount: 0 };
+    }
+
+    store.loading = true;
+    try {
+      const toAdd = items.map((item) => {
+        const now = Date.now();
+        return {
+          id: crypto.randomUUID(),
+          key: item.key,
+          content: item.content,
+          contentHash: "",
+          tags: [],
+          assets: [],
+          priority: 100,
+          enabled: true,
+          createdAt: now,
+          updatedAt: now,
+          summary: "",
+        };
+      });
+
+      const result = await invoke<{
+        entries: RecallEntry[];
+        skippedCount: number;
+        duplicateCount: number;
+      }>("recall_batch_upsert_entries", {
+        recallId: store.activeBaseId,
+        entries: toAdd,
+        deduplicate,
+        config: {
+          autoExtractTags: store.config.importSettings?.autoExtractTags ?? true,
+          autoExtractTitle:
+            store.config.importSettings?.autoExtractTitle ?? false,
+        },
+      });
+
+      if (result.entries.length > 0) {
+        for (const entry of result.entries) {
+          store.activeBaseMeta.entries.push({
+            id: entry.id,
+            key: entry.key,
+            summary: entry.summary || entry.content.substring(0, 100),
+            tags: (entry.tags || []).map((t: any) =>
+              typeof t === "string" ? t : t.name
+            ),
+            priority: entry.priority,
+            enabled: entry.enabled ?? true,
+            updatedAt: entry.updatedAt,
+            vectorStatus: "none",
+            vectorizedModels: [],
+            contentHash: entry.contentHash,
+          });
+          store.entriesCache.set(entry.id, entry);
+        }
+        await store.syncBaseMeta();
+
+        if (store.config.importSettings?.autoVectorize) {
+          const ids = result.entries.map((e) => e.id);
+          updateVectors(undefined, ids).catch(() => {});
+        }
+      }
+
+      return {
+        ids: result.entries.map((e) => e.id),
+        skippedCount: result.skippedCount,
+        dupeCount: result.duplicateCount,
+      };
+    } catch (e) {
+      errorHandler.error(e, "批量添加条目失败");
+      return { ids: [], skippedCount: items.length, dupeCount: 0 };
+    } finally {
+      store.loading = false;
+    }
+  }
+
+  /**
+   * 更新条目
+   */
+  async function updateEntry(entryId: string, input: RecallEntryInput, silent = false) {
+    if (!store.activeBaseId || !store.activeBaseMeta) return;
+    if (!silent) store.loading = true;
+    try {
+      const existing = await store.getOrLoadEntry(entryId);
+      if (!existing) throw new Error("条目不存在");
+
+      const now = Date.now();
+      const updated: RecallEntry = { ...existing, ...input, updatedAt: now };
+
+      const savedEntry = await invoke<RecallEntry>("recall_upsert_entry", {
+        recallId: store.activeBaseId,
+        entry: updated,
+        config: null,
+      });
+
+      store.entriesCache.set(entryId, savedEntry);
+
+      const idx = store.activeBaseMeta.entries.findIndex(
+        (e) => e.id === entryId
+      );
+      if (idx !== -1) {
+        const tagNames = (savedEntry.tags || [])
+          .map((t) => (typeof t === "string" ? t : t.name))
+          .filter(Boolean);
+        store.activeBaseMeta.entries[idx] = {
+          ...store.activeBaseMeta.entries[idx],
+          key: savedEntry.key,
+          summary: savedEntry.summary || savedEntry.content.substring(0, 100),
+          tags: tagNames,
+          priority: savedEntry.priority,
+          enabled: savedEntry.enabled,
+          updatedAt: now,
+          contentHash: savedEntry.contentHash,
+        };
+      }
+
+      await store.syncBaseMeta();
+    } finally {
+      if (!silent) store.loading = false;
+    }
+  }
+
+  /**
+   * 批量更新条目（直接调用后端批量 patch 接口，不循环单个更新）
+   */
+  async function batchUpdateEntries(
+    entryIds: string[],
+    patch: Partial<RecallEntryInput>
+  ) {
+    if (!store.activeBaseId || !store.activeBaseMeta || entryIds.length === 0)
+      return;
+
+    // 预过滤：只处理状态真正变化的条目
+    const entriesToUpdate = store.activeBaseMeta.entries.filter((e) => {
+      if (!entryIds.includes(e.id)) return false;
+      if (patch.enabled !== undefined && e.enabled === patch.enabled)
+        return false;
+      if (patch.priority !== undefined && e.priority === patch.priority)
+        return false;
+      return true;
+    });
+
+    if (entriesToUpdate.length === 0) {
+      customMessage.info("条目状态已是目标状态，无需更新");
+      return;
+    }
+
+    store.loading = true;
+    try {
+      const updateIds = entriesToUpdate.map((e) => e.id);
+      const updatedCount = await invoke<number>("recall_batch_patch_entries", {
+        recallId: store.activeBaseId,
+        entryIds: updateIds,
+        patch,
+      });
+
+      // 同步更新前端 store 中的索引项
+      const now = Date.now();
+      for (const id of updateIds) {
+        const idx = store.activeBaseMeta!.entries.findIndex((e) => e.id === id);
+        if (idx !== -1) {
+          if (patch.enabled !== undefined)
+            store.activeBaseMeta!.entries[idx].enabled = patch.enabled;
+          if (patch.priority !== undefined)
+            store.activeBaseMeta!.entries[idx].priority = patch.priority;
+          store.activeBaseMeta!.entries[idx].updatedAt = now;
+        }
+      }
+
+      await store.syncBaseMeta();
+      customMessage.success(`已成功更新 ${updatedCount} 个条目`);
+    } catch (e) {
+      errorHandler.error(e, "批量更新条目失败");
+    } finally {
+      store.loading = false;
+    }
+  }
+
+  /**
+   * 删除条目
+   */
+  async function deleteEntry(entryId: string) {
+    if (!store.activeBaseId || !store.activeBaseMeta) return;
+    store.loading = true;
+    try {
+      await recallStorage.deleteEntry(store.activeBaseId, entryId);
+      store.activeBaseMeta.entries = store.activeBaseMeta.entries.filter(
+        (e) => e.id !== entryId
+      );
+      store.entriesCache.delete(entryId);
+      if (store.activeEntryId === entryId) store.activeEntryId = null;
+      await store.syncBaseMeta();
+      customMessage.success("条目已删除");
+    } finally {
+      store.loading = false;
+    }
+  }
+
+  /**
+   * 批量删除条目
+   */
+  async function deleteEntries(entryIds: string[]) {
+    if (!store.activeBaseId || !store.activeBaseMeta || entryIds.length === 0)
+      return;
+    store.loading = true;
+    try {
+      await recallStorage.deleteEntries(store.activeBaseId, entryIds);
+      for (const id of entryIds) {
+        store.entriesCache.delete(id);
+        if (store.activeEntryId === id) store.activeEntryId = null;
+      }
+      store.activeBaseMeta.entries = store.activeBaseMeta.entries.filter(
+        (e) => !entryIds.includes(e.id)
+      );
+      await store.syncBaseMeta();
+      customMessage.success(`已删除 ${entryIds.length} 个条目`);
+    } finally {
+      store.loading = false;
+    }
+  }
+
+  return {
+    addEntry,
+    batchImportFiles,
+    addEntries,
+    updateEntry,
+    batchUpdateEntries,
+    deleteEntry,
+    deleteEntries,
+  };
+}

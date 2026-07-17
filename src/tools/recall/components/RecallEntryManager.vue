@@ -1,0 +1,116 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
+<script setup lang="ts">
+import { ref, computed } from "vue";
+import { useRecallCollectionStore } from "../stores/recallCollectionStore";
+import { useRecallCollection } from "../composables/useRecallCollection";
+import { customMessage } from "@/utils/customMessage";
+import RecallEntryList from "./RecallEntryList.vue";
+import RecallEntryDetail from "./RecallEntryDetail.vue";
+
+const props = defineProps<{
+  id: string;
+  isSelectionMode: boolean;
+  selectedEntryIds: Set<string>;
+  layoutMode: "large" | "medium" | "small";
+}>();
+
+const emit = defineEmits<{
+  (e: "update:selectedEntryIds", value: Set<string>): void;
+  (e: "back"): void;
+}>();
+
+const recallStore = useRecallCollectionStore();
+const { addEntry } = useRecallCollection();
+
+const searchQuery = ref("");
+
+// 响应式布局逻辑
+// 只有在 small 模式下才需要单栏切换逻辑
+const isSingleColumn = computed(() => props.layoutMode === "small");
+const showDetail = computed(() => !!recallStore.activeEntryId);
+
+const handleAddEntry = async () => {
+  const entryId = await addEntry(
+    `新条目_${new Date().toLocaleTimeString()}`,
+    "",
+    {
+      select: true,
+      sync: true,
+    }
+  );
+  if (entryId) {
+    customMessage.success("新条目已创建");
+  }
+};
+</script>
+
+<template>
+  <div class="entry-manager" :class="[`is-${layoutMode}`]">
+    <!-- 列表栏 (在非单栏模式下常驻，单栏模式下未选中详情时显示) -->
+    <aside v-if="!isSingleColumn || !showDetail" class="list-sidebar">
+      <RecallEntryList
+        v-model:search-query="searchQuery"
+        :is-selection-mode="isSelectionMode"
+        :selected-entry-ids="selectedEntryIds"
+        @update:selected-entry-ids="
+          (val) => emit('update:selectedEntryIds', val)
+        "
+        @add="handleAddEntry"
+      />
+    </aside>
+
+    <!-- 详情栏 (在非单栏模式下常驻，单栏模式下选中详情时显示) -->
+    <main v-if="!isSingleColumn || showDetail" class="detail-main">
+      <RecallEntryDetail
+        :is-wide="!isSingleColumn"
+        @close="recallStore.activeEntryId = null"
+      />
+    </main>
+  </div>
+</template>
+
+<style scoped>
+.entry-manager {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background-color: var(--card-bg);
+}
+
+.list-sidebar {
+  width: 320px;
+  flex-shrink: 0;
+  border-right: var(--border-width) solid var(--border-color);
+  background-color: var(--sidebar-bg);
+}
+.is-small .list-sidebar {
+  width: 100%;
+  border-right: none;
+}
+
+.detail-main {
+  flex: 1;
+  min-width: 0;
+  background-color: transparent;
+}
+
+.is-small .detail-main {
+  width: 100%;
+}
+</style>

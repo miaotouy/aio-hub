@@ -14,8 +14,8 @@
 
 import { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import { ProcessableMessage } from "../../types/context";
-import { resolvePlaceholderRetrieval } from "@/tools/knowledge-base/services/api";
-import type { KbRetrievalRequest } from "@/tools/knowledge-base/types/retrieval";
+import { resolvePlaceholderRetrieval } from "@/tools/recall/services/api";
+import type { RecallRetrievalRequest } from "@/tools/recall/types/retrieval";
 import type { AgentKnowledgeBaseConfig } from "@/tools/agent-manager/types/agent";
 
 /**
@@ -148,13 +148,16 @@ export class KnowledgeProcessor implements ContextProcessor {
     const enabledBindings =
       agentConfig.knowledgeBaseConfig?.bindings
         ?.filter((b: any) => b.enabled)
-        .map((b: any) => ({ kbId: b.kbId, kbName: b.kbName })) || [];
+        .map((b: any) => ({
+          recallId: b.kbId,
+          recallName: b.kbName,
+        })) || [];
 
     // 3. 遍历占位符并处理
     for (const ph of placeholders) {
       // 构造检索请求
-      const req: KbRetrievalRequest = {
-        kbName: ph.kbName,
+      const req: RecallRetrievalRequest = {
+        recallName: ph.kbName,
         limit: ph.limit,
         minScore: ph.minScore,
         mode: ph.mode,

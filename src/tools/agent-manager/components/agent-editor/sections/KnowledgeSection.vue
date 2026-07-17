@@ -17,7 +17,7 @@
 <script setup lang="ts">
 import { inject, computed, ref, onMounted, type Ref } from "vue";
 import { InfoFilled, Search, Plus } from "@element-plus/icons-vue";
-import { useKnowledgeBaseStore } from "@/tools/knowledge-base/stores/knowledgeBaseStore";
+import { useRecallCollectionStore } from "@/tools/recall/stores/recallCollectionStore";
 import { DEFAULT_KB_CONFIG } from "@/tools/agent-manager/types/agent";
 import type { AgentKnowledgeBaseBinding } from "@/tools/agent-manager/types/agent";
 import type { SettingItem } from "@/types/settings-renderer";
@@ -32,7 +32,7 @@ const kbListMacro = "{{kb_list}}";
 const editForm = inject<any>("agent-edit-form");
 const activeTab = inject<Ref<string>>("active-tab");
 
-const kbStore = useKnowledgeBaseStore();
+const kbStore = useRecallCollectionStore();
 
 // 确保配置存在
 const ensureConfig = () => {

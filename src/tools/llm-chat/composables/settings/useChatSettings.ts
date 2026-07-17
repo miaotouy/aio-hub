@@ -145,9 +145,9 @@ async function loadSettings(): Promise<void> {
     const rawSettings = settings.value as any;
     if (rawSettings._oldKnowledgeBase) {
       try {
-        const { useKnowledgeBaseStore } =
-          await import("@/tools/knowledge-base/stores/knowledgeBaseStore");
-        const kbStore = useKnowledgeBaseStore();
+        const { useRecallCollectionStore } =
+          await import("@/tools/recall/stores/recallCollectionStore");
+        const kbStore = useRecallCollectionStore();
 
         // 确保 kbStore 已经加载了 bases 和 config
         if (!kbStore.workspace) {

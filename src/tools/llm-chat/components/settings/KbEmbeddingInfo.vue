@@ -23,10 +23,10 @@
     <el-button
       type="primary"
       link
-      @click="goToKnowledgeBase"
+      @click="goToRecall"
       class="config-link-btn"
     >
-      前往知识库配置 →
+      前往思绪配置 →
     </el-button>
   </div>
 </template>
@@ -34,16 +34,18 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRouter } from "vue-router";
-import { useKnowledgeBaseStore } from "@/tools/knowledge-base/stores/knowledgeBaseStore";
+import { useRecallCollectionStore } from "@/tools/recall/stores/recallCollectionStore";
 import ModelInfoDisplay from "@/components/common/ModelInfoDisplay.vue";
 
-const kbStore = useKnowledgeBaseStore();
+const recallStore = useRecallCollectionStore();
 const router = useRouter();
 
-const modelCombo = computed(() => kbStore.config.defaultEmbeddingModel || "");
+const modelCombo = computed(
+  () => recallStore.config.defaultEmbeddingModel || ""
+);
 
-const goToKnowledgeBase = () => {
-  router.push("/knowledge-base");
+const goToRecall = () => {
+  router.push("/recall");
 };
 </script>
 

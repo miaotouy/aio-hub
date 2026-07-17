@@ -214,13 +214,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
-import { useKnowledgeBaseStore } from "@/tools/knowledge-base/stores/knowledgeBaseStore";
-import { loadBaseMeta } from "@/tools/knowledge-base/services/api";
+import { useRecallCollectionStore } from "@/tools/recall/stores/recallCollectionStore";
+import { loadBaseMeta } from "@/tools/recall/services/api";
 import {
   parseKBParams,
   type KBPlaceholder,
 } from "@/tools/llm-chat/core/context-processors/knowledge-processor";
-import type { CaiuIndexItem } from "@/tools/knowledge-base/types";
+import type { RecallEntryIndexItem } from "@/tools/recall/types";
 
 const props = defineProps<{
   /** 当前选中的占位符文本，用于编辑模式 */
@@ -232,7 +232,7 @@ const emit = defineEmits<{
   (e: "cancel"): void;
 }>();
 
-const kbStore = useKnowledgeBaseStore();
+const kbStore = useRecallCollectionStore();
 
 // ─── 默认值常量 ───
 const DEFAULT_MIN_SCORE = 0.3;
@@ -253,7 +253,7 @@ const turnInterval = ref(1);
 // static 模式相关
 const staticType = ref<"all" | "select">("select");
 const staticKbId = ref("");
-const staticKbEntries = ref<CaiuIndexItem[]>([]);
+const staticKbEntries = ref<RecallEntryIndexItem[]>([]);
 const selectedEntryIds = ref<string[]>([]);
 const manualIds = ref("");
 const loadingEntries = ref(false);
@@ -295,7 +295,7 @@ const loadKbEntries = async (kbId: string) => {
   loadingEntries.value = true;
   try {
     const meta = await loadBaseMeta(kbId);
-    staticKbEntries.value = (meta?.entries as CaiuIndexItem[]) || [];
+    staticKbEntries.value = (meta?.entries as RecallEntryIndexItem[]) || [];
     entryFilterText.value = "";
   } catch {
     staticKbEntries.value = [];

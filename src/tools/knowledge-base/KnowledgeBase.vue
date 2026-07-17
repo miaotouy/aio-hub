@@ -1,134 +1,35 @@
-<!--
-  Copyright 2025-2026 miaotouy(Github@miaotouy)
-
-  Licensed under the Apache License, Version 2.0 (the "License");
-  you may not use this file except in compliance with the License.
-  You may obtain a copy of the License at
-
-      http://www.apache.org/licenses/LICENSE-2.0
-
-  Unless required by applicable law or agreed to in writing, software
-  distributed under the License is distributed on an "AS IS" BASIS,
-  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  See the License for the specific language governing permissions and
-  limitations under the License.
--->
-
-<script setup lang="ts">
-import { ref } from "vue";
-import {
-  LayoutDashboard,
-  Settings,
-  Activity,
-  FlaskConical,
-  BarChart3,
-} from "lucide-vue-next";
-import WorkspaceView from "./views/WorkspaceView.vue";
-import SettingsView from "./views/SettingsView.vue";
-import StatisticsView from "./views/StatisticsView.vue";
-import MonitorView from "./views/MonitorView.vue";
-import PlaygroundView from "./views/PlaygroundView.vue";
-
-const activeTab = ref("workspace");
-
-const tabs = [
-  {
-    id: "workspace",
-    label: "工作区",
-    icon: LayoutDashboard,
-    component: WorkspaceView,
-  },
-  {
-    id: "statistics",
-    label: "统计",
-    icon: BarChart3,
-    component: StatisticsView,
-  },
-  { id: "monitor", label: "监控", icon: Activity, component: MonitorView },
-  {
-    id: "playground",
-    label: "实验室",
-    icon: FlaskConical,
-    component: PlaygroundView,
-  },
-  { id: "settings", label: "设置", icon: Settings, component: SettingsView },
-];
-</script>
-
 <template>
-  <div class="knowledge-base-container">
-    <el-tabs v-model="activeTab" class="kb-tabs">
-      <el-tab-pane v-for="tab in tabs" :key="tab.id" :name="tab.id">
-        <template #label>
-          <div class="tab-label">
-            <component :is="tab.icon" :size="16" />
-            <span>{{ tab.label }}</span>
-          </div>
-        </template>
-
-        <div class="tab-content">
-          <keep-alive>
-            <component :is="tab.component" v-if="activeTab === tab.id" />
-          </keep-alive>
-        </div>
-      </el-tab-pane>
-    </el-tabs>
-  </div>
+  <main class="knowledge-base-shell" aria-label="知识资料库">
+    <section>
+      <h1>知识资料库</h1>
+      <p>文档资料库将在后续版本提供。</p>
+    </section>
+  </main>
 </template>
 
 <style scoped>
-.knowledge-base-container {
+.knowledge-base-shell {
   height: 100%;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  border-radius: 12px;
-  overflow: hidden;
-  background-color: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
+  display: grid;
+  place-items: center;
+  color: var(--el-text-color-secondary);
+  background: var(--card-bg);
 }
 
-.kb-tabs {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
+section {
+  max-width: 360px;
+  padding: 24px;
+  text-align: center;
 }
 
-:deep(.el-tabs__header) {
+h1 {
+  margin: 0 0 8px;
+  color: var(--el-text-color-primary);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+p {
   margin: 0;
-  padding: 0 16px;
-  background-color: var(--sidebar-bg);
-  border-bottom: var(--border-width) solid var(--border-color);
-}
-
-:deep(.el-tabs__content) {
-  flex: 1;
-  overflow: hidden;
-}
-
-:deep(.el-tab-pane) {
-  height: 100%;
-}
-
-.tab-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 0;
-}
-
-.tab-content {
-  height: 100%;
-  width: 100%;
-}
-
-/* 调整 Element Plus Tabs 样式以适应无边框设计 */
-:deep(.el-tabs__nav-wrap::after) {
-  display: none;
-}
-
-:deep(.el-tabs__active-bar) {
-  height: 3px;
-  border-radius: 3px;
 }
 </style>

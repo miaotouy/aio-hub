@@ -25,7 +25,7 @@ import type { FavoriteFolder } from "../../composables/storage/useChatStorageSep
 import { refreshLiveGreetingsIfNeeded } from "../../services/greetingService";
 import { useSessionManager } from "../../composables/session/useSessionManager";
 import { getEffectiveMessageCount } from "../../utils/sessionMessageCount";
-import { clearRetrievalCache } from "@/tools/knowledge-base/services/api";
+import { clearRetrievalCache } from "@/tools/recall/services/api";
 import { createModuleLogger } from "@/utils/logger";
 import type { createSessionHistoryManager } from "./sessionHistoryManager";
 import type { createSessionRuntimeManager } from "./sessionRuntimeManager";

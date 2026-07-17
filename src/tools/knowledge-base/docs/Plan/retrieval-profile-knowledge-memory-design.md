@@ -385,7 +385,54 @@ retrievalMode 决定数据域
 
 如果未提供 `retrievalMode`，可以由仅出现的 `recallIds` 或 `knowledgeLibraryIds` 推断；两类 ID 同时出现时推断为 `mixed`。`retrievalMode = "knowledge"` 时不得让 Recall `engineId` 把请求重新路由回 Recall。长期建议外部默认指定 `retrievalMode`；`recallProfile` 只调 Recall 域内部参数，不代表独立数据真源。
 
-### 4.3 结果解释
+### 4.3 被动注入占位符协议
+
+被动注入是 Agent 编排层的能力，不能再让一个位置参数串同时承载 Recall 条目检索和 Knowledge 文档检索。新版采用同一外层信封、两个独立参数 schema：
+
+```text
+【recall】
+【recall::collection=<collection-id>::profile=semantic::limit=8::min-score=0.35::when=always】
+【knowledge】
+【knowledge::library=<library-id>::strategy=hybrid::limit=8::min-score=0.35::when=always】
+```
+
+外层语法固定为 `【<domain>(::<key>=<value>)*】`：
+
+- `<domain>` 只能是 `recall` 或 `knowledge`，由各自 processor 独立扫描和执行；没有 `kb`、`memory`、`thought` 或隐式跨域别名。
+- key 使用 ASCII kebab-case，参数顺序不影响语义。重复的 `collection` 或 `library` key 表示多个目标；其他 key 重复、未知 key、无值 key、非法枚举和非法数值都属于可定位的配置错误，不能回退为位置参数。
+- `collection` 与 `library` 的值是稳定 ID，不使用可改名且可能重名的显示名称。省略目标时，仅使用当前 Agent 已启用的同域 binding；显式 ID 也必须属于这些 binding，不能借提示词绕过 Agent 配置的授权范围。
+- 值由 UI serializer 使用 `encodeURIComponent` 编码，parser 在校验后解码。ID、数字和枚举值通常不需要编码；原始 `::`、`=`、`【`、`】` 不得直接出现在 value 中。
+- 显式占位符参数覆盖对应 binding 默认值，binding 默认值再覆盖域级默认设置。占位符没有隐式 `engineId` 入口，底层引擎仅保留给 API、Playground 和迁移适配。
+
+Recall 参数 schema：
+
+| 参数          | 语义                      | 允许值 / 备注                                 |
+| ------------- | ------------------------- | --------------------------------------------- |
+| `collection`  | 指定思绪集                | 可重复；省略时使用已启用 Recall binding       |
+| `profile`     | Recall 召回 profile       | `semantic` 或 `associative`                   |
+| `limit`       | 返回条数上限              | 正整数                                        |
+| `min-score`   | Recall profile 的最小分数 | `0` 到 `1`；不跨域比较                        |
+| `when`        | 激活方式                  | `always`、`gate`、`turn`、`static`            |
+| `gate-tags`   | `when=gate` 的标签条件    | URL 编码后的逗号分隔标签                      |
+| `every-turns` | `when=turn` 的轮次间隔    | 正整数                                        |
+| `entries`     | `when=static` 的条目范围  | `all` 或 URL 编码后的逗号分隔 Recall entry ID |
+
+Knowledge 参数 schema：
+
+| 参数        | 语义                     | 允许值 / 备注                                                                                |
+| ----------- | ------------------------ | -------------------------------------------------------------------------------------------- |
+| `library`   | 指定知识资料库           | 可重复；省略时使用已启用 Knowledge binding                                                   |
+| `strategy`  | 文档检索策略             | `auto`、`keyword`、`semantic`、`hybrid`；默认 `auto`                                         |
+| `limit`     | 返回 chunk 数上限        | 正整数                                                                                       |
+| `min-score` | Knowledge 策略的最小分数 | 仅在该策略定义分数语义时生效                                                                 |
+| `when`      | 激活方式                 | 第一阶段为 `always`；后续如支持门控，沿用独立的 Knowledge 参数和测试，不复用 Recall tag gate |
+| `citation`  | 注入结果的出处要求       | `required`、`preferred`、`off`；默认 `required`                                              |
+
+`when=static`、`entries`、`profile`、`gate-tags` 只属于 Recall；`strategy`、`citation` 只属于 Knowledge。两个 processor 不得接受或忽略对方的参数，避免一侧实现变化改变另一侧的结果。
+
+宏只是上述协议的便捷入口：`{{recall}}` / `{{recall_list}}` 和 `{{knowledge}}` / `{{knowledge_list}}`。带参数的宏使用相同的命名后缀，例如 `{{recall::collection=<collection-id>::limit=8}}`；macro serializer 必须生成 canonical placeholder，不能继续生成位置参数串。`mixed` 只属于 `RetrievalMode` 的主动 API 和上层路由；提示词需要两个域时写两个占位符，由路由层分别执行并保留来源，不新增 `【mixed】` 语法。
+
+### 4.4 结果解释
 
 不建议把 `matchType` 直接作为产品模式展示。建议拆成两层：
 
@@ -541,8 +588,9 @@ Knowledge 面向传统 RAG 文档召回，不应继承 CAIU / TagMemo 的 Recall
   - 占位符格式目前是 `【kb::kbName::limit::minScore::mode::modeParams::engineId】`。
 - 结构化 Agent binding、工具开关和权限配置必须自动迁移到 Recall，并保留原集合 ID。
 - 自动注入由运行时生成 Recall 请求，不要求用户修改预设消息。
-- 手写 `{{kb}}`、`【kb】`、`【knowledge】` 属于自由文本：应检测、报告并提供一键替换，不默认静默改写，也不得在运行时静默删除。
-- 旧 `【knowledge】` 不建立到 Recall 的长期兼容映射，避免未来与 document/chunk Knowledge 冲突。
+- 手写 `{{kb}}`、`【kb】`、历史 `【knowledge】` 及不含 `key=value` 的 `【knowledge::<position-args>】` 属于自由文本：应检测、报告并提供一键替换，不默认静默改写，也不得在运行时静默删除。能以 binding 唯一解析的旧 `kbName` 才能建议转换为 `collection=<collection-id>`；重名、缺失或未绑定时必须要求用户选择目标。
+- 旧 `【knowledge】` 不建立到 Recall 的长期兼容映射。历史上它指向 CAIU；合法的新 `【knowledge::library=...】` 只表示实际的 document/chunk Knowledge binding，迁移报告不能把两者混同。
+- 新协议见 4.3：Recall 与 Knowledge 各自校验命名参数，旧 parser 不得接受新 namespace 的位置参数，也不得让新 parser 猜测旧参数位置。
 - 重构前 `.aio-kb` 是按库数据备份，不包含 Agent binding 或自由文本占位符；UI 和发布说明不得暗示导入单库包会恢复 Agent 配置。
 
 迁移输入映射：

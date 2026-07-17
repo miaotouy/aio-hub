@@ -84,6 +84,23 @@ Retrieval / 检索编排
 
 不得以“用户少”为理由静默丢失条目、重新生成 ID、清空绑定，或把失效占位符替换为空文本。
 
+### 1.4 双域占位符协议
+
+重构后的被动注入使用两个互不兼容的命名空间，禁止继续扩展旧的按位置参数语法：
+
+```text
+【recall】
+【recall::collection=<collection-id>::profile=semantic::limit=8::min-score=0.35::when=always】
+【knowledge】
+【knowledge::library=<library-id>::strategy=hybrid::limit=8::min-score=0.35::when=always】
+```
+
+- 语法信封为 `【<domain>(::<key>=<value>)*】`，key 使用 ASCII kebab-case；参数顺序不影响语义，serializer 输出固定 canonical 顺序。
+- Recall processor 只接受 `collection`、`profile`、`limit`、`min-score`、`when`、`gate-tags`、`every-turns`、`entries`；Knowledge processor 只接受 `library`、`strategy`、`limit`、`min-score`、`when`、`citation`。未知、重复（目标 key 除外）、无值、非法枚举和非法数值必须报错并带消息索引、原文和 key。
+- `collection` / `library` 只使用稳定 ID。省略目标表示当前 Agent 已启用的同域 binding；显式目标必须属于这些 binding。占位符参数覆盖 binding 默认值，再覆盖域级默认值。
+- serializer 使用 `encodeURIComponent` 处理 value；parser 解码并校验后才构造请求。不得接受 `kb`、`memory`、`thought` 或跨域别名，也不得让 `engineId` 从提示词进入运行时。
+- `mixed` 继续是主动 `RetrievalMode` 和路由层能力；需要双域上下文时使用两个占位符，不建设 `【mixed】`。
+
 ---
 
 ## 2. 目标结构
@@ -313,8 +330,10 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 ### Chat 自动注入
 
 - 自动注入改为直接构造 Recall 请求，不需要用户修改预设文本。
-- 新宏使用 `{{recall}}` / `{{recall_list}}`。
-- 新占位符使用 `【recall::...】`，参数契约由 Recall processor 维护。
+- 新宏使用 `{{recall}}` / `{{recall_list}}`；带参数形式与占位符共享命名参数，例如 `{{recall::collection=<collection-id>::limit=8}}`。
+- 新占位符使用 1.4 节定义的 `【recall::key=value】` 协议，由 Recall processor 维护独立 schema；不把旧 `modeParams` 或 `engineId` 位置槽带入新语法。
+- 新建共享的占位符信封 tokenizer、编码器和诊断类型，但 Recall / Knowledge 的参数白名单、默认值解析和请求构造必须分开实现。
+- Agent Manager 的插入器按稳定集合 ID 生成 canonical 语法，显示名称只用于 UI；编辑器不得用集合名称反向拼接占位符。
 - processor、日志、context analyzer 和 source metadata 使用 Recall 命名。
 
 ### 手写旧占位符
@@ -325,15 +344,15 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 {{kb}}
 {{kb_list}}
 【kb::...】
-【knowledge::...】  // 历史上实际指向 CAIU
+【knowledge::<position-args>】  // 历史上实际指向 CAIU；新版 `key=value` 语法不在此列
 ```
 
 处理规则：
 
 - 不默认批量改写自由文本，避免把教程、示例或引用误当成执行语法。
-- 在 Agent 加载、导入和编辑时生成迁移报告，并提供按 Agent 的一键替换。
+- 在 Agent 加载、导入和编辑时生成迁移报告，并提供按 Agent 的一键替换；只有旧名称能在该 Agent binding 中唯一解析时才可建议 `collection=<collection-id>`，歧义目标必须由用户选择。
 - 运行时遇到旧占位符必须产生明确警告和可定位日志，不得静默替换为空。
-- 旧 `【knowledge】` 不得继续指向 Recall；未来该名称只属于真正的 Knowledge 资料库语义。
+- 旧 `【knowledge】` 不得继续指向 Recall；迁移扫描必须把裸 `【knowledge】` 和不含 `key=value` 的 `【knowledge::<position-args>】` 标记为“历史 CAIU 语法”，不能把合法的新 `【knowledge::library=...】` 误报或自动解释为旧文档资料库。
 - 过渡告警窗口结束后删除旧 parser 分支，不建设永久 alias。
 
 ### 完成门槛
@@ -342,6 +361,7 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 - 结构化 Agent binding 和工具权限迁移前后数量一致。
 - 所有含旧自由文本语法的 Agent 都能在迁移报告中定位。
 - 新版运行时不存在旧占位符导致的静默上下文丢失。
+- Recall parser / serializer round-trip 后语义一致；非法参数、未授权集合 ID 与跨域参数均产生结构化错误。
 
 ---
 
@@ -406,7 +426,9 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 - 接入文件导入、解析、切片、embedding、BM25、图关系和来源回溯。
 - 桌面端需要文件夹同步时，引入已调查确认的 debounced watcher 和持久化 ingest queue。
 - 通过 repository 隔离 TriviumDB；运行态、锁、文件组恢复或跨平台验证不通过时，允许使用 SQLite manifest + FTS5 过渡。
-- 新增 Knowledge binding 和无歧义占位符；不复用 Recall binding 或历史 `【knowledge】` 的 CAIU 语义。
+- 新增 Knowledge binding、`{{knowledge}}` / `{{knowledge_list}}` 宏和 1.4 节定义的 `【knowledge::key=value】` processor；目标使用稳定 library ID，不复用 Recall binding 或历史 `【knowledge】` 的 CAIU 语义。
+- Knowledge parser 独立校验 `library`、`strategy`、`limit`、`min-score`、`when`、`citation`，第一阶段只接受 `when=always`；不得接受 Recall 的 `profile`、`entries`、`gate-tags` 或 `every-turns`。
+- Agent Manager 将原 KB 占位符编辑器拆为 Recall / Knowledge 两个域编辑器，宏选择器和 context analyzer 明确展示来源域、稳定 ID、解析错误与注入结果。
 - 实现 `retrievalMode = "knowledge"`，结果必须携带 library、source path、chunk index、heading 和 `sourceType`。
 - 最后实现 `mixed` 双路召回；先保留分域配额，再使用 RRF 或统一 reranker，禁止直接比较两域原始分数。
 
@@ -416,6 +438,7 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 - 删除某个 Knowledge library 文件组不影响 Recall。
 - Knowledge chunk 不进入 Recall entry、tag pool、priority 或 workspace 列表。
 - `mixed` 结果可以解释每条内容的来源域和融合依据。
+- Knowledge parser / serializer round-trip 后语义一致；未授权 library ID、Recall 参数和历史位置参数均不能触发检索。
 
 ---
 
@@ -423,7 +446,7 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 
 ### 工作项
 
-- 删除旧 `kb_*` command、旧 Agent 工具 ID、旧宏和旧占位符 parser。
+- 删除旧 `kb_*` command、旧 Agent 工具 ID、旧宏和旧占位符 parser；共享信封 tokenizer 只保留 `recall` / `knowledge` 两个已登记 namespace。
 - 删除 Recall 代码中的 `KnowledgeBase*`、`Kb*`、`Thought*` 长期类型名。
 - 清理仅为旧文件系统运行时保留的 IO 和目录扫描路径，保留独立 legacy importer / restore 工具。
 - 为用户提供旧目录状态、迁移报告、导出和确认清理入口。
@@ -446,6 +469,8 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 - Pre-Stage 执行 `.aio-kb` 单库、批量、资产、冲突、损坏包、ZIP 路径安全和独立 appData 往返测试。
 - Repository CRUD、批量事务、损坏输入、幂等导入和中断恢复测试。
 - Agent 配置导入/导出、binding、工具权限、自动注入和旧占位符告警测试。
+- Recall / Knowledge 占位符分别覆盖 canonical serialize、乱序 parse、URL 编解码、重复目标、未知/跨域参数、非法值、未授权 ID、多占位符同消息和跳过历史消息；增加两个域同时出现但不串参数、不串结果的集成测试。
+- 宏测试覆盖 `{{recall}}` / `{{recall_list}}`、`{{knowledge}}` / `{{knowledge_list}}` 及其命名参数展开；明确断言不存在 `【mixed】` 和位置参数输出。
 - keyword、semantic、associative 的固定查询集回归。
 - 桌面 Tauri 真实运行态 smoke test。
 - 移动端依赖变更通过项目真实 Tauri build 验证；普通 Cargo 探针不能替代。
@@ -471,6 +496,8 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 - 不把 Recall 条目绑定到 Agent、会话、分支或消息。
 - 不在 Recall 条目主表保存召回路径、融合分数、时间衰减结果或认知生命周期状态。
 - 不把旧 `【knowledge】` 长期映射到 Recall。
+- 不复用位置参数、`kbName` 或显示名称设计新的 Recall / Knowledge 占位符，也不让一侧 processor 宽容忽略另一侧参数。
+- 不建设 `【mixed】`、`{{mixed}}` 或提示词级跨域占位符；跨域合并只在 Retrieval 路由层进行。
 - 不让 Knowledge 空壳暂时复用 Recall store 来伪装文档知识库。
 - 不在 Recall 迁移和引擎融合尚未稳定时同时接入 Knowledge 文件监听与 TriviumDB。
 - 不为了保留旧命名牺牲新领域边界，但也不以破坏性迁名为理由降低用户数据安全要求。

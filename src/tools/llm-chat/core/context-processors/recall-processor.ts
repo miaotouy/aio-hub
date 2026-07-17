@@ -45,6 +45,18 @@ export class RecallProcessor implements ContextProcessor {
   async execute(context: PipelineContext): Promise<void> {
     const config = context.agentConfig.recallConfig;
     const settings = context.agentConfig.recallSettings;
+    context.messages.forEach((message, messageIndex) => {
+      if (message.sourceType === "session_history" || typeof message.content !== "string") return;
+      const legacy = message.content.match(/【(?:kb|knowledge)(?:::[^【】]*)?】/g);
+      for (const raw of legacy ?? []) {
+        context.logs.push({
+          processorId: this.id,
+          level: "warn",
+          message: "检测到已废弃的知识库占位符，未执行检索",
+          details: { messageIndex, raw, replacement: "【recall::collection=<collection-id>】" },
+        });
+      }
+    });
     if (!config?.enabled) return;
     const placeholders = scanRecallPlaceholders(context.messages);
     const enabledBindings = config.bindings.filter((binding) => binding.enabled);

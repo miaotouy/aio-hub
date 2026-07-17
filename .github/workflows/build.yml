@@ -333,6 +333,9 @@ jobs:
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
+        with:
+          # 发布说明需要比较相邻标签，必须保留完整历史与标签。
+          fetch-depth: 0
 
       - name: 设置 Bun
         uses: oven-sh/setup-bun@v2
@@ -406,6 +409,37 @@ jobs:
           - Linux 用户使用 AppImage 需要先添加执行权限: `chmod +x *.AppImage`
           EOF
 
+          CURRENT_REF="${{ github.sha }}"
+          CURRENT_LABEL="${{ steps.get-release-info.outputs.version }}"
+          REPOSITORY="${{ github.repository }}"
+
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            # 当前标签本身不参与候选，确保取得其前一个可达标签。
+            PREVIOUS_TAG="$(git describe --tags --abbrev=0 "${CURRENT_REF}^" 2>/dev/null || true)"
+            COMPARE_TARGET="${CURRENT_LABEL}"
+          else
+            # 手动 main 草案与最近标签比较，并使用当前提交作为比较终点。
+            PREVIOUS_TAG="$(git describe --tags --abbrev=0 "${CURRENT_REF}" 2>/dev/null || true)"
+            COMPARE_TARGET="${CURRENT_REF}"
+          fi
+
+          {
+            echo
+            echo "<details>"
+            if [[ -n "${PREVIOUS_TAG}" ]]; then
+              echo "<summary>查看完整提交记录（${PREVIOUS_TAG}...${CURRENT_LABEL}）</summary>"
+              echo
+              git log --format="- [\`%h\`](https://github.com/${REPOSITORY}/commit/%H) %s" "${PREVIOUS_TAG}..${CURRENT_REF}"
+              echo
+              echo "[查看完整比较](https://github.com/${REPOSITORY}/compare/${PREVIOUS_TAG}...${COMPARE_TARGET})"
+            else
+              echo "<summary>查看完整提交记录（首个标签）</summary>"
+              echo
+              git log --format="- [\`%h\`](https://github.com/${REPOSITORY}/commit/%H) %s" "${CURRENT_REF}"
+            fi
+            echo "</details>"
+          } >> release-notes.md
+
       - name: 生成 updater 清单
         shell: bash
         run: |
@@ -428,4 +462,3 @@ jobs:
           files: release-files/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-

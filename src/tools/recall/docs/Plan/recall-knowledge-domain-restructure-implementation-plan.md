@@ -1,6 +1,6 @@
 # Recall / Knowledge 领域拆分与重构实施计划
 
-**状态**: Pre-Stage、Stage 0 与 Stage 1 已完成；Stage 2 施工中（已完成数据库基础层，尚未切换运行时真源）
+**状态**: Pre-Stage、Stage 0 与 Stage 1 已完成；Stage 2.1 数据库基础层已完成，正进入 Stage 2.2 运行时硬切。整个计划完成前不发布中间版本。
 **创建日期**: 2026-07-17
 **最近修订**: 2026-07-17
 **适用范围**: `src/tools/knowledge-base/`、计划新增的 `src/tools/recall/`、`src/tools/llm-chat/`、`src/tools/agent-manager/`、`src-tauri/src/knowledge/`、计划新增的 `src-tauri/src/recall/`
@@ -174,29 +174,31 @@ appData/knowledge/
 
 旧数据直接导入最终 `recall.db + recall-vectors.db`，不新增 `appData/thought/`，也不先创建一套 JSON 形式的 Recall 过渡目录。
 
-导入成功后旧目录保持只读并记录迁移标记。未经过用户确认或既定清理版本，不自动删除旧目录。
+最终迁移成功后旧目录保持只读并记录迁移标记。未经过用户确认或既定清理版本，不自动删除旧目录。
 
 ---
 
 ## 3. 总体施工规则
 
-1. 先完成 Pre-Stage 并发布一个可按库备份、可恢复的稳定版本；该版本真实往返验证通过前，不开始 Recall / Knowledge 重构施工。
-2. 后续施工按下列 Stage 0-7 依次推进；阶段内部可以拆分提交，但不得发布不可读取旧数据或用户备份的中间状态。
-3. Recall 领域切割、最终数据库导入、结构化 Agent 配置迁移和 Chat 自动注入切换属于同一个发布边界。
-4. 检索算法融合晚于等价迁移。迁移基线必须能够证明相同输入在旧引擎与迁移后旧引擎上得到可解释的等价结果。
-5. Knowledge 在 Recall 稳定前只保留模块入口，不提前复用 Recall 类型或模拟 document/chunk 功能。
-6. 算法实验参数留在请求、profile、trace 或可删除缓存中，不向 `recall_entries` 增加实验字段。
-7. 每个阶段完成后同步更新本文状态；调查结论发生变化时回写对应调查文档，但不在调查文档重新维护施工清单。
+1. 先完成 Pre-Stage 的按库备份与恢复能力及其真实往返验证；它是数据安全前置检查，不单独发布版本。验证通过后立即进入 Recall / Knowledge 重构施工。
+2. 本文只维护**开发施工态**，直至 Stage 7 全部完成。每个提交只对目标架构、隔离夹具和工程检查负责，可以直接删除旧运行路径、重排 command 或暂时无法读取旧用户数据；不要求中间提交可升级、可给用户运行或可独立发布。
+3. 中间态不启动指向真实 appData 的 Tauri 应用，也不让中间态代码访问真实用户目录。需要运行验证时必须使用独立临时 appData / 自动化夹具；这项隔离要求不等同于维持旧数据兼容。
+4. 旧数据自动迁移、`.aio-kb` / legacy JSON / YAML 恢复、迁移报告、中断恢复、回滚说明和真实 Tauri smoke test 可以在施工期以隔离夹具实现和验证，但只在全量迁移完成后的最终发布版本接入真实用户目录。
+5. Recall 领域切割、最终数据库导入、结构化 Agent 配置迁移、Chat 自动注入切换和 Knowledge 资料库建设构成同一个最终发布边界；施工顺序可以对任一领域直接硬切，不为阶段性兼容保留运行路径。
+6. 检索算法融合晚于等价迁移。迁移基线必须能够证明相同输入在旧引擎与迁移后旧引擎上得到可解释的等价结果。
+7. Knowledge 在 Recall 稳定前只保留模块入口，不提前复用 Recall 类型或模拟 document/chunk 功能。
+8. 算法实验参数留在请求、profile、trace 或可删除缓存中，不向 `recall_entries` 增加实验字段。
+9. 每个施工检查点完成后同步更新本文状态；调查结论发生变化时回写对应调查文档，但不在调查文档重新维护施工清单。
 
 ---
 
-## 4. Pre-Stage：发布按库备份与恢复版本
+## 4. Pre-Stage：建立按库备份与恢复能力
 
-**阶段状态**: 已完成。2026-07-17 用户完成真实导入/导出验证并确认未发现问题，正式解锁 Stage 0。
+**阶段状态**: 已完成。2026-07-17 用户完成真实导入/导出验证并确认未发现问题，正式解锁 Stage 0；该能力不单独发版。
 
 ### 目标
 
-在现有 `knowledge-base` 文件存储和现有产品命名上补齐用户可操作的恢复通道，让用户可以在后续破坏性迁名与数据库迁移前主动备份源数据。
+在现有 `knowledge-base` 文件存储和现有产品命名上补齐可操作的恢复通道，为后续破坏性迁名与数据库迁移保留经验证的源数据备份能力。
 
 ### 工作项
 
@@ -206,7 +208,7 @@ appData/knowledge/
 - 备份条目源字段、库级元数据和实际引用资产；向量、tag pool、HNSW 和运行时索引不进入备份包。
 - 导出从持久化真源读取并执行完整性校验，不能依赖异步 warmup 是否已经把所有条目装入内存。
 - 只读兼容当前 `kb_export_base` 生成的 legacy JSON / YAML；后续 `LegacyFileRecallImporter` 必须继续读取 `.aio-kb` v1。
-- 发布说明提示用户在后续重构版本前执行一次“导出全部”。
+- 在最终发布版本的迁移说明中提示用户可使用“导出全部”保留额外备份。
 
 ### 完成门槛
 
@@ -214,7 +216,7 @@ appData/knowledge/
 - 多库容器按索引将每个库作为独立导入单元；单库损坏不阻止其他库导入，并有结构化报告，单库 `.aio-kb` 仍可独立恢复。
 - 重复导入不会静默覆盖；显式替换失败不会损坏原库或留下 workspace / 后端半完成状态。
 - 前端检查、后端检查、单元测试、Vite build 和真实 Tauri smoke test 通过。
-- 该功能已经作为重构前稳定版本发布；未达到此门槛不得进入 Stage 0。
+- 本能力及其真实往返验证完成后即可进入 Stage 0，无需形成独立发布版本。
 
 ---
 
@@ -247,7 +249,7 @@ appData/knowledge/
 
 **阶段状态**: 已完成。2026-07-17 已将 CAIU 前端、Rust 后端、Agent actions、索引、tag pool、检索引擎与监控能力整体迁入 Recall；新增 `/recall`、`recall-basic`、`recall-admin` 和 `recall_*` Tauri commands。`/knowledge-base` 已改为不导入 Recall store/action/service 的 Knowledge 空壳，Rust Knowledge 模块不注册任何 command。旧 Agent 结构化配置、宏与占位符仍按 Stage 0 基线保留，统一留待 Stage 3 进行版本化迁移。
 
-验证结果：Recall 前端类型检查、19 项模块单测、Vite build、前端 lint、后端 Clippy 与真实 Tauri dev smoke test 均通过；smoke test 已确认 `AIO Hub` 主窗口成功创建。由于 Stage 2 尚未开始，Recall 当前仍从旧 `appData/knowledge/` 文件目录读取源数据；这是计划内的临时存储边界，不表示 Knowledge 领域继续拥有 Recall 运行时。
+验证结果：Recall 前端类型检查、19 项模块单测、Vite build、前端 lint、后端 Clippy 与真实 Tauri dev smoke test 均通过；smoke test 已确认 `AIO Hub` 主窗口成功创建。上述验证在 Stage 2 开工前完成，当时 Recall 仍从旧 `appData/knowledge/` 文件目录读取源数据；这是 Stage 1 的临时存储边界，不表示 Knowledge 领域继续拥有 Recall 运行时。当前硬切要求以 Stage 2.2 为准。
 
 ### 目标
 
@@ -271,25 +273,62 @@ appData/knowledge/
 
 ---
 
-## 7. Stage 2：直接迁移到 Recall 数据库
+## 7. Stage 2：Recall 数据库真源硬切
 
-**施工进度（2026-07-17）**: 已锁定并引入 `rusqlite = 0.39.0`，新增 `recall.db` / `recall-vectors.db` 的独立 schema migration、SQLite repository、向量 BLOB 编解码和基础 CRUD 单测；`recall_initialize` 已幂等创建并注册 repository。`LegacyFileRecallImporter` 已能迁移旧 `bases`、模型索引、entry vectors 与 tag pool，保留 ID、源字段、tokens 和 content hash，并分别记录主库 / 向量库的 `running`、`partial`、`completed` 状态及结构化报告；损坏向量和无法反查的模型 ID 会降级为待重建。数据库 repository warmup 已能重建条目、关键词索引、当前模型向量矩阵与标签池，并有旧目录不可用时仍能加载的回归测试；由于写 command、恢复入口与前端 workspace 列表尚未切换，启动路径仍保留旧文件 warmup，避免产生读取数据库而写入旧目录的双真源状态。自动启动迁移、`.aio-kb` / legacy JSON / YAML 恢复接入、command 写路径切换和前端 workspace 列表降级尚未完成，因此本进度不构成 Stage 2 完成。
+### Stage 2.1：数据库基础层（已完成）
+
+已锁定并引入 `rusqlite = 0.39.0`，新增 `recall.db` / `recall-vectors.db` 的独立 schema migration、SQLite repository、向量 BLOB 编解码和基础 CRUD 单测；`recall_initialize` 已幂等创建并注册 repository。`LegacyFileRecallImporter` 已能从旧 `bases`、模型索引、entry vectors 与 tag pool 生成结构化迁移报告，并保留 ID、源字段、tokens 和 content hash。数据库 repository warmup 已能重建条目、关键词索引、当前模型向量矩阵与标签池，且有旧目录不可用时仍能加载的回归测试。
+
+本检查点只证明数据库能力可用；尚未接入正常启动和写路径，不承担用户升级责任。
+
+### Stage 2.2：运行时硬切
 
 ### 目标
 
-一次性把旧文件系统真源导入最终 Recall 数据库，消除多真源漂移。
+让正常 Recall 运行路径只消费 SQLite，并直接删除旧文件系统作为运行时真源的可能性。此阶段允许中间提交无法读取旧用户目录；开发验证只使用新的空数据库或由测试夹具导入的数据库。
 
 ### 工作项
 
-- 锁定并引入调查确认的 `rusqlite` 版本。
-- 创建 `recall.db`、`recall-vectors.db` 和各自独立的 `schema_migrations`。
-- 实现 `RecallRepository`、`SqliteRecallRepository` 和只用于迁移/恢复的 `LegacyFileRecallImporter`。
-- 迁移旧 base、CAIU、向量模型索引、entry vectors 和 tag pool；恢复入口同时接受 `.aio-kb` v1 与 legacy JSON / YAML。
+- 让 `recall_initialize`、warmup 与集合列表从 repository 构造运行时读模型；删除旧 `bases/vectors/tag_pool` 扫描和文件 warmup 的正常启动分支。
+- 将集合、条目、批量导入、向量和 tag pool 的全部写 command 切为“主库短事务 -> 内存同步 -> 派生向量清理 -> 监控事件”顺序；数据库写入失败时不得修改内存。
+- 将 clone、导入、删除、重建等组合操作直接建模为 repository 事务或显式补偿，不保留旧目录拷贝作为隐式实现。
+- Recall 集合列表改由数据库返回；前端 workspace 只保存 UI 配置、排序和最近选择，不再保存集合列表、统计或路径真源。
+- 删除常规代码中 `recallStorage` 对 `workspace.json`、`bases/`、`vectors/` 和 `tag_pool/` 的读写依赖；旧文件 IO 只允许存在于 `LegacyFileRecallImporter`、备份恢复适配和迁移测试。
+
+### 完成门槛
+
+- 空 SQLite 数据库可完成集合、条目、向量化、关键词/向量检索、clone、删除和批量导入的完整开发闭环。
+- 在隔离 appData 中导入基线夹具后，停止提供旧目录即可 warmup、浏览、编辑、搜索和重新向量化。
+- `rg` 检查显示常规启动、command 与前端 store 不再调用旧目录扫描或 workspace 集合列表持久化。
+- 前端 lint、类型检查、单元测试、Vite build，以及 Rust 单元测试、`cargo check` 和 backend check 通过；本检查点不运行真实用户 appData 的 Tauri dev。
+
+### Stage 2.3：数据库真源闭环验证
+
+### 目标
+
+在不引入用户迁移逻辑的前提下，固定硬切后的数据库行为，避免 Stage 3 再回流旧文件语义。
+
+### 工作项
+
+- 以隔离夹具覆盖 repository CRUD、批量事务、向量失效、tag pool、前端列表降级和进程重启后的 DB warmup。
+- 固定数据库真源下 keyword、vector、lens、blender 的代表查询快照；算法差异必须可解释。
+- 删除 `recall-vectors.db` 后验证源条目仍可浏览、编辑和关键词搜索，并能重新向量化。
+
+### 完成门槛
+
+- 已不存在“读数据库、写旧目录”或“读旧目录、写数据库”的组合路径。
+- 上述测试只依赖临时 appData；不需要也不得触发真实用户目录迁移。
+
+### Stage 2.4：迁移实现与隔离验证
+
+本阶段完成最终发布所需的数据迁移实现和隔离验证，但不产生可发布版本，也不让中间态访问真实用户目录。
+
+### 工作项
+
+- 将旧文件目录、`.aio-kb` v1 与 legacy JSON / YAML 接入 `LegacyFileRecallImporter` 和恢复入口；自动迁移入口仅在最终发布时启用。
 - 保留旧集合 ID 和条目 ID；字段映射只改语义名称，不重新生成 UUID。
 - 主库与向量库分别记录迁移状态。向量损坏可以降级为待重建，但不得阻止已成功导入的源条目使用。
-- warmup 从 Recall repository 加载源数据并重建现有内存读模型。
-- 写路径改为主库短事务、内存同步、派生向量清理和监控事件的既定顺序。
-- Recall 集合列表改由数据库返回，前端 workspace 不再保存列表真源。
+- 输出迁移报告、恢复说明和旧目录位置；旧目录迁移后只读且不自动删除。
 
 ### 迁移不变量
 
@@ -298,14 +337,13 @@ appData/knowledge/
 - `createdAt`、`updatedAt`、priority、enabled、TagWithWeight 和 AssetRef 原值保留。
 - `refs/refBy`、HNSW、矩阵和算法中间结果按派生数据重建。
 - 内容 hash 不匹配的旧向量不得被判定为 ready。
-- 旧目录在迁移后保持只读，不自动删除。
 
 ### 完成门槛
 
 - 基线夹具的集合数、条目数和内容 hash 完全一致。
 - 可恢复向量的模型、维度、tokens 和覆盖统计一致；损坏向量生成明确报告。
-- 删除 `recall-vectors.db` 后仍可浏览、编辑和关键词搜索，并能重新向量化。
 - 模拟中断后再次启动可以幂等继续或安全回滚。
+- 在独立 appData 上完成真实 Tauri 迁移 smoke test；结果作为最终发布门槛的输入，不在此阶段发版。
 
 ---
 
@@ -456,6 +494,14 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 - 为用户提供旧目录状态、迁移报告、导出和确认清理入口。
 - 更新架构文档、Agent 配置说明、工具说明和群公告中的破坏性变更说明。
 
+### 最终发布门槛
+
+仅在 Stage 0 至 Stage 7 的目标结构、迁移实现和验证全部完成后，才构建首个包含本重构的发布版本。此时一次性接入真实用户目录的迁移裁决、迁移报告、恢复说明和旧目录只读标记；此前任何中间态均不承担升级或发布兼容。
+
+- 以真实用户目录副本和独立 appData 分别完成完整迁移、重启恢复、回滚路径与 Tauri smoke test；不得用中间态直接试运行真实用户目录。
+- 最终发布二进制首次启动时执行幂等迁移，并保留旧目录、迁移报告和可操作的恢复路径。
+- 仅在全量迁移验收通过后发布，不拆分备份版、数据库版、Recall 版或 Agent/Chat 迁移版。
+
 ### 完成门槛
 
 - 常规运行路径不再读取旧 `bases/vectors/tag_pool`。
@@ -466,7 +512,7 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 
 ## 13. 验证矩阵
 
-每个可发布阶段至少执行：
+每个施工阶段至少执行：
 
 - 前端 lint、类型检查、单元测试和 Vite build。
 - Rust 单元测试、`cargo check` 和项目既有 backend check。
@@ -476,10 +522,10 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 - Recall / Knowledge 占位符分别覆盖 canonical serialize、乱序 parse、URL 编解码、重复目标、未知/跨域参数、非法值、未授权 ID、多占位符同消息和跳过历史消息；增加两个域同时出现但不串参数、不串结果的集成测试。
 - 宏测试覆盖 `{{recall}}` / `{{recall_list}}`、`{{knowledge}}` / `{{knowledge_list}}` 及其命名参数展开；明确断言不存在 `【mixed】` 和位置参数输出。
 - keyword、semantic、associative 的固定查询集回归。
-- 桌面 Tauri 真实运行态 smoke test。
+- 桌面 Tauri 真实运行态 smoke test；中间阶段仅针对独立临时 appData，真实用户目录验证只在最终发布门槛执行。
 - 移动端依赖变更通过项目真实 Tauri build 验证；普通 Cargo 探针不能替代。
 
-发布前必须输出一份迁移报告样例，至少包含：
+最终发布前必须输出一份迁移报告样例，至少包含：
 
 ```text
 源集合数 / 已迁移集合数

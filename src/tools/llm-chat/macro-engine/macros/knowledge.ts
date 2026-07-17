@@ -20,6 +20,7 @@
 import type { MacroRegistry } from "../MacroRegistry";
 import { MacroPhase, MacroType } from "../MacroRegistry";
 import type { MacroDefinition } from "../MacroRegistry";
+import { serializeRecallPlaceholder } from "../../core/context-processors/recall-placeholder";
 
 /**
  * 注册知识库宏
@@ -108,6 +109,62 @@ export function registerKnowledgeMacros(registry: MacroRegistry): void {
   ];
 
   registry.registerMany(knowledgeMacros);
+  registry.registerMany([
+    {
+      name: "recall",
+      type: MacroType.VALUE,
+      phase: MacroPhase.SUBSTITUTE,
+      description: "生成已启用思绪绑定的 Recall 占位符；可用集合 ID 作为第一个参数。",
+      example: "{{recall}}",
+      acceptsArgs: true,
+      priority: 90,
+      supported: true,
+      contextFree: false,
+      execute: (context, args) => {
+        const config = context.agent?.recallConfig;
+        if (!config?.enabled) return "";
+        const bindings = config.bindings.filter((binding) => binding.enabled);
+        const selected = args?.[0]
+          ? bindings.filter((binding) => binding.recallId === args[0])
+          : bindings;
+        if (args?.[0] && !selected.length) return `（未找到思绪集: ${args[0]}）`;
+        const limit = args?.[1] ? Number(args[1]) : undefined;
+        return selected
+          .map((binding) =>
+            serializeRecallPlaceholder({
+              collection: binding.recallId,
+              profile: binding.profile,
+              limit: limit ?? binding.limit,
+              minScore: binding.minScore,
+              when: binding.when,
+              gateTags: binding.when === "gate" ? binding.whenParams : undefined,
+              everyTurns:
+                binding.when === "turn" ? Number(binding.whenParams?.[0]) : undefined,
+              entries: binding.when === "static" ? binding.whenParams : undefined,
+            })
+          )
+          .join("\n");
+      },
+    },
+    {
+      name: "recall_list",
+      type: MacroType.VALUE,
+      phase: MacroPhase.SUBSTITUTE,
+      description: "列出当前智能体已启用的思绪绑定。",
+      example: "{{recall_list}}",
+      acceptsArgs: false,
+      priority: 100,
+      supported: true,
+      contextFree: false,
+      execute: (context) => {
+        const bindings = context.agent?.recallConfig?.bindings.filter((binding) => binding.enabled) ?? [];
+        if (!bindings.length) return "未启用任何思绪集。";
+        return bindings
+          .map((binding) => `- [${binding.recallName}] ID=${binding.recallId}，profile=${binding.profile ?? "semantic"}`)
+          .join("\n");
+      },
+    },
+  ]);
 }
 
 /**

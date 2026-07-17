@@ -603,7 +603,7 @@ const formatTokens = (num: number) => {
 
 /* 头部样式 */
 .sidebar-top {
-  padding: 12px 16px;
+  padding: 8px 12px;
   background-color: transparent;
 }
 

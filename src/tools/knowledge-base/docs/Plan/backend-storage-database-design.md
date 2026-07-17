@@ -17,6 +17,7 @@
 - 因为数据库化尚未开始，迁移阶段应一次性完成命名和 schema 转换，不再为了旧文件目录里的 `knowledge` / `kb_*` 命名额外保守。
 - 现有 CAIU 实现整体迁入 Recall，原 `knowledge-base` 只保留为未来 Knowledge 资料库入口。数据库、内部 repository、新类型和 UI 文案使用 `recall` 与 `knowledge`，不再新增 `thought_*` 或 `kb_*` 长期命名。
 - 具体领域切割、配置迁移和发布顺序统一记录在 [Recall / Knowledge 领域拆分与重构实施计划](./recall-knowledge-domain-restructure-implementation-plan.md)。
+- 数据库化开始前先按 [重构前按库备份与恢复功能计划](./pre-restructure-library-backup-import-export-plan.md) 发布现有文件存储的备份版本；该版本产生的 `.aio-kb` v1 是后续迁移器的正式输入之一。
 
 ### 0.1 2026-07-17 依赖与平台复核
 
@@ -142,6 +143,10 @@ appData/knowledge/
 - `src/tools/knowledge-base/stores/knowledgeBaseStore.ts`
   - 初始化时先读 workspace，再调用 `kb_initialize`、`kb_warmup`。
   - 统计、向量状态和列表状态依赖后端 meta 与前端 workspace 的共同结果。
+
+- `src/tools/knowledge-base/composables/useKbManagement.ts`
+  - 当前单库导出调用 `kb_export_base`，再由前端写为 JSON / YAML。
+  - 当前没有整库导入、格式版本、冲突策略、完整性校验或资产打包闭环，不能直接视为重构前完整备份。
 
 ---
 
@@ -752,6 +757,7 @@ pub trait RecallRepository: Send + Sync {
 约束如下：
 
 - 旧 `appData/knowledge/bases|vectors|tag_pool` 直接导入最终 `appData/recall/recall.db + recall-vectors.db`，不建立过渡性的 Recall JSON 目录。
+- 已发布的 `aiohub.knowledge-library` `.aio-kb` v1 和 legacy `KnowledgeBase { meta, entries }` JSON / YAML 也是正式恢复输入；它们用于用户主动恢复，不替代正常启动时对旧 appData 的自动迁移。
 - 旧集合 ID 和条目 ID 原样保留；字段只改变领域名称，不重新生成 UUID。
 - 主库和向量库分别维护 migration 状态。主库失败必须阻止 Recall 继续写入；向量库失败可以降级为待重建状态。
 - 导入必须幂等。损坏 JSON、无法反查的模型 ID 和维度不一致向量进入迁移报告，不中断其他有效源条目导入。
@@ -837,7 +843,17 @@ WHERE collection_id = ? AND entry_id = ? AND content_hash = ?
 
 ### 10.6 导出功能仍需稳定 JSON 格式
 
-`kb_export_base` 当前返回 `KnowledgeBase { meta, entries }`。迁移器必须继续读取该 legacy 格式；新的 Recall 导出使用带格式版本的 `RecallCollection { meta, entries }`，保证用户数据可迁移、可备份。
+`kb_export_base` 当前返回 `KnowledgeBase { meta, entries }`。迁移器必须继续读取该 legacy JSON / YAML 格式，但它缺少资产二进制、格式版本和完整性信息，只能作为内容恢复兼容输入。
+
+数据库化前先实现版本化 `.aio-kb` v1：每个包只对应一个库，包含 manifest、`library.json` 和被引用资产；一次全量导出仍按库生成多个独立包。向量、tag pool、HNSW 和运行时索引不进入包，恢复后重建。完整格式、冲突策略和发布门槛见 [重构前按库备份与恢复功能计划](./pre-restructure-library-backup-import-export-plan.md)。
+
+新的 Recall 导出使用带格式版本的 `aiohub.recall-collection`，但 `LegacyFileRecallImporter` 必须长期只读兼容 `.aio-kb` v1，不得要求用户先回退到旧版应用转换备份。
+
+### 10.7 备份不能直接复制内存读模型
+
+当前 `kb_warmup` 异步加载完整条目，而 `kb_export_base` 直接复制 `InMemoryBase.entries`。用户在预热完成前触发导出时，不能用“通常已经加载完”作为完整性保证。
+
+重构前备份命令必须从文件持久化真源读取，或在命令内部显式完成全量加载和数量校验；压缩资产时不得长期持有知识库写锁。导出先写临时文件，ZIP 可重新打开且 manifest checksum 复核通过后再原子重命名。导入使用 staging 目录，后端库目录提交成功后才更新前端 workspace。
 
 ---
 
@@ -856,6 +872,8 @@ WHERE collection_id = ? AND entry_id = ? AND content_hash = ?
 - clear vectors。
 - tag pool save/load。
 - legacy import 幂等。
+- `.aio-kb` v1 单库导出、批量按库导出、legacy JSON / YAML 读取、资产 hash 去重、冲突副本和显式替换。
+- ZIP 路径穿越、checksum 错误、重复条目 ID、超限解压和中断 staging 回滚。
 - 删除 `recall.db` 中的 collection / entry 后，向量库孤儿清理幂等且可重试。
 - 删除或重建 `recall-vectors.db` 不影响 Recall 条目浏览、编辑和关键词检索。
 
@@ -865,6 +883,7 @@ WHERE collection_id = ? AND entry_id = ? AND content_hash = ?
 
 - 多知识库。
 - 多 entries。
+- 重构前 `.aio-kb` v1 和 legacy JSON / YAML 备份。
 - 多模型向量。
 - 部分损坏 `.vec`。
 - 缺失 `models.json`。

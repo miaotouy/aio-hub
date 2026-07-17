@@ -16,6 +16,7 @@
 - 新增类型、UI 文案和内部路由使用 `recall` / `knowledge` / `mixed`。
 - `semantic` 与 `associative` 是 Recall 域内部的两个 profile；Knowledge 域走独立 document/chunk 检索通道。
 - 现有 CAIU 实现整体迁入 Recall，原 `knowledge-base` 只保留为未来 Knowledge 资料库入口；具体施工顺序统一记录在 [Recall / Knowledge 领域拆分与重构实施计划](./recall-knowledge-domain-restructure-implementation-plan.md)。
+- 重构施工前先发布 [按库备份与恢复功能](./pre-restructure-library-backup-import-export-plan.md)。该功能只冻结源条目与资产的可恢复契约，不提前引入 Recall profile、Knowledge chunk 或 mixed retrieval。
 
 ### 0.1 2026-07-17 调查与讨论补充
 
@@ -488,6 +489,8 @@ keyword/key signal 作为可解释增强
 
 统一施工阶段、发布边界、兼容策略和完成门槛见 [Recall / Knowledge 领域拆分与重构实施计划](./recall-knowledge-domain-restructure-implementation-plan.md)。
 
+施工前置的 `.aio-kb` 按库备份只保存完整语义条目、库级元数据和引用资产。向量、tag pool、Lens / Blender 结构、分数和 trace 都是可重建派生数据，不进入备份包；恢复后继续使用当前引擎重建，不能借备份导入偷偷改变检索结果。
+
 ---
 
 ## 7. 风险与注意事项
@@ -540,6 +543,7 @@ Knowledge 面向传统 RAG 文档召回，不应继承 CAIU / TagMemo 的 Recall
 - 自动注入由运行时生成 Recall 请求，不要求用户修改预设消息。
 - 手写 `{{kb}}`、`【kb】`、`【knowledge】` 属于自由文本：应检测、报告并提供一键替换，不默认静默改写，也不得在运行时静默删除。
 - 旧 `【knowledge】` 不建立到 Recall 的长期兼容映射，避免未来与 document/chunk Knowledge 冲突。
+- 重构前 `.aio-kb` 是按库数据备份，不包含 Agent binding 或自由文本占位符；UI 和发布说明不得暗示导入单库包会恢复 Agent 配置。
 
 迁移输入映射：
 

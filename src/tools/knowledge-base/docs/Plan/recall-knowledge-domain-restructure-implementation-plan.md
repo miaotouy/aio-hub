@@ -1,6 +1,6 @@
 # Recall / Knowledge 领域拆分与重构实施计划
 
-**状态**: 待实施
+**状态**: 待实施，先执行 Pre-Stage 备份版本
 **创建日期**: 2026-07-17
 **最近修订**: 2026-07-17
 **适用范围**: `src/tools/knowledge-base/`、计划新增的 `src/tools/recall/`、`src/tools/llm-chat/`、`src/tools/agent-manager/`、`src-tauri/src/knowledge/`、计划新增的 `src-tauri/src/recall/`
@@ -9,6 +9,7 @@
 
 - [检索模式与思绪引擎设计调查](./retrieval-profile-knowledge-memory-design.md)
 - [后端存储数据库化设计调查](./backend-storage-database-design.md)
+- [重构前按库备份与恢复功能计划](./pre-restructure-library-backup-import-export-plan.md)
 
 > 本文是两份调查的唯一施工顺序来源。调查文档负责记录架构结论、schema、算法边界和风险，不再分别维护 Phase 或实施顺序。
 
@@ -162,16 +163,43 @@ appData/knowledge/
 
 ## 3. 总体施工规则
 
-1. 施工按下列阶段依次推进；阶段内部可以拆分提交，但不得发布不可读取旧数据的中间状态。
-2. Recall 领域切割、最终数据库导入、结构化 Agent 配置迁移和 Chat 自动注入切换属于同一个发布边界。
-3. 检索算法融合晚于等价迁移。迁移基线必须能够证明相同输入在旧引擎与迁移后旧引擎上得到可解释的等价结果。
-4. Knowledge 在 Recall 稳定前只保留模块入口，不提前复用 Recall 类型或模拟 document/chunk 功能。
-5. 算法实验参数留在请求、profile、trace 或可删除缓存中，不向 `recall_entries` 增加实验字段。
-6. 每个阶段完成后同步更新本文状态；调查结论发生变化时回写对应调查文档，但不在调查文档重新维护施工清单。
+1. 先完成 Pre-Stage 并发布一个可按库备份、可恢复的稳定版本；该版本真实往返验证通过前，不开始 Recall / Knowledge 重构施工。
+2. 后续施工按下列 Stage 0-7 依次推进；阶段内部可以拆分提交，但不得发布不可读取旧数据或用户备份的中间状态。
+3. Recall 领域切割、最终数据库导入、结构化 Agent 配置迁移和 Chat 自动注入切换属于同一个发布边界。
+4. 检索算法融合晚于等价迁移。迁移基线必须能够证明相同输入在旧引擎与迁移后旧引擎上得到可解释的等价结果。
+5. Knowledge 在 Recall 稳定前只保留模块入口，不提前复用 Recall 类型或模拟 document/chunk 功能。
+6. 算法实验参数留在请求、profile、trace 或可删除缓存中，不向 `recall_entries` 增加实验字段。
+7. 每个阶段完成后同步更新本文状态；调查结论发生变化时回写对应调查文档，但不在调查文档重新维护施工清单。
 
 ---
 
-## 4. Stage 0：冻结迁移基线
+## 4. Pre-Stage：发布按库备份与恢复版本
+
+### 目标
+
+在现有 `knowledge-base` 文件存储和现有产品命名上补齐用户可操作的恢复通道，让用户可以在后续破坏性迁名与数据库迁移前主动备份源数据。
+
+### 工作项
+
+- 按 [重构前按库备份与恢复功能计划](./pre-restructure-library-backup-import-export-plan.md) 实现版本化 `.aio-kb` 单库备份包。
+- 提供“导出全部”，一次选择目标目录后每个库生成一个独立包；保留单库导出，并支持导出选中库。
+- 提供单个或多选备份包导入；默认恢复原库 ID，无冲突时保留条目 ID，冲突时默认导入为副本。
+- 备份条目源字段、库级元数据和实际引用资产；向量、tag pool、HNSW 和运行时索引不进入备份包。
+- 导出从持久化真源读取并执行完整性校验，不能依赖异步 warmup 是否已经把所有条目装入内存。
+- 只读兼容当前 `kb_export_base` 生成的 legacy JSON / YAML；后续 `LegacyFileRecallImporter` 必须继续读取 `.aio-kb` v1。
+- 发布说明提示用户在后续重构版本前执行一次“导出全部”。
+
+### 完成门槛
+
+- 在独立临时 appData 上完成“现有多库数据 -> 导出全部 -> 多包导入 -> 字段与资产 hash 对比”的真实往返。
+- 每个备份包可独立恢复；单包损坏不阻止其他包导入，并有结构化报告。
+- 重复导入不会静默覆盖；显式替换失败不会损坏原库或留下 workspace / 后端半完成状态。
+- 前端检查、后端检查、单元测试、Vite build 和真实 Tauri smoke test 通过。
+- 该功能已经作为重构前稳定版本发布；未达到此门槛不得进入 Stage 0。
+
+---
+
+## 5. Stage 0：冻结迁移基线
 
 ### 目标
 
@@ -183,17 +211,18 @@ appData/knowledge/
 - 记录旧版集合、条目、向量覆盖、tag pool、tokens 和 workspace 列表统计。
 - 固定 keyword、vector、lens、blender 的代表查询与结果快照；分数允许浮点误差，但命中集合和过滤语义必须可解释。
 - 记录 Agent 自动注入、手写占位符、主动工具搜索和写入的当前行为。
-- 确认用户导出 JSON 能作为独立恢复通道。
+- 将已发布的 `.aio-kb` v1、legacy JSON / YAML 和现有文件目录同时纳入迁移输入夹具。
 
 ### 完成门槛
 
 - 迁移夹具可重复创建。
 - 旧版统计和检索基线可由自动测试读取。
 - 已定义迁移成功、部分成功、失败回滚三种可观察状态。
+- `.aio-kb` v1 可独立恢复到当前文件存储，并可被计划中的 `LegacyFileRecallImporter` 读取。
 
 ---
 
-## 5. Stage 1：建立 Recall 领域并搬迁现有实现
+## 6. Stage 1：建立 Recall 领域并搬迁现有实现
 
 ### 目标
 
@@ -217,7 +246,7 @@ appData/knowledge/
 
 ---
 
-## 6. Stage 2：直接迁移到 Recall 数据库
+## 7. Stage 2：直接迁移到 Recall 数据库
 
 ### 目标
 
@@ -228,7 +257,7 @@ appData/knowledge/
 - 锁定并引入调查确认的 `rusqlite` 版本。
 - 创建 `recall.db`、`recall-vectors.db` 和各自独立的 `schema_migrations`。
 - 实现 `RecallRepository`、`SqliteRecallRepository` 和只用于迁移/恢复的 `LegacyFileRecallImporter`。
-- 迁移旧 base、CAIU、向量模型索引、entry vectors 和 tag pool。
+- 迁移旧 base、CAIU、向量模型索引、entry vectors 和 tag pool；恢复入口同时接受 `.aio-kb` v1 与 legacy JSON / YAML。
 - 保留旧集合 ID 和条目 ID；字段映射只改语义名称，不重新生成 UUID。
 - 主库与向量库分别记录迁移状态。向量损坏可以降级为待重建，但不得阻止已成功导入的源条目使用。
 - warmup 从 Recall repository 加载源数据并重建现有内存读模型。
@@ -253,7 +282,7 @@ appData/knowledge/
 
 ---
 
-## 7. Stage 3：迁移 Agent、Chat 与工具配置
+## 8. Stage 3：迁移 Agent、Chat 与工具配置
 
 ### 目标
 
@@ -310,7 +339,7 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 
 ---
 
-## 8. Stage 4：收口 Recall 检索契约
+## 9. Stage 4：收口 Recall 检索契约
 
 ### 目标
 
@@ -335,7 +364,7 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 
 ---
 
-## 9. Stage 5：融合 Recall 检索引擎
+## 10. Stage 5：融合 Recall 检索引擎
 
 ### 目标
 
@@ -359,7 +388,7 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 
 ---
 
-## 10. Stage 6：建设 Knowledge 资料库
+## 11. Stage 6：建设 Knowledge 资料库
 
 ### 目标
 
@@ -384,7 +413,7 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 
 ---
 
-## 11. Stage 7：清理旧边界
+## 12. Stage 7：清理旧边界
 
 ### 工作项
 
@@ -402,12 +431,13 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 
 ---
 
-## 12. 验证矩阵
+## 13. 验证矩阵
 
 每个可发布阶段至少执行：
 
 - 前端 lint、类型检查、单元测试和 Vite build。
 - Rust 单元测试、`cargo check` 和项目既有 backend check。
+- Pre-Stage 执行 `.aio-kb` 单库、批量、资产、冲突、损坏包、ZIP 路径安全和独立 appData 往返测试。
 - Repository CRUD、批量事务、损坏输入、幂等导入和中断恢复测试。
 - Agent 配置导入/导出、binding、工具权限、自动注入和旧占位符告警测试。
 - keyword、semantic、associative 的固定查询集回归。
@@ -429,7 +459,7 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 
 ---
 
-## 13. 明确不做
+## 14. 明确不做
 
 - 不建立 Thought 作为第三套领域名或兼容目录。
 - 不把 Recall 条目绑定到 Agent、会话、分支或消息。
@@ -438,4 +468,3 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 - 不让 Knowledge 空壳暂时复用 Recall store 来伪装文档知识库。
 - 不在 Recall 迁移和引擎融合尚未稳定时同时接入 Knowledge 文件监听与 TriviumDB。
 - 不为了保留旧命名牺牲新领域边界，但也不以破坏性迁名为理由降低用户数据安全要求。
-

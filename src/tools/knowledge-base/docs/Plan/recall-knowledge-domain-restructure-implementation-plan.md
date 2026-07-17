@@ -1,6 +1,6 @@
 # Recall / Knowledge 领域拆分与重构实施计划
 
-**状态**: Pre-Stage 已实施并通过自动验证，待真实 Tauri 往返与稳定版本发布；Stage 0 尚未解锁
+**状态**: Pre-Stage 与 Stage 0 已完成；Stage 1 已解锁，下一步建立 Recall 领域并等价搬迁现有实现
 **创建日期**: 2026-07-17
 **最近修订**: 2026-07-17
 **适用范围**: `src/tools/knowledge-base/`、计划新增的 `src/tools/recall/`、`src/tools/llm-chat/`、`src/tools/agent-manager/`、`src-tauri/src/knowledge/`、计划新增的 `src-tauri/src/recall/`
@@ -175,6 +175,8 @@ appData/knowledge/
 
 ## 4. Pre-Stage：发布按库备份与恢复版本
 
+**阶段状态**: 已完成。2026-07-17 用户完成真实导入/导出验证并确认未发现问题，正式解锁 Stage 0。
+
 ### 目标
 
 在现有 `knowledge-base` 文件存储和现有产品命名上补齐用户可操作的恢复通道，让用户可以在后续破坏性迁名与数据库迁移前主动备份源数据。
@@ -201,6 +203,8 @@ appData/knowledge/
 
 ## 5. Stage 0：冻结迁移基线
 
+**阶段状态**: 已完成。版本化跨前后端基线夹具已覆盖多集合、重复标签、多模型向量、禁用条目、AssetRef、损坏向量边界、四类检索查询、Agent 工具 ID、自动注入、宏和旧占位符行为；现有文件目录、`.aio-kb` v1、legacy JSON / YAML 均已纳入可重复测试输入。2026-07-17 已通过知识模块后端测试、全量前端单测、lint、TypeScript、Vite build 和 backend Clippy。
+
 ### 目标
 
 建立可以判断“领域迁名和数据库迁移没有改变现有行为”的基线。
@@ -223,6 +227,8 @@ appData/knowledge/
 ---
 
 ## 6. Stage 1：建立 Recall 领域并搬迁现有实现
+
+**阶段状态**: 已解锁，待开始领域代码搬迁。
 
 ### 目标
 

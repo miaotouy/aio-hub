@@ -24,6 +24,7 @@ import {
   upsertEntry,
 } from "../actions/agentActions";
 import type { Caiu, KnowledgeBaseMeta } from "../types";
+import baseline from "../__fixtures__/recall-migration-baseline-v1.json";
 
 const { mockInvoke, mockKbStorage, mockStore, mockCalculateHash } = vi.hoisted(
   () => ({
@@ -462,8 +463,7 @@ describe("knowledge-base agent actions", () => {
     const basicMetadata = basic.getMetadata!();
     const adminMetadata = admin.getMetadata!();
 
-    expect(basic.id).toBe("kb-basic");
-    expect(admin.id).toBe("kb-admin");
+    expect([basic.id, admin.id]).toEqual(baseline.agentBehavior.toolIds);
     expect(basicMetadata.methods.map((method) => method.name)).toEqual([
       "searchEntries",
       "upsertEntry",

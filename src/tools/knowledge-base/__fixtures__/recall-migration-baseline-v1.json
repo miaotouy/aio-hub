@@ -1,0 +1,383 @@
+{
+  "format": "aiohub.recall-migration-baseline",
+  "formatVersion": 1,
+  "createdAt": "2026-07-17",
+  "collections": [
+    {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "name": "Engineering Recall",
+      "description": "Engineering decisions and implementation notes",
+      "createdAt": 1700000000000,
+      "updatedAt": 1700000005000,
+      "author": "baseline",
+      "tags": ["engineering", "shared"],
+      "icon": "asset-engineering-icon",
+      "config": {},
+      "activeModelId": "baseline/embed-4d",
+      "entries": [
+        {
+          "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+          "key": "Rust Ownership",
+          "content": "Rust ownership keeps resource lifetime decisions explicit.",
+          "summary": "Rust ownership notes",
+          "tags": [
+            { "name": "rust", "weight": 1.0, "hash": "tag-rust" },
+            { "name": "shared", "weight": 0.8, "hash": "tag-shared" }
+          ],
+          "assets": [
+            {
+              "id": "asset-rust-diagram",
+              "name": "ownership.png",
+              "mimeType": "image/png",
+              "protocol": "appdata://"
+            }
+          ],
+          "priority": 120,
+          "enabled": true,
+          "createdAt": 1700000000100,
+          "updatedAt": 1700000000200,
+          "contentHash": "content-rust-v1"
+        },
+        {
+          "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+          "key": "Async Runtime",
+          "content": "Rust async tasks require explicit cancellation and bounded concurrency.",
+          "summary": "Async runtime notes",
+          "tags": [
+            { "name": "rust", "weight": 0.7, "hash": "tag-rust" },
+            { "name": "async", "weight": 1.0, "hash": "tag-async" }
+          ],
+          "assets": [],
+          "priority": 90,
+          "enabled": true,
+          "createdAt": 1700000001100,
+          "updatedAt": 1700000001200,
+          "contentHash": "content-async-v1"
+        },
+        {
+          "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+          "key": "Disabled Draft",
+          "content": "Disabled migration draft retained to verify enabled filtering.",
+          "summary": "Disabled boundary entry",
+          "tags": [
+            { "name": "shared", "weight": 0.5, "hash": "tag-shared" },
+            { "name": "draft", "weight": 1.0, "hash": "tag-draft" }
+          ],
+          "assets": [],
+          "priority": 80,
+          "enabled": false,
+          "createdAt": 1700000002100,
+          "updatedAt": 1700000002200,
+          "contentHash": "content-disabled-v1"
+        }
+      ],
+      "vectors": [
+        {
+          "modelId": "baseline/embed-4d",
+          "dimension": 4,
+          "records": [
+            {
+              "entryId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+              "vector": [1.0, 0.0, 0.0, 0.0],
+              "tokens": 31,
+              "contentHash": "content-rust-v1",
+              "corrupted": false
+            },
+            {
+              "entryId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+              "vector": [0.9, 0.1, 0.0, 0.0],
+              "tokens": 29,
+              "contentHash": "content-async-v1",
+              "corrupted": false
+            },
+            {
+              "entryId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+              "vector": [0.0, 0.0, 1.0, 0.0],
+              "tokens": 11,
+              "contentHash": "content-disabled-v1",
+              "corrupted": false
+            }
+          ]
+        },
+        {
+          "modelId": "baseline/embed-3d-alt",
+          "dimension": 3,
+          "records": [
+            {
+              "entryId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+              "vector": [1.0, 0.0, 0.0],
+              "tokens": 30,
+              "contentHash": "content-rust-v1",
+              "corrupted": false
+            },
+            {
+              "entryId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+              "vector": [0.8, 0.2, 0.0],
+              "tokens": 28,
+              "contentHash": "content-async-v1",
+              "corrupted": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "22222222-2222-4222-8222-222222222222",
+      "name": "Project Recall",
+      "description": "Project decisions and damaged input boundaries",
+      "createdAt": 1700000010000,
+      "updatedAt": 1700000015000,
+      "author": "baseline",
+      "tags": ["project", "shared"],
+      "icon": null,
+      "config": {},
+      "activeModelId": "baseline/embed-4d",
+      "entries": [
+        {
+          "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+          "key": "Project Aurora",
+          "content": "Project Aurora uses staged migrations and explicit rollback markers.",
+          "summary": "Aurora migration decision",
+          "tags": [
+            { "name": "project", "weight": 1.0, "hash": "tag-project" },
+            { "name": "shared", "weight": 0.9, "hash": "tag-shared" }
+          ],
+          "assets": [],
+          "priority": 150,
+          "enabled": true,
+          "createdAt": 1700000010100,
+          "updatedAt": 1700000010200,
+          "contentHash": "content-aurora-v1"
+        },
+        {
+          "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2",
+          "key": "Corrupt Vector Boundary",
+          "content": "The source entry remains usable when its derived vector record is corrupt.",
+          "summary": "Corrupt vector boundary",
+          "tags": [
+            { "name": "edge", "weight": 1.0, "hash": "tag-edge" },
+            { "name": "shared", "weight": 0.4, "hash": "tag-shared" }
+          ],
+          "assets": [],
+          "priority": 100,
+          "enabled": true,
+          "createdAt": 1700000011100,
+          "updatedAt": 1700000011200,
+          "contentHash": "content-edge-v2"
+        }
+      ],
+      "vectors": [
+        {
+          "modelId": "baseline/embed-4d",
+          "dimension": 4,
+          "records": [
+            {
+              "entryId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+              "vector": [0.0, 1.0, 0.0, 0.0],
+              "tokens": 42,
+              "contentHash": "content-aurora-v1",
+              "corrupted": false
+            },
+            {
+              "entryId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2",
+              "vector": null,
+              "tokens": 17,
+              "contentHash": "content-edge-v1",
+              "corrupted": true
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "tagPools": [
+    {
+      "modelId": "baseline/embed-4d",
+      "dimension": 4,
+      "tags": [
+        { "name": "rust", "vector": [1.0, 0.0, 0.0, 0.0] },
+        { "name": "async", "vector": [0.9, 0.1, 0.0, 0.0] },
+        { "name": "shared", "vector": [0.7, 0.3, 0.0, 0.0] },
+        { "name": "draft", "vector": [0.0, 0.0, 1.0, 0.0] },
+        { "name": "project", "vector": [0.0, 1.0, 0.0, 0.0] },
+        { "name": "edge", "vector": [0.0, 0.0, 0.0, 1.0] }
+      ]
+    }
+  ],
+  "expectedStats": {
+    "collectionCount": 2,
+    "entryCount": 5,
+    "enabledEntryCount": 4,
+    "assetRefCount": 1,
+    "vectorModelCount": 2,
+    "validVectorRecordCount": 6,
+    "rebuildRequiredCount": 1,
+    "tagCount": 6,
+    "totalTokens": 171
+  },
+  "queries": [
+    {
+      "name": "keyword-rust",
+      "engineId": "keyword",
+      "payload": { "type": "text", "value": "Rust" },
+      "filters": {
+        "kbIds": ["11111111-1111-4111-8111-111111111111"],
+        "limit": 10,
+        "minScore": 0.0,
+        "enabledOnly": true
+      },
+      "expectedEntryIds": [
+        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2"
+      ],
+      "expectedMatchTypes": ["keyword", "keyword"]
+    },
+    {
+      "name": "keyword-disabled-filter-boundary",
+      "engineId": "keyword",
+      "payload": { "type": "text", "value": "Disabled" },
+      "filters": {
+        "kbIds": ["11111111-1111-4111-8111-111111111111"],
+        "limit": 10,
+        "minScore": 0.0,
+        "enabledOnly": false
+      },
+      "expectedEntryIds": ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3"],
+      "expectedMatchTypes": ["keyword"]
+    },
+    {
+      "name": "vector-rust",
+      "engineId": "vector",
+      "payload": {
+        "type": "vector",
+        "value": {
+          "vector": [1.0, 0.0, 0.0, 0.0],
+          "model": "baseline/embed-4d",
+          "query": "Rust"
+        }
+      },
+      "filters": {
+        "kbIds": ["11111111-1111-4111-8111-111111111111"],
+        "limit": 2,
+        "minScore": 0.1,
+        "enabledOnly": true
+      },
+      "expectedEntryIds": [
+        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2"
+      ],
+      "expectedMatchTypes": ["vector", "vector"]
+    },
+    {
+      "name": "lens-rust",
+      "engineId": "lens",
+      "payload": {
+        "type": "vector",
+        "value": {
+          "vector": [1.0, 0.0, 0.0, 0.0],
+          "model": "baseline/embed-4d",
+          "query": "Rust"
+        }
+      },
+      "filters": {
+        "kbIds": ["11111111-1111-4111-8111-111111111111"],
+        "limit": 2,
+        "minScore": 0.0,
+        "enabledOnly": true,
+        "requiredTags": ["rust"],
+        "texture": "fine",
+        "refractionIndex": 0.6
+      },
+      "expectedEntryIds": [
+        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1"
+      ],
+      "expectedMatchTypes": ["lens", "lens"]
+    },
+    {
+      "name": "blender-rust",
+      "engineId": "blender",
+      "payload": {
+        "type": "vector",
+        "value": {
+          "vector": [1.0, 0.0, 0.0, 0.0],
+          "model": "baseline/embed-4d",
+          "query": "Rust"
+        }
+      },
+      "filters": {
+        "kbIds": ["11111111-1111-4111-8111-111111111111"],
+        "limit": 2,
+        "minScore": 0.0,
+        "enabledOnly": true,
+        "maxResidualLayers": 3,
+        "layerDecay": 0.7
+      },
+      "expectedEntryIds": [
+        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2"
+      ],
+      "expectedMatchTypes": ["blender", "blender"]
+    }
+  ],
+  "migrationInputs": [
+    "current-file-layout",
+    "aio-kb-v1",
+    "legacy-json",
+    "legacy-yaml"
+  ],
+  "migrationStates": {
+    "success": [
+      "sourceAndTargetStatsMatch",
+      "sourceAndTargetContentHashesMatch",
+      "migrationMarkerCommitted"
+    ],
+    "partial": [
+      "sourceEntriesCommitted",
+      "damagedVectorsReportedForRebuild",
+      "migrationMarkerRecordsPendingDerivedData"
+    ],
+    "failure": [
+      "targetTransactionRolledBack",
+      "sourceDirectoryUnchanged",
+      "migrationMarkerNotCommitted"
+    ]
+  },
+  "agentBehavior": {
+    "toolIds": ["kb-basic", "kb-admin"],
+    "macros": ["kb", "kb_list"],
+    "legacyPlaceholderPrefixes": ["kb", "knowledge"],
+    "bindings": [
+      {
+        "kbId": "11111111-1111-4111-8111-111111111111",
+        "kbName": "Engineering Recall",
+        "enabled": true,
+        "mode": "gate",
+        "modeParams": ["rust", "async"],
+        "limit": 5,
+        "minScore": 0.35,
+        "group": "engineering"
+      },
+      {
+        "kbId": "22222222-2222-4222-8222-222222222222",
+        "kbName": "Project Recall",
+        "enabled": true,
+        "mode": "always",
+        "modeParams": [],
+        "limit": 3,
+        "minScore": 0.2,
+        "group": "project"
+      }
+    ],
+    "expectedMacroOutput": "【kb::Engineering Recall::5::0.35::gate::rust,async】\n【kb::Project Recall::3::0.20】",
+    "placeholderSample": "【knowledge::Engineering Recall::5::0.35::gate::rust,async::lens】",
+    "expectedParsedPlaceholder": {
+      "kbName": "Engineering Recall",
+      "limit": 5,
+      "minScore": 0.35,
+      "mode": "gate",
+      "modeParams": ["rust", "async"],
+      "engineId": "lens"
+    }
+  }
+}

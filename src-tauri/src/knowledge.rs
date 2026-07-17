@@ -24,5 +24,8 @@ pub mod tag_pool;
 pub mod tag_sea;
 pub mod utils;
 
+#[cfg(test)]
+pub(crate) mod migration_baseline;
+
 pub use commands::*;
 pub use state::KnowledgeState;

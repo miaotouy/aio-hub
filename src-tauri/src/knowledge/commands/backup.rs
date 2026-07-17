@@ -1605,6 +1605,7 @@ pub async fn kb_import_backup(
 mod tests {
     use super::*;
     use crate::knowledge::core::VectorizationMeta;
+    use crate::knowledge::migration_baseline::fixture;
     use tempfile::tempdir;
 
     fn empty_library() -> KnowledgeLibraryDtoV1 {
@@ -1818,5 +1819,46 @@ mod tests {
 
         assert!(parse_legacy_backup(&json_path).unwrap().legacy_content_only);
         assert!(parse_legacy_backup(&yaml_path).unwrap().legacy_content_only);
+    }
+
+    #[test]
+    fn migration_baseline_is_readable_from_all_supported_backup_inputs() {
+        let baseline = fixture();
+        let collection = &baseline.collections[0];
+        let library = KnowledgeLibraryDtoV1 {
+            meta: collection.meta(),
+            entries: collection.entries.clone(),
+        };
+        let directory = tempdir().unwrap();
+
+        let staged = directory.path().join("current-file-layout");
+        write_staged_library(&staged, &library).unwrap();
+        let reread = read_library_directory(&staged).unwrap();
+        assert_eq!(reread.meta.id, collection.id);
+        assert_eq!(reread.entries.len(), collection.entries.len());
+
+        let library_bytes = serde_json::to_vec_pretty(&library).unwrap();
+        let manifest = manifest_for(&library, &library_bytes);
+        let aio_path = directory.path().join("baseline.aio-kb");
+        write_backup_zip(&aio_path, &manifest, &library_bytes, &[]).unwrap();
+        let aio = parse_backup(&aio_path).unwrap();
+        assert_eq!(aio.library.meta.id, collection.id);
+        assert_eq!(aio.library.entries.len(), collection.entries.len());
+        assert!(!aio.legacy_content_only);
+
+        let legacy = KnowledgeBase {
+            meta: library.meta.clone(),
+            entries: library.entries.clone(),
+        };
+        let json_path = directory.path().join("baseline.json");
+        let yaml_path = directory.path().join("baseline.yaml");
+        fs::write(&json_path, serde_json::to_vec_pretty(&legacy).unwrap()).unwrap();
+        fs::write(&yaml_path, serde_yaml::to_string(&legacy).unwrap()).unwrap();
+        for path in [&json_path, &yaml_path] {
+            let parsed = parse_backup(path).unwrap();
+            assert_eq!(parsed.library.meta.id, collection.id);
+            assert_eq!(parsed.library.entries.len(), collection.entries.len());
+            assert!(parsed.legacy_content_only);
+        }
     }
 }

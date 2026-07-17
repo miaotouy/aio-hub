@@ -221,15 +221,6 @@ const handleBatchExport = async () => {
   await backup.exportMany(Array.from(selectedIds.value));
 };
 
-const handleExportCurrent = () => {
-  if (!kbStore.activeBaseId) return;
-  backup.exportSingle(kbStore.activeBaseId);
-};
-
-const handleExportAll = () => {
-  backup.exportAll();
-};
-
 const handleManage = (id: string) => {
   switchBase(id);
   emit("manage", id);
@@ -376,32 +367,6 @@ const formatTokens = (num: number) => {
               <template #icon><Upload :size="14" /></template>
             </el-button>
           </el-tooltip>
-          <el-dropdown trigger="click" size="small">
-            <div>
-              <el-tooltip content="导出知识库备份" placement="top">
-                <el-button
-                  size="small"
-                  circle
-                  :disabled="kbStore.bases.length === 0"
-                >
-                  <template #icon><Download :size="14" /></template>
-                </el-button>
-              </el-tooltip>
-            </div>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item
-                  :disabled="!kbStore.activeBaseId"
-                  @click="handleExportCurrent"
-                >
-                  导出当前知识库
-                </el-dropdown-item>
-                <el-dropdown-item @click="handleExportAll">
-                  导出全部知识库
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
           <el-tooltip content="批量管理" placement="top">
             <el-button size="small" circle @click="toggleBatchMode">
               <template #icon><CheckSquare :size="14" /></template>

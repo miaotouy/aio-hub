@@ -383,7 +383,7 @@ onMounted(() => {
           <el-form-item label="保底注入">
             <template #label>
               <el-tooltip
-                content="开启后，如果已启用的知识库没有对应的占位符（{{kb}} 宏或【kb::名称】标记），系统会自动将检索结果注入到指定位置。"
+                content="开启后，如果已启用的思绪集没有对应的 {{recall}} 宏或【recall::collection=集合ID】占位符，系统会自动将检索结果注入到指定位置。"
                 placement="top"
               >
                 <div style="display: flex; align-items: center; gap: 4px">

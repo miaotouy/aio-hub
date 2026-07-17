@@ -89,65 +89,82 @@ export function migrateAgent(agent: ChatAgent): boolean {
 }
 
 function migrateRecallConfiguration(agent: ChatAgent): boolean {
-  if (agent.recallConfig && agent.recallSettings) return false;
-
   const legacyConfig = agent.knowledgeBaseConfig;
   const legacySettings = agent.knowledgeSettings;
-  if (!legacyConfig && !legacySettings) return false;
-
-  const engineId = legacySettings?.defaultEngineId;
-  const defaultProfile =
-    engineId === "lens" || engineId === "blender" ? "associative" : "semantic";
-
-  agent.recallConfig ??= {
-    enabled: legacyConfig?.enabled ?? false,
-    bindings: (legacyConfig?.bindings ?? []).map((binding) => ({
-      recallId: binding.kbId,
-      recallName: binding.kbName,
-      enabled: binding.enabled,
-      when: binding.mode,
-      whenParams: binding.modeParams,
-      limit: binding.limit,
-      minScore: binding.minScore,
-      group: binding.group,
-    })),
-    groups: legacyConfig?.groups,
-    autoInjectIfMacroMissing: legacyConfig?.autoInjectIfMacroMissing,
-    autoInjectPosition: legacyConfig?.autoInjectPosition,
-  };
-  agent.recallSettings ??= {
-    defaultProfile,
-    defaultLimit: legacySettings?.defaultLimit,
-    maxRecallChars: legacySettings?.maxRecallChars,
-    defaultMinScore: legacySettings?.defaultMinScore,
-    resultTemplate: legacySettings?.resultTemplate,
-    emptyText: legacySettings?.emptyText,
-    gateScanDepth: legacySettings?.gateScanDepth,
-    enableCache: legacySettings?.enableCache,
-  };
-
   const toolConfig = agent.toolCallConfig;
-  if (toolConfig) {
+  let changed = false;
+
+  const renameRecordKeys = (record: Record<string, unknown> | undefined) => {
+    if (!record) return;
     const renameKey = (key: string) =>
       key === "kb-basic"
         ? "recall-basic"
         : key === "kb-admin"
           ? "recall-admin"
           : key.replace(/^kb-(basic|admin)([:_])/, "recall-$1$2");
-    for (const record of [
-      toolConfig.toolToggles,
-      toolConfig.methodToggles,
-      toolConfig.autoApproveTools,
-      toolConfig.autoApproveMethods,
-      toolConfig.overrides,
-    ]) {
-      if (!record) continue;
-      for (const [key, value] of Object.entries(record)) {
-        const nextKey = renameKey(key);
-        if (nextKey !== key && !(nextKey in record)) record[nextKey] = value as never;
-      }
+    for (const [key, value] of Object.entries(record)) {
+      const nextKey = renameKey(key);
+      if (nextKey === key) continue;
+      if (!(nextKey in record)) record[nextKey] = value;
+      delete record[key];
+      changed = true;
     }
+  };
+
+  for (const record of [
+    toolConfig?.toolToggles,
+    toolConfig?.methodToggles,
+    toolConfig?.autoApproveTools,
+    toolConfig?.autoApproveMethods,
+    toolConfig?.overrides,
+  ]) {
+    renameRecordKeys(record);
   }
+
+  if (!legacyConfig && !legacySettings) {
+    if (changed)
+      logger.info("迁移 Agent Recall 工具权限", { agentId: agent.id });
+    return changed;
+  }
+
+  const engineId = legacySettings?.defaultEngineId;
+  const defaultProfile =
+    engineId === "lens" || engineId === "blender" ? "associative" : "semantic";
+
+  if (!agent.recallConfig) {
+    agent.recallConfig = {
+      enabled: legacyConfig?.enabled ?? false,
+      bindings: (legacyConfig?.bindings ?? []).map((binding) => ({
+        recallId: binding.kbId,
+        recallName: binding.kbName,
+        enabled: binding.enabled,
+        when: binding.mode,
+        whenParams: binding.modeParams,
+        limit: binding.limit,
+        minScore: binding.minScore,
+        group: binding.group,
+      })),
+      groups: legacyConfig?.groups,
+      autoInjectIfMacroMissing: legacyConfig?.autoInjectIfMacroMissing,
+      autoInjectPosition: legacyConfig?.autoInjectPosition,
+    };
+    changed = true;
+  }
+  if (!agent.recallSettings) {
+    agent.recallSettings = {
+      defaultProfile,
+      defaultLimit: legacySettings?.defaultLimit,
+      maxRecallChars: legacySettings?.maxRecallChars,
+      defaultMinScore: legacySettings?.defaultMinScore,
+      resultTemplate: legacySettings?.resultTemplate,
+      emptyText: legacySettings?.emptyText,
+      gateScanDepth: legacySettings?.gateScanDepth,
+      enableCache: legacySettings?.enableCache,
+    };
+    changed = true;
+  }
+  delete agent.knowledgeBaseConfig;
+  delete agent.knowledgeSettings;
   agent.version = Math.max(agent.version ?? 0, RECALL_AGENT_CONFIG_VERSION);
   logger.info("迁移 Agent Recall 配置", { agentId: agent.id });
   return true;

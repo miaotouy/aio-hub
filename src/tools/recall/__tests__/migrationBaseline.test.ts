@@ -15,68 +15,67 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import baseline from "../__fixtures__/recall-migration-baseline-v1.json";
 import { MacroRegistry } from "@/tools/llm-chat/macro-engine/MacroRegistry";
-import { registerKnowledgeMacros } from "@/tools/llm-chat/macro-engine/macros/knowledge";
-import {
-  KnowledgeProcessor,
-  scanPlaceholders,
-} from "@/tools/llm-chat/core/context-processors/knowledge-processor";
+import { registerRecallMacros } from "@/tools/llm-chat/macro-engine/macros/recall";
+import { scanRecallPlaceholders } from "@/tools/llm-chat/core/context-processors/recall-placeholder";
+import { RecallProcessor } from "@/tools/llm-chat/core/context-processors/recall-processor";
 
-const mocks = vi.hoisted(() => ({
-  resolvePlaceholderRetrieval: vi.fn(),
-}));
-
+const mocks = vi.hoisted(() => ({ resolvePlaceholderRetrieval: vi.fn() }));
 vi.mock("@/tools/recall/services/api", () => ({
   resolvePlaceholderRetrieval: mocks.resolvePlaceholderRetrieval,
 }));
 
-const behavior = baseline.agentBehavior;
+const bindings = baseline.agentBehavior.bindings.map((binding) => ({
+  recallId: binding.kbId,
+  recallName: binding.kbName,
+  enabled: binding.enabled,
+  when: binding.mode,
+  whenParams: binding.modeParams,
+  limit: binding.limit,
+  minScore: binding.minScore,
+}));
 
 describe("Recall migration baseline - Agent and Chat behavior", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     MacroRegistry.getInstance().clear();
-    registerKnowledgeMacros(MacroRegistry.getInstance());
+    registerRecallMacros(MacroRegistry.getInstance());
   });
 
-  it("freezes legacy macro names and generated placeholders", async () => {
+  it("generates canonical Recall macros with stable collection IDs", async () => {
     const registry = MacroRegistry.getInstance();
-    expect(behavior.macros.every((name) => registry.hasMacro(name))).toBe(true);
-
-    const macro = registry.getMacro("kb");
-    expect(macro).toBeDefined();
-    const output = await macro!.execute(
-      {
-        agent: {
-          knowledgeBaseConfig: {
-            enabled: true,
-            bindings: behavior.bindings,
-          },
-        },
-      } as any,
-      []
+    expect(registry.hasMacro("kb")).toBe(false);
+    const output = await registry
+      .getMacro("recall")!
+      .execute(
+        { agent: { recallConfig: { enabled: true, bindings } } } as any,
+        []
+      );
+    expect(output).toContain(
+      `collection=${encodeURIComponent(bindings[0].recallId)}`
     );
-    expect(output).toBe(behavior.expectedMacroOutput);
+    expect(output).toContain("when=gate");
   });
 
-  it("freezes legacy placeholder parsing and history filtering", () => {
-    const placeholders = scanPlaceholders([
+  it("parses only Recall envelopes and skips history", () => {
+    const placeholders = scanRecallPlaceholders([
       {
         role: "system",
-        content: behavior.placeholderSample,
-        sourceType: "preset",
+        content: `【recall::collection=${bindings[0].recallId}::limit=5】`,
       },
       {
         role: "user",
-          content: "【kb::ignored-history】",
+        content: "【recall::limit=4】",
         sourceType: "session_history",
       },
     ] as any);
-
     expect(placeholders).toHaveLength(1);
-    expect(placeholders[0]).toMatchObject(behavior.expectedParsedPlaceholder);
+    expect(placeholders[0]).toMatchObject({
+      collection: bindings[0].recallId,
+      limit: 5,
+    });
   });
 
-  it("freezes automatic binding injection without requiring a handwritten macro", async () => {
+  it("injects Recall bindings without a handwritten macro", async () => {
     mocks.resolvePlaceholderRetrieval.mockResolvedValue({
       activated: true,
       content: "BASELINE_RECALL",
@@ -84,22 +83,18 @@ describe("Recall migration baseline - Agent and Chat behavior", () => {
     });
     const context = {
       agentConfig: {
-        knowledgeBaseConfig: {
+        recallConfig: {
           enabled: true,
           autoInjectIfMacroMissing: true,
-          autoInjectPosition: "system_prompt_end",
-          bindings: behavior.bindings,
+          bindings,
         },
-        knowledgeSettings: {
-          defaultEngineId: "vector",
-          enableCache: false,
-        },
+        recallSettings: { defaultProfile: "semantic", enableCache: false },
       },
       messages: [
         {
           role: "system",
           content: "System prompt",
-          sourceType: "preset",
+          sourceType: "agent_preset",
         },
         {
           role: "user",
@@ -109,27 +104,15 @@ describe("Recall migration baseline - Agent and Chat behavior", () => {
       ],
       logs: [],
     } as any;
-
-    await new KnowledgeProcessor().execute(context);
-
-    expect(mocks.resolvePlaceholderRetrieval).toHaveBeenCalledTimes(2);
-    expect(
-      mocks.resolvePlaceholderRetrieval.mock.calls.map(([request]) => ({
-        recallName: request.recallName,
-        limit: request.limit,
-        minScore: request.minScore,
-        mode: request.mode,
-        modeParams: request.modeParams,
-      }))
-    ).toEqual(
-      behavior.bindings.map((binding) => ({
-        recallName: binding.kbName,
-        limit: binding.limit,
-        minScore: binding.minScore,
-        mode: binding.mode,
-        modeParams: binding.modeParams,
-      }))
+    await new RecallProcessor().execute(context);
+    expect(mocks.resolvePlaceholderRetrieval).toHaveBeenCalledTimes(
+      bindings.length
     );
+    expect(
+      mocks.resolvePlaceholderRetrieval.mock.calls.map(
+        ([request]) => request.recallId
+      )
+    ).toEqual(bindings.map((binding) => binding.recallId));
     expect(context.messages[0].content).toContain("BASELINE_RECALL");
   });
 });

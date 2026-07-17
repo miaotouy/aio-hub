@@ -84,6 +84,24 @@ describe("agent recall migration", () => {
     expect(agent.toolCallConfig?.overrides?.["recall-basic:search"]).toEqual({
       enabled: true,
     });
+    expect(agent.toolCallConfig?.toolToggles).not.toHaveProperty("kb-basic");
+    expect(agent.toolCallConfig?.autoApproveTools).not.toHaveProperty(
+      "kb-admin"
+    );
+    expect(agent).not.toHaveProperty("knowledgeBaseConfig");
+    expect(agent).not.toHaveProperty("knowledgeSettings");
+    expect(migrateAgent(agent)).toBe(false);
+  });
+
+  it("migrates legacy tool keys even when Recall settings already exist", () => {
+    const agent = legacyAgent();
+    agent.recallConfig = { enabled: false, bindings: [] };
+    agent.recallSettings = { defaultProfile: "semantic" };
+
+    expect(migrateAgent(agent)).toBe(true);
+    expect(agent.recallConfig.enabled).toBe(false);
+    expect(agent.recallSettings.defaultProfile).toBe("semantic");
+    expect(agent.toolCallConfig?.toolToggles).toEqual({ "recall-basic": true });
     expect(migrateAgent(agent)).toBe(false);
   });
 });

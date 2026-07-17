@@ -40,7 +40,7 @@ import { registerFunctionMacros } from "./macros/functions";
 import { registerSystemMacros } from "./macros/system";
 import { registerAssetMacros } from "./macros/assets";
 import { registerToolMacros } from "./macros/tools";
-import { registerKnowledgeMacros } from "./macros/knowledge";
+import { registerRecallMacros } from "./macros/recall";
 import { registerCssVariableMacros } from "./macros/cssVariables";
 
 /**
@@ -60,6 +60,6 @@ export function initializeMacroEngine(): void {
   registerSystemMacros(registry);
   registerAssetMacros(registry);
   registerToolMacros(registry);
-  registerKnowledgeMacros(registry);
+  registerRecallMacros(registry);
   registerCssVariableMacros(registry);
 }

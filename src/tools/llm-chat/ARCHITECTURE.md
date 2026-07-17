@@ -189,18 +189,18 @@ graph TD
 
 详见 [`model-parameter-system.md`](./docs/architecture/model-parameter-system.md) 第 4、5 节。
 
-### 1.12. Recall 思绪召回（Stage 3 前兼容契约）
+### 1.12. Recall 思绪召回
 
-系统集成了一套面向完整语义条目的 Recall 能力（非文档分片），运行实现位于 `src/tools/recall/` 与 `src-tauri/src/recall/`。当前仍保留旧 Agent 配置和自由文本语法，待 Recall / Knowledge 拆分计划 Stage 3 统一迁移；这些兼容名不表示运行时仍属于 Knowledge 文档资料域。
+系统集成了一套面向完整语义条目的 Recall 能力（非文档分片），运行实现位于 `src/tools/recall/` 与 `src-tauri/src/recall/`。Agent 通过 `recallConfig` / `recallSettings` 配置 binding 与召回默认值，旧结构化字段只在版本化迁移时读取。
 
-- **占位符语法**: `【kb::kbName::limit::minScore::mode::modeParams::engineId】`（`kb` 与 `knowledge` 等价；除 `mode` 外所有段均可省略，缺省时回退到 Agent / 全局默认值）。
+- **占位符语法**: `【recall::collection=<collection-id>::profile=semantic::limit=8::min-score=0.35::when=always】`；参数使用严格命名协议，目标只接受 Agent 已启用 binding 的稳定 ID。
 - **扫描范围**: 仅扫描 `sourceType !== 'session_history'` 的消息（预设、深度/锚点注入等），**对话历史不参与被动召回**——历史中的主动检索请走工具调用，定位则交给深度注入的预设。
 - **激活模式**:
   - `always`：每次构建都激活。
   - `gate`：扫描最近 `gateScanDepth` 条历史，命中任一关键词才激活。
   - `turn`：按已发出的 user 消息计数取模，控制召回频率。
   - `static`：直接加载指定条目；`static::all` 可加载某个库（或全部库）的全部已启用条目，绕过检索器。
-- **自动注入 (Auto Inject)**: 当 Agent 开启 `knowledgeBaseConfig.autoInjectIfMacroMissing` 时，未被手动占位符引用的 binding 会**按 binding 粒度自动注入**到 `context_head`（System 末尾，无 System 则插入独立 user 消息）或 `before_last_user` 位置；用户写一个无名 `【kb】` 即视为"全量接管"，跳过所有自动注入。
+- **自动注入 (Auto Inject)**: 当 Agent 开启 `recallConfig.autoInjectIfMacroMissing` 时，未被手动占位符引用的 binding 会按 binding 粒度自动注入到 `context_head` 或 `before_last_user`；无名 `【recall】` 视为调用方接管全部已启用 binding。
 - **检索引擎**: `vector`（向量）/ `keyword`（关键词）/ `hybrid`（混合）三选一，优先级为 **宏参数 > Agent 默认 > 全局默认**。
 - **向量空间融合查询**: 取最近 `contextWindow` 轮历史，**分别提取 user 和 AI 文本** → 分别 embed → 在向量空间按 `0.7 / 0.3` 加权平均得到查询向量；user 侧文本先经查询预处理管线（Markdown/HTML/占位符清洗 → `Intl.Segmenter` 分词 → 停用词过滤 → Tag 池 n-gram 匹配），关键词检索使用清洗后文本，向量检索使用融合向量。
 - **后端 LRU 检索缓存**: 检索结果缓存位于 Rust Recall 后端（`src-tauri/src/recall/commands/retrieval_cache.rs` 的 `recall_retrieval_cache_*` 系列命令），**全局共享**；缓存键由 `query + recallIds + tags + limit + minScore + engineId + modelId` 计算 SHA-256 得到，任一参数变化即失效。Embedding 向量缓存由 `vectorCacheManager` 独立管理。
@@ -369,7 +369,7 @@ graph TD
 | 4   | 250      | 转写与文本提取器 | 处理音视频/文档附件，解析 `【file::assetId】` 占位符                                             |
 | 5   | 300      | 世界书处理器     | SillyTavern 风格的关键词扫描与条目注入                                                           |
 | 6   | 400      | 注入组装器       | 处理预设消息：宏 → 分类 → 深度/锚点注入 → 预设附件解析 → 与历史消息组装                          |
-| 7   | 450      | 知识库处理器     | 处理 `【kb::…】` 占位符与 `knowledgeBaseConfig` 的自动注入                                       |
+| 7   | 450      | 思绪处理器       | 处理 `【recall::key=value】` 占位符与 `recallConfig` 的自动注入                                  |
 | 8   | 500      | 会话变量处理器   | 解析 `<svar>` 标签并替换 `$[path]` / `$[svars::format]`                                          |
 | 9   | 600      | Token 限制器     | 智能预算分配，预设保底，历史从最旧开始截断                                                       |
 | 10  | 800      | 消息格式化       | 统一调度 4 个子格式化规则（合并 System / 合并连续角色 / 转换 System / 确保交替）                 |

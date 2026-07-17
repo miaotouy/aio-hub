@@ -1,6 +1,6 @@
 # Recall / Knowledge 领域拆分与重构实施计划
 
-**状态**: Pre-Stage、Stage 0、Stage 1 与 Stage 2.1 已完成；Stage 2.2 运行时硬切已完成代码切换和自动化工程验证，正进入 Stage 2.3 数据库真源闭环验证。整个计划完成前不发布中间版本。
+**状态**: Pre-Stage、Stage 0、Stage 1、Stage 2.1、Stage 2.2 与 Stage 3 已完成；Stage 2.3/2.4 正补齐数据库真源与迁移闭环验证，下一施工阶段为 Stage 4。整个计划完成前不发布中间版本。
 **创建日期**: 2026-07-17
 **最近修订**: 2026-07-17
 **适用范围**: `src/tools/knowledge-base/`、计划新增的 `src/tools/recall/`、`src/tools/llm-chat/`、`src/tools/agent-manager/`、`src-tauri/src/knowledge/`、计划新增的 `src-tauri/src/recall/`
@@ -355,7 +355,7 @@ appData/knowledge/
 
 ## 8. Stage 3：迁移 Agent、Chat 与工具配置
 
-**阶段状态**: 进行中。Agent 读取时已通过 `agentMigrationService` 一次性迁移 `knowledgeBaseConfig` / `knowledgeSettings`、旧 binding 和 `kb-*` 工具权限为版本 3 的 `recallConfig` / `recallSettings` 与 `recall-*` key，并有幂等单测。新的 `RecallProcessor` 已接管默认 pipeline：严格解析 `【recall::key=value】`、使用 collection ID 授权和检索、按 binding 自动注入 canonical 占位符，并对旧 `【kb】` / 历史 `【knowledge】` 语法记录可定位告警。`{{recall}}` / `{{recall_list}}` 宏、占位符编辑器和 Agent 思绪绑定设置页均已直接使用新结构；新建、编辑和导入不再写入旧字段，剩余工作是收口旧宏/旧 processor 与旧字段的读取兼容。
+**阶段状态**: 已完成。Agent 读取时通过 `agentMigrationService` 一次性迁移 `knowledgeBaseConfig` / `knowledgeSettings`、旧 binding 和全部 `kb-*` 工具权限 key 为版本 3 的 `recallConfig` / `recallSettings` 与 `recall-*` key；迁移完成后删除旧结构化字段和权限 key，并覆盖完整迁移、半迁移与幂等状态。`RecallProcessor` 已独占默认 pipeline，严格解析 `【recall::key=value】`、按 collection ID 授权和检索、按注入位置生成 canonical 占位符；旧 `【kb】` 和历史位置参数 `【knowledge】` 只生成可定位告警，合法 `【knowledge::library=...】` 不会被误报。`{{recall}}` / `{{recall_list}}` 宏只接受命名参数，旧 Knowledge processor、`{{kb}}` / `{{kb_list}}` 宏及其注册入口已删除。Agent 思绪绑定设置、新建、编辑和导入均只写新结构。已通过 592 项前端单测、lint、TypeScript 与 Vite build。
 
 ### 目标
 

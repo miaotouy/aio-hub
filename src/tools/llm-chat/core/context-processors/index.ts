@@ -21,6 +21,5 @@ export * from "./token-limiter";
 export * from "./async-task-processor";
 export * from "./message-format-processors";
 export * from "./asset-resolver";
-export * from "./knowledge-processor";
 export * from "./recall-processor";
 export * from "./variable-processor";

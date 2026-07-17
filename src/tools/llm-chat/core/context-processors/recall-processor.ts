@@ -16,20 +16,75 @@ import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import type { ProcessableMessage } from "../../types/context";
 import { resolvePlaceholderRetrieval } from "@/tools/recall/services/api";
 import type { RecallRetrievalRequest } from "@/tools/recall/types/retrieval";
-import { scanRecallPlaceholders, serializeRecallPlaceholder } from "./recall-placeholder";
+import {
+  scanRecallPlaceholders,
+  serializeRecallPlaceholder,
+} from "./recall-placeholder";
+
+const LEGACY_RECALL_ENVELOPE = /【(?:kb|knowledge)(?:::[^【】]*)?】/g;
+
+function isLegacyRecallEnvelope(raw: string): boolean {
+  if (raw === "【knowledge】") return true;
+  if (raw.startsWith("【kb")) return true;
+  const body = raw.slice("【knowledge::".length, -1);
+  return body.split("::").some((segment) => !segment.includes("="));
+}
+
+function insertAutoPlaceholders(
+  messages: ProcessableMessage[],
+  raws: string[],
+  position: "context_head" | "before_last_user"
+) {
+  const content = raws.join("\n");
+  if (position === "before_last_user") {
+    const lastUserIndex = messages
+      .map((message) => message.role)
+      .lastIndexOf("user");
+    const previous =
+      lastUserIndex > 0 ? messages[lastUserIndex - 1] : undefined;
+    if (previous?.role === "system" && typeof previous.content === "string") {
+      previous.content = `${previous.content.trimEnd()}\n\n${content}`;
+      return;
+    }
+    messages.splice(Math.max(0, lastUserIndex), 0, {
+      role: "user",
+      content,
+      sourceType: "depth_injection",
+    });
+    return;
+  }
+
+  const lastSystemIndex = messages
+    .map((message) => message.role)
+    .lastIndexOf("system");
+  const system = lastSystemIndex >= 0 ? messages[lastSystemIndex] : undefined;
+  if (system && typeof system.content === "string") {
+    system.content = `${system.content.trimEnd()}\n\n${content}`;
+    return;
+  }
+  messages.unshift({ role: "user", content, sourceType: "depth_injection" });
+}
 
 function engineForProfile(profile: "semantic" | "associative" | undefined) {
   return profile === "associative" ? "lens" : "vector";
 }
 
 function extractQuery(messages: ProcessableMessage[]) {
-  const history = messages.filter((message) => message.sourceType === "session_history");
+  const history = messages.filter(
+    (message) => message.sourceType === "session_history"
+  );
   const userIndex = history.map((message) => message.role).lastIndexOf("user");
   if (userIndex < 0) return { userText: "", aiText: "" };
-  const userText = typeof history[userIndex].content === "string" ? history[userIndex].content.trim() : "";
+  const userText =
+    typeof history[userIndex].content === "string"
+      ? history[userIndex].content.trim()
+      : "";
   const aiText = history
     .slice(userIndex + 1)
-    .filter((message) => message.role === "assistant" && typeof message.content === "string")
+    .filter(
+      (message) =>
+        message.role === "assistant" && typeof message.content === "string"
+    )
     .map((message) => (message.content as string).trim())
     .filter(Boolean)
     .join("\n");
@@ -46,49 +101,81 @@ export class RecallProcessor implements ContextProcessor {
     const config = context.agentConfig.recallConfig;
     const settings = context.agentConfig.recallSettings;
     context.messages.forEach((message, messageIndex) => {
-      if (message.sourceType === "session_history" || typeof message.content !== "string") return;
-      const legacy = message.content.match(/【(?:kb|knowledge)(?:::[^【】]*)?】/g);
-      for (const raw of legacy ?? []) {
+      if (
+        message.sourceType === "session_history" ||
+        typeof message.content !== "string"
+      )
+        return;
+      const candidates = message.content.match(LEGACY_RECALL_ENVELOPE);
+      for (const raw of candidates?.filter(isLegacyRecallEnvelope) ?? []) {
         context.logs.push({
           processorId: this.id,
           level: "warn",
           message: "检测到已废弃的知识库占位符，未执行检索",
-          details: { messageIndex, raw, replacement: "【recall::collection=<collection-id>】" },
+          details: {
+            messageIndex,
+            raw,
+            replacement: "【recall::collection=<collection-id>】",
+          },
         });
       }
     });
     if (!config?.enabled) return;
-    const placeholders = scanRecallPlaceholders(context.messages);
-    const enabledBindings = config.bindings.filter((binding) => binding.enabled);
-    if (config.autoInjectIfMacroMissing && !placeholders.some((item) => !item.collection)) {
-      const referenced = new Set(placeholders.map((item) => item.collection).filter(Boolean));
-      const generated = enabledBindings.filter((binding) => !referenced.has(binding.recallId));
+    let placeholders = scanRecallPlaceholders(context.messages);
+    const enabledBindings = config.bindings.filter(
+      (binding) => binding.enabled
+    );
+    if (
+      config.autoInjectIfMacroMissing &&
+      !placeholders.some((item) => !item.collection)
+    ) {
+      const referenced = new Set(
+        placeholders.map((item) => item.collection).filter(Boolean)
+      );
+      const generated = enabledBindings.filter(
+        (binding) => !referenced.has(binding.recallId)
+      );
       if (generated.length) {
-        const raw = generated.map((binding) => serializeRecallPlaceholder({
-          collection: binding.recallId,
-          profile: binding.profile,
-          limit: binding.limit,
-          minScore: binding.minScore,
-          when: binding.when,
-          gateTags: binding.when === "gate" ? binding.whenParams : undefined,
-          everyTurns: binding.when === "turn" ? Number(binding.whenParams?.[0]) : undefined,
-          entries: binding.when === "static" ? binding.whenParams : undefined,
-        }));
-        const index = context.messages.findIndex((message) => message.role === "system");
-        const targetIndex = index >= 0 ? index : 0;
-        if (context.messages[targetIndex] && typeof context.messages[targetIndex].content === "string") {
-          context.messages[targetIndex].content += `\n\n${raw.join("\n")}`;
-        } else {
-          context.messages.unshift({ role: "user", content: raw.join("\n") });
-        }
-        placeholders.push(...scanRecallPlaceholders(context.messages).filter((item) => raw.includes(item.raw)));
+        const raw = generated.map((binding) =>
+          serializeRecallPlaceholder({
+            collection: binding.recallId,
+            profile: binding.profile,
+            limit: binding.limit,
+            minScore: binding.minScore,
+            when: binding.when,
+            gateTags: binding.when === "gate" ? binding.whenParams : undefined,
+            everyTurns:
+              binding.when === "turn"
+                ? Number(binding.whenParams?.[0])
+                : undefined,
+            entries: binding.when === "static" ? binding.whenParams : undefined,
+          })
+        );
+        insertAutoPlaceholders(
+          context.messages,
+          raw,
+          config.autoInjectPosition ?? "context_head"
+        );
+        placeholders = scanRecallPlaceholders(context.messages);
       }
     }
     const { userText, aiText } = extractQuery(context.messages);
-    const recentMessageTexts = context.messages.filter((message) => typeof message.content === "string").map((message) => message.content as string);
+    const recentMessageTexts = context.messages
+      .filter((message) => typeof message.content === "string")
+      .map((message) => message.content as string);
     for (const placeholder of placeholders) {
-      if (placeholder.collection && !enabledBindings.some((binding) => binding.recallId === placeholder.collection)) {
-        context.logs.push({ processorId: this.id, level: "warn", message: "Recall 占位符引用未授权集合", details: { collection: placeholder.collection, raw: placeholder.raw } });
+      if (
+        placeholder.collection &&
+        !enabledBindings.some(
+          (binding) => binding.recallId === placeholder.collection
+        )
+      ) {
+        context.logs.push({
+          processorId: this.id,
+          level: "warn",
+          message: "Recall 占位符引用未授权集合",
+          details: { collection: placeholder.collection, raw: placeholder.raw },
+        });
         continue;
       }
       const request: RecallRetrievalRequest = {
@@ -96,11 +183,18 @@ export class RecallProcessor implements ContextProcessor {
         limit: placeholder.limit,
         minScore: placeholder.minScore,
         mode: placeholder.when ?? "always",
-        modeParams: placeholder.gateTags ?? (placeholder.everyTurns ? [String(placeholder.everyTurns)] : placeholder.entries),
-        engineId: engineForProfile(placeholder.profile ?? settings?.defaultProfile),
+        modeParams:
+          placeholder.gateTags ??
+          (placeholder.everyTurns
+            ? [String(placeholder.everyTurns)]
+            : placeholder.entries),
+        engineId: engineForProfile(
+          placeholder.profile ?? settings?.defaultProfile
+        ),
         userText,
         aiText,
-        turnCount: context.messages.filter((message) => message.role === "user").length,
+        turnCount: context.messages.filter((message) => message.role === "user")
+          .length,
         recentMessageTexts,
         settings: {
           defaultEngineId: engineForProfile(settings?.defaultProfile),
@@ -112,11 +206,18 @@ export class RecallProcessor implements ContextProcessor {
           resultTemplate: settings?.resultTemplate,
           emptyText: settings?.emptyText,
         },
-        enabledBindings: enabledBindings.map((binding) => ({ recallId: binding.recallId, recallName: binding.recallName })),
+        enabledBindings: enabledBindings.map((binding) => ({
+          recallId: binding.recallId,
+          recallName: binding.recallName,
+        })),
       };
       const response = await resolvePlaceholderRetrieval(request);
       const message = context.messages[placeholder.messageIndex];
-      if (message && typeof message.content === "string") message.content = message.content.replace(placeholder.raw, response.activated ? response.content : "");
+      if (message && typeof message.content === "string")
+        message.content = message.content.replace(
+          placeholder.raw,
+          response.activated ? response.content : ""
+        );
     }
   }
 }

@@ -59,7 +59,7 @@ describe("KnowledgeStorage.deleteBase", () => {
     mocks.save.mockResolvedValue(undefined);
   });
 
-  it("deletes through the scoped backend command and updates the workspace", async () => {
+  it("deletes through the scoped backend command without persisting repository state", async () => {
     mocks.invoke.mockResolvedValue(undefined);
     const storage = new KnowledgeStorage();
 
@@ -68,9 +68,8 @@ describe("KnowledgeStorage.deleteBase", () => {
     expect(mocks.invoke).toHaveBeenCalledWith("recall_delete_base", {
       recallId: "base-a",
     });
-    expect(mocks.save).toHaveBeenCalledWith(
-      expect.objectContaining({ bases: [{ id: "base-b" }] })
-    );
+    expect(mocks.load).not.toHaveBeenCalled();
+    expect(mocks.save).not.toHaveBeenCalled();
   });
 
   it("reports failure without changing the workspace when deletion fails", async () => {

@@ -225,7 +225,9 @@ export function useKbManagement() {
   async function deleteBase(kbId: string) {
     store.loading = true;
     try {
-      await kbStorage.deleteBase(kbId);
+      const deleted = await kbStorage.deleteBase(kbId);
+      if (!deleted) return;
+
       await store.loadBases();
       if (store.activeBaseId === kbId) {
         store.activeBaseId = null;

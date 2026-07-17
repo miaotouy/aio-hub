@@ -17,10 +17,25 @@ use crate::knowledge::io::*;
 use crate::knowledge::ops::*;
 use crate::knowledge::state::KnowledgeState;
 use crate::knowledge::utils::*;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
+
+fn remove_dir_if_exists(path: &Path, description: &str) -> Result<(), String> {
+    match std::fs::remove_dir_all(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!("删除{}失败: {}", description, error)),
+    }
+}
+
+fn delete_base_directories(app_data_dir: &Path, kb_id: &str) -> Result<(), String> {
+    // Delete vectors first so a base directory is never removed while its
+    // vector cleanup has already failed.
+    remove_dir_if_exists(&get_kb_vectors_root(app_data_dir, kb_id), "知识库向量目录")?;
+    remove_dir_if_exists(&get_kb_dir(app_data_dir, kb_id), "知识库目录")
+}
 
 #[tauri::command]
 pub async fn kb_initialize(app: AppHandle) -> Result<(), String> {
@@ -230,6 +245,33 @@ pub async fn kb_save_base_meta(
 }
 
 #[tauri::command]
+pub async fn kb_delete_base(
+    app: AppHandle,
+    state: State<'_, KnowledgeState>,
+    kb_id: Uuid,
+) -> Result<(), String> {
+    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let kb_id_string = kb_id.to_string();
+
+    delete_base_directories(&app_data_dir, &kb_id_string)?;
+
+    state
+        .imdb
+        .write()
+        .map_err(|_| "获取内存数据库写锁失败")?
+        .bases
+        .remove(&kb_id);
+
+    state
+        .retrieval_cache
+        .write()
+        .map_err(|_| "获取检索缓存写锁失败")?
+        .clear();
+
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn kb_clone_base(
     app: AppHandle,
     state: State<'_, KnowledgeState>,
@@ -314,4 +356,38 @@ pub async fn kb_export_base(
         meta: base.meta.clone(),
         entries: base.entries.values().cloned().collect(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::delete_base_directories;
+    use crate::knowledge::io::{get_kb_dir, get_kb_vectors_root};
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn delete_base_directories_removes_base_and_vectors() {
+        let app_data_dir = tempdir().unwrap();
+        let kb_id = "60f7ad7e-9a59-4b25-bad0-e87a74dcf622";
+        let base_dir = get_kb_dir(app_data_dir.path(), kb_id);
+        let vector_dir = get_kb_vectors_root(app_data_dir.path(), kb_id);
+
+        fs::create_dir_all(base_dir.join("entries")).unwrap();
+        fs::create_dir_all(vector_dir.join("model")).unwrap();
+        fs::write(base_dir.join("meta.json"), "{}").unwrap();
+        fs::write(vector_dir.join("model").join("entry.vec"), b"vector").unwrap();
+
+        delete_base_directories(app_data_dir.path(), kb_id).unwrap();
+
+        assert!(!base_dir.exists());
+        assert!(!vector_dir.exists());
+    }
+
+    #[test]
+    fn delete_base_directories_is_idempotent() {
+        let app_data_dir = tempdir().unwrap();
+
+        delete_base_directories(app_data_dir.path(), "60f7ad7e-9a59-4b25-bad0-e87a74dcf622")
+            .unwrap();
+    }
 }

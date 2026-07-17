@@ -302,4 +302,16 @@ impl GlobalTagPoolManager {
         pools.insert(model_id.to_string(), pool_arc.clone());
         Ok(pool_arc)
     }
+
+    /// 使用持久化真源恢复的标签池替换当前运行时缓存。
+    #[allow(dead_code)] // 由 Stage 2 database warmup 调用，尚未切换运行时真源。
+    pub fn replace_pools(&self, loaded_pools: Vec<ModelTagPool>) -> Result<(), String> {
+        let mut pools = self.pools.write().map_err(|_| "获取池写锁失败")?;
+        pools.clear();
+        for mut pool in loaded_pools {
+            pool.rebuild_index();
+            pools.insert(pool.model_id.clone(), Arc::new(RwLock::new(pool)));
+        }
+        Ok(())
+    }
 }

@@ -14,12 +14,71 @@
 
 use crate::recall::core::{RecallCollectionMeta, RecallEntry};
 use crate::recall::io::*;
+use crate::recall::storage::RecallRepository;
+use crate::recall::tag_pool::GlobalTagPoolManager;
 use crate::recall::utils::*;
 use rayon::prelude::*;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 use uuid::Uuid;
 
 type VectorizedModelsMap = std::collections::HashMap<Uuid, (Vec<String>, u32)>;
+
+/// 从 Recall repository 恢复完整运行时读模型。
+///
+/// 该函数只消费数据库真源。旧文件系统仅可由迁移和恢复流程访问，不能作为
+/// repository warmup 的隐式降级来源。
+#[allow(dead_code)] // Stage 2 写路径切换完成后接入启动 warmup。
+pub fn warmup_recall_repository(
+    repository: &dyn RecallRepository,
+    imdb: &Arc<RwLock<crate::recall::index::InMemoryDatabase>>,
+    tag_pool_manager: &GlobalTagPoolManager,
+) -> Result<(), String> {
+    let collection_metas = repository.list_collections()?;
+    let mut loaded_bases = HashMap::with_capacity(collection_metas.len());
+    let mut model_ids = HashSet::new();
+
+    for collection_meta in collection_metas {
+        let collection_id = collection_meta.id;
+        let Some(collection) = repository.load_collection(collection_id)? else {
+            return Err(format!("Recall repository 中缺少集合 {collection_id}"));
+        };
+
+        let active_model = collection.meta.vectorization.model_used.clone();
+        model_ids.extend(collection.meta.models.iter().cloned());
+        if !active_model.is_empty() {
+            model_ids.insert(active_model.clone());
+        }
+
+        let mut base = crate::recall::index::InMemoryBase::new(collection.meta);
+        if !active_model.is_empty() {
+            if let Some((vectors, dimension, total_tokens)) =
+                repository.load_vectors(collection_id, &active_model)?
+            {
+                base.vector_store
+                    .rebuild(active_model, dimension, total_tokens, vectors);
+            }
+        }
+        for entry in collection.entries {
+            base.sync_entry(entry);
+        }
+        base.is_fully_loaded = true;
+        loaded_bases.insert(collection_id, Arc::new(RwLock::new(base)));
+    }
+
+    let mut loaded_pools = Vec::with_capacity(model_ids.len());
+    for model_id in model_ids {
+        let pool = repository.load_tag_pool(&model_id)?;
+        if !pool.registry.is_empty() {
+            loaded_pools.push(pool);
+        }
+    }
+
+    tag_pool_manager.replace_pools(loaded_pools)?;
+    let mut database = imdb.write().map_err(|_| "获取内存数据库写锁失败")?;
+    database.bases = loaded_bases;
+    Ok(())
+}
 
 /// 快速加载思绪集元数据（仅 meta.json，不加载条目内容）
 pub fn load_knowledge_base_meta_only(
@@ -477,4 +536,103 @@ pub fn batch_upsert_entries_logic(
     }
 
     Ok((filtered_entries, duplicate_count))
+}
+
+#[cfg(test)]
+mod repository_warmup_tests {
+    use super::warmup_recall_repository;
+    use crate::recall::core::{
+        RecallCollection, RecallCollectionMeta, RecallEntry, VectorizationMeta,
+    };
+    use crate::recall::index::InMemoryDatabase;
+    use crate::recall::storage::{RecallRepository, SqliteRecallRepository};
+    use crate::recall::tag_pool::{GlobalTagPoolManager, ModelTagPool};
+    use std::sync::{Arc, RwLock};
+    use tempfile::tempdir;
+    use uuid::Uuid;
+
+    #[test]
+    fn warmup_reads_the_repository_after_legacy_files_are_removed() {
+        let app_data = tempdir().unwrap();
+        let repository = SqliteRecallRepository::new(app_data.path());
+        repository.initialize().unwrap();
+
+        let collection_id = Uuid::new_v4();
+        let entry_id = Uuid::new_v4();
+        let entry = RecallEntry {
+            id: entry_id,
+            key: "database-entry".to_string(),
+            content: "数据库成为 Recall 真源".to_string(),
+            summary: "数据库真源".to_string(),
+            core_tags: vec![],
+            tags: vec![],
+            assets: vec![],
+            priority: 100,
+            enabled: true,
+            created_at: 10,
+            updated_at: 20,
+            error_message: None,
+            content_hash: Some("entry-hash".to_string()),
+            refs: vec![],
+            ref_by: vec![],
+        };
+        repository
+            .save_collection(&RecallCollection {
+                meta: RecallCollectionMeta {
+                    id: collection_id,
+                    name: "数据库思绪集".to_string(),
+                    description: None,
+                    created_at: 10,
+                    updated_at: 20,
+                    author: None,
+                    vectorization: VectorizationMeta {
+                        is_indexed: true,
+                        last_indexed_at: Some(20),
+                        model_used: "model-a".to_string(),
+                        dimension: 2,
+                        total_tokens: 3,
+                    },
+                    models: vec!["model-a".to_string()],
+                    tags: vec![],
+                    icon: None,
+                    entries: vec![],
+                    config: serde_json::json!({}),
+                },
+                entries: vec![entry.clone()],
+            })
+            .unwrap();
+        repository
+            .upsert_entry_vector(
+                collection_id,
+                entry_id,
+                "model-a",
+                &[0.25, 0.75],
+                Some(3),
+                entry.content_hash.as_deref(),
+                20,
+            )
+            .unwrap();
+        let mut tag_pool = ModelTagPool::new("model-a".to_string());
+        tag_pool.sync_vectors(vec![("数据库".to_string(), vec![0.5, 0.5])]);
+        repository.save_tag_pool(&tag_pool).unwrap();
+
+        let imdb = Arc::new(RwLock::new(InMemoryDatabase::new()));
+        let pools = GlobalTagPoolManager::new();
+        warmup_recall_repository(&repository, &imdb, &pools).unwrap();
+
+        let database = imdb.read().unwrap();
+        let base = database.bases.get(&collection_id).unwrap().read().unwrap();
+        assert!(base.is_fully_loaded);
+        assert_eq!(base.entries.get(&entry_id).unwrap().content, entry.content);
+        assert_eq!(base.vector_store.model_id, "model-a");
+        assert_eq!(base.vector_store.ids, vec![entry_id]);
+        drop(base);
+        drop(database);
+
+        let restored_pool = pools.get_pool(app_data.path(), "model-a").unwrap();
+        assert_eq!(
+            restored_pool.read().unwrap().registry.get("数据库"),
+            Some(&0)
+        );
+    }
 }

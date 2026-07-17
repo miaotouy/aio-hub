@@ -273,7 +273,7 @@ appData/knowledge/
 
 ## 7. Stage 2：直接迁移到 Recall 数据库
 
-**施工进度（2026-07-17）**: 已锁定并引入 `rusqlite = 0.39.0`，新增 `recall.db` / `recall-vectors.db` 的独立 schema migration、SQLite repository、向量 BLOB 编解码和基础 CRUD 单测；`recall_initialize` 已幂等创建并注册 repository。`LegacyFileRecallImporter` 已能迁移旧 `bases`、模型索引、entry vectors 与 tag pool，保留 ID、源字段、tokens 和 content hash，并分别记录主库 / 向量库的 `running`、`partial`、`completed` 状态及结构化报告；损坏向量和无法反查的模型 ID 会降级为待重建。旧文件目录仍是 warmup 与写 command 的运行时真源，自动启动迁移、`.aio-kb` / legacy JSON / YAML 恢复接入、command 写路径切换和前端 workspace 列表降级尚未完成，因此本进度不构成 Stage 2 完成。
+**施工进度（2026-07-17）**: 已锁定并引入 `rusqlite = 0.39.0`，新增 `recall.db` / `recall-vectors.db` 的独立 schema migration、SQLite repository、向量 BLOB 编解码和基础 CRUD 单测；`recall_initialize` 已幂等创建并注册 repository。`LegacyFileRecallImporter` 已能迁移旧 `bases`、模型索引、entry vectors 与 tag pool，保留 ID、源字段、tokens 和 content hash，并分别记录主库 / 向量库的 `running`、`partial`、`completed` 状态及结构化报告；损坏向量和无法反查的模型 ID 会降级为待重建。数据库 repository warmup 已能重建条目、关键词索引、当前模型向量矩阵与标签池，并有旧目录不可用时仍能加载的回归测试；由于写 command、恢复入口与前端 workspace 列表尚未切换，启动路径仍保留旧文件 warmup，避免产生读取数据库而写入旧目录的双真源状态。自动启动迁移、`.aio-kb` / legacy JSON / YAML 恢复接入、command 写路径切换和前端 workspace 列表降级尚未完成，因此本进度不构成 Stage 2 完成。
 
 ### 目标
 

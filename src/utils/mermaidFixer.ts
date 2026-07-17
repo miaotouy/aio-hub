@@ -203,7 +203,7 @@ function fixSubgraphLine(line: string, sensitiveChars: RegExp): string {
  */
 function fixNodeDefinitions(
   line: string,
-  sensitiveChars: RegExp,
+  _sensitiveChars: RegExp,
   quoteContent: (
     match: string,
     id: string,
@@ -260,32 +260,6 @@ function fixNodeDefinitions(
     /([A-Za-z0-9_]+)\s*(\{)(?!\{)([^\{\}]*)(\})/g,
     quoteContent
   );
-
-  return fixed;
-
-  // ========== 3. 规范化 <br> 标签 ==========
-  // Mermaid 中推荐使用 <br/>，虽然 <br> 在引号内通常也可以，但统一一下更安全
-  fixed = fixed.replace(/<br\s*\/?>/gi, "<br/>");
-
-  // ========== 4. 修复连接线上的标签 ==========
-  // 匹配 -- Label --> 或 -- Label ---
-  // 如果 Label 包含特殊字符且未加引号，则添加引号
-  fixed = fixed.replace(/--\s+([^"\n>]+?)\s+--/g, (match, content) => {
-    if (sensitiveChars.test(content)) {
-      return `-- "${content.replace(/"/g, "#quot;")}" --`;
-    }
-    return match;
-  });
-
-  // 修复 |Label| 格式
-  fixed = fixed.replace(/\|([^"\n|]+?)\|/g, (match, content) => {
-    // 排除逻辑运算中的 ||
-    if (content.trim() === "") return match;
-    if (sensitiveChars.test(content)) {
-      return `|"${content.replace(/"/g, "#quot;")}"|`;
-    }
-    return match;
-  });
 
   return fixed;
 }

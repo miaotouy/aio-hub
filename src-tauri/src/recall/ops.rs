@@ -550,9 +550,11 @@ pub fn batch_upsert_entries_logic(
 mod repository_warmup_tests {
     use super::warmup_recall_repository;
     use crate::recall::core::{
-        RecallCollection, RecallCollectionMeta, RecallEntry, VectorizationMeta,
+        QueryPayload, RecallCollection, RecallCollectionMeta, RecallEntry, RecallSearchFilters,
+        RetrievalContext, RetrievalEngine, VectorizationMeta,
     };
     use crate::recall::index::InMemoryDatabase;
+    use crate::recall::search::KeywordRetrievalEngine;
     use crate::recall::storage::{RecallRepository, SqliteRecallRepository};
     use crate::recall::tag_pool::{GlobalTagPoolManager, ModelTagPool};
     use std::sync::{Arc, RwLock};
@@ -666,5 +668,45 @@ mod repository_warmup_tests {
             entry.content
         );
         assert!(recovered_base.vector_store.ids.is_empty());
+        drop(recovered_base);
+        drop(recovered_database);
+
+        let context = RetrievalContext {
+            db: recovered_imdb,
+            tag_pool_manager: GlobalTagPoolManager::new(),
+            app_data_dir: app_data.path().to_path_buf(),
+        };
+        let results = KeywordRetrievalEngine::new()
+            .search(
+                &QueryPayload::Text("数据库".to_string()),
+                &RecallSearchFilters {
+                    recall_ids: Some(vec![collection_id]),
+                    ..Default::default()
+                },
+                &context,
+            )
+            .unwrap();
+        assert_eq!(results[0].entry.id, entry_id);
+
+        recovered_repository
+            .upsert_entry_vector(
+                collection_id,
+                entry_id,
+                "model-a",
+                &[0.75, 0.25],
+                Some(3),
+                entry.content_hash.as_deref(),
+                30,
+            )
+            .unwrap();
+        assert_eq!(
+            recovered_repository
+                .load_vectors(collection_id, "model-a")
+                .unwrap()
+                .unwrap()
+                .0[0]
+                .1,
+            vec![0.75, 0.25]
+        );
     }
 }

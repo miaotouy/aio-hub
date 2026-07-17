@@ -124,6 +124,14 @@ CREATE TABLE legacy_import_state (
 );
 "#;
 
+const MAIN_SCHEMA_V2: &str = r#"
+ALTER TABLE recall_collections
+ADD COLUMN active_model_id TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE recall_collections
+ADD COLUMN active_model_last_indexed_at INTEGER;
+"#;
+
 fn apply_migration(
     connection: &mut Connection,
     version: i64,
@@ -175,7 +183,8 @@ pub fn apply_main_migrations(connection: &mut Connection) -> Result<(), String> 
         1,
         "initialize_recall_source_schema",
         MAIN_SCHEMA_V1,
-    )
+    )?;
+    apply_migration(connection, 2, "persist_active_recall_model", MAIN_SCHEMA_V2)
 }
 
 pub fn apply_vector_migrations(connection: &mut Connection) -> Result<(), String> {

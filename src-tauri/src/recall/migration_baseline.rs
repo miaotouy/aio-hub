@@ -24,11 +24,12 @@ use crate::recall::io::{
 };
 use crate::recall::ops::{
     load_entries_to_vec, load_knowledge_base_meta_only, load_vectors_to_vec,
-    update_recall_models_index, warmup_knowledge_base,
+    update_recall_models_index, warmup_knowledge_base, warmup_recall_repository,
 };
 use crate::recall::search::{
     BlenderRetrievalEngine, KeywordRetrievalEngine, LensRetrievalEngine, VectorRetrievalEngine,
 };
+use crate::recall::storage::{LegacyFileRecallImporter, RecallRepository, SqliteRecallRepository};
 use crate::recall::tag_pool::{GlobalTagPoolManager, ModelTagPool};
 use serde::Deserialize;
 use serde_json::Value;
@@ -389,10 +390,90 @@ fn build_retrieval_context(app_data_dir: &Path, baseline: &MigrationBaseline) ->
             .expect("baseline collection should warm up");
         database.bases.insert(collection.id, base);
     }
+    let tag_pool_manager = GlobalTagPoolManager::new();
+    tag_pool_manager
+        .replace_pools(
+            baseline
+                .tag_pools
+                .iter()
+                .map(|pool| {
+                    ModelTagPool::load(app_data_dir, &pool.model_id)
+                        .expect("legacy tag pool should load for the baseline")
+                })
+                .collect(),
+        )
+        .expect("legacy tag pools should populate the baseline runtime");
     RetrievalContext {
         db: Arc::new(RwLock::new(database)),
-        tag_pool_manager: GlobalTagPoolManager::new(),
+        tag_pool_manager,
         app_data_dir: app_data_dir.to_path_buf(),
+    }
+}
+
+fn build_repository_retrieval_context(
+    app_data_dir: &Path,
+    baseline: &MigrationBaseline,
+) -> RetrievalContext {
+    materialize_current_file_layout(app_data_dir, baseline)
+        .expect("baseline file layout should materialize");
+    let repository = SqliteRecallRepository::new(app_data_dir);
+    let report = LegacyFileRecallImporter::new(app_data_dir, repository)
+        .import()
+        .expect("baseline should import into the Recall repository");
+    assert_eq!(
+        report.migrated_collections,
+        baseline.expected_stats.collection_count
+    );
+    assert_eq!(report.migrated_entries, baseline.expected_stats.entry_count);
+    fs::remove_dir_all(get_knowledge_root(app_data_dir))
+        .expect("legacy directory should be removable after isolated import");
+
+    // Recreate every runtime object to model a process restart.
+    let restarted_repository = SqliteRecallRepository::new(app_data_dir);
+    restarted_repository.initialize().unwrap();
+    let database = Arc::new(RwLock::new(InMemoryDatabase::new()));
+    let tag_pool_manager = GlobalTagPoolManager::new();
+    warmup_recall_repository(&restarted_repository, &database, &tag_pool_manager)
+        .expect("repository warmup should survive a process restart");
+    RetrievalContext {
+        db: database,
+        tag_pool_manager,
+        app_data_dir: app_data_dir.to_path_buf(),
+    }
+}
+
+fn assert_retrieval_snapshots(baseline: &MigrationBaseline, context: &RetrievalContext) {
+    for query in &baseline.queries {
+        let results = match query.engine_id.as_str() {
+            "keyword" => {
+                KeywordRetrievalEngine::new().search(&query.payload, &query.filters, context)
+            }
+            "vector" => {
+                VectorRetrievalEngine::new().search(&query.payload, &query.filters, context)
+            }
+            "lens" => LensRetrievalEngine::new().search(&query.payload, &query.filters, context),
+            "blender" => {
+                BlenderRetrievalEngine::new().search(&query.payload, &query.filters, context)
+            }
+            other => panic!("unknown baseline engine: {other}"),
+        }
+        .unwrap_or_else(|error| panic!("baseline query {} failed: {error}", query.name));
+        let ids: Vec<Uuid> = results.iter().map(|result| result.entry.id).collect();
+        let match_types: Vec<String> = results
+            .iter()
+            .map(|result| result.match_type.clone())
+            .collect();
+        assert_eq!(ids, query.expected_entry_ids, "query {}", query.name);
+        assert_eq!(
+            match_types, query.expected_match_types,
+            "query {}",
+            query.name
+        );
+        assert!(
+            results.iter().all(|result| result.score.is_finite()),
+            "query {} returned a non-finite score",
+            query.name
+        );
     }
 }
 
@@ -493,36 +574,14 @@ fn retrieval_snapshots_match_all_legacy_engines() {
         .expect("baseline file layout should materialize");
     let context = build_retrieval_context(temp.path(), &baseline);
 
-    for query in &baseline.queries {
-        let results = match query.engine_id.as_str() {
-            "keyword" => {
-                KeywordRetrievalEngine::new().search(&query.payload, &query.filters, &context)
-            }
-            "vector" => {
-                VectorRetrievalEngine::new().search(&query.payload, &query.filters, &context)
-            }
-            "lens" => LensRetrievalEngine::new().search(&query.payload, &query.filters, &context),
-            "blender" => {
-                BlenderRetrievalEngine::new().search(&query.payload, &query.filters, &context)
-            }
-            other => panic!("unknown baseline engine: {other}"),
-        }
-        .unwrap_or_else(|error| panic!("baseline query {} failed: {error}", query.name));
-        let ids: Vec<Uuid> = results.iter().map(|result| result.entry.id).collect();
-        let match_types: Vec<String> = results
-            .iter()
-            .map(|result| result.match_type.clone())
-            .collect();
-        assert_eq!(ids, query.expected_entry_ids, "query {}", query.name);
-        assert_eq!(
-            match_types, query.expected_match_types,
-            "query {}",
-            query.name
-        );
-        assert!(
-            results.iter().all(|result| result.score.is_finite()),
-            "query {} returned a non-finite score",
-            query.name
-        );
-    }
+    assert_retrieval_snapshots(&baseline, &context);
+}
+
+#[test]
+fn repository_restart_preserves_all_retrieval_snapshots_without_legacy_files() {
+    let baseline = fixture();
+    let temp = tempfile::tempdir().expect("temporary appData should be created");
+    let context = build_repository_retrieval_context(temp.path(), &baseline);
+
+    assert_retrieval_snapshots(&baseline, &context);
 }

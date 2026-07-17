@@ -1,6 +1,6 @@
 # Recall / Knowledge 领域拆分与重构实施计划
 
-**状态**: Pre-Stage、Stage 0、Stage 1、Stage 2.1、Stage 2.2 与 Stage 3 已完成；Stage 2.3/2.4 正补齐数据库真源与迁移闭环验证，下一施工阶段为 Stage 4。整个计划完成前不发布中间版本。
+**状态**: Pre-Stage、Stage 0、Stage 1、Stage 2 与 Stage 3 的代码和自动化验证已完成；下一施工阶段为 Stage 4。Stage 2.4 的独立 appData Tauri smoke test 与最终真实目录副本验收统一留在发布门槛执行。整个计划完成前不发布中间版本。
 **创建日期**: 2026-07-17
 **最近修订**: 2026-07-17
 **适用范围**: `src/tools/knowledge-base/`、计划新增的 `src/tools/recall/`、`src/tools/llm-chat/`、`src/tools/agent-manager/`、`src-tauri/src/knowledge/`、计划新增的 `src-tauri/src/recall/`
@@ -306,7 +306,7 @@ appData/knowledge/
 
 ### Stage 2.3：数据库真源闭环验证
 
-**阶段状态**: 进行中。已用隔离 repository fixture 验证：删除旧文件目录后可 warmup；删除 `recall-vectors.db` 后可重建空向量库，同时仍可恢复完整条目读模型。尚待补齐进程级闭环、批量事务和四类检索查询快照。
+**阶段状态**: 已完成。隔离夹具已覆盖 repository CRUD、批量事务失败全回滚、向量失效、tag pool、前端 workspace 不持久化集合列表，以及重建全部运行时对象后的 DB warmup。基线夹具导入 SQLite、删除旧目录并模拟进程重启后，keyword、vector、lens、blender 四类查询快照与旧引擎基线一致。删除 `recall-vectors.db` 后仍可浏览条目和执行关键词检索，并可重新写入向量。验证过程中修复了 SQLite 未持久化集合活动模型、warmup 误选备用模型的问题；主库 schema v2 现保存 `activeModelId`，旧数据库按最近索引模型降级选择。
 
 ### 目标
 
@@ -325,7 +325,7 @@ appData/knowledge/
 
 ### Stage 2.4：迁移实现与隔离验证
 
-**阶段状态**: 进行中。旧文件目录的 `LegacyFileRecallImporter` 已具备幂等导入、主库/向量库分离状态和结构化报告；`.aio-kb` v1、legacy JSON/YAML 的既有恢复入口已切换为直接提交 SQLite repository，导入/替换/副本冲突判断、导出全部和导入前 inspect 均不再读取或写入旧运行时目录。尚待把备份格式解析统一纳入 importer、补齐中断恢复夹具与迁移报告/恢复说明输出。
+**阶段状态**: 代码与自动化验证已完成。旧文件目录的 `LegacyFileRecallImporter` 具备幂等导入、运行中状态续跑、主库/向量库分离状态和结构化报告；报告包含源/目标统计、模型统计、主库/向量库状态、问题列表、旧目录位置与恢复说明。legacy `contentHash` / `content_hash` 均参与向量有效性校验。`.aio-kb` v1、legacy JSON/YAML 由备份恢复适配器解析资产、冲突和副本语义后直接提交同一 SQLite repository；它们不并入只负责旧目录扫描的 `LegacyFileRecallImporter`，以避免丢失包级校验和资产恢复边界。模拟 `running` 状态与部分集合已提交后可幂等续跑。独立 appData Tauri smoke test 留待最终发布门槛统一执行。
 
 本阶段完成最终发布所需的数据迁移实现和隔离验证，但不产生可发布版本，也不让中间态访问真实用户目录。
 

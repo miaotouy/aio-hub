@@ -20,6 +20,8 @@ use std::fs;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
 
+const EXACT_SEARCH_MAX_TAGS: usize = 256;
+
 /// 模型特定的标签池
 #[derive(Serialize, Deserialize, Clone, Default)]
 pub struct ModelTagPool {
@@ -231,6 +233,9 @@ impl ModelTagPool {
     /// 搜索邻居
     #[allow(dead_code)]
     pub fn search_neighbors(&self, query_vector: &[f32], k: usize) -> Vec<(usize, f32)> {
+        if self.registry.len() <= EXACT_SEARCH_MAX_TAGS {
+            return self.search_neighbors_exact(query_vector, k);
+        }
         let Some(index) = &self.index else {
             return Vec::new();
         };
@@ -242,6 +247,44 @@ impl ModelTagPool {
             .into_iter()
             .map(|res| (res.d_id, res.distance))
             .collect()
+    }
+
+    fn search_neighbors_exact(&self, query_vector: &[f32], k: usize) -> Vec<(usize, f32)> {
+        if self.dimension == 0 || query_vector.len() != self.dimension || k == 0 {
+            return Vec::new();
+        }
+        let query_norm = query_vector
+            .iter()
+            .map(|value| value * value)
+            .sum::<f32>()
+            .sqrt();
+        if query_norm == 0.0 {
+            return Vec::new();
+        }
+
+        let mut neighbors = (0..self.id_to_name.len())
+            .filter_map(|index| {
+                let vector = self.get_vector(index)?;
+                let vector_norm = vector.iter().map(|value| value * value).sum::<f32>().sqrt();
+                if vector_norm == 0.0 {
+                    return None;
+                }
+                let dot = query_vector
+                    .iter()
+                    .zip(vector)
+                    .map(|(left, right)| left * right)
+                    .sum::<f32>();
+                let similarity = (dot / (query_norm * vector_norm)).clamp(-1.0, 1.0);
+                Some((index, 1.0 - similarity))
+            })
+            .collect::<Vec<_>>();
+        neighbors.sort_by(|left, right| {
+            left.1
+                .total_cmp(&right.1)
+                .then_with(|| left.0.cmp(&right.0))
+        });
+        neighbors.truncate(k.min(neighbors.len()));
+        neighbors
     }
 
     /// 获取指定索引的向量
@@ -332,5 +375,29 @@ impl GlobalTagPoolManager {
             pools.insert(pool.model_id.clone(), Arc::new(RwLock::new(pool)));
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ModelTagPool;
+
+    #[test]
+    fn small_tag_pool_search_is_exact_and_deterministic_without_hnsw() {
+        let mut pool = ModelTagPool::new("model".to_string());
+        pool.sync_vectors(vec![
+            ("exact".to_string(), vec![1.0, 0.0]),
+            ("near".to_string(), vec![0.9, 0.1]),
+            ("far".to_string(), vec![0.0, 1.0]),
+        ]);
+
+        let first = pool.search_neighbors(&[1.0, 0.0], 3);
+        for _ in 0..10 {
+            assert_eq!(pool.search_neighbors(&[1.0, 0.0], 3), first);
+        }
+        assert_eq!(
+            first.iter().map(|item| item.0).collect::<Vec<_>>(),
+            vec![0, 1, 2]
+        );
     }
 }

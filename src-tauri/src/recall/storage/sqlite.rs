@@ -153,7 +153,7 @@ impl SqliteRecallRepository {
         connection
             .query_row(
                 "SELECT id, name, description, author, icon, tags_json, config_json,
-                        created_at, updated_at
+                        created_at, updated_at, active_model_id, active_model_last_indexed_at
                  FROM recall_collections WHERE id = ?1",
                 [collection_id.to_string()],
                 CollectionRow::from_row,
@@ -169,12 +169,22 @@ impl SqliteRecallRepository {
     ) -> Result<RecallCollectionMeta, String> {
         let entries = self.load_entries_from(connection, row.id)?;
         let vector_models = self.load_collection_models(row.id)?;
+        let active_model =
+            if !row.active_model_id.is_empty() && vector_models.contains(&row.active_model_id) {
+                row.active_model_id
+            } else {
+                vector_models.first().cloned().unwrap_or_default()
+            };
+        let active_stats = self.load_model_stats(row.id, &active_model)?;
         let vectorization = VectorizationMeta {
-            is_indexed: !vector_models.is_empty(),
-            last_indexed_at: None,
-            model_used: vector_models.first().cloned().unwrap_or_default(),
-            dimension: 0,
-            total_tokens: 0,
+            is_indexed: active_stats.is_some(),
+            last_indexed_at: active_stats
+                .as_ref()
+                .and_then(|stats| stats.2)
+                .or(row.active_model_last_indexed_at),
+            model_used: active_model,
+            dimension: active_stats.as_ref().map_or(0, |stats| stats.0),
+            total_tokens: active_stats.map_or(0, |stats| stats.1),
         };
 
         let mut meta = RecallCollectionMeta {
@@ -233,7 +243,7 @@ impl SqliteRecallRepository {
         let mut statement = connection
             .prepare(
                 "SELECT model_id FROM recall_models WHERE collection_id = ?1
-                 ORDER BY model_id",
+                 ORDER BY last_indexed_at DESC, model_id",
             )
             .map_err(|error| format!("准备 Recall 模型查询失败: {error}"))?;
         let models = statement
@@ -242,6 +252,34 @@ impl SqliteRecallRepository {
             .map(|row| row.map_err(|error| format!("读取 Recall 模型失败: {error}")))
             .collect();
         models
+    }
+
+    fn load_model_stats(
+        &self,
+        collection_id: Uuid,
+        model_id: &str,
+    ) -> Result<Option<(usize, u64, Option<i64>)>, String> {
+        if model_id.is_empty() {
+            return Ok(None);
+        }
+        let connection = self.open_vectors()?;
+        connection
+            .query_row(
+                "SELECT dimension, total_tokens, last_indexed_at
+                 FROM recall_models WHERE collection_id = ?1 AND model_id = ?2",
+                params![collection_id.to_string(), model_id],
+                |row| {
+                    let dimension = row.get::<_, i64>(0)?;
+                    let total_tokens = row.get::<_, i64>(1)?;
+                    Ok((
+                        dimension.max(0) as usize,
+                        total_tokens.max(0) as u64,
+                        row.get(2)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(|error| format!("读取 Recall 活动模型统计失败: {error}"))
     }
 
     fn load_entry_vector_state(
@@ -351,7 +389,7 @@ impl RecallRepository for SqliteRecallRepository {
         let mut statement = connection
             .prepare(
                 "SELECT id, name, description, author, icon, tags_json, config_json,
-                        created_at, updated_at
+                        created_at, updated_at, active_model_id, active_model_last_indexed_at
                  FROM recall_collections ORDER BY updated_at DESC, id",
             )
             .map_err(|error| format!("准备 Recall 集合列表失败: {error}"))?;
@@ -392,8 +430,8 @@ impl RecallRepository for SqliteRecallRepository {
             .execute(
                 "INSERT INTO recall_collections(
                     id, name, description, author, icon, tags_json, config_json,
-                    created_at, updated_at
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                    created_at, updated_at, active_model_id, active_model_last_indexed_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
                  ON CONFLICT(id) DO UPDATE SET
                     name = excluded.name,
                     description = excluded.description,
@@ -402,7 +440,9 @@ impl RecallRepository for SqliteRecallRepository {
                     tags_json = excluded.tags_json,
                     config_json = excluded.config_json,
                     created_at = excluded.created_at,
-                    updated_at = excluded.updated_at",
+                    updated_at = excluded.updated_at,
+                    active_model_id = excluded.active_model_id,
+                    active_model_last_indexed_at = excluded.active_model_last_indexed_at",
                 params![
                     meta.id.to_string(),
                     meta.name,
@@ -413,6 +453,8 @@ impl RecallRepository for SqliteRecallRepository {
                     config_json,
                     meta.created_at,
                     meta.updated_at,
+                    meta.vectorization.model_used,
+                    meta.vectorization.last_indexed_at,
                 ],
             )
             .map_err(|error| format!("写入 Recall 集合失败: {error}"))?;
@@ -868,6 +910,8 @@ struct CollectionRow {
     config_json: String,
     created_at: i64,
     updated_at: i64,
+    active_model_id: String,
+    active_model_last_indexed_at: Option<i64>,
 }
 
 impl CollectionRow {
@@ -889,6 +933,8 @@ impl CollectionRow {
             config_json: row.get(6)?,
             created_at: row.get(7)?,
             updated_at: row.get(8)?,
+            active_model_id: row.get(9)?,
+            active_model_last_indexed_at: row.get(10)?,
         })
     }
 }
@@ -1025,7 +1071,7 @@ mod tests {
             main.query_row("SELECT COUNT(*) FROM schema_migrations", [], |row| row
                 .get::<_, i64>(0))
                 .unwrap(),
-            1
+            2
         );
         assert_eq!(
             vector
@@ -1050,6 +1096,7 @@ mod tests {
             .unwrap();
         assert_eq!(loaded.meta.id, collection.meta.id);
         assert_eq!(loaded.meta.created_at, 11);
+        assert!(loaded.meta.vectorization.model_used.is_empty());
         assert_eq!(loaded.entries[0].id, collection.entries[0].id);
         assert_eq!(loaded.entries[0].tags[0].weight, 1.25);
         assert_eq!(repository.list_collections().unwrap().len(), 1);
@@ -1060,7 +1107,7 @@ mod tests {
         let directory = tempdir().unwrap();
         let repository = SqliteRecallRepository::new(directory.path());
         repository.initialize().unwrap();
-        let collection = collection(Uuid::new_v4());
+        let mut collection = collection(Uuid::new_v4());
         repository.save_collection(&collection).unwrap();
         let entry = &collection.entries[0];
 
@@ -1083,6 +1130,23 @@ mod tests {
         assert_eq!(loaded.0[0].1, vec![1.0, 2.0]);
         assert_eq!(loaded.1, 2);
         assert_eq!(loaded.2, 9);
+
+        collection.meta.vectorization = VectorizationMeta {
+            is_indexed: true,
+            last_indexed_at: Some(20),
+            model_used: "model-a".to_string(),
+            dimension: 2,
+            total_tokens: 9,
+        };
+        collection.meta.models = vec!["model-a".to_string()];
+        repository.save_collection(&collection).unwrap();
+        let reloaded = repository
+            .load_collection(collection.meta.id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(reloaded.meta.vectorization.model_used, "model-a");
+        assert_eq!(reloaded.meta.vectorization.dimension, 2);
+        assert_eq!(reloaded.meta.vectorization.total_tokens, 9);
 
         let mut pool = ModelTagPool::new("model-a".to_string());
         pool.sync_vectors(vec![("tag".to_string(), vec![0.5, 0.25])]);
@@ -1118,5 +1182,38 @@ mod tests {
             .load_vectors(collection.meta.id, "model-a")
             .unwrap()
             .is_none());
+    }
+
+    #[test]
+    fn batch_upsert_rolls_back_every_entry_when_one_write_fails() {
+        let directory = tempdir().unwrap();
+        let repository = SqliteRecallRepository::new(directory.path());
+        repository.initialize().unwrap();
+        let mut stored = collection(Uuid::new_v4());
+        stored.entries.clear();
+        repository.save_collection(&stored).unwrap();
+
+        let connection = Connection::open(repository.main_db_path()).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TRIGGER fail_recall_batch
+                 BEFORE INSERT ON recall_entries
+                 WHEN NEW.key = 'force-rollback'
+                 BEGIN
+                   SELECT RAISE(ABORT, 'forced batch failure');
+                 END;",
+            )
+            .unwrap();
+
+        let mut first = collection(Uuid::new_v4()).entries.remove(0);
+        first.key = "persist-only-if-whole-batch-succeeds".to_string();
+        let mut second = first.clone();
+        second.id = Uuid::new_v4();
+        second.key = "force-rollback".to_string();
+
+        assert!(repository
+            .upsert_entries(stored.meta.id, &[first, second])
+            .is_err());
+        assert!(repository.load_entries(stored.meta.id).unwrap().is_empty());
     }
 }

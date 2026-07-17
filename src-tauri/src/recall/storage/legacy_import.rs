@@ -15,7 +15,7 @@
 use super::repository::RecallRepository;
 use super::sqlite::{LegacyImportStateRecord, SqliteRecallRepository};
 use crate::recall::core::{RecallCollection, RecallCollectionMeta, RecallEntry};
-use crate::recall::io::{get_bases_dir, get_tag_pool_root, get_vectors_dir};
+use crate::recall::io::{get_bases_dir, get_knowledge_root, get_tag_pool_root, get_vectors_dir};
 use crate::recall::tag_pool::ModelTagPool;
 use blake3::Hasher;
 use serde::{Deserialize, Serialize};
@@ -38,10 +38,13 @@ pub struct RecallMigrationIssue {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase")]
 pub struct RecallMigrationReport {
     pub source_path: String,
+    pub legacy_data_path: String,
     pub source_fingerprint: String,
+    pub main_status: String,
+    pub vector_status: String,
     pub source_collections: usize,
     pub migrated_collections: usize,
     pub source_entries: usize,
@@ -50,7 +53,10 @@ pub struct RecallMigrationReport {
     pub source_vectors: usize,
     pub migrated_vectors: usize,
     pub pending_vectors: usize,
+    pub source_vector_models: usize,
+    pub migrated_vector_models: usize,
     pub tag_vector_count: usize,
+    pub recovery_instructions: Vec<String>,
     pub issues: Vec<RecallMigrationIssue>,
 }
 
@@ -70,6 +76,7 @@ impl LegacyFileRecallImporter {
     pub fn import(&self) -> Result<RecallMigrationReport, String> {
         self.repository.initialize()?;
         let source_path = get_bases_dir(&self.source_app_data_dir);
+        let legacy_data_path = get_knowledge_root(&self.source_app_data_dir);
         let fingerprint = source_fingerprint(&self.source_app_data_dir)?;
         let source_id = "legacy-file-system-v1";
         if self
@@ -81,13 +88,27 @@ impl LegacyFileRecallImporter {
         {
             let mut report = self.read_cached_report(source_id, &fingerprint)?;
             report.source_path = source_path.display().to_string();
+            report.legacy_data_path = legacy_data_path.display().to_string();
+            if report.main_status.is_empty() {
+                report.main_status = "completed".to_string();
+            }
+            if report.vector_status.is_empty() {
+                report.vector_status = "completed".to_string();
+            }
+            if report.recovery_instructions.is_empty() {
+                report.recovery_instructions = recovery_instructions(&report.legacy_data_path);
+            }
             return Ok(report);
         }
 
         let started_at = now();
         let mut report = RecallMigrationReport {
             source_path: source_path.display().to_string(),
+            legacy_data_path: legacy_data_path.display().to_string(),
             source_fingerprint: fingerprint.clone(),
+            main_status: "running".to_string(),
+            vector_status: "running".to_string(),
+            recovery_instructions: recovery_instructions(&legacy_data_path.display().to_string()),
             ..Default::default()
         };
         self.repository.record_legacy_import_state(
@@ -153,6 +174,7 @@ impl LegacyFileRecallImporter {
         } else {
             "partial"
         };
+        report.main_status = main_status.to_string();
         let vector_issue_start = report.issues.len();
         self.import_vectors(&entry_lookup, &mut report)?;
         self.import_tag_pools(&mut report)?;
@@ -162,6 +184,7 @@ impl LegacyFileRecallImporter {
             } else {
                 "partial"
             };
+        report.vector_status = vector_status.to_string();
         self.repository.record_legacy_import_state(
             true,
             LegacyImportStateRecord {
@@ -343,6 +366,8 @@ impl LegacyFileRecallImporter {
             return Ok(());
         }
         let model_lookup = self.collect_model_lookup()?;
+        let mut source_models = HashSet::new();
+        let mut migrated_models = HashSet::new();
         let mut collection_dirs = fs::read_dir(vectors_root)
             .map_err(|error| format!("读取旧向量目录失败: {error}"))?
             .flatten()
@@ -378,6 +403,8 @@ impl LegacyFileRecallImporter {
                     });
                     continue;
                 };
+                source_models.insert(model_id.clone());
+                let migrated_before = report.migrated_vectors;
                 let mut files = fs::read_dir(model_dir.path())
                     .map_err(|error| format!("读取旧向量文件失败: {error}"))?
                     .flatten()
@@ -436,8 +463,10 @@ impl LegacyFileRecallImporter {
                         });
                         continue;
                     }
-                    if let Some(vector_hash) =
-                        value.get("content_hash").and_then(|value| value.as_str())
+                    if let Some(vector_hash) = value
+                        .get("content_hash")
+                        .or_else(|| value.get("contentHash"))
+                        .and_then(|value| value.as_str())
                     {
                         if entry.content_hash.as_deref() != Some(vector_hash) {
                             report.pending_vectors += 1;
@@ -475,8 +504,13 @@ impl LegacyFileRecallImporter {
                         }
                     }
                 }
+                if report.migrated_vectors > migrated_before {
+                    migrated_models.insert(model_id);
+                }
             }
         }
+        report.source_vector_models = source_models.len();
+        report.migrated_vector_models = migrated_models.len();
         Ok(())
     }
 
@@ -580,6 +614,14 @@ fn now() -> i64 {
     chrono::Utc::now().timestamp()
 }
 
+fn recovery_instructions(legacy_data_path: &str) -> Vec<String> {
+    vec![
+        format!("旧数据目录保留在 {legacy_data_path}，迁移完成后不会自动删除"),
+        "恢复前先退出 AIO Hub，并备份 appData/recall/recall.db 与 recall-vectors.db".to_string(),
+        "如需重新迁移，请保留旧目录并通过迁移/备份恢复入口执行；不要手工合并数据库文件".to_string(),
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -669,6 +711,7 @@ mod tests {
                 "vector": [0.5, 0.25],
                 "model": model_id,
                 "tokens": 6,
+                "contentHash": "hash",
                 "timestamp": 5
             }))
             .unwrap(),
@@ -679,13 +722,45 @@ mod tests {
         tag_pool.save(app_data.path()).unwrap();
 
         let repository = SqliteRecallRepository::new(app_data.path());
+        repository.initialize().unwrap();
+        repository
+            .save_collection(&RecallCollection {
+                meta: meta.clone(),
+                entries: vec![entry.clone()],
+            })
+            .unwrap();
+        let fingerprint = source_fingerprint(app_data.path()).unwrap();
+        let source_path = get_bases_dir(app_data.path()).display().to_string();
+        for vector_database in [false, true] {
+            repository
+                .record_legacy_import_state(
+                    vector_database,
+                    LegacyImportStateRecord {
+                        source_id: "legacy-file-system-v1",
+                        source_path: &source_path,
+                        source_fingerprint: Some(&fingerprint),
+                        status: "running",
+                        report_json: "{}",
+                        started_at: Some(now()),
+                        completed_at: None,
+                        updated_at: now(),
+                    },
+                )
+                .unwrap();
+        }
         let report = LegacyFileRecallImporter::new(app_data.path(), repository.clone())
             .import()
             .unwrap();
         assert_eq!(report.migrated_collections, 1);
         assert_eq!(report.migrated_entries, 1);
         assert_eq!(report.migrated_vectors, 1);
+        assert_eq!(report.source_vector_models, 1);
+        assert_eq!(report.migrated_vector_models, 1);
         assert_eq!(report.tag_vector_count, 1);
+        assert_eq!(report.main_status, "completed");
+        assert_eq!(report.vector_status, "completed");
+        assert!(report.legacy_data_path.ends_with("knowledge"));
+        assert_eq!(report.recovery_instructions.len(), 3);
         assert_eq!(
             repository
                 .load_entry(recall_id, entry_id)
@@ -711,5 +786,7 @@ mod tests {
             .import()
             .unwrap();
         assert_eq!(second.migrated_collections, 1);
+        assert_eq!(second.main_status, "completed");
+        assert_eq!(second.vector_status, "completed");
     }
 }

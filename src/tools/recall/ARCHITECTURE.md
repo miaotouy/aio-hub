@@ -113,7 +113,7 @@ appData/knowledge/
 
 目录名和 `.aio-kb` v1 格式在迁移完成前保持不变，避免破坏用户源数据与备份兼容。旧目录只能由 Recall legacy importer、备份格式夹具和迁移测试读取；备份恢复自身直接写入 SQLite repository，不能被 Knowledge 空壳作为业务存储使用。
 
-Stage 2 已建立 `appData/recall/recall.db` 与 `recall-vectors.db` 的 SQLite repository 和独立 migration 表；`recall_initialize` 会幂等创建并注册 repository，warmup、集合/条目/向量/标签池 command 与备份导入导出均以 repository 为真源。独立的 `LegacyFileRecallImporter` 已覆盖旧集合、条目、向量与 tag pool 的幂等导入和结构化报告，但自动迁移入口仅在最终发布阶段接入。旧目录在校验和用户确认前不得删除。
+Stage 2 已建立 `appData/recall/recall.db` 与 `recall-vectors.db` 的 SQLite repository 和独立 migration 表；主库 schema v2 持久化集合活动模型，模型维度、tokens 和最后索引时间从向量库统计恢复。`recall_initialize` 会幂等创建并注册 repository，warmup、集合/条目/向量/标签池 command 与备份导入导出均以 repository 为真源。独立的 `LegacyFileRecallImporter` 已覆盖旧集合、条目、向量与 tag pool 的幂等导入、运行中状态续跑和结构化报告，但自动迁移入口仅在最终发布阶段接入。旧目录在校验和用户确认前不得删除。
 
 ## 7. 兼容与后续迁移
 

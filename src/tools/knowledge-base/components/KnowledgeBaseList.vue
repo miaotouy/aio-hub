@@ -18,6 +18,8 @@
 import { ref, computed, watch } from "vue";
 import { useKnowledgeBaseStore } from "../stores/knowledgeBaseStore";
 import { useKnowledgeBase } from "../composables/useKnowledgeBase";
+import { useKnowledgeBackup } from "../composables/useKnowledgeBackup";
+import KnowledgeBackupDialog from "./KnowledgeBackupDialog.vue";
 import { createModuleLogger } from "@/utils/logger";
 import {
   Database,
@@ -35,6 +37,7 @@ import {
   ArrowUpDown,
   Check,
   Tags,
+  Upload,
 } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
@@ -50,11 +53,11 @@ const {
   createBase,
   updateBaseMeta,
   cloneBase,
-  exportBase,
   deleteBase,
   updateVectors,
   batchVectorizeTags,
 } = useKnowledgeBase();
+const backup = useKnowledgeBackup();
 const showCreateDialog = ref(false);
 const searchQuery = ref("");
 const contentMatchedKbIds = ref<Set<string>>(new Set());
@@ -196,6 +199,11 @@ const handleBatchVectorizeTags = async () => {
   isBatchMode.value = false;
 };
 
+const handleBatchExport = async () => {
+  if (selectedIds.value.size === 0) return;
+  await backup.exportMany(Array.from(selectedIds.value));
+};
+
 const handleManage = (id: string) => {
   switchBase(id);
   emit("manage", id);
@@ -255,7 +263,7 @@ const handleClone = (id: string) => {
 };
 
 const handleExport = (id: string) => {
-  exportBase(id);
+  backup.exportSingle(id);
 };
 
 const formatTokens = (num: number) => {
@@ -337,6 +345,11 @@ const formatTokens = (num: number) => {
         </div>
 
         <div class="toolbar-group">
+          <el-tooltip content="导入知识库备份" placement="top">
+            <el-button size="small" circle @click="backup.importBackups">
+              <template #icon><Upload :size="14" /></template>
+            </el-button>
+          </el-tooltip>
           <el-tooltip content="批量管理" placement="top">
             <el-button size="small" circle @click="toggleBatchMode">
               <template #icon><CheckSquare :size="14" /></template>
@@ -362,6 +375,17 @@ const formatTokens = (num: number) => {
           <span class="batch-count">已选 {{ selectedIds.size }}</span>
         </div>
         <div class="batch-actions">
+          <el-tooltip content="导出选中知识库">
+            <el-button
+              size="small"
+              circle
+              plain
+              @click="handleBatchExport"
+              :disabled="selectedIds.size === 0"
+            >
+              <Download :size="14" />
+            </el-button>
+          </el-tooltip>
           <el-tooltip content="批量向量化标签 (仅同步标签池)">
             <el-button
               size="small"
@@ -459,7 +483,7 @@ const formatTokens = (num: number) => {
                   <Copy :size="14" class="menu-icon" /> 克隆
                 </el-dropdown-item>
                 <el-dropdown-item @click="handleExport(base.id)">
-                  <Download :size="14" class="menu-icon" /> 导出
+                  <Download :size="14" class="menu-icon" /> 导出备份
                 </el-dropdown-item>
                 <el-dropdown-item
                   divided
@@ -527,6 +551,20 @@ const formatTokens = (num: number) => {
         </el-button>
       </template>
     </el-dialog>
+
+    <KnowledgeBackupDialog
+      v-model="backup.dialogVisible.value"
+      :running="backup.running.value"
+      :operation="backup.operation.value"
+      :current="backup.current.value"
+      :total="backup.total.value"
+      :failed="backup.failed.value"
+      :current-name="backup.currentName.value"
+      :progress="backup.progress.value"
+      :cancel-requested="backup.cancelRequested.value"
+      :items="backup.items.value"
+      @cancel="backup.requestCancel"
+    />
   </div>
 </template>
 

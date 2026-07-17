@@ -392,6 +392,12 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         crate::knowledge::kb_flush_all_tag_pools,
         crate::knowledge::kb_clone_base,
         crate::knowledge::kb_export_base,
+        crate::knowledge::kb_export_backup,
+        crate::knowledge::kb_export_backups,
+        crate::knowledge::kb_cancel_backup_operation,
+        crate::knowledge::kb_inspect_backup,
+        crate::knowledge::kb_inspect_backups,
+        crate::knowledge::kb_import_backup,
         crate::knowledge::monitor::kb_monitor_heartbeat,
         // 网页蒸馏室命令
         crate::web_distillery::distillery_quick_fetch,

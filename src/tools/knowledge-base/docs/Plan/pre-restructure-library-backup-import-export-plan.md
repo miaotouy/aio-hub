@@ -1,6 +1,6 @@
 # 知识库重构前按库备份与恢复功能计划
 
-**状态**: 待实施，必须先于 Recall / Knowledge 重构发布
+**状态**: 已实施，待真实 Tauri 往返验证与发布；必须先于 Recall / Knowledge 重构发布
 **创建日期**: 2026-07-17
 **最近修订**: 2026-07-17
 **适用范围**: `src/tools/knowledge-base/`、`src-tauri/src/knowledge/`、全局 AssetManager 的既有导入能力
@@ -27,7 +27,7 @@
 
 本阶段目标：
 
-1. 用户只选择一次目标目录，即可把全部知识库按库导出为相互独立的备份包。
+1. 用户只选择一次目标目录，即可把全部知识库按库写入一个可移植的多库 ZIP 容器。
 2. 用户可选择一个或多个备份包导入，每个包恢复为一个独立知识库。
 3. 单个备份包包含恢复源条目所需的数据和资产，不依赖原应用数据目录。
 4. 备份格式带稳定版本，后续 Recall 数据库迁移器必须继续读取该格式。
@@ -39,11 +39,11 @@
 
 ### 2.1 “一键”与“按库分”的定义
 
-- **导出全部**：用户选择一次目标目录，系统为每个知识库生成一个独立 `.aio-kb` 备份包，并在目录根部生成一次导出的 `backup-index.json` 汇总清单。
+- **导出全部**：用户选择一次目标目录，系统生成一个以 `zip` 为容器的多库备份包；容器根部放置 `backup-index.json`，每个知识库放在独立子目录中，子目录直接包含 `manifest.json`、`library.json` 和 `assets/`，不嵌套 `.aio-kb`。
 - **导出单库**：保留知识库列表中的单库导出入口，生成同一种 `.aio-kb` 备份包，不再另造不兼容格式。
-- **导出选中库**：复用现有批量选择能力，将选中的每个库分别导出为独立备份包。
-- **导入备份**：文件选择器允许多选 `.aio-kb`；每个包独立校验、独立提交，最终显示成功、跳过和失败汇总。
-- 不把全部库封装为一个不可拆分的大包。单库包可以独立保存、分享、导入和定位损坏范围。
+- **导出选中库**：复用现有批量选择能力，将选中的库写入一个同结构的多库 ZIP 容器；仅选一个库时仍使用库名作为容器文件名前缀。
+- **导入备份**：文件选择器允许多选单库 `.aio-kb`、多库 `.zip` 和 legacy JSON/YAML；多库容器依据 `backup-index.json` 展开为多个独立导入单元，每个库独立校验、独立提交，最终显示成功、跳过和失败汇总。
+- 多库容器只负责目录级打包，不嵌套单库 ZIP；单库包仍可独立保存、分享、导入和定位损坏范围。
 
 ### 2.2 备份内容
 
@@ -79,13 +79,27 @@
 `.aio-kb` 是 ZIP 容器，扩展名用于产品识别，不依赖扩展名判断内容是否合法。
 
 ```text
-{safeLibraryName}_{libraryId}_{yyyy-MM-dd}.aio-kb
+{safeLibraryName}_aio-kb-v1_{yyyyMMdd-HHmmss}.aio-kb
 ├── manifest.json
 ├── library.json
 └── assets/
     ├── {logicalAssetId}/{originalFileName}
     └── ...
 ```
+
+文件名不再包含乱码或 UUID；库 ID 仍保存在 `manifest.json` 和 `library.json` 中。多库导出使用 `{safeLibraryName}_aio-kb-v1_{yyyyMMdd-HHmmss}.zip`（单库选择时）或 `多个知识库_aio-kb-v1_{yyyyMMdd-HHmmss}.zip`，容器结构为：
+
+```text
+backup-index.json
+libraries/
+├── {safeLibraryName}/
+│   ├── manifest.json
+│   ├── library.json
+│   └── assets/
+└── ...
+```
+
+`backup-index.json` 使用 `format = "aiohub.knowledge-library-backup-collection"`、`formatVersion = 1`，并为每个库记录 `path`、`libraryId`、`libraryName`、`entryCount`、`assetCount` 和告警。导入器必须先校验索引，再按 `path` 读取库子目录；索引未声明的文件或库目录必须拒绝。
 
 `manifest.json` 最低字段：
 
@@ -162,7 +176,8 @@ interface KnowledgeLibraryBackupManifestV1 {
 
 ### 5.1 前端入口
 
-- 知识库列表工具栏增加“导入备份”和“导出”入口；“导出”菜单包含“导出全部”和“导出选中库”。
+- 知识库列表工具栏增加“导入备份”和“导出”入口；普通模式的“导出”菜单包含“导出当前知识库”和“导出全部知识库”，
+  批量模式提供“导出选中知识库”。
 - 单库更多菜单保留“导出备份”。
 - 导入冲突使用项目对话框约定展示“导入为副本 / 替换现有库 / 取消”，替换操作必须说明库名称、ID 和条目数。
 - 长任务显示当前库、已完成库数和失败数；完成后提供可展开的结构化报告，不用多条消息逐库刷屏。
@@ -187,6 +202,23 @@ kb_import_backup
 
 ## 6. 实施步骤
 
+### 6.0 实施结果（2026-07-17）
+
+已完成：
+
+- 后端已实现 `.aio-kb` v1 单库导出，以及带 `backup-index.json` 的多库 ZIP 容器导出；多库容器使用库子目录，不嵌套 `.aio-kb`，并支持按索引逐库 inspect/import。
+- 导出从 `bases/{libraryId}` 持久化真源严格读取；导入使用 `.import-staging`、目录重命名提交和内存读模型同步。
+- AssetManager 已提供备份专用内部边界，按全 Catalog SHA-256 去重、重映射 `AssetRef`，失败时只清理本次新增资产。
+- ZIP 校验已覆盖格式/版本、声明文件集合、BLAKE3、资产 SHA-256、重复路径、路径穿越、符号链接、文件数、大小和压缩比限制。
+- 前端已接入单库/多库容器导入、导出全部、导出选中库和单库导出入口，并提供可停止的进度与结构化汇总报告。
+- 自动验证已覆盖文件选择取消、多文件部分失败、冲突副本、导出进度/停止、ZIP 往返、checksum 损坏、重复条目、恶意路径和 legacy JSON/YAML。
+
+仍属发布门槛、不能视为已完成：
+
+- 必须在真实 Tauri WebView 中使用实际用户态目录和独立临时 appData 完成第 7 节往返测试。
+- 必须在发布说明中加入重构前“导出全部”的用户操作要求，并在稳定版本发布后才允许开始 Recall / Knowledge Stage 0。
+- `LegacyFileRecallImporter` 尚未进入施工阶段；本次已冻结 `.aio-kb` v1 读取契约并建立当前存储往返夹具，跨数据库迁移夹具随 Stage 0 importer 一并接入，不提前创建空壳实现。
+
 ### Step 1：冻结 DTO 与测试夹具
 
 - 定义 v1 manifest、library DTO、asset mapping、inspect result、import options 和 import report。
@@ -202,7 +234,7 @@ kb_import_backup
 
 ### Step 3：接入批量编排与 UI
 
-- 加入导出全部、导出选中库和多文件导入。
+- 加入多库 ZIP 容器导出、导出选中库和多文件/多库容器导入。
 - 完成进度、取消、冲突确认和汇总报告。
 - 导入成功后统一刷新 workspace、库列表、当前激活库和内存缓存，避免前后端列表漂移。
 
@@ -227,7 +259,7 @@ kb_import_backup
 
 ```text
 现有用户态目录
-  -> 一键导出全部（每库一个 .aio-kb）
+  -> 一键导出全部（一个多库 ZIP 容器，库目录 + backup-index.json）
   -> 使用独立临时 appData 启动
   -> 多选全部备份包导入
   -> 对比库数、库 ID、条目 ID、内容 hash、时间、标签、priority、enabled、资产 hash
@@ -236,8 +268,8 @@ kb_import_backup
 
 完成门槛：
 
-- 导出目录中的包数与知识库数一致，`backup-index.json` 统计一致。
-- 每个包可独立导入，不依赖原 `appData/knowledge` 或原 AssetManager 目录。
+- 多库 ZIP 容器可被索引完整列举，`backup-index.json` 统计、库目录和库 manifest 一致。
+- 多库容器中的每个库可按子目录独立导入；单库 `.aio-kb` 也可独立导入，不依赖原 `appData/knowledge` 或原 AssetManager 目录。
 - 源条目字段逐项一致；可用资产逐 hash 一致；缺失资产有明确报告。
 - 同包重复导入不会静默覆盖现有库，替换失败可恢复原库。
 - 发布说明明确要求用户在后续重构版本前执行一次“导出全部”。

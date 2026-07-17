@@ -17,3 +17,4 @@ export * from "./knowledge-base";
 export * from "./search";
 export * from "./monitor";
 export * from "./agent";
+export * from "./backup";

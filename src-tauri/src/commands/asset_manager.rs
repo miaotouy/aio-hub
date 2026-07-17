@@ -1018,6 +1018,193 @@ pub async fn import_asset_from_bytes(
     Ok(asset)
 }
 
+/// 知识库备份导入使用的资产结果。`created` 用于在库提交失败时只清理本次新增资产。
+pub(crate) struct BackupAssetImport {
+    pub asset: Asset,
+    pub created: bool,
+}
+
+fn resolve_backup_asset_mime_type(original_name: &str, original_mime_type: &str) -> String {
+    if original_mime_type.trim().is_empty() {
+        mime::guess_mime_type(Path::new(original_name))
+    } else {
+        original_mime_type.to_string()
+    }
+}
+
+/// 按资产 ID 获取可打包的原始文件。路径在这里完成约束，调用方不接触 Catalog 内部结构。
+pub(crate) fn get_asset_for_backup(
+    app: &AppHandle,
+    catalog: &AssetCatalog,
+    asset_id: &str,
+) -> Result<Option<(Asset, PathBuf)>, String> {
+    let base_dir = PathBuf::from(get_asset_base_path(app.clone())?);
+    let entry = {
+        let entries = catalog.entries.read().map_err(|e| e.to_string())?;
+        entries.get(asset_id).cloned()
+    };
+    let Some(entry) = entry else {
+        return Ok(None);
+    };
+
+    let relative_path = Path::new(&entry.path);
+    if relative_path.is_absolute()
+        || relative_path
+            .components()
+            .any(|component| matches!(component, std::path::Component::ParentDir))
+    {
+        return Err(format!("资产路径不安全: {}", entry.path));
+    }
+
+    let file_path = base_dir.join(relative_path);
+    if !file_path.is_file() {
+        return Ok(None);
+    }
+    Ok(Some((convert_entry_to_asset(entry, &base_dir), file_path)))
+}
+
+/// 从知识库备份恢复原始资产。这里按整个 Catalog 的 SHA-256 去重，而不是仅检查当月索引。
+pub(crate) fn import_backup_asset(
+    app: &AppHandle,
+    catalog: &AssetCatalog,
+    bytes: &[u8],
+    original_name: &str,
+    original_mime_type: &str,
+) -> Result<BackupAssetImport, String> {
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    let file_hash = format!("{:x}", hasher.finalize());
+    let base_dir = PathBuf::from(get_asset_base_path(app.clone())?);
+    let origin = AssetOrigin {
+        origin_type: AssetOriginType::Local,
+        source: "knowledge-library-backup".to_string(),
+        source_module: "knowledge-base".to_string(),
+    };
+
+    let existing = {
+        let entries = catalog.entries.read().map_err(|e| e.to_string())?;
+        entries
+            .values()
+            .find(|entry| entry.sha256.as_deref() == Some(file_hash.as_str()))
+            .cloned()
+    };
+    if let Some(existing) = existing {
+        let asset = {
+            let mut entries = catalog.entries.write().map_err(|e| e.to_string())?;
+            let entry = entries
+                .get_mut(&existing.id)
+                .ok_or_else(|| "资产 Catalog 在导入期间发生变化".to_string())?;
+            if !entry.origins.iter().any(|item| {
+                item.source_module == origin.source_module && item.source == origin.source
+            }) {
+                entry.origins.push(origin);
+            }
+            convert_entry_to_asset(entry.clone(), &base_dir)
+        };
+        catalog.mark_dirty(app);
+        return Ok(BackupAssetImport {
+            asset,
+            created: false,
+        });
+    }
+
+    let source_path = PathBuf::from(original_name);
+    let mime_type = resolve_backup_asset_mime_type(original_name, original_mime_type);
+    let asset_type = determine_asset_type(&mime_type, None);
+    let (uuid, relative_path) = generate_asset_path(&asset_type, &source_path, None);
+    let target_path = base_dir.join(&relative_path);
+    if let Some(parent) = target_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("创建资产目录失败: {}", e))?;
+    }
+    fs::write(&target_path, bytes).map_err(|e| format!("写入恢复资产失败: {}", e))?;
+
+    let mut metadata = AssetMetadata {
+        width: None,
+        height: None,
+        duration: None,
+        audio_waveform: None,
+        sha256: Some(file_hash.clone()),
+        original_sha256: None,
+        derived: None,
+    };
+    if matches!(asset_type, AssetType::Image) {
+        if let Ok(image) = image::load_from_memory(bytes) {
+            metadata.width = Some(image.width());
+            metadata.height = Some(image.height());
+        }
+    }
+
+    let asset = Asset {
+        id: uuid.clone(),
+        asset_type: asset_type.clone(),
+        mime_type,
+        name: original_name.to_string(),
+        path: relative_path.clone(),
+        thumbnail_path: None,
+        size: bytes.len() as u64,
+        created_at: Utc::now().to_rfc3339(),
+        source_module: "knowledge-base".to_string(),
+        origins: vec![origin],
+        metadata: Some(metadata),
+    };
+
+    if let Some(file_name) = target_path.file_name().and_then(|name| name.to_str()) {
+        if let Err(error) = update_month_index(&base_dir, &asset_type, &file_hash, file_name) {
+            log::warn!("[KB_BACKUP] 更新资产月度索引失败: {}", error);
+        }
+    }
+    {
+        let mut entries = catalog.entries.write().map_err(|e| e.to_string())?;
+        entries.insert(uuid, convert_asset_to_catalog_entry(&asset));
+    }
+    catalog.mark_dirty(app);
+    let _ = app.emit("asset-imported", &asset);
+
+    Ok(BackupAssetImport {
+        asset,
+        created: true,
+    })
+}
+
+#[cfg(test)]
+mod backup_asset_tests {
+    use super::resolve_backup_asset_mime_type;
+
+    #[test]
+    fn preserves_manifest_mime_type_for_extensionless_assets() {
+        assert_eq!(
+            resolve_backup_asset_mime_type("diagram", "image/png"),
+            "image/png"
+        );
+    }
+
+    #[test]
+    fn falls_back_to_file_name_when_manifest_mime_type_is_empty() {
+        assert_eq!(
+            resolve_backup_asset_mime_type("notes.pdf", ""),
+            "application/pdf"
+        );
+    }
+}
+
+/// 清理由失败的知识库导入新建的资产；已存在并复用的资产不会传入这里。
+pub(crate) fn remove_backup_asset(
+    app: &AppHandle,
+    catalog: &AssetCatalog,
+    asset_id: &str,
+) -> Result<(), String> {
+    let base_dir = PathBuf::from(get_asset_base_path(app.clone())?);
+    let entry = {
+        let mut entries = catalog.entries.write().map_err(|e| e.to_string())?;
+        entries.remove(asset_id)
+    };
+    if let Some(entry) = entry {
+        delete_asset_files(&base_dir, &entry.id, &entry.path)?;
+        catalog.mark_dirty(app);
+    }
+    Ok(())
+}
+
 /// 月度哈希索引结构
 /// 存储格式: { "sha256_hash": ["uuid1.ext", "uuid2.ext"] }
 #[derive(Debug, Clone, Serialize, Deserialize)]

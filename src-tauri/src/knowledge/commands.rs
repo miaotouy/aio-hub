@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+pub mod backup;
 pub mod base;
 pub mod entry;
 pub mod retrieval_cache;
@@ -19,6 +20,7 @@ pub mod search;
 pub mod tag;
 pub mod vector;
 
+pub use backup::*;
 pub use base::*;
 pub use entry::*;
 pub use retrieval_cache::*;

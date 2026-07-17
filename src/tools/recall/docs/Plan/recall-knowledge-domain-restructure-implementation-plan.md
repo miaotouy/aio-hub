@@ -355,7 +355,7 @@ appData/knowledge/
 
 ## 8. Stage 3：迁移 Agent、Chat 与工具配置
 
-**阶段状态**: 进行中。Agent 读取时已通过 `agentMigrationService` 一次性迁移 `knowledgeBaseConfig` / `knowledgeSettings`、旧 binding 和 `kb-*` 工具权限为版本 3 的 `recallConfig` / `recallSettings` 与 `recall-*` key，并有幂等单测。新的 `RecallProcessor` 已接管默认 pipeline：严格解析 `【recall::key=value】`、使用 collection ID 授权和检索、按 binding 自动注入 canonical 占位符。`{{recall}}` / `{{recall_list}}` 宏已输出新协议；编辑器迁移与旧语法诊断尚待接入。
+**阶段状态**: 进行中。Agent 读取时已通过 `agentMigrationService` 一次性迁移 `knowledgeBaseConfig` / `knowledgeSettings`、旧 binding 和 `kb-*` 工具权限为版本 3 的 `recallConfig` / `recallSettings` 与 `recall-*` key，并有幂等单测。新的 `RecallProcessor` 已接管默认 pipeline：严格解析 `【recall::key=value】`、使用 collection ID 授权和检索、按 binding 自动注入 canonical 占位符。`{{recall}}` / `{{recall_list}}` 宏及占位符编辑器均已输出新协议；知识绑定设置页迁移与旧语法诊断尚待接入。
 
 ### 目标
 

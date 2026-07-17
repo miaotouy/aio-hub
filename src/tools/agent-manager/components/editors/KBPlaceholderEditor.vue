@@ -22,28 +22,28 @@
       label-position="left"
       size="default"
     >
-      <!-- 知识库选择 -->
-      <el-form-item label="知识库">
+      <!-- 思绪集选择 -->
+      <el-form-item label="思绪集">
         <el-select
-          v-model="form.kbName"
-          placeholder="选择知识库 (可选)"
+          v-model="form.collection"
+          placeholder="选择思绪集 (可选)"
           clearable
           filterable
           class="full-width"
         >
-          <el-option label="所有知识库" value="" />
+          <el-option label="所有已启用思绪集" value="" />
           <el-option
-            v-for="base in kbStore.bases"
+            v-for="base in recallStore.bases"
             :key="base.id"
             :label="base.name"
-            :value="base.name"
+            :value="base.id"
           />
         </el-select>
-        <div class="item-tip">留空则检索所有已启用的知识库</div>
+        <div class="item-tip">留空则检索所有已启用的思绪集</div>
       </el-form-item>
 
       <!-- 召回上限 (非 static 模式显示) -->
-      <el-form-item v-if="form.mode !== 'static'" label="召回上限">
+      <el-form-item v-if="form.when !== 'static'" label="召回上限">
         <el-input-number
           v-model="form.limit"
           :min="1"
@@ -55,7 +55,7 @@
       </el-form-item>
 
       <!-- 最低分数阈值 (非 static 模式显示) -->
-      <el-form-item v-if="form.mode !== 'static'" label="最低分数阈值">
+      <el-form-item v-if="form.when !== 'static'" label="最低分数阈值">
         <div class="slider-container">
           <el-slider
             v-model="form.minScore"
@@ -71,7 +71,7 @@
 
       <!-- 激活模式 -->
       <el-form-item label="激活模式">
-        <el-select v-model="form.mode" class="full-width">
+        <el-select v-model="form.when" class="full-width">
           <el-option label="总是检索 (always)" value="always" />
           <el-option label="标签门控 (gate)" value="gate" />
           <el-option label="轮次常驻 (turn)" value="turn" />
@@ -80,9 +80,9 @@
       </el-form-item>
 
       <!-- 模式参数: gate -->
-      <el-form-item v-if="form.mode === 'gate'" label="标签过滤">
+      <el-form-item v-if="form.when === 'gate'" label="标签过滤">
         <el-select
-          v-model="form.modeParams"
+          v-model="form.gateTags"
           multiple
           filterable
           allow-create
@@ -101,7 +101,7 @@
       </el-form-item>
 
       <!-- 模式参数: turn -->
-      <el-form-item v-if="form.mode === 'turn'" label="轮次间隔">
+      <el-form-item v-if="form.when === 'turn'" label="轮次间隔">
         <el-input-number
           v-model="turnInterval"
           :min="1"
@@ -113,7 +113,7 @@
       </el-form-item>
 
       <!-- 模式参数: static -->
-      <template v-if="form.mode === 'static'">
+      <template v-if="form.when === 'static'">
         <el-form-item label="注入范围">
           <el-radio-group v-model="staticType">
             <el-radio value="all">全部条目</el-radio>
@@ -139,7 +139,7 @@
             @change="loadKbEntries"
           >
             <el-option
-              v-for="base in kbStore.bases"
+              v-for="base in recallStore.bases"
               :key="base.id"
               :label="`${base.name} (${base.entryCount} 条)`"
               :value="base.id"
@@ -217,9 +217,10 @@ import { ref, computed, onMounted, watch } from "vue";
 import { useRecallCollectionStore } from "@/tools/recall/stores/recallCollectionStore";
 import { loadBaseMeta } from "@/tools/recall/services/api";
 import {
-  parseKBParams,
-  type KBPlaceholder,
-} from "@/tools/llm-chat/core/context-processors/knowledge-processor";
+  parseRecallPlaceholder,
+  serializeRecallPlaceholder,
+  type RecallPlaceholder,
+} from "@/tools/llm-chat/core/context-processors/recall-placeholder";
 import type { RecallEntryIndexItem } from "@/tools/recall/types";
 
 const props = defineProps<{
@@ -232,19 +233,19 @@ const emit = defineEmits<{
   (e: "cancel"): void;
 }>();
 
-const kbStore = useRecallCollectionStore();
+const recallStore = useRecallCollectionStore();
 
 // ─── 默认值常量 ───
 const DEFAULT_MIN_SCORE = 0.3;
 const DEFAULT_MODE = "always";
 
 // ─── 表单数据 ───
-const form = ref<Partial<KBPlaceholder>>({
-  kbName: "",
+const form = ref<Partial<RecallPlaceholder>>({
+  collection: "",
   limit: undefined,
   minScore: DEFAULT_MIN_SCORE,
-  mode: DEFAULT_MODE,
-  modeParams: [],
+  when: DEFAULT_MODE,
+  gateTags: [],
 });
 
 // ─── 辅助字段 ───
@@ -262,7 +263,7 @@ const entryFilterText = ref("");
 const isEdit = computed(() => !!props.value);
 
 // 获取所有已知标签用于建议
-const allTags = computed(() => kbStore.globalStats.allDiscoveredTags || []);
+const allTags = computed(() => recallStore.globalStats.allDiscoveredTags || []);
 
 // 过滤后的条目列表
 const filteredEntries = computed(() => {
@@ -286,15 +287,16 @@ const filterEntries = (val: string) => {
 /**
  * 加载指定知识库的条目列表
  */
-const loadKbEntries = async (kbId: string) => {
-  if (!kbId) {
+const loadKbEntries = async (recallId: string) => {
+  if (!recallId) {
     staticKbEntries.value = [];
     return;
   }
 
   loadingEntries.value = true;
   try {
-    const meta = await loadBaseMeta(kbId);
+    form.value.collection = recallId;
+    const meta = await loadBaseMeta(recallId);
     staticKbEntries.value = (meta?.entries as RecallEntryIndexItem[]) || [];
     entryFilterText.value = "";
   } catch {
@@ -310,32 +312,31 @@ const loadKbEntries = async (kbId: string) => {
 const parseValue = (val: string) => {
   if (!val) return;
 
-  const KB_PLACEHOLDER_REGEX = /【(?:kb|knowledge)(?:::([^【】]*?))?】/;
-  const match = val.match(KB_PLACEHOLDER_REGEX);
+  const match = val.match(/【recall(?:::[^【】]*)?】/);
 
   if (match) {
-    const params = parseKBParams(match[0], match[1] || "", 0);
+    const params = parseRecallPlaceholder(match[0], 0);
     form.value = {
-      kbName: params.kbName || "",
+      collection: params.collection || "",
       limit: params.limit,
       minScore: params.minScore ?? DEFAULT_MIN_SCORE,
-      mode: params.mode || DEFAULT_MODE,
-      modeParams: params.modeParams || [],
+      when: params.when || DEFAULT_MODE,
+      gateTags: params.gateTags || [],
     };
 
     // 同步辅助字段
-    if (params.mode === "turn" && params.modeParams?.[0]) {
-      turnInterval.value = parseInt(params.modeParams[0]) || 1;
-    } else if (params.mode === "static" && params.modeParams) {
+    if (params.when === "turn" && params.everyTurns) {
+      turnInterval.value = params.everyTurns;
+    } else if (params.when === "static" && params.entries) {
       if (
-        params.modeParams.length === 1 &&
-        params.modeParams[0].toLowerCase() === "all"
+        params.entries.length === 1 &&
+        params.entries[0].toLowerCase() === "all"
       ) {
         staticType.value = "all";
       } else {
         staticType.value = "select";
         // 尝试匹配已有条目（如果有知识库选中的话）
-        selectedEntryIds.value = [...params.modeParams];
+        selectedEntryIds.value = [...params.entries];
         manualIds.value = "";
       }
     }
@@ -343,8 +344,8 @@ const parseValue = (val: string) => {
 };
 
 onMounted(() => {
-  if (kbStore.bases.length === 0) {
-    kbStore.init();
+  if (recallStore.bases.length === 0) {
+    recallStore.init();
   }
   if (props.value) {
     parseValue(props.value);
@@ -381,59 +382,16 @@ const resolvedStaticParams = computed<string[]>(() => {
  * 从末尾开始省略等于默认值的参数，避免产生多余的 ::
  */
 const generatedPlaceholder = computed(() => {
-  // 5. modeParams
-  let finalParams: string[] = [];
-  if (form.value.mode === "turn") {
-    finalParams = [turnInterval.value.toString()];
-  } else if (form.value.mode === "static") {
-    finalParams = resolvedStaticParams.value;
-  } else if (form.value.mode === "gate") {
-    finalParams = form.value.modeParams || [];
-  }
-  const modeParamsStr = finalParams.join(",");
-
-  // 构建参数数组 (位置: 0=kbName, 1=limit, 2=minScore, 3=mode, 4=modeParams)
-  const slots: Array<{ value: string; isDefault: boolean }> = [
-    {
-      value: form.value.kbName || "",
-      isDefault: !form.value.kbName,
-    },
-    {
-      value: form.value.limit?.toString() || "",
-      isDefault: form.value.limit === undefined || form.value.limit === null,
-    },
-    {
-      value:
-        form.value.minScore !== undefined ? form.value.minScore.toFixed(2) : "",
-      isDefault:
-        form.value.minScore === undefined ||
-        Math.abs(
-          (form.value.minScore ?? DEFAULT_MIN_SCORE) - DEFAULT_MIN_SCORE
-        ) < 0.001,
-    },
-    {
-      value: form.value.mode || DEFAULT_MODE,
-      isDefault: !form.value.mode || form.value.mode === DEFAULT_MODE,
-    },
-    {
-      value: modeParamsStr,
-      isDefault: !modeParamsStr,
-    },
-  ];
-
-  // 从末尾开始裁剪：如果是默认值就省略
-  let lastMeaningful = -1;
-  for (let i = slots.length - 1; i >= 0; i--) {
-    if (!slots[i].isDefault) {
-      lastMeaningful = i;
-      break;
-    }
-  }
-
-  if (lastMeaningful < 0) return "【kb】";
-
-  const parts = slots.slice(0, lastMeaningful + 1).map((s) => s.value);
-  return `【kb::${parts.join("::")}】`;
+  const when = form.value.when || DEFAULT_MODE;
+  return serializeRecallPlaceholder({
+    collection: form.value.collection || undefined,
+    limit: form.value.limit,
+    minScore: form.value.minScore,
+    when,
+    gateTags: when === "gate" ? form.value.gateTags : undefined,
+    everyTurns: when === "turn" ? turnInterval.value : undefined,
+    entries: when === "static" ? resolvedStaticParams.value : undefined,
+  });
 });
 
 const handleInsert = () => {

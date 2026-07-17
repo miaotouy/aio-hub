@@ -1,19 +1,37 @@
-# Knowledge Base 检索模式与思绪引擎设计调查
+# Recall / Knowledge 检索模式与思绪召回设计调查
 
-**状态**: 调查完成，待决策  
-**创建日期**: 2026-06-23  
-**适用范围**: `src/tools/knowledge-base/`、`src-tauri/src/knowledge/`
+**状态**: 调查完成，结论已更新，施工步骤已迁至统一计划
+**创建日期**: 2026-06-23
+**最近修订**: 2026-07-17
+**适用范围**: `src/tools/recall/`、`src-tauri/src/recall/`、`src/tools/knowledge-base/`、`src-tauri/src/knowledge/`
 
 ---
 
-## 0. 2026-07-01 修订决定
+## 0. 修订决定
 
-本轮修订改为更明确的双域设计：**Thought / 思绪** 与 **Knowledge / 知识**。此前文档里的“热记忆 / 冷知识库”只是过渡称呼，不再作为长期产品命名、API 枚举或数据库命名。
+本轮修订采用明确的双域设计：**Recall / 思绪** 与 **Knowledge / 知识**。此前使用的“热记忆 / 冷知识库”和 `Thought` 都是调查阶段工作名，不再作为长期产品命名、API 枚举或数据库命名。
 
-- **Thought / 思绪**：承载现有 CAIU 条目、标签、priority、refs/refBy、语义召回、联想召回和 thought engine。旧版 `knowledge/bases` 文件数据会在数据库化迁移时转换到该域。
+- **Recall / 思绪**：承载现有 CAIU 条目、标签、priority、语义召回、联想召回和 Recall engine。旧版 `knowledge/bases` 文件数据会迁入该域；`refs/refBy` 继续作为运行时派生关系。
 - **Knowledge / 知识**：承载传统 RAG 资料，包括文档、手册、论文、网页、百科、代码资料包等，使用 document/chunk/source 结构，强调出处、切片和可引用性。
-- `memory` / `coldKnowledge` 只作为旧配置或旧 API 的兼容 alias；新增类型、UI 文案和内部路由应使用 `thought` / `knowledge` / `mixed`。
-- `semantic` 与 `thought` 不再代表两套库，而是 Thought 域内部的两个 preset；Knowledge 域走独立 document/chunk 检索通道。
+- 新增类型、UI 文案和内部路由使用 `recall` / `knowledge` / `mixed`。
+- `semantic` 与 `associative` 是 Recall 域内部的两个 profile；Knowledge 域走独立 document/chunk 检索通道。
+- 现有 CAIU 实现整体迁入 Recall，原 `knowledge-base` 只保留为未来 Knowledge 资料库入口；具体施工顺序统一记录在 [Recall / Knowledge 领域拆分与重构实施计划](./recall-knowledge-domain-restructure-implementation-plan.md)。
+
+### 0.1 2026-07-17 调查与讨论补充
+
+本轮重新对照了 `E:/rc20/vcp/VCPToolBox` 当前的 DailyNote、KnowledgeBaseManager、RAGDiaryPlugin、LightMemo、TagMemo V9.1 与 Agent 配置，并复核了 AIO Hub 的 `ChatAgent`、知识库占位符和工具调用链。补充结论如下：
+
+- VCP 日记本的源数据是按 folder 组织的文本存档。索引只记录文件、`diary_name`、chunk、Tag 和向量，不保存 Agent、会话或消息外键。
+- VCP Agent 通过 Prompt 中的日记本占位符选择本次加载哪些存档；多个 Agent 可以组合同一个公共日记本。关闭占位符或配置开关后，本次上下文就不再包含该存档。
+- DailyNote 写入时由调用参数选择 folder 和署名。署名可以参与文本展示或检索过滤，但不是存储层的 Agent 所有权关系。
+- AIO 的 `ChatAgent` 同样是可复用配置预设。现有 `knowledgeBaseConfig.bindings`、占位符和工具开关属于编排层，不应反向要求条目数据库保存 `agentId`、`sessionId`、分支或消息来源。
+- Recall 与 Knowledge 的拆分只表达两种数据形态和索引生命周期：前者是完整语义条目，后者是 document/chunk 资料。它们不是两种 Agent 身份或认知状态。
+- 现有 CAIU、标签池、priority、Lens / Blender 和 Agent 写入工具归入条目型存档。`refs/refBy` 在当前 Rust `Caiu` 中是 `serde(skip)` 的运行时派生关系，不是迁移时必须持久化的源字段。
+- “不建设模拟遗忘和认知生命周期”是此前调查讨论中的阶段结论，不是对 AIO 已有实现或既定计划的反驳。修订后只把它记录为范围说明，不再据此建立新的 Memory 领域模型。
+- 时间衰减若有实际需求，应像 VCP `::TimeDecay...` 一样作为 binding、占位符或单次请求上的可选检索修饰符；不进入条目持久化状态，也不作为第一阶段数据库化前置任务。
+- AgentDream 只是同一批存档的可选消费者和整理工具，不参与条目存储模型推导。
+- VCP TagMemo V9.1 可借鉴派生资产版本、原子发布、统一写协调和可复现实验，但第一阶段只迁移 AIO 当前已经持久化的数据与索引。
+- 依赖调查的详细结论记录在 [`backend-storage-database-design.md`](./backend-storage-database-design.md) 第 5 节。第一轮前端不新增生产依赖，Rust 侧以 `rusqlite` 为必需项，文件监听和 TriviumDB 分阶段引入。
 
 ---
 
@@ -88,13 +106,37 @@
   - 默认工作区配置 `defaultEngineId` 当前为 `vector`。
   - 动态设置项会从后端 `RetrievalEngineInfo.parameters` 注入，说明新增或合并引擎不需要重写设置系统，但需要处理参数去重和命名。
 
+### 2.3 VCPToolBox 对照结论
+
+VCPToolBox 当前采用“存档与编排分离”的双通道：
+
+```text
+条目存档  DailyNote -> dailynote folders -> KnowledgeBaseManager / TagMemo V9.1
+文档资料  knowledge folders -> TDBKnowledge -> TriviumDB
+被动编排  Agent Prompt 中的日记本占位符 -> RAGDiaryPlugin
+主动检索  LightMemo -> 按 folder / knowledge library 选择通道
+```
+
+可借鉴边界：
+
+- 日记文件或条目本身是无状态存档；“某 Agent 的记忆”由 Prompt、folder 选择和开关组合出来，不由数据库外键定义。
+- 同一个日记本可以被个人 Agent、公共 Agent 或整理工具共同使用，存储层不需要知道消费者列表。
+- 条目侧强调标签共现、联想传播和频繁小写入，但写入后仍只是普通存档。
+- 知识侧强调 document/chunk、文件 manifest、批量导入、BM25、向量、图邻接与出处回源。
+- 两侧不共享原始数据表和索引资产；路由层只共享查询和结果契约。
+- RAGDiaryPlugin 的全文、RAG、门控 RAG 和时间衰减能力都由占位符修饰符选择，说明召回策略属于编排层。
+- AgentDream 在条目存档之上执行可选的离线回顾与人工审批，不改变底层日记 schema。
+- VCP 自身报告的 V9.1 收益不能直接替代 AIO 的基准测试；AIO 仍需固定查询集、候选对照和主观有效性评估。
+
 ---
 
 ## 3. 核心判断
 
-### 3.1 Thought 域不再拆知识库 / 记忆库
+### 3.1 Recall 域不再拆知识库 / 记忆库
 
-推荐不要在现有 CAIU / Thought 体系内继续把“知识库”和“记忆库”拆成两套存储、两套向量、两套标签池。数据库化迁移时，应直接把旧 CAIU 数据归入 Thought / 思绪域。
+推荐不要在现有 CAIU / Recall 体系内继续把“知识库”和“记忆库”拆成两套存储、两套向量、两套标签池。旧 CAIU 数据应直接归入 Recall / 思绪域。
+
+`Recall` 表达的是“一组可被主动或被动唤回的原子条目，以及负责唤回它们的方法”，不是“思绪”的直译。它不表示条目绑定某个 Agent，也不表示数据库负责维护认知状态。更接近 VCP 的对应物是“日记本 / folder”：Agent 配置选择本次启用哪些集合，工具调用选择本次写入哪个集合，条目本身保持独立。
 
 建议保留同一套存储与索引基础设施：
 
@@ -103,7 +145,7 @@ CAIU 条目
   ├── content
   ├── tags
   ├── priority
-  ├── refs / refBy
+  ├── runtime refs / refBy
   └── vectorizedModels
 
 共享索引
@@ -118,18 +160,19 @@ CAIU 条目
 - 两类需求的差异主要在召回目标、信号权重、扩散深度和过滤阈值，而不是源数据形态。
 - 拆存储会引入同步、迁移、去重、跨库引用和 UI 管理复杂度。
 - 同一个条目可能同时具有“知识”和“记忆”价值。例如一条项目决策记录既可被精准查询，也可在相似上下文中被联想召回。
-- CAIU 条目是人工或AI整理后的语义单元，不应再被自动切片。自动 chunking 会破坏标签、priority、refs、思绪联想和人工维护的上下文边界。
+- CAIU 条目是人工或AI整理后的语义单元，不应再被自动切片。自动 chunking 会破坏标签、priority、运行时联想和人工维护的上下文边界。
+- Agent、会话和分支只影响本次如何组合、查询和注入条目，不进入条目主表，也不建立反向消费者关系。
 
 ### 3.2 传统知识检索应单开 Knowledge 域
 
-如果需要面向 PDF、Markdown、网页、手册、百科、代码文档等传统 RAG 资料，建议新增独立的 Knowledge / 知识资料库通道，而不是继续在 Thought 思绪域中模拟“知识检索”。
+如果需要面向 PDF、Markdown、网页、手册、百科、代码文档等传统 RAG 资料，建议新增独立的 Knowledge / 知识资料库通道，而不是继续在 Recall 思绪域中模拟“知识检索”。
 
 ```text
-Thought / 思绪域
+Recall / 思绪域
   数据: 人工整理的记忆、经验、项目判断、长期上下文
   单元: CAIU entry
-  检索: semantic / thought 参数预设
-  特征: 标签、priority、refs、思绪联想、上下文牵引
+  检索: semantic / associative profile
+  特征: 标签、priority、运行时联想、上下文牵引
   禁止: 自动切片
 
 Knowledge / 知识资料库
@@ -140,14 +183,14 @@ Knowledge / 知识资料库
   支持: 自动切片
 ```
 
-因此，原先的 `knowledge profile` / `memory profile` 不再建议作为产品级双模式。它们应被更明确地替换为 Thought 域内部的 `semantic` / `thought` preset，以及 Knowledge 域的 document/chunk 检索通道。
+因此，原先的 `knowledge profile` / `memory profile` 不再建议作为产品级双模式。它们应被更明确地替换为 Recall 域内部的 `semantic` / `associative` profile，以及 Knowledge 域的 document/chunk 检索通道。
 
 产品级模式应改为：
 
 ```text
-thoughtSearch / 思绪召回
-  访问 Thought 思绪域。
-  允许语义召回、标签联想和 thought 共振。
+recallSearch / 思绪召回
+  访问 Recall 思绪域。
+  允许语义召回、标签联想和多信号共振。
 
 knowledgeSearch / 知识检索
   访问 Knowledge 知识资料库。
@@ -156,7 +199,7 @@ knowledgeSearch / 知识检索
 
 ### 3.3 标签和向量对外应合并，对内应保留
 
-在 Thought 思绪域内，建议将“标签引擎”和“向量引擎”对外合并为一个思绪召回能力，对内继续保留为两条信号线。
+在 Recall 思绪域内，建议将“标签引擎”和“向量引擎”对外合并为一个思绪召回能力，对内继续保留为两条信号线。
 
 对外不建议暴露：
 
@@ -168,7 +211,7 @@ vector engine
 对外建议暴露：
 
 ```text
-semantic / thought preset
+semantic / associative profile
 ```
 
 内部保留：
@@ -187,7 +230,7 @@ literal keyword signal
 - 当前 `vector` 引擎已经返回 `tag_vector`，说明它事实上已经是 semantic engine，而不是纯 content vector engine。
 - 真正传统意义上的“知识检索”应由 Knowledge 域承担，不应继续用 `vector` 名称包装成产品层知识库。
 
-### 3.4 Lens 与 Blender 建议合并为 Thought Engine
+### 3.4 Lens 与 Blender 建议合并为 Recall Engine
 
 `lens` 和 `blender` 都服务于记忆库方向：
 
@@ -197,8 +240,8 @@ literal keyword signal
 它们对用户而言不是两个稳定可理解的产品模式。建议合并为：
 
 ```text
-engineId: thought
-displayName: 思绪引擎
+profile: associative
+displayName: 联想召回
 ```
 
 思绪引擎内部可包含几个阶段：
@@ -212,7 +255,7 @@ displayName: 思绪引擎
 
 ### 3.5 普通相似度引擎不再承载传统知识库功能
 
-建议让当前 `vector` 的演进版本承载 Thought 思绪域中的默认语义召回，而不是承载传统文档知识库功能。
+建议让当前 `vector` 的演进版本承载 Recall 思绪域中的默认语义召回，而不是承载传统文档知识库功能。
 
 它应该保留：
 
@@ -228,6 +271,67 @@ displayName: 思绪引擎
 - 历史向量强投射。
 - 过低阈值的弱关联召回。
 - 文档级自动切片、文件监听、chunk 级出处管理和跨文档 BM25。这些应归入 Knowledge 域。
+
+### 3.6 条目存档与 Agent 编排边界
+
+此前调查讨论过自动遗忘、梦境整理和认知生命周期，并形成了“不在核心层实现”的阶段结论。该结论只用于收窄范围，不代表 AIO 现有实现曾计划建设这些状态，也不应继续扩展成新的 Memory 领域模型。
+
+条目存档的最小状态流只有：
+
+```text
+显式创建 / 导入
+  -> 持久化源内容
+  -> 建立或更新派生索引
+  -> 显式修改时使旧向量失效并重建
+  -> 显式禁用或删除
+```
+
+编排规则：
+
+- Agent 侧继续使用配置、占位符和开关选择条目库；关闭 binding 就表示本次不注入，不需要回写条目状态。
+- 主动工具调用由本次参数选择搜索或写入的库，不由数据库根据 Agent 身份推断。
+- 多个 Agent 可以使用同一个条目库；同一个 Agent 也可以组合个人、项目和公共条目库。
+- 条目表不增加 `agent_id`、`session_id`、`branch_id`、`message_id` 等没有运行时消费者的字段。
+- `refs/refBy` 继续作为运行时派生关系，需要时从内容和索引重建，不作为 Agent 归属或持久化生命周期字段。
+
+产品层继续称“思绪”，内部使用 `RecallRepository` / `recall_entries`；不再引入 `ThoughtRepository`、`MemorySpace` / `MemoryEntry` / `MemoryRecallPolicy` 等并行类型体系。
+
+### 3.7 可选查询期修饰符
+
+时间衰减只是一种可选排序修饰符，不是条目状态，也不是数据库化第一阶段的必需能力。若后续有明确场景，建议沿用 VCP 的轻量方式，将参数放在 Agent binding、占位符或单次搜索请求上。
+
+```ts
+interface RetrievalTimeDecayOptions {
+  halfLifeDays: number;
+  minScore?: number;
+  targetTags?: string[];
+}
+```
+
+计算方式：
+
+```text
+decayFactor  = 0.5 ^ (ageDays / halfLifeDays)
+finalScore   = baseScore * decayFactor
+```
+
+执行顺序建议：
+
+```text
+候选召回
+  -> Recall 多信号融合 / 可选 rerank
+  -> 时间衰减最终调制
+  -> minScore 裁切
+  -> TopK
+```
+
+约束：
+
+- 条目从第一版起必须保留 `createdAt` / `updatedAt`；它们是基础存档元数据，与时间衰减无关。第一阶段只是不额外新增表示“事件发生时间”的 `occurredAt`。后续可按明确需求使用创建日期、显式事件日期或可解析的内容日期；无可靠日期时不衰减。
+- 只对 `targetTags` 命中的条目衰减时，应匹配结构化 Tag，不扫描正文误判。
+- 显式时间查询应绕过衰减，避免用户查询旧事件时被近期偏好干扰。
+- trace 分别保留 `baseScore`、`decayFactor` 和 `finalScore`，方便解释裁切原因。
+- 衰减只影响本次查询结果，不回写 priority、enabled 或任何持久化字段。
 
 ---
 
@@ -249,18 +353,18 @@ displayName: 思绪引擎
 
 ### 4.2 Agent / API 侧参数
 
-短期可以保持 `engineId`，新增可选的 `retrievalMode` 和 Thought 内部 `thoughtPreset`：
+对外使用 `retrievalMode` 和 Recall 内部 `recallProfile`。`engineId` 仅作为底层调试参数和迁移输入。该结构用于主动搜索或路由层调用；被动注入继续由 Agent binding 和占位符决定是否激活、注入到哪里：
 
 ```ts
-type RetrievalMode = "thought" | "knowledge" | "mixed";
-type ThoughtPreset = "semantic" | "thought";
+type RetrievalMode = "recall" | "knowledge" | "mixed";
+type RecallProfile = "semantic" | "associative";
 
 interface SearchParams {
   query: string;
-  kbIds?: string[];
+  recallIds?: string[];
   engineId?: string;
   retrievalMode?: RetrievalMode;
-  thoughtPreset?: ThoughtPreset;
+  recallProfile?: RecallProfile;
   knowledgeLibraryIds?: string[];
   limit?: number;
   minScore?: number;
@@ -270,23 +374,23 @@ interface SearchParams {
 解析优先级建议：
 
 ```text
-retrievalMode
-  > explicit knowledgeLibraryIds / kbIds 路由
-  > explicit engineId
-  > thoughtPreset mapped engine
-  > workspace default thought preset
-  > semantic fallback
+retrievalMode 决定数据域
+  -> 对应域的显式 source ids 缩小检索范围
+  -> Recall 分支内 explicit engineId（仅调试或迁移输入）
+  -> Recall 分支内 recallProfile mapped engine
+  -> workspace default Recall profile
+  -> semantic fallback
 ```
 
-长期建议外部默认指定 `retrievalMode`。`engineId` 仅保留给 Playground、调试和兼容旧配置。`thoughtPreset` 只调 Thought 域内部参数，不代表独立数据真源。
+如果未提供 `retrievalMode`，可以由仅出现的 `recallIds` 或 `knowledgeLibraryIds` 推断；两类 ID 同时出现时推断为 `mixed`。`retrievalMode = "knowledge"` 时不得让 Recall `engineId` 把请求重新路由回 Recall。长期建议外部默认指定 `retrievalMode`；`recallProfile` 只调 Recall 域内部参数，不代表独立数据真源。
 
 ### 4.3 结果解释
 
 不建议把 `matchType` 直接作为产品模式展示。建议拆成两层：
 
 ```ts
-type RetrievalMode = "thought" | "knowledge" | "mixed";
-type RetrievalSourceType = "thought" | "knowledge";
+type RetrievalMode = "recall" | "knowledge" | "mixed";
+type RetrievalSourceType = "recall" | "knowledge";
 
 type MatchSignal =
   | "keyword"
@@ -297,7 +401,7 @@ type MatchSignal =
   | "knowledge_vector"
   | "knowledge_graph"
   | "lens"
-  | "thought"
+  | "associative"
   | "multi_signal";
 ```
 
@@ -326,22 +430,22 @@ keyword
 
 semantic
   原 vector 引擎的产品化命名。
-  内容向量为主，标签向量为辅，承载 Thought 思绪域默认语义 preset。
+  内容向量为主，标签向量为辅，承载 Recall 思绪域默认语义 profile。
 
-thought
+associative
   合并 lens + blender。
-  标签联想、历史投射、残差挖掘、多信号共振，承载 Thought 思绪域思绪 preset。
+  标签联想、历史投射、残差挖掘、多信号共振，承载 Recall 思绪域联想 profile。
 ```
 
 为了降低迁移成本，内部可以先保留旧 ID：
 
 ```text
-vector  -> semantic alias
-lens    -> thought compatibility mode 或 deprecated alias
-blender -> thought compatibility mode 或 deprecated alias
+vector  -> semantic migration mapping
+lens    -> associative migration mapping
+blender -> associative migration mapping
 ```
 
-### 5.2 Thought Engine 参数建议
+### 5.2 Associative Profile 参数建议
 
 保留并统一以下参数：
 
@@ -378,85 +482,11 @@ keyword/key signal 作为可解释增强
 
 ---
 
-## 6. 迁移路径
+## 6. 实施关系
 
-### Phase 1: 修契约和命名，不重写算法
+本调查只定义检索域、profile、结果语义和算法边界，不维护迁名、迁移或引擎融合的施工步骤。
 
-目标是先减少当前引擎分歧造成的 bug。
-
-建议修改：
-
-- 新增统一 helper：根据 `RetrievalEngineInfo.requiresEmbedding` 判断是否需要查询向量，不再硬编码 `vector/lens/hybrid`。
-- 修复 `blender` 在前端检索路径中没有生成 vector payload 的问题。
-- 扩展 `SearchResult.matchType` 类型，至少覆盖 `tag_vector`、`lens`、`blender`。
-- 在 UI 显示名上将 `vector` 从“向量检索”调整为“语义检索”。
-- 在文档中声明标签和内容向量是 semantic engine 的内部信号。
-
-### Phase 2: 引入 retrieval mode 与 Thought preset
-
-建议新增：
-
-```ts
-retrievalMode?: "thought" | "knowledge" | "mixed";
-thoughtPreset?: "semantic" | "thought";
-```
-
-映射关系：
-
-```text
-thought + semantic preset -> vector / semantic
-thought + thought preset  -> thought
-knowledge                 -> Knowledge 知识资料库检索通道
-mixed                     -> Thought + Knowledge 双路召回后合并 / rerank
-```
-
-兼容策略：
-
-- 如果调用方传了 `engineId`，继续尊重 `engineId`。
-- 如果调用方没有传 `engineId` 但传了 `thoughtPreset`，按 preset 映射。
-- 如果调用方传了 `retrievalMode = "knowledge"`，不进入 Thought 引擎，而是路由到 Knowledge 资料库。
-- 如果调用方传了 `retrievalMode = "mixed"`，Thought 和 Knowledge 双路召回，结果必须保留 `sourceType` 后再合并。
-- 旧配置中的 `defaultEngineId` 保留，后续可迁移为 `defaultThoughtPreset`。
-- 旧 `retrievalMode = "memory"` 兼容映射到 `thought`；旧 `retrievalMode = "coldKnowledge"` 兼容映射到 `knowledge`，但不要在新 UI 和新文档中继续暴露。
-
-### Phase 3: 合并 Lens / Blender 为 Thought
-
-实现方式有两种：
-
-方案 A：新增 `thought.rs`，复用 / 迁移 `lens.rs` 和 `blender.rs` 的核心函数。
-
-优点：
-
-- 语义清晰。
-- 旧引擎可以保留为 alias 或 compatibility wrapper。
-- 方便重新整理参数和日志。
-
-缺点：
-
-- 短期有重复代码。
-
-方案 B：直接改造 `blender.rs` 为 `thought.rs`，把 lens 的折射阶段迁入。
-
-优点：
-
-- 最贴近当前“思绪引擎”雏形。
-- 代码少一份。
-
-缺点：
-
-- 对旧 `blender` 行为影响较大，需要兼容层。
-
-推荐方案 A，先新增再迁移，避免一次性破坏 Playground 和历史配置。
-
-### Phase 4: 引入 Knowledge 产品层
-
-- 普通搜索入口默认展示“思绪召回 / 知识检索”。
-- 思绪召回内部可提供“语义 / 思绪”两个 preset，但不再表现为两套库。
-- 知识检索新增独立资料库管理入口，支持导入文件夹、扫描、切片、重建、删除和查看来源。
-- 切片功能只在 Knowledge 域出现，Thought 编辑器不提供自动切片。
-- Playground 保留底层引擎选择，用于调参。
-- Agent 工具描述从“检索引擎 keyword/vector”升级为“检索模式 thought/knowledge”，同时保留 `engineId` 高级参数。
-- 监控页面将 trace step 从固定“向量召回”改为更通用的“检索召回”或按引擎返回阶段名。
+统一施工阶段、发布边界、兼容策略和完成门槛见 [Recall / Knowledge 领域拆分与重构实施计划](./recall-knowledge-domain-restructure-implementation-plan.md)。
 
 ---
 
@@ -468,33 +498,34 @@ mixed                     -> Thought + Knowledge 双路召回后合并 / rerank
 
 建议：
 
-- 对 Thought 语义 preset 维持更稳定的分数语义。
-- 对 Thought 思绪 preset 将 `score` 解释为 activation / resonance，不直接等同事实相关性。
+- 对 Recall semantic profile 维持更稳定的分数语义。
+- 对 Recall associative profile 将 `score` 解释为 activation / resonance，不直接等同事实相关性。
 - 对 Knowledge 检索将 `score` 解释为 hybrid retrieval score，并优先展示来源、chunk 和 rerank 依据。
+- `mixed` 不直接比较或拼接两域原始分数；应先保留分域配额，再用 RRF 或统一 reranker 融合。
 - UI 可以展示“相关度”与“触发依据”，而不是只展示一个精确百分比。
 
-### 7.2 思绪 preset 容易漂移
+### 7.2 Associative profile 容易漂移
 
-Thought 思绪 preset 如果过度依赖标签扩散或历史投射，可能把弱相关内容注入 RAG 上下文。
+Recall associative profile 如果过度依赖标签扩散或历史投射，可能把弱相关内容注入 RAG 上下文。
 
 建议：
 
-- 思绪 preset 默认返回数量更少。
+- associative profile 默认返回数量更少。
 - 对最终候选增加内容向量验证。
 - 对低分弱关联结果标记为“联想召回”，不要和高置信 Knowledge 片段混在一起。
 
-### 7.3 Knowledge 不应污染 Thought
+### 7.3 Knowledge 不应污染 Recall
 
-Knowledge 面向传统 RAG 文档召回，不应继承 CAIU / TagMemo 的 Thought 语义。
+Knowledge 面向传统 RAG 文档召回，不应继承 CAIU / TagMemo 的 Recall 语义。
 
 建议：
 
-- Knowledge 不参与 Thought 标签池、tag sea、refs/refBy 和 priority 体系。
-- Knowledge chunk 不写入 CAIU / Thought entry，也不反向成为 workspace.bases 的真源。
-- Knowledge 可在最终回答阶段与 Thought 结果合并，但合并发生在检索路由 / rerank 层。
+- Knowledge 不参与 Recall 标签池、tag sea、运行时引用关系和 priority 体系。
+- Knowledge chunk 不写入 CAIU / Recall entry，也不反向成为 Recall collection 列表的真源。
+- Knowledge 可在最终回答阶段与 Recall 结果合并，但合并发生在检索路由 / rerank 层。
 - Knowledge 结果必须带 `sourceType = "knowledge"`、库名、文件路径、chunkIndex 和可选章节信息。
 
-### 7.4 旧配置兼容
+### 7.4 旧配置迁移风险
 
 已有配置、缓存 key、Agent 绑定和 Playground slot 可能保存旧 `engineId`。
 
@@ -505,25 +536,27 @@ Knowledge 面向传统 RAG 文档召回，不应继承 CAIU / TagMemo 的 Though
   - `{{kb}}` / `{{kb::name::limit}}` 宏会展开为 `【kb::...】` 占位符。
   - `KnowledgeProcessor` 扫描 `【kb】` / `【knowledge】`，解析为 `KbRetrievalRequest`，再调用 `resolvePlaceholderRetrieval`。
   - 占位符格式目前是 `【kb::kbName::limit::minScore::mode::modeParams::engineId】`。
-- 因此兼容层不需要先行单独落地。后续 Thought / Knowledge 重构时，把 chat 角色预设配置、`knowledgeBaseConfig`、`knowledgeSettings` 和占位符解析一起迁移即可。
-- 角色预设中的旧占位符只要符合现有可识别格式，就可以作为迁移输入统一转换；不符合格式的内容保留为普通文本或在导入/迁移报告中提示。
+- 结构化 Agent binding、工具开关和权限配置必须自动迁移到 Recall，并保留原集合 ID。
+- 自动注入由运行时生成 Recall 请求，不要求用户修改预设消息。
+- 手写 `{{kb}}`、`【kb】`、`【knowledge】` 属于自由文本：应检测、报告并提供一键替换，不默认静默改写，也不得在运行时静默删除。
+- 旧 `【knowledge】` 不建立到 Recall 的长期兼容映射，避免未来与 document/chunk Knowledge 冲突。
 
-建议保留兼容映射：
+迁移输入映射：
 
 ```text
-vector  -> semantic
-lens    -> thought
-blender -> thought
-hybrid  -> semantic 或 knowledge，需按调用来源确认
-memory  -> thought，仅兼容旧配置
-coldKnowledge -> knowledge，仅兼容旧配置
+vector        -> semantic
+lens          -> associative
+blender       -> associative
+hybrid        -> 按调用来源人工确认
+memory        -> recall
+coldKnowledge -> knowledge
 ```
 
 缓存 key 中如果包含 `engineId`，迁移时应避免把旧缓存误命中新引擎。可以通过 `algorithmVersion` 或 engine alias 规范化策略隔离。
 
 ### 7.5 文档和 UI 文案要同步
 
-如果代码中新增 `thought`，需要同步：
+引入 Recall 后需要同步：
 
 - `src/tools/knowledge-base/ARCHITECTURE.md`
 - Agent 工具描述。
@@ -539,22 +572,14 @@ coldKnowledge -> knowledge，仅兼容旧配置
 推荐方向：
 
 ```text
-Thought 层: 旧 CAIU 数据迁移到思绪域，继续共用向量矩阵、标签池和 thought engine。
+Recall 层: 旧 CAIU 数据迁移到思绪域，继续共用向量矩阵、标签池和 Recall engine。
 Knowledge 层: 单开知识资料库，面向传统 RAG 文档、切片、BM25、出处和大规模资料。
+存档语义: Recall 条目是无状态存档，不绑定 Agent、会话或消息；Agent 通过 binding、占位符和工具参数进行组合。
 对外层: 从 engineId 思维升级为 retrievalMode 思维。
-Thought 内部: semantic / thought 只是思绪 preset，不再是产品级双库模式。
-标签与向量: 在 Thought 内对外合并，对内保留为不同信号线。
-Lens / Blender: 合并为 thought preset 的实现基础，旧 ID 保留兼容。
+Recall 内部: semantic / associative 是召回 profile，不是产品级双库模式。
+时间修饰: 非第一阶段必需能力；需要时仅在查询期按显式参数调制，不增加持久化生命周期。
+标签与向量: 在 Recall 内对外合并，对内保留为不同信号线。
+Lens / Blender: 作为 associative profile 的实现基础。
 ```
 
-优先实施顺序：
-
-1. 修复前端向量引擎判断，改为使用 `requiresEmbedding` 或统一 helper。
-2. 扩展 `matchType` 类型，修复当前前后端契约不一致。
-3. 将 `vector` 的显示语义调整为“思绪语义召回”。
-4. 引入 `retrievalMode: "thought" | "knowledge" | "mixed"` 与 `thoughtPreset: "semantic" | "thought"`。
-5. 新增 Knowledge 通道，切片、文件扫描和传统文档召回只在该通道出现。
-6. 新增 `thought` preset，并逐步吸收 `lens` / `blender`。
-
-这条路线能先解决当前工程裂缝，又避免在 CAIU / Thought 内制造两套数据真源。传统知识检索需求交给 Knowledge 域，Thought 召回继续服务记忆、经验、判断和上下文联想。
-
+具体实施步骤不在本调查重复维护，统一见 [Recall / Knowledge 领域拆分与重构实施计划](./recall-knowledge-domain-restructure-implementation-plan.md)。

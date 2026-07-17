@@ -1,20 +1,66 @@
-# Knowledge Base 后端存储数据库化设计调查
+# Recall / Knowledge 后端存储数据库化设计调查
 
-**状态**: 调查完成，待实施  
-**创建日期**: 2026-06-23  
-**适用范围**: `src/tools/knowledge-base/`、`src-tauri/src/knowledge/`
+**状态**: 调查完成，依赖已复核，施工步骤已迁至统一计划
+**创建日期**: 2026-06-23
+**最近修订**: 2026-07-17
+**适用范围**: `src/tools/recall/`、`src-tauri/src/recall/`、`src/tools/knowledge-base/`、`src-tauri/src/knowledge/`
 
 ---
 
-## 0. 2026-07-01 修订决定
+## 0. 修订决定
 
 本轮修订采用更激进的结构和命名边界：后续数据库化不再把 CAIU 与传统 RAG 资料都包装成“知识库”的不同形态，而是明确拆成两个域。
 
-- **Thought / 思绪域**：承载现有 CAIU 条目、标签、priority、refs/refBy、思绪联想、语义召回和 thought engine。旧版文件系统中的 `bases/entries/vectors/tag_pool` 在数据库化迁移时转换到该域。
+- **Recall / 思绪域**：承载现有 CAIU 条目、标签、priority、语义召回和联想召回。旧版文件系统中的 `bases/entries/vectors/tag_pool` 在数据库化迁移时转换到该域。当前 `refs/refBy` 是 `serde(skip)` 的运行时派生关系，不作为源字段迁移。
 - **Knowledge / 知识域**：承载 PDF、Markdown、网页、手册、论文、代码资料包等传统资料检索，采用 document/chunk/source 结构，支持切片、文件同步、BM25、向量和图扩散。
 - 不再使用“冷知识库 / coldKnowledge”作为产品命名或长期 API 命名。此前文档中的 cold knowledge 语义统一改为 **Knowledge / 知识资料库**。
 - 因为数据库化尚未开始，迁移阶段应一次性完成命名和 schema 转换，不再为了旧文件目录里的 `knowledge` / `kb_*` 命名额外保守。
-- 兼容层只保留在命令/API 边界，例如短期仍可保留 `kb_*` Tauri command；数据库、内部 repository、新类型和 UI 文案应使用 `thought` 与 `knowledge`。
+- 现有 CAIU 实现整体迁入 Recall，原 `knowledge-base` 只保留为未来 Knowledge 资料库入口。数据库、内部 repository、新类型和 UI 文案使用 `recall` 与 `knowledge`，不再新增 `thought_*` 或 `kb_*` 长期命名。
+- 具体领域切割、配置迁移和发布顺序统一记录在 [Recall / Knowledge 领域拆分与重构实施计划](./recall-knowledge-domain-restructure-implementation-plan.md)。
+
+### 0.1 2026-07-17 依赖与平台复核
+
+本轮在仓库当前 Rust 1.91 工具链下复核了 SQLite、文件监听、全文检索和 TriviumDB 候选依赖，并执行了本机编译探针。
+
+结论：
+
+- AIO 已有 `jieba-rs`、`rayon`、`nalgebra`、`hnsw_rs`、`blake3`、`walkdir`、`ignore`、`encoding_rs`，Recall 检索和第一版 Knowledge 预处理不需要重复引入同类库。
+- 前端已有 `pdfjs-dist`、`mammoth`、`@mozilla/readability`、`turndown`，第一轮复用现有解析能力，不新增 Rust PDF / DOCX / HTML 解析依赖。
+- Recall 数据库化和 Knowledge manifest 的必需新增依赖只有 `rusqlite`。
+- Knowledge 文件夹监听使用稳定版 `notify-debouncer-full`；首轮不跟随 `notify` 9.x RC。
+- TriviumDB 仅作为 Knowledge 的可替换实验后端，不进入 Recall 主存储，也不阻塞 SQLite 迁移。
+- 第一轮不新增 Tantivy、SQLx、连接池、迁移框架、第二套 ANN 或 Tauri SQL 前端插件。
+
+已验证版本与结果：
+
+| 候选                     | 调查版本 | 结果                                                                                 |
+| ------------------------ | -------- | ------------------------------------------------------------------------------------ |
+| `rusqlite`               | `0.40.1` | 在 Rust 1.91 下因 `libsqlite3-sys 0.38.1` 使用未稳定 `cfg_select` 而编译失败，不采用 |
+| `rusqlite`               | `0.39.0` | Windows + bundled SQLite 编译通过；作为当前锁定版本                                  |
+| `notify`                 | `8.2.0`  | 当前稳定线，MSRV 1.77                                                                |
+| `notify-debouncer-full`  | `0.6.0`  | 与 notify 8.x 对应的稳定线，MSRV 1.77                                                |
+| `triviumdb` Rust crate   | `0.7.0`  | Windows 与 `aarch64-linux-android` `cargo check` 通过；运行态和 iOS 尚需验证         |
+| `triviumdb` Node package | `0.7.1`  | VCPToolBox 当前使用版本；不能假定与 Rust crate 0.7.0 API / 存储格式完全一致          |
+
+Android 的 bundled SQLite 独立探针因本机未向普通 Cargo 命令注入 `aarch64-linux-android-clang` 而停在 C 编译器发现阶段。这不构成库不兼容结论，但必须通过项目真实 `tauri android build` 再确认。依赖的详细选型见第 5 节。
+
+### 0.2 2026-07-17 VCP 日记存档与 AIO Agent 编排复核
+
+本轮进一步核对了 `E:/rc20/vcp/VCPToolBox` 的 DailyNote、KnowledgeBaseManager、RAGDiaryPlugin、LightMemo 和实际 Agent 配置。
+
+VCP 的日记系统采用简单的“存档与编排分离”模型：
+
+- 源内容是按 folder 组织的日记文件，写入参数只有目标 folder、署名、日期、正文和 Tag 等内容字段。
+- SQLite 索引只保存文件路径、`diary_name`、chunk 正文、Tag、向量和派生资产，不保存 Agent、会话、分支或消息外键。
+- Agent Prompt 通过日记本占位符选择本次加载哪些 folder；同一个公共日记本可以被多个 Agent 组合使用。
+- 主动检索和写入由本次 LightMemo / DailyNote 调用参数选择范围。署名可以作为正文和检索过滤条件，但不是数据库所有权关系。
+
+AIO 数据库化据此采用以下约束：
+
+- Recall 条目是无状态存档。`recall.db` 不增加 `agent_id`、`session_id`、`branch_id`、`message_id` 等运行时归属字段。
+- Agent binding、占位符、工具开关和注入位置继续留在 Agent 配置与上下文管道中；数据库不维护反向绑定列表。
+- 第一阶段只迁移 AIO 当前已经持久化的 base、CAIU、向量、模型统计和 tag pool。CAIU 的 `createdAt` / `updatedAt` 是基础源字段，必须完整保留；运行时 `refs/refBy`、检索路径和算法中间结果均可重建，不提升为源数据。
+- 时间衰减等能力若后续有明确需求，作为 binding、占位符或单次请求修饰符实现，不要求第一阶段新增条目生命周期字段。
 
 ---
 
@@ -138,21 +184,22 @@ Keyword / Vector / Lens / Blender 检索引擎
 
 推荐：
 
-- Thought 域的 base meta、entry index、entry vectors、model coverage 入 SQLite。
+- Recall 域的 collection meta、entry index、entry vectors、model coverage 入 SQLite。
 - HNSW index 继续作为内存派生结构。
 - `VectorMatrix` 继续作为检索时内存结构。
-- Thought 域 `tag_pool` 的 registry 和 vector 数据可以进入 SQLite，但 HNSW 索引不持久化，按需重建。
+- Recall 域 `tag_pool` 的 registry 和 vector 数据可以进入 SQLite，但 HNSW 索引不持久化，按需重建。
 
 ---
 
 ## 4. 推荐目标架构
 
-采用 knowledge-base 专属数据目录，但按语义域拆成 Thought 与 Knowledge。数据库化是一次结构重命名机会，不再沿用 `knowledge.db` 承载 CAIU 的旧语义。
+按语义域拆成 Recall 与 Knowledge，并使用独立数据目录。数据库化是一次结构重命名机会，不再让 `appData/knowledge` 长期承载 CAIU 运行时数据。
 
 ```text
-appData/knowledge/
-├── thought.db
-├── thought-vectors.db
+appData/
+├── recall/
+│   ├── recall.db
+│   └── recall-vectors.db
 └── knowledge/
     ├── knowledge_meta.db
     └── libraries/
@@ -161,20 +208,19 @@ appData/knowledge/
 
 这仍符合项目内已有移动端 SQLite 计划中的“一模块自有数据库”方向，避免把工具数据混入全局数据库，同时把思绪源内容、大体积可重建检索资产、传统资料知识库隔离开。
 
-`thought.db` 是 Thought / 思绪域唯一不可丢的主库：
+`recall.db` 是 Recall / 思绪域唯一不可丢的主库：
 
-- 思绪库元数据。
-- CAIU / thought entry 源内容。
-- Thought assets / segments 等可检索对象的源记录。
+- 思绪集合元数据。
+- CAIU / Recall entry 源内容。
+- CAIU 中现有的 AssetRef、标签、priority、enabled 等内容字段。
 - 内容 hash、基础配置、workspace 中的知识库列表真源。
 
-`thought-vectors.db` 是 Thought / 思绪域派生检索资产库：
+`recall-vectors.db` 是 Recall / 思绪域派生检索资产库：
 
 - entry / asset embeddings。
-- 后续如 Thought 内部需要 segment，不等同于 Knowledge 域自动 chunk。
 - 模型覆盖、tokens 统计和向量化时间。
 - tag vectors。
-- 预计算召回 artifact、召回边、召回路径和算法版本缓存。
+- 后续经基准证明有必要时再增加的算法缓存；第一阶段不预建召回路径或认知状态表。
 
 `knowledge/` 是 Knowledge / 知识资料库：
 
@@ -182,31 +228,32 @@ appData/knowledge/
 - 支持自动切片、文件监听、document/chunk 结构、文件路径出处和章节上下文。
 - 使用 TriviumDB 类后端保存向量、payload、文本索引和图关系。
 - 使用独立 manifest SQLite 记录文件 hash、mtime、chunk node id 和库元数据。
-- 不写入 Thought 域 `thought_entries`，不参与 Thought tag pool、refs/refBy、priority 和思绪引擎。
+- 不写入 Recall 域 `recall_entries`，不参与 Recall tag pool、priority、运行时引用关系和召回引擎。
 
 关键原则：
 
-- 删除 `thought-vectors.db` 后，应用仍应能启动、浏览思绪源内容、执行关键词检索，并显示需要重新向量化。
-- `thought-vectors.db` 中的数据必须能由 `thought.db`、当前模型配置和检索配置重新生成。
-- `thought-vectors.db` 不能反向成为源内容状态、思绪库列表或用户配置的唯一依据。
-- 初期不建议拆成每个知识库一个向量 DB。跨库检索、迁移、tag pool、全局模型统计和清理逻辑都会明显变复杂。
-- 删除某个 `{libraryId}.tdb` 后，只影响对应知识资料库的文档检索能力，不应影响 Thought 思绪域。
-- Knowledge manifest 是文件索引与同步状态，不是 Thought 源内容真源。
+- 删除 `recall-vectors.db` 后，应用仍应能启动、浏览思绪源内容、执行关键词检索，并显示需要重新向量化。
+- `recall-vectors.db` 中的数据必须能由 `recall.db`、当前模型配置和检索配置重新生成。
+- `recall-vectors.db` 不能反向成为源内容状态、思绪集合列表或用户配置的唯一依据。
+- Recall 条目不绑定 Agent、会话或消息。Agent 通过 binding、占位符和工具参数决定本次读取或写入哪些思绪集合。
+- 初期不建议拆成每个思绪集合一个向量 DB。跨集合检索、迁移、tag pool、全局模型统计和清理逻辑都会明显变复杂。
+- 删除某个 `{libraryId}.tdb` 后，只影响对应知识资料库的文档检索能力，不应影响 Recall 思绪域。
+- Knowledge manifest 是文件索引与同步状态，不是 Recall 源内容真源。
 
-建议 Rust 后端直接访问数据库。前端继续通过现有 `kb_*` Tauri commands 访问，不建议让前端直接用 SQL 插件读写知识库数据。
+建议 Rust 后端直接访问数据库。Recall 前端通过 `recall_*` Tauri commands 访问，不让前端直接用 SQL 插件读写数据。
 
 目标结构：
 
 ```text
-Frontend Vue
-  ↓ invoke kb_*
+Recall Frontend Vue
+  ↓ invoke recall_*
 Rust commands
   ↓
-ThoughtRepository trait
-  ├── SqliteThoughtRepository
-  └── LegacyFileThoughtImporter 仅迁移/回退期使用
+RecallRepository trait
+  ├── SqliteRecallRepository
+  └── LegacyFileRecallImporter 仅迁移/回退期使用
   ↓
-thought.db + thought-vectors.db
+recall/recall.db + recall/recall-vectors.db
 
 KnowledgeRepository / KnowledgeLibraryRepository trait
   ├── SqliteKnowledgeManifestRepository
@@ -223,7 +270,7 @@ Rust runtime
 
 ### 4.1 TriviumDB 知识资料库追加设计
 
-TriviumDB 适合作为 Knowledge / 知识资料库后端，而不建议直接替代 Thought / 思绪域的 `thought.db + thought-vectors.db`。
+TriviumDB 适合作为 Knowledge / 知识资料库后端，而不建议直接替代 Recall / 思绪域的 `recall.db + recall-vectors.db`。
 
 适用范围：
 
@@ -233,18 +280,21 @@ TriviumDB 适合作为 Knowledge / 知识资料库后端，而不建议直接替
 
 不适用范围：
 
-- Thought entry 主数据。
+- Recall entry 主数据。
 - 用户人工整理的记忆、经验、项目判断和长期上下文。
-- TagMemo / thought 引擎所依赖的标签之海、refs/refBy、priority 和记忆联想关系。
+- Recall engine 所依赖的标签之海、priority 和运行时派生联想关系。
 
 推荐目录：
 
 ```text
-appData/knowledge/knowledge/
+appData/knowledge/
 ├── knowledge_meta.db
 └── libraries/
     ├── {libraryId}.tdb
-    └── {libraryId}.tdb.quiver      # 如果 TriviumDB 后端生成独立 ANN 派生索引
+    ├── {libraryId}.tdb.vec         # 默认 Mmap 模式的向量基础层
+    ├── {libraryId}.tdb.wal         # 运行期 WAL
+    ├── {libraryId}.tdb.lock        # 进程级独占锁
+    └── {libraryId}.tdb.flush_ok    # .tdb / .vec 一致性提交标记
 ```
 
 知识资料库数据模型：
@@ -272,10 +322,11 @@ graph edges
 关键约束：
 
 - 同一 `.tdb` 同一时刻只能由一个后端实例打开，Tauri 后端必须集中管理句柄。
+- TriviumDB 0.7.0 默认 Mmap 模式不是逻辑上的单文件部署；备份、移动、删除和恢复必须把 `.tdb`、`.vec`、`.wal`、`.lock`、`.flush_ok` 作为一个 library 文件组处理。ROM 模式才会把向量合并回单文件。
 - Payload 不应保存全文。百万级 chunk 时 payload 和图关系会带来常驻内存压力，全文应从源文件或专门正文存储回源读取。
 - TriviumDB 自身不是文件索引器，需要 `knowledge_meta.db` 记录文件和 chunk 到 node id 的映射，支持精准更新和删除。
-- 知识资料库可以按 library 拆成多个 `.tdb`，这与 Thought 不建议按思绪库拆向量 DB 不冲突。Knowledge 天然以资料集隔离，跨库检索由路由层合并结果。
-- 切片功能只属于 Knowledge 域。Thought 思绪域不提供自动切片入口。
+- 知识资料库可以按 library 拆成多个 `.tdb`，这与 Recall 不建议按思绪集合拆向量 DB 不冲突。Knowledge 天然以资料集隔离，跨库检索由路由层合并结果。
+- 切片功能只属于 Knowledge 域。Recall 思绪域不提供自动切片入口。
 
 推荐 manifest schema：
 
@@ -329,9 +380,9 @@ CREATE INDEX idx_knowledge_chunks_node ON knowledge_chunks(library_id, node_id);
 检索路由：
 
 ```text
-retrievalMode = "thought"
-  -> Thought 思绪域
-  -> semantic / thought preset
+retrievalMode = "recall"
+  -> Recall 思绪域
+  -> semantic / associative profile
 
 retrievalMode = "knowledge"
   -> Knowledge 知识资料库
@@ -345,7 +396,7 @@ retrievalMode = "mixed"
 结果必须带来源类型：
 
 ```ts
-type RetrievalSourceType = "thought" | "knowledge";
+type RetrievalSourceType = "recall" | "knowledge";
 
 interface KnowledgeHit {
   sourceType: "knowledge";
@@ -372,20 +423,79 @@ interface KnowledgeHit {
 - 避免为了 `sqlx` 引入较大 async 改造。
 - 知识库写入路径由 Rust command 控制，数据库操作不需要暴露给前端。
 
+当前建议锁定：
+
+```toml
+rusqlite = {
+  version = "=0.39.0",
+  default-features = false,
+  features = ["bundled", "backup", "cache"]
+}
+```
+
+选择说明：
+
+- `bundled` 保证桌面端使用一致的 SQLite 构建，并已确认底层启用 FTS5。
+- `backup` 用于迁移前备份和后续在线备份。
+- `cache` 支持高频固定查询使用 prepared statement cache。
+- 不使用 `bundled-full`，避免无需求地启用 load extension、CSV vtab、hooks 等大范围能力。
+- 不使用最新 `0.40.1`，直到项目工具链升级并重新验证。
+- SQLite 调用保持在 Rust 后端；前端不得直接打开数据库。
+
+并发策略第一阶段使用单 writer、短事务和现有 Tokio blocking 调度，不新增连接池。只有性能基准证明单连接成为瓶颈后，才评估 reader connection 或 pool。
+
+Knowledge 第一版可用 SQLite FTS5 建立稀疏索引。中文文本由现有 `jieba-rs` 预分词后写入专用 FTS 列，原文仍保存在 chunk 源记录或源文件中；不依赖 SQLite 默认 tokenizer 直接完成中文分词。
+
 ### 5.2 可选 `sqlx`
 
 适合后续如果项目统一转向 async DB 层，或希望 compile-time checked query。但当前阶段会增加迁移面，不是最小风险路径。
 
 ### 5.3 Knowledge 域可实验 `triviumdb`
 
-Knowledge / 知识资料库可以单独实验 TriviumDB，但不应阻塞 Thought 主存储数据库化。
+Knowledge / 知识资料库可以单独实验 TriviumDB，但不应阻塞 Recall 主存储数据库化。
 
 当前调查结论：
 
 - npm 最新版本为 `triviumdb@0.7.1`，crates.io 当前可见版本为 `triviumdb@0.7.0`。
 - Node 绑定已暴露 `insert`、`batchInsert`、`link`、`search`、`searchHybrid`、`searchAdvanced`、`indexText`、`buildTextIndex`、`filterWhere`、`query`、`flush`、`migrate` 等能力。
-- Rust crate 可作为 Tauri 后端候选，但实际 API、构建体积、平台兼容和锁行为必须在 AIO 仓库内单独验证。
+- Rust crate 默认 feature 不启用 Node / Python binding，可直接作为 Tauri Rust 依赖；本轮 Windows 与 Android target 编译探针已通过。
+- crate 使用 Rust 2024 edition、mmap、WAL 和进程级独占文件锁。编译通过不代表 iOS、移动端后台切换、大文件 mmap 和异常恢复已经验证。
+- crate 内置字符 2-Gram BM25、向量检索和图扩散；采用它后不应再并行引入 Tantivy 或另一套 ANN。
+- 建议精确锁定 `triviumdb = "=0.7.0"`，并通过 `KnowledgeLibraryRepository` 隔离 API。升级前必须验证现有 library 文件组的可读性和迁移策略。
 - 如果 Rust crate 接入成本过高，可以先保留 Knowledge repository 抽象，后端实现从 SQLite manifest + 当前内存检索起步，后续替换为 TriviumDB。
+
+建议实验依赖：
+
+```toml
+triviumdb = { version = "=0.7.0", optional = true }
+
+[features]
+knowledge-trivium = ["dep:triviumdb"]
+```
+
+### 5.4 Knowledge 文件监听
+
+稳定版建议：
+
+```toml
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+notify-debouncer-full = "=0.6.0"
+```
+
+- 使用 full debouncer 而不是直接消费原始 notify 事件，保留 rename / delete / create 的稳定关联和去重能力。
+- `notify-debouncer-full` 会重导出 `notify`，通常不需要再声明直接依赖。
+- watcher 只负责产生稳定文件事件，实际导入进入持久化 ingest queue，不在 watcher callback 中直接解析和向量化。
+- 移动端第一阶段不启用文件夹监听，避免把移动平台文件权限、后台生命周期和 watcher 差异绑进桌面端施工。
+
+### 5.5 第一轮明确不新增的依赖
+
+- `tantivy`：FTS5 或 TriviumDB 已覆盖第一阶段 BM25；再增加 Tantivy 会形成第三套索引生命周期和 tokenizer。
+- `sqlx` / `tauri-plugin-sql`：会扩大 async 改造面或把数据库暴露给前端。
+- `r2d2_sqlite` / `deadpool-sqlite`：没有基准证明需要连接池。
+- `rusqlite_migration`：当前最新版要求 Rust 1.95；项目自有 `schema_migrations` 已足够。
+- `pdf-extract` / `lopdf` / Rust DOCX parser：先复用现有前端解析器与明确的 import adapter。
+- `usearch` 或其他 ANN：Recall 已有 HNSW；Knowledge 选择 TriviumDB 后不再叠加同类后端。
+- `bytemuck`：向量 BLOB 必须显式使用 little-endian，继续采用 `f32::to_le_bytes`，不为切片转换新增直接依赖。
 
 ---
 
@@ -393,17 +503,17 @@ Knowledge / 知识资料库可以单独实验 TriviumDB，但不应阻塞 Though
 
 Schema 按数据库归属分层：
 
-- `thought.db`：Thought 稳定源内容和用户配置，迁移必须保守。
-- `thought-vectors.db`：Thought 向量、tag pool、预计算召回等可重建检索资产，允许更积极地按算法版本演进。
+- `recall/recall.db`：Recall 稳定源内容和用户配置，迁移必须保守。
+- `recall/recall-vectors.db`：Recall 向量、tag pool，以及后续按基准需要增加的可重建算法缓存；允许更积极地按算法版本演进。
 - `knowledge/knowledge_meta.db`：Knowledge library manifest、文件索引和 chunk 到 node id 的映射。
 - `knowledge/libraries/{libraryId}.tdb`：Knowledge library 的检索后端数据。
 
-### 6.1 `thought_bases`
+### 6.1 `recall_collections`
 
-思绪库元数据表，位于 `thought.db`。
+思绪集合元数据表，位于 `recall.db`。
 
 ```sql
-CREATE TABLE thought_bases (
+CREATE TABLE recall_collections (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   description TEXT,
@@ -415,17 +525,17 @@ CREATE TABLE thought_bases (
   updated_at INTEGER NOT NULL
 );
 
-CREATE INDEX idx_thought_bases_updated_at ON thought_bases(updated_at DESC);
+CREATE INDEX idx_recall_collections_updated_at ON recall_collections(updated_at DESC);
 ```
 
-### 6.2 `thought_entries`
+### 6.2 `recall_entries`
 
-Thought entry 主表，位于 `thought.db`。旧版 CAIU entry 在迁移时转换为 thought entry。
+Recall entry 主表，位于 `recall.db`。旧版 CAIU entry 在迁移时转换为 Recall entry。
 
 ```sql
-CREATE TABLE thought_entries (
+CREATE TABLE recall_entries (
   id TEXT PRIMARY KEY,
-  thought_id TEXT NOT NULL,
+  collection_id TEXT NOT NULL,
   key TEXT NOT NULL DEFAULT '',
   content TEXT NOT NULL,
   summary TEXT NOT NULL DEFAULT '',
@@ -436,28 +546,32 @@ CREATE TABLE thought_entries (
   content_hash TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
-  FOREIGN KEY (thought_id) REFERENCES thought_bases(id) ON DELETE CASCADE
+  FOREIGN KEY (collection_id) REFERENCES recall_collections(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_thought_entries_base_updated ON thought_entries(thought_id, updated_at DESC);
-CREATE INDEX idx_thought_entries_base_key ON thought_entries(thought_id, key);
-CREATE INDEX idx_thought_entries_base_enabled ON thought_entries(thought_id, enabled);
-CREATE INDEX idx_thought_entries_content_hash ON thought_entries(content_hash);
+CREATE INDEX idx_recall_entries_collection_updated ON recall_entries(collection_id, updated_at DESC);
+CREATE INDEX idx_recall_entries_collection_key ON recall_entries(collection_id, key);
+CREATE INDEX idx_recall_entries_collection_enabled ON recall_entries(collection_id, enabled);
+CREATE INDEX idx_recall_entries_content_hash ON recall_entries(content_hash);
 ```
 
 说明：
 
 - `tags_json` 保留 `TagWithWeight[]` 原结构，避免初期拆表导致前后端类型大改。
 - `assets_json` 保留 `AssetRef[]`。
-- 后续如需要高频标签统计，可增加 `thought_entry_tags` 规范化表。
+- `created_at` 是条目首次创建时间，`updated_at` 是最后修改时间；两者从第一版 schema 起就是必需源字段，与是否实现时间衰减无关。旧数据迁移必须保留原值，确实缺失时才使用迁移时刻并记录告警。
+- 不增加 Agent、会话、分支或消息归属列；这些信息不参与当前条目读取、检索或清理。
+- Rust `Caiu.refs/ref_by` 带有 `serde(skip)`，继续由运行时计算，不增加持久化关系表。
+- 第一阶段不为时间衰减额外新增 `occurred_at`。`created_at` 表示存档创建时间；如后续确有区分“存档创建时间”和“内容所述事件发生时间”的需求，再单独定义事件日期字段及迁移语义。
+- 后续如需要高频标签统计，可增加 `recall_entry_tags` 规范化表。
 
-### 6.3 `thought_entry_vectors`
+### 6.3 `recall_entry_vectors`
 
-条目向量表，位于 `thought-vectors.db`。
+条目向量表，位于 `recall-vectors.db`。
 
 ```sql
-CREATE TABLE thought_entry_vectors (
-  thought_id TEXT NOT NULL,
+CREATE TABLE recall_entry_vectors (
+  collection_id TEXT NOT NULL,
   entry_id TEXT NOT NULL,
   model_id TEXT NOT NULL,
   dimension INTEGER NOT NULL,
@@ -465,49 +579,47 @@ CREATE TABLE thought_entry_vectors (
   tokens INTEGER NOT NULL DEFAULT 0,
   content_hash TEXT,
   updated_at INTEGER NOT NULL,
-  PRIMARY KEY (thought_id, entry_id, model_id),
-  FOREIGN KEY (thought_id) REFERENCES thought_bases(id) ON DELETE CASCADE,
-  FOREIGN KEY (entry_id) REFERENCES thought_entries(id) ON DELETE CASCADE
+  PRIMARY KEY (collection_id, entry_id, model_id)
 );
 
-CREATE INDEX idx_thought_entry_vectors_model ON thought_entry_vectors(model_id);
-CREATE INDEX idx_thought_entry_vectors_entry ON thought_entry_vectors(entry_id);
+CREATE INDEX idx_recall_entry_vectors_model ON recall_entry_vectors(model_id);
+CREATE INDEX idx_recall_entry_vectors_entry ON recall_entry_vectors(entry_id);
 ```
 
 说明：
 
 - `vector_blob` 使用 `f32` little-endian 二进制展开存储。
 - `content_hash` 用于判断向量是否对应当前内容。
-- `vector_status` 不建议作为主字段持久化，应由 `thought_entries.content_hash` 与 `thought_entry_vectors.content_hash` 派生。
-- 后续支持多模态检索时，建议升级为更通用的 `thought_embeddings`：
+- SQLite 不支持跨数据库外键。`recall-vectors.db` 不声明指向 `recall.db` 的 FK；孤儿清理和级联删除由 repository 根据 `collection_id` / `entry_id` 执行，内容一致性由 hash 派生。
+- `vector_status` 不建议作为主字段持久化，应由 `recall_entries.content_hash` 与 `recall_entry_vectors.content_hash` 派生。
+- 后续支持多模态检索时，建议升级为更通用的 `recall_embeddings`：
   - `target_type`：`entry` / `chunk` / `asset` / `tag`。
   - `target_id`：目标对象 ID。
   - `modality`：`text` / `image` / `audio` / `video` / `mixed`。
   - 继续保留 `model_id`、`dimension`、`vector_blob`、`content_hash`。
   - 这样新增图片 embedding、OCR chunk embedding、音频转写 embedding 时，不需要为每种模态新增一套向量表。
 
-### 6.4 `thought_models`
+### 6.4 `recall_models`
 
-每个思绪库的模型索引和统计表，替代 `vectors/{kbId}/models.json`，位于 `thought-vectors.db`。
+每个思绪集合的模型索引和统计表，替代 `vectors/{kbId}/models.json`，位于 `recall-vectors.db`。
 
 ```sql
-CREATE TABLE thought_models (
-  thought_id TEXT NOT NULL,
+CREATE TABLE recall_models (
+  collection_id TEXT NOT NULL,
   model_id TEXT NOT NULL,
   dimension INTEGER NOT NULL DEFAULT 0,
   total_tokens INTEGER NOT NULL DEFAULT 0,
   last_indexed_at INTEGER,
-  PRIMARY KEY (thought_id, model_id),
-  FOREIGN KEY (thought_id) REFERENCES thought_bases(id) ON DELETE CASCADE
+  PRIMARY KEY (collection_id, model_id)
 );
 ```
 
-### 6.5 `thought_tag_vectors`
+### 6.5 `recall_tag_vectors`
 
-全局标签向量池，按模型隔离，位于 `thought-vectors.db`。
+全局标签向量池，按模型隔离，位于 `recall-vectors.db`。
 
 ```sql
-CREATE TABLE thought_tag_vectors (
+CREATE TABLE recall_tag_vectors (
   model_id TEXT NOT NULL,
   tag TEXT NOT NULL,
   tag_index INTEGER NOT NULL,
@@ -517,8 +629,8 @@ CREATE TABLE thought_tag_vectors (
   PRIMARY KEY (model_id, tag)
 );
 
-CREATE UNIQUE INDEX idx_thought_tag_vectors_model_index
-ON thought_tag_vectors(model_id, tag_index);
+CREATE UNIQUE INDEX idx_recall_tag_vectors_model_index
+ON recall_tag_vectors(model_id, tag_index);
 ```
 
 说明：
@@ -526,12 +638,12 @@ ON thought_tag_vectors(model_id, tag_index);
 - 替代 `tag_pool/{modelHash}/registry.json + vectors.bin`。
 - HNSW index 继续不入库，启动或首次使用时从该表重建。
 
-### 6.6 `thought_workspace`
+### 6.6 `recall_workspace`
 
-可选表，位于 `thought.db`。用于保存 knowledge-base 工具中 Thought 域的工作区配置，替代前端 `workspace.json` 中不稳定的索引部分。
+可选表，位于 `recall.db`。用于保存 Recall 域的工作区配置，替代前端 `workspace.json` 中不稳定的索引部分。
 
 ```sql
-CREATE TABLE thought_workspace (
+CREATE TABLE recall_workspace (
   key TEXT PRIMARY KEY,
   value_json TEXT NOT NULL
 );
@@ -539,8 +651,8 @@ CREATE TABLE thought_workspace (
 
 建议：
 
-- `config` 和 `lastActiveBaseId` 可以继续暂存在前端 `workspace.json`，短期减少改动。
-- `bases` 列表不应继续作为前端真源，应由 `kb_list_bases` / 后续 `thought_list_bases` 从数据库返回。
+- `config` 和 `lastActiveCollectionId` 可以继续暂存在前端 `workspace.json`，短期减少改动。
+- collection 列表不应继续作为前端真源，应由 `recall_list_collections` 从数据库返回。
 
 ### 6.7 `schema_migrations`
 
@@ -552,50 +664,13 @@ CREATE TABLE schema_migrations (
 );
 ```
 
-Thought 主库、Thought 向量库和 Knowledge manifest 库应各自维护 migration 记录。可以使用同名 `schema_migrations` 表，但版本号语义应按数据库独立管理，不要让向量库的算法缓存迁移阻塞主库源内容读取。
+Recall 主库、Recall 向量库和 Knowledge manifest 库应各自维护 migration 记录。可以使用同名 `schema_migrations` 表，但版本号语义应按数据库独立管理，不要让向量库的算法缓存迁移阻塞主库源内容读取。
 
-### 6.8 预计算召回资产
+### 6.8 算法缓存暂缓
 
-预计算召回路径属于 `thought-vectors.db`，定位是可删除、可重建的物化检索资产，而不是源内容真源。
+VCP TagMemo V9.1 使用版本化派生资产解决复杂图计算的原子发布和缓存复用问题，但 AIO 第一阶段只是把现有文件存储迁移到 SQLite，不预建召回路径、召回边或认知状态表。
 
-建议先保留为版本化 artifact：
-
-```sql
-CREATE TABLE thought_recall_artifacts (
-  id TEXT PRIMARY KEY,
-  thought_id TEXT,
-  artifact_type TEXT NOT NULL,
-  algorithm TEXT NOT NULL,
-  algorithm_version TEXT NOT NULL,
-  model_id TEXT,
-  config_hash TEXT NOT NULL,
-  source_hash TEXT NOT NULL,
-  created_at INTEGER NOT NULL
-);
-
-CREATE TABLE thought_recall_edges (
-  artifact_id TEXT NOT NULL,
-  source_type TEXT NOT NULL,
-  source_id TEXT NOT NULL,
-  target_type TEXT NOT NULL,
-  target_id TEXT NOT NULL,
-  channel TEXT NOT NULL,
-  score REAL NOT NULL,
-  rank INTEGER NOT NULL,
-  PRIMARY KEY (artifact_id, source_type, source_id, target_type, target_id, channel),
-  FOREIGN KEY (artifact_id) REFERENCES thought_recall_artifacts(id) ON DELETE CASCADE
-);
-
-CREATE INDEX idx_thought_recall_edges_source
-ON thought_recall_edges(artifact_id, source_type, source_id, rank);
-```
-
-说明：
-
-- `algorithm_version` 用于隔离 Lens / Blender / hybrid / rerank 等检索算法升级。
-- `config_hash` 记录权重、topK、融合策略等运行配置。
-- `source_hash` 记录依赖的 entry / chunk / embedding 版本。
-- 算法升级时可以写入新 artifact，旧 artifact 后台清理，避免频繁修改主库 schema。
+只有基准证明某项 associative 计算需要跨请求复用时，才在 `recall-vectors.db` 增加带 `algorithm_version`、`config_hash` 和 `source_hash` 的可删除缓存。该能力不得反向改变 `recall.db` 的条目 schema。
 
 ---
 
@@ -604,8 +679,8 @@ ON thought_recall_edges(artifact_id, source_type, source_id, rank);
 新增后端模块建议：
 
 ```text
-src-tauri/src/knowledge/storage/
-├── mod.rs
+src-tauri/src/recall/storage/
+├── commands.rs
 ├── repository.rs
 ├── sqlite.rs
 ├── migrations.rs
@@ -614,28 +689,28 @@ src-tauri/src/knowledge/storage/
 └── legacy_import.rs
 ```
 
-### 7.1 Thought Repository 接口
+### 7.1 Recall Repository 接口
 
 建议抽象出最小必要接口：
 
 ```rust
-pub trait ThoughtRepository: Send + Sync {
+pub trait RecallRepository: Send + Sync {
     fn initialize(&self) -> Result<(), String>;
 
-    fn list_bases(&self) -> Result<Vec<KnowledgeBaseMeta>, String>;
-    fn load_base_meta(&self, thought_id: Uuid) -> Result<Option<KnowledgeBaseMeta>, String>;
-    fn save_base_meta(&self, meta: &KnowledgeBaseMeta) -> Result<(), String>;
-    fn delete_base(&self, thought_id: Uuid) -> Result<(), String>;
+    fn list_collections(&self) -> Result<Vec<RecallCollection>, String>;
+    fn load_collection(&self, collection_id: Uuid) -> Result<Option<RecallCollection>, String>;
+    fn save_collection(&self, collection: &RecallCollection) -> Result<(), String>;
+    fn delete_collection(&self, collection_id: Uuid) -> Result<(), String>;
 
-    fn load_entries(&self, thought_id: Uuid) -> Result<Vec<Caiu>, String>;
-    fn load_entry(&self, thought_id: Uuid, entry_id: Uuid) -> Result<Option<Caiu>, String>;
-    fn upsert_entry(&self, thought_id: Uuid, entry: &Caiu) -> Result<(), String>;
-    fn upsert_entries(&self, thought_id: Uuid, entries: &[Caiu]) -> Result<(), String>;
-    fn delete_entries(&self, thought_id: Uuid, entry_ids: &[Uuid]) -> Result<(), String>;
+    fn load_entries(&self, collection_id: Uuid) -> Result<Vec<RecallEntry>, String>;
+    fn load_entry(&self, collection_id: Uuid, entry_id: Uuid) -> Result<Option<RecallEntry>, String>;
+    fn upsert_entry(&self, collection_id: Uuid, entry: &RecallEntry) -> Result<(), String>;
+    fn upsert_entries(&self, collection_id: Uuid, entries: &[RecallEntry]) -> Result<(), String>;
+    fn delete_entries(&self, collection_id: Uuid, entry_ids: &[Uuid]) -> Result<(), String>;
 
     fn upsert_entry_vector(
         &self,
-        thought_id: Uuid,
+        collection_id: Uuid,
         entry_id: Uuid,
         model_id: &str,
         vector: &[f32],
@@ -645,12 +720,12 @@ pub trait ThoughtRepository: Send + Sync {
 
     fn load_vectors(
         &self,
-        thought_id: Uuid,
+        collection_id: Uuid,
         model_id: &str,
     ) -> Result<Option<(Vec<(Uuid, Vec<f32>)>, usize, usize)>, String>;
 
-    fn delete_vectors_for_entries(&self, thought_id: Uuid, entry_ids: &[Uuid]) -> Result<(), String>;
-    fn clear_vectors_except_model(&self, thought_id: Option<Uuid>, keep_model_id: &str) -> Result<u32, String>;
+    fn delete_vectors_for_entries(&self, collection_id: Uuid, entry_ids: &[Uuid]) -> Result<(), String>;
+    fn clear_vectors_except_model(&self, collection_id: Option<Uuid>, keep_model_id: &str) -> Result<u32, String>;
 
     fn load_tag_pool(&self, model_id: &str) -> Result<ModelTagPool, String>;
     fn save_tag_pool(&self, pool: &ModelTagPool) -> Result<(), String>;
@@ -670,96 +745,23 @@ pub trait ThoughtRepository: Send + Sync {
 
 ---
 
-## 8. 迁移策略
+## 8. 迁移约束
 
-### Phase 1: 引入数据库和 Repository，不改前端契约
+本调查只记录数据库迁移必须满足的不变量，不维护施工阶段。具体步骤、发布边界和完成门槛见 [Recall / Knowledge 领域拆分与重构实施计划](./recall-knowledge-domain-restructure-implementation-plan.md)。
 
-目标：
+约束如下：
 
-- 新增 `thought.db` 和 `thought-vectors.db`
-- 新增 `knowledge/knowledge_meta.db` 的空 schema，为后续 Knowledge 域预留正式入口
-- 新增 repository 层
-- `kb_initialize` 创建数据库和 schema
-- 现有 `kb_*` command 名称、参数、返回结构保持不变
-
-这一阶段前端不应感知存储实现变化，但后端内部命名应直接使用 Thought / Knowledge，不再新增 `kb_*` 数据库表。
-
-注意：
-
-- `thought.db` 初始化失败应阻止思绪功能继续写入，避免源内容损坏。
-- `thought-vectors.db` 初始化失败可以降级为无向量缓存状态，但必须向前端返回可理解的错误或状态。
-- Thought 主库、Thought 向量库、Knowledge manifest 的 migration 分开执行。主库 migration 优先，向量库或 Knowledge manifest 失败不应阻塞已有 Thought 源内容浏览。
-
-### Phase 2: Legacy 文件导入并 Thought 化
-
-启动时检测：
-
-- `knowledge/thought.db` 或 `knowledge/thought-vectors.db` 不存在或缺少迁移标记
-- 旧目录 `knowledge/bases/` 存在
-
-执行导入：
-
-1. 导入 `bases/{kbId}/meta.json` 到 `thought_bases`，旧 `kbId` 作为 Thought base id 保留。
-2. 导入 `entries/{entryId}.json` 到 `thought_entries`，旧 CAIU entry 转换为 thought entry。
-3. 导入 `vectors/{kbId}/models.json` 和 `{entryId}.vec` 到 `thought-vectors.db` 的 `thought_models`、`thought_entry_vectors`。
-4. 导入 `tag_pool/{modelHash}` 到 `thought-vectors.db` 的 `thought_tag_vectors`。
-5. 写入迁移标记。
-6. 旧目录保留，不立即删除，并记录 `legacy_kb_id -> thought_id` 的迁移日志，方便排查。
-
-注意：
-
-- 导入应幂等。
-- 对损坏 JSON 或维度不一致向量应跳过并记录日志，不中断整个迁移。
-- `modelHash -> model_id` 优先从 `models.json` 反查；缺失时保守使用目录名。
-- 这一步是正式语义转换边界：迁移完成后，旧文件中的“知识库”在新模型中属于 Thought / 思绪域；真正 Knowledge / 知识资料库只来自后续 document/chunk 导入入口。
-- 角色预设中的旧知识库占位符和关联配置不需要先行单独兼容。当前实际调用主要来自 `llm-chat` 的 `{{kb}}` / `【kb::...】` / `【knowledge::...】` 链路，数据库化和 Thought / Knowledge 重构时应同步迁移：
-  - `knowledgeBaseConfig.bindings` 中的旧 `kbId` 映射到迁移后的 `thought_id`。
-  - 旧占位符中能被现有格式识别的 `kbName`、`limit`、`minScore`、`mode`、`modeParams`、`engineId` 转换为新的 Thought preset / engine 参数。
-  - 无法识别的占位符不应静默改写，应保留原文并写入迁移报告。
-
-### Phase 3: warmup 改造
-
-将 `warmup_knowledge_base` 从文件扫描改为：
-
-1. 从 `thought_bases` 加载 base meta。
-2. 从 `thought_entries` 加载 entries。
-3. 根据 `meta.vectorization.model_used` 或当前模型从 `thought_entry_vectors` 加载向量。
-4. 重建 `TextInvertedIndex`、`key_to_id`、`VectorMatrix`。
-
-`InMemoryBase` 继续保留。
-
-### Phase 4: 写路径事务化
-
-以下 command 必须改为数据库事务：
-
-- `kb_upsert_entry`
-- `kb_batch_upsert_entries`
-- `kb_batch_patch_entries`
-- `kb_delete_entry`
-- `kb_batch_delete_entries`
-- `kb_update_entry_vector`
-- `kb_clear_legacy_vectors`
-- `kb_clear_all_other_vectors`
-- `kb_sync_tag_vectors`
-- `kb_clear_tag_pool`
-
-顺序建议：
-
-1. `thought.db` 源内容事务成功。
-2. 如涉及向量或召回缓存，再写入 `thought-vectors.db`。
-3. 同步内存 `InMemoryBase`。
-4. 推送监控事件。
-
-如内存同步失败，应记录错误并允许下一次 warmup 修复，数据库仍为真源。涉及两个数据库时，不建议跨库伪装强事务；源内容更新成功但向量缓存失败时，应清理或标记相关向量为过期，让后续重新向量化修复。
-
-### Phase 5: 前端 workspace 收口
-
-当前 `workspace.bases` 是漂移源。建议改为：
-
-- `kbStorage.loadWorkspace()` 只加载配置和 `lastActiveBaseId`。
-- `bases` 列表改由 `kb_list_bases` 返回。
-- 创建 / 克隆 / 删除知识库后，前端调用后端命令并刷新列表。
-- 新增正式 `kb_delete_base`，不要继续使用通用 `delete_file_force` 删除目录。
+- 旧 `appData/knowledge/bases|vectors|tag_pool` 直接导入最终 `appData/recall/recall.db + recall-vectors.db`，不建立过渡性的 Recall JSON 目录。
+- 旧集合 ID 和条目 ID 原样保留；字段只改变领域名称，不重新生成 UUID。
+- 主库和向量库分别维护 migration 状态。主库失败必须阻止 Recall 继续写入；向量库失败可以降级为待重建状态。
+- 导入必须幂等。损坏 JSON、无法反查的模型 ID 和维度不一致向量进入迁移报告，不中断其他有效源条目导入。
+- `createdAt`、`updatedAt`、priority、enabled、TagWithWeight 和 AssetRef 原值保留；`refs/refBy`、矩阵、HNSW 和算法中间结果重建。
+- 旧目录在迁移成功后保持只读，不自动删除。
+- 结构化 Agent binding 保留原集合 ID 并自动迁移；自由文本占位符的处理策略由总施工计划定义，不属于数据库 schema。
+- Recall 主库、Recall 向量库和 Knowledge manifest 不声明跨库外键，也不承诺跨库强事务。
+- 源内容先在 `recall.db` 短事务提交，再同步内存读模型；内容 hash 变化后对 `recall-vectors.db` 执行幂等清理。
+- 派生向量清理失败时，hash 不匹配必须保证旧向量不会被判断为 ready。
+- Recall collection 列表由数据库返回，前端 workspace 不再保存第二份列表真源。
 
 ---
 
@@ -774,8 +776,8 @@ pub trait ThoughtRepository: Send + Sync {
 派生规则：
 
 ```text
-如果存在 thought_entry_vectors(thought_id, entry_id, model_id)
-并且 thought_entry_vectors.content_hash == thought_entries.content_hash
+如果存在 recall_entry_vectors(collection_id, entry_id, model_id)
+并且 recall_entry_vectors.content_hash == recall_entries.content_hash
 则 vectorStatus = ready
 否则 vectorStatus = none
 ```
@@ -788,17 +790,21 @@ pub trait ThoughtRepository: Send + Sync {
 
 ```sql
 SELECT model_id
-FROM thought_entry_vectors
-WHERE thought_id = ? AND entry_id = ? AND content_hash = ?
+FROM recall_entry_vectors
+WHERE collection_id = ? AND entry_id = ? AND content_hash = ?
 ```
 
-如果前端类型暂时仍需要 `vectorizedModels` 字段，可在 Rust 返回 `KnowledgeBaseMeta` 时动态填充。
+如果前端类型仍需要 `vectorizedModels` 字段，可在 Rust 返回 `RecallCollection` 时动态填充。
 
 ### 9.3 `total_tokens`
 
-条目级 tokens 来自 `thought_entry_vectors.tokens`。
+条目级 tokens 来自 `recall_entry_vectors.tokens`。
 
-思绪库级 tokens 可按模型聚合，也可以维护在 `thought_models.total_tokens`。若维护统计字段，必须在向量写入/删除事务中同步更新。
+思绪集合级 tokens 可按模型聚合，也可以维护在 `recall_models.total_tokens`。若维护统计字段，必须在向量写入/删除事务中同步更新。
+
+### 9.4 查询修饰符不进入主库状态
+
+`created_at` / `updated_at` 始终属于条目基础数据。时间衰减、Tag 定向增强等后续能力属于 binding、占位符或单次请求参数；它们可以在查询 trace 中记录本次计算值，但不回写 entry，也不要求主库预先增加额外生命周期字段。第一阶段不实现时间衰减。
 
 ---
 
@@ -806,12 +812,12 @@ WHERE thought_id = ? AND entry_id = ? AND content_hash = ?
 
 ### 10.1 内容更新必须清理旧向量
 
-当前 `kb_upsert_entry` 检测 content hash 变化后会删除旧向量文件。数据库化后应在同一事务中：
+当前 `kb_upsert_entry` 检测 content hash 变化后会删除旧向量文件。数据库化后不能把两个数据库描述成同一事务，正确顺序是：
 
-1. 更新 `thought_entries.content_hash`。
-2. 删除该 entry 的旧 `thought_entry_vectors`。
-3. 更新内存 `vector_store`。
-4. 返回前端时显示未向量化。
+1. 在 `recall.db` 事务中更新 entry 和 `content_hash` 并提交。
+2. 更新内存 `vector_store`；失败时由下一次 warmup 修复。
+3. 幂等删除 `recall-vectors.db` 中该 entry 的旧向量；删除失败时依靠 hash 不匹配派生为未向量化。
+4. 返回前端时显示未向量化，并允许后续重新生成向量。
 
 ### 10.2 批量写入不能逐条提交
 
@@ -831,7 +837,7 @@ WHERE thought_id = ? AND entry_id = ? AND content_hash = ?
 
 ### 10.6 导出功能仍需稳定 JSON 格式
 
-`kb_export_base` 当前返回 `KnowledgeBase { meta, entries }`。数据库化后仍应保持该导出结构，保证用户数据可迁移、可备份。
+`kb_export_base` 当前返回 `KnowledgeBase { meta, entries }`。迁移器必须继续读取该 legacy 格式；新的 Recall 导出使用带格式版本的 `RecallCollection { meta, entries }`，保证用户数据可迁移、可备份。
 
 ---
 
@@ -850,8 +856,10 @@ WHERE thought_id = ? AND entry_id = ? AND content_hash = ?
 - clear vectors。
 - tag pool save/load。
 - legacy import 幂等。
+- 删除 `recall.db` 中的 collection / entry 后，向量库孤儿清理幂等且可重试。
+- 删除或重建 `recall-vectors.db` 不影响 Recall 条目浏览、编辑和关键词检索。
 
-### 11.2 兼容性测试
+### 11.2 迁移测试
 
 准备一份旧版 `appData/knowledge` fixture：
 
@@ -864,12 +872,13 @@ WHERE thought_id = ? AND entry_id = ? AND content_hash = ?
 
 验证迁移后：
 
-- `kb_list_bases` 数量一致。
-- `kb_load_base_meta` 条目一致。
-- `kb_load_entry` 内容一致。
-- `kb_check_vector_coverage` 结果符合预期。
-- `kb_search` 关键词搜索结果一致。
+- `recall_list_collections` 数量一致。
+- `recall_load_collection` 条目一致。
+- `recall_load_entry` 内容一致。
+- `recall_check_vector_coverage` 结果符合预期。
+- `recall_search` 关键词搜索结果一致。
 - 加载同模型向量后，向量搜索结果基本一致。
+- Agent binding 和工具调用仍可组合同一思绪集合，数据库迁移不引入 Agent 所有权限制；旧自由文本占位符按总施工计划产生迁移报告。
 
 ### 11.3 性能基准
 
@@ -882,38 +891,13 @@ WHERE thought_id = ? AND entry_id = ? AND content_hash = ?
 - keyword / vector / lens / blender 检索耗时。
 - Knowledge 资料库 100 / 1000 / 10000 chunk 入库耗时。
 - Knowledge search_hybrid 查询耗时、跨库合并耗时和结果回源读取耗时。
+- TriviumDB Windows / macOS / Linux 的 library 文件组恢复、锁冲突和异常退出恢复。
 
 ---
 
-## 12. 建议实施顺序
+## 12. 实施关系
 
-### 12.1 Thought 思绪域数据库化
-
-1. 新增 `storage` 模块、migration、SQLite 初始化。
-2. 实现 `SqliteThoughtRepository` 的 base / entry 基础 CRUD。
-3. 改造 `kb_initialize`、`kb_warmup`、`kb_list_bases`、`kb_load_base_meta`。
-4. 实现旧文件导入，并在导入时完成 `kb` / CAIU 到 Thought 的 schema 转换。
-5. 改造 entry 写路径。
-6. 改造 vector 写入、加载和覆盖率检查。
-7. 改造 tag pool 持久化。
-8. 新增 `kb_delete_base`。
-9. 前端 workspace 收口，`bases` 从后端列表派生。
-10. 补测试和性能基准。
-
-### 12.2 Knowledge 资料库 TriviumDB 实验线
-
-该线建议在 Thought 主存储稳定后并行推进，避免把两个风险面绑在一起。
-
-1. 新增 `knowledge_library` 后端模块和 repository trait。
-2. 实现 `knowledge/knowledge_meta.db` manifest、library CRUD 和 migration。
-3. 验证 `triviumdb` Rust crate 在 Tauri 目标平台的编译、体积、锁和 API 行为。
-4. 若 Rust crate 可用，实现 `TriviumKnowledgeRepository`。
-5. 若 Rust crate 暂不可用，先保留 repository 抽象，以 SQLite manifest + 内存检索或后续 N-API 桥接方案过渡。
-6. 实现文件导入、切片、embedding、document/chunk node 写入和图关系写入。
-7. 实现文件更新 / 删除的精准 node 清理。
-8. 实现 `knowledge_search` / `kb_search` 路由扩展，结果带 `sourceType = "knowledge"`。
-9. 前端新增知识资料库管理入口，切片配置只在该入口出现。
-10. 增加 Knowledge 入库、检索、删除、重建和跨库合并测试。
+数据库调查不再维护 Recall 数据库化和 Knowledge 实验线的具体顺序。统一施工阶段、发布边界、依赖启用时机和完成门槛见 [Recall / Knowledge 领域拆分与重构实施计划](./recall-knowledge-domain-restructure-implementation-plan.md)。
 
 ---
 
@@ -921,20 +905,20 @@ WHERE thought_id = ? AND entry_id = ? AND content_hash = ?
 
 `knowledge-base` 的数据库化应分成两条边界清晰的路线：
 
-- Thought / 思绪域：聚焦“可靠持久层 + 稳定迁移 + 消除多真源漂移”，不重写现有检索引擎。
+- Recall / 思绪域：聚焦“可靠持久层 + 稳定迁移 + 消除多真源漂移”，数据库层不承担检索算法融合。
 - Knowledge / 知识资料库：单开传统 RAG 资料馆，支持自动切片、文件同步、BM25 + 向量 + 图扩散和来源追溯。
 
 推荐最终状态：
 
-- `thought.db` 是 Thought 思绪域唯一不可丢的源内容真源。
-- `thought-vectors.db` 保存 Thought 可重建的向量、tag pool 和预计算召回资产。
-- `InMemoryDatabase` 是 Thought 可重建的运行时读模型。
+- `recall.db` 是 Recall 思绪域唯一不可丢的源内容真源。
+- `recall-vectors.db` 保存 Recall 可重建的向量、tag pool，以及后续按基准需要增加的算法缓存。
+- Recall 条目是无状态存档，不绑定 Agent、会话、分支或消息；Agent 编排关系继续保存在配置、占位符和单次工具参数中。
+- `InMemoryDatabase` 是 Recall 可重建的运行时读模型。
 - 向量和标签池进入 SQLite，但矩阵、HNSW 和算法融合结果仍以可重建读模型或 artifact 处理。
 - `knowledge/` 保存传统文档知识资料库，每个 library 可对应独立 `.tdb`。
-- Knowledge 使用 `knowledge_meta.db` 做文件和 chunk manifest，不写入 Thought `thought_entries`。
-- 自动切片只属于 Knowledge 域，Thought 不提供自动切片入口。
+- Knowledge 使用 `knowledge_meta.db` 做文件和 chunk manifest，不写入 Recall `recall_entries`。
+- 自动切片只属于 Knowledge 域，Recall 不提供自动切片入口。
 - 前端不直接读写知识库数据库。
 - `workspace.json` 不再保存知识库列表真源。
 
 这样可以在控制风险的前提下解决当前文件系统存储的长期维护问题，同时保留 Rust 检索后端已有的性能优势，并为 TriviumDB 类 Knowledge 资料库留出独立演进空间。
-

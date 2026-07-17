@@ -33,7 +33,7 @@ import { useAgentStore } from "../../stores/agentStore";
 import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { createDefaultChatRegexConfig } from "@/tools/llm-chat/types/chatRegex";
-import { DEFAULT_TOOL_CALL_CONFIG, DEFAULT_KB_CONFIG } from "../../types/agent";
+import { DEFAULT_TOOL_CALL_CONFIG } from "../../types/agent";
 import AgentEditor from "../agent-editor/AgentEditor.vue";
 import MiniAgentList from "./MiniAgentList.vue";
 import type {
@@ -121,8 +121,14 @@ const defaultFormState = {
     defaultMediaVolume: 100,
   },
   toolCallConfig: JSON.parse(JSON.stringify(DEFAULT_TOOL_CALL_CONFIG)),
-  knowledgeBaseConfig: JSON.parse(JSON.stringify(DEFAULT_KB_CONFIG)),
-  knowledgeSettings: undefined as any,
+  recallConfig: {
+    enabled: false,
+    bindings: [],
+    groups: [],
+    autoInjectIfMacroMissing: true,
+    autoInjectPosition: "context_head",
+  },
+  recallSettings: { defaultProfile: "semantic" },
   extensionConfig: undefined as any,
   quickActionSetIds: [] as string[],
   variableConfig: undefined as any,
@@ -356,8 +362,8 @@ const handleSave = (
       assets: editForm.assets,
       assetGroups: editForm.assetGroups,
       toolCallConfig: editForm.toolCallConfig,
-      knowledgeBaseConfig: editForm.knowledgeBaseConfig,
-      knowledgeSettings: editForm.knowledgeSettings,
+      recallConfig: editForm.recallConfig,
+      recallSettings: editForm.recallSettings,
       extensionConfig: editForm.extensionConfig,
       quickActionSetIds: editForm.quickActionSetIds,
       variableConfig: editForm.variableConfig,

@@ -149,15 +149,6 @@ export const useAgentStore = defineStore("llmChatAgent", {
         greetings: options?.greetings ?? [], // 🌟 补齐
         worldbookIds: options?.worldbookIds ?? [], // 🌟 补齐
         presetGroups: options?.presetGroups ?? [], // 🌟 补齐
-        knowledgeSettings: options?.knowledgeSettings ?? {}, // 🌟 补齐
-        knowledgeBaseConfig: options?.knowledgeBaseConfig ?? {
-          // 🌟 补齐
-          enabled: false,
-          bindings: [],
-          groups: [],
-          autoInjectIfMacroMissing: true,
-          autoInjectPosition: "context_head",
-        },
         recallSettings: options?.recallSettings ?? {
           defaultProfile: "semantic",
         },

@@ -41,6 +41,7 @@ import {
   isVcpChatConfig,
 } from "./vcpChatAgentImportService";
 import { DEFAULT_AGENT_EXTENSION_CONFIG } from "../types/agent";
+import { migrateAgent } from "./agentMigrationService";
 
 const logger = createModuleLogger("llm-chat/agentImportService");
 const errorHandler = createModuleErrorHandler("llm-chat/agentImportService");
@@ -49,26 +50,28 @@ const errorHandler = createModuleErrorHandler("llm-chat/agentImportService");
  * 对导入的智能体数据进行强力补全，确保写入磁盘的每一份 agent.json 都是结构完美的
  */
 function sanitizeImportedAgent(agent: any): any {
-  return {
-    ...agent,
+  const source = { ...agent };
+  migrateAgent(source);
+  const sanitized = {
+    ...source,
     parameters: {
       temperature: 1,
       maxTokens: 4096,
-      ...(agent.parameters || {}),
+      ...(source.parameters || {}),
     },
-    presetMessages: agent.presetMessages ?? [],
-    greetings: agent.greetings ?? [],
-    avatarHistory: agent.avatarHistory ?? [],
-    worldbookIds: agent.worldbookIds ?? [],
-    quickActionSetIds: agent.quickActionSetIds ?? [],
-    presetGroups: agent.presetGroups ?? [],
-    extensionConfig: agent.extensionConfig ?? {
+    presetMessages: source.presetMessages ?? [],
+    greetings: source.greetings ?? [],
+    avatarHistory: source.avatarHistory ?? [],
+    worldbookIds: source.worldbookIds ?? [],
+    quickActionSetIds: source.quickActionSetIds ?? [],
+    presetGroups: source.presetGroups ?? [],
+    extensionConfig: source.extensionConfig ?? {
       ...DEFAULT_AGENT_EXTENSION_CONFIG,
       enabled: true,
       extensionToggles: {},
       defaultExtensionEnabled: true,
     },
-    toolCallConfig: agent.toolCallConfig ?? {
+    toolCallConfig: source.toolCallConfig ?? {
       enabled: false,
       mode: "auto",
       toolToggles: {},
@@ -83,15 +86,16 @@ function sanitizeImportedAgent(agent: any): any {
       protocol: "vcp",
       convertToolRoleToUser: true,
     },
-    knowledgeBaseConfig: agent.knowledgeBaseConfig ?? {
+    recallConfig: source.recallConfig ?? {
       enabled: false,
       bindings: [],
       groups: [],
       autoInjectIfMacroMissing: true,
       autoInjectPosition: "context_head",
     },
-    knowledgeSettings: agent.knowledgeSettings ?? {},
+    recallSettings: source.recallSettings ?? { defaultProfile: "semantic" },
   };
+  return sanitized;
 }
 
 export interface PreflightContext {

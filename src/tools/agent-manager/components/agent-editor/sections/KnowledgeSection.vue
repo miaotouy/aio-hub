@@ -18,34 +18,37 @@
 import { inject, computed, ref, onMounted, type Ref } from "vue";
 import { InfoFilled, Search, Plus } from "@element-plus/icons-vue";
 import { useRecallCollectionStore } from "@/tools/recall/stores/recallCollectionStore";
-import { DEFAULT_KB_CONFIG } from "@/tools/agent-manager/types/agent";
-import type { AgentKnowledgeBaseBinding } from "@/tools/agent-manager/types/agent";
+import type { RecallBinding } from "@/tools/agent-manager/types/agent";
 import type { SettingItem } from "@/types/settings-renderer";
 import KnowledgeBaseItem from "./KnowledgeBaseItem.vue";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 
 // 宏示例常量
-const kbMacro = "{{kb}}";
-const kbNameMacro = "{{kb::name}}";
-const kbListMacro = "{{kb_list}}";
+const recallMacro = "{{recall}}";
+const recallNameMacro = "{{recall::<collection-id>}}";
+const recallListMacro = "{{recall_list}}";
 
 const editForm = inject<any>("agent-edit-form");
 const activeTab = inject<Ref<string>>("active-tab");
 
-const kbStore = useRecallCollectionStore();
+const recallStore = useRecallCollectionStore();
 
 // 确保配置存在
 const ensureConfig = () => {
-  if (!editForm.knowledgeBaseConfig) {
-    editForm.knowledgeBaseConfig = JSON.parse(
-      JSON.stringify(DEFAULT_KB_CONFIG)
-    );
+  if (!editForm.recallConfig) {
+    editForm.recallConfig = {
+      enabled: false,
+      bindings: [],
+      groups: [],
+      autoInjectIfMacroMissing: true,
+      autoInjectPosition: "context_head",
+    };
   }
-  if (!editForm.knowledgeBaseConfig.bindings) {
-    editForm.knowledgeBaseConfig.bindings = [];
+  if (!editForm.recallConfig.bindings) {
+    editForm.recallConfig.bindings = [];
   }
-  if (!editForm.knowledgeBaseConfig.groups) {
-    editForm.knowledgeBaseConfig.groups = [];
+  if (!editForm.recallConfig.groups) {
+    editForm.recallConfig.groups = [];
   }
 };
 
@@ -53,9 +56,9 @@ const ensureConfig = () => {
 ensureConfig();
 
 // 初始化知识库设置 + 旧版数据迁移
-if (!editForm.knowledgeSettings) {
-  editForm.knowledgeSettings = {
-    defaultEngineId: undefined,
+if (!editForm.recallSettings) {
+  editForm.recallSettings = {
+    defaultProfile: "semantic",
     defaultLimit: 5,
     maxRecallChars: 0,
     defaultMinScore: 0.3,
@@ -65,52 +68,31 @@ if (!editForm.knowledgeSettings) {
     enableCache: true,
   };
 } else {
-  // 数据迁移：从旧版 aggregation 子对象提升字段到顶层
-  const legacy = (editForm.knowledgeSettings as any).aggregation;
-  if (legacy) {
-    if (
-      editForm.knowledgeSettings.enableCache === undefined &&
-      legacy.enableCache !== undefined
-    ) {
-      editForm.knowledgeSettings.enableCache = legacy.enableCache;
-    }
-    // 清理旧字段
-    delete (editForm.knowledgeSettings as any).aggregation;
+  if (editForm.recallSettings.gateScanDepth === undefined) {
+    editForm.recallSettings.gateScanDepth = 3;
   }
-  // 清理已废弃的 Agent 级 embeddingModelId
-  if ((editForm.knowledgeSettings as any).embeddingModelId !== undefined) {
-    delete (editForm.knowledgeSettings as any).embeddingModelId;
-  }
-  // 清理已废弃的 contextWindow（检索已固定为最近一对消息）
-  if ((editForm.knowledgeSettings as any).contextWindow !== undefined) {
-    delete (editForm.knowledgeSettings as any).contextWindow;
-  }
-  // 确保默认值
-  if (editForm.knowledgeSettings.gateScanDepth === undefined) {
-    editForm.knowledgeSettings.gateScanDepth = 3;
-  }
-  if (editForm.knowledgeSettings.enableCache === undefined) {
-    editForm.knowledgeSettings.enableCache = true;
+  if (editForm.recallSettings.enableCache === undefined) {
+    editForm.recallSettings.enableCache = true;
   }
 }
 
 // 初始化知识库 store
-if (kbStore.bases.length === 0) {
-  kbStore.init();
+if (recallStore.bases.length === 0) {
+  recallStore.init();
 }
 
 // 宏检查
-const isKbMacroMissing = computed(() => {
-  if (!editForm.knowledgeBaseConfig?.enabled) return false;
+const isRecallMacroMissing = computed(() => {
+  if (!editForm.recallConfig?.enabled) return false;
   const messages = editForm.presetMessages || [];
   return !messages.some((m: any) => {
     if (m.enabled === false || !m.content) return false;
     const content = m.content;
     return (
-      content.includes("{{kb}}") ||
-      content.includes("{{kb::") ||
-      content.includes("{{kb_list}}") ||
-      content.includes("【kb")
+      content.includes("{{recall}}") ||
+      content.includes("{{recall::") ||
+      content.includes("{{recall_list}}") ||
+      content.includes("【recall")
     );
   });
 });
@@ -124,59 +106,59 @@ const switchToPersonality = () => {
 // 搜索
 const searchQuery = ref("");
 const filteredBindings = computed(() => {
-  const bindings = editForm.knowledgeBaseConfig?.bindings || [];
+  const bindings = editForm.recallConfig?.bindings || [];
   if (!searchQuery.value) return bindings;
   const q = searchQuery.value.toLowerCase();
   return bindings.filter(
-    (b: AgentKnowledgeBaseBinding) =>
-      b.kbName.toLowerCase().includes(q) || b.kbId.toLowerCase().includes(q)
+    (b: RecallBinding) =>
+      b.recallName.toLowerCase().includes(q) || b.recallId.toLowerCase().includes(q)
   );
 });
 
 // 展开的知识库 ID
-const expandedKbId = ref<string | null>(null);
+const expandedRecallId = ref<string | null>(null);
 
-const toggleExpand = (kbId: string) => {
-  expandedKbId.value = expandedKbId.value === kbId ? null : kbId;
+const toggleExpand = (recallId: string) => {
+  expandedRecallId.value = expandedRecallId.value === recallId ? null : recallId;
 };
 
 // 添加知识库
 const showAddSelector = ref(false);
 const availableBases = computed(() => {
   const existingIds = new Set(
-    (editForm.knowledgeBaseConfig?.bindings || []).map(
-      (b: AgentKnowledgeBaseBinding) => b.kbId
+    (editForm.recallConfig?.bindings || []).map(
+      (b: RecallBinding) => b.recallId
     )
   );
-  return kbStore.bases.filter((b) => !existingIds.has(b.id));
+  return recallStore.bases.filter((b) => !existingIds.has(b.id));
 });
 
-const addKnowledgeBase = (base: { id: string; name: string }) => {
+const addRecallCollection = (base: { id: string; name: string }) => {
   ensureConfig();
-  editForm.knowledgeBaseConfig.bindings.push({
-    kbId: base.id,
-    kbName: base.name,
+  editForm.recallConfig.bindings.push({
+    recallId: base.id,
+    recallName: base.name,
     enabled: true,
-    mode: "always",
-  } as AgentKnowledgeBaseBinding);
+    when: "always",
+  } as RecallBinding);
   showAddSelector.value = false;
 };
 
 // 移除知识库
-const removeBinding = (kbId: string) => {
+const removeBinding = (recallId: string) => {
   ensureConfig();
-  const idx = editForm.knowledgeBaseConfig.bindings.findIndex(
-    (b: AgentKnowledgeBaseBinding) => b.kbId === kbId
+  const idx = editForm.recallConfig.bindings.findIndex(
+    (b: RecallBinding) => b.recallId === recallId
   );
   if (idx !== -1) {
-    editForm.knowledgeBaseConfig.bindings.splice(idx, 1);
+    editForm.recallConfig.bindings.splice(idx, 1);
   }
 };
 
 // 切换单个知识库的启用状态
-const toggleBinding = (kbId: string, enabled: boolean) => {
-  const binding = editForm.knowledgeBaseConfig.bindings.find(
-    (b: AgentKnowledgeBaseBinding) => b.kbId === kbId
+const toggleBinding = (recallId: string, enabled: boolean) => {
+  const binding = editForm.recallConfig.bindings.find(
+    (b: RecallBinding) => b.recallId === recallId
   );
   if (binding) {
     binding.enabled = enabled;
@@ -184,121 +166,121 @@ const toggleBinding = (kbId: string, enabled: boolean) => {
 };
 
 // 知识库高级设置（精简版：移除传统 RAG 残留，对齐记忆系统定位）
-const knowledgeAdvancedSettings = computed<SettingItem[]>(() => [
+const recallAdvancedSettings = computed<SettingItem[]>(() => [
   {
-    id: "kbDefaultEngine",
-    label: "默认检索引擎",
+    id: "recallDefaultProfile",
+    label: "默认召回配置",
     component: "ElSelect",
-    modelPath: "knowledgeSettings.defaultEngineId",
-    hint: "通过占位符引用知识库时使用的默认检索引擎，留空则跟随知识库设置",
-    keywords: "knowledge engine 知识库 引擎",
-    props: { style: { width: "100%" }, clearable: true },
+    modelPath: "recallSettings.defaultProfile",
+    hint: "semantic 用于稳定语义检索，associative 用于联想式多信号召回。",
+    keywords: "recall profile 思绪 召回 配置",
+    props: { style: { width: "100%" } },
     options: () => [
       {
-        label: "使用知识库默认",
-        value: "",
-        description: "跟随知识库设置中的默认引擎",
+        label: "语义 (semantic)",
+        value: "semantic",
+        description: "稳定的语义相关性召回",
       },
-      ...kbStore.engines.map((e) => ({
-        label: `${e.name} (${e.id})`,
-        value: e.id,
-        description: e.description,
-      })),
+      {
+        label: "联想 (associative)",
+        value: "associative",
+        description: "标签和多信号的联想式召回",
+      },
     ],
     groupCollapsible: {
-      name: "knowledge-advanced",
-      title: "知识库高级设置",
+      name: "recall-advanced",
+      title: "思绪高级设置",
     },
   },
   {
-    id: "kbDefaultLimit",
+    id: "recallDefaultLimit",
     label: "召回上限",
     component: "SliderWithInput",
-    modelPath: "knowledgeSettings.defaultLimit",
+    modelPath: "recallSettings.defaultLimit",
     hint: "检索结果的数量上限。实际截断以最低分数为主要依据——即使设为 50，只有超过分数阈值的条目才会被召回。",
-    keywords: "knowledge limit 召回 上限",
+    keywords: "recall limit 思绪 召回 上限",
     props: { min: 1, max: 50, step: 1, controlsPosition: "right" },
     groupCollapsible: {
-      name: "knowledge-advanced",
-      title: "知识库高级设置",
+      name: "recall-advanced",
+      title: "思绪高级设置",
     },
   },
   {
-    id: "kbDefaultMinScore",
+    id: "recallDefaultMinScore",
     label: "最低分数阈值",
     component: "SliderWithInput",
-    modelPath: "knowledgeSettings.defaultMinScore",
+    modelPath: "recallSettings.defaultMinScore",
     hint: "低于此相关度分数的条目直接丢弃。这是实际的截断依据，比召回上限更重要。",
-    keywords: "knowledge score 分数 阈值 截断",
+    keywords: "recall score 思绪 分数 阈值 截断",
     props: { min: 0, max: 1, step: 0.05, controlsPosition: "right" },
     groupCollapsible: {
-      name: "knowledge-advanced",
-      title: "知识库高级设置",
+      name: "recall-advanced",
+      title: "思绪高级设置",
     },
   },
   {
-    id: "kbMaxRecallChars",
+    id: "recallMaxChars",
     label: "召回字数上限",
     component: "SliderWithInput",
-    modelPath: "knowledgeSettings.maxRecallChars",
+    modelPath: "recallSettings.maxRecallChars",
     hint: "检索结果的总字数上限，0 表示不限制。超出部分将被丢弃。",
-    keywords: "knowledge char limit 字数",
+    keywords: "recall char 思绪 字数",
     props: { min: 0, step: 100, controlsPosition: "right" },
     groupCollapsible: {
-      name: "knowledge-advanced",
-      title: "知识库高级设置",
+      name: "recall-advanced",
+      title: "思绪高级设置",
     },
   },
   {
-    id: "kbGateScanDepth",
+    id: "recallGateScanDepth",
     label: "门控扫描深度",
     component: "SliderWithInput",
-    modelPath: "knowledgeSettings.gateScanDepth",
+    modelPath: "recallSettings.gateScanDepth",
     hint: "标签门控 (gate) 模式下，扫描最近多少条消息以匹配关键词",
-    keywords: "knowledge gate depth 深度",
+    keywords: "recall gate 思绪 深度",
     props: { min: 1, max: 20, step: 1, controlsPosition: "right" },
     groupCollapsible: {
-      name: "knowledge-advanced",
-      title: "知识库高级设置",
+      name: "recall-advanced",
+      title: "思绪高级设置",
     },
   },
   {
-    id: "kbEnableCache",
+    id: "recallEnableCache",
     label: "启用检索缓存",
     layout: "inline",
     component: "ElSwitch",
-    modelPath: "knowledgeSettings.enableCache",
+    modelPath: "recallSettings.enableCache",
     hint: "精确文本匹配缓存：同一查询文本直接复用结果，避免重复检索。适用于同轮多占位符和重试场景。",
-    keywords: "knowledge cache 缓存",
+    keywords: "recall cache 思绪 缓存",
     groupCollapsible: {
-      name: "knowledge-advanced",
-      title: "知识库高级设置",
+      name: "recall-advanced",
+      title: "思绪高级设置",
     },
   },
   {
-    id: "kbResultTemplate",
+    id: "recallResultTemplate",
     label: "结果模板",
     component: "ElInput",
-    modelPath: "knowledgeSettings.resultTemplate",
-    hint: "检索结果注入提示词的模板。支持变量: {kbName}, {content}, {key}, {score}, {tags}, {count}, {items}",
-    keywords: "knowledge template 模板",
+    modelPath: "recallSettings.resultTemplate",
+    hint: "检索结果注入提示词的模板。支持变量: {recallName}, {content}, {key}, {score}, {tags}, {count}, {items}",
+    keywords: "recall template 思绪 模板",
     props: { type: "textarea", rows: 4, placeholder: "检索结果注入模板" },
     groupCollapsible: {
-      name: "knowledge-advanced",
-      title: "知识库高级设置",
+      name: "recall-advanced",
+      title: "思绪高级设置",
     },
   },
   {
-    id: "kbEmptyText",
+    id: "recallEmptyText",
     label: "空结果提示",
     component: "ElInput",
-    modelPath: "knowledgeSettings.emptyText",
+    modelPath: "recallSettings.emptyText",
     hint: "未检索到内容时的占位文本",
-    keywords: "knowledge empty 提示",
+    keywords: "recall empty 思绪 提示",
     props: { placeholder: "未检索到内容时的提示词" },
     groupCollapsible: {
-      name: "knowledge-advanced",
-      title: "知识库高级设置",
+      name: "recall-advanced",
+      title: "思绪高级设置",
     },
   },
 ]);
@@ -308,38 +290,38 @@ const handleAdvancedSettingsUpdate = (newSettings: any) => {
 };
 
 onMounted(() => {
-  if (kbStore.engines.length === 0) {
-    kbStore.loadEngines();
+  if (recallStore.engines.length === 0) {
+    recallStore.loadEngines();
   }
 });
 </script>
 
 <template>
   <div class="agent-section">
-    <div class="section-group" data-setting-id="knowledgeBase">
+    <div class="section-group" data-setting-id="recall">
       <div class="section-header">
-        <div class="section-group-title">知识库 (RAG)</div>
+        <div class="section-group-title">思绪 (Recall)</div>
         <el-switch
-          v-model="editForm.knowledgeBaseConfig.enabled"
+          v-model="editForm.recallConfig.enabled"
           @change="ensureConfig"
         />
       </div>
       <div class="form-hint">
         关联知识库后，智能体可在对话中自动检索相关知识。通过
-        <code style="color: var(--el-color-primary)">{{ kbMacro }}</code>
+        <code style="color: var(--el-color-primary)">{{ recallMacro }}</code>
         注入所有已启用知识库的检索结果，或使用
-        <code style="color: var(--el-color-primary)">{{ kbNameMacro }}</code>
+        <code style="color: var(--el-color-primary)">{{ recallNameMacro }}</code>
         精确指定，还可通过
-        <code style="color: var(--el-color-primary)">{{ kbListMacro }}</code>
+        <code style="color: var(--el-color-primary)">{{ recallListMacro }}</code>
         让 LLM 感知可用知识源。
       </div>
 
       <!-- 宏缺失警告 -->
       <transition name="el-zoom-in-top">
-        <div v-if="isKbMacroMissing" class="macro-warning-alert">
+        <div v-if="isRecallMacroMissing" class="macro-warning-alert">
           <el-alert
             :type="
-              editForm.knowledgeBaseConfig.autoInjectIfMacroMissing
+              editForm.recallConfig.autoInjectIfMacroMissing
                 ? 'info'
                 : 'warning'
             "
@@ -349,22 +331,22 @@ onMounted(() => {
             <template #title>
               <div class="alert-title-content">
                 <span
-                  v-if="editForm.knowledgeBaseConfig.autoInjectIfMacroMissing"
+                  v-if="editForm.recallConfig.autoInjectIfMacroMissing"
                 >
                   自动注入已启用
                 </span>
                 <span v-else>
-                  提示词中未发现 <code>{{ kbMacro }}</code> 宏
+                  提示词中未发现 <code>{{ recallMacro }}</code> 宏
                 </span>
                 <div class="alert-actions">
                   <el-button
                     v-if="
-                      !editForm.knowledgeBaseConfig.autoInjectIfMacroMissing
+                      !editForm.recallConfig.autoInjectIfMacroMissing
                     "
                     type="primary"
                     size="small"
                     @click="
-                      editForm.knowledgeBaseConfig.autoInjectIfMacroMissing = true
+                      editForm.recallConfig.autoInjectIfMacroMissing = true
                     "
                   >
                     立即开启保底注入
@@ -382,10 +364,10 @@ onMounted(() => {
             </template>
             <template #default>
               <span
-                v-if="editForm.knowledgeBaseConfig.autoInjectIfMacroMissing"
+                v-if="editForm.recallConfig.autoInjectIfMacroMissing"
               >
                 检索结果将自动注入到对话历史之前。你也可以在"角色设定"中手动添加
-                <code>{{ kbMacro }}</code> 宏以精确控制注入位置。
+                <code>{{ recallMacro }}</code> 宏以精确控制注入位置。
               </span>
               <span v-else>
                 智能体需要此宏来获取知识库检索结果。你可以开启"自动注入"，或在"角色设定"中手动添加此宏。
@@ -395,7 +377,7 @@ onMounted(() => {
         </div>
       </transition>
 
-      <template v-if="editForm.knowledgeBaseConfig?.enabled">
+      <template v-if="editForm.recallConfig?.enabled">
         <!-- 全局配置 -->
         <div class="kb-config-grid">
           <el-form-item label="保底注入">
@@ -411,13 +393,13 @@ onMounted(() => {
               </el-tooltip>
             </template>
             <el-switch
-              v-model="editForm.knowledgeBaseConfig.autoInjectIfMacroMissing"
+              v-model="editForm.recallConfig.autoInjectIfMacroMissing"
             />
           </el-form-item>
 
           <el-form-item label="注入位置">
             <el-select
-              v-model="editForm.knowledgeBaseConfig.autoInjectPosition"
+              v-model="editForm.recallConfig.autoInjectPosition"
               size="small"
             >
               <el-option label="上下文最前方" value="context_head" />
@@ -432,14 +414,14 @@ onMounted(() => {
             <div class="box-title-group">
               <span class="box-title">已关联知识库</span>
               <el-tag size="small" type="info">
-                {{ editForm.knowledgeBaseConfig.bindings.length }} 个
+                {{ editForm.recallConfig.bindings.length }} 个
               </el-tag>
             </div>
           </div>
 
           <!-- 搜索栏 -->
           <div
-            v-if="editForm.knowledgeBaseConfig.bindings.length > 3"
+            v-if="editForm.recallConfig.bindings.length > 3"
             class="box-search-bar"
           >
             <el-input
@@ -453,7 +435,7 @@ onMounted(() => {
 
           <!-- 空状态 -->
           <div
-            v-if="editForm.knowledgeBaseConfig.bindings.length === 0"
+            v-if="editForm.recallConfig.bindings.length === 0"
             class="empty-kb"
           >
             <el-empty :image-size="40" description="尚未关联任何知识库">
@@ -477,7 +459,7 @@ onMounted(() => {
                     v-for="base in availableBases"
                     :key="base.id"
                     class="add-kb-item"
-                    @click="addKnowledgeBase(base)"
+                    @click="addRecallCollection(base)"
                   >
                     <span class="add-kb-name">{{ base.name }}</span>
                     <span class="add-kb-count">{{ base.entryCount }} 条</span>
@@ -491,18 +473,18 @@ onMounted(() => {
           <div v-else class="kb-list">
             <KnowledgeBaseItem
               v-for="binding in filteredBindings"
-              :key="binding.kbId"
+              :key="binding.recallId"
               :binding="binding"
-              :expanded="expandedKbId === binding.kbId"
-              @toggle-expand="toggleExpand(binding.kbId)"
-              @toggle-enabled="toggleBinding(binding.kbId, $event)"
-              @remove="removeBinding(binding.kbId)"
+              :expanded="expandedRecallId === binding.recallId"
+              @toggle-expand="toggleExpand(binding.recallId)"
+              @toggle-enabled="toggleBinding(binding.recallId, $event)"
+              @remove="removeBinding(binding.recallId)"
             />
           </div>
 
           <!-- 添加按钮 -->
           <div
-            v-if="editForm.knowledgeBaseConfig.bindings.length > 0"
+            v-if="editForm.recallConfig.bindings.length > 0"
             class="box-footer"
           >
             <el-popover
@@ -525,7 +507,7 @@ onMounted(() => {
                   v-for="base in availableBases"
                   :key="base.id"
                   class="add-kb-item"
-                  @click="addKnowledgeBase(base)"
+                  @click="addRecallCollection(base)"
                 >
                   <span class="add-kb-name">{{ base.name }}</span>
                   <span class="add-kb-count">{{ base.entryCount }} 条</span>
@@ -539,7 +521,7 @@ onMounted(() => {
       <!-- 知识库高级设置 -->
       <div class="kb-advanced-section">
         <SettingListRenderer
-          :items="knowledgeAdvancedSettings"
+          :items="recallAdvancedSettings"
           :settings="editForm"
           @update:settings="handleAdvancedSettingsUpdate"
         />

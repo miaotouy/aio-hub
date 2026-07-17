@@ -18,10 +18,10 @@
 import { computed } from "vue";
 import { Delete } from "@element-plus/icons-vue";
 import { ChevronDown, ChevronRight, BookOpen } from "lucide-vue-next";
-import type { AgentKnowledgeBaseBinding } from "@/tools/agent-manager/types/agent";
+import type { RecallBinding } from "@/tools/agent-manager/types/agent";
 
 const props = defineProps<{
-  binding: AgentKnowledgeBaseBinding;
+  binding: RecallBinding;
   expanded: boolean;
 }>();
 
@@ -32,7 +32,7 @@ const emit = defineEmits<{
 }>();
 
 const modeLabel = computed(() => {
-  switch (props.binding.mode) {
+  switch (props.binding.when) {
     case "always":
       return "总是检索";
     case "gate":
@@ -46,7 +46,7 @@ const modeLabel = computed(() => {
   }
 });
 
-const macroRef = computed(() => `{{kb::${props.binding.kbName}}}`);
+const macroRef = computed(() => `{{recall::${props.binding.recallId}}}`);
 </script>
 
 <template>
@@ -59,7 +59,7 @@ const macroRef = computed(() => `{{kb::${props.binding.kbName}}}`);
         </el-icon>
         <el-icon class="kb-icon"><BookOpen /></el-icon>
         <div class="kb-info">
-          <span class="kb-name">{{ binding.kbName }}</span>
+          <span class="kb-name">{{ binding.recallName }}</span>
           <span class="kb-mode-tag">{{ modeLabel }}</span>
         </div>
       </div>
@@ -80,7 +80,7 @@ const macroRef = computed(() => `{{kb::${props.binding.kbName}}}`);
       <div v-if="expanded" class="kb-item-config">
         <el-form label-width="80px" label-position="left" size="small">
           <el-form-item label="激活模式">
-            <el-select v-model="binding.mode" style="width: 100%">
+            <el-select v-model="binding.when" style="width: 100%">
               <el-option label="总是检索 (always)" value="always" />
               <el-option label="标签门控 (gate)" value="gate" />
               <el-option label="轮次常驻 (turn)" value="turn" />
@@ -89,9 +89,9 @@ const macroRef = computed(() => `{{kb::${props.binding.kbName}}}`);
           </el-form-item>
 
           <!-- gate 模式参数 -->
-          <el-form-item v-if="binding.mode === 'gate'" label="触发标签">
+          <el-form-item v-if="binding.when === 'gate'" label="触发标签">
             <el-select
-              v-model="binding.modeParams"
+              v-model="binding.whenParams"
               multiple
               filterable
               allow-create
@@ -102,15 +102,15 @@ const macroRef = computed(() => `{{kb::${props.binding.kbName}}}`);
           </el-form-item>
 
           <!-- turn 模式参数 -->
-          <el-form-item v-if="binding.mode === 'turn'" label="轮次间隔">
+          <el-form-item v-if="binding.when === 'turn'" label="轮次间隔">
             <el-input-number
               :model-value="
-                binding.modeParams?.[0] ? parseInt(binding.modeParams[0]) : 1
+                binding.whenParams?.[0] ? parseInt(binding.whenParams[0]) : 1
               "
               :min="1"
               :max="100"
               controls-position="right"
-              @change="binding.modeParams = [$event?.toString() || '1']"
+              @change="binding.whenParams = [$event?.toString() || '1']"
             />
           </el-form-item>
 

@@ -642,5 +642,29 @@ mod repository_warmup_tests {
             restored_pool.read().unwrap().registry.get("数据库"),
             Some(&0)
         );
+
+        std::fs::remove_file(repository.vector_db_path()).unwrap();
+        let recovered_repository = SqliteRecallRepository::new(app_data.path());
+        recovered_repository.initialize().unwrap();
+        let recovered_imdb = Arc::new(RwLock::new(InMemoryDatabase::new()));
+        warmup_recall_repository(
+            &recovered_repository,
+            &recovered_imdb,
+            &GlobalTagPoolManager::new(),
+        )
+        .unwrap();
+
+        let recovered_database = recovered_imdb.read().unwrap();
+        let recovered_base = recovered_database
+            .bases
+            .get(&collection_id)
+            .unwrap()
+            .read()
+            .unwrap();
+        assert_eq!(
+            recovered_base.entries.get(&entry_id).unwrap().content,
+            entry.content
+        );
+        assert!(recovered_base.vector_store.ids.is_empty());
     }
 }

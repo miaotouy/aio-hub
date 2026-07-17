@@ -56,10 +56,13 @@ export function resolveRetrievalParams(req: RecallRetrievalRequest): {
   minScore: number;
   engineId?: string;
 } {
-  const { recallName, limit, minScore, engineId, enabledBindings, settings } = req;
+  const { recallId, recallName, limit, minScore, engineId, enabledBindings, settings } = req;
 
   let recallIds: string[] = [];
-  if (recallName) {
+  if (recallId) {
+    const matched = enabledBindings.find((b) => b.recallId === recallId);
+    if (matched) recallIds = [matched.recallId];
+  } else if (recallName) {
     // 如果指定了思绪集名称，只匹配对应的 recallId
     const matched = enabledBindings.find((b) => b.recallName === recallName);
     if (matched) {

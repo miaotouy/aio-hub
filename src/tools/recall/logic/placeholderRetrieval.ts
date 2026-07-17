@@ -77,7 +77,9 @@ export async function resolvePlaceholderRetrieval(
       results = searchResults;
 
       // 3. 后置过滤 (如果占位符指定了 recallName)
-      if (req.recallName) {
+      if (req.recallId) {
+        results = results.filter((r) => r.recallId === req.recallId);
+      } else if (req.recallName) {
         results = results.filter((r) => r.recallName === req.recallName);
       }
 

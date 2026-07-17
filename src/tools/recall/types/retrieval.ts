@@ -24,6 +24,8 @@ export interface RecallRetrievalRequest {
   // —— 占位符参数（chat 从 KBPlaceholder 映射）——
   /** 指定的思绪集名称 (可选) */
   recallName?: string;
+  /** 指定的思绪集稳定 ID (可选，优先于显示名称)。 */
+  recallId?: string;
   /** 召回上限 */
   limit?: number;
   /** 最低相关度分数阈值 */

@@ -128,7 +128,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
         // 先展开所有可选配置
         ...options,
         // 然后覆盖必填字段和系统生成字段
-        version: options?.version ?? 2,
+        version: options?.version ?? 3,
         id: agentId,
         name,
         profileId,
@@ -152,6 +152,16 @@ export const useAgentStore = defineStore("llmChatAgent", {
         knowledgeSettings: options?.knowledgeSettings ?? {}, // 🌟 补齐
         knowledgeBaseConfig: options?.knowledgeBaseConfig ?? {
           // 🌟 补齐
+          enabled: false,
+          bindings: [],
+          groups: [],
+          autoInjectIfMacroMissing: true,
+          autoInjectPosition: "context_head",
+        },
+        recallSettings: options?.recallSettings ?? {
+          defaultProfile: "semantic",
+        },
+        recallConfig: options?.recallConfig ?? {
           enabled: false,
           bindings: [],
           groups: [],

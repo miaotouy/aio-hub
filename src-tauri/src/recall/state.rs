@@ -17,6 +17,7 @@ use crate::recall::index::InMemoryDatabase;
 use crate::recall::search::{
     BlenderRetrievalEngine, KeywordRetrievalEngine, LensRetrievalEngine, VectorRetrievalEngine,
 };
+use crate::recall::storage::RecallRepository;
 use crate::recall::tag_pool::GlobalTagPoolManager;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
@@ -47,6 +48,8 @@ pub struct RecallState {
     pub embedding_cache: Arc<RwLock<EmbeddingCache>>,
     /// 全局 RAG 检索结果缓存（不按 session 隔离）
     pub retrieval_cache: Arc<RwLock<RetrievalCache>>,
+    /// Recall SQLite 持久化真源，应用数据目录确定后由 initialize command 设置。
+    pub repository: Arc<RwLock<Option<Arc<dyn RecallRepository>>>>,
 }
 
 impl RecallState {
@@ -66,7 +69,17 @@ impl RecallState {
             tag_pool: GlobalTagPoolManager::new(),
             embedding_cache: Arc::new(RwLock::new(HashMap::new())),
             retrieval_cache: Arc::new(RwLock::new(HashMap::new())),
+            repository: Arc::new(RwLock::new(None)),
         }
+    }
+
+    pub fn set_repository(&self, repository: Arc<dyn RecallRepository>) -> Result<(), String> {
+        let mut slot = self
+            .repository
+            .write()
+            .map_err(|_| "获取 Recall repository 写锁失败".to_string())?;
+        *slot = Some(repository);
+        Ok(())
     }
 
     pub fn get_engine(&self, id: &str) -> Option<&dyn RetrievalEngine> {

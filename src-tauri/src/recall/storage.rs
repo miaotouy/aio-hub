@@ -12,21 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub mod commands;
-pub mod core;
-pub mod index;
-pub mod io;
-pub mod monitor;
-pub mod ops;
-pub mod search;
-pub mod state;
-pub mod storage;
-pub mod tag_pool;
-pub mod tag_sea;
-pub mod utils;
+#![allow(dead_code)]
 
-#[cfg(test)]
-pub(crate) mod migration_baseline;
+mod legacy_import;
+mod migrations;
+mod repository;
+mod sqlite;
+mod vector_blob;
 
-pub use commands::*;
-pub use state::RecallState;
+#[allow(unused_imports)]
+pub use legacy_import::{LegacyFileRecallImporter, RecallMigrationIssue, RecallMigrationReport};
+pub use repository::RecallRepository;
+pub use sqlite::SqliteRecallRepository;

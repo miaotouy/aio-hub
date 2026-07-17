@@ -102,6 +102,7 @@ sysinfo = "0.33"
 # 系统脉搏：NVIDIA GPU 监控（运行时动态链接 nvml.dll，无 NVIDIA 驱动时优雅降级）
 nvml-wrapper = "0.10"
 encoding_rs = "0.8.35"
+rusqlite = { version = "=0.39.0", default-features = false, features = ["bundled", "backup", "cache"] }
 
 # 跨平台加密（macOS/Linux 的 AES-GCM 后端）
 aes-gcm = "0.10"

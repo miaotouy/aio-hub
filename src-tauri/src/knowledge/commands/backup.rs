@@ -254,10 +254,7 @@ fn sha256_hex(bytes: &[u8]) -> String {
 }
 
 fn is_safe_package_path(path: &str) -> bool {
-    if path.is_empty()
-        || path.contains(['\\', ':'])
-        || Path::new(path).is_absolute()
-    {
+    if path.is_empty() || path.contains(['\\', ':']) || Path::new(path).is_absolute() {
         return false;
     }
     Path::new(path)
@@ -596,6 +593,36 @@ fn export_one(
         asset_count: manifest.asset_count,
         warnings,
     })
+}
+
+fn list_persisted_library_ids(app_data_dir: &Path) -> Result<Vec<Uuid>, String> {
+    let bases_dir = get_bases_dir(app_data_dir);
+    if !bases_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let entries =
+        fs::read_dir(&bases_dir).map_err(|error| format!("读取知识库存储目录失败: {}", error))?;
+    let mut ids = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|error| format!("读取知识库存储条目失败: {}", error))?;
+        if !entry
+            .file_type()
+            .map_err(|error| format!("读取知识库存储条目类型失败: {}", error))?
+            .is_dir()
+        {
+            continue;
+        }
+        if let Some(id) = entry
+            .file_name()
+            .to_str()
+            .and_then(|name| Uuid::parse_str(name).ok())
+        {
+            ids.push(id);
+        }
+    }
+    ids.sort();
+    Ok(ids)
 }
 
 fn parse_aio_backup(path: &Path) -> Result<ParsedBackup, String> {
@@ -1294,7 +1321,6 @@ pub async fn kb_export_backup(
 #[tauri::command]
 pub async fn kb_export_backups(
     app: AppHandle,
-    state: State<'_, KnowledgeState>,
     catalog: State<'_, AssetCatalog>,
     kb_ids: Vec<Uuid>,
     target_directory: String,
@@ -1305,10 +1331,11 @@ pub async fn kb_export_backups(
         return Err(format!("导出目标不是目录: {}", directory.display()));
     }
     let ids = if kb_ids.is_empty() {
-        let imdb = state.imdb.read().map_err(|_| "获取内存数据库读锁失败")?;
-        let mut ids: Vec<Uuid> = imdb.bases.keys().copied().collect();
-        ids.sort();
-        ids
+        let app_data_dir = app
+            .path()
+            .app_data_dir()
+            .map_err(|error| error.to_string())?;
+        list_persisted_library_ids(&app_data_dir)?
     } else {
         let mut unique = HashSet::new();
         kb_ids.into_iter().filter(|id| unique.insert(*id)).collect()
@@ -1646,6 +1673,25 @@ mod tests {
     fn sanitizes_backup_file_names() {
         assert_eq!(safe_file_component("a:b/c", "fallback"), "a_b_c");
         assert_eq!(safe_file_component("...", "fallback"), "fallback");
+    }
+
+    #[test]
+    fn lists_persisted_libraries_without_using_warmup_state() {
+        let directory = tempdir().unwrap();
+        let first = Uuid::new_v4();
+        let second = Uuid::new_v4();
+        let bases_dir = get_bases_dir(directory.path());
+        fs::create_dir_all(bases_dir.join(first.to_string())).unwrap();
+        fs::create_dir_all(bases_dir.join(second.to_string())).unwrap();
+        fs::create_dir_all(bases_dir.join("not-a-library")).unwrap();
+        fs::write(bases_dir.join("README.txt"), b"ignored").unwrap();
+
+        let mut expected = vec![first, second];
+        expected.sort();
+        assert_eq!(
+            list_persisted_library_ids(directory.path()).unwrap(),
+            expected
+        );
     }
 
     fn manifest_for(

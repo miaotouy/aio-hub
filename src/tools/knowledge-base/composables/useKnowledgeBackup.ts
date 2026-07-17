@@ -122,7 +122,7 @@ export function useKnowledgeBackup() {
     }
   }
 
-  async function exportMany(kbIds: string[]) {
+  async function exportMany(kbIds: string[], persistedAll = false) {
     if (kbIds.length === 0) {
       customMessage.warning("没有可导出的知识库");
       return;
@@ -145,7 +145,7 @@ export function useKnowledgeBackup() {
     try {
       const result = await invoke<BackupBatchExportResult>(
         "kb_export_backups",
-        { kbIds, targetDirectory: directory }
+        { kbIds: persistedAll ? [] : kbIds, targetDirectory: directory }
       );
       current.value = total.value;
       failed.value = result.failed.length;
@@ -198,6 +198,13 @@ export function useKnowledgeBackup() {
       unlisten();
       running.value = false;
     }
+  }
+
+  async function exportAll() {
+    return exportMany(
+      store.bases.map((base) => base.id),
+      true
+    );
   }
 
   async function chooseConflictStrategy(
@@ -459,6 +466,7 @@ export function useKnowledgeBackup() {
     requestCancel,
     exportSingle,
     exportMany,
+    exportAll,
     importBackups,
   };
 }

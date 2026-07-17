@@ -393,4 +393,39 @@ describe("useKnowledgeBackup", () => {
       true
     );
   });
+
+  it("exports all libraries through the backend persisted-data mode", async () => {
+    mocks.open.mockResolvedValue("C:/backups");
+    mocks.invoke.mockResolvedValue({
+      exportedAt: "now",
+      targetDirectory: "C:/backups",
+      outputPath: "C:/backups/all_aio-kb-v1.zip",
+      succeeded: [
+        {
+          libraryId: "a",
+          libraryName: "A",
+          outputPath: "C:/backups/all_aio-kb-v1.zip",
+          entryCount: 1,
+          assetCount: 0,
+          warnings: [],
+        },
+      ],
+      failed: [],
+      cancelled: false,
+    });
+    const store = useKnowledgeBaseStore();
+    store.bases = [
+      { id: "a", name: "A" } as any,
+      { id: "b", name: "B" } as any,
+    ];
+    const backup = useKnowledgeBackup();
+
+    await backup.exportAll();
+
+    expect(mocks.invoke).toHaveBeenCalledWith("kb_export_backups", {
+      kbIds: [],
+      targetDirectory: "C:/backups",
+    });
+    expect(backup.items.value).toHaveLength(1);
+  });
 });

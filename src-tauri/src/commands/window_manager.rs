@@ -745,6 +745,7 @@ pub async fn create_tool_window(app: AppHandle, config: WindowConfig) -> Result<
         return Ok(());
     }
 
+    #[allow(unused_mut)]
     let mut builder =
         WebviewWindowBuilder::new(&app, &config.label, WebviewUrl::App(config.url.into()))
             .title(&config.title)

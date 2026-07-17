@@ -21,6 +21,7 @@ use tokio::time::timeout;
 use super::config::DocumentConversionConfig;
 
 fn command_with_no_window(path: &str) -> Command {
+    #[allow(unused_mut)]
     let mut command = Command::new(path);
     #[cfg(target_os = "windows")]
     {

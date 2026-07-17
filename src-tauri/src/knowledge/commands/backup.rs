@@ -254,7 +254,10 @@ fn sha256_hex(bytes: &[u8]) -> String {
 }
 
 fn is_safe_package_path(path: &str) -> bool {
-    if path.is_empty() || path.contains('\\') || Path::new(path).is_absolute() {
+    if path.is_empty()
+        || path.contains(['\\', ':'])
+        || Path::new(path).is_absolute()
+    {
         return false;
     }
     Path::new(path)
@@ -1607,7 +1610,9 @@ mod tests {
     fn rejects_unsafe_package_paths() {
         assert!(!is_safe_package_path("../library.json"));
         assert!(!is_safe_package_path("C:/library.json"));
+        assert!(!is_safe_package_path("C:library.json"));
         assert!(!is_safe_package_path("assets\\bad.bin"));
+        assert!(!is_safe_package_path("assets/file.bin:stream"));
         assert!(is_safe_package_path("assets/id/file.bin"));
     }
 

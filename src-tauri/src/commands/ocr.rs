@@ -31,19 +31,19 @@ pub async fn native_ocr(image_data: String) -> Result<OcrResult, String> {
         .or_else(|| image_data.strip_prefix("data:image/jpg;base64,"))
         .unwrap_or(&image_data);
 
-    let image_bytes = general_purpose::STANDARD
+    let _image_bytes = general_purpose::STANDARD
         .decode(base64_data)
         .map_err(|e| format!("Base64解码失败: {}", e))?;
 
     // 根据操作系统选择不同的 OCR 实现
     #[cfg(target_os = "windows")]
     {
-        windows_ocr(&image_bytes).await
+        windows_ocr(&_image_bytes).await
     }
 
     #[cfg(target_os = "macos")]
     {
-        macos_ocr(&image_bytes).await
+        macos_ocr(&_image_bytes).await
     }
 
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]

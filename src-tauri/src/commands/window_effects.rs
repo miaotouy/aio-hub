@@ -32,17 +32,17 @@ use window_vibrancy::clear_mica;
 use window_vibrancy::{apply_vibrancy, clear_vibrancy, NSVisualEffectMaterial};
 
 #[tauri::command]
-pub async fn apply_window_effect(window: tauri::Window, effect: &str) -> Result<(), String> {
+pub async fn apply_window_effect(_window: tauri::Window, effect: &str) -> Result<(), String> {
     match effect {
         "blur" => {
             #[cfg(target_os = "macos")]
             {
-                apply_vibrancy(&window, NSVisualEffectMaterial::HudWindow, None, None)
+                apply_vibrancy(&_window, NSVisualEffectMaterial::HudWindow, None, None)
                     .map_err(|e| format!("Failed to apply blur effect: {}", e))?;
             }
             #[cfg(target_os = "windows")]
             {
-                apply_blur(&window, Some((18, 18, 18, 125)))
+                apply_blur(&_window, Some((18, 18, 18, 125)))
                     .map_err(|e| format!("Failed to apply blur effect: {}", e))?;
             }
             #[cfg(target_os = "linux")]
@@ -53,7 +53,7 @@ pub async fn apply_window_effect(window: tauri::Window, effect: &str) -> Result<
         "acrylic" => {
             #[cfg(target_os = "windows")]
             {
-                apply_acrylic(&window, Some((18, 18, 18, 125)))
+                apply_acrylic(&_window, Some((18, 18, 18, 125)))
                     .map_err(|e| format!("Failed to apply acrylic effect: {}", e))?;
             }
             #[cfg(not(target_os = "windows"))]
@@ -64,7 +64,7 @@ pub async fn apply_window_effect(window: tauri::Window, effect: &str) -> Result<
         "mica" => {
             #[cfg(target_os = "windows")]
             {
-                apply_mica(&window, None)
+                apply_mica(&_window, None)
                     .map_err(|e| format!("Failed to apply mica effect: {}", e))?;
             }
             #[cfg(not(target_os = "windows"))]
@@ -76,7 +76,7 @@ pub async fn apply_window_effect(window: tauri::Window, effect: &str) -> Result<
             #[cfg(target_os = "macos")]
             {
                 apply_vibrancy(
-                    &window,
+                    &_window,
                     NSVisualEffectMaterial::WindowBackground,
                     None,
                     None,
@@ -93,13 +93,13 @@ pub async fn apply_window_effect(window: tauri::Window, effect: &str) -> Result<
             #[cfg(target_os = "windows")]
             {
                 // 尝试清除所有可能的效果
-                let _ = clear_blur(&window);
-                let _ = clear_acrylic(&window);
-                let _ = clear_mica(&window);
+                let _ = clear_blur(&_window);
+                let _ = clear_acrylic(&_window);
+                let _ = clear_mica(&_window);
             }
             #[cfg(target_os = "macos")]
             {
-                clear_vibrancy(&window)
+                clear_vibrancy(&_window)
                     .map_err(|e| format!("Failed to clear vibrancy effect: {}", e))?;
             }
         }

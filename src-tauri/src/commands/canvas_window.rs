@@ -63,6 +63,7 @@ pub async fn create_canvas_window(
 
     // 创建窗口路由
     let url = format!("/canvas-window/{}", canvas_id);
+    #[allow(unused_mut)]
     let mut builder = WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(url.into()))
         .title(&title)
         .inner_size(width, height)

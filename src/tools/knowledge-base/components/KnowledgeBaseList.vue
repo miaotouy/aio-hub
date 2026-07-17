@@ -166,6 +166,23 @@ const toggleBatchMode = () => {
   selectedIds.value.clear();
 };
 
+const isAllSelected = computed(() => {
+  if (filteredBases.value.length === 0) return false;
+  return filteredBases.value.every((b) => selectedIds.value.has(b.id));
+});
+
+const toggleSelectAll = () => {
+  if (isAllSelected.value) {
+    const newSelected = new Set(selectedIds.value);
+    filteredBases.value.forEach((b) => newSelected.delete(b.id));
+    selectedIds.value = newSelected;
+  } else {
+    const newSelected = new Set(selectedIds.value);
+    filteredBases.value.forEach((b) => newSelected.add(b.id));
+    selectedIds.value = newSelected;
+  }
+};
+
 const handleBatchDelete = async () => {
   if (selectedIds.value.size === 0) return;
   try {
@@ -371,7 +388,15 @@ const formatTokens = (num: number) => {
       <!-- 批量管理头部 -->
       <div class="header-row batch-header" v-else>
         <div class="batch-info">
-          <CheckSquare :size="14" class="batch-icon" />
+          <el-tooltip
+            :content="isAllSelected ? '取消全选' : '全选'"
+            placement="top"
+            :show-after="500"
+          >
+            <div class="batch-select-all-btn" @click="toggleSelectAll">
+              <CheckSquare :size="14" class="batch-icon" />
+            </div>
+          </el-tooltip>
           <span class="batch-count">已选 {{ selectedIds.size }}</span>
         </div>
         <div class="batch-actions">
@@ -620,6 +645,34 @@ const formatTokens = (num: number) => {
   color: var(--el-color-primary);
   font-weight: 600;
   font-size: 13px;
+}
+
+.batch-select-all-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  margin: -4px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--el-color-primary);
+}
+
+.batch-select-all-btn:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary),
+    transparent 80%
+  );
+}
+
+.batch-icon {
+  transition: transform 0.2s;
+}
+
+.batch-select-all-btn:active .batch-icon {
+  transform: scale(0.9);
 }
 
 .batch-actions {

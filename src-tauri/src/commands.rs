@@ -375,6 +375,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         crate::knowledge::kb_batch_delete_entries,
         crate::knowledge::kb_batch_patch_entries,
         crate::knowledge::kb_save_base_meta,
+        crate::knowledge::kb_delete_base,
         crate::knowledge::kb_warmup,
         crate::knowledge::kb_list_bases,
         crate::knowledge::kb_load_base_meta,

@@ -225,24 +225,23 @@ export class KnowledgeStorage {
   /**
    * 删除知识库
    */
-  async deleteBase(baseId: string): Promise<void> {
-    await errorHandler.wrapAsync(
+  async deleteBase(baseId: string): Promise<boolean> {
+    const deleted = await errorHandler.wrapAsync(
       async () => {
-        // 1. 后端删除 (包含物理文件和内存索引)
-        // 注意：目前后端还没有专门的 kb_delete_base，暂时使用通用的 delete_file_force
-        // 但为了保持一致性，我们应该在后端添加这个指令。
-        // 暂时调用通用的，但路径计算保持最小化
-        await invoke("delete_file_force", {
-          path: `${this.KNOWLEDGE_DIR}/${this.BASES_DIR}/${baseId}`,
-        });
+        // 1. 后端删除物理文件、向量和内存索引
+        await invoke("kb_delete_base", { kbId: baseId });
 
         // 2. 更新 Workspace 索引
         const workspace = await this.loadWorkspace();
         workspace.bases = workspace.bases.filter((b) => b.id !== baseId);
         await this.saveWorkspace(workspace);
+
+        return true;
       },
       { userMessage: "删除知识库失败" }
     );
+
+    return deleted === true;
   }
 
   // ================= Entry 管理 =================

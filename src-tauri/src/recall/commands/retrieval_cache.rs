@@ -26,6 +26,10 @@ pub struct RetrievalCacheInput {
     pub min_score: f32,
     pub engine_id: String,
     pub model_id: String,
+    #[serde(default)]
+    pub profile: Option<String>,
+    #[serde(default)]
+    pub algorithm_version: Option<String>,
 }
 
 fn now_secs() -> u64 {
@@ -57,6 +61,16 @@ fn build_cache_key(input: &RetrievalCacheInput) -> String {
     hasher.update(input.engine_id.as_bytes());
     hasher.update(b"\0");
     hasher.update(input.model_id.as_bytes());
+    hasher.update(b"\0");
+    hasher.update(input.profile.as_deref().unwrap_or_default().as_bytes());
+    hasher.update(b"\0");
+    hasher.update(
+        input
+            .algorithm_version
+            .as_deref()
+            .unwrap_or_default()
+            .as_bytes(),
+    );
 
     format!("{:x}", hasher.finalize())
 }
@@ -132,4 +146,41 @@ pub async fn recall_retrieval_cache_stats(state: State<'_, RecallState>) -> Resu
         .read()
         .map_err(|_| "获取检索缓存读锁失败".to_string())?;
     Ok(cache.len())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn input() -> RetrievalCacheInput {
+        RetrievalCacheInput {
+            query: "query".to_string(),
+            recall_ids: vec!["collection".to_string()],
+            tags: vec![],
+            limit: 5,
+            min_score: 0.3,
+            engine_id: "semantic".to_string(),
+            model_id: "model".to_string(),
+            profile: Some("semantic".to_string()),
+            algorithm_version: Some("recall-profile-v1".to_string()),
+        }
+    }
+
+    #[test]
+    fn cache_key_separates_profile_and_algorithm_versions() {
+        let baseline = input();
+        let mut different_profile = input();
+        different_profile.profile = Some("associative".to_string());
+        let mut different_version = input();
+        different_version.algorithm_version = Some("recall-profile-v2".to_string());
+
+        assert_ne!(
+            build_cache_key(&baseline),
+            build_cache_key(&different_profile)
+        );
+        assert_ne!(
+            build_cache_key(&baseline),
+            build_cache_key(&different_version)
+        );
+    }
 }

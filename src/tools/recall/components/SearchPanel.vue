@@ -60,7 +60,7 @@
         >
           <div class="result-meta">
             <span class="match-type" :class="result.matchType">
-              {{ result.matchType === "vector" ? "向量" : "关键词" }}
+              {{ matchTypeLabel(result.matchType) }}
             </span>
             <span class="score">{{ (result.score * 10).toFixed(1) }}</span>
             <span class="recall-name">{{ result.recallName || "未知库" }}</span>
@@ -113,6 +113,21 @@ watch(
 function formatHighlight(text: string) {
   // 简单的 HTML 转义和高亮处理 (后端已经处理了部分，这里主要是安全净化)
   return DOMPurify.sanitize(text.replace(/\n/g, " "));
+}
+
+function matchTypeLabel(matchType: RecallResult["matchType"]) {
+  return (
+    {
+      vector: "语义",
+      keyword: "关键词",
+      tag: "标签",
+      tag_vector: "标签向量",
+      key: "键值",
+      lens: "透镜",
+      blender: "融合",
+      multi_signal: "多信号",
+    } satisfies Record<RecallResult["matchType"], string>
+  )[matchType];
 }
 </script>
 
@@ -179,6 +194,19 @@ function formatHighlight(text: string) {
 .match-type.keyword {
   background-color: rgba(var(--el-color-primary-rgb), 0.1);
   color: var(--el-color-primary);
+}
+
+.match-type.tag,
+.match-type.tag_vector,
+.match-type.lens,
+.match-type.blender,
+.match-type.multi_signal {
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-warning) 12%,
+    transparent
+  );
+  color: var(--el-color-warning-dark-2);
 }
 
 .score {

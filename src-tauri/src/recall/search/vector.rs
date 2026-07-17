@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::recall::core::{RecallResult, RecallSearchFilters, RetrievalContext, RetrievalEngine};
+use crate::recall::core::{
+    RecallResult, RecallSearchFilters, RecallSignal, RecallSignalType, RetrievalContext,
+    RetrievalEngine,
+};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -169,7 +172,7 @@ impl RetrievalEngine for VectorRetrievalEngine {
                 }
             }
 
-            let mut base = base_lock.write().map_err(|_| "获取思绪集写锁失败")?;
+            let base = base_lock.read().map_err(|_| "获取思绪集读锁失败")?;
 
             // 获取库级别配置覆盖
             let recall_min_score = base
@@ -186,40 +189,15 @@ impl RetrievalEngine for VectorRetrievalEngine {
                 .and_then(|v| v.as_u64())
                 .map(|v| v as usize);
 
-            // 检查模型是否匹配，如果不匹配且 query_model 不为空，尝试按需加载
+            // 目标模型必须由 repository command 预先加载，检索引擎不回读旧目录。
             if base.vector_store.model_id != *model && !model.is_empty() {
-                log::info!(
-                    "[VECTOR_SEARCH] 模型不匹配，尝试按需加载: recall={}, current={}, target={}",
+                log::debug!(
+                    "[VECTOR_SEARCH] 模型未由 repository 加载，跳过: recall={}, current={}, target={}",
                     recall_id,
                     base.vector_store.model_id,
                     model
                 );
-
-                match crate::recall::ops::load_vectors_to_vec(
-                    &context.app_data_dir,
-                    *recall_id,
-                    model,
-                ) {
-                    Ok(Some((vectors, dimension, total_tokens))) => {
-                        log::info!(
-                            "[VECTOR_SEARCH] 按需加载向量成功: recall={}, count={}, dim={}, tokens={}",
-                            recall_id,
-                            vectors.len(),
-                            dimension,
-                            total_tokens
-                        );
-                        base.vector_store
-                            .rebuild(model.clone(), dimension, total_tokens, vectors);
-                    }
-                    _ => {
-                        log::debug!(
-                            "[VECTOR_SEARCH] 磁盘未发现匹配向量，跳过: recall={}, target={}",
-                            recall_id,
-                            model
-                        );
-                        continue;
-                    }
-                }
+                continue;
             }
 
             // 使用连续内存进行并行计算
@@ -267,6 +245,11 @@ impl RetrievalEngine for VectorRetrievalEngine {
                                 recall_id: *recall_id,
                                 recall_name: base.meta.name.clone(),
                                 highlight: None,
+                                signals: vec![RecallSignal {
+                                    signal_type: RecallSignalType::TagVector,
+                                    score: tag_score,
+                                }],
+                                trace: None,
                             });
                         }
                     }
@@ -389,6 +372,17 @@ impl RetrievalEngine for VectorRetrievalEngine {
                         recall_id: *recall_id,
                         recall_name: base.meta.name.clone(),
                         highlight: None,
+                        signals: vec![
+                            RecallSignal {
+                                signal_type: RecallSignalType::ContentVector,
+                                score: vector_score,
+                            },
+                            RecallSignal {
+                                signal_type: RecallSignalType::TagVector,
+                                score: tag_score,
+                            },
+                        ],
+                        trace: None,
                     });
                     matched_ids.insert(entry_id);
                 }
@@ -431,6 +425,11 @@ impl RetrievalEngine for VectorRetrievalEngine {
                             recall_id: *recall_id,
                             recall_name: base.meta.name.clone(),
                             highlight: None,
+                            signals: vec![RecallSignal {
+                                signal_type: RecallSignalType::TagVector,
+                                score: tag_score,
+                            }],
+                            trace: None,
                         });
                     }
                 }

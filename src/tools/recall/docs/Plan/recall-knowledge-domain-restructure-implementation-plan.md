@@ -1,6 +1,6 @@
 # Recall / Knowledge 领域拆分与重构实施计划
 
-**状态**: Pre-Stage、Stage 0、Stage 1、Stage 2 与 Stage 3 的代码和自动化验证已完成；下一施工阶段为 Stage 4。Stage 2.4 的独立 appData Tauri smoke test 与最终真实目录副本验收统一留在发布门槛执行。整个计划完成前不发布中间版本。
+**状态**: Pre-Stage、Stage 0 至 Stage 5 的代码和自动化验证已完成；下一施工阶段为 Stage 6。Stage 2.4 的独立 appData Tauri smoke test 与最终真实目录副本验收统一留在发布门槛执行。整个计划完成前不发布中间版本。
 **创建日期**: 2026-07-17
 **最近修订**: 2026-07-17
 **适用范围**: `src/tools/knowledge-base/`、计划新增的 `src/tools/recall/`、`src/tools/llm-chat/`、`src/tools/agent-manager/`、`src-tauri/src/knowledge/`、计划新增的 `src-tauri/src/recall/`
@@ -417,6 +417,8 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 
 ## 9. Stage 4：收口 Recall 检索契约
 
+**阶段状态**: 已完成。前端统一通过 `engineRequiresEmbedding` 消费后端 capability，并覆盖 vector、lens、blender、semantic、associative，store、service 与 orchestrator 不再维护各自的引擎 ID 列表。Rust / TypeScript 结果契约新增 key、keyword、content-vector、tag-vector、lens、blender、multi-signal 信号，以及包含算法版本、profile、候选分、融合分、minScore 判定和 rank 的 trace。产品 Chat 配置只传 `semantic` / `associative` profile，底层 engine ID 仅保留给 Playground 与显式调试。缓存 key 加入规范化 profile 和 `recall-profile-v1` 算法版本。正常 search engine 已删除旧文件向量按需加载分支。
+
 ### 目标
 
 在融合算法前修复当前契约裂缝，并建立稳定的 profile 与结果语义。
@@ -441,6 +443,8 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 ---
 
 ## 10. Stage 5：融合 Recall 检索引擎
+
+**阶段状态**: 已完成。Rust 新增 `SemanticRecallEngine` 与 `AssociativeRecallEngine` facade，并与 keyword/vector/lens/blender 一同注册。semantic 复用内容向量为主、标签向量为辅的 Vector 引擎；associative 以候选扩展方式运行 Blender 与 Lens，再按 0.65 / 0.35 融合多信号并应用 profile 阈值和 TopK。Chat 默认 semantic；associative 默认 limit 4、minScore 0.45。数据库重启夹具已固定语义精确、语义改写、标签联想、历史牵引和弱相关噪声五类查询，trace 与 signals 均有断言。未新增持久化算法缓存。
 
 ### 目标
 

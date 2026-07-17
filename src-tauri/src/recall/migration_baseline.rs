@@ -27,7 +27,8 @@ use crate::recall::ops::{
     update_recall_models_index, warmup_knowledge_base, warmup_recall_repository,
 };
 use crate::recall::search::{
-    BlenderRetrievalEngine, KeywordRetrievalEngine, LensRetrievalEngine, VectorRetrievalEngine,
+    AssociativeRecallEngine, BlenderRetrievalEngine, KeywordRetrievalEngine, LensRetrievalEngine,
+    SemanticRecallEngine, VectorRetrievalEngine,
 };
 use crate::recall::storage::{LegacyFileRecallImporter, RecallRepository, SqliteRecallRepository};
 use crate::recall::tag_pool::{GlobalTagPoolManager, ModelTagPool};
@@ -584,4 +585,125 @@ fn repository_restart_preserves_all_retrieval_snapshots_without_legacy_files() {
     let context = build_repository_retrieval_context(temp.path(), &baseline);
 
     assert_retrieval_snapshots(&baseline, &context);
+}
+
+#[test]
+fn profile_query_set_is_deterministic_after_repository_restart() {
+    let baseline = fixture();
+    let temp = tempfile::tempdir().expect("temporary appData should be created");
+    let context = build_repository_retrieval_context(temp.path(), &baseline);
+    let rust_collection = baseline.collections[0].id;
+    let rust_entry = baseline.collections[0].entries[0].id;
+    let async_entry = baseline.collections[0].entries[1].id;
+    let cases = vec![
+        (
+            "semantic-exact",
+            "semantic",
+            QueryPayload::Vector {
+                vector: vec![1.0, 0.0, 0.0, 0.0],
+                model: "baseline/embed-4d".to_string(),
+                query: Some("Rust ownership".to_string()),
+            },
+            RecallSearchFilters {
+                recall_ids: Some(vec![rust_collection]),
+                limit: Some(2),
+                min_score: Some(0.0),
+                ..Default::default()
+            },
+            vec![rust_entry, async_entry],
+        ),
+        (
+            "semantic-rewrite",
+            "semantic",
+            QueryPayload::Vector {
+                vector: vec![0.96, 0.04, 0.0, 0.0],
+                model: "baseline/embed-4d".to_string(),
+                query: Some("memory safety without a collector".to_string()),
+            },
+            RecallSearchFilters {
+                recall_ids: Some(vec![rust_collection]),
+                limit: Some(2),
+                min_score: Some(0.0),
+                ..Default::default()
+            },
+            vec![rust_entry, async_entry],
+        ),
+        (
+            "associative-tags",
+            "associative",
+            QueryPayload::Vector {
+                vector: vec![0.9, 0.1, 0.0, 0.0],
+                model: "baseline/embed-4d".to_string(),
+                query: Some("runtime".to_string()),
+            },
+            RecallSearchFilters {
+                recall_ids: Some(vec![rust_collection]),
+                required_tags: Some(vec!["rust".to_string(), "async".to_string()]),
+                limit: Some(2),
+                min_score: Some(0.2),
+                ..Default::default()
+            },
+            vec![async_entry, rust_entry],
+        ),
+        (
+            "associative-history",
+            "associative",
+            QueryPayload::Vector {
+                vector: vec![0.0, 1.0, 0.0, 0.0],
+                model: "baseline/embed-4d".to_string(),
+                query: Some("runtime".to_string()),
+            },
+            RecallSearchFilters {
+                recall_ids: Some(vec![rust_collection]),
+                history_vectors: Some(vec![vec![1.0, 0.0, 0.0, 0.0]]),
+                limit: Some(2),
+                min_score: Some(0.2),
+                ..Default::default()
+            },
+            vec![async_entry],
+        ),
+        (
+            "associative-noise",
+            "associative",
+            QueryPayload::Vector {
+                vector: vec![0.0, 0.0, 0.0, 1.0],
+                model: "baseline/embed-4d".to_string(),
+                query: Some("unrelated noise".to_string()),
+            },
+            RecallSearchFilters {
+                recall_ids: Some(vec![rust_collection]),
+                limit: Some(2),
+                min_score: Some(0.75),
+                ..Default::default()
+            },
+            vec![],
+        ),
+    ];
+
+    for (name, profile, payload, filters, expected_ids) in cases {
+        let execute = || {
+            if profile == "semantic" {
+                SemanticRecallEngine::new().search(&payload, &filters, &context)
+            } else {
+                AssociativeRecallEngine::new().search(&payload, &filters, &context)
+            }
+        };
+        let first = execute().unwrap();
+        let second = execute().unwrap();
+        let first_ids = first
+            .iter()
+            .map(|result| result.entry.id)
+            .collect::<Vec<_>>();
+        let second_ids = second
+            .iter()
+            .map(|result| result.entry.id)
+            .collect::<Vec<_>>();
+        assert_eq!(first_ids, expected_ids, "profile query snapshot {name}");
+        assert_eq!(first_ids, second_ids, "profile query {name}");
+        assert!(first.iter().all(|result| {
+            result.trace.as_ref().is_some_and(|trace| {
+                trace.algorithm_version == "recall-profile-v1" && trace.rank > 0
+            }) && !result.signals.is_empty()
+        }));
+    }
 }

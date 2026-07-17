@@ -13,12 +13,14 @@
 // limitations under the License.
 
 use crate::recall::core::{
-    QueryPayload, RecallResult, RecallSearchFilters, RetrievalContext, RetrievalEngineInfo,
+    QueryPayload, RecallResult, RecallSearchFilters, RecallTrace, RetrievalContext,
+    RetrievalEngineInfo,
 };
 use crate::recall::monitor::{
     emit_monitor_event, RagMetadata, RagPayload, RagResult, RagStats, RecallMonitorEvent,
     RecallMonitorLevel, RecallMonitorStep, RecallStepStatus,
 };
+use crate::recall::search::recall::RECALL_ALGORITHM_VERSION;
 use crate::recall::state::RecallState;
 use tauri::{AppHandle, Manager, State};
 
@@ -81,7 +83,21 @@ pub async fn recall_search(
 
     // 步骤2: 向量召回与初步过滤
     let recall_start = std::time::Instant::now();
-    let results = engine.search(&payload, &filters, &context)?;
+    let mut results = engine.search(&payload, &filters, &context)?;
+    for (rank, result) in results.iter_mut().enumerate() {
+        result.trace.get_or_insert_with(|| RecallTrace {
+            algorithm_version: RECALL_ALGORITHM_VERSION.to_string(),
+            profile: None,
+            engine_id: id.clone(),
+            candidate_score: result.score,
+            fusion_score: result.score,
+            min_score: filters.min_score,
+            passed_min_score: filters
+                .min_score
+                .is_none_or(|minimum| result.score >= minimum),
+            rank: rank + 1,
+        });
+    }
     let recall_duration = recall_start.elapsed().as_millis() as u64;
 
     // 推送监控事件

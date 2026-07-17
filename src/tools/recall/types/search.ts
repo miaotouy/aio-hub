@@ -14,6 +14,32 @@
 
 import type { RecallEntry } from "./recall-entry";
 
+export type RecallProfile = "semantic" | "associative";
+export type RecallSignalType =
+  | "key"
+  | "keyword"
+  | "content-vector"
+  | "tag-vector"
+  | "lens"
+  | "blender"
+  | "multi-signal";
+
+export interface RecallSignal {
+  signalType: RecallSignalType;
+  score: number;
+}
+
+export interface RecallTrace {
+  algorithmVersion: string;
+  profile: RecallProfile | null;
+  engineId: string;
+  candidateScore: number;
+  fusionScore: number;
+  minScore: number | null;
+  passedMinScore: boolean;
+  rank: number;
+}
+
 /**
  * 搜索相关类型定义
  */
@@ -27,13 +53,23 @@ export interface RecallResult {
   /** 相关性评分 (0.0 - 1.0) */
   score: number;
   /** 匹配类型: "vector", "keyword", "tag", "key" */
-  matchType: "vector" | "keyword" | "tag" | "key";
+  matchType:
+    | "vector"
+    | "keyword"
+    | "tag"
+    | "tag_vector"
+    | "key"
+    | "lens"
+    | "blender"
+    | "multi_signal";
   /** 高亮片段 */
   highlight: string | null;
   /** 所属思绪集 ID */
   recallId: string;
   /** 所属思绪集名称 */
   recallName: string;
+  signals?: RecallSignal[];
+  trace?: RecallTrace | null;
 }
 
 /**

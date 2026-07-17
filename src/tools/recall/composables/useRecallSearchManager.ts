@@ -102,6 +102,7 @@ export function useRecallSearchManager() {
         profile,
         extraFilters: finalExtraFilters,
         skipPrep: skipCoverageCheck,
+        availableEngines: recallStore.engines,
         onCoverageRequired,
       });
 

@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::recall::core::{RecallResult, RecallSearchFilters, RetrievalContext, RetrievalEngine};
+use crate::recall::core::{
+    RecallResult, RecallSearchFilters, RecallSignal, RecallSignalType, RetrievalContext,
+    RetrievalEngine,
+};
 
 pub struct KeywordRetrievalEngine;
 
@@ -156,6 +159,11 @@ impl RetrievalEngine for KeywordRetrievalEngine {
                         recall_id: *recall_id,
                         recall_name: base.meta.name.clone(),
                         highlight,
+                        signals: vec![RecallSignal {
+                            signal_type: RecallSignalType::Keyword,
+                            score,
+                        }],
+                        trace: None,
                     });
                 }
             }

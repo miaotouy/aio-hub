@@ -13,8 +13,8 @@
 // limitations under the License.
 
 use crate::recall::core::{
-    QueryPayload, RecallResult, RecallSearchFilters, RetrievalContext, RetrievalEngine,
-    RetrievalEngineInfo,
+    QueryPayload, RecallResult, RecallSearchFilters, RecallSignal, RecallSignalType,
+    RetrievalContext, RetrievalEngine, RetrievalEngineInfo,
 };
 use crate::recall::search::vector::cosine_similarity;
 use crate::recall::tag_pool::ModelTagPool;
@@ -225,21 +225,10 @@ impl RetrievalEngine for BlenderRetrievalEngine {
                 }
             }
 
-            let mut base = base_lock.write().map_err(|_| "获取思绪集写锁失败")?;
+            let base = base_lock.read().map_err(|_| "获取思绪集读锁失败")?;
 
-            // 检查模型并按需加载向量
-            if base.vector_store.model_id != *model && !model.is_empty() {
-                if let Ok(Some((vectors, dimension, total_tokens))) =
-                    crate::recall::ops::load_vectors_to_vec(
-                        &context.app_data_dir,
-                        *recall_id,
-                        model,
-                    )
-                {
-                    base.vector_store
-                        .rebuild(model.clone(), dimension, total_tokens, vectors);
-                }
-            }
+            // 目标模型由 repository command 预先加载；不匹配时禁用语义分量。
+            let model_matches = model.is_empty() || base.vector_store.model_id == *model;
 
             // --- Phase 1: 信号发射 ---
 
@@ -267,7 +256,7 @@ impl RetrievalEngine for BlenderRetrievalEngine {
             // 1b. Semantic Signal
             let mut semantic_scores: HashMap<Uuid, f32> = HashMap::new();
             let dimension = base.vector_store.dimension;
-            if dimension > 0 && dimension == query_vector.len() {
+            if model_matches && dimension > 0 && dimension == query_vector.len() {
                 use rayon::prelude::*;
 
                 let avg_doc_len = if !base.entries.is_empty() {
@@ -428,6 +417,25 @@ impl RetrievalEngine for BlenderRetrievalEngine {
                     recall_id: *recall_id,
                     recall_name: base.meta.name.clone(),
                     highlight: None,
+                    signals: vec![
+                        RecallSignal {
+                            signal_type: RecallSignalType::Keyword,
+                            score: norm_literal,
+                        },
+                        RecallSignal {
+                            signal_type: RecallSignalType::ContentVector,
+                            score: norm_semantic,
+                        },
+                        RecallSignal {
+                            signal_type: RecallSignalType::TagVector,
+                            score: norm_gravity,
+                        },
+                        RecallSignal {
+                            signal_type: RecallSignalType::Blender,
+                            score: final_score,
+                        },
+                    ],
+                    trace: None,
                 });
             }
 

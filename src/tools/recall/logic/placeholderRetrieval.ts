@@ -71,6 +71,7 @@ export async function resolvePlaceholderRetrieval(
         limit: params.limit,
         minScore: params.minScore,
         engineId: params.engineId,
+        profile: params.profile,
         enableCache: req.settings.enableCache,
       });
 
@@ -160,7 +161,9 @@ async function handleStaticAll(
   if (req.recallName) {
     targetBases = recallStore.bases.filter((b) => b.name === req.recallName);
     if (targetBases.length === 0) {
-      logger.warn("static::all 未找到指定思绪集", { recallName: req.recallName });
+      logger.warn("static::all 未找到指定思绪集", {
+        recallName: req.recallName,
+      });
       return [];
     }
   }

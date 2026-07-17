@@ -55,8 +55,23 @@ export function resolveRetrievalParams(req: RecallRetrievalRequest): {
   limit: number;
   minScore: number;
   engineId?: string;
+  profile: "semantic" | "associative";
 } {
-  const { recallId, recallName, limit, minScore, engineId, enabledBindings, settings } = req;
+  const {
+    recallId,
+    recallName,
+    limit,
+    minScore,
+    engineId,
+    profile,
+    enabledBindings,
+    settings,
+  } = req;
+  const resolvedProfile = profile || settings.defaultProfile || "semantic";
+  const profileDefaults =
+    resolvedProfile === "associative"
+      ? { limit: 4, minScore: 0.45 }
+      : { limit: 5, minScore: 0.3 };
 
   let recallIds: string[] = [];
   if (recallId) {
@@ -75,9 +90,10 @@ export function resolveRetrievalParams(req: RecallRetrievalRequest): {
 
   return {
     recallIds,
-    limit: limit || settings.defaultLimit || 5,
-    minScore: minScore || settings.defaultMinScore || 0.3,
-    engineId: engineId || settings.defaultEngineId,
+    limit: limit ?? settings.defaultLimit ?? profileDefaults.limit,
+    minScore: minScore ?? settings.defaultMinScore ?? profileDefaults.minScore,
+    engineId,
+    profile: resolvedProfile,
   };
 }
 

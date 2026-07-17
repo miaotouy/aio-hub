@@ -65,10 +65,6 @@ function insertAutoPlaceholders(
   messages.unshift({ role: "user", content, sourceType: "depth_injection" });
 }
 
-function engineForProfile(profile: "semantic" | "associative" | undefined) {
-  return profile === "associative" ? "lens" : "vector";
-}
-
 function extractQuery(messages: ProcessableMessage[]) {
   const history = messages.filter(
     (message) => message.sourceType === "session_history"
@@ -188,16 +184,14 @@ export class RecallProcessor implements ContextProcessor {
           (placeholder.everyTurns
             ? [String(placeholder.everyTurns)]
             : placeholder.entries),
-        engineId: engineForProfile(
-          placeholder.profile ?? settings?.defaultProfile
-        ),
+        profile: placeholder.profile ?? settings?.defaultProfile ?? "semantic",
         userText,
         aiText,
         turnCount: context.messages.filter((message) => message.role === "user")
           .length,
         recentMessageTexts,
         settings: {
-          defaultEngineId: engineForProfile(settings?.defaultProfile),
+          defaultProfile: settings?.defaultProfile ?? "semantic",
           defaultLimit: settings?.defaultLimit,
           defaultMinScore: settings?.defaultMinScore,
           maxRecallChars: settings?.maxRecallChars,

@@ -35,6 +35,27 @@ function request(): RecallRetrievalRequest {
 
 describe("Recall retrieval policy", () => {
   it("uses the stable collection ID before the display name", () => {
-    expect(resolveRetrievalParams(request()).recallIds).toEqual(["collection-a"]);
+    expect(resolveRetrievalParams(request()).recallIds).toEqual([
+      "collection-a",
+    ]);
+  });
+
+  it("uses profiles for product retrieval without leaking a legacy engine", () => {
+    expect(resolveRetrievalParams(request())).toMatchObject({
+      profile: "semantic",
+      engineId: undefined,
+    });
+    expect(
+      resolveRetrievalParams({ ...request(), profile: "associative" }).profile
+    ).toBe("associative");
+    expect(
+      resolveRetrievalParams({ ...request(), profile: "associative" })
+    ).toMatchObject({ limit: 4, minScore: 0.45 });
+  });
+
+  it("preserves explicit zero thresholds", () => {
+    expect(resolveRetrievalParams({ ...request(), minScore: 0 }).minScore).toBe(
+      0
+    );
   });
 });

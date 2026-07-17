@@ -14,8 +14,8 @@
 
 /// 算法灵感来自 Lionsky
 use crate::recall::core::{
-    QueryPayload, RecallResult, RecallSearchFilters, RetrievalContext, RetrievalEngine,
-    RetrievalEngineInfo,
+    QueryPayload, RecallResult, RecallSearchFilters, RecallSignal, RecallSignalType,
+    RetrievalContext, RetrievalEngine, RetrievalEngineInfo,
 };
 use crate::recall::tag_sea::TagSea;
 use nalgebra::{DMatrix, DVector};
@@ -166,7 +166,7 @@ impl RetrievalEngine for LensRetrievalEngine {
                 }
             }
 
-            let mut base = base_lock.write().map_err(|_| "获取思绪集写锁失败")?;
+            let base = base_lock.read().map_err(|_| "获取思绪集读锁失败")?;
 
             // 获取库级别配置覆盖
             if let Some(min_score) = base
@@ -186,40 +186,14 @@ impl RetrievalEngine for LensRetrievalEngine {
                 .and_then(|v| v.as_u64())
                 .map(|v| v as usize);
 
-            // 检查模型是否匹配，如果不匹配且 query_model 不为空，尝试按需加载
-            // 注意：透镜检索主要依赖标签池向量，条目向量仅作为补充（当前版本甚至未直接使用条目向量进行距离计算）
-            // 因此即使条目向量加载失败，也不应跳过该思绪集
+            // Lens 主要依赖标签池；目标条目向量由 repository command 预先加载。
             if base.vector_store.model_id != *model && !model.is_empty() {
-                log::info!(
-                    "[LENS_SEARCH] 模型不匹配，尝试按需加载条目向量: recall={}, current={}, target={}",
+                log::debug!(
+                    "[LENS_SEARCH] 条目向量模型不匹配，继续使用标签关联: recall={}, current={}, target={}",
                     recall_id,
                     base.vector_store.model_id,
                     model
                 );
-
-                if let Ok(Some((vectors, dimension, total_tokens))) =
-                    crate::recall::ops::load_vectors_to_vec(
-                        &context.app_data_dir,
-                        *recall_id,
-                        model,
-                    )
-                {
-                    log::info!(
-                        "[LENS_SEARCH] 按需加载条目向量成功: recall={}, count={}, dim={}, tokens={}",
-                        recall_id,
-                        vectors.len(),
-                        dimension,
-                        total_tokens
-                    );
-                    base.vector_store
-                        .rebuild(model.clone(), dimension, total_tokens, vectors);
-                } else {
-                    log::debug!(
-                        "[LENS_SEARCH] 磁盘未发现条目匹配向量，但透镜检索将继续使用标签关联: recall={}, target={}",
-                        recall_id,
-                        model
-                    );
-                }
             }
 
             // 构建 TagSea
@@ -468,6 +442,11 @@ impl LensRetrievalEngine {
                     recall_id,
                     recall_name: recall_name.clone(),
                     highlight: None,
+                    signals: vec![RecallSignal {
+                        signal_type: RecallSignalType::Lens,
+                        score,
+                    }],
+                    trace: None,
                 });
             }
         }

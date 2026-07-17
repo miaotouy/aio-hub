@@ -36,6 +36,8 @@ export interface RecallRetrievalRequest {
   modeParams?: string[];
   /** 检索引擎 ID (可选，覆盖默认设置) */
   engineId?: string;
+  /** 产品召回配置；常规 Chat 运行时优先使用 profile。 */
+  profile?: "semantic" | "associative";
 
   // —— 查询文本（chat 从消息树提取）——
   /** 主查询文本 (通常是当前用户消息) */
@@ -53,6 +55,8 @@ export interface RecallRetrievalRequest {
   settings: {
     /** 默认检索引擎 ID */
     defaultEngineId?: string;
+    /** 默认 Recall profile。 */
+    defaultProfile?: "semantic" | "associative";
     /** 默认召回上限 */
     defaultLimit?: number;
     /** 默认最低分数阈值 */

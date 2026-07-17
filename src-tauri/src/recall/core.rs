@@ -289,6 +289,45 @@ pub struct TagSea {
 }
 
 /// 搜索结果项
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum RecallProfile {
+    Semantic,
+    Associative,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum RecallSignalType {
+    Key,
+    Keyword,
+    ContentVector,
+    TagVector,
+    Lens,
+    Blender,
+    MultiSignal,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct RecallSignal {
+    pub signal_type: RecallSignalType,
+    pub score: f32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct RecallTrace {
+    pub algorithm_version: String,
+    pub profile: Option<RecallProfile>,
+    pub engine_id: String,
+    pub candidate_score: f32,
+    pub fusion_score: f32,
+    pub min_score: Option<f32>,
+    pub passed_min_score: bool,
+    pub rank: usize,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct RecallResult {
@@ -298,6 +337,10 @@ pub struct RecallResult {
     pub recall_id: Uuid,
     pub recall_name: String,
     pub highlight: Option<String>, // 匹配片段高亮
+    #[serde(default)]
+    pub signals: Vec<RecallSignal>,
+    #[serde(default)]
+    pub trace: Option<RecallTrace>,
 }
 
 /// 搜索过滤器

@@ -38,6 +38,7 @@ import { preprocessQuery } from "../utils/queryPreProcessor";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import type { LlmProfile } from "@/types/llm-profiles";
 import { SearchOrchestrator } from "../logic/orchestrator";
+import { engineRequiresEmbedding } from "../core/engineCapabilities";
 
 const searchOrchestrator = new SearchOrchestrator();
 
@@ -308,12 +309,9 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
 
       await recallStorage.saveBaseMeta(this.activeBaseId, this.activeBaseMeta);
 
-      const idx = this.bases.findIndex(
-        (b) => b.id === this.activeBaseId
-      );
+      const idx = this.bases.findIndex((b) => b.id === this.activeBaseId);
       if (idx !== -1) {
-        this.bases[idx].entryCount =
-          this.activeBaseMeta.entries.length;
+        this.bases[idx].entryCount = this.activeBaseMeta.entries.length;
         this.bases[idx].updatedAt = now;
         this.bases[idx].totalTokens =
           this.activeBaseMeta.vectorization.totalTokens;
@@ -347,7 +345,7 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
       if (!this.activeBaseId) return [];
 
       const engineId = this.searchSettings.engineId;
-      const isVectorSearch = engineId === "vector" || engineId === "lens";
+      const isVectorSearch = engineRequiresEmbedding(engineId, this.engines);
 
       // 查询预处理：清洗、分词、停用词过滤、Tag 匹配
       const { cleanedQuery, matchedTags } = preprocessQuery(query, {
@@ -400,6 +398,7 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
               enabledOnly: true,
             },
             skipPrep: false, // 自动处理环境准备
+            availableEngines: this.engines,
           });
 
           const totalDuration = Date.now() - startTime;
@@ -440,7 +439,9 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
      */
     async loadEngines() {
       try {
-        this.engines = await invoke<RetrievalEngineInfo[]>("recall_list_engines");
+        this.engines = await invoke<RetrievalEngineInfo[]>(
+          "recall_list_engines"
+        );
         logger.info("加载检索引擎列表成功", { engines: this.engines });
       } catch (e) {
         errorHandler.error(e, "加载检索引擎列表失败");

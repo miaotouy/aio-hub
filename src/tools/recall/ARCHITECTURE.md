@@ -57,7 +57,12 @@ Recall 条目不自动切片，也不保存文档 manifest、文件监听状态�
 - `lens`：结合历史向量投射、标签亲和力和空间反转进行扩散式检索。
 - `blender`：融合字面、语义与标签引力信号，并进行残差挖掘和动态权重调整。
 
-当前保留底层引擎行为，为数据库迁移提供稳定消费者。产品配置已使用 `semantic` / `associative` profile；统一能力、结果与 trace 契约及引擎融合属于 Stage 4/5。
+底层 `keyword`、`vector`、`lens`、`blender` 保留给 Playground 和调试；产品运行时使用两个 facade：
+
+- `semantic`：复用 Vector 引擎，以内容向量为主、标签向量为辅，保持稳定相关性语义。
+- `associative`：扩展 Blender 与 Lens 候选，按 `0.65 / 0.35` 融合字面、内容向量、标签扩散、历史投射和残差信号。
+
+所有引擎通过 `RetrievalEngineInfo.requiresEmbedding` 暴露 capability。结果包含结构化 `signals` 和 `trace`，trace 使用 `recall-profile-v1` 算法版本并记录 profile、候选分、融合分、阈值判断与最终 rank。检索缓存 key 同时包含 profile 和算法版本。
 
 ## 4. 核心流程
 
@@ -80,7 +85,7 @@ Recall 条目不自动切片，也不保存文档 manifest、文件监听状态�
 
 1. 调用方通过 `services/api.ts` 或 Recall 内部编排器构造查询。
 2. 主查询执行清洗和标签匹配；需要向量时生成或融合查询向量。
-3. `recall_search` 根据 `engineId`、集合 ID、标签、阈值和数量执行过滤、计算与排序。
+3. `recall_search` 根据产品 profile 或 Playground engine ID、集合 ID、标签、阈值和数量执行候选、融合、过滤与排序。
 4. 后端发送 `recall-monitor` trace，前端按需格式化结果并执行字符上限截断。
 5. Chat 的 `RecallProcessor` 解析严格命名参数协议、校验 Agent binding 授权，构造 `RecallRetrievalRequest` 并调用 Recall service；旧自由文本语法只生成告警。
 

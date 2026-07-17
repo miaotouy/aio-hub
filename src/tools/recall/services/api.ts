@@ -33,8 +33,13 @@ import { SearchOrchestrator } from "../logic/orchestrator";
 import { useRecallCollectionStore } from "../stores/recallCollectionStore";
 import { vectorCacheManager } from "../utils/vectorCache";
 import { preprocessQuery } from "../utils/queryPreProcessor";
+import {
+  engineRequiresEmbedding,
+  profileDefaults,
+  RECALL_ALGORITHM_VERSION,
+} from "../core/engineCapabilities";
 import { resolvePlaceholderRetrieval as resolvePlaceholderRetrievalInternal } from "../logic/placeholderRetrieval";
-import type { RecallResult } from "../types/search";
+import type { RecallProfile, RecallResult } from "../types/search";
 import type { RecallEntry } from "../types/recall-entry";
 import type { RecallCollectionMeta } from "../types/recall-collection";
 import type {
@@ -68,6 +73,8 @@ export interface SearchParams {
   minScore?: number;
   /** 检索引擎 ID，不传则使用思绪集默认引擎 */
   engineId?: string;
+  /** 产品召回 profile；显式 engineId 仅供 Playground / 调试覆盖。 */
+  profile?: RecallProfile;
   /** 外部已有的查询向量（绕过 embedding 调用） */
   vector?: number[];
   /** Embedding 模型 ID（pureModelId），不传则使用思绪集默认模型 */
@@ -96,6 +103,8 @@ export interface SearchWithCacheParams {
   minScore?: number;
   /** 检索引擎 ID，不传则使用思绪集默认引擎 */
   engineId?: string;
+  /** 产品召回 profile。 */
+  profile?: RecallProfile;
   /** 是否启用缓存（默认 false） */
   enableCache?: boolean;
 }
@@ -122,6 +131,8 @@ interface RetrievalCacheKeyInput {
   minScore: number;
   engineId: string;
   modelId: string;
+  profile?: RecallProfile;
+  algorithmVersion: string;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -131,10 +142,9 @@ interface RetrievalCacheKeyInput {
 /**
  * 解析最终使用的引擎 ID（fallback 链：参数 > 思绪集默认 > "vector"）
  */
-function resolveEngineId(engineId?: string): string {
+function resolveEngineId(engineId?: string, profile?: RecallProfile): string {
   if (engineId) return engineId;
-  const store = useRecallCollectionStore();
-  return store.config?.defaultEngineId || "vector";
+  return profile || "semantic";
 }
 
 /**
@@ -233,7 +243,7 @@ export async function search(params: SearchParams): Promise<RecallResult[]> {
   return (
     (await errorHandler.wrapAsync(
       async () => {
-        const engineId = resolveEngineId(params.engineId);
+        const engineId = resolveEngineId(params.engineId, params.profile);
         const modelId = params.modelId || resolveModelId();
 
         logger.debug("执行思绪集检索", {
@@ -255,6 +265,7 @@ export async function search(params: SearchParams): Promise<RecallResult[]> {
           limit: params.limit,
           vector_payload: params.vector,
           skipPrep: true, // 外部调用跳过环境准备（由调用方或 store 自身保证）
+          availableEngines: useRecallCollectionStore().engines,
         });
 
         logger.debug("思绪集检索完成", { count: results.length });
@@ -285,9 +296,11 @@ export async function searchWithCache(
   const secondary = params.secondaryQuery || "";
   const weights = params.fusionWeights || [0.7, 0.3];
   const explicitTags = params.tags || [];
-  const limit = params.limit ?? 5;
-  const minScore = params.minScore ?? 0.3;
-  const engineId = resolveEngineId(params.engineId);
+  const profile = params.profile;
+  const defaults = profileDefaults(profile);
+  const limit = params.limit ?? defaults.limit;
+  const minScore = params.minScore ?? defaults.minScore;
+  const engineId = resolveEngineId(params.engineId, profile);
   const modelId = resolveModelId();
   const enableCache = params.enableCache ?? false;
 
@@ -308,6 +321,8 @@ export async function searchWithCache(
     minScore,
     engineId,
     modelId,
+    profile,
+    algorithmVersion: RECALL_ALGORITHM_VERSION,
   };
 
   // 1. 查缓存
@@ -332,8 +347,7 @@ export async function searchWithCache(
   }
 
   // 2. 决定是否需要向量
-  const isVectorEngine =
-    engineId === "vector" || engineId === "hybrid" || engineId === "lens";
+  const isVectorEngine = engineRequiresEmbedding(engineId, store.engines);
   let vector: number[] | null = null;
   if (isVectorEngine) {
     vector = await buildFusedQueryVector(primary, secondary, weights, modelId);
@@ -347,6 +361,7 @@ export async function searchWithCache(
     limit,
     minScore,
     engineId,
+    profile,
     vector: vector || undefined,
     modelId: modelId || undefined,
   });

@@ -15,7 +15,8 @@
 use crate::recall::core::{RecallResult, RetrievalEngine};
 use crate::recall::index::InMemoryDatabase;
 use crate::recall::search::{
-    BlenderRetrievalEngine, KeywordRetrievalEngine, LensRetrievalEngine, VectorRetrievalEngine,
+    AssociativeRecallEngine, BlenderRetrievalEngine, KeywordRetrievalEngine, LensRetrievalEngine,
+    SemanticRecallEngine, VectorRetrievalEngine,
 };
 use crate::recall::storage::RecallRepository;
 use crate::recall::tag_pool::GlobalTagPoolManager;
@@ -60,6 +61,8 @@ impl RecallState {
             Box::new(VectorRetrievalEngine::new()),
             Box::new(LensRetrievalEngine::new()),
             Box::new(BlenderRetrievalEngine::new()),
+            Box::new(SemanticRecallEngine::new()),
+            Box::new(AssociativeRecallEngine::new()),
         ];
 
         Self {

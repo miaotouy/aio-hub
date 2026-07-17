@@ -25,9 +25,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { LlmProfile } from "@/types/llm-profiles";
 import type { RecallEntry, RecallRequestSettings } from "../types";
-import type { RecallResult } from "../types/search";
+import type { RecallResult, RetrievalEngineInfo } from "../types/search";
 import { generateVectors, vectorizeTags } from "../core/embedding";
 import { prepareSearchVector } from "../core/search";
+import { engineRequiresEmbedding } from "../core/engineCapabilities";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("recall-orchestrator");
@@ -157,7 +158,8 @@ export class IndexingOrchestrator {
     ) => void;
     shouldStop?: () => boolean;
   }) {
-    const { recallId, entryIds, modelId, profile, onProgress, shouldStop } = params;
+    const { recallId, entryIds, modelId, profile, onProgress, shouldStop } =
+      params;
     if (entryIds.length === 0) return;
 
     const requestSettings = this.config.requestSettings;
@@ -183,10 +185,13 @@ export class IndexingOrchestrator {
             // 加载当前批次的完整条目
             const entries: RecallEntry[] = [];
             for (const id of batchIds) {
-              const entry = await invoke<RecallEntry | null>("recall_load_entry", {
-                recallId,
-                entryId: id,
-              });
+              const entry = await invoke<RecallEntry | null>(
+                "recall_load_entry",
+                {
+                  recallId,
+                  entryId: id,
+                }
+              );
               if (entry) entries.push(entry);
             }
 
@@ -348,6 +353,7 @@ export class SearchOrchestrator {
     limit?: number;
     extraFilters?: Record<string, any>;
     vector_payload?: number[];
+    availableEngines?: RetrievalEngineInfo[];
     skipPrep?: boolean;
     onCoverageRequired?: (
       data: CoverageData
@@ -362,6 +368,7 @@ export class SearchOrchestrator {
       limit = 20,
       extraFilters,
       vector_payload,
+      availableEngines,
       skipPrep = false,
       onCoverageRequired,
     } = params;
@@ -369,14 +376,15 @@ export class SearchOrchestrator {
     if (!query.trim()) return [];
     if (recallIds.length === 0) throw new Error("请先选择思绪集");
 
-    const isVectorEngine = ["vector", "lens", "hybrid"].includes(engineId);
+    const isVectorEngine = engineRequiresEmbedding(engineId, availableEngines);
     let vector: number[] | undefined;
 
     // 1. 如果是向量引擎，执行环境准备和向量获取
     if (isVectorEngine) {
-      if (!modelId || !profile) throw new Error("执行向量搜索需要配置模型信息");
+      if (!modelId) throw new Error("执行向量搜索需要配置模型信息");
 
       if (!skipPrep) {
+        if (!profile) throw new Error("执行向量搜索需要配置模型 Profile");
         // A. 覆盖率检查与补全 (由外部 UI 控制)
         if (onCoverageRequired && this.syncManager) {
           const coverage = await this.syncManager.checkCoverage({
@@ -409,13 +417,17 @@ export class SearchOrchestrator {
       }
 
       // 获取查询向量 (Core 层纯函数)
-      vector = await prepareSearchVector({
-        query,
-        modelId,
-        profile,
-        vector_payload,
-        requestSettings: this.config.requestSettings,
-      });
+      if (vector_payload) {
+        vector = vector_payload;
+      } else {
+        if (!profile) throw new Error("生成查询向量需要配置模型 Profile");
+        vector = await prepareSearchVector({
+          query,
+          modelId,
+          profile,
+          requestSettings: this.config.requestSettings,
+        });
+      }
     }
 
     // 2. 调用后端检索

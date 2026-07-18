@@ -372,6 +372,12 @@ Phase 3 分为五个施工批次。后端配置和摄取契约先行，工作台
 - **证据边界**：隔离数据根为 `.dev-data/knowledge-acceptance-20260719-4`，截图、Tauri/Vite/mock 日志和单库数据库均保留在该目录；测试未使用用户默认 appData、外部付费端点或真实 API Key。
 - **恢复施工条件**：修复文档/来源删除事务中的 FTS 清理并增加“删除后 FTS 无残留且搜索无命中”的 Rust 回归测试；修复目录重扫对向量化 warnings 的可见提示并补前端测试。完成自动验证后必须重新使用全新隔离数据根执行 P3-T05/T06，门禁通过前不得进入 Phase 4。
 
+真实运行态验收第三次施工记录（2026-07-19）：
+
+- 一般问题：新的隔离实例已能启动真实 Tauri WebView、创建资料库并连接本地 Embedding mock；但 Windows 原生文件选择器在当前多窗口桌面环境被放置到可视工作区下方，自动化只能确认对话框存在，无法稳定将文件名输入和“打开”结果回传到 WebView。该问题属于验收环境交互边界，不能用直接 `invoke`、伪造 H5 File 或 repository 调用替代系统入口，因此本次不计入 P3-T05 通过。
+- 证据边界：实例使用 `AIO_ID_SUFFIX=knowledge-acceptance-20260719-5`、`AIO_DATA_DIR=.dev-data/knowledge-acceptance-20260719-5`、loopback CDP `9337` 和本地 `127.0.0.1:17400` Embedding mock；窗口启动日志、mock 日志和截图均保留在隔离目录，未访问默认 appData、真实 API Key 或外部付费端点。
+- 恢复条件：需要在可见桌面完成一次系统文件/目录选择，或提供稳定的 Windows 原生对话框自动化驱动后，重新从全新隔离数据根执行 P3-T05/T06；在此之前继续保持 Phase 3 门禁未通过，不进入 Phase 4。
+
 - [x] P3-T01 前端测试覆盖配置默认值、深度合并、防抖、重置、串库隔离和保存失败保留输入。
 - [x] P3-T02 前端测试覆盖格式单一来源、未知格式检测、选择/拖放共用入口、混合批次和失败明细。
 - [x] P3-T03 Rust 测试覆盖单库配置持久化、legacy manifest 迁移、非法配置、分块参数、requested/actual dimensions、运行时真源隔离、原子重建回滚和重启恢复。

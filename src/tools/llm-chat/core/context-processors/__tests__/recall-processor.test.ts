@@ -79,11 +79,54 @@ describe("RecallProcessor", () => {
     await new RecallProcessor().execute(context);
 
     expect(resolvePlaceholderRetrieval).toHaveBeenCalledOnce();
+    expect(resolvePlaceholderRetrieval).toHaveBeenCalledWith(
+      expect.objectContaining({ turnCount: 1, recentMessageTexts: ["query"] })
+    );
     expect(context.messages[0]).toMatchObject({
       role: "user",
       sourceType: "depth_injection",
       content: "retrieved",
     });
     expect(context.messages[1].content).toBe("query");
+  });
+
+  it("builds gate and turn context only from session history", async () => {
+    const context = createContext({
+      messages: [
+        {
+          role: "system",
+          content:
+            "【recall::collection=collection-1::when=gate::gate-tags=rust】",
+        },
+        { role: "user", content: "preset user text" },
+        {
+          role: "assistant",
+          content: "previous answer",
+          sourceType: "session_history",
+        },
+        { role: "user", content: "current query", sourceType: "session_history" },
+      ],
+      agentConfig: {
+        recallConfig: {
+          enabled: true,
+          bindings: [
+            {
+              recallId: "collection-1",
+              recallName: "Engineering",
+              enabled: true,
+            },
+          ],
+        },
+      } as PipelineContext["agentConfig"],
+    });
+
+    await new RecallProcessor().execute(context);
+
+    expect(resolvePlaceholderRetrieval).toHaveBeenCalledWith(
+      expect.objectContaining({
+        turnCount: 1,
+        recentMessageTexts: ["previous answer", "current query"],
+      })
+    );
   });
 });

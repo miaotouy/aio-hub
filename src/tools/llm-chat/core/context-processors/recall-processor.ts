@@ -153,9 +153,15 @@ export class RecallProcessor implements ContextProcessor {
       }
     }
     const { userText, aiText } = extractQuery(context.messages);
-    const recentMessageTexts = context.messages
+    const sessionHistory = context.messages.filter(
+      (message) => message.sourceType === "session_history"
+    );
+    const recentMessageTexts = sessionHistory
       .filter((message) => typeof message.content === "string")
       .map((message) => message.content as string);
+    const turnCount = sessionHistory.filter(
+      (message) => message.role === "user"
+    ).length;
     for (const placeholder of placeholders) {
       if (
         placeholder.collection &&
@@ -184,8 +190,7 @@ export class RecallProcessor implements ContextProcessor {
         profile: placeholder.profile ?? settings?.defaultProfile ?? "semantic",
         userText,
         aiText,
-        turnCount: context.messages.filter((message) => message.role === "user")
-          .length,
+        turnCount,
         recentMessageTexts,
         settings: {
           defaultProfile: settings?.defaultProfile ?? "semantic",

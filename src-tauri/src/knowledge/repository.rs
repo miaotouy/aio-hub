@@ -61,7 +61,6 @@ impl KnowledgeRepository {
                     id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
                     description TEXT,
-                    db_path TEXT NOT NULL,
                     embedding_model_id TEXT NOT NULL DEFAULT '',
                     dimension INTEGER NOT NULL DEFAULT 0,
                     config_json TEXT NOT NULL DEFAULT '{}',
@@ -88,7 +87,7 @@ impl KnowledgeRepository {
         let libraries = {
             let mut statement = connection
                 .prepare(
-                    "SELECT id, db_path, config_json, embedding_model_id, dimension,
+                    "SELECT id, config_json, embedding_model_id, dimension,
                             active_embedding_space_id, embedding_route_key
                      FROM knowledge_libraries",
                 )
@@ -99,10 +98,9 @@ impl KnowledgeRepository {
                         row.get::<_, String>(0)?,
                         row.get::<_, String>(1)?,
                         row.get::<_, String>(2)?,
-                        row.get::<_, String>(3)?,
-                        row.get::<_, i64>(4)?,
+                        row.get::<_, i64>(3)?,
+                        row.get::<_, String>(4)?,
                         row.get::<_, String>(5)?,
-                        row.get::<_, String>(6)?,
                     ))
                 })
                 .map_err(|error| format!("查询 Knowledge 空间迁移项失败: {error}"))?
@@ -110,17 +108,10 @@ impl KnowledgeRepository {
                 .map_err(|error| format!("读取 Knowledge 空间迁移项失败: {error}"))?;
             rows
         };
-        for (
-            id,
-            db_path,
-            legacy_config,
-            legacy_model_id,
-            dimension,
-            active_space_id,
-            legacy_route_key,
-        ) in libraries
+        for (id, legacy_config, legacy_model_id, dimension, active_space_id, legacy_route_key) in
+            libraries
         {
-            let path = PathBuf::from(db_path);
+            let path = self.library_path(&id);
             self.initialize_library(&path)?;
             let route_key = if legacy_route_key.trim().is_empty() {
                 legacy_model_id
@@ -150,18 +141,18 @@ impl KnowledgeRepository {
         let config_json = serde_json::to_string(&config)
             .map_err(|error| format!("序列化 Knowledge library 配置失败: {error}"))?;
         let id = Uuid::new_v4().to_string();
-        let db_path = self.library_path(&id);
-        self.initialize_library(&db_path)?;
-        self.initialize_library_metadata(&db_path, &config_json, "", "", 0)?;
+        let library_path = self.library_path(&id);
+        self.initialize_library(&library_path)?;
+        self.initialize_library_metadata(&library_path, &config_json, "", "", 0)?;
         let now = now();
         let manifest_result = self.open_manifest()?.execute(
             "INSERT INTO knowledge_libraries(
-                    id, name, description, db_path, created_at, updated_at
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
-            params![id, name.trim(), description, db_path.to_string_lossy(), now],
+                    id, name, description, created_at, updated_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?4)",
+            params![id, name.trim(), description, now],
         );
         if let Err(error) = manifest_result {
-            let _ = std::fs::remove_file(&db_path);
+            let _ = std::fs::remove_file(&library_path);
             return Err(format!("创建 Knowledge library 失败: {error}"));
         }
         self.get_library(&id)?
@@ -2050,21 +2041,20 @@ impl KnowledgeRepository {
 
     fn resolve_library_path(&self, id: &str) -> Result<PathBuf, String> {
         Uuid::parse_str(id).map_err(|_| "Knowledge library ID 不是 UUID".to_string())?;
-        let path = self
+        let exists = self
             .open_manifest()?
             .query_row(
-                "SELECT db_path FROM knowledge_libraries WHERE id = ?1",
+                "SELECT 1 FROM knowledge_libraries WHERE id = ?1",
                 [id],
-                |row| row.get::<_, String>(0),
+                |_| Ok(()),
             )
             .optional()
-            .map_err(|error| format!("读取 Knowledge library 路径失败: {error}"))?
-            .ok_or_else(|| format!("找不到 Knowledge library: {id}"))?;
-        let resolved = PathBuf::from(path);
-        if resolved.parent() != Some(self.libraries_dir.as_path()) {
-            return Err("Knowledge library 路径越出受管目录".to_string());
+            .map_err(|error| format!("检查 Knowledge library 失败: {error}"))?
+            .is_some();
+        if !exists {
+            return Err(format!("找不到 Knowledge library: {id}"));
         }
-        Ok(resolved)
+        Ok(self.library_path(id))
     }
 
     fn library_path(&self, id: &str) -> PathBuf {
@@ -3216,6 +3206,51 @@ mod tests {
     }
 
     #[test]
+    fn library_paths_follow_the_current_data_root_after_relocation() {
+        let directory = tempdir().unwrap();
+        let source_root = directory.path().join("source-app-data");
+        let target_root = directory.path().join("target-app-data");
+        let repository = KnowledgeRepository::new(&source_root);
+        repository.initialize().unwrap();
+        let library = repository
+            .create_library("Relocatable", None, None)
+            .unwrap();
+        repository
+            .ingest(&request(
+                &library.id,
+                "docs/relocation.md",
+                "Knowledge data follows its configured app data root.",
+            ))
+            .unwrap();
+        let manifest_columns = repository
+            .open_manifest()
+            .unwrap()
+            .prepare("PRAGMA table_info(knowledge_libraries)")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert!(!manifest_columns.iter().any(|column| column == "db_path"));
+        drop(repository);
+
+        std::fs::create_dir_all(&target_root).unwrap();
+        std::fs::rename(source_root.join("knowledge"), target_root.join("knowledge")).unwrap();
+
+        let relocated = KnowledgeRepository::new(&target_root);
+        relocated.initialize().unwrap();
+        assert_eq!(relocated.list_libraries().unwrap()[0].id, library.id);
+        assert_eq!(relocated.list_documents(&library.id).unwrap().len(), 1);
+        assert_eq!(
+            relocated.resolve_library_path(&library.id).unwrap(),
+            target_root
+                .join("knowledge")
+                .join("libraries")
+                .join(format!("{}.kdb", library.id))
+        );
+    }
+
+    #[test]
     fn runtime_ignores_stale_manifest_index_identity_after_metadata_exists() {
         let directory = tempdir().unwrap();
         let repository = KnowledgeRepository::new(directory.path());
@@ -3272,9 +3307,9 @@ mod tests {
             .unwrap()
             .execute(
                 "INSERT INTO knowledge_libraries(
-                    id, name, db_path, config_json, created_at, updated_at
-                 ) VALUES (?1, 'Legacy Empty', ?2, '{}', 1, 1)",
-                params![library_id, library_path.to_string_lossy()],
+                    id, name, config_json, created_at, updated_at
+                 ) VALUES (?1, 'Legacy Empty', '{}', 1, 1)",
+                params![library_id],
             )
             .unwrap();
 

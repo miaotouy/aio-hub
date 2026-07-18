@@ -6,9 +6,11 @@ Knowledge 是 AIO Hub 的文档资料与来源回溯领域，与 Recall 思绪�
 
 ## 1. 存储与索引
 
-- `knowledge/knowledge_meta.db` 只保存 library ID、名称、说明、受管文件路径、目录时间戳和 manifest schema migration。它是资料库目录，不是索引配置或活动向量身份的事实来源。
+- Knowledge repository 必须以项目统一的 `get_app_data_dir(app.config())` 为数据根，使默认、自定义、便携和隔离实例与其他应用数据遵守同一路径契约。不得直接使用 Tauri `app.path().app_data_dir()` 建立第二个数据根。
+- `knowledge/knowledge_meta.db` 只保存 library ID、名称、说明、目录时间戳和 manifest schema migration。它不保存单库数据库绝对路径，也不是索引配置或活动向量身份的事实来源。
 - `knowledge/libraries/{libraryId}.kdb` 是每库独立的 SQLite 文件，包含版本化 `library_metadata`、索引配置快照、活动 Embedding space/route/维度、document、chunk、FTS5、`embedding_spaces`、按 `space_id` 隔离的 chunk vector 和相邻 chunk graph edge。
-- library 文件采用 UUID 路径约束；删除先隔离为 tombstone，再删除 manifest，失败时恢复文件。
+- library 文件采用 UUID 路径约束，并始终从当前数据根派生；整个数据根移动或复制后不会引用旧位置。删除先隔离为 tombstone，再删除 manifest，失败时恢复文件。
+- Knowledge 在正式发布前的数据根分裂不提供迁移兼容：不探测、不合并、不搬运旧 Tauri 默认目录中的开发期数据，验收和开发直接使用全新隔离数据根。
 - `knowledge_sources` 保存独立文件或目录来源，`knowledge_source_files` 保存稳定文件身份、原始 SHA-256、parser 版本、当前 document 和最近状态；`knowledge_ingest_tasks` 持久化 pending/processing/retry/failed/completed/cancelled、有限重试、取消与 lease。文件在入队哈希前后必须保持 size/mtime 稳定，原始 checksum 或 parser 版本未变化时跳过重复解析。
 - 目录来源使用显式递归范围、ignore 规则且不跟随符号链接。重扫复用同一 ingest queue；新增/修改文件进入 upsert，缺失文件进入 delete，移动等价于旧路径 delete + 新路径 upsert。删除任务完成前旧 document 继续可用。
 - 文档以 `sourcePath` 为稳定键。任务完成时校验 lease、入队 checksum 与 parser 版本，并在单个 library transaction 中原子提交 document 版本、chunk、FTS、graph、source file 和 task 状态。

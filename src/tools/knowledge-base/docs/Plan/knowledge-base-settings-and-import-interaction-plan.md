@@ -101,7 +101,7 @@ Knowledge 应复用上述能力。不能只绑定 DOM `drop` 事件，因为 Tau
 
 创建资料库时从代码中的受校验默认配置生成独立快照；系统运行配置中的默认 Embedding route 只在创建时写入该快照。后续修改运行配置不得改变已有资料库，避免资料库随全局设置变化而隐式重切片、改变空间身份或触发额外模型调用。
 
-manifest 只保存 library ID、名称、说明和受管文件路径等目录信息。索引配置、活动 Embedding space、route、descriptor 与实际维度属于派生索引身份，必须与 document/chunk/FTS/vector/graph 位于同一个 library 数据库。应用配置和重建只允许在单个 WAL 数据库事务内提交；禁止依赖 WAL 模式下的 `ATTACH` 跨文件提交。manifest 中已有的 `config_json` 与活动向量字段只作为可重入的一次性迁移输入，迁移完成后不得参与运行时判定。
+manifest 只保存 library ID、名称、说明和目录时间戳等目录信息，不保存单库数据库绝对路径。单库路径必须由当前统一 appData 根和稳定 library ID 派生，使整个数据根可以移动、复制和清理。索引配置、活动 Embedding space、route、descriptor 与实际维度属于派生索引身份，必须与 document/chunk/FTS/vector/graph 位于同一个 library 数据库。应用配置和重建只允许在单个 WAL 数据库事务内提交；禁止依赖 WAL 模式下的 `ATTACH` 跨文件提交。manifest 中已有的 `config_json` 与活动向量字段只作为可重入的一次性迁移输入，迁移完成后不得参与运行时判定。
 
 单库配置使用版本化结构，例如：
 

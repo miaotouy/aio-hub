@@ -6,17 +6,14 @@ use super::repository::KnowledgeRepository;
 use super::types::*;
 use super::KnowledgeState;
 use std::sync::Arc;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, State};
 
 #[tauri::command]
 pub async fn knowledge_initialize(
     app: AppHandle,
     state: State<'_, KnowledgeState>,
 ) -> Result<(), String> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| error.to_string())?;
+    let app_data_dir = crate::get_app_data_dir(app.config());
     let repository = Arc::new(KnowledgeRepository::new(app_data_dir));
     repository.initialize()?;
     state.set_repository(repository)

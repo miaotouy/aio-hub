@@ -1,8 +1,8 @@
 # Knowledge 施工步骤计划清单
 
-- **状态**：施工中（Phase 0、Phase 1、Phase 2、Phase 3 批次 A/B 已完成，Phase 3 批次 C 待施工）
+- **状态**：施工中（Phase 0、Phase 1、Phase 2、Phase 3 批次 A-E 已完成；数据根分裂已修复，待重跑 Phase 3 真实运行态验收）
 - **创建日期**：2026-07-18
-- **最近修订**：2026-07-18
+- **最近修订**：2026-07-19
 - **适用范围**：`src/tools/knowledge-base/`、`src/tools/retrieval/`、`src/tools/llm-chat/`、`src/tools/agent-manager/`、`src-tauri/src/knowledge/`
 - **上位依据**：
   - [Knowledge 资料库产品方案](./knowledge-base-product-interaction-design.md)
@@ -346,11 +346,30 @@ Phase 3 分为五个施工批次。后端配置和摄取契约先行，工作台
 
 ### 7.6 Phase 3 验证与退出门禁
 
+真实 Tauri 运行态验收协议：
+
+- 验收实例必须同时使用唯一 `AIO_ID_SUFFIX` 和独立 `AIO_DATA_DIR`，不得读取、复制或修改用户默认 appData 中的模型配置、资料库、会话或密钥。重启恢复测试只复用本次验收的隔离目录，验收结束后可整体清理。
+- Windows 自动验收可以通过 `AIO_WEBVIEW2_ADDITIONAL_BROWSER_ARGS` 为 **debug 构建**开启只监听 loopback 的临时 WebView2 CDP 端口；该入口不得在 release 构建生效，未设置或为空时不得改变窗口行为。CDP 只负责真实 WebView 中的 DOM、焦点、样式和截图检查，不能替代 Tauri IPC、原生文件/目录对话框或窗口生命周期。
+- 文件选择、多文件选择和目录同步必须实际经过系统对话框与应用 UI；拖放必须经过 Tauri 提供的绝对路径事件。可以用自动化驱动交互，但不得直接调用 repository command 或伪造 H5 `File.name` 来冒充这些入口已通过。
+- Phase 3 的“模型调用”验收用于证明 Knowledge 从隔离模型 Profile 经应用 Transport 发出 Embedding 请求，并正确处理响应维度、索引切换、失败和重试。默认使用本机可控、响应确定的 OpenAI-compatible Embedding mock；不得复用用户密钥或未经授权调用外部付费端点。Provider 质量、真实网络兼容性和外部模型效果不属于本门禁，另在有明确测试凭据和授权时验收。
+- 验收记录至少保存运行方式、隔离目录标识、窗口/WebView 版本、通过场景、失败证据和截图路径；日志与截图不得包含 API Key、Authorization header 或用户数据。自动化无法覆盖的系统差异必须明确记录为人工验收边界，不能静默勾选。
+
+真实运行态验收严重问题与停工记录（2026-07-19）：
+
+- **预期契约**：`AIO_DATA_DIR`、`--data-dir` 和便携模式确定统一数据根；Knowledge manifest、单库数据库、运行配置及其他应用数据必须位于同一根下，隔离实例也应能整体重启、备份和清理。
+- **实际行为**：`knowledge_initialize` 使用 Tauri 的 `app.path().app_data_dir()` 创建 repository，没有复用项目统一的 `get_app_data_dir(app.config())`。本次实例明确设置 `AIO_DATA_DIR=E:\rc20\allinweb\aiohub-dev\.dev-data\knowledge-acceptance-20260718-3`，运行配置写入该目录，但 Knowledge manifest 和 library 数据库实际写入 `%APPDATA%\com.mty.aiohub.knowledge-acceptance-20260718-3\knowledge`。
+- **严重原因**：自定义数据目录和便携模式下，Knowledge 会与其他应用数据分裂；目录级备份、删除或复制实例无法覆盖完整资料库，切换运行方式后资料库会“消失”，同时旧索引仍残留在默认用户目录。manifest 还曾保存单库数据库绝对路径，导致即使整体复制数据根，库文件定位也会继续指向旧位置。
+- **本次影响边界**：验收使用了唯一 `AIO_ID_SUFFIX`，因此只创建了后缀隔离目录，没有读写默认 `%APPDATA%\com.mty.aiohub\knowledge`。发现问题后停止 P3-T05/T06，不把已创建资料库或对话框操作记为验收通过，并保留隔离数据作为复现证据。
+- **采用修复**：`knowledge_initialize` 直接复用全局 `get_app_data_dir(app.config())`。manifest 不再保存或读取单库数据库路径；repository 校验稳定 UUID 和 manifest 成员关系后，只从当前统一数据根派生 `knowledge/libraries/{libraryId}.kdb`，因此整个数据根可以整体移动、复制和清理。
+- **开发期数据策略**：Knowledge 尚未随正式版本发布，不建立旧默认目录探测、双根合并、覆盖提示或回滚迁移分支。旧 schema 和本次隔离验收生成的分裂数据均视为可丢弃开发数据，不自动读取或搬运；验收使用全新隔离目录重新创建。该策略避免把一次开发期错误固化为长期运行时兼容面。
+- **恢复施工条件**：路径实现与“整体移动数据根后重启恢复”自动测试通过后恢复 Phase 3 施工；随后使用全新的隔离实例重跑 P3-T05/T06。真实运行态门禁完成前不得继续 Phase 4。
+
 - [x] P3-T01 前端测试覆盖配置默认值、深度合并、防抖、重置、串库隔离和保存失败保留输入。
 - [x] P3-T02 前端测试覆盖格式单一来源、未知格式检测、选择/拖放共用入口、混合批次和失败明细。
 - [x] P3-T03 Rust 测试覆盖单库配置持久化、legacy manifest 迁移、非法配置、分块参数、requested/actual dimensions、运行时真源隔离、原子重建回滚和重启恢复。
 - [x] P3-T04 Rust 测试覆盖队列恢复、lease、有限重试、checksum 去重、文件级隔离和旧版本保留。
-- [ ] P3-T05 在隔离 appData 的真实 Tauri WebView 中验收文件选择、多文件拖放、目录同步、重启恢复和模型调用。
+- [x] P3-T04A Knowledge 初始化复用统一数据根；Rust 测试覆盖 manifest 不持久化单库路径，以及整体移动数据根后的重启恢复。
+- [ ] P3-T05 按上述协议在隔离 appData 的真实 Tauri WebView 中验收文件选择、多文件拖放、目录同步、重启恢复，以及经本地可控 Embedding mock 的完整模型请求与索引链路。
 - [ ] P3-T06 验收大、中、小窗口、键盘、明暗主题、覆盖层层级和错误对比度。
 - [x] P3-DOC 重写设置/导入计划的暂停部分，记录最终配置分层、格式、队列、目录同步和实际施工偏差。
 - [ ] P3-GATE 用户可以稳定管理资料源、检查派生索引和失败任务；更新或重建失败不会破坏原有可用数据。

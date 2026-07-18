@@ -2,7 +2,7 @@
 
 **状态**: Pre-Stage、Stage 0 至 Stage 6 已完成；Knowledge 前端工作台、索引状态与产品化向量化入口已补齐。Stage 7 的代码边界清理已完成，首次启动迁移接线、独立 appData / 真实目录副本验收与发布 smoke test 仍待执行。整个计划完成前不发布中间版本。
 **创建日期**: 2026-07-17
-**最近修订**: 2026-07-17
+**最近修订**: 2026-07-18
 **适用范围**: `src/tools/knowledge-base/`、计划新增的 `src/tools/recall/`、`src/tools/llm-chat/`、`src/tools/agent-manager/`、`src-tauri/src/knowledge/`、计划新增的 `src-tauri/src/recall/`
 
 关联调查：
@@ -501,7 +501,7 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 
 ## 12. Stage 7：清理旧边界
 
-**阶段状态**：代码与文档边界清理已完成，最终发布接线待人工验收。常规 pipeline 只注册 Recall / Knowledge processor 和宏，共享 tokenizer 只登记两个 namespace；Recall 编辑器和公共 Agent 类型已移除长期 `KB` / `KnowledgeBase` 命名，旧 `knowledgeBaseConfig`、`kbId`、旧目录 IO 只保留在版本化 migration、legacy importer、备份恢复和隔离夹具中。设置页已提供只读迁移状态、报告导出和双重确认清理入口；后端只有在主数据/向量报告均完整、无问题且目录指纹一致时才允许删除旧 `bases` / `vectors` / `tag_pool`，并保留同目录下的新 Knowledge manifest 与 libraries。迁移报告样例见 [`recall-knowledge-migration-report-sample.md`](recall-knowledge-migration-report-sample.md)。首次启动自动迁移、真实用户目录只读标记和发布二进制 smoke test 仍按最终发布门槛执行，不在施工期访问真实用户 appData。
+**阶段状态**：代码与文档边界清理已完成，最终发布接线待人工验收。常规 pipeline 只注册 Recall / Knowledge processor 和宏，共享 tokenizer 只登记两个 namespace；Recall 编辑器和公共 Agent 类型已移除长期 `KB` / `KnowledgeBase` 命名，旧 `knowledgeBaseConfig`、`kbId`、旧目录 IO 只保留在版本化 migration、legacy importer、备份恢复和隔离夹具中。设置页已提供只读迁移状态、Recall 报告导出和双重确认清理入口；后端只有在主数据/向量报告均完整、无问题且目录指纹一致时才允许删除旧 `bases` / `vectors` / `tag_pool`，并保留同目录下的新 Knowledge manifest 与 libraries。迁移报告样例见 [`recall-knowledge-migration-report-sample.md`](recall-knowledge-migration-report-sample.md)。首次启动自动迁移、真实用户目录只读标记、Recall 与 Agent 迁移统计的最终报告合并和发布二进制 smoke test 仍按最终发布门槛执行，不在施工期访问真实用户 appData。
 
 ### 工作项
 

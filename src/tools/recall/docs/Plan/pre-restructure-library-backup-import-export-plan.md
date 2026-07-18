@@ -1,8 +1,8 @@
 # 知识库重构前按库备份与恢复功能计划
 
-**状态**: 已实施，待真实 Tauri 往返验证与发布；必须先于 Recall / Knowledge 重构发布
+**状态**: 已完成；2026-07-17 真实 Tauri 往返验证通过并解锁 Stage 0，未单独发布版本
 **创建日期**: 2026-07-17
-**最近修订**: 2026-07-17
+**最近修订**: 2026-07-18
 **适用范围**: `src/tools/knowledge-base/`、`src-tauri/src/knowledge/`、全局 AssetManager 的既有导入能力
 
 关联文档：
@@ -11,7 +11,7 @@
 - [后端存储数据库化设计调查](./backend-storage-database-design.md)
 - [检索模式与思绪引擎设计调查](./retrieval-profile-knowledge-memory-design.md)
 
-> 本功能是重构前的独立发布门槛。先在现有 `knowledge-base` 文件存储上提供用户可操作、可验证的按库备份与恢复，再开始 Recall 迁名、数据库迁移和 Knowledge 领域拆分。
+> 本功能是重构前的数据安全门槛。2026-07-17 已在现有 `knowledge-base` 文件存储上完成真实导入 / 导出往返并解锁 Stage 0；按统一实施计划不单独发布中间版本，最终随 Recall / Knowledge 重构统一发布。
 
 ---
 
@@ -214,11 +214,11 @@ kb_import_backup
 - 后端在导出请求未指定知识库 ID 时，会直接扫描持久化 `bases/` 目录确定全量范围，不依赖前端 workspace 或异步 warmup 的内存列表；该能力不要求暴露普通模式的“导出全部”入口。
 - 自动验证已覆盖文件选择取消、多文件部分失败、冲突副本、导出进度/停止、ZIP 往返、checksum 损坏、重复条目、恶意路径和 legacy JSON/YAML。
 
-仍属发布门槛、不能视为已完成：
+后续状态：
 
-- 必须在真实 Tauri WebView 中使用实际用户态目录和独立临时 appData 完成第 7 节往返测试。
-- 必须在发布说明中加入重构前“导出全部”的用户操作要求，并在稳定版本发布后才允许开始 Recall / Knowledge Stage 0。
-- `LegacyFileRecallImporter` 尚未进入施工阶段；本次已冻结 `.aio-kb` v1 读取契约并建立当前存储往返夹具，跨数据库迁移夹具随 Stage 0 importer 一并接入，不提前创建空壳实现。
+- 2026-07-17 已在真实 Tauri WebView 中使用用户态数据和独立临时 appData 完成第 7 节往返测试，用户确认未发现问题。
+- `LegacyFileRecallImporter`、`.aio-kb` v1 和 legacy JSON / YAML 到 SQLite repository 的迁移夹具已在后续 Stage 0 至 Stage 2 完成。
+- 最终统一发布说明仍需提示用户可使用“导出全部”保留额外备份；该事项由统一实施计划的最终发布门槛跟踪，不影响本前置计划的完成状态。
 
 ### Step 1：冻结 DTO 与测试夹具
 
@@ -256,7 +256,7 @@ kb_import_backup
 - 运行项目现有 frontend check、backend check、单元测试和 Vite build。
 - 在真实 Tauri WebView 中执行导出 / 导入 smoke test，不使用普通浏览器替代文件系统与 IPC 验证。
 
-发布前必须完成一轮真实往返：
+2026-07-17 已完成以下真实往返：
 
 ```text
 现有用户态目录
@@ -273,8 +273,8 @@ kb_import_backup
 - 多库容器中的每个库可按子目录独立导入；单库 `.aio-kb` 也可独立导入，不依赖原 `appData/knowledge` 或原 AssetManager 目录。
 - 源条目字段逐项一致；可用资产逐 hash 一致；缺失资产有明确报告。
 - 同包重复导入不会静默覆盖现有库，替换失败可恢复原库。
-- 发布说明明确要求用户在后续重构版本前执行一次“导出全部”。
-- 该备份版本已发布且真实往返通过后，Recall / Knowledge 重构 Stage 0 才可开始。
+- 最终统一发布说明需明确提示用户可在升级前执行一次“导出全部”。
+- 真实往返已通过并解锁 Recall / Knowledge Stage 0；本能力未单独发布中间版本。
 
 ---
 

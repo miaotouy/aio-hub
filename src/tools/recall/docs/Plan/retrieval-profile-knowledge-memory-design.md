@@ -1,8 +1,9 @@
 # Recall / Knowledge 检索模式与思绪召回设计调查
 
 **状态**: 调查完成，结论已更新，施工步骤已迁至统一计划
+**实现状态**: Recall profile、双域 processor、Knowledge binding 与 mixed RRF 已完成；最终真实运行态验收仍待执行
 **创建日期**: 2026-06-23
-**最近修订**: 2026-07-17
+**最近修订**: 2026-07-18
 **适用范围**: `src/tools/recall/`、`src-tauri/src/recall/`、`src/tools/knowledge-base/`、`src-tauri/src/knowledge/`
 
 ---
@@ -56,7 +57,9 @@
 
 ---
 
-## 2. 当前代码边界
+## 2. 调查时的代码边界（历史快照）
+
+本节记录调查开始时旧 `knowledge-base` 承载 CAIU 检索的实现，用于解释后续领域拆分和引擎融合决策，不再代表当前代码。当前实现边界以 Recall、Knowledge 和 Chat 的架构文档及统一实施计划为准。
 
 ### 2.1 Rust 后端
 
@@ -579,19 +582,13 @@ Knowledge 面向传统 RAG 文档召回，不应继承 CAIU / TagMemo 的 Recall
 
 已有配置、缓存 key、Agent 绑定和 Playground slot 可能保存旧 `engineId`。
 
-2026-07-01 代码检查补充：
+2026-07-18 实现状态复核：
 
-- 当前代码中尚未出现运行态 `retrievalMode`、`memoryPreset`、`coldKnowledgeIds` 等字段，相关命名主要仍停留在计划文档。
-- 现有真实调用面主要是 `llm-chat` 的角色预设 / 上下文管线：
-  - `{{kb}}` / `{{kb::name::limit}}` 宏会展开为 `【kb::...】` 占位符。
-  - `KnowledgeProcessor` 扫描 `【kb】` / `【knowledge】`，解析为 `KbRetrievalRequest`，再调用 `resolvePlaceholderRetrieval`。
-  - 占位符格式目前是 `【kb::kbName::limit::minScore::mode::modeParams::engineId】`。
-- 结构化 Agent binding、工具开关和权限配置必须自动迁移到 Recall，并保留原集合 ID。
-- 自动注入由运行时生成 Recall 请求，不要求用户修改预设消息。
-- 手写 `{{kb}}`、`【kb】`、历史 `【knowledge】` 及不含 `key=value` 的 `【knowledge::<position-args>】` 属于自由文本：应检测、报告并提供一键替换，不默认静默改写，也不得在运行时静默删除。能以 binding 唯一解析的旧 `kbName` 才能建议转换为 `collection=<collection-id>`；重名、缺失或未绑定时必须要求用户选择目标。
-- 旧 `【knowledge】` 不建立到 Recall 的长期兼容映射。历史上它指向 CAIU；合法的新 `【knowledge::library=...】` 只表示实际的 document/chunk Knowledge binding，迁移报告不能把两者混同。
-- 新协议见 4.3：Recall 与 Knowledge 各自校验命名参数，旧 parser 不得接受新 namespace 的位置参数，也不得让新 parser 猜测旧参数位置。
-- 重构前 `.aio-kb` 是按库数据备份，不包含 Agent binding 或自由文本占位符；UI 和发布说明不得暗示导入单库包会恢复 Agent 配置。
+- 主动检索已通过 `retrieval` Agent registry 支持 `recall`、`knowledge` 和 `mixed`，mixed 保留分域配额后使用 RRF 融合。
+- `RecallProcessor` 与 `KnowledgeProcessor` 已独立注册并严格校验各自命名参数；共享 tokenizer 只识别 `recall` 与 `knowledge` namespace。
+- `{{recall}}` / `{{recall_list}}` 与 `{{knowledge}}` / `{{knowledge_list}}` 已生成 canonical 占位符；旧 `{{kb}}`、`【kb】` 和历史位置参数只产生诊断，不触发检索。
+- 结构化 Agent 配置已迁移到 `recallConfig` / `recallSettings`，Knowledge 使用独立 `knowledgeConfig` / `knowledgeSettings` 和稳定 library ID binding。
+- 重构前 `.aio-kb` 仍是按库数据备份，不包含 Agent binding 或自由文本占位符；最终迁移报告需分别汇总数据迁移和 Agent migration 统计。
 
 迁移输入映射：
 

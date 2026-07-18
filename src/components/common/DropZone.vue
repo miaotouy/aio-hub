@@ -109,6 +109,8 @@ interface Props {
   fileOnly?: boolean;
   /** 接受的文件后缀列表，如 ['.png', '.jpg'] */
   accept?: string[];
+  /** 允许未知扩展名继续交给业务层检测 */
+  allowUnknownExtensions?: boolean;
   /** 是否把 H5 原生拖放得到的 File 对象通过 files-dropped 事件抛出 */
   emitFiles?: boolean;
 
@@ -140,6 +142,7 @@ const props = withDefaults(defineProps<Props>(), {
   directoryOnly: false,
   fileOnly: false,
   accept: () => [],
+  allowUnknownExtensions: false,
   emitFiles: false,
   silent: false,
   variant: "default",
@@ -168,6 +171,7 @@ const { isDraggingOver } = useFileDrop({
   directoryOnly: props.directoryOnly,
   fileOnly: props.fileOnly,
   accept: props.accept,
+  allowUnknownExtensions: props.allowUnknownExtensions,
   validator: props.validator,
   silent: props.silent,
   onDrop: (paths) => {
@@ -330,6 +334,12 @@ defineExpose({
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .drop-zone--dragging:not(.drop-zone--bare)::after {
+    animation: none;
+  }
+}
+
 /* 拖拽时的内置覆盖层 */
 .drop-zone__drag-overlay {
   position: absolute;
@@ -342,7 +352,7 @@ defineExpose({
   gap: 12px;
   z-index: 100;
   border-radius: inherit;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(var(--ui-blur));
   background-color: color-mix(in srgb, var(--el-color-primary) 5%, transparent);
   border: 2px dashed var(--el-color-primary);
   pointer-events: none;

@@ -290,7 +290,11 @@ export interface KnowledgeIndexStatus {
   dimension: number;
 }
 
+export type KnowledgeImportStage = "validation" | "read" | "parse" | "ingest";
+
 export interface KnowledgeImportFailure {
   sourcePath: string;
+  fileName: string;
+  stage: KnowledgeImportStage;
   message: string;
 }

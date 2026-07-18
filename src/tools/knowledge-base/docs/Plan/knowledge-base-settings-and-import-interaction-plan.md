@@ -154,8 +154,10 @@ interface KnowledgeFileTypeDefinition {
   category: string;
   label: string;
   extensions: string[];
-  mimeType: string;
+  mimeTypes: string[];
   parser: "pdf" | "docx" | "html" | "text";
+  validation: "verified" | "experimental" | "unsupported";
+  description: string;
 }
 ```
 
@@ -167,7 +169,9 @@ interface KnowledgeFileTypeDefinition {
 - 空状态、导入区域和格式详情 popover。
 - 单元测试与用户文档。
 
-页面主文案保持紧凑，显示“支持 PDF、DOCX、HTML、Markdown、文本与常用代码文件”；完整扩展名放在“查看支持格式”的 popover 中。格式说明不得只藏在文件选择器内。
+页面主文案保持紧凑，显示“支持 PDF、DOCX、HTML、Markdown、文本与常用代码文件”；完整扩展名与已验证、实验性、不支持状态放在“支持格式” popover 中。PDF 明确只提取文本层，扫描 PDF 与图片 OCR 均标记为未支持。格式说明不得只藏在文件选择器内。
+
+未知扩展名不再读取前一律拒绝：读取字节后先执行文本/二进制检测，可确认是文本时按实验性通用文本导入，检测为二进制时返回 validation 阶段失败。已知二进制格式只进入专用 parser；已知但未接入 parser 的 Office、图片和压缩包在读取前返回明确能力状态。
 
 ### 3.4 拖放交互
 
@@ -249,7 +253,7 @@ Knowledge
 - 新增 Knowledge 全局默认配置和 `createConfigManager` 持久化模块。
 - 定义 `KnowledgeLibraryConfigV1`、默认值、深度合并和校验函数。
 - 新增支持格式定义模块，替换文件选择器和解析器中的重复列表。
-- 对未知扩展名在读取文件前返回明确错误。
+- 对未知扩展名执行文本/二进制检测；未知文本进入通用文本 parser，未知二进制返回明确错误。
 - 为旧资料库的空 `config_json` 提供 V1 默认迁移，并把非空 legacy 配置与活动向量身份可重入地迁入 `library_metadata`；不在普通读取路径批量改写 manifest。
 
 ### Phase 2：补齐后端资料库配置接口
@@ -296,7 +300,7 @@ Knowledge
 ### 7.1 前端单元测试
 
 - 文件选择器、拖放 accept 和 parser 使用同一扩展名集合。
-- 未知扩展名在 `readFile` 前被拒绝。
+- 已知不支持格式在 `readFile` 前被拒绝；未知扩展名在读取后按文本/二进制检测结果分派。
 - 支持与不支持文件混合拖入时，支持项继续处理并生成失败明细。
 - 点击选择和拖放调用同一导入函数，进度与失败隔离行为一致。
 - 全局默认配置加载、深度合并、重置和防抖保存正确。

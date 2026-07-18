@@ -33,6 +33,8 @@ export interface FileDropOptions {
   multiple?: boolean;
   // 文件类型过滤
   accept?: string[];
+  // accept 仅作为已知格式提示，未知扩展名继续交给调用方验证
+  allowUnknownExtensions?: boolean;
   // 自动执行回调
   autoProcess?: boolean;
   // 成功回调
@@ -322,7 +324,7 @@ export function useFileDrop(options: FileDropOptions = {}) {
             : ext === `.${normalized}`;
         });
 
-        if (!isSupported) {
+        if (!isSupported && !options.allowUnknownExtensions) {
           if (!options.silent)
             customMessage.warning(`不支持的文件类型: ${ext}`);
           isValid = false;

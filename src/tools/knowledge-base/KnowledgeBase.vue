@@ -113,6 +113,27 @@
             >
               {{ importActionLabel }}
             </el-button>
+            <el-popover placement="bottom-end" :width="380" trigger="click">
+              <template #reference>
+                <el-button :icon="CircleHelp">支持格式</el-button>
+              </template>
+              <div class="format-capabilities">
+                <div
+                  v-for="format in KNOWLEDGE_FORMAT_CAPABILITIES"
+                  :key="format.id"
+                  class="format-capability"
+                >
+                  <span :class="`format-state is-${format.validation}`">
+                    {{ formatValidationLabel(format.validation) }}
+                  </span>
+                  <div>
+                    <strong>{{ format.label }}</strong>
+                    <small>{{ formatExtensions(format.extensions) }}</small>
+                    <p>{{ format.description }}</p>
+                  </div>
+                </div>
+              </div>
+            </el-popover>
             <el-button :icon="Binary" @click="vectorDialogVisible = true">
               语义索引
             </el-button>
@@ -147,6 +168,24 @@
             {{ importFailures.length }}
             个文件未导入。已保留成功项，可重新选择失败文件重试。
           </span>
+          <el-popover placement="bottom" :width="440" trigger="click">
+            <template #reference>
+              <el-button text>查看明细</el-button>
+            </template>
+            <ul class="import-failure-list">
+              <li
+                v-for="failure in importFailures"
+                :key="`${failure.sourcePath}:${failure.stage}`"
+              >
+                <div>
+                  <strong>{{ failure.fileName }}</strong>
+                  <span>{{ importStageLabel(failure.stage) }}</span>
+                </div>
+                <small :title="failure.sourcePath">{{ failure.sourcePath }}</small>
+                <p>{{ failure.message }}</p>
+              </li>
+            </ul>
+          </el-popover>
           <el-button
             :icon="X"
             text
@@ -206,20 +245,29 @@
                   <ChevronRight :size="16" />
                 </article>
               </div>
-              <div v-else class="pane-empty">
+              <div v-else-if="documentFilter" class="pane-empty">
                 <FileText :size="30" />
-                <strong>{{
-                  documentFilter ? "没有匹配文档" : "还没有文档"
-                }}</strong>
-                <el-button
-                  v-if="!documentFilter"
-                  type="primary"
-                  :icon="FileUp"
-                  @click="importDocuments"
-                >
-                  导入文档
-                </el-button>
+                <strong>没有匹配文档</strong>
               </div>
+              <DropZone
+                v-else
+                class="knowledge-empty-drop"
+                clickable
+                variant="border"
+                file-only
+                multiple
+                silent
+                allow-unknown-extensions
+                :accept="KNOWLEDGE_DROP_ACCEPT"
+                :disabled="importBusy"
+                @click="importDocuments"
+                @drop="runImportPaths"
+                @error="handleDropError"
+              >
+                <FileUp :size="30" />
+                <strong>导入文档</strong>
+                <span>{{ KNOWLEDGE_FORMAT_SUMMARY }}</span>
+              </DropZone>
             </section>
 
             <section class="detail-pane" aria-label="文档详情">
@@ -417,6 +465,22 @@
             </section>
           </div>
         </section>
+
+        <DropZone
+          v-if="store.documents.length"
+          bare
+          overlay
+          hide-content
+          show-overlay-on-drag
+          file-only
+          multiple
+          silent
+          allow-unknown-extensions
+          :accept="KNOWLEDGE_DROP_ACCEPT"
+          :disabled="importBusy"
+          @drop="runImportPaths"
+          @error="handleDropError"
+        />
       </template>
 
       <div v-else class="empty-workspace">
@@ -442,13 +506,13 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { open } from "@tauri-apps/plugin-dialog";
 import { ElMessageBox } from "element-plus";
 import {
   AlertTriangle,
   Binary,
   BookOpenText,
   ChevronRight,
+  CircleHelp,
   FileText,
   FileUp,
   MoreHorizontal,
@@ -461,11 +525,19 @@ import {
 } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import DropZone from "@/components/common/DropZone.vue";
 import KnowledgeVectorDialog from "./components/KnowledgeVectorDialog.vue";
-import { parseKnowledgeFile } from "./fileParser";
+import {
+  KNOWLEDGE_DROP_ACCEPT,
+  KNOWLEDGE_FORMAT_CAPABILITIES,
+  KNOWLEDGE_FORMAT_SUMMARY,
+  type KnowledgeFormatValidation,
+} from "./formats";
+import { importPaths, selectImportPaths } from "./importService";
 import { useKnowledgeStore } from "./store";
 import type {
   KnowledgeImportFailure,
+  KnowledgeImportStage,
   KnowledgeResult,
   KnowledgeSearchStrategy,
   KnowledgeSignalType,
@@ -495,6 +567,17 @@ const modeOptions = [
   { label: "文档", value: "documents" },
   { label: "检索测试", value: "search" },
 ];
+const importStageLabels: Record<KnowledgeImportStage, string> = {
+  validation: "格式校验",
+  read: "读取",
+  parse: "解析",
+  ingest: "写入",
+};
+const formatValidationLabels: Record<KnowledgeFormatValidation, string> = {
+  verified: "已验证",
+  experimental: "实验性",
+  unsupported: "不支持",
+};
 
 const filteredLibraries = computed(() => {
   const filter = libraryFilter.value.trim().toLocaleLowerCase();
@@ -598,64 +681,39 @@ async function createLibrary() {
 
 async function importDocuments() {
   try {
-    const selected = await open({
-      title: "导入知识资料",
-      directory: false,
-      multiple: true,
-      filters: [
-        {
-          name: "支持的文档",
-          extensions: [
-            "pdf",
-            "docx",
-            "html",
-            "htm",
-            "md",
-            "markdown",
-            "txt",
-            "json",
-            "csv",
-            "ts",
-            "js",
-            "vue",
-            "py",
-            "rs",
-          ],
-        },
-      ],
-    });
-    const paths = Array.isArray(selected)
-      ? selected.filter((item): item is string => typeof item === "string")
-      : typeof selected === "string"
-        ? [selected]
-        : [];
-    if (!paths.length) return;
+    const paths = await selectImportPaths();
+    if (paths.length) await runImportPaths(paths);
+  } catch (error) {
+    errorHandler.error(error, "选择知识资料失败");
+  }
+}
 
+async function runImportPaths(paths: string[]) {
+  if (importBusy.value) return;
+  if (!store.activeLibraryId) {
+    customMessage.warning("请先选择资料库");
+    return;
+  }
+  try {
     preparingImport.value = true;
     parseProcessed.value = 0;
     parseTotal.value = paths.length;
-    const parsedFiles = [];
-    const failures: KnowledgeImportFailure[] = [];
-    for (const path of paths) {
-      try {
-        parsedFiles.push(await parseKnowledgeFile(path));
-      } catch (error) {
-        failures.push({
-          sourcePath: path,
-          message: error instanceof Error ? error.message : String(error),
-        });
-      } finally {
-        parseProcessed.value += 1;
-      }
+    const result = await importPaths(paths, {
+      ingestFiles: (files) => store.importFiles(files),
+      onProgress(progress) {
+        preparingImport.value = progress.phase === "parse";
+        if (progress.phase === "parse") {
+          parseProcessed.value = progress.processed;
+          parseTotal.value = progress.total;
+        }
+      },
+    });
+    importFailures.value = result.failures;
+    if (result.imported) {
+      customMessage.success(`已导入 ${result.imported} 个文档`);
     }
-    preparingImport.value = false;
-
-    const ingestResult = parsedFiles.length
-      ? await store.importFiles(parsedFiles)
-      : { imported: 0, failures: [] };
-    importFailures.value = [...failures, ...ingestResult.failures];
-    if (ingestResult.imported) {
-      customMessage.success(`已导入 ${ingestResult.imported} 个文档`);
+    if (result.skippedDuplicates) {
+      customMessage.info(`已跳过 ${result.skippedDuplicates} 个重复路径`);
     }
     if (importFailures.value.length) {
       customMessage.warning(`${importFailures.value.length} 个文件未能导入`);
@@ -665,6 +723,24 @@ async function importDocuments() {
   } finally {
     preparingImport.value = false;
   }
+}
+
+function handleDropError(message: string) {
+  customMessage.warning(message);
+}
+
+function importStageLabel(stage: KnowledgeImportStage): string {
+  return importStageLabels[stage];
+}
+
+function formatValidationLabel(
+  validation: KnowledgeFormatValidation
+): string {
+  return formatValidationLabels[validation];
+}
+
+function formatExtensions(extensions: readonly string[]): string {
+  return extensions.map((extension) => `.${extension}`).join("、");
 }
 
 async function openDocument(documentId: string) {
@@ -964,6 +1040,7 @@ function formatDate(timestamp: number) {
 }
 
 .library-content {
+  position: relative;
   display: flex;
   min-width: 0;
   min-height: 0;
@@ -1046,6 +1123,111 @@ function formatDate(timestamp: number) {
 
 .import-warning span {
   flex: 1;
+}
+
+.format-capabilities {
+  display: grid;
+  gap: 10px;
+  max-height: min(520px, 70vh);
+  overflow: auto;
+}
+
+.format-capability {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+}
+
+.format-capability > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.format-capability strong {
+  color: var(--el-text-color-primary);
+  font-size: 13px;
+}
+
+.format-capability small,
+.format-capability p {
+  margin: 0;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.format-state {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.format-state.is-verified {
+  color: var(--el-color-success-dark-2);
+  background: var(--el-color-success-light-9);
+}
+
+.format-state.is-experimental {
+  color: var(--el-color-warning-dark-2);
+  background: var(--el-color-warning-light-9);
+}
+
+.format-state.is-unsupported {
+  color: var(--el-text-color-secondary);
+  background: var(--el-fill-color-light);
+}
+
+.import-failure-list {
+  display: grid;
+  gap: 10px;
+  max-height: min(420px, 60vh);
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.import-failure-list li {
+  display: grid;
+  gap: 3px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.import-failure-list li:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.import-failure-list li > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.import-failure-list strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--el-text-color-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-failure-list span,
+.import-failure-list small,
+.import-failure-list p {
+  margin: 0;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .workspace-mode {
@@ -1171,6 +1353,35 @@ function formatDate(timestamp: number) {
 
 .pane-empty span {
   max-width: 320px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.knowledge-empty-drop {
+  display: grid;
+  min-height: 100%;
+  align-content: center;
+  justify-items: center;
+  gap: 9px;
+  padding: 28px;
+  border: 1px dashed var(--el-border-color);
+  color: var(--el-text-color-secondary);
+  text-align: center;
+  cursor: pointer;
+}
+
+.knowledge-empty-drop:hover {
+  border-color: var(--el-color-primary);
+  background: var(--el-fill-color-light);
+}
+
+.knowledge-empty-drop strong {
+  color: var(--el-text-color-primary);
+  font-size: 14px;
+}
+
+.knowledge-empty-drop span {
+  max-width: 280px;
   font-size: 12px;
   line-height: 1.6;
 }

@@ -22,10 +22,12 @@ Knowledge 是 AIO Hub 的文档资料与来源回溯领域，与 Recall 思绪�
 
 - `KnowledgeBase.vue` 是资料库工作台，提供 library CRUD、批量文件导入、文档与分块主从浏览、索引状态、检索测试和来源展示。
 - `components/KnowledgeVectorDialog.vue` 提供 Embedding 模型选择、覆盖率、批次进度、模型切换确认和失败后重试。
-- `fileParser.ts` 复用现有 PDF、DOCX、HTML 与文本解析能力，不将二进制文档交给 Rust 猜测格式。
+- `formats.ts` 是格式能力单一来源，统一导出类别、标签、扩展名、MIME、parser、验证等级、能力说明、文件选择 filter 和 DropZone accept。
+- `fileParser.ts` 按 capability 分派 PDF、DOCX、HTML 与文本解析。未知扩展名读取后执行文本/二进制检测；已知不支持格式和伪装成文本的二进制不会进入索引。扫描 PDF 无文本层时明确返回 OCR 未支持。
+- `importService.ts` 提供唯一的 `selectImportPaths()` 与 `importPaths(paths)`；点击选择、空状态拖放和已有文档覆盖层复用同一批处理、去重、进度和文件级失败契约。
 - `service.ts` 是唯一 IPC 边界；`store.ts` 管理 library、document、chunk、result 与 index status 运行态。
 - Embedding 模型选项由共享 `useEmbeddingModelOptions()` 提供，Knowledge 不复制模型能力判断。
-- 批量导入以文件为失败隔离单元。成功文件立即保留，失败项汇总提示，可重新选择重试。
+- 批量导入以文件为失败隔离单元。成功文件立即保留，失败项保存文件名、绝对路径、validation/read/parse/ingest 阶段和原因。H5 只取得 `File.name` 时不伪造来源路径，提示改用文件选择器。
 
 Knowledge 前端不导入 Recall store、entry、priority、tag pool 或 workspace。
 

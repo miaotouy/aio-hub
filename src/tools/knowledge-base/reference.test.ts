@@ -123,12 +123,21 @@ describe("KnowledgeReference", () => {
     ).rejects.toMatchObject({ code: "LIBRARY_UNAUTHORIZED" });
   });
 
-  it("keeps research mode unavailable until Phase 4", async () => {
+  it("requires explicit research permission", async () => {
     await expect(
       validateKnowledgeReferenceForAgent(
         { agentId: "agent-a", access },
         createKnowledgeReference([library("library-a")], "research")
       )
-    ).rejects.toMatchObject({ code: "RESEARCH_UNAVAILABLE" });
+    ).rejects.toMatchObject({ code: "RESEARCH_FORBIDDEN" });
+  });
+
+  it("opens research mode when the Agent has permission", async () => {
+    listAuthorizedKnowledgeLibraries.mockResolvedValue([library("library-a")]);
+    const result = await validateKnowledgeReferenceForAgent(
+      { agentId: "agent-a", access: { ...access, allowResearch: true } },
+      createKnowledgeReference([library("library-a")], "research")
+    );
+    expect(result.mode).toBe("research");
   });
 });

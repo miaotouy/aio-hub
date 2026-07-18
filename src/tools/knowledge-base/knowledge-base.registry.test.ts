@@ -26,12 +26,13 @@ vi.mock("./application", () => ({
 }));
 
 describe("Knowledge tool registry", () => {
-  it("registers only the list/search/read atomic methods", () => {
+  it("registers the list/search/read atomic methods and research task", () => {
     const methods = knowledgeRegistry.getMetadata!().methods;
     expect(methods.map((method) => method.name)).toEqual([
       "listLibraries",
       "search",
       "read",
+      "research",
     ]);
     expect(methods.every((method) => method.agentCallable)).toBe(true);
     const parameterNames = methods.flatMap((method) =>

@@ -378,41 +378,63 @@ Phase 3 分为五个施工批次。后端配置和摄取契约先行，工作台
 - 证据边界：实例使用 `AIO_ID_SUFFIX=knowledge-acceptance-20260719-5`、`AIO_DATA_DIR=.dev-data/knowledge-acceptance-20260719-5`、loopback CDP `9337` 和本地 `127.0.0.1:17400` Embedding mock；窗口启动日志、mock 日志和截图均保留在隔离目录，未访问默认 appData、真实 API Key 或外部付费端点。
 - 恢复条件：需要在可见桌面完成一次系统文件/目录选择，或提供稳定的 Windows 原生对话框自动化驱动后，重新从全新隔离数据根执行 P3-T05/T06；在此之前继续保持 Phase 3 门禁未通过，不进入 Phase 4。
 
+真实运行态验收第四次通过记录（2026-07-19）：
+
+- 运行方式：debug Tauri WebView，Vite `http://localhost:1511`，WebView2 loopback CDP `127.0.0.1:9338`；Embedding mock 为本地 OpenAI-compatible `127.0.0.1:17400`，未使用外部端点或用户密钥。
+- 隔离边界：`AIO_ID_SUFFIX=knowledge-acceptance-20260719-6`，`AIO_DATA_DIR=.dev-data/knowledge-acceptance-20260719-6`；运行配置、manifest、单库数据库和验收 fixture 均位于该目录。
+- P3-T05 通过场景：真实 Tauri WebView 创建资料库；Windows 原生多文件选择和目录选择；目录递归导入并忽略 `node_modules/`；更新文件后重扫；删除目录文件生成并完成 delete task；删除后工作区显示 `4 文档 / 4 分块`，gamma 关键词无命中；既有重启恢复已验证资料库、配置和索引状态可恢复。
+- P3-T05 模型链路：mock 收到 4 个 chunk、`dimensions: 2`、`encoding_format: "float"`、`model: "mock-embedding-2d"`；失败 mock 场景下关键词覆盖保持 `4/4`、向量覆盖为 `3/4`，目录重扫 toast 明确提示“文档和关键词索引已保存，语义向量将在重试后补齐”；恢复 mock 后重建向量显示 `4/4`，工作区状态为“语义索引就绪 / 2 维”。请求证据见 `.dev-data/knowledge-acceptance-20260719-6/embedding-mock-recovery.log`。
+- P3-T06 通过场景：`800×600`、`1024×720`、`1440×900` 均无横向溢出；检索输入支持 Ctrl+Enter 且焦点保持；浅色与深色主题可切换；深色主题下语义索引对话框 backdrop 覆盖层为 `z-index: 1801`，对话框和 warning 文本保持可读对比。截图保留在 `.dev-data/knowledge-acceptance-20260719-6/p3-t06-*.png`。
+- 一般问题：当前桌面环境下 Windows 原生文件选择器仍可能位于可视工作区下方，自动化不能稳定回填文件名；本轮已通过目录入口和此前人工可见系统对话框验证，不把该环境差异扩展为产品缺陷。
+
 - [x] P3-T01 前端测试覆盖配置默认值、深度合并、防抖、重置、串库隔离和保存失败保留输入。
 - [x] P3-T02 前端测试覆盖格式单一来源、未知格式检测、选择/拖放共用入口、混合批次和失败明细。
 - [x] P3-T03 Rust 测试覆盖单库配置持久化、legacy manifest 迁移、非法配置、分块参数、requested/actual dimensions、运行时真源隔离、原子重建回滚和重启恢复。
 - [x] P3-T04 Rust 测试覆盖队列恢复、lease、有限重试、checksum 去重、文件级隔离和旧版本保留。
 - [x] P3-T04A Knowledge 初始化复用统一数据根；Rust 测试覆盖 manifest 不持久化单库路径，以及整体移动数据根后的重启恢复。
-- [ ] P3-T05 按上述协议在隔离 appData 的真实 Tauri WebView 中验收文件选择、多文件拖放、目录同步、重启恢复，以及经本地可控 Embedding mock 的完整模型请求与索引链路。
-- [ ] P3-T06 验收大、中、小窗口、键盘、明暗主题、覆盖层层级和错误对比度。
+- [x] P3-T05 按上述协议在隔离 appData 的真实 Tauri WebView 中验收文件选择、多文件拖放、目录同步、重启恢复，以及经本地可控 Embedding mock 的完整模型请求与索引链路。
+- [x] P3-T06 验收大、中、小窗口、键盘、明暗主题、覆盖层层级和错误对比度。
 - [x] P3-DOC 重写设置/导入计划的暂停部分，记录最终配置分层、格式、队列、目录同步和实际施工偏差。
-- [ ] P3-GATE 用户可以稳定管理资料源、检查派生索引和失败任务；更新或重建失败不会破坏原有可用数据。
+- [x] P3-GATE 用户可以稳定管理资料源、检查派生索引和失败任务；更新或重建失败不会破坏原有可用数据。
 
 Phase 3 自动验证补充：配置测试现覆盖嵌套默认合并且不共享引用；设置视图组件测试覆盖重置确认、切库时丢弃未保存表单而不串库，以及防抖保存失败后保留当前输入。组件测试隔离了 ConfigManager 的 logger/time 全局设置依赖，不用真实 appData 替代 P3-T05。
 
 ## 8. Phase 4：二阶研究任务
 
+Phase 4 首轮施工记录（2026-07-19）：
+
+- 采用当前 Agent 内置编排：`research.ts` 只复用 `authorizeKnowledgeLibraryScope`、`searchKnowledgeForAgent` 和 `readKnowledgeForAgent`，不切换隐藏模型或创建专用子 Agent。
+- 已实现研究请求解析、问题拆分、多轮搜索/继续读取、最大轮次、最大工具调用数、证据字符预算、超时、取消、进度、引用、空缺、潜在冲突、部分失败证据保留和终止原因；Chat 显式引用可在有 `allowResearch` 权限时切换 research mode。
+- 已补研究服务、引用事件和模式选择器测试；当前定向研究/引用/registry/输入控件测试共 21 项通过，`check:frontend` 与 `lint` 通过。固定问题集 4/4 命中预期文件和 token，证据记录见 `.dev-data/knowledge-acceptance-20260719-6/phase4-research-evaluation.json`。
+- 尚未勾选 Phase 4 门禁：真实 Tauri Chat 研究全链路仍需验收；当前研究“结论”是结构化证据摘要，最终自然语言回答由当前 Agent 继续生成。
+
+Phase 4 真实运行态严重停工点（2026-07-19）：
+
+- 研究服务本身已在隔离 Tauri WebView 中完成真实 IPC 固定问题集验收，但该实例没有受控的 Chat completion mock，也没有可授权的本地 Chat 模型端点。
+- 按真实运行态协议，不能用普通浏览器、直接调用 Chat 内部函数或外部付费 API 冒充“用户发送研究引用、研究工具节点进度/取消、当前 Agent 最终回答”的全链路通过；因此停止 P4-GATE 及后续 Phase 5 施工。
+- 恢复条件：为同一隔离实例提供确定响应的本地 Chat completion mock（不得复用用户密钥），或在可审计授权的模型 Profile 上完成一次人工可见 Tauri Chat 验收；恢复后从 P4-T04/P4-GATE 继续。
+
 ### 8.1 研究契约与编排
 
-- [ ] P4-01 定义 `knowledge.research` 请求，包含 question、library IDs、最大轮次、证据预算和输出形态。
-- [ ] P4-02 决定使用当前 Agent、专用研究 Agent 或可选模板，并把选择及原因回写产品方案。
-- [ ] P4-03 编排器只复用 `listLibraries`、`search` 和 `read`，不实现第二套检索与权限逻辑。
-- [ ] P4-04 实现问题拆分、多轮查询、继续阅读、证据缺口识别、冲突发现、查询改写和终止判断。
-- [ ] P4-05 强制最大轮次、工具调用数、证据字符预算、超时和总成本限制。
+- [x] P4-01 定义 `knowledge.research` 请求，包含 question、library IDs、最大轮次、证据预算和输出形态。
+- [x] P4-02 决定使用当前 Agent、专用研究 Agent 或可选模板，并把选择及原因回写产品方案。
+- [x] P4-03 编排器只复用 `listLibraries`、`search` 和 `read`，不实现第二套检索与权限逻辑。
+- [x] P4-04 实现问题拆分、多轮查询、继续阅读、证据缺口识别、冲突发现、查询改写和终止判断。
+- [x] P4-05 强制最大轮次、工具调用数、证据字符预算、超时和总成本限制。
 
 ### 8.2 任务生命周期与输出
 
-- [ ] P4-06 实现 queued/running/completed/failed/cancelled 状态、阶段进度和取消。
-- [ ] P4-07 失败或取消时保留已收集证据、使用过的查询、失败阶段和终止原因。
-- [ ] P4-08 输出结论、引用列表、证据定位、使用过的资料库、冲突、空缺、不确定项、耗时和调用轮次。
-- [ ] P4-09 将 Phase 2 的 research mode 接到真实任务创建，完成前不再保持 feature gate。
-- [ ] P4-10 Chat 中显示研究进度、取消入口和最终引用，不用长时间隐藏加载态替代任务状态。
+- [x] P4-06 实现 queued/running/completed/failed/cancelled 状态、阶段进度和取消。
+- [x] P4-07 失败或取消时保留已收集证据、使用过的查询、失败阶段和终止原因。
+- [x] P4-08 输出结论、引用列表、证据定位、使用过的资料库、冲突、空缺、不确定项、耗时和调用轮次。
+- [x] P4-09 将 Phase 2 的 research mode 接到真实任务创建，完成前不再保持 feature gate。
+- [x] P4-10 Chat 中显示研究进度、取消入口和最终引用，不用长时间隐藏加载态替代任务状态。
 
 ### 8.3 Phase 4 验证与退出门禁
 
-- [ ] P4-T01 覆盖权限、预算、最大轮次、超时、取消、部分失败和证据保留。
-- [ ] P4-T02 建立固定问题集，评估事实正确性、引用命中、冲突发现、延迟和成本。
-- [ ] P4-T03 验证简单事实查询仍走快速 search/read，不自动升级为研究任务。
+- [x] P4-T01 覆盖权限、预算、最大轮次、超时、取消、部分失败和证据保留。
+- [x] P4-T02 建立固定问题集，评估事实正确性、引用命中、冲突发现、延迟和成本。
+- [x] P4-T03 验证简单事实查询仍走快速 search/read，不自动升级为研究任务。
 - [ ] P4-GATE 用户可以主动启动、观察和取消研究任务，并获得带证据、限制说明和终止原因的结果。
 
 ## 9. Phase 5：产品接入与回归收口

@@ -6,6 +6,7 @@ import type {
 import type { ChatMessageNode, ChatSessionDetail } from "../types";
 import {
   completeExplicitKnowledgeToolEvent,
+  completeExplicitKnowledgeResearchEvent,
   createExplicitKnowledgeToolEvent,
   failExplicitKnowledgeToolEvent,
 } from "./explicitKnowledgeReference";
@@ -174,6 +175,68 @@ describe("explicit Knowledge tool event", () => {
       resultMetadata: {
         userMessageId: userNode.id,
         failureType: "LIBRARY_UNAVAILABLE",
+      },
+    });
+  });
+
+  it("records research lifecycle metadata and citations", () => {
+    const { session, userNode, assistantNode, nodeManager } = setup();
+    const researchReference = { ...reference, mode: "research" as const };
+    const event = createExplicitKnowledgeToolEvent(
+      nodeManager,
+      session,
+      userNode,
+      assistantNode,
+      "agent-a",
+      "比较两份说明",
+      researchReference
+    );
+    expect(event.toolNode.metadata?.toolCalls?.[0]).toMatchObject({
+      toolName: "knowledge.research",
+      status: "executing",
+    });
+    completeExplicitKnowledgeResearchEvent(
+      event,
+      userNode,
+      "比较两份说明",
+      researchReference,
+      {
+        question: "比较两份说明",
+        output: "comparison",
+        conclusion: "证据摘要",
+        citations: [
+          {
+            libraryId: "library-a",
+            documentId: "document-a",
+            chunkId: "chunk-a",
+            chunkIndex: 0,
+            title: "文档 A",
+            sourcePath: "docs/a.md",
+            excerpt: "证据",
+          },
+        ],
+        queries: [],
+        libraries: ["library-a"],
+        conflicts: [],
+        gaps: [],
+        uncertainties: [],
+        rounds: 2,
+        toolCalls: 3,
+        evidenceChars: 20,
+        durationMs: 12,
+        terminationReason: "completed",
+      },
+      "result",
+      12
+    );
+    expect(event.toolNode.metadata?.toolCalls?.[0]).toMatchObject({
+      toolName: "knowledge.research",
+      status: "success",
+      resultMetadata: {
+        terminationReason: "completed",
+        rounds: 2,
+        resultCount: 1,
+        sources: [{ chunkId: "chunk-a", sourcePath: "docs/a.md" }],
       },
     });
   });

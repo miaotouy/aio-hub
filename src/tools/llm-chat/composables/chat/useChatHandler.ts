@@ -57,11 +57,14 @@ import type { KnowledgeReference } from "@/tools/knowledge-base/types";
 import { normalizeAgentKnowledgeAccess } from "@/tools/knowledge-base/access";
 import {
   executeKnowledgeReferenceSearch,
+  executeKnowledgeReferenceResearch,
   formatKnowledgeReferenceResult,
+  formatKnowledgeResearchResult,
   validateKnowledgeReferenceForAgent,
 } from "@/tools/knowledge-base/reference";
 import {
   completeExplicitKnowledgeToolEvent,
+  completeExplicitKnowledgeResearchEvent,
   createExplicitKnowledgeToolEvent,
   failExplicitKnowledgeToolEvent,
 } from "../../services/explicitKnowledgeReference";
@@ -251,20 +254,54 @@ export function useChatHandler() {
           applicationContext,
           options.knowledgeReference
         );
-        const result = await executeKnowledgeReferenceSearch(
-          applicationContext,
-          content,
-          validatedReference
-        );
-        completeExplicitKnowledgeToolEvent(
-          toolEvent,
-          userNode,
-          content,
-          validatedReference,
-          result,
-          formatKnowledgeReferenceResult(result),
-          Date.now() - startedAt
-        );
+        if (validatedReference.mode === "research") {
+          const researchController = new AbortController();
+          abortControllers.set(explicitKnowledgeToolNode.id, researchController);
+          const result = await executeKnowledgeReferenceResearch(
+            applicationContext,
+            content,
+            validatedReference,
+            {
+              signal: researchController.signal,
+              onProgress: (progress) => {
+                toolEvent.toolNode.content = [
+                  progress.message,
+                  `轮次 ${progress.round}/${progress.maxRounds} · 调用 ${progress.toolCalls} · 证据 ${progress.evidenceChars} 字符`,
+                ].join("\n");
+                sessionManager.persistSession(
+                  sessionIndex,
+                  session,
+                  currentSessionId ?? null
+                );
+              },
+            }
+          );
+          abortControllers.delete(explicitKnowledgeToolNode.id);
+          completeExplicitKnowledgeResearchEvent(
+            toolEvent,
+            userNode,
+            content,
+            validatedReference,
+            result,
+            formatKnowledgeResearchResult(result),
+            Date.now() - startedAt
+          );
+        } else {
+          const result = await executeKnowledgeReferenceSearch(
+            applicationContext,
+            content,
+            validatedReference
+          );
+          completeExplicitKnowledgeToolEvent(
+            toolEvent,
+            userNode,
+            content,
+            validatedReference,
+            result,
+            formatKnowledgeReferenceResult(result),
+            Date.now() - startedAt
+          );
+        }
         generatingNodes.delete(explicitKnowledgeToolNode.id);
         sessionManager.persistSession(
           sessionIndex,
@@ -287,6 +324,7 @@ export function useChatHandler() {
           failureType,
           Date.now() - startedAt
         );
+        abortControllers.delete(explicitKnowledgeToolNode.id);
         generatingNodes.delete(explicitKnowledgeToolNode.id);
         generatingNodes.delete(assistantNode.id);
         nodeManager.hardDeleteNode(session, assistantNode.id);

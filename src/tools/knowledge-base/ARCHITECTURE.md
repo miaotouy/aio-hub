@@ -54,15 +54,16 @@ Knowledge 前端不导入 Recall store、entry、priority、tag pool 或 workspa
 - `access.ts` 是共享授权解析边界，负责 ID 去重、默认值、查询范围校验、越权错误、已删除/暂不可用状态和目录格式。宏、Knowledge 工具、Chat 显式引用与 Agent Manager 必须复用该边界。
 - `{{knowledge_list}}` 在用户指定的预设位置展开授权资料库目录，只读取摘要，不执行检索；宏缺失时不自动注入。名称和状态从资料库真源实时解析，持久化只保存 ID。
 - 不注册 `{{knowledge}}` 或 `【knowledge::...】`，上下文管道也没有 Knowledge processor。普通消息和 Agent 授权不会触发 Knowledge 检索。
-- `application.ts` 提供独立的 `knowledge.listLibraries`、`knowledge.search`、`knowledge.read` 应用服务：所有入口先从 `ToolContext` 解析 Agent 快照，再校验授权、可用状态和能力权限。
+- `application.ts` 提供独立的 `knowledge.listLibraries`、`knowledge.search`、`knowledge.read` 应用服务：所有入口先从 `ToolContext` 解析 Agent 快照，再校验授权、可用状态和能力权限。`research.ts` 只编排这些原子服务，不建立第二套检索或授权路径。
 - `search` 按 library 独立调用底层检索，使不同 Embedding 空间分别生成 query vector 和候选；跨库只按 RRF rank score 融合，原始 score 与 signals 仅用于解释。`auto` 返回实际策略和降级原因，结果按字符预算裁剪并可选补充相邻 chunk。
 - `read` 支持 chunk ID、document + chunk index 邻域、heading 和字符范围，强制字符预算并返回前后 chunk 定位和完整来源字段。
 - 工具结果通过 `ToolMethodResult.executionMetadata` 把来源、耗时外的实际策略和失败类型写入可见工具事件。现有 Retrieval 上层组合入口复用同一权限范围，不能旁路访问未授权 Knowledge 库。
 - `KnowledgeReference` 是 `ChatMessageNode` 的独立版本化字段。`schemaVersion: 1` 保存稳定 `libraryIds`、mode 和发送时显示快照；名称快照只用于历史展示，执行前始终用 ID 重新校验当前 Agent 权限、资料库可用性和索引状态。
-- `useChatInputManager` 以草稿 schema v3 按会话保存和跨窗口同步未发送引用。输入区独立 Knowledge 按钮只列已授权库，引用标记与发送控件分行布局；research mode 在 Phase 4 前不暴露。
+- `useChatInputManager` 以草稿 schema v3 按会话保存和跨窗口同步未发送引用。输入区独立 Knowledge 按钮只列已授权库，引用标记与发送控件分行布局；有 `allowResearch` 权限时可以显式切换到 research mode。
 - 显式 search 发送时创建 `user -> tool -> assistant` 节点链。`tool` 节点先显示执行态，成功后保存实际策略、命中来源和 user message 关联并进入 LLM 上下文；失败时保留可见错误事件、删除未执行的 assistant 节点，不退化为普通文本发送。没有引用的消息不进入该分支。
+- 显式 research 复用同一节点链，由当前 Agent 编排。Knowledge 工具节点持续保存轮次、调用数和证据字符进度，支持取消；完成、失败或取消都保留已收集引用、查询、空缺、潜在冲突和终止原因，随后由当前 Agent 基于结构化证据生成最终回答。
 - mixed 检索只属于上层显式编排，先保留 Recall 与 Knowledge 的分域配额，再使用 RRF 融合，不直接比较两域原始分数。
 
 ## 5. 后续施工顺序
 
-后续以 `docs/Plan/knowledge-base-implementation-checklist.md` 为唯一施工清单：下一步补齐配置分层、持久 ingest queue、目录同步、原子版本替换和诊断工作台，再实现二阶研究任务。真实路径、模型调用与恢复行为必须在隔离 appData 的 Tauri WebView 中验收。
+后续以 `docs/Plan/knowledge-base-implementation-checklist.md` 为唯一施工清单。配置分层、持久 ingest queue、目录同步、原子版本替换、诊断工作台和二阶研究任务均已进入运行路径；最终仍需按清单完成跨模块回归和隔离 appData 的真实 Tauri 全链路验收。

@@ -32,6 +32,9 @@ const access = computed(() =>
 const selectedIds = computed(
   () => new Set(inputManager.knowledgeReference.value?.libraryIds || [])
 );
+const mode = computed(
+  () => inputManager.knowledgeReference.value?.mode || "search"
+);
 const canOpen = computed(
   () => !props.disabled && Boolean(currentAgent.value && access.value.enabled)
 );
@@ -131,7 +134,14 @@ function toggleLibrary(library: KnowledgeLibrarySummary): void {
   const nextLibraries = allLibraries.value.filter((item) =>
     nextIds.has(item.id)
   );
-  inputManager.setKnowledgeReference(createKnowledgeReference(nextLibraries));
+  inputManager.setKnowledgeReference(createKnowledgeReference(nextLibraries, mode.value));
+}
+
+function setMode(nextMode: "search" | "research"): void {
+  if (nextMode === "research" && !access.value.allowResearch) return;
+  const selected = allLibraries.value.filter((item) => selectedIds.value.has(item.id));
+  if (!selected.length) return;
+  inputManager.setKnowledgeReference(createKnowledgeReference(selected, nextMode));
 }
 
 watch(visible, (isVisible) => {
@@ -182,6 +192,25 @@ watch(currentAgentId, () => {
               placeholder="搜索已授权资料库"
               aria-label="搜索已授权资料库"
             />
+          </div>
+
+          <div class="mode-switch" role="group" aria-label="Knowledge 查询模式">
+            <button
+              type="button"
+              :class="{ active: mode === 'search' }"
+              @click="setMode('search')"
+            >
+              快速查询
+            </button>
+            <button
+              type="button"
+              :class="{ active: mode === 'research' }"
+              :disabled="!access.allowResearch"
+              :title="access.allowResearch ? '多轮整理证据' : '当前 Agent 未获研究权限'"
+              @click="setMode('research')"
+            >
+              研究任务
+            </button>
           </div>
 
           <div class="selector-list" role="listbox" aria-multiselectable="true">
@@ -318,6 +347,37 @@ watch(currentAgentId, () => {
   flex-direction: column;
   gap: 2px;
   overflow-y: auto;
+}
+
+.mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 6px;
+  background: var(--input-bg);
+}
+
+.mode-switch button {
+  min-height: 28px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-color-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.mode-switch button.active {
+  background: var(--card-bg);
+  color: var(--text-color-primary);
+  box-shadow: var(--box-shadow-sm);
+}
+
+.mode-switch button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .library-option {

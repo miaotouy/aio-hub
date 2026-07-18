@@ -6,6 +6,7 @@ import type {
   KnowledgeReference,
   KnowledgeToolSearchResponse,
 } from "@/tools/knowledge-base/types";
+import type { KnowledgeResearchResult } from "@/tools/knowledge-base/research";
 import type { ChatMessageNode, ChatSessionDetail } from "../types";
 import type { useNodeManager } from "../composables/session/useNodeManager";
 
@@ -17,6 +18,10 @@ type NodeManager = Pick<
 export interface ExplicitKnowledgeToolEvent {
   requestId: string;
   toolNode: ChatMessageNode;
+}
+
+function toolName(reference: KnowledgeReference): "knowledge.search" | "knowledge.research" {
+  return reference.mode === "research" ? "knowledge.research" : "knowledge.search";
 }
 
 export function createExplicitKnowledgeToolEvent(
@@ -46,12 +51,12 @@ export function createExplicitKnowledgeToolEvent(
       toolCalls: [
         {
           requestId,
-          toolName: "knowledge.search",
+          toolName: toolName(reference),
           status: "executing",
           rawArgs: {
             query,
             libraryIds: reference.libraryIds,
-            strategy: "auto",
+            strategy: reference.mode === "research" ? undefined : "auto",
           },
         },
       ],
@@ -85,7 +90,7 @@ export function completeExplicitKnowledgeToolEvent(
     toolCalls: [
       {
         requestId: event.requestId,
-        toolName: "knowledge.search",
+        toolName: toolName(reference),
         status: "success",
         durationMs,
         rawArgs: {
@@ -111,6 +116,50 @@ export function completeExplicitKnowledgeToolEvent(
   };
 }
 
+export function completeExplicitKnowledgeResearchEvent(
+  event: ExplicitKnowledgeToolEvent,
+  userNode: ChatMessageNode,
+  query: string,
+  reference: KnowledgeReference,
+  result: KnowledgeResearchResult,
+  content: string,
+  durationMs: number
+): void {
+  userNode.knowledgeReference = reference;
+  event.toolNode.content = content;
+  event.toolNode.status = "complete";
+  event.toolNode.metadata = {
+    ...event.toolNode.metadata,
+    toolCalls: [
+      {
+        requestId: event.requestId,
+        toolName: "knowledge.research",
+        status: "success",
+        durationMs,
+        rawArgs: {
+          question: query,
+          libraryIds: reference.libraryIds,
+        },
+        resultMetadata: {
+          userMessageId: userNode.id,
+          terminationReason: result.terminationReason,
+          rounds: result.rounds,
+          toolCalls: result.toolCalls,
+          evidenceChars: result.evidenceChars,
+          resultCount: result.citations.length,
+          sources: result.citations.map((citation) => ({
+            libraryId: citation.libraryId,
+            documentId: citation.documentId,
+            chunkId: citation.chunkId,
+            chunkIndex: citation.chunkIndex,
+            sourcePath: citation.sourcePath,
+          })),
+        },
+      },
+    ],
+  };
+}
+
 export function failExplicitKnowledgeToolEvent(
   event: ExplicitKnowledgeToolEvent,
   userNode: ChatMessageNode,
@@ -128,13 +177,13 @@ export function failExplicitKnowledgeToolEvent(
     toolCalls: [
       {
         requestId: event.requestId,
-        toolName: "knowledge.search",
+        toolName: toolName(reference),
         status: "error",
         durationMs,
         rawArgs: {
           query,
           libraryIds: reference.libraryIds,
-          strategy: "auto",
+          strategy: reference.mode === "research" ? undefined : "auto",
         },
         resultMetadata: {
           userMessageId: userNode.id,

@@ -14,6 +14,12 @@ import {
   type KnowledgeReference,
   type KnowledgeToolSearchResponse,
 } from "./types";
+import {
+  runKnowledgeResearch,
+  type KnowledgeResearchRequest,
+  type KnowledgeResearchProgress,
+  type KnowledgeResearchResult,
+} from "./research";
 
 function uniqueIds(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -100,10 +106,10 @@ export async function validateKnowledgeReferenceForAgent(
       "Knowledge 引用格式无效或未选择资料库"
     );
   }
-  if (reference.mode === "research") {
+  if (reference.mode === "research" && !context.access.allowResearch) {
     throw new KnowledgeAccessError(
-      "RESEARCH_UNAVAILABLE",
-      "Knowledge 研究任务将在 Phase 4 开放，当前只能执行快速查询"
+      "RESEARCH_FORBIDDEN",
+      "当前 Agent 未获授权启动 Knowledge 研究任务"
     );
   }
 
@@ -173,11 +179,47 @@ export async function executeKnowledgeReferenceSearch(
   });
 }
 
+export async function executeKnowledgeReferenceResearch(
+  context: KnowledgeApplicationContext,
+  question: string,
+  reference: KnowledgeReference,
+  options?: Pick<KnowledgeResearchRequest, "maxRounds" | "maxToolCalls" | "evidenceBudget" | "timeoutMs" | "output"> & {
+    signal?: AbortSignal;
+    onProgress?: (progress: KnowledgeResearchProgress) => void;
+  }
+): Promise<KnowledgeResearchResult> {
+  if (reference.mode !== "research") {
+    throw new KnowledgeAccessError(
+      "INVALID_REQUEST",
+      "当前 Knowledge 引用不是研究模式"
+    );
+  }
+  const { signal, onProgress, ...requestOptions } = options ?? {};
+  return runKnowledgeResearch(
+    context,
+    {
+      question,
+      libraryIds: reference.libraryIds,
+      ...requestOptions,
+    },
+    { signal, onProgress }
+  );
+}
+
 export function formatKnowledgeReferenceResult(
   response: KnowledgeToolSearchResponse
 ): string {
   return [
     "Knowledge 快速查询结果（结构化 JSON，回答时请保留来源路径与 chunk 定位）：",
+    JSON.stringify(response, null, 2),
+  ].join("\n");
+}
+
+export function formatKnowledgeResearchResult(
+  response: KnowledgeResearchResult
+): string {
+  return [
+    "Knowledge 研究结果（结构化证据；回答时请保留引用、空缺和终止原因）：",
     JSON.stringify(response, null, 2),
   ].join("\n");
 }

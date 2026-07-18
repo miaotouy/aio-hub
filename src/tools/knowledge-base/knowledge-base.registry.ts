@@ -7,6 +7,7 @@ import type {
 } from "@/services/types";
 import { markRaw } from "vue";
 import { BookOpenText } from "lucide-vue-next";
+import { KnowledgeAccessError } from "./access";
 import {
   listKnowledgeForAgent,
   parseKnowledgeToolReadRequest,
@@ -15,6 +16,11 @@ import {
   resolveKnowledgeApplicationContext,
   searchKnowledgeForAgent,
 } from "./application";
+import {
+  createKnowledgeResearchTask,
+  parseKnowledgeResearchRequest,
+} from "./research";
+import type { KnowledgeResearchTask } from "./research";
 import type {
   KnowledgeLibrarySummary,
   KnowledgeToolReadResponse,
@@ -174,6 +180,22 @@ const knowledgeRegistry: ToolRegistry = {
           returnType: "Promise<KnowledgeToolReadResponse>",
           agentCallable: true,
         },
+        {
+          name: "research",
+          displayName: "研究资料库",
+          description:
+            "创建带轮次、工具调用数、证据字符预算和可取消进度的多轮研究任务；结果保留引用、空缺、冲突和终止原因。",
+          parameters: [
+            { name: "question", type: "string", description: "研究问题", required: true, uiHint: "textarea" },
+            { name: "libraryIds", type: "string[]", description: "稳定资料库 ID；省略时遵守 allowSearchAll", required: false },
+            { name: "maxRounds", type: "number", description: "最大研究轮次，1 到 8", required: false, defaultValue: 3 },
+            { name: "maxToolCalls", type: "number", description: "最大 search/read 调用数，1 到 40", required: false, defaultValue: 12 },
+            { name: "evidenceBudget", type: "number", description: "证据字符预算，1000 到 100000", required: false, defaultValue: 24000 },
+            { name: "output", type: "string", description: "brief、report 或 comparison", required: false, defaultValue: "report" },
+          ],
+          returnType: "Promise<KnowledgeResearchTask>",
+          agentCallable: true,
+        },
       ],
     };
   },
@@ -249,6 +271,39 @@ const knowledgeRegistry: ToolRegistry = {
           sourcePath: chunk.sourcePath,
           chunkIndex: chunk.chunkIndex,
         })),
+      },
+    };
+  },
+
+  async research(
+    args: Record<string, unknown>,
+    context?: ToolContext
+  ): Promise<ToolMethodResult<KnowledgeResearchTask>> {
+    const applicationContext = resolveKnowledgeApplicationContext(context);
+    if (!applicationContext.access.allowResearch) {
+      throw new KnowledgeAccessError(
+        "RESEARCH_FORBIDDEN",
+        "当前 Agent 未获授权启动 Knowledge 研究任务"
+      );
+    }
+    const request = parseKnowledgeResearchRequest(args);
+    const handle = createKnowledgeResearchTask(applicationContext, request);
+    const task = await handle.task;
+    return {
+      result: task,
+      executionMetadata: {
+        agentId: applicationContext.agentId,
+        taskId: task.id,
+        status: task.status,
+        terminationReason: task.result?.terminationReason,
+        resultCount: task.result?.citations.length ?? 0,
+        sources: task.result?.citations.map((citation) => ({
+          libraryId: citation.libraryId,
+          documentId: citation.documentId,
+          chunkId: citation.chunkId,
+          sourcePath: citation.sourcePath,
+          chunkIndex: citation.chunkIndex,
+        })) ?? [],
       },
     };
   },

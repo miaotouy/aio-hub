@@ -98,6 +98,10 @@ describe("KnowledgeReferenceControl", () => {
     await trigger.trigger("click");
     await flushPromises();
 
+    const modeButtons = wrapper.findAll(".mode-switch button");
+    expect(modeButtons).toHaveLength(2);
+    expect(modeButtons[1].attributes("disabled")).toBeDefined();
+
     const options = wrapper.findAll("button.library-option");
     expect(options).toHaveLength(2);
     expect(options[0].get(".option-name").attributes("title")).toContain(

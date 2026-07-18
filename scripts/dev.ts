@@ -33,6 +33,7 @@ for (const envPath of envPaths) {
 
 // 2. 获取基础配置
 const idSuffix = process.env.AIO_ID_SUFFIX || "";
+const configuredDataDir = process.env.AIO_DATA_DIR?.trim() || "";
 const basePort = parseInt(process.env.AIO_PORT || "1420");
 // 默认端口选在 21655（远离 Windows Hyper-V/WinNAT 常见的 16xxx-17xxx 动态保留段）。
 // 即便仍踩到排除段，后端 start_llm_proxy_server 会自动 fallback 到可用端口。
@@ -60,8 +61,14 @@ console.log(`      实例后缀: ${idSuffix || "(无)"}`);
 console.log(`      Vite 端口: ${port}`);
 console.log(`      HMR 端口: ${hmrPort}`);
 console.log(`      LLMAPI 代理端口: ${proxyPort}`);
-if (idSuffix) {
-  console.log(`      数据目录: ./.dev-data/${idSuffix}`);
+if (configuredDataDir) {
+  console.log(
+    `      数据目录: ${path.resolve(process.cwd(), configuredDataDir)} (AIO_DATA_DIR)`
+  );
+} else if (idSuffix) {
+  console.log(
+    `      数据目录: ${path.resolve(process.cwd(), ".dev-data", idSuffix)}`
+  );
 }
 console.log("");
 
@@ -99,8 +106,10 @@ console.log(`[Dev] 已生成临时配置: ${devConfPath}`);
 tauriArgs.push("-c", devConfPath);
 
 // 6. 处理数据目录隔离
-if (idSuffix) {
-  const dataDir = path.resolve(process.cwd(), ".dev-data", idSuffix);
+if (configuredDataDir || idSuffix) {
+  const dataDir = configuredDataDir
+    ? path.resolve(process.cwd(), configuredDataDir)
+    : path.resolve(process.cwd(), ".dev-data", idSuffix);
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
@@ -119,4 +128,3 @@ const child = spawn("bun", ["run", ...tauriArgs], {
 child.on("exit", (code) => {
   process.exit(code || 0);
 });
-

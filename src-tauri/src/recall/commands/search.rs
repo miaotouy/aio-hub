@@ -22,7 +22,7 @@ use crate::recall::monitor::{
 };
 use crate::recall::search::recall::RECALL_ALGORITHM_VERSION;
 use crate::recall::state::RecallState;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, State};
 
 #[tauri::command]
 pub async fn recall_list_engines(
@@ -56,7 +56,7 @@ pub async fn recall_search(
         .get_engine(&id)
         .ok_or_else(|| format!("找不到检索引擎: {}", id))?;
 
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let app_data_dir = crate::get_app_data_dir(app.config());
 
     let context = RetrievalContext {
         db: state.imdb.clone(),

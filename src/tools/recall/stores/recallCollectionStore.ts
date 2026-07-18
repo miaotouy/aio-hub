@@ -225,12 +225,10 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
     async init() {
       this.loading = true;
       try {
-        // 1. 先确保 SQLite repository 已建立，再读取集合列表。
-        await invoke("recall_initialize");
-        await invoke("recall_warmup");
+        // SQLite repository 与内存读模型由 Tauri 应用启动周期管理。
         await this.loadBases();
 
-        // 2. 加载引擎列表。
+        // 加载引擎列表。
         await this.loadEngines();
       } catch (e) {
         errorHandler.error(e, "初始化思绪集失败");

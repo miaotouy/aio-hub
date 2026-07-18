@@ -46,7 +46,7 @@ Recall 条目不自动切片，也不保存文档 manifest、文件监听状态�
 - `tag_pool.rs`、`tag_sea.rs`：按 Embedding 模型隔离的标签向量与关联运行时。
 - `monitor.rs`：`recall-monitor` 事件和心跳 command。
 
-`src-tauri/src/lib.rs` 只管理 `RecallState`；`src-tauri/src/commands.rs` 注册 `recall_*` commands。Knowledge 空壳不持有 Recall 状态，也不导出命令。
+`src-tauri/src/lib.rs` 管理 `RecallState`，并在 Tauri `setup` 阶段初始化 repository 与内存读模型；`src-tauri/src/commands.rs` 注册 `recall_*` commands。Knowledge 空壳不持有 Recall 状态，也不导出命令。
 
 ## 3. 检索引擎
 
@@ -68,10 +68,10 @@ Recall 条目不自动切片，也不保存文档 manifest、文件监听状态�
 
 ### 4.1 初始化与预热
 
-1. `recallCollectionStore` 只从 `workspace.json` 加载 UI 配置，集合列表由 repository 返回。
-2. 前端调用 `recall_initialize`，幂等创建并注册 SQLite repository。
-3. `recall_warmup` 从 `recall.db` 构建 `InMemoryDatabase`。
-4. 后台从 `recall-vectors.db` 按模型加载向量矩阵和标签池索引。
+1. Tauri `setup` 调用 `RecallState::initialize`，在主窗口创建前幂等建立 SQLite repository。
+2. 同一后端初始化临界区从 `recall.db` 构建 `InMemoryDatabase`，并从 `recall-vectors.db` 恢复向量矩阵和标签池索引。
+3. `recall_initialize` 作为兼容 command 复用同一幂等入口；`recall_warmup` 只用于显式重建派生读模型。
+4. `recallCollectionStore` 只加载 `workspace.json` UI 配置、集合列表和引擎信息，不管理数据库生命周期。
 
 ### 4.2 条目写入与向量化
 
@@ -118,7 +118,7 @@ appData/knowledge/
 
 目录名和 `.aio-kb` v1 格式在迁移完成前保持不变，避免破坏用户源数据与备份兼容。旧目录只能由 Recall legacy importer、备份格式夹具和迁移测试读取；备份恢复自身直接写入 SQLite repository，不能被 Knowledge 空壳作为业务存储使用。
 
-Stage 2 已建立 `appData/recall/recall.db` 与 `recall-vectors.db` 的 SQLite repository 和独立 migration 表；主库 schema v2 持久化集合活动模型，模型维度、tokens 和最后索引时间从向量库统计恢复。`recall_initialize` 会幂等创建并注册 repository，warmup、集合/条目/向量/标签池 command 与备份导入导出均以 repository 为真源。独立的 `LegacyFileRecallImporter` 已覆盖旧集合、条目、向量与 tag pool 的幂等导入、运行中状态续跑和结构化报告，但自动迁移入口仅在最终发布阶段接入。旧目录在校验和用户确认前不得删除。
+Stage 2 已建立 `appData/recall/recall.db` 与 `recall-vectors.db` 的 SQLite repository 和独立 migration 表；主库 schema v2 持久化集合活动模型，模型维度、tokens 和最后索引时间从向量库统计恢复。Tauri 启动阶段会幂等创建 repository 并 warmup 派生读模型，`recall_initialize` 保留为兼容入口；集合/条目/向量/标签池 command 与备份导入导出均以 repository 为真源。独立的 `LegacyFileRecallImporter` 已覆盖旧集合、条目、向量与 tag pool 的幂等导入、运行中状态续跑和结构化报告，但自动迁移入口仅在最终发布阶段接入。旧目录在校验和用户确认前不得删除。
 
 ## 7. 兼容与后续迁移
 

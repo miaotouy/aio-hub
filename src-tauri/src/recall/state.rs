@@ -14,13 +14,15 @@
 
 use crate::recall::core::{RecallResult, RetrievalEngine};
 use crate::recall::index::InMemoryDatabase;
+use crate::recall::ops::warmup_recall_repository;
 use crate::recall::search::{
     AssociativeRecallEngine, BlenderRetrievalEngine, KeywordRetrievalEngine, LensRetrievalEngine,
     SemanticRecallEngine, VectorRetrievalEngine,
 };
-use crate::recall::storage::RecallRepository;
+use crate::recall::storage::{RecallRepository, SqliteRecallRepository};
 use crate::recall::tag_pool::GlobalTagPoolManager;
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::{Arc, Mutex, RwLock};
 
 pub type EmbeddingCache = HashMap<String, (Vec<f32>, u64)>;
@@ -49,7 +51,7 @@ pub struct RecallState {
     pub embedding_cache: Arc<RwLock<EmbeddingCache>>,
     /// 全局 RAG 检索结果缓存（不按 session 隔离）
     pub retrieval_cache: Arc<RwLock<RetrievalCache>>,
-    /// Recall SQLite 持久化真源，应用数据目录确定后由 initialize command 设置。
+    /// Recall SQLite 持久化真源，由 Tauri 应用启动周期初始化。
     pub repository: Arc<RwLock<Option<Arc<dyn RecallRepository>>>>,
 }
 
@@ -76,12 +78,31 @@ impl RecallState {
         }
     }
 
-    pub fn set_repository(&self, repository: Arc<dyn RecallRepository>) -> Result<(), String> {
+    /// 幂等初始化 SQLite repository 并从持久化真源恢复内存读模型。
+    pub fn initialize(&self, app_data_dir: &Path) -> Result<(), String> {
+        let _guard = self
+            .lock
+            .lock()
+            .map_err(|_| "获取 Recall 初始化锁失败".to_string())?;
+
+        if self
+            .repository
+            .read()
+            .map_err(|_| "获取 Recall repository 读锁失败".to_string())?
+            .is_some()
+        {
+            return Ok(());
+        }
+
+        let repository = SqliteRecallRepository::new(app_data_dir);
+        repository.initialize()?;
+        warmup_recall_repository(&repository, &self.imdb, &self.tag_pool)?;
+
         let mut slot = self
             .repository
             .write()
             .map_err(|_| "获取 Recall repository 写锁失败".to_string())?;
-        *slot = Some(repository);
+        *slot = Some(Arc::new(repository));
         Ok(())
     }
 
@@ -104,5 +125,26 @@ impl RecallState {
 impl Default for RecallState {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn initialization_is_idempotent() {
+        let directory = tempdir().unwrap();
+        let state = RecallState::new();
+
+        state.initialize(directory.path()).unwrap();
+        let first = state.repository().unwrap();
+        state.initialize(directory.path()).unwrap();
+        let second = state.repository().unwrap();
+
+        assert!(Arc::ptr_eq(&first, &second));
+        assert!(first.main_db_path().is_file());
+        assert!(first.vector_db_path().is_file());
     }
 }

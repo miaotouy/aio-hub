@@ -15,10 +15,9 @@
 use crate::recall::core::{RecallCollection, RecallCollectionMeta};
 use crate::recall::ops::*;
 use crate::recall::state::RecallState;
-use crate::recall::storage::{RecallRepository, SqliteRecallRepository};
 use crate::recall::utils::*;
 use std::sync::{Arc, RwLock};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, State};
 use uuid::Uuid;
 
 #[tauri::command]
@@ -26,11 +25,8 @@ pub async fn recall_initialize(
     app: AppHandle,
     state: State<'_, RecallState>,
 ) -> Result<(), String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let repository = SqliteRecallRepository::new(&app_data_dir);
-    repository.initialize()?;
-    state.set_repository(std::sync::Arc::new(repository))?;
-    Ok(())
+    let app_data_dir = crate::get_app_data_dir(app.config());
+    state.initialize(&app_data_dir)
 }
 
 #[tauri::command]

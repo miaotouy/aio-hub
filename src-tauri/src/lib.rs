@@ -295,6 +295,15 @@ pub fn run() {
                 log::info!("[SCOPE] 已允许访问数据目录 (fs): {:?}", app_data_dir);
             }
 
+            // Recall repository 和内存读模型属于应用后端生命周期，不依赖任何前端页面挂载。
+            if let Some(state) = app.try_state::<recall::RecallState>() {
+                if let Err(error) = state.initialize(&app_data_dir) {
+                    log::error!("[Recall] 启动初始化失败: {}", error);
+                } else {
+                    log::info!("[Recall] repository 与内存读模型已就绪");
+                }
+            }
+
             // 打印启动元数据
             let package_info = app.package_info();
             log::info!("========================================");

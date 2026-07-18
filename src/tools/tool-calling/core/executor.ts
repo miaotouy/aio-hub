@@ -20,7 +20,7 @@ import type {
   ToolApprovalResult,
   ToolCallStatus,
 } from "../types";
-import type { ToolContext } from "@/services/types";
+import type { ToolContext, ToolMethodResult } from "@/services/types";
 import { createModuleLogger } from "@/utils/logger";
 import { taskManager } from "./async-task";
 
@@ -28,6 +28,7 @@ const logger = createModuleLogger("tool-calling/executor");
 
 export interface ExecutorOptions {
   config: ToolCallConfig;
+  agent?: ToolContext["agent"];
   onBeforeExecute?: (
     request: ParsedToolRequest
   ) => Promise<ToolApprovalResult | boolean>;
@@ -37,7 +38,8 @@ export interface ExecutorOptions {
 function buildErrorResult(
   request: ParsedToolRequest,
   message: string,
-  durationMs = 0
+  durationMs = 0,
+  metadata?: Record<string, unknown>
 ): ToolExecutionResult {
   return {
     requestId: request.requestId,
@@ -45,6 +47,7 @@ function buildErrorResult(
     status: "error",
     result: message,
     durationMs,
+    metadata,
   };
 }
 
@@ -364,6 +367,8 @@ async function executeSingleRequest(
     // 构造统一的 ToolContext，通过第二参数传递
     const toolContext: ToolContext = {
       isAsync: false,
+      agent: options.agent,
+      requestId: request.requestId,
       reportStatus: (message: string) => {
         options.onStatusChange?.(request.requestId, "executing");
         logger.debug(`工具执行进度上报: ${request.toolName}`, { message });
@@ -384,8 +389,18 @@ async function executeSingleRequest(
       request.toolName
     );
     const durationMs = Date.now() - startedAt;
+    const structured =
+      data !== null &&
+      typeof data === "object" &&
+      "executionMetadata" in data &&
+      "result" in data
+        ? (data as ToolMethodResult)
+        : undefined;
+    const resultData = structured?.result ?? data;
     const result =
-      typeof data === "string" ? data : JSON.stringify(data ?? null);
+      typeof resultData === "string"
+        ? resultData
+        : JSON.stringify(resultData ?? null);
 
     options.onStatusChange?.(request.requestId, "completed");
 
@@ -395,6 +410,7 @@ async function executeSingleRequest(
       status: "success",
       result,
       durationMs,
+      metadata: structured?.executionMetadata,
     };
   } catch (error) {
     const durationMs = Date.now() - startedAt;
@@ -405,7 +421,13 @@ async function executeSingleRequest(
       error: message,
     });
     options.onStatusChange?.(request.requestId, "error");
-    return buildErrorResult(request, message, durationMs);
+    const failureType =
+      error && typeof error === "object" && "code" in error
+        ? String(error.code)
+        : error instanceof Error
+          ? error.name
+          : "UnknownError";
+    return buildErrorResult(request, message, durationMs, { failureType });
   }
 }
 

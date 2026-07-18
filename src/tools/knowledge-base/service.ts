@@ -18,6 +18,7 @@ import type {
   KnowledgeIndexStatus,
   KnowledgeLibrary,
   KnowledgeResult,
+  KnowledgeSearchExecution,
   KnowledgeSearchRequest,
   KnowledgeVectorRecord,
 } from "./types";
@@ -138,6 +139,12 @@ export async function switchKnowledgeEmbeddingRoute(
 export async function searchKnowledge(
   request: KnowledgeSearchRequest
 ): Promise<KnowledgeResult[]> {
+  return (await searchKnowledgeDetailed(request)).results;
+}
+
+export async function searchKnowledgeDetailed(
+  request: KnowledgeSearchRequest
+): Promise<KnowledgeSearchExecution> {
   await ensureKnowledgeInitialized();
   if (
     request.queryVector &&
@@ -147,7 +154,17 @@ export async function searchKnowledge(
     throw new Error("预计算 Knowledge 查询向量必须指定 spaceId");
   }
   if (request.queryVector || request.strategy === "keyword") {
-    return invoke<KnowledgeResult[]>("knowledge_search", { request });
+    return {
+      results: await invoke<KnowledgeResult[]>("knowledge_search", { request }),
+      traces: [
+        {
+          libraryIds: request.libraryIds,
+          requestedStrategy: request.strategy,
+          actualStrategy:
+            request.strategy === "auto" ? "hybrid" : request.strategy,
+        },
+      ],
+    };
   }
 
   const allLibraries = await listKnowledgeLibraries();
@@ -171,6 +188,7 @@ export async function searchKnowledge(
   }
 
   const results: KnowledgeResult[] = [];
+  const traces: KnowledgeSearchExecution["traces"] = [];
   for (const group of groups.values()) {
     const library = group[0];
     const routeKey = library.embeddingRouteKey || library.embeddingModelId;
@@ -193,6 +211,12 @@ export async function searchKnowledge(
           },
         }))
       );
+      traces.push({
+        libraryIds: group.map((item) => item.id),
+        requestedStrategy: request.strategy,
+        actualStrategy:
+          request.strategy === "auto" ? "hybrid" : request.strategy,
+      });
     } catch (error) {
       if (request.strategy !== "auto") throw error;
       logger.warn("Knowledge auto 检索生成查询向量失败，分组降级为关键词检索", {
@@ -209,9 +233,19 @@ export async function searchKnowledge(
           },
         }))
       );
+      traces.push({
+        libraryIds: group.map((item) => item.id),
+        requestedStrategy: request.strategy,
+        actualStrategy: "keyword",
+        degradationReason:
+          error instanceof Error ? error.message : String(error),
+      });
     }
   }
-  return results.sort((a, b) => b.score - a.score).slice(0, request.limit);
+  return {
+    results: results.sort((a, b) => b.score - a.score).slice(0, request.limit),
+    traces,
+  };
 }
 
 async function createKnowledgeQueryVector(

@@ -351,6 +351,7 @@ export interface ChatMessageNode {
         | "completed";
       durationMs?: number;
       rawArgs?: Record<string, any>;
+      resultMetadata?: Record<string, unknown>;
     };
     /** 多个工具调用结果（用于 role: "tool" 的节点） */
     toolCalls?: Array<{
@@ -366,6 +367,7 @@ export interface ChatMessageNode {
         | "completed";
       durationMs?: number;
       rawArgs?: Record<string, any>;
+      resultMetadata?: Record<string, unknown>;
     }>;
     /** AI 请求的工具调用列表（用于 role: "assistant" 的节点） */
     toolCallsRequested?: Array<{

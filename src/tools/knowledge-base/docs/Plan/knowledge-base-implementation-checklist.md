@@ -1,6 +1,6 @@
 # Knowledge 施工步骤计划清单
 
-- **状态**：施工中（Phase 0 已完成，Phase 1 待施工）
+- **状态**：施工中（Phase 0、Phase 1 已完成，Phase 2 待施工）
 - **创建日期**：2026-07-18
 - **最近修订**：2026-07-18
 - **适用范围**：`src/tools/knowledge-base/`、`src/tools/retrieval/`、`src/tools/llm-chat/`、`src/tools/agent-manager/`、`src-tauri/src/knowledge/`
@@ -139,44 +139,52 @@ Phase 0 契约收敛
 
 ### 5.1 共享服务与权限
 
-- [ ] P1-01 在工具层下方建立可复用 Knowledge application service，避免 Chat、工作台和 Agent 工具各自实现检索。
-- [ ] P1-02 所有工具请求先解析 Agent 身份与授权资料库范围，再进入 repository 或检索服务。
-- [ ] P1-03 未指定 library IDs 时只在 `allowSearchAll=true` 的已授权范围内执行；否则返回明确参数或权限错误。
-- [ ] P1-04 统一资料库摘要结构和可用状态来源，供 `{{knowledge_list}}` 与 `knowledge.listLibraries` 共用。
+- [x] P1-01 在工具层下方建立可复用 Knowledge application service，避免 Chat、工作台和 Agent 工具各自实现检索。
+- [x] P1-02 所有工具请求先解析 Agent 身份与授权资料库范围，再进入 repository 或检索服务。
+- [x] P1-03 未指定 library IDs 时只在 `allowSearchAll=true` 的已授权范围内执行；否则返回明确参数或权限错误。
+- [x] P1-04 统一资料库摘要结构和可用状态来源，供 `{{knowledge_list}}` 与 `knowledge.listLibraries` 共用。
 
 ### 5.2 `knowledge.listLibraries`
 
-- [ ] P1-05 定义请求、响应和错误类型。
-- [ ] P1-06 返回稳定 ID、名称、说明、来源数量、索引状态和支持的检索能力。
-- [ ] P1-07 只返回当前 Agent 已授权范围；不可用的已授权库保留并标记状态。
-- [ ] P1-08 注册工具说明，明确“授权不等于自动查询”。
+- [x] P1-05 定义请求、响应和错误类型。
+- [x] P1-06 返回稳定 ID、名称、说明、来源数量、索引状态和支持的检索能力。
+- [x] P1-07 只返回当前 Agent 已授权范围；不可用的已授权库保留并标记状态。
+- [x] P1-08 注册工具说明，明确“授权不等于自动查询”。
 
 ### 5.3 `knowledge.search`
 
-- [ ] P1-09 定义 `query`、`libraryIds`、`strategy`、`topK` 和文档/来源/路径过滤条件。
-- [ ] P1-10 复用现有 keyword、semantic 和 hybrid 能力，实现统一快速检索入口。
-- [ ] P1-11 `auto` 根据各库实际索引能力选策略，返回实际策略、降级原因和 signals。
-- [ ] P1-12 多库按各自向量空间生成查询向量和候选，在候选排名层执行明确融合。
-- [ ] P1-13 对候选去重并可选补充相邻 chunk，最终按字符预算裁剪。
-- [ ] P1-14 返回结构化 hit，至少包含 library、document、chunk、chunk index、标题、heading、source path、snippet、score 和 signals。
-- [ ] P1-15 不在常用工具参数中暴露 space ID、批次大小、实际维度或底层融合权重。
+- [x] P1-09 定义 `query`、`libraryIds`、`strategy`、`topK` 和文档/来源/路径过滤条件。
+- [x] P1-10 复用现有 keyword、semantic 和 hybrid 能力，实现统一快速检索入口。
+- [x] P1-11 `auto` 根据各库实际索引能力选策略，返回实际策略、降级原因和 signals。
+- [x] P1-12 多库按各自向量空间生成查询向量和候选，在候选排名层执行明确融合。
+- [x] P1-13 对候选去重并可选补充相邻 chunk，最终按字符预算裁剪。
+- [x] P1-14 返回结构化 hit，至少包含 library、document、chunk、chunk index、标题、heading、source path、snippet、score 和 signals。
+- [x] P1-15 不在常用工具参数中暴露 space ID、批次大小、实际维度或底层融合权重。
 
 ### 5.4 `knowledge.read`
 
-- [ ] P1-16 定义按 `chunkId`、`documentId + chunkIndex`、heading 或字符范围读取的请求契约。
-- [ ] P1-17 强制 `maxChars` 或等价预算，普通 Agent 不允许无界全文展开。
-- [ ] P1-18 校验 `allowDocumentRead` 和目标资料库权限。
-- [ ] P1-19 返回正文、相邻定位和完整来源信息，使 search -> read 可以形成证据链。
+- [x] P1-16 定义按 `chunkId`、`documentId + chunkIndex`、heading 或字符范围读取的请求契约。
+- [x] P1-17 强制 `maxChars` 或等价预算，普通 Agent 不允许无界全文展开。
+- [x] P1-18 校验 `allowDocumentRead` 和目标资料库权限。
+- [x] P1-19 返回正文、相邻定位和完整来源信息，使 search -> read 可以形成证据链。
 
 ### 5.5 工具注册、记录与退出门禁
 
-- [ ] P1-20 接入现有 tool-calling 基础设施，保持 VCP 工具协议与项目错误处理规范。
-- [ ] P1-21 工具调用记录保存结构化请求摘要、结果摘要、来源、耗时、实际策略和失败类型。
-- [ ] P1-T01 覆盖 list/search/read 的权限矩阵、越权、空授权和不可用资料库测试。
-- [ ] P1-T02 覆盖 keyword-only、semantic、hybrid、auto 降级和不同向量空间多库检索。
-- [ ] P1-T03 覆盖 read 邻域、预算裁剪、无效 chunk 和禁止全文读取。
-- [ ] P1-T04 验证 Recall 与 Knowledge 可由上层显式组合，但底层不混合原始分数和领域数据。
-- [ ] P1-GATE Agent 能在不依赖宏和工作台 UI 的情况下发现、搜索并继续阅读授权资料，且返回可追溯结构化结果。
+- [x] P1-20 接入现有 tool-calling 基础设施，保持 VCP 工具协议与项目错误处理规范。
+- [x] P1-21 工具调用记录保存结构化请求摘要、结果摘要、来源、耗时、实际策略和失败类型。
+- [x] P1-T01 覆盖 list/search/read 的权限矩阵、越权、空授权和不可用资料库测试。
+- [x] P1-T02 覆盖 keyword-only、semantic、hybrid、auto 降级和不同向量空间多库检索。
+- [x] P1-T03 覆盖 read 邻域、预算裁剪、无效 chunk 和禁止全文读取。
+- [x] P1-T04 验证 Recall 与 Knowledge 可由上层显式组合，但底层不混合原始分数和领域数据。
+- [x] P1-GATE Agent 能在不依赖宏和工作台 UI 的情况下发现、搜索并继续阅读授权资料，且返回可追溯结构化结果。
+
+### 5.6 Phase 1 施工记录
+
+- 工具调用基础设施原先只传业务参数和进度回调，无法让工具确认当前 Agent 身份。本阶段为 `ToolContext` 增加只读 Agent 权限快照和 request ID，并由 Chat orchestrator 下推；缺少上下文的 Knowledge/VCP 外部调用明确拒绝。
+- 新增标准 `ToolMethodResult` 信封和 `ToolExecutionResult.metadata`，Knowledge 的来源、实际策略、降级原因、结果数量与失败类型会持久化到可见工具事件的 `resultMetadata`，面向 LLM 的结构化 result 保持独立。
+- 一般问题记录：既有 `retrieval.search` 的 Knowledge/mixed 分支最初未消费 Agent 权限，可旁路独立 Knowledge 工具。本阶段已改为复用 `authorizeKnowledgeLibraryScope()`；Recall-only 组合不要求 Knowledge 上下文。
+- 多库融合按每库候选 rank score 排序；rank 相同时使用稳定 library/chunk ID，不使用跨策略原始 score 作为 tie-break。原始 score 与 signals 原样返回用于解释。
+- 验证结果：前端 Knowledge、Retrieval、tool-calling 定向测试覆盖权限、策略、预算和 metadata；Rust repository 测试新增 `auto + queryVector -> hybrid` 的 BM25/vector signals 断言。
 
 ## 6. Phase 2：聊天中的用户显式引用
 

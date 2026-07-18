@@ -46,6 +46,7 @@ LLM 回复文本 ──→ [解析] ──→ ParsedToolRequest[] ──→ [执
 
 - **AgentExtension**: 基础接口，仅需实现 `getExtraPromptContext()` 即可成为“环境增强”插件。
 - **ToolRegistry**: 继承自 `AgentExtension`，既可以提供可调用方法，也可以提供上下文。
+- **ToolContext**: 执行器通过方法第二参数下推请求 ID、进度回调和当前 Agent 的只读权限快照。需要按 Agent 授权的工具不得信任 LLM 参数中的身份或权限；缺少 Agent 上下文的外部调用应明确拒绝。
 
 为了优化性能，系统将**工具定义**（静态）与**上下文**（动态）分离：
 
@@ -324,7 +325,7 @@ flowchart TD
 - **自动预览 (Auto-Preview)**: 在进入审批挂起状态前，执行器会尝试调用工具的 `onToolCallPreview` 钩子，允许工具（如 Canvas）将数据写入内存缓冲区以供用户即时预览效果。
 - **双重安全校验**: 即使方法存在于工具实例上，也必须在 [`getMetadata()`](core/executor.ts:119) 中标记 `agentCallable: true` 才允许执行，防止 LLM 调用非授权方法。
 - **超时保护**: 通过 [`withTimeout()`](core/executor.ts:37) 包装 Promise，超时后自动 reject。
-- **结果序列化**: 返回值如果不是字符串，自动 `JSON.stringify`。
+- **结果序列化**: 返回值如果不是字符串，自动 `JSON.stringify`。工具可返回标准 `ToolMethodResult` 信封，把面向 LLM 的 `result` 与写入消息节点的 `executionMetadata` 分开；带 `code` 的异常会记录为结构化 `failureType`。
 
 ### 4.6. 引擎 (`core/engine.ts`)
 
@@ -405,7 +406,7 @@ sequenceDiagram
 1. **Prompt 注入**: `llm-chat` 在构建上下文时调用 `generateToolsPrompt()` 获取工具定义，注入到 System Prompt 中。
 2. **响应处理**: `llm-chat` 在收到 LLM 完整回复后，调用 `processCycle()` 检测并执行工具调用。
 3. **迭代循环**: 如果存在工具调用，将结果格式化后追加到上下文，再次请求 LLM，直到无工具调用或达到 `maxIterations`。
-4. **元数据记录**: 工具调用的请求和结果会记录在消息节点的 `metadata.toolCallsRequested` 和 `metadata.toolCall` 中。
+4. **元数据记录**: 工具调用的请求和结果会记录在消息节点的 `metadata.toolCallsRequested` 和 `metadata.toolCall` 中；来源、实际策略、降级原因等审计信息写入 `resultMetadata`。
 
 ## 7. 测试界面 (ToolCallingTester)
 

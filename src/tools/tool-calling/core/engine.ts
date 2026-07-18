@@ -24,10 +24,12 @@ import type {
 import { parseToolRequests } from "./parser";
 import { executeToolRequests } from "./executor";
 import { validateToolRequest } from "./validator";
+import type { ToolContext } from "@/services/types";
 
 export interface ToolCallEngineOptions {
   protocol: ToolCallingProtocol;
   config: ToolCallConfig;
+  agent?: ToolContext["agent"];
   onBeforeExecute?: (
     request: ParsedToolRequest
   ) => Promise<ToolApprovalResult | boolean>;
@@ -64,6 +66,7 @@ export async function processToolCallCycle(
 
   const executionResults = await executeToolRequests(parsedRequests, {
     config: options.config,
+    agent: options.agent,
     onBeforeExecute: options.onBeforeExecute,
     onStatusChange: options.onStatusChange,
   });

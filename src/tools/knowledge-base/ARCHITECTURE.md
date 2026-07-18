@@ -42,9 +42,12 @@ Knowledge 前端不导入 Recall store、entry、priority、tag pool 或 workspa
 - `access.ts` 是共享授权解析边界，负责 ID 去重、默认值、查询范围校验、越权错误、已删除/暂不可用状态和目录格式。宏、Knowledge 工具、Chat 显式引用与 Agent Manager 必须复用该边界。
 - `{{knowledge_list}}` 在用户指定的预设位置展开授权资料库目录，只读取摘要，不执行检索；宏缺失时不自动注入。名称和状态从资料库真源实时解析，持久化只保存 ID。
 - 不注册 `{{knowledge}}` 或 `【knowledge::...】`，上下文管道也没有 Knowledge processor。普通消息和 Agent 授权不会触发 Knowledge 检索。
-- 独立的 `knowledge.listLibraries`、`knowledge.search`、`knowledge.read` 是后续原子工具入口；现有 Retrieval 上层组合能力不替代工具层权限校验。
+- `application.ts` 提供独立的 `knowledge.listLibraries`、`knowledge.search`、`knowledge.read` 应用服务：所有入口先从 `ToolContext` 解析 Agent 快照，再校验授权、可用状态和能力权限。
+- `search` 按 library 独立调用底层检索，使不同 Embedding 空间分别生成 query vector 和候选；跨库只按 RRF rank score 融合，原始 score 与 signals 仅用于解释。`auto` 返回实际策略和降级原因，结果按字符预算裁剪并可选补充相邻 chunk。
+- `read` 支持 chunk ID、document + chunk index 邻域、heading 和字符范围，强制字符预算并返回前后 chunk 定位和完整来源字段。
+- 工具结果通过 `ToolMethodResult.executionMetadata` 把来源、耗时外的实际策略和失败类型写入可见工具事件。现有 Retrieval 上层组合入口复用同一权限范围，不能旁路访问未授权 Knowledge 库。
 - mixed 检索只属于上层显式编排，先保留 Recall 与 Knowledge 的分域配额，再使用 RRF 融合，不直接比较两域原始分数。
 
 ## 5. 后续施工顺序
 
-后续以 `docs/Plan/knowledge-base-implementation-checklist.md` 为唯一施工清单：先完成独立 Knowledge 原子工具和 Chat 结构化显式引用，再补齐配置分层、持久 ingest queue、目录同步、原子版本替换、诊断工作台和二阶研究任务。真实路径、模型调用与恢复行为必须在隔离 appData 的 Tauri WebView 中验收。
+后续以 `docs/Plan/knowledge-base-implementation-checklist.md` 为唯一施工清单：下一步实现 Chat 结构化显式引用，再补齐配置分层、持久 ingest queue、目录同步、原子版本替换、诊断工作台和二阶研究任务。真实路径、模型调用与恢复行为必须在隔离 appData 的 Tauri WebView 中验收。

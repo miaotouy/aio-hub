@@ -24,7 +24,13 @@ Knowledge 通过独立的 `knowledgeAccess` 接入 Agent。配置只保存稳定
 
 Knowledge 的检索参数属于单次工具调用，而不是 Agent 授权属性。查询前必须经过当前 Agent 的权限校验；未授权、已删除或不可用的资料库会返回明确错误，不会静默改搜其他库。
 
-独立的 `knowledge.listLibraries`、`knowledge.search` 和 `knowledge.read` 工具按施工阶段接入。现有上层 Retrieval 组合能力不改变 Knowledge 的授权边界，也不会恢复被动检索占位符。
+Agent 可以使用三个独立工具：
+
+- `knowledge.listLibraries`：查看当前授权库、来源数量、索引状态和可用检索能力。
+- `knowledge.search`：按 `auto`、`keyword`、`semantic` 或 `hybrid` 快速搜索，支持文档、来源类型和路径过滤，并返回实际策略与降级原因。
+- `knowledge.read`：按 chunk、chunk 邻域、heading 或字符范围继续读取证据；必须提供字符预算，且需要 `allowDocumentRead` 权限。
+
+多库使用不同 Embedding 空间时会分别生成候选，只在排名层融合；返回值保留原始 score 和 signals，不把不同策略的分数展示为统一准确率。现有上层 Retrieval 组合能力使用同一权限校验，不能绕过 `knowledgeAccess`。
 
 ## 已移除的阶段性语法
 

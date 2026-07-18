@@ -1394,6 +1394,59 @@ mod tests {
     }
 
     #[test]
+    fn auto_with_query_vector_reports_keyword_and_vector_signals() {
+        let directory = tempdir().unwrap();
+        let repository = KnowledgeRepository::new(directory.path());
+        repository.initialize().unwrap();
+        let library = repository.create_library("Hybrid", None).unwrap();
+        let document = repository
+            .ingest(&request(
+                &library.id,
+                "hybrid.md",
+                "# Install\nInstall the package with Bun.",
+            ))
+            .unwrap();
+        let chunk = repository
+            .list_chunks(&library.id, Some(&document.id))
+            .unwrap()
+            .remove(0);
+        repository
+            .save_vectors(
+                &library.id,
+                "space-hybrid",
+                r#"{"dimensions":2}"#,
+                "model-hybrid",
+                &[KnowledgeVectorRecord {
+                    chunk_id: chunk.id,
+                    vector: vec![1.0, 0.0],
+                }],
+            )
+            .unwrap();
+
+        let results = repository
+            .search(&KnowledgeSearchRequest {
+                query: "Install Bun".to_string(),
+                library_ids: vec![library.id],
+                strategy: KnowledgeSearchStrategy::Auto,
+                limit: 5,
+                min_score: 0.0,
+                query_vector: Some(vec![1.0, 0.0]),
+                space_id: Some("space-hybrid".to_string()),
+            })
+            .unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert!(results[0]
+            .signals
+            .iter()
+            .any(|signal| matches!(signal.signal_type, KnowledgeSignalType::KnowledgeBm25)));
+        assert!(results[0]
+            .signals
+            .iter()
+            .any(|signal| matches!(signal.signal_type, KnowledgeSignalType::KnowledgeVector)));
+    }
+
+    #[test]
     fn reingest_replaces_chunks_and_vector_search_is_isolated_per_library() {
         let directory = tempdir().unwrap();
         let repository = KnowledgeRepository::new(directory.path());

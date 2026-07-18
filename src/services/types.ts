@@ -78,6 +78,7 @@ import type { Component } from "vue";
 import type { DetachableComponentRegistration } from "@/types/detachable";
 import type { AssetSidecarAction } from "@/types/asset-management";
 import type { SettingItem } from "@/types/settings-renderer";
+import type { AgentKnowledgeAccess } from "@/tools/knowledge-base/types";
 
 export interface StartupConfig {
   /** 启动项的显示名称 */
@@ -266,6 +267,13 @@ export type ToolRegistryItem = ToolRegistry | ToolRegistryFactory;
  * 同步工具和异步任务均使用此接口，屏蔽底层执行模式差异
  */
 export interface ToolContext {
+  /** 当前工具调用所属 Agent 的只读权限快照。外部调用缺少该上下文时保持 undefined。 */
+  agent?: {
+    id: string;
+    knowledgeAccess?: AgentKnowledgeAccess;
+  };
+  /** 当前工具请求 ID，用于业务日志和来源追踪。 */
+  requestId?: string;
   /**
    * 状态/进度上报
    * @param message 状态描述文字
@@ -289,4 +297,10 @@ export interface ToolContext {
    * - false：同步阻塞执行，进度仅用于实时 UI 反馈
    */
   isAsync: boolean;
+}
+
+/** 工具需要把结构化审计信息写入消息元数据时使用的标准返回信封。 */
+export interface ToolMethodResult<T = unknown> {
+  result: T;
+  executionMetadata: Record<string, unknown>;
 }

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { searchKnowledge } from "./service";
+import { searchKnowledge, searchKnowledgeDetailed } from "./service";
 import type { KnowledgeLibrary, KnowledgeResult } from "./types";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
@@ -129,5 +129,31 @@ describe("searchKnowledge", () => {
       "knowledge_search",
       expect.anything()
     );
+  });
+
+  it("reports the actual strategy and auto degradation reason", async () => {
+    invokeMock.mockImplementation(async (command) => {
+      if (command === "knowledge_initialize") return undefined;
+      if (command === "knowledge_list_libraries") return [library("library-a")];
+      if (command === "knowledge_search") return [result("library-a")];
+      throw new Error(`Unexpected command: ${command}`);
+    });
+
+    const execution = await searchKnowledgeDetailed({
+      query: "query",
+      libraryIds: ["library-a"],
+      strategy: "auto",
+      limit: 5,
+      minScore: 0,
+    });
+
+    expect(execution.traces).toEqual([
+      expect.objectContaining({
+        libraryIds: ["library-a"],
+        requestedStrategy: "auto",
+        actualStrategy: "keyword",
+        degradationReason: expect.stringContaining("尚未建立语义索引"),
+      }),
+    ]);
   });
 });

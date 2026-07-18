@@ -19,6 +19,10 @@ export interface KnowledgeLibrarySummary {
   availability: KnowledgeLibraryAvailability;
   supportsKeywordSearch: boolean;
   supportsSemanticSearch: boolean;
+  indexStatus: {
+    keyword: "ready" | "unavailable";
+    semantic: "ready" | "notBuilt" | "unavailable";
+  };
 }
 
 export interface KnowledgeLibrary {
@@ -99,6 +103,93 @@ export interface KnowledgeSearchRequest {
   minScore: number;
   queryVector?: number[];
   spaceId?: string;
+}
+
+export interface KnowledgeSearchTrace {
+  libraryIds: string[];
+  requestedStrategy: KnowledgeSearchStrategy;
+  actualStrategy: Exclude<KnowledgeSearchStrategy, "auto">;
+  degradationReason?: string;
+}
+
+export interface KnowledgeSearchExecution {
+  results: KnowledgeResult[];
+  traces: KnowledgeSearchTrace[];
+}
+
+export interface KnowledgeSearchFilters {
+  documentIds?: string[];
+  sourceTypes?: string[];
+  pathPrefixes?: string[];
+}
+
+export interface KnowledgeToolSearchRequest {
+  query: string;
+  libraryIds?: string[];
+  strategy?: KnowledgeSearchStrategy;
+  topK?: number;
+  filters?: KnowledgeSearchFilters;
+  includeAdjacent?: boolean;
+  maxChars?: number;
+}
+
+export interface KnowledgeToolHit {
+  libraryId: string;
+  documentId: string;
+  chunkId: string;
+  chunkIndex: number;
+  title: string;
+  heading?: string;
+  sourcePath: string;
+  snippet: string;
+  score: number;
+  rankScore: number;
+  signals: KnowledgeSignal[];
+}
+
+export interface KnowledgeToolSearchResponse {
+  query: string;
+  requestedStrategy: KnowledgeSearchStrategy;
+  traces: KnowledgeSearchTrace[];
+  hits: KnowledgeToolHit[];
+  totalCandidates: number;
+  truncated: boolean;
+}
+
+export interface KnowledgeToolReadRequest {
+  libraryId: string;
+  chunkId?: string;
+  documentId?: string;
+  chunkIndex?: number;
+  neighborCount?: number;
+  heading?: string;
+  startOffset?: number;
+  endOffset?: number;
+  maxChars: number;
+}
+
+export interface KnowledgeToolReadChunk {
+  libraryId: string;
+  documentId: string;
+  chunkId: string;
+  chunkIndex: number;
+  title: string;
+  heading?: string;
+  sourcePath: string;
+  startOffset: number;
+  endOffset: number;
+  content: string;
+}
+
+export interface KnowledgeToolReadResponse {
+  libraryId: string;
+  documentId: string;
+  sourcePath: string;
+  title: string;
+  chunks: KnowledgeToolReadChunk[];
+  previousChunkIndex?: number;
+  nextChunkIndex?: number;
+  truncated: boolean;
 }
 
 export interface KnowledgeIngestRequest {

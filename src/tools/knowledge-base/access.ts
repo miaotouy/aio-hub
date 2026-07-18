@@ -18,7 +18,13 @@ export type KnowledgeAccessErrorCode =
   | "LIBRARY_ID_REQUIRED"
   | "LIBRARY_UNAUTHORIZED"
   | "LIBRARY_UNAVAILABLE"
-  | "LIBRARY_DELETED";
+  | "LIBRARY_DELETED"
+  | "QUERY_REQUIRED"
+  | "INVALID_REQUEST"
+  | "DOCUMENT_READ_FORBIDDEN"
+  | "READ_TARGET_REQUIRED"
+  | "CHUNK_NOT_FOUND"
+  | "DOCUMENT_NOT_FOUND";
 
 export class KnowledgeAccessError extends Error {
   constructor(
@@ -93,6 +99,10 @@ function toAvailableSummary(
     availability: "available",
     supportsKeywordSearch: true,
     supportsSemanticSearch: Boolean(library.activeEmbeddingSpaceId),
+    indexStatus: {
+      keyword: "ready",
+      semantic: library.activeEmbeddingSpaceId ? "ready" : "notBuilt",
+    },
   };
 }
 
@@ -114,6 +124,7 @@ export async function listAuthorizedKnowledgeLibraries(
       availability: "unavailable",
       supportsKeywordSearch: false,
       supportsSemanticSearch: false,
+      indexStatus: { keyword: "unavailable", semantic: "unavailable" },
     }));
   }
 
@@ -128,6 +139,7 @@ export async function listAuthorizedKnowledgeLibraries(
       availability: "deleted" as const,
       supportsKeywordSearch: false,
       supportsSemanticSearch: false,
+      indexStatus: { keyword: "unavailable", semantic: "unavailable" },
     };
   });
 }

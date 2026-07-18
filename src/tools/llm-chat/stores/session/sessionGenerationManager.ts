@@ -17,6 +17,7 @@ import { BranchNavigator } from "../../utils/BranchNavigator";
 import type { ChatSessionDetail, ChatSessionIndex } from "../../types/session";
 import type { ModelIdentifier } from "../../types/llm";
 import type { Asset } from "@/types/asset-management";
+import type { KnowledgeReference } from "@/tools/knowledge-base/types";
 import { createModuleLogger } from "@/utils/logger";
 import type { createSessionAccessManager } from "./sessionAccessManager";
 import type { createSessionRuntimeManager } from "./sessionRuntimeManager";
@@ -27,6 +28,7 @@ const logger = createModuleLogger("llm-chat/session-generation");
 export interface SendMessageOptions {
   attachments?: Asset[];
   temporaryModel?: ModelIdentifier | null;
+  knowledgeReference?: KnowledgeReference | null;
   parentId?: string;
   disableMacroParsing?: boolean;
   agentId?: string;

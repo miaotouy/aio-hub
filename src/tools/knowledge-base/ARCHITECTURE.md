@@ -46,8 +46,11 @@ Knowledge 前端不导入 Recall store、entry、priority、tag pool 或 workspa
 - `search` 按 library 独立调用底层检索，使不同 Embedding 空间分别生成 query vector 和候选；跨库只按 RRF rank score 融合，原始 score 与 signals 仅用于解释。`auto` 返回实际策略和降级原因，结果按字符预算裁剪并可选补充相邻 chunk。
 - `read` 支持 chunk ID、document + chunk index 邻域、heading 和字符范围，强制字符预算并返回前后 chunk 定位和完整来源字段。
 - 工具结果通过 `ToolMethodResult.executionMetadata` 把来源、耗时外的实际策略和失败类型写入可见工具事件。现有 Retrieval 上层组合入口复用同一权限范围，不能旁路访问未授权 Knowledge 库。
+- `KnowledgeReference` 是 `ChatMessageNode` 的独立版本化字段。`schemaVersion: 1` 保存稳定 `libraryIds`、mode 和发送时显示快照；名称快照只用于历史展示，执行前始终用 ID 重新校验当前 Agent 权限、资料库可用性和索引状态。
+- `useChatInputManager` 以草稿 schema v3 按会话保存和跨窗口同步未发送引用。输入区独立 Knowledge 按钮只列已授权库，引用标记与发送控件分行布局；research mode 在 Phase 4 前不暴露。
+- 显式 search 发送时创建 `user -> tool -> assistant` 节点链。`tool` 节点先显示执行态，成功后保存实际策略、命中来源和 user message 关联并进入 LLM 上下文；失败时保留可见错误事件、删除未执行的 assistant 节点，不退化为普通文本发送。没有引用的消息不进入该分支。
 - mixed 检索只属于上层显式编排，先保留 Recall 与 Knowledge 的分域配额，再使用 RRF 融合，不直接比较两域原始分数。
 
 ## 5. 后续施工顺序
 
-后续以 `docs/Plan/knowledge-base-implementation-checklist.md` 为唯一施工清单：下一步实现 Chat 结构化显式引用，再补齐配置分层、持久 ingest queue、目录同步、原子版本替换、诊断工作台和二阶研究任务。真实路径、模型调用与恢复行为必须在隔离 appData 的 Tauri WebView 中验收。
+后续以 `docs/Plan/knowledge-base-implementation-checklist.md` 为唯一施工清单：下一步补齐配置分层、持久 ingest queue、目录同步、原子版本替换和诊断工作台，再实现二阶研究任务。真实路径、模型调用与恢复行为必须在隔离 appData 的 Tauri WebView 中验收。

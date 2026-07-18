@@ -38,6 +38,7 @@ import QuickActionsBar from "./toolbar/QuickActionsBar.vue";
 import ToolbarMoreMenu from "./toolbar/ToolbarMoreMenu.vue";
 import ToolbarSettingsPopover from "./toolbar/ToolbarSettingsPopover.vue";
 import ToolbarStatusCapsules from "./toolbar/ToolbarStatusCapsules.vue";
+import KnowledgeReferenceControl from "./KnowledgeReferenceControl.vue";
 import type { ContextPreviewData } from "../../types/context";
 import type { MacroDefinition } from "../../macro-engine";
 import { useQuickActionStore } from "../../stores/quickActionStore";
@@ -296,6 +297,11 @@ const handleOpenQuickActionManager = () => {
             <el-icon><Paperclip /></el-icon>
           </button>
         </el-tooltip>
+
+        <KnowledgeReferenceControl
+          :disabled="disabled"
+          :is-detached="props.isDetached"
+        />
 
         <!-- 会话列表 -->
         <el-tooltip content="切换会话" placement="top" :show-after="2500">

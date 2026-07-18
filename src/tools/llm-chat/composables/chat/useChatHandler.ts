@@ -53,6 +53,18 @@ import type { ModelIdentifier } from "../../types";
 import { useTranscriptionManager } from "../features/useTranscriptionManager";
 import { useChatSettings } from "../settings/useChatSettings";
 import { solidifyGreetings } from "../../services/greetingService";
+import type { KnowledgeReference } from "@/tools/knowledge-base/types";
+import { normalizeAgentKnowledgeAccess } from "@/tools/knowledge-base/access";
+import {
+  executeKnowledgeReferenceSearch,
+  formatKnowledgeReferenceResult,
+  validateKnowledgeReferenceForAgent,
+} from "@/tools/knowledge-base/reference";
+import {
+  completeExplicitKnowledgeToolEvent,
+  createExplicitKnowledgeToolEvent,
+  failExplicitKnowledgeToolEvent,
+} from "../../services/explicitKnowledgeReference";
 
 const logger = createModuleLogger("llm-chat/chat-handler");
 const errorHandler = createModuleErrorHandler("llm-chat/chat-handler");
@@ -82,6 +94,7 @@ export function useChatHandler() {
     options?: {
       attachments?: Asset[];
       temporaryModel?: ModelIdentifier | null;
+      knowledgeReference?: KnowledgeReference | null;
       parentId?: string;
       disableMacroParsing?: boolean;
       skipGeneration?: boolean;
@@ -206,6 +219,94 @@ export function useChatHandler() {
       processedContent,
       parentId
     );
+
+    let explicitKnowledgeToolNode: ChatMessageNode | null = null;
+    if (options?.knowledgeReference) {
+      const toolEvent = createExplicitKnowledgeToolEvent(
+        nodeManager,
+        session,
+        userNode,
+        assistantNode,
+        effectiveAgentId,
+        content,
+        options.knowledgeReference
+      );
+      explicitKnowledgeToolNode = toolEvent.toolNode;
+      generatingNodes.add(explicitKnowledgeToolNode.id);
+      nodeManager.updateActiveLeaf(session, explicitKnowledgeToolNode.id);
+
+      sessionManager.persistSession(
+        sessionIndex,
+        session,
+        currentSessionId ?? null
+      );
+
+      const startedAt = Date.now();
+      try {
+        const applicationContext = {
+          agentId: effectiveAgentId,
+          access: normalizeAgentKnowledgeAccess(currentAgent?.knowledgeAccess),
+        };
+        const validatedReference = await validateKnowledgeReferenceForAgent(
+          applicationContext,
+          options.knowledgeReference
+        );
+        const result = await executeKnowledgeReferenceSearch(
+          applicationContext,
+          content,
+          validatedReference
+        );
+        completeExplicitKnowledgeToolEvent(
+          toolEvent,
+          userNode,
+          content,
+          validatedReference,
+          result,
+          formatKnowledgeReferenceResult(result),
+          Date.now() - startedAt
+        );
+        generatingNodes.delete(explicitKnowledgeToolNode.id);
+        sessionManager.persistSession(
+          sessionIndex,
+          session,
+          currentSessionId ?? null
+        );
+      } catch (error) {
+        const failureType =
+          error && typeof error === "object" && "code" in error
+            ? String(error.code)
+            : "EXECUTION_ERROR";
+        const message =
+          error instanceof Error ? error.message : "Knowledge 查询失败";
+        failExplicitKnowledgeToolEvent(
+          toolEvent,
+          userNode,
+          content,
+          options.knowledgeReference,
+          message,
+          failureType,
+          Date.now() - startedAt
+        );
+        generatingNodes.delete(explicitKnowledgeToolNode.id);
+        generatingNodes.delete(assistantNode.id);
+        nodeManager.hardDeleteNode(session, assistantNode.id);
+        nodeManager.updateActiveLeaf(session, explicitKnowledgeToolNode.id);
+        sessionManager.persistSession(
+          sessionIndex,
+          session,
+          currentSessionId ?? null
+        );
+        errorHandler.handle(
+          error instanceof Error ? error : new Error(message),
+          {
+            userMessage: message,
+            showToUser: true,
+            context: { sessionId: session.id, userNodeId: userNode.id },
+          }
+        );
+        return;
+      }
+    }
 
     // 立即加入生成集合，确保在后续任何异步操作（如附件处理、转写、Token计算）期间，UI 都能正确显示生成状态
     generatingNodes.add(assistantNode.id);
@@ -403,7 +504,9 @@ export function useChatHandler() {
       session,
       userNode,
       assistantNode,
-      pathToUserNode: pathWithNewMessage,
+      pathToUserNode: explicitKnowledgeToolNode
+        ? [...pathWithNewMessage, explicitKnowledgeToolNode]
+        : pathWithNewMessage,
       abortControllers,
       generatingNodes,
       agentConfig,

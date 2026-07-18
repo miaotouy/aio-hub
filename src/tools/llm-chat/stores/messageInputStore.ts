@@ -36,6 +36,8 @@ import { processInlineData } from "@/composables/useAttachmentProcessor";
 import { useTranscriptionManager } from "../composables/features/useTranscriptionManager";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import type { PendingInputData } from "../types/context";
+import { validateKnowledgeReferenceForAgent } from "@/tools/knowledge-base/reference";
+import { normalizeAgentKnowledgeAccess } from "@/tools/knowledge-base/access";
 
 export interface InputToolbarSettings {
   showTokenUsage: boolean;
@@ -91,6 +93,7 @@ export const useMessageInputStore = defineStore(
     const attachmentCount = inputManager.attachmentCount;
     const temporaryModel = inputManager.temporaryModel;
     const continuationModel = inputManager.continuationModel;
+    const knowledgeReference = inputManager.knowledgeReference;
     const draftClipboard = inputManager.draftClipboard;
 
     // === 4. Token 预览 ===
@@ -268,6 +271,41 @@ export const useMessageInputStore = defineStore(
         return;
       }
 
+      let validatedKnowledgeReference = knowledgeReference.value;
+      if (validatedKnowledgeReference) {
+        const sessionId = chatStore.currentSessionId;
+        if (sessionId && chatStore.isSessionGenerating(sessionId)) {
+          customMessage.warning(
+            "当前会话仍在生成，请完成或停止后再执行 Knowledge 查询"
+          );
+          return;
+        }
+        const { currentAgentId } = useLlmChatUiState();
+        const agent = currentAgentId.value
+          ? agentStore.getAgentById(currentAgentId.value)
+          : null;
+        if (!agent) {
+          customMessage.error("无法确认当前 Agent，Knowledge 引用未发送");
+          return;
+        }
+        try {
+          validatedKnowledgeReference =
+            await validateKnowledgeReferenceForAgent(
+              {
+                agentId: agent.id,
+                access: normalizeAgentKnowledgeAccess(agent.knowledgeAccess),
+              },
+              validatedKnowledgeReference
+            );
+          inputManager.setKnowledgeReference(validatedKnowledgeReference);
+        } catch (error) {
+          customMessage.error(
+            error instanceof Error ? error.message : "Knowledge 引用校验失败"
+          );
+          return;
+        }
+      }
+
       // 发送前兜底：修复可能因竞态遗漏的 uploading 占位符
       inputManager.scanAndFixPlaceholders();
 
@@ -282,6 +320,7 @@ export const useMessageInputStore = defineStore(
         content,
         attachments: attachmentsVal,
         temporaryModel: temporaryModelVal,
+        knowledgeReference: validatedKnowledgeReference,
         disableMacroParsing,
         sessionId: chatStore.currentSessionId || undefined,
       };
@@ -292,6 +331,7 @@ export const useMessageInputStore = defineStore(
           options: {
             attachments: payload.attachments,
             temporaryModel: payload.temporaryModel,
+            knowledgeReference: payload.knowledgeReference,
             disableMacroParsing: payload.disableMacroParsing,
             sessionId: payload.sessionId || chatStore.currentSessionId,
           },
@@ -709,6 +749,7 @@ export const useMessageInputStore = defineStore(
       attachmentCount,
       temporaryModel,
       continuationModel,
+      knowledgeReference,
       // Token 预览
       tokenCount,
       isCalculatingTokens,

@@ -16,6 +16,7 @@ import type { Asset } from "@/types/asset-management";
 import type { MessageRole, MessageStatus, MessageType } from "./common";
 import type { SessionVariableSnapshot } from "./sessionVariable";
 import type { LlmReasoningArtifact } from "@/llm-apis/common";
+import type { KnowledgeReference } from "@/tools/knowledge-base/types";
 
 /**
  * 预设消息附件引用
@@ -149,6 +150,9 @@ export interface ChatMessageNode {
    * 附加到此消息的文件资产列表
    */
   attachments?: Asset[];
+
+  /** 用户显式选择的版本化 Knowledge 引用。 */
+  knowledgeReference?: KnowledgeReference;
 
   /**
    * 预设消息附件引用列表
@@ -353,6 +357,10 @@ export interface ChatMessageNode {
       rawArgs?: Record<string, any>;
       resultMetadata?: Record<string, unknown>;
     };
+    /** 与显式 Knowledge 引用关联的工具请求 ID。 */
+    knowledgeReferenceRequestId?: string;
+    /** Tool 节点所对应的显式 Knowledge 用户消息 ID。 */
+    knowledgeReferenceUserMessageId?: string;
     /** 多个工具调用结果（用于 role: "tool" 的节点） */
     toolCalls?: Array<{
       requestId: string;

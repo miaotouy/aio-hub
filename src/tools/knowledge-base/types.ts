@@ -8,6 +8,27 @@ export interface AgentKnowledgeAccess {
   allowResearch: boolean;
 }
 
+export const KNOWLEDGE_REFERENCE_SCHEMA_VERSION = 1 as const;
+
+export interface KnowledgeReferenceLibrarySnapshot {
+  id: string;
+  name: string;
+  availability: KnowledgeLibraryAvailability;
+}
+
+/**
+ * 用户在聊天输入区显式选择的 Knowledge 引用。
+ *
+ * libraryIds 是执行与权限判断的唯一依据；libraries 只保存发送时的显示快照。
+ */
+export interface KnowledgeReference {
+  schemaVersion: typeof KNOWLEDGE_REFERENCE_SCHEMA_VERSION;
+  type: "knowledge";
+  libraryIds: string[];
+  mode: "search" | "research";
+  libraries: KnowledgeReferenceLibrarySnapshot[];
+}
+
 export type KnowledgeLibraryAvailability =
   "available" | "unavailable" | "deleted";
 

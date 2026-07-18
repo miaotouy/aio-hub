@@ -149,21 +149,7 @@ pub async fn recall_upsert_entry(
         entry.summary = generate_summary(&entry.content);
     }
 
-    let repository = state.repository()?;
-    let content_changed = repository
-        .load_entry(recall_id, entry.id)?
-        .is_some_and(|previous| previous.content_hash != entry.content_hash);
-    repository.upsert_entry(recall_id, &entry)?;
-
-    let imdb = state.imdb.read().map_err(|_| "获取内存数据库读锁失败")?;
-    if let Some(base_lock) = imdb.bases.get(&recall_id) {
-        let mut base = base_lock.write().map_err(|_| "获取思绪集写锁失败")?;
-        if content_changed {
-            base.remove_entry(&entry.id);
-        }
-        base.sync_entry(entry.clone());
-    }
-    state.clear_retrieval_cache()?;
+    persist_entry(&state, recall_id, &entry)?;
 
     let duration = start_time.elapsed().as_millis() as u64;
     // 发送监控事件
@@ -204,15 +190,7 @@ pub async fn recall_delete_entry(
     recall_id: Uuid,
     entry_id: Uuid,
 ) -> Result<(), String> {
-    state.repository()?.delete_entries(recall_id, &[entry_id])?;
-
-    let imdb = state.imdb.read().map_err(|_| "获取内存数据库读锁失败")?;
-    if let Some(base_lock) = imdb.bases.get(&recall_id) {
-        let mut base = base_lock.write().map_err(|_| "获取思绪集写锁失败")?;
-        base.remove_entry(&entry_id);
-    }
-    state.clear_retrieval_cache()?;
-    Ok(())
+    delete_entries(&state, recall_id, &[entry_id])
 }
 
 #[tauri::command]
@@ -452,6 +430,23 @@ pub async fn recall_batch_patch_entries(
     entry_ids: Vec<Uuid>,
     patch: crate::recall::core::RecallEntryPatch,
 ) -> Result<usize, String> {
+    let updated_count = patch_entries(&state, recall_id, &entry_ids, &patch)?;
+
+    log::info!(
+        "[KB_ENTRY] 批量 patch 完成: recall={}, 更新 {} 个条目",
+        recall_id,
+        updated_count
+    );
+
+    Ok(updated_count)
+}
+
+fn patch_entries(
+    state: &RecallState,
+    recall_id: Uuid,
+    entry_ids: &[Uuid],
+    patch: &crate::recall::core::RecallEntryPatch,
+) -> Result<usize, String> {
     let now = crate::recall::utils::get_now();
 
     let repository = state.repository()?;
@@ -501,12 +496,6 @@ pub async fn recall_batch_patch_entries(
     }
     state.clear_retrieval_cache()?;
 
-    log::info!(
-        "[KB_ENTRY] 批量 patch 完成: recall={}, 更新 {} 个条目",
-        recall_id,
-        updated_count
-    );
-
     Ok(updated_count)
 }
 
@@ -516,17 +505,38 @@ pub async fn recall_batch_delete_entries(
     recall_id: Uuid,
     entry_ids: Vec<Uuid>,
 ) -> Result<(), String> {
-    state.repository()?.delete_entries(recall_id, &entry_ids)?;
+    delete_entries(&state, recall_id, &entry_ids)
+}
+
+fn persist_entry(state: &RecallState, recall_id: Uuid, entry: &RecallEntry) -> Result<(), String> {
+    let repository = state.repository()?;
+    let content_changed = repository
+        .load_entry(recall_id, entry.id)?
+        .is_some_and(|previous| previous.content_hash != entry.content_hash);
+    repository.upsert_entry(recall_id, entry)?;
 
     let imdb = state.imdb.read().map_err(|_| "获取内存数据库读锁失败")?;
     if let Some(base_lock) = imdb.bases.get(&recall_id) {
         let mut base = base_lock.write().map_err(|_| "获取思绪集写锁失败")?;
-        for entry_id in &entry_ids {
+        if content_changed {
+            base.remove_entry(&entry.id);
+        }
+        base.sync_entry(entry.clone());
+    }
+    state.clear_retrieval_cache()
+}
+
+fn delete_entries(state: &RecallState, recall_id: Uuid, entry_ids: &[Uuid]) -> Result<(), String> {
+    state.repository()?.delete_entries(recall_id, entry_ids)?;
+
+    let imdb = state.imdb.read().map_err(|_| "获取内存数据库读锁失败")?;
+    if let Some(base_lock) = imdb.bases.get(&recall_id) {
+        let mut base = base_lock.write().map_err(|_| "获取思绪集写锁失败")?;
+        for entry_id in entry_ids {
             base.remove_entry(entry_id);
         }
     }
-    state.clear_retrieval_cache()?;
-    Ok(())
+    state.clear_retrieval_cache()
 }
 
 fn persist_batch_entries(
@@ -582,4 +592,180 @@ fn persist_batch_entries(
         state.clear_retrieval_cache()?;
     }
     Ok((entries, duplicates))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::recall::core::{
+        RecallCollection, RecallCollectionMeta, RecallEntryPatch, VectorizationMeta,
+    };
+    use crate::recall::ops::warmup_recall_repository;
+    use crate::recall::state::CachedRetrievalEntry;
+    use tempfile::{tempdir, TempDir};
+
+    fn entry(id: Uuid, content: &str, enabled: bool) -> RecallEntry {
+        RecallEntry {
+            id,
+            key: "entry".to_string(),
+            content: content.to_string(),
+            summary: content.to_string(),
+            core_tags: vec![],
+            tags: vec![],
+            assets: vec![],
+            priority: 100,
+            enabled,
+            created_at: 1,
+            updated_at: 1,
+            error_message: None,
+            content_hash: Some(calculate_content_hash(content)),
+            refs: vec![],
+            ref_by: vec![],
+        }
+    }
+
+    fn setup_state() -> (TempDir, RecallState, Uuid) {
+        let directory = tempdir().unwrap();
+        let state = RecallState::new();
+        state.initialize(directory.path()).unwrap();
+        let recall_id = Uuid::new_v4();
+        state
+            .repository()
+            .unwrap()
+            .save_collection(&RecallCollection {
+                meta: RecallCollectionMeta {
+                    id: recall_id,
+                    name: "Cache test".to_string(),
+                    description: None,
+                    created_at: 1,
+                    updated_at: 1,
+                    author: None,
+                    vectorization: VectorizationMeta {
+                        is_indexed: false,
+                        last_indexed_at: None,
+                        model_used: String::new(),
+                        dimension: 0,
+                        total_tokens: 0,
+                    },
+                    models: vec![],
+                    tags: vec![],
+                    icon: None,
+                    entries: vec![],
+                    config: serde_json::json!({}),
+                },
+                entries: vec![],
+            })
+            .unwrap();
+        warmup_recall_repository(
+            state.repository().unwrap().as_ref(),
+            &state.imdb,
+            &state.tag_pool,
+        )
+        .unwrap();
+        (directory, state, recall_id)
+    }
+
+    fn prime_cache(state: &RecallState) {
+        state.retrieval_cache.write().unwrap().insert(
+            "cached".to_string(),
+            (
+                CachedRetrievalEntry {
+                    results: vec![],
+                    vector: None,
+                },
+                1,
+            ),
+        );
+    }
+
+    fn assert_cache_empty(state: &RecallState) {
+        assert!(state.retrieval_cache.read().unwrap().is_empty());
+    }
+
+    #[test]
+    fn adding_an_entry_invalidates_retrieval_cache() {
+        let (_directory, state, recall_id) = setup_state();
+        prime_cache(&state);
+
+        persist_batch_entries(
+            &state,
+            recall_id,
+            vec![entry(Uuid::new_v4(), "new content", true)],
+            false,
+        )
+        .unwrap();
+
+        assert_cache_empty(&state);
+    }
+
+    #[test]
+    fn modifying_an_entry_invalidates_retrieval_cache() {
+        let (_directory, state, recall_id) = setup_state();
+        let entry_id = Uuid::new_v4();
+        persist_entry(&state, recall_id, &entry(entry_id, "old content", true)).unwrap();
+        prime_cache(&state);
+
+        persist_entry(&state, recall_id, &entry(entry_id, "new content", true)).unwrap();
+
+        assert_cache_empty(&state);
+    }
+
+    #[test]
+    fn disabling_an_entry_invalidates_retrieval_cache() {
+        let (_directory, state, recall_id) = setup_state();
+        let entry_id = Uuid::new_v4();
+        persist_entry(&state, recall_id, &entry(entry_id, "content", true)).unwrap();
+        prime_cache(&state);
+
+        patch_entries(
+            &state,
+            recall_id,
+            &[entry_id],
+            &RecallEntryPatch {
+                enabled: Some(false),
+                priority: None,
+                key: None,
+                tags: None,
+            },
+        )
+        .unwrap();
+
+        assert_cache_empty(&state);
+        assert!(
+            !state
+                .repository()
+                .unwrap()
+                .load_entry(recall_id, entry_id)
+                .unwrap()
+                .unwrap()
+                .enabled
+        );
+    }
+
+    #[test]
+    fn deleting_an_entry_invalidates_retrieval_cache() {
+        let (_directory, state, recall_id) = setup_state();
+        let entry_id = Uuid::new_v4();
+        persist_entry(&state, recall_id, &entry(entry_id, "content", true)).unwrap();
+        prime_cache(&state);
+
+        delete_entries(&state, recall_id, &[entry_id]).unwrap();
+
+        assert_cache_empty(&state);
+    }
+
+    #[test]
+    fn failed_entry_write_does_not_clear_retrieval_cache() {
+        let (_directory, state, _recall_id) = setup_state();
+        prime_cache(&state);
+
+        let result = persist_entry(
+            &state,
+            Uuid::new_v4(),
+            &entry(Uuid::new_v4(), "content", true),
+        );
+
+        assert!(result.is_err());
+        assert_eq!(state.retrieval_cache.read().unwrap().len(), 1);
+    }
 }

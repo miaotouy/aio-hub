@@ -89,7 +89,7 @@ Recall 条目不自动切片，也不保存文档 manifest、文件监听状态�
 4. 后端发送 `recall-monitor` trace，前端按需格式化结果并执行字符上限截断。
 5. Chat 的 `RecallProcessor` 解析严格命名参数协议、校验 Agent binding 授权，构造 `RecallRetrievalRequest` 并调用 Recall service；旧自由文本语法只生成告警。
 
-检索结果缓存使用 `recall_retrieval_cache_*` commands。缓存键包含规范化查询、`recallIds`、标签、数量、阈值、引擎和模型；任一字段变化都会形成不同缓存项。
+检索结果缓存使用 `recall_retrieval_cache_*` commands。缓存键包含规范化后的主/次查询、`recallIds`、标签、融合权重、数量、阈值、引擎、模型、召回 profile 和算法版本；任一字段变化都会形成不同缓存项。
 
 ## 5. IPC 与事件
 

@@ -1,9 +1,9 @@
 # 移动端当前实现盘点与后续参考
 
 > 状态：Current Snapshot
-> 调查日期：2026-07-15
+> 调查日期：2026-07-18
 > 调查范围：`mobile/` 当前代码、移动端计划/架构文档，以及直接影响移动端的跨端 LLM Core 计划
-> 验证边界：本次完成宿主机前端构建、Vitest、Rust Clippy 和 Cargo Test；未执行 Android/iOS 安装包构建或真机验收
+> 验证边界：本次从仓库根目录恢复 Bun workspace 依赖后，完成宿主机前端构建、Vitest、Rust Clippy 和 Cargo Test；未执行 Android/iOS 安装包构建或真机验收
 
 ## 1. 结论
 
@@ -11,6 +11,7 @@
 
 ```text
 LLM 渠道与模型配置
+  -> 模型批量检查、身份识别与 Embedding 空间配置
   -> Agent 创建、导入与模型绑定
   -> 创建普通会话或 Agent 绑定会话
   -> 上下文管道与本地 Token 统计
@@ -38,6 +39,8 @@ LLM 渠道与模型配置
 - [x] 渠道与模型 CRUD、启停、预设创建和批量选择。
 - [x] 多 API Key、Key 状态/熔断管理、自定义 Header 与自定义 Endpoint。
 - [x] 模型拉取、模型元数据写入和模型能力/Token 上限编辑。
+- [x] 移动端模型批量检查，包含模型选择、检查选项、成本确认、任务进度、结果详情和 Key 健康状态处理。
+- [x] 模型身份解析、内置身份预设、自定义身份修订和 Embedding 空间分离配置。
 - [x] 移动端通过 `@aiohub/llm-core` 复用共享 Provider Adapter、执行器和 Transport 合约。
 - [x] OpenAI-Compatible、OpenAI Responses、Claude、Cohere、Gemini、Vertex AI 和 Embedding 主协议接线与自动化回归。
 - [x] 共享模型列表、同步媒体和异步媒体协议能力；当前移动端没有对应的完整媒体生成业务工具页。
@@ -78,9 +81,11 @@ LLM 渠道与模型配置
 - [x] 日志查看、搜索、级别筛选、清空、导出和复制能力。
 - [x] Android 生成工程已存在；Token 计划已记录 Android 构建通过。
 - [x] 本次 `bun run build` 通过。
-- [x] 本次 Vitest 10 个测试文件、34 个测试全部通过。
+- [x] 本次 Vitest 12 个测试文件、42 个测试全部通过。
 - [x] 本次 `bun run check:backend` 通过。
 - [x] 本次 Cargo Test 5 个测试全部通过。
+
+本次验证前执行了仓库根目录的 `bun install --frozen-lockfile`，以恢复 `mobile` 对 `@aiohub/llm-core` 及其 `testing` 子路径的 workspace 符号链接。仅在 `mobile/` 保留旧依赖目录而未同步根 workspace 时，前端构建和相关测试会因无法解析共享包而在导入阶段失败。
 
 ## 3. 未完成清单
 
@@ -124,7 +129,7 @@ SQLite 施工顺序见 [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migra
 - [ ] 根据真实复用需求建立 `mobile/src/components/base/`，不预建无消费者的组件库。
 - [ ] 将设置页硬编码版本 `0.1.0` 改为与 `0.1.1-m-beta.1` 的单一版本来源同步。
 - [ ] 处理或接受记录 `vconsole` 直接 `eval` 的构建警告。
-- [ ] 拆分首页超过 500 kB 的构建 chunk，重点检查工具 registry eager import 与共享配置进入首页包的影响。
+- [ ] 拆分首页超过 500 kB 的构建 chunk；本次生产构建中 `Home` chunk 为 580.68 kB，重点检查工具 registry eager import 与共享配置进入首页包的影响。
 - [ ] 增加 Agent 存储/导入、会话绑定、分支操作和上下文管道专项测试。
 
 设计分层决议见 [`mobile-design-language-investigation.md`](./mobile-design-language-investigation.md)。
@@ -146,6 +151,7 @@ SQLite 施工顺序见 [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migra
 - `mobile-asset-manager-design.md` 状态仍为待评审，所有 Phase 均应视为未开始。
 - `mobile-design-language-investigation.md` 的 Phase 0 已完成，Phase 1 只完成了包装 API 的局部落地，业务调用尚未收口。
 - `llm-provider-adapter-sharing-investigation.md` 的代码与自动化验收已完成，剩余人工性能与双平台真机验收。
+- 2026-07-16 完成的移动端模型批量检查和 2026-07-18 完成的模型身份/Embedding 空间分离已纳入本快照；它们属于现有 `llm-api` 工具能力，不新增工具 registry。
 
 后续更新本文件时，应以代码、依赖和本次可复现验证为准；计划文档中的历史勾选只作为施工记录，不应覆盖当前代码事实。
 

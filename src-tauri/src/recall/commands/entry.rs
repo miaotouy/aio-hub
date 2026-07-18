@@ -75,9 +75,16 @@ pub async fn recall_get_entries(
                     "id": entry.id,
                     "key": entry.key,
                     "content": entry.content,
+                    "summary": entry.summary,
                     "tags": entry.tags,
-                    "recall_id": base.meta.id,
-                    "recall_name": base.meta.name,
+                    "assets": entry.assets,
+                    "priority": entry.priority,
+                    "enabled": entry.enabled,
+                    "createdAt": entry.created_at,
+                    "updatedAt": entry.updated_at,
+                    "contentHash": entry.content_hash,
+                    "recallId": base.meta.id,
+                    "recallName": base.meta.name,
                 }));
             }
         }

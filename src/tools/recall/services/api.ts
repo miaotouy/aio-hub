@@ -118,6 +118,11 @@ export interface SearchWithCacheResult {
   vector: number[] | null;
 }
 
+export interface RecallEntryLookup extends RecallEntry {
+  recallId: string;
+  recallName: string;
+}
+
 interface CachedRetrievalEntry {
   results: RecallResult[];
   vector: number[] | null;
@@ -385,12 +390,12 @@ export async function searchWithCache(
 /**
  * 批量获取思绪集条目
  */
-export async function getEntries(ids: string[]): Promise<RecallEntry[]> {
+export async function getEntries(ids: string[]): Promise<RecallEntryLookup[]> {
   if (!ids || ids.length === 0) return [];
   return (
     (await errorHandler.wrapAsync(
       async () => {
-        return await invoke<RecallEntry[]>("recall_get_entries", { ids });
+        return await invoke<RecallEntryLookup[]>("recall_get_entries", { ids });
       },
       {
         userMessage: "获取思绪集条目失败",

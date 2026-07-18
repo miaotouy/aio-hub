@@ -14,6 +14,7 @@
 
 import { createModuleLogger } from "@/utils/logger";
 import type { RecallResult } from "../types/search";
+import type { RecallEntryLookup } from "../services/api";
 import type {
   RecallRetrievalRequest,
   RecallRetrievalResponse,
@@ -25,7 +26,6 @@ import {
   formatResults,
 } from "../core/retrievalPolicy";
 import { searchWithCache, getEntries, loadBaseMeta } from "../services/api";
-import { useRecallCollectionStore } from "../stores/recallCollectionStore";
 
 const logger = createModuleLogger("recall/placeholder-retrieval");
 
@@ -122,29 +122,46 @@ async function handleStaticMode(
   }
 
   try {
+    const allowedRecallIds = new Set(
+      resolveStaticTargets(req).map((binding) => binding.recallId)
+    );
+    if (allowedRecallIds.size === 0) return [];
+
     const entries = await getEntries(entryIds);
-    return entries.map((e: any) => ({
-      score: 1.0,
-      recallName: e.recall_name || e.recallName || "未知思绪集",
-      recallId: e.recall_id || e.recallId || "",
-      matchType: "key",
-      highlight: null,
-      entry: {
-        id: e.id,
-        key: e.key,
-        content: e.content,
-        tags: e.tags || [],
-        assets: [],
-        priority: 100,
-        enabled: true,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      },
-    })) as RecallResult[];
+    return entries
+      .filter(
+        (entry) => entry.enabled && allowedRecallIds.has(entry.recallId)
+      )
+      .map(mapStaticEntry);
   } catch (err) {
     logger.warn("静态加载思绪集条目失败", { entryIds, err });
     return [];
   }
+}
+
+function resolveStaticTargets(req: RecallRetrievalRequest) {
+  if (req.recallId) {
+    return req.enabledBindings.filter(
+      (binding) => binding.recallId === req.recallId
+    );
+  }
+  if (req.recallName) {
+    return req.enabledBindings.filter(
+      (binding) => binding.recallName === req.recallName
+    );
+  }
+  return req.enabledBindings;
+}
+
+function mapStaticEntry(entry: RecallEntryLookup): RecallResult {
+  return {
+    score: 1,
+    recallName: entry.recallName,
+    recallId: entry.recallId,
+    matchType: "key",
+    highlight: null,
+    entry,
+  };
 }
 
 /**
@@ -153,55 +170,31 @@ async function handleStaticMode(
 async function handleStaticAll(
   req: RecallRetrievalRequest
 ): Promise<RecallResult[]> {
-  const recallStore = useRecallCollectionStore();
   const results: RecallResult[] = [];
+  const targets = resolveStaticTargets(req);
 
-  // 确定要加载的思绪集列表
-  let targetBases = recallStore.bases;
-  if (req.recallName) {
-    targetBases = recallStore.bases.filter((b) => b.name === req.recallName);
-    if (targetBases.length === 0) {
-      logger.warn("static::all 未找到指定思绪集", {
-        recallName: req.recallName,
-      });
-      return [];
-    }
-  }
-
-  for (const base of targetBases) {
+  for (const target of targets) {
     try {
-      const meta = await loadBaseMeta(base.id);
+      const meta = await loadBaseMeta(target.recallId);
       if (!meta?.entries) continue;
 
       const enabledIds = meta.entries
-        .filter((e: any) => e.vectorStatus !== "error")
-        .map((e: any) => e.id);
+        .filter((entry) => entry.enabled)
+        .map((entry) => entry.id);
 
       if (enabledIds.length === 0) continue;
 
       const entries = await getEntries(enabledIds);
-      for (const e of entries as any[]) {
-        results.push({
-          score: 1.0,
-          recallName: base.name || "未知思绪集",
-          recallId: base.id,
-          matchType: "key",
-          highlight: null,
-          entry: {
-            id: e.id,
-            key: e.key,
-            content: e.content,
-            tags: e.tags || [],
-            assets: [],
-            priority: e.priority ?? 100,
-            enabled: true,
-            createdAt: e.created_at || e.createdAt || Date.now(),
-            updatedAt: e.updated_at || e.updatedAt || Date.now(),
-          },
-        } as RecallResult);
+      for (const entry of entries) {
+        if (entry.enabled && entry.recallId === target.recallId) {
+          results.push(mapStaticEntry(entry));
+        }
       }
     } catch (err) {
-      logger.warn("static::all 加载思绪集条目失败", { recallId: base.id, err });
+      logger.warn("static::all 加载思绪集条目失败", {
+        recallId: target.recallId,
+        err,
+      });
     }
   }
 

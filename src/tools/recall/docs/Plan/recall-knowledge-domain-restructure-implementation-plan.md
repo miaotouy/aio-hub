@@ -1,6 +1,6 @@
 # Recall / Knowledge 领域拆分与重构实施计划
 
-**状态**: Pre-Stage、Stage 0 至 Stage 6 已完成；Knowledge 前端工作台、索引状态与产品化向量化入口已补齐。Stage 7 的代码边界清理已完成，首次启动迁移接线、独立 appData / 真实目录副本验收与发布 smoke test 仍待执行。整个计划完成前不发布中间版本。
+**状态**: Pre-Stage、Stage 0 至 Stage 5 已完成；Stage 6 的 Knowledge 核心数据、检索与工作台已完成，但后续调查确认其检索占位符、自动注入、Agent 绑定和设置方案缺少上位产品方向，现按 Knowledge 产品方案重新设计。只读目录宏 `{{knowledge_list}}` 保留并改接资料访问授权，旧补完计划已暂停。Stage 7 的代码边界清理已完成，首次启动迁移接线、独立 appData / 真实目录副本验收与发布 smoke test 仍待执行。整个计划完成前不发布中间版本。
 **创建日期**: 2026-07-17
 **最近修订**: 2026-07-18
 **适用范围**: `src/tools/knowledge-base/`、计划新增的 `src/tools/recall/`、`src/tools/llm-chat/`、`src/tools/agent-manager/`、`src-tauri/src/knowledge/`、计划新增的 `src-tauri/src/recall/`
@@ -84,22 +84,26 @@ Retrieval / 检索编排
 
 不得以“用户少”为理由静默丢失条目、重新生成 ID、清空绑定，或把失效占位符替换为空文本。
 
-### 1.4 双域占位符协议
+### 1.4 分域触发协议
 
-重构后的被动注入使用两个互不兼容的命名空间，禁止继续扩展旧的按位置参数语法：
+后续产品调查确认 Recall 与 Knowledge 不应为了形式对称而共享被动注入模型：
 
 ```text
+Recall 被动召回
 【recall】
 【recall::collection=<collection-id>::profile=semantic::limit=8::min-score=0.35::when=always】
-【knowledge】
-【knowledge::library=<library-id>::strategy=hybrid::limit=8::min-score=0.35::when=always】
+
+Knowledge 目录与主动检索
+{{knowledge_list}}
+knowledge.listLibraries / knowledge.search / knowledge.read
 ```
 
-- 语法信封为 `【<domain>(::<key>=<value>)*】`，key 使用 ASCII kebab-case；参数顺序不影响语义，serializer 输出固定 canonical 顺序。
-- Recall processor 只接受 `collection`、`profile`、`limit`、`min-score`、`when`、`gate-tags`、`every-turns`、`entries`；Knowledge processor 只接受 `library`、`strategy`、`limit`、`min-score`、`when`、`citation`。未知、重复（目标 key 除外）、无值、非法枚举和非法数值必须报错并带消息索引、原文和 key。
-- `collection` / `library` 只使用稳定 ID。省略目标表示当前 Agent 已启用的同域 binding；显式目标必须属于这些 binding。占位符参数覆盖 binding 默认值，再覆盖域级默认值。
-- serializer 使用 `encodeURIComponent` 处理 value；parser 解码并校验后才构造请求。不得接受 `kb`、`memory`、`thought` 或跨域别名，也不得让 `engineId` 从提示词进入运行时。
-- `mixed` 继续是主动 `RetrievalMode` 和路由层能力；需要双域上下文时使用两个占位符，不建设 `【mixed】`。
+- Recall 信封语法为 `【recall(::<key>=<value>)*】`，key 使用 ASCII kebab-case；参数顺序不影响语义，serializer 输出固定 canonical 顺序。
+- Recall processor 只接受 `collection`、`profile`、`limit`、`min-score`、`when`、`gate-tags`、`every-turns`、`entries`。未知、重复、无值、非法枚举和非法数值必须报错并带消息索引、原文和 key。
+- Recall collection 只使用稳定 ID。省略目标表示当前 Agent 已启用的 Recall binding；显式目标必须获得授权。serializer 使用 `encodeURIComponent` 处理 value，parser 解码并校验后才构造请求。
+- Knowledge 不注册 `【knowledge::...】` 检索信封，也不保留生成该信封的 `{{knowledge}}`。`{{knowledge_list}}` 只在用户指定的预设位置展开已授权资料库目录，不触发检索。
+- Knowledge 资料访问配置只保存稳定 library ID 与能力权限；strategy、limit、过滤条件等属于主动工具的单次调用参数。
+- `mixed` 只作为上层显式编排能力存在，不建设 `【mixed】`，也不通过两个被动占位符组合双域上下文。
 
 ---
 
@@ -470,7 +474,7 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 
 ## 11. Stage 6：建设 Knowledge 资料库
 
-**阶段状态**：后端、检索契约与前端产品化施工已完成。Knowledge 使用本计划允许的 SQLite manifest + 每库独立 `.kdb` + FTS5 过渡实现；已完成 library/document/chunk CRUD、增量覆盖、事务删除、重建、PDF/DOCX/HTML/文本解析、BM25、chunk embedding、hybrid、相邻 chunk graph 和来源回溯。前端已提供文档/分块主从浏览、批量导入失败隔离、检索信号展示、Embedding 模型选择、向量覆盖率与批次进度。Agent 使用独立 `knowledgeConfig` / `knowledgeSettings` 与稳定 library ID binding；严格 Knowledge processor、`{{knowledge}}` / `{{knowledge_list}}` 已落地，主动 `recall` / `knowledge` / `mixed` 路由已通过无 UI 的 `retrieval` Agent registry 接入实际工具调用路径，mixed 先保留分域配额再按 RRF 融合。当前没有产品化文件夹同步入口，因此未引入 watcher/ingest queue；TriviumDB 继续等待文件组恢复、锁和跨平台验证，不进入本阶段运行路径。真实 WebView 与真实模型调用仍归最终发布验收。
+**阶段状态**：后端、检索契约与核心工作台已完成。Knowledge 使用本计划允许的 SQLite manifest + 每库独立 `.kdb` + FTS5 过渡实现；已完成 library/document/chunk CRUD、增量覆盖、事务删除、重建、PDF/DOCX/HTML/文本解析、BM25、chunk embedding、hybrid、相邻 chunk graph 和来源回溯。前端已提供文档/分块主从浏览、批量导入失败隔离、检索信号展示、Embedding 模型选择、向量覆盖率与批次进度。后续调查确认全局与单库设置、支持格式展示、拖放导入、响应式和样式收口仍未完成；同时确认 Knowledge processor、生成检索占位符的 `{{knowledge}}`、保底自动注入和 `retrieval` mixed 工具均属于产品方向未明确时形成的阶段性实现。`{{knowledge_list}}` 与它们作用域不同：该宏不执行检索，应保留并改为从 Agent 资料访问授权生成用户可编排位置的只读目录。上述 Knowledge 阶段性能力尚未发布，不设计兼容期或用户迁移分支。后续先按 [Knowledge 资料库产品方案](../../../knowledge-base/docs/Plan/knowledge-base-product-interaction-design.md) 完成主动检索、Agent 权限、结构化引用和目录宏设计，再重写 [Knowledge 设置与文档导入交互补完计划](../../../knowledge-base/docs/Plan/knowledge-base-settings-and-import-interaction-plan.md)，不得直接按旧稿施工。当前没有产品化文件夹同步入口，因此未引入 watcher/ingest queue；TriviumDB 继续等待文件组恢复、锁和跨平台验证，不进入本阶段运行路径。真实 WebView 与真实模型调用仍归最终发布验收。
 
 ### 目标
 
@@ -483,11 +487,11 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 - 实现 Knowledge 前端交互和产品化向量化入口，包括模型选择、向量覆盖状态、批次进度、失败后重试和检索信号说明。
 - 桌面端需要文件夹同步时，引入已调查确认的 debounced watcher 和持久化 ingest queue。
 - 通过 repository 隔离 TriviumDB；运行态、锁、文件组恢复或跨平台验证不通过时，允许使用 SQLite manifest + FTS5 过渡。
-- 新增 Knowledge binding、`{{knowledge}}` / `{{knowledge_list}}` 宏和 1.4 节定义的 `【knowledge::key=value】` processor；目标使用稳定 library ID，不复用 Recall binding 或历史 `【knowledge】` 的 CAIU 语义。
-- Knowledge parser 独立校验 `library`、`strategy`、`limit`、`min-score`、`when`、`citation`，第一阶段只接受 `when=always`；不得接受 Recall 的 `profile`、`entries`、`gate-tags` 或 `every-turns`。
-- Agent Manager 将原 KB 占位符编辑器拆为 Recall / Knowledge 两个域编辑器，宏选择器和 context analyzer 明确展示来源域、稳定 ID、解析错误与注入结果。
-- 实现 `retrievalMode = "knowledge"`，结果必须携带 library、source path、chunk index、heading 和 `sourceType`。
-- 最后实现 `mixed` 双路召回；先保留分域配额，再使用 RRF 或统一 reranker，禁止直接比较两域原始分数。
+- 将 Agent 的 Knowledge binding 收敛为按稳定 library ID 配置的资料访问授权，不携带每库自动检索参数。
+- 保留 `{{knowledge_list}}`，从资料访问授权生成紧凑目录并在用户指定的预设位置展开；宏缺失时不得保底注入。
+- 删除 `{{knowledge}}`、`【knowledge::key=value】` parser / processor 和 Knowledge 占位符编辑器，不让预设宏触发隐藏检索。
+- 提供独立的 `knowledge.listLibraries`、`knowledge.search` 和 `knowledge.read` 主动工具，结果必须携带 library、source path、chunk index、heading 和 `sourceType`。
+- Recall / Knowledge 组合只保留在上层显式编排能力中，不要求 Agent 日常使用暴露底层融合参数的 mixed 工具。
 
 ### 完成门槛
 
@@ -495,17 +499,17 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 - 删除某个 Knowledge library 文件组不影响 Recall。
 - Knowledge chunk 不进入 Recall entry、tag pool、priority 或 workspace 列表。
 - `mixed` 结果可以解释每条内容的来源域和融合依据。
-- Knowledge parser / serializer round-trip 后语义一致；未授权 library ID、Recall 参数和历史位置参数均不能触发检索。
+- `{{knowledge_list}}` 只列出已授权资料库且不触发检索；未授权 library ID 不能通过 Knowledge 工具访问。
 
 ---
 
 ## 12. Stage 7：清理旧边界
 
-**阶段状态**：代码与文档边界清理已完成，最终发布接线待人工验收。常规 pipeline 只注册 Recall / Knowledge processor 和宏，共享 tokenizer 只登记两个 namespace；Recall 编辑器和公共 Agent 类型已移除长期 `KB` / `KnowledgeBase` 命名，旧 `knowledgeBaseConfig`、`kbId`、旧目录 IO 只保留在版本化 migration、legacy importer、备份恢复和隔离夹具中。设置页已提供只读迁移状态、Recall 报告导出和双重确认清理入口；后端只有在主数据/向量报告均完整、无问题且目录指纹一致时才允许删除旧 `bases` / `vectors` / `tag_pool`，并保留同目录下的新 Knowledge manifest 与 libraries。迁移报告样例见 [`recall-knowledge-migration-report-sample.md`](recall-knowledge-migration-report-sample.md)。首次启动自动迁移、真实用户目录只读标记、Recall 与 Agent 迁移统计的最终报告合并和发布二进制 smoke test 仍按最终发布门槛执行，不在施工期访问真实用户 appData。
+**阶段状态**：代码与文档边界清理已完成，最终发布接线待人工验收。该阶段结束时的常规 pipeline 只注册 Recall / Knowledge processor 和宏，共享 tokenizer 只登记两个 namespace；这是后续 Knowledge 产品重构前的施工现状，不是最终产品契约。后续 Phase 0 将移除 Knowledge processor、`【knowledge::...】` namespace 和 `{{knowledge}}`，保留 `{{knowledge_list}}` 作为独立目录宏。Recall 编辑器和公共 Agent 类型已移除长期 `KB` / `KnowledgeBase` 命名，旧 `knowledgeBaseConfig`、`kbId`、旧目录 IO 只保留在版本化 migration、legacy importer、备份恢复和隔离夹具中。设置页已提供只读迁移状态、Recall 报告导出和双重确认清理入口；后端只有在主数据/向量报告均完整、无问题且目录指纹一致时才允许删除旧 `bases` / `vectors` / `tag_pool`，并保留同目录下的新 Knowledge manifest 与 libraries。迁移报告样例见 [`recall-knowledge-migration-report-sample.md`](recall-knowledge-migration-report-sample.md)。首次启动自动迁移、真实用户目录只读标记、Recall 与 Agent 迁移统计的最终报告合并和发布二进制 smoke test 仍按最终发布门槛执行，不在施工期访问真实用户 appData。
 
 ### 工作项
 
-- 删除旧 `kb_*` command、旧 Agent 工具 ID、旧宏和旧占位符 parser；共享信封 tokenizer 只保留 `recall` / `knowledge` 两个已登记 namespace。
+- 删除旧 `kb_*` command、旧 Agent 工具 ID、旧宏和旧占位符 parser；该阶段先将共享信封 tokenizer 收敛到 `recall` / `knowledge` 两个 namespace，后续 Knowledge 产品重构再删除 `knowledge` 信封 namespace。
 - 删除 Recall 代码中的 `KnowledgeBase*`、`Kb*`、`Thought*` 长期类型名。
 - 清理仅为旧文件系统运行时保留的 IO 和目录扫描路径，保留独立 legacy importer / restore 工具。
 - 为用户提供旧目录状态、迁移报告、导出和确认清理入口。
@@ -535,9 +539,9 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 - Rust 单元测试、`cargo check` 和项目既有 backend check。
 - Pre-Stage 执行 `.aio-kb` 单库、批量、资产、冲突、损坏包、ZIP 路径安全和独立 appData 往返测试。
 - Repository CRUD、批量事务、损坏输入、幂等导入和中断恢复测试。
-- Agent 配置导入/导出、binding、工具权限、自动注入和旧占位符告警测试。
-- Recall / Knowledge 占位符分别覆盖 canonical serialize、乱序 parse、URL 编解码、重复目标、未知/跨域参数、非法值、未授权 ID、多占位符同消息和跳过历史消息；增加两个域同时出现但不串参数、不串结果的集成测试。
-- 宏测试覆盖 `{{recall}}` / `{{recall_list}}`、`{{knowledge}}` / `{{knowledge_list}}` 及其命名参数展开；明确断言不存在 `【mixed】` 和位置参数输出。
+- Agent 配置导入/导出覆盖 Knowledge 资料访问授权、`{{knowledge_list}}` 预设位置和工具权限，并断言不存在 Knowledge 自动注入配置。
+- Recall 占位符继续覆盖 canonical serialize、乱序 parse、URL 编解码、未知参数、非法值和未授权 ID；Knowledge 覆盖结构化引用与主动工具的权限、参数、结果来源和错误契约。
+- 宏测试覆盖 `{{recall}}` / `{{recall_list}}` 与 `{{knowledge_list}}`，并断言不再注册 `{{knowledge}}` 或解析 `【knowledge::...】`。
 - keyword、semantic、associative 的固定查询集回归。
 - 桌面 Tauri 真实运行态 smoke test；中间阶段仅针对独立临时 appData，真实用户目录验证只在最终发布门槛执行。
 - 移动端依赖变更通过项目真实 Tauri build 验证；普通 Cargo 探针不能替代。

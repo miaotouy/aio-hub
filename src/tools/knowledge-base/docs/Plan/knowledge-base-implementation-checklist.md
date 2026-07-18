@@ -283,14 +283,24 @@ Phase 3 分为五个施工批次。后端配置和摄取契约先行，工作台
 
 ### 7.3 批次 C：持久摄取队列与目录同步
 
-- [ ] P3-C01 定义 source、document、ingest task 和版本状态模型，保留稳定来源标识、checksum、解析器版本、时间和最近错误。
-- [ ] P3-C02 实现 pending、processing、retry、failed、completed 状态和持久化恢复。
-- [ ] P3-C03 实现 lease、超时恢复、有限重试、取消和资源并发限制。
-- [ ] P3-C04 导入前执行文件稳定性检查和 checksum 去重；内容未变化时跳过重复解析与 Embedding。
-- [ ] P3-C05 新版本完成解析、分块和基础索引后再原子替换旧版本；模型调用失败时保留可用的关键词索引和旧向量状态。
-- [ ] P3-C06 实现目录作为持续同步来源，明确递归范围、忽略规则、删除/移动语义和手动重新扫描。
-- [ ] P3-C07 目录同步复用相同 ingest queue、格式能力和原子替换逻辑，不另写第二套导入流程。
-- [ ] P3-C08 自动向量化只补齐当前空间未覆盖 chunk；失败不回滚成功文档和关键词索引。
+- [x] P3-C01 定义 source、document、ingest task 和版本状态模型，保留稳定来源标识、checksum、解析器版本、时间和最近错误。
+- [x] P3-C02 实现 pending、processing、retry、failed、completed 状态和持久化恢复。
+- [x] P3-C03 实现 lease、超时恢复、有限重试、取消和资源并发限制。
+- [x] P3-C04 导入前执行文件稳定性检查和 checksum 去重；内容未变化时跳过重复解析与 Embedding。
+- [x] P3-C05 新版本完成解析、分块和基础索引后再原子替换旧版本；模型调用失败时保留可用的关键词索引和旧向量状态。
+- [x] P3-C06 实现目录作为持续同步来源，明确递归范围、忽略规则、删除/移动语义和手动重新扫描。
+- [x] P3-C07 目录同步复用相同 ingest queue、格式能力和原子替换逻辑，不另写第二套导入流程。
+- [x] P3-C08 自动向量化只补齐当前空间未覆盖 chunk；失败不回滚成功文档和关键词索引。
+
+批次 C 施工记录：
+
+- Rust 在每个 `library.kdb` 中持久化 source、source file 和 ingest task。入队流式计算原始 SHA-256，并在哈希前后复查 size/mtime；claim 使用 immediate transaction 和唯一 lease token，过期任务按 attempt 上限恢复为 retry 或 failed，旧 lease 的完成/失败回写均被拒绝。
+- parser 版本纳入入队快照、重复任务判定和完成校验。一般问题：初版草稿只按原始 checksum 去重，parser 升级后不会重新解析未变化文件；现改为 checksum 与 parser 版本共同决定 unchanged，并增加独立 `ingestMaxAttempts` 运行配置，避免错误复用 Embedding 重试次数。
+- 点击选择和拖放仍进入唯一 `importPaths(paths)`，实际写入改由 `ingestQueue.ts` 调用持久队列。worker 并发、lease 和有限重试来自 `KnowledgeRuntimeConfig`；store 初始化会恢复未完成任务。一般边界：parser 位于前端，Knowledge store 未初始化时队列只持久保存、不主动调用 parser；打开工作台或产生新导入后恢复，不影响已提交旧版本检索。
+- 目录 source 使用相同入队、parser 和完成事务，不跟随符号链接；递归和 ignore 规则持久化。重扫将缺失路径排成 delete task，任务完成前旧文档仍可用；移动按旧路径删除和新路径导入处理。目录 UI 与诊断列表归批次 D，本批次已提供完整 command/service 契约。
+- 新基础版本提交前，把旧活动空间可用 chunk/vector 保存为单库语义回退快照。关键词检索立即只读取新 FTS；当前版本向量未全覆盖时语义检索只读旧快照，最后一批缺失向量提交时原子删除快照并切换。模型失败只产生可恢复 warning，不回滚新文档、关键词或旧语义状态。
+- 一般兼容记录：旧 `knowledge_ingest_document` command 暂时保留供既有测试和兼容调用，Knowledge 工作台已不再使用直写路径；无调用方确认后的物理清理由 P5-T10 处理。
+- 验证结果：Knowledge repository 20 项测试覆盖重启恢复、checksum/parser 去重、lease 过期、有限重试、取消、文件级失败隔离、目录缺失删除和语义代际切换；Knowledge 前端 48 项测试、`check:frontend`、`lint`、`check:backend` 和 Vite 完整构建通过。构建中的 Node externalization、依赖 direct eval、chunk 体积和无效动态导入仍是既有警告。真实路径事件、应用重启和模型调用仍由 P3-T05 在隔离 appData 的 Tauri WebView 验收。
 
 ### 7.4 批次 D：工作台与设置 UI
 
@@ -321,7 +331,7 @@ Phase 3 分为五个施工批次。后端配置和摄取契约先行，工作台
 - [ ] P3-T01 前端测试覆盖配置默认值、深度合并、防抖、重置、串库隔离和保存失败保留输入。
 - [x] P3-T02 前端测试覆盖格式单一来源、未知格式检测、选择/拖放共用入口、混合批次和失败明细。
 - [x] P3-T03 Rust 测试覆盖单库配置持久化、legacy manifest 迁移、非法配置、分块参数、requested/actual dimensions、运行时真源隔离、原子重建回滚和重启恢复。
-- [ ] P3-T04 Rust 测试覆盖队列恢复、lease、有限重试、checksum 去重、文件级隔离和旧版本保留。
+- [x] P3-T04 Rust 测试覆盖队列恢复、lease、有限重试、checksum 去重、文件级隔离和旧版本保留。
 - [ ] P3-T05 在隔离 appData 的真实 Tauri WebView 中验收文件选择、多文件拖放、目录同步、重启恢复和模型调用。
 - [ ] P3-T06 验收大、中、小窗口、键盘、明暗主题、覆盖层层级和错误对比度。
 - [ ] P3-DOC 重写设置/导入计划的暂停部分，记录最终配置分层、格式、队列、目录同步和实际施工偏差。

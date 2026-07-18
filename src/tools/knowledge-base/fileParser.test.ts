@@ -32,6 +32,9 @@ describe("Knowledge file parser", () => {
       title: "notes",
       mimeType: "text/plain",
       content: "custom notes",
+      sourceChecksum:
+        "54dbd79fbc99cba50089d8c0939e354017de5f950add29d7a228fc4c3665a928",
+      parserVersion: "knowledge-parser-v1",
     });
   });
 

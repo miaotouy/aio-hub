@@ -14,6 +14,7 @@ import {
   searchKnowledge,
   updateKnowledgeLibrary,
 } from "./service";
+import { processKnowledgeImportQueue } from "./ingestQueue";
 import type {
   KnowledgeDocument,
   KnowledgeChunk,
@@ -73,6 +74,16 @@ export const useKnowledgeStore = defineStore("knowledge-base", {
       this.loading = true;
       try {
         await this.refreshLibraries();
+        const libraryIds = this.libraries.map((library) => library.id);
+        void Promise.all(
+          libraryIds.map((libraryId) =>
+            processKnowledgeImportQueue(libraryId, [])
+          )
+        )
+          .then(() => this.refreshLibraries())
+          .catch((error) => {
+            errorHandler.error(error, "恢复知识资料摄取任务失败");
+          });
       } catch (error) {
         errorHandler.error(error, "初始化知识资料库失败");
       } finally {

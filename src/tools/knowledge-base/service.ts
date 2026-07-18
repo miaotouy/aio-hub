@@ -13,7 +13,9 @@ import { parseModelCombo } from "@/utils/modelIdUtils";
 import { createModuleLogger } from "@/utils/logger";
 import type {
   KnowledgeChunk,
+  KnowledgeEnqueueResult,
   KnowledgeDocument,
+  KnowledgeIngestTask,
   KnowledgeIngestRequest,
   KnowledgeIndexStatus,
   KnowledgeLibrary,
@@ -22,6 +24,7 @@ import type {
   KnowledgeResult,
   KnowledgeSearchExecution,
   KnowledgeSearchRequest,
+  KnowledgeSource,
   KnowledgeVectorRecord,
 } from "./types";
 import {
@@ -30,6 +33,7 @@ import {
   validateKnowledgeLibraryConfig,
 } from "./config";
 import { knowledgeRuntimeConfigManager } from "./config";
+import { KNOWLEDGE_PARSER_VERSION } from "./fileParser";
 
 let initialization: Promise<void> | null = null;
 const logger = createModuleLogger("knowledge-base/service");
@@ -128,6 +132,160 @@ export async function ingestKnowledgeDocument(
 ): Promise<KnowledgeDocument> {
   await ensureKnowledgeInitialized();
   return invoke<KnowledgeDocument>("knowledge_ingest_document", { request });
+}
+
+export async function enqueueKnowledgePaths(
+  libraryId: string,
+  paths: string[],
+  sourceId?: string
+): Promise<KnowledgeEnqueueResult> {
+  const config = await knowledgeRuntimeConfigManager.load();
+  if (paths.length > config.maxImportBatchFiles) {
+    throw new Error(
+      `单次最多导入 ${config.maxImportBatchFiles} 个文件，当前选择了 ${paths.length} 个`
+    );
+  }
+  await ensureKnowledgeInitialized();
+  return invoke<KnowledgeEnqueueResult>("knowledge_enqueue_paths", {
+    request: {
+      libraryId,
+      paths,
+      sourceId,
+      parserVersion: KNOWLEDGE_PARSER_VERSION,
+      maxFileBytes: config.maxImportFileBytes,
+      maxAttempts: config.ingestMaxAttempts,
+    },
+  });
+}
+
+export async function listUnvectorizedKnowledgeChunks(
+  libraryId: string,
+  spaceId: string
+): Promise<KnowledgeChunk[]> {
+  await ensureKnowledgeInitialized();
+  return invoke<KnowledgeChunk[]>("knowledge_list_unvectorized_chunks", {
+    libraryId,
+    spaceId,
+  });
+}
+
+export async function listKnowledgeSources(
+  libraryId: string
+): Promise<KnowledgeSource[]> {
+  await ensureKnowledgeInitialized();
+  return invoke<KnowledgeSource[]>("knowledge_list_sources", { libraryId });
+}
+
+export async function listKnowledgeIngestTasks(
+  libraryId: string,
+  limit = 200
+): Promise<KnowledgeIngestTask[]> {
+  await ensureKnowledgeInitialized();
+  return invoke<KnowledgeIngestTask[]>("knowledge_list_ingest_tasks", {
+    libraryId,
+    limit,
+  });
+}
+
+export async function claimKnowledgeIngestTask(
+  libraryId: string,
+  leaseSeconds: number
+): Promise<KnowledgeIngestTask | null> {
+  await ensureKnowledgeInitialized();
+  return invoke<KnowledgeIngestTask | null>("knowledge_claim_ingest_task", {
+    libraryId,
+    leaseSeconds,
+  });
+}
+
+export async function completeKnowledgeIngestTask(
+  task: KnowledgeIngestTask,
+  parsed: {
+    title?: string;
+    mimeType?: string;
+    content: string;
+    sourceChecksum: string;
+    parserVersion: string;
+  }
+): Promise<KnowledgeDocument | null> {
+  if (!task.leaseToken) throw new Error("Knowledge ingest task 缺少 lease token");
+  await ensureKnowledgeInitialized();
+  return invoke<KnowledgeDocument | null>("knowledge_complete_ingest_task", {
+    request: {
+      libraryId: task.libraryId,
+      taskId: task.id,
+      leaseToken: task.leaseToken,
+      ...parsed,
+    },
+  });
+}
+
+export async function failKnowledgeIngestTask(
+  task: KnowledgeIngestTask,
+  error: unknown,
+  retryable: boolean
+): Promise<KnowledgeIngestTask> {
+  if (!task.leaseToken) throw new Error("Knowledge ingest task 缺少 lease token");
+  await ensureKnowledgeInitialized();
+  return invoke<KnowledgeIngestTask>("knowledge_fail_ingest_task", {
+    request: {
+      libraryId: task.libraryId,
+      taskId: task.id,
+      leaseToken: task.leaseToken,
+      error: error instanceof Error ? error.message : String(error),
+      retryable,
+      retryDelaySeconds: retryable ? task.attemptCount : 0,
+    },
+  });
+}
+
+export async function cancelKnowledgeIngestTask(
+  libraryId: string,
+  taskId: string
+): Promise<void> {
+  await ensureKnowledgeInitialized();
+  await invoke("knowledge_cancel_ingest_task", { libraryId, taskId });
+}
+
+export async function addKnowledgeDirectorySource(options: {
+  libraryId: string;
+  rootPath: string;
+  recursive: boolean;
+  ignorePatterns: string[];
+}): Promise<KnowledgeEnqueueResult> {
+  const config = await knowledgeRuntimeConfigManager.load();
+  await ensureKnowledgeInitialized();
+  return invoke<KnowledgeEnqueueResult>("knowledge_add_directory_source", {
+    request: {
+      ...options,
+      parserVersion: KNOWLEDGE_PARSER_VERSION,
+      maxFileBytes: config.maxImportFileBytes,
+      maxAttempts: config.ingestMaxAttempts,
+    },
+  });
+}
+
+export async function rescanKnowledgeDirectorySource(
+  libraryId: string,
+  sourceId: string
+): Promise<KnowledgeEnqueueResult> {
+  const config = await knowledgeRuntimeConfigManager.load();
+  await ensureKnowledgeInitialized();
+  return invoke<KnowledgeEnqueueResult>("knowledge_rescan_directory_source", {
+    libraryId,
+    sourceId,
+    maxFileBytes: config.maxImportFileBytes,
+    maxAttempts: config.ingestMaxAttempts,
+    parserVersion: KNOWLEDGE_PARSER_VERSION,
+  });
+}
+
+export async function removeKnowledgeSource(
+  libraryId: string,
+  sourceId: string
+): Promise<void> {
+  await ensureKnowledgeInitialized();
+  await invoke("knowledge_remove_source", { libraryId, sourceId });
 }
 
 export async function deleteKnowledgeDocument(
@@ -360,7 +518,12 @@ export async function vectorizeKnowledgeLibrary(
     throw new Error("资料库未配置启用的 Embedding route");
   }
   const runtimeConfig = await knowledgeRuntimeConfigManager.load();
-  const chunks = await listKnowledgeChunks(libraryId);
+  const chunks = library.activeEmbeddingSpaceId
+    ? await listUnvectorizedKnowledgeChunks(
+        libraryId,
+        library.activeEmbeddingSpaceId
+      )
+    : await listKnowledgeChunks(libraryId);
   const batchSize = runtimeConfig.embeddingBatchSize;
   const routeKey = config.embedding.routeKey;
   const [profileId, modelId] = parseModelCombo(routeKey);
@@ -441,6 +604,14 @@ export async function vectorizeKnowledgeLibrary(
       adapterContractVersion: config.embedding.adapterContractVersion,
     });
   const spaceId = await getEmbeddingSpaceId(descriptor);
+  if (
+    library.activeEmbeddingSpaceId &&
+    library.activeEmbeddingSpaceId !== spaceId
+  ) {
+    throw new Error(
+      "Embedding 实际 descriptor 与资料库活动空间不一致，请先确认配置并重建语义索引"
+    );
+  }
   await saveKnowledgeChunkVectors(
     libraryId,
     spaceId,

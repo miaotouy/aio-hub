@@ -18,6 +18,8 @@ function parsed(sourcePath: string) {
     title: getKnowledgeFileName(sourcePath),
     mimeType: "text/plain",
     content: sourcePath,
+    sourceChecksum: `checksum:${sourcePath}`,
+    parserVersion: "test-parser-v1",
   };
 }
 
@@ -115,6 +117,30 @@ describe("Knowledge import service", () => {
     expect(result.failures[0]).toMatchObject({
       fileName: "empty.txt",
       stage: "parse",
+    });
+  });
+
+  it("routes deduplicated paths through the persistent queue processor", async () => {
+    const parseFile = vi.fn();
+    const processPaths = vi.fn(async () => ({
+      imported: 1,
+      parsed: 1,
+      skippedDuplicates: 1,
+      failures: [],
+    }));
+
+    const result = await importPaths(
+      ["C:\\docs\\queued.md", "c:/docs/QUEUED.md"],
+      { parseFile, processPaths }
+    );
+
+    expect(parseFile).not.toHaveBeenCalled();
+    expect(processPaths).toHaveBeenCalledWith(["C:\\docs\\queued.md"]);
+    expect(result).toMatchObject({
+      imported: 1,
+      parsed: 1,
+      skippedDuplicates: 2,
+      failures: [],
     });
   });
 });

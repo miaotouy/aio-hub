@@ -19,7 +19,11 @@ export interface ParsedKnowledgeFile {
   title: string;
   mimeType: string;
   content: string;
+  sourceChecksum: string;
+  parserVersion: string;
 }
+
+export const KNOWLEDGE_PARSER_VERSION = "knowledge-parser-v1";
 
 export class KnowledgeFileParseError extends Error {
   constructor(
@@ -108,6 +112,17 @@ async function parseByCapability(
   return smartDecode(bytes);
 }
 
+async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const input = bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength
+  ) as ArrayBuffer;
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", input));
+  return Array.from(digest, (value) => value.toString(16).padStart(2, "0")).join(
+    ""
+  );
+}
+
 export async function parseKnowledgeFile(
   sourcePath: string
 ): Promise<ParsedKnowledgeFile> {
@@ -166,5 +181,7 @@ export async function parseKnowledgeFile(
     title: titleFromPath(sourcePath),
     mimeType: getKnowledgeMimeType(capability, extension),
     content,
+    sourceChecksum: await sha256Hex(bytes),
+    parserVersion: KNOWLEDGE_PARSER_VERSION,
   };
 }

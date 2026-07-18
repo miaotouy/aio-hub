@@ -125,6 +125,7 @@ export function createDefaultKnowledgeRuntimeConfig(): KnowledgeRuntimeConfig {
     embeddingRetryDelayMs: 1000,
     ingestQueueConcurrency: 2,
     ingestLeaseTimeoutSeconds: 300,
+    ingestMaxAttempts: 3,
     maxImportFileBytes: 50 * 1024 * 1024,
     maxImportBatchFiles: 200,
   };
@@ -189,6 +190,12 @@ export const knowledgeRuntimeConfigManager =
           defaults.ingestLeaseTimeoutSeconds,
           30,
           3600
+        ),
+        ingestMaxAttempts: boundedInteger(
+          loaded.ingestMaxAttempts,
+          defaults.ingestMaxAttempts,
+          1,
+          10
         ),
         maxImportFileBytes: boundedInteger(
           loaded.maxImportFileBytes,

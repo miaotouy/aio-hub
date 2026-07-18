@@ -43,8 +43,71 @@ export interface KnowledgeRuntimeConfig {
   embeddingRetryDelayMs: number;
   ingestQueueConcurrency: number;
   ingestLeaseTimeoutSeconds: number;
+  ingestMaxAttempts: number;
   maxImportFileBytes: number;
   maxImportBatchFiles: number;
+}
+
+export type KnowledgeSourceKind = "file" | "directory";
+export type KnowledgeIngestTaskStatus =
+  | "pending"
+  | "processing"
+  | "retry"
+  | "failed"
+  | "completed"
+  | "cancelled";
+
+export interface KnowledgeSource {
+  id: string;
+  libraryId: string;
+  kind: KnowledgeSourceKind;
+  rootPath: string;
+  recursive: boolean;
+  ignorePatterns: string[];
+  status: string;
+  fileCount: number;
+  pendingTaskCount: number;
+  failedTaskCount: number;
+  lastScanAt?: number;
+  lastError?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface KnowledgeIngestTask {
+  id: string;
+  libraryId: string;
+  sourceId: string;
+  sourceFileId: string;
+  sourcePath: string;
+  operation: "upsert" | "delete";
+  expectedChecksum: string;
+  fileSize: number;
+  modifiedAt: number;
+  parserVersion: string;
+  status: KnowledgeIngestTaskStatus;
+  attemptCount: number;
+  maxAttempts: number;
+  availableAt: number;
+  leaseToken?: string;
+  leaseExpiresAt?: number;
+  cancelRequested: boolean;
+  lastError?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface KnowledgeEnqueueFailure {
+  sourcePath: string;
+  message: string;
+}
+
+export interface KnowledgeEnqueueResult {
+  taskIds: string[];
+  queued: number;
+  skippedUnchanged: number;
+  skippedQueued: number;
+  failures: KnowledgeEnqueueFailure[];
 }
 
 export interface AgentKnowledgeAccess {

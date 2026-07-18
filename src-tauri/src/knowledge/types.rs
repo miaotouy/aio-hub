@@ -6,6 +6,132 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub enum KnowledgeSourceKind {
+    File,
+    Directory,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum KnowledgeIngestTaskStatus {
+    Pending,
+    Processing,
+    Retry,
+    Failed,
+    Completed,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnowledgeSource {
+    pub id: String,
+    pub library_id: String,
+    pub kind: KnowledgeSourceKind,
+    pub root_path: String,
+    pub recursive: bool,
+    pub ignore_patterns: Vec<String>,
+    pub status: String,
+    pub file_count: usize,
+    pub pending_task_count: usize,
+    pub failed_task_count: usize,
+    pub last_scan_at: Option<i64>,
+    pub last_error: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnowledgeIngestTask {
+    pub id: String,
+    pub library_id: String,
+    pub source_id: String,
+    pub source_file_id: String,
+    pub source_path: String,
+    pub operation: String,
+    pub expected_checksum: String,
+    pub file_size: usize,
+    pub modified_at: i64,
+    pub parser_version: String,
+    pub status: KnowledgeIngestTaskStatus,
+    pub attempt_count: usize,
+    pub max_attempts: usize,
+    pub available_at: i64,
+    pub lease_token: Option<String>,
+    pub lease_expires_at: Option<i64>,
+    pub cancel_requested: bool,
+    pub last_error: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnowledgeEnqueuePathsRequest {
+    pub library_id: String,
+    pub paths: Vec<String>,
+    pub source_id: Option<String>,
+    pub parser_version: String,
+    pub max_file_bytes: usize,
+    pub max_attempts: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnowledgeEnqueueFailure {
+    pub source_path: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnowledgeEnqueueResult {
+    pub task_ids: Vec<String>,
+    pub queued: usize,
+    pub skipped_unchanged: usize,
+    pub skipped_queued: usize,
+    pub failures: Vec<KnowledgeEnqueueFailure>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnowledgeDirectorySourceRequest {
+    pub library_id: String,
+    pub root_path: String,
+    pub recursive: bool,
+    pub ignore_patterns: Vec<String>,
+    pub parser_version: String,
+    pub max_file_bytes: usize,
+    pub max_attempts: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnowledgeCompleteIngestTaskRequest {
+    pub library_id: String,
+    pub task_id: String,
+    pub lease_token: String,
+    pub title: Option<String>,
+    pub mime_type: Option<String>,
+    pub content: String,
+    pub source_checksum: String,
+    pub parser_version: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnowledgeFailIngestTaskRequest {
+    pub library_id: String,
+    pub task_id: String,
+    pub lease_token: String,
+    pub error: String,
+    pub retryable: bool,
+    pub retry_delay_seconds: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct KnowledgeChunkingConfig {
     #[serde(default = "default_chunk_strategy")]
     pub strategy: String,

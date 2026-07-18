@@ -3,10 +3,14 @@
 // Licensed under the Apache License, Version 2.0 (the "License");
 
 use super::types::*;
-use rusqlite::{params, Connection, OptionalExtension, Transaction};
+use ignore::WalkBuilder;
+use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::fs::File;
+use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::time::UNIX_EPOCH;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -238,6 +242,911 @@ impl KnowledgeRepository {
             .ok_or_else(|| format!("更新后找不到 Knowledge library: {id}"))
     }
 
+    pub fn enqueue_paths(
+        &self,
+        request: &KnowledgeEnqueuePathsRequest,
+    ) -> Result<KnowledgeEnqueueResult, String> {
+        if request.parser_version.trim().is_empty() {
+            return Err("Knowledge parser version 不能为空".to_string());
+        }
+        let path = self.resolve_library_path(&request.library_id)?;
+        let max_file_bytes = request.max_file_bytes.max(1);
+        let max_attempts = request.max_attempts.clamp(1, 10);
+        let mut failures = Vec::new();
+        let mut inspected = Vec::new();
+        let mut seen = HashSet::new();
+        for source_path in &request.paths {
+            match inspect_stable_file(source_path, max_file_bytes) {
+                Ok(file) if seen.insert(file.source_path.clone()) => inspected.push(file),
+                Ok(_) => {}
+                Err(error) => failures.push(KnowledgeEnqueueFailure {
+                    source_path: source_path.clone(),
+                    message: error,
+                }),
+            }
+        }
+
+        let mut connection = self.open_library(&path)?;
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| format!("开启 Knowledge ingest 入队事务失败: {error}"))?;
+        let mut task_ids = Vec::new();
+        let mut skipped_unchanged = 0;
+        let mut skipped_queued = 0;
+        for file in inspected {
+            let source_id = ensure_source_for_file(
+                &transaction,
+                request.source_id.as_deref(),
+                &file.source_path,
+            )?;
+            let source_file = transaction
+                .query_row(
+                    "SELECT id, current_checksum, status, parser_version
+                     FROM knowledge_source_files
+                     WHERE source_id = ?1 AND source_path = ?2",
+                    params![source_id, file.source_path],
+                    |row| {
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, String>(1)?,
+                            row.get::<_, String>(2)?,
+                            row.get::<_, String>(3)?,
+                        ))
+                    },
+                )
+                .optional()
+                .map_err(|error| format!("读取 Knowledge source file 失败: {error}"))?;
+            if source_file
+                .as_ref()
+                .is_some_and(|(_, checksum, status, parser_version)| {
+                    checksum == &file.checksum
+                        && status == "ready"
+                        && parser_version == &request.parser_version
+                })
+            {
+                skipped_unchanged += 1;
+                continue;
+            }
+            let source_file_id = source_file
+                .as_ref()
+                .map(|item| item.0.clone())
+                .unwrap_or_else(|| Uuid::new_v4().to_string());
+            let already_queued = transaction
+                .query_row(
+                    "SELECT 1 FROM knowledge_ingest_tasks
+                     WHERE source_file_id = ?1 AND expected_checksum = ?2
+                       AND operation = 'upsert' AND parser_version = ?3
+                       AND status IN ('pending', 'processing', 'retry')
+                     LIMIT 1",
+                    params![source_file_id, file.checksum, request.parser_version],
+                    |_| Ok(()),
+                )
+                .optional()
+                .map_err(|error| format!("检查 Knowledge ingest 重复任务失败: {error}"))?
+                .is_some();
+            if already_queued {
+                skipped_queued += 1;
+                continue;
+            }
+            let timestamp = now();
+            transaction
+                .execute(
+                    "INSERT INTO knowledge_source_files(
+                        id, source_id, source_path, observed_checksum,
+                        file_size, modified_at, status, created_at, updated_at
+                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'pending', ?7, ?7)
+                     ON CONFLICT(source_id, source_path) DO UPDATE SET
+                        observed_checksum = excluded.observed_checksum,
+                        file_size = excluded.file_size,
+                        modified_at = excluded.modified_at,
+                        status = 'pending', last_error = NULL,
+                        updated_at = excluded.updated_at",
+                    params![
+                        source_file_id,
+                        source_id,
+                        file.source_path,
+                        file.checksum,
+                        file.file_size as i64,
+                        file.modified_at,
+                        timestamp
+                    ],
+                )
+                .map_err(|error| format!("写入 Knowledge source file 失败: {error}"))?;
+            let task_id = Uuid::new_v4().to_string();
+            transaction
+                .execute(
+                    "INSERT INTO knowledge_ingest_tasks(
+                        id, source_id, source_file_id, source_path, operation,
+                        expected_checksum, file_size, modified_at, parser_version,
+                        status, attempt_count, max_attempts, available_at,
+                        cancel_requested, created_at, updated_at
+                     ) VALUES (
+                        ?1, ?2, ?3, ?4, 'upsert', ?5, ?6, ?7, ?8,
+                        'pending', 0, ?9, ?10, 0, ?10, ?10
+                     )",
+                    params![
+                        task_id,
+                        source_id,
+                        source_file_id,
+                        file.source_path,
+                        file.checksum,
+                        file.file_size as i64,
+                        file.modified_at,
+                        request.parser_version,
+                        max_attempts as i64,
+                        timestamp
+                    ],
+                )
+                .map_err(|error| format!("写入 Knowledge ingest task 失败: {error}"))?;
+            task_ids.push(task_id);
+        }
+        transaction
+            .commit()
+            .map_err(|error| format!("提交 Knowledge ingest 入队失败: {error}"))?;
+        Ok(KnowledgeEnqueueResult {
+            queued: task_ids.len(),
+            task_ids,
+            skipped_unchanged,
+            skipped_queued,
+            failures,
+        })
+    }
+
+    pub fn list_sources(&self, library_id: &str) -> Result<Vec<KnowledgeSource>, String> {
+        let path = self.resolve_library_path(library_id)?;
+        let connection = self.open_library(&path)?;
+        let mut statement = connection
+            .prepare(
+                "SELECT s.id, s.kind, s.root_path, s.recursive, s.ignore_json,
+                        s.status, s.last_scan_at, s.last_error, s.created_at, s.updated_at,
+                        COUNT(DISTINCT f.id),
+                        COUNT(DISTINCT CASE WHEN t.status IN ('pending', 'processing', 'retry')
+                                           THEN t.id END),
+                        COUNT(DISTINCT CASE WHEN t.status = 'failed' THEN t.id END)
+                 FROM knowledge_sources s
+                 LEFT JOIN knowledge_source_files f ON f.source_id = s.id
+                 LEFT JOIN knowledge_ingest_tasks t ON t.source_id = s.id
+                 GROUP BY s.id ORDER BY s.updated_at DESC, s.id",
+            )
+            .map_err(|error| format!("准备 Knowledge source 列表失败: {error}"))?;
+        let rows = statement
+            .query_map([], |row| {
+                let kind = parse_source_kind(&row.get::<_, String>(1)?)?;
+                let ignore_json = row.get::<_, String>(4)?;
+                Ok(KnowledgeSource {
+                    id: row.get(0)?,
+                    library_id: library_id.to_string(),
+                    kind,
+                    root_path: row.get(2)?,
+                    recursive: row.get::<_, i64>(3)? != 0,
+                    ignore_patterns: serde_json::from_str(&ignore_json).unwrap_or_default(),
+                    status: row.get(5)?,
+                    last_scan_at: row.get(6)?,
+                    last_error: row.get(7)?,
+                    created_at: row.get(8)?,
+                    updated_at: row.get(9)?,
+                    file_count: row.get::<_, i64>(10)?.max(0) as usize,
+                    pending_task_count: row.get::<_, i64>(11)?.max(0) as usize,
+                    failed_task_count: row.get::<_, i64>(12)?.max(0) as usize,
+                })
+            })
+            .map_err(|error| format!("查询 Knowledge source 失败: {error}"))?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|error| format!("读取 Knowledge source 失败: {error}"))
+    }
+
+    pub fn list_ingest_tasks(
+        &self,
+        library_id: &str,
+        limit: usize,
+    ) -> Result<Vec<KnowledgeIngestTask>, String> {
+        let path = self.resolve_library_path(library_id)?;
+        let connection = self.open_library(&path)?;
+        let mut statement = connection
+            .prepare(
+                "SELECT id, source_id, source_file_id, source_path, operation,
+                        expected_checksum, file_size, modified_at, parser_version,
+                        status, attempt_count, max_attempts, available_at,
+                        lease_token, lease_expires_at, cancel_requested, last_error,
+                        created_at, updated_at
+                 FROM knowledge_ingest_tasks
+                 ORDER BY created_at DESC, id LIMIT ?1",
+            )
+            .map_err(|error| format!("准备 Knowledge ingest task 列表失败: {error}"))?;
+        let rows = statement
+            .query_map([limit.clamp(1, 1000) as i64], |row| {
+                ingest_task_from_row(library_id, row)
+            })
+            .map_err(|error| format!("查询 Knowledge ingest task 失败: {error}"))?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|error| format!("读取 Knowledge ingest task 失败: {error}"))
+    }
+
+    pub fn claim_ingest_task(
+        &self,
+        library_id: &str,
+        lease_seconds: usize,
+    ) -> Result<Option<KnowledgeIngestTask>, String> {
+        let path = self.resolve_library_path(library_id)?;
+        let mut connection = self.open_library(&path)?;
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| format!("开启 Knowledge ingest claim 事务失败: {error}"))?;
+        let timestamp = now();
+        transaction
+            .execute(
+                "UPDATE knowledge_ingest_tasks
+                 SET status = CASE
+                       WHEN cancel_requested = 1 THEN 'cancelled'
+                       WHEN attempt_count >= max_attempts THEN 'failed'
+                       ELSE 'retry'
+                     END,
+                     available_at = ?1, lease_token = NULL, lease_expires_at = NULL,
+                     last_error = CASE
+                       WHEN cancel_requested = 1 THEN last_error
+                       ELSE '任务 lease 已过期，等待恢复'
+                     END,
+                     updated_at = ?1
+                 WHERE status = 'processing' AND lease_expires_at <= ?1",
+                [timestamp],
+            )
+            .map_err(|error| format!("恢复 Knowledge 过期 ingest lease 失败: {error}"))?;
+        transaction
+            .execute(
+                "UPDATE knowledge_source_files
+                 SET status = COALESCE((
+                       SELECT t.status FROM knowledge_ingest_tasks t
+                       WHERE t.source_file_id = knowledge_source_files.id
+                       ORDER BY t.updated_at DESC, t.id DESC LIMIT 1
+                     ), status),
+                     last_error = (
+                       SELECT t.last_error FROM knowledge_ingest_tasks t
+                       WHERE t.source_file_id = knowledge_source_files.id
+                       ORDER BY t.updated_at DESC, t.id DESC LIMIT 1
+                     ),
+                     updated_at = ?1
+                 WHERE id IN (
+                   SELECT source_file_id FROM knowledge_ingest_tasks
+                   WHERE updated_at = ?1 AND lease_token IS NULL
+                     AND status IN ('retry', 'failed', 'cancelled')
+                 )",
+                [timestamp],
+            )
+            .map_err(|error| format!("同步 Knowledge 过期 source file 状态失败: {error}"))?;
+        let task_id = transaction
+            .query_row(
+                "SELECT id FROM knowledge_ingest_tasks
+                 WHERE status IN ('pending', 'retry')
+                   AND available_at <= ?1 AND cancel_requested = 0
+                 ORDER BY available_at, created_at, id LIMIT 1",
+                [timestamp],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(|error| format!("选择 Knowledge ingest task 失败: {error}"))?;
+        let Some(task_id) = task_id else {
+            transaction
+                .commit()
+                .map_err(|error| format!("提交空 Knowledge ingest claim 失败: {error}"))?;
+            return Ok(None);
+        };
+        let lease_token = Uuid::new_v4().to_string();
+        let lease_expires_at = timestamp + lease_seconds.clamp(30, 3600) as i64;
+        transaction
+            .execute(
+                "UPDATE knowledge_ingest_tasks
+                 SET status = 'processing', attempt_count = attempt_count + 1,
+                     lease_token = ?2, lease_expires_at = ?3, updated_at = ?4
+                 WHERE id = ?1",
+                params![task_id, lease_token, lease_expires_at, timestamp],
+            )
+            .map_err(|error| format!("领取 Knowledge ingest task 失败: {error}"))?;
+        transaction
+            .execute(
+                "UPDATE knowledge_source_files SET status = 'processing', updated_at = ?2
+                 WHERE id = (
+                   SELECT source_file_id FROM knowledge_ingest_tasks WHERE id = ?1
+                 )",
+                params![task_id, timestamp],
+            )
+            .map_err(|error| format!("更新 Knowledge source file 处理状态失败: {error}"))?;
+        let task = transaction
+            .query_row(
+                "SELECT id, source_id, source_file_id, source_path, operation,
+                        expected_checksum, file_size, modified_at, parser_version,
+                        status, attempt_count, max_attempts, available_at,
+                        lease_token, lease_expires_at, cancel_requested, last_error,
+                        created_at, updated_at
+                 FROM knowledge_ingest_tasks WHERE id = ?1",
+                [&task_id],
+                |row| ingest_task_from_row(library_id, row),
+            )
+            .map_err(|error| format!("读取已领取 Knowledge ingest task 失败: {error}"))?;
+        transaction
+            .commit()
+            .map_err(|error| format!("提交 Knowledge ingest claim 失败: {error}"))?;
+        Ok(Some(task))
+    }
+
+    pub fn fail_ingest_task(
+        &self,
+        request: &KnowledgeFailIngestTaskRequest,
+    ) -> Result<KnowledgeIngestTask, String> {
+        let path = self.resolve_library_path(&request.library_id)?;
+        let mut connection = self.open_library(&path)?;
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| format!("开启 Knowledge ingest fail 事务失败: {error}"))?;
+        let timestamp = now();
+        let (source_file_id, attempt_count, max_attempts, cancel_requested) = transaction
+            .query_row(
+                "SELECT source_file_id, attempt_count, max_attempts, cancel_requested
+                 FROM knowledge_ingest_tasks
+                 WHERE id = ?1 AND status = 'processing' AND lease_token = ?2
+                   AND lease_expires_at > ?3",
+                params![request.task_id, request.lease_token, timestamp],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, i64>(2)?,
+                        row.get::<_, i64>(3)? != 0,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(|error| format!("校验 Knowledge ingest fail lease 失败: {error}"))?
+            .ok_or_else(|| "Knowledge ingest task lease 已失效".to_string())?;
+        let next_status = if cancel_requested {
+            "cancelled"
+        } else if request.retryable && attempt_count < max_attempts {
+            "retry"
+        } else {
+            "failed"
+        };
+        transaction
+            .execute(
+                "UPDATE knowledge_ingest_tasks
+                 SET status = ?3, available_at = ?4, lease_token = NULL,
+                     lease_expires_at = NULL, last_error = ?5, updated_at = ?6
+                 WHERE id = ?1 AND lease_token = ?2",
+                params![
+                    request.task_id,
+                    request.lease_token,
+                    next_status,
+                    timestamp + request.retry_delay_seconds.min(3600) as i64,
+                    request.error,
+                    timestamp
+                ],
+            )
+            .map_err(|error| format!("更新 Knowledge ingest fail 状态失败: {error}"))?;
+        transaction
+            .execute(
+                "UPDATE knowledge_source_files
+                 SET status = ?2, last_error = ?3, updated_at = ?4 WHERE id = ?1",
+                params![source_file_id, next_status, request.error, timestamp],
+            )
+            .map_err(|error| format!("更新 Knowledge source file 失败状态失败: {error}"))?;
+        let task = transaction
+            .query_row(
+                "SELECT id, source_id, source_file_id, source_path, operation,
+                        expected_checksum, file_size, modified_at, parser_version,
+                        status, attempt_count, max_attempts, available_at,
+                        lease_token, lease_expires_at, cancel_requested, last_error,
+                        created_at, updated_at
+                 FROM knowledge_ingest_tasks WHERE id = ?1",
+                [&request.task_id],
+                |row| ingest_task_from_row(&request.library_id, row),
+            )
+            .map_err(|error| format!("读取失败后的 Knowledge ingest task 失败: {error}"))?;
+        transaction
+            .commit()
+            .map_err(|error| format!("提交 Knowledge ingest fail 失败: {error}"))?;
+        Ok(task)
+    }
+
+    pub fn cancel_ingest_task(&self, library_id: &str, task_id: &str) -> Result<(), String> {
+        let path = self.resolve_library_path(library_id)?;
+        let mut connection = self.open_library(&path)?;
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| format!("开启 Knowledge ingest cancel 事务失败: {error}"))?;
+        let timestamp = now();
+        let changed = transaction
+            .execute(
+                "UPDATE knowledge_ingest_tasks
+                 SET cancel_requested = 1,
+                     status = CASE WHEN status IN ('pending', 'retry')
+                                   THEN 'cancelled' ELSE status END,
+                     updated_at = ?2
+                 WHERE id = ?1 AND status IN ('pending', 'processing', 'retry')",
+                params![task_id, timestamp],
+            )
+            .map_err(|error| format!("取消 Knowledge ingest task 失败: {error}"))?;
+        if changed == 0 {
+            return Err("Knowledge ingest task 不存在或已结束".to_string());
+        }
+        transaction
+            .execute(
+                "UPDATE knowledge_source_files
+                 SET status = CASE
+                       WHEN (SELECT status FROM knowledge_ingest_tasks WHERE id = ?1) = 'cancelled'
+                       THEN 'cancelled' ELSE status END,
+                     updated_at = ?2
+                 WHERE id = (
+                   SELECT source_file_id FROM knowledge_ingest_tasks WHERE id = ?1
+                 )",
+                params![task_id, timestamp],
+            )
+            .map_err(|error| format!("同步 Knowledge source file 取消状态失败: {error}"))?;
+        transaction
+            .commit()
+            .map_err(|error| format!("提交 Knowledge ingest cancel 失败: {error}"))?;
+        Ok(())
+    }
+
+    pub fn complete_ingest_task(
+        &self,
+        request: &KnowledgeCompleteIngestTaskRequest,
+    ) -> Result<Option<KnowledgeDocument>, String> {
+        if request.parser_version.trim().is_empty() {
+            return Err("Knowledge parser version 不能为空".to_string());
+        }
+        let path = self.resolve_library_path(&request.library_id)?;
+        let mut connection = self.open_library(&path)?;
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| format!("开启 Knowledge ingest complete 事务失败: {error}"))?;
+        let timestamp = now();
+        let task = transaction
+            .query_row(
+                "SELECT source_file_id, source_path, operation, expected_checksum,
+                        cancel_requested, lease_expires_at, parser_version
+                 FROM knowledge_ingest_tasks
+                 WHERE id = ?1 AND status = 'processing' AND lease_token = ?2",
+                params![request.task_id, request.lease_token],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, i64>(4)? != 0,
+                        row.get::<_, Option<i64>>(5)?,
+                        row.get::<_, String>(6)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(|error| format!("校验 Knowledge ingest complete lease 失败: {error}"))?
+            .ok_or_else(|| "Knowledge ingest task lease 已失效".to_string())?;
+        if task.4 || task.5.is_none_or(|expires_at| expires_at <= timestamp) {
+            return Err("Knowledge ingest task 已取消或 lease 已过期".to_string());
+        }
+
+        let document_id = if task.2 == "delete" {
+            let document_id = transaction
+                .query_row(
+                    "SELECT document_id FROM knowledge_source_files WHERE id = ?1",
+                    [&task.0],
+                    |row| row.get::<_, Option<String>>(0),
+                )
+                .optional()
+                .map_err(|error| format!("读取待删除 Knowledge document 失败: {error}"))?
+                .flatten();
+            transaction
+                .execute(
+                    "DELETE FROM knowledge_semantic_fallback_chunks WHERE source_file_id = ?1",
+                    [&task.0],
+                )
+                .map_err(|error| format!("删除 Knowledge 语义回退快照失败: {error}"))?;
+            if let Some(document_id) = document_id.as_deref() {
+                transaction
+                    .execute("DELETE FROM documents WHERE id = ?1", [document_id])
+                    .map_err(|error| format!("删除缺失来源 Knowledge document 失败: {error}"))?;
+            }
+            transaction
+                .execute(
+                    "UPDATE knowledge_source_files
+                     SET current_checksum = '', document_id = NULL, status = 'missing',
+                         parser_version = '', last_error = NULL, updated_at = ?2
+                     WHERE id = ?1",
+                    params![task.0, timestamp],
+                )
+                .map_err(|error| format!("更新缺失 Knowledge source file 失败: {error}"))?;
+            None
+        } else {
+            if request.content.trim().is_empty() {
+                return Err("Knowledge document 内容不能为空".to_string());
+            }
+            if request.source_checksum != task.3 {
+                return Err("解析结果的原始文件 checksum 与入队快照不一致".to_string());
+            }
+            if request.parser_version != task.6 {
+                return Err("解析结果的 parser version 与入队快照不一致".to_string());
+            }
+            let observed_checksum = transaction
+                .query_row(
+                    "SELECT observed_checksum FROM knowledge_source_files WHERE id = ?1",
+                    [&task.0],
+                    |row| row.get::<_, String>(0),
+                )
+                .map_err(|error| format!("读取 Knowledge source checksum 失败: {error}"))?;
+            if observed_checksum != task.3 {
+                return Err("Knowledge source 已在任务处理期间发生变化".to_string());
+            }
+            let config_json = transaction
+                .query_row(
+                    "SELECT config_json FROM library_metadata WHERE id = 1",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .map_err(|error| format!("读取 Knowledge ingest 配置失败: {error}"))?;
+            let config = parse_library_config(&config_json)?;
+            let existing = transaction
+                .query_row(
+                    "SELECT id, created_at, version FROM documents WHERE source_path = ?1",
+                    [&task.1],
+                    |row| {
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, i64>(1)?,
+                            row.get::<_, i64>(2)?,
+                        ))
+                    },
+                )
+                .optional()
+                .map_err(|error| format!("读取 Knowledge document 版本失败: {error}"))?;
+            let document_id = existing
+                .as_ref()
+                .map(|item| item.0.clone())
+                .unwrap_or_else(|| Uuid::new_v4().to_string());
+            let created_at = existing.as_ref().map_or(timestamp, |item| item.1);
+            let version = existing.as_ref().map_or(1, |item| item.2.saturating_add(1));
+            let title = request
+                .title
+                .clone()
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or_else(|| source_title(&task.1));
+            let content_checksum = blake3::hash(request.content.as_bytes())
+                .to_hex()
+                .to_string();
+            let mime_type = request
+                .mime_type
+                .clone()
+                .unwrap_or_else(|| "text/plain".to_string());
+            if existing.is_some() {
+                preserve_semantic_fallback(&transaction, &task.0, &document_id)?;
+            }
+            transaction
+                .execute(
+                    "INSERT INTO documents(
+                        id, source_path, title, checksum, mime_type, content, size,
+                        status, created_at, updated_at, source_file_id, source_checksum,
+                        parser_version, version, last_error
+                     ) VALUES (
+                        ?1, ?2, ?3, ?4, ?5, ?6, ?7, 'ready', ?8, ?9,
+                        ?10, ?11, ?12, ?13, NULL
+                     )
+                     ON CONFLICT(source_path) DO UPDATE SET
+                        title = excluded.title, checksum = excluded.checksum,
+                        mime_type = excluded.mime_type, content = excluded.content,
+                        size = excluded.size, status = 'ready', updated_at = excluded.updated_at,
+                        source_file_id = excluded.source_file_id,
+                        source_checksum = excluded.source_checksum,
+                        parser_version = excluded.parser_version,
+                        version = excluded.version, last_error = NULL",
+                    params![
+                        document_id,
+                        task.1,
+                        title,
+                        content_checksum,
+                        mime_type,
+                        request.content,
+                        request.content.len() as i64,
+                        created_at,
+                        timestamp,
+                        task.0,
+                        request.source_checksum,
+                        request.parser_version,
+                        version,
+                    ],
+                )
+                .map_err(|error| format!("写入 Knowledge document 新版本失败: {error}"))?;
+            replace_document_chunks(
+                &transaction,
+                &request.library_id,
+                &document_id,
+                &task.1,
+                &title,
+                &request.content,
+                &config,
+            )?;
+            transaction
+                .execute(
+                    "UPDATE knowledge_source_files
+                     SET current_checksum = ?2, parser_version = ?3, document_id = ?4,
+                         status = 'ready', last_error = NULL, updated_at = ?5
+                     WHERE id = ?1",
+                    params![
+                        task.0,
+                        request.source_checksum,
+                        request.parser_version,
+                        document_id,
+                        timestamp,
+                    ],
+                )
+                .map_err(|error| format!("提交 Knowledge source file 新版本失败: {error}"))?;
+            Some(document_id)
+        };
+        transaction
+            .execute(
+                "UPDATE knowledge_ingest_tasks
+                 SET status = 'completed', parser_version = ?3, lease_token = NULL,
+                     lease_expires_at = NULL, last_error = NULL, updated_at = ?4
+                 WHERE id = ?1 AND lease_token = ?2",
+                params![
+                    request.task_id,
+                    request.lease_token,
+                    request.parser_version,
+                    timestamp,
+                ],
+            )
+            .map_err(|error| format!("完成 Knowledge ingest task 失败: {error}"))?;
+        transaction
+            .commit()
+            .map_err(|error| format!("提交 Knowledge ingest complete 失败: {error}"))?;
+        let _ = self.touch_library(&request.library_id);
+        match document_id {
+            Some(document_id) => self.get_document(&request.library_id, &document_id),
+            None => Ok(None),
+        }
+    }
+
+    pub fn add_directory_source(
+        &self,
+        request: &KnowledgeDirectorySourceRequest,
+    ) -> Result<KnowledgeEnqueueResult, String> {
+        let root = canonical_directory(&request.root_path)?;
+        validate_ignore_patterns(&root, &request.ignore_patterns)?;
+        let path = self.resolve_library_path(&request.library_id)?;
+        let connection = self.open_library(&path)?;
+        let source_id = Uuid::new_v4().to_string();
+        let timestamp = now();
+        connection
+            .execute(
+                "INSERT INTO knowledge_sources(
+                    id, kind, root_path, recursive, ignore_json, status,
+                    created_at, updated_at
+                 ) VALUES (?1, 'directory', ?2, ?3, ?4, 'active', ?5, ?5)
+                 ON CONFLICT(kind, root_path) DO UPDATE SET
+                    recursive = excluded.recursive, ignore_json = excluded.ignore_json,
+                    status = 'active', last_error = NULL, updated_at = excluded.updated_at",
+                params![
+                    source_id,
+                    normalized_external_path(&root),
+                    request.recursive as i64,
+                    serde_json::to_string(&request.ignore_patterns)
+                        .map_err(|error| format!("序列化 Knowledge ignore 规则失败: {error}"))?,
+                    timestamp,
+                ],
+            )
+            .map_err(|error| format!("创建 Knowledge directory source 失败: {error}"))?;
+        let actual_source_id = connection
+            .query_row(
+                "SELECT id FROM knowledge_sources WHERE kind = 'directory' AND root_path = ?1",
+                [normalized_external_path(&root)],
+                |row| row.get::<_, String>(0),
+            )
+            .map_err(|error| format!("读取 Knowledge directory source 失败: {error}"))?;
+        self.rescan_directory_source(
+            &request.library_id,
+            &actual_source_id,
+            request.max_file_bytes,
+            request.max_attempts,
+            &request.parser_version,
+        )
+    }
+
+    pub fn rescan_directory_source(
+        &self,
+        library_id: &str,
+        source_id: &str,
+        max_file_bytes: usize,
+        max_attempts: usize,
+        parser_version: &str,
+    ) -> Result<KnowledgeEnqueueResult, String> {
+        let path = self.resolve_library_path(library_id)?;
+        let connection = self.open_library(&path)?;
+        let (root_path, recursive, ignore_json) = connection
+            .query_row(
+                "SELECT root_path, recursive, ignore_json FROM knowledge_sources
+                 WHERE id = ?1 AND kind = 'directory'",
+                [source_id],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, i64>(1)? != 0,
+                        row.get::<_, String>(2)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(|error| format!("读取 Knowledge directory source 失败: {error}"))?
+            .ok_or_else(|| format!("Knowledge directory source 不存在: {source_id}"))?;
+        let root = canonical_directory(&root_path)?;
+        let ignore_patterns: Vec<String> = serde_json::from_str(&ignore_json)
+            .map_err(|error| format!("读取 Knowledge ignore 规则失败: {error}"))?;
+        let mut builder = WalkBuilder::new(&root);
+        builder
+            .hidden(false)
+            .parents(false)
+            .git_ignore(false)
+            .git_global(false)
+            .git_exclude(false)
+            .follow_links(false);
+        if !recursive {
+            builder.max_depth(Some(1));
+        }
+        if let Some(overrides) = build_ignore_overrides(&root, &ignore_patterns)? {
+            builder.overrides(overrides);
+        }
+        let mut paths = Vec::new();
+        let mut walk_failures = Vec::new();
+        for entry in builder.build() {
+            match entry {
+                Ok(entry) if entry.file_type().is_some_and(|kind| kind.is_file()) => {
+                    paths.push(normalized_external_path(entry.path()));
+                }
+                Ok(_) => {}
+                Err(error) => walk_failures.push(KnowledgeEnqueueFailure {
+                    source_path: root_path.clone(),
+                    message: format!("遍历目录失败: {error}"),
+                }),
+            }
+        }
+        let mut result = self.enqueue_paths(&KnowledgeEnqueuePathsRequest {
+            library_id: library_id.to_string(),
+            paths: paths.clone(),
+            source_id: Some(source_id.to_string()),
+            parser_version: parser_version.to_string(),
+            max_file_bytes,
+            max_attempts,
+        })?;
+        result.failures.extend(walk_failures);
+
+        let scan_id = Uuid::new_v4().to_string();
+        let timestamp = now();
+        let mut connection = self.open_library(&path)?;
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| format!("开启 Knowledge directory scan 事务失败: {error}"))?;
+        for source_path in paths {
+            transaction
+                .execute(
+                    "UPDATE knowledge_source_files SET last_seen_scan = ?3, updated_at = ?4
+                     WHERE source_id = ?1 AND source_path = ?2",
+                    params![source_id, source_path, scan_id, timestamp],
+                )
+                .map_err(|error| format!("标记 Knowledge directory scan 文件失败: {error}"))?;
+        }
+        let missing = {
+            let mut statement = transaction
+                .prepare(
+                    "SELECT id, source_path FROM knowledge_source_files
+                     WHERE source_id = ?1 AND last_seen_scan != ?2 AND status != 'missing'",
+                )
+                .map_err(|error| format!("准备 Knowledge 缺失文件列表失败: {error}"))?;
+            let rows = statement
+                .query_map(params![source_id, scan_id], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                })
+                .map_err(|error| format!("查询 Knowledge 缺失文件失败: {error}"))?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| format!("读取 Knowledge 缺失文件失败: {error}"))?;
+            rows
+        };
+        for (source_file_id, source_path) in missing {
+            let already_queued = transaction
+                .query_row(
+                    "SELECT 1 FROM knowledge_ingest_tasks
+                     WHERE source_file_id = ?1 AND operation = 'delete'
+                       AND status IN ('pending', 'processing', 'retry') LIMIT 1",
+                    [&source_file_id],
+                    |_| Ok(()),
+                )
+                .optional()
+                .map_err(|error| format!("检查 Knowledge delete task 失败: {error}"))?
+                .is_some();
+            if already_queued {
+                continue;
+            }
+            let task_id = Uuid::new_v4().to_string();
+            transaction
+                .execute(
+                    "INSERT INTO knowledge_ingest_tasks(
+                        id, source_id, source_file_id, source_path, operation,
+                        status, attempt_count, max_attempts, available_at,
+                        cancel_requested, created_at, updated_at
+                     ) VALUES (?1, ?2, ?3, ?4, 'delete', 'pending', 0, ?5, ?6, 0, ?6, ?6)",
+                    params![
+                        task_id,
+                        source_id,
+                        source_file_id,
+                        source_path,
+                        max_attempts.clamp(1, 10) as i64,
+                        timestamp,
+                    ],
+                )
+                .map_err(|error| format!("创建 Knowledge delete task 失败: {error}"))?;
+            transaction
+                .execute(
+                    "UPDATE knowledge_source_files SET status = 'pending', updated_at = ?2
+                     WHERE id = ?1",
+                    params![source_file_id, timestamp],
+                )
+                .map_err(|error| format!("更新 Knowledge 缺失文件状态失败: {error}"))?;
+            result.task_ids.push(task_id);
+            result.queued += 1;
+        }
+        transaction
+            .execute(
+                "UPDATE knowledge_sources
+                 SET status = 'active', last_scan_at = ?2, last_error = ?3, updated_at = ?2
+                 WHERE id = ?1",
+                params![
+                    source_id,
+                    timestamp,
+                    result
+                        .failures
+                        .first()
+                        .map(|failure| failure.message.as_str()),
+                ],
+            )
+            .map_err(|error| format!("更新 Knowledge directory scan 状态失败: {error}"))?;
+        transaction
+            .commit()
+            .map_err(|error| format!("提交 Knowledge directory scan 失败: {error}"))?;
+        Ok(result)
+    }
+
+    pub fn remove_source(&self, library_id: &str, source_id: &str) -> Result<(), String> {
+        let path = self.resolve_library_path(library_id)?;
+        let mut connection = self.open_library(&path)?;
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| format!("开启 Knowledge source 删除事务失败: {error}"))?;
+        transaction
+            .execute(
+                "DELETE FROM knowledge_semantic_fallback_chunks
+                 WHERE source_file_id IN (
+                    SELECT id FROM knowledge_source_files WHERE source_id = ?1
+                 )",
+                [source_id],
+            )
+            .map_err(|error| format!("删除 Knowledge source 语义回退快照失败: {error}"))?;
+        transaction
+            .execute(
+                "DELETE FROM documents WHERE id IN (
+                    SELECT document_id FROM knowledge_source_files
+                    WHERE source_id = ?1 AND document_id IS NOT NULL
+                 )",
+                [source_id],
+            )
+            .map_err(|error| format!("删除 Knowledge source documents 失败: {error}"))?;
+        let changed = transaction
+            .execute("DELETE FROM knowledge_sources WHERE id = ?1", [source_id])
+            .map_err(|error| format!("删除 Knowledge source 失败: {error}"))?;
+        if changed == 0 {
+            return Err(format!("Knowledge source 不存在: {source_id}"));
+        }
+        transaction
+            .commit()
+            .map_err(|error| format!("提交 Knowledge source 删除失败: {error}"))?;
+        let _ = self.touch_library(library_id);
+        Ok(())
+    }
+
     fn read_library_metadata(&self, library_id: &str) -> Result<LibraryMetadata, String> {
         let path = self.resolve_library_path(library_id)?;
         let (config_json, active_space_id, route_key, dimension, updated_at) = self
@@ -456,6 +1365,40 @@ impl KnowledgeRepository {
         .collect()
     }
 
+    pub fn list_unvectorized_chunks(
+        &self,
+        library_id: &str,
+        space_id: &str,
+    ) -> Result<Vec<KnowledgeChunk>, String> {
+        if space_id.trim().is_empty() {
+            return self.list_chunks(library_id, None);
+        }
+        let path = self.resolve_library_path(library_id)?;
+        let connection = self.open_library(&path)?;
+        let mut statement = connection
+            .prepare(
+                "SELECT c.id, c.document_id, d.source_path, d.title, c.chunk_index,
+                        c.content, c.checksum, c.heading, c.start_offset, c.end_offset
+                 FROM chunks c JOIN documents d ON d.id = c.document_id
+                 WHERE NOT EXISTS (
+                    SELECT 1 FROM chunk_vectors v
+                    WHERE v.chunk_id = c.id AND v.space_id = ?1
+                 )
+                 ORDER BY d.updated_at DESC, c.document_id, c.chunk_index",
+            )
+            .map_err(|error| format!("准备 Knowledge 待向量化 chunk 列表失败: {error}"))?;
+        let rows = statement
+            .query_map([space_id], chunk_from_row)
+            .map_err(|error| format!("查询 Knowledge 待向量化 chunk 失败: {error}"))?;
+        rows.map(|row| {
+            let mut chunk =
+                row.map_err(|error| format!("读取 Knowledge 待向量化 chunk 失败: {error}"))?;
+            chunk.library_id = library_id.to_string();
+            Ok(chunk)
+        })
+        .collect()
+    }
+
     pub fn delete_document(&self, library_id: &str, document_id: &str) -> Result<(), String> {
         let path = self.resolve_library_path(library_id)?;
         let mut connection = self.open_library(&path)?;
@@ -480,6 +1423,15 @@ impl KnowledgeRepository {
                 [document_id],
             )
             .map_err(|error| format!("清理 Knowledge document graph 失败: {error}"))?;
+        transaction
+            .execute(
+                "DELETE FROM knowledge_semantic_fallback_chunks
+                 WHERE source_file_id = (
+                    SELECT source_file_id FROM documents WHERE id = ?1
+                 )",
+                [document_id],
+            )
+            .map_err(|error| format!("清理 Knowledge document 语义回退失败: {error}"))?;
         transaction
             .execute("DELETE FROM documents WHERE id = ?1", [document_id])
             .map_err(|error| format!("删除 Knowledge document 失败: {error}"))?;
@@ -538,6 +1490,9 @@ impl KnowledgeRepository {
                 config,
             )?;
         }
+        transaction
+            .execute("DELETE FROM knowledge_semantic_fallback_chunks", [])
+            .map_err(|error| format!("清理 Knowledge 语义回退快照失败: {error}"))?;
         let changed = transaction
             .execute(
                 "UPDATE library_metadata
@@ -663,6 +1618,28 @@ impl KnowledgeRepository {
                 )
                 .map_err(|error| format!("写入 Knowledge vector 失败: {error}"))?;
         }
+        transaction
+            .execute(
+                "DELETE FROM knowledge_semantic_fallback_chunks
+                 WHERE space_id = ?1 AND source_file_id IN (
+                    SELECT d.source_file_id
+                    FROM documents d
+                    WHERE d.source_file_id != ''
+                      AND EXISTS (
+                        SELECT 1 FROM knowledge_semantic_fallback_chunks fallback
+                        WHERE fallback.source_file_id = d.source_file_id
+                          AND fallback.space_id = ?1
+                      )
+                      AND (SELECT COUNT(*) FROM chunks c WHERE c.document_id = d.id) > 0
+                      AND (SELECT COUNT(*) FROM chunks c WHERE c.document_id = d.id) =
+                          (SELECT COUNT(*)
+                           FROM chunks c
+                           JOIN chunk_vectors v ON v.chunk_id = c.id
+                           WHERE c.document_id = d.id AND v.space_id = ?1)
+                 )",
+                [space_id],
+            )
+            .map_err(|error| format!("切换 Knowledge 新语义版本失败: {error}"))?;
         let changed = transaction
             .execute(
                 "UPDATE library_metadata
@@ -952,6 +1929,31 @@ impl KnowledgeRepository {
         connection
             .execute_batch(LIBRARY_SCHEMA)
             .map_err(|error| format!("初始化 Knowledge library 失败: {error}"))?;
+        ensure_column(
+            &connection,
+            "documents",
+            "source_file_id",
+            "TEXT NOT NULL DEFAULT ''",
+        )?;
+        ensure_column(
+            &connection,
+            "documents",
+            "source_checksum",
+            "TEXT NOT NULL DEFAULT ''",
+        )?;
+        ensure_column(
+            &connection,
+            "documents",
+            "parser_version",
+            "TEXT NOT NULL DEFAULT ''",
+        )?;
+        ensure_column(
+            &connection,
+            "documents",
+            "version",
+            "INTEGER NOT NULL DEFAULT 1",
+        )?;
+        ensure_column(&connection, "documents", "last_error", "TEXT")?;
         migrate_legacy_chunk_vectors(&mut connection)
     }
 
@@ -1043,6 +2045,68 @@ CREATE TABLE IF NOT EXISTS library_metadata(
   dimension INTEGER NOT NULL DEFAULT 0,
   updated_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS knowledge_sources(
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL CHECK(kind IN ('file', 'directory')),
+  root_path TEXT NOT NULL,
+  recursive INTEGER NOT NULL DEFAULT 0,
+  ignore_json TEXT NOT NULL DEFAULT '[]',
+  status TEXT NOT NULL DEFAULT 'active',
+  last_scan_at INTEGER,
+  last_error TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE(kind, root_path)
+);
+CREATE TABLE IF NOT EXISTS knowledge_source_files(
+  id TEXT PRIMARY KEY,
+  source_id TEXT NOT NULL,
+  source_path TEXT NOT NULL,
+  observed_checksum TEXT NOT NULL DEFAULT '',
+  current_checksum TEXT NOT NULL DEFAULT '',
+  file_size INTEGER NOT NULL DEFAULT 0,
+  modified_at INTEGER NOT NULL DEFAULT 0,
+  parser_version TEXT NOT NULL DEFAULT '',
+  document_id TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  last_seen_scan TEXT NOT NULL DEFAULT '',
+  last_error TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE(source_id, source_path),
+  FOREIGN KEY(source_id) REFERENCES knowledge_sources(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_knowledge_source_files_source
+ON knowledge_source_files(source_id, status, source_path);
+CREATE TABLE IF NOT EXISTS knowledge_ingest_tasks(
+  id TEXT PRIMARY KEY,
+  source_id TEXT NOT NULL,
+  source_file_id TEXT NOT NULL,
+  source_path TEXT NOT NULL,
+  operation TEXT NOT NULL CHECK(operation IN ('upsert', 'delete')),
+  expected_checksum TEXT NOT NULL DEFAULT '',
+  file_size INTEGER NOT NULL DEFAULT 0,
+  modified_at INTEGER NOT NULL DEFAULT 0,
+  parser_version TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL CHECK(status IN (
+    'pending', 'processing', 'retry', 'failed', 'completed', 'cancelled'
+  )),
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  max_attempts INTEGER NOT NULL DEFAULT 3,
+  available_at INTEGER NOT NULL,
+  lease_token TEXT,
+  lease_expires_at INTEGER,
+  cancel_requested INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  FOREIGN KEY(source_id) REFERENCES knowledge_sources(id) ON DELETE CASCADE,
+  FOREIGN KEY(source_file_id) REFERENCES knowledge_source_files(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_knowledge_ingest_tasks_claim
+ON knowledge_ingest_tasks(status, available_at, created_at);
+CREATE INDEX IF NOT EXISTS idx_knowledge_ingest_tasks_source
+ON knowledge_ingest_tasks(source_id, status, source_path);
 CREATE TABLE IF NOT EXISTS documents(
   id TEXT PRIMARY KEY,
   source_path TEXT NOT NULL UNIQUE,
@@ -1085,6 +2149,26 @@ CREATE TABLE IF NOT EXISTS chunk_vectors(
   PRIMARY KEY(chunk_id, space_id),
   FOREIGN KEY(chunk_id) REFERENCES chunks(id) ON DELETE CASCADE
 );
+CREATE TABLE IF NOT EXISTS knowledge_semantic_fallback_chunks(
+  source_file_id TEXT NOT NULL,
+  original_chunk_id TEXT NOT NULL,
+  document_id TEXT NOT NULL,
+  source_path TEXT NOT NULL,
+  title TEXT NOT NULL,
+  chunk_index INTEGER NOT NULL,
+  content TEXT NOT NULL,
+  checksum TEXT NOT NULL,
+  heading TEXT,
+  start_offset INTEGER NOT NULL,
+  end_offset INTEGER NOT NULL,
+  space_id TEXT NOT NULL,
+  dimension INTEGER NOT NULL,
+  vector_blob BLOB NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY(source_file_id, original_chunk_id, space_id)
+);
+CREATE INDEX IF NOT EXISTS idx_knowledge_semantic_fallback_space
+ON knowledge_semantic_fallback_chunks(space_id, source_file_id);
 CREATE TABLE IF NOT EXISTS chunk_edges(
   source_chunk_id TEXT NOT NULL,
   target_chunk_id TEXT NOT NULL,
@@ -1203,6 +2287,212 @@ fn legacy_space_id(route_key: &str) -> String {
     format!("legacy-route:{}", legacy_route_hash(route_key))
 }
 
+#[derive(Debug, Clone)]
+struct InspectedKnowledgeFile {
+    source_path: String,
+    checksum: String,
+    file_size: usize,
+    modified_at: i64,
+}
+
+fn normalized_external_path(path: &Path) -> String {
+    let value = path.to_string_lossy();
+    value
+        .strip_prefix(r"\\?\")
+        .unwrap_or(value.as_ref())
+        .to_string()
+}
+
+fn canonical_directory(source_path: &str) -> Result<PathBuf, String> {
+    let canonical =
+        std::fs::canonicalize(source_path).map_err(|error| format!("解析目录路径失败: {error}"))?;
+    if !canonical.is_dir() {
+        return Err("路径不是目录".to_string());
+    }
+    Ok(canonical)
+}
+
+fn build_ignore_overrides(
+    root: &Path,
+    patterns: &[String],
+) -> Result<Option<ignore::overrides::Override>, String> {
+    if patterns.iter().all(|pattern| pattern.trim().is_empty()) {
+        return Ok(None);
+    }
+    let mut builder = ignore::overrides::OverrideBuilder::new(root);
+    for pattern in patterns {
+        let pattern = pattern.trim();
+        if !pattern.is_empty() {
+            builder
+                .add(&format!("!{pattern}"))
+                .map_err(|error| format!("非法 Knowledge ignore 规则「{pattern}」: {error}"))?;
+        }
+    }
+    builder
+        .build()
+        .map(Some)
+        .map_err(|error| format!("构建 Knowledge ignore 规则失败: {error}"))
+}
+
+fn validate_ignore_patterns(root: &Path, patterns: &[String]) -> Result<(), String> {
+    build_ignore_overrides(root, patterns).map(|_| ())
+}
+
+fn modified_timestamp(metadata: &std::fs::Metadata) -> Result<i64, String> {
+    let duration = metadata
+        .modified()
+        .map_err(|error| format!("读取文件修改时间失败: {error}"))?
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| format!("文件修改时间早于 Unix epoch: {error}"))?;
+    Ok(duration.as_millis().min(i64::MAX as u128) as i64)
+}
+
+fn inspect_stable_file(
+    source_path: &str,
+    max_file_bytes: usize,
+) -> Result<InspectedKnowledgeFile, String> {
+    let canonical =
+        std::fs::canonicalize(source_path).map_err(|error| format!("解析文件路径失败: {error}"))?;
+    let before =
+        std::fs::metadata(&canonical).map_err(|error| format!("读取文件状态失败: {error}"))?;
+    if !before.is_file() {
+        return Err("路径不是文件".to_string());
+    }
+    if before.len() > max_file_bytes as u64 {
+        return Err(format!(
+            "文件大小 {} 字节超过限制 {} 字节",
+            before.len(),
+            max_file_bytes
+        ));
+    }
+    let before_modified = modified_timestamp(&before)?;
+    let mut file = File::open(&canonical).map_err(|error| format!("打开文件失败: {error}"))?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let read = file
+            .read(&mut buffer)
+            .map_err(|error| format!("计算文件 checksum 失败: {error}"))?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    let after =
+        std::fs::metadata(&canonical).map_err(|error| format!("复查文件状态失败: {error}"))?;
+    let after_modified = modified_timestamp(&after)?;
+    if before.len() != after.len() || before_modified != after_modified {
+        return Err("文件在 checksum 计算期间发生变化，请稍后重试".to_string());
+    }
+    Ok(InspectedKnowledgeFile {
+        source_path: normalized_external_path(&canonical),
+        checksum: format!("{:x}", hasher.finalize()),
+        file_size: after.len() as usize,
+        modified_at: after_modified,
+    })
+}
+
+fn ensure_source_for_file(
+    transaction: &Transaction<'_>,
+    requested_source_id: Option<&str>,
+    source_path: &str,
+) -> Result<String, String> {
+    if let Some(source_id) = requested_source_id {
+        let (kind, root_path) = transaction
+            .query_row(
+                "SELECT kind, root_path FROM knowledge_sources WHERE id = ?1",
+                [source_id],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )
+            .optional()
+            .map_err(|error| format!("读取 Knowledge source 失败: {error}"))?
+            .ok_or_else(|| format!("Knowledge source 不存在: {source_id}"))?;
+        let source = Path::new(source_path);
+        let root = Path::new(&root_path);
+        let belongs = if kind == "directory" {
+            source.starts_with(root)
+        } else {
+            source == root
+        };
+        if !belongs {
+            return Err("文件路径不属于指定 Knowledge source".to_string());
+        }
+        return Ok(source_id.to_string());
+    }
+
+    let existing = transaction
+        .query_row(
+            "SELECT id FROM knowledge_sources WHERE kind = 'file' AND root_path = ?1",
+            [source_path],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|error| format!("查找 Knowledge file source 失败: {error}"))?;
+    if let Some(source_id) = existing {
+        return Ok(source_id);
+    }
+    let source_id = Uuid::new_v4().to_string();
+    let timestamp = now();
+    transaction
+        .execute(
+            "INSERT INTO knowledge_sources(
+                id, kind, root_path, recursive, ignore_json, status,
+                created_at, updated_at
+             ) VALUES (?1, 'file', ?2, 0, '[]', 'active', ?3, ?3)",
+            params![source_id, source_path, timestamp],
+        )
+        .map_err(|error| format!("创建 Knowledge file source 失败: {error}"))?;
+    Ok(source_id)
+}
+
+fn parse_source_kind(value: &str) -> rusqlite::Result<KnowledgeSourceKind> {
+    match value {
+        "file" => Ok(KnowledgeSourceKind::File),
+        "directory" => Ok(KnowledgeSourceKind::Directory),
+        _ => Err(rusqlite::Error::InvalidQuery),
+    }
+}
+
+fn parse_ingest_task_status(value: &str) -> rusqlite::Result<KnowledgeIngestTaskStatus> {
+    match value {
+        "pending" => Ok(KnowledgeIngestTaskStatus::Pending),
+        "processing" => Ok(KnowledgeIngestTaskStatus::Processing),
+        "retry" => Ok(KnowledgeIngestTaskStatus::Retry),
+        "failed" => Ok(KnowledgeIngestTaskStatus::Failed),
+        "completed" => Ok(KnowledgeIngestTaskStatus::Completed),
+        "cancelled" => Ok(KnowledgeIngestTaskStatus::Cancelled),
+        _ => Err(rusqlite::Error::InvalidQuery),
+    }
+}
+
+fn ingest_task_from_row(
+    library_id: &str,
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<KnowledgeIngestTask> {
+    Ok(KnowledgeIngestTask {
+        id: row.get(0)?,
+        library_id: library_id.to_string(),
+        source_id: row.get(1)?,
+        source_file_id: row.get(2)?,
+        source_path: row.get(3)?,
+        operation: row.get(4)?,
+        expected_checksum: row.get(5)?,
+        file_size: row.get::<_, i64>(6)?.max(0) as usize,
+        modified_at: row.get(7)?,
+        parser_version: row.get(8)?,
+        status: parse_ingest_task_status(&row.get::<_, String>(9)?)?,
+        attempt_count: row.get::<_, i64>(10)?.max(0) as usize,
+        max_attempts: row.get::<_, i64>(11)?.max(0) as usize,
+        available_at: row.get(12)?,
+        lease_token: row.get(13)?,
+        lease_expires_at: row.get(14)?,
+        cancel_requested: row.get::<_, i64>(15)? != 0,
+        last_error: row.get(16)?,
+        created_at: row.get(17)?,
+        updated_at: row.get(18)?,
+    })
+}
+
 fn parse_library_config(value: &str) -> Result<KnowledgeLibraryIndexConfig, String> {
     let config = if value.trim().is_empty() {
         KnowledgeLibraryIndexConfig::default()
@@ -1231,6 +2521,74 @@ fn legacy_descriptor_json(route_key: &str, dimension: i64) -> String {
 fn legacy_route_hash(route_key: &str) -> String {
     let digest = Sha256::digest(route_key.as_bytes());
     format!("{digest:x}")
+}
+
+fn preserve_semantic_fallback(
+    transaction: &Transaction<'_>,
+    source_file_id: &str,
+    document_id: &str,
+) -> Result<(), String> {
+    let space_id = transaction
+        .query_row(
+            "SELECT active_embedding_space_id FROM library_metadata WHERE id = 1",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .map_err(|error| format!("读取 Knowledge 活动语义空间失败: {error}"))?;
+    if space_id.is_empty() {
+        return Ok(());
+    }
+    let (chunk_count, vector_count) = transaction
+        .query_row(
+            "SELECT COUNT(c.id), COUNT(v.chunk_id)
+             FROM chunks c
+             LEFT JOIN chunk_vectors v ON v.chunk_id = c.id AND v.space_id = ?2
+             WHERE c.document_id = ?1",
+            params![document_id, space_id],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+        )
+        .map_err(|error| format!("读取 Knowledge 旧语义覆盖失败: {error}"))?;
+    if vector_count == 0 {
+        return Ok(());
+    }
+    let has_fallback = transaction
+        .query_row(
+            "SELECT 1 FROM knowledge_semantic_fallback_chunks
+             WHERE source_file_id = ?1 LIMIT 1",
+            [source_file_id],
+            |_| Ok(()),
+        )
+        .optional()
+        .map_err(|error| format!("检查 Knowledge 语义回退快照失败: {error}"))?
+        .is_some();
+    if has_fallback && vector_count < chunk_count {
+        return Ok(());
+    }
+    transaction
+        .execute(
+            "DELETE FROM knowledge_semantic_fallback_chunks WHERE source_file_id = ?1",
+            [source_file_id],
+        )
+        .map_err(|error| format!("清理 Knowledge 旧语义回退快照失败: {error}"))?;
+    transaction
+        .execute(
+            "INSERT INTO knowledge_semantic_fallback_chunks(
+                source_file_id, original_chunk_id, document_id, source_path, title,
+                chunk_index, content, checksum, heading, start_offset, end_offset,
+                space_id, dimension, vector_blob, created_at
+             )
+             SELECT ?1, c.id, c.document_id, d.source_path, d.title,
+                    c.chunk_index, c.content, c.checksum, c.heading,
+                    c.start_offset, c.end_offset, v.space_id, v.dimension,
+                    v.vector_blob, ?4
+             FROM chunks c
+             JOIN documents d ON d.id = c.document_id
+             JOIN chunk_vectors v ON v.chunk_id = c.id AND v.space_id = ?3
+             WHERE c.document_id = ?2",
+            params![source_file_id, document_id, space_id, now()],
+        )
+        .map_err(|error| format!("保存 Knowledge 语义回退快照失败: {error}"))?;
+    Ok(())
 }
 
 fn replace_document_chunks(
@@ -1420,7 +2778,12 @@ fn vector_candidates(
              FROM chunk_vectors v
              JOIN chunks c ON c.id = v.chunk_id
              JOIN documents d ON d.id = c.document_id
-             WHERE v.space_id = ?1",
+             WHERE v.space_id = ?1
+               AND NOT EXISTS (
+                 SELECT 1 FROM knowledge_semantic_fallback_chunks fallback
+                 WHERE fallback.source_file_id = d.source_file_id
+                   AND fallback.space_id = ?1
+               )",
         )
         .map_err(|error| format!("准备 Knowledge vector 检索失败: {error}"))?;
     let rows = statement
@@ -1431,9 +2794,31 @@ fn vector_candidates(
             Ok((chunk, decode_vector(&blob, dimension)))
         })
         .map_err(|error| format!("执行 Knowledge vector 检索失败: {error}"))?;
-    let mut results = rows
+    let mut vectors = rows
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| format!("读取 Knowledge vector 结果失败: {error}"))?
+        .map_err(|error| format!("读取 Knowledge vector 结果失败: {error}"))?;
+    let mut fallback_statement = connection
+        .prepare(
+            "SELECT original_chunk_id, document_id, source_path, title, chunk_index,
+                    content, checksum, heading, start_offset, end_offset,
+                    dimension, vector_blob
+             FROM knowledge_semantic_fallback_chunks WHERE space_id = ?1",
+        )
+        .map_err(|error| format!("准备 Knowledge 语义回退检索失败: {error}"))?;
+    let fallback_rows = fallback_statement
+        .query_map([space_id], |row| {
+            let chunk = chunk_from_row(row)?;
+            let dimension = row.get::<_, i64>(10)?.max(0) as usize;
+            let blob = row.get::<_, Vec<u8>>(11)?;
+            Ok((chunk, decode_vector(&blob, dimension)))
+        })
+        .map_err(|error| format!("执行 Knowledge 语义回退检索失败: {error}"))?;
+    vectors.extend(
+        fallback_rows
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| format!("读取 Knowledge 语义回退结果失败: {error}"))?,
+    );
+    let mut results = vectors
         .into_iter()
         .filter_map(|(chunk, vector)| {
             (vector.len() == query_vector.len())
@@ -1594,6 +2979,42 @@ mod tests {
 
     fn semantic_descriptor() -> &'static str {
         r#"{"dimensions":2,"queryTaskType":"RETRIEVAL_QUERY","documentTaskType":"RETRIEVAL_DOCUMENT","encodingFormat":"float","adapterContractVersion":1}"#
+    }
+
+    fn enqueue_file(
+        repository: &KnowledgeRepository,
+        library_id: &str,
+        path: &Path,
+    ) -> KnowledgeEnqueueResult {
+        repository
+            .enqueue_paths(&KnowledgeEnqueuePathsRequest {
+                library_id: library_id.to_string(),
+                paths: vec![normalized_external_path(path)],
+                source_id: None,
+                parser_version: "test-parser-v1".to_string(),
+                max_file_bytes: 1024 * 1024,
+                max_attempts: 3,
+            })
+            .unwrap()
+    }
+
+    fn complete_claimed_task(
+        repository: &KnowledgeRepository,
+        task: &KnowledgeIngestTask,
+        content: &str,
+    ) -> Option<KnowledgeDocument> {
+        repository
+            .complete_ingest_task(&KnowledgeCompleteIngestTaskRequest {
+                library_id: task.library_id.clone(),
+                task_id: task.id.clone(),
+                lease_token: task.lease_token.clone().unwrap(),
+                title: None,
+                mime_type: Some("text/plain".to_string()),
+                content: content.to_string(),
+                source_checksum: task.expected_checksum.clone(),
+                parser_version: "test-parser-v1".to_string(),
+            })
+            .unwrap()
     }
 
     #[test]
@@ -2380,5 +3801,330 @@ mod tests {
         assert_eq!(reloaded.active_embedding_space_id, migrated_space_id);
         assert_eq!(reloaded.dimension, 2);
         assert_eq!(reloaded.config.embedding.route_key, "profile-a:model-a");
+    }
+
+    #[test]
+    fn ingest_queue_persists_completion_and_skips_unchanged_files() {
+        let directory = tempdir().unwrap();
+        let repository = KnowledgeRepository::new(directory.path());
+        repository.initialize().unwrap();
+        let library = repository.create_library("Queue", None, None).unwrap();
+        let source_path = directory.path().join("queue.txt");
+        std::fs::write(&source_path, "persistent queue content").unwrap();
+
+        let enqueued = enqueue_file(&repository, &library.id, &source_path);
+        assert_eq!(enqueued.queued, 1);
+        let task = repository
+            .claim_ingest_task(&library.id, 60)
+            .unwrap()
+            .unwrap();
+        let document =
+            complete_claimed_task(&repository, &task, "persistent queue content").unwrap();
+        assert_eq!(document.status, "ready");
+        assert_eq!(
+            repository.list_ingest_tasks(&library.id, 10).unwrap()[0].status,
+            KnowledgeIngestTaskStatus::Completed
+        );
+
+        let unchanged = enqueue_file(&repository, &library.id, &source_path);
+        assert_eq!(unchanged.queued, 0);
+        assert_eq!(unchanged.skipped_unchanged, 1);
+        drop(repository);
+
+        let reopened = KnowledgeRepository::new(directory.path());
+        reopened.initialize().unwrap();
+        assert_eq!(reopened.list_documents(&library.id).unwrap().len(), 1);
+        assert_eq!(
+            reopened.list_ingest_tasks(&library.id, 10).unwrap()[0].status,
+            KnowledgeIngestTaskStatus::Completed
+        );
+    }
+
+    #[test]
+    fn ingest_queue_recovers_expired_leases_and_honors_retry_and_cancel() {
+        let directory = tempdir().unwrap();
+        let repository = KnowledgeRepository::new(directory.path());
+        repository.initialize().unwrap();
+        let library = repository.create_library("Recovery", None, None).unwrap();
+        let first_path = directory.path().join("first.txt");
+        std::fs::write(&first_path, "first").unwrap();
+        enqueue_file(&repository, &library.id, &first_path);
+        let first = repository
+            .claim_ingest_task(&library.id, 60)
+            .unwrap()
+            .unwrap();
+        repository
+            .open_library(&repository.resolve_library_path(&library.id).unwrap())
+            .unwrap()
+            .execute(
+                "UPDATE knowledge_ingest_tasks SET lease_expires_at = ?2 WHERE id = ?1",
+                params![first.id, now() - 1],
+            )
+            .unwrap();
+        let recovered = repository
+            .claim_ingest_task(&library.id, 60)
+            .unwrap()
+            .unwrap();
+        assert_eq!(recovered.id, first.id);
+        assert_eq!(recovered.attempt_count, 2);
+        let retry = repository
+            .fail_ingest_task(&KnowledgeFailIngestTaskRequest {
+                library_id: library.id.clone(),
+                task_id: recovered.id.clone(),
+                lease_token: recovered.lease_token.unwrap(),
+                error: "temporary read error".to_string(),
+                retryable: true,
+                retry_delay_seconds: 0,
+            })
+            .unwrap();
+        assert_eq!(retry.status, KnowledgeIngestTaskStatus::Retry);
+        let last_attempt = repository
+            .claim_ingest_task(&library.id, 60)
+            .unwrap()
+            .unwrap();
+        let failed = repository
+            .fail_ingest_task(&KnowledgeFailIngestTaskRequest {
+                library_id: library.id.clone(),
+                task_id: last_attempt.id,
+                lease_token: last_attempt.lease_token.unwrap(),
+                error: "repeated read error".to_string(),
+                retryable: true,
+                retry_delay_seconds: 0,
+            })
+            .unwrap();
+        assert_eq!(failed.status, KnowledgeIngestTaskStatus::Failed);
+
+        let second_path = directory.path().join("second.txt");
+        std::fs::write(&second_path, "second").unwrap();
+        let second = enqueue_file(&repository, &library.id, &second_path);
+        repository
+            .cancel_ingest_task(&library.id, &second.task_ids[0])
+            .unwrap();
+        let cancelled = repository
+            .list_ingest_tasks(&library.id, 10)
+            .unwrap()
+            .into_iter()
+            .find(|task| task.id == second.task_ids[0])
+            .unwrap();
+        assert_eq!(cancelled.status, KnowledgeIngestTaskStatus::Cancelled);
+    }
+
+    #[test]
+    fn ingest_queue_isolates_file_failures() {
+        let directory = tempdir().unwrap();
+        let repository = KnowledgeRepository::new(directory.path().join("app"));
+        repository.initialize().unwrap();
+        let library = repository.create_library("Isolation", None, None).unwrap();
+        let first_path = directory.path().join("bad.txt");
+        let second_path = directory.path().join("good.txt");
+        std::fs::write(&first_path, "bad content").unwrap();
+        std::fs::write(&second_path, "good content").unwrap();
+        let queued = repository
+            .enqueue_paths(&KnowledgeEnqueuePathsRequest {
+                library_id: library.id.clone(),
+                paths: vec![
+                    normalized_external_path(&first_path),
+                    normalized_external_path(&second_path),
+                ],
+                source_id: None,
+                parser_version: "test-parser-v1".to_string(),
+                max_file_bytes: 1024 * 1024,
+                max_attempts: 3,
+            })
+            .unwrap();
+        assert_eq!(queued.queued, 2);
+        let failed_task = repository
+            .claim_ingest_task(&library.id, 60)
+            .unwrap()
+            .unwrap();
+        repository
+            .fail_ingest_task(&KnowledgeFailIngestTaskRequest {
+                library_id: library.id.clone(),
+                task_id: failed_task.id,
+                lease_token: failed_task.lease_token.unwrap(),
+                error: "file parse failed".to_string(),
+                retryable: false,
+                retry_delay_seconds: 0,
+            })
+            .unwrap();
+        let successful_task = repository
+            .claim_ingest_task(&library.id, 60)
+            .unwrap()
+            .unwrap();
+        complete_claimed_task(&repository, &successful_task, "good content");
+
+        assert_eq!(repository.list_documents(&library.id).unwrap().len(), 1);
+        let statuses = repository
+            .list_ingest_tasks(&library.id, 10)
+            .unwrap()
+            .into_iter()
+            .map(|task| task.status)
+            .collect::<Vec<_>>();
+        assert!(statuses.contains(&KnowledgeIngestTaskStatus::Failed));
+        assert!(statuses.contains(&KnowledgeIngestTaskStatus::Completed));
+    }
+
+    #[test]
+    fn directory_rescan_queues_missing_file_deletion() {
+        let directory = tempdir().unwrap();
+        let source_root = directory.path().join("source");
+        std::fs::create_dir(&source_root).unwrap();
+        let source_path = source_root.join("guide.txt");
+        std::fs::write(&source_path, "directory source").unwrap();
+        let repository = KnowledgeRepository::new(directory.path().join("app"));
+        repository.initialize().unwrap();
+        let library = repository.create_library("Directory", None, None).unwrap();
+        let added = repository
+            .add_directory_source(&KnowledgeDirectorySourceRequest {
+                library_id: library.id.clone(),
+                root_path: normalized_external_path(&source_root),
+                recursive: true,
+                ignore_patterns: vec!["*.tmp".to_string()],
+                parser_version: "test-parser-v1".to_string(),
+                max_file_bytes: 1024 * 1024,
+                max_attempts: 3,
+            })
+            .unwrap();
+        assert_eq!(added.queued, 1);
+        let upsert = repository
+            .claim_ingest_task(&library.id, 60)
+            .unwrap()
+            .unwrap();
+        complete_claimed_task(&repository, &upsert, "directory source");
+
+        std::fs::remove_file(&source_path).unwrap();
+        let source = repository.list_sources(&library.id).unwrap().remove(0);
+        let rescanned = repository
+            .rescan_directory_source(&library.id, &source.id, 1024 * 1024, 3, "test-parser-v1")
+            .unwrap();
+        assert_eq!(rescanned.queued, 1);
+        let deletion = repository
+            .claim_ingest_task(&library.id, 60)
+            .unwrap()
+            .unwrap();
+        assert_eq!(deletion.operation, "delete");
+        complete_claimed_task(&repository, &deletion, "");
+        assert!(repository.list_documents(&library.id).unwrap().is_empty());
+    }
+
+    #[test]
+    fn queued_update_keeps_old_semantic_version_until_new_vectors_are_complete() {
+        let directory = tempdir().unwrap();
+        let repository = KnowledgeRepository::new(directory.path().join("app"));
+        repository.initialize().unwrap();
+        let library = repository
+            .create_library("Versions", None, Some(&semantic_config("route-a")))
+            .unwrap();
+        let source_path = directory.path().join("version.txt");
+        std::fs::write(&source_path, "old semantic evidence").unwrap();
+        enqueue_file(&repository, &library.id, &source_path);
+        let first_task = repository
+            .claim_ingest_task(&library.id, 60)
+            .unwrap()
+            .unwrap();
+        let first_document =
+            complete_claimed_task(&repository, &first_task, "old semantic evidence").unwrap();
+        let old_chunks = repository
+            .list_chunks(&library.id, Some(&first_document.id))
+            .unwrap();
+        repository
+            .save_vectors(
+                &library.id,
+                "space-a",
+                semantic_descriptor(),
+                "route-a",
+                &old_chunks
+                    .iter()
+                    .map(|chunk| KnowledgeVectorRecord {
+                        chunk_id: chunk.id.clone(),
+                        vector: vec![1.0, 0.0],
+                    })
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap();
+
+        std::fs::write(&source_path, "new keyword evidence").unwrap();
+        enqueue_file(&repository, &library.id, &source_path);
+        let update_task = repository
+            .claim_ingest_task(&library.id, 60)
+            .unwrap()
+            .unwrap();
+        complete_claimed_task(&repository, &update_task, "new keyword evidence");
+        assert_eq!(
+            repository
+                .list_unvectorized_chunks(&library.id, "space-a")
+                .unwrap()
+                .len(),
+            1
+        );
+        let keyword_results = repository
+            .search(&KnowledgeSearchRequest {
+                query: "new keyword".to_string(),
+                library_ids: vec![library.id.clone()],
+                strategy: KnowledgeSearchStrategy::Keyword,
+                limit: 5,
+                min_score: 0.0,
+                query_vector: None,
+                space_id: None,
+            })
+            .unwrap();
+        assert!(keyword_results[0].content.contains("new keyword"));
+        let old_semantic = repository
+            .search(&KnowledgeSearchRequest {
+                query: "semantic".to_string(),
+                library_ids: vec![library.id.clone()],
+                strategy: KnowledgeSearchStrategy::Semantic,
+                limit: 5,
+                min_score: 0.0,
+                query_vector: Some(vec![1.0, 0.0]),
+                space_id: Some("space-a".to_string()),
+            })
+            .unwrap();
+        assert!(old_semantic[0].content.contains("old semantic"));
+
+        let new_chunks = repository
+            .list_chunks(&library.id, Some(&first_document.id))
+            .unwrap();
+        repository
+            .save_vectors(
+                &library.id,
+                "space-a",
+                semantic_descriptor(),
+                "route-a",
+                &new_chunks
+                    .iter()
+                    .map(|chunk| KnowledgeVectorRecord {
+                        chunk_id: chunk.id.clone(),
+                        vector: vec![1.0, 0.0],
+                    })
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap();
+        assert!(repository
+            .list_unvectorized_chunks(&library.id, "space-a")
+            .unwrap()
+            .is_empty());
+        let new_semantic = repository
+            .search(&KnowledgeSearchRequest {
+                query: "new".to_string(),
+                library_ids: vec![library.id.clone()],
+                strategy: KnowledgeSearchStrategy::Semantic,
+                limit: 5,
+                min_score: 0.0,
+                query_vector: Some(vec![1.0, 0.0]),
+                space_id: Some("space-a".to_string()),
+            })
+            .unwrap();
+        assert!(new_semantic[0].content.contains("new keyword"));
+        let fallback_count = repository
+            .open_library(&repository.resolve_library_path(&library.id).unwrap())
+            .unwrap()
+            .query_row(
+                "SELECT COUNT(*) FROM knowledge_semantic_fallback_chunks",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap();
+        assert_eq!(fallback_count, 0);
     }
 }

@@ -534,6 +534,7 @@ import {
   type KnowledgeFormatValidation,
 } from "./formats";
 import { importPaths, selectImportPaths } from "./importService";
+import { processKnowledgeImportQueue } from "./ingestQueue";
 import { useKnowledgeStore } from "./store";
 import type {
   KnowledgeImportFailure,
@@ -699,9 +700,15 @@ async function runImportPaths(paths: string[]) {
     parseProcessed.value = 0;
     parseTotal.value = paths.length;
     const result = await importPaths(paths, {
-      ingestFiles: (files) => store.importFiles(files),
+      processPaths: (queuedPaths) =>
+        processKnowledgeImportQueue(store.activeLibraryId!, queuedPaths, {
+          onProgress(processed, total) {
+            parseProcessed.value = processed;
+            parseTotal.value = total;
+          },
+        }),
       onProgress(progress) {
-        preparingImport.value = progress.phase === "parse";
+        preparingImport.value = true;
         if (progress.phase === "parse") {
           parseProcessed.value = progress.processed;
           parseTotal.value = progress.total;
@@ -717,6 +724,9 @@ async function runImportPaths(paths: string[]) {
     }
     if (importFailures.value.length) {
       customMessage.warning(`${importFailures.value.length} 个文件未能导入`);
+    }
+    for (const warning of result.warnings ?? []) {
+      customMessage.warning(warning);
     }
   } catch (error) {
     errorHandler.error(error, "导入知识资料失败");

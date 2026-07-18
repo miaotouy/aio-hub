@@ -22,13 +22,21 @@ export interface KnowledgeImportBatchResult {
   parsed: number;
   skippedDuplicates: number;
   failures: KnowledgeImportFailure[];
+  warnings?: string[];
 }
 
 interface KnowledgeImportDependencies {
   parseFile?: (path: string) => Promise<ParsedKnowledgeFile>;
-  ingestFiles: (
+  ingestFiles?: (
     files: ParsedKnowledgeFile[]
   ) => Promise<{ imported: number; failures: KnowledgeImportFailure[] }>;
+  processPaths?: (paths: string[]) => Promise<{
+    imported: number;
+    parsed: number;
+    skippedDuplicates: number;
+    failures: KnowledgeImportFailure[];
+    warnings?: string[];
+  }>;
   onProgress?: (progress: KnowledgeImportProgress) => void;
 }
 
@@ -80,6 +88,19 @@ export async function importPaths(
   dependencies: KnowledgeImportDependencies
 ): Promise<KnowledgeImportBatchResult> {
   const deduplicated = uniquePaths(paths);
+  if (dependencies.processPaths) {
+    dependencies.onProgress?.({
+      phase: "ingest",
+      processed: 0,
+      total: deduplicated.paths.length,
+    });
+    const result = await dependencies.processPaths(deduplicated.paths);
+    return {
+      ...result,
+      skippedDuplicates:
+        deduplicated.skippedDuplicates + result.skippedDuplicates,
+    };
+  }
   const parsedFiles: ParsedKnowledgeFile[] = [];
   const failures: KnowledgeImportFailure[] = [];
   const parseFile = dependencies.parseFile ?? parseKnowledgeFile;
@@ -115,7 +136,7 @@ export async function importPaths(
     total: parsedFiles.length,
   });
   const ingestResult = parsedFiles.length
-    ? await dependencies.ingestFiles(parsedFiles)
+    ? await dependencies.ingestFiles!(parsedFiles)
     : { imported: 0, failures: [] };
   return {
     imported: ingestResult.imported,

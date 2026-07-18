@@ -9,7 +9,10 @@ Knowledge 是 AIO Hub 的文档资料与来源回溯领域，与 Recall 思绪�
 - `knowledge/knowledge_meta.db` 只保存 library ID、名称、说明、受管文件路径、目录时间戳和 manifest schema migration。它是资料库目录，不是索引配置或活动向量身份的事实来源。
 - `knowledge/libraries/{libraryId}.kdb` 是每库独立的 SQLite 文件，包含版本化 `library_metadata`、索引配置快照、活动 Embedding space/route/维度、document、chunk、FTS5、`embedding_spaces`、按 `space_id` 隔离的 chunk vector 和相邻 chunk graph edge。
 - library 文件采用 UUID 路径约束；删除先隔离为 tombstone，再删除 manifest，失败时恢复文件。
-- 文档以 `sourcePath` 为稳定键。重复导入在单事务中替换 document、chunk、FTS、向量和图边。
+- `knowledge_sources` 保存独立文件或目录来源，`knowledge_source_files` 保存稳定文件身份、原始 SHA-256、parser 版本、当前 document 和最近状态；`knowledge_ingest_tasks` 持久化 pending/processing/retry/failed/completed/cancelled、有限重试、取消与 lease。文件在入队哈希前后必须保持 size/mtime 稳定，原始 checksum 或 parser 版本未变化时跳过重复解析。
+- 目录来源使用显式递归范围、ignore 规则且不跟随符号链接。重扫复用同一 ingest queue；新增/修改文件进入 upsert，缺失文件进入 delete，移动等价于旧路径 delete + 新路径 upsert。删除任务完成前旧 document 继续可用。
+- 文档以 `sourcePath` 为稳定键。任务完成时校验 lease、入队 checksum 与 parser 版本，并在单个 library transaction 中原子提交 document 版本、chunk、FTS、graph、source file 和 task 状态。
+- 更新已有文档时，旧活动空间的 chunk/vector 复制到 `knowledge_semantic_fallback_chunks`。新 document/chunk/FTS 立即成为关键词真值；语义检索在当前版本向量未全覆盖时继续读取旧快照，最后一个缺失 chunk 的向量落库后在同一事务中删除快照并切换到新版本。配置重建会明确清空回退快照。
 - `knowledge_get_index_status` 从 library 数据库实时读取活动空间并计算当前 `space_id` 的向量覆盖率，不把 manifest 或 UI 缓存当作真源。`embedding_route_key` 只负责调用路由，旧 `model_id` 向量会事务迁移为逐 route 隔离的 legacy space，不按名称自动合并。
 - 同 descriptor 的模型 route 可由用户确认后只切换 `embedding_route_key`；不同 identity 或请求契约会生成新 `space_id` 并独立保留向量。
 - `rebuild_library` 在单个 library WAL 数据库事务内提交配置、重切分全部文档、重建 FTS/graph，并清除旧活动向量身份，避免旧向量与新 chunk 混用。
@@ -26,6 +29,8 @@ Knowledge 是 AIO Hub 的文档资料与来源回溯领域，与 Recall 思绪�
 - `formats.ts` 是格式能力单一来源，统一导出类别、标签、扩展名、MIME、parser、验证等级、能力说明、文件选择 filter 和 DropZone accept。
 - `fileParser.ts` 按 capability 分派 PDF、DOCX、HTML 与文本解析。未知扩展名读取后执行文本/二进制检测；已知不支持格式和伪装成文本的二进制不会进入索引。扫描 PDF 无文本层时明确返回 OCR 未支持。
 - `importService.ts` 提供唯一的 `selectImportPaths()` 与 `importPaths(paths)`；点击选择、空状态拖放和已有文档覆盖层复用同一批处理、去重、进度和文件级失败契约。
+- `ingestQueue.ts` 将唯一导入入口接到 Rust 持久队列，按 `ingestQueueConcurrency` 并发领取任务并使用配置的 lease/重试上限；Knowledge store 初始化时恢复各库未完成任务。worker 解析后回传原始 SHA-256 与 parser 版本，Rust 负责最终一致性校验。未打开 Knowledge store 时任务保持持久化但不在后台调用前端 parser。
+- 自动向量化只请求当前活动空间缺失的当前 chunk。模型失败不会回滚已完成的 document、关键词索引或旧语义快照；实际 descriptor 与活动空间不一致时停止写入并要求显式重建。
 - `service.ts` 是唯一 IPC 边界；`store.ts` 管理 library、document、chunk、result 与 index status 运行态。
 - Embedding 模型选项由共享 `useEmbeddingModelOptions()` 提供，Knowledge 不复制模型能力判断。
 - 批量导入以文件为失败隔离单元。成功文件立即保留，失败项保存文件名、绝对路径、validation/read/parse/ingest 阶段和原因。H5 只取得 `File.name` 时不伪造来源路径，提示改用文件选择器。

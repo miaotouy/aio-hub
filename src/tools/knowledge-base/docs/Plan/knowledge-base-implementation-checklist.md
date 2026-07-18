@@ -1,6 +1,6 @@
 # Knowledge 施工步骤计划清单
 
-- **状态**：施工中（Phase 0、Phase 1、Phase 2、Phase 3 批次 A-E 已完成；数据根分裂已修复，待重跑 Phase 3 真实运行态验收）
+- **状态**：Phase 3 真实运行态验收停工（数据根分裂已修复；发现目录删除后 FTS 残留已删除内容，待修复并重跑门禁）
 - **创建日期**：2026-07-18
 - **最近修订**：2026-07-19
 - **适用范围**：`src/tools/knowledge-base/`、`src/tools/retrieval/`、`src/tools/llm-chat/`、`src/tools/agent-manager/`、`src-tauri/src/knowledge/`
@@ -363,6 +363,14 @@ Phase 3 分为五个施工批次。后端配置和摄取契约先行，工作台
 - **采用修复**：`knowledge_initialize` 直接复用全局 `get_app_data_dir(app.config())`。manifest 不再保存或读取单库数据库路径；repository 校验稳定 UUID 和 manifest 成员关系后，只从当前统一数据根派生 `knowledge/libraries/{libraryId}.kdb`，因此整个数据根可以整体移动、复制和清理。
 - **开发期数据策略**：Knowledge 尚未随正式版本发布，不建立旧默认目录探测、双根合并、覆盖提示或回滚迁移分支。旧 schema 和本次隔离验收生成的分裂数据均视为可丢弃开发数据，不自动读取或搬运；验收使用全新隔离目录重新创建。该策略避免把一次开发期错误固化为长期运行时兼容面。
 - **恢复施工条件**：路径实现与“整体移动数据根后重启恢复”自动测试通过后恢复 Phase 3 施工；随后使用全新的隔离实例重跑 P3-T05/T06。真实运行态门禁完成前不得继续 Phase 4。
+
+真实运行态验收第二次严重问题与停工记录（2026-07-19）：
+
+- **已通过范围**：使用全新隔离实例完成系统多文件选择、目录选择与递归同步、`node_modules/` 忽略、文件更新后的版本原子替换、目录文件删除任务、应用重启恢复，以及本地 OpenAI-compatible Embedding mock 的 2 维请求、响应确认和活动空间切换。请求实际经过共享 Transport，并包含两个 chunk、`dimensions: 2` 与 `encoding_format: float`。
+- **严重问题**：目录中的 `gamma.md` 删除并重扫后，`documents` 和 `chunks` 已移除目标记录，delete task 也为 completed，但 `chunks_fts` 仍保留完整 gamma 正文，FTS 查询可继续命中 `TAURI_GAMMA_20260718_UPDATED`；重启后残留仍存在，诊断同时显示 `关键词覆盖 4/3`。这违反来源删除语义、索引与活动 chunk 一致性及已删除内容不可继续检索的门禁。
+- **一般问题**：停掉本地 Embedding mock 后新增 `delta.txt`，文档和关键词索引正确保留、向量覆盖变为 `2/3`，但目录重扫 UI 仍提示“目录扫描完成，处理 1 个文件”，没有消费 `processKnowledgeImportQueue()` 返回的 warnings 来告知自动向量化失败；用户只能从覆盖率侧面发现语义索引未补齐。
+- **证据边界**：隔离数据根为 `.dev-data/knowledge-acceptance-20260719-4`，截图、Tauri/Vite/mock 日志和单库数据库均保留在该目录；测试未使用用户默认 appData、外部付费端点或真实 API Key。
+- **恢复施工条件**：修复文档/来源删除事务中的 FTS 清理并增加“删除后 FTS 无残留且搜索无命中”的 Rust 回归测试；修复目录重扫对向量化 warnings 的可见提示并补前端测试。完成自动验证后必须重新使用全新隔离数据根执行 P3-T05/T06，门禁通过前不得进入 Phase 4。
 
 - [x] P3-T01 前端测试覆盖配置默认值、深度合并、防抖、重置、串库隔离和保存失败保留输入。
 - [x] P3-T02 前端测试覆盖格式单一来源、未知格式检测、选择/拖放共用入口、混合批次和失败明细。

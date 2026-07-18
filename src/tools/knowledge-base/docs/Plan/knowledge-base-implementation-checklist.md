@@ -1,6 +1,6 @@
 # Knowledge 施工步骤计划清单
 
-- **状态**：待施工
+- **状态**：施工中（Phase 0 已完成，Phase 1 待施工）
 - **创建日期**：2026-07-18
 - **最近修订**：2026-07-18
 - **适用范围**：`src/tools/knowledge-base/`、`src/tools/retrieval/`、`src/tools/llm-chat/`、`src/tools/agent-manager/`、`src-tauri/src/knowledge/`
@@ -95,36 +95,45 @@ Phase 0 契约收敛
 
 ### 4.1 现状调查
 
-- [ ] P0-01 全仓搜索 `{{knowledge}}`、`{{knowledge_list}}`、`【knowledge::`、`autoInjectIfMacroMissing`、Knowledge binding 和 processor 的定义、注册、生成、解析、导入导出及测试引用。
-- [ ] P0-02 画出现有 Agent 配置从编辑器、持久化、预设导入导出到运行时的完整数据链路。
-- [ ] P0-03 盘点 Chat 消息结构、输入框附加对象、工具事件和历史消息恢复能力，确定 `KnowledgeReference` 的持久化位置。
-- [ ] P0-04 盘点 Knowledge repository、Tauri commands、检索 service、宏注册和工具注册入口，记录可复用能力与缺失契约。
-- [ ] P0-05 盘点当前阶段性配置和测试数据，确认哪些未发布 schema 可以直接清理或重建。
+- [x] P0-01 全仓搜索 `{{knowledge}}`、`{{knowledge_list}}`、`【knowledge::`、`autoInjectIfMacroMissing`、Knowledge binding 和 processor 的定义、注册、生成、解析、导入导出及测试引用。
+- [x] P0-02 画出现有 Agent 配置从编辑器、持久化、预设导入导出到运行时的完整数据链路。
+- [x] P0-03 盘点 Chat 消息结构、输入框附加对象、工具事件和历史消息恢复能力，确定 `KnowledgeReference` 的持久化位置。
+- [x] P0-04 盘点 Knowledge repository、Tauri commands、检索 service、宏注册和工具注册入口，记录可复用能力与缺失契约。
+- [x] P0-05 盘点当前阶段性配置和测试数据，确认哪些未发布 schema 可以直接清理或重建。
 
 ### 4.2 授权模型
 
-- [ ] P0-06 定义并落地 `AgentKnowledgeAccess` 或等价类型，至少表达 `enabled`、`allowedLibraryIds`、`allowSearchAll`、`allowDocumentRead`、`allowResearch`。
-- [ ] P0-07 将稳定 library ID 作为授权持久化主键，名称和状态只在运行时解析。
-- [ ] P0-08 定义不可用、已删除和未授权资料库的显示及错误语义，禁止静默丢弃或改搜其他库。
-- [ ] P0-09 建立共享授权解析服务，供宏、工具、Chat 显式引用和 Agent Manager 使用。
+- [x] P0-06 定义并落地 `AgentKnowledgeAccess` 或等价类型，至少表达 `enabled`、`allowedLibraryIds`、`allowSearchAll`、`allowDocumentRead`、`allowResearch`。
+- [x] P0-07 将稳定 library ID 作为授权持久化主键，名称和状态只在运行时解析。
+- [x] P0-08 定义不可用、已删除和未授权资料库的显示及错误语义，禁止静默丢弃或改搜其他库。
+- [x] P0-09 建立共享授权解析服务，供宏、工具、Chat 显式引用和 Agent Manager 使用。
 
 ### 4.3 旧占位符与宏收敛
 
-- [ ] P0-10 删除 `{{knowledge}}` 的注册、选择器入口和检索占位符生成路径。
-- [ ] P0-11 删除 `【knowledge::...】` 的解析、processor 替换与每轮检索路径。
-- [ ] P0-12 删除 Knowledge 的 `autoInjectIfMacroMissing` 配置和保底注入逻辑。
-- [ ] P0-13 清理 Agent 预设编辑器、创建、复制、导入导出和说明文案中的旧检索占位符字段。
-- [ ] P0-14 保留 `{{knowledge_list}}`，改为从共享授权服务生成紧凑只读目录。
-- [ ] P0-15 保证 `{{knowledge_list}}` 仅在用户放置的预设位置展开；宏缺失时不注入，展开时不触发检索。
-- [ ] P0-16 为不可用的已授权库输出明确状态，资料库改名后目录自动显示新名称。
+- [x] P0-10 删除 `{{knowledge}}` 的注册、选择器入口和检索占位符生成路径。
+- [x] P0-11 删除 `【knowledge::...】` 的解析、processor 替换与每轮检索路径。
+- [x] P0-12 删除 Knowledge 的 `autoInjectIfMacroMissing` 配置和保底注入逻辑。
+- [x] P0-13 清理 Agent 预设编辑器、创建、复制、导入导出和说明文案中的旧检索占位符字段。
+- [x] P0-14 保留 `{{knowledge_list}}`，改为从共享授权服务生成紧凑只读目录。
+- [x] P0-15 保证 `{{knowledge_list}}` 仅在用户放置的预设位置展开；宏缺失时不注入，展开时不触发检索。
+- [x] P0-16 为不可用的已授权库输出明确状态，资料库改名后目录自动显示新名称。
 
 ### 4.4 Phase 0 验证与退出门禁
 
-- [ ] P0-T01 覆盖新 Agent 获得授权后不会自动检索或自动注入目录的测试。
-- [ ] P0-T02 覆盖 Agent 配置创建、复制、导入、导出和恢复不再产生旧检索占位符的测试。
-- [ ] P0-T03 覆盖 `{{knowledge_list}}` 原位展开、权限过滤、改名和不可用状态测试。
-- [ ] P0-T04 覆盖旧 processor 输入不再触发 Knowledge 检索；未发布测试数据按确认策略清理。
-- [ ] P0-GATE 代码、测试和相关架构说明只剩“访问授权 + 目录宏 + 主动工具”一套现行语义。
+- [x] P0-T01 覆盖新 Agent 获得授权后不会自动检索或自动注入目录的测试。
+- [x] P0-T02 覆盖 Agent 配置创建、复制、导入、导出和恢复不再产生旧检索占位符的测试。
+- [x] P0-T03 覆盖 `{{knowledge_list}}` 原位展开、权限过滤、改名和不可用状态测试。
+- [x] P0-T04 覆盖旧 processor 输入不再触发 Knowledge 检索；未发布测试数据按确认策略清理。
+- [x] P0-GATE 代码、测试和相关架构说明只剩“访问授权 + 目录宏 + 主动工具”一套现行语义。
+
+### 4.5 Phase 0 施工记录
+
+- Agent 配置链路：`KnowledgeLibrarySection.vue` 编辑 `knowledgeAccess`，`EditAgentDialog.vue` 保存完整表单，`agentStore.ts` 在创建、复制和恢复边界规范化权限，`useAgentStorage` 持久化 `agent.json`；导入先经 `migrateAgent()` 收敛 schema，导出按最终 `ChatAgent` 字段透传。
+- Chat 消息链路：`ChatMessageNode.metadata` 已能持久化结构化元数据和工具事件，输入区通过 `MessageInput` / `useChatInputManager` 管理附件；Phase 2 的 `KnowledgeReference` 适合放在消息节点独立字段或专用 metadata 字段，并随 session detail、分支复制和导入导出往返，不能复用普通附件路径。
+- Knowledge 复用能力：前端 `service.ts` 已提供 library/document/chunk/index/search IPC，Rust repository 已有 manifest、document、chunk、FTS、vector 与 graph 基础；缺口是 Agent 身份传递、统一权限校验、结构化 list/search/read 应用服务、read 预算契约和明确降级 metadata。
+- 未发布 schema 处理：开发期 `knowledgeConfig` 中只保留已启用 binding 的稳定 library ID，转换为 `knowledgeAccess.allowedLibraryIds`；strategy、limit、minScore、citation、groups、`knowledgeSettings` 和自动注入字段直接丢弃，不保留运行时兼容分支。旧 Knowledge processor 与 parser 测试已删除，保留一项“旧信封不会触发 Recall/Knowledge 检索”的负向测试。
+- 一般问题记录：Recall 模块仍使用 `knowledgeSettingsConfig` 的历史命名，容易误导后续配置分层；本批次已更名为 `recallSettingsConfig` / `getRecallSettingsConfig`，未改变行为。
+- 门禁结果：Agent 创建、复制、开发期 schema 恢复、文本导入导出和目录宏往返测试已通过；产物只包含 `knowledgeAccess`，预设中的 `{{knowledge_list}}` 原样保留。
 
 ## 5. Phase 1：独立 Knowledge 原子工具
 
@@ -361,4 +370,3 @@ Phase 3 分为五个施工批次。后端配置和摄取契约先行，工作台
 - [ ] 快速检索与研究任务分层，研究任务具备预算、进度、取消和证据保留。
 - [ ] 前端、后端、构建、定向测试和真实 Tauri 验收全部通过。
 - [ ] 产品方案、架构说明、设置/导入计划和用户文档已同步实际实现。
-

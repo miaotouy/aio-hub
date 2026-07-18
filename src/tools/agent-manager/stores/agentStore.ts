@@ -23,6 +23,7 @@ import { createDefaultAgentTemplate } from "../config/defaultAgentTemplate";
 import { useAgentStorage } from "../composables/storage/useAgentStorage";
 import type { ChatAgent } from "../types/agent";
 import type { LlmParameters } from "@/tools/llm-chat/types/llm";
+import { normalizeAgentKnowledgeAccess } from "@/tools/knowledge-base/access";
 import { DEFAULT_AGENT_EXTENSION_CONFIG } from "../types/agent";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -121,14 +122,22 @@ export const useAgentStore = defineStore("llmChatAgent", {
     ): string {
       const agentId = `agent-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
       const now = getLocalISOString();
+      const {
+        knowledgeConfig: _legacyKnowledgeConfig,
+        knowledgeSettings: _legacyKnowledgeSettings,
+        ...supportedOptions
+      } = (options ?? {}) as Record<string, unknown>;
 
       // 使用黑名单模式展开所有可选配置字段
       // 这样可以自动支持未来新增的字段和插件扩展字段
       const agent: ChatAgent = {
         // 先展开所有可选配置
-        ...options,
+        ...supportedOptions,
         // 然后覆盖必填字段和系统生成字段
         version: options?.version ?? 3,
+        knowledgeAccess: normalizeAgentKnowledgeAccess(
+          options?.knowledgeAccess
+        ),
         id: agentId,
         name,
         profileId,
@@ -229,6 +238,8 @@ export const useAgentStore = defineStore("llmChatAgent", {
 
       // 深度复制智能体的数据
       const newAgentData = JSON.parse(JSON.stringify(originalAgent));
+      delete newAgentData.knowledgeConfig;
+      delete newAgentData.knowledgeSettings;
 
       // 创建新的唯一 ID
       const newAgentId = `agent-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
@@ -301,6 +312,9 @@ export const useAgentStore = defineStore("llmChatAgent", {
       // 准备新的智能体对象
       const newAgent: ChatAgent = {
         ...newAgentData,
+        knowledgeAccess: normalizeAgentKnowledgeAccess(
+          newAgentData.knowledgeAccess
+        ),
         id: newAgentId,
         name: newName,
         displayName: newDisplayName,

@@ -21,6 +21,7 @@ import type { LlmParameters } from "@/tools/llm-chat/types/llm";
 import type { ChatMessageNode } from "@/tools/llm-chat/types/message";
 import type { MessageRole } from "@/tools/llm-chat/types/common";
 import type { VariableConfig } from "@/tools/llm-chat/types/sessionVariable";
+import type { AgentKnowledgeAccess } from "@/tools/knowledge-base/types";
 
 /**
  * 资产类型
@@ -133,25 +134,6 @@ export interface AgentRecallSettings {
   emptyText?: string;
   gateScanDepth?: number;
   enableCache?: boolean;
-}
-
-export interface KnowledgeBinding {
-  libraryId: string;
-  libraryName: string;
-  enabled: boolean;
-  strategy?: "auto" | "keyword" | "semantic" | "hybrid";
-  limit?: number;
-  minScore?: number;
-  citation?: boolean;
-  group?: string;
-}
-
-export interface AgentKnowledgeConfig {
-  enabled: boolean;
-  bindings: KnowledgeBinding[];
-  groups?: RetrievalBindingGroup[];
-  autoInjectIfMacroMissing?: boolean;
-  autoInjectPosition?: "context_head" | "before_last_user";
 }
 
 /**
@@ -272,17 +254,6 @@ export const DEFAULT_TOOL_CALL_CONFIG: ToolCallConfig = {
   rateLimitEnabled: false,
   rateLimitInterval: 0,
 };
-
-/** Knowledge 文档分片检索的 Agent 级默认设置。 */
-export interface AgentKnowledgeSettings {
-  defaultStrategy?: "auto" | "keyword" | "semantic" | "hybrid";
-  defaultCitation?: boolean;
-  defaultLimit?: number;
-  maxRecallChars?: number;
-  defaultMinScore?: number;
-  resultTemplate?: string;
-  emptyText?: string;
-}
 
 export type PresetGroupSelectionMode = "checkbox" | "radio";
 
@@ -476,11 +447,8 @@ export interface AgentBaseConfig {
     defaultScanDepth?: number;
   };
 
-  /** Knowledge 文档资料库绑定。 */
-  knowledgeConfig?: AgentKnowledgeConfig;
-
-  /** Knowledge 文档检索设置。 */
-  knowledgeSettings?: AgentKnowledgeSettings;
+  /** Knowledge 资料访问权限；授权不会触发自动检索或目录注入。 */
+  knowledgeAccess?: AgentKnowledgeAccess;
 
   /** Stage 3 思绪绑定配置。 */
   recallConfig?: AgentRecallConfig;

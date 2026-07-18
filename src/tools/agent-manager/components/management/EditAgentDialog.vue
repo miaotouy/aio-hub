@@ -34,6 +34,7 @@ import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUt
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { createDefaultChatRegexConfig } from "@/tools/llm-chat/types/chatRegex";
 import { DEFAULT_TOOL_CALL_CONFIG } from "../../types/agent";
+import { DEFAULT_AGENT_KNOWLEDGE_ACCESS } from "@/tools/knowledge-base/access";
 import AgentEditor from "../agent-editor/AgentEditor.vue";
 import MiniAgentList from "./MiniAgentList.vue";
 import type {
@@ -129,21 +130,7 @@ const defaultFormState = {
     autoInjectPosition: "context_head",
   },
   recallSettings: { defaultProfile: "semantic" },
-  knowledgeConfig: {
-    enabled: false,
-    bindings: [],
-    groups: [],
-    autoInjectIfMacroMissing: true,
-    autoInjectPosition: "context_head",
-  },
-  knowledgeSettings: {
-    defaultStrategy: "auto",
-    defaultLimit: 8,
-    defaultMinScore: 0,
-    maxRecallChars: 0,
-    defaultCitation: true,
-    emptyText: "（未检索到相关资料）",
-  },
+  knowledgeAccess: { ...DEFAULT_AGENT_KNOWLEDGE_ACCESS },
   extensionConfig: undefined as any,
   quickActionSetIds: [] as string[],
   variableConfig: undefined as any,
@@ -379,8 +366,7 @@ const handleSave = (
       toolCallConfig: editForm.toolCallConfig,
       recallConfig: editForm.recallConfig,
       recallSettings: editForm.recallSettings,
-      knowledgeConfig: editForm.knowledgeConfig,
-      knowledgeSettings: editForm.knowledgeSettings,
+      knowledgeAccess: editForm.knowledgeAccess,
       extensionConfig: editForm.extensionConfig,
       quickActionSetIds: editForm.quickActionSetIds,
       variableConfig: editForm.variableConfig,

@@ -127,11 +127,11 @@
 - `displayPresetCount`: 在聊天界面显示的预设消息数量。
 - `parameters`: (`LlmParameters`) 强大的 LLM 参数配置中心，详见 [`model-parameter-system.md`](./model-parameter-system.md)。
 
-### 5.2 双域检索
+### 5.2 Recall 与 Knowledge
 
 - `recallConfig` / `recallSettings`: 思绪集合 binding、semantic/associative profile 与激活策略。
-- `knowledgeConfig` / `knowledgeSettings`: 文档资料库 binding、keyword/semantic/hybrid strategy、来源引用和保底注入。
-- 两个域使用不同的稳定 ID 和参数白名单；旧 `knowledgeBaseConfig` 只在版本化 migration 内读取。
+- `knowledgeAccess`: Knowledge 的稳定资料库 ID 和 search-all、继续读取、研究任务权限；不保存单次检索参数，也不触发自动注入。
+- Recall 使用独立信封处理器；Knowledge 只保留 `{{knowledge_list}}` 目录宏和主动工具契约。旧 `knowledgeBaseConfig` 只在版本化 migration 内读取。
 
 ### 5.3 工具与扩展
 

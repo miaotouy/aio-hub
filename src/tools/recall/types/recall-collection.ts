@@ -164,9 +164,9 @@ export interface VectorIndexConfig {
   k1?: number;
   /** 向量检索：BM25 b */
   b?: number;
-  /** @deprecated Agent RAG 检索中已废弃（使用 knowledgeSettings.defaultLimit），但在思绪集 Playground 中仍有效 */
+  /** @deprecated Agent Recall 中已废弃（使用 recallSettings.defaultLimit），但在思绪集 Playground 中仍有效 */
   limit?: number;
-  /** @deprecated Agent RAG 检索中已废弃（使用 knowledgeSettings.defaultMinScore），但在思绪集 Playground 中仍有效 */
+  /** @deprecated Agent Recall 中已废弃（使用 recallSettings.defaultMinScore），但在思绪集 Playground 中仍有效 */
   minScore?: number;
   /** 兼容动态引擎参数 */
   [key: string]: any;

@@ -147,10 +147,11 @@ AIO Hub 深度兼容酒馆生态，用户可以直接导入角色卡。
 
 ### 6. 高级功能配置概览
 
-#### 双域检索
+#### Recall 与 Knowledge
 - 思绪使用 \`recallConfig\` / \`recallSettings\` 和 \`\\{{recall}}\` / \`【recall::collection=<id>】\`
-- 文档资料使用 \`knowledgeConfig\` / \`knowledgeSettings\` 和 \`\\{{knowledge}}\` / \`【knowledge::library=<id>】\`
-- 两个域只接受命名参数和稳定 ID，不生成位置参数或 mixed 占位符
+- 文档资料使用 \`knowledgeAccess\` 保存稳定资料库 ID 与读取、研究权限
+- \`\\{{knowledge_list}}\` 只在放置位置列出授权资料库，不执行检索；实际查询通过 Knowledge 工具主动完成
+- Recall 与 Knowledge 保持独立来源和权限，不生成 mixed 占位符
 
 #### 工具调用 (Tool Calling)
 - 通过 \`toolCallConfig\` 配置

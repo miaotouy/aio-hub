@@ -105,28 +105,39 @@ describe("agent recall migration", () => {
     expect(migrateAgent(agent)).toBe(false);
   });
 
-  it("does not consume the new Knowledge settings as legacy Recall settings", () => {
+  it("converts staged Knowledge bindings into access grants", () => {
     const agent = legacyAgent();
-    agent.knowledgeConfig = {
-      enabled: true,
-      bindings: [
-        {
-          libraryId: "library-1",
-          libraryName: "Docs",
-          enabled: true,
-        },
-      ],
-    };
-    agent.knowledgeSettings = {
-      defaultStrategy: "hybrid",
-      defaultCitation: true,
-    };
+    Object.assign(agent, {
+      knowledgeConfig: {
+        enabled: true,
+        bindings: [
+          {
+            libraryId: "library-1",
+            libraryName: "Docs",
+            enabled: true,
+          },
+          {
+            libraryId: "library-disabled",
+            libraryName: "Disabled",
+            enabled: false,
+          },
+        ],
+      },
+      knowledgeSettings: {
+        defaultStrategy: "hybrid",
+        defaultCitation: true,
+      },
+    });
 
     expect(migrateAgent(agent)).toBe(true);
-    expect(agent.knowledgeConfig.bindings[0].libraryId).toBe("library-1");
-    expect(agent.knowledgeSettings).toEqual({
-      defaultStrategy: "hybrid",
-      defaultCitation: true,
+    expect(agent.knowledgeAccess).toEqual({
+      enabled: true,
+      allowedLibraryIds: ["library-1"],
+      allowSearchAll: false,
+      allowDocumentRead: false,
+      allowResearch: false,
     });
+    expect(agent).not.toHaveProperty("knowledgeConfig");
+    expect(agent).not.toHaveProperty("knowledgeSettings");
   });
 });

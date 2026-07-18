@@ -38,7 +38,7 @@ describe("RecallProcessor", () => {
     });
   });
 
-  it("leaves the Knowledge namespace to its own processor", async () => {
+  it("does not process removed Knowledge envelope syntax", async () => {
     const context = createContext({
       messages: [
         {
@@ -52,6 +52,7 @@ describe("RecallProcessor", () => {
     await new RecallProcessor().execute(context);
 
     expect(context.logs).toHaveLength(0);
+    expect(resolvePlaceholderRetrieval).not.toHaveBeenCalled();
   });
 
   it("injects before session history and processes the generated placeholder", async () => {
@@ -109,7 +110,11 @@ describe("RecallProcessor", () => {
           content: "previous answer",
           sourceType: "session_history",
         },
-        { role: "user", content: "current query", sourceType: "session_history" },
+        {
+          role: "user",
+          content: "current query",
+          sourceType: "session_history",
+        },
       ],
       agentConfig: {
         recallConfig: {
@@ -142,8 +147,7 @@ describe("RecallProcessor", () => {
       messages: [
         {
           role: "system",
-          content:
-            "【recall::old::4】 【recall::collection=collection-1】",
+          content: "【recall::old::4】 【recall::collection=collection-1】",
         },
         { role: "user", content: "query", sourceType: "session_history" },
       ],

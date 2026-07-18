@@ -93,7 +93,7 @@ graph TD
 - **与会话解耦**: 会话与智能体松散耦合。会话索引用 `displayAgentId` 记录当前展示智能体；每条助手消息的元数据记录生成它时所使用的智能体信息，以便重试、上下文分析和历史回放使用原配置。
 - **分类与标签**: 支持 `category` 分类系统与 `tags` 标签并行，用于多层次的筛选和管理。
 - **私有资产绑定**: 智能体可以携带专属的媒体资产（表情包、背景音乐等），生命周期与智能体完全绑定，详见 [`agent-assets.md`](./docs/architecture/agent-assets.md)。
-- **预设消息多模态附件**: 预设消息支持引用智能体资产作为多模态附件（图片、音频、视频等），通过 `PresetAttachmentRef` 声明附件引用关系，在发送时由 `preset-attachment-resolver` 解析为管道附件。编辑器由 `agent-manager` 的 [`PresetAttachmentPicker`](../agent-manager/components/editors/PresetAttachmentPicker.vue)、`PresetMessageEditor`、`MacroSelector` / `VariableSelector` / `RecallPlaceholderEditor` / `KnowledgePlaceholderEditor` 组成；导入导出会检测悬空附件引用，Token 计算器可按附件类型估算消耗。
+- **预设消息多模态附件**: 预设消息支持引用智能体资产作为多模态附件（图片、音频、视频等），通过 `PresetAttachmentRef` 声明附件引用关系，在发送时由 `preset-attachment-resolver` 解析为管道附件。编辑器由 `agent-manager` 的 [`PresetAttachmentPicker`](../agent-manager/components/editors/PresetAttachmentPicker.vue)、`PresetMessageEditor`、`MacroSelector` / `VariableSelector` / `RecallPlaceholderEditor` 组成；Knowledge 目录通过宏选择器插入 `{{knowledge_list}}`。导入导出会检测悬空附件引用，Token 计算器可按附件类型估算消耗。
 - **思考规则、自定义样式、交互偏好**: 通过 `llmThinkRules` / `richTextStyleOptions` / `interactionConfig` 等字段实现高度定制化。
 
 完整字段定义位于 [`agent-manager/types/agent.ts`](../agent-manager/types/agent.ts)；`llm-chat/types/index.ts` 保留重导出以兼容既有调用。
@@ -509,7 +509,7 @@ graph TD
         D4[4. 转写与文本提取器 250]
         D5[5. 世界书处理器 300]
         D6[6. 注入组装器 400]
-        D7[7. 知识库处理器 450]
+        D7[7. 思绪处理器 450]
         D8[8. 会话变量处理器 500]
         D9[9. Token 限制器 600]
         D10[10. 消息格式化 800]

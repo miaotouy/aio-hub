@@ -38,18 +38,13 @@ Knowledge 前端不导入 Recall store、entry、priority、tag pool 或 workspa
 
 ## 4. Chat 与 Agent
 
-- Agent 使用 `knowledgeConfig`、稳定 `libraryId` binding 和独立 `knowledgeSettings`。
-- 占位符只接受 `library`、`strategy`、`limit`、`min-score`、`when=always`、`citation`。
-- `{{knowledge}}` / `{{knowledge_list}}` 与 `【knowledge::key=value】` 只指向文档资料库。
-- 主动检索通过 retrieval registry 的 `knowledge` / `mixed` 路由进入统一工具调用链。
-- mixed 检索先保留 Recall 与 Knowledge 的分域配额，再使用 RRF 融合，不直接比较两域原始分数。
+- Agent 使用 `knowledgeAccess` 保存 `enabled`、稳定 `allowedLibraryIds`、`allowSearchAll`、`allowDocumentRead` 和 `allowResearch`。
+- `access.ts` 是共享授权解析边界，负责 ID 去重、默认值、查询范围校验、越权错误、已删除/暂不可用状态和目录格式。宏、Knowledge 工具、Chat 显式引用与 Agent Manager 必须复用该边界。
+- `{{knowledge_list}}` 在用户指定的预设位置展开授权资料库目录，只读取摘要，不执行检索；宏缺失时不自动注入。名称和状态从资料库真源实时解析，持久化只保存 ID。
+- 不注册 `{{knowledge}}` 或 `【knowledge::...】`，上下文管道也没有 Knowledge processor。普通消息和 Agent 授权不会触发 Knowledge 检索。
+- 独立的 `knowledge.listLibraries`、`knowledge.search`、`knowledge.read` 是后续原子工具入口；现有 Retrieval 上层组合能力不替代工具层权限校验。
+- mixed 检索只属于上层显式编排，先保留 Recall 与 Knowledge 的分域配额，再使用 RRF 融合，不直接比较两域原始分数。
 
-## 5. 下一阶段
+## 5. 后续施工顺序
 
-目录同步不是本轮已完成能力。需要时按以下顺序引入：
-
-1. source root 与 include/exclude 规则。
-2. debounced 原生 watcher，包含文件稳定性检查。
-3. 持久化 ingest queue，状态为 pending、processing、failed、completed，并支持 lease 恢复与有限重试。
-4. 工作台增加“来源”视图和失败任务检查器。
-5. 在隔离 appData、真实目录副本和 Tauri WebView 中完成增删改、崩溃恢复与模型切换验收。
+后续以 `docs/Plan/knowledge-base-implementation-checklist.md` 为唯一施工清单：先完成独立 Knowledge 原子工具和 Chat 结构化显式引用，再补齐配置分层、持久 ingest queue、目录同步、原子版本替换、诊断工作台和二阶研究任务。真实路径、模型调用与恢复行为必须在隔离 appData 的 Tauri WebView 中验收。

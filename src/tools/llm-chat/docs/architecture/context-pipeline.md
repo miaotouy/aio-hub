@@ -31,7 +31,7 @@ graph TD
         P3[4. 转写与文本提取器<br/>priority: 250]
         P4[5. 世界书处理器<br/>priority: 300]
         P5[6. 注入组装器<br/>priority: 400]
-        P6[7. 知识库处理器<br/>priority: 450]
+        P6[7. 思绪处理器<br/>priority: 450]
         P7[8. 会话变量处理器<br/>priority: 500]
         P8[9. Token 限制器<br/>priority: 600]
         P9[10. 消息格式化器<br/>priority: 800]
@@ -66,7 +66,7 @@ graph TD
 4.  **转写与文本提取** (priority: 250)：对音视频/图片附件进行转写，或直接读取文本附件内容并插入消息，以便后续 Token 计算。
 5.  **世界书处理** (priority: 300)：执行 SillyTavern 风格的世界书关键词匹配与注入。
 6.  **注入与组装** (priority: 400)：处理 Agent 预设消息（骨架、深度注入、锚点注入），执行宏处理，并与历史消息精密组装。
-7.  **知识库处理** (priority: 450)：执行 RAG 检索并替换 `【kb】` 占位符。
+7.  **思绪处理** (priority: 450)：解析 Recall 信封并执行已授权的思绪召回。
 8.  **会话变量处理** (priority: 500)：解析消息中的 `<svar>` 标签，维护变量状态快照，并执行 `$[...]` 变量替换。
 9.  **Token 限制** (priority: 600)：**此步骤发生在注入与变量替换之后**。限制器计算所有消息的 Token 占用，优先保留预设消息，截断多余的历史消息（支持部分截断保留开头）。
 10. **消息格式化** (priority: 800)：应用模型特定的格式化规则（合并 System、合并连续角色、转换 System、确保角色交替等）。
@@ -84,7 +84,7 @@ graph TD
 | `transcription-processor`     | 转写与文本提取器  | 对音频/视频/图片转写，及读取文本附件内容，插入消息以便 Token 计算   | 250    |
 | `primary:worldbook-processor` | 世界书处理器      | 执行 SillyTavern 风格的世界书关键词匹配与注入                       | 300    |
 | `primary:injection-assembler` | 注入组装器        | 处理预设、注入、宏，并与历史消息组装。支持模型/渠道匹配规则         | 400    |
-| `primary:knowledge-processor` | 知识库处理器      | 执行 RAG 检索并替换 `【kb】` 占位符                                 | 450    |
+| `primary:recall-processor`    | 思绪处理器        | 解析 `【recall::key=value】` 并执行已授权的思绪召回                 | 450    |
 | `primary:variable-processor`  | 会话变量处理器    | 处理 `<svar>` 标签并维护变量状态快照，执行 `$[...]` 替换            | 500    |
 | `primary:token-limiter`       | Token 限制器      | 根据预算截断历史消息（优先保留预设消息，支持保留截断消息开头）      | 600    |
 | `message-formatter`           | 消息格式化器      | 负责合并 System、合并连续角色、转换 System、确保角色交替等          | 800    |
@@ -148,16 +148,15 @@ graph TD
 - **模型匹配**：支持基于正则表达式的模型/渠道匹配规则，动态启用/禁用预设消息
 - **宏处理**：在注入前处理所有宏占位符
 
-### 4.4. 双域检索处理器
+### 4.4. Recall 处理器与 Knowledge 目录宏
 
-Recall 与 Knowledge 各有独立 processor。共享信封 tokenizer 只负责识别 `【recall…】` / `【knowledge…】` 并跳过 `sourceType === "session_history"`，参数白名单、授权、默认值和请求构造不共享。
+Recall 保留独立的被动召回 processor。共享信封 tokenizer 只登记 `recall` namespace，并跳过 `sourceType === "session_history"`；处理器校验参数、授权、默认值和请求构造。
 
 - Recall 接受 `collection`、`profile`、`limit`、`min-score`、`when`、`gate-tags`、`every-turns`、`entries`，目标是 `recallConfig` 中启用的集合 ID。
-- Knowledge 接受 `library`、`strategy`、`limit`、`min-score`、`when=always`、`citation`，目标是 `knowledgeConfig` 中启用的资料库 ID。
-- `{{recall}}` / `{{knowledge}}` 按各自 binding 生成 canonical 占位符；两个 `_list` 宏展示来源域、名称和稳定 ID。
-- 未授权 ID、跨域参数、重复 key、非法值与历史位置参数只产生结构化诊断，不触发检索。
-- Knowledge 结果在正文和 context log 中携带 library、document、source path、chunk index、heading、signals 与 score。
-- 主动 `mixed` 检索不使用提示词占位符，由上层 retrieval router 先保留分域配额，再按 RRF 融合。
+- `{{recall}}` 生成 canonical Recall 信封，`{{recall_list}}` 展示启用集合。
+- Knowledge 不注册检索信封或 processor。`{{knowledge_list}}` 只在宏阶段原位展开 `knowledgeAccess` 授权目录，不检索，也不在宏缺失时自动注入。
+- 未授权 Recall ID、重复 key、非法值与历史位置参数只产生结构化诊断，不触发检索。
+- Knowledge 的主动工具和上层 `mixed` 编排必须显式执行，并保留独立权限、来源和分域分数语义。
 
 ### 4.5. Token 限制器 (Token Limiter)
 
@@ -167,11 +166,11 @@ Recall 与 Knowledge 各有独立 processor。共享信封 tokenizer 只负责�
 - 优先保留预设消息
 - 支持部分截断保留开头
 
-**位置**: Token 限制器 ([`token-limiter.ts`](../../core/context-processors/token-limiter.ts)) 位于注入组装器之后（`priority: 600`）、消息格式化之前运行。这意味着它能感知到所有将被发送的消息（包括刚刚注入的预设、档案、知识库片段、会话变量替换结果）。
+**位置**: Token 限制器 ([`token-limiter.ts`](../../core/context-processors/token-limiter.ts)) 位于注入组装器之后（`priority: 600`）、消息格式化之前运行。这意味着它能感知到所有将被发送的消息（包括刚刚注入的预设、档案、Recall 结果、会话变量替换结果）。
 
 **智能截断算法**（[`token-limiter.ts:64-176`](../../core/context-processors/token-limiter.ts:64)）:
 
-1.  **「必须保留」判定标准**: 按 `message.sourceType` 区分 —— **所有 `sourceType !== 'session_history'` 的消息均视为「预设/必须保留」**，包括 System Prompt、注入的预设、用户档案、世界书条目、知识库结果、压缩节点摘要等；只有 `sourceType === 'session_history'` 的消息才参与截断。代码中**不存在「锚点深度」概念** —— 锚点机制属于注入组装阶段（`injection-assembler`），与截断器解耦。
+1.  **「必须保留」判定标准**: 按 `message.sourceType` 区分 —— **所有 `sourceType !== 'session_history'` 的消息均视为「预设/必须保留」**，包括 System Prompt、注入的预设、用户档案、世界书条目、Recall 结果、压缩节点摘要等；只有 `sourceType === 'session_history'` 的消息才参与截断。代码中**不存在「锚点深度」概念** —— 锚点机制属于注入组装阶段（`injection-assembler`），与截断器解耦。
 2.  **预算分配**: 先累加所有预设消息的 Token 得到 `presetTokens`，然后 `availableForHistory = maxContextTokens - presetTokens`，剩余空间全部分配给历史消息。
 3.  **预算超出的极端处理**: 当 `availableForHistory <= 0`（即预设消息本身就超过总预算）时，**预设消息仍然全部保留**（不会反向截断预设），历史消息被**完全清空**，并记录一条 `warn` 级别日志。这一策略保证了预设/系统提示的完整性优先级最高。
 4.  **历史滑动方向**: **从最新到最旧倒序遍历**（`for (let i = historyMessages.length - 1; i >= 0; i--)`），保留尽量靠近当前轮次的消息，丢弃最早的消息。**不做 user/assistant 成对保留** —— 每条消息独立计算预算，可能出现孤立的 assistant 回复（缺少对应的 user 提问），由模型/上层自行兼容。

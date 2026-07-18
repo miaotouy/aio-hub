@@ -22,6 +22,10 @@ import type { ChatAgent } from "../types/agent";
 import { DEFAULT_AGENT_EXTENSION_CONFIG } from "../types/agent";
 import { useAnchorRegistry } from "@/tools/llm-chat/composables/ui/useAnchorRegistry";
 import type { ChatMessageNode } from "@/tools/llm-chat/types/message";
+import {
+  DEFAULT_AGENT_KNOWLEDGE_ACCESS,
+  normalizeAgentKnowledgeAccess,
+} from "@/tools/knowledge-base/access";
 
 const logger = createModuleLogger("llm-chat/agentMigrationService");
 
@@ -66,6 +70,10 @@ interface LegacyRecallSettings {
 type LegacyAgentFields = {
   knowledgeBaseConfig?: LegacyRecallConfig;
   knowledgeSettings?: LegacyRecallSettings;
+  knowledgeConfig?: {
+    enabled: boolean;
+    bindings?: Array<{ libraryId: string; enabled: boolean }>;
+  };
 };
 
 /**
@@ -126,13 +134,16 @@ export function migrateAgent(agent: ChatAgent): boolean {
   // 7. 迁移 Recall 领域配置与工具权限。
   if (migrateRecallConfiguration(agent)) hasChanges = true;
 
+  // 8. 将开发期 Knowledge binding 收敛为资料访问权限。
+  if (migrateKnowledgeAccess(agent)) hasChanges = true;
+
   return hasChanges;
 }
 
 function migrateRecallConfiguration(agent: ChatAgent): boolean {
   const legacyAgent = agent as ChatAgent & LegacyAgentFields;
   const legacyConfig = legacyAgent.knowledgeBaseConfig;
-  const legacySettings = agent.knowledgeConfig
+  const legacySettings = legacyAgent.knowledgeConfig
     ? undefined
     : legacyAgent.knowledgeSettings;
   const toolConfig = agent.toolCallConfig;
@@ -212,6 +223,36 @@ function migrateRecallConfiguration(agent: ChatAgent): boolean {
   agent.version = Math.max(agent.version ?? 0, RECALL_AGENT_CONFIG_VERSION);
   logger.info("迁移 Agent Recall 配置", { agentId: agent.id });
   return true;
+}
+
+function migrateKnowledgeAccess(agent: ChatAgent): boolean {
+  const legacyAgent = agent as ChatAgent & LegacyAgentFields;
+  const stagedConfig = legacyAgent.knowledgeConfig;
+  const hadLegacyFields = Boolean(
+    stagedConfig || legacyAgent.knowledgeSettings
+  );
+  const access = normalizeAgentKnowledgeAccess(
+    agent.knowledgeAccess ??
+      (stagedConfig
+        ? {
+            ...DEFAULT_AGENT_KNOWLEDGE_ACCESS,
+            enabled: stagedConfig.enabled,
+            allowedLibraryIds: (stagedConfig.bindings ?? [])
+              .filter((binding) => binding.enabled)
+              .map((binding) => binding.libraryId),
+          }
+        : DEFAULT_AGENT_KNOWLEDGE_ACCESS)
+  );
+  const changed =
+    hadLegacyFields ||
+    JSON.stringify(agent.knowledgeAccess) !== JSON.stringify(access);
+  agent.knowledgeAccess = access;
+  delete legacyAgent.knowledgeConfig;
+  delete legacyAgent.knowledgeSettings;
+  if (changed) {
+    logger.info("收敛 Agent Knowledge 资料访问权限", { agentId: agent.id });
+  }
+  return changed;
 }
 
 /**

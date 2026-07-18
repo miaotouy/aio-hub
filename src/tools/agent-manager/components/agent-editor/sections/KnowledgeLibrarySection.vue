@@ -4,46 +4,31 @@
       <div>
         <div class="section-title">资料库 (Knowledge)</div>
         <div class="section-subtitle">
-          {{ knowledgeMacro }} · {{ knowledgeListMacro }}
+          {{ knowledgeListMacro }} 只在预设放置位置列出授权目录
         </div>
       </div>
-      <el-switch v-model="editForm.knowledgeConfig.enabled" />
+      <el-switch v-model="editForm.knowledgeAccess.enabled" />
     </div>
 
-    <template v-if="editForm.knowledgeConfig.enabled">
+    <template v-if="editForm.knowledgeAccess.enabled">
       <div class="domain-settings">
-        <el-form-item label="默认策略">
-          <el-select v-model="editForm.knowledgeSettings.defaultStrategy">
-            <el-option label="自动" value="auto" />
-            <el-option label="关键词" value="keyword" />
-            <el-option label="语义" value="semantic" />
-            <el-option label="混合" value="hybrid" />
-          </el-select>
+        <el-form-item label="允许省略资料库范围">
+          <el-switch v-model="editForm.knowledgeAccess.allowSearchAll" />
         </el-form-item>
-        <el-form-item label="默认上限">
-          <el-input-number
-            v-model="editForm.knowledgeSettings.defaultLimit"
-            :min="1"
-            :max="50"
-            controls-position="right"
-          />
+        <el-form-item label="允许继续读取文档">
+          <el-switch v-model="editForm.knowledgeAccess.allowDocumentRead" />
         </el-form-item>
-        <el-form-item label="来源引用">
-          <el-switch v-model="editForm.knowledgeSettings.defaultCitation" />
-        </el-form-item>
-        <el-form-item label="保底注入">
-          <el-switch
-            v-model="editForm.knowledgeConfig.autoInjectIfMacroMissing"
-          />
+        <el-form-item label="允许高成本研究任务">
+          <el-switch v-model="editForm.knowledgeAccess.allowResearch" />
         </el-form-item>
       </div>
 
       <div class="binding-box">
         <header class="binding-header">
           <div>
-            <strong>已关联资料库</strong>
+            <strong>已授权资料库</strong>
             <el-tag size="small" type="info">
-              {{ editForm.knowledgeConfig.bindings.length }}
+              {{ allowedLibraryIds.length }}
             </el-tag>
           </div>
           <el-popover
@@ -74,48 +59,39 @@
           </el-popover>
         </header>
 
-        <div v-if="bindings.length" class="binding-list">
-          <article v-for="binding in bindings" :key="binding.libraryId">
+        <div v-if="authorizedLibraries.length" class="binding-list">
+          <article v-for="library in authorizedLibraries" :key="library.id">
             <div class="binding-identity">
               <BookOpenText :size="18" />
               <div>
-                <strong>{{ binding.libraryName }}</strong>
-                <code>{{ binding.libraryId }}</code>
+                <strong>{{ library.name }}</strong>
+                <code>{{ library.id }}</code>
               </div>
             </div>
-            <el-select
-              v-model="binding.strategy"
+            <el-tag
               size="small"
-              aria-label="检索策略"
+              :type="
+                library.availability === 'available' ? 'success' : 'danger'
+              "
             >
-              <el-option label="跟随默认" :value="undefined" />
-              <el-option label="自动" value="auto" />
-              <el-option label="关键词" value="keyword" />
-              <el-option label="语义" value="semantic" />
-              <el-option label="混合" value="hybrid" />
-            </el-select>
-            <el-input-number
-              v-model="binding.limit"
-              size="small"
-              :min="1"
-              :max="50"
-              placeholder="默认"
-              controls-position="right"
-              aria-label="召回上限"
-            />
-            <el-switch v-model="binding.enabled" aria-label="启用资料库" />
-            <el-tooltip content="移除绑定" placement="left">
+              {{
+                library.availability === "available"
+                  ? `${library.documentCount} 个来源`
+                  : "已删除"
+              }}
+            </el-tag>
+            <el-tooltip content="撤销授权" placement="left">
               <el-button
                 :icon="Trash2"
                 text
                 circle
-                aria-label="移除绑定"
-                @click="removeLibrary(binding.libraryId)"
+                aria-label="撤销资料库授权"
+                @click="removeLibrary(library.id)"
               />
             </el-tooltip>
           </article>
         </div>
-        <el-empty v-else description="尚未关联资料库" :image-size="52" />
+        <el-empty v-else description="尚未授权资料库" :image-size="52" />
       </div>
     </template>
   </div>
@@ -124,60 +100,52 @@
 <script setup lang="ts">
 import { computed, inject, onMounted, ref } from "vue";
 import { BookOpenText, Plus, Trash2 } from "lucide-vue-next";
+import {
+  DEFAULT_AGENT_KNOWLEDGE_ACCESS,
+  normalizeAgentKnowledgeAccess,
+} from "@/tools/knowledge-base/access";
 import { useKnowledgeStore } from "@/tools/knowledge-base/store";
-import type { KnowledgeBinding } from "@/tools/agent-manager/types/agent";
 import type { KnowledgeLibrary } from "@/tools/knowledge-base/types";
 
 const editForm = inject<any>("agent-edit-form");
 const store = useKnowledgeStore();
 const showSelector = ref(false);
-const knowledgeMacro = "{{knowledge}}";
 const knowledgeListMacro = "{{knowledge_list}}";
 
-if (!editForm.knowledgeConfig) {
-  editForm.knowledgeConfig = {
-    enabled: false,
-    bindings: [],
-    groups: [],
-    autoInjectIfMacroMissing: true,
-    autoInjectPosition: "context_head",
-  };
-}
-if (!editForm.knowledgeSettings) {
-  editForm.knowledgeSettings = {
-    defaultStrategy: "auto",
-    defaultLimit: 8,
-    defaultMinScore: 0,
-    maxRecallChars: 0,
-    defaultCitation: true,
-    emptyText: "（未检索到相关资料）",
-  };
-}
-
-const bindings = computed<KnowledgeBinding[]>(
-  () => editForm.knowledgeConfig.bindings
+editForm.knowledgeAccess = normalizeAgentKnowledgeAccess(
+  editForm.knowledgeAccess ?? DEFAULT_AGENT_KNOWLEDGE_ACCESS
 );
+
+const allowedLibraryIds = computed<string[]>(
+  () => editForm.knowledgeAccess.allowedLibraryIds
+);
+const authorizedLibraries = computed(() => {
+  const byId = new Map(store.libraries.map((library) => [library.id, library]));
+  return allowedLibraryIds.value.map((id) => {
+    const library = byId.get(id);
+    return library
+      ? { ...library, availability: "available" as const }
+      : {
+          id,
+          name: "已删除的资料库",
+          documentCount: 0,
+          availability: "deleted" as const,
+        };
+  });
+});
 const availableLibraries = computed(() => {
-  const existing = new Set(bindings.value.map((binding) => binding.libraryId));
+  const existing = new Set(allowedLibraryIds.value);
   return store.libraries.filter((library) => !existing.has(library.id));
 });
 
 function addLibrary(library: KnowledgeLibrary) {
-  bindings.value.push({
-    libraryId: library.id,
-    libraryName: library.name,
-    enabled: true,
-    strategy: "auto",
-    citation: true,
-  });
+  allowedLibraryIds.value.push(library.id);
   showSelector.value = false;
 }
 
 function removeLibrary(libraryId: string) {
-  const index = bindings.value.findIndex(
-    (binding) => binding.libraryId === libraryId
-  );
-  if (index >= 0) bindings.value.splice(index, 1);
+  const index = allowedLibraryIds.value.indexOf(libraryId);
+  if (index >= 0) allowedLibraryIds.value.splice(index, 1);
 }
 
 onMounted(() => {
@@ -219,7 +187,7 @@ onMounted(() => {
 
 .domain-settings {
   display: grid;
-  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
   gap: 12px;
   margin-top: 18px;
 }
@@ -248,7 +216,7 @@ onMounted(() => {
 
 .binding-list article {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) 128px 112px 40px 32px;
+  grid-template-columns: minmax(180px, 1fr) auto 32px;
   min-height: 64px;
   align-items: center;
   gap: 10px;
@@ -319,11 +287,7 @@ onMounted(() => {
   }
 
   .binding-list article {
-    grid-template-columns: minmax(160px, 1fr) 120px 40px 32px;
-  }
-
-  .binding-list :deep(.el-input-number) {
-    display: none;
+    grid-template-columns: minmax(160px, 1fr) auto 32px;
   }
 }
 </style>

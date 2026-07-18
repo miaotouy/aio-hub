@@ -28,6 +28,7 @@ import { getLocalISOString } from "@/utils/time";
 import { stripDefaultContextCompressionPromptsFromParameters } from "@/tools/llm-chat/types/llm";
 import type { ChatMessageNode } from "@/tools/llm-chat/types/message";
 import type { ChatAgent } from "../types/agent";
+import { migrateAgent } from "./agentMigrationService";
 
 const logger = createModuleLogger("llm-chat/agentManagementService");
 const errorHandler = createModuleErrorHandler(
@@ -70,12 +71,8 @@ const SECTION_FIELDS: Record<string, string[]> = {
   parameters: ["parameters"],
   toolCallConfig: ["toolCallConfig"],
   regexConfig: ["regexConfig"],
-  recallConfig: [
-    "recallConfig",
-    "recallSettings",
-    "knowledgeConfig",
-    "knowledgeSettings",
-  ],
+  recallConfig: ["recallConfig", "recallSettings"],
+  knowledgeAccess: ["knowledgeAccess"],
   assets: ["assets", "assetGroups"],
   advanced: [
     "interactionConfig",
@@ -988,6 +985,8 @@ export async function import_agent_from_text(params: {
     if (parsed.type === "AIO_Agent_Export" && Array.isArray(parsed.agents)) {
       parsed = parsed.agents[0];
     }
+
+    migrateAgent(parsed as ChatAgent);
 
     // 验证必要字段
     if (!parsed.name) {

@@ -51,7 +51,7 @@ export interface RecallRetrievalRequest {
   /** 最近几条消息的纯文本 (用于 gate 模式扫描) */
   recentMessageTexts: string[];
 
-  // —— 检索配置（chat 从 knowledgeSettings 映射）——
+  // —— 检索配置（Chat 从 recallSettings 映射）——
   settings: {
     /** 默认检索引擎 ID */
     defaultEngineId?: string;

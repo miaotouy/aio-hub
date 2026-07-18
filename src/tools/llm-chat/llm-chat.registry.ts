@@ -317,7 +317,7 @@ const agentManagement: ToolRegistry = {
               type: "string",
               required: false,
               description:
-                "配置分段（metadata/presetMessages/parameters/toolCallConfig/regexConfig/knowledgeConfig/assets/advanced/all）",
+                "配置分段（metadata/presetMessages/parameters/toolCallConfig/regexConfig/recallConfig/knowledgeAccess/assets/advanced/all）",
             },
           ],
           returnType: "Promise<string>",

@@ -31,8 +31,7 @@ agent/
 ├── editors/             # 专项编辑器
 │   ├── PresetMessageEditor.vue     # 预设消息编辑器
 │   └── kb-placeholder-editor/
-│       ├── RecallPlaceholderEditor.vue # Recall 占位符编辑器
-│       └── KnowledgePlaceholderEditor.vue # Knowledge 占位符编辑器
+│       └── RecallPlaceholderEditor.vue # Recall 占位符编辑器
 │
 └── agent-editor/        # 核心 Agent 编辑器
     ├── agentEditConfig.ts          # 编辑器配置
@@ -99,7 +98,7 @@ agent/
 **主要组件：**
 
 - `PresetMessageEditor` - 编辑单条预设消息
-- `RecallPlaceholderEditor` / `KnowledgePlaceholderEditor` - 编辑双域检索占位符
+- `RecallPlaceholderEditor` - 编辑 Recall 检索占位符；Knowledge 只保留目录宏选择入口
 
 ### agent-editor/ - 核心编辑器
 

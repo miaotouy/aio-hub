@@ -52,4 +52,4 @@
 
 ## 在 Agent 中使用
 
-Agent 通过稳定的资料库 ID 绑定 Knowledge。占位符使用 `{{knowledge}}`、`{{knowledge_list}}` 或 `【knowledge::key=value】`，具体参数见 [Agent 集成](./agent-integration.md)。
+Agent 通过稳定的资料库 ID 获得 Knowledge 资料访问权限。授权本身不会自动检索，也不会自动向每轮上下文注入目录；需要常驻目录时，可在合适的预设消息位置放置 `{{knowledge_list}}`。具体权限和调用方式见 [Agent 集成](./agent-integration.md)。

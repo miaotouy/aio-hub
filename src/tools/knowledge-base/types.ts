@@ -1,5 +1,26 @@
 import type { EmbeddingSpaceDescriptorV1 } from "@aiohub/llm-core";
 
+export interface AgentKnowledgeAccess {
+  enabled: boolean;
+  allowedLibraryIds: string[];
+  allowSearchAll: boolean;
+  allowDocumentRead: boolean;
+  allowResearch: boolean;
+}
+
+export type KnowledgeLibraryAvailability =
+  "available" | "unavailable" | "deleted";
+
+export interface KnowledgeLibrarySummary {
+  id: string;
+  name: string;
+  description?: string;
+  documentCount: number;
+  availability: KnowledgeLibraryAvailability;
+  supportsKeywordSearch: boolean;
+  supportsSemanticSearch: boolean;
+}
+
 export interface KnowledgeLibrary {
   id: string;
   name: string;

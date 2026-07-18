@@ -27,10 +27,7 @@ import type {
   RecallMonitorMessage,
   RecallMessageType,
 } from "../types";
-import {
-  DEFAULT_WORKSPACE_CONFIG,
-  getKnowledgeSettingsConfig,
-} from "../config";
+import { DEFAULT_WORKSPACE_CONFIG, getRecallSettingsConfig } from "../config";
 import { recallStorage, type WorkspaceData } from "../utils/recallStorage";
 import { getPureModelId, getProfileId } from "@/utils/modelIdUtils";
 import { vectorCacheManager } from "../utils/vectorCache";
@@ -186,7 +183,7 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
      * 获取合成后的设置配置 (包含动态引擎参数)
      */
     settingsConfig: (state) => {
-      return getKnowledgeSettingsConfig(state.engines);
+      return getRecallSettingsConfig(state.engines);
     },
 
     /**

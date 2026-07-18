@@ -1,22 +1,23 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatAgent } from "@/tools/agent-manager/types/agent";
 import { createMacroContext } from "../../MacroContext";
 import { getMacroRegistry } from "../../MacroRegistry";
 import { registerKnowledgeMacros } from "../knowledge";
 
+const listKnowledgeLibraries = vi.hoisted(() => vi.fn());
+
+vi.mock("@/tools/knowledge-base/service", () => ({
+  listKnowledgeLibraries,
+}));
+
 function context() {
   const agent = {
-    knowledgeConfig: {
+    knowledgeAccess: {
       enabled: true,
-      bindings: [
-        {
-          libraryId: "library/1",
-          libraryName: "Docs",
-          enabled: true,
-          strategy: "keyword",
-          limit: 4,
-        },
-      ],
+      allowedLibraryIds: ["library/1", "deleted-library"],
+      allowSearchAll: true,
+      allowDocumentRead: true,
+      allowResearch: false,
     },
   } as ChatAgent;
   return createMacroContext({ agent });
@@ -25,27 +26,50 @@ function context() {
 describe("Knowledge macros", () => {
   const registry = getMacroRegistry();
 
+  beforeEach(() => {
+    listKnowledgeLibraries.mockReset();
+    listKnowledgeLibraries.mockResolvedValue([
+      {
+        id: "library/1",
+        name: "Renamed Docs",
+        description: "Current documentation",
+        documentCount: 3,
+        activeEmbeddingSpaceId: "space-1",
+      },
+    ]);
+  });
   afterEach(() => registry.clear());
 
-  it("uses named arguments and emits canonical placeholders", () => {
+  it("only registers the read-only directory macro", () => {
     registerKnowledgeMacros(registry);
-    const macro = registry.getMacro("knowledge");
-    expect(
-      macro?.execute(context(), [
-        "limit=8",
-        "library=library%2F1",
-        "strategy=hybrid",
-        "citation=false",
-      ])
-    ).toBe(
-      "【knowledge::library=library%2F1::strategy=hybrid::limit=8::when=always::citation=false】"
-    );
+    expect(registry.hasMacro("knowledge")).toBe(false);
+    expect(registry.hasMacro("knowledge_list")).toBe(true);
+    expect(registry.hasMacro("mixed")).toBe(false);
   });
 
-  it("rejects positional arguments and does not register mixed", () => {
+  it("expands authorized libraries in place with live names and status", async () => {
     registerKnowledgeMacros(registry);
-    const macro = registry.getMacro("knowledge");
-    expect(() => macro?.execute(context(), ["library/1", "8"])).toThrow();
-    expect(registry.hasMacro("mixed")).toBe(false);
+    const macro = registry.getMacro("knowledge_list");
+    const output = await macro?.execute(context());
+
+    expect(output).toContain(
+      "- Renamed Docs (id=library/1): Current documentation；3 个来源"
+    );
+    expect(output).toContain(
+      "- 已删除的资料库 (id=deleted-library): 0 个来源；状态=已删除"
+    );
+    expect(output).not.toContain("strategy=");
+  });
+
+  it("does not load or inject a directory when access is disabled", async () => {
+    registerKnowledgeMacros(registry);
+    const macro = registry.getMacro("knowledge_list");
+    const disabled = context();
+    disabled.agent!.knowledgeAccess!.enabled = false;
+
+    await expect(macro?.execute(disabled)).resolves.toBe(
+      "未授权任何 Knowledge 资料库。"
+    );
+    expect(listKnowledgeLibraries).not.toHaveBeenCalled();
   });
 });

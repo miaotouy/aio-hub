@@ -1,60 +1,33 @@
 # Agent 集成
 
-Knowledge 通过独立的 `knowledgeConfig`、`knowledgeSettings` 和稳定 `libraryId` binding 接入 Agent。资料库不保存 Agent、会话或消息外键；绑定只决定本次上下文可以访问哪些资料库。
+Knowledge 通过独立的 `knowledgeAccess` 接入 Agent。配置只保存稳定的资料库 ID 和能力权限；资料库名称、说明、来源数量与可用状态在运行时解析。
 
-## 宏
+## 资料访问权限
 
-- `{{knowledge}}`：生成 Knowledge 检索占位符。
-- `{{knowledge_list}}`：列出当前可用的 Knowledge 资料库。
+`knowledgeAccess` 包含：
 
-历史 `{{kb}}`、`【kb】` 和不含命名参数的旧 `【knowledge】` 曾指向 CAIU 数据，属于迁移输入，不是新版 Knowledge 语法。
+- `enabled`：是否允许 Agent 使用 Knowledge。
+- `allowedLibraryIds`：允许访问的稳定资料库 ID。
+- `allowSearchAll`：调用未指定资料库时，是否允许搜索全部已授权库。
+- `allowDocumentRead`：是否允许从检索命中继续读取文档局部。
+- `allowResearch`：是否允许启动高成本研究任务。
 
-## 占位符
+授权不等于自动查询。Agent 获得权限后，普通消息不会因此增加 Knowledge 检索或 Embedding 调用。
 
-新版占位符使用命名参数：
+## 资料库目录宏
 
-```text
-【knowledge::library=<library-id>::strategy=auto::limit=5::min-score=0::when=always::citation=required】
-```
+`{{knowledge_list}}` 在用户放置它的预设消息位置展开已授权资料库目录，内容包含稳定 ID、当前名称、说明、来源数量和可用状态。资料库改名后会显示新名称；已删除或暂时不可用的授权不会静默消失。
 
-| 参数        | 说明                                                |
-| ----------- | --------------------------------------------------- |
-| `library`   | 稳定资料库 ID，可重复指定；省略时使用已启用 binding |
-| `strategy`  | `auto`、`keyword`、`semantic` 或 `hybrid`           |
-| `limit`     | 返回 chunk 数上限                                   |
-| `min-score` | 当前 Knowledge 策略的最低分数                       |
-| `when`      | 第一阶段只接受 `always`                             |
-| `citation`  | `required`、`preferred` 或 `off`                    |
-
-Knowledge 不接受 Recall 的 `profile`、`entries`、`gate-tags` 或 `every-turns`。不合法参数会产生明确错误，不会被静默忽略。
-
-## 被动注入
-
-上下文管道遇到合法 Knowledge 占位符后：
-
-1. 解析并校验命名参数。
-2. 根据 binding 解析稳定资料库 ID。
-3. 使用当前对话构建查询。
-4. 调用 Knowledge document/chunk 检索。
-5. 按 citation 规则格式化来源与 chunk 信息。
-6. 用检索结果替换占位符。
-
-结果保留 library、source path、heading 和 chunk index，便于模型引用来源。
+该宏只列目录，不读取 chunk、不执行检索，也不会在宏缺失时自动选择位置注入。
 
 ## 主动检索
 
-启用工具调用后，Agent 可通过 retrieval registry 选择：
+Knowledge 的检索参数属于单次工具调用，而不是 Agent 授权属性。查询前必须经过当前 Agent 的权限校验；未授权、已删除或不可用的资料库会返回明确错误，不会静默改搜其他库。
 
-- `recall`：只查询思绪条目。
-- `knowledge`：只查询文档资料。
-- `mixed`：分别召回两域结果，保留分域配额后使用 RRF 融合。
+独立的 `knowledge.listLibraries`、`knowledge.search` 和 `knowledge.read` 工具按施工阶段接入。现有上层 Retrieval 组合能力不改变 Knowledge 的授权边界，也不会恢复被动检索占位符。
 
-mixed 不直接比较 Recall activation 与 Knowledge hybrid score。
+## 已移除的阶段性语法
 
-## 使用建议
+当前开发周期曾短暂实现 `{{knowledge}}` 和 `【knowledge::...】` 检索占位符，但该路径未随正式版本发布，现已移除。预设编辑器、导入导出和上下文处理管道不再生成或解析这些语法。
 
-- 事实问答、手册、论文、代码文档优先使用 Knowledge。
-- 项目经验、偏好、灵感和完整语义条目使用 Recall。
-- 需要强来源约束时使用 `citation=required`。
-- 专有名词查询可使用 `keyword`；自然语言问题通常使用 `auto`。
-- semantic/hybrid 前应确认资料库有可用向量覆盖。
+Recall 的 `{{recall}}` / `【recall::...】` 是独立的思绪召回协议，不代表 Knowledge 仍支持同形占位符。

@@ -92,7 +92,7 @@ export const DEFAULT_WORKSPACE_CONFIG: WorkspaceConfig = {
 /**
  * 思绪集设置界面配置
  */
-export const knowledgeSettingsConfig: SettingsSection<WorkspaceConfig>[] = [
+export const recallSettingsConfig: SettingsSection<WorkspaceConfig>[] = [
   {
     title: "向量化 (Embedding) 配置",
     icon: Cpu,
@@ -106,7 +106,7 @@ export const knowledgeSettingsConfig: SettingsSection<WorkspaceConfig>[] = [
           placeholder: "选择用于向量化的 Embedding 模型",
         },
         modelPath: "defaultEmbeddingModel",
-        hint: "统一的 Embedding 模型配置。用于知识条目向量化和智能体 RAG 检索查询向量化，所有智能体的思绪集检索都使用此模型。",
+        hint: "统一的 Embedding 模型配置。用于思绪条目向量化和 Recall 查询向量化，所有智能体的思绪集检索都使用此模型。",
         keywords: "embedding model 模型 向量 默认",
       },
       {
@@ -387,10 +387,10 @@ export const knowledgeSettingsConfig: SettingsSection<WorkspaceConfig>[] = [
  * 获取动态合成后的设置配置
  * 会根据传入的引擎信息，将引擎特有参数注入到“检索与索引策略”章节中
  */
-export function getKnowledgeSettingsConfig(
+export function getRecallSettingsConfig(
   engines: RetrievalEngineInfo[]
 ): SettingsSection<WorkspaceConfig>[] {
-  const config = cloneDeep(knowledgeSettingsConfig);
+  const config = cloneDeep(recallSettingsConfig);
 
   // 找到“检索与索引策略”这一节
   const searchSection = config.find((s) => s.title === "检索与索引策略");

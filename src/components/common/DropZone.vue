@@ -27,7 +27,12 @@
       'drop-zone--click-zone': clickZone,
       [`drop-zone--${variant}`]: !bare && variant,
     }"
+    :role="clickable && clickZone ? 'button' : undefined"
+    :tabindex="clickable && clickZone && !disabled ? 0 : undefined"
+    :aria-disabled="clickable && clickZone ? disabled : undefined"
     @click="handleZoneClick"
+    @keydown.enter.prevent="handleZoneKeydown"
+    @keydown.space.prevent="handleZoneKeydown"
   >
     <!-- 默认内容区域 -->
     <template v-if="!hideContent">
@@ -63,7 +68,7 @@
       class="drop-zone__drag-overlay"
     >
       <el-icon :size="48"><Upload /></el-icon>
-      <span>松开以添加</span>
+      <span>{{ dragOverlayText }}</span>
     </div>
   </div>
 </template>
@@ -129,6 +134,8 @@ interface Props {
   hideContent?: boolean;
   /** 拖拽悬停时是否显示内置的半透明覆盖提示层 */
   showOverlayOnDrag?: boolean;
+  /** 拖拽覆盖层的业务提示 */
+  dragOverlayText?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -150,6 +157,7 @@ const props = withDefaults(defineProps<Props>(), {
   overlay: false,
   hideContent: false,
   showOverlayOnDrag: false,
+  dragOverlayText: "松开以添加",
 });
 
 const emit = defineEmits<{
@@ -228,6 +236,11 @@ const handleZoneClick = async (e: MouseEvent) => {
   if (props.clickable && props.clickZone) {
     await openFileDialog();
   }
+};
+
+const handleZoneKeydown = async () => {
+  if (props.disabled || !props.clickable || !props.clickZone) return;
+  await openFileDialog();
 };
 
 // 暴露状态
@@ -335,6 +348,11 @@ defineExpose({
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .drop-zone,
+  .drop-zone__icon {
+    transition: none;
+  }
+
   .drop-zone--dragging:not(.drop-zone--bare)::after {
     animation: none;
   }

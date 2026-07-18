@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { ref, onMounted, onUnmounted, Ref, watch } from "vue";
+import { ref, onMounted, onUnmounted, isRef, type Ref, watch } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { customMessage } from "@/utils/customMessage";
@@ -234,7 +234,16 @@ export function useFileDrop(options: FileDropOptions = {}) {
       clearTimeout(pendingTimer);
       pendingTimer = null;
     }
+    const resolve = pendingResolve;
     pendingResolve = null;
+    resolve?.([]);
+  };
+
+  const clearDragState = () => {
+    const wasDragging = isDraggingOver.value;
+    isDraggingOver.value = false;
+    clearPendingDrop();
+    if (wasDragging) options.onDragLeave?.();
   };
 
   // 辅助函数：判断位置是否在元素内
@@ -558,6 +567,7 @@ export function useFileDrop(options: FileDropOptions = {}) {
       if (fileNames.length > 0) {
         const paths = fileNames.map((f) => f.name);
         const finalPaths = await createPendingDrop(paths);
+        if (!finalPaths.length) return;
 
         console.log(
           "[useFileDrop] H5 原生 drop 挂起等待结束，最终路径:",
@@ -590,11 +600,17 @@ export function useFileDrop(options: FileDropOptions = {}) {
     element.addEventListener("dragleave", handleDragLeave);
     element.addEventListener("drop", handleNativeDrop);
 
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") clearDragState();
+    };
+    window.addEventListener("keydown", handleEscape);
+
     nativeListenerCleanups.push(() => {
       element.removeEventListener("dragenter", handleDragEnter);
       element.removeEventListener("dragover", handleDragOver);
       element.removeEventListener("dragleave", handleDragLeave);
       element.removeEventListener("drop", handleNativeDrop);
+      window.removeEventListener("keydown", handleEscape);
     });
   };
 
@@ -796,7 +812,7 @@ export function useFileDrop(options: FileDropOptions = {}) {
     unlistenWebviewDragDrop?.();
 
     // 清除挂起的 drop
-    clearPendingDrop();
+    clearDragState();
   };
 
   // 监听 element 变化，动态重新绑定
@@ -807,6 +823,12 @@ export function useFileDrop(options: FileDropOptions = {}) {
         cleanup();
         await setupFileDropListener();
       }
+    });
+  }
+
+  if (isRef(options.disabled)) {
+    watch(options.disabled, (disabled) => {
+      if (disabled) clearDragState();
     });
   }
 

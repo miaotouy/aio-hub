@@ -21,38 +21,6 @@
         </el-tooltip>
       </header>
 
-      <form
-        v-if="creating"
-        class="create-library"
-        @submit.prevent="createLibrary"
-      >
-        <el-input
-          v-model="newLibraryName"
-          placeholder="资料库名称"
-          maxlength="64"
-          autofocus
-        />
-        <el-input
-          v-model="newLibraryDescription"
-          type="textarea"
-          :rows="2"
-          maxlength="160"
-          show-word-limit
-          placeholder="用途说明，可选"
-        />
-        <div class="create-actions">
-          <el-button size="small" @click="cancelCreate">取消</el-button>
-          <el-button
-            type="primary"
-            size="small"
-            :loading="creatingLibrary"
-            native-type="submit"
-          >
-            创建
-          </el-button>
-        </div>
-      </form>
-
       <div v-if="store.libraries.length > 6" class="library-filter">
         <el-input
           v-model="libraryFilter"
@@ -69,6 +37,7 @@
           type="button"
           class="library-row"
           :class="{ active: library.id === store.activeLibraryId }"
+          :aria-selected="library.id === store.activeLibraryId"
           @click="store.selectLibrary(library.id)"
         >
           <BookOpenText :size="18" />
@@ -95,6 +64,28 @@
     </aside>
 
     <section class="library-content">
+      <div v-if="store.libraries.length" class="compact-library-toolbar">
+        <el-select
+          :model-value="store.activeLibraryId"
+          aria-label="当前资料库"
+          @change="store.selectLibrary"
+        >
+          <el-option
+            v-for="library in store.libraries"
+            :key="library.id"
+            :label="library.name"
+            :value="library.id"
+          />
+        </el-select>
+        <el-tooltip content="新建资料库" placement="bottom">
+          <el-button
+            :icon="Plus"
+            circle
+            aria-label="新建资料库"
+            @click="creating = true"
+          />
+        </el-tooltip>
+      </div>
       <template v-if="store.activeLibrary">
         <header class="content-header">
           <div class="library-heading">
@@ -142,23 +133,27 @@
             <el-button :icon="Binary" @click="vectorDialogVisible = true">
               语义索引
             </el-button>
-            <el-dropdown trigger="click" @command="handleLibraryCommand">
-              <el-button
-                :icon="MoreHorizontal"
-                circle
-                aria-label="更多资料库操作"
-              />
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="rebuild" :icon="RefreshCw">
-                    重建分块索引
-                  </el-dropdown-item>
-                  <el-dropdown-item command="delete" :icon="Trash2" divided>
-                    删除资料库
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
+            <el-tooltip content="更多资料库操作" placement="bottom">
+              <div>
+                <el-dropdown trigger="click" @command="handleLibraryCommand">
+                  <el-button
+                    :icon="MoreHorizontal"
+                    circle
+                    aria-label="更多资料库操作"
+                  />
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="rebuild" :icon="RefreshCw">
+                        重建分块索引
+                      </el-dropdown-item>
+                      <el-dropdown-item command="delete" :icon="Trash2" divided>
+                        删除资料库
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+              </div>
+            </el-tooltip>
           </div>
         </header>
 
@@ -191,13 +186,15 @@
               </li>
             </ul>
           </el-popover>
-          <el-button
-            :icon="X"
-            text
-            circle
-            aria-label="关闭提示"
-            @click="importFailures = []"
-          />
+          <el-tooltip content="关闭导入提示" placement="bottom">
+            <el-button
+              :icon="X"
+              text
+              circle
+              aria-label="关闭导入提示"
+              @click="importFailures = []"
+            />
+          </el-tooltip>
         </div>
 
         <section v-if="workspaceMode === 'documents'" class="workspace-mode">
@@ -226,15 +223,14 @@
                 />
               </div>
               <div v-else-if="filteredDocuments.length" class="document-list">
-                <article
+                <button
                   v-for="document in filteredDocuments"
                   :key="document.id"
+                  type="button"
                   class="document-row"
                   :class="{ active: document.id === store.selectedDocumentId }"
-                  role="button"
-                  tabindex="0"
+                  :aria-selected="document.id === store.selectedDocumentId"
                   @click="openDocument(document.id)"
-                  @keydown.enter="openDocument(document.id)"
                 >
                   <FileText :size="18" />
                   <div class="document-copy">
@@ -248,7 +244,7 @@
                     }}</small>
                   </div>
                   <ChevronRight :size="16" />
-                </article>
+                </button>
               </div>
               <div v-else-if="documentFilter" class="pane-empty">
                 <FileText :size="30" />
@@ -258,6 +254,7 @@
                 v-else
                 class="knowledge-empty-drop"
                 clickable
+                click-zone
                 variant="border"
                 file-only
                 multiple
@@ -265,12 +262,11 @@
                 allow-unknown-extensions
                 :accept="KNOWLEDGE_DROP_ACCEPT"
                 :disabled="importBusy"
-                @click="importDocuments"
                 @drop="runImportPaths"
                 @error="handleDropError"
               >
                 <FileUp :size="30" />
-                <strong>导入文档</strong>
+                <strong>选择文件</strong>
                 <span>{{ KNOWLEDGE_FORMAT_SUMMARY }}</span>
               </DropZone>
             </section>
@@ -420,6 +416,7 @@
               :key="run.strategy"
               type="button"
               :class="{ active: strategy === run.strategy }"
+              :aria-pressed="strategy === run.strategy"
               @click="selectComparisonRun(run)"
             >
               <strong>{{ strategyLabel(run.strategy) }}</strong>
@@ -443,15 +440,14 @@
                 />
               </div>
               <div v-else-if="store.results.length" class="result-list">
-                <article
+                <button
                   v-for="result in store.results"
                   :key="result.chunkId"
+                  type="button"
                   class="result-row"
                   :class="{ active: result.chunkId === store.selectedResultId }"
-                  role="button"
-                  tabindex="0"
+                  :aria-selected="result.chunkId === store.selectedResultId"
                   @click="store.selectResult(result.chunkId)"
-                  @keydown.enter="store.selectResult(result.chunkId)"
                 >
                   <header>
                     <strong>{{ result.libraryName }} · {{ result.title }}</strong>
@@ -464,7 +460,7 @@
                     }}</span>
                     <span>{{ signalSummary(result) }}</span>
                   </footer>
-                </article>
+                </button>
               </div>
               <div v-else class="pane-empty">
                 <Search :size="30" />
@@ -531,6 +527,7 @@
           silent
           allow-unknown-extensions
           :accept="KNOWLEDGE_DROP_ACCEPT"
+          :drag-overlay-text="`松开以导入到「${store.activeLibrary.name}」`"
           :disabled="importBusy"
           @drop="runImportPaths"
           @error="handleDropError"
@@ -546,6 +543,46 @@
         >
       </div>
     </section>
+
+    <BaseDialog
+      v-model="creating"
+      title="新建资料库"
+      width="420px"
+      max-width="calc(100vw - 24px)"
+      close-on-backdrop-click
+      show-close-button
+      :loading="creatingLibrary"
+      @close="cancelCreate"
+    >
+      <template #content>
+        <form class="create-library-dialog" @submit.prevent="createLibrary">
+          <el-input
+            v-model="newLibraryName"
+            placeholder="资料库名称"
+            maxlength="64"
+            autofocus
+          />
+          <el-input
+            v-model="newLibraryDescription"
+            type="textarea"
+            :rows="3"
+            maxlength="160"
+            show-word-limit
+            placeholder="用途说明，可选"
+          />
+          <div class="create-actions">
+            <el-button @click="cancelCreate">取消</el-button>
+            <el-button
+              type="primary"
+              :loading="creatingLibrary"
+              native-type="submit"
+            >
+              创建
+            </el-button>
+          </div>
+        </form>
+      </template>
+    </BaseDialog>
 
     <KnowledgeVectorDialog
       v-if="store.activeLibrary"
@@ -581,6 +618,7 @@ import {
 } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import BaseDialog from "@/components/common/BaseDialog.vue";
 import DropZone from "@/components/common/DropZone.vue";
 import KnowledgeVectorDialog from "../components/KnowledgeVectorDialog.vue";
 import {
@@ -1056,6 +1094,21 @@ function formatDate(timestamp: number) {
   background: var(--sidebar-bg);
 }
 
+.compact-library-toolbar {
+  display: none;
+  min-height: 48px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: var(--border-width) solid var(--border-color);
+  background: var(--sidebar-bg);
+}
+
+.compact-library-toolbar :deep(.el-select) {
+  min-width: 0;
+  flex: 1;
+}
+
 .sidebar-header,
 .content-header,
 .detail-header,
@@ -1107,11 +1160,9 @@ function formatDate(timestamp: number) {
   font-size: 12px;
 }
 
-.create-library {
+.create-library-dialog {
   display: grid;
-  gap: 8px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--el-border-color-light);
+  gap: 12px;
 }
 
 .create-actions {
@@ -1196,6 +1247,16 @@ function formatDate(timestamp: number) {
   color: var(--el-text-color-secondary);
   font-size: 12px;
   line-height: 18px;
+}
+
+.library-row:focus-visible,
+.document-row:focus-visible,
+.result-row:focus-visible,
+.comparison-runs button:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: -2px;
 }
 
 .library-description {
@@ -1457,11 +1518,17 @@ function formatDate(timestamp: number) {
 .document-row {
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr) 16px;
+  width: 100%;
   min-height: 76px;
   align-items: center;
   gap: 10px;
   padding: 10px 14px 10px 18px;
+  border: 0;
   border-bottom: 1px solid var(--el-border-color-lighter);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  background: transparent;
   cursor: pointer;
 }
 
@@ -1681,9 +1748,15 @@ function formatDate(timestamp: number) {
 
 .result-row {
   display: grid;
+  width: 100%;
   gap: 8px;
   padding: 13px 16px 14px 18px;
+  border: 0;
   border-bottom: 1px solid var(--el-border-color-lighter);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  background: transparent;
   cursor: pointer;
 }
 
@@ -1743,13 +1816,9 @@ function formatDate(timestamp: number) {
   text-align: center;
 }
 
-@media (max-width: 980px) {
+@container knowledge-shell (max-width: 980px) {
   .knowledge-workbench {
     grid-template-columns: 220px minmax(0, 1fr);
-  }
-
-  .header-actions :deep(.el-button span) {
-    display: none;
   }
 
   .master-detail {
@@ -1765,9 +1834,17 @@ function formatDate(timestamp: number) {
   }
 }
 
-@media (max-width: 760px) {
+@container knowledge-shell (max-width: 760px) {
   .knowledge-workbench {
-    grid-template-columns: 190px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .library-sidebar {
+    display: none;
+  }
+
+  .compact-library-toolbar {
+    display: flex;
   }
 
   .content-header {
@@ -1791,6 +1868,36 @@ function formatDate(timestamp: number) {
   .master-pane {
     border-right: 0;
     border-bottom: 1px solid var(--el-border-color-light);
+  }
+}
+
+@container knowledge-shell (max-width: 520px) {
+  .content-header {
+    min-height: auto;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .header-actions :deep(.el-button) {
+    width: 100%;
+    margin: 0;
+  }
+
+  .search-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .search-toolbar > :deep(.el-button) {
+    grid-column: auto;
+  }
+
+  .strategy-select {
+    width: 100%;
   }
 }
 </style>

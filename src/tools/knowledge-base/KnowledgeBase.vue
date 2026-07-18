@@ -31,6 +31,8 @@ const viewOptions = [
 
 <style scoped>
 .knowledge-shell {
+  container-name: knowledge-shell;
+  container-type: inline-size;
   display: grid;
   grid-template-rows: 48px minmax(0, 1fr);
   width: 100%;
@@ -59,7 +61,7 @@ const viewOptions = [
   font-weight: 650;
 }
 
-@media (max-width: 560px) {
+@container knowledge-shell (max-width: 560px) {
   .knowledge-navigation {
     padding-inline: 10px;
   }

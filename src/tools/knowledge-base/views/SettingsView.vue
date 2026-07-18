@@ -7,7 +7,7 @@
             <h2>运行设置</h2>
             <p>新任务的并发、重试和文件资源上限</p>
           </div>
-          <el-button :icon="RotateCcw" @click="resetRuntimeSettings">重置</el-button>
+          <el-button data-testid="reset-runtime-settings" :icon="RotateCcw" @click="resetRuntimeSettings">重置</el-button>
         </header>
         <div class="settings-grid">
           <label>
@@ -20,7 +20,7 @@
           </label>
           <label>
             <span>Embedding 批次</span>
-            <el-input-number v-model="runtimeForm.embeddingBatchSize" :min="1" :max="256" />
+            <el-input-number data-testid="runtime-embedding-batch" v-model="runtimeForm.embeddingBatchSize" :min="1" :max="256" />
           </label>
           <label>
             <span>摄取 worker</span>
@@ -51,7 +51,7 @@
             <h2>资料库设置</h2>
             <p>资料库配置是快照，修改后通过单库事务重建</p>
           </div>
-          <el-select v-model="selectedLibraryId" placeholder="选择资料库" @change="selectSettingsLibrary">
+          <el-select data-testid="settings-library-select" v-model="selectedLibraryId" placeholder="选择资料库" @change="selectSettingsLibrary">
             <el-option v-for="library in store.libraries" :key="library.id" :label="library.name" :value="library.id" />
           </el-select>
         </header>
@@ -60,7 +60,7 @@
           <div class="settings-grid">
             <label class="wide-field">
               <span>名称</span>
-              <el-input v-model="libraryName" maxlength="64" />
+              <el-input data-testid="library-name" v-model="libraryName" maxlength="64" />
             </label>
             <label class="wide-field">
               <span>说明</span>
@@ -118,7 +118,9 @@
           </div>
           <div class="header-actions">
             <el-button :icon="FolderPlus" :loading="queueProcessing" @click="addDirectory">添加目录</el-button>
-            <el-button :icon="RefreshCw" :loading="diagnosticsLoading" circle aria-label="刷新来源与任务" @click="refreshDiagnostics" />
+            <el-tooltip content="刷新来源与任务">
+              <el-button :icon="RefreshCw" :loading="diagnosticsLoading" circle aria-label="刷新来源与任务" @click="refreshDiagnostics" />
+            </el-tooltip>
           </div>
         </header>
         <div class="source-list">
@@ -365,6 +367,6 @@ header p { margin: 4px 0 0; font-size: 12px; color: var(--el-text-color-secondar
 .descriptor-details summary { cursor: pointer; }
 .descriptor-details pre { max-height: 220px; margin: 8px 0 0; padding: 10px; overflow: auto; border: var(--border-width) solid var(--border-color); border-radius: 6px; color: var(--el-text-color-regular); background: var(--input-bg); font-size: 11px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .empty-state { padding: 24px; text-align: center; color: var(--el-text-color-secondary); }
-@media (max-width: 760px) { .settings-grid { grid-template-columns: 1fr; } .diagnostic-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 520px) { .settings-content { width: calc(100% - 20px); } .settings-section > header { align-items: stretch; flex-direction: column; } .settings-grid label { grid-template-columns: 1fr; gap: 6px; } }
+@container knowledge-shell (max-width: 760px) { .settings-grid { grid-template-columns: 1fr; } .diagnostic-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container knowledge-shell (max-width: 520px) { .settings-content { width: calc(100% - 20px); } .settings-section > header { align-items: stretch; flex-direction: column; } .settings-grid label { grid-template-columns: 1fr; gap: 6px; } }
 </style>

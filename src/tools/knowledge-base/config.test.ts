@@ -33,6 +33,26 @@ describe("Knowledge configuration", () => {
     expect(legacy).toEqual({});
   });
 
+  it("deep-merges partial nested library configuration without sharing defaults", () => {
+    const defaults = createDefaultKnowledgeLibraryConfig();
+    const config = normalizeKnowledgeLibraryConfig(
+      JSON.parse(
+        '{"chunking":{"targetChars":1800},"embedding":{"routeKey":"profile-a:model-a"}}'
+      )
+    );
+
+    expect(config.chunking).toEqual({
+      ...defaults.chunking,
+      targetChars: 1800,
+    });
+    expect(config.embedding).toEqual({
+      ...defaults.embedding,
+      routeKey: "profile-a:model-a",
+    });
+    config.chunking.targetChars = 2200;
+    expect(defaults.chunking.targetChars).not.toBe(2200);
+  });
+
   it("rejects invalid chunk and semantic contracts", () => {
     const overlap = createDefaultKnowledgeLibraryConfig();
     overlap.chunking.overlapChars = overlap.chunking.targetChars;

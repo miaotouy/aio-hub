@@ -74,10 +74,15 @@
           <BookOpenText :size="18" />
           <span class="library-copy">
             <strong>{{ library.name }}</strong>
-            <small
-              >{{ library.documentCount }} 文档 /
-              {{ library.chunkCount }} 分块</small
-            >
+            <small class="library-description">{{ library.description || "本地文档资料库" }}</small>
+            <small>{{ library.sourceCount }} 来源 · {{ library.documentCount }} 文档 · {{ library.chunkCount }} 分块</small>
+            <small :class="{ 'has-failures': library.failedTaskCount > 0 }">
+              摄取 {{ library.pendingTaskCount ? `${library.pendingTaskCount} 处理中` : "就绪" }} ·
+              关键词 {{ library.keywordIndexStatus === "ready" ? "就绪" : "不完整" }} ·
+              语义 {{ semanticStatusLabel(library.semanticIndexStatus) }}
+              <template v-if="library.failedTaskCount"> · {{ library.failedTaskCount }} 失败</template>
+            </small>
+            <small>{{ formatDate(library.updatedAt) }}</small>
           </span>
           <ChevronRight :size="16" />
         </button>
@@ -279,28 +284,42 @@
                       {{ store.selectedDocument.sourcePath }}
                     </p>
                   </div>
-                  <el-tooltip content="删除文档" placement="left">
-                    <el-button
-                      class="danger-action"
-                      :icon="Trash2"
-                      text
-                      circle
-                      aria-label="删除文档"
-                      @click="
-                        deleteDocument(
-                          store.selectedDocument.id,
-                          store.selectedDocument.title
-                        )
-                      "
-                    />
-                  </el-tooltip>
+                  <div class="detail-actions">
+                    <el-tooltip content="在资源管理器中显示" placement="left">
+                      <el-button :icon="FolderOpen" text circle aria-label="打开来源位置" @click="openSourcePath(store.selectedDocument.sourcePath)" />
+                    </el-tooltip>
+                    <el-tooltip content="重建资料库索引" placement="left">
+                      <el-button :icon="RefreshCw" text circle aria-label="重建资料库索引" @click="rebuildLibrary" />
+                    </el-tooltip>
+                    <el-tooltip content="删除文档" placement="left">
+                      <el-button
+                        class="danger-action"
+                        :icon="Trash2"
+                        text
+                        circle
+                        aria-label="删除文档"
+                        @click="deleteDocument(store.selectedDocument.id, store.selectedDocument.title)"
+                      />
+                    </el-tooltip>
+                  </div>
                 </header>
                 <div class="document-meta">
                   <span>{{ store.selectedDocument.mimeType }}</span>
                   <span>{{ formatSize(store.selectedDocument.size) }}</span>
+                  <span>版本 {{ store.selectedDocument.version }}</span>
+                  <span>向量 {{ store.selectedDocument.vectorizedChunkCount }}/{{ store.selectedDocument.chunkCount }}</span>
                   <span>{{
                     formatDate(store.selectedDocument.updatedAt)
                   }}</span>
+                </div>
+                <div class="document-diagnostics">
+                  <span>SHA-256 <code>{{ compactChecksum(store.selectedDocument.sourceChecksum) }}</code></span>
+                  <span>Parser <code>{{ store.selectedDocument.parserVersion || "legacy" }}</code></span>
+                  <span>状态 <code>{{ store.selectedDocument.status }}</code></span>
+                </div>
+                <div v-if="store.selectedDocument.lastError" class="document-error" role="status">
+                  <AlertTriangle :size="16" />
+                  <span>{{ store.selectedDocument.lastError }}</span>
                 </div>
                 <div
                   v-if="store.chunksLoading"
@@ -348,6 +367,18 @@
               :prefix-icon="Search"
             />
             <el-select
+              v-model="searchLibraryIds"
+              class="library-scope-select"
+              multiple
+              collapse-tags
+              collapse-tags-tooltip
+              aria-label="检索资料库范围"
+              placeholder="选择资料库"
+            >
+              <el-option v-for="library in store.libraries" :key="library.id" :label="library.name" :value="library.id" />
+            </el-select>
+            <el-segmented v-model="searchRunMode" :options="searchRunModeOptions" aria-label="检索运行模式" />
+            <el-select
               v-model="strategy"
               class="strategy-select"
               aria-label="检索策略"
@@ -377,6 +408,29 @@
           <div v-if="!semanticAvailable" class="search-notice">
             当前可使用关键词检索。构建语义索引后可启用混合与语义策略。
           </div>
+          <div v-if="store.searchTraces.length" class="search-traces" aria-label="检索策略执行明细">
+            <span v-for="trace in store.searchTraces" :key="`${trace.libraryIds.join(':')}:${trace.actualStrategy}`">
+              {{ traceLibraryNames(trace.libraryIds) }} · {{ strategyLabel(trace.requestedStrategy) }} → {{ strategyLabel(trace.actualStrategy) }}
+              <template v-if="trace.degradationReason"> · {{ trace.degradationReason }}</template>
+            </span>
+          </div>
+          <div v-if="comparisonRuns.length" class="comparison-runs" aria-label="检索策略对比">
+            <button
+              v-for="run in comparisonRuns"
+              :key="run.strategy"
+              type="button"
+              :class="{ active: strategy === run.strategy }"
+              @click="selectComparisonRun(run)"
+            >
+              <strong>{{ strategyLabel(run.strategy) }}</strong>
+              <span v-if="run.error">{{ run.error }}</span>
+              <template v-else>
+                <span>{{ run.results.length }} 结果</span>
+                <span>首项 {{ run.results[0] ? formatScore(run.results[0].score) : "-" }}</span>
+                <span>{{ [...new Set(run.traces.map((trace) => strategyLabel(trace.actualStrategy)))].join(" + ") }}</span>
+              </template>
+            </button>
+          </div>
 
           <div class="master-detail search-results-layout">
             <section class="master-pane" aria-label="检索结果">
@@ -400,7 +454,7 @@
                   @keydown.enter="store.selectResult(result.chunkId)"
                 >
                   <header>
-                    <strong>{{ result.title }}</strong>
+                    <strong>{{ result.libraryName }} · {{ result.title }}</strong>
                     <span>{{ formatScore(result.score) }}</span>
                   </header>
                   <p>{{ result.content }}</p>
@@ -415,7 +469,7 @@
               <div v-else class="pane-empty">
                 <Search :size="30" />
                 <strong>{{
-                  hasSearched ? "没有找到相关内容" : "检索当前资料库"
+                  hasSearched ? "没有找到相关内容" : "检索所选资料库"
                 }}</strong>
                 <span>{{
                   hasSearched
@@ -507,6 +561,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { ElMessageBox } from "element-plus";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   AlertTriangle,
   Binary,
@@ -515,6 +570,7 @@ import {
   CircleHelp,
   FileText,
   FileUp,
+  FolderOpen,
   MoreHorizontal,
   PanelRight,
   Plus,
@@ -535,16 +591,25 @@ import {
 } from "../formats";
 import { importPaths, selectImportPaths } from "../importService";
 import { processKnowledgeImportQueue } from "../ingestQueue";
+import { searchKnowledgeDetailed } from "../service";
 import { useKnowledgeStore } from "../store";
 import type {
   KnowledgeImportFailure,
   KnowledgeImportStage,
   KnowledgeResult,
+  KnowledgeSearchTrace,
   KnowledgeSearchStrategy,
   KnowledgeSignalType,
 } from "../types";
 
 type WorkspaceMode = "documents" | "search";
+type SearchRunMode = "single" | "compare";
+interface ComparisonRun {
+  strategy: KnowledgeSearchStrategy;
+  results: KnowledgeResult[];
+  traces: KnowledgeSearchTrace[];
+  error?: string;
+}
 
 const store = useKnowledgeStore();
 const errorHandler = createModuleErrorHandler("knowledge-base/view");
@@ -557,6 +622,9 @@ const documentFilter = ref("");
 const workspaceMode = ref<WorkspaceMode>("documents");
 const query = ref("");
 const strategy = ref<KnowledgeSearchStrategy>("auto");
+const searchLibraryIds = ref<string[]>([]);
+const searchRunMode = ref<SearchRunMode>("single");
+const comparisonRuns = ref<ComparisonRun[]>([]);
 const hasSearched = ref(false);
 const vectorDialogVisible = ref(false);
 const preparingImport = ref(false);
@@ -567,6 +635,10 @@ const importFailures = ref<KnowledgeImportFailure[]>([]);
 const modeOptions = [
   { label: "文档", value: "documents" },
   { label: "检索测试", value: "search" },
+];
+const searchRunModeOptions = [
+  { label: "单次", value: "single" },
+  { label: "对比", value: "compare" },
 ];
 const importStageLabels: Record<KnowledgeImportStage, string> = {
   validation: "格式校验",
@@ -600,9 +672,18 @@ const filteredDocuments = computed(() => {
   );
 });
 
-const semanticAvailable = computed(
-  () => (store.indexStatus?.vectorizedChunks ?? 0) > 0
-);
+const semanticAvailable = computed(() => {
+  if (!searchLibraryIds.value.length) {
+    return (store.indexStatus?.vectorizedChunks ?? 0) > 0;
+  }
+  return searchLibraryIds.value.every((libraryId) =>
+    store.libraries.some(
+      (library) =>
+        library.id === libraryId &&
+        library.semanticIndexStatus !== "notBuilt"
+    )
+  );
+});
 const indexTone = computed(() => {
   if (!store.indexStatus?.embeddingModelId) return "keyword";
   return store.indexStatus.pendingChunks > 0 ? "partial" : "ready";
@@ -629,7 +710,12 @@ const importActionLabel = computed(() => {
   return "导入文档";
 });
 
-onMounted(() => store.initialize());
+onMounted(async () => {
+  await store.initialize();
+  if (!searchLibraryIds.value.length && store.activeLibraryId) {
+    searchLibraryIds.value = [store.activeLibraryId];
+  }
+});
 
 watch(
   () => store.activeLibraryId,
@@ -828,15 +914,92 @@ async function runSearch() {
     customMessage.warning("请输入检索内容");
     return;
   }
+  if (!searchLibraryIds.value.length) {
+    customMessage.warning("请至少选择一个资料库");
+    return;
+  }
   hasSearched.value = true;
-  await store.search(query.value, strategy.value);
+  comparisonRuns.value = [];
+  if (searchRunMode.value === "single") {
+    await store.search(query.value, strategy.value, 12, searchLibraryIds.value);
+    return;
+  }
+  const strategies: KnowledgeSearchStrategy[] = semanticAvailable.value
+    ? ["keyword", "auto", "hybrid", "semantic"]
+    : ["keyword", "auto"];
+  store.searching = true;
+  try {
+    comparisonRuns.value = await Promise.all(
+      strategies.map(async (candidate): Promise<ComparisonRun> => {
+        try {
+          const execution = await searchKnowledgeDetailed({
+            query: query.value.trim(),
+            libraryIds: searchLibraryIds.value,
+            strategy: candidate,
+            limit: 12,
+            minScore: 0,
+          });
+          return { strategy: candidate, ...execution };
+        } catch (error) {
+          return {
+            strategy: candidate,
+            results: [],
+            traces: [],
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      })
+    );
+    const preferred = comparisonRuns.value.find((run) => run.strategy === "auto")!;
+    selectComparisonRun(preferred);
+  } finally {
+    store.searching = false;
+  }
+}
+
+function selectComparisonRun(run: ComparisonRun) {
+  strategy.value = run.strategy;
+  store.results = run.results;
+  store.searchTraces = run.traces;
+  store.selectedResultId = run.results[0]?.chunkId || null;
 }
 
 async function showResultDocument() {
   const result = store.selectedResult;
   if (!result) return;
+  if (store.activeLibraryId !== result.libraryId) {
+    await store.selectLibrary(result.libraryId);
+  }
   workspaceMode.value = "documents";
   await openDocument(result.documentId);
+}
+
+async function openSourcePath(sourcePath: string) {
+  try {
+    await revealItemInDir(sourcePath);
+  } catch (error) {
+    errorHandler.error(error, "打开来源位置失败");
+  }
+}
+
+function compactChecksum(checksum: string) {
+  return checksum ? `${checksum.slice(0, 12)}…${checksum.slice(-8)}` : "-";
+}
+
+function semanticStatusLabel(status: "ready" | "partial" | "notBuilt") {
+  if (status === "ready") return "就绪";
+  if (status === "partial") return "不完整";
+  return "未建立";
+}
+
+function strategyLabel(value: KnowledgeSearchStrategy) {
+  return { auto: "自动", keyword: "关键词", semantic: "语义", hybrid: "混合" }[value];
+}
+
+function traceLibraryNames(libraryIds: string[]) {
+  return libraryIds
+    .map((libraryId) => store.libraries.find((library) => library.id === libraryId)?.name || libraryId)
+    .join("、");
 }
 
 async function handleVectorCompleted() {
@@ -971,7 +1134,7 @@ function formatDate(timestamp: number) {
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr) 16px;
   width: 100%;
-  min-height: 58px;
+  min-height: 88px;
   align-items: center;
   gap: 9px;
   padding: 8px 10px;
@@ -1033,6 +1196,14 @@ function formatDate(timestamp: number) {
   color: var(--el-text-color-secondary);
   font-size: 12px;
   line-height: 18px;
+}
+
+.library-description {
+  color: var(--el-text-color-regular) !important;
+}
+
+.has-failures {
+  color: var(--el-color-danger) !important;
 }
 
 .sidebar-empty,
@@ -1309,6 +1480,7 @@ function formatDate(timestamp: number) {
 }
 
 .document-meta,
+.document-diagnostics,
 .signal-strip {
   flex-wrap: wrap;
   gap: 8px 16px;
@@ -1367,6 +1539,36 @@ function formatDate(timestamp: number) {
   line-height: 1.6;
 }
 
+.detail-actions {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+
+.document-diagnostics {
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  min-height: 36px;
+  padding: 7px 18px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+}
+
+.document-diagnostics code {
+  color: var(--el-text-color-regular);
+}
+
+.document-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  color: var(--el-color-danger);
+  font-size: 12px;
+  background: var(--el-color-danger-light-9);
+}
+
 .knowledge-empty-drop {
   display: grid;
   min-height: 100%;
@@ -1404,10 +1606,65 @@ function formatDate(timestamp: number) {
 
 .search-toolbar {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) 112px auto;
+  grid-template-columns: minmax(180px, 1fr) minmax(150px, 220px) auto 112px auto;
   gap: 8px;
   padding: 12px 18px;
   border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.library-scope-select {
+  width: 100%;
+}
+
+.search-traces {
+  display: grid;
+  gap: 4px;
+  padding: 7px 18px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  background: var(--input-bg);
+}
+
+.comparison-runs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  background: var(--border-color);
+}
+
+.comparison-runs button {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  padding: 9px 12px;
+  border: 0;
+  color: var(--el-text-color-secondary);
+  text-align: left;
+  background: var(--input-bg);
+  cursor: pointer;
+}
+
+.comparison-runs button:hover,
+.comparison-runs button.active {
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+}
+
+.comparison-runs strong,
+.comparison-runs span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comparison-runs strong {
+  font-size: 12px;
+}
+
+.comparison-runs span {
+  font-size: 11px;
 }
 
 .strategy-select {
@@ -1498,6 +1755,14 @@ function formatDate(timestamp: number) {
   .master-detail {
     grid-template-columns: minmax(260px, 0.46fr) minmax(300px, 0.54fr);
   }
+
+  .search-toolbar {
+    grid-template-columns: minmax(180px, 1fr) minmax(150px, 220px) auto;
+  }
+
+  .search-toolbar > :deep(.el-button) {
+    grid-column: -2 / -1;
+  }
 }
 
 @media (max-width: 760px) {
@@ -1517,6 +1782,10 @@ function formatDate(timestamp: number) {
   .master-detail {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(200px, 0.45fr) minmax(240px, 0.55fr);
+  }
+
+  .comparison-runs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .master-pane {

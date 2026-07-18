@@ -152,6 +152,15 @@ pub async fn knowledge_cancel_ingest_task(
 }
 
 #[tauri::command]
+pub async fn knowledge_retry_ingest_task(
+    state: State<'_, KnowledgeState>,
+    library_id: String,
+    task_id: String,
+) -> Result<KnowledgeIngestTask, String> {
+    state.repository()?.retry_ingest_task(&library_id, &task_id)
+}
+
+#[tauri::command]
 pub async fn knowledge_add_directory_source(
     state: State<'_, KnowledgeState>,
     request: KnowledgeDirectorySourceRequest,

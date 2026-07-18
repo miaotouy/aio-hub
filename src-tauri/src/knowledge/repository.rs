@@ -28,6 +28,17 @@ struct LibraryMetadata {
     updated_at: i64,
 }
 
+#[derive(Debug, Clone, Default)]
+struct LibraryCounts {
+    documents: usize,
+    chunks: usize,
+    sources: usize,
+    pending_tasks: usize,
+    failed_tasks: usize,
+    keyword_chunks: usize,
+    vectorized_chunks: usize,
+}
+
 impl KnowledgeRepository {
     pub fn new(app_data_dir: impl AsRef<Path>) -> Self {
         let root = app_data_dir.as_ref().join("knowledge");
@@ -181,9 +192,25 @@ impl KnowledgeRepository {
                 let (id, name, description, created_at, manifest_updated_at) =
                     row.map_err(|error| format!("读取 Knowledge library 失败: {error}"))?;
                 let metadata = self.read_library_metadata(&id)?;
-                let (document_count, chunk_count) = self.library_counts(&id)?;
+                let counts = self.library_counts(
+                    &id,
+                    &metadata.active_embedding_space_id,
+                    metadata.dimension,
+                )?;
                 let descriptor =
                     self.embedding_space_descriptor(&id, &metadata.active_embedding_space_id)?;
+                let keyword_index_status = if counts.keyword_chunks == counts.chunks {
+                    "ready"
+                } else {
+                    "partial"
+                };
+                let semantic_index_status = if metadata.active_embedding_space_id.is_empty() {
+                    "notBuilt"
+                } else if counts.vectorized_chunks == counts.chunks {
+                    "ready"
+                } else {
+                    "partial"
+                };
                 Ok(KnowledgeLibrary {
                     id,
                     name,
@@ -194,8 +221,13 @@ impl KnowledgeRepository {
                     embedding_space_descriptor: descriptor,
                     dimension: metadata.dimension,
                     config: metadata.config,
-                    document_count,
-                    chunk_count,
+                    document_count: counts.documents,
+                    chunk_count: counts.chunks,
+                    source_count: counts.sources,
+                    pending_task_count: counts.pending_tasks,
+                    failed_task_count: counts.failed_tasks,
+                    keyword_index_status: keyword_index_status.to_string(),
+                    semantic_index_status: semantic_index_status.to_string(),
                     created_at,
                     updated_at: manifest_updated_at.max(metadata.updated_at),
                 })
@@ -683,6 +715,58 @@ impl KnowledgeRepository {
             .commit()
             .map_err(|error| format!("提交 Knowledge ingest cancel 失败: {error}"))?;
         Ok(())
+    }
+
+    pub fn retry_ingest_task(
+        &self,
+        library_id: &str,
+        task_id: &str,
+    ) -> Result<KnowledgeIngestTask, String> {
+        let path = self.resolve_library_path(library_id)?;
+        let mut connection = self.open_library(&path)?;
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| format!("开启 Knowledge ingest retry 事务失败: {error}"))?;
+        let timestamp = now();
+        let changed = transaction
+            .execute(
+                "UPDATE knowledge_ingest_tasks
+                 SET status = 'pending', attempt_count = 0, available_at = ?2,
+                     lease_token = NULL, lease_expires_at = NULL,
+                     cancel_requested = 0, last_error = NULL, updated_at = ?2
+                 WHERE id = ?1 AND status = 'failed'",
+                params![task_id, timestamp],
+            )
+            .map_err(|error| format!("重试 Knowledge ingest task 失败: {error}"))?;
+        if changed == 0 {
+            return Err("Knowledge ingest task 不存在或当前不可重试".to_string());
+        }
+        transaction
+            .execute(
+                "UPDATE knowledge_source_files
+                 SET status = 'pending', last_error = NULL, updated_at = ?2
+                 WHERE id = (
+                   SELECT source_file_id FROM knowledge_ingest_tasks WHERE id = ?1
+                 )",
+                params![task_id, timestamp],
+            )
+            .map_err(|error| format!("更新 Knowledge source file 重试状态失败: {error}"))?;
+        let task = transaction
+            .query_row(
+                "SELECT id, source_id, source_file_id, source_path, operation,
+                        expected_checksum, file_size, modified_at, parser_version,
+                        status, attempt_count, max_attempts, available_at,
+                        lease_token, lease_expires_at, cancel_requested, last_error,
+                        created_at, updated_at
+                 FROM knowledge_ingest_tasks WHERE id = ?1",
+                [task_id],
+                |row| ingest_task_from_row(library_id, row),
+            )
+            .map_err(|error| format!("读取重试后的 Knowledge ingest task 失败: {error}"))?;
+        transaction
+            .commit()
+            .map_err(|error| format!("提交 Knowledge ingest retry 失败: {error}"))?;
+        Ok(task)
     }
 
     pub fn complete_ingest_task(
@@ -1309,16 +1393,29 @@ impl KnowledgeRepository {
     pub fn list_documents(&self, library_id: &str) -> Result<Vec<KnowledgeDocument>, String> {
         let path = self.resolve_library_path(library_id)?;
         let connection = self.open_library(&path)?;
+        let active_space_id = connection
+            .query_row(
+                "SELECT active_embedding_space_id FROM library_metadata WHERE id = 1",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .map_err(|error| format!("读取 Knowledge document 活动空间失败: {error}"))?;
         let mut statement = connection
             .prepare(
                 "SELECT d.id, d.source_path, d.title, d.checksum, d.mime_type, d.size,
-                        d.status, d.created_at, d.updated_at, COUNT(c.id)
-                 FROM documents d LEFT JOIN chunks c ON c.document_id = d.id
+                        d.status, d.created_at, d.updated_at, COUNT(DISTINCT c.id),
+                        COUNT(DISTINCT v.chunk_id), COALESCE(f.source_id, ''),
+                        d.source_file_id, d.source_checksum, d.parser_version,
+                        d.version, COALESCE(d.last_error, f.last_error)
+                 FROM documents d
+                 LEFT JOIN chunks c ON c.document_id = d.id
+                 LEFT JOIN chunk_vectors v ON v.chunk_id = c.id AND v.space_id = ?1
+                 LEFT JOIN knowledge_source_files f ON f.id = d.source_file_id
                  GROUP BY d.id ORDER BY d.updated_at DESC, d.id",
             )
             .map_err(|error| format!("准备 Knowledge document 列表失败: {error}"))?;
         let rows = statement
-            .query_map([], |row| {
+            .query_map([active_space_id], |row| {
                 Ok(KnowledgeDocument {
                     id: row.get(0)?,
                     library_id: library_id.to_string(),
@@ -1331,6 +1428,13 @@ impl KnowledgeRepository {
                     created_at: row.get(7)?,
                     updated_at: row.get(8)?,
                     chunk_count: row.get::<_, i64>(9)?.max(0) as usize,
+                    vectorized_chunk_count: row.get::<_, i64>(10)?.max(0) as usize,
+                    source_id: row.get(11)?,
+                    source_file_id: row.get(12)?,
+                    source_checksum: row.get(13)?,
+                    parser_version: row.get(14)?,
+                    version: row.get::<_, i64>(15)?.max(0) as usize,
+                    last_error: row.get(16)?,
                 })
             })
             .map_err(|error| format!("查询 Knowledge document 失败: {error}"))?;
@@ -1686,12 +1790,48 @@ impl KnowledgeRepository {
                     .map_err(|error| format!("读取 Knowledge vector 覆盖状态失败: {error}"))?
                     .max(0) as usize
             };
+        let keyword_indexed_chunks = connection
+            .query_row("SELECT COUNT(*) FROM chunks_fts", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .map_err(|error| format!("读取 Knowledge FTS 覆盖状态失败: {error}"))?
+            .max(0) as usize;
+        let semantic_fallback_chunks = connection
+            .query_row(
+                "SELECT COUNT(*) FROM knowledge_semantic_fallback_chunks",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .map_err(|error| format!("读取 Knowledge 语义回退状态失败: {error}"))?
+            .max(0) as usize;
+        let (source_count, pending_task_count, failed_task_count) = connection
+            .query_row(
+                "SELECT
+                   (SELECT COUNT(*) FROM knowledge_sources),
+                   (SELECT COUNT(*) FROM knowledge_ingest_tasks
+                    WHERE status IN ('pending', 'processing', 'retry')),
+                   (SELECT COUNT(*) FROM knowledge_ingest_tasks WHERE status = 'failed')",
+                [],
+                |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?.max(0) as usize,
+                        row.get::<_, i64>(1)?.max(0) as usize,
+                        row.get::<_, i64>(2)?.max(0) as usize,
+                    ))
+                },
+            )
+            .map_err(|error| format!("读取 Knowledge 来源和队列状态失败: {error}"))?;
 
         Ok(KnowledgeIndexStatus {
             library_id: library_id.to_string(),
             total_chunks,
             vectorized_chunks,
             pending_chunks: total_chunks.saturating_sub(vectorized_chunks),
+            keyword_indexed_chunks,
+            semantic_fallback_chunks,
+            source_count,
+            pending_task_count,
+            failed_task_count,
             embedding_model_id: library.embedding_model_id,
             active_embedding_space_id: library.active_embedding_space_id,
             embedding_route_key: library.embedding_route_key,
@@ -1858,23 +1998,44 @@ impl KnowledgeRepository {
             .find(|document| document.id == document_id))
     }
 
-    fn library_counts(&self, id: &str) -> Result<(usize, usize), String> {
+    fn library_counts(
+        &self,
+        id: &str,
+        space_id: &str,
+        dimension: usize,
+    ) -> Result<LibraryCounts, String> {
         let path = self.library_path(id);
         if !path.exists() {
-            return Ok((0, 0));
+            return Ok(LibraryCounts::default());
         }
         let connection = self.open_library(&path)?;
-        let documents = connection
-            .query_row("SELECT COUNT(*) FROM documents", [], |row| {
-                row.get::<_, i64>(0)
-            })
-            .map_err(|error| format!("统计 Knowledge document 失败: {error}"))?;
-        let chunks = connection
-            .query_row("SELECT COUNT(*) FROM chunks", [], |row| {
-                row.get::<_, i64>(0)
-            })
-            .map_err(|error| format!("统计 Knowledge chunk 失败: {error}"))?;
-        Ok((documents.max(0) as usize, chunks.max(0) as usize))
+        connection
+            .query_row(
+                "SELECT
+                   (SELECT COUNT(*) FROM documents),
+                   (SELECT COUNT(*) FROM chunks),
+                   (SELECT COUNT(*) FROM knowledge_sources),
+                   (SELECT COUNT(*) FROM knowledge_ingest_tasks
+                    WHERE status IN ('pending', 'processing', 'retry')),
+                   (SELECT COUNT(*) FROM knowledge_ingest_tasks WHERE status = 'failed'),
+                   (SELECT COUNT(*) FROM chunks_fts),
+                   (SELECT COUNT(*) FROM chunk_vectors v
+                    JOIN chunks c ON c.id = v.chunk_id
+                    WHERE v.space_id = ?1 AND v.dimension = ?2)",
+                params![space_id, dimension as i64],
+                |row| {
+                    Ok(LibraryCounts {
+                        documents: row.get::<_, i64>(0)?.max(0) as usize,
+                        chunks: row.get::<_, i64>(1)?.max(0) as usize,
+                        sources: row.get::<_, i64>(2)?.max(0) as usize,
+                        pending_tasks: row.get::<_, i64>(3)?.max(0) as usize,
+                        failed_tasks: row.get::<_, i64>(4)?.max(0) as usize,
+                        keyword_chunks: row.get::<_, i64>(5)?.max(0) as usize,
+                        vectorized_chunks: row.get::<_, i64>(6)?.max(0) as usize,
+                    })
+                },
+            )
+            .map_err(|error| format!("统计 Knowledge library 摘要失败: {error}"))
     }
 
     fn touch_library(&self, id: &str) -> Result<(), String> {
@@ -3821,6 +3982,16 @@ mod tests {
         let document =
             complete_claimed_task(&repository, &task, "persistent queue content").unwrap();
         assert_eq!(document.status, "ready");
+        assert_eq!(document.source_checksum, task.expected_checksum);
+        assert_eq!(document.parser_version, "test-parser-v1");
+        assert_eq!(document.version, 1);
+        assert_eq!(document.vectorized_chunk_count, 0);
+        let summary = repository.get_library(&library.id).unwrap().unwrap();
+        assert_eq!(summary.source_count, 1);
+        assert_eq!(summary.pending_task_count, 0);
+        assert_eq!(summary.failed_task_count, 0);
+        assert_eq!(summary.keyword_index_status, "ready");
+        assert_eq!(summary.semantic_index_status, "notBuilt");
         assert_eq!(
             repository.list_ingest_tasks(&library.id, 10).unwrap()[0].status,
             KnowledgeIngestTaskStatus::Completed
@@ -3893,6 +4064,14 @@ mod tests {
             })
             .unwrap();
         assert_eq!(failed.status, KnowledgeIngestTaskStatus::Failed);
+        let retried = repository
+            .retry_ingest_task(&library.id, &failed.id)
+            .unwrap();
+        assert_eq!(retried.status, KnowledgeIngestTaskStatus::Pending);
+        assert_eq!(retried.attempt_count, 0);
+        repository
+            .cancel_ingest_task(&library.id, &retried.id)
+            .unwrap();
 
         let second_path = directory.path().join("second.txt");
         std::fs::write(&second_path, "second").unwrap();

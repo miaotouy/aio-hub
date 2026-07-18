@@ -24,7 +24,7 @@
 5. 工作台没有文件拖放入口，没有拖入悬停、格式拒绝和批次结果检查交互。
 6. Knowledge 的模块壳层、响应式布局、边框 token 和交互语义与 Recall 及当前项目规范不一致。
 
-本计划补齐上述范围。目录监听、递归目录导入和持久化 ingest queue 继续归入目录同步阶段。
+本计划补齐上述范围。施工期间目录 source、递归扫描和持久化 ingest queue 已并入同一阶段；本文同步记录最终契约，不再把它们留作未定义的后续能力。当前仍不实现常驻文件系统 watcher，目录变化通过显式重扫进入同一持久队列。
 
 ## 2. 调查结果
 
@@ -90,64 +90,67 @@ Knowledge 应复用上述能力。不能只绑定 DOM `drop` 事件，因为 Tau
 - 边框混用 Element Plus 变量和项目 `--border-width`、`--border-color`。
 - 导入失败只显示数量，用户看不到失败文件和原因。
 
-## 3. 旧草案设计决策（已暂停）
+## 3. 已落实的设计决策
 
 ### 3.1 配置分层
 
 配置分为两层：
 
-1. **全局创建默认值**：使用 `createConfigManager` 保存，只影响以后新建的资料库。
+1. **系统运行配置**：使用 `createConfigManager` 保存 Embedding route 默认值、并发、批次、重试、lease 和文件资源上限；只影响新建资料库或之后启动的任务。
 2. **资料库配置快照**：保存在各 `library.kdb` 的版本化 `library_metadata` 中，运行时只读取资料库自身配置。
 
-创建资料库时把全局默认值深拷贝为单库配置。后续修改全局默认值不得改变已有资料库，避免用户资料库随全局设置变化而隐式重切片、改变检索数量或触发额外模型调用。
+创建资料库时从代码中的受校验默认配置生成独立快照；系统运行配置中的默认 Embedding route 只在创建时写入该快照。后续修改运行配置不得改变已有资料库，避免资料库随全局设置变化而隐式重切片、改变空间身份或触发额外模型调用。
 
 manifest 只保存 library ID、名称、说明和受管文件路径等目录信息。索引配置、活动 Embedding space、route、descriptor 与实际维度属于派生索引身份，必须与 document/chunk/FTS/vector/graph 位于同一个 library 数据库。应用配置和重建只允许在单个 WAL 数据库事务内提交；禁止依赖 WAL 模式下的 `ATTACH` 跨文件提交。manifest 中已有的 `config_json` 与活动向量字段只作为可重入的一次性迁移输入，迁移完成后不得参与运行时判定。
 
 单库配置使用版本化结构，例如：
 
 ```ts
-interface KnowledgeLibraryConfigV1 {
-  version: 1;
+interface KnowledgeLibraryIndexConfig {
+  schemaVersion: 1;
   chunking: {
+    strategy: "fixed";
     targetChars: number;
     overlapChars: number;
   };
-  import: {
-    autoVectorize: boolean;
-  };
-  search: {
-    defaultStrategy: "auto" | "keyword" | "semantic" | "hybrid";
-    limit: number;
-  };
   embedding: {
-    preferredRouteKey: string;
-    batchSize: number;
+    enabled: boolean;
+    routeKey: string;
+    requestedDimensions?: number;
+    queryTaskType: "RETRIEVAL_QUERY";
+    documentTaskType: "RETRIEVAL_DOCUMENT";
+    encodingFormat: "float";
+    adapterContractVersion: 1;
+  };
+  indexes: {
+    keyword: boolean;
+    semantic: boolean;
+    graph: boolean;
   };
 }
 ```
 
-`preferredRouteKey` 只负责预选调用渠道。真正的 `activeEmbeddingSpaceId`、descriptor 和维度仍由实际向量构建结果决定。
+`routeKey` 和 `requestedDimensions` 都是调用契约的一部分。真正的 `activeEmbeddingSpaceId`、descriptor 和 actual dimensions 仍由实际 Embedding 响应决定；设置页必须同时展示请求值和实际值，不得把请求值当作已经建立的空间事实。
 
 通用 `minScore` 暂不进入首版可见设置。当前四种策略的原始分数语义不同，在没有按策略完成阈值标定前，一个共享滑块容易让用户误解。运行时继续使用 `0`；需要开放时改为按策略配置并增加固定查询集测试。
 
 ### 3.2 设置范围
 
-全局设置页包含：
+系统运行设置页包含：
 
 - 默认 Embedding 调用渠道。
-- 新资料库默认分块长度和重叠长度。
-- 导入后是否自动补齐语义向量，默认关闭。
-- 检索测试默认策略和结果数量。
-- 向量化批次大小。
+- Embedding 请求并发、批次、重试次数和重试延迟。
+- ingest worker 并发、lease 超时和最大尝试次数。
+- 单文件大小与单批文件数量上限。
 - 重置为默认值。
 
 单资料库设置包含：
 
 - 名称和说明。
 - 当前分块长度和重叠长度。
-- 当前检索测试默认策略和结果数量。
-- 首选 Embedding 渠道与向量空间只读摘要。
-- 自动向量化开关和批次大小。
+- Embedding route、请求维度、关键词/语义/graph 索引开关。
+- 活动空间、descriptor、实际维度、FTS/vector 覆盖和语义回退摘要。
+- 来源、持久摄取任务、失败原因、取消和手动重试入口。
 
 名称、说明属于 manifest 目录元数据，可独立保存。系统运行参数保存在全局配置中。分块和 Embedding 契约先保留在前端表单中，用户确认“应用并重建”后，由单个 library DB 事务完成配置提交、重切片、FTS/graph 重建以及旧活动向量清理；操作失败或进程中断时继续保留原配置与原索引。修改首选渠道不等于切换已存在的向量空间，模型切换继续通过语义索引流程确认。
 
@@ -205,12 +208,16 @@ interface KnowledgeFileTypeDefinition {
 约束：
 
 - 没有当前资料库时不接收文件，提示先选择或创建资料库。
-- 本阶段拒绝目录并说明“目录同步尚未开放”。
+- 拖放与文件选择只接收文件；目录通过设置页显式添加为 source，并按持久化递归/ignore 规则扫描。
 - 混合拖入时继续处理支持的文件，汇总不支持项和解析失败项。
 - 点击选择与拖放必须调用同一个 `importPaths(paths)`，文件类型和错误行为不得分叉。
 - Knowledge 依赖绝对 `sourcePath` 完成更新识别和来源回溯。关闭 Tauri 路径拖放 handler 后，H5 `File` 无法保证提供绝对路径，工作台必须提示改用“选择文件”，不得用文件名或虚构路径入库。
 - 导入期间禁用重复投递，覆盖层显示当前解析或写入进度。
 - 取消拖动、离开目标和按 Escape 后必须清理悬停状态。
+
+目录 source 不跟随符号链接。每次显式重扫把新增或变化文件排为 upsert，把缺失文件排为 delete；移动按旧路径 delete 加新路径 upsert 处理。文件 checksum 与 parser version 共同决定是否跳过，任务完成时再次校验快照，避免手动重试绕过文件变化检查。
+
+摄取任务持久化为 pending、processing、retry、failed、completed 或 cancelled。worker 使用唯一 lease token、过期恢复和有限重试；手动重试只允许 failed 任务，清零尝试次数但保留原 expected checksum/parser 快照。若磁盘文件已变化，必须重新扫描或重新导入形成新任务。
 
 ## 4. 目标信息架构
 
@@ -289,6 +296,8 @@ Knowledge
 - 失败结果增加可展开明细，显示文件名、路径、阶段和错误信息。
 - 自动向量化开启时，只补齐当前向量空间未覆盖的 chunk；尚未建立空间时使用首选渠道创建空间。无可用首选渠道时保留关键词索引并给出可恢复提示，不能回滚已导入文档。
 - Tauri 路径事件不可用时不消费 H5 `File` 入库，显示来源路径限制并保留点击选择入口。
+- 文件选择与拖放统一只负责入队；持久 worker 完成 claim、解析、事务写入、失败隔离和重启恢复。
+- 设置页提供目录 source 的添加、重扫和移除，以及任务取消、失败重试和来源诊断。
 
 ### Phase 5：样式、响应式与可访问性收口
 
@@ -354,21 +363,21 @@ Vite build 是必选项，不能用 TypeScript 类型检查替代。最终文件
 ## 8. 验收标准
 
 - Knowledge 顶层存在“工作区 / 设置”，并有清晰的单资料库设置入口。
-- 用户能配置新资料库默认值，已有资料库不会随全局默认值改变。
+- 用户能配置系统运行资源与新建资料库的默认 route，已有资料库不会随全局设置改变。
 - 名称、说明和单库配置可保存、重启恢复，并有失败反馈。
 - 修改分块参数必须经过明确重建确认，不会静默清除向量。
 - 页面在文件选择器关闭时仍能查看支持格式；显示列表、选择器、拖放和解析器完全一致。
 - 空资料库和已有文档状态都支持多文件拖放，点击选择与拖放共享处理流程。
-- 未知格式、目录、空内容和解析错误有可定位明细，成功文件不会回滚。
+- 未知格式、空内容和解析错误有可定位明细，成功文件不会回滚；目录 source 可显式重扫并检查持久任务状态。
 - 响应式、键盘操作、tooltip、主题 token 和明暗主题达到本计划要求。
 - 前端检查、相关测试、后端检查和 Vite build 全部通过。
 - 在隔离 appData 的 Tauri WebView 中完成真实文件选择、拖放、重启恢复和模型调用验收。
 
 ## 9. 明确不做
 
-- 不实现目录 watcher、递归目录导入或持久化 ingest queue。
+- 不实现常驻文件系统 watcher；目录变化由用户显式重扫，不承诺后台实时同步。
 - 不新增图片 OCR、扫描 PDF OCR、压缩包或未验证的 Office 格式。
 - 不让全局设置在运行时覆盖已有资料库配置。
-- 不把手工向量维度配置带入 Knowledge。
+- 不把 `requestedDimensions` 当作实际向量维度；actual dimensions 必须来自模型响应并进入空间 descriptor。
 - 不复用 Recall store、Recall entry、标签池、priority 或联想召回参数。
 - 不在普通浏览器中把 Vite 页面当作真实 Tauri 拖放验收环境。

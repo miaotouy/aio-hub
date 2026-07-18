@@ -11,7 +11,7 @@ import {
   listKnowledgeDocuments,
   listKnowledgeLibraries,
   rebuildKnowledgeLibrary,
-  searchKnowledge,
+  searchKnowledgeDetailed,
   updateKnowledgeLibrary,
 } from "./service";
 import { processKnowledgeImportQueue } from "./ingestQueue";
@@ -24,6 +24,7 @@ import type {
   KnowledgeLibraryIndexConfig,
   KnowledgeLibraryUpdate,
   KnowledgeResult,
+  KnowledgeSearchTrace,
   KnowledgeSearchStrategy,
 } from "./types";
 
@@ -35,6 +36,7 @@ export const useKnowledgeStore = defineStore("knowledge-base", {
     documents: [] as KnowledgeDocument[],
     chunks: [] as KnowledgeChunk[],
     results: [] as KnowledgeResult[],
+    searchTraces: [] as KnowledgeSearchTrace[],
     activeLibraryId: null as string | null,
     selectedDocumentId: null as string | null,
     selectedResultId: null as string | null,
@@ -100,6 +102,7 @@ export const useKnowledgeStore = defineStore("knowledge-base", {
         : this.libraries[0]?.id || null;
       if (previousId !== this.activeLibraryId) {
         this.results = [];
+        this.searchTraces = [];
         this.selectedResultId = null;
         this.selectedDocumentId = null;
         this.chunks = [];
@@ -184,6 +187,7 @@ export const useKnowledgeStore = defineStore("knowledge-base", {
         config
       );
       this.results = [];
+      this.searchTraces = [];
       this.selectedResultId = null;
       await this.refreshLibraries(this.activeLibraryId);
       return count;
@@ -263,26 +267,35 @@ export const useKnowledgeStore = defineStore("knowledge-base", {
     async search(
       query: string,
       strategy: KnowledgeSearchStrategy = "auto",
-      limit = 12
+      limit = 12,
+      libraryIds?: string[]
     ) {
-      if (!this.activeLibraryId || !query.trim()) {
+      const targetLibraryIds =
+        libraryIds?.length || !this.activeLibraryId
+          ? libraryIds ?? []
+          : [this.activeLibraryId];
+      if (!targetLibraryIds.length || !query.trim()) {
         this.results = [];
+        this.searchTraces = [];
         return [];
       }
       this.searching = true;
       try {
-        this.results = await searchKnowledge({
+        const execution = await searchKnowledgeDetailed({
           query: query.trim(),
-          libraryIds: [this.activeLibraryId],
+          libraryIds: targetLibraryIds,
           strategy,
           limit,
           minScore: 0,
         });
+        this.results = execution.results;
+        this.searchTraces = execution.traces;
         this.selectedResultId = this.results[0]?.chunkId || null;
         return this.results;
       } catch (error) {
         errorHandler.error(error, "检索知识资料库失败");
         this.results = [];
+        this.searchTraces = [];
         this.selectedResultId = null;
         return [];
       } finally {

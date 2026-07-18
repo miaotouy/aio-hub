@@ -58,6 +58,11 @@ function library(id: string, spaceId = ""): KnowledgeLibrary {
     config: libraryConfig(),
     documentCount: 2,
     chunkCount: 4,
+    sourceCount: 1,
+    pendingTaskCount: 0,
+    failedTaskCount: 0,
+    keywordIndexStatus: "ready",
+    semanticIndexStatus: "notBuilt",
     createdAt: 1,
     updatedAt: 1,
   };

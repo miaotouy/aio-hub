@@ -309,12 +309,21 @@ Phase 3 分为五个施工批次。后端配置和摄取契约先行，工作台
 - [x] P3-D03 全局设置只编辑系统运行默认值和资源参数，不伪装成已有资料库的实时覆盖层。
 - [x] P3-D04 单资料库设置包含名称、说明、分块、Embedding route、请求维度、索引开关和只读实际空间摘要。
 - [x] P3-D05 改变分块或空间契约时展示影响范围、重建确认和进度；确认框设置 `lockScroll: false`。
-- [ ] P3-D06 资料库列表展示名称、说明、来源数量、摄取/关键词/语义索引状态、最近更新和失败数。
-- [ ] P3-D07 资料视图展示来源路径、checksum、解析状态、实际 chunk 和失败原因，并提供重试、重建、移除和打开来源位置。
-- [ ] P3-D08 检索视图支持单库/多库、strategy 对比、signals、原始 score、来源和继续读取局部。
-- [ ] P3-D09 诊断视图展示 route、requested/actual dimensions、space descriptor、chunk/FTS/vector 覆盖、队列与失败任务。
+- [x] P3-D06 资料库列表展示名称、说明、来源数量、摄取/关键词/语义索引状态、最近更新和失败数。
+- [x] P3-D07 资料视图展示来源路径、checksum、解析状态、实际 chunk 和失败原因，并提供重试、重建、移除和打开来源位置。
+- [x] P3-D08 检索视图支持单库/多库、strategy 对比、signals、原始 score、来源和继续读取局部。
+- [x] P3-D09 诊断视图展示 route、requested/actual dimensions、space descriptor、chunk/FTS/vector 覆盖、队列与失败任务。
 
 批次 D 第一检查点：根组件只保留 Knowledge 品牌、工作区/设置导航和 keep-alive，原工作台迁入 `views/WorkspaceView.vue`；设置视图独立管理系统运行资源、单库 metadata/索引快照与只读活动空间摘要。运行设置继续使用 500ms 防抖并回传保存错误；应用单库配置前明确提示会重新分块并清除活动向量。来源和任务表已接入既有 Batch C service 作为后续 D06-D09 的基础，但资料库摘要、文档版本明细、多库检索与完整诊断尚未完成，未提前标记。
+
+批次 D 第二检查点施工记录：
+
+- 资料库与文档诊断字段直接从单个 `library.kdb` 的 document/chunk/FTS/vector/source/queue 状态投影，不新增可漂移的持久摘要缓存；manifest 更新时间仅作为目录元数据展示的一部分，不能反向覆盖运行时索引事实。
+- 失败任务允许手动重试并开启新的有限尝试预算，但保留入队时的 expected checksum 与 parser version。一般边界：该操作用于恢复瞬时失败，不允许绕过文件稳定性校验；源文件已经变化时必须重新扫描或重新导入。
+- strategy 对比由 keyword、auto 以及可用时的 hybrid、semantic 独立请求组成，各次保留 requested/actual strategy、降级原因、signals 与原始 score。一般边界：不同策略的原始 score 不具备统一标尺，对比视图只展示结果，不宣称可直接横向比较绝对分值。
+- 一般问题：目录添加与重扫的首版 UI 只完成持久入队，没有在当前会话启动 worker，任务需要等下一次初始化或文件导入才会处理。现已让添加、重扫和手动重试共同 drain 持久队列，并在写入后刷新资料库/诊断、清除过期检索结果；持久恢复仍作为异常中断兜底。
+- 设置/导入计划已移除“旧草案暂停”和“不做目录/持久队列”的过期表述，补记运行配置、单库快照、目录重扫、任务 lease/重试及 requested/actual dimensions 边界。
+- 验证结果：Knowledge repository 20 项测试、Knowledge 前端 51 项测试、`check:frontend`、`lint`、`check:backend` 和完整 Vite 构建通过。构建仍只有既有的 Node externalization、依赖 direct eval、大 chunk 与无效动态导入警告；真实 Tauri 路径、目录、重启和模型调用继续由 P3-T05 验收。
 
 ### 7.5 批次 E：拖放、响应式与可访问性
 
@@ -336,7 +345,7 @@ Phase 3 分为五个施工批次。后端配置和摄取契约先行，工作台
 - [x] P3-T04 Rust 测试覆盖队列恢复、lease、有限重试、checksum 去重、文件级隔离和旧版本保留。
 - [ ] P3-T05 在隔离 appData 的真实 Tauri WebView 中验收文件选择、多文件拖放、目录同步、重启恢复和模型调用。
 - [ ] P3-T06 验收大、中、小窗口、键盘、明暗主题、覆盖层层级和错误对比度。
-- [ ] P3-DOC 重写设置/导入计划的暂停部分，记录最终配置分层、格式、队列、目录同步和实际施工偏差。
+- [x] P3-DOC 重写设置/导入计划的暂停部分，记录最终配置分层、格式、队列、目录同步和实际施工偏差。
 - [ ] P3-GATE 用户可以稳定管理资料源、检查派生索引和失败任务；更新或重建失败不会破坏原有可用数据。
 
 ## 8. Phase 4：二阶研究任务

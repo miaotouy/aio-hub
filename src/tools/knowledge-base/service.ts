@@ -247,6 +247,17 @@ export async function cancelKnowledgeIngestTask(
   await invoke("knowledge_cancel_ingest_task", { libraryId, taskId });
 }
 
+export async function retryKnowledgeIngestTask(
+  libraryId: string,
+  taskId: string
+): Promise<KnowledgeIngestTask> {
+  await ensureKnowledgeInitialized();
+  return invoke<KnowledgeIngestTask>("knowledge_retry_ingest_task", {
+    libraryId,
+    taskId,
+  });
+}
+
 export async function addKnowledgeDirectorySource(options: {
   libraryId: string;
   rootPath: string;

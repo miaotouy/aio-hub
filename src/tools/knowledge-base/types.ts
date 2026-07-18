@@ -168,6 +168,11 @@ export interface KnowledgeLibrary {
   config: KnowledgeLibraryIndexConfig;
   documentCount: number;
   chunkCount: number;
+  sourceCount: number;
+  pendingTaskCount: number;
+  failedTaskCount: number;
+  keywordIndexStatus: "ready" | "partial";
+  semanticIndexStatus: "ready" | "partial" | "notBuilt";
   createdAt: number;
   updatedAt: number;
 }
@@ -187,6 +192,13 @@ export interface KnowledgeDocument {
   size: number;
   status: string;
   chunkCount: number;
+  vectorizedChunkCount: number;
+  sourceId: string;
+  sourceFileId: string;
+  sourceChecksum: string;
+  parserVersion: string;
+  version: number;
+  lastError?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -346,6 +358,11 @@ export interface KnowledgeIndexStatus {
   totalChunks: number;
   vectorizedChunks: number;
   pendingChunks: number;
+  keywordIndexedChunks: number;
+  semanticFallbackChunks: number;
+  sourceCount: number;
+  pendingTaskCount: number;
+  failedTaskCount: number;
   embeddingModelId: string;
   activeEmbeddingSpaceId: string;
   embeddingRouteKey: string;

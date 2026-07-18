@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import {
   applyKnowledgeLibraryConfig,
   createKnowledgeLibrary,
+  retryKnowledgeIngestTask,
   searchKnowledge,
   searchKnowledgeDetailed,
   updateKnowledgeLibrary,
@@ -50,6 +51,11 @@ function library(id: string): KnowledgeLibrary {
     config: createDefaultKnowledgeLibraryConfig(),
     documentCount: 1,
     chunkCount: 1,
+    sourceCount: 1,
+    pendingTaskCount: 0,
+    failedTaskCount: 0,
+    keywordIndexStatus: "ready",
+    semanticIndexStatus: "notBuilt",
     createdAt: 1,
     updatedAt: 1,
   };
@@ -264,6 +270,41 @@ describe("searchKnowledge", () => {
         }),
       })
     );
+  });
+
+  it("maps failed task retry to the dedicated Tauri command", async () => {
+    const retriedTask = {
+      id: "task-a",
+      libraryId: "library-a",
+      sourceId: "source-a",
+      sourceFileId: "file-a",
+      sourcePath: "source.md",
+      operation: "upsert" as const,
+      expectedChecksum: "checksum-a",
+      fileSize: 10,
+      modifiedAt: 1,
+      parserVersion: "parser-v1",
+      status: "pending" as const,
+      attemptCount: 0,
+      maxAttempts: 3,
+      availableAt: 1,
+      cancelRequested: false,
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    invokeMock.mockImplementation(async (command) => {
+      if (command === "knowledge_initialize") return undefined;
+      if (command === "knowledge_retry_ingest_task") return retriedTask;
+      throw new Error(`Unexpected command: ${command}`);
+    });
+
+    await expect(
+      retryKnowledgeIngestTask("library-a", "task-a")
+    ).resolves.toEqual(retriedTask);
+    expect(invokeMock).toHaveBeenCalledWith("knowledge_retry_ingest_task", {
+      libraryId: "library-a",
+      taskId: "task-a",
+    });
   });
 
   it("uses the configured batch size and request concurrency after confirming the space", async () => {

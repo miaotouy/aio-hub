@@ -51,7 +51,7 @@
             <h2>资料库设置</h2>
             <p>资料库配置是快照，修改后通过单库事务重建</p>
           </div>
-          <el-select v-model="selectedLibraryId" placeholder="选择资料库">
+          <el-select v-model="selectedLibraryId" placeholder="选择资料库" @change="selectSettingsLibrary">
             <el-option v-for="library in store.libraries" :key="library.id" :label="library.name" :value="library.id" />
           </el-select>
         </header>
@@ -95,9 +95,17 @@
           <div class="diagnostic-strip">
             <div><span>活动空间</span><strong>{{ selectedLibrary.activeEmbeddingSpaceId || "未建立" }}</strong></div>
             <div><span>Route</span><strong>{{ selectedLibrary.embeddingRouteKey || "未设置" }}</strong></div>
+            <div><span>请求维度</span><strong>{{ selectedLibrary.config.embedding.requestedDimensions || "默认" }}</strong></div>
             <div><span>实际维度</span><strong>{{ selectedLibrary.dimension || "-" }}</strong></div>
+            <div><span>关键词覆盖</span><strong>{{ store.indexStatus ? `${store.indexStatus.keywordIndexedChunks}/${store.indexStatus.totalChunks}` : "-" }}</strong></div>
             <div><span>向量覆盖</span><strong>{{ coverageLabel }}</strong></div>
+            <div><span>语义回退</span><strong>{{ store.indexStatus?.semanticFallbackChunks || 0 }} 分块</strong></div>
+            <div><span>队列</span><strong>{{ store.indexStatus?.pendingTaskCount || 0 }} 处理中 / {{ store.indexStatus?.failedTaskCount || 0 }} 失败</strong></div>
           </div>
+          <details class="descriptor-details">
+            <summary>Space descriptor</summary>
+            <pre>{{ descriptorText }}</pre>
+          </details>
         </template>
         <div v-else class="empty-state">暂无可配置资料库</div>
       </section>
@@ -109,7 +117,7 @@
             <p>{{ sources.length }} 个来源，{{ failedTaskCount }} 个失败任务</p>
           </div>
           <div class="header-actions">
-            <el-button :icon="FolderPlus" @click="addDirectory">添加目录</el-button>
+            <el-button :icon="FolderPlus" :loading="queueProcessing" @click="addDirectory">添加目录</el-button>
             <el-button :icon="RefreshCw" :loading="diagnosticsLoading" circle aria-label="刷新来源与任务" @click="refreshDiagnostics" />
           </div>
         </header>
@@ -120,9 +128,14 @@
             <div class="source-copy">
               <strong :title="source.rootPath">{{ source.rootPath }}</strong>
               <small>{{ source.fileCount }} 文件 · {{ source.pendingTaskCount }} 处理中 · {{ source.failedTaskCount }} 失败</small>
+              <small v-if="source.lastScanAt">最近扫描 {{ formatDate(source.lastScanAt) }}</small>
+              <small v-if="source.lastError" class="source-error">{{ source.lastError }}</small>
             </div>
+            <el-tooltip content="在资源管理器中显示">
+              <el-button :icon="FolderOpen" text circle aria-label="打开来源位置" @click="openSourcePath(source.rootPath)" />
+            </el-tooltip>
             <el-tooltip v-if="source.kind === 'directory'" content="重新扫描">
-              <el-button :icon="ScanSearch" text circle aria-label="重新扫描目录" @click="rescanSource(source.id)" />
+              <el-button :icon="ScanSearch" :disabled="queueProcessing" text circle aria-label="重新扫描目录" @click="rescanSource(source.id)" />
             </el-tooltip>
             <el-tooltip content="移除来源">
               <el-button :icon="Trash2" text circle aria-label="移除来源" @click="deleteSource(source.id)" />
@@ -136,6 +149,16 @@
           <el-table-column prop="status" label="状态" width="98" />
           <el-table-column label="尝试" width="76"><template #default="scope">{{ scope.row.attemptCount }}/{{ scope.row.maxAttempts }}</template></el-table-column>
           <el-table-column prop="lastError" label="最近错误" min-width="220" show-overflow-tooltip />
+          <el-table-column label="操作" width="92" fixed="right">
+            <template #default="scope">
+              <el-tooltip v-if="scope.row.status === 'failed'" content="重试任务">
+                <el-button :icon="RotateCw" :disabled="queueProcessing" text circle aria-label="重试摄取任务" @click="retryTask(scope.row.id)" />
+              </el-tooltip>
+              <el-tooltip v-else-if="['pending', 'processing', 'retry'].includes(scope.row.status)" content="取消任务">
+                <el-button :icon="X" text circle aria-label="取消摄取任务" @click="cancelTask(scope.row.id)" />
+              </el-tooltip>
+            </template>
+          </el-table-column>
         </el-table>
       </section>
     </div>
@@ -146,11 +169,13 @@
 import { computed, onActivated, onMounted, reactive, ref, watch } from "vue";
 import { ElMessageBox } from "element-plus";
 import { open } from "@tauri-apps/plugin-dialog";
-import { FileText, FolderPlus, FolderTree, RefreshCw, RotateCcw, ScanSearch, Trash2 } from "lucide-vue-next";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { FileText, FolderOpen, FolderPlus, FolderTree, RefreshCw, RotateCcw, RotateCw, ScanSearch, Trash2, X } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createDefaultKnowledgeRuntimeConfig, knowledgeRuntimeConfigManager, normalizeKnowledgeLibraryConfig, saveKnowledgeRuntimeConfigDebounced, validateKnowledgeLibraryConfig } from "../config";
-import { addKnowledgeDirectorySource, listKnowledgeIngestTasks, listKnowledgeSources, removeKnowledgeSource, rescanKnowledgeDirectorySource } from "../service";
+import { addKnowledgeDirectorySource, cancelKnowledgeIngestTask, listKnowledgeIngestTasks, listKnowledgeSources, removeKnowledgeSource, rescanKnowledgeDirectorySource, retryKnowledgeIngestTask } from "../service";
+import { processKnowledgeImportQueue } from "../ingestQueue";
 import { useKnowledgeStore } from "../store";
 import type { KnowledgeIngestTask, KnowledgeLibraryIndexConfig, KnowledgeRuntimeConfig, KnowledgeSource } from "../types";
 
@@ -165,6 +190,7 @@ const libraryConfig = reactive<KnowledgeLibraryIndexConfig>(normalizeKnowledgeLi
 const sources = ref<KnowledgeSource[]>([]);
 const tasks = ref<KnowledgeIngestTask[]>([]);
 const diagnosticsLoading = ref(false);
+const queueProcessing = ref(false);
 const savingLibrary = ref(false);
 const rebuilding = ref(false);
 
@@ -174,6 +200,7 @@ const semanticEnabled = computed({ get: () => libraryConfig.indexes.semantic, se
 const requestedDimensions = computed<number | undefined>({ get: () => libraryConfig.embedding.requestedDimensions, set: (value) => { libraryConfig.embedding.requestedDimensions = value || undefined; } });
 const failedTaskCount = computed(() => tasks.value.filter((task) => task.status === "failed").length);
 const coverageLabel = computed(() => store.indexStatus ? `${store.indexStatus.vectorizedChunks}/${store.indexStatus.totalChunks}` : "-");
+const descriptorText = computed(() => JSON.stringify(selectedLibrary.value?.embeddingSpaceDescriptor ?? {}, null, 2));
 
 async function loadRuntimeSettings() {
   Object.assign(runtimeForm, await knowledgeRuntimeConfigManager.load());
@@ -209,6 +236,11 @@ async function saveLibraryMetadata() {
   } catch (error) { errorHandler.error(error, "保存资料库信息失败"); } finally { savingLibrary.value = false; }
 }
 
+async function selectSettingsLibrary(libraryId: string) {
+  await store.selectLibrary(libraryId);
+  await refreshDiagnostics();
+}
+
 async function applyLibraryConfig() {
   try {
     validateKnowledgeLibraryConfig(libraryConfig);
@@ -235,14 +267,22 @@ async function addDirectory() {
   const path = await open({ directory: true, multiple: false, title: "选择持续同步目录" });
   if (typeof path !== "string") return;
   try {
-    await addKnowledgeDirectorySource({ libraryId: selectedLibraryId.value, rootPath: path, recursive: true, ignorePatterns: [".git/", "node_modules/"] });
-    await refreshDiagnostics();
-    customMessage.success("目录来源已添加");
+    const enqueueResult = await addKnowledgeDirectorySource({ libraryId: selectedLibraryId.value, rootPath: path, recursive: true, ignorePatterns: [".git/", "node_modules/"] });
+    const result = await drainSelectedQueue();
+    const failureCount = enqueueResult.failures.length + result.failures.length;
+    if (failureCount) customMessage.warning(`目录已添加，${failureCount} 个文件处理失败`);
+    else customMessage.success(`目录来源已添加，处理 ${result.imported} 个文件`);
   } catch (error) { errorHandler.error(error, "添加目录来源失败"); }
 }
 
 async function rescanSource(sourceId: string) {
-  try { await rescanKnowledgeDirectorySource(selectedLibraryId.value, sourceId); await refreshDiagnostics(); customMessage.success("目录扫描已排入队列"); }
+  try {
+    const enqueueResult = await rescanKnowledgeDirectorySource(selectedLibraryId.value, sourceId);
+    const result = await drainSelectedQueue();
+    const failureCount = enqueueResult.failures.length + result.failures.length;
+    if (failureCount) customMessage.warning(`目录扫描完成，${failureCount} 个文件处理失败`);
+    else customMessage.success(`目录扫描完成，处理 ${result.imported} 个文件`);
+  }
   catch (error) { errorHandler.error(error, "重新扫描目录失败"); }
 }
 
@@ -253,6 +293,44 @@ async function deleteSource(sourceId: string) {
     await store.refreshLibraries(selectedLibraryId.value);
     await refreshDiagnostics();
   } catch (error) { if (error !== "cancel") errorHandler.error(error, "移除来源失败"); }
+}
+
+async function retryTask(taskId: string) {
+  try {
+    await retryKnowledgeIngestTask(selectedLibraryId.value, taskId);
+    const result = await drainSelectedQueue();
+    if (result.failures.length) customMessage.warning("任务重试后仍然失败，请检查最近错误");
+    else customMessage.success("任务重试完成");
+  } catch (error) { errorHandler.error(error, "重试摄取任务失败"); }
+}
+
+async function drainSelectedQueue() {
+  queueProcessing.value = true;
+  try {
+    const result = await processKnowledgeImportQueue(selectedLibraryId.value, []);
+    store.results = [];
+    store.searchTraces = [];
+    store.selectedResultId = null;
+    await store.refreshLibraries(selectedLibraryId.value);
+    await refreshDiagnostics();
+    return result;
+  } finally {
+    queueProcessing.value = false;
+  }
+}
+
+async function cancelTask(taskId: string) {
+  try { await cancelKnowledgeIngestTask(selectedLibraryId.value, taskId); await refreshDiagnostics(); }
+  catch (error) { errorHandler.error(error, "取消摄取任务失败"); }
+}
+
+async function openSourcePath(sourcePath: string) {
+  try { await revealItemInDir(sourcePath); }
+  catch (error) { errorHandler.error(error, "打开来源位置失败"); }
+}
+
+function formatDate(timestamp: number) {
+  return new Date(timestamp * 1000).toLocaleString();
 }
 
 onMounted(async () => { if (!store.libraries.length) await store.initialize(); await loadRuntimeSettings(); selectedLibraryId.value ||= store.activeLibraryId || ""; });
@@ -277,11 +355,15 @@ header p { margin: 4px 0 0; font-size: 12px; color: var(--el-text-color-secondar
 .diagnostic-strip strong { font-size: 12px; color: var(--el-text-color-primary); }
 .header-actions { display: flex; gap: 8px; }
 .source-list { display: grid; gap: 1px; margin-bottom: 14px; border: var(--border-width) solid var(--border-color); border-radius: 6px; overflow: hidden; background: var(--border-color); }
-.source-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) 32px 32px; align-items: center; gap: 8px; min-height: 52px; padding: 6px 10px; background: var(--card-bg); }
+.source-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) repeat(3, 32px); align-items: center; gap: 8px; min-height: 60px; padding: 6px 10px; background: var(--card-bg); }
 .source-copy { min-width: 0; }
 .source-copy strong, .source-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .source-copy strong { font-size: 12px; }
 .source-copy small { margin-top: 3px; color: var(--el-text-color-secondary); }
+.source-error { color: var(--el-color-danger) !important; }
+.descriptor-details { margin-top: 12px; color: var(--el-text-color-secondary); font-size: 12px; }
+.descriptor-details summary { cursor: pointer; }
+.descriptor-details pre { max-height: 220px; margin: 8px 0 0; padding: 10px; overflow: auto; border: var(--border-width) solid var(--border-color); border-radius: 6px; color: var(--el-text-color-regular); background: var(--input-bg); font-size: 11px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .empty-state { padding: 24px; text-align: center; color: var(--el-text-color-secondary); }
 @media (max-width: 760px) { .settings-grid { grid-template-columns: 1fr; } .diagnostic-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 520px) { .settings-content { width: calc(100% - 20px); } .settings-section > header { align-items: stretch; flex-direction: column; } .settings-grid label { grid-template-columns: 1fr; gap: 6px; } }

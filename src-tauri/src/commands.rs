@@ -417,6 +417,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         crate::knowledge::knowledge_complete_ingest_task,
         crate::knowledge::knowledge_fail_ingest_task,
         crate::knowledge::knowledge_cancel_ingest_task,
+        crate::knowledge::knowledge_retry_ingest_task,
         crate::knowledge::knowledge_add_directory_source,
         crate::knowledge::knowledge_rescan_directory_source,
         crate::knowledge::knowledge_remove_source,

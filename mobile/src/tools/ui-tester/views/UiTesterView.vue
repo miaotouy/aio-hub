@@ -1,667 +1,178 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { Snackbar, Dialog } from "@varlet/ui";
-import { createModuleLogger } from "@/utils/logger";
-import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { useSettingsStore } from "@/stores/settings";
-import { useThemeStore } from "@/stores/theme";
-import { useKeyboardAvoidance } from "@/composables/useKeyboardAvoidance";
-import { generateUuid } from "@/utils/uuid";
+import { ArrowLeft, Database, FileCheck2, Gauge, LayoutGrid } from "lucide-vue-next";
+import ComponentValidationView from "./ComponentValidationView.vue";
+import PlatformFileValidationView from "./PlatformFileValidationView.vue";
+import SqliteValidationView from "./SqliteValidationView.vue";
+import ValidationReportActions from "../components/ValidationReportActions.vue";
+import { useValidationRuns } from "../composables/useValidationRuns";
+import { runPlatformFileScenario } from "../services/platformFileValidation";
+import { runSqliteScenario } from "../services/sqliteValidation";
+import type { ValidationRunStatus } from "../types/validation";
+
+type SectionId = "overview" | "components" | "platform-files" | "sqlite";
 
 const router = useRouter();
-const logger = createModuleLogger("UiTester");
-const errorHandler = createModuleErrorHandler("UiTester");
-const settingsStore = useSettingsStore();
-const themeStore = useThemeStore();
-const { keyboardHeight: kbH, isKeyboardVisible } = useKeyboardAvoidance();
+const activeSection = ref<SectionId>("overview");
+const {
+  runs,
+  resumeRun,
+  environment,
+  totals,
+  initialize,
+  runAutomated,
+  setManualObservation,
+  setResumeRun,
+  clearRuns,
+} = useValidationRuns();
 
-// --- Settings Store 测试 ---
-const debugMode = ref(settingsStore.debugMode);
+const sections = [
+  { id: "overview" as const, label: "总览", icon: Gauge },
+  { id: "components" as const, label: "组件与布局", icon: LayoutGrid },
+  { id: "platform-files" as const, label: "平台文件", icon: FileCheck2 },
+  { id: "sqlite" as const, label: "SQLite", icon: Database },
+];
 
-const toggleDebugMode = async () => {
-  await settingsStore.updateSettings({ debugMode: !settingsStore.debugMode });
-  debugMode.value = settingsStore.debugMode;
-  Snackbar.success(`调试模式已${settingsStore.debugMode ? "开启" : "关闭"}`);
+const activeView = computed(() => ({
+  components: ComponentValidationView,
+  "platform-files": PlatformFileValidationView,
+  sqlite: SqliteValidationView,
+}[activeSection.value as Exclude<SectionId, "overview">]));
+
+const statusText: Record<ValidationRunStatus, string> = {
+  idle: "未运行",
+  running: "运行中",
+  passed: "通过",
+  failed: "失败",
+  cancelled: "已取消",
+  manualPending: "待人工确认",
 };
 
-const testUpdateLanguage = async () => {
-  const newLang =
-    settingsStore.settings.language === "zh-CN" ? "en-US" : "zh-CN";
-  await settingsStore.updateSettings({ language: newLang });
-  Snackbar.info(`语言已切换为: ${newLang}`);
-};
-
-// --- Tauri API & FS 测试 ---
-const isTauri = ref(false);
-const tauriVersion = ref("");
-const fsTestResult = ref("");
-const storeTestResult = ref("");
-const storeValueInput = ref("Hello Store!");
-const storeReadValue = ref("");
-
-// --- 避让数值测试 ---
-const safeAreaInsets = ref({
-  top: "0px",
-  bottom: "0px",
-  left: "0px",
-  right: "0px",
-});
-
-const viewportInfo = ref({
-  windowInnerHeight: 0,
-  visualViewportHeight: 0,
-  visualViewportOffsetTop: 0,
-  resizeCount: 0,
-  viewportEventCount: 0,
-});
-
-const updateViewportInfo = (event?: Event) => {
-  viewportInfo.value.windowInnerHeight = window.innerHeight;
-  if (window.visualViewport) {
-    viewportInfo.value.visualViewportHeight = window.visualViewport.height;
-    viewportInfo.value.visualViewportOffsetTop =
-      window.visualViewport.offsetTop;
-  }
-
-  if (event?.type === "resize") viewportInfo.value.resizeCount++;
-  if (event?.type === "scroll" || !event)
-    viewportInfo.value.viewportEventCount++;
-
-  logger.debug("Viewport updated", {
-    event: event?.type || "manual",
-    viewport: { ...viewportInfo.value },
-  });
-};
-
-const updateSafeAreaInsets = () => {
-  // 优先从根元素读取 CSS 变量（这些通常由全局样式或系统注入）
-  const style = getComputedStyle(document.documentElement);
-  const top = style.getPropertyValue("--app-safe-area-top").trim();
-  const bottom = style.getPropertyValue("--app-safe-area-bottom").trim();
-
-  // 如果 CSS 变量没值且在真机/模拟器环境，再尝试 DOM 探测
-  if ((!top || top === "0px") && isTauri.value) {
-    const probe = document.createElement("div");
-    probe.style.cssText =
-      "position:fixed;top:env(safe-area-inset-top);bottom:env(safe-area-inset-bottom);visibility:hidden;pointer-events:none;";
-    document.body.appendChild(probe);
-    const probeStyle = window.getComputedStyle(probe);
-    safeAreaInsets.value = {
-      top: probeStyle.top,
-      bottom: probeStyle.bottom,
-      left: probeStyle.left,
-      right: probeStyle.right,
-    };
-    document.body.removeChild(probe);
-  } else {
-    safeAreaInsets.value = {
-      top: top || "0px",
-      bottom: bottom || "0px",
-      left: style.getPropertyValue("--app-safe-area-left").trim() || "0px",
-      right: style.getPropertyValue("--app-safe-area-right").trim() || "0px",
-    };
-  }
-};
-
-const checkTauri = async () => {
-  // @ts-ignore
-  isTauri.value = !!window.__TAURI_INTERNALS__ || !!window.__TAURI__;
-  if (isTauri.value) {
-    try {
-      const { getVersion } = await import("@tauri-apps/api/app");
-      tauriVersion.value = await getVersion();
-      logger.info("Tauri Info", { version: tauriVersion.value });
-    } catch (e) {
-      logger.error("Tauri API Error", e);
-    }
-  }
-};
-
-const testFileSystem = async () => {
-  if (!isTauri.value) {
-    Snackbar.warning("非 Tauri 环境，无法测试文件系统");
-    return;
-  }
-
-  try {
-    fsTestResult.value = "正在尝试写入测试文件...";
-    const { writeTextFile, readTextFile, BaseDirectory } =
-      await import("@tauri-apps/plugin-fs");
-
-    const fileName = `aio_mobile_test.txt`;
-    const content = `Hello from AIO Hub Mobile! Time: ${new Date().toLocaleString()}`;
-
-    // 写入
-    await writeTextFile(fileName, content, {
-      baseDir: BaseDirectory.AppData,
-    });
-
-    // 读取验证
-    const readContent = await readTextFile(fileName, {
-      baseDir: BaseDirectory.AppData,
-    });
-
-    fsTestResult.value = `成功! 读取内容: "${readContent}"`;
-    Snackbar.success("文件读写测试成功");
-    logger.info("FS Test Success", { fileName, readContent });
-  } catch (err: any) {
-    fsTestResult.value = `FS 测试失败: ${err.message}`;
-    logger.error("FS Test Failed", err);
-    errorHandler.handle(err, {
-      userMessage: "文件系统测试失败",
-      showToUser: true,
-    });
-  }
-};
-
-const testTauriStore = async () => {
-  if (!isTauri.value) {
-    Snackbar.warning("非 Tauri 环境，无法测试 Store");
-    return;
-  }
-
-  try {
-    storeTestResult.value = "正在测试 Store...";
-    const { load } = await import("@tauri-apps/plugin-store");
-
-    // 加载或创建 store
-    const store = await load("test_settings.json", {
-      autoSave: true,
-      defaults: {},
-    });
-
-    // 写入
-    await store.set("test-key", {
-      value: storeValueInput.value,
-      time: Date.now(),
-    });
-
-    // 读取验证
-    const val: any = await store.get("test-key");
-    storeReadValue.value = JSON.stringify(val);
-
-    storeTestResult.value = "Store 读写测试成功！";
-    Snackbar.success("Store 测试成功");
-    logger.info("Store Test Success", { val });
-  } catch (err: any) {
-    storeTestResult.value = `Store 测试失败: ${err.message}`;
-    logger.error("Store Test Failed", err);
-    errorHandler.handle(err, {
-      userMessage: "Store 测试失败",
-      showToUser: true,
-    });
-  }
-};
-
-// --- 基础设施测试 ---
-const triggerError = () => {
-  errorHandler.error(new Error("这是一个测试错误"), "测试错误弹窗", {
-    detail: "姐姐你看，这是测试详情",
-  });
-};
-
-const triggerCritical = () => {
-  errorHandler.critical("这是一个严重错误", "系统可能需要重启", {
-    fatal: true,
-  });
-};
-
-// --- UUID 测试 ---
-const lastGeneratedUuid = ref("");
-const generateNewUuid = () => {
-  lastGeneratedUuid.value = generateUuid();
-  logger.info("Generated UUID", { uuid: lastGeneratedUuid.value });
-};
-
-const goBack = () => {
-  router.push("/");
-};
-
-onMounted(() => {
-  checkTauri();
-  updateSafeAreaInsets();
-  updateViewportInfo();
-  window.addEventListener("resize", () => {
-    updateSafeAreaInsets();
-    updateViewportInfo({ type: "resize" } as any);
-  });
-  if (window.visualViewport) {
-    window.visualViewport.addEventListener("resize", (e) =>
-      updateViewportInfo(e)
+onMounted(async () => {
+  await initialize();
+  if (resumeRun.value) {
+    const pending = resumeRun.value;
+    const resumed = pending.suiteId === "sqlite"
+      ? await runAutomated(
+          "sqlite",
+          "transaction-recovery-check",
+          { resumedCaseId: pending.caseId },
+          () => runSqliteScenario("transaction-recovery-check"),
+        )
+      : await runAutomated(
+          "platform-files",
+          "resume-check",
+          { resumedCaseId: pending.caseId },
+          () => runPlatformFileScenario("resume-check"),
+        );
+    setManualObservation(
+      pending.id,
+      resumed.status === "passed" ? "passed" : "failed",
+      `自动恢复检查：${resumed.status}`,
     );
-    window.visualViewport.addEventListener("scroll", (e) =>
-      updateViewportInfo(e)
-    );
+    await setResumeRun(undefined);
   }
 });
 </script>
 
 <template>
-  <div class="app-view ui-tester-view">
-    <var-app-bar
-      title="组件与 API 测试"
-      title-position="center"
-      class="custom-app-bar"
-      fixed
-      :z-index="100"
-    >
-      <template #left>
-        <var-button round text @click="goBack">
-          <var-icon name="chevron-left" />
-        </var-button>
-      </template>
-    </var-app-bar>
+  <div class="app-view workbench-view">
+    <header class="workbench-header safe-area-top">
+      <button class="icon-button" type="button" title="返回" aria-label="返回" @click="router.push('/')">
+        <ArrowLeft :size="22" />
+      </button>
+      <div>
+        <h1>组件与平台测试</h1>
+        <p>{{ environment.platform }} · App {{ environment.appVersion }}</p>
+      </div>
+    </header>
 
-    <div
-      class="content has-fixed-app-bar safe-area-bottom keyboard-aware-scroll"
-    >
-      <!-- 避让数值测试 -->
-      <var-card title="安全区域避让测试 (Safe Area)" class="mt-4" elevation="2">
-        <template #description>
-          <div class="card-content">
-            <var-cell
-              title="Top (Status Bar)"
-              :description="safeAreaInsets.top"
-              border
-            />
-            <var-cell
-              title="Bottom (Home Indicator)"
-              :description="safeAreaInsets.bottom"
-              border
-            />
-            <var-cell title="Left" :description="safeAreaInsets.left" border />
-            <var-cell
-              title="Right"
-              :description="safeAreaInsets.right"
-              border
-            />
-
-            <div class="mt-4 p-3 bg-secondary rounded text-xs">
-              <div class="text-hint mb-1">CSS 变量值:</div>
-              <div class="flex justify-between mb-1">
-                <span>--app-safe-area-top:</span>
-                <span class="text-primary">var(--app-safe-area-top)</span>
-              </div>
-              <div class="text-hint italic mt-2">
-                提示：在真机或模拟器上，Top 值通常 > 0。
-              </div>
-            </div>
-
-            <var-button
-              type="primary"
-              block
-              size="small"
-              class="mt-4"
-              @click="updateSafeAreaInsets"
-            >
-              手动刷新数值
-            </var-button>
-          </div>
-        </template>
-      </var-card>
-
-      <!-- 基础设施测试 -->
-      <var-card title="基础设施测试 (Logger/Error)" class="mt-4" elevation="2">
-        <template #description>
-          <div class="card-content">
-            <var-space direction="column" :size="[12, 12]">
-              <var-button
-                type="info"
-                block
-                @click="logger.info('这是一条普通日志', { foo: 'bar' })"
-              >
-                触发 Logger.info
-              </var-button>
-              <var-button type="warning" block @click="triggerError">
-                触发 ErrorHandler.error (Snackbar)
-              </var-button>
-              <var-button type="danger" block @click="triggerCritical">
-                触发 ErrorHandler.critical (Dialog)
-              </var-button>
-            </var-space>
-          </div>
-        </template>
-      </var-card>
-
-      <!-- Settings Store 测试 -->
-      <var-card
-        title="应用配置系统测试 (SettingsStore)"
-        class="mt-4"
-        elevation="2"
+    <nav class="section-tabs" aria-label="验证板块">
+      <button
+        v-for="section in sections"
+        :key="section.id"
+        type="button"
+        :class="{ active: activeSection === section.id }"
+        @click="activeSection = section.id"
       >
-        <template #description>
-          <div class="card-content">
-            <var-cell title="调试模式">
-              <template #extra>
-                <var-switch v-model="debugMode" @change="toggleDebugMode" />
-              </template>
-            </var-cell>
-            <var-cell
-              title="当前语言"
-              :description="settingsStore.settings.language"
-            />
-            <var-cell
-              title="主题模式"
-              :description="settingsStore.settings.appearance.theme"
-            />
+        <component :is="section.icon" :size="16" />
+        <span>{{ section.label }}</span>
+      </button>
+    </nav>
 
-            <var-space :size="[12, 12]" class="mt-4">
-              <var-button
-                type="primary"
-                size="small"
-                @click="testUpdateLanguage"
-              >
-                切换语言
-              </var-button>
-              <var-button
-                type="info"
-                size="small"
-                @click="themeStore.toggleTheme"
-              >
-                切换主题
-              </var-button>
-            </var-space>
+    <main class="workbench-content safe-area-bottom">
+      <section v-if="activeSection === 'overview'" class="overview-view">
+        <div class="overview-band">
+          <div><span>平台</span><strong>{{ environment.platform }}</strong></div>
+          <div><span>应用版本</span><strong>{{ environment.appVersion }}</strong></div>
+          <div><span>Tauri</span><strong>{{ environment.tauriVersion || "不可用" }}</strong></div>
+        </div>
 
-            <div class="mt-4 p-3 bg-secondary rounded text-xs border-l-4">
-              <div class="text-hint mb-1">Store 实时状态 (JSON):</div>
-              <pre class="text-primary font-mono overflow-auto max-h-32">{{
-                JSON.stringify(settingsStore.settings, null, 2)
-              }}</pre>
+        <div class="overview-summary">
+          <span class="passed">{{ totals.passed }} 通过</span>
+          <span class="failed">{{ totals.failed }} 失败</span>
+          <span class="pending">{{ totals.pending }} 待确认</span>
+        </div>
+
+        <section class="overview-section">
+          <h2>最近验证结果</h2>
+          <p v-if="!runs.length" class="empty-text">尚未运行验证场景。</p>
+          <div v-for="run in runs.slice(0, 8)" :key="run.id" class="recent-row">
+            <div>
+              <strong>{{ run.caseId }}</strong>
+              <span>{{ run.suiteId }} · {{ new Date(run.startedAt).toLocaleString() }}</span>
             </div>
+            <span class="status" :data-status="run.status">{{ statusText[run.status] }}</span>
           </div>
-        </template>
-      </var-card>
+        </section>
 
-      <!-- Tauri 环境与 FS/Store 测试 -->
-      <var-card title="Tauri 环境与存储测试" class="mt-4" elevation="2">
-        <template #description>
-          <div class="pb-2">
-            <var-cell title="是否在 Tauri 环境" border>
-              <template #extra>
-                <var-chip
-                  :type="isTauri ? 'success' : 'danger'"
-                  size="small"
-                  variant="block"
-                >
-                  {{ isTauri ? "YES" : "NO" }}
-                </var-chip>
-              </template>
-            </var-cell>
-            <var-cell
-              v-if="isTauri"
-              title="Tauri 版本"
-              :description="tauriVersion"
-              border
-            />
-          </div>
+        <section v-if="resumeRun" class="resume-section">
+          <h2>未完成的跨重启验证</h2>
+          <p>{{ resumeRun.caseId }} 正在等待恢复检查。</p>
+        </section>
 
-          <div class="card-content">
-            <var-button
-              type="primary"
-              block
-              size="small"
-              @click="testFileSystem"
-            >
-              测试文件读写 (FS Plugin)
-            </var-button>
-            <div
-              v-if="fsTestResult"
-              class="mt-2 p-2 bg-secondary rounded text-xs break-all"
-            >
-              {{ fsTestResult }}
-            </div>
+        <ValidationReportActions :runs="runs" @clear="clearRuns" />
+      </section>
 
-            <var-divider class="my-6" />
-
-            <var-input
-              v-model="storeValueInput"
-              placeholder="输入内容"
-              label="Store 测试值"
-              variant="standard"
-            />
-            <var-button
-              type="info"
-              block
-              size="small"
-              class="mt-4"
-              @click="testTauriStore"
-            >
-              测试 Tauri Store (Store Plugin)
-            </var-button>
-
-            <div
-              v-if="storeTestResult"
-              class="mt-3 p-3 bg-secondary rounded text-xs break-all border-l-4"
-            >
-              <div class="font-bold mb-1">状态: {{ storeTestResult }}</div>
-              <div v-if="storeReadValue" class="mt-1 opacity-80">
-                读取到: {{ storeReadValue }}
-              </div>
-            </div>
-          </div>
-
-          <div v-if="!isTauri" class="px-4 pb-4 text-xs text-hint italic">
-            提示：如果在普通浏览器打开，Tauri API 将不可用。
-          </div>
-        </template>
-      </var-card>
-
-      <!-- 原生 UI 组件预览 -->
-      <var-card title="常用移动端组件预览" class="mt-4" elevation="2">
-        <template #description>
-          <var-cell
-            title="Snackbar 测试"
-            ripple
-            border
-            @click="Snackbar.info('消息提示')"
-          >
-            <template #extra
-              ><var-icon name="chevron-right" size="20"
-            /></template>
-          </var-cell>
-          <var-cell
-            title="Dialog 测试"
-            ripple
-            border
-            @click="Dialog('确认对话框')"
-          >
-            <template #extra
-              ><var-icon name="chevron-right" size="20"
-            /></template>
-          </var-cell>
-          <div class="card-content flex justify-center py-6">
-            <var-loading type="cube" size="large" />
-          </div>
-        </template>
-      </var-card>
-
-      <!-- UUID 测试 -->
-      <var-card title="工具类测试 (Utils)" class="mt-4" elevation="2">
-        <template #description>
-          <div class="card-content">
-            <var-cell
-              title="UUID 生成测试"
-              description="测试 generateUuid 工具函数"
-            />
-            <div
-              class="mt-2 p-3 bg-secondary rounded text-xs font-mono break-all"
-            >
-              <div class="text-hint mb-1">生成的 ID:</div>
-              <div v-if="lastGeneratedUuid" class="text-primary">
-                {{ lastGeneratedUuid }}
-              </div>
-              <div v-else class="text-hint italic">尚未生成</div>
-            </div>
-            <var-button
-              type="primary"
-              block
-              size="small"
-              class="mt-4"
-              @click="generateNewUuid"
-            >
-              生成新 UUID
-            </var-button>
-          </div>
-        </template>
-      </var-card>
-
-      <!-- 键盘与视口测试 -->
-      <var-card title="键盘与视口实时监控" class="mt-4" elevation="2">
-        <template #description>
-          <div class="card-content">
-            <div class="grid grid-cols-2 gap-2 text-xs mb-4">
-              <div class="p-2 bg-secondary rounded">
-                <div class="text-hint">Window InnerHeight</div>
-                <div class="text-primary font-bold">
-                  {{ viewportInfo.windowInnerHeight }}px
-                </div>
-              </div>
-              <div class="p-2 bg-secondary rounded">
-                <div class="text-hint">Visual Viewport H</div>
-                <div class="text-primary font-bold">
-                  {{ viewportInfo.visualViewportHeight }}px
-                </div>
-              </div>
-              <div class="p-2 bg-secondary rounded">
-                <div class="text-hint">Real Keyboard H</div>
-                <div class="text-danger font-bold">{{ kbH }}px</div>
-              </div>
-              <div class="p-2 bg-secondary rounded">
-                <div class="text-hint">Keyboard Visible</div>
-                <div
-                  class="font-bold"
-                  :class="isKeyboardVisible ? 'text-warning' : 'text-hint'"
-                >
-                  {{ isKeyboardVisible ? "YES" : "NO" }}
-                </div>
-              </div>
-              <div class="p-2 bg-secondary rounded">
-                <div class="text-hint">Viewport OffsetTop</div>
-                <div class="text-primary font-bold">
-                  {{ viewportInfo.visualViewportOffsetTop }}px
-                </div>
-              </div>
-            </div>
-
-            <div class="flex gap-2 mb-4">
-              <var-chip size="mini"
-                >Resize: {{ viewportInfo.resizeCount }}</var-chip
-              >
-              <var-chip size="mini"
-                >Viewport: {{ viewportInfo.viewportEventCount }}</var-chip
-              >
-            </div>
-
-            <var-input
-              placeholder="点击这里测试键盘弹出"
-              variant="outlined"
-              @focus="updateViewportInfo"
-            />
-            <var-input
-              placeholder="再点这里对比"
-              class="mt-2"
-              variant="outlined"
-              @focus="updateViewportInfo"
-            />
-          </div>
-        </template>
-      </var-card>
-    </div>
+      <component :is="activeView" v-else />
+    </main>
   </div>
 </template>
 
 <style scoped>
-.content {
-  padding: 16px;
-  /* 避让固定的 app-bar (54px) + 安全区域 */
-  padding-top: calc(54px + var(--app-safe-area-top, 0px));
-}
-
-.mt-2 {
-  margin-top: 8px;
-}
-.mt-4 {
-  margin-top: 16px;
-}
-.mt-6 {
-  margin-top: 24px;
-}
-.mb-1 {
-  margin-bottom: 4px;
-}
-.my-6 {
-  margin-top: 24px;
-  margin-bottom: 24px;
-}
-
-.py-6 {
-  padding-top: 24px;
-  padding-bottom: 24px;
-}
-
-.px-4 {
-  padding-left: 16px;
-  padding-right: 16px;
-}
-
-.pb-2 {
-  padding-bottom: 8px;
-}
-.pb-4 {
-  padding-bottom: 16px;
-}
-
-.p-3 {
-  padding: 12px;
-}
-
-.card-content {
-  padding: 16px;
-}
-
-.bg-secondary {
-  background-color: color-mix(in srgb, var(--primary-color), transparent 92%);
-}
-
-.border-l-4 {
-  border-left: 4px solid var(--primary-color);
-}
-
-.rounded {
-  border-radius: 8px;
-}
-
-.flex {
-  display: flex;
-}
-
-.justify-center {
-  justify-content: center;
-}
-
-.text-sm {
-  font-size: 1rem;
-}
-.text-xs {
-  font-size: 0.85rem;
-}
-.text-primary {
-  color: var(--primary-color);
-}
-.text-hint {
-  color: #888;
-}
-.font-bold {
-  font-weight: bold;
-}
-.break-all {
-  word-break: break-all;
-}
-.opacity-80 {
-  opacity: 0.8;
-}
-.italic {
-  font-style: italic;
-}
+.workbench-view { min-height: 100dvh; background: var(--body-bg, var(--sidebar-bg)); color: var(--text-primary); }
+.workbench-header { display: flex; align-items: center; gap: 12px; min-height: 68px; padding: 10px 16px; background: var(--sidebar-bg); border-bottom: 1px solid var(--divider-color, rgba(127, 127, 127, 0.18)); }
+.workbench-header h1 { margin: 0; font-size: 18px; letter-spacing: 0; }
+.workbench-header p { margin: 3px 0 0; color: var(--text-secondary, #6b7280); font-size: 11px; }
+.icon-button { display: grid; width: 40px; height: 40px; flex: 0 0 40px; place-items: center; padding: 0; color: inherit; background: transparent; border: 0; border-radius: 50%; }
+.icon-button:active { background: var(--input-bg); }
+.section-tabs { display: flex; max-width: 100%; overflow-x: auto; background: var(--sidebar-bg); border-bottom: 1px solid var(--divider-color, rgba(127, 127, 127, 0.18)); scrollbar-width: none; }
+.section-tabs::-webkit-scrollbar { display: none; }
+.section-tabs button { display: inline-flex; min-width: max-content; height: 48px; flex: 1 0 auto; align-items: center; justify-content: center; gap: 6px; padding: 0 14px; color: var(--text-secondary, #6b7280); background: transparent; border: 0; border-bottom: 2px solid transparent; font-size: 13px; }
+.section-tabs button.active { color: var(--color-primary, #2563eb); border-bottom-color: currentColor; }
+.workbench-content { padding: 0 16px 28px; }
+.overview-view { padding-top: 16px; }
+.overview-band { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--divider-color, rgba(127, 127, 127, 0.18)); border: 1px solid var(--divider-color, rgba(127, 127, 127, 0.18)); border-radius: 6px; overflow: hidden; }
+.overview-band div { min-width: 0; padding: 12px 10px; background: var(--card-bg); }
+.overview-band span, .overview-band strong { display: block; overflow-wrap: anywhere; }
+.overview-band span { color: var(--text-secondary, #6b7280); font-size: 11px; }
+.overview-band strong { margin-top: 5px; font-size: 13px; }
+.overview-summary { display: flex; flex-wrap: wrap; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--divider-color, rgba(127, 127, 127, 0.18)); font-size: 13px; }
+.passed { color: var(--color-success, #25804b); }
+.failed { color: var(--color-danger, #c23b3b); }
+.pending { color: var(--color-warning, #9a6500); }
+.overview-section, .resume-section { margin: 22px 0; }
+.overview-section h2, .resume-section h2 { margin: 0 0 8px; font-size: 16px; }
+.recent-row { display: flex; gap: 12px; align-items: center; min-height: 60px; border-bottom: 1px solid var(--divider-color, rgba(127, 127, 127, 0.18)); }
+.recent-row > div { min-width: 0; flex: 1; }
+.recent-row strong, .recent-row span { display: block; overflow-wrap: anywhere; }
+.recent-row strong { font-size: 13px; }
+.recent-row div span, .empty-text, .resume-section p { margin-top: 4px; color: var(--text-secondary, #6b7280); font-size: 11px; }
+.recent-row .status { flex: 0 0 auto; font-size: 12px; }
+.status[data-status="passed"] { color: var(--color-success, #25804b); }
+.status[data-status="failed"] { color: var(--color-danger, #c23b3b); }
+.status[data-status="manualPending"] { color: var(--color-warning, #9a6500); }
+.resume-section { padding: 12px; background: var(--input-bg); border-left: 3px solid var(--color-warning, #9a6500); }
+@media (max-width: 380px) { .overview-band { grid-template-columns: 1fr; } }
 </style>

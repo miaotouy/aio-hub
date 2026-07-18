@@ -30,3 +30,6 @@ base64 = "0.22"
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls-native-roots", "http2", "charset", "gzip", "brotli", "deflate", "multipart"] }
 tokio = { version = "1", features = ["fs", "sync"] }
 tokio-util = { version = "0.7", features = ["io"] }
+rusqlite = { version = "0.32.1", features = ["bundled"] }
+tauri-plugin-dialog = "2"
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite"] }

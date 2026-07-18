@@ -1,6 +1,6 @@
 # 移动端开发验证台设计与实施计划
 
-> 状态：待施工
+> 状态：Android 虚拟机验收通过，待 Android 真机 / iOS 验收
 > 日期：2026-07-18
 > 所属工具：`mobile/src/tools/ui-tester/`
 > 目标：为移动端组件、Tauri 平台能力、资产 Phase 0 和 SQLite Phase 0 提供可重复操作、可记录、可导出的真机验证入口。
@@ -222,3 +222,30 @@ mobile/src/tools/ui-tester/
 - 导出报告可复现平台、版本、输入规模、步骤、指标和结论，同时不泄露敏感内容。
 - `bun run test:run`、`bun run check:frontend`、`bun run check:backend` 和 `bun run build` 通过。
 - Phase 0 结论必须附至少一份 Android 和一份 iOS 的真实 Tauri 运行报告；普通浏览器结果不计入验收。
+
+## 10. 施工记录（2026-07-18）
+
+### 10.1. 已完成
+
+- `ui-tester` 已更名为“组件与平台测试”，原单页拆为总览、组件与布局、平台文件和 SQLite 四个一级板块。
+- 已建立统一 `ValidationRun` 模型、最近 20 次 ConfigManager 持久化、人工判定、跨重启恢复标记、JSON 导出和递归脱敏。
+- 组件页保留原安全区、键盘、主题、Settings / Store、Logger / Message / Dialog、FS 和 UUID 测试能力，并增加整体验收记录入口；页面主结构已移除 `var-app-bar` / `var-card`。
+- 平台文件接入 Tauri dialog + fs：支持单选、多选、图片过滤入口、用户取消、首字节读取探测、大小/MIME/URI scheme/引用 hash 记录、固定 cache 沙箱 round-trip、失败清理、人工后台/云端/预览观察和强杀恢复检查。
+- SQLite 后端只构造 `ui-tester-validation/ui_tester_validation.db`，前端不传数据库路径或 SQL；删除、重建和沙箱清理均有 Rust 侧固定名称校验。
+- SQLx 负责实际 pool、WAL、`synchronous=NORMAL`、foreign key、busy timeout、并发读取和写锁等待验证；`rusqlite` 负责确定性的 migration fixture、codec、fault injection、FTS5 与大数据基准。两者共用同一 bundled SQLite，避免设备系统 SQLite 编译选项漂移。
+- SQLite 已覆盖历史 v0 到 v1、失败回滚、高版本拒写、完整 `ChatMessageNode` 结构 round-trip、trigram FTS + 1/2 字 LIKE 降级、1k/10k/100k Rust 侧生成、冷/热查询、会话加载、删除、索引重建、数据库体积和 SQLite memory 指标。
+- 事务恢复和平台系统终止场景会在风险确认后直接终止进程；恢复标记先同步持久化，应用重启后自动检查半提交、foreign key、integrity 和沙箱半成品，并回填原运行结论。
+- 已通过 `bun run test:run`、`bun run check:frontend`、`bun run check:backend`、`bun run build`、Rust 单元测试和 `bun run mtab -- --debug` Android universal APK / AAB 构建。
+
+### 10.2. 实施说明与偏差
+
+- 原计划批次 3 只写了“SQLx spike”。实际采用 SQLx + `rusqlite` 双层验证：SQLx 验证未来业务连接契约，`rusqlite` 提供更适合固定故障注入和同步 fixture 的底层测试控制；业务数据库仍未接入任一验证 command。
+- “照片”入口当前由 Tauri 系统文件选择器加图片扩展名过滤实现，不引入 Varlet 页面骨架或浏览器 fallback。Android Photo Picker / iOS Photos 的专用入口如后续资产 Phase 0 选型不同，应替换 service 入口并保留现有运行模型。
+- 云端占位下载、离线、系统权限持久化、切后台和 WebView 预览属于平台不可稳定自动判定项，已按计划实现为 `manualPending`，必须在真机报告中填写结论。
+
+### 10.3. 平台验收状态（2026-07-19）
+
+- Android 虚拟机已完成人工测试，项目内主要组件、平台文件与 SQLite 验证场景基本通过，本轮 Android 虚拟机验收通过。
+- Android 真机仍需补充系统选择器 URI、云端文件、后台/强杀恢复和 10 万条基准耗时与空间验证，并导出一份 schema `1.0` JSON 报告。
+- iOS 尚未验收，仍需从应用内依次运行平台文件和 SQLite 固定场景并导出一份 schema `1.0` JSON 报告。
+- 第 9 节要求的 Android 与 iOS 真实设备报告尚未全部完成，因此当前结论仅代表 Android 虚拟机验收，不等同于 Phase 0 双平台最终验收。

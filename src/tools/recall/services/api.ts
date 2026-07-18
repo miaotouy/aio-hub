@@ -132,6 +132,7 @@ interface RetrievalCacheKeyInput {
   query: string;
   recallIds: string[];
   tags: string[];
+  fusionWeights: [number, number];
   limit: number;
   minScore: number;
   engineId: string;
@@ -188,6 +189,20 @@ function weightedAverageVector(
     }
   }
   return result;
+}
+
+function normalizeFusionWeights(
+  weights: [number, number] | undefined
+): [number, number] {
+  const selected = weights ?? [0.7, 0.3];
+  const total = selected[0] + selected[1];
+  if (
+    !selected.every((weight) => Number.isFinite(weight) && weight >= 0) ||
+    total <= 0
+  ) {
+    return [0.7, 0.3];
+  }
+  return [selected[0] / total, selected[1] / total];
 }
 
 /**
@@ -299,7 +314,7 @@ export async function searchWithCache(
 ): Promise<SearchWithCacheResult> {
   const rawPrimary = params.primaryQuery || "";
   const secondary = params.secondaryQuery || "";
-  const weights = params.fusionWeights || [0.7, 0.3];
+  const weights = normalizeFusionWeights(params.fusionWeights);
   const explicitTags = params.tags || [];
   const profile = params.profile;
   const defaults = profileDefaults(profile);
@@ -322,6 +337,7 @@ export async function searchWithCache(
     query: `${primary}|||${secondary}`,
     recallIds: params.recallIds,
     tags: mergedTags,
+    fusionWeights: weights,
     limit,
     minScore,
     engineId,

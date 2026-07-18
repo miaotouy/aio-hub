@@ -22,6 +22,7 @@ pub struct RetrievalCacheInput {
     pub query: String,
     pub recall_ids: Vec<String>,
     pub tags: Vec<String>,
+    pub fusion_weights: [f32; 2],
     pub limit: u32,
     pub min_score: f32,
     pub engine_id: String,
@@ -52,6 +53,11 @@ fn build_cache_key(input: &RetrievalCacheInput) -> String {
     let mut tags = input.tags.clone();
     tags.sort();
     hasher.update(tags.join(",").as_bytes());
+    hasher.update(b"\0");
+
+    for weight in input.fusion_weights {
+        hasher.update(weight.to_le_bytes());
+    }
     hasher.update(b"\0");
 
     hasher.update(input.limit.to_le_bytes());
@@ -152,6 +158,7 @@ mod tests {
             query: "query".to_string(),
             recall_ids: vec!["collection".to_string()],
             tags: vec![],
+            fusion_weights: [0.7, 0.3],
             limit: 5,
             min_score: 0.3,
             engine_id: "semantic".to_string(),
@@ -176,6 +183,18 @@ mod tests {
         assert_ne!(
             build_cache_key(&baseline),
             build_cache_key(&different_version)
+        );
+    }
+
+    #[test]
+    fn cache_key_separates_fusion_weights() {
+        let baseline = input();
+        let mut different_weights = input();
+        different_weights.fusion_weights = [0.6, 0.4];
+
+        assert_ne!(
+            build_cache_key(&baseline),
+            build_cache_key(&different_weights)
         );
     }
 }

@@ -458,8 +458,9 @@ interface ManagedAssetRef {
 - 验证 plugin-fs 读取 `content://` 与 `file://` 的真实运行态。
 - 验证应用进入后台、系统杀进程和空间不足时的暂存文件行为。
 - 做原生照片选择、分享导入、分享导出的最小插件实验，确认首版范围。
+- 在 `ui-tester` 增加“平台文件”验证板块，所有自动场景返回结构化步骤与指标；后台、系统终止和云端文件等场景支持人工判定、跨重启续测和脱敏报告导出。
 
-交付物是实验记录和 API 决策，不接业务 UI。
+交付物是固定验证命令、`ui-tester` 操作面板、Android/iOS 运行报告和 API 决策；不接正式资产业务 UI。详细设计见 [`platform-validation-workbench-plan.md`](../../src/tools/ui-tester/docs/Plan/platform-validation-workbench-plan.md)。
 
 ### Phase 1：资产内核
 

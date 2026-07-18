@@ -326,6 +326,9 @@ ConfigManager
 - 每条连接的 `foreign_keys`、`journal_mode`、`busy_timeout` 符合预期。
 - 事务中途强杀应用后没有半提交。
 - 10 万条中英混合消息的索引构建、搜索、会话加载和数据库体积。
+- 同批在 `ui-tester` 交付只操作隔离测试库的 SQLite 验证面板，覆盖固定场景、结构化指标、人工判定、跨重启恢复和脱敏报告导出；不提供任意 SQL 入口。
+
+验证面板设计见 [`platform-validation-workbench-plan.md`](../../src/tools/ui-tester/docs/Plan/platform-validation-workbench-plan.md)。没有 Android/iOS 的面板运行报告，阶段 0 不视为完成。
 
 ### 阶段 1：Rust 存储骨架与 migrations
 

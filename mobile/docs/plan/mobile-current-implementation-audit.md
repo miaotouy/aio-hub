@@ -113,7 +113,7 @@ SQLite 施工顺序见 [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migra
 - [ ] Agent 私有头像、背景、预设附件和二进制资产管理。
 - [ ] Agent 完整参数编辑和与桌面端最新类型/分类定义的兼容性收尾。
 - [ ] 消息搜索/过滤、消息引用回复、会话搜索和排序。
-- [ ] 消息复制真正写入系统剪贴板；当前聊天处理器只显示成功提示。
+- [ ] 补齐消息复制失败反馈与 Android/iOS 剪贴板权限验收；当前已调用 `navigator.clipboard.writeText()`，但失败分支会静默关闭菜单。
 - [ ] 会话删除、清空确认设置的完整接线。
 - [ ] 流式开关、时间戳、模型信息开关、自动滚动开关和消息字号的运行时接线。
 - [ ] 默认模型偏好的运行时接线；当前无有效选择时直接回退到第一个可用模型。
@@ -131,6 +131,7 @@ SQLite 施工顺序见 [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migra
 - [ ] 处理或接受记录 `vconsole` 直接 `eval` 的构建警告。
 - [ ] 拆分首页超过 500 kB 的构建 chunk；本次生产构建中 `Home` chunk 为 580.68 kB，重点检查工具 registry eager import 与共享配置进入首页包的影响。
 - [ ] 增加 Agent 存储/导入、会话绑定、分支操作和上下文管道专项测试。
+- [ ] 将 `ui-tester` 升级为“组件与平台测试”验证台，交付平台文件与 SQLite 操作板块、统一运行记录、跨重启续测和脱敏报告导出。
 
 设计分层决议见 [`mobile-design-language-investigation.md`](./mobile-design-language-investigation.md)。
 
@@ -150,17 +151,60 @@ SQLite 施工顺序见 [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migra
 - `mobile-sqlite-migration-plan.md` 是未施工的实施计划，不代表已有数据库代码。
 - `mobile-asset-manager-design.md` 状态仍为待评审，所有 Phase 均应视为未开始。
 - `mobile-design-language-investigation.md` 的 Phase 0 已完成，Phase 1 只完成了包装 API 的局部落地，业务调用尚未收口。
+- `platform-validation-workbench-plan.md` 是资产与 SQLite Phase 0 的共同验证 UI 计划，尚未施工；对应后端 spike 与 UI 面板必须同批交付。
 - `llm-provider-adapter-sharing-investigation.md` 的代码与自动化验收已完成，剩余人工性能与双平台真机验收。
 - 2026-07-16 完成的移动端模型批量检查和 2026-07-18 完成的模型身份/Embedding 空间分离已纳入本快照；它们属于现有 `llm-api` 工具能力，不新增工具 registry。
 
 后续更新本文件时，应以代码、依赖和本次可复现验证为准；计划文档中的历史勾选只作为施工记录，不应覆盖当前代码事实。
 
-## 5. 建议实施顺序
+## 5. 下一步施工路线
 
-1. 先完成资产 Phase 0 真机实验，锁定 Android/iOS 文件入口与权限边界。
-2. 并行确定 SQLite Schema 最终版，但在资产引用契约稳定前不要提前固化聊天附件字段。
-3. 完成资产内核与 `ManagedAssetRef` 后，再实施聊天 SQLite、附件、usage outbox 和搜索。
-4. 在数据主线稳定后补 Agent 私有资产、用户档案及高级注入语义。
-5. 最后集中完成设计 API 收敛、包体优化、专项测试和双平台发布验收。
+### 5.1. 立即施工：冻结边界与双端能力验证
 
-这个顺序的关键约束是：聊天附件依赖全局资产契约，Agent 私有资产则保持独立 Handle/相对路径语义，两者不能合并成同一个 `assetId` 生命周期。
+第一批不直接铺业务 UI，先完成两个会影响后续所有数据施工的验证包：
+
+1. **资产 Phase 0**：在 Android/iOS 验证文件与照片选择、大文件、`content://` / `file://`、云端文件、取消、后台、系统终止和空间不足；输出实验记录、首版文件入口范围和预览方案决策。
+2. **SQLite Phase 0**：用最小 Rust + SQLx spike 验证数据库创建/重开、migration、连接 PRAGMA、事务强杀恢复、FTS5/trigram 和 10 万条中英混合消息基准。
+3. **验证 UI**：同步把固定场景接入 `ui-tester` 的“平台文件”和“SQLite”板块，支持结构化步骤、人工判定、跨重启续测和脱敏报告导出；没有双端 UI 运行记录的 spike 不算完成。
+4. **契约冻结**：锁定 `ManagedAssetRef`、资产服务领域命令、聊天 storage command、Schema v1 与 metadata codec；聊天前端不得获得任意 SQL 执行入口。
+
+SQLite 旧计划中的 JS `db.ts`、`PRAGMA user_version` 和前端事务方案已被后续调查否决；当前实施边界以 Rust 领域命令、原生 migration runner 和统一连接配置为准。
+
+验证台的信息架构、隔离策略和场景清单见 [`platform-validation-workbench-plan.md`](../../src/tools/ui-tester/docs/Plan/platform-validation-workbench-plan.md)。
+
+### 5.2. 两条可并行主线
+
+**A 线：全局资产内核**
+
+- 建立 `asset_manager.db` 与 Rust repository，完成流式导入、内容寻址、来源、usage、tombstone、分页查询和一致性恢复。
+- 建立 `ManagedAssetRef` 和跨工具服务接口；扩展原生 LLM 文件传输，由 Rust 解析托管资产，不把大文件转成 base64 穿过 IPC。
+- 此阶段只做最小验证入口，不先建设完整资产页面。
+
+**B 线：聊天 SQLite 基础**
+
+- 建立 `llm_chat_storage`、SQLx migrations、连接池、无损 codec 和领域级 Tauri commands。
+- 先迁移会话列表、单会话加载和消息 change set；`currentSessionId` 继续由 ConfigManager 管理。
+- 保留 JSON 实现作为短期开发回退，Android/iOS 数据闭环通过后删除；资产契约稳定前不固化附件写入流程。
+
+### 5.3. 两线汇合：附件、引用与搜索闭环
+
+1. 在聊天库落地 `chat_attachments` 和 transactional usage outbox，覆盖附件替换、分支删除、会话删除、崩溃重试和幂等投递。
+2. 接入聊天图片/文件选择、发送、预览及 `reclaimed` 降级展示，作为资产内核的第一个真实消费者。
+3. 基于真机验证结果实现 FTS5 或 basic-search 降级，明确中日韩短查询、英文前缀、特殊字符、rank、snippet 和结果上限。
+4. 完成资产/空间页面、影响分析、保留策略和安全清理流程。
+
+### 5.4. 数据主线稳定后的产品补全
+
+- **Agent 执行语义**：`injectionStrategy`、`modelMatch`、聊天内切换 Agent、开局消息实例化、宏渲染、深度注入和用户档案。
+- **Agent 私有资产**：头像、背景和预设附件继续使用 Agent Handle + 相对路径，导入导出携带私有二进制；不得改成全局 `assetId` 生命周期。
+- **Chat 完整性**：搜索/排序/引用回复、设置运行时接线、请求超时与重试、复制失败反馈和双语覆盖。
+
+### 5.5. 可穿插的低耦合收尾
+
+- 统一业务层 `customMessage/customDialog`，测试工具可保留底层 Varlet 验证入口。
+- 修复设置页硬编码版本来源，处理 `vconsole` 警告，拆分过大的 `Home` chunk。
+- 增加 Agent 存储/导入、会话绑定、分支、上下文管道、SQLite codec/migration/crash recovery 和资产一致性测试。
+
+每个主批次都必须通过 `bun run test:run`、`bun run check:frontend`、`bun run check:backend` 和 `bun run build`。涉及平台能力的批次还必须使用真实 Tauri Android/iOS 构建与真机验收，普通浏览器不能替代。
+
+施工顺序的硬约束是：聊天附件依赖全局资产契约；Agent 私有资产属于不可被全局清理策略回收的角色包内容。两者只能复制内容，不能共享 ID 或生命周期。

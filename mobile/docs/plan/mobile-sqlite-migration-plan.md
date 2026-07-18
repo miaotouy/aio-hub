@@ -1,5 +1,8 @@
 # 移动端 SQLite 引入与持久化重构计划 (Mobile SQLite Migration Plan)
 
+> 状态：待施工；2026-07-18 已按 [`mobile-sqlite-migration-investigation-report.md`](./mobile-sqlite-migration-investigation-report.md) 校正实施边界。
+> 当前决议：聊天数据库通过 Rust 领域命令访问，默认采用 SQLx、原生 migration runner 和统一连接配置；前端不得执行任意 SQL。
+
 ## 1. 背景与现状
 
 目前移动端（`mobile/`）的数据持久化采用的是**轻量级 JSON 文件方案**：
@@ -41,11 +44,12 @@ PC 端拥有强大的多核 CPU、超高速的 NVMe 固态硬盘以及充足的�
 └───────────┬──────────────────────────────┬─────────────┘
             │ 简单配置                               │ 复杂/海量数据
 ┌───────────▼────────────┐              ┌───▼──────────────┐
-│     ConfigManager      │              │ tauri-plugin-sql │
-│ (app_settings.json 等)  │              │    JS API        │
+│     ConfigManager      │              │ Tauri commands   │
+│ (app_settings.json 等)  │              │llm_chat_storage  │
 └────────────────────────┘              └────────┬─────────┘
                                                  │ 读写
                                         ┌────────▼───────┐
+                                        │ SQLx + migrations│
                                         │   llm_chat.db  │
                                         │Sessions/Msgs/  │
                                         │Attachments     │
@@ -58,7 +62,7 @@ AIO Hub 采用模块化工具架构，每个工具作为独立单元接入。为
 
 1. **轻量配置保留 JSON**：`app_settings.json`、`llm_profiles.json` 等配置继续使用 `ConfigManager`，保持轻量和高开发效率。
 2. **海量数据落地专属 SQLite**：每个需要数据库支持的工具，拥有自己独立的 `.db` 文件。例如 `llm-chat` 模块独占 `llm_chat.db`。
-3. **文件与索引保持同一事务边界**：资产管理等同时修改大文件与索引的模块，仍遵循“一模块一数据库”，但数据库写入必须由 Rust 模块服务统一编排，不能让前端通过 SQL 插件直接修改核心资产表。具体边界见 [`mobile-asset-manager-design.md`](./mobile-asset-manager-design.md)。
+3. **领域写入保持同一事务边界**：聊天、资产等复杂数据模块仍遵循“一模块一数据库”，但数据库写入必须由各自 Rust 模块服务统一编排。前端只能调用领域级 command，不能通过 SQL 插件直接修改核心表。资产边界见 [`mobile-asset-manager-design.md`](./mobile-asset-manager-design.md)。
 4. **跨库引用使用 ID 与 outbox**：聊天附件只保存全局 `asset_id` 和轻量快照，不保存资产路径。聊天事务同时写入 usage outbox，由后台幂等同步到 `asset_manager.db`，不尝试建立跨数据库外键。
 
 **多数据库架构的优势**：
@@ -212,67 +216,29 @@ LIMIT 100;
 
 ### 3.6. Schema 版本管理 (Migration)
 
-使用 SQLite 内置的 `PRAGMA user_version` 管理数据库 Schema 版本号：
+使用 SQLx 原生 migration runner，不在前端手写版本循环：
 
-```typescript
-const SCHEMA_VERSION = 1;
-
-async function initDatabase(db: Database, dbName: string) {
-  const currentVersion = await db.select<[{ user_version: number }]>(
-    "PRAGMA user_version"
-  );
-
-  // 运行从 currentVersion → SCHEMA_VERSION 的所有迁移步骤
-  for (let v = currentVersion[0].user_version + 1; v <= SCHEMA_VERSION; v++) {
-    await runMigration(db, v);
-  }
-
-  // 设置最新版本号
-  await db.execute(`PRAGMA user_version = ${SCHEMA_VERSION}`);
-}
-
-function runMigration(db: Database, version: number) {
-  switch (version) {
-    case 1:
-      // 初始创建表、索引、FTS5
-      return db.execute(SCHEMA_SQL);
-    default:
-      throw new Error(`Unknown schema version: ${version}`);
-  }
-}
-```
-
-> **说明**：`PRAGMA user_version` 是一个由应用自由使用的整数，持久化存储于数据库文件中，初始值为 0。迁移时，从 `current + 1` 到 `SCHEMA_VERSION` 依次执行 `runMigration(db, v)`，每个版本对应一个 DDL 变更步骤。
+- migration SQL 文件随源码进入版本控制，由 `sqlx::migrate!()` 在 Rust 启动路径执行；
+- 每个 migration 与版本记录同事务提交，失败时完整回滚；
+- 自动测试覆盖每个历史 schema 到最新版的升级路径；
+- 应用降级遇到更高 schema 时明确拒绝写入，不能尝试继续运行；
+- `foreign_keys`、WAL、`busy_timeout` 和 `synchronous` 属于每条连接的 connect options，不写进一次性 migration 假设其永久生效。
 
 ### 3.7. `metadata_json` 编码策略
 
-`metadata_json` 以 JSON 文本格式存储 [`ChatMessageNode.metadata`](../src/tools/llm-chat/types/message.ts#L55-L70) 中除 `reasoningContent` 之外的全部字段：
+`metadata_json` 以 JSON 文本格式存储 [`ChatMessageNode.metadata`](../../src/tools/llm-chat/types/message.ts) 中除已拆列字段之外的完整对象。当前至少包含模型身份、错误、usage、Token 来源、上下文占用、请求时序和吞吐指标；后续新增未知字段也必须无损保留。
 
-```typescript
-// 编码（写入时）
-interface MessageMetadata {
-  modelId?: string;
-  modelName?: string;
-  modelDisplayName?: string;
-  error?: string;
-  reasoningStartTime?: number;
-  reasoningEndTime?: number;
-}
-
-// 解码（读取时）
-JSON.parse(metadata_json || "{}");
-```
+Rust storage codec 不能用手写字段白名单重建 metadata。编码时从完整 metadata 克隆后只移除明确拆列字段，解码时将拆列字段合并回 JSON 对象；固定样本和未知字段都要经过 SQLite round-trip 测试。
 
 > **为什么不全部拆为独立列？**：
 > 这些字段的特点是：**读取频繁但无需在 SQL WHERE 中过滤**（用户不会搜索"modelId = xxx 的消息"）。将它们塞进一个 TEXT 列，既减少列数、避免宽表，又保持前端接口一致性——读取后直接合并回 `ChatMessageNode.metadata` 对象，与 JSON 文件时代的序列化/反序列化逻辑基本一致。
 
 ### 3.8. 完整 DDL 总览
 
-```sql
--- ============ 1. 启用外键 ============
-PRAGMA foreign_keys = ON;
+> 以下 DDL 是 Schema v1 草案，不是已冻结 migration。阶段零验证完成后还需按当前 TypeScript 类型、metadata codec、中文搜索策略和 `ManagedAssetRef` 契约复核，再拆入 SQLx migration 文件。
 
--- ============ 2. 会话表 ============
+```sql
+-- ============ 1. 会话表 ============
 CREATE TABLE IF NOT EXISTS chat_sessions (
   id                TEXT PRIMARY KEY,
   name              TEXT NOT NULL,
@@ -378,124 +344,48 @@ END;
 
 ## 4. 实施步骤 (Implementation Steps)
 
-### 阶段一：引入依赖与环境配置
+### 阶段零：Android/iOS 能力验证
 
-1. 在 `mobile/package.json` 中引入官方 SQL 插件：
+- 建立最小 Rust + SQLx spike，验证数据库创建、关闭、重开和应用升级。
+- 检查 FTS5 与 trigram 编译能力，并验证所有池连接的 `foreign_keys`、WAL、`busy_timeout` 和 `synchronous` 配置。
+- 覆盖事务中途强杀恢复，以及 10 万条中英混合消息的索引、查询、加载和数据库体积基准。
+- 在 `ui-tester` 增加“SQLite”验证板块，通过固定场景操作隔离测试库，展示结构化步骤与指标，并支持跨重启恢复和脱敏报告导出；不得暴露任意 SQL。
+- 只有 Android 与 iOS 正式构建链均通过后，才冻结具体 crate feature 与连接参数。
 
-   ```json
-   "@tauri-apps/plugin-sql": "^2.0.0"
-   ```
+验证 UI 的信息架构、安全隔离和场景定义见 [`platform-validation-workbench-plan.md`](../../src/tools/ui-tester/docs/Plan/platform-validation-workbench-plan.md)。
 
-2. 在 `mobile/src-tauri/Cargo.toml` 中加入 `tauri-plugin-sql`。
-3. 在 `mobile/src-tauri/src/lib.rs` 中注册插件：
-   ```rust
-   tauri::Builder::default()
-       .plugin(tauri_plugin_sql::Builder::default().build())
-   ```
+### 阶段一：Rust 存储骨架与 migrations
 
-### 阶段二：建立数据库服务层 (`db.ts`)
+- 在 `mobile/src-tauri/src/` 新增 `llm_chat_storage.rs`，使用 SQLx 连接池与 `sqlx::migrate!()`；migration SQL 文件进入版本控制。
+- command 至少覆盖 `list_chat_sessions`、`load_chat_session`、`persist_chat_changes`、`delete_chat_branch`、`delete_chat_session`、`search_chat_messages` 和 `drain_asset_usage_outbox`。
+- `persist_chat_changes` 接收领域变更集并开启单一 transaction；前端不传 SQL，也不自行管理 transaction。
+- 增加 migration 升级/回滚、foreign key、codec round-trip、未知 metadata 字段保留和 crash recovery 测试。
 
-在 `mobile/src/utils/db.ts` 中封装数据库初始化与连接获取逻辑。包含 Schema 版本管理和 DDL 执行：
+### 阶段二：会话与消息增量持久化
 
-```typescript
-import Database from "@tauri-apps/plugin-sql";
+- 重构 `useSessionManager`，通过薄 Tauri command client 加载会话列表、单会话和提交 change set。
+- Rust 侧只写入新增、编辑、删除和活跃分支变化，避免每次保存 O(N) 重写整段会话。
+- `currentSessionId` 继续由 ConfigManager 管理；流式回复按节流快照落盘，不按 token 写数据库。
+- JSON 实现只作为短期开发回退。Android/iOS 数据闭环通过后删除，不建设长期双写与迁移负担。
 
-const SCHEMA_SQL = `-- 见 3.8 节完整 DDL，此处省略`;
-const SCHEMA_VERSION = 1;
+### 阶段三：附件与 usage outbox
 
-const dbConnections = new Map<string, Database>();
+- 等资产服务命令与 `ManagedAssetRef` 稳定后，再固化 `chat_attachments` 的写入和解析。
+- 在消息变更 transaction 内写完整 usage replacement/release outbox；删除业务行前必须先写 release 事件。
+- 应用启动、聊天提交和资产服务恢复时触发投递；失败事件独立重试，永久错误不能阻塞后续无关实体。
+- 用故障注入覆盖“资产命令已成功但 delivered 未标记”、重复投递、附件替换、分支删除和会话删除。
 
-async function initDatabase(db: Database) {
-  // 读取当前 schema 版本
-  const result = await db.select<[{ user_version: number }]>(
-    "PRAGMA user_version"
-  );
-  let currentVersion = result[0]?.user_version ?? 0;
+### 阶段四：本地搜索
 
-  // 逐步执行未运行的 migration
-  for (let v = currentVersion + 1; v <= SCHEMA_VERSION; v++) {
-    await runMigration(db, v);
-  }
-
-  // 更新版本号
-  if (currentVersion !== SCHEMA_VERSION) {
-    await db.execute(`PRAGMA user_version = ${SCHEMA_VERSION}`);
-  }
-}
-
-async function runMigration(db: Database, version: number) {
-  switch (version) {
-    case 1:
-      await db.execute(SCHEMA_SQL);
-      break;
-    default:
-      throw new Error(`Unknown schema version: ${version}`);
-  }
-}
-
-export async function getDb(dbName: string) {
-  if (!dbConnections.has(dbName)) {
-    const db = await Database.load(`sqlite:${dbName}.db`);
-    // 初始化：启用外键 + 运行迁移
-    await db.execute("PRAGMA foreign_keys = ON;");
-    await initDatabase(db);
-    dbConnections.set(dbName, db);
-  }
-  return dbConnections.get(dbName)!;
-}
-
-/**
- * 获取工具专属数据库连接
- * @param toolId 工具 ID，例如 "llm_chat"
- */
-export async function getToolDb(toolId: string) {
-  return getDb(toolId);
-}
-```
-
-- 针对 `llm-chat` 模块，在模块初始化时调用 `getToolDb("llm_chat")`，连接器会自动运行 `initDatabase` 执行 DDL。
-- 未来需要更新 Schema 时，递增 `SCHEMA_VERSION` 并在 `runMigration` 中添加新的 `case` 分支即可。
-
-### 阶段三：重构 `useSessionManager`
-
-重写 `mobile/src/tools/llm-chat/composables/useSessionManager.ts`：
-
-- **`loadSessions`**：改为 `SELECT * FROM chat_sessions ORDER BY updated_at DESC`。
-- **`loadSession`**：查询消息和 `chat_attachments`，在前端用 O(N) 算法组装 `Record<string, ChatMessageNode>` 树状结构，并将附件行解码为 `ManagedAssetRef`（见第 5 节坑点 3）。
-- **`persistSession`**：使用事务写入会话、消息和附件；同一事务内按发生变化的消息写入完整 usage replacement outbox 事件。
-- **`deleteMessage` / 分支级联删除**：删除节点前收集受影响消息 ID，同一事务写入 release outbox，再删除消息与附件。
-- **`deleteSession`**：删除前为会话内所有含附件消息写入 release outbox，再删除会话；消息和附件仍由外键级联清理，outbox 不设置指向消息的外键。
-
-### 阶段四：实现 usage outbox 投递器
-
-- 应用启动、聊天数据提交完成和网络/服务恢复后触发待投递事件扫描。
-- 严格按自增 `sequence` 处理事件，调用 `asset_replace_entity_usages` 或对应 release 语义。
-- 投递成功后设置 `delivered_at`；失败时增加 `attempt_count` 并保存结构化错误，后续重试。
-- 资产服务命令按业务实体整体替换 usage，重复投递不得产生重复引用。
-- 已投递事件可在保留一段诊断期后批量删除，不能在资产命令返回成功前删除。
-
-### 阶段五：实现本地高效搜索
-
-利用 FTS5 虚拟表进行全文检索（替代初版 `LIKE` 方案）：
-
-```sql
-SELECT m.*, s.name as session_name
-FROM chat_messages_fts f
-JOIN chat_messages m ON f.rowid = m.rowid
-JOIN chat_sessions s ON m.session_id = s.id
-WHERE chat_messages_fts MATCH ?
-LIMIT 100;
-```
-
-前端暴露为 `searchMessages(keyword: string): Promise<SearchResult[]>`，输入关键词后拼接 FTS5 查询语法（例如 `"keyword1" OR "keyword2"`），无需扫文件、无需反序列化，毫秒级返回。
-
-如果需要高亮上下文片段，SQLite FTS5 内置的 `snippet()` 函数可以直接返回匹配位置前后的文字片段，前端可直接用于搜索结果条目展示。
+- query 编码、FTS 查询、rank、snippet 和结果上限均在 Rust storage 层实现，前端只传结构化搜索条件。
+- 在真实中日韩与英文语料上决定 trigram、受限 `LIKE` 或 basic-search 降级策略，明确 1/2/3 字符和特殊字符行为。
+- FTS 只有在双端真实 Tauri 运行态通过后才设为强依赖，否则保留 basic search 降级。
 
 ---
 
 ## 5. 潜在坑点与对策
 
-1. **外键约束启用**：SQLite 默认不启用外键级联删除。`getDb()` 中加载数据库后**必须**第一时间执行 `PRAGMA foreign_keys = ON;`。注意此 pragma 是 **per-connection** 的，每个连接都需要执行一次。
+1. **外键约束启用**：SQLite 默认不启用外键级联删除。必须通过 SQLx `SqliteConnectOptions` 为池中的每条连接设置 `foreign_keys(true)`，并用运行态检查确认，不能只在首条连接执行一次 pragma。
 2. **流式生成期间的写入策略**：LLM 流式回复时 `content` 在持续增长，如果每个 token 都 `INSERT OR REPLACE` 整行，会导致：
    - FTS 触发器反复 delete + insert 重建索引条目，造成严重性能开销。
    - `INSERT OR REPLACE` 实际上是 DELETE + INSERT，rowid 会变化，进一步加剧 FTS 同步成本。
@@ -537,13 +427,13 @@ function buildTree(
 
 注意：`sibling_order` 保证了第二轮的 `push` 顺序与写入时的 `childrenIds` 顺序一致。**查询时必须 `ORDER BY sibling_order ASC`**，复合索引 `(session_id, sibling_order)` 已确保此排序为索引覆盖，无需额外 filesort。
 
-4. **`metadata_json` 与 TypeScript 类型对齐**：从 SQLite 读出后需要用 `JSON.parse` 合并回 `ChatMessageNode.metadata`，写入前用 `JSON.stringify` 序列化。编码/解码逻辑应封装在 `useSessionManager` 或独立的 `messageCodec.ts` 中，避免在业务代码中散布 `JSON.parse`。
+4. **`metadata_json` 与 TypeScript 类型对齐**：编码/解码集中在 Rust storage codec，不在 `useSessionManager` 或业务组件中散布 `JSON.parse`。必须覆盖当前全部 metadata 字段、未知字段和可选 `timestamp` 的无损往返。
 5. **FTS5 初始填充**：如果从 JSON 文件迁移到 SQLite 时已有存量数据，FTS5 虚拟表中的内容不会自动回填。需要在数据导入完成后运行一条重建命令来填充索引：
    ```sql
    INSERT INTO chat_messages_fts(chat_messages_fts) VALUES('rebuild');
    ```
    如果使用 `content=` 外置表模式，重建会从 `chat_messages` 中读取所有数据构建索引。
-6. **`tauri-plugin-sql` 的 `@tauri-apps/plugin-sql` JS API 差异**：`tauri-plugin-sql` 提供的是 JS 端 API，操作是异步的，`INSERT OR REPLACE` 的返回值与原生 SQLite 略有不同（不返回 `rowid` 以外的信息）。批量操作时需用事务包裹以提高性能。
+6. **连接池不是并发越高越好**：移动端 SQLite 仍是单写者模型。SQLx pool 初始控制在 2-4 条连接，所有连接使用相同 options；通过真机基准调整，避免增加写锁竞争。
 7. **`MessageType` 的 NOT NULL DEFAULT 与前端 `undefined` 对齐**：Schema 中 `type TEXT NOT NULL DEFAULT 'message'`，但前端类型定义中 `type` 是可选字段（`type?: MessageType`）。写入时如果 TS 层 `type` 为 `undefined`，应在编码层显式填充为 `'message'`——`DEFAULT` 子句只在 SQL INSERT 完全省略该列时才生效，传 `null` 会违反 NOT NULL 约束。
 8. **附件不保存路径**：`chat_attachments` 只能保存 `asset_id` 和轻量快照。预览与发送时通过资产服务解析；资产原件被主动回收后，根据资产 tombstone 的 `reclaimed` 状态显示“原件已清理”，不能把路径缓存回聊天库。
 9. **跨库外键不可用**：`asset_id` 不指向聊天库内的表，SQLite 无法保证它与 `asset_manager.db` 同步。业务事务必须写 usage outbox，不能在事务提交后临时调用一次 `asset_register_usage` 便认为完成。

@@ -48,7 +48,7 @@
     "t:b": "bun scripts/build.ts",
     "b:l": "bun scripts/build.ts --local",
     "mtad": "cd mobile ; bun run tauri android dev",
-    "mtab": "cd mobile ; bun run tauri android build",
+    "mtab": "bun scripts/build-android.ts",
     "mtid": "cd mobile ; bun run tauri ios dev",
     "mtib": "cd mobile ; bun run tauri ios build",
     "docs:dev": "vitepress dev docs",

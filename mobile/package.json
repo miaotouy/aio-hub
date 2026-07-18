@@ -9,7 +9,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "mtad": "tauri android dev",
-    "mtab": "tauri android build",
+    "mtab": "bun ../scripts/build-android.ts",
     "mtid": "tauri ios dev",
     "mtib": "tauri ios build",
     "tauri": "tauri",
@@ -52,4 +52,3 @@
     "vue-tsc": "^2.1.10"
   }
 }
-

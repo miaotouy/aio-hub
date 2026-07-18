@@ -17,9 +17,12 @@ import type { ProcessableMessage } from "../../types/context";
 import { resolvePlaceholderRetrieval } from "@/tools/recall/services/api";
 import type { RecallRetrievalRequest } from "@/tools/recall/types/retrieval";
 import {
-  scanRecallPlaceholders,
+  parseRecallPlaceholder,
+  RecallPlaceholderError,
   serializeRecallPlaceholder,
+  type RecallPlaceholder,
 } from "./recall-placeholder";
+import { scanRetrievalEnvelopes } from "./retrieval-envelope";
 
 const LEGACY_RECALL_ENVELOPE = /【kb(?:::[^【】]*)?】/g;
 
@@ -84,6 +87,34 @@ function extractQuery(messages: ProcessableMessage[]) {
   return { userText, aiText };
 }
 
+function collectRecallPlaceholders(
+  context: PipelineContext,
+  reportErrors: boolean
+): RecallPlaceholder[] {
+  const placeholders: RecallPlaceholder[] = [];
+  for (const token of scanRetrievalEnvelopes(context.messages, "recall")) {
+    try {
+      placeholders.push(
+        parseRecallPlaceholder(token.raw, token.messageIndex)
+      );
+    } catch (error) {
+      if (!(error instanceof RecallPlaceholderError)) throw error;
+      if (!reportErrors) continue;
+      context.logs.push({
+        processorId: "primary:recall-processor",
+        level: "warn",
+        message: error.message,
+        details: {
+          messageIndex: error.messageIndex,
+          raw: error.raw,
+          key: error.key,
+        },
+      });
+    }
+  }
+  return placeholders;
+}
+
 export class RecallProcessor implements ContextProcessor {
   id = "primary:recall-processor";
   name = "思绪处理器";
@@ -114,7 +145,7 @@ export class RecallProcessor implements ContextProcessor {
       }
     });
     if (!config?.enabled) return;
-    let placeholders = scanRecallPlaceholders(context.messages);
+    let placeholders = collectRecallPlaceholders(context, true);
     const enabledBindings = config.bindings.filter(
       (binding) => binding.enabled
     );
@@ -149,7 +180,7 @@ export class RecallProcessor implements ContextProcessor {
           raw,
           config.autoInjectPosition ?? "context_head"
         );
-        placeholders = scanRecallPlaceholders(context.messages);
+        placeholders = collectRecallPlaceholders(context, false);
       }
     }
     const { userText, aiText } = extractQuery(context.messages);

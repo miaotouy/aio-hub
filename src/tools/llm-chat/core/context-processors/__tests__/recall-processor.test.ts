@@ -136,4 +136,44 @@ describe("RecallProcessor", () => {
       })
     );
   });
+
+  it("reports invalid placeholders without blocking valid retrieval", async () => {
+    const context = createContext({
+      messages: [
+        {
+          role: "system",
+          content:
+            "【recall::old::4】 【recall::collection=collection-1】",
+        },
+        { role: "user", content: "query", sourceType: "session_history" },
+      ],
+      agentConfig: {
+        recallConfig: {
+          enabled: true,
+          bindings: [
+            {
+              recallId: "collection-1",
+              recallName: "Engineering",
+              enabled: true,
+            },
+          ],
+        },
+      } as PipelineContext["agentConfig"],
+    });
+
+    await new RecallProcessor().execute(context);
+
+    expect(resolvePlaceholderRetrieval).toHaveBeenCalledOnce();
+    expect(context.messages[0].content).toBe("【recall::old::4】 retrieved");
+    expect(context.logs).toEqual([
+      expect.objectContaining({
+        level: "warn",
+        message: "Recall 占位符参数必须使用 key=value",
+        details: expect.objectContaining({
+          messageIndex: 0,
+          raw: "【recall::old::4】",
+        }),
+      }),
+    ]);
+  });
 });

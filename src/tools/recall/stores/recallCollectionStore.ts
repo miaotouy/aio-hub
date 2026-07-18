@@ -63,6 +63,8 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
     activeEntryId: null as string | null,
     /** 工作区配置 (从 workspace.config 同步) */
     config: structuredClone(DEFAULT_WORKSPACE_CONFIG) as WorkspaceConfig,
+    /** 默认模型变化监听是否已在当前 store 实例注册 */
+    modelWatcherRegistered: false,
     /** 全局加载状态 */
     loading: false,
     /** 向量化进度 */
@@ -220,6 +222,27 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
 
   actions: {
     /**
+     * 确保默认 Embedding 模型变化监听仅注册一次
+     */
+    ensureModelWatcher() {
+      if (this.modelWatcherRegistered) return;
+
+      this.modelWatcherRegistered = true;
+      watch(
+        () => this.config.defaultEmbeddingModel,
+        (newModel, oldModel) => {
+          if (newModel && newModel !== oldModel) {
+            logger.info("检测到默认模型变化，触发状态校验", {
+              newModel,
+              oldModel,
+            });
+            this.validateVectorStatus();
+          }
+        }
+      );
+    },
+
+    /**
      * 初始化工作区
      */
     async init() {
@@ -259,21 +282,7 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
         }));
         this.workspace = { ...workspace, bases: [] };
         this.config = workspace.config;
-
-        // 监听模型变化，自动校验状态
-        // 使用 watch 替代 $subscribe 以确保更可靠的联动
-        watch(
-          () => this.config.defaultEmbeddingModel,
-          (newModel, oldModel) => {
-            if (newModel && newModel !== oldModel) {
-              logger.info("检测到默认模型变化，触发状态校验", {
-                newModel,
-                oldModel,
-              });
-              this.validateVectorStatus();
-            }
-          }
-        );
+        this.ensureModelWatcher();
       } catch (e) {
         errorHandler.error(e, "加载工作区失败");
       }

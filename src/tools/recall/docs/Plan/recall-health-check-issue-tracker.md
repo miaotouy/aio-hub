@@ -21,7 +21,7 @@
 | RCL-004 | P1 | gate/turn 激活上下文被占位符和预设消息污染 | 已完成 | `fix(chat): 限定 Recall 激活的会话上下文` |
 | RCL-005 | P2 | 最近一次 AI 回复未参与 Recall 双查询融合 | 已完成 | `fix(chat): 恢复 Recall 的最近 AI 次查询` |
 | RCL-006 | P2 | 单个非法 Recall 占位符会中止整个 Recall processor | 已完成 | `fix(chat): 隔离 Recall 占位符解析错误` |
-| RCL-007 | P2 | `loadBases()` 重复注册模型变更 watcher | 待处理 | - |
+| RCL-007 | P2 | `loadBases()` 重复注册模型变更 watcher | 已完成 | `fix(recall): 避免重复注册模型变更监听` |
 | RCL-008 | P3 | `fusionWeights` 未纳入 Recall 检索缓存键 | 待处理 | - |
 
 ## 3. 验收条件

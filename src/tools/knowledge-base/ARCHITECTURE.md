@@ -13,7 +13,8 @@ Knowledge 是 AIO Hub 的文档资料与来源回溯领域，与 Recall 思绪�
 - `knowledge_get_index_status` 从 library 数据库实时读取活动空间并计算当前 `space_id` 的向量覆盖率，不把 manifest 或 UI 缓存当作真源。`embedding_route_key` 只负责调用路由，旧 `model_id` 向量会事务迁移为逐 route 隔离的 legacy space，不按名称自动合并。
 - 同 descriptor 的模型 route 可由用户确认后只切换 `embedding_route_key`；不同 identity 或请求契约会生成新 `space_id` 并独立保留向量。
 - `rebuild_library` 在单个 library WAL 数据库事务内提交配置、重切分全部文档、重建 FTS/graph，并清除旧活动向量身份，避免旧向量与新 chunk 混用。
-- 禁止用 WAL 模式下的 `ATTACH` 多数据库事务宣称配置与索引具备崩溃原子性。manifest 摘要若在单库事务提交后更新失败，只能视为可重建缓存过期；运行时仍从 `library_metadata` 读取真值。
+- 禁止用 WAL 模式下的 `ATTACH` 多数据库事务宣称配置与索引具备崩溃原子性。SQLite 的 attached database 在 rollback-journal 模式下可借助 super-journal 协调多文件提交，但 WAL 模式没有对应的跨 WAL 原子提交保证；进程或设备在提交窗口中断时，可能出现 library 已提交而 manifest 未提交，或相反。普通 SQL 异常触发的 `ROLLBACK` 测试只能证明运行中错误回滚，不能证明这种崩溃窗口安全。
+- 因此配置、活动向量身份、document、chunk、FTS、vector 和 graph 必须在同一个 library DB 的 WAL 事务中提交，`library_metadata` 是运行时唯一真值。manifest 只保存目录元数据；即使其摘要更新失败，也只能形成可重建的目录缓存过期，不能改变检索、摄取或重建所使用的配置。任何重新引入跨库强一致写入的方案，都必须先给出与实际 journal mode 一致的崩溃恢复证明和进程终止测试，否则按数据一致性严重问题停止施工。
 - 旧 manifest `config_json` 和活动向量字段只作为一次性迁移输入：首次初始化 library metadata 时写入单库数据库，确认成功后运行时不再读取这些旧字段。迁移必须可重入，进程中断后可从任一已提交状态继续。
 
 当前运行路径使用 SQLite + FTS5。TriviumDB 的跨平台文件组、锁和恢复验证完成前不进入运行路径。

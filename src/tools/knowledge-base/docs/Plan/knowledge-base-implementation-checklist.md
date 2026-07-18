@@ -248,7 +248,13 @@ Phase 3 分为五个施工批次。后端配置和摄取契约先行，工作台
 - [x] P3-A11 修改 `requestedDimensions`、Embedding 契约或分块参数时明确创建新空间或重建，不让新旧契约混用。
 - [x] P3-A12 `actualDimensions` 由首批真实响应确认并写入 space descriptor，UI 只读展示。
 
-批次 A 数据一致性决策（2026-07-18）：初版施工曾尝试通过 `ATTACH knowledge_meta.db` 同时更新 library 索引与 manifest 配置。调查确认所有连接启用 WAL，而 SQLite 不保证 WAL 下多个 attached 数据库的跨文件崩溃原子性；普通 SQL 错误回滚测试无法覆盖某个 WAL 已提交、另一个 WAL 未提交时的进程终止。该实现不得合入，改为“library DB 是索引身份真源，manifest 是目录与可重建摘要”，并增加 legacy 迁移、真源隔离和重启恢复测试。
+批次 A 数据一致性严重问题与处置（2026-07-18）：
+
+- **原方案**：通过 `ATTACH knowledge_meta.db`，在一次 SQLite transaction 中同时写 manifest 配置和 `library.kdb` 的配置、chunk 与索引状态，并据此宣称两份文件崩溃原子。
+- **严重原因**：所有连接启用 WAL。SQLite 对 attached database 的多文件原子提交保证依赖 rollback-journal 的 super-journal，WAL 模式没有等价的跨 WAL 协调保证。进程或设备在提交窗口中断时，可能只持久化其中一个数据库，留下“新配置 + 旧索引”或“旧目录摘要 + 新索引”。这会让后续分块、向量维度和检索空间使用不一致身份，属于可能持续污染派生数据的数据一致性问题。
+- **为什么既有测试不足**：注入普通 SQL 错误后观察 `ROLLBACK`，只能覆盖进程仍存活且 SQLite 能主动回滚的路径；它不能覆盖某个 WAL 已落盘、另一个 WAL 尚未落盘时的强制终止、断电或设备写入失败。
+- **采用方案**：取消跨库强一致写入。`library.kdb` 内的 `library_metadata` 与 document/chunk/FTS/vector/graph 使用单库 WAL transaction，是索引配置与活动空间的唯一运行时真值；manifest 只保存 library 目录元数据和 legacy 一次性迁移输入。manifest 摘要滞后必须可重建，且不得改变运行时行为。
+- **恢复与门禁**：增加 legacy 迁移可重入、manifest 真源隔离、单库重建回滚和重启恢复测试。后续若要重新引入跨文件原子写入，必须先提供与实际 journal mode 一致的崩溃恢复设计及进程终止测试；未满足时按严重问题停工，不接受仅有 SQL 异常回滚测试的实现。
 
 批次 A 施工记录：
 

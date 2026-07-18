@@ -40,6 +40,14 @@
 | 向量化批次     | 前端服务固定 `32`                         | 无法根据渠道能力或稳定性调整                 |
 | Embedding 模型 | 对话框默认选第一个可用项                  | 没有用户默认值，选择结果也不构成建库默认配置 |
 
+#### WAL 下跨库事务的具体风险
+
+初版实现曾考虑用 `ATTACH knowledge_meta.db` 在一次 transaction 中同步写 manifest 和 `library.kdb`。这在当前连接配置下不能作为崩溃原子性方案：两个数据库都使用 WAL，而 SQLite 对 attached database 的多文件原子提交依赖 rollback-journal 的 super-journal；WAL 没有等价的跨文件协调日志。运行中的 SQL 错误通常仍能整体回滚，但如果进程或设备恰好在两个 WAL 的提交窗口中断，恢复后可能只有一份数据库包含新状态。
+
+对 Knowledge 而言，这不是可忽略的显示延迟。若 manifest 里的配置/活动空间与 library 内的 chunk、FTS 和 vector 分别成为事实源，故障后可能出现新分块配置读取旧 chunk、向量空间身份与实际维度不匹配，或后续重建基于错误身份继续写入。此类不一致能跨重启持续存在，因此按严重数据一致性问题处理。
+
+最终边界是：名称、说明和数据库路径属于 manifest 目录元数据；版本化索引配置、活动 Embedding space/route/descriptor、document、chunk、FTS、vector 和 graph 属于 library 数据，全部在单个 `library.kdb` WAL transaction 中提交。运行时不得用 manifest legacy 字段补齐或覆盖 library 真值。目录摘要更新失败只能产生可重建的滞后，不得影响摄取、索引或检索；重新引入任何跨库强一致写入前，必须完成符合实际 journal mode 的崩溃恢复证明和进程终止测试。
+
 Recall 已提供顶层设置页、全局默认配置和单集合设置视图，可以作为信息架构参考。Knowledge 不能直接复制 Recall 的配置字段：Knowledge 的向量维度来自实际 Embedding 响应和 space descriptor，不允许由设置页手工指定；Recall 设置页当前即时调用 `saveWorkspace()`，Knowledge 的高频设置更新必须按项目规范使用 `saveDebounced`。
 
 ### 2.2 支持格式

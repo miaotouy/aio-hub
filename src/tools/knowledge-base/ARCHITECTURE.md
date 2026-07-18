@@ -10,7 +10,7 @@ Knowledge 是 AIO Hub 的文档资料与来源回溯领域，与 Recall 思绪�
 - `knowledge/libraries/{libraryId}.kdb` 是每库独立的 SQLite 文件，包含 document、chunk、FTS5、chunk vector 和相邻 chunk graph edge。
 - library 文件采用 UUID 路径约束；删除先隔离为 tombstone，再删除 manifest，失败时恢复文件。
 - 文档以 `sourcePath` 为稳定键。重复导入在单事务中替换 document、chunk、FTS、向量和图边。
-- `knowledge_get_index_status` 从数据库实时计算当前模型的向量覆盖率，不把 UI 缓存当作真源。新写入使用 `profileId:modelId` 组合作为模型键，旧裸 `modelId` 保持读取兼容。 -等会，这个设计有问题
+- `knowledge_get_index_status` 从数据库实时计算当前模型键的向量覆盖率，不把 UI 缓存当作真源。当前实现仍以 `profileId:modelId` 作为路由与向量分区的过渡键，旧裸 `modelId` 保持读取兼容；该耦合已确认需要按 [模型身份与 Embedding 空间设计](../../../docs/design/model-identity-and-embedding-space-design.md) 拆分，设计完成但尚未实施。
 - `rebuild_library` 重新切分全部文档并清除当前语义索引配置，避免旧向量与新 chunk 混用。
 
 当前运行路径使用 SQLite + FTS5。TriviumDB 的跨平台文件组、锁和恢复验证完成前不进入运行路径。

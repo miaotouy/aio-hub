@@ -72,15 +72,15 @@ function extractQuery(messages: ProcessableMessage[]) {
     typeof history[userIndex].content === "string"
       ? history[userIndex].content.trim()
       : "";
-  const aiText = history
-    .slice(userIndex + 1)
-    .filter(
-      (message) =>
-        message.role === "assistant" && typeof message.content === "string"
-    )
-    .map((message) => (message.content as string).trim())
-    .filter(Boolean)
-    .join("\n");
+  let aiText = "";
+  for (let index = userIndex - 1; index >= 0; index--) {
+    const message = history[index];
+    if (message.role !== "assistant" || typeof message.content !== "string") {
+      continue;
+    }
+    aiText = message.content.trim();
+    if (aiText) break;
+  }
   return { userText, aiText };
 }
 

@@ -80,7 +80,12 @@ describe("RecallProcessor", () => {
 
     expect(resolvePlaceholderRetrieval).toHaveBeenCalledOnce();
     expect(resolvePlaceholderRetrieval).toHaveBeenCalledWith(
-      expect.objectContaining({ turnCount: 1, recentMessageTexts: ["query"] })
+      expect.objectContaining({
+        userText: "query",
+        aiText: "",
+        turnCount: 1,
+        recentMessageTexts: ["query"],
+      })
     );
     expect(context.messages[0]).toMatchObject({
       role: "user",
@@ -124,6 +129,8 @@ describe("RecallProcessor", () => {
 
     expect(resolvePlaceholderRetrieval).toHaveBeenCalledWith(
       expect.objectContaining({
+        userText: "current query",
+        aiText: "previous answer",
         turnCount: 1,
         recentMessageTexts: ["previous answer", "current query"],
       })

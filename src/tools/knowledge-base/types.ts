@@ -1,8 +1,13 @@
+import type { EmbeddingSpaceDescriptorV1 } from "@aiohub/llm-core";
+
 export interface KnowledgeLibrary {
   id: string;
   name: string;
   description?: string;
   embeddingModelId: string;
+  activeEmbeddingSpaceId: string;
+  embeddingRouteKey: string;
+  embeddingSpaceDescriptor?: EmbeddingSpaceDescriptorV1;
   dimension: number;
   config: Record<string, unknown>;
   documentCount: number;
@@ -72,7 +77,7 @@ export interface KnowledgeSearchRequest {
   limit: number;
   minScore: number;
   queryVector?: number[];
-  modelId?: string;
+  spaceId?: string;
 }
 
 export interface KnowledgeIngestRequest {
@@ -94,6 +99,9 @@ export interface KnowledgeIndexStatus {
   vectorizedChunks: number;
   pendingChunks: number;
   embeddingModelId: string;
+  activeEmbeddingSpaceId: string;
+  embeddingRouteKey: string;
+  embeddingSpaceDescriptor?: EmbeddingSpaceDescriptorV1;
   dimension: number;
 }
 

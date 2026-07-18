@@ -269,6 +269,10 @@ export interface LlmModelInfo {
    * 模型ID，用于 API 请求，例如 'gpt-4o', 'llava'
    */
   id: string;
+  /** Stable product identity. This is independent from the route model ID. */
+  modelIdentity?: ModelIdentity;
+  /** Discovery-only suggestion. Remove it before profile persistence. */
+  modelIdentitySuggestion?: ModelIdentitySuggestion;
 
   /**
    * 显示名称，用于 UI 展示，例如 'GPT-4o', 'LLaVA 1.5'
@@ -669,3 +673,7 @@ export interface LlmResponse {
   }>;
   revisedPrompt?: string;
 }
+import type {
+  ModelIdentity,
+  ModelIdentitySuggestion,
+} from "@aiohub/llm-core";

@@ -765,6 +765,8 @@ const networkSettingSummary = computed(() => {
                   :test-results="modelProbeResults"
                   :batch-testing="isBatchTesting"
                   :provider-type="editForm.type"
+                  :profiles="profiles"
+                  :current-profile-id="editForm.id"
                   @add="addModel"
                   @edit="editModel"
                   @test="openModelProbeDialog"

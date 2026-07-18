@@ -105,15 +105,15 @@ embedding-playground/
 缓存结构为：
 
 ```text
-Map<ModelCombo, Map<TextContent, EmbeddingVector>>
+Map<RouteAndContractFingerprint, Map<InputContentHash, EmbeddingVector>>
 ```
 
 执行流程：
 
-1. 根据模型 combo 获取独立缓存池。
-2. 对当前文本去重并检查缓存命中。
+1. 根据 route、dimensions、task type、encoding、adapter contract、input kind 和可选 dataset version 生成独立缓存池。
+2. 对当前文本去重并计算 SHA-256 内容哈希后检查缓存命中。
 3. 仅对未缓存文本调用 `callEmbeddingApi`。
-4. 请求成功后写入缓存。
+4. 请求成功后按输入内容哈希写入缓存，query/document 不共享缓存。
 5. 按原始文本顺序组装向量结果返回给组件。
 
 ---

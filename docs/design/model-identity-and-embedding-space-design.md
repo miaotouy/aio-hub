@@ -1,6 +1,6 @@
 # 模型身份与 Embedding 空间设计
 
-- **状态**：调查与设计补全，待实施
+- **状态**：实施中（阶段 A-C 已完成；阶段 D 已完成缓存契约升级，兼容探针与报告待实施）
 - **创建日期**：2026-07-18
 - **适用范围**：桌面端与移动端渠道模型配置、模型发现、模型元数据、Embedding 调用、Embedding 测试场、Knowledge 语义索引
 - **明确不包含**：容灾组、自动跨渠道重试、负载均衡、渠道健康调度
@@ -612,27 +612,27 @@ interface VerifiedEmbeddingRouteCompatibility {
 
 ## 12. 分阶段实施
 
-### 阶段 A：身份基础，不改变请求行为
+### 阶段 A：身份基础，不改变请求行为（已完成）
 
 - 在共享 Core 增加 identity 类型、规范化和精确别名解析。
 - 在桌面和移动 `LlmModelInfo` 增加 `modelIdentity`。
 - 修改模型预设、API 发现 DTO、导入和编辑 UI。
 - 保持所有下游继续使用显式 `profileId:modelId` 请求。
 
-### 阶段 B：共享查询与审计
+### 阶段 B：共享查询与审计（已完成）
 
 - 增加统一 identity 查询服务。
 - 在渠道设置中显示同 canonical ID 的其他 route，仅用于审计和人工选择。
 - 增加重复、冲突、非法 canonical ID 检查。
 
-### 阶段 C：Knowledge 空间迁移
+### 阶段 C：Knowledge 空间迁移（已完成）
 
 - 引入 `embedding_spaces`、`space_id` 和独立 route 字段。
 - 实施 legacy 隔离迁移。
 - 按 descriptor 固化文档和查询 Embedding 参数。
 - 支持同空间手工换渠道而不重建。
 
-### 阶段 D：兼容探针与显式空间别名
+### 阶段 D：兼容探针与显式空间别名（进行中）
 
 - 先升级 Embedding 测试场缓存键和版本化数据集。
 - 实现自噪声、坐标一致性和双向检索探针，持久化脱敏报告。
@@ -640,6 +640,8 @@ interface VerifiedEmbeddingRouteCompatibility {
 - 首期报告只辅助人工判断；在正负样本校准和 Knowledge 空间迁移稳定后，再启用用户确认的 `VerifiedEmbeddingSpaceAlias`。
 
 容灾组和自动重试不属于以上阶段，后续只能建立在稳定身份与空间契约之上单独设计。
+
+当前实施进度：缓存已按 route、dimensions、task type、encoding、adapter contract、input kind、dataset version 和输入内容哈希隔离；版本化探针数据集、四矩阵指标、报告持久化与确认动作尚未实施。
 
 ## 13. 测试与验收
 

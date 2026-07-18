@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { ref } from "vue";
+import { stableJson } from "@aiohub/llm-core";
 import { callEmbeddingApi } from "@/llm-apis/embedding";
 import type {
   EmbeddingRequestOptions,
@@ -28,6 +29,39 @@ export interface CachedEmbeddingResult {
   cacheHits: number;
 }
 
+export interface EmbeddingCacheScope {
+  adapterContractVersion?: number;
+  datasetVersion?: string;
+  inputKind?: "query" | "document" | "generic";
+}
+
+export function buildEmbeddingCacheScopeKey(
+  combo: string,
+  options: Omit<EmbeddingRequestOptions, "modelId" | "input">,
+  scope: EmbeddingCacheScope = {}
+): string {
+  return stableJson({
+    route: combo,
+    dimensions: options.dimensions ?? null,
+    taskType: options.taskType ?? null,
+    encodingFormat: options.encodingFormat ?? "float",
+    title: options.title ?? null,
+    adapterContractVersion: scope.adapterContractVersion ?? 1,
+    datasetVersion: scope.datasetVersion ?? null,
+    inputKind: scope.inputKind ?? "generic",
+  });
+}
+
+export async function hashEmbeddingInput(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(text)
+  );
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0")
+  ).join("");
+}
+
 const errorHandler = createModuleErrorHandler(
   "embedding-playground/useEmbeddingCache"
 );
@@ -35,17 +69,18 @@ const errorHandler = createModuleErrorHandler(
 export function useEmbeddingCache() {
   const embeddingCache = ref<Map<string, Map<string, number[]>>>(new Map());
 
-  const getModelCache = (combo: string) => {
-    if (!embeddingCache.value.has(combo)) {
-      embeddingCache.value.set(combo, new Map());
+  const getModelCache = (scopeKey: string) => {
+    if (!embeddingCache.value.has(scopeKey)) {
+      embeddingCache.value.set(scopeKey, new Map());
     }
-    return embeddingCache.value.get(combo)!;
+    return embeddingCache.value.get(scopeKey)!;
   };
 
   const embedTexts = async (
     target: EmbeddingModelTarget,
     texts: string[],
-    options: Omit<EmbeddingRequestOptions, "modelId" | "input"> = {}
+    options: Omit<EmbeddingRequestOptions, "modelId" | "input"> = {},
+    scope: EmbeddingCacheScope = {}
   ): Promise<CachedEmbeddingResult | null> => {
     const cleanTexts = texts.map((text) => text.trim());
     if (cleanTexts.some((text) => !text)) {
@@ -53,9 +88,17 @@ export function useEmbeddingCache() {
       return null;
     }
 
-    const modelCache = getModelCache(target.combo);
+    const scopeKey = buildEmbeddingCacheScopeKey(target.combo, options, scope);
+    const modelCache = getModelCache(scopeKey);
     const uniqueTexts = [...new Set(cleanTexts)];
-    const textsToEmbed = uniqueTexts.filter((text) => !modelCache.has(text));
+    const inputHashes = new Map(
+      await Promise.all(
+        uniqueTexts.map(async (text) => [text, await hashEmbeddingInput(text)] as const)
+      )
+    );
+    const textsToEmbed = uniqueTexts.filter(
+      (text) => !modelCache.has(inputHashes.get(text)!)
+    );
     const cacheHits = uniqueTexts.length - textsToEmbed.length;
 
     let response: EmbeddingResponse | null = null;
@@ -81,13 +124,13 @@ export function useEmbeddingCache() {
       }
 
       response.data.forEach((item, index) => {
-        modelCache.set(textsToEmbed[index], item.embedding);
+        modelCache.set(inputHashes.get(textsToEmbed[index])!, item.embedding);
       });
     }
 
     const embeddings: number[][] = [];
     for (const text of cleanTexts) {
-      const embedding = modelCache.get(text);
+      const embedding = modelCache.get(inputHashes.get(text)!);
       if (!embedding) {
         errorHandler.warn(`无法读取缓存向量: ${text.slice(0, 16)}`);
         return null;

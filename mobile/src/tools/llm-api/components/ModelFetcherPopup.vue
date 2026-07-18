@@ -61,7 +61,8 @@ const filteredGroups = computed(() => {
       const matchesQuery =
         !query ||
         model.id.toLowerCase().includes(query) ||
-        model.name.toLowerCase().includes(query);
+        model.name.toLowerCase().includes(query) ||
+        model.modelIdentity?.canonicalId.includes(query);
       if (!matchesQuery) return false;
 
       if (caps.length > 0) {
@@ -151,9 +152,10 @@ const toggleGroupSelection = (groupModels: LlmModelInfo[]) => {
 
 const handleConfirm = () => {
   const modelsToAdd = selectedModels.value.map((model: LlmModelInfo) => {
+    const { modelIdentitySuggestion: _suggestion, ...persistedModel } = model;
     const matchedProps = getMatchedProperties(model.id, model.provider);
     return {
-      ...model,
+      ...persistedModel,
       name: model.name || formatModelName(model.id),
       group: matchedProps?.group || getModelGroup(model),
       icon: matchedProps?.icon || model.icon,
@@ -362,6 +364,18 @@ const toggleCapabilityFilter = (capKey: string) => {
                           {{ formatModelName(model.id) }}
                         </div>
                         <div class="model-id">{{ model.id }}</div>
+                        <div
+                          v-if="model.modelIdentity"
+                          class="model-identity"
+                        >
+                          {{ model.modelIdentity.canonicalId }}
+                        </div>
+                        <div
+                          v-else-if="model.modelIdentitySuggestion"
+                          class="model-identity is-suggestion"
+                        >
+                          {{ model.modelIdentitySuggestion.identity.canonicalId }}
+                        </div>
                       </div>
 
                       <div class="model-status">
@@ -645,6 +659,20 @@ const toggleCapabilityFilter = (capKey: string) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.model-identity {
+  color: var(--color-primary);
+  font-family: monospace;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-identity.is-suggestion {
+  color: var(--color-warning);
 }
 
 .model-capabilities {

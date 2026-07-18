@@ -17,6 +17,10 @@
  */
 import type { SettingItem } from "./settings-renderer";
 import type { MediaGenParamRules } from "./model-metadata";
+import type {
+  ModelIdentity,
+  ModelIdentitySuggestion,
+} from "@aiohub/llm-core";
 
 /**
  * 上下文后处理规则 (简易定义，避免循环依赖和跨端导入问题)
@@ -297,6 +301,10 @@ export interface LlmModelInfo {
    * 模型ID，用于 API 请求，例如 'gpt-4o', 'llava'
    */
   id: string;
+  /** Stable product identity. This is independent from the route model ID. */
+  modelIdentity?: ModelIdentity;
+  /** Discovery-only suggestion. Remove it before profile persistence. */
+  modelIdentitySuggestion?: ModelIdentitySuggestion;
   /**
    * 显示名称，用于 UI 展示，例如 'GPT-4o', 'LLaVA 1.5'
    */

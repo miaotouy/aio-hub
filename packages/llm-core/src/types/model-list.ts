@@ -12,6 +12,7 @@ export interface ProviderModelInfo {
   id: string;
   name: string;
   provider: string;
+  declaredOwner?: string;
   group?: string;
   description?: string;
   contextLength?: number;

@@ -1,12 +1,18 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
-import type { LlmProfile } from "../types";
+import type { LlmModelInfo, LlmProfile } from "../types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createConfigManager } from "@/utils/configManager";
 
 const logger = createModuleLogger("LlmProfilesStore");
 const errorHandler = createModuleErrorHandler("LlmProfilesStore");
+
+function normalizeStoredModel(model: LlmModelInfo): LlmModelInfo {
+  const normalized = { ...model };
+  delete normalized.modelIdentitySuggestion;
+  return normalized;
+}
 
 interface LlmProfilesState {
   profiles: LlmProfile[];
@@ -36,7 +42,10 @@ export const useLlmProfilesStore = defineStore("llm-profiles", () => {
     isLoading.value = true;
     try {
       const loaded = await configManager.load();
-      profiles.value = loaded.profiles || [];
+      profiles.value = (loaded.profiles || []).map((profile) => ({
+        ...profile,
+        models: (profile.models || []).map(normalizeStoredModel),
+      }));
       selectedProfileId.value = loaded.selectedProfileId || null;
       logger.info("LLM 配置加载成功", { count: profiles.value.length });
     } catch (err) {
@@ -74,7 +83,7 @@ export const useLlmProfilesStore = defineStore("llm-profiles", () => {
       ...profile,
       customHeaders: profile.customHeaders || {},
       customEndpoints: profile.customEndpoints || {},
-      models: profile.models || [],
+      models: (profile.models || []).map(normalizeStoredModel),
       apiKeys: profile.apiKeys || [],
     };
     profiles.value.push(newProfile);
@@ -85,7 +94,11 @@ export const useLlmProfilesStore = defineStore("llm-profiles", () => {
   function updateProfile(id: string, updates: Partial<LlmProfile>) {
     const index = profiles.value.findIndex((p) => p.id === id);
     if (index !== -1) {
-      profiles.value[index] = { ...profiles.value[index], ...updates };
+      const updated = { ...profiles.value[index], ...updates };
+      profiles.value[index] = {
+        ...updated,
+        models: (updated.models || []).map(normalizeStoredModel),
+      };
       save();
     }
   }

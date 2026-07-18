@@ -4,6 +4,7 @@
 
 use super::types::*;
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
@@ -47,6 +48,65 @@ impl KnowledgeRepository {
                  VALUES (1, 'initialize_knowledge_manifest', unixepoch());",
             )
             .map_err(|error| format!("初始化 Knowledge manifest 失败: {error}"))?;
+        ensure_column(
+            &connection,
+            "knowledge_libraries",
+            "active_embedding_space_id",
+            "TEXT NOT NULL DEFAULT ''",
+        )?;
+        ensure_column(
+            &connection,
+            "knowledge_libraries",
+            "embedding_route_key",
+            "TEXT NOT NULL DEFAULT ''",
+        )?;
+
+        let libraries = {
+            let mut statement = connection
+                .prepare(
+                    "SELECT id, db_path, embedding_model_id, dimension,
+                            active_embedding_space_id
+                     FROM knowledge_libraries",
+                )
+                .map_err(|error| format!("准备 Knowledge 空间迁移失败: {error}"))?;
+            let rows = statement
+                .query_map([], |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, i64>(3)?,
+                        row.get::<_, String>(4)?,
+                    ))
+                })
+                .map_err(|error| format!("查询 Knowledge 空间迁移项失败: {error}"))?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| format!("读取 Knowledge 空间迁移项失败: {error}"))?;
+            rows
+        };
+        for (id, db_path, legacy_route_key, dimension, active_space_id) in libraries {
+            let path = PathBuf::from(db_path);
+            self.initialize_library(&path)?;
+            if active_space_id.is_empty() && !legacy_route_key.is_empty() {
+                let space_id = legacy_space_id(&legacy_route_key);
+                let descriptor = legacy_descriptor_json(&legacy_route_key, dimension.max(0));
+                self.open_library(&path)?
+                    .execute(
+                        "INSERT OR IGNORE INTO embedding_spaces(id, descriptor_json, created_at)
+                         VALUES (?1, ?2, ?3)",
+                        params![space_id, descriptor, now()],
+                    )
+                    .map_err(|error| format!("写入 Knowledge legacy space 失败: {error}"))?;
+                connection
+                    .execute(
+                        "UPDATE knowledge_libraries
+                         SET active_embedding_space_id = ?2, embedding_route_key = ?3
+                         WHERE id = ?1",
+                        params![id, space_id, legacy_route_key],
+                    )
+                    .map_err(|error| format!("更新 Knowledge legacy manifest 失败: {error}"))?;
+            }
+        }
         Ok(())
     }
 
@@ -79,7 +139,8 @@ impl KnowledgeRepository {
         let mut statement = connection
             .prepare(
                 "SELECT id, name, description, embedding_model_id, dimension,
-                        config_json, created_at, updated_at
+                        config_json, created_at, updated_at,
+                        active_embedding_space_id, embedding_route_key
                  FROM knowledge_libraries ORDER BY updated_at DESC, id",
             )
             .map_err(|error| format!("准备 Knowledge library 列表失败: {error}"))?;
@@ -94,18 +155,34 @@ impl KnowledgeRepository {
                     row.get::<_, String>(5)?,
                     row.get::<_, i64>(6)?,
                     row.get::<_, i64>(7)?,
+                    row.get::<_, String>(8)?,
+                    row.get::<_, String>(9)?,
                 ))
             })
             .map_err(|error| format!("查询 Knowledge library 失败: {error}"))?;
         rows.map(|row| {
-            let (id, name, description, model, dimension, config, created_at, updated_at) =
-                row.map_err(|error| format!("读取 Knowledge library 失败: {error}"))?;
+            let (
+                id,
+                name,
+                description,
+                model,
+                dimension,
+                config,
+                created_at,
+                updated_at,
+                active_space_id,
+                route_key,
+            ) = row.map_err(|error| format!("读取 Knowledge library 失败: {error}"))?;
             let (document_count, chunk_count) = self.library_counts(&id)?;
+            let descriptor = self.embedding_space_descriptor(&id, &active_space_id)?;
             Ok(KnowledgeLibrary {
                 id,
                 name,
                 description,
                 embedding_model_id: model,
+                active_embedding_space_id: active_space_id,
+                embedding_route_key: route_key,
+                embedding_space_descriptor: descriptor,
                 dimension: dimension.max(0) as usize,
                 config: serde_json::from_str(&config).unwrap_or_else(|_| serde_json::json!({})),
                 document_count,
@@ -122,6 +199,32 @@ impl KnowledgeRepository {
             .list_libraries()?
             .into_iter()
             .find(|library| library.id == id))
+    }
+
+    fn embedding_space_descriptor(
+        &self,
+        library_id: &str,
+        space_id: &str,
+    ) -> Result<Option<serde_json::Value>, String> {
+        if space_id.is_empty() {
+            return Ok(None);
+        }
+        let path = self.resolve_library_path(library_id)?;
+        let descriptor = self
+            .open_library(&path)?
+            .query_row(
+                "SELECT descriptor_json FROM embedding_spaces WHERE id = ?1",
+                [space_id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(|error| format!("读取 Knowledge embedding space 失败: {error}"))?;
+        descriptor
+            .map(|value| {
+                serde_json::from_str(&value)
+                    .map_err(|error| format!("解析 Knowledge embedding descriptor 失败: {error}"))
+            })
+            .transpose()
     }
 
     pub fn delete_library(&self, id: &str) -> Result<(), String> {
@@ -354,7 +457,8 @@ impl KnowledgeRepository {
         self.open_manifest()?
             .execute(
                 "UPDATE knowledge_libraries
-                 SET embedding_model_id = '', dimension = 0, updated_at = ?2
+                 SET embedding_model_id = '', active_embedding_space_id = '',
+                     embedding_route_key = '', dimension = 0, updated_at = ?2
                  WHERE id = ?1",
                 params![library_id, now()],
             )
@@ -365,29 +469,75 @@ impl KnowledgeRepository {
     pub fn save_vectors(
         &self,
         library_id: &str,
-        model_id: &str,
+        space_id: &str,
+        descriptor_json: &str,
+        route_key: &str,
         records: &[KnowledgeVectorRecord],
     ) -> Result<(), String> {
+        if space_id.trim().is_empty() || route_key.trim().is_empty() {
+            return Err("Knowledge embedding space 和 route 不能为空".to_string());
+        }
+        if records.is_empty() {
+            return Err("Knowledge chunk vector 批次不能为空".to_string());
+        }
+        let descriptor: serde_json::Value = serde_json::from_str(descriptor_json)
+            .map_err(|error| format!("Knowledge embedding descriptor 非法: {error}"))?;
+        if !descriptor.is_object() {
+            return Err("Knowledge embedding descriptor 必须为对象".to_string());
+        }
         let path = self.resolve_library_path(library_id)?;
         let mut connection = self.open_library(&path)?;
         let transaction = connection
             .transaction()
             .map_err(|error| format!("开启 Knowledge vector 事务失败: {error}"))?;
+        let existing_descriptor = transaction
+            .query_row(
+                "SELECT descriptor_json FROM embedding_spaces WHERE id = ?1",
+                [space_id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(|error| format!("检查 Knowledge embedding space 失败: {error}"))?;
+        if let Some(existing) = existing_descriptor {
+            let existing: serde_json::Value = serde_json::from_str(&existing)
+                .map_err(|error| format!("已有 Knowledge embedding descriptor 非法: {error}"))?;
+            if existing != descriptor {
+                return Err("相同 Knowledge spaceId 对应了不同 descriptor".to_string());
+            }
+        }
+        transaction
+            .execute(
+                "INSERT OR IGNORE INTO embedding_spaces(id, descriptor_json, created_at)
+                 VALUES (?1, ?2, ?3)",
+                params![space_id, descriptor_json, now()],
+            )
+            .map_err(|error| format!("写入 Knowledge embedding space 失败: {error}"))?;
+        let expected_dimension = records.first().map_or(0, |record| record.vector.len());
+        if descriptor
+            .get("dimensions")
+            .and_then(serde_json::Value::as_u64)
+            != Some(expected_dimension as u64)
+        {
+            return Err("Knowledge descriptor 维度与向量不一致".to_string());
+        }
         for record in records {
             if record.vector.is_empty() {
                 return Err("Knowledge chunk vector 不能为空".to_string());
             }
+            if record.vector.len() != expected_dimension {
+                return Err("Knowledge chunk vector 维度不一致".to_string());
+            }
             transaction
                 .execute(
-                    "INSERT INTO chunk_vectors(chunk_id, model_id, dimension, vector_blob, updated_at)
+                    "INSERT INTO chunk_vectors(chunk_id, space_id, dimension, vector_blob, updated_at)
                      VALUES (?1, ?2, ?3, ?4, ?5)
-                     ON CONFLICT(chunk_id, model_id) DO UPDATE SET
+                     ON CONFLICT(chunk_id, space_id) DO UPDATE SET
                         dimension = excluded.dimension,
                         vector_blob = excluded.vector_blob,
                         updated_at = excluded.updated_at",
                     params![
                         record.chunk_id,
-                        model_id,
+                        space_id,
                         record.vector.len() as i64,
                         encode_vector(&record.vector),
                         now(),
@@ -401,9 +551,11 @@ impl KnowledgeRepository {
         let dimension = records.first().map_or(0, |record| record.vector.len());
         self.open_manifest()?
             .execute(
-                "UPDATE knowledge_libraries SET embedding_model_id = ?2, dimension = ?3,
-                 updated_at = ?4 WHERE id = ?1",
-                params![library_id, model_id, dimension as i64, now()],
+                "UPDATE knowledge_libraries
+                 SET embedding_model_id = ?2, embedding_route_key = ?2,
+                     active_embedding_space_id = ?3, dimension = ?4,
+                     updated_at = ?5 WHERE id = ?1",
+                params![library_id, route_key, space_id, dimension as i64, now()],
             )
             .map_err(|error| format!("更新 Knowledge vector 配置失败: {error}"))?;
         Ok(())
@@ -421,21 +573,22 @@ impl KnowledgeRepository {
             })
             .map_err(|error| format!("读取 Knowledge chunk 数量失败: {error}"))?
             .max(0) as usize;
-        let vectorized_chunks = if library.embedding_model_id.is_empty() || library.dimension == 0 {
-            0
-        } else {
-            connection
-                .query_row(
-                    "SELECT COUNT(*)
+        let vectorized_chunks =
+            if library.active_embedding_space_id.is_empty() || library.dimension == 0 {
+                0
+            } else {
+                connection
+                    .query_row(
+                        "SELECT COUNT(*)
                      FROM chunk_vectors AS vectors
                      INNER JOIN chunks ON chunks.id = vectors.chunk_id
-                     WHERE vectors.model_id = ?1 AND vectors.dimension = ?2",
-                    params![library.embedding_model_id, library.dimension as i64],
-                    |row| row.get::<_, i64>(0),
-                )
-                .map_err(|error| format!("读取 Knowledge vector 覆盖状态失败: {error}"))?
-                .max(0) as usize
-        };
+                     WHERE vectors.space_id = ?1 AND vectors.dimension = ?2",
+                        params![library.active_embedding_space_id, library.dimension as i64],
+                        |row| row.get::<_, i64>(0),
+                    )
+                    .map_err(|error| format!("读取 Knowledge vector 覆盖状态失败: {error}"))?
+                    .max(0) as usize
+            };
 
         Ok(KnowledgeIndexStatus {
             library_id: library_id.to_string(),
@@ -443,8 +596,37 @@ impl KnowledgeRepository {
             vectorized_chunks,
             pending_chunks: total_chunks.saturating_sub(vectorized_chunks),
             embedding_model_id: library.embedding_model_id,
+            active_embedding_space_id: library.active_embedding_space_id,
+            embedding_route_key: library.embedding_route_key,
+            embedding_space_descriptor: library.embedding_space_descriptor,
             dimension: library.dimension,
         })
+    }
+
+    pub fn switch_embedding_route(
+        &self,
+        library_id: &str,
+        space_id: &str,
+        route_key: &str,
+    ) -> Result<(), String> {
+        let library = self
+            .get_library(library_id)?
+            .ok_or_else(|| format!("Knowledge library 不存在: {library_id}"))?;
+        if library.active_embedding_space_id != space_id || space_id.is_empty() {
+            return Err("只能为当前 Knowledge embedding space 切换渠道".to_string());
+        }
+        if route_key.trim().is_empty() {
+            return Err("Knowledge embedding route 不能为空".to_string());
+        }
+        self.open_manifest()?
+            .execute(
+                "UPDATE knowledge_libraries
+                 SET embedding_model_id = ?2, embedding_route_key = ?2, updated_at = ?3
+                 WHERE id = ?1 AND active_embedding_space_id = ?4",
+                params![library_id, route_key, now(), space_id],
+            )
+            .map_err(|error| format!("切换 Knowledge embedding route 失败: {error}"))?;
+        Ok(())
     }
 
     pub fn search(&self, request: &KnowledgeSearchRequest) -> Result<Vec<KnowledgeResult>, String> {
@@ -458,6 +640,19 @@ impl KnowledgeRepository {
             }
             ref strategy => strategy.clone(),
         };
+        if matches!(
+            strategy,
+            KnowledgeSearchStrategy::Semantic | KnowledgeSearchStrategy::Hybrid
+        ) && request.query_vector.is_some()
+            && request
+                .space_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|space_id| !space_id.is_empty())
+                .is_none()
+        {
+            return Err("预计算 Knowledge 查询向量必须指定 spaceId".to_string());
+        }
         if strategy == KnowledgeSearchStrategy::Semantic && request.query_vector.is_none() {
             return Err("Knowledge semantic 检索需要 queryVector".to_string());
         }
@@ -513,7 +708,7 @@ impl KnowledgeRepository {
             for (chunk, score) in vector_candidates(
                 &connection,
                 query_vector,
-                request.model_id.as_deref(),
+                request.space_id.as_deref(),
                 request.limit,
             )? {
                 candidates
@@ -621,9 +816,11 @@ impl KnowledgeRepository {
     }
 
     fn initialize_library(&self, path: &Path) -> Result<(), String> {
-        self.open_library(path)?
+        let mut connection = self.open_library(path)?;
+        connection
             .execute_batch(LIBRARY_SCHEMA)
-            .map_err(|error| format!("初始化 Knowledge library 失败: {error}"))
+            .map_err(|error| format!("初始化 Knowledge library 失败: {error}"))?;
+        migrate_legacy_chunk_vectors(&mut connection)
     }
 
     #[cfg(test)]
@@ -661,13 +858,18 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_document ON chunks(document_id, 
 CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
   chunk_id UNINDEXED, content, heading, tokenize='unicode61'
 );
+CREATE TABLE IF NOT EXISTS embedding_spaces(
+  id TEXT PRIMARY KEY,
+  descriptor_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS chunk_vectors(
   chunk_id TEXT NOT NULL,
-  model_id TEXT NOT NULL,
+  space_id TEXT NOT NULL,
   dimension INTEGER NOT NULL,
   vector_blob BLOB NOT NULL,
   updated_at INTEGER NOT NULL,
-  PRIMARY KEY(chunk_id, model_id),
+  PRIMARY KEY(chunk_id, space_id),
   FOREIGN KEY(chunk_id) REFERENCES chunks(id) ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS chunk_edges(
@@ -677,6 +879,135 @@ CREATE TABLE IF NOT EXISTS chunk_edges(
   PRIMARY KEY(source_chunk_id, target_chunk_id, relation)
 );
 "#;
+
+fn ensure_column(
+    connection: &Connection,
+    table: &str,
+    column: &str,
+    definition: &str,
+) -> Result<(), String> {
+    let mut statement = connection
+        .prepare(&format!("PRAGMA table_info({table})"))
+        .map_err(|error| format!("检查 Knowledge manifest 列失败: {error}"))?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(|error| format!("查询 Knowledge manifest 列失败: {error}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("读取 Knowledge manifest 列失败: {error}"))?;
+    if !columns.iter().any(|candidate| candidate == column) {
+        connection
+            .execute(
+                &format!("ALTER TABLE {table} ADD COLUMN {column} {definition}"),
+                [],
+            )
+            .map_err(|error| format!("迁移 Knowledge manifest 列 {column} 失败: {error}"))?;
+    }
+    Ok(())
+}
+
+fn migrate_legacy_chunk_vectors(connection: &mut Connection) -> Result<(), String> {
+    let columns = {
+        let mut statement = connection
+            .prepare("PRAGMA table_info(chunk_vectors)")
+            .map_err(|error| format!("检查 Knowledge vector schema 失败: {error}"))?;
+        let columns = statement
+            .query_map([], |row| row.get::<_, String>(1))
+            .map_err(|error| format!("查询 Knowledge vector schema 失败: {error}"))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| format!("读取 Knowledge vector schema 失败: {error}"))?;
+        columns
+    };
+    if !columns.iter().any(|column| column == "model_id") {
+        return Ok(());
+    }
+
+    let legacy_models = {
+        let mut statement = connection
+            .prepare(
+                "SELECT model_id, COALESCE(MAX(dimension), 0)
+                 FROM chunk_vectors GROUP BY model_id",
+            )
+            .map_err(|error| format!("准备 Knowledge legacy vector 迁移失败: {error}"))?;
+        let models = statement
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            })
+            .map_err(|error| format!("查询 Knowledge legacy vector 失败: {error}"))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| format!("读取 Knowledge legacy vector 失败: {error}"))?;
+        models
+    };
+
+    let transaction = connection
+        .transaction()
+        .map_err(|error| format!("开启 Knowledge legacy vector 迁移失败: {error}"))?;
+    transaction
+        .execute_batch(
+            "CREATE TABLE chunk_vectors_v2(
+               chunk_id TEXT NOT NULL,
+               space_id TEXT NOT NULL,
+               dimension INTEGER NOT NULL,
+               vector_blob BLOB NOT NULL,
+               updated_at INTEGER NOT NULL,
+               PRIMARY KEY(chunk_id, space_id),
+               FOREIGN KEY(chunk_id) REFERENCES chunks(id) ON DELETE CASCADE
+             );",
+        )
+        .map_err(|error| format!("创建 Knowledge vector v2 表失败: {error}"))?;
+    for (route_key, dimension) in legacy_models {
+        let space_id = legacy_space_id(&route_key);
+        let descriptor = legacy_descriptor_json(&route_key, dimension.max(0));
+        transaction
+            .execute(
+                "INSERT OR IGNORE INTO embedding_spaces(id, descriptor_json, created_at)
+                 VALUES (?1, ?2, ?3)",
+                params![space_id, descriptor, now()],
+            )
+            .map_err(|error| format!("迁移 Knowledge legacy space 失败: {error}"))?;
+        transaction
+            .execute(
+                "INSERT INTO chunk_vectors_v2(
+                    chunk_id, space_id, dimension, vector_blob, updated_at
+                 )
+                 SELECT chunk_id, ?1, dimension, vector_blob, updated_at
+                 FROM chunk_vectors WHERE model_id = ?2",
+                params![space_id, route_key],
+            )
+            .map_err(|error| format!("迁移 Knowledge legacy vector 失败: {error}"))?;
+    }
+    transaction
+        .execute_batch(
+            "DROP TABLE chunk_vectors;
+             ALTER TABLE chunk_vectors_v2 RENAME TO chunk_vectors;",
+        )
+        .map_err(|error| format!("替换 Knowledge vector 表失败: {error}"))?;
+    transaction
+        .commit()
+        .map_err(|error| format!("提交 Knowledge legacy vector 迁移失败: {error}"))
+}
+
+fn legacy_space_id(route_key: &str) -> String {
+    format!("legacy-route:{}", legacy_route_hash(route_key))
+}
+
+fn legacy_descriptor_json(route_key: &str, dimension: i64) -> String {
+    serde_json::json!({
+        "schemaVersion": 1,
+        "model": {
+            "canonicalId": format!("legacy-route/{}", legacy_route_hash(route_key))
+        },
+        "dimensions": dimension,
+        "encodingFormat": "float",
+        "similarity": "cosine",
+        "adapterContractVersion": 1
+    })
+    .to_string()
+}
+
+fn legacy_route_hash(route_key: &str) -> String {
+    let digest = Sha256::digest(route_key.as_bytes());
+    format!("{digest:x}")
+}
 
 fn replace_document_chunks(
     transaction: &Transaction<'_>,
@@ -847,7 +1178,7 @@ fn keyword_candidates(
 fn vector_candidates(
     connection: &Connection,
     query_vector: &[f32],
-    model_id: Option<&str>,
+    space_id: Option<&str>,
     limit: usize,
 ) -> Result<Vec<(KnowledgeChunk, f32)>, String> {
     if query_vector.is_empty() {
@@ -861,11 +1192,11 @@ fn vector_candidates(
              FROM chunk_vectors v
              JOIN chunks c ON c.id = v.chunk_id
              JOIN documents d ON d.id = c.document_id
-             WHERE (?1 IS NULL OR v.model_id = ?1)",
+             WHERE v.space_id = ?1",
         )
         .map_err(|error| format!("准备 Knowledge vector 检索失败: {error}"))?;
     let rows = statement
-        .query_map([model_id], |row| {
+        .query_map([space_id], |row| {
             let chunk = chunk_from_row(row)?;
             let dimension = row.get::<_, i64>(10)?.max(0) as usize;
             let blob = row.get::<_, Vec<u8>>(11)?;
@@ -1054,7 +1385,7 @@ mod tests {
                 limit: 5,
                 min_score: 0.0,
                 query_vector: None,
-                model_id: None,
+                space_id: None,
             })
             .unwrap();
         assert_eq!(results[0].source_type, "knowledge");
@@ -1087,7 +1418,7 @@ mod tests {
                 limit: 1,
                 min_score: 0.0,
                 query_vector: None,
-                model_id: None,
+                space_id: None,
             })
             .unwrap()[0]
             .chunk_id
@@ -1095,6 +1426,8 @@ mod tests {
         repository
             .save_vectors(
                 &first.id,
+                "legacy-test-space",
+                r#"{"dimensions":2}"#,
                 "model",
                 &[KnowledgeVectorRecord {
                     chunk_id,
@@ -1110,7 +1443,7 @@ mod tests {
                 limit: 1,
                 min_score: 0.0,
                 query_vector: Some(vec![1.0, 0.0]),
-                model_id: Some("model".to_string()),
+                space_id: Some("legacy-test-space".to_string()),
             })
             .unwrap();
         assert_eq!(semantic.len(), 1);
@@ -1145,7 +1478,7 @@ mod tests {
                 limit: 1,
                 min_score: 0.0,
                 query_vector: None,
-                model_id: None,
+                space_id: None,
             })
             .unwrap()[0]
             .chunk_id
@@ -1153,6 +1486,8 @@ mod tests {
         repository
             .save_vectors(
                 &library.id,
+                "legacy-delete-space",
+                r#"{"dimensions":2}"#,
                 "model",
                 &[KnowledgeVectorRecord {
                     chunk_id: first_chunk,
@@ -1194,6 +1529,8 @@ mod tests {
         repository
             .save_vectors(
                 &library.id,
+                "space-a",
+                r#"{"dimensions":2}"#,
                 "model-a",
                 &[KnowledgeVectorRecord {
                     chunk_id: chunk.id,
@@ -1243,6 +1580,8 @@ mod tests {
         repository
             .save_vectors(
                 &library.id,
+                "space-a",
+                r#"{"dimensions":2}"#,
                 "model-a",
                 &[KnowledgeVectorRecord {
                     chunk_id: chunks[0].id.clone(),
@@ -1257,6 +1596,8 @@ mod tests {
         repository
             .save_vectors(
                 &library.id,
+                "space-b",
+                r#"{"dimensions":2}"#,
                 "model-b",
                 &[KnowledgeVectorRecord {
                     chunk_id: chunks[1].id.clone(),
@@ -1268,5 +1609,128 @@ mod tests {
         assert_eq!(switched.embedding_model_id, "model-b");
         assert_eq!(switched.vectorized_chunks, 1);
         assert_eq!(switched.pending_chunks, chunks.len() - 1);
+    }
+
+    #[test]
+    fn semantic_search_rejects_precomputed_vector_without_space_id() {
+        let directory = tempdir().unwrap();
+        let repository = KnowledgeRepository::new(directory.path());
+        let error = repository
+            .search(&KnowledgeSearchRequest {
+                query: "query".to_string(),
+                library_ids: Vec::new(),
+                strategy: KnowledgeSearchStrategy::Semantic,
+                limit: 5,
+                min_score: 0.0,
+                query_vector: Some(vec![1.0, 0.0]),
+                space_id: None,
+            })
+            .unwrap_err();
+
+        assert_eq!(error, "预计算 Knowledge 查询向量必须指定 spaceId");
+    }
+
+    #[test]
+    fn initialize_migrates_legacy_model_vectors_without_merging_routes() {
+        let directory = tempdir().unwrap();
+        let repository = KnowledgeRepository::new(directory.path());
+        std::fs::create_dir_all(&repository.libraries_dir).unwrap();
+        let library_id = Uuid::new_v4().to_string();
+        let library_path = repository.library_path(&library_id);
+        let legacy_library = Connection::open(&library_path).unwrap();
+        legacy_library
+            .execute_batch(
+                "CREATE TABLE chunks(
+                   id TEXT PRIMARY KEY,
+                   document_id TEXT NOT NULL,
+                   chunk_index INTEGER NOT NULL,
+                   content TEXT NOT NULL,
+                   checksum TEXT NOT NULL,
+                   heading TEXT,
+                   start_offset INTEGER NOT NULL,
+                   end_offset INTEGER NOT NULL,
+                   UNIQUE(document_id, chunk_index)
+                 );
+                 INSERT INTO chunks(
+                   id, document_id, chunk_index, content, checksum,
+                   start_offset, end_offset
+                 ) VALUES ('chunk-a', 'document-a', 0, 'alpha', 'hash', 0, 5);
+                 CREATE TABLE chunk_vectors(
+                   chunk_id TEXT NOT NULL,
+                   model_id TEXT NOT NULL,
+                   dimension INTEGER NOT NULL,
+                   vector_blob BLOB NOT NULL,
+                   updated_at INTEGER NOT NULL,
+                   PRIMARY KEY(chunk_id, model_id)
+                 );",
+            )
+            .unwrap();
+        legacy_library
+            .execute(
+                "INSERT INTO chunk_vectors(
+                    chunk_id, model_id, dimension, vector_blob, updated_at
+                 ) VALUES ('chunk-a', 'profile-a:model-a', 2, ?1, 1)",
+                [encode_vector(&[1.0, 0.0])],
+            )
+            .unwrap();
+        drop(legacy_library);
+
+        std::fs::create_dir_all(repository.manifest_path.parent().unwrap()).unwrap();
+        let manifest = Connection::open(&repository.manifest_path).unwrap();
+        manifest
+            .execute_batch(
+                "CREATE TABLE knowledge_libraries(
+                   id TEXT PRIMARY KEY,
+                   name TEXT NOT NULL,
+                   description TEXT,
+                   db_path TEXT NOT NULL,
+                   embedding_model_id TEXT NOT NULL DEFAULT '',
+                   dimension INTEGER NOT NULL DEFAULT 0,
+                   config_json TEXT NOT NULL DEFAULT '{}',
+                   created_at INTEGER NOT NULL,
+                   updated_at INTEGER NOT NULL
+                 );",
+            )
+            .unwrap();
+        manifest
+            .execute(
+                "INSERT INTO knowledge_libraries(
+                    id, name, db_path, embedding_model_id, dimension,
+                    config_json, created_at, updated_at
+                 ) VALUES (?1, 'Legacy', ?2, 'profile-a:model-a', 2, '{}', 1, 1)",
+                params![library_id, library_path.to_string_lossy()],
+            )
+            .unwrap();
+        drop(manifest);
+
+        repository.initialize().unwrap();
+        let migrated = repository.get_library(&library_id).unwrap().unwrap();
+        assert_eq!(migrated.embedding_route_key, "profile-a:model-a");
+        assert!(migrated
+            .active_embedding_space_id
+            .starts_with("legacy-route:"));
+        assert!(
+            migrated.embedding_space_descriptor.unwrap()["model"]["canonicalId"]
+                .as_str()
+                .unwrap()
+                .starts_with("legacy-route/")
+        );
+
+        let migrated_library = Connection::open(&library_path).unwrap();
+        let columns = migrated_library
+            .prepare("PRAGMA table_info(chunk_vectors)")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert!(columns.iter().any(|column| column == "space_id"));
+        assert!(!columns.iter().any(|column| column == "model_id"));
+        let vector_count = migrated_library
+            .query_row("SELECT COUNT(*) FROM chunk_vectors", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .unwrap();
+        assert_eq!(vector_count, 1);
     }
 }

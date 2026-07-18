@@ -1,5 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from "vue";
+import {
+  DEFAULT_MODEL_IDENTITY_PRESETS,
+  getModelIdentity,
+  materializeModelIdentity,
+  normalizeCanonicalModelId,
+} from "@aiohub/llm-core";
 import { ChevronLeft, Sparkles, Trash2, Check } from "lucide-vue-next";
 import type { LlmModelInfo } from "../types";
 import { useModelMetadata } from "../composables/useModelMetadata";
@@ -74,6 +80,39 @@ const innerModel = ref<LlmModelInfo>({
 });
 
 const showIconSelector = ref(false);
+const modelIdentityCanonicalId = ref("");
+const modelIdentityRevision = ref("");
+const identityOptions = Array.from(
+  new Set(
+    DEFAULT_MODEL_IDENTITY_PRESETS.map((preset) => preset.identity.canonicalId)
+  )
+).sort();
+const identitySourceLabel = computed(() => {
+  if (!modelIdentityCanonicalId.value.trim()) {
+    return tRaw("tools.llm-api.ModelEditorPopup.未识别");
+  }
+  const current = getModelIdentity(innerModel.value);
+  if (
+    current?.canonicalId ===
+      normalizeCanonicalModelId(modelIdentityCanonicalId.value) &&
+    (current.revision ?? "") === modelIdentityRevision.value.trim()
+  ) {
+    return tRaw(
+      `tools.llm-api.ModelEditorPopup.${
+        {
+          builtin: "内置识别",
+          provider: "渠道声明",
+          user: "用户配置",
+        }[current.source]
+      }`
+    );
+  }
+  return tRaw("tools.llm-api.ModelEditorPopup.用户配置");
+});
+const normalizeIdentityInput = () => {
+  const normalized = normalizeCanonicalModelId(modelIdentityCanonicalId.value);
+  if (normalized) modelIdentityCanonicalId.value = normalized;
+};
 const tokenLimitPresets = [
   { label: "4K", value: 4096 },
   { label: "8K", value: 8192 },
@@ -103,6 +142,9 @@ watch(
         innerModel.value.capabilities = createDefaultCapabilities();
       if (!innerModel.value.tokenLimits) innerModel.value.tokenLimits = {};
       if (!innerModel.value.pricing) innerModel.value.pricing = {};
+      const identity = getModelIdentity(props.model);
+      modelIdentityCanonicalId.value = identity?.canonicalId ?? "";
+      modelIdentityRevision.value = identity?.revision ?? "";
     } else if (val) {
       innerModel.value = {
         id: "",
@@ -115,6 +157,8 @@ watch(
         pricing: {},
         provider: "",
       };
+      modelIdentityCanonicalId.value = "";
+      modelIdentityRevision.value = "";
     }
   },
   { immediate: true }
@@ -126,6 +170,18 @@ const handleApplyPreset = () => {
   if (!innerModel.value.id) {
     Snackbar.warning(tRaw("tools.llm-api.ModelEditorPopup.请先输入模型 ID"));
     return;
+  }
+
+  let identityApplied = false;
+  if (!getModelIdentity(innerModel.value)) {
+    const materialized = materializeModelIdentity(innerModel.value);
+    const identity = getModelIdentity(materialized);
+    if (identity) {
+      innerModel.value.modelIdentity = identity;
+      modelIdentityCanonicalId.value = identity.canonicalId;
+      modelIdentityRevision.value = identity.revision ?? "";
+      identityApplied = true;
+    }
   }
 
   const matchedProps = getMatchedProperties(
@@ -147,7 +203,13 @@ const handleApplyPreset = () => {
     }
     Snackbar.success(tRaw("tools.llm-api.ModelEditorPopup.已应用预设配置"));
   } else {
-    Snackbar.info(tRaw("tools.llm-api.ModelEditorPopup.未找到匹配的预设配置"));
+    Snackbar[identityApplied ? "success" : "info"](
+      tRaw(
+        identityApplied
+          ? "tools.llm-api.ModelEditorPopup.已识别模型身份"
+          : "tools.llm-api.ModelEditorPopup.未找到匹配的预设配置"
+      )
+    );
   }
 };
 
@@ -167,7 +229,34 @@ const handleSave = () => {
     return;
   }
 
-  emit("save", innerModel.value);
+  const modelToSave = JSON.parse(JSON.stringify(innerModel.value)) as LlmModelInfo;
+  delete modelToSave.modelIdentitySuggestion;
+  const identityInput = modelIdentityCanonicalId.value.trim();
+  if (identityInput) {
+    const canonicalId = normalizeCanonicalModelId(identityInput);
+    if (!canonicalId) {
+      Snackbar.warning(
+        tRaw("tools.llm-api.ModelEditorPopup.模型身份格式错误")
+      );
+      return;
+    }
+    const revision = modelIdentityRevision.value.trim();
+    const previous = props.model ? getModelIdentity(props.model) : null;
+    const unchanged =
+      previous?.canonicalId === canonicalId &&
+      (previous.revision ?? "") === revision;
+    modelToSave.modelIdentity = unchanged
+      ? previous!
+      : {
+          canonicalId,
+          ...(revision ? { revision } : {}),
+          source: "user",
+        };
+  } else {
+    delete modelToSave.modelIdentity;
+  }
+
+  emit("save", modelToSave);
   emit("update:show", false);
 };
 
@@ -303,6 +392,49 @@ const setTokenLimit = (
               <div class="avatar-hint">
                 {{ tRaw("tools.llm-api.ModelEditorPopup.点击图标选择预设") }}
               </div>
+            </div>
+          </div>
+
+          <div class="form-item">
+            <div class="native-input-group">
+              <label class="native-input-label">{{
+                tRaw("tools.llm-api.ModelEditorPopup.模型身份")
+              }}</label>
+              <input
+                v-model="modelIdentityCanonicalId"
+                type="text"
+                class="native-input mono"
+                list="model-identity-options"
+                :placeholder="tRaw('tools.llm-api.ModelEditorPopup.未识别')"
+                @blur="normalizeIdentityInput"
+              />
+              <datalist id="model-identity-options">
+                <option
+                  v-for="identity in identityOptions"
+                  :key="identity"
+                  :value="identity"
+                />
+              </datalist>
+              <div class="input-hint identity-hint">
+                <span>{{ identitySourceLabel }}</span>
+                <span>{{
+                  tRaw("tools.llm-api.ModelEditorPopup.模型身份影响说明")
+                }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-item">
+            <div class="native-input-group">
+              <label class="native-input-label">{{
+                tRaw("tools.llm-api.ModelEditorPopup.模型修订")
+              }}</label>
+              <input
+                v-model="modelIdentityRevision"
+                type="text"
+                class="native-input mono"
+                :placeholder="tRaw('tools.llm-api.ModelEditorPopup.模型修订说明')"
+              />
             </div>
           </div>
 
@@ -865,6 +997,13 @@ const setTokenLimit = (
   color: var(--color-on-surface-variant);
   opacity: 0.6;
   margin-top: 4px;
+}
+
+.identity-hint {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .preset-input-row {

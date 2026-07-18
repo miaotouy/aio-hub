@@ -11,7 +11,10 @@ import {
   ScanSearch,
   Trash2,
 } from "lucide-vue-next";
-import type { ChannelProbeResult } from "@aiohub/llm-core";
+import {
+  listRoutesByCanonicalId,
+  type ChannelProbeResult,
+} from "@aiohub/llm-core";
 import { customDialog, customMessage } from "@/utils/feedback";
 import { useI18n } from "@/i18n";
 import type { LlmModelInfo } from "../types";
@@ -21,6 +24,7 @@ import {
   type CapabilityConfig,
 } from "../config/model-capabilities";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
+import { useLlmProfilesStore } from "../stores/llmProfiles";
 
 interface Props {
   models: LlmModelInfo[];
@@ -82,6 +86,21 @@ const handleExpandChange = (value: any) => {
 };
 
 const { t, tRaw } = useI18n();
+const profilesStore = useLlmProfilesStore();
+
+const identityRouteAudit = (model: LlmModelInfo) => {
+  if (!model.modelIdentity) return null;
+  const routes = listRoutesByCanonicalId(
+    profilesStore.profiles,
+    model.modelIdentity.canonicalId
+  );
+  return {
+    count: routes.length,
+    title: routes
+      .map(({ profile, model: routeModel }) => `${profile.name}: ${routeModel.id}`)
+      .join("\n"),
+  };
+};
 
 const deleteGroup = async (group: {
   name: string;
@@ -256,6 +275,16 @@ const handleModelAction = (
                   <div class="model-info">
                     <div class="model-name">{{ item.model.name }}</div>
                     <div class="model-id">{{ item.model.id }}</div>
+                    <div
+                      v-if="item.model.modelIdentity"
+                      class="model-identity"
+                      :title="identityRouteAudit(item.model)?.title"
+                    >
+                      {{ item.model.modelIdentity.canonicalId }}
+                      <span v-if="(identityRouteAudit(item.model)?.count || 0) > 1">
+                        · {{ identityRouteAudit(item.model)?.count }} 路由
+                      </span>
+                    </div>
                   </div>
 
                   <div v-if="editable" class="model-actions menu-wrap">
@@ -584,6 +613,16 @@ const handleModelAction = (
   color: var(--color-on-surface-variant);
   font-family: monospace;
   line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-identity {
+  color: var(--color-primary);
+  font-family: monospace;
+  font-size: 0.75rem;
+  line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

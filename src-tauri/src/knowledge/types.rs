@@ -11,6 +11,9 @@ pub struct KnowledgeLibrary {
     pub name: String,
     pub description: Option<String>,
     pub embedding_model_id: String,
+    pub active_embedding_space_id: String,
+    pub embedding_route_key: String,
+    pub embedding_space_descriptor: Option<serde_json::Value>,
     pub dimension: usize,
     pub config: serde_json::Value,
     pub document_count: usize,
@@ -66,6 +69,9 @@ pub struct KnowledgeIndexStatus {
     pub vectorized_chunks: usize,
     pub pending_chunks: usize,
     pub embedding_model_id: String,
+    pub active_embedding_space_id: String,
+    pub embedding_route_key: String,
+    pub embedding_space_descriptor: Option<serde_json::Value>,
     pub dimension: usize,
 }
 
@@ -119,7 +125,7 @@ pub struct KnowledgeSearchRequest {
     pub limit: usize,
     pub min_score: f32,
     pub query_vector: Option<Vec<f32>>,
-    pub model_id: Option<String>,
+    pub space_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

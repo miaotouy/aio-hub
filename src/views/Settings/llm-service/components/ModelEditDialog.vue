@@ -16,6 +16,12 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
+import {
+  DEFAULT_MODEL_IDENTITY_PRESETS,
+  getModelIdentity,
+  materializeModelIdentity,
+  normalizeCanonicalModelId,
+} from "@aiohub/llm-core";
 import { customMessage } from "@/utils/customMessage";
 import { InfoFilled, MagicStick } from "@element-plus/icons-vue";
 import type { LlmModelInfo } from "@/types/llm-profiles";
@@ -65,6 +71,37 @@ const modelEditForm = ref<LlmModelInfo>({
 
 const showPresetIconDialog = ref(false);
 const jsonError = ref<string | null>(null);
+const modelIdentityCanonicalId = ref("");
+const modelIdentityRevision = ref("");
+
+const identityOptions = Array.from(
+  new Set(
+    DEFAULT_MODEL_IDENTITY_PRESETS.map((preset) => preset.identity.canonicalId)
+  )
+).sort();
+
+const identitySourceLabel = computed(() => {
+  if (!modelIdentityCanonicalId.value.trim()) return "未识别";
+  const current = getModelIdentity(modelEditForm.value);
+  if (
+    current &&
+    current.canonicalId ===
+      normalizeCanonicalModelId(modelIdentityCanonicalId.value) &&
+    (current.revision ?? "") === modelIdentityRevision.value.trim()
+  ) {
+    return {
+      builtin: "内置识别",
+      provider: "渠道声明",
+      user: "用户配置",
+    }[current.source];
+  }
+  return "用户配置";
+});
+
+const normalizeIdentityInput = () => {
+  const normalized = normalizeCanonicalModelId(modelIdentityCanonicalId.value);
+  if (normalized) modelIdentityCanonicalId.value = normalized;
+};
 
 // 监听外部模型变化，更新内部表单
 watch(
@@ -104,6 +141,9 @@ watch(
         customParameters: newModel.customParameters || {},
         defaultPostProcessingRules: defaultRules,
       };
+      const identity = getModelIdentity(newModel);
+      modelIdentityCanonicalId.value = identity?.canonicalId ?? "";
+      modelIdentityRevision.value = identity?.revision ?? "";
     } else {
       // 新增模式，重置表单
       modelEditForm.value = {
@@ -118,6 +158,8 @@ watch(
         pricing: {},
         customParameters: {},
       };
+      modelIdentityCanonicalId.value = "";
+      modelIdentityRevision.value = "";
     }
   },
   { immediate: true }
@@ -135,6 +177,31 @@ const handleSave = () => {
   }
 
   const modelToSave = JSON.parse(JSON.stringify(modelEditForm.value));
+  delete modelToSave.modelIdentitySuggestion;
+  const identityInput = modelIdentityCanonicalId.value.trim();
+  if (identityInput) {
+    const canonicalId = normalizeCanonicalModelId(identityInput);
+    if (!canonicalId) {
+      customMessage.error(
+        "模型身份格式应为 developer/model，且只能包含字母、数字、点、下划线和连字符"
+      );
+      return;
+    }
+    const revision = modelIdentityRevision.value.trim();
+    const previous = props.model ? getModelIdentity(props.model) : null;
+    const unchanged =
+      previous?.canonicalId === canonicalId &&
+      (previous.revision ?? "") === revision;
+    modelToSave.modelIdentity = unchanged
+      ? previous
+      : {
+          canonicalId,
+          ...(revision ? { revision } : {}),
+          source: "user",
+        };
+  } else {
+    delete modelToSave.modelIdentity;
+  }
   if (!modelToSave.provider && props.providerType) {
     modelToSave.provider = props.providerType;
   }
@@ -201,18 +268,32 @@ const applyPreset = () => {
     modelEditForm.value.provider || props.providerType
   );
 
+  let identityApplied = false;
+  if (!getModelIdentity(modelEditForm.value)) {
+    const materialized = materializeModelIdentity(modelEditForm.value);
+    const identity = getModelIdentity(materialized);
+    if (identity) {
+      modelEditForm.value.modelIdentity = identity;
+      modelIdentityCanonicalId.value = identity.canonicalId;
+      modelIdentityRevision.value = identity.revision ?? "";
+      identityApplied = true;
+    }
+  }
+
   if (!properties) {
     // 如果没有预设，至少尝试格式化名称
     if (!modelEditForm.value.name) {
       modelEditForm.value.name = formatModelName(modelId);
       customMessage.success("已根据 ID 生成模型名称");
     } else {
-      customMessage.info("未找到匹配的预设配置");
+      customMessage[identityApplied ? "success" : "info"](
+        identityApplied ? "已识别并填充模型身份" : "未找到匹配的预设配置"
+      );
     }
     return;
   }
 
-  let appliedCount = 0;
+  let appliedCount = identityApplied ? 1 : 0;
 
   // 应用分组
   if (properties.group && !modelEditForm.value.group) {
@@ -423,6 +504,39 @@ const customParametersJsonString = computed({
 
           <el-form-item label="显示名称">
             <el-input v-model="modelEditForm.name" placeholder="例如: GPT-4o" />
+          </el-form-item>
+
+          <el-form-item label="模型身份">
+            <div class="identity-editor">
+              <el-select
+                v-model="modelIdentityCanonicalId"
+                filterable
+                allow-create
+                clearable
+                default-first-option
+                placeholder="未识别"
+                @blur="normalizeIdentityInput"
+              >
+                <el-option
+                  v-for="identity in identityOptions"
+                  :key="identity"
+                  :label="identity"
+                  :value="identity"
+                />
+              </el-select>
+              <span class="identity-source">{{ identitySourceLabel }}</span>
+            </div>
+            <div class="form-hint">
+              格式为 developer/model。修改身份可能影响 Embedding 向量复用判断。
+            </div>
+          </el-form-item>
+
+          <el-form-item label="模型修订">
+            <el-input
+              v-model="modelIdentityRevision"
+              clearable
+              placeholder="可选，仅填写服务明确提供的固定版本"
+            />
           </el-form-item>
 
           <el-form-item label="分组">
@@ -759,6 +873,21 @@ const customParametersJsonString = computed({
   font-size: 12px;
   color: var(--text-color-secondary);
   margin-top: 8px;
+}
+
+.identity-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+}
+
+.identity-source {
+  min-width: 64px;
+  color: var(--text-color-secondary);
+  font-size: 12px;
+  text-align: right;
 }
 
 /* Token 输入组合 */

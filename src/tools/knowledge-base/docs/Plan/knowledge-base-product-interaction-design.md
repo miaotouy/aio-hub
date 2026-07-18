@@ -93,7 +93,7 @@ VCP 的关键启发是“索引生命周期可观测”，不是把所有 RAG �
 ### 4.4 语义索引
 
 - “语义索引”对话框展示当前覆盖率和可选 Embedding 模型。
-- 目标设计将“调用渠道”与“向量空间”分离，详见 [模型身份与 Embedding 空间设计](../../../../../docs/design/model-identity-and-embedding-space-design.md)。`profileId:modelId` 只定位调用渠道；向量按包含 canonical model、版本、维度和任务契约的 `spaceId` 隔离。同空间手工切换渠道不重建，不同空间切换才需要确认并重新计算覆盖率。当前代码仍使用组合键，等待空间 schema 迁移。
+- “调用渠道”与“向量空间”已按 [模型身份与 Embedding 空间设计](../../../../../docs/design/model-identity-and-embedding-space-design.md) 分离。`profileId:modelId` 只定位调用渠道；向量按包含 canonical model、版本、实际维度和任务契约的 `spaceId` 隔离。同空间手工切换渠道不重建，不同空间切换需要确认并重新计算覆盖率；旧组合键向量会迁移到逐 route 隔离的 legacy space。
 - 进度使用已写入 chunk 数，不使用无法校验的估算时间。
 - 失败后已提交批次保留，再次构建可覆盖写入并完成剩余覆盖。
 - 关键词索引始终独立可用。

@@ -78,7 +78,8 @@ const filteredGroups = computed(() => {
       const matchesQuery =
         !query ||
         model.id.toLowerCase().includes(query) ||
-        model.name.toLowerCase().includes(query);
+        model.name.toLowerCase().includes(query) ||
+        model.modelIdentity?.canonicalId.includes(query);
       if (!matchesQuery) return false;
 
       // 2. 能力匹配 (AND 逻辑：必须包含所有选中的能力)
@@ -216,13 +217,14 @@ const copyRawResponse = async () => {
 const handleConfirm = () => {
   // 对选中的模型进行处理，使用格式化后的名称，并同步计算出的能力、分组和图标
   const modelsToAdd = selectedModels.value.map((model: LlmModelInfo) => {
+    const { modelIdentitySuggestion: _suggestion, ...persistedModel } = model;
     const provider = model.provider || props.providerType;
     const matchedProps = getMatchedProperties(model.id, provider);
     const matchedMediaGenParams = cloneMediaGenParams(
       matchedProps?.mediaGenParams
     );
     return {
-      ...model,
+      ...persistedModel,
       provider,
       name: formatModelName(model.id),
       group: model.group || matchedProps?.group,
@@ -450,6 +452,22 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
                       </div>
                     </div>
                     <div class="model-id">{{ model.id }}</div>
+                    <div
+                      v-if="model.modelIdentity"
+                      class="model-identity"
+                      :title="model.modelIdentity.canonicalId"
+                    >
+                      {{ model.modelIdentity.canonicalId }} · 内置精确识别
+                    </div>
+                    <div
+                      v-else-if="model.modelIdentitySuggestion"
+                      class="model-identity is-suggestion"
+                      :title="model.modelIdentitySuggestion.evidence"
+                    >
+                      建议：{{
+                        model.modelIdentitySuggestion.identity.canonicalId
+                      }} · 待确认
+                    </div>
                   </div>
                   <div class="model-status">
                     <el-tag
@@ -659,6 +677,17 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.model-identity {
+  margin-top: 2px;
+  color: var(--el-color-success);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.model-identity.is-suggestion {
+  color: var(--el-color-warning);
 }
 .model-status {
   margin-left: 16px;

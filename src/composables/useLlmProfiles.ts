@@ -17,6 +17,7 @@
  */
 
 import { ref, computed } from "vue";
+import { materializeModelIdentity } from "@aiohub/llm-core";
 import type {
   LlmProfile,
   LlmModelInfo,
@@ -76,10 +77,14 @@ export function useLlmProfiles() {
       logoUrl: rest.logoUrl || undefined,
       icon: rest.icon ? normalizeIconPath(rest.icon) : undefined,
       models: Array.isArray(rest.models)
-        ? rest.models.map((m: any) => ({
-            ...m,
-            icon: m.icon ? normalizeIconPath(m.icon) : undefined,
-          }))
+        ? rest.models.map((m: any) => {
+            const normalizedModel = {
+              ...m,
+              icon: m.icon ? normalizeIconPath(m.icon) : undefined,
+            };
+            delete normalizedModel.modelIdentitySuggestion;
+            return normalizedModel;
+          })
         : [],
       customHeaders: rest.customHeaders || DEFAULT_LLM_PROFILE.customHeaders,
       networkStrategy:
@@ -333,7 +338,7 @@ export function useLlmProfiles() {
         ? JSON.parse(JSON.stringify(matchedProps.mediaGenParams))
         : undefined);
 
-    return {
+    return materializeModelIdentity({
       ...model,
       provider,
       group: model.group || matchedProps?.group,
@@ -344,7 +349,7 @@ export function useLlmProfiles() {
         ...(model.capabilities || {}),
       },
       ...(mediaGenParams ? { mediaGenParams } : {}),
-    };
+    });
   };
 
   /**

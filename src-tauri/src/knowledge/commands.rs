@@ -104,12 +104,18 @@ pub async fn knowledge_rebuild_library(
 pub async fn knowledge_save_chunk_vectors(
     state: State<'_, KnowledgeState>,
     library_id: String,
-    model_id: String,
+    space_id: String,
+    descriptor_json: String,
+    route_key: String,
     records: Vec<KnowledgeVectorRecord>,
 ) -> Result<(), String> {
-    state
-        .repository()?
-        .save_vectors(&library_id, &model_id, &records)
+    state.repository()?.save_vectors(
+        &library_id,
+        &space_id,
+        &descriptor_json,
+        &route_key,
+        &records,
+    )
 }
 
 #[tauri::command]
@@ -118,6 +124,18 @@ pub async fn knowledge_get_index_status(
     library_id: String,
 ) -> Result<KnowledgeIndexStatus, String> {
     state.repository()?.get_index_status(&library_id)
+}
+
+#[tauri::command]
+pub async fn knowledge_switch_embedding_route(
+    state: State<'_, KnowledgeState>,
+    library_id: String,
+    space_id: String,
+    route_key: String,
+) -> Result<(), String> {
+    state
+        .repository()?
+        .switch_embedding_route(&library_id, &space_id, &route_key)
 }
 
 #[tauri::command]

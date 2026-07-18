@@ -225,7 +225,17 @@
     "未找到匹配的预设配置": "No matching preset found",
     "已选择图标": "Icon selected",
     "请输入模型 ID": "Please enter model ID",
-    "请输入模型名称": "Please enter model name"
+    "请输入模型名称": "Please enter model name",
+    "模型身份": "Model Identity",
+    "模型修订": "Model Revision",
+    "未识别": "Unidentified",
+    "内置识别": "Built-in",
+    "渠道声明": "Provider-declared",
+    "用户配置": "User configured",
+    "模型身份格式错误": "Model identity must use developer/model and contain only letters, numbers, dots, underscores, and hyphens",
+    "模型身份影响说明": "Changing identity may affect embedding vector reuse decisions",
+    "模型修订说明": "Optional; only use a fixed revision explicitly provided by the service",
+    "已识别模型身份": "Model identity recognized and filled"
   },
   "ModelFetcherPopup": {
     "从 API 添加模型": "Add Models from API",

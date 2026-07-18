@@ -26,6 +26,34 @@
           </p>
         </section>
 
+        <section
+          v-if="status?.embeddingSpaceDescriptor"
+          class="space-summary"
+        >
+          <div><span>向量空间</span><strong>{{ status.activeEmbeddingSpaceId }}</strong></div>
+          <dl>
+            <div>
+              <dt>模型身份</dt>
+              <dd>{{ status.embeddingSpaceDescriptor.model.canonicalId }}</dd>
+            </div>
+            <div>
+              <dt>维度</dt>
+              <dd>{{ status.embeddingSpaceDescriptor.dimensions }}</dd>
+            </div>
+            <div>
+              <dt>任务契约</dt>
+              <dd>
+                {{ status.embeddingSpaceDescriptor.queryTaskType || "默认查询" }} /
+                {{ status.embeddingSpaceDescriptor.documentTaskType || "默认文档" }}
+              </dd>
+            </div>
+            <div>
+              <dt>当前渠道</dt>
+              <dd>{{ status.embeddingRouteKey }}</dd>
+            </div>
+          </dl>
+        </section>
+
         <div class="model-field">
           <label for="knowledge-embedding-model">Embedding 模型</label>
           <el-select
@@ -59,7 +87,7 @@
             当前没有已启用的 Embedding 模型，请先在 LLM 服务设置中配置。
           </p>
           <p v-else class="field-hint">
-            切换模型会以新模型建立覆盖状态，关键词索引不受影响。
+            {{ selectionHint }}
           </p>
         </div>
 
@@ -91,12 +119,16 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { getModelIdentity } from "@aiohub/llm-core";
 import { ElMessageBox } from "element-plus";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import { useEmbeddingModelOptions } from "@/composables/useEmbeddingModelOptions";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { vectorizeKnowledgeLibrary } from "../service";
+import {
+  switchKnowledgeEmbeddingRoute,
+  vectorizeKnowledgeLibrary,
+} from "../service";
 import type { KnowledgeIndexStatus, KnowledgeLibrary } from "../types";
 
 const props = defineProps<{
@@ -131,8 +163,32 @@ const coverageLabel = computed(() => `${coveragePercentage.value}%`);
 const buildPercentage = computed(() =>
   total.value ? Math.round((processed.value / total.value) * 100) : 0
 );
+const selectionMode = computed<"current" | "same-space" | "new-space">(() => {
+  const target = selectedTarget.value;
+  const descriptor = props.status?.embeddingSpaceDescriptor;
+  if (!target || !descriptor || !props.status?.activeEmbeddingSpaceId) {
+    return "new-space";
+  }
+  if (target.combo === props.status.embeddingRouteKey) return "current";
+  const model = target.profile.models.find((item) => item.id === target.modelId);
+  const identity = model ? getModelIdentity(model) : null;
+  return identity?.canonicalId === descriptor.model.canonicalId &&
+    (identity.revision ?? "") === (descriptor.model.revision ?? "")
+    ? "same-space"
+    : "new-space";
+});
+const selectionHint = computed(() => {
+  if (selectionMode.value === "same-space") {
+    return "声明同空间：确认后仅切换调用渠道，已有向量和覆盖率保持不变。";
+  }
+  if (selectionMode.value === "current") {
+    return "当前调用渠道；重新构建会刷新此空间的文档向量。";
+  }
+  return "新空间：模型身份或请求契约不同，需要重新构建向量。";
+});
 const actionLabel = computed(() => {
   if (vectorizing.value) return "正在构建";
+  if (selectionMode.value === "same-space") return "切换渠道";
   return props.status?.vectorizedChunks ? "重新构建" : "开始构建";
 });
 
@@ -142,6 +198,7 @@ watch(
     if (!visible) return;
     const current = availableEmbeddingModels.value.find(
       (item) =>
+        item.value === props.status?.embeddingRouteKey ||
         item.value === props.status?.embeddingModelId ||
         item.modelId === props.status?.embeddingModelId
     );
@@ -164,6 +221,32 @@ function closeDialog() {
 async function buildVectors() {
   const target = selectedTarget.value;
   if (!target || !totalChunks.value) return;
+  if (selectionMode.value === "same-space") {
+    try {
+      await ElMessageBox.confirm(
+        "所选渠道声明为同一模型与向量空间。确认后只更新调用渠道，不重建已有向量。",
+        "切换 Embedding 渠道",
+        {
+          type: "warning",
+          confirmButtonText: "确认切换",
+          cancelButtonText: "取消",
+          lockScroll: false,
+        }
+      );
+      await switchKnowledgeEmbeddingRoute(
+        props.library.id,
+        props.status!.activeEmbeddingSpaceId,
+        target.combo
+      );
+      customMessage.success("已切换 Embedding 调用渠道");
+      emit("completed");
+      emit("update:modelValue", false);
+    } catch (error) {
+      if (error === "cancel" || error === "close") return;
+      errorHandler.error(error, "切换 Embedding 渠道失败");
+    }
+    return;
+  }
   const switchingModel =
     props.status?.embeddingModelId &&
     props.status.embeddingModelId !== target.combo &&
@@ -219,7 +302,8 @@ async function buildVectors() {
 }
 
 .coverage-summary,
-.build-progress {
+.build-progress,
+.space-summary {
   display: grid;
   gap: 8px;
   padding: 14px;
@@ -230,6 +314,7 @@ async function buildVectors() {
 
 .coverage-summary > div,
 .build-progress > div,
+.space-summary > div,
 .dialog-actions,
 .model-option {
   display: flex;
@@ -240,6 +325,7 @@ async function buildVectors() {
 
 .coverage-summary span,
 .build-progress span,
+.space-summary span,
 .model-field label {
   color: var(--el-text-color-regular);
   font-size: 13px;
@@ -247,8 +333,44 @@ async function buildVectors() {
 }
 
 .coverage-summary strong,
-.build-progress strong {
+.build-progress strong,
+.space-summary strong {
   font-variant-numeric: tabular-nums;
+}
+
+.space-summary strong {
+  max-width: 360px;
+  overflow: hidden;
+  font-family: monospace;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.space-summary dl {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.space-summary dl > div {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.space-summary dt,
+.space-summary dd {
+  margin: 0;
+  font-size: 12px;
+}
+
+.space-summary dt {
+  color: var(--el-text-color-secondary);
+}
+
+.space-summary dd {
+  overflow-wrap: anywhere;
 }
 
 .coverage-summary p,

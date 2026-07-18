@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
+import { materializeModelIdentity } from "@aiohub/llm-core";
 import { useRouter } from "vue-router";
 import { useLlmProfilesStore } from "../stores/llmProfiles";
 import { Plus, Layers, ChevronLeft } from "lucide-vue-next";
@@ -40,7 +41,9 @@ const applyPreset = (preset: any) => {
     apiKeys: [""],
     enabled: true,
     models: preset.defaultModels
-      ? JSON.parse(JSON.stringify(preset.defaultModels))
+      ? JSON.parse(JSON.stringify(preset.defaultModels)).map((model: any) =>
+          materializeModelIdentity(model)
+        )
       : [],
     icon: preset.logoUrl,
     customHeaders: {},

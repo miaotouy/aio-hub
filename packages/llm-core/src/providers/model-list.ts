@@ -128,6 +128,7 @@ function fromOpenAiModel(
     owner,
     owner
   );
+  result.declaredOwner = readString(model.owned_by);
   result.contextLength = readNumber(model.context_length);
   result.maxOutputTokens = readNumber(
     asRecord(model.top_provider).max_completion_tokens

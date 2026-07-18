@@ -17,6 +17,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import {
+  listRoutesByCanonicalId,
+  materializeModelIdentity,
+} from "@aiohub/llm-core";
+import {
   Plus,
   Delete,
   Edit,
@@ -25,7 +29,7 @@ import {
   VideoPlay,
   MagicStick,
 } from "@element-plus/icons-vue";
-import type { LlmModelInfo } from "@/types/llm-profiles";
+import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import {
   MODEL_CAPABILITIES,
@@ -47,6 +51,8 @@ interface Props {
   testResults?: Record<string, ChannelProbeResult>;
   batchTesting?: boolean;
   providerType?: string;
+  profiles?: LlmProfile[];
+  currentProfileId?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -56,7 +62,28 @@ const props = withDefaults(defineProps<Props>(), {
   testLoading: () => ({}),
   testResults: () => ({}),
   batchTesting: false,
+  profiles: () => [],
 });
+
+const getOtherIdentityRoutes = (model: LlmModelInfo) => {
+  if (!model.modelIdentity) return [];
+  return listRoutesByCanonicalId(
+    props.profiles,
+    model.modelIdentity.canonicalId
+  ).filter(
+    ({ route }) =>
+      route.profileId !== props.currentProfileId || route.modelId !== model.id
+  );
+};
+
+const getIdentityAuditText = (model: LlmModelInfo) => {
+  const routes = getOtherIdentityRoutes(model);
+  if (routes.length === 0) return model.modelIdentity?.canonicalId ?? "";
+  const details = routes
+    .map(({ profile, model: routeModel }) => `${profile.name}: ${routeModel.id}`)
+    .join("\n");
+  return `${model.modelIdentity?.canonicalId}\n同身份的其他路由：\n${details}`;
+};
 
 interface Emits {
   (e: "add"): void;
@@ -138,6 +165,7 @@ const formatModelName = (modelId: string): string => {
 const applyAllPresets = () => {
   let appliedCount = 0;
   const newModels = props.models.map((model) => {
+    const materialized = materializeModelIdentity(model);
     const properties = getActiveModelProperties(
       model.id,
       model.provider || props.providerType
@@ -145,12 +173,13 @@ const applyAllPresets = () => {
     if (!properties) {
       if (!model.name) {
         appliedCount++;
-        return { ...model, name: formatModelName(model.id) };
+        return { ...materialized, name: formatModelName(model.id) };
       }
-      return model;
+      if (materialized !== model) appliedCount++;
+      return materialized;
     }
-    const updated = { ...model };
-    let changed = false;
+    const updated = { ...materialized };
+    let changed = materialized !== model;
     if (properties.group && !model.group) {
       updated.group = properties.group;
       changed = true;
@@ -332,6 +361,16 @@ const getTestResultTitle = (result: ChannelProbeResult): string => {
                 <div class="model-info">
                   <div class="model-name">{{ item.model.name }}</div>
                   <div class="model-id">{{ item.model.id }}</div>
+                  <div
+                    v-if="item.model.modelIdentity"
+                    class="model-identity"
+                    :title="getIdentityAuditText(item.model)"
+                  >
+                    {{ item.model.modelIdentity.canonicalId }}
+                    <span v-if="getOtherIdentityRoutes(item.model).length > 0">
+                      · {{ getOtherIdentityRoutes(item.model).length }} 个其他路由
+                    </span>
+                  </div>
                 </div>
 
                 <el-tooltip
@@ -641,6 +680,16 @@ const getTestResultTitle = (result: ChannelProbeResult): string => {
   color: var(--text-color-light);
   font-family: monospace;
   line-height: 1.4;
+}
+
+.model-identity {
+  color: var(--el-color-success);
+  font-family: monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .model-capabilities {

@@ -3,7 +3,9 @@
 
 import {
   executeModelListRequest,
+  materializeModelIdentity,
   modelListAdapter,
+  suggestModelIdentityFromProvider,
   type ProviderModelInfo,
   type ProviderProfile,
 } from "@aiohub/llm-core";
@@ -103,7 +105,11 @@ function toDesktopModelInfo(model: ProviderModelInfo): LlmModelInfo {
         ])
       )
     : undefined;
-  return {
+  const suggestion = suggestModelIdentityFromProvider(
+    model.id,
+    model.declaredOwner
+  );
+  return materializeModelIdentity({
     id: model.id,
     name: model.name,
     group: model.group,
@@ -137,5 +143,6 @@ function toDesktopModelInfo(model: ProviderModelInfo): LlmModelInfo {
           }
         : undefined,
     pricing: pricing as LlmModelInfo["pricing"],
-  };
+    ...(suggestion ? { modelIdentitySuggestion: suggestion } : {}),
+  }, { declaredOwner: model.declaredOwner });
 }

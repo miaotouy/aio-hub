@@ -601,6 +601,7 @@ interface KnowledgeResearchRequest {
 ### Phase 3：补齐资料工作台与可靠摄取
 
 - 重写设置与导入计划，使其遵循本方案的配置分层。
+- 将索引配置和活动向量身份保存在各 library DB，与 chunk、FTS、vector、graph 使用单库 WAL 事务；manifest 只承担目录职责，不依赖 `ATTACH` 跨文件事务保证崩溃原子性。
 - 统一文件选择、拖放、解析器能力和错误明细。
 - 引入持久 ingest queue 和目录同步来源。
 - 完成更新失败保留旧版本的原子替换流程。
@@ -660,4 +661,3 @@ interface KnowledgeResearchRequest {
 
 开发者后记：
 其实我并不打算真正的删除【】占位符的自动召回功能，不过施工的AI认知有瓶颈，暂且让其在计划中写删除，后面我再加回去好了，这里标记下免得我自己忘记了
-

@@ -15,6 +15,15 @@ pub struct KnowledgeRepository {
     libraries_dir: PathBuf,
 }
 
+#[derive(Debug, Clone)]
+struct LibraryMetadata {
+    config: KnowledgeLibraryIndexConfig,
+    active_embedding_space_id: String,
+    embedding_route_key: String,
+    dimension: usize,
+    updated_at: i64,
+}
+
 impl KnowledgeRepository {
     pub fn new(app_data_dir: impl AsRef<Path>) -> Self {
         let root = app_data_dir.as_ref().join("knowledge");
@@ -64,8 +73,8 @@ impl KnowledgeRepository {
         let libraries = {
             let mut statement = connection
                 .prepare(
-                    "SELECT id, db_path, embedding_model_id, dimension,
-                            active_embedding_space_id
+                    "SELECT id, db_path, config_json, embedding_model_id, dimension,
+                            active_embedding_space_id, embedding_route_key
                      FROM knowledge_libraries",
                 )
                 .map_err(|error| format!("准备 Knowledge 空间迁移失败: {error}"))?;
@@ -75,8 +84,10 @@ impl KnowledgeRepository {
                         row.get::<_, String>(0)?,
                         row.get::<_, String>(1)?,
                         row.get::<_, String>(2)?,
-                        row.get::<_, i64>(3)?,
-                        row.get::<_, String>(4)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, i64>(4)?,
+                        row.get::<_, String>(5)?,
+                        row.get::<_, String>(6)?,
                     ))
                 })
                 .map_err(|error| format!("查询 Knowledge 空间迁移项失败: {error}"))?
@@ -84,28 +95,31 @@ impl KnowledgeRepository {
                 .map_err(|error| format!("读取 Knowledge 空间迁移项失败: {error}"))?;
             rows
         };
-        for (id, db_path, legacy_route_key, dimension, active_space_id) in libraries {
+        for (
+            id,
+            db_path,
+            legacy_config,
+            legacy_model_id,
+            dimension,
+            active_space_id,
+            legacy_route_key,
+        ) in libraries
+        {
             let path = PathBuf::from(db_path);
             self.initialize_library(&path)?;
-            if active_space_id.is_empty() && !legacy_route_key.is_empty() {
-                let space_id = legacy_space_id(&legacy_route_key);
-                let descriptor = legacy_descriptor_json(&legacy_route_key, dimension.max(0));
-                self.open_library(&path)?
-                    .execute(
-                        "INSERT OR IGNORE INTO embedding_spaces(id, descriptor_json, created_at)
-                         VALUES (?1, ?2, ?3)",
-                        params![space_id, descriptor, now()],
-                    )
-                    .map_err(|error| format!("写入 Knowledge legacy space 失败: {error}"))?;
-                connection
-                    .execute(
-                        "UPDATE knowledge_libraries
-                         SET active_embedding_space_id = ?2, embedding_route_key = ?3
-                         WHERE id = ?1",
-                        params![id, space_id, legacy_route_key],
-                    )
-                    .map_err(|error| format!("更新 Knowledge legacy manifest 失败: {error}"))?;
-            }
+            let route_key = if legacy_route_key.trim().is_empty() {
+                legacy_model_id
+            } else {
+                legacy_route_key
+            };
+            self.initialize_library_metadata(
+                &path,
+                &legacy_config,
+                &route_key,
+                &active_space_id,
+                dimension.max(0) as usize,
+            )
+            .map_err(|error| format!("迁移 Knowledge library {id} metadata 失败: {error}"))?;
         }
         Ok(())
     }
@@ -114,16 +128,21 @@ impl KnowledgeRepository {
         &self,
         name: &str,
         description: Option<&str>,
+        config: Option<&KnowledgeLibraryIndexConfig>,
     ) -> Result<KnowledgeLibrary, String> {
+        let config = config.cloned().unwrap_or_default();
+        config.validate()?;
+        let config_json = serde_json::to_string(&config)
+            .map_err(|error| format!("序列化 Knowledge library 配置失败: {error}"))?;
         let id = Uuid::new_v4().to_string();
         let db_path = self.library_path(&id);
         self.initialize_library(&db_path)?;
+        self.initialize_library_metadata(&db_path, &config_json, "", "", 0)?;
         let now = now();
         let manifest_result = self.open_manifest()?.execute(
             "INSERT INTO knowledge_libraries(
-                    id, name, description, db_path, embedding_model_id, dimension,
-                    config_json, created_at, updated_at
-                 ) VALUES (?1, ?2, ?3, ?4, '', 0, '{}', ?5, ?5)",
+                    id, name, description, db_path, created_at, updated_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
             params![id, name.trim(), description, db_path.to_string_lossy(), now],
         );
         if let Err(error) = manifest_result {
@@ -138,9 +157,7 @@ impl KnowledgeRepository {
         let connection = self.open_manifest()?;
         let mut statement = connection
             .prepare(
-                "SELECT id, name, description, embedding_model_id, dimension,
-                        config_json, created_at, updated_at,
-                        active_embedding_space_id, embedding_route_key
+                "SELECT id, name, description, created_at, updated_at
                  FROM knowledge_libraries ORDER BY updated_at DESC, id",
             )
             .map_err(|error| format!("准备 Knowledge library 列表失败: {error}"))?;
@@ -150,48 +167,43 @@ impl KnowledgeRepository {
                     row.get::<_, String>(0)?,
                     row.get::<_, String>(1)?,
                     row.get::<_, Option<String>>(2)?,
-                    row.get::<_, String>(3)?,
+                    row.get::<_, i64>(3)?,
                     row.get::<_, i64>(4)?,
-                    row.get::<_, String>(5)?,
-                    row.get::<_, i64>(6)?,
-                    row.get::<_, i64>(7)?,
-                    row.get::<_, String>(8)?,
-                    row.get::<_, String>(9)?,
                 ))
             })
             .map_err(|error| format!("查询 Knowledge library 失败: {error}"))?;
-        rows.map(|row| {
-            let (
-                id,
-                name,
-                description,
-                model,
-                dimension,
-                config,
-                created_at,
-                updated_at,
-                active_space_id,
-                route_key,
-            ) = row.map_err(|error| format!("读取 Knowledge library 失败: {error}"))?;
-            let (document_count, chunk_count) = self.library_counts(&id)?;
-            let descriptor = self.embedding_space_descriptor(&id, &active_space_id)?;
-            Ok(KnowledgeLibrary {
-                id,
-                name,
-                description,
-                embedding_model_id: model,
-                active_embedding_space_id: active_space_id,
-                embedding_route_key: route_key,
-                embedding_space_descriptor: descriptor,
-                dimension: dimension.max(0) as usize,
-                config: serde_json::from_str(&config).unwrap_or_else(|_| serde_json::json!({})),
-                document_count,
-                chunk_count,
-                created_at,
-                updated_at,
+        let mut libraries = rows
+            .map(|row| {
+                let (id, name, description, created_at, manifest_updated_at) =
+                    row.map_err(|error| format!("读取 Knowledge library 失败: {error}"))?;
+                let metadata = self.read_library_metadata(&id)?;
+                let (document_count, chunk_count) = self.library_counts(&id)?;
+                let descriptor =
+                    self.embedding_space_descriptor(&id, &metadata.active_embedding_space_id)?;
+                Ok(KnowledgeLibrary {
+                    id,
+                    name,
+                    description,
+                    embedding_model_id: metadata.embedding_route_key.clone(),
+                    active_embedding_space_id: metadata.active_embedding_space_id,
+                    embedding_route_key: metadata.embedding_route_key,
+                    embedding_space_descriptor: descriptor,
+                    dimension: metadata.dimension,
+                    config: metadata.config,
+                    document_count,
+                    chunk_count,
+                    created_at,
+                    updated_at: manifest_updated_at.max(metadata.updated_at),
+                })
             })
-        })
-        .collect()
+            .collect::<Result<Vec<_>, String>>()?;
+        libraries.sort_by(|left, right| {
+            right
+                .updated_at
+                .cmp(&left.updated_at)
+                .then_with(|| left.id.cmp(&right.id))
+        });
+        Ok(libraries)
     }
 
     pub fn get_library(&self, id: &str) -> Result<Option<KnowledgeLibrary>, String> {
@@ -199,6 +211,60 @@ impl KnowledgeRepository {
             .list_libraries()?
             .into_iter()
             .find(|library| library.id == id))
+    }
+
+    pub fn update_library(
+        &self,
+        id: &str,
+        name: &str,
+        description: Option<&str>,
+    ) -> Result<KnowledgeLibrary, String> {
+        if name.trim().is_empty() {
+            return Err("Knowledge library 名称不能为空".to_string());
+        }
+        let changed = self
+            .open_manifest()?
+            .execute(
+                "UPDATE knowledge_libraries
+                 SET name = ?2, description = ?3, updated_at = ?4
+                 WHERE id = ?1",
+                params![id, name.trim(), description, now()],
+            )
+            .map_err(|error| format!("更新 Knowledge library 失败: {error}"))?;
+        if changed == 0 {
+            return Err(format!("Knowledge library 不存在: {id}"));
+        }
+        self.get_library(id)?
+            .ok_or_else(|| format!("更新后找不到 Knowledge library: {id}"))
+    }
+
+    fn read_library_metadata(&self, library_id: &str) -> Result<LibraryMetadata, String> {
+        let path = self.resolve_library_path(library_id)?;
+        let (config_json, active_space_id, route_key, dimension, updated_at) = self
+            .open_library(&path)?
+            .query_row(
+                "SELECT config_json, active_embedding_space_id, embedding_route_key,
+                        dimension, updated_at
+                 FROM library_metadata WHERE id = 1",
+                [],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, i64>(3)?,
+                        row.get::<_, i64>(4)?,
+                    ))
+                },
+            )
+            .map_err(|error| format!("读取 Knowledge library metadata 失败: {error}"))?;
+        Ok(LibraryMetadata {
+            config: parse_library_config(&config_json)?,
+            active_embedding_space_id: active_space_id,
+            embedding_route_key: route_key,
+            dimension: dimension.max(0) as usize,
+            updated_at,
+        })
     }
 
     fn embedding_space_descriptor(
@@ -252,6 +318,10 @@ impl KnowledgeRepository {
     }
 
     pub fn ingest(&self, request: &KnowledgeIngestRequest) -> Result<KnowledgeDocument, String> {
+        let config = self
+            .get_library(&request.library_id)?
+            .ok_or_else(|| format!("Knowledge library 不存在: {}", request.library_id))?
+            .config;
         let path = self.resolve_library_path(&request.library_id)?;
         let mut connection = self.open_library(&path)?;
         let transaction = connection
@@ -317,6 +387,7 @@ impl KnowledgeRepository {
             &request.source_path,
             &title,
             &request.content,
+            &config,
         )?;
         transaction
             .commit()
@@ -419,6 +490,21 @@ impl KnowledgeRepository {
     }
 
     pub fn rebuild_library(&self, library_id: &str) -> Result<usize, String> {
+        let config = self
+            .get_library(library_id)?
+            .ok_or_else(|| format!("Knowledge library 不存在: {library_id}"))?
+            .config;
+        self.apply_library_config_and_rebuild(library_id, &config)
+    }
+
+    pub fn apply_library_config_and_rebuild(
+        &self,
+        library_id: &str,
+        config: &KnowledgeLibraryIndexConfig,
+    ) -> Result<usize, String> {
+        config.validate()?;
+        let config_json = serde_json::to_string(config)
+            .map_err(|error| format!("序列化 Knowledge library 配置失败: {error}"))?;
         let path = self.resolve_library_path(library_id)?;
         let mut connection = self.open_library(&path)?;
         let documents = {
@@ -449,20 +535,24 @@ impl KnowledgeRepository {
                 source_path,
                 title,
                 content,
+                config,
             )?;
+        }
+        let changed = transaction
+            .execute(
+                "UPDATE library_metadata
+                 SET config_json = ?1, active_embedding_space_id = '',
+                     embedding_route_key = '', dimension = 0, updated_at = ?2
+                 WHERE id = 1",
+                params![config_json, now()],
+            )
+            .map_err(|error| format!("更新 Knowledge library 配置失败: {error}"))?;
+        if changed == 0 {
+            return Err(format!("Knowledge library metadata 不存在: {library_id}"));
         }
         transaction
             .commit()
             .map_err(|error| format!("提交 Knowledge rebuild 失败: {error}"))?;
-        self.open_manifest()?
-            .execute(
-                "UPDATE knowledge_libraries
-                 SET embedding_model_id = '', active_embedding_space_id = '',
-                     embedding_route_key = '', dimension = 0, updated_at = ?2
-                 WHERE id = ?1",
-                params![library_id, now()],
-            )
-            .map_err(|error| format!("重置 Knowledge vector 配置失败: {error}"))?;
         Ok(documents.len())
     }
 
@@ -484,6 +574,34 @@ impl KnowledgeRepository {
             .map_err(|error| format!("Knowledge embedding descriptor 非法: {error}"))?;
         if !descriptor.is_object() {
             return Err("Knowledge embedding descriptor 必须为对象".to_string());
+        }
+        let library = self
+            .get_library(library_id)?
+            .ok_or_else(|| format!("Knowledge library 不存在: {library_id}"))?;
+        let embedding = &library.config.embedding;
+        if !embedding.enabled
+            || !library.config.indexes.semantic
+            || embedding.route_key != route_key
+        {
+            return Err("Knowledge vector 写入与资料库索引配置不一致".to_string());
+        }
+        for (field, expected) in [
+            ("queryTaskType", embedding.query_task_type.as_str()),
+            ("documentTaskType", embedding.document_task_type.as_str()),
+            ("encodingFormat", embedding.encoding_format.as_str()),
+        ] {
+            if descriptor.get(field).and_then(serde_json::Value::as_str) != Some(expected) {
+                return Err(format!("Knowledge descriptor {field} 与资料库配置不一致"));
+            }
+        }
+        if descriptor
+            .get("adapterContractVersion")
+            .and_then(serde_json::Value::as_u64)
+            != Some(embedding.adapter_contract_version as u64)
+        {
+            return Err(
+                "Knowledge descriptor adapterContractVersion 与资料库配置不一致".to_string(),
+            );
         }
         let path = self.resolve_library_path(library_id)?;
         let mut connection = self.open_library(&path)?;
@@ -545,19 +663,21 @@ impl KnowledgeRepository {
                 )
                 .map_err(|error| format!("写入 Knowledge vector 失败: {error}"))?;
         }
+        let changed = transaction
+            .execute(
+                "UPDATE library_metadata
+                 SET active_embedding_space_id = ?1, embedding_route_key = ?2,
+                     dimension = ?3, updated_at = ?4
+                 WHERE id = 1",
+                params![space_id, route_key, expected_dimension as i64, now()],
+            )
+            .map_err(|error| format!("更新 Knowledge vector metadata 失败: {error}"))?;
+        if changed == 0 {
+            return Err(format!("Knowledge library metadata 不存在: {library_id}"));
+        }
         transaction
             .commit()
             .map_err(|error| format!("提交 Knowledge vector 失败: {error}"))?;
-        let dimension = records.first().map_or(0, |record| record.vector.len());
-        self.open_manifest()?
-            .execute(
-                "UPDATE knowledge_libraries
-                 SET embedding_model_id = ?2, embedding_route_key = ?2,
-                     active_embedding_space_id = ?3, dimension = ?4,
-                     updated_at = ?5 WHERE id = ?1",
-                params![library_id, route_key, space_id, dimension as i64, now()],
-            )
-            .map_err(|error| format!("更新 Knowledge vector 配置失败: {error}"))?;
         Ok(())
     }
 
@@ -618,14 +738,26 @@ impl KnowledgeRepository {
         if route_key.trim().is_empty() {
             return Err("Knowledge embedding route 不能为空".to_string());
         }
-        self.open_manifest()?
+        let mut config = library.config;
+        config.embedding.enabled = true;
+        config.embedding.route_key = route_key.trim().to_string();
+        config.indexes.semantic = true;
+        config.validate()?;
+        let config_json = serde_json::to_string(&config)
+            .map_err(|error| format!("序列化 Knowledge library 配置失败: {error}"))?;
+        let path = self.resolve_library_path(library_id)?;
+        let changed = self
+            .open_library(&path)?
             .execute(
-                "UPDATE knowledge_libraries
-                 SET embedding_model_id = ?2, embedding_route_key = ?2, updated_at = ?3
-                 WHERE id = ?1 AND active_embedding_space_id = ?4",
-                params![library_id, route_key, now(), space_id],
+                "UPDATE library_metadata
+                 SET embedding_route_key = ?1, config_json = ?2, updated_at = ?3
+                 WHERE id = 1 AND active_embedding_space_id = ?4",
+                params![route_key, config_json, now(), space_id],
             )
             .map_err(|error| format!("切换 Knowledge embedding route 失败: {error}"))?;
+        if changed == 0 {
+            return Err("Knowledge embedding space 已变化，请刷新后重试".to_string());
+        }
         Ok(())
     }
 
@@ -823,6 +955,78 @@ impl KnowledgeRepository {
         migrate_legacy_chunk_vectors(&mut connection)
     }
 
+    fn initialize_library_metadata(
+        &self,
+        path: &Path,
+        legacy_config_json: &str,
+        legacy_route_key: &str,
+        legacy_active_space_id: &str,
+        legacy_dimension: usize,
+    ) -> Result<(), String> {
+        let mut connection = self.open_library(path)?;
+        let exists = connection
+            .query_row(
+                "SELECT 1 FROM library_metadata WHERE id = 1",
+                [],
+                |_| Ok(()),
+            )
+            .optional()
+            .map_err(|error| format!("检查 Knowledge library metadata 失败: {error}"))?
+            .is_some();
+        if exists {
+            return Ok(());
+        }
+
+        let mut config = parse_library_config(legacy_config_json)?;
+        let mut route_key = legacy_route_key.trim().to_string();
+        let mut active_space_id = legacy_active_space_id.trim().to_string();
+        if route_key.is_empty() && !active_space_id.is_empty() {
+            route_key = config.embedding.route_key.trim().to_string();
+        }
+        if !route_key.is_empty() {
+            config.embedding.enabled = true;
+            config.embedding.route_key = route_key.clone();
+            config.indexes.semantic = true;
+            if active_space_id.is_empty() {
+                active_space_id = legacy_space_id(&route_key);
+            }
+        }
+        config.validate()?;
+        let config_json = serde_json::to_string(&config)
+            .map_err(|error| format!("序列化 Knowledge library metadata 配置失败: {error}"))?;
+        let transaction = connection
+            .transaction()
+            .map_err(|error| format!("开启 Knowledge library metadata 迁移事务失败: {error}"))?;
+        if !active_space_id.is_empty() && !route_key.is_empty() {
+            let descriptor = legacy_descriptor_json(&route_key, legacy_dimension as i64);
+            transaction
+                .execute(
+                    "INSERT OR IGNORE INTO embedding_spaces(id, descriptor_json, created_at)
+                     VALUES (?1, ?2, ?3)",
+                    params![active_space_id, descriptor, now()],
+                )
+                .map_err(|error| format!("写入 Knowledge legacy space 失败: {error}"))?;
+        }
+        transaction
+            .execute(
+                "INSERT INTO library_metadata(
+                    id, schema_version, config_json, active_embedding_space_id,
+                    embedding_route_key, dimension, updated_at
+                 ) VALUES (1, 1, ?1, ?2, ?3, ?4, ?5)",
+                params![
+                    config_json,
+                    active_space_id,
+                    route_key,
+                    legacy_dimension as i64,
+                    now()
+                ],
+            )
+            .map_err(|error| format!("写入 Knowledge library metadata 失败: {error}"))?;
+        transaction
+            .commit()
+            .map_err(|error| format!("提交 Knowledge library metadata 迁移失败: {error}"))
+    }
+
     #[cfg(test)]
     pub fn library_file_path(&self, id: &str) -> PathBuf {
         self.library_path(id)
@@ -830,6 +1034,15 @@ impl KnowledgeRepository {
 }
 
 const LIBRARY_SCHEMA: &str = r#"
+CREATE TABLE IF NOT EXISTS library_metadata(
+  id INTEGER PRIMARY KEY CHECK(id = 1),
+  schema_version INTEGER NOT NULL,
+  config_json TEXT NOT NULL,
+  active_embedding_space_id TEXT NOT NULL DEFAULT '',
+  embedding_route_key TEXT NOT NULL DEFAULT '',
+  dimension INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS documents(
   id TEXT PRIMARY KEY,
   source_path TEXT NOT NULL UNIQUE,
@@ -990,6 +1203,17 @@ fn legacy_space_id(route_key: &str) -> String {
     format!("legacy-route:{}", legacy_route_hash(route_key))
 }
 
+fn parse_library_config(value: &str) -> Result<KnowledgeLibraryIndexConfig, String> {
+    let config = if value.trim().is_empty() {
+        KnowledgeLibraryIndexConfig::default()
+    } else {
+        serde_json::from_str(value)
+            .map_err(|error| format!("解析 Knowledge library 配置失败: {error}"))?
+    };
+    config.validate()?;
+    Ok(config)
+}
+
 fn legacy_descriptor_json(route_key: &str, dimension: i64) -> String {
     serde_json::json!({
         "schemaVersion": 1,
@@ -1016,6 +1240,7 @@ fn replace_document_chunks(
     source_path: &str,
     title: &str,
     content: &str,
+    config: &KnowledgeLibraryIndexConfig,
 ) -> Result<(), String> {
     transaction
         .execute(
@@ -1038,7 +1263,7 @@ fn replace_document_chunks(
     transaction
         .execute("DELETE FROM chunks WHERE document_id = ?1", [document_id])
         .map_err(|error| format!("清理 Knowledge chunks 失败: {error}"))?;
-    let chunks = chunk_document(library_id, document_id, source_path, title, content);
+    let chunks = chunk_document(library_id, document_id, source_path, title, content, config);
     for chunk in &chunks {
         transaction
             .execute(
@@ -1065,18 +1290,20 @@ fn replace_document_chunks(
             )
             .map_err(|error| format!("写入 Knowledge FTS chunk 失败: {error}"))?;
     }
-    for pair in chunks.windows(2) {
-        for (source, target, relation) in [
-            (&pair[0].id, &pair[1].id, "next"),
-            (&pair[1].id, &pair[0].id, "prev"),
-        ] {
-            transaction
-                .execute(
-                    "INSERT INTO chunk_edges(source_chunk_id, target_chunk_id, relation)
-                     VALUES (?1, ?2, ?3)",
-                    params![source, target, relation],
-                )
-                .map_err(|error| format!("写入 Knowledge graph edge 失败: {error}"))?;
+    if config.indexes.graph {
+        for pair in chunks.windows(2) {
+            for (source, target, relation) in [
+                (&pair[0].id, &pair[1].id, "next"),
+                (&pair[1].id, &pair[0].id, "prev"),
+            ] {
+                transaction
+                    .execute(
+                        "INSERT INTO chunk_edges(source_chunk_id, target_chunk_id, relation)
+                         VALUES (?1, ?2, ?3)",
+                        params![source, target, relation],
+                    )
+                    .map_err(|error| format!("写入 Knowledge graph edge 失败: {error}"))?;
+            }
         }
     }
     Ok(())
@@ -1088,9 +1315,10 @@ fn chunk_document(
     source_path: &str,
     title: &str,
     content: &str,
+    config: &KnowledgeLibraryIndexConfig,
 ) -> Vec<KnowledgeChunk> {
-    const TARGET_CHARS: usize = 1000;
-    const OVERLAP_CHARS: usize = 120;
+    let target_chars = config.chunking.target_chars;
+    let overlap_chars = config.chunking.overlap_chars;
     let boundaries = content
         .char_indices()
         .map(|(index, _)| index)
@@ -1100,7 +1328,7 @@ fn chunk_document(
     let mut start_char = 0;
     let mut heading: Option<String> = None;
     while start_char + 1 < boundaries.len() {
-        let end_char = (start_char + TARGET_CHARS).min(boundaries.len() - 1);
+        let end_char = (start_char + target_chars).min(boundaries.len() - 1);
         let start = boundaries[start_char];
         let end = boundaries[end_char];
         let text = content[start..end].trim();
@@ -1134,7 +1362,7 @@ fn chunk_document(
         if end_char == boundaries.len() - 1 {
             break;
         }
-        start_char = end_char.saturating_sub(OVERLAP_CHARS);
+        start_char = end_char.saturating_sub(overlap_chars);
     }
     chunks
 }
@@ -1356,12 +1584,24 @@ mod tests {
         }
     }
 
+    fn semantic_config(route_key: &str) -> KnowledgeLibraryIndexConfig {
+        let mut config = KnowledgeLibraryIndexConfig::default();
+        config.embedding.enabled = true;
+        config.embedding.route_key = route_key.to_string();
+        config.indexes.semantic = true;
+        config
+    }
+
+    fn semantic_descriptor() -> &'static str {
+        r#"{"dimensions":2,"queryTaskType":"RETRIEVAL_QUERY","documentTaskType":"RETRIEVAL_DOCUMENT","encodingFormat":"float","adapterContractVersion":1}"#
+    }
+
     #[test]
     fn library_document_chunk_and_source_round_trip() {
         let directory = tempdir().unwrap();
         let repository = KnowledgeRepository::new(directory.path());
         repository.initialize().unwrap();
-        let library = repository.create_library("Docs", None).unwrap();
+        let library = repository.create_library("Docs", None, None).unwrap();
         let document = repository
             .ingest(&request(
                 &library.id,
@@ -1394,11 +1634,323 @@ mod tests {
     }
 
     #[test]
+    fn runtime_ignores_stale_manifest_index_identity_after_metadata_exists() {
+        let directory = tempdir().unwrap();
+        let repository = KnowledgeRepository::new(directory.path());
+        repository.initialize().unwrap();
+        let mut config = KnowledgeLibraryIndexConfig::default();
+        config.chunking.target_chars = 400;
+        config.chunking.overlap_chars = 40;
+        let library = repository
+            .create_library("Metadata", None, Some(&config))
+            .unwrap();
+        repository
+            .open_manifest()
+            .unwrap()
+            .execute(
+                "UPDATE knowledge_libraries
+                 SET config_json = '{\"schemaVersion\":999}',
+                     embedding_model_id = 'stale-model', dimension = 777,
+                     active_embedding_space_id = 'stale-space',
+                     embedding_route_key = 'stale-route'
+                 WHERE id = ?1",
+                [&library.id],
+            )
+            .unwrap();
+
+        let loaded = repository.get_library(&library.id).unwrap().unwrap();
+        assert_eq!(loaded.config, config);
+        assert_eq!(loaded.active_embedding_space_id, "");
+        assert_eq!(loaded.embedding_route_key, "");
+        assert_eq!(loaded.dimension, 0);
+        let stored = repository
+            .open_manifest()
+            .unwrap()
+            .query_row(
+                "SELECT config_json, active_embedding_space_id
+                 FROM knowledge_libraries WHERE id = ?1",
+                [&library.id],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )
+            .unwrap();
+        assert_eq!(stored.0, r#"{"schemaVersion":999}"#);
+        assert_eq!(stored.1, "stale-space");
+    }
+
+    #[test]
+    fn legacy_empty_manifest_config_migrates_to_default_library_metadata() {
+        let directory = tempdir().unwrap();
+        let repository = KnowledgeRepository::new(directory.path());
+        repository.initialize().unwrap();
+        let library_id = Uuid::new_v4().to_string();
+        let library_path = repository.library_path(&library_id);
+        repository.initialize_library(&library_path).unwrap();
+        repository
+            .open_manifest()
+            .unwrap()
+            .execute(
+                "INSERT INTO knowledge_libraries(
+                    id, name, db_path, config_json, created_at, updated_at
+                 ) VALUES (?1, 'Legacy Empty', ?2, '{}', 1, 1)",
+                params![library_id, library_path.to_string_lossy()],
+            )
+            .unwrap();
+
+        repository.initialize().unwrap();
+        let migrated = repository.get_library(&library_id).unwrap().unwrap();
+        assert_eq!(migrated.config, KnowledgeLibraryIndexConfig::default());
+        let metadata_count = repository
+            .open_library(&library_path)
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM library_metadata", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .unwrap();
+        let manifest_config = repository
+            .open_manifest()
+            .unwrap()
+            .query_row(
+                "SELECT config_json FROM knowledge_libraries WHERE id = ?1",
+                [&library_id],
+                |row| row.get::<_, String>(0),
+            )
+            .unwrap();
+        assert_eq!(metadata_count, 1);
+        assert_eq!(manifest_config, "{}");
+    }
+
+    #[test]
+    fn create_and_update_library_preserve_the_index_config_snapshot() {
+        let directory = tempdir().unwrap();
+        let repository = KnowledgeRepository::new(directory.path());
+        repository.initialize().unwrap();
+        let mut config = semantic_config("profile:model");
+        config.chunking.target_chars = 400;
+        config.chunking.overlap_chars = 40;
+        config.embedding.requested_dimensions = Some(768);
+        let library = repository
+            .create_library("Original", Some("before"), Some(&config))
+            .unwrap();
+        assert_eq!(library.config, config);
+        let manifest_config = repository
+            .open_manifest()
+            .unwrap()
+            .query_row(
+                "SELECT config_json FROM knowledge_libraries WHERE id = ?1",
+                [&library.id],
+                |row| row.get::<_, String>(0),
+            )
+            .unwrap();
+        assert_eq!(manifest_config, "{}");
+
+        let updated = repository
+            .update_library(&library.id, "Renamed", Some("after"))
+            .unwrap();
+        assert_eq!(updated.name, "Renamed");
+        assert_eq!(updated.description.as_deref(), Some("after"));
+        assert_eq!(updated.config, config);
+    }
+
+    #[test]
+    fn ingest_uses_the_library_chunk_size_and_overlap() {
+        let directory = tempdir().unwrap();
+        let repository = KnowledgeRepository::new(directory.path());
+        repository.initialize().unwrap();
+        let mut config = KnowledgeLibraryIndexConfig::default();
+        config.chunking.target_chars = 200;
+        config.chunking.overlap_chars = 50;
+        let library = repository
+            .create_library("Chunked", None, Some(&config))
+            .unwrap();
+        let document = repository
+            .ingest(&request(&library.id, "chunked.txt", &"x".repeat(450)))
+            .unwrap();
+
+        let chunks = repository
+            .list_chunks(&library.id, Some(&document.id))
+            .unwrap();
+        assert_eq!(chunks.len(), 3);
+        assert_eq!(chunks[0].start_offset, 0);
+        assert_eq!(chunks[0].end_offset, 200);
+        assert_eq!(chunks[1].start_offset, 150);
+        assert_eq!(chunks[2].start_offset, 300);
+        assert_eq!(chunks[2].end_offset, 450);
+    }
+
+    #[test]
+    fn invalid_library_config_is_rejected_without_changing_existing_state() {
+        let directory = tempdir().unwrap();
+        let repository = KnowledgeRepository::new(directory.path());
+        repository.initialize().unwrap();
+        let library = repository.create_library("Invalid", None, None).unwrap();
+        let document = repository
+            .ingest(&request(&library.id, "invalid.txt", &"x".repeat(450)))
+            .unwrap();
+        let before_chunks = repository
+            .list_chunks(&library.id, Some(&document.id))
+            .unwrap();
+        let mut invalid = library.config.clone();
+        invalid.chunking.overlap_chars = invalid.chunking.target_chars;
+
+        assert!(repository
+            .apply_library_config_and_rebuild(&library.id, &invalid)
+            .is_err());
+        let after = repository.get_library(&library.id).unwrap().unwrap();
+        let after_chunks = repository
+            .list_chunks(&library.id, Some(&document.id))
+            .unwrap();
+        assert_eq!(after.config, library.config);
+        assert_eq!(
+            after_chunks
+                .iter()
+                .map(|chunk| &chunk.id)
+                .collect::<Vec<_>>(),
+            before_chunks
+                .iter()
+                .map(|chunk| &chunk.id)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn failed_config_rebuild_rolls_back_chunks_vectors_and_metadata_config() {
+        let directory = tempdir().unwrap();
+        let repository = KnowledgeRepository::new(directory.path());
+        repository.initialize().unwrap();
+        let config = semantic_config("model-a");
+        let library = repository
+            .create_library("Rollback", None, Some(&config))
+            .unwrap();
+        let document = repository
+            .ingest(&request(&library.id, "rollback.txt", &"x".repeat(450)))
+            .unwrap();
+        let before_chunks = repository
+            .list_chunks(&library.id, Some(&document.id))
+            .unwrap();
+        repository
+            .save_vectors(
+                &library.id,
+                "space-a",
+                semantic_descriptor(),
+                "model-a",
+                &[KnowledgeVectorRecord {
+                    chunk_id: before_chunks[0].id.clone(),
+                    vector: vec![1.0, 0.0],
+                }],
+            )
+            .unwrap();
+        repository
+            .open_library(&repository.library_file_path(&library.id))
+            .unwrap()
+            .execute_batch(
+                "CREATE TRIGGER fail_rebuild_chunk_insert
+                 BEFORE INSERT ON chunks
+                 BEGIN
+                   SELECT RAISE(ABORT, 'forced rebuild failure');
+                 END;",
+            )
+            .unwrap();
+        let mut next = config.clone();
+        next.chunking.target_chars = 200;
+        next.chunking.overlap_chars = 50;
+
+        assert!(repository
+            .apply_library_config_and_rebuild(&library.id, &next)
+            .is_err());
+        let after = repository.get_library(&library.id).unwrap().unwrap();
+        let after_chunks = repository
+            .list_chunks(&library.id, Some(&document.id))
+            .unwrap();
+        let status = repository.get_index_status(&library.id).unwrap();
+        assert_eq!(after.config, config);
+        assert_eq!(status.active_embedding_space_id, "space-a");
+        assert_eq!(status.vectorized_chunks, 1);
+        assert_eq!(
+            after_chunks
+                .iter()
+                .map(|chunk| &chunk.id)
+                .collect::<Vec<_>>(),
+            before_chunks
+                .iter()
+                .map(|chunk| &chunk.id)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn applying_library_config_rebuilds_indexes_and_clears_the_active_vector_space() {
+        let directory = tempdir().unwrap();
+        let repository = KnowledgeRepository::new(directory.path());
+        repository.initialize().unwrap();
+        let config = semantic_config("model-a");
+        let library = repository
+            .create_library("Apply", None, Some(&config))
+            .unwrap();
+        let document = repository
+            .ingest(&request(&library.id, "apply.txt", &"x".repeat(450)))
+            .unwrap();
+        let chunk = repository
+            .list_chunks(&library.id, Some(&document.id))
+            .unwrap()
+            .remove(0);
+        repository
+            .save_vectors(
+                &library.id,
+                "space-a",
+                semantic_descriptor(),
+                "model-a",
+                &[KnowledgeVectorRecord {
+                    chunk_id: chunk.id,
+                    vector: vec![1.0, 0.0],
+                }],
+            )
+            .unwrap();
+        let mut next = KnowledgeLibraryIndexConfig::default();
+        next.chunking.target_chars = 200;
+        next.chunking.overlap_chars = 50;
+        next.indexes.graph = false;
+
+        assert_eq!(
+            repository
+                .apply_library_config_and_rebuild(&library.id, &next)
+                .unwrap(),
+            1
+        );
+        let applied = repository.get_library(&library.id).unwrap().unwrap();
+        let chunks = repository
+            .list_chunks(&library.id, Some(&document.id))
+            .unwrap();
+        let connection = repository
+            .open_library(&repository.library_file_path(&library.id))
+            .unwrap();
+        let vector_count = connection
+            .query_row("SELECT COUNT(*) FROM chunk_vectors", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .unwrap();
+        let edge_count = connection
+            .query_row("SELECT COUNT(*) FROM chunk_edges", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .unwrap();
+        assert_eq!(applied.config, next);
+        assert_eq!(applied.active_embedding_space_id, "");
+        assert_eq!(applied.dimension, 0);
+        assert_eq!(chunks.len(), 3);
+        assert_eq!(vector_count, 0);
+        assert_eq!(edge_count, 0);
+    }
+
+    #[test]
     fn auto_with_query_vector_reports_keyword_and_vector_signals() {
         let directory = tempdir().unwrap();
         let repository = KnowledgeRepository::new(directory.path());
         repository.initialize().unwrap();
-        let library = repository.create_library("Hybrid", None).unwrap();
+        let mut config = semantic_config("model-hybrid");
+        config.embedding.requested_dimensions = Some(768);
+        let library = repository
+            .create_library("Hybrid", None, Some(&config))
+            .unwrap();
         let document = repository
             .ingest(&request(
                 &library.id,
@@ -1414,7 +1966,7 @@ mod tests {
             .save_vectors(
                 &library.id,
                 "space-hybrid",
-                r#"{"dimensions":2}"#,
+                semantic_descriptor(),
                 "model-hybrid",
                 &[KnowledgeVectorRecord {
                     chunk_id: chunk.id,
@@ -1422,6 +1974,9 @@ mod tests {
                 }],
             )
             .unwrap();
+        let indexed = repository.get_library(&library.id).unwrap().unwrap();
+        assert_eq!(indexed.config.embedding.requested_dimensions, Some(768));
+        assert_eq!(indexed.dimension, 2);
 
         let results = repository
             .search(&KnowledgeSearchRequest {
@@ -1451,8 +2006,11 @@ mod tests {
         let directory = tempdir().unwrap();
         let repository = KnowledgeRepository::new(directory.path());
         repository.initialize().unwrap();
-        let first = repository.create_library("First", None).unwrap();
-        let second = repository.create_library("Second", None).unwrap();
+        let config = semantic_config("model");
+        let first = repository
+            .create_library("First", None, Some(&config))
+            .unwrap();
+        let second = repository.create_library("Second", None, None).unwrap();
         let document = repository
             .ingest(&request(&first.id, "first.md", "alpha beta"))
             .unwrap();
@@ -1480,7 +2038,7 @@ mod tests {
             .save_vectors(
                 &first.id,
                 "legacy-test-space",
-                r#"{"dimensions":2}"#,
+                semantic_descriptor(),
                 "model",
                 &[KnowledgeVectorRecord {
                     chunk_id,
@@ -1512,7 +2070,10 @@ mod tests {
         let directory = tempdir().unwrap();
         let repository = KnowledgeRepository::new(directory.path());
         repository.initialize().unwrap();
-        let library = repository.create_library("Delete", None).unwrap();
+        let config = semantic_config("model");
+        let library = repository
+            .create_library("Delete", None, Some(&config))
+            .unwrap();
         let content = format!(
             "# First\n{}\n# Second\n{}",
             "alpha ".repeat(220),
@@ -1540,7 +2101,7 @@ mod tests {
             .save_vectors(
                 &library.id,
                 "legacy-delete-space",
-                r#"{"dimensions":2}"#,
+                semantic_descriptor(),
                 "model",
                 &[KnowledgeVectorRecord {
                     chunk_id: first_chunk,
@@ -1571,7 +2132,10 @@ mod tests {
         let directory = tempdir().unwrap();
         let repository = KnowledgeRepository::new(directory.path());
         repository.initialize().unwrap();
-        let library = repository.create_library("Rebuild", None).unwrap();
+        let config = semantic_config("model-a");
+        let library = repository
+            .create_library("Rebuild", None, Some(&config))
+            .unwrap();
         let document = repository
             .ingest(&request(&library.id, "rebuild.md", "alpha beta gamma"))
             .unwrap();
@@ -1583,7 +2147,7 @@ mod tests {
             .save_vectors(
                 &library.id,
                 "space-a",
-                r#"{"dimensions":2}"#,
+                semantic_descriptor(),
                 "model-a",
                 &[KnowledgeVectorRecord {
                     chunk_id: chunk.id,
@@ -1613,7 +2177,10 @@ mod tests {
         let directory = tempdir().unwrap();
         let repository = KnowledgeRepository::new(directory.path());
         repository.initialize().unwrap();
-        let library = repository.create_library("Coverage", None).unwrap();
+        let config = semantic_config("model-a");
+        let library = repository
+            .create_library("Coverage", None, Some(&config))
+            .unwrap();
         let document = repository
             .ingest(&request(
                 &library.id,
@@ -1634,7 +2201,7 @@ mod tests {
             .save_vectors(
                 &library.id,
                 "space-a",
-                r#"{"dimensions":2}"#,
+                semantic_descriptor(),
                 "model-a",
                 &[KnowledgeVectorRecord {
                     chunk_id: chunks[0].id.clone(),
@@ -1647,10 +2214,13 @@ mod tests {
         assert_eq!(partial.pending_chunks, chunks.len() - 1);
 
         repository
+            .switch_embedding_route(&library.id, "space-a", "model-b")
+            .unwrap();
+        repository
             .save_vectors(
                 &library.id,
                 "space-b",
-                r#"{"dimensions":2}"#,
+                semantic_descriptor(),
                 "model-b",
                 &[KnowledgeVectorRecord {
                     chunk_id: chunks[1].id.clone(),
@@ -1759,6 +2329,10 @@ mod tests {
         repository.initialize().unwrap();
         let migrated = repository.get_library(&library_id).unwrap().unwrap();
         assert_eq!(migrated.embedding_route_key, "profile-a:model-a");
+        assert!(migrated.config.embedding.enabled);
+        assert!(migrated.config.indexes.semantic);
+        assert_eq!(migrated.config.embedding.route_key, "profile-a:model-a");
+        let migrated_space_id = migrated.active_embedding_space_id.clone();
         assert!(migrated
             .active_embedding_space_id
             .starts_with("legacy-route:"));
@@ -1785,5 +2359,26 @@ mod tests {
             })
             .unwrap();
         assert_eq!(vector_count, 1);
+        drop(migrated_library);
+
+        repository
+            .open_manifest()
+            .unwrap()
+            .execute(
+                "UPDATE knowledge_libraries
+                 SET config_json = '{\"schemaVersion\":999}',
+                     embedding_model_id = 'stale:model', dimension = 999,
+                     active_embedding_space_id = 'stale-space',
+                     embedding_route_key = 'stale:route'
+                 WHERE id = ?1",
+                [&library_id],
+            )
+            .unwrap();
+        repository.initialize().unwrap();
+        let reloaded = repository.get_library(&library_id).unwrap().unwrap();
+        assert_eq!(reloaded.embedding_route_key, "profile-a:model-a");
+        assert_eq!(reloaded.active_embedding_space_id, migrated_space_id);
+        assert_eq!(reloaded.dimension, 2);
+        assert_eq!(reloaded.config.embedding.route_key, "profile-a:model-a");
     }
 }

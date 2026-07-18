@@ -1,6 +1,6 @@
 # Knowledge 施工步骤计划清单
 
-- **状态**：施工中（Phase 0、Phase 1、Phase 2 已完成，Phase 3 待施工）
+- **状态**：施工中（Phase 0、Phase 1、Phase 2、Phase 3 批次 A 已完成，Phase 3 批次 B 待施工）
 - **创建日期**：2026-07-18
 - **最近修订**：2026-07-18
 - **适用范围**：`src/tools/knowledge-base/`、`src/tools/retrieval/`、`src/tools/llm-chat/`、`src/tools/agent-manager/`、`src-tauri/src/knowledge/`
@@ -53,6 +53,8 @@
 - `requestedDimensions` 可以配置；`actualDimensions` 只能由真实 Embedding 响应确认并只读展示。
 - 检索测试的界面偏好不能混入资料库索引身份；共享 `minScore` 在完成分策略标定前不进入常规设置。
 - `media-generator` 或其他运行时不得用实时模型元数据规则覆盖已有资料库自身的索引契约。
+- 索引配置、活动 Embedding space/route/descriptor 与实际维度必须存放在各 `library.kdb`，与派生索引共享单库事务；manifest 只保存资料库目录元数据和可重建摘要，不作为运行时真源。
+- WAL 模式下禁止依赖 `ATTACH` 多数据库事务实现配置与索引的崩溃原子提交。legacy manifest 配置只作为可重入的一次性迁移输入。
 
 ### 2.3 摄取与格式
 
@@ -233,18 +235,27 @@ Phase 3 分为五个施工批次。后端配置和摄取契约先行，工作台
 
 ### 7.1 批次 A：配置模型与后端接口
 
-- [ ] P3-A01 定义版本化系统运行配置，使用 `createConfigManager` 管理默认 Embedding 渠道、请求并发、批次、重试和摄取资源限制。
-- [ ] P3-A02 高频系统设置使用 `saveDebounced`，默认延迟 500ms；调用方处理配置加载或保存失败。
-- [ ] P3-A03 定义版本化资料库索引配置，包含分块、Embedding route、`requestedDimensions`、任务/编码契约和索引开关。
-- [ ] P3-A04 为旧资料库空 `config_json` 提供默认读取兼容，不在读取时静默批量改写 manifest。
-- [ ] P3-A05 将检索测试 strategy、topK 等界面偏好与资料库索引配置分离。
-- [ ] P3-A06 扩展创建资料库 command，使其保存明确的配置快照。
-- [ ] P3-A07 新增更新名称、说明和配置的 repository、Tauri command 与前端 service，并在 `generate_handler![]` 注册。
-- [ ] P3-A08 Rust 返回结构使用 camelCase 序列化，前后端配置校验规则保持一致。
-- [ ] P3-A09 分块、摄取和重建只读取资料库自身索引配置，不在运行时穿透读取实时模型元数据规则。
-- [ ] P3-A10 实现原子“应用配置并重建”；失败时保留原配置、文档、chunk、FTS、vector 和 graph 状态。
-- [ ] P3-A11 修改 `requestedDimensions`、Embedding 契约或分块参数时明确创建新空间或重建，不让新旧契约混用。
-- [ ] P3-A12 `actualDimensions` 由首批真实响应确认并写入 space descriptor，UI 只读展示。
+- [x] P3-A01 定义版本化系统运行配置，使用 `createConfigManager` 管理默认 Embedding 渠道、请求并发、批次、重试和摄取资源限制。
+- [x] P3-A02 高频系统设置使用 `saveDebounced`，默认延迟 500ms；调用方处理配置加载或保存失败。
+- [x] P3-A03 定义版本化资料库索引配置，包含分块、Embedding route、`requestedDimensions`、任务/编码契约和索引开关。
+- [x] P3-A04 为旧 manifest 空 `config_json` 提供 V1 默认迁移，并把非空 legacy 配置和活动向量身份可重入地迁入单库 metadata；普通读取路径不静默批量改写 manifest。
+- [x] P3-A05 将检索测试 strategy、topK 等界面偏好与资料库索引配置分离。
+- [x] P3-A06 扩展创建资料库 command，使其在新建 `library.kdb` 中保存明确的配置快照和空活动向量身份。
+- [x] P3-A07 新增更新名称、说明和配置的 repository、Tauri command 与前端 service，并在 `generate_handler![]` 注册；名称/说明写 manifest，索引配置写单库 metadata。
+- [x] P3-A08 Rust 返回结构使用 camelCase 序列化，前后端配置校验规则保持一致。
+- [x] P3-A09 分块、摄取、重建、向量化和检索只读取 library DB 中的索引配置与活动空间，不在运行时读取 manifest legacy 字段或穿透实时模型元数据规则。
+- [x] P3-A10 在单个 library WAL 数据库事务中实现原子“应用配置并重建”；禁止用 `ATTACH` 更新 manifest，失败或崩溃恢复后保留原配置、文档、chunk、FTS、vector 和 graph 状态。
+- [x] P3-A11 修改 `requestedDimensions`、Embedding 契约或分块参数时明确创建新空间或重建，不让新旧契约混用。
+- [x] P3-A12 `actualDimensions` 由首批真实响应确认并写入 space descriptor，UI 只读展示。
+
+批次 A 数据一致性决策（2026-07-18）：初版施工曾尝试通过 `ATTACH knowledge_meta.db` 同时更新 library 索引与 manifest 配置。调查确认所有连接启用 WAL，而 SQLite 不保证 WAL 下多个 attached 数据库的跨文件崩溃原子性；普通 SQL 错误回滚测试无法覆盖某个 WAL 已提交、另一个 WAL 未提交时的进程终止。该实现不得合入，改为“library DB 是索引身份真源，manifest 是目录与可重建摘要”，并增加 legacy 迁移、真源隔离和重启恢复测试。
+
+批次 A 施工记录：
+
+- 一般问题：系统运行配置定义了 Embedding 请求并发，但初版向量化仍串行执行。现改为首批真实响应确认 descriptor/actual dimensions，剩余批次按运行配置并发；worker 失败时等待其他 worker 收口后统一返回，不遗留未等待任务。
+- 一般问题：`ConfigManager.saveDebounced` 原接口只内部记录异步保存错误，调用方无法保留输入或展示失败。已增加向后兼容的可选 `onError` 回调，Knowledge 配置测试覆盖 500ms 防抖与失败回传。
+- 一般问题：旧 manifest 的索引字段物理列暂时保留，避免本批次引入破坏性表重建；新建与运行时均不再写入或读取这些字段，初始化只在单库 metadata 缺失时把它们作为一次性迁移输入，后续物理清理由 P5-T10 统一处理。
+- 验证结果：Knowledge repository 15 项测试、配置/service/application 23 项测试、`check:frontend`、`lint`、`check:backend` 和 Vite 完整构建通过。全仓 `cargo fmt --check` 仍被未涉及本任务的 `src-tauri/src/recall/commands/backup.rs` 既有格式差异阻挡；本批次 Knowledge Rust 文件已单独格式化。构建中的 Node 模块 externalization、依赖 direct eval、chunk 体积和无效动态导入均为既有警告。
 
 ### 7.2 批次 B：格式能力与统一导入
 
@@ -296,7 +307,7 @@ Phase 3 分为五个施工批次。后端配置和摄取契约先行，工作台
 
 - [ ] P3-T01 前端测试覆盖配置默认值、深度合并、防抖、重置、串库隔离和保存失败保留输入。
 - [ ] P3-T02 前端测试覆盖格式单一来源、未知格式检测、选择/拖放共用入口、混合批次和失败明细。
-- [ ] P3-T03 Rust 测试覆盖配置持久化、非法配置、分块参数、requested/actual dimensions 和原子重建回滚。
+- [x] P3-T03 Rust 测试覆盖单库配置持久化、legacy manifest 迁移、非法配置、分块参数、requested/actual dimensions、运行时真源隔离、原子重建回滚和重启恢复。
 - [ ] P3-T04 Rust 测试覆盖队列恢复、lease、有限重试、checksum 去重、文件级隔离和旧版本保留。
 - [ ] P3-T05 在隔离 appData 的真实 Tauri WebView 中验收文件选择、多文件拖放、目录同步、重启恢复和模型调用。
 - [ ] P3-T06 验收大、中、小窗口、键盘、明暗主题、覆盖层层级和错误对比度。

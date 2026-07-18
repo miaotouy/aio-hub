@@ -6,13 +6,15 @@ Knowledge 是 AIO Hub 的文档资料与来源回溯领域，与 Recall 思绪�
 
 ## 1. 存储与索引
 
-- `knowledge/knowledge_meta.db` 保存 library manifest、schema migration、当前 Embedding space、显式调用 route 与维度摘要。
-- `knowledge/libraries/{libraryId}.kdb` 是每库独立的 SQLite 文件，包含 document、chunk、FTS5、`embedding_spaces`、按 `space_id` 隔离的 chunk vector 和相邻 chunk graph edge。
+- `knowledge/knowledge_meta.db` 只保存 library ID、名称、说明、受管文件路径、目录时间戳和 manifest schema migration。它是资料库目录，不是索引配置或活动向量身份的事实来源。
+- `knowledge/libraries/{libraryId}.kdb` 是每库独立的 SQLite 文件，包含版本化 `library_metadata`、索引配置快照、活动 Embedding space/route/维度、document、chunk、FTS5、`embedding_spaces`、按 `space_id` 隔离的 chunk vector 和相邻 chunk graph edge。
 - library 文件采用 UUID 路径约束；删除先隔离为 tombstone，再删除 manifest，失败时恢复文件。
 - 文档以 `sourcePath` 为稳定键。重复导入在单事务中替换 document、chunk、FTS、向量和图边。
-- `knowledge_get_index_status` 从数据库实时计算当前 `space_id` 的向量覆盖率，不把 UI 缓存当作真源。`embedding_route_key` 只负责调用路由，旧 `model_id` 向量会事务迁移为逐 route 隔离的 legacy space，不按名称自动合并。
+- `knowledge_get_index_status` 从 library 数据库实时读取活动空间并计算当前 `space_id` 的向量覆盖率，不把 manifest 或 UI 缓存当作真源。`embedding_route_key` 只负责调用路由，旧 `model_id` 向量会事务迁移为逐 route 隔离的 legacy space，不按名称自动合并。
 - 同 descriptor 的模型 route 可由用户确认后只切换 `embedding_route_key`；不同 identity 或请求契约会生成新 `space_id` 并独立保留向量。
-- `rebuild_library` 重新切分全部文档并清除当前语义索引配置，避免旧向量与新 chunk 混用。
+- `rebuild_library` 在单个 library WAL 数据库事务内提交配置、重切分全部文档、重建 FTS/graph，并清除旧活动向量身份，避免旧向量与新 chunk 混用。
+- 禁止用 WAL 模式下的 `ATTACH` 多数据库事务宣称配置与索引具备崩溃原子性。manifest 摘要若在单库事务提交后更新失败，只能视为可重建缓存过期；运行时仍从 `library_metadata` 读取真值。
+- 旧 manifest `config_json` 和活动向量字段只作为一次性迁移输入：首次初始化 library metadata 时写入单库数据库，确认成功后运行时不再读取这些旧字段。迁移必须可重入，进程中断后可从任一已提交状态继续。
 
 当前运行路径使用 SQLite + FTS5。TriviumDB 的跨平台文件组、锁和恢复验证完成前不进入运行路径。
 
@@ -30,7 +32,7 @@ Knowledge 前端不导入 Recall store、entry、priority、tag pool 或 workspa
 ## 3. 检索策略
 
 - `keyword`：只使用 BM25，导入后立即可用。
-- `semantic`：只使用当前 library manifest 指定模型的 chunk vector。
+- `semantic`：只使用当前 library metadata 指定活动空间的 chunk vector。
 - `hybrid`：融合 BM25 与 vector，并允许相邻 chunk graph 扩展。
 - `auto`：有可用 query vector 时走 hybrid，否则退化为 BM25。
 

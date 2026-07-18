@@ -9,7 +9,7 @@ import {
 } from "@aiohub/llm-core";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import type { LlmProfile } from "@/types/llm-profiles";
-import { buildModelCombo, parseModelCombo } from "@/utils/modelIdUtils";
+import { parseModelCombo } from "@/utils/modelIdUtils";
 import { createModuleLogger } from "@/utils/logger";
 import type {
   KnowledgeChunk,
@@ -17,11 +17,19 @@ import type {
   KnowledgeIngestRequest,
   KnowledgeIndexStatus,
   KnowledgeLibrary,
+  KnowledgeLibraryIndexConfig,
+  KnowledgeLibraryUpdate,
   KnowledgeResult,
   KnowledgeSearchExecution,
   KnowledgeSearchRequest,
   KnowledgeVectorRecord,
 } from "./types";
+import {
+  createDefaultKnowledgeLibraryConfig,
+  normalizeKnowledgeLibraryConfig,
+  validateKnowledgeLibraryConfig,
+} from "./config";
+import { knowledgeRuntimeConfigManager } from "./config";
 
 let initialization: Promise<void> | null = null;
 const logger = createModuleLogger("knowledge-base/service");
@@ -43,12 +51,52 @@ export async function listKnowledgeLibraries(): Promise<KnowledgeLibrary[]> {
 
 export async function createKnowledgeLibrary(
   name: string,
-  description?: string
+  description?: string,
+  config?: KnowledgeLibraryIndexConfig
 ): Promise<KnowledgeLibrary> {
+  let snapshot = config;
+  if (!snapshot) {
+    const runtimeConfig = await knowledgeRuntimeConfigManager.load();
+    snapshot = createDefaultKnowledgeLibraryConfig();
+    const routeKey = runtimeConfig.defaultEmbeddingRouteKey.trim();
+    if (routeKey) {
+      snapshot.embedding.enabled = true;
+      snapshot.embedding.routeKey = routeKey;
+      snapshot.indexes.semantic = true;
+    }
+  }
+  const normalized = normalizeKnowledgeLibraryConfig(snapshot);
+  validateKnowledgeLibraryConfig(normalized);
   await ensureKnowledgeInitialized();
   return invoke<KnowledgeLibrary>("knowledge_create_library", {
     name,
     description,
+    config: normalized,
+  });
+}
+
+export async function updateKnowledgeLibrary(
+  libraryId: string,
+  update: KnowledgeLibraryUpdate
+): Promise<KnowledgeLibrary> {
+  await ensureKnowledgeInitialized();
+  return invoke<KnowledgeLibrary>("knowledge_update_library", {
+    libraryId,
+    name: update.name,
+    description: update.description,
+  });
+}
+
+export async function applyKnowledgeLibraryConfig(
+  libraryId: string,
+  config: KnowledgeLibraryIndexConfig
+): Promise<number> {
+  const normalized = normalizeKnowledgeLibraryConfig(config);
+  validateKnowledgeLibraryConfig(normalized);
+  await ensureKnowledgeInitialized();
+  return invoke<number>("knowledge_apply_library_config", {
+    libraryId,
+    config: normalized,
   });
 }
 
@@ -298,67 +346,141 @@ async function createKnowledgeQueryVector(
 
 export async function vectorizeKnowledgeLibrary(
   libraryId: string,
-  modelId: string,
-  profile: LlmProfile,
   options: {
-    batchSize?: number;
     onProgress?: (processed: number, total: number) => void;
   } = {}
 ): Promise<number> {
+  const library = (await listKnowledgeLibraries()).find(
+    (item) => item.id === libraryId
+  );
+  if (!library) throw new Error(`找不到 Knowledge library: ${libraryId}`);
+  const config = normalizeKnowledgeLibraryConfig(library.config);
+  validateKnowledgeLibraryConfig(config);
+  if (!config.embedding.enabled || !config.embedding.routeKey) {
+    throw new Error("资料库未配置启用的 Embedding route");
+  }
+  const runtimeConfig = await knowledgeRuntimeConfigManager.load();
   const chunks = await listKnowledgeChunks(libraryId);
-  const batchSize = Math.max(1, options.batchSize ?? 32);
-  const routeKey = buildModelCombo(profile.id, modelId);
-  const routeModel = profile.models.find((model) => model.id === modelId);
+  const batchSize = runtimeConfig.embeddingBatchSize;
+  const routeKey = config.embedding.routeKey;
+  const [profileId, modelId] = parseModelCombo(routeKey);
+  const { enabledProfiles, loadProfiles } = useLlmProfiles();
+  await loadProfiles();
+  const profile = enabledProfiles.value.find((item) => item.id === profileId);
+  if (!profile) throw new Error(`找不到 Embedding 渠道: ${profileId}`);
+  const embeddingProfile: LlmProfile = profile;
+  const routeModel = embeddingProfile.models.find((model) => model.id === modelId);
   if (!routeModel) throw new Error(`渠道中找不到 Embedding 模型: ${modelId}`);
   const identity = getModelIdentity(routeModel);
   const canonicalId =
     identity?.canonicalId ??
-    (await getLegacyRouteCanonicalId({ profileId: profile.id, modelId }));
-  let descriptor: EmbeddingSpaceDescriptorV1 | null = null;
-  let spaceId = "";
-  options.onProgress?.(0, chunks.length);
-  for (let offset = 0; offset < chunks.length; offset += batchSize) {
-    const batch = chunks.slice(offset, offset + batchSize);
-    const response = await callEmbeddingApi(profile, {
+    (await getLegacyRouteCanonicalId({
+      profileId: embeddingProfile.id,
       modelId,
-      input: batch.map((chunk) => chunk.content),
-      taskType: "RETRIEVAL_DOCUMENT",
-      encodingFormat: "float",
-    });
+    }));
+  options.onProgress?.(0, chunks.length);
+  if (chunks.length === 0) return 0;
+
+  const batches: KnowledgeChunk[][] = [];
+  for (let offset = 0; offset < chunks.length; offset += batchSize) {
+    batches.push(chunks.slice(offset, offset + batchSize));
+  }
+
+  async function embedBatch(
+    batch: KnowledgeChunk[]
+  ): Promise<KnowledgeVectorRecord[]> {
+    let response: Awaited<ReturnType<typeof callEmbeddingApi>> | null = null;
+    let lastError: unknown;
+    for (
+      let attempt = 0;
+      attempt <= runtimeConfig.embeddingMaxRetries;
+      attempt += 1
+    ) {
+      try {
+        response = await callEmbeddingApi(embeddingProfile, {
+          modelId,
+          input: batch.map((chunk) => chunk.content),
+          dimensions: config.embedding.requestedDimensions,
+          taskType: config.embedding.documentTaskType,
+          encodingFormat: config.embedding.encodingFormat,
+        });
+        break;
+      } catch (error) {
+        lastError = error;
+        if (attempt >= runtimeConfig.embeddingMaxRetries) break;
+        await new Promise((resolve) =>
+          setTimeout(
+            resolve,
+            runtimeConfig.embeddingRetryDelayMs * (attempt + 1)
+          )
+        );
+      }
+    }
+    if (!response) throw lastError;
     const records = batch.flatMap((chunk, index) => {
       const vector = response.data[index]?.embedding;
       return vector?.length ? [{ chunkId: chunk.id, vector }] : [];
     });
     if (records.length !== batch.length)
       throw new Error("Embedding 返回数量与 Knowledge chunk 数量不一致");
-    const dimensions = records[0]?.vector.length ?? 0;
-    if (!descriptor) {
-      descriptor = buildEmbeddingSpaceDescriptor({
-        modelIdentity: {
-          canonicalId,
-          ...(identity?.revision ? { revision: identity.revision } : {}),
-        },
-        dimensions,
-        queryTaskType: "RETRIEVAL_QUERY",
-        documentTaskType: "RETRIEVAL_DOCUMENT",
-        encodingFormat: "float",
-        adapterContractVersion: 1,
-      });
-      spaceId = await getEmbeddingSpaceId(descriptor);
-    } else if (dimensions !== descriptor.dimensions) {
-      throw new Error("Embedding 分批响应的向量维度不一致");
-    }
-    await saveKnowledgeChunkVectors(
-      libraryId,
-      spaceId,
-      descriptor,
-      routeKey,
-      records
-    );
-    options.onProgress?.(
-      Math.min(offset + batch.length, chunks.length),
-      chunks.length
-    );
+    return records;
   }
+
+  const firstBatch = batches[0];
+  const firstRecords = await embedBatch(firstBatch);
+  const descriptor: EmbeddingSpaceDescriptorV1 =
+    buildEmbeddingSpaceDescriptor({
+      modelIdentity: {
+        canonicalId,
+        ...(identity?.revision ? { revision: identity.revision } : {}),
+      },
+      dimensions: firstRecords[0]?.vector.length ?? 0,
+      queryTaskType: config.embedding.queryTaskType,
+      documentTaskType: config.embedding.documentTaskType,
+      encodingFormat: config.embedding.encodingFormat,
+      adapterContractVersion: config.embedding.adapterContractVersion,
+    });
+  const spaceId = await getEmbeddingSpaceId(descriptor);
+  await saveKnowledgeChunkVectors(
+    libraryId,
+    spaceId,
+    descriptor,
+    routeKey,
+    firstRecords
+  );
+  let processed = firstBatch.length;
+  options.onProgress?.(processed, chunks.length);
+
+  let nextBatchIndex = 1;
+  let workerError: unknown;
+  async function worker(): Promise<void> {
+    while (workerError === undefined && nextBatchIndex < batches.length) {
+      const batch = batches[nextBatchIndex];
+      nextBatchIndex += 1;
+      try {
+        const records = await embedBatch(batch);
+        if (records[0]?.vector.length !== descriptor.dimensions) {
+          throw new Error("Embedding 分批响应的向量维度不一致");
+        }
+        await saveKnowledgeChunkVectors(
+          libraryId,
+          spaceId,
+          descriptor,
+          routeKey,
+          records
+        );
+        processed += batch.length;
+        options.onProgress?.(processed, chunks.length);
+      } catch (error) {
+        workerError ??= error;
+      }
+    }
+  }
+  const workerCount = Math.min(
+    runtimeConfig.embeddingRequestConcurrency,
+    Math.max(0, batches.length - 1)
+  );
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  if (workerError !== undefined) throw workerError;
   return chunks.length;
 }

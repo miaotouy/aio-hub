@@ -89,7 +89,10 @@ export class ConfigManager<T extends Record<string, any>> {
    * 防抖保存配置。
    * @param config - 要保存的配置对象。
    */
-  public saveDebounced: (config: T) => void;
+  public saveDebounced: (
+    config: T,
+    onError?: (error: unknown) => void
+  ) => void;
 
   constructor(options: ConfigManagerOptions<T>) {
     this.moduleName = options.moduleName;
@@ -102,7 +105,7 @@ export class ConfigManager<T extends Record<string, any>> {
     const delay = options.debounceDelay ?? 500;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
-    this.saveDebounced = (config: T) => {
+    this.saveDebounced = (config: T, onError?: (error: unknown) => void) => {
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
@@ -116,6 +119,7 @@ export class ConfigManager<T extends Record<string, any>> {
               context: { moduleName: this.moduleName },
               showToUser: false,
             });
+            onError?.(error);
           });
           logger.debug(`已触发防抖保存`, {
             moduleName: this.moduleName,
@@ -127,6 +131,7 @@ export class ConfigManager<T extends Record<string, any>> {
             context: { moduleName: this.moduleName },
             showToUser: false,
           });
+          onError?.(error);
         }
       }, delay);
     };

@@ -405,6 +405,8 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         // Knowledge 资料库命令
         crate::knowledge::knowledge_initialize,
         crate::knowledge::knowledge_create_library,
+        crate::knowledge::knowledge_update_library,
+        crate::knowledge::knowledge_apply_library_config,
         crate::knowledge::knowledge_list_libraries,
         crate::knowledge::knowledge_delete_library,
         crate::knowledge::knowledge_ingest_document,

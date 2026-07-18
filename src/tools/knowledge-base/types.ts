@@ -1,4 +1,51 @@
-import type { EmbeddingSpaceDescriptorV1 } from "@aiohub/llm-core";
+import type {
+  EmbeddingSpaceDescriptorV1,
+  EmbeddingTaskType,
+} from "@aiohub/llm-core";
+
+export const KNOWLEDGE_LIBRARY_CONFIG_SCHEMA_VERSION = 1 as const;
+
+export interface KnowledgeChunkingConfig {
+  strategy: "fixed";
+  targetChars: number;
+  overlapChars: number;
+}
+
+export interface KnowledgeEmbeddingIndexConfig {
+  enabled: boolean;
+  routeKey: string;
+  requestedDimensions?: number;
+  queryTaskType: EmbeddingTaskType;
+  documentTaskType: EmbeddingTaskType;
+  encodingFormat: "float";
+  adapterContractVersion: number;
+}
+
+export interface KnowledgeIndexFlags {
+  keyword: boolean;
+  semantic: boolean;
+  graph: boolean;
+}
+
+export interface KnowledgeLibraryIndexConfig {
+  schemaVersion: typeof KNOWLEDGE_LIBRARY_CONFIG_SCHEMA_VERSION;
+  chunking: KnowledgeChunkingConfig;
+  embedding: KnowledgeEmbeddingIndexConfig;
+  indexes: KnowledgeIndexFlags;
+}
+
+export interface KnowledgeRuntimeConfig {
+  version: "1.0.0";
+  defaultEmbeddingRouteKey: string;
+  embeddingRequestConcurrency: number;
+  embeddingBatchSize: number;
+  embeddingMaxRetries: number;
+  embeddingRetryDelayMs: number;
+  ingestQueueConcurrency: number;
+  ingestLeaseTimeoutSeconds: number;
+  maxImportFileBytes: number;
+  maxImportBatchFiles: number;
+}
 
 export interface AgentKnowledgeAccess {
   enabled: boolean;
@@ -55,11 +102,16 @@ export interface KnowledgeLibrary {
   embeddingRouteKey: string;
   embeddingSpaceDescriptor?: EmbeddingSpaceDescriptorV1;
   dimension: number;
-  config: Record<string, unknown>;
+  config: KnowledgeLibraryIndexConfig;
   documentCount: number;
   chunkCount: number;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface KnowledgeLibraryUpdate {
+  name: string;
+  description?: string;
 }
 
 export interface KnowledgeDocument {

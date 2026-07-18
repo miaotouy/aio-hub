@@ -18,7 +18,7 @@
 当前缺口包括：
 
 1. 没有 Knowledge 全局设置页和单资料库设置入口。
-2. `KnowledgeLibrary.config` 与 manifest 的 `config_json` 已存在，但创建时固定写入 `{}`，没有更新命令，也没有运行时读取约定。
+2. `KnowledgeLibrary.config` 与 manifest 的 legacy `config_json` 已存在，但配置和活动向量身份不能继续以 manifest 为真源；WAL 下跨 manifest/library 的 `ATTACH` 事务不具备崩溃原子性。
 3. 分块长度、重叠长度、检索数量和向量批次大小散落为硬编码。
 4. 文件选择器拥有扩展名白名单，解析器没有使用同一白名单，页面也不显示支持格式。
 5. 工作台没有文件拖放入口，没有拖入悬停、格式拒绝和批次结果检查交互。
@@ -33,7 +33,7 @@
 | 项目           | 当前实现                                  | 问题                                         |
 | -------------- | ----------------------------------------- | -------------------------------------------- |
 | 全局默认值     | 无                                        | 新建资料库无法继承用户偏好                   |
-| 单库配置       | 前后端类型含 `config`                     | manifest 固定保存 `{}`，没有更新入口         |
+| 单库配置       | 前后端类型含 `config`                     | 缺少单库事实表、更新入口和 legacy 迁移       |
 | 名称与说明     | 仅创建时填写                              | 创建后无法编辑                               |
 | 分块参数       | Rust 固定 `1000 / 120`                    | 调整必须改代码，重建行为不可配置             |
 | 检索测试       | `strategy=auto`、`limit=12`、`minScore=0` | 默认值不可见，也不能按库保存                 |
@@ -89,9 +89,11 @@ Knowledge 应复用上述能力。不能只绑定 DOM `drop` 事件，因为 Tau
 配置分为两层：
 
 1. **全局创建默认值**：使用 `createConfigManager` 保存，只影响以后新建的资料库。
-2. **资料库配置快照**：保存在 manifest 的 `config_json`，运行时只读取资料库自身配置。
+2. **资料库配置快照**：保存在各 `library.kdb` 的版本化 `library_metadata` 中，运行时只读取资料库自身配置。
 
 创建资料库时把全局默认值深拷贝为单库配置。后续修改全局默认值不得改变已有资料库，避免用户资料库随全局设置变化而隐式重切片、改变检索数量或触发额外模型调用。
+
+manifest 只保存 library ID、名称、说明和受管文件路径等目录信息。索引配置、活动 Embedding space、route、descriptor 与实际维度属于派生索引身份，必须与 document/chunk/FTS/vector/graph 位于同一个 library 数据库。应用配置和重建只允许在单个 WAL 数据库事务内提交；禁止依赖 WAL 模式下的 `ATTACH` 跨文件提交。manifest 中已有的 `config_json` 与活动向量字段只作为可重入的一次性迁移输入，迁移完成后不得参与运行时判定。
 
 单库配置使用版本化结构，例如：
 
@@ -139,7 +141,7 @@ interface KnowledgeLibraryConfigV1 {
 - 首选 Embedding 渠道与向量空间只读摘要。
 - 自动向量化开关和批次大小。
 
-修改名称、说明、检索默认值和批次大小可直接保存。分块参数先保留在前端表单中，用户确认“应用并重建”后，由单个后端操作完成重切片、清除旧向量和配置提交；操作失败时继续保留原配置与原索引。修改首选渠道不等于切换已存在的向量空间，模型切换继续通过语义索引流程确认。
+名称、说明属于 manifest 目录元数据，可独立保存。系统运行参数保存在全局配置中。分块和 Embedding 契约先保留在前端表单中，用户确认“应用并重建”后，由单个 library DB 事务完成配置提交、重切片、FTS/graph 重建以及旧活动向量清理；操作失败或进程中断时继续保留原配置与原索引。修改首选渠道不等于切换已存在的向量空间，模型切换继续通过语义索引流程确认。
 
 Agent 的 `knowledgeSettings`、binding 和占位符参数保持独立。本设置页不覆盖 Agent 已保存的 `limit`、`min-score` 或 strategy。
 
@@ -248,15 +250,15 @@ Knowledge
 - 定义 `KnowledgeLibraryConfigV1`、默认值、深度合并和校验函数。
 - 新增支持格式定义模块，替换文件选择器和解析器中的重复列表。
 - 对未知扩展名在读取文件前返回明确错误。
-- 为旧资料库的空 `config_json` 提供 V1 默认值读取兼容，不批量改写已有 manifest。
+- 为旧资料库的空 `config_json` 提供 V1 默认迁移，并把非空 legacy 配置与活动向量身份可重入地迁入 `library_metadata`；不在普通读取路径批量改写 manifest。
 
 ### Phase 2：补齐后端资料库配置接口
 
-- 扩展创建 command，使其接收配置快照。
+- 扩展创建 command，使其在新建 `library.kdb` 时写入配置快照和空活动向量身份。
 - 新增更新资料库名称、说明和配置的 command、repository 方法及前端 service。
 - `chunk_document`、摄取和重建从资料库配置读取分块参数。
 - 校验 `targetChars > 0`、`overlapChars >= 0` 且 overlap 小于 target。
-- 新增原子“应用分块配置并重建”操作。配置只在新 chunk、FTS 和 graph 全部写入成功后提交；失败时不得留下新配置、部分新分块或错误向量状态。
+- 新增原子“应用配置并重建”操作。配置、活动向量身份、chunk、FTS、vector 和 graph 在同一个 library WAL 事务中提交；不得使用 `ATTACH` 更新 manifest。失败或崩溃恢复后不得留下新配置配旧索引、旧配置配新索引或部分重建状态。
 
 ### Phase 3：拆分模块壳层并实现设置页
 
@@ -305,12 +307,13 @@ Knowledge
 
 ### 7.2 Rust 测试
 
-- 创建资料库保存配置快照，旧 `{}` 配置按 V1 默认值读取。
+- 创建资料库在 `library_metadata` 保存配置快照；旧 manifest `{}` 按 V1 默认值迁移，非空 legacy 配置和活动向量身份迁移后重启仍可恢复。
 - 更新名称、说明和配置后重启仍可恢复。
 - 自定义分块参数影响 chunk 数量、offset 和 overlap。
 - 重建失败时原 document、chunk、FTS、vector 和 graph 状态保持一致。
 - 修改分块参数并成功重建后清除旧语义向量，关键词索引仍可用。
-- 非法配置不能写入 manifest。
+- 非法配置不能写入 `library_metadata`。
+- 测试必须证明运行时配置和活动空间只从 library DB 读取；篡改或滞后 manifest legacy 字段不改变检索与重建行为。
 
 ### 7.3 Tauri 手工验收
 

@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import {
   createKnowledgeLibrary,
+  applyKnowledgeLibraryConfig,
   deleteKnowledgeDocument,
   deleteKnowledgeLibrary,
   getKnowledgeIndexStatus,
@@ -11,6 +12,7 @@ import {
   listKnowledgeLibraries,
   rebuildKnowledgeLibrary,
   searchKnowledge,
+  updateKnowledgeLibrary,
 } from "./service";
 import type {
   KnowledgeDocument,
@@ -18,6 +20,8 @@ import type {
   KnowledgeImportFailure,
   KnowledgeIndexStatus,
   KnowledgeLibrary,
+  KnowledgeLibraryIndexConfig,
+  KnowledgeLibraryUpdate,
   KnowledgeResult,
   KnowledgeSearchStrategy,
 } from "./types";
@@ -142,10 +146,36 @@ export const useKnowledgeStore = defineStore("knowledge-base", {
       }
     },
 
-    async createLibrary(name: string, description?: string) {
-      const library = await createKnowledgeLibrary(name, description);
+    async createLibrary(
+      name: string,
+      description?: string,
+      config?: KnowledgeLibraryIndexConfig
+    ) {
+      const library = await createKnowledgeLibrary(name, description, config);
       await this.refreshLibraries(library.id);
       return library;
+    },
+
+    async updateActiveLibrary(update: KnowledgeLibraryUpdate) {
+      if (!this.activeLibraryId) return null;
+      const library = await updateKnowledgeLibrary(
+        this.activeLibraryId,
+        update
+      );
+      await this.refreshLibraries(library.id);
+      return library;
+    },
+
+    async applyActiveLibraryConfig(config: KnowledgeLibraryIndexConfig) {
+      if (!this.activeLibraryId) return 0;
+      const count = await applyKnowledgeLibraryConfig(
+        this.activeLibraryId,
+        config
+      );
+      this.results = [];
+      this.selectedResultId = null;
+      await this.refreshLibraries(this.activeLibraryId);
+      return count;
     },
 
     async deleteActiveLibrary() {

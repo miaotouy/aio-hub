@@ -27,13 +27,37 @@ pub async fn knowledge_create_library(
     state: State<'_, KnowledgeState>,
     name: String,
     description: Option<String>,
+    config: Option<KnowledgeLibraryIndexConfig>,
 ) -> Result<KnowledgeLibrary, String> {
     if name.trim().is_empty() {
         return Err("Knowledge library 名称不能为空".to_string());
     }
     state
         .repository()?
-        .create_library(&name, description.as_deref())
+        .create_library(&name, description.as_deref(), config.as_ref())
+}
+
+#[tauri::command]
+pub async fn knowledge_update_library(
+    state: State<'_, KnowledgeState>,
+    library_id: String,
+    name: String,
+    description: Option<String>,
+) -> Result<KnowledgeLibrary, String> {
+    state
+        .repository()?
+        .update_library(&library_id, &name, description.as_deref())
+}
+
+#[tauri::command]
+pub async fn knowledge_apply_library_config(
+    state: State<'_, KnowledgeState>,
+    library_id: String,
+    config: KnowledgeLibraryIndexConfig,
+) -> Result<usize, String> {
+    state
+        .repository()?
+        .apply_library_config_and_rebuild(&library_id, &config)
 }
 
 #[tauri::command]

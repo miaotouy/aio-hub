@@ -12,6 +12,7 @@ import type {
   AgentKnowledgeAccess,
   KnowledgeChunk,
   KnowledgeLibrary,
+  KnowledgeLibraryIndexConfig,
   KnowledgeResult,
 } from "./types";
 
@@ -25,6 +26,26 @@ vi.mock("./service", () => ({
   listKnowledgeChunks,
 }));
 
+function libraryConfig(): KnowledgeLibraryIndexConfig {
+  return {
+    schemaVersion: 1,
+    chunking: {
+      strategy: "fixed",
+      targetChars: 1000,
+      overlapChars: 120,
+    },
+    embedding: {
+      enabled: false,
+      routeKey: "",
+      queryTaskType: "RETRIEVAL_QUERY",
+      documentTaskType: "RETRIEVAL_DOCUMENT",
+      encodingFormat: "float",
+      adapterContractVersion: 1,
+    },
+    indexes: { keyword: true, semantic: false, graph: true },
+  };
+}
+
 function library(id: string, spaceId = ""): KnowledgeLibrary {
   return {
     id,
@@ -34,7 +55,7 @@ function library(id: string, spaceId = ""): KnowledgeLibrary {
     activeEmbeddingSpaceId: spaceId,
     embeddingRouteKey: "",
     dimension: 0,
-    config: {},
+    config: libraryConfig(),
     documentCount: 2,
     chunkCount: 4,
     createdAt: 1,

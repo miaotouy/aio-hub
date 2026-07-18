@@ -131,12 +131,7 @@ pub async fn recall_retrieval_cache_set(
 
 #[tauri::command]
 pub async fn recall_retrieval_cache_clear(state: State<'_, RecallState>) -> Result<(), String> {
-    let mut cache = state
-        .retrieval_cache
-        .write()
-        .map_err(|_| "获取检索缓存写锁失败".to_string())?;
-    cache.clear();
-    Ok(())
+    state.clear_retrieval_cache()
 }
 
 #[tauri::command]

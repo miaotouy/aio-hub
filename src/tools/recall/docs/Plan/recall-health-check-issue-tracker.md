@@ -17,7 +17,7 @@
 | --- | --- | --- | --- | --- |
 | RCL-001 | P1 | Recall 数据库和内存读模型依赖前端页面冷启动 | 已完成 | `fix(recall): 将数据库初始化纳入后端启动周期` |
 | RCL-002 | P1 | `static` 模式可绕过 Agent Recall binding 授权 | 已完成 | `fix(recall): 收紧静态占位符的集合授权` |
-| RCL-003 | P1 | Recall 检索结果缓存不随源数据变更失效 | 待处理 | - |
+| RCL-003 | P1 | Recall 检索结果缓存不随源数据变更失效 | 已完成 | `fix(recall): 在数据变更后失效检索缓存` |
 | RCL-004 | P1 | gate/turn 激活上下文被占位符和预设消息污染 | 待处理 | - |
 | RCL-005 | P2 | 最近一次 AI 回复未参与 Recall 双查询融合 | 待处理 | - |
 | RCL-006 | P2 | 单个非法 Recall 占位符会中止整个 Recall processor | 待处理 | - |

@@ -1230,6 +1230,7 @@ fn import_one(
         .map_err(|_| "获取内存数据库写锁失败")?
         .bases
         .insert(target_id, Arc::new(RwLock::new(in_memory)));
+    state.clear_retrieval_cache()?;
 
     let missing_asset_count = warnings
         .iter()

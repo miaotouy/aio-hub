@@ -93,6 +93,7 @@ pub async fn recall_update_entry_vector(
             base.meta.vectorization.total_tokens += t as u64;
         }
     }
+    state.clear_retrieval_cache()?;
 
     let duration = start_time.elapsed().as_millis() as u64;
 
@@ -135,9 +136,11 @@ pub async fn recall_clear_legacy_vectors(
     recall_id: Uuid,
     current_model: String,
 ) -> Result<u32, String> {
-    state
+    let cleared = state
         .repository()?
-        .clear_vectors_except_model(Some(recall_id), &current_model)
+        .clear_vectors_except_model(Some(recall_id), &current_model)?;
+    state.clear_retrieval_cache()?;
+    Ok(cleared)
 }
 
 #[derive(serde::Serialize)]
@@ -266,11 +269,15 @@ pub async fn recall_load_model_vectors(
 
         base.meta.vectorization.model_used = model_id.clone();
 
-        Ok(LoadStats {
+        let stats = LoadStats {
             loaded_count: base.vector_store.ids.len(),
             dimension: base.vector_store.dimension,
             model_id,
-        })
+        };
+        drop(base);
+        drop(imdb);
+        state.clear_retrieval_cache()?;
+        Ok(stats)
     } else {
         Err(format!("找不到思绪集: {}", recall_id))
     }
@@ -290,6 +297,7 @@ pub async fn recall_clear_all_other_vectors(
         "[KB] 全局清理完成，删除了 {} 个非当前模型的向量文件",
         total_deleted
     );
+    state.clear_retrieval_cache()?;
     Ok(total_deleted)
 }
 

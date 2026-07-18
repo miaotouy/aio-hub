@@ -168,6 +168,7 @@ pub async fn recall_sync_tag_vectors(
     let mut pool = pool_lock.write().map_err(|_| "获取池写锁失败")?;
     pool.sync_vectors(data);
     state.repository()?.save_tag_pool(&pool)?;
+    state.clear_retrieval_cache()?;
 
     Ok(())
 }
@@ -202,6 +203,7 @@ pub async fn recall_rebuild_tag_pool_index(
         );
         pool.rebuild_index();
         state.repository()?.save_tag_pool(&pool)?;
+        state.clear_retrieval_cache()?;
     }
 
     Ok(())
@@ -220,6 +222,7 @@ pub async fn recall_clear_tag_pool(
     state
         .repository()?
         .save_tag_pool(&crate::recall::tag_pool::ModelTagPool::new(model_id))?;
+    state.clear_retrieval_cache()?;
 
     Ok(())
 }
@@ -264,6 +267,9 @@ pub async fn recall_clear_other_tag_pools(
                 model_id.clone(),
             ))?;
     }
+    if !removed.is_empty() {
+        state.clear_retrieval_cache()?;
+    }
     Ok(removed.len() as u32)
 }
 
@@ -275,16 +281,23 @@ pub async fn recall_flush_all_tag_pools(
     let pools = state.tag_pool.pools.read().map_err(|_| "获取池读锁失败")?;
 
     let mut saved_count = 0;
+    let mut rebuilt = false;
     for (model_id, pool_lock) in pools.iter() {
         let mut pool = pool_lock.write().map_err(|_| "获取池写锁失败")?;
         if pool.index.is_none() && !pool.registry.is_empty() {
             pool.rebuild_index();
+            rebuilt = true;
         }
         if let Err(e) = state.repository()?.save_tag_pool(&pool) {
             log::error!("[KB] 保存标签池失败 {}: {}", model_id, e);
         } else {
             saved_count += 1;
         }
+    }
+
+    drop(pools);
+    if rebuilt {
+        state.clear_retrieval_cache()?;
     }
 
     Ok(saved_count)

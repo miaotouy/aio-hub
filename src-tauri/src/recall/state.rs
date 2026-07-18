@@ -114,6 +114,14 @@ impl RecallState {
             .ok_or_else(|| "Recall repository 尚未初始化".to_string())
     }
 
+    pub fn clear_retrieval_cache(&self) -> Result<(), String> {
+        self.retrieval_cache
+            .write()
+            .map_err(|_| "获取检索缓存写锁失败".to_string())?
+            .clear();
+        Ok(())
+    }
+
     pub fn get_engine(&self, id: &str) -> Option<&dyn RetrievalEngine> {
         self.engines
             .iter()
@@ -146,5 +154,24 @@ mod tests {
         assert!(Arc::ptr_eq(&first, &second));
         assert!(first.main_db_path().is_file());
         assert!(first.vector_db_path().is_file());
+    }
+
+    #[test]
+    fn clearing_retrieval_cache_removes_cached_results() {
+        let state = RecallState::new();
+        state.retrieval_cache.write().unwrap().insert(
+            "cached".to_string(),
+            (
+                CachedRetrievalEntry {
+                    results: Vec::new(),
+                    vector: None,
+                },
+                1,
+            ),
+        );
+
+        state.clear_retrieval_cache().unwrap();
+
+        assert!(state.retrieval_cache.read().unwrap().is_empty());
     }
 }

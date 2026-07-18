@@ -32,7 +32,8 @@ pub async fn recall_initialize(
 #[tauri::command]
 pub async fn recall_warmup(_app: AppHandle, state: State<'_, RecallState>) -> Result<(), String> {
     let repository = state.repository()?;
-    warmup_recall_repository(repository.as_ref(), &state.imdb, &state.tag_pool)
+    warmup_recall_repository(repository.as_ref(), &state.imdb, &state.tag_pool)?;
+    state.clear_retrieval_cache()
 }
 
 #[tauri::command]
@@ -100,20 +101,24 @@ pub async fn recall_save_base_meta(
         entries,
     })?;
 
-    {
+    let updated_existing = {
         let imdb = state.imdb.read().map_err(|_| "获取内存数据库读锁失败")?;
         if let Some(base_lock) = imdb.bases.get(&recall_id) {
             let mut base = base_lock.write().map_err(|_| "获取思绪集写锁失败")?;
-            base.meta = meta;
-            return Ok(());
+            base.meta = meta.clone();
+            true
+        } else {
+            false
         }
+    };
+
+    if !updated_existing {
+        let mut imdb = state.imdb.write().map_err(|_| "获取内存数据库写锁失败")?;
+        let base = crate::recall::index::InMemoryBase::new(meta);
+        imdb.bases.insert(recall_id, Arc::new(RwLock::new(base)));
     }
 
-    let mut imdb = state.imdb.write().map_err(|_| "获取内存数据库写锁失败")?;
-    let base = crate::recall::index::InMemoryBase::new(meta);
-    imdb.bases.insert(recall_id, Arc::new(RwLock::new(base)));
-
-    Ok(())
+    state.clear_retrieval_cache()
 }
 
 #[tauri::command]
@@ -130,13 +135,7 @@ pub async fn recall_delete_base(
         .bases
         .remove(&recall_id);
 
-    state
-        .retrieval_cache
-        .write()
-        .map_err(|_| "获取检索缓存写锁失败")?
-        .clear();
-
-    Ok(())
+    state.clear_retrieval_cache()
 }
 
 #[tauri::command]
@@ -173,6 +172,7 @@ pub async fn recall_clone_base(
         .bases
         .insert(new_recall_id, Arc::new(RwLock::new(base)));
 
+    state.clear_retrieval_cache()?;
     Ok(new_recall_id)
 }
 

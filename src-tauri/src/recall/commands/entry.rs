@@ -163,6 +163,7 @@ pub async fn recall_upsert_entry(
         }
         base.sync_entry(entry.clone());
     }
+    state.clear_retrieval_cache()?;
 
     let duration = start_time.elapsed().as_millis() as u64;
     // 发送监控事件
@@ -210,6 +211,7 @@ pub async fn recall_delete_entry(
         let mut base = base_lock.write().map_err(|_| "获取思绪集写锁失败")?;
         base.remove_entry(&entry_id);
     }
+    state.clear_retrieval_cache()?;
     Ok(())
 }
 
@@ -497,6 +499,7 @@ pub async fn recall_batch_patch_entries(
             base.sync_entry(entry);
         }
     }
+    state.clear_retrieval_cache()?;
 
     log::info!(
         "[KB_ENTRY] 批量 patch 完成: recall={}, 更新 {} 个条目",
@@ -522,6 +525,7 @@ pub async fn recall_batch_delete_entries(
             base.remove_entry(entry_id);
         }
     }
+    state.clear_retrieval_cache()?;
     Ok(())
 }
 
@@ -573,6 +577,9 @@ fn persist_batch_entries(
         for entry in &entries {
             base.sync_entry(entry.clone());
         }
+    }
+    if !entries.is_empty() {
+        state.clear_retrieval_cache()?;
     }
     Ok((entries, duplicates))
 }

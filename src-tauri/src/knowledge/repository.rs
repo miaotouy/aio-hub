@@ -816,6 +816,7 @@ impl KnowledgeRepository {
                 )
                 .map_err(|error| format!("删除 Knowledge 语义回退快照失败: {error}"))?;
             if let Some(document_id) = document_id.as_deref() {
+                delete_fts_for_document(&transaction, document_id)?;
                 transaction
                     .execute("DELETE FROM documents WHERE id = ?1", [document_id])
                     .map_err(|error| format!("删除缺失来源 Knowledge document 失败: {error}"))?;
@@ -1200,6 +1201,18 @@ impl KnowledgeRepository {
                 [source_id],
             )
             .map_err(|error| format!("删除 Knowledge source 语义回退快照失败: {error}"))?;
+        transaction
+            .execute(
+                "DELETE FROM chunks_fts WHERE chunk_id IN (
+                    SELECT c.id FROM chunks c
+                    WHERE c.document_id IN (
+                        SELECT document_id FROM knowledge_source_files
+                        WHERE source_id = ?1 AND document_id IS NOT NULL
+                    )
+                 )",
+                [source_id],
+            )
+            .map_err(|error| format!("删除 Knowledge source FTS 失败: {error}"))?;
         transaction
             .execute(
                 "DELETE FROM documents WHERE id IN (
@@ -1782,9 +1795,12 @@ impl KnowledgeRepository {
                     .max(0) as usize
             };
         let keyword_indexed_chunks = connection
-            .query_row("SELECT COUNT(*) FROM chunks_fts", [], |row| {
-                row.get::<_, i64>(0)
-            })
+            .query_row(
+                "SELECT COUNT(*) FROM chunks_fts fts
+                 INNER JOIN chunks c ON c.id = fts.chunk_id",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
             .map_err(|error| format!("读取 Knowledge FTS 覆盖状态失败: {error}"))?
             .max(0) as usize;
         let semantic_fallback_chunks = connection
@@ -2009,7 +2025,8 @@ impl KnowledgeRepository {
                    (SELECT COUNT(*) FROM knowledge_ingest_tasks
                     WHERE status IN ('pending', 'processing', 'retry')),
                    (SELECT COUNT(*) FROM knowledge_ingest_tasks WHERE status = 'failed'),
-                   (SELECT COUNT(*) FROM chunks_fts),
+                   (SELECT COUNT(*) FROM chunks_fts fts
+                    INNER JOIN chunks c ON c.id = fts.chunk_id),
                    (SELECT COUNT(*) FROM chunk_vectors v
                     JOIN chunks c ON c.id = v.chunk_id
                     WHERE v.space_id = ?1 AND v.dimension = ?2)",
@@ -2105,7 +2122,8 @@ impl KnowledgeRepository {
             "INTEGER NOT NULL DEFAULT 1",
         )?;
         ensure_column(&connection, "documents", "last_error", "TEXT")?;
-        migrate_legacy_chunk_vectors(&mut connection)
+        migrate_legacy_chunk_vectors(&mut connection)?;
+        purge_orphan_fts(&connection)
     }
 
     fn initialize_library_metadata(
@@ -2739,6 +2757,29 @@ fn preserve_semantic_fallback(
             params![source_file_id, document_id, space_id, now()],
         )
         .map_err(|error| format!("保存 Knowledge 语义回退快照失败: {error}"))?;
+    Ok(())
+}
+
+fn delete_fts_for_document(transaction: &Transaction<'_>, document_id: &str) -> Result<(), String> {
+    transaction
+        .execute(
+            "DELETE FROM chunks_fts WHERE chunk_id IN (
+                SELECT id FROM chunks WHERE document_id = ?1
+             )",
+            [document_id],
+        )
+        .map_err(|error| format!("清理 Knowledge document FTS 失败: {error}"))?;
+    Ok(())
+}
+
+fn purge_orphan_fts(connection: &Connection) -> Result<(), String> {
+    connection
+        .execute(
+            "DELETE FROM chunks_fts
+             WHERE chunk_id NOT IN (SELECT id FROM chunks)",
+            [],
+        )
+        .map_err(|error| format!("清理 Knowledge 孤儿 FTS 失败: {error}"))?;
     Ok(())
 }
 
@@ -4219,6 +4260,63 @@ mod tests {
         assert_eq!(deletion.operation, "delete");
         complete_claimed_task(&repository, &deletion, "");
         assert!(repository.list_documents(&library.id).unwrap().is_empty());
+
+        let connection = repository
+            .open_library(&repository.library_file_path(&library.id))
+            .unwrap();
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM chunks_fts", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            0
+        );
+        drop(connection);
+        assert!(repository
+            .search(&KnowledgeSearchRequest {
+                query: "directory source".to_string(),
+                library_ids: vec![library.id.clone()],
+                strategy: KnowledgeSearchStrategy::Keyword,
+                limit: 5,
+                min_score: 0.0,
+                query_vector: None,
+                space_id: None,
+            })
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn initialize_purges_orphan_fts_rows() {
+        let directory = tempdir().unwrap();
+        let repository = KnowledgeRepository::new(directory.path());
+        repository.initialize().unwrap();
+        let library = repository.create_library("Orphan FTS", None, None).unwrap();
+        repository
+            .open_library(&repository.library_file_path(&library.id))
+            .unwrap()
+            .execute(
+                "INSERT INTO chunks_fts(chunk_id, content, heading)
+                 VALUES ('orphan-chunk', 'stale deleted content', NULL)",
+                [],
+            )
+            .unwrap();
+        drop(repository);
+
+        let reopened = KnowledgeRepository::new(directory.path());
+        reopened.initialize().unwrap();
+        let connection = reopened
+            .open_library(&reopened.library_file_path(&library.id))
+            .unwrap();
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM chunks_fts", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            0
+        );
     }
 
     #[test]

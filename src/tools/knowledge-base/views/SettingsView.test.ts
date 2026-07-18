@@ -8,11 +8,19 @@ import type { KnowledgeLibrary } from "../types";
 const mocks = vi.hoisted(() => ({
   store: null as any,
   confirm: vi.fn(),
+  open: vi.fn(),
+  addDirectory: vi.fn(),
+  processQueue: vi.fn(),
+  message: {
+    success: vi.fn(),
+    warning: vi.fn(),
+    info: vi.fn(),
+  },
 }));
 
 vi.mock("../store", () => ({ useKnowledgeStore: () => mocks.store }));
 vi.mock("../service", () => ({
-  addKnowledgeDirectorySource: vi.fn(),
+  addKnowledgeDirectorySource: mocks.addDirectory,
   cancelKnowledgeIngestTask: vi.fn(),
   listKnowledgeIngestTasks: vi.fn().mockResolvedValue([]),
   listKnowledgeSources: vi.fn().mockResolvedValue([]),
@@ -20,14 +28,14 @@ vi.mock("../service", () => ({
   rescanKnowledgeDirectorySource: vi.fn(),
   retryKnowledgeIngestTask: vi.fn(),
 }));
-vi.mock("../ingestQueue", () => ({ processKnowledgeImportQueue: vi.fn() }));
-vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
+vi.mock("../ingestQueue", () => ({ processKnowledgeImportQueue: mocks.processQueue }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: mocks.open }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ revealItemInDir: vi.fn() }));
 vi.mock("element-plus", () => ({
   ElMessageBox: { confirm: mocks.confirm },
 }));
 vi.mock("@/utils/customMessage", () => ({
-  customMessage: { success: vi.fn(), warning: vi.fn(), info: vi.fn() },
+  customMessage: mocks.message,
 }));
 vi.mock("@/utils/errorHandler", () => ({
   createModuleErrorHandler: () => ({ error: vi.fn() }),
@@ -130,6 +138,19 @@ describe("Knowledge settings view", () => {
     );
     mocks.confirm.mockReset();
     mocks.confirm.mockResolvedValue(undefined);
+    mocks.open.mockReset();
+    mocks.addDirectory.mockReset();
+    mocks.processQueue.mockReset();
+    mocks.message.success.mockReset();
+    mocks.message.warning.mockReset();
+    mocks.message.info.mockReset();
+    mocks.addDirectory.mockResolvedValue({ failures: [] });
+    mocks.processQueue.mockResolvedValue({
+      imported: 1,
+      parsed: 1,
+      skippedDuplicates: 0,
+      failures: [],
+    });
   });
 
   it("resets runtime settings to defaults after confirmation", async () => {
@@ -171,5 +192,30 @@ describe("Knowledge settings view", () => {
 
     expect(configModule.saveKnowledgeRuntimeConfigDebounced).toHaveBeenCalled();
     expect(wrapper.get('[data-testid="runtime-embedding-batch"]').attributes("value")).toBe("77");
+  });
+
+  it("surfaces semantic vectorization warnings after adding a directory", async () => {
+    mocks.open.mockResolvedValue("C:\\knowledge-fixtures");
+    mocks.processQueue.mockResolvedValue({
+      imported: 1,
+      parsed: 1,
+      skippedDuplicates: 0,
+      failures: [],
+      warnings: ["语义向量将在重试后补齐"],
+    });
+    const wrapper = mountSettings();
+    await flushPromises();
+
+    const addDirectoryButton = wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("添加目录"));
+    expect(addDirectoryButton).toBeDefined();
+    await addDirectoryButton!.trigger("click");
+    await flushPromises();
+
+    expect(mocks.message.warning).toHaveBeenCalledWith("语义向量将在重试后补齐");
+    expect(mocks.message.success).not.toHaveBeenCalledWith(
+      "目录来源已添加，处理 1 个文件"
+    );
   });
 });

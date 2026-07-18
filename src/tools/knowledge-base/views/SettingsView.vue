@@ -273,7 +273,10 @@ async function addDirectory() {
     const result = await drainSelectedQueue();
     const failureCount = enqueueResult.failures.length + result.failures.length;
     if (failureCount) customMessage.warning(`目录已添加，${failureCount} 个文件处理失败`);
-    else customMessage.success(`目录来源已添加，处理 ${result.imported} 个文件`);
+    if (result.warnings?.length) customMessage.warning(result.warnings.join("；"));
+    if (!failureCount && !result.warnings?.length) {
+      customMessage.success(`目录来源已添加，处理 ${result.imported} 个文件`);
+    }
   } catch (error) { errorHandler.error(error, "添加目录来源失败"); }
 }
 
@@ -283,7 +286,10 @@ async function rescanSource(sourceId: string) {
     const result = await drainSelectedQueue();
     const failureCount = enqueueResult.failures.length + result.failures.length;
     if (failureCount) customMessage.warning(`目录扫描完成，${failureCount} 个文件处理失败`);
-    else customMessage.success(`目录扫描完成，处理 ${result.imported} 个文件`);
+    if (result.warnings?.length) customMessage.warning(result.warnings.join("；"));
+    if (!failureCount && !result.warnings?.length) {
+      customMessage.success(`目录扫描完成，处理 ${result.imported} 个文件`);
+    }
   }
   catch (error) { errorHandler.error(error, "重新扫描目录失败"); }
 }
@@ -302,7 +308,10 @@ async function retryTask(taskId: string) {
     await retryKnowledgeIngestTask(selectedLibraryId.value, taskId);
     const result = await drainSelectedQueue();
     if (result.failures.length) customMessage.warning("任务重试后仍然失败，请检查最近错误");
-    else customMessage.success("任务重试完成");
+    if (result.warnings?.length) customMessage.warning(result.warnings.join("；"));
+    if (!result.failures.length && !result.warnings?.length) {
+      customMessage.success("任务重试完成");
+    }
   } catch (error) { errorHandler.error(error, "重试摄取任务失败"); }
 }
 

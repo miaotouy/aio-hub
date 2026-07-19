@@ -1,12 +1,13 @@
 # Knowledge 资料库产品方案
 
-- **状态**：产品方向已重构，待按本方案修订现有交互与实施计划
+- **状态**：现行产品契约已确认；代码与阶段自动化已落地，最终真实 Tauri 回归待完成
 - **创建日期**：2026-07-17
-- **最近修订**：2026-07-18
+- **最近修订**：2026-07-19
 - **适用范围**：`src/tools/knowledge-base/`、`src/tools/retrieval/`、`src/tools/llm-chat/`、`src/tools/agent-manager/`、`src-tauri/src/knowledge/`
 - **关联文档**：
   - [Knowledge 架构说明](../../ARCHITECTURE.md)
-  - [Knowledge 设置与文档导入交互补完计划](./knowledge-base-settings-and-import-interaction-plan.md)
+  - [Knowledge 施工步骤计划清单](./knowledge-base-implementation-checklist.md)
+  - [Knowledge 设置与文档导入交互补完计划（已归档）](./Archived/knowledge-base-settings-and-import-interaction-plan.md)
   - [Recall / Knowledge 领域拆分与重构实施计划](../../../recall/docs/Plan/recall-knowledge-domain-restructure-implementation-plan.md)
   - [模型身份与 Embedding 空间设计](../../../../../docs/design/model-identity-and-embedding-space-design.md)
 

@@ -1,15 +1,16 @@
 # Knowledge 设置与文档导入交互补完计划
 
-- **状态**：已暂停，待按 Knowledge 产品方案重写
+- **状态**：已归档；有效内容已由 Knowledge 产品方案和统一施工清单吸收
 - **创建日期**：2026-07-18
-- **最近修订**：2026-07-18
+- **最近修订**：2026-07-19
 - **适用范围**：`src/tools/knowledge-base/`、`src-tauri/src/knowledge/`
 - **关联文档**：
-  - [Knowledge 资料库产品方案](./knowledge-base-product-interaction-design.md)
-  - [Recall / Knowledge 领域拆分与重构实施计划](../../../recall/docs/Plan/recall-knowledge-domain-restructure-implementation-plan.md)
-  - [Knowledge 架构说明](../../ARCHITECTURE.md)
+  - [Knowledge 资料库产品方案](../knowledge-base-product-interaction-design.md)
+  - [Knowledge 施工步骤计划清单](../knowledge-base-implementation-checklist.md)
+  - [Recall / Knowledge 领域拆分与重构实施计划](../../../../recall/docs/Plan/recall-knowledge-domain-restructure-implementation-plan.md)
+  - [Knowledge 架构说明](../../../ARCHITECTURE.md)
 
-> **暂停说明（2026-07-18）**：后续调查确认，本文从现有硬编码缺口直接推导了配置分层、自动向量化默认值、占位符延续、向量维度限制和若干导入约束，却没有先明确 Knowledge 的产品定位。上位产品方案现已将 Knowledge 定义为“用户或 Agent 主动调用的本地冷资料检索服务”，并明确不以绑定后的自动上下文注入为标准路径。本文第 3 节以后保留为历史调查和旧施工草案，不再表示“已确认设计决策”，任何 Phase 均不得直接开工。重写时必须先完成旧占位符使用调查、Agent 访问权限模型、独立 Knowledge 工具和结构化 `@` mention 的契约设计。
+> **归档说明（2026-07-19）**：本文从旧实现缺口推导出的草案已经停止执行。配置分层、格式能力、持久摄取队列、目录同步和交互要求中的有效部分已落实并记录到统一施工清单；占位符、授权和主动调用边界以现行产品方案为准。本文只用于追溯早期调查，不得作为当前施工或验收依据。
 
 ## 1. 背景与结论
 

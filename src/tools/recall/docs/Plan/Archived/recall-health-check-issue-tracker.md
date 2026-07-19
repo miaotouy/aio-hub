@@ -1,7 +1,9 @@
 # Recall 与 Chat 关联已知问题跟踪
 
-**状态**: 8 / 8 已完成，独立提交与当前 HEAD 自动验证均已通过
-**最近复核**: 2026-07-18
+**状态**: 已归档；8 / 8 已完成，独立提交与归档前 HEAD 自动验证均已通过
+
+> **归档说明（2026-07-19）**：本问题清单已经闭环，仅保留修复与验收记录。当前施工状态见 [`../recall-knowledge-domain-restructure-implementation-plan.md`](../recall-knowledge-domain-restructure-implementation-plan.md)。
+**最近复核**: 2026-07-19
 
 ## 1. 用途
 

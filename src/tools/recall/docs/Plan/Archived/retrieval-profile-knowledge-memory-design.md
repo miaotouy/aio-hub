@@ -1,9 +1,9 @@
 # Recall / Knowledge 检索模式与思绪召回设计调查
 
-**状态**: 调查完成，结论已更新，施工步骤已迁至统一计划
-**实现状态**: Recall profile、双域 processor、Knowledge binding 与 mixed RRF 已完成；最终真实运行态验收仍待执行
+**状态**: 已归档；调查交付完成，施工步骤已迁至统一计划
+**实现状态**: Recall profile 已落地；早期 Knowledge processor、检索占位符和 mixed RRF 方案已被主动工具与结构化引用契约替代
 **创建日期**: 2026-06-23
-**最近修订**: 2026-07-18
+**最近修订**: 2026-07-19
 **适用范围**: `src/tools/recall/`、`src-tauri/src/recall/`、`src/tools/knowledge-base/`、`src-tauri/src/knowledge/`
 
 ---
@@ -16,7 +16,7 @@
 - **Knowledge / 知识**：承载传统 RAG 资料，包括文档、手册、论文、网页、百科、代码资料包等，使用 document/chunk/source 结构，强调出处、切片和可引用性。
 - 新增类型、UI 文案和内部路由使用 `recall` / `knowledge` / `mixed`。
 - `semantic` 与 `associative` 是 Recall 域内部的两个 profile；Knowledge 域走独立 document/chunk 检索通道。
-- 现有 CAIU 实现整体迁入 Recall，原 `knowledge-base` 只保留为未来 Knowledge 资料库入口；具体施工顺序统一记录在 [Recall / Knowledge 领域拆分与重构实施计划](./recall-knowledge-domain-restructure-implementation-plan.md)。
+- 现有 CAIU 实现整体迁入 Recall，原 `knowledge-base` 只保留为未来 Knowledge 资料库入口；具体施工顺序统一记录在 [Recall / Knowledge 领域拆分与重构实施计划](../recall-knowledge-domain-restructure-implementation-plan.md)。
 - 重构施工前先发布 [按库备份与恢复功能](./pre-restructure-library-backup-import-export-plan.md)。该功能只冻结源条目与资产的可恢复契约，不提前引入 Recall profile、Knowledge chunk 或 mixed retrieval。
 
 ### 0.1 2026-07-17 调查与讨论补充
@@ -433,7 +433,7 @@ Knowledge 参数 schema：
 
 `when=static`、`entries`、`profile`、`gate-tags` 只属于 Recall；`strategy`、`citation` 只属于 Knowledge。两个 processor 不得接受或忽略对方的参数，避免一侧实现变化改变另一侧的结果。
 
-宏只是上述协议的便捷入口：`{{recall}}` / `{{recall_list}}` 和 `{{knowledge}}` / `{{knowledge_list}}`。带参数的宏使用相同的命名后缀，例如 `{{recall::collection=<collection-id>::limit=8}}`；macro serializer 必须生成 canonical placeholder，不能继续生成位置参数串。`mixed` 只属于 `RetrievalMode` 的主动 API 和上层路由；提示词需要两个域时写两个占位符，由路由层分别执行并保留来源，不新增 `【mixed】` 语法。
+本节记录的是 2026-07-18 的阶段性双 processor 方案。现行实现仅保留 Recall 的 `{{recall}}` / `{{recall_list}}` 和 Knowledge 的只读目录宏 `{{knowledge_list}}`；Knowledge 检索通过 `knowledge.listLibraries`、`knowledge.search`、`knowledge.read`、`knowledge.research` 或结构化 `KnowledgeReference` 发起，不注册 `{{knowledge}}` 或 `【knowledge::...】`。Recall 与 Knowledge 的组合由上层显式编排并保留独立来源，不提供混合原始分数的产品级 `mixed` 工具。
 
 ### 4.4 结果解释
 
@@ -537,7 +537,7 @@ keyword/key signal 作为可解释增强
 
 本调查只定义检索域、profile、结果语义和算法边界，不维护迁名、迁移或引擎融合的施工步骤。
 
-统一施工阶段、发布边界、兼容策略和完成门槛见 [Recall / Knowledge 领域拆分与重构实施计划](./recall-knowledge-domain-restructure-implementation-plan.md)。
+统一施工阶段、发布边界、兼容策略和完成门槛见 [Recall / Knowledge 领域拆分与重构实施计划](../recall-knowledge-domain-restructure-implementation-plan.md)。
 
 施工前置的 `.aio-kb` 按库备份只保存完整语义条目、库级元数据和引用资产。向量、tag pool、Lens / Blender 结构、分数和 trace 都是可重建派生数据，不进入备份包；恢复后继续使用当前引擎重建，不能借备份导入偷偷改变检索结果。
 
@@ -582,12 +582,14 @@ Knowledge 面向传统 RAG 文档召回，不应继承 CAIU / TagMemo 的 Recall
 
 已有配置、缓存 key、Agent 绑定和 Playground slot 可能保存旧 `engineId`。
 
-2026-07-18 实现状态复核：
+2026-07-18 阶段性实现状态复核（已被后续 Knowledge 产品方案替代）：
 
 - 主动检索已通过 `retrieval` Agent registry 支持 `recall`、`knowledge` 和 `mixed`，mixed 保留分域配额后使用 RRF 融合。
 - `RecallProcessor` 与 `KnowledgeProcessor` 已独立注册并严格校验各自命名参数；共享 tokenizer 只识别 `recall` 与 `knowledge` namespace。
 - `{{recall}}` / `{{recall_list}}` 与 `{{knowledge}}` / `{{knowledge_list}}` 已生成 canonical 占位符；旧 `{{kb}}`、`【kb】` 和历史位置参数只产生诊断，不触发检索。
 - 结构化 Agent 配置已迁移到 `recallConfig` / `recallSettings`，Knowledge 使用独立 `knowledgeConfig` / `knowledgeSettings` 和稳定 library ID binding。
+
+2026-07-19 当前契约：Knowledge 使用 `knowledgeAccess` 保存稳定 library ID 与能力权限；`{{knowledge_list}}` 只列授权目录，普通消息和授权本身不触发检索。具体产品边界见 [`../../../../knowledge-base/docs/Plan/knowledge-base-product-interaction-design.md`](../../../../knowledge-base/docs/Plan/knowledge-base-product-interaction-design.md)，剩余施工与发布门禁见 [`../recall-knowledge-domain-restructure-implementation-plan.md`](../recall-knowledge-domain-restructure-implementation-plan.md)。
 - 重构前 `.aio-kb` 仍是按库数据备份，不包含 Agent binding 或自由文本占位符；最终迁移报告需分别汇总数据迁移和 Agent migration 统计。
 
 迁移输入映射：
@@ -631,4 +633,4 @@ Recall 内部: semantic / associative 是召回 profile，不是产品级双库�
 Lens / Blender: 作为 associative profile 的实现基础。
 ```
 
-具体实施步骤不在本调查重复维护，统一见 [Recall / Knowledge 领域拆分与重构实施计划](./recall-knowledge-domain-restructure-implementation-plan.md)。
+具体实施步骤不在本调查重复维护，统一见 [Recall / Knowledge 领域拆分与重构实施计划](../recall-knowledge-domain-restructure-implementation-plan.md)。

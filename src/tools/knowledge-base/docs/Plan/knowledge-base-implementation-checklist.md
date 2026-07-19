@@ -1,12 +1,12 @@
 # Knowledge 施工步骤计划清单
 
-- **状态**：Phase 3/4 业务门禁已有通过记录；当前停在 Phase 5 最终真实回归（新增 Tauri WebDriver 基础设施 smoke 已接入，但全仓测试隔离、业务 E2E 场景和跨模块回归仍未完成）
+- **状态**：Phase 0 至 Phase 4、Phase 5 代码与自动化工程检查已完成；当前仅剩 P5-T06 固定真实 Tauri 跨模块回归与 P5-GATE 收口
 - **创建日期**：2026-07-18
 - **最近修订**：2026-07-19
 - **适用范围**：`src/tools/knowledge-base/`、`src/tools/retrieval/`、`src/tools/llm-chat/`、`src/tools/agent-manager/`、`src-tauri/src/knowledge/`
 - **上位依据**：
   - [Knowledge 资料库产品方案](./knowledge-base-product-interaction-design.md)
-  - [Knowledge 设置与文档导入交互补完计划](./knowledge-base-settings-and-import-interaction-plan.md)
+  - [Knowledge 设置与文档导入交互补完计划（已归档）](./Archived/knowledge-base-settings-and-import-interaction-plan.md)
   - [Knowledge 架构说明](../../ARCHITECTURE.md)
   - [Recall / Knowledge 领域拆分与重构实施计划](../../../recall/docs/Plan/recall-knowledge-domain-restructure-implementation-plan.md)
   - [模型身份与 Embedding 空间设计](../../../../../docs/design/model-identity-and-embedding-space-design.md)
@@ -19,7 +19,7 @@
 
 1. `knowledge-base-product-interaction-design.md` 中已经确认的产品契约。
 2. `ARCHITECTURE.md` 与跨模块设计中的现行技术约束。
-3. `knowledge-base-settings-and-import-interaction-plan.md` 中仍适用的调查结论、UI 要求和测试项。
+3. 已归档 `knowledge-base-settings-and-import-interaction-plan.md` 中仍适用的调查结论、UI 要求和测试项；该旧稿不再作为独立施工入口。
 4. 现有代码只能说明当前状态，不能自动覆盖已经确认的目标语义。
 
 执行规则：
@@ -378,9 +378,9 @@ Phase 3 分为五个施工批次。后端配置和摄取契约先行，工作台
 - [x] E2E-AUTO-00 接入 WebdriverIO Tauri service、debug-only WebDriver 插件、隔离产物目录和基础 `smoke.spec.ts`，提供 `bun run test:tauri:e2e` 入口。
 - [x] E2E-AUTO-01 新增独立 WebdriverIO 配置和 `bun` runner，固定 debug binary、隔离数据根、本地 Embedding/Chat mock，并统一保存失败截图、日志、mock 请求摘要和运行/session 信息。
 - [x] E2E-AUTO-02 为 Knowledge、Chat、Agent Manager 的关键控件补稳定 `data-testid`/可访问名称；测试断言优先使用这些契约，不依赖文案或坐标。（已补齐 Knowledge 选择/引用、Chat 编辑器/会话/发送/停止/工具事件、Chat Agent 列表，以及 Agent Manager 现有关键入口；业务用例已迁移到稳定 selector）
-- [ ] E2E-AUTO-03 将 P3-T05/P3-T06/P4 真实 Chat 链路迁移到 WDIO；保留 CDP 仅做样式和调试补充。
-- [ ] E2E-AUTO-04 为 Windows 原生选择器和拖放建立 UI Automation runner；runner 不得调用业务 command 绕过系统入口，并记录桌面会话、窗口标题、fixture 路径和失败截图。
-- [ ] E2E-AUTO-05 增加 AI 辅助 profile：MCP 只能连接隔离 debug 实例，默认关闭写文件/任意 IPC 工具；其输出作为人工复现或测试草稿，不直接勾选 P5-T06/P5-GATE。
+- [ ] E2E-AUTO-03 将 Agent 主动 `list/search/read`、重建恢复和研究成功/取消补入固定 WDIO 跨模块场景；保留 CDP 仅做样式和调试补充。
+- [ ] E2E-AUTO-04 补齐 Windows Explorer 绝对路径拖放和窗口管理的 UI Automation；原生文件/目录选择器 runner 已完成，剩余入口不得调用业务 command 绕过系统交互。
+- [ ] E2E-AUTO-05（可选增强，不阻塞 P5-GATE）增加 AI 辅助 profile；其输出只用于人工复现或测试草稿，不能替代确定性断言。
 
 当前已落地的基础配置对应 E2E-AUTO-00：`package.json` 提供 `bun run test:tauri:e2e`，`tests/tauri-e2e/wdio.conf.ts` 使用 embedded WebDriver，`src-tauri` 只在 debug 构建注册 `tauri-plugin-wdio` 和 `tauri-plugin-wdio-webdriver`，并以 `smoke.spec.ts` 验证真实 Tauri WebView 可被接管。它不等于 Knowledge 业务验收：稳定业务 selector、本地 Embedding/Chat mock、固定隔离数据根和原生 UI Automation 尚未迁移，因此 E2E-AUTO-01 至 05 仍不能整体勾选。
 
@@ -424,7 +424,7 @@ Phase 3 分为五个施工批次。后端配置和摄取契约先行，工作台
 - [x] P3-T04A Knowledge 初始化复用统一数据根；Rust 测试覆盖 manifest 不持久化单库路径，以及整体移动数据根后的重启恢复。
 - [x] P3-T05 按上述协议在隔离 appData 的真实 Tauri WebView 中验收文件选择、多文件拖放、目录同步、重启恢复，以及经本地可控 Embedding mock 的完整模型请求与索引链路。
 - [x] P3-T06 验收大、中、小窗口、键盘、明暗主题、覆盖层层级和错误对比度。
-- [x] P3-DOC 重写设置/导入计划的暂停部分，记录最终配置分层、格式、队列、目录同步和实际施工偏差。
+- [x] P3-DOC 将旧设置/导入草案归档；在本清单、产品方案和架构说明中记录最终配置分层、格式、队列、目录同步和实际施工偏差。
 - [x] P3-GATE 用户可以稳定管理资料源、检查派生索引和失败任务；更新或重建失败不会破坏原有可用数据。
 
 Phase 3 自动验证补充：配置测试现覆盖嵌套默认合并且不共享引用；设置视图组件测试覆盖重置确认、切库时丢弃未保存表单而不串库，以及防抖保存失败后保留当前输入。组件测试隔离了 ConfigManager 的 logger/time 全局设置依赖，不用真实 appData 替代 P3-T05。
@@ -516,7 +516,7 @@ P5-T06 当前仍待执行：Phase 3 的资料库文件/目录摄取与 Phase 4 �
 - **P1：业务 E2E 已覆盖基础跨工具链路和原生摄取，但尚未覆盖完整 Knowledge 链路。** 当前已通过真实 UI 建库、稳定 library ID、Agent 模型选择、Knowledge 权限创建/重开持久化、Knowledge/Agent Manager/Chat 跨路由、隔离模型 Profile 加载、显式引用触发 `knowledge.search` 工具事件，以及 Windows 原生文件/目录选择器摄取；Agent 主动 `list/search/read`、重建恢复、研究成功/取消仍缺固定 WDIO 用例，因此不能替代 P5-T06。
 - **已解决 P1：业务自动化契约已完成首轮迁移。** Knowledge、Chat 输入区、Chat Agent 列表和 Agent Manager 关键入口均有稳定 selector；新增用例不依赖文案或坐标，稳定断言覆盖授权库选择、会话创建、引用 chip、发送按钮和 `knowledge.search` 工具状态。
 - **已解决 P1：本地模型 mock 与基础 fixture。** E2E runner 自动启动确定性的 Embedding/Chat completion mock，写入隔离 Profile，记录无密钥请求摘要、运行 metadata、前后端日志和失败截图；真实 Tauri UI 已确认 Profile 被 ConfigManager 加载。
-- **P1：P5-T06 尚未完成最终跨模块回归。** Agent Manager 权限开关与资料库授权持久化已通过真实 UI 回归；还需补 Agent 主动查询、用户显式引用，并与已通过的摄取/研究场景串成一次完整回归。
+- **P1：P5-T06 尚未完成最终跨模块回归。** Agent Manager 权限持久化和用户显式引用查询已通过真实 UI 回归；还需补 Agent 主动 `list/search/read`、重建恢复和研究成功/取消，并与已通过的摄取场景串成一次完整回归。
 - **P2 部分处理：Windows 原生文件/目录选择器已有实测通过的验收层。** 新增 .NET 8 + FlaUI 5 + UIA3 helper，原生模式由 Bun 构建并生成隔离 fixture，WDIO 负责触发产品入口和断言文件/目录摄取结果；helper 按当前 Tauri PID、模态窗口、AutomationId、ControlType 和 UIA Pattern 操作 Win10 Common Item Dialog，并保存 UIA 树/失败截图。绝对路径拖放和窗口管理仍缺真实 Explorer 指针操作，E2E-AUTO-04 尚不能整体标记完成。
 - **P2：AI 辅助 profile 不是门禁必需项。** E2E-AUTO-05 可用于探索、失败复现和生成测试草稿，但不能作为 P5-T06/P5-GATE 的唯一断言来源。
 

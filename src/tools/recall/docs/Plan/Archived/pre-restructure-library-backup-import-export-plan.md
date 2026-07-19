@@ -1,13 +1,15 @@
 # 知识库重构前按库备份与恢复功能计划
 
-**状态**: 已完成；2026-07-17 真实 Tauri 往返验证通过并解锁 Stage 0，未单独发布版本
+**状态**: 已归档；2026-07-17 真实 Tauri 往返验证通过并解锁 Stage 0，未单独发布版本
+
+> **归档说明（2026-07-19）**：本前置计划已经闭环，`.aio-kb` v1 继续作为迁移与恢复输入契约。当前施工状态见 [`../recall-knowledge-domain-restructure-implementation-plan.md`](../recall-knowledge-domain-restructure-implementation-plan.md)。
 **创建日期**: 2026-07-17
-**最近修订**: 2026-07-18
+**最近修订**: 2026-07-19
 **适用范围**: `src/tools/knowledge-base/`、`src-tauri/src/knowledge/`、全局 AssetManager 的既有导入能力
 
 关联文档：
 
-- [Recall / Knowledge 领域拆分与重构实施计划](./recall-knowledge-domain-restructure-implementation-plan.md)
+- [Recall / Knowledge 领域拆分与重构实施计划](../recall-knowledge-domain-restructure-implementation-plan.md)
 - [后端存储数据库化设计调查](./backend-storage-database-design.md)
 - [检索模式与思绪引擎设计调查](./retrieval-profile-knowledge-memory-design.md)
 

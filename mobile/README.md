@@ -36,4 +36,5 @@
 - **iOS 开发**: `bun run mtid`
 - **iOS 构建**: `bun run mtib`
 
-更多信息请参考项目根目录的说明。
+本地多架构产物、Android 签名、CI 发布密钥和安装排错请参阅
+[移动端构建说明](../docs/guide/mobile-build.md)。

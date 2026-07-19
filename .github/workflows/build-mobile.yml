@@ -47,10 +47,58 @@ jobs:
           bun install
           cd mobile && bun install
 
+      - name: 准备 Android 签名
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cd mobile/src-tauri/gen/android
+          if [[ -n "${ANDROID_KEYSTORE_BASE64:-}" ]]; then
+            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > release.keystore
+            : "${ANDROID_KEYSTORE_PASSWORD:?ANDROID_KEYSTORE_PASSWORD is required with ANDROID_KEYSTORE_BASE64}"
+            : "${ANDROID_KEY_ALIAS:?ANDROID_KEY_ALIAS is required with ANDROID_KEYSTORE_BASE64}"
+            : "${ANDROID_KEY_PASSWORD:?ANDROID_KEY_PASSWORD is required with ANDROID_KEYSTORE_BASE64}"
+          else
+            if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+              echo "::error::正式 Android 发布必须配置 ANDROID_KEYSTORE_* Secrets。"
+              exit 1
+            fi
+            echo "未配置 Android 发布密钥，手动草稿构建将使用 CI 临时测试密钥。"
+            keytool -genkeypair -v -keystore release.keystore -storepass android -keypass android \
+              -alias aiohub-release -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=AIO Hub, OU=Mobile, O=AIO Hub, L=Unknown, ST=Unknown, C=CN"
+            ANDROID_KEYSTORE_PASSWORD=android
+            ANDROID_KEY_ALIAS=aiohub-release
+            ANDROID_KEY_PASSWORD=android
+          fi
+          cat > key.properties <<EOF
+          storeFile=release.keystore
+          storePassword=${ANDROID_KEYSTORE_PASSWORD}
+          keyAlias=${ANDROID_KEY_ALIAS}
+          keyPassword=${ANDROID_KEY_PASSWORD}
+          EOF
+
       - name: 构建 Android 应用
         run: bun run mtab -- --apk --ci
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 验证 APK 签名
+        shell: bash
+        run: |
+          set -euo pipefail
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
+          test -n "$APKSIGNER"
+          shopt -s nullglob
+          apks=(mobile/src-tauri/target/release/bundle/android/*.apk)
+          test "${#apks[@]}" -gt 0
+          for apk in "${apks[@]}"; do
+            "$APKSIGNER" verify --verbose "$apk"
+          done
 
       - name: 上传构建产物到 Artifacts
         uses: actions/upload-artifact@v4
@@ -112,7 +160,8 @@ jobs:
             ### 注意事项
             - 移动端目前处于开发预览阶段。
             - 推荐优先下载 `arm64-v8a` 版本以获得最佳性能。
-            - 当前 Android 产物为未签名构建，仅适合测试与预览。
+            - Android APK 已签名，可直接在设备上安装。
+            - 手动草稿构建未配置 `ANDROID_KEYSTORE_*` Secrets 时会使用临时测试密钥，不能用于跨版本覆盖安装。
           draft: ${{ steps.get-release-info.outputs.is_draft }}
           prerelease: ${{ contains(steps.get-release-info.outputs.version, 'beta') || contains(steps.get-release-info.outputs.version, 'alpha') }}
           files: artifacts/*.apk

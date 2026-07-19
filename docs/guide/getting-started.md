@@ -105,6 +105,9 @@ bun run mtib
 
 移动端工具链依赖 Android Studio、Xcode 和对应平台 SDK。首次配置耗时较长，建议先确认桌面端能正常启动。
 
+Android 本地多架构构建、签名配置、CI 发布密钥和安装问题排查请参阅
+[移动端构建说明](./mobile-build.md)。
+
 ## 文档开发
 
 用户教程位于 `docs/user-guide/`，开发指南位于 `docs/guide/`，架构文档位于 `docs/architecture/`。

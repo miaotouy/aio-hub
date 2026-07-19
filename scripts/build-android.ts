@@ -142,23 +142,39 @@ export function collectAndroidArtifacts(
     const apkFiles = walkFiles(apkRoot).filter(
       (filePath) =>
         filePath.toLowerCase().endsWith(".apk") &&
-        isProfilePath(filePath, options.profile)
+        isProfilePath(filePath, options.profile) &&
+        !filePath.toLowerCase().endsWith("-unsigned.apk")
     );
-    const selectedApkFiles = options.splitPerAbi
-      ? apkFiles.filter((filePath) => {
-          const abi = getApkAbi(filePath, apkRoot);
-          return abi !== null && abi !== "universal";
-        })
-      : apkFiles.filter((filePath) => {
-          const abi = getApkAbi(filePath, apkRoot);
-          return options.targetAbis.length > 0
-            ? options.targetAbis.includes(abi ?? "")
-            : abi === "universal";
-        });
+    let selectedApkFiles: string[];
+    if (options.splitPerAbi) {
+      selectedApkFiles = apkFiles.filter((filePath) => {
+        const abi = getApkAbi(filePath, apkRoot);
+        return abi !== null && abi !== "universal";
+      });
+    } else if (options.targetAbis.length > 0) {
+      selectedApkFiles = apkFiles.filter((filePath) => {
+        const abi = getApkAbi(filePath, apkRoot);
+        return options.targetAbis.includes(abi ?? "");
+      });
+      if (selectedApkFiles.length === 0) {
+        // Tauri may place a single-target APK in the universal flavor directory.
+        selectedApkFiles = apkFiles.filter(
+          (filePath) => getApkAbi(filePath, apkRoot) === "universal"
+        );
+      }
+    } else {
+      selectedApkFiles = apkFiles.filter(
+        (filePath) => getApkAbi(filePath, apkRoot) === "universal"
+      );
+    }
 
     for (const sourcePath of selectedApkFiles) {
-      const abi = getApkAbi(sourcePath, apkRoot);
-      if (abi) {
+      const outputAbi = getApkAbi(sourcePath, apkRoot);
+      if (outputAbi) {
+        const abi =
+          outputAbi === "universal" && options.targetAbis.length === 1
+            ? options.targetAbis[0]
+            : outputAbi;
         artifacts.push({
           kind: "apk",
           sourcePath,
@@ -202,8 +218,7 @@ export function buildArtifactName(
 ): string {
   const product = sanitizeNamePart(productName);
   const safeVersion = sanitizeNamePart(version);
-  const unsigned = artifact.profile === "release" ? "-unsigned" : "";
-  return `${product}_${safeVersion}_android-${artifact.abi}-${artifact.profile}${unsigned}.${artifact.kind}`;
+  return `${product}_${safeVersion}_android-${artifact.abi}-${artifact.profile}.${artifact.kind}`;
 }
 
 function readJson<T>(filePath: string): T {

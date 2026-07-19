@@ -585,6 +585,7 @@ export default withMermaid({
           text: "开始",
           items: [
             { text: "开发环境搭建", link: "/guide/getting-started" },
+            { text: "移动端构建", link: "/guide/mobile-build" },
             { text: "添加新工具", link: "/guide/adding-new-tool" },
             { text: "注册工具", link: "/guide/tool-registry-guide" },
             { text: "贡献指南", link: "/guide/contribution-guide" },

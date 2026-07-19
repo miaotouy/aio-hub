@@ -13,6 +13,13 @@ val tauriProperties = Properties().apply {
     }
 }
 
+val signingProperties = Properties().apply {
+    val propFile = rootProject.file("key.properties")
+    if (propFile.exists()) {
+        propFile.inputStream().use { load(it) }
+    }
+}
+
 android {
     compileSdk = 36
     namespace = "com.aiohub.mobile"
@@ -23,6 +30,17 @@ android {
         targetSdk = 36
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
+    }
+    signingConfigs {
+        create("release") {
+            val storeFilePath = signingProperties.getProperty("storeFile")
+            if (!storeFilePath.isNullOrBlank()) {
+                storeFile = rootProject.file(storeFilePath)
+                storePassword = signingProperties.getProperty("storePassword")
+                keyAlias = signingProperties.getProperty("keyAlias")
+                keyPassword = signingProperties.getProperty("keyPassword")
+            }
+        }
     }
     buildTypes {
         getByName("debug") {
@@ -37,6 +55,10 @@ android {
             }
         }
         getByName("release") {
+            // CI supplies key.properties; local builds remain installable with the debug key.
+            signingConfig = signingConfigs.getByName("release").takeIf {
+                it.storeFile?.exists() == true
+            } ?: signingConfigs.getByName("debug")
             isMinifyEnabled = true
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }

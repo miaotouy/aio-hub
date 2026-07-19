@@ -47,7 +47,7 @@ describe("Android build artifact naming", () => {
         abi: "universal",
         profile: "release",
       })
-    ).toBe("AIO-Hub_0.1.1-m-beta.2_android-universal-release-unsigned.apk");
+    ).toBe("AIO-Hub_0.1.1-m-beta.2_android-universal-release.apk");
     expect(
       buildArtifactName("AIO-Hub", "0.1.1-m-beta.2", {
         kind: "apk",
@@ -61,7 +61,7 @@ describe("Android build artifact naming", () => {
     const outputsRoot = createOutputs();
     createArtifact(
       outputsRoot,
-      "apk/universal/release/app-universal-release-unsigned.apk"
+      "apk/universal/release/app-universal-release.apk"
     );
     createArtifact(outputsRoot, "apk/x86_64/debug/app-x86_64-debug.apk");
     createArtifact(
@@ -90,11 +90,11 @@ describe("Android build artifact naming", () => {
     const outputsRoot = createOutputs();
     createArtifact(
       outputsRoot,
-      "apk/arm64-v8a/release/app-arm64-v8a-release-unsigned.apk"
+      "apk/arm64-v8a/release/app-arm64-v8a-release.apk"
     );
     createArtifact(
       outputsRoot,
-      "apk/armeabi-v7a/release/app-armeabi-v7a-release-unsigned.apk"
+      "apk/armeabi-v7a/release/app-armeabi-v7a-release.apk"
     );
     createArtifact(
       outputsRoot,
@@ -110,5 +110,26 @@ describe("Android build artifact naming", () => {
       "arm64-v8a",
       "armeabi-v7a",
     ]);
+  });
+
+  it("maps a Tauri universal flavor output to its single requested ABI", () => {
+    const outputsRoot = createOutputs();
+    createArtifact(
+      outputsRoot,
+      "apk/universal/release/app-universal-release.apk"
+    );
+    createArtifact(
+      outputsRoot,
+      "apk/universal/release/app-universal-release-unsigned.apk"
+    );
+
+    const artifacts = collectAndroidArtifacts(
+      outputsRoot,
+      parseBuildOptions(["--apk", "--target", "aarch64", "--ci"])
+    );
+
+    expect(artifacts).toHaveLength(1);
+    expect(artifacts[0]?.abi).toBe("arm64-v8a");
+    expect(artifacts[0]?.sourcePath).toMatch(/app-universal-release\.apk$/);
   });
 });

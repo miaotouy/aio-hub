@@ -396,9 +396,9 @@ import {
   removeKnowledgeSource,
   rescanKnowledgeDirectorySource,
   retryKnowledgeIngestTask,
-} from "../service";
-import { processKnowledgeImportQueue } from "../ingestQueue";
-import { useKnowledgeStore } from "../store";
+} from "../services/service";
+import { processKnowledgeImportQueue } from "../services/ingestQueue";
+import { useKnowledgeStore } from "../stores/store";
 import type {
   KnowledgeIngestTask,
   KnowledgeLibraryIndexConfig,

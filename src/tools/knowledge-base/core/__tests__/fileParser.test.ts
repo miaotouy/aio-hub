@@ -4,7 +4,7 @@ import {
   KnowledgeFileParseError,
   isProbablyText,
   parseKnowledgeFile,
-} from "./fileParser";
+} from "../fileParser";
 
 vi.mock("@tauri-apps/plugin-fs", () => ({ readFile: vi.fn() }));
 vi.mock("@/utils/docxParser", () => ({ parseDocx: vi.fn() }));

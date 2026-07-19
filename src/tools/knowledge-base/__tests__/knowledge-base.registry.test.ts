@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import knowledgeRegistry from "./knowledge-base.registry";
+import knowledgeRegistry from "../knowledge-base.registry";
 
 const applicationContext = {
   agentId: "agent-1",
@@ -16,7 +16,7 @@ const listKnowledgeForAgent = vi.hoisted(() => vi.fn());
 const searchKnowledgeForAgent = vi.hoisted(() => vi.fn());
 const readKnowledgeForAgent = vi.hoisted(() => vi.fn());
 
-vi.mock("./application", () => ({
+vi.mock("../services/application", () => ({
   resolveKnowledgeApplicationContext: () => applicationContext,
   listKnowledgeForAgent,
   parseKnowledgeToolSearchRequest: (args: unknown) => args,

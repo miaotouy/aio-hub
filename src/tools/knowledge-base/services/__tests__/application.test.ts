@@ -7,20 +7,20 @@ import {
   readKnowledgeForAgent,
   resolveKnowledgeApplicationContext,
   searchKnowledgeForAgent,
-} from "./application";
+} from "../application";
 import type {
   AgentKnowledgeAccess,
   KnowledgeChunk,
   KnowledgeLibrary,
   KnowledgeLibraryIndexConfig,
   KnowledgeResult,
-} from "./types";
+} from "../../types";
 
 const listKnowledgeLibraries = vi.hoisted(() => vi.fn());
 const searchKnowledgeDetailed = vi.hoisted(() => vi.fn());
 const listKnowledgeChunks = vi.hoisted(() => vi.fn());
 
-vi.mock("./service", () => ({
+vi.mock("../service", () => ({
   listKnowledgeLibraries,
   searchKnowledgeDetailed,
   listKnowledgeChunks,

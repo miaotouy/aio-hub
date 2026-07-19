@@ -7,9 +7,12 @@ import {
   KnowledgeFileParseError,
   parseKnowledgeFile,
   type ParsedKnowledgeFile,
-} from "./fileParser";
-import { KNOWLEDGE_FILE_DIALOG_FILTERS, getKnowledgeFileName } from "./formats";
-import type { KnowledgeImportFailure } from "./types";
+} from "../core/fileParser";
+import {
+  KNOWLEDGE_FILE_DIALOG_FILTERS,
+  getKnowledgeFileName,
+} from "../core/formats";
+import type { KnowledgeImportFailure } from "../types";
 
 export interface KnowledgeImportProgress {
   phase: "parse" | "ingest";

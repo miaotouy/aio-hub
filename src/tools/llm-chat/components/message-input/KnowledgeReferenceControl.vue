@@ -5,9 +5,9 @@ import { BookOpenCheck, Search } from "lucide-vue-next";
 import { useLlmChatUiState } from "../../composables/ui/useLlmChatUiState";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useChatInputManager } from "../../composables/input/useChatInputManager";
-import { normalizeAgentKnowledgeAccess } from "@/tools/knowledge-base/access";
-import { listKnowledgeForAgent } from "@/tools/knowledge-base/application";
-import { createKnowledgeReference } from "@/tools/knowledge-base/reference";
+import { normalizeAgentKnowledgeAccess } from "@/tools/knowledge-base/services/access";
+import { listKnowledgeForAgent } from "@/tools/knowledge-base/services/application";
+import { createKnowledgeReference } from "@/tools/knowledge-base/services/reference";
 import type { KnowledgeLibrarySummary } from "@/tools/knowledge-base/types";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 

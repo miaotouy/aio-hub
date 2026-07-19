@@ -14,7 +14,7 @@ import type { RecallProfile } from "@/tools/recall/types/search";
 import {
   authorizeKnowledgeLibraryScope,
   resolveKnowledgeApplicationContext,
-} from "@/tools/knowledge-base/application";
+} from "@/tools/knowledge-base/services/application";
 
 const RETRIEVAL_MODES = new Set<RetrievalMode>([
   "recall",

@@ -2,6 +2,7 @@
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 
+/** Central capability table for files accepted by Knowledge imports. */
 export type KnowledgeFormatCategory =
   | "document"
   | "web"

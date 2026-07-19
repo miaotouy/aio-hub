@@ -2,14 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import {
   parseKnowledgeResearchRequest,
   runKnowledgeResearch,
-} from "./research";
-import { KnowledgeAccessError } from "./access";
+} from "../research";
+import { KnowledgeAccessError } from "../access";
 
 const authorizeKnowledgeLibraryScope = vi.hoisted(() => vi.fn());
 const searchKnowledgeForAgent = vi.hoisted(() => vi.fn());
 const readKnowledgeForAgent = vi.hoisted(() => vi.fn());
 
-vi.mock("./application", () => ({
+vi.mock("../application", () => ({
   authorizeKnowledgeLibraryScope,
   searchKnowledgeForAgent,
   readKnowledgeForAgent,

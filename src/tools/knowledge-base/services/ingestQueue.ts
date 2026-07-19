@@ -2,8 +2,11 @@
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 
-import { KnowledgeFileParseError, parseKnowledgeFile } from "./fileParser";
-import { getKnowledgeFileName } from "./formats";
+import {
+  KnowledgeFileParseError,
+  parseKnowledgeFile,
+} from "../core/fileParser";
+import { getKnowledgeFileName } from "../core/formats";
 import {
   claimKnowledgeIngestTask,
   completeKnowledgeIngestTask,
@@ -13,8 +16,8 @@ import {
   listKnowledgeLibraries,
   vectorizeKnowledgeLibrary,
 } from "./service";
-import { knowledgeRuntimeConfigManager } from "./config";
-import type { KnowledgeImportFailure, KnowledgeIngestTask } from "./types";
+import { knowledgeRuntimeConfigManager } from "../config";
+import type { KnowledgeImportFailure, KnowledgeIngestTask } from "../types";
 
 export interface KnowledgeQueueImportResult {
   imported: number;

@@ -5,7 +5,7 @@ const searchWithCache = vi.hoisted(() => vi.fn());
 const searchKnowledge = vi.hoisted(() => vi.fn());
 
 vi.mock("@/tools/recall/services/api", () => ({ searchWithCache }));
-vi.mock("@/tools/knowledge-base/service", () => ({ searchKnowledge }));
+vi.mock("@/tools/knowledge-base/services/service", () => ({ searchKnowledge }));
 
 function recall(id: string, score: number) {
   return {

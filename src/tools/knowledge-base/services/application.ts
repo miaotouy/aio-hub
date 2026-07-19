@@ -18,7 +18,7 @@ import type {
   KnowledgeToolReadResponse,
   KnowledgeToolSearchRequest,
   KnowledgeToolSearchResponse,
-} from "./types";
+} from "../types";
 
 const SEARCH_STRATEGIES = new Set<KnowledgeSearchStrategy>([
   "auto",

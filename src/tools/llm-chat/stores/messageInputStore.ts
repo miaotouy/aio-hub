@@ -36,8 +36,8 @@ import { processInlineData } from "@/composables/useAttachmentProcessor";
 import { useTranscriptionManager } from "../composables/features/useTranscriptionManager";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import type { PendingInputData } from "../types/context";
-import { validateKnowledgeReferenceForAgent } from "@/tools/knowledge-base/reference";
-import { normalizeAgentKnowledgeAccess } from "@/tools/knowledge-base/access";
+import { validateKnowledgeReferenceForAgent } from "@/tools/knowledge-base/services/reference";
+import { normalizeAgentKnowledgeAccess } from "@/tools/knowledge-base/services/access";
 
 export interface InputToolbarSettings {
   showTokenUsage: boolean;

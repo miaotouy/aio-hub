@@ -768,11 +768,11 @@ import {
   KNOWLEDGE_FORMAT_CAPABILITIES,
   KNOWLEDGE_FORMAT_SUMMARY,
   type KnowledgeFormatValidation,
-} from "../formats";
-import { importPaths, selectImportPaths } from "../importService";
-import { processKnowledgeImportQueue } from "../ingestQueue";
-import { searchKnowledgeDetailed } from "../service";
-import { useKnowledgeStore } from "../store";
+} from "../core/formats";
+import { importPaths, selectImportPaths } from "../services/importService";
+import { processKnowledgeImportQueue } from "../services/ingestQueue";
+import { searchKnowledgeDetailed } from "../services/service";
+import { useKnowledgeStore } from "../stores/store";
 import type {
   KnowledgeImportFailure,
   KnowledgeImportStage,

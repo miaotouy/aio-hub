@@ -129,7 +129,7 @@ import {
   applyKnowledgeLibraryConfig,
   switchKnowledgeEmbeddingRoute,
   vectorizeKnowledgeLibrary,
-} from "../service";
+} from "../services/service";
 import type { KnowledgeIndexStatus, KnowledgeLibrary } from "../types";
 import { normalizeKnowledgeLibraryConfig } from "../config";
 

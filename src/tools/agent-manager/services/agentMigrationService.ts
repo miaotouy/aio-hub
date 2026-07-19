@@ -22,7 +22,7 @@ import type { ChatAgent } from "../types/agent";
 import { DEFAULT_AGENT_EXTENSION_CONFIG } from "../types/agent";
 import { useAnchorRegistry } from "@/tools/llm-chat/composables/ui/useAnchorRegistry";
 import type { ChatMessageNode } from "@/tools/llm-chat/types/message";
-import { normalizeAgentKnowledgeAccess } from "@/tools/knowledge-base/access";
+import { normalizeAgentKnowledgeAccess } from "@/tools/knowledge-base/services/access";
 
 const logger = createModuleLogger("llm-chat/agentMigrationService");
 

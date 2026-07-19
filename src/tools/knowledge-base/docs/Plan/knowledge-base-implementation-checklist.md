@@ -132,7 +132,7 @@ Phase 0 契约收敛
 
 - Agent 配置链路：`KnowledgeLibrarySection.vue` 编辑 `knowledgeAccess`，`EditAgentDialog.vue` 保存完整表单，`agentStore.ts` 在创建、复制和恢复边界规范化权限，`useAgentStorage` 持久化 `agent.json`；导入先经 `migrateAgent()` 收敛 schema，导出按最终 `ChatAgent` 字段透传。
 - Chat 消息链路：`ChatMessageNode.metadata` 已能持久化结构化元数据和工具事件，输入区通过 `MessageInput` / `useChatInputManager` 管理附件；Phase 2 的 `KnowledgeReference` 适合放在消息节点独立字段或专用 metadata 字段，并随 session detail、分支复制和导入导出往返，不能复用普通附件路径。
-- Knowledge 复用能力：前端 `service.ts` 已提供 library/document/chunk/index/search IPC，Rust repository 已有 manifest、document、chunk、FTS、vector 与 graph 基础；缺口是 Agent 身份传递、统一权限校验、结构化 list/search/read 应用服务、read 预算契约和明确降级 metadata。
+- Knowledge 复用能力：前端 `services/service.ts` 已提供 library/document/chunk/index/search IPC，Rust repository 已有 manifest、document、chunk、FTS、vector 与 graph 基础；缺口是 Agent 身份传递、统一权限校验、结构化 list/search/read 应用服务、read 预算契约和明确降级 metadata。
 - 未发布 schema 处理：开发期 `knowledgeConfig`、阶段性 binding 和 `knowledgeSettings` 不属于可恢复用户契约，迁移/导入时直接丢弃；正式授权只从 `knowledgeAccess` 读取稳定 library ID 和能力开关。旧 Knowledge processor 与 parser 测试已删除，保留一项“旧信封不会触发 Recall/Knowledge 检索”的负向测试。
 - 一般问题记录：Recall 模块仍使用 `knowledgeSettingsConfig` 的历史命名，容易误导后续配置分层；本批次已更名为 `recallSettingsConfig` / `getRecallSettingsConfig`，未改变行为。
 - 门禁结果：Agent 创建、复制、开发期 schema 恢复、文本导入导出和目录宏往返测试已通过；产物只包含 `knowledgeAccess`，预设中的 `{{knowledge_list}}` 原样保留。
@@ -296,7 +296,7 @@ Phase 3 分为五个施工批次。后端配置和摄取契约先行，工作台
 
 - Rust 在每个 `library.kdb` 中持久化 source、source file 和 ingest task。入队流式计算原始 SHA-256，并在哈希前后复查 size/mtime；claim 使用 immediate transaction 和唯一 lease token，过期任务按 attempt 上限恢复为 retry 或 failed，旧 lease 的完成/失败回写均被拒绝。
 - parser 版本纳入入队快照、重复任务判定和完成校验。一般问题：初版草稿只按原始 checksum 去重，parser 升级后不会重新解析未变化文件；现改为 checksum 与 parser 版本共同决定 unchanged，并增加独立 `ingestMaxAttempts` 运行配置，避免错误复用 Embedding 重试次数。
-- 点击选择和拖放仍进入唯一 `importPaths(paths)`，实际写入改由 `ingestQueue.ts` 调用持久队列。worker 并发、lease 和有限重试来自 `KnowledgeRuntimeConfig`；store 初始化会恢复未完成任务。一般边界：parser 位于前端，Knowledge store 未初始化时队列只持久保存、不主动调用 parser；打开工作台或产生新导入后恢复，不影响已提交旧版本检索。
+- 点击选择和拖放仍进入唯一 `importPaths(paths)`，实际写入改由 `services/ingestQueue.ts` 调用持久队列。worker 并发、lease 和有限重试来自 `KnowledgeRuntimeConfig`；store 初始化会恢复未完成任务。一般边界：parser 位于前端，Knowledge store 未初始化时队列只持久保存、不主动调用 parser；打开工作台或产生新导入后恢复，不影响已提交旧版本检索。
 - 目录 source 使用相同入队、parser 和完成事务，不跟随符号链接；递归和 ignore 规则持久化。重扫将缺失路径排成 delete task，任务完成前旧文档仍可用；移动按旧路径删除和新路径导入处理。目录 UI 与诊断列表归批次 D，本批次已提供完整 command/service 契约。
 - 新基础版本提交前，把旧活动空间可用 chunk/vector 保存为单库语义回退快照。关键词检索立即只读取新 FTS；当前版本向量未全覆盖时语义检索只读旧快照，最后一批缺失向量提交时原子删除快照并切换。模型失败只产生可恢复 warning，不回滚新文档、关键词或旧语义状态。
 - 一般兼容记录：旧 `knowledge_ingest_document` command 暂时保留供既有测试和兼容调用，Knowledge 工作台已不再使用直写路径；无调用方确认后的物理清理由 P5-T10 处理。
@@ -433,7 +433,7 @@ Phase 3 自动验证补充：配置测试现覆盖嵌套默认合并且不共享
 
 Phase 4 首轮施工记录（2026-07-19）：
 
-- 采用当前 Agent 内置编排：`research.ts` 只复用 `authorizeKnowledgeLibraryScope`、`searchKnowledgeForAgent` 和 `readKnowledgeForAgent`，不切换隐藏模型或创建专用子 Agent。
+- 采用当前 Agent 内置编排：`services/research.ts` 只复用 `authorizeKnowledgeLibraryScope`、`searchKnowledgeForAgent` 和 `readKnowledgeForAgent`，不切换隐藏模型或创建专用子 Agent。
 - 已实现研究请求解析、问题拆分、多轮搜索/继续读取、最大轮次、最大工具调用数、证据字符预算、超时、取消、进度、引用、空缺、潜在冲突、部分失败证据保留和终止原因；Chat 显式引用可在有 `allowResearch` 权限时切换 research mode。
 - 已补研究服务、引用事件和模式选择器测试；当前定向研究/引用/registry/输入控件测试共 21 项通过，`check:frontend` 与 `lint` 通过。固定问题集 4/4 命中预期文件和 token，证据记录见 `.dev-data/knowledge-acceptance-20260719-6/phase4-research-evaluation.json`。
 - 尚未勾选 Phase 4 门禁：真实 Tauri Chat 研究全链路仍需验收；当前研究“结论”是结构化证据摘要，最终自然语言回答由当前 Agent 继续生成。

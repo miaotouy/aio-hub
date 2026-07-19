@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
-import { useKnowledgeStore } from "./store";
+import { useKnowledgeStore } from "../store";
 
 const serviceMocks = vi.hoisted(() => ({
   searchDetailed: vi.fn(),
 }));
 
-vi.mock("./service", () => ({
+vi.mock("../../services/service", () => ({
   applyKnowledgeLibraryConfig: vi.fn(),
   createKnowledgeLibrary: vi.fn(),
   deleteKnowledgeDocument: vi.fn(),
@@ -21,7 +21,7 @@ vi.mock("./service", () => ({
   updateKnowledgeLibrary: vi.fn(),
 }));
 
-vi.mock("./ingestQueue", () => ({
+vi.mock("../../services/ingestQueue", () => ({
   processKnowledgeImportQueue: vi.fn(),
 }));
 

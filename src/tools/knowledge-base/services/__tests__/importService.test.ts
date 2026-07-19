@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { open } from "@tauri-apps/plugin-dialog";
-import { KnowledgeFileParseError } from "./fileParser";
+import { KnowledgeFileParseError } from "../../core/fileParser";
 import {
   KNOWLEDGE_FILE_DIALOG_FILTERS,
   getKnowledgeFileName,
-} from "./formats";
-import { importPaths, selectImportPaths } from "./importService";
-import type { KnowledgeImportFailure } from "./types";
+} from "../../core/formats";
+import { importPaths, selectImportPaths } from "../importService";
+import type { KnowledgeImportFailure } from "../../types";
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
 

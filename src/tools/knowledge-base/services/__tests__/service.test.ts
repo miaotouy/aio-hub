@@ -9,18 +9,18 @@ import {
   updateKnowledgeDocumentTags,
   updateKnowledgeLibrary,
   vectorizeKnowledgeLibrary,
-} from "./service";
+} from "../service";
 import type {
   KnowledgeChunk,
   KnowledgeLibrary,
   KnowledgeResult,
-} from "./types";
+} from "../../types";
 import type { LlmProfile } from "@/types/llm-profiles";
 import {
   createDefaultKnowledgeLibraryConfig,
   createDefaultKnowledgeRuntimeConfig,
   knowledgeRuntimeConfigManager,
-} from "./config";
+} from "../../config";
 
 const embeddingMocks = vi.hoisted(() => ({
   call: vi.fn(),

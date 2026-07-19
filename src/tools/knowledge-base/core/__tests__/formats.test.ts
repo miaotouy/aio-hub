@@ -7,7 +7,7 @@ import {
   KNOWLEDGE_UNSUPPORTED_FORMATS,
   getKnowledgeMimeType,
   resolveKnowledgeFormat,
-} from "./formats";
+} from "../formats";
 
 describe("Knowledge format capabilities", () => {
   it("derives dialog and drop filters from the supported capability list", () => {

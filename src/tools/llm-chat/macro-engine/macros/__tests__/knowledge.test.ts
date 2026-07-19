@@ -6,7 +6,7 @@ import { registerKnowledgeMacros } from "../knowledge";
 
 const listKnowledgeLibraries = vi.hoisted(() => vi.fn());
 
-vi.mock("@/tools/knowledge-base/service", () => ({
+vi.mock("@/tools/knowledge-base/services/service", () => ({
   listKnowledgeLibraries,
 }));
 

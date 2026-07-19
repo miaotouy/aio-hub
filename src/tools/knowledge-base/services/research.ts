@@ -9,7 +9,7 @@ import type {
   KnowledgeToolHit,
   KnowledgeToolReadResponse,
   KnowledgeToolSearchResponse,
-} from "./types";
+} from "../types";
 
 export type KnowledgeResearchOutput = "brief" | "report" | "comparison";
 export type KnowledgeResearchStatus =

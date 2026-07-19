@@ -3,7 +3,7 @@ import type {
   AgentKnowledgeAccess,
   KnowledgeLibrary,
   KnowledgeLibrarySummary,
-} from "./types";
+} from "../types";
 
 export const DEFAULT_AGENT_KNOWLEDGE_ACCESS: AgentKnowledgeAccess = {
   enabled: false,

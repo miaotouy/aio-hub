@@ -26,14 +26,14 @@ import type {
   KnowledgeSearchRequest,
   KnowledgeSource,
   KnowledgeVectorRecord,
-} from "./types";
+} from "../types";
 import {
   createDefaultKnowledgeLibraryConfig,
   normalizeKnowledgeLibraryConfig,
   validateKnowledgeLibraryConfig,
-} from "./config";
-import { knowledgeRuntimeConfigManager } from "./config";
-import { KNOWLEDGE_PARSER_VERSION } from "./fileParser";
+} from "../config";
+import { knowledgeRuntimeConfigManager } from "../config";
+import { KNOWLEDGE_PARSER_VERSION } from "../core/fileParser";
 
 let initialization: Promise<void> | null = null;
 const logger = createModuleLogger("knowledge-base/service");

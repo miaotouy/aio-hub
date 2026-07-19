@@ -6,7 +6,7 @@ import type {
   KnowledgeReference,
   KnowledgeToolSearchResponse,
 } from "@/tools/knowledge-base/types";
-import type { KnowledgeResearchResult } from "@/tools/knowledge-base/research";
+import type { KnowledgeResearchResult } from "@/tools/knowledge-base/services/research";
 import type { ChatMessageNode, ChatSessionDetail } from "../types";
 import type { useNodeManager } from "../composables/session/useNodeManager";
 

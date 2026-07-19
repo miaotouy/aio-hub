@@ -5,7 +5,7 @@ import {
   normalizeKnowledgeLibraryConfig,
   saveKnowledgeRuntimeConfigDebounced,
   validateKnowledgeLibraryConfig,
-} from "./config";
+} from "../config";
 
 vi.mock("@/utils/logger", () => ({
   createModuleLogger: () => ({

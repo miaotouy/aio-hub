@@ -55,7 +55,7 @@ import type {
 } from "@/types/window-sync";
 import type { ModelIdentifier } from "../../types";
 import type { KnowledgeReference } from "@/tools/knowledge-base/types";
-import { normalizeKnowledgeReference } from "@/tools/knowledge-base/reference";
+import { normalizeKnowledgeReference } from "@/tools/knowledge-base/services/reference";
 import {
   generateAssetPlaceholder,
   generateUploadingPlaceholder,

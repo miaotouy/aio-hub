@@ -45,7 +45,7 @@ import { migrateAgent } from "./agentMigrationService";
 import {
   DEFAULT_AGENT_KNOWLEDGE_ACCESS,
   normalizeAgentKnowledgeAccess,
-} from "@/tools/knowledge-base/access";
+} from "@/tools/knowledge-base/services/access";
 
 const logger = createModuleLogger("llm-chat/agentImportService");
 const errorHandler = createModuleErrorHandler("llm-chat/agentImportService");

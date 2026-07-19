@@ -18,8 +18,8 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("../store", () => ({ useKnowledgeStore: () => mocks.store }));
-vi.mock("../service", () => ({
+vi.mock("../stores/store", () => ({ useKnowledgeStore: () => mocks.store }));
+vi.mock("../services/service", () => ({
   addKnowledgeDirectorySource: mocks.addDirectory,
   cancelKnowledgeIngestTask: vi.fn(),
   listKnowledgeIngestTasks: vi.fn().mockResolvedValue([]),
@@ -28,7 +28,9 @@ vi.mock("../service", () => ({
   rescanKnowledgeDirectorySource: vi.fn(),
   retryKnowledgeIngestTask: vi.fn(),
 }));
-vi.mock("../ingestQueue", () => ({ processKnowledgeImportQueue: mocks.processQueue }));
+vi.mock("../services/ingestQueue", () => ({
+  processKnowledgeImportQueue: mocks.processQueue,
+}));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: mocks.open }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ revealItemInDir: vi.fn() }));
 vi.mock("element-plus", () => ({

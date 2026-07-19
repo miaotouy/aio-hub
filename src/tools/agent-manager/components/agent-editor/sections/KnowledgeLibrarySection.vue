@@ -144,8 +144,8 @@ import {
   DEFAULT_AGENT_KNOWLEDGE_ACCESS,
   normalizeAgentKnowledgeAccess,
   resolveAuthorizedKnowledgeLibraries,
-} from "@/tools/knowledge-base/access";
-import { useKnowledgeStore } from "@/tools/knowledge-base/store";
+} from "@/tools/knowledge-base/services/access";
+import { useKnowledgeStore } from "@/tools/knowledge-base/stores/store";
 import type { KnowledgeLibrary } from "@/tools/knowledge-base/types";
 
 const editForm = inject<any>("agent-edit-form");

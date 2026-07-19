@@ -27,14 +27,27 @@ Knowledge 是 AIO Hub 的文档资料与来源回溯领域，与 Recall 思绪�
 
 ## 2. 前端边界
 
+前端目录按职责分层：
+
+```text
+knowledge-base/
+├── core/          # 格式能力与文件解析等纯领域能力
+├── services/      # IPC、授权、应用编排、导入与研究服务
+├── stores/        # Knowledge 工作台运行态
+├── components/    # 可复用业务组件
+├── views/         # 工作区与设置视图
+├── config.ts      # 资料库与运行时配置
+└── types.ts       # 跨层共享契约
+```
+
 - `KnowledgeBase.vue` 是资料库工作台，提供 library CRUD、批量文件导入、文档与分块主从浏览、索引状态、检索测试和来源展示。
 - `components/KnowledgeVectorDialog.vue` 提供 Embedding 模型选择、覆盖率、批次进度、模型切换确认和失败后重试。
-- `formats.ts` 是格式能力单一来源，统一导出类别、标签、扩展名、MIME、parser、验证等级、能力说明、文件选择 filter 和 DropZone accept。
-- `fileParser.ts` 按 capability 分派 PDF、DOCX、HTML 与文本解析。未知扩展名读取后执行文本/二进制检测；已知不支持格式和伪装成文本的二进制不会进入索引。扫描 PDF 无文本层时明确返回 OCR 未支持。
-- `importService.ts` 提供唯一的 `selectImportPaths()` 与 `importPaths(paths)`；点击选择、空状态拖放和已有文档覆盖层复用同一批处理、去重、进度和文件级失败契约。
-- `ingestQueue.ts` 将唯一导入入口接到 Rust 持久队列，按 `ingestQueueConcurrency` 并发领取任务并使用配置的 lease/重试上限；Knowledge store 初始化时恢复各库未完成任务。worker 解析后回传原始 SHA-256 与 parser 版本，Rust 负责最终一致性校验。未打开 Knowledge store 时任务保持持久化但不在后台调用前端 parser。
+- `core/formats.ts` 是格式能力单一来源，统一导出类别、标签、扩展名、MIME、parser、验证等级、能力说明、文件选择 filter 和 DropZone accept。
+- `core/fileParser.ts` 按 capability 分派 PDF、DOCX、HTML 与文本解析。未知扩展名读取后执行文本/二进制检测；已知不支持格式和伪装成文本的二进制不会进入索引。扫描 PDF 无文本层时明确返回 OCR 未支持。
+- `services/importService.ts` 提供唯一的 `selectImportPaths()` 与 `importPaths(paths)`；点击选择、空状态拖放和已有文档覆盖层复用同一批处理、去重、进度和文件级失败契约。
+- `services/ingestQueue.ts` 将唯一导入入口接到 Rust 持久队列，按 `ingestQueueConcurrency` 并发领取任务并使用配置的 lease/重试上限；Knowledge store 初始化时恢复各库未完成任务。worker 解析后回传原始 SHA-256 与 parser 版本，Rust 负责最终一致性校验。未打开 Knowledge store 时任务保持持久化但不在后台调用前端 parser。
 - 自动向量化只请求当前活动空间缺失的当前 chunk。模型失败不会回滚已完成的 document、关键词索引或旧语义快照；实际 descriptor 与活动空间不一致时停止写入并要求显式重建。
-- `service.ts` 是唯一 IPC 边界；`store.ts` 管理 library、document、chunk、result 与 index status 运行态。
+- `services/service.ts` 是唯一 IPC 边界；`stores/store.ts` 管理 library、document、chunk、result 与 index status 运行态。
 - Embedding 模型选项由共享 `useEmbeddingModelOptions()` 提供，Knowledge 不复制模型能力判断。
 - 批量导入以文件为失败隔离单元。成功文件立即保留，失败项保存文件名、绝对路径、validation/read/parse/ingest 阶段和原因。H5 只取得 `File.name` 时不伪造来源路径，提示改用文件选择器。
 
@@ -52,10 +65,10 @@ Knowledge 前端不导入 Recall store、entry、priority、tag pool 或 workspa
 ## 4. Chat 与 Agent
 
 - Agent 使用 `knowledgeAccess` 保存 `enabled`、稳定 `allowedLibraryIds`、`allowSearchAll`、`allowDocumentRead` 和 `allowResearch`。
-- `access.ts` 是共享授权解析边界，负责 ID 去重、默认值、查询范围校验、越权错误、已删除/暂不可用状态和目录格式。宏、Knowledge 工具、Chat 显式引用与 Agent Manager 必须复用该边界。
+- `services/access.ts` 是共享授权解析边界，负责 ID 去重、默认值、查询范围校验、越权错误、已删除/暂不可用状态和目录格式。宏、Knowledge 工具、Chat 显式引用与 Agent Manager 必须复用该边界。
 - `{{knowledge_list}}` 在用户指定的预设位置展开授权资料库目录，只读取摘要，不执行检索；宏缺失时不自动注入。名称和状态从资料库真源实时解析，持久化只保存 ID。
 - 不注册 `{{knowledge}}` 或 `【knowledge::...】`，上下文管道也没有 Knowledge processor。普通消息和 Agent 授权不会触发 Knowledge 检索。
-- `application.ts` 提供独立的 `knowledge.listLibraries`、`knowledge.search`、`knowledge.read` 应用服务：所有入口先从 `ToolContext` 解析 Agent 快照，再校验授权、可用状态和能力权限。`research.ts` 只编排这些原子服务，不建立第二套检索或授权路径。
+- `services/application.ts` 提供独立的 `knowledge.listLibraries`、`knowledge.search`、`knowledge.read` 应用服务：所有入口先从 `ToolContext` 解析 Agent 快照，再校验授权、可用状态和能力权限。`services/research.ts` 只编排这些原子服务，不建立第二套检索或授权路径。
 - `search` 按 library 独立调用底层检索，使不同 Embedding 空间分别生成 query vector 和候选；跨库只按 RRF rank score 融合，原始 score 与 signals 仅用于解释。`auto` 返回实际策略和降级原因，结果按字符预算裁剪并可选补充相邻 chunk。
 - `read` 支持 chunk ID、document + chunk index 邻域、heading 和字符范围，强制字符预算并返回前后 chunk 定位和完整来源字段。
 - 工具结果通过 `ToolMethodResult.executionMetadata` 把来源、耗时外的实际策略和失败类型写入可见工具事件。现有 Retrieval 上层组合入口复用同一权限范围，不能旁路访问未授权 Knowledge 库。

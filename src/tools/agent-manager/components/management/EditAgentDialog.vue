@@ -37,7 +37,7 @@ import { DEFAULT_TOOL_CALL_CONFIG } from "../../types/agent";
 import {
   DEFAULT_AGENT_KNOWLEDGE_ACCESS,
   normalizeAgentKnowledgeAccess,
-} from "@/tools/knowledge-base/access";
+} from "@/tools/knowledge-base/services/access";
 import AgentEditor from "../agent-editor/AgentEditor.vue";
 import MiniAgentList from "./MiniAgentList.vue";
 import type {

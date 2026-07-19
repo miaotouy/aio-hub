@@ -54,14 +54,14 @@ import { useTranscriptionManager } from "../features/useTranscriptionManager";
 import { useChatSettings } from "../settings/useChatSettings";
 import { solidifyGreetings } from "../../services/greetingService";
 import type { KnowledgeReference } from "@/tools/knowledge-base/types";
-import { normalizeAgentKnowledgeAccess } from "@/tools/knowledge-base/access";
+import { normalizeAgentKnowledgeAccess } from "@/tools/knowledge-base/services/access";
 import {
   executeKnowledgeReferenceSearch,
   executeKnowledgeReferenceResearch,
   formatKnowledgeReferenceResult,
   formatKnowledgeResearchResult,
   validateKnowledgeReferenceForAgent,
-} from "@/tools/knowledge-base/reference";
+} from "@/tools/knowledge-base/services/reference";
 import {
   completeExplicitKnowledgeToolEvent,
   completeExplicitKnowledgeResearchEvent,

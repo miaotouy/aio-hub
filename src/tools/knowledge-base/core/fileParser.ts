@@ -12,7 +12,7 @@ import {
   resolveKnowledgeFormat,
   type KnowledgeFormatCapability,
 } from "./formats";
-import type { KnowledgeImportStage } from "./types";
+import type { KnowledgeImportStage } from "../types";
 
 export interface ParsedKnowledgeFile {
   sourcePath: string;

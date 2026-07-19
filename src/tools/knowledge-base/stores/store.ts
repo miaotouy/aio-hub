@@ -14,8 +14,8 @@ import {
   searchKnowledgeDetailed,
   updateKnowledgeDocumentTags,
   updateKnowledgeLibrary,
-} from "./service";
-import { processKnowledgeImportQueue } from "./ingestQueue";
+} from "../services/service";
+import { processKnowledgeImportQueue } from "../services/ingestQueue";
 import type {
   KnowledgeDocument,
   KnowledgeChunk,
@@ -27,7 +27,7 @@ import type {
   KnowledgeResult,
   KnowledgeSearchTrace,
   KnowledgeSearchStrategy,
-} from "./types";
+} from "../types";
 
 const errorHandler = createModuleErrorHandler("knowledge-base/store");
 

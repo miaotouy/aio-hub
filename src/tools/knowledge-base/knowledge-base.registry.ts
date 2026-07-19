@@ -7,7 +7,7 @@ import type {
 } from "@/services/types";
 import { markRaw } from "vue";
 import { BookOpenText } from "lucide-vue-next";
-import { KnowledgeAccessError } from "./access";
+import { KnowledgeAccessError } from "./services/access";
 import {
   listKnowledgeForAgent,
   parseKnowledgeToolReadRequest,
@@ -15,12 +15,12 @@ import {
   readKnowledgeForAgent,
   resolveKnowledgeApplicationContext,
   searchKnowledgeForAgent,
-} from "./application";
+} from "./services/application";
 import {
   createKnowledgeResearchTask,
   parseKnowledgeResearchRequest,
-} from "./research";
-import type { KnowledgeResearchTask } from "./research";
+} from "./services/research";
+import type { KnowledgeResearchTask } from "./services/research";
 import type {
   KnowledgeLibrarySummary,
   KnowledgeToolReadResponse,

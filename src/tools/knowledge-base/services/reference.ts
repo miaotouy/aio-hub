@@ -13,7 +13,7 @@ import {
   type KnowledgeLibrarySummary,
   type KnowledgeReference,
   type KnowledgeToolSearchResponse,
-} from "./types";
+} from "../types";
 import {
   runKnowledgeResearch,
   type KnowledgeResearchRequest,

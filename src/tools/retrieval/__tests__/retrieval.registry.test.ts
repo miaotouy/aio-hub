@@ -10,7 +10,7 @@ vi.mock("@/services/retrievalRouter", async (importOriginal) => {
   return { ...original, routeRetrieval };
 });
 
-vi.mock("@/tools/knowledge-base/application", () => ({
+vi.mock("@/tools/knowledge-base/services/application", () => ({
   resolveKnowledgeApplicationContext: (context: any) => {
     if (!context?.agent) {
       throw Object.assign(new Error("missing agent"), {

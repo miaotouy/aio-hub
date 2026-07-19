@@ -34,7 +34,7 @@ vi.mock("../../composables/input/useChatInputManager", () => ({
   }),
 }));
 
-vi.mock("@/tools/knowledge-base/application", () => ({
+vi.mock("@/tools/knowledge-base/services/application", () => ({
   listKnowledgeForAgent: mocks.listKnowledgeForAgent,
 }));
 

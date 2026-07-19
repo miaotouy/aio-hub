@@ -3,15 +3,15 @@ import {
   createKnowledgeReference,
   normalizeKnowledgeReference,
   validateKnowledgeReferenceForAgent,
-} from "./reference";
-import type { AgentKnowledgeAccess, KnowledgeLibrarySummary } from "./types";
+} from "../reference";
+import type { AgentKnowledgeAccess, KnowledgeLibrarySummary } from "../../types";
 
 const { listAuthorizedKnowledgeLibraries } = vi.hoisted(() => ({
   listAuthorizedKnowledgeLibraries: vi.fn(),
 }));
 
-vi.mock("./access", async (importOriginal) => {
-  const original = await importOriginal<typeof import("./access")>();
+vi.mock("../access", async (importOriginal) => {
+  const original = await importOriginal<typeof import("../access")>();
   return {
     ...original,
     listAuthorizedKnowledgeLibraries,

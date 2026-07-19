@@ -6,8 +6,8 @@ import {
   normalizeAgentKnowledgeAccess,
   resolveAuthorizedKnowledgeLibraries,
   resolveAuthorizedLibraryIds,
-} from "./access";
-import type { AgentKnowledgeAccess, KnowledgeLibrary } from "./types";
+} from "../access";
+import type { AgentKnowledgeAccess, KnowledgeLibrary } from "../../types";
 
 const access: AgentKnowledgeAccess = {
   enabled: true,

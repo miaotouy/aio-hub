@@ -31,7 +31,7 @@ dependencies = [
 
 [[package]]
 name = "aiohub-mobile"
-version = "0.1.1-m-beta.1"
+version = "0.1.1-m-beta.2"
 dependencies = [
  "base64 0.22.1",
  "reqwest 0.12.28",

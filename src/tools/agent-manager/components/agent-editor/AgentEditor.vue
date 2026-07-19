@@ -204,6 +204,7 @@ defineExpose({
 <template>
   <div
     class="agent-editor"
+    data-testid="agent-editor"
     :class="{
       'sidebar-collapsed': isSidebarCollapsed,
       'mobile-mode': isMobileMode,
@@ -237,6 +238,8 @@ defineExpose({
           v-for="tab in agentEditTabs"
           :key="tab.id"
           class="sidebar-item"
+          data-testid="agent-editor-tab"
+          :data-tab-id="tab.id"
           :class="{ active: activeTab === tab.id }"
           @click="activeTab = tab.id"
         >

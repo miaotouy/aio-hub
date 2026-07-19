@@ -446,7 +446,11 @@ const handleSave = (
         </div>
         <div class="footer-right">
           <el-button @click="handleClose">取消</el-button>
-          <el-button type="primary" @click="handleSave()">
+          <el-button
+            type="primary"
+            data-testid="agent-editor-save"
+            @click="handleSave()"
+          >
             {{ mode === "edit" ? "保存修改" : "立即创建" }}
           </el-button>
         </div>

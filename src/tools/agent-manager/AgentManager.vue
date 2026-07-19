@@ -268,7 +268,12 @@ const handleImportAgents = () => {
             </el-button>
             <div class="footer-right-actions">
               <el-tooltip content="编辑" placement="top">
-                <el-button link :icon="Edit" @click="handleEditAgent(agent)" />
+                <el-button
+                  link
+                  :icon="Edit"
+                  data-testid="agent-manager-edit"
+                  @click="handleEditAgent(agent)"
+                />
               </el-tooltip>
               <el-tooltip content="克隆" placement="top">
                 <el-button

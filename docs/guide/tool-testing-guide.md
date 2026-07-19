@@ -285,8 +285,8 @@ cargo build --manifest-path src-tauri/Cargo.toml
 然后使用隔离数据根运行 E2E。不要让验收读取默认 appData、用户模型配置或真实会话：
 
 ```powershell
-$env:AIO_ID_SUFFIX = "tauri-e2e"
-$env:AIO_DATA_DIR = ".dev-data\\tauri-e2e"
+$env:AIO_E2E_ID_SUFFIX = "tauri-e2e"
+$env:AIO_E2E_DATA_DIR = ".dev-data\\tauri-e2e"
 $env:AIO_E2E_ARTIFACT_DIR = ".dev-data\\tauri-e2e\\artifacts"
 bun run test:tauri:e2e
 ```
@@ -306,9 +306,16 @@ bun run test:tauri:e2e -- --spec tests/tauri-e2e/specs/smoke.spec.ts
 
 `tests/tauri-e2e/**` 已从 Vitest 的默认发现范围排除，`bun run test:run`
 不会加载 WDIO 用例；真实窗口用例只通过 `bun run test:tauri:e2e` 执行。
-WDIO 配置会在未显式设置时为本次进程生成隔离的 `AIO_ID_SUFFIX`、
-`AIO_DATA_DIR`、产物目录和 WebDriver 端口。与其他 Tauri debug 实例并行时，
+E2E runner 会在未显式设置时为本次进程生成隔离的数据根、产物目录和
+WebDriver 端口，并向 Tauri 子进程写入最终 `AIO_ID_SUFFIX`/`AIO_DATA_DIR`。
+对外参数使用 `AIO_E2E_ID_SUFFIX`/`AIO_E2E_DATA_DIR`，避免 Bun 自动加载
+`.env.local` 时把开发数据根带入验收。与其他 Tauri debug 实例并行时，
 可通过 `AIO_E2E_WEBDRIVER_PORT` 显式指定空闲端口。
+
+runner 会自动启动缺失的 Vite dev server、确定性的本地 OpenAI-compatible
+Chat/Embedding mock，并在隔离数据根写入 E2E Profile。失败截图、WDIO 日志、
+mock 请求摘要和 `e2e-run.json` 统一保存在产物目录；记录中不包含 API Key 或
+Authorization header。
 
 ### 8.3. 编写真实窗口用例
 

@@ -98,6 +98,8 @@ const personalitySettings = computed<SettingItem[]>(() => [
     keywords: "model 模型",
     props: {
       capabilities: { embedding: false, rerank: false },
+      testId: "agent-model-selector",
+      popperClass: "agent-model-selector-popper",
     },
   },
   {

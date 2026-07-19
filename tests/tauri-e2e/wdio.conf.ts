@@ -1,6 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs";
+import { browser } from "@wdio/globals";
 
 const projectRoot = path.resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const defaultBinary = path.join(
@@ -10,27 +11,34 @@ const defaultBinary = path.join(
   "debug",
   process.platform === "win32" ? "aiohub.exe" : "aiohub",
 );
-const appBinaryPath = process.env.AIO_E2E_BINARY ?? defaultBinary;
+const appBinaryPath = process.env.AIO_E2E_BINARY?.trim() || defaultBinary;
 if (!fs.existsSync(appBinaryPath)) {
   throw new Error(
     `Tauri E2E binary not found: ${appBinaryPath}. Build a debug binary or set AIO_E2E_BINARY.`,
   );
 }
 
-const runSuffix = process.env.AIO_ID_SUFFIX ?? `tauri-e2e-${process.pid}`;
+const runSuffix = process.env.AIO_ID_SUFFIX?.trim() || `tauri-e2e-${process.pid}`;
 const dataDir = path.resolve(
   projectRoot,
-  process.env.AIO_DATA_DIR ?? path.join(".dev-data", runSuffix),
+  process.env.AIO_DATA_DIR?.trim() || path.join(".dev-data", runSuffix),
 );
 const artifactDir = path.resolve(
   projectRoot,
-  process.env.AIO_E2E_ARTIFACT_DIR ?? path.join(".dev-data", runSuffix),
+  process.env.AIO_E2E_ARTIFACT_DIR?.trim() || path.join(".dev-data", runSuffix),
 );
 const embeddedPort = Number(
   process.env.AIO_E2E_WEBDRIVER_PORT ??
     process.env.TAURI_WEBDRIVER_PORT ??
     4400 + (process.pid % 1000),
 );
+const appEnv = {
+  AIO_ID_SUFFIX: runSuffix,
+  AIO_DATA_DIR: dataDir,
+  ...(process.env.AIO_E2E_MOCK_BASE_URL
+    ? { AIO_E2E_MOCK_BASE_URL: process.env.AIO_E2E_MOCK_BASE_URL }
+    : {}),
+};
 
 if (!Number.isInteger(embeddedPort) || embeddedPort < 1024 || embeddedPort > 65535) {
   throw new Error(`Invalid Tauri E2E WebDriver port: ${embeddedPort}`);
@@ -53,6 +61,7 @@ export const config: WebdriverIO.Config = {
         appBinaryPath,
         driverProvider: "embedded",
         embeddedPort,
+        env: appEnv,
         captureBackendLogs: true,
         captureFrontendLogs: true,
         backendLogLevel: "debug",
@@ -79,4 +88,13 @@ export const config: WebdriverIO.Config = {
   waitforTimeout: 10_000,
   connectionRetryTimeout: 90_000,
   connectionRetryCount: 2,
+  afterTest: async (test, _context, result) => {
+    if (result.passed) return;
+    const safeTitle = test.title.replace(/[^a-zA-Z0-9_-]+/g, "-").slice(0, 80);
+    const screenshotPath = path.join(
+      artifactDir,
+      `failure-${Date.now()}-${safeTitle}.png`,
+    );
+    await browser.saveScreenshot(screenshotPath);
+  },
 };

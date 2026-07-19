@@ -57,7 +57,7 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest --run",
-    "test:tauri:e2e": "wdio run tests/tauri-e2e/wdio.conf.ts",
+    "test:tauri:e2e": "bun tests/tauri-e2e/run.ts",
     "test:llm-core": "bun run --cwd packages/llm-core test:run",
     "test:coverage": "vitest --coverage",
     "lint": "oxlint .",

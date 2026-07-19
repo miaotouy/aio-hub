@@ -9,6 +9,7 @@
       </div>
       <el-switch
         v-model="editForm.knowledgeAccess.enabled"
+        data-testid="agent-knowledge-enabled"
         aria-label="启用 Knowledge 资料访问权限"
       />
     </div>
@@ -18,18 +19,21 @@
         <el-form-item label="允许省略资料库范围">
           <el-switch
             v-model="editForm.knowledgeAccess.allowSearchAll"
+            data-testid="agent-knowledge-search-all"
             aria-label="允许全库搜索"
           />
         </el-form-item>
         <el-form-item label="允许继续读取文档">
           <el-switch
             v-model="editForm.knowledgeAccess.allowDocumentRead"
+            data-testid="agent-knowledge-document-read"
             aria-label="允许继续读取文档"
           />
         </el-form-item>
         <el-form-item label="允许高成本研究任务">
           <el-switch
             v-model="editForm.knowledgeAccess.allowResearch"
+            data-testid="agent-knowledge-research"
             aria-label="允许研究任务"
           />
         </el-form-item>
@@ -54,6 +58,7 @@
                 type="primary"
                 link
                 :icon="Plus"
+                data-testid="agent-knowledge-add-library"
                 aria-label="添加资料库授权"
               >添加资料库</el-button>
             </template>
@@ -69,6 +74,8 @@
                 v-for="library in availableLibraries"
                 :key="library.id"
                 type="button"
+                data-testid="agent-knowledge-library-option"
+                :data-library-id="library.id"
                 @click="addLibrary(library)"
               >
                 <span>{{ library.name }}</span>
@@ -84,7 +91,12 @@
         </header>
 
         <div v-if="authorizedLibraries.length" class="binding-list">
-          <article v-for="library in authorizedLibraries" :key="library.id">
+          <article
+            v-for="library in authorizedLibraries"
+            :key="library.id"
+            data-testid="agent-knowledge-authorized-library"
+            :data-library-id="library.id"
+          >
             <div class="binding-identity">
               <BookOpenText :size="18" />
               <div>

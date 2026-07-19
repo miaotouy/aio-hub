@@ -376,7 +376,7 @@ Phase 3 分为五个施工批次。后端配置和摄取契约先行，工作台
 落地顺序建议：
 
 - [x] E2E-AUTO-00 接入 WebdriverIO Tauri service、debug-only WebDriver 插件、隔离产物目录和基础 `smoke.spec.ts`，提供 `bun run test:tauri:e2e` 入口。
-- [ ] E2E-AUTO-01 新增独立 WebdriverIO 配置和 `bun` 脚本，固定 debug binary、`AIO_ID_SUFFIX`、`AIO_DATA_DIR`、本地 Embedding/Chat mock，并统一保存截图、日志和 WebDriver session 信息。（运行前置、隔离目录、动态端口和产物目录已完成；本地模型 mock/fixture 尚未接入）
+- [x] E2E-AUTO-01 新增独立 WebdriverIO 配置和 `bun` runner，固定 debug binary、隔离数据根、本地 Embedding/Chat mock，并统一保存失败截图、日志、mock 请求摘要和运行/session 信息。
 - [ ] E2E-AUTO-02 为 Knowledge、Chat、Agent Manager 的关键控件补稳定 `data-testid`/可访问名称；测试断言优先使用这些契约，不依赖文案或坐标。（Knowledge、Chat 输入区和 Agent Manager 主入口已补首批 selector，完整覆盖和用例迁移未完成）
 - [ ] E2E-AUTO-03 将 P3-T05/P3-T06/P4 真实 Chat 链路迁移到 WDIO；保留 CDP 仅做样式和调试补充。
 - [ ] E2E-AUTO-04 为 Windows 原生选择器和拖放建立 UI Automation runner；runner 不得调用业务 command 绕过系统入口，并记录桌面会话、窗口标题、fixture 路径和失败截图。
@@ -513,14 +513,20 @@ P5-T06 当前仍待执行：Phase 3 的资料库文件/目录摄取与 Phase 4 �
 
 - **已解决 P0：全仓测试门禁被新 E2E 用例污染。** Vitest 已排除 `tests/tauri-e2e/**`，WDIO 保持独立入口；全量 Vitest 已验证 118 个文件、705 个测试通过。
 - **已处理 P1 运行基础设施：WebDriver smoke 生命周期。** WDIO 现在执行 debug binary 存在性检查，默认生成进程隔离的 `AIO_ID_SUFFIX`/`AIO_DATA_DIR`/产物目录，并通过 `embeddedPort` 使用进程级端口；仍可用 `AIO_E2E_WEBDRIVER_PORT` 显式指定已知空闲端口。
-- **P1：新增测试工具目前只有框架 smoke，不覆盖 Knowledge 业务。** 还没有 Agent 主动 `list/search/read`、Chat 显式引用、文件/目录摄取、重建恢复、研究成功/取消等固定业务用例，因此不能替代 P5-T06。
+- **P1：业务 E2E 已覆盖基础跨工具链路，但尚未覆盖完整 Knowledge 链路。** 当前已通过真实 UI 建库、稳定 library ID、Agent 模型选择、Knowledge 权限创建/重开持久化、Knowledge/Agent Manager/Chat 跨路由和隔离模型 Profile 加载；Agent 主动 `list/search/read`、Chat 显式引用、文件/目录摄取、重建恢复、研究成功/取消仍缺固定 WDIO 用例，因此不能替代 P5-T06。
 - **P1：业务自动化契约仍未完整迁移。** Knowledge、Chat 输入区和 Agent Manager 主入口已补首批 selector，但关键流程控件、稳定状态断言和对应 WDIO 用例仍缺；E2E-AUTO-02 仍未完成，后续断言不能依赖文案或坐标。
-- **P1：本地模型 mock 与固定 fixture 尚未接入 WDIO。** 需要同时提供 Embedding 和 Chat completion 的确定响应、隔离资料库/Agent/会话 fixture，并记录请求摘要、截图、前后端日志和 WebDriver session。
-- **P1：P5-T06 尚未完成最终跨模块回归。** 需要在修复后的 Agent Manager 上重新验证权限开关持久化、Agent 主动查询、用户显式引用，并与已通过的摄取/研究场景串成一次完整回归。
+- **已解决 P1：本地模型 mock 与基础 fixture。** E2E runner 自动启动确定性的 Embedding/Chat completion mock，写入隔离 Profile，记录无密钥请求摘要、运行 metadata、前后端日志和失败截图；真实 Tauri UI 已确认 Profile 被 ConfigManager 加载。
+- **P1：P5-T06 尚未完成最终跨模块回归。** Agent Manager 权限开关与资料库授权持久化已通过真实 UI 回归；还需补 Agent 主动查询、用户显式引用，并与已通过的摄取/研究场景串成一次完整回归。
 - **P2：Windows 原生入口仍需独立验收层。** 文件/目录选择器、绝对路径拖放和窗口管理不能由 WDIO/CDP 或直接 IPC 冒充；E2E-AUTO-04 需要可审计的 UI Automation runner，或明确记录人工验收边界。
 - **P2：AI 辅助 profile 不是门禁必需项。** E2E-AUTO-05 可用于探索、失败复现和生成测试草稿，但不能作为 P5-T06/P5-GATE 的唯一断言来源。
 
-当前结论：P0 测试隔离和 P1 的 E2E 运行基础设施已处理并通过基础验证；下一批补本地模型 mock/fixture、Knowledge/Chat/Agent Manager 业务用例和最终跨模块回归，完成后才重新评估 P5-T06 与 P5-GATE。
+当前结论：P0 测试隔离、P1 的 E2E 运行基础设施、本地模型 mock/fixture 和 Agent Knowledge 权限持久化已处理并通过验证；下一批继续补主动工具调用、Chat 显式引用和最终跨模块回归，完成后才重新评估 P5-T06 与 P5-GATE。
+
+E2E 第二批施工记录（2026-07-19）：
+
+- 新增 Bun E2E runner，自动管理 Vite、OpenAI-compatible mock、隔离数据根、fixture、WDIO 子进程和清理；外部使用 `AIO_E2E_*` 参数，避免 Bun 自动加载 `.env.local` 后污染测试隔离边界。
+- 新增 `knowledge-workflow.spec.ts`：真实 Tauri UI 创建资料库并断言稳定 ID；Agent 显式选择隔离 Chat 模型，创建 Knowledge 权限并在重开编辑器后验证开关与资料库授权持久化；同一隔离实例加载 Agent Manager、Chat 与 Knowledge 引用入口；设置页确认 `E2E Local Mock` Profile 已加载，mock 同时提供 Chat 和 Embedding 模型。
+- 验证结果：2 个 spec、5 个真实 Tauri 测试通过；全程使用 `.dev-data/tauri-e2e-*` 隔离目录，未读取用户默认 appData、真实模型密钥或外部端点。
 
 ## 10. 全链路验收矩阵
 

@@ -377,7 +377,7 @@ Phase 3 分为五个施工批次。后端配置和摄取契约先行，工作台
 
 - [x] E2E-AUTO-00 接入 WebdriverIO Tauri service、debug-only WebDriver 插件、隔离产物目录和基础 `smoke.spec.ts`，提供 `bun run test:tauri:e2e` 入口。
 - [x] E2E-AUTO-01 新增独立 WebdriverIO 配置和 `bun` runner，固定 debug binary、隔离数据根、本地 Embedding/Chat mock，并统一保存失败截图、日志、mock 请求摘要和运行/session 信息。
-- [ ] E2E-AUTO-02 为 Knowledge、Chat、Agent Manager 的关键控件补稳定 `data-testid`/可访问名称；测试断言优先使用这些契约，不依赖文案或坐标。（Knowledge、Chat 输入区和 Agent Manager 主入口已补首批 selector，完整覆盖和用例迁移未完成）
+- [x] E2E-AUTO-02 为 Knowledge、Chat、Agent Manager 的关键控件补稳定 `data-testid`/可访问名称；测试断言优先使用这些契约，不依赖文案或坐标。（已补齐 Knowledge 选择/引用、Chat 编辑器/会话/发送/停止/工具事件、Chat Agent 列表，以及 Agent Manager 现有关键入口；业务用例已迁移到稳定 selector）
 - [ ] E2E-AUTO-03 将 P3-T05/P3-T06/P4 真实 Chat 链路迁移到 WDIO；保留 CDP 仅做样式和调试补充。
 - [ ] E2E-AUTO-04 为 Windows 原生选择器和拖放建立 UI Automation runner；runner 不得调用业务 command 绕过系统入口，并记录桌面会话、窗口标题、fixture 路径和失败截图。
 - [ ] E2E-AUTO-05 增加 AI 辅助 profile：MCP 只能连接隔离 debug 实例，默认关闭写文件/任意 IPC 工具；其输出作为人工复现或测试草稿，不直接勾选 P5-T06/P5-GATE。
@@ -505,7 +505,7 @@ Phase 4 真实运行态门禁解除记录（2026-07-19）：
 - [x] P5-T07 确认普通浏览器验证仅用于已有 mock 的纯前端测试，没有被当作 Tauri IPC、路径拖放或真实运行态验收。
 - [ ] P5-GATE 全部上位验收标准、工程检查和真实运行态验收通过，源文档状态与代码现状一致。
 
-P5-T06 当前仍待执行：Phase 3 的资料库文件/目录摄取与 Phase 4 的 Chat 研究成功/取消已有隔离 Tauri 证据，但本轮尚未在修复后的 Agent Manager 上重新完成 Agent 主动查询、权限开关持久化和完整跨域回归。因此不把 P5-GATE 或完成定义提前标记为通过。
+P5-T06 当前仍待执行：Phase 3 的资料库文件/目录摄取与 Phase 4 的 Chat 研究成功/取消已有隔离 Tauri 证据；本轮已在修复后的 Agent Manager 上重新验证权限开关持久化，并新增 Chat 显式引用查询，但 Agent 主动 `list/search/read`、重建恢复和完整跨域回归仍未串成一次固定 WDIO 场景。因此不把 P5-GATE 或完成定义提前标记为通过。
 
 ### 9.4 当前问题清单（2026-07-19 检查）
 
@@ -513,14 +513,20 @@ P5-T06 当前仍待执行：Phase 3 的资料库文件/目录摄取与 Phase 4 �
 
 - **已解决 P0：全仓测试门禁被新 E2E 用例污染。** Vitest 已排除 `tests/tauri-e2e/**`，WDIO 保持独立入口；全量 Vitest 已验证 118 个文件、705 个测试通过。
 - **已处理 P1 运行基础设施：WebDriver smoke 生命周期。** WDIO 现在执行 debug binary 存在性检查，默认生成进程隔离的 `AIO_ID_SUFFIX`/`AIO_DATA_DIR`/产物目录，并通过 `embeddedPort` 使用进程级端口；仍可用 `AIO_E2E_WEBDRIVER_PORT` 显式指定已知空闲端口。
-- **P1：业务 E2E 已覆盖基础跨工具链路和原生摄取，但尚未覆盖完整 Knowledge 链路。** 当前已通过真实 UI 建库、稳定 library ID、Agent 模型选择、Knowledge 权限创建/重开持久化、Knowledge/Agent Manager/Chat 跨路由、隔离模型 Profile 加载，以及 Windows 原生文件/目录选择器摄取；Agent 主动 `list/search/read`、Chat 显式引用、重建恢复、研究成功/取消仍缺固定 WDIO 用例，因此不能替代 P5-T06。
-- **P1：业务自动化契约仍未完整迁移。** Knowledge、Chat 输入区和 Agent Manager 主入口已补首批 selector，但关键流程控件、稳定状态断言和对应 WDIO 用例仍缺；E2E-AUTO-02 仍未完成，后续断言不能依赖文案或坐标。
+- **P1：业务 E2E 已覆盖基础跨工具链路和原生摄取，但尚未覆盖完整 Knowledge 链路。** 当前已通过真实 UI 建库、稳定 library ID、Agent 模型选择、Knowledge 权限创建/重开持久化、Knowledge/Agent Manager/Chat 跨路由、隔离模型 Profile 加载、显式引用触发 `knowledge.search` 工具事件，以及 Windows 原生文件/目录选择器摄取；Agent 主动 `list/search/read`、重建恢复、研究成功/取消仍缺固定 WDIO 用例，因此不能替代 P5-T06。
+- **已解决 P1：业务自动化契约已完成首轮迁移。** Knowledge、Chat 输入区、Chat Agent 列表和 Agent Manager 关键入口均有稳定 selector；新增用例不依赖文案或坐标，稳定断言覆盖授权库选择、会话创建、引用 chip、发送按钮和 `knowledge.search` 工具状态。
 - **已解决 P1：本地模型 mock 与基础 fixture。** E2E runner 自动启动确定性的 Embedding/Chat completion mock，写入隔离 Profile，记录无密钥请求摘要、运行 metadata、前后端日志和失败截图；真实 Tauri UI 已确认 Profile 被 ConfigManager 加载。
 - **P1：P5-T06 尚未完成最终跨模块回归。** Agent Manager 权限开关与资料库授权持久化已通过真实 UI 回归；还需补 Agent 主动查询、用户显式引用，并与已通过的摄取/研究场景串成一次完整回归。
 - **P2 部分处理：Windows 原生文件/目录选择器已有实测通过的验收层。** 新增 .NET 8 + FlaUI 5 + UIA3 helper，原生模式由 Bun 构建并生成隔离 fixture，WDIO 负责触发产品入口和断言文件/目录摄取结果；helper 按当前 Tauri PID、模态窗口、AutomationId、ControlType 和 UIA Pattern 操作 Win10 Common Item Dialog，并保存 UIA 树/失败截图。绝对路径拖放和窗口管理仍缺真实 Explorer 指针操作，E2E-AUTO-04 尚不能整体标记完成。
 - **P2：AI 辅助 profile 不是门禁必需项。** E2E-AUTO-05 可用于探索、失败复现和生成测试草稿，但不能作为 P5-T06/P5-GATE 的唯一断言来源。
 
-当前结论：P0 测试隔离、P1 的 E2E 运行基础设施、本地模型 mock/fixture 和 Agent Knowledge 权限持久化已处理并通过验证；下一批继续补主动工具调用、Chat 显式引用和最终跨模块回归，完成后才重新评估 P5-T06 与 P5-GATE。
+当前结论：P0 测试隔离、P1 的 E2E 运行基础设施、本地模型 mock/fixture、Agent Knowledge 权限持久化和 Chat 显式引用首轮 WDIO 场景已处理并通过验证；下一批继续补 Agent 主动工具调用、重建恢复和最终跨模块回归，完成后才重新评估 P5-T06 与 P5-GATE。
+
+E2E 稳定契约与显式引用记录（2026-07-19）：
+
+- Knowledge、Chat 和 Agent Manager 关键控件补齐稳定 `data-testid` 与状态属性；Chat 编辑器同时覆盖 CodeMirror 和原生 textarea，工具节点暴露工具名与状态，避免 WDIO 依赖可变文案。
+- `knowledge-workflow.spec.ts` 新增真实 Tauri 显式引用场景：从 Chat Agent 列表选择已授权 Agent，创建隔离会话，选择资料库并发送查询，断言可见 `knowledge.search` 工具节点最终为 `success`。
+- 在全新 `.dev-data/tauri-e2e-*` 数据根中实测该 spec 4/4 通过；Knowledge 无语义索引时日志明确记录 `auto` 向关键词降级，未使用外部模型端点或用户密钥。该批次仍未覆盖 Agent 主动 `list/search/read`、重建恢复和研究场景，P5-T06/P5-GATE 保持未完成。
 
 E2E 第二批施工记录（2026-07-19）：
 

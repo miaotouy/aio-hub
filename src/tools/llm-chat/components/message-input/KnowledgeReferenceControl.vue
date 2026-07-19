@@ -203,6 +203,7 @@ watch(currentAgentId, () => {
           <div class="mode-switch" role="group" aria-label="Knowledge 查询模式">
             <button
               type="button"
+              data-testid="chat-knowledge-mode-search"
               :class="{ active: mode === 'search' }"
               @click="setMode('search')"
             >
@@ -210,6 +211,7 @@ watch(currentAgentId, () => {
             </button>
             <button
               type="button"
+              data-testid="chat-knowledge-mode-research"
               :class="{ active: mode === 'research' }"
               :disabled="!access.allowResearch"
               :title="access.allowResearch ? '多轮整理证据' : '当前 Agent 未获研究权限'"
@@ -229,6 +231,8 @@ watch(currentAgentId, () => {
               v-else
               :key="library.id"
               class="library-option"
+              data-testid="chat-knowledge-library-option"
+              :data-library-id="library.id"
               :class="{
                 selected: selectedIds.has(library.id),
                 unavailable: !isSelectable(library),

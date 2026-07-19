@@ -320,6 +320,7 @@ const handleOpenQuickActionManager = () => {
               <template #reference>
                 <button
                   class="tool-btn"
+                  data-testid="chat-session-list-button"
                   :class="{ active: sessionListVisible }"
                 >
                   <MessageSquare :size="16" />
@@ -511,6 +512,7 @@ const handleOpenQuickActionManager = () => {
           v-show="isSending"
           @click="abort?.()"
           class="btn-abort"
+          data-testid="chat-stop-generation"
           title="停止生成"
         >
           <svg
@@ -533,6 +535,7 @@ const handleOpenQuickActionManager = () => {
             disabled || (!props.inputText.trim() && !props.hasAttachments)
           "
           class="btn-send"
+          data-testid="chat-send-message"
           title="发送 (Ctrl/Cmd + Enter)"
         >
           <svg

@@ -23,6 +23,8 @@ const inputManager = useChatInputManager();
     >
       <span
         class="knowledge-chip"
+        data-testid="chat-knowledge-reference-chip"
+        :data-library-id="library.id"
         :class="{ unavailable: library.availability !== 'available' }"
       >
         <span class="chip-name">{{ library.name }}</span>

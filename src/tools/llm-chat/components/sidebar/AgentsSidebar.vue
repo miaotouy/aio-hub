@@ -817,6 +817,7 @@ const handleImportFromTavernCard = async () => {
       <div class="toolbar-row">
         <el-input
           v-model="searchQuery"
+          data-testid="chat-agent-search"
           :prefix-icon="Search"
           placeholder="搜索名称、描述或标签..."
           clearable

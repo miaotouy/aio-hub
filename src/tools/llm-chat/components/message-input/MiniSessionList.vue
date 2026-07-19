@@ -348,7 +348,13 @@ defineExpose({
 
     <div class="header">
       <el-tooltip content="新建对话" placement="top" :show-after="500">
-        <el-button :icon="Plus" size="small" circle @click="handleNewSession" />
+        <el-button
+          :icon="Plus"
+          size="small"
+          circle
+          data-testid="chat-new-session"
+          @click="handleNewSession"
+        />
       </el-tooltip>
       <el-input
         v-model="searchQuery"

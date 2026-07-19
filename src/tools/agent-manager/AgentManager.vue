@@ -174,7 +174,7 @@ const handleImportAgents = () => {
 </script>
 
 <template>
-  <div class="agent-manager-wrapper">
+  <div class="agent-manager-wrapper" data-testid="agent-manager">
     <div class="agent-manager-container">
       <!-- 头部操作区 -->
       <div class="manager-header">
@@ -183,7 +183,12 @@ const handleImportAgents = () => {
           <p class="subtitle">在这里发现、创建和管理你的专属 AI 智能体</p>
         </div>
         <div class="header-actions">
-          <el-button type="primary" :icon="Plus" @click="handleCreateAgent">
+          <el-button
+            type="primary"
+            :icon="Plus"
+            data-testid="agent-manager-create"
+            @click="handleCreateAgent"
+          >
             新建智能体
           </el-button>
           <el-button :icon="Upload" @click="handleImportAgents">
@@ -200,6 +205,7 @@ const handleImportAgents = () => {
           :prefix-icon="Search"
           clearable
           class="search-input"
+          data-testid="agent-manager-search"
         />
         <el-select
           v-model="selectedCategory"
@@ -221,7 +227,13 @@ const handleImportAgents = () => {
 
       <!-- 智能体网格列表 -->
       <div v-if="filteredAgents.length > 0" class="agent-grid">
-        <div v-for="agent in filteredAgents" :key="agent.id" class="agent-card">
+        <div
+          v-for="agent in filteredAgents"
+          :key="agent.id"
+          class="agent-card"
+          data-testid="agent-manager-card"
+          :data-agent-id="agent.id"
+        >
           <div class="card-body">
             <div class="agent-avatar-wrapper">
               <Avatar

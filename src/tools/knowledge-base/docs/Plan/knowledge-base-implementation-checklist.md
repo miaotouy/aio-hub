@@ -1,6 +1,6 @@
 # Knowledge 施工步骤计划清单
 
-- **状态**：Phase 3 真实运行态验收停工（数据根分裂已修复；发现目录删除后 FTS 残留已删除内容，待修复并重跑门禁）
+- **状态**：Phase 3/4 业务门禁已有通过记录；当前停在 Phase 5 最终真实回归（新增 Tauri WebDriver 基础设施 smoke 已接入，但全仓测试隔离、业务 E2E 场景和跨模块回归仍未完成）
 - **创建日期**：2026-07-18
 - **最近修订**：2026-07-19
 - **适用范围**：`src/tools/knowledge-base/`、`src/tools/retrieval/`、`src/tools/llm-chat/`、`src/tools/agent-manager/`、`src-tauri/src/knowledge/`
@@ -375,13 +375,14 @@ Phase 3 分为五个施工批次。后端配置和摄取契约先行，工作台
 
 落地顺序建议：
 
-- [ ] E2E-AUTO-01 新增独立 WebdriverIO 配置和 `bun` 脚本，固定 debug binary、`AIO_ID_SUFFIX`、`AIO_DATA_DIR`、本地 Embedding/Chat mock，并统一保存截图、日志和 WebDriver session 信息。
-- [ ] E2E-AUTO-02 为 Knowledge、Chat、Agent Manager 的关键控件补稳定 `data-testid`/可访问名称；测试断言优先使用这些契约，不依赖文案或坐标。
+- [x] E2E-AUTO-00 接入 WebdriverIO Tauri service、debug-only WebDriver 插件、隔离产物目录和基础 `smoke.spec.ts`，提供 `bun run test:tauri:e2e` 入口。
+- [ ] E2E-AUTO-01 新增独立 WebdriverIO 配置和 `bun` 脚本，固定 debug binary、`AIO_ID_SUFFIX`、`AIO_DATA_DIR`、本地 Embedding/Chat mock，并统一保存截图、日志和 WebDriver session 信息。（运行前置、隔离目录、动态端口和产物目录已完成；本地模型 mock/fixture 尚未接入）
+- [ ] E2E-AUTO-02 为 Knowledge、Chat、Agent Manager 的关键控件补稳定 `data-testid`/可访问名称；测试断言优先使用这些契约，不依赖文案或坐标。（Knowledge、Chat 输入区和 Agent Manager 主入口已补首批 selector，完整覆盖和用例迁移未完成）
 - [ ] E2E-AUTO-03 将 P3-T05/P3-T06/P4 真实 Chat 链路迁移到 WDIO；保留 CDP 仅做样式和调试补充。
 - [ ] E2E-AUTO-04 为 Windows 原生选择器和拖放建立 UI Automation runner；runner 不得调用业务 command 绕过系统入口，并记录桌面会话、窗口标题、fixture 路径和失败截图。
 - [ ] E2E-AUTO-05 增加 AI 辅助 profile：MCP 只能连接隔离 debug 实例，默认关闭写文件/任意 IPC 工具；其输出作为人工复现或测试草稿，不直接勾选 P5-T06/P5-GATE。
 
-当前已落地的基础配置：`package.json` 提供 `bun run test:tauri:e2e`，`tests/tauri-e2e/wdio.conf.ts` 使用 embedded WebDriver，`src-tauri` 只在 debug 构建注册 `tauri-plugin-wdio` 和 `tauri-plugin-wdio-webdriver`，并以 `smoke.spec.ts` 验证真实 Tauri WebView 可被接管。Knowledge 场景、稳定业务 selector、本地模型 mock 和原生 UI Automation 尚未迁移，因此上述 E2E-AUTO 项仍不能整体勾选。
+当前已落地的基础配置对应 E2E-AUTO-00：`package.json` 提供 `bun run test:tauri:e2e`，`tests/tauri-e2e/wdio.conf.ts` 使用 embedded WebDriver，`src-tauri` 只在 debug 构建注册 `tauri-plugin-wdio` 和 `tauri-plugin-wdio-webdriver`，并以 `smoke.spec.ts` 验证真实 Tauri WebView 可被接管。它不等于 Knowledge 业务验收：稳定业务 selector、本地 Embedding/Chat mock、固定隔离数据根和原生 UI Automation 尚未迁移，因此 E2E-AUTO-01 至 05 仍不能整体勾选。
 
 真实运行态验收严重问题与停工记录（2026-07-19）：
 
@@ -497,7 +498,7 @@ Phase 4 真实运行态门禁解除记录（2026-07-19）：
 
 - [x] P5-T01 运行 `bun run lint`。
 - [x] P5-T02 运行 `bun run check:frontend`。
-- [x] P5-T03 运行 Knowledge、Chat、Agent Manager、retrieval 相关定向测试和 `bun run test:run`。
+- [x] P5-T03 运行 Knowledge、Chat、Agent Manager、retrieval 相关定向测试和 `bun run test:run`。（完成 E2E/Vitest 隔离后，全量 118 个测试文件、705 个测试通过）
 - [x] P5-T04 运行 `bun run build`，不能只以 TypeScript 检查替代 Vite 构建。
 - [x] P5-T05 运行 `bun run check:backend`。
 - [ ] P5-T06 在真实 Tauri 窗口完成 Agent 主动查询、用户显式引用、文件/目录摄取、重建恢复和研究任务全链路验收。
@@ -505,6 +506,21 @@ Phase 4 真实运行态门禁解除记录（2026-07-19）：
 - [ ] P5-GATE 全部上位验收标准、工程检查和真实运行态验收通过，源文档状态与代码现状一致。
 
 P5-T06 当前仍待执行：Phase 3 的资料库文件/目录摄取与 Phase 4 的 Chat 研究成功/取消已有隔离 Tauri 证据，但本轮尚未在修复后的 Agent Manager 上重新完成 Agent 主动查询、权限开关持久化和完整跨域回归。因此不把 P5-GATE 或完成定义提前标记为通过。
+
+### 9.4 当前问题清单（2026-07-19 检查）
+
+按阻塞程度整理，避免把已经修复的 Phase 3 FTS、数据根、向量 warning 和本批次测试污染问题继续当作当前问题：
+
+- **已解决 P0：全仓测试门禁被新 E2E 用例污染。** Vitest 已排除 `tests/tauri-e2e/**`，WDIO 保持独立入口；全量 Vitest 已验证 118 个文件、705 个测试通过。
+- **已处理 P1 运行基础设施：WebDriver smoke 生命周期。** WDIO 现在执行 debug binary 存在性检查，默认生成进程隔离的 `AIO_ID_SUFFIX`/`AIO_DATA_DIR`/产物目录，并通过 `embeddedPort` 使用进程级端口；仍可用 `AIO_E2E_WEBDRIVER_PORT` 显式指定已知空闲端口。
+- **P1：新增测试工具目前只有框架 smoke，不覆盖 Knowledge 业务。** 还没有 Agent 主动 `list/search/read`、Chat 显式引用、文件/目录摄取、重建恢复、研究成功/取消等固定业务用例，因此不能替代 P5-T06。
+- **P1：业务自动化契约仍未完整迁移。** Knowledge、Chat 输入区和 Agent Manager 主入口已补首批 selector，但关键流程控件、稳定状态断言和对应 WDIO 用例仍缺；E2E-AUTO-02 仍未完成，后续断言不能依赖文案或坐标。
+- **P1：本地模型 mock 与固定 fixture 尚未接入 WDIO。** 需要同时提供 Embedding 和 Chat completion 的确定响应、隔离资料库/Agent/会话 fixture，并记录请求摘要、截图、前后端日志和 WebDriver session。
+- **P1：P5-T06 尚未完成最终跨模块回归。** 需要在修复后的 Agent Manager 上重新验证权限开关持久化、Agent 主动查询、用户显式引用，并与已通过的摄取/研究场景串成一次完整回归。
+- **P2：Windows 原生入口仍需独立验收层。** 文件/目录选择器、绝对路径拖放和窗口管理不能由 WDIO/CDP 或直接 IPC 冒充；E2E-AUTO-04 需要可审计的 UI Automation runner，或明确记录人工验收边界。
+- **P2：AI 辅助 profile 不是门禁必需项。** E2E-AUTO-05 可用于探索、失败复现和生成测试草稿，但不能作为 P5-T06/P5-GATE 的唯一断言来源。
+
+当前结论：P0 测试隔离和 P1 的 E2E 运行基础设施已处理并通过基础验证；下一批补本地模型 mock/fixture、Knowledge/Chat/Agent Manager 业务用例和最终跨模块回归，完成后才重新评估 P5-T06 与 P5-GATE。
 
 ## 10. 全链路验收矩阵
 

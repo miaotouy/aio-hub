@@ -1,11 +1,15 @@
 <template>
-  <section class="knowledge-shell">
+  <section class="knowledge-shell" data-testid="knowledge-base-tool">
     <header class="knowledge-navigation">
       <div class="product-title">
         <Database :size="18" />
         <span>Knowledge</span>
       </div>
-      <el-segmented v-model="activeView" :options="viewOptions" />
+      <el-segmented
+        v-model="activeView"
+        data-testid="knowledge-view-switcher"
+        :options="viewOptions"
+      />
     </header>
     <KeepAlive>
       <WorkspaceView v-if="activeView === 'workspace'" />

@@ -495,6 +495,7 @@ const handleDragStart = (e: MouseEvent) => {
 <template>
   <div
     ref="containerRef"
+    data-testid="chat-message-input"
     :class="[
       'message-input-container',
       { 'detached-mode': isDetached, 'dragging-over': isDraggingOver },

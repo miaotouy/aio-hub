@@ -304,6 +304,12 @@ bun run test:tauri:e2e
 bun run test:tauri:e2e -- --spec tests/tauri-e2e/specs/smoke.spec.ts
 ```
 
+`tests/tauri-e2e/**` 已从 Vitest 的默认发现范围排除，`bun run test:run`
+不会加载 WDIO 用例；真实窗口用例只通过 `bun run test:tauri:e2e` 执行。
+WDIO 配置会在未显式设置时为本次进程生成隔离的 `AIO_ID_SUFFIX`、
+`AIO_DATA_DIR`、产物目录和 WebDriver 端口。与其他 Tauri debug 实例并行时，
+可通过 `AIO_E2E_WEBDRIVER_PORT` 显式指定空闲端口。
+
 ### 8.3. 编写真实窗口用例
 
 真实窗口用例应优先使用稳定的 `data-testid`、可访问名称或明确的语义 selector，不要依赖坐标、动态文案或当前屏幕布局。每个场景都要：

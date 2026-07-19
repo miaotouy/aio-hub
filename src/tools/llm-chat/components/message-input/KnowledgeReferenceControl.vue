@@ -173,6 +173,7 @@ watch(currentAgentId, () => {
             class="knowledge-button"
             :class="{ active: selectedIds.size > 0 || visible }"
             :disabled="!canOpen"
+            data-testid="chat-knowledge-reference-button"
             aria-label="选择 Knowledge 资料库"
             type="button"
           >
@@ -183,12 +184,17 @@ watch(currentAgentId, () => {
           </button>
         </template>
 
-        <div class="knowledge-selector" aria-label="Knowledge 资料库选择器">
+        <div
+          class="knowledge-selector"
+          data-testid="chat-knowledge-reference-selector"
+          aria-label="Knowledge 资料库选择器"
+        >
           <div class="selector-search">
             <Search :size="15" aria-hidden="true" />
             <input
               v-model="searchText"
               type="search"
+              data-testid="chat-knowledge-library-filter"
               placeholder="搜索已授权资料库"
               aria-label="搜索已授权资料库"
             />

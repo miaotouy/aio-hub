@@ -15,10 +15,14 @@ Build a debug binary with the repository's normal Tauri toolchain, then run:
 $env:AIO_E2E_BINARY = "E:\\path\\to\\aiohub.exe"
 $env:AIO_ID_SUFFIX = "tauri-e2e"
 $env:AIO_DATA_DIR = ".dev-data\\tauri-e2e"
+$env:AIO_E2E_WEBDRIVER_PORT = "4451"
 bun run test:tauri:e2e
 ```
 
 `AIO_E2E_BINARY` is optional when the binary is at
-`src-tauri/target/debug/aiohub.exe`. The suite is intentionally single-process
-and debug-only; native file dialogs and drag/drop still require a separate
-Windows UI Automation layer.
+`src-tauri/target/debug/aiohub.exe`. When the suffix, data directory, or
+WebDriver port is omitted, the config derives isolated defaults from the
+current process. `AIO_E2E_WEBDRIVER_PORT` can be used to select a known free
+port when running alongside another debug instance. The suite is intentionally
+single-process and debug-only; native file dialogs and drag/drop still require
+a separate Windows UI Automation layer.

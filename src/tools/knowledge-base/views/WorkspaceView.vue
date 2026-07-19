@@ -2,6 +2,7 @@
   <main
     v-loading="store.loading"
     class="knowledge-workbench"
+    data-testid="knowledge-workspace"
     aria-label="知识资料库"
   >
     <aside class="library-sidebar">
@@ -15,6 +16,7 @@
             class="icon-button"
             :icon="Plus"
             circle
+            data-testid="knowledge-create-library"
             aria-label="新建资料库"
             @click="creating = !creating"
           />
@@ -26,6 +28,7 @@
           v-model="libraryFilter"
           clearable
           :prefix-icon="Search"
+          data-testid="knowledge-library-filter"
           placeholder="筛选资料库"
         />
       </div>
@@ -36,6 +39,8 @@
           :key="library.id"
           type="button"
           class="library-row"
+          data-testid="knowledge-library-row"
+          :data-library-id="library.id"
           :class="{ active: library.id === store.activeLibraryId }"
           :aria-selected="library.id === store.activeLibraryId"
           @click="store.selectLibrary(library.id)"
@@ -81,6 +86,7 @@
           <el-button
             :icon="Plus"
             circle
+            data-testid="knowledge-create-library-compact"
             aria-label="新建资料库"
             @click="creating = true"
           />
@@ -105,6 +111,7 @@
             <el-button
               :icon="FileUp"
               :loading="importBusy"
+              data-testid="knowledge-import"
               @click="importDocuments"
             >
               {{ importActionLabel }}
@@ -158,7 +165,11 @@
         </header>
 
         <div class="mode-toolbar">
-          <el-segmented v-model="workspaceMode" :options="modeOptions" />
+          <el-segmented
+            v-model="workspaceMode"
+            data-testid="knowledge-workspace-mode"
+            :options="modeOptions"
+          />
           <span class="mode-context">{{ modeContext }}</span>
         </div>
 
@@ -359,6 +370,7 @@
               v-model="query"
               class="search-input"
               clearable
+              data-testid="knowledge-search-input"
               placeholder="输入问题、术语或文档内容"
               :prefix-icon="Search"
             />
@@ -396,6 +408,7 @@
               type="primary"
               :icon="Search"
               :loading="store.searching"
+              data-testid="knowledge-search-submit"
               native-type="submit"
             >
               检索
@@ -538,7 +551,11 @@
         <BookOpenText :size="40" />
         <h2>建立第一个资料库</h2>
         <p>资料库用于管理可追溯的文档、分块与检索索引。</p>
-        <el-button type="primary" :icon="Plus" @click="creating = true"
+        <el-button
+          type="primary"
+          :icon="Plus"
+          data-testid="knowledge-create-library-empty"
+          @click="creating = true"
           >新建资料库</el-button
         >
       </div>
@@ -558,6 +575,7 @@
         <form class="create-library-dialog" @submit.prevent="createLibrary">
           <el-input
             v-model="newLibraryName"
+            data-testid="knowledge-library-name"
             placeholder="资料库名称"
             maxlength="64"
             autofocus
@@ -575,6 +593,7 @@
             <el-button
               type="primary"
               :loading="creatingLibrary"
+              data-testid="knowledge-create-library-submit"
               native-type="submit"
             >
               创建

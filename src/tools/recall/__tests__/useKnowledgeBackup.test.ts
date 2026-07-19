@@ -116,9 +116,9 @@ describe("useKnowledgeBackup", () => {
     );
   });
 
-  it("explains that old knowledge-library exports are Recall backups", async () => {
+  it("recommends Recall and explains both legacy import destinations", async () => {
     mocks.open.mockResolvedValue("C:/legacy.aio-kb");
-    mocks.confirm.mockRejectedValue("cancel");
+    mocks.confirm.mockRejectedValue("close");
     mocks.invoke.mockImplementation((command: string) => {
       if (command === "recall_inspect_backups") {
         return Promise.resolve([
@@ -148,10 +148,11 @@ describe("useKnowledgeBackup", () => {
     await backup.importBackups();
 
     expect(mocks.confirm).toHaveBeenCalledWith(
-      expect.stringContaining("实际保存的是思绪条目"),
-      "导入旧版思绪备份",
+      expect.stringContaining("若不确定，请导入到思绪"),
+      "选择旧版数据的去向",
       expect.objectContaining({
-        confirmButtonText: "导入到思绪",
+        confirmButtonText: "导入到思绪（推荐）",
+        cancelButtonText: "考虑导入 Knowledge",
         lockScroll: false,
       })
     );
@@ -162,7 +163,79 @@ describe("useKnowledgeBackup", () => {
     expect(backup.items.value).toEqual([
       expect.objectContaining({
         status: "skipped",
-        detail: "已取消导入旧版思绪备份",
+        detail: "已取消导入旧版备份",
+      }),
+    ]);
+  });
+
+  it("converts a confirmed legacy export to Knowledge without importing Recall", async () => {
+    mocks.open.mockResolvedValue("C:/legacy.aio-kb");
+    mocks.confirm
+      .mockRejectedValueOnce("cancel")
+      .mockResolvedValueOnce("confirm");
+    mocks.invoke.mockImplementation((command: string) => {
+      if (command === "recall_inspect_backups") {
+        return Promise.resolve([
+          inspected({
+            sourcePath: "C:/legacy.aio-kb",
+            format: "aiohub.knowledge-library",
+            formatVersion: 1,
+            libraryId: meta.id,
+            libraryName: "旧文档库",
+            entryCount: 3,
+            assetCount: 0,
+            hasConflict: false,
+            legacyContentOnly: false,
+            warnings: [],
+          }),
+        ]);
+      }
+      if (command === "knowledge_initialize") return Promise.resolve();
+      if (command === "recall_import_legacy_backup_to_knowledge") {
+        return Promise.resolve({
+          status: "success",
+          libraryId: "knowledge-library",
+          libraryName: "旧文档库",
+          documentCount: 3,
+          skippedEntryCount: 0,
+          warnings: [
+            {
+              code: "legacyKnowledgeConversion",
+              message: "已转换旧版条目",
+            },
+          ],
+        });
+      }
+      return Promise.reject(new Error(`unexpected command: ${command}`));
+    });
+    const backup = useKnowledgeBackup();
+
+    await backup.importBackups();
+
+    expect(mocks.confirm).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("无法从转换结果还原完整思绪结构"),
+      "确认不可逆转换",
+      expect.objectContaining({
+        confirmButtonText: "确认导入 Knowledge",
+        lockScroll: false,
+      })
+    );
+    expect(mocks.invoke).toHaveBeenCalledWith(
+      "recall_import_legacy_backup_to_knowledge",
+      {
+        sourcePath: "C:/legacy.aio-kb",
+        sourceEntry: null,
+      }
+    );
+    expect(mocks.invoke).not.toHaveBeenCalledWith(
+      "recall_import_backup",
+      expect.anything()
+    );
+    expect(backup.items.value).toEqual([
+      expect.objectContaining({
+        status: "success",
+        detail: "3 篇文档已转换到 Knowledge",
       }),
     ]);
   });

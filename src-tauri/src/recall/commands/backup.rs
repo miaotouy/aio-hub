@@ -15,6 +15,8 @@
 use crate::commands::asset_manager::{
     get_asset_for_backup, import_backup_asset, remove_backup_asset, Asset, AssetCatalog,
 };
+use crate::knowledge::types::KnowledgeIngestRequest;
+use crate::knowledge::KnowledgeState;
 use crate::recall::core::{AssetRef, RecallCollection, RecallCollectionMeta, RecallEntry};
 use crate::recall::index::InMemoryBase;
 use crate::recall::state::RecallState;
@@ -159,6 +161,17 @@ pub struct BackupImportReport {
     pub imported_as_copy: bool,
     pub legacy_content_only: bool,
     pub vectors_need_rebuild: bool,
+    pub warnings: Vec<BackupWarning>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LegacyKnowledgeImportReport {
+    pub status: String,
+    pub library_id: String,
+    pub library_name: String,
+    pub document_count: usize,
+    pub skipped_entry_count: usize,
     pub warnings: Vec<BackupWarning>,
 }
 
@@ -839,7 +852,7 @@ fn parse_aio_backup_reader<R: Read + Seek>(reader: R) -> Result<ParsedBackup, St
             0,
             warning(
                 "legacyRecallBackup",
-                "这是重构前由“知识库”模块导出的思绪备份；它会恢复到 Recall / 思绪，不会导入新版 Knowledge 资料库",
+                "这是重构前由“知识库”模块导出的思绪结构备份；导入时可完整恢复到 Recall / 思绪，或将标题与正文不可逆转换到新版 Knowledge 资料库",
                 None,
             ),
         );
@@ -1107,7 +1120,7 @@ fn parse_legacy_backup(path: &Path) -> Result<ParsedBackup, String> {
         warnings: vec![
             warning(
                 "legacyRecallBackup",
-                "这是重构前由“知识库”模块导出的思绪数据；它会恢复到 Recall / 思绪，不会导入新版 Knowledge 资料库",
+                "这是重构前由“知识库”模块导出的思绪结构数据；导入时可完整恢复到 Recall / 思绪，或将标题与正文不可逆转换到新版 Knowledge 资料库",
                 None,
             ),
             warning(
@@ -1145,6 +1158,112 @@ fn parse_backup_source(path: &Path, source_entry: Option<&str>) -> Result<Parsed
         }
         None => parse_backup(path),
     }
+}
+
+fn is_legacy_recall_format(format: &str) -> bool {
+    matches!(format, LEGACY_BACKUP_FORMAT | "legacy-json" | "legacy-yaml")
+}
+
+fn import_legacy_backup_to_knowledge(
+    state: &KnowledgeState,
+    source_path: &Path,
+    source_entry: Option<&str>,
+) -> Result<LegacyKnowledgeImportReport, String> {
+    let parsed = parse_backup_source(source_path, source_entry)?;
+    if !is_legacy_recall_format(&parsed.format) {
+        return Err("只有重构前的“知识库”导出可以转换到新版 Knowledge 资料库".to_string());
+    }
+
+    let repository = state.repository()?;
+    let source_id = parsed.library.meta.id;
+    let source_name = parsed.library.meta.name.trim();
+    let library_name = if source_name.is_empty() {
+        "未命名旧版资料库"
+    } else {
+        source_name
+    };
+    let conversion_note = "由重构前的“知识库”导出转换而来；原格式实际使用思绪条目结构。";
+    let description = parsed
+        .library
+        .meta
+        .description
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| format!("{value}\n\n{conversion_note}"))
+        .unwrap_or_else(|| conversion_note.to_string());
+    let library = repository.create_library(library_name, Some(&description), None)?;
+
+    let mut document_count = 0;
+    let mut skipped_entry_count = 0;
+    let mut asset_count = 0;
+    for entry in &parsed.library.entries {
+        asset_count += entry.assets.len();
+        let content = if entry.content.trim().is_empty() {
+            if entry.summary.trim().is_empty() {
+                skipped_entry_count += 1;
+                continue;
+            }
+            entry.summary.clone()
+        } else {
+            entry.content.clone()
+        };
+        let title = if entry.key.trim().is_empty() {
+            format!("旧版条目 {}", entry.id)
+        } else {
+            entry.key.clone()
+        };
+        let request = KnowledgeIngestRequest {
+            library_id: library.id.clone(),
+            source_path: format!("legacy-recall://{source_id}/{}.md", entry.id),
+            title: Some(title),
+            mime_type: Some("text/markdown".to_string()),
+            content,
+        };
+        if let Err(error) = repository.ingest(&request) {
+            return match repository.delete_library(&library.id) {
+                Ok(()) => Err(format!(
+                    "转换旧版条目 {} 到 Knowledge 失败，已回滚新资料库: {error}",
+                    entry.id
+                )),
+                Err(cleanup_error) => Err(format!(
+                    "转换旧版条目 {} 到 Knowledge 失败: {error}；清理新资料库失败: {cleanup_error}",
+                    entry.id
+                )),
+            };
+        }
+        document_count += 1;
+    }
+
+    let mut warnings = vec![warning(
+        "legacyKnowledgeConversion",
+        "已将旧版条目的标题与 Markdown 正文转换为 Knowledge 文档；标签、优先级、启用状态和条目关联不会成为 Knowledge 字段，此转换结果无法还原完整思绪结构",
+        None,
+    )];
+    if asset_count > 0 {
+        warnings.push(warning(
+            "legacyKnowledgeAssetsNotConverted",
+            format!(
+                "旧版条目包含 {asset_count} 个附件引用；Knowledge 转换只保留标题与正文，不导入附件"
+            ),
+            None,
+        ));
+    }
+    if skipped_entry_count > 0 {
+        warnings.push(warning(
+            "legacyKnowledgeEmptyEntriesSkipped",
+            format!("跳过 {skipped_entry_count} 个正文和摘要均为空的旧版条目"),
+            None,
+        ));
+    }
+
+    Ok(LegacyKnowledgeImportReport {
+        status: "success".to_string(),
+        library_id: library.id,
+        library_name: library.name,
+        document_count,
+        skipped_entry_count,
+        warnings,
+    })
 }
 
 fn imported_copy_name(state: &RecallState, source_name: &str) -> Result<String, String> {
@@ -1361,7 +1480,13 @@ pub async fn recall_export_backup(
     recall_id: Uuid,
     target_directory: String,
 ) -> Result<BackupExportResult, String> {
-    export_one(&app, &state, &catalog, recall_id, Path::new(&target_directory))
+    export_one(
+        &app,
+        &state,
+        &catalog,
+        recall_id,
+        Path::new(&target_directory),
+    )
 }
 
 #[tauri::command]
@@ -1586,14 +1711,16 @@ pub async fn recall_inspect_backups(
 ) -> Result<Vec<BackupInspectItem>, String> {
     let path = PathBuf::from(&source_path);
     if path.extension().and_then(|extension| extension.to_str()) != Some("zip") {
-        return recall_inspect_backup(app, state, source_path).await.map(|result| {
-            vec![BackupInspectItem {
-                source_entry: result.source_entry.clone(),
-                library_name: result.library_name.clone(),
-                inspect: Some(result),
-                error: None,
-            }]
-        });
+        return recall_inspect_backup(app, state, source_path)
+            .await
+            .map(|result| {
+                vec![BackupInspectItem {
+                    source_entry: result.source_entry.clone(),
+                    library_name: result.library_name.clone(),
+                    inspect: Some(result),
+                    error: None,
+                }]
+            });
     }
     let index = read_backup_collection_index(&path)?
         .ok_or_else(|| "备份 ZIP 缺少 backup-index.json".to_string())?;
@@ -1661,6 +1788,15 @@ pub async fn recall_import_backup(
         }
     }
     result
+}
+
+#[tauri::command]
+pub async fn recall_import_legacy_backup_to_knowledge(
+    state: State<'_, KnowledgeState>,
+    source_path: String,
+    source_entry: Option<String>,
+) -> Result<LegacyKnowledgeImportReport, String> {
+    import_legacy_backup_to_knowledge(&state, Path::new(&source_path), source_entry.as_deref())
 }
 
 #[cfg(test)]
@@ -1740,6 +1876,46 @@ mod tests {
         library.entries = vec![entry.clone(), entry];
         reset_derived_state(&mut library.meta, &library.entries);
         assert!(validate_library(&library).is_err());
+    }
+
+    #[test]
+    fn converts_legacy_backup_entries_to_knowledge_documents() {
+        let directory = tempdir().unwrap();
+        let backup_path = directory.path().join("legacy.aio-kb");
+        let mut library = empty_library();
+        library.meta.name = "旧文档库".to_string();
+        library.meta.description = Some("旧说明".to_string());
+        library.entries = vec![RecallEntry {
+            id: Uuid::new_v4(),
+            key: "安装说明".to_string(),
+            content: "# 安装\n\n运行安装程序。".to_string(),
+            summary: "安装摘要".to_string(),
+            core_tags: Vec::new(),
+            tags: Vec::new(),
+            assets: Vec::new(),
+            priority: 100,
+            enabled: true,
+            created_at: 1,
+            updated_at: 1,
+            error_message: None,
+            content_hash: None,
+            refs: Vec::new(),
+            ref_by: Vec::new(),
+        }];
+        reset_derived_state(&mut library.meta, &library.entries);
+        let bytes = serde_json::to_vec_pretty(&library).unwrap();
+        write_legacy_backup_zip(&backup_path, &library, &bytes);
+        let state = KnowledgeState::initialized_for_test(directory.path());
+
+        let report = import_legacy_backup_to_knowledge(&state, &backup_path, None).unwrap();
+
+        assert_eq!(report.library_name, "旧文档库");
+        assert_eq!(report.document_count, 1);
+        assert_eq!(report.skipped_entry_count, 0);
+        assert!(report
+            .warnings
+            .iter()
+            .any(|warning| warning.code == "legacyKnowledgeConversion"));
     }
 
     #[test]
@@ -1919,10 +2095,7 @@ mod tests {
 
         assert_eq!(parsed.library.meta.id, library.meta.id);
         assert_eq!(parsed.format, LEGACY_BACKUP_FORMAT);
-        assert_eq!(
-            parsed.manifest.as_ref().unwrap().data_schema_version,
-            None
-        );
+        assert_eq!(parsed.manifest.as_ref().unwrap().data_schema_version, None);
         assert!(parsed
             .warnings
             .iter()
@@ -2042,6 +2215,19 @@ mod tests {
             .warnings
             .iter()
             .any(|warning| warning.code == "legacyRecallBackup"));
+
+        let knowledge_data = tempdir().unwrap();
+        let knowledge_state = KnowledgeState::initialized_for_test(knowledge_data.path());
+        let single_report =
+            import_legacy_backup_to_knowledge(&knowledge_state, &single, None).unwrap();
+        assert!(single_report.document_count > 0);
+        let multi_report = import_legacy_backup_to_knowledge(
+            &knowledge_state,
+            &multiple,
+            Some(&index.collections[0].path),
+        )
+        .unwrap();
+        assert!(multi_report.document_count > 0);
     }
 
     #[test]

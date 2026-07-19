@@ -120,7 +120,7 @@ appData/knowledge/
 
 新导出使用 `.aio-recall` 容器与 `aiohub.recall-collection@1`，manifest 同时声明 `dataSchemaVersion = 1` 和 `configSchemaVersion = 1`，主数据文件为 `collection.json`。多集合 ZIP 使用 `aiohub.recall-collection-backup-collection@1`、相同 schema 版本和 `collections/` 子目录。两种新格式都只保存集合源数据与引用资产，不保存向量、tag pool 或运行时索引；恢复后重建派生数据。导入器按 `format + formatVersion + dataSchemaVersion + configSchemaVersion` 严格分派，并继续读取旧 `aiohub.knowledge-library@1` `.aio-kb`、旧多库 ZIP 及 legacy JSON/YAML。
 
-旧格式中的 “knowledge library / 知识库” 是重构前的产品命名，不代表新版 Knowledge 文档资料域。检查旧包时后端返回 `legacyRecallBackup` 结构化告警；前端在导入前明确说明数据将进入 Recall / 思绪而不会创建 Knowledge 资料库，并要求用户确认“导入到思绪”。
+旧格式中的 “knowledge library / 知识库” 是重构前的产品命名，底层实际使用思绪条目结构，不天然等同于新版 Knowledge 文档资料域。检查旧包时后端返回 `legacyRecallBackup` 结构化告警；前端在导入前说明两种去向：完整恢复到 Recall / 思绪，或将旧条目的标题和 Markdown 正文不可逆转换成新版 Knowledge 文档。默认推荐思绪；仅当用户确认旧内容当作传统文档库使用时才进入二次确认并转换到 Knowledge。Knowledge 转换会为每个旧集合新建资料库，任一文档写入失败则删除本次新库；原备份不修改，但标签、优先级、启用状态、条目关联和附件不转换为 Knowledge 字段。
 
 Stage 2 已建立 `appData/recall/recall.db` 与 `recall-vectors.db` 的 SQLite repository 和独立 migration 表；主库 schema v2 持久化集合活动模型，模型维度、tokens 和最后索引时间从向量库统计恢复。Tauri 启动阶段会先幂等执行旧目录迁移，再从 repository warmup 派生读模型，`recall_initialize` 保留为兼容入口；集合/条目/向量/标签池 command 与备份导入导出均以 repository 为真源。独立的 `LegacyFileRecallImporter` 已覆盖旧集合、条目、向量与 tag pool 的幂等导入、运行中状态续跑和结构化报告。旧目录在校验和用户确认前不得删除。
 

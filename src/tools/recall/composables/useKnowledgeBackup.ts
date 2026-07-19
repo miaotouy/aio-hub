@@ -30,6 +30,7 @@ import type {
   BackupInspectResult,
   BackupOperationItem,
   BackupProgressEvent,
+  LegacyKnowledgeImportReport,
 } from "../types/backup";
 
 const errorHandler = createModuleErrorHandler("recall/backup");
@@ -46,26 +47,44 @@ function isLegacyRecallBackup(inspect: BackupInspectResult): boolean {
   );
 }
 
-async function confirmLegacyRecallImport(
+type LegacyImportDestination = "recall" | "knowledge" | "cancel";
+
+async function chooseLegacyImportDestination(
   inspections: BackupInspectResult[]
-): Promise<boolean> {
+): Promise<LegacyImportDestination> {
   const count = inspections.filter(isLegacyRecallBackup).length;
-  if (count === 0) return true;
+  if (count === 0) return "recall";
   const scope = count === 1 ? "这个备份" : `这 ${count} 个备份项`;
   try {
     await ElMessageBox.confirm(
-      `${scope}来自重构前的“知识库”模块。该模块当时实际保存的是思绪条目，因此内容会导入 Recall / 思绪，不会创建新版 Knowledge 资料库。`,
-      "导入旧版思绪备份",
+      `${scope}来自重构前的“知识库”模块，但当时底层实际使用思绪条目结构。导入到思绪会完整保留条目语义，适合记录、设定和不确定用途；导入到 Knowledge 会把每个条目的标题和正文转换成独立文档，适合当时确实作为传统文档库使用的内容。若不确定，请导入到思绪。`,
+      "选择旧版数据的去向",
       {
         type: "warning",
-        confirmButtonText: "导入到思绪",
-        cancelButtonText: "取消",
+        confirmButtonText: "导入到思绪（推荐）",
+        cancelButtonText: "考虑导入 Knowledge",
         lockScroll: false,
       }
     );
-    return true;
+    return "recall";
+  } catch (action) {
+    if (action !== "cancel") return "cancel";
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `将${scope}转换到新版 Knowledge：每个旧条目会成为一篇 Markdown 文档，只保留资料库名称、描述、条目标题和正文。标签、优先级、启用状态、条目关联和附件不会转换为对应字段，也无法从转换结果还原完整思绪结构。原备份文件不会被修改。`,
+      "确认不可逆转换",
+      {
+        type: "warning",
+        confirmButtonText: "确认导入 Knowledge",
+        cancelButtonText: "返回",
+        lockScroll: false,
+      }
+    );
+    return "knowledge";
   } catch {
-    return false;
+    return "cancel";
   }
 }
 
@@ -363,6 +382,8 @@ export function useKnowledgeBackup() {
     if (paths.length === 0) return;
 
     begin("import", paths.length);
+    let recallImported = false;
+    let knowledgeInitialized = false;
     for (const path of paths) {
       if (cancelRequested.value) {
         items.value.push({
@@ -381,8 +402,10 @@ export function useKnowledgeBackup() {
           "recall_inspect_backups",
           { sourcePath: path }
         );
-        const legacyImportConfirmed = await confirmLegacyRecallImport(
-          inspectionItems.flatMap((item) => (item.inspect ? [item.inspect] : []))
+        const legacyDestination = await chooseLegacyImportDestination(
+          inspectionItems.flatMap((item) =>
+            item.inspect ? [item.inspect] : []
+          )
         );
         total.value += Math.max(0, inspectionItems.length - 1);
         for (const inspectionItem of inspectionItems) {
@@ -399,12 +422,12 @@ export function useKnowledgeBackup() {
             current.value += 1;
             continue;
           }
-          if (isLegacyRecallBackup(inspect) && !legacyImportConfirmed) {
+          if (isLegacyRecallBackup(inspect) && legacyDestination === "cancel") {
             items.value.push({
               key: `${path}#${inspect.sourceEntry || ""}`,
               name: inspect.libraryName,
               status: "skipped",
-              detail: "已取消导入旧版思绪备份",
+              detail: "已取消导入旧版备份",
               warnings: inspect.warnings,
             });
             current.value += 1;
@@ -423,6 +446,34 @@ export function useKnowledgeBackup() {
           }
           currentName.value = inspect.libraryName;
           try {
+            if (
+              isLegacyRecallBackup(inspect) &&
+              legacyDestination === "knowledge"
+            ) {
+              if (!knowledgeInitialized) {
+                await invoke<void>("knowledge_initialize");
+                knowledgeInitialized = true;
+              }
+              const report = await invoke<LegacyKnowledgeImportReport>(
+                "recall_import_legacy_backup_to_knowledge",
+                {
+                  sourcePath: path,
+                  sourceEntry: inspect.sourceEntry || null,
+                }
+              );
+              items.value.push({
+                key: `${path}#${inspect.sourceEntry || ""}`,
+                name: report.libraryName,
+                status: report.status,
+                detail: `${report.documentCount} 篇文档已转换到 Knowledge${
+                  report.skippedEntryCount > 0
+                    ? `，跳过 ${report.skippedEntryCount} 个空条目`
+                    : ""
+                }`,
+                warnings: report.warnings,
+              });
+              continue;
+            }
             const strategy = await chooseConflictStrategy(inspect);
             if (strategy === "cancel") {
               items.value.push({
@@ -454,6 +505,7 @@ export function useKnowledgeBackup() {
                     : `${report.entryCount} 个条目，${report.restoredAssetCount} 个资产`,
                 warnings: report.warnings,
               });
+              recallImported = true;
             }
           } catch (error) {
             failed.value += 1;
@@ -482,7 +534,7 @@ export function useKnowledgeBackup() {
     }
 
     try {
-      if (items.value.some((item) => item.status === "success")) {
+      if (recallImported) {
         await syncWorkspaceFromBackend();
       }
       const succeeded = items.value.filter(

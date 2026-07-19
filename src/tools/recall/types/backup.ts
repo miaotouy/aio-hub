@@ -58,6 +58,15 @@ export interface BackupImportReport {
   warnings: BackupWarning[];
 }
 
+export interface LegacyKnowledgeImportReport {
+  status: "success";
+  libraryId: string;
+  libraryName: string;
+  documentCount: number;
+  skippedEntryCount: number;
+  warnings: BackupWarning[];
+}
+
 export interface BackupExportResult {
   libraryId: string;
   libraryName: string;

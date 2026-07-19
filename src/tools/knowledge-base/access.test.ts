@@ -4,6 +4,7 @@ import {
   assertKnowledgeLibraryAvailable,
   listAuthorizedKnowledgeLibraries,
   normalizeAgentKnowledgeAccess,
+  resolveAuthorizedKnowledgeLibraries,
   resolveAuthorizedLibraryIds,
 } from "./access";
 import type { AgentKnowledgeAccess, KnowledgeLibrary } from "./types";
@@ -81,5 +82,38 @@ describe("Knowledge access", () => {
     expect(
       unavailable.every((item) => item.availability === "unavailable")
     ).toBe(true);
+  });
+
+  it("shares the same authorized summaries with editor callers", () => {
+    const summaries = resolveAuthorizedKnowledgeLibraries(access, [
+      {
+        id: "library-a",
+        name: "Renamed docs",
+        description: "Current description",
+        documentCount: 3,
+        activeEmbeddingSpaceId: "space-1",
+      } as KnowledgeLibrary,
+    ]);
+
+    expect(summaries).toMatchObject([
+      {
+        id: "library-a",
+        name: "Renamed docs",
+        availability: "available",
+        supportsSemanticSearch: true,
+      },
+      { id: "library-b", availability: "deleted" },
+    ]);
+
+    expect(
+      resolveAuthorizedKnowledgeLibraries(access, [], { unavailable: true })
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "library-a",
+          availability: "unavailable",
+        }),
+      ])
+    );
   });
 });

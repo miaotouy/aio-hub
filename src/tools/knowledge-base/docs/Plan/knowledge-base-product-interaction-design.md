@@ -228,18 +228,16 @@ KnowledgeReference
 
 ## 7. 占位符与绑定决策
 
-### 7.1 当前阶段性实现
+### 7.1 已验证实现
 
-当前实现包含：
+当前实现已经收敛到主动工具语义：
 
-- `{{knowledge}}`：生成绑定资料库的 Knowledge 占位符。
-- `{{knowledge_list}}`：列出已绑定资料库。
-- `【knowledge::library=...】`：在上下文处理阶段执行检索并替换。
-- `autoInjectIfMacroMissing`：没有宏时自动为全部启用绑定生成占位符。
+- `{{knowledge_list}}`：在用户放置的位置列出当前 Agent 获授权的资料库目录，不触发检索。
+- `knowledge.listLibraries`、`knowledge.search`、`knowledge.read`：通过统一 application service 执行主动查询，并在工具事件中保留来源与策略。
+- 用户显式引用：输入区保存结构化 `KnowledgeReference`，发送时执行快速查询或研究任务。
+- `knowledgeAccess`：只表达授权范围和能力开关，不表达每轮自动注入配置。
 
-这些能力来自 Recall / Knowledge 领域拆分阶段。当时主要目标是保持双域 processor、宏和 Agent 配置完整，没有明确 Knowledge 应以主动检索为主，因此不能把整套实现直接视为最终产品方向。
-
-上述能力仅存在于当前重构开发周期，尚未随正式版本发布，也没有形成需要兼容的用户数据契约。因此可以按最终语义直接取舍，但必须区分两类作用域：`{{knowledge_list}}` 是在宏阶段展开的只读目录，不触发检索；`{{knowledge}}` 生成的 `【knowledge::...】` 则由后续 context processor 执行检索。两者不能按同一种占位符处理。
+早期开发期的 `{{knowledge}}`、`【knowledge::...】` 和 Knowledge context processor 未随正式版本发布，已从宏注册、预设编辑、上下文管道和文档中移除。
 
 ### 7.2 目标语义
 
@@ -256,11 +254,11 @@ Knowledge 的标准运行路径不使用检索占位符或自动注入，但保�
 
 ### 7.3 收敛处理
 
-由于相关能力从未发布，本轮重构不设置兼容期，也不为阶段性格式增加迁移提示、迁移报告或导入兼容分支。实施时直接收敛到新的产品契约：
+由于相关检索占位符从未发布，本轮重构不为它们设置运行时兼容期。实施时直接收敛到新的产品契约：
 
-1. 删除 `{{knowledge}}` 以及 `【knowledge::library=...】` 对应的生成、解析、编辑和替换路径。
+1. 删除 `{{knowledge}}` 以及 `【knowledge::library=...】` 对应的生成、解析、编辑和替换路径；只保留对历史测试输入的“不处理”断言。
 2. 删除 `autoInjectIfMacroMissing` 及 Knowledge 自动注入配置，不保留默认关闭但仍可启用的入口。
-3. 将资料库绑定模型改为 `allowedLibraries` 或等价的访问授权语义，由 `{{knowledge_list}}` 与 Knowledge 工具共享；strategy、limit、minScore 和 citation 不再作为每个授权库的绑定属性。
+3. 将资料库绑定模型改为 `knowledgeAccess` 访问授权语义，由 `{{knowledge_list}}` 与 Knowledge 工具共享；strategy、limit、minScore 和 citation 不再作为每个授权库的绑定属性。
 4. 保留 `{{knowledge_list}}` 的宏注册、宏选择器入口和预设导入导出语义，改为从访问授权读取并输出紧凑目录。
 5. Agent 预设编辑器和说明文档不再暴露 Knowledge 检索占位符格式，但继续允许用户在任意合适的预设消息中放置 `{{knowledge_list}}`。
 6. 当前开发环境中由阶段性检索实现产生的测试配置不视为用户数据，可按最终 schema 清理或重建。
@@ -617,11 +615,11 @@ interface KnowledgeResearchRequest {
 
 ### Phase 5：产品接入收口
 
-- 将 Agent 配置中的“绑定资料库”UI统一为“资料访问权限”。
-- 确认 Chat、Agent Manager 和 Knowledge 工作台只使用结构化引用或 Knowledge 工具契约。
-- 确认新建、复制、导入和导出的 Agent 配置均不会生成 `{{knowledge}}`、Knowledge 检索占位符或自动注入配置。
-- 确认 `{{knowledge_list}}` 在预设中的位置与内容可往返保留，并只展示该 Agent 获得授权的资料库。
-- 更新 Agent 配置向导、工具说明和用户文档。
+- Agent Manager 已统一为“Knowledge 资料访问权限”，编辑、创建和保存入口都写入同一 `knowledgeAccess` 契约。
+- Chat、Agent Manager 和 Knowledge 工作台共用授权摘要与 application service；Recall 只在上层显式编排时参与组合。
+- 新建、复制、导入和导出的 Agent 配置只保留稳定资料库 ID，不生成阶段性检索占位符或自动注入配置。
+- `{{knowledge_list}}` 的预设位置和内容可往返保留，只列当前 Agent 授权目录；宏选择器明确标注“只列目录，不检索”。
+- Agent 配置向导、工具说明、上下文管道和用户指南已同步主动工具、显式引用和研究任务语义。
 
 ## 16. 验收标准
 
@@ -660,6 +658,7 @@ interface KnowledgeResearchRequest {
 4. `knowledge.read` 的最佳范围表达：chunk 邻域、heading、字符范围或组合方式。
 5. 已决定首版使用当前 Agent；专用研究 Agent 或可选模板仅作为未来显式能力评估，不在后台自动切换。
 6. 目录同步、URL 来源和内部文本资料的实施优先级。
+7. 若未来重新引入显式 `【】` 检索占位符，必须先评审触发方式、权限继承、工具节点可见性、引用追溯，以及与主动 Knowledge 工具的去重和共存；本轮不恢复该路径。
 
 开发者后记：
 其实我并不打算真正的删除【】占位符的自动召回功能，不过施工的AI认知有瓶颈，暂且让其在计划中写删除，后面我再加回去好了，这里标记下免得我自己忘记了

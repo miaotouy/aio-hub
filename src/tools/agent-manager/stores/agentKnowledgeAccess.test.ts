@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { useAgentStore } from "./agentStore";
+import type { ChatAgent } from "../types/agent";
 
 const invoke = vi.hoisted(() => vi.fn());
 
@@ -74,5 +75,33 @@ describe("Agent Knowledge access lifecycle", () => {
     );
     expect(copy).not.toHaveProperty("knowledgeConfig");
     expect(copy).not.toHaveProperty("knowledgeSettings");
+  });
+
+  it("normalizes access and removes legacy fields on updates", () => {
+    const store = useAgentStore();
+    store.persistAgent = vi.fn();
+    const id = store.createAgent("agent", "profile", "model");
+    const agent = store.getAgentById(id)! as ChatAgent & Record<string, unknown>;
+    agent.knowledgeConfig = { enabled: true };
+    agent.knowledgeSettings = { defaultLimit: 4 };
+
+    store.updateAgent(id, {
+      knowledgeAccess: {
+        enabled: true,
+        allowedLibraryIds: [" library-a", "library-a", ""],
+        allowSearchAll: true,
+      },
+      knowledgeConfig: { enabled: false },
+    } as never);
+
+    expect(agent.knowledgeAccess).toEqual({
+      enabled: true,
+      allowedLibraryIds: ["library-a"],
+      allowSearchAll: true,
+      allowDocumentRead: false,
+      allowResearch: false,
+    });
+    expect(agent).not.toHaveProperty("knowledgeConfig");
+    expect(agent).not.toHaveProperty("knowledgeSettings");
   });
 });

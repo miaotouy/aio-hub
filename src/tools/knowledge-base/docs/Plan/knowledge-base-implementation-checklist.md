@@ -133,7 +133,7 @@ Phase 0 契约收敛
 - Agent 配置链路：`KnowledgeLibrarySection.vue` 编辑 `knowledgeAccess`，`EditAgentDialog.vue` 保存完整表单，`agentStore.ts` 在创建、复制和恢复边界规范化权限，`useAgentStorage` 持久化 `agent.json`；导入先经 `migrateAgent()` 收敛 schema，导出按最终 `ChatAgent` 字段透传。
 - Chat 消息链路：`ChatMessageNode.metadata` 已能持久化结构化元数据和工具事件，输入区通过 `MessageInput` / `useChatInputManager` 管理附件；Phase 2 的 `KnowledgeReference` 适合放在消息节点独立字段或专用 metadata 字段，并随 session detail、分支复制和导入导出往返，不能复用普通附件路径。
 - Knowledge 复用能力：前端 `service.ts` 已提供 library/document/chunk/index/search IPC，Rust repository 已有 manifest、document、chunk、FTS、vector 与 graph 基础；缺口是 Agent 身份传递、统一权限校验、结构化 list/search/read 应用服务、read 预算契约和明确降级 metadata。
-- 未发布 schema 处理：开发期 `knowledgeConfig` 中只保留已启用 binding 的稳定 library ID，转换为 `knowledgeAccess.allowedLibraryIds`；strategy、limit、minScore、citation、groups、`knowledgeSettings` 和自动注入字段直接丢弃，不保留运行时兼容分支。旧 Knowledge processor 与 parser 测试已删除，保留一项“旧信封不会触发 Recall/Knowledge 检索”的负向测试。
+- 未发布 schema 处理：开发期 `knowledgeConfig`、阶段性 binding 和 `knowledgeSettings` 不属于可恢复用户契约，迁移/导入时直接丢弃；正式授权只从 `knowledgeAccess` 读取稳定 library ID 和能力开关。旧 Knowledge processor 与 parser 测试已删除，保留一项“旧信封不会触发 Recall/Knowledge 检索”的负向测试。
 - 一般问题记录：Recall 模块仍使用 `knowledgeSettingsConfig` 的历史命名，容易误导后续配置分层；本批次已更名为 `recallSettingsConfig` / `getRecallSettingsConfig`，未改变行为。
 - 门禁结果：Agent 创建、复制、开发期 schema 恢复、文本导入导出和目录宏往返测试已通过；产物只包含 `knowledgeAccess`，预设中的 `{{knowledge_list}}` 原样保留。
 
@@ -414,6 +414,14 @@ Phase 4 真实运行态严重停工点（2026-07-19）：
 - 按真实运行态协议，不能用普通浏览器、直接调用 Chat 内部函数或外部付费 API 冒充“用户发送研究引用、研究工具节点进度/取消、当前 Agent 最终回答”的全链路通过；因此停止 P4-GATE 及后续 Phase 5 施工。
 - 恢复条件：为同一隔离实例提供确定响应的本地 Chat completion mock（不得复用用户密钥），或在可审计授权的模型 Profile 上完成一次人工可见 Tauri Chat 验收；恢复后从 P4-T04/P4-GATE 继续。
 
+Phase 4 真实运行态门禁解除记录（2026-07-19）：
+
+- 在同一隔离实例扩展本地 OpenAI-compatible mock：`/v1/embeddings` 与 `/v1/chat/completions` 均返回确定响应；Chat mock 支持流式/非流式并记录消息摘要，未使用外部端点或用户密钥。
+- 重启 Tauri debug WebView 后，真实 Chat UI 使用隔离 Agent、隔离资料库和 mock Profile 创建 research 引用；输入区可见“研究任务”，研究节点实时显示轮次、调用数和证据字符进度。
+- 成功场景：工具节点显示 `SUCCESS`，持久会话保存 `knowledge.research` 成功元数据、4 条来源、结构化研究结果和限制说明；当前 Agent 收到研究节点后通过 mock Chat completion 返回最终回答。截图：`.dev-data/knowledge-acceptance-20260719-6/p4-chat-success-1711.png`。
+- 取消场景：Embedding mock 对 `CANCEL_RESEARCH_20260719_6` 延迟响应；用户点击真实停止按钮后工具节点显示 `CANCELLED`，研究结果保留已收集证据、`terminationReason: cancelled` 和引用，未创建/继续 assistant 最终回答。截图：`.dev-data/knowledge-acceptance-20260719-6/p4-chat-cancelled-1711.png`，会话证据位于 `.dev-data/knowledge-acceptance-20260719-6/llm-chat/sessions/`。
+- 一般问题：Agent Manager 的 Element Plus switch 在当前 WebView 中曾出现界面瞬时开启但保存后回写默认值的问题。Phase 5 已补齐独立 Agent Manager 的保存回调、异步加载后的权限规范化和更新入口清理；后续真实 Tauri 回归仍需重新检查该场景。
+
 ### 8.1 研究契约与编排
 
 - [x] P4-01 定义 `knowledge.research` 请求，包含 question、library IDs、最大轮次、证据预算和输出形态。
@@ -435,37 +443,39 @@ Phase 4 真实运行态严重停工点（2026-07-19）：
 - [x] P4-T01 覆盖权限、预算、最大轮次、超时、取消、部分失败和证据保留。
 - [x] P4-T02 建立固定问题集，评估事实正确性、引用命中、冲突发现、延迟和成本。
 - [x] P4-T03 验证简单事实查询仍走快速 search/read，不自动升级为研究任务。
-- [ ] P4-GATE 用户可以主动启动、观察和取消研究任务，并获得带证据、限制说明和终止原因的结果。
+- [x] P4-GATE 用户可以主动启动、观察和取消研究任务，并获得带证据、限制说明和终止原因的结果。
 
 ## 9. Phase 5：产品接入与回归收口
 
 ### 9.1 Agent Manager 与跨模块接入
 
-- [ ] P5-01 将 Agent Manager 的“绑定资料库”统一改为“Knowledge 资料访问权限”。
-- [ ] P5-02 权限 UI 完整编辑 enabled、允许库、全库搜索、文档读取和研究任务。
-- [ ] P5-03 `{{knowledge_list}}` 的宏选择器和说明明确其只列目录、不检索、不自动注入。
-- [ ] P5-04 Agent 创建、复制、预设保存、导入和导出完整往返新的访问权限。
-- [ ] P5-05 Chat、Agent Manager 和 Knowledge 工作台统一调用同一权限与 Knowledge service 契约。
-- [ ] P5-06 检查 Recall + Knowledge 组合任务由上层显式编排，两个领域仍保持独立检索和来源标识。
+- [x] P5-01 将 Agent Manager 的“绑定资料库”统一改为“Knowledge 资料访问权限”。
+- [x] P5-02 权限 UI 完整编辑 enabled、允许库、全库搜索、文档读取和研究任务。
+- [x] P5-03 `{{knowledge_list}}` 的宏选择器和说明明确其只列目录、不检索、不自动注入。
+- [x] P5-04 Agent 创建、复制、预设保存、导入和导出完整往返新的访问权限。
+- [x] P5-05 Chat、Agent Manager 和 Knowledge 工作台统一调用同一权限与 Knowledge service 契约。
+- [x] P5-06 检查 Recall + Knowledge 组合任务由上层显式编排，两个领域仍保持独立检索和来源标识。
 
 ### 9.2 文档与迁移收口
 
-- [ ] P5-07 更新 Knowledge `ARCHITECTURE.md`，覆盖领域边界、授权、工具、引用、配置、摄取、索引和研究任务。
-- [ ] P5-08 更新产品方案中经过原型验证的待定项和所有实际偏差。
-- [ ] P5-09 更新 Agent 配置向导、工具说明、用户指南和故障排查文档。
-- [ ] P5-10 清理过时字段、文案、测试夹具和未发布阶段性数据，不保留无调用方的兼容分支。
-- [ ] P5-11 记录未来若重新引入显式检索占位符时必须重新评审的触发、权限、可见性和与主动工具共存边界；本轮不提前恢复实现。
+- [x] P5-07 更新 Knowledge `ARCHITECTURE.md`，覆盖领域边界、授权、工具、引用、配置、摄取、索引和研究任务。
+- [x] P5-08 更新产品方案中经过原型验证的待定项和所有实际偏差。
+- [x] P5-09 更新 Agent 配置向导、工具说明、用户指南和故障排查文档。
+- [x] P5-10 清理过时字段、文案、测试夹具和未发布阶段性数据，不保留无调用方的兼容分支。
+- [x] P5-11 记录未来若重新引入显式检索占位符时必须重新评审的触发、权限、可见性和与主动工具共存边界；本轮不提前恢复实现。
 
 ### 9.3 最终工程检查
 
-- [ ] P5-T01 运行 `bun run lint`。
-- [ ] P5-T02 运行 `bun run check:frontend`。
-- [ ] P5-T03 运行 Knowledge、Chat、Agent Manager、retrieval 相关定向测试和 `bun run test:run`。
-- [ ] P5-T04 运行 `bun run build`，不能只以 TypeScript 检查替代 Vite 构建。
-- [ ] P5-T05 运行 `bun run check:backend`。
+- [x] P5-T01 运行 `bun run lint`。
+- [x] P5-T02 运行 `bun run check:frontend`。
+- [x] P5-T03 运行 Knowledge、Chat、Agent Manager、retrieval 相关定向测试和 `bun run test:run`。
+- [x] P5-T04 运行 `bun run build`，不能只以 TypeScript 检查替代 Vite 构建。
+- [x] P5-T05 运行 `bun run check:backend`。
 - [ ] P5-T06 在真实 Tauri 窗口完成 Agent 主动查询、用户显式引用、文件/目录摄取、重建恢复和研究任务全链路验收。
-- [ ] P5-T07 确认普通浏览器验证仅用于已有 mock 的纯前端测试，没有被当作 Tauri IPC、路径拖放或真实运行态验收。
+- [x] P5-T07 确认普通浏览器验证仅用于已有 mock 的纯前端测试，没有被当作 Tauri IPC、路径拖放或真实运行态验收。
 - [ ] P5-GATE 全部上位验收标准、工程检查和真实运行态验收通过，源文档状态与代码现状一致。
+
+P5-T06 当前仍待执行：Phase 3 的资料库文件/目录摄取与 Phase 4 的 Chat 研究成功/取消已有隔离 Tauri 证据，但本轮尚未在修复后的 Agent Manager 上重新完成 Agent 主动查询、权限开关持久化和完整跨域回归。因此不把 P5-GATE 或完成定义提前标记为通过。
 
 ## 10. 全链路验收矩阵
 

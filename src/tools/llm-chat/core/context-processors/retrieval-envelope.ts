@@ -1,4 +1,4 @@
-export type RetrievalEnvelopeNamespace = "recall" | "knowledge";
+export type RetrievalEnvelopeNamespace = "recall";
 
 export interface RetrievalEnvelopeToken {
   namespace: RetrievalEnvelopeNamespace;
@@ -6,10 +6,7 @@ export interface RetrievalEnvelopeToken {
   messageIndex: number;
 }
 
-const REGISTERED_NAMESPACES = new Set<RetrievalEnvelopeNamespace>([
-  "recall",
-  "knowledge",
-]);
+const REGISTERED_NAMESPACES = new Set<RetrievalEnvelopeNamespace>(["recall"]);
 const ENVELOPE_PATTERN = /【([a-z][a-z0-9-]*)(?:::[^【】]*)?】/g;
 
 export function scanRetrievalEnvelopes(

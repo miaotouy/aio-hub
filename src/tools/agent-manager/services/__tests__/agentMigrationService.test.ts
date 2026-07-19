@@ -105,7 +105,7 @@ describe("agent recall migration", () => {
     expect(migrateAgent(agent)).toBe(false);
   });
 
-  it("converts staged Knowledge bindings into access grants", () => {
+  it("drops unpublished Knowledge staging fields without importing grants", () => {
     const agent = legacyAgent();
     Object.assign(agent, {
       knowledgeConfig: {
@@ -131,8 +131,8 @@ describe("agent recall migration", () => {
 
     expect(migrateAgent(agent)).toBe(true);
     expect(agent.knowledgeAccess).toEqual({
-      enabled: true,
-      allowedLibraryIds: ["library-1"],
+      enabled: false,
+      allowedLibraryIds: [],
       allowSearchAll: false,
       allowDocumentRead: false,
       allowResearch: false,

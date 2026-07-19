@@ -109,31 +109,29 @@ function toAvailableSummary(
   };
 }
 
-export async function listAuthorizedKnowledgeLibraries(
+export function resolveAuthorizedKnowledgeLibraries(
   access: AgentKnowledgeAccess | undefined,
-  loadLibraries: () => Promise<KnowledgeLibrary[]> = listKnowledgeLibraries
-): Promise<KnowledgeLibrarySummary[]> {
+  libraries: KnowledgeLibrary[],
+  options: { unavailable?: boolean } = {}
+): KnowledgeLibrarySummary[] {
   const normalized = normalizeAgentKnowledgeAccess(access);
   if (!normalized.enabled) return [];
-
-  let libraries: KnowledgeLibrary[];
-  try {
-    libraries = await loadLibraries();
-  } catch {
-    return normalized.allowedLibraryIds.map((id) => ({
-      id,
-      name: "资料库暂时不可用",
-      documentCount: 0,
-      availability: "unavailable",
-      supportsKeywordSearch: false,
-      supportsSemanticSearch: false,
-      indexStatus: { keyword: "unavailable", semantic: "unavailable" },
-    }));
-  }
 
   const byId = new Map(libraries.map((library) => [library.id, library]));
   return normalized.allowedLibraryIds.map((id) => {
     const library = byId.get(id);
+    if (options.unavailable) {
+      return {
+        id,
+        name: library?.name ?? "资料库暂时不可用",
+        description: library?.description,
+        documentCount: library?.documentCount ?? 0,
+        availability: "unavailable" as const,
+        supportsKeywordSearch: false,
+        supportsSemanticSearch: false,
+        indexStatus: { keyword: "unavailable", semantic: "unavailable" },
+      };
+    }
     if (library) return toAvailableSummary(library);
     return {
       id,
@@ -145,6 +143,25 @@ export async function listAuthorizedKnowledgeLibraries(
       indexStatus: { keyword: "unavailable", semantic: "unavailable" },
     };
   });
+}
+
+export async function listAuthorizedKnowledgeLibraries(
+  access: AgentKnowledgeAccess | undefined,
+  loadLibraries: () => Promise<KnowledgeLibrary[]> = listKnowledgeLibraries
+): Promise<KnowledgeLibrarySummary[]> {
+  const normalized = normalizeAgentKnowledgeAccess(access);
+  if (!normalized.enabled) return [];
+
+  let libraries: KnowledgeLibrary[];
+  try {
+    libraries = await loadLibraries();
+  } catch {
+    return resolveAuthorizedKnowledgeLibraries(access, [], {
+      unavailable: true,
+    });
+  }
+
+  return resolveAuthorizedKnowledgeLibraries(normalized, libraries);
 }
 
 export function assertKnowledgeLibraryAvailable(

@@ -352,7 +352,8 @@ export interface ChatMessageNode {
         | "pending"
         | "executing"
         | "awaiting_approval"
-        | "completed";
+        | "completed"
+        | "cancelled";
       durationMs?: number;
       rawArgs?: Record<string, any>;
       resultMetadata?: Record<string, unknown>;
@@ -372,7 +373,8 @@ export interface ChatMessageNode {
         | "pending"
         | "executing"
         | "awaiting_approval"
-        | "completed";
+        | "completed"
+        | "cancelled";
       durationMs?: number;
       rawArgs?: Record<string, any>;
       resultMetadata?: Record<string, unknown>;

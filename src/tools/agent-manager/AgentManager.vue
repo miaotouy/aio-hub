@@ -25,7 +25,7 @@ import { customMessage } from "@/utils/customMessage";
 import { ElMessageBox } from "element-plus";
 import Avatar from "@/components/common/Avatar.vue";
 import EditAgentDialog from "./components/management/EditAgentDialog.vue";
-import type { ChatAgent } from "./types/agent";
+import type { AgentEditData, ChatAgent } from "./types/agent";
 import { AgentCategoryLabels } from "./types/agent";
 import {
   Plus,
@@ -113,6 +113,28 @@ const handleEditAgent = async (agent: ChatAgent) => {
     selectedAgentForEdit.value = fullAgent;
     editDialogVisible.value = true;
   }
+};
+
+const handleSaveAgent = (
+  data: AgentEditData,
+  options: { silent?: boolean; agentId?: string } = {}
+) => {
+  if (editDialogMode.value === "edit") {
+    const agentId = options.agentId || selectedAgentForEdit.value?.id;
+    if (!agentId) return;
+    agentStore.updateAgent(agentId, data);
+    if (!options.silent) customMessage.success("智能体已更新");
+    return;
+  }
+
+  const agentId = agentStore.createAgent(
+    data.name,
+    data.profileId,
+    data.modelId,
+    data
+  );
+  void agentStore.ensurePresetAssetsImported(agentId);
+  customMessage.success(`智能体 "${data.name}" 创建成功`);
 };
 
 // 复制智能体
@@ -270,6 +292,7 @@ const handleImportAgents = () => {
         v-model:visible="editDialogVisible"
         :mode="editDialogMode"
         :agent="selectedAgentForEdit"
+        @save="handleSaveAgent"
       />
     </div>
   </div>

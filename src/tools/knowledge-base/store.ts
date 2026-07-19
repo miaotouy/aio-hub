@@ -48,6 +48,7 @@ export const useKnowledgeStore = defineStore("knowledge-base", {
     importProcessed: 0,
     importTotal: 0,
     searching: false,
+    initializationError: null as unknown,
   }),
 
   getters: {
@@ -74,6 +75,7 @@ export const useKnowledgeStore = defineStore("knowledge-base", {
   actions: {
     async initialize() {
       this.loading = true;
+      this.initializationError = null;
       try {
         await this.refreshLibraries();
         const libraryIds = this.libraries.map((library) => library.id);
@@ -87,6 +89,7 @@ export const useKnowledgeStore = defineStore("knowledge-base", {
             errorHandler.error(error, "恢复知识资料摄取任务失败");
           });
       } catch (error) {
+        this.initializationError = error;
         errorHandler.error(error, "初始化知识资料库失败");
       } finally {
         this.loading = false;

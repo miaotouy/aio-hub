@@ -22,10 +22,7 @@ import type { ChatAgent } from "../types/agent";
 import { DEFAULT_AGENT_EXTENSION_CONFIG } from "../types/agent";
 import { useAnchorRegistry } from "@/tools/llm-chat/composables/ui/useAnchorRegistry";
 import type { ChatMessageNode } from "@/tools/llm-chat/types/message";
-import {
-  DEFAULT_AGENT_KNOWLEDGE_ACCESS,
-  normalizeAgentKnowledgeAccess,
-} from "@/tools/knowledge-base/access";
+import { normalizeAgentKnowledgeAccess } from "@/tools/knowledge-base/access";
 
 const logger = createModuleLogger("llm-chat/agentMigrationService");
 
@@ -70,10 +67,7 @@ interface LegacyRecallSettings {
 type LegacyAgentFields = {
   knowledgeBaseConfig?: LegacyRecallConfig;
   knowledgeSettings?: LegacyRecallSettings;
-  knowledgeConfig?: {
-    enabled: boolean;
-    bindings?: Array<{ libraryId: string; enabled: boolean }>;
-  };
+  knowledgeConfig?: Record<string, unknown>;
 };
 
 /**
@@ -134,7 +128,7 @@ export function migrateAgent(agent: ChatAgent): boolean {
   // 7. 迁移 Recall 领域配置与工具权限。
   if (migrateRecallConfiguration(agent)) hasChanges = true;
 
-  // 8. 将开发期 Knowledge binding 收敛为资料访问权限。
+  // 8. 清理未发布的 Knowledge 阶段性字段，正式授权只使用 knowledgeAccess。
   if (migrateKnowledgeAccess(agent)) hasChanges = true;
 
   return hasChanges;
@@ -227,24 +221,11 @@ function migrateRecallConfiguration(agent: ChatAgent): boolean {
 
 function migrateKnowledgeAccess(agent: ChatAgent): boolean {
   const legacyAgent = agent as ChatAgent & LegacyAgentFields;
-  const stagedConfig = legacyAgent.knowledgeConfig;
-  const hadLegacyFields = Boolean(
-    stagedConfig || legacyAgent.knowledgeSettings
-  );
   const access = normalizeAgentKnowledgeAccess(
-    agent.knowledgeAccess ??
-      (stagedConfig
-        ? {
-            ...DEFAULT_AGENT_KNOWLEDGE_ACCESS,
-            enabled: stagedConfig.enabled,
-            allowedLibraryIds: (stagedConfig.bindings ?? [])
-              .filter((binding) => binding.enabled)
-              .map((binding) => binding.libraryId),
-          }
-        : DEFAULT_AGENT_KNOWLEDGE_ACCESS)
+    agent.knowledgeAccess
   );
   const changed =
-    hadLegacyFields ||
+    Boolean(legacyAgent.knowledgeConfig || legacyAgent.knowledgeSettings) ||
     JSON.stringify(agent.knowledgeAccess) !== JSON.stringify(access);
   agent.knowledgeAccess = access;
   delete legacyAgent.knowledgeConfig;

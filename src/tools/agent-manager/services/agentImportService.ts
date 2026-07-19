@@ -42,7 +42,10 @@ import {
 } from "./vcpChatAgentImportService";
 import { DEFAULT_AGENT_EXTENSION_CONFIG } from "../types/agent";
 import { migrateAgent } from "./agentMigrationService";
-import { DEFAULT_AGENT_KNOWLEDGE_ACCESS } from "@/tools/knowledge-base/access";
+import {
+  DEFAULT_AGENT_KNOWLEDGE_ACCESS,
+  normalizeAgentKnowledgeAccess,
+} from "@/tools/knowledge-base/access";
 
 const logger = createModuleLogger("llm-chat/agentImportService");
 const errorHandler = createModuleErrorHandler("llm-chat/agentImportService");
@@ -95,9 +98,9 @@ function sanitizeImportedAgent(agent: any): any {
       autoInjectPosition: "context_head",
     },
     recallSettings: source.recallSettings ?? { defaultProfile: "semantic" },
-    knowledgeAccess: source.knowledgeAccess ?? {
-      ...DEFAULT_AGENT_KNOWLEDGE_ACCESS,
-    },
+    knowledgeAccess: normalizeAgentKnowledgeAccess(
+      source.knowledgeAccess ?? DEFAULT_AGENT_KNOWLEDGE_ACCESS
+    ),
   };
   return sanitized;
 }

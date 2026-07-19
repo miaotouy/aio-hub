@@ -67,10 +67,13 @@ export function createExplicitKnowledgeToolEvent(
     (childId) => childId !== assistantNode.id
   );
   nodeManager.addNodeToSession(session, toolNode);
-  toolNode.childrenIds.push(assistantNode.id);
-  assistantNode.parentId = toolNode.id;
+  // Keep the proxy stored in the reactive session so completion updates repaint
+  // the collapsed tool preview as well as the persisted session.
+  const sessionToolNode = session.nodes[toolNode.id] ?? toolNode;
+  sessionToolNode.childrenIds.push(assistantNode.id);
+  assistantNode.parentId = sessionToolNode.id;
 
-  return { requestId, toolNode };
+  return { requestId, toolNode: sessionToolNode };
 }
 
 export function completeExplicitKnowledgeToolEvent(
@@ -125,16 +128,17 @@ export function completeExplicitKnowledgeResearchEvent(
   content: string,
   durationMs: number
 ): void {
+  const cancelled = result.terminationReason === "cancelled";
   userNode.knowledgeReference = reference;
   event.toolNode.content = content;
-  event.toolNode.status = "complete";
+  event.toolNode.status = cancelled ? "error" : "complete";
   event.toolNode.metadata = {
     ...event.toolNode.metadata,
     toolCalls: [
       {
         requestId: event.requestId,
         toolName: "knowledge.research",
-        status: "success",
+        status: cancelled ? "cancelled" : "success",
         durationMs,
         rawArgs: {
           question: query,

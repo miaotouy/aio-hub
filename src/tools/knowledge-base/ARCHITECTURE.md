@@ -64,6 +64,8 @@ Knowledge 前端不导入 Recall store、entry、priority、tag pool 或 workspa
 - 显式 research 复用同一节点链，由当前 Agent 编排。Knowledge 工具节点持续保存轮次、调用数和证据字符进度，支持取消；完成、失败或取消都保留已收集引用、查询、空缺、潜在冲突和终止原因，随后由当前 Agent 基于结构化证据生成最终回答。
 - mixed 检索只属于上层显式编排，先保留 Recall 与 Knowledge 的分域配额，再使用 RRF 融合，不直接比较两域原始分数。
 
-## 5. 后续施工顺序
+显式检索占位符重新引入前必须重新评审四项边界：触发方式（用户/Agent 是否可预期）、权限继承（是否完全复用 `knowledgeAccess`）、可见性（工具节点与引用是否可追溯）以及与主动 `knowledge.*` 工具的共存与去重。本轮不恢复 `{{knowledge}}`、`{{kb}}` 或 `【knowledge::...】`。
 
-后续以 `docs/Plan/knowledge-base-implementation-checklist.md` 为唯一施工清单。配置分层、持久 ingest queue、目录同步、原子版本替换、诊断工作台和二阶研究任务均已进入运行路径；最终仍需按清单完成跨模块回归和隔离 appData 的真实 Tauri 全链路验收。
+## 5. 产品接入状态
+
+配置分层、持久 ingest queue、目录同步、原子版本替换、诊断工作台和二阶研究任务均已进入运行路径。Agent Manager、Chat 和 Knowledge 工作台的访问授权、目录宏、主动工具和结构化引用已按同一契约接入；最终工程检查和真实 Tauri 回归仍以 `docs/Plan/knowledge-base-implementation-checklist.md` 为准。

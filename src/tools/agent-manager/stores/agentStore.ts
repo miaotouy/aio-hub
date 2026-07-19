@@ -123,6 +123,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
       const agentId = `agent-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
       const now = getLocalISOString();
       const {
+        knowledgeBaseConfig: _legacyKnowledgeBaseConfig,
         knowledgeConfig: _legacyKnowledgeConfig,
         knowledgeSettings: _legacyKnowledgeSettings,
         ...supportedOptions
@@ -219,7 +220,21 @@ export const useAgentStore = defineStore("llmChatAgent", {
         return;
       }
 
-      Object.assign(agent, updates);
+      const {
+        knowledgeBaseConfig: _legacyKnowledgeBaseConfig,
+        knowledgeConfig: _legacyKnowledgeConfig,
+        knowledgeSettings: _legacyKnowledgeSettings,
+        ...supportedUpdates
+      } = updates as Record<string, unknown>;
+      Object.assign(agent, supportedUpdates);
+      if ("knowledgeAccess" in supportedUpdates) {
+        agent.knowledgeAccess = normalizeAgentKnowledgeAccess(
+          supportedUpdates.knowledgeAccess as ChatAgent["knowledgeAccess"]
+        );
+      }
+      delete (agent as ChatAgent & Record<string, unknown>).knowledgeConfig;
+      delete (agent as ChatAgent & Record<string, unknown>).knowledgeSettings;
+      delete (agent as ChatAgent & Record<string, unknown>).knowledgeBaseConfig;
       this.persistAgent(agent);
 
       logger.info("更新智能体", { agentId, updates });
@@ -238,6 +253,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
 
       // 深度复制智能体的数据
       const newAgentData = JSON.parse(JSON.stringify(originalAgent));
+      delete newAgentData.knowledgeBaseConfig;
       delete newAgentData.knowledgeConfig;
       delete newAgentData.knowledgeSettings;
 

@@ -84,51 +84,6 @@ export const agentEditTabs: AgentEditTab[] = [
         keywords: "worldbook depth 深度",
       },
       {
-        id: "kbDefaultEngine",
-        label: "默认检索引擎",
-        keywords: "knowledge engine 知识库 引擎",
-      },
-      {
-        id: "kbDefaultLimit",
-        label: "召回上限",
-        keywords: "knowledge limit 召回 上限",
-      },
-      {
-        id: "kbDefaultMinScore",
-        label: "最低分数阈值",
-        keywords: "knowledge score 分数 阈值 截断",
-      },
-      {
-        id: "kbMaxRecallChars",
-        label: "召回字数上限",
-        keywords: "knowledge char limit 字数",
-      },
-      {
-        id: "kbGateScanDepth",
-        label: "门控扫描深度",
-        keywords: "knowledge gate depth 深度",
-      },
-      {
-        id: "kbContextWindow",
-        label: "上下文窗口",
-        keywords: "knowledge context window 窗口 轮次",
-      },
-      {
-        id: "kbEnableCache",
-        label: "启用检索缓存",
-        keywords: "knowledge cache 缓存",
-      },
-      {
-        id: "kbResultTemplate",
-        label: "结果模板",
-        keywords: "knowledge template 模板",
-      },
-      {
-        id: "kbEmptyText",
-        label: "空结果提示",
-        keywords: "knowledge empty 提示",
-      },
-      {
         id: "displayPresetCount",
         label: "显示数量",
         keywords: "preset count 数量",
@@ -167,13 +122,13 @@ export const agentEditTabs: AgentEditTab[] = [
   },
   {
     id: "knowledge",
-    label: "知识库",
+    label: "Recall 与 Knowledge",
     icon: BookOpen,
     items: [
       {
         id: "knowledgeBase",
-        label: "知识库 (RAG)",
-        keywords: "knowledge base RAG 知识库 检索 向量",
+        label: "Knowledge 资料访问权限",
+        keywords: "knowledge access 资料库 权限 搜索 阅读 研究",
       },
     ],
   },

@@ -351,6 +351,7 @@ const mainStatus = computed(() => {
   if (toolCalls.value.some((t) => t.status === "awaiting_approval"))
     return "pending";
   if (toolCalls.value.some((t) => t.status === "executing")) return "executing";
+  if (toolCalls.value.some((t) => t.status === "cancelled")) return "cancelled";
   if (
     toolCalls.value.some((t) => t.status === "error" || t.status === "denied")
   )

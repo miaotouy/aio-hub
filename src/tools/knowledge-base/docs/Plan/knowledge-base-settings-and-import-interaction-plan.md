@@ -154,7 +154,7 @@ interface KnowledgeLibraryIndexConfig {
 
 名称、说明属于 manifest 目录元数据，可独立保存。系统运行参数保存在全局配置中。分块和 Embedding 契约先保留在前端表单中，用户确认“应用并重建”后，由单个 library DB 事务完成配置提交、重切片、FTS/graph 重建以及旧活动向量清理；操作失败或进程中断时继续保留原配置与原索引。修改首选渠道不等于切换已存在的向量空间，模型切换继续通过语义索引流程确认。
 
-Agent 的 `knowledgeSettings`、binding 和占位符参数保持独立。本设置页不覆盖 Agent 已保存的 `limit`、`min-score` 或 strategy。
+Agent 的 `knowledgeAccess` 与单次工具调用参数保持独立。本设置页不覆盖 Agent 的授权库、研究权限，也不保存 `limit`、`min-score` 或 strategy；这些参数只属于具体的 Knowledge 工具请求。
 
 ### 3.3 格式定义单一来源
 

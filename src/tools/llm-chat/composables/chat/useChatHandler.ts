@@ -257,6 +257,8 @@ export function useChatHandler() {
         if (validatedReference.mode === "research") {
           const researchController = new AbortController();
           abortControllers.set(explicitKnowledgeToolNode.id, researchController);
+          abortControllers.set(assistantNode.id, researchController);
+          generatingNodes.add(assistantNode.id);
           const result = await executeKnowledgeReferenceResearch(
             applicationContext,
             content,
@@ -277,6 +279,7 @@ export function useChatHandler() {
             }
           );
           abortControllers.delete(explicitKnowledgeToolNode.id);
+          abortControllers.delete(assistantNode.id);
           completeExplicitKnowledgeResearchEvent(
             toolEvent,
             userNode,
@@ -286,6 +289,18 @@ export function useChatHandler() {
             formatKnowledgeResearchResult(result),
             Date.now() - startedAt
           );
+          if (result.terminationReason === "cancelled") {
+            generatingNodes.delete(explicitKnowledgeToolNode.id);
+            generatingNodes.delete(assistantNode.id);
+            nodeManager.hardDeleteNode(session, assistantNode.id);
+            nodeManager.updateActiveLeaf(session, explicitKnowledgeToolNode.id);
+            sessionManager.persistSession(
+              sessionIndex,
+              session,
+              currentSessionId ?? null
+            );
+            return;
+          }
         } else {
           const result = await executeKnowledgeReferenceSearch(
             applicationContext,

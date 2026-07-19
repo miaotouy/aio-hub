@@ -11,7 +11,7 @@
 | 1    | **Session Loader**          | 从树状会话中提取当前活跃路径的线性消息列表。                        |
 | 2    | **Regex Processor**         | 执行全局、Agent 及用户层的[正则替换规则](./regex-pipeline)。        |
 | 3    | **Injection Assembler**     | 处理 Agent 预设消息的注入，包括深度注入和锚点定位。                 |
-| 4    | **Knowledge Processor**     | 执行 RAG 检索，将[知识库](./knowledge-processor)条目注入上下文。    |
+| 4    | **Recall Processor**        | 仅处理 Recall 思绪占位符；Knowledge 不属于上下文管道处理器。       |
 | 5    | **Transcription Processor** | 处理附件的转写结果及纯文本文件的内容提取。                          |
 | 6    | **Worldbook Processor**     | 扫描关键词并注入关联的[世界书](../worldbook/index)条目。            |
 | 7    | **Token Limiter**           | 核心预算管理，按优先级裁剪超长上下文。                              |
@@ -27,7 +27,7 @@
 
 - **Session Loader** 总是最先运行，因为它提供了后续处理器所需的基础消息流。
 - **Regex Processor** 运行较早，确保后续处理器（如 Worldbook）扫描的是经过清洗后的文本。
-- **Macro Processor** 运行较晚，因为它可能需要引用由之前处理器（如 Knowledge）注入的内容。
+- **Macro Processor** 运行较晚，因为它可能需要引用由之前处理器注入的内容。
 
 ### 2. 异步任务注入
 
@@ -41,7 +41,7 @@
 
 在 **聊天设置 -> 上下文管道** 中：
 
-- **启用/禁用**: 某些任务不需要 RAG 或世界书时，关闭对应处理器可些微提升响应速度，但是不推荐这么做，因为这个处理器的开关是全局的，建议在 Agent 中配置对应行为。
+- **启用/禁用**: 某些任务不需要 Recall 或世界书时，可以关闭对应处理器。Knowledge 只会在 Agent 工具调用或用户显式引用时执行，不受这里的处理器开关影响。
 - **拖拽排序**: 高级用户可以调整处理器的物理顺序。例如，如果你希望正则规则也应用到世界书注入的内容上，可以将 Regex Processor 移动到 Worldbook Processor 之后。
 
 ---

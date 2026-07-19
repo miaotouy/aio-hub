@@ -12,6 +12,7 @@ import {
   selectValidationFiles,
   terminateForResumeValidation,
 } from "../services/platformFileValidation";
+import { createPickerValidationResult } from "../services/platformFileResult";
 import type { ValidationCommandResult } from "../types/validation";
 
 const {
@@ -57,48 +58,7 @@ async function runPicker(caseId: string, multiple: boolean, kind: "file" | "phot
         metrics: { selectionCount: 0 },
       };
     }
-    const probePassed = selected.probeStatus === "passed";
-    return {
-      status: probePassed ? "passed" : "failed",
-      steps: [
-        {
-          id: "picker-result",
-          label: "接收脱敏选择结果",
-          status: "passed",
-          durationMs: 0,
-          summary: `${selected.scheme} / ${selected.fileName} / ${selected.referenceHash}`,
-          details: {
-            selectionCount: selected.selectionCount,
-            scheme: selected.scheme,
-            fileName: selected.fileName,
-            referenceHash: selected.referenceHash,
-            mime: selected.mime,
-          },
-        },
-        {
-          id: "picker-read-probe",
-          label: "读取选择结果",
-          status: probePassed ? "passed" : "failed",
-          durationMs: selected.readProbeMs,
-          summary: probePassed
-            ? `已读取首个数据块（${selected.bytesRead} bytes）。`
-            : selected.probeError || "系统选择结果读取失败。",
-          details: {
-            size: selected.size,
-            bytesRead: selected.bytesRead,
-            firstByteMs: selected.firstByteMs,
-            readProbeMs: selected.readProbeMs,
-          },
-        },
-      ],
-      metrics: {
-        selectionCount: selected.selectionCount,
-        scheme: selected.scheme,
-        size: selected.size,
-        firstByteMs: selected.firstByteMs,
-        readProbeMs: selected.readProbeMs,
-      },
-    };
+    return createPickerValidationResult(selected, multiple);
     },
   );
 }
@@ -145,7 +105,7 @@ function recordObservation(verdict: "passed" | "failed"): void {
       <p>路径只显示 scheme、文件名和引用 hash，运行记录不会保存完整路径。</p>
     </div>
     <ValidationCaseRow title="单文件选择" description="调用系统文件选择器并记录脱敏返回类型。" :status="statusFor('single-file')" @run="runPicker('single-file', false, 'file')" />
-    <ValidationCaseRow title="多文件选择" description="验证多选入口及用户取消行为。" :status="statusFor('multiple-files')" @run="runPicker('multiple-files', true, 'file')" />
+    <ValidationCaseRow title="多文件选择" description="长按首个文件进入多选，至少选择 2 项；同时验证用户取消行为。" :status="statusFor('multiple-files')" @run="runPicker('multiple-files', true, 'file')" />
     <ValidationCaseRow title="照片选择" description="调用带图片类型约束的系统入口。" :status="statusFor('photo')" @run="runPicker('photo', false, 'photo')" />
 
     <div class="section-heading"><h2>沙箱与恢复</h2></div>

@@ -1410,7 +1410,7 @@ impl KnowledgeRepository {
                         d.status, d.created_at, d.updated_at, COUNT(DISTINCT c.id),
                         COUNT(DISTINCT v.chunk_id), COALESCE(f.source_id, ''),
                         d.source_file_id, d.source_checksum, d.parser_version,
-                        d.version, COALESCE(d.last_error, f.last_error)
+                        d.version, COALESCE(d.last_error, f.last_error), d.tags_json
                  FROM documents d
                  LEFT JOIN chunks c ON c.document_id = d.id
                  LEFT JOIN chunk_vectors v ON v.chunk_id = c.id AND v.space_id = ?1
@@ -1429,6 +1429,7 @@ impl KnowledgeRepository {
                     mime_type: row.get(4)?,
                     size: row.get::<_, i64>(5)?.max(0) as usize,
                     status: row.get(6)?,
+                    tags: parse_document_tags(&row.get::<_, String>(17)?),
                     created_at: row.get(7)?,
                     updated_at: row.get(8)?,
                     chunk_count: row.get::<_, i64>(9)?.max(0) as usize,
@@ -1444,6 +1445,31 @@ impl KnowledgeRepository {
             .map_err(|error| format!("查询 Knowledge document 失败: {error}"))?;
         rows.map(|row| row.map_err(|error| format!("读取 Knowledge document 失败: {error}")))
             .collect()
+    }
+
+    pub fn update_document_tags(
+        &self,
+        library_id: &str,
+        document_id: &str,
+        tags: &[String],
+    ) -> Result<KnowledgeDocument, String> {
+        let tags = normalize_document_tags(tags)?;
+        let tags_json = serde_json::to_string(&tags)
+            .map_err(|error| format!("序列化 Knowledge document 标签失败: {error}"))?;
+        let path = self.resolve_library_path(library_id)?;
+        let updated = self
+            .open_library(&path)?
+            .execute(
+                "UPDATE documents SET tags_json = ?2, updated_at = ?3 WHERE id = ?1",
+                params![document_id, tags_json, now()],
+            )
+            .map_err(|error| format!("更新 Knowledge document 标签失败: {error}"))?;
+        if updated == 0 {
+            return Err(format!("找不到 Knowledge document: {document_id}"));
+        }
+        self.touch_library(library_id)?;
+        self.get_document(library_id, document_id)?
+            .ok_or_else(|| format!("找不到 Knowledge document: {document_id}"))
     }
 
     pub fn list_chunks(
@@ -1991,6 +2017,7 @@ impl KnowledgeRepository {
             }
         }
         apply_graph_expansion(&connection, library, &mut candidates)?;
+        populate_result_tags(&connection, &mut candidates)?;
         Ok(candidates.into_values().collect())
     }
 
@@ -2122,6 +2149,12 @@ impl KnowledgeRepository {
             "INTEGER NOT NULL DEFAULT 1",
         )?;
         ensure_column(&connection, "documents", "last_error", "TEXT")?;
+        ensure_column(
+            &connection,
+            "documents",
+            "tags_json",
+            "TEXT NOT NULL DEFAULT '[]'",
+        )?;
         migrate_legacy_chunk_vectors(&mut connection)?;
         purge_orphan_fts(&connection)
     }
@@ -2285,6 +2318,7 @@ CREATE TABLE IF NOT EXISTS documents(
   content TEXT NOT NULL,
   size INTEGER NOT NULL,
   status TEXT NOT NULL,
+  tags_json TEXT NOT NULL DEFAULT '[]',
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
@@ -3073,6 +3107,7 @@ fn result_from_chunk(
         document_id: chunk.document_id,
         source_path: chunk.source_path,
         title: chunk.title,
+        tags: Vec::new(),
         chunk_id: chunk.id,
         chunk_index: chunk.chunk_index,
         heading: chunk.heading,
@@ -3080,6 +3115,61 @@ fn result_from_chunk(
         score,
         signals: Vec::new(),
     }
+}
+
+fn parse_document_tags(value: &str) -> Vec<String> {
+    serde_json::from_str::<Vec<String>>(value).unwrap_or_default()
+}
+
+fn normalize_document_tags(tags: &[String]) -> Result<Vec<String>, String> {
+    let mut normalized = Vec::new();
+    for tag in tags {
+        let tag = tag.trim();
+        if tag.is_empty() {
+            continue;
+        }
+        if tag.chars().count() > 40 {
+            return Err("Knowledge document 单个标签不能超过 40 个字符".to_string());
+        }
+        let key = tag.to_lowercase();
+        if normalized
+            .iter()
+            .any(|existing: &String| existing.to_lowercase() == key)
+        {
+            continue;
+        }
+        normalized.push(tag.to_string());
+        if normalized.len() > 32 {
+            return Err("Knowledge document 最多支持 32 个标签".to_string());
+        }
+    }
+    Ok(normalized)
+}
+
+fn populate_result_tags(
+    connection: &Connection,
+    candidates: &mut HashMap<String, KnowledgeResult>,
+) -> Result<(), String> {
+    let mut cache = HashMap::<String, Vec<String>>::new();
+    for result in candidates.values_mut() {
+        if let Some(tags) = cache.get(&result.document_id) {
+            result.tags.clone_from(tags);
+            continue;
+        }
+        let tags_json = connection
+            .query_row(
+                "SELECT tags_json FROM documents WHERE id = ?1",
+                [&result.document_id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(|error| format!("读取 Knowledge document 标签失败: {error}"))?
+            .unwrap_or_else(|| "[]".to_string());
+        let tags = parse_document_tags(&tags_json);
+        result.tags.clone_from(&tags);
+        cache.insert(result.document_id.clone(), tags);
+    }
+    Ok(())
 }
 
 fn chunk_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<KnowledgeChunk> {
@@ -3223,7 +3313,28 @@ mod tests {
             ))
             .unwrap();
         assert_eq!(document.source_path, "docs/guide.md");
+        assert!(document.tags.is_empty());
         assert!(document.chunk_count > 0);
+        let document = repository
+            .update_document_tags(
+                &library.id,
+                &document.id,
+                &[
+                    " Docs ".to_string(),
+                    "reference".to_string(),
+                    "docs".to_string(),
+                ],
+            )
+            .unwrap();
+        assert_eq!(document.tags, vec!["Docs", "reference"]);
+        let reingested = repository
+            .ingest(&request(
+                &library.id,
+                "docs/guide.md",
+                "# Installation\nInstall the package with Bun. Updated.",
+            ))
+            .unwrap();
+        assert_eq!(reingested.tags, vec!["Docs", "reference"]);
         let chunks = repository
             .list_chunks(&library.id, Some(&document.id))
             .unwrap();
@@ -3243,6 +3354,7 @@ mod tests {
             .unwrap();
         assert_eq!(results[0].source_type, "knowledge");
         assert_eq!(results[0].source_path, "docs/guide.md");
+        assert_eq!(results[0].tags, vec!["Docs", "reference"]);
         assert_eq!(results[0].heading.as_deref(), Some("Installation"));
     }
 

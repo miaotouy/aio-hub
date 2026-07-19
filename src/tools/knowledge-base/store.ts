@@ -12,6 +12,7 @@ import {
   listKnowledgeLibraries,
   rebuildKnowledgeLibrary,
   searchKnowledgeDetailed,
+  updateKnowledgeDocumentTags,
   updateKnowledgeLibrary,
 } from "./service";
 import { processKnowledgeImportQueue } from "./ingestQueue";
@@ -256,6 +257,18 @@ export const useKnowledgeStore = defineStore("knowledge-base", {
       this.results = [];
       this.selectedResultId = null;
       await this.refreshLibraries(this.activeLibraryId);
+    },
+
+    async updateDocumentTags(documentId: string, tags: string[]) {
+      if (!this.activeLibraryId) return null;
+      const document = await updateKnowledgeDocumentTags(
+        this.activeLibraryId,
+        documentId,
+        tags
+      );
+      const index = this.documents.findIndex((item) => item.id === documentId);
+      if (index >= 0) this.documents[index] = document;
+      return document;
     },
 
     async rebuild() {

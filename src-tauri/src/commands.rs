@@ -425,6 +425,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         crate::knowledge::knowledge_rescan_directory_source,
         crate::knowledge::knowledge_remove_source,
         crate::knowledge::knowledge_list_documents,
+        crate::knowledge::knowledge_update_document_tags,
         crate::knowledge::knowledge_list_chunks,
         crate::knowledge::knowledge_list_unvectorized_chunks,
         crate::knowledge::knowledge_delete_document,

@@ -134,6 +134,19 @@ export async function ingestKnowledgeDocument(
   return invoke<KnowledgeDocument>("knowledge_ingest_document", { request });
 }
 
+export async function updateKnowledgeDocumentTags(
+  libraryId: string,
+  documentId: string,
+  tags: string[]
+): Promise<KnowledgeDocument> {
+  await ensureKnowledgeInitialized();
+  return invoke<KnowledgeDocument>("knowledge_update_document_tags", {
+    libraryId,
+    documentId,
+    tags,
+  });
+}
+
 export async function enqueueKnowledgePaths(
   libraryId: string,
   paths: string[],

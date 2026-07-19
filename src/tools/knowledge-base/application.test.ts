@@ -81,6 +81,7 @@ function result(
     documentId: `${libraryId}-document`,
     sourcePath: `${libraryId}/guide.md`,
     title: `${libraryId} Guide`,
+    tags: ["guide"],
     chunkId: `${libraryId}-chunk-${chunkIndex}`,
     chunkIndex,
     heading: "Guide",
@@ -250,11 +251,15 @@ describe("Knowledge application service", () => {
       query: " install ",
       libraryIds: '["library-a"]',
       strategy: "keyword",
-      filters: JSON.stringify({ pathPrefixes: ["library-a/"] }),
+      filters: JSON.stringify({
+        pathPrefixes: ["library-a/"],
+        tags: ["GUIDE"],
+      }),
       maxChars: 1000,
     });
     const response = await searchKnowledgeForAgent(applicationContext, request);
     expect(response.hits[0].snippet).toHaveLength(1000);
+    expect(response.hits[0].tags).toEqual(["guide"]);
     expect(response.truncated).toBe(true);
   });
 

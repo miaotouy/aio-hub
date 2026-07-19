@@ -201,6 +201,18 @@ pub async fn knowledge_list_documents(
 }
 
 #[tauri::command]
+pub async fn knowledge_update_document_tags(
+    state: State<'_, KnowledgeState>,
+    library_id: String,
+    document_id: String,
+    tags: Vec<String>,
+) -> Result<KnowledgeDocument, String> {
+    state
+        .repository()?
+        .update_document_tags(&library_id, &document_id, &tags)
+}
+
+#[tauri::command]
 pub async fn knowledge_list_chunks(
     state: State<'_, KnowledgeState>,
     library_id: String,

@@ -6,6 +6,7 @@ import {
   retryKnowledgeIngestTask,
   searchKnowledge,
   searchKnowledgeDetailed,
+  updateKnowledgeDocumentTags,
   updateKnowledgeLibrary,
   vectorizeKnowledgeLibrary,
 } from "./service";
@@ -69,6 +70,7 @@ function result(libraryId: string): KnowledgeResult {
     documentId: `${libraryId}-document`,
     sourcePath: `${libraryId}.md`,
     title: libraryId,
+    tags: [],
     chunkId: `${libraryId}-chunk`,
     chunkIndex: 0,
     content: libraryId,
@@ -241,6 +243,26 @@ describe("searchKnowledge", () => {
     expect(invokeMock).toHaveBeenCalledWith(
       "knowledge_apply_library_config",
       { libraryId: "library-a", config }
+    );
+  });
+
+  it("updates document tags through the Knowledge IPC boundary", async () => {
+    invokeMock.mockResolvedValue({ tags: ["docs"] });
+
+    const document = await updateKnowledgeDocumentTags(
+      "library-a",
+      "document-a",
+      ["docs"]
+    );
+
+    expect(document.tags).toEqual(["docs"]);
+    expect(invokeMock).toHaveBeenCalledWith(
+      "knowledge_update_document_tags",
+      {
+        libraryId: "library-a",
+        documentId: "document-a",
+        tags: ["docs"],
+      }
     );
   });
 

@@ -1,6 +1,6 @@
 # Knowledge（知识资料库）架构说明
 
-Knowledge 是 AIO Hub 的文档资料与来源回溯领域，与 Recall 思绪领域独立持久化、独立绑定和独立检索。它面向 PDF、DOCX、HTML、Markdown、代码与文本资料，基本单元是 `document + chunk + source`，不承载 Recall entry、标签池、priority 或联想召回状态。
+Knowledge 是 AIO Hub 的文档资料与来源回溯领域，与 Recall 思绪领域独立持久化、独立绑定和独立检索。它面向 PDF、DOCX、HTML、Markdown、代码与文本资料，基本单元是 `document + chunk + source`。文档可维护 Knowledge 域内的独立 tags，用于管理与检索过滤；它不承载 Recall entry、Recall 标签池、priority 或联想召回状态。
 
 详细产品与交互方案见 [Knowledge 资料库产品与交互设计](./docs/Plan/knowledge-base-product-interaction-design.md)。
 
@@ -9,6 +9,7 @@ Knowledge 是 AIO Hub 的文档资料与来源回溯领域，与 Recall 思绪�
 - Knowledge repository 必须以项目统一的 `get_app_data_dir(app.config())` 为数据根，使默认、自定义、便携和隔离实例与其他应用数据遵守同一路径契约。不得直接使用 Tauri `app.path().app_data_dir()` 建立第二个数据根。
 - `knowledge/knowledge_meta.db` 只保存 library ID、名称、说明、目录时间戳和 manifest schema migration。它不保存单库数据库绝对路径，也不是索引配置或活动向量身份的事实来源。
 - `knowledge/libraries/{libraryId}.kdb` 是每库独立的 SQLite 文件，包含版本化 `library_metadata`、索引配置快照、活动 Embedding space/route/维度、document、chunk、FTS5、`embedding_spaces`、按 `space_id` 隔离的 chunk vector 和相邻 chunk graph edge。
+- 文档 tags 存于对应库的 `documents.tags_json`，重新摄取同一路径文档时保留；更新 tags 不触发重新分块或向量化。
 - library 文件采用 UUID 路径约束，并始终从当前数据根派生；整个数据根移动或复制后不会引用旧位置。删除先隔离为 tombstone，再删除 manifest，失败时恢复文件。
 - Knowledge 在正式发布前的数据根分裂不提供迁移兼容：不探测、不合并、不搬运旧 Tauri 默认目录中的开发期数据，验收和开发直接使用全新隔离数据根。
 - `knowledge_sources` 保存独立文件或目录来源，`knowledge_source_files` 保存稳定文件身份、原始 SHA-256、parser 版本、当前 document 和最近状态；`knowledge_ingest_tasks` 持久化 pending/processing/retry/failed/completed/cancelled、有限重试、取消与 lease。文件在入队哈希前后必须保持 size/mtime 稳定，原始 checksum 或 parser 版本未变化时跳过重复解析。
@@ -37,7 +38,7 @@ Knowledge 是 AIO Hub 的文档资料与来源回溯领域，与 Recall 思绪�
 - Embedding 模型选项由共享 `useEmbeddingModelOptions()` 提供，Knowledge 不复制模型能力判断。
 - 批量导入以文件为失败隔离单元。成功文件立即保留，失败项保存文件名、绝对路径、validation/read/parse/ingest 阶段和原因。H5 只取得 `File.name` 时不伪造来源路径，提示改用文件选择器。
 
-Knowledge 前端不导入 Recall store、entry、priority、tag pool 或 workspace。
+Knowledge 前端不导入 Recall store、entry、priority、tag pool 或 workspace。Knowledge document tags 是本域元数据，不与 Recall 标签池同步。
 
 ## 3. 检索策略
 
@@ -46,7 +47,7 @@ Knowledge 前端不导入 Recall store、entry、priority、tag pool 或 workspa
 - `hybrid`：融合 BM25 与 vector，并允许相邻 chunk graph 扩展。
 - `auto`：有可用 query vector 时走 hybrid，否则退化为 BM25。
 
-结果必须保留 `libraryId`、`documentId`、`sourcePath`、`chunkIndex`、`heading`、`sourceType = knowledge` 和命中 signals。UI 展示原始相关度与信号类型，不将不同策略的分数伪装为统一百分比。
+结果必须保留 `libraryId`、`documentId`、`sourcePath`、`tags`、`chunkIndex`、`heading`、`sourceType = knowledge` 和命中 signals。Agent 搜索 filters 可按文档 tags 过滤；UI 展示原始相关度与信号类型，不将不同策略的分数伪装为统一百分比。
 
 ## 4. Chat 与 Agent
 

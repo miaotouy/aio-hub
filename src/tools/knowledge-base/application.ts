@@ -137,6 +137,7 @@ function parseSearchFilters(
     documentIds: parseStringArray(filters.documentIds),
     sourceTypes: parseStringArray(filters.sourceTypes),
     pathPrefixes: parseStringArray(filters.pathPrefixes),
+    tags: parseStringArray(filters.tags),
   };
 }
 
@@ -187,6 +188,16 @@ function matchesFilters(
   ) {
     return false;
   }
+  if (
+    filters?.tags?.length &&
+    !filters.tags.every((tag) =>
+      result.tags.some(
+        (candidate) => candidate.toLocaleLowerCase() === tag.toLocaleLowerCase()
+      )
+    )
+  ) {
+    return false;
+  }
   return true;
 }
 
@@ -234,6 +245,7 @@ function toHit(candidate: RankedCandidate, snippet: string): KnowledgeToolHit {
     chunkId: result.chunkId,
     chunkIndex: result.chunkIndex,
     title: result.title,
+    tags: result.tags,
     heading: result.heading,
     sourcePath: result.sourcePath,
     snippet,
@@ -274,6 +286,7 @@ async function addAdjacentCandidates(
           documentId: chunk.documentId,
           sourcePath: chunk.sourcePath,
           title: chunk.title,
+          tags: result.tags,
           chunkId: chunk.id,
           chunkIndex: chunk.chunkIndex,
           heading: chunk.heading,

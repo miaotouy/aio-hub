@@ -230,7 +230,7 @@
               class="filter-input"
               clearable
               :prefix-icon="Search"
-              placeholder="按标题或路径筛选文档"
+              placeholder="按标题、路径或标签筛选文档"
             />
             <span
               >{{ filteredDocuments.length }} /
@@ -270,6 +270,9 @@
                     <small :title="document.sourcePath">{{
                       document.sourcePath
                     }}</small>
+                    <small v-if="document.tags.length" class="document-tags">
+                      {{ document.tags.map((tag) => `#${tag}`).join(" ") }}
+                    </small>
                   </div>
                   <ChevronRight :size="16" />
                 </button>
@@ -358,6 +361,29 @@
                   <span>{{
                     formatDate(store.selectedDocument.updatedAt)
                   }}</span>
+                </div>
+                <div class="document-tag-editor">
+                  <Tags :size="16" />
+                  <el-select
+                    v-model="editingDocumentTags"
+                    class="tag-select"
+                    multiple
+                    filterable
+                    allow-create
+                    default-first-option
+                    :reserve-keyword="false"
+                    placeholder="添加文档标签"
+                    aria-label="文档标签"
+                    @keydown.enter.stop
+                  />
+                  <el-button
+                    :icon="Check"
+                    :loading="savingDocumentTags"
+                    :disabled="!documentTagsChanged"
+                    @click="saveDocumentTags"
+                  >
+                    保存
+                  </el-button>
                 </div>
                 <div class="document-diagnostics">
                   <span
@@ -717,6 +743,7 @@ import {
   AlertTriangle,
   Binary,
   BookOpenText,
+  Check,
   ChevronRight,
   CircleHelp,
   FileText,
@@ -727,6 +754,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Tags,
   Trash2,
   X,
 } from "lucide-vue-next";
@@ -771,6 +799,8 @@ const newLibraryName = ref("");
 const newLibraryDescription = ref("");
 const libraryFilter = ref("");
 const documentFilter = ref("");
+const editingDocumentTags = ref<string[]>([]);
+const savingDocumentTags = ref(false);
 const workspaceMode = ref<WorkspaceMode>("documents");
 const query = ref("");
 const strategy = ref<KnowledgeSearchStrategy>("auto");
@@ -818,9 +848,18 @@ const filteredDocuments = computed(() => {
   const filter = documentFilter.value.trim().toLocaleLowerCase();
   if (!filter) return store.documents;
   return store.documents.filter((document) =>
-    `${document.title} ${document.sourcePath}`
+    `${document.title} ${document.sourcePath} ${document.tags.join(" ")}`
       .toLocaleLowerCase()
       .includes(filter)
+  );
+});
+
+const documentTagsChanged = computed(() => {
+  const current = store.selectedDocument?.tags ?? [];
+  const normalized = normalizeTags(editingDocumentTags.value);
+  return (
+    normalized.length !== current.length ||
+    normalized.some((tag, index) => tag !== current[index])
   );
 });
 
@@ -879,6 +918,14 @@ watch(
       strategy.value = "auto";
     }
   }
+);
+
+watch(
+  () => store.selectedDocument,
+  (document) => {
+    editingDocumentTags.value = [...(document?.tags ?? [])];
+  },
+  { immediate: true }
 );
 
 watch(semanticAvailable, (available) => {
@@ -1036,6 +1083,36 @@ async function deleteDocument(documentId: string, title: string) {
   } catch (error) {
     if (error === "cancel" || error === "close") return;
     errorHandler.error(error, "删除文档失败");
+  }
+}
+
+function normalizeTags(tags: string[]): string[] {
+  const seen = new Set<string>();
+  return tags
+    .map((tag) => tag.trim())
+    .filter((tag) => {
+      const key = tag.toLocaleLowerCase();
+      if (!tag || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+async function saveDocumentTags() {
+  const document = store.selectedDocument;
+  if (!document) return;
+  savingDocumentTags.value = true;
+  try {
+    const updated = await store.updateDocumentTags(
+      document.id,
+      normalizeTags(editingDocumentTags.value)
+    );
+    editingDocumentTags.value = [...(updated?.tags ?? [])];
+    customMessage.success("文档标签已保存");
+  } catch (error) {
+    errorHandler.error(error, "保存文档标签失败");
+  } finally {
+    savingDocumentTags.value = false;
   }
 }
 
@@ -1239,6 +1316,7 @@ function formatDate(timestamp: number) {
 .result-row footer,
 .chunk-row header,
 .document-meta,
+.document-tag-editor,
 .signal-strip {
   display: flex;
   align-items: center;
@@ -1367,6 +1445,10 @@ function formatDate(timestamp: number) {
   color: var(--el-text-color-secondary);
   font-size: 12px;
   line-height: 18px;
+}
+
+.document-tags {
+  color: var(--el-color-primary) !important;
 }
 
 .library-row:focus-visible,
@@ -1677,6 +1759,19 @@ function formatDate(timestamp: number) {
   color: var(--el-text-color-secondary);
   font-size: 12px;
   background: var(--input-bg);
+}
+
+.document-tag-editor {
+  gap: 10px;
+  min-height: 48px;
+  padding: 7px 18px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  background: var(--input-bg);
+}
+
+.tag-select {
+  min-width: 0;
+  flex: 1;
 }
 
 .chunk-row {

@@ -118,6 +118,7 @@ describe("explicit Knowledge tool event", () => {
           chunkId: "chunk-a",
           chunkIndex: 0,
           title: "文档 A",
+          tags: [],
           sourcePath: "docs/a.md",
           snippet: "证据",
           score: 1,

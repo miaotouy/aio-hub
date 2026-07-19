@@ -191,6 +191,7 @@ export interface KnowledgeDocument {
   mimeType: string;
   size: number;
   status: string;
+  tags: string[];
   chunkCount: number;
   vectorizedChunkCount: number;
   sourceId: string;
@@ -235,6 +236,7 @@ export interface KnowledgeResult {
   documentId: string;
   sourcePath: string;
   title: string;
+  tags: string[];
   chunkId: string;
   chunkIndex: number;
   heading?: string;
@@ -269,6 +271,7 @@ export interface KnowledgeSearchFilters {
   documentIds?: string[];
   sourceTypes?: string[];
   pathPrefixes?: string[];
+  tags?: string[];
 }
 
 export interface KnowledgeToolSearchRequest {
@@ -287,6 +290,7 @@ export interface KnowledgeToolHit {
   chunkId: string;
   chunkIndex: number;
   title: string;
+  tags: string[];
   heading?: string;
   sourcePath: string;
   snippet: string;

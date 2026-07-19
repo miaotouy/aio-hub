@@ -100,8 +100,8 @@ mobile/src-tauri/target/release/bundle/android/
 文件名包含产品名、应用版本、平台、ABI 和构建类型，例如：
 
 ```text
-AIO-Hub_0.1.1-m-beta.2_android-arm64-v8a-release.apk
-AIO-Hub_0.1.1-m-beta.2_android-universal-release.apk
+AIO-Hub_0.1.2-beta.1_android-arm64-v8a-release.apk
+AIO-Hub_0.1.2-beta.1_android-universal-release.apk
 ```
 
 Gradle 原始产物仍保留在：
@@ -189,16 +189,19 @@ CI 在上传产物前会执行 `apksigner verify`。只有构建成功并通过�
 
 ## 发布前版本检查
 
-移动端版本必须同步修改：
+移动应用版本以 `mobile/package.json` 为唯一来源。使用根目录版本命令修改并校验：
 
-```text
-mobile/package.json
-mobile/src-tauri/tauri.conf.json
+```bash
+bun run version:set -- mobile 0.1.2-beta.1
+bun run version:check
 ```
 
-构建脚本会检查两处版本是否一致，不一致时直接失败。移动端发布 tag 的匹配规则以
-`.github/workflows/build-mobile.yml` 为准，当前使用 `v*.*.*-m` 或
-`v*.*.*-m-*` 形式。
+`mobile/src-tauri/tauri.conf.json` 通过路径读取该版本；Cargo package 使用固定
+内部版本，不随应用发版修改。版本命令会在版本变化时递增 Android
+`versionCode`，也可通过 `--android-version-code <number>` 显式指定。
+
+Android 发布 tag 使用 `mv<version>`，例如 `mv0.1.2-beta.1`。CI 会在构建前
+校验 tag 与 `mobile/package.json` 完全一致。iOS 测试构建使用 `miv<version>`。
 
 ## iOS 构建
 

@@ -28,6 +28,8 @@
     "postinstall": "bun run scripts/setup-wry-patch.ts",
     "generate:shims": "bun scripts/generate-shims.ts",
     "release:updater-manifest": "bun scripts/generate-updater-manifest.ts",
+    "version:set": "bun scripts/version.ts set",
+    "version:check": "bun scripts/version.ts check",
     "dev": "bun run generate:shims ; bun scripts/dev.ts",
     "vite": "vite",
     "download:libs": "bun scripts/download-libs.ts",

@@ -911,7 +911,7 @@ fn get_proxy_client(
 
     let mut builder = reqwest::Client::builder()
         .danger_accept_invalid_certs(relax_certs)
-        .user_agent(format!("AIO-Hub/{}", env!("CARGO_PKG_VERSION")))
+        .user_agent(format!("AIO-Hub/{}", env!("AIOHUB_APP_VERSION")))
         .connect_timeout(std::time::Duration::from_secs(15))
         .tcp_keepalive(std::time::Duration::from_secs(60))
         .no_gzip()

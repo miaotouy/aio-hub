@@ -4,7 +4,7 @@ on:
   workflow_dispatch: # 允许手动触发
   push:
     tags:
-      - "v*.*.*-m-ios" # 专门用于 iOS 测试的标签
+      - "miv*.*.*" # 专门用于 iOS 测试的标签
 
 permissions:
   contents: read
@@ -32,19 +32,22 @@ jobs:
           bun install
           cd mobile && bun install
 
+      - name: 校验移动端版本与 tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: bun run version:check -- --target mobile --tag "${{ github.ref_name }}" --tag-prefix miv
+
       - name: 获取版本号
         id: get-version
         shell: bash
         run: |
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
             TAG_NAME="${{ github.ref_name }}"
-            VERSION_NUM="${TAG_NAME#v}"
-            VERSION_NUM=$(echo "$VERSION_NUM" | sed 's/-m-ios//')
+            VERSION_NUM="${TAG_NAME#miv}"
             echo "version=${TAG_NAME}" >> $GITHUB_OUTPUT
             echo "version_num=${VERSION_NUM}" >> $GITHUB_OUTPUT
           else
             VERSION=$(cat mobile/package.json | grep '"version"' | head -1 | awk -F: '{ print $2 }' | sed 's/[", ]//g')
-            echo "version=v${VERSION}-m-ios" >> $GITHUB_OUTPUT
+            echo "version=miv${VERSION}" >> $GITHUB_OUTPUT
             echo "version_num=${VERSION}" >> $GITHUB_OUTPUT
           fi
 

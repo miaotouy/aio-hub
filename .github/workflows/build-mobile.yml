@@ -3,8 +3,7 @@ name: 移动端构建和发布
 on:
   push:
     tags:
-      - "v*.*.*-m" # 当推送带 -m 后缀的版本标签时触发（如 v0.1.9-m）
-      - "v*.*.*-m-*" # （如 v0.1.9-m-beta.1）
+      - "mv*.*.*" # 移动端发布标签（如 mv0.1.2-beta.1）
   workflow_dispatch: # 允许手动触发
 
 permissions:
@@ -46,6 +45,10 @@ jobs:
         run: |
           bun install
           cd mobile && bun install
+
+      - name: 校验移动端版本与 tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: bun run version:check -- --target mobile --tag "${{ github.ref_name }}"
 
       - name: 准备 Android 签名
         shell: bash

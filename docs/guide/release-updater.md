@@ -66,11 +66,17 @@ TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 
 ### 4. 发布测试版本
 
-1. 同步桌面端版本号：
-   - `package.json`
-   - `src-tauri/Cargo.toml`
-   - `src-tauri/tauri.conf.json`
-2. 创建并推送 tag，例如 `v0.6.4`。
+1. 修改并校验桌面端版本：
+
+   ```bash
+   bun run version:set -- desktop 0.6.7
+   bun run version:check
+   ```
+
+   桌面应用版本以根 `package.json` 为唯一来源，`src-tauri/tauri.conf.json`
+   通过路径读取该版本。Cargo package 使用固定内部版本，不随应用发版修改。
+
+2. 创建并推送与应用版本一致的 tag，例如 `v0.6.7`。
 3. 等待 GitHub Actions 创建草稿 Release。
 4. 检查 Release assets 中是否出现：
    - updater artifact，例如 `.nsis.zip`、`.AppImage.tar.gz`、`.app.tar.gz`
@@ -79,15 +85,20 @@ TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 5. 发布草稿 Release。
 6. 从旧版本应用内点击"检查更新"，验证下载、安装、重启。
 
-### 5. 移动端版本同步
+### 5. 移动端版本与 tag
 
-移动端发版时同步以下文件：
+移动应用版本以 `mobile/package.json` 为唯一来源。使用版本命令修改版本时，脚本会
+同时递增 Android `versionCode`：
 
-- `mobile/package.json`
-- `mobile/src-tauri/Cargo.toml`
-- `mobile/src-tauri/tauri.conf.json`
+```bash
+bun run version:set -- mobile 0.1.2-beta.1
+bun run version:check
+```
 
-移动端 tag 和构建入口以 `.github/workflows/build-mobile.yml` 与 `.github/workflows/ios-build.yml` 的当前触发条件为准，不要沿用桌面端 tag 规则。
+需要指定 Android `versionCode` 时可以传入
+`--android-version-code <number>`。Android 发布 tag 使用 `mv<version>`，例如
+`mv0.1.2-beta.1`；iOS 测试构建 tag 使用 `miv<version>`。`mv` / `miv` 只属于
+Git tag，不写入应用 SemVer。
 
 ## 更新通道 (Update Channel)
 

@@ -50,5 +50,6 @@
 ## 7. 版本与发布
 
 - 版本文件、tag 规则和发布流程以当前 workflow 与[应用内更新发布说明](docs/guide/release-updater.md)为准，不要凭记忆修改。
-- 桌面端或移动端发版时必须同步对应 `package.json`、`Cargo.toml` 与 `tauri.conf.json` 中的版本。
-
+- 桌面应用版本以根 `package.json` 为唯一来源，移动应用版本以 `mobile/package.json` 为唯一来源；两端 `tauri.conf.json` 通过路径读取对应 `package.json`。
+- `src-tauri` 中的 Cargo package 使用固定内部版本，不作为应用发布版本。不要为应用发版修改 Cargo version。
+- 使用 `bun run version:set -- <desktop|mobile> <version>` 修改应用版本，发版前运行 `bun run version:check`。桌面发布 tag 使用 `v<version>`，移动端使用 `mv<version>`，iOS 测试构建使用 `miv<version>`。

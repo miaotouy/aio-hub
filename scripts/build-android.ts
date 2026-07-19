@@ -16,6 +16,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { resolveTauriVersion } from "./app-version";
 
 export type AndroidArtifactKind = "apk" | "aab";
 export type AndroidBuildProfile = "debug" | "release";
@@ -233,13 +234,16 @@ function loadAppIdentity(): { productName: string; version: string } {
     path.join(mobileRoot, "package.json")
   );
 
-  if (config.version !== packageJson.version) {
+  const tauriVersion = resolveTauriVersion(
+    path.join(mobileRoot, "src-tauri", "tauri.conf.json")
+  );
+  if (tauriVersion !== packageJson.version) {
     throw new Error(
-      `移动端版本不一致: tauri.conf.json=${config.version}, package.json=${packageJson.version}`
+      `移动端版本不一致: tauri.conf.json=${tauriVersion}, package.json=${packageJson.version}`
     );
   }
 
-  return { productName: config.productName, version: config.version };
+  return { productName: config.productName, version: packageJson.version };
 }
 
 function exportArtifacts(

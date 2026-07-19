@@ -16,6 +16,7 @@ import { spawn, execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import dotenv from "dotenv";
+import { resolveTauriVersion } from "./app-version";
 
 console.log("⚙️ [Build] 正在加载环境变量...");
 
@@ -106,7 +107,7 @@ if (isLocal) {
       );
       if (fs.existsSync(tauriConfPath)) {
         const tauriConf = JSON.parse(fs.readFileSync(tauriConfPath, "utf-8"));
-        const originalVersion = tauriConf.version;
+        const originalVersion = resolveTauriVersion(tauriConfPath);
         if (originalVersion.includes("-")) {
           localVersion = `${originalVersion}.build.${gitHash}`;
         } else {

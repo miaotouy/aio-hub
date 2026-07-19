@@ -1,9 +1,10 @@
 # 移动端当前实现盘点与后续参考
 
 > 状态：Current Snapshot
-> 调查日期：2026-07-18
+> 代码调查日期：2026-07-18
+> Android 真机补充验证：2026-07-20（报告导出时间 `2026-07-19T23:20:44.419Z`）
 > 调查范围：`mobile/` 当前代码、移动端计划/架构文档，以及直接影响移动端的跨端 LLM Core 计划
-> 验证边界：本次从仓库根目录恢复 Bun workspace 依赖后，完成宿主机前端构建、Vitest、Rust Clippy 和 Cargo Test；未执行 Android/iOS 安装包构建或真机验收
+> 验证边界：2026-07-18 从仓库根目录恢复 Bun workspace 依赖后，完成宿主机前端构建、Vitest、Rust Clippy 和 Cargo Test；2026-07-20 补录一份 Android 真机上的 Tauri 验证台报告。该报告未记录设备型号和 Android 版本，未覆盖 iOS、10k/100k SQLite 基准、真实多文件选择、大文件、空间不足等最终验收项
 
 ## 1. 结论
 
@@ -19,7 +20,7 @@ LLM 渠道与模型配置
   -> 树形消息、usage 与会话文件持久化
 ```
 
-当前不是空壳或单纯 UI 原型。核心文本对话链路、Agent 主链、跨端 Provider Core、原生文件请求边界和主题系统均已有真实实现。尚未闭环的主体是 SQLite 持久化、全局资产与聊天附件、Agent 高级执行语义、设计层 API 收敛，以及 Android/iOS 真机发布验收。
+当前不是空壳或单纯 UI 原型。核心文本对话链路、Agent 主链、跨端 Provider Core、原生文件请求边界和主题系统均已有真实实现。Android 真机已完成一轮隔离验证台测试，证明 SQLite spike 和部分系统文件场景能够在真实 Tauri 运行态工作，但这不等同于 SQLite 业务迁移、资产内核或双平台 Phase 0 已完成。尚未闭环的主体是 SQLite 持久化、全局资产与聊天附件、Agent 高级执行语义、设计层 API 收敛，以及 Android/iOS 最终真机发布验收。
 
 ## 2. 已完成清单
 
@@ -87,6 +88,31 @@ LLM 渠道与模型配置
 
 本次验证前执行了仓库根目录的 `bun install --frozen-lockfile`，以恢复 `mobile` 对 `@aiohub/llm-core` 及其 `testing` 子路径的 workspace 符号链接。仅在 `mobile/` 保留旧依赖目录而未同步根 workspace 时，前端构建和相关测试会因无法解析共享包而在导入阶段失败。
 
+### 2.6 Android 真机验证台结果
+
+2026-07-20 补录的 `aio-validation-2026-07-19.json` 为 schema `1.0` 脱敏报告，运行环境统一记录为 Android、应用 `0.1.1-m-beta.2`、Tauri `2.11.5`。报告共 20 条 run：16 条 `passed`、3 条用户主动取消产生的 `cancelled`，以及 1 条较早的后台恢复 `manualPending`；同一后台恢复场景随后已有一条人工判定 `passed`，因此该待判定记录不代表仍有阻塞。
+
+**SQLite 隔离验证库**
+
+- [x] Migration：历史 v0 fixture 升级到 v1，失败事务回滚为 0 行，并拒绝 schema version 999。
+- [x] Codec：包含可选时间戳、未知 metadata 和附件快照的消息结构完成无损 round-trip；编码结果为 410 bytes。
+- [x] 搜索：7 组固定查询共命中 9 条，3 字及以上走 trigram FTS，1/2 字走受限 `LIKE` 降级。
+- [x] 事务强杀恢复：重启后 `partialRows = 0`、`foreignKeys = true`、`integrity = ok`。
+- [x] 1k 基准：Rust 侧生成 1,000 行，整步耗时 19 ms；报告记录插入 3 ms、删除 1 ms、索引重建 1 ms、数据库 114,688 bytes，冷/热查询和会话查询均为 0 ms（计时粒度下限）。
+- [ ] 该报告没有执行 10k/100k 预设；`peakSqliteMemoryBytes = 0` 也不能作为真实峰值内存结论，因此大规模性能与内存仍待补测。
+
+**平台文件**
+
+- [x] 单文件选择返回 Android `content://` 引用；样本 798,643 bytes，首字节 91 ms，读取 65,536 bytes 探针总耗时 94 ms。
+- [x] 照片过滤入口返回 `content://` 引用；样本 139,437 bytes，首字节 59 ms，读取探针总耗时 60 ms。系统返回 MIME 为 `application/octet-stream`，后续业务不能依赖 picker MIME 判断图片类型。
+- [x] 单文件、多文件入口和照片入口的用户取消均未产生错误或验证沙箱文件。
+- [x] 固定 cache 沙箱原子写入/重开、写入失败后的 `.part` 清理和最终沙箱清理通过。
+- [x] 后台返回、云端下载与预览由人工判定通过；系统终止后自动续测确认没有半成品文件。
+- [ ] “多文件”通过记录的 `selectionCount` 实际为 1，只证明多选入口可返回并读取单个 `content://` 项，不能证明多个文件的返回、顺序和逐项权限行为。
+- [ ] 未覆盖大文件、`file://`、云端离线/取消、预览令牌过期或原件缺失、空间不足、原生 Photo Picker、分享导入/导出及 iOS security-scoped URL。
+
+上述结果只来自验证工具的隔离数据库与 cache 沙箱，不代表 `llm_chat.db`、`asset_manager.db` 或正式聊天附件链路已经落地。
+
 ## 3. 未完成清单
 
 ### 3.1 持久化与资产主线
@@ -95,7 +121,7 @@ LLM 渠道与模型配置
 - [ ] 将 LLM Chat 从 JSON 会话文件迁移到 `llm_chat.db`。
 - [ ] 建立 `chat_sessions`、`chat_messages`、`chat_attachments`、FTS5 和 usage outbox。
 - [ ] 实现消息/分支/会话删除时的附件引用释放和幂等 outbox 投递。
-- [ ] 完成资产管理 Phase 0 的 Android/iOS 文件选择、权限、后台和空间不足实验。
+- [ ] 完成资产管理 Phase 0。Android 已有一轮部分场景报告，仍缺真实多文件、大文件、空间不足、专用照片/分享入口等覆盖；iOS 尚未开始真机验收。
 - [ ] 建立 `asset_manager.db`、内容寻址、来源、usage、分页查询和一致性恢复。
 - [ ] 实现资产/空间页面、详情、筛选、清理、影响分析和保留策略。
 - [ ] 在聊天中接入 `ManagedAssetRef`、图片/文件发送、预览和 `reclaimed` 降级展示。
@@ -131,13 +157,14 @@ SQLite 施工顺序见 [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migra
 - [ ] 处理或接受记录 `vconsole` 直接 `eval` 的构建警告。
 - [ ] 拆分首页超过 500 kB 的构建 chunk；本次生产构建中 `Home` chunk 为 580.68 kB，重点检查工具 registry eager import 与共享配置进入首页包的影响。
 - [ ] 增加 Agent 存储/导入、会话绑定、分支操作和上下文管道专项测试。
-- [ ] 将 `ui-tester` 升级为“组件与平台测试”验证台，交付平台文件与 SQLite 操作板块、统一运行记录、跨重启续测和脱敏报告导出。
+- [x] 将 `ui-tester` 升级为“组件与平台测试”验证台，已交付平台文件与 SQLite 操作板块、统一运行记录、跨重启续测和脱敏报告导出。
 
 设计分层决议见 [`mobile-design-language-investigation.md`](./mobile-design-language-investigation.md)。
 
 ### 3.4 平台与发布验收
 
-- [ ] 运行并记录 Android 安装包构建和至少一台 Android 真机验收。
+- [x] 完成 Android universal APK/AAB 构建，并在至少一台 Android 真机运行验证台和导出 schema `1.0` 报告。
+- [ ] 补齐 Android 真机最终验收：至少包括 SQLite 10k/100k 与峰值内存、真实多文件、大文件、空间不足、云端异常、专用照片/分享入口，并记录设备型号和 Android 版本。
 - [ ] 初始化或补齐仓库中的 iOS 生成工程，并完成 iOS 构建与真机验收。
 - [ ] 在真实 Tauri WebView 验证长流逐段交付、取消、前后台切换和系统终止行为。
 - [ ] 验证 JSON/顶层/multipart 文件引用在 Android/iOS 的权限和生命周期行为。
@@ -151,21 +178,21 @@ SQLite 施工顺序见 [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migra
 - `mobile-sqlite-migration-plan.md` 是未施工的实施计划，不代表已有数据库代码。
 - `mobile-asset-manager-design.md` 状态仍为待评审，所有 Phase 均应视为未开始。
 - `mobile-design-language-investigation.md` 的 Phase 0 已完成，Phase 1 只完成了包装 API 的局部落地，业务调用尚未收口。
-- `platform-validation-workbench-plan.md` 是资产与 SQLite Phase 0 的共同验证 UI 计划，尚未施工；对应后端 spike 与 UI 面板必须同批交付。
-- `llm-provider-adapter-sharing-investigation.md` 的代码与自动化验收已完成，剩余人工性能与双平台真机验收。
+- `platform-validation-workbench-plan.md` 的验证台、平台文件 spike 和 SQLite spike 已施工，并取得首份 Android 真机脱敏报告；由于 Android 覆盖仍不完整且没有 iOS 报告，资产与 SQLite Phase 0 尚未最终验收。
+- `llm-provider-adapter-sharing-investigation.md` 的代码与自动化验收已完成；本次真机报告未覆盖 LLM transport，相关人工性能与双平台真机验收仍未完成。
 - 2026-07-16 完成的移动端模型批量检查和 2026-07-18 完成的模型身份/Embedding 空间分离已纳入本快照；它们属于现有 `llm-api` 工具能力，不新增工具 registry。
 
 后续更新本文件时，应以代码、依赖和本次可复现验证为准；计划文档中的历史勾选只作为施工记录，不应覆盖当前代码事实。
 
 ## 5. 下一步施工路线
 
-### 5.1. 立即施工：冻结边界与双端能力验证
+### 5.1. 当前收尾：冻结边界与双端能力验证
 
-第一批不直接铺业务 UI，先完成两个会影响后续所有数据施工的验证包：
+验证台及两个隔离 spike 已完成实现，并取得一份 Android 真机部分覆盖报告。进入业务数据施工前仍需收完以下边界：
 
-1. **资产 Phase 0**：在 Android/iOS 验证文件与照片选择、大文件、`content://` / `file://`、云端文件、取消、后台、系统终止和空间不足；输出实验记录、首版文件入口范围和预览方案决策。
-2. **SQLite Phase 0**：用最小 Rust + SQLx spike 验证数据库创建/重开、migration、连接 PRAGMA、事务强杀恢复、FTS5/trigram 和 10 万条中英混合消息基准。
-3. **验证 UI**：同步把固定场景接入 `ui-tester` 的“平台文件”和“SQLite”板块，支持结构化步骤、人工判定、跨重启续测和脱敏报告导出；没有双端 UI 运行记录的 spike 不算完成。
+1. **资产 Phase 0**：保留本次 Android 已通过的 `content://`、取消、后台、系统终止和沙箱清理结论；补测真实多文件、大文件、空间不足、云端异常、专用照片/分享入口，并在 iOS 验证 `file://` 与 security-scoped URL。完成后输出首版文件入口范围和预览方案决策。
+2. **SQLite Phase 0**：保留本次 Android migration、codec、FTS、事务强杀恢复和 1k 基准结论；补跑 Android 10k/100k、可解释的峰值内存指标，并完成 iOS 全套固定场景。
+3. **验证 UI**：实现已完成；继续用现有结构化步骤、人工判定、跨重启续测和脱敏报告导出补齐双端运行记录。没有双端 UI 运行记录的 spike 不算完成。
 4. **契约冻结**：锁定 `ManagedAssetRef`、资产服务领域命令、聊天 storage command、Schema v1 与 metadata codec；聊天前端不得获得任意 SQL 执行入口。
 
 SQLite 旧计划中的 JS `db.ts`、`PRAGMA user_version` 和前端事务方案已被后续调查否决；当前实施边界以 Rust 领域命令、原生 migration runner 和统一连接配置为准。

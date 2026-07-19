@@ -1,6 +1,6 @@
 # 移动端开发验证台设计与实施计划
 
-> 状态：Android 虚拟机验收通过，待 Android 真机 / iOS 验收
+> 状态：Android 虚拟机验收通过，Android 真机已完成一轮部分覆盖验证，待补齐 Android 场景并完成 iOS 验收
 > 日期：2026-07-18
 > 所属工具：`mobile/src/tools/ui-tester/`
 > 目标：为移动端组件、Tauri 平台能力、资产 Phase 0 和 SQLite Phase 0 提供可重复操作、可记录、可导出的真机验证入口。
@@ -243,9 +243,12 @@ mobile/src/tools/ui-tester/
 - “照片”入口当前由 Tauri 系统文件选择器加图片扩展名过滤实现，不引入 Varlet 页面骨架或浏览器 fallback。Android Photo Picker / iOS Photos 的专用入口如后续资产 Phase 0 选型不同，应替换 service 入口并保留现有运行模型。
 - 云端占位下载、离线、系统权限持久化、切后台和 WebView 预览属于平台不可稳定自动判定项，已按计划实现为 `manualPending`，必须在真机报告中填写结论。
 
-### 10.3. 平台验收状态（2026-07-19）
+### 10.3. 平台验收状态（更新于 2026-07-20）
 
-- Android 虚拟机已完成人工测试，项目内主要组件、平台文件与 SQLite 验证场景基本通过，本轮 Android 虚拟机验收通过。
-- Android 真机仍需补充系统选择器 URI、云端文件、后台/强杀恢复和 10 万条基准耗时与空间验证，并导出一份 schema `1.0` JSON 报告。
+- Android 虚拟机已完成人工测试，项目内主要组件、平台文件与 SQLite 验证场景基本通过。
+- 已取得首份 Android 真机 schema `1.0` 脱敏报告：环境为应用 `0.1.1-m-beta.2`、Tauri `2.11.5`；报告共 20 条 run，其中 16 条通过、3 条为预期的用户取消、1 条为较早遗留的后台恢复待判定记录，且同一场景随后已有人工通过记录。
+- Android 真机 SQLite 已通过 migration/失败回滚/高版本拒绝、消息 codec、FTS5 trigram + 短词 `LIKE`、事务强杀恢复和 1k 基准。1k 数据集整步耗时 19 ms，数据库 114,688 bytes；报告未运行 10k/100k，且 `peakSqliteMemoryBytes = 0` 不足以形成峰值内存结论。
+- Android 真机平台文件已验证 `content://` 单文件与照片读取、各入口取消、沙箱原子完成、失败清理、后台返回、云端预览人工判定和系统终止后无半成品恢复。单文件样本 798,643 bytes，首字节 91 ms；照片样本 139,437 bytes，首字节 59 ms。
+- “多文件”通过记录实际 `selectionCount = 1`，仍需用两个及以上文件补测；大文件、空间不足、云端离线/取消、预览失效、专用照片/分享入口也未覆盖。报告未包含设备型号和 Android 版本，后续报告必须补齐。
 - iOS 尚未验收，仍需从应用内依次运行平台文件和 SQLite 固定场景并导出一份 schema `1.0` JSON 报告。
-- 第 9 节要求的 Android 与 iOS 真实设备报告尚未全部完成，因此当前结论仅代表 Android 虚拟机验收，不等同于 Phase 0 双平台最终验收。
+- 第 9 节要求的 Android 与 iOS 真实设备报告尚未全部完成，因此当前结论仅代表 Android 真机部分场景通过，不等同于 Phase 0 双平台最终验收。

@@ -73,13 +73,18 @@ impl LegacyFileRecallImporter {
         }
     }
 
-    pub fn inspect(&self) -> Result<Option<RecallMigrationReport>, String> {
-        let roots = [
+    pub fn has_legacy_source(&self) -> bool {
+        [
             get_bases_dir(&self.source_app_data_dir),
             get_vectors_dir(&self.source_app_data_dir),
             get_tag_pool_root(&self.source_app_data_dir),
-        ];
-        if !roots.iter().any(|root| root.exists()) {
+        ]
+        .iter()
+        .any(|root| root.exists())
+    }
+
+    pub fn inspect(&self) -> Result<Option<RecallMigrationReport>, String> {
+        if !self.has_legacy_source() {
             return Ok(None);
         }
         self.repository.initialize()?;
@@ -698,6 +703,19 @@ mod tests {
     };
     use tempfile::tempdir;
 
+    fn copy_directory(source: &Path, target: &Path) {
+        for entry in walkdir::WalkDir::new(source) {
+            let entry = entry.unwrap();
+            let relative = entry.path().strip_prefix(source).unwrap();
+            let destination = target.join(relative);
+            if entry.file_type().is_dir() {
+                fs::create_dir_all(destination).unwrap();
+            } else {
+                fs::copy(entry.path(), destination).unwrap();
+            }
+        }
+    }
+
     #[test]
     fn imports_legacy_collection_and_is_idempotent() {
         let app_data = tempdir().unwrap();
@@ -869,5 +887,44 @@ mod tests {
         assert!(!get_vectors_dir(app_data.path()).exists());
         assert!(!get_tag_pool_root(app_data.path()).exists());
         assert_eq!(fs::read(knowledge_manifest).unwrap(), b"new knowledge data");
+    }
+
+    #[test]
+    #[ignore = "requires AIO_RECALL_LEGACY_APP_DATA pointing to a legacy appData root"]
+    fn verifies_external_legacy_directory_copy() {
+        let source_app_data = std::env::var_os("AIO_RECALL_LEGACY_APP_DATA")
+            .map(PathBuf::from)
+            .expect("AIO_RECALL_LEGACY_APP_DATA must be set");
+        let target_app_data = tempdir().unwrap();
+        let source_knowledge = get_knowledge_root(&source_app_data);
+        let target_knowledge = get_knowledge_root(target_app_data.path());
+        assert!(
+            get_bases_dir(&source_app_data).is_dir(),
+            "legacy appData must contain knowledge/bases"
+        );
+
+        for directory in ["bases", "vectors", "tag_pool"] {
+            let source = source_knowledge.join(directory);
+            if source.exists() {
+                copy_directory(&source, &target_knowledge.join(directory));
+            }
+        }
+
+        let repository = SqliteRecallRepository::new(target_app_data.path());
+        let importer = LegacyFileRecallImporter::new(target_app_data.path(), repository.clone());
+        let report = importer.import().unwrap();
+
+        println!("{}", serde_json::to_string_pretty(&report).unwrap());
+        assert_eq!(report.main_status, "completed");
+        assert_eq!(report.source_collections, report.migrated_collections);
+        assert_eq!(report.source_entries, report.migrated_entries);
+        assert_eq!(
+            repository.list_collections().unwrap().len(),
+            report.source_collections
+        );
+
+        let repeated = importer.import().unwrap();
+        assert_eq!(repeated.source_fingerprint, report.source_fingerprint);
+        assert_eq!(repeated.migrated_entries, report.migrated_entries);
     }
 }

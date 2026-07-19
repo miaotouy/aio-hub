@@ -48,13 +48,26 @@
           <BookOpenText :size="18" />
           <span class="library-copy">
             <strong>{{ library.name }}</strong>
-            <small class="library-description">{{ library.description || "本地文档资料库" }}</small>
-            <small>{{ library.sourceCount }} 来源 · {{ library.documentCount }} 文档 · {{ library.chunkCount }} 分块</small>
+            <small class="library-description">{{
+              library.description || "本地文档资料库"
+            }}</small>
+            <small
+              >{{ library.sourceCount }} 来源 · {{ library.documentCount }} 文档
+              · {{ library.chunkCount }} 分块</small
+            >
             <small :class="{ 'has-failures': library.failedTaskCount > 0 }">
-              摄取 {{ library.pendingTaskCount ? `${library.pendingTaskCount} 处理中` : "就绪" }} ·
-              关键词 {{ library.keywordIndexStatus === "ready" ? "就绪" : "不完整" }} ·
+              摄取
+              {{
+                library.pendingTaskCount
+                  ? `${library.pendingTaskCount} 处理中`
+                  : "就绪"
+              }}
+              · 关键词
+              {{ library.keywordIndexStatus === "ready" ? "就绪" : "不完整" }} ·
               语义 {{ semanticStatusLabel(library.semanticIndexStatus) }}
-              <template v-if="library.failedTaskCount"> · {{ library.failedTaskCount }} 失败</template>
+              <template v-if="library.failedTaskCount">
+                · {{ library.failedTaskCount }} 失败</template
+              >
             </small>
             <small>{{ formatDate(library.updatedAt) }}</small>
           </span>
@@ -192,7 +205,9 @@
                   <strong>{{ failure.fileName }}</strong>
                   <span>{{ importStageLabel(failure.stage) }}</span>
                 </div>
-                <small :title="failure.sourcePath">{{ failure.sourcePath }}</small>
+                <small :title="failure.sourcePath">{{
+                  failure.sourcePath
+                }}</small>
                 <p>{{ failure.message }}</p>
               </li>
             </ul>
@@ -239,6 +254,8 @@
                   :key="document.id"
                   type="button"
                   class="document-row"
+                  data-testid="knowledge-document-row"
+                  :data-document-title="document.title"
                   :class="{ active: document.id === store.selectedDocumentId }"
                   :aria-selected="document.id === store.selectedDocumentId"
                   @click="openDocument(document.id)"
@@ -293,10 +310,24 @@
                   </div>
                   <div class="detail-actions">
                     <el-tooltip content="在资源管理器中显示" placement="left">
-                      <el-button :icon="FolderOpen" text circle aria-label="打开来源位置" @click="openSourcePath(store.selectedDocument.sourcePath)" />
+                      <el-button
+                        :icon="FolderOpen"
+                        text
+                        circle
+                        aria-label="打开来源位置"
+                        @click="
+                          openSourcePath(store.selectedDocument.sourcePath)
+                        "
+                      />
                     </el-tooltip>
                     <el-tooltip content="重建资料库索引" placement="left">
-                      <el-button :icon="RefreshCw" text circle aria-label="重建资料库索引" @click="rebuildLibrary" />
+                      <el-button
+                        :icon="RefreshCw"
+                        text
+                        circle
+                        aria-label="重建资料库索引"
+                        @click="rebuildLibrary"
+                      />
                     </el-tooltip>
                     <el-tooltip content="删除文档" placement="left">
                       <el-button
@@ -305,7 +336,12 @@
                         text
                         circle
                         aria-label="删除文档"
-                        @click="deleteDocument(store.selectedDocument.id, store.selectedDocument.title)"
+                        @click="
+                          deleteDocument(
+                            store.selectedDocument.id,
+                            store.selectedDocument.title
+                          )
+                        "
                       />
                     </el-tooltip>
                   </div>
@@ -314,17 +350,37 @@
                   <span>{{ store.selectedDocument.mimeType }}</span>
                   <span>{{ formatSize(store.selectedDocument.size) }}</span>
                   <span>版本 {{ store.selectedDocument.version }}</span>
-                  <span>向量 {{ store.selectedDocument.vectorizedChunkCount }}/{{ store.selectedDocument.chunkCount }}</span>
+                  <span
+                    >向量 {{ store.selectedDocument.vectorizedChunkCount }}/{{
+                      store.selectedDocument.chunkCount
+                    }}</span
+                  >
                   <span>{{
                     formatDate(store.selectedDocument.updatedAt)
                   }}</span>
                 </div>
                 <div class="document-diagnostics">
-                  <span>SHA-256 <code>{{ compactChecksum(store.selectedDocument.sourceChecksum) }}</code></span>
-                  <span>Parser <code>{{ store.selectedDocument.parserVersion || "legacy" }}</code></span>
-                  <span>状态 <code>{{ store.selectedDocument.status }}</code></span>
+                  <span
+                    >SHA-256
+                    <code>{{
+                      compactChecksum(store.selectedDocument.sourceChecksum)
+                    }}</code></span
+                  >
+                  <span
+                    >Parser
+                    <code>{{
+                      store.selectedDocument.parserVersion || "legacy"
+                    }}</code></span
+                  >
+                  <span
+                    >状态 <code>{{ store.selectedDocument.status }}</code></span
+                  >
                 </div>
-                <div v-if="store.selectedDocument.lastError" class="document-error" role="status">
+                <div
+                  v-if="store.selectedDocument.lastError"
+                  class="document-error"
+                  role="status"
+                >
                   <AlertTriangle :size="16" />
                   <span>{{ store.selectedDocument.lastError }}</span>
                 </div>
@@ -383,9 +439,18 @@
               aria-label="检索资料库范围"
               placeholder="选择资料库"
             >
-              <el-option v-for="library in store.libraries" :key="library.id" :label="library.name" :value="library.id" />
+              <el-option
+                v-for="library in store.libraries"
+                :key="library.id"
+                :label="library.name"
+                :value="library.id"
+              />
             </el-select>
-            <el-segmented v-model="searchRunMode" :options="searchRunModeOptions" aria-label="检索运行模式" />
+            <el-segmented
+              v-model="searchRunMode"
+              :options="searchRunModeOptions"
+              aria-label="检索运行模式"
+            />
             <el-select
               v-model="strategy"
               class="strategy-select"
@@ -417,13 +482,28 @@
           <div v-if="!semanticAvailable" class="search-notice">
             当前可使用关键词检索。构建语义索引后可启用混合与语义策略。
           </div>
-          <div v-if="store.searchTraces.length" class="search-traces" aria-label="检索策略执行明细">
-            <span v-for="trace in store.searchTraces" :key="`${trace.libraryIds.join(':')}:${trace.actualStrategy}`">
-              {{ traceLibraryNames(trace.libraryIds) }} · {{ strategyLabel(trace.requestedStrategy) }} → {{ strategyLabel(trace.actualStrategy) }}
-              <template v-if="trace.degradationReason"> · {{ trace.degradationReason }}</template>
+          <div
+            v-if="store.searchTraces.length"
+            class="search-traces"
+            aria-label="检索策略执行明细"
+          >
+            <span
+              v-for="trace in store.searchTraces"
+              :key="`${trace.libraryIds.join(':')}:${trace.actualStrategy}`"
+            >
+              {{ traceLibraryNames(trace.libraryIds) }} ·
+              {{ strategyLabel(trace.requestedStrategy) }} →
+              {{ strategyLabel(trace.actualStrategy) }}
+              <template v-if="trace.degradationReason">
+                · {{ trace.degradationReason }}</template
+              >
             </span>
           </div>
-          <div v-if="comparisonRuns.length" class="comparison-runs" aria-label="检索策略对比">
+          <div
+            v-if="comparisonRuns.length"
+            class="comparison-runs"
+            aria-label="检索策略对比"
+          >
             <button
               v-for="run in comparisonRuns"
               :key="run.strategy"
@@ -436,8 +516,21 @@
               <span v-if="run.error">{{ run.error }}</span>
               <template v-else>
                 <span>{{ run.results.length }} 结果</span>
-                <span>首项 {{ run.results[0] ? formatScore(run.results[0].score) : "-" }}</span>
-                <span>{{ [...new Set(run.traces.map((trace) => strategyLabel(trace.actualStrategy)))].join(" + ") }}</span>
+                <span
+                  >首项
+                  {{
+                    run.results[0] ? formatScore(run.results[0].score) : "-"
+                  }}</span
+                >
+                <span>{{
+                  [
+                    ...new Set(
+                      run.traces.map((trace) =>
+                        strategyLabel(trace.actualStrategy)
+                      )
+                    ),
+                  ].join(" + ")
+                }}</span>
               </template>
             </button>
           </div>
@@ -463,7 +556,9 @@
                   @click="store.selectResult(result.chunkId)"
                 >
                   <header>
-                    <strong>{{ result.libraryName }} · {{ result.title }}</strong>
+                    <strong
+                      >{{ result.libraryName }} · {{ result.title }}</strong
+                    >
                     <span>{{ formatScore(result.score) }}</span>
                   </header>
                   <p>{{ result.content }}</p>
@@ -736,8 +831,7 @@ const semanticAvailable = computed(() => {
   return searchLibraryIds.value.every((libraryId) =>
     store.libraries.some(
       (library) =>
-        library.id === libraryId &&
-        library.semanticIndexStatus !== "notBuilt"
+        library.id === libraryId && library.semanticIndexStatus !== "notBuilt"
     )
   );
 });
@@ -858,6 +952,7 @@ async function runImportPaths(paths: string[]) {
         }
       },
     });
+    await store.refreshLibraries(store.activeLibraryId);
     importFailures.value = result.failures;
     if (result.imported) {
       customMessage.success(`已导入 ${result.imported} 个文档`);
@@ -886,9 +981,7 @@ function importStageLabel(stage: KnowledgeImportStage): string {
   return importStageLabels[stage];
 }
 
-function formatValidationLabel(
-  validation: KnowledgeFormatValidation
-): string {
+function formatValidationLabel(validation: KnowledgeFormatValidation): string {
   return formatValidationLabels[validation];
 }
 
@@ -1007,7 +1100,9 @@ async function runSearch() {
         }
       })
     );
-    const preferred = comparisonRuns.value.find((run) => run.strategy === "auto")!;
+    const preferred = comparisonRuns.value.find(
+      (run) => run.strategy === "auto"
+    )!;
     selectComparisonRun(preferred);
   } finally {
     store.searching = false;
@@ -1050,12 +1145,18 @@ function semanticStatusLabel(status: "ready" | "partial" | "notBuilt") {
 }
 
 function strategyLabel(value: KnowledgeSearchStrategy) {
-  return { auto: "自动", keyword: "关键词", semantic: "语义", hybrid: "混合" }[value];
+  return { auto: "自动", keyword: "关键词", semantic: "语义", hybrid: "混合" }[
+    value
+  ];
 }
 
 function traceLibraryNames(libraryIds: string[]) {
   return libraryIds
-    .map((libraryId) => store.libraries.find((library) => library.id === libraryId)?.name || libraryId)
+    .map(
+      (libraryId) =>
+        store.libraries.find((library) => library.id === libraryId)?.name ||
+        libraryId
+    )
     .join("、");
 }
 
@@ -1692,7 +1793,9 @@ function formatDate(timestamp: number) {
 
 .search-toolbar {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(150px, 220px) auto 112px auto;
+  grid-template-columns:
+    minmax(180px, 1fr) minmax(150px, 220px)
+    auto 112px auto;
   gap: 8px;
   padding: 12px 18px;
   border-bottom: 1px solid var(--el-border-color-lighter);

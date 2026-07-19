@@ -26,6 +26,10 @@ describe("Knowledge cross-tool smoke", () => {
       await nameInput.waitForDisplayed();
       await nameInput.setValue("E2E Knowledge Library");
       await $('[data-testid="knowledge-create-library-submit"]').click();
+      await $(".base-dialog-backdrop").waitForDisplayed({
+        reverse: true,
+        timeout: 10_000,
+      });
     }
 
     const libraryRow = await $('[data-testid="knowledge-library-row"]');
@@ -63,6 +67,7 @@ describe("Knowledge cross-tool smoke", () => {
     );
     await chatModel.waitForClickable();
     await chatModel.click();
+    await chatModel.waitForDisplayed({ reverse: true, timeout: 10_000 });
 
     await $('[data-tab-id="knowledge"]').click();
 
@@ -73,6 +78,7 @@ describe("Knowledge cross-tool smoke", () => {
     const option = await $(`[data-testid="agent-knowledge-library-option"][data-library-id="${libraryId}"]`);
     await option.waitForClickable();
     await option.click();
+    await option.waitForDisplayed({ reverse: true, timeout: 10_000 });
 
     await $('[data-testid="agent-knowledge-search-all"]').click();
     await $('[data-testid="agent-knowledge-document-read"]').click();
@@ -110,6 +116,9 @@ describe("Knowledge cross-tool smoke", () => {
     await $(
       `[data-testid="agent-knowledge-authorized-library"][data-library-id="${libraryId}"]`,
     ).waitForDisplayed();
+
+    await $('[data-testid="agent-editor-cancel"]').click();
+    await editor.waitForDisplayed({ reverse: true, timeout: 20_000 });
   });
 
   it("loads Agent Manager and Chat from the same isolated instance", async () => {

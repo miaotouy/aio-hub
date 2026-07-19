@@ -445,7 +445,9 @@ const handleSave = (
           </template>
         </div>
         <div class="footer-right">
-          <el-button @click="handleClose">取消</el-button>
+          <el-button data-testid="agent-editor-cancel" @click="handleClose">
+            取消
+          </el-button>
           <el-button
             type="primary"
             data-testid="agent-editor-save"

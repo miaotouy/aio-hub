@@ -9,7 +9,13 @@
         v-model="activeView"
         data-testid="knowledge-view-switcher"
         :options="viewOptions"
-      />
+      >
+        <template #default="{ item }">
+          <span :data-testid="`knowledge-view-${item.value}`">{{
+            item.label
+          }}</span>
+        </template>
+      </el-segmented>
     </header>
     <KeepAlive>
       <WorkspaceView v-if="activeView === 'workspace'" />

@@ -226,6 +226,8 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         #[cfg(windows)]
         wa_get_pixel,
         #[cfg(windows)]
+        wa_get_self_pid,
+        #[cfg(windows)]
         wa_get_windows,
         #[cfg(windows)]
         wa_is_window_valid,

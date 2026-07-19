@@ -270,6 +270,7 @@ Vitest 和前面的 Mock 测试用于验证业务逻辑、参数契约和组件�
 2. `tauri-plugin-wdio`：仅在 debug 构建注册，提供 Tauri 侧的执行、日志和测试辅助能力。
 3. `tauri-plugin-wdio-webdriver`：仅在 debug 构建注册，在应用内启动 embedded WebDriver server。
 4. `tests/tauri-e2e/`：集中放置 WDIO 配置、真实窗口用例和运行说明，不把 E2E 逻辑混入业务工具目录。
+5. `tests/windows-ui-automation/`：基于 .NET 8、FlaUI 5 和 UIA3 的 Windows 原生 helper，只负责系统文件/目录对话框，并由 WDIO 场景调用。
 
 `@wdio/tauri-service` 当前固定为 `1.1.x`。`1.2.0` 存在对 `@wdio/native-utils` 导出不匹配的问题，升级前需要先确认上游依赖修复。
 
@@ -329,6 +330,14 @@ Authorization header。
 
 ### 8.4. 不能由 WDIO 单独替代的入口
 
-WDIO 和 WebView2 CDP 只能直接控制 Tauri WebView。Windows 原生文件/目录选择器、拖放绝对路径、桌面窗口激活和系统级窗口排列仍需独立的 Windows UI Automation runner 或可见桌面人工验收。禁止使用直接 `invoke`、repository 调用或伪造 H5 `File` 来冒充这些入口已通过。
+WDIO 和 WebView2 CDP 只能直接控制 Tauri WebView。Windows 原生文件/目录选择器使用独立的 FlaUI/UIA3 helper：
+
+```powershell
+bun run test:tauri:e2e:native
+```
+
+该入口只在 Windows 10 及以上、已登录且未锁屏的交互式桌面运行。helper 与 AIO Hub 必须属于同一用户和相同完整性级别。原生 selector 按进程、Owner/模态窗口、AutomationId、ControlType 和 UIA Pattern 定位；Win10 Common Item Dialog 的 `#32770` 仅作为辅助信号，不依赖“打开”“文件名”等本地化文案。每次动作前保存 UIA 树，失败时额外保存桌面截图。详细契约见 [`tests/windows-ui-automation/README.md`](../../tests/windows-ui-automation/README.md)。
+
+绝对路径拖放、桌面窗口激活和系统级窗口排列仍需继续扩展 Windows UI Automation runner 或执行可见桌面人工验收。拖放必须从真实 Explorer 文件项执行指针拖动，不能用直接 `invoke`、repository 调用或伪造 H5 `File` 冒充通过。
 
 普通浏览器页面测试仍可用于纯前端 Mock 场景，但不能替代真实 Tauri E2E。

@@ -367,11 +367,11 @@ Phase 3 分为五个施工批次。后端配置和摄取契约先行，工作台
 
 建议把后续真实运行态验收改为以下三层，并在 P5-T06 之前补齐脚本与证据格式：
 
-| 层级 | 驱动与用途 | 可覆盖范围 | 不可替代的边界 |
-| --- | --- | --- | --- |
-| A. 确定性自动门禁 | Rust/mock runtime、Vitest、`@wdio/tauri-service`（必要时 `tauri-driver`） | 真实 Tauri UI、IPC 契约、Chat/Knowledge 流程、重启、截图、日志 | 系统文件选择器和桌面窗口管理 |
-| B. 原生入口验收 | Windows UI Automation + 可见桌面 | 文件/目录对话框、拖放绝对路径、窗口激活/关闭 | 不能仅靠 DOM selector；环境必须可审计 |
-| C. AI 辅助操作 | `mcp-server-tauri` 或同类 MCP，连接隔离 debug 实例 | 探索路径、失败复现、DOM/截图/日志解释、生成测试草稿 | 不作为 release/Phase gate 的唯一断言来源 |
+| 层级              | 驱动与用途                                                                | 可覆盖范围                                                     | 不可替代的边界                           |
+| ----------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------- |
+| A. 确定性自动门禁 | Rust/mock runtime、Vitest、`@wdio/tauri-service`（必要时 `tauri-driver`） | 真实 Tauri UI、IPC 契约、Chat/Knowledge 流程、重启、截图、日志 | 系统文件选择器和桌面窗口管理             |
+| B. 原生入口验收   | Windows UI Automation + 可见桌面                                          | 文件/目录对话框、拖放绝对路径、窗口激活/关闭                   | 不能仅靠 DOM selector；环境必须可审计    |
+| C. AI 辅助操作    | `mcp-server-tauri` 或同类 MCP，连接隔离 debug 实例                        | 探索路径、失败复现、DOM/截图/日志解释、生成测试草稿            | 不作为 release/Phase gate 的唯一断言来源 |
 
 落地顺序建议：
 
@@ -513,11 +513,11 @@ P5-T06 当前仍待执行：Phase 3 的资料库文件/目录摄取与 Phase 4 �
 
 - **已解决 P0：全仓测试门禁被新 E2E 用例污染。** Vitest 已排除 `tests/tauri-e2e/**`，WDIO 保持独立入口；全量 Vitest 已验证 118 个文件、705 个测试通过。
 - **已处理 P1 运行基础设施：WebDriver smoke 生命周期。** WDIO 现在执行 debug binary 存在性检查，默认生成进程隔离的 `AIO_ID_SUFFIX`/`AIO_DATA_DIR`/产物目录，并通过 `embeddedPort` 使用进程级端口；仍可用 `AIO_E2E_WEBDRIVER_PORT` 显式指定已知空闲端口。
-- **P1：业务 E2E 已覆盖基础跨工具链路，但尚未覆盖完整 Knowledge 链路。** 当前已通过真实 UI 建库、稳定 library ID、Agent 模型选择、Knowledge 权限创建/重开持久化、Knowledge/Agent Manager/Chat 跨路由和隔离模型 Profile 加载；Agent 主动 `list/search/read`、Chat 显式引用、文件/目录摄取、重建恢复、研究成功/取消仍缺固定 WDIO 用例，因此不能替代 P5-T06。
+- **P1：业务 E2E 已覆盖基础跨工具链路和原生摄取，但尚未覆盖完整 Knowledge 链路。** 当前已通过真实 UI 建库、稳定 library ID、Agent 模型选择、Knowledge 权限创建/重开持久化、Knowledge/Agent Manager/Chat 跨路由、隔离模型 Profile 加载，以及 Windows 原生文件/目录选择器摄取；Agent 主动 `list/search/read`、Chat 显式引用、重建恢复、研究成功/取消仍缺固定 WDIO 用例，因此不能替代 P5-T06。
 - **P1：业务自动化契约仍未完整迁移。** Knowledge、Chat 输入区和 Agent Manager 主入口已补首批 selector，但关键流程控件、稳定状态断言和对应 WDIO 用例仍缺；E2E-AUTO-02 仍未完成，后续断言不能依赖文案或坐标。
 - **已解决 P1：本地模型 mock 与基础 fixture。** E2E runner 自动启动确定性的 Embedding/Chat completion mock，写入隔离 Profile，记录无密钥请求摘要、运行 metadata、前后端日志和失败截图；真实 Tauri UI 已确认 Profile 被 ConfigManager 加载。
 - **P1：P5-T06 尚未完成最终跨模块回归。** Agent Manager 权限开关与资料库授权持久化已通过真实 UI 回归；还需补 Agent 主动查询、用户显式引用，并与已通过的摄取/研究场景串成一次完整回归。
-- **P2：Windows 原生入口仍需独立验收层。** 文件/目录选择器、绝对路径拖放和窗口管理不能由 WDIO/CDP 或直接 IPC 冒充；E2E-AUTO-04 需要可审计的 UI Automation runner，或明确记录人工验收边界。
+- **P2 部分处理：Windows 原生文件/目录选择器已有实测通过的验收层。** 新增 .NET 8 + FlaUI 5 + UIA3 helper，原生模式由 Bun 构建并生成隔离 fixture，WDIO 负责触发产品入口和断言文件/目录摄取结果；helper 按当前 Tauri PID、模态窗口、AutomationId、ControlType 和 UIA Pattern 操作 Win10 Common Item Dialog，并保存 UIA 树/失败截图。绝对路径拖放和窗口管理仍缺真实 Explorer 指针操作，E2E-AUTO-04 尚不能整体标记完成。
 - **P2：AI 辅助 profile 不是门禁必需项。** E2E-AUTO-05 可用于探索、失败复现和生成测试草稿，但不能作为 P5-T06/P5-GATE 的唯一断言来源。
 
 当前结论：P0 测试隔离、P1 的 E2E 运行基础设施、本地模型 mock/fixture 和 Agent Knowledge 权限持久化已处理并通过验证；下一批继续补主动工具调用、Chat 显式引用和最终跨模块回归，完成后才重新评估 P5-T06 与 P5-GATE。
@@ -527,6 +527,14 @@ E2E 第二批施工记录（2026-07-19）：
 - 新增 Bun E2E runner，自动管理 Vite、OpenAI-compatible mock、隔离数据根、fixture、WDIO 子进程和清理；外部使用 `AIO_E2E_*` 参数，避免 Bun 自动加载 `.env.local` 后污染测试隔离边界。
 - 新增 `knowledge-workflow.spec.ts`：真实 Tauri UI 创建资料库并断言稳定 ID；Agent 显式选择隔离 Chat 模型，创建 Knowledge 权限并在重开编辑器后验证开关与资料库授权持久化；同一隔离实例加载 Agent Manager、Chat 与 Knowledge 引用入口；设置页确认 `E2E Local Mock` Profile 已加载，mock 同时提供 Chat 和 Embedding 模型。
 - 验证结果：2 个 spec、5 个真实 Tauri 测试通过；全程使用 `.dev-data/tauri-e2e-*` 隔离目录，未读取用户默认 appData、真实模型密钥或外部端点。
+
+Windows 原生选择器集成记录（2026-07-19）：
+
+- 运行基线按当前 Windows 10 环境确定；未引入 WinAppDriver/Appium。新增 `tests/windows-ui-automation/AioHub.NativeUi`，使用 FlaUI UIA3 直接操作系统文件/目录对话框，并提供不操作窗口的 `probe` 环境检查。
+- `bun run test:tauri:e2e:native` 作为 opt-in 入口：构建 helper、创建隔离文件/目录 fixture、向 WDIO 传递 helper/fixture 路径并启用 `native-file-dialog.spec.ts`；普通 Tauri E2E 不增加 .NET 前置要求。
+- WDIO 通过只读 `wa_get_self_pid` 获取当前实例 PID，避免残留 debug 实例导致 helper 命中错误对话框；路径、文件名和确认动作分别使用地址栏/文件名 `ValuePattern` 与按钮 `InvokePattern`，不依赖本地化标题或固定坐标。
+- Windows 10 `10.0.19045` 实测 `native-file-dialog.spec.ts` 2/2 通过：文件选择后文档成功落库并显示，目录选择后持久来源成功新增。原生动作前保存有界 UIA 树，失败时保存桌面截图。
+- 实测同时修复队列导入完成后未刷新资料库/文档状态的问题。该层只完成系统选择器，绝对路径拖放仍需后续通过 Explorer 真实文件项和指针拖动补齐。
 
 ## 10. 全链路验收矩阵
 

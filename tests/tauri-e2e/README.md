@@ -24,8 +24,8 @@ bun run test:tauri:e2e
 WebDriver port is omitted, the config derives isolated defaults from the
 current process. `AIO_E2E_WEBDRIVER_PORT` can be used to select a known free
 port when running alongside another debug instance. The suite is intentionally
-single-process and debug-only; native file dialogs and drag/drop still require
-a separate Windows UI Automation layer.
+single-process and debug-only; the normal command excludes native file dialogs
+and drag/drop. File and folder dialogs use the opt-in Windows layer below.
 
 The runner starts a deterministic local OpenAI-compatible server, writes an
 isolated `E2E Local Mock` profile, and stores request summaries under the
@@ -39,3 +39,19 @@ directory, or `0` to disable it.
 `specs/knowledge-workflow.spec.ts` covers isolated library creation, Agent
 Knowledge authorization persistence, cross-tool navigation, and loading the
 seeded Chat/Embedding profile through the real Tauri UI.
+
+## Windows native selectors
+
+On Windows 10 or later, run the opt-in native suite with:
+
+```powershell
+bun run test:tauri:e2e:native
+```
+
+This mode builds the FlaUI/UIA3 helper under `tests/windows-ui-automation/`,
+creates isolated file and directory fixtures, and enables
+`specs/native-file-dialog.spec.ts`. WDIO still triggers each product action and
+asserts the resulting document/source state; the helper only operates the
+system-owned dialog. The session must remain logged in, unlocked, and visible.
+See [`../windows-ui-automation/README.md`](../windows-ui-automation/README.md)
+for selector rules, artifacts, and current drag/drop limitations.

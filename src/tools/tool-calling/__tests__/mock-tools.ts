@@ -102,6 +102,22 @@ export class MockSyncTool implements ToolRegistry {
           returnType: "Promise<string>",
           agentCallable: false,
         },
+        {
+          name: "readContext",
+          displayName: "读取执行上下文",
+          description: "返回当前 Agent ID 和结构化执行元数据",
+          parameters: [],
+          returnType: "Promise<ToolMethodResult>",
+          agentCallable: true,
+        },
+        {
+          name: "failWithCode",
+          displayName: "返回结构化失败",
+          description: "抛出带失败类型的错误",
+          parameters: [],
+          returnType: "Promise<never>",
+          agentCallable: true,
+        },
       ],
     };
   }
@@ -121,6 +137,17 @@ export class MockSyncTool implements ToolRegistry {
 
   async notCallable(): Promise<string> {
     return "should not be called";
+  }
+
+  async readContext(_args: Record<string, unknown>, context?: ToolContext) {
+    return {
+      result: { agentId: context?.agent?.id ?? null },
+      executionMetadata: { sourceCount: 2 },
+    };
+  }
+
+  async failWithCode(): Promise<never> {
+    throw Object.assign(new Error("forbidden"), { code: "TEST_FORBIDDEN" });
   }
 }
 

@@ -163,10 +163,12 @@ describe("工具发现", () => {
     const methods = discovery.getDiscoveredMethods();
     const syncTool = methods.find((t) => t.toolId === "mock-sync");
     expect(syncTool).toBeDefined();
-    // echo, add, toggleFlag 是 agentCallable，notCallable 不是
+    // 除 notCallable 外的方法都应被发现。
     expect(syncTool!.methods.map((m) => m.name).sort()).toEqual([
       "add",
       "echo",
+      "failWithCode",
+      "readContext",
       "toggleFlag",
     ]);
   });
@@ -297,6 +299,51 @@ command:「始」someMethod「末」
 
     expect(results[0].status).toBe("error");
     expect(results[0].result).toContain("不存在");
+  });
+
+  it("向工具下推 Agent 快照并保留结构化执行元数据", async () => {
+    const requests = parseToolRequests(
+      `<<<[TOOL_REQUEST]>>>
+tool_name:「始」mock-sync「末」,
+command:「始」readContext「末」
+<<<[END_TOOL_REQUEST]>>>`,
+      protocol
+    );
+
+    const results = await executeToolRequests(requests, {
+      config: defaultConfig,
+      agent: {
+        id: "agent-1",
+        knowledgeAccess: {
+          enabled: true,
+          allowedLibraryIds: ["library-1"],
+          allowSearchAll: true,
+          allowDocumentRead: false,
+          allowResearch: false,
+        },
+      },
+    });
+
+    expect(JSON.parse(results[0].result)).toEqual({ agentId: "agent-1" });
+    expect(results[0].metadata).toEqual({ sourceCount: 2 });
+  });
+
+  it("保留工具错误的结构化失败类型", async () => {
+    const requests = parseToolRequests(
+      `<<<[TOOL_REQUEST]>>>
+tool_name:「始」mock-sync「末」,
+command:「始」failWithCode「末」
+<<<[END_TOOL_REQUEST]>>>`,
+      protocol
+    );
+    const results = await executeToolRequests(requests, {
+      config: defaultConfig,
+    });
+    expect(results[0]).toMatchObject({
+      status: "error",
+      result: "forbidden",
+      metadata: { failureType: "TEST_FORBIDDEN" },
+    });
   });
 });
 

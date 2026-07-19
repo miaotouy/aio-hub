@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import {
   createKnowledgeLibrary,
+  applyKnowledgeLibraryConfig,
   deleteKnowledgeDocument,
   deleteKnowledgeLibrary,
   getKnowledgeIndexStatus,
@@ -10,17 +11,23 @@ import {
   listKnowledgeDocuments,
   listKnowledgeLibraries,
   rebuildKnowledgeLibrary,
-  searchKnowledge,
-} from "./service";
+  searchKnowledgeDetailed,
+  updateKnowledgeDocumentTags,
+  updateKnowledgeLibrary,
+} from "../services/service";
+import { processKnowledgeImportQueue } from "../services/ingestQueue";
 import type {
   KnowledgeDocument,
   KnowledgeChunk,
   KnowledgeImportFailure,
   KnowledgeIndexStatus,
   KnowledgeLibrary,
+  KnowledgeLibraryIndexConfig,
+  KnowledgeLibraryUpdate,
   KnowledgeResult,
+  KnowledgeSearchTrace,
   KnowledgeSearchStrategy,
-} from "./types";
+} from "../types";
 
 const errorHandler = createModuleErrorHandler("knowledge-base/store");
 
@@ -30,6 +37,7 @@ export const useKnowledgeStore = defineStore("knowledge-base", {
     documents: [] as KnowledgeDocument[],
     chunks: [] as KnowledgeChunk[],
     results: [] as KnowledgeResult[],
+    searchTraces: [] as KnowledgeSearchTrace[],
     activeLibraryId: null as string | null,
     selectedDocumentId: null as string | null,
     selectedResultId: null as string | null,
@@ -41,6 +49,7 @@ export const useKnowledgeStore = defineStore("knowledge-base", {
     importProcessed: 0,
     importTotal: 0,
     searching: false,
+    initializationError: null as unknown,
   }),
 
   getters: {
@@ -67,9 +76,21 @@ export const useKnowledgeStore = defineStore("knowledge-base", {
   actions: {
     async initialize() {
       this.loading = true;
+      this.initializationError = null;
       try {
         await this.refreshLibraries();
+        const libraryIds = this.libraries.map((library) => library.id);
+        void Promise.all(
+          libraryIds.map((libraryId) =>
+            processKnowledgeImportQueue(libraryId, [])
+          )
+        )
+          .then(() => this.refreshLibraries())
+          .catch((error) => {
+            errorHandler.error(error, "恢复知识资料摄取任务失败");
+          });
       } catch (error) {
+        this.initializationError = error;
         errorHandler.error(error, "初始化知识资料库失败");
       } finally {
         this.loading = false;
@@ -85,6 +106,7 @@ export const useKnowledgeStore = defineStore("knowledge-base", {
         : this.libraries[0]?.id || null;
       if (previousId !== this.activeLibraryId) {
         this.results = [];
+        this.searchTraces = [];
         this.selectedResultId = null;
         this.selectedDocumentId = null;
         this.chunks = [];
@@ -142,10 +164,37 @@ export const useKnowledgeStore = defineStore("knowledge-base", {
       }
     },
 
-    async createLibrary(name: string, description?: string) {
-      const library = await createKnowledgeLibrary(name, description);
+    async createLibrary(
+      name: string,
+      description?: string,
+      config?: KnowledgeLibraryIndexConfig
+    ) {
+      const library = await createKnowledgeLibrary(name, description, config);
       await this.refreshLibraries(library.id);
       return library;
+    },
+
+    async updateActiveLibrary(update: KnowledgeLibraryUpdate) {
+      if (!this.activeLibraryId) return null;
+      const library = await updateKnowledgeLibrary(
+        this.activeLibraryId,
+        update
+      );
+      await this.refreshLibraries(library.id);
+      return library;
+    },
+
+    async applyActiveLibraryConfig(config: KnowledgeLibraryIndexConfig) {
+      if (!this.activeLibraryId) return 0;
+      const count = await applyKnowledgeLibraryConfig(
+        this.activeLibraryId,
+        config
+      );
+      this.results = [];
+      this.searchTraces = [];
+      this.selectedResultId = null;
+      await this.refreshLibraries(this.activeLibraryId);
+      return count;
     },
 
     async deleteActiveLibrary() {
@@ -180,6 +229,9 @@ export const useKnowledgeStore = defineStore("knowledge-base", {
           } catch (error) {
             failures.push({
               sourcePath: file.sourcePath,
+              fileName:
+                file.sourcePath.split(/[\\/]/).pop() || file.sourcePath,
+              stage: "ingest",
               message: error instanceof Error ? error.message : String(error),
             });
           } finally {
@@ -207,6 +259,18 @@ export const useKnowledgeStore = defineStore("knowledge-base", {
       await this.refreshLibraries(this.activeLibraryId);
     },
 
+    async updateDocumentTags(documentId: string, tags: string[]) {
+      if (!this.activeLibraryId) return null;
+      const document = await updateKnowledgeDocumentTags(
+        this.activeLibraryId,
+        documentId,
+        tags
+      );
+      const index = this.documents.findIndex((item) => item.id === documentId);
+      if (index >= 0) this.documents[index] = document;
+      return document;
+    },
+
     async rebuild() {
       if (!this.activeLibraryId) return 0;
       const count = await rebuildKnowledgeLibrary(this.activeLibraryId);
@@ -219,26 +283,35 @@ export const useKnowledgeStore = defineStore("knowledge-base", {
     async search(
       query: string,
       strategy: KnowledgeSearchStrategy = "auto",
-      limit = 12
+      limit = 12,
+      libraryIds?: string[]
     ) {
-      if (!this.activeLibraryId || !query.trim()) {
+      const targetLibraryIds =
+        libraryIds?.length || !this.activeLibraryId
+          ? libraryIds ?? []
+          : [this.activeLibraryId];
+      if (!targetLibraryIds.length || !query.trim()) {
         this.results = [];
+        this.searchTraces = [];
         return [];
       }
       this.searching = true;
       try {
-        this.results = await searchKnowledge({
+        const execution = await searchKnowledgeDetailed({
           query: query.trim(),
-          libraryIds: [this.activeLibraryId],
+          libraryIds: targetLibraryIds,
           strategy,
           limit,
           minScore: 0,
         });
+        this.results = execution.results;
+        this.searchTraces = execution.traces;
         this.selectedResultId = this.results[0]?.chunkId || null;
         return this.results;
       } catch (error) {
         errorHandler.error(error, "检索知识资料库失败");
         this.results = [];
+        this.searchTraces = [];
         this.selectedResultId = null;
         return [];
       } finally {

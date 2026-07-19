@@ -47,6 +47,9 @@
           >
             <div class="macro-item" @click="handleInsertMacro(macro)">
               <span class="macro-name">{{ formatMacroName(macro.name) }}</span>
+              <span v-if="macro.name === 'knowledge_list'" class="macro-note">
+                只列目录，不检索
+              </span>
               <el-icon class="insert-icon"><Plus /></el-icon>
             </div>
           </el-tooltip>
@@ -295,6 +298,13 @@ function handleInsertMacro(macro: MacroDefinition) {
   font-size: 13px;
   color: var(--el-text-color-primary);
   flex: 1;
+}
+
+.macro-note {
+  margin-right: 8px;
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .insert-icon {

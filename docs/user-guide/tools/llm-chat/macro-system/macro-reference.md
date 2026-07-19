@@ -120,11 +120,12 @@
 - `{{hostname}}`: 计算机主机名
 - `{{locale}}`: 系统语言环境 (如 `zh-CN`)
 
-## 8. 知识库宏
+## 8. Knowledge 宏
 
-提供知识库检索注入能力。详见[知识库集成](../knowledge-base-integration)。
+Knowledge 只保留一个由用户显式放置的只读目录宏。它不会执行检索，也不会在宏缺失时自动注入。
 
-- `{{kb}}`: 触发知识库检索并注入结果。无参数时检索所有已启用的关联知识库；可指定知识库名称和召回上限（如 `{{kb::我的知识库::5}}`）。
-- `{{kb_list}}`: 列出当前 Agent 关联的知识库信息（供 LLM 感知可用知识源）。
+- `{{knowledge_list}}`: 列出当前 Agent 获授权的资料库 ID、名称、说明、来源数量和可用状态。
+
+主动检索请使用 `knowledge.listLibraries`、`knowledge.search` 和 `knowledge.read` 工具；详见[Knowledge Agent 集成](../../knowledge-base/agent-integration)。
 
 </div>

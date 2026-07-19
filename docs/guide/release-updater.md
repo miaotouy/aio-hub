@@ -68,6 +68,7 @@ TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 
 1. 同步桌面端版本号：
    - `package.json`
+   - `src-tauri/Cargo.toml`
    - `src-tauri/tauri.conf.json`
 2. 创建并推送 tag，例如 `v0.6.4`。
 3. 等待 GitHub Actions 创建草稿 Release。
@@ -77,6 +78,16 @@ TAURI_SIGNING_PRIVATE_KEY_PASSWORD
    - `latest.json`
 5. 发布草稿 Release。
 6. 从旧版本应用内点击"检查更新"，验证下载、安装、重启。
+
+### 5. 移动端版本同步
+
+移动端发版时同步以下文件：
+
+- `mobile/package.json`
+- `mobile/src-tauri/Cargo.toml`
+- `mobile/src-tauri/tauri.conf.json`
+
+移动端 tag 和构建入口以 `.github/workflows/build-mobile.yml` 与 `.github/workflows/ios-build.yml` 的当前触发条件为准，不要沿用桌面端 tag 规则。
 
 ## 更新通道 (Update Channel)
 

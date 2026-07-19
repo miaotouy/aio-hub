@@ -304,6 +304,10 @@ export function useToolCallOrchestrator() {
                   }
                 }
               }
+            },
+            {
+              id: executionAgent.id,
+              knowledgeAccess: executionAgent.knowledgeAccess,
             }
           );
 
@@ -334,6 +338,7 @@ export function useToolCallOrchestrator() {
                     status: res.status,
                     durationMs: res.durationMs,
                     rawArgs: cycleResult.parsedRequests[idx]?.args,
+                    resultMetadata: res.metadata,
                   })),
                 },
               };

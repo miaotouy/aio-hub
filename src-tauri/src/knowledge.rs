@@ -35,6 +35,19 @@ impl KnowledgeState {
             .clone()
             .ok_or_else(|| "Knowledge repository 尚未初始化".to_string())
     }
+
+    #[cfg(test)]
+    pub(crate) fn initialized_for_test(app_data_dir: &std::path::Path) -> Self {
+        let state = Self::new();
+        let repository = Arc::new(KnowledgeRepository::new(app_data_dir));
+        repository
+            .initialize()
+            .expect("Knowledge test repository should initialize");
+        state
+            .set_repository(repository)
+            .expect("Knowledge test repository should attach to state");
+        state
+    }
 }
 
 impl Default for KnowledgeState {

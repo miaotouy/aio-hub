@@ -25,6 +25,7 @@ import type {
   LlmThinkRule,
   RichTextRendererStyleOptions,
 } from "@/tools/rich-text-renderer/types";
+import type { AgentKnowledgeAccess } from "@/tools/knowledge-base/types";
 
 /**
  * 随包导出的世界书定义
@@ -69,6 +70,8 @@ export interface ExportableAgent {
   assetGroups?: AssetGroup[];
   assets?: AgentAsset[];
   worldbookIds?: string[];
+  /** Knowledge 访问权限；仅保存稳定资料库 ID，不嵌入资料库内容。 */
+  knowledgeAccess?: AgentKnowledgeAccess;
   /** 随包导出的世界书信息 */
   bundledWorldbooks?: BundledWorldbook[];
 }

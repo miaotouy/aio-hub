@@ -1,15 +1,17 @@
 # Recall / Knowledge 领域拆分与重构实施计划
 
-**状态**: Pre-Stage、Stage 0 至 Stage 5 已完成；Stage 6 的 Knowledge 核心数据、检索与工作台已完成，但后续调查确认其检索占位符、自动注入、Agent 绑定和设置方案缺少上位产品方向，现按 Knowledge 产品方案重新设计。只读目录宏 `{{knowledge_list}}` 保留并改接资料访问授权，旧补完计划已暂停。Stage 7 的代码边界清理已完成，首次启动迁移接线、独立 appData / 真实目录副本验收与发布 smoke test 仍待执行。整个计划完成前不发布中间版本。
+**状态**: Pre-Stage、Stage 0 至 Stage 7 的代码施工和自动化验证已完成。Knowledge 已按现行产品方案完成访问授权、只读目录宏、主动工具、结构化引用、可靠摄取和研究任务；Recall 首次启动迁移接线与真实旧目录副本的 importer 验收已完成。当前剩余发布门禁为 Knowledge 固定 Tauri 跨模块回归、Recall 真实 Tauri 首次启动与重启验收、Recall / Agent 合并迁移报告和发布二进制 smoke test。全部门禁通过前不发布本轮重构。
 **创建日期**: 2026-07-17
-**最近修订**: 2026-07-18
-**适用范围**: `src/tools/knowledge-base/`、计划新增的 `src/tools/recall/`、`src/tools/llm-chat/`、`src/tools/agent-manager/`、`src-tauri/src/knowledge/`、计划新增的 `src-tauri/src/recall/`
+**最近修订**: 2026-07-19
+**适用范围**: `src/tools/knowledge-base/`、`src/tools/recall/`、`src/tools/llm-chat/`、`src/tools/agent-manager/`、`src-tauri/src/knowledge/`、`src-tauri/src/recall/`
 
 关联调查：
 
-- [检索模式与思绪引擎设计调查](./retrieval-profile-knowledge-memory-design.md)
-- [后端存储数据库化设计调查](./backend-storage-database-design.md)
-- [重构前按库备份与恢复功能计划](./pre-restructure-library-backup-import-export-plan.md)
+- [检索模式与思绪引擎设计调查（已归档）](./Archived/retrieval-profile-knowledge-memory-design.md)
+- [后端存储数据库化设计调查（已归档）](./Archived/backend-storage-database-design.md)
+- [重构前按库备份与恢复功能计划（已归档）](./Archived/pre-restructure-library-backup-import-export-plan.md)
+- [Knowledge 资料库产品方案](../../../knowledge-base/docs/Plan/knowledge-base-product-interaction-design.md)
+- [Knowledge 施工步骤计划清单](../../../knowledge-base/docs/Plan/knowledge-base-implementation-checklist.md)
 
 > 本文是两份调查的唯一施工顺序来源。调查文档负责记录架构结论、schema、算法边界和风险，不再分别维护 Phase 或实施顺序。
 
@@ -206,7 +208,7 @@ appData/knowledge/
 
 ### 工作项
 
-- 按 [重构前按库备份与恢复功能计划](./pre-restructure-library-backup-import-export-plan.md) 实现版本化 `.aio-kb` 单库备份包。
+- 按 [重构前按库备份与恢复功能计划（已归档）](./Archived/pre-restructure-library-backup-import-export-plan.md) 实现版本化 `.aio-kb` 单库备份包。
 - 提供“导出全部”，一次选择目标目录后生成一个带根索引和库子目录的多库 ZIP 容器（不嵌套单库 ZIP）；保留单库 `.aio-kb` 导出，并支持导出选中库。
 - 提供单个或多选备份包导入；默认恢复原库 ID，无冲突时保留条目 ID，冲突时默认导入为副本。
 - 备份条目源字段、库级元数据和实际引用资产；向量、tag pool、HNSW 和运行时索引不进入备份包。
@@ -329,7 +331,7 @@ appData/knowledge/
 
 ### Stage 2.4：迁移实现与隔离验证
 
-**阶段状态**: 代码与自动化验证已完成。旧文件目录的 `LegacyFileRecallImporter` 具备幂等导入、运行中状态续跑、主库/向量库分离状态和结构化报告；报告包含源/目标统计、模型统计、主库/向量库状态、问题列表、旧目录位置与恢复说明。legacy `contentHash` / `content_hash` 均参与向量有效性校验。`.aio-kb` v1、legacy JSON/YAML 由备份恢复适配器解析资产、冲突和副本语义后直接提交同一 SQLite repository；它们不并入只负责旧目录扫描的 `LegacyFileRecallImporter`，以避免丢失包级校验和资产恢复边界。模拟 `running` 状态与部分集合已提交后可幂等续跑。独立 appData Tauri smoke test 留待最终发布门槛统一执行。
+**阶段状态**: 代码与自动化验证已完成。旧文件目录的 `LegacyFileRecallImporter` 具备幂等导入、运行中状态续跑、主库/向量库分离状态和结构化报告；报告包含源/目标统计、模型统计、主库/向量库状态、问题列表、旧目录位置与恢复说明。legacy `contentHash` / `content_hash` 均参与向量有效性校验。`.aio-kb` v1、legacy JSON/YAML 由备份恢复适配器解析资产、冲突和副本语义后直接提交同一 SQLite repository；它们不并入只负责旧目录扫描的 `LegacyFileRecallImporter`，以避免丢失包级校验和资产恢复边界。模拟 `running` 状态与部分集合已提交后可幂等续跑。2026-07-19 已将 importer 接入 `RecallState` 首次启动初始化：主数据完整后才 warmup 并开放 repository，主数据部分成功时阻止进入可写态，向量部分成功时保留主数据并降级等待重建。使用 `E:/rc20/allinweb/test/com.mty.aiohub` 的旧目录临时副本完成 importer 验收，4 个集合、478 个条目、472 个条目向量和 1537 个标签向量全部迁移，零跳过、零问题，并通过重复导入幂等校验。重构后导出已切换到 `aiohub.recall-collection@1` `.aio-recall` 与新版多集合 ZIP，显式记录 data/config schema v1；导入端继续严格兼容 `.aio-kb` v1、旧多库 ZIP 和 legacy JSON/YAML，并已直接读取 `E:/rc20/allinweb/test` 中的真实旧单库与多库导出完成验收。旧包虽沿用“知识库”名称但实际使用思绪条目结构；导入引导默认推荐完整恢复到思绪，同时允许将当作传统文档库使用的旧集合经二次确认后不可逆转换到新版 Knowledge。转换仅保留资料库名称、描述、条目标题与 Markdown 正文，写入失败回滚本次新建资料库，原备份不修改。真实 Tauri 首次启动、进程重启和发布二进制 smoke test 留待最终发布门槛统一执行。
 
 本阶段完成最终发布所需的数据迁移实现和隔离验证，但不产生可发布版本，也不让中间态访问真实用户目录。
 
@@ -474,7 +476,7 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 
 ## 11. Stage 6：建设 Knowledge 资料库
 
-**阶段状态**：后端、检索契约与核心工作台已完成。Knowledge 使用本计划允许的 SQLite manifest + 每库独立 `.kdb` + FTS5 过渡实现；已完成 library/document/chunk CRUD、增量覆盖、事务删除、重建、PDF/DOCX/HTML/文本解析、BM25、chunk embedding、hybrid、相邻 chunk graph 和来源回溯。前端已提供文档/分块主从浏览、批量导入失败隔离、检索信号展示、Embedding 模型选择、向量覆盖率与批次进度。后续调查确认全局与单库设置、支持格式展示、拖放导入、响应式和样式收口仍未完成；同时确认 Knowledge processor、生成检索占位符的 `{{knowledge}}`、保底自动注入和 `retrieval` mixed 工具均属于产品方向未明确时形成的阶段性实现。`{{knowledge_list}}` 与它们作用域不同：该宏不执行检索，应保留并改为从 Agent 资料访问授权生成用户可编排位置的只读目录。上述 Knowledge 阶段性能力尚未发布，不设计兼容期或用户迁移分支。后续先按 [Knowledge 资料库产品方案](../../../knowledge-base/docs/Plan/knowledge-base-product-interaction-design.md) 完成主动检索、Agent 权限、结构化引用和目录宏设计，再重写 [Knowledge 设置与文档导入交互补完计划](../../../knowledge-base/docs/Plan/knowledge-base-settings-and-import-interaction-plan.md)，不得直接按旧稿施工。当前没有产品化文件夹同步入口，因此未引入 watcher/ingest queue；TriviumDB 继续等待文件组恢复、锁和跨平台验证，不进入本阶段运行路径。真实 WebView 与真实模型调用仍归最终发布验收。
+**阶段状态**：代码施工和阶段自动化验证已完成，最终 Tauri 跨模块回归待收口。Knowledge 使用 SQLite manifest + 每库独立 `.kdb` + FTS5；已完成 library/document/chunk/source CRUD、增量覆盖、事务删除和重建、PDF/DOCX/HTML/文本解析、BM25、chunk embedding、hybrid、相邻 chunk graph、来源回溯、版本化配置、持久摄取队列和目录重扫。前端已完成工作区/设置分层、格式能力说明、文件与目录入口、拖放、队列与诊断、响应式和可访问性。产品调用契约已收敛为 `knowledgeAccess` 访问授权、只读 `{{knowledge_list}}` 目录宏、`knowledge.listLibraries/search/read/research` 主动工具和结构化 `KnowledgeReference`；不注册 Knowledge 检索占位符或自动注入，也不提供混合两个领域原始分数的产品级 `mixed` 工具。Phase 0 至 Phase 4 和 Phase 5 的代码/自动化检查状态见 [Knowledge 施工步骤计划清单](../../../knowledge-base/docs/Plan/knowledge-base-implementation-checklist.md)；剩余项是 Agent 主动工具调用、显式引用、摄取/重建和研究任务串成固定的真实 Tauri 回归。
 
 ### 目标
 
@@ -498,18 +500,18 @@ defaultEngineId       -> defaultRecallProfile 或显式 legacyEngineId
 - Knowledge 的导入、增量更新、删除、重建和来源回溯闭环可验证。
 - 删除某个 Knowledge library 文件组不影响 Recall。
 - Knowledge chunk 不进入 Recall entry、tag pool、priority 或 workspace 列表。
-- `mixed` 结果可以解释每条内容的来源域和融合依据。
+- Recall 与 Knowledge 的组合由上层显式编排，每条结果保留独立领域和来源标识，不混合不可比的原始分数。
 - `{{knowledge_list}}` 只列出已授权资料库且不触发检索；未授权 library ID 不能通过 Knowledge 工具访问。
 
 ---
 
 ## 12. Stage 7：清理旧边界
 
-**阶段状态**：代码与文档边界清理已完成，最终发布接线待人工验收。该阶段结束时的常规 pipeline 只注册 Recall / Knowledge processor 和宏，共享 tokenizer 只登记两个 namespace；这是后续 Knowledge 产品重构前的施工现状，不是最终产品契约。后续 Phase 0 将移除 Knowledge processor、`【knowledge::...】` namespace 和 `{{knowledge}}`，保留 `{{knowledge_list}}` 作为独立目录宏。Recall 编辑器和公共 Agent 类型已移除长期 `KB` / `KnowledgeBase` 命名，旧 `knowledgeBaseConfig`、`kbId`、旧目录 IO 只保留在版本化 migration、legacy importer、备份恢复和隔离夹具中。设置页已提供只读迁移状态、Recall 报告导出和双重确认清理入口；后端只有在主数据/向量报告均完整、无问题且目录指纹一致时才允许删除旧 `bases` / `vectors` / `tag_pool`，并保留同目录下的新 Knowledge manifest 与 libraries。迁移报告样例见 [`recall-knowledge-migration-report-sample.md`](recall-knowledge-migration-report-sample.md)。首次启动自动迁移、真实用户目录只读标记、Recall 与 Agent 迁移统计的最终报告合并和发布二进制 smoke test 仍按最终发布门槛执行，不在施工期访问真实用户 appData。
+**阶段状态**：代码与文档边界清理已完成，最终发布验收进行中。常规 pipeline 仅保留 Recall processor；Knowledge 不注册 `【knowledge::...】` namespace 或 `{{knowledge}}`，只保留不触发检索的 `{{knowledge_list}}` 目录宏。Recall 编辑器和公共 Agent 类型已移除长期 `KB` / `KnowledgeBase` 命名，旧 `knowledgeBaseConfig`、`kbId`、旧目录 IO 只保留在版本化 migration、legacy importer、备份恢复和隔离夹具中。设置页已提供只读迁移状态、Recall 报告导出和双重确认清理入口；后端只有在主数据/向量报告均完整、无问题且目录指纹一致时才允许删除旧 `bases` / `vectors` / `tag_pool`，并保留新的 Knowledge manifest 与 libraries。迁移报告样例见 [`recall-knowledge-migration-report-sample.md`](recall-knowledge-migration-report-sample.md)。首次启动自动迁移和 Recall 新导出格式已接入，并分别通过真实旧目录临时副本与新旧格式往返验收；真实 Tauri 首次启动与重启、真实用户目录只读标记、Recall 与 Agent 迁移统计的最终报告合并和发布二进制 smoke test 仍按最终发布门槛执行，不直接试运行原始用户 appData。
 
 ### 工作项
 
-- 删除旧 `kb_*` command、旧 Agent 工具 ID、旧宏和旧占位符 parser；该阶段先将共享信封 tokenizer 收敛到 `recall` / `knowledge` 两个 namespace，后续 Knowledge 产品重构再删除 `knowledge` 信封 namespace。
+- 删除旧 `kb_*` command、旧 Agent 工具 ID、旧宏、旧占位符 parser 和 Knowledge 检索信封 namespace；保留独立的 `knowledge.*` 主动工具注册。
 - 删除 Recall 代码中的 `KnowledgeBase*`、`Kb*`、`Thought*` 长期类型名。
 - 清理仅为旧文件系统运行时保留的 IO 和目录扫描路径，保留独立 legacy importer / restore 工具。
 - 为用户提供旧目录状态、迁移报告、导出和确认清理入口。

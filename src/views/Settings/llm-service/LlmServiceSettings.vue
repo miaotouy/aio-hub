@@ -411,6 +411,7 @@ const networkSettingSummary = computed(() => {
 <template>
   <div
     class="llm-settings-page"
+    data-testid="llm-service-settings"
     :class="{ 'is-narrow': isNarrow }"
     ref="containerRef"
   >
@@ -438,7 +439,11 @@ const networkSettingSummary = computed(() => {
             class="profile-icon"
             :alt="profile.name"
           />
-          <div class="profile-info">
+          <div
+            class="profile-info"
+            data-testid="llm-profile-item"
+            :data-profile-id="profile.id"
+          >
             <div class="profile-name">{{ profile.name }}</div>
             <div class="profile-type">
               {{ getProviderTypeInfo(profile.type)?.name }}

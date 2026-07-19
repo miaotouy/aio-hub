@@ -250,3 +250,94 @@ bun run test src/tools/{your-tool-id}
 # 运行全量测试，确保没有破坏其他模块
 bun run test:run
 ```
+
+---
+
+## 8. 真实 Tauri 窗口 E2E
+
+Vitest 和前面的 Mock 测试用于验证业务逻辑、参数契约和组件行为；它们不启动原生 WebView，也不能证明 Tauri IPC、窗口生命周期、绝对路径拖放或系统文件选择器可用。需要真实窗口时，使用项目新增的 WebdriverIO Tauri E2E 工具：
+
+- 配置文件：[`tests/tauri-e2e/wdio.conf.ts`](../../tests/tauri-e2e/wdio.conf.ts)
+- Smoke 用例：[`tests/tauri-e2e/specs/smoke.spec.ts`](../../tests/tauri-e2e/specs/smoke.spec.ts)
+- 运行说明：[`tests/tauri-e2e/README.md`](../../tests/tauri-e2e/README.md)
+- 运行命令：`bun run test:tauri:e2e`
+
+### 8.1. 工具组成
+
+真实窗口 E2E 由以下部分组成：
+
+1. `@wdio/tauri-service`：WebdriverIO 的 Tauri service，负责启动应用并通过 embedded WebDriver 驱动 WebView。
+2. `tauri-plugin-wdio`：仅在 debug 构建注册，提供 Tauri 侧的执行、日志和测试辅助能力。
+3. `tauri-plugin-wdio-webdriver`：仅在 debug 构建注册，在应用内启动 embedded WebDriver server。
+4. `tests/tauri-e2e/`：集中放置 WDIO 配置、真实窗口用例和运行说明，不把 E2E 逻辑混入业务工具目录。
+5. `tests/windows-ui-automation/`：基于 .NET 8、FlaUI 5 和 UIA3 的 Windows 原生 helper，只负责系统文件/目录对话框，并由 WDIO 场景调用。
+
+`@wdio/tauri-service` 当前固定为 `1.1.x`。`1.2.0` 存在对 `@wdio/native-utils` 导出不匹配的问题，升级前需要先确认上游依赖修复。
+
+### 8.2. 首次运行
+
+先生成前端产物并编译 debug binary：
+
+```powershell
+bun run build:vite
+cargo build --manifest-path src-tauri/Cargo.toml
+```
+
+然后使用隔离数据根运行 E2E。不要让验收读取默认 appData、用户模型配置或真实会话：
+
+```powershell
+$env:AIO_E2E_ID_SUFFIX = "tauri-e2e"
+$env:AIO_E2E_DATA_DIR = ".dev-data\\tauri-e2e"
+$env:AIO_E2E_ARTIFACT_DIR = ".dev-data\\tauri-e2e\\artifacts"
+bun run test:tauri:e2e
+```
+
+当 binary 不在默认位置时，显式设置：
+
+```powershell
+$env:AIO_E2E_BINARY = "E:\\path\\to\\aiohub.exe"
+bun run test:tauri:e2e
+```
+
+配置默认使用单 worker，并保存前后端日志和 WDIO 产物。只运行某个 spec 时可以追加 WDIO 参数：
+
+```powershell
+bun run test:tauri:e2e -- --spec tests/tauri-e2e/specs/smoke.spec.ts
+```
+
+`tests/tauri-e2e/**` 已从 Vitest 的默认发现范围排除，`bun run test:run`
+不会加载 WDIO 用例；真实窗口用例只通过 `bun run test:tauri:e2e` 执行。
+E2E runner 会在未显式设置时为本次进程生成隔离的数据根、产物目录和
+WebDriver 端口，并向 Tauri 子进程写入最终 `AIO_ID_SUFFIX`/`AIO_DATA_DIR`。
+对外参数使用 `AIO_E2E_ID_SUFFIX`/`AIO_E2E_DATA_DIR`，避免 Bun 自动加载
+`.env.local` 时把开发数据根带入验收。与其他 Tauri debug 实例并行时，
+可通过 `AIO_E2E_WEBDRIVER_PORT` 显式指定空闲端口。
+
+runner 会自动启动缺失的 Vite dev server、确定性的本地 OpenAI-compatible
+Chat/Embedding mock，并在隔离数据根写入 E2E Profile。失败截图、WDIO 日志、
+mock 请求摘要和 `e2e-run.json` 统一保存在产物目录；记录中不包含 API Key 或
+Authorization header。
+
+### 8.3. 编写真实窗口用例
+
+真实窗口用例应优先使用稳定的 `data-testid`、可访问名称或明确的语义 selector，不要依赖坐标、动态文案或当前屏幕布局。每个场景都要：
+
+- 在隔离数据根中准备 fixture；
+- 通过真实 UI 触发操作；
+- 断言页面状态、工具事件或持久化结果；
+- 在失败时保留截图、前后端日志和 session 信息；
+- 明确哪些步骤经过了 Tauri IPC，哪些步骤仍属于系统级人工边界。
+
+### 8.4. 不能由 WDIO 单独替代的入口
+
+WDIO 和 WebView2 CDP 只能直接控制 Tauri WebView。Windows 原生文件/目录选择器使用独立的 FlaUI/UIA3 helper：
+
+```powershell
+bun run test:tauri:e2e:native
+```
+
+该入口只在 Windows 10 及以上、已登录且未锁屏的交互式桌面运行。helper 与 AIO Hub 必须属于同一用户和相同完整性级别。原生 selector 按进程、Owner/模态窗口、AutomationId、ControlType 和 UIA Pattern 定位；Win10 Common Item Dialog 的 `#32770` 仅作为辅助信号，不依赖“打开”“文件名”等本地化文案。每次动作前保存 UIA 树，失败时额外保存桌面截图。详细契约见 [`tests/windows-ui-automation/README.md`](../../tests/windows-ui-automation/README.md)。
+
+绝对路径拖放、桌面窗口激活和系统级窗口排列仍需继续扩展 Windows UI Automation runner 或执行可见桌面人工验收。拖放必须从真实 Explorer 文件项执行指针拖动，不能用直接 `invoke`、repository 调用或伪造 H5 `File` 冒充通过。
+
+普通浏览器页面测试仍可用于纯前端 Mock 场景，但不能替代真实 Tauri E2E。

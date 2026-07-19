@@ -23,6 +23,8 @@ export interface BackupInspectResult {
   sourceEntry?: string | null;
   format: string;
   formatVersion: number;
+  dataSchemaVersion?: number | null;
+  configSchemaVersion?: number | null;
   libraryId: string;
   libraryName: string;
   entryCount: number;
@@ -53,6 +55,15 @@ export interface BackupImportReport {
   importedAsCopy: boolean;
   legacyContentOnly: boolean;
   vectorsNeedRebuild: boolean;
+  warnings: BackupWarning[];
+}
+
+export interface LegacyKnowledgeImportReport {
+  status: "success";
+  libraryId: string;
+  libraryName: string;
+  documentCount: number;
+  skippedEntryCount: number;
   warnings: BackupWarning[];
 }
 

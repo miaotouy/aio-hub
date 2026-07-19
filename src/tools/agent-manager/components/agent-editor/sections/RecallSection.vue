@@ -55,7 +55,7 @@ const ensureConfig = () => {
 // 初始化
 ensureConfig();
 
-// 初始化知识库设置 + 旧版数据迁移
+// 初始化 Recall 设置；旧版字段只在迁移阶段收敛，这里不创建 Knowledge 配置。
 if (!editForm.recallSettings) {
   editForm.recallSettings = {
     defaultProfile: "semantic",
@@ -76,7 +76,7 @@ if (!editForm.recallSettings) {
   }
 }
 
-// 初始化知识库 store
+// 初始化 Recall store
 if (recallStore.bases.length === 0) {
   recallStore.init();
 }
@@ -116,7 +116,7 @@ const filteredBindings = computed(() => {
   );
 });
 
-// 展开的知识库 ID
+// 展开的思绪集 ID
 const expandedRecallId = ref<string | null>(null);
 
 const toggleExpand = (recallId: string) => {
@@ -124,7 +124,7 @@ const toggleExpand = (recallId: string) => {
     expandedRecallId.value === recallId ? null : recallId;
 };
 
-// 添加知识库
+// 添加 Recall 思绪集
 const showAddSelector = ref(false);
 const availableBases = computed(() => {
   const existingIds = new Set(
@@ -146,7 +146,7 @@ const addRecallCollection = (base: { id: string; name: string }) => {
   showAddSelector.value = false;
 };
 
-// 移除知识库
+// 移除 Recall 思绪集
 const removeBinding = (recallId: string) => {
   ensureConfig();
   const idx = editForm.recallConfig.bindings.findIndex(
@@ -157,7 +157,7 @@ const removeBinding = (recallId: string) => {
   }
 };
 
-// 切换单个知识库的启用状态
+// 切换单个思绪集的启用状态
 const toggleBinding = (recallId: string, enabled: boolean) => {
   const binding = editForm.recallConfig.bindings.find(
     (b: RecallBinding) => b.recallId === recallId
@@ -167,7 +167,7 @@ const toggleBinding = (recallId: string, enabled: boolean) => {
   }
 };
 
-// 知识库高级设置（精简版：移除传统 RAG 残留，对齐记忆系统定位）
+// Recall 高级设置（与 Knowledge 检索和权限完全独立）
 const recallAdvancedSettings = computed<SettingItem[]>(() => [
   {
     id: "recallDefaultProfile",
@@ -309,9 +309,9 @@ onMounted(() => {
         />
       </div>
       <div class="form-hint">
-        关联知识库后，智能体可在对话中自动检索相关知识。通过
+        关联思绪集后，智能体可在对话中按 Recall 规则召回相关思绪。通过
         <code style="color: var(--el-color-primary)">{{ recallMacro }}</code>
-        注入所有已启用知识库的检索结果，或使用
+        注入所有已启用思绪集的 Recall 结果，或使用
         <code style="color: var(--el-color-primary)">{{
           recallNameMacro
         }}</code>
@@ -319,7 +319,7 @@ onMounted(() => {
         <code style="color: var(--el-color-primary)">{{
           recallListMacro
         }}</code>
-        让 LLM 感知可用知识源。
+        让 LLM 感知可用思绪源。
       </div>
 
       <!-- 宏缺失警告 -->
@@ -370,7 +370,7 @@ onMounted(() => {
                 <code>{{ recallMacro }}</code> 宏以精确控制注入位置。
               </span>
               <span v-else>
-                智能体需要此宏来获取知识库检索结果。你可以开启"自动注入"，或在"角色设定"中手动添加此宏。
+                智能体需要此宏来获取 Recall 结果。你可以开启"自动注入"，或在"角色设定"中手动添加此宏。
               </span>
             </template>
           </el-alert>
@@ -408,11 +408,11 @@ onMounted(() => {
           </el-form-item>
         </div>
 
-        <!-- 知识库列表 -->
+        <!-- Recall 思绪集列表 -->
         <div class="kb-list-box">
           <div class="box-header">
             <div class="box-title-group">
-              <span class="box-title">已关联知识库</span>
+              <span class="box-title">已关联思绪集</span>
               <el-tag size="small" type="info">
                 {{ editForm.recallConfig.bindings.length }} 个
               </el-tag>
@@ -426,7 +426,7 @@ onMounted(() => {
           >
             <el-input
               v-model="searchQuery"
-              placeholder="搜索知识库名称..."
+              placeholder="搜索思绪集名称..."
               size="small"
               clearable
               :prefix-icon="Search"
@@ -438,7 +438,7 @@ onMounted(() => {
             v-if="editForm.recallConfig.bindings.length === 0"
             class="empty-kb"
           >
-            <el-empty :image-size="40" description="尚未关联任何知识库">
+            <el-empty :image-size="40" description="尚未关联任何思绪集">
               <el-popover
                 v-model:visible="showAddSelector"
                 placement="bottom"
@@ -448,12 +448,12 @@ onMounted(() => {
                 <template #reference>
                   <el-button type="primary" size="small">
                     <el-icon><Plus /></el-icon>
-                    添加知识库
+                    添加思绪集
                   </el-button>
                 </template>
                 <div class="add-kb-popover">
                   <div v-if="availableBases.length === 0" class="add-kb-empty">
-                    所有知识库已关联
+                    所有思绪集已关联
                   </div>
                   <div
                     v-for="base in availableBases"
@@ -469,7 +469,7 @@ onMounted(() => {
             </el-empty>
           </div>
 
-          <!-- 知识库列表 -->
+          <!-- Recall 思绪集列表 -->
           <div v-else class="kb-list">
             <RecallBindingItem
               v-for="binding in filteredBindings"
@@ -496,12 +496,12 @@ onMounted(() => {
               <template #reference>
                 <el-button type="primary" link size="small">
                   <el-icon><Plus /></el-icon>
-                  添加知识库
+                  添加思绪集
                 </el-button>
               </template>
               <div class="add-kb-popover">
                 <div v-if="availableBases.length === 0" class="add-kb-empty">
-                  所有知识库已关联
+                  所有思绪集已关联
                 </div>
                 <div
                   v-for="base in availableBases"
@@ -518,7 +518,7 @@ onMounted(() => {
         </div>
       </template>
 
-      <!-- 知识库高级设置 -->
+      <!-- Recall 高级设置 -->
       <div class="kb-advanced-section">
         <SettingListRenderer
           :items="recallAdvancedSettings"

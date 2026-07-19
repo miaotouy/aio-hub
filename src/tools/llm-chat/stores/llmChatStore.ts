@@ -47,6 +47,7 @@ import type { FavoriteFolder } from "../composables/storage/useChatStorageSepara
 import type { PendingInputData } from "../types/context";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
+import type { KnowledgeReference } from "@/tools/knowledge-base/types";
 import { createModuleLogger } from "@utils/logger";
 import { createSessionAccessManager } from "./session/sessionAccessManager";
 import { createSessionRuntimeManager } from "./session/sessionRuntimeManager";
@@ -510,6 +511,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     options?: {
       attachments?: Asset[];
       temporaryModel?: ModelIdentifier | null;
+      knowledgeReference?: KnowledgeReference | null;
       parentId?: string;
       disableMacroParsing?: boolean;
       agentId?: string;

@@ -538,6 +538,7 @@ defineExpose({
   <div
     ref="editorContainer"
     class="chat-cm-editor"
+    data-testid="chat-message-editor"
     :class="{ disabled }"
     :style="{
       height: typeof height === 'number' ? height + 'px' : height,

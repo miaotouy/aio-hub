@@ -28,6 +28,10 @@ src/components.d.ts
 # Rust build artifacts
 target/
 
+# Windows UI Automation .NET build artifacts
+tests/windows-ui-automation/**/bin/
+tests/windows-ui-automation/**/obj/
+
 # wry 补丁运行时目录（由 postinstall 脚本自动补全，不入库）
 src-tauri/patches/wry/
 

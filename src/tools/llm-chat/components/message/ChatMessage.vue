@@ -26,6 +26,7 @@ import type { Asset } from "@/types/asset-management";
 import MessageHeader from "./MessageHeader.vue";
 import MessageContent from "./MessageContent.vue";
 import MessageMenubar from "./MessageMenubar.vue";
+import MessageKnowledgeReference from "./MessageKnowledgeReference.vue";
 
 import type { ButtonVisibility } from "../../types";
 import { useTranslation } from "../../composables/chat/useTranslation";
@@ -277,6 +278,11 @@ defineExpose({
         :message="message"
         :hide-avatar="hideHeaderAvatar"
         :screenshot-mode="props.screenshotMode"
+      />
+
+      <MessageKnowledgeReference
+        v-if="message.knowledgeReference"
+        :reference="message.knowledgeReference"
       />
 
       <MessageContent

@@ -1,4 +1,8 @@
-import type { ServiceMetadata, ToolRegistry } from "@/services/types";
+import type {
+  ServiceMetadata,
+  ToolContext,
+  ToolRegistry,
+} from "@/services/types";
 import {
   routeRetrieval,
   type RetrievalMode,
@@ -7,6 +11,10 @@ import {
 } from "@/services/retrievalRouter";
 import type { KnowledgeSearchStrategy } from "@/tools/knowledge-base/types";
 import type { RecallProfile } from "@/tools/recall/types/search";
+import {
+  authorizeKnowledgeLibraryScope,
+  resolveKnowledgeApplicationContext,
+} from "@/tools/knowledge-base/services/application";
 
 const RETRIEVAL_MODES = new Set<RetrievalMode>([
   "recall",
@@ -140,9 +148,18 @@ export function buildRetrievalRequest(
 }
 
 export async function executeRetrieval(
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  context?: ToolContext
 ): Promise<RetrievalRouterResponse> {
-  return routeRetrieval(buildRetrievalRequest(args));
+  const request = buildRetrievalRequest(args);
+  if (request.knowledge) {
+    const applicationContext = resolveKnowledgeApplicationContext(context);
+    request.knowledge.libraryIds = await authorizeKnowledgeLibraryScope(
+      applicationContext,
+      request.knowledge.libraryIds
+    );
+  }
+  return routeRetrieval(request);
 }
 
 const retrievalRegistry: ToolRegistry = {
@@ -238,8 +255,8 @@ const retrievalRegistry: ToolRegistry = {
     };
   },
 
-  async search(args: Record<string, unknown>) {
-    return executeRetrieval(args);
+  async search(args: Record<string, unknown>, context?: ToolContext) {
+    return executeRetrieval(args, context);
   },
 };
 

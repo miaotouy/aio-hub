@@ -1,11 +1,11 @@
 # Recall / Knowledge 最终人工验证
 
-**状态**: 待执行；0 / 11 项已记录完成
-**最近修订**: 2026-07-18
+**状态**: 待执行；0 / 12 项已记录完成。已有分散 Tauri 证据不等于本清单的一次性发布回归
+**最近修订**: 2026-07-19
 
 以下操作必须使用独立临时 appData 或真实用户目录副本；不得直接指向当前真实用户目录。
 
-> Knowledge 前端工作台和产品化向量化入口已完成施工。下列文件对话框、PDF worker、WebView、真实 embedding 和发布迁移项目现已恢复为有效验收项，但尚未执行最终验收。
+> Recall 与 Knowledge 的代码施工和自动化工程检查已经完成。当前 Knowledge 契约是“访问授权 + `{{knowledge_list}}` 只读目录宏 + `knowledge.*` 主动工具 + 结构化 `KnowledgeReference`”；不再验证 `{{knowledge}}`、`【knowledge::...】`、Knowledge 自动注入或 mixed RRF。下列项目必须在同一隔离版本和数据根上形成完整证据后才能勾选。
 
 ## 测试数据目录准备
 
@@ -36,13 +36,14 @@
 
 ## Agent 与 Chat
 
-- [ ] 新建、编辑、导入、导出 Agent，验证 Recall / Knowledge binding 数量和稳定 ID 不变。
-- [ ] 在同一预设中放置两个域的多个占位符，检查未授权 ID、跨域参数、历史位置参数和旧宏只产生诊断，不触发检索。
-- [ ] 验证 `{{recall}}`、`{{recall_list}}`、`{{knowledge}}`、`{{knowledge_list}}` 展开和 context analyzer 来源元数据。
-- [ ] 使用真实 embedding profile 验证 Knowledge 向量化、auto 到 hybrid 的升级，以及 mixed 分域配额与 RRF trace。
+- [ ] 新建、编辑、复制、导入和导出 Agent，验证 Recall binding 与 Knowledge `knowledgeAccess` 的稳定 ID、能力权限和工具权限往返不变。
+- [ ] 验证 `{{recall}}` / `{{recall_list}}` 正常工作，`{{knowledge_list}}` 只在预设指定位置列出授权目录且不触发检索；旧 `{{kb}}`、`{{knowledge}}`、`【kb】` 和 `【knowledge::...】` 只产生迁移诊断或按普通文本处理，不触发隐藏检索。
+- [ ] 让 Agent 主动调用 `knowledge.listLibraries`、`knowledge.search` 和 `knowledge.read`，检查授权、越权错误、工具事件、继续阅读预算和来源链路。
+- [ ] 从 Chat 输入区分别执行 Knowledge 快速查询与研究任务，验证引用持久化、进度、取消、证据、历史恢复；没有 `KnowledgeReference` 的普通消息不得产生 Knowledge 调用。
+- [ ] 使用真实 embedding profile 验证 Knowledge `auto` 对 keyword/semantic/hybrid 的选择和降级，以及 Recall semantic/associative 检索；组合任务由上层显式编排并保留独立领域与来源标识。
 
 ## 发布迁移
 
 - [ ] 对真实用户目录副本执行首次启动幂等迁移、中断续跑、重启恢复和失败回滚。
-- [ ] 导出迁移报告并核对集合、条目、向量、标签、Agent binding 和旧占位符统计。
+- [ ] 导出生产态 Recall / Agent 合并迁移报告，核对集合、条目、向量、标签、Recall binding、Knowledge 访问授权和旧占位符统计。
 - [ ] 在用户确认前保持旧目录只读可恢复；确认清理后再次启动并验证 Recall/Knowledge 数据完整。

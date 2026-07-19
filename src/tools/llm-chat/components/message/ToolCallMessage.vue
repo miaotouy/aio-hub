@@ -351,6 +351,7 @@ const mainStatus = computed(() => {
   if (toolCalls.value.some((t) => t.status === "awaiting_approval"))
     return "pending";
   if (toolCalls.value.some((t) => t.status === "executing")) return "executing";
+  if (toolCalls.value.some((t) => t.status === "cancelled")) return "cancelled";
   if (
     toolCalls.value.some((t) => t.status === "error" || t.status === "denied")
   )
@@ -708,6 +709,9 @@ defineExpose({
       'screenshot-mode': props.screenshotMode,
     }"
     :data-message-id="message.id"
+    data-testid="chat-tool-call"
+    :data-tool-status="mainStatus"
+    :data-tool-name="toolCalls.length === 1 ? toolCalls[0].toolName : undefined"
   >
     <!-- 背景层 -->
     <div class="message-background-container">

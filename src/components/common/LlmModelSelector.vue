@@ -34,6 +34,7 @@ interface Props {
   popperClass?: string;
   placeholder?: string;
   clearable?: boolean;
+  testId?: string;
 }
 
 interface Emits {
@@ -157,7 +158,7 @@ const modelGroups = computed(() => {
 </script>
 
 <template>
-  <div class="llm-model-selector">
+  <div class="llm-model-selector" :data-testid="testId">
     <el-select
       v-model="selectedModelCombo"
       :placeholder="placeholder"
@@ -186,6 +187,8 @@ const modelGroups = computed(() => {
           :key="item.value"
           :label="item.label"
           :value="item.value"
+          data-testid="llm-model-option"
+          :data-model-combo="item.value"
         >
           <div class="option-item">
             <DynamicIcon

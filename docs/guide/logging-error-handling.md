@@ -171,6 +171,11 @@ window.addEventListener("error", (event) => {
 
 ## 最佳实践
 
+- 每个业务模块创建自己的 logger 和 error handler。
+- `errorHandler` 会记录错误；同一个 `catch` 不要再调用 `logger.error()`。
+- 成功、进度和普通提示使用 `customMessage`，不要在业务代码中直接调用 `ElMessage`。
+- `wrapAsync()` / `wrapSync()` 失败时返回 `null`，调用方必须显式处理。
+
 ### 1. 在 Composables 中
 
 ```typescript
@@ -188,7 +193,6 @@ export function useMyFeature() {
       logger.info("数据加载成功", { count: data.length });
       return data;
     } catch (error) {
-      logger.error("数据加载失败", error);
       errorHandler.error(error, "无法加载数据，请重试");
       return [];
     }
@@ -204,6 +208,7 @@ export function useMyFeature() {
 <script setup lang="ts">
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
+import { customMessage } from '@/utils/customMessage';
 
 const logger = createModuleLogger('MyComponent');
 const errorHandler = createModuleErrorHandler('MyComponent');
@@ -213,7 +218,7 @@ const handleSubmit = async () => {
     logger.debug('提交表单', { formData });
     await submitForm(formData);
     logger.info('表单提交成功');
-    ElMessage.success('保存成功');
+    customMessage.success('保存成功');
   } catch (error) {
     errorHandler.error(error, '保存失败，请重试');
   }
@@ -355,16 +360,13 @@ try {
 **现在：**
 
 ```typescript
-import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
-const logger = createModuleLogger("MyModule");
 const errorHandler = createModuleErrorHandler("MyModule");
 
 try {
   await operation();
 } catch (error) {
-  logger.error("操作失败", error);
   errorHandler.error(error, "操作失败");
 }
 ```

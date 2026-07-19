@@ -3,7 +3,7 @@ import type {
   AgentKnowledgeAccess,
   KnowledgeLibrary,
   KnowledgeLibrarySummary,
-} from "./types";
+} from "../types";
 
 export const DEFAULT_AGENT_KNOWLEDGE_ACCESS: AgentKnowledgeAccess = {
   enabled: false,
@@ -18,7 +18,16 @@ export type KnowledgeAccessErrorCode =
   | "LIBRARY_ID_REQUIRED"
   | "LIBRARY_UNAUTHORIZED"
   | "LIBRARY_UNAVAILABLE"
-  | "LIBRARY_DELETED";
+  | "LIBRARY_DELETED"
+  | "LIBRARY_INDEX_NOT_READY"
+  | "RESEARCH_UNAVAILABLE"
+  | "RESEARCH_FORBIDDEN"
+  | "QUERY_REQUIRED"
+  | "INVALID_REQUEST"
+  | "DOCUMENT_READ_FORBIDDEN"
+  | "READ_TARGET_REQUIRED"
+  | "CHUNK_NOT_FOUND"
+  | "DOCUMENT_NOT_FOUND";
 
 export class KnowledgeAccessError extends Error {
   constructor(
@@ -93,7 +102,47 @@ function toAvailableSummary(
     availability: "available",
     supportsKeywordSearch: true,
     supportsSemanticSearch: Boolean(library.activeEmbeddingSpaceId),
+    indexStatus: {
+      keyword: "ready",
+      semantic: library.activeEmbeddingSpaceId ? "ready" : "notBuilt",
+    },
   };
+}
+
+export function resolveAuthorizedKnowledgeLibraries(
+  access: AgentKnowledgeAccess | undefined,
+  libraries: KnowledgeLibrary[],
+  options: { unavailable?: boolean } = {}
+): KnowledgeLibrarySummary[] {
+  const normalized = normalizeAgentKnowledgeAccess(access);
+  if (!normalized.enabled) return [];
+
+  const byId = new Map(libraries.map((library) => [library.id, library]));
+  return normalized.allowedLibraryIds.map((id) => {
+    const library = byId.get(id);
+    if (options.unavailable) {
+      return {
+        id,
+        name: library?.name ?? "资料库暂时不可用",
+        description: library?.description,
+        documentCount: library?.documentCount ?? 0,
+        availability: "unavailable" as const,
+        supportsKeywordSearch: false,
+        supportsSemanticSearch: false,
+        indexStatus: { keyword: "unavailable", semantic: "unavailable" },
+      };
+    }
+    if (library) return toAvailableSummary(library);
+    return {
+      id,
+      name: "已删除的资料库",
+      documentCount: 0,
+      availability: "deleted" as const,
+      supportsKeywordSearch: false,
+      supportsSemanticSearch: false,
+      indexStatus: { keyword: "unavailable", semantic: "unavailable" },
+    };
+  });
 }
 
 export async function listAuthorizedKnowledgeLibraries(
@@ -107,29 +156,12 @@ export async function listAuthorizedKnowledgeLibraries(
   try {
     libraries = await loadLibraries();
   } catch {
-    return normalized.allowedLibraryIds.map((id) => ({
-      id,
-      name: "资料库暂时不可用",
-      documentCount: 0,
-      availability: "unavailable",
-      supportsKeywordSearch: false,
-      supportsSemanticSearch: false,
-    }));
+    return resolveAuthorizedKnowledgeLibraries(access, [], {
+      unavailable: true,
+    });
   }
 
-  const byId = new Map(libraries.map((library) => [library.id, library]));
-  return normalized.allowedLibraryIds.map((id) => {
-    const library = byId.get(id);
-    if (library) return toAvailableSummary(library);
-    return {
-      id,
-      name: "已删除的资料库",
-      documentCount: 0,
-      availability: "deleted" as const,
-      supportsKeywordSearch: false,
-      supportsSemanticSearch: false,
-    };
-  });
+  return resolveAuthorizedKnowledgeLibraries(normalized, libraries);
 }
 
 export function assertKnowledgeLibraryAvailable(

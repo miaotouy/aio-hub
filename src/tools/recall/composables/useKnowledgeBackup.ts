@@ -30,12 +30,62 @@ import type {
   BackupInspectResult,
   BackupOperationItem,
   BackupProgressEvent,
+  LegacyKnowledgeImportReport,
 } from "../types/backup";
 
 const errorHandler = createModuleErrorHandler("recall/backup");
 
 function fileName(path: string): string {
   return path.split(/[\\/]/).pop() || path;
+}
+
+function isLegacyRecallBackup(inspect: BackupInspectResult): boolean {
+  return (
+    inspect.format === "aiohub.knowledge-library" ||
+    inspect.format === "legacy-json" ||
+    inspect.format === "legacy-yaml"
+  );
+}
+
+type LegacyImportDestination = "recall" | "knowledge" | "cancel";
+
+async function chooseLegacyImportDestination(
+  inspections: BackupInspectResult[]
+): Promise<LegacyImportDestination> {
+  const count = inspections.filter(isLegacyRecallBackup).length;
+  if (count === 0) return "recall";
+  const scope = count === 1 ? "这个备份" : `这 ${count} 个备份项`;
+  try {
+    await ElMessageBox.confirm(
+      `${scope}来自重构前的“知识库”模块，但当时底层实际使用思绪条目结构。导入到思绪会完整保留条目语义，适合记录、设定和不确定用途；导入到 Knowledge 会把每个条目的标题和正文转换成独立文档，适合当时确实作为传统文档库使用的内容。若不确定，请导入到思绪。`,
+      "选择旧版数据的去向",
+      {
+        type: "warning",
+        confirmButtonText: "导入到思绪（推荐）",
+        cancelButtonText: "考虑导入 Knowledge",
+        lockScroll: false,
+      }
+    );
+    return "recall";
+  } catch (action) {
+    if (action !== "cancel") return "cancel";
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `将${scope}转换到新版 Knowledge：每个旧条目会成为一篇 Markdown 文档，只保留资料库名称、描述、条目标题和正文。标签、优先级、启用状态、条目关联和附件不会转换为对应字段，也无法从转换结果还原完整思绪结构。原备份文件不会被修改。`,
+      "确认不可逆转换",
+      {
+        type: "warning",
+        confirmButtonText: "确认导入 Knowledge",
+        cancelButtonText: "返回",
+        lockScroll: false,
+      }
+    );
+    return "knowledge";
+  } catch {
+    return "cancel";
+  }
 }
 
 export function useKnowledgeBackup() {
@@ -311,7 +361,11 @@ export function useKnowledgeBackup() {
         multiple: true,
         title: "选择思绪集备份",
         filters: [
-          { name: "AIO 思绪集备份", extensions: ["aio-kb"] },
+          { name: "AIO Recall 思绪集备份", extensions: ["aio-recall"] },
+          {
+            name: "旧版“知识库”（实际为思绪）备份",
+            extensions: ["aio-kb"],
+          },
           { name: "AIO 多库备份容器", extensions: ["zip"] },
           { name: "兼容的旧版导出", extensions: ["json", "yaml", "yml"] },
         ],
@@ -328,6 +382,8 @@ export function useKnowledgeBackup() {
     if (paths.length === 0) return;
 
     begin("import", paths.length);
+    let recallImported = false;
+    let knowledgeInitialized = false;
     for (const path of paths) {
       if (cancelRequested.value) {
         items.value.push({
@@ -346,6 +402,11 @@ export function useKnowledgeBackup() {
           "recall_inspect_backups",
           { sourcePath: path }
         );
+        const legacyDestination = await chooseLegacyImportDestination(
+          inspectionItems.flatMap((item) =>
+            item.inspect ? [item.inspect] : []
+          )
+        );
         total.value += Math.max(0, inspectionItems.length - 1);
         for (const inspectionItem of inspectionItems) {
           const inspect = inspectionItem.inspect;
@@ -357,6 +418,17 @@ export function useKnowledgeBackup() {
               status: "failed",
               detail: inspectionItem.error || "无法检查此思绪集备份",
               warnings: [],
+            });
+            current.value += 1;
+            continue;
+          }
+          if (isLegacyRecallBackup(inspect) && legacyDestination === "cancel") {
+            items.value.push({
+              key: `${path}#${inspect.sourceEntry || ""}`,
+              name: inspect.libraryName,
+              status: "skipped",
+              detail: "已取消导入旧版备份",
+              warnings: inspect.warnings,
             });
             current.value += 1;
             continue;
@@ -374,6 +446,34 @@ export function useKnowledgeBackup() {
           }
           currentName.value = inspect.libraryName;
           try {
+            if (
+              isLegacyRecallBackup(inspect) &&
+              legacyDestination === "knowledge"
+            ) {
+              if (!knowledgeInitialized) {
+                await invoke<void>("knowledge_initialize");
+                knowledgeInitialized = true;
+              }
+              const report = await invoke<LegacyKnowledgeImportReport>(
+                "recall_import_legacy_backup_to_knowledge",
+                {
+                  sourcePath: path,
+                  sourceEntry: inspect.sourceEntry || null,
+                }
+              );
+              items.value.push({
+                key: `${path}#${inspect.sourceEntry || ""}`,
+                name: report.libraryName,
+                status: report.status,
+                detail: `${report.documentCount} 篇文档已转换到 Knowledge${
+                  report.skippedEntryCount > 0
+                    ? `，跳过 ${report.skippedEntryCount} 个空条目`
+                    : ""
+                }`,
+                warnings: report.warnings,
+              });
+              continue;
+            }
             const strategy = await chooseConflictStrategy(inspect);
             if (strategy === "cancel") {
               items.value.push({
@@ -397,10 +497,15 @@ export function useKnowledgeBackup() {
                 name: report.libraryName,
                 status: report.status,
                 detail: report.legacyContentOnly
-                  ? `${report.entryCount} 个条目，旧版内容恢复`
-                  : `${report.entryCount} 个条目，${report.restoredAssetCount} 个资产`,
+                  ? `${report.entryCount} 个条目，旧版内容恢复到思绪`
+                  : report.warnings.some(
+                        (warning) => warning.code === "legacyRecallBackup"
+                      )
+                    ? `${report.entryCount} 个条目，旧版思绪备份`
+                    : `${report.entryCount} 个条目，${report.restoredAssetCount} 个资产`,
                 warnings: report.warnings,
               });
+              recallImported = true;
             }
           } catch (error) {
             failed.value += 1;
@@ -429,7 +534,7 @@ export function useKnowledgeBackup() {
     }
 
     try {
-      if (items.value.some((item) => item.status === "success")) {
+      if (recallImported) {
         await syncWorkspaceFromBackend();
       }
       const succeeded = items.value.filter(

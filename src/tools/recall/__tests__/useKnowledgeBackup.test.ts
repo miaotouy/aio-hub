@@ -106,6 +106,138 @@ describe("useKnowledgeBackup", () => {
 
     expect(mocks.invoke).not.toHaveBeenCalled();
     expect(backup.dialogVisible.value).toBe(false);
+    expect(mocks.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filters: expect.arrayContaining([
+          expect.objectContaining({ extensions: ["aio-recall"] }),
+          expect.objectContaining({ extensions: ["aio-kb"] }),
+        ]),
+      })
+    );
+  });
+
+  it("recommends Recall and explains both legacy import destinations", async () => {
+    mocks.open.mockResolvedValue("C:/legacy.aio-kb");
+    mocks.confirm.mockRejectedValue("close");
+    mocks.invoke.mockImplementation((command: string) => {
+      if (command === "recall_inspect_backups") {
+        return Promise.resolve([
+          inspected({
+            sourcePath: "C:/legacy.aio-kb",
+            format: "aiohub.knowledge-library",
+            formatVersion: 1,
+            libraryId: meta.id,
+            libraryName: "旧版思绪",
+            entryCount: 3,
+            assetCount: 0,
+            hasConflict: false,
+            legacyContentOnly: false,
+            warnings: [
+              {
+                code: "legacyRecallBackup",
+                message: "旧知识库实际为思绪备份",
+              },
+            ],
+          }),
+        ]);
+      }
+      return Promise.reject(new Error(`unexpected command: ${command}`));
+    });
+    const backup = useKnowledgeBackup();
+
+    await backup.importBackups();
+
+    expect(mocks.confirm).toHaveBeenCalledWith(
+      expect.stringContaining("若不确定，请导入到思绪"),
+      "选择旧版数据的去向",
+      expect.objectContaining({
+        confirmButtonText: "导入到思绪（推荐）",
+        cancelButtonText: "考虑导入 Knowledge",
+        lockScroll: false,
+      })
+    );
+    expect(mocks.invoke).not.toHaveBeenCalledWith(
+      "recall_import_backup",
+      expect.anything()
+    );
+    expect(backup.items.value).toEqual([
+      expect.objectContaining({
+        status: "skipped",
+        detail: "已取消导入旧版备份",
+      }),
+    ]);
+  });
+
+  it("converts a confirmed legacy export to Knowledge without importing Recall", async () => {
+    mocks.open.mockResolvedValue("C:/legacy.aio-kb");
+    mocks.confirm
+      .mockRejectedValueOnce("cancel")
+      .mockResolvedValueOnce("confirm");
+    mocks.invoke.mockImplementation((command: string) => {
+      if (command === "recall_inspect_backups") {
+        return Promise.resolve([
+          inspected({
+            sourcePath: "C:/legacy.aio-kb",
+            format: "aiohub.knowledge-library",
+            formatVersion: 1,
+            libraryId: meta.id,
+            libraryName: "旧文档库",
+            entryCount: 3,
+            assetCount: 0,
+            hasConflict: false,
+            legacyContentOnly: false,
+            warnings: [],
+          }),
+        ]);
+      }
+      if (command === "knowledge_initialize") return Promise.resolve();
+      if (command === "recall_import_legacy_backup_to_knowledge") {
+        return Promise.resolve({
+          status: "success",
+          libraryId: "knowledge-library",
+          libraryName: "旧文档库",
+          documentCount: 3,
+          skippedEntryCount: 0,
+          warnings: [
+            {
+              code: "legacyKnowledgeConversion",
+              message: "已转换旧版条目",
+            },
+          ],
+        });
+      }
+      return Promise.reject(new Error(`unexpected command: ${command}`));
+    });
+    const backup = useKnowledgeBackup();
+
+    await backup.importBackups();
+
+    expect(mocks.confirm).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("无法从转换结果还原完整思绪结构"),
+      "确认不可逆转换",
+      expect.objectContaining({
+        confirmButtonText: "确认导入 Knowledge",
+        lockScroll: false,
+      })
+    );
+    expect(mocks.invoke).toHaveBeenCalledWith(
+      "recall_import_legacy_backup_to_knowledge",
+      {
+        sourcePath: "C:/legacy.aio-kb",
+        sourceEntry: null,
+      }
+    );
+    expect(mocks.invoke).not.toHaveBeenCalledWith(
+      "recall_import_backup",
+      expect.anything()
+    );
+    expect(backup.items.value).toEqual([
+      expect.objectContaining({
+        status: "success",
+        detail: "3 篇文档已转换到 Knowledge",
+      }),
+    ]);
   });
 
   it("keeps successful imports when another selected package fails", async () => {
@@ -116,7 +248,7 @@ describe("useKnowledgeBackup", () => {
           [
             {
               sourcePath: payload.sourcePath,
-              format: "aiohub.knowledge-library",
+              format: "aiohub.recall-collection",
               formatVersion: 1,
               libraryId: meta.id,
               libraryName: payload.sourcePath.includes("broken")
@@ -180,7 +312,7 @@ describe("useKnowledgeBackup", () => {
           [
             {
               sourcePath: "C:/conflict.aio-kb",
-              format: "aiohub.knowledge-library",
+              format: "aiohub.recall-collection",
               formatVersion: 1,
               libraryId: meta.id,
               libraryName: "Imported",
@@ -233,7 +365,7 @@ describe("useKnowledgeBackup", () => {
           [
             {
               sourcePath: "C:/conflict.aio-kb",
-              format: "aiohub.knowledge-library",
+              format: "aiohub.recall-collection",
               formatVersion: 1,
               libraryId: meta.id,
               libraryName: "Imported",
@@ -278,8 +410,8 @@ describe("useKnowledgeBackup", () => {
           [
             {
               sourcePath: payload.sourcePath,
-              sourceEntry: "libraries/A",
-              format: "aiohub.knowledge-library",
+              sourceEntry: "collections/A",
+              format: "aiohub.recall-collection",
               formatVersion: 1,
               libraryId: "a",
               libraryName: "A",
@@ -291,8 +423,8 @@ describe("useKnowledgeBackup", () => {
             },
             {
               sourcePath: payload.sourcePath,
-              sourceEntry: "libraries/B",
-              format: "aiohub.knowledge-library",
+              sourceEntry: "collections/B",
+              format: "aiohub.recall-collection",
               formatVersion: 1,
               libraryId: "b",
               libraryName: "B",
@@ -333,12 +465,12 @@ describe("useKnowledgeBackup", () => {
 
     expect(mocks.invoke).toHaveBeenCalledWith("recall_import_backup", {
       sourcePath: "C:/all-libraries.zip",
-      sourceEntry: "libraries/A",
+      sourceEntry: "collections/A",
       options: { conflictStrategy: "copy" },
     });
     expect(mocks.invoke).toHaveBeenCalledWith("recall_import_backup", {
       sourcePath: "C:/all-libraries.zip",
-      sourceEntry: "libraries/B",
+      sourceEntry: "collections/B",
       options: { conflictStrategy: "copy" },
     });
     expect(backup.items.value).toHaveLength(3);

@@ -596,6 +596,8 @@ export default withMermaid({
           text: "核心系统",
           items: [
             { text: "错误处理与日志", link: "/guide/logging-error-handling" },
+            { text: "配置管理", link: "/guide/config-management" },
+            { text: "移动端 UI 开发", link: "/guide/mobile-ui-development" },
             { text: "状态管理", link: "/guide/state-management-guide" },
             { text: "窗口配置系统", link: "/guide/window-config-system" },
             // ==== GUIDE_CORE 插入点 ====

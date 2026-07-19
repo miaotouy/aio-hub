@@ -223,6 +223,8 @@ const handleSendMessage = async (payload: {
   content: string;
   attachments?: any[];
   temporaryModel?: any;
+  knowledgeReference?:
+    import("@/tools/knowledge-base/types").KnowledgeReference | null;
   disableMacroParsing?: boolean;
 }) => {
   if (!store.currentSession) {
@@ -233,6 +235,7 @@ const handleSendMessage = async (payload: {
     sessionId: store.currentSessionId || undefined,
     attachments: payload.attachments,
     temporaryModel: payload.temporaryModel,
+    knowledgeReference: payload.knowledgeReference,
     disableMacroParsing: payload.disableMacroParsing,
   });
 };

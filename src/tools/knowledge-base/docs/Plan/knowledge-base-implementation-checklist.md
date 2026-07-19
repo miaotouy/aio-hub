@@ -1,12 +1,12 @@
 # Knowledge 施工步骤计划清单
 
-- **状态**：施工中（Phase 0 已完成，Phase 1 待施工）
+- **状态**：Phase 0 至 Phase 4、Phase 5 代码与自动化工程检查已完成；当前仅剩 P5-T06 固定真实 Tauri 跨模块回归与 P5-GATE 收口
 - **创建日期**：2026-07-18
-- **最近修订**：2026-07-18
+- **最近修订**：2026-07-19
 - **适用范围**：`src/tools/knowledge-base/`、`src/tools/retrieval/`、`src/tools/llm-chat/`、`src/tools/agent-manager/`、`src-tauri/src/knowledge/`
 - **上位依据**：
   - [Knowledge 资料库产品方案](./knowledge-base-product-interaction-design.md)
-  - [Knowledge 设置与文档导入交互补完计划](./knowledge-base-settings-and-import-interaction-plan.md)
+  - [Knowledge 设置与文档导入交互补完计划（已归档）](./Archived/knowledge-base-settings-and-import-interaction-plan.md)
   - [Knowledge 架构说明](../../ARCHITECTURE.md)
   - [Recall / Knowledge 领域拆分与重构实施计划](../../../recall/docs/Plan/recall-knowledge-domain-restructure-implementation-plan.md)
   - [模型身份与 Embedding 空间设计](../../../../../docs/design/model-identity-and-embedding-space-design.md)
@@ -19,7 +19,7 @@
 
 1. `knowledge-base-product-interaction-design.md` 中已经确认的产品契约。
 2. `ARCHITECTURE.md` 与跨模块设计中的现行技术约束。
-3. `knowledge-base-settings-and-import-interaction-plan.md` 中仍适用的调查结论、UI 要求和测试项。
+3. 已归档 `knowledge-base-settings-and-import-interaction-plan.md` 中仍适用的调查结论、UI 要求和测试项；该旧稿不再作为独立施工入口。
 4. 现有代码只能说明当前状态，不能自动覆盖已经确认的目标语义。
 
 执行规则：
@@ -53,6 +53,8 @@
 - `requestedDimensions` 可以配置；`actualDimensions` 只能由真实 Embedding 响应确认并只读展示。
 - 检索测试的界面偏好不能混入资料库索引身份；共享 `minScore` 在完成分策略标定前不进入常规设置。
 - `media-generator` 或其他运行时不得用实时模型元数据规则覆盖已有资料库自身的索引契约。
+- 索引配置、活动 Embedding space/route/descriptor 与实际维度必须存放在各 `library.kdb`，与派生索引共享单库事务；manifest 只保存资料库目录元数据和可重建摘要，不作为运行时真源。
+- WAL 模式下禁止依赖 `ATTACH` 多数据库事务实现配置与索引的崩溃原子提交。legacy manifest 配置只作为可重入的一次性迁移输入。
 
 ### 2.3 摄取与格式
 
@@ -130,8 +132,8 @@ Phase 0 契约收敛
 
 - Agent 配置链路：`KnowledgeLibrarySection.vue` 编辑 `knowledgeAccess`，`EditAgentDialog.vue` 保存完整表单，`agentStore.ts` 在创建、复制和恢复边界规范化权限，`useAgentStorage` 持久化 `agent.json`；导入先经 `migrateAgent()` 收敛 schema，导出按最终 `ChatAgent` 字段透传。
 - Chat 消息链路：`ChatMessageNode.metadata` 已能持久化结构化元数据和工具事件，输入区通过 `MessageInput` / `useChatInputManager` 管理附件；Phase 2 的 `KnowledgeReference` 适合放在消息节点独立字段或专用 metadata 字段，并随 session detail、分支复制和导入导出往返，不能复用普通附件路径。
-- Knowledge 复用能力：前端 `service.ts` 已提供 library/document/chunk/index/search IPC，Rust repository 已有 manifest、document、chunk、FTS、vector 与 graph 基础；缺口是 Agent 身份传递、统一权限校验、结构化 list/search/read 应用服务、read 预算契约和明确降级 metadata。
-- 未发布 schema 处理：开发期 `knowledgeConfig` 中只保留已启用 binding 的稳定 library ID，转换为 `knowledgeAccess.allowedLibraryIds`；strategy、limit、minScore、citation、groups、`knowledgeSettings` 和自动注入字段直接丢弃，不保留运行时兼容分支。旧 Knowledge processor 与 parser 测试已删除，保留一项“旧信封不会触发 Recall/Knowledge 检索”的负向测试。
+- Knowledge 复用能力：前端 `services/service.ts` 已提供 library/document/chunk/index/search IPC，Rust repository 已有 manifest、document、chunk、FTS、vector 与 graph 基础；缺口是 Agent 身份传递、统一权限校验、结构化 list/search/read 应用服务、read 预算契约和明确降级 metadata。
+- 未发布 schema 处理：开发期 `knowledgeConfig`、阶段性 binding 和 `knowledgeSettings` 不属于可恢复用户契约，迁移/导入时直接丢弃；正式授权只从 `knowledgeAccess` 读取稳定 library ID 和能力开关。旧 Knowledge processor 与 parser 测试已删除，保留一项“旧信封不会触发 Recall/Knowledge 检索”的负向测试。
 - 一般问题记录：Recall 模块仍使用 `knowledgeSettingsConfig` 的历史命名，容易误导后续配置分层；本批次已更名为 `recallSettingsConfig` / `getRecallSettingsConfig`，未改变行为。
 - 门禁结果：Agent 创建、复制、开发期 schema 恢复、文本导入导出和目录宏往返测试已通过；产物只包含 `knowledgeAccess`，预设中的 `{{knowledge_list}}` 原样保留。
 
@@ -139,77 +141,93 @@ Phase 0 契约收敛
 
 ### 5.1 共享服务与权限
 
-- [ ] P1-01 在工具层下方建立可复用 Knowledge application service，避免 Chat、工作台和 Agent 工具各自实现检索。
-- [ ] P1-02 所有工具请求先解析 Agent 身份与授权资料库范围，再进入 repository 或检索服务。
-- [ ] P1-03 未指定 library IDs 时只在 `allowSearchAll=true` 的已授权范围内执行；否则返回明确参数或权限错误。
-- [ ] P1-04 统一资料库摘要结构和可用状态来源，供 `{{knowledge_list}}` 与 `knowledge.listLibraries` 共用。
+- [x] P1-01 在工具层下方建立可复用 Knowledge application service，避免 Chat、工作台和 Agent 工具各自实现检索。
+- [x] P1-02 所有工具请求先解析 Agent 身份与授权资料库范围，再进入 repository 或检索服务。
+- [x] P1-03 未指定 library IDs 时只在 `allowSearchAll=true` 的已授权范围内执行；否则返回明确参数或权限错误。
+- [x] P1-04 统一资料库摘要结构和可用状态来源，供 `{{knowledge_list}}` 与 `knowledge.listLibraries` 共用。
 
 ### 5.2 `knowledge.listLibraries`
 
-- [ ] P1-05 定义请求、响应和错误类型。
-- [ ] P1-06 返回稳定 ID、名称、说明、来源数量、索引状态和支持的检索能力。
-- [ ] P1-07 只返回当前 Agent 已授权范围；不可用的已授权库保留并标记状态。
-- [ ] P1-08 注册工具说明，明确“授权不等于自动查询”。
+- [x] P1-05 定义请求、响应和错误类型。
+- [x] P1-06 返回稳定 ID、名称、说明、来源数量、索引状态和支持的检索能力。
+- [x] P1-07 只返回当前 Agent 已授权范围；不可用的已授权库保留并标记状态。
+- [x] P1-08 注册工具说明，明确“授权不等于自动查询”。
 
 ### 5.3 `knowledge.search`
 
-- [ ] P1-09 定义 `query`、`libraryIds`、`strategy`、`topK` 和文档/来源/路径过滤条件。
-- [ ] P1-10 复用现有 keyword、semantic 和 hybrid 能力，实现统一快速检索入口。
-- [ ] P1-11 `auto` 根据各库实际索引能力选策略，返回实际策略、降级原因和 signals。
-- [ ] P1-12 多库按各自向量空间生成查询向量和候选，在候选排名层执行明确融合。
-- [ ] P1-13 对候选去重并可选补充相邻 chunk，最终按字符预算裁剪。
-- [ ] P1-14 返回结构化 hit，至少包含 library、document、chunk、chunk index、标题、heading、source path、snippet、score 和 signals。
-- [ ] P1-15 不在常用工具参数中暴露 space ID、批次大小、实际维度或底层融合权重。
+- [x] P1-09 定义 `query`、`libraryIds`、`strategy`、`topK` 和文档/来源/路径过滤条件。
+- [x] P1-10 复用现有 keyword、semantic 和 hybrid 能力，实现统一快速检索入口。
+- [x] P1-11 `auto` 根据各库实际索引能力选策略，返回实际策略、降级原因和 signals。
+- [x] P1-12 多库按各自向量空间生成查询向量和候选，在候选排名层执行明确融合。
+- [x] P1-13 对候选去重并可选补充相邻 chunk，最终按字符预算裁剪。
+- [x] P1-14 返回结构化 hit，至少包含 library、document、chunk、chunk index、标题、heading、source path、snippet、score 和 signals。
+- [x] P1-15 不在常用工具参数中暴露 space ID、批次大小、实际维度或底层融合权重。
 
 ### 5.4 `knowledge.read`
 
-- [ ] P1-16 定义按 `chunkId`、`documentId + chunkIndex`、heading 或字符范围读取的请求契约。
-- [ ] P1-17 强制 `maxChars` 或等价预算，普通 Agent 不允许无界全文展开。
-- [ ] P1-18 校验 `allowDocumentRead` 和目标资料库权限。
-- [ ] P1-19 返回正文、相邻定位和完整来源信息，使 search -> read 可以形成证据链。
+- [x] P1-16 定义按 `chunkId`、`documentId + chunkIndex`、heading 或字符范围读取的请求契约。
+- [x] P1-17 强制 `maxChars` 或等价预算，普通 Agent 不允许无界全文展开。
+- [x] P1-18 校验 `allowDocumentRead` 和目标资料库权限。
+- [x] P1-19 返回正文、相邻定位和完整来源信息，使 search -> read 可以形成证据链。
 
 ### 5.5 工具注册、记录与退出门禁
 
-- [ ] P1-20 接入现有 tool-calling 基础设施，保持 VCP 工具协议与项目错误处理规范。
-- [ ] P1-21 工具调用记录保存结构化请求摘要、结果摘要、来源、耗时、实际策略和失败类型。
-- [ ] P1-T01 覆盖 list/search/read 的权限矩阵、越权、空授权和不可用资料库测试。
-- [ ] P1-T02 覆盖 keyword-only、semantic、hybrid、auto 降级和不同向量空间多库检索。
-- [ ] P1-T03 覆盖 read 邻域、预算裁剪、无效 chunk 和禁止全文读取。
-- [ ] P1-T04 验证 Recall 与 Knowledge 可由上层显式组合，但底层不混合原始分数和领域数据。
-- [ ] P1-GATE Agent 能在不依赖宏和工作台 UI 的情况下发现、搜索并继续阅读授权资料，且返回可追溯结构化结果。
+- [x] P1-20 接入现有 tool-calling 基础设施，保持 VCP 工具协议与项目错误处理规范。
+- [x] P1-21 工具调用记录保存结构化请求摘要、结果摘要、来源、耗时、实际策略和失败类型。
+- [x] P1-T01 覆盖 list/search/read 的权限矩阵、越权、空授权和不可用资料库测试。
+- [x] P1-T02 覆盖 keyword-only、semantic、hybrid、auto 降级和不同向量空间多库检索。
+- [x] P1-T03 覆盖 read 邻域、预算裁剪、无效 chunk 和禁止全文读取。
+- [x] P1-T04 验证 Recall 与 Knowledge 可由上层显式组合，但底层不混合原始分数和领域数据。
+- [x] P1-GATE Agent 能在不依赖宏和工作台 UI 的情况下发现、搜索并继续阅读授权资料，且返回可追溯结构化结果。
+
+### 5.6 Phase 1 施工记录
+
+- 工具调用基础设施原先只传业务参数和进度回调，无法让工具确认当前 Agent 身份。本阶段为 `ToolContext` 增加只读 Agent 权限快照和 request ID，并由 Chat orchestrator 下推；缺少上下文的 Knowledge/VCP 外部调用明确拒绝。
+- 新增标准 `ToolMethodResult` 信封和 `ToolExecutionResult.metadata`，Knowledge 的来源、实际策略、降级原因、结果数量与失败类型会持久化到可见工具事件的 `resultMetadata`，面向 LLM 的结构化 result 保持独立。
+- 一般问题记录：既有 `retrieval.search` 的 Knowledge/mixed 分支最初未消费 Agent 权限，可旁路独立 Knowledge 工具。本阶段已改为复用 `authorizeKnowledgeLibraryScope()`；Recall-only 组合不要求 Knowledge 上下文。
+- 多库融合按每库候选 rank score 排序；rank 相同时使用稳定 library/chunk ID，不使用跨策略原始 score 作为 tie-break。原始 score 与 signals 原样返回用于解释。
+- 验证结果：前端 Knowledge、Retrieval、tool-calling 定向测试覆盖权限、策略、预算和 metadata；Rust repository 测试新增 `auto + queryVector -> hybrid` 的 BM25/vector signals 断言。
 
 ## 6. Phase 2：聊天中的用户显式引用
 
 ### 6.1 数据契约
 
-- [ ] P2-01 定义共享 `KnowledgeReference`，至少包含 `type`、稳定 `libraryIds` 和 `mode: "search" | "research"`。
-- [ ] P2-02 明确消息发送前、持久化后、历史恢复和会话导入导出中的 schema 与版本策略。
-- [ ] P2-03 历史消息显示可保留发送时名称快照，但执行和权限判断始终使用稳定 ID。
-- [ ] P2-04 定义引用资料库被删除、不可用、未授权或索引未就绪时的可见状态。
+- [x] P2-01 定义共享 `KnowledgeReference`，至少包含 `type`、稳定 `libraryIds` 和 `mode: "search" | "research"`。
+- [x] P2-02 明确消息发送前、持久化后、历史恢复和会话导入导出中的 schema 与版本策略。
+- [x] P2-03 历史消息显示可保留发送时名称快照，但执行和权限判断始终使用稳定 ID。
+- [x] P2-04 定义引用资料库被删除、不可用、未授权或索引未就绪时的可见状态。
 
 ### 6.2 输入区交互
 
-- [ ] P2-05 在输入框旁增加独立 Knowledge 图标按钮，并提供 tooltip 和 `aria-label`。
-- [ ] P2-06 实现资料库选择器，支持搜索、单库/多库选择、索引状态和权限状态展示。
-- [ ] P2-07 选中后在输入区显示可移除、可检查且不会挤压发送控件的引用标记。
-- [ ] P2-08 定义快速查询和研究任务 mode；Phase 4 完成前不暴露无法真正执行的 research 入口。
-- [ ] P2-09 不修改现有 `@` 模型覆盖按钮，不把纯文本 `@`、`/` 解析作为首期依赖。
+- [x] P2-05 在输入框旁增加独立 Knowledge 图标按钮，并提供 tooltip 和 `aria-label`。
+- [x] P2-06 实现资料库选择器，支持搜索、单库/多库选择、索引状态和权限状态展示。
+- [x] P2-07 选中后在输入区显示可移除、可检查且不会挤压发送控件的引用标记。
+- [x] P2-08 定义快速查询和研究任务 mode；Phase 4 完成前不暴露无法真正执行的 research 入口。
+- [x] P2-09 不修改现有 `@` 模型覆盖按钮，不把纯文本 `@`、`/` 解析作为首期依赖。
 
 ### 6.3 发送与工具事件
 
-- [ ] P2-10 发送时先验证结构化引用和当前权限，再把 search mode 转换为明确的 `knowledge.search` 调用。
-- [ ] P2-11 把 Knowledge 调用、进度、结果和错误显示为可见工具事件，不以隐藏 prompt 注入替代执行记录。
-- [ ] P2-12 将结构化检索结果交给当前 Agent 继续回答，并保留消息、工具调用和来源之间的关联。
-- [ ] P2-13 显式引用失败时阻止其被当作普通文本静默发送；允许用户移除、重试或更换资料库。
-- [ ] P2-14 没有 KnowledgeReference 的普通消息不产生 Knowledge 调用和额外 Embedding 成本。
+- [x] P2-10 发送时先验证结构化引用和当前权限，再把 search mode 转换为明确的 `knowledge.search` 调用。
+- [x] P2-11 把 Knowledge 调用、进度、结果和错误显示为可见工具事件，不以隐藏 prompt 注入替代执行记录。
+- [x] P2-12 将结构化检索结果交给当前 Agent 继续回答，并保留消息、工具调用和来源之间的关联。
+- [x] P2-13 显式引用失败时阻止其被当作普通文本静默发送；允许用户移除、重试或更换资料库。
+- [x] P2-14 没有 KnowledgeReference 的普通消息不产生 Knowledge 调用和额外 Embedding 成本。
 
 ### 6.4 Phase 2 验证与退出门禁
 
-- [ ] P2-T01 覆盖引用创建、移除、多库选择、消息持久化、历史恢复和资料库改名。
-- [ ] P2-T02 覆盖未授权、不可用、已删除和索引未就绪资料库的发送行为。
-- [ ] P2-T03 覆盖显式引用必定产生可见工具事件，普通消息不产生 Knowledge 调用。
-- [ ] P2-T04 覆盖窄输入区、长资料库名称、键盘操作、焦点顺序和明暗主题。
-- [ ] P2-GATE 用户可以从聊天输入区明确选择资料库并完成一次可见、可追溯的快速查询；页面不存在第二套文本占位符协议。
+- [x] P2-T01 覆盖引用创建、移除、多库选择、消息持久化、历史恢复和资料库改名。
+- [x] P2-T02 覆盖未授权、不可用、已删除和索引未就绪资料库的发送行为。
+- [x] P2-T03 覆盖显式引用必定产生可见工具事件，普通消息不产生 Knowledge 调用。
+- [x] P2-T04 覆盖窄输入区、长资料库名称、键盘操作、焦点顺序和明暗主题。
+- [x] P2-GATE 用户可以从聊天输入区明确选择资料库并完成一次可见、可追溯的快速查询；页面不存在第二套文本占位符协议。
+
+### 6.5 Phase 2 施工记录
+
+- `KnowledgeReference` 使用独立消息字段和 `schemaVersion: 1`，`libraryIds` 是执行与权限判断真源，`libraries` 只保存发送时名称与可用状态快照。会话详情直接序列化完整消息树；输入草稿 schema 升为 v3，并在会话切换、跨窗口同步、剪切粘贴和发送清理时往返引用。
+- 输入区新增独立 Knowledge 图标、已授权多库搜索选择器和横向滚动引用标记；研究 mode 保留在数据契约中，但 Phase 4 前 UI 与发送预检都明确拒绝执行。现有 `@` 临时模型入口和文本解析未修改。
+- 发送链把显式引用构造成 `user -> tool -> assistant`，先显示 executing 工具节点，再把同一 application service 的结构化结果和来源 metadata 写回工具节点；失败时删除未执行的 assistant 节点并停在可见错误工具事件，不继续普通文本生成。
+- 一般问题记录：现有 Chat 允许普通消息在会话生成中排队，但 Knowledge 引用若排队会使权限、索引状态和查询时点失去确定性。本阶段对生成中的会话明确阻止显式 Knowledge 发送；普通消息排队行为保持不变，后续若需要队列支持，应为引用保存并重新校验执行快照。
+- 验证结果：引用规范化、改名、权限/可用性/索引状态、草稿隔离、消息 JSON 往返、Tool 节点拓扑、来源关联、长名称和键盘选择测试通过；样式只使用项目主题变量，引用区横向滚动且不占用发送控件宽度。
 
 ## 7. Phase 3：工作台、配置与可靠摄取
 
@@ -217,130 +235,312 @@ Phase 3 分为五个施工批次。后端配置和摄取契约先行，工作台
 
 ### 7.1 批次 A：配置模型与后端接口
 
-- [ ] P3-A01 定义版本化系统运行配置，使用 `createConfigManager` 管理默认 Embedding 渠道、请求并发、批次、重试和摄取资源限制。
-- [ ] P3-A02 高频系统设置使用 `saveDebounced`，默认延迟 500ms；调用方处理配置加载或保存失败。
-- [ ] P3-A03 定义版本化资料库索引配置，包含分块、Embedding route、`requestedDimensions`、任务/编码契约和索引开关。
-- [ ] P3-A04 为旧资料库空 `config_json` 提供默认读取兼容，不在读取时静默批量改写 manifest。
-- [ ] P3-A05 将检索测试 strategy、topK 等界面偏好与资料库索引配置分离。
-- [ ] P3-A06 扩展创建资料库 command，使其保存明确的配置快照。
-- [ ] P3-A07 新增更新名称、说明和配置的 repository、Tauri command 与前端 service，并在 `generate_handler![]` 注册。
-- [ ] P3-A08 Rust 返回结构使用 camelCase 序列化，前后端配置校验规则保持一致。
-- [ ] P3-A09 分块、摄取和重建只读取资料库自身索引配置，不在运行时穿透读取实时模型元数据规则。
-- [ ] P3-A10 实现原子“应用配置并重建”；失败时保留原配置、文档、chunk、FTS、vector 和 graph 状态。
-- [ ] P3-A11 修改 `requestedDimensions`、Embedding 契约或分块参数时明确创建新空间或重建，不让新旧契约混用。
-- [ ] P3-A12 `actualDimensions` 由首批真实响应确认并写入 space descriptor，UI 只读展示。
+- [x] P3-A01 定义版本化系统运行配置，使用 `createConfigManager` 管理默认 Embedding 渠道、请求并发、批次、重试和摄取资源限制。
+- [x] P3-A02 高频系统设置使用 `saveDebounced`，默认延迟 500ms；调用方处理配置加载或保存失败。
+- [x] P3-A03 定义版本化资料库索引配置，包含分块、Embedding route、`requestedDimensions`、任务/编码契约和索引开关。
+- [x] P3-A04 为旧 manifest 空 `config_json` 提供 V1 默认迁移，并把非空 legacy 配置和活动向量身份可重入地迁入单库 metadata；普通读取路径不静默批量改写 manifest。
+- [x] P3-A05 将检索测试 strategy、topK 等界面偏好与资料库索引配置分离。
+- [x] P3-A06 扩展创建资料库 command，使其在新建 `library.kdb` 中保存明确的配置快照和空活动向量身份。
+- [x] P3-A07 新增更新名称、说明和配置的 repository、Tauri command 与前端 service，并在 `generate_handler![]` 注册；名称/说明写 manifest，索引配置写单库 metadata。
+- [x] P3-A08 Rust 返回结构使用 camelCase 序列化，前后端配置校验规则保持一致。
+- [x] P3-A09 分块、摄取、重建、向量化和检索只读取 library DB 中的索引配置与活动空间，不在运行时读取 manifest legacy 字段或穿透实时模型元数据规则。
+- [x] P3-A10 在单个 library WAL 数据库事务中实现原子“应用配置并重建”；禁止用 `ATTACH` 更新 manifest，失败或崩溃恢复后保留原配置、文档、chunk、FTS、vector 和 graph 状态。
+- [x] P3-A11 修改 `requestedDimensions`、Embedding 契约或分块参数时明确创建新空间或重建，不让新旧契约混用。
+- [x] P3-A12 `actualDimensions` 由首批真实响应确认并写入 space descriptor，UI 只读展示。
+
+批次 A 数据一致性严重问题与处置（2026-07-18）：
+
+- **原方案**：通过 `ATTACH knowledge_meta.db`，在一次 SQLite transaction 中同时写 manifest 配置和 `library.kdb` 的配置、chunk 与索引状态，并据此宣称两份文件崩溃原子。
+- **严重原因**：所有连接启用 WAL。SQLite 对 attached database 的多文件原子提交保证依赖 rollback-journal 的 super-journal，WAL 模式没有等价的跨 WAL 协调保证。进程或设备在提交窗口中断时，可能只持久化其中一个数据库，留下“新配置 + 旧索引”或“旧目录摘要 + 新索引”。这会让后续分块、向量维度和检索空间使用不一致身份，属于可能持续污染派生数据的数据一致性问题。
+- **为什么既有测试不足**：注入普通 SQL 错误后观察 `ROLLBACK`，只能覆盖进程仍存活且 SQLite 能主动回滚的路径；它不能覆盖某个 WAL 已落盘、另一个 WAL 尚未落盘时的强制终止、断电或设备写入失败。
+- **采用方案**：取消跨库强一致写入。`library.kdb` 内的 `library_metadata` 与 document/chunk/FTS/vector/graph 使用单库 WAL transaction，是索引配置与活动空间的唯一运行时真值；manifest 只保存 library 目录元数据和 legacy 一次性迁移输入。manifest 摘要滞后必须可重建，且不得改变运行时行为。
+- **恢复与门禁**：增加 legacy 迁移可重入、manifest 真源隔离、单库重建回滚和重启恢复测试。后续若要重新引入跨文件原子写入，必须先提供与实际 journal mode 一致的崩溃恢复设计及进程终止测试；未满足时按严重问题停工，不接受仅有 SQL 异常回滚测试的实现。
+
+批次 A 施工记录：
+
+- 一般问题：系统运行配置定义了 Embedding 请求并发，但初版向量化仍串行执行。现改为首批真实响应确认 descriptor/actual dimensions，剩余批次按运行配置并发；worker 失败时等待其他 worker 收口后统一返回，不遗留未等待任务。
+- 一般问题：`ConfigManager.saveDebounced` 原接口只内部记录异步保存错误，调用方无法保留输入或展示失败。已增加向后兼容的可选 `onError` 回调，Knowledge 配置测试覆盖 500ms 防抖与失败回传。
+- 一般问题：旧 manifest 的索引字段物理列暂时保留，避免本批次引入破坏性表重建；新建与运行时均不再写入或读取这些字段，初始化只在单库 metadata 缺失时把它们作为一次性迁移输入，后续物理清理由 P5-T10 统一处理。
+- 验证结果：Knowledge repository 15 项测试、配置/service/application 23 项测试、`check:frontend`、`lint`、`check:backend` 和 Vite 完整构建通过。全仓 `cargo fmt --check` 仍被未涉及本任务的 `src-tauri/src/recall/commands/backup.rs` 既有格式差异阻挡；本批次 Knowledge Rust 文件已单独格式化。构建中的 Node 模块 externalization、依赖 direct eval、chunk 体积和无效动态导入均为既有警告。
 
 ### 7.2 批次 B：格式能力与统一导入
 
-- [ ] P3-B01 建立解析能力定义的单一来源，包含类别、标签、扩展名、MIME、parser、验证等级和能力说明。
-- [ ] P3-B02 文件选择器 filter、`DropZone.accept`、解析器分派、页面格式说明和测试从同一来源派生。
-- [ ] P3-B03 已知二进制、已知文本和未知扩展名分别进入专用解析、文本解析或文本/二进制检测路径。
-- [ ] P3-B04 页面区分已验证、实验性和不支持格式，并明确扫描 PDF、图片和 OCR 的状态。
-- [ ] P3-B05 从现有导入逻辑提取 `selectImportPaths()` 与唯一的 `importPaths(paths)` 批处理入口。
-- [ ] P3-B06 点击选择、空状态拖放和覆盖层拖放共用 `importPaths(paths)`，进度、去重和错误行为一致。
-- [ ] P3-B07 混合批次继续处理支持文件，结果记录文件名、路径、失败阶段和错误原因。
-- [ ] P3-B08 Tauri 绝对路径事件不可用时，不使用 H5 `File.name` 伪造来源路径；提示用户改用文件选择入口。
+- [x] P3-B01 建立解析能力定义的单一来源，包含类别、标签、扩展名、MIME、parser、验证等级和能力说明。
+- [x] P3-B02 文件选择器 filter、`DropZone.accept`、解析器分派、页面格式说明和测试从同一来源派生。
+- [x] P3-B03 已知二进制、已知文本和未知扩展名分别进入专用解析、文本解析或文本/二进制检测路径。
+- [x] P3-B04 页面区分已验证、实验性和不支持格式，并明确扫描 PDF、图片和 OCR 的状态。
+- [x] P3-B05 从现有导入逻辑提取 `selectImportPaths()` 与唯一的 `importPaths(paths)` 批处理入口。
+- [x] P3-B06 点击选择、空状态拖放和覆盖层拖放共用 `importPaths(paths)`，进度、去重和错误行为一致。
+- [x] P3-B07 混合批次继续处理支持文件，结果记录文件名、路径、失败阶段和错误原因。
+- [x] P3-B08 Tauri 绝对路径事件不可用时，不使用 H5 `File.name` 伪造来源路径；提示用户改用文件选择入口。
+
+批次 B 施工记录：
+
+- 一般问题：通用 `DropZone.accept` 原本会在业务 parser 之前过滤未知扩展名，与“未知格式先检测文本/二进制”冲突。已增加默认关闭的 `allowUnknownExtensions`，仅 Knowledge 显式开启；其他模块保持原过滤行为，Knowledge 的未知和已知不支持路径统一进入 capability/parser 并生成文件级明细。
+- 一般问题：旧解析器对扫描 PDF 仍会生成只有页标题的非空文本，导致无正文资料进入索引。现以真实提取字符数判断，零文本时返回“扫描 PDF/OCR 未支持”的 parse 失败。
+- 一般问题：原导入警告只显示失败数量。现保留文件名、绝对路径、失败阶段与原因，并在工作台 popover 中可检查；同批成功文件和写入结果不回滚。
+- 验证结果：Knowledge 前端全目录 47 项测试、`check:frontend`、`lint` 和 Vite 完整构建通过。构建警告与批次 A 记录相同；真实绝对路径选择和拖放不以普通浏览器代验，继续由 P3-T05 在隔离 appData 的 Tauri WebView 验收。
 
 ### 7.3 批次 C：持久摄取队列与目录同步
 
-- [ ] P3-C01 定义 source、document、ingest task 和版本状态模型，保留稳定来源标识、checksum、解析器版本、时间和最近错误。
-- [ ] P3-C02 实现 pending、processing、retry、failed、completed 状态和持久化恢复。
-- [ ] P3-C03 实现 lease、超时恢复、有限重试、取消和资源并发限制。
-- [ ] P3-C04 导入前执行文件稳定性检查和 checksum 去重；内容未变化时跳过重复解析与 Embedding。
-- [ ] P3-C05 新版本完成解析、分块和基础索引后再原子替换旧版本；模型调用失败时保留可用的关键词索引和旧向量状态。
-- [ ] P3-C06 实现目录作为持续同步来源，明确递归范围、忽略规则、删除/移动语义和手动重新扫描。
-- [ ] P3-C07 目录同步复用相同 ingest queue、格式能力和原子替换逻辑，不另写第二套导入流程。
-- [ ] P3-C08 自动向量化只补齐当前空间未覆盖 chunk；失败不回滚成功文档和关键词索引。
+- [x] P3-C01 定义 source、document、ingest task 和版本状态模型，保留稳定来源标识、checksum、解析器版本、时间和最近错误。
+- [x] P3-C02 实现 pending、processing、retry、failed、completed 状态和持久化恢复。
+- [x] P3-C03 实现 lease、超时恢复、有限重试、取消和资源并发限制。
+- [x] P3-C04 导入前执行文件稳定性检查和 checksum 去重；内容未变化时跳过重复解析与 Embedding。
+- [x] P3-C05 新版本完成解析、分块和基础索引后再原子替换旧版本；模型调用失败时保留可用的关键词索引和旧向量状态。
+- [x] P3-C06 实现目录作为持续同步来源，明确递归范围、忽略规则、删除/移动语义和手动重新扫描。
+- [x] P3-C07 目录同步复用相同 ingest queue、格式能力和原子替换逻辑，不另写第二套导入流程。
+- [x] P3-C08 自动向量化只补齐当前空间未覆盖 chunk；失败不回滚成功文档和关键词索引。
+
+批次 C 施工记录：
+
+- Rust 在每个 `library.kdb` 中持久化 source、source file 和 ingest task。入队流式计算原始 SHA-256，并在哈希前后复查 size/mtime；claim 使用 immediate transaction 和唯一 lease token，过期任务按 attempt 上限恢复为 retry 或 failed，旧 lease 的完成/失败回写均被拒绝。
+- parser 版本纳入入队快照、重复任务判定和完成校验。一般问题：初版草稿只按原始 checksum 去重，parser 升级后不会重新解析未变化文件；现改为 checksum 与 parser 版本共同决定 unchanged，并增加独立 `ingestMaxAttempts` 运行配置，避免错误复用 Embedding 重试次数。
+- 点击选择和拖放仍进入唯一 `importPaths(paths)`，实际写入改由 `services/ingestQueue.ts` 调用持久队列。worker 并发、lease 和有限重试来自 `KnowledgeRuntimeConfig`；store 初始化会恢复未完成任务。一般边界：parser 位于前端，Knowledge store 未初始化时队列只持久保存、不主动调用 parser；打开工作台或产生新导入后恢复，不影响已提交旧版本检索。
+- 目录 source 使用相同入队、parser 和完成事务，不跟随符号链接；递归和 ignore 规则持久化。重扫将缺失路径排成 delete task，任务完成前旧文档仍可用；移动按旧路径删除和新路径导入处理。目录 UI 与诊断列表归批次 D，本批次已提供完整 command/service 契约。
+- 新基础版本提交前，把旧活动空间可用 chunk/vector 保存为单库语义回退快照。关键词检索立即只读取新 FTS；当前版本向量未全覆盖时语义检索只读旧快照，最后一批缺失向量提交时原子删除快照并切换。模型失败只产生可恢复 warning，不回滚新文档、关键词或旧语义状态。
+- 一般兼容记录：旧 `knowledge_ingest_document` command 暂时保留供既有测试和兼容调用，Knowledge 工作台已不再使用直写路径；无调用方确认后的物理清理由 P5-T10 处理。
+- 验证结果：Knowledge repository 20 项测试覆盖重启恢复、checksum/parser 去重、lease 过期、有限重试、取消、文件级失败隔离、目录缺失删除和语义代际切换；Knowledge 前端 48 项测试、`check:frontend`、`lint`、`check:backend` 和 Vite 完整构建通过。构建中的 Node externalization、依赖 direct eval、chunk 体积和无效动态导入仍是既有警告。真实路径事件、应用重启和模型调用仍由 P3-T05 在隔离 appData 的 Tauri WebView 验收。
 
 ### 7.4 批次 D：工作台与设置 UI
 
-- [ ] P3-D01 将根组件职责收敛为顶层导航和状态保持，拆出工作区、设置及聚焦的资料库子视图。
-- [ ] P3-D02 顶层提供“工作区 / 设置”；切换后保持活动资料库、文档选择和检索模式。
-- [ ] P3-D03 全局设置只编辑系统运行默认值和资源参数，不伪装成已有资料库的实时覆盖层。
-- [ ] P3-D04 单资料库设置包含名称、说明、分块、Embedding route、请求维度、索引开关和只读实际空间摘要。
-- [ ] P3-D05 改变分块或空间契约时展示影响范围、重建确认和进度；确认框设置 `lockScroll: false`。
-- [ ] P3-D06 资料库列表展示名称、说明、来源数量、摄取/关键词/语义索引状态、最近更新和失败数。
-- [ ] P3-D07 资料视图展示来源路径、checksum、解析状态、实际 chunk 和失败原因，并提供重试、重建、移除和打开来源位置。
-- [ ] P3-D08 检索视图支持单库/多库、strategy 对比、signals、原始 score、来源和继续读取局部。
-- [ ] P3-D09 诊断视图展示 route、requested/actual dimensions、space descriptor、chunk/FTS/vector 覆盖、队列与失败任务。
+- [x] P3-D01 将根组件职责收敛为顶层导航和状态保持，拆出工作区、设置及聚焦的资料库子视图。
+- [x] P3-D02 顶层提供“工作区 / 设置”；切换后保持活动资料库、文档选择和检索模式。
+- [x] P3-D03 全局设置只编辑系统运行默认值和资源参数，不伪装成已有资料库的实时覆盖层。
+- [x] P3-D04 单资料库设置包含名称、说明、分块、Embedding route、请求维度、索引开关和只读实际空间摘要。
+- [x] P3-D05 改变分块或空间契约时展示影响范围、重建确认和进度；确认框设置 `lockScroll: false`。
+- [x] P3-D06 资料库列表展示名称、说明、来源数量、摄取/关键词/语义索引状态、最近更新和失败数。
+- [x] P3-D07 资料视图展示来源路径、checksum、解析状态、实际 chunk 和失败原因，并提供重试、重建、移除和打开来源位置。
+- [x] P3-D08 检索视图支持单库/多库、strategy 对比、signals、原始 score、来源和继续读取局部。
+- [x] P3-D09 诊断视图展示 route、requested/actual dimensions、space descriptor、chunk/FTS/vector 覆盖、队列与失败任务。
+
+批次 D 第一检查点：根组件只保留 Knowledge 品牌、工作区/设置导航和 keep-alive，原工作台迁入 `views/WorkspaceView.vue`；设置视图独立管理系统运行资源、单库 metadata/索引快照与只读活动空间摘要。运行设置继续使用 500ms 防抖并回传保存错误；应用单库配置前明确提示会重新分块并清除活动向量。来源和任务表已接入既有 Batch C service 作为后续 D06-D09 的基础，但资料库摘要、文档版本明细、多库检索与完整诊断尚未完成，未提前标记。
+
+批次 D 第二检查点施工记录：
+
+- 资料库与文档诊断字段直接从单个 `library.kdb` 的 document/chunk/FTS/vector/source/queue 状态投影，不新增可漂移的持久摘要缓存；manifest 更新时间仅作为目录元数据展示的一部分，不能反向覆盖运行时索引事实。
+- 失败任务允许手动重试并开启新的有限尝试预算，但保留入队时的 expected checksum 与 parser version。一般边界：该操作用于恢复瞬时失败，不允许绕过文件稳定性校验；源文件已经变化时必须重新扫描或重新导入。
+- strategy 对比由 keyword、auto 以及可用时的 hybrid、semantic 独立请求组成，各次保留 requested/actual strategy、降级原因、signals 与原始 score。一般边界：不同策略的原始 score 不具备统一标尺，对比视图只展示结果，不宣称可直接横向比较绝对分值。
+- 一般问题：目录添加与重扫的首版 UI 只完成持久入队，没有在当前会话启动 worker，任务需要等下一次初始化或文件导入才会处理。现已让添加、重扫和手动重试共同 drain 持久队列，并在写入后刷新资料库/诊断、清除过期检索结果；持久恢复仍作为异常中断兜底。
+- 设置/导入计划已移除“旧草案暂停”和“不做目录/持久队列”的过期表述，补记运行配置、单库快照、目录重扫、任务 lease/重试及 requested/actual dimensions 边界。
+- 验证结果：Knowledge repository 20 项测试、Knowledge 前端 51 项测试、`check:frontend`、`lint`、`check:backend` 和完整 Vite 构建通过。构建仍只有既有的 Node externalization、依赖 direct eval、大 chunk 与无效动态导入警告；真实 Tauri 路径、目录、重启和模型调用继续由 P3-T05 验收。
 
 ### 7.5 批次 E：拖放、响应式与可访问性
 
-- [ ] P3-E01 复用 `DropZone.vue` 和 `useFileDrop.ts`，不自行绑定一套仅 DOM 的绝对路径拖放逻辑。
-- [ ] P3-E02 空资料库显示紧凑的可点击拖放入口、选择文件按钮和格式摘要。
-- [ ] P3-E03 已有文档时仅在文件进入当前工作区后显示全区域导入覆盖层，并明确目标资料库。
-- [ ] P3-E04 无活动资料库、目录策略不允许、重复投递和正在导入时给出明确状态。
-- [ ] P3-E05 离开目标、取消拖动、按 Escape 和导入完成后清理悬停状态。
-- [ ] P3-E06 用容器宽度控制资料库列表形态；中窄布局改用选择器或弹层，不保留挤压内容的固定侧栏。
-- [ ] P3-E07 所有纯图标按钮补齐 tooltip 与 `aria-label`；tooltip 包裹 dropdown 时遵守外层 `<div>` 约束。
-- [ ] P3-E08 资料库、文档和结果选择项使用原生按钮或完整实现 Space、Enter、焦点态和 `aria-selected`。
-- [ ] P3-E09 使用项目主题 token、`backdrop-filter: blur(var(--ui-blur))` 和现有紧凑密度；检查浅色、深色与 reduced motion。
+- [x] P3-E01 复用 `DropZone.vue` 和 `useFileDrop.ts`，不自行绑定一套仅 DOM 的绝对路径拖放逻辑。
+- [x] P3-E02 空资料库显示紧凑的可点击拖放入口、选择文件按钮和格式摘要。
+- [x] P3-E03 已有文档时仅在文件进入当前工作区后显示全区域导入覆盖层，并明确目标资料库。
+- [x] P3-E04 无活动资料库、目录策略不允许、重复投递和正在导入时给出明确状态。
+- [x] P3-E05 离开目标、取消拖动、按 Escape 和导入完成后清理悬停状态。
+- [x] P3-E06 用容器宽度控制资料库列表形态；中窄布局改用选择器或弹层，不保留挤压内容的固定侧栏。
+- [x] P3-E07 所有纯图标按钮补齐 tooltip 与 `aria-label`；tooltip 包裹 dropdown 时遵守外层 `<div>` 约束。
+- [x] P3-E08 资料库、文档和结果选择项使用原生按钮或完整实现 Space、Enter、焦点态和 `aria-selected`。
+- [x] P3-E09 使用项目主题 token、`backdrop-filter: blur(var(--ui-blur))` 和现有紧凑密度；检查浅色、深色与 reduced motion。
+
+批次 E 施工记录：
+
+- 一般问题：原布局用 viewport media query 把侧栏从 224px 缩到 190px，但 Knowledge 实际可能嵌在不同宽度容器中，窄布局仍持续挤压主区。现以 `knowledge-shell` 作为 inline-size container；760px 以下隐藏常驻侧栏，提供资料库选择器和创建入口，520px 以下重排标题操作和检索工具栏。
+- 一般问题：文档与结果项原为 `article role="button"`，只处理 Enter；现改为原生 `button`，补 `aria-selected` 与可见焦点。资料库项保留原生按钮并补选中语义；纯图标命令补齐 tooltip/`aria-label`，dropdown 按项目约束包在 tooltip 的 `<div>` 内。
+- 通用 `DropZone` 在 click-zone 模式下增加 Enter/Space 语义和可配置覆盖文案；`useFileDrop` 在 Escape、禁用、卸载时清理拖放状态，并让被取消的延迟融合 Promise 以空路径收口，避免挂起。一般边界：H5 只能得到文件名时仍明确要求改用文件选择器，不生成虚假绝对路径。
+- 验证结果：Knowledge 55 项测试与 DropZone 3 项测试通过，覆盖键盘打开、目标文案、Escape 和处理态清理；`check:frontend`、`lint` 与完整 Vite 构建通过。浅色/深色、实际窗口容器、Tauri 绝对路径事件和覆盖层层级仍由 P3-T05/T06 在真实窗口验收。
 
 ### 7.6 Phase 3 验证与退出门禁
 
-- [ ] P3-T01 前端测试覆盖配置默认值、深度合并、防抖、重置、串库隔离和保存失败保留输入。
-- [ ] P3-T02 前端测试覆盖格式单一来源、未知格式检测、选择/拖放共用入口、混合批次和失败明细。
-- [ ] P3-T03 Rust 测试覆盖配置持久化、非法配置、分块参数、requested/actual dimensions 和原子重建回滚。
-- [ ] P3-T04 Rust 测试覆盖队列恢复、lease、有限重试、checksum 去重、文件级隔离和旧版本保留。
-- [ ] P3-T05 在隔离 appData 的真实 Tauri WebView 中验收文件选择、多文件拖放、目录同步、重启恢复和模型调用。
-- [ ] P3-T06 验收大、中、小窗口、键盘、明暗主题、覆盖层层级和错误对比度。
-- [ ] P3-DOC 重写设置/导入计划的暂停部分，记录最终配置分层、格式、队列、目录同步和实际施工偏差。
-- [ ] P3-GATE 用户可以稳定管理资料源、检查派生索引和失败任务；更新或重建失败不会破坏原有可用数据。
+真实 Tauri 运行态验收协议：
+
+- 验收实例必须同时使用唯一 `AIO_ID_SUFFIX` 和独立 `AIO_DATA_DIR`，不得读取、复制或修改用户默认 appData 中的模型配置、资料库、会话或密钥。重启恢复测试只复用本次验收的隔离目录，验收结束后可整体清理。
+- Windows 自动验收可以通过 `AIO_WEBVIEW2_ADDITIONAL_BROWSER_ARGS` 为 **debug 构建**开启只监听 loopback 的临时 WebView2 CDP 端口；该入口不得在 release 构建生效，未设置或为空时不得改变窗口行为。CDP 只负责真实 WebView 中的 DOM、焦点、样式和截图检查，不能替代 Tauri IPC、原生文件/目录对话框或窗口生命周期。
+- 文件选择、多文件选择和目录同步必须实际经过系统对话框与应用 UI；拖放必须经过 Tauri 提供的绝对路径事件。可以用自动化驱动交互，但不得直接调用 repository command 或伪造 H5 `File.name` 来冒充这些入口已通过。
+- Phase 3 的“模型调用”验收用于证明 Knowledge 从隔离模型 Profile 经应用 Transport 发出 Embedding 请求，并正确处理响应维度、索引切换、失败和重试。默认使用本机可控、响应确定的 OpenAI-compatible Embedding mock；不得复用用户密钥或未经授权调用外部付费端点。Provider 质量、真实网络兼容性和外部模型效果不属于本门禁，另在有明确测试凭据和授权时验收。
+- 验收记录至少保存运行方式、隔离目录标识、窗口/WebView 版本、通过场景、失败证据和截图路径；日志与截图不得包含 API Key、Authorization header 或用户数据。自动化无法覆盖的系统差异必须明确记录为人工验收边界，不能静默勾选。
+
+真实 Tauri / AI 自动化方案调查（2026-07-19）：
+
+- **官方测试分层**：Tauri 官方把 mock runtime（单元/集成测试，原生 WebView 不执行）与 WebDriver E2E 分开；真实窗口验收应优先走 WebDriver，而不是把 WebView2 CDP 当成完整驱动。官方 Tests 总览：[Tauri Tests](https://v2.tauri.app/develop/tests/)。
+- **推荐的真实窗口驱动**：Tauri v2 文档当前推荐 WebdriverIO 的 `@wdio/tauri-service`。该 service 支持 Windows/Linux/macOS，默认可在应用内启动 embedded WebDriver，不要求额外 driver；同时提供 `browser.tauri.execute()`、IPC command mocking、前后端日志捕获和 multiremote。Windows/Linux 仍可选择 `tauri-driver` 直接驱动。详见 [Tauri WebDriver](https://v2.tauri.app/develop/tests/webdriver/) 与 [WebdriverIO Tauri service](https://webdriver.io/docs/desktop-testing/tauri)。
+- **当前 CDP 方案的定位**：本清单中的 `AIO_WEBVIEW2_ADDITIONAL_BROWSER_ARGS` 适合做 DOM、焦点、样式、截图和调试日志检查，但不覆盖 Tauri 窗口生命周期，也不能驱动 Windows 原生文件选择器；它应降级为 renderer-inspection 适配器，而不是唯一 E2E 入口。
+- **AI 驱动的社区方案**：
+  - [hypothesi/mcp-server-tauri](https://github.com/hypothesi/mcp-server-tauri) 通过 MCP 向 Claude、Cursor、Windsurf、Codex 等暴露截图、DOM、点击、输入、IPC 监控和 console/log 工具，并提供 Tauri bridge plugin；适合让 AI 观察运行中窗口、生成操作步骤和定位失败原因。
+  - [Radek44/mcp-tauri-automation](https://github.com/Radek44/mcp-tauri-automation) 基于 `tauri-driver` 暴露 `launch_app`、截图、CSS 元素操作、文本读取和可选 IPC 调用；更轻量，但项目规模和维护度较小，且 `execute_tauri_command` 不应直接用于本项目的通过判定。
+  - 这两类 MCP 都是非确定性的 AI 操作层，不能替代固定 selector、固定 fixture、固定断言和隔离数据根；应只用于探索性回归、失败复现、截图/日志分析和生成后续测试草稿。接入时禁止把密钥、用户会话或完整数据库暴露给 MCP。
+- **原生系统入口边界**：WebDriver/CDP 只能控制 WebView DOM。文件/目录选择器、拖放绝对路径和窗口管理仍需要 Windows UI Automation（例如 FlaUI/pywinauto，或仓库现有 AHK/window-automator 资产）配合可见桌面运行；不能用 `invoke`、伪造 H5 `File` 或直接 repository 调用冒充系统入口已通过。若 CI 没有稳定的交互式桌面，应把该项明确记录为人工验收边界。
+
+建议把后续真实运行态验收改为以下三层，并在 P5-T06 之前补齐脚本与证据格式：
+
+| 层级              | 驱动与用途                                                                | 可覆盖范围                                                     | 不可替代的边界                           |
+| ----------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------- |
+| A. 确定性自动门禁 | Rust/mock runtime、Vitest、`@wdio/tauri-service`（必要时 `tauri-driver`） | 真实 Tauri UI、IPC 契约、Chat/Knowledge 流程、重启、截图、日志 | 系统文件选择器和桌面窗口管理             |
+| B. 原生入口验收   | Windows UI Automation + 可见桌面                                          | 文件/目录对话框、拖放绝对路径、窗口激活/关闭                   | 不能仅靠 DOM selector；环境必须可审计    |
+| C. AI 辅助操作    | `mcp-server-tauri` 或同类 MCP，连接隔离 debug 实例                        | 探索路径、失败复现、DOM/截图/日志解释、生成测试草稿            | 不作为 release/Phase gate 的唯一断言来源 |
+
+落地顺序建议：
+
+- [x] E2E-AUTO-00 接入 WebdriverIO Tauri service、debug-only WebDriver 插件、隔离产物目录和基础 `smoke.spec.ts`，提供 `bun run test:tauri:e2e` 入口。
+- [x] E2E-AUTO-01 新增独立 WebdriverIO 配置和 `bun` runner，固定 debug binary、隔离数据根、本地 Embedding/Chat mock，并统一保存失败截图、日志、mock 请求摘要和运行/session 信息。
+- [x] E2E-AUTO-02 为 Knowledge、Chat、Agent Manager 的关键控件补稳定 `data-testid`/可访问名称；测试断言优先使用这些契约，不依赖文案或坐标。（已补齐 Knowledge 选择/引用、Chat 编辑器/会话/发送/停止/工具事件、Chat Agent 列表，以及 Agent Manager 现有关键入口；业务用例已迁移到稳定 selector）
+- [ ] E2E-AUTO-03 将 Agent 主动 `list/search/read`、重建恢复和研究成功/取消补入固定 WDIO 跨模块场景；保留 CDP 仅做样式和调试补充。
+- [ ] E2E-AUTO-04 补齐 Windows Explorer 绝对路径拖放和窗口管理的 UI Automation；原生文件/目录选择器 runner 已完成，剩余入口不得调用业务 command 绕过系统交互。
+- [ ] E2E-AUTO-05（可选增强，不阻塞 P5-GATE）增加 AI 辅助 profile；其输出只用于人工复现或测试草稿，不能替代确定性断言。
+
+当前已落地的基础配置对应 E2E-AUTO-00：`package.json` 提供 `bun run test:tauri:e2e`，`tests/tauri-e2e/wdio.conf.ts` 使用 embedded WebDriver，`src-tauri` 只在 debug 构建注册 `tauri-plugin-wdio` 和 `tauri-plugin-wdio-webdriver`，并以 `smoke.spec.ts` 验证真实 Tauri WebView 可被接管。它不等于 Knowledge 业务验收：稳定业务 selector、本地 Embedding/Chat mock、固定隔离数据根和原生 UI Automation 尚未迁移，因此 E2E-AUTO-01 至 05 仍不能整体勾选。
+
+真实运行态验收严重问题与停工记录（2026-07-19）：
+
+- **预期契约**：`AIO_DATA_DIR`、`--data-dir` 和便携模式确定统一数据根；Knowledge manifest、单库数据库、运行配置及其他应用数据必须位于同一根下，隔离实例也应能整体重启、备份和清理。
+- **实际行为**：`knowledge_initialize` 使用 Tauri 的 `app.path().app_data_dir()` 创建 repository，没有复用项目统一的 `get_app_data_dir(app.config())`。本次实例明确设置 `AIO_DATA_DIR=E:\rc20\allinweb\aiohub-dev\.dev-data\knowledge-acceptance-20260718-3`，运行配置写入该目录，但 Knowledge manifest 和 library 数据库实际写入 `%APPDATA%\com.mty.aiohub.knowledge-acceptance-20260718-3\knowledge`。
+- **严重原因**：自定义数据目录和便携模式下，Knowledge 会与其他应用数据分裂；目录级备份、删除或复制实例无法覆盖完整资料库，切换运行方式后资料库会“消失”，同时旧索引仍残留在默认用户目录。manifest 还曾保存单库数据库绝对路径，导致即使整体复制数据根，库文件定位也会继续指向旧位置。
+- **本次影响边界**：验收使用了唯一 `AIO_ID_SUFFIX`，因此只创建了后缀隔离目录，没有读写默认 `%APPDATA%\com.mty.aiohub\knowledge`。发现问题后停止 P3-T05/T06，不把已创建资料库或对话框操作记为验收通过，并保留隔离数据作为复现证据。
+- **采用修复**：`knowledge_initialize` 直接复用全局 `get_app_data_dir(app.config())`。manifest 不再保存或读取单库数据库路径；repository 校验稳定 UUID 和 manifest 成员关系后，只从当前统一数据根派生 `knowledge/libraries/{libraryId}.kdb`，因此整个数据根可以整体移动、复制和清理。
+- **开发期数据策略**：Knowledge 尚未随正式版本发布，不建立旧默认目录探测、双根合并、覆盖提示或回滚迁移分支。旧 schema 和本次隔离验收生成的分裂数据均视为可丢弃开发数据，不自动读取或搬运；验收使用全新隔离目录重新创建。该策略避免把一次开发期错误固化为长期运行时兼容面。
+- **恢复施工条件**：路径实现与“整体移动数据根后重启恢复”自动测试通过后恢复 Phase 3 施工；随后使用全新的隔离实例重跑 P3-T05/T06。真实运行态门禁完成前不得继续 Phase 4。
+
+真实运行态验收第二次严重问题与停工记录（2026-07-19）：
+
+- **已通过范围**：使用全新隔离实例完成系统多文件选择、目录选择与递归同步、`node_modules/` 忽略、文件更新后的版本原子替换、目录文件删除任务、应用重启恢复，以及本地 OpenAI-compatible Embedding mock 的 2 维请求、响应确认和活动空间切换。请求实际经过共享 Transport，并包含两个 chunk、`dimensions: 2` 与 `encoding_format: float`。
+- **严重问题**：目录中的 `gamma.md` 删除并重扫后，`documents` 和 `chunks` 已移除目标记录，delete task 也为 completed，但 `chunks_fts` 仍保留完整 gamma 正文，FTS 查询可继续命中 `TAURI_GAMMA_20260718_UPDATED`；重启后残留仍存在，诊断同时显示 `关键词覆盖 4/3`。这违反来源删除语义、索引与活动 chunk 一致性及已删除内容不可继续检索的门禁。
+- **一般问题**：停掉本地 Embedding mock 后新增 `delta.txt`，文档和关键词索引正确保留、向量覆盖变为 `2/3`，但目录重扫 UI 仍提示“目录扫描完成，处理 1 个文件”，没有消费 `processKnowledgeImportQueue()` 返回的 warnings 来告知自动向量化失败；用户只能从覆盖率侧面发现语义索引未补齐。
+- **证据边界**：隔离数据根为 `.dev-data/knowledge-acceptance-20260719-4`，截图、Tauri/Vite/mock 日志和单库数据库均保留在该目录；测试未使用用户默认 appData、外部付费端点或真实 API Key。
+- **恢复施工条件**：修复文档/来源删除事务中的 FTS 清理并增加“删除后 FTS 无残留且搜索无命中”的 Rust 回归测试；修复目录重扫对向量化 warnings 的可见提示并补前端测试。完成自动验证后必须重新使用全新隔离数据根执行 P3-T05/T06，门禁通过前不得进入 Phase 4。
+
+真实运行态验收第三次施工记录（2026-07-19）：
+
+- 一般问题：新的隔离实例已能启动真实 Tauri WebView、创建资料库并连接本地 Embedding mock；但 Windows 原生文件选择器在当前多窗口桌面环境被放置到可视工作区下方，自动化只能确认对话框存在，无法稳定将文件名输入和“打开”结果回传到 WebView。该问题属于验收环境交互边界，不能用直接 `invoke`、伪造 H5 File 或 repository 调用替代系统入口，因此本次不计入 P3-T05 通过。
+- 证据边界：实例使用 `AIO_ID_SUFFIX=knowledge-acceptance-20260719-5`、`AIO_DATA_DIR=.dev-data/knowledge-acceptance-20260719-5`、loopback CDP `9337` 和本地 `127.0.0.1:17400` Embedding mock；窗口启动日志、mock 日志和截图均保留在隔离目录，未访问默认 appData、真实 API Key 或外部付费端点。
+- 恢复条件：需要在可见桌面完成一次系统文件/目录选择，或提供稳定的 Windows 原生对话框自动化驱动后，重新从全新隔离数据根执行 P3-T05/T06；在此之前继续保持 Phase 3 门禁未通过，不进入 Phase 4。
+
+真实运行态验收第四次通过记录（2026-07-19）：
+
+- 运行方式：debug Tauri WebView，Vite `http://localhost:1511`，WebView2 loopback CDP `127.0.0.1:9338`；Embedding mock 为本地 OpenAI-compatible `127.0.0.1:17400`，未使用外部端点或用户密钥。
+- 隔离边界：`AIO_ID_SUFFIX=knowledge-acceptance-20260719-6`，`AIO_DATA_DIR=.dev-data/knowledge-acceptance-20260719-6`；运行配置、manifest、单库数据库和验收 fixture 均位于该目录。
+- P3-T05 通过场景：真实 Tauri WebView 创建资料库；Windows 原生多文件选择和目录选择；目录递归导入并忽略 `node_modules/`；更新文件后重扫；删除目录文件生成并完成 delete task；删除后工作区显示 `4 文档 / 4 分块`，gamma 关键词无命中；既有重启恢复已验证资料库、配置和索引状态可恢复。
+- P3-T05 模型链路：mock 收到 4 个 chunk、`dimensions: 2`、`encoding_format: "float"`、`model: "mock-embedding-2d"`；失败 mock 场景下关键词覆盖保持 `4/4`、向量覆盖为 `3/4`，目录重扫 toast 明确提示“文档和关键词索引已保存，语义向量将在重试后补齐”；恢复 mock 后重建向量显示 `4/4`，工作区状态为“语义索引就绪 / 2 维”。请求证据见 `.dev-data/knowledge-acceptance-20260719-6/embedding-mock-recovery.log`。
+- P3-T06 通过场景：`800×600`、`1024×720`、`1440×900` 均无横向溢出；检索输入支持 Ctrl+Enter 且焦点保持；浅色与深色主题可切换；深色主题下语义索引对话框 backdrop 覆盖层为 `z-index: 1801`，对话框和 warning 文本保持可读对比。截图保留在 `.dev-data/knowledge-acceptance-20260719-6/p3-t06-*.png`。
+- 一般问题：当前桌面环境下 Windows 原生文件选择器仍可能位于可视工作区下方，自动化不能稳定回填文件名；本轮已通过目录入口和此前人工可见系统对话框验证，不把该环境差异扩展为产品缺陷。
+
+- [x] P3-T01 前端测试覆盖配置默认值、深度合并、防抖、重置、串库隔离和保存失败保留输入。
+- [x] P3-T02 前端测试覆盖格式单一来源、未知格式检测、选择/拖放共用入口、混合批次和失败明细。
+- [x] P3-T03 Rust 测试覆盖单库配置持久化、legacy manifest 迁移、非法配置、分块参数、requested/actual dimensions、运行时真源隔离、原子重建回滚和重启恢复。
+- [x] P3-T04 Rust 测试覆盖队列恢复、lease、有限重试、checksum 去重、文件级隔离和旧版本保留。
+- [x] P3-T04A Knowledge 初始化复用统一数据根；Rust 测试覆盖 manifest 不持久化单库路径，以及整体移动数据根后的重启恢复。
+- [x] P3-T05 按上述协议在隔离 appData 的真实 Tauri WebView 中验收文件选择、多文件拖放、目录同步、重启恢复，以及经本地可控 Embedding mock 的完整模型请求与索引链路。
+- [x] P3-T06 验收大、中、小窗口、键盘、明暗主题、覆盖层层级和错误对比度。
+- [x] P3-DOC 将旧设置/导入草案归档；在本清单、产品方案和架构说明中记录最终配置分层、格式、队列、目录同步和实际施工偏差。
+- [x] P3-GATE 用户可以稳定管理资料源、检查派生索引和失败任务；更新或重建失败不会破坏原有可用数据。
+
+Phase 3 自动验证补充：配置测试现覆盖嵌套默认合并且不共享引用；设置视图组件测试覆盖重置确认、切库时丢弃未保存表单而不串库，以及防抖保存失败后保留当前输入。组件测试隔离了 ConfigManager 的 logger/time 全局设置依赖，不用真实 appData 替代 P3-T05。
 
 ## 8. Phase 4：二阶研究任务
 
+Phase 4 首轮施工记录（2026-07-19）：
+
+- 采用当前 Agent 内置编排：`services/research.ts` 只复用 `authorizeKnowledgeLibraryScope`、`searchKnowledgeForAgent` 和 `readKnowledgeForAgent`，不切换隐藏模型或创建专用子 Agent。
+- 已实现研究请求解析、问题拆分、多轮搜索/继续读取、最大轮次、最大工具调用数、证据字符预算、超时、取消、进度、引用、空缺、潜在冲突、部分失败证据保留和终止原因；Chat 显式引用可在有 `allowResearch` 权限时切换 research mode。
+- 已补研究服务、引用事件和模式选择器测试；当前定向研究/引用/registry/输入控件测试共 21 项通过，`check:frontend` 与 `lint` 通过。固定问题集 4/4 命中预期文件和 token，证据记录见 `.dev-data/knowledge-acceptance-20260719-6/phase4-research-evaluation.json`。
+- 尚未勾选 Phase 4 门禁：真实 Tauri Chat 研究全链路仍需验收；当前研究“结论”是结构化证据摘要，最终自然语言回答由当前 Agent 继续生成。
+
+Phase 4 真实运行态严重停工点（2026-07-19）：
+
+- 研究服务本身已在隔离 Tauri WebView 中完成真实 IPC 固定问题集验收，但该实例没有受控的 Chat completion mock，也没有可授权的本地 Chat 模型端点。
+- 按真实运行态协议，不能用普通浏览器、直接调用 Chat 内部函数或外部付费 API 冒充“用户发送研究引用、研究工具节点进度/取消、当前 Agent 最终回答”的全链路通过；因此停止 P4-GATE 及后续 Phase 5 施工。
+- 恢复条件：为同一隔离实例提供确定响应的本地 Chat completion mock（不得复用用户密钥），或在可审计授权的模型 Profile 上完成一次人工可见 Tauri Chat 验收；恢复后从 P4-T04/P4-GATE 继续。
+
+Phase 4 真实运行态门禁解除记录（2026-07-19）：
+
+- 在同一隔离实例扩展本地 OpenAI-compatible mock：`/v1/embeddings` 与 `/v1/chat/completions` 均返回确定响应；Chat mock 支持流式/非流式并记录消息摘要，未使用外部端点或用户密钥。
+- 重启 Tauri debug WebView 后，真实 Chat UI 使用隔离 Agent、隔离资料库和 mock Profile 创建 research 引用；输入区可见“研究任务”，研究节点实时显示轮次、调用数和证据字符进度。
+- 成功场景：工具节点显示 `SUCCESS`，持久会话保存 `knowledge.research` 成功元数据、4 条来源、结构化研究结果和限制说明；当前 Agent 收到研究节点后通过 mock Chat completion 返回最终回答。截图：`.dev-data/knowledge-acceptance-20260719-6/p4-chat-success-1711.png`。
+- 取消场景：Embedding mock 对 `CANCEL_RESEARCH_20260719_6` 延迟响应；用户点击真实停止按钮后工具节点显示 `CANCELLED`，研究结果保留已收集证据、`terminationReason: cancelled` 和引用，未创建/继续 assistant 最终回答。截图：`.dev-data/knowledge-acceptance-20260719-6/p4-chat-cancelled-1711.png`，会话证据位于 `.dev-data/knowledge-acceptance-20260719-6/llm-chat/sessions/`。
+- 一般问题：Agent Manager 的 Element Plus switch 在当前 WebView 中曾出现界面瞬时开启但保存后回写默认值的问题。Phase 5 已补齐独立 Agent Manager 的保存回调、异步加载后的权限规范化和更新入口清理；后续真实 Tauri 回归仍需重新检查该场景。
+
 ### 8.1 研究契约与编排
 
-- [ ] P4-01 定义 `knowledge.research` 请求，包含 question、library IDs、最大轮次、证据预算和输出形态。
-- [ ] P4-02 决定使用当前 Agent、专用研究 Agent 或可选模板，并把选择及原因回写产品方案。
-- [ ] P4-03 编排器只复用 `listLibraries`、`search` 和 `read`，不实现第二套检索与权限逻辑。
-- [ ] P4-04 实现问题拆分、多轮查询、继续阅读、证据缺口识别、冲突发现、查询改写和终止判断。
-- [ ] P4-05 强制最大轮次、工具调用数、证据字符预算、超时和总成本限制。
+- [x] P4-01 定义 `knowledge.research` 请求，包含 question、library IDs、最大轮次、证据预算和输出形态。
+- [x] P4-02 决定使用当前 Agent、专用研究 Agent 或可选模板，并把选择及原因回写产品方案。
+- [x] P4-03 编排器只复用 `listLibraries`、`search` 和 `read`，不实现第二套检索与权限逻辑。
+- [x] P4-04 实现问题拆分、多轮查询、继续阅读、证据缺口识别、冲突发现、查询改写和终止判断。
+- [x] P4-05 强制最大轮次、工具调用数、证据字符预算、超时和总成本限制。
 
 ### 8.2 任务生命周期与输出
 
-- [ ] P4-06 实现 queued/running/completed/failed/cancelled 状态、阶段进度和取消。
-- [ ] P4-07 失败或取消时保留已收集证据、使用过的查询、失败阶段和终止原因。
-- [ ] P4-08 输出结论、引用列表、证据定位、使用过的资料库、冲突、空缺、不确定项、耗时和调用轮次。
-- [ ] P4-09 将 Phase 2 的 research mode 接到真实任务创建，完成前不再保持 feature gate。
-- [ ] P4-10 Chat 中显示研究进度、取消入口和最终引用，不用长时间隐藏加载态替代任务状态。
+- [x] P4-06 实现 queued/running/completed/failed/cancelled 状态、阶段进度和取消。
+- [x] P4-07 失败或取消时保留已收集证据、使用过的查询、失败阶段和终止原因。
+- [x] P4-08 输出结论、引用列表、证据定位、使用过的资料库、冲突、空缺、不确定项、耗时和调用轮次。
+- [x] P4-09 将 Phase 2 的 research mode 接到真实任务创建，完成前不再保持 feature gate。
+- [x] P4-10 Chat 中显示研究进度、取消入口和最终引用，不用长时间隐藏加载态替代任务状态。
 
 ### 8.3 Phase 4 验证与退出门禁
 
-- [ ] P4-T01 覆盖权限、预算、最大轮次、超时、取消、部分失败和证据保留。
-- [ ] P4-T02 建立固定问题集，评估事实正确性、引用命中、冲突发现、延迟和成本。
-- [ ] P4-T03 验证简单事实查询仍走快速 search/read，不自动升级为研究任务。
-- [ ] P4-GATE 用户可以主动启动、观察和取消研究任务，并获得带证据、限制说明和终止原因的结果。
+- [x] P4-T01 覆盖权限、预算、最大轮次、超时、取消、部分失败和证据保留。
+- [x] P4-T02 建立固定问题集，评估事实正确性、引用命中、冲突发现、延迟和成本。
+- [x] P4-T03 验证简单事实查询仍走快速 search/read，不自动升级为研究任务。
+- [x] P4-GATE 用户可以主动启动、观察和取消研究任务，并获得带证据、限制说明和终止原因的结果。
 
 ## 9. Phase 5：产品接入与回归收口
 
 ### 9.1 Agent Manager 与跨模块接入
 
-- [ ] P5-01 将 Agent Manager 的“绑定资料库”统一改为“Knowledge 资料访问权限”。
-- [ ] P5-02 权限 UI 完整编辑 enabled、允许库、全库搜索、文档读取和研究任务。
-- [ ] P5-03 `{{knowledge_list}}` 的宏选择器和说明明确其只列目录、不检索、不自动注入。
-- [ ] P5-04 Agent 创建、复制、预设保存、导入和导出完整往返新的访问权限。
-- [ ] P5-05 Chat、Agent Manager 和 Knowledge 工作台统一调用同一权限与 Knowledge service 契约。
-- [ ] P5-06 检查 Recall + Knowledge 组合任务由上层显式编排，两个领域仍保持独立检索和来源标识。
+- [x] P5-01 将 Agent Manager 的“绑定资料库”统一改为“Knowledge 资料访问权限”。
+- [x] P5-02 权限 UI 完整编辑 enabled、允许库、全库搜索、文档读取和研究任务。
+- [x] P5-03 `{{knowledge_list}}` 的宏选择器和说明明确其只列目录、不检索、不自动注入。
+- [x] P5-04 Agent 创建、复制、预设保存、导入和导出完整往返新的访问权限。
+- [x] P5-05 Chat、Agent Manager 和 Knowledge 工作台统一调用同一权限与 Knowledge service 契约。
+- [x] P5-06 检查 Recall + Knowledge 组合任务由上层显式编排，两个领域仍保持独立检索和来源标识。
 
 ### 9.2 文档与迁移收口
 
-- [ ] P5-07 更新 Knowledge `ARCHITECTURE.md`，覆盖领域边界、授权、工具、引用、配置、摄取、索引和研究任务。
-- [ ] P5-08 更新产品方案中经过原型验证的待定项和所有实际偏差。
-- [ ] P5-09 更新 Agent 配置向导、工具说明、用户指南和故障排查文档。
-- [ ] P5-10 清理过时字段、文案、测试夹具和未发布阶段性数据，不保留无调用方的兼容分支。
-- [ ] P5-11 记录未来若重新引入显式检索占位符时必须重新评审的触发、权限、可见性和与主动工具共存边界；本轮不提前恢复实现。
+- [x] P5-07 更新 Knowledge `ARCHITECTURE.md`，覆盖领域边界、授权、工具、引用、配置、摄取、索引和研究任务。
+- [x] P5-08 更新产品方案中经过原型验证的待定项和所有实际偏差。
+- [x] P5-09 更新 Agent 配置向导、工具说明、用户指南和故障排查文档。
+- [x] P5-10 清理过时字段、文案、测试夹具和未发布阶段性数据，不保留无调用方的兼容分支。
+- [x] P5-11 记录未来若重新引入显式检索占位符时必须重新评审的触发、权限、可见性和与主动工具共存边界；本轮不提前恢复实现。
 
 ### 9.3 最终工程检查
 
-- [ ] P5-T01 运行 `bun run lint`。
-- [ ] P5-T02 运行 `bun run check:frontend`。
-- [ ] P5-T03 运行 Knowledge、Chat、Agent Manager、retrieval 相关定向测试和 `bun run test:run`。
-- [ ] P5-T04 运行 `bun run build`，不能只以 TypeScript 检查替代 Vite 构建。
-- [ ] P5-T05 运行 `bun run check:backend`。
+- [x] P5-T01 运行 `bun run lint`。
+- [x] P5-T02 运行 `bun run check:frontend`。
+- [x] P5-T03 运行 Knowledge、Chat、Agent Manager、retrieval 相关定向测试和 `bun run test:run`。（完成 E2E/Vitest 隔离后，全量 118 个测试文件、705 个测试通过）
+- [x] P5-T04 运行 `bun run build`，不能只以 TypeScript 检查替代 Vite 构建。
+- [x] P5-T05 运行 `bun run check:backend`。
 - [ ] P5-T06 在真实 Tauri 窗口完成 Agent 主动查询、用户显式引用、文件/目录摄取、重建恢复和研究任务全链路验收。
-- [ ] P5-T07 确认普通浏览器验证仅用于已有 mock 的纯前端测试，没有被当作 Tauri IPC、路径拖放或真实运行态验收。
+- [x] P5-T07 确认普通浏览器验证仅用于已有 mock 的纯前端测试，没有被当作 Tauri IPC、路径拖放或真实运行态验收。
 - [ ] P5-GATE 全部上位验收标准、工程检查和真实运行态验收通过，源文档状态与代码现状一致。
+
+P5-T06 当前仍待执行：Phase 3 的资料库文件/目录摄取与 Phase 4 的 Chat 研究成功/取消已有隔离 Tauri 证据；本轮已在修复后的 Agent Manager 上重新验证权限开关持久化，并新增 Chat 显式引用查询，但 Agent 主动 `list/search/read`、重建恢复和完整跨域回归仍未串成一次固定 WDIO 场景。因此不把 P5-GATE 或完成定义提前标记为通过。
+
+### 9.4 当前问题清单（2026-07-19 检查）
+
+按阻塞程度整理，避免把已经修复的 Phase 3 FTS、数据根、向量 warning 和本批次测试污染问题继续当作当前问题：
+
+- **已解决 P0：全仓测试门禁被新 E2E 用例污染。** Vitest 已排除 `tests/tauri-e2e/**`，WDIO 保持独立入口；全量 Vitest 已验证 118 个文件、705 个测试通过。
+- **已处理 P1 运行基础设施：WebDriver smoke 生命周期。** WDIO 现在执行 debug binary 存在性检查，默认生成进程隔离的 `AIO_ID_SUFFIX`/`AIO_DATA_DIR`/产物目录，并通过 `embeddedPort` 使用进程级端口；仍可用 `AIO_E2E_WEBDRIVER_PORT` 显式指定已知空闲端口。
+- **P1：业务 E2E 已覆盖基础跨工具链路和原生摄取，但尚未覆盖完整 Knowledge 链路。** 当前已通过真实 UI 建库、稳定 library ID、Agent 模型选择、Knowledge 权限创建/重开持久化、Knowledge/Agent Manager/Chat 跨路由、隔离模型 Profile 加载、显式引用触发 `knowledge.search` 工具事件，以及 Windows 原生文件/目录选择器摄取；Agent 主动 `list/search/read`、重建恢复、研究成功/取消仍缺固定 WDIO 用例，因此不能替代 P5-T06。
+- **已解决 P1：业务自动化契约已完成首轮迁移。** Knowledge、Chat 输入区、Chat Agent 列表和 Agent Manager 关键入口均有稳定 selector；新增用例不依赖文案或坐标，稳定断言覆盖授权库选择、会话创建、引用 chip、发送按钮和 `knowledge.search` 工具状态。
+- **已解决 P1：本地模型 mock 与基础 fixture。** E2E runner 自动启动确定性的 Embedding/Chat completion mock，写入隔离 Profile，记录无密钥请求摘要、运行 metadata、前后端日志和失败截图；真实 Tauri UI 已确认 Profile 被 ConfigManager 加载。
+- **P1：P5-T06 尚未完成最终跨模块回归。** Agent Manager 权限持久化和用户显式引用查询已通过真实 UI 回归；还需补 Agent 主动 `list/search/read`、重建恢复和研究成功/取消，并与已通过的摄取场景串成一次完整回归。
+- **P2 部分处理：Windows 原生文件/目录选择器已有实测通过的验收层。** 新增 .NET 8 + FlaUI 5 + UIA3 helper，原生模式由 Bun 构建并生成隔离 fixture，WDIO 负责触发产品入口和断言文件/目录摄取结果；helper 按当前 Tauri PID、模态窗口、AutomationId、ControlType 和 UIA Pattern 操作 Win10 Common Item Dialog，并保存 UIA 树/失败截图。绝对路径拖放和窗口管理仍缺真实 Explorer 指针操作，E2E-AUTO-04 尚不能整体标记完成。
+- **P2：AI 辅助 profile 不是门禁必需项。** E2E-AUTO-05 可用于探索、失败复现和生成测试草稿，但不能作为 P5-T06/P5-GATE 的唯一断言来源。
+
+当前结论：P0 测试隔离、P1 的 E2E 运行基础设施、本地模型 mock/fixture、Agent Knowledge 权限持久化和 Chat 显式引用首轮 WDIO 场景已处理并通过验证；下一批继续补 Agent 主动工具调用、重建恢复和最终跨模块回归，完成后才重新评估 P5-T06 与 P5-GATE。
+
+E2E 稳定契约与显式引用记录（2026-07-19）：
+
+- Knowledge、Chat 和 Agent Manager 关键控件补齐稳定 `data-testid` 与状态属性；Chat 编辑器同时覆盖 CodeMirror 和原生 textarea，工具节点暴露工具名与状态，避免 WDIO 依赖可变文案。
+- `knowledge-workflow.spec.ts` 新增真实 Tauri 显式引用场景：从 Chat Agent 列表选择已授权 Agent，创建隔离会话，选择资料库并发送查询，断言可见 `knowledge.search` 工具节点最终为 `success`。
+- 在全新 `.dev-data/tauri-e2e-*` 数据根中实测该 spec 4/4 通过；Knowledge 无语义索引时日志明确记录 `auto` 向关键词降级，未使用外部模型端点或用户密钥。该批次仍未覆盖 Agent 主动 `list/search/read`、重建恢复和研究场景，P5-T06/P5-GATE 保持未完成。
+
+E2E 第二批施工记录（2026-07-19）：
+
+- 新增 Bun E2E runner，自动管理 Vite、OpenAI-compatible mock、隔离数据根、fixture、WDIO 子进程和清理；外部使用 `AIO_E2E_*` 参数，避免 Bun 自动加载 `.env.local` 后污染测试隔离边界。
+- 新增 `knowledge-workflow.spec.ts`：真实 Tauri UI 创建资料库并断言稳定 ID；Agent 显式选择隔离 Chat 模型，创建 Knowledge 权限并在重开编辑器后验证开关与资料库授权持久化；同一隔离实例加载 Agent Manager、Chat 与 Knowledge 引用入口；设置页确认 `E2E Local Mock` Profile 已加载，mock 同时提供 Chat 和 Embedding 模型。
+- 验证结果：2 个 spec、5 个真实 Tauri 测试通过；全程使用 `.dev-data/tauri-e2e-*` 隔离目录，未读取用户默认 appData、真实模型密钥或外部端点。
+
+Windows 原生选择器集成记录（2026-07-19）：
+
+- 运行基线按当前 Windows 10 环境确定；未引入 WinAppDriver/Appium。新增 `tests/windows-ui-automation/AioHub.NativeUi`，使用 FlaUI UIA3 直接操作系统文件/目录对话框，并提供不操作窗口的 `probe` 环境检查。
+- `bun run test:tauri:e2e:native` 作为 opt-in 入口：构建 helper、创建隔离文件/目录 fixture、向 WDIO 传递 helper/fixture 路径并启用 `native-file-dialog.spec.ts`；普通 Tauri E2E 不增加 .NET 前置要求。
+- WDIO 通过只读 `wa_get_self_pid` 获取当前实例 PID，避免残留 debug 实例导致 helper 命中错误对话框；路径、文件名和确认动作分别使用地址栏/文件名 `ValuePattern` 与按钮 `InvokePattern`，不依赖本地化标题或固定坐标。
+- Windows 10 `10.0.19045` 实测 `native-file-dialog.spec.ts` 2/2 通过：文件选择后文档成功落库并显示，目录选择后持久来源成功新增。原生动作前保存有界 UIA 树，失败时保存桌面截图。
+- 实测同时修复队列导入完成后未刷新资料库/文档状态的问题。该层只完成系统选择器，绝对路径拖放仍需后续通过 Explorer 真实文件项和指针拖动补齐。
 
 ## 10. 全链路验收矩阵
 

@@ -24,6 +24,7 @@ import type { ToolCallingProtocol } from "../core/protocols/base";
 import { VcpToolCallingProtocol } from "../core/protocols/vcp-protocol";
 import { createToolDiscoveryService } from "../core/discovery";
 import { formatResultsForContext, processToolCallCycle } from "../core/engine";
+import type { ToolContext } from "@/services/types";
 
 const toolDiscovery = createToolDiscoveryService();
 const defaultProtocol: ToolCallingProtocol = new VcpToolCallingProtocol();
@@ -44,12 +45,14 @@ export function useToolCalling() {
     onBeforeExecute?: (
       request: ParsedToolRequest
     ) => Promise<ToolApprovalResult | boolean>,
-    onStatusChange?: (requestId: string, status: ToolCallStatus) => void
+    onStatusChange?: (requestId: string, status: ToolCallStatus) => void,
+    agent?: ToolContext["agent"]
   ): Promise<ToolCallCycleResult> => {
     const protocol = resolveProtocol(config.protocol);
     return await processToolCallCycle(assistantText, {
       protocol,
       config,
+      agent,
       onBeforeExecute,
       onStatusChange,
     });

@@ -90,8 +90,8 @@ describe("Agent Knowledge import/export", () => {
       unknown
     >;
     expect(options.knowledgeAccess).toEqual({
-      enabled: true,
-      allowedLibraryIds: ["library-1"],
+      enabled: false,
+      allowedLibraryIds: [],
       allowSearchAll: false,
       allowDocumentRead: false,
       allowResearch: false,

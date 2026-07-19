@@ -330,6 +330,7 @@ export default mergeConfig(
         "**/.kilocode/**",
         "**/.roo/**",
         "**/.jj/**",
+        "tests/tauri-e2e/**",
       ],
     },
   })

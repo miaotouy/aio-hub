@@ -27,7 +27,12 @@
       'drop-zone--click-zone': clickZone,
       [`drop-zone--${variant}`]: !bare && variant,
     }"
+    :role="clickable && clickZone ? 'button' : undefined"
+    :tabindex="clickable && clickZone && !disabled ? 0 : undefined"
+    :aria-disabled="clickable && clickZone ? disabled : undefined"
     @click="handleZoneClick"
+    @keydown.enter.prevent="handleZoneKeydown"
+    @keydown.space.prevent="handleZoneKeydown"
   >
     <!-- 默认内容区域 -->
     <template v-if="!hideContent">
@@ -63,7 +68,7 @@
       class="drop-zone__drag-overlay"
     >
       <el-icon :size="48"><Upload /></el-icon>
-      <span>松开以添加</span>
+      <span>{{ dragOverlayText }}</span>
     </div>
   </div>
 </template>
@@ -109,6 +114,8 @@ interface Props {
   fileOnly?: boolean;
   /** 接受的文件后缀列表，如 ['.png', '.jpg'] */
   accept?: string[];
+  /** 允许未知扩展名继续交给业务层检测 */
+  allowUnknownExtensions?: boolean;
   /** 是否把 H5 原生拖放得到的 File 对象通过 files-dropped 事件抛出 */
   emitFiles?: boolean;
 
@@ -127,6 +134,8 @@ interface Props {
   hideContent?: boolean;
   /** 拖拽悬停时是否显示内置的半透明覆盖提示层 */
   showOverlayOnDrag?: boolean;
+  /** 拖拽覆盖层的业务提示 */
+  dragOverlayText?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -140,6 +149,7 @@ const props = withDefaults(defineProps<Props>(), {
   directoryOnly: false,
   fileOnly: false,
   accept: () => [],
+  allowUnknownExtensions: false,
   emitFiles: false,
   silent: false,
   variant: "default",
@@ -147,6 +157,7 @@ const props = withDefaults(defineProps<Props>(), {
   overlay: false,
   hideContent: false,
   showOverlayOnDrag: false,
+  dragOverlayText: "松开以添加",
 });
 
 const emit = defineEmits<{
@@ -168,6 +179,7 @@ const { isDraggingOver } = useFileDrop({
   directoryOnly: props.directoryOnly,
   fileOnly: props.fileOnly,
   accept: props.accept,
+  allowUnknownExtensions: props.allowUnknownExtensions,
   validator: props.validator,
   silent: props.silent,
   onDrop: (paths) => {
@@ -224,6 +236,11 @@ const handleZoneClick = async (e: MouseEvent) => {
   if (props.clickable && props.clickZone) {
     await openFileDialog();
   }
+};
+
+const handleZoneKeydown = async () => {
+  if (props.disabled || !props.clickable || !props.clickZone) return;
+  await openFileDialog();
 };
 
 // 暴露状态
@@ -330,6 +347,17 @@ defineExpose({
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .drop-zone,
+  .drop-zone__icon {
+    transition: none;
+  }
+
+  .drop-zone--dragging:not(.drop-zone--bare)::after {
+    animation: none;
+  }
+}
+
 /* 拖拽时的内置覆盖层 */
 .drop-zone__drag-overlay {
   position: absolute;
@@ -342,7 +370,7 @@ defineExpose({
   gap: 12px;
   z-index: 100;
   border-radius: inherit;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(var(--ui-blur));
   background-color: color-mix(in srgb, var(--el-color-primary) 5%, transparent);
   border: 2px dashed var(--el-color-primary);
   pointer-events: none;

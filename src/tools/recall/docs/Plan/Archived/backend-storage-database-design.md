@@ -1,9 +1,9 @@
 # Recall / Knowledge 后端存储数据库化设计调查
 
-**状态**: 调查完成，依赖已复核，施工步骤已迁至统一计划
+**状态**: 已归档；调查与依赖复核完成，施工步骤已迁至统一计划
 **实现状态**: Recall SQLite 真源与 Knowledge `.kdb + FTS5` 过渡实现已完成；首次启动迁移接线和最终发布验收仍待执行
 **创建日期**: 2026-06-23
-**最近修订**: 2026-07-18
+**最近修订**: 2026-07-19
 **适用范围**: `src/tools/recall/`、`src-tauri/src/recall/`、`src/tools/knowledge-base/`、`src-tauri/src/knowledge/`
 
 ---
@@ -17,7 +17,7 @@
 - 不再使用“冷知识库 / coldKnowledge”作为产品命名或长期 API 命名。此前文档中的 cold knowledge 语义统一改为 **Knowledge / 知识资料库**。
 - 数据库化已按统一计划完成主体施工，并在迁移阶段一次性完成命名和 schema 转换；旧文件目录里的 `knowledge` / `kb_*` 仅保留在 legacy importer、migration 和兼容夹具中。
 - 现有 CAIU 实现整体迁入 Recall，原 `knowledge-base` 只保留为未来 Knowledge 资料库入口。数据库、内部 repository、新类型和 UI 文案使用 `recall` 与 `knowledge`，不再新增 `thought_*` 或 `kb_*` 长期命名。
-- 具体领域切割、配置迁移和发布顺序统一记录在 [Recall / Knowledge 领域拆分与重构实施计划](./recall-knowledge-domain-restructure-implementation-plan.md)。
+- 具体领域切割、配置迁移和发布顺序统一记录在 [Recall / Knowledge 领域拆分与重构实施计划](../recall-knowledge-domain-restructure-implementation-plan.md)。
 - 数据库化施工前已按 [重构前按库备份与恢复功能计划](./pre-restructure-library-backup-import-export-plan.md) 完成现有文件存储的真实备份往返；该能力未单独发布中间版本，其 `.aio-kb` v1 契约已作为后续迁移器的正式输入之一。
 - Stage 6 最终采用本调查允许的 SQLite manifest、每库独立 `.kdb` 与 FTS5 过渡实现；TriviumDB 和文件夹 watcher 未进入当前运行路径，也不构成首次统一发布的阻塞项。
 
@@ -756,7 +756,7 @@ pub trait RecallRepository: Send + Sync {
 
 ## 8. 迁移约束
 
-本调查只记录数据库迁移必须满足的不变量，不维护施工阶段。具体步骤、发布边界和完成门槛见 [Recall / Knowledge 领域拆分与重构实施计划](./recall-knowledge-domain-restructure-implementation-plan.md)。
+本调查只记录数据库迁移必须满足的不变量，不维护施工阶段。具体步骤、发布边界和完成门槛见 [Recall / Knowledge 领域拆分与重构实施计划](../recall-knowledge-domain-restructure-implementation-plan.md)。
 
 约束如下：
 
@@ -920,7 +920,7 @@ WHERE collection_id = ? AND entry_id = ? AND content_hash = ?
 
 ## 12. 实施关系
 
-数据库调查不再维护 Recall 数据库化和 Knowledge 实验线的具体顺序。统一施工阶段、发布边界、依赖启用时机和完成门槛见 [Recall / Knowledge 领域拆分与重构实施计划](./recall-knowledge-domain-restructure-implementation-plan.md)。
+数据库调查不再维护 Recall 数据库化和 Knowledge 实验线的具体顺序。统一施工阶段、发布边界、依赖启用时机和完成门槛见 [Recall / Knowledge 领域拆分与重构实施计划](../recall-knowledge-domain-restructure-implementation-plan.md)。
 
 ---
 

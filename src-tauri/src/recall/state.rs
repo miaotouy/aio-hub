@@ -19,7 +19,7 @@ use crate::recall::search::{
     AssociativeRecallEngine, BlenderRetrievalEngine, KeywordRetrievalEngine, LensRetrievalEngine,
     SemanticRecallEngine, VectorRetrievalEngine,
 };
-use crate::recall::storage::{RecallRepository, SqliteRecallRepository};
+use crate::recall::storage::{LegacyFileRecallImporter, RecallRepository, SqliteRecallRepository};
 use crate::recall::tag_pool::GlobalTagPoolManager;
 use std::collections::HashMap;
 use std::path::Path;
@@ -96,6 +96,37 @@ impl RecallState {
 
         let repository = SqliteRecallRepository::new(app_data_dir);
         repository.initialize()?;
+        let importer = LegacyFileRecallImporter::new(app_data_dir, repository.clone());
+        if importer.has_legacy_source() {
+            let report = importer.import()?;
+            if report.main_status != "completed" {
+                return Err(format!(
+                    "旧 Recall 主数据迁移未完整完成（集合 {}/{}, 条目 {}/{}, 跳过 {}, 问题 {}），已阻止进入可写态",
+                    report.migrated_collections,
+                    report.source_collections,
+                    report.migrated_entries,
+                    report.source_entries,
+                    report.skipped_entries,
+                    report.issues.len()
+                ));
+            }
+            if report.vector_status != "completed" {
+                log::warn!(
+                    "[Recall] 旧向量迁移未完整完成，Recall 将使用已迁移主数据并等待向量重建: {}/{} migrated, {} pending, {} issues",
+                    report.migrated_vectors,
+                    report.source_vectors,
+                    report.pending_vectors,
+                    report.issues.len()
+                );
+            } else {
+                log::info!(
+                    "[Recall] 旧数据迁移完成: {} collections, {} entries, {} vectors",
+                    report.migrated_collections,
+                    report.migrated_entries,
+                    report.migrated_vectors
+                );
+            }
+        }
         warmup_recall_repository(&repository, &self.imdb, &self.tag_pool)?;
 
         let mut slot = self
@@ -139,7 +170,66 @@ impl Default for RecallState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::recall::core::{RecallCollectionMeta, RecallEntry, VectorizationMeta};
+    use crate::recall::io::{get_recall_dir, get_recall_entries_dir};
+    use std::fs;
     use tempfile::tempdir;
+    use uuid::Uuid;
+
+    fn write_legacy_collection(app_data_dir: &Path) -> (Uuid, Uuid) {
+        let recall_id = Uuid::new_v4();
+        let entry_id = Uuid::new_v4();
+        let meta = RecallCollectionMeta {
+            id: recall_id,
+            name: "旧集合".to_string(),
+            description: None,
+            created_at: 1,
+            updated_at: 2,
+            author: None,
+            vectorization: VectorizationMeta {
+                is_indexed: false,
+                last_indexed_at: None,
+                model_used: String::new(),
+                dimension: 0,
+                total_tokens: 0,
+            },
+            models: Vec::new(),
+            tags: Vec::new(),
+            icon: None,
+            entries: Vec::new(),
+            config: serde_json::json!({}),
+        };
+        let entry = RecallEntry {
+            id: entry_id,
+            key: "legacy-key".to_string(),
+            content: "legacy-content".to_string(),
+            summary: "legacy-summary".to_string(),
+            core_tags: Vec::new(),
+            tags: Vec::new(),
+            assets: Vec::new(),
+            priority: 100,
+            enabled: true,
+            created_at: 3,
+            updated_at: 4,
+            error_message: None,
+            content_hash: Some("legacy-hash".to_string()),
+            refs: Vec::new(),
+            ref_by: Vec::new(),
+        };
+        let entries_dir = get_recall_entries_dir(app_data_dir, &recall_id.to_string());
+        fs::create_dir_all(&entries_dir).unwrap();
+        fs::write(
+            get_recall_dir(app_data_dir, &recall_id.to_string()).join("meta.json"),
+            serde_json::to_vec(&meta).unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            entries_dir.join(format!("{entry_id}.json")),
+            serde_json::to_vec(&entry).unwrap(),
+        )
+        .unwrap();
+        (recall_id, entry_id)
+    }
 
     #[test]
     fn initialization_is_idempotent() {
@@ -154,6 +244,61 @@ mod tests {
         assert!(Arc::ptr_eq(&first, &second));
         assert!(first.main_db_path().is_file());
         assert!(first.vector_db_path().is_file());
+    }
+
+    #[test]
+    fn initialization_migrates_legacy_data_before_warmup() {
+        let directory = tempdir().unwrap();
+        let (recall_id, entry_id) = write_legacy_collection(directory.path());
+        let state = RecallState::new();
+
+        state.initialize(directory.path()).unwrap();
+
+        let repository = state.repository().unwrap();
+        assert_eq!(
+            repository
+                .load_entry(recall_id, entry_id)
+                .unwrap()
+                .unwrap()
+                .content,
+            "legacy-content"
+        );
+        assert!(state.imdb.read().unwrap().bases.contains_key(&recall_id));
+        let report = LegacyFileRecallImporter::new(
+            directory.path(),
+            SqliteRecallRepository::new(directory.path()),
+        )
+        .inspect()
+        .unwrap()
+        .unwrap();
+        assert_eq!(report.main_status, "completed");
+
+        let restarted_state = RecallState::new();
+        restarted_state.initialize(directory.path()).unwrap();
+        assert_eq!(
+            restarted_state
+                .repository()
+                .unwrap()
+                .load_entry(recall_id, entry_id)
+                .unwrap()
+                .unwrap()
+                .content,
+            "legacy-content"
+        );
+    }
+
+    #[test]
+    fn initialization_blocks_write_state_after_partial_main_migration() {
+        let directory = tempdir().unwrap();
+        let invalid_collection = get_recall_dir(directory.path(), &Uuid::new_v4().to_string());
+        fs::create_dir_all(&invalid_collection).unwrap();
+        fs::write(invalid_collection.join("meta.json"), b"not-json").unwrap();
+        let state = RecallState::new();
+
+        let error = state.initialize(directory.path()).unwrap_err();
+
+        assert!(error.contains("已阻止进入可写态"));
+        assert!(state.repository().is_err());
     }
 
     #[test]

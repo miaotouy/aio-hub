@@ -327,6 +327,7 @@ defineExpose({
       ref="textareaEl"
       v-model="localValue"
       class="chat-textarea-editor"
+      data-testid="chat-message-editor"
       :class="{ disabled }"
       :placeholder="placeholder"
       :disabled="disabled"

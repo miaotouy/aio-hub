@@ -204,6 +204,7 @@ defineExpose({
 <template>
   <div
     class="agent-editor"
+    data-testid="agent-editor"
     :class="{
       'sidebar-collapsed': isSidebarCollapsed,
       'mobile-mode': isMobileMode,
@@ -237,6 +238,8 @@ defineExpose({
           v-for="tab in agentEditTabs"
           :key="tab.id"
           class="sidebar-item"
+          data-testid="agent-editor-tab"
+          :data-tab-id="tab.id"
           :class="{ active: activeTab === tab.id }"
           @click="activeTab = tab.id"
         >
@@ -263,10 +266,8 @@ defineExpose({
           <PersonalitySection v-show="activeTab === 'personality'" />
           <CapabilitiesSection v-show="activeTab === 'capabilities'" />
           <SessionVariableSection v-show="activeTab === 'variables'" />
-          <template v-if="activeTab === 'knowledge'">
-            <RecallSection />
-            <KnowledgeLibrarySection />
-          </template>
+          <RecallSection v-if="activeTab === 'recall'" />
+          <KnowledgeLibrarySection v-if="activeTab === 'knowledge'" />
           <ToolCallingSection v-show="activeTab === 'tool-calling'" />
           <EnvironmentSection
             v-show="activeTab === 'environment-enhancement'"

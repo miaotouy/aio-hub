@@ -16,7 +16,7 @@
 //
 // 实现 ImplementationPlan.md 中描述的命令集：
 //   wa_get_windows / wa_get_pixel / wa_capture_window / wa_send_click
-//   wa_send_keypress / wa_get_client_rect / wa_is_window_valid
+//   wa_send_keypress / wa_get_client_rect / wa_is_window_valid / wa_get_self_pid
 //
 // 本模块只在 Windows 上编译（由 commands.rs 的 #[cfg(windows)] 守卫保证）。
 
@@ -240,6 +240,12 @@ pub fn wa_get_windows(exclude_self: Option<bool>) -> Result<Vec<WaWindowInfo>, S
     }
     .map_err(|e| format!("枚举窗口失败: {}", e))?;
     Ok(ctx.result)
+}
+
+/// 返回当前 AIO Hub 进程 ID，供窗口绑定和原生测试精确限定实例。
+#[tauri::command]
+pub fn wa_get_self_pid() -> u32 {
+    get_self_pid()
 }
 
 /// 后台取色：使用窗口 DC 的 GetPixel。

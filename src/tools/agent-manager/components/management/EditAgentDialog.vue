@@ -34,7 +34,10 @@ import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUt
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { createDefaultChatRegexConfig } from "@/tools/llm-chat/types/chatRegex";
 import { DEFAULT_TOOL_CALL_CONFIG } from "../../types/agent";
-import { DEFAULT_AGENT_KNOWLEDGE_ACCESS } from "@/tools/knowledge-base/access";
+import {
+  DEFAULT_AGENT_KNOWLEDGE_ACCESS,
+  normalizeAgentKnowledgeAccess,
+} from "@/tools/knowledge-base/services/access";
 import AgentEditor from "../agent-editor/AgentEditor.vue";
 import MiniAgentList from "./MiniAgentList.vue";
 import type {
@@ -223,6 +226,9 @@ const loadFormData = async () => {
   if (editForm.profileId && editForm.modelId) {
     editForm.modelCombo = `${editForm.profileId}:${editForm.modelId}`;
   }
+  editForm.knowledgeAccess = normalizeAgentKnowledgeAccess(
+    editForm.knowledgeAccess
+  );
 };
 
 const agentListVisible = ref(false);
@@ -439,8 +445,14 @@ const handleSave = (
           </template>
         </div>
         <div class="footer-right">
-          <el-button @click="handleClose">取消</el-button>
-          <el-button type="primary" @click="handleSave()">
+          <el-button data-testid="agent-editor-cancel" @click="handleClose">
+            取消
+          </el-button>
+          <el-button
+            type="primary"
+            data-testid="agent-editor-save"
+            @click="handleSave()"
+          >
             {{ mode === "edit" ? "保存修改" : "立即创建" }}
           </el-button>
         </div>

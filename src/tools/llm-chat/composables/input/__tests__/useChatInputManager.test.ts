@@ -15,6 +15,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { computed, ref } from "vue";
 import type { Asset } from "@/types/asset-management";
+import type { KnowledgeReference } from "@/tools/knowledge-base/types";
 
 const attachments = ref<Asset[]>([]);
 const syncStateMock = vi.fn();
@@ -99,6 +100,16 @@ function createAsset(id: string): Asset {
   };
 }
 
+function createKnowledgeReference(id: string): KnowledgeReference {
+  return {
+    schemaVersion: 1,
+    type: "knowledge",
+    libraryIds: [id],
+    mode: "search",
+    libraries: [{ id, name: `Library ${id}`, availability: "available" }],
+  };
+}
+
 describe("useChatInputManager session drafts", () => {
   beforeEach(() => {
     attachments.value = [];
@@ -143,5 +154,25 @@ describe("useChatInputManager session drafts", () => {
     expect(
       manager.getDraftSnapshot("session-b").attachments.map((item) => item.id)
     ).toEqual(["asset-move"]);
+  });
+
+  it("keeps Knowledge references isolated per session and clears them after send", () => {
+    const manager = useChatInputManager();
+    const reference = createKnowledgeReference("library-a");
+
+    manager.setActiveSessionId("session-a");
+    manager.setContent("query a");
+    manager.setKnowledgeReference(reference);
+    manager.setActiveSessionId("session-b");
+
+    expect(manager.knowledgeReference.value).toBeNull();
+    expect(manager.getDraftSnapshot("session-a").knowledgeReference).toEqual(
+      reference
+    );
+
+    manager.setActiveSessionId("session-a");
+    manager.clear("session-a");
+    expect(manager.knowledgeReference.value).toBeNull();
+    expect(manager.getDraftSnapshot("session-a").knowledgeReference).toBeNull();
   });
 });

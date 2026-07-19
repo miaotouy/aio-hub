@@ -7,19 +7,35 @@
           {{ knowledgeListMacro }} 只在预设放置位置列出授权目录
         </div>
       </div>
-      <el-switch v-model="editForm.knowledgeAccess.enabled" />
+      <el-switch
+        v-model="editForm.knowledgeAccess.enabled"
+        data-testid="agent-knowledge-enabled"
+        aria-label="启用 Knowledge 资料访问权限"
+      />
     </div>
 
     <template v-if="editForm.knowledgeAccess.enabled">
       <div class="domain-settings">
         <el-form-item label="允许省略资料库范围">
-          <el-switch v-model="editForm.knowledgeAccess.allowSearchAll" />
+          <el-switch
+            v-model="editForm.knowledgeAccess.allowSearchAll"
+            data-testid="agent-knowledge-search-all"
+            aria-label="允许全库搜索"
+          />
         </el-form-item>
         <el-form-item label="允许继续读取文档">
-          <el-switch v-model="editForm.knowledgeAccess.allowDocumentRead" />
+          <el-switch
+            v-model="editForm.knowledgeAccess.allowDocumentRead"
+            data-testid="agent-knowledge-document-read"
+            aria-label="允许继续读取文档"
+          />
         </el-form-item>
         <el-form-item label="允许高成本研究任务">
-          <el-switch v-model="editForm.knowledgeAccess.allowResearch" />
+          <el-switch
+            v-model="editForm.knowledgeAccess.allowResearch"
+            data-testid="agent-knowledge-research"
+            aria-label="允许研究任务"
+          />
         </el-form-item>
       </div>
 
@@ -38,13 +54,28 @@
             trigger="click"
           >
             <template #reference>
-              <el-button type="primary" link :icon="Plus">添加资料库</el-button>
+              <el-button
+                type="primary"
+                link
+                :icon="Plus"
+                data-testid="agent-knowledge-add-library"
+                aria-label="添加资料库授权"
+              >添加资料库</el-button>
             </template>
             <div class="library-options">
+              <el-input
+                v-model="librarySearch"
+                :prefix-icon="Search"
+                placeholder="搜索资料库"
+                clearable
+                size="small"
+              />
               <button
                 v-for="library in availableLibraries"
                 :key="library.id"
                 type="button"
+                data-testid="agent-knowledge-library-option"
+                :data-library-id="library.id"
                 @click="addLibrary(library)"
               >
                 <span>{{ library.name }}</span>
@@ -60,7 +91,12 @@
         </header>
 
         <div v-if="authorizedLibraries.length" class="binding-list">
-          <article v-for="library in authorizedLibraries" :key="library.id">
+          <article
+            v-for="library in authorizedLibraries"
+            :key="library.id"
+            data-testid="agent-knowledge-authorized-library"
+            :data-library-id="library.id"
+          >
             <div class="binding-identity">
               <BookOpenText :size="18" />
               <div>
@@ -77,17 +113,21 @@
               {{
                 library.availability === "available"
                   ? `${library.documentCount} 个来源`
-                  : "已删除"
+                  : library.availability === "deleted"
+                    ? "已删除"
+                    : "暂时不可用"
               }}
             </el-tag>
             <el-tooltip content="撤销授权" placement="left">
-              <el-button
-                :icon="Trash2"
-                text
-                circle
-                aria-label="撤销资料库授权"
-                @click="removeLibrary(library.id)"
-              />
+              <div>
+                <el-button
+                  :icon="Trash2"
+                  text
+                  circle
+                  aria-label="撤销资料库授权"
+                  @click="removeLibrary(library.id)"
+                />
+              </div>
             </el-tooltip>
           </article>
         </div>
@@ -99,17 +139,19 @@
 
 <script setup lang="ts">
 import { computed, inject, onMounted, ref } from "vue";
-import { BookOpenText, Plus, Trash2 } from "lucide-vue-next";
+import { BookOpenText, Plus, Search, Trash2 } from "lucide-vue-next";
 import {
   DEFAULT_AGENT_KNOWLEDGE_ACCESS,
   normalizeAgentKnowledgeAccess,
-} from "@/tools/knowledge-base/access";
-import { useKnowledgeStore } from "@/tools/knowledge-base/store";
+  resolveAuthorizedKnowledgeLibraries,
+} from "@/tools/knowledge-base/services/access";
+import { useKnowledgeStore } from "@/tools/knowledge-base/stores/store";
 import type { KnowledgeLibrary } from "@/tools/knowledge-base/types";
 
 const editForm = inject<any>("agent-edit-form");
 const store = useKnowledgeStore();
 const showSelector = ref(false);
+const librarySearch = ref("");
 const knowledgeListMacro = "{{knowledge_list}}";
 
 editForm.knowledgeAccess = normalizeAgentKnowledgeAccess(
@@ -120,26 +162,27 @@ const allowedLibraryIds = computed<string[]>(
   () => editForm.knowledgeAccess.allowedLibraryIds
 );
 const authorizedLibraries = computed(() => {
-  const byId = new Map(store.libraries.map((library) => [library.id, library]));
-  return allowedLibraryIds.value.map((id) => {
-    const library = byId.get(id);
-    return library
-      ? { ...library, availability: "available" as const }
-      : {
-          id,
-          name: "已删除的资料库",
-          documentCount: 0,
-          availability: "deleted" as const,
-        };
-  });
+  return resolveAuthorizedKnowledgeLibraries(
+    editForm.knowledgeAccess,
+    store.libraries,
+    { unavailable: Boolean(store.initializationError) }
+  );
 });
 const availableLibraries = computed(() => {
   const existing = new Set(allowedLibraryIds.value);
-  return store.libraries.filter((library) => !existing.has(library.id));
+  const query = librarySearch.value.trim().toLowerCase();
+  return store.libraries.filter(
+    (library) =>
+      !existing.has(library.id) &&
+      (!query ||
+        library.name.toLowerCase().includes(query) ||
+        library.id.toLowerCase().includes(query))
+  );
 });
 
 function addLibrary(library: KnowledgeLibrary) {
   allowedLibraryIds.value.push(library.id);
+  librarySearch.value = "";
   showSelector.value = false;
 }
 
@@ -149,7 +192,9 @@ function removeLibrary(libraryId: string) {
 }
 
 onMounted(() => {
-  if (!store.libraries.length) void store.initialize();
+  if (!store.libraries.length) {
+    void store.initialize();
+  }
 });
 </script>
 

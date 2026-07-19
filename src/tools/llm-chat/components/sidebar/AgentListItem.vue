@@ -135,6 +135,8 @@ const handleRefreshFromFile = async () => {
 <template>
   <div
     class="agent-item"
+    data-testid="chat-agent-item"
+    :data-agent-id="agent.id"
     :class="{ selected }"
     @click="$emit('select', agent.id)"
     @mouseenter="isHovered = true"

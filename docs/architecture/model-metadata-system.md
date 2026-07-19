@@ -446,6 +446,8 @@ getModelIconPath(rules, modelId, provider):
  model-metadata-presets.ts ─────────→ tokenCalculatorEngine.ts（Worker，降级可接受）
 ```
 
+上图中的非 Vue 运行时读取是当前遗留实现，不是新增消费方的推荐入口。后续迁移以 [`model-metadata-system-optimization-plan.md`](../Plan/model-metadata-system-optimization-plan.md) 为准；新代码不得继续扩大实时全局规则的运行时读取范围。
+
 ---
 
 ## 8. 与其他模块的集成点
@@ -457,7 +459,7 @@ getModelIconPath(rules, modelId, provider):
 | [`src/tools/token-calculator/composables/useTokenCalculatorState.ts`](../../src/tools/token-calculator/composables/useTokenCalculatorState.ts) | `getActiveModelProperties()`                       | 匹配 `tokenizer` 字段选择计算策略                              |
 | [`src/tools/token-calculator/tokenCalculator.registry.ts`](../../src/tools/token-calculator/tokenCalculator.registry.ts)                       | `getActiveModelProperties()`                       | 提供跨模块 Token 计算服务时匹配分词器                          |
 | [`src/views/Settings/llm-service/components/ModelEditDialog.vue`](../../src/views/Settings/llm-service/components/ModelEditDialog.vue)         | `useModelMetadata().getMatchedProperties()`        | "应用预设"按钮：根据模型 ID 自动填充 capabilities、icon 等属性 |
-| [`src/tools/media-generator/`](../../src/tools/media-generator/)                                                                               | `getActiveModelProperties()` 读取 `mediaGenParams` | 渲染图像生成 UI 时根据元数据约束显示参数控件                   |
+| [`src/tools/media-generator/`](../../src/tools/media-generator/)                                                                               | 运行时读取具体模型对象的 `mediaGenParams`          | 渲染参数控件并在请求前清理不支持的参数；全局规则只用于诊断对照 |
 
 ---
 
@@ -468,13 +470,13 @@ getModelIconPath(rules, modelId, provider):
 1. 在 [`src/types/model-metadata.ts`](../../src/types/model-metadata.ts) 的 `ModelMetadataProperties` 接口中添加字段定义和 JSDoc 注释
 2. 在 [`src/views/Settings/model-metadata/components/ModelMetadataConfigEditor.vue`](../../src/views/Settings/model-metadata/components/ModelMetadataConfigEditor.vue) 的"扩展属性"折叠区中添加对应表单控件
 3. 在 `cleanProperties()` 中处理新字段的清理逻辑（避免存储无意义的空值）
-4. 在消费方通过 `getActiveModelProperties()` 或 `useModelMetadata().getModelProperty()` 读取新字段
+4. 在模型创建、导入、刷新或显式应用预设时把字段写入模型对象；运行时消费方读取模型对象，不新增全局规则兜底
 
 ### 9.2 添加新的 `MediaGenParamRules` 参数
 
 1. 在 [`src/types/model-metadata.ts`](../../src/types/model-metadata.ts) 的 `MediaGenParamRules` 接口中添加字段
 2. 在 [`src/views/Settings/model-metadata/components/MediaGenParamsEditor.vue`](../../src/views/Settings/model-metadata/components/MediaGenParamsEditor.vue) 的 `supportableParams` 数组中注册新参数（含 `key`、`label`、`type`）
-3. 在媒体生成器的参数构建逻辑中读取并应用新约束
+3. 在媒体生成器中从具体模型对象的 `mediaGenParams` 读取并应用新约束
 
 ### 9.3 添加新的预设内置规则
 

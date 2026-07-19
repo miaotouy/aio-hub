@@ -54,6 +54,8 @@ import type {
   JsonPatchOperation,
 } from "@/types/window-sync";
 import type { ModelIdentifier } from "../../types";
+import type { KnowledgeReference } from "@/tools/knowledge-base/types";
+import { normalizeKnowledgeReference } from "@/tools/knowledge-base/services/reference";
 import {
   generateAssetPlaceholder,
   generateUploadingPlaceholder,
@@ -72,13 +74,14 @@ const FALLBACK_DRAFT_SESSION_ID = "__legacy_active__";
 interface ChatInputDraft {
   text: string;
   attachments: Asset[];
+  knowledgeReference?: KnowledgeReference | null;
   temporaryModel?: ModelIdentifier | null;
   continuationModel?: ModelIdentifier | null;
   timestamp: number;
 }
 
 interface ChatInputDraftStorage {
-  version: 2;
+  version: 3;
   activeSessionId: string | null;
   drafts: Record<string, ChatInputDraft>;
   draftClipboard?: ChatInputDraft | null;
@@ -105,6 +108,8 @@ class ChatInputManager {
   public temporaryModel: Ref<ModelIdentifier | null> = ref(null);
   // 续写指定的模型
   public continuationModel: Ref<ModelIdentifier | null> = ref(null);
+  // 当前会话草稿的显式 Knowledge 引用
+  public knowledgeReference: Ref<KnowledgeReference | null> = ref(null);
   // 全局草稿剪贴板
   public draftClipboard: Ref<ChatInputDraft | null> = ref(null);
   // 当前输入区绑定的会话；UI 仍消费上面的 ref，但 ref 内容来自该会话草稿
@@ -119,6 +124,7 @@ class ChatInputManager {
     attachments: [],
     temporaryModel: null,
     continuationModel: null,
+    knowledgeReference: null,
     draftClipboard: null,
     timestamp: Date.now(),
   });
@@ -235,6 +241,7 @@ class ChatInputManager {
       attachments: [...this.attachmentManager.attachments.value],
       temporaryModel: this.temporaryModel.value,
       continuationModel: this.continuationModel.value,
+      knowledgeReference: this.knowledgeReference.value,
       draftClipboard: this.draftClipboard.value,
       timestamp: Date.now(),
     };
@@ -244,6 +251,7 @@ class ChatInputManager {
       attachments: [...this.attachmentManager.attachments.value],
       temporaryModel: this.temporaryModel.value,
       continuationModel: this.continuationModel.value,
+      knowledgeReference: this.knowledgeReference.value,
       draftClipboard: this.draftClipboard.value,
       timestamp: Date.now(),
     };
@@ -377,6 +385,26 @@ class ChatInputManager {
       this.debouncedSaveToStorage();
     });
 
+    watch(
+      this.knowledgeReference,
+      (newReference) => {
+        if (!this.isApplyingSyncState && !this.isSwitchingDraft) {
+          this.markLocalChange();
+          this.saveCurrentDraftSnapshot();
+          this.syncState.value = {
+            ...this.syncState.value,
+            sessionId: this.activeSessionId.value,
+            knowledgeReference: normalizeKnowledgeReference(newReference),
+            draftClipboard: this.draftClipboard.value,
+            timestamp: Date.now(),
+          };
+          this.debouncedPushState();
+        }
+        this.debouncedSaveToStorage();
+      },
+      { deep: true }
+    );
+
     // 监听 syncState 变化，同步回 inputText 和附件（来自其他窗口的更新）
     watch(
       this.syncState,
@@ -388,6 +416,9 @@ class ChatInputManager {
             attachments: [...(newState.attachments || [])],
             temporaryModel: newState.temporaryModel || null,
             continuationModel: newState.continuationModel || null,
+            knowledgeReference: normalizeKnowledgeReference(
+              newState.knowledgeReference
+            ),
             timestamp: newState.timestamp || Date.now(),
           });
           this.debouncedSaveToStorage();
@@ -398,7 +429,10 @@ class ChatInputManager {
         // 我们不需要再同步回 inputText，否则会产生竞态
         if (
           !this.isApplyingSyncState &&
-          newState.text === this.inputText.value
+          newState.text === this.inputText.value &&
+          JSON.stringify(
+            normalizeKnowledgeReference(newState.knowledgeReference)
+          ) === JSON.stringify(this.knowledgeReference.value)
         ) {
           return;
         }
@@ -447,6 +481,19 @@ class ChatInputManager {
           this.continuationModel.value = newState.continuationModel || null;
           logger.debug("从同步状态更新续写模型", {
             model: newState.continuationModel,
+          });
+        }
+
+        const incomingReference = normalizeKnowledgeReference(
+          newState.knowledgeReference
+        );
+        if (
+          JSON.stringify(incomingReference) !==
+          JSON.stringify(this.knowledgeReference.value)
+        ) {
+          this.knowledgeReference.value = incomingReference;
+          logger.debug("从同步状态更新 Knowledge 引用", {
+            libraryCount: incomingReference?.libraryIds.length || 0,
           });
         }
 
@@ -549,6 +596,7 @@ class ChatInputManager {
       attachments: [],
       temporaryModel: null,
       continuationModel: null,
+      knowledgeReference: null,
       timestamp: Date.now(),
     };
   }
@@ -559,6 +607,7 @@ class ChatInputManager {
       attachments: [...(draft.attachments || [])],
       temporaryModel: draft.temporaryModel || null,
       continuationModel: draft.continuationModel || null,
+      knowledgeReference: normalizeKnowledgeReference(draft.knowledgeReference),
       timestamp: draft.timestamp || Date.now(),
     };
   }
@@ -583,7 +632,8 @@ class ChatInputManager {
       !draft.text &&
       (!draft.attachments || draft.attachments.length === 0) &&
       !draft.temporaryModel &&
-      !draft.continuationModel
+      !draft.continuationModel &&
+      !draft.knowledgeReference
     );
   }
 
@@ -594,6 +644,9 @@ class ChatInputManager {
       attachments: [...this.attachmentManager.attachments.value],
       temporaryModel: this.temporaryModel.value,
       continuationModel: this.continuationModel.value,
+      knowledgeReference: normalizeKnowledgeReference(
+        this.knowledgeReference.value
+      ),
       timestamp: Date.now(),
     });
   }
@@ -625,12 +678,16 @@ class ChatInputManager {
       this.attachmentManager.syncAttachments([...(draft.attachments || [])]);
       this.temporaryModel.value = draft.temporaryModel || null;
       this.continuationModel.value = draft.continuationModel || null;
+      this.knowledgeReference.value = normalizeKnowledgeReference(
+        draft.knowledgeReference
+      );
       this.syncState.value = {
         sessionId: this.activeSessionId.value,
         text: this.inputText.value,
         attachments: [...this.attachmentManager.attachments.value],
         temporaryModel: this.temporaryModel.value,
         continuationModel: this.continuationModel.value,
+        knowledgeReference: this.knowledgeReference.value,
         draftClipboard: this.draftClipboard.value,
         timestamp: draft.timestamp || Date.now(),
       };
@@ -779,6 +836,9 @@ class ChatInputManager {
       attachments: [...(incomingState.attachments || [])],
       temporaryModel: incomingState.temporaryModel || null,
       continuationModel: incomingState.continuationModel || null,
+      knowledgeReference: normalizeKnowledgeReference(
+        incomingState.knowledgeReference
+      ),
       timestamp: incomingState.timestamp || Date.now(),
     };
 
@@ -1018,7 +1078,7 @@ class ChatInputManager {
       }
 
       const storage: ChatInputDraftStorage = {
-        version: 2,
+        version: 3,
         activeSessionId: this.activeSessionId.value,
         drafts,
         draftClipboard: this.draftClipboard.value,
@@ -1129,6 +1189,7 @@ class ChatInputManager {
       this.updateDraft(sessionId, (draft) => {
         draft.text = "";
         draft.attachments = [];
+        draft.knowledgeReference = null;
       });
       logger.info("清空非当前会话输入草稿和附件", { sessionId: targetKey });
       return;
@@ -1136,13 +1197,33 @@ class ChatInputManager {
 
     this.inputText.value = "";
     this.attachmentManager.clearAttachments();
+    this.knowledgeReference.value = null;
     this.saveCurrentDraftSnapshot();
     // 清空 ID 变更历史，避免内存泄漏
     this.idUpdateLog.clear();
     // 注意：临时模型不在此处清除，保持"粘性"，允许用户连续使用同一模型发送多条消息
     // 立即保存清空状态
     this.saveToStorageImmediate();
-    logger.info("清空输入框和附件（保留临时模型）");
+    logger.info("清空输入框、附件和 Knowledge 引用（保留临时模型）");
+  }
+
+  setKnowledgeReference(reference: KnowledgeReference | null): void {
+    this.knowledgeReference.value = normalizeKnowledgeReference(reference);
+  }
+
+  removeKnowledgeLibrary(libraryId: string): void {
+    const current = this.knowledgeReference.value;
+    if (!current) return;
+    const remainingIds = current.libraryIds.filter((id) => id !== libraryId);
+    if (!remainingIds.length) {
+      this.knowledgeReference.value = null;
+      return;
+    }
+    this.knowledgeReference.value = {
+      ...current,
+      libraryIds: remainingIds,
+      libraries: current.libraries.filter((item) => item.id !== libraryId),
+    };
   }
 
   /**
@@ -1721,6 +1802,9 @@ class ChatInputManager {
       draft.attachments = [...clipboard.attachments];
       draft.temporaryModel = clipboard.temporaryModel;
       draft.continuationModel = clipboard.continuationModel;
+      draft.knowledgeReference = normalizeKnowledgeReference(
+        clipboard.knowledgeReference
+      );
     });
 
     this.draftClipboard.value = null;
@@ -1759,6 +1843,8 @@ export function useChatInputManager() {
     temporaryModel: manager.temporaryModel,
     /** 续写指定的模型 */
     continuationModel: manager.continuationModel,
+    /** 当前草稿中的显式 Knowledge 引用 */
+    knowledgeReference: manager.knowledgeReference,
     /** 当前绑定的会话 */
     activeSessionId: manager.activeSessionId,
     /** 切换输入区绑定会话 */
@@ -1795,6 +1881,10 @@ export function useChatInputManager() {
     getContent: manager.getContent.bind(manager),
     /** 清空输入框和附件 */
     clear: manager.clear.bind(manager),
+    /** 设置或清除显式 Knowledge 引用 */
+    setKnowledgeReference: manager.setKnowledgeReference.bind(manager),
+    /** 从显式 Knowledge 引用中移除一个资料库 */
+    removeKnowledgeLibrary: manager.removeKnowledgeLibrary.bind(manager),
     /** 准备要插入的占位符信息 */
     preparePlaceholderInsert: manager.preparePlaceholderInsert.bind(manager),
     /** 直接插入占位符（修改状态） */

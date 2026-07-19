@@ -3,7 +3,7 @@ import {
   type SearchWithCacheParams,
 } from "@/tools/recall/services/api";
 import type { RecallResult } from "@/tools/recall/types/search";
-import { searchKnowledge } from "@/tools/knowledge-base/service";
+import { searchKnowledge } from "@/tools/knowledge-base/services/service";
 import type {
   KnowledgeResult,
   KnowledgeSearchRequest,

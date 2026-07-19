@@ -30,6 +30,7 @@ import { useChatSettings } from "@/tools/llm-chat/composables/settings/useChatSe
 import { useMessageInputStore } from "../../stores/messageInputStore";
 import type { Asset } from "@/types/asset-management";
 import type { ModelIdentifier } from "@/tools/llm-chat/types";
+import type { KnowledgeReference } from "@/tools/knowledge-base/types";
 import { customMessage } from "@/utils/customMessage";
 import { useTranscriptionManager } from "@/tools/llm-chat/composables/features/useTranscriptionManager";
 import { createModuleLogger } from "@utils/logger";
@@ -39,6 +40,7 @@ import MessageInputToolbar from "./MessageInputToolbar.vue";
 import ChatCodeMirrorEditor from "./ChatCodeMirrorEditor.vue";
 import ChatTextareaEditor from "./ChatTextareaEditor.vue";
 import MessageInputAttachments from "./MessageInputAttachments.vue";
+import KnowledgeReferenceChips from "./KnowledgeReferenceChips.vue";
 
 // Composables
 import { useMessageInputResize } from "../../composables/input/useMessageInputResize";
@@ -96,6 +98,7 @@ interface Emits {
       content: string;
       attachments?: Asset[];
       temporaryModel?: ModelIdentifier | null;
+      knowledgeReference?: KnowledgeReference | null;
       disableMacroParsing?: boolean;
     }
   ): void;
@@ -119,8 +122,8 @@ const textareaRef = ref<
 >();
 const containerRef = ref<HTMLDivElement>();
 const headerRef = ref<InstanceType<typeof ComponentHeader>>();
-const attachmentsContainerRef = ref<HTMLDivElement>();
-const { height: attachmentsHeight } = useElementSize(attachmentsContainerRef);
+const extraContentRef = ref<HTMLDivElement>();
+const { height: extraContentHeight } = useElementSize(extraContentRef);
 const { height: containerHeight } = useElementSize(containerRef);
 
 // 状态
@@ -159,7 +162,7 @@ const {
 } = useMessageInputResize({
   isDetached: props.isDetached || false,
   textareaRef,
-  extraHeight: attachmentsHeight,
+  extraHeight: extraContentHeight,
   isExpanded,
   onResizeStart: () => {
     isExpanded.value = false;
@@ -492,6 +495,7 @@ const handleDragStart = (e: MouseEvent) => {
 <template>
   <div
     ref="containerRef"
+    data-testid="chat-message-input"
     :class="[
       'message-input-container',
       { 'detached-mode': isDetached, 'dragging-over': isDraggingOver },
@@ -531,25 +535,31 @@ const handleDragStart = (e: MouseEvent) => {
 
       <!-- 输入内容区 -->
       <div class="input-content">
-        <!-- 附件展示区 -->
         <div
-          v-if="attachmentManager.hasAttachments.value"
-          ref="attachmentsContainerRef"
+          v-if="
+            attachmentManager.hasAttachments.value ||
+            inputManager.knowledgeReference.value
+          "
+          ref="extraContentRef"
+          class="input-extra-content"
         >
-          <MessageInputAttachments
-            :attachments="attachmentManager.attachments.value"
-            :count="attachmentManager.count.value"
-            :max-count="attachmentManager.maxAttachmentCount"
-            :get-will-use-transcription="getWillUseTranscription"
-            @remove="attachmentManager.removeAttachment"
-            @clear="attachmentManager.clearAttachments"
-            @transcribe-all="inputStore.handleTranscribeAll"
-            @smart-transcribe-all="
-              inputStore.handleSmartTranscribeAll(getWillUseTranscription)
-            "
-            @force-transcribe-all="inputStore.handleForceTranscribeAll"
-            @stop-all="inputStore.handleStopAllTranscriptions"
-          />
+          <KnowledgeReferenceChips />
+          <div v-if="attachmentManager.hasAttachments.value">
+            <MessageInputAttachments
+              :attachments="attachmentManager.attachments.value"
+              :count="attachmentManager.count.value"
+              :max-count="attachmentManager.maxAttachmentCount"
+              :get-will-use-transcription="getWillUseTranscription"
+              @remove="attachmentManager.removeAttachment"
+              @clear="attachmentManager.clearAttachments"
+              @transcribe-all="inputStore.handleTranscribeAll"
+              @smart-transcribe-all="
+                inputStore.handleSmartTranscribeAll(getWillUseTranscription)
+              "
+              @force-transcribe-all="inputStore.handleForceTranscribeAll"
+              @stop-all="inputStore.handleStopAllTranscriptions"
+            />
+          </div>
         </div>
         <div class="input-wrapper">
           <ChatCodeMirrorEditor
@@ -706,6 +716,13 @@ const handleDragStart = (e: MouseEvent) => {
   flex-direction: column;
   gap: 12px;
   min-width: 0;
+}
+
+.input-extra-content {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .input-wrapper {

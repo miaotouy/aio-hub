@@ -25,7 +25,7 @@ import { customMessage } from "@/utils/customMessage";
 import { ElMessageBox } from "element-plus";
 import Avatar from "@/components/common/Avatar.vue";
 import EditAgentDialog from "./components/management/EditAgentDialog.vue";
-import type { ChatAgent } from "./types/agent";
+import type { AgentEditData, ChatAgent } from "./types/agent";
 import { AgentCategoryLabels } from "./types/agent";
 import {
   Plus,
@@ -115,6 +115,28 @@ const handleEditAgent = async (agent: ChatAgent) => {
   }
 };
 
+const handleSaveAgent = (
+  data: AgentEditData,
+  options: { silent?: boolean; agentId?: string } = {}
+) => {
+  if (editDialogMode.value === "edit") {
+    const agentId = options.agentId || selectedAgentForEdit.value?.id;
+    if (!agentId) return;
+    agentStore.updateAgent(agentId, data);
+    if (!options.silent) customMessage.success("智能体已更新");
+    return;
+  }
+
+  const agentId = agentStore.createAgent(
+    data.name,
+    data.profileId,
+    data.modelId,
+    data
+  );
+  void agentStore.ensurePresetAssetsImported(agentId);
+  customMessage.success(`智能体 "${data.name}" 创建成功`);
+};
+
 // 复制智能体
 const handleDuplicateAgent = async (agent: ChatAgent) => {
   const newId = await agentStore.duplicateAgent(agent.id);
@@ -152,7 +174,7 @@ const handleImportAgents = () => {
 </script>
 
 <template>
-  <div class="agent-manager-wrapper">
+  <div class="agent-manager-wrapper" data-testid="agent-manager">
     <div class="agent-manager-container">
       <!-- 头部操作区 -->
       <div class="manager-header">
@@ -161,7 +183,12 @@ const handleImportAgents = () => {
           <p class="subtitle">在这里发现、创建和管理你的专属 AI 智能体</p>
         </div>
         <div class="header-actions">
-          <el-button type="primary" :icon="Plus" @click="handleCreateAgent">
+          <el-button
+            type="primary"
+            :icon="Plus"
+            data-testid="agent-manager-create"
+            @click="handleCreateAgent"
+          >
             新建智能体
           </el-button>
           <el-button :icon="Upload" @click="handleImportAgents">
@@ -178,6 +205,7 @@ const handleImportAgents = () => {
           :prefix-icon="Search"
           clearable
           class="search-input"
+          data-testid="agent-manager-search"
         />
         <el-select
           v-model="selectedCategory"
@@ -199,7 +227,13 @@ const handleImportAgents = () => {
 
       <!-- 智能体网格列表 -->
       <div v-if="filteredAgents.length > 0" class="agent-grid">
-        <div v-for="agent in filteredAgents" :key="agent.id" class="agent-card">
+        <div
+          v-for="agent in filteredAgents"
+          :key="agent.id"
+          class="agent-card"
+          data-testid="agent-manager-card"
+          :data-agent-id="agent.id"
+        >
           <div class="card-body">
             <div class="agent-avatar-wrapper">
               <Avatar
@@ -234,7 +268,12 @@ const handleImportAgents = () => {
             </el-button>
             <div class="footer-right-actions">
               <el-tooltip content="编辑" placement="top">
-                <el-button link :icon="Edit" @click="handleEditAgent(agent)" />
+                <el-button
+                  link
+                  :icon="Edit"
+                  data-testid="agent-manager-edit"
+                  @click="handleEditAgent(agent)"
+                />
               </el-tooltip>
               <el-tooltip content="克隆" placement="top">
                 <el-button
@@ -270,6 +309,7 @@ const handleImportAgents = () => {
         v-model:visible="editDialogVisible"
         :mode="editDialogMode"
         :agent="selectedAgentForEdit"
+        @save="handleSaveAgent"
       />
     </div>
   </div>

@@ -222,6 +222,14 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build());
 
+    // Keep the WebdriverIO bridge and embedded driver out of release runtime behavior.
+    #[cfg(debug_assertions)]
+    {
+        builder = builder
+            .plugin(tauri_plugin_wdio::init())
+            .plugin(tauri_plugin_wdio_webdriver::init());
+    }
+
     #[cfg(not(debug_assertions))]
     let mut builder = builder;
     #[cfg(not(debug_assertions))]
@@ -338,6 +346,14 @@ pub fn run() {
             .title("AIO Hub")
             .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
             .min_inner_size(360.0, 112.0);
+
+            #[cfg(all(debug_assertions, target_os = "windows"))]
+            if let Ok(arguments) = std::env::var("AIO_WEBVIEW2_ADDITIONAL_BROWSER_ARGS") {
+                if !arguments.trim().is_empty() {
+                    win_builder = win_builder.additional_browser_args(&arguments);
+                    log::info!("[WEBVIEW] 已启用 debug-only WebView2 验收参数");
+                }
+            }
 
             if disable_drag_drop {
                 win_builder = win_builder.disable_drag_drop_handler();

@@ -107,16 +107,16 @@ mobile/src/tools/my-new-tool/
 ├── locales/                # 多语言包
 │   ├── zh-CN.json
 │   └── en-US.json
-├── registry.ts             # 移动端注册文件（固定名称）
+├── my-new-tool.registry.ts # 移动端注册文件
 └── ...
 ```
 
-### 3.2 实现注册逻辑 (`registry.ts`)
+### 3.2 实现注册逻辑 (`*.registry.ts`)
 
 移动端需要显式注册路由和语言包。
 
 ```typescript
-// mobile/src/tools/my-new-tool/registry.ts
+// mobile/src/tools/my-new-tool/my-new-tool.registry.ts
 import { registerToolLocales, useI18n } from "@/i18n";
 import { Braces } from "lucide-vue-next";
 import { markRaw } from "vue";
@@ -192,7 +192,7 @@ export default {
 2. **日志记录**: 必须使用 `createModuleLogger` 创建独立的日志记录器。
 3. **样式适配**:
    - 桌面端：优先使用 `var(--card-bg)` 等主题变量。
-   - 移动端：字体类必须使用 `rem` 单位以适配字体缩放；主题以 AIO Hub 项目 token 为主，Varlet 变量只作为兼容输出。
+   - 移动端：遵循[移动端 UI 开发指南](./mobile-ui-development.md)，主题以 AIO Hub 项目 token 为主，Varlet 变量只作为兼容输出。
 4. **测试与单测覆盖**:
    - 运行 `bun run t:d` (桌面端) 或 `bun run mtad` (Android) 进行实时预览。
    - 验证图标显示、多语言切换及核心逻辑是否正常。

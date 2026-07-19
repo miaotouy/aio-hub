@@ -1,57 +1,60 @@
 # 贡献指南
 
-欢迎为 AIO Hub 做出贡献！为了保持代码质量和协作效率，请遵循以下规范。
+本指南记录 AIO Hub 的通用开发与提交约定。脚本、依赖和版本以仓库当前文件为准。
 
-## 1. 代码规范
+## 1. 开始之前
 
-### 1.1 TypeScript / JavaScript
+- 包管理器使用 Bun。安装依赖前先确认根目录或对应 workspace 的 `package.json`。
+- 修改前阅读目标代码、相邻实现和相关架构文档，不要只根据目录名推断调用关系。
+- 桌面端、移动端和 `packages/` workspace 可能有不同脚本；优先运行各自 `package.json` 中已有的命令。
 
-- **Linter**: 项目使用 ESLint 和 Prettier。提交前请确保代码通过检查。
-- **类型安全**: 避免使用 `any`，除非万不得已。尽量定义清晰的 Interface 或 Type。
-- **命名**:
-  - 变量/函数: `camelCase`
-  - 类/组件: `PascalCase`
-  - 常量: `UPPER_SNAKE_CASE`
+## 2. 代码规范
 
-### 1.2 Vue 组件
+### TypeScript / JavaScript
 
-- **Composition API**: 统一使用 `<script setup lang="ts">`。
-- **组件名**: 多单词组合，如 `UserProfile.vue`。
-- **Props**: 必须定义类型。
+- 项目使用 Oxlint 做静态检查，使用 Prettier 统一格式。
+- 避免无约束的 `any`；对跨模块数据、组件 Props 和公开方法定义明确类型。
+- 变量与函数使用 `camelCase`，类型、类和组件使用 `PascalCase`，常量使用 `UPPER_SNAKE_CASE`。
 
-## 2. Git 工作流
+### Vue
 
-我们采用简化的 GitHub Flow。
-
-1.  **Fork** 仓库。
-2.  基于 `main` 分支创建你的特性分支: `git checkout -b feature/my-new-feature`。
-3.  提交更改。
-4.  推送到你的 Fork。
-5.  发起 **Pull Request** 到 `main` 分支。
+- 使用 Vue 3 Composition API 与 `<script setup lang="ts">`。
+- 优先复用项目组件、composable、主题 token 和反馈封装。
+- 桌面与移动端的 UI 分层不同；新增工具前阅读[添加新工具指南](./adding-new-tool.md)和[移动端 UI 开发指南](./mobile-ui-development.md)。
 
 ## 3. Commit Message 规范
 
-请遵循 [Conventional Commits](https://www.conventionalcommits.org/) 规范。
+提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/)，description 使用当前协作语言。首行后必须包含背景和变更要点，不能只写单行标题。
 
-格式: `<type>(<scope>): <subject>`
+```text
+<type>(<scope>): <简述>
 
-- **feat**: 新功能
-- **fix**: 修复 Bug
-- **docs**: 文档变更
-- **style**: 代码格式（不影响逻辑）
-- **refactor**: 代码重构
-- **perf**: 性能优化
-- **test**: 测试相关
-- **chore**: 构建过程或辅助工具的变动
+背景：
+<为什么需要这次改动>
 
-示例: `feat(llm-chat): add support for deepseek model`
+变更要点：
+- <具体改动 1>
+- <具体改动 2>
+```
 
-## 4. 开发环境
+常用类型：
 
-1.  安装依赖: `bun install`
-2.  启动开发服务器: `bun run tauri dev`
-3.  构建生产版本: `bun run tauri build`
+- `feat`：真正面向用户的新功能。
+- `fix`：缺陷修复。
+- `docs`：纯文档修改。
+- `refactor`：不改变外部行为的重构。
+- `test`：测试补充或调整。
+- `chore`：配置、依赖、版本和构建维护。
 
-## 5. 报告问题
+提交信息不得包含 AI 内部状态标记。AI 智能体还必须遵守根目录 `AGENTS.md` 的授权边界，未经用户明确允许不得自行提交。
 
-如果你发现了 Bug 或有新功能建议，请在 GitHub Issues 中提交。请提供清晰的复现步骤和环境信息。
+## 4. 验证
+
+- 根据改动范围运行 lint、类型检查、单元测试和后端检查。
+- 前端改动除类型检查外还要运行对应 Vite 构建。
+- Tauri 真实运行态和系统级交互按[工具测试指南](./tool-testing-guide.md)选择验证层级，不能用普通浏览器结果替代。
+- 提交前检查 diff，确认没有无关格式化、生成物、密钥或本地调试数据。
+
+## 5. Git 工作流
+
+仓库采用常规分支与 Pull Request 工作流。创建分支、推送、提交或发起 PR 前，先确认任务授权和目标分支；不要假定所有改动都需要立即提交。

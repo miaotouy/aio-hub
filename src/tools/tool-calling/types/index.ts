@@ -39,6 +39,7 @@ export interface ToolExecutionResult {
   status: "success" | "error" | "denied";
   result: string;
   durationMs: number;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ToolCallCycleResult {

@@ -55,6 +55,7 @@ const allTags = computed(() => {
     <el-form-item label="ID/名称">
       <el-input
         v-model="editForm.name"
+        data-testid="agent-name-input"
         placeholder="输入智能体名称（用作 ID 和宏替换）"
       />
       <div class="setting-hint">

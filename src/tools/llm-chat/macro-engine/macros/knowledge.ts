@@ -3,7 +3,7 @@ import { MacroPhase, MacroType } from "../MacroRegistry";
 import {
   formatKnowledgeLibraryDirectory,
   listAuthorizedKnowledgeLibraries,
-} from "@/tools/knowledge-base/access";
+} from "@/tools/knowledge-base/services/access";
 
 export function registerKnowledgeMacros(registry: MacroRegistry): void {
   const macros: MacroDefinition[] = [

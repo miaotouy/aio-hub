@@ -126,10 +126,12 @@ import { useEmbeddingModelOptions } from "@/composables/useEmbeddingModelOptions
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import {
+  applyKnowledgeLibraryConfig,
   switchKnowledgeEmbeddingRoute,
   vectorizeKnowledgeLibrary,
-} from "../service";
+} from "../services/service";
 import type { KnowledgeIndexStatus, KnowledgeLibrary } from "../types";
+import { normalizeKnowledgeLibraryConfig } from "../config";
 
 const props = defineProps<{
   modelValue: boolean;
@@ -272,17 +274,25 @@ async function buildVectors() {
 
   vectorizing.value = true;
   try {
-    const count = await vectorizeKnowledgeLibrary(
-      props.library.id,
-      target.modelId,
-      target.profile,
-      {
-        onProgress(current, nextTotal) {
-          processed.value = current;
-          total.value = nextTotal;
-        },
-      }
-    );
+    const nextConfig = normalizeKnowledgeLibraryConfig({
+      ...props.library.config,
+      embedding: {
+        ...props.library.config.embedding,
+        enabled: true,
+        routeKey: target.combo,
+      },
+      indexes: {
+        ...props.library.config.indexes,
+        semantic: true,
+      },
+    });
+    await applyKnowledgeLibraryConfig(props.library.id, nextConfig);
+    const count = await vectorizeKnowledgeLibrary(props.library.id, {
+      onProgress(current, nextTotal) {
+        processed.value = current;
+        total.value = nextTotal;
+      },
+    });
     customMessage.success(`已为 ${count} 个分块建立语义索引`);
     emit("completed");
     emit("update:modelValue", false);

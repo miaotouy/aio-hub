@@ -15,6 +15,8 @@
 use crate::commands::asset_manager::{
     get_asset_for_backup, import_backup_asset, remove_backup_asset, Asset, AssetCatalog,
 };
+use crate::knowledge::types::KnowledgeIngestRequest;
+use crate::knowledge::KnowledgeState;
 use crate::recall::core::{AssetRef, RecallCollection, RecallCollectionMeta, RecallEntry};
 use crate::recall::index::InMemoryBase;
 use crate::recall::state::RecallState;
@@ -32,9 +34,14 @@ use uuid::Uuid;
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
-const BACKUP_FORMAT: &str = "aiohub.knowledge-library";
-const BACKUP_VERSION: u32 = 1;
-const BACKUP_COLLECTION_FORMAT: &str = "aiohub.knowledge-library-backup-collection";
+const RECALL_BACKUP_FORMAT: &str = "aiohub.recall-collection";
+const RECALL_BACKUP_VERSION: u32 = 1;
+const RECALL_BACKUP_COLLECTION_FORMAT: &str = "aiohub.recall-collection-backup-collection";
+const RECALL_DATA_SCHEMA_VERSION: u32 = 1;
+const RECALL_CONFIG_SCHEMA_VERSION: u32 = 1;
+const LEGACY_BACKUP_FORMAT: &str = "aiohub.knowledge-library";
+const LEGACY_BACKUP_VERSION: u32 = 1;
+const LEGACY_BACKUP_COLLECTION_FORMAT: &str = "aiohub.knowledge-library-backup-collection";
 const MAX_FILE_COUNT: usize = 4096;
 const MAX_SINGLE_FILE_SIZE: u64 = 256 * 1024 * 1024;
 const MAX_TOTAL_UNCOMPRESSED_SIZE: u64 = 1024 * 1024 * 1024;
@@ -63,13 +70,19 @@ pub struct BackupAssetRecord {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct KnowledgeLibraryBackupManifestV1 {
+pub struct RecallCollectionBackupManifestV1 {
     pub format: String,
     pub format_version: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_schema_version: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config_schema_version: Option<u32>,
     pub exported_at: String,
     pub app_version: String,
-    pub library_id: String,
-    pub library_name: String,
+    #[serde(alias = "libraryId")]
+    pub collection_id: String,
+    #[serde(alias = "libraryName")]
+    pub collection_name: String,
     pub entry_count: usize,
     pub asset_count: usize,
     pub files: Vec<BackupFileRecord>,
@@ -78,7 +91,7 @@ pub struct KnowledgeLibraryBackupManifestV1 {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct KnowledgeLibraryDtoV1 {
+struct RecallCollectionDtoV1 {
     meta: RecallCollectionMeta,
     entries: Vec<RecallEntry>,
 }
@@ -98,6 +111,8 @@ pub struct BackupInspectResult {
     pub source_entry: Option<String>,
     pub format: String,
     pub format_version: u32,
+    pub data_schema_version: Option<u32>,
+    pub config_schema_version: Option<u32>,
     pub library_id: String,
     pub library_name: String,
     pub entry_count: usize,
@@ -151,6 +166,17 @@ pub struct BackupImportReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct LegacyKnowledgeImportReport {
+    pub status: String,
+    pub library_id: String,
+    pub library_name: String,
+    pub document_count: usize,
+    pub skipped_entry_count: usize,
+    pub warnings: Vec<BackupWarning>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BackupExportResult {
     pub library_id: String,
     pub library_name: String,
@@ -193,11 +219,17 @@ struct BackupProgressEvent {
 struct BackupIndex {
     format: String,
     format_version: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    data_schema_version: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    config_schema_version: Option<u32>,
     exported_at: String,
     app_version: String,
-    backup_count: usize,
+    #[serde(alias = "backupCount")]
+    collection_count: usize,
     failed_count: usize,
-    backups: Vec<BackupIndexEntry>,
+    #[serde(alias = "backups")]
+    collections: Vec<BackupIndexEntry>,
     failures: Vec<BackupExportFailure>,
 }
 
@@ -205,8 +237,10 @@ struct BackupIndex {
 #[serde(rename_all = "camelCase")]
 struct BackupIndexEntry {
     path: String,
-    library_id: String,
-    library_name: String,
+    #[serde(alias = "libraryId")]
+    collection_id: String,
+    #[serde(alias = "libraryName")]
+    collection_name: String,
     entry_count: usize,
     asset_count: usize,
     warnings: Vec<BackupWarning>,
@@ -218,8 +252,8 @@ struct PackageAsset {
 }
 
 struct ParsedBackup {
-    library: KnowledgeLibraryDtoV1,
-    manifest: Option<KnowledgeLibraryBackupManifestV1>,
+    library: RecallCollectionDtoV1,
+    manifest: Option<RecallCollectionBackupManifestV1>,
     files: HashMap<String, Vec<u8>>,
     format: String,
     legacy_content_only: bool,
@@ -242,6 +276,13 @@ fn warning(code: &str, message: impl Into<String>, asset_id: Option<String>) -> 
     }
 }
 
+fn missing_asset_warning_count(warnings: &[BackupWarning]) -> usize {
+    warnings
+        .iter()
+        .filter(|item| item.code.contains("missing") || item.code == "missingAsset")
+        .count()
+}
+
 fn blake3_hex(bytes: &[u8]) -> String {
     blake3::hash(bytes).to_hex().to_string()
 }
@@ -250,6 +291,62 @@ fn sha256_hex(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
     format!("{:x}", hasher.finalize())
+}
+
+fn validate_manifest_version(manifest: &RecallCollectionBackupManifestV1) -> Result<(), String> {
+    match manifest.format.as_str() {
+        RECALL_BACKUP_FORMAT
+            if manifest.format_version == RECALL_BACKUP_VERSION
+                && manifest.data_schema_version == Some(RECALL_DATA_SCHEMA_VERSION)
+                && manifest.config_schema_version == Some(RECALL_CONFIG_SCHEMA_VERSION) =>
+        {
+            Ok(())
+        }
+        LEGACY_BACKUP_FORMAT if manifest.format_version == LEGACY_BACKUP_VERSION => Ok(()),
+        _ => Err(format!(
+            "不支持的备份格式或版本: {} v{} (data schema {:?}, config schema {:?})",
+            manifest.format,
+            manifest.format_version,
+            manifest.data_schema_version,
+            manifest.config_schema_version
+        )),
+    }
+}
+
+fn validate_backup_index_version(index: &BackupIndex) -> Result<(), String> {
+    match index.format.as_str() {
+        RECALL_BACKUP_COLLECTION_FORMAT
+            if index.format_version == RECALL_BACKUP_VERSION
+                && index.data_schema_version == Some(RECALL_DATA_SCHEMA_VERSION)
+                && index.config_schema_version == Some(RECALL_CONFIG_SCHEMA_VERSION) =>
+        {
+            Ok(())
+        }
+        LEGACY_BACKUP_COLLECTION_FORMAT if index.format_version == LEGACY_BACKUP_VERSION => Ok(()),
+        _ => Err(format!(
+            "不支持的多库备份格式或版本: {} v{} (data schema {:?}, config schema {:?})",
+            index.format,
+            index.format_version,
+            index.data_schema_version,
+            index.config_schema_version
+        )),
+    }
+}
+
+fn collection_data_file_name(format: &str) -> Result<&'static str, String> {
+    match format {
+        RECALL_BACKUP_FORMAT | RECALL_BACKUP_COLLECTION_FORMAT => Ok("collection.json"),
+        LEGACY_BACKUP_FORMAT | LEGACY_BACKUP_COLLECTION_FORMAT => Ok("library.json"),
+        _ => Err(format!("无法确定备份主数据文件: {format}")),
+    }
+}
+
+fn collection_root_directory(format: &str) -> Result<&'static str, String> {
+    match format {
+        RECALL_BACKUP_COLLECTION_FORMAT => Ok("collections"),
+        LEGACY_BACKUP_COLLECTION_FORMAT => Ok("libraries"),
+        _ => Err(format!("无法确定多库备份目录: {format}")),
+    }
 }
 
 fn is_safe_package_path(path: &str) -> bool {
@@ -308,7 +405,7 @@ fn reset_derived_state(meta: &mut RecallCollectionMeta, entries: &[RecallEntry])
         .collect();
 }
 
-fn validate_library(library: &KnowledgeLibraryDtoV1) -> Result<(), String> {
+fn validate_library(library: &RecallCollectionDtoV1) -> Result<(), String> {
     let mut ids = HashSet::new();
     for entry in &library.entries {
         if !ids.insert(entry.id) {
@@ -324,12 +421,12 @@ fn validate_library(library: &KnowledgeLibraryDtoV1) -> Result<(), String> {
     }
     let index_ids: HashSet<Uuid> = library.meta.entries.iter().map(|entry| entry.id).collect();
     if index_ids != ids {
-        return Err("元数据条目索引与 library.json 内容不一致".to_string());
+        return Err("元数据条目索引与备份主数据内容不一致".to_string());
     }
     Ok(())
 }
 
-fn read_library_directory(recall_dir: &Path) -> Result<KnowledgeLibraryDtoV1, String> {
+fn read_library_directory(recall_dir: &Path) -> Result<RecallCollectionDtoV1, String> {
     let meta_path = recall_dir.join("meta.json");
     let meta_bytes = fs::read(&meta_path)
         .map_err(|error| format!("读取思绪集元数据失败 {}: {}", meta_path.display(), error))?;
@@ -359,7 +456,7 @@ fn read_library_directory(recall_dir: &Path) -> Result<KnowledgeLibraryDtoV1, St
         }
     }
     reset_derived_state(&mut meta, &entries);
-    let library = KnowledgeLibraryDtoV1 { meta, entries };
+    let library = RecallCollectionDtoV1 { meta, entries };
     validate_library(&library)?;
     Ok(library)
 }
@@ -367,7 +464,7 @@ fn read_library_directory(recall_dir: &Path) -> Result<KnowledgeLibraryDtoV1, St
 fn collect_package_assets(
     app: &AppHandle,
     catalog: &AssetCatalog,
-    library: &KnowledgeLibraryDtoV1,
+    library: &RecallCollectionDtoV1,
 ) -> Result<Vec<PackageAsset>, String> {
     let mut refs = HashMap::<String, AssetRef>::new();
     if let Some(icon_id) = &library.meta.icon {
@@ -457,7 +554,7 @@ fn collect_package_assets(
 
 fn write_backup_zip(
     path: &Path,
-    manifest: &KnowledgeLibraryBackupManifestV1,
+    manifest: &RecallCollectionBackupManifestV1,
     library_bytes: &[u8],
     assets: &[PackageAsset],
 ) -> Result<(), String> {
@@ -466,12 +563,13 @@ fn write_backup_zip(
     let options = SimpleFileOptions::default()
         .compression_method(CompressionMethod::Deflated)
         .unix_permissions(0o644);
+    let data_file_name = collection_data_file_name(&manifest.format)?;
     writer
-        .start_file("library.json", options)
-        .map_err(|error| format!("写入 library.json 失败: {}", error))?;
+        .start_file(data_file_name, options)
+        .map_err(|error| format!("写入 {data_file_name} 失败: {error}"))?;
     writer
         .write_all(library_bytes)
-        .map_err(|error| format!("写入 library.json 失败: {}", error))?;
+        .map_err(|error| format!("写入 {data_file_name} 失败: {error}"))?;
     for asset in assets {
         if let (Some(package_path), Some(bytes)) = (&asset.record.package_path, &asset.bytes) {
             writer
@@ -512,18 +610,19 @@ fn export_one(
         .repository()?
         .load_collection(recall_id)?
         .ok_or_else(|| format!("找不到思绪集: {}", recall_id))?;
-    let library = KnowledgeLibraryDtoV1 {
+    let library = RecallCollectionDtoV1 {
         meta: collection.meta,
         entries: collection.entries,
     };
     let assets = collect_package_assets(app, catalog, &library)?;
+    let data_file_name = collection_data_file_name(RECALL_BACKUP_FORMAT)?;
     let library_bytes = serde_json::to_vec_pretty(&library)
-        .map_err(|error| format!("序列化 library.json 失败: {}", error))?;
+        .map_err(|error| format!("序列化 {data_file_name} 失败: {error}"))?;
     if library_bytes.len() as u64 > MAX_LIBRARY_SIZE {
-        return Err("library.json 超过备份大小上限".to_string());
+        return Err(format!("{data_file_name} 超过备份大小上限"));
     }
     let mut files = vec![BackupFileRecord {
-        path: "library.json".to_string(),
+        path: data_file_name.to_string(),
         size: library_bytes.len() as u64,
         blake3: blake3_hex(&library_bytes),
     }];
@@ -537,13 +636,15 @@ fn export_one(
         }
     }
     let exported_at = Utc::now().to_rfc3339();
-    let manifest = KnowledgeLibraryBackupManifestV1 {
-        format: BACKUP_FORMAT.to_string(),
-        format_version: BACKUP_VERSION,
+    let manifest = RecallCollectionBackupManifestV1 {
+        format: RECALL_BACKUP_FORMAT.to_string(),
+        format_version: RECALL_BACKUP_VERSION,
+        data_schema_version: Some(RECALL_DATA_SCHEMA_VERSION),
+        config_schema_version: Some(RECALL_CONFIG_SCHEMA_VERSION),
         exported_at,
         app_version: app.package_info().version.to_string(),
-        library_id: recall_id.to_string(),
-        library_name: library.meta.name.clone(),
+        collection_id: recall_id.to_string(),
+        collection_name: library.meta.name.clone(),
         entry_count: library.entries.len(),
         asset_count: assets.iter().filter(|asset| asset.bytes.is_some()).count(),
         files,
@@ -551,12 +652,12 @@ fn export_one(
     };
     let timestamp = Utc::now().format("%Y%m%d-%H%M%S");
     let stem = format!(
-        "{}_aio-kb-v{}_{}",
-        safe_file_component(&library.meta.name, "knowledge-library"),
-        BACKUP_VERSION,
+        "{}_aio-recall-v{}_{}",
+        safe_file_component(&library.meta.name, "recall-collection"),
+        RECALL_BACKUP_VERSION,
         timestamp
     );
-    let output_path = unique_output_path(target_directory, &stem, "aio-kb");
+    let output_path = unique_output_path(target_directory, &stem, "aio-recall");
     let temp_path = target_directory.join(format!(".{}.{}.tmp", stem, Uuid::new_v4()));
     let write_result = write_backup_zip(&temp_path, &manifest, &library_bytes, &assets)
         .and_then(|_| parse_aio_backup(&temp_path).map(|_| ()))
@@ -638,11 +739,11 @@ fn parse_aio_backup_reader<R: Read + Seek>(reader: R) -> Result<ParsedBackup, St
             return Err("备份解压总大小超过限制".to_string());
         }
     }
-    if !names.contains("manifest.json") || !names.contains("library.json") {
-        return Err("备份缺少 manifest.json 或 library.json".to_string());
+    if !names.contains("manifest.json") {
+        return Err("备份缺少 manifest.json".to_string());
     }
 
-    let manifest: KnowledgeLibraryBackupManifestV1 = {
+    let manifest: RecallCollectionBackupManifestV1 = {
         let mut file = archive
             .by_name("manifest.json")
             .map_err(|error| format!("读取 manifest.json 失败: {}", error))?;
@@ -652,11 +753,10 @@ fn parse_aio_backup_reader<R: Read + Seek>(reader: R) -> Result<ParsedBackup, St
         serde_json::from_slice(&bytes)
             .map_err(|error| format!("解析 manifest.json 失败: {}", error))?
     };
-    if manifest.format != BACKUP_FORMAT || manifest.format_version != BACKUP_VERSION {
-        return Err(format!(
-            "不支持的备份格式或版本: {} v{}",
-            manifest.format, manifest.format_version
-        ));
+    validate_manifest_version(&manifest)?;
+    let data_file_name = collection_data_file_name(&manifest.format)?;
+    if !names.contains(data_file_name) {
+        return Err(format!("备份缺少 {data_file_name}"));
     }
 
     let mut declared = HashSet::new();
@@ -688,19 +788,19 @@ fn parse_aio_backup_reader<R: Read + Seek>(reader: R) -> Result<ParsedBackup, St
         return Err("ZIP 实际文件与 manifest 声明不一致".to_string());
     }
     let library_bytes = files
-        .get("library.json")
-        .ok_or_else(|| "manifest 未声明 library.json".to_string())?;
+        .get(data_file_name)
+        .ok_or_else(|| format!("manifest 未声明 {data_file_name}"))?;
     if library_bytes.len() as u64 > MAX_LIBRARY_SIZE {
-        return Err("library.json 超过解析上限".to_string());
+        return Err(format!("{data_file_name} 超过解析上限"));
     }
-    let library: KnowledgeLibraryDtoV1 = serde_json::from_slice(library_bytes)
-        .map_err(|error| format!("解析 library.json 失败: {}", error))?;
+    let library: RecallCollectionDtoV1 = serde_json::from_slice(library_bytes)
+        .map_err(|error| format!("解析 {data_file_name} 失败: {error}"))?;
     validate_library(&library)?;
-    if manifest.library_id != library.meta.id.to_string()
-        || manifest.library_name != library.meta.name
+    if manifest.collection_id != library.meta.id.to_string()
+        || manifest.collection_name != library.meta.name
         || manifest.entry_count != library.entries.len()
     {
-        return Err("manifest 与 library.json 摘要不一致".to_string());
+        return Err(format!("manifest 与 {data_file_name} 摘要不一致"));
     }
     let mut asset_ids = HashSet::new();
     let packaged_count = manifest
@@ -734,7 +834,7 @@ fn parse_aio_backup_reader<R: Read + Seek>(reader: R) -> Result<ParsedBackup, St
             return Err(format!("缺失资产未说明原因: {}", asset.original_asset_id));
         }
     }
-    let warnings = manifest
+    let mut warnings: Vec<BackupWarning> = manifest
         .assets
         .iter()
         .filter_map(|asset| {
@@ -747,11 +847,22 @@ fn parse_aio_backup_reader<R: Read + Seek>(reader: R) -> Result<ParsedBackup, St
             })
         })
         .collect();
+    if manifest.format == LEGACY_BACKUP_FORMAT {
+        warnings.insert(
+            0,
+            warning(
+                "legacyRecallBackup",
+                "这是重构前由“知识库”模块导出的思绪结构备份；导入时可完整恢复到 Recall / 思绪，或将标题与正文不可逆转换到新版 Knowledge 资料库",
+                None,
+            ),
+        );
+    }
+    let format = manifest.format.clone();
     Ok(ParsedBackup {
         library,
         manifest: Some(manifest),
         files,
-        format: BACKUP_FORMAT.to_string(),
+        format,
         legacy_content_only: false,
         warnings,
     })
@@ -814,25 +925,24 @@ fn read_backup_collection_index(path: &Path) -> Result<Option<BackupIndex>, Stri
         serde_json::from_slice(&bytes)
             .map_err(|error| format!("解析 backup-index.json 失败: {}", error))?
     };
-    if index.format != BACKUP_COLLECTION_FORMAT || index.format_version != BACKUP_VERSION {
-        return Err(format!(
-            "不支持的多库备份格式或版本: {} v{}",
-            index.format, index.format_version
-        ));
-    }
-    if index.backup_count != index.backups.len() || index.failed_count != index.failures.len() {
+    validate_backup_index_version(&index)?;
+    if index.collection_count != index.collections.len()
+        || index.failed_count != index.failures.len()
+    {
         return Err("backup-index.json 的数量摘要不一致".to_string());
     }
+    let data_file_name = collection_data_file_name(&index.format)?;
+    let root_directory = collection_root_directory(&index.format)?;
 
     let mut prefixes = HashSet::new();
     let mut library_ids = HashSet::new();
-    for backup in &index.backups {
+    for backup in &index.collections {
         let components: Vec<_> = Path::new(&backup.path).components().collect();
         if !is_safe_package_path(&backup.path)
             || components.len() != 2
-            || components.first() != Some(&Component::Normal("libraries".as_ref()))
+            || components.first() != Some(&Component::Normal(root_directory.as_ref()))
             || !prefixes.insert(backup.path.clone())
-            || !library_ids.insert(backup.library_id.clone())
+            || !library_ids.insert(backup.collection_id.clone())
         {
             return Err(format!(
                 "backup-index.json 包含无效或重复库路径: {}",
@@ -840,7 +950,7 @@ fn read_backup_collection_index(path: &Path) -> Result<Option<BackupIndex>, Stri
             ));
         }
         if !names.contains(&format!("{}/manifest.json", backup.path))
-            || !names.contains(&format!("{}/library.json", backup.path))
+            || !names.contains(&format!("{}/{}", backup.path, data_file_name))
         {
             return Err(format!("备份容器中的库目录不完整: {}", backup.path));
         }
@@ -905,8 +1015,8 @@ fn validate_backup_index_entry(
     backup: &BackupIndexEntry,
     parsed: &ParsedBackup,
 ) -> Result<(), String> {
-    if parsed.library.meta.id.to_string() != backup.library_id
-        || parsed.library.meta.name != backup.library_name
+    if parsed.library.meta.id.to_string() != backup.collection_id
+        || parsed.library.meta.name != backup.collection_name
         || parsed.library.entries.len() != backup.entry_count
         || parsed
             .manifest
@@ -926,7 +1036,7 @@ fn validate_backup_index_entry(
 fn validate_backup_collection(path: &Path) -> Result<BackupIndex, String> {
     let index = read_backup_collection_index(path)?
         .ok_or_else(|| "备份 ZIP 缺少 backup-index.json".to_string())?;
-    for backup in &index.backups {
+    for backup in &index.collections {
         let parsed = parse_backup_collection_entry(path, &backup.path)?;
         validate_backup_index_entry(backup, &parsed)?;
     }
@@ -989,13 +1099,13 @@ fn parse_legacy_backup(path: &Path) -> Result<ParsedBackup, String> {
             Ok(value) => (value, "legacy-yaml"),
             Err(yaml_error) => {
                 return Err(format!(
-                    "文件既不是有效的 .aio-kb，也不是兼容的 JSON/YAML（JSON: {}; YAML: {}）",
+                    "文件既不是有效的 .aio-recall/.aio-kb，也不是兼容的 JSON/YAML（JSON: {}; YAML: {}）",
                     json_error, yaml_error
                 ));
             }
         },
     };
-    let mut library = KnowledgeLibraryDtoV1 {
+    let mut library = RecallCollectionDtoV1 {
         meta: legacy.meta,
         entries: legacy.entries,
     };
@@ -1007,11 +1117,18 @@ fn parse_legacy_backup(path: &Path) -> Result<ParsedBackup, String> {
         files: HashMap::new(),
         format: format.to_string(),
         legacy_content_only: true,
-        warnings: vec![warning(
-            "legacyContentOnly",
-            "legacy JSON/YAML 不包含资产二进制，仅恢复内容与当前环境仍可找到的资产引用",
-            None,
-        )],
+        warnings: vec![
+            warning(
+                "legacyRecallBackup",
+                "这是重构前由“知识库”模块导出的思绪结构数据；导入时可完整恢复到 Recall / 思绪，或将标题与正文不可逆转换到新版 Knowledge 资料库",
+                None,
+            ),
+            warning(
+                "legacyContentOnly",
+                "legacy JSON/YAML 不包含资产二进制，仅恢复内容与当前环境仍可找到的资产引用",
+                None,
+            ),
+        ],
     })
 }
 
@@ -1019,10 +1136,9 @@ fn parse_backup(path: &Path) -> Result<ParsedBackup, String> {
     if !path.is_file() {
         return Err(format!("导入文件不存在: {}", path.display()));
     }
-    if path.extension().and_then(|ext| ext.to_str()) == Some("aio-kb") {
-        parse_aio_backup(path)
-    } else {
-        parse_aio_backup(path).or_else(|_| parse_legacy_backup(path))
+    match path.extension().and_then(|ext| ext.to_str()) {
+        Some("aio-recall" | "aio-kb") => parse_aio_backup(path),
+        _ => parse_aio_backup(path).or_else(|_| parse_legacy_backup(path)),
     }
 }
 
@@ -1032,7 +1148,7 @@ fn parse_backup_source(path: &Path, source_entry: Option<&str>) -> Result<Parsed
             let index = read_backup_collection_index(path)?
                 .ok_or_else(|| "备份 ZIP 缺少 backup-index.json".to_string())?;
             let index_entry = index
-                .backups
+                .collections
                 .iter()
                 .find(|entry| entry.path == prefix)
                 .ok_or_else(|| format!("backup-index.json 未声明库目录: {}", prefix))?;
@@ -1042,6 +1158,112 @@ fn parse_backup_source(path: &Path, source_entry: Option<&str>) -> Result<Parsed
         }
         None => parse_backup(path),
     }
+}
+
+fn is_legacy_recall_format(format: &str) -> bool {
+    matches!(format, LEGACY_BACKUP_FORMAT | "legacy-json" | "legacy-yaml")
+}
+
+fn import_legacy_backup_to_knowledge(
+    state: &KnowledgeState,
+    source_path: &Path,
+    source_entry: Option<&str>,
+) -> Result<LegacyKnowledgeImportReport, String> {
+    let parsed = parse_backup_source(source_path, source_entry)?;
+    if !is_legacy_recall_format(&parsed.format) {
+        return Err("只有重构前的“知识库”导出可以转换到新版 Knowledge 资料库".to_string());
+    }
+
+    let repository = state.repository()?;
+    let source_id = parsed.library.meta.id;
+    let source_name = parsed.library.meta.name.trim();
+    let library_name = if source_name.is_empty() {
+        "未命名旧版资料库"
+    } else {
+        source_name
+    };
+    let conversion_note = "由重构前的“知识库”导出转换而来；原格式实际使用思绪条目结构。";
+    let description = parsed
+        .library
+        .meta
+        .description
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| format!("{value}\n\n{conversion_note}"))
+        .unwrap_or_else(|| conversion_note.to_string());
+    let library = repository.create_library(library_name, Some(&description), None)?;
+
+    let mut document_count = 0;
+    let mut skipped_entry_count = 0;
+    let mut asset_count = 0;
+    for entry in &parsed.library.entries {
+        asset_count += entry.assets.len();
+        let content = if entry.content.trim().is_empty() {
+            if entry.summary.trim().is_empty() {
+                skipped_entry_count += 1;
+                continue;
+            }
+            entry.summary.clone()
+        } else {
+            entry.content.clone()
+        };
+        let title = if entry.key.trim().is_empty() {
+            format!("旧版条目 {}", entry.id)
+        } else {
+            entry.key.clone()
+        };
+        let request = KnowledgeIngestRequest {
+            library_id: library.id.clone(),
+            source_path: format!("legacy-recall://{source_id}/{}.md", entry.id),
+            title: Some(title),
+            mime_type: Some("text/markdown".to_string()),
+            content,
+        };
+        if let Err(error) = repository.ingest(&request) {
+            return match repository.delete_library(&library.id) {
+                Ok(()) => Err(format!(
+                    "转换旧版条目 {} 到 Knowledge 失败，已回滚新资料库: {error}",
+                    entry.id
+                )),
+                Err(cleanup_error) => Err(format!(
+                    "转换旧版条目 {} 到 Knowledge 失败: {error}；清理新资料库失败: {cleanup_error}",
+                    entry.id
+                )),
+            };
+        }
+        document_count += 1;
+    }
+
+    let mut warnings = vec![warning(
+        "legacyKnowledgeConversion",
+        "已将旧版条目的标题与 Markdown 正文转换为 Knowledge 文档；标签、优先级、启用状态和条目关联不会成为 Knowledge 字段，此转换结果无法还原完整思绪结构",
+        None,
+    )];
+    if asset_count > 0 {
+        warnings.push(warning(
+            "legacyKnowledgeAssetsNotConverted",
+            format!(
+                "旧版条目包含 {asset_count} 个附件引用；Knowledge 转换只保留标题与正文，不导入附件"
+            ),
+            None,
+        ));
+    }
+    if skipped_entry_count > 0 {
+        warnings.push(warning(
+            "legacyKnowledgeEmptyEntriesSkipped",
+            format!("跳过 {skipped_entry_count} 个正文和摘要均为空的旧版条目"),
+            None,
+        ));
+    }
+
+    Ok(LegacyKnowledgeImportReport {
+        status: "success".to_string(),
+        library_id: library.id,
+        library_name: library.name,
+        document_count,
+        skipped_entry_count,
+        warnings,
+    })
 }
 
 fn imported_copy_name(state: &RecallState, source_name: &str) -> Result<String, String> {
@@ -1065,7 +1287,7 @@ fn imported_copy_name(state: &RecallState, source_name: &str) -> Result<String, 
 }
 
 #[allow(dead_code)] // 仅保留给备份格式夹具，运行时恢复直接提交 SQLite repository。
-fn write_staged_library(directory: &Path, library: &KnowledgeLibraryDtoV1) -> Result<(), String> {
+fn write_staged_library(directory: &Path, library: &RecallCollectionDtoV1) -> Result<(), String> {
     let entries_dir = directory.join("entries");
     fs::create_dir_all(&entries_dir)
         .map_err(|error| format!("创建导入 staging 失败: {}", error))?;
@@ -1090,7 +1312,7 @@ fn remap_assets(
     app: &AppHandle,
     catalog: &AssetCatalog,
     parsed: &ParsedBackup,
-    library: &mut KnowledgeLibraryDtoV1,
+    library: &mut RecallCollectionDtoV1,
     created_asset_ids: &mut Vec<String>,
     warnings: &mut Vec<BackupWarning>,
 ) -> Result<usize, String> {
@@ -1181,7 +1403,7 @@ fn import_one(
             library_name: parsed.library.meta.name,
             entry_count: parsed.library.entries.len(),
             restored_asset_count: 0,
-            missing_asset_count: parsed.warnings.len(),
+            missing_asset_count: missing_asset_warning_count(&parsed.warnings),
             replaced_existing: false,
             imported_as_copy: false,
             legacy_content_only: parsed.legacy_content_only,
@@ -1232,10 +1454,7 @@ fn import_one(
         .insert(target_id, Arc::new(RwLock::new(in_memory)));
     state.clear_retrieval_cache()?;
 
-    let missing_asset_count = warnings
-        .iter()
-        .filter(|item| item.code.contains("missing") || item.code == "missingAsset")
-        .count();
+    let missing_asset_count = missing_asset_warning_count(&warnings);
     Ok(BackupImportReport {
         source_path: source_path.to_string_lossy().to_string(),
         status: "success".to_string(),
@@ -1261,7 +1480,13 @@ pub async fn recall_export_backup(
     recall_id: Uuid,
     target_directory: String,
 ) -> Result<BackupExportResult, String> {
-    export_one(&app, &state, &catalog, recall_id, Path::new(&target_directory))
+    export_one(
+        &app,
+        &state,
+        &catalog,
+        recall_id,
+        Path::new(&target_directory),
+    )
 }
 
 #[tauri::command]
@@ -1292,7 +1517,7 @@ pub async fn recall_export_backups(
             .collect()
     };
     let exported_at = Utc::now().to_rfc3339();
-    let staging_dir = directory.join(format!(".aio-kb-export.{}", Uuid::new_v4()));
+    let staging_dir = directory.join(format!(".aio-recall-export.{}", Uuid::new_v4()));
     fs::create_dir_all(&staging_dir)
         .map_err(|error| format!("创建多库备份暂存目录失败: {}", error))?;
     let _staging_guard = ImportStagingGuard(staging_dir.clone());
@@ -1336,17 +1561,18 @@ pub async fn recall_export_backups(
     let mut used_paths = HashSet::new();
     let mut packages = Vec::with_capacity(succeeded.len());
     let mut index_entries = Vec::with_capacity(succeeded.len());
+    let root_directory = collection_root_directory(RECALL_BACKUP_COLLECTION_FORMAT)?;
     for result in &succeeded {
-        let base_name = safe_file_component(&result.library_name, "knowledge-library");
+        let base_name = safe_file_component(&result.library_name, "recall-collection");
         let mut folder_name = base_name.clone();
         for suffix in 2..=9999 {
-            let candidate = format!("libraries/{}", folder_name);
+            let candidate = format!("{root_directory}/{}", folder_name);
             if used_paths.insert(candidate.clone()) {
                 packages.push((candidate.clone(), PathBuf::from(&result.output_path)));
                 index_entries.push(BackupIndexEntry {
                     path: candidate,
-                    library_id: result.library_id.clone(),
-                    library_name: result.library_name.clone(),
+                    collection_id: result.library_id.clone(),
+                    collection_name: result.library_name.clone(),
                     entry_count: result.entry_count,
                     asset_count: result.asset_count,
                     warnings: result.warnings.clone(),
@@ -1360,24 +1586,26 @@ pub async fn recall_export_backups(
         return Err("无法为多库备份生成唯一库目录".to_string());
     }
     let index = BackupIndex {
-        format: BACKUP_COLLECTION_FORMAT.to_string(),
-        format_version: 1,
+        format: RECALL_BACKUP_COLLECTION_FORMAT.to_string(),
+        format_version: RECALL_BACKUP_VERSION,
+        data_schema_version: Some(RECALL_DATA_SCHEMA_VERSION),
+        config_schema_version: Some(RECALL_CONFIG_SCHEMA_VERSION),
         exported_at: exported_at.clone(),
         app_version: app.package_info().version.to_string(),
-        backup_count: succeeded.len(),
+        collection_count: succeeded.len(),
         failed_count: failed.len(),
-        backups: index_entries,
+        collections: index_entries,
         failures: failed.clone(),
     };
     let file_label = if succeeded.len() == 1 {
-        safe_file_component(&succeeded[0].library_name, "knowledge-library")
+        safe_file_component(&succeeded[0].library_name, "recall-collection")
     } else {
         "多个思绪集".to_string()
     };
     let timestamp = Utc::now().format("%Y%m%d-%H%M%S");
     let stem = format!(
-        "{}_aio-kb-v{}_{}",
-        file_label, BACKUP_VERSION, timestamp
+        "{}_aio-recall-v{}_{}",
+        file_label, RECALL_BACKUP_VERSION, timestamp
     );
     let output_path = unique_output_path(&directory, &stem, "zip");
     let temp_path = directory.join(format!(".{}.{}.tmp", stem, Uuid::new_v4()));
@@ -1391,7 +1619,7 @@ pub async fn recall_export_backups(
         let _ = fs::remove_file(&temp_path);
         return Err(error);
     }
-    for (result, entry) in succeeded.iter_mut().zip(index.backups.iter()) {
+    for (result, entry) in succeeded.iter_mut().zip(index.collections.iter()) {
         result.output_path = format!("{}#{}", output_path.to_string_lossy(), entry.path);
     }
     Ok(BackupBatchExportResult {
@@ -1432,15 +1660,26 @@ fn inspect_parsed_backup(
         .as_ref()
         .map(|manifest| manifest.asset_count)
         .unwrap_or(0);
+    let format_version = parsed
+        .manifest
+        .as_ref()
+        .map(|manifest| manifest.format_version)
+        .unwrap_or(0);
+    let data_schema_version = parsed
+        .manifest
+        .as_ref()
+        .and_then(|manifest| manifest.data_schema_version);
+    let config_schema_version = parsed
+        .manifest
+        .as_ref()
+        .and_then(|manifest| manifest.config_schema_version);
     Ok(BackupInspectResult {
         source_path,
         source_entry,
         format: parsed.format,
-        format_version: parsed
-            .manifest
-            .as_ref()
-            .map(|manifest| manifest.format_version)
-            .unwrap_or(0),
+        format_version,
+        data_schema_version,
+        config_schema_version,
         library_id: parsed.library.meta.id.to_string(),
         library_name: parsed.library.meta.name,
         entry_count: parsed.library.entries.len(),
@@ -1472,22 +1711,24 @@ pub async fn recall_inspect_backups(
 ) -> Result<Vec<BackupInspectItem>, String> {
     let path = PathBuf::from(&source_path);
     if path.extension().and_then(|extension| extension.to_str()) != Some("zip") {
-        return recall_inspect_backup(app, state, source_path).await.map(|result| {
-            vec![BackupInspectItem {
-                source_entry: result.source_entry.clone(),
-                library_name: result.library_name.clone(),
-                inspect: Some(result),
-                error: None,
-            }]
-        });
+        return recall_inspect_backup(app, state, source_path)
+            .await
+            .map(|result| {
+                vec![BackupInspectItem {
+                    source_entry: result.source_entry.clone(),
+                    library_name: result.library_name.clone(),
+                    inspect: Some(result),
+                    error: None,
+                }]
+            });
     }
     let index = read_backup_collection_index(&path)?
         .ok_or_else(|| "备份 ZIP 缺少 backup-index.json".to_string())?;
-    if index.backups.is_empty() {
+    if index.collections.is_empty() {
         return Err("多库备份容器不包含可导入的思绪集".to_string());
     }
-    let mut results = Vec::with_capacity(index.backups.len());
-    for backup in index.backups {
+    let mut results = Vec::with_capacity(index.collections.len());
+    for backup in index.collections {
         let source_entry = backup.path.clone();
         let inspected = parse_backup_collection_entry(&path, &source_entry).and_then(|parsed| {
             validate_backup_index_entry(&backup, &parsed)?;
@@ -1507,7 +1748,7 @@ pub async fn recall_inspect_backups(
             }),
             Err(error) => results.push(BackupInspectItem {
                 source_entry: Some(source_entry),
-                library_name: backup.library_name,
+                library_name: backup.collection_name,
                 inspect: None,
                 error: Some(error),
             }),
@@ -1549,6 +1790,15 @@ pub async fn recall_import_backup(
     result
 }
 
+#[tauri::command]
+pub async fn recall_import_legacy_backup_to_knowledge(
+    state: State<'_, KnowledgeState>,
+    source_path: String,
+    source_entry: Option<String>,
+) -> Result<LegacyKnowledgeImportReport, String> {
+    import_legacy_backup_to_knowledge(&state, Path::new(&source_path), source_entry.as_deref())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1557,8 +1807,8 @@ mod tests {
     use crate::recall::storage::RecallRepository;
     use tempfile::tempdir;
 
-    fn empty_library() -> KnowledgeLibraryDtoV1 {
-        KnowledgeLibraryDtoV1 {
+    fn empty_library() -> RecallCollectionDtoV1 {
+        RecallCollectionDtoV1 {
             meta: RecallCollectionMeta {
                 id: Uuid::new_v4(),
                 name: "Empty".to_string(),
@@ -1581,6 +1831,15 @@ mod tests {
             },
             entries: Vec::new(),
         }
+    }
+
+    fn read_zip_json(path: &Path, entry_name: &str) -> serde_json::Value {
+        let file = File::open(path).unwrap();
+        let mut archive = ZipArchive::new(file).unwrap();
+        let mut entry = archive.by_name(entry_name).unwrap();
+        let mut bytes = Vec::new();
+        entry.read_to_end(&mut bytes).unwrap();
+        serde_json::from_slice(&bytes).unwrap()
     }
 
     #[test]
@@ -1617,6 +1876,46 @@ mod tests {
         library.entries = vec![entry.clone(), entry];
         reset_derived_state(&mut library.meta, &library.entries);
         assert!(validate_library(&library).is_err());
+    }
+
+    #[test]
+    fn converts_legacy_backup_entries_to_knowledge_documents() {
+        let directory = tempdir().unwrap();
+        let backup_path = directory.path().join("legacy.aio-kb");
+        let mut library = empty_library();
+        library.meta.name = "旧文档库".to_string();
+        library.meta.description = Some("旧说明".to_string());
+        library.entries = vec![RecallEntry {
+            id: Uuid::new_v4(),
+            key: "安装说明".to_string(),
+            content: "# 安装\n\n运行安装程序。".to_string(),
+            summary: "安装摘要".to_string(),
+            core_tags: Vec::new(),
+            tags: Vec::new(),
+            assets: Vec::new(),
+            priority: 100,
+            enabled: true,
+            created_at: 1,
+            updated_at: 1,
+            error_message: None,
+            content_hash: None,
+            refs: Vec::new(),
+            ref_by: Vec::new(),
+        }];
+        reset_derived_state(&mut library.meta, &library.entries);
+        let bytes = serde_json::to_vec_pretty(&library).unwrap();
+        write_legacy_backup_zip(&backup_path, &library, &bytes);
+        let state = KnowledgeState::initialized_for_test(directory.path());
+
+        let report = import_legacy_backup_to_knowledge(&state, &backup_path, None).unwrap();
+
+        assert_eq!(report.library_name, "旧文档库");
+        assert_eq!(report.document_count, 1);
+        assert_eq!(report.skipped_entry_count, 0);
+        assert!(report
+            .warnings
+            .iter()
+            .any(|warning| warning.code == "legacyKnowledgeConversion"));
     }
 
     #[test]
@@ -1657,20 +1956,22 @@ mod tests {
     }
 
     fn manifest_for(
-        library: &KnowledgeLibraryDtoV1,
+        library: &RecallCollectionDtoV1,
         library_bytes: &[u8],
-    ) -> KnowledgeLibraryBackupManifestV1 {
-        KnowledgeLibraryBackupManifestV1 {
-            format: BACKUP_FORMAT.to_string(),
-            format_version: BACKUP_VERSION,
+    ) -> RecallCollectionBackupManifestV1 {
+        RecallCollectionBackupManifestV1 {
+            format: RECALL_BACKUP_FORMAT.to_string(),
+            format_version: RECALL_BACKUP_VERSION,
+            data_schema_version: Some(RECALL_DATA_SCHEMA_VERSION),
+            config_schema_version: Some(RECALL_CONFIG_SCHEMA_VERSION),
             exported_at: "2026-07-17T00:00:00Z".to_string(),
             app_version: "test".to_string(),
-            library_id: library.meta.id.to_string(),
-            library_name: library.meta.name.clone(),
+            collection_id: library.meta.id.to_string(),
+            collection_name: library.meta.name.clone(),
             entry_count: library.entries.len(),
             asset_count: 0,
             files: vec![BackupFileRecord {
-                path: "library.json".to_string(),
+                path: "collection.json".to_string(),
                 size: library_bytes.len() as u64,
                 blake3: blake3_hex(library_bytes),
             }],
@@ -1678,66 +1979,261 @@ mod tests {
         }
     }
 
+    fn write_legacy_backup_zip(path: &Path, library: &RecallCollectionDtoV1, library_bytes: &[u8]) {
+        let manifest = serde_json::json!({
+            "format": LEGACY_BACKUP_FORMAT,
+            "formatVersion": LEGACY_BACKUP_VERSION,
+            "exportedAt": "2026-07-17T00:00:00Z",
+            "appVersion": "test",
+            "libraryId": library.meta.id.to_string(),
+            "libraryName": library.meta.name,
+            "entryCount": library.entries.len(),
+            "assetCount": 0,
+            "files": [{
+                "path": "library.json",
+                "size": library_bytes.len(),
+                "blake3": blake3_hex(library_bytes),
+            }],
+            "assets": [],
+        });
+        let file = File::create(path).unwrap();
+        let mut writer = ZipWriter::new(file);
+        let options = SimpleFileOptions::default()
+            .compression_method(CompressionMethod::Deflated)
+            .unix_permissions(0o644);
+        writer.start_file("library.json", options).unwrap();
+        writer.write_all(library_bytes).unwrap();
+        writer.start_file("manifest.json", options).unwrap();
+        writer
+            .write_all(&serde_json::to_vec_pretty(&manifest).unwrap())
+            .unwrap();
+        writer.finish().unwrap();
+    }
+
+    fn write_legacy_backup_collection(
+        path: &Path,
+        package_path: &Path,
+        library: &RecallCollectionDtoV1,
+    ) {
+        let file = File::create(path).unwrap();
+        let mut writer = ZipWriter::new(file);
+        let options = SimpleFileOptions::default()
+            .compression_method(CompressionMethod::Deflated)
+            .unix_permissions(0o644);
+        let package_file = File::open(package_path).unwrap();
+        let mut package = ZipArchive::new(package_file).unwrap();
+        for index in 0..package.len() {
+            let mut entry = package.by_index(index).unwrap();
+            writer
+                .start_file(format!("libraries/Empty/{}", entry.name()), options)
+                .unwrap();
+            std::io::copy(&mut entry, &mut writer).unwrap();
+        }
+        let index = serde_json::json!({
+            "format": LEGACY_BACKUP_COLLECTION_FORMAT,
+            "formatVersion": LEGACY_BACKUP_VERSION,
+            "exportedAt": "2026-07-17T00:00:00Z",
+            "appVersion": "test",
+            "backupCount": 1,
+            "failedCount": 0,
+            "backups": [{
+                "path": "libraries/Empty",
+                "libraryId": library.meta.id.to_string(),
+                "libraryName": library.meta.name,
+                "entryCount": library.entries.len(),
+                "assetCount": 0,
+                "warnings": [],
+            }],
+            "failures": [],
+        });
+        writer.start_file("backup-index.json", options).unwrap();
+        writer
+            .write_all(&serde_json::to_vec_pretty(&index).unwrap())
+            .unwrap();
+        writer.finish().unwrap();
+    }
+
     #[test]
-    fn backup_zip_round_trip_validates_manifest_and_library() {
+    fn backup_zip_round_trip_validates_manifest_and_collection() {
         let directory = tempdir().unwrap();
-        let path = directory.path().join("empty.aio-kb");
+        let path = directory.path().join("empty.aio-recall");
         let library = empty_library();
         let library_bytes = serde_json::to_vec_pretty(&library).unwrap();
         let manifest = manifest_for(&library, &library_bytes);
 
         write_backup_zip(&path, &manifest, &library_bytes, &[]).unwrap();
         let parsed = parse_aio_backup(&path).unwrap();
+        let serialized_manifest = read_zip_json(&path, "manifest.json");
 
         assert_eq!(parsed.library.meta.id, library.meta.id);
+        assert_eq!(parsed.format, RECALL_BACKUP_FORMAT);
+        assert_eq!(
+            parsed.manifest.as_ref().unwrap().data_schema_version,
+            Some(RECALL_DATA_SCHEMA_VERSION)
+        );
+        assert_eq!(
+            parsed.manifest.as_ref().unwrap().config_schema_version,
+            Some(RECALL_CONFIG_SCHEMA_VERSION)
+        );
+        assert_eq!(
+            serialized_manifest["collectionId"],
+            library.meta.id.to_string()
+        );
+        assert!(serialized_manifest.get("libraryId").is_none());
+        assert!(parsed.files.contains_key("collection.json"));
         assert!(!parsed.legacy_content_only);
     }
 
     #[test]
-    fn backup_collection_round_trip_uses_library_directories() {
+    fn legacy_aio_kb_v1_remains_readable() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("legacy.aio-kb");
+        let library = empty_library();
+        let library_bytes = serde_json::to_vec_pretty(&library).unwrap();
+        write_legacy_backup_zip(&path, &library, &library_bytes);
+        let parsed = parse_backup(&path).unwrap();
+
+        assert_eq!(parsed.library.meta.id, library.meta.id);
+        assert_eq!(parsed.format, LEGACY_BACKUP_FORMAT);
+        assert_eq!(parsed.manifest.as_ref().unwrap().data_schema_version, None);
+        assert!(parsed
+            .warnings
+            .iter()
+            .any(|warning| warning.code == "legacyRecallBackup"));
+        assert_eq!(missing_asset_warning_count(&parsed.warnings), 0);
+    }
+
+    #[test]
+    fn rejects_unknown_recall_schema_versions() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("future.aio-recall");
+        let library = empty_library();
+        let library_bytes = serde_json::to_vec_pretty(&library).unwrap();
+        let mut manifest = manifest_for(&library, &library_bytes);
+        manifest.config_schema_version = Some(RECALL_CONFIG_SCHEMA_VERSION + 1);
+
+        write_backup_zip(&path, &manifest, &library_bytes, &[]).unwrap();
+        let error = parse_backup(&path).err().unwrap();
+
+        assert!(error.contains("config schema"));
+    }
+
+    #[test]
+    fn backup_collection_round_trip_uses_collection_directories() {
         let directory = tempdir().unwrap();
         let mut packages = Vec::new();
         let mut entries = Vec::new();
         for (index, folder) in ["Empty", "Empty_2"].into_iter().enumerate() {
-            let package_path = directory.path().join(format!("{}.aio-kb", index));
+            let package_path = directory.path().join(format!("{}.aio-recall", index));
             let library = empty_library();
             let library_bytes = serde_json::to_vec_pretty(&library).unwrap();
             let manifest = manifest_for(&library, &library_bytes);
             write_backup_zip(&package_path, &manifest, &library_bytes, &[]).unwrap();
-            packages.push((format!("libraries/{}", folder), package_path));
+            packages.push((format!("collections/{}", folder), package_path));
             entries.push(BackupIndexEntry {
-                path: format!("libraries/{}", folder),
-                library_id: library.meta.id.to_string(),
-                library_name: library.meta.name,
+                path: format!("collections/{}", folder),
+                collection_id: library.meta.id.to_string(),
+                collection_name: library.meta.name,
                 entry_count: 0,
                 asset_count: 0,
                 warnings: Vec::new(),
             });
         }
         let index = BackupIndex {
-            format: BACKUP_COLLECTION_FORMAT.to_string(),
-            format_version: BACKUP_VERSION,
+            format: RECALL_BACKUP_COLLECTION_FORMAT.to_string(),
+            format_version: RECALL_BACKUP_VERSION,
+            data_schema_version: Some(RECALL_DATA_SCHEMA_VERSION),
+            config_schema_version: Some(RECALL_CONFIG_SCHEMA_VERSION),
             exported_at: "2026-07-17T00:00:00Z".to_string(),
             app_version: "test".to_string(),
-            backup_count: entries.len(),
+            collection_count: entries.len(),
             failed_count: 0,
-            backups: entries,
+            collections: entries,
             failures: Vec::new(),
         };
         let path = directory.path().join("collection.zip");
         write_backup_collection(&path, &index, &packages).unwrap();
         let parsed_index = validate_backup_collection(&path).unwrap();
-        assert_eq!(parsed_index.backup_count, 2);
-        assert!(parse_backup_collection_entry(&path, "libraries/Empty")
+        let serialized_index = read_zip_json(&path, "backup-index.json");
+        assert_eq!(parsed_index.collection_count, 2);
+        assert_eq!(serialized_index["collectionCount"], 2);
+        assert!(serialized_index.get("backupCount").is_none());
+        assert!(serialized_index["collections"][0]
+            .get("collectionId")
+            .is_some());
+        assert!(serialized_index.get("backups").is_none());
+        assert!(parse_backup_collection_entry(&path, "collections/Empty")
             .unwrap()
             .manifest
             .is_some());
     }
 
     #[test]
+    fn legacy_multi_library_backup_remains_readable() {
+        let directory = tempdir().unwrap();
+        let package_path = directory.path().join("legacy.aio-kb");
+        let library = empty_library();
+        let library_bytes = serde_json::to_vec_pretty(&library).unwrap();
+        write_legacy_backup_zip(&package_path, &library, &library_bytes);
+        let path = directory.path().join("legacy-collection.zip");
+        write_legacy_backup_collection(&path, &package_path, &library);
+
+        let parsed_index = validate_backup_collection(&path).unwrap();
+        assert_eq!(parsed_index.format, LEGACY_BACKUP_COLLECTION_FORMAT);
+        let parsed = parse_backup_collection_entry(&path, "libraries/Empty").unwrap();
+        assert_eq!(parsed.format, LEGACY_BACKUP_FORMAT);
+    }
+
+    #[test]
+    #[ignore = "requires AIO_RECALL_LEGACY_SINGLE_BACKUP and AIO_RECALL_LEGACY_MULTI_BACKUP"]
+    fn verifies_external_legacy_backup_files() {
+        let single = PathBuf::from(
+            std::env::var_os("AIO_RECALL_LEGACY_SINGLE_BACKUP")
+                .expect("AIO_RECALL_LEGACY_SINGLE_BACKUP must be set"),
+        );
+        let multiple = PathBuf::from(
+            std::env::var_os("AIO_RECALL_LEGACY_MULTI_BACKUP")
+                .expect("AIO_RECALL_LEGACY_MULTI_BACKUP must be set"),
+        );
+
+        let parsed = parse_backup(&single).unwrap();
+        assert_eq!(parsed.format, LEGACY_BACKUP_FORMAT);
+        assert!(parsed
+            .warnings
+            .iter()
+            .any(|warning| warning.code == "legacyRecallBackup"));
+        assert_eq!(
+            parsed.manifest.unwrap().format_version,
+            LEGACY_BACKUP_VERSION
+        );
+
+        let index = validate_backup_collection(&multiple).unwrap();
+        assert_eq!(index.format, LEGACY_BACKUP_COLLECTION_FORMAT);
+        assert!(!index.collections.is_empty());
+        let parsed = parse_backup_collection_entry(&multiple, &index.collections[0].path).unwrap();
+        assert!(parsed
+            .warnings
+            .iter()
+            .any(|warning| warning.code == "legacyRecallBackup"));
+
+        let knowledge_data = tempdir().unwrap();
+        let knowledge_state = KnowledgeState::initialized_for_test(knowledge_data.path());
+        let single_report =
+            import_legacy_backup_to_knowledge(&knowledge_state, &single, None).unwrap();
+        assert!(single_report.document_count > 0);
+        let multi_report = import_legacy_backup_to_knowledge(
+            &knowledge_state,
+            &multiple,
+            Some(&index.collections[0].path),
+        )
+        .unwrap();
+        assert!(multi_report.document_count > 0);
+    }
+
+    #[test]
     fn rejects_checksum_mismatch_before_import() {
         let directory = tempdir().unwrap();
-        let path = directory.path().join("broken.aio-kb");
+        let path = directory.path().join("broken.aio-recall");
         let library = empty_library();
         let library_bytes = serde_json::to_vec_pretty(&library).unwrap();
         let mut manifest = manifest_for(&library, &library_bytes);
@@ -1752,7 +2248,7 @@ mod tests {
     #[test]
     fn rejects_zip_traversal_entries() {
         let directory = tempdir().unwrap();
-        let path = directory.path().join("traversal.aio-kb");
+        let path = directory.path().join("traversal.aio-recall");
         let file = File::create(&path).unwrap();
         let mut writer = ZipWriter::new(file);
         writer
@@ -1778,15 +2274,22 @@ mod tests {
         fs::write(&json_path, serde_json::to_vec_pretty(&legacy).unwrap()).unwrap();
         fs::write(&yaml_path, serde_yaml::to_string(&legacy).unwrap()).unwrap();
 
-        assert!(parse_legacy_backup(&json_path).unwrap().legacy_content_only);
-        assert!(parse_legacy_backup(&yaml_path).unwrap().legacy_content_only);
+        for path in [&json_path, &yaml_path] {
+            let parsed = parse_legacy_backup(path).unwrap();
+            assert!(parsed.legacy_content_only);
+            assert!(parsed
+                .warnings
+                .iter()
+                .any(|warning| warning.code == "legacyRecallBackup"));
+            assert_eq!(missing_asset_warning_count(&parsed.warnings), 0);
+        }
     }
 
     #[test]
     fn migration_baseline_is_readable_from_all_supported_backup_inputs() {
         let baseline = fixture();
         let collection = &baseline.collections[0];
-        let library = KnowledgeLibraryDtoV1 {
+        let library = RecallCollectionDtoV1 {
             meta: collection.meta(),
             entries: collection.entries.clone(),
         };
@@ -1800,7 +2303,7 @@ mod tests {
 
         let library_bytes = serde_json::to_vec_pretty(&library).unwrap();
         let manifest = manifest_for(&library, &library_bytes);
-        let aio_path = directory.path().join("baseline.aio-kb");
+        let aio_path = directory.path().join("baseline.aio-recall");
         write_backup_zip(&aio_path, &manifest, &library_bytes, &[]).unwrap();
         let aio = parse_backup(&aio_path).unwrap();
         assert_eq!(aio.library.meta.id, collection.id);

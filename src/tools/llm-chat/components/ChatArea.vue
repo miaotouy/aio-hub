@@ -28,6 +28,7 @@ import { useElementSize } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
 import type { ChatMessageNode } from "../types";
 import type { Asset } from "@/types/asset-management";
+import type { KnowledgeReference } from "@/tools/knowledge-base/types";
 import { useDetachable } from "@/composables/useDetachable";
 import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useWindowResize } from "@/composables/useWindowResize";
@@ -77,6 +78,7 @@ interface Emits {
       content: string;
       attachments?: Asset[];
       temporaryModel?: any; // 保持与 LlmChat.vue 一致
+      knowledgeReference?: KnowledgeReference | null;
       disableMacroParsing?: boolean;
     }
   ): void;
@@ -316,6 +318,7 @@ const handleSendMessage = (payload: {
   content: string;
   attachments?: Asset[];
   temporaryModel?: any;
+  knowledgeReference?: KnowledgeReference | null;
   disableMacroParsing?: boolean;
 }) => emit("send", payload);
 const handleAbort = () => emit("abort");

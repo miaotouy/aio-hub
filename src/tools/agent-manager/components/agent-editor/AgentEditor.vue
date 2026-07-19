@@ -266,10 +266,8 @@ defineExpose({
           <PersonalitySection v-show="activeTab === 'personality'" />
           <CapabilitiesSection v-show="activeTab === 'capabilities'" />
           <SessionVariableSection v-show="activeTab === 'variables'" />
-          <template v-if="activeTab === 'knowledge'">
-            <RecallSection />
-            <KnowledgeLibrarySection />
-          </template>
+          <RecallSection v-if="activeTab === 'recall'" />
+          <KnowledgeLibrarySection v-if="activeTab === 'knowledge'" />
           <ToolCallingSection v-show="activeTab === 'tool-calling'" />
           <EnvironmentSection
             v-show="activeTab === 'environment-enhancement'"

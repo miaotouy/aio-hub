@@ -20,6 +20,7 @@ import {
   Wrench,
   Variable,
   Sparkles,
+  Brain,
   BookOpen,
 } from "lucide-vue-next";
 import type { Component } from "vue";
@@ -121,8 +122,20 @@ export const agentEditTabs: AgentEditTab[] = [
     ],
   },
   {
+    id: "recall",
+    label: "思绪",
+    icon: Brain,
+    items: [
+      {
+        id: "recall",
+        label: "思绪设置",
+        keywords: "recall 思绪 召回 记忆",
+      },
+    ],
+  },
+  {
     id: "knowledge",
-    label: "Recall 与 Knowledge",
+    label: "知识库",
     icon: BookOpen,
     items: [
       {

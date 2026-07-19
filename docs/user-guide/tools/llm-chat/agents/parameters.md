@@ -25,7 +25,7 @@ Agent 可以通过关联其他子系统来增强能力：
 
 ## 3. Knowledge 资料访问权限
 
-在 **「Recall 与 Knowledge -> Knowledge 资料访问权限」** 中配置 Agent 是否可以按需使用资料库：
+在 **「知识库 (Knowledge) -> Knowledge 资料访问权限」** 中配置 Agent 是否可以按需使用资料库：
 
 - **启用 Knowledge**：关闭时不会暴露 Knowledge 工具，也不会展开资料库目录。
 - **允许资料库**：只保存稳定的 library ID，资料库改名后授权不会失效。

@@ -143,7 +143,7 @@ VCPToolBox 当前实现也确认了这个边界：
 
 - `WebSocketServer.js` 收到 `register_tools` 后，只把分布式 manifest 注册进 `PluginManager`。
 - `PluginManager.registerDistributedTools()` 会重建可查询的插件描述，并让 `processToolCall()` 能把调用路由到 `executeDistributedTool()`；注册动作本身不会修改当前 Agent Prompt。
-- `messageProcessor.js` 只有在消息文本显式包含 `{{VCPAllTools}}`、`{{VCPDynamicTools}}` 或某个 `{{VCP<PluginName>}}` 时，才把对应插件描述展开进 Prompt。
+- `messageProcessor.js` 只有在消息文本显式包含 `{{VCPAllTools}}`、`{{VCPDynamicTools}}` 或某个 `VCP<PluginName>` 标记时，才把对应插件描述展开进 Prompt。
 - 用户所说的罕见 `tools-all` 对应当前代码中的 `{{VCPAllTools}}`；它会聚合 `individualPluginDescriptions`，其中也可能包含已注册的分布式 AIO 工具。`{{VCPDynamicTools}}` 同样可能按语义选中分布式工具。
 - 实际 `AIOgugu.txt` 使用 `{{VarToolList}}` 和若干明确的 VCP 工具箱占位符；这些内容用于 VCP 自身工具提示，不等于 AIO 工具定义，也不会因 AIO 节点注册而自动扩大。
 

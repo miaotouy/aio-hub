@@ -38,6 +38,37 @@ function fileName(path: string): string {
   return path.split(/[\\/]/).pop() || path;
 }
 
+function isLegacyRecallBackup(inspect: BackupInspectResult): boolean {
+  return (
+    inspect.format === "aiohub.knowledge-library" ||
+    inspect.format === "legacy-json" ||
+    inspect.format === "legacy-yaml"
+  );
+}
+
+async function confirmLegacyRecallImport(
+  inspections: BackupInspectResult[]
+): Promise<boolean> {
+  const count = inspections.filter(isLegacyRecallBackup).length;
+  if (count === 0) return true;
+  const scope = count === 1 ? "这个备份" : `这 ${count} 个备份项`;
+  try {
+    await ElMessageBox.confirm(
+      `${scope}来自重构前的“知识库”模块。该模块当时实际保存的是思绪条目，因此内容会导入 Recall / 思绪，不会创建新版 Knowledge 资料库。`,
+      "导入旧版思绪备份",
+      {
+        type: "warning",
+        confirmButtonText: "导入到思绪",
+        cancelButtonText: "取消",
+        lockScroll: false,
+      }
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function useKnowledgeBackup() {
   const store = useRecallCollectionStore();
   const dialogVisible = ref(false);
@@ -311,7 +342,11 @@ export function useKnowledgeBackup() {
         multiple: true,
         title: "选择思绪集备份",
         filters: [
-          { name: "AIO 思绪集备份", extensions: ["aio-kb"] },
+          { name: "AIO Recall 思绪集备份", extensions: ["aio-recall"] },
+          {
+            name: "旧版“知识库”（实际为思绪）备份",
+            extensions: ["aio-kb"],
+          },
           { name: "AIO 多库备份容器", extensions: ["zip"] },
           { name: "兼容的旧版导出", extensions: ["json", "yaml", "yml"] },
         ],
@@ -346,6 +381,9 @@ export function useKnowledgeBackup() {
           "recall_inspect_backups",
           { sourcePath: path }
         );
+        const legacyImportConfirmed = await confirmLegacyRecallImport(
+          inspectionItems.flatMap((item) => (item.inspect ? [item.inspect] : []))
+        );
         total.value += Math.max(0, inspectionItems.length - 1);
         for (const inspectionItem of inspectionItems) {
           const inspect = inspectionItem.inspect;
@@ -357,6 +395,17 @@ export function useKnowledgeBackup() {
               status: "failed",
               detail: inspectionItem.error || "无法检查此思绪集备份",
               warnings: [],
+            });
+            current.value += 1;
+            continue;
+          }
+          if (isLegacyRecallBackup(inspect) && !legacyImportConfirmed) {
+            items.value.push({
+              key: `${path}#${inspect.sourceEntry || ""}`,
+              name: inspect.libraryName,
+              status: "skipped",
+              detail: "已取消导入旧版思绪备份",
+              warnings: inspect.warnings,
             });
             current.value += 1;
             continue;
@@ -397,8 +446,12 @@ export function useKnowledgeBackup() {
                 name: report.libraryName,
                 status: report.status,
                 detail: report.legacyContentOnly
-                  ? `${report.entryCount} 个条目，旧版内容恢复`
-                  : `${report.entryCount} 个条目，${report.restoredAssetCount} 个资产`,
+                  ? `${report.entryCount} 个条目，旧版内容恢复到思绪`
+                  : report.warnings.some(
+                        (warning) => warning.code === "legacyRecallBackup"
+                      )
+                    ? `${report.entryCount} 个条目，旧版思绪备份`
+                    : `${report.entryCount} 个条目，${report.restoredAssetCount} 个资产`,
                 warnings: report.warnings,
               });
             }

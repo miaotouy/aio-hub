@@ -106,6 +106,65 @@ describe("useKnowledgeBackup", () => {
 
     expect(mocks.invoke).not.toHaveBeenCalled();
     expect(backup.dialogVisible.value).toBe(false);
+    expect(mocks.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filters: expect.arrayContaining([
+          expect.objectContaining({ extensions: ["aio-recall"] }),
+          expect.objectContaining({ extensions: ["aio-kb"] }),
+        ]),
+      })
+    );
+  });
+
+  it("explains that old knowledge-library exports are Recall backups", async () => {
+    mocks.open.mockResolvedValue("C:/legacy.aio-kb");
+    mocks.confirm.mockRejectedValue("cancel");
+    mocks.invoke.mockImplementation((command: string) => {
+      if (command === "recall_inspect_backups") {
+        return Promise.resolve([
+          inspected({
+            sourcePath: "C:/legacy.aio-kb",
+            format: "aiohub.knowledge-library",
+            formatVersion: 1,
+            libraryId: meta.id,
+            libraryName: "旧版思绪",
+            entryCount: 3,
+            assetCount: 0,
+            hasConflict: false,
+            legacyContentOnly: false,
+            warnings: [
+              {
+                code: "legacyRecallBackup",
+                message: "旧知识库实际为思绪备份",
+              },
+            ],
+          }),
+        ]);
+      }
+      return Promise.reject(new Error(`unexpected command: ${command}`));
+    });
+    const backup = useKnowledgeBackup();
+
+    await backup.importBackups();
+
+    expect(mocks.confirm).toHaveBeenCalledWith(
+      expect.stringContaining("实际保存的是思绪条目"),
+      "导入旧版思绪备份",
+      expect.objectContaining({
+        confirmButtonText: "导入到思绪",
+        lockScroll: false,
+      })
+    );
+    expect(mocks.invoke).not.toHaveBeenCalledWith(
+      "recall_import_backup",
+      expect.anything()
+    );
+    expect(backup.items.value).toEqual([
+      expect.objectContaining({
+        status: "skipped",
+        detail: "已取消导入旧版思绪备份",
+      }),
+    ]);
   });
 
   it("keeps successful imports when another selected package fails", async () => {
@@ -116,7 +175,7 @@ describe("useKnowledgeBackup", () => {
           [
             {
               sourcePath: payload.sourcePath,
-              format: "aiohub.knowledge-library",
+              format: "aiohub.recall-collection",
               formatVersion: 1,
               libraryId: meta.id,
               libraryName: payload.sourcePath.includes("broken")
@@ -180,7 +239,7 @@ describe("useKnowledgeBackup", () => {
           [
             {
               sourcePath: "C:/conflict.aio-kb",
-              format: "aiohub.knowledge-library",
+              format: "aiohub.recall-collection",
               formatVersion: 1,
               libraryId: meta.id,
               libraryName: "Imported",
@@ -233,7 +292,7 @@ describe("useKnowledgeBackup", () => {
           [
             {
               sourcePath: "C:/conflict.aio-kb",
-              format: "aiohub.knowledge-library",
+              format: "aiohub.recall-collection",
               formatVersion: 1,
               libraryId: meta.id,
               libraryName: "Imported",
@@ -278,8 +337,8 @@ describe("useKnowledgeBackup", () => {
           [
             {
               sourcePath: payload.sourcePath,
-              sourceEntry: "libraries/A",
-              format: "aiohub.knowledge-library",
+              sourceEntry: "collections/A",
+              format: "aiohub.recall-collection",
               formatVersion: 1,
               libraryId: "a",
               libraryName: "A",
@@ -291,8 +350,8 @@ describe("useKnowledgeBackup", () => {
             },
             {
               sourcePath: payload.sourcePath,
-              sourceEntry: "libraries/B",
-              format: "aiohub.knowledge-library",
+              sourceEntry: "collections/B",
+              format: "aiohub.recall-collection",
               formatVersion: 1,
               libraryId: "b",
               libraryName: "B",
@@ -333,12 +392,12 @@ describe("useKnowledgeBackup", () => {
 
     expect(mocks.invoke).toHaveBeenCalledWith("recall_import_backup", {
       sourcePath: "C:/all-libraries.zip",
-      sourceEntry: "libraries/A",
+      sourceEntry: "collections/A",
       options: { conflictStrategy: "copy" },
     });
     expect(mocks.invoke).toHaveBeenCalledWith("recall_import_backup", {
       sourcePath: "C:/all-libraries.zip",
-      sourceEntry: "libraries/B",
+      sourceEntry: "collections/B",
       options: { conflictStrategy: "copy" },
     });
     expect(backup.items.value).toHaveLength(3);

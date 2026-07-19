@@ -23,6 +23,8 @@ export interface BackupInspectResult {
   sourceEntry?: string | null;
   format: string;
   formatVersion: number;
+  dataSchemaVersion?: number | null;
+  configSchemaVersion?: number | null;
   libraryId: string;
   libraryName: string;
   entryCount: number;

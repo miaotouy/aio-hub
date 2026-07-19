@@ -71,6 +71,8 @@ AIO Hub 是基于 Tauri v2、Vue 3、TypeScript 和 Rust 的跨平台 AI 工具�
 - 涉及 Tauri API 的前端单测可使用 `@tauri-apps/api/mocks` mock `invoke`、事件和窗口等能力；这只验证前端逻辑与调用契约，不等同于真实 Rust command / plugin 验证。
 - 真实运行态调试应使用 `tauri dev` / 项目对应脚本启动 Tauri 窗口，并在 WebView DevTools 中检查控制台、DOM 和网络。
 - 自动化 E2E 只有在项目已提供稳定脚本和驱动配置时再运行，例如 `tauri-driver` / WebDriver 或 Windows WebView2 CDP；不要临时用普通浏览器替代 Tauri WebView。
+- 桌面端真实窗口 E2E 使用项目的 `bun run test:tauri:e2e`（WebdriverIO embedded Tauri WebDriver），配置和 smoke 用例位于 `tests/tauri-e2e/`；运行前应使用唯一 `AIO_ID_SUFFIX`、独立 `AIO_DATA_DIR` 和 debug binary。详细流程、工具分层、产物目录和限制见 [`docs/guide/tool-testing-guide.md`](docs/guide/tool-testing-guide.md) 与 [`tests/tauri-e2e/README.md`](tests/tauri-e2e/README.md)。
+- `tauri-plugin-wdio` 与 `tauri-plugin-wdio-webdriver` 只在 debug 构建注册。WDIO/CDP 只能直接控制 Tauri WebView；Windows 原生文件/目录选择器、绝对路径拖放和桌面窗口管理必须使用独立 Windows UI Automation runner 或可见桌面人工验收，禁止用直接 `invoke`、repository 调用或伪造 H5 `File` 冒充通过。
 
 ## 5. 工具与插件模块
 

@@ -250,3 +250,72 @@ bun run test src/tools/{your-tool-id}
 # 运行全量测试，确保没有破坏其他模块
 bun run test:run
 ```
+
+---
+
+## 8. 真实 Tauri 窗口 E2E
+
+Vitest 和前面的 Mock 测试用于验证业务逻辑、参数契约和组件行为；它们不启动原生 WebView，也不能证明 Tauri IPC、窗口生命周期、绝对路径拖放或系统文件选择器可用。需要真实窗口时，使用项目新增的 WebdriverIO Tauri E2E 工具：
+
+- 配置文件：[`tests/tauri-e2e/wdio.conf.ts`](../../tests/tauri-e2e/wdio.conf.ts)
+- Smoke 用例：[`tests/tauri-e2e/specs/smoke.spec.ts`](../../tests/tauri-e2e/specs/smoke.spec.ts)
+- 运行说明：[`tests/tauri-e2e/README.md`](../../tests/tauri-e2e/README.md)
+- 运行命令：`bun run test:tauri:e2e`
+
+### 8.1. 工具组成
+
+真实窗口 E2E 由以下部分组成：
+
+1. `@wdio/tauri-service`：WebdriverIO 的 Tauri service，负责启动应用并通过 embedded WebDriver 驱动 WebView。
+2. `tauri-plugin-wdio`：仅在 debug 构建注册，提供 Tauri 侧的执行、日志和测试辅助能力。
+3. `tauri-plugin-wdio-webdriver`：仅在 debug 构建注册，在应用内启动 embedded WebDriver server。
+4. `tests/tauri-e2e/`：集中放置 WDIO 配置、真实窗口用例和运行说明，不把 E2E 逻辑混入业务工具目录。
+
+`@wdio/tauri-service` 当前固定为 `1.1.x`。`1.2.0` 存在对 `@wdio/native-utils` 导出不匹配的问题，升级前需要先确认上游依赖修复。
+
+### 8.2. 首次运行
+
+先生成前端产物并编译 debug binary：
+
+```powershell
+bun run build:vite
+cargo build --manifest-path src-tauri/Cargo.toml
+```
+
+然后使用隔离数据根运行 E2E。不要让验收读取默认 appData、用户模型配置或真实会话：
+
+```powershell
+$env:AIO_ID_SUFFIX = "tauri-e2e"
+$env:AIO_DATA_DIR = ".dev-data\\tauri-e2e"
+$env:AIO_E2E_ARTIFACT_DIR = ".dev-data\\tauri-e2e\\artifacts"
+bun run test:tauri:e2e
+```
+
+当 binary 不在默认位置时，显式设置：
+
+```powershell
+$env:AIO_E2E_BINARY = "E:\\path\\to\\aiohub.exe"
+bun run test:tauri:e2e
+```
+
+配置默认使用单 worker，并保存前后端日志和 WDIO 产物。只运行某个 spec 时可以追加 WDIO 参数：
+
+```powershell
+bun run test:tauri:e2e -- --spec tests/tauri-e2e/specs/smoke.spec.ts
+```
+
+### 8.3. 编写真实窗口用例
+
+真实窗口用例应优先使用稳定的 `data-testid`、可访问名称或明确的语义 selector，不要依赖坐标、动态文案或当前屏幕布局。每个场景都要：
+
+- 在隔离数据根中准备 fixture；
+- 通过真实 UI 触发操作；
+- 断言页面状态、工具事件或持久化结果；
+- 在失败时保留截图、前后端日志和 session 信息；
+- 明确哪些步骤经过了 Tauri IPC，哪些步骤仍属于系统级人工边界。
+
+### 8.4. 不能由 WDIO 单独替代的入口
+
+WDIO 和 WebView2 CDP 只能直接控制 Tauri WebView。Windows 原生文件/目录选择器、拖放绝对路径、桌面窗口激活和系统级窗口排列仍需独立的 Windows UI Automation runner 或可见桌面人工验收。禁止使用直接 `invoke`、repository 调用或伪造 H5 `File` 来冒充这些入口已通过。
+
+普通浏览器页面测试仍可用于纯前端 Mock 场景，但不能替代真实 Tauri E2E。

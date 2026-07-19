@@ -222,6 +222,14 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build());
 
+    // Keep the WebdriverIO bridge and embedded driver out of release runtime behavior.
+    #[cfg(debug_assertions)]
+    {
+        builder = builder
+            .plugin(tauri_plugin_wdio::init())
+            .plugin(tauri_plugin_wdio_webdriver::init());
+    }
+
     #[cfg(not(debug_assertions))]
     let mut builder = builder;
     #[cfg(not(debug_assertions))]

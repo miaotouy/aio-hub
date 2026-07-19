@@ -354,6 +354,35 @@ Phase 3 分为五个施工批次。后端配置和摄取契约先行，工作台
 - Phase 3 的“模型调用”验收用于证明 Knowledge 从隔离模型 Profile 经应用 Transport 发出 Embedding 请求，并正确处理响应维度、索引切换、失败和重试。默认使用本机可控、响应确定的 OpenAI-compatible Embedding mock；不得复用用户密钥或未经授权调用外部付费端点。Provider 质量、真实网络兼容性和外部模型效果不属于本门禁，另在有明确测试凭据和授权时验收。
 - 验收记录至少保存运行方式、隔离目录标识、窗口/WebView 版本、通过场景、失败证据和截图路径；日志与截图不得包含 API Key、Authorization header 或用户数据。自动化无法覆盖的系统差异必须明确记录为人工验收边界，不能静默勾选。
 
+真实 Tauri / AI 自动化方案调查（2026-07-19）：
+
+- **官方测试分层**：Tauri 官方把 mock runtime（单元/集成测试，原生 WebView 不执行）与 WebDriver E2E 分开；真实窗口验收应优先走 WebDriver，而不是把 WebView2 CDP 当成完整驱动。官方 Tests 总览：[Tauri Tests](https://v2.tauri.app/develop/tests/)。
+- **推荐的真实窗口驱动**：Tauri v2 文档当前推荐 WebdriverIO 的 `@wdio/tauri-service`。该 service 支持 Windows/Linux/macOS，默认可在应用内启动 embedded WebDriver，不要求额外 driver；同时提供 `browser.tauri.execute()`、IPC command mocking、前后端日志捕获和 multiremote。Windows/Linux 仍可选择 `tauri-driver` 直接驱动。详见 [Tauri WebDriver](https://v2.tauri.app/develop/tests/webdriver/) 与 [WebdriverIO Tauri service](https://webdriver.io/docs/desktop-testing/tauri)。
+- **当前 CDP 方案的定位**：本清单中的 `AIO_WEBVIEW2_ADDITIONAL_BROWSER_ARGS` 适合做 DOM、焦点、样式、截图和调试日志检查，但不覆盖 Tauri 窗口生命周期，也不能驱动 Windows 原生文件选择器；它应降级为 renderer-inspection 适配器，而不是唯一 E2E 入口。
+- **AI 驱动的社区方案**：
+  - [hypothesi/mcp-server-tauri](https://github.com/hypothesi/mcp-server-tauri) 通过 MCP 向 Claude、Cursor、Windsurf、Codex 等暴露截图、DOM、点击、输入、IPC 监控和 console/log 工具，并提供 Tauri bridge plugin；适合让 AI 观察运行中窗口、生成操作步骤和定位失败原因。
+  - [Radek44/mcp-tauri-automation](https://github.com/Radek44/mcp-tauri-automation) 基于 `tauri-driver` 暴露 `launch_app`、截图、CSS 元素操作、文本读取和可选 IPC 调用；更轻量，但项目规模和维护度较小，且 `execute_tauri_command` 不应直接用于本项目的通过判定。
+  - 这两类 MCP 都是非确定性的 AI 操作层，不能替代固定 selector、固定 fixture、固定断言和隔离数据根；应只用于探索性回归、失败复现、截图/日志分析和生成后续测试草稿。接入时禁止把密钥、用户会话或完整数据库暴露给 MCP。
+- **原生系统入口边界**：WebDriver/CDP 只能控制 WebView DOM。文件/目录选择器、拖放绝对路径和窗口管理仍需要 Windows UI Automation（例如 FlaUI/pywinauto，或仓库现有 AHK/window-automator 资产）配合可见桌面运行；不能用 `invoke`、伪造 H5 `File` 或直接 repository 调用冒充系统入口已通过。若 CI 没有稳定的交互式桌面，应把该项明确记录为人工验收边界。
+
+建议把后续真实运行态验收改为以下三层，并在 P5-T06 之前补齐脚本与证据格式：
+
+| 层级 | 驱动与用途 | 可覆盖范围 | 不可替代的边界 |
+| --- | --- | --- | --- |
+| A. 确定性自动门禁 | Rust/mock runtime、Vitest、`@wdio/tauri-service`（必要时 `tauri-driver`） | 真实 Tauri UI、IPC 契约、Chat/Knowledge 流程、重启、截图、日志 | 系统文件选择器和桌面窗口管理 |
+| B. 原生入口验收 | Windows UI Automation + 可见桌面 | 文件/目录对话框、拖放绝对路径、窗口激活/关闭 | 不能仅靠 DOM selector；环境必须可审计 |
+| C. AI 辅助操作 | `mcp-server-tauri` 或同类 MCP，连接隔离 debug 实例 | 探索路径、失败复现、DOM/截图/日志解释、生成测试草稿 | 不作为 release/Phase gate 的唯一断言来源 |
+
+落地顺序建议：
+
+- [ ] E2E-AUTO-01 新增独立 WebdriverIO 配置和 `bun` 脚本，固定 debug binary、`AIO_ID_SUFFIX`、`AIO_DATA_DIR`、本地 Embedding/Chat mock，并统一保存截图、日志和 WebDriver session 信息。
+- [ ] E2E-AUTO-02 为 Knowledge、Chat、Agent Manager 的关键控件补稳定 `data-testid`/可访问名称；测试断言优先使用这些契约，不依赖文案或坐标。
+- [ ] E2E-AUTO-03 将 P3-T05/P3-T06/P4 真实 Chat 链路迁移到 WDIO；保留 CDP 仅做样式和调试补充。
+- [ ] E2E-AUTO-04 为 Windows 原生选择器和拖放建立 UI Automation runner；runner 不得调用业务 command 绕过系统入口，并记录桌面会话、窗口标题、fixture 路径和失败截图。
+- [ ] E2E-AUTO-05 增加 AI 辅助 profile：MCP 只能连接隔离 debug 实例，默认关闭写文件/任意 IPC 工具；其输出作为人工复现或测试草稿，不直接勾选 P5-T06/P5-GATE。
+
+当前已落地的基础配置：`package.json` 提供 `bun run test:tauri:e2e`，`tests/tauri-e2e/wdio.conf.ts` 使用 embedded WebDriver，`src-tauri` 只在 debug 构建注册 `tauri-plugin-wdio` 和 `tauri-plugin-wdio-webdriver`，并以 `smoke.spec.ts` 验证真实 Tauri WebView 可被接管。Knowledge 场景、稳定业务 selector、本地模型 mock 和原生 UI Automation 尚未迁移，因此上述 E2E-AUTO 项仍不能整体勾选。
+
 真实运行态验收严重问题与停工记录（2026-07-19）：
 
 - **预期契约**：`AIO_DATA_DIR`、`--data-dir` 和便携模式确定统一数据根；Knowledge manifest、单库数据库、运行配置及其他应用数据必须位于同一根下，隔离实例也应能整体重启、备份和清理。

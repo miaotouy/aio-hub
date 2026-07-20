@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { $, browser } from "@wdio/globals";
+import { $, $$, browser } from "@wdio/globals";
 import { invokeTauriCommand } from "../support/tauri-command";
 
 interface BackupInspect {
@@ -43,7 +43,8 @@ interface EmbeddingRequest {
 
 interface ExternalCorpusArtifact {
   schemaVersion: 1;
-  phase: "initial";
+  phase: "inspected" | "imported" | "sample-vectorized" | "vectorized";
+  scope: "sample" | "full";
   source: {
     sha256: string;
     reviewed: boolean;
@@ -76,6 +77,7 @@ interface ExternalCorpusArtifact {
     embeddingInputCount: number;
     peakProgressCurrent: number;
     peakProgressTotal: number;
+    targetEntryIds: string[];
   };
   probeEntryIds: string[];
   recovery?: {
@@ -84,6 +86,17 @@ interface ExternalCorpusArtifact {
     loadedVectorCount: number;
     dimension: number;
   };
+}
+
+function writeExternalCheckpoint(
+  artifactDir: string,
+  checkpoint: Record<string, unknown>
+): void {
+  fs.writeFileSync(
+    path.join(artifactDir, "recall-external-corpus.json"),
+    `${JSON.stringify({ schemaVersion: 1, ...checkpoint }, null, 2)}\n`,
+    "utf8"
+  );
 }
 
 function requiredEnv(name: string): string {
@@ -143,15 +156,26 @@ async function remountRecallWorkspace(): Promise<void> {
 }
 
 async function activateImportedCollection(collectionId: string): Promise<void> {
+  const workspace = await $('[data-testid="recall-workspace"]');
   const selector = `[data-testid="recall-collection-row"][data-recall-id="${collectionId}"]`;
   const row = await $(selector);
+  await browser.waitUntil(
+    async () =>
+      (await workspace.getAttribute("data-recall-id")) === collectionId ||
+      (await row.isDisplayed()),
+    {
+      timeout: 30_000,
+      timeoutMsg: "Imported Recall collection did not become active or selectable.",
+    }
+  );
+  if ((await workspace.getAttribute("data-recall-id")) === collectionId) return;
+
   if (!(await row.isDisplayed())) {
     const toggle = await $('[data-testid="recall-collection-list-toggle"]');
     if (await toggle.isDisplayed()) await toggle.click();
   }
   await row.waitForDisplayed({ timeout: 30_000 });
   await row.click();
-  const workspace = await $('[data-testid="recall-workspace"]');
   await browser.waitUntil(
     async () => (await workspace.getAttribute("data-recall-id")) === collectionId,
     {
@@ -196,12 +220,96 @@ async function waitForCoverage(
   };
 }
 
-describe("Recall external corpus import", () => {
+async function vectorizeVisibleSample(sampleSize: number): Promise<string[]> {
+  const toggle = await $('[data-testid="recall-entry-selection-toggle"]');
+  await toggle.waitForClickable({ timeout: 30_000 });
+  await toggle.click();
+
+  await browser.waitUntil(
+    async () => (await $$('[data-testid="recall-entry-row"]')).length >= sampleSize,
+    {
+      timeout: 30_000,
+      timeoutMsg: `Recall UI did not render ${sampleSize} sample entries.`,
+    }
+  );
+  const rows = (await $$('[data-testid="recall-entry-row"]')).slice(0, sampleSize);
+  const entryIds = await Promise.all(
+    rows.map(async (row) => requiredAttribute(row, "data-entry-id"))
+  );
+  for (const entryId of entryIds) {
+    await $(
+      `[data-testid="recall-entry-row"][data-entry-id="${entryId}"]`
+    ).click();
+  }
+
+  const vectorizeSelected = await $('[data-testid="recall-vectorize-selected"]');
+  await browser.waitUntil(
+    async () =>
+      Number(await vectorizeSelected.getAttribute("data-selected-count")) ===
+      entryIds.length,
+    {
+      timeout: 10_000,
+      timeoutMsg: "Recall UI did not retain the selected sample batch.",
+    }
+  );
+  await vectorizeSelected.click();
+  return entryIds;
+}
+
+async function requiredAttribute(
+  element: WebdriverIO.Element,
+  name: string
+): Promise<string> {
+  const value = await element.getAttribute(name);
+  if (!value) throw new Error(`Recall UI element is missing ${name}.`);
+  return value;
+}
+
+async function waitForSampleVectors(
+  collectionId: string,
+  modelId: string,
+  entryIds: string[]
+): Promise<{ coverage: VectorCoverage; meta: RecallMeta }> {
+  let meta: RecallMeta | null = null;
+  await browser.waitUntil(
+    async () => {
+      meta = await invokeTauriCommand<RecallMeta | null>(
+        "recall_load_base_meta",
+        { recallId: collectionId, modelId }
+      );
+      return entryIds.every((entryId) => {
+        const entry = meta?.entries.find((candidate) => candidate.id === entryId);
+        return (
+          entry?.vectorStatus === "ready" &&
+          entry.vectorizedModels.includes(modelId)
+        );
+      });
+    },
+    {
+      timeout: 60_000,
+      interval: 250,
+      timeoutMsg: "External corpus sample vectorization did not complete.",
+    }
+  );
+  const coverage = await invokeTauriCommand<VectorCoverage>(
+    "recall_check_vector_coverage",
+    { recallIds: [collectionId], modelId }
+  );
+  return { coverage, meta: meta! };
+}
+
+const externalCorpusDescribe =
+  ["external-sample", "external-full"].includes(
+    process.env.AIO_E2E_CORPUS_MODE ?? ""
+  ) &&
+  process.env.AIO_E2E_PHASE === "initial" &&
+  process.env.AIO_E2E_ACTIVE_SPEC?.includes("recall-external-corpus")
+    ? describe
+    : describe.skip;
+
+externalCorpusDescribe("Recall external corpus import", () => {
   it("imports, vectorizes, and records the external .aio-kb corpus", async function () {
     this.timeout(360_000);
-    if (process.env.AIO_E2E_CORPUS_MODE !== "external-full") {
-      throw new Error("External corpus spec requires --corpus-mode external-full.");
-    }
 
     const sourcePath = requiredEnv("AIO_E2E_RECALL_SOURCE");
     const sourceSha256 = requiredEnv("AIO_E2E_RECALL_SOURCE_SHA256");
@@ -209,6 +317,7 @@ describe("Recall external corpus import", () => {
     const embeddingModelId = requiredEnv("AIO_E2E_EMBEDDING_MODEL_ID");
     const expectedEntryCount = optionalPositiveInteger("AIO_E2E_RECALL_EXPECTED_COUNT");
     const probeEntryIds = parseProbeIds();
+    const sampleMode = process.env.AIO_E2E_CORPUS_MODE === "external-sample";
 
     await invokeTauriCommand<void>("recall_initialize");
     const inspect = await invokeTauriCommand<BackupInspect>(
@@ -228,6 +337,17 @@ describe("Recall external corpus import", () => {
         `External backup entry count mismatch: expected ${expectedEntryCount}, received ${inspect.entryCount}.`
       );
     }
+    writeExternalCheckpoint(artifactDir, {
+      phase: "inspected",
+      source: { sha256: sourceSha256, expectedEntryCount },
+      inspect: {
+        format: inspect.format,
+        formatVersion: inspect.formatVersion,
+        entryCount: inspect.entryCount,
+        legacyContentOnly: inspect.legacyContentOnly,
+        warningCodes: inspect.warnings.map((warning) => warning.code),
+      },
+    });
 
     const importStartedAt = Date.now();
     const report = await invokeTauriCommand<BackupImportReport>(
@@ -249,6 +369,17 @@ describe("Recall external corpus import", () => {
     ) {
       throw new Error("External backup import report does not match the inspected backup.");
     }
+    writeExternalCheckpoint(artifactDir, {
+      phase: "imported",
+      source: { sha256: sourceSha256, expectedEntryCount },
+      inspect: { entryCount: inspect.entryCount },
+      import: {
+        status: report.status,
+        collectionId,
+        entryCount: report.entryCount,
+        elapsedMs: importElapsedMs,
+      },
+    });
 
     const importedIds = await invokeTauriCommand<string[]>(
       "recall_list_entry_ids",
@@ -269,49 +400,90 @@ describe("Recall external corpus import", () => {
     await activateImportedCollection(collectionId);
     const embeddingBaseline = readEmbeddingRequests(artifactDir).length;
     const vectorStartedAt = Date.now();
-    const vectorizeAll = await $('[data-testid="recall-vectorize-all"]');
-    await vectorizeAll.waitForClickable({ timeout: 30_000 });
-    await vectorizeAll.click();
-    const { coverage, peakCurrent, peakTotal } = await waitForCoverage(
-      collectionId,
-      embeddingModelId
-    );
+    let targetEntryIds: string[];
+    let coverage: VectorCoverage;
+    let meta: RecallMeta | null;
+    let peakCurrent: number;
+    let peakTotal: number;
+    if (sampleMode) {
+      const configuredSampleSize =
+        optionalPositiveInteger("AIO_E2E_RECALL_SAMPLE_SIZE") ?? 3;
+      const sampleSize = Math.min(configuredSampleSize, inspect.entryCount);
+      targetEntryIds = await vectorizeVisibleSample(sampleSize);
+      ({ coverage, meta } = await waitForSampleVectors(
+        collectionId,
+        embeddingModelId,
+        targetEntryIds
+      ));
+      peakCurrent = targetEntryIds.length;
+      peakTotal = targetEntryIds.length;
+    } else {
+      targetEntryIds = importedIds;
+      const vectorizeAll = await $('[data-testid="recall-vectorize-all"]');
+      await vectorizeAll.waitForClickable({ timeout: 30_000 });
+      await vectorizeAll.click();
+      ({ coverage, peakCurrent, peakTotal } = await waitForCoverage(
+        collectionId,
+        embeddingModelId
+      ));
+      meta = await invokeTauriCommand<RecallMeta | null>(
+        "recall_load_base_meta",
+        { recallId: collectionId, modelId: embeddingModelId }
+      );
+    }
     const vectorElapsedMs = Date.now() - vectorStartedAt;
+    if (coverage.totalEntries !== inspect.entryCount) {
+      throw new Error("External corpus vector coverage has an invalid total.");
+    }
     if (
-      coverage.totalEntries !== inspect.entryCount ||
-      coverage.cachedEntries !== inspect.entryCount ||
-      coverage.missingEntries !== 0
+      (!sampleMode &&
+        (coverage.cachedEntries !== inspect.entryCount ||
+          coverage.missingEntries !== 0)) ||
+      (sampleMode && coverage.cachedEntries < targetEntryIds.length)
     ) {
       throw new Error("External corpus vector coverage is incomplete.");
     }
+    writeExternalCheckpoint(artifactDir, {
+      phase: sampleMode ? "sample-vectorized" : "vectorized",
+      scope: sampleMode ? "sample" : "full",
+      source: { sha256: sourceSha256, expectedEntryCount },
+      import: { collectionId, entryCount: inspect.entryCount },
+      vectorization: {
+        totalEntries: coverage.totalEntries,
+        cachedEntries: coverage.cachedEntries,
+        missingEntries: coverage.missingEntries,
+        peakProgressCurrent: peakCurrent,
+        peakProgressTotal: peakTotal,
+        targetEntryIds: sampleMode ? targetEntryIds : [],
+      },
+    });
 
-    const meta = await invokeTauriCommand<RecallMeta | null>(
-      "recall_load_base_meta",
-      { recallId: collectionId, modelId: embeddingModelId }
-    );
     if (
       !meta ||
       meta.id !== collectionId ||
       meta.entries.length !== inspect.entryCount ||
-      meta.entries.some(
-        (entry) =>
+      targetEntryIds.some((entryId) => {
+        const entry = meta?.entries.find((candidate) => candidate.id === entryId);
+        return (
+          !entry ||
           entry.vectorStatus !== "ready" ||
           !entry.vectorizedModels.includes(embeddingModelId)
-      )
+        );
+      })
     ) {
-      throw new Error("Imported metadata does not show complete vector persistence.");
+      throw new Error("Imported metadata does not show target vector persistence.");
     }
 
-    for (const probeEntryId of probeEntryIds) {
-      const probe = await invokeTauriCommand<{
-        id: string;
-        vectorizedModels: string[];
-      } | null>("recall_load_entry", {
-        recallId: collectionId,
-        entryId: probeEntryId,
-      });
-      if (!probe || !probe.vectorizedModels.includes(embeddingModelId)) {
-        throw new Error(`Reviewed source probe was not vectorized: ${probeEntryId}`);
+    if (!sampleMode) {
+      for (const probeEntryId of probeEntryIds) {
+        const probe = meta.entries.find((entry) => entry.id === probeEntryId);
+        if (
+          !probe ||
+          probe.vectorStatus !== "ready" ||
+          !probe.vectorizedModels.includes(embeddingModelId)
+        ) {
+          throw new Error(`Reviewed source probe was not vectorized: ${probeEntryId}`);
+        }
       }
     }
 
@@ -325,7 +497,8 @@ describe("Recall external corpus import", () => {
 
     const artifact: ExternalCorpusArtifact = {
       schemaVersion: 1,
-      phase: "initial",
+      phase: sampleMode ? "sample-vectorized" : "vectorized",
+      scope: sampleMode ? "sample" : "full",
       source: {
         sha256: sourceSha256,
         reviewed: process.env.AIO_E2E_RECALL_SOURCE_REVIEWED === "1",
@@ -361,6 +534,7 @@ describe("Recall external corpus import", () => {
         ),
         peakProgressCurrent: peakCurrent,
         peakProgressTotal: peakTotal,
+        targetEntryIds: sampleMode ? targetEntryIds : [],
       },
       probeEntryIds,
     };

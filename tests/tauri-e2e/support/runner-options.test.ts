@@ -114,5 +114,8 @@ describe("Tauri E2E runner options", () => {
     expect(
       parseE2eRunnerOptions(["--corpus-mode", "external-full"], {})
     ).toMatchObject({ corpusMode: "external-full", wdioArgs: [] });
+    expect(
+      parseE2eRunnerOptions(["--corpus-mode", "external-sample"], {})
+    ).toMatchObject({ corpusMode: "external-sample", wdioArgs: [] });
   });
 });

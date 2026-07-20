@@ -225,7 +225,11 @@ const isAllSelected = computed(() => {
             库设置
           </el-button>
 
-          <el-button @click="emit('toggle-selection')" size="small">
+          <el-button
+            @click="emit('toggle-selection')"
+            size="small"
+            data-testid="recall-entry-selection-toggle"
+          >
             <template #icon><CheckSquare :size="14" /></template>
             条目管理
           </el-button>
@@ -272,6 +276,8 @@ const isAllSelected = computed(() => {
                 emit('toggle-selection');
               }
             "
+            data-testid="recall-vectorize-selected"
+            :data-selected-count="selectedEntryIds.size"
           >
             <template #icon><RefreshCw :size="14" /></template>
             更新向量

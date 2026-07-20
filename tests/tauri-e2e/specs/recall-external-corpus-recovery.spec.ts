@@ -4,7 +4,7 @@ import { $, browser } from "@wdio/globals";
 import { invokeTauriCommand } from "../support/tauri-command";
 
 interface ExternalCorpusArtifact {
-  phase: "initial";
+  phase: "inspected" | "imported" | "vectorized";
   import: { collectionId: string; entryCount: number };
   vectorization: { cachedEntries: number; missingEntries: number };
   recovery?: {
@@ -21,16 +21,17 @@ function requiredEnv(name: string): string {
   return value;
 }
 
-describe("Recall external corpus recovery", () => {
+const externalCorpusRecoveryDescribe =
+  process.env.AIO_E2E_CORPUS_MODE === "external-full" &&
+  process.env.AIO_E2E_FIXTURE_MODE === "verify" &&
+  process.env.AIO_E2E_PHASE === "recovery" &&
+  process.env.AIO_E2E_ACTIVE_SPEC?.includes("recall-external-corpus-recovery")
+    ? describe
+    : describe.skip;
+
+externalCorpusRecoveryDescribe("Recall external corpus recovery", () => {
   it("reads the imported vectors after a second Tauri launch without reimporting", async function () {
     this.timeout(180_000);
-    if (
-      process.env.AIO_E2E_CORPUS_MODE !== "external-full" ||
-      process.env.AIO_E2E_FIXTURE_MODE !== "verify" ||
-      process.env.AIO_E2E_PHASE !== "recovery"
-    ) {
-      throw new Error("External corpus recovery must run in the second verify-mode launch.");
-    }
 
     const artifactDir = requiredEnv("AIO_E2E_ARTIFACT_DIR");
     const modelId = requiredEnv("AIO_E2E_EMBEDDING_MODEL_ID");

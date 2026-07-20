@@ -7,9 +7,9 @@ export interface RecallScenarioResult {
   passed: boolean;
   queryEmbedding: boolean;
   embeddingRequests: number;
-  topEntryId?: string;
   chatStatus: number;
   chatEvidence: boolean;
+  evidenceVerified: boolean;
   uiReply: boolean;
   sessionPersisted: boolean;
   detail?: string;

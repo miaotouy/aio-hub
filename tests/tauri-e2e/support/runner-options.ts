@@ -1,4 +1,12 @@
-export type RecallCorpusMode = "smoke" | "curated" | "external-full";
+export type RecallCorpusMode =
+  | "smoke"
+  | "curated"
+  | "external-sample"
+  | "external-full";
+
+export function isExternalCorpusMode(mode: RecallCorpusMode): boolean {
+  return mode === "external-sample" || mode === "external-full";
+}
 
 export type RunnerLaneRequest =
   | { kind: "deterministic-mock" }
@@ -133,7 +141,9 @@ export function parseE2eRunnerOptions(
     throw new Error(`Unsupported vector mode: ${vectorMode}.`);
   }
   if (
-    !(["smoke", "curated", "external-full"] as string[]).includes(corpusMode)
+    !(
+      ["smoke", "curated", "external-sample", "external-full"] as string[]
+    ).includes(corpusMode)
   ) {
     throw new Error(`Unsupported corpus mode: ${corpusMode}.`);
   }

@@ -1,16 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { $, browser } from "@wdio/globals";
-import {
-  RECALL_ENTRY_IDS,
-  recallChatScenarios,
-} from "../fixtures/recall-scenarios";
+import { recallChatScenarios } from "../fixtures/recall-scenarios";
 import {
   recallRuntimeFixture,
   requiredE2eEnv,
   setupRecallRuntimeFixture,
 } from "../support/recall-runtime-fixture";
-import { deterministicVector } from "../support/openai-mock-core";
 import { recordRecallScenarioResult } from "../support/scenario-results";
 import { invokeTauriCommand } from "../support/tauri-command";
 
@@ -20,7 +16,7 @@ const phase = process.env.AIO_E2E_PHASE || "initial";
 const lane = process.env.AIO_E2E_LANE || "deterministic-mock";
 const chatExpectation = process.env.AIO_E2E_CHAT_EXPECTATION || "preset-exact";
 const requestEvidence = process.env.AIO_E2E_REQUEST_EVIDENCE || "mock-log";
-const { manifest, embeddingModelId, embeddingDimension } = recallRuntimeFixture;
+const { manifest, embeddingModelId } = recallRuntimeFixture;
 
 interface ChatSummary {
   scenarioId: string | null;
@@ -28,6 +24,7 @@ interface ChatSummary {
   status: number;
   requiredEvidence: Array<{ matched: boolean }>;
   mismatchReason: string | null;
+  evidenceVerified?: boolean;
 }
 
 interface EmbeddingSummary {
@@ -164,10 +161,11 @@ async function waitForChatSummary(
     );
     return {
       scenarioId,
-      scenarioMatch: true,
+      scenarioMatch: false,
       status,
-      requiredEvidence: [{ matched: true }],
+      requiredEvidence: [],
       mismatchReason: null,
+      evidenceVerified: false,
     };
   }
   let summary: ChatSummary | undefined;
@@ -298,25 +296,6 @@ async function waitForPersistedAssistant(
   );
 }
 
-async function resolveTopEntry(query: string): Promise<string | undefined> {
-  if (lane !== "deterministic-mock") return undefined;
-  const response = await invokeTauriCommand<Array<{ entry?: { id?: string } }>>(
-    "recall_search",
-    {
-      query,
-      filters: {
-        recallIds: [manifest.recall.id],
-        limit: 3,
-        minScore: 0.2,
-      },
-      engineId: "vector",
-      vectorPayload: deterministicVector(query, embeddingDimension).vector,
-      model: embeddingModelId,
-    }
-  );
-  return response[0]?.entry?.id;
-}
-
 async function ensureVectors(): Promise<void> {
   await navigateTo("/recall");
   await browser.waitUntil(
@@ -418,7 +397,6 @@ async function runScenario(
           )
         )
       : embeddingRequests.length > 0;
-  const topEntryId = await resolveTopEntry(query);
   let sessionPersisted = false;
   let uiReply = false;
   if (expectedStatus === 200) {
@@ -452,20 +430,18 @@ async function runScenario(
     sessionPersisted = true;
   }
 
-  const chatEvidence =
-    expectedStatus === 200
+  const evidenceVerified = requestEvidence !== "tauri-log-and-state";
+  const chatEvidence = evidenceVerified
+    ? expectedStatus === 200
       ? summary.scenarioMatch &&
         summary.requiredEvidence.every((item) => item.matched)
       : !summary.scenarioMatch &&
-        summary.mismatchReason === scenario.expected.mismatchReason;
-  const expectedTop =
-    lane === "deterministic-mock" ? scenario.expected.topEntryId : undefined;
+        summary.mismatchReason === scenario.expected.mismatchReason
+    : false;
   const passed =
     embeddingRequests.length >= scenario.expected.embeddingRequests &&
     queryEmbedding === scenario.expected.embeddingRequests > 0 &&
-    (!expectedTop || topEntryId === expectedTop) &&
-    (scenarioId !== "no-result" || topEntryId === undefined) &&
-    chatEvidence &&
+    (chatExpectation === "response-present" || chatEvidence) &&
     uiReply &&
     sessionPersisted;
   recordRecallScenarioResult(artifactDir, {
@@ -474,16 +450,22 @@ async function runScenario(
     passed,
     queryEmbedding,
     embeddingRequests: embeddingRequests.length,
-    topEntryId,
     chatStatus: summary.status,
     chatEvidence,
+    evidenceVerified,
     uiReply,
     sessionPersisted,
   });
   assert(passed, `Recall Chat scenario failed: ${scenarioId}`);
 }
 
-describe("Recall Chat injection", () => {
+const recallChatDescribe =
+  process.env.AIO_E2E_PHASE === "initial" &&
+  process.env.AIO_E2E_ACTIVE_SPEC?.includes("recall-chat-injection")
+    ? describe
+    : describe.skip;
+
+recallChatDescribe("Recall Chat injection", () => {
   before(async () => {
     await setupRecallRuntimeFixture();
     await ensureVectors();

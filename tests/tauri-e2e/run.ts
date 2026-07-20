@@ -20,7 +20,10 @@ import {
   type PrivateProfileLane,
   resolvePrivateProfileLane,
 } from "./support/private-profile-lane";
-import { parseE2eRunnerOptions } from "./support/runner-options";
+import {
+  isExternalCorpusMode,
+  parseE2eRunnerOptions,
+} from "./support/runner-options";
 
 const projectRoot = path.resolve(
   fileURLToPath(new URL("../..", import.meta.url))
@@ -28,6 +31,10 @@ const projectRoot = path.resolve(
 const cliArgs = process.argv.slice(2);
 const runnerOptions = parseE2eRunnerOptions(cliArgs);
 const { nativeUiEnabled, wdioArgs } = runnerOptions;
+function activeSpecFromArgs(args: string[]): string {
+  const index = args.lastIndexOf("--spec");
+  return index >= 0 ? args[index + 1] ?? "" : "";
+}
 const explicitDataDir = process.env.AIO_E2E_DATA_DIR?.trim() || undefined;
 const runSuffix =
   process.env.AIO_E2E_ID_SUFFIX?.trim() || `tauri-e2e-${process.pid}`;
@@ -82,17 +89,17 @@ const writeEarlyRunMetadata = (value: Record<string, unknown>) => {
 };
 
 const externalRecallCorpus =
-  runnerOptions.corpusMode === "external-full"
+  isExternalCorpusMode(runnerOptions.corpusMode)
     ? await prepareExternalRecallCorpus(process.env.AIO_E2E_RECALL_SOURCE)
     : null;
-if (runnerOptions.corpusMode === "external-full" && !externalRecallCorpus) {
+if (isExternalCorpusMode(runnerOptions.corpusMode) && !externalRecallCorpus) {
   writeEarlyRunMetadata({
     status: "skipped",
     finishedAt: new Date().toISOString(),
     reason: { code: "external-recall-source-not-configured" },
   });
   console.warn(
-    "[tauri-e2e] external-full lane skipped: AIO_E2E_RECALL_SOURCE is not configured."
+    `[tauri-e2e] ${runnerOptions.corpusMode} lane skipped: AIO_E2E_RECALL_SOURCE is not configured.`
   );
   process.exit(0);
 }
@@ -495,7 +502,7 @@ if (shouldSeedFixtures) {
   );
 
   const fixtureCorpusMode =
-    runnerOptions.corpusMode === "external-full"
+    isExternalCorpusMode(runnerOptions.corpusMode)
       ? "smoke"
       : runnerOptions.corpusMode;
   recallManifest = buildRecallWorkflowManifestForCorpus(
@@ -516,7 +523,7 @@ if (shouldSeedFixtures) {
     recallManifest.agent.parameters.maxTokens = 96;
     recallManifest.agent.recallSettings.maxRecallChars = 1200;
   }
-  if (runnerOptions.corpusMode !== "external-full") {
+  if (!isExternalCorpusMode(runnerOptions.corpusMode)) {
     fixtureSeedResult = seedRecallWorkflowFixtures({
       dataDir,
       artifactDir,
@@ -649,7 +656,12 @@ async function launchWdio(args: string[], phase: string, extraEnv = {}) {
     ["bun", "x", "wdio", "run", "tests/tauri-e2e/wdio.conf.ts", ...args],
     {
       cwd: projectRoot,
-      env: { ...env, AIO_E2E_PHASE: phase, ...extraEnv },
+      env: {
+        ...env,
+        AIO_E2E_PHASE: phase,
+        AIO_E2E_ACTIVE_SPEC: activeSpecFromArgs(args),
+        ...extraEnv,
+      },
       stdin: "inherit",
       stdout: "inherit",
       stderr: "inherit",
@@ -780,14 +792,6 @@ function validateScenarioArtifacts(): void {
       (candidate) => candidate.scenarioId === id && candidate.passed === true
     );
     if (!result) throw new Error(`Scenario result did not pass: ${id}`);
-    const expectedTopEntryId = scenario.expected.topEntryId;
-    if (
-      !stateOnlyEvidence &&
-      expectedTopEntryId &&
-      result.topEntryId !== expectedTopEntryId
-    ) {
-      throw new Error(`Scenario top entry mismatch: ${id}`);
-    }
     if (result.chatStatus !== (scenario.expected.chatStatus ?? 200)) {
       throw new Error(`Scenario Chat status mismatch: ${id}`);
     }
@@ -800,7 +804,7 @@ if (exitCode === 0 && runnerOptions.restartSpec) {
     throw new Error("Recovery requires seeded Recall fixtures.");
   }
   const verifyMode = { AIO_E2E_FIXTURE_MODE: "verify" };
-  if (runnerOptions.corpusMode !== "external-full") {
+  if (!isExternalCorpusMode(runnerOptions.corpusMode)) {
     fixtureSeedResult = seedRecallWorkflowFixtures({
       dataDir,
       artifactDir,

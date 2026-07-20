@@ -128,7 +128,8 @@ empty-collection response, and a required-evidence 422. The second launch uses
 fixture verify mode, reloads the persisted Recall workspace, vectors, Agent
 binding, and session, then sends a new Recall-backed turn. The runner rejects
 unconsumed required scenarios and unexpected Chat requests, and writes the
-five-part cross-check to `scenario-results.json`.
+embedding, Chat evidence, UI, and session cross-check to `scenario-results.json`.
+Retrieval ranking is recorded separately by `recall-vector-workflow.spec.ts`.
 
 Select the larger reviewed corpus explicitly:
 
@@ -136,8 +137,9 @@ Select the larger reviewed corpus explicitly:
 bun run test:tauri:e2e -- --corpus-mode curated --spec tests/tauri-e2e/specs/recall-runtime-fixture.spec.ts
 ```
 
-`external-full` is an opt-in backup-import lane. It requires
-`AIO_E2E_RECALL_SOURCE` and is intentionally excluded from PR-required runs.
+The external backup lane is opt-in and requires `AIO_E2E_RECALL_SOURCE`.
+`external-sample` is the normal fast-feedback path; `external-full` is the final
+473-entry coverage and restart gate. Both remain excluded from PR-required runs.
 
 The reviewed curated corpus is versioned independently. Re-audit it against an
 explicit source backup without printing source text or paths:
@@ -146,22 +148,30 @@ explicit source backup without printing source text or paths:
 bun tests/tauri-e2e/scripts/derive-recall-curated-corpus.ts --source <backup.aio-kb>
 ```
 
-Run the full legacy corpus lane only after explicitly naming a local `.aio-kb`
-source. The runner checks that the file is a ZIP with the expected legacy
-envelope and writes only its SHA-256, size, ZIP entry count, and outcome counts
-to artifacts; it never records the source path, library name, content, or
-vectors. With no `AIO_E2E_RECALL_SOURCE`, the command reports an explicit skip
-and leaves the default suite unchanged.
+Run the quick legacy corpus lane after explicitly naming a local `.aio-kb`
+source. It imports the complete backup, then uses the visible batch-selection UI
+to vectorize three entries by default. Set `AIO_E2E_RECALL_SAMPLE_SIZE` to change
+that small batch. The runner checks the ZIP envelope and writes only its SHA-256,
+size, entry count, selected entry IDs, and outcome counts to artifacts; it never
+records the source path, library name, content, or vectors.
 
 ```powershell
 $env:AIO_E2E_RECALL_SOURCE = "E:\\path\\to\\backup.aio-kb"
 bun run test:tauri:e2e:recall:corpus
 ```
 
-The lane first uses production `recall_inspect_backup`, then imports through
-`recall_import_backup` with `conflictStrategy: cancel`. It starts batch
-vectorization from the visible Recall UI and runs a second Tauri process against
-the same data root to reload the imported collection and vectors.
+After the quick path passes, run the full count and process-restart gate at the
+end of the review:
+
+```powershell
+bun run test:tauri:e2e:recall:corpus:full
+```
+
+Both paths use production `recall_inspect_backup` and `recall_import_backup`
+with `conflictStrategy: cancel`. Only the full path invokes one-click
+vectorization for every entry and starts a second Tauri process against the same
+data root to reload the imported collection and all vectors. With no source, the
+selected command reports an explicit skip and leaves the default suite unchanged.
 
 `specs/knowledge-workflow.spec.ts` covers deterministic isolated library
 creation, Agent Knowledge authorization persistence, and cross-tool

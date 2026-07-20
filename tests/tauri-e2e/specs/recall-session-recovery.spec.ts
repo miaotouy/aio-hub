@@ -7,7 +7,6 @@ import {
   requiredE2eEnv,
   setupRecallRuntimeFixture,
 } from "../support/recall-runtime-fixture";
-import { deterministicVector } from "../support/openai-mock-core";
 import { recordRecallScenarioResult } from "../support/scenario-results";
 import { invokeTauriCommand } from "../support/tauri-command";
 
@@ -25,6 +24,7 @@ interface ChatSummary {
   scenarioMatch: boolean;
   status: number;
   requiredEvidence: Array<{ matched: boolean }>;
+  evidenceVerified?: boolean;
 }
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -188,7 +188,13 @@ async function waitForPersistedContent(
   );
 }
 
-describe("Recall session recovery", () => {
+const recallRecoveryDescribe =
+  process.env.AIO_E2E_PHASE === "recovery" &&
+  process.env.AIO_E2E_ACTIVE_SPEC?.includes("recall-session-recovery")
+    ? describe
+    : describe.skip;
+
+recallRecoveryDescribe("Recall session recovery", () => {
   before(async () => {
     assert(
       fixtureMode === "verify" && phase === "recovery",
@@ -302,9 +308,10 @@ describe("Recall session recovery", () => {
       );
       summary = {
         scenarioId: scenario.id,
-        scenarioMatch: true,
+        scenarioMatch: false,
         status: 200,
-        requiredEvidence: [{ matched: true }],
+        requiredEvidence: [],
+        evidenceVerified: false,
       };
     } else {
       await browser.waitUntil(
@@ -331,25 +338,6 @@ describe("Recall session recovery", () => {
             )
           )
         : embeddingRequests.length > 0;
-    let topEntryId: string | undefined;
-    if (lane === "deterministic-mock") {
-      const search = await invokeTauriCommand<Array<{ entry: { id: string } }>>(
-        "recall_search",
-        {
-          query: fixture.query,
-          filters: {
-            recallIds: [manifest.recall.id],
-            limit: 3,
-            minScore: 0.2,
-          },
-          engineId: "vector",
-          vectorPayload: deterministicVector(fixture.query, embeddingDimension)
-            .vector,
-          model: embeddingModelId,
-        }
-      );
-      topEntryId = search[0]?.entry.id;
-    }
     await browser.waitUntil(
       async () =>
         await browser.execute(
@@ -390,23 +378,22 @@ describe("Recall session recovery", () => {
         }
       );
     }
-    const chatEvidence =
+    const evidenceVerified = requestEvidence !== "tauri-log-and-state";
+    const chatEvidence = evidenceVerified &&
       summary!.scenarioMatch &&
       summary!.requiredEvidence.every((item) => item.matched);
     const passed =
       queryEmbedding &&
-      (lane !== "deterministic-mock" ||
-        topEntryId === scenario.expected.topEntryId) &&
-      chatEvidence;
+      (chatExpectation === "response-present" || chatEvidence);
     recordRecallScenarioResult(artifactDir, {
       scenarioId: scenario.id,
       phase,
       passed,
       queryEmbedding,
       embeddingRequests: embeddingRequests.length,
-      topEntryId,
       chatStatus: summary!.status,
       chatEvidence,
+      evidenceVerified,
       uiReply: true,
       sessionPersisted: true,
     });

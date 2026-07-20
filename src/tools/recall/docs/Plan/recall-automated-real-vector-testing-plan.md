@@ -1,9 +1,9 @@
 # Recall 自动化测试、精简 OAI 渠道与真实向量请求实施计划
 
-**状态**: 已完成（Phase 1、Phase 2、Phase 3、Phase 4、Phase 5 完成）
+**状态**: 收口中（Phase 1 至 Phase 4 完成；Phase 5 Ollama transport/state lane 完成，真实 Chat evidence 仍不作精确验收）
 
 **创建日期**: 2026-07-20  
-**最近修订**: 2026-07-20  
+**最近修订**: 2026-07-21
 **适用范围**: `src/tools/recall/`、`src-tauri/src/recall/`、`src/tools/agent-manager/`、`src/tools/llm-chat/`、`tests/tauri-e2e/`
 
 关联文档：
@@ -35,15 +35,25 @@
 - `external-full` 现已通过显式 backup import 实现：未指定 `AIO_E2E_RECALL_SOURCE` 时明确 skip，指定后必须完成真实 inspect/import、UI 向量化和重启回读；runner 资源在正常退出、信号和启动期异常路径统一清理。
 - Phase 2 新增独立 `recall-vector-workflow.spec.ts` 与 `test:tauri:e2e:recall(:curated)`：从可见 UI 触发全量向量化和 vector search，并交叉断言脱敏 HTTP request、IPC coverage、实际维度、entry model 状态、trace 与 UI 排名；smoke 6 条和 curated 18 条真实窗口流程均已通过。
 - fixture seeder 现预置 lane-specific Recall workspace 模型与活动集合，verify 模式只核验引用；deterministic topic vector 同时覆盖 curated 标签与两类 hard negative 独立轴，稳定保留同标题异 ID 并阻止 hard negative 占据第一名。
-- Phase 3 新增 `recall-chat-injection.spec.ts` 与 `recall-session-recovery.spec.ts`：从预置会话发送消息，交叉验证 query embedding、预期 top entry、Chat evidence、SSE UI 完成态和 session detail；显式空集合覆盖 no-result，故意缺失 evidence 时 mock 返回 422 且 UI/session 不得出现伪成功回复。
+- Phase 3 新增 `recall-chat-injection.spec.ts` 与 `recall-session-recovery.spec.ts`：从预置会话发送消息，交叉验证 query embedding、Chat evidence、SSE UI 完成态和 session detail；检索排名由独立的 vector workflow 负责，避免 Chat spec 旁路重复搜索；显式空集合覆盖 no-result，故意缺失 evidence 时 mock 返回 422 且 UI/session 不得出现伪成功回复。
 - runner 支持 `--restart-spec` 和必跑 scenario 清单：首个 WDIO 退出后以同一数据根、`AIO_E2E_FIXTURE_MODE=verify` 启动第二个 Tauri 进程；恢复用例回读 workspace 模型、向量 coverage/维度、Agent binding 和首启消息后再次完成 Recall Chat。
-- `scenario-results.json` 已汇总四个必跑场景的 query embedding、top entry、Chat evidence、UI 回复和 session 回读；runner 会拒绝未消费场景、未知/意外 Chat 请求以及状态或 mismatch reason 不符。
+- `scenario-results.json` 已汇总四个必跑场景的 query embedding、Chat evidence、UI 回复和 session 回读；deterministic lane 记录 evidence 是否真实观测，runner 会拒绝未消费场景、未知/意外 Chat 请求以及状态或 mismatch reason 不符。
 
 Phase 4 已新增显式 `external-full` lane：runner 只接受 `AIO_E2E_RECALL_SOURCE` 指定的 `.aio-kb`，启动前只校验文件、SHA-256 与 ZIP 白名单；未指定源时明确 skip。首次 Tauri 进程使用正式 `recall_inspect_backup` / `recall_import_backup`，从可见 Recall UI 启动全量向量化，回读条目与向量覆盖；第二个同数据根进程回读集合、向量与维度且不重复导入。`recall-external-corpus.json` 只记录 hash、条目/进度/请求计数、耗时和状态，不记录路径、库名、正文或向量。
 
+为缩短失败反馈，外部语料另有共享同一 spec 的 `external-sample` 快速通路：仍验证完整 inspect/import，但默认只通过可见批量选择 UI 向量化 3 条并回读其模型状态；`external-full` 只在最终收口运行全量覆盖与重启恢复，不复制场景或断言层。
+
 对已复核的 473 条样本，runner 会额外校验 archive hash、总条目数与少量 source entry ID 的导入/向量状态；它们用于防止导入漏项，不把外部语料的精确相似度或固定批次时序当作完成条件。
 
-Phase 5 已完成：runner 新增 Chat `/v1/chat/completions` 预检与显式 full lane；Chat 使用真实 Ollama + Tauri Rust proxy，Embedding 使用真实 Ollama + 脱敏本地 JSON proxy，两个角色保持独立 Profile。真实 lane 使用 response-present / state-based 断言，不静默回退 mock；本机 `lmstudio-nomic-embed-text:q4_k_m`（768 维）与 `mxbai-embed-large:latest`（1024 维）均已完成向量化、Recall Chat、会话持久化和二次进程恢复。
+Phase 5 的 transport/state lane 已完成：runner 新增 Chat `/v1/chat/completions` 预检与显式 full lane；Chat 使用真实 Ollama + Tauri Rust proxy，Embedding 使用真实 Ollama + 脱敏本地 JSON proxy，两个角色保持独立 Profile。真实 lane 使用 response-present / state-based 断言，不静默回退 mock；本机 `lmstudio-nomic-embed-text:q4_k_m`（768 维）与 `mxbai-embed-large:latest`（1024 维）均已完成向量化、Recall Chat、会话持久化和二次进程恢复。该结果不等同于真实 Chat evidence 精确匹配。
+
+2026-07-21 收口审查与修正：
+
+- 默认 WDIO 运行不再执行依赖特定 phase/lane 的 Chat、恢复和 external corpus spec；显式脚本通过 active spec 启用对应流程，并将 Tauri E2E 限制为单 worker，避免共享隔离数据根并发互相污染；
+- Ollama full lane 不再把“后端收到 Chat 请求”记录为已验证 Recall evidence，`scenario-results.json` 明确记录 `evidenceVerified: false`，真实 lane 只按 response/state 通过；
+- external corpus 在 inspect、import、sample-vectorized/vectorized 阶段分别写入脱敏 checkpoint，失败时仍保留阶段状态；
+- Phase 4 已用当前 473 条样本完成全量向量化（约 2 分钟）和第二进程恢复复验；Phase 5 真实 Chat evidence 需要额外的脱敏 prompt 观测链路才能升级为精确验收。
+- `external-sample` 实测完整导入后 3 条批量向量化 spec 约 7 秒，`external-full` 当前全量 spec 约 119 秒；常规开发反馈使用前者，后者只作为最终数量与恢复门槛。
 
 ---
 
@@ -217,7 +227,7 @@ interface RecallChatScenario {
 匹配和失败规则：
 
 1. E2E 用户输入包含不展示给普通用户的稳定 marker，例如 `[e2e:recall-renderer-v2]`；mock 用 marker 定位场景，但不能仅凭 marker 判定成功。
-2. mock 必须在 Recall processor 处理后的上下文消息中找到每项 `requiredEvidence.contentMarker`，但用于定位场景的最后一条用户消息不得参与 evidence 匹配，避免用户直接复述 marker 造成假通过。不能简单限定为 `role !== "user"`：当前 `RecallProcessor` 在没有可复用 system message 时会把自动占位符插入为最后一条用户消息之前的 `depth_injection` user message。默认 Recall 注入格式不包含 entry ID，因此 `entryId` 用于把 matcher 结果与 Recall 搜索回读的实际 top entry 交叉关联，不能要求它出现在 Chat prompt 中。
+2. mock 必须在 Recall processor 处理后的上下文消息中找到每项 `requiredEvidence.contentMarker`，但用于定位场景的最后一条用户消息不得参与 evidence 匹配，避免用户直接复述 marker 造成假通过。不能简单限定为 `role !== "user"`：当前 `RecallProcessor` 在没有可复用 system message 时会把自动占位符插入为最后一条用户消息之前的 `depth_injection` user message。默认 Recall 注入格式不包含 entry ID，因此 `entryId` 只用于场景定义和 marker 语义校验；实际排名由 vector workflow 的 UI/trace 断言负责，不能声称 entry ID 已出现在 Chat prompt 中。
 3. 请求出现 `forbiddenEvidence`、缺少必需证据、命中多个场景或没有命中场景时，返回结构化 422，并把 mismatch 原因写入脱敏日志；禁止回退到通用成功回复。
 4. 场景可用 `expectedStream` 约束请求模式；正常路径按 2 至 4 个 SSE delta 返回固定答案，覆盖流式拼接，另保留一个 `expectedStream: false` 场景覆盖普通 Chat completion。请求模式不匹配时返回 422，不能由 server 自动改写请求语义。
 5. 预设答案要引用一个只有召回条目中存在的事实，例如“重型组件初始化是停顿点”，UI 断言完整答案，不能只断言出现 Assistant 气泡。
@@ -330,7 +340,7 @@ interface RecallE2eLane {
   rankingMode: "exact" | "relative";
   chatExpectation: "preset-exact" | "response-present";
   requestEvidence: "mock-log" | "proxy-log-and-state" | "tauri-log-and-state";
-  corpusMode: "smoke" | "curated" | "external-full";
+  corpusMode: "smoke" | "curated" | "external-sample" | "external-full";
 }
 ```
 
@@ -373,7 +383,8 @@ fixture 只能写入 runner 已解析并校验过的隔离 `AIO_E2E_DATA_DIR`。
 | --------------- | -------------------------------------------------------------------- | ---------------------------------------------- | -------- |
 | `smoke`         | 6 至 8 条短合成语料，主题词与向量完全可控                            | 精确排序、空结果、禁用条目、模型隔离           | 是       |
 | `curated`       | 10 至 16 条从“咕咕”备份精选、复核并脱敏的中文 Markdown 技术语料      | 真实长度、近义主题、标签、重复标题、Chat 注入  | 是       |
-| `external-full` | 从显式 `AIO_E2E_RECALL_SOURCE` 导入完整 `.aio-kb`，当前样本为 473 条 | 批量向量化、旧格式导入、进度、持久化和性能基线 | opt-in   |
+| `external-sample` | 导入显式 `.aio-kb`，从可见 UI 批量向量化默认 3 条 | 快速验证旧格式导入、批量请求和向量回读 | opt-in |
+| `external-full` | 从显式 `AIO_E2E_RECALL_SOURCE` 导入完整 `.aio-kb`，当前样本为 473 条 | 全量向量化、进度、持久化和性能基线 | 最终收口 |
 
 `curated` 首批建议覆盖以下主题，不直接把整份原文复制进 fixture：
 
@@ -386,7 +397,7 @@ fixture 只能写入 runner 已解析并校验过的隔离 `AIO_E2E_DATA_DIR`。
 
 派生流程使用一个独立 Bun 脚本读取 ZIP/JSON，按允许列表提取指定 source entry ID，移除称谓、个人标识、绝对路径和无关段落，再生成稳定的新 fixture ID。脚本测试必须验证源条目数量、派生内容 hash、禁止词和最大字符数；版本化 fixture 不携带原备份路径。原文件更新不会自动改写 fixture，必须经过显式 review。
 
-`external-full` 先调用 `recall_inspect_backup`，再使用 `recall_import_backup` 与 `{ conflictStrategy: "cancel" }`，不得由测试代码自行解压并直接写库。runner 在启动前只校验文件存在、扩展名、SHA-256 和 ZIP entry 白名单；应用启动后以 inspect command 的结果作为格式、条目数和冲突判断真源。导入后记录条目数、耗时与派生状态，不记录正文。二次启动不重复导入，只回读首次导入返回的 collection ID。没有设置 `AIO_E2E_RECALL_SOURCE` 时明确 skip，此 lane 不进入 PR 必跑集合。
+`external-sample` 与 `external-full` 都先调用 `recall_inspect_backup`，再使用 `recall_import_backup` 与 `{ conflictStrategy: "cancel" }`，不得由测试代码自行解压并直接写库。runner 在启动前只校验文件存在、扩展名、SHA-256 和 ZIP entry 白名单；应用启动后以 inspect command 的结果作为格式、条目数和冲突判断真源。快速通路通过条目管理的批量选择 UI 只处理少量条目；全量通路才执行全部向量化与二次启动，且不重复导入。没有设置 `AIO_E2E_RECALL_SOURCE` 时明确 skip，两条 lane 都不进入 PR 必跑集合。
 
 ### 4.3 启动前写入文件型配置
 
@@ -427,7 +438,7 @@ Recall 使用 SQLite 真源，fixture setup 应在 Tauri 已启动后调用正�
 
 WDIO 封装一个 `invokeTauriCommand()` helper 作为测试 setup 和持久化断言入口。setup 可以直接调用 command；真正待验收的向量化、搜索和 Chat 注入必须从可见 UI 触发，不能用 command 冒充用户流程。
 
-`smoke` / `curated` 逐条使用正式 commands 写入，以便稳定控制 ID；`external-full` 调用 `recall_import_backup`，并使用返回的实际 collection ID 更新本次 Agent binding。三种模式都必须从 command 回读数据，不能假设写入成功。
+`smoke` / `curated` 逐条使用正式 commands 写入，以便稳定控制 ID；两种 external 模式调用 `recall_import_backup`，并使用返回的实际 collection ID。所有模式都必须从 command 回读数据，不能假设写入成功。
 
 不直接写 SQLite 的原因：
 
@@ -466,7 +477,8 @@ WDIO 封装一个 `invokeTauriCommand()` helper 作为测试 setup 和持久化�
 | Tauri E2E mock   | 无召回 / 错误证据 fail-closed          | 空结果回复；缺证据时 mock 返回 422        | 是       |
 | Tauri E2E mock   | curated 中文 Markdown corpus           | 近义主题、重复标题、hard negative         | 是       |
 | Tauri E2E mock   | 二次启动恢复                           | Agent/session/vector/search/回复全部恢复  | 发布门槛 |
-| Tauri E2E corpus | 外部 `.aio-kb` 全量导入与批量向量化    | 473 条样本导入、进度、重启、性能摘要      | opt-in   |
+| Tauri E2E corpus | 外部 `.aio-kb` 小批量快速通路          | 完整导入、3 条批量向量化与回读             | opt-in   |
+| Tauri E2E corpus | 外部 `.aio-kb` 全量收口                | 473 条向量覆盖、进度、重启、性能摘要        | 最终收口 |
 | Tauri E2E Ollama | 真实模型全流程                         | 实际维度、相对排名、持久化                | opt-in   |
 
 建议把 Tauri E2E 拆成独立 spec，避免依赖 `knowledge-workflow.spec.ts` 的内存变量和执行顺序：
@@ -544,7 +556,7 @@ backend.log
 - 匹配的 scenario ID、required/forbidden evidence 命中结果；
 - HTTP status、SSE chunk 数、finish reason 和耗时。
 
-`scenario-results.json` 汇总每个场景的 query embedding、top entry、Chat evidence、UI 回复和 session 回读五项状态。测试结束时 server 还必须断言不存在未消费的必跑场景，也不存在意外 Chat 请求。
+`scenario-results.json` 汇总每个场景的 query embedding、Chat evidence、UI 回复和 session 回读；向量排名记录在 `recall-vector-workflow.json`，不在 Chat spec 中重复旁路搜索。测试结束时 server 还必须断言不存在未消费的必跑场景，也不存在意外 Chat 请求。
 
 禁止记录 Authorization、API Key、完整私有 profile 和完整向量。mock 通道直接由本地 server 产出证据；Ollama/私有渠道至少记录 runner 预检、应用请求关联 ID 和应用回读状态。若后续需要证明应用请求确实到达目标端点，可在 runner 中增加仅监听本机的转发记录器，再把 Profile base URL 指向该转发器。包含 `profiles.json` 的完整隔离 dataDir 不能作为 CI artifact 上传，只允许上传经过白名单筛选和脱敏的 artifact 目录。
 
@@ -558,7 +570,8 @@ backend.log
 {
   "test:tauri:e2e:recall": "bun tests/tauri-e2e/run.ts --spec tests/tauri-e2e/specs/recall-vector-workflow.spec.ts",
   "test:tauri:e2e:recall:chat": "bun tests/tauri-e2e/run.ts --spec tests/tauri-e2e/specs/recall-chat-injection.spec.ts --restart-spec tests/tauri-e2e/specs/recall-session-recovery.spec.ts --required-scenarios renderer-positive,no-result,missing-evidence-fail-closed,memory-ownership",
-  "test:tauri:e2e:recall:corpus": "bun tests/tauri-e2e/run.ts --corpus-mode external-full --spec tests/tauri-e2e/specs/recall-external-corpus.spec.ts",
+  "test:tauri:e2e:recall:corpus": "bun tests/tauri-e2e/run.ts --corpus-mode external-sample --spec tests/tauri-e2e/specs/recall-external-corpus.spec.ts",
+  "test:tauri:e2e:recall:corpus:full": "bun tests/tauri-e2e/run.ts --corpus-mode external-full --spec tests/tauri-e2e/specs/recall-external-corpus.spec.ts --restart-spec tests/tauri-e2e/specs/recall-external-corpus-recovery.spec.ts",
   "test:tauri:e2e:ollama": "bun tests/tauri-e2e/run.ts --vector-mode ollama --spec tests/tauri-e2e/specs/recall-vector-workflow.spec.ts",
   "test:tauri:e2e:real": "bun tests/tauri-e2e/run.ts --llm-profile"
 }
@@ -569,7 +582,7 @@ backend.log
 执行分层：
 
 - PR / 常规本地检查：Recall Vitest + Rust 定向测试 + smoke/curated deterministic Tauri E2E，包括预设 Chat 回复。
-- 夜间或自托管机器：追加 Ollama lane；有显式 corpus 文件时再运行 external-full lane。
+- 开发反馈：有显式 corpus 文件时先运行 `external-sample`；夜间或最终收口再运行 `external-full`，并按需追加 Ollama lane。
 - 发布前：deterministic lane 的二次启动恢复必须通过；有 Ollama 的发布机再运行真实 lane。
 
 不要让 Ollama lane 静默改用 mock。真实通道被请求后只能明确通过、明确跳过或明确失败，产物中必须写出最终模式和原因。
@@ -611,8 +624,9 @@ backend.log
 
 ### Phase 4：外部完整 corpus lane
 
-- 增加 `--corpus-mode external-full` 和 `AIO_E2E_RECALL_SOURCE` 显式参数。
+- 增加 `--corpus-mode external-sample|external-full` 和 `AIO_E2E_RECALL_SOURCE` 显式参数。
 - 通过 `recall_import_backup` 导入 `.aio-kb`，回读并核对 inspect/import report 与实际条目数。
+- 快速通路从可见条目管理 UI 批量选择默认 3 条，验证少批量向量请求与模型状态回读。
 - 从完整语料选择少量稳定 source entry ID 做检索断言，其余条目只参与批量向量化与压力覆盖。
 - 记录总条目数、成功/失败数、批次、耗时、峰值进度与重启回读，不记录正文或完整向量。
 

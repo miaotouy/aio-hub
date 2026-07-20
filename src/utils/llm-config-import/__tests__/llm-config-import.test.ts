@@ -58,6 +58,53 @@ describe("normalizeLlmBaseUrl", () => {
 });
 
 describe("parseLlmChannelConfig", () => {
+  it("parses connection info copied from a New API key", () => {
+    const result = parseLlmChannelConfig([
+      document(
+        JSON.stringify({
+          _type: "newapi_channel_conn",
+          key: "sk-new-api-secret",
+          url: "https://new-api.example.com/",
+        })
+      ),
+    ]);
+
+    expect(result.detectedFormat).toBe("json");
+    expect(result.profiles).toHaveLength(1);
+    expect(result.profiles[0]).toMatchObject({
+      suggestedName: "New-api Example",
+      providerType: "openai-compatible",
+      baseUrl: "https://new-api.example.com",
+      apiKeys: ["sk-new-api-secret"],
+      models: [],
+      sourceKind: "New API 连接信息",
+      confidence: "high",
+      warnings: [],
+    });
+  });
+
+  it("reports invalid fields in New API connection info without leaking keys", () => {
+    const secret = "sk-new-api-secret";
+    const result = parseLlmChannelConfig(
+      [
+        document(
+          JSON.stringify({
+            _type: "newapi_channel_conn",
+            key: secret,
+            url: "javascript:alert(1)",
+          })
+        ),
+      ],
+      "json"
+    );
+
+    expect(result.profiles[0].baseUrl).toBe("");
+    expect(result.profiles[0].warnings).toContainEqual(
+      expect.objectContaining({ code: "base-url-invalid", blocking: true })
+    );
+    expect(JSON.stringify(result.profiles[0].warnings)).not.toContain(secret);
+  });
+
   it("parses the native AIO Hub bundle without losing profile fields", () => {
     const source: LlmProfile = {
       id: "native-profile",

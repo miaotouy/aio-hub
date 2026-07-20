@@ -254,6 +254,7 @@ export function parseLlmChannelConfig(
 #### JSON
 
 - 使用 `JSON.parse()`，不使用字符串截取模拟 JSON 解析。
+- New API：识别密钥“复制连接信息”生成的 `_type = "newapi_channel_conn"` JSON，将 `url` 和 `key` 映射为 OpenAI-Compatible 渠道。
 - OpenCode：遍历 `provider`，每个包含可用 `options.baseURL` 的 provider 生成独立候选。
 - Claude settings：读取 `env` 下的 Anthropic 字段。
 - Codex auth：读取 `OPENAI_API_KEY`，作为可与唯一 Codex TOML 候选配对的凭据文档。
@@ -492,6 +493,7 @@ bun run build
 已完成：
 
 - 新增 `src/utils/llm-config-import/` 纯 TypeScript 解析层，包含统一契约、自动检测、URL/Key 规范化、cURL/环境变量/JSON/TOML 解析器和 Codex 多文档保守配对；支持从同一输入框拆分直接拼接或带文件名标题的 `config.toml` + `auth.json`。
+- JSON 解析器支持 New API 密钥“复制连接信息”的 `newapi_channel_conn` 格式，并以 OpenAI-Compatible 渠道导入服务器地址和完整 API Key。
 - `CreateProfileDialog` 已改为“渠道预设/粘贴导入”同级入口；新增 `ConfigImportPanel` 和编辑态 `ConfigImportDialog`，支持剪贴板、多文件、候选预览、类型修正、重复提示和创建态多选/编辑态单选。
 - 新增导入专用批量创建路径。所有候选先完成同步映射和校验，再逐个等待 `saveProfile()`；保存失败会报告完成/失败数量并清理失败候选的内存项。
 - 编辑态只覆盖候选明确提供的 Key、模型、自定义 Header、端点和 options，未提供字段保持不变。

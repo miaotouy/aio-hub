@@ -37,6 +37,8 @@ function readModels(value: unknown): LlmModelInfo[] {
   }));
 }
 
+const NEW_API_CONNECTION_INFO_TYPE = "newapi_channel_conn";
+
 export function parseJsonDocuments(
   documents: LlmConfigImportDocument[]
 ): LlmConfigParserOutcome {
@@ -66,6 +68,48 @@ export function parseJsonDocuments(
       return;
     }
     if (!isRecord(data)) return;
+
+    if (data._type === NEW_API_CONNECTION_INFO_TYPE) {
+      outcome.score += 110;
+      const baseUrl =
+        typeof data.url === "string"
+          ? normalizeLlmBaseUrl(data.url) || ""
+          : "";
+      const apiKey = sanitizeApiKey(data.key);
+      const warnings = [];
+
+      if (!baseUrl) {
+        warnings.push({
+          code: "base-url-invalid",
+          message: "New API 连接信息中的 URL 不是有效的 HTTP(S) URL，无法导入。",
+          severity: "error" as const,
+          blocking: true,
+          documentId: document.id,
+        });
+      }
+      if (!apiKey) {
+        warnings.push({
+          code: "api-key-missing",
+          message: "New API 连接信息中没有可用 API Key，导入后需要手动补充。",
+          severity: "warning" as const,
+          documentId: document.id,
+        });
+      }
+
+      outcome.profiles.push({
+        id: createDraftId(document.id, "new-api-connection"),
+        suggestedName: inferProfileName(baseUrl, "New API"),
+        providerType: "openai-compatible",
+        baseUrl,
+        apiKeys: apiKey ? [apiKey] : [],
+        models: [],
+        sourceKind: "New API 连接信息",
+        sourceDocumentIds: [document.id],
+        confidence: "high",
+        warnings,
+      });
+      return;
+    }
 
     const nativeBundle = parseLlmProfileBundle(data);
     if (nativeBundle.recognized) {

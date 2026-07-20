@@ -39,7 +39,7 @@
 点击渠道列表顶部的「新建渠道」按钮，选择创建方式：
 
 - **渠道预设**：从常用服务商（如 OpenAI、DeepSeek、Claude 等）的预设模板中选择，API 地址、快捷链接等配置将自动填充；也可以从空白配置开始。
-- **粘贴导入**：粘贴 cURL、环境变量、JSON 或 TOML，也可以一次选择多个配置文件。自动检测支持 Claude Code、Gemini CLI、Codex、Grok CLI 和 OpenCode 常见配置。
+- **粘贴导入**：粘贴 cURL、环境变量、JSON 或 TOML，也可以一次选择多个配置文件。自动检测支持 Claude Code、Gemini CLI、Codex、Grok CLI、OpenCode 常见配置，以及 New API 密钥的“复制连接信息”内容。
 
 导入前会列出识别到的候选渠道、API 格式、Base URL、模型和 Key 配置状态。多 provider 配置可勾选多个候选批量创建；缺少 Base URL 的候选不能导入，缺少 Key 的候选可以创建后再补充。
 

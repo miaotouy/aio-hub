@@ -1,3 +1,4 @@
+use http_range::HttpRange;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{
@@ -8,17 +9,28 @@ use sqlx::{
 use std::{
     collections::{HashMap, HashSet},
     fs::{self, OpenOptions},
-    io::{Read, Write},
+    io::{Read, SeekFrom, Write},
     path::{Component, Path, PathBuf},
     str::FromStr,
     sync::{
         atomic::{AtomicI64, Ordering},
         Arc, Mutex as StdMutex,
     },
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use tauri::{ipc::Channel, AppHandle, Manager, State};
+use tauri::{
+    http::{
+        header::{
+            ACCEPT_RANGES, ACCESS_CONTROL_ALLOW_ORIGIN, ACCESS_CONTROL_EXPOSE_HEADERS,
+            CACHE_CONTROL, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE,
+        },
+        Method, Request, Response, StatusCode,
+    },
+    ipc::Channel,
+    AppHandle, Manager, State,
+};
 use tauri_plugin_fs::{FilePath, FsExt};
+use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio::sync::{Mutex, OnceCell};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
@@ -30,6 +42,9 @@ const ASSET_DB: &str = "asset_manager.db";
 const MAX_IMPORT_BATCH: usize = 100;
 const MAX_IMPORT_JOB_LIST: u32 = 100;
 const IMPORT_PROGRESS_STEP_BYTES: i64 = 4 * 1024 * 1024;
+const PREVIEW_TOKEN_TTL: Duration = Duration::from_secs(5 * 60);
+const MAX_PREVIEW_RANGE_BYTES: u64 = 1024 * 1024;
+const MAX_PREVIEW_FULL_BYTES: u64 = 16 * 1024 * 1024;
 const MAX_USAGE_BATCH: usize = 1_000;
 const MAX_MUTATION_BATCH: usize = 500;
 
@@ -38,6 +53,7 @@ pub struct AssetManagerState {
     pool: Arc<OnceCell<SqlitePool>>,
     mutation_lock: Arc<Mutex<()>>,
     active_imports: Arc<StdMutex<HashMap<String, CancellationToken>>>,
+    preview_grants: Arc<StdMutex<HashMap<String, PreviewGrant>>>,
 }
 
 impl Default for AssetManagerState {
@@ -46,6 +62,7 @@ impl Default for AssetManagerState {
             pool: Arc::new(OnceCell::new()),
             mutation_lock: Arc::new(Mutex::new(())),
             active_imports: Arc::new(StdMutex::new(HashMap::new())),
+            preview_grants: Arc::new(StdMutex::new(HashMap::new())),
         }
     }
 }
@@ -166,6 +183,26 @@ pub(crate) struct ManagedAssetRead {
     pub path: PathBuf,
     pub mime_type: String,
     pub display_name: String,
+}
+
+#[derive(Clone)]
+struct PreviewGrant {
+    asset_id: String,
+    expires_at: SystemTime,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetPreviewSource {
+    id: String,
+    kind: String,
+    url: String,
+    mime_type: String,
+    size_bytes: i64,
+    expires_at_ms: u64,
+    supports_range: bool,
+    max_range_bytes: u64,
+    max_full_response_bytes: u64,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -725,6 +762,275 @@ pub async fn asset_get_detail(
         origins,
         usages,
     })
+}
+
+#[tauri::command]
+pub async fn asset_get_preview_source(
+    app: AppHandle,
+    state: State<'_, AssetManagerState>,
+    asset_id: String,
+) -> Result<AssetPreviewSource, String> {
+    let asset = resolve_managed_asset_read(&app, state.inner(), &asset_id).await?;
+    let metadata = tokio::fs::metadata(&asset.path)
+        .await
+        .map_err(|_| "ASSET_PREVIEW_METADATA".to_string())?;
+    if !metadata.is_file() {
+        return Err("ASSET_OBJECT_MISSING".into());
+    }
+    let now = SystemTime::now();
+    let expires_at = now
+        .checked_add(PREVIEW_TOKEN_TTL)
+        .ok_or_else(|| "ASSET_PREVIEW_EXPIRY".to_string())?;
+    let preview_id = Uuid::new_v4().to_string();
+    {
+        let mut grants = state
+            .preview_grants
+            .lock()
+            .map_err(|_| "ASSET_PREVIEW_STATE_UNAVAILABLE".to_string())?;
+        grants.retain(|_, grant| grant.expires_at > now);
+        grants.insert(
+            preview_id.clone(),
+            PreviewGrant {
+                asset_id,
+                expires_at,
+            },
+        );
+    }
+    Ok(AssetPreviewSource {
+        id: preview_id.clone(),
+        kind: "custom-protocol".into(),
+        url: preview_protocol_url(&preview_id),
+        mime_type: asset.mime_type,
+        size_bytes: i64::try_from(metadata.len()).map_err(|_| "ASSET_SIZE_OVERFLOW".to_string())?,
+        expires_at_ms: u64::try_from(
+            expires_at
+                .duration_since(UNIX_EPOCH)
+                .map_err(|_| "ASSET_PREVIEW_EXPIRY".to_string())?
+                .as_millis(),
+        )
+        .map_err(|_| "ASSET_PREVIEW_EXPIRY".to_string())?,
+        supports_range: true,
+        max_range_bytes: MAX_PREVIEW_RANGE_BYTES,
+        max_full_response_bytes: MAX_PREVIEW_FULL_BYTES,
+    })
+}
+
+#[tauri::command]
+pub fn asset_revoke_preview_source(
+    state: State<'_, AssetManagerState>,
+    preview_id: String,
+) -> Result<bool, String> {
+    validate_identifier("previewId", &preview_id)?;
+    Ok(state
+        .preview_grants
+        .lock()
+        .map_err(|_| "ASSET_PREVIEW_STATE_UNAVAILABLE".to_string())?
+        .remove(&preview_id)
+        .is_some())
+}
+
+fn preview_protocol_url(preview_id: &str) -> String {
+    #[cfg(any(target_os = "windows", target_os = "android"))]
+    {
+        format!("http://aio-asset.localhost/{preview_id}")
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "android")))]
+    {
+        format!("aio-asset://localhost/{preview_id}")
+    }
+}
+
+fn preview_token_from_request(request: &Request<Vec<u8>>) -> Option<&str> {
+    let token = request.uri().path().strip_prefix('/')?;
+    if token.is_empty() || token.contains('/') || token.len() > 255 {
+        return None;
+    }
+    Some(token)
+}
+
+fn preview_response(
+    status: StatusCode,
+    content_type: Option<&str>,
+    content_length: Option<u64>,
+    content_range: Option<String>,
+    body: Vec<u8>,
+) -> Response<Vec<u8>> {
+    let mut response = Response::builder()
+        .status(status)
+        .header(ACCESS_CONTROL_ALLOW_ORIGIN, "*")
+        .header(
+            ACCESS_CONTROL_EXPOSE_HEADERS,
+            "content-range, accept-ranges",
+        )
+        .header(CACHE_CONTROL, "private, no-store")
+        .header(ACCEPT_RANGES, "bytes")
+        .header("X-Content-Type-Options", "nosniff");
+    if let Some(content_type) = content_type {
+        response = response.header(CONTENT_TYPE, content_type);
+    }
+    if let Some(content_length) = content_length {
+        response = response.header(CONTENT_LENGTH, content_length);
+    }
+    if let Some(content_range) = content_range {
+        response = response.header(CONTENT_RANGE, content_range);
+    }
+    response
+        .body(body)
+        .unwrap_or_else(|_| Response::new(Vec::new()))
+}
+
+fn preview_not_found() -> Response<Vec<u8>> {
+    preview_response(StatusCode::NOT_FOUND, None, Some(0), None, Vec::new())
+}
+
+fn preview_range(range_header: &str, file_length: u64) -> Result<(u64, u64), ()> {
+    let ranges = HttpRange::parse(range_header, file_length).map_err(|_| ())?;
+    let range = ranges.first().filter(|_| ranges.len() == 1).ok_or(())?;
+    if range.length == 0 || range.start >= file_length {
+        return Err(());
+    }
+    let length = range.length.min(MAX_PREVIEW_RANGE_BYTES);
+    let end = range
+        .start
+        .checked_add(length - 1)
+        .filter(|end| *end < file_length)
+        .ok_or(())?;
+    Ok((range.start, end))
+}
+
+async fn read_preview_file(
+    path: &Path,
+    mime_type: &str,
+    method: &Method,
+    range_header: Option<&str>,
+) -> Response<Vec<u8>> {
+    let metadata = match tokio::fs::metadata(path).await {
+        Ok(metadata) if metadata.is_file() => metadata,
+        _ => return preview_not_found(),
+    };
+    let file_length = metadata.len();
+    if let Some(range_header) = range_header {
+        let (start, end) = match preview_range(range_header, file_length) {
+            Ok(range) => range,
+            Err(()) => {
+                return preview_response(
+                    StatusCode::RANGE_NOT_SATISFIABLE,
+                    Some(mime_type),
+                    Some(0),
+                    Some(format!("bytes */{file_length}")),
+                    Vec::new(),
+                )
+            }
+        };
+        let length = end + 1 - start;
+        let body = if method == Method::HEAD {
+            Vec::new()
+        } else {
+            let mut file = match tokio::fs::File::open(path).await {
+                Ok(file) => file,
+                Err(_) => return preview_not_found(),
+            };
+            if file.seek(SeekFrom::Start(start)).await.is_err() {
+                return preview_not_found();
+            }
+            let mut body = Vec::with_capacity(length as usize);
+            if file.take(length).read_to_end(&mut body).await.is_err() {
+                return preview_not_found();
+            }
+            body
+        };
+        return preview_response(
+            StatusCode::PARTIAL_CONTENT,
+            Some(mime_type),
+            Some(length),
+            Some(format!("bytes {start}-{end}/{file_length}")),
+            body,
+        );
+    }
+
+    if method == Method::HEAD {
+        return preview_response(
+            StatusCode::OK,
+            Some(mime_type),
+            Some(file_length),
+            None,
+            Vec::new(),
+        );
+    }
+    if file_length > MAX_PREVIEW_FULL_BYTES {
+        return preview_response(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            Some(mime_type),
+            Some(0),
+            None,
+            Vec::new(),
+        );
+    }
+    match tokio::fs::read(path).await {
+        Ok(body) => preview_response(
+            StatusCode::OK,
+            Some(mime_type),
+            Some(file_length),
+            None,
+            body,
+        ),
+        Err(_) => preview_not_found(),
+    }
+}
+
+pub(crate) async fn asset_preview_protocol_response(
+    app: AppHandle,
+    request: Request<Vec<u8>>,
+) -> Response<Vec<u8>> {
+    if request.method() == Method::OPTIONS {
+        return Response::builder()
+            .status(StatusCode::NO_CONTENT)
+            .header(ACCESS_CONTROL_ALLOW_ORIGIN, "*")
+            .header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+            .header("Access-Control-Allow-Headers", "Range")
+            .body(Vec::new())
+            .unwrap_or_else(|_| Response::new(Vec::new()));
+    }
+    if !matches!(request.method(), &Method::GET | &Method::HEAD) {
+        return preview_response(
+            StatusCode::METHOD_NOT_ALLOWED,
+            None,
+            Some(0),
+            None,
+            Vec::new(),
+        );
+    }
+    let Some(preview_id) = preview_token_from_request(&request) else {
+        return preview_not_found();
+    };
+    let state = app.state::<AssetManagerState>();
+    let now = SystemTime::now();
+    let asset_id = {
+        let mut grants = match state.preview_grants.lock() {
+            Ok(grants) => grants,
+            Err(_) => return preview_not_found(),
+        };
+        grants.retain(|_, grant| grant.expires_at > now);
+        match grants.get(preview_id) {
+            Some(grant) => grant.asset_id.clone(),
+            None => return preview_not_found(),
+        }
+    };
+    let asset = match resolve_managed_asset_read(&app, state.inner(), &asset_id).await {
+        Ok(asset) => asset,
+        Err(_) => return preview_not_found(),
+    };
+    let range_header = request
+        .headers()
+        .get("range")
+        .and_then(|value| value.to_str().ok());
+    read_preview_file(
+        &asset.path,
+        &asset.mime_type,
+        request.method(),
+        range_header,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -2534,6 +2840,69 @@ mod tests {
         assert!(validate_source_reference("file:///tmp/item.png").is_ok());
         assert!(validate_source_reference("https://example.com/item.png").is_err());
         assert!(validate_source_reference("relative/item.png").is_err());
+    }
+
+    #[test]
+    fn preview_ranges_are_single_part_bounded_and_tokenized() {
+        assert_eq!(
+            preview_range("bytes=0-2097151", 3_000_000).unwrap(),
+            (0, MAX_PREVIEW_RANGE_BYTES - 1)
+        );
+        assert_eq!(preview_range("bytes=-100", 1_000).unwrap(), (900, 999));
+        assert!(preview_range("bytes=0-10,20-30", 1_000).is_err());
+        assert!(preview_range("bytes=1000-", 1_000).is_err());
+
+        let request = Request::builder()
+            .uri("http://aio-asset.localhost/preview-token")
+            .body(Vec::new())
+            .unwrap();
+        assert_eq!(preview_token_from_request(&request), Some("preview-token"));
+        let nested = Request::builder()
+            .uri("http://aio-asset.localhost/nested/token")
+            .body(Vec::new())
+            .unwrap();
+        assert!(preview_token_from_request(&nested).is_none());
+    }
+
+    #[tokio::test]
+    async fn preview_reader_honors_range_head_and_full_response_limits() {
+        let root = std::env::temp_dir().join(format!("aio-asset-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        let small = root.join("small.bin");
+        fs::write(&small, b"0123456789").unwrap();
+
+        let partial = read_preview_file(
+            &small,
+            "application/octet-stream",
+            &Method::GET,
+            Some("bytes=2-5"),
+        )
+        .await;
+        assert_eq!(partial.status(), StatusCode::PARTIAL_CONTENT);
+        assert_eq!(partial.body(), b"2345");
+        assert_eq!(
+            partial.headers().get(CONTENT_RANGE).unwrap(),
+            "bytes 2-5/10"
+        );
+        let head = read_preview_file(&small, "application/octet-stream", &Method::HEAD, None).await;
+        assert_eq!(head.status(), StatusCode::OK);
+        assert!(head.body().is_empty());
+        assert_eq!(head.headers().get(CONTENT_LENGTH).unwrap(), "10");
+
+        let large = root.join("large.bin");
+        let file = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&large)
+            .unwrap();
+        file.set_len(MAX_PREVIEW_FULL_BYTES + 1).unwrap();
+        drop(file);
+        let rejected =
+            read_preview_file(&large, "application/octet-stream", &Method::GET, None).await;
+        assert_eq!(rejected.status(), StatusCode::PAYLOAD_TOO_LARGE);
+        assert!(rejected.body().is_empty());
+
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[tokio::test]

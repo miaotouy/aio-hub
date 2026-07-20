@@ -27,10 +27,12 @@ vi.mock("@/utils/errorHandler", () => ({
 import {
   clearRebuildableAssetCache,
   getAssetLibraryFacets,
+  getAssetPreviewSource,
   importAssetSources,
   listAssetImportJobs,
   setAssetLibraryState,
   startAssetImportJob,
+  revokeAssetPreviewSource,
 } from "../assetService";
 
 const sources: AssetImportSource[] = [
@@ -170,6 +172,32 @@ describe("asset library management", () => {
       2,
       "asset_clear_rebuildable_cache",
       { assetIds: ["asset-1"] }
+    );
+  });
+
+  it("gets and revokes opaque preview descriptors", async () => {
+    const preview = {
+      id: "preview-1",
+      kind: "custom-protocol",
+      url: "http://aio-asset.localhost/preview-1",
+      mimeType: "image/png",
+      sizeBytes: 1024,
+      expiresAtMs: 1_800_000_000_000,
+      supportsRange: true,
+      maxRangeBytes: 1_048_576,
+      maxFullResponseBytes: 16_777_216,
+    } as const;
+    invokeMock.mockResolvedValueOnce(preview).mockResolvedValueOnce(true);
+
+    await expect(getAssetPreviewSource("asset-1")).resolves.toEqual(preview);
+    await expect(revokeAssetPreviewSource("preview-1")).resolves.toBe(true);
+    expect(invokeMock).toHaveBeenNthCalledWith(1, "asset_get_preview_source", {
+      assetId: "asset-1",
+    });
+    expect(invokeMock).toHaveBeenNthCalledWith(
+      2,
+      "asset_revoke_preview_source",
+      { previewId: "preview-1" }
     );
   });
 });

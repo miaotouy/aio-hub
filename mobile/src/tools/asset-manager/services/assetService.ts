@@ -13,6 +13,7 @@ import type {
   AssetLibraryFacets,
   AssetLibraryState,
   AssetListQuery,
+  AssetPreviewSource,
   AssetRecord,
   AssetRepairReport,
   AssetRetentionPolicy,
@@ -163,6 +164,38 @@ export async function getAssetDetail(assetId: string): Promise<AssetDetail> {
   } catch (error) {
     errorHandler.handle(error, {
       userMessage: "无法读取资产详情",
+      showToUser: false,
+    });
+    throw error;
+  }
+}
+
+export async function getAssetPreviewSource(
+  assetId: string
+): Promise<AssetPreviewSource> {
+  try {
+    return await invoke<AssetPreviewSource>("asset_get_preview_source", {
+      assetId,
+    });
+  } catch (error) {
+    errorHandler.handle(error, {
+      userMessage: "无法打开资产预览",
+      showToUser: false,
+    });
+    throw error;
+  }
+}
+
+export async function revokeAssetPreviewSource(
+  previewId: string
+): Promise<boolean> {
+  try {
+    return await invoke<boolean>("asset_revoke_preview_source", {
+      previewId,
+    });
+  } catch (error) {
+    errorHandler.handle(error, {
+      userMessage: "无法关闭资产预览",
       showToUser: false,
     });
     throw error;

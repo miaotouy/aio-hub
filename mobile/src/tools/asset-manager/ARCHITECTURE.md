@@ -30,6 +30,7 @@ AppData/assets/
 - `asset_cancel_import_job`：请求取消等待中或运行中的任务；流式读取在块边界终止。
 - `asset_list`：分页读取可见、可用资产，支持类型与名称筛选。
 - `asset_get_detail`：返回资产、脱敏来源摘要和 usage，不返回来源 locator。
+- `asset_get_preview_source` / `asset_revoke_preview_source`：签发或撤销短期受控预览 URL；URL 只含不透明 token。
 - `asset_replace_entity_usages`：按业务实体整体替换 usage，供消费者 outbox 幂等投递。
 - `asset_analyze_delete`：汇总 pinned、blocking/advisory usage 与确认要求，不执行副作用。
 - `asset_set_retention_policy`：批量切换 reclaimable/pinned；任一 ID 不存在时整批回滚。
@@ -80,7 +81,15 @@ AppData/assets/
 - 移动端 LLM 原生传输在 Rust 内部查询资产库，只接受 managed、ready 且对象文件存在的资产；JSON 内联、顶层 body 和 multipart 共用同一解析入口。
 - managed multipart 的 MIME 与文件名取自资产记录，流长度取自打开前的实际文件元数据。`reclaimed`、`missing`、非 managed 或对象缺失均拒绝读取。
 
-## 10. 后续施工
+## 10. 受控预览
 
-- 受控预览描述符与 Android WebView 真机协议验证。
+- `aio-asset` 自定义协议在 Android/Windows 使用 `http://aio-asset.localhost/<token>`，在 iOS/macOS/Linux 使用 `aio-asset://localhost/<token>`；前端只接收运行时描述符，不持久化 URL。
+- token 默认 5 分钟有效，可由 `asset_revoke_preview_source` 主动撤销；协议每次请求重新验证 token、资产 availability 和对象存在性。
+- 仅允许 GET/HEAD/OPTIONS；支持单个 `Range`，每次最多返回 1 MiB。无 Range 的原件响应上限为 16 MiB，超限返回 413，避免把大原件整体读入 WebView 进程。
+- 响应带 `Cache-Control: private, no-store`、`Accept-Ranges`、`Content-Range` 和 `nosniff`；Range 解析复用 `http-range`，不手写范围语法。
+- 当前实现仍需 Android 真机验证 `<img>`、`<video>`、音频和 fetch/CORS 的实际 scheme/Range 行为；在该门禁完成前，不把 URL 形态当作跨平台永久协议。
+
+## 11. 后续施工
+
+- Android 真机验证受控预览协议并回写报告。
 - Phase 2 再注册资产/空间页面与移动端交互。

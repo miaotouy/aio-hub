@@ -212,3 +212,15 @@ export interface AssetLibraryFacets {
   byMonth: AssetMonthFacet[];
   bySource: AssetSourceFacet[];
 }
+
+export interface AssetPreviewSource {
+  id: string;
+  kind: "custom-protocol";
+  url: string;
+  mimeType: string;
+  sizeBytes: number;
+  expiresAtMs: number;
+  supportsRange: boolean;
+  maxRangeBytes: number;
+  maxFullResponseBytes: number;
+}

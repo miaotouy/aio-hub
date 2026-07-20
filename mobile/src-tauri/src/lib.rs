@@ -12,6 +12,13 @@ fn greet(name: &str) -> String {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .register_asynchronous_uri_scheme_protocol("aio-asset", |context, request, responder| {
+            let app = context.app_handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let response = asset_manager::asset_preview_protocol_response(app, request).await;
+                responder.respond(response);
+            });
+        })
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -30,6 +37,8 @@ pub fn run() {
             asset_manager::asset_cancel_import_job,
             asset_manager::asset_list,
             asset_manager::asset_get_detail,
+            asset_manager::asset_get_preview_source,
+            asset_manager::asset_revoke_preview_source,
             asset_manager::asset_replace_entity_usages,
             asset_manager::asset_analyze_delete,
             asset_manager::asset_set_retention_policy,

@@ -487,8 +487,9 @@ interface ManagedAssetRef {
 - [x] 建立持久化 import job、Channel 进度、任务查询、取消与进程中断恢复契约。
 - [x] 建立隐藏/恢复、月份与来源筛选聚合、可重建缓存定向/全库清理契约。
 - [x] 扩展共享 wire 类型与移动端原生 LLM 传输，使 `managed-asset-ref` 只携带 `assetId` 并由 Rust 内部解析。
+- [x] 建立短期 token、可撤销自定义协议、单 Range 读取和大原件响应上限的受控预览候选实现。
 - [ ] 在 Android 真机验证 Rust command 直读 `content://` 的正式导入路径并回写报告。
-- [ ] 补齐受控预览与首个聊天消费者。
+- [ ] 完成 Android 真机受控预览验收并接入首个聊天消费者。
 
 ### Phase 2：资产页
 
@@ -584,6 +585,13 @@ interface ManagedAssetRef {
 - `local-file-ref` 继续兼容；桌面端和移动端共享类型扩展不改变既有本地文件引用语义。LLM Core 的既存 `model-identity.test.ts` 类型检查基线错误未在本批修复。
 - 受控 WebView 预览协议仍待 Android 真机对 scheme、Range 和失效撤销行为完成实验，尚未冻结为公共 URL 契约。
 - 第五批已通过 LLM Core 93 个测试、移动端 63 个测试、18 个 Rust 测试、根/移动端前端类型检查、Clippy、Vite 生产构建和 Android 四 ABI debug APK/AAB 构建；`packages/llm-core` 独立 `tsc` 仍被上述既存测试类型错误阻塞。
+
+### 2026-07-20：Phase 1 第六批
+
+- 新增 `asset_get_preview_source` / `asset_revoke_preview_source`，预览 URL 只含 5 分钟 token，不返回资产库路径。
+- 注册 `aio-asset` 异步 URI scheme；协议每次请求复核 token、ready/managed 状态和对象存在性，支持单 Range（最多 1 MiB）、HEAD/OPTIONS 与 16 MiB 无 Range 上限。
+- Range 解析复用 `http-range`，响应使用 no-store、nosniff、Accept-Ranges/Content-Range；大原件无 Range 时返回 413，等待可重建预览或分块能力。
+- 第六批已通过 LLM Core 93 个测试、移动端 64 个测试、20 个 Rust 测试、根/移动端前端类型检查、Clippy、Vite 生产构建和 Android 四 ABI debug APK/AAB 构建。Android 真机 WebView 的 scheme、Range、CORS 与撤销行为仍未验证，iOS 继续因缺少编译/设备条件跳过。
 
 ## 16. 调查来源
 

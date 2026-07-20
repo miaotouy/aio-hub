@@ -7,7 +7,12 @@ import { useChatResponseHandler } from "./useChatResponseHandler";
 import { useTopicNamer } from "./useTopicNamer";
 import { useChatSettings } from "./useChatSettings";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
-import type { ChatSession, PipelineContext, ChatMessageNode } from "../types";
+import type {
+  ChatMessageAttachment,
+  ChatSession,
+  PipelineContext,
+  ChatMessageNode,
+} from "../types";
 import { createModuleLogger } from "@/utils/logger";
 import { countTokensBatch } from "@/utils/tokenCounting";
 import { customMessage } from "@/utils/feedback";
@@ -16,6 +21,7 @@ import {
   contentToTokenText,
   createLocalContextUsage,
 } from "../utils/contextTokenUsage";
+import { buildMessageContent } from "../utils/attachmentContent";
 
 const logger = createModuleLogger("llm-chat/useChatExecutor");
 
@@ -39,7 +45,8 @@ export function useChatExecutor() {
   async function execute(
     session: ChatSession,
     userContent: string,
-    parentNodeId?: string
+    parentNodeId?: string,
+    attachments: ChatMessageAttachment[] = []
   ) {
     if (chatStore.isSending) return;
 
@@ -78,6 +85,7 @@ export function useChatExecutor() {
         role: "user",
         content: userContent,
         parentId: session.activeLeafId,
+        attachments,
       });
       nodeManager.addNodeToSession(session, userNode);
       currentUserNodeId = userNode.id;
@@ -169,7 +177,7 @@ export function useChatExecutor() {
       // 5. 发起请求
       const requestMessages = requestContextMessages.map((message) => ({
         role: message.role as any,
-        content: message.content,
+        content: buildMessageContent(message.content, message._attachments),
       }));
 
       const result = await llmRequest.sendRequest(

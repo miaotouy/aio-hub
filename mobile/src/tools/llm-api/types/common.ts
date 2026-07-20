@@ -30,6 +30,11 @@ export type MediaSource =
       type: "file_uri";
       file_uri: string;
       mime_type: string;
+    }
+  | {
+      /** 由移动端 Rust 资产服务解析的托管资产引用 */
+      kind: "managed-asset-ref";
+      assetId: string;
     };
 
 // =================================================================
@@ -48,6 +53,7 @@ export interface TextContent {
 export interface ImageContent {
   type: "image";
   imageBase64: string;
+  source?: MediaSource;
   /** 媒体类型，如果不提供将自动推断 */
   mimeType?: string;
   /** 缓存控制（Claude 特有） */
@@ -59,11 +65,13 @@ export interface ImageContent {
 export interface AudioContent {
   type: "audio";
   source: MediaSource;
+  mimeType?: string;
 }
 
 export interface VideoContent {
   type: "video";
   source: MediaSource;
+  mimeType?: string;
   videoMetadata?: VideoMetadata;
 }
 
@@ -87,6 +95,7 @@ export interface ToolResultContent {
 export interface DocumentContent {
   type: "document";
   source: MediaSource;
+  mimeType?: string;
 }
 
 /**

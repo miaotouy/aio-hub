@@ -12,23 +12,27 @@ export interface LlmTextContent {
 export interface LlmImageContent {
   type: "image";
   source: JsonValue;
+  mediaType?: string;
   cacheControl?: JsonValue;
 }
 
 export interface LlmAudioContent {
   type: "audio";
   source: JsonValue;
+  mediaType?: string;
 }
 
 export interface LlmVideoContent {
   type: "video";
   source: JsonValue;
+  mediaType?: string;
   metadata?: JsonValue;
 }
 
 export interface LlmDocumentContent {
   type: "document";
   source: JsonValue;
+  mediaType?: string;
   cacheControl?: JsonValue;
 }
 

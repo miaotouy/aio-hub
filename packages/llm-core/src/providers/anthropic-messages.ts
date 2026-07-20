@@ -430,7 +430,10 @@ function buildAnthropicContentBlock(
     };
   }
   if (content.type === "image") {
-    const source = normalizeAnthropicSource(content.source, "image/png");
+    const source = normalizeAnthropicSource(
+      content.source,
+      content.mediaType ?? "image/png"
+    );
     return source
       ? {
           type: "image",
@@ -442,7 +445,10 @@ function buildAnthropicContentBlock(
       : undefined;
   }
   if (content.type === "document") {
-    const source = normalizeAnthropicDocumentSource(content.source);
+    const source = normalizeAnthropicDocumentSource(
+      content.source,
+      content.mediaType
+    );
     return source
       ? {
           type: "document",
@@ -499,6 +505,13 @@ function normalizeAnthropicSource(
   }
   const value = asObject(source);
   if (!value) return undefined;
+  if (value.kind === "managed-asset-ref") {
+    return {
+      type: "base64",
+      media_type: fallbackMediaType,
+      data: value,
+    };
+  }
   const url = readString(value.url);
   if (url) return { type: "url", url };
   const data = readString(value.data) ?? readString(value.base64);
@@ -516,7 +529,8 @@ function normalizeAnthropicSource(
 }
 
 function normalizeAnthropicDocumentSource(
-  source: JsonValue
+  source: JsonValue,
+  mediaType?: string
 ): WireJsonValue | undefined {
   const value = asObject(source);
   if (value?.type === "file" && typeof value.file_id === "string") {
@@ -525,7 +539,7 @@ function normalizeAnthropicDocumentSource(
   if (value?.type === "url" && typeof value.url === "string") {
     return { type: "url", url: value.url };
   }
-  return normalizeAnthropicSource(source, "application/pdf");
+  return normalizeAnthropicSource(source, mediaType ?? "application/pdf");
 }
 
 function parseDataUrl(value: string): WireJsonValue | undefined {

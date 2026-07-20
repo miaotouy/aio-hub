@@ -195,7 +195,7 @@ async fn execute_request(
 
     outgoing = match &mut request.body {
         NativeRequestBody::Json { value } => {
-            expand_json_file_refs(app, asset_state, value).await?;
+            expand_json_file_refs(app, asset_state, value, false).await?;
             outgoing.json(value)
         }
         NativeRequestBody::FileRef { r#ref } => {
@@ -253,6 +253,7 @@ async fn expand_json_file_refs(
     app: &AppHandle,
     asset_state: &AssetManagerState,
     value: &mut serde_json::Value,
+    raw_base64: bool,
 ) -> Result<(), String> {
     match value {
         serde_json::Value::Object(map) => {
@@ -271,24 +272,40 @@ async fn expand_json_file_refs(
                     .content_type
                     .as_deref()
                     .unwrap_or("application/octet-stream");
-                *value = serde_json::Value::String(format!(
-                    "data:{content_type};base64,{}",
-                    STANDARD.encode(bytes)
+                *value = serde_json::Value::String(encode_json_file_bytes(
+                    &bytes,
+                    content_type,
+                    raw_base64,
                 ));
                 return Ok(());
             }
-            for child in map.values_mut() {
-                Box::pin(expand_json_file_refs(app, asset_state, child)).await?;
+            for (key, child) in map.iter_mut() {
+                Box::pin(expand_json_file_refs(
+                    app,
+                    asset_state,
+                    child,
+                    key == "data",
+                ))
+                .await?;
             }
         }
         serde_json::Value::Array(values) => {
             for child in values {
-                Box::pin(expand_json_file_refs(app, asset_state, child)).await?;
+                Box::pin(expand_json_file_refs(app, asset_state, child, false)).await?;
             }
         }
         _ => {}
     }
     Ok(())
+}
+
+fn encode_json_file_bytes(bytes: &[u8], content_type: &str, raw_base64: bool) -> String {
+    let encoded = STANDARD.encode(bytes);
+    if raw_base64 {
+        encoded
+    } else {
+        format!("data:{content_type};base64,{encoded}")
+    }
 }
 
 async fn build_multipart_form(
@@ -476,6 +493,15 @@ mod tests {
             "path": "/private/object"
         });
         assert!(serde_json::from_value::<FileReference>(lookalike).is_err());
+    }
+
+    #[test]
+    fn encodes_inline_data_without_a_data_url_prefix() {
+        assert_eq!(encode_json_file_bytes(b"abc", "image/png", true), "YWJj");
+        assert_eq!(
+            encode_json_file_bytes(b"abc", "image/png", false),
+            "data:image/png;base64,YWJj"
+        );
     }
 
     #[test]

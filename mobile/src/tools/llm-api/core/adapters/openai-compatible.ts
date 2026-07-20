@@ -284,24 +284,34 @@ function toCoreContent(content: LlmMessageContent): CoreLlmMessageContent {
     case "image":
       return {
         type: "image",
-        source: {
+        source: content.source ?? {
           type: "base64",
           media_type:
             content.mimeType ?? inferImageMimeType(content.imageBase64),
           data: content.imageBase64,
         },
+        mediaType: content.mimeType,
         cacheControl: toJsonValue(content.cacheControl),
       };
     case "audio":
-      return { type: "audio", source: content.source };
+      return {
+        type: "audio",
+        source: content.source,
+        mediaType: content.mimeType,
+      };
     case "video":
       return {
         type: "video",
         source: content.source,
+        mediaType: content.mimeType,
         metadata: toJsonValue(content.videoMetadata),
       };
     case "document":
-      return { type: "document", source: content.source };
+      return {
+        type: "document",
+        source: content.source,
+        mediaType: content.mimeType,
+      };
     case "tool_use":
       return {
         type: "tool_use",

@@ -126,7 +126,7 @@ type MessageType = "message" | string;
 | `role` / `content` | 核心字段，支持 `string \| LlmMessageContent[]`（多模态）            |
 | `sourceType`       | 消息来源：`session_history` / `agent_preset` / `depth_injection` 等 |
 | `sourceId`         | 来源标识（预设索引或节点ID）                                        |
-| `_attachments`     | 暂存附件列表（移动端用 `any[]` 占位）                               |
+| `_attachments`     | 管道中的强类型 `ManagedAssetRef[]` 附件列表                         |
 | `_originalContent` | 原始内容快照（宏调试用）                                            |
 | `_mergedSources`   | 被合并的原始消息                                                    |
 
@@ -338,14 +338,14 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 
 ### 7.4. 计划中的资产引用
 
-会话与消息 SQLite 迁移已完成，附件存储/outbox 第一批已接入；聊天内资产选择、provider 请求组装和实时原件状态仍按 [`mobile-sqlite-migration-plan.md`](../../../docs/plan/mobile-sqlite-migration-plan.md) 阶段三推进。
+会话与消息 SQLite 迁移已完成，附件存储/outbox、聊天内资产选择和 provider wire 第一批已接入；实时原件状态仍按 [`mobile-sqlite-migration-plan.md`](../../../docs/plan/mobile-sqlite-migration-plan.md) 阶段三推进。
 
 - 聊天消息附件使用 `ManagedAssetRef`：持久化 `assetId`、`usagePolicy` 和名称、类型、MIME、大小、提取文本等轻量快照，不保存资产路径。
 - `chat_attachments` 归 `llm_chat.db` 所有；资产原件和 tombstone 归 `asset_manager.db` 所有，两者不建立跨数据库外键。
 - 消息、分支和会话变更在聊天事务内写 usage outbox，再由幂等投递器调用资产服务整体替换业务实体的 usage。
 - `session-loader` 已把消息与附件引用一起加载到强类型 `_attachments`；只有文本为空但存在附件的消息不会被过滤。
 - 附件预览使用资产服务返回的受控预览来源；发送给模型时传递 `managed-asset-ref`，由 Rust 解析并流式读取，不把原件读入 JS 后再经 base64 IPC 复制。
-- 移动端共享 wire 类型和 Rust 原生传输已经支持 `managed-asset-ref`；聊天附件持久化、usage outbox 和消息快照展示第一批已接入，provider 请求组装与 reclaimed/missing 实时降级仍待接入。
+- 移动端共享 wire 类型和 Rust 原生传输已经支持 `managed-asset-ref`；聊天附件持久化、usage outbox 和消息快照展示第一批已接入，provider 请求组装已覆盖 OpenAI-compatible、Gemini 和 Anthropic，reclaimed/missing 实时降级仍待接入。
 - 资产为 `reclaimed` 时保留消息和附件快照，界面显示“原件已清理”；`missing` 表示异常缺失，两者不能合并处理。
 - 智能体预设附件继续引用 Agent 私有资产 Handle，随 Agent 资源包迁移，不登记为全局聊天资产。
 
@@ -424,7 +424,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 
 ### 🔄 多模态支持
 
-- [ ] 消息中的图片/文件附件发送（provider-specific wire 组装）
+- [x] 消息中的图片/文件附件 provider wire 组装和聊天输入区资产选择
 - [x] 按移动端资产设计引入 `ManagedAssetRef + 轻量快照`
 - [x] 接入 `chat_attachments`、usage outbox 和消息/分支/会话删除释放流程
 - [ ] 接入 `managed-asset-ref` 原生发送与 `reclaimed` 降级展示

@@ -175,6 +175,52 @@ describe("mobile Gemini facade", () => {
     );
     expect(response.data[0].embedding).toEqual([0.1, 0.2]);
   });
+
+  it("maps a managed image ref to native-resolved inline data", async () => {
+    const send = vi.spyOn(mobileLlmTransport, "send").mockResolvedValue({
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      body: chunks(
+        JSON.stringify({
+          candidates: [{ content: { parts: [{ text: "ok" }] } }],
+        })
+      ),
+    });
+    await callGeminiApi(profile, {
+      modelId: "gemini-2.5-flash",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "image",
+              imageBase64: "",
+              mimeType: "image/png",
+              source: { kind: "managed-asset-ref", assetId: "asset-1" },
+            },
+          ],
+        },
+      ],
+    });
+    expect(send.mock.calls[0][0].body).toMatchObject({
+      kind: "json",
+      value: {
+        contents: [
+          {
+            parts: [
+              {
+                inlineData: {
+                  mimeType: "image/png",
+                  data: { kind: "managed-asset-ref", assetId: "asset-1" },
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+  });
 });
 
 async function* chunks(value: string, size = value.length) {

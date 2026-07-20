@@ -8,6 +8,7 @@ import type {
   LlmConfigParserOutcome,
   ParsedLlmProfileDraft,
 } from "../types";
+import type { LlmModelInfo } from "@/types/llm-profiles";
 import {
   createDraftId,
   inferProfileName,
@@ -16,12 +17,13 @@ import {
   sanitizeApiKey,
 } from "../normalize";
 import { parseEnvDocuments } from "./env";
+import { parseLlmProfileBundle } from "@/utils/llm-profile-transfer";
 
 function isRecord(value: unknown): value is Record<string, any> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-function readModels(value: unknown): Array<{ id: string; name?: string }> {
+function readModels(value: unknown): LlmModelInfo[] {
   if (Array.isArray(value)) {
     return value
       .filter((item): item is string => typeof item === "string")
@@ -64,6 +66,56 @@ export function parseJsonDocuments(
       return;
     }
     if (!isRecord(data)) return;
+
+    const nativeBundle = parseLlmProfileBundle(data);
+    if (nativeBundle.recognized) {
+      outcome.score += 120;
+      if ("error" in nativeBundle) {
+        outcome.diagnostics.push({
+          code: "aiohub-profile-bundle-invalid",
+          message: nativeBundle.error || "AIO Hub 渠道包格式无效",
+          severity: "error",
+          blocking: true,
+          documentId: document.id,
+        });
+        return;
+      }
+
+      const bundle = nativeBundle.bundle;
+      const hasRedactions = bundle.redactedPaths.length > 0;
+      outcome.profiles.push(
+        ...bundle.profiles.map((profile, index) => ({
+          id: createDraftId(document.id, "aiohub-profile", index),
+          suggestedName: profile.name,
+          providerType: profile.type,
+          baseUrl: profile.baseUrl,
+          apiKeys: [...profile.apiKeys],
+          models: profile.models.map((model) => cloneJson(model)),
+          customHeaders: profile.customHeaders
+            ? { ...profile.customHeaders }
+            : undefined,
+          customEndpoints: profile.customEndpoints
+            ? { ...profile.customEndpoints }
+            : undefined,
+          options: profile.options ? cloneJson(profile.options) : undefined,
+          sourceKind: "AIO Hub 渠道包",
+          sourceDocumentIds: [document.id],
+          confidence: "high" as const,
+          warnings: hasRedactions
+            ? [
+                {
+                  code: "aiohub-profile-bundle-redacted",
+                  message: "该渠道包已脱敏，导入后需要补充密钥等敏感字段。",
+                  severity: "warning" as const,
+                  documentId: document.id,
+                },
+              ]
+            : [],
+          sourceProfile: cloneJson(profile),
+        }))
+      );
+      return;
+    }
 
     if (isRecord(data.provider)) {
       outcome.score += 90;
@@ -162,4 +214,8 @@ export function parseJsonDocuments(
   });
 
   return outcome;
+}
+
+function cloneJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
 }

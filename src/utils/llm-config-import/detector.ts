@@ -18,7 +18,8 @@ export function combineParserOutcomes(outcomes: LlmConfigParserOutcome[]) {
 
   for (const outcome of ranked) {
     for (const profile of outcome.profiles) {
-      const key = `${profile.sourceDocumentIds.join(",")}|${profile.providerType}|${profile.baseUrl}|${profile.sourceKind}`;
+      const sourceIdentity = profile.sourceProfile?.id || "";
+      const key = `${profile.sourceDocumentIds.join(",")}|${sourceIdentity}|${profile.providerType}|${profile.baseUrl}|${profile.sourceKind}`;
       if (!seen.has(key)) {
         seen.add(key);
         profiles.push(profile);

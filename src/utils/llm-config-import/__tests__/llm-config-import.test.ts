@@ -10,6 +10,8 @@ import {
   parseLlmChannelConfig,
   type LlmConfigImportDocument,
 } from "..";
+import { createLlmProfileBundle } from "@/utils/llm-profile-transfer";
+import type { LlmProfile } from "@/types/llm-profiles";
 
 const document = (
   content: string,
@@ -56,6 +58,77 @@ describe("normalizeLlmBaseUrl", () => {
 });
 
 describe("parseLlmChannelConfig", () => {
+  it("parses the native AIO Hub bundle without losing profile fields", () => {
+    const source: LlmProfile = {
+      id: "native-profile",
+      name: "Native Profile",
+      type: "openai-compatible",
+      baseUrl: "https://proxy.example.com/v1",
+      apiKeys: [],
+      enabled: false,
+      networkStrategy: "proxy",
+      relaxIdCerts: true,
+      http1Only: true,
+      customEndpoints: { embeddings: "/custom/embeddings" },
+      models: [
+        {
+          id: "embed-model",
+          name: "Embed Model",
+          capabilities: { embedding: true },
+        },
+      ],
+    };
+    const bundle = createLlmProfileBundle([source]);
+    const result = parseLlmChannelConfig(
+      [document(JSON.stringify(bundle), "channels.aio-llm.json")],
+      "json"
+    );
+
+    expect(result.profiles).toHaveLength(1);
+    expect(result.profiles[0]).toMatchObject({
+      suggestedName: "Native Profile",
+      sourceKind: "AIO Hub 渠道包",
+      models: [
+        {
+          id: "embed-model",
+          capabilities: { embedding: true },
+        },
+      ],
+      sourceProfile: {
+        id: "native-profile",
+        enabled: false,
+        networkStrategy: "proxy",
+        relaxIdCerts: true,
+        customEndpoints: { embeddings: "/custom/embeddings" },
+      },
+    });
+  });
+
+  it("keeps native profiles with different IDs on the same endpoint", () => {
+    const first: LlmProfile = {
+      id: "same-endpoint-a",
+      name: "Account A",
+      type: "openai-compatible",
+      baseUrl: "https://proxy.example.com/v1",
+      apiKeys: [],
+      enabled: true,
+      models: [],
+    };
+    const second: LlmProfile = {
+      ...first,
+      id: "same-endpoint-b",
+      name: "Account B",
+    };
+    const result = parseLlmChannelConfig(
+      [document(JSON.stringify(createLlmProfileBundle([first, second])))],
+      "json"
+    );
+
+    expect(result.profiles.map((profile) => profile.sourceProfile?.id)).toEqual(
+      ["same-endpoint-a", "same-endpoint-b"]
+    );
+  });
+
   it.each(["\\", "^", "`"])(
     "parses cURL with %s continuation",
     (continuation) => {

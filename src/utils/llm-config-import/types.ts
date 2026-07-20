@@ -3,7 +3,11 @@
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 
-import type { LlmProfile, ProviderType } from "@/types/llm-profiles";
+import type {
+  LlmModelInfo,
+  LlmProfile,
+  ProviderType,
+} from "@/types/llm-profiles";
 
 export type LlmConfigImportFormat = "auto" | "curl" | "env" | "json" | "toml";
 export type LlmConfigImportConfidence = "high" | "medium" | "low";
@@ -28,7 +32,7 @@ export interface ParsedLlmProfileDraft {
   providerType: ProviderType;
   baseUrl: string;
   apiKeys: string[];
-  models: Array<{ id: string; name?: string }>;
+  models: LlmModelInfo[];
   customHeaders?: Record<string, string>;
   customEndpoints?: LlmProfile["customEndpoints"];
   options?: Record<string, unknown>;
@@ -36,6 +40,8 @@ export interface ParsedLlmProfileDraft {
   sourceDocumentIds: string[];
   confidence: LlmConfigImportConfidence;
   warnings: LlmConfigImportDiagnostic[];
+  /** AIO Hub 原生渠道包携带的完整配置，用于无损导入。 */
+  sourceProfile?: LlmProfile;
 }
 
 export interface LlmConfigImportResult {

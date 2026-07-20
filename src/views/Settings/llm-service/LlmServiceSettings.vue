@@ -17,7 +17,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
 import { useRoute } from "vue-router";
-import { ExternalLink, Info, Terminal } from "lucide-vue-next";
+import {
+  ExternalLink,
+  FileDown,
+  FileUp,
+  Info,
+  Terminal,
+} from "lucide-vue-next";
 import { useElementSize } from "@vueuse/core";
 import ProfileSidebar from "../shared/ProfileSidebar.vue";
 import ProfileEditor from "../shared/ProfileEditor.vue";
@@ -31,6 +37,7 @@ import CustomHeadersEditor from "./components/CustomHeadersEditor.vue";
 import CustomEndpointsEditor from "./components/CustomEndpointsEditor.vue";
 import MultiKeyManagerDialog from "./components/MultiKeyManagerDialog.vue";
 import LlmServiceInfoDialog from "./components/LlmServiceInfoDialog.vue";
+import LlmProfileExportDialog from "./components/LlmProfileExportDialog.vue";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
@@ -195,10 +202,32 @@ const showCustomEndpointsDialog = ref(false);
 const showMultiKeyManager = ref(false);
 const showLlmServiceInfoDialog = ref(false);
 const showConfigImportForEdit = ref(false);
+const showProfileExportDialog = ref(false);
+const exportSelectedProfileId = ref<string | null>(null);
+const createProfileInitialMode = ref<"preset" | "import">("preset");
+
+const openExportDialog = (profileId: string | null) => {
+  exportSelectedProfileId.value = profileId;
+  showProfileExportDialog.value = true;
+};
 
 const handleAddClick = () => {
+  createProfileInitialMode.value = "preset";
   showCreateProfileDialog.value = true;
 };
+
+const handleImportClick = () => {
+  createProfileInitialMode.value = "import";
+  showCreateProfileDialog.value = true;
+};
+
+const profilesForExport = computed(() =>
+  profiles.value.map((profile) =>
+    profile.id === selectedProfileId.value
+      ? JSON.parse(JSON.stringify(editForm.value))
+      : profile
+  )
+);
 
 // ─── 配置导入处理 ───
 const buildImportedModels = (draft: ParsedLlmProfileDraft): LlmModelInfo[] => {
@@ -216,26 +245,67 @@ const buildImportedModels = (draft: ParsedLlmProfileDraft): LlmModelInfo[] => {
   });
 };
 
-const buildImportedProfile = (draft: ParsedLlmProfileDraft): LlmProfile => ({
-  id: generateId(),
-  name: draft.suggestedName.trim(),
-  type: draft.providerType,
-  baseUrl: draft.baseUrl.trim(),
-  apiKeys: [...draft.apiKeys],
-  enabled: true,
-  models: buildImportedModels(draft),
-  networkStrategy: "auto",
-  relaxIdCerts: false,
-  http1Only: true,
-  ...(draft.customHeaders ? { customHeaders: { ...draft.customHeaders } } : {}),
-  ...(draft.customEndpoints
-    ? { customEndpoints: { ...draft.customEndpoints } }
-    : {}),
-  ...(draft.options ? { options: { ...draft.options } } : {}),
-});
+const buildImportedProfile = (
+  draft: ParsedLlmProfileDraft,
+  usedIds: Set<string>,
+  usedNames: Set<string>
+): LlmProfile => {
+  if (draft.sourceProfile) {
+    const source = JSON.parse(
+      JSON.stringify(draft.sourceProfile)
+    ) as LlmProfile;
+    let id = source.id;
+    let name = draft.suggestedName.trim() || source.name;
+    if (usedIds.has(id)) {
+      id = generateId();
+      const baseName = `${name} (副本)`;
+      name = baseName;
+      let suffix = 2;
+      while (usedNames.has(name)) name = `${baseName} ${suffix++}`;
+    }
+    usedIds.add(id);
+    usedNames.add(name);
+    return {
+      ...source,
+      id,
+      name,
+      type: draft.providerType,
+      baseUrl: draft.baseUrl.trim(),
+      apiKeys: [...draft.apiKeys],
+      models: draft.models.map((model) => JSON.parse(JSON.stringify(model))),
+    };
+  }
+
+  const profile: LlmProfile = {
+    id: generateId(),
+    name: draft.suggestedName.trim(),
+    type: draft.providerType,
+    baseUrl: draft.baseUrl.trim(),
+    apiKeys: [...draft.apiKeys],
+    enabled: true,
+    models: buildImportedModels(draft),
+    networkStrategy: "auto",
+    relaxIdCerts: false,
+    http1Only: true,
+    ...(draft.customHeaders
+      ? { customHeaders: { ...draft.customHeaders } }
+      : {}),
+    ...(draft.customEndpoints
+      ? { customEndpoints: { ...draft.customEndpoints } }
+      : {}),
+    ...(draft.options ? { options: { ...draft.options } } : {}),
+  };
+  usedIds.add(profile.id);
+  usedNames.add(profile.name);
+  return profile;
+};
 
 const createProfilesFromImport = async (drafts: ParsedLlmProfileDraft[]) => {
-  const importedProfiles = drafts.map(buildImportedProfile);
+  const usedIds = new Set(profiles.value.map((profile) => profile.id));
+  const usedNames = new Set(profiles.value.map((profile) => profile.name));
+  const importedProfiles = drafts.map((draft) =>
+    buildImportedProfile(draft, usedIds, usedNames)
+  );
   const invalidProfile = importedProfiles.find(
     (profile) => !profile.name || !profile.baseUrl
   );
@@ -272,6 +342,25 @@ const createProfilesFromImport = async (drafts: ParsedLlmProfileDraft[]) => {
 };
 
 const applyImportedProfileDraft = (draft: ParsedLlmProfileDraft) => {
+  if (draft.sourceProfile) {
+    const currentId = editForm.value.id;
+    const source = JSON.parse(
+      JSON.stringify(draft.sourceProfile)
+    ) as LlmProfile;
+    editForm.value = {
+      ...source,
+      id: currentId,
+      name: draft.suggestedName.trim() || source.name,
+      type: draft.providerType,
+      baseUrl: draft.baseUrl.trim(),
+      apiKeys: [...draft.apiKeys],
+      models: draft.models.map((model) => JSON.parse(JSON.stringify(model))),
+    };
+    apiKeyInput.value = editForm.value.apiKeys.join(", ");
+    customMessage.success("已完整应用导入渠道配置");
+    return;
+  }
+
   editForm.value.name = draft.suggestedName;
   editForm.value.type = draft.providerType;
   editForm.value.baseUrl = draft.baseUrl;
@@ -427,6 +516,29 @@ const networkSettingSummary = computed(() => {
         @update:profiles="updateProfilesOrder"
       >
         <template #header-actions>
+          <el-tooltip content="导入渠道文件" placement="bottom">
+            <el-button
+              link
+              class="info-button"
+              aria-label="导入渠道文件"
+              data-testid="llm-profile-import"
+              @click="handleImportClick"
+            >
+              <FileUp :size="16" />
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="导出渠道" placement="bottom">
+            <el-button
+              link
+              class="info-button"
+              aria-label="导出渠道"
+              data-testid="llm-profile-export"
+              :disabled="!profiles.length"
+              @click="openExportDialog(null)"
+            >
+              <FileDown :size="16" />
+            </el-button>
+          </el-tooltip>
           <el-tooltip content="查看说明" placement="bottom">
             <el-button link @click="openDeepLinkInfo" class="info-button">
               <Info :size="16" />
@@ -461,6 +573,19 @@ const networkSettingSummary = computed(() => {
           :show-save="false"
           @delete="handleDelete"
         >
+          <template #extra-actions>
+            <el-button
+              type="primary"
+              plain
+              size="small"
+              @click="openExportDialog(selectedProfileId)"
+            >
+              <template #icon>
+                <FileDown :size="14" />
+              </template>
+              导出
+            </el-button>
+          </template>
           <template #header-actions>
             <DynamicIcon
               :src="getProviderIcon(editForm) || ''"
@@ -801,9 +926,16 @@ const networkSettingSummary = computed(() => {
     <CreateProfileDialog
       v-model:visible="showCreateProfileDialog"
       :existing-profiles="profiles"
+      :initial-mode="createProfileInitialMode"
       @create-from-preset="createFromPresetTemplate"
       @create-from-blank="createNewProfile"
       @create-from-config="createProfilesFromImport"
+    />
+
+    <LlmProfileExportDialog
+      v-model:visible="showProfileExportDialog"
+      :profiles="profilesForExport"
+      :selected-profile-id="exportSelectedProfileId"
     />
 
     <!-- 编辑界面的配置导入对话框 -->

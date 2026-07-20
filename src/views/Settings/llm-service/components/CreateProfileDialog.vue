@@ -30,6 +30,7 @@ import type { ParsedLlmProfileDraft } from "@/utils/llm-config-import";
 interface Props {
   visible: boolean;
   existingProfiles?: LlmProfile[];
+  initialMode?: "preset" | "import";
 }
 
 // Emits
@@ -42,19 +43,20 @@ interface Emits {
 
 const props = withDefaults(defineProps<Props>(), {
   existingProfiles: () => [],
+  initialMode: "preset",
 });
 const emit = defineEmits<Emits>();
 
 // 使用统一的图标获取方法
 const { getDisplayIconPath, getIconPath } = useModelMetadata();
 
-const creationMode = ref<"preset" | "import">("preset");
+const creationMode = ref<"preset" | "import">(props.initialMode);
 
 watch(
   () => props.visible,
   (visible) => {
     if (visible) {
-      creationMode.value = "preset";
+      creationMode.value = props.initialMode;
       selectedProviderType.value = "all";
     }
   }

@@ -6,8 +6,12 @@
 import { mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import { defineComponent, nextTick } from "vue";
+import { flushPromises } from "@vue/test-utils";
 import ConfigImportPanel from "../ConfigImportPanel.vue";
 import CreateProfileDialog from "../CreateProfileDialog.vue";
+import LlmProfileExportDialog from "../LlmProfileExportDialog.vue";
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 
 vi.mock("@/composables/useModelMetadata", () => ({
   useModelMetadata: () => ({
@@ -210,5 +214,81 @@ describe("CreateProfileDialog", () => {
     expect(wrapper.find(".config-panel-stub").attributes("style")).toContain(
       "display: none"
     );
+  });
+
+  it("can open directly on file import", () => {
+    const wrapper = mount(CreateProfileDialog, {
+      props: { visible: true, initialMode: "import" },
+      global: {
+        stubs: {
+          ...commonStubs,
+          BaseDialog: {
+            template: '<div class="dialog-stub"><slot name="content" /></div>',
+          },
+          ConfigImportPanel: { template: '<div class="config-panel-stub" />' },
+          DynamicIcon: { template: "<span />" },
+        },
+      },
+    });
+
+    expect(wrapper.find(".preset-options").attributes("style")).toContain(
+      "display: none"
+    );
+    expect(
+      wrapper.find(".config-panel-stub").attributes("style") || ""
+    ).not.toContain("display: none");
+  });
+});
+
+describe("LlmProfileExportDialog", () => {
+  it("exports the current profile without secrets by default", async () => {
+    vi.mocked(save).mockResolvedValue("C:\\tmp\\channel.json");
+    vi.mocked(writeTextFile).mockResolvedValue(undefined);
+
+    const wrapper = mount(LlmProfileExportDialog, {
+      props: {
+        visible: true,
+        selectedProfileId: "profile-1",
+        profiles: [
+          {
+            id: "profile-1",
+            name: "Private Channel",
+            type: "openai-compatible",
+            baseUrl: "https://proxy.example.com/v1",
+            apiKeys: ["private-key"],
+            enabled: true,
+            models: [],
+            customHeaders: { Authorization: "Bearer private-token" },
+          },
+        ],
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template:
+              '<div><slot name="content" /><slot name="footer" /></div>',
+          },
+          ElButton: ButtonStub,
+          ElRadioGroup: { template: "<div><slot /></div>" },
+          ElRadioButton: { template: "<button><slot /></button>" },
+          ElSwitch: { template: '<input type="checkbox" />' },
+          ElAlert: { template: "<div />" },
+        },
+      },
+    });
+
+    await wrapper
+      .find('[data-testid="llm-profile-export-submit"]')
+      .trigger("click");
+    await flushPromises();
+
+    expect(writeTextFile).toHaveBeenCalledOnce();
+    const exported = JSON.parse(
+      vi.mocked(writeTextFile).mock.calls[0][1] as string
+    );
+    expect(exported.profiles).toHaveLength(1);
+    expect(exported.profiles[0].apiKeys).toEqual([]);
+    expect(exported.profiles[0].customHeaders).toEqual({});
+    expect(exported.redactedPaths).toContain("profiles[0].apiKeys");
   });
 });

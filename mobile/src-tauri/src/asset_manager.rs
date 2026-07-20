@@ -235,6 +235,10 @@ pub struct AssetImportProgressEvent {
 pub struct AssetListQuery {
     kind: Option<String>,
     search: Option<String>,
+    library_state: Option<String>,
+    created_month: Option<String>,
+    origin_kind: Option<String>,
+    source_module: Option<String>,
     include_hidden: Option<bool>,
     include_unavailable: Option<bool>,
     limit: Option<u32>,
@@ -290,6 +294,39 @@ pub struct AssetUsageReplaceResult {
 #[serde(rename_all = "camelCase")]
 pub struct AssetMutationResult {
     updated_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetCacheClearResult {
+    removed_variant_count: usize,
+    reclaimed_bytes: i64,
+    cleaned_file_count: usize,
+    pending_cleanup_count: i64,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetMonthFacet {
+    month: String,
+    asset_count: i64,
+    size_bytes: i64,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetSourceFacet {
+    origin_kind: String,
+    source_module: String,
+    asset_count: i64,
+    size_bytes: i64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetLibraryFacets {
+    by_month: Vec<AssetMonthFacet>,
+    by_source: Vec<AssetSourceFacet>,
 }
 
 #[derive(Debug, Serialize)]
@@ -375,6 +412,13 @@ struct PendingFileDeletion {
     id: i64,
     storage_root: String,
     relative_path: String,
+}
+
+#[derive(Debug, FromRow)]
+struct RebuildableVariant {
+    id: i64,
+    relative_path: String,
+    size_bytes: i64,
 }
 
 #[derive(Debug, Default)]
@@ -553,6 +597,20 @@ pub async fn asset_list(
     if let Some(kind) = query.kind.as_deref() {
         validate_kind(kind)?;
     }
+    if let Some(library_state) = query.library_state.as_deref() {
+        if !matches!(library_state, "visible" | "hidden" | "all") {
+            return Err("ASSET_INVALID_LIBRARY_STATE".into());
+        }
+    }
+    if let Some(month) = query.created_month.as_deref() {
+        validate_created_month(month)?;
+    }
+    if let Some(origin_kind) = query.origin_kind.as_deref() {
+        validate_origin_kind(origin_kind)?;
+    }
+    if let Some(source_module) = query.source_module.as_deref() {
+        validate_identifier("sourceModule", source_module)?;
+    }
     let search = query
         .search
         .as_deref()
@@ -561,20 +619,54 @@ pub async fn asset_list(
     if search.is_some_and(|value| value.len() > 200) {
         return Err("ASSET_INVALID_SEARCH".into());
     }
-    let pool = state.pool(&app).await?;
+    list_assets(state.pool(&app).await?, query).await
+}
+
+async fn list_assets(pool: &SqlitePool, query: AssetListQuery) -> Result<Vec<AssetRecord>, String> {
+    let search = query
+        .search
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
     let mut builder: QueryBuilder<'_, Sqlite> = QueryBuilder::new(
         "SELECT id, content_hash, kind, mime_type, display_name, size_bytes, storage_mode, \
          relative_path, availability, library_state, retention_policy, created_at, updated_at \
          FROM assets WHERE 1 = 1",
     );
-    if !query.include_hidden.unwrap_or(false) {
-        builder.push(" AND library_state = 'visible'");
+    match query.library_state.as_deref() {
+        Some(library_state @ ("visible" | "hidden")) => {
+            builder
+                .push(" AND library_state = ")
+                .push_bind(library_state);
+        }
+        Some("all") => {}
+        _ if query.include_hidden.unwrap_or(false) => {}
+        _ => {
+            builder.push(" AND library_state = 'visible'");
+        }
     }
     if !query.include_unavailable.unwrap_or(false) {
         builder.push(" AND availability = 'ready'");
     }
     if let Some(kind) = query.kind {
         builder.push(" AND kind = ").push_bind(kind);
+    }
+    if let Some(month) = query.created_month {
+        builder
+            .push(" AND substr(created_at, 1, 7) = ")
+            .push_bind(month);
+    }
+    if query.origin_kind.is_some() || query.source_module.is_some() {
+        builder.push(" AND EXISTS (SELECT 1 FROM asset_origins o WHERE o.asset_id = assets.id");
+        if let Some(origin_kind) = query.origin_kind {
+            builder.push(" AND o.origin_kind = ").push_bind(origin_kind);
+        }
+        if let Some(source_module) = query.source_module {
+            builder
+                .push(" AND o.source_module = ")
+                .push_bind(source_module);
+        }
+        builder.push(")");
     }
     if let Some(search) = search {
         builder
@@ -744,6 +836,70 @@ pub async fn asset_set_retention_policy(
         .await
         .map_err(|error| format!("ASSET_RETENTION_COMMIT: {error}"))?;
     Ok(AssetMutationResult { updated_count })
+}
+
+#[tauri::command]
+pub async fn asset_set_library_state(
+    app: AppHandle,
+    state: State<'_, AssetManagerState>,
+    asset_ids: Vec<String>,
+    library_state: String,
+) -> Result<AssetMutationResult, String> {
+    validate_asset_ids(&asset_ids)?;
+    if !matches!(library_state.as_str(), "visible" | "hidden") {
+        return Err("ASSET_INVALID_LIBRARY_STATE".into());
+    }
+    let pool = state.pool(&app).await?;
+    let _guard = state.mutation_lock.lock().await;
+    let mut transaction = pool
+        .begin()
+        .await
+        .map_err(|error| format!("ASSET_LIBRARY_STATE_TRANSACTION: {error}"))?;
+    let mut updated_count = 0_usize;
+    for asset_id in &asset_ids {
+        let result = sqlx::query(
+            "UPDATE assets SET library_state = ?, \
+             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+        )
+        .bind(&library_state)
+        .bind(asset_id)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| format!("ASSET_LIBRARY_STATE_UPDATE: {error}"))?;
+        if result.rows_affected() != 1 {
+            return Err("ASSET_NOT_FOUND".into());
+        }
+        updated_count += 1;
+    }
+    transaction
+        .commit()
+        .await
+        .map_err(|error| format!("ASSET_LIBRARY_STATE_COMMIT: {error}"))?;
+    Ok(AssetMutationResult { updated_count })
+}
+
+#[tauri::command]
+pub async fn asset_get_library_facets(
+    app: AppHandle,
+    state: State<'_, AssetManagerState>,
+    include_hidden: Option<bool>,
+) -> Result<AssetLibraryFacets, String> {
+    library_facets(state.pool(&app).await?, include_hidden.unwrap_or(false)).await
+}
+
+#[tauri::command]
+pub async fn asset_clear_rebuildable_cache(
+    app: AppHandle,
+    state: State<'_, AssetManagerState>,
+    asset_ids: Option<Vec<String>>,
+) -> Result<AssetCacheClearResult, String> {
+    if let Some(asset_ids) = asset_ids.as_deref() {
+        validate_asset_ids(asset_ids)?;
+    }
+    let pool = state.pool(&app).await?;
+    let paths = AssetPaths::from_app(&app)?;
+    let _guard = state.mutation_lock.lock().await;
+    clear_rebuildable_cache(pool, &paths, asset_ids.as_deref()).await
 }
 
 #[tauri::command]
@@ -1156,6 +1312,132 @@ fn relative_path_string(root: &Path, path: &Path) -> Result<String, String> {
         })
         .collect::<Vec<_>>()
         .join("/"))
+}
+
+async fn library_facets(
+    pool: &SqlitePool,
+    include_hidden: bool,
+) -> Result<AssetLibraryFacets, String> {
+    let mut month_builder: QueryBuilder<'_, Sqlite> = QueryBuilder::new(
+        "SELECT substr(created_at, 1, 7) AS month, count(*) AS asset_count, \
+         COALESCE(SUM(size_bytes), 0) AS size_bytes FROM assets \
+         WHERE availability = 'ready'",
+    );
+    if !include_hidden {
+        month_builder.push(" AND library_state = 'visible'");
+    }
+    month_builder.push(" GROUP BY month ORDER BY month DESC");
+    let by_month = month_builder
+        .build_query_as::<AssetMonthFacet>()
+        .fetch_all(pool)
+        .await
+        .map_err(|error| format!("ASSET_LIBRARY_MONTH_FACETS: {error}"))?;
+
+    let mut source_builder: QueryBuilder<'_, Sqlite> = QueryBuilder::new(
+        "SELECT origin_kind, source_module, count(*) AS asset_count, \
+         COALESCE(SUM(size_bytes), 0) AS size_bytes FROM ( \
+           SELECT DISTINCT a.id, a.size_bytes, o.origin_kind, o.source_module \
+           FROM assets a JOIN asset_origins o ON o.asset_id = a.id \
+           WHERE a.availability = 'ready'",
+    );
+    if !include_hidden {
+        source_builder.push(" AND a.library_state = 'visible'");
+    }
+    source_builder.push(
+        " ) source_assets GROUP BY origin_kind, source_module \
+         ORDER BY size_bytes DESC, origin_kind, source_module",
+    );
+    let by_source = source_builder
+        .build_query_as::<AssetSourceFacet>()
+        .fetch_all(pool)
+        .await
+        .map_err(|error| format!("ASSET_LIBRARY_SOURCE_FACETS: {error}"))?;
+
+    Ok(AssetLibraryFacets {
+        by_month,
+        by_source,
+    })
+}
+
+async fn ensure_assets_exist(
+    transaction: &mut sqlx::Transaction<'_, Sqlite>,
+    asset_ids: &[String],
+) -> Result<(), String> {
+    let mut builder: QueryBuilder<'_, Sqlite> =
+        QueryBuilder::new("SELECT count(*) FROM assets WHERE id IN (");
+    {
+        let mut separated = builder.separated(", ");
+        for asset_id in asset_ids {
+            separated.push_bind(asset_id);
+        }
+    }
+    builder.push(")");
+    let count: i64 = builder
+        .build_query_scalar()
+        .fetch_one(&mut **transaction)
+        .await
+        .map_err(|error| format!("ASSET_CACHE_ASSET_LOOKUP: {error}"))?;
+    if count != asset_ids.len() as i64 {
+        return Err("ASSET_NOT_FOUND".into());
+    }
+    Ok(())
+}
+
+async fn clear_rebuildable_cache(
+    pool: &SqlitePool,
+    paths: &AssetPaths,
+    asset_ids: Option<&[String]>,
+) -> Result<AssetCacheClearResult, String> {
+    let mut transaction = pool
+        .begin()
+        .await
+        .map_err(|error| format!("ASSET_CACHE_CLEAR_TRANSACTION: {error}"))?;
+    if let Some(asset_ids) = asset_ids {
+        ensure_assets_exist(&mut transaction, asset_ids).await?;
+    }
+
+    let mut builder: QueryBuilder<'_, Sqlite> = QueryBuilder::new(
+        "SELECT id, relative_path, size_bytes FROM asset_variants WHERE rebuildable = 1",
+    );
+    if let Some(asset_ids) = asset_ids {
+        builder.push(" AND asset_id IN (");
+        {
+            let mut separated = builder.separated(", ");
+            for asset_id in asset_ids {
+                separated.push_bind(asset_id);
+            }
+        }
+        builder.push(")");
+    }
+    let variants = builder
+        .build_query_as::<RebuildableVariant>()
+        .fetch_all(&mut *transaction)
+        .await
+        .map_err(|error| format!("ASSET_CACHE_VARIANT_LIST: {error}"))?;
+    let mut reclaimed_bytes = 0_i64;
+    for variant in &variants {
+        paths.resolve_storage("cache", &variant.relative_path)?;
+        reclaimed_bytes = reclaimed_bytes
+            .checked_add(variant.size_bytes)
+            .ok_or_else(|| "ASSET_SIZE_OVERFLOW".to_string())?;
+        queue_file_deletion(&mut transaction, "cache", &variant.relative_path).await?;
+        sqlx::query("DELETE FROM asset_variants WHERE id = ?")
+            .bind(variant.id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| format!("ASSET_CACHE_VARIANT_DELETE: {error}"))?;
+    }
+    transaction
+        .commit()
+        .await
+        .map_err(|error| format!("ASSET_CACHE_CLEAR_COMMIT: {error}"))?;
+    let cleanup = drain_pending_file_deletions(pool, paths).await?;
+    Ok(AssetCacheClearResult {
+        removed_variant_count: variants.len(),
+        reclaimed_bytes,
+        cleaned_file_count: cleanup.cleaned_count,
+        pending_cleanup_count: cleanup.pending_count,
+    })
 }
 
 async fn storage_summary(
@@ -1929,12 +2211,7 @@ fn validate_import_source(source: &AssetImportSource) -> Result<(), String> {
         return Err("ASSET_INVALID_SOURCE_REFERENCE".into());
     }
     validate_source_reference(&source.reference)?;
-    if !matches!(
-        source.origin_kind.as_str(),
-        "file_picker" | "photo_picker" | "camera" | "share" | "network" | "generated" | "tool"
-    ) {
-        return Err("ASSET_INVALID_ORIGIN_KIND".into());
-    }
+    validate_origin_kind(&source.origin_kind)?;
     validate_identifier("sourceModule", &source.source_module)?;
     if source
         .original_name
@@ -1949,6 +2226,38 @@ fn validate_import_source(source: &AssetImportSource) -> Result<(), String> {
         .is_some_and(|mime| mime.is_empty() || mime.len() > 255 || mime.contains(['\r', '\n']))
     {
         return Err("ASSET_INVALID_MIME_TYPE".into());
+    }
+    Ok(())
+}
+
+fn validate_origin_kind(origin_kind: &str) -> Result<(), String> {
+    if matches!(
+        origin_kind,
+        "file_picker" | "photo_picker" | "camera" | "share" | "network" | "generated" | "tool"
+    ) {
+        Ok(())
+    } else {
+        Err("ASSET_INVALID_ORIGIN_KIND".into())
+    }
+}
+
+fn validate_created_month(month: &str) -> Result<(), String> {
+    let bytes = month.as_bytes();
+    let valid_shape = bytes.len() == 7
+        && bytes[4] == b'-'
+        && bytes[..4].iter().all(u8::is_ascii_digit)
+        && bytes[5..].iter().all(u8::is_ascii_digit);
+    if !valid_shape {
+        return Err("ASSET_INVALID_CREATED_MONTH".into());
+    }
+    let year = month[..4]
+        .parse::<u16>()
+        .map_err(|_| "ASSET_INVALID_CREATED_MONTH")?;
+    let month_number = month[5..]
+        .parse::<u8>()
+        .map_err(|_| "ASSET_INVALID_CREATED_MONTH")?;
+    if year == 0 || !(1..=12).contains(&month_number) {
+        return Err("ASSET_INVALID_CREATED_MONTH".into());
     }
     Ok(())
 }
@@ -2276,6 +2585,167 @@ mod tests {
         assert_eq!(running.state, "failed");
         assert_eq!(completed.state, "completed");
         assert!(completed.error_code.is_none());
+    }
+
+    #[tokio::test]
+    async fn library_filters_facets_and_rebuildable_cache_cleanup_share_consistent_scope() {
+        let root = std::env::temp_dir().join(format!("aio-asset-test-{}", Uuid::new_v4()));
+        let paths = AssetPaths {
+            database: root.join(ASSET_DB),
+            objects: root.join("objects"),
+            imports: root.join("tmp").join("imports"),
+            cache_root: root.join("cache"),
+            root: root.clone(),
+        };
+        fs::create_dir_all(&paths.cache_root).unwrap();
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        ASSET_MIGRATOR.run(&pool).await.unwrap();
+
+        for (id, hash, library_state, created_at, size_bytes) in [
+            (
+                "visible-asset",
+                "a".repeat(64),
+                "visible",
+                "2026-07-15T00:00:00.000Z",
+                100_i64,
+            ),
+            (
+                "hidden-asset",
+                "b".repeat(64),
+                "hidden",
+                "2026-06-15T00:00:00.000Z",
+                200_i64,
+            ),
+        ] {
+            sqlx::query(
+                "INSERT INTO assets( \
+                   id, content_hash, kind, mime_type, display_name, size_bytes, storage_mode, \
+                   relative_path, availability, library_state, retention_policy, created_at, updated_at \
+                 ) VALUES (?, ?, 'image', 'image/png', ?, ?, 'managed', ?, 'ready', ?, \
+                   'reclaimable', ?, ?)",
+            )
+            .bind(id)
+            .bind(hash)
+            .bind(format!("{id}.png"))
+            .bind(size_bytes)
+            .bind(format!("objects/{id}.png"))
+            .bind(library_state)
+            .bind(created_at)
+            .bind(created_at)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+        for (asset_id, origin_kind, source_module) in [
+            ("visible-asset", "file_picker", "llm-chat"),
+            ("visible-asset", "file_picker", "llm-chat"),
+            ("hidden-asset", "tool", "media-generator"),
+        ] {
+            sqlx::query(
+                "INSERT INTO asset_origins( \
+                   asset_id, origin_kind, source_module, original_name, locator, created_at \
+                 ) VALUES (?, ?, ?, 'sample.png', NULL, '2026-07-20T00:00:00.000Z')",
+            )
+            .bind(asset_id)
+            .bind(origin_kind)
+            .bind(source_module)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+
+        let visible = list_assets(&pool, AssetListQuery::default()).await.unwrap();
+        assert_eq!(visible.len(), 1);
+        assert_eq!(visible[0].id, "visible-asset");
+        let hidden = list_assets(
+            &pool,
+            AssetListQuery {
+                library_state: Some("hidden".into()),
+                created_month: Some("2026-06".into()),
+                origin_kind: Some("tool".into()),
+                source_module: Some("media-generator".into()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(hidden.len(), 1);
+        assert_eq!(hidden[0].id, "hidden-asset");
+
+        let visible_facets = library_facets(&pool, false).await.unwrap();
+        assert_eq!(visible_facets.by_month.len(), 1);
+        assert_eq!(visible_facets.by_month[0].month, "2026-07");
+        assert_eq!(visible_facets.by_source.len(), 1);
+        assert_eq!(visible_facets.by_source[0].asset_count, 1);
+        let all_facets = library_facets(&pool, true).await.unwrap();
+        assert_eq!(all_facets.by_month.len(), 2);
+        assert_eq!(all_facets.by_source.len(), 2);
+
+        let rebuildable_path = "previews/visible/thumb.webp";
+        let retained_path = "previews/visible/source.bin";
+        let hidden_path = "previews/hidden/thumb.webp";
+        for (path, content) in [
+            (rebuildable_path, b"rebuildable".as_slice()),
+            (retained_path, b"retained".as_slice()),
+            (hidden_path, b"hidden-cache".as_slice()),
+        ] {
+            let full_path = paths.cache_root.join(path);
+            fs::create_dir_all(full_path.parent().unwrap()).unwrap();
+            fs::write(full_path, content).unwrap();
+        }
+        for (asset_id, kind, path, size_bytes, rebuildable) in [
+            (
+                "visible-asset",
+                "thumbnail",
+                rebuildable_path,
+                11_i64,
+                1_i64,
+            ),
+            ("visible-asset", "source-copy", retained_path, 8_i64, 0_i64),
+            ("hidden-asset", "thumbnail", hidden_path, 12_i64, 1_i64),
+        ] {
+            sqlx::query(
+                "INSERT INTO asset_variants( \
+                   asset_id, variant_kind, relative_path, size_bytes, rebuildable, created_at \
+                 ) VALUES (?, ?, ?, ?, ?, '2026-07-20T00:00:00.000Z')",
+            )
+            .bind(asset_id)
+            .bind(kind)
+            .bind(path)
+            .bind(size_bytes)
+            .bind(rebuildable)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+
+        let selected_ids = vec!["visible-asset".to_string()];
+        let selected = clear_rebuildable_cache(&pool, &paths, Some(&selected_ids))
+            .await
+            .unwrap();
+        assert_eq!(selected.removed_variant_count, 1);
+        assert_eq!(selected.reclaimed_bytes, 11);
+        assert_eq!(selected.cleaned_file_count, 1);
+        assert!(!paths.cache_root.join(rebuildable_path).exists());
+        assert!(paths.cache_root.join(retained_path).exists());
+        assert!(paths.cache_root.join(hidden_path).exists());
+
+        let all = clear_rebuildable_cache(&pool, &paths, None).await.unwrap();
+        assert_eq!(all.removed_variant_count, 1);
+        assert_eq!(all.reclaimed_bytes, 12);
+        assert!(paths.cache_root.join(retained_path).exists());
+        let remaining: i64 = sqlx::query_scalar("SELECT count(*) FROM asset_variants")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(remaining, 1);
+
+        pool.close().await;
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[tokio::test]

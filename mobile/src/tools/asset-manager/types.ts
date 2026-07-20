@@ -6,6 +6,7 @@ export type AssetAvailability =
   | "missing"
   | "error";
 export type AssetRetentionPolicy = "reclaimable" | "pinned";
+export type AssetLibraryState = "visible" | "hidden";
 export type AssetUsagePolicy = "advisory" | "blocking";
 export type AssetOriginKind =
   | "file_picker"
@@ -25,7 +26,7 @@ export interface AssetRecord {
   sizeBytes: number;
   storageMode: "managed" | "linked";
   availability: AssetAvailability;
-  libraryState: "visible" | "hidden";
+  libraryState: AssetLibraryState;
   retentionPolicy: AssetRetentionPolicy;
   createdAt: string;
   updatedAt: string;
@@ -94,6 +95,10 @@ export interface AssetImportProgressEvent {
 export interface AssetListQuery {
   kind?: AssetKind;
   search?: string;
+  libraryState?: AssetLibraryState | "all";
+  createdMonth?: string;
+  originKind?: AssetOriginKind;
+  sourceModule?: string;
   includeHidden?: boolean;
   includeUnavailable?: boolean;
   limit?: number;
@@ -181,4 +186,29 @@ export interface AssetRepairReport {
   cleanedOrphanFiles: number;
   markedMissingAssets: number;
   pendingCleanupCount: number;
+}
+
+export interface AssetCacheClearResult {
+  removedVariantCount: number;
+  reclaimedBytes: number;
+  cleanedFileCount: number;
+  pendingCleanupCount: number;
+}
+
+export interface AssetMonthFacet {
+  month: string;
+  assetCount: number;
+  sizeBytes: number;
+}
+
+export interface AssetSourceFacet {
+  originKind: AssetOriginKind;
+  sourceModule: string;
+  assetCount: number;
+  sizeBytes: number;
+}
+
+export interface AssetLibraryFacets {
+  byMonth: AssetMonthFacet[];
+  bySource: AssetSourceFacet[];
 }

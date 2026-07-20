@@ -485,8 +485,9 @@ interface ManagedAssetRef {
 - [x] 建立资产列表、详情和按业务实体整体替换 usage 的首批领域命令与 TypeScript 服务契约。
 - [x] 建立启动恢复、待物理删除队列、删除影响分析、保留策略、安全删除、存储统计与手动修复命令。
 - [x] 建立持久化 import job、Channel 进度、任务查询、取消与进程中断恢复契约。
+- [x] 建立隐藏/恢复、月份与来源筛选聚合、可重建缓存定向/全库清理契约。
 - [ ] 在 Android 真机验证 Rust command 直读 `content://` 的正式导入路径并回写报告。
-- [ ] 补齐可重建缓存清理、受控预览与首个聊天消费者。
+- [ ] 补齐受控预览与首个聊天消费者。
 
 ### Phase 2：资产页
 
@@ -567,6 +568,13 @@ interface ManagedAssetRef {
 - 兼容的 `asset_import_sources` 命令继续存在，新 TypeScript 服务默认改走 import job。
 - iOS 仍因缺少编译与真机设备条件暂缓补验，不据此宣称平台能力通过。
 - 第三批已通过移动端 60 个前端测试、16 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android 四 ABI debug APK/AAB 构建；正式 `content://` 导入与运行中取消仍待 Android 真机固定场景验证。
+
+### 2026-07-20：Phase 1 第四批
+
+- 资产列表增加 visible/hidden/all、创建月份、来源类型与来源模块筛选；新增月份和来源 facets，为 Phase 2 筛选面板提供稳定聚合契约。
+- 新增批量隐藏/恢复命令。隐藏只更新 `library_state`，不删除原件、不释放 usage，也不修改保留策略。
+- 新增按指定资产或全库清理可重建 variant 的命令；不可重建 variant 与原件始终保留，物理删除继续使用持久化待删除队列。
+- 第四批已通过移动端 62 个前端测试、17 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android 四 ABI debug APK/AAB 构建；iOS 仍按缺少编译与真机条件暂缓补验。
 
 ## 16. 调查来源
 

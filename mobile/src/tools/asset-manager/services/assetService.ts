@@ -2,6 +2,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 import type {
+  AssetCacheClearResult,
   AssetDeleteAnalysis,
   AssetDeleteResult,
   AssetDetail,
@@ -9,6 +10,8 @@ import type {
   AssetImportProgressEvent,
   AssetImportResult,
   AssetImportSource,
+  AssetLibraryFacets,
+  AssetLibraryState,
   AssetListQuery,
   AssetRecord,
   AssetRepairReport,
@@ -216,6 +219,58 @@ export async function setAssetRetentionPolicy(
   } catch (error) {
     errorHandler.handle(error, {
       userMessage: "无法更新资产保留策略",
+      showToUser: false,
+    });
+    throw error;
+  }
+}
+
+export async function setAssetLibraryState(
+  assetIds: string[],
+  libraryState: AssetLibraryState
+): Promise<number> {
+  try {
+    const result = await invoke<{ updatedCount: number }>(
+      "asset_set_library_state",
+      { assetIds, libraryState }
+    );
+    return result.updatedCount;
+  } catch (error) {
+    errorHandler.handle(error, {
+      userMessage: "无法更新资产库状态",
+      showToUser: false,
+    });
+    throw error;
+  }
+}
+
+export async function getAssetLibraryFacets(
+  includeHidden = false
+): Promise<AssetLibraryFacets> {
+  try {
+    return await invoke<AssetLibraryFacets>("asset_get_library_facets", {
+      includeHidden,
+    });
+  } catch (error) {
+    errorHandler.handle(error, {
+      userMessage: "无法读取资产筛选统计",
+      showToUser: false,
+    });
+    throw error;
+  }
+}
+
+export async function clearRebuildableAssetCache(
+  assetIds?: string[]
+): Promise<AssetCacheClearResult> {
+  try {
+    return await invoke<AssetCacheClearResult>(
+      "asset_clear_rebuildable_cache",
+      { assetIds }
+    );
+  } catch (error) {
+    errorHandler.handle(error, {
+      userMessage: "无法清理资产缓存",
       showToUser: false,
     });
     throw error;

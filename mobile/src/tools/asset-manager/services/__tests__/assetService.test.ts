@@ -25,8 +25,11 @@ vi.mock("@/utils/errorHandler", () => ({
 }));
 
 import {
+  clearRebuildableAssetCache,
+  getAssetLibraryFacets,
   importAssetSources,
   listAssetImportJobs,
+  setAssetLibraryState,
   startAssetImportJob,
 } from "../assetService";
 
@@ -125,5 +128,48 @@ describe("asset import jobs", () => {
     expect(invokeMock).toHaveBeenCalledWith("asset_list_import_jobs", {
       limit: 12,
     });
+  });
+});
+
+describe("asset library management", () => {
+  it("updates library state with the exact selected asset ids", async () => {
+    invokeMock.mockResolvedValueOnce({ updatedCount: 2 });
+
+    await expect(
+      setAssetLibraryState(["asset-1", "asset-2"], "hidden")
+    ).resolves.toBe(2);
+    expect(invokeMock).toHaveBeenCalledWith("asset_set_library_state", {
+      assetIds: ["asset-1", "asset-2"],
+      libraryState: "hidden",
+    });
+  });
+
+  it("reads facets and clears only the requested asset cache", async () => {
+    invokeMock
+      .mockResolvedValueOnce({ byMonth: [], bySource: [] })
+      .mockResolvedValueOnce({
+        removedVariantCount: 1,
+        reclaimedBytes: 1024,
+        cleanedFileCount: 1,
+        pendingCleanupCount: 0,
+      });
+
+    await expect(getAssetLibraryFacets(true)).resolves.toEqual({
+      byMonth: [],
+      bySource: [],
+    });
+    await expect(clearRebuildableAssetCache(["asset-1"])).resolves.toMatchObject({
+      reclaimedBytes: 1024,
+    });
+    expect(invokeMock).toHaveBeenNthCalledWith(
+      1,
+      "asset_get_library_facets",
+      { includeHidden: true }
+    );
+    expect(invokeMock).toHaveBeenNthCalledWith(
+      2,
+      "asset_clear_rebuildable_cache",
+      { assetIds: ["asset-1"] }
+    );
   });
 });

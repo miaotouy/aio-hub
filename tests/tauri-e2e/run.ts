@@ -7,7 +7,10 @@ import {
   recallChatScenarios,
 } from "./fixtures/recall-scenarios";
 import { buildRecallWorkflowManifestForCorpus } from "./fixtures/recall-workflow";
-import { seedRecallWorkflowFixtures } from "./support/fixture-seeder";
+import {
+  seedRecallWorkflowFixtures,
+  seedRecallWorkspaceConfig,
+} from "./support/fixture-seeder";
 import { preflightOllama } from "./support/ollama-preflight";
 import { startOpenAiMock } from "./support/openai-mock";
 import {
@@ -414,6 +417,16 @@ if (shouldSeedFixtures) {
     enabled: true,
     mode: process.env.AIO_E2E_FIXTURE_MODE === "verify" ? "verify" : "write",
   });
+  fixtureSeedResult.files.push(
+    seedRecallWorkspaceConfig({
+      dataDir,
+      recallId: recallManifest.recall.id,
+      embeddingProfileId: embeddingRole.profileId,
+      embeddingModelId: embeddingRole.modelId,
+      embeddingDimension: embeddingRole.dimension,
+      mode: process.env.AIO_E2E_FIXTURE_MODE === "verify" ? "verify" : "write",
+    })
+  );
 
   const pluginStateDir = path.join(dataDir, "plugin-manager");
   fs.mkdirSync(pluginStateDir, { recursive: true });

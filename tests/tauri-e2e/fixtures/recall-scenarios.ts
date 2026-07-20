@@ -25,6 +25,8 @@ export const RECALL_ENTRY_IDS = {
   base64: "20000000-0000-4000-8000-000000000002",
   memory: "20000000-0000-4000-8000-000000000003",
   structure: "20000000-0000-4000-8000-000000000004",
+  rust: "20000000-0000-4000-8000-000000000005",
+  banana: "20000000-0000-4000-8000-000000000006",
 } as const;
 
 export const RECALL_EVIDENCE_MARKERS = {
@@ -169,6 +171,8 @@ export const embeddingTopics: EmbeddingTopic[] = [
       "复杂 markdown",
       "streaming markdown",
       "heavy component",
+      "流式渲染",
+      "ast",
     ],
     axis: 0,
   },
@@ -179,6 +183,7 @@ export const embeddingTopics: EmbeddingTopic[] = [
       "base64 image",
       "data url",
       "原始请求体",
+      "base64",
     ],
     axis: 1,
   },
@@ -203,12 +208,22 @@ export const embeddingTopics: EmbeddingTopic[] = [
   },
   {
     id: "rust-ownership",
-    markers: ["rust ownership", "borrow checker", "所有权与借用"],
+    markers: ["rust ownership", "borrow checker", "所有权与借用", "rust"],
     axis: 4,
   },
   {
     id: "banana-bread",
-    markers: ["banana bread", "香蕉面包"],
+    markers: ["banana bread", "香蕉面包", "cooking"],
     axis: 5,
+  },
+  {
+    id: "hard-negative-css",
+    markers: ["tailwind css", "原生 css", "前端开发"],
+    axis: 6,
+  },
+  {
+    id: "hard-negative-audio",
+    markers: ["神经网络修音", "泛音", "音频"],
+    axis: 7,
   },
 ];

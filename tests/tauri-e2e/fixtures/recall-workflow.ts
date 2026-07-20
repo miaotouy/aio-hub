@@ -219,7 +219,7 @@ const smokeEntries: RecallFixtureEntry[] = [
     updatedAt: RECALL_FIXTURE_TIME_MS,
   },
   {
-    id: "20000000-0000-4000-8000-000000000005",
+    id: RECALL_ENTRY_IDS.rust,
     layer: "smoke",
     key: "rust-ownership",
     content:
@@ -231,7 +231,7 @@ const smokeEntries: RecallFixtureEntry[] = [
     updatedAt: RECALL_FIXTURE_TIME_MS,
   },
   {
-    id: "20000000-0000-4000-8000-000000000006",
+    id: RECALL_ENTRY_IDS.banana,
     layer: "smoke",
     key: "banana-bread",
     content: "Banana bread uses ripe bananas, flour, and a moderate oven.",

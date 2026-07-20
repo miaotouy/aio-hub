@@ -6,6 +6,7 @@ import { buildRecallWorkflowManifest } from "../fixtures/recall-workflow";
 import {
   assertFixtureIsSanitized,
   buildRecallFixtureFiles,
+  seedRecallWorkspaceConfig,
   seedRecallWorkflowFixtures,
   validateRecallFixtureFiles,
 } from "./fixture-seeder";
@@ -191,6 +192,39 @@ describe("Recall fixture seeder", () => {
         mode: "verify",
       })
     ).not.toThrow();
+  });
+
+  it("seeds and verifies the lane-specific Recall workspace model", () => {
+    const dataDir = tempDir();
+    const options = {
+      dataDir,
+      recallId: "10000000-0000-4000-8000-000000000001",
+      embeddingProfileId: models.embedding.profileId,
+      embeddingModelId: models.embedding.modelId,
+      embeddingDimension: models.embedding.dimension,
+    };
+
+    expect(seedRecallWorkspaceConfig(options)).toBe("knowledge/workspace.json");
+    const workspace = JSON.parse(
+      fs.readFileSync(path.join(dataDir, "knowledge", "workspace.json"), "utf8")
+    );
+    expect(workspace).toMatchObject({
+      config: {
+        defaultEmbeddingModel: "e2e-openai-mock:e2e-embedding",
+        vectorIndex: { dimension: 128 },
+      },
+      lastActiveBaseId: options.recallId,
+    });
+    expect(() =>
+      seedRecallWorkspaceConfig({ ...options, mode: "verify" })
+    ).not.toThrow();
+    expect(() =>
+      seedRecallWorkspaceConfig({
+        ...options,
+        embeddingDimension: 768,
+        mode: "verify",
+      })
+    ).toThrow("workspace model or collection mismatch");
   });
 
   it("rejects index/detail reference mismatches", () => {

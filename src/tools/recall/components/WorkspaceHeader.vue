@@ -181,6 +181,11 @@ const isAllSelected = computed(() => {
             <div
               class="status-tag"
               :class="{ 'is-aligned': vectorStatusInfo.isAligned }"
+              data-testid="recall-vector-status"
+              :data-vector-model="vectorStatusInfo.currentModel || undefined"
+              :data-vector-ready="vectorStatusInfo.ready"
+              :data-vector-pending="vectorStatusInfo.pending"
+              :data-vector-total="vectorStatusInfo.total"
             >
               <ShieldCheck v-if="vectorStatusInfo.isAligned" :size="14" />
               <ShieldAlert v-else :size="14" />

@@ -44,6 +44,9 @@ stable IDs. The artifact directory receives only a redacted fixture summary;
 the full LLM profile and isolated data directory must not be uploaded as CI
 artifacts. Set `AIO_E2E_FIXTURE_MODE=verify` on a second launch to validate the
 persisted Agent/session references without resetting messages or timestamps.
+The fixture also selects the lane-specific Embedding model and active Recall
+collection in `knowledge/workspace.json`; verify mode checks those references
+without replacing runtime settings.
 
 Pure runner, fixture, mock, and corpus checks run without opening the app:
 
@@ -84,11 +87,19 @@ metadata records only profile/model IDs and endpoint origin, never keys,
 authorization headers, or the source configuration path.
 
 The Ollama and private-profile scripts run the lane-compatible
-`recall-runtime-fixture.spec.ts`. That spec loads the selected profiles, writes
-the selected Recall corpus through production Tauri commands, reads it back,
-and confirms the collection and entries are visible in the Recall UI. The
-deterministic default continues to run the full suite; its Knowledge workflow
-is explicitly skipped for non-deterministic lanes.
+`recall-vector-workflow.spec.ts`. It writes the selected Recall corpus through
+production Tauri commands, triggers vectorization and semantic search from the
+visible UI, then reads vector coverage, model, dimension, ranking, and trace
+state back through production IPC. The deterministic lane additionally checks
+the mock server's redacted request summaries. Its Knowledge workflow is
+explicitly skipped for non-deterministic lanes.
+
+Run the deterministic Recall workflow directly:
+
+```powershell
+bun run test:tauri:e2e:recall
+bun run test:tauri:e2e:recall:curated
+```
 
 Select the larger reviewed corpus explicitly:
 
@@ -109,7 +120,9 @@ bun tests/tauri-e2e/scripts/derive-recall-curated-corpus.ts --source <backup.aio
 `specs/knowledge-workflow.spec.ts` covers deterministic isolated library
 creation, Agent Knowledge authorization persistence, and cross-tool
 navigation. `specs/recall-runtime-fixture.spec.ts` covers lane-aware profile
-loading and the production Recall IPC/UI fixture round trip.
+loading and the production Recall IPC/UI fixture round trip, while
+`specs/recall-vector-workflow.spec.ts` covers visible vectorization and
+semantic ranking.
 
 ## Windows native selectors
 

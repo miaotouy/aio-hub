@@ -60,7 +60,11 @@ const tabs = [
     <el-tabs v-model="activeTab" class="recall-tabs">
       <el-tab-pane v-for="tab in tabs" :key="tab.id" :name="tab.id">
         <template #label>
-          <div class="tab-label">
+          <div
+            class="tab-label"
+            :data-testid="`recall-tab-${tab.id}`"
+            :data-tab-id="tab.id"
+          >
             <component :is="tab.icon" :size="16" />
             <span>{{ tab.label }}</span>
           </div>

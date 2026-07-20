@@ -1,6 +1,6 @@
 # Recall 自动化测试、精简 OAI 渠道与真实向量请求实施计划
 
-**状态**: 实施中（Phase 1 完成，Phase 2 selectors 与 IPC fixture setup 完成）
+**状态**: 实施中（Phase 1、Phase 2 完成）
 
 **创建日期**: 2026-07-20  
 **最近修订**: 2026-07-20  
@@ -33,8 +33,10 @@
 - Phase 2 的 23 个稳定 Recall / Agent Recall / Chat selector 已补齐，并通过前端类型检查和 Vite build。
 - 新增 lane-aware `recall-runtime-fixture.spec.ts`：按 `smoke` / `curated` 选择真实语料，通过正式 `recall_initialize`、`recall_save_base_meta`、`recall_upsert_entry`、`recall_load_base_meta` IPC 写入回读，并从 Recall UI 验证集合与条目可见；非默认 lane 不再执行硬编码 deterministic mock 的 Knowledge spec。
 - `external-full` 在 Phase 4 的显式 backup import 实现前 fail-closed，不再接受只写 metadata、未实际导入语料的空模式；runner 资源在正常退出、信号和启动期异常路径统一清理。
+- Phase 2 新增独立 `recall-vector-workflow.spec.ts` 与 `test:tauri:e2e:recall(:curated)`：从可见 UI 触发全量向量化和 vector search，并交叉断言脱敏 HTTP request、IPC coverage、实际维度、entry model 状态、trace 与 UI 排名；smoke 6 条和 curated 18 条真实窗口流程均已通过。
+- fixture seeder 现预置 lane-specific Recall workspace 模型与活动集合，verify 模式只核验引用；deterministic topic vector 同时覆盖 curated 标签与两类 hard negative 独立轴，稳定保留同标题异 ID 并阻止 hard negative 占据第一名。
 
-Phase 2 的可见 UI 向量化/检索 spec，以及 Phase 3 之后的 Chat 注入、真实进程重启和完整 scenario result 汇总尚未实施。
+Phase 3 之后的 Chat 注入、真实进程重启、外部完整 corpus import 和完整 scenario result 汇总尚未实施。
 
 ---
 

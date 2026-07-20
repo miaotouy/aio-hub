@@ -15,7 +15,7 @@
 -->
 
 <template>
-  <div class="playground-view">
+  <div class="playground-view" data-testid="recall-playground">
     <div class="lab-header">
       <div class="header-controls">
         <div class="control-group">
@@ -27,12 +27,16 @@
             collapse-tags-tooltip
             placeholder="选择思绪集"
             style="width: 240px"
+            data-testid="recall-search-collections"
+            :data-recall-ids="selectedRecallIds.join(',') || undefined"
           >
             <el-option
               v-for="base in recallStore.bases"
               :key="base.id"
               :label="base.name"
               :value="base.id"
+              data-testid="recall-search-collection-option"
+              :data-recall-id="base.id"
             />
           </el-select>
         </div>

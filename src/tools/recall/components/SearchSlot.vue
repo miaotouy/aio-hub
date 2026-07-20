@@ -22,6 +22,7 @@
           v-model="engineId"
           placeholder="选择检索引擎"
           style="width: 100%"
+          popper-class="recall-search-engine-popper"
           data-testid="recall-search-engine"
           :data-engine-id="engineId"
         >
@@ -37,6 +38,8 @@
             :key="engine.id"
             :label="engine.name"
             :value="engine.id"
+            data-testid="recall-search-engine-option"
+            :data-engine-id="engine.id"
           >
             <div class="engine-option">
               <Icon
@@ -115,6 +118,10 @@
         v-loading="loading"
         element-loading-background="rgba(0, 0, 0, 0)"
         class="results-list"
+        data-testid="recall-search-results"
+        :data-search-state="loading ? 'loading' : 'idle'"
+        :data-last-query="lastQuery || undefined"
+        :data-result-count="results.length"
       >
         <template v-if="results.length > 0">
           <div
@@ -124,6 +131,10 @@
             data-testid="recall-search-result"
             :data-recall-id="result.recallId || undefined"
             :data-entry-id="result.entry.id"
+            :data-match-type="result.matchType"
+            :data-trace-engine="result.trace?.engineId || undefined"
+            :data-trace-version="result.trace?.algorithmVersion || undefined"
+            :data-trace-rank="result.trace?.rank || undefined"
             :class="{ 'is-shared': sharedResultIds.has(result.entry.id) }"
             @click="$emit('select', result)"
           >
@@ -197,7 +208,12 @@ const emit = defineEmits<{
 }>();
 
 const recallStore = useRecallCollectionStore();
-const { results, loading, search: _search } = useRecallSearchManager();
+const {
+  results,
+  loading,
+  lastQuery,
+  search: _search,
+} = useRecallSearchManager();
 
 // 初始化结果
 if (props.initialResults && props.initialResults.length > 0) {

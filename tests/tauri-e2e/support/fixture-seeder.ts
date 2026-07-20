@@ -67,6 +67,15 @@ export interface SeedRecallWorkflowResult {
   files: string[];
 }
 
+export interface SeedRecallWorkspaceOptions {
+  dataDir: string;
+  recallId: string;
+  embeddingProfileId: string;
+  embeddingModelId: string;
+  embeddingDimension: number;
+  mode?: "write" | "verify";
+}
+
 function effectiveMessageCount(session: RecallFixtureSession): number {
   return Object.keys(session.nodes).filter((id) => id !== session.rootNodeId)
     .length;
@@ -303,6 +312,40 @@ function readJsonFile<T>(filePath: string): T {
       `Seeded fixture JSON is invalid: ${path.basename(filePath)}`
     );
   }
+}
+
+export function seedRecallWorkspaceConfig(
+  options: SeedRecallWorkspaceOptions
+): string {
+  const dataDir = safeDataDir(options.dataDir);
+  const relativePath = "knowledge/workspace.json";
+  const filePath = path.join(dataDir, relativePath);
+  const modelCombo = `${options.embeddingProfileId}:${options.embeddingModelId}`;
+  const configuredDimension = Math.max(128, options.embeddingDimension);
+  const value = {
+    version: "2.0.0",
+    config: {
+      activeBaseId: options.recallId,
+      defaultEmbeddingModel: modelCombo,
+      vectorIndex: { dimension: configuredDimension },
+    },
+    bases: [],
+    lastActiveBaseId: options.recallId,
+  };
+
+  if (options.mode === "verify") {
+    const existing = readJsonFile<typeof value>(filePath);
+    if (
+      existing.config?.defaultEmbeddingModel !== modelCombo ||
+      existing.config?.vectorIndex?.dimension !== configuredDimension ||
+      existing.lastActiveBaseId !== options.recallId
+    ) {
+      throw new Error("Seeded Recall workspace model or collection mismatch");
+    }
+  } else {
+    writeFixtureFile(filePath, json(value));
+  }
+  return relativePath;
 }
 
 function loadRecallFixtureFiles(dataDir: string): RecallFixtureFiles {

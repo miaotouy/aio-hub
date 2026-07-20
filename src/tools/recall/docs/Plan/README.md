@@ -9,6 +9,7 @@
 ## 后续设计提案
 
 - [`recall-retrieval-pipeline-modularization-plan.md`](recall-retrieval-pipeline-modularization-plan.md)：将 Keyword、Vector、Lens、Blender 和产品 facade 重构为阶段化检索模块，以预设配置组合纯算法召回与综合召回。当前仅为设计提案，尚未施工，不覆盖现行架构。
+- [`recall-automated-real-vector-testing-plan.md`](recall-automated-real-vector-testing-plan.md)：补齐确定性真实 HTTP 向量请求、Git 忽略的私有 LLM 渠道注入、可选 Ollama 实模、预置 Agent / Recall binding / 会话 fixture、真实 Tauri 主流程与重启恢复测试。当前调研已完成，尚未施工。
 
 当前剩余工作集中在首次启动迁移接线、真实目录副本验证、合并迁移报告、Knowledge 固定跨模块回归和发布二进制 smoke test。代码施工与自动化工程检查已完成，不应从归档文档恢复旧 Knowledge processor、检索占位符或 mixed RRF 方案。
 

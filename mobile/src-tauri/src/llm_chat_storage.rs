@@ -198,8 +198,20 @@ pub struct ChatSearchResult {
     pub session_id: String,
     pub session_name: String,
     pub content: String,
+    pub snippet: String,
     pub timestamp: String,
     pub rank: f64,
+}
+
+#[derive(Debug, FromRow)]
+struct BasicSearchRow {
+    message_id: String,
+    session_id: String,
+    session_name: String,
+    content: String,
+    reasoning_content: Option<String>,
+    timestamp: String,
+    rank: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -778,6 +790,36 @@ fn escape_like(value: &str) -> String {
         .replace('_', "\\_")
 }
 
+fn search_snippet(content: &str, reasoning_content: Option<&str>, query: &str) -> String {
+    const MAX_CHARS: usize = 120;
+    const LEADING_CONTEXT: usize = 36;
+    let query_lower = query.to_lowercase();
+    let contains_query = |value: &str| value.to_lowercase().contains(&query_lower);
+    let source = if contains_query(content) {
+        content
+    } else {
+        reasoning_content
+            .filter(|value| contains_query(value))
+            .unwrap_or(content)
+    };
+    let source_lower = source.to_lowercase();
+    let match_char_index = source_lower
+        .find(&query_lower)
+        .map(|byte_index| source_lower[..byte_index].chars().count())
+        .unwrap_or(0);
+    let chars = source.chars().collect::<Vec<_>>();
+    let start = match_char_index.saturating_sub(LEADING_CONTEXT);
+    let end = (start + MAX_CHARS).min(chars.len());
+    let mut snippet = chars[start..end].iter().collect::<String>();
+    if start > 0 {
+        snippet.insert(0, '…');
+    }
+    if end < chars.len() {
+        snippet.push('…');
+    }
+    snippet
+}
+
 async fn search_messages(
     pool: &SqlitePool,
     request: ChatSearchQuery,
@@ -794,6 +836,7 @@ async fn search_messages(
         let encoded = format!("\"{}\"", query.replace('"', "\"\""));
         sqlx::query_as::<_, ChatSearchResult>(
             "SELECT m.id AS message_id, m.session_id, s.name AS session_name, m.content, \
+             snippet(chat_messages_fts, -1, '', '', '…', 32) AS snippet, \
              m.timestamp, bm25(chat_messages_fts) AS rank FROM chat_messages_fts \
              JOIN chat_messages m ON m.rowid = chat_messages_fts.rowid \
              JOIN chat_sessions s ON s.id = m.session_id \
@@ -806,9 +849,10 @@ async fn search_messages(
         .map_err(|error| format!("CHAT_SEARCH_FTS: {error}"))
     } else {
         let pattern = format!("%{}%", escape_like(query));
-        sqlx::query_as::<_, ChatSearchResult>(
+        sqlx::query_as::<_, BasicSearchRow>(
             "SELECT m.id AS message_id, m.session_id, s.name AS session_name, m.content, \
-             m.timestamp, 0.0 AS rank FROM chat_messages m JOIN chat_sessions s ON s.id = m.session_id \
+             m.reasoning_content, m.timestamp, 0.0 AS rank FROM chat_messages m \
+             JOIN chat_sessions s ON s.id = m.session_id \
              WHERE m.content LIKE ? ESCAPE '\\' OR COALESCE(m.reasoning_content, '') LIKE ? ESCAPE '\\' \
              ORDER BY m.timestamp DESC, m.id DESC LIMIT ?",
         )
@@ -818,6 +862,23 @@ async fn search_messages(
         .fetch_all(pool)
         .await
         .map_err(|error| format!("CHAT_SEARCH_BASIC: {error}"))
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| ChatSearchResult {
+                    message_id: row.message_id,
+                    session_id: row.session_id,
+                    session_name: row.session_name,
+                    snippet: search_snippet(
+                        &row.content,
+                        row.reasoning_content.as_deref(),
+                        query,
+                    ),
+                    content: row.content,
+                    timestamp: row.timestamp,
+                    rank: row.rank,
+                })
+                .collect()
+        })
     }
 }
 
@@ -1376,6 +1437,7 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(fts.len(), 1);
+        assert!(fts[0].snippet.contains("三字符"));
         let outbox_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM asset_usage_outbox")
             .fetch_one(&pool)
             .await
@@ -1459,6 +1521,7 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(basic.len(), 1);
+        assert!(basic[0].snippet.contains('你'));
         let result = delete_branch(
             &pool,
             DeleteChatBranchRequest {
@@ -1480,6 +1543,55 @@ mod tests {
         let pending = pending_outbox(&pool, 10).await.unwrap();
         assert_eq!(pending.len(), 1);
         assert_eq!(pending[0].entity_id, "assistant");
+    }
+
+    #[tokio::test]
+    async fn search_handles_english_and_literal_like_wildcards() {
+        let pool = test_pool().await;
+        persist_changes(
+            &pool,
+            PersistChatChangesRequest {
+                session: session(),
+                upsert_messages: vec![
+                    message("root", None, 0, "system"),
+                    message(
+                        "assistant",
+                        Some("root"),
+                        1,
+                        "long prefix before Alpha Beta and literal %_ markers",
+                    ),
+                ],
+                delete_message_ids: Vec::new(),
+                upsert_attachments: Vec::new(),
+                delete_attachment_ids: Vec::new(),
+            },
+        )
+        .await
+        .unwrap();
+
+        let english = search_messages(
+            &pool,
+            ChatSearchQuery {
+                query: "alpha".into(),
+                limit: Some(1),
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(english.len(), 1);
+        assert!(english[0].snippet.contains("Alpha"));
+
+        let literal_wildcards = search_messages(
+            &pool,
+            ChatSearchQuery {
+                query: "%_".into(),
+                limit: None,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(literal_wildcards.len(), 1);
+        assert!(literal_wildcards[0].snippet.contains("%_"));
     }
 
     #[tokio::test]

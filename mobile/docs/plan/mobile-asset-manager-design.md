@@ -39,7 +39,7 @@
 - 已安装 `@tauri-apps/plugin-fs` 与 `@tauri-apps/plugin-dialog`；Android 系统选择器返回的 `content://` 已在正式资产导入/导出链验证。由于 `tauri-plugin-fs` 2.5.1 对测试 provider 使用 `openAssetFileDescriptor` 会失败，正式链由 Android `AssetContentPlugin` 调用 `ContentResolver.openFileDescriptor`，再交给 Rust 流式处理；应用数据目录仍只通过受控 capability 与 Rust 领域命令访问。
 - 通用 `mobile/src/utils/fsUtils.ts` 仍只封装应用数据目录下的文本文件与目录操作；Phase 1 已新增独立 Rust 二进制资产服务，不把二进制职责塞回通用工具。
 - Rust 已引入 SQLx 与 bundled SQLite 验证依赖，`ui-tester` 已具备平台文件和 SQLite 固定验证板块；Android 分享 bridge 已接入，相机 bridge 已实现但仍需有相机 Activity 的设备验收。
-- `llm-chat` 的 `_attachments` 已改为 `ManagedAssetRef`，并完成 `chat_attachments`/usage outbox、聊天内 ready 资产选择、provider wire 接入和实时 reclaimed/missing 状态降级；真实上游发送验收仍待完成。
+- `llm-chat` 的 `_attachments` 已改为 `ManagedAssetRef`，并完成 `chat_attachments`/usage outbox、聊天内 ready 资产选择、provider wire、实时 reclaimed/missing 状态降级、受控图片预览和本地消息搜索；真实上游发送验收仍待完成。
 - `agent-manager` 的 `assets` 与 `assetGroups` 仍是占位类型，但其桌面端语义是智能体私有资产，不应因此并入全局资产库。
 - 工作区已有“一模块一数据库”的移动端 SQLite 计划；Phase 1 首批已建立资产库 migration 与 repository，尚未接用户界面和聊天消费者。
 
@@ -492,7 +492,7 @@ interface ManagedAssetRef {
 - [x] 建立短期 token、可撤销自定义协议、单 Range 读取和大原件响应上限的受控预览候选实现。
 - [x] 在 Android 模拟器 `emulator-5558` 验证 Rust command 通过原生 bridge 直读 Photo Picker `content://` 的正式导入路径并回写报告。
 - [x] 完成 Android 图片、视频和音频受控预览验收，并通过固定场景验证 Range/CORS、HEAD、主动撤销与 token 自然过期。
-- [x] [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md) 阶段一 Rust 存储骨架、阶段二会话增量持久化和阶段三附件存储/选择/provider wire/reclaimed-missing 降级已完成；真实上游发送验收仍待完成。不在 `any[]` 附件上增加过渡持久化。
+- [x] [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md) 阶段一 Rust 存储骨架、阶段二会话增量持久化、阶段三附件消费闭环和阶段四 Android 本地搜索已完成；真实上游发送与 iOS 验收仍待完成。不在 `any[]` 附件上增加过渡持久化。
 
 ### Phase 2：资产页
 
@@ -704,6 +704,12 @@ interface ManagedAssetRef {
 - 抽取并测试 preview grant 的过期清理函数：`expires_at <= now` 的 grant 在请求路径清理，仍有效的 grant 保留。
 - `emulator-5558` 真实 WebView 对同一 5 分钟 descriptor 进行持续轮询：TTL 内返回 200，超过 `expiresAtMs` 约 42 秒后返回 404；本轮未刷新页面、未主动撤销或替换 token。
 - 本批通过移动端 96 个前端测试、33 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android x86_64 debug APK 构建；iOS scheme/HEAD/Range/CORS/撤销仍因缺少编译与设备条件跳过。
+
+### 2026-07-21：聊天消费者前置迁移阶段四
+
+- 聊天库搜索按查询字符数分流：3 字符及以上使用 trigram FTS5 和 Rust 侧 snippet，1/2 字符使用转义后的受限 `LIKE`；中文、英文大小写和 `%_` 字面量行为已有 Rust 固定测试。
+- 历史会话页增加防抖搜索和完整状态；结果可深链到目标会话，将非活动分支切为活动叶并滚动高亮目标消息。
+- Android `emulator-5558` 真实 WebView 已验证中文与特殊字符搜索、结果 snippet 和非活动分支定位；验收会话随后通过正式 command 删除，usage outbox 为空。iOS 因缺少编译与设备条件继续跳过。
 
 ## 16. 调查来源
 

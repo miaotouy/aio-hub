@@ -144,6 +144,22 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     }
   }
 
+  async function focusMessage(messageId: string): Promise<boolean> {
+    const session = currentSessionDetail.value;
+    if (!session?.nodes[messageId]) {
+      logger.warn("Cannot focus missing message", {
+        sessionId: session?.id,
+        messageId,
+      });
+      return false;
+    }
+    if (session.activeLeafId !== messageId) {
+      nodeManager.updateActiveLeaf(session, messageId);
+      await persistCurrentSession();
+    }
+    return true;
+  }
+
   /**
    * 删除会话
    */
@@ -299,6 +315,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     init,
     createSession,
     switchSession,
+    focusMessage,
     deleteSession,
     persistCurrentSession,
     syncSelectedModel,

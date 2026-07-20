@@ -128,6 +128,7 @@ export interface ChatSearchResult {
   sessionId: string;
   sessionName: string;
   content: string;
+  snippet: string;
   timestamp: string;
   rank: number;
 }

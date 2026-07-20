@@ -48,6 +48,21 @@ const scrollToBottom = useThrottleFn((behavior: ScrollBehavior = "smooth") => {
   });
 }, 80);
 
+const scrollToMessage = (
+  messageId: string,
+  behavior: ScrollBehavior = "smooth"
+) => {
+  nextTick(() => {
+    const container = scrollContainerRef.value;
+    const target = Array.from(
+      container?.querySelectorAll<HTMLElement>("[data-message-id]") ?? []
+    ).find((element) => element.dataset.messageId === messageId);
+    if (!container || !target) return;
+    activeMessageId.value = messageId;
+    target.scrollIntoView({ behavior, block: "center" });
+  });
+};
+
 const handleScroll = () => {
   if (!scrollContainerRef.value) return;
   const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.value;
@@ -76,6 +91,7 @@ watch(
 
 defineExpose({
   scrollToBottom,
+  scrollToMessage,
 });
 </script>
 

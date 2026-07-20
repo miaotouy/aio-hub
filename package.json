@@ -61,6 +61,8 @@
     "test:run": "vitest --run",
     "test:tauri:e2e": "bun tests/tauri-e2e/run.ts",
     "test:tauri:e2e:unit": "vitest --config tests/tauri-e2e/vitest.config.ts --run",
+    "test:tauri:e2e:ollama": "bun tests/tauri-e2e/run.ts --vector-mode ollama --spec tests/tauri-e2e/specs/recall-runtime-fixture.spec.ts",
+    "test:tauri:e2e:real": "bun tests/tauri-e2e/run.ts --llm-profile --spec tests/tauri-e2e/specs/recall-runtime-fixture.spec.ts",
     "test:tauri:e2e:native": "bun tests/tauri-e2e/run.ts --native",
     "test:llm-core": "bun run --cwd packages/llm-core test:run",
     "test:coverage": "vitest --coverage",

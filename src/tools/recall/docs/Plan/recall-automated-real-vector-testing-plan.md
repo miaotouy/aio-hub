@@ -1,6 +1,6 @@
 # Recall 自动化测试、精简 OAI 渠道与真实向量请求实施计划
 
-**状态**: 实施中（Phase 1 第一批完成）
+**状态**: 实施中（Phase 1 完成，Phase 2 selectors 与 IPC fixture setup 完成）
 
 **创建日期**: 2026-07-20  
 **最近修订**: 2026-07-20  
@@ -17,7 +17,7 @@
 
 ### 实施进度
 
-2026-07-20 已完成 Phase 1 第一批：
+2026-07-20 已完成 Phase 1：
 
 - 建立版本化 Recall Chat scenario manifest，覆盖正向召回、空结果、binding 禁用、非流式响应，并为既有 Knowledge E2E 请求提供显式场景；
 - OpenAI mock 已改为主题向量 + 未知输入稳定 hash，Embedding 默认输出归一化 8 维向量并保留批量顺序；
@@ -25,8 +25,16 @@
 - `embedding-requests.jsonl` / `chat-requests.jsonl` 只落盘 hash、长度、topic/scenario、匹配状态和请求结果，原始 messages 只保留在 server 进程内；
 - 新增独立 E2E support Vitest 配置和脚本，7 个 case 覆盖批量顺序、evidence 防伪、depth injection、SSE/JSON、fail-closed 与脱敏；
 - 为 `core/embedding.ts`、`logic/orchestrator.ts`、`utils/vectorCache.ts` 新增 14 个定向 case；当前 Recall 定向 suite 为 12 个文件、45 个 case。
+- 新增统一 Recall workflow manifest 与 seeder，预置稳定 Agent、空会话和历史会话；首次写入拒绝覆盖差异，重启 verify 只读核验引用并允许运行态消息与时间戳增长；
+- 从显式 `.aio-kb` source allowlist 派生 12 条版本化 curated 技术语料，覆盖四个目标主题、近邻负例、hard negative 和同标题异内容，并以 archive/source/content hash、禁止词、绝对路径和长度测试约束更新；
+- runner 已复用 `aiohub.llm-profiles@1` parser，实现显式 profile/Chat/Embedding 角色选择与脱敏 metadata；私有配置不会因文件存在而自动启用；
+- 新增 Ollama `/api/tags` + `/v1/embeddings` 预检，动态记录模型维度，并区分默认 skip 与 `AIO_E2E_REQUIRE_OLLAMA=1` failure；本机首选模型预检得到 768 维；
+- runner 已支持 `--vector-mode`、`--corpus-mode`、`--llm-profile`，默认 mock、Ollama mixed lane 和私有 lane 均生成显式角色与运行元数据；
+- Phase 2 的 23 个稳定 Recall / Agent Recall / Chat selector 已补齐，并通过前端类型检查和 Vite build。
+- 新增 lane-aware `recall-runtime-fixture.spec.ts`：按 `smoke` / `curated` 选择真实语料，通过正式 `recall_initialize`、`recall_save_base_meta`、`recall_upsert_entry`、`recall_load_base_meta` IPC 写入回读，并从 Recall UI 验证集合与条目可见；非默认 lane 不再执行硬编码 deterministic mock 的 Knowledge spec。
+- `external-full` 在 Phase 4 的显式 backup import 实现前 fail-closed，不再接受只写 metadata、未实际导入语料的空模式；runner 资源在正常退出、信号和启动期异常路径统一清理。
 
-Phase 1 尚未完成的部分包括 fixture seeder、Agent/session round-trip、curated corpus 派生、私有渠道 parser/角色模型选择、Ollama 预检和完整 run metadata；Phase 2 之后的真实窗口流程尚未开始。
+Phase 2 的可见 UI 向量化/检索 spec，以及 Phase 3 之后的 Chat 注入、真实进程重启和完整 scenario result 汇总尚未实施。
 
 ---
 

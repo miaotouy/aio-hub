@@ -229,6 +229,7 @@ const isAllSelected = computed(() => {
             @click="syncAllBases"
             size="small"
             title="检查并同步所有思绪集中待处理的向量化任务"
+            data-testid="recall-vectorize-all"
           >
             <template #icon><RefreshCw :size="14" /></template>
             一键向量化

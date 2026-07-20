@@ -22,7 +22,11 @@
     :close-on-backdrop-click="false"
     :show-close-button="false"
   >
-    <div class="progress-container">
+    <div
+      class="progress-container"
+      data-testid="recall-vector-progress"
+      :data-vector-status="status || 'pending'"
+    >
       <el-progress
         type="circle"
         :percentage="percentage"

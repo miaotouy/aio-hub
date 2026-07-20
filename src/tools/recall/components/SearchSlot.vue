@@ -22,6 +22,8 @@
           v-model="engineId"
           placeholder="选择检索引擎"
           style="width: 100%"
+          data-testid="recall-search-engine"
+          :data-engine-id="engineId"
         >
           <template #prefix>
             <Icon
@@ -119,12 +121,20 @@
             v-for="(result, index) in results"
             :key="result.entry.id"
             class="result-card"
+            data-testid="recall-search-result"
+            :data-recall-id="result.recallId || undefined"
+            :data-entry-id="result.entry.id"
             :class="{ 'is-shared': sharedResultIds.has(result.entry.id) }"
             @click="$emit('select', result)"
           >
             <div class="result-header">
               <span class="rank">#{{ index + 1 }}</span>
-              <span class="score">{{ result.score.toFixed(3) }}</span>
+              <span
+                class="score"
+                data-testid="recall-search-result-score"
+                :data-score="result.score"
+                >{{ result.score.toFixed(3) }}</span
+              >
               <span
                 v-if="sharedResultIds.has(result.entry.id)"
                 class="shared-tag"

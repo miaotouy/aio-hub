@@ -246,6 +246,10 @@ defineExpose({
   <div
     ref="messageRef"
     :data-message-id="message.id"
+    data-testid="chat-message"
+    :data-message-role="message.role"
+    :data-message-status="message.status"
+    :data-agent-id="message.metadata?.agentId || undefined"
     :class="[
       'chat-message',
       `message-${message.role}`,
@@ -272,7 +276,11 @@ defineExpose({
     </div>
 
     <!-- 内容层：提高层级 -->
-    <div class="message-inner">
+    <div
+      class="message-inner"
+      data-testid="chat-message-status"
+      :data-message-status="message.status"
+    >
       <MessageHeader
         v-if="!hideHeader"
         :message="message"

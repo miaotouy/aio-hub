@@ -44,10 +44,15 @@
             placeholder="同步到所有槽位..."
             clearable
             style="width: 300px"
+            data-testid="recall-search-query"
             @keyup.enter="syncAndSearchAll"
           >
             <template #append>
-              <el-button @click="syncAndSearchAll">全量检索</el-button>
+              <el-button
+                data-testid="recall-search-submit"
+                @click="syncAndSearchAll"
+                >全量检索</el-button
+              >
             </template>
           </el-input>
         </div>

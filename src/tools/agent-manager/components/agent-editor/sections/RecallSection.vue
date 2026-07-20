@@ -306,6 +306,8 @@ onMounted(() => {
         <el-switch
           v-model="editForm.recallConfig.enabled"
           @change="ensureConfig"
+          data-testid="agent-recall-enabled"
+          :data-agent-id="editForm.id || undefined"
         />
       </div>
       <div class="form-hint">
@@ -477,6 +479,7 @@ onMounted(() => {
               :key="binding.recallId"
               :binding="binding"
               :expanded="expandedRecallId === binding.recallId"
+              :data-agent-id="editForm.id || undefined"
               @toggle-expand="toggleExpand(binding.recallId)"
               @toggle-enabled="toggleBinding(binding.recallId, $event)"
               @remove="removeBinding(binding.recallId)"

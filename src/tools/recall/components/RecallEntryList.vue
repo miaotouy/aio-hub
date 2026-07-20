@@ -451,7 +451,13 @@ const handleSelect = (id: string) => {
             </el-tooltip>
           </div>
 
-          <el-button type="primary" @click="emit('add')" class="add-btn">
+          <el-button
+            type="primary"
+            @click="emit('add')"
+            class="add-btn"
+            data-testid="recall-create-entry"
+            :data-recall-id="recallStore.activeBaseId || undefined"
+          >
             <Plus :size="16" />
             <span>新建</span>
           </el-button>
@@ -485,6 +491,12 @@ const handleSelect = (id: string) => {
           <div
             v-if="entryList[virtualItem.index]"
             class="entry-card"
+            data-testid="recall-entry-row"
+            :data-recall-id="recallStore.activeBaseId || undefined"
+            :data-entry-id="entryList[virtualItem.index].id"
+            :data-entry-vector-status="
+              getEntryVectorStatus(entryList[virtualItem.index])
+            "
             :class="{
               active:
                 !isSelectionMode &&

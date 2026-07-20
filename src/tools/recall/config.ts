@@ -104,6 +104,7 @@ export const recallSettingsConfig: SettingsSection<WorkspaceConfig>[] = [
         props: {
           capabilities: { embedding: true },
           placeholder: "选择用于向量化的 Embedding 模型",
+          testId: "recall-default-embedding-model",
         },
         modelPath: "defaultEmbeddingModel",
         hint: "统一的 Embedding 模型配置。用于思绪条目向量化和 Recall 查询向量化，所有智能体的思绪集检索都使用此模型。",
@@ -143,6 +144,7 @@ export const recallSettingsConfig: SettingsSection<WorkspaceConfig>[] = [
                       size: "small",
                       type: "primary",
                       plain: true,
+                      "data-testid": "recall-detect-dimension",
                       style: { marginLeft: "4px" },
                     },
                     {

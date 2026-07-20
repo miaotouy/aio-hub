@@ -11,7 +11,9 @@ describe("AIO Hub Tauri smoke", () => {
     }
 
     const url = await browser.getUrl();
-    if (!url.startsWith("http://localhost:1420/")) {
+    const expectedUrl =
+      process.env.AIO_E2E_FRONTEND_URL || "http://localhost:1420/";
+    if (!url.startsWith(expectedUrl)) {
       throw new Error(`Tauri WebView did not load the application URL: ${url}`);
     }
   });

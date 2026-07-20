@@ -71,7 +71,7 @@ AppData/assets/
 
 - Android `emulator-5558` 已验证 Photo Picker `content://` 经原生 bridge 正式导入：1 项成功写入托管库，MIME 为 `image/png`、类型为 `image`、状态为 `ready`；数字 provider 展示名已回退为 MIME 格式的 `photo-<8hex>.png`。同一 bridge 也验证 save-picker `content://` 导出，导出文件与托管对象字节数和 SHA-256 一致。
 - `tauri-plugin-fs` 2.5.1 在测试 provider 上的 `openAssetFileDescriptor` 不兼容是已知边界；不得把该 plugin-fs 路径作为 Android `content://` 正式链的唯一实现。bridge 仅在 Android content URI 分支启用，避免改变桌面与 iOS 路径。
-- Android 图片 `<img>`、视频 `<video>` 和音频 `<audio>` 受控预览已在实际 WebView 渲染并播放；系统分享已在 chooser 中验证图片预览和只读 cache 副本；相机 bridge 已实现但当前模拟器没有 `IMAGE_CAPTURE` Activity，Range/CORS 和 token 撤销仍需专门场景。
+- Android 图片 `<img>`、视频 `<video>` 和音频 `<audio>` 受控预览已在实际 WebView 渲染并播放；系统分享已在 chooser 中验证图片预览和只读 cache 副本；相机 bridge 已实现但当前模拟器没有 `IMAGE_CAPTURE` Activity。`ui-tester` 已在 `emulator-5558` 验证跨源 Range、HEAD 和主动撤销。
 - iOS 因当前缺少编译与真机设备条件暂缓补验。security-scoped URL 的关闭时机、备份排除和预览协议在设备条件具备前不得冻结。
 
 ## 8. 查询与库状态
@@ -92,7 +92,8 @@ AppData/assets/
 - token 默认 5 分钟有效，可由 `asset_revoke_preview_source` 主动撤销；协议每次请求重新验证 token、资产 availability 和对象存在性。
 - 仅允许 GET/HEAD/OPTIONS；支持单个 `Range`，每次最多返回 1 MiB。无 Range 的原件响应上限为 16 MiB，超限返回 413，避免把大原件整体读入 WebView 进程。
 - 响应带 `Cache-Control: private, no-store`、`Accept-Ranges`、`Content-Range` 和 `nosniff`；Range 解析复用 `http-range`，不手写范围语法。
-- 当前实现仍需 Android 真机验证 `<img>`、`<video>`、音频和 fetch/CORS 的实际 scheme/Range 行为；在该门禁完成前，不把 URL 形态当作跨平台永久协议。
+- Android WebView 固定场景已验证 206 Range body 和跨源响应头读取。HEAD 在 WebView 层返回 200、空 body 与 `Accept-Ranges`，但可见 `content-length` 被归一为 0；验证台记录该平台差异，不用它断言原件长度。
+- 主动撤销后再次请求原 URL 返回 404，统一隐藏未知、过期和已撤销 token 的历史状态。自然到期和 iOS scheme/HEAD/Range/CORS 尚未验收，因此 URL 形态仍不是跨平台永久协议。
 
 ## 11. 用户界面
 
@@ -108,7 +109,7 @@ AppData/assets/
 
 ## 12. 后续施工
 
-- Android 补 Range/CORS 与 token 过期/撤销行为的受控预览场景并回写报告。
+- 补 Android token 自然过期与 iOS scheme/HEAD/Range/CORS/撤销行为的受控预览场景并回写报告。
 - 补 Android 相机设备验收、iOS/跨平台分享插件和批量转写/文本提取后的原件清理流程。
 - 完成聊天 SQLite migration 阶段一至三后，再接入聊天附件与 usage outbox。
 - iOS 因缺少编译与真机设备条件继续跳过，不声明平台能力通过。

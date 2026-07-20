@@ -240,6 +240,7 @@ mobile/src/tools/ui-tester/
 - 平台文件新增固定 1 MiB 有界分块吞吐基线，减少 IPC 往返并记录完整读取速度；不使用一次性 `readFile`，避免把完整大文件载入 WebView 内存。速度只作为同设备、同 provider 的方向性数据，不设置跨设备硬门槛。
 - 平台文件新增中断后重开续读：在 4 MiB（小文件取中点）关闭句柄，重新打开同一引用，验证 `seek` 返回精确中断偏移并续读到 EOF，同时记录恢复延迟。该入口不宣称支持跨进程断点续传。
 - 平台文件新增固定 ENOSPC 故障注入，在写入 64 KiB 后验证 `.part` 清理；该场景不占满设备磁盘，也不能替代至少一次真实低存储运行态观察。
+- 平台文件新增资产预览协议固定场景：选择首个非空 `managed/ready` 资产，验证跨源 32-byte Range、HEAD 空 body/响应头和主动撤销后的 404，并把 WebView 可见长度等平台指标写入运行报告。
 - SQLite 后端只构造 `ui-tester-validation/ui_tester_validation.db`，前端不传数据库路径或 SQL；删除、重建和沙箱清理均有 Rust 侧固定名称校验。
 - SQLx 负责实际 pool、WAL、`synchronous=NORMAL`、foreign key、busy timeout、并发读取和写锁等待验证；`rusqlite` 负责确定性的 migration fixture、codec、fault injection、FTS5 与大数据基准。两者共用同一 bundled SQLite，避免设备系统 SQLite 编译选项漂移。
 - SQLite 已覆盖历史 v0 到 v1、失败回滚、高版本拒写、完整 `ChatMessageNode` 结构 round-trip、trigram FTS + 1/2 字 LIKE 降级、1k/10k/100k Rust 侧生成、冷/热查询、会话加载、删除、索引重建、数据库体积和 SQLite memory 指标。内存指标已由设备上可能返回空值的 `PRAGMA memory_used` 改为 `sqlite3_status64(SQLITE_STATUS_MEMORY_USED)` current/high-water。
@@ -253,7 +254,7 @@ mobile/src/tools/ui-tester/
 - 云端占位下载、离线、系统权限持久化、切后台和 WebView 预览属于平台不可稳定自动判定项，已按计划实现为 `manualPending`，必须在真机报告中填写结论。
 - 大文件完整读取仍通过 WebView 到 `plugin-fs` 的分块 IPC 执行，只用于验证选择结果的读取权限、生命周期和方向性吞吐；正式资产导入必须继续由 Rust 资产服务流式处理。
 
-### 10.3. 平台验收状态（更新于 2026-07-20）
+### 10.3. 平台验收状态（更新于 2026-07-21）
 
 - Android 虚拟机已完成人工测试，项目内主要组件、平台文件与 SQLite 验证场景基本通过。
 - 已取得新的 Android 真机 schema `1.0` 脱敏报告 `aio-validation-2026-07-20.json`（`exportedAt = 2026-07-20T01:27:44.309Z`；默认文件名现包含完整时间戳）：环境为 Android 11.0.0、aarch64、应用 `0.1.1-m-beta.2`、Tauri `2.11.5`；报告共 20 条 run，全部通过，视口 393 x 851、像素比 2.75。
@@ -264,6 +265,7 @@ mobile/src/tools/ui-tester/
 - 2026-07-20 Android 16 x86_64 虚拟机补充报告已验证环境字段、ENOSPC 注入以及 SQLite 1k/10k/100k。100k 总步骤 665 ms、插入 396 ms、数据库 6,594,560 bytes、SQLite memory high-water 5,343,704 bytes；10k high-water 1,043,080 bytes，1k high-water 181,944 bytes。
 - 虚拟机复测确认语言设置可以即时应用到 i18n locale。验证页自身仍有大量硬编码中文，无法在该页通过整页翻译变化观察结果；验证台 i18n 覆盖留作后续 UI 收尾，不影响语言设置能力本身的通过结论。
 - 大文件完整读取复测通过：Android `content://` 样本 14,714,525 bytes（14.03 MiB），65,536-byte 块完整读取，首字节 231 ms、总耗时 4,360 ms、平均 3.22 MiB/s，`failurePhase = none`。该数据只代表 Android 16 x86_64 虚拟机的 `plugin-fs` 读取链，真机和 iOS 仍需分别运行。
+- Android 16 x86_64 虚拟机已通过资产预览协议固定场景：`Range: bytes=0-31` 返回 206 和 32 bytes，`Accept-Ranges`/`Content-Range` 可跨源读取；HEAD 返回 200、空 body，WebView 可见 `content-length` 为 0；主动撤销后原 URL 返回 404。自然到期和 iOS 仍是发布前门禁。
 - iOS 尚未验收，仍需从应用内依次运行平台文件和 SQLite 固定场景并导出一份 schema `1.0` JSON 报告。
 - 第 9 节要求的 Android 与 iOS 真实设备报告尚未全部完成，因此当前结论代表 Android 11 真机验证台通过，不等同于 Phase 0 双平台最终验收。
 - 2026-07-20 施工决议：当前环境没有可用的 iOS 编译与真机设备条件，先允许平台中立内核与 Android 资产链进入 Phase 1；iOS 固定场景和报告延期到设备条件具备后执行，仍是 iOS 资产能力发布前门禁。

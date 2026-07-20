@@ -20,6 +20,7 @@ import {
   createInterruptedFileReadValidationResult,
   createPickerValidationResult,
 } from "../services/platformFileResult";
+import { runAssetPreviewProtocolValidation } from "../services/assetPreviewValidation";
 import type { FullFileReadProgress } from "../services/platformFileValidation";
 import type { ValidationCommandResult } from "../types/validation";
 
@@ -330,6 +331,20 @@ function recordObservation(verdict: "passed" | "failed"): void {
       :status="statusFor('cloud-preview')"
       action-label="开始观察"
       @run="beginManual('cloud-preview', 'cloud-download-and-preview')"
+    />
+    <ValidationCaseRow
+      title="资产预览协议（Range/CORS/撤销）"
+      description="使用首个可用资产验证跨源 Range/HEAD 读取和主动撤销；请先导入非空资产。"
+      :status="statusFor('asset-preview-protocol')"
+      action-label="运行协议验证"
+      @run="
+        runAutomated(
+          'platform-files',
+          'asset-preview-protocol',
+          { rangeBytes: 32 },
+          runAssetPreviewProtocolValidation
+        )
+      "
     />
     <ValidationCaseRow
       title="系统终止后恢复"

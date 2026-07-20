@@ -656,6 +656,13 @@ interface ManagedAssetRef {
 - `emulator-5558` 实测视频详情的 `<video controls playsinline>` 显示 2 秒蓝色画面并能播放；音频详情的 `<audio controls>` 播放进度从 `0:00` 到 `0:01/0:02`。关闭详情再打开时回到“打开临时预览”按钮，预览 descriptor 已撤销并重新签发。
 - 本批未改变代码，仅回写 Android 运行报告；Range/CORS、token 过期/主动撤销的协议级专项和 iOS 继续保留门禁。
 
+### 2026-07-21：Phase 2 第八批 Android 预览协议验收
+
+- `ui-tester` 平台文件板块增加“资产预览协议（Range/CORS/撤销）”固定场景，从资产库选择首个非空 `managed/ready` 原件，签发短期 URL 后依次验证跨源 Range、HEAD 和主动撤销。
+- `emulator-5558` 实测 9,095-byte `audio/mpeg` 原件：`Range: bytes=0-31` 返回 206、32 bytes、`Accept-Ranges: bytes` 和可读 `Content-Range`；HEAD 返回 200、空 body 和 `Accept-Ranges`。Android WebView 将 HEAD 的可见 `content-length` 归一为 0，因此该值只记录，不作为原件长度断言；Rust 协议层仍按原件长度构造响应。
+- `asset_revoke_preview_source` 返回成功后，原 URL 再请求得到 404。404 作为失效 token 的统一不可见状态，避免向调用方区分“不存在”和“曾存在但已撤销”；固定场景不再错误要求 403。
+- 本批通过移动端 76 个前端测试、23 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android x86_64 debug APK 真实 WebView 验收。自然到期行为、iOS scheme/HEAD/Range/CORS 仍未验证；iOS 因缺少编译与真机设备条件继续跳过。
+
 ## 16. 调查来源
 
 - [Tauri v2 File System Plugin](https://v2.tauri.app/plugin/file-system/)

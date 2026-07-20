@@ -995,6 +995,15 @@ fn preview_token_from_request(request: &Request<Vec<u8>>) -> Option<&str> {
     Some(token)
 }
 
+fn active_preview_asset_id(
+    grants: &mut HashMap<String, PreviewGrant>,
+    preview_id: &str,
+    now: SystemTime,
+) -> Option<String> {
+    grants.retain(|_, grant| grant.expires_at > now);
+    grants.get(preview_id).map(|grant| grant.asset_id.clone())
+}
+
 fn preview_response(
     status: StatusCode,
     content_type: Option<&str>,
@@ -1157,9 +1166,8 @@ pub(crate) async fn asset_preview_protocol_response(
             Ok(grants) => grants,
             Err(_) => return preview_not_found(),
         };
-        grants.retain(|_, grant| grant.expires_at > now);
-        match grants.get(preview_id) {
-            Some(grant) => grant.asset_id.clone(),
+        match active_preview_asset_id(&mut grants, preview_id, now) {
+            Some(asset_id) => asset_id,
             None => return preview_not_found(),
         }
     };
@@ -3212,6 +3220,34 @@ mod tests {
             .body(Vec::new())
             .unwrap();
         assert!(preview_token_from_request(&nested).is_none());
+    }
+
+    #[test]
+    fn preview_grants_are_removed_at_natural_expiry() {
+        let now = UNIX_EPOCH + Duration::from_secs(10);
+        let mut grants = HashMap::from([
+            (
+                "expired".into(),
+                PreviewGrant {
+                    asset_id: "asset-expired".into(),
+                    expires_at: now,
+                },
+            ),
+            (
+                "active".into(),
+                PreviewGrant {
+                    asset_id: "asset-active".into(),
+                    expires_at: now + Duration::from_secs(1),
+                },
+            ),
+        ]);
+
+        assert_eq!(active_preview_asset_id(&mut grants, "expired", now), None);
+        assert!(!grants.contains_key("expired"));
+        assert_eq!(
+            active_preview_asset_id(&mut grants, "active", now),
+            Some("asset-active".into())
+        );
     }
 
     #[tokio::test]

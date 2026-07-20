@@ -93,7 +93,7 @@ AppData/assets/
 - 仅允许 GET/HEAD/OPTIONS；支持单个 `Range`，每次最多返回 1 MiB。无 Range 的原件响应上限为 16 MiB，超限返回 413，避免把大原件整体读入 WebView 进程。
 - 响应带 `Cache-Control: private, no-store`、`Accept-Ranges`、`Content-Range` 和 `nosniff`；Range 解析复用 `http-range`，不手写范围语法。
 - Android WebView 固定场景已验证 206 Range body 和跨源响应头读取。HEAD 在 WebView 层返回 200、空 body 与 `Accept-Ranges`，但可见 `content-length` 被归一为 0；验证台记录该平台差异，不用它断言原件长度。
-- 主动撤销后再次请求原 URL 返回 404，统一隐藏未知、过期和已撤销 token 的历史状态。自然到期和 iOS scheme/HEAD/Range/CORS 尚未验收，因此 URL 形态仍不是跨平台永久协议。
+- 主动撤销和 Android 自然到期后再次请求原 URL 都返回 404，统一隐藏未知、过期和已撤销 token 的历史状态。iOS scheme/HEAD/Range/CORS 尚未验收，因此 URL 形态仍不是跨平台永久协议。
 
 ## 11. 用户界面
 
@@ -109,7 +109,7 @@ AppData/assets/
 
 ## 12. 后续施工
 
-- 补 Android token 自然过期与 iOS scheme/HEAD/Range/CORS/撤销行为的受控预览场景并回写报告。
+- Android token 自然过期已在 `emulator-5558` 真实 WebView 验证；iOS scheme/HEAD/Range/CORS/撤销仍受编译与设备条件门禁约束。
 - 补 Android 相机设备验收、iOS/跨平台分享插件和批量转写/文本提取后的原件清理流程。
 - 完成聊天 SQLite migration 阶段二会话增量持久化和阶段三附件消费层；阶段一 Rust schema/领域命令已完成。
 - iOS 因缺少编译与真机设备条件继续跳过，不声明平台能力通过。

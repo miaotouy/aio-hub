@@ -491,7 +491,7 @@ interface ManagedAssetRef {
 - [x] 扩展共享 wire 类型与移动端原生 LLM 传输，使 `managed-asset-ref` 只携带 `assetId` 并由 Rust 内部解析。
 - [x] 建立短期 token、可撤销自定义协议、单 Range 读取和大原件响应上限的受控预览候选实现。
 - [x] 在 Android 模拟器 `emulator-5558` 验证 Rust command 通过原生 bridge 直读 Photo Picker `content://` 的正式导入路径并回写报告。
-- [x] 完成 Android 图片、视频和音频受控预览验收，并通过固定场景验证 Range/CORS、HEAD 与主动撤销；token 自然过期仍待补验。
+- [x] 完成 Android 图片、视频和音频受控预览验收，并通过固定场景验证 Range/CORS、HEAD、主动撤销与 token 自然过期。
 - [x] [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md) 阶段一 Rust 存储骨架、阶段二会话增量持久化和阶段三附件存储/选择/provider wire/reclaimed-missing 降级已完成；真实上游发送验收仍待完成。不在 `any[]` 附件上增加过渡持久化。
 
 ### Phase 2：资产页
@@ -654,14 +654,14 @@ interface ManagedAssetRef {
 
 - 使用系统文件选择器导入短测试 `mp4` 与 `mp3`，复用正式 Rust `content://` bridge 和持久化 import job；SQLite 分别记录 `video/mp4`/`kind=video` 与 `audio/mpeg`/`kind=audio`，状态均为 `ready`。
 - `emulator-5558` 实测视频详情的 `<video controls playsinline>` 显示 2 秒蓝色画面并能播放；音频详情的 `<audio controls>` 播放进度从 `0:00` 到 `0:01/0:02`。关闭详情再打开时回到“打开临时预览”按钮，预览 descriptor 已撤销并重新签发。
-- 本批未改变代码，仅回写 Android 运行报告；Range/CORS、token 过期/主动撤销的协议级专项和 iOS 继续保留门禁。
+- 本批未改变代码，仅回写 Android 运行报告；Range/CORS、token 自然过期和主动撤销的协议级专项已完成，iOS 继续保留门禁。
 
 ### 2026-07-21：Phase 2 第八批 Android 预览协议验收
 
 - `ui-tester` 平台文件板块增加“资产预览协议（Range/CORS/撤销）”固定场景，从资产库选择首个非空 `managed/ready` 原件，签发短期 URL 后依次验证跨源 Range、HEAD 和主动撤销。
 - `emulator-5558` 实测 9,095-byte `audio/mpeg` 原件：`Range: bytes=0-31` 返回 206、32 bytes、`Accept-Ranges: bytes` 和可读 `Content-Range`；HEAD 返回 200、空 body 和 `Accept-Ranges`。Android WebView 将 HEAD 的可见 `content-length` 归一为 0，因此该值只记录，不作为原件长度断言；Rust 协议层仍按原件长度构造响应。
 - `asset_revoke_preview_source` 返回成功后，原 URL 再请求得到 404。404 作为失效 token 的统一不可见状态，避免向调用方区分“不存在”和“曾存在但已撤销”；固定场景不再错误要求 403。
-- 本批通过移动端 76 个前端测试、23 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android x86_64 debug APK 真实 WebView 验收。自然到期行为、iOS scheme/HEAD/Range/CORS 仍未验证；iOS 因缺少编译与真机设备条件继续跳过。
+- 本批通过移动端 76 个前端测试、23 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android x86_64 debug APK 真实 WebView 验收；当时主动撤销已通过，自然到期在后续 Android 运行报告补齐；iOS 因缺少编译与真机设备条件继续跳过。
 
 ### 2026-07-21：聊天消费者前置迁移阶段一
 
@@ -698,6 +698,12 @@ interface ManagedAssetRef {
 - ready 图片附件增加受控预览入口，继续复用资产服务短期 descriptor；聊天库和消息节点不保存预览 URL，也不把原件读取到 JS 内存。
 - 预览层 Teleport 到 `body` 并按动态视口与安全区约束竖图；关闭、消息切换、组件卸载及请求完成晚于卸载的竞态都会撤销 token。
 - Android `emulator-5558` 真实 WebView 验证 720×1280 图片完整加载并在 360×640 视口内适配；关闭预览后旧 URL 返回 404。移动端 96 个前端测试、类型检查、Vite 生产构建和 Android x86_64 debug APK 构建通过；iOS 继续因缺少编译/设备条件跳过。
+
+### 2026-07-21：Phase 2 第九批 Android 预览 token 自然过期
+
+- 抽取并测试 preview grant 的过期清理函数：`expires_at <= now` 的 grant 在请求路径清理，仍有效的 grant 保留。
+- `emulator-5558` 真实 WebView 对同一 5 分钟 descriptor 进行持续轮询：TTL 内返回 200，超过 `expiresAtMs` 约 42 秒后返回 404；本轮未刷新页面、未主动撤销或替换 token。
+- 本批通过移动端 96 个前端测试、33 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android x86_64 debug APK 构建；iOS scheme/HEAD/Range/CORS/撤销仍因缺少编译与设备条件跳过。
 
 ## 16. 调查来源
 

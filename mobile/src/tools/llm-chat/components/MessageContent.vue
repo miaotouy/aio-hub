@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { AlertCircle, ChevronDown, ChevronRight, Brain } from "lucide-vue-next";
+import {
+  AlertCircle,
+  ChevronDown,
+  ChevronRight,
+  Brain,
+  FileAudio,
+  FileImage,
+  FileText,
+  FileVideo,
+  Paperclip,
+} from "lucide-vue-next";
 import type { ChatMessageNode } from "../types";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 
@@ -9,10 +19,51 @@ defineProps<{
 }>();
 
 const isReasoningExpanded = ref(true);
+
+const formatBytes = (value: number) => {
+  if (value < 1024) return `${value} B`;
+  const units = ["KB", "MB", "GB"];
+  let size = value / 1024;
+  let unit = 0;
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024;
+    unit += 1;
+  }
+  return `${size.toFixed(size >= 10 ? 0 : 1)} ${units[unit]}`;
+};
 </script>
 
 <template>
   <div class="message-content">
+    <div v-if="message.attachments?.length" class="attachment-list">
+      <div
+        v-for="attachment in message.attachments"
+        :key="attachment.id"
+        class="attachment-item"
+      >
+        <FileImage v-if="attachment.snapshot.kind === 'image'" :size="17" />
+        <FileAudio
+          v-else-if="attachment.snapshot.kind === 'audio'"
+          :size="17"
+        />
+        <FileVideo
+          v-else-if="attachment.snapshot.kind === 'video'"
+          :size="17"
+        />
+        <FileText
+          v-else-if="attachment.snapshot.kind === 'document'"
+          :size="17"
+        />
+        <Paperclip v-else :size="17" />
+        <span class="attachment-name">{{
+          attachment.snapshot.displayName
+        }}</span>
+        <span class="attachment-size">{{
+          formatBytes(attachment.snapshot.sizeBytes)
+        }}</span>
+      </div>
+    </div>
+
     <!-- 思考过程折叠框 -->
     <div v-if="message.metadata?.reasoningContent" class="reasoning-container">
       <div
@@ -70,6 +121,36 @@ const isReasoningExpanded = ref(true);
 
 .text-content {
   margin-top: 4px;
+}
+
+.attachment-list {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.attachment-item {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 6px;
+  color: var(--color-on-surface-variant);
+  background: var(--color-surface-container-low);
+}
+
+.attachment-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-size {
+  font-size: 0.72rem;
+  white-space: nowrap;
 }
 
 .reasoning-container {

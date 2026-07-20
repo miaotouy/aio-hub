@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   loadChatSession: vi.fn(),
   persistChatChanges: vi.fn(),
   deleteChatSession: vi.fn(),
+  drainAssetUsageOutbox: vi.fn(),
   handleError: vi.fn(),
 }));
 
@@ -50,6 +51,7 @@ vi.mock("../../services/chatStorageService", () => ({
   loadChatSession: mocks.loadChatSession,
   persistChatChanges: mocks.persistChatChanges,
   deleteChatSession: mocks.deleteChatSession,
+  drainAssetUsageOutbox: mocks.drainAssetUsageOutbox,
 }));
 
 import { useSessionManager } from "../useSessionManager";
@@ -158,6 +160,12 @@ beforeEach(() => {
     messageCount: 1,
     outboxEvents: 0,
   });
+  mocks.drainAssetUsageOutbox.mockResolvedValue({
+    inspected: 0,
+    delivered: 0,
+    failed: 0,
+    deadLettered: 0,
+  });
 });
 
 describe("useSessionManager SQLite migration", () => {
@@ -184,6 +192,7 @@ describe("useSessionManager SQLite migration", () => {
         ],
       })
     );
+    expect(mocks.drainAssetUsageOutbox).toHaveBeenCalled();
     expect(mocks.index).toMatchObject({
       currentSessionId: "legacy-session",
       sessions: [],

@@ -20,6 +20,7 @@ import {
 } from "../services/chatStorageCodec";
 import {
   deleteChatSession as deleteStoredChatSession,
+  drainAssetUsageOutbox,
   listChatSessions,
   loadChatSession,
   persistChatChanges,
@@ -73,6 +74,14 @@ const indexManager = createConfigManager<SessionsIndex>({
 // snapshot and write queue at module scope so those instances share a diff base.
 const persistedSnapshots = new Map<string, ChatSession>();
 const pendingWrites = new Map<string, Promise<void>>();
+
+async function drainUsageOutbox(): Promise<void> {
+  try {
+    await drainAssetUsageOutbox();
+  } catch {
+    logger.warn("Asset usage outbox delivery deferred");
+  }
+}
 
 function mapSessionRecord(record: ChatSessionRecord): SessionIndexItem {
   return {
@@ -158,6 +167,7 @@ async function migrateLegacySessions(
       const request = buildPersistChatChanges(session);
       const result = await persistChatChanges(request);
       session.messageCount = result.messageCount;
+      await drainUsageOutbox();
       persistedSnapshots.set(session.id, cloneChatSession(session));
       storedIds.add(session.id);
       logger.info("Imported legacy chat session", { sessionId: session.id });
@@ -237,6 +247,7 @@ export function useSessionManager() {
     currentSessionId: string | null;
   }> {
     const migratedIndex = await migrateLegacySessions(await loadIndex());
+    await drainUsageOutbox();
     const records = await listAllStoredSessions();
     const sessionMetas = records.map(mapSessionRecord);
     const availableIds = new Set(sessionMetas.map((session) => session.id));
@@ -257,6 +268,7 @@ export function useSessionManager() {
     await enqueueSessionWrite(sessionId, async () => {
       await deleteStoredChatSession(sessionId);
       persistedSnapshots.delete(sessionId);
+      await drainUsageOutbox();
     });
 
     const index = await loadIndex();

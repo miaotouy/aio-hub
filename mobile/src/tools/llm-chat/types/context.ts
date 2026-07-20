@@ -1,4 +1,5 @@
 import type { LlmMessageContent } from "@/tools/llm-api/types";
+import type { ManagedAssetRef } from "../../asset-manager/types";
 
 /**
  * 系统内置锚点/消息类型常量
@@ -34,7 +35,7 @@ export interface ProcessableMessage {
    * [中间格式] 暂存的附件列表
    * 在 asset-resolver 阶段会被处理并合并入 content
    */
-  _attachments?: any[]; // 移动端暂未引入完整的 Asset 类型，先用 any
+  _attachments?: ManagedAssetRef[];
   /**
    * [元数据] 原始消息内容
    * 用于宏调试和差异对比，仅在宏处理发生时设置

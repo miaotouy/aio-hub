@@ -132,6 +132,13 @@ export interface ChatSearchResult {
   rank: number;
 }
 
+export interface DrainAssetUsageOutboxResult {
+  inspected: number;
+  delivered: number;
+  failed: number;
+  deadLettered: number;
+}
+
 async function invokeStorage<T>(
   command: string,
   args: Record<string, unknown>,
@@ -183,4 +190,22 @@ export function searchChatMessages(
   query: ChatSearchQuery
 ): Promise<ChatSearchResult[]> {
   return invokeStorage("search_chat_messages", { query }, "无法搜索聊天消息");
+}
+
+export function drainAssetUsageOutbox(
+  limit = 50
+): Promise<DrainAssetUsageOutboxResult> {
+  return invokeStorage(
+    "drain_asset_usage_outbox",
+    { limit },
+    "无法同步聊天附件引用"
+  );
+}
+
+export function retryAssetUsageOutbox(eventId: string): Promise<boolean> {
+  return invokeStorage(
+    "retry_asset_usage_outbox",
+    { eventId },
+    "无法重试聊天附件引用同步"
+  );
 }

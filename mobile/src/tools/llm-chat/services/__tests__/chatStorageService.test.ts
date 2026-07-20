@@ -17,6 +17,8 @@ import {
   loadChatSession,
   persistChatChanges,
   searchChatMessages,
+  drainAssetUsageOutbox,
+  retryAssetUsageOutbox,
 } from "../chatStorageService";
 
 beforeEach(() => {
@@ -85,6 +87,30 @@ describe("chat storage command client", () => {
     });
     expect(invokeMock).toHaveBeenNthCalledWith(3, "search_chat_messages", {
       query: { query: "hello", limit: 5 },
+    });
+  });
+
+  it("drains and retries usage outbox through explicit commands", async () => {
+    invokeMock.mockResolvedValueOnce({
+      inspected: 2,
+      delivered: 2,
+      failed: 0,
+      deadLettered: 0,
+    });
+    invokeMock.mockResolvedValueOnce(true);
+
+    await expect(drainAssetUsageOutbox(10)).resolves.toEqual({
+      inspected: 2,
+      delivered: 2,
+      failed: 0,
+      deadLettered: 0,
+    });
+    await expect(retryAssetUsageOutbox("event-1")).resolves.toBe(true);
+    expect(invokeMock).toHaveBeenNthCalledWith(1, "drain_asset_usage_outbox", {
+      limit: 10,
+    });
+    expect(invokeMock).toHaveBeenNthCalledWith(2, "retry_asset_usage_outbox", {
+      eventId: "event-1",
     });
   });
 

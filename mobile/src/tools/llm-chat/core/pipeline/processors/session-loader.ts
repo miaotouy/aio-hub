@@ -63,8 +63,7 @@ export const sessionLoader: ContextProcessor = {
     const messages: ProcessableMessage[] = [];
 
     for (const node of historyNodes) {
-      // 忽略空消息 (仅针对纯文本，如果未来支持多模态，这里需要更复杂的判断)
-      if (typeof node.content === "string" && !node.content.trim()) {
+      if (!node.content.trim() && !node.attachments?.length) {
         continue;
       }
 
@@ -73,6 +72,9 @@ export const sessionLoader: ContextProcessor = {
         content: node.content,
         sourceType: "session_history",
         sourceId: node.id,
+        _attachments: node.attachments?.map(
+          ({ id: _attachmentId, ...attachment }) => attachment
+        ),
       };
       messages.push(processableMessage);
     }

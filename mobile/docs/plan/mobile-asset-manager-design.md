@@ -39,7 +39,7 @@
 - 已安装 `@tauri-apps/plugin-fs` 与 `@tauri-apps/plugin-dialog`；Android 系统选择器返回的 `content://` 已在正式资产导入/导出链验证。由于 `tauri-plugin-fs` 2.5.1 对测试 provider 使用 `openAssetFileDescriptor` 会失败，正式链由 Android `AssetContentPlugin` 调用 `ContentResolver.openFileDescriptor`，再交给 Rust 流式处理；应用数据目录仍只通过受控 capability 与 Rust 领域命令访问。
 - 通用 `mobile/src/utils/fsUtils.ts` 仍只封装应用数据目录下的文本文件与目录操作；Phase 1 已新增独立 Rust 二进制资产服务，不把二进制职责塞回通用工具。
 - Rust 已引入 SQLx 与 bundled SQLite 验证依赖，`ui-tester` 已具备平台文件和 SQLite 固定验证板块；Android 分享 bridge 已接入，相机 bridge 已实现但仍需有相机 Activity 的设备验收。
-- `llm-chat` 的 `_attachments` 仍为 `any[]` 占位，架构文档已把完整 Asset 系统列为待办。
+- `llm-chat` 的 `_attachments` 已改为 `ManagedAssetRef`，并完成首批 `chat_attachments`/usage outbox 接入；聊天内资产选择和 provider 请求组装仍待完成。
 - `agent-manager` 的 `assets` 与 `assetGroups` 仍是占位类型，但其桌面端语义是智能体私有资产，不应因此并入全局资产库。
 - 工作区已有“一模块一数据库”的移动端 SQLite 计划；Phase 1 首批已建立资产库 migration 与 repository，尚未接用户界面和聊天消费者。
 
@@ -603,9 +603,9 @@ interface ManagedAssetRef {
 
 ### 2026-07-20：首个聊天消费者门禁
 
-- 当前 LLM Chat 会话与消息已由 `llm_chat.db` 增量持久化，schema v1 已包含 `chat_attachments` 和 `asset_usage_outbox`；但 `ProcessableMessage._attachments` 仍为 `any[]` 占位，聊天附件消费者尚未接入这些表。
-- 聊天附件与 usage outbox 必须在同一聊天数据库事务提交。阶段二没有把 `ManagedAssetRef` 写入 metadata 或另行调用资产 usage 命令，避免产生漏引用或僵尸引用。
-- 因此首个聊天消费者仍暂停在 SQLite 迁移阶段三之前。资产内核、受控预览和原生传输保持可独立使用，不提前标记消费者完成。
+- 当前 LLM Chat 会话与消息已由 `llm_chat.db` 增量持久化，schema v1 的 `chat_attachments` 和 `asset_usage_outbox` 已由首批消费者接入；聊天内资产选择和 provider-specific 请求组装仍未完成。
+- 聊天附件与 usage outbox 在同一聊天数据库事务提交。消息节点只保存 `assetId + usagePolicy + 轻量快照`，不把路径或二进制写入 metadata；启动、提交和删除会触发幂等投递。
+- Android 已验证 replacement/release usage 生命周期和消息快照展示；原件 `reclaimed/missing` 的实时状态查询与发送前解析仍需下一批完成。资产内核、受控预览和原生传输保持可独立使用。
 
 ### 2026-07-20：Phase 2 首批资产页
 
@@ -674,6 +674,12 @@ interface ManagedAssetRef {
 - 新增聊天 SQLite 薄 command client 与树/扁平 codec，`useSessionManager` 的列表、详情、增量保存和删除改走 `llm_chat.db`；`currentSessionId` 留在 ConfigManager。
 - 保存只 upsert 新增或变化消息并提交最小删除分支根；完整 metadata 未知字段、type、timestamp、`siblingOrder` 和 `lastSelectedChildId` 均有前端固定测试。旧 JSON 仅幂等导入一次，成功后停止读写，不建设双写。
 - 本批通过移动端 85 个前端测试、28 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android x86_64 debug APK 构建。`emulator-5558` 的真实 WebView 通过正式“开启新对话”入口完成 Pinia、`useSessionManager`、codec 与 Tauri command 的创建/加载闭环，并完成单消息增量更新、未知 metadata 往返、列表和删除验证；阶段三附件消费者仍未接入，iOS 因缺少编译与设备条件继续跳过。
+
+### 2026-07-21：聊天消费者前置迁移阶段三第一批
+
+- 消息节点新增强类型 `ChatMessageAttachment`；SQLite codec 独立处理附件增删、快照和 `createdAt`，不污染消息 metadata。session-loader 保留无文本但有附件的消息，消息视图展示附件名称、类型图标和大小。
+- `useSessionManager` 在启动、提交和会话删除后触发 outbox drain；Android `emulator-5558` 实测 replacement 投递后资产 usage 出现，删除会话 release 投递后 usage 归零，失败/死信 command client 也已覆盖。
+- 本批通过移动端 87 个前端测试、28 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android x86_64 debug APK 构建；360dp WebView 视觉检查确认超长附件名省略且不撑破布局。聊天内资产选择、provider 请求组装和 reclaimed/missing 实时状态仍未完成，iOS 因缺少编译与设备条件继续跳过。
 
 ## 16. 调查来源
 

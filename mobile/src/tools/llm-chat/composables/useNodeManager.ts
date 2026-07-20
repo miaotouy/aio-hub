@@ -4,7 +4,11 @@
  */
 
 import { toRaw } from "vue";
-import type { ChatSession, ChatMessageNode } from "../types";
+import type {
+  ChatMessageAttachment,
+  ChatSession,
+  ChatMessageNode,
+} from "../types";
 import { BranchNavigator } from "../utils/BranchNavigator";
 import { createModuleLogger } from "@/utils/logger";
 import { v4 as uuidv4 } from "uuid";
@@ -20,6 +24,7 @@ export interface CreateNodeConfig {
   parentId: string | null;
   status?: "complete" | "generating" | "error";
   metadata?: Record<string, any>;
+  attachments?: ChatMessageAttachment[];
   name?: string;
 }
 
@@ -50,6 +55,7 @@ export function useNodeManager() {
       status: config.status || "complete",
       timestamp: now,
       metadata: config.metadata,
+      attachments: config.attachments,
     };
   };
 
@@ -104,6 +110,10 @@ export function useNodeManager() {
       metadata: sourceNode.metadata
         ? JSON.parse(JSON.stringify(toRaw(sourceNode.metadata)))
         : undefined,
+      attachments: sourceNode.attachments?.map((attachment) => ({
+        ...JSON.parse(JSON.stringify(toRaw(attachment))),
+        id: uuidv4(),
+      })),
     });
 
     session.nodes[branchNode.id] = branchNode;

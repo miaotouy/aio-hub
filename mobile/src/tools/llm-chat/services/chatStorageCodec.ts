@@ -1,4 +1,6 @@
 import type {
+  ChatAttachmentInput,
+  ChatAttachmentRecord,
   ChatMessageInput,
   ChatMessageRecord,
   ChatSessionInput,
@@ -7,6 +9,7 @@ import type {
 } from "./chatStorageService";
 import type {
   ChatMessageMetadata,
+  ChatMessageAttachment,
   ChatMessageNode,
   ChatSession,
   MessageRole,
@@ -114,6 +117,36 @@ export function chatSessionToMessageInputs(
   return messages;
 }
 
+export function chatSessionToAttachmentInputs(
+  session: ChatSession
+): ChatAttachmentInput[] {
+  const inputs: ChatAttachmentInput[] = [];
+  const seen = new Set<string>();
+  for (const node of Object.values(session.nodes)) {
+    (node.attachments ?? []).forEach((attachment, sortOrder) => {
+      assertTree(
+        !seen.has(attachment.id),
+        `duplicate attachment ${attachment.id}`
+      );
+      seen.add(attachment.id);
+      inputs.push({
+        id: attachment.id,
+        messageId: node.id,
+        assetId: attachment.assetId,
+        kind: attachment.snapshot.kind,
+        displayName: attachment.snapshot.displayName,
+        mimeType: attachment.snapshot.mimeType,
+        sizeBytes: attachment.snapshot.sizeBytes,
+        usagePolicy: attachment.usagePolicy,
+        extractedText: attachment.snapshot.extractedText,
+        sortOrder,
+        createdAt: attachment.createdAt,
+      });
+    });
+  }
+  return inputs;
+}
+
 function decodeMessage(row: ChatMessageRecord): ChatMessageNode {
   assertTree(isMessageRole(row.role), `unsupported role ${row.role}`);
   assertTree(isMessageStatus(row.status), `unsupported status ${row.status}`);
@@ -141,6 +174,24 @@ function decodeMessage(row: ChatMessageRecord): ChatMessageNode {
   return node;
 }
 
+function decodeAttachment(row: ChatAttachmentRecord): ChatMessageAttachment {
+  return {
+    id: row.id,
+    createdAt: row.createdAt,
+    assetId: row.assetId,
+    usagePolicy: row.usagePolicy as ChatMessageAttachment["usagePolicy"],
+    snapshot: {
+      displayName: row.displayName,
+      kind: row.kind as ChatMessageAttachment["snapshot"]["kind"],
+      mimeType: row.mimeType,
+      sizeBytes: row.sizeBytes,
+      ...(row.extractedText === null
+        ? {}
+        : { extractedText: row.extractedText }),
+    },
+  };
+}
+
 export function decodeChatSessionSnapshot(
   snapshot: ChatSessionSnapshot
 ): ChatSession {
@@ -152,6 +203,15 @@ export function decodeChatSessionSnapshot(
     );
     assertTree(!nodes[row.id], `duplicate message ${row.id}`);
     nodes[row.id] = decodeMessage(row);
+  }
+
+  for (const row of snapshot.attachments) {
+    const node = nodes[row.messageId];
+    assertTree(
+      node,
+      `attachment ${row.id} has missing message ${row.messageId}`
+    );
+    node.attachments = [...(node.attachments ?? []), decodeAttachment(row)];
   }
 
   const orderedRows = [...snapshot.messages].sort(
@@ -201,8 +261,21 @@ export function buildPersistChatChanges(
 
   const currentRows = chatSessionToMessageInputs(session);
   const previousRows = previous ? chatSessionToMessageInputs(previous) : [];
+  const currentAttachments = chatSessionToAttachmentInputs(session);
+  const previousAttachments = previous
+    ? chatSessionToAttachmentInputs(previous)
+    : [];
   const previousById = rowsById(previousRows);
+  const previousAttachmentsById = new Map(
+    previousAttachments.map((attachment) => [
+      attachment.id,
+      JSON.stringify(attachment),
+    ])
+  );
   const currentIds = new Set(currentRows.map((row) => row.id));
+  const currentAttachmentIds = new Set(
+    currentAttachments.map((attachment) => attachment.id)
+  );
   const deletedIds = new Set(
     previousRows.filter((row) => !currentIds.has(row.id)).map((row) => row.id)
   );
@@ -221,7 +294,13 @@ export function buildPersistChatChanges(
       (row) => previousById.get(row.id) !== JSON.stringify(row)
     ),
     deleteMessageIds,
-    upsertAttachments: [],
-    deleteAttachmentIds: [],
+    upsertAttachments: currentAttachments.filter(
+      (attachment) =>
+        previousAttachmentsById.get(attachment.id) !==
+        JSON.stringify(attachment)
+    ),
+    deleteAttachmentIds: previousAttachments
+      .filter((attachment) => !currentAttachmentIds.has(attachment.id))
+      .map((attachment) => attachment.id),
   };
 }

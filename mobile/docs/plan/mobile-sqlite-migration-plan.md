@@ -1,6 +1,6 @@
 # 移动端 SQLite 引入与持久化重构计划 (Mobile SQLite Migration Plan)
 
-> 状态：施工中；2026-07-21 已完成阶段一 Rust 存储骨架、schema v1 与阶段二前端增量持久化，阶段三聊天附件接入尚未施工。
+> 状态：施工中；2026-07-21 已完成阶段一 Rust 存储骨架、阶段二前端增量持久化和阶段三第一批附件存储/outbox 接入，聊天内资产选择与 provider 请求组装仍待施工。
 > 当前决议：聊天数据库通过 Rust 领域命令访问，默认采用 SQLx、原生 migration runner 和统一连接配置；前端不得执行任意 SQL。
 
 ## 1. 背景与现状
@@ -398,9 +398,11 @@ END;
 
 ### 阶段三：附件与 usage outbox
 
-- 等资产服务命令与 `ManagedAssetRef` 稳定后，再固化 `chat_attachments` 的写入和解析。
+- 已完成第一批：消息节点使用强类型 `ManagedAssetRef + 轻量快照`，codec 增量写入/读取 `chat_attachments`，不把附件塞进 metadata。
+- 已完成第一批：会话启动、提交和删除触发 outbox 投递；Android 已实测 replacement/release 顺序、资产 usage 出现与归零。
 - 在消息变更 transaction 内写完整 usage replacement/release outbox；删除业务行前必须先写 release 事件。
 - 应用启动、聊天提交和资产服务恢复时触发投递；失败事件独立重试，永久错误不能阻塞后续无关实体。
+- 待完成：聊天内资产选择器、provider-specific `managed-asset-ref` 请求组装，以及 reclaimed/missing 实时状态查询。
 - 用故障注入覆盖“资产命令已成功但 delivered 未标记”、重复投递、附件替换、分支删除和会话删除。
 
 ### 阶段四：本地搜索

@@ -1,4 +1,5 @@
 import type { MessageRole, MessageStatus, MessageType } from "./common";
+import type { ManagedAssetRef } from "../../asset-manager/types";
 
 export type TokenCountSource = "api" | "local" | "fallback";
 export type ContextRiskLevel = "normal" | "warning" | "critical";
@@ -59,6 +60,11 @@ export interface ChatMessageMetadata {
   tokensPerSecond?: number;
 }
 
+export interface ChatMessageAttachment extends ManagedAssetRef {
+  id: string;
+  createdAt?: string;
+}
+
 /**
  * 消息节点（树形结构基础版）
  */
@@ -112,4 +118,7 @@ export interface ChatMessageNode {
    * 附加元数据
    */
   metadata?: ChatMessageMetadata;
+
+  /** 持久化到 llm_chat.db 的全局资产引用和轻量快照 */
+  attachments?: ChatMessageAttachment[];
 }

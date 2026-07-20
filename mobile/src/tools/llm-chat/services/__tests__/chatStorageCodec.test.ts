@@ -139,6 +139,40 @@ describe("chat storage codec", () => {
     expect(decoded.isFavorite).toBe(true);
   });
 
+  it("encodes attachment refs separately from message metadata", () => {
+    const current = session({
+      root: node("root", null, "", ["user"]),
+      user: {
+        ...node("user", "root", "with file"),
+        attachments: [
+          {
+            id: "attachment-1",
+            assetId: "asset-1",
+            usagePolicy: "advisory",
+            snapshot: {
+              displayName: "photo.png",
+              kind: "image",
+              mimeType: "image/png",
+              sizeBytes: 1024,
+            },
+          },
+        ],
+      },
+    });
+    current.activeLeafId = "user";
+
+    const changes = buildPersistChatChanges(current);
+    expect(changes.upsertMessages[1]).not.toHaveProperty("attachments");
+    expect(changes.upsertAttachments).toEqual([
+      expect.objectContaining({
+        id: "attachment-1",
+        messageId: "user",
+        assetId: "asset-1",
+        usagePolicy: "advisory",
+      }),
+    ]);
+  });
+
   it("rejects unreachable nodes instead of silently dropping them", () => {
     const current = session({
       root: node("root", null, "", []),

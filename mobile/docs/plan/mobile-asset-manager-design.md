@@ -483,8 +483,9 @@ interface ManagedAssetRef {
 - [x] 建立 `asset_manager.db` migration、固定 SQLx 连接配置和资产模块状态。
 - [x] 建立系统引用直读、单遍 SHA-256、暂存、内容寻址落盘、去重来源追加和 tombstone ID 恢复的首批导入链。
 - [x] 建立资产列表、详情和按业务实体整体替换 usage 的首批领域命令与 TypeScript 服务契约。
+- [x] 建立启动恢复、待物理删除队列、删除影响分析、保留策略、安全删除、存储统计与手动修复命令。
 - [ ] 在 Android 真机验证 Rust command 直读 `content://` 的正式导入路径并回写报告。
-- [ ] 补齐启动恢复、删除影响分析、回收、存储统计、受控预览与首个聊天消费者。
+- [ ] 补齐 import job 进度/取消、可重建缓存清理、受控预览与首个聊天消费者。
 
 ### Phase 2：资产页
 
@@ -548,6 +549,14 @@ interface ManagedAssetRef {
 - 资产 UI、WebView 预览协议、专用 Photo Picker、分享导入/导出和 iOS security-scoped URL 结论继续受各自平台验证门禁约束。
 - 聊天消费者在 `ManagedAssetRef` 与 usage replacement 契约稳定后接入，不在内核首批继续沿用路径型附件。
 - 本批已通过移动端 56 个前端测试、13 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android debug APK/AAB 构建；尚未用真机系统选择结果执行新增的 Rust 导入命令。
+
+### 2026-07-20：Phase 1 第二批
+
+- 新增 `pending_file_deletions` migration；删除事务先记录待清理文件，再更新 reclaimed tombstone 或删除无引用资产，提交后排空物理清理队列。
+- 新增 pinned/blocking/advisory 删除影响分析、批量保留策略、安全删除、按类型存储统计和资产库修复命令。
+- 资产服务初始化时恢复未完成物理删除、清理 `.part` 与孤儿对象，并把 ready 但原件不存在的记录明确标为 missing。
+- 导入、usage replacement、保留策略和删除共用 mutation lock；正式删除会在锁内重新检查影响，不信任较早的页面分析快照。
+- 第二批已通过移动端 56 个前端测试、14 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android 四 ABI debug APK/AAB 构建。
 
 ## 16. 调查来源
 

@@ -96,3 +96,57 @@ export interface AssetUsageInput {
   role: string;
   usagePolicy: AssetUsagePolicy;
 }
+
+export interface AssetDeleteAnalysisItem {
+  assetId: string;
+  displayName: string;
+  availability: AssetAvailability | "missing_record";
+  retentionPolicy: AssetRetentionPolicy;
+  sizeBytes: number;
+  blockingUsageCount: number;
+  advisoryUsageCount: number;
+  canDelete: boolean;
+  requiresAdvisoryConfirmation: boolean;
+  blockedReason?: "not_found" | "pinned" | "blocking_usage" | "busy";
+}
+
+export interface AssetDeleteAnalysis {
+  items: AssetDeleteAnalysisItem[];
+  canDeleteAll: boolean;
+  requiresAdvisoryConfirmation: boolean;
+  totalSizeBytes: number;
+}
+
+export interface AssetDeleteResult {
+  deletedCount: number;
+  reclaimedCount: number;
+  cleanedFileCount: number;
+  pendingCleanupCount: number;
+}
+
+export interface AssetKindStorageSummary {
+  kind: AssetKind;
+  assetCount: number;
+  sizeBytes: number;
+}
+
+export interface AssetStorageSummary {
+  assetCount: number;
+  readyCount: number;
+  missingCount: number;
+  reclaimedCount: number;
+  originalBytes: number;
+  reclaimableBytes: number;
+  cacheBytes: number;
+  temporaryBytes: number;
+  pendingCleanupCount: number;
+  byKind: AssetKindStorageSummary[];
+}
+
+export interface AssetRepairReport {
+  cleanedPendingFiles: number;
+  cleanedTemporaryFiles: number;
+  cleanedOrphanFiles: number;
+  markedMissingAssets: number;
+  pendingCleanupCount: number;
+}

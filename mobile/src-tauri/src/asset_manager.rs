@@ -6,7 +6,7 @@ use sqlx::{
     FromRow, QueryBuilder, Sqlite, SqlitePool,
 };
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fs::{self, OpenOptions},
     io::{Read, Write},
     path::{Component, Path, PathBuf},
@@ -24,17 +24,18 @@ const ASSET_DIR: &str = "assets";
 const ASSET_DB: &str = "asset_manager.db";
 const MAX_IMPORT_BATCH: usize = 100;
 const MAX_USAGE_BATCH: usize = 1_000;
+const MAX_MUTATION_BATCH: usize = 500;
 
 pub struct AssetManagerState {
     pool: OnceCell<SqlitePool>,
-    import_lock: Mutex<()>,
+    mutation_lock: Mutex<()>,
 }
 
 impl Default for AssetManagerState {
     fn default() -> Self {
         Self {
             pool: OnceCell::new(),
-            import_lock: Mutex::new(()),
+            mutation_lock: Mutex::new(()),
         }
     }
 }
@@ -69,6 +70,7 @@ impl AssetManagerState {
                     .run(&pool)
                     .await
                     .map_err(|error| format!("ASSET_DATABASE_MIGRATION: {error}"))?;
+                run_startup_recovery(&pool, &paths).await?;
                 Ok(pool)
             })
             .await
@@ -78,6 +80,7 @@ impl AssetManagerState {
 #[derive(Clone)]
 struct AssetPaths {
     root: PathBuf,
+    cache_root: PathBuf,
     database: PathBuf,
     objects: PathBuf,
     imports: PathBuf,
@@ -90,25 +93,43 @@ impl AssetPaths {
             .app_data_dir()
             .map_err(|error| format!("ASSET_APP_DATA_PATH: {error}"))?
             .join(ASSET_DIR);
+        let cache_root = app
+            .path()
+            .app_cache_dir()
+            .map_err(|error| format!("ASSET_CACHE_PATH: {error}"))?
+            .join(ASSET_DIR);
         Ok(Self {
             database: root.join(ASSET_DB),
             objects: root.join("objects"),
             imports: root.join("tmp").join("imports"),
+            cache_root,
             root,
         })
     }
 
     fn resolve_relative(&self, relative_path: &str) -> Result<PathBuf, String> {
-        let relative = Path::new(relative_path);
-        if relative.is_absolute()
-            || relative
-                .components()
-                .any(|component| !matches!(component, Component::Normal(_)))
-        {
-            return Err("ASSET_INVALID_RELATIVE_PATH".into());
-        }
-        Ok(self.root.join(relative))
+        resolve_beneath(&self.root, relative_path)
     }
+
+    fn resolve_storage(&self, storage_root: &str, relative_path: &str) -> Result<PathBuf, String> {
+        match storage_root {
+            "app_data" => self.resolve_relative(relative_path),
+            "cache" => resolve_beneath(&self.cache_root, relative_path),
+            _ => Err("ASSET_INVALID_STORAGE_ROOT".into()),
+        }
+    }
+}
+
+fn resolve_beneath(root: &Path, relative_path: &str) -> Result<PathBuf, String> {
+    let relative = Path::new(relative_path);
+    if relative.is_absolute()
+        || relative
+            .components()
+            .any(|component| !matches!(component, Component::Normal(_)))
+    {
+        return Err("ASSET_INVALID_RELATIVE_PATH".into());
+    }
+    Ok(root.join(relative))
 }
 
 #[derive(Debug, Clone, Serialize, FromRow)]
@@ -209,6 +230,103 @@ pub struct AssetUsageReplaceResult {
     usage_count: usize,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetMutationResult {
+    updated_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetDeleteAnalysis {
+    items: Vec<AssetDeleteAnalysisItem>,
+    can_delete_all: bool,
+    requires_advisory_confirmation: bool,
+    total_size_bytes: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetDeleteAnalysisItem {
+    asset_id: String,
+    display_name: String,
+    availability: String,
+    retention_policy: String,
+    size_bytes: i64,
+    blocking_usage_count: i64,
+    advisory_usage_count: i64,
+    can_delete: bool,
+    requires_advisory_confirmation: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    blocked_reason: Option<String>,
+}
+
+#[derive(Debug, FromRow)]
+struct AssetDeleteAnalysisRow {
+    asset_id: String,
+    display_name: String,
+    availability: String,
+    retention_policy: String,
+    size_bytes: i64,
+    blocking_usage_count: i64,
+    advisory_usage_count: i64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetDeleteResult {
+    deleted_count: usize,
+    reclaimed_count: usize,
+    cleaned_file_count: usize,
+    pending_cleanup_count: i64,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetKindStorageSummary {
+    kind: String,
+    asset_count: i64,
+    size_bytes: i64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetStorageSummary {
+    asset_count: i64,
+    ready_count: i64,
+    missing_count: i64,
+    reclaimed_count: i64,
+    original_bytes: i64,
+    reclaimable_bytes: i64,
+    cache_bytes: i64,
+    temporary_bytes: i64,
+    pending_cleanup_count: i64,
+    by_kind: Vec<AssetKindStorageSummary>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetRepairReport {
+    cleaned_pending_files: usize,
+    cleaned_temporary_files: usize,
+    cleaned_orphan_files: usize,
+    marked_missing_assets: usize,
+    pending_cleanup_count: i64,
+}
+
+#[derive(Debug, FromRow)]
+struct PendingFileDeletion {
+    id: i64,
+    storage_root: String,
+    relative_path: String,
+}
+
+#[derive(Debug, Default)]
+struct CleanupResult {
+    cleaned_count: usize,
+    pending_count: i64,
+}
+
 struct StagedObject {
     temp_path: PathBuf,
     content_hash: String,
@@ -226,7 +344,7 @@ pub async fn asset_import_sources(
     }
     let pool = state.pool(&app).await?.clone();
     let paths = AssetPaths::from_app(&app)?;
-    let _guard = state.import_lock.lock().await;
+    let _guard = state.mutation_lock.lock().await;
     let mut output = Vec::with_capacity(sources.len());
 
     for (source_index, source) in sources.into_iter().enumerate() {
@@ -367,6 +485,7 @@ pub async fn asset_replace_entity_usages(
     }
 
     let pool = state.pool(&app).await?;
+    let _guard = state.mutation_lock.lock().await;
     let mut transaction = pool
         .begin()
         .await
@@ -402,6 +521,520 @@ pub async fn asset_replace_entity_usages(
         .map_err(|error| format!("ASSET_USAGE_COMMIT: {error}"))?;
     Ok(AssetUsageReplaceResult {
         usage_count: usages.len(),
+    })
+}
+
+#[tauri::command]
+pub async fn asset_analyze_delete(
+    app: AppHandle,
+    state: State<'_, AssetManagerState>,
+    asset_ids: Vec<String>,
+) -> Result<AssetDeleteAnalysis, String> {
+    validate_asset_ids(&asset_ids)?;
+    let pool = state.pool(&app).await?;
+    analyze_delete(pool, &asset_ids).await
+}
+
+#[tauri::command]
+pub async fn asset_set_retention_policy(
+    app: AppHandle,
+    state: State<'_, AssetManagerState>,
+    asset_ids: Vec<String>,
+    retention_policy: String,
+) -> Result<AssetMutationResult, String> {
+    validate_asset_ids(&asset_ids)?;
+    if !matches!(retention_policy.as_str(), "reclaimable" | "pinned") {
+        return Err("ASSET_INVALID_RETENTION_POLICY".into());
+    }
+    let pool = state.pool(&app).await?;
+    let _guard = state.mutation_lock.lock().await;
+    let mut transaction = pool
+        .begin()
+        .await
+        .map_err(|error| format!("ASSET_RETENTION_TRANSACTION: {error}"))?;
+    let mut updated_count = 0_usize;
+    for asset_id in &asset_ids {
+        let result = sqlx::query(
+            "UPDATE assets SET retention_policy = ?, \
+             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+        )
+        .bind(&retention_policy)
+        .bind(asset_id)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| format!("ASSET_RETENTION_UPDATE: {error}"))?;
+        if result.rows_affected() != 1 {
+            return Err("ASSET_NOT_FOUND".into());
+        }
+        updated_count += 1;
+    }
+    transaction
+        .commit()
+        .await
+        .map_err(|error| format!("ASSET_RETENTION_COMMIT: {error}"))?;
+    Ok(AssetMutationResult { updated_count })
+}
+
+#[tauri::command]
+pub async fn asset_delete(
+    app: AppHandle,
+    state: State<'_, AssetManagerState>,
+    asset_ids: Vec<String>,
+    confirm_advisory: bool,
+) -> Result<AssetDeleteResult, String> {
+    validate_asset_ids(&asset_ids)?;
+    let pool = state.pool(&app).await?;
+    let paths = AssetPaths::from_app(&app)?;
+    let _guard = state.mutation_lock.lock().await;
+    delete_assets(pool, &paths, &asset_ids, confirm_advisory).await
+}
+
+#[tauri::command]
+pub async fn asset_get_storage_summary(
+    app: AppHandle,
+    state: State<'_, AssetManagerState>,
+) -> Result<AssetStorageSummary, String> {
+    let pool = state.pool(&app).await?;
+    let paths = AssetPaths::from_app(&app)?;
+    storage_summary(pool, &paths).await
+}
+
+#[tauri::command]
+pub async fn asset_repair_library(
+    app: AppHandle,
+    state: State<'_, AssetManagerState>,
+) -> Result<AssetRepairReport, String> {
+    let pool = state.pool(&app).await?;
+    let paths = AssetPaths::from_app(&app)?;
+    let _guard = state.mutation_lock.lock().await;
+    repair_library(pool, &paths).await
+}
+
+async fn analyze_delete(
+    pool: &SqlitePool,
+    asset_ids: &[String],
+) -> Result<AssetDeleteAnalysis, String> {
+    let mut builder: QueryBuilder<'_, Sqlite> = QueryBuilder::new(
+        "SELECT a.id AS asset_id, a.display_name, a.availability, a.retention_policy, \
+         a.size_bytes, \
+         COALESCE(SUM(CASE WHEN u.usage_policy = 'blocking' THEN 1 ELSE 0 END), 0) \
+           AS blocking_usage_count, \
+         COALESCE(SUM(CASE WHEN u.usage_policy = 'advisory' THEN 1 ELSE 0 END), 0) \
+           AS advisory_usage_count \
+         FROM assets a LEFT JOIN asset_usages u ON u.asset_id = a.id WHERE a.id IN (",
+    );
+    {
+        let mut separated = builder.separated(", ");
+        for asset_id in asset_ids {
+            separated.push_bind(asset_id);
+        }
+    }
+    builder.push(" ) GROUP BY a.id");
+    let rows = builder
+        .build_query_as::<AssetDeleteAnalysisRow>()
+        .fetch_all(pool)
+        .await
+        .map_err(|error| format!("ASSET_DELETE_ANALYSIS: {error}"))?;
+    let mut by_id: HashMap<String, AssetDeleteAnalysisRow> = rows
+        .into_iter()
+        .map(|row| (row.asset_id.clone(), row))
+        .collect();
+    let mut items = Vec::with_capacity(asset_ids.len());
+    for asset_id in asset_ids {
+        let Some(row) = by_id.remove(asset_id) else {
+            items.push(AssetDeleteAnalysisItem {
+                asset_id: asset_id.clone(),
+                display_name: String::new(),
+                availability: "missing_record".into(),
+                retention_policy: "reclaimable".into(),
+                size_bytes: 0,
+                blocking_usage_count: 0,
+                advisory_usage_count: 0,
+                can_delete: false,
+                requires_advisory_confirmation: false,
+                blocked_reason: Some("not_found".into()),
+            });
+            continue;
+        };
+        let blocked_reason = if row.retention_policy == "pinned" {
+            Some("pinned".into())
+        } else if row.blocking_usage_count > 0 {
+            Some("blocking_usage".into())
+        } else if row.availability == "importing" {
+            Some("busy".into())
+        } else {
+            None
+        };
+        items.push(AssetDeleteAnalysisItem {
+            asset_id: row.asset_id,
+            display_name: row.display_name,
+            availability: row.availability,
+            retention_policy: row.retention_policy,
+            size_bytes: row.size_bytes,
+            blocking_usage_count: row.blocking_usage_count,
+            advisory_usage_count: row.advisory_usage_count,
+            can_delete: blocked_reason.is_none(),
+            requires_advisory_confirmation: blocked_reason.is_none()
+                && row.advisory_usage_count > 0,
+            blocked_reason,
+        });
+    }
+    Ok(AssetDeleteAnalysis {
+        can_delete_all: items.iter().all(|item| item.can_delete),
+        requires_advisory_confirmation: items
+            .iter()
+            .any(|item| item.requires_advisory_confirmation),
+        total_size_bytes: items.iter().map(|item| item.size_bytes).sum(),
+        items,
+    })
+}
+
+async fn delete_assets(
+    pool: &SqlitePool,
+    paths: &AssetPaths,
+    asset_ids: &[String],
+    confirm_advisory: bool,
+) -> Result<AssetDeleteResult, String> {
+    let analysis = analyze_delete(pool, asset_ids).await?;
+    if !analysis.can_delete_all {
+        return Err("ASSET_DELETE_BLOCKED".into());
+    }
+    if analysis.requires_advisory_confirmation && !confirm_advisory {
+        return Err("ASSET_ADVISORY_CONFIRMATION_REQUIRED".into());
+    }
+
+    let mut transaction = pool
+        .begin()
+        .await
+        .map_err(|error| format!("ASSET_DELETE_TRANSACTION: {error}"))?;
+    let mut deleted_count = 0_usize;
+    let mut reclaimed_count = 0_usize;
+    for item in &analysis.items {
+        let asset = sqlx::query_as::<_, AssetRecord>(
+            "SELECT id, content_hash, kind, mime_type, display_name, size_bytes, storage_mode, \
+             relative_path, availability, library_state, retention_policy, created_at, updated_at \
+             FROM assets WHERE id = ?",
+        )
+        .bind(&item.asset_id)
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(|error| format!("ASSET_DELETE_LOOKUP: {error}"))?;
+        if let Some(relative_path) = asset.relative_path.as_deref() {
+            queue_file_deletion(&mut transaction, "app_data", relative_path).await?;
+        }
+        let variants: Vec<String> =
+            sqlx::query_scalar("SELECT relative_path FROM asset_variants WHERE asset_id = ?")
+                .bind(&item.asset_id)
+                .fetch_all(&mut *transaction)
+                .await
+                .map_err(|error| format!("ASSET_DELETE_VARIANTS: {error}"))?;
+        for relative_path in variants {
+            queue_file_deletion(&mut transaction, "cache", &relative_path).await?;
+        }
+        sqlx::query("DELETE FROM asset_variants WHERE asset_id = ?")
+            .bind(&item.asset_id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| format!("ASSET_DELETE_VARIANT_ROWS: {error}"))?;
+
+        if item.advisory_usage_count > 0 {
+            sqlx::query(
+                "UPDATE assets SET relative_path = NULL, availability = 'reclaimed', \
+                 updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+            )
+            .bind(&item.asset_id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| format!("ASSET_RECLAIM_UPDATE: {error}"))?;
+            reclaimed_count += 1;
+        } else {
+            sqlx::query("DELETE FROM assets WHERE id = ?")
+                .bind(&item.asset_id)
+                .execute(&mut *transaction)
+                .await
+                .map_err(|error| format!("ASSET_DELETE_ROW: {error}"))?;
+            deleted_count += 1;
+        }
+    }
+    transaction
+        .commit()
+        .await
+        .map_err(|error| format!("ASSET_DELETE_COMMIT: {error}"))?;
+    let cleanup = drain_pending_file_deletions(pool, paths).await?;
+    Ok(AssetDeleteResult {
+        deleted_count,
+        reclaimed_count,
+        cleaned_file_count: cleanup.cleaned_count,
+        pending_cleanup_count: cleanup.pending_count,
+    })
+}
+
+async fn queue_file_deletion(
+    transaction: &mut sqlx::Transaction<'_, Sqlite>,
+    storage_root: &str,
+    relative_path: &str,
+) -> Result<(), String> {
+    sqlx::query(
+        "INSERT OR IGNORE INTO pending_file_deletions( \
+           storage_root, relative_path, created_at, updated_at \
+         ) VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), \
+           strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
+    )
+    .bind(storage_root)
+    .bind(relative_path)
+    .execute(&mut **transaction)
+    .await
+    .map_err(|error| format!("ASSET_DELETE_QUEUE: {error}"))?;
+    Ok(())
+}
+
+async fn run_startup_recovery(pool: &SqlitePool, paths: &AssetPaths) -> Result<(), String> {
+    drain_pending_file_deletions(pool, paths).await?;
+    cleanup_temporary_imports(paths)?;
+    mark_missing_assets(pool, paths).await?;
+    cleanup_orphan_objects(pool, paths).await?;
+    Ok(())
+}
+
+async fn repair_library(
+    pool: &SqlitePool,
+    paths: &AssetPaths,
+) -> Result<AssetRepairReport, String> {
+    let first_cleanup = drain_pending_file_deletions(pool, paths).await?;
+    let cleaned_temporary_files = cleanup_temporary_imports(paths)?;
+    let marked_missing_assets = mark_missing_assets(pool, paths).await?;
+    let cleaned_orphan_files = cleanup_orphan_objects(pool, paths).await?;
+    let final_cleanup = drain_pending_file_deletions(pool, paths).await?;
+    Ok(AssetRepairReport {
+        cleaned_pending_files: first_cleanup.cleaned_count + final_cleanup.cleaned_count,
+        cleaned_temporary_files,
+        cleaned_orphan_files,
+        marked_missing_assets,
+        pending_cleanup_count: final_cleanup.pending_count,
+    })
+}
+
+async fn drain_pending_file_deletions(
+    pool: &SqlitePool,
+    paths: &AssetPaths,
+) -> Result<CleanupResult, String> {
+    let pending = sqlx::query_as::<_, PendingFileDeletion>(
+        "SELECT id, storage_root, relative_path FROM pending_file_deletions \
+         ORDER BY created_at, id LIMIT 1000",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|error| format!("ASSET_CLEANUP_LIST: {error}"))?;
+    let mut cleaned_count = 0_usize;
+    for item in pending {
+        let deletion = paths
+            .resolve_storage(&item.storage_root, &item.relative_path)
+            .and_then(|path| match fs::remove_file(path) {
+                Ok(()) => Ok(()),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                Err(error) => Err(format!("ASSET_FILE_DELETE: {error}")),
+            });
+        match deletion {
+            Ok(()) => {
+                sqlx::query("DELETE FROM pending_file_deletions WHERE id = ?")
+                    .bind(item.id)
+                    .execute(pool)
+                    .await
+                    .map_err(|error| format!("ASSET_CLEANUP_ACK: {error}"))?;
+                cleaned_count += 1;
+            }
+            Err(error) => {
+                sqlx::query(
+                    "UPDATE pending_file_deletions SET attempt_count = attempt_count + 1, \
+                     last_error = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') \
+                     WHERE id = ?",
+                )
+                .bind(error_code(&error))
+                .bind(item.id)
+                .execute(pool)
+                .await
+                .map_err(|update_error| format!("ASSET_CLEANUP_RETRY: {update_error}"))?;
+            }
+        }
+    }
+    let pending_count: i64 = sqlx::query_scalar("SELECT count(*) FROM pending_file_deletions")
+        .fetch_one(pool)
+        .await
+        .map_err(|error| format!("ASSET_CLEANUP_COUNT: {error}"))?;
+    Ok(CleanupResult {
+        cleaned_count,
+        pending_count,
+    })
+}
+
+fn cleanup_temporary_imports(paths: &AssetPaths) -> Result<usize, String> {
+    if !paths.imports.exists() {
+        return Ok(0);
+    }
+    let mut cleaned = 0_usize;
+    for entry in fs::read_dir(&paths.imports)
+        .map_err(|error| format!("ASSET_TEMP_SCAN: {error}"))?
+        .filter_map(Result::ok)
+    {
+        let path = entry.path();
+        if path.extension().and_then(|extension| extension.to_str()) == Some("part") {
+            match fs::remove_file(path) {
+                Ok(()) => cleaned += 1,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(format!("ASSET_TEMP_CLEANUP: {error}")),
+            }
+        }
+    }
+    Ok(cleaned)
+}
+
+async fn mark_missing_assets(pool: &SqlitePool, paths: &AssetPaths) -> Result<usize, String> {
+    let assets = sqlx::query_as::<_, AssetRecord>(
+        "SELECT id, content_hash, kind, mime_type, display_name, size_bytes, storage_mode, \
+         relative_path, availability, library_state, retention_policy, created_at, updated_at \
+         FROM assets WHERE availability = 'ready' AND storage_mode = 'managed'",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|error| format!("ASSET_REPAIR_LIST: {error}"))?;
+    let mut marked = 0_usize;
+    for asset in assets {
+        let available = asset
+            .relative_path
+            .as_deref()
+            .and_then(|relative_path| paths.resolve_relative(relative_path).ok())
+            .is_some_and(|path| path.is_file());
+        if !available {
+            sqlx::query(
+                "UPDATE assets SET availability = 'missing', \
+                 updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+            )
+            .bind(&asset.id)
+            .execute(pool)
+            .await
+            .map_err(|error| format!("ASSET_REPAIR_MARK_MISSING: {error}"))?;
+            marked += 1;
+        }
+    }
+    Ok(marked)
+}
+
+async fn cleanup_orphan_objects(pool: &SqlitePool, paths: &AssetPaths) -> Result<usize, String> {
+    if !paths.objects.exists() {
+        return Ok(0);
+    }
+    let referenced: HashSet<String> =
+        sqlx::query_scalar("SELECT relative_path FROM assets WHERE relative_path IS NOT NULL")
+            .fetch_all(pool)
+            .await
+            .map_err(|error| format!("ASSET_REPAIR_REFERENCES: {error}"))?
+            .into_iter()
+            .collect();
+    let mut files = Vec::new();
+    collect_files(&paths.objects, &mut files)?;
+    let mut cleaned = 0_usize;
+    for path in files {
+        let relative_path = relative_path_string(&paths.root, &path)?;
+        if !referenced.contains(&relative_path) {
+            match fs::remove_file(path) {
+                Ok(()) => cleaned += 1,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(format!("ASSET_ORPHAN_CLEANUP: {error}")),
+            }
+        }
+    }
+    Ok(cleaned)
+}
+
+fn collect_files(directory: &Path, output: &mut Vec<PathBuf>) -> Result<(), String> {
+    for entry in fs::read_dir(directory).map_err(|error| format!("ASSET_OBJECT_SCAN: {error}"))? {
+        let entry = entry.map_err(|error| format!("ASSET_OBJECT_SCAN: {error}"))?;
+        let path = entry.path();
+        if path.is_dir() {
+            collect_files(&path, output)?;
+        } else if path.is_file() {
+            output.push(path);
+        }
+    }
+    Ok(())
+}
+
+fn relative_path_string(root: &Path, path: &Path) -> Result<String, String> {
+    let relative = path
+        .strip_prefix(root)
+        .map_err(|_| "ASSET_INVALID_RELATIVE_PATH".to_string())?;
+    Ok(relative
+        .components()
+        .filter_map(|component| match component {
+            Component::Normal(value) => Some(value.to_string_lossy()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("/"))
+}
+
+async fn storage_summary(
+    pool: &SqlitePool,
+    paths: &AssetPaths,
+) -> Result<AssetStorageSummary, String> {
+    let counts: (i64, i64, i64, i64, i64, i64) = sqlx::query_as(
+        "SELECT count(*), \
+         COALESCE(SUM(CASE WHEN availability = 'ready' THEN 1 ELSE 0 END), 0), \
+         COALESCE(SUM(CASE WHEN availability = 'missing' THEN 1 ELSE 0 END), 0), \
+         COALESCE(SUM(CASE WHEN availability = 'reclaimed' THEN 1 ELSE 0 END), 0), \
+         COALESCE(SUM(CASE WHEN availability = 'ready' THEN size_bytes ELSE 0 END), 0), \
+         COALESCE(SUM(CASE WHEN availability = 'ready' AND retention_policy = 'reclaimable' \
+           AND NOT EXISTS (SELECT 1 FROM asset_usages u WHERE u.asset_id = assets.id \
+             AND u.usage_policy = 'blocking') THEN size_bytes ELSE 0 END), 0) \
+         FROM assets",
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(|error| format!("ASSET_STORAGE_COUNTS: {error}"))?;
+    let cache_bytes: i64 =
+        sqlx::query_scalar("SELECT COALESCE(SUM(size_bytes), 0) FROM asset_variants")
+            .fetch_one(pool)
+            .await
+            .map_err(|error| format!("ASSET_STORAGE_CACHE: {error}"))?;
+    let pending_cleanup_count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM pending_file_deletions")
+            .fetch_one(pool)
+            .await
+            .map_err(|error| format!("ASSET_STORAGE_PENDING: {error}"))?;
+    let by_kind = sqlx::query_as::<_, AssetKindStorageSummary>(
+        "SELECT kind, count(*) AS asset_count, COALESCE(SUM(size_bytes), 0) AS size_bytes \
+         FROM assets WHERE availability = 'ready' GROUP BY kind ORDER BY kind",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|error| format!("ASSET_STORAGE_KINDS: {error}"))?;
+    Ok(AssetStorageSummary {
+        asset_count: counts.0,
+        ready_count: counts.1,
+        missing_count: counts.2,
+        reclaimed_count: counts.3,
+        original_bytes: counts.4,
+        reclaimable_bytes: counts.5,
+        cache_bytes,
+        temporary_bytes: directory_size(&paths.imports)?,
+        pending_cleanup_count,
+        by_kind,
+    })
+}
+
+fn directory_size(directory: &Path) -> Result<i64, String> {
+    if !directory.exists() {
+        return Ok(0);
+    }
+    let mut files = Vec::new();
+    collect_files(directory, &mut files)?;
+    files.into_iter().try_fold(0_i64, |total, path| {
+        let size = fs::metadata(path)
+            .map_err(|error| format!("ASSET_STORAGE_FILE: {error}"))?
+            .len() as i64;
+        total
+            .checked_add(size)
+            .ok_or_else(|| "ASSET_SIZE_OVERFLOW".to_string())
     })
 }
 
@@ -690,6 +1323,20 @@ fn validate_import_source(source: &AssetImportSource) -> Result<(), String> {
     Ok(())
 }
 
+fn validate_asset_ids(asset_ids: &[String]) -> Result<(), String> {
+    if asset_ids.is_empty() || asset_ids.len() > MAX_MUTATION_BATCH {
+        return Err("ASSET_INVALID_MUTATION_BATCH".into());
+    }
+    let mut unique = HashSet::with_capacity(asset_ids.len());
+    for asset_id in asset_ids {
+        validate_identifier("assetId", asset_id)?;
+        if !unique.insert(asset_id) {
+            return Err("ASSET_DUPLICATE_ID".into());
+        }
+    }
+    Ok(())
+}
+
 fn validate_source_reference(reference: &str) -> Result<(), String> {
     match FilePath::from_str(reference).map_err(|_| "ASSET_INVALID_SOURCE_REFERENCE")? {
         FilePath::Url(url) if matches!(url.scheme(), "content" | "file") => Ok(()),
@@ -874,6 +1521,7 @@ mod tests {
         );
         let paths = AssetPaths {
             root: PathBuf::from("asset-root"),
+            cache_root: PathBuf::from("cache-root"),
             database: PathBuf::new(),
             objects: PathBuf::new(),
             imports: PathBuf::new(),
@@ -909,6 +1557,7 @@ mod tests {
             "asset_variants",
             "assets",
             "import_jobs",
+            "pending_file_deletions",
         ] {
             assert!(tables.iter().any(|table| table == expected));
         }
@@ -921,6 +1570,7 @@ mod tests {
             database: root.join(ASSET_DB),
             objects: root.join("objects"),
             imports: root.join("tmp").join("imports"),
+            cache_root: root.join("cache"),
             root: root.clone(),
         };
         fs::create_dir_all(&paths.imports).unwrap();
@@ -995,6 +1645,159 @@ mod tests {
         assert_eq!(third_status, "restored");
         assert_eq!(third_asset.id, first_asset.id);
         assert_eq!(third_asset.availability, "ready");
+
+        sqlx::query("UPDATE assets SET retention_policy = 'pinned' WHERE id = ?")
+            .bind(&third_asset.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let pinned = analyze_delete(&pool, std::slice::from_ref(&third_asset.id))
+            .await
+            .unwrap();
+        assert!(!pinned.can_delete_all);
+        assert_eq!(pinned.items[0].blocked_reason.as_deref(), Some("pinned"));
+        sqlx::query("UPDATE assets SET retention_policy = 'reclaimable' WHERE id = ?")
+            .bind(&third_asset.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO asset_usages( \
+               asset_id, module_id, entity_type, entity_id, role, usage_policy, created_at \
+             ) VALUES (?, 'llm-chat', 'message', 'message-1', 'attachment', 'blocking', \
+               strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
+        )
+        .bind(&third_asset.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+        let blocked = analyze_delete(&pool, std::slice::from_ref(&third_asset.id))
+            .await
+            .unwrap();
+        assert!(!blocked.can_delete_all);
+        assert_eq!(
+            blocked.items[0].blocked_reason.as_deref(),
+            Some("blocking_usage")
+        );
+        sqlx::query("UPDATE asset_usages SET usage_policy = 'advisory' WHERE asset_id = ?")
+            .bind(&third_asset.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let analysis = analyze_delete(&pool, std::slice::from_ref(&third_asset.id))
+            .await
+            .unwrap();
+        assert!(analysis.can_delete_all);
+        assert!(analysis.requires_advisory_confirmation);
+        assert_eq!(analysis.items[0].advisory_usage_count, 1);
+        let confirmation_error =
+            delete_assets(&pool, &paths, std::slice::from_ref(&third_asset.id), false)
+                .await
+                .unwrap_err();
+        assert_eq!(confirmation_error, "ASSET_ADVISORY_CONFIRMATION_REQUIRED");
+        let reclaimed = delete_assets(&pool, &paths, std::slice::from_ref(&third_asset.id), true)
+            .await
+            .unwrap();
+        assert_eq!(reclaimed.reclaimed_count, 1);
+        assert_eq!(reclaimed.pending_cleanup_count, 0);
+        let tombstone = find_asset_by_id(&pool, &third_asset.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(tombstone.availability, "reclaimed");
+        assert!(tombstone.relative_path.is_none());
+
+        sqlx::query("DELETE FROM asset_usages WHERE asset_id = ?")
+            .bind(&third_asset.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let fourth_temp = paths.imports.join("fourth.part");
+        let (content_hash, size_bytes) =
+            copy_and_hash(Cursor::new(b"same-content"), &fourth_temp).unwrap();
+        let fourth = StagedObject {
+            temp_path: fourth_temp,
+            content_hash,
+            size_bytes,
+        };
+        let (_, restored_asset) = register_staged_object(&pool, &paths, &source, &fourth)
+            .await
+            .unwrap();
+        let restored_path = paths
+            .resolve_relative(restored_asset.relative_path.as_deref().unwrap())
+            .unwrap();
+        let deleted = delete_assets(
+            &pool,
+            &paths,
+            std::slice::from_ref(&restored_asset.id),
+            false,
+        )
+        .await
+        .unwrap();
+        assert_eq!(deleted.deleted_count, 1);
+        assert!(!restored_path.exists());
+        assert!(find_asset_by_id(&pool, &restored_asset.id)
+            .await
+            .unwrap()
+            .is_none());
+
+        pool.close().await;
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn repair_marks_missing_assets_and_cleans_temporary_and_orphan_files() {
+        let root = std::env::temp_dir().join(format!("aio-asset-test-{}", Uuid::new_v4()));
+        let paths = AssetPaths {
+            database: root.join(ASSET_DB),
+            objects: root.join("objects"),
+            imports: root.join("tmp").join("imports"),
+            cache_root: root.join("cache"),
+            root: root.clone(),
+        };
+        fs::create_dir_all(&paths.imports).unwrap();
+        fs::create_dir_all(paths.objects.join("ff")).unwrap();
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        ASSET_MIGRATOR.run(&pool).await.unwrap();
+        let source = AssetImportSource {
+            reference: root.join("missing.txt").to_string_lossy().into_owned(),
+            origin_kind: "file_picker".into(),
+            source_module: "asset-manager-test".into(),
+            original_name: Some("missing.txt".into()),
+            mime_type: Some("text/plain".into()),
+        };
+        let temporary = paths.imports.join("managed.part");
+        let (content_hash, size_bytes) =
+            copy_and_hash(Cursor::new(b"managed"), &temporary).unwrap();
+        let staged = StagedObject {
+            temp_path: temporary,
+            content_hash,
+            size_bytes,
+        };
+        let (_, asset) = register_staged_object(&pool, &paths, &source, &staged)
+            .await
+            .unwrap();
+        let managed_path = paths
+            .resolve_relative(asset.relative_path.as_deref().unwrap())
+            .unwrap();
+        fs::remove_file(managed_path).unwrap();
+        fs::write(paths.imports.join("abandoned.part"), b"partial").unwrap();
+        fs::write(paths.objects.join("ff").join("orphan.bin"), b"orphan").unwrap();
+
+        let report = repair_library(&pool, &paths).await.unwrap();
+        assert_eq!(report.cleaned_temporary_files, 1);
+        assert_eq!(report.cleaned_orphan_files, 1);
+        assert_eq!(report.marked_missing_assets, 1);
+        let repaired = find_asset_by_id(&pool, &asset.id).await.unwrap().unwrap();
+        assert_eq!(repaired.availability, "missing");
+        let summary = storage_summary(&pool, &paths).await.unwrap();
+        assert_eq!(summary.missing_count, 1);
+        assert_eq!(summary.ready_count, 0);
 
         pool.close().await;
         fs::remove_dir_all(root).unwrap();

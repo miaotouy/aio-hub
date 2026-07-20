@@ -2,11 +2,16 @@ import { invoke } from "@tauri-apps/api/core";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 import type {
+  AssetDeleteAnalysis,
+  AssetDeleteResult,
   AssetDetail,
   AssetImportResult,
   AssetImportSource,
   AssetListQuery,
   AssetRecord,
+  AssetRepairReport,
+  AssetRetentionPolicy,
+  AssetStorageSummary,
   AssetUsageInput,
 } from "../types";
 
@@ -76,6 +81,83 @@ export async function replaceEntityAssetUsages(
   } catch (error) {
     errorHandler.handle(error, {
       userMessage: "无法同步资产使用关系",
+      showToUser: false,
+    });
+    throw error;
+  }
+}
+
+export async function analyzeAssetDeletion(
+  assetIds: string[]
+): Promise<AssetDeleteAnalysis> {
+  try {
+    return await invoke<AssetDeleteAnalysis>("asset_analyze_delete", {
+      assetIds,
+    });
+  } catch (error) {
+    errorHandler.handle(error, {
+      userMessage: "无法分析资产删除影响",
+      showToUser: false,
+    });
+    throw error;
+  }
+}
+
+export async function setAssetRetentionPolicy(
+  assetIds: string[],
+  retentionPolicy: AssetRetentionPolicy
+): Promise<number> {
+  try {
+    const result = await invoke<{ updatedCount: number }>(
+      "asset_set_retention_policy",
+      { assetIds, retentionPolicy }
+    );
+    return result.updatedCount;
+  } catch (error) {
+    errorHandler.handle(error, {
+      userMessage: "无法更新资产保留策略",
+      showToUser: false,
+    });
+    throw error;
+  }
+}
+
+export async function deleteAssets(
+  assetIds: string[],
+  confirmAdvisory = false
+): Promise<AssetDeleteResult> {
+  try {
+    return await invoke<AssetDeleteResult>("asset_delete", {
+      assetIds,
+      confirmAdvisory,
+    });
+  } catch (error) {
+    errorHandler.handle(error, {
+      userMessage: "无法删除资产原件",
+      showToUser: false,
+    });
+    throw error;
+  }
+}
+
+export async function getAssetStorageSummary(): Promise<AssetStorageSummary> {
+  try {
+    return await invoke<AssetStorageSummary>("asset_get_storage_summary");
+  } catch (error) {
+    errorHandler.handle(error, {
+      userMessage: "无法读取资产存储统计",
+      showToUser: false,
+    });
+    throw error;
+  }
+}
+
+export async function repairAssetLibrary(): Promise<AssetRepairReport> {
+  try {
+    return await invoke<AssetRepairReport>("asset_repair_library");
+  } catch (error) {
+    errorHandler.handle(error, {
+      userMessage: "无法修复资产库",
       showToUser: false,
     });
     throw error;

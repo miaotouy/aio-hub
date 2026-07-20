@@ -202,7 +202,16 @@ export function useAssetLibrary() {
         },
       });
       const successCount = results.filter((result) => result.asset).length;
-      customMessage(`已导入 ${successCount} 项资产`, "success");
+      const failedCount = results.filter((result) => result.status === "failed").length;
+      if (successCount === 0 && failedCount > 0) {
+        throw new Error(results[0]?.errorCode ?? "ASSET_IMPORT_FAILED");
+      }
+      customMessage(
+        failedCount > 0
+          ? `已导入 ${successCount} 项，${failedCount} 项失败`
+          : `已导入 ${successCount} 项资产`,
+        failedCount > 0 ? "warning" : "success"
+      );
       await load();
     } catch (cause) {
       if (cause instanceof Error && cause.name === "AbortError") {

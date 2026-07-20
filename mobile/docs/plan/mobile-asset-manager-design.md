@@ -1,7 +1,7 @@
 # 移动端资产管理器调查与设计方案
 
 > 状态：施工中（Phase 2，Android 先行；iOS 因缺少编译与真机设备条件暂缓补验）
-> 日期：2026-07-15；2026-07-20 更新施工状态
+> 日期：2026-07-15；2026-07-21 更新施工状态
 > 范围：产品信息架构、移动端存储语义、数据模型与实施边界。本文件不包含功能实现。
 
 ## 1. 结论
@@ -36,7 +36,7 @@
 ### 2.2 移动端已有基础
 
 - 技术栈为 Tauri v2、Vue 3、TypeScript 与 Rust。
-- 已安装 `@tauri-apps/plugin-fs` 与 `@tauri-apps/plugin-dialog`；验证台已能读取 Android 系统选择器返回的 `content://`，应用数据目录仍只通过受控 capability 与 Rust 领域命令访问。
+- 已安装 `@tauri-apps/plugin-fs` 与 `@tauri-apps/plugin-dialog`；Android 系统选择器返回的 `content://` 已在正式资产导入/导出链验证。由于 `tauri-plugin-fs` 2.5.1 对测试 provider 使用 `openAssetFileDescriptor` 会失败，正式链由 Android `AssetContentPlugin` 调用 `ContentResolver.openFileDescriptor`，再交给 Rust 流式处理；应用数据目录仍只通过受控 capability 与 Rust 领域命令访问。
 - 通用 `mobile/src/utils/fsUtils.ts` 仍只封装应用数据目录下的文本文件与目录操作；Phase 1 已新增独立 Rust 二进制资产服务，不把二进制职责塞回通用工具。
 - Rust 已引入 SQLx 与 bundled SQLite 验证依赖，`ui-tester` 已具备平台文件和 SQLite 固定验证板块；相册专用入口、相机和分享插件仍未接入。
 - `llm-chat` 的 `_attachments` 仍为 `any[]` 占位，架构文档已把完整 Asset 系统列为待办。
@@ -64,6 +64,8 @@ Android 10 及以上以分区存储为默认边界。应用可以无额外存储
 
 - 数据库不得把 Android `content://` 当作普通绝对路径。
 - 分享入口和普通文件选择器得到的 URI 应先进入暂存导入流程，再变成托管资产。
+- `content://` 的正式读写不能假定 plugin-fs 对所有 provider 兼容。当前 Android bridge 只为导入/导出打开 provider 文件描述符，并在同一 bridge 查询 MIME 与展示名；URI 本身不写入资产对象路径。
+- Photo Picker 某些 provider 返回无语义的数字展示名（可能带 MIME 扩展名，例如 `1000000179.png`）；导入链在 `photo_picker` 来源下以 MIME 生成稳定格式的 `photo-<随机后缀>.<扩展名>` 或 `video-<随机后缀>.<扩展名>`，不改写正常文件名。
 - 如果后续支持外部长期引用，需要原生插件调用 `takePersistableUriPermission`，并处理权限被撤销、文档被移动、云端内容暂不可用等状态。
 - 不应为了“浏览所有照片”默认申请全量媒体读取权限。Android 13/14 的媒体权限与部分照片授权会让该方案更复杂，也不符合首版最小权限目标。
 
@@ -488,8 +490,8 @@ interface ManagedAssetRef {
 - [x] 建立隐藏/恢复、月份与来源筛选聚合、可重建缓存定向/全库清理契约。
 - [x] 扩展共享 wire 类型与移动端原生 LLM 传输，使 `managed-asset-ref` 只携带 `assetId` 并由 Rust 内部解析。
 - [x] 建立短期 token、可撤销自定义协议、单 Range 读取和大原件响应上限的受控预览候选实现。
-- [ ] 在 Android 真机验证 Rust command 直读 `content://` 的正式导入路径并回写报告。
-- [ ] 完成 Android 真机受控预览验收并回写报告。
+- [x] 在 Android 模拟器 `emulator-5558` 验证 Rust command 通过原生 bridge 直读 Photo Picker `content://` 的正式导入路径并回写报告。
+- [x] 完成 Android 图片受控预览验收并回写报告；视频/音频、Range/CORS 与撤销行为仍待专门场景验证。
 - [ ] 先完成 [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md) 阶段一至三，再接入聊天附件、usage outbox 与 reclaimed 降级；不在现有 JSON 会话和 `any[]` 附件上增加过渡持久化。
 
 ### Phase 2：资产页
@@ -623,7 +625,15 @@ interface ManagedAssetRef {
 
 - 导入入口拆分为文件选择器和照片/视频 media picker；照片来源以 `photo_picker` 写入 origin，仍沿用同一持久化 import job 和去重流程。
 - 新增 `asset_export` command。Rust 复核资产为 managed/ready 且对象存在后，通过 plugin-fs 将原件流式复制到系统 save picker 返回的 `content://` 或 `file://` 目标；不返回对象路径、不把大文件读入 WebView。
-- 保存链路已覆盖 Rust stream helper、目标引用校验、服务层 invoke 契约和页面详情入口。系统分享仍因缺少原生插件契约保留为未完成项；相机、Android 真机 picker/export 验收和 iOS 继续跳过。
+- 保存链路已覆盖 Rust stream helper、目标引用校验、服务层 invoke 契约和页面详情入口。Android `content://` save-picker 目标通过原生 bridge 的 `openFileDescriptor(..., "wt")` 流式写入；在 `emulator-5558` 验证导出文件大小与 SHA-256 与托管原件一致。系统分享仍因缺少原生插件契约保留为未完成项；相机、视频/音频预览、Range/CORS/撤销专项和 iOS 继续跳过。
+
+### 2026-07-21：Phase 2 第四批 Android URI 兼容性与验收
+
+- 发现 `tauri-plugin-fs` 2.5.1 对 Android DocumentsUI/Photo Picker 的 `content://` 引用使用 `openAssetFileDescriptor`，在测试 provider 上逐项返回 `ASSET_SOURCE_OPEN`；此前任务状态仍可能显示 `completed`，造成“已导入 0 项资产”的误导。
+- 新增 `AssetContentPlugin.kt` 与 Rust `android_content` bridge：通过 `ContentResolver.openFileDescriptor` 流式打开导入源和 save-picker 目标，并查询 `OpenableColumns.DISPLAY_NAME` 与 MIME；仅在 Android `content://` 路径启用，其他平台继续走既有 plugin-fs/file URI 路径。
+- 导入结果全项失败时前端抛出错误，部分失败显示失败数与逐项错误码；Photo Picker 数字展示名（含扩展名）使用 MIME 生成 `photo-<8hex>.<ext>`/`video-<8hex>.<ext>` 回退名。
+- `emulator-5558`（720x1280，约 360dp）实测：Photo Picker 导入 1 项成功，SQLite 记录 `image/png`、`kind=image`、`availability=ready` 和 `photo-b86e7a61.png`；详情图片受控预览实际渲染；保存到 `/sdcard/Download/photo-b86e7a61.png` 为 60,662 字节，SHA-256 与托管对象一致。
+- 本批通过移动端 72 个前端测试、22 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android 四 ABI debug APK/AAB 构建。iOS 因缺少编译与真机设备条件继续跳过；Android 视频/音频预览、Range/CORS/撤销以及系统分享/相机仍未完成。
 
 ## 16. 调查来源
 

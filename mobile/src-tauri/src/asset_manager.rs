@@ -9,7 +9,7 @@ use sqlx::{
 use std::{
     collections::{HashMap, HashSet},
     fs::{self, OpenOptions as StdOpenOptions},
-    io::{Read, SeekFrom, Write},
+    io::{self, Read, SeekFrom, Write},
     path::{Component, Path, PathBuf},
     str::FromStr,
     sync::{
@@ -34,6 +34,9 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio::sync::{Mutex, OnceCell};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
+
+#[cfg(target_os = "android")]
+use crate::android_content;
 
 static ASSET_MIGRATOR: Migrator = sqlx::migrate!("./migrations/asset-manager");
 
@@ -519,6 +522,7 @@ pub async fn asset_import_sources(
     let mut output = Vec::with_capacity(sources.len());
 
     for (source_index, source) in sources.into_iter().enumerate() {
+        let source = enrich_import_source(&app, source);
         let result = match validate_import_source(&source) {
             Ok(()) => import_one(&app, &pool, &paths, source).await,
             Err(error) => Err(error),
@@ -851,11 +855,7 @@ pub async fn asset_export(
         let result = (|| {
             let input = fs::File::open(&managed.path)
                 .map_err(|error| format!("ASSET_EXPORT_SOURCE_OPEN: {error}"))?;
-            let mut options = PluginOpenOptions::new();
-            options.read(false).write(true).create(true).truncate(true);
-            let output = export_app
-                .fs()
-                .open(destination.clone(), options)
+            let output = open_export_destination(&export_app, destination.clone())
                 .map_err(|error| format!("ASSET_EXPORT_DESTINATION_OPEN: {error}"))?;
             copy_asset_to_writer(input, output)
         })();
@@ -895,6 +895,18 @@ fn validate_export_destination(destination: &str) -> Result<FilePath, String> {
         FilePath::Path(path) if path.is_absolute() => Ok(file_path),
         _ => Err("ASSET_INVALID_EXPORT_DESTINATION".into()),
     }
+}
+
+fn open_export_destination(app: &AppHandle, destination: FilePath) -> io::Result<fs::File> {
+    #[cfg(target_os = "android")]
+    if let FilePath::Url(url) = &destination {
+        if url.scheme() == "content" {
+            return android_content::open(app, url.as_str(), "wt");
+        }
+    }
+    let mut options = PluginOpenOptions::new();
+    options.read(false).write(true).create(true).truncate(true);
+    app.fs().open(destination, options)
 }
 
 fn preview_protocol_url(preview_id: &str) -> String {
@@ -2156,6 +2168,7 @@ async fn run_import_job(execution: ImportJobExecution) -> Result<(), String> {
     publish_import_progress(&pool, &job_id, &on_event).await?;
 
     for (source_index, source) in sources.into_iter().enumerate() {
+        let source = enrich_import_source(&app, source);
         if cancellation.is_cancelled() {
             results.extend(cancelled_import_results(source_index, source_count));
             finish_import_job(&pool, &job_id, "cancelled", source_index, &results).await?;
@@ -2254,6 +2267,56 @@ async fn import_one(
     result
 }
 
+fn enrich_import_source(app: &AppHandle, mut source: AssetImportSource) -> AssetImportSource {
+    #[cfg(not(target_os = "android"))]
+    let _ = app;
+    #[cfg(target_os = "android")]
+    if let Ok(FilePath::Url(url)) = FilePath::from_str(&source.reference) {
+        if url.scheme() == "content" {
+            if let Ok(metadata) = android_content::metadata(app, url.as_str()) {
+                if metadata.display_name.is_some() {
+                    source.original_name = metadata.display_name;
+                }
+                if metadata.mime_type.is_some() {
+                    source.mime_type = metadata.mime_type;
+                }
+            }
+        }
+    }
+    apply_picker_name_fallback(&mut source);
+    source
+}
+
+fn apply_picker_name_fallback(source: &mut AssetImportSource) {
+    if source.origin_kind != "photo_picker" {
+        return;
+    }
+    let needs_fallback = source.original_name.as_deref().is_none_or(|name| {
+        let trimmed = name.trim();
+        let stem = Path::new(trimmed)
+            .file_stem()
+            .and_then(|value| value.to_str())
+            .unwrap_or(trimmed);
+        trimmed.is_empty() || (!stem.is_empty() && stem.chars().all(|char| char.is_ascii_digit()))
+    });
+    if !needs_fallback {
+        return;
+    }
+    let Some(mime_type) = source.mime_type.as_deref() else {
+        return;
+    };
+    let Some(extension) = extension_for_object("", mime_type) else {
+        return;
+    };
+    let prefix = if mime_type.starts_with("video/") {
+        "video"
+    } else {
+        "photo"
+    };
+    let suffix = Uuid::new_v4().simple().to_string();
+    source.original_name = Some(format!("{prefix}-{}.{}", &suffix[..8], extension));
+}
+
 async fn stage_source(
     app: AppHandle,
     reference: String,
@@ -2263,9 +2326,7 @@ async fn stage_source(
         let file_path = FilePath::from_str(&reference)
             .map_err(|_| "ASSET_INVALID_SOURCE_REFERENCE".to_string())?;
         let result = (|| {
-            let input = app
-                .fs()
-                .open(file_path.clone(), Default::default())
+            let input = open_import_reference(&app, &file_path)
                 .map_err(|error| format!("ASSET_SOURCE_OPEN: {error}"))?;
             copy_and_hash(input, &temp_path)
         })();
@@ -2284,6 +2345,16 @@ async fn stage_source(
     })
     .await
     .map_err(|error| format!("ASSET_IMPORT_TASK: {error}"))?
+}
+
+fn open_import_reference(app: &AppHandle, file_path: &FilePath) -> io::Result<fs::File> {
+    #[cfg(target_os = "android")]
+    if let FilePath::Url(url) = file_path {
+        if url.scheme() == "content" {
+            return android_content::open(app, url.as_str(), "r");
+        }
+    }
+    app.fs().open(file_path.clone(), Default::default())
 }
 
 async fn stage_source_for_job(execution: ImportStageExecution) -> Result<StagedObject, String> {
@@ -2306,9 +2377,7 @@ async fn stage_source_for_job(execution: ImportStageExecution) -> Result<StagedO
         let file_path = FilePath::from_str(&reference)
             .map_err(|_| "ASSET_INVALID_SOURCE_REFERENCE".to_string())?;
         let result = (|| {
-            let input = app
-                .fs()
-                .open(file_path.clone(), Default::default())
+            let input = open_import_reference(&app, &file_path)
                 .map_err(|error| format!("ASSET_SOURCE_OPEN: {error}"))?;
             copy_and_hash_controlled(
                 input,
@@ -2924,6 +2993,28 @@ mod tests {
         .is_ok());
         assert!(validate_export_destination("https://example.com/export.bin").is_err());
         assert!(validate_export_destination("relative/export.bin").is_err());
+    }
+
+    #[test]
+    fn photo_picker_opaque_names_get_a_mime_based_fallback() {
+        let mut source = AssetImportSource {
+            reference: "content://picker/photo/1".into(),
+            origin_kind: "photo_picker".into(),
+            source_module: "asset-manager".into(),
+            original_name: Some("1000000167.png".into()),
+            mime_type: Some("image/png".into()),
+        };
+        apply_picker_name_fallback(&mut source);
+        let name = source.original_name.as_deref().unwrap();
+        assert!(name.starts_with("photo-"));
+        assert!(name.ends_with(".png"));
+
+        let mut named = AssetImportSource {
+            original_name: Some("camera-shot.jpg".into()),
+            ..source
+        };
+        apply_picker_name_fallback(&mut named);
+        assert_eq!(named.original_name.as_deref(), Some("camera-shot.jpg"));
     }
 
     #[test]

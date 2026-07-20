@@ -19,7 +19,21 @@ function stateLabel(job: AssetImportJob) {
     failed: "失败",
     cancelled: "已取消",
   };
+  const failedCount = job.results.filter((result) => result.status === "failed").length;
+  if (job.state === "completed" && failedCount > 0) {
+    return `完成，${failedCount} 项失败`;
+  }
   return labels[job.state];
+}
+
+function visualState(job: AssetImportJob) {
+  return job.state === "completed" && job.results.some((result) => result.status === "failed")
+    ? "failed"
+    : job.state;
+}
+
+function itemErrorCodes(job: AssetImportJob) {
+  return [...new Set(job.results.map((result) => result.errorCode).filter(Boolean))].join(" · ");
 }
 
 function progress(job: AssetImportJob) {
@@ -43,7 +57,7 @@ function progress(job: AssetImportJob) {
         <article v-for="job in orderedJobs" :key="job.id" class="job-row">
           <div class="job-header">
             <strong>{{ job.sourceKind === "unknown" ? "文件" : job.sourceKind }}</strong>
-            <span :data-state="job.state">
+            <span :data-state="visualState(job)">
               <LoaderCircle v-if="job.state === 'running'" class="spin" :size="14" />
               {{ stateLabel(job) }}
             </span>
@@ -57,6 +71,7 @@ function progress(job: AssetImportJob) {
             <span :style="{ width: `${progress(job) ?? 14}%` }" />
           </div>
           <p v-if="job.errorCode" class="job-error">{{ job.errorCode }}</p>
+          <p v-else-if="itemErrorCodes(job)" class="job-error">{{ itemErrorCodes(job) }}</p>
           <button v-if="job.state === 'running' || job.state === 'pending'" class="cancel-button" type="button" @click="emit('cancel', job.id)">
             取消任务
           </button>

@@ -1,12 +1,12 @@
 # 移动端资产管理器架构
 
-> 状态：Phase 2 施工中。资产内核、跨工具服务和首版资产/存储页面已注册；平台真机验收与消费者接入仍未完成。
+> 状态：Phase 2 施工中。资产内核、跨工具服务和首版资产/存储页面已注册；Android 图片导入/预览/导出已在模拟器验收，平台专项能力与消费者接入仍未完成。
 
 ## 1. 边界
 
 - 全局资产由 `asset-manager` 管理；智能体私有资产继续归 `agent-manager`。
 - 消费者持久化 `assetId + 轻量快照`，不持久化系统 URI、绝对路径或资产库相对路径。
-- 系统选择器引用只进入资产导入命令。新调用方使用 import job；`asset_import_sources` 仅保留为兼容入口。Rust 使用 plugin-fs 打开引用，并在应用私有目录内完成暂存、哈希、去重和原子落盘。
+- 系统选择器引用只进入资产导入命令。新调用方使用 import job；`asset_import_sources` 仅保留为兼容入口。Rust 在桌面及普通 file URI 上使用 plugin-fs；Android `content://` 由 `AssetContentPlugin` 通过 `ContentResolver.openFileDescriptor` 提供文件描述符，再在应用私有目录内完成暂存、哈希、去重和原子落盘。
 - 前端服务只负责领域命令调用。数据库、对象路径、事务和来源 locator 不暴露给 WebView。
 
 ## 2. 存储
@@ -66,7 +66,9 @@ AppData/assets/
 
 ## 7. 平台状态
 
-- Android 已有 `content://` 读取与 SQLite 真机报告。正式 Rust 导入命令仍需在 `ui-tester` 补固定场景。
+- Android `emulator-5558` 已验证 Photo Picker `content://` 经原生 bridge 正式导入：1 项成功写入托管库，MIME 为 `image/png`、类型为 `image`、状态为 `ready`；数字 provider 展示名已回退为 MIME 格式的 `photo-<8hex>.png`。同一 bridge 也验证 save-picker `content://` 导出，导出文件与托管对象字节数和 SHA-256 一致。
+- `tauri-plugin-fs` 2.5.1 在测试 provider 上的 `openAssetFileDescriptor` 不兼容是已知边界；不得把该 plugin-fs 路径作为 Android `content://` 正式链的唯一实现。bridge 仅在 Android content URI 分支启用，避免改变桌面与 iOS 路径。
+- Android 图片 `<img>` 受控预览已在实际 WebView 渲染；视频/音频、Range/CORS、token 撤销和系统分享/相机仍需专门场景。
 - iOS 因当前缺少编译与真机设备条件暂缓补验。security-scoped URL 的关闭时机、备份排除和预览协议在设备条件具备前不得冻结。
 
 ## 8. 查询与库状态
@@ -97,11 +99,11 @@ AppData/assets/
 - 存储视图展示原件、可回收量、缓存、临时文件和类型占用，并提供全库可重建缓存清理与资产库修复入口。
 - 详情面板只展示脱敏来源和 usage 摘要。媒体预览按需申请短期 descriptor，关闭详情或卸载页面时主动撤销，不持久化预览 URL。
 - 文件导入通过系统文件选择器或移动端 media picker 获得引用后交给 import job；WebView 不读取原件字节。页面可恢复最近任务、显示累计进度与中断错误码，并取消 pending/running 任务。
-- 详情页的“保存到文件”使用系统 save picker，目标引用直接传给 `asset_export`；Rust 通过 plugin-fs 打开 `content://`/`file://` 目标并流式复制 managed 原件，内部对象路径不返回 WebView。
+- 详情页的“保存到文件”使用系统 save picker，目标引用直接传给 `asset_export`；Rust 对 Android `content://` 目标通过 `AssetContentPlugin` 的 `openFileDescriptor(..., "wt")` 打开，其他目标按平台使用 plugin-fs，并流式复制 managed 原件，内部对象路径不返回 WebView。
 
 ## 12. 后续施工
 
-- Android 真机验证受控预览协议并回写报告。
+- Android 补视频/音频、Range/CORS 与撤销行为的受控预览场景并回写报告。
 - 补系统分享插件（当前依赖未提供原生 share contract）、相机和批量转写/文本提取后的原件清理流程。
 - 完成聊天 SQLite migration 阶段一至三后，再接入聊天附件与 usage outbox。
 - iOS 因缺少编译与真机设备条件继续跳过，不声明平台能力通过。

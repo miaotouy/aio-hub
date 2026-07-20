@@ -193,3 +193,30 @@ describe("persisted import jobs", () => {
     expect(library.activeImportJobId.value).toBeNull();
   });
 });
+
+describe("import result feedback", () => {
+  it("rejects a batch when every selected source failed", async () => {
+    service.importAssetSources.mockResolvedValue([
+      {
+        sourceIndex: 0,
+        status: "failed",
+        errorCode: "ASSET_SOURCE_OPEN",
+      },
+    ]);
+    const library = useAssetLibrary();
+
+    await expect(
+      library.importSources([
+        {
+          reference: "content://picker/item/1",
+          originKind: "photo_picker",
+          sourceModule: "asset-manager",
+        },
+      ])
+    ).rejects.toThrow("ASSET_SOURCE_OPEN");
+    expect(feedback.customMessage).not.toHaveBeenCalledWith(
+      expect.stringContaining("已导入 0 项"),
+      "success"
+    );
+  });
+});

@@ -71,7 +71,7 @@ AppData/assets/
 
 - Android `emulator-5558` 已验证 Photo Picker `content://` 经原生 bridge 正式导入：1 项成功写入托管库，MIME 为 `image/png`、类型为 `image`、状态为 `ready`；数字 provider 展示名已回退为 MIME 格式的 `photo-<8hex>.png`。同一 bridge 也验证 save-picker `content://` 导出，导出文件与托管对象字节数和 SHA-256 一致。
 - `tauri-plugin-fs` 2.5.1 在测试 provider 上的 `openAssetFileDescriptor` 不兼容是已知边界；不得把该 plugin-fs 路径作为 Android `content://` 正式链的唯一实现。bridge 仅在 Android content URI 分支启用，避免改变桌面与 iOS 路径。
-- Android 图片 `<img>` 受控预览已在实际 WebView 渲染；系统分享已在 chooser 中验证图片预览和只读 cache 副本；相机 bridge 已实现但当前模拟器没有 `IMAGE_CAPTURE` Activity，视频/音频、Range/CORS 和 token 撤销仍需专门场景。
+- Android 图片 `<img>`、视频 `<video>` 和音频 `<audio>` 受控预览已在实际 WebView 渲染并播放；系统分享已在 chooser 中验证图片预览和只读 cache 副本；相机 bridge 已实现但当前模拟器没有 `IMAGE_CAPTURE` Activity，Range/CORS 和 token 撤销仍需专门场景。
 - iOS 因当前缺少编译与真机设备条件暂缓补验。security-scoped URL 的关闭时机、备份排除和预览协议在设备条件具备前不得冻结。
 
 ## 8. 查询与库状态
@@ -108,7 +108,7 @@ AppData/assets/
 
 ## 12. 后续施工
 
-- Android 补视频/音频、Range/CORS 与撤销行为的受控预览场景并回写报告。
+- Android 补 Range/CORS 与 token 过期/撤销行为的受控预览场景并回写报告。
 - 补 Android 相机设备验收、iOS/跨平台分享插件和批量转写/文本提取后的原件清理流程。
 - 完成聊天 SQLite migration 阶段一至三后，再接入聊天附件与 usage outbox。
 - iOS 因缺少编译与真机设备条件继续跳过，不声明平台能力通过。

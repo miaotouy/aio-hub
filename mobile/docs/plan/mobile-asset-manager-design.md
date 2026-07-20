@@ -491,7 +491,7 @@ interface ManagedAssetRef {
 - [x] 扩展共享 wire 类型与移动端原生 LLM 传输，使 `managed-asset-ref` 只携带 `assetId` 并由 Rust 内部解析。
 - [x] 建立短期 token、可撤销自定义协议、单 Range 读取和大原件响应上限的受控预览候选实现。
 - [x] 在 Android 模拟器 `emulator-5558` 验证 Rust command 通过原生 bridge 直读 Photo Picker `content://` 的正式导入路径并回写报告。
-- [x] 完成 Android 图片受控预览验收并回写报告；视频/音频、Range/CORS 与撤销行为仍待专门场景验证。
+- [x] 完成 Android 图片、视频和音频受控预览验收并回写报告；Range/CORS 与 token 撤销行为仍待专门场景验证。
 - [ ] 先完成 [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md) 阶段一至三，再接入聊天附件、usage outbox 与 reclaimed 降级；不在现有 JSON 会话和 `any[]` 附件上增加过渡持久化。
 
 ### Phase 2：资产页
@@ -649,6 +649,12 @@ interface ManagedAssetRef {
 - `AssetContentPlugin` 使用 `ACTION_IMAGE_CAPTURE`、`FileProvider` 和 cache/captures 临时目录；取消会返回空结果并删除临时文件，拍摄结果延迟清理，启动恢复与资产库修复清除遗留 captures。
 - `emulator-5558` 的 `cmd package resolve-activity -a android.media.action.IMAGE_CAPTURE` 返回 `No activity found`，因此本轮只能验收“无相机时错误提示且不留临时文件”，不能宣称实际拍摄导入通过；需要带相机 Activity 的 Android 设备补验。
 - 本批代码通过移动端 74 个前端测试、23 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android 四 ABI debug APK/AAB 构建。iOS 继续因缺少编译与真机设备条件跳过。
+
+### 2026-07-21：Phase 2 第七批 Android 音视频预览验收
+
+- 使用系统文件选择器导入短测试 `mp4` 与 `mp3`，复用正式 Rust `content://` bridge 和持久化 import job；SQLite 分别记录 `video/mp4`/`kind=video` 与 `audio/mpeg`/`kind=audio`，状态均为 `ready`。
+- `emulator-5558` 实测视频详情的 `<video controls playsinline>` 显示 2 秒蓝色画面并能播放；音频详情的 `<audio controls>` 播放进度从 `0:00` 到 `0:01/0:02`。关闭详情再打开时回到“打开临时预览”按钮，预览 descriptor 已撤销并重新签发。
+- 本批未改变代码，仅回写 Android 运行报告；Range/CORS、token 过期/主动撤销的协议级专项和 iOS 继续保留门禁。
 
 ## 16. 调查来源
 

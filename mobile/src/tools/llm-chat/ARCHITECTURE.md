@@ -428,7 +428,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - [x] 按移动端资产设计引入 `ManagedAssetRef + 轻量快照`
 - [x] 接入 `chat_attachments`、usage outbox 和消息/分支/会话删除释放流程
 - [x] 接入 `managed-asset-ref` 原生发送与 `reclaimed`/`missing` 降级展示
-- [ ] 图片预览（`ImageViewer`）
+- [x] 图片受控预览（短期 descriptor、Teleport 全屏层和关闭/卸载主动撤销）
 
 ### 🔄 智能体支持
 

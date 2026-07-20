@@ -404,6 +404,7 @@ END;
 - 应用启动、聊天提交和资产服务恢复时触发投递；失败事件独立重试，永久错误不能阻塞后续无关实体。
 - 已完成第二批：聊天输入区资产选择器只读取 ready 资产；图片、音频、视频和文档转换为 opaque `managed-asset-ref`，OpenAI-compatible/Gemini/Anthropic wire builder 与移动端 Rust native transport 均有固定测试。
 - 已完成第三批：消息附件按 5 秒 TTL 查询资产详情并区分 reclaimed、missing、missing_record 与其他错误；历史上下文剔除不可用附件但保留文本，当前草稿附件在创建消息前阻断并保留草稿。
+- 已完成第四批：ready 图片附件按需申请资产服务短期预览 descriptor，通过 Teleport 全屏层展示；关闭、消息切换、路由卸载和异步竞态均主动撤销或回收 token。
 - 待完成：真实上游模型发送验收；当前 emulator 未配置模型，不能在不添加密钥的情况下宣称通过。
 - 已用 Rust 回归覆盖“资产命令已成功但 delivered 未标记”、重复投递、附件替换、分支删除、会话删除、五次失败进入 dead-letter、显式重试和无关实体继续投递。
 

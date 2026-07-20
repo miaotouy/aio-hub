@@ -693,6 +693,12 @@ interface ManagedAssetRef {
 - 发送前强制复核当前草稿附件，原件不可用时不创建用户消息并保留输入草稿；历史上下文只跳过不可用附件、保留文本，并对一次请求合并提示。
 - 本批通过移动端 96 个前端测试、32 个 Rust 测试、Clippy、前端类型检查和 Vite 生产构建；Rust 已覆盖 outbox 重投/替换/删除/dead-letter 故障矩阵，Android `emulator-5558` 重载真实聊天路由显示 reclaimed 附件状态且正文保留。设备未配置模型，真实上游模型发送和 iOS 继续作为下一批门禁跳过。
 
+### 2026-07-21：聊天消费者前置迁移阶段三第四批
+
+- ready 图片附件增加受控预览入口，继续复用资产服务短期 descriptor；聊天库和消息节点不保存预览 URL，也不把原件读取到 JS 内存。
+- 预览层 Teleport 到 `body` 并按动态视口与安全区约束竖图；关闭、消息切换、组件卸载及请求完成晚于卸载的竞态都会撤销 token。
+- Android `emulator-5558` 真实 WebView 验证 720×1280 图片完整加载并在 360×640 视口内适配；关闭预览后旧 URL 返回 404。移动端 96 个前端测试、类型检查、Vite 生产构建和 Android x86_64 debug APK 构建通过；iOS 继续因缺少编译/设备条件跳过。
+
 ## 16. 调查来源
 
 - [Tauri v2 File System Plugin](https://v2.tauri.app/plugin/file-system/)

@@ -24,7 +24,12 @@ const feedback = vi.hoisted(() => ({
   customMessage: vi.fn(),
 }));
 
+const textReplacement = vi.hoisted(() => ({
+  replaceAssetsWithExtractedText: vi.fn(),
+}));
+
 vi.mock("../../services/assetService", () => service);
+vi.mock("../../services/assetTextReplacementService", () => textReplacement);
 vi.mock("@/utils/feedback", () => feedback);
 
 import {
@@ -158,6 +163,55 @@ describe("asset selection actions", () => {
     await library.removeSelected();
 
     expect(service.deleteAssets).not.toHaveBeenCalled();
+  });
+
+  it("confirms text replacement and reports partial batch results", async () => {
+    const library = useAssetLibrary();
+    library.assets.value = [
+      {
+        id: "asset-a",
+        kind: "document",
+        availability: "ready",
+      },
+      {
+        id: "asset-image",
+        kind: "image",
+        availability: "ready",
+      },
+    ] as never;
+    library.selectedIds.value = ["asset-a", "asset-image"];
+    feedback.customDialog.mockResolvedValueOnce(true);
+    textReplacement.replaceAssetsWithExtractedText.mockResolvedValueOnce({
+      completedCount: 1,
+      failedCount: 1,
+      items: [
+        { assetId: "asset-a", status: "completed" },
+        { assetId: "asset-b", status: "failed" },
+      ],
+    });
+
+    await library.replaceWithExtractedText(["asset-a", "asset-b"]);
+
+    expect(feedback.customDialog).toHaveBeenCalledWith(
+      expect.objectContaining({ confirmButtonText: "开始处理" })
+    );
+    expect(textReplacement.replaceAssetsWithExtractedText).toHaveBeenCalledWith(
+      ["asset-a", "asset-b"]
+    );
+    expect(feedback.customMessage).toHaveBeenCalledWith(
+      "已完成 1 项，1 项保留原件",
+      "warning"
+    );
+    expect(library.replacingText.value).toBe(false);
+  });
+
+  it("does not start text replacement after confirmation is cancelled", async () => {
+    const library = useAssetLibrary();
+    feedback.customDialog.mockResolvedValueOnce(false);
+
+    await library.replaceWithExtractedText(["asset-a"]);
+
+    expect(textReplacement.replaceAssetsWithExtractedText).not.toHaveBeenCalled();
   });
 });
 

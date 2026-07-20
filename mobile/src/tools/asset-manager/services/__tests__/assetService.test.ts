@@ -27,6 +27,7 @@ vi.mock("@/utils/errorHandler", () => ({
 import {
   clearRebuildableAssetCache,
   capturePhoto,
+  extractAssetText,
   exportAsset,
   shareAsset,
   getAssetLibraryFacets,
@@ -137,6 +138,25 @@ describe("asset import jobs", () => {
 });
 
 describe("asset library management", () => {
+  it("extracts text through the native asset command", async () => {
+    invokeMock.mockResolvedValueOnce({
+      assetId: "asset-text",
+      text: "# Notes",
+      mimeType: "text/plain",
+      bytesRead: 7,
+    });
+
+    await expect(extractAssetText("asset-text")).resolves.toEqual({
+      assetId: "asset-text",
+      text: "# Notes",
+      mimeType: "text/plain",
+      bytesRead: 7,
+    });
+    expect(invokeMock).toHaveBeenCalledWith("asset_extract_text", {
+      assetId: "asset-text",
+    });
+  });
+
   it("updates library state with the exact selected asset ids", async () => {
     invokeMock.mockResolvedValueOnce({ updatedCount: 2 });
 

@@ -20,6 +20,7 @@ import type {
   AssetRetentionPolicy,
   AssetStorageSummary,
   AssetShareResult,
+  AssetTextExtraction,
   AssetUsageInput,
 } from "../types";
 
@@ -198,6 +199,20 @@ export async function revokeAssetPreviewSource(
   } catch (error) {
     errorHandler.handle(error, {
       userMessage: "无法关闭资产预览",
+      showToUser: false,
+    });
+    throw error;
+  }
+}
+
+export async function extractAssetText(
+  assetId: string
+): Promise<AssetTextExtraction> {
+  try {
+    return await invoke<AssetTextExtraction>("asset_extract_text", { assetId });
+  } catch (error) {
+    errorHandler.handle(error, {
+      userMessage: "无法提取资产文本",
       showToUser: false,
     });
     throw error;

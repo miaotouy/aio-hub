@@ -16,6 +16,7 @@ import {
   listChatSessions,
   loadChatSession,
   persistChatChanges,
+  replaceChatAssetWithText,
   searchChatMessages,
   drainAssetUsageOutbox,
   retryAssetUsageOutbox,
@@ -87,6 +88,26 @@ describe("chat storage command client", () => {
     });
     expect(invokeMock).toHaveBeenNthCalledWith(3, "search_chat_messages", {
       query: { query: "hello", limit: 5 },
+    });
+  });
+
+  it("persists extracted asset text through a chat domain command", async () => {
+    invokeMock.mockResolvedValueOnce({
+      updatedAttachments: 2,
+      affectedMessages: 2,
+      outboxEvents: 2,
+    });
+
+    await expect(
+      replaceChatAssetWithText("asset-text", "extracted text")
+    ).resolves.toEqual({
+      updatedAttachments: 2,
+      affectedMessages: 2,
+      outboxEvents: 2,
+    });
+    expect(invokeMock).toHaveBeenCalledWith("replace_chat_asset_with_text", {
+      assetId: "asset-text",
+      extractedText: "extracted text",
     });
   });
 

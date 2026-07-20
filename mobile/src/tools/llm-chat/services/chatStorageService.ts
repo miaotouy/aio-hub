@@ -140,6 +140,12 @@ export interface DrainAssetUsageOutboxResult {
   deadLettered: number;
 }
 
+export interface ChatAssetTextReplacementResult {
+  updatedAttachments: number;
+  affectedMessages: number;
+  outboxEvents: number;
+}
+
 async function invokeStorage<T>(
   command: string,
   args: Record<string, unknown>,
@@ -191,6 +197,17 @@ export function searchChatMessages(
   query: ChatSearchQuery
 ): Promise<ChatSearchResult[]> {
   return invokeStorage("search_chat_messages", { query }, "无法搜索聊天消息");
+}
+
+export function replaceChatAssetWithText(
+  assetId: string,
+  extractedText: string
+): Promise<ChatAssetTextReplacementResult> {
+  return invokeStorage(
+    "replace_chat_asset_with_text",
+    { assetId, extractedText },
+    "无法保存附件提取文本"
+  );
 }
 
 export function drainAssetUsageOutbox(

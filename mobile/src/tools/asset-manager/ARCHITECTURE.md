@@ -1,6 +1,6 @@
 # 移动端资产管理器架构
 
-> 状态：Phase 2 施工中。资产内核、跨工具服务和首版资产/存储页面已注册；Android 导入、媒体预览、导出、分享及聊天消费者已接入，剩余平台门禁和批量文本化清理流程继续施工。
+> 状态：Phase 2 施工中。资产内核、跨工具服务和首版资产/存储页面已注册；Android 导入、媒体预览、导出、分享、聊天消费者及首批文本文档替代清理已接入，剩余平台门禁和复杂格式文本化继续施工。
 
 ## 1. 边界
 
@@ -31,6 +31,7 @@ AppData/assets/
 - `asset_list`：分页读取可见、可用资产，支持类型与名称筛选。
 - `asset_get_detail`：返回资产、脱敏来源摘要和 usage，不返回来源 locator。
 - `asset_get_preview_source` / `asset_revoke_preview_source`：签发或撤销短期受控预览 URL；URL 只含不透明 token。
+- `asset_extract_text`：受控读取不超过 2 MiB 的 ready/managed UTF-8 文本类原件；拒绝不支持类型、空文本、NUL/二进制和超限内容。
 - `asset_export`：复核 managed/ready 资产后，将原件流式复制到系统 save-picker 目标。
 - `asset_share`：仅接受资产 ID；Android 复核后复制到受控 cache 并打开系统 `ACTION_SEND`，其他平台返回未支持。
 - `asset_capture_photo`：Android 调用系统相机并返回一次性 `content://` 导入源；非 Android 返回未支持。
@@ -106,10 +107,11 @@ AppData/assets/
 - 详情页的“保存到文件”使用系统 save picker，目标引用直接传给 `asset_export`；Rust 对 Android `content://` 目标通过 `AssetContentPlugin` 的 `openFileDescriptor(..., "wt")` 打开，其他目标按平台使用 plugin-fs，并流式复制 managed 原件，内部对象路径不返回 WebView。
 - 详情页的“系统分享”只传 `assetId`；Rust 将原件复制到 cache 的 UUID 目录，Android bridge 用 `FileProvider`、`ClipData` 和只读 grant 发出 `ACTION_SEND`。分享副本由延迟任务清理，启动恢复/资产库修复会清除遗留目录，并把其大小计入临时文件。
 - 导入面板的“拍摄照片”只调用 `asset_capture_photo`；Android bridge 把相机输出写入 cache/captures，通过 `FileProvider` 返回临时 `content://`，前端交给既有 import job。取消、无相机和异常结果不产生可见资产，启动恢复/资产库修复清除 captures。
+- 文本文档详情和批量选择提供“文本化”操作。编排层只接受全部 usage 均属于 `llm-chat/message/attachment` 的资产，先提取文本并调用聊天领域 command 持久化快照，再投递 usage outbox、重新分析删除影响，最后清理原件；逐项失败不删除原件且不阻断后续项。批量动作区在窄屏内横向滚动。
 
 ## 12. 后续施工
 
 - Android token 自然过期已在 `emulator-5558` 真实 WebView 验证；iOS scheme/HEAD/Range/CORS/撤销仍受编译与设备条件门禁约束。
-- 补 Android 相机设备验收、iOS/跨平台分享插件和批量转写/文本提取后的原件清理流程。
+- 补 Android 相机设备验收和 iOS/跨平台分享插件；文本替代继续扩展音视频模型转写、PDF/Office 提取及其他消费者。
 - 聊天 SQLite 阶段二会话增量持久化、阶段三附件消费层和阶段四 Android 本地搜索已完成；真实上游附件发送仍受 emulator 未配置模型限制。
 - iOS 因缺少编译与真机设备条件继续跳过，不声明平台能力通过。

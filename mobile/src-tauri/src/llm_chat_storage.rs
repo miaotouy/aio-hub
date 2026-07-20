@@ -18,6 +18,7 @@ const MAX_LIST_LIMIT: u32 = 200;
 const MAX_SEARCH_LIMIT: u32 = 100;
 const MAX_OUTBOX_BATCH: u32 = 50;
 const MAX_OUTBOX_ATTEMPTS: i64 = 5;
+const MAX_EXTRACTED_TEXT_BYTES: usize = 2 * 1024 * 1024;
 
 #[derive(Default)]
 pub struct LlmChatStorageState {
@@ -189,6 +190,14 @@ pub struct PersistChatChangesResult {
 pub struct DeleteChatResult {
     pub deleted_messages: usize,
     pub queued_release_events: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatAssetTextReplacementResult {
+    pub updated_attachments: usize,
+    pub affected_messages: usize,
+    pub outbox_events: usize,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -961,6 +970,58 @@ async fn queue_attachment_replacement(
     Ok(1)
 }
 
+async fn replace_asset_with_text(
+    pool: &SqlitePool,
+    asset_id: &str,
+    extracted_text: &str,
+) -> Result<ChatAssetTextReplacementResult, String> {
+    validate_id("ASSET_ID", asset_id)?;
+    if extracted_text.trim().is_empty() {
+        return Err("CHAT_EXTRACTED_TEXT_EMPTY".into());
+    }
+    if extracted_text.len() > MAX_EXTRACTED_TEXT_BYTES {
+        return Err("CHAT_EXTRACTED_TEXT_TOO_LARGE".into());
+    }
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|error| format!("CHAT_TRANSACTION_BEGIN: {error}"))?;
+    let owners: Vec<(String, String)> = sqlx::query_as(
+        "SELECT DISTINCT m.session_id, a.message_id FROM chat_attachments a \
+         JOIN chat_messages m ON m.id = a.message_id WHERE a.asset_id = ? \
+         ORDER BY m.session_id ASC, a.message_id ASC",
+    )
+    .bind(asset_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|error| format!("CHAT_ASSET_ATTACHMENT_LOOKUP: {error}"))?;
+    if owners.is_empty() {
+        return Err("CHAT_ASSET_ATTACHMENT_NOT_FOUND".into());
+    }
+    let updated_attachments = sqlx::query(
+        "UPDATE chat_attachments SET extracted_text = ?, usage_policy = 'advisory' \
+         WHERE asset_id = ?",
+    )
+    .bind(extracted_text)
+    .bind(asset_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|error| format!("CHAT_ASSET_TEXT_UPDATE: {error}"))?
+    .rows_affected() as usize;
+    let mut outbox_events = 0;
+    for (session_id, message_id) in &owners {
+        outbox_events += queue_attachment_replacement(&mut tx, session_id, message_id).await?;
+    }
+    tx.commit()
+        .await
+        .map_err(|error| format!("CHAT_TRANSACTION_COMMIT: {error}"))?;
+    Ok(ChatAssetTextReplacementResult {
+        updated_attachments,
+        affected_messages: owners.len(),
+        outbox_events,
+    })
+}
+
 async fn queue_release_events(
     tx: &mut sqlx::Transaction<'_, Sqlite>,
     message_ids: &[String],
@@ -1266,6 +1327,17 @@ pub async fn search_chat_messages(
 }
 
 #[tauri::command]
+pub async fn replace_chat_asset_with_text(
+    app: AppHandle,
+    state: State<'_, LlmChatStorageState>,
+    asset_id: String,
+    extracted_text: String,
+) -> Result<ChatAssetTextReplacementResult, String> {
+    let _guard = state.write_lock.lock().await;
+    replace_asset_with_text(state.pool(&app).await?, &asset_id, &extracted_text).await
+}
+
+#[tauri::command]
 pub async fn drain_asset_usage_outbox(
     app: AppHandle,
     chat_state: State<'_, LlmChatStorageState>,
@@ -1464,6 +1536,82 @@ mod tests {
         assert_eq!(usages[0].asset_id, "asset-1");
         assert_eq!(usages[0].role, "attachment");
         assert_eq!(usages[0].usage_policy, "blocking");
+    }
+
+    #[tokio::test]
+    async fn replaces_chat_asset_with_text_before_releasing_blocking_usage() {
+        let pool = test_pool().await;
+        persist_changes(
+            &pool,
+            PersistChatChangesRequest {
+                session: session(),
+                upsert_messages: vec![
+                    message("root", None, 0, "system"),
+                    message("assistant", Some("root"), 1, "attached document"),
+                ],
+                delete_message_ids: Vec::new(),
+                upsert_attachments: vec![ChatAttachmentInput {
+                    id: "attachment-1".into(),
+                    message_id: "assistant".into(),
+                    asset_id: "asset-document".into(),
+                    kind: "document".into(),
+                    display_name: "notes.txt".into(),
+                    mime_type: "text/plain".into(),
+                    size_bytes: 12,
+                    usage_policy: "blocking".into(),
+                    extracted_text: None,
+                    sort_order: 0,
+                    created_at: None,
+                }],
+                delete_attachment_ids: Vec::new(),
+            },
+        )
+        .await
+        .unwrap();
+
+        let result = replace_asset_with_text(&pool, "asset-document", "Extracted document text")
+            .await
+            .unwrap();
+        assert_eq!(result.updated_attachments, 1);
+        assert_eq!(result.affected_messages, 1);
+        assert_eq!(result.outbox_events, 1);
+
+        let attachment: (String, String) = sqlx::query_as(
+            "SELECT extracted_text, usage_policy FROM chat_attachments WHERE asset_id = ?",
+        )
+        .bind("asset-document")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(
+            attachment,
+            ("Extracted document text".into(), "advisory".into())
+        );
+        let payload: String = sqlx::query_scalar(
+            "SELECT payload_json FROM asset_usage_outbox ORDER BY sequence DESC LIMIT 1",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let usages: Vec<AssetUsageInput> = serde_json::from_str(&payload).unwrap();
+        assert_eq!(usages[0].usage_policy, "advisory");
+
+        let outbox_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM asset_usage_outbox")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            replace_asset_with_text(&pool, "missing-asset", "text")
+                .await
+                .unwrap_err(),
+            "CHAT_ASSET_ATTACHMENT_NOT_FOUND"
+        );
+        let unchanged_outbox_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM asset_usage_outbox")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(unchanged_outbox_count, outbox_count);
     }
 
     #[tokio::test]

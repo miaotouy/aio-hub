@@ -18,6 +18,7 @@ import {
   setAssetLibraryState,
   setAssetRetentionPolicy,
 } from "../services/assetService";
+import { replaceAssetsWithExtractedText } from "../services/assetTextReplacementService";
 import type {
   AssetDetail,
   AssetImportSource,
@@ -83,6 +84,7 @@ export function useAssetLibrary() {
   const detail = ref<AssetDetail | null>(null);
   const preview = ref<AssetPreviewSource | null>(null);
   const importing = ref(false);
+  const replacingText = ref(false);
   const importProgress = ref<AssetImportProgressEvent | null>(null);
   const importJobs = ref<AssetImportJob[]>([]);
   const activeImportJobId = ref<string | null>(null);
@@ -100,6 +102,12 @@ export function useAssetLibrary() {
 
   const selected = computed(() =>
     assets.value.filter((asset) => selectedIds.value.includes(asset.id))
+  );
+
+  const textReplacementCandidates = computed(() =>
+    selected.value.filter(
+      (asset) => asset.kind === "document" && asset.availability === "ready"
+    )
   );
 
   async function load(options: { keepSelection?: boolean } = {}) {
@@ -188,6 +196,50 @@ export function useAssetLibrary() {
     await load();
   }
 
+  async function replaceWithExtractedText(
+    assetIds = textReplacementCandidates.value.map((asset) => asset.id)
+  ) {
+    const uniqueIds = [...new Set(assetIds)];
+    if (!uniqueIds.length || replacingText.value) return;
+    const confirmed = await customDialog({
+      title: "提取文本并清理原件",
+      message: `将处理 ${uniqueIds.length} 项文本文档。文本会先写入聊天附件快照，确认引用已降级后才清理原件；失败项会保留原件。`,
+      confirmButtonText: "开始处理",
+      cancelButtonText: "取消",
+    });
+    if (!confirmed) return;
+    replacingText.value = true;
+    try {
+      const result = await replaceAssetsWithExtractedText(uniqueIds);
+      if (result.failedCount === 0) {
+        customMessage(
+          `已提取文本并清理 ${result.completedCount} 项原件`,
+          "success"
+        );
+      } else if (result.completedCount > 0) {
+        customMessage(
+          `已完成 ${result.completedCount} 项，${result.failedCount} 项保留原件`,
+          "warning"
+        );
+      } else {
+        customMessage("没有原件被清理，所选项不满足文本替代条件", "warning");
+      }
+      if (
+        detail.value &&
+        result.items.some(
+          (item) =>
+            item.assetId === detail.value?.id && item.status === "completed"
+        )
+      ) {
+        detail.value = null;
+      }
+      await load();
+      return result;
+    } finally {
+      replacingText.value = false;
+    }
+  }
+
   async function importSources(sources: AssetImportSource[]) {
     importing.value = true;
     importProgress.value = null;
@@ -274,6 +326,7 @@ export function useAssetLibrary() {
     facets,
     selectedIds,
     selected,
+    textReplacementCandidates,
     search,
     kind,
     libraryState,
@@ -284,6 +337,7 @@ export function useAssetLibrary() {
     detail,
     preview,
     importing,
+    replacingText,
     importProgress,
     importJobs,
     activeImportJobId,
@@ -297,6 +351,7 @@ export function useAssetLibrary() {
     setHidden,
     pinSelected,
     removeSelected,
+    replaceWithExtractedText,
     importSources,
     loadImportJobs,
     cancelImport,

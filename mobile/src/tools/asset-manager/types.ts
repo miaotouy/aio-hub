@@ -233,3 +233,10 @@ export interface AssetExportResult {
 export interface AssetShareResult {
   fileName: string;
 }
+
+export interface AssetTextExtraction {
+  assetId: string;
+  text: string;
+  mimeType: string;
+  bytesRead: number;
+}

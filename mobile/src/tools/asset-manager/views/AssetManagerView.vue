@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   Database,
   FileArchive,
+  FileText,
   FilterX,
   HardDrive,
   Import,
@@ -31,6 +32,7 @@ const library = useAssetLibrary();
 const jobsOpen = ref(false);
 const importSourceOpen = ref(false);
 const savingAssetId = ref<string | null>(null);
+const replacingTextAssetId = ref<string | null>(null);
 const sharingAssetId = ref<string | null>(null);
 
 const kindOptions: Array<{ label: string; value: AssetKind | "all" }> = [
@@ -182,6 +184,16 @@ async function previewAsset(assetId: string) {
 async function closeDetail() {
   library.detail.value = null;
   await library.closePreview();
+}
+
+async function replaceAssetText(assetId: string) {
+  if (replacingTextAssetId.value) return;
+  replacingTextAssetId.value = assetId;
+  try {
+    await library.replaceWithExtractedText([assetId]);
+  } finally {
+    replacingTextAssetId.value = null;
+  }
 }
 
 async function openImportJobs() {
@@ -348,10 +360,23 @@ onUnmounted(() => {
 
     <div v-if="selectedCount" class="selection-bar" role="toolbar">
       <strong>已选 {{ selectedCount }} 项</strong>
-      <button type="button" @click="library.setHidden(!selectedAreHidden)"><ArchiveRestore :size="17" /> {{ selectedAreHidden ? "恢复" : "隐藏" }}</button>
-      <button type="button" @click="library.pinSelected(!selectedArePinned)"><HardDrive :size="17" /> {{ selectedArePinned ? "取消固定" : "固定" }}</button>
-      <button type="button" class="danger" @click="library.removeSelected"><Trash2 :size="17" /> 删除</button>
-      <button type="button" class="close-selection" aria-label="清除选择" @click="library.clearSelection">×</button>
+      <div class="selection-actions">
+        <button
+          v-if="library.textReplacementCandidates.value.length"
+          type="button"
+          :disabled="library.replacingText.value"
+          title="提取文本并清理原件"
+          @click="library.replaceWithExtractedText()"
+        >
+          <LoaderCircle v-if="library.replacingText.value" class="spin" :size="17" />
+          <FileText v-else :size="17" />
+          文本化
+        </button>
+        <button type="button" @click="library.setHidden(!selectedAreHidden)"><ArchiveRestore :size="17" /> {{ selectedAreHidden ? "恢复" : "隐藏" }}</button>
+        <button type="button" @click="library.pinSelected(!selectedArePinned)"><HardDrive :size="17" /> {{ selectedArePinned ? "取消固定" : "固定" }}</button>
+        <button type="button" class="danger" @click="library.removeSelected"><Trash2 :size="17" /> 删除</button>
+        <button type="button" class="close-selection" aria-label="清除选择" @click="library.clearSelection">×</button>
+      </div>
     </div>
 
     <AssetDetailSheet
@@ -360,10 +385,12 @@ onUnmounted(() => {
       :preview="library.preview.value"
       :saving="savingAssetId === library.detail.value.id"
       :sharing="sharingAssetId === library.detail.value.id"
+      :replacing-text="replacingTextAssetId === library.detail.value.id || library.replacingText.value"
       @close="closeDetail"
       @preview="previewAsset"
       @save="saveAsset"
       @share="shareAsset"
+      @replace-text="replaceAssetText"
     />
     <ImportJobsSheet
       v-if="jobsOpen"
@@ -797,8 +824,22 @@ onUnmounted(() => {
 
 .selection-bar strong {
   min-width: 0;
-  flex: 1;
+  flex: 0 0 auto;
   font-size: 13px;
+}
+
+.selection-actions {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.selection-actions::-webkit-scrollbar {
+  display: none;
 }
 
 .selection-bar button {

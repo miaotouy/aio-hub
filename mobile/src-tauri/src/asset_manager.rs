@@ -48,6 +48,7 @@ const IMPORT_PROGRESS_STEP_BYTES: i64 = 4 * 1024 * 1024;
 const PREVIEW_TOKEN_TTL: Duration = Duration::from_secs(5 * 60);
 const MAX_PREVIEW_RANGE_BYTES: u64 = 1024 * 1024;
 const MAX_PREVIEW_FULL_BYTES: u64 = 16 * 1024 * 1024;
+const MAX_TEXT_EXTRACTION_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_USAGE_BATCH: usize = 1_000;
 const MAX_MUTATION_BATCH: usize = 500;
 
@@ -223,6 +224,15 @@ pub struct AssetExportResult {
 #[serde(rename_all = "camelCase")]
 pub struct AssetShareResult {
     file_name: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetTextExtraction {
+    asset_id: String,
+    text: String,
+    mime_type: String,
+    bytes_read: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -783,6 +793,16 @@ pub async fn asset_get_detail(
         origins,
         usages,
     })
+}
+
+#[tauri::command]
+pub async fn asset_extract_text(
+    app: AppHandle,
+    state: State<'_, AssetManagerState>,
+    asset_id: String,
+) -> Result<AssetTextExtraction, String> {
+    let asset = resolve_managed_asset_read(&app, state.inner(), &asset_id).await?;
+    extract_managed_text(&asset_id, &asset).await
 }
 
 #[tauri::command]
@@ -2823,6 +2843,61 @@ fn resolve_managed_asset_record(
     })
 }
 
+fn supports_text_extraction(mime_type: &str, display_name: &str) -> bool {
+    let normalized_mime = mime_type.to_ascii_lowercase();
+    if normalized_mime.starts_with("text/")
+        || matches!(
+            normalized_mime.as_str(),
+            "application/json" | "application/xml" | "application/yaml" | "application/x-yaml"
+        )
+    {
+        return true;
+    }
+    matches!(
+        display_name
+            .rsplit_once('.')
+            .map(|(_, extension)| extension.to_ascii_lowercase())
+            .as_deref(),
+        Some("txt" | "md" | "json" | "csv" | "log" | "xml" | "yaml" | "yml" | "toml")
+    )
+}
+
+async fn extract_managed_text(
+    asset_id: &str,
+    asset: &ManagedAssetRead,
+) -> Result<AssetTextExtraction, String> {
+    if !supports_text_extraction(&asset.mime_type, &asset.display_name) {
+        return Err("ASSET_TEXT_EXTRACTION_UNSUPPORTED".into());
+    }
+    let file = tokio::fs::File::open(&asset.path)
+        .await
+        .map_err(|_| "ASSET_OBJECT_MISSING".to_string())?;
+    let mut bytes = Vec::new();
+    file.take(MAX_TEXT_EXTRACTION_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .await
+        .map_err(|error| format!("ASSET_TEXT_EXTRACTION_READ: {error}"))?;
+    if bytes.len() as u64 > MAX_TEXT_EXTRACTION_BYTES {
+        return Err("ASSET_TEXT_EXTRACTION_TOO_LARGE".into());
+    }
+    let bytes_read = bytes.len() as u64;
+    let text =
+        String::from_utf8(bytes).map_err(|_| "ASSET_TEXT_EXTRACTION_ENCODING".to_string())?;
+    let text = text.strip_prefix('\u{feff}').unwrap_or(&text);
+    if text.contains('\0') {
+        return Err("ASSET_TEXT_EXTRACTION_ENCODING".into());
+    }
+    if text.trim().is_empty() {
+        return Err("ASSET_TEXT_EXTRACTION_EMPTY".into());
+    }
+    Ok(AssetTextExtraction {
+        asset_id: asset_id.to_owned(),
+        text: text.to_owned(),
+        mime_type: asset.mime_type.clone(),
+        bytes_read,
+    })
+}
+
 fn validate_import_source(source: &AssetImportSource) -> Result<(), String> {
     if source.reference.is_empty() || source.reference.len() > 8_192 {
         return Err("ASSET_INVALID_SOURCE_REFERENCE".into());
@@ -3163,6 +3238,82 @@ mod tests {
         .is_ok());
         assert!(validate_export_destination("https://example.com/export.bin").is_err());
         assert!(validate_export_destination("relative/export.bin").is_err());
+    }
+
+    #[tokio::test]
+    async fn extracts_bounded_utf8_text_and_rejects_binary_or_oversize_files() {
+        let root = std::env::temp_dir().join(format!("aio-asset-text-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        let text_path = root.join("notes.md");
+        fs::write(&text_path, b"\xEF\xBB\xBF# Notes\nhello").unwrap();
+        let text_asset = ManagedAssetRead {
+            path: text_path,
+            mime_type: "text/plain".into(),
+            display_name: "notes.md".into(),
+        };
+        let extracted = extract_managed_text("asset-text", &text_asset)
+            .await
+            .unwrap();
+        assert_eq!(extracted.text, "# Notes\nhello");
+        assert_eq!(extracted.bytes_read, 16);
+
+        let binary_path = root.join("binary.txt");
+        fs::write(&binary_path, [0, 1, 2, 3]).unwrap();
+        let binary_asset = ManagedAssetRead {
+            path: binary_path,
+            mime_type: "text/plain".into(),
+            display_name: "binary.txt".into(),
+        };
+        assert_eq!(
+            extract_managed_text("asset-binary", &binary_asset)
+                .await
+                .unwrap_err(),
+            "ASSET_TEXT_EXTRACTION_ENCODING"
+        );
+
+        let empty_path = root.join("empty.txt");
+        fs::write(&empty_path, b" \n\t").unwrap();
+        let empty_asset = ManagedAssetRead {
+            path: empty_path.clone(),
+            mime_type: "text/plain".into(),
+            display_name: "empty.txt".into(),
+        };
+        assert_eq!(
+            extract_managed_text("asset-empty", &empty_asset)
+                .await
+                .unwrap_err(),
+            "ASSET_TEXT_EXTRACTION_EMPTY"
+        );
+        let unsupported_asset = ManagedAssetRead {
+            path: empty_path,
+            mime_type: "application/pdf".into(),
+            display_name: "document.pdf".into(),
+        };
+        assert_eq!(
+            extract_managed_text("asset-pdf", &unsupported_asset)
+                .await
+                .unwrap_err(),
+            "ASSET_TEXT_EXTRACTION_UNSUPPORTED"
+        );
+
+        let large_path = root.join("large.txt");
+        fs::write(
+            &large_path,
+            vec![b'a'; (MAX_TEXT_EXTRACTION_BYTES + 1) as usize],
+        )
+        .unwrap();
+        let large_asset = ManagedAssetRead {
+            path: large_path,
+            mime_type: "text/plain".into(),
+            display_name: "large.txt".into(),
+        };
+        assert_eq!(
+            extract_managed_text("asset-large", &large_asset)
+                .await
+                .unwrap_err(),
+            "ASSET_TEXT_EXTRACTION_TOO_LARGE"
+        );
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

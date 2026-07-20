@@ -284,6 +284,8 @@ interface ManagedAssetRef {
 
 该流程必须逐项可恢复，不能在文本尚未持久化时先删除原件，也不能因为部分项目失败而回滚已经成功保存的其他项目。
 
+实施状态（2026-07-21）：已完成首批 UTF-8 文本文档到 `llm-chat` 附件快照的替代闭环。资产服务受控读取不超过 2 MiB 的文本类原件；聊天库先在自身事务中写入 `extractedText`、将 blocking usage 降为 advisory 并写 outbox，前端确认 outbox 投递和删除影响后才清理原件。音视频转写、PDF/Office 提取和其他消费者仍未接入。
+
 ## 8. 信息架构与交互
 
 ### 8.1 一级结构
@@ -504,7 +506,8 @@ interface ManagedAssetRef {
 - [x] 接入照片/视频 media picker。
 - [x] 接入 Android 系统分享：Rust 校验资产后复制到受控 cache，原生 bridge 通过 `FileProvider` 发出只读 `ACTION_SEND`；相机和 iOS 分享仍未接入。
 - [ ] 完成 Android 相机设备验收，以及 iOS/跨平台系统分享能力（需各自原生插件契约和设备条件）。
-- [ ] 接入批量转写或文本提取后的原件删除流程。
+- [x] 接入首批 UTF-8 文本文档到聊天附件快照的批量替代与原件删除流程；逐项失败保留原件，批次继续处理后续项。
+- [ ] 扩展音视频模型转写、PDF/Office 文本提取和 `llm-chat` 之外的消费者替代流程。
 
 ### Phase 3：平台增强
 
@@ -711,6 +714,13 @@ interface ManagedAssetRef {
 - FTS5 查询失败时自动降级到同一 basic-search，已用删除隔离 FTS 表的 Rust 故障注入验证，不把 iOS 尚未验收的 FTS 能力变成不可恢复的前端错误。
 - 历史会话页增加防抖搜索和完整状态；结果可深链到目标会话，将非活动分支切为活动叶并滚动高亮目标消息。
 - Android `emulator-5558` 真实 WebView 已验证中文与特殊字符搜索、结果 snippet 和非活动分支定位；验收会话随后通过正式 command 删除，usage outbox 为空。iOS 因缺少编译与设备条件继续跳过。
+
+### 2026-07-21：Phase 2 第十批文本文档替代清理
+
+- 新增受控文本提取 command，只读取 ready/managed 的文本 MIME 或文本扩展名原件；单项限制 2 MiB、UTF-8、非空且拒绝 NUL/二进制内容，不把资产路径或字节暴露给业务组件。
+- `llm-chat` 新增领域 command，在聊天事务内批量写入同一资产的附件 `extractedText`、将 blocking usage 降为 advisory，并按受影响消息写 replacement outbox。资产管理器逐项等待 outbox 投递和删除影响复核后再回收原件；消费者写入、同步或删除任一步失败都保留原件，后续项继续执行。
+- Android `emulator-5558` 真实 WebView 用 60 字节 `text/plain` 验证：聊天快照写入完整文本，usage 从 blocking 变为 advisory，outbox 归零后资产转为 reclaimed；临时会话删除并投递 release 后，测试资产和临时文件均已清理。360dp 批量动作区通过横向滚动容纳“文本化”等操作，没有控件互相覆盖。
+- 本批通过移动端 104 个前端测试、37 个 Rust 测试、llm-core 93 个测试、Clippy、类型检查、Vite 生产构建和 Android x86_64 debug APK 构建。音视频转写、PDF/Office 提取、其他消费者和 iOS 仍未完成；iOS 因缺少编译与设备条件继续跳过。
 
 ## 16. 调查来源
 

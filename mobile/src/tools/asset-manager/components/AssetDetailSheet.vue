@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Download, Eye, LoaderCircle, Share2, X } from "lucide-vue-next";
+import { Download, Eye, FileText, LoaderCircle, Share2, X } from "lucide-vue-next";
 import { computed } from "vue";
 import { formatAssetBytes } from "../composables/useAssetLibrary";
 import type { AssetDetail, AssetPreviewSource } from "../types";
@@ -9,6 +9,7 @@ const props = defineProps<{
   preview: AssetPreviewSource | null;
   saving?: boolean;
   sharing?: boolean;
+  replacingText?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -16,6 +17,7 @@ const emit = defineEmits<{
   preview: [assetId: string];
   save: [assetId: string];
   share: [assetId: string];
+  replaceText: [assetId: string];
 }>();
 
 const canPreview = computed(
@@ -73,6 +75,18 @@ const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString
         <button v-else-if="canPreview" class="preview-button" type="button" @click="emit('preview', detail.id)">
           <Eye :size="18" />
           打开临时预览
+        </button>
+
+        <button
+          v-if="detail.kind === 'document' && detail.availability === 'ready'"
+          class="text-replacement-button"
+          type="button"
+          :disabled="props.replacingText"
+          @click="emit('replaceText', detail.id)"
+        >
+          <LoaderCircle v-if="props.replacingText" class="spin" :size="18" />
+          <FileText v-else :size="18" />
+          {{ props.replacingText ? "处理中" : "提取文本并清理原件" }}
         </button>
 
         <dl class="facts">
@@ -220,6 +234,25 @@ const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString
   background: color-mix(in srgb, var(--primary-color) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--primary-color) 34%, transparent);
   border-radius: var(--app-radius-md);
+}
+
+.text-replacement-button {
+  min-height: 48px;
+  width: 100%;
+  margin-bottom: 18px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary-color) 34%, transparent);
+  border-radius: var(--app-radius-md);
+}
+
+.text-replacement-button:disabled {
+  opacity: 0.55;
 }
 
 .facts {

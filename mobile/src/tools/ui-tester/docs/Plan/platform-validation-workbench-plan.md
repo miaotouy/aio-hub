@@ -229,11 +229,14 @@ mobile/src/tools/ui-tester/
 
 - `ui-tester` 已更名为“组件与平台测试”，原单页拆为总览、组件与布局、平台文件和 SQLite 四个一级板块。
 - 已建立统一 `ValidationRun` 模型、最近 20 次 ConfigManager 持久化、人工判定、跨重启恢复标记、JSON 导出和递归脱敏。
+- 验证环境已接入官方 `plugin-os`，新运行记录包含平台、系统版本、架构、视口尺寸和像素比；旧 schema `1.0` 报告缺少这些可选字段时仍可读取。
 - 组件页保留原安全区、键盘、主题、Settings / Store、Logger / Message / Dialog、FS 和 UUID 测试能力，并增加整体验收记录入口；页面主结构已移除 `var-app-bar` / `var-card`。
-- 平台文件接入 Tauri dialog + fs：支持单选、多选、图片过滤入口、用户取消、首字节读取探测、大小/MIME/URI scheme/引用 hash 记录、固定 cache 沙箱 round-trip、失败清理、人工后台/云端/预览观察和强杀恢复检查。
+- 平台文件接入 Tauri dialog + fs：支持单选、多选、图片过滤入口、用户取消、首字节读取探测、大小/MIME/URI scheme/引用 hash 记录、固定 cache 沙箱 round-trip、失败清理、人工后台/云端/预览观察和强杀恢复检查。多选现在要求至少返回 2 项并在折叠前标题显示数量。
+- 平台文件新增固定 64 KiB 缓冲区的大文件完整顺序读取，记录实时进度、停止、首字节、总耗时、MiB/s 和失败阶段；无法取得 provider 文件大小时以 EOF 作为完成条件。该场景验证 `plugin-fs` 读取链，不代表正式资产导入管线。
+- 平台文件新增固定 ENOSPC 故障注入，在写入 64 KiB 后验证 `.part` 清理；该场景不占满设备磁盘，也不能替代至少一次真实低存储运行态观察。
 - SQLite 后端只构造 `ui-tester-validation/ui_tester_validation.db`，前端不传数据库路径或 SQL；删除、重建和沙箱清理均有 Rust 侧固定名称校验。
 - SQLx 负责实际 pool、WAL、`synchronous=NORMAL`、foreign key、busy timeout、并发读取和写锁等待验证；`rusqlite` 负责确定性的 migration fixture、codec、fault injection、FTS5 与大数据基准。两者共用同一 bundled SQLite，避免设备系统 SQLite 编译选项漂移。
-- SQLite 已覆盖历史 v0 到 v1、失败回滚、高版本拒写、完整 `ChatMessageNode` 结构 round-trip、trigram FTS + 1/2 字 LIKE 降级、1k/10k/100k Rust 侧生成、冷/热查询、会话加载、删除、索引重建、数据库体积和 SQLite memory 指标。
+- SQLite 已覆盖历史 v0 到 v1、失败回滚、高版本拒写、完整 `ChatMessageNode` 结构 round-trip、trigram FTS + 1/2 字 LIKE 降级、1k/10k/100k Rust 侧生成、冷/热查询、会话加载、删除、索引重建、数据库体积和 SQLite memory 指标。内存指标已由设备上可能返回空值的 `PRAGMA memory_used` 改为 `sqlite3_status64(SQLITE_STATUS_MEMORY_USED)` current/high-water。
 - 事务恢复和平台系统终止场景会在风险确认后直接终止进程；恢复标记先同步持久化，应用重启后自动检查半提交、foreign key、integrity 和沙箱半成品，并回填原运行结论。
 - 已通过 `bun run test:run`、`bun run check:frontend`、`bun run check:backend`、`bun run build`、Rust 单元测试和 `bun run mtab -- --debug` Android universal APK / AAB 构建。
 
@@ -242,6 +245,7 @@ mobile/src/tools/ui-tester/
 - 原计划批次 3 只写了“SQLx spike”。实际采用 SQLx + `rusqlite` 双层验证：SQLx 验证未来业务连接契约，`rusqlite` 提供更适合固定故障注入和同步 fixture 的底层测试控制；业务数据库仍未接入任一验证 command。
 - “照片”入口当前由 Tauri 系统文件选择器加图片扩展名过滤实现，不引入 Varlet 页面骨架或浏览器 fallback。Android Photo Picker / iOS Photos 的专用入口如后续资产 Phase 0 选型不同，应替换 service 入口并保留现有运行模型。
 - 云端占位下载、离线、系统权限持久化、切后台和 WebView 预览属于平台不可稳定自动判定项，已按计划实现为 `manualPending`，必须在真机报告中填写结论。
+- 大文件完整读取仍通过 WebView 到 `plugin-fs` 的分块 IPC 执行，只用于验证选择结果的读取权限、生命周期和方向性吞吐；正式资产导入必须继续由 Rust 资产服务流式处理。
 
 ### 10.3. 平台验收状态（更新于 2026-07-20）
 
@@ -250,5 +254,9 @@ mobile/src/tools/ui-tester/
 - Android 真机 SQLite 已通过 migration/失败回滚/高版本拒绝、消息 codec、FTS5 trigram + 短词 `LIKE`、事务强杀恢复和 1k 基准。1k 数据集整步耗时 19 ms，数据库 114,688 bytes；报告未运行 10k/100k，且 `peakSqliteMemoryBytes = 0` 不足以形成峰值内存结论。
 - Android 真机平台文件已验证 `content://` 单文件与照片读取、各入口取消、沙箱原子完成、失败清理、后台返回、云端预览人工判定和系统终止后无半成品恢复。单文件样本 798,643 bytes，首字节 91 ms；照片样本 139,437 bytes，首字节 59 ms。
 - “多文件”通过记录实际 `selectionCount = 1`，仍需用两个及以上文件补测；大文件、空间不足、云端离线/取消、预览失效、专用照片/分享入口也未覆盖。报告未包含设备型号和 Android 版本，后续报告必须补齐。
+- 上述真机结论来自验证台增量实现之前的旧报告。多选数量门禁、大文件完整读取、ENOSPC 注入、系统/架构/视口信息和新的 SQLite memory high-water 已完成代码与宿主机自动化验证，仍需重新构建 Android 应用并导出新报告后才能计入真机通过项。
+- 2026-07-20 Android 16 x86_64 虚拟机补充报告已验证环境字段、ENOSPC 注入以及 SQLite 1k/10k/100k。100k 总步骤 665 ms、插入 396 ms、数据库 6,594,560 bytes、SQLite memory high-water 5,343,704 bytes；10k high-water 1,043,080 bytes，1k high-water 181,944 bytes。
+- 虚拟机复测确认语言设置可以即时应用到 i18n locale。验证页自身仍有大量硬编码中文，无法在该页通过整页翻译变化观察结果；验证台 i18n 覆盖留作后续 UI 收尾，不影响语言设置能力本身的通过结论。
+- 大文件完整读取复测通过：Android `content://` 样本 14,714,525 bytes（14.03 MiB），65,536-byte 块完整读取，首字节 231 ms、总耗时 4,360 ms、平均 3.22 MiB/s，`failurePhase = none`。该数据只代表 Android 16 x86_64 虚拟机的 `plugin-fs` 读取链，真机和 iOS 仍需分别运行。
 - iOS 尚未验收，仍需从应用内依次运行平台文件和 SQLite 固定场景并导出一份 schema `1.0` JSON 报告。
 - 第 9 节要求的 Android 与 iOS 真实设备报告尚未全部完成，因此当前结论仅代表 Android 真机部分场景通过，不等同于 Phase 0 双平台最终验收。

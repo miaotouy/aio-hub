@@ -1,5 +1,6 @@
 import { computed, readonly, ref, shallowReadonly } from "vue";
 import { getTauriVersion, getVersion } from "@tauri-apps/api/app";
+import { arch, platform as osPlatform, version as osVersion } from "@tauri-apps/plugin-os";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
@@ -39,20 +40,35 @@ function persist(): void {
 }
 
 async function collectEnvironment(): Promise<ValidationEnvironment> {
-  const platform = /android/i.test(navigator.userAgent)
+  const fallbackPlatform = /android/i.test(navigator.userAgent)
     ? "android"
     : /iphone|ipad|ipod/i.test(navigator.userAgent)
       ? "ios"
       : "desktop";
+  let platform = fallbackPlatform;
+  let version: string | undefined;
+  let architecture: string | undefined;
   try {
-    const [appVersion, tauriVersion] = await Promise.all([
-      getVersion(),
-      getTauriVersion(),
-    ]);
-    return { platform, appVersion, tauriVersion };
+    platform = osPlatform();
+    version = osVersion();
+    architecture = arch();
   } catch {
-    return { platform, appVersion: "unavailable" };
+    // Browser fallback keeps the validation page usable outside a native runtime.
   }
+  const [appResult, tauriResult] = await Promise.allSettled([
+    getVersion(),
+    getTauriVersion(),
+  ]);
+  return {
+    platform,
+    osVersion: version,
+    architecture,
+    appVersion: appResult.status === "fulfilled" ? appResult.value : "unavailable",
+    tauriVersion: tauriResult.status === "fulfilled" ? tauriResult.value : undefined,
+    viewportWidth: window.innerWidth,
+    viewportHeight: window.innerHeight,
+    devicePixelRatio: window.devicePixelRatio,
+  };
 }
 
 async function initialize(): Promise<void> {

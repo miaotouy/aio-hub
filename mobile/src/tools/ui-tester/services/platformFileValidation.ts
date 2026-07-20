@@ -23,7 +23,30 @@ export interface SelectedFileSummary {
   probeError: string;
 }
 
+export interface FullFileReadProgress {
+  bytesRead: number;
+  totalBytes: number;
+}
+
+export interface FullFileReadSummary {
+  scheme: string;
+  fileName: string;
+  referenceHash: string;
+  size: number;
+  bytesRead: number;
+  firstByteMs: number;
+  totalReadMs: number;
+  throughputMiBps: number;
+  readChunkBytes: number;
+  status: "passed" | "failed" | "cancelled";
+  failurePhase: string;
+  error: string;
+}
+
 const FILE_PROBE_TIMEOUT_MS = 10_000;
+const FULL_FILE_READ_TIMEOUT_MS = 30_000;
+const FULL_FILE_READ_CHUNK_BYTES = 64 * 1024;
+const FULL_FILE_PROGRESS_INTERVAL_BYTES = 1024 * 1024;
 const PICKER_RETURN_GRACE_MS = 5_000;
 const PICKER_MAX_WAIT_MS = 10 * 60_000;
 
@@ -225,8 +248,125 @@ export async function selectValidationFiles(
   }
 }
 
+export async function selectAndReadValidationFileFully(
+  onProgress?: (progress: FullFileReadProgress) => void,
+  signal?: AbortSignal,
+): Promise<FullFileReadSummary | null> {
+  const selection = await openSystemPicker({ multiple: false, directory: false });
+  if (!selection) return null;
+
+  const reference = String(Array.isArray(selection) ? selection[0] : selection);
+  const fileName = fileNameFromReference(reference);
+  const summary: FullFileReadSummary = {
+    scheme: referenceScheme(reference),
+    fileName,
+    referenceHash: await hashReference(reference),
+    size: -1,
+    bytesRead: 0,
+    firstByteMs: 0,
+    totalReadMs: 0,
+    throughputMiBps: 0,
+    readChunkBytes: FULL_FILE_READ_CHUNK_BYTES,
+    status: "failed",
+    failurePhase: "open",
+    error: "",
+  };
+  const startedAt = performance.now();
+  let handle: Awaited<ReturnType<typeof openFile>> | undefined;
+  try {
+    handle = await withTimeout(
+      openFile(reference, { read: true }),
+      FILE_PROBE_TIMEOUT_MS,
+      "打开完整读取样本",
+    );
+    summary.failurePhase = "stat";
+    try {
+      const info = await withTimeout(
+        handle.stat(),
+        FILE_PROBE_TIMEOUT_MS,
+        "读取完整读取样本元数据",
+      );
+      summary.size = info.size;
+    } catch (error) {
+      logger.warn("完整读取样本无法取得文件大小，将以 EOF 为完成条件", {
+        scheme: summary.scheme,
+        message: redactValidationText(String(error)),
+      });
+    }
+    const buffer = new Uint8Array(FULL_FILE_READ_CHUNK_BYTES);
+    let nextProgressAt = FULL_FILE_PROGRESS_INTERVAL_BYTES;
+    summary.failurePhase = "read";
+    while (true) {
+      if (signal?.aborted) {
+        summary.status = "cancelled";
+        break;
+      }
+      const bytesRead = await withTimeout(
+        handle.read(buffer),
+        FULL_FILE_READ_TIMEOUT_MS,
+        "顺序读取文件块",
+      );
+      if (!bytesRead) {
+        const sizeMatches = summary.size < 0 || summary.bytesRead === summary.size;
+        summary.status = sizeMatches ? "passed" : "failed";
+        if (summary.status === "failed") {
+          summary.error = `读取字节数 ${summary.bytesRead} 与文件大小 ${summary.size} 不一致`;
+        }
+        break;
+      }
+      summary.bytesRead += bytesRead;
+      if (summary.firstByteMs === 0) {
+        summary.firstByteMs = Math.round(performance.now() - startedAt);
+      }
+      if (
+        summary.bytesRead >= nextProgressAt ||
+        (summary.size >= 0 && summary.bytesRead >= summary.size)
+      ) {
+        onProgress?.({ bytesRead: summary.bytesRead, totalBytes: summary.size });
+        nextProgressAt = summary.bytesRead + FULL_FILE_PROGRESS_INTERVAL_BYTES;
+      }
+    }
+  } catch (error) {
+    summary.error = redactValidationText(
+      error instanceof Error ? error.message : String(error),
+    );
+  } finally {
+    if (summary.status !== "failed") {
+      summary.failurePhase = "";
+    }
+    summary.totalReadMs = Math.round(performance.now() - startedAt);
+    if (summary.totalReadMs > 0) {
+      summary.throughputMiBps = Number(
+        ((summary.bytesRead / (1024 * 1024)) / (summary.totalReadMs / 1000)).toFixed(2),
+      );
+    }
+    if (handle) {
+      await withTimeout(handle.close(), 2_000, "关闭完整读取文件句柄").catch(
+        (error) => {
+          logger.warn("关闭完整读取文件句柄失败", {
+            message: redactValidationText(String(error)),
+          });
+        },
+      );
+    }
+  }
+  logger.info("完整顺序读取场景结束", {
+    scheme: summary.scheme,
+    size: summary.size,
+    bytesRead: summary.bytesRead,
+    totalReadMs: summary.totalReadMs,
+    failurePhase: summary.failurePhase,
+    status: summary.status,
+  });
+  return summary;
+}
+
 export function runPlatformFileScenario(
-  scenario: "sandbox-round-trip" | "write-failure-cleanup" | "resume-check",
+  scenario:
+    | "sandbox-round-trip"
+    | "write-failure-cleanup"
+    | "space-exhaustion-cleanup"
+    | "resume-check",
 ): Promise<ValidationCommandResult> {
   return invoke("run_platform_file_validation", { scenario });
 }

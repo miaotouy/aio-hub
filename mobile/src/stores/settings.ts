@@ -4,6 +4,7 @@ import { MobileAppSettings, DEFAULT_APP_SETTINGS } from "@/types/settings";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createConfigManager } from "@/utils/configManager";
+import { setI18nLanguage } from "@/i18n";
 
 const logger = createModuleLogger("SettingsStore");
 const errorHandler = createModuleErrorHandler("SettingsStore");
@@ -80,6 +81,9 @@ export const useSettingsStore = defineStore("settings", () => {
       ...settings.value,
       ...updates,
     };
+    if (typeof updates.language === "string") {
+      setI18nLanguage(updates.language);
+    }
     configManager.saveDebounced(settings.value);
   }
 

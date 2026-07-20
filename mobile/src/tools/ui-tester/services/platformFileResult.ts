@@ -1,5 +1,8 @@
 import type { ValidationCommandResult } from "../types/validation";
-import type { SelectedFileSummary } from "./platformFileValidation";
+import type {
+  FullFileReadSummary,
+  SelectedFileSummary,
+} from "./platformFileValidation";
 
 export function createPickerValidationResult(
   selected: SelectedFileSummary,
@@ -58,6 +61,53 @@ export function createPickerValidationResult(
       size: selected.size,
       firstByteMs: selected.firstByteMs,
       readProbeMs: selected.readProbeMs,
+    },
+  };
+}
+
+export function createFullFileReadValidationResult(
+  summary: FullFileReadSummary,
+): ValidationCommandResult {
+  const sizeMiB = summary.size >= 0 ? (summary.size / (1024 * 1024)).toFixed(2) : "未知";
+  const status = summary.status;
+  const stepStatus = status === "passed" ? "passed" : status === "failed" ? "failed" : "skipped";
+  const stepSummary = status === "passed"
+    ? `完整读取 ${summary.bytesRead} bytes，平均 ${summary.throughputMiBps} MiB/s。`
+    : status === "cancelled"
+      ? `用户停止读取，已完成 ${summary.bytesRead} / ${summary.size} bytes。`
+      : summary.error || "完整读取失败。";
+
+  return {
+    status,
+    steps: [
+      {
+        id: "full-file-read",
+        label: `完整顺序读取（${sizeMiB} MiB）`,
+        status: stepStatus,
+        durationMs: summary.totalReadMs,
+        summary: stepSummary,
+        details: {
+          scheme: summary.scheme,
+          fileName: summary.fileName,
+          referenceHash: summary.referenceHash,
+          size: summary.size,
+          bytesRead: summary.bytesRead,
+          firstByteMs: summary.firstByteMs,
+          readChunkBytes: summary.readChunkBytes,
+          throughputMiBps: summary.throughputMiBps,
+          failurePhase: summary.failurePhase || "none",
+        },
+      },
+    ],
+    metrics: {
+      scheme: summary.scheme,
+      size: summary.size,
+      bytesRead: summary.bytesRead,
+      firstByteMs: summary.firstByteMs,
+      totalReadMs: summary.totalReadMs,
+      readChunkBytes: summary.readChunkBytes,
+      throughputMiBps: summary.throughputMiBps,
+      failurePhase: summary.failurePhase || "none",
     },
   };
 }

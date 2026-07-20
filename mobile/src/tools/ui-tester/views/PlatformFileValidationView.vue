@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { Check, X } from "lucide-vue-next";
+import { Check, Square, X } from "lucide-vue-next";
 import { customDialog, customMessage } from "@/utils/feedback";
 import ValidationCaseRow from "../components/ValidationCaseRow.vue";
 import ValidationRunHeader from "../components/ValidationRunHeader.vue";
@@ -9,10 +9,11 @@ import { useValidationRuns } from "../composables/useValidationRuns";
 import {
   cleanupPlatformFileSandbox,
   runPlatformFileScenario,
+  selectAndReadValidationFileFully,
   selectValidationFiles,
   terminateForResumeValidation,
 } from "../services/platformFileValidation";
-import { createPickerValidationResult } from "../services/platformFileResult";
+import { createFullFileReadValidationResult, createPickerValidationResult } from "../services/platformFileResult";
 import type { ValidationCommandResult } from "../types/validation";
 
 const {
@@ -23,6 +24,8 @@ const {
   setResumeRun,
 } = useValidationRuns();
 const observation = ref("");
+const fullReadController = ref<AbortController>();
+const fullReadProgress = ref({ bytesRead: 0, totalBytes: 0 });
 
 const suiteRuns = computed(() => runs.value.filter((run) => run.suiteId === "platform-files"));
 const suiteTotals = computed(() => ({
@@ -61,6 +64,51 @@ async function runPicker(caseId: string, multiple: boolean, kind: "file" | "phot
     return createPickerValidationResult(selected, multiple);
     },
   );
+}
+
+function formatMiB(bytes: number): string {
+  return (Math.max(bytes, 0) / (1024 * 1024)).toFixed(1);
+}
+
+function formatTotalMiB(bytes: number): string {
+  return bytes >= 0 ? formatMiB(bytes) : "未知";
+}
+
+async function runFullFileRead(): Promise<void> {
+  const controller = new AbortController();
+  fullReadController.value = controller;
+  fullReadProgress.value = { bytesRead: 0, totalBytes: 0 };
+  try {
+    await runAutomated(
+      "platform-files",
+      "full-file-read",
+      { mode: "sequential-full-read" },
+      async (): Promise<ValidationCommandResult> => {
+        const summary = await selectAndReadValidationFileFully(
+          (progress) => {
+            fullReadProgress.value = progress;
+          },
+          controller.signal,
+        );
+        if (!summary) {
+          return {
+            status: "cancelled",
+            steps: [{
+              id: "picker-cancel",
+              label: "取消完整读取样本选择",
+              status: "passed",
+              durationMs: 0,
+              summary: "用户取消系统选择器，未开始读取。",
+            }],
+            metrics: { bytesRead: 0 },
+          };
+        }
+        return createFullFileReadValidationResult(summary);
+      },
+    );
+  } finally {
+    fullReadController.value = undefined;
+  }
 }
 
 function beginManual(caseId: string, note: string): void {
@@ -107,10 +155,16 @@ function recordObservation(verdict: "passed" | "failed"): void {
     <ValidationCaseRow title="单文件选择" description="调用系统文件选择器并记录脱敏返回类型。" :status="statusFor('single-file')" @run="runPicker('single-file', false, 'file')" />
     <ValidationCaseRow title="多文件选择" description="长按首个文件进入多选，至少选择 2 项；同时验证用户取消行为。" :status="statusFor('multiple-files')" @run="runPicker('multiple-files', true, 'file')" />
     <ValidationCaseRow title="照片选择" description="调用带图片类型约束的系统入口。" :status="statusFor('photo')" @run="runPicker('photo', false, 'photo')" />
+    <ValidationCaseRow title="大文件完整读取" description="使用固定 64 KiB 缓冲区顺序读取到 EOF；文件大小不可得时仍可验证读取完成。" :status="statusFor('full-file-read')" action-label="选择并读取" @run="runFullFileRead" />
+    <div v-if="fullReadController" class="read-progress">
+      <span>已读取 {{ formatMiB(fullReadProgress.bytesRead) }} / {{ formatTotalMiB(fullReadProgress.totalBytes) }} MiB</span>
+      <var-button type="warning" size="small" @click="fullReadController.abort()"><Square :size="15" />停止</var-button>
+    </div>
 
     <div class="section-heading"><h2>沙箱与恢复</h2></div>
     <ValidationCaseRow title="沙箱写入闭环" description="临时写入、原子改名、重开读取并清理，只操作固定验证目录。" :status="statusFor('sandbox-round-trip')" @run="runAutomated('platform-files', 'sandbox-round-trip', {}, () => runPlatformFileScenario('sandbox-round-trip'))" />
     <ValidationCaseRow title="写入失败清理" description="固定注入写入失败，检查半成品未残留。" :status="statusFor('write-failure-cleanup')" @run="runAutomated('platform-files', 'write-failure-cleanup', {}, () => runPlatformFileScenario('write-failure-cleanup'))" />
+    <ValidationCaseRow title="空间不足清理（模拟）" description="写入 64 KiB 后固定注入 ENOSPC，验证 .part 半成品被清理；不会占满设备磁盘。" :status="statusFor('space-exhaustion-cleanup')" @run="runAutomated('platform-files', 'space-exhaustion-cleanup', {}, () => runPlatformFileScenario('space-exhaustion-cleanup'))" />
     <ValidationCaseRow title="后台恢复" description="开始后切到系统后台再返回，人工确认状态与临时文件表现。" :status="statusFor('background-resume')" action-label="开始观察" @run="beginManual('background-resume', 'background-and-return')" />
     <ValidationCaseRow title="云端文件与预览" description="选择云端占位文件，观察下载、离线、取消和 WebView 预览表现。" :status="statusFor('cloud-preview')" action-label="开始观察" @run="beginManual('cloud-preview', 'cloud-download-and-preview')" />
     <ValidationCaseRow title="系统终止后恢复" description="保存最小恢复标记后关闭应用，重启时自动检查。" :status="statusFor('system-termination')" action-label="执行" @run="runTermination" />
@@ -138,5 +192,6 @@ function recordObservation(verdict: "passed" | "failed"): void {
 .manual-panel { margin: 18px 0; padding: 14px 0; border-block: 1px solid var(--divider-color, rgba(127, 127, 127, 0.18)); }
 .manual-panel label { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 600; }
 .manual-actions { display: flex; gap: 8px; margin-top: 10px; }
+.read-progress { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; color: var(--text-secondary, #6b7280); font-size: 12px; }
 .error-text { color: var(--color-danger, #c23b3b); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 </style>

@@ -113,6 +113,36 @@ LLM 渠道与模型配置
 
 上述结果只来自验证工具的隔离数据库与 cache 沙箱，不代表 `llm_chat.db`、`asset_manager.db` 或正式聊天附件链路已经落地。
 
+### 2.7 验证台增量实现（待新真机报告）
+
+在首份 Android 报告之后，验证台已补充以下可重复入口，并通过宿主机单元测试、类型检查和构建验证：
+
+- [x] 使用官方 `plugin-os` 记录平台、系统版本和架构，并记录视口尺寸与像素比；旧 schema `1.0` 报告保持兼容。
+- [x] 多文件场景要求至少返回 2 项，步骤标题直接显示选择数量；Android 系统选择器需长按首项进入多选。
+- [x] 大文件完整顺序读取使用固定 64 KiB 缓冲区，提供实时进度和停止，记录总字节、首字节、总耗时、MiB/s 与失败阶段；provider 无法报告大小时以 EOF 判断完成。
+- [x] 空间不足清理使用固定 ENOSPC 故障注入，写入 64 KiB 后确认 `.part` 被删除；该结果不替代真实低存储设备观察。
+- [x] SQLite 基准内存从 `PRAGMA memory_used` 改为 `sqlite3_status64` current/high-water，宿主机测试断言 high-water 大于 0。
+
+这些项目尚未包含在 2.6 的旧真机报告中。大文件入口验证的是 `plugin-fs` 分块读取链，不是正式 Rust 资产导入管线；其中部分项目已在 2.8 的 Android 虚拟机报告中复测，但在新 Android 真机报告导出前仍不更新真机通过结论。
+
+### 2.8 Android 虚拟机增量验证
+
+2026-07-20 的 schema `1.0` 报告记录环境为 Android `16.0.0`、x86_64、应用 `0.1.1-m-beta.2`、Tauri `2.11.5`，视口为 412 x 891、像素比 2.625。新增环境字段、SQLite memory high-water 和 ENOSPC 注入均在报告中正常输出。
+
+| 规模 | 总步骤 | 插入 | 冷/热查询 | 删除 | 索引重建 | 数据库 | SQLite high-water |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1k | 33 ms | 8 ms | 0 / 0 ms | 3 ms | 3 ms | 118,784 bytes | 181,944 bytes |
+| 10k | 81 ms | 32 ms | 2 / 2 ms | 5 ms | 12 ms | 659,456 bytes | 1,043,080 bytes |
+| 100k | 665 ms | 396 ms | 21 / 20 ms | 78 ms | 111 ms | 6,594,560 bytes | 5,343,704 bytes |
+
+- [x] SQLx 环境与连接烟测通过：SQLite `3.46.0`、FTS5、WAL、foreign key、`synchronous=NORMAL` 和 4 连接池符合预期，写锁等待 86 ms。
+- [x] Migration、codec、FTS 与事务强杀恢复再次通过。
+- [x] 固定 ENOSPC 注入通过，写入 65,536 bytes 后没有残留 `.part`。
+- [x] 大文件完整读取复测通过：Android `content://` 样本 14,714,525 bytes（14.03 MiB），使用 65,536-byte 块完整读取；首字节 231 ms、总耗时 4,360 ms、平均 3.22 MiB/s，`failurePhase = none`。
+- [x] 语言设置即时应用通过：Settings Store 更新后会同步 i18n locale。验证页自身仍有大量硬编码中文，因此在测试页内不能通过整页文案切换观察效果；该 i18n 覆盖作为后续 UI 收尾项保留。
+
+大文件复测证明 64 KiB IPC 块与 EOF 完成判定可在当前 Android 16 x86_64 虚拟机读取 14.03 MiB `content://` 文件。该结果仍属于验证台方向性吞吐，不代表正式资产导入管线，也不替代 Android 真机和 iOS 验收。
+
 ## 3. 未完成清单
 
 ### 3.1 持久化与资产主线

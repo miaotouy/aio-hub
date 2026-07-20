@@ -11,8 +11,12 @@ export type ValidationRunStatus =
 export interface ValidationEnvironment {
   platform: string;
   osVersion?: string;
+  architecture?: string;
   appVersion: string;
   tauriVersion?: string;
+  viewportWidth?: number;
+  viewportHeight?: number;
+  devicePixelRatio?: number;
 }
 
 export interface ValidationStepResult {

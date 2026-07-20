@@ -84,7 +84,7 @@ onMounted(async () => {
       </button>
       <div>
         <h1>组件与平台测试</h1>
-        <p>{{ environment.platform }} · App {{ environment.appVersion }}</p>
+        <p>{{ environment.platform }} {{ environment.osVersion || "" }} · App {{ environment.appVersion }}</p>
       </div>
     </header>
 
@@ -105,8 +105,10 @@ onMounted(async () => {
       <section v-if="activeSection === 'overview'" class="overview-view">
         <div class="overview-band">
           <div><span>平台</span><strong>{{ environment.platform }}</strong></div>
+          <div><span>系统</span><strong>{{ environment.osVersion || "不可用" }} · {{ environment.architecture || "未知架构" }}</strong></div>
           <div><span>应用版本</span><strong>{{ environment.appVersion }}</strong></div>
           <div><span>Tauri</span><strong>{{ environment.tauriVersion || "不可用" }}</strong></div>
+          <div><span>视口</span><strong>{{ environment.viewportWidth || "?" }} × {{ environment.viewportHeight || "?" }} @ {{ environment.devicePixelRatio || "?" }}</strong></div>
         </div>
 
         <div class="overview-summary">

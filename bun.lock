@@ -199,6 +199,7 @@
         "@tauri-apps/plugin-fs": "~2",
         "@tauri-apps/plugin-http": "^2.5.4",
         "@tauri-apps/plugin-opener": "^2",
+        "@tauri-apps/plugin-os": "^2.3.2",
         "@tauri-apps/plugin-store": "^2.4.1",
         "@varlet/ui": "^3.13.0",
         "@varlet/use": "^3.13.0",

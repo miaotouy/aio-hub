@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { SelectedFileSummary } from "../platformFileValidation";
-import { createPickerValidationResult } from "../platformFileResult";
+import type {
+  FullFileReadSummary,
+  SelectedFileSummary,
+} from "../platformFileValidation";
+import {
+  createFullFileReadValidationResult,
+  createPickerValidationResult,
+} from "../platformFileResult";
 
 function createSelection(
   overrides: Partial<SelectedFileSummary> = {}
@@ -68,5 +74,48 @@ describe("createPickerValidationResult", () => {
       status: "failed",
       summary: "read failed",
     });
+  });
+});
+
+describe("createFullFileReadValidationResult", () => {
+  const completed: FullFileReadSummary = {
+    scheme: "content",
+    fileName: "large.bin",
+    referenceHash: "0123456789abcdef",
+    size: 8 * 1024 * 1024,
+    bytesRead: 8 * 1024 * 1024,
+    firstByteMs: 15,
+    totalReadMs: 1000,
+    throughputMiBps: 8,
+    readChunkBytes: 64 * 1024,
+    status: "passed",
+    failurePhase: "",
+    error: "",
+  };
+
+  it("records completed full-read metrics", () => {
+    const result = createFullFileReadValidationResult(completed);
+
+    expect(result.status).toBe("passed");
+    expect(result.steps[0]).toMatchObject({
+      label: "完整顺序读取（8.00 MiB）",
+      status: "passed",
+    });
+    expect(result.metrics).toMatchObject({
+      bytesRead: 8 * 1024 * 1024,
+      throughputMiBps: 8,
+    });
+  });
+
+  it("keeps a user-stopped read as cancelled", () => {
+    const result = createFullFileReadValidationResult({
+      ...completed,
+      bytesRead: 2 * 1024 * 1024,
+      status: "cancelled",
+    });
+
+    expect(result.status).toBe("cancelled");
+    expect(result.steps[0]?.status).toBe("skipped");
+    expect(result.steps[0]?.summary).toContain("用户停止读取");
   });
 });

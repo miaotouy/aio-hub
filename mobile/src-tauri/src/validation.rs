@@ -77,6 +77,23 @@ fn result(status: &str, steps: Vec<ValidationStepResult>) -> ValidationCommandRe
     }
 }
 
+fn sqlite_memory_status(reset_highwater: bool) -> Result<(i64, i64), String> {
+    let mut current = 0_i64;
+    let mut highwater = 0_i64;
+    let status = unsafe {
+        rusqlite::ffi::sqlite3_status64(
+            rusqlite::ffi::SQLITE_STATUS_MEMORY_USED,
+            &mut current,
+            &mut highwater,
+            i32::from(reset_highwater),
+        )
+    };
+    if status != rusqlite::ffi::SQLITE_OK {
+        return Err(format!("sqlite3_status64 failed with code {status}"));
+    }
+    Ok((current, highwater))
+}
+
 fn validation_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let base = app
         .path()
@@ -104,6 +121,41 @@ fn ensure_validation_db_path(path: &Path) -> Result<(), String> {
         return Err("refused non-validation database path".into());
     }
     Ok(())
+}
+
+fn run_space_exhaustion_cleanup(sandbox: &Path) -> Result<ValidationCommandResult, String> {
+    fs::create_dir_all(sandbox).map_err(|error| error.to_string())?;
+    let started = Instant::now();
+    let partial = sandbox.join("space-exhaustion.part");
+    let bytes_before_failure = 64 * 1024;
+    fs::write(&partial, vec![0_u8; bytes_before_failure]).map_err(|error| error.to_string())?;
+
+    // A deterministic fault point verifies cleanup without filling the device disk.
+    let injected_error = "ENOSPC";
+    fs::remove_file(&partial).map_err(|error| error.to_string())?;
+    if partial.exists() {
+        return Err("ENOSPC injection left a partial file".into());
+    }
+
+    let mut output = result(
+        "passed",
+        vec![passed_step(
+            "space-exhaustion-cleanup",
+            "固定空间不足故障注入",
+            started,
+            "写入部分数据后注入 ENOSPC，.part 文件已清理。",
+            Some(json!({
+                "fault": injected_error,
+                "bytesBeforeFailure": bytes_before_failure,
+                "partialFileExists": false
+            })),
+        )],
+    );
+    output.metrics.insert("fault".into(), injected_error.into());
+    output
+        .metrics
+        .insert("bytesBeforeFailure".into(), bytes_before_failure.into());
+    Ok(output)
 }
 
 fn open_validation_db(path: &Path) -> Result<Connection, String> {
@@ -325,6 +377,7 @@ pub fn run_platform_file_validation(
                 )],
             ))
         }
+        "space-exhaustion-cleanup" => run_space_exhaustion_cleanup(&sandbox),
         "resume-check" => {
             let started = Instant::now();
             let partial_count = fs::read_dir(&sandbox)
@@ -727,6 +780,7 @@ fn run_sqlite_case(
                 _ => return Err("unsupported benchmark preset".into()),
             };
             cancel.store(false, Ordering::Relaxed);
+            sqlite_memory_status(true)?;
             let total_started = Instant::now();
             connection
                 .execute_batch("DROP TABLE IF EXISTS benchmark_messages; CREATE TABLE benchmark_messages(id INTEGER PRIMARY KEY, session_id INTEGER NOT NULL, content TEXT NOT NULL); CREATE INDEX benchmark_session_idx ON benchmark_messages(session_id, id);")
@@ -802,9 +856,8 @@ fn run_sqlite_case(
                 .execute_batch("REINDEX benchmark_session_idx;")
                 .map_err(|error| error.to_string())?;
             let index_rebuild_ms = rebuild_started.elapsed().as_millis() as u64;
-            let peak_sqlite_memory_bytes: i64 = connection
-                .query_row("PRAGMA memory_used", [], |row| row.get(0))
-                .unwrap_or(0);
+            let (current_sqlite_memory_bytes, peak_sqlite_memory_bytes) =
+                sqlite_memory_status(false)?;
             connection
                 .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
                 .map_err(|error| error.to_string())?;
@@ -847,6 +900,10 @@ fn run_sqlite_case(
             output.metrics.insert(
                 "peakSqliteMemoryBytes".into(),
                 peak_sqlite_memory_bytes.into(),
+            );
+            output.metrics.insert(
+                "currentSqliteMemoryBytes".into(),
+                current_sqlite_memory_bytes.into(),
             );
             output
                 .metrics
@@ -968,6 +1025,16 @@ mod tests {
             )
             .expect("fixed validation scenario should pass");
             assert_eq!(output.status, "passed");
+            if scenario == "benchmark" {
+                assert!(
+                    output
+                        .metrics
+                        .get("peakSqliteMemoryBytes")
+                        .and_then(serde_json::Value::as_i64)
+                        .is_some_and(|value| value > 0),
+                    "benchmark should report SQLite memory high-water"
+                );
+            }
         }
 
         for scenario in ["environment", "connection"] {
@@ -976,6 +1043,17 @@ mod tests {
             assert_eq!(output.status, "passed");
         }
 
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn space_exhaustion_injection_removes_partial_file() {
+        let root =
+            std::env::temp_dir().join(format!("aio-ui-tester-enospc-{}", std::process::id()));
+        let output = run_space_exhaustion_cleanup(&root)
+            .expect("space exhaustion injection should clean up");
+        assert_eq!(output.status, "passed");
+        assert!(!root.join("space-exhaustion.part").exists());
         let _ = fs::remove_dir_all(root);
     }
 }

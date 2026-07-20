@@ -489,7 +489,8 @@ interface ManagedAssetRef {
 - [x] 扩展共享 wire 类型与移动端原生 LLM 传输，使 `managed-asset-ref` 只携带 `assetId` 并由 Rust 内部解析。
 - [x] 建立短期 token、可撤销自定义协议、单 Range 读取和大原件响应上限的受控预览候选实现。
 - [ ] 在 Android 真机验证 Rust command 直读 `content://` 的正式导入路径并回写报告。
-- [ ] 完成 Android 真机受控预览验收并接入首个聊天消费者。
+- [ ] 完成 Android 真机受控预览验收并回写报告。
+- [ ] 先完成 [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md) 阶段一至三，再接入聊天附件、usage outbox 与 reclaimed 降级；不在现有 JSON 会话和 `any[]` 附件上增加过渡持久化。
 
 ### Phase 2：资产页
 
@@ -592,6 +593,12 @@ interface ManagedAssetRef {
 - 注册 `aio-asset` 异步 URI scheme；协议每次请求复核 token、ready/managed 状态和对象存在性，支持单 Range（最多 1 MiB）、HEAD/OPTIONS 与 16 MiB 无 Range 上限。
 - Range 解析复用 `http-range`，响应使用 no-store、nosniff、Accept-Ranges/Content-Range；大原件无 Range 时返回 413，等待可重建预览或分块能力。
 - 第六批已通过 LLM Core 93 个测试、移动端 64 个测试、20 个 Rust 测试、根/移动端前端类型检查、Clippy、Vite 生产构建和 Android 四 ABI debug APK/AAB 构建。Android 真机 WebView 的 scheme、Range、CORS 与撤销行为仍未验证，iOS 继续因缺少编译/设备条件跳过。
+
+### 2026-07-20：首个聊天消费者门禁
+
+- 当前 LLM Chat 仍使用逐会话 JSON 文件，`ProcessableMessage._attachments` 仍为 `any[]` 占位，尚无 `llm_chat.db`、`chat_attachments` 或 `asset_usage_outbox`。
+- 聊天附件与 usage outbox 必须在同一聊天数据库事务提交。若先把 `ManagedAssetRef` 写入 JSON、再临时调用资产 usage 命令，崩溃窗口会产生漏引用或僵尸引用，违反删除影响分析的正确性要求。
+- 因此首个聊天消费者暂停在 SQLite 迁移阶段一至三之前。资产内核、受控预览和原生传输保持可独立使用，不以错误的 JSON 过渡方案提前标记消费者完成。
 
 ## 16. 调查来源
 

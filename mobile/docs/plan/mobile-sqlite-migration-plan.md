@@ -1,6 +1,6 @@
 # 移动端 SQLite 引入与持久化重构计划 (Mobile SQLite Migration Plan)
 
-> 状态：施工中；2026-07-21 已完成阶段一 Rust 存储骨架、阶段二前端增量持久化和阶段三附件存储/outbox、资产选择、provider wire 与原件状态降级接入，真实上游发送验收和完整故障注入仍待施工。
+> 状态：施工中；2026-07-21 已完成阶段一 Rust 存储骨架、阶段二前端增量持久化和阶段三附件存储/outbox、资产选择、provider wire、原件状态降级与 outbox 故障注入，真实上游发送验收仍待施工。
 > 当前决议：聊天数据库通过 Rust 领域命令访问，默认采用 SQLx、原生 migration runner 和统一连接配置；前端不得执行任意 SQL。
 
 ## 1. 背景与现状
@@ -404,8 +404,8 @@ END;
 - 应用启动、聊天提交和资产服务恢复时触发投递；失败事件独立重试，永久错误不能阻塞后续无关实体。
 - 已完成第二批：聊天输入区资产选择器只读取 ready 资产；图片、音频、视频和文档转换为 opaque `managed-asset-ref`，OpenAI-compatible/Gemini/Anthropic wire builder 与移动端 Rust native transport 均有固定测试。
 - 已完成第三批：消息附件按 5 秒 TTL 查询资产详情并区分 reclaimed、missing、missing_record 与其他错误；历史上下文剔除不可用附件但保留文本，当前草稿附件在创建消息前阻断并保留草稿。
-- 待完成：真实上游模型发送验收和完整故障注入矩阵。
-- 用故障注入覆盖“资产命令已成功但 delivered 未标记”、重复投递、附件替换、分支删除和会话删除。
+- 待完成：真实上游模型发送验收；当前 emulator 未配置模型，不能在不添加密钥的情况下宣称通过。
+- 已用 Rust 回归覆盖“资产命令已成功但 delivered 未标记”、重复投递、附件替换、分支删除、会话删除、五次失败进入 dead-letter、显式重试和无关实体继续投递。
 
 ### 阶段四：本地搜索
 

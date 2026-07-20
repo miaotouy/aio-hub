@@ -1033,6 +1033,58 @@ async fn pending_outbox(pool: &SqlitePool, limit: u32) -> Result<Vec<OutboxRow>,
     .map_err(|error| format!("CHAT_OUTBOX_LIST: {error}"))
 }
 
+async fn acknowledge_outbox(pool: &SqlitePool, sequence: i64) -> Result<(), String> {
+    sqlx::query(
+        "UPDATE asset_usage_outbox SET delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), last_error = NULL WHERE sequence = ?",
+    )
+    .bind(sequence)
+    .execute(pool)
+    .await
+    .map_err(|error| format!("CHAT_OUTBOX_ACK: {error}"))?;
+    Ok(())
+}
+
+async fn record_outbox_failure(
+    pool: &SqlitePool,
+    sequence: i64,
+    error: &str,
+) -> Result<bool, String> {
+    let changed = sqlx::query(
+        "UPDATE asset_usage_outbox SET attempt_count = attempt_count + 1, last_error = ?, \
+         dead_letter_at = CASE WHEN attempt_count + 1 >= ? THEN strftime('%Y-%m-%dT%H:%M:%fZ', 'now') ELSE dead_letter_at END \
+         WHERE sequence = ?",
+    )
+    .bind(error)
+    .bind(MAX_OUTBOX_ATTEMPTS)
+    .bind(sequence)
+    .execute(pool)
+    .await
+    .map_err(|error| format!("CHAT_OUTBOX_FAILURE: {error}"))?;
+    if changed.rows_affected() != 1 {
+        return Ok(false);
+    }
+    let dead: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM asset_usage_outbox WHERE sequence = ? AND dead_letter_at IS NOT NULL",
+    )
+    .bind(sequence)
+    .fetch_one(pool)
+    .await
+    .map_err(|error| format!("CHAT_OUTBOX_DEAD_LETTER: {error}"))?;
+    Ok(dead == 1)
+}
+
+async fn retry_outbox(pool: &SqlitePool, event_id: &str) -> Result<bool, String> {
+    let result = sqlx::query(
+        "UPDATE asset_usage_outbox SET attempt_count = 0, last_error = NULL, dead_letter_at = NULL \
+         WHERE event_id = ? AND delivered_at IS NULL",
+    )
+    .bind(event_id)
+    .execute(pool)
+    .await
+    .map_err(|error| format!("CHAT_OUTBOX_RETRY: {error}"))?;
+    Ok(result.rows_affected() == 1)
+}
+
 async fn drain_outbox(
     app: &AppHandle,
     chat_state: &LlmChatStorageState,
@@ -1063,37 +1115,13 @@ async fn drain_outbox(
         };
         match result {
             Ok(_) => {
-                sqlx::query("UPDATE asset_usage_outbox SET delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), last_error = NULL WHERE sequence = ?")
-                    .bind(event.sequence)
-                    .execute(pool)
-                    .await
-                    .map_err(|error| format!("CHAT_OUTBOX_ACK: {error}"))?;
+                acknowledge_outbox(pool, event.sequence).await?;
                 delivered += 1;
             }
             Err(error) => {
                 failed += 1;
-                let changed = sqlx::query(
-                    "UPDATE asset_usage_outbox SET attempt_count = attempt_count + 1, last_error = ?, \
-                     dead_letter_at = CASE WHEN attempt_count + 1 >= ? THEN strftime('%Y-%m-%dT%H:%M:%fZ', 'now') ELSE dead_letter_at END \
-                     WHERE sequence = ?",
-                )
-                .bind(error)
-                .bind(MAX_OUTBOX_ATTEMPTS)
-                .bind(event.sequence)
-                .execute(pool)
-                .await
-                .map_err(|error| format!("CHAT_OUTBOX_FAILURE: {error}"))?;
-                if changed.rows_affected() == 1 {
-                    let dead: Option<i64> = sqlx::query_scalar(
-                        "SELECT COUNT(*) FROM asset_usage_outbox WHERE sequence = ? AND dead_letter_at IS NOT NULL",
-                    )
-                    .bind(event.sequence)
-                    .fetch_one(pool)
-                    .await
-                    .map_err(|error| format!("CHAT_OUTBOX_DEAD_LETTER: {error}"))?;
-                    if dead == Some(1) {
-                        dead_lettered += 1;
-                    }
+                if record_outbox_failure(pool, event.sequence, &error).await? {
+                    dead_lettered += 1;
                 }
             }
         }
@@ -1187,15 +1215,7 @@ pub async fn retry_asset_usage_outbox(
 ) -> Result<bool, String> {
     validate_id("EVENT_ID", &event_id)?;
     let _guard = state.write_lock.lock().await;
-    let result = sqlx::query(
-        "UPDATE asset_usage_outbox SET attempt_count = 0, last_error = NULL, dead_letter_at = NULL \
-         WHERE event_id = ? AND delivered_at IS NULL",
-    )
-    .bind(event_id)
-    .execute(state.pool(&app).await?)
-    .await
-    .map_err(|error| format!("CHAT_OUTBOX_RETRY: {error}"))?;
-    Ok(result.rows_affected() == 1)
+    retry_outbox(state.pool(&app).await?, &event_id).await
 }
 
 #[cfg(test)]
@@ -1460,5 +1480,144 @@ mod tests {
         let pending = pending_outbox(&pool, 10).await.unwrap();
         assert_eq!(pending.len(), 1);
         assert_eq!(pending[0].entity_id, "assistant");
+    }
+
+    #[tokio::test]
+    async fn attachment_replacement_and_session_delete_preserve_outbox_order() {
+        let pool = test_pool().await;
+        let request = PersistChatChangesRequest {
+            session: session(),
+            upsert_messages: vec![
+                message("root", None, 0, "system"),
+                message("assistant", Some("root"), 1, "answer"),
+            ],
+            delete_message_ids: Vec::new(),
+            upsert_attachments: vec![ChatAttachmentInput {
+                id: "attachment-1".into(),
+                message_id: "assistant".into(),
+                asset_id: "asset-a".into(),
+                kind: "image".into(),
+                display_name: "a.png".into(),
+                mime_type: "image/png".into(),
+                size_bytes: 1,
+                usage_policy: "advisory".into(),
+                extracted_text: None,
+                sort_order: 0,
+                created_at: None,
+            }],
+            delete_attachment_ids: Vec::new(),
+        };
+        persist_changes(&pool, request).await.unwrap();
+
+        let first = pending_outbox(&pool, 10).await.unwrap();
+        assert_eq!(first.len(), 1);
+        // An asset command can succeed while this ACK is lost. The event stays pending and is
+        // intentionally selected again for idempotent redelivery.
+        let redelivery = pending_outbox(&pool, 10).await.unwrap();
+        assert_eq!(redelivery[0].sequence, first[0].sequence);
+        acknowledge_outbox(&pool, first[0].sequence).await.unwrap();
+
+        persist_changes(
+            &pool,
+            PersistChatChangesRequest {
+                session: session(),
+                upsert_messages: Vec::new(),
+                delete_message_ids: Vec::new(),
+                upsert_attachments: vec![ChatAttachmentInput {
+                    id: "attachment-1".into(),
+                    message_id: "assistant".into(),
+                    asset_id: "asset-b".into(),
+                    kind: "image".into(),
+                    display_name: "b.png".into(),
+                    mime_type: "image/png".into(),
+                    size_bytes: 2,
+                    usage_policy: "blocking".into(),
+                    extracted_text: None,
+                    sort_order: 0,
+                    created_at: None,
+                }],
+                delete_attachment_ids: Vec::new(),
+            },
+        )
+        .await
+        .unwrap();
+        let replacement = pending_outbox(&pool, 10).await.unwrap();
+        assert_eq!(replacement.len(), 1);
+        assert_eq!(replacement[0].entity_id, "assistant");
+        let operation: String =
+            sqlx::query_scalar("SELECT operation FROM asset_usage_outbox WHERE sequence = ?")
+                .bind(replacement[0].sequence)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(operation, "replace");
+        acknowledge_outbox(&pool, replacement[0].sequence)
+            .await
+            .unwrap();
+
+        let deleted = delete_session(&pool, "session-1".into()).await.unwrap();
+        assert_eq!(deleted.queued_release_events, 1);
+        let release = pending_outbox(&pool, 10).await.unwrap();
+        assert_eq!(release.len(), 1);
+        assert_eq!(release[0].entity_id, "assistant");
+        let release_operation: String =
+            sqlx::query_scalar("SELECT operation FROM asset_usage_outbox WHERE sequence = ?")
+                .bind(release[0].sequence)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(release_operation, "release");
+    }
+
+    #[tokio::test]
+    async fn dead_letter_blocks_only_its_own_entity_until_retry() {
+        let pool = test_pool().await;
+        for (event_id, entity_id) in [
+            ("broken-1", "broken-message"),
+            ("healthy-1", "healthy-message"),
+            ("broken-2", "broken-message"),
+        ] {
+            sqlx::query(
+                "INSERT INTO asset_usage_outbox(event_id, module_id, entity_type, entity_id, operation, payload_json, created_at) \
+                 VALUES (?, 'llm-chat', 'message', ?, 'replace', '[]', '2026-01-01')",
+            )
+            .bind(event_id)
+            .bind(entity_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+        let broken_sequence: i64 = sqlx::query_scalar(
+            "SELECT sequence FROM asset_usage_outbox WHERE event_id = 'broken-1'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        for attempt in 1..=MAX_OUTBOX_ATTEMPTS {
+            assert_eq!(
+                record_outbox_failure(&pool, broken_sequence, "injected failure")
+                    .await
+                    .unwrap(),
+                attempt == MAX_OUTBOX_ATTEMPTS
+            );
+        }
+
+        let pending = pending_outbox(&pool, 10).await.unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].entity_id, "healthy-message");
+        acknowledge_outbox(&pool, pending[0].sequence)
+            .await
+            .unwrap();
+
+        assert!(retry_outbox(&pool, "broken-1").await.unwrap());
+        let retried = pending_outbox(&pool, 10).await.unwrap();
+        assert_eq!(retried.len(), 1);
+        assert_eq!(retried[0].entity_id, "broken-message");
+        acknowledge_outbox(&pool, retried[0].sequence)
+            .await
+            .unwrap();
+        let next = pending_outbox(&pool, 10).await.unwrap();
+        assert_eq!(next.len(), 1);
+        assert_eq!(next[0].entity_id, "broken-message");
     }
 }

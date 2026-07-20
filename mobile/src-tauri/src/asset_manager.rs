@@ -1223,6 +1223,16 @@ pub(crate) async fn replace_entity_usages_internal(
 
     let pool = state.pool(app).await?;
     let _guard = state.mutation_lock.lock().await;
+    replace_entity_usages_in_pool(pool, module_id, entity_type, entity_id, &usages).await
+}
+
+pub(crate) async fn replace_entity_usages_in_pool(
+    pool: &SqlitePool,
+    module_id: &str,
+    entity_type: &str,
+    entity_id: &str,
+    usages: &[AssetUsageInput],
+) -> Result<usize, String> {
     let mut transaction = pool
         .begin()
         .await
@@ -1236,7 +1246,7 @@ pub(crate) async fn replace_entity_usages_internal(
     .execute(&mut *transaction)
     .await
     .map_err(|error| format!("ASSET_USAGE_DELETE: {error}"))?;
-    for usage in &usages {
+    for usage in usages {
         sqlx::query(
             "INSERT INTO asset_usages( \
                asset_id, module_id, entity_type, entity_id, role, usage_policy, created_at \
@@ -3281,6 +3291,69 @@ mod tests {
         ] {
             assert!(import_job_columns.iter().any(|column| column == expected));
         }
+    }
+
+    #[tokio::test]
+    async fn usage_replacement_is_idempotent_across_redelivery() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        ASSET_MIGRATOR.run(&pool).await.unwrap();
+        for (id, hash) in [("asset-a", "a"), ("asset-b", "b")] {
+            sqlx::query(
+                "INSERT INTO assets(id, content_hash, kind, mime_type, display_name, size_bytes, relative_path, created_at, updated_at) \
+                 VALUES (?, ?, 'image', 'image/png', ?, 1, ?, '2026-01-01', '2026-01-01')",
+            )
+            .bind(id)
+            .bind(hash.repeat(64))
+            .bind(format!("{id}.png"))
+            .bind(format!("objects/{id}"))
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+
+        let first = vec![AssetUsageInput {
+            asset_id: "asset-a".into(),
+            role: "attachment".into(),
+            usage_policy: "advisory".into(),
+        }];
+        assert_eq!(
+            replace_entity_usages_in_pool(&pool, "llm-chat", "message", "message-1", &first)
+                .await
+                .unwrap(),
+            1
+        );
+        // Simulate an ACK lost after the asset command committed: redelivery must be harmless.
+        replace_entity_usages_in_pool(&pool, "llm-chat", "message", "message-1", &first)
+            .await
+            .unwrap();
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM asset_usages WHERE module_id = 'llm-chat' AND entity_type = 'message' AND entity_id = 'message-1'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(count, 1);
+
+        let replacement = vec![AssetUsageInput {
+            asset_id: "asset-b".into(),
+            role: "attachment".into(),
+            usage_policy: "blocking".into(),
+        }];
+        replace_entity_usages_in_pool(&pool, "llm-chat", "message", "message-1", &replacement)
+            .await
+            .unwrap();
+        let (asset_id, policy): (String, String) = sqlx::query_as(
+            "SELECT asset_id, usage_policy FROM asset_usages WHERE module_id = 'llm-chat' AND entity_type = 'message' AND entity_id = 'message-1'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(asset_id, "asset-b");
+        assert_eq!(policy, "blocking");
     }
 
     #[test]

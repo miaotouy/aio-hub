@@ -1,7 +1,7 @@
 # 移动端资产管理器调查与设计方案
 
-> 状态：待评审
-> 日期：2026-07-15
+> 状态：施工中（Phase 1，Android 先行；iOS 因缺少编译与真机设备条件暂缓补验）
+> 日期：2026-07-15；2026-07-20 更新施工状态
 > 范围：产品信息架构、移动端存储语义、数据模型与实施边界。本文件不包含功能实现。
 
 ## 1. 结论
@@ -36,12 +36,12 @@
 ### 2.2 移动端已有基础
 
 - 技术栈为 Tauri v2、Vue 3、TypeScript 与 Rust。
-- 已安装 `@tauri-apps/plugin-fs`，当前 capability 只允许应用数据目录读写。
-- `mobile/src/utils/fsUtils.ts` 仅封装了应用数据目录下的文本文件与目录操作，没有二进制资产服务。
-- 移动端尚未安装 dialog、SQL、相册、相机或分享相关插件。
+- 已安装 `@tauri-apps/plugin-fs` 与 `@tauri-apps/plugin-dialog`；验证台已能读取 Android 系统选择器返回的 `content://`，应用数据目录仍只通过受控 capability 与 Rust 领域命令访问。
+- 通用 `mobile/src/utils/fsUtils.ts` 仍只封装应用数据目录下的文本文件与目录操作；Phase 1 已新增独立 Rust 二进制资产服务，不把二进制职责塞回通用工具。
+- Rust 已引入 SQLx 与 bundled SQLite 验证依赖，`ui-tester` 已具备平台文件和 SQLite 固定验证板块；相册专用入口、相机和分享插件仍未接入。
 - `llm-chat` 的 `_attachments` 仍为 `any[]` 占位，架构文档已把完整 Asset 系统列为待办。
 - `agent-manager` 的 `assets` 与 `assetGroups` 仍是占位类型，但其桌面端语义是智能体私有资产，不应因此并入全局资产库。
-- 工作区已有“一模块一数据库”的移动端 SQLite 计划，但尚未形成资产库实现。
+- 工作区已有“一模块一数据库”的移动端 SQLite 计划；Phase 1 首批已建立资产库 migration 与 repository，尚未接用户界面和聊天消费者。
 
 因此，资产管理器不是一个孤立工具页。它会成为聊天附件、媒体生成输入输出和后续通用导入/导出能力的共同依赖。智能体私有资产只在用户明确执行“复制到智能体”或“从智能体复制到资产库”时与全局资产发生内容复制，不共享物理对象或生命周期。
 
@@ -462,6 +462,13 @@ interface ManagedAssetRef {
 
 交付物是固定验证命令、`ui-tester` 操作面板、Android/iOS 运行报告和 API 决策；不接正式资产业务 UI。详细设计见 [`platform-validation-workbench-plan.md`](../../src/tools/ui-tester/docs/Plan/platform-validation-workbench-plan.md)。
 
+当前施工决议（2026-07-20）：
+
+- Android 11 真机已完成平台文件、SQLite、强杀恢复和大文件读取的首轮验证，可以支撑 Phase 1 的 Android 先行施工。
+- 当前开发环境缺少 iOS 编译与真机设备条件，iOS Phase 0 暂缓，不把缺失报告解释为通过，也不阻塞平台中立的资产内核与 Android 数据链施工。
+- iOS 补验仍是发布 iOS 资产能力前的门禁；涉及 security-scoped URL、备份排除、预览协议和分享/照片专用入口的实现不得仅依据 Android 行为冻结。
+- 正式导入链必须增加“系统 URI 由 Rust 资产命令直接打开并流式写入”的固定验证。现有 WebView 侧 plugin-fs 分块读取报告只证明选择结果可读，不替代正式资产导入链验证。
+
 ### Phase 1：资产内核
 
 - 建立独立 `asset_manager.db` 与 Rust repository。
@@ -470,6 +477,14 @@ interface ManagedAssetRef {
 - 将聊天 SQLite 附件预案从 `file_path` 改为 `asset_id + 轻量快照`，并统一资产类型枚举。
 - 扩展移动端原生 LLM 文件传输，使其接受 `managed-asset-ref` 并由 Rust 解析资产内容。
 - 优先接入一个真实消费者，建议 LLM Chat 附件，验证 advisory/blocking usage、附件快照和删除降级生命周期。
+
+当前进度：
+
+- [x] 建立 `asset_manager.db` migration、固定 SQLx 连接配置和资产模块状态。
+- [x] 建立系统引用直读、单遍 SHA-256、暂存、内容寻址落盘、去重来源追加和 tombstone ID 恢复的首批导入链。
+- [x] 建立资产列表、详情和按业务实体整体替换 usage 的首批领域命令与 TypeScript 服务契约。
+- [ ] 在 Android 真机验证 Rust command 直读 `content://` 的正式导入路径并回写报告。
+- [ ] 补齐启动恢复、删除影响分析、回收、存储统计、受控预览与首个聊天消费者。
 
 ### Phase 2：资产页
 
@@ -524,7 +539,17 @@ interface ManagedAssetRef {
 5. 平板是否仅增加网格列数，还是增加常驻详情双栏；建议首版只增加列数。
 6. WebView 预览采用受控资源协议还是短期读取令牌，以 Android 与 iOS 真机行为为准。
 
-## 15. 调查来源
+## 15. 施工记录
+
+### 2026-07-20：Phase 1 首批
+
+- 施工顺序调整为 Android 先行，iOS 因缺少编译与真机设备条件暂缓补验。
+- 首批已建立 `asset_manager.db` migration、Rust repository、内容寻址导入、基础查询与 usage replacement 契约，以及前端薄服务层；未注册不完整的资产管理页面。
+- 资产 UI、WebView 预览协议、专用 Photo Picker、分享导入/导出和 iOS security-scoped URL 结论继续受各自平台验证门禁约束。
+- 聊天消费者在 `ManagedAssetRef` 与 usage replacement 契约稳定后接入，不在内核首批继续沿用路径型附件。
+- 本批已通过移动端 56 个前端测试、13 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android debug APK/AAB 构建；尚未用真机系统选择结果执行新增的 Rust 导入命令。
+
+## 16. 调查来源
 
 - [Tauri v2 File System Plugin](https://v2.tauri.app/plugin/file-system/)
 - [Tauri v2 Dialog Plugin](https://v2.tauri.app/plugin/dialog/)

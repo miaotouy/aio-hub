@@ -1,4 +1,5 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+mod asset_manager;
 mod llm_file_transport;
 mod token_counting;
 mod validation;
@@ -17,10 +18,15 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
+        .manage(asset_manager::AssetManagerState::default())
         .manage(llm_file_transport::NativeRequestState::default())
         .manage(validation::ValidationState::default())
         .invoke_handler(tauri::generate_handler![
             greet,
+            asset_manager::asset_import_sources,
+            asset_manager::asset_list,
+            asset_manager::asset_get_detail,
+            asset_manager::asset_replace_entity_usages,
             llm_file_transport::send_llm_file_request,
             llm_file_transport::cancel_llm_file_request,
             token_counting::count_tokens,

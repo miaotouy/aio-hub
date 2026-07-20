@@ -1,6 +1,6 @@
 # 移动端开发验证台设计与实施计划
 
-> 状态：Android 虚拟机验收通过，Android 真机已完成一轮部分覆盖验证，待补齐 Android 场景并完成 iOS 验收
+> 状态：Android 虚拟机与首轮真机验收通过；iOS 因当前缺少编译与真机设备条件暂缓，不计为通过
 > 日期：2026-07-18
 > 所属工具：`mobile/src/tools/ui-tester/`
 > 目标：为移动端组件、Tauri 平台能力、资产 Phase 0 和 SQLite Phase 0 提供可重复操作、可记录、可导出的真机验证入口。
@@ -266,3 +266,5 @@ mobile/src/tools/ui-tester/
 - 大文件完整读取复测通过：Android `content://` 样本 14,714,525 bytes（14.03 MiB），65,536-byte 块完整读取，首字节 231 ms、总耗时 4,360 ms、平均 3.22 MiB/s，`failurePhase = none`。该数据只代表 Android 16 x86_64 虚拟机的 `plugin-fs` 读取链，真机和 iOS 仍需分别运行。
 - iOS 尚未验收，仍需从应用内依次运行平台文件和 SQLite 固定场景并导出一份 schema `1.0` JSON 报告。
 - 第 9 节要求的 Android 与 iOS 真实设备报告尚未全部完成，因此当前结论代表 Android 11 真机验证台通过，不等同于 Phase 0 双平台最终验收。
+- 2026-07-20 施工决议：当前环境没有可用的 iOS 编译与真机设备条件，先允许平台中立内核与 Android 资产链进入 Phase 1；iOS 固定场景和报告延期到设备条件具备后执行，仍是 iOS 资产能力发布前门禁。
+- 资产正式导入还需补充 Rust command 直接打开系统选择结果并流式写入固定沙箱的场景；现有 WebView/plugin-fs 分块读取结果不能替代该数据路径验证。

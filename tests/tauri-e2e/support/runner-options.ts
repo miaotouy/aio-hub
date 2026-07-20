@@ -1,10 +1,11 @@
-export type RecallCorpusMode = "smoke" | "curated";
+export type RecallCorpusMode = "smoke" | "curated" | "external-full";
 
 export type RunnerLaneRequest =
   | { kind: "deterministic-mock" }
   | {
       kind: "ollama";
       baseUrl: string;
+      chatModelId?: string;
       embeddingModelId: string;
       requireAvailable: boolean;
     }
@@ -131,7 +132,9 @@ export function parseE2eRunnerOptions(
   if (!(["mock", "ollama"] as string[]).includes(vectorMode)) {
     throw new Error(`Unsupported vector mode: ${vectorMode}.`);
   }
-  if (!(["smoke", "curated"] as string[]).includes(corpusMode)) {
+  if (
+    !(["smoke", "curated", "external-full"] as string[]).includes(corpusMode)
+  ) {
     throw new Error(`Unsupported corpus mode: ${corpusMode}.`);
   }
 
@@ -166,6 +169,7 @@ export function parseE2eRunnerOptions(
     lane = {
       kind: "ollama",
       baseUrl: env.AIO_E2E_OLLAMA_BASE_URL?.trim() || "http://127.0.0.1:11434",
+      chatModelId: env.AIO_E2E_OLLAMA_CHAT_MODEL?.trim() || undefined,
       embeddingModelId: requireValue(
         env.AIO_E2E_OLLAMA_MODEL,
         "AIO_E2E_OLLAMA_MODEL"

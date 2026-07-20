@@ -1,6 +1,6 @@
 # Recall 自动化测试、精简 OAI 渠道与真实向量请求实施计划
 
-**状态**: 实施中（Phase 1、Phase 2、Phase 3 完成）
+**状态**: 已完成（Phase 1、Phase 2、Phase 3、Phase 4、Phase 5 完成）
 
 **创建日期**: 2026-07-20  
 **最近修订**: 2026-07-20  
@@ -32,14 +32,18 @@
 - runner 已支持 `--vector-mode`、`--corpus-mode`、`--llm-profile`，默认 mock、Ollama mixed lane 和私有 lane 均生成显式角色与运行元数据；
 - Phase 2 的 23 个稳定 Recall / Agent Recall / Chat selector 已补齐，并通过前端类型检查和 Vite build。
 - 新增 lane-aware `recall-runtime-fixture.spec.ts`：按 `smoke` / `curated` 选择真实语料，通过正式 `recall_initialize`、`recall_save_base_meta`、`recall_upsert_entry`、`recall_load_base_meta` IPC 写入回读，并从 Recall UI 验证集合与条目可见；非默认 lane 不再执行硬编码 deterministic mock 的 Knowledge spec。
-- `external-full` 在 Phase 4 的显式 backup import 实现前 fail-closed，不再接受只写 metadata、未实际导入语料的空模式；runner 资源在正常退出、信号和启动期异常路径统一清理。
+- `external-full` 现已通过显式 backup import 实现：未指定 `AIO_E2E_RECALL_SOURCE` 时明确 skip，指定后必须完成真实 inspect/import、UI 向量化和重启回读；runner 资源在正常退出、信号和启动期异常路径统一清理。
 - Phase 2 新增独立 `recall-vector-workflow.spec.ts` 与 `test:tauri:e2e:recall(:curated)`：从可见 UI 触发全量向量化和 vector search，并交叉断言脱敏 HTTP request、IPC coverage、实际维度、entry model 状态、trace 与 UI 排名；smoke 6 条和 curated 18 条真实窗口流程均已通过。
 - fixture seeder 现预置 lane-specific Recall workspace 模型与活动集合，verify 模式只核验引用；deterministic topic vector 同时覆盖 curated 标签与两类 hard negative 独立轴，稳定保留同标题异 ID 并阻止 hard negative 占据第一名。
 - Phase 3 新增 `recall-chat-injection.spec.ts` 与 `recall-session-recovery.spec.ts`：从预置会话发送消息，交叉验证 query embedding、预期 top entry、Chat evidence、SSE UI 完成态和 session detail；显式空集合覆盖 no-result，故意缺失 evidence 时 mock 返回 422 且 UI/session 不得出现伪成功回复。
 - runner 支持 `--restart-spec` 和必跑 scenario 清单：首个 WDIO 退出后以同一数据根、`AIO_E2E_FIXTURE_MODE=verify` 启动第二个 Tauri 进程；恢复用例回读 workspace 模型、向量 coverage/维度、Agent binding 和首启消息后再次完成 Recall Chat。
 - `scenario-results.json` 已汇总四个必跑场景的 query embedding、top entry、Chat evidence、UI 回复和 session 回读；runner 会拒绝未消费场景、未知/意外 Chat 请求以及状态或 mismatch reason 不符。
 
-Phase 4 之后的外部完整 corpus import 与真实 Ollama Chat/向量全流程尚未实施。
+Phase 4 已新增显式 `external-full` lane：runner 只接受 `AIO_E2E_RECALL_SOURCE` 指定的 `.aio-kb`，启动前只校验文件、SHA-256 与 ZIP 白名单；未指定源时明确 skip。首次 Tauri 进程使用正式 `recall_inspect_backup` / `recall_import_backup`，从可见 Recall UI 启动全量向量化，回读条目与向量覆盖；第二个同数据根进程回读集合、向量与维度且不重复导入。`recall-external-corpus.json` 只记录 hash、条目/进度/请求计数、耗时和状态，不记录路径、库名、正文或向量。
+
+对已复核的 473 条样本，runner 会额外校验 archive hash、总条目数与少量 source entry ID 的导入/向量状态；它们用于防止导入漏项，不把外部语料的精确相似度或固定批次时序当作完成条件。
+
+Phase 5 已完成：runner 新增 Chat `/v1/chat/completions` 预检与显式 full lane；Chat 使用真实 Ollama + Tauri Rust proxy，Embedding 使用真实 Ollama + 脱敏本地 JSON proxy，两个角色保持独立 Profile。真实 lane 使用 response-present / state-based 断言，不静默回退 mock；本机 `lmstudio-nomic-embed-text:q4_k_m`（768 维）与 `mxbai-embed-large:latest`（1024 维）均已完成向量化、Recall Chat、会话持久化和二次进程恢复。
 
 ---
 
@@ -325,7 +329,7 @@ interface RecallE2eLane {
   expectedDimension: number;
   rankingMode: "exact" | "relative";
   chatExpectation: "preset-exact" | "response-present";
-  requestEvidence: "mock-log" | "proxy-log-and-state";
+  requestEvidence: "mock-log" | "proxy-log-and-state" | "tauri-log-and-state";
   corpusMode: "smoke" | "curated" | "external-full";
 }
 ```
@@ -617,11 +621,13 @@ backend.log
 ### Phase 5：真实 Ollama lane
 
 - 增加 `/api/tags` + `/v1/embeddings` 预检。
+- 增加 OpenAI-compatible `/v1/chat/completions` 非空响应预检，并允许显式选择 Chat 模型。
 - 动态写入模型 ID 和维度。
 - 复用 Phase 2/3 场景，以相对排名断言替代 mock 精确分数。
-- 在 README 中记录显式安装/运行前提和 skip/fail 规则。
+- Chat 与 Embedding 使用独立 Ollama Profile；Chat 通过 Tauri Rust proxy 验证真实请求，Embedding 通过脱敏 JSON proxy 记录 hash、长度、状态和维度。
+- 在 README 中记录显式安装/运行前提、模型冷启动限制和 skip/fail 规则。
 
-完成门槛：本机 `lmstudio-nomic-embed-text:q4_k_m` 与 `mxbai-embed-large:latest` 至少各完成一次全流程记录；常规测试在无 Ollama 环境仍完全可运行。
+完成门槛：本机 `lmstudio-nomic-embed-text:q4_k_m` 与 `mxbai-embed-large:latest` 已各完成一次全流程记录；常规测试在无 Ollama 环境仍完全可运行。
 
 ---
 

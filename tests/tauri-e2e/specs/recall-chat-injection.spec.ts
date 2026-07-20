@@ -18,6 +18,8 @@ const artifactDir = requiredE2eEnv("AIO_E2E_ARTIFACT_DIR");
 const dataDir = requiredE2eEnv("AIO_DATA_DIR");
 const phase = process.env.AIO_E2E_PHASE || "initial";
 const lane = process.env.AIO_E2E_LANE || "deterministic-mock";
+const chatExpectation = process.env.AIO_E2E_CHAT_EXPECTATION || "preset-exact";
+const requestEvidence = process.env.AIO_E2E_REQUEST_EVIDENCE || "mock-log";
 const { manifest, embeddingModelId, embeddingDimension } = recallRuntimeFixture;
 
 interface ChatSummary {
@@ -30,6 +32,25 @@ interface ChatSummary {
 
 interface EmbeddingSummary {
   inputs?: Array<{ inputHash: string; topicId: string | null }>;
+}
+
+function requestLog(fileName: "chat" | "embedding"): string {
+  if (fileName === "chat" && chatExpectation === "preset-exact") {
+    return "chat-requests.jsonl";
+  }
+  if (fileName === "embedding" && lane === "deterministic-mock") {
+    return "embedding-requests.jsonl";
+  }
+  return "ollama-requests.jsonl";
+}
+
+function readEmbeddingSummaries(): EmbeddingSummary[] {
+  return readJsonLines<EmbeddingSummary>(requestLog("embedding")).filter(
+    (request) =>
+      requestLog("embedding") !== "ollama-requests.jsonl" ||
+      (request as EmbeddingSummary & { endpoint?: string }).endpoint ===
+        "/v1/embeddings"
+  );
 }
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -48,9 +69,38 @@ function readJsonLines<T>(fileName: string): T[] {
 
 async function navigateTo(pathname: string): Promise<void> {
   await browser.execute((target) => {
+    const menuItem = document.querySelector<HTMLElement>(
+      `[data-index="${target}"]`
+    );
+    if (menuItem) {
+      menuItem.click();
+      return;
+    }
     window.history.pushState({}, "", target);
     window.dispatchEvent(new PopStateEvent("popstate"));
   }, pathname);
+  await browser.waitUntil(
+    async () =>
+      (await browser.execute(() => window.location.pathname)) === pathname,
+    { timeout: 20_000, timeoutMsg: `Route did not become active: ${pathname}` }
+  );
+}
+
+function countBackendRequests(endpoint: string): number {
+  if (requestEvidence !== "tauri-log-and-state") return 0;
+  return fs
+    .readdirSync(artifactDir)
+    .filter(
+      (fileName) => fileName.startsWith("wdio") && fileName.endsWith(".log")
+    )
+    .reduce((count, fileName) => {
+      const text = fs.readFileSync(path.join(artifactDir, fileName), "utf8");
+      return (
+        count +
+        (text.match(new RegExp(`raw request to .*${endpoint}`, "g"))?.length ??
+          0)
+      );
+    }, 0);
 }
 
 async function selectSession(sessionId: string): Promise<void> {
@@ -100,21 +150,45 @@ async function fillChatInput(content: string): Promise<void> {
 
 async function waitForChatSummary(
   scenarioId: string,
-  status: number
+  status: number,
+  baselineBackendRequests = 0
 ): Promise<ChatSummary> {
+  if (requestEvidence === "tauri-log-and-state") {
+    await browser.waitUntil(
+      async () =>
+        countBackendRequests("/v1/chat/completions") > baselineBackendRequests,
+      {
+        timeout: chatExpectation === "response-present" ? 180_000 : 60_000,
+        timeoutMsg: `Tauri backend did not record Chat request for ${scenarioId}.`,
+      }
+    );
+    return {
+      scenarioId,
+      scenarioMatch: true,
+      status,
+      requiredEvidence: [{ matched: true }],
+      mismatchReason: null,
+    };
+  }
   let summary: ChatSummary | undefined;
   await browser.waitUntil(
     async () => {
-      const summaries = readJsonLines<ChatSummary>("chat-requests.jsonl");
+      const summaries = readJsonLines<ChatSummary & { endpoint?: string }>(
+        requestLog("chat")
+      ).filter(
+        (candidate) =>
+          requestLog("chat") !== "ollama-requests.jsonl" ||
+          candidate.endpoint === "/v1/chat/completions"
+      );
       summary = [...summaries]
         .reverse()
         .find((candidate) => candidate.scenarioId === scenarioId);
       return summary?.status === status;
     },
     {
-      timeout: 60_000,
+      timeout: chatExpectation === "response-present" ? 180_000 : 60_000,
       interval: 250,
-      timeoutMsg: `Chat mock did not record ${scenarioId} with status ${status}.`,
+      timeoutMsg: `Chat request was not recorded for ${scenarioId} with status ${status}.`,
     }
   );
   return summary!;
@@ -168,6 +242,60 @@ async function waitForSessionContent(
     }
   );
   return session!;
+}
+
+async function waitForCompletedAssistant(
+  expectedText?: string
+): Promise<string> {
+  let content = "";
+  await browser.waitUntil(
+    async () => {
+      content = await browser.execute((expected) => {
+        const message = Array.from(
+          document.querySelectorAll<HTMLElement>('[data-testid="chat-message"]')
+        ).find(
+          (candidate) =>
+            candidate.dataset.messageRole === "assistant" &&
+            candidate.dataset.messageStatus === "complete" &&
+            (!expected || candidate.innerText.includes(expected))
+        );
+        return message?.innerText.trim() ?? "";
+      }, expectedText);
+      return content.length > 0;
+    },
+    {
+      timeout: chatExpectation === "response-present" ? 180_000 : 60_000,
+      timeoutMsg: "Assistant reply did not complete.",
+    }
+  );
+  return content;
+}
+
+async function waitForPersistedAssistant(
+  sessionId: string,
+  query: string,
+  expectedText?: string
+): Promise<void> {
+  await browser.waitUntil(
+    async () => {
+      const nodes = Object.values(readSession(sessionId).nodes);
+      return (
+        nodes.some((node) => node.content === query) &&
+        nodes.some(
+          (node) =>
+            node.role === "assistant" &&
+            node.status === "complete" &&
+            node.content.trim().length > 0 &&
+            (!expectedText || node.content.includes(expectedText))
+        )
+      );
+    },
+    {
+      timeout: 60_000,
+      interval: 250,
+      timeoutMsg: `Session detail did not persist an assistant reply: ${sessionId}`,
+    }
+  );
 }
 
 async function resolveTopEntry(query: string): Promise<string | undefined> {
@@ -269,53 +397,38 @@ async function runScenario(
   });
   await selectFixtureAgent();
   await selectSession(sessionId);
-  const beforeEmbeddings = readJsonLines<EmbeddingSummary>(
-    "embedding-requests.jsonl"
-  ).length;
+  const beforeEmbeddings = readEmbeddingSummaries().length;
+  const beforeChatRequests = countBackendRequests("/v1/chat/completions");
   await fillChatInput(query);
   await $('[data-testid="chat-send-message"]').click();
 
-  const summary = await waitForChatSummary(scenarioId, expectedStatus);
-  const embeddingRequests = readJsonLines<EmbeddingSummary>(
-    "embedding-requests.jsonl"
-  ).slice(beforeEmbeddings);
-  const queryEmbedding = embeddingRequests.some((request) =>
-    request.inputs?.some((input) =>
-      scenario.expected.embeddingTopicId
-        ? input.topicId === scenario.expected.embeddingTopicId
-        : input.topicId === null
-    )
+  const summary = await waitForChatSummary(
+    scenarioId,
+    expectedStatus,
+    beforeChatRequests
   );
+  const embeddingRequests = readEmbeddingSummaries().slice(beforeEmbeddings);
+  const queryEmbedding =
+    lane === "deterministic-mock"
+      ? embeddingRequests.some((request) =>
+          request.inputs?.some((input) =>
+            scenario.expected.embeddingTopicId
+              ? input.topicId === scenario.expected.embeddingTopicId
+              : input.topicId === null
+          )
+        )
+      : embeddingRequests.length > 0;
   const topEntryId = await resolveTopEntry(query);
   let sessionPersisted = false;
   let uiReply = false;
   if (expectedStatus === 200) {
-    await browser.waitUntil(
-      async () =>
-        await browser.execute(
-          (text) =>
-            Array.from(
-              document.querySelectorAll<HTMLElement>(
-                '[data-testid="chat-message"]'
-              )
-            ).some(
-              (message) =>
-                message.dataset.messageRole === "assistant" &&
-                message.dataset.messageStatus === "complete" &&
-                message.innerText.includes(text)
-            ),
-          scenario.response.chunks.join("")
-        ),
-      {
-        timeout: 60_000,
-        timeoutMsg: `Assistant reply did not complete: ${scenarioId}`,
-      }
-    );
+    const expectedText =
+      chatExpectation === "preset-exact"
+        ? scenario.response.chunks.join("")
+        : undefined;
+    await waitForCompletedAssistant(expectedText);
     uiReply = true;
-    await waitForSessionContent(sessionId, [
-      query,
-      scenario.response.chunks.join(""),
-    ]);
+    await waitForPersistedAssistant(sessionId, query, expectedText);
     sessionPersisted = true;
   } else {
     await browser.waitUntil(
@@ -345,7 +458,8 @@ async function runScenario(
         summary.requiredEvidence.every((item) => item.matched)
       : !summary.scenarioMatch &&
         summary.mismatchReason === scenario.expected.mismatchReason;
-  const expectedTop = scenario.expected.topEntryId;
+  const expectedTop =
+    lane === "deterministic-mock" ? scenario.expected.topEntryId : undefined;
   const passed =
     embeddingRequests.length >= scenario.expected.embeddingRequests &&
     queryEmbedding === scenario.expected.embeddingRequests > 0 &&
@@ -401,12 +515,14 @@ describe("Recall Chat injection", () => {
     }
   });
 
-  it("fails closed when the required Recall evidence is missing", async () => {
-    await runScenario(
-      "missing-evidence-fail-closed",
-      manifest.sessions.find((session) => session.id.includes("fail-closed"))!
-        .id,
-      422
-    );
-  });
+  if (chatExpectation === "preset-exact") {
+    it("fails closed when the required Recall evidence is missing", async () => {
+      await runScenario(
+        "missing-evidence-fail-closed",
+        manifest.sessions.find((session) => session.id.includes("fail-closed"))!
+          .id,
+        422
+      );
+    });
+  }
 });

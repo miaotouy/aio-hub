@@ -116,6 +116,9 @@ const handleDeselectAllEntries = () => {
       class="indexing-progress-bar"
       data-testid="recall-vector-progress"
       :data-recall-id="recallStore.activeBaseId || undefined"
+      :data-vector-current="recallStore.indexingProgress.current"
+      :data-vector-total="recallStore.indexingProgress.total"
+      :data-vector-failed="recallStore.indexingProgress.failedDetails.size"
     >
       <el-progress
         :percentage="

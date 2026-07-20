@@ -19,7 +19,10 @@ describe("Tauri E2E runner options", () => {
     expect(
       parseE2eRunnerOptions(
         ["--native", "--vector-mode=ollama", "--corpus-mode", "curated"],
-        { AIO_E2E_OLLAMA_MODEL: "nomic-embed-text" }
+        {
+          AIO_E2E_OLLAMA_CHAT_MODEL: "qwen3.5:9b",
+          AIO_E2E_OLLAMA_MODEL: "nomic-embed-text",
+        }
       )
     ).toEqual({
       nativeUiEnabled: true,
@@ -27,6 +30,7 @@ describe("Tauri E2E runner options", () => {
       lane: {
         kind: "ollama",
         baseUrl: "http://127.0.0.1:11434",
+        chatModelId: "qwen3.5:9b",
         embeddingModelId: "nomic-embed-text",
         requireAvailable: false,
       },
@@ -107,8 +111,8 @@ describe("Tauri E2E runner options", () => {
       })
     ).toThrow("positive integer");
 
-    expect(() =>
+    expect(
       parseE2eRunnerOptions(["--corpus-mode", "external-full"], {})
-    ).toThrow("Unsupported corpus mode");
+    ).toMatchObject({ corpusMode: "external-full", wdioArgs: [] });
   });
 });

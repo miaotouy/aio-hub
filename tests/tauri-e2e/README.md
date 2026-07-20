@@ -57,12 +57,32 @@ bun run test:tauri:e2e:unit
 ## Recall model lanes
 
 The deterministic mock remains the default. A local Ollama embedding lane is
-explicitly selected and uses the mock only for Chat:
+explicitly selected with `AIO_E2E_OLLAMA_MODEL`; it keeps mock Chat for the
+short vector workflow:
 
 ```powershell
 $env:AIO_E2E_OLLAMA_MODEL = "lmstudio-nomic-embed-text:q4_k_m"
 bun run test:tauri:e2e:ollama
 ```
+
+Run the opt-in full Ollama lane by selecting a completion model as well. The
+runner probes both models, keeps Chat on the product's Tauri Rust proxy, and
+uses a local redacting JSON proxy for Embedding. It records only request
+hashes, counts, dimensions, and status in `ollama-requests.jsonl`; Chat target
+delivery is verified from the captured Tauri backend log:
+
+```powershell
+$env:AIO_E2E_OLLAMA_MODEL = "lmstudio-nomic-embed-text:q4_k_m"
+$env:AIO_E2E_OLLAMA_CHAT_MODEL = "phi4:latest"
+bun run test:tauri:e2e:ollama:full
+```
+
+The full lane uses response-present assertions for real Chat output and
+relative/state assertions for vector retrieval. Chat request delivery is
+verified from Tauri backend logs; Embedding summaries are redacted in
+`ollama-requests.jsonl`. It never falls back to the mock when either explicit
+model fails preflight. Without a completion model,
+the original embedding-only lane remains available.
 
 The runner checks `/api/tags` and the product-facing `/v1/embeddings` batch
 contract before starting Tauri. An unavailable Ollama lane is recorded as
@@ -116,8 +136,8 @@ Select the larger reviewed corpus explicitly:
 bun run test:tauri:e2e -- --corpus-mode curated --spec tests/tauri-e2e/specs/recall-runtime-fixture.spec.ts
 ```
 
-`external-full` is reserved for the later explicit backup-import lane and is
-rejected until that lane supplies and verifies `AIO_E2E_RECALL_SOURCE`.
+`external-full` is an opt-in backup-import lane. It requires
+`AIO_E2E_RECALL_SOURCE` and is intentionally excluded from PR-required runs.
 
 The reviewed curated corpus is versioned independently. Re-audit it against an
 explicit source backup without printing source text or paths:
@@ -125,6 +145,23 @@ explicit source backup without printing source text or paths:
 ```powershell
 bun tests/tauri-e2e/scripts/derive-recall-curated-corpus.ts --source <backup.aio-kb>
 ```
+
+Run the full legacy corpus lane only after explicitly naming a local `.aio-kb`
+source. The runner checks that the file is a ZIP with the expected legacy
+envelope and writes only its SHA-256, size, ZIP entry count, and outcome counts
+to artifacts; it never records the source path, library name, content, or
+vectors. With no `AIO_E2E_RECALL_SOURCE`, the command reports an explicit skip
+and leaves the default suite unchanged.
+
+```powershell
+$env:AIO_E2E_RECALL_SOURCE = "E:\\path\\to\\backup.aio-kb"
+bun run test:tauri:e2e:recall:corpus
+```
+
+The lane first uses production `recall_inspect_backup`, then imports through
+`recall_import_backup` with `conflictStrategy: cancel`. It starts batch
+vectorization from the visible Recall UI and runs a second Tauri process against
+the same data root to reload the imported collection and vectors.
 
 `specs/knowledge-workflow.spec.ts` covers deterministic isolated library
 creation, Agent Knowledge authorization persistence, and cross-tool

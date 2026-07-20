@@ -11,6 +11,9 @@ import {
   seedRecallWorkflowFixtures,
   seedRecallWorkspaceConfig,
 } from "./support/fixture-seeder";
+import { prepareExternalRecallCorpus } from "./support/external-recall-corpus";
+import { startOllamaEmbeddingProxy } from "./support/ollama-embedding-proxy";
+import { preflightOllamaChat } from "./support/ollama-chat-preflight";
 import { preflightOllama } from "./support/ollama-preflight";
 import { startOpenAiMock } from "./support/openai-mock";
 import {
@@ -78,7 +81,25 @@ const writeEarlyRunMetadata = (value: Record<string, unknown>) => {
   );
 };
 
+const externalRecallCorpus =
+  runnerOptions.corpusMode === "external-full"
+    ? await prepareExternalRecallCorpus(process.env.AIO_E2E_RECALL_SOURCE)
+    : null;
+if (runnerOptions.corpusMode === "external-full" && !externalRecallCorpus) {
+  writeEarlyRunMetadata({
+    status: "skipped",
+    finishedAt: new Date().toISOString(),
+    reason: { code: "external-recall-source-not-configured" },
+  });
+  console.warn(
+    "[tauri-e2e] external-full lane skipped: AIO_E2E_RECALL_SOURCE is not configured."
+  );
+  process.exit(0);
+}
+
 let ollamaPreflight: Awaited<ReturnType<typeof preflightOllama>> | undefined;
+let ollamaChatPreflight:
+  Awaited<ReturnType<typeof preflightOllamaChat>> | undefined;
 if (runnerOptions.lane.kind === "ollama") {
   ollamaPreflight = await preflightOllama({
     baseUrl: runnerOptions.lane.baseUrl,
@@ -98,6 +119,30 @@ if (runnerOptions.lane.kind === "ollama") {
       process.exit(0);
     }
     throw new Error(`Ollama preflight failed: ${ollamaPreflight.reason.code}`);
+  }
+  if (runnerOptions.lane.chatModelId) {
+    ollamaChatPreflight = await preflightOllamaChat({
+      baseUrl: ollamaPreflight.baseUrl,
+      model: runnerOptions.lane.chatModelId,
+      required: runnerOptions.lane.requireAvailable,
+    });
+    if (ollamaChatPreflight.status !== "success") {
+      writeEarlyRunMetadata({
+        status: ollamaChatPreflight.status === "skip" ? "skipped" : "failed",
+        finishedAt: new Date().toISOString(),
+        ollamaPreflight,
+        ollamaChatPreflight,
+      });
+      if (ollamaChatPreflight.status === "skip") {
+        console.warn(
+          `[tauri-e2e] Ollama Chat lane skipped: ${ollamaChatPreflight.reason.code}`
+        );
+        process.exit(0);
+      }
+      throw new Error(
+        `Ollama Chat preflight failed: ${ollamaChatPreflight.reason.code}`
+      );
+    }
   }
 }
 
@@ -200,6 +245,8 @@ async function waitForUrl(url: string, timeoutMs: number): Promise<boolean> {
 
 let vite: ReturnType<typeof Bun.spawn> | undefined;
 let mock: ReturnType<typeof startOpenAiMock> | undefined;
+let ollamaEmbeddingProxy:
+  ReturnType<typeof startOllamaEmbeddingProxy> | undefined;
 let wdio: ReturnType<typeof Bun.spawn> | undefined;
 let stopped = false;
 const stop = () => {
@@ -208,6 +255,7 @@ const stop = () => {
   if (wdio && !wdio.killed) wdio.kill();
   if (vite && !vite.killed) vite.kill();
   mock?.stop();
+  ollamaEmbeddingProxy?.stop();
 };
 process.once("exit", stop);
 process.once("SIGINT", stop);
@@ -252,6 +300,12 @@ mock = startOpenAiMock({
     ? Number(process.env.AIO_E2E_MOCK_PORT)
     : undefined,
 });
+if (ollamaPreflight?.status === "success") {
+  ollamaEmbeddingProxy = startOllamaEmbeddingProxy({
+    targetBaseUrl: ollamaPreflight.baseUrl,
+    artifactDir,
+  });
+}
 
 function createMockProfile(includeEmbedding: boolean): LlmProfile {
   return {
@@ -318,17 +372,25 @@ if (runnerOptions.lane.kind === "private-profile") {
   };
   laneMetadata = privateProfileLane.metadata;
 } else if (runnerOptions.lane.kind === "ollama") {
-  if (!ollamaPreflight || ollamaPreflight.status !== "success") {
+  if (
+    !ollamaPreflight ||
+    ollamaPreflight.status !== "success" ||
+    !ollamaEmbeddingProxy
+  ) {
     throw new Error("Successful Ollama preflight result is required.");
   }
-  const ollamaProfile: LlmProfile = {
+  const chatModelId =
+    ollamaChatPreflight?.status === "success"
+      ? ollamaChatPreflight.model
+      : undefined;
+  const embeddingProfile: LlmProfile = {
     id: "e2e-ollama-embedding",
     name: "E2E Ollama Embedding",
     type: "ollama",
-    baseUrl: ollamaPreflight.baseUrl,
+    baseUrl: ollamaEmbeddingProxy.baseUrl,
     apiKeys: [],
     enabled: true,
-    networkStrategy: "native",
+    networkStrategy: "proxy",
     models: [
       {
         id: ollamaPreflight.model,
@@ -341,22 +403,51 @@ if (runnerOptions.lane.kind === "private-profile") {
     customHeaders: {},
     customEndpoints: {},
   };
-  profiles = [createMockProfile(false), ollamaProfile];
-  chatRole = { profileId: "e2e-openai-mock", modelId: "e2e-chat" };
+  const chatProfile: LlmProfile | undefined = chatModelId
+    ? {
+        id: "e2e-ollama-chat",
+        name: "E2E Ollama Chat",
+        type: "ollama",
+        baseUrl: ollamaPreflight.baseUrl,
+        apiKeys: [],
+        enabled: true,
+        networkStrategy: "proxy",
+        models: [
+          {
+            id: chatModelId,
+            name: chatModelId,
+            group: "E2E",
+            provider: "ollama",
+            capabilities: {},
+            customParameters: { think: false },
+          },
+        ],
+        customHeaders: {},
+        customEndpoints: {},
+      }
+    : undefined;
+  profiles = chatProfile
+    ? [chatProfile, embeddingProfile]
+    : [createMockProfile(false), embeddingProfile];
+  chatRole = chatModelId
+    ? { profileId: chatProfile!.id, modelId: chatModelId }
+    : { profileId: "e2e-openai-mock", modelId: "e2e-chat" };
   embeddingRole = {
-    profileId: ollamaProfile.id,
+    profileId: embeddingProfile.id,
     modelId: ollamaPreflight.model,
     dimension: ollamaPreflight.dimension,
   };
   laneMetadata = {
-    lane: "ollama-embedding+mock-chat",
+    lane: chatModelId ? "ollama-full" : "ollama-embedding+mock-chat",
     chatProfileId: chatRole.profileId,
     chatModelId: chatRole.modelId,
     embeddingProfileId: embeddingRole.profileId,
     embeddingModelId: embeddingRole.modelId,
     embeddingDimension: embeddingRole.dimension,
     endpointOrigin: ollamaPreflight.baseUrl,
+    requestEvidence: chatModelId ? "tauri-log-and-state" : "state-only",
     ollamaPreflight,
+    ollamaChatPreflight,
   };
 } else {
   profiles = [createMockProfile(true)];
@@ -380,6 +471,7 @@ let recallManifest:
   ReturnType<typeof buildRecallWorkflowManifestForCorpus> | undefined;
 let fixtureSeedResult:
   ReturnType<typeof seedRecallWorkflowFixtures> | undefined;
+let workspaceSeedFile: string | undefined;
 
 if (shouldSeedFixtures) {
   if (!embeddingRole.dimension) {
@@ -402,6 +494,10 @@ if (shouldSeedFixtures) {
     "utf8"
   );
 
+  const fixtureCorpusMode =
+    runnerOptions.corpusMode === "external-full"
+      ? "smoke"
+      : runnerOptions.corpusMode;
   recallManifest = buildRecallWorkflowManifestForCorpus(
     {
       chat: chatRole,
@@ -411,25 +507,33 @@ if (shouldSeedFixtures) {
         dimension: embeddingRole.dimension,
       },
     },
-    runnerOptions.corpusMode
+    fixtureCorpusMode
   );
-  fixtureSeedResult = seedRecallWorkflowFixtures({
+  if (
+    runnerOptions.lane.kind === "ollama" &&
+    ollamaChatPreflight?.status === "success"
+  ) {
+    recallManifest.agent.parameters.maxTokens = 96;
+    recallManifest.agent.recallSettings.maxRecallChars = 1200;
+  }
+  if (runnerOptions.corpusMode !== "external-full") {
+    fixtureSeedResult = seedRecallWorkflowFixtures({
+      dataDir,
+      artifactDir,
+      manifest: recallManifest,
+      enabled: true,
+      mode: process.env.AIO_E2E_FIXTURE_MODE === "verify" ? "verify" : "write",
+    });
+  }
+  workspaceSeedFile = seedRecallWorkspaceConfig({
     dataDir,
-    artifactDir,
-    manifest: recallManifest,
-    enabled: true,
+    recallId: recallManifest.recall.id,
+    embeddingProfileId: embeddingRole.profileId,
+    embeddingModelId: embeddingRole.modelId,
+    embeddingDimension: embeddingRole.dimension,
     mode: process.env.AIO_E2E_FIXTURE_MODE === "verify" ? "verify" : "write",
   });
-  fixtureSeedResult.files.push(
-    seedRecallWorkspaceConfig({
-      dataDir,
-      recallId: recallManifest.recall.id,
-      embeddingProfileId: embeddingRole.profileId,
-      embeddingModelId: embeddingRole.modelId,
-      embeddingDimension: embeddingRole.dimension,
-      mode: process.env.AIO_E2E_FIXTURE_MODE === "verify" ? "verify" : "write",
-    })
-  );
+  fixtureSeedResult?.files.push(workspaceSeedFile);
 
   const pluginStateDir = path.join(dataDir, "plugin-manager");
   fs.mkdirSync(pluginStateDir, { recursive: true });
@@ -456,15 +560,51 @@ const env = {
   AIO_DATA_DIR: dataDir,
   AIO_E2E_ARTIFACT_DIR: artifactDir,
   AIO_E2E_MOCK_BASE_URL: mock.baseUrl,
+  ...(ollamaPreflight?.status === "success"
+    ? { AIO_E2E_OLLAMA_BASE_URL: ollamaPreflight.baseUrl }
+    : {}),
   AIO_E2E_FRONTEND_URL: frontendUrl.href,
   AIO_E2E_LANE: runnerOptions.lane.kind,
   AIO_E2E_CORPUS_MODE: runnerOptions.corpusMode,
   AIO_E2E_CHAT_PROFILE_ID: chatRole.profileId,
   AIO_E2E_CHAT_MODEL_ID: chatRole.modelId,
+  AIO_E2E_CHAT_EXPECTATION:
+    runnerOptions.lane.kind === "ollama" &&
+    ollamaChatPreflight?.status === "success"
+      ? "response-present"
+      : "preset-exact",
+  AIO_E2E_REQUEST_EVIDENCE:
+    runnerOptions.lane.kind === "ollama" &&
+    ollamaChatPreflight?.status === "success"
+      ? "tauri-log-and-state"
+      : "mock-log",
   AIO_E2E_EMBEDDING_PROFILE_ID: embeddingRole.profileId,
   AIO_E2E_EMBEDDING_MODEL_ID: embeddingRole.modelId,
   ...(embeddingRole.dimension
     ? { AIO_E2E_EMBEDDING_DIMENSION: String(embeddingRole.dimension) }
+    : {}),
+  ...(externalRecallCorpus
+    ? {
+        AIO_E2E_RECALL_SOURCE: externalRecallCorpus.sourcePath,
+        AIO_E2E_RECALL_SOURCE_SHA256: externalRecallCorpus.metadata.sha256,
+        AIO_E2E_RECALL_SOURCE_REVIEWED: externalRecallCorpus.metadata
+          .reviewedSource
+          ? "1"
+          : "0",
+        ...(externalRecallCorpus.metadata.expectedEntryCount
+          ? {
+              AIO_E2E_RECALL_EXPECTED_COUNT: String(
+                externalRecallCorpus.metadata.expectedEntryCount
+              ),
+            }
+          : {}),
+        ...(externalRecallCorpus.metadata.probeEntryIds.length > 0
+          ? {
+              AIO_E2E_RECALL_PROBE_ENTRY_IDS:
+                externalRecallCorpus.metadata.probeEntryIds.join(","),
+            }
+          : {}),
+      }
     : {}),
   ...(nativeUiEnabled
     ? {
@@ -491,6 +631,8 @@ fs.writeFileSync(
       status: "running",
       fixtureSeeding: shouldSeedFixtures,
       fixtureSeedResult,
+      workspaceSeedFile,
+      externalRecallCorpus: externalRecallCorpus?.metadata,
       nativeUiEnabled,
       nativeUiHelper,
       nativeFileFixture,
@@ -544,12 +686,50 @@ function validateScenarioArtifacts(): void {
   const requiredIds = runnerOptions.requiredScenarioIds;
   if (requiredIds.length === 0) return;
 
-  const chatRequests = readJsonLines("chat-requests.jsonl");
-  const unexpected = chatRequests.filter((request) => {
-    const id =
-      typeof request.scenarioId === "string" ? request.scenarioId : null;
-    return !id || !requiredIds.includes(id);
-  });
+  const stateOnlyEvidence =
+    env.AIO_E2E_REQUEST_EVIDENCE === "tauri-log-and-state";
+  if (stateOnlyEvidence) {
+    const logFiles = fs
+      .readdirSync(artifactDir)
+      .filter(
+        (fileName) => fileName.startsWith("wdio") && fileName.endsWith(".log")
+      );
+    const logText = logFiles
+      .map((fileName) =>
+        fs.readFileSync(path.join(artifactDir, fileName), "utf8")
+      )
+      .join("\n");
+    if (
+      !logText.includes(
+        "raw request to http://127.0.0.1:11434/v1/chat/completions"
+      )
+    ) {
+      throw new Error(
+        "Ollama Chat request was not recorded by the Tauri backend."
+      );
+    }
+    if (
+      !readJsonLines("ollama-requests.jsonl").some(
+        (request) =>
+          request.endpoint === "/v1/embeddings" && request.status === 200
+      )
+    ) {
+      throw new Error("Ollama Embedding request evidence is missing.");
+    }
+  }
+
+  const chatRequests = readJsonLines(
+    env.AIO_E2E_CHAT_EXPECTATION === "response-present"
+      ? "ollama-requests.jsonl"
+      : "chat-requests.jsonl"
+  ).filter((request) => request.endpoint === "/v1/chat/completions");
+  const unexpected = stateOnlyEvidence
+    ? []
+    : chatRequests.filter((request) => {
+        const id =
+          typeof request.scenarioId === "string" ? request.scenarioId : null;
+        return !id || !requiredIds.includes(id);
+      });
   if (unexpected.length > 0) {
     throw new Error(
       `Unexpected or unmatched Chat request(s): ${unexpected
@@ -564,6 +744,7 @@ function validateScenarioArtifacts(): void {
     const requests = chatRequests.filter(
       (request) => request.scenarioId === id
     );
+    if (stateOnlyEvidence) continue;
     if (requests.length === 0) {
       throw new Error(`Required Chat scenario was not consumed: ${id}`);
     }
@@ -600,7 +781,11 @@ function validateScenarioArtifacts(): void {
     );
     if (!result) throw new Error(`Scenario result did not pass: ${id}`);
     const expectedTopEntryId = scenario.expected.topEntryId;
-    if (expectedTopEntryId && result.topEntryId !== expectedTopEntryId) {
+    if (
+      !stateOnlyEvidence &&
+      expectedTopEntryId &&
+      result.topEntryId !== expectedTopEntryId
+    ) {
       throw new Error(`Scenario top entry mismatch: ${id}`);
     }
     if (result.chatStatus !== (scenario.expected.chatStatus ?? 200)) {
@@ -615,23 +800,25 @@ if (exitCode === 0 && runnerOptions.restartSpec) {
     throw new Error("Recovery requires seeded Recall fixtures.");
   }
   const verifyMode = { AIO_E2E_FIXTURE_MODE: "verify" };
-  fixtureSeedResult = seedRecallWorkflowFixtures({
-    dataDir,
-    artifactDir,
-    manifest: recallManifest,
-    enabled: true,
-    mode: "verify",
-  });
-  fixtureSeedResult.files.push(
-    seedRecallWorkspaceConfig({
+  if (runnerOptions.corpusMode !== "external-full") {
+    fixtureSeedResult = seedRecallWorkflowFixtures({
       dataDir,
-      recallId: recallManifest.recall.id,
-      embeddingProfileId: embeddingRole.profileId,
-      embeddingModelId: embeddingRole.modelId,
-      embeddingDimension: embeddingRole.dimension!,
+      artifactDir,
+      manifest: recallManifest,
+      enabled: true,
       mode: "verify",
-    })
-  );
+    });
+    fixtureSeedResult.files.push(
+      seedRecallWorkspaceConfig({
+        dataDir,
+        recallId: recallManifest.recall.id,
+        embeddingProfileId: embeddingRole.profileId,
+        embeddingModelId: embeddingRole.modelId,
+        embeddingDimension: embeddingRole.dimension!,
+        mode: "verify",
+      })
+    );
+  }
   exitCode = await launchWdio(
     recoveryWdioArgs(runnerOptions.restartSpec),
     "recovery",
@@ -663,6 +850,8 @@ fs.writeFileSync(
       status: exitCode === 0 ? "passed" : "failed",
       fixtureSeeding: shouldSeedFixtures,
       fixtureSeedResult,
+      workspaceSeedFile,
+      externalRecallCorpus: externalRecallCorpus?.metadata,
       nativeUiEnabled,
       nativeUiHelper,
       nativeFileFixture,

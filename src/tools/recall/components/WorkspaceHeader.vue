@@ -139,6 +139,7 @@ const isAllSelected = computed(() => {
               size="default"
               @click="emit('toggle-recall-list')"
               title="管理思绪集列表"
+              data-testid="recall-collection-list-toggle"
             >
               <template #icon><Library :size="16" /></template>
             </el-button>

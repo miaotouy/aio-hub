@@ -708,6 +708,7 @@ interface ManagedAssetRef {
 ### 2026-07-21：聊天消费者前置迁移阶段四
 
 - 聊天库搜索按查询字符数分流：3 字符及以上使用 trigram FTS5 和 Rust 侧 snippet，1/2 字符使用转义后的受限 `LIKE`；中文、英文大小写和 `%_` 字面量行为已有 Rust 固定测试。
+- FTS5 查询失败时自动降级到同一 basic-search，已用删除隔离 FTS 表的 Rust 故障注入验证，不把 iOS 尚未验收的 FTS 能力变成不可恢复的前端错误。
 - 历史会话页增加防抖搜索和完整状态；结果可深链到目标会话，将非活动分支切为活动叶并滚动高亮目标消息。
 - Android `emulator-5558` 真实 WebView 已验证中文与特殊字符搜索、结果 snippet 和非活动分支定位；验收会话随后通过正式 command 删除，usage outbox 为空。iOS 因缺少编译与设备条件继续跳过。
 

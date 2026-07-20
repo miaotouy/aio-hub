@@ -834,7 +834,7 @@ async fn search_messages(
         .clamp(1, MAX_SEARCH_LIMIT);
     if query.chars().count() >= 3 {
         let encoded = format!("\"{}\"", query.replace('"', "\"\""));
-        sqlx::query_as::<_, ChatSearchResult>(
+        let fts_result = sqlx::query_as::<_, ChatSearchResult>(
             "SELECT m.id AS message_id, m.session_id, s.name AS session_name, m.content, \
              snippet(chat_messages_fts, -1, '', '', '…', 32) AS snippet, \
              m.timestamp, bm25(chat_messages_fts) AS rank FROM chat_messages_fts \
@@ -845,41 +845,54 @@ async fn search_messages(
         .bind(encoded)
         .bind(i64::from(limit))
         .fetch_all(pool)
-        .await
-        .map_err(|error| format!("CHAT_SEARCH_FTS: {error}"))
+        .await;
+        match fts_result {
+            Ok(rows) => Ok(rows),
+            Err(fts_error) => {
+                search_messages_basic(pool, query, limit)
+                    .await
+                    .map_err(|basic_error| {
+                        format!("CHAT_SEARCH_FTS: {fts_error}; CHAT_SEARCH_BASIC: {basic_error}")
+                    })
+            }
+        }
     } else {
-        let pattern = format!("%{}%", escape_like(query));
-        sqlx::query_as::<_, BasicSearchRow>(
-            "SELECT m.id AS message_id, m.session_id, s.name AS session_name, m.content, \
-             m.reasoning_content, m.timestamp, 0.0 AS rank FROM chat_messages m \
-             JOIN chat_sessions s ON s.id = m.session_id \
-             WHERE m.content LIKE ? ESCAPE '\\' OR COALESCE(m.reasoning_content, '') LIKE ? ESCAPE '\\' \
-             ORDER BY m.timestamp DESC, m.id DESC LIMIT ?",
-        )
-        .bind(&pattern)
-        .bind(&pattern)
-        .bind(i64::from(limit))
-        .fetch_all(pool)
-        .await
-        .map_err(|error| format!("CHAT_SEARCH_BASIC: {error}"))
-        .map(|rows| {
-            rows.into_iter()
-                .map(|row| ChatSearchResult {
-                    message_id: row.message_id,
-                    session_id: row.session_id,
-                    session_name: row.session_name,
-                    snippet: search_snippet(
-                        &row.content,
-                        row.reasoning_content.as_deref(),
-                        query,
-                    ),
-                    content: row.content,
-                    timestamp: row.timestamp,
-                    rank: row.rank,
-                })
-                .collect()
-        })
+        search_messages_basic(pool, query, limit).await
     }
+}
+
+async fn search_messages_basic(
+    pool: &SqlitePool,
+    query: &str,
+    limit: u32,
+) -> Result<Vec<ChatSearchResult>, String> {
+    let pattern = format!("%{}%", escape_like(query));
+    sqlx::query_as::<_, BasicSearchRow>(
+        "SELECT m.id AS message_id, m.session_id, s.name AS session_name, m.content, \
+         m.reasoning_content, m.timestamp, 0.0 AS rank FROM chat_messages m \
+         JOIN chat_sessions s ON s.id = m.session_id \
+         WHERE m.content LIKE ? ESCAPE '\\' OR COALESCE(m.reasoning_content, '') LIKE ? ESCAPE '\\' \
+         ORDER BY m.timestamp DESC, m.id DESC LIMIT ?",
+    )
+    .bind(&pattern)
+    .bind(&pattern)
+    .bind(i64::from(limit))
+    .fetch_all(pool)
+    .await
+    .map_err(|error| format!("CHAT_SEARCH_BASIC: {error}"))
+    .map(|rows| {
+        rows.into_iter()
+            .map(|row| ChatSearchResult {
+                message_id: row.message_id,
+                session_id: row.session_id,
+                session_name: row.session_name,
+                snippet: search_snippet(&row.content, row.reasoning_content.as_deref(), query),
+                content: row.content,
+                timestamp: row.timestamp,
+                rank: row.rank,
+            })
+            .collect()
+    })
 }
 
 async fn branch_message_ids(
@@ -1592,6 +1605,47 @@ mod tests {
         .unwrap();
         assert_eq!(literal_wildcards.len(), 1);
         assert!(literal_wildcards[0].snippet.contains("%_"));
+    }
+
+    #[tokio::test]
+    async fn search_falls_back_to_basic_when_fts_is_unavailable() {
+        let pool = test_pool().await;
+        persist_changes(
+            &pool,
+            PersistChatChangesRequest {
+                session: session(),
+                upsert_messages: vec![
+                    message("root", None, 0, "system"),
+                    message(
+                        "assistant",
+                        Some("root"),
+                        1,
+                        "fallback preserves searchable message content",
+                    ),
+                ],
+                delete_message_ids: Vec::new(),
+                upsert_attachments: Vec::new(),
+                delete_attachment_ids: Vec::new(),
+            },
+        )
+        .await
+        .unwrap();
+        sqlx::query("DROP TABLE chat_messages_fts")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let results = search_messages(
+            &pool,
+            ChatSearchQuery {
+                query: "searchable".into(),
+                limit: None,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(results[0].snippet.contains("searchable"));
     }
 
     #[tokio::test]

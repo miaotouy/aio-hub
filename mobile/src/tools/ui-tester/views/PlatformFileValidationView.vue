@@ -9,11 +9,18 @@ import { useValidationRuns } from "../composables/useValidationRuns";
 import {
   cleanupPlatformFileSandbox,
   runPlatformFileScenario,
+  selectAndReadValidationFileAtThroughputBaseline,
   selectAndReadValidationFileFully,
+  selectAndResumeValidationFileRead,
   selectValidationFiles,
   terminateForResumeValidation,
 } from "../services/platformFileValidation";
-import { createFullFileReadValidationResult, createPickerValidationResult } from "../services/platformFileResult";
+import {
+  createFullFileReadValidationResult,
+  createInterruptedFileReadValidationResult,
+  createPickerValidationResult,
+} from "../services/platformFileResult";
+import type { FullFileReadProgress } from "../services/platformFileValidation";
 import type { ValidationCommandResult } from "../types/validation";
 
 const {
@@ -24,8 +31,9 @@ const {
   setResumeRun,
 } = useValidationRuns();
 const observation = ref("");
-const fullReadController = ref<AbortController>();
-const fullReadProgress = ref({ bytesRead: 0, totalBytes: 0 });
+const fileReadController = ref<AbortController>();
+const fileReadProgress = ref({ bytesRead: 0, totalBytes: 0 });
+const fileReadCheckpoint = ref("");
 
 const suiteRuns = computed(() => runs.value.filter((run) => run.suiteId === "platform-files"));
 const suiteTotals = computed(() => ({
@@ -74,40 +82,95 @@ function formatTotalMiB(bytes: number): string {
   return bytes >= 0 ? formatMiB(bytes) : "未知";
 }
 
-async function runFullFileRead(): Promise<void> {
+function updateFileReadProgress(progress: FullFileReadProgress): void {
+  fileReadProgress.value = progress;
+  if (progress.phase === "interrupted") {
+    fileReadCheckpoint.value = `已在 ${formatMiB(progress.bytesRead)} MiB 关闭原文件句柄`;
+  } else if (progress.phase === "resumed") {
+    fileReadCheckpoint.value = `已重新打开并从 ${formatMiB(progress.bytesRead)} MiB 续读`;
+  } else if (progress.phase === "completed") {
+    fileReadCheckpoint.value = `中断、重开、定位与续读均已完成`;
+  }
+}
+
+async function runFullFileRead(
+  mode: "compatibility" | "throughput"
+): Promise<void> {
   const controller = new AbortController();
-  fullReadController.value = controller;
-  fullReadProgress.value = { bytesRead: 0, totalBytes: 0 };
+  fileReadController.value = controller;
+  fileReadProgress.value = { bytesRead: 0, totalBytes: 0 };
+  fileReadCheckpoint.value = "";
+  const caseId =
+    mode === "throughput" ? "throughput-file-read" : "full-file-read";
+  const reader =
+    mode === "throughput"
+      ? selectAndReadValidationFileAtThroughputBaseline
+      : selectAndReadValidationFileFully;
   try {
     await runAutomated(
       "platform-files",
-      "full-file-read",
-      { mode: "sequential-full-read" },
+      caseId,
+      { mode, readStrategy: "bounded-chunks" },
       async (): Promise<ValidationCommandResult> => {
-        const summary = await selectAndReadValidationFileFully(
-          (progress) => {
-            fullReadProgress.value = progress;
-          },
+        const summary = await reader(updateFileReadProgress, controller.signal);
+        if (!summary) {
+          return {
+            status: "cancelled",
+            steps: [
+              {
+                id: "picker-cancel",
+                label: "取消完整读取样本选择",
+                status: "passed",
+                durationMs: 0,
+                summary: "用户取消系统选择器，未开始读取。",
+              },
+            ],
+            metrics: { bytesRead: 0 },
+          };
+        }
+        return createFullFileReadValidationResult(summary, mode);
+      }
+    );
+  } finally {
+    fileReadController.value = undefined;
+  }
+}
+
+async function runInterruptedFileRead(): Promise<void> {
+  const controller = new AbortController();
+  fileReadController.value = controller;
+  fileReadProgress.value = { bytesRead: 0, totalBytes: 0 };
+  fileReadCheckpoint.value = "";
+  try {
+    await runAutomated(
+      "platform-files",
+      "interrupted-file-read-resume",
+      { mode: "close-reopen-seek", interruptAfterMiB: 4 },
+      async (): Promise<ValidationCommandResult> => {
+        const summary = await selectAndResumeValidationFileRead(
+          updateFileReadProgress,
           controller.signal,
         );
         if (!summary) {
           return {
             status: "cancelled",
-            steps: [{
-              id: "picker-cancel",
-              label: "取消完整读取样本选择",
-              status: "passed",
-              durationMs: 0,
-              summary: "用户取消系统选择器，未开始读取。",
-            }],
+            steps: [
+              {
+                id: "picker-cancel",
+                label: "取消中断恢复样本选择",
+                status: "passed",
+                durationMs: 0,
+                summary: "用户取消系统选择器，未开始读取。",
+              },
+            ],
             metrics: { bytesRead: 0 },
           };
         }
-        return createFullFileReadValidationResult(summary);
-      },
+        return createInterruptedFileReadValidationResult(summary);
+      }
     );
   } finally {
-    fullReadController.value = undefined;
+    fileReadController.value = undefined;
   }
 }
 
@@ -155,10 +218,12 @@ function recordObservation(verdict: "passed" | "failed"): void {
     <ValidationCaseRow title="单文件选择" description="调用系统文件选择器并记录脱敏返回类型。" :status="statusFor('single-file')" @run="runPicker('single-file', false, 'file')" />
     <ValidationCaseRow title="多文件选择" description="长按首个文件进入多选，至少选择 2 项；同时验证用户取消行为。" :status="statusFor('multiple-files')" @run="runPicker('multiple-files', true, 'file')" />
     <ValidationCaseRow title="照片选择" description="调用带图片类型约束的系统入口。" :status="statusFor('photo')" @run="runPicker('photo', false, 'photo')" />
-    <ValidationCaseRow title="大文件完整读取" description="使用固定 64 KiB 缓冲区顺序读取到 EOF；文件大小不可得时仍可验证读取完成。" :status="statusFor('full-file-read')" action-label="选择并读取" @run="runFullFileRead" />
-    <div v-if="fullReadController" class="read-progress">
-      <span>已读取 {{ formatMiB(fullReadProgress.bytesRead) }} / {{ formatTotalMiB(fullReadProgress.totalBytes) }} MiB</span>
-      <var-button type="warning" size="small" @click="fullReadController.abort()"><Square :size="15" />停止</var-button>
+    <ValidationCaseRow title="大文件兼容性读取" description="使用固定 64 KiB 缓冲区逐块跨 IPC 读取到 EOF，用于验证权限、取消和兼容性。" :status="statusFor('full-file-read')" action-label="选择并读取" :disabled="Boolean(fileReadController)" @run="runFullFileRead('compatibility')" />
+    <ValidationCaseRow title="大文件吞吐基线" description="使用固定 1 MiB 有界分块读取到 EOF，记录接近正常使用的吞吐；不会一次性把整文件载入 WebView。" :status="statusFor('throughput-file-read')" action-label="测试速度" :disabled="Boolean(fileReadController)" @run="runFullFileRead('throughput')" />
+    <ValidationCaseRow title="文件读取中断与恢复" description="读取到固定偏移后关闭句柄，重新打开同一引用并 seek 续读；请选择至少 2 MiB 的文件。" :status="statusFor('interrupted-file-read-resume')" action-label="测试续读" :disabled="Boolean(fileReadController)" @run="runInterruptedFileRead" />
+    <div v-if="fileReadController || fileReadCheckpoint" class="read-progress">
+      <span><strong v-if="fileReadCheckpoint">{{ fileReadCheckpoint }} · </strong>已读取 {{ formatMiB(fileReadProgress.bytesRead) }} / {{ formatTotalMiB(fileReadProgress.totalBytes) }} MiB</span>
+      <var-button v-if="fileReadController" type="warning" size="small" @click="fileReadController.abort()"><Square :size="15" />停止</var-button>
     </div>
 
     <div class="section-heading"><h2>沙箱与恢复</h2></div>
@@ -193,5 +258,6 @@ function recordObservation(verdict: "passed" | "failed"): void {
 .manual-panel label { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 600; }
 .manual-actions { display: flex; gap: 8px; margin-top: 10px; }
 .read-progress { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; color: var(--text-secondary, #6b7280); font-size: 12px; }
+.read-progress strong { color: var(--text-primary); font-weight: 600; }
 .error-text { color: var(--color-danger, #c23b3b); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 </style>

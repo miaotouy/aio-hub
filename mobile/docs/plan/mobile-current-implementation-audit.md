@@ -82,7 +82,7 @@ LLM 渠道与模型配置
 - [x] 日志查看、搜索、级别筛选、清空、导出和复制能力。
 - [x] Android 生成工程已存在；Token 计划已记录 Android 构建通过。
 - [x] 本次 `bun run build` 通过。
-- [x] 本次 Vitest 16 个测试文件、51 个测试全部通过。
+- [x] 本次 Vitest 17 个测试文件、56 个测试全部通过。
 - [x] 本次 `bun run check:backend` 通过。
 - [x] 本次 Cargo Test 5 个测试全部通过。
 
@@ -120,10 +120,12 @@ LLM 渠道与模型配置
 - [x] 使用官方 `plugin-os` 记录平台、系统版本和架构，并记录视口尺寸与像素比；旧 schema `1.0` 报告保持兼容。
 - [x] 多文件场景要求至少返回 2 项，步骤标题直接显示选择数量；Android 系统选择器需长按首项进入多选。
 - [x] 大文件完整顺序读取使用固定 64 KiB 缓冲区，提供实时进度和停止，记录总字节、首字节、总耗时、MiB/s 与失败阶段；provider 无法报告大小时以 EOF 判断完成。
+- [x] 大文件吞吐基线使用固定 1 MiB 有界分块读取，减少 WebView/Tauri IPC 往返并记录完整读取速度；不使用一次性 `readFile`，避免把完整大文件载入 WebView 内存。
+- [x] 文件读取中断恢复场景在 4 MiB（小文件取中点）关闭句柄，重新打开同一引用、精确 `seek` 到中断点并续读到 EOF，记录恢复偏移与延迟；该场景不等于跨进程断点续传。
 - [x] 空间不足清理使用固定 ENOSPC 故障注入，写入 64 KiB 后确认 `.part` 被删除；该结果不替代真实低存储设备观察。
 - [x] SQLite 基准内存从 `PRAGMA memory_used` 改为 `sqlite3_status64` current/high-water，宿主机测试断言 high-water 大于 0。
 
-上述增量入口已包含在新的 Android 真机报告中。大文件入口验证的是 `plugin-fs` 分块读取链，不是正式 Rust 资产导入管线；固定 ENOSPC 是故障注入，不替代真实低存储设备观察。报告默认文件名已改为带 UTC 时分秒和毫秒的 `aio-validation-YYYY-MM-DD_HH-mm-ss-mmmZ.json`，避免同日导出互相覆盖或难以区分。
+环境、多选、64 KiB 大文件读取、固定 ENOSPC 和 SQLite high-water 已包含在新的 Android 真机报告中；1 MiB 吞吐基线与中断后重开续读为报告之后追加，已取得 Android 16 x86_64 虚拟机报告，仍待 Android/iOS 真机报告。大文件入口验证的是 `plugin-fs` 分块读取链，不是正式 Rust 资产导入管线；固定 ENOSPC 是故障注入，不替代真实低存储设备观察。报告默认文件名已改为带 UTC 时分秒和毫秒的 `aio-validation-YYYY-MM-DD_HH-mm-ss-mmmZ.json`，避免同日导出互相覆盖或难以区分。
 
 ### 2.8 Android 虚拟机增量验证
 
@@ -139,9 +141,11 @@ LLM 渠道与模型配置
 - [x] Migration、codec、FTS 与事务强杀恢复再次通过。
 - [x] 固定 ENOSPC 注入通过，写入 65,536 bytes 后没有残留 `.part`。
 - [x] 大文件完整读取复测通过：Android `content://` 样本 14,714,525 bytes（14.03 MiB），使用 65,536-byte 块完整读取；首字节 231 ms、总耗时 4,360 ms、平均 3.22 MiB/s，`failurePhase = none`。
+- [x] 1 MiB 吞吐基线复测通过：14.03 MiB 样本两次为 15.54/18.69 MiB/s，155.81 MiB 样本为 30.71 MiB/s。现有非通过记录分别是选择器取消（`bytesRead = 0`）和应用重启恢复时将未完成 run 标记为 `RUN_INTERRUPTED`，均不是读取链失败。
+- [x] 155.81 MiB 样本的中断后重开续读三次通过：均在 4,194,304 bytes 关闭原句柄并从同一偏移恢复，恢复延迟为 14/19/65 ms，完整读取平均 17.92/18.45/32.82 MiB/s；另有一条用户主动停止后的 `cancelled` 记录。
 - [x] 语言设置即时应用通过：Settings Store 更新后会同步 i18n locale。验证页自身仍有大量硬编码中文，因此在测试页内不能通过整页文案切换观察效果；该 i18n 覆盖作为后续 UI 收尾项保留。
 
-大文件复测证明 64 KiB IPC 块与 EOF 完成判定可在当前 Android 16 x86_64 虚拟机读取 14.03 MiB `content://` 文件。该结果仍属于验证台方向性吞吐，不代表正式资产导入管线，也不替代 Android 真机和 iOS 验收。
+大文件复测证明 64 KiB/1 MiB IPC 块、EOF 完成判定以及同一运行内的关闭、重开和 `seek` 续读可在当前 Android 16 x86_64 虚拟机工作。恢复只需 14–65 ms，旧 UI 来不及呈现中断阶段；验证台现已保留阶段提示和独立报告步骤。应用在吞吐 run 进行中重启时，现有恢复逻辑会将未完成 run 标记为 `RUN_INTERRUPTED`，不会自动续读文件。该结果仍属于验证台方向性吞吐，不代表正式资产导入管线或跨进程断点续传，也不替代 Android 真机和 iOS 验收。
 
 ## 3. 未完成清单
 
@@ -194,7 +198,7 @@ SQLite 施工顺序见 [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migra
 ### 3.4 平台与发布验收
 
 - [x] 完成 Android universal APK/AAB 构建，并在至少一台 Android 真机运行验证台和导出 schema `1.0` 报告。
-- [ ] 补齐 Android 真机最终验收：仍需真实低存储设备、云端异常、专用 Photo Picker/分享入口，并记录具体设备型号；本次已完成 SQLite 10k/100k 与 high-water、真实多文件和大文件读取。
+- [ ] 补齐 Android 真机最终验收：仍需运行新增的 1 MiB 吞吐基线与中断后重开续读，并覆盖真实低存储设备、云端异常、专用 Photo Picker/分享入口和具体设备型号；本次已完成 SQLite 10k/100k 与 high-water、真实多文件和 64 KiB 大文件读取。
 - [ ] 初始化或补齐仓库中的 iOS 生成工程，并完成 iOS 构建与真机验收。
 - [ ] 在真实 Tauri WebView 验证长流逐段交付、取消、前后台切换和系统终止行为。
 - [ ] 验证 JSON/顶层/multipart 文件引用在 Android/iOS 的权限和生命周期行为。
@@ -220,7 +224,7 @@ SQLite 施工顺序见 [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migra
 
 验证台及两个隔离 spike 已完成实现，并取得一份 Android 11 真机报告。进入业务数据施工前仍需收完以下边界：
 
-1. **资产 Phase 0**：保留本次 Android 已通过的 `content://`、取消、后台、系统终止、真实多文件、大文件和沙箱清理结论；补测真实低存储、云端异常、专用照片/分享入口，并在 iOS 验证 `file://` 与 security-scoped URL。完成后输出首版文件入口范围和预览方案决策。
+1. **资产 Phase 0**：保留本次 Android 已通过的 `content://`、取消、后台、系统终止、真实多文件、大文件和沙箱清理结论；补跑 1 MiB 吞吐基线与中断后重开续读，补测真实低存储、云端异常、专用照片/分享入口，并在 iOS 验证 `file://` 与 security-scoped URL。完成后输出首版文件入口范围和预览方案决策。
 2. **SQLite Phase 0**：保留本次 Android migration、codec、FTS、事务强杀恢复、1k/10k/100k 基准和 high-water 结论，并完成 iOS 全套固定场景。
 3. **验证 UI**：实现已完成；继续用现有结构化步骤、人工判定、跨重启续测和脱敏报告导出补齐双端运行记录。没有双端 UI 运行记录的 spike 不算完成。
 4. **契约冻结**：锁定 `ManagedAssetRef`、资产服务领域命令、聊天 storage command、Schema v1 与 metadata codec；聊天前端不得获得任意 SQL 执行入口。

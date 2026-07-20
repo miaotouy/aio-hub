@@ -131,6 +131,10 @@ interface ValidationRun {
 5. 复制过程中切后台、恢复、系统终止后重启检查。
 6. 空间不足或写入失败后没有可见半成品，沙箱可清理。
 7. 预览来源在 WebView 可加载，令牌过期或原件缺失时有明确失败状态。
+8. 同一文件分别使用 64 KiB 兼容性分块和 1 MiB 吞吐基线完整读取，记录块大小、首字节、总耗时和 MiB/s；不设跨设备固定速度阈值。
+9. 读取到固定偏移后关闭句柄，重新打开同一引用、`seek` 到中断点并续读到 EOF，验证恢复偏移、总字节和失败阶段。
+
+第 9 项验证的是同一运行内的句柄重开，不代表跨进程断点续传。正式资产导入若承诺应用重启后续传，还必须另行持久化来源引用、偏移、临时文件与校验状态，并增加强杀恢复场景。
 
 ### 5.3. 面板状态
 
@@ -233,6 +237,8 @@ mobile/src/tools/ui-tester/
 - 组件页保留原安全区、键盘、主题、Settings / Store、Logger / Message / Dialog、FS 和 UUID 测试能力，并增加整体验收记录入口；页面主结构已移除 `var-app-bar` / `var-card`。
 - 平台文件接入 Tauri dialog + fs：支持单选、多选、图片过滤入口、用户取消、首字节读取探测、大小/MIME/URI scheme/引用 hash 记录、固定 cache 沙箱 round-trip、失败清理、人工后台/云端/预览观察和强杀恢复检查。多选现在要求至少返回 2 项并在折叠前标题显示数量。
 - 平台文件新增固定 64 KiB 缓冲区的大文件完整顺序读取，记录实时进度、停止、首字节、总耗时、MiB/s 和失败阶段；无法取得 provider 文件大小时以 EOF 作为完成条件。该场景验证 `plugin-fs` 读取链，不代表正式资产导入管线。
+- 平台文件新增固定 1 MiB 有界分块吞吐基线，减少 IPC 往返并记录完整读取速度；不使用一次性 `readFile`，避免把完整大文件载入 WebView 内存。速度只作为同设备、同 provider 的方向性数据，不设置跨设备硬门槛。
+- 平台文件新增中断后重开续读：在 4 MiB（小文件取中点）关闭句柄，重新打开同一引用，验证 `seek` 返回精确中断偏移并续读到 EOF，同时记录恢复延迟。该入口不宣称支持跨进程断点续传。
 - 平台文件新增固定 ENOSPC 故障注入，在写入 64 KiB 后验证 `.part` 清理；该场景不占满设备磁盘，也不能替代至少一次真实低存储运行态观察。
 - SQLite 后端只构造 `ui-tester-validation/ui_tester_validation.db`，前端不传数据库路径或 SQL；删除、重建和沙箱清理均有 Rust 侧固定名称校验。
 - SQLx 负责实际 pool、WAL、`synchronous=NORMAL`、foreign key、busy timeout、并发读取和写锁等待验证；`rusqlite` 负责确定性的 migration fixture、codec、fault injection、FTS5 与大数据基准。两者共用同一 bundled SQLite，避免设备系统 SQLite 编译选项漂移。
@@ -254,6 +260,7 @@ mobile/src/tools/ui-tester/
 - Android 真机 SQLite 已通过 migration/失败回滚/高版本拒绝、消息 codec、FTS5 trigram + 短词 `LIKE`、事务强杀恢复和 1k/10k/100k 基准。1k/10k/100k 整步耗时 21/94/697 ms，插入耗时 5/40/434 ms；100k 数据库 6,594,560 bytes，SQLite high-water 5,343,704 bytes。
 - Android 真机平台文件已验证 `content://` 多文件（`selectionCount = 2`）与照片读取、沙箱原子完成、失败清理、固定 ENOSPC 注入、后台返回和系统终止后无半成品恢复。大文件样本 66,603,617 bytes（63.52 MiB），64 KiB 分块完整读取，首字节 102 ms、总耗时 25,936 ms、平均 2.45 MiB/s。
 - 新报告仍未覆盖真实低存储设备、云端离线/取消、预览失效、专用 Photo Picker/分享入口、具体设备型号以及 iOS security-scoped URL；旧报告保留了选择器取消和云端预览人工通过记录，Android 真机通过仍不等同于双平台 Phase 0 最终验收。
+- 1 MiB 吞吐基线和中断后重开续读在该真机报告之后加入，已取得 Android 16 x86_64 虚拟机报告：14.03 MiB 样本吞吐为 15.54–18.69 MiB/s，155.81 MiB 样本为 30.71 MiB/s；155.81 MiB 样本三次在 4 MiB 关闭句柄并从相同偏移恢复，延迟为 14–65 ms。现有非通过记录分别是选择器取消、用户停止和应用重启后的 `RUN_INTERRUPTED`，不是读取链失败；其中应用重启只恢复运行记录，不会自动续读文件。阶段提示与独立中断/恢复报告步骤已补充，仍需在 Android/iOS 真机导出新报告后形成正式平台结论。
 - 2026-07-20 Android 16 x86_64 虚拟机补充报告已验证环境字段、ENOSPC 注入以及 SQLite 1k/10k/100k。100k 总步骤 665 ms、插入 396 ms、数据库 6,594,560 bytes、SQLite memory high-water 5,343,704 bytes；10k high-water 1,043,080 bytes，1k high-water 181,944 bytes。
 - 虚拟机复测确认语言设置可以即时应用到 i18n locale。验证页自身仍有大量硬编码中文，无法在该页通过整页翻译变化观察结果；验证台 i18n 覆盖留作后续 UI 收尾，不影响语言设置能力本身的通过结论。
 - 大文件完整读取复测通过：Android `content://` 样本 14,714,525 bytes（14.03 MiB），65,536-byte 块完整读取，首字节 231 ms、总耗时 4,360 ms、平均 3.22 MiB/s，`failurePhase = none`。该数据只代表 Android 16 x86_64 虚拟机的 `plugin-fs` 读取链，真机和 iOS 仍需分别运行。

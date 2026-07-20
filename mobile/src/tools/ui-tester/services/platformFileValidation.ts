@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { open as openFile } from "@tauri-apps/plugin-fs";
+import { open as openFile, SeekMode } from "@tauri-apps/plugin-fs";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 import type { ValidationCommandResult } from "../types/validation";
@@ -26,6 +26,13 @@ export interface SelectedFileSummary {
 export interface FullFileReadProgress {
   bytesRead: number;
   totalBytes: number;
+  phase?:
+    | "reading"
+    | "reading-before-interruption"
+    | "interrupted"
+    | "resumed"
+    | "reading-after-resume"
+    | "completed";
 }
 
 export interface FullFileReadSummary {
@@ -43,9 +50,17 @@ export interface FullFileReadSummary {
   error: string;
 }
 
+export interface InterruptedFileReadSummary extends FullFileReadSummary {
+  interruptAtBytes: number;
+  resumedOffset: number;
+  resumeLatencyMs: number;
+}
+
 const FILE_PROBE_TIMEOUT_MS = 10_000;
 const FULL_FILE_READ_TIMEOUT_MS = 30_000;
-const FULL_FILE_READ_CHUNK_BYTES = 64 * 1024;
+const COMPATIBILITY_READ_CHUNK_BYTES = 64 * 1024;
+const THROUGHPUT_READ_CHUNK_BYTES = 1024 * 1024;
+const INTERRUPT_AFTER_BYTES = 4 * 1024 * 1024;
 const FULL_FILE_PROGRESS_INTERVAL_BYTES = 1024 * 1024;
 const PICKER_RETURN_GRACE_MS = 5_000;
 const PICKER_MAX_WAIT_MS = 10 * 60_000;
@@ -248,7 +263,8 @@ export async function selectValidationFiles(
   }
 }
 
-export async function selectAndReadValidationFileFully(
+async function selectAndReadValidationFileFullyWithChunkSize(
+  readChunkBytes: number,
   onProgress?: (progress: FullFileReadProgress) => void,
   signal?: AbortSignal,
 ): Promise<FullFileReadSummary | null> {
@@ -266,7 +282,7 @@ export async function selectAndReadValidationFileFully(
     firstByteMs: 0,
     totalReadMs: 0,
     throughputMiBps: 0,
-    readChunkBytes: FULL_FILE_READ_CHUNK_BYTES,
+    readChunkBytes,
     status: "failed",
     failurePhase: "open",
     error: "",
@@ -293,7 +309,7 @@ export async function selectAndReadValidationFileFully(
         message: redactValidationText(String(error)),
       });
     }
-    const buffer = new Uint8Array(FULL_FILE_READ_CHUNK_BYTES);
+    const buffer = new Uint8Array(readChunkBytes);
     let nextProgressAt = FULL_FILE_PROGRESS_INTERVAL_BYTES;
     summary.failurePhase = "read";
     while (true) {
@@ -322,7 +338,11 @@ export async function selectAndReadValidationFileFully(
         summary.bytesRead >= nextProgressAt ||
         (summary.size >= 0 && summary.bytesRead >= summary.size)
       ) {
-        onProgress?.({ bytesRead: summary.bytesRead, totalBytes: summary.size });
+        onProgress?.({
+          bytesRead: summary.bytesRead,
+          totalBytes: summary.size,
+          phase: "reading",
+        });
         nextProgressAt = summary.bytesRead + FULL_FILE_PROGRESS_INTERVAL_BYTES;
       }
     }
@@ -356,6 +376,226 @@ export async function selectAndReadValidationFileFully(
     bytesRead: summary.bytesRead,
     totalReadMs: summary.totalReadMs,
     failurePhase: summary.failurePhase,
+    status: summary.status,
+  });
+  return summary;
+}
+
+export function selectAndReadValidationFileFully(
+  onProgress?: (progress: FullFileReadProgress) => void,
+  signal?: AbortSignal,
+): Promise<FullFileReadSummary | null> {
+  return selectAndReadValidationFileFullyWithChunkSize(
+    COMPATIBILITY_READ_CHUNK_BYTES,
+    onProgress,
+    signal,
+  );
+}
+
+export function selectAndReadValidationFileAtThroughputBaseline(
+  onProgress?: (progress: FullFileReadProgress) => void,
+  signal?: AbortSignal,
+): Promise<FullFileReadSummary | null> {
+  return selectAndReadValidationFileFullyWithChunkSize(
+    THROUGHPUT_READ_CHUNK_BYTES,
+    onProgress,
+    signal,
+  );
+}
+
+export async function selectAndResumeValidationFileRead(
+  onProgress?: (progress: FullFileReadProgress) => void,
+  signal?: AbortSignal,
+): Promise<InterruptedFileReadSummary | null> {
+  const selection = await openSystemPicker({
+    multiple: false,
+    directory: false,
+  });
+  if (!selection) return null;
+
+  const reference = String(Array.isArray(selection) ? selection[0] : selection);
+  const fileName = fileNameFromReference(reference);
+  const summary: InterruptedFileReadSummary = {
+    scheme: referenceScheme(reference),
+    fileName,
+    referenceHash: await hashReference(reference),
+    size: -1,
+    bytesRead: 0,
+    firstByteMs: 0,
+    totalReadMs: 0,
+    throughputMiBps: 0,
+    readChunkBytes: THROUGHPUT_READ_CHUNK_BYTES,
+    interruptAtBytes: 0,
+    resumedOffset: 0,
+    resumeLatencyMs: 0,
+    status: "failed",
+    failurePhase: "open",
+    error: "",
+  };
+  const startedAt = performance.now();
+  let handle: Awaited<ReturnType<typeof openFile>> | undefined;
+
+  try {
+    handle = await withTimeout(
+      openFile(reference, { read: true }),
+      FILE_PROBE_TIMEOUT_MS,
+      "打开中断恢复样本",
+    );
+    summary.failurePhase = "stat";
+    try {
+      const info = await withTimeout(
+        handle.stat(),
+        FILE_PROBE_TIMEOUT_MS,
+        "读取中断恢复样本元数据",
+      );
+      summary.size = info.size;
+    } catch (error) {
+      logger.warn("中断恢复样本无法取得文件大小，将以 EOF 为完成条件", {
+        scheme: summary.scheme,
+        message: redactValidationText(String(error)),
+      });
+    }
+
+    const plannedInterruptAt =
+      summary.size >= 0
+        ? Math.min(INTERRUPT_AFTER_BYTES, Math.floor(summary.size / 2))
+        : INTERRUPT_AFTER_BYTES;
+    if (plannedInterruptAt < THROUGHPUT_READ_CHUNK_BYTES) {
+      throw new Error("中断恢复样本过小，请选择至少 2 MiB 的文件");
+    }
+
+    summary.failurePhase = "read-before-interruption";
+    while (summary.bytesRead < plannedInterruptAt) {
+      if (signal?.aborted) {
+        summary.status = "cancelled";
+        break;
+      }
+      const remaining = plannedInterruptAt - summary.bytesRead;
+      const buffer = new Uint8Array(
+        Math.min(THROUGHPUT_READ_CHUNK_BYTES, remaining)
+      );
+      const bytesRead = await withTimeout(
+        handle.read(buffer),
+        FULL_FILE_READ_TIMEOUT_MS,
+        "读取中断前文件块",
+      );
+      if (!bytesRead) {
+        throw new Error("在计划中断点前到达 EOF，请选择更大的文件");
+      }
+      summary.bytesRead += bytesRead;
+      if (summary.firstByteMs === 0) {
+        summary.firstByteMs = Math.round(performance.now() - startedAt);
+      }
+      onProgress?.({
+        bytesRead: summary.bytesRead,
+        totalBytes: summary.size,
+        phase: "reading-before-interruption",
+      });
+    }
+
+    if (summary.status !== "cancelled") {
+      summary.interruptAtBytes = summary.bytesRead;
+      summary.failurePhase = "interrupt";
+      await withTimeout(handle.close(), 2_000, "关闭中断点文件句柄");
+      handle = undefined;
+      onProgress?.({
+        bytesRead: summary.bytesRead,
+        totalBytes: summary.size,
+        phase: "interrupted",
+      });
+
+      summary.failurePhase = "reopen";
+      const resumeStartedAt = performance.now();
+      handle = await withTimeout(
+        openFile(reference, { read: true }),
+        FILE_PROBE_TIMEOUT_MS,
+        "重新打开中断恢复样本",
+      );
+      summary.failurePhase = "seek";
+      summary.resumedOffset = await withTimeout(
+        handle.seek(summary.interruptAtBytes, SeekMode.Start),
+        FILE_PROBE_TIMEOUT_MS,
+        "定位续读偏移量",
+      );
+      summary.resumeLatencyMs = Math.round(performance.now() - resumeStartedAt);
+      if (summary.resumedOffset !== summary.interruptAtBytes) {
+        throw new Error(
+          `恢复偏移量 ${summary.resumedOffset} 与中断点 ${summary.interruptAtBytes} 不一致`,
+        );
+      }
+      onProgress?.({
+        bytesRead: summary.bytesRead,
+        totalBytes: summary.size,
+        phase: "resumed",
+      });
+
+      summary.failurePhase = "read-after-resume";
+      const buffer = new Uint8Array(THROUGHPUT_READ_CHUNK_BYTES);
+      while (true) {
+        if (signal?.aborted) {
+          summary.status = "cancelled";
+          break;
+        }
+        const bytesRead = await withTimeout(
+          handle.read(buffer),
+          FULL_FILE_READ_TIMEOUT_MS,
+          "读取恢复后文件块",
+        );
+        if (!bytesRead) {
+          const sizeMatches = summary.size < 0 || summary.bytesRead === summary.size;
+          summary.status = sizeMatches ? "passed" : "failed";
+          if (!sizeMatches) {
+            summary.error = `读取字节数 ${summary.bytesRead} 与文件大小 ${summary.size} 不一致`;
+          }
+          break;
+        }
+        summary.bytesRead += bytesRead;
+        onProgress?.({
+          bytesRead: summary.bytesRead,
+          totalBytes: summary.size,
+          phase: "reading-after-resume",
+        });
+      }
+      if (summary.status === "passed") {
+        onProgress?.({
+          bytesRead: summary.bytesRead,
+          totalBytes: summary.size,
+          phase: "completed",
+        });
+      }
+    }
+  } catch (error) {
+    summary.error = redactValidationText(
+      error instanceof Error ? error.message : String(error),
+    );
+  } finally {
+    if (summary.status !== "failed") {
+      summary.failurePhase = "";
+    }
+    summary.totalReadMs = Math.round(performance.now() - startedAt);
+    if (summary.totalReadMs > 0) {
+      summary.throughputMiBps = Number(
+        ((summary.bytesRead / (1024 * 1024)) / (summary.totalReadMs / 1000)).toFixed(2),
+      );
+    }
+    if (handle) {
+      await withTimeout(handle.close(), 2_000, "关闭中断恢复文件句柄").catch(
+        (error) => {
+          logger.warn("关闭中断恢复文件句柄失败", {
+            message: redactValidationText(String(error)),
+          });
+        },
+      );
+    }
+  }
+
+  logger.info("文件读取中断恢复场景结束", {
+    scheme: summary.scheme,
+    size: summary.size,
+    bytesRead: summary.bytesRead,
+    interruptAtBytes: summary.interruptAtBytes,
+    resumedOffset: summary.resumedOffset,
+    resumeLatencyMs: summary.resumeLatencyMs,
     status: summary.status,
   });
   return summary;

@@ -112,6 +112,7 @@ struct AssetPaths {
     root: PathBuf,
     cache_root: PathBuf,
     shares: PathBuf,
+    captures: PathBuf,
     database: PathBuf,
     objects: PathBuf,
     imports: PathBuf,
@@ -134,6 +135,7 @@ impl AssetPaths {
             objects: root.join("objects"),
             imports: root.join("tmp").join("imports"),
             shares: cache_root.join("shares"),
+            captures: cache_root.join("captures"),
             cache_root,
             root,
         })
@@ -223,7 +225,7 @@ pub struct AssetShareResult {
     file_name: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetImportSource {
     reference: String,
@@ -918,6 +920,28 @@ pub async fn asset_share(
     }
 }
 
+#[tauri::command]
+pub fn asset_capture_photo(app: AppHandle) -> Result<Option<AssetImportSource>, String> {
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+        Err("ASSET_CAMERA_UNSUPPORTED".into())
+    }
+
+    #[cfg(target_os = "android")]
+    {
+        let captured = android_content::capture_photo(&app)
+            .map_err(|error| format!("ASSET_CAMERA_CAPTURE: {error}"))?;
+        Ok(captured.map(|photo| AssetImportSource {
+            reference: photo.reference,
+            origin_kind: "camera".into(),
+            source_module: "asset-manager".into(),
+            original_name: Some(photo.original_name),
+            mime_type: Some(photo.mime_type),
+        }))
+    }
+}
+
 fn copy_asset_to_writer(mut input: impl Read, mut output: impl Write) -> Result<u64, String> {
     let bytes_written = std::io::copy(&mut input, &mut output)
         .map_err(|error| format!("ASSET_EXPORT_COPY: {error}"))?;
@@ -1556,6 +1580,7 @@ async fn run_startup_recovery(pool: &SqlitePool, paths: &AssetPaths) -> Result<(
     drain_pending_file_deletions(pool, paths).await?;
     cleanup_temporary_imports(paths)?;
     cleanup_temporary_shares(paths)?;
+    cleanup_temporary_captures(paths)?;
     mark_missing_assets(pool, paths).await?;
     cleanup_orphan_objects(pool, paths).await?;
     Ok(())
@@ -1579,8 +1604,10 @@ async fn repair_library(
     paths: &AssetPaths,
 ) -> Result<AssetRepairReport, String> {
     let first_cleanup = drain_pending_file_deletions(pool, paths).await?;
+    let cleaned_captures = cleanup_temporary_captures(paths)?;
     let cleaned_temporary_files = cleanup_temporary_imports(paths)?
         .checked_add(cleanup_temporary_shares(paths)?)
+        .and_then(|count| count.checked_add(cleaned_captures))
         .ok_or_else(|| "ASSET_SIZE_OVERFLOW".to_string())?;
     let marked_missing_assets = mark_missing_assets(pool, paths).await?;
     let cleaned_orphan_files = cleanup_orphan_objects(pool, paths).await?;
@@ -1677,6 +1704,18 @@ fn cleanup_temporary_shares(paths: &AssetPaths) -> Result<usize, String> {
     let cleaned = files.len();
     fs::remove_dir_all(&paths.shares)
         .map_err(|error| format!("ASSET_SHARE_CACHE_CLEANUP: {error}"))?;
+    Ok(cleaned)
+}
+
+fn cleanup_temporary_captures(paths: &AssetPaths) -> Result<usize, String> {
+    if !paths.captures.exists() {
+        return Ok(0);
+    }
+    let mut files = Vec::new();
+    collect_files(&paths.captures, &mut files)?;
+    let cleaned = files.len();
+    fs::remove_dir_all(&paths.captures)
+        .map_err(|error| format!("ASSET_CAMERA_CACHE_CLEANUP: {error}"))?;
     Ok(cleaned)
 }
 
@@ -1928,6 +1967,9 @@ async fn storage_summary(
     .map_err(|error| format!("ASSET_STORAGE_KINDS: {error}"))?;
     let temporary_bytes = directory_size(&paths.imports)?
         .checked_add(directory_size(&paths.shares)?)
+        .ok_or_else(|| "ASSET_SIZE_OVERFLOW".to_string())?;
+    let temporary_bytes = temporary_bytes
+        .checked_add(directory_size(&paths.captures)?)
         .ok_or_else(|| "ASSET_SIZE_OVERFLOW".to_string())?;
     Ok(AssetStorageSummary {
         asset_count: counts.0,
@@ -3060,6 +3102,7 @@ mod tests {
             root: PathBuf::from("asset-root"),
             cache_root: PathBuf::from("cache-root"),
             shares: PathBuf::from("cache-root/shares"),
+            captures: PathBuf::from("cache-root/captures"),
             database: PathBuf::new(),
             objects: PathBuf::new(),
             imports: PathBuf::new(),
@@ -3291,6 +3334,7 @@ mod tests {
             imports: root.join("tmp").join("imports"),
             cache_root: root.join("cache"),
             shares: root.join("cache").join("shares"),
+            captures: root.join("cache").join("captures"),
             root: root.clone(),
         };
         fs::create_dir_all(&paths.cache_root).unwrap();
@@ -3453,6 +3497,7 @@ mod tests {
             imports: root.join("tmp").join("imports"),
             cache_root: root.join("cache"),
             shares: root.join("cache").join("shares"),
+            captures: root.join("cache").join("captures"),
             root: root.clone(),
         };
         fs::create_dir_all(&paths.imports).unwrap();
@@ -3644,6 +3689,7 @@ mod tests {
             imports: root.join("tmp").join("imports"),
             cache_root: root.join("cache"),
             shares: root.join("cache").join("shares"),
+            captures: root.join("cache").join("captures"),
             root: root.clone(),
         };
         fs::create_dir_all(&paths.imports).unwrap();
@@ -3683,10 +3729,12 @@ mod tests {
             b"shared",
         )
         .unwrap();
+        fs::create_dir_all(&paths.captures).unwrap();
+        fs::write(paths.captures.join("camera.jpg"), b"captured").unwrap();
         fs::write(paths.objects.join("ff").join("orphan.bin"), b"orphan").unwrap();
 
         let report = repair_library(&pool, &paths).await.unwrap();
-        assert_eq!(report.cleaned_temporary_files, 2);
+        assert_eq!(report.cleaned_temporary_files, 3);
         assert_eq!(report.cleaned_orphan_files, 1);
         assert_eq!(report.marked_missing_assets, 1);
         let repaired = find_asset_by_id(&pool, &asset.id).await.unwrap().unwrap();

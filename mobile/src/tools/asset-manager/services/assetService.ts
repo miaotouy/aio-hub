@@ -234,6 +234,18 @@ export async function shareAsset(assetId: string): Promise<AssetShareResult> {
   }
 }
 
+export async function capturePhoto(): Promise<AssetImportSource | null> {
+  try {
+    return await invoke<AssetImportSource | null>("asset_capture_photo");
+  } catch (error) {
+    errorHandler.handle(error, {
+      userMessage: "无法打开相机",
+      showToUser: false,
+    });
+    throw error;
+  }
+}
+
 export async function replaceEntityAssetUsages(
   moduleId: string,
   entityType: string,

@@ -23,7 +23,7 @@ import AssetTile from "../components/AssetTile.vue";
 import ImportJobsSheet from "../components/ImportJobsSheet.vue";
 import ImportSourceSheet from "../components/ImportSourceSheet.vue";
 import { formatAssetBytes, useAssetLibrary } from "../composables/useAssetLibrary";
-import { exportAsset, shareAsset as shareManagedAsset } from "../services/assetService";
+import { capturePhoto, exportAsset, shareAsset as shareManagedAsset } from "../services/assetService";
 import type { AssetKind, AssetImportSource } from "../types";
 
 const router = useRouter();
@@ -101,9 +101,14 @@ function importFromDevice() {
   importSourceOpen.value = true;
 }
 
-async function pickAndImport(source: "file" | "photo") {
+async function pickAndImport(source: "file" | "photo" | "camera") {
   importSourceOpen.value = false;
   try {
+    if (source === "camera") {
+      const cameraSource = await capturePhoto();
+      if (cameraSource) await library.importSources([cameraSource]);
+      return;
+    }
     const selection = await open({
       multiple: true,
       directory: false,
@@ -125,7 +130,11 @@ async function pickAndImport(source: "file" | "photo") {
     await library.importSources(sources);
   } catch (cause) {
     customMessage(
-      cause instanceof Error ? cause.message : "无法导入所选文件",
+      cause instanceof Error
+        ? cause.message
+        : source === "camera"
+          ? "无法打开相机"
+          : "无法导入所选文件",
       "error"
     );
   }

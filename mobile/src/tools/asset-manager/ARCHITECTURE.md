@@ -33,6 +33,7 @@ AppData/assets/
 - `asset_get_preview_source` / `asset_revoke_preview_source`：签发或撤销短期受控预览 URL；URL 只含不透明 token。
 - `asset_export`：复核 managed/ready 资产后，将原件流式复制到系统 save-picker 目标。
 - `asset_share`：仅接受资产 ID；Android 复核后复制到受控 cache 并打开系统 `ACTION_SEND`，其他平台返回未支持。
+- `asset_capture_photo`：Android 调用系统相机并返回一次性 `content://` 导入源；非 Android 返回未支持。
 - `asset_replace_entity_usages`：按业务实体整体替换 usage，供消费者 outbox 幂等投递。
 - `asset_analyze_delete`：汇总 pinned、blocking/advisory usage 与确认要求，不执行副作用。
 - `asset_set_retention_policy`：批量切换 reclaimable/pinned；任一 ID 不存在时整批回滚。
@@ -70,7 +71,7 @@ AppData/assets/
 
 - Android `emulator-5558` 已验证 Photo Picker `content://` 经原生 bridge 正式导入：1 项成功写入托管库，MIME 为 `image/png`、类型为 `image`、状态为 `ready`；数字 provider 展示名已回退为 MIME 格式的 `photo-<8hex>.png`。同一 bridge 也验证 save-picker `content://` 导出，导出文件与托管对象字节数和 SHA-256 一致。
 - `tauri-plugin-fs` 2.5.1 在测试 provider 上的 `openAssetFileDescriptor` 不兼容是已知边界；不得把该 plugin-fs 路径作为 Android `content://` 正式链的唯一实现。bridge 仅在 Android content URI 分支启用，避免改变桌面与 iOS 路径。
-- Android 图片 `<img>` 受控预览已在实际 WebView 渲染；系统分享已在 chooser 中验证图片预览和只读 cache 副本；视频/音频、Range/CORS、token 撤销和相机仍需专门场景。
+- Android 图片 `<img>` 受控预览已在实际 WebView 渲染；系统分享已在 chooser 中验证图片预览和只读 cache 副本；相机 bridge 已实现但当前模拟器没有 `IMAGE_CAPTURE` Activity，视频/音频、Range/CORS 和 token 撤销仍需专门场景。
 - iOS 因当前缺少编译与真机设备条件暂缓补验。security-scoped URL 的关闭时机、备份排除和预览协议在设备条件具备前不得冻结。
 
 ## 8. 查询与库状态
@@ -103,10 +104,11 @@ AppData/assets/
 - 文件导入通过系统文件选择器或移动端 media picker 获得引用后交给 import job；WebView 不读取原件字节。页面可恢复最近任务、显示累计进度与中断错误码，并取消 pending/running 任务。
 - 详情页的“保存到文件”使用系统 save picker，目标引用直接传给 `asset_export`；Rust 对 Android `content://` 目标通过 `AssetContentPlugin` 的 `openFileDescriptor(..., "wt")` 打开，其他目标按平台使用 plugin-fs，并流式复制 managed 原件，内部对象路径不返回 WebView。
 - 详情页的“系统分享”只传 `assetId`；Rust 将原件复制到 cache 的 UUID 目录，Android bridge 用 `FileProvider`、`ClipData` 和只读 grant 发出 `ACTION_SEND`。分享副本由延迟任务清理，启动恢复/资产库修复会清除遗留目录，并把其大小计入临时文件。
+- 导入面板的“拍摄照片”只调用 `asset_capture_photo`；Android bridge 把相机输出写入 cache/captures，通过 `FileProvider` 返回临时 `content://`，前端交给既有 import job。取消、无相机和异常结果不产生可见资产，启动恢复/资产库修复清除 captures。
 
 ## 12. 后续施工
 
 - Android 补视频/音频、Range/CORS 与撤销行为的受控预览场景并回写报告。
-- 补相机、iOS/跨平台分享插件和批量转写/文本提取后的原件清理流程。
+- 补 Android 相机设备验收、iOS/跨平台分享插件和批量转写/文本提取后的原件清理流程。
 - 完成聊天 SQLite migration 阶段一至三后，再接入聊天附件与 usage outbox。
 - iOS 因缺少编译与真机设备条件继续跳过，不声明平台能力通过。

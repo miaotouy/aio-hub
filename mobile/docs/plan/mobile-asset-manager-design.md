@@ -38,7 +38,7 @@
 - 技术栈为 Tauri v2、Vue 3、TypeScript 与 Rust。
 - 已安装 `@tauri-apps/plugin-fs` 与 `@tauri-apps/plugin-dialog`；Android 系统选择器返回的 `content://` 已在正式资产导入/导出链验证。由于 `tauri-plugin-fs` 2.5.1 对测试 provider 使用 `openAssetFileDescriptor` 会失败，正式链由 Android `AssetContentPlugin` 调用 `ContentResolver.openFileDescriptor`，再交给 Rust 流式处理；应用数据目录仍只通过受控 capability 与 Rust 领域命令访问。
 - 通用 `mobile/src/utils/fsUtils.ts` 仍只封装应用数据目录下的文本文件与目录操作；Phase 1 已新增独立 Rust 二进制资产服务，不把二进制职责塞回通用工具。
-- Rust 已引入 SQLx 与 bundled SQLite 验证依赖，`ui-tester` 已具备平台文件和 SQLite 固定验证板块；相册专用入口、相机和分享插件仍未接入。
+- Rust 已引入 SQLx 与 bundled SQLite 验证依赖，`ui-tester` 已具备平台文件和 SQLite 固定验证板块；Android 分享 bridge 已接入，相机 bridge 已实现但仍需有相机 Activity 的设备验收。
 - `llm-chat` 的 `_attachments` 仍为 `any[]` 占位，架构文档已把完整 Asset 系统列为待办。
 - `agent-manager` 的 `assets` 与 `assetGroups` 仍是占位类型，但其桌面端语义是智能体私有资产，不应因此并入全局资产库。
 - 工作区已有“一模块一数据库”的移动端 SQLite 计划；Phase 1 首批已建立资产库 migration 与 repository，尚未接用户界面和聊天消费者。
@@ -503,7 +503,7 @@ interface ManagedAssetRef {
 - [x] 接入最近导入任务恢复、运行进度、中断状态与取消入口。
 - [x] 接入照片/视频 media picker。
 - [x] 接入 Android 系统分享：Rust 校验资产后复制到受控 cache，原生 bridge 通过 `FileProvider` 发出只读 `ACTION_SEND`；相机和 iOS 分享仍未接入。
-- [ ] 接入相机，以及 iOS/跨平台系统分享能力（需各自原生插件契约和设备验收）。
+- [ ] 完成 Android 相机设备验收，以及 iOS/跨平台系统分享能力（需各自原生插件契约和设备条件）。
 - [ ] 接入批量转写或文本提取后的原件删除流程。
 
 ### Phase 3：平台增强
@@ -642,6 +642,13 @@ interface ManagedAssetRef {
 - `AssetContentPlugin` 校验分享文件 canonical path 必须位于应用 cache，使用 `FileProvider`、`ClipData` 和 `FLAG_GRANT_READ_URI_PERMISSION` 发出 `ACTION_SEND`；分享副本延迟清理，启动恢复与“修复资产库”会清除遗留分享 cache，存储页将其计入临时文件。
 - `emulator-5558` 实测图片详情分享：系统 `ChooserActivity` 显示“分享图片”并成功渲染分享预览；cache 副本 `photo-b86e7a61.png` 与托管原件均为 60,662 字节且 SHA-256 一致；修复入口清理该副本并报告 1 个文件。
 - 本批通过移动端 73 个前端测试、23 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android 四 ABI debug APK/AAB 构建。相机、iOS/跨平台分享、视频/音频预览和 Range/CORS/撤销专项仍未完成；iOS 继续因缺少编译与真机设备条件跳过。
+
+### 2026-07-21：Phase 2 第六批 Android 相机入口
+
+- 导入来源面板增加“拍摄照片”；Rust `asset_capture_photo` 只返回临时 `content://` 引用、来源类型、名称和 MIME，随后复用既有持久化 import job，WebView 不接触相机输出路径或字节。
+- `AssetContentPlugin` 使用 `ACTION_IMAGE_CAPTURE`、`FileProvider` 和 cache/captures 临时目录；取消会返回空结果并删除临时文件，拍摄结果延迟清理，启动恢复与资产库修复清除遗留 captures。
+- `emulator-5558` 的 `cmd package resolve-activity -a android.media.action.IMAGE_CAPTURE` 返回 `No activity found`，因此本轮只能验收“无相机时错误提示且不留临时文件”，不能宣称实际拍摄导入通过；需要带相机 Activity 的 Android 设备补验。
+- 本批代码通过移动端 74 个前端测试、23 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android 四 ABI debug APK/AAB 构建。iOS 继续因缺少编译与真机设备条件跳过。
 
 ## 16. 调查来源
 

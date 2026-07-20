@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { FilePlus2, Images, X } from "lucide-vue-next";
+import { Camera, FilePlus2, Images, X } from "lucide-vue-next";
 
-const emit = defineEmits<{ close: []; pick: [source: "file" | "photo"] }>();
+const emit = defineEmits<{
+  close: [];
+  pick: [source: "file" | "photo" | "camera"];
+}>();
 </script>
 
 <template>
@@ -22,6 +25,10 @@ const emit = defineEmits<{ close: []; pick: [source: "file" | "photo"] }>();
         <button type="button" @click="emit('pick', 'photo')">
           <Images :size="23" />
           <span><strong>从照片和视频导入</strong><small>使用系统媒体选择器，不申请全库权限</small></span>
+        </button>
+        <button type="button" @click="emit('pick', 'camera')">
+          <Camera :size="23" />
+          <span><strong>拍摄照片</strong><small>调用系统相机，照片会复制到资产库</small></span>
         </button>
       </div>
     </section>

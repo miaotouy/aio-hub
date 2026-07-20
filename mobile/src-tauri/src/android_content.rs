@@ -30,6 +30,18 @@ struct ShareContentResponse {
     started: bool,
 }
 
+#[derive(Debug, Serialize)]
+struct CapturePhotoPayload {}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CapturePhotoResponse {
+    cancelled: bool,
+    reference: Option<String>,
+    original_name: Option<String>,
+    mime_type: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentMetadata {
@@ -88,4 +100,33 @@ pub fn share(app: &AppHandle, path: &str, mime_type: &str, file_name: &str) -> i
         return Err(io::Error::other("content share did not start"));
     }
     Ok(())
+}
+
+#[derive(Debug)]
+pub struct CapturedPhoto {
+    pub reference: String,
+    pub original_name: String,
+    pub mime_type: String,
+}
+
+pub fn capture_photo(app: &AppHandle) -> io::Result<Option<CapturedPhoto>> {
+    let response = app
+        .state::<AndroidContent<tauri::Wry>>()
+        .0
+        .run_mobile_plugin::<CapturePhotoResponse>("capturePhoto", CapturePhotoPayload {})
+        .map_err(|error| io::Error::other(format!("photo capture failed: {error}")))?;
+    if response.cancelled {
+        return Ok(None);
+    }
+    Ok(Some(CapturedPhoto {
+        reference: response
+            .reference
+            .ok_or_else(|| io::Error::other("photo capture returned no reference"))?,
+        original_name: response
+            .original_name
+            .ok_or_else(|| io::Error::other("photo capture returned no name"))?,
+        mime_type: response
+            .mime_type
+            .ok_or_else(|| io::Error::other("photo capture returned no MIME type"))?,
+    }))
 }

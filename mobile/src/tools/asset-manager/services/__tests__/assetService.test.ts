@@ -26,6 +26,7 @@ vi.mock("@/utils/errorHandler", () => ({
 
 import {
   clearRebuildableAssetCache,
+  capturePhoto,
   exportAsset,
   shareAsset,
   getAssetLibraryFacets,
@@ -223,5 +224,19 @@ describe("asset library management", () => {
 
     await expect(shareAsset("asset-1")).resolves.toEqual({ fileName: "sample.png" });
     expect(invokeMock).toHaveBeenCalledWith("asset_share", { assetId: "asset-1" });
+  });
+
+  it("requests a camera source without exposing camera bytes", async () => {
+    const source = {
+      reference: "content://com.aiohub.mobile.fileprovider/camera/photo.jpg",
+      originKind: "camera",
+      sourceModule: "asset-manager",
+      originalName: "camera-photo.jpg",
+      mimeType: "image/jpeg",
+    } as const;
+    invokeMock.mockResolvedValueOnce(source);
+
+    await expect(capturePhoto()).resolves.toEqual(source);
+    expect(invokeMock).toHaveBeenCalledWith("asset_capture_photo");
   });
 });

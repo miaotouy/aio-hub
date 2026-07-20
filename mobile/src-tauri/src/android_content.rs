@@ -17,6 +17,19 @@ struct OpenContentResponse {
     fd: i32,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ShareContentPayload<'a> {
+    path: &'a str,
+    mime_type: &'a str,
+    file_name: &'a str,
+}
+
+#[derive(Debug, Deserialize)]
+struct ShareContentResponse {
+    started: bool,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentMetadata {
@@ -56,4 +69,23 @@ pub fn metadata(app: &AppHandle, uri: &str) -> io::Result<ContentMetadata> {
             OpenContentPayload { uri, mode: "r" },
         )
         .map_err(|error| io::Error::other(format!("content URI metadata failed: {error}")))
+}
+
+pub fn share(app: &AppHandle, path: &str, mime_type: &str, file_name: &str) -> io::Result<()> {
+    let response = app
+        .state::<AndroidContent<tauri::Wry>>()
+        .0
+        .run_mobile_plugin::<ShareContentResponse>(
+            "shareContent",
+            ShareContentPayload {
+                path,
+                mime_type,
+                file_name,
+            },
+        )
+        .map_err(|error| io::Error::other(format!("content share failed: {error}")))?;
+    if !response.started {
+        return Err(io::Error::other("content share did not start"));
+    }
+    Ok(())
 }

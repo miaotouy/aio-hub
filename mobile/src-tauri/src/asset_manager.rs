@@ -111,6 +111,7 @@ impl AssetManagerState {
 struct AssetPaths {
     root: PathBuf,
     cache_root: PathBuf,
+    shares: PathBuf,
     database: PathBuf,
     objects: PathBuf,
     imports: PathBuf,
@@ -132,6 +133,7 @@ impl AssetPaths {
             database: root.join(ASSET_DB),
             objects: root.join("objects"),
             imports: root.join("tmp").join("imports"),
+            shares: cache_root.join("shares"),
             cache_root,
             root,
         })
@@ -212,6 +214,12 @@ pub struct AssetPreviewSource {
 #[serde(rename_all = "camelCase")]
 pub struct AssetExportResult {
     bytes_written: u64,
+    file_name: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetShareResult {
     file_name: String,
 }
 
@@ -875,6 +883,41 @@ pub async fn asset_export(
     })
 }
 
+#[tauri::command]
+pub async fn asset_share(
+    app: AppHandle,
+    state: State<'_, AssetManagerState>,
+    asset_id: String,
+) -> Result<AssetShareResult, String> {
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, state, asset_id);
+        Err("ASSET_SHARE_UNSUPPORTED".into())
+    }
+
+    #[cfg(target_os = "android")]
+    {
+        let managed = resolve_managed_asset_read(&app, state.inner(), &asset_id).await?;
+        let paths = AssetPaths::from_app(&app)?;
+        let file_name = share_file_name(&managed.display_name, &managed.mime_type);
+        let share_dir = paths.shares.join(Uuid::new_v4().simple().to_string());
+        tokio::fs::create_dir_all(&share_dir)
+            .await
+            .map_err(|error| format!("ASSET_SHARE_CACHE_CREATE: {error}"))?;
+        let share_path = share_dir.join(&file_name);
+        if let Err(error) = tokio::fs::copy(&managed.path, &share_path).await {
+            let _ = tokio::fs::remove_dir_all(&share_dir).await;
+            return Err(format!("ASSET_SHARE_CACHE_COPY: {error}"));
+        }
+        let path = share_path.to_string_lossy().into_owned();
+        if let Err(error) = android_content::share(&app, &path, &managed.mime_type, &file_name) {
+            let _ = tokio::fs::remove_dir_all(&share_dir).await;
+            return Err(format!("ASSET_SHARE_LAUNCH: {error}"));
+        }
+        Ok(AssetShareResult { file_name })
+    }
+}
+
 fn copy_asset_to_writer(mut input: impl Read, mut output: impl Write) -> Result<u64, String> {
     let bytes_written = std::io::copy(&mut input, &mut output)
         .map_err(|error| format!("ASSET_EXPORT_COPY: {error}"))?;
@@ -1512,6 +1555,7 @@ async fn run_startup_recovery(pool: &SqlitePool, paths: &AssetPaths) -> Result<(
     recover_interrupted_import_jobs(pool).await?;
     drain_pending_file_deletions(pool, paths).await?;
     cleanup_temporary_imports(paths)?;
+    cleanup_temporary_shares(paths)?;
     mark_missing_assets(pool, paths).await?;
     cleanup_orphan_objects(pool, paths).await?;
     Ok(())
@@ -1535,7 +1579,9 @@ async fn repair_library(
     paths: &AssetPaths,
 ) -> Result<AssetRepairReport, String> {
     let first_cleanup = drain_pending_file_deletions(pool, paths).await?;
-    let cleaned_temporary_files = cleanup_temporary_imports(paths)?;
+    let cleaned_temporary_files = cleanup_temporary_imports(paths)?
+        .checked_add(cleanup_temporary_shares(paths)?)
+        .ok_or_else(|| "ASSET_SIZE_OVERFLOW".to_string())?;
     let marked_missing_assets = mark_missing_assets(pool, paths).await?;
     let cleaned_orphan_files = cleanup_orphan_objects(pool, paths).await?;
     let final_cleanup = drain_pending_file_deletions(pool, paths).await?;
@@ -1619,6 +1665,18 @@ fn cleanup_temporary_imports(paths: &AssetPaths) -> Result<usize, String> {
             }
         }
     }
+    Ok(cleaned)
+}
+
+fn cleanup_temporary_shares(paths: &AssetPaths) -> Result<usize, String> {
+    if !paths.shares.exists() {
+        return Ok(0);
+    }
+    let mut files = Vec::new();
+    collect_files(&paths.shares, &mut files)?;
+    let cleaned = files.len();
+    fs::remove_dir_all(&paths.shares)
+        .map_err(|error| format!("ASSET_SHARE_CACHE_CLEANUP: {error}"))?;
     Ok(cleaned)
 }
 
@@ -1868,6 +1926,9 @@ async fn storage_summary(
     .fetch_all(pool)
     .await
     .map_err(|error| format!("ASSET_STORAGE_KINDS: {error}"))?;
+    let temporary_bytes = directory_size(&paths.imports)?
+        .checked_add(directory_size(&paths.shares)?)
+        .ok_or_else(|| "ASSET_SIZE_OVERFLOW".to_string())?;
     Ok(AssetStorageSummary {
         asset_count: counts.0,
         ready_count: counts.1,
@@ -1876,7 +1937,7 @@ async fn storage_summary(
         original_bytes: counts.4,
         reclaimable_bytes: counts.5,
         cache_bytes,
-        temporary_bytes: directory_size(&paths.imports)?,
+        temporary_bytes,
         pending_cleanup_count,
         by_kind,
     })
@@ -2894,6 +2955,41 @@ fn extension_for_object(name: &str, mime: &str) -> Option<String> {
     })
 }
 
+#[cfg(any(target_os = "android", test))]
+fn share_file_name(display_name: &str, mime: &str) -> String {
+    let cleaned: String = display_name
+        .trim()
+        .chars()
+        .map(|character| {
+            if character.is_control() || matches!(character, '/' | '\\') {
+                '_'
+            } else {
+                character
+            }
+        })
+        .take(160)
+        .collect();
+    let mut name = cleaned
+        .trim_matches(|character| matches!(character, '.' | ' '))
+        .to_string();
+    if name.is_empty() {
+        name = "asset".into();
+    }
+    let has_extension = name.rsplit_once('.').is_some_and(|(_, extension)| {
+        (1..=10).contains(&extension.len())
+            && extension
+                .chars()
+                .all(|character| character.is_ascii_alphanumeric())
+    });
+    if !has_extension {
+        if let Some(extension) = extension_for_object("", mime) {
+            name.push('.');
+            name.push_str(&extension);
+        }
+    }
+    name
+}
+
 fn object_relative_path(content_hash: &str, extension: Option<String>) -> String {
     let suffix = extension
         .map(|value| format!(".{value}"))
@@ -2963,6 +3059,7 @@ mod tests {
         let paths = AssetPaths {
             root: PathBuf::from("asset-root"),
             cache_root: PathBuf::from("cache-root"),
+            shares: PathBuf::from("cache-root/shares"),
             database: PathBuf::new(),
             objects: PathBuf::new(),
             imports: PathBuf::new(),
@@ -2993,6 +3090,19 @@ mod tests {
         .is_ok());
         assert!(validate_export_destination("https://example.com/export.bin").is_err());
         assert!(validate_export_destination("relative/export.bin").is_err());
+    }
+
+    #[test]
+    fn share_names_are_safe_and_keep_a_mime_extension() {
+        assert_eq!(
+            share_file_name("camera/shot", "image/png"),
+            "camera_shot.png"
+        );
+        assert_eq!(share_file_name("..", "audio/mpeg"), "asset.mp3");
+        assert_eq!(
+            share_file_name("voice-note.m4a", "audio/mp4"),
+            "voice-note.m4a"
+        );
     }
 
     #[test]
@@ -3180,6 +3290,7 @@ mod tests {
             objects: root.join("objects"),
             imports: root.join("tmp").join("imports"),
             cache_root: root.join("cache"),
+            shares: root.join("cache").join("shares"),
             root: root.clone(),
         };
         fs::create_dir_all(&paths.cache_root).unwrap();
@@ -3341,6 +3452,7 @@ mod tests {
             objects: root.join("objects"),
             imports: root.join("tmp").join("imports"),
             cache_root: root.join("cache"),
+            shares: root.join("cache").join("shares"),
             root: root.clone(),
         };
         fs::create_dir_all(&paths.imports).unwrap();
@@ -3531,6 +3643,7 @@ mod tests {
             objects: root.join("objects"),
             imports: root.join("tmp").join("imports"),
             cache_root: root.join("cache"),
+            shares: root.join("cache").join("shares"),
             root: root.clone(),
         };
         fs::create_dir_all(&paths.imports).unwrap();
@@ -3564,10 +3677,16 @@ mod tests {
             .unwrap();
         fs::remove_file(managed_path).unwrap();
         fs::write(paths.imports.join("abandoned.part"), b"partial").unwrap();
+        fs::create_dir_all(paths.shares.join("stale-share")).unwrap();
+        fs::write(
+            paths.shares.join("stale-share").join("asset.png"),
+            b"shared",
+        )
+        .unwrap();
         fs::write(paths.objects.join("ff").join("orphan.bin"), b"orphan").unwrap();
 
         let report = repair_library(&pool, &paths).await.unwrap();
-        assert_eq!(report.cleaned_temporary_files, 1);
+        assert_eq!(report.cleaned_temporary_files, 2);
         assert_eq!(report.cleaned_orphan_files, 1);
         assert_eq!(report.marked_missing_assets, 1);
         let repaired = find_asset_by_id(&pool, &asset.id).await.unwrap().unwrap();

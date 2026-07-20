@@ -19,6 +19,7 @@ import type {
   AssetRepairReport,
   AssetRetentionPolicy,
   AssetStorageSummary,
+  AssetShareResult,
   AssetUsageInput,
 } from "../types";
 
@@ -215,6 +216,18 @@ export async function exportAsset(
   } catch (error) {
     errorHandler.handle(error, {
       userMessage: "无法保存资产原件",
+      showToUser: false,
+    });
+    throw error;
+  }
+}
+
+export async function shareAsset(assetId: string): Promise<AssetShareResult> {
+  try {
+    return await invoke<AssetShareResult>("asset_share", { assetId });
+  } catch (error) {
+    errorHandler.handle(error, {
+      userMessage: "无法打开系统分享",
       showToUser: false,
     });
     throw error;

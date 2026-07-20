@@ -502,7 +502,8 @@ interface ManagedAssetRef {
 - [x] 接入系统文件保存能力；原件由 Rust 流式导出到 save picker 目标，不经过 WebView 内存。
 - [x] 接入最近导入任务恢复、运行进度、中断状态与取消入口。
 - [x] 接入照片/视频 media picker。
-- [ ] 接入相机和系统分享能力（当前仓库尚无移动端 share 插件契约）。
+- [x] 接入 Android 系统分享：Rust 校验资产后复制到受控 cache，原生 bridge 通过 `FileProvider` 发出只读 `ACTION_SEND`；相机和 iOS 分享仍未接入。
+- [ ] 接入相机，以及 iOS/跨平台系统分享能力（需各自原生插件契约和设备验收）。
 - [ ] 接入批量转写或文本提取后的原件删除流程。
 
 ### Phase 3：平台增强
@@ -625,7 +626,7 @@ interface ManagedAssetRef {
 
 - 导入入口拆分为文件选择器和照片/视频 media picker；照片来源以 `photo_picker` 写入 origin，仍沿用同一持久化 import job 和去重流程。
 - 新增 `asset_export` command。Rust 复核资产为 managed/ready 且对象存在后，通过 plugin-fs 将原件流式复制到系统 save picker 返回的 `content://` 或 `file://` 目标；不返回对象路径、不把大文件读入 WebView。
-- 保存链路已覆盖 Rust stream helper、目标引用校验、服务层 invoke 契约和页面详情入口。Android `content://` save-picker 目标通过原生 bridge 的 `openFileDescriptor(..., "wt")` 流式写入；在 `emulator-5558` 验证导出文件大小与 SHA-256 与托管原件一致。系统分享仍因缺少原生插件契约保留为未完成项；相机、视频/音频预览、Range/CORS/撤销专项和 iOS 继续跳过。
+- 保存链路已覆盖 Rust stream helper、目标引用校验、服务层 invoke 契约和页面详情入口。Android `content://` save-picker 目标通过原生 bridge 的 `openFileDescriptor(..., "wt")` 流式写入；在 `emulator-5558` 验证导出文件大小与 SHA-256 与托管原件一致。当时系统分享仍保留为未完成项；相机、视频/音频预览、Range/CORS/撤销专项和 iOS 继续跳过。
 
 ### 2026-07-21：Phase 2 第四批 Android URI 兼容性与验收
 
@@ -634,6 +635,13 @@ interface ManagedAssetRef {
 - 导入结果全项失败时前端抛出错误，部分失败显示失败数与逐项错误码；Photo Picker 数字展示名（含扩展名）使用 MIME 生成 `photo-<8hex>.<ext>`/`video-<8hex>.<ext>` 回退名。
 - `emulator-5558`（720x1280，约 360dp）实测：Photo Picker 导入 1 项成功，SQLite 记录 `image/png`、`kind=image`、`availability=ready` 和 `photo-b86e7a61.png`；详情图片受控预览实际渲染；保存到 `/sdcard/Download/photo-b86e7a61.png` 为 60,662 字节，SHA-256 与托管对象一致。
 - 本批通过移动端 72 个前端测试、22 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android 四 ABI debug APK/AAB 构建。iOS 因缺少编译与真机设备条件继续跳过；Android 视频/音频预览、Range/CORS/撤销以及系统分享/相机仍未完成。
+
+### 2026-07-21：Phase 2 第五批 Android 系统分享
+
+- 详情页增加系统分享入口；服务层只传 `assetId`，Rust 复核 `managed/ready` 与对象存在性，将原件复制到应用 cache 的独立 UUID 目录后调用 Android bridge，不把真实对象路径或 URI 返回 WebView。
+- `AssetContentPlugin` 校验分享文件 canonical path 必须位于应用 cache，使用 `FileProvider`、`ClipData` 和 `FLAG_GRANT_READ_URI_PERMISSION` 发出 `ACTION_SEND`；分享副本延迟清理，启动恢复与“修复资产库”会清除遗留分享 cache，存储页将其计入临时文件。
+- `emulator-5558` 实测图片详情分享：系统 `ChooserActivity` 显示“分享图片”并成功渲染分享预览；cache 副本 `photo-b86e7a61.png` 与托管原件均为 60,662 字节且 SHA-256 一致；修复入口清理该副本并报告 1 个文件。
+- 本批通过移动端 73 个前端测试、23 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android 四 ABI debug APK/AAB 构建。相机、iOS/跨平台分享、视频/音频预览和 Range/CORS/撤销专项仍未完成；iOS 继续因缺少编译与真机设备条件跳过。
 
 ## 16. 调查来源
 

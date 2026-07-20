@@ -27,6 +27,7 @@ vi.mock("@/utils/errorHandler", () => ({
 import {
   clearRebuildableAssetCache,
   exportAsset,
+  shareAsset,
   getAssetLibraryFacets,
   getAssetPreviewSource,
   importAssetSources,
@@ -215,5 +216,12 @@ describe("asset library management", () => {
       assetId: "asset-1",
       destination: "content://documents/export/1",
     });
+  });
+
+  it("starts system sharing by asset id only", async () => {
+    invokeMock.mockResolvedValueOnce({ fileName: "sample.png" });
+
+    await expect(shareAsset("asset-1")).resolves.toEqual({ fileName: "sample.png" });
+    expect(invokeMock).toHaveBeenCalledWith("asset_share", { assetId: "asset-1" });
   });
 });

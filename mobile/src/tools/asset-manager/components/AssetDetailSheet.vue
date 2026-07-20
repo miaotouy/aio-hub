@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Download, Eye, X } from "lucide-vue-next";
+import { Download, Eye, LoaderCircle, Share2, X } from "lucide-vue-next";
 import { computed } from "vue";
 import { formatAssetBytes } from "../composables/useAssetLibrary";
 import type { AssetDetail, AssetPreviewSource } from "../types";
@@ -7,12 +7,15 @@ import type { AssetDetail, AssetPreviewSource } from "../types";
 const props = defineProps<{
   detail: AssetDetail;
   preview: AssetPreviewSource | null;
+  saving?: boolean;
+  sharing?: boolean;
 }>();
 
 const emit = defineEmits<{
   close: [];
   preview: [assetId: string];
   save: [assetId: string];
+  share: [assetId: string];
 }>();
 
 const canPreview = computed(
@@ -38,9 +41,22 @@ const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString
             class="icon-button"
             type="button"
             aria-label="保存到文件"
+            :disabled="props.saving || props.sharing"
             @click="emit('save', detail.id)"
           >
-            <Download :size="21" />
+            <LoaderCircle v-if="props.saving" class="spin" :size="21" />
+            <Download v-else :size="21" />
+          </button>
+          <button
+            v-if="detail.availability === 'ready'"
+            class="icon-button"
+            type="button"
+            aria-label="分享资产"
+            :disabled="props.saving || props.sharing"
+            @click="emit('share', detail.id)"
+          >
+            <LoaderCircle v-if="props.sharing" class="spin" :size="21" />
+            <Share2 v-else :size="21" />
           </button>
           <button class="icon-button" type="button" aria-label="关闭详情" @click="emit('close')">
             <X :size="22" />
@@ -147,6 +163,18 @@ const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString
   color: var(--text-color);
   background: transparent;
   border: 0;
+}
+
+.icon-button:disabled {
+  opacity: 0.45;
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .header-actions {

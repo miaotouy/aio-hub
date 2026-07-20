@@ -229,3 +229,7 @@ export interface AssetExportResult {
   bytesWritten: number;
   fileName: string;
 }
+
+export interface AssetShareResult {
+  fileName: string;
+}

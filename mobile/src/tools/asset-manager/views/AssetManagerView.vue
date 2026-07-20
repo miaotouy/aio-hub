@@ -23,7 +23,7 @@ import AssetTile from "../components/AssetTile.vue";
 import ImportJobsSheet from "../components/ImportJobsSheet.vue";
 import ImportSourceSheet from "../components/ImportSourceSheet.vue";
 import { formatAssetBytes, useAssetLibrary } from "../composables/useAssetLibrary";
-import { exportAsset } from "../services/assetService";
+import { exportAsset, shareAsset as shareManagedAsset } from "../services/assetService";
 import type { AssetKind, AssetImportSource } from "../types";
 
 const router = useRouter();
@@ -31,6 +31,7 @@ const library = useAssetLibrary();
 const jobsOpen = ref(false);
 const importSourceOpen = ref(false);
 const savingAssetId = ref<string | null>(null);
+const sharingAssetId = ref<string | null>(null);
 
 const kindOptions: Array<{ label: string; value: AssetKind | "all" }> = [
   { label: "全部类型", value: "all" },
@@ -145,6 +146,19 @@ async function saveAsset(assetId: string) {
     customMessage(cause instanceof Error ? cause.message : "无法保存资产原件", "error");
   } finally {
     savingAssetId.value = null;
+  }
+}
+
+async function shareAsset(assetId: string) {
+  if (sharingAssetId.value || savingAssetId.value) return;
+  try {
+    sharingAssetId.value = assetId;
+    await shareManagedAsset(assetId);
+    await library.load({ keepSelection: true });
+  } catch (cause) {
+    customMessage(cause instanceof Error ? cause.message : "无法打开系统分享", "error");
+  } finally {
+    sharingAssetId.value = null;
   }
 }
 
@@ -335,9 +349,12 @@ onUnmounted(() => {
       v-if="library.detail.value"
       :detail="library.detail.value"
       :preview="library.preview.value"
+      :saving="savingAssetId === library.detail.value.id"
+      :sharing="sharingAssetId === library.detail.value.id"
       @close="closeDetail"
       @preview="previewAsset"
       @save="saveAsset"
+      @share="shareAsset"
     />
     <ImportJobsSheet
       v-if="jobsOpen"

@@ -1,6 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  RECALL_SCENARIO_SCHEMA_VERSION,
+  recallChatScenarios,
+} from "./fixtures/recall-scenarios";
 import { startOpenAiMock } from "./support/openai-mock";
 
 const projectRoot = path.resolve(
@@ -144,11 +148,17 @@ if (!(await waitForUrl("http://localhost:1420/", 1_000))) {
 }
 
 const mock = startOpenAiMock({
-  logPath: path.join(artifactDir, "openai-mock-requests.jsonl"),
+  artifactDir,
   port: process.env.AIO_E2E_MOCK_PORT
     ? Number(process.env.AIO_E2E_MOCK_PORT)
     : undefined,
 });
+const mockScenarioMetadata = {
+  lane: "deterministic-mock",
+  scenarioSchemaVersion: RECALL_SCENARIO_SCHEMA_VERSION,
+  scenarioIds: recallChatScenarios.map((scenario) => scenario.id),
+  embeddingDimension: 8,
+};
 
 if (shouldSeedFixtures) {
   const profileDir = path.join(dataDir, "llm-service");
@@ -238,6 +248,7 @@ fs.writeFileSync(
       dataDir,
       artifactDir,
       mockBaseUrl: mock.baseUrl,
+      ...mockScenarioMetadata,
       startedAt,
       fixtureSeeding: shouldSeedFixtures,
       nativeUiEnabled,
@@ -282,6 +293,7 @@ fs.writeFileSync(
       dataDir,
       artifactDir,
       mockBaseUrl: mock.baseUrl,
+      ...mockScenarioMetadata,
       startedAt,
       finishedAt: new Date().toISOString(),
       fixtureSeeding: shouldSeedFixtures,

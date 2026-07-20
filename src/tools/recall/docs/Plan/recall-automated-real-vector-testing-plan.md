@@ -1,6 +1,7 @@
 # Recall 自动化测试、精简 OAI 渠道与真实向量请求实施计划
 
-**状态**: 调研完成，待实施  
+**状态**: 实施中（Phase 1 第一批完成）
+
 **创建日期**: 2026-07-20  
 **最近修订**: 2026-07-20  
 **适用范围**: `src/tools/recall/`、`src-tauri/src/recall/`、`src/tools/agent-manager/`、`src/tools/llm-chat/`、`tests/tauri-e2e/`
@@ -13,6 +14,19 @@
 - [Tauri E2E 说明](../../../../../tests/tauri-e2e/README.md)
 
 > 本文解决的是测试装配与自动化覆盖问题，不改变 Recall / Knowledge 领域边界，也不把本机 Ollama 变成默认测试依赖。确定性本地 OpenAI-compatible 测试渠道同时承担 Chat 与 Embedding，是每次必跑的主通道；真实 Ollama 是显式启用的集成通道。
+
+### 实施进度
+
+2026-07-20 已完成 Phase 1 第一批：
+
+- 建立版本化 Recall Chat scenario manifest，覆盖正向召回、空结果、binding 禁用、非流式响应，并为既有 Knowledge E2E 请求提供显式场景；
+- OpenAI mock 已改为主题向量 + 未知输入稳定 hash，Embedding 默认输出归一化 8 维向量并保留批量顺序；
+- Chat mock 已按最后一条用户 marker 唯一选场景，排除该定位消息后验证 required/forbidden evidence，缺失、冲突、未知场景和 stream 模式不符统一返回 422；
+- `embedding-requests.jsonl` / `chat-requests.jsonl` 只落盘 hash、长度、topic/scenario、匹配状态和请求结果，原始 messages 只保留在 server 进程内；
+- 新增独立 E2E support Vitest 配置和脚本，7 个 case 覆盖批量顺序、evidence 防伪、depth injection、SSE/JSON、fail-closed 与脱敏；
+- 为 `core/embedding.ts`、`logic/orchestrator.ts`、`utils/vectorCache.ts` 新增 14 个定向 case；当前 Recall 定向 suite 为 12 个文件、45 个 case。
+
+Phase 1 尚未完成的部分包括 fixture seeder、Agent/session round-trip、curated corpus 派生、私有渠道 parser/角色模型选择、Ollama 预检和完整 run metadata；Phase 2 之后的真实窗口流程尚未开始。
 
 ---
 
@@ -165,6 +179,7 @@ mock 向量不能继续只依赖字符串长度。应为固定 fixture 主题生
 interface RecallChatScenario {
   id: string;
   userMarker: string;
+  expectedStream?: boolean;
   requiredEvidence?: Array<{
     entryId: string;
     contentMarker: string;
@@ -185,9 +200,9 @@ interface RecallChatScenario {
 匹配和失败规则：
 
 1. E2E 用户输入包含不展示给普通用户的稳定 marker，例如 `[e2e:recall-renderer-v2]`；mock 用 marker 定位场景，但不能仅凭 marker 判定成功。
-2. mock 必须在 `messages` 的任意文本内容中找到每项 `requiredEvidence.contentMarker`；默认 Recall 注入格式不包含 entry ID，因此 `entryId` 用于把 matcher 结果与 Recall 搜索回读的实际 top entry 交叉关联，不能要求它出现在 Chat prompt 中。
+2. mock 必须在 Recall processor 处理后的上下文消息中找到每项 `requiredEvidence.contentMarker`，但用于定位场景的最后一条用户消息不得参与 evidence 匹配，避免用户直接复述 marker 造成假通过。不能简单限定为 `role !== "user"`：当前 `RecallProcessor` 在没有可复用 system message 时会把自动占位符插入为最后一条用户消息之前的 `depth_injection` user message。默认 Recall 注入格式不包含 entry ID，因此 `entryId` 用于把 matcher 结果与 Recall 搜索回读的实际 top entry 交叉关联，不能要求它出现在 Chat prompt 中。
 3. 请求出现 `forbiddenEvidence`、缺少必需证据、命中多个场景或没有命中场景时，返回结构化 422，并把 mismatch 原因写入脱敏日志；禁止回退到通用成功回复。
-4. 正常路径按 2 至 4 个 SSE delta 返回固定答案，覆盖流式拼接；另保留一个 `stream: false` 场景覆盖普通 Chat completion。
+4. 场景可用 `expectedStream` 约束请求模式；正常路径按 2 至 4 个 SSE delta 返回固定答案，覆盖流式拼接，另保留一个 `expectedStream: false` 场景覆盖普通 Chat completion。请求模式不匹配时返回 422，不能由 server 自动改写请求语义。
 5. 预设答案要引用一个只有召回条目中存在的事实，例如“重型组件初始化是停顿点”，UI 断言完整答案，不能只断言出现 Assistant 气泡。
 6. mock 收到的原始 messages 只保存在进程内供当前 spec 断言；落盘证据仅记录 role、content hash、content length、命中的 scenario ID、关联的 expected entry IDs、content marker 命中结果和 SSE chunk 数，不保存完整私有正文。
 
@@ -289,10 +304,11 @@ mock、Ollama 和私有渠道只替换 Profile、角色模型与期望策略，�
 
 ```typescript
 interface RecallE2eLane {
-  profileId: string;
+  chatProfileId: string;
   chatModelId: string;
+  embeddingProfileId: string;
   embeddingModelId: string;
-  modelCombo: string;
+  embeddingModelCombo: string;
   expectedDimension: number;
   rankingMode: "exact" | "relative";
   chatExpectation: "preset-exact" | "response-present";
@@ -301,7 +317,7 @@ interface RecallE2eLane {
 }
 ```
 
-默认 mock lane 使用 `preset-exact`，从而精确证明注入；真实 Chat 模型只使用 `response-present`，因为不能要求其逐字输出预设答案。若 Ollama lane 只配置 Embedding，则 Chat 仍显式指向本地 mock，run metadata 必须记录为 mixed lane，不能把 mock Chat 误报为真实模型验证。
+默认 mock lane 使用 `preset-exact`，从而精确证明注入；真实 Chat 模型只使用 `response-present`，因为不能要求其逐字输出预设答案。若 Ollama lane 只配置 Embedding，则 runner 同时写入 Ollama Embedding profile 与本地 mock Chat profile，Agent 和 Recall workspace 分别引用对应 profile；run metadata 必须记录为 mixed lane，不能把 mock Chat 误报为真实模型验证。单个 profile 只有一个 `baseUrl`，不得用一个 profile ID 表示指向两个 endpoint 的 mixed lane。
 
 ---
 
@@ -370,10 +386,10 @@ runner 在应用启动前生成：
 其中 `profiles.json` 的来源按当前测试模式确定：
 
 - 默认模式：runner 生成 `E2E Local Mock`。
-- Ollama 快捷模式：runner 根据预检结果生成 Ollama profile。
+- Ollama 快捷模式：runner 根据预检结果生成 Ollama Embedding profile；若 Chat 仍使用 mock，则同时保留独立的 mock Chat profile。
 - 私有渠道模式：runner 从 `aiohub.llm-profiles@1` 渠道包读取并校验显式选择的 profile，只复制该 profile。
 
-Agent 的 Chat 模型、Recall workspace 的 Embedding 模型和预期维度必须从 runner 解析后的角色模型派生，不能在 Agent/session fixture 中再次硬编码。
+Agent 的 Chat profile/model、Recall workspace 的 Embedding profile/model combo 和预期维度必须从 runner 解析后的角色模型派生，不能在 Agent/session fixture 中再次硬编码。
 
 不要手写散落的 JSON 字符串。新增 `support/fixture-seeder.ts`，用共享 builder 生成索引项与详情，并增加 Vitest schema/round-trip 测试，确保：
 
@@ -530,6 +546,8 @@ backend.log
   "test:tauri:e2e:real": "bun tests/tauri-e2e/run.ts --llm-profile"
 }
 ```
+
+根 Vitest 配置当前排除 `tests/tauri-e2e/**`。Phase 1 的 support/fixture 纯逻辑测试必须使用独立 `tests/tauri-e2e/vitest.config.ts` 与单独脚本入口，或移动到根配置会收集的测试目录；禁止只新增测试文件却让默认配置静默跳过。
 
 执行分层：
 

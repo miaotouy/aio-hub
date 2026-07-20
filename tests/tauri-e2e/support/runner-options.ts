@@ -22,6 +22,8 @@ export interface E2eRunnerOptions {
   corpusMode: RecallCorpusMode;
   lane: RunnerLaneRequest;
   wdioArgs: string[];
+  restartSpec?: string;
+  requiredScenarioIds: string[];
 }
 
 function readOption(
@@ -72,6 +74,8 @@ export function parseE2eRunnerOptions(
   let corpusMode = env.AIO_E2E_CORPUS_MODE?.trim() || "smoke";
   let cliProfileId: string | undefined;
   let privateProfileRequested = false;
+  let restartSpec: string | undefined;
+  const requiredScenarioIds: string[] = [];
 
   for (let index = 0; index < args.length;) {
     if (args[index] === "--native") {
@@ -99,6 +103,24 @@ export function parseE2eRunnerOptions(
       privateProfileRequested = true;
       cliProfileId = profileOption.value?.trim() || undefined;
       index += profileOption.consumed;
+      continue;
+    }
+
+    const restartOption = readOption(args, index, "--restart-spec");
+    if (restartOption) {
+      restartSpec = requireValue(restartOption.value, "--restart-spec");
+      index += restartOption.consumed;
+      continue;
+    }
+
+    const scenarioOption = readOption(args, index, "--required-scenarios");
+    if (scenarioOption) {
+      const ids = requireValue(scenarioOption.value, "--required-scenarios")
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean);
+      requiredScenarioIds.push(...ids);
+      index += scenarioOption.consumed;
       continue;
     }
 
@@ -159,5 +181,7 @@ export function parseE2eRunnerOptions(
     corpusMode: corpusMode as RecallCorpusMode,
     lane,
     wdioArgs,
+    restartSpec,
+    requiredScenarioIds: [...new Set(requiredScenarioIds)],
   };
 }

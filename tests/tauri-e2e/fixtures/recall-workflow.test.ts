@@ -28,10 +28,15 @@ describe("Recall workflow manifest", () => {
     expect(manifest.agent.presetMessages[0].content).toContain("{{recall}}");
     expect(manifest.sessions.map((session) => session.kind)).toEqual([
       "empty",
+      "empty",
+      "empty",
       "history",
     ]);
+    const historySession = manifest.sessions.find(
+      (session) => session.id === RECALL_WORKFLOW_IDS.historySessionId
+    )!;
     expect(
-      Object.values(manifest.sessions[1].nodes).map((node) => node.timestamp)
+      Object.values(historySession.nodes).map((node) => node.timestamp)
     ).toEqual([
       RECALL_FIXTURE_TIMESTAMP,
       RECALL_FIXTURE_TIMESTAMP,
@@ -39,7 +44,12 @@ describe("Recall workflow manifest", () => {
     ]);
     expect(
       manifest.chatScenarios.map((scenario) => scenario.scenarioId)
-    ).toEqual(["renderer-positive", "no-result"]);
+    ).toEqual([
+      "renderer-positive",
+      "no-result",
+      "missing-evidence-fail-closed",
+      "memory-ownership",
+    ]);
     expect(manifest.recall.layers.map((layer) => layer.id)).toEqual([
       "smoke",
       "curated",
@@ -94,9 +104,10 @@ describe("Recall workflow manifest", () => {
     );
 
     const missingAgent = buildRecallWorkflowManifest(models);
-    missingAgent.sessions[1].nodes[
-      RECALL_WORKFLOW_IDS.historyAssistantNodeId
-    ].metadata!.agentId = "missing-agent";
+    missingAgent.sessions.find(
+      (session) => session.id === RECALL_WORKFLOW_IDS.historySessionId
+    )!.nodes[RECALL_WORKFLOW_IDS.historyAssistantNodeId].metadata!.agentId =
+      "missing-agent";
     expect(() => validateRecallWorkflowManifest(missingAgent)).toThrow(
       "Agent does not resolve"
     );

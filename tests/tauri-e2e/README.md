@@ -39,7 +39,7 @@ automatic `.env.local` loading cannot redirect tests into a development data
 root. Set `AIO_E2E_SEED_FIXTURES=1` to opt in when providing an explicit E2E data
 directory, or `0` to disable it.
 
-Recall fixture seeding also writes a versioned Agent and two sessions using
+Recall fixture seeding also writes a versioned Agent and four scenario-isolated sessions using
 stable IDs. The artifact directory receives only a redacted fixture summary;
 the full LLM profile and isolated data directory must not be uploaded as CI
 artifacts. Set `AIO_E2E_FIXTURE_MODE=verify` on a second launch to validate the
@@ -99,7 +99,16 @@ Run the deterministic Recall workflow directly:
 ```powershell
 bun run test:tauri:e2e:recall
 bun run test:tauri:e2e:recall:curated
+bun run test:tauri:e2e:recall:chat
 ```
+
+The Chat command runs two sequential Tauri launches against the same isolated
+data root. The first launch covers positive evidence injection, an explicit
+empty-collection response, and a required-evidence 422. The second launch uses
+fixture verify mode, reloads the persisted Recall workspace, vectors, Agent
+binding, and session, then sends a new Recall-backed turn. The runner rejects
+unconsumed required scenarios and unexpected Chat requests, and writes the
+five-part cross-check to `scenario-results.json`.
 
 Select the larger reviewed corpus explicitly:
 
@@ -122,7 +131,9 @@ creation, Agent Knowledge authorization persistence, and cross-tool
 navigation. `specs/recall-runtime-fixture.spec.ts` covers lane-aware profile
 loading and the production Recall IPC/UI fixture round trip, while
 `specs/recall-vector-workflow.spec.ts` covers visible vectorization and
-semantic ranking.
+semantic ranking. `specs/recall-chat-injection.spec.ts` and
+`specs/recall-session-recovery.spec.ts` cover Chat injection and same-root
+process recovery without depending on cross-spec in-memory state.
 
 ## Windows native selectors
 

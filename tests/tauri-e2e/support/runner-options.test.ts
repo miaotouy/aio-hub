@@ -10,6 +10,8 @@ describe("Tauri E2E runner options", () => {
       corpusMode: "smoke",
       lane: { kind: "deterministic-mock" },
       wdioArgs: ["--spec", "specs/smoke.spec.ts"],
+      restartSpec: undefined,
+      requiredScenarioIds: [],
     });
   });
 
@@ -29,6 +31,8 @@ describe("Tauri E2E runner options", () => {
         requireAvailable: false,
       },
       wdioArgs: [],
+      restartSpec: undefined,
+      requiredScenarioIds: [],
     });
   });
 
@@ -48,6 +52,24 @@ describe("Tauri E2E runner options", () => {
       chatModelId: "chat-model",
       embeddingModelId: "embedding-model",
       embeddingDimension: 1024,
+    });
+    expect(options.restartSpec).toBeUndefined();
+    expect(options.requiredScenarioIds).toEqual([]);
+  });
+
+  it("parses an explicit recovery spec and required scenarios", () => {
+    expect(
+      parseE2eRunnerOptions(
+        [
+          "--restart-spec",
+          "tests/tauri-e2e/specs/recovery.spec.ts",
+          "--required-scenarios=renderer-positive,no-result,renderer-positive",
+        ],
+        {}
+      )
+    ).toMatchObject({
+      restartSpec: "tests/tauri-e2e/specs/recovery.spec.ts",
+      requiredScenarioIds: ["renderer-positive", "no-result"],
     });
   });
 

@@ -13,9 +13,13 @@ export const RECALL_WORKFLOW_IDS = {
   recallId: "10000000-0000-4000-8000-000000000001",
   agentId: "e2e-recall-agent",
   emptySessionId: "e2e-recall-session",
+  noResultSessionId: "e2e-recall-no-result-session",
+  failClosedSessionId: "e2e-recall-fail-closed-session",
   historySessionId: "e2e-recall-history-session",
   presetRecallNodeId: "e2e-recall-preset-node",
   emptyRootNodeId: "e2e-recall-empty-root",
+  noResultRootNodeId: "e2e-recall-no-result-root",
+  failClosedRootNodeId: "e2e-recall-fail-closed-root",
   historyRootNodeId: "e2e-recall-history-root",
   historyUserNodeId: "e2e-recall-history-user",
   historyAssistantNodeId: "e2e-recall-history-assistant",
@@ -315,6 +319,22 @@ export function buildRecallWorkflowManifest(
     "system",
     models
   );
+  const noResultRoot = sessionNode(
+    RECALL_WORKFLOW_IDS.noResultRootNodeId,
+    null,
+    [],
+    "",
+    "system",
+    models
+  );
+  const failClosedRoot = sessionNode(
+    RECALL_WORKFLOW_IDS.failClosedRootNodeId,
+    null,
+    [],
+    "",
+    "system",
+    models
+  );
   const historyRoot = sessionNode(
     RECALL_WORKFLOW_IDS.historyRootNodeId,
     null,
@@ -431,6 +451,8 @@ export function buildRecallWorkflowManifest(
   };
   const rendererScenario = scenario("renderer-positive");
   const noResultScenario = scenario("no-result");
+  const missingEvidenceScenario = scenario("missing-evidence-fail-closed");
+  const memoryScenario = scenario("memory-ownership");
 
   return {
     schemaVersion: RECALL_WORKFLOW_SCHEMA_VERSION,
@@ -471,6 +493,26 @@ export function buildRecallWorkflowManifest(
         updatedAt: RECALL_FIXTURE_TIMESTAMP,
       },
       {
+        id: RECALL_WORKFLOW_IDS.noResultSessionId,
+        name: "E2E Recall No Result Session",
+        kind: "empty",
+        rootNodeId: noResultRoot.id,
+        activeLeafId: noResultRoot.id,
+        nodes: { [noResultRoot.id]: noResultRoot },
+        createdAt: RECALL_FIXTURE_TIMESTAMP,
+        updatedAt: RECALL_FIXTURE_TIMESTAMP,
+      },
+      {
+        id: RECALL_WORKFLOW_IDS.failClosedSessionId,
+        name: "E2E Recall Fail Closed Session",
+        kind: "empty",
+        rootNodeId: failClosedRoot.id,
+        activeLeafId: failClosedRoot.id,
+        nodes: { [failClosedRoot.id]: failClosedRoot },
+        createdAt: RECALL_FIXTURE_TIMESTAMP,
+        updatedAt: RECALL_FIXTURE_TIMESTAMP,
+      },
+      {
         id: RECALL_WORKFLOW_IDS.historySessionId,
         name: "E2E Recall History Session",
         kind: "history",
@@ -495,10 +537,24 @@ export function buildRecallWorkflowManifest(
       },
       {
         scenarioId: noResultScenario.id,
-        sessionId: RECALL_WORKFLOW_IDS.emptySessionId,
-        query: `${noResultScenario.userMarker} 给出不存在主题的召回内容。`,
+        sessionId: RECALL_WORKFLOW_IDS.noResultSessionId,
+        query: `${noResultScenario.userMarker} unknown empty topic`,
         expectedTopEntryId: noResultScenario.expected.topEntryId,
         expectedAssistantText: noResultScenario.response.chunks.join(""),
+      },
+      {
+        scenarioId: missingEvidenceScenario.id,
+        sessionId: RECALL_WORKFLOW_IDS.failClosedSessionId,
+        query: `${missingEvidenceScenario.userMarker} Rust ownership 与 borrow checker。`,
+        expectedTopEntryId: missingEvidenceScenario.expected.topEntryId,
+        expectedAssistantText: "",
+      },
+      {
+        scenarioId: memoryScenario.id,
+        sessionId: RECALL_WORKFLOW_IDS.historySessionId,
+        query: `${memoryScenario.userMarker} 前端数据与 Rust 内存副本如何分工？`,
+        expectedTopEntryId: memoryScenario.expected.topEntryId,
+        expectedAssistantText: memoryScenario.response.chunks.join(""),
       },
     ],
   };

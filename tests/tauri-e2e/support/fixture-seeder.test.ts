@@ -51,6 +51,8 @@ describe("Recall fixture seeder", () => {
       "agent-manager/agents/e2e-recall-agent/agent.json",
       "llm-chat/sessions-index.json",
       "llm-chat/sessions/e2e-recall-session.json",
+      "llm-chat/sessions/e2e-recall-no-result-session.json",
+      "llm-chat/sessions/e2e-recall-fail-closed-session.json",
       "llm-chat/sessions/e2e-recall-history-session.json",
     ]);
 
@@ -63,20 +65,19 @@ describe("Recall fixture seeder", () => {
     const sessionIndex = JSON.parse(
       fs.readFileSync(path.join(dataDir, result.files[2]), "utf8")
     );
-    const emptyDetail = JSON.parse(
-      fs.readFileSync(path.join(dataDir, result.files[3]), "utf8")
-    );
-    const historyDetail = JSON.parse(
-      fs.readFileSync(path.join(dataDir, result.files[4]), "utf8")
+    const sessionDetails = Object.fromEntries(
+      result.files.slice(3).map((relativePath) => {
+        const detail = JSON.parse(
+          fs.readFileSync(path.join(dataDir, relativePath), "utf8")
+        );
+        return [detail.id, detail];
+      })
     );
     const roundTripped = {
       agentIndex,
       agentDetails: { [agentDetail.id]: agentDetail },
       sessionIndex,
-      sessionDetails: {
-        [emptyDetail.id]: emptyDetail,
-        [historyDetail.id]: historyDetail,
-      },
+      sessionDetails,
     };
 
     expect(roundTripped).toEqual(expected);
@@ -93,7 +94,12 @@ describe("Recall fixture seeder", () => {
     ).toMatchObject({
       schemaVersion: 1,
       agentIds: ["e2e-recall-agent"],
-      sessionIds: ["e2e-recall-session", "e2e-recall-history-session"],
+      sessionIds: [
+        "e2e-recall-session",
+        "e2e-recall-no-result-session",
+        "e2e-recall-fail-closed-session",
+        "e2e-recall-history-session",
+      ],
     });
 
     expect(() =>

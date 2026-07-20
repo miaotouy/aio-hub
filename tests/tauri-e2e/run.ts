@@ -290,6 +290,7 @@ function createMockProfile(includeEmbedding: boolean): LlmProfile {
 const scenarioMetadata = {
   scenarioSchemaVersion: RECALL_SCENARIO_SCHEMA_VERSION,
   scenarioIds: recallChatScenarios.map((scenario) => scenario.id),
+  requiredScenarioIds: runnerOptions.requiredScenarioIds,
 };
 
 let profiles: LlmProfile[];
@@ -375,6 +376,8 @@ if (runnerOptions.lane.kind === "private-profile") {
   };
 }
 
+let recallManifest:
+  ReturnType<typeof buildRecallWorkflowManifestForCorpus> | undefined;
 let fixtureSeedResult:
   ReturnType<typeof seedRecallWorkflowFixtures> | undefined;
 
@@ -399,7 +402,7 @@ if (shouldSeedFixtures) {
     "utf8"
   );
 
-  const recallManifest = buildRecallWorkflowManifestForCorpus(
+  recallManifest = buildRecallWorkflowManifestForCorpus(
     {
       chat: chatRole,
       embedding: {
@@ -499,20 +502,151 @@ fs.writeFileSync(
   "utf8"
 );
 
-wdio = Bun.spawn(
-  ["bun", "x", "wdio", "run", "tests/tauri-e2e/wdio.conf.ts", ...wdioArgs],
-  {
-    cwd: projectRoot,
-    env,
-    stdin: "inherit",
-    stdout: "inherit",
-    stderr: "inherit",
-    windowsHide: true,
-  }
-);
+async function launchWdio(args: string[], phase: string, extraEnv = {}) {
+  wdio = Bun.spawn(
+    ["bun", "x", "wdio", "run", "tests/tauri-e2e/wdio.conf.ts", ...args],
+    {
+      cwd: projectRoot,
+      env: { ...env, AIO_E2E_PHASE: phase, ...extraEnv },
+      stdin: "inherit",
+      stdout: "inherit",
+      stderr: "inherit",
+      windowsHide: true,
+    }
+  );
+  return await wdio.exited;
+}
 
-const exitCode = await wdio.exited;
+function recoveryWdioArgs(spec: string): string[] {
+  const args: string[] = [];
+  for (let index = 0; index < wdioArgs.length; index += 1) {
+    if (wdioArgs[index] === "--spec") {
+      index += 1;
+      continue;
+    }
+    args.push(wdioArgs[index]);
+  }
+  args.push("--spec", spec);
+  return args;
+}
+
+function readJsonLines(fileName: string): Array<Record<string, unknown>> {
+  const filePath = path.join(artifactDir, fileName);
+  if (!fs.existsSync(filePath)) return [];
+  return fs
+    .readFileSync(filePath, "utf8")
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+}
+
+function validateScenarioArtifacts(): void {
+  const requiredIds = runnerOptions.requiredScenarioIds;
+  if (requiredIds.length === 0) return;
+
+  const chatRequests = readJsonLines("chat-requests.jsonl");
+  const unexpected = chatRequests.filter((request) => {
+    const id =
+      typeof request.scenarioId === "string" ? request.scenarioId : null;
+    return !id || !requiredIds.includes(id);
+  });
+  if (unexpected.length > 0) {
+    throw new Error(
+      `Unexpected or unmatched Chat request(s): ${unexpected
+        .map((request) => String(request.scenarioId ?? "<none>"))
+        .join(", ")}`
+    );
+  }
+
+  for (const id of requiredIds) {
+    const scenario = recallChatScenarios.find((item) => item.id === id);
+    if (!scenario) throw new Error(`Required Chat scenario is unknown: ${id}`);
+    const requests = chatRequests.filter(
+      (request) => request.scenarioId === id
+    );
+    if (requests.length === 0) {
+      throw new Error(`Required Chat scenario was not consumed: ${id}`);
+    }
+    const expectedStatus = scenario.expected.chatStatus ?? 200;
+    if (
+      !requests.some(
+        (request) =>
+          request.status === expectedStatus &&
+          (expectedStatus === 422
+            ? request.mismatchReason === scenario.expected.mismatchReason
+            : request.scenarioMatch === true)
+      )
+    ) {
+      throw new Error(
+        `Chat scenario did not satisfy its expected response: ${id}`
+      );
+    }
+  }
+
+  const resultPath = path.join(artifactDir, "scenario-results.json");
+  if (!fs.existsSync(resultPath)) {
+    throw new Error(
+      "scenario-results.json was not produced by the Chat specs."
+    );
+  }
+  const payload = JSON.parse(fs.readFileSync(resultPath, "utf8")) as {
+    results?: Array<Record<string, unknown>>;
+  };
+  const results = payload.results ?? [];
+  for (const id of requiredIds) {
+    const scenario = recallChatScenarios.find((item) => item.id === id)!;
+    const result = results.find(
+      (candidate) => candidate.scenarioId === id && candidate.passed === true
+    );
+    if (!result) throw new Error(`Scenario result did not pass: ${id}`);
+    const expectedTopEntryId = scenario.expected.topEntryId;
+    if (expectedTopEntryId && result.topEntryId !== expectedTopEntryId) {
+      throw new Error(`Scenario top entry mismatch: ${id}`);
+    }
+    if (result.chatStatus !== (scenario.expected.chatStatus ?? 200)) {
+      throw new Error(`Scenario Chat status mismatch: ${id}`);
+    }
+  }
+}
+
+let exitCode = await launchWdio(wdioArgs, "initial");
+if (exitCode === 0 && runnerOptions.restartSpec) {
+  if (!shouldSeedFixtures || !recallManifest) {
+    throw new Error("Recovery requires seeded Recall fixtures.");
+  }
+  const verifyMode = { AIO_E2E_FIXTURE_MODE: "verify" };
+  fixtureSeedResult = seedRecallWorkflowFixtures({
+    dataDir,
+    artifactDir,
+    manifest: recallManifest,
+    enabled: true,
+    mode: "verify",
+  });
+  fixtureSeedResult.files.push(
+    seedRecallWorkspaceConfig({
+      dataDir,
+      recallId: recallManifest.recall.id,
+      embeddingProfileId: embeddingRole.profileId,
+      embeddingModelId: embeddingRole.modelId,
+      embeddingDimension: embeddingRole.dimension!,
+      mode: "verify",
+    })
+  );
+  exitCode = await launchWdio(
+    recoveryWdioArgs(runnerOptions.restartSpec),
+    "recovery",
+    verifyMode
+  );
+}
 stop();
+if (exitCode === 0) {
+  try {
+    validateScenarioArtifacts();
+  } catch (error) {
+    console.error(`[tauri-e2e] Artifact validation failed: ${String(error)}`);
+    exitCode = 1;
+  }
+}
 fs.writeFileSync(
   runMetadataPath,
   JSON.stringify(

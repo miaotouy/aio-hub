@@ -1,0 +1,6 @@
+{
+  "common": {
+    "name": "Asset Manager",
+    "description": "Manage in-app files and storage"
+  }
+}

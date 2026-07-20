@@ -1,6 +1,6 @@
 # 移动端资产管理器架构
 
-> 状态：Phase 1 施工中。当前只提供资产内核和跨工具服务，不注册用户界面路由。
+> 状态：Phase 2 施工中。资产内核、跨工具服务和首版资产/存储页面已注册；平台真机验收与消费者接入仍未完成。
 
 ## 1. 边界
 
@@ -89,7 +89,18 @@ AppData/assets/
 - 响应带 `Cache-Control: private, no-store`、`Accept-Ranges`、`Content-Range` 和 `nosniff`；Range 解析复用 `http-range`，不手写范围语法。
 - 当前实现仍需 Android 真机验证 `<img>`、`<video>`、音频和 fetch/CORS 的实际 scheme/Range 行为；在该门禁完成前，不把 URL 形态当作跨平台永久协议。
 
-## 11. 后续施工
+## 11. 用户界面
+
+- `asset-manager.registry.ts` 注册 `/tools/asset-manager`，页面使用原生 Vue 结构、Lucide 图标和 AIO Hub token；Varlet 只保留在全局反馈封装中。
+- 资产视图支持名称、类型、可见状态、月份和来源模块筛选，包含加载、空、错误、导入中、missing/reclaimed/error 与多选状态。
+- 多选操作复用后端原子命令完成隐藏/恢复、固定/取消固定和安全删除。删除前必须重新调用影响分析，advisory usage 经平台对话框确认后才传入 `confirmAdvisory`。
+- 存储视图展示原件、可回收量、缓存、临时文件和类型占用，并提供全库可重建缓存清理与资产库修复入口。
+- 详情面板只展示脱敏来源和 usage 摘要。媒体预览按需申请短期 descriptor，关闭详情或卸载页面时主动撤销，不持久化预览 URL。
+- 文件导入通过系统文件选择器获得引用后交给 import job；WebView 不读取原件字节。相册专用入口、相机、系统分享/保存和导入任务恢复列表尚未接入页面。
+
+## 12. 后续施工
 
 - Android 真机验证受控预览协议并回写报告。
-- Phase 2 再注册资产/空间页面与移动端交互。
+- 补相册专用入口、系统分享/保存、任务恢复和批量转写/文本提取后的原件清理流程。
+- 完成聊天 SQLite migration 阶段一至三后，再接入聊天附件与 usage outbox。
+- iOS 因缺少编译与真机设备条件继续跳过，不声明平台能力通过。

@@ -340,12 +340,12 @@ pub struct AssetDetail {
     usages: Vec<AssetUsageSummary>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetUsageInput {
-    asset_id: String,
-    role: String,
-    usage_policy: String,
+    pub(crate) asset_id: String,
+    pub(crate) role: String,
+    pub(crate) usage_policy: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -1189,9 +1189,23 @@ pub async fn asset_replace_entity_usages(
     entity_id: String,
     usages: Vec<AssetUsageInput>,
 ) -> Result<AssetUsageReplaceResult, String> {
-    validate_identifier("moduleId", &module_id)?;
-    validate_identifier("entityType", &entity_type)?;
-    validate_identifier("entityId", &entity_id)?;
+    let usage_count =
+        replace_entity_usages_internal(&app, &state, &module_id, &entity_type, &entity_id, usages)
+            .await?;
+    Ok(AssetUsageReplaceResult { usage_count })
+}
+
+pub(crate) async fn replace_entity_usages_internal(
+    app: &AppHandle,
+    state: &AssetManagerState,
+    module_id: &str,
+    entity_type: &str,
+    entity_id: &str,
+    usages: Vec<AssetUsageInput>,
+) -> Result<usize, String> {
+    validate_identifier("moduleId", module_id)?;
+    validate_identifier("entityType", entity_type)?;
+    validate_identifier("entityId", entity_id)?;
     if usages.len() > MAX_USAGE_BATCH {
         return Err("ASSET_USAGE_BATCH_TOO_LARGE".into());
     }
@@ -1207,7 +1221,7 @@ pub async fn asset_replace_entity_usages(
         }
     }
 
-    let pool = state.pool(&app).await?;
+    let pool = state.pool(app).await?;
     let _guard = state.mutation_lock.lock().await;
     let mut transaction = pool
         .begin()
@@ -1216,9 +1230,9 @@ pub async fn asset_replace_entity_usages(
     sqlx::query(
         "DELETE FROM asset_usages WHERE module_id = ? AND entity_type = ? AND entity_id = ?",
     )
-    .bind(&module_id)
-    .bind(&entity_type)
-    .bind(&entity_id)
+    .bind(module_id)
+    .bind(entity_type)
+    .bind(entity_id)
     .execute(&mut *transaction)
     .await
     .map_err(|error| format!("ASSET_USAGE_DELETE: {error}"))?;
@@ -1229,9 +1243,9 @@ pub async fn asset_replace_entity_usages(
              ) VALUES (?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
         )
         .bind(&usage.asset_id)
-        .bind(&module_id)
-        .bind(&entity_type)
-        .bind(&entity_id)
+        .bind(module_id)
+        .bind(entity_type)
+        .bind(entity_id)
         .bind(&usage.role)
         .bind(&usage.usage_policy)
         .execute(&mut *transaction)
@@ -1242,9 +1256,7 @@ pub async fn asset_replace_entity_usages(
         .commit()
         .await
         .map_err(|error| format!("ASSET_USAGE_COMMIT: {error}"))?;
-    Ok(AssetUsageReplaceResult {
-        usage_count: usages.len(),
-    })
+    Ok(usages.len())
 }
 
 #[tauri::command]

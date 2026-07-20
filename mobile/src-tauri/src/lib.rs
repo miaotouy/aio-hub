@@ -2,6 +2,7 @@
 #[cfg(target_os = "android")]
 mod android_content;
 mod asset_manager;
+mod llm_chat_storage;
 mod llm_file_transport;
 mod token_counting;
 mod validation;
@@ -31,6 +32,7 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
         .manage(asset_manager::AssetManagerState::default())
+        .manage(llm_chat_storage::LlmChatStorageState::default())
         .manage(llm_file_transport::NativeRequestState::default())
         .manage(validation::ValidationState::default())
         .invoke_handler(tauri::generate_handler![
@@ -56,6 +58,14 @@ pub fn run() {
             asset_manager::asset_delete,
             asset_manager::asset_get_storage_summary,
             asset_manager::asset_repair_library,
+            llm_chat_storage::list_chat_sessions,
+            llm_chat_storage::load_chat_session,
+            llm_chat_storage::persist_chat_changes,
+            llm_chat_storage::delete_chat_branch,
+            llm_chat_storage::delete_chat_session,
+            llm_chat_storage::search_chat_messages,
+            llm_chat_storage::drain_asset_usage_outbox,
+            llm_chat_storage::retry_asset_usage_outbox,
             llm_file_transport::send_llm_file_request,
             llm_file_transport::cancel_llm_file_request,
             token_counting::count_tokens,

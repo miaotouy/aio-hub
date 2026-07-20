@@ -491,8 +491,8 @@ interface ManagedAssetRef {
 - [x] 扩展共享 wire 类型与移动端原生 LLM 传输，使 `managed-asset-ref` 只携带 `assetId` 并由 Rust 内部解析。
 - [x] 建立短期 token、可撤销自定义协议、单 Range 读取和大原件响应上限的受控预览候选实现。
 - [x] 在 Android 模拟器 `emulator-5558` 验证 Rust command 通过原生 bridge 直读 Photo Picker `content://` 的正式导入路径并回写报告。
-- [x] 完成 Android 图片、视频和音频受控预览验收并回写报告；Range/CORS 与 token 撤销行为仍待专门场景验证。
-- [ ] 先完成 [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md) 阶段一至三，再接入聊天附件、usage outbox 与 reclaimed 降级；不在现有 JSON 会话和 `any[]` 附件上增加过渡持久化。
+- [x] 完成 Android 图片、视频和音频受控预览验收，并通过固定场景验证 Range/CORS、HEAD 与主动撤销；token 自然过期仍待补验。
+- [ ] [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md) 阶段一 Rust 存储骨架已完成；继续完成阶段二会话增量持久化和阶段三附件接入后，再声明聊天附件、usage outbox 与 reclaimed 降级完成。不在现有 JSON 会话和 `any[]` 附件上增加过渡持久化。
 
 ### Phase 2：资产页
 
@@ -662,6 +662,12 @@ interface ManagedAssetRef {
 - `emulator-5558` 实测 9,095-byte `audio/mpeg` 原件：`Range: bytes=0-31` 返回 206、32 bytes、`Accept-Ranges: bytes` 和可读 `Content-Range`；HEAD 返回 200、空 body 和 `Accept-Ranges`。Android WebView 将 HEAD 的可见 `content-length` 归一为 0，因此该值只记录，不作为原件长度断言；Rust 协议层仍按原件长度构造响应。
 - `asset_revoke_preview_source` 返回成功后，原 URL 再请求得到 404。404 作为失效 token 的统一不可见状态，避免向调用方区分“不存在”和“曾存在但已撤销”；固定场景不再错误要求 403。
 - 本批通过移动端 76 个前端测试、23 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android x86_64 debug APK 真实 WebView 验收。自然到期行为、iOS scheme/HEAD/Range/CORS 仍未验证；iOS 因缺少编译与真机设备条件继续跳过。
+
+### 2026-07-21：聊天消费者前置迁移阶段一
+
+- 新增 `llm_chat.db` schema v1 与 Rust `llm_chat_storage` 领域服务，初始 migration 直接包含会话、消息、附件、asset usage outbox 和 trigram FTS，不保留已知错误的 `file_path` 过渡结构。
+- 聊天 change set 在单一 transaction 内写入业务数据和 outbox；附件 replacement/release 由 Rust 自动生成，分支与会话删除先写 release。投递到 `asset_manager.db` 复用整体 replacement 的幂等命令，同一实体保持顺序，永久错误进入可重试 dead-letter。
+- 本批通过移动端 28 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android x86_64 debug APK 构建；`emulator-5558` 的真实 WebView 调用 `list_chat_sessions` 成功并创建数据库/WAL。阶段二前端会话迁移与阶段三附件消费者尚未接入，现有 JSON 会话未双写；iOS 继续跳过。
 
 ## 16. 调查来源
 

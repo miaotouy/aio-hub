@@ -1,6 +1,6 @@
 # 移动端 SQLite 引入与持久化重构计划 (Mobile SQLite Migration Plan)
 
-> 状态：待施工；2026-07-18 已按 [`mobile-sqlite-migration-investigation-report.md`](./mobile-sqlite-migration-investigation-report.md) 校正实施边界。
+> 状态：施工中；2026-07-21 已完成阶段一 Rust 存储骨架与 schema v1，阶段二前端增量持久化和阶段三聊天附件接入尚未施工。
 > 当前决议：聊天数据库通过 Rust 领域命令访问，默认采用 SQLx、原生 migration runner 和统一连接配置；前端不得执行任意 SQL。
 
 ## 1. 背景与现状
@@ -142,17 +142,18 @@ AIO Hub 采用模块化工具架构，每个工具作为独立单元接入。为
 
 ```sql
 -- 会话列表按更新时间倒序（最频繁的列表查询）
-CREATE INDEX idx_sessions_updated ON chat_sessions(updated_at DESC);
+CREATE INDEX idx_sessions_updated ON chat_sessions(updated_at DESC, id DESC);
 
 -- 加载某会话的所有消息并按兄弟顺序排列（会话进入时必查）
 -- 复合索引 (session_id, sibling_order) 同时覆盖 WHERE 和 ORDER BY，避免 filesort
-CREATE INDEX idx_messages_session ON chat_messages(session_id, sibling_order);
+CREATE INDEX idx_messages_session ON chat_messages(session_id, sibling_order, id);
 
 -- 查询某节点的子节点（分支导航时用到）
-CREATE INDEX idx_messages_parent ON chat_messages(session_id, parent_id);
+CREATE INDEX idx_messages_parent ON chat_messages(session_id, parent_id, sibling_order, id);
 
 CREATE INDEX idx_attachments_message ON chat_attachments(message_id, sort_order);
-CREATE INDEX idx_usage_outbox_pending ON asset_usage_outbox(delivered_at, sequence);
+CREATE INDEX idx_usage_outbox_pending ON asset_usage_outbox(delivered_at, dead_letter_at, sequence);
+CREATE INDEX idx_usage_outbox_entity_order ON asset_usage_outbox(module_id, entity_type, entity_id, sequence);
 ```
 
 > **设计理由**：
@@ -235,7 +236,7 @@ Rust storage codec 不能用手写字段白名单重建 metadata。编码时从�
 
 ### 3.8. 完整 DDL 总览
 
-> 以下 DDL 是 Schema v1 草案，不是已冻结 migration。阶段零验证完成后还需按当前 TypeScript 类型、metadata codec、中文搜索策略和 `ManagedAssetRef` 契约复核，再拆入 SQLx migration 文件。
+> Schema v1 已落入 `mobile/src-tauri/migrations/llm-chat/0001_llm_chat.sql`。下列内容是字段与索引总览，完整 CHECK、外键和默认值以 migration 为准；后续修改必须新增 migration，不得静默改写已应用版本。
 
 ```sql
 -- ============ 1. 会话表 ============
@@ -252,7 +253,7 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_sessions_updated
-  ON chat_sessions(updated_at DESC);
+  ON chat_sessions(updated_at DESC, id DESC);
 
 -- ============ 3. 消息表 ============
 CREATE TABLE IF NOT EXISTS chat_messages (
@@ -268,13 +269,15 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   timestamp               TEXT NOT NULL,
   reasoning_content       TEXT,
   metadata_json           TEXT,
-  FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
+  FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE,
+  FOREIGN KEY (parent_id) REFERENCES chat_messages(id) ON DELETE CASCADE
+    DEFERRABLE INITIALLY DEFERRED
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_session
-  ON chat_messages(session_id, sibling_order);
+  ON chat_messages(session_id, sibling_order, id);
 CREATE INDEX IF NOT EXISTS idx_messages_parent
-  ON chat_messages(session_id, parent_id);
+  ON chat_messages(session_id, parent_id, sibling_order, id);
 
 -- ============ 4. 聊天附件引用 ============
 CREATE TABLE IF NOT EXISTS chat_attachments (
@@ -301,6 +304,7 @@ CREATE INDEX IF NOT EXISTS idx_attachments_message
 CREATE TABLE IF NOT EXISTS asset_usage_outbox (
   sequence        INTEGER PRIMARY KEY AUTOINCREMENT,
   event_id        TEXT NOT NULL UNIQUE,
+  module_id       TEXT NOT NULL DEFAULT 'llm-chat',
   entity_type     TEXT NOT NULL,
   entity_id       TEXT NOT NULL,
   operation       TEXT NOT NULL CHECK (operation IN ('replace', 'release')),
@@ -308,18 +312,22 @@ CREATE TABLE IF NOT EXISTS asset_usage_outbox (
   attempt_count   INTEGER NOT NULL DEFAULT 0,
   last_error      TEXT,
   created_at      TEXT NOT NULL,
-  delivered_at    TEXT
+  delivered_at    TEXT,
+  dead_letter_at  TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_usage_outbox_pending
-  ON asset_usage_outbox(delivered_at, sequence);
+  ON asset_usage_outbox(delivered_at, dead_letter_at, sequence);
+CREATE INDEX IF NOT EXISTS idx_usage_outbox_entity_order
+  ON asset_usage_outbox(module_id, entity_type, entity_id, sequence);
 
 -- ============ 6. FTS5 全文搜索 ============
 CREATE VIRTUAL TABLE IF NOT EXISTS chat_messages_fts USING fts5(
   content,
   reasoning_content,
   content=chat_messages,
-  content_rowid=rowid
+  content_rowid=rowid,
+  tokenize='trigram'
 );
 
 CREATE TRIGGER IF NOT EXISTS chat_messages_ai AFTER INSERT ON chat_messages BEGIN
@@ -332,7 +340,11 @@ CREATE TRIGGER IF NOT EXISTS chat_messages_ad AFTER DELETE ON chat_messages BEGI
   VALUES ('delete', old.rowid, old.content, old.reasoning_content);
 END;
 
-CREATE TRIGGER IF NOT EXISTS chat_messages_au AFTER UPDATE ON chat_messages BEGIN
+CREATE TRIGGER IF NOT EXISTS chat_messages_au
+AFTER UPDATE OF content, reasoning_content ON chat_messages
+WHEN old.content IS NOT new.content
+  OR old.reasoning_content IS NOT new.reasoning_content
+BEGIN
   INSERT INTO chat_messages_fts(chat_messages_fts, rowid, content, reasoning_content)
   VALUES ('delete', old.rowid, old.content, old.reasoning_content);
   INSERT INTO chat_messages_fts(rowid, content, reasoning_content)
@@ -360,6 +372,14 @@ END;
 - command 至少覆盖 `list_chat_sessions`、`load_chat_session`、`persist_chat_changes`、`delete_chat_branch`、`delete_chat_session`、`search_chat_messages` 和 `drain_asset_usage_outbox`。
 - `persist_chat_changes` 接收领域变更集并开启单一 transaction；前端不传 SQL，也不自行管理 transaction。
 - 增加 migration 升级/回滚、foreign key、codec round-trip、未知 metadata 字段保留和 crash recovery 测试。
+
+实施状态（2026-07-21）：已完成。
+
+- 新增独立 `llm_chat.db`、schema v1 migration 和统一 SQLx pool；连接固定使用 WAL、`synchronous=NORMAL`、foreign keys、3 秒 busy timeout 与最多 4 条连接。
+- 注册计划要求的会话列表、加载、增量变更、分支删除、会话删除、搜索和 outbox 投递 command，并增加 dead-letter 显式重试入口。
+- `persist_chat_changes` 在单一 transaction 内维护会话、消息、附件和 outbox。附件 replacement/release 由 Rust 根据最终状态自动生成，前端不能自行构造 outbox；删除分支/会话先写 release，再级联删除业务行。
+- metadata 完整 JSON 原样保存，`reasoningContent` 只作为查询列镜像；未知字段已通过 round-trip 测试。3 字及以上查询走 trigram FTS，1-2 字走转义后的受限 `LIKE`。
+- Android x86_64 debug APK 已在 `emulator-5558` 通过真实 WebView 调用 `list_chat_sessions`，并在应用数据目录创建 `llm-chat/llm_chat.db`、WAL 与 SHM。当前聊天 UI 仍使用 JSON，尚未进入阶段二，也未声明附件消费者完成；iOS 按缺少编译/设备条件继续跳过。
 
 ### 阶段二：会话与消息增量持久化
 

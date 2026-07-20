@@ -26,6 +26,7 @@ vi.mock("@/utils/errorHandler", () => ({
 
 import {
   clearRebuildableAssetCache,
+  exportAsset,
   getAssetLibraryFacets,
   getAssetPreviewSource,
   importAssetSources,
@@ -199,5 +200,20 @@ describe("asset library management", () => {
       "asset_revoke_preview_source",
       { previewId: "preview-1" }
     );
+  });
+
+  it("exports an asset to the system-selected destination without exposing its source path", async () => {
+    invokeMock.mockResolvedValueOnce({
+      bytesWritten: 4096,
+      fileName: "sample.png",
+    });
+
+    await expect(
+      exportAsset("asset-1", "content://documents/export/1")
+    ).resolves.toEqual({ bytesWritten: 4096, fileName: "sample.png" });
+    expect(invokeMock).toHaveBeenCalledWith("asset_export", {
+      assetId: "asset-1",
+      destination: "content://documents/export/1",
+    });
   });
 });

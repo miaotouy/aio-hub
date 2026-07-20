@@ -39,6 +39,7 @@ pub fn run() {
             asset_manager::asset_get_detail,
             asset_manager::asset_get_preview_source,
             asset_manager::asset_revoke_preview_source,
+            asset_manager::asset_export,
             asset_manager::asset_replace_entity_usages,
             asset_manager::asset_analyze_delete,
             asset_manager::asset_set_retention_policy,

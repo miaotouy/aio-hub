@@ -497,9 +497,10 @@ interface ManagedAssetRef {
 - [x] 实现资产/空间双视图、搜索筛选、详情、月份筛选、影响分析和保留策略。
 - [x] 实现加载、空、错误、缺失、导入中和多选状态。
 - [x] 接入文件选择器导入、短期受控媒体预览、缓存清理和资产库修复。
-- [ ] 接入系统分享/保存能力。
+- [x] 接入系统文件保存能力；原件由 Rust 流式导出到 save picker 目标，不经过 WebView 内存。
 - [x] 接入最近导入任务恢复、运行进度、中断状态与取消入口。
-- [ ] 接入相册专用选择与相机。
+- [x] 接入照片/视频 media picker。
+- [ ] 接入相机和系统分享能力（当前仓库尚无移动端 share 插件契约）。
 - [ ] 接入批量转写或文本提取后的原件删除流程。
 
 ### Phase 3：平台增强
@@ -617,6 +618,12 @@ interface ManagedAssetRef {
 - 资产页新增导入任务面板，从 `import_jobs` 恢复最近任务，展示来源类型、完成项数、字节进度、更新时间和错误码。
 - 当前页面发起的导入通过 `AbortController` 进入既有取消契约；恢复出的 pending/running 任务可按任务 ID 调用原生命令取消。
 - 任务 Channel 仍只用于实时进度，任务面板以 SQLite 查询结果为权威状态；进程中断后继续显示 `ASSET_IMPORT_INTERRUPTED`，不伪装为断点续传。
+
+### 2026-07-20：Phase 2 第三批导入与导出
+
+- 导入入口拆分为文件选择器和照片/视频 media picker；照片来源以 `photo_picker` 写入 origin，仍沿用同一持久化 import job 和去重流程。
+- 新增 `asset_export` command。Rust 复核资产为 managed/ready 且对象存在后，通过 plugin-fs 将原件流式复制到系统 save picker 返回的 `content://` 或 `file://` 目标；不返回对象路径、不把大文件读入 WebView。
+- 保存链路已覆盖 Rust stream helper、目标引用校验、服务层 invoke 契约和页面详情入口。系统分享仍因缺少原生插件契约保留为未完成项；相机、Android 真机 picker/export 验收和 iOS 继续跳过。
 
 ## 16. 调查来源
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Eye, X } from "lucide-vue-next";
+import { Download, Eye, X } from "lucide-vue-next";
 import { computed } from "vue";
 import { formatAssetBytes } from "../composables/useAssetLibrary";
 import type { AssetDetail, AssetPreviewSource } from "../types";
@@ -12,6 +12,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: [];
   preview: [assetId: string];
+  save: [assetId: string];
 }>();
 
 const canPreview = computed(
@@ -31,9 +32,20 @@ const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString
           <h2 id="asset-detail-title">{{ detail.displayName }}</h2>
           <p>{{ formatAssetBytes(detail.sizeBytes) }} · {{ detail.mimeType }}</p>
         </div>
-        <button class="icon-button" type="button" aria-label="关闭详情" @click="emit('close')">
-          <X :size="22" />
-        </button>
+        <div class="header-actions">
+          <button
+            v-if="detail.availability === 'ready'"
+            class="icon-button"
+            type="button"
+            aria-label="保存到文件"
+            @click="emit('save', detail.id)"
+          >
+            <Download :size="21" />
+          </button>
+          <button class="icon-button" type="button" aria-label="关闭详情" @click="emit('close')">
+            <X :size="22" />
+          </button>
+        </div>
       </header>
 
       <div class="sheet-scroll">
@@ -135,6 +147,11 @@ const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString
   color: var(--text-color);
   background: transparent;
   border: 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
 }
 
 .sheet-scroll {

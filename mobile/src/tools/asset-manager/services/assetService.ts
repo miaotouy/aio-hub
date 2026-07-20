@@ -6,6 +6,7 @@ import type {
   AssetDeleteAnalysis,
   AssetDeleteResult,
   AssetDetail,
+  AssetExportResult,
   AssetImportJob,
   AssetImportProgressEvent,
   AssetImportResult,
@@ -196,6 +197,24 @@ export async function revokeAssetPreviewSource(
   } catch (error) {
     errorHandler.handle(error, {
       userMessage: "无法关闭资产预览",
+      showToUser: false,
+    });
+    throw error;
+  }
+}
+
+export async function exportAsset(
+  assetId: string,
+  destination: string
+): Promise<AssetExportResult> {
+  try {
+    return await invoke<AssetExportResult>("asset_export", {
+      assetId,
+      destination,
+    });
+  } catch (error) {
+    errorHandler.handle(error, {
+      userMessage: "无法保存资产原件",
       showToUser: false,
     });
     throw error;

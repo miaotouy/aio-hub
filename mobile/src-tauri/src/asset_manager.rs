@@ -8,7 +8,7 @@ use sqlx::{
 };
 use std::{
     collections::{HashMap, HashSet},
-    fs::{self, OpenOptions},
+    fs::{self, OpenOptions as StdOpenOptions},
     io::{Read, SeekFrom, Write},
     path::{Component, Path, PathBuf},
     str::FromStr,
@@ -29,7 +29,7 @@ use tauri::{
     ipc::Channel,
     AppHandle, Manager, State,
 };
-use tauri_plugin_fs::{FilePath, FsExt};
+use tauri_plugin_fs::{FilePath, FsExt, OpenOptions as PluginOpenOptions};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio::sync::{Mutex, OnceCell};
 use tokio_util::sync::CancellationToken;
@@ -203,6 +203,13 @@ pub struct AssetPreviewSource {
     supports_range: bool,
     max_range_bytes: u64,
     max_full_response_bytes: u64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetExportResult {
+    bytes_written: u64,
+    file_name: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -827,6 +834,67 @@ pub fn asset_revoke_preview_source(
         .map_err(|_| "ASSET_PREVIEW_STATE_UNAVAILABLE".to_string())?
         .remove(&preview_id)
         .is_some())
+}
+
+#[tauri::command]
+pub async fn asset_export(
+    app: AppHandle,
+    state: State<'_, AssetManagerState>,
+    asset_id: String,
+    destination: String,
+) -> Result<AssetExportResult, String> {
+    let managed = resolve_managed_asset_read(&app, state.inner(), &asset_id).await?;
+    let destination = validate_export_destination(&destination)?;
+    let file_name = managed.display_name.clone();
+    let export_app = app.clone();
+    let bytes_written = tauri::async_runtime::spawn_blocking(move || {
+        let result = (|| {
+            let input = fs::File::open(&managed.path)
+                .map_err(|error| format!("ASSET_EXPORT_SOURCE_OPEN: {error}"))?;
+            let mut options = PluginOpenOptions::new();
+            options.read(false).write(true).create(true).truncate(true);
+            let output = export_app
+                .fs()
+                .open(destination.clone(), options)
+                .map_err(|error| format!("ASSET_EXPORT_DESTINATION_OPEN: {error}"))?;
+            copy_asset_to_writer(input, output)
+        })();
+        #[cfg(target_os = "ios")]
+        {
+            let _ = export_app
+                .fs()
+                .stop_accessing_security_scoped_resource(destination);
+        }
+        result
+    })
+    .await
+    .map_err(|error| format!("ASSET_EXPORT_TASK: {error}"))??;
+    Ok(AssetExportResult {
+        bytes_written,
+        file_name,
+    })
+}
+
+fn copy_asset_to_writer(mut input: impl Read, mut output: impl Write) -> Result<u64, String> {
+    let bytes_written = std::io::copy(&mut input, &mut output)
+        .map_err(|error| format!("ASSET_EXPORT_COPY: {error}"))?;
+    output
+        .flush()
+        .map_err(|error| format!("ASSET_EXPORT_FLUSH: {error}"))?;
+    Ok(bytes_written)
+}
+
+fn validate_export_destination(destination: &str) -> Result<FilePath, String> {
+    if destination.is_empty() || destination.len() > 8_192 {
+        return Err("ASSET_INVALID_EXPORT_DESTINATION".into());
+    }
+    let file_path = FilePath::from_str(destination)
+        .map_err(|_| "ASSET_INVALID_EXPORT_DESTINATION".to_string())?;
+    match &file_path {
+        FilePath::Url(url) if matches!(url.scheme(), "content" | "file") => Ok(file_path),
+        FilePath::Path(path) if path.is_absolute() => Ok(file_path),
+        _ => Err("ASSET_INVALID_EXPORT_DESTINATION".into()),
+    }
 }
 
 fn preview_protocol_url(preview_id: &str) -> String {
@@ -2299,7 +2367,7 @@ fn copy_and_hash_controlled(
     cancellation: &CancellationToken,
     mut on_progress: impl FnMut(i64),
 ) -> Result<(String, i64), String> {
-    let mut output = OpenOptions::new()
+    let mut output = StdOpenOptions::new()
         .create_new(true)
         .write(true)
         .open(temp_path)
@@ -2843,6 +2911,22 @@ mod tests {
     }
 
     #[test]
+    fn export_streams_bytes_and_rejects_remote_destinations() {
+        let mut output = Vec::new();
+        let bytes = copy_asset_to_writer(Cursor::new(b"managed-asset"), &mut output).unwrap();
+        assert_eq!(bytes, 13);
+        assert_eq!(output, b"managed-asset");
+        assert!(validate_export_destination("content://provider/document/1").is_ok());
+        assert!(validate_export_destination("file:///tmp/export.bin").is_ok());
+        assert!(validate_export_destination(
+            &std::env::temp_dir().join("export.bin").to_string_lossy()
+        )
+        .is_ok());
+        assert!(validate_export_destination("https://example.com/export.bin").is_err());
+        assert!(validate_export_destination("relative/export.bin").is_err());
+    }
+
+    #[test]
     fn preview_ranges_are_single_part_bounded_and_tokenized() {
         assert_eq!(
             preview_range("bytes=0-2097151", 3_000_000).unwrap(),
@@ -2890,7 +2974,7 @@ mod tests {
         assert_eq!(head.headers().get(CONTENT_LENGTH).unwrap(), "10");
 
         let large = root.join("large.bin");
-        let file = OpenOptions::new()
+        let file = StdOpenOptions::new()
             .create_new(true)
             .write(true)
             .open(&large)

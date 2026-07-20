@@ -224,3 +224,8 @@ export interface AssetPreviewSource {
   maxRangeBytes: number;
   maxFullResponseBytes: number;
 }
+
+export interface AssetExportResult {
+  bytesWritten: number;
+  fileName: string;
+}

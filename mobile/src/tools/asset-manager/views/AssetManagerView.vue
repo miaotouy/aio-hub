@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import {
   ArchiveRestore,
   ChevronLeft,
@@ -21,12 +21,16 @@ import { customMessage } from "@/utils/feedback";
 import AssetDetailSheet from "../components/AssetDetailSheet.vue";
 import AssetTile from "../components/AssetTile.vue";
 import ImportJobsSheet from "../components/ImportJobsSheet.vue";
+import ImportSourceSheet from "../components/ImportSourceSheet.vue";
 import { formatAssetBytes, useAssetLibrary } from "../composables/useAssetLibrary";
+import { exportAsset } from "../services/assetService";
 import type { AssetKind, AssetImportSource } from "../types";
 
 const router = useRouter();
 const library = useAssetLibrary();
 const jobsOpen = ref(false);
+const importSourceOpen = ref(false);
+const savingAssetId = ref<string | null>(null);
 
 const kindOptions: Array<{ label: string; value: AssetKind | "all" }> = [
   { label: "全部类型", value: "all" },
@@ -92,23 +96,55 @@ function fileName(reference: string) {
   }
 }
 
-async function importFromDevice() {
+function importFromDevice() {
+  importSourceOpen.value = true;
+}
+
+async function pickAndImport(source: "file" | "photo") {
+  importSourceOpen.value = false;
   try {
     const selection = await open({
       multiple: true,
       directory: false,
+      pickerMode: source === "photo" ? "media" : "document",
+      fileAccessMode: source === "file" ? "scoped" : "copy",
+      filters:
+        source === "photo"
+          ? [{ name: "照片和视频", extensions: ["image/*", "video/*"] }]
+          : undefined,
     });
     if (!selection) return;
     const references = Array.isArray(selection) ? selection : [selection];
     const sources: AssetImportSource[] = references.map((reference) => ({
       reference,
-      originKind: "file_picker",
+      originKind: source === "photo" ? "photo_picker" : "file_picker",
       sourceModule: "asset-manager",
       originalName: fileName(reference),
     }));
     await library.importSources(sources);
   } catch (cause) {
-    customMessage(cause instanceof Error ? cause.message : "无法导入所选文件", "error");
+    customMessage(
+      cause instanceof Error ? cause.message : "无法导入所选文件",
+      "error"
+    );
+  }
+}
+
+async function saveAsset(assetId: string) {
+  const detail = library.detail.value;
+  if (!detail || savingAssetId.value) return;
+  try {
+    const destination = await save({
+      defaultPath: detail.displayName,
+    });
+    if (!destination) return;
+    savingAssetId.value = assetId;
+    const result = await exportAsset(assetId, destination);
+    customMessage(`已保存 ${result.fileName}（${formatAssetBytes(result.bytesWritten)}）`, "success");
+  } catch (cause) {
+    customMessage(cause instanceof Error ? cause.message : "无法保存资产原件", "error");
+  } finally {
+    savingAssetId.value = null;
   }
 }
 
@@ -301,12 +337,18 @@ onUnmounted(() => {
       :preview="library.preview.value"
       @close="closeDetail"
       @preview="previewAsset"
+      @save="saveAsset"
     />
     <ImportJobsSheet
       v-if="jobsOpen"
       :jobs="library.importJobs.value"
       @close="jobsOpen = false"
       @cancel="cancelImportJob"
+    />
+    <ImportSourceSheet
+      v-if="importSourceOpen"
+      @close="importSourceOpen = false"
+      @pick="pickAndImport"
     />
   </div>
 </template>

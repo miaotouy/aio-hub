@@ -96,11 +96,12 @@ AppData/assets/
 - 多选操作复用后端原子命令完成隐藏/恢复、固定/取消固定和安全删除。删除前必须重新调用影响分析，advisory usage 经平台对话框确认后才传入 `confirmAdvisory`。
 - 存储视图展示原件、可回收量、缓存、临时文件和类型占用，并提供全库可重建缓存清理与资产库修复入口。
 - 详情面板只展示脱敏来源和 usage 摘要。媒体预览按需申请短期 descriptor，关闭详情或卸载页面时主动撤销，不持久化预览 URL。
-- 文件导入通过系统文件选择器获得引用后交给 import job；WebView 不读取原件字节。页面可恢复最近任务、显示累计进度与中断错误码，并取消 pending/running 任务。
+- 文件导入通过系统文件选择器或移动端 media picker 获得引用后交给 import job；WebView 不读取原件字节。页面可恢复最近任务、显示累计进度与中断错误码，并取消 pending/running 任务。
+- 详情页的“保存到文件”使用系统 save picker，目标引用直接传给 `asset_export`；Rust 通过 plugin-fs 打开 `content://`/`file://` 目标并流式复制 managed 原件，内部对象路径不返回 WebView。
 
 ## 12. 后续施工
 
 - Android 真机验证受控预览协议并回写报告。
-- 补相册专用入口、系统分享/保存和批量转写/文本提取后的原件清理流程。
+- 补系统分享插件（当前依赖未提供原生 share contract）、相机和批量转写/文本提取后的原件清理流程。
 - 完成聊天 SQLite migration 阶段一至三后，再接入聊天附件与 usage outbox。
 - iOS 因缺少编译与真机设备条件继续跳过，不声明平台能力通过。

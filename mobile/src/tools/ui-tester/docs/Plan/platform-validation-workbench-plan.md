@@ -250,13 +250,12 @@ mobile/src/tools/ui-tester/
 ### 10.3. 平台验收状态（更新于 2026-07-20）
 
 - Android 虚拟机已完成人工测试，项目内主要组件、平台文件与 SQLite 验证场景基本通过。
-- 已取得首份 Android 真机 schema `1.0` 脱敏报告：环境为应用 `0.1.1-m-beta.2`、Tauri `2.11.5`；报告共 20 条 run，其中 16 条通过、3 条为预期的用户取消、1 条为较早遗留的后台恢复待判定记录，且同一场景随后已有人工通过记录。
-- Android 真机 SQLite 已通过 migration/失败回滚/高版本拒绝、消息 codec、FTS5 trigram + 短词 `LIKE`、事务强杀恢复和 1k 基准。1k 数据集整步耗时 19 ms，数据库 114,688 bytes；报告未运行 10k/100k，且 `peakSqliteMemoryBytes = 0` 不足以形成峰值内存结论。
-- Android 真机平台文件已验证 `content://` 单文件与照片读取、各入口取消、沙箱原子完成、失败清理、后台返回、云端预览人工判定和系统终止后无半成品恢复。单文件样本 798,643 bytes，首字节 91 ms；照片样本 139,437 bytes，首字节 59 ms。
-- “多文件”通过记录实际 `selectionCount = 1`，仍需用两个及以上文件补测；大文件、空间不足、云端离线/取消、预览失效、专用照片/分享入口也未覆盖。报告未包含设备型号和 Android 版本，后续报告必须补齐。
-- 上述真机结论来自验证台增量实现之前的旧报告。多选数量门禁、大文件完整读取、ENOSPC 注入、系统/架构/视口信息和新的 SQLite memory high-water 已完成代码与宿主机自动化验证，仍需重新构建 Android 应用并导出新报告后才能计入真机通过项。
+- 已取得新的 Android 真机 schema `1.0` 脱敏报告 `aio-validation-2026-07-20.json`（`exportedAt = 2026-07-20T01:27:44.309Z`；默认文件名现包含完整时间戳）：环境为 Android 11.0.0、aarch64、应用 `0.1.1-m-beta.2`、Tauri `2.11.5`；报告共 20 条 run，全部通过，视口 393 x 851、像素比 2.75。
+- Android 真机 SQLite 已通过 migration/失败回滚/高版本拒绝、消息 codec、FTS5 trigram + 短词 `LIKE`、事务强杀恢复和 1k/10k/100k 基准。1k/10k/100k 整步耗时 21/94/697 ms，插入耗时 5/40/434 ms；100k 数据库 6,594,560 bytes，SQLite high-water 5,343,704 bytes。
+- Android 真机平台文件已验证 `content://` 多文件（`selectionCount = 2`）与照片读取、沙箱原子完成、失败清理、固定 ENOSPC 注入、后台返回和系统终止后无半成品恢复。大文件样本 66,603,617 bytes（63.52 MiB），64 KiB 分块完整读取，首字节 102 ms、总耗时 25,936 ms、平均 2.45 MiB/s。
+- 新报告仍未覆盖真实低存储设备、云端离线/取消、预览失效、专用 Photo Picker/分享入口、具体设备型号以及 iOS security-scoped URL；旧报告保留了选择器取消和云端预览人工通过记录，Android 真机通过仍不等同于双平台 Phase 0 最终验收。
 - 2026-07-20 Android 16 x86_64 虚拟机补充报告已验证环境字段、ENOSPC 注入以及 SQLite 1k/10k/100k。100k 总步骤 665 ms、插入 396 ms、数据库 6,594,560 bytes、SQLite memory high-water 5,343,704 bytes；10k high-water 1,043,080 bytes，1k high-water 181,944 bytes。
 - 虚拟机复测确认语言设置可以即时应用到 i18n locale。验证页自身仍有大量硬编码中文，无法在该页通过整页翻译变化观察结果；验证台 i18n 覆盖留作后续 UI 收尾，不影响语言设置能力本身的通过结论。
 - 大文件完整读取复测通过：Android `content://` 样本 14,714,525 bytes（14.03 MiB），65,536-byte 块完整读取，首字节 231 ms、总耗时 4,360 ms、平均 3.22 MiB/s，`failurePhase = none`。该数据只代表 Android 16 x86_64 虚拟机的 `plugin-fs` 读取链，真机和 iOS 仍需分别运行。
 - iOS 尚未验收，仍需从应用内依次运行平台文件和 SQLite 固定场景并导出一份 schema `1.0` JSON 报告。
-- 第 9 节要求的 Android 与 iOS 真实设备报告尚未全部完成，因此当前结论仅代表 Android 真机部分场景通过，不等同于 Phase 0 双平台最终验收。
+- 第 9 节要求的 Android 与 iOS 真实设备报告尚未全部完成，因此当前结论代表 Android 11 真机验证台通过，不等同于 Phase 0 双平台最终验收。

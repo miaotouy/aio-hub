@@ -2,9 +2,9 @@
 
 > 状态：Current Snapshot
 > 代码调查日期：2026-07-18
-> Android 真机补充验证：2026-07-20（报告导出时间 `2026-07-19T23:20:44.419Z`）
+> Android 真机补充验证：2026-07-20（报告导出时间 `2026-07-20T01:27:44.309Z`，文件名现包含完整 UTC 时分秒与毫秒）
 > 调查范围：`mobile/` 当前代码、移动端计划/架构文档，以及直接影响移动端的跨端 LLM Core 计划
-> 验证边界：2026-07-18 从仓库根目录恢复 Bun workspace 依赖后，完成宿主机前端构建、Vitest、Rust Clippy 和 Cargo Test；2026-07-20 补录一份 Android 真机上的 Tauri 验证台报告。该报告未记录设备型号和 Android 版本，未覆盖 iOS、10k/100k SQLite 基准、真实多文件选择、大文件、空间不足等最终验收项
+> 验证边界：2026-07-18 从仓库根目录恢复 Bun workspace 依赖后，完成宿主机前端构建、Vitest、Rust Clippy 和 Cargo Test；2026-07-20 补录 Android 11 真机上的 Tauri 验证台报告。该报告未记录具体设备型号，固定 ENOSPC 也不等于真实低存储设备；iOS、云端异常、专用照片/分享入口等最终验收项仍未覆盖
 
 ## 1. 结论
 
@@ -82,7 +82,7 @@ LLM 渠道与模型配置
 - [x] 日志查看、搜索、级别筛选、清空、导出和复制能力。
 - [x] Android 生成工程已存在；Token 计划已记录 Android 构建通过。
 - [x] 本次 `bun run build` 通过。
-- [x] 本次 Vitest 12 个测试文件、42 个测试全部通过。
+- [x] 本次 Vitest 16 个测试文件、51 个测试全部通过。
 - [x] 本次 `bun run check:backend` 通过。
 - [x] 本次 Cargo Test 5 个测试全部通过。
 
@@ -90,7 +90,7 @@ LLM 渠道与模型配置
 
 ### 2.6 Android 真机验证台结果
 
-2026-07-20 补录的 `aio-validation-2026-07-19.json` 为 schema `1.0` 脱敏报告，运行环境统一记录为 Android、应用 `0.1.1-m-beta.2`、Tauri `2.11.5`。报告共 20 条 run：16 条 `passed`、3 条用户主动取消产生的 `cancelled`，以及 1 条较早的后台恢复 `manualPending`；同一后台恢复场景随后已有一条人工判定 `passed`，因此该待判定记录不代表仍有阻塞。
+2026-07-20 导出的 `aio-validation-2026-07-20.json`（报告内 `exportedAt = 2026-07-20T01:27:44.309Z`；旧版本文件名只精确到日期）为 schema `1.0` 脱敏报告。运行环境统一记录为 Android 11.0.0、aarch64、应用 `0.1.1-m-beta.2`、Tauri `2.11.5`，视口为 393 x 851、像素比 2.75。报告共 20 条 run，全部 `passed`。
 
 **SQLite 隔离验证库**
 
@@ -98,22 +98,22 @@ LLM 渠道与模型配置
 - [x] Codec：包含可选时间戳、未知 metadata 和附件快照的消息结构完成无损 round-trip；编码结果为 410 bytes。
 - [x] 搜索：7 组固定查询共命中 9 条，3 字及以上走 trigram FTS，1/2 字走受限 `LIKE` 降级。
 - [x] 事务强杀恢复：重启后 `partialRows = 0`、`foreignKeys = true`、`integrity = ok`。
-- [x] 1k 基准：Rust 侧生成 1,000 行，整步耗时 19 ms；报告记录插入 3 ms、删除 1 ms、索引重建 1 ms、数据库 114,688 bytes，冷/热查询和会话查询均为 0 ms（计时粒度下限）。
-- [ ] 该报告没有执行 10k/100k 预设；`peakSqliteMemoryBytes = 0` 也不能作为真实峰值内存结论，因此大规模性能与内存仍待补测。
+- [x] 1k/10k/100k 基准：Rust 侧生成数据，1k/10k/100k 整步耗时分别为 21/94/697 ms；对应插入耗时为 5/40/434 ms。100k 数据库 6,594,560 bytes，SQLite high-water 5,343,704 bytes（10k 为 1,043,080 bytes，1k 为 185,440 bytes）。
+- [x] 100k 基准冷/热查询为 33/24 ms，插入 434 ms，删除 82 ms，索引重建 96 ms；各规模会话查询均在计时粒度下限内。
 
 **平台文件**
 
-- [x] 单文件选择返回 Android `content://` 引用；样本 798,643 bytes，首字节 91 ms，读取 65,536 bytes 探针总耗时 94 ms。
-- [x] 照片过滤入口返回 `content://` 引用；样本 139,437 bytes，首字节 59 ms，读取探针总耗时 60 ms。系统返回 MIME 为 `application/octet-stream`，后续业务不能依赖 picker MIME 判断图片类型。
-- [x] 单文件、多文件入口和照片入口的用户取消均未产生错误或验证沙箱文件。
+- [x] 多文件入口返回 2 个 Android `content://` 引用；首项样本 798,643 bytes，首字节 135 ms，读取 65,536 bytes 探针总耗时 140 ms。
+- [x] 照片过滤入口返回 1 个 `content://` 引用；样本 2,283,162 bytes，首字节 90 ms，读取探针总耗时 92 ms。系统返回 MIME 为 `application/octet-stream`，后续业务不能依赖 picker MIME 判断图片类型。
+- [x] 大文件完整顺序读取通过：66,603,617 bytes（63.52 MiB），64 KiB 分块，首字节 102 ms，总耗时 25,936 ms，平均 2.45 MiB/s，`failurePhase = none`。
+- [x] 首份真机报告已证明单文件、多文件入口和照片入口的用户取消均未产生错误或验证沙箱文件；本次 20 条全通过报告未重复导出取消记录。
 - [x] 固定 cache 沙箱原子写入/重开、写入失败后的 `.part` 清理和最终沙箱清理通过。
-- [x] 后台返回、云端下载与预览由人工判定通过；系统终止后自动续测确认没有半成品文件。
-- [ ] “多文件”通过记录的 `selectionCount` 实际为 1，只证明多选入口可返回并读取单个 `content://` 项，不能证明多个文件的返回、顺序和逐项权限行为。
-- [ ] 未覆盖大文件、`file://`、云端离线/取消、预览令牌过期或原件缺失、空间不足、原生 Photo Picker、分享导入/导出及 iOS security-scoped URL。
+- [x] 固定 ENOSPC 故障注入在写入 65,536 bytes 后清理 `.part`；本次后台返回与系统终止后自动续测通过，首份真机报告中的云端下载与预览已由人工判定通过。
+- [ ] 仍未覆盖真实低存储设备、云端离线/取消、预览令牌过期或原件缺失、原生 Photo Picker、分享导入/导出及 iOS security-scoped URL。
 
 上述结果只来自验证工具的隔离数据库与 cache 沙箱，不代表 `llm_chat.db`、`asset_manager.db` 或正式聊天附件链路已经落地。
 
-### 2.7 验证台增量实现（待新真机报告）
+### 2.7 验证台增量实现与报告导出
 
 在首份 Android 报告之后，验证台已补充以下可重复入口，并通过宿主机单元测试、类型检查和构建验证：
 
@@ -123,7 +123,7 @@ LLM 渠道与模型配置
 - [x] 空间不足清理使用固定 ENOSPC 故障注入，写入 64 KiB 后确认 `.part` 被删除；该结果不替代真实低存储设备观察。
 - [x] SQLite 基准内存从 `PRAGMA memory_used` 改为 `sqlite3_status64` current/high-water，宿主机测试断言 high-water 大于 0。
 
-这些项目尚未包含在 2.6 的旧真机报告中。大文件入口验证的是 `plugin-fs` 分块读取链，不是正式 Rust 资产导入管线；其中部分项目已在 2.8 的 Android 虚拟机报告中复测，但在新 Android 真机报告导出前仍不更新真机通过结论。
+上述增量入口已包含在新的 Android 真机报告中。大文件入口验证的是 `plugin-fs` 分块读取链，不是正式 Rust 资产导入管线；固定 ENOSPC 是故障注入，不替代真实低存储设备观察。报告默认文件名已改为带 UTC 时分秒和毫秒的 `aio-validation-YYYY-MM-DD_HH-mm-ss-mmmZ.json`，避免同日导出互相覆盖或难以区分。
 
 ### 2.8 Android 虚拟机增量验证
 
@@ -151,7 +151,7 @@ LLM 渠道与模型配置
 - [ ] 将 LLM Chat 从 JSON 会话文件迁移到 `llm_chat.db`。
 - [ ] 建立 `chat_sessions`、`chat_messages`、`chat_attachments`、FTS5 和 usage outbox。
 - [ ] 实现消息/分支/会话删除时的附件引用释放和幂等 outbox 投递。
-- [ ] 完成资产管理 Phase 0。Android 已有一轮部分场景报告，仍缺真实多文件、大文件、空间不足、专用照片/分享入口等覆盖；iOS 尚未开始真机验收。
+- [ ] 完成资产管理 Phase 0。Android 已覆盖真实多文件、大文件读取和固定 ENOSPC 注入，仍缺真实低存储设备、云端异常、专用照片/分享入口等覆盖；iOS 尚未开始真机验收。
 - [ ] 建立 `asset_manager.db`、内容寻址、来源、usage、分页查询和一致性恢复。
 - [ ] 实现资产/空间页面、详情、筛选、清理、影响分析和保留策略。
 - [ ] 在聊天中接入 `ManagedAssetRef`、图片/文件发送、预览和 `reclaimed` 降级展示。
@@ -194,7 +194,7 @@ SQLite 施工顺序见 [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migra
 ### 3.4 平台与发布验收
 
 - [x] 完成 Android universal APK/AAB 构建，并在至少一台 Android 真机运行验证台和导出 schema `1.0` 报告。
-- [ ] 补齐 Android 真机最终验收：至少包括 SQLite 10k/100k 与峰值内存、真实多文件、大文件、空间不足、云端异常、专用照片/分享入口，并记录设备型号和 Android 版本。
+- [ ] 补齐 Android 真机最终验收：仍需真实低存储设备、云端异常、专用 Photo Picker/分享入口，并记录具体设备型号；本次已完成 SQLite 10k/100k 与 high-water、真实多文件和大文件读取。
 - [ ] 初始化或补齐仓库中的 iOS 生成工程，并完成 iOS 构建与真机验收。
 - [ ] 在真实 Tauri WebView 验证长流逐段交付、取消、前后台切换和系统终止行为。
 - [ ] 验证 JSON/顶层/multipart 文件引用在 Android/iOS 的权限和生命周期行为。
@@ -208,7 +208,7 @@ SQLite 施工顺序见 [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migra
 - `mobile-sqlite-migration-plan.md` 是未施工的实施计划，不代表已有数据库代码。
 - `mobile-asset-manager-design.md` 状态仍为待评审，所有 Phase 均应视为未开始。
 - `mobile-design-language-investigation.md` 的 Phase 0 已完成，Phase 1 只完成了包装 API 的局部落地，业务调用尚未收口。
-- `platform-validation-workbench-plan.md` 的验证台、平台文件 spike 和 SQLite spike 已施工，并取得首份 Android 真机脱敏报告；由于 Android 覆盖仍不完整且没有 iOS 报告，资产与 SQLite Phase 0 尚未最终验收。
+- `platform-validation-workbench-plan.md` 的验证台、平台文件 spike 和 SQLite spike 已施工，并取得新的 Android 11 真机脱敏报告；由于真实低存储/专用系统入口仍不完整且没有 iOS 报告，资产与 SQLite Phase 0 尚未最终验收。
 - `llm-provider-adapter-sharing-investigation.md` 的代码与自动化验收已完成；本次真机报告未覆盖 LLM transport，相关人工性能与双平台真机验收仍未完成。
 - 2026-07-16 完成的移动端模型批量检查和 2026-07-18 完成的模型身份/Embedding 空间分离已纳入本快照；它们属于现有 `llm-api` 工具能力，不新增工具 registry。
 
@@ -218,10 +218,10 @@ SQLite 施工顺序见 [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migra
 
 ### 5.1. 当前收尾：冻结边界与双端能力验证
 
-验证台及两个隔离 spike 已完成实现，并取得一份 Android 真机部分覆盖报告。进入业务数据施工前仍需收完以下边界：
+验证台及两个隔离 spike 已完成实现，并取得一份 Android 11 真机报告。进入业务数据施工前仍需收完以下边界：
 
-1. **资产 Phase 0**：保留本次 Android 已通过的 `content://`、取消、后台、系统终止和沙箱清理结论；补测真实多文件、大文件、空间不足、云端异常、专用照片/分享入口，并在 iOS 验证 `file://` 与 security-scoped URL。完成后输出首版文件入口范围和预览方案决策。
-2. **SQLite Phase 0**：保留本次 Android migration、codec、FTS、事务强杀恢复和 1k 基准结论；补跑 Android 10k/100k、可解释的峰值内存指标，并完成 iOS 全套固定场景。
+1. **资产 Phase 0**：保留本次 Android 已通过的 `content://`、取消、后台、系统终止、真实多文件、大文件和沙箱清理结论；补测真实低存储、云端异常、专用照片/分享入口，并在 iOS 验证 `file://` 与 security-scoped URL。完成后输出首版文件入口范围和预览方案决策。
+2. **SQLite Phase 0**：保留本次 Android migration、codec、FTS、事务强杀恢复、1k/10k/100k 基准和 high-water 结论，并完成 iOS 全套固定场景。
 3. **验证 UI**：实现已完成；继续用现有结构化步骤、人工判定、跨重启续测和脱敏报告导出补齐双端运行记录。没有双端 UI 运行记录的 spike 不算完成。
 4. **契约冻结**：锁定 `ManagedAssetRef`、资产服务领域命令、聊天 storage command、Schema v1 与 metadata codec；聊天前端不得获得任意 SQL 执行入口。
 

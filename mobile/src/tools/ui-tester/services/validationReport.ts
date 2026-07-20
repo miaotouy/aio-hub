@@ -11,13 +11,22 @@ export function createValidationReport(runs: ValidationRun[]): ValidationReport 
   };
 }
 
+export function formatValidationReportFileName(exportedAt: string): string {
+  const timestamp = new Date(exportedAt).toISOString()
+    .replace("T", "_")
+    .replace(/:/g, "-")
+    .replace(".", "-");
+  return `aio-validation-${timestamp}.json`;
+}
+
 export async function exportValidationReport(runs: ValidationRun[]): Promise<boolean> {
+  const report = createValidationReport(runs);
   const path = await save({
-    defaultPath: `aio-validation-${new Date().toISOString().slice(0, 10)}.json`,
+    defaultPath: formatValidationReportFileName(report.exportedAt),
     filters: [{ name: "JSON", extensions: ["json"] }],
   });
   if (!path) return false;
 
-  await writeTextFile(path, JSON.stringify(createValidationReport(runs), null, 2));
+  await writeTextFile(path, JSON.stringify(report, null, 2));
   return true;
 }

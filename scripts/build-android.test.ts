@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   buildArtifactName,
+  cleanAndroidOutputs,
   collectAndroidArtifacts,
   parseBuildOptions,
 } from "./build-android";
@@ -131,5 +132,59 @@ describe("Android build artifact naming", () => {
     expect(artifacts).toHaveLength(1);
     expect(artifacts[0]?.abi).toBe("arm64-v8a");
     expect(artifacts[0]?.sourcePath).toMatch(/app-universal-release\.apk$/);
+  });
+
+  it("cleans stale profile outputs before collecting the current build", () => {
+    const outputsRoot = createOutputs();
+    createArtifact(outputsRoot, "apk/x86_64/debug/app-x86_64-debug.apk");
+    createArtifact(outputsRoot, "apk/universal/debug/app-universal-debug.apk");
+    createArtifact(
+      outputsRoot,
+      "apk/universal/release/app-universal-release.apk"
+    );
+    createArtifact(
+      outputsRoot,
+      "bundle/universalDebug/app-universal-debug.aab"
+    );
+
+    const options = parseBuildOptions([
+      "--apk",
+      "--debug",
+      "--target",
+      "x86_64",
+    ]);
+    cleanAndroidOutputs(outputsRoot, options);
+
+    expect(
+      fs.existsSync(
+        path.join(outputsRoot, "apk/x86_64/debug/app-x86_64-debug.apk")
+      )
+    ).toBe(false);
+    expect(
+      fs.existsSync(
+        path.join(outputsRoot, "apk/universal/debug/app-universal-debug.apk")
+      )
+    ).toBe(false);
+    expect(
+      fs.existsSync(
+        path.join(
+          outputsRoot,
+          "apk/universal/release/app-universal-release.apk"
+        )
+      )
+    ).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(outputsRoot, "bundle/universalDebug/app-universal-debug.aab")
+      )
+    ).toBe(true);
+
+    createArtifact(outputsRoot, "apk/universal/debug/app-universal-debug.apk");
+
+    const artifacts = collectAndroidArtifacts(outputsRoot, options);
+
+    expect(artifacts).toHaveLength(1);
+    expect(artifacts[0]?.abi).toBe("x86_64");
+    expect(artifacts[0]?.sourcePath).toMatch(/app-universal-debug\.apk$/);
   });
 });

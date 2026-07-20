@@ -53,10 +53,42 @@ export interface AssetImportSource {
 
 export interface AssetImportResult {
   sourceIndex: number;
-  status: "imported" | "deduplicated" | "restored" | "failed";
+  status: "imported" | "deduplicated" | "restored" | "failed" | "cancelled";
   asset?: AssetRecord;
   errorCode?: string;
   message?: string;
+}
+
+export type AssetImportJobState =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export interface AssetImportJob {
+  id: string;
+  sourceKind: AssetOriginKind | "mixed" | "unknown";
+  state: AssetImportJobState;
+  bytesCopied: number;
+  totalBytes: number | null;
+  sourceCount: number;
+  completedCount: number;
+  currentSourceIndex: number | null;
+  results: AssetImportResult[];
+  errorCode?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AssetImportProgressEvent {
+  jobId: string;
+  state: AssetImportJobState;
+  bytesCopied: number;
+  totalBytes: number | null;
+  sourceCount: number;
+  completedCount: number;
+  currentSourceIndex: number | null;
 }
 
 export interface AssetListQuery {

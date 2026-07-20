@@ -484,8 +484,9 @@ interface ManagedAssetRef {
 - [x] 建立系统引用直读、单遍 SHA-256、暂存、内容寻址落盘、去重来源追加和 tombstone ID 恢复的首批导入链。
 - [x] 建立资产列表、详情和按业务实体整体替换 usage 的首批领域命令与 TypeScript 服务契约。
 - [x] 建立启动恢复、待物理删除队列、删除影响分析、保留策略、安全删除、存储统计与手动修复命令。
+- [x] 建立持久化 import job、Channel 进度、任务查询、取消与进程中断恢复契约。
 - [ ] 在 Android 真机验证 Rust command 直读 `content://` 的正式导入路径并回写报告。
-- [ ] 补齐 import job 进度/取消、可重建缓存清理、受控预览与首个聊天消费者。
+- [ ] 补齐可重建缓存清理、受控预览与首个聊天消费者。
 
 ### Phase 2：资产页
 
@@ -557,6 +558,15 @@ interface ManagedAssetRef {
 - 资产服务初始化时恢复未完成物理删除、清理 `.part` 与孤儿对象，并把 ready 但原件不存在的记录明确标为 missing。
 - 导入、usage replacement、保留策略和删除共用 mutation lock；正式删除会在锁内重新检查影响，不信任较早的页面分析快照。
 - 第二批已通过移动端 56 个前端测试、14 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android 四 ABI debug APK/AAB 构建。
+
+### 2026-07-20：Phase 1 第三批
+
+- 扩展 `import_jobs`，持久化批次项数、完成数、当前项和脱敏逐项结果；新增启动、单项查询、最近任务查询和取消命令。
+- 后台任务通过 Tauri Channel 推送状态与累计读取字节，前端同时轮询 SQLite 权威状态，并将 Channel 保持到任务终态。
+- 取消在流式读取块边界生效，不回滚已完成资产；当前与未处理项返回 cancelled。进程重启后，遗留的 pending/running 任务明确标为 `ASSET_IMPORT_INTERRUPTED`，不伪装成断点续传。
+- 兼容的 `asset_import_sources` 命令继续存在，新 TypeScript 服务默认改走 import job。
+- iOS 仍因缺少编译与真机设备条件暂缓补验，不据此宣称平台能力通过。
+- 第三批已通过移动端 60 个前端测试、16 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android 四 ABI debug APK/AAB 构建；正式 `content://` 导入与运行中取消仍待 Android 真机固定场景验证。
 
 ## 16. 调查来源
 

@@ -11,11 +11,16 @@ use std::{
     io::{Read, Write},
     path::{Component, Path, PathBuf},
     str::FromStr,
+    sync::{
+        atomic::{AtomicI64, Ordering},
+        Arc, Mutex as StdMutex,
+    },
     time::Duration,
 };
-use tauri::{AppHandle, Manager, State};
+use tauri::{ipc::Channel, AppHandle, Manager, State};
 use tauri_plugin_fs::{FilePath, FsExt};
 use tokio::sync::{Mutex, OnceCell};
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 static ASSET_MIGRATOR: Migrator = sqlx::migrate!("./migrations/asset-manager");
@@ -23,19 +28,24 @@ static ASSET_MIGRATOR: Migrator = sqlx::migrate!("./migrations/asset-manager");
 const ASSET_DIR: &str = "assets";
 const ASSET_DB: &str = "asset_manager.db";
 const MAX_IMPORT_BATCH: usize = 100;
+const MAX_IMPORT_JOB_LIST: u32 = 100;
+const IMPORT_PROGRESS_STEP_BYTES: i64 = 4 * 1024 * 1024;
 const MAX_USAGE_BATCH: usize = 1_000;
 const MAX_MUTATION_BATCH: usize = 500;
 
+#[derive(Clone)]
 pub struct AssetManagerState {
-    pool: OnceCell<SqlitePool>,
-    mutation_lock: Mutex<()>,
+    pool: Arc<OnceCell<SqlitePool>>,
+    mutation_lock: Arc<Mutex<()>>,
+    active_imports: Arc<StdMutex<HashMap<String, CancellationToken>>>,
 }
 
 impl Default for AssetManagerState {
     fn default() -> Self {
         Self {
-            pool: OnceCell::new(),
-            mutation_lock: Mutex::new(()),
+            pool: Arc::new(OnceCell::new()),
+            mutation_lock: Arc::new(Mutex::new(())),
+            active_imports: Arc::new(StdMutex::new(HashMap::new())),
         }
     }
 }
@@ -132,7 +142,7 @@ fn resolve_beneath(root: &Path, relative_path: &str) -> Result<PathBuf, String> 
     Ok(root.join(relative))
 }
 
-#[derive(Debug, Clone, Serialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetRecord {
     pub id: String,
@@ -151,7 +161,7 @@ pub struct AssetRecord {
     pub updated_at: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetImportSource {
     reference: String,
@@ -161,7 +171,7 @@ pub struct AssetImportSource {
     mime_type: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetImportResult {
     source_index: usize,
@@ -172,6 +182,52 @@ pub struct AssetImportResult {
     error_code: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetImportJob {
+    id: String,
+    source_kind: String,
+    state: String,
+    bytes_copied: i64,
+    total_bytes: Option<i64>,
+    source_count: i64,
+    completed_count: i64,
+    current_source_index: Option<i64>,
+    results: Vec<AssetImportResult>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error_code: Option<String>,
+    created_at: String,
+    updated_at: String,
+}
+
+#[derive(Debug, FromRow)]
+struct AssetImportJobRow {
+    id: String,
+    source_kind: String,
+    state: String,
+    bytes_copied: i64,
+    total_bytes: Option<i64>,
+    source_count: i64,
+    completed_count: i64,
+    current_source_index: Option<i64>,
+    result_json: String,
+    error_code: Option<String>,
+    created_at: String,
+    updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetImportProgressEvent {
+    job_id: String,
+    state: String,
+    bytes_copied: i64,
+    total_bytes: Option<i64>,
+    source_count: i64,
+    completed_count: i64,
+    current_source_index: Option<i64>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -333,15 +389,35 @@ struct StagedObject {
     size_bytes: i64,
 }
 
+struct ImportJobExecution {
+    app: AppHandle,
+    state: AssetManagerState,
+    pool: SqlitePool,
+    paths: AssetPaths,
+    job_id: String,
+    sources: Vec<AssetImportSource>,
+    cancellation: CancellationToken,
+    on_event: Channel<AssetImportProgressEvent>,
+}
+
+struct ImportStageExecution {
+    app: AppHandle,
+    reference: String,
+    temp_path: PathBuf,
+    cancellation: CancellationToken,
+    pool: SqlitePool,
+    job_id: String,
+    copied_before_source: i64,
+    on_event: Channel<AssetImportProgressEvent>,
+}
+
 #[tauri::command]
 pub async fn asset_import_sources(
     app: AppHandle,
     state: State<'_, AssetManagerState>,
     sources: Vec<AssetImportSource>,
 ) -> Result<Vec<AssetImportResult>, String> {
-    if sources.is_empty() || sources.len() > MAX_IMPORT_BATCH {
-        return Err("ASSET_INVALID_IMPORT_BATCH".into());
-    }
+    validate_import_batch(&sources)?;
     let pool = state.pool(&app).await?.clone();
     let paths = AssetPaths::from_app(&app)?;
     let _guard = state.mutation_lock.lock().await;
@@ -370,6 +446,101 @@ pub async fn asset_import_sources(
         }
     }
     Ok(output)
+}
+
+#[tauri::command]
+pub async fn asset_start_import_job(
+    app: AppHandle,
+    state: State<'_, AssetManagerState>,
+    sources: Vec<AssetImportSource>,
+    on_event: Channel<AssetImportProgressEvent>,
+) -> Result<AssetImportJob, String> {
+    validate_import_batch(&sources)?;
+    let pool = state.pool(&app).await?.clone();
+    let paths = AssetPaths::from_app(&app)?;
+    let job_id = Uuid::new_v4().to_string();
+    let source_kind = import_job_source_kind(&sources);
+    create_import_job(&pool, &job_id, &source_kind, sources.len()).await?;
+
+    let cancellation = CancellationToken::new();
+    state
+        .active_imports
+        .lock()
+        .map_err(|_| "ASSET_IMPORT_STATE_UNAVAILABLE".to_string())?
+        .insert(job_id.clone(), cancellation.clone());
+
+    let worker_state = state.inner().clone();
+    let worker_pool = pool.clone();
+    let worker_job_id = job_id.clone();
+    tauri::async_runtime::spawn(async move {
+        let result = run_import_job(ImportJobExecution {
+            app,
+            state: worker_state.clone(),
+            pool: worker_pool.clone(),
+            paths,
+            job_id: worker_job_id.clone(),
+            sources,
+            cancellation,
+            on_event: on_event.clone(),
+        })
+        .await;
+        if let Err(error) = result {
+            let _ = fail_import_job(&worker_pool, &worker_job_id, error_code(&error)).await;
+            if let Ok(job) = find_import_job(&worker_pool, &worker_job_id).await {
+                let _ = on_event.send(import_progress_event(&job));
+            }
+        }
+        if let Ok(mut active_imports) = worker_state.active_imports.lock() {
+            active_imports.remove(&worker_job_id);
+        }
+    });
+
+    find_import_job(&pool, &job_id).await
+}
+
+#[tauri::command]
+pub async fn asset_get_import_job(
+    app: AppHandle,
+    state: State<'_, AssetManagerState>,
+    job_id: String,
+) -> Result<AssetImportJob, String> {
+    validate_identifier("jobId", &job_id)?;
+    find_import_job(state.pool(&app).await?, &job_id).await
+}
+
+#[tauri::command]
+pub async fn asset_list_import_jobs(
+    app: AppHandle,
+    state: State<'_, AssetManagerState>,
+    limit: Option<u32>,
+) -> Result<Vec<AssetImportJob>, String> {
+    list_import_jobs(
+        state.pool(&app).await?,
+        limit.unwrap_or(20).clamp(1, MAX_IMPORT_JOB_LIST),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn asset_cancel_import_job(
+    app: AppHandle,
+    state: State<'_, AssetManagerState>,
+    job_id: String,
+) -> Result<bool, String> {
+    validate_identifier("jobId", &job_id)?;
+    let job = find_import_job(state.pool(&app).await?, &job_id).await?;
+    if !matches!(job.state.as_str(), "pending" | "running") {
+        return Ok(false);
+    }
+    let active_imports = state
+        .active_imports
+        .lock()
+        .map_err(|_| "ASSET_IMPORT_STATE_UNAVAILABLE".to_string())?;
+    if let Some(cancellation) = active_imports.get(&job_id) {
+        cancellation.cancel();
+        return Ok(true);
+    }
+    Ok(false)
 }
 
 #[tauri::command]
@@ -789,11 +960,25 @@ async fn queue_file_deletion(
 }
 
 async fn run_startup_recovery(pool: &SqlitePool, paths: &AssetPaths) -> Result<(), String> {
+    recover_interrupted_import_jobs(pool).await?;
     drain_pending_file_deletions(pool, paths).await?;
     cleanup_temporary_imports(paths)?;
     mark_missing_assets(pool, paths).await?;
     cleanup_orphan_objects(pool, paths).await?;
     Ok(())
+}
+
+async fn recover_interrupted_import_jobs(pool: &SqlitePool) -> Result<usize, String> {
+    let result = sqlx::query(
+        "UPDATE import_jobs SET state = 'failed', current_source_index = NULL, temp_path = NULL, \
+         error_code = 'ASSET_IMPORT_INTERRUPTED', \
+         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') \
+         WHERE state IN ('pending', 'running')",
+    )
+    .execute(pool)
+    .await
+    .map_err(|error| format!("ASSET_IMPORT_JOB_RECOVERY: {error}"))?;
+    Ok(result.rows_affected() as usize)
 }
 
 async fn repair_library(
@@ -1038,6 +1223,359 @@ fn directory_size(directory: &Path) -> Result<i64, String> {
     })
 }
 
+fn validate_import_batch(sources: &[AssetImportSource]) -> Result<(), String> {
+    if sources.is_empty() || sources.len() > MAX_IMPORT_BATCH {
+        return Err("ASSET_INVALID_IMPORT_BATCH".into());
+    }
+    Ok(())
+}
+
+fn import_job_source_kind(sources: &[AssetImportSource]) -> String {
+    if sources.iter().any(|source| {
+        !matches!(
+            source.origin_kind.as_str(),
+            "file_picker" | "photo_picker" | "camera" | "share" | "network" | "generated" | "tool"
+        )
+    }) {
+        return "unknown".into();
+    }
+    let first = sources
+        .first()
+        .map(|source| source.origin_kind.as_str())
+        .unwrap_or("unknown");
+    if sources
+        .iter()
+        .all(|source| source.origin_kind.as_str() == first)
+    {
+        first.to_string()
+    } else {
+        "mixed".into()
+    }
+}
+
+async fn create_import_job(
+    pool: &SqlitePool,
+    job_id: &str,
+    source_kind: &str,
+    source_count: usize,
+) -> Result<(), String> {
+    sqlx::query(
+        "INSERT INTO import_jobs( \
+           id, source_kind, state, bytes_copied, total_bytes, temp_path, error_code, \
+           created_at, updated_at, source_count, completed_count, current_source_index, \
+           result_json \
+         ) VALUES (?, ?, 'pending', 0, NULL, NULL, NULL, \
+           strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), \
+           strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), ?, 0, NULL, '[]')",
+    )
+    .bind(job_id)
+    .bind(source_kind)
+    .bind(source_count as i64)
+    .execute(pool)
+    .await
+    .map_err(|error| format!("ASSET_IMPORT_JOB_CREATE: {error}"))?;
+    Ok(())
+}
+
+fn import_job_from_row(row: AssetImportJobRow) -> Result<AssetImportJob, String> {
+    let results = serde_json::from_str(&row.result_json)
+        .map_err(|error| format!("ASSET_IMPORT_JOB_RESULT: {error}"))?;
+    Ok(AssetImportJob {
+        id: row.id,
+        source_kind: row.source_kind,
+        state: row.state,
+        bytes_copied: row.bytes_copied,
+        total_bytes: row.total_bytes,
+        source_count: row.source_count,
+        completed_count: row.completed_count,
+        current_source_index: row.current_source_index,
+        results,
+        error_code: row.error_code,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    })
+}
+
+async fn find_import_job(pool: &SqlitePool, job_id: &str) -> Result<AssetImportJob, String> {
+    let row = sqlx::query_as::<_, AssetImportJobRow>(
+        "SELECT id, source_kind, state, bytes_copied, total_bytes, source_count, \
+         completed_count, current_source_index, result_json, error_code, created_at, updated_at \
+         FROM import_jobs WHERE id = ?",
+    )
+    .bind(job_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(|error| format!("ASSET_IMPORT_JOB_LOOKUP: {error}"))?
+    .ok_or_else(|| "ASSET_IMPORT_JOB_NOT_FOUND".to_string())?;
+    import_job_from_row(row)
+}
+
+async fn list_import_jobs(pool: &SqlitePool, limit: u32) -> Result<Vec<AssetImportJob>, String> {
+    let rows = sqlx::query_as::<_, AssetImportJobRow>(
+        "SELECT id, source_kind, state, bytes_copied, total_bytes, source_count, \
+         completed_count, current_source_index, result_json, error_code, created_at, updated_at \
+         FROM import_jobs ORDER BY created_at DESC, id DESC LIMIT ?",
+    )
+    .bind(i64::from(limit))
+    .fetch_all(pool)
+    .await
+    .map_err(|error| format!("ASSET_IMPORT_JOB_LIST: {error}"))?;
+    rows.into_iter().map(import_job_from_row).collect()
+}
+
+fn import_progress_event(job: &AssetImportJob) -> AssetImportProgressEvent {
+    AssetImportProgressEvent {
+        job_id: job.id.clone(),
+        state: job.state.clone(),
+        bytes_copied: job.bytes_copied,
+        total_bytes: job.total_bytes,
+        source_count: job.source_count,
+        completed_count: job.completed_count,
+        current_source_index: job.current_source_index,
+    }
+}
+
+async fn publish_import_progress(
+    pool: &SqlitePool,
+    job_id: &str,
+    on_event: &Channel<AssetImportProgressEvent>,
+) -> Result<AssetImportJob, String> {
+    let job = find_import_job(pool, job_id).await?;
+    let _ = on_event.send(import_progress_event(&job));
+    Ok(job)
+}
+
+async fn set_import_job_running(pool: &SqlitePool, job_id: &str) -> Result<(), String> {
+    sqlx::query(
+        "UPDATE import_jobs SET state = 'running', error_code = NULL, \
+         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+    )
+    .bind(job_id)
+    .execute(pool)
+    .await
+    .map_err(|error| format!("ASSET_IMPORT_JOB_START: {error}"))?;
+    Ok(())
+}
+
+async fn prepare_import_job_source(
+    pool: &SqlitePool,
+    job_id: &str,
+    source_index: usize,
+    temp_path: &str,
+) -> Result<(), String> {
+    sqlx::query(
+        "UPDATE import_jobs SET current_source_index = ?, temp_path = ?, \
+         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+    )
+    .bind(source_index as i64)
+    .bind(temp_path)
+    .bind(job_id)
+    .execute(pool)
+    .await
+    .map_err(|error| format!("ASSET_IMPORT_JOB_SOURCE: {error}"))?;
+    Ok(())
+}
+
+async fn update_import_job_bytes(
+    pool: &SqlitePool,
+    job_id: &str,
+    bytes_copied: i64,
+) -> Result<(), String> {
+    sqlx::query(
+        "UPDATE import_jobs SET bytes_copied = ?, \
+         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+    )
+    .bind(bytes_copied)
+    .bind(job_id)
+    .execute(pool)
+    .await
+    .map_err(|error| format!("ASSET_IMPORT_JOB_PROGRESS: {error}"))?;
+    Ok(())
+}
+
+async fn record_import_job_result(
+    pool: &SqlitePool,
+    job_id: &str,
+    completed_count: usize,
+    bytes_copied: i64,
+    results: &[AssetImportResult],
+) -> Result<(), String> {
+    let result_json = serde_json::to_string(results)
+        .map_err(|error| format!("ASSET_IMPORT_JOB_SERIALIZE: {error}"))?;
+    sqlx::query(
+        "UPDATE import_jobs SET completed_count = ?, bytes_copied = ?, result_json = ?, \
+         temp_path = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+    )
+    .bind(completed_count as i64)
+    .bind(bytes_copied)
+    .bind(result_json)
+    .bind(job_id)
+    .execute(pool)
+    .await
+    .map_err(|error| format!("ASSET_IMPORT_JOB_RESULT_UPDATE: {error}"))?;
+    Ok(())
+}
+
+async fn finish_import_job(
+    pool: &SqlitePool,
+    job_id: &str,
+    state: &str,
+    completed_count: usize,
+    results: &[AssetImportResult],
+) -> Result<(), String> {
+    let result_json = serde_json::to_string(results)
+        .map_err(|error| format!("ASSET_IMPORT_JOB_SERIALIZE: {error}"))?;
+    sqlx::query(
+        "UPDATE import_jobs SET state = ?, completed_count = ?, current_source_index = NULL, \
+         temp_path = NULL, result_json = ?, error_code = NULL, \
+         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+    )
+    .bind(state)
+    .bind(completed_count as i64)
+    .bind(result_json)
+    .bind(job_id)
+    .execute(pool)
+    .await
+    .map_err(|error| format!("ASSET_IMPORT_JOB_FINISH: {error}"))?;
+    Ok(())
+}
+
+async fn fail_import_job(pool: &SqlitePool, job_id: &str, code: &str) -> Result<(), String> {
+    sqlx::query(
+        "UPDATE import_jobs SET state = 'failed', current_source_index = NULL, temp_path = NULL, \
+         error_code = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? \
+         AND state IN ('pending', 'running')",
+    )
+    .bind(code)
+    .bind(job_id)
+    .execute(pool)
+    .await
+    .map_err(|error| format!("ASSET_IMPORT_JOB_FAIL: {error}"))?;
+    Ok(())
+}
+
+fn cancelled_import_results(start_index: usize, source_count: usize) -> Vec<AssetImportResult> {
+    (start_index..source_count)
+        .map(|source_index| AssetImportResult {
+            source_index,
+            status: "cancelled".into(),
+            asset: None,
+            error_code: Some("ASSET_IMPORT_CANCELLED".into()),
+            message: Some("导入已取消。".into()),
+        })
+        .collect()
+}
+
+async fn run_import_job(execution: ImportJobExecution) -> Result<(), String> {
+    let ImportJobExecution {
+        app,
+        state,
+        pool,
+        paths,
+        job_id,
+        sources,
+        cancellation,
+        on_event,
+    } = execution;
+    let _guard = state.mutation_lock.lock().await;
+    let source_count = sources.len();
+    let mut results = Vec::with_capacity(source_count);
+    let mut copied_before_source = 0_i64;
+
+    if cancellation.is_cancelled() {
+        results.extend(cancelled_import_results(0, source_count));
+        finish_import_job(&pool, &job_id, "cancelled", 0, &results).await?;
+        publish_import_progress(&pool, &job_id, &on_event).await?;
+        return Ok(());
+    }
+
+    set_import_job_running(&pool, &job_id).await?;
+    publish_import_progress(&pool, &job_id, &on_event).await?;
+
+    for (source_index, source) in sources.into_iter().enumerate() {
+        if cancellation.is_cancelled() {
+            results.extend(cancelled_import_results(source_index, source_count));
+            finish_import_job(&pool, &job_id, "cancelled", source_index, &results).await?;
+            publish_import_progress(&pool, &job_id, &on_event).await?;
+            return Ok(());
+        }
+
+        let temp_path = paths.imports.join(format!("{job_id}-{source_index}.part"));
+        let temp_relative_path = relative_path_string(&paths.root, &temp_path)?;
+        prepare_import_job_source(&pool, &job_id, source_index, &temp_relative_path).await?;
+        publish_import_progress(&pool, &job_id, &on_event).await?;
+
+        let result = if let Err(error) = validate_import_source(&source) {
+            Err(error)
+        } else {
+            let staged = stage_source_for_job(ImportStageExecution {
+                app: app.clone(),
+                reference: source.reference.clone(),
+                temp_path,
+                cancellation: cancellation.clone(),
+                pool: pool.clone(),
+                job_id: job_id.clone(),
+                copied_before_source,
+                on_event: on_event.clone(),
+            })
+            .await;
+            match staged {
+                Ok(staged) => {
+                    copied_before_source = copied_before_source
+                        .checked_add(staged.size_bytes)
+                        .ok_or_else(|| "ASSET_SIZE_OVERFLOW".to_string())?;
+                    let registered = register_staged_object(&pool, &paths, &source, &staged).await;
+                    if registered.is_err() && staged.temp_path.exists() {
+                        let _ = fs::remove_file(&staged.temp_path);
+                    }
+                    registered
+                }
+                Err(error) => {
+                    copied_before_source = find_import_job(&pool, &job_id).await?.bytes_copied;
+                    Err(error)
+                }
+            }
+        };
+
+        if matches!(&result, Err(error) if error_code(error) == "ASSET_IMPORT_CANCELLED") {
+            results.extend(cancelled_import_results(source_index, source_count));
+            finish_import_job(&pool, &job_id, "cancelled", source_index, &results).await?;
+            publish_import_progress(&pool, &job_id, &on_event).await?;
+            return Ok(());
+        }
+
+        results.push(match result {
+            Ok((status, asset)) => AssetImportResult {
+                source_index,
+                status,
+                asset: Some(asset),
+                error_code: None,
+                message: None,
+            },
+            Err(error) => AssetImportResult {
+                source_index,
+                status: "failed".into(),
+                asset: None,
+                error_code: Some(error_code(&error).into()),
+                message: Some("无法导入所选文件，原件未加入资产库。".into()),
+            },
+        });
+        record_import_job_result(
+            &pool,
+            &job_id,
+            source_index + 1,
+            copied_before_source,
+            &results,
+        )
+        .await?;
+        publish_import_progress(&pool, &job_id, &on_event).await?;
+    }
+
+    finish_import_job(&pool, &job_id, "completed", source_count, &results).await?;
+    publish_import_progress(&pool, &job_id, &on_event).await?;
+    Ok(())
+}
+
 async fn import_one(
     app: &AppHandle,
     pool: &SqlitePool,
@@ -1085,7 +1623,87 @@ async fn stage_source(
     .map_err(|error| format!("ASSET_IMPORT_TASK: {error}"))?
 }
 
+async fn stage_source_for_job(execution: ImportStageExecution) -> Result<StagedObject, String> {
+    let ImportStageExecution {
+        app,
+        reference,
+        temp_path,
+        cancellation,
+        pool,
+        job_id,
+        copied_before_source,
+        on_event,
+    } = execution;
+    let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel::<i64>();
+    let copied_from_source = Arc::new(AtomicI64::new(0));
+    let copied_for_worker = copied_from_source.clone();
+    let worker_cancellation = cancellation.clone();
+    let worker_temp_path = temp_path.clone();
+    let task = tauri::async_runtime::spawn_blocking(move || {
+        let file_path = FilePath::from_str(&reference)
+            .map_err(|_| "ASSET_INVALID_SOURCE_REFERENCE".to_string())?;
+        let result = (|| {
+            let input = app
+                .fs()
+                .open(file_path.clone(), Default::default())
+                .map_err(|error| format!("ASSET_SOURCE_OPEN: {error}"))?;
+            copy_and_hash_controlled(
+                input,
+                &worker_temp_path,
+                &worker_cancellation,
+                |bytes_copied| {
+                    copied_for_worker.store(bytes_copied, Ordering::Relaxed);
+                    let _ = progress_tx.send(bytes_copied);
+                },
+            )
+        })();
+        #[cfg(target_os = "ios")]
+        {
+            let _ = app.fs().stop_accessing_security_scoped_resource(file_path);
+        }
+        if result.is_err() && worker_temp_path.exists() {
+            let _ = fs::remove_file(&worker_temp_path);
+        }
+        result.map(|(content_hash, size_bytes)| StagedObject {
+            temp_path: worker_temp_path,
+            content_hash,
+            size_bytes,
+        })
+    });
+    tokio::pin!(task);
+
+    loop {
+        tokio::select! {
+            result = &mut task => {
+                let final_bytes = copied_from_source.load(Ordering::Relaxed);
+                let total_bytes = copied_before_source
+                    .checked_add(final_bytes)
+                    .ok_or_else(|| "ASSET_SIZE_OVERFLOW".to_string())?;
+                update_import_job_bytes(&pool, &job_id, total_bytes).await?;
+                publish_import_progress(&pool, &job_id, &on_event).await?;
+                return result.map_err(|error| format!("ASSET_IMPORT_TASK: {error}"))?;
+            }
+            Some(source_bytes) = progress_rx.recv() => {
+                let total_bytes = copied_before_source
+                    .checked_add(source_bytes)
+                    .ok_or_else(|| "ASSET_SIZE_OVERFLOW".to_string())?;
+                update_import_job_bytes(&pool, &job_id, total_bytes).await?;
+                publish_import_progress(&pool, &job_id, &on_event).await?;
+            }
+        }
+    }
+}
+
 fn copy_and_hash(mut input: impl Read, temp_path: &Path) -> Result<(String, i64), String> {
+    copy_and_hash_controlled(&mut input, temp_path, &CancellationToken::new(), |_| {})
+}
+
+fn copy_and_hash_controlled(
+    mut input: impl Read,
+    temp_path: &Path,
+    cancellation: &CancellationToken,
+    mut on_progress: impl FnMut(i64),
+) -> Result<(String, i64), String> {
     let mut output = OpenOptions::new()
         .create_new(true)
         .write(true)
@@ -1094,7 +1712,11 @@ fn copy_and_hash(mut input: impl Read, temp_path: &Path) -> Result<(String, i64)
     let mut hasher = Sha256::new();
     let mut buffer = vec![0_u8; 1024 * 1024];
     let mut size_bytes = 0_i64;
+    let mut next_progress = IMPORT_PROGRESS_STEP_BYTES;
     loop {
+        if cancellation.is_cancelled() {
+            return Err("ASSET_IMPORT_CANCELLED".into());
+        }
         let bytes_read = input
             .read(&mut buffer)
             .map_err(|error| format!("ASSET_SOURCE_READ: {error}"))?;
@@ -1108,10 +1730,18 @@ fn copy_and_hash(mut input: impl Read, temp_path: &Path) -> Result<(String, i64)
         size_bytes = size_bytes
             .checked_add(bytes_read as i64)
             .ok_or_else(|| "ASSET_SIZE_OVERFLOW".to_string())?;
+        if size_bytes >= next_progress {
+            on_progress(size_bytes);
+            next_progress = size_bytes.saturating_add(IMPORT_PROGRESS_STEP_BYTES);
+        }
+    }
+    if cancellation.is_cancelled() {
+        return Err("ASSET_IMPORT_CANCELLED".into());
     }
     output
         .sync_all()
         .map_err(|error| format!("ASSET_TEMP_SYNC: {error}"))?;
+    on_progress(size_bytes);
     Ok((format!("{:x}", hasher.finalize()), size_bytes))
 }
 
@@ -1497,6 +2127,24 @@ mod tests {
     use super::*;
     use std::io::Cursor;
 
+    struct CancellingReader {
+        cancellation: CancellationToken,
+        emitted: bool,
+    }
+
+    impl Read for CancellingReader {
+        fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+            if self.emitted {
+                return Ok(0);
+            }
+            let content = b"partial-import";
+            buffer[..content.len()].copy_from_slice(content);
+            self.emitted = true;
+            self.cancellation.cancel();
+            Ok(content.len())
+        }
+    }
+
     #[test]
     fn hashes_while_copying_without_a_second_read() {
         let root = std::env::temp_dir().join(format!("aio-asset-test-{}", Uuid::new_v4()));
@@ -1561,6 +2209,73 @@ mod tests {
         ] {
             assert!(tables.iter().any(|table| table == expected));
         }
+        let import_job_columns: Vec<String> =
+            sqlx::query_scalar("SELECT name FROM pragma_table_info('import_jobs') ORDER BY cid")
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+        for expected in [
+            "source_count",
+            "completed_count",
+            "current_source_index",
+            "result_json",
+        ] {
+            assert!(import_job_columns.iter().any(|column| column == expected));
+        }
+    }
+
+    #[test]
+    fn controlled_copy_stops_at_a_cancellation_boundary() {
+        let root = std::env::temp_dir().join(format!("aio-asset-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        let temporary = root.join("cancelled.part");
+        let cancellation = CancellationToken::new();
+        let reader = CancellingReader {
+            cancellation: cancellation.clone(),
+            emitted: false,
+        };
+
+        let error = copy_and_hash_controlled(reader, &temporary, &cancellation, |_| {})
+            .expect_err("copy should observe cancellation before the next read");
+        assert_eq!(error, "ASSET_IMPORT_CANCELLED");
+        assert_eq!(fs::read(&temporary).unwrap(), b"partial-import");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn startup_recovery_marks_only_unfinished_import_jobs_as_interrupted() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        ASSET_MIGRATOR.run(&pool).await.unwrap();
+        create_import_job(&pool, "pending-job", "file_picker", 2)
+            .await
+            .unwrap();
+        create_import_job(&pool, "running-job", "file_picker", 1)
+            .await
+            .unwrap();
+        set_import_job_running(&pool, "running-job").await.unwrap();
+        create_import_job(&pool, "completed-job", "file_picker", 1)
+            .await
+            .unwrap();
+        finish_import_job(&pool, "completed-job", "completed", 1, &[])
+            .await
+            .unwrap();
+
+        assert_eq!(recover_interrupted_import_jobs(&pool).await.unwrap(), 2);
+        let pending = find_import_job(&pool, "pending-job").await.unwrap();
+        let running = find_import_job(&pool, "running-job").await.unwrap();
+        let completed = find_import_job(&pool, "completed-job").await.unwrap();
+        assert_eq!(pending.state, "failed");
+        assert_eq!(
+            pending.error_code.as_deref(),
+            Some("ASSET_IMPORT_INTERRUPTED")
+        );
+        assert_eq!(running.state, "failed");
+        assert_eq!(completed.state, "completed");
+        assert!(completed.error_code.is_none());
     }
 
     #[tokio::test]

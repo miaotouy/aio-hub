@@ -24,6 +24,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet,
             asset_manager::asset_import_sources,
+            asset_manager::asset_start_import_job,
+            asset_manager::asset_get_import_job,
+            asset_manager::asset_list_import_jobs,
+            asset_manager::asset_cancel_import_job,
             asset_manager::asset_list,
             asset_manager::asset_get_detail,
             asset_manager::asset_replace_entity_usages,

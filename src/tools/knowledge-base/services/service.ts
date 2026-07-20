@@ -221,7 +221,8 @@ export async function completeKnowledgeIngestTask(
     parserVersion: string;
   }
 ): Promise<KnowledgeDocument | null> {
-  if (!task.leaseToken) throw new Error("Knowledge ingest task 缺少 lease token");
+  if (!task.leaseToken)
+    throw new Error("Knowledge ingest task 缺少 lease token");
   await ensureKnowledgeInitialized();
   return invoke<KnowledgeDocument | null>("knowledge_complete_ingest_task", {
     request: {
@@ -238,7 +239,8 @@ export async function failKnowledgeIngestTask(
   error: unknown,
   retryable: boolean
 ): Promise<KnowledgeIngestTask> {
-  if (!task.leaseToken) throw new Error("Knowledge ingest task 缺少 lease token");
+  if (!task.leaseToken)
+    throw new Error("Knowledge ingest task 缺少 lease token");
   await ensureKnowledgeInitialized();
   return invoke<KnowledgeIngestTask>("knowledge_fail_ingest_task", {
     request: {
@@ -556,7 +558,9 @@ export async function vectorizeKnowledgeLibrary(
   const profile = enabledProfiles.value.find((item) => item.id === profileId);
   if (!profile) throw new Error(`找不到 Embedding 渠道: ${profileId}`);
   const embeddingProfile: LlmProfile = profile;
-  const routeModel = embeddingProfile.models.find((model) => model.id === modelId);
+  const routeModel = embeddingProfile.models.find(
+    (model) => model.id === modelId
+  );
   if (!routeModel) throw new Error(`渠道中找不到 Embedding 模型: ${modelId}`);
   const identity = getModelIdentity(routeModel);
   const canonicalId =
@@ -615,18 +619,17 @@ export async function vectorizeKnowledgeLibrary(
 
   const firstBatch = batches[0];
   const firstRecords = await embedBatch(firstBatch);
-  const descriptor: EmbeddingSpaceDescriptorV1 =
-    buildEmbeddingSpaceDescriptor({
-      modelIdentity: {
-        canonicalId,
-        ...(identity?.revision ? { revision: identity.revision } : {}),
-      },
-      dimensions: firstRecords[0]?.vector.length ?? 0,
-      queryTaskType: config.embedding.queryTaskType,
-      documentTaskType: config.embedding.documentTaskType,
-      encodingFormat: config.embedding.encodingFormat,
-      adapterContractVersion: config.embedding.adapterContractVersion,
-    });
+  const descriptor: EmbeddingSpaceDescriptorV1 = buildEmbeddingSpaceDescriptor({
+    modelIdentity: {
+      canonicalId,
+      ...(identity?.revision ? { revision: identity.revision } : {}),
+    },
+    dimensions: firstRecords[0]?.vector.length ?? 0,
+    queryTaskType: config.embedding.queryTaskType,
+    documentTaskType: config.embedding.documentTaskType,
+    encodingFormat: config.embedding.encodingFormat,
+    adapterContractVersion: config.embedding.adapterContractVersion,
+  });
   const spaceId = await getEmbeddingSpaceId(descriptor);
   if (
     library.activeEmbeddingSpaceId &&

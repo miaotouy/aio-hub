@@ -17,15 +17,16 @@ const themeStore = useThemeStore();
 const { keyboardHeight: kbH, isKeyboardVisible } = useKeyboardAvoidance();
 const { runs, createManualRun, setManualObservation } = useValidationRuns();
 const componentRuns = computed(() =>
-  runs.value.filter((run) => run.suiteId === "components"),
+  runs.value.filter((run) => run.suiteId === "components")
 );
 const componentTotals = computed(() => ({
   passed: componentRuns.value.filter((run) => run.status === "passed").length,
   failed: componentRuns.value.filter((run) => run.status === "failed").length,
-  pending: componentRuns.value.filter((run) => run.status === "manualPending").length,
+  pending: componentRuns.value.filter((run) => run.status === "manualPending")
+    .length,
 }));
 const componentPending = computed(() =>
-  componentRuns.value.find((run) => run.status === "manualPending"),
+  componentRuns.value.find((run) => run.status === "manualPending")
 );
 
 const beginComponentObservation = () => {
@@ -264,314 +265,301 @@ onMounted(() => {
     />
     <div class="component-observation">
       <p>执行下方安全区、键盘、主题、Store、Logger 与弹窗检查后记录结论。</p>
-      <var-button v-if="!componentPending" type="primary" size="small" @click="beginComponentObservation">
+      <var-button
+        v-if="!componentPending"
+        type="primary"
+        size="small"
+        @click="beginComponentObservation"
+      >
         开始组件验收
       </var-button>
       <var-space v-else :size="[8, 8]">
-        <var-button type="success" size="small" @click="finishComponentObservation('passed')">记录通过</var-button>
-        <var-button type="danger" size="small" @click="finishComponentObservation('failed')">记录失败</var-button>
+        <var-button
+          type="success"
+          size="small"
+          @click="finishComponentObservation('passed')"
+          >记录通过</var-button
+        >
+        <var-button
+          type="danger"
+          size="small"
+          @click="finishComponentObservation('failed')"
+          >记录失败</var-button
+        >
       </var-space>
     </div>
-      <!-- 避让数值测试 -->
-      <section class="validation-group">
-        <h2>安全区域避让测试 (Safe Area)</h2>
-          <div class="card-content">
-            <var-cell
-              title="Top (Status Bar)"
-              :description="safeAreaInsets.top"
-              border
-            />
-            <var-cell
-              title="Bottom (Home Indicator)"
-              :description="safeAreaInsets.bottom"
-              border
-            />
-            <var-cell title="Left" :description="safeAreaInsets.left" border />
-            <var-cell
-              title="Right"
-              :description="safeAreaInsets.right"
-              border
-            />
+    <!-- 避让数值测试 -->
+    <section class="validation-group">
+      <h2>安全区域避让测试 (Safe Area)</h2>
+      <div class="card-content">
+        <var-cell
+          title="Top (Status Bar)"
+          :description="safeAreaInsets.top"
+          border
+        />
+        <var-cell
+          title="Bottom (Home Indicator)"
+          :description="safeAreaInsets.bottom"
+          border
+        />
+        <var-cell title="Left" :description="safeAreaInsets.left" border />
+        <var-cell title="Right" :description="safeAreaInsets.right" border />
 
-            <div class="mt-4 p-3 bg-secondary rounded text-xs">
-              <div class="text-hint mb-1">CSS 变量值:</div>
-              <div class="flex justify-between mb-1">
-                <span>--app-safe-area-top:</span>
-                <span class="text-primary">var(--app-safe-area-top)</span>
-              </div>
-              <div class="text-hint italic mt-2">
-                提示：在真机或模拟器上，Top 值通常 > 0。
-              </div>
-            </div>
-
-            <var-button
-              type="primary"
-              block
-              size="small"
-              class="mt-4"
-              @click="updateSafeAreaInsets"
-            >
-              手动刷新数值
-            </var-button>
+        <div class="mt-4 p-3 bg-secondary rounded text-xs">
+          <div class="text-hint mb-1">CSS 变量值:</div>
+          <div class="flex justify-between mb-1">
+            <span>--app-safe-area-top:</span>
+            <span class="text-primary">var(--app-safe-area-top)</span>
           </div>
-      </section>
-
-      <!-- 基础设施测试 -->
-      <section class="validation-group">
-        <h2>基础设施测试 (Logger/Error)</h2>
-          <div class="card-content">
-            <var-space direction="column" :size="[12, 12]">
-              <var-button
-                type="info"
-                block
-                @click="logger.info('这是一条普通日志', { foo: 'bar' })"
-              >
-                触发 Logger.info
-              </var-button>
-              <var-button type="warning" block @click="triggerError">
-                触发 ErrorHandler.error (Snackbar)
-              </var-button>
-              <var-button type="danger" block @click="triggerCritical">
-                触发 ErrorHandler.critical (Dialog)
-              </var-button>
-            </var-space>
+          <div class="text-hint italic mt-2">
+            提示：在真机或模拟器上，Top 值通常 > 0。
           </div>
-      </section>
+        </div>
 
-      <!-- Settings Store 测试 -->
-      <section class="validation-group">
-        <h2>应用配置系统测试 (SettingsStore)</h2>
-          <div class="card-content">
-            <var-cell title="调试模式">
-              <template #extra>
-                <var-switch v-model="debugMode" @change="toggleDebugMode" />
-              </template>
-            </var-cell>
-            <var-cell
-              title="当前语言"
-              :description="settingsStore.settings.language"
-            />
-            <var-cell
-              title="主题模式"
-              :description="settingsStore.settings.appearance.theme"
-            />
+        <var-button
+          type="primary"
+          block
+          size="small"
+          class="mt-4"
+          @click="updateSafeAreaInsets"
+        >
+          手动刷新数值
+        </var-button>
+      </div>
+    </section>
 
-            <var-space :size="[12, 12]" class="mt-4">
-              <var-button
-                type="primary"
-                size="small"
-                @click="testUpdateLanguage"
-              >
-                切换语言
-              </var-button>
-              <var-button
-                type="info"
-                size="small"
-                @click="themeStore.toggleTheme"
-              >
-                切换主题
-              </var-button>
-            </var-space>
-
-            <div class="mt-4 p-3 bg-secondary rounded text-xs border-l-4">
-              <div class="text-hint mb-1">Store 实时状态 (JSON):</div>
-              <pre class="text-primary font-mono overflow-auto max-h-32">{{
-                JSON.stringify(settingsStore.settings, null, 2)
-              }}</pre>
-            </div>
-          </div>
-      </section>
-
-      <!-- Tauri 环境与 FS/Store 测试 -->
-      <section class="validation-group">
-        <h2>Tauri 环境与存储测试</h2>
-          <div class="pb-2">
-            <var-cell title="是否在 Tauri 环境" border>
-              <template #extra>
-                <var-chip
-                  :type="isTauri ? 'success' : 'danger'"
-                  size="small"
-                  variant="block"
-                >
-                  {{ isTauri ? "YES" : "NO" }}
-                </var-chip>
-              </template>
-            </var-cell>
-            <var-cell
-              v-if="isTauri"
-              title="Tauri 版本"
-              :description="tauriVersion"
-              border
-            />
-          </div>
-
-          <div class="card-content">
-            <var-button
-              type="primary"
-              block
-              size="small"
-              @click="testFileSystem"
-            >
-              测试文件读写 (FS Plugin)
-            </var-button>
-            <div
-              v-if="fsTestResult"
-              class="mt-2 p-2 bg-secondary rounded text-xs break-all"
-            >
-              {{ fsTestResult }}
-            </div>
-
-            <var-divider class="my-6" />
-
-            <var-input
-              v-model="storeValueInput"
-              placeholder="输入内容"
-              label="Store 测试值"
-              variant="standard"
-            />
-            <var-button
-              type="info"
-              block
-              size="small"
-              class="mt-4"
-              @click="testTauriStore"
-            >
-              测试 Tauri Store (Store Plugin)
-            </var-button>
-
-            <div
-              v-if="storeTestResult"
-              class="mt-3 p-3 bg-secondary rounded text-xs break-all border-l-4"
-            >
-              <div class="font-bold mb-1">状态: {{ storeTestResult }}</div>
-              <div v-if="storeReadValue" class="mt-1 opacity-80">
-                读取到: {{ storeReadValue }}
-              </div>
-            </div>
-          </div>
-
-          <div v-if="!isTauri" class="px-4 pb-4 text-xs text-hint italic">
-            提示：如果在普通浏览器打开，Tauri API 将不可用。
-          </div>
-      </section>
-
-      <!-- 原生 UI 组件预览 -->
-      <section class="validation-group">
-        <h2>常用移动端组件预览</h2>
-          <var-cell
-            title="Snackbar 测试"
-            ripple
-            border
-            @click="Snackbar.info('消息提示')"
+    <!-- 基础设施测试 -->
+    <section class="validation-group">
+      <h2>基础设施测试 (Logger/Error)</h2>
+      <div class="card-content">
+        <var-space direction="column" :size="[12, 12]">
+          <var-button
+            type="info"
+            block
+            @click="logger.info('这是一条普通日志', { foo: 'bar' })"
           >
-            <template #extra
-              ><var-icon name="chevron-right" size="20"
-            /></template>
-          </var-cell>
-          <var-cell
-            title="Dialog 测试"
-            ripple
-            border
-            @click="Dialog('确认对话框')"
-          >
-            <template #extra
-              ><var-icon name="chevron-right" size="20"
-            /></template>
-          </var-cell>
-          <div class="card-content flex justify-center py-6">
-            <var-loading type="cube" size="large" />
-          </div>
-      </section>
+            触发 Logger.info
+          </var-button>
+          <var-button type="warning" block @click="triggerError">
+            触发 ErrorHandler.error (Snackbar)
+          </var-button>
+          <var-button type="danger" block @click="triggerCritical">
+            触发 ErrorHandler.critical (Dialog)
+          </var-button>
+        </var-space>
+      </div>
+    </section>
 
-      <!-- UUID 测试 -->
-      <section class="validation-group">
-        <h2>工具类测试 (Utils)</h2>
-          <div class="card-content">
-            <var-cell
-              title="UUID 生成测试"
-              description="测试 generateUuid 工具函数"
-            />
-            <div
-              class="mt-2 p-3 bg-secondary rounded text-xs font-mono break-all"
-            >
-              <div class="text-hint mb-1">生成的 ID:</div>
-              <div v-if="lastGeneratedUuid" class="text-primary">
-                {{ lastGeneratedUuid }}
-              </div>
-              <div v-else class="text-hint italic">尚未生成</div>
-            </div>
-            <var-button
-              type="primary"
-              block
+    <!-- Settings Store 测试 -->
+    <section class="validation-group">
+      <h2>应用配置系统测试 (SettingsStore)</h2>
+      <div class="card-content">
+        <var-cell title="调试模式">
+          <template #extra>
+            <var-switch v-model="debugMode" @change="toggleDebugMode" />
+          </template>
+        </var-cell>
+        <var-cell
+          title="当前语言"
+          :description="settingsStore.settings.language"
+        />
+        <var-cell
+          title="主题模式"
+          :description="settingsStore.settings.appearance.theme"
+        />
+
+        <var-space :size="[12, 12]" class="mt-4">
+          <var-button type="primary" size="small" @click="testUpdateLanguage">
+            切换语言
+          </var-button>
+          <var-button type="info" size="small" @click="themeStore.toggleTheme">
+            切换主题
+          </var-button>
+        </var-space>
+
+        <div class="mt-4 p-3 bg-secondary rounded text-xs border-l-4">
+          <div class="text-hint mb-1">Store 实时状态 (JSON):</div>
+          <pre class="text-primary font-mono overflow-auto max-h-32">{{
+            JSON.stringify(settingsStore.settings, null, 2)
+          }}</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tauri 环境与 FS/Store 测试 -->
+    <section class="validation-group">
+      <h2>Tauri 环境与存储测试</h2>
+      <div class="pb-2">
+        <var-cell title="是否在 Tauri 环境" border>
+          <template #extra>
+            <var-chip
+              :type="isTauri ? 'success' : 'danger'"
               size="small"
-              class="mt-4"
-              @click="generateNewUuid"
+              variant="block"
             >
-              生成新 UUID
-            </var-button>
+              {{ isTauri ? "YES" : "NO" }}
+            </var-chip>
+          </template>
+        </var-cell>
+        <var-cell
+          v-if="isTauri"
+          title="Tauri 版本"
+          :description="tauriVersion"
+          border
+        />
+      </div>
+
+      <div class="card-content">
+        <var-button type="primary" block size="small" @click="testFileSystem">
+          测试文件读写 (FS Plugin)
+        </var-button>
+        <div
+          v-if="fsTestResult"
+          class="mt-2 p-2 bg-secondary rounded text-xs break-all"
+        >
+          {{ fsTestResult }}
+        </div>
+
+        <var-divider class="my-6" />
+
+        <var-input
+          v-model="storeValueInput"
+          placeholder="输入内容"
+          label="Store 测试值"
+          variant="standard"
+        />
+        <var-button
+          type="info"
+          block
+          size="small"
+          class="mt-4"
+          @click="testTauriStore"
+        >
+          测试 Tauri Store (Store Plugin)
+        </var-button>
+
+        <div
+          v-if="storeTestResult"
+          class="mt-3 p-3 bg-secondary rounded text-xs break-all border-l-4"
+        >
+          <div class="font-bold mb-1">状态: {{ storeTestResult }}</div>
+          <div v-if="storeReadValue" class="mt-1 opacity-80">
+            读取到: {{ storeReadValue }}
           </div>
-      </section>
+        </div>
+      </div>
 
-      <!-- 键盘与视口测试 -->
-      <section class="validation-group">
-        <h2>键盘与视口实时监控</h2>
-          <div class="card-content">
-            <div class="grid grid-cols-2 gap-2 text-xs mb-4">
-              <div class="p-2 bg-secondary rounded">
-                <div class="text-hint">Window InnerHeight</div>
-                <div class="text-primary font-bold">
-                  {{ viewportInfo.windowInnerHeight }}px
-                </div>
-              </div>
-              <div class="p-2 bg-secondary rounded">
-                <div class="text-hint">Visual Viewport H</div>
-                <div class="text-primary font-bold">
-                  {{ viewportInfo.visualViewportHeight }}px
-                </div>
-              </div>
-              <div class="p-2 bg-secondary rounded">
-                <div class="text-hint">Real Keyboard H</div>
-                <div class="text-danger font-bold">{{ kbH }}px</div>
-              </div>
-              <div class="p-2 bg-secondary rounded">
-                <div class="text-hint">Keyboard Visible</div>
-                <div
-                  class="font-bold"
-                  :class="isKeyboardVisible ? 'text-warning' : 'text-hint'"
-                >
-                  {{ isKeyboardVisible ? "YES" : "NO" }}
-                </div>
-              </div>
-              <div class="p-2 bg-secondary rounded">
-                <div class="text-hint">Viewport OffsetTop</div>
-                <div class="text-primary font-bold">
-                  {{ viewportInfo.visualViewportOffsetTop }}px
-                </div>
-              </div>
-            </div>
+      <div v-if="!isTauri" class="px-4 pb-4 text-xs text-hint italic">
+        提示：如果在普通浏览器打开，Tauri API 将不可用。
+      </div>
+    </section>
 
-            <div class="flex gap-2 mb-4">
-              <var-chip size="mini"
-                >Resize: {{ viewportInfo.resizeCount }}</var-chip
-              >
-              <var-chip size="mini"
-                >Viewport: {{ viewportInfo.viewportEventCount }}</var-chip
-              >
-            </div>
+    <!-- 原生 UI 组件预览 -->
+    <section class="validation-group">
+      <h2>常用移动端组件预览</h2>
+      <var-cell
+        title="Snackbar 测试"
+        ripple
+        border
+        @click="Snackbar.info('消息提示')"
+      >
+        <template #extra><var-icon name="chevron-right" size="20" /></template>
+      </var-cell>
+      <var-cell title="Dialog 测试" ripple border @click="Dialog('确认对话框')">
+        <template #extra><var-icon name="chevron-right" size="20" /></template>
+      </var-cell>
+      <div class="card-content flex justify-center py-6">
+        <var-loading type="cube" size="large" />
+      </div>
+    </section>
 
-            <var-input
-              placeholder="点击这里测试键盘弹出"
-              variant="outlined"
-              @focus="updateViewportInfo"
-            />
-            <var-input
-              placeholder="再点这里对比"
-              class="mt-2"
-              variant="outlined"
-              @focus="updateViewportInfo"
-            />
+    <!-- UUID 测试 -->
+    <section class="validation-group">
+      <h2>工具类测试 (Utils)</h2>
+      <div class="card-content">
+        <var-cell
+          title="UUID 生成测试"
+          description="测试 generateUuid 工具函数"
+        />
+        <div class="mt-2 p-3 bg-secondary rounded text-xs font-mono break-all">
+          <div class="text-hint mb-1">生成的 ID:</div>
+          <div v-if="lastGeneratedUuid" class="text-primary">
+            {{ lastGeneratedUuid }}
           </div>
-      </section>
+          <div v-else class="text-hint italic">尚未生成</div>
+        </div>
+        <var-button
+          type="primary"
+          block
+          size="small"
+          class="mt-4"
+          @click="generateNewUuid"
+        >
+          生成新 UUID
+        </var-button>
+      </div>
+    </section>
+
+    <!-- 键盘与视口测试 -->
+    <section class="validation-group">
+      <h2>键盘与视口实时监控</h2>
+      <div class="card-content">
+        <div class="grid grid-cols-2 gap-2 text-xs mb-4">
+          <div class="p-2 bg-secondary rounded">
+            <div class="text-hint">Window InnerHeight</div>
+            <div class="text-primary font-bold">
+              {{ viewportInfo.windowInnerHeight }}px
+            </div>
+          </div>
+          <div class="p-2 bg-secondary rounded">
+            <div class="text-hint">Visual Viewport H</div>
+            <div class="text-primary font-bold">
+              {{ viewportInfo.visualViewportHeight }}px
+            </div>
+          </div>
+          <div class="p-2 bg-secondary rounded">
+            <div class="text-hint">Real Keyboard H</div>
+            <div class="text-danger font-bold">{{ kbH }}px</div>
+          </div>
+          <div class="p-2 bg-secondary rounded">
+            <div class="text-hint">Keyboard Visible</div>
+            <div
+              class="font-bold"
+              :class="isKeyboardVisible ? 'text-warning' : 'text-hint'"
+            >
+              {{ isKeyboardVisible ? "YES" : "NO" }}
+            </div>
+          </div>
+          <div class="p-2 bg-secondary rounded">
+            <div class="text-hint">Viewport OffsetTop</div>
+            <div class="text-primary font-bold">
+              {{ viewportInfo.visualViewportOffsetTop }}px
+            </div>
+          </div>
+        </div>
+
+        <div class="flex gap-2 mb-4">
+          <var-chip size="mini"
+            >Resize: {{ viewportInfo.resizeCount }}</var-chip
+          >
+          <var-chip size="mini"
+            >Viewport: {{ viewportInfo.viewportEventCount }}</var-chip
+          >
+        </div>
+
+        <var-input
+          placeholder="点击这里测试键盘弹出"
+          variant="outlined"
+          @focus="updateViewportInfo"
+        />
+        <var-input
+          placeholder="再点这里对比"
+          class="mt-2"
+          variant="outlined"
+          @focus="updateViewportInfo"
+        />
+      </div>
+    </section>
   </div>
 </template>
 

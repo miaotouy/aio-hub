@@ -25,8 +25,8 @@ import {
 } from "../actions/agentActions";
 import type { RecallEntry, RecallCollectionMeta } from "../types";
 
-const { mockInvoke, mockRecallStorage, mockStore, mockCalculateHash } = vi.hoisted(
-  () => ({
+const { mockInvoke, mockRecallStorage, mockStore, mockCalculateHash } =
+  vi.hoisted(() => ({
     mockInvoke: vi.fn(),
     mockRecallStorage: {
       loadWorkspace: vi.fn(),
@@ -48,8 +48,7 @@ const { mockInvoke, mockRecallStorage, mockStore, mockCalculateHash } = vi.hoist
     mockCalculateHash: vi.fn(
       async (content: string) => `hash:${content.length}`
     ),
-  })
-);
+  }));
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: mockInvoke,
@@ -226,8 +225,8 @@ describe("recall agent actions", () => {
         },
       ],
     });
-    mockRecallStorage.loadBaseMeta.mockImplementation(async (recallId: string) =>
-      recallId === "recall-1" ? meta : null
+    mockRecallStorage.loadBaseMeta.mockImplementation(
+      async (recallId: string) => (recallId === "recall-1" ? meta : null)
     );
     mockRecallStorage.loadEntry.mockImplementation(
       async (_recallId: string, entryId: string) => entries.get(entryId) || null
@@ -373,7 +372,10 @@ describe("recall agent actions", () => {
       deletedId: "entry-1",
       deletedKey: "Rust Notes",
     });
-    expect(mockRecallStorage.deleteEntry).toHaveBeenCalledWith("recall-1", "entry-1");
+    expect(mockRecallStorage.deleteEntry).toHaveBeenCalledWith(
+      "recall-1",
+      "entry-1"
+    );
     expect(mockStore.activeEntryId).toBeNull();
   });
 

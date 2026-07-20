@@ -38,7 +38,10 @@ vi.mock("../utils/vectorCache", () => ({
   vectorCacheManager: { getVector: vi.fn() },
 }));
 vi.mock("../utils/queryPreProcessor", () => ({
-  preprocessQuery: (query: string) => ({ cleanedQuery: query, matchedTags: [] }),
+  preprocessQuery: (query: string) => ({
+    cleanedQuery: query,
+    matchedTags: [],
+  }),
 }));
 vi.mock("../logic/placeholderRetrieval", () => ({
   resolvePlaceholderRetrieval: vi.fn(),

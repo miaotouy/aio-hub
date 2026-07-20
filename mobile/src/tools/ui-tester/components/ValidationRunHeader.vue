@@ -12,9 +12,15 @@ defineProps<{
 
 <template>
   <header class="run-header" aria-live="polite">
-    <div class="run-count passed"><CheckCircle2 :size="17" />{{ passed }} 通过</div>
-    <div class="run-count failed"><AlertCircle :size="17" />{{ failed }} 失败</div>
-    <div class="run-count pending"><Clock3 :size="17" />{{ pending }} 待确认</div>
+    <div class="run-count passed">
+      <CheckCircle2 :size="17" />{{ passed }} 通过
+    </div>
+    <div class="run-count failed">
+      <AlertCircle :size="17" />{{ failed }} 失败
+    </div>
+    <div class="run-count pending">
+      <Clock3 :size="17" />{{ pending }} 待确认
+    </div>
     <div v-if="running" class="run-phase">
       <var-loading size="small" />
       <span>{{ phase || "正在执行固定验证步骤" }}</span>
@@ -42,9 +48,15 @@ defineProps<{
   white-space: nowrap;
 }
 
-.passed { color: var(--color-success, #25804b); }
-.failed { color: var(--color-danger, #c23b3b); }
-.pending { color: var(--color-warning, #9a6500); }
+.passed {
+  color: var(--color-success, #25804b);
+}
+.failed {
+  color: var(--color-danger, #c23b3b);
+}
+.pending {
+  color: var(--color-warning, #9a6500);
+}
 
 .run-phase {
   width: 100%;

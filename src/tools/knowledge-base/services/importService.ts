@@ -120,8 +120,7 @@ export async function importPaths(
       failures.push({
         sourcePath: path,
         fileName: getKnowledgeFileName(path),
-        stage:
-          error instanceof KnowledgeFileParseError ? error.stage : "parse",
+        stage: error instanceof KnowledgeFileParseError ? error.stage : "parse",
         message: error instanceof Error ? error.message : String(error),
       });
     } finally {

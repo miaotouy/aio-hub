@@ -4,7 +4,10 @@ import {
   normalizeKnowledgeReference,
   validateKnowledgeReferenceForAgent,
 } from "../reference";
-import type { AgentKnowledgeAccess, KnowledgeLibrarySummary } from "../../types";
+import type {
+  AgentKnowledgeAccess,
+  KnowledgeLibrarySummary,
+} from "../../types";
 
 const { listAuthorizedKnowledgeLibraries } = vi.hoisted(() => ({
   listAuthorizedKnowledgeLibraries: vi.fn(),

@@ -134,14 +134,20 @@ function toggleLibrary(library: KnowledgeLibrarySummary): void {
   const nextLibraries = allLibraries.value.filter((item) =>
     nextIds.has(item.id)
   );
-  inputManager.setKnowledgeReference(createKnowledgeReference(nextLibraries, mode.value));
+  inputManager.setKnowledgeReference(
+    createKnowledgeReference(nextLibraries, mode.value)
+  );
 }
 
 function setMode(nextMode: "search" | "research"): void {
   if (nextMode === "research" && !access.value.allowResearch) return;
-  const selected = allLibraries.value.filter((item) => selectedIds.value.has(item.id));
+  const selected = allLibraries.value.filter((item) =>
+    selectedIds.value.has(item.id)
+  );
   if (!selected.length) return;
-  inputManager.setKnowledgeReference(createKnowledgeReference(selected, nextMode));
+  inputManager.setKnowledgeReference(
+    createKnowledgeReference(selected, nextMode)
+  );
 }
 
 watch(visible, (isVisible) => {
@@ -214,7 +220,11 @@ watch(currentAgentId, () => {
               data-testid="chat-knowledge-mode-research"
               :class="{ active: mode === 'research' }"
               :disabled="!access.allowResearch"
-              :title="access.allowResearch ? '多轮整理证据' : '当前 Agent 未获研究权限'"
+              :title="
+                access.allowResearch
+                  ? '多轮整理证据'
+                  : '当前 Agent 未获研究权限'
+              "
               @click="setMode('research')"
             >
               研究任务

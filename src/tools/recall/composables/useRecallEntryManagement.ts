@@ -263,7 +263,11 @@ export function useRecallEntryManagement() {
   /**
    * 更新条目
    */
-  async function updateEntry(entryId: string, input: RecallEntryInput, silent = false) {
+  async function updateEntry(
+    entryId: string,
+    input: RecallEntryInput,
+    silent = false
+  ) {
     if (!store.activeBaseId || !store.activeBaseMeta) return;
     if (!silent) store.loading = true;
     try {

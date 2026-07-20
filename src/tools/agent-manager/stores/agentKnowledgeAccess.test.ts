@@ -81,7 +81,8 @@ describe("Agent Knowledge access lifecycle", () => {
     const store = useAgentStore();
     store.persistAgent = vi.fn();
     const id = store.createAgent("agent", "profile", "model");
-    const agent = store.getAgentById(id)! as ChatAgent & Record<string, unknown>;
+    const agent = store.getAgentById(id)! as ChatAgent &
+      Record<string, unknown>;
     agent.knowledgeConfig = { enabled: true };
     agent.knowledgeSettings = { defaultLimit: 4 };
 

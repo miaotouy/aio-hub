@@ -26,11 +26,11 @@
           </p>
         </section>
 
-        <section
-          v-if="status?.embeddingSpaceDescriptor"
-          class="space-summary"
-        >
-          <div><span>向量空间</span><strong>{{ status.activeEmbeddingSpaceId }}</strong></div>
+        <section v-if="status?.embeddingSpaceDescriptor" class="space-summary">
+          <div>
+            <span>向量空间</span
+            ><strong>{{ status.activeEmbeddingSpaceId }}</strong>
+          </div>
           <dl>
             <div>
               <dt>模型身份</dt>
@@ -43,8 +43,13 @@
             <div>
               <dt>任务契约</dt>
               <dd>
-                {{ status.embeddingSpaceDescriptor.queryTaskType || "默认查询" }} /
-                {{ status.embeddingSpaceDescriptor.documentTaskType || "默认文档" }}
+                {{
+                  status.embeddingSpaceDescriptor.queryTaskType || "默认查询"
+                }}
+                /
+                {{
+                  status.embeddingSpaceDescriptor.documentTaskType || "默认文档"
+                }}
               </dd>
             </div>
             <div>
@@ -172,7 +177,9 @@ const selectionMode = computed<"current" | "same-space" | "new-space">(() => {
     return "new-space";
   }
   if (target.combo === props.status.embeddingRouteKey) return "current";
-  const model = target.profile.models.find((item) => item.id === target.modelId);
+  const model = target.profile.models.find(
+    (item) => item.id === target.modelId
+  );
   const identity = model ? getModelIdentity(model) : null;
   return identity?.canonicalId === descriptor.model.canonicalId &&
     (identity.revision ?? "") === (descriptor.model.revision ?? "")

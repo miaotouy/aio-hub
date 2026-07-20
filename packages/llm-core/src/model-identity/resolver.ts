@@ -58,7 +58,8 @@ export function resolveBuiltinModelIdentity(
   const declaredOwner = options.declaredOwner?.trim().toLowerCase();
   const routeNamespace = options.routeNamespace?.trim().toLowerCase();
   const preset = presets.find((candidate) => {
-    if (candidate.routeModelId.toLowerCase() !== normalizedRouteId) return false;
+    if (candidate.routeModelId.toLowerCase() !== normalizedRouteId)
+      return false;
     if (
       candidate.qualifiers?.declaredOwners &&
       (!declaredOwner ||
@@ -123,7 +124,9 @@ export function materializeModelIdentity<T extends ModelIdentityLike>(
     : model;
 }
 
-export function getModelIdentity(model: ModelIdentityLike): ModelIdentity | null {
+export function getModelIdentity(
+  model: ModelIdentityLike
+): ModelIdentity | null {
   if (!model.modelIdentity) return null;
   return validateModelIdentity(model.modelIdentity).normalizedIdentity ?? null;
 }

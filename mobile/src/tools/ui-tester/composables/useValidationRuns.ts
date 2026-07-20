@@ -1,6 +1,10 @@
 import { computed, readonly, ref, shallowReadonly } from "vue";
 import { getTauriVersion, getVersion } from "@tauri-apps/api/app";
-import { arch, platform as osPlatform, version as osVersion } from "@tauri-apps/plugin-os";
+import {
+  arch,
+  platform as osPlatform,
+  version as osVersion,
+} from "@tauri-apps/plugin-os";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
@@ -12,7 +16,10 @@ import type {
   ValidationRunsConfig,
   ValidationSuiteId,
 } from "../types/validation";
-import { redactValidationRun, redactValidationText } from "../services/validationRedaction";
+import {
+  redactValidationRun,
+  redactValidationText,
+} from "../services/validationRedaction";
 
 const logger = createModuleLogger("ui-tester/validation-runs");
 const errorHandler = createModuleErrorHandler("ui-tester/validation-runs");
@@ -35,7 +42,9 @@ function persist(): void {
   configManager.saveDebounced({
     version: "1.0.0",
     runs: runs.value.slice(0, 20).map(redactValidationRun),
-    resumeRun: resumeRun.value ? redactValidationRun(resumeRun.value) : undefined,
+    resumeRun: resumeRun.value
+      ? redactValidationRun(resumeRun.value)
+      : undefined,
   });
 }
 
@@ -63,8 +72,10 @@ async function collectEnvironment(): Promise<ValidationEnvironment> {
     platform,
     osVersion: version,
     architecture,
-    appVersion: appResult.status === "fulfilled" ? appResult.value : "unavailable",
-    tauriVersion: tauriResult.status === "fulfilled" ? tauriResult.value : undefined,
+    appVersion:
+      appResult.status === "fulfilled" ? appResult.value : "unavailable",
+    tauriVersion:
+      tauriResult.status === "fulfilled" ? tauriResult.value : undefined,
     viewportWidth: window.innerWidth,
     viewportHeight: window.innerHeight,
     devicePixelRatio: window.devicePixelRatio,
@@ -90,7 +101,7 @@ async function initialize(): Promise<void> {
             message: "应用恢复时发现未完成的运行；上次选择器或平台调用被中断。",
           },
         }
-      : run,
+      : run
   );
   resumeRun.value = stored.resumeRun;
   environment.value = currentEnvironment;
@@ -101,7 +112,7 @@ async function initialize(): Promise<void> {
 function createRun(
   suiteId: ValidationSuiteId,
   caseId: string,
-  inputSummary: Record<string, string | number | boolean> = {},
+  inputSummary: Record<string, string | number | boolean> = {}
 ): ValidationRun {
   const run: ValidationRun = {
     id: generateUuid(),
@@ -129,7 +140,7 @@ async function runAutomated(
   suiteId: ValidationSuiteId,
   caseId: string,
   inputSummary: Record<string, string | number | boolean>,
-  executor: () => Promise<ValidationCommandResult>,
+  executor: () => Promise<ValidationCommandResult>
 ): Promise<ValidationRun> {
   const run = createRun(suiteId, caseId, inputSummary);
   try {
@@ -151,7 +162,7 @@ async function runAutomated(
     return completed;
   } catch (error) {
     const message = redactValidationText(
-      error instanceof Error ? error.message : String(error),
+      error instanceof Error ? error.message : String(error)
     );
     const failed: ValidationRun = {
       ...run,
@@ -172,7 +183,7 @@ async function runAutomated(
 function createManualRun(
   suiteId: ValidationSuiteId,
   caseId: string,
-  inputSummary: Record<string, string | number | boolean>,
+  inputSummary: Record<string, string | number | boolean>
 ): ValidationRun {
   const run = createRun(suiteId, caseId, inputSummary);
   const pending = { ...run, status: "manualPending" as const };
@@ -183,7 +194,7 @@ function createManualRun(
 function setManualObservation(
   id: string,
   verdict: "passed" | "failed",
-  note?: string,
+  note?: string
 ): void {
   const run = runs.value.find((item) => item.id === id);
   if (!run) return;

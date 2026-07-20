@@ -4,25 +4,13 @@
 
 /** Central capability table for files accepted by Knowledge imports. */
 export type KnowledgeFormatCategory =
-  | "document"
-  | "web"
-  | "structured"
-  | "text"
-  | "code"
-  | "image"
-  | "archive";
+  "document" | "web" | "structured" | "text" | "code" | "image" | "archive";
 
 export type KnowledgeFormatValidation =
-  | "verified"
-  | "experimental"
-  | "unsupported";
+  "verified" | "experimental" | "unsupported";
 
 export type KnowledgeParserKind =
-  | "pdf"
-  | "docx"
-  | "html"
-  | "text"
-  | "unsupported";
+  "pdf" | "docx" | "html" | "text" | "unsupported";
 
 export interface KnowledgeFormatCapability {
   id: string;

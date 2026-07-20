@@ -43,7 +43,9 @@ export interface ModelIdentityLike {
   modelIdentity?: ModelIdentity;
 }
 
-export interface ModelProfileLike<TModel extends ModelIdentityLike = ModelIdentityLike> {
+export interface ModelProfileLike<
+  TModel extends ModelIdentityLike = ModelIdentityLike,
+> {
   id: string;
   models: TModel[];
 }

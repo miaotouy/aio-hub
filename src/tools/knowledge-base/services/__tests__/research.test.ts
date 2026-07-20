@@ -17,16 +17,18 @@ vi.mock("../application", () => ({
 
 describe("knowledge research", () => {
   it("parses and bounds research budgets", () => {
-    expect(parseKnowledgeResearchRequest({ question: "查找安装说明" })).toMatchObject({
+    expect(
+      parseKnowledgeResearchRequest({ question: "查找安装说明" })
+    ).toMatchObject({
       question: "查找安装说明",
       maxRounds: 3,
       maxToolCalls: 12,
       evidenceBudget: 24000,
       output: "report",
     });
-    expect(() => parseKnowledgeResearchRequest({ question: "x", maxRounds: 99 })).toThrow(
-      "maxRounds 必须在 1 到 8 之间"
-    );
+    expect(() =>
+      parseKnowledgeResearchRequest({ question: "x", maxRounds: 99 })
+    ).toThrow("maxRounds 必须在 1 到 8 之间");
   });
 
   it("keeps citations and reports progress while reusing search/read", async () => {
@@ -75,7 +77,12 @@ describe("knowledge research", () => {
     const progress = vi.fn();
     const result = await runKnowledgeResearch(
       { agentId: "agent-a", access: {} as never },
-      { question: "查找安装说明", maxRounds: 1, maxToolCalls: 4, evidenceBudget: 2000 },
+      {
+        question: "查找安装说明",
+        maxRounds: 1,
+        maxToolCalls: 4,
+        evidenceBudget: 2000,
+      },
       { onProgress: progress }
     );
     expect(result.citations).toHaveLength(1);
@@ -87,15 +94,34 @@ describe("knowledge research", () => {
     );
     expect(readKnowledgeForAgent).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ chunkId: "chunk-a", maxChars: expect.any(Number) })
+      expect.objectContaining({
+        chunkId: "chunk-a",
+        maxChars: expect.any(Number),
+      })
     );
-    expect(progress).toHaveBeenCalledWith(expect.objectContaining({ phase: "done" }));
+    expect(progress).toHaveBeenCalledWith(
+      expect.objectContaining({ phase: "done" })
+    );
   });
 
   it("stops on cancellation without discarding collected evidence", async () => {
     authorizeKnowledgeLibraryScope.mockResolvedValue(["library-a"]);
     searchKnowledgeForAgent.mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve({ hits: [], traces: [], requestedStrategy: "auto", query: "q", totalCandidates: 0, truncated: false }), 20))
+      () =>
+        new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                hits: [],
+                traces: [],
+                requestedStrategy: "auto",
+                query: "q",
+                totalCandidates: 0,
+                truncated: false,
+              }),
+            20
+          )
+        )
     );
     const controller = new AbortController();
     const promise = runKnowledgeResearch(
@@ -145,7 +171,12 @@ describe("knowledge research", () => {
     });
     const result = await runKnowledgeResearch(
       { agentId: "agent-a", access: {} as never },
-      { question: "先查事实；再查冲突", maxRounds: 2, maxToolCalls: 6, evidenceBudget: 2000 }
+      {
+        question: "先查事实；再查冲突",
+        maxRounds: 2,
+        maxToolCalls: 6,
+        evidenceBudget: 2000,
+      }
     );
     expect(result.terminationReason).toBe("failed");
     expect(result.failureStage).toBe("search");
@@ -183,16 +214,50 @@ describe("knowledge research", () => {
       requestedStrategy: "auto",
       traces: [],
       hits: [
-        { libraryId: "library-a", documentId: "doc-a", chunkId: "p", chunkIndex: 0, title: "运行限制", sourcePath: "C:/a.md", snippet: "支持离线运行", score: 1, rankScore: 1, signals: [] },
-        { libraryId: "library-a", documentId: "doc-a", chunkId: "n", chunkIndex: 1, title: "运行限制", sourcePath: "C:/a.md", snippet: "不支持离线运行", score: 0.9, rankScore: 0.9, signals: [] },
+        {
+          libraryId: "library-a",
+          documentId: "doc-a",
+          chunkId: "p",
+          chunkIndex: 0,
+          title: "运行限制",
+          sourcePath: "C:/a.md",
+          snippet: "支持离线运行",
+          score: 1,
+          rankScore: 1,
+          signals: [],
+        },
+        {
+          libraryId: "library-a",
+          documentId: "doc-a",
+          chunkId: "n",
+          chunkIndex: 1,
+          title: "运行限制",
+          sourcePath: "C:/a.md",
+          snippet: "不支持离线运行",
+          score: 0.9,
+          rankScore: 0.9,
+          signals: [],
+        },
       ],
       totalCandidates: 2,
       truncated: false,
     });
-    readKnowledgeForAgent.mockResolvedValue({ libraryId: "library-a", documentId: "doc-a", sourcePath: "C:/a.md", title: "运行限制", chunks: [], truncated: false });
+    readKnowledgeForAgent.mockResolvedValue({
+      libraryId: "library-a",
+      documentId: "doc-a",
+      sourcePath: "C:/a.md",
+      title: "运行限制",
+      chunks: [],
+      truncated: false,
+    });
     const result = await runKnowledgeResearch(
       { agentId: "agent-a", access: {} as never },
-      { question: "离线运行", maxRounds: 1, maxToolCalls: 6, evidenceBudget: 2000 }
+      {
+        question: "离线运行",
+        maxRounds: 1,
+        maxToolCalls: 6,
+        evidenceBudget: 2000,
+      }
     );
     expect(result.conflicts).toContain("《运行限制》存在互相否定的证据片段");
   });

@@ -37,7 +37,9 @@ export async function processKnowledgeImportQueue(
   const runtimeConfig = await knowledgeRuntimeConfigManager.load();
   const enqueueResult = await enqueueKnowledgePaths(libraryId, paths);
   const targetTaskIds = new Set(enqueueResult.taskIds);
-  const recoverableTasks = (await listKnowledgeIngestTasks(libraryId, 1000)).filter(
+  const recoverableTasks = (
+    await listKnowledgeIngestTasks(libraryId, 1000)
+  ).filter(
     (task) =>
       task.status === "pending" ||
       task.status === "processing" ||

@@ -183,7 +183,10 @@ export async function executeKnowledgeReferenceResearch(
   context: KnowledgeApplicationContext,
   question: string,
   reference: KnowledgeReference,
-  options?: Pick<KnowledgeResearchRequest, "maxRounds" | "maxToolCalls" | "evidenceBudget" | "timeoutMs" | "output"> & {
+  options?: Pick<
+    KnowledgeResearchRequest,
+    "maxRounds" | "maxToolCalls" | "evidenceBudget" | "timeoutMs" | "output"
+  > & {
     signal?: AbortSignal;
     onProgress?: (progress: KnowledgeResearchProgress) => void;
   }

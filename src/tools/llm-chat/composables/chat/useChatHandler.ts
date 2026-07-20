@@ -256,7 +256,10 @@ export function useChatHandler() {
         );
         if (validatedReference.mode === "research") {
           const researchController = new AbortController();
-          abortControllers.set(explicitKnowledgeToolNode.id, researchController);
+          abortControllers.set(
+            explicitKnowledgeToolNode.id,
+            researchController
+          );
           abortControllers.set(assistantNode.id, researchController);
           generatingNodes.add(assistantNode.id);
           const result = await executeKnowledgeReferenceResearch(

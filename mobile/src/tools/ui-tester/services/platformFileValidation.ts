@@ -65,11 +65,15 @@ const FULL_FILE_PROGRESS_INTERVAL_BYTES = 1024 * 1024;
 const PICKER_RETURN_GRACE_MS = 5_000;
 const PICKER_MAX_WAIT_MS = 10 * 60_000;
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, phase: string): Promise<T> {
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  phase: string
+): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timeoutId = window.setTimeout(
       () => reject(new Error(`${phase}超时（${timeoutMs} ms）`)),
-      timeoutMs,
+      timeoutMs
     );
     promise.then(
       (value) => {
@@ -79,18 +83,20 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, phase: string): 
       (error) => {
         window.clearTimeout(timeoutId);
         reject(error);
-      },
+      }
     );
   });
 }
 
 function isPickerCancellation(error: unknown): boolean {
   return /cancel(?:led|ed)?/i.test(
-    error instanceof Error ? error.message : String(error),
+    error instanceof Error ? error.message : String(error)
   );
 }
 
-function openSystemPicker(options: Parameters<typeof open>[0]): Promise<string | string[] | null> {
+function openSystemPicker(
+  options: Parameters<typeof open>[0]
+): Promise<string | string[] | null> {
   return new Promise((resolve, reject) => {
     let leftForPicker = false;
     let returnTimeoutId: number | undefined;
@@ -157,17 +163,21 @@ function referenceScheme(reference: string): string {
 
 function mimeFromName(fileName: string): string {
   const extension = fileName.split(".").pop()?.toLowerCase();
-  return ({
-    jpg: "image/jpeg",
-    jpeg: "image/jpeg",
-    png: "image/png",
-    webp: "image/webp",
-    heic: "image/heic",
-    gif: "image/gif",
-    json: "application/json",
-    txt: "text/plain",
-    pdf: "application/pdf",
-  } as Record<string, string>)[extension ?? ""] ?? "application/octet-stream";
+  return (
+    (
+      {
+        jpg: "image/jpeg",
+        jpeg: "image/jpeg",
+        png: "image/png",
+        webp: "image/webp",
+        heic: "image/heic",
+        gif: "image/gif",
+        json: "application/json",
+        txt: "text/plain",
+        pdf: "application/pdf",
+      } as Record<string, string>
+    )[extension ?? ""] ?? "application/octet-stream"
+  );
 }
 
 async function hashReference(reference: string): Promise<string> {
@@ -181,7 +191,7 @@ async function hashReference(reference: string): Promise<string> {
 
 export async function selectValidationFiles(
   multiple: boolean,
-  kind: "file" | "photo" = "file",
+  kind: "file" | "photo" = "file"
 ): Promise<SelectedFileSummary | null> {
   try {
     const selection = await openSystemPicker({
@@ -189,7 +199,12 @@ export async function selectValidationFiles(
       directory: false,
       filters:
         kind === "photo"
-          ? [{ name: "Images", extensions: ["jpg", "jpeg", "png", "webp", "heic"] }]
+          ? [
+              {
+                name: "Images",
+                extensions: ["jpg", "jpeg", "png", "webp", "heic"],
+              },
+            ]
           : undefined,
     });
     if (!selection) return null;
@@ -216,20 +231,20 @@ export async function selectValidationFiles(
       handle = await withTimeout(
         openFile(first, { read: true }),
         FILE_PROBE_TIMEOUT_MS,
-        "打开选择结果",
+        "打开选择结果"
       );
       const probe = new Uint8Array(64 * 1024);
       const bytesRead = await withTimeout(
         handle.read(probe),
         FILE_PROBE_TIMEOUT_MS,
-        "读取首个数据块",
+        "读取首个数据块"
       );
       summary.firstByteMs = Math.round(performance.now() - startedAt);
       summary.bytesRead = bytesRead ?? 0;
       const info = await withTimeout(
         handle.stat(),
         FILE_PROBE_TIMEOUT_MS,
-        "读取文件元数据",
+        "读取文件元数据"
       );
       summary.size = info.size;
       summary.readProbeMs = Math.round(performance.now() - startedAt);
@@ -237,7 +252,7 @@ export async function selectValidationFiles(
     } catch (error) {
       summary.readProbeMs = Math.round(performance.now() - startedAt);
       summary.probeError = redactValidationText(
-        error instanceof Error ? error.message : String(error),
+        error instanceof Error ? error.message : String(error)
       );
       logger.warn("选择结果读取探测失败", {
         scheme: summary.scheme,
@@ -245,11 +260,13 @@ export async function selectValidationFiles(
       });
     } finally {
       if (handle) {
-        await withTimeout(handle.close(), 2_000, "关闭文件句柄").catch((error) => {
-          logger.warn("关闭选择结果句柄失败", {
-            message: redactValidationText(String(error)),
-          });
-        });
+        await withTimeout(handle.close(), 2_000, "关闭文件句柄").catch(
+          (error) => {
+            logger.warn("关闭选择结果句柄失败", {
+              message: redactValidationText(String(error)),
+            });
+          }
+        );
       }
     }
     logger.info("系统选择器返回文件", summary);
@@ -266,9 +283,12 @@ export async function selectValidationFiles(
 async function selectAndReadValidationFileFullyWithChunkSize(
   readChunkBytes: number,
   onProgress?: (progress: FullFileReadProgress) => void,
-  signal?: AbortSignal,
+  signal?: AbortSignal
 ): Promise<FullFileReadSummary | null> {
-  const selection = await openSystemPicker({ multiple: false, directory: false });
+  const selection = await openSystemPicker({
+    multiple: false,
+    directory: false,
+  });
   if (!selection) return null;
 
   const reference = String(Array.isArray(selection) ? selection[0] : selection);
@@ -293,14 +313,14 @@ async function selectAndReadValidationFileFullyWithChunkSize(
     handle = await withTimeout(
       openFile(reference, { read: true }),
       FILE_PROBE_TIMEOUT_MS,
-      "打开完整读取样本",
+      "打开完整读取样本"
     );
     summary.failurePhase = "stat";
     try {
       const info = await withTimeout(
         handle.stat(),
         FILE_PROBE_TIMEOUT_MS,
-        "读取完整读取样本元数据",
+        "读取完整读取样本元数据"
       );
       summary.size = info.size;
     } catch (error) {
@@ -320,10 +340,11 @@ async function selectAndReadValidationFileFullyWithChunkSize(
       const bytesRead = await withTimeout(
         handle.read(buffer),
         FULL_FILE_READ_TIMEOUT_MS,
-        "顺序读取文件块",
+        "顺序读取文件块"
       );
       if (!bytesRead) {
-        const sizeMatches = summary.size < 0 || summary.bytesRead === summary.size;
+        const sizeMatches =
+          summary.size < 0 || summary.bytesRead === summary.size;
         summary.status = sizeMatches ? "passed" : "failed";
         if (summary.status === "failed") {
           summary.error = `读取字节数 ${summary.bytesRead} 与文件大小 ${summary.size} 不一致`;
@@ -348,7 +369,7 @@ async function selectAndReadValidationFileFullyWithChunkSize(
     }
   } catch (error) {
     summary.error = redactValidationText(
-      error instanceof Error ? error.message : String(error),
+      error instanceof Error ? error.message : String(error)
     );
   } finally {
     if (summary.status !== "failed") {
@@ -357,7 +378,11 @@ async function selectAndReadValidationFileFullyWithChunkSize(
     summary.totalReadMs = Math.round(performance.now() - startedAt);
     if (summary.totalReadMs > 0) {
       summary.throughputMiBps = Number(
-        ((summary.bytesRead / (1024 * 1024)) / (summary.totalReadMs / 1000)).toFixed(2),
+        (
+          summary.bytesRead /
+          (1024 * 1024) /
+          (summary.totalReadMs / 1000)
+        ).toFixed(2)
       );
     }
     if (handle) {
@@ -366,7 +391,7 @@ async function selectAndReadValidationFileFullyWithChunkSize(
           logger.warn("关闭完整读取文件句柄失败", {
             message: redactValidationText(String(error)),
           });
-        },
+        }
       );
     }
   }
@@ -383,29 +408,29 @@ async function selectAndReadValidationFileFullyWithChunkSize(
 
 export function selectAndReadValidationFileFully(
   onProgress?: (progress: FullFileReadProgress) => void,
-  signal?: AbortSignal,
+  signal?: AbortSignal
 ): Promise<FullFileReadSummary | null> {
   return selectAndReadValidationFileFullyWithChunkSize(
     COMPATIBILITY_READ_CHUNK_BYTES,
     onProgress,
-    signal,
+    signal
   );
 }
 
 export function selectAndReadValidationFileAtThroughputBaseline(
   onProgress?: (progress: FullFileReadProgress) => void,
-  signal?: AbortSignal,
+  signal?: AbortSignal
 ): Promise<FullFileReadSummary | null> {
   return selectAndReadValidationFileFullyWithChunkSize(
     THROUGHPUT_READ_CHUNK_BYTES,
     onProgress,
-    signal,
+    signal
   );
 }
 
 export async function selectAndResumeValidationFileRead(
   onProgress?: (progress: FullFileReadProgress) => void,
-  signal?: AbortSignal,
+  signal?: AbortSignal
 ): Promise<InterruptedFileReadSummary | null> {
   const selection = await openSystemPicker({
     multiple: false,
@@ -439,14 +464,14 @@ export async function selectAndResumeValidationFileRead(
     handle = await withTimeout(
       openFile(reference, { read: true }),
       FILE_PROBE_TIMEOUT_MS,
-      "打开中断恢复样本",
+      "打开中断恢复样本"
     );
     summary.failurePhase = "stat";
     try {
       const info = await withTimeout(
         handle.stat(),
         FILE_PROBE_TIMEOUT_MS,
-        "读取中断恢复样本元数据",
+        "读取中断恢复样本元数据"
       );
       summary.size = info.size;
     } catch (error) {
@@ -477,7 +502,7 @@ export async function selectAndResumeValidationFileRead(
       const bytesRead = await withTimeout(
         handle.read(buffer),
         FULL_FILE_READ_TIMEOUT_MS,
-        "读取中断前文件块",
+        "读取中断前文件块"
       );
       if (!bytesRead) {
         throw new Error("在计划中断点前到达 EOF，请选择更大的文件");
@@ -509,18 +534,18 @@ export async function selectAndResumeValidationFileRead(
       handle = await withTimeout(
         openFile(reference, { read: true }),
         FILE_PROBE_TIMEOUT_MS,
-        "重新打开中断恢复样本",
+        "重新打开中断恢复样本"
       );
       summary.failurePhase = "seek";
       summary.resumedOffset = await withTimeout(
         handle.seek(summary.interruptAtBytes, SeekMode.Start),
         FILE_PROBE_TIMEOUT_MS,
-        "定位续读偏移量",
+        "定位续读偏移量"
       );
       summary.resumeLatencyMs = Math.round(performance.now() - resumeStartedAt);
       if (summary.resumedOffset !== summary.interruptAtBytes) {
         throw new Error(
-          `恢复偏移量 ${summary.resumedOffset} 与中断点 ${summary.interruptAtBytes} 不一致`,
+          `恢复偏移量 ${summary.resumedOffset} 与中断点 ${summary.interruptAtBytes} 不一致`
         );
       }
       onProgress?.({
@@ -539,10 +564,11 @@ export async function selectAndResumeValidationFileRead(
         const bytesRead = await withTimeout(
           handle.read(buffer),
           FULL_FILE_READ_TIMEOUT_MS,
-          "读取恢复后文件块",
+          "读取恢复后文件块"
         );
         if (!bytesRead) {
-          const sizeMatches = summary.size < 0 || summary.bytesRead === summary.size;
+          const sizeMatches =
+            summary.size < 0 || summary.bytesRead === summary.size;
           summary.status = sizeMatches ? "passed" : "failed";
           if (!sizeMatches) {
             summary.error = `读取字节数 ${summary.bytesRead} 与文件大小 ${summary.size} 不一致`;
@@ -566,7 +592,7 @@ export async function selectAndResumeValidationFileRead(
     }
   } catch (error) {
     summary.error = redactValidationText(
-      error instanceof Error ? error.message : String(error),
+      error instanceof Error ? error.message : String(error)
     );
   } finally {
     if (summary.status !== "failed") {
@@ -575,7 +601,11 @@ export async function selectAndResumeValidationFileRead(
     summary.totalReadMs = Math.round(performance.now() - startedAt);
     if (summary.totalReadMs > 0) {
       summary.throughputMiBps = Number(
-        ((summary.bytesRead / (1024 * 1024)) / (summary.totalReadMs / 1000)).toFixed(2),
+        (
+          summary.bytesRead /
+          (1024 * 1024) /
+          (summary.totalReadMs / 1000)
+        ).toFixed(2)
       );
     }
     if (handle) {
@@ -584,7 +614,7 @@ export async function selectAndResumeValidationFileRead(
           logger.warn("关闭中断恢复文件句柄失败", {
             message: redactValidationText(String(error)),
           });
-        },
+        }
       );
     }
   }
@@ -606,7 +636,7 @@ export function runPlatformFileScenario(
     | "sandbox-round-trip"
     | "write-failure-cleanup"
     | "space-exhaustion-cleanup"
-    | "resume-check",
+    | "resume-check"
 ): Promise<ValidationCommandResult> {
   return invoke("run_platform_file_validation", { scenario });
 }

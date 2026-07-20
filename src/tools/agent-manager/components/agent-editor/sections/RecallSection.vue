@@ -370,7 +370,8 @@ onMounted(() => {
                 <code>{{ recallMacro }}</code> 宏以精确控制注入位置。
               </span>
               <span v-else>
-                智能体需要此宏来获取 Recall 结果。你可以开启"自动注入"，或在"角色设定"中手动添加此宏。
+                智能体需要此宏来获取 Recall
+                结果。你可以开启"自动注入"，或在"角色设定"中手动添加此宏。
               </span>
             </template>
           </el-alert>

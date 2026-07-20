@@ -19,7 +19,7 @@ export type SqlitePreset = "1k" | "10k" | "100k";
 export async function runSqliteScenario(
   scenario: SqliteScenario,
   preset: SqlitePreset = "1k",
-  faultPoint: "before-commit" | "after-write" = "before-commit",
+  faultPoint: "before-commit" | "after-write" = "before-commit"
 ): Promise<ValidationCommandResult> {
   try {
     return await invoke("run_sqlite_validation", {
@@ -39,13 +39,13 @@ export function cancelSqliteValidation(): Promise<void> {
 }
 
 export function prepareSqliteCrashValidation(
-  faultPoint: "before-commit" | "after-write",
+  faultPoint: "before-commit" | "after-write"
 ): Promise<void> {
   return invoke("prepare_sqlite_crash_validation", { faultPoint });
 }
 
 export function resetSqliteValidationDatabase(
-  action: "rebuild" | "delete",
+  action: "rebuild" | "delete"
 ): Promise<ValidationCommandResult> {
   return invoke("reset_sqlite_validation_database", { action });
 }

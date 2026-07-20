@@ -14,7 +14,9 @@ describe("Knowledge format capabilities", () => {
     const extensions = KNOWLEDGE_SUPPORTED_FORMATS.flatMap(
       (capability) => capability.extensions
     );
-    expect(KNOWLEDGE_IMPORT_EXTENSIONS).toEqual(Array.from(new Set(extensions)));
+    expect(KNOWLEDGE_IMPORT_EXTENSIONS).toEqual(
+      Array.from(new Set(extensions))
+    );
     expect(KNOWLEDGE_FILE_DIALOG_FILTERS[0].extensions).toBe(
       KNOWLEDGE_IMPORT_EXTENSIONS
     );

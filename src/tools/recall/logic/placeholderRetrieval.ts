@@ -129,9 +129,7 @@ async function handleStaticMode(
 
     const entries = await getEntries(entryIds);
     return entries
-      .filter(
-        (entry) => entry.enabled && allowedRecallIds.has(entry.recallId)
-      )
+      .filter((entry) => entry.enabled && allowedRecallIds.has(entry.recallId))
       .map(mapStaticEntry);
   } catch (err) {
     logger.warn("静态加载思绪集条目失败", { entryIds, err });

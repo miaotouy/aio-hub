@@ -229,8 +229,7 @@ export const useKnowledgeStore = defineStore("knowledge-base", {
           } catch (error) {
             failures.push({
               sourcePath: file.sourcePath,
-              fileName:
-                file.sourcePath.split(/[\\/]/).pop() || file.sourcePath,
+              fileName: file.sourcePath.split(/[\\/]/).pop() || file.sourcePath,
               stage: "ingest",
               message: error instanceof Error ? error.message : String(error),
             });
@@ -288,7 +287,7 @@ export const useKnowledgeStore = defineStore("knowledge-base", {
     ) {
       const targetLibraryIds =
         libraryIds?.length || !this.activeLibraryId
-          ? libraryIds ?? []
+          ? (libraryIds ?? [])
           : [this.activeLibraryId];
       if (!targetLibraryIds.length || !query.trim()) {
         this.results = [];

@@ -221,9 +221,7 @@ function migrateRecallConfiguration(agent: ChatAgent): boolean {
 
 function migrateKnowledgeAccess(agent: ChatAgent): boolean {
   const legacyAgent = agent as ChatAgent & LegacyAgentFields;
-  const access = normalizeAgentKnowledgeAccess(
-    agent.knowledgeAccess
-  );
+  const access = normalizeAgentKnowledgeAccess(agent.knowledgeAccess);
   const changed =
     Boolean(legacyAgent.knowledgeConfig || legacyAgent.knowledgeSettings) ||
     JSON.stringify(agent.knowledgeAccess) !== JSON.stringify(access);

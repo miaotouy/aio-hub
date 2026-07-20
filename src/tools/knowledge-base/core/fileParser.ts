@@ -118,9 +118,9 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
     bytes.byteOffset + bytes.byteLength
   ) as ArrayBuffer;
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", input));
-  return Array.from(digest, (value) => value.toString(16).padStart(2, "0")).join(
-    ""
-  );
+  return Array.from(digest, (value) =>
+    value.toString(16).padStart(2, "0")
+  ).join("");
 }
 
 export async function parseKnowledgeFile(

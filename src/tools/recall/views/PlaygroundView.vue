@@ -299,9 +299,13 @@ async function syncAndSearchAll() {
 
               // 使用 vectorSync 的 updateVectors 方法
               if (entryIds.length > 0) {
-                await vectorSync.updateVectors(selectedRecallIds.value, entryIds, {
-                  customComboId: slotWithThisModel.el.config.embeddingModel,
-                });
+                await vectorSync.updateVectors(
+                  selectedRecallIds.value,
+                  entryIds,
+                  {
+                    customComboId: slotWithThisModel.el.config.embeddingModel,
+                  }
+                );
               }
             }
           }

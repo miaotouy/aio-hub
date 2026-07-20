@@ -89,10 +89,7 @@ export class ConfigManager<T extends Record<string, any>> {
    * 防抖保存配置。
    * @param config - 要保存的配置对象。
    */
-  public saveDebounced: (
-    config: T,
-    onError?: (error: unknown) => void
-  ) => void;
+  public saveDebounced: (config: T, onError?: (error: unknown) => void) => void;
 
   constructor(options: ConfigManagerOptions<T>) {
     this.moduleName = options.moduleName;

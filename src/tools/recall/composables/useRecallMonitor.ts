@@ -127,18 +127,21 @@ export function useRecallMonitor() {
     if (unlisten) return;
 
     try {
-      unlisten = await listen<RecallMonitorMessage>("recall-monitor", (event) => {
-        const message = event.payload;
-        lastMessageTime = Date.now();
+      unlisten = await listen<RecallMonitorMessage>(
+        "recall-monitor",
+        (event) => {
+          const message = event.payload;
+          lastMessageTime = Date.now();
 
-        // 添加到缓冲区
-        store.monitor.buffer.push(message);
+          // 添加到缓冲区
+          store.monitor.buffer.push(message);
 
-        // 如果未暂停，启动批量刷新定时器
-        if (!store.monitor.isPaused) {
-          scheduleFlush();
+          // 如果未暂停，启动批量刷新定时器
+          if (!store.monitor.isPaused) {
+            scheduleFlush();
+          }
         }
-      });
+      );
 
       // 启动后端心跳推送（30s一次）
       if (!heartbeatTimer) {

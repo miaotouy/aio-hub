@@ -229,15 +229,15 @@ const handleSave = () => {
     return;
   }
 
-  const modelToSave = JSON.parse(JSON.stringify(innerModel.value)) as LlmModelInfo;
+  const modelToSave = JSON.parse(
+    JSON.stringify(innerModel.value)
+  ) as LlmModelInfo;
   delete modelToSave.modelIdentitySuggestion;
   const identityInput = modelIdentityCanonicalId.value.trim();
   if (identityInput) {
     const canonicalId = normalizeCanonicalModelId(identityInput);
     if (!canonicalId) {
-      Snackbar.warning(
-        tRaw("tools.llm-api.ModelEditorPopup.模型身份格式错误")
-      );
+      Snackbar.warning(tRaw("tools.llm-api.ModelEditorPopup.模型身份格式错误"));
       return;
     }
     const revision = modelIdentityRevision.value.trim();
@@ -433,7 +433,9 @@ const setTokenLimit = (
                 v-model="modelIdentityRevision"
                 type="text"
                 class="native-input mono"
-                :placeholder="tRaw('tools.llm-api.ModelEditorPopup.模型修订说明')"
+                :placeholder="
+                  tRaw('tools.llm-api.ModelEditorPopup.模型修订说明')
+                "
               />
             </div>
           </div>

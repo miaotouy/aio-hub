@@ -8,13 +8,19 @@ import type {
 export function buildEmbeddingSpaceDescriptor(
   input: EmbeddingSpaceInput
 ): EmbeddingSpaceDescriptorV1 {
-  const canonicalId = normalizeCanonicalModelId(input.modelIdentity.canonicalId);
-  if (!canonicalId) throw new Error("Embedding space 的 canonical model ID 非法");
+  const canonicalId = normalizeCanonicalModelId(
+    input.modelIdentity.canonicalId
+  );
+  if (!canonicalId)
+    throw new Error("Embedding space 的 canonical model ID 非法");
   if (!Number.isInteger(input.dimensions) || input.dimensions <= 0) {
     throw new Error("Embedding space 的 dimensions 必须为正整数");
   }
   const adapterContractVersion = input.adapterContractVersion ?? 1;
-  if (!Number.isInteger(adapterContractVersion) || adapterContractVersion <= 0) {
+  if (
+    !Number.isInteger(adapterContractVersion) ||
+    adapterContractVersion <= 0
+  ) {
     throw new Error("adapterContractVersion 必须为正整数");
   }
   const revision = input.modelIdentity.revision?.trim();

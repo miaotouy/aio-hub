@@ -97,7 +97,9 @@ const identityRouteAudit = (model: LlmModelInfo) => {
   return {
     count: routes.length,
     title: routes
-      .map(({ profile, model: routeModel }) => `${profile.name}: ${routeModel.id}`)
+      .map(
+        ({ profile, model: routeModel }) => `${profile.name}: ${routeModel.id}`
+      )
       .join("\n"),
   };
 };
@@ -281,7 +283,9 @@ const handleModelAction = (
                       :title="identityRouteAudit(item.model)?.title"
                     >
                       {{ item.model.modelIdentity.canonicalId }}
-                      <span v-if="(identityRouteAudit(item.model)?.count || 0) > 1">
+                      <span
+                        v-if="(identityRouteAudit(item.model)?.count || 0) > 1"
+                      >
                         · {{ identityRouteAudit(item.model)?.count }} 路由
                       </span>
                     </div>

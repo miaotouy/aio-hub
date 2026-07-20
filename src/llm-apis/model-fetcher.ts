@@ -109,40 +109,43 @@ function toDesktopModelInfo(model: ProviderModelInfo): LlmModelInfo {
     model.id,
     model.declaredOwner
   );
-  return materializeModelIdentity({
-    id: model.id,
-    name: model.name,
-    group: model.group,
-    provider: model.provider,
-    description: model.description,
-    capabilities: {
-      vision: model.inputModalities?.includes("image") ?? false,
-      thinking:
-        model.supportedParameters?.includes("reasoning") ||
-        model.supportedParameters?.includes("include_reasoning"),
+  return materializeModelIdentity(
+    {
+      id: model.id,
+      name: model.name,
+      group: model.group,
+      provider: model.provider,
+      description: model.description,
+      capabilities: {
+        vision: model.inputModalities?.includes("image") ?? false,
+        thinking:
+          model.supportedParameters?.includes("reasoning") ||
+          model.supportedParameters?.includes("include_reasoning"),
+      },
+      tokenLimits:
+        model.contextLength !== undefined || model.maxOutputTokens !== undefined
+          ? {
+              contextLength: model.contextLength,
+              output: model.maxOutputTokens,
+            }
+          : undefined,
+      architecture:
+        model.inputModalities || model.outputModalities
+          ? {
+              inputModalities: model.inputModalities,
+              outputModalities: model.outputModalities,
+            }
+          : undefined,
+      supportedFeatures:
+        model.supportedParameters || model.supportedGenerationMethods
+          ? {
+              parameters: model.supportedParameters,
+              generationMethods: model.supportedGenerationMethods,
+            }
+          : undefined,
+      pricing: pricing as LlmModelInfo["pricing"],
+      ...(suggestion ? { modelIdentitySuggestion: suggestion } : {}),
     },
-    tokenLimits:
-      model.contextLength !== undefined || model.maxOutputTokens !== undefined
-        ? {
-            contextLength: model.contextLength,
-            output: model.maxOutputTokens,
-          }
-        : undefined,
-    architecture:
-      model.inputModalities || model.outputModalities
-        ? {
-            inputModalities: model.inputModalities,
-            outputModalities: model.outputModalities,
-          }
-        : undefined,
-    supportedFeatures:
-      model.supportedParameters || model.supportedGenerationMethods
-        ? {
-            parameters: model.supportedParameters,
-            generationMethods: model.supportedGenerationMethods,
-          }
-        : undefined,
-    pricing: pricing as LlmModelInfo["pricing"],
-    ...(suggestion ? { modelIdentitySuggestion: suggestion } : {}),
-  }, { declaredOwner: model.declaredOwner });
+    { declaredOwner: model.declaredOwner }
+  );
 }

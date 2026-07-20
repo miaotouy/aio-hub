@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { redactValidationRun, redactValidationText } from "../validationRedaction";
+import {
+  redactValidationRun,
+  redactValidationText,
+} from "../validationRedaction";
 import type { ValidationRun } from "../../types/validation";
 
 describe("validation report redaction", () => {
   it("redacts local paths, picker URIs, and common secret forms", () => {
-    const text = "C:\\Users\\name\\private.txt content://provider/document/42 sk-abcdefghijklmnop";
+    const text =
+      "C:\\Users\\name\\private.txt content://provider/document/42 sk-abcdefghijklmnop";
     expect(redactValidationText(text)).toBe(
-      "[redacted-path] content://[redacted] [redacted-secret]",
+      "[redacted-path] content://[redacted] [redacted-secret]"
     );
   });
 
@@ -21,7 +25,11 @@ describe("validation report redaction", () => {
       inputSummary: {},
       steps: [],
       metrics: {},
-      error: { code: "IO", phase: "read", message: "/storage/emulated/0/private.txt" },
+      error: {
+        code: "IO",
+        phase: "read",
+        message: "/storage/emulated/0/private.txt",
+      },
     };
 
     const redacted = redactValidationRun(run);

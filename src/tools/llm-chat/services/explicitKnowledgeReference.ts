@@ -20,8 +20,12 @@ export interface ExplicitKnowledgeToolEvent {
   toolNode: ChatMessageNode;
 }
 
-function toolName(reference: KnowledgeReference): "knowledge.search" | "knowledge.research" {
-  return reference.mode === "research" ? "knowledge.research" : "knowledge.search";
+function toolName(
+  reference: KnowledgeReference
+): "knowledge.search" | "knowledge.research" {
+  return reference.mode === "research"
+    ? "knowledge.research"
+    : "knowledge.search";
 }
 
 export function createExplicitKnowledgeToolEvent(

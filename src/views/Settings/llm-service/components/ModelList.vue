@@ -80,7 +80,9 @@ const getIdentityAuditText = (model: LlmModelInfo) => {
   const routes = getOtherIdentityRoutes(model);
   if (routes.length === 0) return model.modelIdentity?.canonicalId ?? "";
   const details = routes
-    .map(({ profile, model: routeModel }) => `${profile.name}: ${routeModel.id}`)
+    .map(
+      ({ profile, model: routeModel }) => `${profile.name}: ${routeModel.id}`
+    )
     .join("\n");
   return `${model.modelIdentity?.canonicalId}\n同身份的其他路由：\n${details}`;
 };
@@ -368,7 +370,8 @@ const getTestResultTitle = (result: ChannelProbeResult): string => {
                   >
                     {{ item.model.modelIdentity.canonicalId }}
                     <span v-if="getOtherIdentityRoutes(item.model).length > 0">
-                      · {{ getOtherIdentityRoutes(item.model).length }} 个其他路由
+                      ·
+                      {{ getOtherIdentityRoutes(item.model).length }} 个其他路由
                     </span>
                   </div>
                 </div>

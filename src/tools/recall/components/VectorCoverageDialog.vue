@@ -32,7 +32,9 @@
             <span class="model-name">{{ item.modelName }}</span>
             <span class="missing-count">缺失 {{ item.missingEntries }} 条</span>
           </div>
-          <div class="recall-list">涉及思绪集: {{ item.recallNames.join(", ") }}</div>
+          <div class="recall-list">
+            涉及思绪集: {{ item.recallNames.join(", ") }}
+          </div>
         </div>
       </div>
 

@@ -130,7 +130,8 @@ export function createInterruptedFileReadValidationResult(
   const stepStatus =
     status === "passed" ? "passed" : status === "failed" ? "failed" : "skipped";
   const interrupted = summary.interruptAtBytes > 0;
-  const resumed = interrupted && summary.resumedOffset === summary.interruptAtBytes;
+  const resumed =
+    interrupted && summary.resumedOffset === summary.interruptAtBytes;
   const stepSummary =
     status === "passed"
       ? `在 ${summary.interruptAtBytes} bytes 中断，重新打开并从同一偏移续读到 EOF。`
@@ -144,7 +145,11 @@ export function createInterruptedFileReadValidationResult(
       {
         id: "interrupt-file-handle",
         label: "关闭中断点文件句柄",
-        status: interrupted ? "passed" : status === "failed" ? "failed" : "skipped",
+        status: interrupted
+          ? "passed"
+          : status === "failed"
+            ? "failed"
+            : "skipped",
         durationMs: 0,
         summary: interrupted
           ? `读取到 ${summary.interruptAtBytes} bytes 后已关闭原文件句柄。`
@@ -156,7 +161,11 @@ export function createInterruptedFileReadValidationResult(
       {
         id: "resume-file-handle",
         label: "重新打开并定位续读偏移",
-        status: resumed ? "passed" : interrupted && status === "failed" ? "failed" : "skipped",
+        status: resumed
+          ? "passed"
+          : interrupted && status === "failed"
+            ? "failed"
+            : "skipped",
         durationMs: summary.resumeLatencyMs,
         summary: resumed
           ? `重新打开引用并定位到 ${summary.resumedOffset} bytes，耗时 ${summary.resumeLatencyMs} ms。`

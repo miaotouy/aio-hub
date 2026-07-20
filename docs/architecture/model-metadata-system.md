@@ -452,14 +452,14 @@ getModelIconPath(rules, modelId, provider):
 
 ## 8. 与其他模块的集成点
 
-| 消费模块                                                                                                                                       | 使用方式                                           | 用途                                                           |
-| ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------- |
-| [`src/llm-apis/request-builder.ts`](../../src/llm-apis/request-builder.ts)                                                                     | `getActiveModelProperties()`                       | 判断模型家族（Claude/Gemini/OpenAI）以选择正确的请求构建器     |
-| [`src/tools/llm-chat/core/context-utils/preview-builder.ts`](../../src/tools/llm-chat/core/context-utils/preview-builder.ts)                   | `getActiveModelProperties()`                       | 判断模型是否支持视觉，用于 vision token 计算                   |
-| [`src/tools/token-calculator/composables/useTokenCalculatorState.ts`](../../src/tools/token-calculator/composables/useTokenCalculatorState.ts) | `getActiveModelProperties()`                       | 匹配 `tokenizer` 字段选择计算策略                              |
-| [`src/tools/token-calculator/tokenCalculator.registry.ts`](../../src/tools/token-calculator/tokenCalculator.registry.ts)                       | `getActiveModelProperties()`                       | 提供跨模块 Token 计算服务时匹配分词器                          |
-| [`src/views/Settings/llm-service/components/ModelEditDialog.vue`](../../src/views/Settings/llm-service/components/ModelEditDialog.vue)         | `useModelMetadata().getMatchedProperties()`        | "应用预设"按钮：根据模型 ID 自动填充 capabilities、icon 等属性 |
-| [`src/tools/media-generator/`](../../src/tools/media-generator/)                                                                               | 运行时读取具体模型对象的 `mediaGenParams`          | 渲染参数控件并在请求前清理不支持的参数；全局规则只用于诊断对照 |
+| 消费模块                                                                                                                                       | 使用方式                                    | 用途                                                           |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------- |
+| [`src/llm-apis/request-builder.ts`](../../src/llm-apis/request-builder.ts)                                                                     | `getActiveModelProperties()`                | 判断模型家族（Claude/Gemini/OpenAI）以选择正确的请求构建器     |
+| [`src/tools/llm-chat/core/context-utils/preview-builder.ts`](../../src/tools/llm-chat/core/context-utils/preview-builder.ts)                   | `getActiveModelProperties()`                | 判断模型是否支持视觉，用于 vision token 计算                   |
+| [`src/tools/token-calculator/composables/useTokenCalculatorState.ts`](../../src/tools/token-calculator/composables/useTokenCalculatorState.ts) | `getActiveModelProperties()`                | 匹配 `tokenizer` 字段选择计算策略                              |
+| [`src/tools/token-calculator/tokenCalculator.registry.ts`](../../src/tools/token-calculator/tokenCalculator.registry.ts)                       | `getActiveModelProperties()`                | 提供跨模块 Token 计算服务时匹配分词器                          |
+| [`src/views/Settings/llm-service/components/ModelEditDialog.vue`](../../src/views/Settings/llm-service/components/ModelEditDialog.vue)         | `useModelMetadata().getMatchedProperties()` | "应用预设"按钮：根据模型 ID 自动填充 capabilities、icon 等属性 |
+| [`src/tools/media-generator/`](../../src/tools/media-generator/)                                                                               | 运行时读取具体模型对象的 `mediaGenParams`   | 渲染参数控件并在请求前清理不支持的参数；全局规则只用于诊断对照 |
 
 ---
 

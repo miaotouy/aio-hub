@@ -17,10 +17,7 @@
  */
 import type { SettingItem } from "./settings-renderer";
 import type { MediaGenParamRules } from "./model-metadata";
-import type {
-  ModelIdentity,
-  ModelIdentitySuggestion,
-} from "@aiohub/llm-core";
+import type { ModelIdentity, ModelIdentitySuggestion } from "@aiohub/llm-core";
 
 /**
  * 上下文后处理规则 (简易定义，避免循环依赖和跨端导入问题)

@@ -466,7 +466,8 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
                     >
                       建议：{{
                         model.modelIdentitySuggestion.identity.canonicalId
-                      }} · 待确认
+                      }}
+                      · 待确认
                     </div>
                   </div>
                   <div class="model-status">

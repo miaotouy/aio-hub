@@ -422,7 +422,9 @@ const handleSelect = (id: string) => {
                       />
                     </div>
                   </el-dropdown-item>
-                  <el-dropdown-item @click="recallStore.entrySort.order = 'desc'">
+                  <el-dropdown-item
+                    @click="recallStore.entrySort.order = 'desc'"
+                  >
                     <div class="sort-menu-item">
                       <span>降序</span>
                       <Check

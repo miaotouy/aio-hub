@@ -93,7 +93,9 @@ export function useEmbeddingCache() {
     const uniqueTexts = [...new Set(cleanTexts)];
     const inputHashes = new Map(
       await Promise.all(
-        uniqueTexts.map(async (text) => [text, await hashEmbeddingInput(text)] as const)
+        uniqueTexts.map(
+          async (text) => [text, await hashEmbeddingInput(text)] as const
+        )
       )
     );
     const textsToEmbed = uniqueTexts.filter(

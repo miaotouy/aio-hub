@@ -13,11 +13,7 @@ import type {
 
 export type KnowledgeResearchOutput = "brief" | "report" | "comparison";
 export type KnowledgeResearchStatus =
-  | "queued"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled";
+  "queued" | "running" | "completed" | "failed" | "cancelled";
 
 export interface KnowledgeResearchRequest {
   question: string;
@@ -59,7 +55,8 @@ export interface KnowledgeResearchResult {
   toolCalls: number;
   evidenceChars: number;
   durationMs: number;
-  terminationReason: "completed" | "budget" | "timeout" | "cancelled" | "failed";
+  terminationReason:
+    "completed" | "budget" | "timeout" | "cancelled" | "failed";
   failureStage?: KnowledgeResearchProgress["phase"];
 }
 
@@ -116,7 +113,8 @@ function boundedInteger(
 export function parseKnowledgeResearchRequest(
   value: Record<string, unknown>
 ): KnowledgeResearchRequest {
-  const question = typeof value.question === "string" ? value.question.trim() : "";
+  const question =
+    typeof value.question === "string" ? value.question.trim() : "";
   if (!question) {
     throw new KnowledgeAccessError("QUERY_REQUIRED", "研究问题不能为空");
   }
@@ -131,7 +129,8 @@ export function parseKnowledgeResearchRequest(
   if (Array.isArray(libraryIds)) {
     parsedLibraries = Array.from(
       new Set(
-        libraryIds.filter((item): item is string => typeof item === "string")
+        libraryIds
+          .filter((item): item is string => typeof item === "string")
           .map((item) => item.trim())
           .filter(Boolean)
       )
@@ -144,7 +143,13 @@ export function parseKnowledgeResearchRequest(
   return {
     question,
     libraryIds: parsedLibraries,
-    maxRounds: boundedInteger(value.maxRounds, DEFAULT_MAX_ROUNDS, 1, 8, "maxRounds"),
+    maxRounds: boundedInteger(
+      value.maxRounds,
+      DEFAULT_MAX_ROUNDS,
+      1,
+      8,
+      "maxRounds"
+    ),
     maxToolCalls: boundedInteger(
       value.maxToolCalls,
       DEFAULT_MAX_TOOL_CALLS,
@@ -178,7 +183,10 @@ function splitResearchQueries(question: string): string[] {
   return Array.from(new Set([question, ...parts])).slice(0, 4);
 }
 
-function toCitation(hit: KnowledgeToolHit, excerpt: string): KnowledgeResearchCitation {
+function toCitation(
+  hit: KnowledgeToolHit,
+  excerpt: string
+): KnowledgeResearchCitation {
   return {
     libraryId: hit.libraryId,
     documentId: hit.documentId,
@@ -210,7 +218,12 @@ function formatConclusion(
   gaps: string[],
   conflicts: string[]
 ): string {
-  const heading = output === "brief" ? "证据摘要" : output === "comparison" ? "对比证据摘要" : "研究证据摘要";
+  const heading =
+    output === "brief"
+      ? "证据摘要"
+      : output === "comparison"
+        ? "对比证据摘要"
+        : "研究证据摘要";
   const terms = Array.from(
     new Set(question.toLocaleLowerCase().match(/[\p{L}\p{N}_-]{3,}/gu) ?? [])
   );
@@ -218,18 +231,32 @@ function formatConclusion(
     .map((citation, index) => ({
       citation,
       index,
-      overlap: terms.filter((term) => citation.excerpt.toLocaleLowerCase().includes(term)).length,
+      overlap: terms.filter((term) =>
+        citation.excerpt.toLocaleLowerCase().includes(term)
+      ).length,
     }))
-    .sort((left, right) => right.overlap - left.overlap || left.index - right.index)
+    .sort(
+      (left, right) => right.overlap - left.overlap || left.index - right.index
+    )
     .map(({ citation }) => citation);
-  const lines = ranked.slice(0, output === "brief" ? 5 : 12).map(
-    (citation, index) => `${index + 1}. ${citation.excerpt.replace(/\s+/g, " ").trim()}`
-  );
+  const lines = ranked
+    .slice(0, output === "brief" ? 5 : 12)
+    .map(
+      (citation, index) =>
+        `${index + 1}. ${citation.excerpt.replace(/\s+/g, " ").trim()}`
+    );
   const notes = [
     gaps.length ? `证据空缺：${gaps.join("；")}` : "证据空缺：未发现明确空缺",
-    conflicts.length ? `潜在冲突：${conflicts.join("；")}` : "潜在冲突：未发现相互矛盾的命中",
+    conflicts.length
+      ? `潜在冲突：${conflicts.join("；")}`
+      : "潜在冲突：未发现相互矛盾的命中",
   ];
-  return [`问题：${question}`, heading, ...(lines.length ? lines : ["未找到可用证据"]), ...notes].join("\n");
+  return [
+    `问题：${question}`,
+    heading,
+    ...(lines.length ? lines : ["未找到可用证据"]),
+    ...notes,
+  ].join("\n");
 }
 
 export async function runKnowledgeResearch(
@@ -263,9 +290,13 @@ export async function runKnowledgeResearch(
       });
     });
   let libraries: string[] = [];
-  const queries: KnowledgeResearchQuery[] = splitResearchQueries(request.question).map(
-    (query, index) => ({ query, round: index === 0 ? 1 : 2, reason: index === 0 ? "initial" : "gap" })
-  );
+  const queries: KnowledgeResearchQuery[] = splitResearchQueries(
+    request.question
+  ).map((query, index) => ({
+    query,
+    round: index === 0 ? 1 : 2,
+    reason: index === 0 ? "initial" : "gap",
+  }));
   const citations: KnowledgeResearchCitation[] = [];
   const conflicts: string[] = [];
   const gaps: string[] = [];
@@ -280,13 +311,24 @@ export async function runKnowledgeResearch(
   const emit = (progress: Omit<KnowledgeResearchProgress, "taskId">) =>
     options.onProgress?.({ ...progress, taskId: options.taskId });
   const ensureBudget = () => {
-    if (options.signal?.aborted) throw new DOMException("研究已取消", "AbortError");
-    if (Date.now() - startedAt > timeoutMs) throw new DOMException("研究超时", "TimeoutError");
-    if (toolCalls >= maxToolCalls || evidenceChars >= evidenceBudget) return false;
+    if (options.signal?.aborted)
+      throw new DOMException("研究已取消", "AbortError");
+    if (Date.now() - startedAt > timeoutMs)
+      throw new DOMException("研究超时", "TimeoutError");
+    if (toolCalls >= maxToolCalls || evidenceChars >= evidenceBudget)
+      return false;
     return true;
   };
 
-  emit({ status: "running", phase: "planning", round: 0, maxRounds, toolCalls, evidenceChars, message: "正在拆分研究问题" });
+  emit({
+    status: "running",
+    phase: "planning",
+    round: 0,
+    maxRounds,
+    toolCalls,
+    evidenceChars,
+    message: "正在拆分研究问题",
+  });
   try {
     libraries = await withinBudget(
       authorizeKnowledgeLibraryScope(context, request.libraryIds)
@@ -295,7 +337,15 @@ export async function runKnowledgeResearch(
       if (rounds >= maxRounds || !ensureBudget()) break;
       rounds = Math.max(rounds, planned.round);
       activePhase = "search";
-      emit({ status: "running", phase: "search", round: rounds, maxRounds, toolCalls, evidenceChars, message: `正在检索：${planned.query}` });
+      emit({
+        status: "running",
+        phase: "search",
+        round: rounds,
+        maxRounds,
+        toolCalls,
+        evidenceChars,
+        message: `正在检索：${planned.query}`,
+      });
       const search: KnowledgeToolSearchResponse = await withinBudget(
         searchKnowledgeForAgent(context, {
           query: planned.query,
@@ -336,7 +386,15 @@ export async function runKnowledgeResearch(
         citations.push(toCitation(hit, excerpt));
         if (toolCalls >= maxToolCalls || evidenceChars >= evidenceBudget) break;
         activePhase = "read";
-        emit({ status: "running", phase: "read", round: rounds, maxRounds, toolCalls, evidenceChars, message: `正在读取：${hit.title}` });
+        emit({
+          status: "running",
+          phase: "read",
+          round: rounds,
+          maxRounds,
+          toolCalls,
+          evidenceChars,
+          message: `正在读取：${hit.title}`,
+        });
         try {
           const read: KnowledgeToolReadResponse = await withinBudget(
             readKnowledgeForAgent(context, {
@@ -359,7 +417,10 @@ export async function runKnowledgeResearch(
       }
     }
   } catch (error) {
-    if (options.signal?.aborted || (error instanceof DOMException && error.name === "AbortError")) {
+    if (
+      options.signal?.aborted ||
+      (error instanceof DOMException && error.name === "AbortError")
+    ) {
       forcedTermination = "cancelled";
     } else if (error instanceof DOMException && error.name === "TimeoutError") {
       forcedTermination = "timeout";
@@ -374,23 +435,42 @@ export async function runKnowledgeResearch(
     }
   }
   if (!citations.length) gaps.push("没有检索到可引用的资料片段");
-  const terminationReason = forcedTermination ?? (Date.now() - startedAt > timeoutMs
+  const terminationReason =
+    forcedTermination ??
+    (Date.now() - startedAt > timeoutMs
       ? "timeout"
       : toolCalls >= maxToolCalls || evidenceChars >= evidenceBudget
         ? "budget"
         : "completed");
   activePhase = "synthesis";
-  emit({ status: "running", phase: "synthesis", round: rounds, maxRounds, toolCalls, evidenceChars, message: "正在整理证据与限制说明" });
+  emit({
+    status: "running",
+    phase: "synthesis",
+    round: rounds,
+    maxRounds,
+    toolCalls,
+    evidenceChars,
+    message: "正在整理证据与限制说明",
+  });
   const result: KnowledgeResearchResult = {
     question: request.question,
     output,
-    conclusion: formatConclusion(request.question, citations, output, gaps, conflicts),
+    conclusion: formatConclusion(
+      request.question,
+      citations,
+      output,
+      gaps,
+      conflicts
+    ),
     citations,
     queries,
     libraries,
     conflicts,
     gaps,
-    uncertainties: terminationReason === "completed" ? [] : ["研究受预算、时间或取消信号限制，结论不代表资料全集"],
+    uncertainties:
+      terminationReason === "completed"
+        ? []
+        : ["研究受预算、时间或取消信号限制，结论不代表资料全集"],
     rounds,
     toolCalls,
     evidenceChars,
@@ -398,7 +478,23 @@ export async function runKnowledgeResearch(
     terminationReason,
     ...(failureStage ? { failureStage } : {}),
   };
-  emit({ status: terminationReason === "cancelled" ? "cancelled" : terminationReason === "failed" ? "failed" : "completed", phase: "done", round: rounds, maxRounds, toolCalls, evidenceChars, message: terminationReason === "completed" ? "研究完成" : `研究结束：${terminationReason}` });
+  emit({
+    status:
+      terminationReason === "cancelled"
+        ? "cancelled"
+        : terminationReason === "failed"
+          ? "failed"
+          : "completed",
+    phase: "done",
+    round: rounds,
+    maxRounds,
+    toolCalls,
+    evidenceChars,
+    message:
+      terminationReason === "completed"
+        ? "研究完成"
+        : `研究结束：${terminationReason}`,
+  });
   return result;
 }
 
@@ -440,14 +536,18 @@ export function createKnowledgeResearchTask(
           onProgress?.(progress);
         },
       });
-      task.status = result.terminationReason === "cancelled"
-        ? "cancelled"
-        : result.terminationReason === "failed"
-          ? "failed"
-          : "completed";
+      task.status =
+        result.terminationReason === "cancelled"
+          ? "cancelled"
+          : result.terminationReason === "failed"
+            ? "failed"
+            : "completed";
       task.result = result;
     } catch (error) {
-      if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) {
+      if (
+        controller.signal.aborted ||
+        (error instanceof DOMException && error.name === "AbortError")
+      ) {
         task.status = "cancelled";
         task.error = "研究已取消";
       } else {

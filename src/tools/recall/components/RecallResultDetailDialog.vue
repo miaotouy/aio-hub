@@ -32,7 +32,9 @@
           </div>
           <div class="meta-item">
             <span class="label">思绪集:</span>
-            <span class="value">{{ result.recallName }} ({{ result.recallId }})</span>
+            <span class="value"
+              >{{ result.recallName }} ({{ result.recallId }})</span
+            >
           </div>
           <div class="meta-item">
             <span class="label">条目 ID:</span>

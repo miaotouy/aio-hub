@@ -141,7 +141,9 @@ const formattedDuration = (ms: number) => {
 
     <!-- 元数据 -->
     <div v-if="payload.metadata" class="metadata-footer">
-      <el-tag size="small" type="info">KB: {{ payload.metadata.recallId }}</el-tag>
+      <el-tag size="small" type="info"
+        >KB: {{ payload.metadata.recallId }}</el-tag
+      >
       <el-tag size="small" type="info"
         >Model: {{ payload.metadata.modelId }}</el-tag
       >

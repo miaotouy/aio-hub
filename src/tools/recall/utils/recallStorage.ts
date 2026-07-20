@@ -108,10 +108,13 @@ export class KnowledgeStorage {
   ): Promise<RecallCollectionMeta | null> {
     return await errorHandler.wrapAsync(
       async () => {
-        return await invoke<RecallCollectionMeta | null>("recall_load_base_meta", {
-          recallId: baseId,
-          modelId: modelId || null,
-        });
+        return await invoke<RecallCollectionMeta | null>(
+          "recall_load_base_meta",
+          {
+            recallId: baseId,
+            modelId: modelId || null,
+          }
+        );
       },
       { userMessage: "加载库元数据失败", showToUser: false }
     );
@@ -120,7 +123,10 @@ export class KnowledgeStorage {
   /**
    * 保存思绪集元数据
    */
-  async saveBaseMeta(baseId: string, meta: RecallCollectionMeta): Promise<void> {
+  async saveBaseMeta(
+    baseId: string,
+    meta: RecallCollectionMeta
+  ): Promise<void> {
     await errorHandler.wrapAsync(
       async () => {
         await invoke("recall_save_base_meta", { recallId: baseId, meta });
@@ -200,7 +206,9 @@ export class KnowledgeStorage {
   async exportBase(baseId: string): Promise<RecallCollection | null> {
     return await errorHandler.wrapAsync(
       async () => {
-        return await invoke<RecallCollection>("recall_export_base", { recallId: baseId });
+        return await invoke<RecallCollection>("recall_export_base", {
+          recallId: baseId,
+        });
       },
       { userMessage: "导出思绪集失败" }
     );
@@ -275,7 +283,10 @@ export class KnowledgeStorage {
   async deleteEntries(baseId: string, entryIds: string[]): Promise<void> {
     await errorHandler.wrapAsync(
       async () => {
-        await invoke("recall_batch_delete_entries", { recallId: baseId, entryIds });
+        await invoke("recall_batch_delete_entries", {
+          recallId: baseId,
+          entryIds,
+        });
       },
       { userMessage: `批量删除 ${entryIds.length} 个条目失败` }
     );
@@ -288,7 +299,9 @@ export class KnowledgeStorage {
     return (
       (await errorHandler.wrapAsync(
         async () => {
-          return await invoke<string[]>("recall_list_entry_ids", { recallId: baseId });
+          return await invoke<string[]>("recall_list_entry_ids", {
+            recallId: baseId,
+          });
         },
         { userMessage: "列出条目失败", showToUser: false }
       )) || []

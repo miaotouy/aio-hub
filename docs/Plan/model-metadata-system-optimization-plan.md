@@ -139,23 +139,19 @@ v3 不再使用含义模糊的 `modelPrefix + useRegex` 组合，改为显式类
 
 ```typescript
 type MetadataMatchType =
-  | "provider"
-  | "modelExact"
-  | "modelPrefix"
-  | "modelContains"
-  | "modelRegex";
+  "provider" | "modelExact" | "modelPrefix" | "modelContains" | "modelRegex";
 ```
 
 迁移规则：
 
-| v2 | v3 | 迁移目的 |
-| --- | --- | --- |
-| `provider` | `provider` | 保持大小写不敏感精确匹配 |
-| `model`, `useRegex=false` | `modelExact` | 保持精确匹配 |
-| `model`, `useRegex=true` | `modelRegex` | 保持正则行为 |
+| v2                              | v3              | 迁移目的                                       |
+| ------------------------------- | --------------- | ---------------------------------------------- |
+| `provider`                      | `provider`      | 保持大小写不敏感精确匹配                       |
+| `model`, `useRegex=false`       | `modelExact`    | 保持精确匹配                                   |
+| `model`, `useRegex=true`        | `modelRegex`    | 保持正则行为                                   |
 | `modelPrefix`, `useRegex=false` | `modelContains` | 保持当前实际 `includes()` 行为，不制造静默回归 |
-| `modelPrefix`, `useRegex=true` | `modelRegex` | 保持正则行为 |
-| `modelGroup` | 阻塞迁移诊断 | 当前类型不生效，要求用户转换或删除 |
+| `modelPrefix`, `useRegex=true`  | `modelRegex`    | 保持正则行为                                   |
+| `modelGroup`                    | 阻塞迁移诊断    | 当前类型不生效，要求用户转换或删除             |
 
 新增真正的 `modelPrefix` 后只执行 `startsWith()`。匹配默认统一为大小写不敏感；如确有区分大小写需求，后续增加显式 `caseSensitive`，不依赖不同类型的隐式差异。
 
@@ -275,12 +271,12 @@ incoming = 当前应用内置目录中的规则
 
 字段判定：
 
-| 条件 | 结果 |
-| --- | --- |
-| `incoming == base` | 上游未改，不产生更新 |
-| `local == base` 且 `incoming != base` | 纯上游更新，可直接接受 |
-| `local == incoming` | 已一致，无冲突 |
-| `local != base` 且 `incoming == base` | 纯用户修改，继续保留 |
+| 条件                                                         | 结果                   |
+| ------------------------------------------------------------ | ---------------------- |
+| `incoming == base`                                           | 上游未改，不产生更新   |
+| `local == base` 且 `incoming != base`                        | 纯上游更新，可直接接受 |
+| `local == incoming`                                          | 已一致，无冲突         |
+| `local != base` 且 `incoming == base`                        | 纯用户修改，继续保留   |
 | `local != base` 且 `incoming != base` 且 `local != incoming` | 字段冲突，需要用户选择 |
 
 数组作为单一字段比较。规则新增、删除、重命名和匹配条件变化分别显示，不通过模糊匹配猜测规则 ID 迁移。
@@ -312,20 +308,20 @@ materializeModelMetadata(model, properties, options): {
 
 ### 7.2 字段映射
 
-| 元数据字段 | 模型对象目标 | 默认策略 |
-| --- | --- | --- |
-| `icon` | `model.icon` | `fillMissing`，用户编辑后脱离管理 |
-| `group` | `model.group` | `fillMissing`，用户编辑后脱离管理 |
-| `description` | `model.description` | `fillMissing` |
-| `capabilities` | `model.capabilities` | 对能力键逐项填充，显式模型值优先 |
-| `contextLength` | `model.tokenLimits.contextLength` | 显式映射，不再保留两套读取路径 |
-| `tokenizer` | 新增 `model.tokenizerProfileId` | 写入模型后供 Token 计算器使用 |
-| `mediaGenParams` | `model.mediaGenParams` | 深拷贝快照，运行时只读模型对象 |
-| `pricing` | 规范化后的模型价格结构 | 首期只在契约统一后接入，不做字符串猜测 |
-| `recommendedFor` | 新增同名模型展示字段或保留目录展示 | 在阶段 1 冻结用途后再启用 |
-| `version/releaseDate` | 模型展示元数据 | 只影响展示，不参与请求 |
-| `apiEndpoint` | 不直接物化 | 自定义端点仍归属 Profile，不允许模型目录改写网络目标 |
-| `features` | 迁移到 `capabilities` 或删除 | 不长期保留重复能力体系 |
+| 元数据字段            | 模型对象目标                       | 默认策略                                             |
+| --------------------- | ---------------------------------- | ---------------------------------------------------- |
+| `icon`                | `model.icon`                       | `fillMissing`，用户编辑后脱离管理                    |
+| `group`               | `model.group`                      | `fillMissing`，用户编辑后脱离管理                    |
+| `description`         | `model.description`                | `fillMissing`                                        |
+| `capabilities`        | `model.capabilities`               | 对能力键逐项填充，显式模型值优先                     |
+| `contextLength`       | `model.tokenLimits.contextLength`  | 显式映射，不再保留两套读取路径                       |
+| `tokenizer`           | 新增 `model.tokenizerProfileId`    | 写入模型后供 Token 计算器使用                        |
+| `mediaGenParams`      | `model.mediaGenParams`             | 深拷贝快照，运行时只读模型对象                       |
+| `pricing`             | 规范化后的模型价格结构             | 首期只在契约统一后接入，不做字符串猜测               |
+| `recommendedFor`      | 新增同名模型展示字段或保留目录展示 | 在阶段 1 冻结用途后再启用                            |
+| `version/releaseDate` | 模型展示元数据                     | 只影响展示，不参与请求                               |
+| `apiEndpoint`         | 不直接物化                         | 自定义端点仍归属 Profile，不允许模型目录改写网络目标 |
+| `features`            | 迁移到 `capabilities` 或删除       | 不长期保留重复能力体系                               |
 
 ### 7.3 运行时消费者整改
 
@@ -550,16 +546,16 @@ bun run --cwd mobile build
 
 ## 13. 风险与应对
 
-| 风险 | 影响 | 应对 |
-| --- | --- | --- |
-| v2 无旧内置版本信息 | 旧默认与用户修改无法区分 | 按用户修改保守保留，首次更新显示来源不确定 |
-| 运行时读取迁移遗漏 | 规则更新仍可能隐式改变行为 | 建立消费矩阵和 `getActiveModelProperties` 调用清零检查 |
-| 共享核心范围过大 | 拖入平台 UI 或 Profile 依赖 | 核心只接收普通对象和纯数据契约，平台接线留在应用层 |
-| 模型对象新增状态增加配置体积 | Profile 文件增大 | 只记录有意义的 managedPaths、规则 ID 和指纹，不保存完整规则 |
-| 定价字段单位不统一 | 显示或计算错误 | 先冻结规范化价格契约，再启用物化；禁止字符串猜测 |
-| 目录更新与模型刷新被误认为一步 | 用户以为规则更新立即生效 | UI 明确拆成“更新目录”和“刷新模型”两个阶段 |
-| 移动端字段能力落后 | 导入或保存时丢字段 | 先共享 Schema 和透传未知安全字段，再逐步补齐编辑能力 |
-| 正则和大量规则影响覆盖分析性能 | 设置页卡顿 | 编译规则、缓存正则和模型匹配结果，性能测试覆盖 500+ 规则 |
+| 风险                           | 影响                        | 应对                                                        |
+| ------------------------------ | --------------------------- | ----------------------------------------------------------- |
+| v2 无旧内置版本信息            | 旧默认与用户修改无法区分    | 按用户修改保守保留，首次更新显示来源不确定                  |
+| 运行时读取迁移遗漏             | 规则更新仍可能隐式改变行为  | 建立消费矩阵和 `getActiveModelProperties` 调用清零检查      |
+| 共享核心范围过大               | 拖入平台 UI 或 Profile 依赖 | 核心只接收普通对象和纯数据契约，平台接线留在应用层          |
+| 模型对象新增状态增加配置体积   | Profile 文件增大            | 只记录有意义的 managedPaths、规则 ID 和指纹，不保存完整规则 |
+| 定价字段单位不统一             | 显示或计算错误              | 先冻结规范化价格契约，再启用物化；禁止字符串猜测            |
+| 目录更新与模型刷新被误认为一步 | 用户以为规则更新立即生效    | UI 明确拆成“更新目录”和“刷新模型”两个阶段                   |
+| 移动端字段能力落后             | 导入或保存时丢字段          | 先共享 Schema 和透传未知安全字段，再逐步补齐编辑能力        |
+| 正则和大量规则影响覆盖分析性能 | 设置页卡顿                  | 编译规则、缓存正则和模型匹配结果，性能测试覆盖 500+ 规则    |
 
 ## 14. 施工约束
 

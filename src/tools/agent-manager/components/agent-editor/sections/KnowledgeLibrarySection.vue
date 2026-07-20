@@ -60,7 +60,8 @@
                 :icon="Plus"
                 data-testid="agent-knowledge-add-library"
                 aria-label="添加资料库授权"
-              >添加资料库</el-button>
+                >添加资料库</el-button
+              >
             </template>
             <div class="library-options">
               <el-input

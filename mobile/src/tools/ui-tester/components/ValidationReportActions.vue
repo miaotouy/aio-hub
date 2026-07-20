@@ -2,7 +2,10 @@
 import { Copy, Download, Trash2 } from "lucide-vue-next";
 import { customDialog, customMessage } from "@/utils/feedback";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { createValidationReport, exportValidationReport } from "../services/validationReport";
+import {
+  createValidationReport,
+  exportValidationReport,
+} from "../services/validationReport";
 import type { ValidationRun } from "../types/validation";
 
 const props = defineProps<{ runs: readonly ValidationRun[] }>();
@@ -24,7 +27,7 @@ async function exportReport(): Promise<void> {
 async function copySummary(): Promise<void> {
   try {
     await navigator.clipboard.writeText(
-      JSON.stringify(createValidationReport([...props.runs]), null, 2),
+      JSON.stringify(createValidationReport([...props.runs]), null, 2)
     );
     customMessage("脱敏报告已复制", "success");
   } catch (error) {
@@ -51,15 +54,29 @@ async function clear(): Promise<void> {
     <var-button size="small" :disabled="!runs.length" @click="copySummary">
       <Copy :size="16" />复制摘要
     </var-button>
-    <var-button size="small" type="primary" :disabled="!runs.length" @click="exportReport">
+    <var-button
+      size="small"
+      type="primary"
+      :disabled="!runs.length"
+      @click="exportReport"
+    >
       <Download :size="16" />导出报告
     </var-button>
-    <var-button size="small" type="danger" :disabled="!runs.length" @click="clear">
+    <var-button
+      size="small"
+      type="danger"
+      :disabled="!runs.length"
+      @click="clear"
+    >
       <Trash2 :size="16" />清理记录
     </var-button>
   </div>
 </template>
 
 <style scoped>
-.report-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 </style>

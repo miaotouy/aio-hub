@@ -1,12 +1,7 @@
 export type ValidationSuiteId = "components" | "platform-files" | "sqlite";
 
 export type ValidationRunStatus =
-  | "idle"
-  | "running"
-  | "passed"
-  | "failed"
-  | "cancelled"
-  | "manualPending";
+  "idle" | "running" | "passed" | "failed" | "cancelled" | "manualPending";
 
 export interface ValidationEnvironment {
   platform: string;

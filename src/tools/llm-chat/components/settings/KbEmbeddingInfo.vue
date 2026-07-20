@@ -20,12 +20,7 @@
       :model-combo="modelCombo"
       empty-text="未配置默认 Embedding 模型"
     />
-    <el-button
-      type="primary"
-      link
-      @click="goToRecall"
-      class="config-link-btn"
-    >
+    <el-button type="primary" link @click="goToRecall" class="config-link-btn">
       前往思绪配置 →
     </el-button>
   </div>

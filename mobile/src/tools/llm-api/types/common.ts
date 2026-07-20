@@ -673,7 +673,4 @@ export interface LlmResponse {
   }>;
   revisedPrompt?: string;
 }
-import type {
-  ModelIdentity,
-  ModelIdentitySuggestion,
-} from "@aiohub/llm-core";
+import type { ModelIdentity, ModelIdentitySuggestion } from "@aiohub/llm-core";

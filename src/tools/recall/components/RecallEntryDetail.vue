@@ -355,7 +355,10 @@ const handleDetailFileChange = (e: Event) => {
 </script>
 
 <template>
-  <div class="entry-detail-container" :class="{ 'is-loading': isDetailLoading }">
+  <div
+    class="entry-detail-container"
+    :class="{ 'is-loading': isDetailLoading }"
+  >
     <template v-if="hasValidEntry">
       <div class="editor-header">
         <div class="header-left">
@@ -398,7 +401,8 @@ const handleDetailFileChange = (e: Event) => {
                 size="small"
                 :loading="isEmbedding || isDetailLoading"
                 :disabled="
-                  !recallStore.config.defaultEmbeddingModel || !recallStore.activeEntry
+                  !recallStore.config.defaultEmbeddingModel ||
+                  !recallStore.activeEntry
                 "
                 @click="handleEmbedding"
                 class="vector-action-btn"

@@ -152,10 +152,13 @@ export function useRecallVectorSync() {
 
     // 收集所有标签
     for (const id of recallIds) {
-      const meta = await invoke<RecallCollectionMeta | null>("recall_load_base_meta", {
-        recallId: id,
-        modelId: pureModelId,
-      });
+      const meta = await invoke<RecallCollectionMeta | null>(
+        "recall_load_base_meta",
+        {
+          recallId: id,
+          modelId: pureModelId,
+        }
+      );
       if (!meta) continue;
       meta.entries.forEach((e) => e.tags?.forEach((t) => allTags.add(t)));
     }
@@ -237,10 +240,13 @@ export function useRecallVectorSync() {
             if (!id) break;
 
             try {
-              const fullEntry = await invoke<RecallEntry | null>("recall_load_entry", {
-                recallId: store.activeBaseId!,
-                entryId: id,
-              });
+              const fullEntry = await invoke<RecallEntry | null>(
+                "recall_load_entry",
+                {
+                  recallId: store.activeBaseId!,
+                  entryId: id,
+                }
+              );
               if (!fullEntry || !fullEntry.content) continue;
 
               const newTags = await performGenerateTags({

@@ -49,7 +49,10 @@ const logger = createModuleLogger("recall/agent");
 /**
  * 辅助函数：解析思绪集 ID
  */
-async function resolveRecallId(recallId?: string, recallName?: string): Promise<string> {
+async function resolveRecallId(
+  recallId?: string,
+  recallName?: string
+): Promise<string> {
   if (recallId) return recallId;
   if (!recallName) throw new Error("必须提供 recallId 或 recallName 之一");
 
@@ -142,7 +145,10 @@ export async function upsertEntry(
       enabled = true,
       autoVectorize = false,
     } = options;
-    const recallId = await resolveRecallId(options.recallId, options.recallName);
+    const recallId = await resolveRecallId(
+      options.recallId,
+      options.recallName
+    );
 
     logger.info("执行 upsertEntry", { key, recallId });
 
@@ -159,7 +165,10 @@ export async function upsertEntry(
 
     if (existingIndexItem) {
       // 加载完整条目
-      const fullEntry = await recallStorage.loadEntry(recallId, existingIndexItem.id);
+      const fullEntry = await recallStorage.loadEntry(
+        recallId,
+        existingIndexItem.id
+      );
       if (!fullEntry)
         throw new Error(`无法加载条目内容: ${existingIndexItem.id}`);
 
@@ -281,7 +290,10 @@ export async function updateEntryContent(
       dryRun = false,
       autoVectorize = false,
     } = options;
-    const recallId = await resolveRecallId(options.recallId, options.recallName);
+    const recallId = await resolveRecallId(
+      options.recallId,
+      options.recallName
+    );
     const mode = targetContent ? "exact" : "search";
 
     logger.info("执行 updateEntryContent", { recallId, mode, dryRun });
@@ -415,7 +427,10 @@ export async function deleteEntry(
 ): Promise<DeleteEntryResult> {
   try {
     const { confirm = false } = options;
-    const recallId = await resolveRecallId(options.recallId, options.recallName);
+    const recallId = await resolveRecallId(
+      options.recallId,
+      options.recallName
+    );
 
     logger.info("执行 deleteEntry", {
       recallId,
@@ -554,9 +569,15 @@ export async function batchUpdateMetadata(
 ): Promise<BatchUpdateMetadataResult> {
   try {
     const { entryIds, enabled, priority, addTags, removeTags } = options;
-    const recallId = await resolveRecallId(options.recallId, options.recallName);
+    const recallId = await resolveRecallId(
+      options.recallId,
+      options.recallName
+    );
 
-    logger.info("执行 batchUpdateMetadata", { recallId, count: entryIds.length });
+    logger.info("执行 batchUpdateMetadata", {
+      recallId,
+      count: entryIds.length,
+    });
 
     if (entryIds.length > 100) {
       throw new Error("单次批量更新数量不能超过 100 条");
@@ -649,7 +670,10 @@ export async function listEntriesMetadata(
       sortBy = "updatedAt",
       sortOrder = "desc",
     } = options;
-    const recallId = await resolveRecallId(options.recallId, options.recallName);
+    const recallId = await resolveRecallId(
+      options.recallId,
+      options.recallName
+    );
 
     logger.info("执行 listEntriesMetadata", {
       recallId,

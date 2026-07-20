@@ -364,17 +364,16 @@ const toggleCapabilityFilter = (capKey: string) => {
                           {{ formatModelName(model.id) }}
                         </div>
                         <div class="model-id">{{ model.id }}</div>
-                        <div
-                          v-if="model.modelIdentity"
-                          class="model-identity"
-                        >
+                        <div v-if="model.modelIdentity" class="model-identity">
                           {{ model.modelIdentity.canonicalId }}
                         </div>
                         <div
                           v-else-if="model.modelIdentitySuggestion"
                           class="model-identity is-suggestion"
                         >
-                          {{ model.modelIdentitySuggestion.identity.canonicalId }}
+                          {{
+                            model.modelIdentitySuggestion.identity.canonicalId
+                          }}
                         </div>
                       </div>
 

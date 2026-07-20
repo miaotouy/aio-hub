@@ -17,7 +17,9 @@ describe("Knowledge file parser", () => {
   });
 
   it("rejects a known unsupported binary format before reading it", async () => {
-    await expect(parseKnowledgeFile("C:\\docs\\sheet.xlsx")).rejects.toMatchObject({
+    await expect(
+      parseKnowledgeFile("C:\\docs\\sheet.xlsx")
+    ).rejects.toMatchObject({
       stage: "validation",
       sourcePath: "C:\\docs\\sheet.xlsx",
     });
@@ -27,15 +29,17 @@ describe("Knowledge file parser", () => {
   it("accepts an unknown extension when its content is text", async () => {
     readFileMock.mockResolvedValue(new TextEncoder().encode("custom notes"));
 
-    await expect(parseKnowledgeFile("C:\\docs\\notes.custom")).resolves.toEqual({
-      sourcePath: "C:\\docs\\notes.custom",
-      title: "notes",
-      mimeType: "text/plain",
-      content: "custom notes",
-      sourceChecksum:
-        "54dbd79fbc99cba50089d8c0939e354017de5f950add29d7a228fc4c3665a928",
-      parserVersion: "knowledge-parser-v1",
-    });
+    await expect(parseKnowledgeFile("C:\\docs\\notes.custom")).resolves.toEqual(
+      {
+        sourcePath: "C:\\docs\\notes.custom",
+        title: "notes",
+        mimeType: "text/plain",
+        content: "custom notes",
+        sourceChecksum:
+          "54dbd79fbc99cba50089d8c0939e354017de5f950add29d7a228fc4c3665a928",
+        parserVersion: "knowledge-parser-v1",
+      }
+    );
   });
 
   it("rejects unknown binary content and a binary file disguised as text", async () => {

@@ -25,13 +25,16 @@ describe("model identity", () => {
 
   it("maps exact route aliases but never guesses unknown names", () => {
     expect(
-      resolveBuiltinModelIdentity("text-embedding-3-small")?.identity.canonicalId
+      resolveBuiltinModelIdentity("text-embedding-3-small")?.identity
+        .canonicalId
     ).toBe("openai/text-embedding-3-small");
     expect(
       resolveBuiltinModelIdentity("openai/text-embedding-3-small")?.identity
         .canonicalId
     ).toBe("openai/text-embedding-3-small");
-    expect(resolveBuiltinModelIdentity("azure-embedding-production")).toBeNull();
+    expect(
+      resolveBuiltinModelIdentity("azure-embedding-production")
+    ).toBeNull();
   });
 
   it("keeps provider ownership as a suggestion instead of a fact", () => {
@@ -121,7 +124,9 @@ describe("embedding spaces", () => {
       modelIdentity: { canonicalId: "openai/text-embedding-3-small" },
       dimensions: 1024,
     });
-    expect(await getEmbeddingSpaceId(base)).toBe(await getEmbeddingSpaceId(same));
+    expect(await getEmbeddingSpaceId(base)).toBe(
+      await getEmbeddingSpaceId(same)
+    );
     expect(await getEmbeddingSpaceId(changed)).not.toBe(
       await getEmbeddingSpaceId(base)
     );

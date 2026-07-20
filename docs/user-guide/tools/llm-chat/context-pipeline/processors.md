@@ -11,7 +11,7 @@
 | 1    | **Session Loader**          | 从树状会话中提取当前活跃路径的线性消息列表。                        |
 | 2    | **Regex Processor**         | 执行全局、Agent 及用户层的[正则替换规则](./regex-pipeline)。        |
 | 3    | **Injection Assembler**     | 处理 Agent 预设消息的注入，包括深度注入和锚点定位。                 |
-| 4    | **Recall Processor**        | 仅处理 Recall 思绪占位符；Knowledge 不属于上下文管道处理器。       |
+| 4    | **Recall Processor**        | 仅处理 Recall 思绪占位符；Knowledge 不属于上下文管道处理器。        |
 | 5    | **Transcription Processor** | 处理附件的转写结果及纯文本文件的内容提取。                          |
 | 6    | **Worldbook Processor**     | 扫描关键词并注入关联的[世界书](../worldbook/index)条目。            |
 | 7    | **Token Limiter**           | 核心预算管理，按优先级裁剪超长上下文。                              |

@@ -57,8 +57,14 @@ const statusText: Record<ValidationRunStatus, string> = {
   border-bottom: 1px solid var(--divider-color, rgba(127, 127, 127, 0.18));
 }
 
-.case-copy { min-width: 0; }
-.case-title { color: var(--text-primary); font-size: 15px; font-weight: 600; }
+.case-copy {
+  min-width: 0;
+}
+.case-title {
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+}
 .case-description {
   margin-top: 4px;
   color: var(--text-secondary, #6b7280);
@@ -74,13 +80,25 @@ const statusText: Record<ValidationRunStatus, string> = {
   font-size: 12px;
 }
 
-.case-status[data-status="passed"] { color: var(--color-success, #25804b); }
-.case-status[data-status="failed"] { color: var(--color-danger, #c23b3b); }
-.case-status[data-status="manualPending"] { color: var(--color-warning, #9a6500); }
-.run-button { flex: 0 0 auto; }
+.case-status[data-status="passed"] {
+  color: var(--color-success, #25804b);
+}
+.case-status[data-status="failed"] {
+  color: var(--color-danger, #c23b3b);
+}
+.case-status[data-status="manualPending"] {
+  color: var(--color-warning, #9a6500);
+}
+.run-button {
+  flex: 0 0 auto;
+}
 
 @media (max-width: 380px) {
-  .case-row { grid-template-columns: 1fr; }
-  .run-button { justify-self: start; }
+  .case-row {
+    grid-template-columns: 1fr;
+  }
+  .run-button {
+    justify-self: start;
+  }
 }
 </style>

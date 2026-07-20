@@ -1,7 +1,4 @@
-import type {
-  ModelIdentity,
-  ModelIdentityValidationResult,
-} from "./types";
+import type { ModelIdentity, ModelIdentityValidationResult } from "./types";
 
 const CANONICAL_ID_PATTERN = /^[a-z0-9._-]+\/[a-z0-9._-]+$/;
 

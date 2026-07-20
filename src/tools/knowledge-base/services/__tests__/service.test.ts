@@ -240,10 +240,10 @@ describe("searchKnowledge", () => {
       name: "Renamed",
       description: "Updated",
     });
-    expect(invokeMock).toHaveBeenCalledWith(
-      "knowledge_apply_library_config",
-      { libraryId: "library-a", config }
-    );
+    expect(invokeMock).toHaveBeenCalledWith("knowledge_apply_library_config", {
+      libraryId: "library-a",
+      config,
+    });
   });
 
   it("updates document tags through the Knowledge IPC boundary", async () => {
@@ -256,14 +256,11 @@ describe("searchKnowledge", () => {
     );
 
     expect(document.tags).toEqual(["docs"]);
-    expect(invokeMock).toHaveBeenCalledWith(
-      "knowledge_update_document_tags",
-      {
-        libraryId: "library-a",
-        documentId: "document-a",
-        tags: ["docs"],
-      }
-    );
+    expect(invokeMock).toHaveBeenCalledWith("knowledge_update_document_tags", {
+      libraryId: "library-a",
+      documentId: "document-a",
+      tags: ["docs"],
+    });
   });
 
   it("snapshots the global default embedding route for a new library", async () => {
@@ -362,21 +359,23 @@ describe("searchKnowledge", () => {
         _profile: LlmProfile,
         options: { input: string | string[]; modelId: string }
       ) => {
-      activeRequests += 1;
-      maximumActiveRequests = Math.max(maximumActiveRequests, activeRequests);
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      activeRequests -= 1;
-      const input = Array.isArray(options.input) ? options.input : [options.input];
-      return {
-        data: input.map((_, index) => ({
-          embedding: [1, index],
-          index,
-          object: "embedding" as const,
-        })),
-        model: options.modelId,
-        usage: { promptTokens: 1, totalTokens: 1 },
-        object: "list" as const,
-      };
+        activeRequests += 1;
+        maximumActiveRequests = Math.max(maximumActiveRequests, activeRequests);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        activeRequests -= 1;
+        const input = Array.isArray(options.input)
+          ? options.input
+          : [options.input];
+        return {
+          data: input.map((_, index) => ({
+            embedding: [1, index],
+            index,
+            object: "embedding" as const,
+          })),
+          model: options.modelId,
+          usage: { promptTokens: 1, totalTokens: 1 },
+          object: "list" as const,
+        };
       }
     );
     invokeMock.mockImplementation(async (command) => {

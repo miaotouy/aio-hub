@@ -344,7 +344,10 @@ const formatTokens = (num: number) => {
                 >
                   <div class="sort-menu-item">
                     <span>升序</span>
-                    <Check v-if="recallStore.baseSort.order === 'asc'" :size="14" />
+                    <Check
+                      v-if="recallStore.baseSort.order === 'asc'"
+                      :size="14"
+                    />
                   </div>
                 </el-dropdown-item>
                 <el-dropdown-item @click="recallStore.baseSort.order = 'desc'">

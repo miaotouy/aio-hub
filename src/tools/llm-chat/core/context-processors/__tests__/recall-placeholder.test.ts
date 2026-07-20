@@ -47,9 +47,9 @@ describe("Recall placeholder protocol", () => {
     expect(() =>
       parseRecallPlaceholder("【recall::limit=3::limit=4】", 1)
     ).toThrow(RecallPlaceholderError);
-    expect(() =>
-      parseRecallPlaceholder("【recall::when=gate】", 2)
-    ).toThrow(RecallPlaceholderError);
+    expect(() => parseRecallPlaceholder("【recall::when=gate】", 2)).toThrow(
+      RecallPlaceholderError
+    );
   });
 
   it("skips session history while preserving message diagnostics", () => {

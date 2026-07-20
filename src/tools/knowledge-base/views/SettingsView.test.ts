@@ -98,11 +98,14 @@ function mountSettings() {
         ElButton: {
           inheritAttrs: false,
           emits: ["click"],
-          template: '<button v-bind="$attrs" @click="$emit(\'click\')"><slot /></button>',
+          template:
+            '<button v-bind="$attrs" @click="$emit(\'click\')"><slot /></button>',
         },
         ElInput: ModelInput,
         ElInputNumber: ModelInput,
-        ElOption: { template: '<option :value="$attrs.value"><slot /></option>' },
+        ElOption: {
+          template: '<option :value="$attrs.value"><slot /></option>',
+        },
         ElSelect: ModelSelect,
         ElSwitch: ModelInput,
         ElTable: { template: "<div><slot /></div>" },
@@ -131,13 +134,17 @@ describe("Knowledge settings view", () => {
     });
     mocks.store = store;
     vi.restoreAllMocks();
-    vi.spyOn(configModule.knowledgeRuntimeConfigManager, "load").mockResolvedValue({
+    vi.spyOn(
+      configModule.knowledgeRuntimeConfigManager,
+      "load"
+    ).mockResolvedValue({
       ...configModule.createDefaultKnowledgeRuntimeConfig(),
       embeddingBatchSize: 64,
     });
-    vi.spyOn(configModule, "saveKnowledgeRuntimeConfigDebounced").mockImplementation(
-      () => undefined
-    );
+    vi.spyOn(
+      configModule,
+      "saveKnowledgeRuntimeConfigDebounced"
+    ).mockImplementation(() => undefined);
     mocks.confirm.mockReset();
     mocks.confirm.mockResolvedValue(undefined);
     mocks.open.mockReset();
@@ -158,13 +165,19 @@ describe("Knowledge settings view", () => {
   it("resets runtime settings to defaults after confirmation", async () => {
     const wrapper = mountSettings();
     await flushPromises();
-    expect(wrapper.get('[data-testid="runtime-embedding-batch"]').attributes("value")).toBe("64");
+    expect(
+      wrapper.get('[data-testid="runtime-embedding-batch"]').attributes("value")
+    ).toBe("64");
 
-    await wrapper.get('[data-testid="reset-runtime-settings"]').trigger("click");
+    await wrapper
+      .get('[data-testid="reset-runtime-settings"]')
+      .trigger("click");
     await flushPromises();
 
     expect(mocks.confirm).toHaveBeenCalled();
-    expect(wrapper.get('[data-testid="runtime-embedding-batch"]').attributes("value")).toBe("32");
+    expect(
+      wrapper.get('[data-testid="runtime-embedding-batch"]').attributes("value")
+    ).toBe("32");
   });
 
   it("discards unsaved form edits when switching libraries instead of leaking them", async () => {
@@ -175,15 +188,21 @@ describe("Knowledge settings view", () => {
 
     await wrapper.get('[data-testid="settings-library-select"]').setValue("b");
     await flushPromises();
-    expect(wrapper.get('[data-testid="library-name"]').attributes("value")).toBe("Library B");
+    expect(
+      wrapper.get('[data-testid="library-name"]').attributes("value")
+    ).toBe("Library B");
 
     await wrapper.get('[data-testid="settings-library-select"]').setValue("a");
     await flushPromises();
-    expect(wrapper.get('[data-testid="library-name"]').attributes("value")).toBe("Library A");
+    expect(
+      wrapper.get('[data-testid="library-name"]').attributes("value")
+    ).toBe("Library A");
   });
 
   it("keeps edited runtime input when debounced persistence reports failure", async () => {
-    vi.mocked(configModule.saveKnowledgeRuntimeConfigDebounced).mockImplementation((_value, onError) => {
+    vi.mocked(
+      configModule.saveKnowledgeRuntimeConfigDebounced
+    ).mockImplementation((_value, onError) => {
       onError?.(new Error("disk unavailable"));
     });
     const wrapper = mountSettings();
@@ -193,7 +212,9 @@ describe("Knowledge settings view", () => {
     await flushPromises();
 
     expect(configModule.saveKnowledgeRuntimeConfigDebounced).toHaveBeenCalled();
-    expect(wrapper.get('[data-testid="runtime-embedding-batch"]').attributes("value")).toBe("77");
+    expect(
+      wrapper.get('[data-testid="runtime-embedding-batch"]').attributes("value")
+    ).toBe("77");
   });
 
   it("surfaces semantic vectorization warnings after adding a directory", async () => {
@@ -215,7 +236,9 @@ describe("Knowledge settings view", () => {
     await addDirectoryButton!.trigger("click");
     await flushPromises();
 
-    expect(mocks.message.warning).toHaveBeenCalledWith("语义向量将在重试后补齐");
+    expect(mocks.message.warning).toHaveBeenCalledWith(
+      "语义向量将在重试后补齐"
+    );
     expect(mocks.message.success).not.toHaveBeenCalledWith(
       "目录来源已添加，处理 1 个文件"
     );

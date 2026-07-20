@@ -50,12 +50,7 @@ export interface KnowledgeRuntimeConfig {
 
 export type KnowledgeSourceKind = "file" | "directory";
 export type KnowledgeIngestTaskStatus =
-  | "pending"
-  | "processing"
-  | "retry"
-  | "failed"
-  | "completed"
-  | "cancelled";
+  "pending" | "processing" | "retry" | "failed" | "completed" | "cancelled";
 
 export interface KnowledgeSource {
   id: string;

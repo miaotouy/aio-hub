@@ -94,9 +94,7 @@ function collectRecallPlaceholders(
   const placeholders: RecallPlaceholder[] = [];
   for (const token of scanRetrievalEnvelopes(context.messages, "recall")) {
     try {
-      placeholders.push(
-        parseRecallPlaceholder(token.raw, token.messageIndex)
-      );
+      placeholders.push(parseRecallPlaceholder(token.raw, token.messageIndex));
     } catch (error) {
       if (!(error instanceof RecallPlaceholderError)) throw error;
       if (!reportErrors) continue;

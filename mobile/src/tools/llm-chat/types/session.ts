@@ -40,6 +40,11 @@ export interface ChatSession {
   messageCount?: number;
 
   /**
+   * 是否收藏
+   */
+  isFavorite?: boolean;
+
+  /**
    * 撤销/重做 状态快照（运行时专用，不持久化）
    */
   history?: any[];

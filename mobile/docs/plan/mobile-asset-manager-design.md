@@ -51,14 +51,14 @@
 
 Android 10 及以上以分区存储为默认边界。应用可以无额外存储权限地访问自己的私有目录，但不能把公共存储当成 PC 文件系统任意遍历。
 
-| 机制 | 适合用途 | 生命周期与限制 |
-| --- | --- | --- |
-| 应用私有 Files/AppData | 托管原件、SQLite、不可丢失的衍生数据 | 卸载时删除；普通文件管理器不可直接管理；不需要存储权限 |
-| 应用私有 Cache | 缩略图、视频封面、波形、临时导入文件 | 空间紧张时可被系统清理；必须允许重建 |
-| Storage Access Framework | 用户从系统文件提供方选择文档 | 返回 `content://` URI；一次授权不等于永久路径；长期引用需持久 URI 权限且提供方必须支持 |
-| 系统 Photo Picker | 用户选择指定图片或视频 | 不需要全量相册权限；适合隐私优先的选择式导入 |
-| MediaStore | 将图片、视频或音频保存到系统媒体库 | 适合“保存到相册/媒体库”，不适合作为 AIO 私有资产索引 |
-| Android 分享 Intent | 从其他应用接收一个或多个文件 | URI 授权通常跟随 Intent 生命周期；应尽快复制到导入暂存区 |
+| 机制                     | 适合用途                             | 生命周期与限制                                                                         |
+| ------------------------ | ------------------------------------ | -------------------------------------------------------------------------------------- |
+| 应用私有 Files/AppData   | 托管原件、SQLite、不可丢失的衍生数据 | 卸载时删除；普通文件管理器不可直接管理；不需要存储权限                                 |
+| 应用私有 Cache           | 缩略图、视频封面、波形、临时导入文件 | 空间紧张时可被系统清理；必须允许重建                                                   |
+| Storage Access Framework | 用户从系统文件提供方选择文档         | 返回 `content://` URI；一次授权不等于永久路径；长期引用需持久 URI 权限且提供方必须支持 |
+| 系统 Photo Picker        | 用户选择指定图片或视频               | 不需要全量相册权限；适合隐私优先的选择式导入                                           |
+| MediaStore               | 将图片、视频或音频保存到系统媒体库   | 适合“保存到相册/媒体库”，不适合作为 AIO 私有资产索引                                   |
+| Android 分享 Intent      | 从其他应用接收一个或多个文件         | URI 授权通常跟随 Intent 生命周期；应尽快复制到导入暂存区                               |
 
 设计影响：
 
@@ -73,14 +73,14 @@ Android 10 及以上以分区存储为默认边界。应用可以无额外存储
 
 iOS 应用运行在沙盒中。应用自己的 Documents、Library/Application Support、Library/Caches 和 tmp 具有不同的备份及清理语义，外部文件提供方并不是可永久信任的普通路径。
 
-| 机制 | 适合用途 | 生命周期与限制 |
-| --- | --- | --- |
-| Application Support | 托管原件、SQLite、不可重建的元数据 | 应用私有；默认可能参与备份，需按产品备份策略设置排除属性 |
-| Caches | 缩略图、波形、可重建转码 | 系统可清理；不能存唯一原件 |
-| tmp | 单次导入、导出与分享的中间文件 | 系统可随时清理；任务完成后主动释放 |
-| Document Picker | 从 Files/iCloud Drive/第三方提供方选择文档 | Tauri dialog 返回 `file://` URI；长期原地访问需安全作用域书签与失效恢复 |
-| Photos Picker | 用户选择指定照片或视频 | 适合最小权限导入；选择结果应复制到托管库 |
-| Share Sheet / Photo Library | 导出到其他应用、Files 或照片库 | 应由系统分享/保存入口承接，不使用“打开所在目录”概念 |
+| 机制                        | 适合用途                                   | 生命周期与限制                                                          |
+| --------------------------- | ------------------------------------------ | ----------------------------------------------------------------------- |
+| Application Support         | 托管原件、SQLite、不可重建的元数据         | 应用私有；默认可能参与备份，需按产品备份策略设置排除属性                |
+| Caches                      | 缩略图、波形、可重建转码                   | 系统可清理；不能存唯一原件                                              |
+| tmp                         | 单次导入、导出与分享的中间文件             | 系统可随时清理；任务完成后主动释放                                      |
+| Document Picker             | 从 Files/iCloud Drive/第三方提供方选择文档 | Tauri dialog 返回 `file://` URI；长期原地访问需安全作用域书签与失效恢复 |
+| Photos Picker               | 用户选择指定照片或视频                     | 适合最小权限导入；选择结果应复制到托管库                                |
+| Share Sheet / Photo Library | 导出到其他应用、Files 或照片库             | 应由系统分享/保存入口承接，不使用“打开所在目录”概念                     |
 
 设计影响：
 
@@ -136,11 +136,11 @@ iOS 应用运行在沙盒中。应用自己的 Documents、Library/Application S
 
 全局资产、智能体私有资产和缓存具有不同的所有权，不能只因为内容格式相同就合并存储：
 
-| 类别 | 所有者 | 生命周期 | 全局资产 ID |
-| --- | --- | --- | --- |
-| 全局可回收资产 | `asset-manager` | 可按时间、来源、类型或影响范围清理；可由用户固定保留 | 有 |
-| 智能体私有资产 | `agent-manager` | 随智能体导入、导出、复制和删除；Handle 与相对路径属于智能体包契约 | 无 |
-| 可重建缓存 | 产生缓存的模块或资产服务 | 可自动清理并按需重建 | 仅关联到原资产，不作为独立业务资产 |
+| 类别           | 所有者                   | 生命周期                                                          | 全局资产 ID                        |
+| -------------- | ------------------------ | ----------------------------------------------------------------- | ---------------------------------- |
+| 全局可回收资产 | `asset-manager`          | 可按时间、来源、类型或影响范围清理；可由用户固定保留              | 有                                 |
+| 智能体私有资产 | `agent-manager`          | 随智能体导入、导出、复制和删除；Handle 与相对路径属于智能体包契约 | 无                                 |
+| 可重建缓存     | 产生缓存的模块或资产服务 | 可自动清理并按需重建                                              | 仅关联到原资产，不作为独立业务资产 |
 
 “可回收”不等于系统可以无提示随时删除。自动任务默认只清理缓存、临时文件和失败任务；删除托管原件需要用户明确操作或用户启用的保留策略。业务引用决定提示强度和替代流程，不把所有引用一律解释为永久保留。
 
@@ -180,20 +180,20 @@ iOS 应用运行在沙盒中。应用自己的 Documents、Library/Application S
 
 ### 6.1 `assets`
 
-| 字段 | 说明 |
-| --- | --- |
-| `id` | UUID，跨工具稳定引用 |
-| `content_hash` | 托管内容 SHA-256，唯一索引 |
-| `kind` | image/audio/video/document/other |
-| `mime_type` | 标准 MIME |
-| `display_name` | 当前展示名称，不作为物理文件名 |
-| `size_bytes` | 原件大小 |
-| `storage_mode` | managed/linked；首版只创建 managed |
-| `relative_path` | 托管原件相对路径，linked 时为空 |
-| `availability` | ready/importing/reclaimed/missing/error；reclaimed 表示用户主动回收原件 |
-| `library_state` | visible/hidden |
-| `retention_policy` | reclaimable/pinned；默认 reclaimable |
-| `created_at` / `updated_at` | UTC 时间 |
+| 字段                        | 说明                                                                    |
+| --------------------------- | ----------------------------------------------------------------------- |
+| `id`                        | UUID，跨工具稳定引用                                                    |
+| `content_hash`              | 托管内容 SHA-256，唯一索引                                              |
+| `kind`                      | image/audio/video/document/other                                        |
+| `mime_type`                 | 标准 MIME                                                               |
+| `display_name`              | 当前展示名称，不作为物理文件名                                          |
+| `size_bytes`                | 原件大小                                                                |
+| `storage_mode`              | managed/linked；首版只创建 managed                                      |
+| `relative_path`             | 托管原件相对路径，linked 时为空                                         |
+| `availability`              | ready/importing/reclaimed/missing/error；reclaimed 表示用户主动回收原件 |
+| `library_state`             | visible/hidden                                                          |
+| `retention_policy`          | reclaimable/pinned；默认 reclaimable                                    |
+| `created_at` / `updated_at` | UTC 时间                                                                |
 
 ### 6.2 `asset_origins`
 
@@ -254,13 +254,13 @@ interface ManagedAssetRef {
 
 建议统一为三类操作：
 
-| 操作 | 行为 | 风险 |
-| --- | --- | --- |
-| 从资产库隐藏 | 不再出现在普通资产列表，保留原件与业务引用 | 可恢复，低风险 |
-| 清理可重建内容 | 删除缩略图、波形、临时导出、失败导入 | 可自动重建，低风险 |
-| 删除无引用原件 | 删除未被业务使用且未固定保留的托管原件 | 不可恢复，中风险 |
+| 操作                   | 行为                                                                               | 风险                               |
+| ---------------------- | ---------------------------------------------------------------------------------- | ---------------------------------- |
+| 从资产库隐藏           | 不再出现在普通资产列表，保留原件与业务引用                                         | 可恢复，低风险                     |
+| 清理可重建内容         | 删除缩略图、波形、临时导出、失败导入                                               | 可自动重建，低风险                 |
+| 删除无引用原件         | 删除未被业务使用且未固定保留的托管原件                                             | 不可恢复，中风险                   |
 | 删除有建议型引用的原件 | 展示受影响位置，确认后删除物理原件并保留 `reclaimed` tombstone；消费者保留轻量快照 | 历史附件或结果无法再次打开，高风险 |
-| 删除有阻止型引用的原件 | 拒绝删除，要求先解除引用、取消保留或完成文本替代 | 防止违反用户明确的保留承诺 |
+| 删除有阻止型引用的原件 | 拒绝删除，要求先解除引用、取消保留或完成文本替代                                   | 防止违反用户明确的保留承诺         |
 
 详情页和批量清理确认页应显示“正在被 3 个对话使用”等影响信息，并提供跳转查看使用位置。删除原件不级联删除聊天消息或生成任务；消费者必须能在原件不存在时继续加载，并根据 `reclaimed` tombstone 明确展示“原件已清理”，不能与 `missing` 故障混为一谈。
 
@@ -492,7 +492,7 @@ interface ManagedAssetRef {
 - [x] 建立短期 token、可撤销自定义协议、单 Range 读取和大原件响应上限的受控预览候选实现。
 - [x] 在 Android 模拟器 `emulator-5558` 验证 Rust command 通过原生 bridge 直读 Photo Picker `content://` 的正式导入路径并回写报告。
 - [x] 完成 Android 图片、视频和音频受控预览验收，并通过固定场景验证 Range/CORS、HEAD 与主动撤销；token 自然过期仍待补验。
-- [ ] [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md) 阶段一 Rust 存储骨架已完成；继续完成阶段二会话增量持久化和阶段三附件接入后，再声明聊天附件、usage outbox 与 reclaimed 降级完成。不在现有 JSON 会话和 `any[]` 附件上增加过渡持久化。
+- [ ] [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md) 阶段一 Rust 存储骨架与阶段二会话增量持久化已完成；继续完成阶段三附件接入后，再声明聊天附件、usage outbox 与 reclaimed 降级完成。不在 `any[]` 附件上增加过渡持久化。
 
 ### Phase 2：资产页
 
@@ -603,9 +603,9 @@ interface ManagedAssetRef {
 
 ### 2026-07-20：首个聊天消费者门禁
 
-- 当前 LLM Chat 仍使用逐会话 JSON 文件，`ProcessableMessage._attachments` 仍为 `any[]` 占位，尚无 `llm_chat.db`、`chat_attachments` 或 `asset_usage_outbox`。
-- 聊天附件与 usage outbox 必须在同一聊天数据库事务提交。若先把 `ManagedAssetRef` 写入 JSON、再临时调用资产 usage 命令，崩溃窗口会产生漏引用或僵尸引用，违反删除影响分析的正确性要求。
-- 因此首个聊天消费者暂停在 SQLite 迁移阶段一至三之前。资产内核、受控预览和原生传输保持可独立使用，不以错误的 JSON 过渡方案提前标记消费者完成。
+- 当前 LLM Chat 会话与消息已由 `llm_chat.db` 增量持久化，schema v1 已包含 `chat_attachments` 和 `asset_usage_outbox`；但 `ProcessableMessage._attachments` 仍为 `any[]` 占位，聊天附件消费者尚未接入这些表。
+- 聊天附件与 usage outbox 必须在同一聊天数据库事务提交。阶段二没有把 `ManagedAssetRef` 写入 metadata 或另行调用资产 usage 命令，避免产生漏引用或僵尸引用。
+- 因此首个聊天消费者仍暂停在 SQLite 迁移阶段三之前。资产内核、受控预览和原生传输保持可独立使用，不提前标记消费者完成。
 
 ### 2026-07-20：Phase 2 首批资产页
 
@@ -668,6 +668,12 @@ interface ManagedAssetRef {
 - 新增 `llm_chat.db` schema v1 与 Rust `llm_chat_storage` 领域服务，初始 migration 直接包含会话、消息、附件、asset usage outbox 和 trigram FTS，不保留已知错误的 `file_path` 过渡结构。
 - 聊天 change set 在单一 transaction 内写入业务数据和 outbox；附件 replacement/release 由 Rust 自动生成，分支与会话删除先写 release。投递到 `asset_manager.db` 复用整体 replacement 的幂等命令，同一实体保持顺序，永久错误进入可重试 dead-letter。
 - 本批通过移动端 28 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android x86_64 debug APK 构建；`emulator-5558` 的真实 WebView 调用 `list_chat_sessions` 成功并创建数据库/WAL。阶段二前端会话迁移与阶段三附件消费者尚未接入，现有 JSON 会话未双写；iOS 继续跳过。
+
+### 2026-07-21：聊天消费者前置迁移阶段二
+
+- 新增聊天 SQLite 薄 command client 与树/扁平 codec，`useSessionManager` 的列表、详情、增量保存和删除改走 `llm_chat.db`；`currentSessionId` 留在 ConfigManager。
+- 保存只 upsert 新增或变化消息并提交最小删除分支根；完整 metadata 未知字段、type、timestamp、`siblingOrder` 和 `lastSelectedChildId` 均有前端固定测试。旧 JSON 仅幂等导入一次，成功后停止读写，不建设双写。
+- 本批通过移动端 85 个前端测试、28 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android x86_64 debug APK 构建。`emulator-5558` 的真实 WebView 通过正式“开启新对话”入口完成 Pinia、`useSessionManager`、codec 与 Tauri command 的创建/加载闭环，并完成单消息增量更新、未知 metadata 往返、列表和删除验证；阶段三附件消费者仍未接入，iOS 因缺少编译与设备条件继续跳过。
 
 ## 16. 调查来源
 

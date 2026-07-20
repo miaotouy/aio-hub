@@ -9,8 +9,15 @@ export interface LocalFileRef {
   contentType?: string;
 }
 
+export interface ManagedAssetFileRef {
+  kind: "managed-asset-ref";
+  assetId: string;
+}
+
+export type WireFileRef = LocalFileRef | ManagedAssetFileRef;
+
 export type WireJsonValue =
   | JsonPrimitive
-  | LocalFileRef
+  | WireFileRef
   | WireJsonValue[]
   | { [key: string]: WireJsonValue };

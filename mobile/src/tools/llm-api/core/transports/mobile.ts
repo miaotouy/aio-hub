@@ -1,5 +1,5 @@
 import {
-  containsLocalFileRef,
+  containsNativeFileRef,
   type LlmTransport,
   type TransportOptions,
   type WireBody,
@@ -176,7 +176,7 @@ function serializeBody(
 function requiresNativeFileRequest(body: WireBody | undefined): boolean {
   if (!body) return false;
   if (body.kind === "file-ref") return true;
-  if (body.kind === "json") return containsLocalFileRef(body.value);
+  if (body.kind === "json") return containsNativeFileRef(body.value);
   return (
     body.kind === "multipart" &&
     body.parts.some((part) => part.body.kind === "file-ref")

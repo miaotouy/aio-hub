@@ -74,7 +74,13 @@ AppData/assets/
 - 月份与来源 facets 只聚合 ready 资产。来源聚合在同一来源类型/模块内按资产去重；同一资产属于多个来源分组时允许重复计入，各分组不可直接相加推导总占用。
 - hidden 只影响普通资产列表与默认 facets，不改变资产可用性。恢复仅把 `library_state` 改回 visible。
 
-## 9. 后续施工
+## 9. 原生资产读取
 
-- 受控预览描述符与 `managed-asset-ref` 原生 LLM 传输。
+- 共享 wire 引用使用 `{ kind: "managed-asset-ref", assetId }`，不附带 MIME 快照或任何路径字段。
+- 移动端 LLM 原生传输在 Rust 内部查询资产库，只接受 managed、ready 且对象文件存在的资产；JSON 内联、顶层 body 和 multipart 共用同一解析入口。
+- managed multipart 的 MIME 与文件名取自资产记录，流长度取自打开前的实际文件元数据。`reclaimed`、`missing`、非 managed 或对象缺失均拒绝读取。
+
+## 10. 后续施工
+
+- 受控预览描述符与 Android WebView 真机协议验证。
 - Phase 2 再注册资产/空间页面与移动端交互。

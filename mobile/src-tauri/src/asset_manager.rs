@@ -161,6 +161,13 @@ pub struct AssetRecord {
     pub updated_at: String,
 }
 
+#[derive(Debug)]
+pub(crate) struct ManagedAssetRead {
+    pub path: PathBuf,
+    pub mime_type: String,
+    pub display_name: String,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetImportSource {
@@ -2206,6 +2213,40 @@ async fn find_asset_by_id(
     .map_err(|error| format!("ASSET_ID_LOOKUP: {error}"))
 }
 
+pub(crate) async fn resolve_managed_asset_read(
+    app: &AppHandle,
+    state: &AssetManagerState,
+    asset_id: &str,
+) -> Result<ManagedAssetRead, String> {
+    validate_identifier("assetId", asset_id)?;
+    let asset = find_asset_by_id(state.pool(app).await?, asset_id)
+        .await?
+        .ok_or_else(|| "ASSET_NOT_FOUND".to_string())?;
+    resolve_managed_asset_record(&AssetPaths::from_app(app)?, asset)
+}
+
+fn resolve_managed_asset_record(
+    paths: &AssetPaths,
+    asset: AssetRecord,
+) -> Result<ManagedAssetRead, String> {
+    if asset.storage_mode != "managed" || asset.availability != "ready" {
+        return Err("ASSET_NOT_AVAILABLE".into());
+    }
+    let relative_path = asset
+        .relative_path
+        .as_deref()
+        .ok_or_else(|| "ASSET_NOT_AVAILABLE".to_string())?;
+    let path = paths.resolve_relative(relative_path)?;
+    if !path.is_file() {
+        return Err("ASSET_OBJECT_MISSING".into());
+    }
+    Ok(ManagedAssetRead {
+        path,
+        mime_type: asset.mime_type,
+        display_name: asset.display_name,
+    })
+}
+
 fn validate_import_source(source: &AssetImportSource) -> Result<(), String> {
     if source.reference.is_empty() || source.reference.len() > 8_192 {
         return Err("ASSET_INVALID_SOURCE_REFERENCE".into());
@@ -2785,6 +2826,9 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(first_status, "imported");
+        let readable = resolve_managed_asset_record(&paths, first_asset.clone()).unwrap();
+        assert!(readable.path.is_file());
+        assert_eq!(readable.mime_type, "image/png");
 
         let second_temp = paths.imports.join("second.part");
         let (_, size_bytes) = copy_and_hash(Cursor::new(b"same-content"), &second_temp).unwrap();
@@ -2892,6 +2936,10 @@ mod tests {
             .unwrap();
         assert_eq!(tombstone.availability, "reclaimed");
         assert!(tombstone.relative_path.is_none());
+        assert_eq!(
+            resolve_managed_asset_record(&paths, tombstone).unwrap_err(),
+            "ASSET_NOT_AVAILABLE"
+        );
 
         sqlx::query("DELETE FROM asset_usages WHERE asset_id = ?")
             .bind(&third_asset.id)

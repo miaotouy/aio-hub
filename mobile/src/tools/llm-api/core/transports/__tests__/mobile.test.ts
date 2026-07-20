@@ -176,6 +176,48 @@ describe("mobile LLM transport", () => {
     expect(response.status).toBe(202);
   });
 
+  it("routes managed asset references without adding a path", async () => {
+    const sendFileRequest = vi.fn(async () => new Response("{}"));
+    const transport = createMobileLlmTransport({
+      fetch: vi.fn(),
+      ensureResponseOk: vi.fn(async () => undefined),
+      sendFileRequest,
+    });
+
+    await transport.send(
+      {
+        method: "POST",
+        url: "https://example.com/chat",
+        headers: {},
+        body: {
+          kind: "json",
+          value: {
+            image: {
+              kind: "managed-asset-ref",
+              assetId: "asset-1",
+            },
+          },
+        },
+        streaming: false,
+      },
+      { requestId: "request-managed" }
+    );
+
+    expect(sendFileRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: {
+          kind: "json",
+          value: {
+            image: {
+              kind: "managed-asset-ref",
+              assetId: "asset-1",
+            },
+          },
+        },
+      })
+    );
+  });
+
   it("serializes top-level and multipart file refs without reading file bytes", async () => {
     const sendFileRequest = vi.fn(async () => new Response("{}"));
     const transport = createMobileLlmTransport({

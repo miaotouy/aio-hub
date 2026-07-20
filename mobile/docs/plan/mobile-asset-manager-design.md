@@ -486,6 +486,7 @@ interface ManagedAssetRef {
 - [x] 建立启动恢复、待物理删除队列、删除影响分析、保留策略、安全删除、存储统计与手动修复命令。
 - [x] 建立持久化 import job、Channel 进度、任务查询、取消与进程中断恢复契约。
 - [x] 建立隐藏/恢复、月份与来源筛选聚合、可重建缓存定向/全库清理契约。
+- [x] 扩展共享 wire 类型与移动端原生 LLM 传输，使 `managed-asset-ref` 只携带 `assetId` 并由 Rust 内部解析。
 - [ ] 在 Android 真机验证 Rust command 直读 `content://` 的正式导入路径并回写报告。
 - [ ] 补齐受控预览与首个聊天消费者。
 
@@ -575,6 +576,14 @@ interface ManagedAssetRef {
 - 新增批量隐藏/恢复命令。隐藏只更新 `library_state`，不删除原件、不释放 usage，也不修改保留策略。
 - 新增按指定资产或全库清理可重建 variant 的命令；不可重建 variant 与原件始终保留，物理删除继续使用持久化待删除队列。
 - 第四批已通过移动端 62 个前端测试、17 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android 四 ABI debug APK/AAB 构建；iOS 仍按缺少编译与真机条件暂缓补验。
+
+### 2026-07-20：Phase 1 第五批
+
+- 共享 `WireFileRef` 增加严格的 `managed-asset-ref { assetId }`，嵌套 JSON、顶层 file-ref 和 multipart 均可触发移动端原生传输。
+- Rust 原生传输通过资产服务复核 managed 资产的 managed/ready 状态和对象存在性；顶层与 multipart 以内部路径流式打开，JSON data URL 转换也完全留在 Rust 内。路径、相对路径和 locator 不进入 WebView 或请求 wire 数据。
+- `local-file-ref` 继续兼容；桌面端和移动端共享类型扩展不改变既有本地文件引用语义。LLM Core 的既存 `model-identity.test.ts` 类型检查基线错误未在本批修复。
+- 受控 WebView 预览协议仍待 Android 真机对 scheme、Range 和失效撤销行为完成实验，尚未冻结为公共 URL 契约。
+- 第五批已通过 LLM Core 93 个测试、移动端 63 个测试、18 个 Rust 测试、根/移动端前端类型检查、Clippy、Vite 生产构建和 Android 四 ABI debug APK/AAB 构建；`packages/llm-core` 独立 `tsc` 仍被上述既存测试类型错误阻塞。
 
 ## 16. 调查来源
 

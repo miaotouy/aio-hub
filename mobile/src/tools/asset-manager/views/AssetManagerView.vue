@@ -9,21 +9,24 @@ import {
   HardDrive,
   Import,
   LoaderCircle,
+  ListRestart,
   RefreshCw,
   Search,
   Trash2,
   Wrench,
 } from "lucide-vue-next";
-import { computed, onMounted, onUnmounted } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { customMessage } from "@/utils/feedback";
 import AssetDetailSheet from "../components/AssetDetailSheet.vue";
 import AssetTile from "../components/AssetTile.vue";
+import ImportJobsSheet from "../components/ImportJobsSheet.vue";
 import { formatAssetBytes, useAssetLibrary } from "../composables/useAssetLibrary";
 import type { AssetKind, AssetImportSource } from "../types";
 
 const router = useRouter();
 const library = useAssetLibrary();
+const jobsOpen = ref(false);
 
 const kindOptions: Array<{ label: string; value: AssetKind | "all" }> = [
   { label: "全部类型", value: "all" },
@@ -122,8 +125,27 @@ async function closeDetail() {
   await library.closePreview();
 }
 
+async function openImportJobs() {
+  jobsOpen.value = true;
+  try {
+    await library.loadImportJobs();
+  } catch {
+    customMessage("无法读取导入任务", "error");
+  }
+}
+
+async function cancelImportJob(jobId: string) {
+  try {
+    await library.cancelImport(jobId);
+    customMessage("已请求取消导入任务", "info");
+  } catch (cause) {
+    customMessage(cause instanceof Error ? cause.message : "无法取消导入任务", "error");
+  }
+}
+
 onMounted(() => {
   void library.load();
+  void library.loadImportJobs().catch(() => undefined);
 });
 
 onUnmounted(() => {
@@ -141,6 +163,10 @@ onUnmounted(() => {
         <h1>资产管理器</h1>
         <p v-if="library.summary.value">{{ library.summary.value.assetCount }} 项资产 · {{ formatAssetBytes(library.summary.value.originalBytes) }}</p>
       </div>
+      <button class="icon-button tasks-button" type="button" aria-label="查看导入任务" @click="openImportJobs">
+        <ListRestart :size="20" />
+        <span v-if="library.activeImportJobId.value" class="activity-dot" aria-hidden="true" />
+      </button>
       <button class="header-action" type="button" :disabled="library.importing.value" @click="importFromDevice">
         <LoaderCircle v-if="library.importing.value" class="spin" :size="18" />
         <Import v-else :size="18" />
@@ -151,9 +177,10 @@ onUnmounted(() => {
     <div v-if="library.importing.value" class="import-banner" role="status">
       <div class="import-copy">
         <span>正在导入资产</span>
-        <span v-if="importPercent !== null">{{ importPercent }}%</span>
+        <button type="button" @click="library.cancelImport()">取消</button>
       </div>
       <div class="progress-track"><span :style="{ width: `${importPercent ?? 18}%` }" /></div>
+      <span v-if="importPercent !== null" class="progress-label">{{ importPercent }}%</span>
     </div>
 
     <nav class="mode-tabs" aria-label="资产视图">
@@ -275,6 +302,12 @@ onUnmounted(() => {
       @close="closeDetail"
       @preview="previewAsset"
     />
+    <ImportJobsSheet
+      v-if="jobsOpen"
+      :jobs="library.importJobs.value"
+      @close="jobsOpen = false"
+      @cancel="cancelImportJob"
+    />
   </div>
 </template>
 
@@ -352,6 +385,21 @@ onUnmounted(() => {
   opacity: 0.65;
 }
 
+.tasks-button {
+  position: relative;
+}
+
+.activity-dot {
+  position: absolute;
+  top: 8px;
+  right: 7px;
+  width: 7px;
+  height: 7px;
+  background: var(--primary-color);
+  border: 2px solid var(--sidebar-bg);
+  border-radius: 50%;
+}
+
 .import-banner {
   padding: 9px 16px 11px;
   background: color-mix(in srgb, var(--primary-color) 10%, var(--container-bg));
@@ -363,6 +411,23 @@ onUnmounted(() => {
   justify-content: space-between;
   color: var(--text-color-light);
   font-size: 12px;
+}
+
+.import-copy button {
+  min-height: 28px;
+  padding: 0 7px;
+  color: var(--danger-color);
+  background: transparent;
+  border: 0;
+  font: inherit;
+}
+
+.progress-label {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-color-light);
+  font-size: 11px;
+  text-align: right;
 }
 
 .progress-track,

@@ -3,12 +3,15 @@ import { customDialog, customMessage } from "@/utils/feedback";
 import {
   analyzeAssetDeletion,
   clearRebuildableAssetCache,
+  cancelAssetImportJob,
   deleteAssets,
+  getAssetImportJob,
   getAssetDetail,
   getAssetLibraryFacets,
   getAssetPreviewSource,
   getAssetStorageSummary,
   importAssetSources,
+  listAssetImportJobs,
   listAssets,
   repairAssetLibrary,
   revokeAssetPreviewSource,
@@ -18,6 +21,7 @@ import {
 import type {
   AssetDetail,
   AssetImportSource,
+  AssetImportJob,
   AssetImportProgressEvent,
   AssetKind,
   AssetLibraryFacets,
@@ -80,6 +84,9 @@ export function useAssetLibrary() {
   const preview = ref<AssetPreviewSource | null>(null);
   const importing = ref(false);
   const importProgress = ref<AssetImportProgressEvent | null>(null);
+  const importJobs = ref<AssetImportJob[]>([]);
+  const activeImportJobId = ref<string | null>(null);
+  let importController: AbortController | null = null;
 
   const query = computed(() =>
     createAssetListQuery({
@@ -184,18 +191,51 @@ export function useAssetLibrary() {
   async function importSources(sources: AssetImportSource[]) {
     importing.value = true;
     importProgress.value = null;
+    activeImportJobId.value = null;
+    importController = new AbortController();
     try {
       const results = await importAssetSources(sources, {
+        signal: importController.signal,
         onProgress: (event) => {
           importProgress.value = event;
+          activeImportJobId.value = event.jobId;
         },
       });
       const successCount = results.filter((result) => result.asset).length;
       customMessage(`已导入 ${successCount} 项资产`, "success");
       await load();
+    } catch (cause) {
+      if (cause instanceof Error && cause.name === "AbortError") {
+        customMessage("导入任务已取消", "info");
+        return;
+      }
+      throw cause;
     } finally {
       importing.value = false;
+      importController = null;
+      await loadImportJobs().catch(() => undefined);
     }
+  }
+
+  async function loadImportJobs(limit = 12) {
+    const jobs = await listAssetImportJobs(limit);
+    importJobs.value = jobs;
+    if (!importing.value) {
+      activeImportJobId.value =
+        jobs.find((job) => job.state === "running" || job.state === "pending")?.id ?? null;
+    }
+  }
+
+  async function cancelImport(jobId = activeImportJobId.value) {
+    if (!jobId) return;
+    if (importController && jobId === activeImportJobId.value) {
+      importController.abort();
+      return;
+    }
+    await cancelAssetImportJob(jobId);
+    const job = await getAssetImportJob(jobId);
+    if (job.state === "cancelled") activeImportJobId.value = null;
+    await loadImportJobs();
   }
 
   async function clearCache() {
@@ -236,6 +276,8 @@ export function useAssetLibrary() {
     preview,
     importing,
     importProgress,
+    importJobs,
+    activeImportJobId,
     query,
     load,
     toggleSelection,
@@ -247,6 +289,8 @@ export function useAssetLibrary() {
     pinSelected,
     removeSelected,
     importSources,
+    loadImportJobs,
+    cancelImport,
     clearCache,
     repairLibrary,
   };

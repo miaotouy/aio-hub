@@ -2,13 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const service = vi.hoisted(() => ({
   analyzeAssetDeletion: vi.fn(),
+  cancelAssetImportJob: vi.fn(),
   clearRebuildableAssetCache: vi.fn(),
   deleteAssets: vi.fn(),
   getAssetDetail: vi.fn(),
+  getAssetImportJob: vi.fn(),
   getAssetLibraryFacets: vi.fn(),
   getAssetPreviewSource: vi.fn(),
   getAssetStorageSummary: vi.fn(),
   importAssetSources: vi.fn(),
+  listAssetImportJobs: vi.fn(),
   listAssets: vi.fn(),
   repairAssetLibrary: vi.fn(),
   revokeAssetPreviewSource: vi.fn(),
@@ -46,6 +49,7 @@ beforeEach(() => {
     byKind: [],
   });
   service.getAssetLibraryFacets.mockResolvedValue({ byMonth: [], bySource: [] });
+  service.listAssetImportJobs.mockResolvedValue([]);
 });
 
 describe("asset library query", () => {
@@ -154,5 +158,38 @@ describe("asset selection actions", () => {
     await library.removeSelected();
 
     expect(service.deleteAssets).not.toHaveBeenCalled();
+  });
+});
+
+describe("persisted import jobs", () => {
+  it("restores the active job and cancels it through the native contract", async () => {
+    const runningJob = {
+      id: "job-1",
+      sourceKind: "file_picker",
+      state: "running",
+      bytesCopied: 1024,
+      totalBytes: 2048,
+      sourceCount: 1,
+      completedCount: 0,
+      currentSourceIndex: 0,
+      results: [],
+      createdAt: "2026-07-20T00:00:00.000Z",
+      updatedAt: "2026-07-20T00:00:01.000Z",
+    } as const;
+    const cancelledJob = { ...runningJob, state: "cancelled" as const };
+    service.listAssetImportJobs
+      .mockResolvedValueOnce([runningJob])
+      .mockResolvedValueOnce([cancelledJob]);
+    service.cancelAssetImportJob.mockResolvedValue(true);
+    service.getAssetImportJob.mockResolvedValue(cancelledJob);
+    const library = useAssetLibrary();
+
+    await library.loadImportJobs();
+    expect(library.activeImportJobId.value).toBe("job-1");
+
+    await library.cancelImport("job-1");
+    expect(service.cancelAssetImportJob).toHaveBeenCalledWith("job-1");
+    expect(service.getAssetImportJob).toHaveBeenCalledWith("job-1");
+    expect(library.activeImportJobId.value).toBeNull();
   });
 });

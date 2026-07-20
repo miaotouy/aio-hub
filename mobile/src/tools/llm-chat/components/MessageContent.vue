@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import {
   AlertCircle,
   ChevronDown,
@@ -13,12 +13,61 @@ import {
 } from "lucide-vue-next";
 import type { ChatMessageNode } from "../types";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
+import {
+  getAttachmentAvailabilityMap,
+  type ChatAttachmentAvailability,
+} from "../utils/attachmentStatus";
 
-defineProps<{
+const props = defineProps<{
   message: ChatMessageNode;
 }>();
 
 const isReasoningExpanded = ref(true);
+const attachmentAvailability = ref(
+  new Map<string, ChatAttachmentAvailability>()
+);
+
+const refreshAttachmentAvailability = async () => {
+  const attachments = props.message.attachments ?? [];
+  if (!attachments.length) {
+    attachmentAvailability.value = new Map();
+    return;
+  }
+  attachmentAvailability.value =
+    await getAttachmentAvailabilityMap(attachments);
+};
+
+watch(
+  () =>
+    props.message.attachments
+      ?.map((attachment) => attachment.assetId)
+      .join("|"),
+  refreshAttachmentAvailability,
+  { immediate: true }
+);
+
+const getAttachmentStatus = (
+  assetId: string
+): ChatAttachmentAvailability | undefined =>
+  attachmentAvailability.value.get(assetId);
+
+const getAttachmentStatusLabel = (
+  status: ChatAttachmentAvailability | undefined
+): string => {
+  switch (status) {
+    case "reclaimed":
+      return "原件已清理";
+    case "missing":
+    case "missing_record":
+      return "原件缺失";
+    case "importing":
+      return "原件导入中";
+    case "error":
+      return "原件不可用";
+    default:
+      return "";
+  }
+};
 
 const formatBytes = (value: number) => {
   if (value < 1024) return `${value} B`;
@@ -40,6 +89,11 @@ const formatBytes = (value: number) => {
         v-for="attachment in message.attachments"
         :key="attachment.id"
         class="attachment-item"
+        :class="{
+          unavailable:
+            getAttachmentStatus(attachment.assetId) !== undefined &&
+            getAttachmentStatus(attachment.assetId) !== 'ready',
+        }"
       >
         <FileImage v-if="attachment.snapshot.kind === 'image'" :size="17" />
         <FileAudio
@@ -61,6 +115,17 @@ const formatBytes = (value: number) => {
         <span class="attachment-size">{{
           formatBytes(attachment.snapshot.sizeBytes)
         }}</span>
+        <span
+          v-if="
+            getAttachmentStatusLabel(getAttachmentStatus(attachment.assetId))
+          "
+          class="attachment-status"
+        >
+          <AlertCircle :size="13" />
+          {{
+            getAttachmentStatusLabel(getAttachmentStatus(attachment.assetId))
+          }}
+        </span>
       </div>
     </div>
 
@@ -151,6 +216,19 @@ const formatBytes = (value: number) => {
 .attachment-size {
   font-size: 0.72rem;
   white-space: nowrap;
+}
+
+.attachment-item.unavailable {
+  border-color: var(--color-warning, #d58a00);
+}
+
+.attachment-status {
+  grid-column: 2 / -1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-warning, #a86400);
+  font-size: 0.72rem;
 }
 
 .reasoning-container {

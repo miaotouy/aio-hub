@@ -39,7 +39,7 @@
 - 已安装 `@tauri-apps/plugin-fs` 与 `@tauri-apps/plugin-dialog`；Android 系统选择器返回的 `content://` 已在正式资产导入/导出链验证。由于 `tauri-plugin-fs` 2.5.1 对测试 provider 使用 `openAssetFileDescriptor` 会失败，正式链由 Android `AssetContentPlugin` 调用 `ContentResolver.openFileDescriptor`，再交给 Rust 流式处理；应用数据目录仍只通过受控 capability 与 Rust 领域命令访问。
 - 通用 `mobile/src/utils/fsUtils.ts` 仍只封装应用数据目录下的文本文件与目录操作；Phase 1 已新增独立 Rust 二进制资产服务，不把二进制职责塞回通用工具。
 - Rust 已引入 SQLx 与 bundled SQLite 验证依赖，`ui-tester` 已具备平台文件和 SQLite 固定验证板块；Android 分享 bridge 已接入，相机 bridge 已实现但仍需有相机 Activity 的设备验收。
-- `llm-chat` 的 `_attachments` 已改为 `ManagedAssetRef`，并完成 `chat_attachments`/usage outbox、聊天内 ready 资产选择和 provider wire 接入；实时 reclaimed/missing 状态仍待完成。
+- `llm-chat` 的 `_attachments` 已改为 `ManagedAssetRef`，并完成 `chat_attachments`/usage outbox、聊天内 ready 资产选择、provider wire 接入和实时 reclaimed/missing 状态降级；真实上游发送验收仍待完成。
 - `agent-manager` 的 `assets` 与 `assetGroups` 仍是占位类型，但其桌面端语义是智能体私有资产，不应因此并入全局资产库。
 - 工作区已有“一模块一数据库”的移动端 SQLite 计划；Phase 1 首批已建立资产库 migration 与 repository，尚未接用户界面和聊天消费者。
 
@@ -492,7 +492,7 @@ interface ManagedAssetRef {
 - [x] 建立短期 token、可撤销自定义协议、单 Range 读取和大原件响应上限的受控预览候选实现。
 - [x] 在 Android 模拟器 `emulator-5558` 验证 Rust command 通过原生 bridge 直读 Photo Picker `content://` 的正式导入路径并回写报告。
 - [x] 完成 Android 图片、视频和音频受控预览验收，并通过固定场景验证 Range/CORS、HEAD 与主动撤销；token 自然过期仍待补验。
-- [ ] [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md) 阶段一 Rust 存储骨架、阶段二会话增量持久化和阶段三附件存储/选择/provider wire 已完成；reclaimed/missing 实时降级与真实上游发送验收仍待完成。不在 `any[]` 附件上增加过渡持久化。
+- [x] [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md) 阶段一 Rust 存储骨架、阶段二会话增量持久化和阶段三附件存储/选择/provider wire/reclaimed-missing 降级已完成；真实上游发送验收仍待完成。不在 `any[]` 附件上增加过渡持久化。
 
 ### Phase 2：资产页
 
@@ -603,9 +603,9 @@ interface ManagedAssetRef {
 
 ### 2026-07-20：首个聊天消费者门禁
 
-- 当前 LLM Chat 会话与消息已由 `llm_chat.db` 增量持久化，schema v1 的 `chat_attachments` 和 `asset_usage_outbox` 已由消费者接入；聊天内 ready 资产选择和 provider-specific `managed-asset-ref` wire 组装已完成，实时原件状态仍未完成。
+- 当前 LLM Chat 会话与消息已由 `llm_chat.db` 增量持久化，schema v1 的 `chat_attachments` 和 `asset_usage_outbox` 已由消费者接入；聊天内 ready 资产选择、provider-specific `managed-asset-ref` wire 组装和实时原件状态降级已完成。
 - 聊天附件与 usage outbox 在同一聊天数据库事务提交。消息节点只保存 `assetId + usagePolicy + 轻量快照`，不把路径或二进制写入 metadata；启动、提交和删除会触发幂等投递。
-- Android 已验证 replacement/release usage 生命周期、消息快照展示和 ready 资产选择 UI；原件 `reclaimed/missing` 的实时状态查询、真实上游发送和发送前失败降级仍需下一批完成。资产内核、受控预览和原生传输保持可独立使用。
+- Android 已验证 replacement/release usage 生命周期、消息快照展示和 ready 资产选择 UI；代码已接入原件 `reclaimed/missing` 实时状态查询、历史上下文过滤和发送前失败降级，真实上游发送仍需下一批完成。资产内核、受控预览和原生传输保持可独立使用。
 
 ### 2026-07-20：Phase 2 首批资产页
 
@@ -686,6 +686,12 @@ interface ManagedAssetRef {
 - 聊天输入区新增 ready 资产选择 sheet，选择结果只携带 `assetId + usagePolicy + 轻量快照`；附件可在无文本时单独发送，草稿 chip 支持移除。
 - 图片、音频、视频和文档统一转换为 opaque `managed-asset-ref`；OpenAI-compatible、Gemini、Anthropic provider wire 与 Rust `data`/data URL 展开策略均有固定测试，WebView 不读取原件字节。
 - 本批 Android `emulator-5558` 真实 WebView 验证资产 sheet、搜索/选择/确认和 360dp 草稿布局；本批未连接真实上游模型，reclaimed/missing 实时状态、发送失败降级与 iOS 继续作为门禁跳过。
+
+### 2026-07-21：聊天消费者前置迁移阶段三第三批
+
+- 新增附件状态查询缓存，实时区分 `reclaimed`、`missing`、`missing_record` 与其他错误；消息附件保留轻量快照并在聊天视图显示“原件已清理/原件缺失”等状态。
+- 发送前强制复核当前草稿附件，原件不可用时不创建用户消息并保留输入草稿；历史上下文只跳过不可用附件、保留文本，并对一次请求合并提示。
+- 本批通过移动端 96 个前端测试、前端类型检查和 Vite 生产构建；真实上游模型发送、完整故障注入、Android 删除/回收后的 WebView 终态验收和 iOS 继续作为下一批门禁跳过。
 
 ## 16. 调查来源
 

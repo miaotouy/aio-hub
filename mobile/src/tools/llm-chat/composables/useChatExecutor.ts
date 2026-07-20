@@ -22,6 +22,10 @@ import {
   createLocalContextUsage,
 } from "../utils/contextTokenUsage";
 import { buildMessageContent } from "../utils/attachmentContent";
+import {
+  getAttachmentAvailabilityMap,
+  partitionAttachmentsByAvailability,
+} from "../utils/attachmentStatus";
 
 const logger = createModuleLogger("llm-chat/useChatExecutor");
 
@@ -47,8 +51,22 @@ export function useChatExecutor() {
     userContent: string,
     parentNodeId?: string,
     attachments: ChatMessageAttachment[] = []
-  ) {
-    if (chatStore.isSending) return;
+  ): Promise<boolean> {
+    if (chatStore.isSending) return false;
+
+    if (attachments.length) {
+      const availability = await getAttachmentAvailabilityMap(attachments, {
+        force: true,
+      });
+      const { unavailable } = partitionAttachmentsByAvailability(
+        attachments,
+        availability
+      );
+      if (unavailable.length) {
+        customMessage("所选附件原件已被清理或缺失，请移除后重试", "warning");
+        return false;
+      }
+    }
 
     if (!agentStore.isLoaded) await agentStore.init();
     await loadSettings();
@@ -61,7 +79,7 @@ export function useChatExecutor() {
     const modelId = activeAgent?.modelId || selectedModelId;
     if (!profileId || !modelId) {
       logger.warn("No model selected");
-      return;
+      return false;
     }
 
     const profile = profilesStore.profiles.find((p) => p.id === profileId);
@@ -69,13 +87,13 @@ export function useChatExecutor() {
     // 校验渠道是否有效且启用
     if (!profile || !profile.enabled) {
       logger.warn("Selected profile is not found or disabled", { profileId });
-      return;
+      return false;
     }
 
     const model = profile.models.find((m) => m.id === modelId);
     if (!model) {
       logger.warn("Selected model is not found", { modelId });
-      return;
+      return false;
     }
 
     // 1. 创建用户消息节点 (如果提供了 parentNodeId，说明是重试，不需要再创建用户节点)
@@ -125,13 +143,46 @@ export function useChatExecutor() {
 
       await pipelineStore.executePipeline(pipelineContext);
 
+      const pipelineAttachments = pipelineContext.messages.flatMap(
+        (message) => message._attachments ?? []
+      );
+      if (pipelineAttachments.length) {
+        const availability =
+          await getAttachmentAvailabilityMap(pipelineAttachments);
+        let unavailableHistoryCount = 0;
+        for (const message of pipelineContext.messages) {
+          if (!message._attachments?.length) continue;
+          const { ready, unavailable } = partitionAttachmentsByAvailability(
+            message._attachments,
+            availability
+          );
+          message._attachments = ready.length ? ready : undefined;
+          unavailableHistoryCount += unavailable.length;
+        }
+        if (unavailableHistoryCount) {
+          customMessage(
+            `已跳过 ${unavailableHistoryCount} 个原件不可用的历史附件`,
+            "warning"
+          );
+        }
+      }
+
       const requestContextMessages = pipelineContext.messages.filter(
         (message) => {
-          // 过滤掉空内容的消息，除非是 user 角色（有时候 user 发送空内容是为了触发某些特定逻辑，但通常不建议）
+          // 不发送已剔除附件且没有文本的历史消息；当前输入仍可用附件触发请求。
           if (Array.isArray(message.content)) {
-            return message.content.length > 0;
+            return (
+              message.content.length > 0 ||
+              !!message._attachments?.length ||
+              (message.role === "user" &&
+                message.sourceId === currentUserNodeId)
+            );
           }
-          return !!message.content || message.role === "user";
+          return (
+            !!message.content ||
+            !!message._attachments?.length ||
+            (message.role === "user" && message.sourceId === currentUserNodeId)
+          );
         }
       );
 
@@ -222,6 +273,7 @@ export function useChatExecutor() {
       // 持久化当前会话
       await chatStore.persistCurrentSession();
     }
+    return true;
   }
 
   /**

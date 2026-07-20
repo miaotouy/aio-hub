@@ -345,7 +345,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - 消息、分支和会话变更在聊天事务内写 usage outbox，再由幂等投递器调用资产服务整体替换业务实体的 usage。
 - `session-loader` 已把消息与附件引用一起加载到强类型 `_attachments`；只有文本为空但存在附件的消息不会被过滤。
 - 附件预览使用资产服务返回的受控预览来源；发送给模型时传递 `managed-asset-ref`，由 Rust 解析并流式读取，不把原件读入 JS 后再经 base64 IPC 复制。
-- 移动端共享 wire 类型和 Rust 原生传输已经支持 `managed-asset-ref`；聊天附件持久化、usage outbox 和消息快照展示第一批已接入，provider 请求组装已覆盖 OpenAI-compatible、Gemini 和 Anthropic，reclaimed/missing 实时降级仍待接入。
+- 移动端共享 wire 类型和 Rust 原生传输已经支持 `managed-asset-ref`；聊天附件持久化、usage outbox、消息快照展示和 reclaimed/missing 实时降级已接入，provider 请求组装已覆盖 OpenAI-compatible、Gemini 和 Anthropic。
 - 资产为 `reclaimed` 时保留消息和附件快照，界面显示“原件已清理”；`missing` 表示异常缺失，两者不能合并处理。
 - 智能体预设附件继续引用 Agent 私有资产 Handle，随 Agent 资源包迁移，不登记为全局聊天资产。
 
@@ -427,7 +427,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - [x] 消息中的图片/文件附件 provider wire 组装和聊天输入区资产选择
 - [x] 按移动端资产设计引入 `ManagedAssetRef + 轻量快照`
 - [x] 接入 `chat_attachments`、usage outbox 和消息/分支/会话删除释放流程
-- [ ] 接入 `managed-asset-ref` 原生发送与 `reclaimed` 降级展示
+- [x] 接入 `managed-asset-ref` 原生发送与 `reclaimed`/`missing` 降级展示
 - [ ] 图片预览（`ImageViewer`）
 
 ### 🔄 智能体支持

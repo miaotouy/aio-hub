@@ -53,16 +53,18 @@ const handleSend = async () => {
     return;
 
   const content = inputText.value;
-  inputText.value = "";
 
   if (chatStore.currentSession) {
-    await execute(
+    const accepted = await execute(
       chatStore.currentSession,
       content,
       undefined,
       attachments.value
     );
-    attachments.value = [];
+    if (accepted) {
+      inputText.value = "";
+      attachments.value = [];
+    }
   }
 };
 

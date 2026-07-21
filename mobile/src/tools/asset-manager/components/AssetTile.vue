@@ -7,7 +7,7 @@ import {
   FileVideo,
   Pin,
 } from "lucide-vue-next";
-import { computed } from "vue";
+import { computed, onBeforeUnmount } from "vue";
 import { formatAssetBytes } from "../composables/useAssetLibrary";
 import type { AssetRecord } from "../types";
 
@@ -20,6 +20,65 @@ const emit = defineEmits<{
   open: [assetId: string];
   select: [assetId: string];
 }>();
+
+const LONG_PRESS_DELAY_MS = 450;
+const LONG_PRESS_MOVE_TOLERANCE_PX = 10;
+let pressTimer: ReturnType<typeof setTimeout> | null = null;
+let pressOrigin: { x: number; y: number } | null = null;
+let pressState: "idle" | "pending" | "moved" | "long-pressed" = "idle";
+
+function clearPressTimer() {
+  if (pressTimer !== null) clearTimeout(pressTimer);
+  pressTimer = null;
+}
+
+function startPress(event: PointerEvent) {
+  if (event.button !== 0) return;
+  clearPressTimer();
+  pressState = "pending";
+  pressOrigin = { x: event.clientX, y: event.clientY };
+  pressTimer = setTimeout(() => {
+    pressTimer = null;
+    if (pressState !== "pending") return;
+    pressState = "long-pressed";
+    emit("select", props.asset.id);
+  }, LONG_PRESS_DELAY_MS);
+}
+
+function movePress(event: PointerEvent) {
+  if (!pressOrigin) return;
+  const distance = Math.hypot(
+    event.clientX - pressOrigin.x,
+    event.clientY - pressOrigin.y
+  );
+  if (distance > LONG_PRESS_MOVE_TOLERANCE_PX) {
+    clearPressTimer();
+    if (pressState === "pending") pressState = "moved";
+  }
+}
+
+function finishPress() {
+  clearPressTimer();
+  pressOrigin = null;
+}
+
+function cancelPress() {
+  finishPress();
+  if (pressState === "pending" || pressState === "long-pressed") {
+    pressState = "moved";
+  }
+}
+
+function openAsset() {
+  if (pressState === "moved" || pressState === "long-pressed") {
+    pressState = "idle";
+    return;
+  }
+  pressState = "idle";
+  emit("open", props.asset.id);
+}
+
+onBeforeUnmount(clearPressTimer);
 
 const icon = computed(() => {
   switch (props.asset.kind) {
@@ -53,7 +112,17 @@ const statusLabel = computed(() => {
     class="asset-tile"
     :class="{ 'asset-tile--selected': selected, 'asset-tile--muted': asset.libraryState === 'hidden' }"
   >
-    <button class="asset-main" type="button" @click="emit('open', asset.id)">
+    <button
+      class="asset-main"
+      type="button"
+      @pointerdown="startPress"
+      @pointermove="movePress"
+      @pointerup="finishPress"
+      @pointercancel="cancelPress"
+      @pointerleave="cancelPress"
+      @contextmenu.prevent
+      @click="openAsset"
+    >
       <span class="asset-icon" :data-kind="asset.kind">
         <component :is="icon" :size="30" :stroke-width="1.6" />
       </span>
@@ -65,22 +134,26 @@ const statusLabel = computed(() => {
     <div class="asset-footer">
       <span class="status" :data-status="asset.availability">{{ statusLabel }}</span>
       <Pin v-if="asset.retentionPolicy === 'pinned'" :size="15" aria-label="已固定" />
-      <button
-        class="select-button"
-        type="button"
-        :aria-label="selected ? '取消选择' : '选择资产'"
-        :aria-pressed="selected"
-        @click="emit('select', asset.id)"
-      >
-        <span aria-hidden="true">{{ selected ? "✓" : "" }}</span>
-      </button>
     </div>
+    <button
+      class="select-button"
+      type="button"
+      :aria-label="selected ? '取消选择' : '选择资产'"
+      :aria-pressed="selected"
+      @click="emit('select', asset.id)"
+    >
+      <span aria-hidden="true">{{ selected ? "✓" : "" }}</span>
+    </button>
   </article>
 </template>
 
 <style scoped>
 .asset-tile {
+  position: relative;
+  aspect-ratio: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
   background: var(--card-bg);
   border: var(--border-width) solid var(--border-color);
   border-radius: var(--app-radius-md);
@@ -98,21 +171,25 @@ const statusLabel = computed(() => {
 
 .asset-main {
   width: 100%;
+  height: 100%;
   min-width: 0;
-  padding: 14px 12px 10px;
+  min-height: 0;
+  padding: 6px 7px 26px;
   display: flex;
-  gap: 11px;
-  align-items: center;
-  text-align: left;
+  flex-direction: column;
+  gap: 4px;
+  align-items: stretch;
+  text-align: center;
   color: inherit;
   background: transparent;
   border: 0;
 }
 
 .asset-icon {
-  width: 48px;
-  height: 48px;
-  flex: 0 0 48px;
+  width: 36px;
+  height: 36px;
+  margin: 0 auto;
+  flex: 0 0 36px;
   display: grid;
   place-items: center;
   border-radius: var(--app-radius-md);
@@ -136,17 +213,19 @@ const statusLabel = computed(() => {
 }
 
 .asset-copy {
+  width: 100%;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 1px;
 }
 
 .asset-name {
   overflow: hidden;
   color: var(--text-color);
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
+  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -154,23 +233,31 @@ const statusLabel = computed(() => {
 .asset-meta {
   overflow: hidden;
   color: var(--text-color-light);
-  font-size: 12px;
+  font-size: 10px;
+  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .asset-footer {
-  min-height: 42px;
-  padding: 0 10px 8px 12px;
+  position: absolute;
+  right: 6px;
+  bottom: 4px;
+  left: 7px;
+  min-height: 24px;
+  padding: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   color: var(--text-color-light);
 }
 
 .status {
   flex: 1;
-  font-size: 12px;
+  overflow: hidden;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status[data-status="missing"],
@@ -183,17 +270,29 @@ const statusLabel = computed(() => {
 }
 
 .select-button {
-  width: 36px;
-  height: 36px;
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: transparent;
+}
+
+.select-button span {
+  width: 32px;
+  height: 32px;
   display: grid;
   place-items: center;
   border: 1px solid var(--border-color);
   border-radius: 50%;
   background: var(--input-bg);
-  color: transparent;
 }
 
-.select-button[aria-pressed="true"] {
+.select-button[aria-pressed="true"] span {
   border-color: var(--primary-color);
   background: var(--primary-color);
   color: white;

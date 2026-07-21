@@ -678,8 +678,8 @@ onUnmounted(() => {
 
 .asset-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .load-more {
@@ -908,6 +908,6 @@ onUnmounted(() => {
 }
 
 @media (min-width: 620px) {
-  .asset-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .asset-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 </style>

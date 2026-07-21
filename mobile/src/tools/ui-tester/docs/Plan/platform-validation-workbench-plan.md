@@ -1,7 +1,7 @@
 # 移动端开发验证台设计与实施计划
 
 > 状态：Android 虚拟机与首轮真机验收通过；iOS 因当前缺少编译与真机设备条件暂缓，不计为通过
-> 日期：2026-07-18
+> 日期：2026-07-18；2026-07-21 更新平台门禁与测试批次规则
 > 所属工具：`mobile/src/tools/ui-tester/`
 > 目标：为移动端组件、Tauri 平台能力、资产 Phase 0 和 SQLite Phase 0 提供可重复操作、可记录、可导出的真机验证入口。
 
@@ -14,7 +14,7 @@
 1. **平台文件**：承接资产管理 Phase 0 的文件/照片入口、URI、权限、后台、系统终止和空间不足验证。
 2. **SQLite**：承接聊天 SQLite Phase 0 的连接、migration、事务恢复、FTS5 和基准验证。
 
-每个 Phase 0 spike 必须在同一施工批次交付对应 UI 面板。没有面板、没有 Android/iOS 运行记录的后端实验，不视为 Phase 0 完成。
+每个 Phase 0 spike 必须交付对应 UI 面板。平台结论按 Android/iOS 分别记录；没有对应平台运行记录，不得宣称该平台通过。缺少 iOS 设备不阻塞 Android 内核施工，但会保留为 iOS 发布门禁。
 
 ## 2. 产品与安全边界
 
@@ -208,7 +208,7 @@ mobile/src/tools/ui-tester/
 ### 批次 2：平台文件 Phase 0 面板
 
 - 与资产 Phase 0 的 Rust/插件 spike 同批实现固定命令与 UI。
-- 完成 Android/iOS 场景运行、人工判定、跨重启恢复和报告导出。
+- 完成 Android 场景运行、人工判定、跨重启恢复和报告导出；iOS 条件具备后再运行同一套场景，不为缺失设备创建重复的模拟结论。
 - 将最终文件入口与预览决策回写资产设计文档。
 
 ### 批次 3：SQLite Phase 0 面板
@@ -219,13 +219,15 @@ mobile/src/tools/ui-tester/
 
 ## 9. 验收标准
 
-- Android/iOS 可从 `ui-tester` 独立完成 Phase 0 所有固定场景，不依赖连接开发机执行临时命令。
+- Android 可从 `ui-tester` 独立完成其 Phase 0 固定场景，不依赖连接开发机执行临时命令；iOS 在设备条件具备后运行同一套场景。
 - 360 px 宽度下导航、场景行、进度、底部操作区和长错误文本不重叠。
 - 运行中、取消、失败、人工待确认和跨重启恢复状态完整。
 - 所有 destructive action 只影响测试库/沙箱，并有 Rust 侧路径与数据库名校验。
 - 导出报告可复现平台、版本、输入规模、步骤、指标和结论，同时不泄露敏感内容。
 - `bun run test:run`、`bun run check:frontend`、`bun run check:backend` 和 `bun run build` 通过。
-- Phase 0 结论必须附至少一份 Android 和一份 iOS 的真实 Tauri 运行报告；普通浏览器结果不计入验收。
+- Android Phase 0 结论必须附 Android 真 Tauri 运行报告；iOS 资产能力发布前必须另附 iOS 真 Tauri 运行报告。普通浏览器结果不计入任一平台验收。
+- 平台文件验证只在能力变更或里程碑执行，不随每个业务提交重复构建和跑完整设备矩阵。
+- 开发循环使用受影响的单测；功能批次运行 `bun run test:run`、`bun run check:frontend`、`bun run check:backend` 和 `bun run build`；四 ABI APK/AAB 只用于里程碑或发布候选。
 
 ## 10. 施工记录（2026-07-18）
 
@@ -267,6 +269,6 @@ mobile/src/tools/ui-tester/
 - 大文件完整读取复测通过：Android `content://` 样本 14,714,525 bytes（14.03 MiB），65,536-byte 块完整读取，首字节 231 ms、总耗时 4,360 ms、平均 3.22 MiB/s，`failurePhase = none`。该数据只代表 Android 16 x86_64 虚拟机的 `plugin-fs` 读取链，真机和 iOS 仍需分别运行。
 - Android 16 x86_64 虚拟机已通过资产预览协议固定场景：`Range: bytes=0-31` 返回 206 和 32 bytes，`Accept-Ranges`/`Content-Range` 可跨源读取；HEAD 返回 200、空 body，WebView 可见 `content-length` 为 0；主动撤销后原 URL 返回 404。自然到期和 iOS 仍是发布前门禁。
 - iOS 尚未验收，仍需从应用内依次运行平台文件和 SQLite 固定场景并导出一份 schema `1.0` JSON 报告。
-- 第 9 节要求的 Android 与 iOS 真实设备报告尚未全部完成，因此当前结论代表 Android 11 真机验证台通过，不等同于 Phase 0 双平台最终验收。
+- 按当前验证台口径，Android 与 iOS 分别形成平台结论；当前结论代表 Android 11 真机验证台通过，iOS 报告仍是 iOS 资产能力发布门禁，不把缺失的 iOS 报告写成通过。
 - 2026-07-20 施工决议：当前环境没有可用的 iOS 编译与真机设备条件，先允许平台中立内核与 Android 资产链进入 Phase 1；iOS 固定场景和报告延期到设备条件具备后执行，仍是 iOS 资产能力发布前门禁。
-- 资产正式导入还需补充 Rust command 直接打开系统选择结果并流式写入固定沙箱的场景；现有 WebView/plugin-fs 分块读取结果不能替代该数据路径验证。
+- 资产正式导入还需补充 Rust command 直接打开系统选择结果并流式写入固定沙箱的场景；现有 WebView/plugin-fs 分块读取结果不能替代该数据路径验证。该场景与 Android MVP 主流程合并验收，不再单独拆成重复测试批次。

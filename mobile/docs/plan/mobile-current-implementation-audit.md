@@ -1,6 +1,6 @@
 # 移动端当前实现盘点与后续参考
 
-> 状态：Current Snapshot
+> 状态：Historical Snapshot（施工状态与范围以各工具当前计划为准）
 > 代码调查日期：2026-07-18
 > Android 真机补充验证：2026-07-20（报告导出时间 `2026-07-20T01:27:44.309Z`，文件名现包含完整 UTC 时分秒与毫秒）
 > 调查范围：`mobile/` 当前代码、移动端计划/架构文档，以及直接影响移动端的跨端 LLM Core 计划
@@ -149,7 +149,7 @@ LLM 渠道与模型配置
 
 ## 3. 未完成清单
 
-### 3.1 持久化与资产主线
+### 3.1 持久化与资产主线（历史快照，不作为当前施工清单）
 
 - [ ] 引入 `tauri-plugin-sql` 并建立移动端数据库服务和 migration 机制。
 - [ ] 将 LLM Chat 从 JSON 会话文件迁移到 `llm_chat.db`。
@@ -209,63 +209,21 @@ SQLite 施工顺序见 [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migra
 
 - `mobile/src/tools/llm-chat/ARCHITECTURE.md` 已于本次调查同步到当前代码状态。
 - `mobile-agent-manager-plan.md` 和 `mobile-token-counting-plan.md` 的阶段状态与当前代码基本一致。
-- `mobile-sqlite-migration-plan.md` 是未施工的实施计划，不代表已有数据库代码。
-- `mobile-asset-manager-design.md` 状态仍为待评审，所有 Phase 均应视为未开始。
+- `mobile-sqlite-migration-plan.md` 已进入施工并完成聊天 SQLite 与附件消费主链；其当前状态以该文件为准。
+- `mobile-asset-manager-design.md` 是资产管理器唯一施工范围来源，当前为 Android MVP 收尾；本快照中的旧未完成清单不得覆盖其状态。
 - `mobile-design-language-investigation.md` 的 Phase 0 已完成，Phase 1 只完成了包装 API 的局部落地，业务调用尚未收口。
-- `platform-validation-workbench-plan.md` 的验证台、平台文件 spike 和 SQLite spike 已施工，并取得新的 Android 11 真机脱敏报告；由于真实低存储/专用系统入口仍不完整且没有 iOS 报告，资产与 SQLite Phase 0 尚未最终验收。
+- `platform-validation-workbench-plan.md` 的验证台、平台文件 spike 和 SQLite spike 已施工，并取得 Android 真机报告；平台结论按 Android/iOS 分别记录，iOS 报告保留为 iOS 发布门禁。
 - `llm-provider-adapter-sharing-investigation.md` 的代码与自动化验收已完成；本次真机报告未覆盖 LLM transport，相关人工性能与双平台真机验收仍未完成。
 - 2026-07-16 完成的移动端模型批量检查和 2026-07-18 完成的模型身份/Embedding 空间分离已纳入本快照；它们属于现有 `llm-api` 工具能力，不新增工具 registry。
 
-后续更新本文件时，应以代码、依赖和本次可复现验证为准；计划文档中的历史勾选只作为施工记录，不应覆盖当前代码事实。
+本文件保留 2026-07-18 盘点事实，不再承担资产或聊天的实时施工清单。后续施工必须读取对应工具当前计划和架构，不能继续按本文件第 3 节的旧未完成项扩展范围。
 
-## 5. 下一步施工路线
+## 5. 当前收敛路线（2026-07-21）
 
-### 5.1. 当前收尾：冻结边界与双端能力验证
+1. 冻结资产 Android MVP 范围，只完成文件/照片导入、资产页、基础预览、导出、删除影响、恢复修复和一个真实聊天附件消费者。
+2. 优先完成一次真实上游模型附件发送和一轮 Android 真机主流程；不再为聊天搜索、相机、文本替代或 token 长时间到期验证创建资产施工批次。
+3. 相机、分享进入 AIO、文件关联、批量转写/文本提取和其他消费者移至资产 Phase 3。已经存在的实现可以保留，但不作为 MVP 门禁继续扩展。
+4. iOS 在设备条件具备后执行同一套平台场景，作为 iOS 发布门禁；缺少 iOS 设备不重复阻塞 Android 开发，也不能被记录为通过。
+5. 开发循环只跑受影响测试；功能批次结束运行全量测试、Clippy、类型检查和 Vite 构建；单 ABI debug APK 用于原生能力变化，四 ABI APK/AAB 只用于里程碑或发布候选。
 
-验证台及两个隔离 spike 已完成实现，并取得一份 Android 11 真机报告。进入业务数据施工前仍需收完以下边界：
-
-1. **资产 Phase 0**：保留本次 Android 已通过的 `content://`、取消、后台、系统终止、真实多文件、大文件和沙箱清理结论；补跑 1 MiB 吞吐基线与中断后重开续读，补测真实低存储、云端异常、专用照片/分享入口，并在 iOS 验证 `file://` 与 security-scoped URL。完成后输出首版文件入口范围和预览方案决策。
-2. **SQLite Phase 0**：保留本次 Android migration、codec、FTS、事务强杀恢复、1k/10k/100k 基准和 high-water 结论，并完成 iOS 全套固定场景。
-3. **验证 UI**：实现已完成；继续用现有结构化步骤、人工判定、跨重启续测和脱敏报告导出补齐双端运行记录。没有双端 UI 运行记录的 spike 不算完成。
-4. **契约冻结**：锁定 `ManagedAssetRef`、资产服务领域命令、聊天 storage command、Schema v1 与 metadata codec；聊天前端不得获得任意 SQL 执行入口。
-
-SQLite 旧计划中的 JS `db.ts`、`PRAGMA user_version` 和前端事务方案已被后续调查否决；当前实施边界以 Rust 领域命令、原生 migration runner 和统一连接配置为准。
-
-验证台的信息架构、隔离策略和场景清单见 [`platform-validation-workbench-plan.md`](../../src/tools/ui-tester/docs/Plan/platform-validation-workbench-plan.md)。
-
-### 5.2. 两条可并行主线
-
-**A 线：全局资产内核**
-
-- 建立 `asset_manager.db` 与 Rust repository，完成流式导入、内容寻址、来源、usage、tombstone、分页查询和一致性恢复。
-- 建立 `ManagedAssetRef` 和跨工具服务接口；扩展原生 LLM 文件传输，由 Rust 解析托管资产，不把大文件转成 base64 穿过 IPC。
-- 此阶段只做最小验证入口，不先建设完整资产页面。
-
-**B 线：聊天 SQLite 基础**
-
-- 建立 `llm_chat_storage`、SQLx migrations、连接池、无损 codec 和领域级 Tauri commands。
-- 先迁移会话列表、单会话加载和消息 change set；`currentSessionId` 继续由 ConfigManager 管理。
-- 保留 JSON 实现作为短期开发回退，Android/iOS 数据闭环通过后删除；资产契约稳定前不固化附件写入流程。
-
-### 5.3. 两线汇合：附件、引用与搜索闭环
-
-1. 在聊天库落地 `chat_attachments` 和 transactional usage outbox，覆盖附件替换、分支删除、会话删除、崩溃重试和幂等投递。
-2. 接入聊天图片/文件选择、发送、预览及 `reclaimed` 降级展示，作为资产内核的第一个真实消费者。
-3. 基于真机验证结果实现 FTS5 或 basic-search 降级，明确中日韩短查询、英文前缀、特殊字符、rank、snippet 和结果上限。
-4. 完成资产/空间页面、影响分析、保留策略和安全清理流程。
-
-### 5.4. 数据主线稳定后的产品补全
-
-- **Agent 执行语义**：`injectionStrategy`、`modelMatch`、聊天内切换 Agent、开局消息实例化、宏渲染、深度注入和用户档案。
-- **Agent 私有资产**：头像、背景和预设附件继续使用 Agent Handle + 相对路径，导入导出携带私有二进制；不得改成全局 `assetId` 生命周期。
-- **Chat 完整性**：搜索/排序/引用回复、设置运行时接线、请求超时与重试、复制失败反馈和双语覆盖。
-
-### 5.5. 可穿插的低耦合收尾
-
-- 统一业务层 `customMessage/customDialog`，测试工具可保留底层 Varlet 验证入口。
-- 修复设置页硬编码版本来源，处理 `vconsole` 警告，拆分过大的 `Home` chunk。
-- 增加 Agent 存储/导入、会话绑定、分支、上下文管道、SQLite codec/migration/crash recovery 和资产一致性测试。
-
-每个主批次都必须通过 `bun run test:run`、`bun run check:frontend`、`bun run check:backend` 和 `bun run build`。涉及平台能力的批次还必须使用真实 Tauri Android/iOS 构建与真机验收，普通浏览器不能替代。
-
-施工顺序的硬约束是：聊天附件依赖全局资产契约；Agent 私有资产属于不可被全局清理策略回收的角色包内容。两者只能复制内容，不能共享 ID 或生命周期。
+施工顺序的硬约束保持不变：聊天附件依赖全局资产契约；Agent 私有资产属于不可被全局清理策略回收的角色包内容。两者只能复制内容，不能共享 ID 或生命周期。

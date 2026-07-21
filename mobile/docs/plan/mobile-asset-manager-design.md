@@ -1,7 +1,7 @@
 # 移动端资产管理器调查与设计方案
 
-> 状态：施工中（Phase 2，Android 先行；iOS 因缺少编译与真机设备条件暂缓补验）
-> 日期：2026-07-15；2026-07-21 更新施工状态
+> 状态：范围冻结，Android MVP 收尾（iOS 发布门禁待设备条件）
+> 日期：2026-07-15；2026-07-21 更新施工状态；2026-07-21 收敛范围
 > 范围：产品信息架构、移动端存储语义、数据模型与实施边界。本文件不包含功能实现。
 
 ## 1. 结论
@@ -105,7 +105,6 @@ iOS 应用运行在沙盒中。应用自己的 Documents、Library/Application S
 3. 支持搜索、按类型筛选、预览、分享/导出、查看来源和使用位置。
 4. 清晰展示 AIO Hub 占用空间，并按月份、来源、类型和影响范围安全回收原件、缓存与失败任务。
 5. 为聊天附件与媒体生成等共享工作集提供稳定的 `assetId` 和读取接口。
-6. 支持将音视频或文档批量转写/提取为文本，在消费者完成替代后删除原件。
 
 ### 4.2 首版不做
 
@@ -272,9 +271,9 @@ interface ManagedAssetRef {
 - 没有 `blocking` usage；
 - 若存在 `advisory` usage，进入“有影响可清理”分组并要求额外确认。
 
-### 7.1 转写或文本提取后删除
+### 7.1 后续：转写或文本提取后删除
 
-“批量转写后删除原件”是跨模块替代流程，不由 Rust 资产服务自行调用模型：
+“批量转写后删除原件”是 Phase 3 的跨模块替代流程，不由 Rust 资产服务自行调用模型：
 
 1. 资产管理器按类型、月份或来源筛选音视频和文档，并查询 usage 影响。
 2. 前端编排层调用已有 LLM/转写能力生成文本；资产服务只提供受控读取和任务进度。
@@ -456,6 +455,21 @@ interface ManagedAssetRef {
 
 ## 12. 实施分期
 
+### 12.0 范围冻结与状态口径
+
+本文件是资产管理器的唯一施工范围来源。`mobile-current-implementation-audit.md` 只记录移动端全局盘点，`platform-validation-workbench-plan.md` 只记录验证工具和平台能力；两者不得重新打开本文件已冻结的产品范围。
+
+当前目标是完成 Android 资产 MVP 的主链收尾，不继续扩展旁支功能。已经落地但不属于本轮门禁的功能保留为历史实现，不能据此新增测试批次或改变 MVP 完成条件。
+
+Android MVP 的停止条件：
+
+1. 文件/照片导入、内容寻址去重、列表/筛选/详情、基础媒体预览和导出可用。
+2. 删除影响分析、usage、reclaimed tombstone、缓存清理、导入恢复和修复命令可用。
+3. `ManagedAssetRef` 至少完成一个真实聊天附件消费者，并通过一次真实上游模型发送验收。
+4. Android 真机完成一次导入、预览、导出、删除影响和应用重启恢复主流程。
+
+相机、分享进入 AIO、文件关联、聊天搜索、批量转写/文本替代、PDF/Office 提取、音视频转写和跨设备同步不属于 Android MVP 停止条件。
+
 ### Phase 0：能力验证
 
 - 在 Android 与 iOS 真机验证 Tauri dialog 对大文件、云端文件、多个文件和取消操作的返回行为。
@@ -464,7 +478,7 @@ interface ManagedAssetRef {
 - 做原生照片选择、分享导入、分享导出的最小插件实验，确认首版范围。
 - 在 `ui-tester` 增加“平台文件”验证板块，所有自动场景返回结构化步骤与指标；后台、系统终止和云端文件等场景支持人工判定、跨重启续测和脱敏报告导出。
 
-交付物是固定验证命令、`ui-tester` 操作面板、Android/iOS 运行报告和 API 决策；不接正式资产业务 UI。详细设计见 [`platform-validation-workbench-plan.md`](../../src/tools/ui-tester/docs/Plan/platform-validation-workbench-plan.md)。
+交付物是固定验证命令、`ui-tester` 操作面板、按平台分别记录的运行报告和 API 决策；不接正式资产业务 UI。详细设计见 [`platform-validation-workbench-plan.md`](../../src/tools/ui-tester/docs/Plan/platform-validation-workbench-plan.md)。
 
 当前施工决议（2026-07-20）：
 
@@ -472,6 +486,7 @@ interface ManagedAssetRef {
 - 当前开发环境缺少 iOS 编译与真机设备条件，iOS Phase 0 暂缓，不把缺失报告解释为通过，也不阻塞平台中立的资产内核与 Android 数据链施工。
 - iOS 补验仍是发布 iOS 资产能力前的门禁；涉及 security-scoped URL、备份排除、预览协议和分享/照片专用入口的实现不得仅依据 Android 行为冻结。
 - 正式导入链必须增加“系统 URI 由 Rust 资产命令直接打开并流式写入”的固定验证。现有 WebView 侧 plugin-fs 分块读取报告只证明选择结果可读，不替代正式资产导入链验证。
+- Phase 0 按平台独立结论：Android 报告可以解除 Android MVP 的施工门禁；iOS 报告仍是 iOS 资产能力发布门禁。缺少 iOS 设备时不得重复阻塞 Android 内核，也不得把 Android 结果写成双平台通过。
 
 ### Phase 1：资产内核
 
@@ -494,7 +509,7 @@ interface ManagedAssetRef {
 - [x] 建立短期 token、可撤销自定义协议、单 Range 读取和大原件响应上限的受控预览候选实现。
 - [x] 在 Android 模拟器 `emulator-5558` 验证 Rust command 通过原生 bridge 直读 Photo Picker `content://` 的正式导入路径并回写报告。
 - [x] 完成 Android 图片、视频和音频受控预览验收，并通过固定场景验证 Range/CORS、HEAD、主动撤销与 token 自然过期。
-- [x] [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md) 阶段一 Rust 存储骨架、阶段二会话增量持久化、阶段三附件消费闭环和阶段四 Android 本地搜索已完成；真实上游发送与 iOS 验收仍待完成。不在 `any[]` 附件上增加过渡持久化。
+- [x] [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md) 阶段一 Rust 存储骨架、阶段二会话增量持久化和阶段三附件消费闭环已完成；真实上游发送与 iOS 验收仍待完成。聊天本地搜索属于 Chat 自身路线，不作为资产管理器施工门禁。不在 `any[]` 附件上增加过渡持久化。
 
 ### Phase 2：资产页
 
@@ -503,15 +518,16 @@ interface ManagedAssetRef {
 - [x] 接入文件选择器导入、短期受控媒体预览、缓存清理和资产库修复。
 - [x] 接入系统文件保存能力；原件由 Rust 流式导出到 save picker 目标，不经过 WebView 内存。
 - [x] 接入最近导入任务恢复、运行进度、中断状态与取消入口。
-- [x] 接入照片/视频 media picker。
-- [x] 接入 Android 系统分享：Rust 校验资产后复制到受控 cache，原生 bridge 通过 `FileProvider` 发出只读 `ACTION_SEND`；相机和 iOS 分享仍未接入。
-- [ ] 完成 Android 相机设备验收，以及 iOS/跨平台系统分享能力（需各自原生插件契约和设备条件）。
-- [x] 接入首批 UTF-8 文本文档到聊天附件快照的批量替代与原件删除流程；逐项失败保留原件，批次继续处理后续项。
-- [ ] 扩展音视频模型转写、PDF/Office 文本提取和 `llm-chat` 之外的消费者替代流程。
+- [x] 接入照片/视频 media picker、系统文件保存和 Android 对外系统分享；这些能力属于当前导入/导出主链。
+- [ ] 完成 Android 真机 MVP 主流程验收，以及 iOS 资产能力验收（需各自设备条件）。
+- [ ] 相机、分享进入 AIO 和移动端文件关联，移至 Phase 3，不在本阶段继续实现或扩展测试。
+- [ ] 批量转写/文本替代、音视频模型转写、PDF/Office 文本提取和 `llm-chat` 之外的消费者替代流程，移至 Phase 3。
 
 ### Phase 3：平台增强
 
 - 相机、移动端文件关联与分享进入 AIO。
+- 批量转写/文本替代、音视频模型转写、PDF/Office 文本提取和其他消费者替代流程。
+- 聊天搜索由 `llm-chat` 自身计划负责，不在资产管理器计划中拆分施工。
 - 评估外部长期引用模式。
 - 按真实需求增加后台任务、转码、备份策略与跨设备同步。
 
@@ -523,7 +539,6 @@ interface ManagedAssetRef {
 - 有 `blocking` usage 或固定保留策略的资产不能被物理删除。
 - 有 `advisory` usage 的资产经影响确认后可删除，消费者仍能加载文本与附件快照并显示“原件已清理”。
 - 有建议型引用的原件被回收后保留 `reclaimed` tombstone；相同内容重新导入可恢复原 `assetId`。
-- 批量转写只在文本成功写回消费者后释放引用和删除原件，失败项保留原件。
 - 清理缓存不影响原件和业务引用，预览可重建。
 - 中断导入不会产生可见的半成品资产或永久遗留大文件。
 - 数据库和对象目录出现不一致时可检测、恢复或明确标记。
@@ -544,12 +559,21 @@ interface ManagedAssetRef {
 - 空间统计来自数据库聚合与文件元数据，不在进入页面时递归扫描全库。
 - 缩略图缓存有大小上限和最近使用清理策略。
 
+### 测试门禁与停止规则
+
+- 开发循环只运行受影响的 Vitest 文件或 Rust 模块测试，不构建 APK/AAB。
+- 功能批次完成后运行一次移动端全量测试、Clippy、前端类型检查和 Vite 生产构建。
+- 只有修改原生 bridge、Tauri command 或平台权限时才构建单 ABI debug APK，并执行对应 Android 场景。
+- 四 ABI APK/AAB、完整 Android 真机矩阵和 iOS 构建只在 MVP 里程碑或发布候选执行，不随每个小提交重复执行。
+- token 自然过期、吞吐和中断恢复优先使用可注入时钟/固定夹具的自动化测试；设备只保留一次代表性 smoke，不创建独立长时间批次。
+- 任何测试若不对应本节 MVP 停止条件或明确的平台发布门禁，必须延期，不得新增施工批次。
+
 ## 14. 待评审决策
 
 以下问题不阻塞本方案，但应在 Phase 0 后锁定：
 
 1. 用户主动保留的托管原件是否进入 iOS 设备备份，还是全部默认排除并依赖未来同步。
-2. 首版是否同时提供“从照片”和“拍摄”，还是先只做照片与文件选择。
+2. Phase 3 是否同时提供“从照片”和“拍摄”；Android MVP 只承诺照片与文件选择。
 3. 未使用资产的默认保留期，例如 7 天、30 天或只由用户手动清理。
 4. advisory usage 的批量删除是否每次逐项确认，还是允许用户对特定筛选条件记住确认策略。
 5. 平板是否仅增加网格列数，还是增加常驻详情双栏；建议首版只增加列数。

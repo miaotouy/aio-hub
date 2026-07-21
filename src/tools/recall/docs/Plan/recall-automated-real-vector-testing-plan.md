@@ -56,6 +56,7 @@ Phase 5 的 transport/state lane 已完成：runner 新增 Chat `/v1/chat/comple
 - `external-sample` 实测完整导入后 3 条批量向量化 spec 约 7 秒，`external-full` 当前全量 spec 约 119 秒；常规开发反馈使用前者，后者只作为最终数量与恢复门槛。
 - 根 `package.json` 的 Tauri E2E scripts 已随各阶段 lane 增长到 11 个，其中多数只是 `run.ts` 的参数组合。收口阶段保留验收矩阵，但把组合知识迁入 `tests/tauri-e2e/` 的具名 preset registry，避免根 scripts 继续随 corpus、模型和恢复维度组合增长；具体迁移见第 8 节。
 - 第 8 节收口已完成：新增 9 个具名 preset、`--list-presets`、装配参数冲突检查和前置条件策略；根 scripts 仅保留通用、纯逻辑与 native 三个入口，相关 README 与测试指南已统一迁移到 preset ID。
+- 恢复流程探针已加入 `recall-recovery-probes.jsonl`：记录脱敏的发送时间线、请求计数、管线/查询向量/Chat 阶段计数、消息状态和 Key 状态汇总。修复 runner 默认仅使用 PID 导致快速重跑复用旧数据根的问题，默认 suffix 现包含启动时间；随后以全新隔离数据根连续运行 `recall-chat` 5 次，5/5 通过，Chat 记录耗时 545--661ms、session 落盘 712--1007ms，未再复现恢复期未收口。
 
 ---
 
@@ -537,6 +538,7 @@ e2e-run.json
 embedding-requests.jsonl
 chat-requests.jsonl
 scenario-results.json
+recall-recovery-probes.jsonl
 recall-fixture-manifest.json
 recall-state-summary.json
 screenshots/
@@ -559,6 +561,8 @@ backend.log
 - HTTP status、SSE chunk 数、finish reason 和耗时。
 
 `scenario-results.json` 汇总每个场景的 query embedding、Chat evidence、UI 回复和 session 回读；向量排名记录在 `recall-vector-workflow.json`，不在 Chat spec 中重复旁路搜索。测试结束时 server 还必须断言不存在未消费的必跑场景，也不存在意外 Chat 请求。
+
+`recall-recovery-probes.jsonl` 记录二次启动恢复发送的脱敏时间线，包括请求计数、管线/查询向量/Chat 阶段计数、消息状态和 Key 状态汇总；不记录消息正文、API Key 或向量。该探针用于定位偶发的恢复期请求卡住，不替代 `scenario-results.json` 的通过判定。
 
 禁止记录 Authorization、API Key、完整私有 profile 和完整向量。mock 通道直接由本地 server 产出证据；Ollama/私有渠道至少记录 runner 预检、应用请求关联 ID 和应用回读状态。若后续需要证明应用请求确实到达目标端点，可在 runner 中增加仅监听本机的转发记录器，再把 Profile base URL 指向该转发器。包含 `profiles.json` 的完整隔离 dataDir 不能作为 CI artifact 上传，只允许上传经过白名单筛选和脱敏的 artifact 目录。
 

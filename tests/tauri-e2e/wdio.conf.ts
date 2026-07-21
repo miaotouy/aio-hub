@@ -21,7 +21,8 @@ if (!fs.existsSync(appBinaryPath)) {
 }
 
 const runSuffix =
-  process.env.AIO_ID_SUFFIX?.trim() || `tauri-e2e-${process.pid}`;
+  process.env.AIO_ID_SUFFIX?.trim() ||
+  `tauri-e2e-${process.pid}-${Date.now().toString(36)}`;
 const dataDir = path.resolve(
   projectRoot,
   process.env.AIO_DATA_DIR?.trim() || path.join(".dev-data", runSuffix)

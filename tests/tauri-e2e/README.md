@@ -22,9 +22,10 @@ bun run test:tauri:e2e
 `AIO_E2E_BINARY` is optional when the binary is at
 `src-tauri/target/debug/aiohub.exe`. When the suffix, data directory, or
 WebDriver port is omitted, the config derives isolated defaults from the
-current process. `AIO_E2E_WEBDRIVER_PORT` can be used to select a known free
-port when running alongside another debug instance. The standard debug binary
-loads `http://localhost:1420/`; a binary intentionally built with another
+current process ID and start time so rapid reruns cannot reuse a stale fixture
+directory after PID recycling. `AIO_E2E_WEBDRIVER_PORT` can be used to select a
+known free port when running alongside another debug instance. The standard
+debug binary loads `http://localhost:1420/`; a binary intentionally built with another
 Tauri dev URL must set the same origin through `AIO_E2E_FRONTEND_URL`. The
 suite is intentionally
 single-process and debug-only; the normal command excludes native file dialogs
@@ -143,6 +144,10 @@ binding, and session, then sends a new Recall-backed turn. The runner rejects
 unconsumed required scenarios and unexpected Chat requests, and writes the
 embedding, Chat evidence, UI, and session cross-check to `scenario-results.json`.
 Retrieval ranking is recorded separately by `recall-vector-workflow.spec.ts`.
+The recovery spec also writes redacted state transitions to
+`recall-recovery-probes.jsonl`, including request counts, pipeline/vector/Chat
+stage counters, message statuses, and key-state totals. It never records message
+content, API keys, or vectors.
 
 Select the larger reviewed corpus explicitly:
 

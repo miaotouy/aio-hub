@@ -42,7 +42,8 @@ function activeSpecFromArgs(args: string[]): string {
 }
 const explicitDataDir = process.env.AIO_E2E_DATA_DIR?.trim() || undefined;
 const runSuffix =
-  process.env.AIO_E2E_ID_SUFFIX?.trim() || `tauri-e2e-${process.pid}`;
+  process.env.AIO_E2E_ID_SUFFIX?.trim() ||
+  `tauri-e2e-${process.pid}-${Date.now().toString(36)}`;
 const dataDir = path.resolve(
   projectRoot,
   explicitDataDir ?? path.join(".dev-data", runSuffix)

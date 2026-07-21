@@ -27,6 +27,41 @@ interface ChatSummary {
   evidenceVerified?: boolean;
 }
 
+interface RecoverySessionSnapshot {
+  messageCount: number;
+  activeLeafId: string | null;
+  nodes: Array<{
+    id: string;
+    role: string;
+    status: string;
+    contentLength: number;
+  }>;
+}
+
+interface RecoveryLogCounters {
+  pipelineStarted: number;
+  pipelineCompleted: number;
+  queryVectorStarted: number;
+  queryVectorCompleted: number;
+  llmRequestStarted: number;
+}
+
+interface RecoveryProbeContext {
+  probeId: string;
+  scenarioId: string;
+  sessionId: string;
+  startedAt: number;
+  embeddingBaseline: number;
+  chatBaseline: number;
+  backendChatBaseline: number;
+  logBaseline: RecoveryLogCounters;
+}
+
+const recoveryProbePath = path.join(
+  artifactDir,
+  "recall-recovery-probes.jsonl"
+);
+
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
@@ -73,6 +108,219 @@ function countBackendChatRequests(): number {
         (text.match(/raw request to .*\/v1\/chat\/completions/g)?.length ?? 0)
       );
     }, 0);
+}
+
+function countMatches(text: string, pattern: RegExp): number {
+  return text.match(pattern)?.length ?? 0;
+}
+
+function readRecoveryLogCounters(): RecoveryLogCounters {
+  const logDir = path.join(dataDir, "logs");
+  if (!fs.existsSync(logDir)) {
+    return {
+      pipelineStarted: 0,
+      pipelineCompleted: 0,
+      queryVectorStarted: 0,
+      queryVectorCompleted: 0,
+      llmRequestStarted: 0,
+    };
+  }
+  const text = fs
+    .readdirSync(logDir)
+    .filter(
+      (fileName) => fileName.startsWith("app-") && fileName.endsWith(".log")
+    )
+    .map((fileName) => fs.readFileSync(path.join(logDir, fileName), "utf8"))
+    .join("\n");
+  return {
+    pipelineStarted: countMatches(
+      text,
+      /\[llm-chat\/PipelineEngine\] 开始执行上下文管道/g
+    ),
+    pipelineCompleted: countMatches(
+      text,
+      /\[llm-chat\/PipelineEngine\] 上下文管道执行完毕/g
+    ),
+    queryVectorStarted: countMatches(
+      text,
+      /\[recall\/vector-cache\] 生成查询向量/g
+    ),
+    queryVectorCompleted: countMatches(
+      text,
+      /\[recall\/vector-cache\] 查询向量生成成功/g
+    ),
+    llmRequestStarted: countMatches(text, /\[LlmRequest\] 发送 LLM 请求/g),
+  };
+}
+
+function subtractLogCounters(
+  current: RecoveryLogCounters,
+  baseline: RecoveryLogCounters
+): RecoveryLogCounters {
+  return {
+    pipelineStarted: current.pipelineStarted - baseline.pipelineStarted,
+    pipelineCompleted: current.pipelineCompleted - baseline.pipelineCompleted,
+    queryVectorStarted:
+      current.queryVectorStarted - baseline.queryVectorStarted,
+    queryVectorCompleted:
+      current.queryVectorCompleted - baseline.queryVectorCompleted,
+    llmRequestStarted: current.llmRequestStarted - baseline.llmRequestStarted,
+  };
+}
+
+function readRecoverySessionSnapshot(
+  sessionId: string
+): RecoverySessionSnapshot | null {
+  const filePath = path.join(
+    dataDir,
+    "llm-chat",
+    "sessions",
+    `${sessionId}.json`
+  );
+  if (!fs.existsSync(filePath)) return null;
+  const session = JSON.parse(fs.readFileSync(filePath, "utf8")) as {
+    messageCount: number;
+    activeLeafId?: string;
+    nodes: Record<
+      string,
+      { id?: string; role: string; status: string; content?: string }
+    >;
+  };
+  return {
+    messageCount: session.messageCount,
+    activeLeafId: session.activeLeafId ?? null,
+    nodes: Object.entries(session.nodes).map(([id, node]) => ({
+      id: node.id ?? id,
+      role: node.role,
+      status: node.status,
+      contentLength: node.content?.length ?? 0,
+    })),
+  };
+}
+
+function readRedactedKeyState(): {
+  stateCount: number;
+  enabledCount: number;
+  brokenCount: number;
+  totalErrorCount: number;
+} | null {
+  const filePath = path.join(dataDir, "llm-service", "key-states.json");
+  if (!fs.existsSync(filePath)) return null;
+  const payload = JSON.parse(fs.readFileSync(filePath, "utf8")) as {
+    states?: Record<
+      string,
+      Record<
+        string,
+        { isEnabled?: boolean; isBroken?: boolean; errorCount?: number }
+      >
+    >;
+  };
+  const states = Object.values(payload.states ?? {}).flatMap((profile) =>
+    Object.values(profile)
+  );
+  return {
+    stateCount: states.length,
+    enabledCount: states.filter((state) => state.isEnabled).length,
+    brokenCount: states.filter((state) => state.isBroken).length,
+    totalErrorCount: states.reduce(
+      (total, state) => total + (state.errorCount ?? 0),
+      0
+    ),
+  };
+}
+
+function redactProbeDetail(value: string): string {
+  return value
+    .replace(/Bearer\s+[^\s,}]+/gi, "Bearer [redacted]")
+    .replace(/(api[-_ ]?key\s*[:=]\s*)[^\s,}]+/gi, "$1[redacted]")
+    .slice(0, 500);
+}
+
+async function recordRecoveryProbe(
+  context: RecoveryProbeContext,
+  event: string,
+  detail?: string
+): Promise<void> {
+  try {
+    const ui = await browser.execute(() => ({
+      pathname: window.location.pathname,
+      messages: Array.from(
+        document.querySelectorAll<HTMLElement>('[data-testid="chat-message"]')
+      ).map((message) => ({
+        id: message.dataset.messageId ?? null,
+        role: message.dataset.messageRole ?? null,
+        status: message.dataset.messageStatus ?? null,
+        contentLength: message.innerText.length,
+      })),
+      sendDisabled:
+        document
+          .querySelector<HTMLElement>('[data-testid="chat-send-message"]')
+          ?.hasAttribute("disabled") ?? null,
+      stopVisible: Array.from(
+        document.querySelectorAll<HTMLElement>(
+          '[data-testid="chat-stop-generation"]'
+        )
+      ).some((element) => element.offsetParent !== null),
+    }));
+    const embeddingRequests = readRequestSummaries("embedding").length;
+    const chatRequests = readRequestSummaries("chat").length;
+    const backendChatRequests = countBackendChatRequests();
+    fs.appendFileSync(
+      recoveryProbePath,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        at: new Date().toISOString(),
+        elapsedMs: Date.now() - context.startedAt,
+        probeId: context.probeId,
+        event,
+        scenarioId: context.scenarioId,
+        lane,
+        chatExpectation,
+        requestEvidence,
+        requestDelta: {
+          embedding: embeddingRequests - context.embeddingBaseline,
+          chat: chatRequests - context.chatBaseline,
+          backendChat: backendChatRequests - context.backendChatBaseline,
+        },
+        logDelta: subtractLogCounters(
+          readRecoveryLogCounters(),
+          context.logBaseline
+        ),
+        session: readRecoverySessionSnapshot(context.sessionId),
+        keyState: readRedactedKeyState(),
+        ui,
+        ...(detail ? { detail: redactProbeDetail(detail) } : {}),
+      })}\n`,
+      "utf8"
+    );
+  } catch (error) {
+    fs.appendFileSync(
+      recoveryProbePath,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        at: new Date().toISOString(),
+        elapsedMs: Date.now() - context.startedAt,
+        probeId: context.probeId,
+        event: `${event}-probe-error`,
+        detail: redactProbeDetail(
+          error instanceof Error ? error.message : String(error)
+        ),
+      })}\n`,
+      "utf8"
+    );
+  }
+}
+
+function probeHeartbeat(
+  context: RecoveryProbeContext,
+  event: string
+): () => Promise<void> {
+  let lastProbeAt = 0;
+  return async () => {
+    if (Date.now() - lastProbeAt < 2_000) return;
+    lastProbeAt = Date.now();
+    await recordRecoveryProbe(context, event);
+  };
 }
 
 function readSessionContents(sessionId: string): string[] {
@@ -293,110 +541,157 @@ recallRecoveryDescribe("Recall session recovery", () => {
     await navigateToChat();
     await selectSession(fixture.sessionId);
     const embeddingBaseline = readRequestSummaries("embedding").length;
-    const chatBaseline = countBackendChatRequests();
-    await fillChatInput(fixture.query);
-    await $('[data-testid="chat-send-message"]').click();
+    const chatRequestBaseline = readRequestSummaries("chat").length;
+    const backendChatBaseline = countBackendChatRequests();
+    const probeContext: RecoveryProbeContext = {
+      probeId: `recovery-${Date.now()}`,
+      scenarioId: scenario.id,
+      sessionId: fixture.sessionId,
+      startedAt: Date.now(),
+      embeddingBaseline,
+      chatBaseline: chatRequestBaseline,
+      backendChatBaseline,
+      logBaseline: readRecoveryLogCounters(),
+    };
 
-    let summary: ChatSummary | undefined;
-    if (requestEvidence === "tauri-log-and-state") {
-      await browser.waitUntil(
-        async () => countBackendChatRequests() > chatBaseline,
-        {
-          timeout: chatExpectation === "response-present" ? 180_000 : 60_000,
-          timeoutMsg: "Recovery Chat request was not recorded.",
-        }
+    await recordRecoveryProbe(probeContext, "session-selected");
+
+    try {
+      await fillChatInput(fixture.query);
+      await recordRecoveryProbe(probeContext, "input-filled");
+      await $('[data-testid="chat-send-message"]').click();
+      await recordRecoveryProbe(probeContext, "send-clicked");
+
+      let summary: ChatSummary | undefined;
+      const requestHeartbeat = probeHeartbeat(
+        probeContext,
+        "waiting-for-chat-request"
       );
-      summary = {
-        scenarioId: scenario.id,
-        scenarioMatch: false,
-        status: 200,
-        requiredEvidence: [],
-        evidenceVerified: false,
-      };
-    } else {
+      if (requestEvidence === "tauri-log-and-state") {
+        await browser.waitUntil(
+          async () => {
+            await requestHeartbeat();
+            return countBackendChatRequests() > backendChatBaseline;
+          },
+          {
+            timeout: chatExpectation === "response-present" ? 180_000 : 60_000,
+            timeoutMsg: "Recovery Chat request was not recorded.",
+          }
+        );
+        summary = {
+          scenarioId: scenario.id,
+          scenarioMatch: false,
+          status: 200,
+          requiredEvidence: [],
+          evidenceVerified: false,
+        };
+      } else {
+        await browser.waitUntil(
+          async () => {
+            await requestHeartbeat();
+            summary = readRequestSummaries<ChatSummary>("chat").find(
+              (item) => item.scenarioId === scenario.id && item.status === 200
+            );
+            return !!summary;
+          },
+          {
+            timeout: chatExpectation === "response-present" ? 180_000 : 60_000,
+            timeoutMsg: "Recovery Chat request was not recorded.",
+          }
+        );
+      }
+      await recordRecoveryProbe(probeContext, "chat-request-recorded");
+
+      const embeddingRequests = readRequestSummaries<{
+        inputs: Array<{ inputHash: string; topicId: string | null }>;
+      }>("embedding").slice(embeddingBaseline);
+      const queryEmbedding =
+        lane === "deterministic-mock"
+          ? embeddingRequests.some((request) =>
+              request.inputs.some(
+                (input) => input.topicId === scenario.expected.embeddingTopicId
+              )
+            )
+          : embeddingRequests.length > 0;
+      const assistantHeartbeat = probeHeartbeat(
+        probeContext,
+        "waiting-for-assistant"
+      );
       await browser.waitUntil(
         async () => {
-          summary = readRequestSummaries<ChatSummary>("chat").find(
-            (item) => item.scenarioId === scenario.id && item.status === 200
+          await assistantHeartbeat();
+          return await browser.execute(
+            (expected) =>
+              Array.from(
+                document.querySelectorAll<HTMLElement>(
+                  '[data-testid="chat-message"]'
+                )
+              ).some(
+                (message) =>
+                  message.dataset.messageRole === "assistant" &&
+                  message.dataset.messageStatus === "complete" &&
+                  message.innerText.trim().length > 0 &&
+                  (!expected || message.innerText.includes(expected))
+              ),
+            chatExpectation === "preset-exact"
+              ? fixture.expectedAssistantText
+              : ""
           );
-          return !!summary;
         },
         {
           timeout: chatExpectation === "response-present" ? 180_000 : 60_000,
-          timeoutMsg: "Recovery Chat request was not recorded.",
+          timeoutMsg: "Recovery assistant reply did not complete.",
         }
       );
-    }
-    const embeddingRequests = readRequestSummaries<{
-      inputs: Array<{ inputHash: string; topicId: string | null }>;
-    }>("embedding").slice(embeddingBaseline);
-    const queryEmbedding =
-      lane === "deterministic-mock"
-        ? embeddingRequests.some((request) =>
-            request.inputs.some(
-              (input) => input.topicId === scenario.expected.embeddingTopicId
-            )
-          )
-        : embeddingRequests.length > 0;
-    await browser.waitUntil(
-      async () =>
-        await browser.execute(
-          (expected) =>
-            Array.from(
-              document.querySelectorAll<HTMLElement>(
-                '[data-testid="chat-message"]'
-              )
-            ).some(
-              (message) =>
-                message.dataset.messageRole === "assistant" &&
-                message.dataset.messageStatus === "complete" &&
-                message.innerText.trim().length > 0 &&
-                (!expected || message.innerText.includes(expected))
-            ),
-          chatExpectation === "preset-exact"
-            ? fixture.expectedAssistantText
-            : ""
-        ),
-      {
-        timeout: chatExpectation === "response-present" ? 180_000 : 60_000,
-        timeoutMsg: "Recovery assistant reply did not complete.",
+      await recordRecoveryProbe(probeContext, "assistant-completed");
+
+      await waitForPersistedContent(
+        fixture.sessionId,
+        chatExpectation === "preset-exact"
+          ? [fixture.query, fixture.expectedAssistantText]
+          : [fixture.query]
+      );
+      if (chatExpectation === "response-present") {
+        await browser.waitUntil(
+          async () => readAssistantContents(fixture.sessionId).length > 0,
+          {
+            timeout: 60_000,
+            timeoutMsg:
+              "Recovery session did not persist a real assistant reply.",
+          }
+        );
       }
-    );
-    await waitForPersistedContent(
-      fixture.sessionId,
-      chatExpectation === "preset-exact"
-        ? [fixture.query, fixture.expectedAssistantText]
-        : [fixture.query]
-    );
-    if (chatExpectation === "response-present") {
-      await browser.waitUntil(
-        async () => readAssistantContents(fixture.sessionId).length > 0,
-        {
-          timeout: 60_000,
-          timeoutMsg:
-            "Recovery session did not persist a real assistant reply.",
-        }
+      await recordRecoveryProbe(probeContext, "session-persisted");
+
+      const evidenceVerified = requestEvidence !== "tauri-log-and-state";
+      const chatEvidence =
+        evidenceVerified &&
+        summary!.scenarioMatch &&
+        summary!.requiredEvidence.every((item) => item.matched);
+      const passed =
+        queryEmbedding &&
+        (chatExpectation === "response-present" || chatEvidence);
+      recordRecallScenarioResult(artifactDir, {
+        scenarioId: scenario.id,
+        phase,
+        passed,
+        queryEmbedding,
+        embeddingRequests: embeddingRequests.length,
+        chatStatus: summary!.status,
+        chatEvidence,
+        evidenceVerified,
+        uiReply: true,
+        sessionPersisted: true,
+      });
+      assert(passed, "Recall Chat failed after process restart.");
+      await recordRecoveryProbe(probeContext, "passed");
+    } catch (error) {
+      await recordRecoveryProbe(
+        probeContext,
+        "failed",
+        error instanceof Error ? error.message : String(error)
       );
+      throw error;
     }
-    const evidenceVerified = requestEvidence !== "tauri-log-and-state";
-    const chatEvidence = evidenceVerified &&
-      summary!.scenarioMatch &&
-      summary!.requiredEvidence.every((item) => item.matched);
-    const passed =
-      queryEmbedding &&
-      (chatExpectation === "response-present" || chatEvidence);
-    recordRecallScenarioResult(artifactDir, {
-      scenarioId: scenario.id,
-      phase,
-      passed,
-      queryEmbedding,
-      embeddingRequests: embeddingRequests.length,
-      chatStatus: summary!.status,
-      chatEvidence,
-      evidenceVerified,
-      uiReply: true,
-      sessionPersisted: true,
-    });
-    assert(passed, "Recall Chat failed after process restart.");
   });
 });

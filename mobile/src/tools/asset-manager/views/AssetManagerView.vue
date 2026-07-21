@@ -314,16 +314,28 @@ onUnmounted(() => {
           <button v-if="hasFilters" type="button" @click="clearFilters"><FilterX :size="16" /> 清除筛选</button>
           <button v-else type="button" @click="importFromDevice"><Import :size="16" /> 导入第一个文件</button>
         </div>
-        <div v-else class="asset-grid">
-          <AssetTile
-            v-for="asset in library.assets.value"
-            :key="asset.id"
-            :asset="asset"
-            :selected="library.selectedIds.value.includes(asset.id)"
-            @open="openDetail"
-            @select="library.toggleSelection"
-          />
-        </div>
+        <template v-else>
+          <div class="asset-grid">
+            <AssetTile
+              v-for="asset in library.assets.value"
+              :key="asset.id"
+              :asset="asset"
+              :selected="library.selectedIds.value.includes(asset.id)"
+              @open="openDetail"
+              @select="library.toggleSelection"
+            />
+          </div>
+          <button
+            v-if="library.hasMore.value"
+            class="load-more"
+            type="button"
+            :disabled="library.loading.value || library.loadingMore.value"
+            @click="library.loadMore"
+          >
+            <LoaderCircle v-if="library.loadingMore.value" class="spin" :size="17" />
+            <span>{{ library.loadingMore.value ? "正在加载" : "加载更多" }}</span>
+          </button>
+        </template>
       </template>
 
       <section v-else class="storage-view">
@@ -668,6 +680,25 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.load-more {
+  min-width: 128px;
+  min-height: 44px;
+  margin: 16px auto 0;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: var(--primary-color);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 40%, var(--border-color));
+  border-radius: var(--app-radius-md);
+}
+
+.load-more:disabled {
+  opacity: 0.62;
 }
 
 .state-panel {

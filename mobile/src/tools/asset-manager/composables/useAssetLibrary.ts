@@ -34,6 +34,7 @@ import type {
 } from "../types";
 
 export type AssetLibraryMode = "assets" | "storage";
+const ASSET_PAGE_SIZE = 100;
 
 export function formatAssetBytes(value: number): string {
   if (value < 1024) return `${value} B`;
@@ -47,13 +48,16 @@ export function formatAssetBytes(value: number): string {
   return `${size.toFixed(size >= 10 ? 0 : 1).replace(/\.0$/, "")} ${units[unit]}`;
 }
 
-export function createAssetListQuery(input: {
-  search: string;
-  kind: AssetKind | "all";
-  libraryState: AssetLibraryState | "all";
-  createdMonth: string;
-  sourceModule: string;
-}): AssetListQuery {
+export function createAssetListQuery(
+  input: {
+    search: string;
+    kind: AssetKind | "all";
+    libraryState: AssetLibraryState | "all";
+    createdMonth: string;
+    sourceModule: string;
+  },
+  offset = 0
+): AssetListQuery {
   return {
     search: input.search.trim() || undefined,
     kind: input.kind === "all" ? undefined : input.kind,
@@ -62,13 +66,15 @@ export function createAssetListQuery(input: {
     sourceModule: input.sourceModule || undefined,
     includeHidden: input.libraryState !== "visible",
     includeUnavailable: true,
-    limit: 100,
-    offset: 0,
+    limit: ASSET_PAGE_SIZE,
+    offset,
   };
 }
 
 export function useAssetLibrary() {
   let loadSequence = 0;
+  let loadMoreRequestId = 0;
+  let loadedOffset = 0;
   const mode = ref<AssetLibraryMode>("assets");
   const assets = ref<AssetRecord[]>([]);
   const summary = ref<AssetStorageSummary | null>(null);
@@ -80,6 +86,8 @@ export function useAssetLibrary() {
   const createdMonth = ref("");
   const sourceModule = ref("");
   const loading = ref(false);
+  const loadingMore = ref(false);
+  const hasMore = ref(false);
   const error = ref<string | null>(null);
   const detail = ref<AssetDetail | null>(null);
   const preview = ref<AssetPreviewSource | null>(null);
@@ -111,27 +119,94 @@ export function useAssetLibrary() {
     )
   );
 
+  async function listPages(
+    baseQuery: AssetListQuery,
+    targetOffset: number,
+    sequence: number
+  ) {
+    const records: AssetRecord[] = [];
+    const loadedIds = new Set<string>();
+    let offset = 0;
+    let pageLength = 0;
+    do {
+      const page = await listAssets({
+        ...baseQuery,
+        limit: ASSET_PAGE_SIZE,
+        offset,
+      });
+      if (sequence !== loadSequence) break;
+      pageLength = page.length;
+      offset += pageLength;
+      for (const asset of page) {
+        if (!loadedIds.has(asset.id)) {
+          loadedIds.add(asset.id);
+          records.push(asset);
+        }
+      }
+    } while (pageLength === ASSET_PAGE_SIZE && offset < targetOffset);
+    return {
+      records,
+      loadedOffset: offset,
+      hasMore: pageLength === ASSET_PAGE_SIZE,
+    };
+  }
+
   async function load(options: { keepSelection?: boolean } = {}) {
+    const targetOffset = options.keepSelection
+      ? Math.max(loadedOffset, ASSET_PAGE_SIZE)
+      : ASSET_PAGE_SIZE;
     const sequence = ++loadSequence;
+    loadMoreRequestId += 1;
     loading.value = true;
+    loadingMore.value = false;
+    hasMore.value = false;
     error.value = null;
     try {
-      const [records, storage, libraryFacets] = await Promise.all([
-        listAssets(query.value),
+      const [pageResult, storage, libraryFacets] = await Promise.all([
+        listPages(query.value, targetOffset, sequence),
         getAssetStorageSummary(),
         getAssetLibraryFacets(libraryState.value !== "visible"),
       ]);
       if (sequence !== loadSequence) return;
-      assets.value = records;
+      assets.value = pageResult.records;
+      loadedOffset = pageResult.loadedOffset;
+      hasMore.value = pageResult.hasMore;
       summary.value = storage;
       facets.value = libraryFacets;
       if (!options.keepSelection) selectedIds.value = [];
-      else selectedIds.value = selectedIds.value.filter((id) => records.some((asset) => asset.id === id));
+      else selectedIds.value = selectedIds.value.filter((id) => pageResult.records.some((asset) => asset.id === id));
     } catch (cause) {
       if (sequence !== loadSequence) return;
       error.value = cause instanceof Error ? cause.message : String(cause);
     } finally {
       if (sequence === loadSequence) loading.value = false;
+    }
+  }
+
+  async function loadMore() {
+    if (loading.value || loadingMore.value || !hasMore.value) return;
+    const sequence = loadSequence;
+    const requestId = ++loadMoreRequestId;
+    loadingMore.value = true;
+    try {
+      const records = await listAssets({
+        ...query.value,
+        offset: loadedOffset,
+      });
+      if (sequence !== loadSequence) return;
+      loadedOffset += records.length;
+      const loadedIds = new Set(assets.value.map((asset) => asset.id));
+      assets.value = [
+        ...assets.value,
+        ...records.filter((asset) => !loadedIds.has(asset.id)),
+      ];
+      hasMore.value = records.length === ASSET_PAGE_SIZE;
+    } catch {
+      if (sequence === loadSequence) {
+        customMessage("无法加载更多资产", "error");
+      }
+    } finally {
+      if (requestId === loadMoreRequestId) loadingMore.value = false;
     }
   }
 
@@ -324,8 +399,17 @@ export function useAssetLibrary() {
   }
 
   watch([search, kind, libraryState, createdMonth, sourceModule], (_value, _oldValue, onCleanup) => {
-    const timer = window.setTimeout(() => void load(), 220);
-    onCleanup(() => window.clearTimeout(timer));
+    loadSequence += 1;
+    loadMoreRequestId += 1;
+    loadedOffset = 0;
+    hasMore.value = false;
+    loadingMore.value = false;
+    assets.value = [];
+    selectedIds.value = [];
+    loading.value = true;
+    error.value = null;
+    const timer = setTimeout(() => void load(), 220);
+    onCleanup(() => clearTimeout(timer));
   });
 
   return {
@@ -342,6 +426,8 @@ export function useAssetLibrary() {
     createdMonth,
     sourceModule,
     loading,
+    loadingMore,
+    hasMore,
     error,
     detail,
     preview,
@@ -352,6 +438,7 @@ export function useAssetLibrary() {
     activeImportJobId,
     query,
     load,
+    loadMore,
     toggleSelection,
     clearSelection,
     openDetail,

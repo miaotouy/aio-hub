@@ -37,6 +37,7 @@ import {
   formatAssetBytes,
   useAssetLibrary,
 } from "../useAssetLibrary";
+import { nextTick } from "vue";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -84,6 +85,180 @@ describe("asset library query", () => {
     expect(formatAssetBytes(512)).toBe("512 B");
     expect(formatAssetBytes(1536)).toBe("1.5 KB");
     expect(formatAssetBytes(12 * 1024 * 1024)).toBe("12 MB");
+  });
+
+  it("maps the requested page offset without changing the page size", () => {
+    expect(
+      createAssetListQuery(
+        {
+          search: "",
+          kind: "all",
+          libraryState: "visible",
+          createdMonth: "",
+          sourceModule: "",
+        },
+        100
+      )
+    ).toMatchObject({ limit: 100, offset: 100 });
+  });
+});
+
+describe("asset library pagination", () => {
+  it("appends the next page and stops when the backend returns a short page", async () => {
+    const firstPage = Array.from({ length: 100 }, (_, index) => ({
+      id: `asset-${index}`,
+    }));
+    service.listAssets
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce([{ id: "asset-100" }]);
+    const library = useAssetLibrary();
+
+    await library.load();
+    expect(library.hasMore.value).toBe(true);
+
+    await library.loadMore();
+
+    expect(service.listAssets).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ limit: 100, offset: 100 })
+    );
+    expect(library.assets.value).toHaveLength(101);
+    expect(library.hasMore.value).toBe(false);
+    expect(library.loadingMore.value).toBe(false);
+  });
+
+  it("advances the backend offset even when a page contains duplicate ids", async () => {
+    const firstPage = Array.from({ length: 100 }, (_, index) => ({
+      id: `asset-${index}`,
+    }));
+    const overlappingPage = [
+      ...firstPage.slice(99),
+      ...Array.from({ length: 99 }, (_, index) => ({ id: `asset-${100 + index}` })),
+    ];
+    service.listAssets
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce(overlappingPage)
+      .mockResolvedValueOnce([{ id: "asset-200" }]);
+    const library = useAssetLibrary();
+
+    await library.load();
+    await library.loadMore();
+    await library.loadMore();
+
+    expect(service.listAssets).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ limit: 100, offset: 200 })
+    );
+    expect(library.assets.value).toHaveLength(200);
+    expect(library.hasMore.value).toBe(false);
+  });
+
+  it("invalidates old pages immediately without letting their loading state clobber the new query", async () => {
+    vi.useFakeTimers();
+    try {
+      const firstPage = Array.from({ length: 100 }, (_, index) => ({
+        id: `asset-${index}`,
+      }));
+      const filteredPage = Array.from({ length: 100 }, (_, index) => ({
+        id: `filtered-${index}`,
+      }));
+      let resolveOldPage!: (value: Array<{ id: string }>) => void;
+      let resolveFilteredPage!: (value: Array<{ id: string }>) => void;
+      service.listAssets
+        .mockResolvedValueOnce(firstPage)
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            resolveOldPage = resolve;
+          })
+        )
+        .mockResolvedValueOnce(filteredPage)
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            resolveFilteredPage = resolve;
+          })
+        );
+      const library = useAssetLibrary();
+
+      await library.load();
+      const oldPage = library.loadMore();
+      library.search.value = "filtered";
+      await nextTick();
+
+      expect(library.assets.value).toEqual([]);
+      expect(library.hasMore.value).toBe(false);
+      await vi.advanceTimersByTimeAsync(220);
+      expect(library.assets.value).toEqual(filteredPage);
+
+      const filteredNextPage = library.loadMore();
+      expect(library.loadingMore.value).toBe(true);
+      resolveOldPage([{ id: "stale-asset" }]);
+      await oldPage;
+      expect(library.loadingMore.value).toBe(true);
+      resolveFilteredPage([{ id: "filtered-100" }]);
+      await filteredNextPage;
+
+      expect(library.assets.value).toEqual([
+        ...filteredPage,
+        { id: "filtered-100" },
+      ]);
+      expect(service.listAssets).toHaveBeenNthCalledWith(
+        3,
+        expect.objectContaining({ search: "filtered", offset: 0 })
+      );
+      expect(library.loadingMore.value).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reloads every consumed page when preserving a second-page selection", async () => {
+    const firstPage = Array.from({ length: 100 }, (_, index) => ({
+      id: `asset-${index}`,
+    }));
+    const secondPage = [{ id: "asset-100" }];
+    service.listAssets
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce(secondPage)
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce(secondPage);
+    const library = useAssetLibrary();
+
+    await library.load();
+    await library.loadMore();
+    library.selectedIds.value = ["asset-100"];
+    await library.load({ keepSelection: true });
+
+    expect(service.listAssets).toHaveBeenNthCalledWith(
+      4,
+      expect.objectContaining({ offset: 100 })
+    );
+    expect(library.assets.value).toHaveLength(101);
+    expect(library.selectedIds.value).toEqual(["asset-100"]);
+  });
+
+  it("ignores a next page that resolves after a filter reload", async () => {
+    const firstPage = Array.from({ length: 100 }, (_, index) => ({
+      id: `asset-${index}`,
+    }));
+    let resolveNextPage!: (value: Array<{ id: string }>) => void;
+    service.listAssets
+      .mockResolvedValueOnce(firstPage)
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveNextPage = resolve;
+        })
+      )
+      .mockResolvedValueOnce([{ id: "filtered-asset" }]);
+    const library = useAssetLibrary();
+
+    await library.load();
+    const pendingPage = library.loadMore();
+    await library.load();
+    resolveNextPage([{ id: "stale-asset" }]);
+    await pendingPage;
+
+    expect(library.assets.value).toEqual([{ id: "filtered-asset" }]);
+    expect(library.loadingMore.value).toBe(false);
   });
 });
 

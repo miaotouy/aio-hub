@@ -54,6 +54,7 @@ Phase 5 的 transport/state lane 已完成：runner 新增 Chat `/v1/chat/comple
 - external corpus 在 inspect、import、sample-vectorized/vectorized 阶段分别写入脱敏 checkpoint，失败时仍保留阶段状态；
 - Phase 4 已用当前 473 条样本完成全量向量化（约 2 分钟）和第二进程恢复复验；Phase 5 真实 Chat evidence 需要额外的脱敏 prompt 观测链路才能升级为精确验收。
 - `external-sample` 实测完整导入后 3 条批量向量化 spec 约 7 秒，`external-full` 当前全量 spec 约 119 秒；常规开发反馈使用前者，后者只作为最终数量与恢复门槛。
+- 根 `package.json` 的 Tauri E2E scripts 已随各阶段 lane 增长到 11 个，其中多数只是 `run.ts` 的参数组合。收口阶段保留验收矩阵，但把组合知识迁入 `tests/tauri-e2e/` 的具名 preset registry，避免根 scripts 继续随 corpus、模型和恢复维度组合增长；具体迁移见第 8 节。
 
 ---
 
@@ -379,12 +380,12 @@ fixture 只能写入 runner 已解析并校验过的隔离 `AIO_E2E_DATA_DIR`。
 
 不要让一个语料集同时承担最小链路、真实文本和压力测试。fixture 分为三层：
 
-| 层级            | 内容                                                                 | 用途                                           | 默认执行 |
-| --------------- | -------------------------------------------------------------------- | ---------------------------------------------- | -------- |
-| `smoke`         | 6 至 8 条短合成语料，主题词与向量完全可控                            | 精确排序、空结果、禁用条目、模型隔离           | 是       |
-| `curated`       | 10 至 16 条从“咕咕”备份精选、复核并脱敏的中文 Markdown 技术语料      | 真实长度、近义主题、标签、重复标题、Chat 注入  | 是       |
-| `external-sample` | 导入显式 `.aio-kb`，从可见 UI 批量向量化默认 3 条 | 快速验证旧格式导入、批量请求和向量回读 | opt-in |
-| `external-full` | 从显式 `AIO_E2E_RECALL_SOURCE` 导入完整 `.aio-kb`，当前样本为 473 条 | 全量向量化、进度、持久化和性能基线 | 最终收口 |
+| 层级              | 内容                                                                 | 用途                                          | 默认执行 |
+| ----------------- | -------------------------------------------------------------------- | --------------------------------------------- | -------- |
+| `smoke`           | 6 至 8 条短合成语料，主题词与向量完全可控                            | 精确排序、空结果、禁用条目、模型隔离          | 是       |
+| `curated`         | 10 至 16 条从“咕咕”备份精选、复核并脱敏的中文 Markdown 技术语料      | 真实长度、近义主题、标签、重复标题、Chat 注入 | 是       |
+| `external-sample` | 导入显式 `.aio-kb`，从可见 UI 批量向量化默认 3 条                    | 快速验证旧格式导入、批量请求和向量回读        | opt-in   |
+| `external-full`   | 从显式 `AIO_E2E_RECALL_SOURCE` 导入完整 `.aio-kb`，当前样本为 473 条 | 全量向量化、进度、持久化和性能基线            | 最终收口 |
 
 `curated` 首批建议覆盖以下主题，不直接把整份原文复制进 fixture：
 
@@ -477,8 +478,8 @@ WDIO 封装一个 `invokeTauriCommand()` helper 作为测试 setup 和持久化�
 | Tauri E2E mock   | 无召回 / 错误证据 fail-closed          | 空结果回复；缺证据时 mock 返回 422        | 是       |
 | Tauri E2E mock   | curated 中文 Markdown corpus           | 近义主题、重复标题、hard negative         | 是       |
 | Tauri E2E mock   | 二次启动恢复                           | Agent/session/vector/search/回复全部恢复  | 发布门槛 |
-| Tauri E2E corpus | 外部 `.aio-kb` 小批量快速通路          | 完整导入、3 条批量向量化与回读             | opt-in   |
-| Tauri E2E corpus | 外部 `.aio-kb` 全量收口                | 473 条向量覆盖、进度、重启、性能摘要        | 最终收口 |
+| Tauri E2E corpus | 外部 `.aio-kb` 小批量快速通路          | 完整导入、3 条批量向量化与回读            | opt-in   |
+| Tauri E2E corpus | 外部 `.aio-kb` 全量收口                | 473 条向量覆盖、进度、重启、性能摘要      | 最终收口 |
 | Tauri E2E Ollama | 真实模型全流程                         | 实际维度、相对排名、持久化                | opt-in   |
 
 建议把 Tauri E2E 拆成独立 spec，避免依赖 `knowledge-workflow.spec.ts` 的内存变量和执行顺序：
@@ -564,7 +565,7 @@ backend.log
 
 ## 8. 脚本与执行策略
 
-建议新增脚本：
+早期阶段通过下列脚本显式隔离各条验收 lane，后续又随 curated、Ollama Chat 和 native 验收继续增加入口：
 
 ```json
 {
@@ -576,6 +577,81 @@ backend.log
   "test:tauri:e2e:real": "bun tests/tauri-e2e/run.ts --llm-profile"
 }
 ```
+
+这些脚本保证了各 phase 可以独立执行，但不应成为长期扩展测试矩阵的方式。`package.json` 是全仓库公共任务入口，不应同时保存 spec 路径、重启流程、必跑 scenario ID、corpus 规模和模型通道等 E2E 内部装配知识。新增一个验收维度也不应要求继续增加 `test:tauri:e2e:*` 的笛卡尔组合。
+
+### 8.1 根 scripts 收拢
+
+收口后根 `package.json` 原则上只保留三个稳定入口：
+
+```json
+{
+  "test:tauri:e2e": "bun tests/tauri-e2e/run.ts",
+  "test:tauri:e2e:unit": "vitest --config tests/tauri-e2e/vitest.config.ts --run",
+  "test:tauri:e2e:native": "bun tests/tauri-e2e/run.ts --preset native"
+}
+```
+
+其中：
+
+- `test:tauri:e2e` 是唯一通用真实窗口入口，默认行为继续保持确定性 mock suite；
+- `test:tauri:e2e:unit` 属于不启动应用的 runner、fixture、mock 与 corpus 纯逻辑检查，不能并入真实窗口入口；
+- `test:tauri:e2e:native` 保留短别名，因为它有 Windows 10+、.NET 8、可见且未锁定桌面等独立前置条件，也是工具测试指南中的明确平台边界；别名本身仍通过 preset 装配，不在 `package.json` 重复内部参数。
+
+Recall、corpus、Ollama 和私有渠道改为通用入口的具名 preset：
+
+```powershell
+bun run test:tauri:e2e -- --preset recall-vector
+bun run test:tauri:e2e -- --preset recall-curated
+bun run test:tauri:e2e -- --preset recall-chat
+bun run test:tauri:e2e -- --preset corpus-sample
+bun run test:tauri:e2e -- --preset corpus-full
+bun run test:tauri:e2e -- --preset ollama-vector
+bun run test:tauri:e2e -- --preset ollama-chat
+bun run test:tauri:e2e -- --preset private-profile
+```
+
+现有细分 scripts 按下表迁移，不合并或删除对应验收语义：
+
+| 当前 package script                 | 迁移后的入口                                             |
+| ----------------------------------- | -------------------------------------------------------- |
+| `test:tauri:e2e:recall`             | `test:tauri:e2e -- --preset recall-vector`               |
+| `test:tauri:e2e:recall:curated`     | `test:tauri:e2e -- --preset recall-curated`              |
+| `test:tauri:e2e:recall:chat`        | `test:tauri:e2e -- --preset recall-chat`                 |
+| `test:tauri:e2e:recall:corpus`      | `test:tauri:e2e -- --preset corpus-sample`               |
+| `test:tauri:e2e:recall:corpus:full` | `test:tauri:e2e -- --preset corpus-full`                 |
+| `test:tauri:e2e:ollama`             | `test:tauri:e2e -- --preset ollama-vector`               |
+| `test:tauri:e2e:ollama:full`        | `test:tauri:e2e -- --preset ollama-chat`                 |
+| `test:tauri:e2e:real`               | `test:tauri:e2e -- --preset private-profile`             |
+| `test:tauri:e2e:native`             | 保留根别名，内部改为 `test:tauri:e2e -- --preset native` |
+
+`run.ts` 同时提供 `--list-presets`，输出 preset ID、用途、是否需要外部语料/模型/私有配置、是否包含二次启动以及缺少前置条件时的 skip/fail 规则。README、CI、发布清单和人工验收记录只引用 preset ID，不再复制长参数组合。
+
+### 8.2 Preset 所有权与参数边界
+
+preset registry 放在 `tests/tauri-e2e/support/`，集中拥有以下装配信息：
+
+- active spec 与可选 restart spec；
+- `requiredScenarioIds`；
+- `corpusMode` 与模型 lane；
+- native UI 开关；
+- 前置环境变量说明和 skip/fail 策略。
+
+preset 只是现有 runner option 的具名装配层，不复制 WDIO 启动、fixture seeding、资源清理或产物校验逻辑。底层 `--spec`、`--restart-spec`、`--required-scenarios`、`--corpus-mode`、`--vector-mode`、`--llm-profile` 和 `--native` 继续保留，供新增 preset、故障定位和临时定向运行使用。
+
+为避免最终模式依赖参数顺序，`--preset` 不与上述装配参数混用；发现冲突时 runner 在启动 Vite、mock 或 Tauri 前直接失败并列出冲突项。环境变量仍只提供模型 ID、endpoint、外部语料路径和是否要求可用等运行时输入，不能静默改变 preset 选定的 lane。默认不带 preset 的行为保持不变。
+
+### 8.3 迁移与完成门槛
+
+该收拢在测试计划收口阶段一次完成，不长期保留旧的细分 package aliases，否则无法实现减少根命令数量的目标。迁移必须同步修改本计划、`tests/tauri-e2e/README.md`、工具测试指南、Windows UI Automation 说明以及仓库内所有命令引用；若 workflow 或外部发布脚本出现新引用，必须在删除旧入口前一并迁移。
+
+完成门槛：
+
+- preset registry 的解析、未知 preset、冲突参数、缺少前置环境变量和 `--list-presets` 有纯逻辑测试；
+- 每个 preset 展开后的 runner options 与迁移前对应 package script 等价；
+- `package.json` 不再保存 Recall spec 路径、scenario ID 或 corpus/model 组合；
+- 根 Tauri E2E scripts 收拢为通用、纯逻辑和 native 三个入口；
+- 默认 deterministic suite、Recall Chat 二次启动、external sample/full、Ollama vector/chat、private profile 与 native lane 的既有 skip/fail 语义不变。
 
 根 Vitest 配置当前排除 `tests/tauri-e2e/**`。Phase 1 的 support/fixture 纯逻辑测试必须使用独立 `tests/tauri-e2e/vitest.config.ts` 与单独脚本入口，或移动到根配置会收集的测试目录；禁止只新增测试文件却让默认配置静默跳过。
 

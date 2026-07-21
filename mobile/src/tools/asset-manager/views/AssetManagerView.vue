@@ -34,6 +34,19 @@ const importSourceOpen = ref(false);
 const savingAssetId = ref<string | null>(null);
 const replacingTextAssetId = ref<string | null>(null);
 const sharingAssetId = ref<string | null>(null);
+const detailActionAssetId = ref<string | null>(null);
+const previewingAssetId = ref<string | null>(null);
+const detailBusy = computed(
+  () =>
+    Boolean(
+      detailActionAssetId.value ||
+        previewingAssetId.value ||
+        savingAssetId.value ||
+        sharingAssetId.value ||
+        replacingTextAssetId.value ||
+        library.replacingText.value
+    )
+);
 
 const kindOptions: Array<{ label: string; value: AssetKind | "all" }> = [
   { label: "全部类型", value: "all" },
@@ -144,7 +157,7 @@ async function pickAndImport(source: "file" | "photo" | "camera") {
 
 async function saveAsset(assetId: string) {
   const detail = library.detail.value;
-  if (!detail || savingAssetId.value) return;
+  if (!detail || detailBusy.value) return;
   try {
     const destination = await save({
       defaultPath: detail.displayName,
@@ -161,7 +174,7 @@ async function saveAsset(assetId: string) {
 }
 
 async function shareAsset(assetId: string) {
-  if (sharingAssetId.value || savingAssetId.value) return;
+  if (detailBusy.value) return;
   try {
     sharingAssetId.value = assetId;
     await shareManagedAsset(assetId);
@@ -178,21 +191,80 @@ async function openDetail(assetId: string) {
 }
 
 async function previewAsset(assetId: string) {
-  await library.openPreview(assetId);
+  if (detailBusy.value) return;
+  previewingAssetId.value = assetId;
+  try {
+    await library.openPreview(assetId);
+  } catch (cause) {
+    customMessage(
+      cause instanceof Error ? cause.message : "无法打开资产预览",
+      "error"
+    );
+  } finally {
+    previewingAssetId.value = null;
+  }
 }
 
-async function closeDetail() {
+async function closeDetail(force = false) {
+  if (detailBusy.value && !force) return;
   library.detail.value = null;
   await library.closePreview();
 }
 
 async function replaceAssetText(assetId: string) {
-  if (replacingTextAssetId.value) return;
+  if (detailBusy.value) return;
   replacingTextAssetId.value = assetId;
   try {
     await library.replaceWithExtractedText([assetId]);
   } finally {
     replacingTextAssetId.value = null;
+  }
+}
+
+async function setDetailVisibility(assetId: string, hidden: boolean) {
+  if (detailBusy.value) return;
+  detailActionAssetId.value = assetId;
+  try {
+    const updated = await library.setDetailHidden(assetId, hidden);
+    if (updated && library.detail.value?.id === assetId) await closeDetail(true);
+  } catch (cause) {
+    customMessage(
+      cause instanceof Error ? cause.message : "无法更新资产可见状态",
+      "error"
+    );
+  } finally {
+    detailActionAssetId.value = null;
+  }
+}
+
+async function setDetailRetention(assetId: string, pinned: boolean) {
+  if (detailBusy.value) return;
+  detailActionAssetId.value = assetId;
+  try {
+    await library.pinDetailAsset(assetId, pinned);
+  } catch (cause) {
+    customMessage(
+      cause instanceof Error ? cause.message : "无法更新资产保留策略",
+      "error"
+    );
+  } finally {
+    detailActionAssetId.value = null;
+  }
+}
+
+async function removeDetailAsset(assetId: string) {
+  if (detailBusy.value) return;
+  detailActionAssetId.value = assetId;
+  try {
+    const removed = await library.removeDetailAsset(assetId);
+    if (removed && library.detail.value?.id === assetId) await closeDetail(true);
+  } catch (cause) {
+    customMessage(
+      cause instanceof Error ? cause.message : "无法清理资产原件",
+      "error"
+    );
+  } finally {
+    detailActionAssetId.value = null;
   }
 }
 
@@ -398,11 +470,15 @@ onUnmounted(() => {
       :saving="savingAssetId === library.detail.value.id"
       :sharing="sharingAssetId === library.detail.value.id"
       :replacing-text="replacingTextAssetId === library.detail.value.id || library.replacingText.value"
+      :busy="detailBusy"
       @close="closeDetail"
       @preview="previewAsset"
       @save="saveAsset"
       @share="shareAsset"
       @replace-text="replaceAssetText"
+      @visibility="setDetailVisibility"
+      @retention="setDetailRetention"
+      @remove="removeDetailAsset"
     />
     <ImportJobsSheet
       v-if="jobsOpen"

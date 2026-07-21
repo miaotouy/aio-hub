@@ -1,5 +1,17 @@
 <script setup lang="ts">
-import { Download, Eye, FileText, LoaderCircle, Share2, X } from "lucide-vue-next";
+import {
+  ArchiveRestore,
+  Download,
+  Eye,
+  EyeOff,
+  FileText,
+  LoaderCircle,
+  Pin,
+  PinOff,
+  Share2,
+  Trash2,
+  X,
+} from "lucide-vue-next";
 import { computed } from "vue";
 import { formatAssetBytes } from "../composables/useAssetLibrary";
 import type { AssetDetail, AssetPreviewSource } from "../types";
@@ -10,6 +22,7 @@ const props = defineProps<{
   saving?: boolean;
   sharing?: boolean;
   replacingText?: boolean;
+  busy?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -18,6 +31,9 @@ const emit = defineEmits<{
   save: [assetId: string];
   share: [assetId: string];
   replaceText: [assetId: string];
+  visibility: [assetId: string, hidden: boolean];
+  retention: [assetId: string, pinned: boolean];
+  remove: [assetId: string];
 }>();
 
 const canPreview = computed(
@@ -43,7 +59,7 @@ const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString
             class="icon-button"
             type="button"
             aria-label="保存到文件"
-            :disabled="props.saving || props.sharing"
+            :disabled="props.saving || props.sharing || props.busy"
             @click="emit('save', detail.id)"
           >
             <LoaderCircle v-if="props.saving" class="spin" :size="21" />
@@ -54,13 +70,13 @@ const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString
             class="icon-button"
             type="button"
             aria-label="分享资产"
-            :disabled="props.saving || props.sharing"
+            :disabled="props.saving || props.sharing || props.busy"
             @click="emit('share', detail.id)"
           >
             <LoaderCircle v-if="props.sharing" class="spin" :size="21" />
             <Share2 v-else :size="21" />
           </button>
-          <button class="icon-button" type="button" aria-label="关闭详情" @click="emit('close')">
+          <button class="icon-button" type="button" aria-label="关闭详情" :disabled="props.busy" @click="emit('close')">
             <X :size="22" />
           </button>
         </div>
@@ -72,16 +88,46 @@ const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString
           <video v-else-if="detail.kind === 'video'" :src="preview.url" controls playsinline />
           <audio v-else-if="detail.kind === 'audio'" :src="preview.url" controls />
         </div>
-        <button v-else-if="canPreview" class="preview-button" type="button" @click="emit('preview', detail.id)">
+        <button v-else-if="canPreview" class="preview-button" type="button" :disabled="props.busy" @click="emit('preview', detail.id)">
           <Eye :size="18" />
           打开临时预览
         </button>
+
+        <div class="detail-actions" role="toolbar" aria-label="资产操作">
+          <button
+            type="button"
+            :disabled="props.busy"
+            @click="emit('retention', detail.id, detail.retentionPolicy !== 'pinned')"
+          >
+            <PinOff v-if="detail.retentionPolicy === 'pinned'" :size="17" />
+            <Pin v-else :size="17" />
+            {{ detail.retentionPolicy === 'pinned' ? "取消固定" : "固定原件" }}
+          </button>
+          <button
+            type="button"
+            :disabled="props.busy"
+            @click="emit('visibility', detail.id, detail.libraryState !== 'hidden')"
+          >
+            <ArchiveRestore v-if="detail.libraryState === 'hidden'" :size="17" />
+            <EyeOff v-else :size="17" />
+            {{ detail.libraryState === 'hidden' ? "恢复可见" : "隐藏资产" }}
+          </button>
+          <button
+            class="danger-action"
+            type="button"
+            :disabled="props.busy"
+            @click="emit('remove', detail.id)"
+          >
+            <Trash2 :size="17" />
+            清理原件
+          </button>
+        </div>
 
         <button
           v-if="detail.kind === 'document' && detail.availability === 'ready'"
           class="text-replacement-button"
           type="button"
-          :disabled="props.replacingText"
+          :disabled="props.replacingText || props.busy"
           @click="emit('replaceText', detail.id)"
         >
           <LoaderCircle v-if="props.replacingText" class="spin" :size="18" />
@@ -234,6 +280,41 @@ const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString
   background: color-mix(in srgb, var(--primary-color) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--primary-color) 34%, transparent);
   border-radius: var(--app-radius-md);
+}
+
+.detail-actions {
+  margin: 0 0 18px;
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.detail-actions::-webkit-scrollbar {
+  display: none;
+}
+
+.detail-actions button {
+  min-height: 42px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  color: var(--text-color-light);
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: var(--app-radius-md);
+  white-space: nowrap;
+}
+
+.detail-actions button.danger-action {
+  color: var(--danger-color);
+  border-color: color-mix(in srgb, var(--danger-color) 35%, transparent);
+}
+
+.detail-actions button:disabled {
+  opacity: 0.58;
 }
 
 .text-replacement-button {

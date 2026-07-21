@@ -284,6 +284,73 @@ describe("asset selection actions", () => {
     );
   });
 
+  it("updates detail visibility without borrowing or clearing another selection", async () => {
+    const library = useAssetLibrary();
+    library.selectedIds.value = ["asset-selected"];
+    service.setAssetLibraryState.mockResolvedValue(1);
+    service.listAssets.mockResolvedValue([{ id: "asset-selected" }]);
+
+    await library.setDetailHidden("asset-detail", true);
+
+    expect(service.setAssetLibraryState).toHaveBeenCalledWith(
+      ["asset-detail"],
+      "hidden"
+    );
+    expect(library.selectedIds.value).toEqual(["asset-selected"]);
+  });
+
+  it("updates and refreshes the open detail retention policy", async () => {
+    const library = useAssetLibrary();
+    library.detail.value = {
+      id: "asset-detail",
+      retentionPolicy: "reclaimable",
+    } as never;
+    service.setAssetRetentionPolicy.mockResolvedValue(1);
+    service.listAssets.mockResolvedValue([
+      { id: "asset-detail", retentionPolicy: "pinned" },
+    ]);
+    service.getAssetDetail.mockResolvedValue({
+      id: "asset-detail",
+      retentionPolicy: "pinned",
+    });
+
+    await library.pinDetailAsset("asset-detail", true);
+
+    expect(service.setAssetRetentionPolicy).toHaveBeenCalledWith(
+      ["asset-detail"],
+      "pinned"
+    );
+    expect(service.getAssetDetail).toHaveBeenCalledWith("asset-detail");
+    expect(
+      (library.detail.value as { retentionPolicy?: string } | null)
+        ?.retentionPolicy
+    ).toBe("pinned");
+  });
+
+  it("runs detail deletion through the same impact analysis contract", async () => {
+    const library = useAssetLibrary();
+    library.selectedIds.value = ["asset-selected"];
+    service.listAssets.mockResolvedValue([{ id: "asset-selected" }]);
+    service.analyzeAssetDeletion.mockResolvedValue({
+      canDeleteAll: true,
+      requiresAdvisoryConfirmation: false,
+      totalSizeBytes: 1024,
+      items: [],
+    });
+    service.deleteAssets.mockResolvedValue({
+      deletedCount: 1,
+      reclaimedCount: 0,
+      cleanedFileCount: 1,
+      pendingCleanupCount: 0,
+    });
+
+    await expect(library.removeDetailAsset("asset-detail")).resolves.toBe(true);
+
+    expect(service.analyzeAssetDeletion).toHaveBeenCalledWith(["asset-detail"]);
+    expect(service.deleteAssets).toHaveBeenCalledWith(["asset-detail"], false);
+    expect(library.selectedIds.value).toEqual(["asset-selected"]);
+  });
+
   it("requires advisory confirmation before physical deletion", async () => {
     const library = useAssetLibrary();
     library.selectedIds.value = ["asset-1"];

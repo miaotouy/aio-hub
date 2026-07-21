@@ -105,6 +105,7 @@ AppData/assets/
 - 多选操作复用后端原子命令完成隐藏/恢复、固定/取消固定和安全删除。删除前必须重新调用影响分析，advisory usage 经平台对话框确认后才传入 `confirmAdvisory`。
 - 存储视图展示原件、可回收量、缓存、临时文件和类型占用，并提供全库可重建缓存清理与资产库修复入口。
 - 详情面板只展示脱敏来源和 usage 摘要。媒体预览按需申请短期 descriptor，关闭详情或卸载页面时主动撤销，不持久化预览 URL。
+- 详情页的固定/取消固定、隐藏/恢复和清理原件都按详情自身 `assetId` 调用领域命令，不借用列表选择；清理仍复用删除影响分析与 advisory 确认，完成后才关闭详情并撤销预览。
 - 文件导入通过系统文件选择器或移动端 media picker 获得引用后交给 import job；WebView 不读取原件字节。页面可恢复最近任务、显示累计进度与中断错误码，并取消 pending/running 任务。
 - 详情页的“保存到文件”使用系统 save picker，目标引用直接传给 `asset_export`；Rust 对 Android `content://` 目标通过 `AssetContentPlugin` 的 `openFileDescriptor(..., "wt")` 打开，其他目标按平台使用 plugin-fs，并流式复制 managed 原件，内部对象路径不返回 WebView。
 - 详情页的“系统分享”只传 `assetId`；Rust 将原件复制到 cache 的 UUID 目录，Android bridge 用 `FileProvider`、`ClipData` 和只读 grant 发出 `ACTION_SEND`。分享副本由延迟任务清理，启动恢复/资产库修复会清除遗留目录，并把其大小计入临时文件。

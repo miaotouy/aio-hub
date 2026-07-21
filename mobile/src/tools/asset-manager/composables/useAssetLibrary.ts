@@ -243,26 +243,66 @@ export function useAssetLibrary() {
     await revokeAssetPreviewSource(current.id).catch(() => undefined);
   }
 
+  async function updateHiddenAssets(
+    assetIds: string[],
+    hidden: boolean,
+    keepSelection: boolean
+  ) {
+    if (!assetIds.length) return false;
+    await setAssetLibraryState(assetIds, hidden ? "hidden" : "visible");
+    customMessage(
+      hidden
+        ? `已隐藏 ${assetIds.length} 项资产`
+        : `已恢复 ${assetIds.length} 项资产`,
+      "success"
+    );
+    await load(keepSelection ? { keepSelection: true } : undefined);
+    return true;
+  }
+
   async function setHidden(hidden: boolean) {
-    if (!selectedIds.value.length) return;
-    await setAssetLibraryState(selectedIds.value, hidden ? "hidden" : "visible");
-    customMessage(hidden ? "已隐藏所选资产" : "已恢复所选资产", "success");
-    await load();
+    return updateHiddenAssets([...selectedIds.value], hidden, false);
+  }
+
+  async function setDetailHidden(assetId: string, hidden: boolean) {
+    return updateHiddenAssets([assetId], hidden, true);
+  }
+
+  async function updateRetentionAssets(assetIds: string[], pinned: boolean) {
+    if (!assetIds.length) return false;
+    await setAssetRetentionPolicy(assetIds, pinned ? "pinned" : "reclaimable");
+    customMessage(
+      pinned
+        ? `已固定 ${assetIds.length} 项原件`
+        : `已允许回收 ${assetIds.length} 项原件`,
+      "success"
+    );
+    await load({ keepSelection: true });
+    return true;
   }
 
   async function pinSelected(pinned: boolean) {
-    if (!selectedIds.value.length) return;
-    await setAssetRetentionPolicy(selectedIds.value, pinned ? "pinned" : "reclaimable");
-    customMessage(pinned ? "已固定所选原件" : "已允许回收所选原件", "success");
-    await load({ keepSelection: true });
+    return updateRetentionAssets([...selectedIds.value], pinned);
   }
 
-  async function removeSelected() {
-    if (!selectedIds.value.length) return;
-    const analysis = await analyzeAssetDeletion(selectedIds.value);
+  async function pinDetailAsset(assetId: string, pinned: boolean) {
+    const updated = await updateRetentionAssets([assetId], pinned);
+    if (updated && detail.value?.id === assetId) {
+      detail.value = await getAssetDetail(assetId);
+    }
+    return updated;
+  }
+
+  async function removeAssets(
+    assetIds: string[],
+    options: { keepSelection?: boolean } = {}
+  ) {
+    const uniqueIds = [...new Set(assetIds)];
+    if (!uniqueIds.length) return false;
+    const analysis = await analyzeAssetDeletion(uniqueIds);
     if (!analysis.canDeleteAll) {
-      customMessage("所选资产包含被引用或固定原件，无法删除", "warning");
-      return;
+      customMessage("目标资产包含被引用或固定原件，无法删除", "warning");
+      return false;
     }
     let confirmAdvisory = false;
     if (analysis.requiresAdvisoryConfirmation) {
@@ -272,12 +312,21 @@ export function useAssetLibrary() {
         confirmButtonText: "继续清理",
         cancelButtonText: "取消",
       });
-      if (!confirmAdvisory) return;
+      if (!confirmAdvisory) return false;
     }
-    const result = await deleteAssets(selectedIds.value, confirmAdvisory);
+    const result = await deleteAssets(uniqueIds, confirmAdvisory);
     const cleanedCount = result.deletedCount + result.reclaimedCount;
     customMessage(`已清理 ${cleanedCount} 项资产`, "success");
-    await load();
+    await load(options.keepSelection ? { keepSelection: true } : undefined);
+    return true;
+  }
+
+  async function removeSelected() {
+    return removeAssets([...selectedIds.value]);
+  }
+
+  async function removeDetailAsset(assetId: string) {
+    return removeAssets([assetId], { keepSelection: true });
   }
 
   async function replaceWithExtractedText(
@@ -445,8 +494,11 @@ export function useAssetLibrary() {
     openPreview,
     closePreview,
     setHidden,
+    setDetailHidden,
     pinSelected,
+    pinDetailAsset,
     removeSelected,
+    removeDetailAsset,
     replaceWithExtractedText,
     importSources,
     loadImportJobs,

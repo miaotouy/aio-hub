@@ -131,7 +131,7 @@ describe("asset selection actions", () => {
       ],
     });
     service.deleteAssets.mockResolvedValue({
-      deletedCount: 1,
+      deletedCount: 0,
       reclaimedCount: 1,
       cleanedFileCount: 1,
       pendingCleanupCount: 0,
@@ -142,6 +142,31 @@ describe("asset selection actions", () => {
 
     expect(feedback.customDialog).toHaveBeenCalledOnce();
     expect(service.deleteAssets).toHaveBeenCalledWith(["asset-1"], true);
+    expect(feedback.customMessage).toHaveBeenCalledWith(
+      "已清理 1 项资产",
+      "success"
+    );
+  });
+
+  it("revokes a late preview response after the preview is closed", async () => {
+    const library = useAssetLibrary();
+    let resolvePreview!: (value: { id: string }) => void;
+    service.getAssetPreviewSource.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolvePreview = resolve;
+      })
+    );
+    service.revokeAssetPreviewSource.mockResolvedValue(true);
+
+    const pending = library.openPreview("asset-1");
+    await library.closePreview();
+    resolvePreview({ id: "preview-late" });
+    await pending;
+
+    expect(library.preview.value).toBeNull();
+    expect(service.revokeAssetPreviewSource).toHaveBeenCalledWith(
+      "preview-late"
+    );
   });
 
   it("does not delete when advisory confirmation is cancelled", async () => {

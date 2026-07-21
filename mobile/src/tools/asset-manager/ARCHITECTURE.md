@@ -1,6 +1,6 @@
 # 移动端资产管理器架构
 
-> 状态：Phase 2 施工中。资产内核、跨工具服务和首版资产/存储页面已注册；Android 导入、媒体预览、导出、分享、聊天消费者及首批文本文档替代清理已接入，剩余平台门禁和复杂格式文本化继续施工。
+> 状态：Android MVP 收尾。资产内核、跨工具服务和首版资产/存储页面已注册；当前只剩真实上游附件发送与 Android 真机主流程门禁。iOS 能力仍受编译与真机条件约束，不在本轮扩展实现。
 
 ## 1. 边界
 
@@ -109,9 +109,10 @@ AppData/assets/
 - 导入面板的“拍摄照片”只调用 `asset_capture_photo`；Android bridge 把相机输出写入 cache/captures，通过 `FileProvider` 返回临时 `content://`，前端交给既有 import job。取消、无相机和异常结果不产生可见资产，启动恢复/资产库修复清除 captures。
 - 文本文档详情和批量选择提供“文本化”操作。编排层只接受全部 usage 均属于 `llm-chat/message/attachment` 的资产，先提取文本并调用聊天领域 command 持久化快照，再投递 usage outbox、重新分析删除影响，最后清理原件；逐项失败不删除原件且不阻断后续项。批量动作区在窄屏内横向滚动。
 
-## 12. 后续施工
+## 12. 后续门禁
 
-- Android token 自然过期已在 `emulator-5558` 真实 WebView 验证；iOS scheme/HEAD/Range/CORS/撤销仍受编译与设备条件门禁约束。
-- 补 Android 相机设备验收和 iOS/跨平台分享插件；文本替代继续扩展音视频模型转写、PDF/Office 提取及其他消费者。
-- 聊天 SQLite 阶段二会话增量持久化、阶段三附件消费层和阶段四 Android 本地搜索已完成；真实上游附件发送仍受 emulator 未配置模型限制。
+- Android 预览 token 自然过期已在 `emulator-5558` 真实 WebView 验证；iOS scheme/HEAD/Range/CORS/撤销仍受编译与设备条件门禁约束。
+- Android 真机需完成一次导入、预览、导出、删除影响和应用重启恢复主流程，并记录结果；不得用 emulator 或普通浏览器替代。
+- `ManagedAssetRef` 需完成一次真实上游模型附件发送验收；模型未配置时保持门禁未通过，不新增旁支功能。
+- 相机、分享进入 AIO、文件关联、批量/复杂格式文本化和其他消费者替代均属于 Phase 3，本轮不继续扩展。
 - iOS 因缺少编译与真机设备条件继续跳过，不声明平台能力通过。

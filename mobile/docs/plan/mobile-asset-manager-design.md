@@ -746,6 +746,14 @@ Android MVP 的停止条件：
 - Android `emulator-5558` 真实 WebView 用 60 字节 `text/plain` 验证：聊天快照写入完整文本，usage 从 blocking 变为 advisory，outbox 归零后资产转为 reclaimed；临时会话删除并投递 release 后，测试资产和临时文件均已清理。360dp 批量动作区通过横向滚动容纳“文本化”等操作，没有控件互相覆盖。
 - 本批通过移动端 104 个前端测试、37 个 Rust 测试、llm-core 93 个测试、Clippy、类型检查、Vite 生产构建和 Android x86_64 debug APK 构建。音视频转写、PDF/Office 提取、其他消费者和 iOS 仍未完成；iOS 因缺少编译与设备条件继续跳过。
 
+### 2026-07-21：范围审计与 MVP 收尾修正
+
+- 独立审阅确认后续施工只保留真实上游附件发送、Android 真机主流程和 iOS 发布门禁；相机、分享进入 AIO、文件关联、复杂格式文本化等已移至 Phase 3 的能力不再扩展。
+- 修复 advisory usage 回收后的成功提示计数：页面现在汇总彻底删除和 reclaimed tombstone 两类清理结果，测试不再构造单项同时计入两类结果的不可能数据。
+- 修复预览关闭/切换竞态：迟到的 descriptor 不再重新挂回页面，并会立即撤销 token；增加关闭发生在 IPC 返回前的固定测试。
+- 在已连接的 `emulator-5558` 补做图片文件导入、受控预览、save picker 导出、应用重启恢复和无引用删除 smoke。导入与导出文件均为 17,781 bytes，SHA-256 均为 `afae612fe15659729fa58cc56266e8cfb6ee251372efd901469cc0a715e4b66f`。该设备 `ro.boot.qemu=1` 且由 LDPlayer 提供，仍按模拟器记录，不能解除 Android 真机门禁。
+- 真实上游附件发送仍未执行；在模型和测试账号条件明确前保持门禁未通过，不用模拟传输替代。
+
 ## 16. 调查来源
 
 - [Tauri v2 File System Plugin](https://v2.tauri.app/plugin/file-system/)

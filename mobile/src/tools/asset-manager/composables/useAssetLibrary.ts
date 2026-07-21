@@ -89,6 +89,7 @@ export function useAssetLibrary() {
   const importJobs = ref<AssetImportJob[]>([]);
   const activeImportJobId = ref<string | null>(null);
   let importController: AbortController | null = null;
+  let previewRequestId = 0;
 
   const query = computed(() =>
     createAssetListQuery({
@@ -149,11 +150,18 @@ export function useAssetLibrary() {
   }
 
   async function openPreview(assetId: string) {
+    const requestId = ++previewRequestId;
     if (preview.value) await revokeAssetPreviewSource(preview.value.id).catch(() => undefined);
-    preview.value = await getAssetPreviewSource(assetId);
+    const nextPreview = await getAssetPreviewSource(assetId);
+    if (requestId !== previewRequestId) {
+      await revokeAssetPreviewSource(nextPreview.id).catch(() => undefined);
+      return;
+    }
+    preview.value = nextPreview;
   }
 
   async function closePreview() {
+    previewRequestId += 1;
     if (!preview.value) return;
     const current = preview.value;
     preview.value = null;
@@ -192,7 +200,8 @@ export function useAssetLibrary() {
       if (!confirmAdvisory) return;
     }
     const result = await deleteAssets(selectedIds.value, confirmAdvisory);
-    customMessage(`已清理 ${result.deletedCount} 项资产`, "success");
+    const cleanedCount = result.deletedCount + result.reclaimedCount;
+    customMessage(`已清理 ${cleanedCount} 项资产`, "success");
     await load();
   }
 

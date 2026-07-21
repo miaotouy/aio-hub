@@ -1,8 +1,8 @@
 # Recall 检索管线模块化设计与实施计划
 
-**状态**: 设计提案，尚未施工
+**状态**: 设计提案，检索管线尚未施工；测试前置已部分完成
 **创建日期**: 2026-07-20
-**最近修订**: 2026-07-20
+**最近修订**: 2026-07-21
 **适用范围**: `src/tools/recall/`、`src-tauri/src/recall/`、Recall Playground、Agent Recall 配置、Recall Chat 召回入口
 
 关联文档：
@@ -10,9 +10,20 @@
 - [Recall 架构说明](../../ARCHITECTURE.md)
 - [检索模式与思绪召回设计调查（已归档）](./Archived/retrieval-profile-knowledge-memory-design.md)
 - [Recall / Knowledge 领域拆分与重构实施计划](./recall-knowledge-domain-restructure-implementation-plan.md)
+- [Recall 自动化测试、精简 OAI 渠道与真实向量请求实施计划](./recall-automated-real-vector-testing-plan.md)
 - [LLM Chat 上下文管道架构](../../../llm-chat/docs/architecture/context-pipeline.md)
 
 > 本文记录现有 `RetrievalEngine` 体系的后续重构设想，不改变已完成的 Recall / Knowledge 领域拆分，也不把尚未实施的目标写成当前架构。实施完成前，现行行为仍以 `ARCHITECTURE.md` 和当前代码为准。
+
+> **2026-07-21 现状对照**：隔壁测试计划已完成 Phase 1 至 Phase 5 及 Tauri E2E 入口收口，但这不等于本计划的检索管线 Phase 0 至 Phase 6 已完成。当前生产路径仍由 Rust `RetrievalEngine`、`engineId`、`semantic` / `associative` facade 和前端 `SearchOrchestrator` 组成，尚未存在模块 registry、pipeline compiler、artifact store 或统一 Runner。
+>
+> 已可直接复用的测试前置资产包括：
+>
+> - `recall-migration-baseline-v1.json`、Rust `migration_baseline` 和对应 Vitest/Rust 测试已固定当前旧行为、迁移输入、损坏向量边界、Agent/Chat 行为，以及 `keyword`、`vector`、`lens`、`blender`、`semantic`、`associative` 的代表性查询快照。它们只用于旧行为变化报告和迁移夹具，不是新管线等价验收。
+> - `tests/tauri-e2e/support/presets.ts` 已将确定性 Recall、Chat 注入/恢复、外部语料、Ollama、私有 Profile 和 native lane 收口为具名 E2E preset；根 `package.json` 只保留通用、纯逻辑和 native 三个入口。这里的 E2E preset 与本计划的检索 preset 是两个独立命名空间，不能互相替代。
+> - Recall 向量化、语义检索、Chat evidence、SSE 完成态、同数据根二次进程恢复、external-sample/full 和真实 Ollama 已有真实 Tauri WebView 验收，且稳定 `data-testid`、请求摘要、状态回读和恢复探针已落地。
+>
+> 仍未完成的管线前置包括：冻结新 artifact/module/pipeline 契约；把旧行为快照整理为可比较的行为变化报告；建立 `algorithmic` / `comprehensive` 的新质量与性能基线；实现编译、外部产物准备、统一执行和 pipeline trace；以及旧 `engineId` / `profile` 到新预设的版本化迁移。现有 E2E 证明的是旧检索路径的端到端可用性，不能证明新 Runner 的候选、分数、过滤或排序语义。
 
 ---
 
@@ -438,7 +449,7 @@ artifact bundle / asset generation
 
 ## 8. UI 交互调查与改造
 
-本节基于 2026-07-20 的现有前端实现补充。目标不是重新设计 Recall 的整体视觉，而是把管线编译、外部能力准备、执行、降级和 trace 的新语义完整映射到已有 Vue / Element Plus 交互中。
+本节基于 2026-07-21 的现有前端实现补充。目标不是重新设计 Recall 的整体视觉，而是把管线编译、外部能力准备、执行、降级和 trace 的新语义完整映射到已有 Vue / Element Plus 交互中。测试计划施工期间已补齐 Recall、Agent Recall 和 Chat 的稳定 E2E selectors，但界面状态和数据契约仍是旧引擎体系。
 
 ### 8.1 现状调查
 
@@ -446,14 +457,14 @@ artifact bundle / asset generation
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | Agent Recall 设置 | `agent-manager/.../RecallSection.vue` 只提供全局 `semantic / associative` 选择；`RecallBindingItem.vue` 的绑定类型虽有 `profile`，界面没有逐集合覆盖入口    | 需要改为稳定预设选择，并清楚表达“继承全局”与“本集合覆盖”；不能向普通用户暴露模块 DAG                                     |
 | Chat 占位符       | `recall-placeholder.ts` 的 `profile` 只接受 `semantic / associative`，Agent 编辑器自动生成对应文本                                                          | 需要新增预设参数契约和 legacy 解析；用户手写提示词不能被无提示重写或默认为另一预设                                       |
-| Playground        | `PlaygroundView.vue` 最多并排 4 个 `SearchSlot.vue`，每槽直接选择底层引擎并读取 `requiresEmbedding`；全量检索没有统一运行状态，槽位失败只写 `console.error` | 需要预设副本、阶段列表、编译问题、外部需求、运行 trace 和可比较的 A/B 结果；4 列布局无法容纳阶段与 trace 信息            |
+| Playground        | `PlaygroundView.vue` 最多并排 4 个 `SearchSlot.vue`，每槽直接选择底层引擎并读取 `requiresEmbedding`；已增加语义化 `data-testid` 供真实窗口测试，但全量检索仍没有统一运行状态，槽位失败只写 `console.error` | 需要预设副本、阶段列表、编译问题、外部需求、运行 trace 和可比较的 A/B 结果；现有 selector 可复用，但 4 列布局无法容纳阶段与 trace 信息 |
 | 向量准备          | `SearchSlot.vue`、`PlaygroundView.vue` 和 `SearchOrchestrator` 分别做覆盖率检查；`VectorCoverageDialog.vue` 提供补全、忽略和取消                            | 需要由编译结果驱动准备步骤；区分“缺少 Embedding route”“条目向量覆盖不完整”“索引未加载”；后台 Chat 不得弹交互对话框       |
 | Recall 全局设置   | `getRecallSettingsConfig()` 把所有引擎参数合并进“检索与索引策略”，并写入全局 `vectorIndex`                                                                  | 全局设置只应保留 Embedding、索引资产、请求和缓存基础设施；运行时预设/模块参数必须归属于 Agent 安全覆盖或 Playground 配置 |
 | 执行状态          | `useRecallSearchManager.ts` 和 `useRecallSearch.ts` 主要暴露 `loading + results`；失败、取消和空结果都可能落成空数组                                        | 无法可靠展示阻塞、显式降级、部分成功、失败和真正空结果，也无法防止旧请求晚返回覆盖新查询                                 |
 | 结果详情          | `RecallResultDetailDialog.vue` 只展示条目和百分比“匹配分值”，不展示现有 `signals / trace`                                                                   | 管线分数不是概率；需要展示分数语义、信号贡献、请求预设、实际预设、过滤和排名路径                                         |
 | 监控              | `RagTraceContent.vue` 使用通用步骤时间线，并把 score 绘制成相似度百分比进度条                                                                               | 需要消费版本化 pipeline trace，展示阶段、模块、候选数、跳过/失败原因和降级；旧 trace 仍需可读                            |
 | 工作区持久化      | `WorkspaceConfig.playground` 保存槽位 `engineId`、参数、查询和完整结果；`defaultEngineId` 仍在类型与默认配置中，但设置页没有对应选择器                      | 完整结果和 trace 会迅速膨胀且重启后过期；旧引擎字段需要版本化迁移，不能继续作为隐藏真源                                  |
-| 重复/闲置入口     | `SearchPanel.vue`、`EngineSelector.vue` 当前无引用，`useRecallSearch.ts` 仅被闲置 `SearchPanel` 使用；store、service 和 Playground 各有搜索路径             | Phase 0 先确认无动态入口，再删除或收口；不能为闲置组件再实现一套管线适配                                                 |
+| 重复/闲置入口     | 2026-07-21 静态扫描确认 Recall 的 `SearchPanel.vue`、`EngineSelector.vue` 无产品引用，`useRecallSearch.ts` 仅被前者使用；store、service 和 Playground 各有搜索路径 | Phase 0 仍需把动态入口与删除影响形成清单；不能为闲置组件再实现一套管线适配                                                |
 
 调查结论：UI 改造的最小边界不只是替换 Playground 下拉框。Agent 配置、占位符生成、运行响应、结果详情、监控、工作区 schema 和错误反馈必须一起迁移，否则用户会同时遇到 profile、engine 和 preset 三套概念。
 
@@ -652,17 +663,23 @@ idle
 
 ## 9. 实施阶段
 
+测试计划中的 Phase 1 至 Phase 5 已完成，提供了本节可复用的 fixture、真实窗口 runner 和验收 lane；本节 Phase 编号只描述检索管线施工进度。除下方明确标记为已完成的旧行为基线外，当前仍处于本计划 Phase 0，不能按测试计划状态顺延为 Phase 5。
+
 ### Phase 0：盘点旧行为并冻结新契约
 
-- [ ] 保存 `keyword`、`vector`、`lens`、`blender`、`semantic`、`associative` 的代表查询输出，用于理解旧逻辑和编写行为变化说明，不作为新管线的等价验收夹具。
+- [x] 保存 `keyword`、`vector`、`lens`、`blender`、`semantic`、`associative` 的代表查询输出。现有证据由共享 migration baseline fixture、Rust 引擎/Facade 快照和 Agent/Chat baseline 测试共同组成，只用于理解旧逻辑和编写行为变化说明。
+- [ ] 把现有旧行为快照整理成统一的行为变化报告格式，明确查询、数据范围、旧算法版本、候选/排序摘要和可接受的缺失证据；不得把旧输出升级为新管线等价门槛。
 - [ ] 盘点各引擎重复的候选裁剪、归一化、过滤、排序和 TopK 逻辑。
 - [ ] 冻结 artifact、module info、pipeline schema、错误和 trace v1 契约。
 - [ ] 冻结 preset summary、compile result、run response 和 UI 状态机契约，明确 error code、`runId` 与过期响应规则。
 - [ ] 明确内置预设 ID、显示名和常规产品入口范围。
-- [ ] 复核 `SearchPanel`、`EngineSelector`、`useRecallSearch`、store search 等入口是否仍有动态调用，形成保留/删除清单。
-- [ ] 冻结旧 ID 到新预设的版本化迁移规则；为旧 workspace Playground、Agent binding、占位符、Agent 工具参数和缓存 key 建立迁移夹具，覆盖字段保留/丢弃报告与旧结果持久化清理。
+- [x] 完成 `SearchPanel`、`EngineSelector`、`useRecallSearch` 的静态引用复核；三者目前不在产品渲染路径中。
+- [ ] 继续复核 store search、service、Playground、Chat processor 和 Agent tool 的动态调用，形成完整保留/删除清单。
+- [ ] 冻结旧 ID 到新预设的版本化迁移规则；在现有 migration baseline 之上增加旧 workspace Playground、Agent binding/profile、占位符、Agent 工具参数和缓存 key 的新预设迁移夹具，覆盖字段保留/丢弃报告与旧结果持久化清理。
+- [x] 建立可复用的真实窗口测试底座：稳定 selectors、确定性 mock Chat/Embedding、请求证据、同数据根进程恢复、外部语料和真实 Ollama lane 已具备。
+- [ ] 为新管线增加独立的 E2E preset 或 spec 装配，覆盖 compile -> prepare -> run -> pipeline trace；不能把现有 `recall-vector` / `recall-chat` 的旧语义检索通过结果直接视为新管线通过。
 
-退出门槛：仅新增契约和基线测试，不改变现有检索结果。
+退出门槛：仅新增契约、行为变化报告和新管线基线测试，不改变现有产品检索结果。现有测试底座可以复用，但必须新增能区分旧引擎路径与新 Runner 路径的断言和运行元数据。
 
 ### Phase 1：建立 Runner 与公共尾部阶段
 
@@ -742,6 +759,7 @@ idle
 
 - 新预设和模块的固定查询质量、确定性、分数语义与性能基线。
 - 六个旧引擎/Facade 的代表输出仅用于生成行为变化报告，不作为测试通过条件。
+- 固定查询集优先复用现有 migration baseline、smoke/curated corpus 和 external corpus 的稳定 entry ID/主题标签；需要新增新预设自己的 expected relation/rank/trace 断言，不能沿用旧 `semantic` 精确分数。
 - 数据库重启、向量库缺失、tag pool 缺失和缓存失效。
 - 多集合、集合级阈值、禁用条目、标签过滤和授权范围。
 - 相同最终分数下的稳定 tie-break，避免并行执行改变结果顺序。
@@ -765,6 +783,20 @@ idle
 - Tauri IPC 参数保持 camelCase，错误和 trace 可从真实 WebView 往返。
 - 真实 Tauri 环境使用隔离数据根验证无模型纯算法检索、综合检索、显式降级、向量补全、Playground 单模块执行和旧 workspace/Agent 迁移。
 - 真实窗口用例使用稳定 `data-testid` 或可访问名称，并保存失败截图、前后端日志和 mock 请求摘要；普通浏览器 mock 只覆盖纯前端状态，不替代 Tauri IPC。
+
+现有 Tauri E2E 底座通过通用入口和具名测试 preset 运行：
+
+```powershell
+bun run test:tauri:e2e -- --preset recall-vector
+bun run test:tauri:e2e -- --preset recall-curated
+bun run test:tauri:e2e -- --preset recall-chat
+bun run test:tauri:e2e -- --preset corpus-sample
+bun run test:tauri:e2e -- --preset corpus-full
+bun run test:tauri:e2e -- --preset ollama-vector
+bun run test:tauri:e2e -- --preset ollama-chat
+```
+
+这些入口当前覆盖旧 `semantic` / vector 工作流、Chat 注入和持久化。管线施工后应在 `tests/tauri-e2e/support/presets.ts` 中增加或调整具名装配，使运行元数据明确记录 retrieval pipeline ID、config hash、algorithm version、requested/actual preset 和 trace version；不要重新把 spec 路径和长参数组合写回根 `package.json`。
 
 ---
 

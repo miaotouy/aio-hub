@@ -1,6 +1,9 @@
 import { $, browser } from "@wdio/globals";
 
 let e2eAgentId: string | undefined;
+const runnerLane = process.env.AIO_E2E_LANE || "deterministic-mock";
+const describeDeterministic =
+  runnerLane === "deterministic-mock" ? describe : describe.skip;
 
 async function navigateTo(path: string): Promise<void> {
   await browser.execute((targetPath) => {
@@ -9,7 +12,7 @@ async function navigateTo(path: string): Promise<void> {
   }, path);
 }
 
-describe("Knowledge cross-tool smoke", () => {
+describeDeterministic("Knowledge cross-tool smoke", () => {
   it("creates an isolated library through the real Tauri UI", async () => {
     await navigateTo("/knowledge-base");
 

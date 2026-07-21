@@ -709,6 +709,8 @@ defineExpose({
       'screenshot-mode': props.screenshotMode,
     }"
     :data-message-id="message.id"
+    :data-message-role="message.role"
+    :data-message-status="message.status"
     data-testid="chat-tool-call"
     :data-tool-status="mainStatus"
     :data-tool-name="toolCalls.length === 1 ? toolCalls[0].toolName : undefined"

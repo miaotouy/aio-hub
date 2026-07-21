@@ -248,6 +248,8 @@ defineExpose({
       'screenshot-mode': props.screenshotMode,
     }"
     :data-message-id="message.id"
+    :data-message-role="message.role"
+    :data-message-status="message.status"
   >
     <!-- 背景层：分块渲染以规避浏览器对大尺寸 backdrop-filter 的限制 -->
     <div class="message-background-container">

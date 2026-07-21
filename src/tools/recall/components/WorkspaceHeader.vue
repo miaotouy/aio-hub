@@ -139,6 +139,7 @@ const isAllSelected = computed(() => {
               size="default"
               @click="emit('toggle-recall-list')"
               title="管理思绪集列表"
+              data-testid="recall-collection-list-toggle"
             >
               <template #icon><Library :size="16" /></template>
             </el-button>
@@ -181,6 +182,11 @@ const isAllSelected = computed(() => {
             <div
               class="status-tag"
               :class="{ 'is-aligned': vectorStatusInfo.isAligned }"
+              data-testid="recall-vector-status"
+              :data-vector-model="vectorStatusInfo.currentModel || undefined"
+              :data-vector-ready="vectorStatusInfo.ready"
+              :data-vector-pending="vectorStatusInfo.pending"
+              :data-vector-total="vectorStatusInfo.total"
             >
               <ShieldCheck v-if="vectorStatusInfo.isAligned" :size="14" />
               <ShieldAlert v-else :size="14" />
@@ -219,7 +225,11 @@ const isAllSelected = computed(() => {
             库设置
           </el-button>
 
-          <el-button @click="emit('toggle-selection')" size="small">
+          <el-button
+            @click="emit('toggle-selection')"
+            size="small"
+            data-testid="recall-entry-selection-toggle"
+          >
             <template #icon><CheckSquare :size="14" /></template>
             条目管理
           </el-button>
@@ -229,6 +239,7 @@ const isAllSelected = computed(() => {
             @click="syncAllBases"
             size="small"
             title="检查并同步所有思绪集中待处理的向量化任务"
+            data-testid="recall-vectorize-all"
           >
             <template #icon><RefreshCw :size="14" /></template>
             一键向量化
@@ -265,6 +276,8 @@ const isAllSelected = computed(() => {
                 emit('toggle-selection');
               }
             "
+            data-testid="recall-vectorize-selected"
+            :data-selected-count="selectedEntryIds.size"
           >
             <template #icon><RefreshCw :size="14" /></template>
             更新向量

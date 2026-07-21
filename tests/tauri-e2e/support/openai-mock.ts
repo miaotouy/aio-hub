@@ -140,6 +140,9 @@ export function createOpenAiMockHandler(
       const match = matchChatScenario(messages, stream, scenarios);
       const status = match.ok ? 200 : 422;
       const scenarioId = match.ok ? match.scenario.id : match.scenarioIds[0];
+      const matchedScenario = scenarios.find(
+        (scenario) => scenario.id === scenarioId
+      );
       const summary = {
         requestId,
         at: new Date().toISOString(),
@@ -152,7 +155,8 @@ export function createOpenAiMockHandler(
         mismatchReason: match.ok ? null : match.reason,
         expectedEntryIds: match.ok
           ? (match.scenario.requiredEvidence?.map((item) => item.entryId) ?? [])
-          : [],
+          : (matchedScenario?.requiredEvidence?.map((item) => item.entryId) ??
+            []),
         requiredEvidence: match.requiredEvidence,
         requiredContext: match.requiredContext,
         forbiddenEvidence: match.forbiddenEvidence,

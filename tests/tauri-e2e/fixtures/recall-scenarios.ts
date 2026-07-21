@@ -16,7 +16,16 @@ export interface RecallChatScenario {
   };
   expected: {
     embeddingRequests: number;
+    embeddingTopicId?: string;
     topEntryId?: string;
+    chatStatus?: 200 | 422;
+    mismatchReason?:
+      | "scenario_not_found"
+      | "multiple_scenarios"
+      | "stream_mismatch"
+      | "required_evidence_missing"
+      | "required_context_missing"
+      | "forbidden_evidence_present";
   };
 }
 
@@ -25,6 +34,8 @@ export const RECALL_ENTRY_IDS = {
   base64: "20000000-0000-4000-8000-000000000002",
   memory: "20000000-0000-4000-8000-000000000003",
   structure: "20000000-0000-4000-8000-000000000004",
+  rust: "20000000-0000-4000-8000-000000000005",
+  banana: "20000000-0000-4000-8000-000000000006",
 } as const;
 
 export const RECALL_EVIDENCE_MARKERS = {
@@ -33,6 +44,7 @@ export const RECALL_EVIDENCE_MARKERS = {
   memory: "E2E_EVIDENCE_FRONTEND_OWNS_DATA_RUST_ACCELERATES",
   structure: "E2E_EVIDENCE_TOOL_CORE_LOGIC_CONFIG_STORES",
   empty: "E2E_RECALL_EMPTY_RESULT",
+  missingEvidence: "E2E_EVIDENCE_INTENTIONALLY_MISSING",
 } as const;
 
 const allEntryMarkers = [
@@ -60,6 +72,7 @@ export const recallChatScenarios: RecallChatScenario[] = [
     },
     expected: {
       embeddingRequests: 1,
+      embeddingTopicId: "renderer",
       topEntryId: RECALL_ENTRY_IDS.renderer,
     },
   },
@@ -80,6 +93,7 @@ export const recallChatScenarios: RecallChatScenario[] = [
     },
     expected: {
       embeddingRequests: 1,
+      embeddingTopicId: "base64",
       topEntryId: RECALL_ENTRY_IDS.base64,
     },
   },
@@ -99,6 +113,7 @@ export const recallChatScenarios: RecallChatScenario[] = [
     },
     expected: {
       embeddingRequests: 1,
+      embeddingTopicId: "memory",
       topEntryId: RECALL_ENTRY_IDS.memory,
     },
   },
@@ -112,7 +127,31 @@ export const recallChatScenarios: RecallChatScenario[] = [
       chunks: ["没有可用的", "召回内容。"],
       finishReason: "stop",
     },
-    expected: { embeddingRequests: 1 },
+    expected: {
+      embeddingRequests: 1,
+    },
+  },
+  {
+    id: "missing-evidence-fail-closed",
+    userMarker: "[e2e:recall-missing-evidence]",
+    expectedStream: true,
+    requiredEvidence: [
+      {
+        entryId: RECALL_ENTRY_IDS.renderer,
+        contentMarker: RECALL_EVIDENCE_MARKERS.missingEvidence,
+      },
+    ],
+    response: {
+      chunks: ["This response must never be returned."],
+      finishReason: "stop",
+    },
+    expected: {
+      embeddingRequests: 1,
+      embeddingTopicId: "rust-ownership",
+      topEntryId: RECALL_ENTRY_IDS.rust,
+      chatStatus: 422,
+      mismatchReason: "required_evidence_missing",
+    },
   },
   {
     id: "binding-disabled",
@@ -169,6 +208,8 @@ export const embeddingTopics: EmbeddingTopic[] = [
       "复杂 markdown",
       "streaming markdown",
       "heavy component",
+      "流式渲染",
+      "ast",
     ],
     axis: 0,
   },
@@ -179,6 +220,7 @@ export const embeddingTopics: EmbeddingTopic[] = [
       "base64 image",
       "data url",
       "原始请求体",
+      "base64",
     ],
     axis: 1,
   },
@@ -186,6 +228,7 @@ export const embeddingTopics: EmbeddingTopic[] = [
     id: "memory",
     markers: [
       RECALL_EVIDENCE_MARKERS.memory,
+      "e2e recall memory ownership",
       "rust 内存副本",
       "frontend data ownership",
       "计算加速",
@@ -203,12 +246,22 @@ export const embeddingTopics: EmbeddingTopic[] = [
   },
   {
     id: "rust-ownership",
-    markers: ["rust ownership", "borrow checker", "所有权与借用"],
+    markers: ["rust ownership", "borrow checker", "所有权与借用", "rust"],
     axis: 4,
   },
   {
     id: "banana-bread",
-    markers: ["banana bread", "香蕉面包"],
+    markers: ["banana bread", "香蕉面包", "cooking"],
     axis: 5,
+  },
+  {
+    id: "hard-negative-css",
+    markers: ["tailwind css", "原生 css", "前端开发"],
+    axis: 6,
+  },
+  {
+    id: "hard-negative-audio",
+    markers: ["神经网络修音", "泛音", "音频"],
+    axis: 7,
   },
 ];

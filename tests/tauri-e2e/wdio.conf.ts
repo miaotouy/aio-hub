@@ -21,7 +21,8 @@ if (!fs.existsSync(appBinaryPath)) {
 }
 
 const runSuffix =
-  process.env.AIO_ID_SUFFIX?.trim() || `tauri-e2e-${process.pid}`;
+  process.env.AIO_ID_SUFFIX?.trim() ||
+  `tauri-e2e-${process.pid}-${Date.now().toString(36)}`;
 const dataDir = path.resolve(
   projectRoot,
   process.env.AIO_DATA_DIR?.trim() || path.join(".dev-data", runSuffix)
@@ -62,9 +63,12 @@ process.env.AIO_DATA_DIR ??= dataDir;
 export const config: WebdriverIO.Config = {
   runner: "local",
   specs: [
-    path.join(projectRoot, "tests", "tauri-e2e", "specs", "**", "*.spec.ts"),
+    [
+      path.join(projectRoot, "tests", "tauri-e2e", "specs", "**", "*.spec.ts"),
+    ],
   ],
   maxInstances: 1,
+  maxInstancesPerCapability: 1,
   logLevel: "warn",
   outputDir: artifactDir,
   services: [
@@ -95,7 +99,10 @@ export const config: WebdriverIO.Config = {
   framework: "mocha",
   mochaOpts: {
     ui: "bdd",
-    timeout: 120_000,
+    timeout:
+      process.env.AIO_E2E_CORPUS_MODE === "external-full"
+        ? 600_000
+        : 120_000,
   },
   reporters: ["spec"],
   waitforTimeout: 10_000,

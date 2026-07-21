@@ -305,6 +305,19 @@ bun run test:tauri:e2e
 bun run test:tauri:e2e -- --spec tests/tauri-e2e/specs/smoke.spec.ts
 ```
 
+Recall、外部 corpus、Ollama、私有 Profile 和 Windows 原生验收使用具名
+preset，避免在公共脚本和文档中重复 spec、重启与 scenario 组合。可先查看
+每个 preset 的前置条件、缺失时的 skip/fail 规则和是否包含二次启动：
+
+```powershell
+bun run test:tauri:e2e -- --list-presets
+bun run test:tauri:e2e -- --preset recall-vector
+```
+
+选择 preset 后不能再混用 `--spec`、`--restart-spec`、
+`--required-scenarios`、`--corpus-mode`、`--vector-mode`、`--llm-profile`
+或 `--native`。底层参数只用于没有 preset 的定向故障排查。
+
 `tests/tauri-e2e/**` 已从 Vitest 的默认发现范围排除，`bun run test:run`
 不会加载 WDIO 用例；真实窗口用例只通过 `bun run test:tauri:e2e` 执行。
 E2E runner 会在未显式设置时为本次进程生成隔离的数据根、产物目录和
@@ -335,6 +348,9 @@ WDIO 和 WebView2 CDP 只能直接控制 Tauri WebView。Windows 原生文件/�
 ```powershell
 bun run test:tauri:e2e:native
 ```
+
+该短别名由 `native` preset 装配；需要统一通用入口时可运行
+`bun run test:tauri:e2e -- --preset native`。
 
 该入口只在 Windows 10 及以上、已登录且未锁屏的交互式桌面运行。helper 与 AIO Hub 必须属于同一用户和相同完整性级别。原生 selector 按进程、Owner/模态窗口、AutomationId、ControlType 和 UIA Pattern 定位；Win10 Common Item Dialog 的 `#32770` 仅作为辅助信号，不依赖“打开”“文件名”等本地化文案。每次动作前保存 UIA 树，失败时额外保存桌面截图。详细契约见 [`tests/windows-ui-automation/README.md`](../../tests/windows-ui-automation/README.md)。
 

@@ -103,11 +103,22 @@ const handleDeselectAllEntries = () => {
 </script>
 
 <template>
-  <div class="workspace-view" ref="containerRef" :class="[`is-${layoutMode}`]">
+  <div
+    class="workspace-view"
+    ref="containerRef"
+    :class="[`is-${layoutMode}`]"
+    data-testid="recall-workspace"
+    :data-recall-id="recallStore.activeBaseId || undefined"
+  >
     <!-- 向量化进度条 -->
     <div
       v-if="recallStore.indexingProgress.isIndexing"
       class="indexing-progress-bar"
+      data-testid="recall-vector-progress"
+      :data-recall-id="recallStore.activeBaseId || undefined"
+      :data-vector-current="recallStore.indexingProgress.current"
+      :data-vector-total="recallStore.indexingProgress.total"
+      :data-vector-failed="recallStore.indexingProgress.failedDetails.size"
     >
       <el-progress
         :percentage="

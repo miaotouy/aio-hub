@@ -358,6 +358,8 @@ const handleDetailFileChange = (e: Event) => {
   <div
     class="entry-detail-container"
     :class="{ 'is-loading': isDetailLoading }"
+    :data-recall-id="recallStore.activeBaseId || undefined"
+    :data-entry-id="recallStore.activeEntryId || undefined"
   >
     <template v-if="hasValidEntry">
       <div class="editor-header">
@@ -369,16 +371,30 @@ const handleDetailFileChange = (e: Event) => {
             v-model="form.key"
             placeholder="条目标题 (Key)"
             class="title-input"
+            data-testid="recall-entry-key"
+            :data-entry-id="recallStore.activeEntryId || undefined"
           />
         </div>
         <div style="width: 8px"></div>
         <div class="header-actions">
           <div class="status-group">
-            <div v-if="isSaving" class="saving-indicator">
+            <div
+              v-if="isSaving"
+              class="saving-indicator"
+              data-testid="recall-entry-save"
+              data-save-status="saving"
+              :data-entry-id="recallStore.activeEntryId || undefined"
+            >
               <Loader2 :size="13" class="animate-spin" />
               <span>正在保存...</span>
             </div>
-            <div v-else-if="lastSavedTime" class="saving-indicator saved">
+            <div
+              v-else-if="lastSavedTime"
+              class="saving-indicator saved"
+              data-testid="recall-entry-save"
+              data-save-status="saved"
+              :data-entry-id="recallStore.activeEntryId || undefined"
+            >
               <Check :size="13" />
               <span>已保存 {{ lastSavedText }}</span>
             </div>
@@ -407,6 +423,11 @@ const handleDetailFileChange = (e: Event) => {
                 @click="handleEmbedding"
                 class="vector-action-btn"
                 :class="{ 'is-ready': isVectorReady }"
+                data-testid="recall-vectorize-entry"
+                :data-entry-id="recallStore.activeEntryId || undefined"
+                :data-vector-status="
+                  isEmbedding ? 'pending' : isVectorReady ? 'ready' : 'none'
+                "
               >
                 <template #icon>
                   <Zap
@@ -536,6 +557,8 @@ const handleDetailFileChange = (e: Event) => {
               v-model="form.content"
               language="markdown"
               height="100%"
+              data-testid="recall-entry-content"
+              :data-entry-id="recallStore.activeEntryId || undefined"
             />
           </div>
         </div>

@@ -50,7 +50,13 @@ const macroRef = computed(() => `{{recall::${props.binding.recallId}}}`);
 </script>
 
 <template>
-  <div class="kb-item" :class="{ expanded, disabled: !binding.enabled }">
+  <div
+    class="kb-item"
+    :class="{ expanded, disabled: !binding.enabled }"
+    data-testid="agent-recall-binding"
+    :data-recall-id="binding.recallId"
+    :data-binding-enabled="binding.enabled"
+  >
     <div class="kb-item-header" @click="emit('toggle-expand')">
       <div class="kb-item-left">
         <el-icon class="expand-icon">

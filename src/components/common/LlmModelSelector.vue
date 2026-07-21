@@ -158,7 +158,11 @@ const modelGroups = computed(() => {
 </script>
 
 <template>
-  <div class="llm-model-selector" :data-testid="testId">
+  <div
+    class="llm-model-selector"
+    :data-testid="testId"
+    :data-model-combo="modelValue || undefined"
+  >
     <el-select
       v-model="selectedModelCombo"
       :placeholder="placeholder"
@@ -170,6 +174,7 @@ const modelGroups = computed(() => {
       :teleported="teleported"
       :popper-class="popperClass"
       class="custom-select"
+      :data-model-combo="modelValue || undefined"
     >
       <template #prefix>
         <div v-if="selectedModelInfo" class="selected-model-display-prefix">

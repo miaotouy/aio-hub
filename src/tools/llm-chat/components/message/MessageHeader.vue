@@ -250,7 +250,12 @@ const formatLatency = (ms: number) => {
       </template>
       <div class="message-info">
         <div class="name-row">
-          <span class="message-name">{{ displayName }}</span>
+          <span
+            class="message-name"
+            data-testid="chat-message-role"
+            :data-message-role="message.role"
+            >{{ displayName }}</span
+          >
           <span v-if="greetingLabel" class="greeting-tag">{{
             greetingLabel
           }}</span>

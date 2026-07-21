@@ -22,6 +22,9 @@
           v-model="engineId"
           placeholder="选择检索引擎"
           style="width: 100%"
+          popper-class="recall-search-engine-popper"
+          data-testid="recall-search-engine"
+          :data-engine-id="engineId"
         >
           <template #prefix>
             <Icon
@@ -35,6 +38,8 @@
             :key="engine.id"
             :label="engine.name"
             :value="engine.id"
+            data-testid="recall-search-engine-option"
+            :data-engine-id="engine.id"
           >
             <div class="engine-option">
               <Icon
@@ -113,18 +118,34 @@
         v-loading="loading"
         element-loading-background="rgba(0, 0, 0, 0)"
         class="results-list"
+        data-testid="recall-search-results"
+        :data-search-state="loading ? 'loading' : 'idle'"
+        :data-last-query="lastQuery || undefined"
+        :data-result-count="results.length"
       >
         <template v-if="results.length > 0">
           <div
             v-for="(result, index) in results"
             :key="result.entry.id"
             class="result-card"
+            data-testid="recall-search-result"
+            :data-recall-id="result.recallId || undefined"
+            :data-entry-id="result.entry.id"
+            :data-match-type="result.matchType"
+            :data-trace-engine="result.trace?.engineId || undefined"
+            :data-trace-version="result.trace?.algorithmVersion || undefined"
+            :data-trace-rank="result.trace?.rank || undefined"
             :class="{ 'is-shared': sharedResultIds.has(result.entry.id) }"
             @click="$emit('select', result)"
           >
             <div class="result-header">
               <span class="rank">#{{ index + 1 }}</span>
-              <span class="score">{{ result.score.toFixed(3) }}</span>
+              <span
+                class="score"
+                data-testid="recall-search-result-score"
+                :data-score="result.score"
+                >{{ result.score.toFixed(3) }}</span
+              >
               <span
                 v-if="sharedResultIds.has(result.entry.id)"
                 class="shared-tag"
@@ -187,7 +208,12 @@ const emit = defineEmits<{
 }>();
 
 const recallStore = useRecallCollectionStore();
-const { results, loading, search: _search } = useRecallSearchManager();
+const {
+  results,
+  loading,
+  lastQuery,
+  search: _search,
+} = useRecallSearchManager();
 
 // 初始化结果
 if (props.initialResults && props.initialResults.length > 0) {

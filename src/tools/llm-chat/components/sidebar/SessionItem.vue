@@ -84,7 +84,13 @@ const handleToggleFavorite = () => {
 </script>
 
 <template>
-  <div :class="['session-item', { active }]" @click="emit('click', session)">
+  <div
+    :class="['session-item', { active }]"
+    data-testid="chat-session-item"
+    :data-session-id="session.id"
+    :data-session-active="active"
+    @click="emit('click', session)"
+  >
     <div class="session-content">
       <div class="session-title">
         <template v-if="displayAgent">

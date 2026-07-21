@@ -380,6 +380,7 @@ const formatTokens = (num: number) => {
               type="primary"
               circle
               size="small"
+              data-testid="recall-create-collection"
               @click="showCreateDialog = true"
             >
               <template #icon><Plus :size="14" /></template>
@@ -463,6 +464,8 @@ const formatTokens = (num: number) => {
         v-for="base in filteredBases"
         :key="base.id"
         class="recall-item"
+        data-testid="recall-collection-row"
+        :data-recall-id="base.id"
         :class="{
           active: !isBatchMode && recallStore.activeBaseId === base.id,
           'is-selecting': isBatchMode,

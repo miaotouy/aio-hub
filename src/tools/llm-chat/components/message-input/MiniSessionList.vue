@@ -286,6 +286,9 @@ defineExpose({
               'has-matches': getSessionMatches(session.id)?.length,
             },
           ]"
+          data-testid="chat-session-item"
+          :data-session-id="session.id"
+          :data-session-active="session.id === chatStore.currentSessionId"
           :style="{ height: 'auto', minHeight: '50px' }"
           @click="handleSessionClick(session)"
         >

@@ -21,6 +21,7 @@ import {
   resolvePrivateProfileLane,
 } from "./support/private-profile-lane";
 import {
+  formatPresetList,
   isExternalCorpusMode,
   parseE2eRunnerOptions,
 } from "./support/runner-options";
@@ -30,6 +31,10 @@ const projectRoot = path.resolve(
 );
 const cliArgs = process.argv.slice(2);
 const runnerOptions = parseE2eRunnerOptions(cliArgs);
+if (runnerOptions.listPresetsRequested) {
+  console.log(formatPresetList());
+  process.exit(0);
+}
 const { nativeUiEnabled, wdioArgs } = runnerOptions;
 function activeSpecFromArgs(args: string[]): string {
   const index = args.lastIndexOf("--spec");
@@ -76,6 +81,7 @@ const writeEarlyRunMetadata = (value: Record<string, unknown>) => {
     JSON.stringify(
       {
         runSuffix,
+        presetId: runnerOptions.presetId,
         lane: runnerOptions.lane.kind,
         corpusMode: runnerOptions.corpusMode,
         startedAt,
@@ -628,6 +634,7 @@ fs.writeFileSync(
   JSON.stringify(
     {
       runSuffix,
+      presetId: runnerOptions.presetId,
       dataDir,
       artifactDir,
       mockBaseUrl: mock.baseUrl,
@@ -843,6 +850,7 @@ fs.writeFileSync(
   JSON.stringify(
     {
       runSuffix,
+      presetId: runnerOptions.presetId,
       dataDir,
       artifactDir,
       mockBaseUrl: mock.baseUrl,

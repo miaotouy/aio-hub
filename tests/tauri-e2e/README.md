@@ -54,6 +54,19 @@ Pure runner, fixture, mock, and corpus checks run without opening the app:
 bun run test:tauri:e2e:unit
 ```
 
+Named presets own the stable Recall, corpus, model, recovery, and native suite
+assembly. List their requirements and skip/fail behavior without starting Vite,
+the mock server, or Tauri:
+
+```powershell
+bun run test:tauri:e2e -- --list-presets
+```
+
+Use `bun run test:tauri:e2e -- --preset <id>` for a named lane. A preset cannot
+be combined with `--spec`, `--restart-spec`, `--required-scenarios`,
+`--corpus-mode`, `--vector-mode`, `--llm-profile`, or `--native`. Those low-level
+options remain available only for focused diagnosis when no preset is selected.
+
 ## Recall model lanes
 
 The deterministic mock remains the default. A local Ollama embedding lane is
@@ -62,7 +75,7 @@ short vector workflow:
 
 ```powershell
 $env:AIO_E2E_OLLAMA_MODEL = "lmstudio-nomic-embed-text:q4_k_m"
-bun run test:tauri:e2e:ollama
+bun run test:tauri:e2e -- --preset ollama-vector
 ```
 
 Run the opt-in full Ollama lane by selecting a completion model as well. The
@@ -74,7 +87,7 @@ delivery is verified from the captured Tauri backend log:
 ```powershell
 $env:AIO_E2E_OLLAMA_MODEL = "lmstudio-nomic-embed-text:q4_k_m"
 $env:AIO_E2E_OLLAMA_CHAT_MODEL = "phi4:latest"
-bun run test:tauri:e2e:ollama:full
+bun run test:tauri:e2e -- --preset ollama-chat
 ```
 
 The full lane uses response-present assertions for real Chat output and
@@ -98,7 +111,7 @@ $env:AIO_E2E_LLM_PROFILE_ID = "e2e-real-ollama"
 $env:AIO_E2E_CHAT_MODEL_ID = "qwen3.5:9b"
 $env:AIO_E2E_EMBEDDING_MODEL_ID = "lmstudio-nomic-embed-text:q4_k_m"
 $env:AIO_E2E_EMBEDDING_DIMENSION = "768"
-bun run test:tauri:e2e:real
+bun run test:tauri:e2e -- --preset private-profile
 ```
 
 The explicit dimension is required only when startup fixture seeding is active
@@ -117,9 +130,9 @@ explicitly skipped for non-deterministic lanes.
 Run the deterministic Recall workflow directly:
 
 ```powershell
-bun run test:tauri:e2e:recall
-bun run test:tauri:e2e:recall:curated
-bun run test:tauri:e2e:recall:chat
+bun run test:tauri:e2e -- --preset recall-vector
+bun run test:tauri:e2e -- --preset recall-curated
+bun run test:tauri:e2e -- --preset recall-chat
 ```
 
 The Chat command runs two sequential Tauri launches against the same isolated
@@ -134,7 +147,7 @@ Retrieval ranking is recorded separately by `recall-vector-workflow.spec.ts`.
 Select the larger reviewed corpus explicitly:
 
 ```powershell
-bun run test:tauri:e2e -- --corpus-mode curated --spec tests/tauri-e2e/specs/recall-runtime-fixture.spec.ts
+bun run test:tauri:e2e -- --preset recall-curated
 ```
 
 The external backup lane is opt-in and requires `AIO_E2E_RECALL_SOURCE`.
@@ -157,14 +170,14 @@ records the source path, library name, content, or vectors.
 
 ```powershell
 $env:AIO_E2E_RECALL_SOURCE = "E:\\path\\to\\backup.aio-kb"
-bun run test:tauri:e2e:recall:corpus
+bun run test:tauri:e2e -- --preset corpus-sample
 ```
 
 After the quick path passes, run the full count and process-restart gate at the
 end of the review:
 
 ```powershell
-bun run test:tauri:e2e:recall:corpus:full
+bun run test:tauri:e2e -- --preset corpus-full
 ```
 
 Both paths use production `recall_inspect_backup` and `recall_import_backup`

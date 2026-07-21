@@ -1,6 +1,6 @@
 # Recall 自动化测试、精简 OAI 渠道与真实向量请求实施计划
 
-**状态**: 收口中（Phase 1 至 Phase 4 完成；Phase 5 Ollama transport/state lane 完成，真实 Chat evidence 仍不作精确验收）
+**状态**: 已完成（Phase 1 至 Phase 5 与测试入口收口完成；真实 Chat evidence 仍不作精确验收）
 
 **创建日期**: 2026-07-20  
 **最近修订**: 2026-07-21
@@ -55,6 +55,7 @@ Phase 5 的 transport/state lane 已完成：runner 新增 Chat `/v1/chat/comple
 - Phase 4 已用当前 473 条样本完成全量向量化（约 2 分钟）和第二进程恢复复验；Phase 5 真实 Chat evidence 需要额外的脱敏 prompt 观测链路才能升级为精确验收。
 - `external-sample` 实测完整导入后 3 条批量向量化 spec 约 7 秒，`external-full` 当前全量 spec 约 119 秒；常规开发反馈使用前者，后者只作为最终数量与恢复门槛。
 - 根 `package.json` 的 Tauri E2E scripts 已随各阶段 lane 增长到 11 个，其中多数只是 `run.ts` 的参数组合。收口阶段保留验收矩阵，但把组合知识迁入 `tests/tauri-e2e/` 的具名 preset registry，避免根 scripts 继续随 corpus、模型和恢复维度组合增长；具体迁移见第 8 节。
+- 第 8 节收口已完成：新增 9 个具名 preset、`--list-presets`、装配参数冲突检查和前置条件策略；根 scripts 仅保留通用、纯逻辑与 native 三个入口，相关 README 与测试指南已统一迁移到 preset ID。
 
 ---
 
@@ -643,9 +644,9 @@ preset 只是现有 runner option 的具名装配层，不复制 WDIO 启动、f
 
 ### 8.3 迁移与完成门槛
 
-该收拢在测试计划收口阶段一次完成，不长期保留旧的细分 package aliases，否则无法实现减少根命令数量的目标。迁移必须同步修改本计划、`tests/tauri-e2e/README.md`、工具测试指南、Windows UI Automation 说明以及仓库内所有命令引用；若 workflow 或外部发布脚本出现新引用，必须在删除旧入口前一并迁移。
+该收拢已在测试计划收口阶段一次完成，未长期保留旧的细分 package aliases。迁移同步修改了本计划、`tests/tauri-e2e/README.md`、工具测试指南和 Windows UI Automation 说明；仓库内没有 workflow 或外部发布脚本继续引用旧入口。
 
-完成门槛：
+完成结果：
 
 - preset registry 的解析、未知 preset、冲突参数、缺少前置环境变量和 `--list-presets` 有纯逻辑测试；
 - 每个 preset 展开后的 runner options 与迁移前对应 package script 等价；
@@ -686,7 +687,7 @@ preset 只是现有 runner option 的具名装配层，不复制 WDIO 启动、f
 - 从 UI 触发向量化与 semantic search。
 - 先跑 smoke 再跑 curated 语料，断言文档 embedding、query embedding、向量状态、稳定排名、重复标题 ID 和 hard negative。
 
-完成门槛：`test:tauri:e2e:recall` 在全新隔离数据根中无需人工点击即可通过。
+完成门槛：`test:tauri:e2e -- --preset recall-vector` 在全新隔离数据根中无需人工点击即可通过。
 
 ### Phase 3：预置 Agent、Chat 与会话恢复
 
@@ -734,3 +735,4 @@ preset 只是现有 runner option 的具名装配层，不复制 WDIO 启动、f
 7. 真实 Ollama lane 与 deterministic lane 明确分离，不发生静默降级。
 8. 私有渠道文件保持 Git ignored；未显式选择 channel 时不会发起任何真实或付费请求。
 9. 前端改动通过 Recall Vitest、类型检查和 Vite build；Rust 改动通过定向单测与 backend check；真实流程通过 Tauri WebView 验证。
+10. Tauri E2E 组合知识集中在具名 preset registry；根 scripts 不再复制 Recall spec、scenario、corpus 或模型 lane 参数。

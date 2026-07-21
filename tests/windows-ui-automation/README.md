@@ -21,6 +21,10 @@ Run the integrated native suite with:
 bun run test:tauri:e2e:native
 ```
 
+The short alias delegates to the `native` preset. The equivalent generic entry
+point is `bun run test:tauri:e2e -- --preset native`; use
+`bun run test:tauri:e2e -- --list-presets` to inspect its runtime requirements.
+
 The Bun runner builds the helper, creates isolated file/directory fixtures,
 and passes the executable and fixture paths to WDIO. The normal
 `bun run test:tauri:e2e` command does not build or require the helper.

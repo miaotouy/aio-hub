@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { parseE2eRunnerOptions } from "./runner-options";
+import { formatPresetList, parseE2eRunnerOptions } from "./runner-options";
+import { E2E_PRESETS, missingPresetPrerequisites } from "./presets";
 
 describe("Tauri E2E runner options", () => {
   it("keeps WDIO arguments and defaults to the deterministic lane", () => {
     expect(
       parseE2eRunnerOptions(["--spec", "specs/smoke.spec.ts"], {})
     ).toEqual({
+      presetId: undefined,
+      listPresetsRequested: false,
       nativeUiEnabled: false,
       corpusMode: "smoke",
       lane: { kind: "deterministic-mock" },
@@ -25,6 +28,8 @@ describe("Tauri E2E runner options", () => {
         }
       )
     ).toEqual({
+      presetId: undefined,
+      listPresetsRequested: false,
       nativeUiEnabled: true,
       corpusMode: "curated",
       lane: {
@@ -38,6 +43,232 @@ describe("Tauri E2E runner options", () => {
       restartSpec: undefined,
       requiredScenarioIds: [],
     });
+  });
+
+  it("expands every migrated package script through a named preset", () => {
+    const deterministicDefaults = {
+      listPresetsRequested: false,
+      nativeUiEnabled: false,
+      corpusMode: "smoke",
+      lane: { kind: "deterministic-mock" },
+      restartSpec: undefined,
+      requiredScenarioIds: [],
+    } as const;
+
+    expect(parseE2eRunnerOptions(["--preset", "recall-vector"], {})).toEqual({
+      ...deterministicDefaults,
+      presetId: "recall-vector",
+      wdioArgs: [
+        "--spec",
+        "tests/tauri-e2e/specs/recall-vector-workflow.spec.ts",
+      ],
+    });
+    expect(parseE2eRunnerOptions(["--preset", "recall-curated"], {})).toEqual({
+      ...deterministicDefaults,
+      presetId: "recall-curated",
+      corpusMode: "curated",
+      wdioArgs: [
+        "--spec",
+        "tests/tauri-e2e/specs/recall-vector-workflow.spec.ts",
+      ],
+    });
+    expect(parseE2eRunnerOptions(["--preset", "recall-chat"], {})).toEqual({
+      ...deterministicDefaults,
+      presetId: "recall-chat",
+      restartSpec: "tests/tauri-e2e/specs/recall-session-recovery.spec.ts",
+      requiredScenarioIds: [
+        "renderer-positive",
+        "no-result",
+        "missing-evidence-fail-closed",
+        "memory-ownership",
+      ],
+      wdioArgs: [
+        "--spec",
+        "tests/tauri-e2e/specs/recall-chat-injection.spec.ts",
+      ],
+    });
+    expect(parseE2eRunnerOptions(["--preset", "corpus-sample"], {})).toEqual({
+      ...deterministicDefaults,
+      presetId: "corpus-sample",
+      corpusMode: "external-sample",
+      wdioArgs: [
+        "--spec",
+        "tests/tauri-e2e/specs/recall-external-corpus.spec.ts",
+      ],
+    });
+    expect(parseE2eRunnerOptions(["--preset=corpus-full"], {})).toEqual({
+      ...deterministicDefaults,
+      presetId: "corpus-full",
+      corpusMode: "external-full",
+      restartSpec:
+        "tests/tauri-e2e/specs/recall-external-corpus-recovery.spec.ts",
+      wdioArgs: [
+        "--spec",
+        "tests/tauri-e2e/specs/recall-external-corpus.spec.ts",
+      ],
+    });
+    expect(
+      parseE2eRunnerOptions(["--preset", "ollama-vector"], {
+        AIO_E2E_OLLAMA_MODEL: "embedding",
+      })
+    ).toEqual({
+      presetId: "ollama-vector",
+      listPresetsRequested: false,
+      nativeUiEnabled: false,
+      corpusMode: "smoke",
+      lane: {
+        kind: "ollama",
+        baseUrl: "http://127.0.0.1:11434",
+        chatModelId: undefined,
+        embeddingModelId: "embedding",
+        requireAvailable: false,
+      },
+      wdioArgs: [
+        "--spec",
+        "tests/tauri-e2e/specs/recall-vector-workflow.spec.ts",
+      ],
+      restartSpec: undefined,
+      requiredScenarioIds: [],
+    });
+    expect(
+      parseE2eRunnerOptions(["--preset", "ollama-chat"], {
+        AIO_E2E_OLLAMA_MODEL: "embedding",
+        AIO_E2E_OLLAMA_CHAT_MODEL: "chat",
+      })
+    ).toEqual({
+      presetId: "ollama-chat",
+      listPresetsRequested: false,
+      nativeUiEnabled: false,
+      corpusMode: "smoke",
+      lane: {
+        kind: "ollama",
+        baseUrl: "http://127.0.0.1:11434",
+        embeddingModelId: "embedding",
+        chatModelId: "chat",
+        requireAvailable: false,
+      },
+      wdioArgs: [
+        "--spec",
+        "tests/tauri-e2e/specs/recall-chat-injection.spec.ts",
+      ],
+      restartSpec: "tests/tauri-e2e/specs/recall-session-recovery.spec.ts",
+      requiredScenarioIds: [
+        "renderer-positive",
+        "no-result",
+        "memory-ownership",
+      ],
+    });
+    expect(
+      parseE2eRunnerOptions(["--preset", "private-profile"], {
+        AIO_E2E_LLM_CONFIG: ".dev-data/profiles.json",
+        AIO_E2E_LLM_PROFILE_ID: "private",
+        AIO_E2E_CHAT_MODEL_ID: "chat",
+        AIO_E2E_EMBEDDING_MODEL_ID: "embedding",
+      })
+    ).toEqual({
+      presetId: "private-profile",
+      listPresetsRequested: false,
+      nativeUiEnabled: false,
+      corpusMode: "smoke",
+      lane: {
+        kind: "private-profile",
+        configPath: ".dev-data/profiles.json",
+        profileId: "private",
+        chatModelId: "chat",
+        embeddingModelId: "embedding",
+        embeddingDimension: undefined,
+      },
+      wdioArgs: [
+        "--spec",
+        "tests/tauri-e2e/specs/recall-vector-workflow.spec.ts",
+      ],
+      restartSpec: undefined,
+      requiredScenarioIds: [],
+    });
+    expect(parseE2eRunnerOptions(["--preset", "native"], {})).toEqual({
+      ...deterministicDefaults,
+      presetId: "native",
+      nativeUiEnabled: true,
+      wdioArgs: [],
+    });
+  });
+
+  it("keeps preset assembly authoritative over legacy lane environment", () => {
+    expect(
+      parseE2eRunnerOptions(["--preset", "recall-vector"], {
+        AIO_E2E_NATIVE_UI: "1",
+        AIO_E2E_VECTOR_MODE: "ollama",
+        AIO_E2E_CORPUS_MODE: "external-full",
+        AIO_E2E_LLM_PROFILE_ID: "private",
+      })
+    ).toMatchObject({
+      nativeUiEnabled: false,
+      corpusMode: "smoke",
+      lane: { kind: "deterministic-mock" },
+    });
+
+    expect(
+      parseE2eRunnerOptions(["--preset", "ollama-vector"], {
+        AIO_E2E_OLLAMA_MODEL: "embedding",
+        AIO_E2E_OLLAMA_CHAT_MODEL: "chat-must-not-activate",
+      }).lane
+    ).toEqual({
+      kind: "ollama",
+      baseUrl: "http://127.0.0.1:11434",
+      embeddingModelId: "embedding",
+      requireAvailable: false,
+    });
+  });
+
+  it("rejects unknown presets and preset assembly conflicts", () => {
+    expect(() => parseE2eRunnerOptions(["--preset", "unknown"], {})).toThrow(
+      "Unknown Tauri E2E preset"
+    );
+    expect(() =>
+      parseE2eRunnerOptions(
+        ["--preset", "recall-vector", "--corpus-mode=curated"],
+        {}
+      )
+    ).toThrow("cannot be combined with assembly options");
+    expect(() =>
+      parseE2eRunnerOptions(["--list-presets", "--preset", "native"], {})
+    ).toThrow("cannot be combined");
+  });
+
+  it("reports and enforces preset prerequisite policies", () => {
+    const corpusPreset = E2E_PRESETS.find(
+      (preset) => preset.id === "corpus-sample"
+    )!;
+    expect(missingPresetPrerequisites(corpusPreset, {})).toMatchObject([
+      { env: "AIO_E2E_RECALL_SOURCE", missing: "skip" },
+    ]);
+    expect(() =>
+      parseE2eRunnerOptions(["--preset", "ollama-chat"], {
+        AIO_E2E_OLLAMA_MODEL: "embedding",
+      })
+    ).toThrow("AIO_E2E_OLLAMA_CHAT_MODEL");
+    expect(() =>
+      parseE2eRunnerOptions(["--preset", "private-profile"], {})
+    ).toThrow("AIO_E2E_LLM_CONFIG");
+  });
+
+  it("lists purpose, prerequisites, skip/fail policy, and restart behavior", () => {
+    const listed = parseE2eRunnerOptions(["--list-presets"], {
+      AIO_E2E_VECTOR_MODE: "ollama",
+      AIO_E2E_LLM_PROFILE_ID: "private-profile",
+    });
+    expect(listed.listPresetsRequested).toBe(true);
+    expect(listed.lane).toEqual({ kind: "deterministic-mock" });
+    expect(listed.wdioArgs).toEqual([]);
+
+    const output = formatPresetList();
+    expect(output).toContain("corpus-full");
+    expect(output).toContain("AIO_E2E_RECALL_SOURCE (skip)");
+    expect(output).toContain("AIO_E2E_OLLAMA_MODEL (fail)");
+    expect(output).toContain("restart: yes");
+    expect(output).toContain("Windows 10+, .NET 8");
+    expect(output).toContain("interactive desktop (fail)");
+    expect(output).toContain("AIO_E2E_EMBEDDING_DIMENSION (fail");
   });
 
   it("gives the CLI profile ID precedence over the environment", () => {

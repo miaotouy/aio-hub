@@ -1,8 +1,12 @@
+import {
+  formatPresetList,
+  missingPresetPrerequisites,
+  resolvePresetArgs,
+  type E2ePresetId,
+} from "./presets";
+
 export type RecallCorpusMode =
-  | "smoke"
-  | "curated"
-  | "external-sample"
-  | "external-full";
+  "smoke" | "curated" | "external-sample" | "external-full";
 
 export function isExternalCorpusMode(mode: RecallCorpusMode): boolean {
   return mode === "external-sample" || mode === "external-full";
@@ -27,6 +31,8 @@ export type RunnerLaneRequest =
     };
 
 export interface E2eRunnerOptions {
+  presetId?: E2ePresetId;
+  listPresetsRequested: boolean;
   nativeUiEnabled: boolean;
   corpusMode: RecallCorpusMode;
   lane: RunnerLaneRequest;
@@ -77,10 +83,50 @@ export function parseE2eRunnerOptions(
   args: string[],
   env: NodeJS.ProcessEnv = process.env
 ): E2eRunnerOptions {
+  const resolvedPreset = resolvePresetArgs(args);
+  if (resolvedPreset.listPresetsRequested) {
+    return {
+      presetId: undefined,
+      listPresetsRequested: true,
+      nativeUiEnabled: false,
+      corpusMode: "smoke",
+      lane: { kind: "deterministic-mock" },
+      wdioArgs: [],
+      restartSpec: undefined,
+      requiredScenarioIds: [],
+    };
+  }
+
+  const effectiveEnv = { ...env };
+  if (resolvedPreset.preset) {
+    delete effectiveEnv.AIO_E2E_NATIVE_UI;
+    delete effectiveEnv.AIO_E2E_VECTOR_MODE;
+    delete effectiveEnv.AIO_E2E_CORPUS_MODE;
+    if (resolvedPreset.preset.id !== "private-profile") {
+      delete effectiveEnv.AIO_E2E_LLM_PROFILE_ID;
+    }
+    if (resolvedPreset.preset.id === "ollama-vector") {
+      delete effectiveEnv.AIO_E2E_OLLAMA_CHAT_MODEL;
+    }
+
+    const failedPrerequisites = missingPresetPrerequisites(
+      resolvedPreset.preset,
+      effectiveEnv
+    ).filter((item) => item.missing === "fail");
+    if (failedPrerequisites.length > 0) {
+      throw new Error(
+        `Preset ${resolvedPreset.preset.id} requires: ${failedPrerequisites
+          .map((item) => item.env)
+          .join(", ")}.`
+      );
+    }
+  }
+
+  args = resolvedPreset.args;
   const wdioArgs: string[] = [];
-  let nativeUiEnabled = env.AIO_E2E_NATIVE_UI === "1";
-  let vectorMode = env.AIO_E2E_VECTOR_MODE?.trim() || "mock";
-  let corpusMode = env.AIO_E2E_CORPUS_MODE?.trim() || "smoke";
+  let nativeUiEnabled = effectiveEnv.AIO_E2E_NATIVE_UI === "1";
+  let vectorMode = effectiveEnv.AIO_E2E_VECTOR_MODE?.trim() || "mock";
+  let corpusMode = effectiveEnv.AIO_E2E_CORPUS_MODE?.trim() || "smoke";
   let cliProfileId: string | undefined;
   let privateProfileRequested = false;
   let restartSpec: string | undefined;
@@ -148,7 +194,7 @@ export function parseE2eRunnerOptions(
     throw new Error(`Unsupported corpus mode: ${corpusMode}.`);
   }
 
-  const envProfileId = env.AIO_E2E_LLM_PROFILE_ID?.trim();
+  const envProfileId = effectiveEnv.AIO_E2E_LLM_PROFILE_ID?.trim();
   privateProfileRequested ||= !!envProfileId;
   if (privateProfileRequested && vectorMode === "ollama") {
     throw new Error(
@@ -160,37 +206,44 @@ export function parseE2eRunnerOptions(
   if (privateProfileRequested) {
     lane = {
       kind: "private-profile",
-      configPath: requireValue(env.AIO_E2E_LLM_CONFIG, "AIO_E2E_LLM_CONFIG"),
+      configPath: requireValue(
+        effectiveEnv.AIO_E2E_LLM_CONFIG,
+        "AIO_E2E_LLM_CONFIG"
+      ),
       profileId: requireValue(cliProfileId || envProfileId, "LLM profile ID"),
       chatModelId: requireValue(
-        env.AIO_E2E_CHAT_MODEL_ID,
+        effectiveEnv.AIO_E2E_CHAT_MODEL_ID,
         "AIO_E2E_CHAT_MODEL_ID"
       ),
       embeddingModelId: requireValue(
-        env.AIO_E2E_EMBEDDING_MODEL_ID,
+        effectiveEnv.AIO_E2E_EMBEDDING_MODEL_ID,
         "AIO_E2E_EMBEDDING_MODEL_ID"
       ),
       embeddingDimension: optionalPositiveInteger(
-        env.AIO_E2E_EMBEDDING_DIMENSION,
+        effectiveEnv.AIO_E2E_EMBEDDING_DIMENSION,
         "AIO_E2E_EMBEDDING_DIMENSION"
       ),
     };
   } else if (vectorMode === "ollama") {
     lane = {
       kind: "ollama",
-      baseUrl: env.AIO_E2E_OLLAMA_BASE_URL?.trim() || "http://127.0.0.1:11434",
-      chatModelId: env.AIO_E2E_OLLAMA_CHAT_MODEL?.trim() || undefined,
+      baseUrl:
+        effectiveEnv.AIO_E2E_OLLAMA_BASE_URL?.trim() ||
+        "http://127.0.0.1:11434",
+      chatModelId: effectiveEnv.AIO_E2E_OLLAMA_CHAT_MODEL?.trim() || undefined,
       embeddingModelId: requireValue(
-        env.AIO_E2E_OLLAMA_MODEL,
+        effectiveEnv.AIO_E2E_OLLAMA_MODEL,
         "AIO_E2E_OLLAMA_MODEL"
       ),
-      requireAvailable: env.AIO_E2E_REQUIRE_OLLAMA === "1",
+      requireAvailable: effectiveEnv.AIO_E2E_REQUIRE_OLLAMA === "1",
     };
   } else {
     lane = { kind: "deterministic-mock" };
   }
 
   return {
+    presetId: resolvedPreset.preset?.id,
+    listPresetsRequested: resolvedPreset.listPresetsRequested,
     nativeUiEnabled,
     corpusMode: corpusMode as RecallCorpusMode,
     lane,
@@ -199,3 +252,5 @@ export function parseE2eRunnerOptions(
     requiredScenarioIds: [...new Set(requiredScenarioIds)],
   };
 }
+
+export { formatPresetList };

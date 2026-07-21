@@ -1,7 +1,7 @@
 # 移动端资产管理器调查与设计方案
 
-> 状态：待评审
-> 日期：2026-07-15
+> 状态：范围冻结，Android MVP 收尾（iOS 发布门禁待设备条件）
+> 日期：2026-07-15；2026-07-21 更新施工状态；2026-07-21 收敛范围
 > 范围：产品信息架构、移动端存储语义、数据模型与实施边界。本文件不包含功能实现。
 
 ## 1. 结论
@@ -36,12 +36,12 @@
 ### 2.2 移动端已有基础
 
 - 技术栈为 Tauri v2、Vue 3、TypeScript 与 Rust。
-- 已安装 `@tauri-apps/plugin-fs`，当前 capability 只允许应用数据目录读写。
-- `mobile/src/utils/fsUtils.ts` 仅封装了应用数据目录下的文本文件与目录操作，没有二进制资产服务。
-- 移动端尚未安装 dialog、SQL、相册、相机或分享相关插件。
-- `llm-chat` 的 `_attachments` 仍为 `any[]` 占位，架构文档已把完整 Asset 系统列为待办。
+- 已安装 `@tauri-apps/plugin-fs` 与 `@tauri-apps/plugin-dialog`；Android 系统选择器返回的 `content://` 已在正式资产导入/导出链验证。由于 `tauri-plugin-fs` 2.5.1 对测试 provider 使用 `openAssetFileDescriptor` 会失败，正式链由 Android `AssetContentPlugin` 调用 `ContentResolver.openFileDescriptor`，再交给 Rust 流式处理；应用数据目录仍只通过受控 capability 与 Rust 领域命令访问。
+- 通用 `mobile/src/utils/fsUtils.ts` 仍只封装应用数据目录下的文本文件与目录操作；Phase 1 已新增独立 Rust 二进制资产服务，不把二进制职责塞回通用工具。
+- Rust 已引入 SQLx 与 bundled SQLite 验证依赖，`ui-tester` 已具备平台文件和 SQLite 固定验证板块；Android 分享 bridge 已接入，相机 bridge 已实现但仍需有相机 Activity 的设备验收。
+- `llm-chat` 的 `_attachments` 已改为 `ManagedAssetRef`，并完成 `chat_attachments`/usage outbox、聊天内 ready 资产选择、provider wire、实时 reclaimed/missing 状态降级、受控图片预览和本地消息搜索；真实上游发送验收仍待完成。
 - `agent-manager` 的 `assets` 与 `assetGroups` 仍是占位类型，但其桌面端语义是智能体私有资产，不应因此并入全局资产库。
-- 工作区已有“一模块一数据库”的移动端 SQLite 计划，但尚未形成资产库实现。
+- 工作区已有“一模块一数据库”的移动端 SQLite 计划；Phase 1 首批已建立资产库 migration 与 repository，尚未接用户界面和聊天消费者。
 
 因此，资产管理器不是一个孤立工具页。它会成为聊天附件、媒体生成输入输出和后续通用导入/导出能力的共同依赖。智能体私有资产只在用户明确执行“复制到智能体”或“从智能体复制到资产库”时与全局资产发生内容复制，不共享物理对象或生命周期。
 
@@ -51,19 +51,21 @@
 
 Android 10 及以上以分区存储为默认边界。应用可以无额外存储权限地访问自己的私有目录，但不能把公共存储当成 PC 文件系统任意遍历。
 
-| 机制 | 适合用途 | 生命周期与限制 |
-| --- | --- | --- |
-| 应用私有 Files/AppData | 托管原件、SQLite、不可丢失的衍生数据 | 卸载时删除；普通文件管理器不可直接管理；不需要存储权限 |
-| 应用私有 Cache | 缩略图、视频封面、波形、临时导入文件 | 空间紧张时可被系统清理；必须允许重建 |
-| Storage Access Framework | 用户从系统文件提供方选择文档 | 返回 `content://` URI；一次授权不等于永久路径；长期引用需持久 URI 权限且提供方必须支持 |
-| 系统 Photo Picker | 用户选择指定图片或视频 | 不需要全量相册权限；适合隐私优先的选择式导入 |
-| MediaStore | 将图片、视频或音频保存到系统媒体库 | 适合“保存到相册/媒体库”，不适合作为 AIO 私有资产索引 |
-| Android 分享 Intent | 从其他应用接收一个或多个文件 | URI 授权通常跟随 Intent 生命周期；应尽快复制到导入暂存区 |
+| 机制                     | 适合用途                             | 生命周期与限制                                                                         |
+| ------------------------ | ------------------------------------ | -------------------------------------------------------------------------------------- |
+| 应用私有 Files/AppData   | 托管原件、SQLite、不可丢失的衍生数据 | 卸载时删除；普通文件管理器不可直接管理；不需要存储权限                                 |
+| 应用私有 Cache           | 缩略图、视频封面、波形、临时导入文件 | 空间紧张时可被系统清理；必须允许重建                                                   |
+| Storage Access Framework | 用户从系统文件提供方选择文档         | 返回 `content://` URI；一次授权不等于永久路径；长期引用需持久 URI 权限且提供方必须支持 |
+| 系统 Photo Picker        | 用户选择指定图片或视频               | 不需要全量相册权限；适合隐私优先的选择式导入                                           |
+| MediaStore               | 将图片、视频或音频保存到系统媒体库   | 适合“保存到相册/媒体库”，不适合作为 AIO 私有资产索引                                   |
+| Android 分享 Intent      | 从其他应用接收一个或多个文件         | URI 授权通常跟随 Intent 生命周期；应尽快复制到导入暂存区                               |
 
 设计影响：
 
 - 数据库不得把 Android `content://` 当作普通绝对路径。
 - 分享入口和普通文件选择器得到的 URI 应先进入暂存导入流程，再变成托管资产。
+- `content://` 的正式读写不能假定 plugin-fs 对所有 provider 兼容。当前 Android bridge 只为导入/导出打开 provider 文件描述符，并在同一 bridge 查询 MIME 与展示名；URI 本身不写入资产对象路径。
+- Photo Picker 某些 provider 返回无语义的数字展示名（可能带 MIME 扩展名，例如 `1000000179.png`）；导入链在 `photo_picker` 来源下以 MIME 生成稳定格式的 `photo-<随机后缀>.<扩展名>` 或 `video-<随机后缀>.<扩展名>`，不改写正常文件名。
 - 如果后续支持外部长期引用，需要原生插件调用 `takePersistableUriPermission`，并处理权限被撤销、文档被移动、云端内容暂不可用等状态。
 - 不应为了“浏览所有照片”默认申请全量媒体读取权限。Android 13/14 的媒体权限与部分照片授权会让该方案更复杂，也不符合首版最小权限目标。
 
@@ -71,14 +73,14 @@ Android 10 及以上以分区存储为默认边界。应用可以无额外存储
 
 iOS 应用运行在沙盒中。应用自己的 Documents、Library/Application Support、Library/Caches 和 tmp 具有不同的备份及清理语义，外部文件提供方并不是可永久信任的普通路径。
 
-| 机制 | 适合用途 | 生命周期与限制 |
-| --- | --- | --- |
-| Application Support | 托管原件、SQLite、不可重建的元数据 | 应用私有；默认可能参与备份，需按产品备份策略设置排除属性 |
-| Caches | 缩略图、波形、可重建转码 | 系统可清理；不能存唯一原件 |
-| tmp | 单次导入、导出与分享的中间文件 | 系统可随时清理；任务完成后主动释放 |
-| Document Picker | 从 Files/iCloud Drive/第三方提供方选择文档 | Tauri dialog 返回 `file://` URI；长期原地访问需安全作用域书签与失效恢复 |
-| Photos Picker | 用户选择指定照片或视频 | 适合最小权限导入；选择结果应复制到托管库 |
-| Share Sheet / Photo Library | 导出到其他应用、Files 或照片库 | 应由系统分享/保存入口承接，不使用“打开所在目录”概念 |
+| 机制                        | 适合用途                                   | 生命周期与限制                                                          |
+| --------------------------- | ------------------------------------------ | ----------------------------------------------------------------------- |
+| Application Support         | 托管原件、SQLite、不可重建的元数据         | 应用私有；默认可能参与备份，需按产品备份策略设置排除属性                |
+| Caches                      | 缩略图、波形、可重建转码                   | 系统可清理；不能存唯一原件                                              |
+| tmp                         | 单次导入、导出与分享的中间文件             | 系统可随时清理；任务完成后主动释放                                      |
+| Document Picker             | 从 Files/iCloud Drive/第三方提供方选择文档 | Tauri dialog 返回 `file://` URI；长期原地访问需安全作用域书签与失效恢复 |
+| Photos Picker               | 用户选择指定照片或视频                     | 适合最小权限导入；选择结果应复制到托管库                                |
+| Share Sheet / Photo Library | 导出到其他应用、Files 或照片库             | 应由系统分享/保存入口承接，不使用“打开所在目录”概念                     |
 
 设计影响：
 
@@ -103,7 +105,6 @@ iOS 应用运行在沙盒中。应用自己的 Documents、Library/Application S
 3. 支持搜索、按类型筛选、预览、分享/导出、查看来源和使用位置。
 4. 清晰展示 AIO Hub 占用空间，并按月份、来源、类型和影响范围安全回收原件、缓存与失败任务。
 5. 为聊天附件与媒体生成等共享工作集提供稳定的 `assetId` 和读取接口。
-6. 支持将音视频或文档批量转写/提取为文本，在消费者完成替代后删除原件。
 
 ### 4.2 首版不做
 
@@ -134,11 +135,11 @@ iOS 应用运行在沙盒中。应用自己的 Documents、Library/Application S
 
 全局资产、智能体私有资产和缓存具有不同的所有权，不能只因为内容格式相同就合并存储：
 
-| 类别 | 所有者 | 生命周期 | 全局资产 ID |
-| --- | --- | --- | --- |
-| 全局可回收资产 | `asset-manager` | 可按时间、来源、类型或影响范围清理；可由用户固定保留 | 有 |
-| 智能体私有资产 | `agent-manager` | 随智能体导入、导出、复制和删除；Handle 与相对路径属于智能体包契约 | 无 |
-| 可重建缓存 | 产生缓存的模块或资产服务 | 可自动清理并按需重建 | 仅关联到原资产，不作为独立业务资产 |
+| 类别           | 所有者                   | 生命周期                                                          | 全局资产 ID                        |
+| -------------- | ------------------------ | ----------------------------------------------------------------- | ---------------------------------- |
+| 全局可回收资产 | `asset-manager`          | 可按时间、来源、类型或影响范围清理；可由用户固定保留              | 有                                 |
+| 智能体私有资产 | `agent-manager`          | 随智能体导入、导出、复制和删除；Handle 与相对路径属于智能体包契约 | 无                                 |
+| 可重建缓存     | 产生缓存的模块或资产服务 | 可自动清理并按需重建                                              | 仅关联到原资产，不作为独立业务资产 |
 
 “可回收”不等于系统可以无提示随时删除。自动任务默认只清理缓存、临时文件和失败任务；删除托管原件需要用户明确操作或用户启用的保留策略。业务引用决定提示强度和替代流程，不把所有引用一律解释为永久保留。
 
@@ -178,20 +179,20 @@ iOS 应用运行在沙盒中。应用自己的 Documents、Library/Application S
 
 ### 6.1 `assets`
 
-| 字段 | 说明 |
-| --- | --- |
-| `id` | UUID，跨工具稳定引用 |
-| `content_hash` | 托管内容 SHA-256，唯一索引 |
-| `kind` | image/audio/video/document/other |
-| `mime_type` | 标准 MIME |
-| `display_name` | 当前展示名称，不作为物理文件名 |
-| `size_bytes` | 原件大小 |
-| `storage_mode` | managed/linked；首版只创建 managed |
-| `relative_path` | 托管原件相对路径，linked 时为空 |
-| `availability` | ready/importing/reclaimed/missing/error；reclaimed 表示用户主动回收原件 |
-| `library_state` | visible/hidden |
-| `retention_policy` | reclaimable/pinned；默认 reclaimable |
-| `created_at` / `updated_at` | UTC 时间 |
+| 字段                        | 说明                                                                    |
+| --------------------------- | ----------------------------------------------------------------------- |
+| `id`                        | UUID，跨工具稳定引用                                                    |
+| `content_hash`              | 托管内容 SHA-256，唯一索引                                              |
+| `kind`                      | image/audio/video/document/other                                        |
+| `mime_type`                 | 标准 MIME                                                               |
+| `display_name`              | 当前展示名称，不作为物理文件名                                          |
+| `size_bytes`                | 原件大小                                                                |
+| `storage_mode`              | managed/linked；首版只创建 managed                                      |
+| `relative_path`             | 托管原件相对路径，linked 时为空                                         |
+| `availability`              | ready/importing/reclaimed/missing/error；reclaimed 表示用户主动回收原件 |
+| `library_state`             | visible/hidden                                                          |
+| `retention_policy`          | reclaimable/pinned；默认 reclaimable                                    |
+| `created_at` / `updated_at` | UTC 时间                                                                |
 
 ### 6.2 `asset_origins`
 
@@ -252,13 +253,13 @@ interface ManagedAssetRef {
 
 建议统一为三类操作：
 
-| 操作 | 行为 | 风险 |
-| --- | --- | --- |
-| 从资产库隐藏 | 不再出现在普通资产列表，保留原件与业务引用 | 可恢复，低风险 |
-| 清理可重建内容 | 删除缩略图、波形、临时导出、失败导入 | 可自动重建，低风险 |
-| 删除无引用原件 | 删除未被业务使用且未固定保留的托管原件 | 不可恢复，中风险 |
+| 操作                   | 行为                                                                               | 风险                               |
+| ---------------------- | ---------------------------------------------------------------------------------- | ---------------------------------- |
+| 从资产库隐藏           | 不再出现在普通资产列表，保留原件与业务引用                                         | 可恢复，低风险                     |
+| 清理可重建内容         | 删除缩略图、波形、临时导出、失败导入                                               | 可自动重建，低风险                 |
+| 删除无引用原件         | 删除未被业务使用且未固定保留的托管原件                                             | 不可恢复，中风险                   |
 | 删除有建议型引用的原件 | 展示受影响位置，确认后删除物理原件并保留 `reclaimed` tombstone；消费者保留轻量快照 | 历史附件或结果无法再次打开，高风险 |
-| 删除有阻止型引用的原件 | 拒绝删除，要求先解除引用、取消保留或完成文本替代 | 防止违反用户明确的保留承诺 |
+| 删除有阻止型引用的原件 | 拒绝删除，要求先解除引用、取消保留或完成文本替代                                   | 防止违反用户明确的保留承诺         |
 
 详情页和批量清理确认页应显示“正在被 3 个对话使用”等影响信息，并提供跳转查看使用位置。删除原件不级联删除聊天消息或生成任务；消费者必须能在原件不存在时继续加载，并根据 `reclaimed` tombstone 明确展示“原件已清理”，不能与 `missing` 故障混为一谈。
 
@@ -270,9 +271,9 @@ interface ManagedAssetRef {
 - 没有 `blocking` usage；
 - 若存在 `advisory` usage，进入“有影响可清理”分组并要求额外确认。
 
-### 7.1 转写或文本提取后删除
+### 7.1 后续：转写或文本提取后删除
 
-“批量转写后删除原件”是跨模块替代流程，不由 Rust 资产服务自行调用模型：
+“批量转写后删除原件”是 Phase 3 的跨模块替代流程，不由 Rust 资产服务自行调用模型：
 
 1. 资产管理器按类型、月份或来源筛选音视频和文档，并查询 usage 影响。
 2. 前端编排层调用已有 LLM/转写能力生成文本；资产服务只提供受控读取和任务进度。
@@ -281,6 +282,8 @@ interface ManagedAssetRef {
 5. 全部阻止型引用解除后删除托管原件；失败项保留原件并允许重试。
 
 该流程必须逐项可恢复，不能在文本尚未持久化时先删除原件，也不能因为部分项目失败而回滚已经成功保存的其他项目。
+
+实施状态（2026-07-21）：已完成首批 UTF-8 文本文档到 `llm-chat` 附件快照的替代闭环。资产服务受控读取不超过 2 MiB 的文本类原件；聊天库先在自身事务中写入 `extractedText`、将 blocking usage 降为 advisory 并写 outbox，前端确认 outbox 投递和删除影响后才清理原件。音视频转写、PDF/Office 提取和其他消费者仍未接入。
 
 ## 8. 信息架构与交互
 
@@ -321,7 +324,7 @@ interface ManagedAssetRef {
 - 点击资产进入全屏详情，不用桌面端单击选择语义。
 - 长按进入多选，底部出现“分享、隐藏、删除”上下文操作栏。
 - 搜索按钮展开为整行搜索输入，结果按最近使用排序。
-- 类型使用横向可滚动筛选控件；月份、来源、使用影响和保留策略等复杂条件进入底部筛选面板。
+- 首版将类型、可见状态、来源、保留策略和使用影响放在搜索框下方的可换行筛选区，月份使用横向 facets；条件继续增长时再收进底部筛选面板，不为当前五项查询条件额外建设一层入口。
 - 视觉资产使用稳定的 1:1 三列网格，文档和无预览文件使用同尺寸类型占位，避免布局跳动。
 - 平板或横屏可增加列数，但不切换为 PC 侧边栏布局。
 
@@ -452,6 +455,21 @@ interface ManagedAssetRef {
 
 ## 12. 实施分期
 
+### 12.0 范围冻结与状态口径
+
+本文件是资产管理器的唯一施工范围来源。`mobile-current-implementation-audit.md` 只记录移动端全局盘点，`platform-validation-workbench-plan.md` 只记录验证工具和平台能力；两者不得重新打开本文件已冻结的产品范围。
+
+当前目标是完成 Android 资产 MVP 的主链收尾，不继续扩展旁支功能。已经落地但不属于本轮门禁的功能保留为历史实现，不能据此新增测试批次或改变 MVP 完成条件。
+
+Android MVP 的停止条件：
+
+1. 文件/照片导入、内容寻址去重、列表/筛选/详情、基础媒体预览和导出可用。
+2. 删除影响分析、usage、reclaimed tombstone、缓存清理、导入恢复和修复命令可用。
+3. `ManagedAssetRef` 至少完成一个真实聊天附件消费者，并通过一次真实上游模型发送验收。
+4. Android 真机完成一次导入、预览、导出、删除影响和应用重启恢复主流程。
+
+相机、分享进入 AIO、文件关联、聊天搜索、批量转写/文本替代、PDF/Office 提取、音视频转写和跨设备同步不属于 Android MVP 停止条件。
+
 ### Phase 0：能力验证
 
 - 在 Android 与 iOS 真机验证 Tauri dialog 对大文件、云端文件、多个文件和取消操作的返回行为。
@@ -460,7 +478,15 @@ interface ManagedAssetRef {
 - 做原生照片选择、分享导入、分享导出的最小插件实验，确认首版范围。
 - 在 `ui-tester` 增加“平台文件”验证板块，所有自动场景返回结构化步骤与指标；后台、系统终止和云端文件等场景支持人工判定、跨重启续测和脱敏报告导出。
 
-交付物是固定验证命令、`ui-tester` 操作面板、Android/iOS 运行报告和 API 决策；不接正式资产业务 UI。详细设计见 [`platform-validation-workbench-plan.md`](../../src/tools/ui-tester/docs/Plan/platform-validation-workbench-plan.md)。
+交付物是固定验证命令、`ui-tester` 操作面板、按平台分别记录的运行报告和 API 决策；不接正式资产业务 UI。详细设计见 [`platform-validation-workbench-plan.md`](../../src/tools/ui-tester/docs/Plan/platform-validation-workbench-plan.md)。
+
+当前施工决议（2026-07-20）：
+
+- Android 11 真机已完成平台文件、SQLite、强杀恢复和大文件读取的首轮验证，可以支撑 Phase 1 的 Android 先行施工。
+- 当前开发环境缺少 iOS 编译与真机设备条件，iOS Phase 0 暂缓，不把缺失报告解释为通过，也不阻塞平台中立的资产内核与 Android 数据链施工。
+- iOS 补验仍是发布 iOS 资产能力前的门禁；涉及 security-scoped URL、备份排除、预览协议和分享/照片专用入口的实现不得仅依据 Android 行为冻结。
+- 正式导入链必须增加“系统 URI 由 Rust 资产命令直接打开并流式写入”的固定验证。现有 WebView 侧 plugin-fs 分块读取报告只证明选择结果可读，不替代正式资产导入链验证。
+- Phase 0 按平台独立结论：Android 报告可以解除 Android MVP 的施工门禁；iOS 报告仍是 iOS 资产能力发布门禁。缺少 iOS 设备时不得重复阻塞 Android 内核，也不得把 Android 结果写成双平台通过。
 
 ### Phase 1：资产内核
 
@@ -471,16 +497,37 @@ interface ManagedAssetRef {
 - 扩展移动端原生 LLM 文件传输，使其接受 `managed-asset-ref` 并由 Rust 解析资产内容。
 - 优先接入一个真实消费者，建议 LLM Chat 附件，验证 advisory/blocking usage、附件快照和删除降级生命周期。
 
+当前进度：
+
+- [x] 建立 `asset_manager.db` migration、固定 SQLx 连接配置和资产模块状态。
+- [x] 建立系统引用直读、单遍 SHA-256、暂存、内容寻址落盘、去重来源追加和 tombstone ID 恢复的首批导入链。
+- [x] 建立资产列表、详情和按业务实体整体替换 usage 的首批领域命令与 TypeScript 服务契约。
+- [x] 建立启动恢复、待物理删除队列、删除影响分析、保留策略、安全删除、存储统计与手动修复命令。
+- [x] 建立持久化 import job、Channel 进度、任务查询、取消与进程中断恢复契约。
+- [x] 建立隐藏/恢复、月份与来源筛选聚合、可重建缓存定向/全库清理契约。
+- [x] 扩展共享 wire 类型与移动端原生 LLM 传输，使 `managed-asset-ref` 只携带 `assetId` 并由 Rust 内部解析。
+- [x] 建立短期 token、可撤销自定义协议、单 Range 读取和大原件响应上限的受控预览候选实现。
+- [x] 在 Android 模拟器 `emulator-5558` 验证 Rust command 通过原生 bridge 直读 Photo Picker `content://` 的正式导入路径并回写报告。
+- [x] 完成 Android 图片、视频和音频受控预览验收，并通过固定场景验证 Range/CORS、HEAD、主动撤销与 token 自然过期。
+- [x] [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md) 阶段一 Rust 存储骨架、阶段二会话增量持久化和阶段三附件消费闭环已完成；真实上游发送与 iOS 验收仍待完成。聊天本地搜索属于 Chat 自身路线，不作为资产管理器施工门禁。不在 `any[]` 附件上增加过渡持久化。
+
 ### Phase 2：资产页
 
-- 实现资产/空间双视图、搜索筛选、详情、按月份清理、影响分析和保留策略。
-- 实现加载、空、错误、缺失、导入中和多选状态。
-- 接入系统分享/保存能力。
-- 接入批量转写或文本提取后的原件删除流程。
+- [x] 实现资产/空间双视图、搜索筛选、详情、月份筛选、影响分析和保留策略。
+- [x] 实现加载、空、错误、缺失、导入中和多选状态。
+- [x] 接入文件选择器导入、短期受控媒体预览、缓存清理和资产库修复。
+- [x] 接入系统文件保存能力；原件由 Rust 流式导出到 save picker 目标，不经过 WebView 内存。
+- [x] 接入最近导入任务恢复、运行进度、中断状态与取消入口。
+- [x] 接入照片/视频 media picker、系统文件保存和 Android 对外系统分享；这些能力属于当前导入/导出主链。
+- [ ] 完成 Android 真机 MVP 主流程验收，以及 iOS 资产能力验收（需各自设备条件）。
+- [ ] 相机、分享进入 AIO 和移动端文件关联，移至 Phase 3，不在本阶段继续实现或扩展测试。
+- [ ] 批量转写/文本替代、音视频模型转写、PDF/Office 文本提取和 `llm-chat` 之外的消费者替代流程，移至 Phase 3。
 
 ### Phase 3：平台增强
 
 - 相机、移动端文件关联与分享进入 AIO。
+- 批量转写/文本替代、音视频模型转写、PDF/Office 文本提取和其他消费者替代流程。
+- 聊天搜索由 `llm-chat` 自身计划负责，不在资产管理器计划中拆分施工。
 - 评估外部长期引用模式。
 - 按真实需求增加后台任务、转码、备份策略与跨设备同步。
 
@@ -492,7 +539,6 @@ interface ManagedAssetRef {
 - 有 `blocking` usage 或固定保留策略的资产不能被物理删除。
 - 有 `advisory` usage 的资产经影响确认后可删除，消费者仍能加载文本与附件快照并显示“原件已清理”。
 - 有建议型引用的原件被回收后保留 `reclaimed` tombstone；相同内容重新导入可恢复原 `assetId`。
-- 批量转写只在文本成功写回消费者后释放引用和删除原件，失败项保留原件。
 - 清理缓存不影响原件和业务引用，预览可重建。
 - 中断导入不会产生可见的半成品资产或永久遗留大文件。
 - 数据库和对象目录出现不一致时可检测、恢复或明确标记。
@@ -513,18 +559,212 @@ interface ManagedAssetRef {
 - 空间统计来自数据库聚合与文件元数据，不在进入页面时递归扫描全库。
 - 缩略图缓存有大小上限和最近使用清理策略。
 
+### 测试门禁与停止规则
+
+- 开发循环只运行受影响的 Vitest 文件或 Rust 模块测试，不构建 APK/AAB。
+- 功能批次完成后运行一次移动端全量测试、Clippy、前端类型检查和 Vite 生产构建。
+- 只有修改原生 bridge、Tauri command 或平台权限时才构建单 ABI debug APK，并执行对应 Android 场景。
+- 四 ABI APK/AAB、完整 Android 真机矩阵和 iOS 构建只在 MVP 里程碑或发布候选执行，不随每个小提交重复执行。
+- token 自然过期、吞吐和中断恢复优先使用可注入时钟/固定夹具的自动化测试；设备只保留一次代表性 smoke，不创建独立长时间批次。
+- 任何测试若不对应本节 MVP 停止条件或明确的平台发布门禁，必须延期，不得新增施工批次。
+
 ## 14. 待评审决策
 
 以下问题不阻塞本方案，但应在 Phase 0 后锁定：
 
 1. 用户主动保留的托管原件是否进入 iOS 设备备份，还是全部默认排除并依赖未来同步。
-2. 首版是否同时提供“从照片”和“拍摄”，还是先只做照片与文件选择。
+2. Phase 3 是否同时提供“从照片”和“拍摄”；Android MVP 只承诺照片与文件选择。
 3. 未使用资产的默认保留期，例如 7 天、30 天或只由用户手动清理。
 4. advisory usage 的批量删除是否每次逐项确认，还是允许用户对特定筛选条件记住确认策略。
 5. 平板是否仅增加网格列数，还是增加常驻详情双栏；建议首版只增加列数。
 6. WebView 预览采用受控资源协议还是短期读取令牌，以 Android 与 iOS 真机行为为准。
 
-## 15. 调查来源
+## 15. 施工记录
+
+### 2026-07-20：Phase 1 首批
+
+- 施工顺序调整为 Android 先行，iOS 因缺少编译与真机设备条件暂缓补验。
+- 首批已建立 `asset_manager.db` migration、Rust repository、内容寻址导入、基础查询与 usage replacement 契约，以及前端薄服务层；未注册不完整的资产管理页面。
+- 资产 UI、WebView 预览协议、专用 Photo Picker、分享导入/导出和 iOS security-scoped URL 结论继续受各自平台验证门禁约束。
+- 聊天消费者在 `ManagedAssetRef` 与 usage replacement 契约稳定后接入，不在内核首批继续沿用路径型附件。
+- 本批已通过移动端 56 个前端测试、13 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android debug APK/AAB 构建；尚未用真机系统选择结果执行新增的 Rust 导入命令。
+
+### 2026-07-20：Phase 1 第二批
+
+- 新增 `pending_file_deletions` migration；删除事务先记录待清理文件，再更新 reclaimed tombstone 或删除无引用资产，提交后排空物理清理队列。
+- 新增 pinned/blocking/advisory 删除影响分析、批量保留策略、安全删除、按类型存储统计和资产库修复命令。
+- 资产服务初始化时恢复未完成物理删除、清理 `.part` 与孤儿对象，并把 ready 但原件不存在的记录明确标为 missing。
+- 导入、usage replacement、保留策略和删除共用 mutation lock；正式删除会在锁内重新检查影响，不信任较早的页面分析快照。
+- 第二批已通过移动端 56 个前端测试、14 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android 四 ABI debug APK/AAB 构建。
+
+### 2026-07-20：Phase 1 第三批
+
+- 扩展 `import_jobs`，持久化批次项数、完成数、当前项和脱敏逐项结果；新增启动、单项查询、最近任务查询和取消命令。
+- 后台任务通过 Tauri Channel 推送状态与累计读取字节，前端同时轮询 SQLite 权威状态，并将 Channel 保持到任务终态。
+- 取消在流式读取块边界生效，不回滚已完成资产；当前与未处理项返回 cancelled。进程重启后，遗留的 pending/running 任务明确标为 `ASSET_IMPORT_INTERRUPTED`，不伪装成断点续传。
+- 兼容的 `asset_import_sources` 命令继续存在，新 TypeScript 服务默认改走 import job。
+- iOS 仍因缺少编译与真机设备条件暂缓补验，不据此宣称平台能力通过。
+- 第三批已通过移动端 60 个前端测试、16 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android 四 ABI debug APK/AAB 构建；正式 `content://` 导入与运行中取消仍待 Android 真机固定场景验证。
+
+### 2026-07-20：Phase 1 第四批
+
+- 资产列表增加 visible/hidden/all、创建月份、来源类型与来源模块筛选；新增月份和来源 facets，为 Phase 2 筛选面板提供稳定聚合契约。
+- 新增批量隐藏/恢复命令。隐藏只更新 `library_state`，不删除原件、不释放 usage，也不修改保留策略。
+- 新增按指定资产或全库清理可重建 variant 的命令；不可重建 variant 与原件始终保留，物理删除继续使用持久化待删除队列。
+- 第四批已通过移动端 62 个前端测试、17 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android 四 ABI debug APK/AAB 构建；iOS 仍按缺少编译与真机条件暂缓补验。
+
+### 2026-07-20：Phase 1 第五批
+
+- 共享 `WireFileRef` 增加严格的 `managed-asset-ref { assetId }`，嵌套 JSON、顶层 file-ref 和 multipart 均可触发移动端原生传输。
+- Rust 原生传输通过资产服务复核 managed 资产的 managed/ready 状态和对象存在性；顶层与 multipart 以内部路径流式打开，JSON data URL 转换也完全留在 Rust 内。路径、相对路径和 locator 不进入 WebView 或请求 wire 数据。
+- `local-file-ref` 继续兼容；桌面端和移动端共享类型扩展不改变既有本地文件引用语义。LLM Core 的既存 `model-identity.test.ts` 类型检查基线错误未在本批修复。
+- 受控 WebView 预览协议仍待 Android 真机对 scheme、Range 和失效撤销行为完成实验，尚未冻结为公共 URL 契约。
+- 第五批已通过 LLM Core 93 个测试、移动端 63 个测试、18 个 Rust 测试、根/移动端前端类型检查、Clippy、Vite 生产构建和 Android 四 ABI debug APK/AAB 构建；`packages/llm-core` 独立 `tsc` 仍被上述既存测试类型错误阻塞。
+
+### 2026-07-20：Phase 1 第六批
+
+- 新增 `asset_get_preview_source` / `asset_revoke_preview_source`，预览 URL 只含 5 分钟 token，不返回资产库路径。
+- 注册 `aio-asset` 异步 URI scheme；协议每次请求复核 token、ready/managed 状态和对象存在性，支持单 Range（最多 1 MiB）、HEAD/OPTIONS 与 16 MiB 无 Range 上限。
+- Range 解析复用 `http-range`，响应使用 no-store、nosniff、Accept-Ranges/Content-Range；大原件无 Range 时返回 413，等待可重建预览或分块能力。
+- 第六批已通过 LLM Core 93 个测试、移动端 64 个测试、20 个 Rust 测试、根/移动端前端类型检查、Clippy、Vite 生产构建和 Android 四 ABI debug APK/AAB 构建。Android 真机 WebView 的 scheme、Range、CORS 与撤销行为仍未验证，iOS 继续因缺少编译/设备条件跳过。
+
+### 2026-07-20：首个聊天消费者门禁
+
+- 当前 LLM Chat 会话与消息已由 `llm_chat.db` 增量持久化，schema v1 的 `chat_attachments` 和 `asset_usage_outbox` 已由消费者接入；聊天内 ready 资产选择、provider-specific `managed-asset-ref` wire 组装和实时原件状态降级已完成。
+- 聊天附件与 usage outbox 在同一聊天数据库事务提交。消息节点只保存 `assetId + usagePolicy + 轻量快照`，不把路径或二进制写入 metadata；启动、提交和删除会触发幂等投递。
+- Android 已验证 replacement/release usage 生命周期、消息快照展示和 ready 资产选择 UI；代码已接入原件 `reclaimed/missing` 实时状态查询、历史上下文过滤和发送前失败降级，真实上游发送仍需下一批完成。资产内核、受控预览和原生传输保持可独立使用。
+
+### 2026-07-20：Phase 2 首批资产页
+
+- 注册移动端 `asset-manager` 工具和 `/tools/asset-manager` 路由，首页可进入资产/存储双视图。
+- 资产页接入名称、类型、可见状态、月份和来源筛选，覆盖加载、空、错误、导入中、missing/reclaimed/error 与多选状态。
+- 批量隐藏/恢复、固定/取消固定和删除均复用后端原子命令；advisory usage 必须经过平台反馈封装确认，blocking usage 与 pinned 原件继续由后端拒绝。
+- 存储页接入聚合统计、类型占用、可重建缓存清理和资产库修复；详情展示来源与 usage 摘要，媒体预览只保存短期 descriptor 并在关闭时撤销。
+- 文件导入使用系统文件选择器引用并交给持久化 import job，WebView 不读取原件字节。系统分享/保存、相册专用入口、相机、任务恢复列表和批量转写清理仍留在后续批次。
+- 本批只完成编译与自动化验证；Android 真机预览、系统选择器正式导入和 360 px 交互验收尚未回写报告。iOS 继续因缺少编译与真机设备条件跳过。
+
+### 2026-07-20：Phase 2 第二批导入任务界面
+
+- 资产页新增导入任务面板，从 `import_jobs` 恢复最近任务，展示来源类型、完成项数、字节进度、更新时间和错误码。
+- 当前页面发起的导入通过 `AbortController` 进入既有取消契约；恢复出的 pending/running 任务可按任务 ID 调用原生命令取消。
+- 任务 Channel 仍只用于实时进度，任务面板以 SQLite 查询结果为权威状态；进程中断后继续显示 `ASSET_IMPORT_INTERRUPTED`，不伪装为断点续传。
+
+### 2026-07-20：Phase 2 第三批导入与导出
+
+- 导入入口拆分为文件选择器和照片/视频 media picker；照片来源以 `photo_picker` 写入 origin，仍沿用同一持久化 import job 和去重流程。
+- 新增 `asset_export` command。Rust 复核资产为 managed/ready 且对象存在后，通过 plugin-fs 将原件流式复制到系统 save picker 返回的 `content://` 或 `file://` 目标；不返回对象路径、不把大文件读入 WebView。
+- 保存链路已覆盖 Rust stream helper、目标引用校验、服务层 invoke 契约和页面详情入口。Android `content://` save-picker 目标通过原生 bridge 的 `openFileDescriptor(..., "wt")` 流式写入；在 `emulator-5558` 验证导出文件大小与 SHA-256 与托管原件一致。当时系统分享仍保留为未完成项；相机、视频/音频预览、Range/CORS/撤销专项和 iOS 继续跳过。
+
+### 2026-07-21：Phase 2 第四批 Android URI 兼容性与验收
+
+- 发现 `tauri-plugin-fs` 2.5.1 对 Android DocumentsUI/Photo Picker 的 `content://` 引用使用 `openAssetFileDescriptor`，在测试 provider 上逐项返回 `ASSET_SOURCE_OPEN`；此前任务状态仍可能显示 `completed`，造成“已导入 0 项资产”的误导。
+- 新增 `AssetContentPlugin.kt` 与 Rust `android_content` bridge：通过 `ContentResolver.openFileDescriptor` 流式打开导入源和 save-picker 目标，并查询 `OpenableColumns.DISPLAY_NAME` 与 MIME；仅在 Android `content://` 路径启用，其他平台继续走既有 plugin-fs/file URI 路径。
+- 导入结果全项失败时前端抛出错误，部分失败显示失败数与逐项错误码；Photo Picker 数字展示名（含扩展名）使用 MIME 生成 `photo-<8hex>.<ext>`/`video-<8hex>.<ext>` 回退名。
+- `emulator-5558`（720x1280，约 360dp）实测：Photo Picker 导入 1 项成功，SQLite 记录 `image/png`、`kind=image`、`availability=ready` 和 `photo-b86e7a61.png`；详情图片受控预览实际渲染；保存到 `/sdcard/Download/photo-b86e7a61.png` 为 60,662 字节，SHA-256 与托管对象一致。
+- 本批通过移动端 72 个前端测试、22 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android 四 ABI debug APK/AAB 构建。iOS 因缺少编译与真机设备条件继续跳过；Android 视频/音频预览、Range/CORS/撤销以及系统分享/相机仍未完成。
+
+### 2026-07-21：Phase 2 第五批 Android 系统分享
+
+- 详情页增加系统分享入口；服务层只传 `assetId`，Rust 复核 `managed/ready` 与对象存在性，将原件复制到应用 cache 的独立 UUID 目录后调用 Android bridge，不把真实对象路径或 URI 返回 WebView。
+- `AssetContentPlugin` 校验分享文件 canonical path 必须位于应用 cache，使用 `FileProvider`、`ClipData` 和 `FLAG_GRANT_READ_URI_PERMISSION` 发出 `ACTION_SEND`；分享副本延迟清理，启动恢复与“修复资产库”会清除遗留分享 cache，存储页将其计入临时文件。
+- `emulator-5558` 实测图片详情分享：系统 `ChooserActivity` 显示“分享图片”并成功渲染分享预览；cache 副本 `photo-b86e7a61.png` 与托管原件均为 60,662 字节且 SHA-256 一致；修复入口清理该副本并报告 1 个文件。
+- 本批通过移动端 73 个前端测试、23 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android 四 ABI debug APK/AAB 构建。相机、iOS/跨平台分享、视频/音频预览和 Range/CORS/撤销专项仍未完成；iOS 继续因缺少编译与真机设备条件跳过。
+
+### 2026-07-21：Phase 2 第六批 Android 相机入口
+
+- 导入来源面板增加“拍摄照片”；Rust `asset_capture_photo` 只返回临时 `content://` 引用、来源类型、名称和 MIME，随后复用既有持久化 import job，WebView 不接触相机输出路径或字节。
+- `AssetContentPlugin` 使用 `ACTION_IMAGE_CAPTURE`、`FileProvider` 和 cache/captures 临时目录；取消会返回空结果并删除临时文件，拍摄结果延迟清理，启动恢复与资产库修复清除遗留 captures。
+- `emulator-5558` 的 `cmd package resolve-activity -a android.media.action.IMAGE_CAPTURE` 返回 `No activity found`，因此本轮只能验收“无相机时错误提示且不留临时文件”，不能宣称实际拍摄导入通过；需要带相机 Activity 的 Android 设备补验。
+- 本批代码通过移动端 74 个前端测试、23 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android 四 ABI debug APK/AAB 构建。iOS 继续因缺少编译与真机设备条件跳过。
+
+### 2026-07-21：Phase 2 第七批 Android 音视频预览验收
+
+- 使用系统文件选择器导入短测试 `mp4` 与 `mp3`，复用正式 Rust `content://` bridge 和持久化 import job；SQLite 分别记录 `video/mp4`/`kind=video` 与 `audio/mpeg`/`kind=audio`，状态均为 `ready`。
+- `emulator-5558` 实测视频详情的 `<video controls playsinline>` 显示 2 秒蓝色画面并能播放；音频详情的 `<audio controls>` 播放进度从 `0:00` 到 `0:01/0:02`。关闭详情再打开时回到“打开临时预览”按钮，预览 descriptor 已撤销并重新签发。
+- 本批未改变代码，仅回写 Android 运行报告；Range/CORS、token 自然过期和主动撤销的协议级专项已完成，iOS 继续保留门禁。
+
+### 2026-07-21：Phase 2 第八批 Android 预览协议验收
+
+- `ui-tester` 平台文件板块增加“资产预览协议（Range/CORS/撤销）”固定场景，从资产库选择首个非空 `managed/ready` 原件，签发短期 URL 后依次验证跨源 Range、HEAD 和主动撤销。
+- `emulator-5558` 实测 9,095-byte `audio/mpeg` 原件：`Range: bytes=0-31` 返回 206、32 bytes、`Accept-Ranges: bytes` 和可读 `Content-Range`；HEAD 返回 200、空 body 和 `Accept-Ranges`。Android WebView 将 HEAD 的可见 `content-length` 归一为 0，因此该值只记录，不作为原件长度断言；Rust 协议层仍按原件长度构造响应。
+- `asset_revoke_preview_source` 返回成功后，原 URL 再请求得到 404。404 作为失效 token 的统一不可见状态，避免向调用方区分“不存在”和“曾存在但已撤销”；固定场景不再错误要求 403。
+- 本批通过移动端 76 个前端测试、23 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android x86_64 debug APK 真实 WebView 验收；当时主动撤销已通过，自然到期在后续 Android 运行报告补齐；iOS 因缺少编译与真机设备条件继续跳过。
+
+### 2026-07-21：聊天消费者前置迁移阶段一
+
+- 新增 `llm_chat.db` schema v1 与 Rust `llm_chat_storage` 领域服务，初始 migration 直接包含会话、消息、附件、asset usage outbox 和 trigram FTS，不保留已知错误的 `file_path` 过渡结构。
+- 聊天 change set 在单一 transaction 内写入业务数据和 outbox；附件 replacement/release 由 Rust 自动生成，分支与会话删除先写 release。投递到 `asset_manager.db` 复用整体 replacement 的幂等命令，同一实体保持顺序，永久错误进入可重试 dead-letter。
+- 本批通过移动端 28 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android x86_64 debug APK 构建；`emulator-5558` 的真实 WebView 调用 `list_chat_sessions` 成功并创建数据库/WAL。阶段二前端会话迁移与阶段三附件消费者尚未接入，现有 JSON 会话未双写；iOS 继续跳过。
+
+### 2026-07-21：聊天消费者前置迁移阶段二
+
+- 新增聊天 SQLite 薄 command client 与树/扁平 codec，`useSessionManager` 的列表、详情、增量保存和删除改走 `llm_chat.db`；`currentSessionId` 留在 ConfigManager。
+- 保存只 upsert 新增或变化消息并提交最小删除分支根；完整 metadata 未知字段、type、timestamp、`siblingOrder` 和 `lastSelectedChildId` 均有前端固定测试。旧 JSON 仅幂等导入一次，成功后停止读写，不建设双写。
+- 本批通过移动端 85 个前端测试、28 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android x86_64 debug APK 构建。`emulator-5558` 的真实 WebView 通过正式“开启新对话”入口完成 Pinia、`useSessionManager`、codec 与 Tauri command 的创建/加载闭环，并完成单消息增量更新、未知 metadata 往返、列表和删除验证；阶段三附件消费者仍未接入，iOS 因缺少编译与设备条件继续跳过。
+
+### 2026-07-21：聊天消费者前置迁移阶段三第一批
+
+- 消息节点新增强类型 `ChatMessageAttachment`；SQLite codec 独立处理附件增删、快照和 `createdAt`，不污染消息 metadata。session-loader 保留无文本但有附件的消息，消息视图展示附件名称、类型图标和大小。
+- `useSessionManager` 在启动、提交和会话删除后触发 outbox drain；Android `emulator-5558` 实测 replacement 投递后资产 usage 出现，删除会话 release 投递后 usage 归零，失败/死信 command client 也已覆盖。
+- 本批通过移动端 87 个前端测试、28 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android x86_64 debug APK 构建；360dp WebView 视觉检查确认超长附件名省略且不撑破布局。聊天内资产选择、provider 请求组装和 reclaimed/missing 实时状态仍未完成，iOS 因缺少编译与设备条件继续跳过。
+
+### 2026-07-21：聊天消费者前置迁移阶段三第二批
+
+- 聊天输入区新增 ready 资产选择 sheet，选择结果只携带 `assetId + usagePolicy + 轻量快照`；附件可在无文本时单独发送，草稿 chip 支持移除。
+- 图片、音频、视频和文档统一转换为 opaque `managed-asset-ref`；OpenAI-compatible、Gemini、Anthropic provider wire 与 Rust `data`/data URL 展开策略均有固定测试，WebView 不读取原件字节。
+- 本批 Android `emulator-5558` 真实 WebView 验证资产 sheet、搜索/选择/确认和 360dp 草稿布局；本批未连接真实上游模型，reclaimed/missing 实时状态、发送失败降级与 iOS 继续作为门禁跳过。
+
+### 2026-07-21：聊天消费者前置迁移阶段三第三批
+
+- 新增附件状态查询缓存，实时区分 `reclaimed`、`missing`、`missing_record` 与其他错误；消息附件保留轻量快照并在聊天视图显示“原件已清理/原件缺失”等状态。
+- 发送前强制复核当前草稿附件，原件不可用时不创建用户消息并保留输入草稿；历史上下文只跳过不可用附件、保留文本，并对一次请求合并提示。
+- 本批通过移动端 96 个前端测试、32 个 Rust 测试、Clippy、前端类型检查和 Vite 生产构建；Rust 已覆盖 outbox 重投/替换/删除/dead-letter 故障矩阵，Android `emulator-5558` 重载真实聊天路由显示 reclaimed 附件状态且正文保留。设备未配置模型，真实上游模型发送和 iOS 继续作为下一批门禁跳过。
+
+### 2026-07-21：聊天消费者前置迁移阶段三第四批
+
+- ready 图片附件增加受控预览入口，继续复用资产服务短期 descriptor；聊天库和消息节点不保存预览 URL，也不把原件读取到 JS 内存。
+- 预览层 Teleport 到 `body` 并按动态视口与安全区约束竖图；关闭、消息切换、组件卸载及请求完成晚于卸载的竞态都会撤销 token。
+- Android `emulator-5558` 真实 WebView 验证 720×1280 图片完整加载并在 360×640 视口内适配；关闭预览后旧 URL 返回 404。移动端 96 个前端测试、类型检查、Vite 生产构建和 Android x86_64 debug APK 构建通过；iOS 继续因缺少编译/设备条件跳过。
+
+### 2026-07-21：Phase 2 第九批 Android 预览 token 自然过期
+
+- 抽取并测试 preview grant 的过期清理函数：`expires_at <= now` 的 grant 在请求路径清理，仍有效的 grant 保留。
+- `emulator-5558` 真实 WebView 对同一 5 分钟 descriptor 进行持续轮询：TTL 内返回 200，超过 `expiresAtMs` 约 42 秒后返回 404；本轮未刷新页面、未主动撤销或替换 token。
+- 本批通过移动端 96 个前端测试、33 个 Rust 测试、Clippy、前端类型检查、Vite 生产构建和 Android x86_64 debug APK 构建；iOS scheme/HEAD/Range/CORS/撤销仍因缺少编译与设备条件跳过。
+
+### 2026-07-21：聊天消费者前置迁移阶段四
+
+- 聊天库搜索按查询字符数分流：3 字符及以上使用 trigram FTS5 和 Rust 侧 snippet，1/2 字符使用转义后的受限 `LIKE`；中文、英文大小写和 `%_` 字面量行为已有 Rust 固定测试。
+- FTS5 查询失败时自动降级到同一 basic-search，已用删除隔离 FTS 表的 Rust 故障注入验证，不把 iOS 尚未验收的 FTS 能力变成不可恢复的前端错误。
+- 历史会话页增加防抖搜索和完整状态；结果可深链到目标会话，将非活动分支切为活动叶并滚动高亮目标消息。
+- Android `emulator-5558` 真实 WebView 已验证中文与特殊字符搜索、结果 snippet 和非活动分支定位；验收会话随后通过正式 command 删除，usage outbox 为空。iOS 因缺少编译与设备条件继续跳过。
+
+### 2026-07-21：Phase 2 第十批文本文档替代清理
+
+- 新增受控文本提取 command，只读取 ready/managed 的文本 MIME 或文本扩展名原件；单项限制 2 MiB、UTF-8、非空且拒绝 NUL/二进制内容，不把资产路径或字节暴露给业务组件。
+- `llm-chat` 新增领域 command，在聊天事务内批量写入同一资产的附件 `extractedText`、将 blocking usage 降为 advisory，并按受影响消息写 replacement outbox。资产管理器逐项等待 outbox 投递和删除影响复核后再回收原件；消费者写入、同步或删除任一步失败都保留原件，后续项继续执行。
+- Android `emulator-5558` 真实 WebView 用 60 字节 `text/plain` 验证：聊天快照写入完整文本，usage 从 blocking 变为 advisory，outbox 归零后资产转为 reclaimed；临时会话删除并投递 release 后，测试资产和临时文件均已清理。360dp 批量动作区通过横向滚动容纳“文本化”等操作，没有控件互相覆盖。
+- 本批通过移动端 104 个前端测试、37 个 Rust 测试、llm-core 93 个测试、Clippy、类型检查、Vite 生产构建和 Android x86_64 debug APK 构建。音视频转写、PDF/Office 提取、其他消费者和 iOS 仍未完成；iOS 因缺少编译与设备条件继续跳过。
+
+### 2026-07-21：范围审计与 MVP 收尾修正
+
+- 独立审阅确认后续施工只保留真实上游附件发送、Android 真机主流程和 iOS 发布门禁；相机、分享进入 AIO、文件关联、复杂格式文本化等已移至 Phase 3 的能力不再扩展。
+- 修复 advisory usage 回收后的成功提示计数：页面现在汇总彻底删除和 reclaimed tombstone 两类清理结果，测试不再构造单项同时计入两类结果的不可能数据。
+- 修复预览关闭/切换竞态：迟到的 descriptor 不再重新挂回页面，并会立即撤销 token；增加关闭发生在 IPC 返回前的固定测试。
+- 在已连接的 `emulator-5558` 补做图片文件导入、受控预览、save picker 导出、应用重启恢复和无引用删除 smoke。导入与导出文件均为 17,781 bytes，SHA-256 均为 `afae612fe15659729fa58cc56266e8cfb6ee251372efd901469cc0a715e4b66f`。该设备 `ro.boot.qemu=1` 且由 LDPlayer 提供，仍按模拟器记录，不能解除 Android 真机门禁。
+- 真实上游附件发送仍未执行；在模型和测试账号条件明确前保持门禁未通过，不用模拟传输替代。
+- 补齐资产首页“加载更多”主链：前端按现有 100 项分页契约追加查询，短页结束后停止加载；筛选重载会丢弃迟到的旧分页响应，资产数量超过 100 时不再永久不可达。
+- 资产卡片收敛为手机 1:1 三列网格、平板增列，并补长按多选与点击抑制；显式选择按钮继续保留，避免只依赖手势。可重建缩略图仍需独立后端管线，本批不以原图预览 token 冒充完成。
+- 详情页补齐固定/取消固定、隐藏/恢复和清理原件入口；这些入口直接携带详情 `assetId`，删除仍经过影响分析和 advisory 确认，不改变列表多选语义。
+
+### 2026-07-21：Phase 2 第十一批资产查询筛选
+
+- 资产列表补齐首版线框要求的保留策略和使用影响筛选；前端查询状态、Tauri camelCase 契约与 Rust SQL 保持同一组 `all/reclaimable/pinned`、`all/used/unused` 枚举。8.2 同步为当前首版的可换行行内筛选区，底部筛选面板延后到条件继续增长时再建设。
+- 使用影响直接按 `asset_usages` 的 `EXISTS/NOT EXISTS` 判定，避免把来源模块或显示名称当成引用关系；非法枚举由 command 拒绝。
+- 本批仅扩展现有查询与筛选条，不新增 Phase 3 导入入口、跨设备同步或复杂格式处理；Android 真机主流程、真实上游附件发送和 iOS 发布门禁仍未通过。
+- 本批通过移动端 123 个前端测试、Rust 定向 fixture、Clippy、前端类型检查、Vite 生产构建和 Android x86_64 debug APK 构建。`emulator-5558` 真实 WebView 验证 360dp 筛选文案完整显示，固定保留、使用中和未使用筛选按设备现有数据返回 0、0、2 项；该设备 `ro.boot.qemu=1`，结果只记为模拟器 smoke。
+
+## 16. 调查来源
 
 - [Tauri v2 File System Plugin](https://v2.tauri.app/plugin/file-system/)
 - [Tauri v2 Dialog Plugin](https://v2.tauri.app/plugin/dialog/)

@@ -178,9 +178,10 @@ function buildGooglePart(content: LlmMessageContent): WireJsonValue[] {
     case "image":
     case "audio":
     case "document":
-      return [buildMediaPart(content.source)];
+      return [buildMediaPart(content.source, content.mediaType)];
     case "video": {
-      const part = asObject(buildMediaPart(content.source)) ?? {};
+      const part =
+        asObject(buildMediaPart(content.source, content.mediaType)) ?? {};
       if (content.metadata !== undefined) part.videoMetadata = content.metadata;
       return [part];
     }
@@ -211,7 +212,7 @@ function buildGooglePart(content: LlmMessageContent): WireJsonValue[] {
   }
 }
 
-function buildMediaPart(source: JsonValue): JsonObject {
+function buildMediaPart(source: JsonValue, mediaType?: string): JsonObject {
   if (typeof source === "string") {
     const dataUrl = parseDataUrl(source);
     return dataUrl
@@ -220,6 +221,14 @@ function buildMediaPart(source: JsonValue): JsonObject {
   }
 
   const sourceObject = asObject(source);
+  if (sourceObject?.kind === "managed-asset-ref") {
+    return {
+      inlineData: {
+        mimeType: mediaType ?? "application/octet-stream",
+        data: sourceObject,
+      },
+    };
+  }
   const type = readString(sourceObject?.type);
   const contentType =
     readString(sourceObject?.media_type) ??

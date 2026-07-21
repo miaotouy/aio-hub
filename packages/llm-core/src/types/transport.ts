@@ -1,11 +1,11 @@
-import type { LocalFileRef, WireJsonValue } from "./json";
+import type { WireFileRef, WireJsonValue } from "./json";
 
 export type WireMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export type MultipartPartBody =
   | { kind: "text"; value: string }
   | { kind: "bytes"; value: Uint8Array }
-  | { kind: "file-ref"; ref: LocalFileRef };
+  | { kind: "file-ref"; ref: WireFileRef };
 
 export interface MultipartPart {
   name: string;
@@ -20,7 +20,7 @@ export type WireBody =
   | { kind: "text"; value: string; contentType?: string }
   | { kind: "bytes"; value: Uint8Array; contentType: string }
   | { kind: "multipart"; parts: MultipartPart[] }
-  | { kind: "file-ref"; ref: LocalFileRef };
+  | { kind: "file-ref"; ref: WireFileRef };
 
 export interface WireRequest {
   method: WireMethod;

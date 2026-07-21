@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   containsLocalFileRef,
+  containsNativeFileRef,
+  isManagedAssetRef,
   isLocalFileRef,
   type WireJsonValue,
 } from "../src";
@@ -34,5 +36,27 @@ describe("LocalFileRef detection", () => {
     expect(containsLocalFileRef({ kind: "image", path: "remote-id" })).toBe(
       false
     );
+  });
+
+  it("detects strict managed asset references without accepting snapshots or paths", () => {
+    const value: WireJsonValue = {
+      input: {
+        kind: "managed-asset-ref",
+        assetId: "asset-1",
+      },
+    };
+
+    expect(containsNativeFileRef(value)).toBe(true);
+    expect(containsLocalFileRef(value)).toBe(false);
+    expect(
+      isManagedAssetRef({ kind: "managed-asset-ref", assetId: "asset-1" })
+    ).toBe(true);
+    expect(
+      isManagedAssetRef({
+        kind: "managed-asset-ref",
+        assetId: "asset-1",
+        path: "/private/asset",
+      })
+    ).toBe(false);
   });
 });

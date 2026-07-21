@@ -155,6 +155,58 @@ describe("mobile Claude facade", () => {
       })
     );
   });
+
+  it("maps a managed image ref to an Anthropic base64 placeholder", async () => {
+    const send = vi.spyOn(mobileLlmTransport, "send").mockResolvedValue({
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      body: chunks(
+        JSON.stringify({
+          id: "msg-managed",
+          type: "message",
+          role: "assistant",
+          content: [{ type: "text", text: "ok" }],
+          usage: { input_tokens: 1, output_tokens: 1 },
+        })
+      ),
+    });
+    await callClaudeApi(profile, {
+      modelId: "claude-sonnet-4-5",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "image",
+              imageBase64: "",
+              mimeType: "image/png",
+              source: { kind: "managed-asset-ref", assetId: "asset-1" },
+            },
+          ],
+        },
+      ],
+    });
+    expect(send.mock.calls[0][0].body).toMatchObject({
+      kind: "json",
+      value: {
+        messages: [
+          {
+            content: [
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: "image/png",
+                  data: { kind: "managed-asset-ref", assetId: "asset-1" },
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+  });
 });
 
 async function* chunks(value: string, size = value.length) {

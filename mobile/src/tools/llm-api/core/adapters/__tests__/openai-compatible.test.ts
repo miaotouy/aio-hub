@@ -278,6 +278,40 @@ describe("mobile OpenAI-compatible shared adapter facade", () => {
     });
   });
 
+  it("keeps managed asset refs opaque until the native mobile transport", () => {
+    const wireRequest = buildOpenAiCompatibleRequest(createProfile(), {
+      modelId: "compatible-model",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "image",
+              imageBase64: "",
+              mimeType: "image/png",
+              source: { kind: "managed-asset-ref", assetId: "asset-1" },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(wireRequest.body).toMatchObject({
+      messages: [
+        {
+          content: [
+            {
+              type: "image_url",
+              image_url: {
+                url: { kind: "managed-asset-ref", assetId: "asset-1" },
+              },
+            },
+          ],
+        },
+      ],
+    });
+  });
+
   it("maps shared response metadata back to the mobile response contract", () => {
     expect(
       parseOpenAiCompatibleResponse({

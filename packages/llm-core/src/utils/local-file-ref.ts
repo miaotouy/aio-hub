@@ -1,6 +1,11 @@
-import type { LocalFileRef, WireJsonValue } from "../types/json";
+import type {
+  LocalFileRef,
+  ManagedAssetFileRef,
+  WireJsonValue,
+} from "../types/json";
 
 const LOCAL_FILE_REF_KEYS = new Set(["kind", "path", "contentType"]);
+const MANAGED_ASSET_REF_KEYS = new Set(["kind", "assetId"]);
 
 export function isLocalFileRef(value: unknown): value is LocalFileRef {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
@@ -15,6 +20,19 @@ export function isLocalFileRef(value: unknown): value is LocalFileRef {
   );
 }
 
+export function isManagedAssetRef(
+  value: unknown
+): value is ManagedAssetFileRef {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    candidate.kind === "managed-asset-ref" &&
+    typeof candidate.assetId === "string" &&
+    candidate.assetId.length > 0 &&
+    Object.keys(candidate).every((key) => MANAGED_ASSET_REF_KEYS.has(key))
+  );
+}
+
 export function containsLocalFileRef(value: WireJsonValue): boolean {
   const pending: WireJsonValue[] = [value];
 
@@ -22,6 +40,23 @@ export function containsLocalFileRef(value: WireJsonValue): boolean {
     const current = pending.pop();
     if (current === undefined) continue;
     if (isLocalFileRef(current)) return true;
+    if (Array.isArray(current)) {
+      pending.push(...current);
+    } else if (current && typeof current === "object") {
+      pending.push(...Object.values(current));
+    }
+  }
+
+  return false;
+}
+
+export function containsNativeFileRef(value: WireJsonValue): boolean {
+  const pending: WireJsonValue[] = [value];
+
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (current === undefined) continue;
+    if (isLocalFileRef(current) || isManagedAssetRef(current)) return true;
     if (Array.isArray(current)) {
       pending.push(...current);
     } else if (current && typeof current === "object") {

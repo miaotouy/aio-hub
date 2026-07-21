@@ -205,6 +205,21 @@ export function collectAndroidArtifacts(
   return artifacts;
 }
 
+export function cleanAndroidOutputs(
+  outputsRoot: string,
+  options: AndroidBuildOptions
+): void {
+  const candidates = [
+    ...(options.buildApk ? walkFiles(path.join(outputsRoot, "apk")) : []),
+    ...(options.buildAab ? walkFiles(path.join(outputsRoot, "bundle")) : []),
+  ];
+  for (const filePath of candidates) {
+    if (isProfilePath(filePath, options.profile)) {
+      fs.rmSync(filePath);
+    }
+  }
+}
+
 function sanitizeNamePart(value: string): string {
   return value
     .trim()
@@ -281,6 +296,7 @@ function run(): void {
     `[Android Build] 构建 ${identity.productName} v${identity.version} (${options.profile})...`
   );
 
+  cleanAndroidOutputs(androidOutputsRoot, options);
   const result = spawnSync(
     "bun",
     ["run", "tauri", "android", "build", ...args],

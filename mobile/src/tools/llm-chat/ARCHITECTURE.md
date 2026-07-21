@@ -1,7 +1,7 @@
 # 移动端 LLM Chat — 实现情况
 
 > **文档状态**: Implementing
-> **最后更新**: 2026-07-15
+> **最后更新**: 2026-07-21
 > **对应路径**: `mobile/src/tools/llm-chat/`
 
 ## 1. 概述
@@ -10,7 +10,7 @@ LLM Chat 是 AIO Hub 移动端的核心交互工具，提供与 LLM 的即时对
 
 - **UI 分层**: 页面与聊天骨架由原生 Vue 结构和 AIO Hub 主题 token 主导，Varlet 仅作为按钮、开关、弹层等底层组件库
 - **类型系统**: 精简了部分桌面端复杂类型（如完整 `ChatAgent`、完整 `Asset` 类型），保留核心契约
-- **存储**: 会话采用独立文件存储 + JSON 索引，与桌面端策略一致
+- **存储**: 会话与消息由 Rust 领域 command 增量写入独立 `llm_chat.db`，ConfigManager 只保存当前会话 ID
 - **组件**: 复用 `llm-api` 工具的模型选择器（`LlmModelSelector`）和请求封装（`useLlmRequest`）
 
 ## 2. 目录结构
@@ -34,7 +34,7 @@ llm-chat/
 │   ├── useChatSettings.ts     # 聊天设置管理（持久化）
 │   ├── useContextTokenUsage.ts # 输入区上下文 Token 统计与预警
 │   ├── useNodeManager.ts      # 消息节点管理（CRUD）
-│   ├── useSessionManager.ts   # 会话管理（索引 + 独立文件存储）
+│   ├── useSessionManager.ts   # 会话管理（SQLite 增量变更 + 旧 JSON 一次性导入）
 │   └── useTopicNamer.ts       # 首轮消息自动命名
 ├── core/
 │   └── pipeline/
@@ -45,6 +45,9 @@ llm-chat/
 ├── locales/
 │   ├── zh-CN.json             # 中文语言包
 │   └── en-US.json             # 英文语言包
+├── services/
+│   ├── chatStorageCodec.ts     # 树形会话与 SQLite DTO 的集中转换/差异计算
+│   └── chatStorageService.ts   # 聊天领域 Tauri command 薄客户端
 ├── stores/
 │   ├── contextPipelineStore.ts  # 上下文管道状态管理
 │   └── llmChatStore.ts          # 核心聊天 Store
@@ -123,7 +126,7 @@ type MessageType = "message" | string;
 | `role` / `content` | 核心字段，支持 `string \| LlmMessageContent[]`（多模态）            |
 | `sourceType`       | 消息来源：`session_history` / `agent_preset` / `depth_injection` 等 |
 | `sourceId`         | 来源标识（预设索引或节点ID）                                        |
-| `_attachments`     | 暂存附件列表（移动端用 `any[]` 占位）                               |
+| `_attachments`     | 管道中的强类型 `ManagedAssetRef[]` 附件列表                         |
 | `_originalContent` | 原始内容快照（宏调试用）                                            |
 | `_mergedSources`   | 被合并的原始消息                                                    |
 
@@ -299,28 +302,28 @@ LlamaChatView.send() → useChatExecutor.execute()
 
 ### 6.2. 输入组件
 
-| 组件            | 职责                 |
-| --------------- | -------------------- |
+| 组件            | 职责                                                  |
+| --------------- | ----------------------------------------------------- |
 | `ChatInput.vue` | 模型选择、上下文 Token 占比与预警、消息输入和发送按钮 |
 
 ## 7. 持久化策略
 
 ### 7.1. 会话存储
 
-采用**独立文件存储 + JSON 索引**的方案：
+采用**独立 SQLite 数据库 + 轻量导航配置**：
 
 ```
-{appConfigDir}/llm-chat/
-├── sessions-index.json     # 会话索引（元数据列表 + 当前ID）
-└── sessions/
-    ├── {uuid1}.json        # 单个会话完整数据
-    └── {uuid2}.json
+{appDataDir}/llm-chat/
+└── llm_chat.db             # 会话、消息、附件预留表、FTS 与 usage outbox
+
+sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入标记
 ```
 
-- **索引文件**: 使用 `createConfigManager` 管理，版本 `1.1.2`
-- **会话文件**: 每次变更后重新序列化整个 `ChatSession`（含全部节点）
-- **防抖保存**: `createDebouncedSave(1000ms)` 提供延迟写入
-- **差异写入**: `saveSessionFile` 会对比新旧内容，内容无变化时跳过写入
+- **领域访问**: `chatStorageService` 只封装固定 Tauri command，前端不能执行任意 SQL
+- **结构转换**: `chatStorageCodec` 集中处理 flat rows 与 `nodes + childrenIds`，以 `siblingOrder` 恢复分支顺序
+- **增量写入**: `useSessionManager` 对比最近一次实际落盘快照，只提交变化消息和最小删除分支根；会话内并发写入串行化
+- **导航配置**: `currentSessionId` 继续由 ConfigManager 管理；会话列表元数据以 SQLite 为权威来源
+- **旧数据导入**: 旧索引和逐会话 JSON 只读取一次，成功后写 migration marker，不参与持续读写或双写
 
 ### 7.2. 设置存储
 
@@ -333,15 +336,16 @@ LlamaChatView.send() → useChatExecutor.execute()
 - 持久化处理器顺序和启用状态
 - 版本 `1.0.0`
 
-### 7.4. 计划中的 SQLite 与资产引用
+### 7.4. 计划中的资产引用
 
-本节描述目标边界，当前尚未实现。会话仍使用 7.1 节的 JSON 文件方案，实施顺序以 [`mobile-sqlite-migration-plan.md`](../../../docs/plan/mobile-sqlite-migration-plan.md) 为准。
+会话与消息 SQLite 迁移已完成，附件存储/outbox、聊天内资产选择和 provider wire 第一批已接入；实时原件状态仍按 [`mobile-sqlite-migration-plan.md`](../../../docs/plan/mobile-sqlite-migration-plan.md) 阶段三推进。
 
 - 聊天消息附件使用 `ManagedAssetRef`：持久化 `assetId`、`usagePolicy` 和名称、类型、MIME、大小、提取文本等轻量快照，不保存资产路径。
 - `chat_attachments` 归 `llm_chat.db` 所有；资产原件和 tombstone 归 `asset_manager.db` 所有，两者不建立跨数据库外键。
 - 消息、分支和会话变更在聊天事务内写 usage outbox，再由幂等投递器调用资产服务整体替换业务实体的 usage。
-- `session-loader` 需要把消息与附件引用一起加载到 `_attachments`；只有文本为空但存在附件的消息不能被过滤。
+- `session-loader` 已把消息与附件引用一起加载到强类型 `_attachments`；只有文本为空但存在附件的消息不会被过滤。
 - 附件预览使用资产服务返回的受控预览来源；发送给模型时传递 `managed-asset-ref`，由 Rust 解析并流式读取，不把原件读入 JS 后再经 base64 IPC 复制。
+- 移动端共享 wire 类型和 Rust 原生传输已经支持 `managed-asset-ref`；聊天附件持久化、usage outbox、消息快照展示和 reclaimed/missing 实时降级已接入，provider 请求组装已覆盖 OpenAI-compatible、Gemini 和 Anthropic。
 - 资产为 `reclaimed` 时保留消息和附件快照，界面显示“原件已清理”；`missing` 表示异常缺失，两者不能合并处理。
 - 智能体预设附件继续引用 Agent 私有资产 Handle，随 Agent 资源包迁移，不登记为全局聊天资产。
 
@@ -416,15 +420,16 @@ LlamaChatView.send() → useChatExecutor.execute()
 - [ ] `user-profile-injector`：用户档案注入
 - [x] `agent-preset-loader`：智能体预设加载
 - [ ] 是否将现有 Token 统计进一步收敛为独立 `token-counter` 处理器；当前功能已经由 `useContextTokenUsage`、`useChatExecutor` 和 `useChatResponseHandler` 完成，此项属于架构收口而非功能缺失
-- [ ] `ProcessableMessage._attachments` 的完整解析
+- [x] `ProcessableMessage._attachments` 的强类型加载与空文本消息保留
 
 ### 🔄 多模态支持
 
-- [ ] 消息中的图片/文件附件发送与展示
-- [ ] 按移动端资产设计引入 `ManagedAssetRef`（当前 `_attachments` 用 `any[]` 占位）
-- [ ] 接入 `chat_attachments`、usage outbox 和消息/分支/会话删除释放流程
-- [ ] 接入 `managed-asset-ref` 原生发送与 `reclaimed` 降级展示
-- [ ] 图片预览（`ImageViewer`）
+- [x] 消息中的图片/文件附件 provider wire 组装和聊天输入区资产选择
+- [x] 按移动端资产设计引入 `ManagedAssetRef + 轻量快照`
+- [x] 接入 `chat_attachments`、usage outbox 和消息/分支/会话删除释放流程
+- [x] 接入 `managed-asset-ref` 原生发送与 `reclaimed`/`missing` 降级展示
+- [x] 图片受控预览（短期 descriptor、Teleport 全屏层和关闭/卸载主动撤销）
+- [x] 文本文档提取结果写入附件快照、blocking usage 降级和 replacement outbox
 
 ### 🔄 智能体支持
 
@@ -437,9 +442,9 @@ LlamaChatView.send() → useChatExecutor.execute()
 
 ### 🔄 体验优化
 
-- [ ] 消息搜索/过滤
+- [x] 消息全文搜索、结果 snippet、分支定位与目标消息高亮
 - [ ] 消息引用（回复模式）
-- [ ] 会话列表的搜索和排序
+- [ ] 会话列表排序（历史会话页已提供跨会话消息搜索入口）
 - [ ] 消息复制真正写入系统剪贴板；当前操作只显示成功提示
 - [x] 消息删除前按设置显示确认弹窗
 - [ ] 会话删除和清空确认设置完整接线
@@ -452,16 +457,16 @@ LlamaChatView.send() → useChatExecutor.execute()
 
 ## 10. 与桌面端的差异
 
-| 维度           | 桌面端 (`src/tools/llm-chat`)                                                  | 移动端 (`mobile/src/tools/llm-chat`)            |
-| -------------- | ------------------------------------------------------------------------------ | ----------------------------------------------- |
-| **UI 分层**    | 自研业务组件 + Element Plus 叶子控件                                           | 原生 Vue/AIO token 骨架 + Varlet 叶子控件       |
-| **类型**       | 完整 `ChatAgent`, `Asset`, `ChatSettings`                                      | 已接入兼容 `ChatAgent`；目标使用轻量 `ManagedAssetRef`，当前仍为占位 |
+| 维度           | 桌面端 (`src/tools/llm-chat`)                                                  | 移动端 (`mobile/src/tools/llm-chat`)                                            |
+| -------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| **UI 分层**    | 自研业务组件 + Element Plus 叶子控件                                           | 原生 Vue/AIO token 骨架 + Varlet 叶子控件                                       |
+| **类型**       | 完整 `ChatAgent`, `Asset`, `ChatSettings`                                      | 已接入兼容 `ChatAgent`；目标使用轻量 `ManagedAssetRef`，当前仍为占位            |
 | **管道处理器** | 完整：session-loader + macros + depth-injection + user-profile + token-counter | `session-loader` + `agent-preset-loader`；Token 统计当前位于执行层与 composable |
-| **组件**       | 丰富（BaseDialog, ImageViewer 等）                                             | 基础的列表/输入组件                             |
-| **编辑器**     | RichCodeEditor（双引擎）                                                       | 纯文本输入                                      |
-| **路由**       | `main`, `settings` 两页                                                        | `home`, `sessions`, `chat/:id`, `settings` 四页 |
-| **存储**       | ConfigManager + 独立文件                                                       | 当前为独立文件；发布前计划迁移到 `llm_chat.db` |
-| **多模态**     | 支持完整 Asset 系统                                                            | 当前仅占位；目标接入移动端可回收资产契约        |
+| **组件**       | 丰富（BaseDialog, ImageViewer 等）                                             | 基础的列表/输入组件                                                             |
+| **编辑器**     | RichCodeEditor（双引擎）                                                       | 纯文本输入                                                                      |
+| **路由**       | `main`, `settings` 两页                                                        | `home`, `sessions`, `chat/:id`, `settings` 四页                                 |
+| **存储**       | ConfigManager + 独立文件                                                       | `llm_chat.db` 增量存储；ConfigManager 仅保存当前会话 ID                         |
+| **多模态**     | 支持完整 Asset 系统                                                            | 当前仅占位；目标接入移动端可回收资产契约                                        |
 
 ## 11. 关键代码约定
 

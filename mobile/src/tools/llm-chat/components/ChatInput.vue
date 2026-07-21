@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AlertTriangle, Send, Loader2 } from "lucide-vue-next";
+import { AlertTriangle, Send, Loader2, Paperclip, X } from "lucide-vue-next";
 import { useLlmChatStore } from "../stores/llmChatStore";
 import { useKeyboardAvoidance } from "@/composables/useKeyboardAvoidance";
 import { useChatExecutor } from "../composables/useChatExecutor";
@@ -8,12 +8,16 @@ import { useContextTokenUsage } from "../composables/useContextTokenUsage";
 import { useChatSettings } from "../composables/useChatSettings";
 import { useI18n } from "@/i18n";
 import LlmModelSelector from "../../llm-api/components/LlmModelSelector.vue";
+import AssetPickerSheet from "./AssetPickerSheet.vue";
+import type { ChatMessageAttachment } from "../types";
 
 const chatStore = useLlmChatStore();
 const { execute } = useChatExecutor();
 const { isKeyboardVisible } = useKeyboardAvoidance();
 
 const inputText = ref("");
+const attachments = ref<ChatMessageAttachment[]>([]);
+const pickerOpen = ref(false);
 const { settings } = useChatSettings();
 const { tRaw } = useI18n();
 const t = (key: string) => tRaw(`tools.llm-chat.TokenUsage.${key}`);
@@ -42,14 +46,34 @@ const handleKeyDown = (e: KeyboardEvent) => {
 };
 
 const handleSend = async () => {
-  if (!inputText.value.trim() || chatStore.isSending) return;
+  if (
+    (!inputText.value.trim() && !attachments.value.length) ||
+    chatStore.isSending
+  )
+    return;
 
   const content = inputText.value;
-  inputText.value = "";
 
   if (chatStore.currentSession) {
-    await execute(chatStore.currentSession, content);
+    const accepted = await execute(
+      chatStore.currentSession,
+      content,
+      undefined,
+      attachments.value
+    );
+    if (accepted) {
+      inputText.value = "";
+      attachments.value = [];
+    }
   }
+};
+
+const addAttachments = (selected: ChatMessageAttachment[]) => {
+  const existing = new Set(attachments.value.map((item) => item.assetId));
+  attachments.value = [
+    ...attachments.value,
+    ...selected.filter((item) => !existing.has(item.assetId)),
+  ];
 };
 </script>
 
@@ -94,6 +118,16 @@ const handleSend = async () => {
     </div>
 
     <div class="input-container">
+      <button
+        type="button"
+        class="attachment-btn"
+        :disabled="chatStore.isSending"
+        aria-label="添加资产"
+        @click="pickerOpen = true"
+      >
+        <Paperclip :size="19" />
+      </button>
+
       <textarea
         v-model="inputText"
         class="text-area"
@@ -104,13 +138,38 @@ const handleSend = async () => {
 
       <button
         class="send-btn"
-        :disabled="!inputText.trim() || chatStore.isSending"
+        :disabled="
+          (!inputText.trim() && !attachments.length) || chatStore.isSending
+        "
         @click="handleSend"
       >
         <Loader2 v-if="chatStore.isSending" class="animate-spin" :size="20" />
         <Send v-else :size="20" />
       </button>
     </div>
+
+    <div v-if="attachments.length" class="pending-attachments">
+      <span v-for="attachment in attachments" :key="attachment.id">
+        {{ attachment.snapshot.displayName }}
+        <button
+          type="button"
+          :aria-label="`移除 ${attachment.snapshot.displayName}`"
+          @click="
+            attachments = attachments.filter(
+              (item) => item.id !== attachment.id
+            )
+          "
+        >
+          <X :size="14" />
+        </button>
+      </span>
+    </div>
+
+    <AssetPickerSheet
+      :open="pickerOpen"
+      @close="pickerOpen = false"
+      @select="addAttachments"
+    />
   </div>
 </template>
 
@@ -208,7 +267,19 @@ const handleSend = async () => {
   gap: 8px;
   background: var(--el-fill-color-light);
   border-radius: 20px;
-  padding: 4px 4px 4px 12px;
+  padding: 4px;
+}
+
+.attachment-btn {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-on-surface-variant);
 }
 
 .text-area {
@@ -239,6 +310,41 @@ const handleSend = async () => {
 
 .send-btn:disabled {
   opacity: 0.5;
+}
+
+.pending-attachments {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+}
+
+.pending-attachments > span {
+  max-width: min(72vw, 320px);
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 5px 4px 9px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-on-surface-variant);
+  background: var(--color-surface-container-low);
+  font-size: 0.78rem;
+}
+
+.pending-attachments button {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
 }
 
 .animate-spin {

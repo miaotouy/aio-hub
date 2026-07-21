@@ -1,15 +1,11 @@
 /**
- * LLM Chat 会话分离式文件存储 (移动端适配版)
- * 使用 ConfigManager 管理索引文件，每个会话存储为独立文件
+ * LLM Chat 会话存储管理。
+ *
+ * 会话与消息的正式存储是 llm_chat.db；旧 JSON 文件只在首次启动时作为
+ * 一次性导入源读取，不参与后续会话读写。
  */
 
-import {
-  exists,
-  readTextFile,
-  writeTextFile,
-  remove,
-  mkdir,
-} from "@tauri-apps/plugin-fs";
+import { exists, readTextFile } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import { createConfigManager } from "@/utils/configManager";
@@ -17,16 +13,28 @@ import { debounce } from "lodash-es";
 import type { ChatSession } from "../types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import {
+  buildPersistChatChanges,
+  cloneChatSession,
+  decodeChatSessionSnapshot,
+} from "../services/chatStorageCodec";
+import {
+  deleteChatSession as deleteStoredChatSession,
+  drainAssetUsageOutbox,
+  listChatSessions,
+  loadChatSession,
+  persistChatChanges,
+  type ChatSessionRecord,
+} from "../services/chatStorageService";
 
 const logger = createModuleLogger("llm-chat/session-manager");
 const errorHandler = createModuleErrorHandler("llm-chat/session-manager");
 
 const MODULE_NAME = "llm-chat";
 const SESSIONS_SUBDIR = "sessions";
+const SQLITE_MIGRATION_VERSION = 1;
+const LIST_PAGE_SIZE = 200;
 
-/**
- * 会话索引项（包含显示所需的元数据）
- */
 export interface SessionIndexItem {
   id: string;
   name: string;
@@ -34,90 +42,178 @@ export interface SessionIndexItem {
   createdAt: string;
   messageCount: number;
   displayAgentId?: string | null;
+  isFavorite?: boolean;
 }
 
-/**
- * 会话索引配置（包含元数据以优化列表显示）
- */
 export interface SessionsIndex {
   version: string;
   currentSessionId: string | null;
-  sessions: SessionIndexItem[]; // 会话元数据列表（用于排序和快速显示）
+  sessions: SessionIndexItem[];
+  sqliteMigrationVersion?: number;
 }
 
-/**
- * 创建默认索引配置
- */
 function createDefaultIndex(): SessionsIndex {
   return {
-    version: "1.1.2",
+    version: "2.0.0",
     currentSessionId: null,
     sessions: [],
+    // ConfigManager deep-fills missing fields into legacy configs. Start at 0
+    // so an old index cannot be mistaken for an already imported index.
+    sqliteMigrationVersion: 0,
   };
 }
 
-/**
- * 索引文件管理器（使用 ConfigManager）
- */
 const indexManager = createConfigManager<SessionsIndex>({
   moduleName: MODULE_NAME,
   fileName: "sessions-index.json",
-  version: "1.1.2",
+  version: "2.0.0",
   createDefault: createDefaultIndex,
 });
 
-/**
- * 移动端会话存储管理
- */
-export function useSessionManager() {
-  /**
-   * 获取会话文件路径
-   */
-  async function getSessionPath(sessionId: string): Promise<string> {
-    const appDir = await getAppConfigDir();
-    const moduleDir = await join(appDir, MODULE_NAME);
-    const sessionsDir = await join(moduleDir, SESSIONS_SUBDIR);
-    return join(sessionsDir, `${sessionId}.json`);
+// Managers are created by more than one composable. Keep the last persisted
+// snapshot and write queue at module scope so those instances share a diff base.
+const persistedSnapshots = new Map<string, ChatSession>();
+const pendingWrites = new Map<string, Promise<void>>();
+
+async function drainUsageOutbox(): Promise<void> {
+  try {
+    await drainAssetUsageOutbox();
+  } catch {
+    logger.warn("Asset usage outbox delivery deferred");
+  }
+}
+
+function mapSessionRecord(record: ChatSessionRecord): SessionIndexItem {
+  return {
+    id: record.id,
+    name: record.name,
+    updatedAt: record.updatedAt,
+    createdAt: record.createdAt,
+    messageCount: record.messageCount,
+    displayAgentId: record.displayAgentId,
+    isFavorite: record.isFavorite,
+  };
+}
+
+async function listAllStoredSessions(): Promise<ChatSessionRecord[]> {
+  const records: ChatSessionRecord[] = [];
+  let cursor: { updatedAt: string; id: string } | undefined;
+
+  while (true) {
+    const page = await listChatSessions({
+      limit: LIST_PAGE_SIZE,
+      beforeUpdatedAt: cursor?.updatedAt,
+      beforeId: cursor?.id,
+    });
+    records.push(...page);
+    if (page.length < LIST_PAGE_SIZE) return records;
+
+    const last = page[page.length - 1];
+    const nextCursor = { updatedAt: last.updatedAt, id: last.id };
+    if (
+      cursor?.updatedAt === nextCursor.updatedAt &&
+      cursor.id === nextCursor.id
+    ) {
+      throw new Error("CHAT_SESSION_CURSOR_STALLED");
+    }
+    cursor = nextCursor;
+  }
+}
+
+async function enqueueSessionWrite<T>(
+  sessionId: string,
+  operation: () => Promise<T>
+): Promise<T> {
+  const previous = pendingWrites.get(sessionId) ?? Promise.resolve();
+  const next = previous.catch(() => undefined).then(operation);
+  const tail = next.then(
+    () => undefined,
+    () => undefined
+  );
+  pendingWrites.set(sessionId, tail);
+
+  try {
+    return await next;
+  } finally {
+    if (pendingWrites.get(sessionId) === tail) {
+      pendingWrites.delete(sessionId);
+    }
+  }
+}
+
+/** Import legacy JSON sessions without making JSON a second live backend. */
+async function migrateLegacySessions(
+  index: SessionsIndex
+): Promise<SessionsIndex> {
+  if ((index.sqliteMigrationVersion ?? 0) >= SQLITE_MIGRATION_VERSION) {
+    return index;
   }
 
-  /**
-   * 加载会话索引
-   */
-  async function loadIndex(): Promise<SessionsIndex> {
-    return await indexManager.load();
-  }
+  const stored = await listAllStoredSessions();
+  const storedIds = new Set(stored.map((session) => session.id));
+  let failed = false;
 
-  /**
-   * 保存会话索引
-   */
-  async function saveIndex(index: SessionsIndex): Promise<void> {
-    await indexManager.save(index);
-  }
+  for (const item of index.sessions) {
+    if (storedIds.has(item.id)) continue;
 
-  /**
-   * 加载单个会话详情
-   */
-  async function loadSession(sessionId: string): Promise<ChatSession | null> {
     try {
-      const sessionPath = await getSessionPath(sessionId);
-      const sessionExists = await exists(sessionPath);
-
-      if (!sessionExists) {
-        logger.warn("会话文件不存在", { sessionId });
-        return null;
+      const path = await getSessionPath(item.id);
+      if (!(await exists(path))) {
+        logger.warn("Legacy session file is missing", { sessionId: item.id });
+        continue;
       }
 
-      const content = await readTextFile(sessionPath);
-      const session: ChatSession = JSON.parse(content);
+      const session = JSON.parse(await readTextFile(path)) as ChatSession;
+      const request = buildPersistChatChanges(session);
+      const result = await persistChatChanges(request);
+      session.messageCount = result.messageCount;
+      await drainUsageOutbox();
+      persistedSnapshots.set(session.id, cloneChatSession(session));
+      storedIds.add(session.id);
+      logger.info("Imported legacy chat session", { sessionId: session.id });
+    } catch (error) {
+      failed = true;
+      errorHandler.handle(error, {
+        userMessage: "迁移旧聊天记录失败，将在下次启动重试",
+        showToUser: false,
+        context: { sessionId: item.id },
+      });
+    }
+  }
 
-      // 确保加载时计算消息数量快照
-      if (session.nodes) {
-        session.messageCount = Object.keys(session.nodes).length - 1;
-      }
+  if (failed) return index;
 
+  const migrated: SessionsIndex = {
+    ...index,
+    sessions: [],
+    sqliteMigrationVersion: SQLITE_MIGRATION_VERSION,
+  };
+  await indexManager.save(migrated);
+  return migrated;
+}
+
+async function getSessionPath(sessionId: string): Promise<string> {
+  const appDir = await getAppConfigDir();
+  const moduleDir = await join(appDir, MODULE_NAME);
+  const sessionsDir = await join(moduleDir, SESSIONS_SUBDIR);
+  return join(sessionsDir, `${sessionId}.json`);
+}
+
+export function useSessionManager() {
+  async function loadIndex(): Promise<SessionsIndex> {
+    return indexManager.load();
+  }
+
+  async function loadSession(sessionId: string): Promise<ChatSession | null> {
+    const snapshot = await loadChatSession(sessionId);
+    if (!snapshot) return null;
+
+    try {
+      const session = decodeChatSessionSnapshot(snapshot);
+      persistedSnapshots.set(session.id, cloneChatSession(session));
       return session;
     } catch (error) {
-      errorHandler.handle(error as Error, {
+      errorHandler.handle(error, {
         userMessage: "加载会话失败",
         showToUser: false,
         context: { sessionId },
@@ -126,174 +222,71 @@ export function useSessionManager() {
     }
   }
 
-  /**
-   * 确保 sessions 子目录存在
-   */
-  async function ensureSessionsDir(): Promise<void> {
-    const appDir = await getAppConfigDir();
-    const moduleDir = await join(appDir, MODULE_NAME);
-    const sessionsDir = await join(moduleDir, SESSIONS_SUBDIR);
-
-    if (!(await exists(sessionsDir))) {
-      await mkdir(sessionsDir, { recursive: true });
-      logger.debug("创建 sessions 目录", { sessionsDir });
-    }
-  }
-
-  /**
-   * 保存单个会话内容
-   */
-  async function saveSessionFile(
-    session: ChatSession,
-    forceWrite: boolean = false
-  ): Promise<void> {
-    try {
-      await ensureSessionsDir();
-      const sessionPath = await getSessionPath(session.id);
-
-      // 移除运行时字段
-      const { history, historyIndex, ...sessionToSave } = session;
-      const newContent = JSON.stringify(sessionToSave, null, 2);
-
-      if (!forceWrite) {
-        const fileExists = await exists(sessionPath);
-        if (fileExists) {
-          try {
-            const oldContent = await readTextFile(sessionPath);
-            if (oldContent === newContent) {
-              return;
-            }
-          } catch (e) {
-            // ignore
-          }
-        }
-      }
-
-      await writeTextFile(sessionPath, newContent);
-    } catch (error) {
-      errorHandler.handle(error as Error, {
-        userMessage: "保存会话文件失败",
-        showToUser: false,
-        context: { sessionId: session.id },
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * 删除会话文件
-   */
-  async function deleteSessionFile(sessionId: string): Promise<void> {
-    try {
-      const sessionPath = await getSessionPath(sessionId);
-      if (await exists(sessionPath)) {
-        await remove(sessionPath);
-      }
-    } catch (error) {
-      errorHandler.handle(error as Error, {
-        userMessage: "删除会话文件失败",
-        showToUser: false,
-        context: { sessionId },
-      });
-    }
-  }
-
-  /**
-   * 创建索引项
-   */
-  function createIndexItem(session: ChatSession): SessionIndexItem {
-    return {
-      id: session.id,
-      name: session.name,
-      updatedAt: session.updatedAt,
-      createdAt: session.createdAt,
-      messageCount: Object.keys(session.nodes).length - 1,
-      displayAgentId: session.displayAgentId,
-    };
-  }
-
-  /**
-   * 持久化会话并更新索引
-   */
   async function persistSession(
     session: ChatSession,
     currentSessionId: string | null
   ): Promise<void> {
-    try {
-      // 1. 保存文件
-      await saveSessionFile(session, true);
+    // Capture a stable snapshot before waiting behind another write.
+    const requested = cloneChatSession(session);
+    await enqueueSessionWrite(session.id, async () => {
+      const request = buildPersistChatChanges(
+        requested,
+        persistedSnapshots.get(session.id) ?? null
+      );
+      const result = await persistChatChanges(request);
+      requested.messageCount = result.messageCount;
+      persistedSnapshots.set(session.id, cloneChatSession(requested));
+      session.messageCount = result.messageCount;
+    });
 
-      // 2. 更新索引
-      const index = await loadIndex();
-      index.currentSessionId = currentSessionId;
-
-      const idx = index.sessions.findIndex((s) => s.id === session.id);
-      const item = createIndexItem(session);
-
-      if (idx >= 0) {
-        index.sessions[idx] = item;
-      } else {
-        index.sessions.unshift(item); // 新会话放在最前面
-      }
-
-      await saveIndex(index);
-    } catch (error) {
-      logger.error("持久化会话失败", error);
-    }
+    await updateCurrentSessionId(currentSessionId);
   }
 
-  /**
-   * 加载所有会话（仅加载索引，不加载全部详情）
-   */
   async function loadSessions(): Promise<{
     sessionMetas: SessionIndexItem[];
     currentSessionId: string | null;
   }> {
-    try {
-      const index = await loadIndex();
-      return {
-        sessionMetas: index.sessions,
-        currentSessionId: index.currentSessionId,
-      };
-    } catch (error) {
-      logger.error("加载会话索引失败", error);
-      return { sessionMetas: [], currentSessionId: null };
+    const migratedIndex = await migrateLegacySessions(await loadIndex());
+    await drainUsageOutbox();
+    const records = await listAllStoredSessions();
+    const sessionMetas = records.map(mapSessionRecord);
+    const availableIds = new Set(sessionMetas.map((session) => session.id));
+    const currentSessionId = availableIds.has(
+      migratedIndex.currentSessionId ?? ""
+    )
+      ? migratedIndex.currentSessionId
+      : (sessionMetas[0]?.id ?? null);
+
+    if (migratedIndex.currentSessionId !== currentSessionId) {
+      await indexManager.save({ ...migratedIndex, currentSessionId });
     }
+
+    return { sessionMetas, currentSessionId };
   }
 
-  /**
-   * 删除会话（同时删除文件和索引）
-   */
   async function deleteSession(sessionId: string): Promise<string | null> {
-    try {
-      await deleteSessionFile(sessionId);
-      const index = await loadIndex();
-      index.sessions = index.sessions.filter((s) => s.id !== sessionId);
+    await enqueueSessionWrite(sessionId, async () => {
+      await deleteStoredChatSession(sessionId);
+      persistedSnapshots.delete(sessionId);
+      await drainUsageOutbox();
+    });
 
-      if (index.currentSessionId === sessionId) {
-        index.currentSessionId = index.sessions[0]?.id || null;
-      }
+    const index = await loadIndex();
+    const records = await listAllStoredSessions();
+    const nextId = records[0]?.id ?? null;
+    const currentSessionId =
+      index.currentSessionId === sessionId ? nextId : index.currentSessionId;
+    await indexManager.save({ ...index, currentSessionId });
+    return currentSessionId;
+  }
 
-      await saveIndex(index);
-      return index.currentSessionId;
-    } catch (error) {
-      logger.error("删除会话失败", error);
-      return null;
+  async function updateCurrentSessionId(id: string | null): Promise<void> {
+    const index = await loadIndex();
+    if (index.currentSessionId !== id) {
+      await indexManager.save({ ...index, currentSessionId: id });
     }
   }
 
-  /**
-   * 更新当前会话 ID
-   */
-  async function updateCurrentSessionId(id: string | null) {
-    const index = await loadIndex();
-    index.currentSessionId = id;
-    await saveIndex(index);
-  }
-
-  /**
-   * 防抖保存
-   */
   function createDebouncedSave(delay: number = 1000) {
     return debounce(
       async (session: ChatSession, currentSessionId: string | null) => {

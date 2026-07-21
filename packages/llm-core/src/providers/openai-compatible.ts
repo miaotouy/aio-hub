@@ -425,7 +425,7 @@ function mapOpenAiContent(part: LlmMessageContent): {
       };
     case "audio": {
       const source = asObject(part.source);
-      const contentType = readMediaType(source);
+      const contentType = part.mediaType ?? readMediaType(source);
       return {
         content: {
           type: "input_audio",
@@ -446,7 +446,7 @@ function mapOpenAiContent(part: LlmMessageContent): {
       };
     case "document": {
       const source = asObject(part.source);
-      const contentType = readMediaType(source);
+      const contentType = part.mediaType ?? readMediaType(source);
       if (contentType.startsWith("image/")) {
         return {
           content: {

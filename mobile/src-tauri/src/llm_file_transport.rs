@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path, sync::Mutex, time::Duration};
+use std::{collections::HashMap, path::PathBuf, sync::Mutex, time::Duration};
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use reqwest::{
@@ -6,7 +6,10 @@ use reqwest::{
     Method,
 };
 use serde::{Deserialize, Serialize};
+use tauri::AppHandle;
 use tokio_util::{io::ReaderStream, sync::CancellationToken};
+
+use crate::asset_manager::{self, AssetManagerState};
 
 const MAX_PATH_LENGTH: usize = 4096;
 const MAX_CONTENT_TYPE_LENGTH: usize = 255;
@@ -42,15 +45,21 @@ struct NativeNetworkOptions {
 enum NativeRequestBody {
     Json { value: serde_json::Value },
     Multipart { parts: Vec<MultipartPart> },
-    FileRef { r#ref: LocalFileRef },
+    FileRef { r#ref: FileReference },
 }
 
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct LocalFileRef {
-    kind: String,
-    path: String,
-    content_type: Option<String>,
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+enum FileReference {
+    LocalFileRef {
+        path: String,
+        #[serde(rename = "contentType")]
+        content_type: Option<String>,
+    },
+    ManagedAssetRef {
+        #[serde(rename = "assetId")]
+        asset_id: String,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -68,7 +77,14 @@ struct MultipartPart {
 enum MultipartPartBody {
     Text { value: String },
     Bytes { base64: String },
-    FileRef { r#ref: LocalFileRef },
+    FileRef { r#ref: FileReference },
+}
+
+struct ResolvedFileReference {
+    path: PathBuf,
+    content_type: Option<String>,
+    filename: String,
+    size_bytes: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -82,8 +98,10 @@ pub struct NativeFileResponse {
 
 #[tauri::command]
 pub async fn send_llm_file_request(
+    app: AppHandle,
     request: NativeFileRequest,
     state: tauri::State<'_, NativeRequestState>,
+    asset_state: tauri::State<'_, AssetManagerState>,
 ) -> Result<NativeFileResponse, String> {
     validate_request(&request)?;
     let cancellation = CancellationToken::new();
@@ -103,7 +121,7 @@ pub async fn send_llm_file_request(
     let request_id = request.request_id.clone();
     let result = tokio::select! {
         _ = cancellation.cancelled() => Err("Native file request cancelled".to_string()),
-        result = execute_request(request, cancellation.clone()) => result,
+        result = execute_request(&app, asset_state.inner(), request, cancellation.clone()) => result,
     };
 
     if let Ok(mut requests) = state.requests.lock() {
@@ -142,6 +160,8 @@ fn validate_request(request: &NativeFileRequest) -> Result<(), String> {
 }
 
 async fn execute_request(
+    app: &AppHandle,
+    asset_state: &AssetManagerState,
     mut request: NativeFileRequest,
     cancellation: CancellationToken,
 ) -> Result<NativeFileResponse, String> {
@@ -175,22 +195,22 @@ async fn execute_request(
 
     outgoing = match &mut request.body {
         NativeRequestBody::Json { value } => {
-            expand_json_file_refs(value).await?;
+            expand_json_file_refs(app, asset_state, value, false).await?;
             outgoing.json(value)
         }
         NativeRequestBody::FileRef { r#ref } => {
-            validate_file_ref(r#ref)?;
-            let file = tokio::fs::File::open(&r#ref.path)
+            let resolved = resolve_file_reference(app, asset_state, r#ref).await?;
+            let file = tokio::fs::File::open(&resolved.path)
                 .await
-                .map_err(|_| "Failed to read top-level local file".to_string())?;
+                .map_err(|_| "Failed to read top-level file reference".to_string())?;
             let body = reqwest::Body::wrap_stream(ReaderStream::new(file));
-            if let Some(content_type) = &r#ref.content_type {
+            if let Some(content_type) = &resolved.content_type {
                 outgoing = outgoing.header(reqwest::header::CONTENT_TYPE, content_type);
             }
             outgoing.body(body)
         }
         NativeRequestBody::Multipart { parts } => {
-            let form = build_multipart_form(std::mem::take(parts)).await?;
+            let form = build_multipart_form(app, asset_state, std::mem::take(parts)).await?;
             outgoing.multipart(form)
         }
     };
@@ -229,34 +249,49 @@ async fn read_limited_response(mut response: reqwest::Response) -> Result<Vec<u8
     Ok(result)
 }
 
-async fn expand_json_file_refs(value: &mut serde_json::Value) -> Result<(), String> {
+async fn expand_json_file_refs(
+    app: &AppHandle,
+    asset_state: &AssetManagerState,
+    value: &mut serde_json::Value,
+    raw_base64: bool,
+) -> Result<(), String> {
     match value {
         serde_json::Value::Object(map) => {
-            if map.get("kind").and_then(serde_json::Value::as_str) == Some("local-file-ref") {
+            if matches!(
+                map.get("kind").and_then(serde_json::Value::as_str),
+                Some("local-file-ref" | "managed-asset-ref")
+            ) {
                 let file_ref =
-                    serde_json::from_value::<LocalFileRef>(serde_json::Value::Object(map.clone()))
-                        .map_err(|_| "Invalid tagged local file reference".to_string())?;
-                validate_file_ref(&file_ref)?;
-                let bytes = tokio::fs::read(&file_ref.path)
+                    serde_json::from_value::<FileReference>(serde_json::Value::Object(map.clone()))
+                        .map_err(|_| "Invalid tagged file reference".to_string())?;
+                let resolved = resolve_file_reference(app, asset_state, &file_ref).await?;
+                let bytes = tokio::fs::read(&resolved.path)
                     .await
-                    .map_err(|_| "Failed to read tagged local file reference".to_string())?;
-                let content_type = file_ref
+                    .map_err(|_| "Failed to read tagged file reference".to_string())?;
+                let content_type = resolved
                     .content_type
                     .as_deref()
                     .unwrap_or("application/octet-stream");
-                *value = serde_json::Value::String(format!(
-                    "data:{content_type};base64,{}",
-                    STANDARD.encode(bytes)
+                *value = serde_json::Value::String(encode_json_file_bytes(
+                    &bytes,
+                    content_type,
+                    raw_base64,
                 ));
                 return Ok(());
             }
-            for child in map.values_mut() {
-                Box::pin(expand_json_file_refs(child)).await?;
+            for (key, child) in map.iter_mut() {
+                Box::pin(expand_json_file_refs(
+                    app,
+                    asset_state,
+                    child,
+                    key == "data",
+                ))
+                .await?;
             }
         }
         serde_json::Value::Array(values) => {
             for child in values {
-                Box::pin(expand_json_file_refs(child)).await?;
+                Box::pin(expand_json_file_refs(app, asset_state, child, false)).await?;
             }
         }
         _ => {}
@@ -264,7 +299,18 @@ async fn expand_json_file_refs(value: &mut serde_json::Value) -> Result<(), Stri
     Ok(())
 }
 
+fn encode_json_file_bytes(bytes: &[u8], content_type: &str, raw_base64: bool) -> String {
+    let encoded = STANDARD.encode(bytes);
+    if raw_base64 {
+        encoded
+    } else {
+        format!("data:{content_type};base64,{encoded}")
+    }
+}
+
 async fn build_multipart_form(
+    app: &AppHandle,
+    asset_state: &AssetManagerState,
     parts: Vec<MultipartPart>,
 ) -> Result<reqwest::multipart::Form, String> {
     let mut form = reqwest::multipart::Form::new();
@@ -280,25 +326,18 @@ async fn build_multipart_form(
                     .map_err(|_| "Invalid multipart byte payload".to_string())?,
             ),
             MultipartPartBody::FileRef { r#ref } => {
-                validate_file_ref(&r#ref)?;
-                let file = tokio::fs::File::open(&r#ref.path)
+                let resolved = resolve_file_reference(app, asset_state, &r#ref).await?;
+                let file = tokio::fs::File::open(&resolved.path)
                     .await
-                    .map_err(|_| "Failed to read multipart local file".to_string())?;
-                let length = file
-                    .metadata()
-                    .await
-                    .map_err(|_| "Failed to inspect multipart local file".to_string())?
-                    .len();
+                    .map_err(|_| "Failed to read multipart file reference".to_string())?;
                 let body = reqwest::Body::wrap_stream(ReaderStream::new(file));
-                let mut request_part = reqwest::multipart::Part::stream_with_length(body, length);
+                let mut request_part =
+                    reqwest::multipart::Part::stream_with_length(body, resolved.size_bytes);
                 if part.filename.is_none() {
-                    if let Some(filename) = Path::new(&r#ref.path).file_name() {
-                        request_part =
-                            request_part.file_name(filename.to_string_lossy().into_owned());
-                    }
+                    request_part = request_part.file_name(resolved.filename);
                 }
                 if part.content_type.is_none() {
-                    if let Some(content_type) = r#ref.content_type.as_deref() {
+                    if let Some(content_type) = resolved.content_type.as_deref() {
                         request_part = request_part
                             .mime_str(content_type)
                             .map_err(|_| "Invalid multipart content type".to_string())?;
@@ -323,18 +362,71 @@ async fn build_multipart_form(
     Ok(form)
 }
 
-fn validate_file_ref(file_ref: &LocalFileRef) -> Result<(), String> {
-    if file_ref.kind != "local-file-ref"
-        || file_ref.path.is_empty()
-        || file_ref.path.len() > MAX_PATH_LENGTH
-        || file_ref
-            .content_type
-            .as_deref()
-            .is_some_and(|value| value.is_empty() || value.len() > MAX_CONTENT_TYPE_LENGTH)
-    {
-        return Err("Invalid tagged local file reference".into());
+fn validate_file_ref(file_ref: &FileReference) -> Result<(), String> {
+    match file_ref {
+        FileReference::LocalFileRef { path, content_type } => {
+            if path.is_empty()
+                || path.len() > MAX_PATH_LENGTH
+                || content_type
+                    .as_deref()
+                    .is_some_and(|value| value.is_empty() || value.len() > MAX_CONTENT_TYPE_LENGTH)
+            {
+                return Err("Invalid tagged local file reference".into());
+            }
+        }
+        FileReference::ManagedAssetRef { asset_id } => {
+            if asset_id.is_empty() || asset_id.len() > 255 {
+                return Err("Invalid managed asset reference".into());
+            }
+        }
     }
     Ok(())
+}
+
+async fn resolve_file_reference(
+    app: &AppHandle,
+    asset_state: &AssetManagerState,
+    file_ref: &FileReference,
+) -> Result<ResolvedFileReference, String> {
+    validate_file_ref(file_ref)?;
+    match file_ref {
+        FileReference::LocalFileRef { path, content_type } => {
+            let path = PathBuf::from(path);
+            let metadata = tokio::fs::metadata(&path)
+                .await
+                .map_err(|_| "Failed to inspect local file reference".to_string())?;
+            if !metadata.is_file() {
+                return Err("Local file reference is not a file".into());
+            }
+            let filename = path
+                .file_name()
+                .map(|value| value.to_string_lossy().into_owned())
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| "upload.bin".into());
+            Ok(ResolvedFileReference {
+                path,
+                content_type: content_type.clone(),
+                filename,
+                size_bytes: metadata.len(),
+            })
+        }
+        FileReference::ManagedAssetRef { asset_id } => {
+            let asset =
+                asset_manager::resolve_managed_asset_read(app, asset_state, asset_id).await?;
+            let metadata = tokio::fs::metadata(&asset.path)
+                .await
+                .map_err(|_| "Failed to inspect managed asset".to_string())?;
+            if !metadata.is_file() {
+                return Err("Managed asset object is not a file".into());
+            }
+            Ok(ResolvedFileReference {
+                path: asset.path,
+                content_type: Some(asset.mime_type),
+                filename: asset.display_name,
+                size_bytes: metadata.len(),
+            })
+        }
+    }
 }
 
 fn parse_headers(headers: &HashMap<String, String>) -> Result<HeaderMap, String> {
@@ -379,8 +471,37 @@ mod tests {
             "path": "/tmp/image.png",
             "extra": true
         });
-        let result = serde_json::from_value::<LocalFileRef>(value);
+        let result = serde_json::from_value::<FileReference>(value);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn accepts_strict_managed_asset_refs_without_path_fields() {
+        let value = serde_json::json!({
+            "kind": "managed-asset-ref",
+            "assetId": "asset-1"
+        });
+        let result = serde_json::from_value::<FileReference>(value).unwrap();
+        assert!(matches!(
+            result,
+            FileReference::ManagedAssetRef { asset_id } if asset_id == "asset-1"
+        ));
+
+        let lookalike = serde_json::json!({
+            "kind": "managed-asset-ref",
+            "assetId": "asset-1",
+            "path": "/private/object"
+        });
+        assert!(serde_json::from_value::<FileReference>(lookalike).is_err());
+    }
+
+    #[test]
+    fn encodes_inline_data_without_a_data_url_prefix() {
+        assert_eq!(encode_json_file_bytes(b"abc", "image/png", true), "YWJj");
+        assert_eq!(
+            encode_json_file_bytes(b"abc", "image/png", false),
+            "data:image/png;base64,YWJj"
+        );
     }
 
     #[test]

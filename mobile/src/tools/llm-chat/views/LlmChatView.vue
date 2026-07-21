@@ -53,6 +53,13 @@ onMounted(async () => {
     await chatStore.switchSession(sessionId);
   }
 
+  const messageId =
+    typeof route.query.messageId === "string" ? route.query.messageId : null;
+  if (messageId && (await chatStore.focusMessage(messageId))) {
+    await nextTick();
+    messageListRef.value?.scrollToMessage?.(messageId, "auto");
+  }
+
   // 确保有选中的模型且模型有效
   chatStore.syncSelectedModel();
 });

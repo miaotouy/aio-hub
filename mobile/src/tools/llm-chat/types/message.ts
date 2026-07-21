@@ -1,4 +1,5 @@
 import type { MessageRole, MessageStatus, MessageType } from "./common";
+import type { ManagedAssetRef } from "../../asset-manager/types";
 
 export type TokenCountSource = "api" | "local" | "fallback";
 export type ContextRiskLevel = "normal" | "warning" | "critical";
@@ -14,6 +15,54 @@ export interface ContextTokenUsage {
   riskLevel: ContextRiskLevel;
   warningRatio: number;
   criticalRatio: number;
+}
+
+export interface ChatMessageMetadata {
+  /** Allow storage round-trips to preserve fields added by newer clients. */
+  [key: string]: unknown;
+  /** 使用的模型 ID */
+  modelId?: string;
+  /** 生成该消息时绑定的智能体 ID */
+  agentId?: string;
+  /** 使用的模型名称 */
+  modelName?: string;
+  /** 使用的模型显示名称 */
+  modelDisplayName?: string;
+  /** 错误信息 */
+  error?: string;
+  /** 推理内容（DeepSeek reasoning 模式） */
+  reasoningContent?: string;
+  /** 推理开始时间戳 */
+  reasoningStartTime?: number;
+  /** 推理结束时间戳 */
+  reasoningEndTime?: number;
+  /** Token 使用情况（API 返回的完整请求统计） */
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+  /** 单条消息内容的 Token 数量（本地计算） */
+  contentTokens?: number;
+  /** 单条消息 Token 的数据来源 */
+  contentTokenSource?: TokenCountSource;
+  /** 本地计算单条消息时使用的 tokenizer */
+  contentTokenizer?: string;
+  /** 生成本条助手消息时的完整请求上下文占用 */
+  contextUsage?: ContextTokenUsage;
+  /** 请求开始时间戳 */
+  requestStartTime?: number;
+  /** 请求结束时间戳 */
+  requestEndTime?: number;
+  /** 首字生成时间戳（用于计算 TTFT） */
+  firstTokenTime?: number;
+  /** 平均生成速度 (tokens/s) */
+  tokensPerSecond?: number;
+}
+
+export interface ChatMessageAttachment extends ManagedAssetRef {
+  id: string;
+  createdAt?: string;
 }
 
 /**
@@ -68,48 +117,8 @@ export interface ChatMessageNode {
   /**
    * 附加元数据
    */
-  metadata?: {
-    /** 使用的模型 ID */
-    modelId?: string;
-    /** 生成该消息时绑定的智能体 ID */
-    agentId?: string;
-    /** 使用的模型名称 */
-    modelName?: string;
-    /** 使用的模型显示名称 */
-    modelDisplayName?: string;
-    /** 错误信息 */
-    error?: string;
-    /** 推理内容（DeepSeek reasoning 模式） */
-    reasoningContent?: string;
-    /** 推理开始时间戳 */
-    reasoningStartTime?: number;
-    /** 推理结束时间戳 */
-    reasoningEndTime?: number;
-    /** Token 使用情况（API 返回的完整请求统计） */
-    usage?: {
-      promptTokens: number;
-      completionTokens: number;
-      totalTokens: number;
-    };
-    /**
-     * 单条消息内容的 Token 数量（本地计算）
-     * - 对于用户消息：本地计算的文本 + 附件 token 总数
-     * - 对于助手消息：直接使用 API 返回的 completionTokens
-     */
-    contentTokens?: number;
-    /** 单条消息 Token 的数据来源 */
-    contentTokenSource?: TokenCountSource;
-    /** 本地计算单条消息时使用的 tokenizer */
-    contentTokenizer?: string;
-    /** 生成本条助手消息时的完整请求上下文占用 */
-    contextUsage?: ContextTokenUsage;
-    /** 请求开始时间戳 */
-    requestStartTime?: number;
-    /** 请求结束时间戳 */
-    requestEndTime?: number;
-    /** 首字生成时间戳（用于计算 TTFT） */
-    firstTokenTime?: number;
-    /** 平均生成速度 (tokens/s) */
-    tokensPerSecond?: number;
-  };
+  metadata?: ChatMessageMetadata;
+
+  /** 持久化到 llm_chat.db 的全局资产引用和轻量快照 */
+  attachments?: ChatMessageAttachment[];
 }

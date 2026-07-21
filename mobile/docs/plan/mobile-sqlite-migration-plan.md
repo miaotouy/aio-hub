@@ -1,14 +1,14 @@
 # 移动端 SQLite 引入与持久化重构计划 (Mobile SQLite Migration Plan)
 
-> 状态：待施工；2026-07-18 已按 [`mobile-sqlite-migration-investigation-report.md`](./mobile-sqlite-migration-investigation-report.md) 校正实施边界。
+> 状态：施工中；2026-07-21 已完成阶段一 Rust 存储骨架、阶段二前端增量持久化、阶段三附件消费闭环和阶段四 Android 本地搜索，真实上游发送与 iOS 门禁仍待补验。
 > 当前决议：聊天数据库通过 Rust 领域命令访问，默认采用 SQLx、原生 migration runner 和统一连接配置；前端不得执行任意 SQL。
 
 ## 1. 背景与现状
 
-目前移动端（`mobile/`）的数据持久化采用的是**轻量级 JSON 文件方案**：
+计划发起时，移动端（`mobile/`）的数据持久化采用的是**轻量级 JSON 文件方案**；截至 2026-07-21，会话与消息已迁移到 `llm_chat.db`：
 
 - **配置数据**：使用基于 `@tauri-apps/plugin-store` 封装的 `ConfigManager`，将设置、LLM 渠道等保存为单文件 JSON。
-- **会话数据**：每个聊天会话保存为独立的 `{sessionId}.json` 文件，通过 `@tauri-apps/plugin-fs` 进行整文件读写。
+- **会话数据**：现由 Rust 领域 command 增量读写 `llm_chat.db`；旧 `{sessionId}.json` 只作为一次性开发数据导入源，不再参与后续读写。
 
 同时移动端目前（撰写计划时）还未发布任何版本，还处于纯内部开发阶段，没有用户数据迁移负担
 
@@ -120,39 +120,40 @@ AIO Hub 采用模块化工具架构，每个工具作为独立单元接入。为
 
 附件是聊天消息的一部分，但二进制原件属于全局可回收资产库。`chat_attachments` 只保存 `asset_id` 和原件被回收后仍可展示的轻量快照：
 
-| 字段名 | 类型 | 约束 | 说明 |
-| --- | --- | --- | --- |
-| `id` | TEXT | PRIMARY KEY | 附件引用 ID |
-| `message_id` | TEXT | NOT NULL, FK | 所属消息，随消息级联删除 |
-| `asset_id` | TEXT | NOT NULL | 全局资产 ID，不建立跨数据库外键 |
-| `kind` | TEXT | NOT NULL | image/audio/video/document/other |
-| `display_name` | TEXT | NOT NULL | 删除原件后仍用于历史展示 |
-| `mime_type` | TEXT | NOT NULL | MIME 快照 |
-| `size_bytes` | INTEGER | NOT NULL | 原件大小快照 |
-| `usage_policy` | TEXT | NOT NULL | advisory/blocking，默认 advisory |
-| `extracted_text` | TEXT | | 转写、提取文本或摘要快照 |
-| `sort_order` | INTEGER | NOT NULL | 消息内附件顺序 |
-| `created_at` | TEXT | NOT NULL | UTC 时间 |
+| 字段名           | 类型    | 约束         | 说明                             |
+| ---------------- | ------- | ------------ | -------------------------------- |
+| `id`             | TEXT    | PRIMARY KEY  | 附件引用 ID                      |
+| `message_id`     | TEXT    | NOT NULL, FK | 所属消息，随消息级联删除         |
+| `asset_id`       | TEXT    | NOT NULL     | 全局资产 ID，不建立跨数据库外键  |
+| `kind`           | TEXT    | NOT NULL     | image/audio/video/document/other |
+| `display_name`   | TEXT    | NOT NULL     | 删除原件后仍用于历史展示         |
+| `mime_type`      | TEXT    | NOT NULL     | MIME 快照                        |
+| `size_bytes`     | INTEGER | NOT NULL     | 原件大小快照                     |
+| `usage_policy`   | TEXT    | NOT NULL     | advisory/blocking，默认 advisory |
+| `extracted_text` | TEXT    |              | 转写、提取文本或摘要快照         |
+| `sort_order`     | INTEGER | NOT NULL     | 消息内附件顺序                   |
+| `created_at`     | TEXT    | NOT NULL     | UTC 时间                         |
 
 聊天数据和 `asset_manager.db` 不属于同一事务域。为避免“消息已保存但 usage 未登记”或“消息已删除但 usage 未释放”，聊天库增加 `asset_usage_outbox`。每条事件包含业务实体、操作和完整 usage payload；投递器严格按自增 `sequence` 调用资产服务的 `asset_replace_entity_usages`，成功后标记 `delivered_at`。应用在投递成功后崩溃只会导致重复投递，因此资产命令必须幂等。
 
-附件与 usage outbox 直接进入初始 schema v1。移动端尚未发布且该 SQLite 计划尚未实施，不为已知错误的 `file_path` 方案保留 migration v2。
+附件与 usage outbox 直接进入初始 schema v1。移动端尚未发布，不为已知错误的 `file_path` 方案保留 migration v2。
 
 ### 3.4. 索引设计
 
 ```sql
 -- 会话列表按更新时间倒序（最频繁的列表查询）
-CREATE INDEX idx_sessions_updated ON chat_sessions(updated_at DESC);
+CREATE INDEX idx_sessions_updated ON chat_sessions(updated_at DESC, id DESC);
 
 -- 加载某会话的所有消息并按兄弟顺序排列（会话进入时必查）
 -- 复合索引 (session_id, sibling_order) 同时覆盖 WHERE 和 ORDER BY，避免 filesort
-CREATE INDEX idx_messages_session ON chat_messages(session_id, sibling_order);
+CREATE INDEX idx_messages_session ON chat_messages(session_id, sibling_order, id);
 
 -- 查询某节点的子节点（分支导航时用到）
-CREATE INDEX idx_messages_parent ON chat_messages(session_id, parent_id);
+CREATE INDEX idx_messages_parent ON chat_messages(session_id, parent_id, sibling_order, id);
 
 CREATE INDEX idx_attachments_message ON chat_attachments(message_id, sort_order);
-CREATE INDEX idx_usage_outbox_pending ON asset_usage_outbox(delivered_at, sequence);
+CREATE INDEX idx_usage_outbox_pending ON asset_usage_outbox(delivered_at, dead_letter_at, sequence);
+CREATE INDEX idx_usage_outbox_entity_order ON asset_usage_outbox(module_id, entity_type, entity_id, sequence);
 ```
 
 > **设计理由**：
@@ -205,12 +206,13 @@ LIMIT 100;
 ```
 
 > **FTS5 vs LIKE 对比**：
-> | 维度 | LIKE '%keyword%' | FTS5 |
-> | ---- | ---------------- | ---- |
-> | 时间复杂度 | O(N) 全表扫描 | O(log N) 倒排索引 |
-> | 百万级数据性能 | 数秒 | 毫秒级 |
-> | 支持分词 | 否 | 支持 Simple / Porter / Unicode61 |
-> | 支持高亮 | 否 | 内置 `highlight()` / `snippet()` |
+>
+> | 维度           | LIKE '%keyword%' | FTS5                             |
+> | -------------- | ---------------- | -------------------------------- |
+> | 时间复杂度     | O(N) 全表扫描    | O(log N) 倒排索引                |
+> | 百万级数据性能 | 数秒             | 毫秒级                           |
+> | 支持分词       | 否               | 支持 Simple / Porter / Unicode61 |
+> | 支持高亮       | 否               | 内置 `highlight()` / `snippet()` |
 >
 > 考虑到移动端用户可能产生大量会话数据，FTS5 的初始维护成本远低于后期因 LIKE 性能问题再次重构。
 
@@ -235,7 +237,7 @@ Rust storage codec 不能用手写字段白名单重建 metadata。编码时从�
 
 ### 3.8. 完整 DDL 总览
 
-> 以下 DDL 是 Schema v1 草案，不是已冻结 migration。阶段零验证完成后还需按当前 TypeScript 类型、metadata codec、中文搜索策略和 `ManagedAssetRef` 契约复核，再拆入 SQLx migration 文件。
+> Schema v1 已落入 `mobile/src-tauri/migrations/llm-chat/0001_llm_chat.sql`。下列内容是字段与索引总览，完整 CHECK、外键和默认值以 migration 为准；后续修改必须新增 migration，不得静默改写已应用版本。
 
 ```sql
 -- ============ 1. 会话表 ============
@@ -252,7 +254,7 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_sessions_updated
-  ON chat_sessions(updated_at DESC);
+  ON chat_sessions(updated_at DESC, id DESC);
 
 -- ============ 3. 消息表 ============
 CREATE TABLE IF NOT EXISTS chat_messages (
@@ -268,13 +270,15 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   timestamp               TEXT NOT NULL,
   reasoning_content       TEXT,
   metadata_json           TEXT,
-  FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
+  FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE,
+  FOREIGN KEY (parent_id) REFERENCES chat_messages(id) ON DELETE CASCADE
+    DEFERRABLE INITIALLY DEFERRED
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_session
-  ON chat_messages(session_id, sibling_order);
+  ON chat_messages(session_id, sibling_order, id);
 CREATE INDEX IF NOT EXISTS idx_messages_parent
-  ON chat_messages(session_id, parent_id);
+  ON chat_messages(session_id, parent_id, sibling_order, id);
 
 -- ============ 4. 聊天附件引用 ============
 CREATE TABLE IF NOT EXISTS chat_attachments (
@@ -301,6 +305,7 @@ CREATE INDEX IF NOT EXISTS idx_attachments_message
 CREATE TABLE IF NOT EXISTS asset_usage_outbox (
   sequence        INTEGER PRIMARY KEY AUTOINCREMENT,
   event_id        TEXT NOT NULL UNIQUE,
+  module_id       TEXT NOT NULL DEFAULT 'llm-chat',
   entity_type     TEXT NOT NULL,
   entity_id       TEXT NOT NULL,
   operation       TEXT NOT NULL CHECK (operation IN ('replace', 'release')),
@@ -308,18 +313,22 @@ CREATE TABLE IF NOT EXISTS asset_usage_outbox (
   attempt_count   INTEGER NOT NULL DEFAULT 0,
   last_error      TEXT,
   created_at      TEXT NOT NULL,
-  delivered_at    TEXT
+  delivered_at    TEXT,
+  dead_letter_at  TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_usage_outbox_pending
-  ON asset_usage_outbox(delivered_at, sequence);
+  ON asset_usage_outbox(delivered_at, dead_letter_at, sequence);
+CREATE INDEX IF NOT EXISTS idx_usage_outbox_entity_order
+  ON asset_usage_outbox(module_id, entity_type, entity_id, sequence);
 
 -- ============ 6. FTS5 全文搜索 ============
 CREATE VIRTUAL TABLE IF NOT EXISTS chat_messages_fts USING fts5(
   content,
   reasoning_content,
   content=chat_messages,
-  content_rowid=rowid
+  content_rowid=rowid,
+  tokenize='trigram'
 );
 
 CREATE TRIGGER IF NOT EXISTS chat_messages_ai AFTER INSERT ON chat_messages BEGIN
@@ -332,7 +341,11 @@ CREATE TRIGGER IF NOT EXISTS chat_messages_ad AFTER DELETE ON chat_messages BEGI
   VALUES ('delete', old.rowid, old.content, old.reasoning_content);
 END;
 
-CREATE TRIGGER IF NOT EXISTS chat_messages_au AFTER UPDATE ON chat_messages BEGIN
+CREATE TRIGGER IF NOT EXISTS chat_messages_au
+AFTER UPDATE OF content, reasoning_content ON chat_messages
+WHEN old.content IS NOT new.content
+  OR old.reasoning_content IS NOT new.reasoning_content
+BEGIN
   INSERT INTO chat_messages_fts(chat_messages_fts, rowid, content, reasoning_content)
   VALUES ('delete', old.rowid, old.content, old.reasoning_content);
   INSERT INTO chat_messages_fts(rowid, content, reasoning_content)
@@ -361,6 +374,14 @@ END;
 - `persist_chat_changes` 接收领域变更集并开启单一 transaction；前端不传 SQL，也不自行管理 transaction。
 - 增加 migration 升级/回滚、foreign key、codec round-trip、未知 metadata 字段保留和 crash recovery 测试。
 
+实施状态（2026-07-21）：已完成。
+
+- 新增独立 `llm_chat.db`、schema v1 migration 和统一 SQLx pool；连接固定使用 WAL、`synchronous=NORMAL`、foreign keys、3 秒 busy timeout 与最多 4 条连接。
+- 注册计划要求的会话列表、加载、增量变更、分支删除、会话删除、搜索和 outbox 投递 command，并增加 dead-letter 显式重试入口。
+- `persist_chat_changes` 在单一 transaction 内维护会话、消息、附件和 outbox。附件 replacement/release 由 Rust 根据最终状态自动生成，前端不能自行构造 outbox；删除分支/会话先写 release，再级联删除业务行。
+- metadata 完整 JSON 原样保存，`reasoningContent` 只作为查询列镜像；未知字段已通过 round-trip 测试。3 字及以上查询走 trigram FTS，1-2 字走转义后的受限 `LIKE`。
+- Android x86_64 debug APK 已在 `emulator-5558` 通过真实 WebView 调用会话 command，并在应用数据目录创建 `llm-chat/llm_chat.db`、WAL 与 SHM。阶段二已接管聊天 UI 的会话与消息存储；附件消费者仍未完成，iOS 按缺少编译/设备条件继续跳过。
+
 ### 阶段二：会话与消息增量持久化
 
 - 重构 `useSessionManager`，通过薄 Tauri command client 加载会话列表、单会话和提交 change set。
@@ -368,18 +389,36 @@ END;
 - `currentSessionId` 继续由 ConfigManager 管理；流式回复按节流快照落盘，不按 token 写数据库。
 - JSON 实现只作为短期开发回退。Android/iOS 数据闭环通过后删除，不建设长期双写与迁移负担。
 
+实施状态（2026-07-21）：已完成，iOS 门禁除外。
+
+- 新增薄型 `chatStorageService` 和集中式 `chatStorageCodec`；扁平消息按 `siblingOrder` 以 O(N) 组装为树，完整 metadata（含未知字段）、类型、时间戳和分支选择字段无损保留。
+- `useSessionManager` 以模块级已落盘快照计算增量 change set；只 upsert 新增或变化消息，删除提交最小分支根，活跃叶和会话元数据仍在同一领域请求更新。并发保存按会话串行，diff 基线取实际请求快照，避免写入中发生内存变化后漏存。
+- `currentSessionId` 继续保存在 `sessions-index.json`。旧索引和逐会话 JSON 仅执行一次幂等导入；成功后清空旧索引条目并写 migration marker，原 JSON 不再读写且暂留作开发期回滚备份，没有长期双写。
+- Android `emulator-5558` 的最终 x86_64 debug APK 已通过真实 WebView 正式“开启新对话”入口完成 Pinia、`useSessionManager`、codec 与 Tauri command 的创建/加载闭环，并额外完成单消息增量更新、未知 metadata 往返、列表可见和删除验证。iOS 因缺少编译与设备条件跳过，不能据此声明双端门禁完成。
+
 ### 阶段三：附件与 usage outbox
 
-- 等资产服务命令与 `ManagedAssetRef` 稳定后，再固化 `chat_attachments` 的写入和解析。
+- 已完成第一批：消息节点使用强类型 `ManagedAssetRef + 轻量快照`，codec 增量写入/读取 `chat_attachments`，不把附件塞进 metadata。
+- 已完成第一批：会话启动、提交和删除触发 outbox 投递；Android 已实测 replacement/release 顺序、资产 usage 出现与归零。
 - 在消息变更 transaction 内写完整 usage replacement/release outbox；删除业务行前必须先写 release 事件。
 - 应用启动、聊天提交和资产服务恢复时触发投递；失败事件独立重试，永久错误不能阻塞后续无关实体。
-- 用故障注入覆盖“资产命令已成功但 delivered 未标记”、重复投递、附件替换、分支删除和会话删除。
+- 已完成第二批：聊天输入区资产选择器只读取 ready 资产；图片、音频、视频和文档转换为 opaque `managed-asset-ref`，OpenAI-compatible/Gemini/Anthropic wire builder 与移动端 Rust native transport 均有固定测试。
+- 已完成第三批：消息附件按 5 秒 TTL 查询资产详情并区分 reclaimed、missing、missing_record 与其他错误；历史上下文剔除不可用附件但保留文本，当前草稿附件在创建消息前阻断并保留草稿。
+- 已完成第四批：ready 图片附件按需申请资产服务短期预览 descriptor，通过 Teleport 全屏层展示；关闭、消息切换、路由卸载和异步竞态均主动撤销或回收 token。
+- 已完成第五批：文本文档提取结果通过聊天领域 command 在同一事务内写入附件快照、将 blocking usage 降为 advisory 并写 replacement outbox；原件删除发生在 outbox 投递和影响复核之后。
+- 待完成：真实上游模型发送验收；当前 emulator 未配置模型，不能在不添加密钥的情况下宣称通过。
+- 已用 Rust 回归覆盖“资产命令已成功但 delivered 未标记”、重复投递、附件替换、分支删除、会话删除、五次失败进入 dead-letter、显式重试和无关实体继续投递。
 
 ### 阶段四：本地搜索
 
-- query 编码、FTS 查询、rank、snippet 和结果上限均在 Rust storage 层实现，前端只传结构化搜索条件。
-- 在真实中日韩与英文语料上决定 trigram、受限 `LIKE` 或 basic-search 降级策略，明确 1/2/3 字符和特殊字符行为。
-- FTS 只有在双端真实 Tauri 运行态通过后才设为强依赖，否则保留 basic search 降级。
+实施状态（2026-07-21）：Android 已完成，iOS 门禁除外。
+
+- query 编码、FTS 查询、rank、snippet 和 1-100 条结果上限均在 Rust storage 层实现，前端只传结构化搜索条件。
+- 3 字符及以上查询使用 trigram FTS5 和短语编码；1/2 字符使用受限 `LIKE`，并把 `%`、`_` 和转义符按字面量处理。两条路径均返回 UTF-8 安全的上下文 snippet。
+- 长查询遇到 FTS5 不可用、索引损坏或查询错误时自动降级到同一 Rust basic-search；只有降级也失败时才向前端返回组合错误。
+- 会话列表页提供 220 ms 防抖搜索、加载/错误/空状态和结果时间；点击结果会切换到目标会话及消息所在分支，滚动并高亮目标消息。
+- Rust 测试覆盖中文 1/2/3 字符、英文大小写和 `%_` 特殊字符。Android `emulator-5558` 真实 WebView 已验证中文搜索、字面量特殊字符、非活动分支定位和 `messageId` 深链；临时验收会话已删除且 outbox 无待投递事件。
+- iOS 因缺少编译与设备条件跳过。FTS5 在 iOS 真实 Tauri 构建通过前仍属于平台门禁，不能据此宣称双端搜索完成。
 
 ---
 
@@ -428,7 +467,7 @@ function buildTree(
 注意：`sibling_order` 保证了第二轮的 `push` 顺序与写入时的 `childrenIds` 顺序一致。**查询时必须 `ORDER BY sibling_order ASC`**，复合索引 `(session_id, sibling_order)` 已确保此排序为索引覆盖，无需额外 filesort。
 
 4. **`metadata_json` 与 TypeScript 类型对齐**：编码/解码集中在 Rust storage codec，不在 `useSessionManager` 或业务组件中散布 `JSON.parse`。必须覆盖当前全部 metadata 字段、未知字段和可选 `timestamp` 的无损往返。
-5. **FTS5 初始填充**：如果从 JSON 文件迁移到 SQLite 时已有存量数据，FTS5 虚拟表中的内容不会自动回填。需要在数据导入完成后运行一条重建命令来填充索引：
+5. **FTS5 初始填充**：当前 JSON 导入通过 schema v1 已安装的 INSERT 触发器写入，FTS 会同步填充。如果未来先有消息表数据、后新增 FTS migration，则需在 migration 中运行重建命令：
    ```sql
    INSERT INTO chat_messages_fts(chat_messages_fts) VALUES('rebuild');
    ```

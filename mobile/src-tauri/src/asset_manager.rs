@@ -313,6 +313,8 @@ pub struct AssetListQuery {
     created_month: Option<String>,
     origin_kind: Option<String>,
     source_module: Option<String>,
+    retention_policy: Option<String>,
+    usage_state: Option<String>,
     include_hidden: Option<bool>,
     include_unavailable: Option<bool>,
     limit: Option<u32>,
@@ -686,6 +688,16 @@ pub async fn asset_list(
     if let Some(source_module) = query.source_module.as_deref() {
         validate_identifier("sourceModule", source_module)?;
     }
+    if let Some(retention_policy) = query.retention_policy.as_deref() {
+        if !matches!(retention_policy, "all" | "reclaimable" | "pinned") {
+            return Err("ASSET_INVALID_RETENTION_POLICY".into());
+        }
+    }
+    if let Some(usage_state) = query.usage_state.as_deref() {
+        if !matches!(usage_state, "all" | "used" | "unused") {
+            return Err("ASSET_INVALID_USAGE_STATE".into());
+        }
+    }
     let search = query
         .search
         .as_deref()
@@ -725,6 +737,27 @@ async fn list_assets(pool: &SqlitePool, query: AssetListQuery) -> Result<Vec<Ass
     }
     if let Some(kind) = query.kind {
         builder.push(" AND kind = ").push_bind(kind);
+    }
+    match query.retention_policy.as_deref() {
+        Some(retention_policy @ ("reclaimable" | "pinned")) => {
+            builder
+                .push(" AND retention_policy = ")
+                .push_bind(retention_policy);
+        }
+        Some("all") | None => {}
+        Some(_) => return Err("ASSET_INVALID_RETENTION_POLICY".into()),
+    }
+    match query.usage_state.as_deref() {
+        Some("used") => {
+            builder.push(" AND EXISTS (SELECT 1 FROM asset_usages u WHERE u.asset_id = assets.id)");
+        }
+        Some("unused") => {
+            builder.push(
+                " AND NOT EXISTS (SELECT 1 FROM asset_usages u WHERE u.asset_id = assets.id)",
+            );
+        }
+        Some("all") | None => {}
+        Some(_) => return Err("ASSET_INVALID_USAGE_STATE".into()),
     }
     if let Some(month) = query.created_month {
         builder
@@ -3687,6 +3720,132 @@ mod tests {
         .unwrap();
         assert_eq!(hidden.len(), 1);
         assert_eq!(hidden[0].id, "hidden-asset");
+
+        sqlx::query("UPDATE assets SET retention_policy = 'pinned' WHERE id = 'hidden-asset'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO asset_usages( \
+               asset_id, module_id, entity_type, entity_id, role, usage_policy, created_at \
+             ) VALUES ('visible-asset', 'llm-chat', 'message', 'message-filter', 'attachment', \
+               'advisory', '2026-07-20T00:00:00.000Z')",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO asset_usages( \
+               asset_id, module_id, entity_type, entity_id, role, usage_policy, created_at \
+             ) VALUES ('visible-asset', 'media-generator', 'task', 'task-filter', 'input', \
+               'advisory', '2026-07-21T00:00:00.000Z')",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        let pinned = list_assets(
+            &pool,
+            AssetListQuery {
+                library_state: Some("all".into()),
+                retention_policy: Some("pinned".into()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            pinned
+                .iter()
+                .map(|asset| asset.id.as_str())
+                .collect::<Vec<_>>(),
+            ["hidden-asset"]
+        );
+        let used = list_assets(
+            &pool,
+            AssetListQuery {
+                usage_state: Some("used".into()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            used.iter()
+                .map(|asset| asset.id.as_str())
+                .collect::<Vec<_>>(),
+            ["visible-asset"]
+        );
+        let reclaimable_and_used = list_assets(
+            &pool,
+            AssetListQuery {
+                library_state: Some("all".into()),
+                retention_policy: Some("reclaimable".into()),
+                usage_state: Some("used".into()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            reclaimable_and_used
+                .iter()
+                .map(|asset| asset.id.as_str())
+                .collect::<Vec<_>>(),
+            ["visible-asset"]
+        );
+        let unfiltered = list_assets(
+            &pool,
+            AssetListQuery {
+                library_state: Some("all".into()),
+                retention_policy: Some("all".into()),
+                usage_state: Some("all".into()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(unfiltered.len(), 2);
+        let unused = list_assets(
+            &pool,
+            AssetListQuery {
+                library_state: Some("all".into()),
+                usage_state: Some("unused".into()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            unused
+                .iter()
+                .map(|asset| asset.id.as_str())
+                .collect::<Vec<_>>(),
+            ["hidden-asset"]
+        );
+        assert_eq!(
+            list_assets(
+                &pool,
+                AssetListQuery {
+                    retention_policy: Some("invalid".into()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap_err(),
+            "ASSET_INVALID_RETENTION_POLICY"
+        );
+        assert_eq!(
+            list_assets(
+                &pool,
+                AssetListQuery {
+                    usage_state: Some("invalid".into()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap_err(),
+            "ASSET_INVALID_USAGE_STATE"
+        );
 
         let visible_facets = library_facets(&pool, false).await.unwrap();
         assert_eq!(visible_facets.by_month.len(), 1);

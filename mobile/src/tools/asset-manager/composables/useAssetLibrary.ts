@@ -30,7 +30,9 @@ import type {
   AssetListQuery,
   AssetPreviewSource,
   AssetRecord,
+  AssetRetentionPolicy,
   AssetStorageSummary,
+  AssetUsageState,
 } from "../types";
 
 export type AssetLibraryMode = "assets" | "storage";
@@ -55,6 +57,8 @@ export function createAssetListQuery(
     libraryState: AssetLibraryState | "all";
     createdMonth: string;
     sourceModule: string;
+    retentionPolicy: AssetRetentionPolicy | "all";
+    usageState: AssetUsageState;
   },
   offset = 0
 ): AssetListQuery {
@@ -64,6 +68,8 @@ export function createAssetListQuery(
     libraryState: input.libraryState,
     createdMonth: input.createdMonth || undefined,
     sourceModule: input.sourceModule || undefined,
+    retentionPolicy: input.retentionPolicy,
+    usageState: input.usageState,
     includeHidden: input.libraryState !== "visible",
     includeUnavailable: true,
     limit: ASSET_PAGE_SIZE,
@@ -85,6 +91,8 @@ export function useAssetLibrary() {
   const libraryState = ref<AssetLibraryState | "all">("visible");
   const createdMonth = ref("");
   const sourceModule = ref("");
+  const retentionPolicy = ref<AssetRetentionPolicy | "all">("all");
+  const usageState = ref<AssetUsageState>("all");
   const loading = ref(false);
   const loadingMore = ref(false);
   const hasMore = ref(false);
@@ -106,6 +114,8 @@ export function useAssetLibrary() {
       libraryState: libraryState.value,
       createdMonth: createdMonth.value,
       sourceModule: sourceModule.value,
+      retentionPolicy: retentionPolicy.value,
+      usageState: usageState.value,
     })
   );
 
@@ -447,19 +457,22 @@ export function useAssetLibrary() {
     await load({ keepSelection: true });
   }
 
-  watch([search, kind, libraryState, createdMonth, sourceModule], (_value, _oldValue, onCleanup) => {
-    loadSequence += 1;
-    loadMoreRequestId += 1;
-    loadedOffset = 0;
-    hasMore.value = false;
-    loadingMore.value = false;
-    assets.value = [];
-    selectedIds.value = [];
-    loading.value = true;
-    error.value = null;
-    const timer = setTimeout(() => void load(), 220);
-    onCleanup(() => clearTimeout(timer));
-  });
+  watch(
+    [search, kind, libraryState, createdMonth, sourceModule, retentionPolicy, usageState],
+    (_value, _oldValue, onCleanup) => {
+      loadSequence += 1;
+      loadMoreRequestId += 1;
+      loadedOffset = 0;
+      hasMore.value = false;
+      loadingMore.value = false;
+      assets.value = [];
+      selectedIds.value = [];
+      loading.value = true;
+      error.value = null;
+      const timer = setTimeout(() => void load(), 220);
+      onCleanup(() => clearTimeout(timer));
+    }
+  );
 
   return {
     mode,
@@ -474,6 +487,8 @@ export function useAssetLibrary() {
     libraryState,
     createdMonth,
     sourceModule,
+    retentionPolicy,
+    usageState,
     loading,
     loadingMore,
     hasMore,

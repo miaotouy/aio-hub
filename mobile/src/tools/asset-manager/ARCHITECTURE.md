@@ -77,7 +77,7 @@ AppData/assets/
 
 ## 8. 查询与库状态
 
-- `asset_list` 支持 visible/hidden/all、创建月份、来源类型和来源模块筛选；旧 `includeHidden` 参数继续兼容。
+- `asset_list` 支持 visible/hidden/all、创建月份、来源类型、来源模块、保留策略（reclaimable/pinned）和使用影响（used/unused）筛选；旧 `includeHidden` 参数继续兼容。
 - 月份与来源 facets 只聚合 ready 资产。来源聚合在同一来源类型/模块内按资产去重；同一资产属于多个来源分组时允许重复计入，各分组不可直接相加推导总占用。
 - hidden 只影响普通资产列表与默认 facets，不改变资产可用性。恢复仅把 `library_state` 改回 visible。
 
@@ -99,7 +99,7 @@ AppData/assets/
 ## 11. 用户界面
 
 - `asset-manager.registry.ts` 注册 `/tools/asset-manager`，页面使用原生 Vue 结构、Lucide 图标和 AIO Hub token；Varlet 只保留在全局反馈封装中。
-- 资产视图支持名称、类型、可见状态、月份和来源模块筛选，包含加载、空、错误、导入中、missing/reclaimed/error 与多选状态。
+- 资产视图支持名称、类型、可见状态、月份、来源模块、保留策略和使用影响筛选，包含加载、空、错误、导入中、missing/reclaimed/error 与多选状态。
 - 资产列表按后端 `limit/offset` 契约分批加载；首批达到 100 项时显示“加载更多”，筛选重载会使迟到的旧分页响应失效，避免跨查询混入资产。
 - 手机资产列表使用稳定 1:1 三列网格，平板增加列数；普通点击打开详情，长按进入多选，显式选择按钮继续作为无障碍和精确操作入口。
 - 多选操作复用后端原子命令完成隐藏/恢复、固定/取消固定和安全删除。删除前必须重新调用影响分析，advisory usage 经平台对话框确认后才传入 `confirmAdvisory`。

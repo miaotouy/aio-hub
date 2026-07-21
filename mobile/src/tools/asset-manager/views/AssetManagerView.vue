@@ -25,7 +25,12 @@ import ImportJobsSheet from "../components/ImportJobsSheet.vue";
 import ImportSourceSheet from "../components/ImportSourceSheet.vue";
 import { formatAssetBytes, useAssetLibrary } from "../composables/useAssetLibrary";
 import { capturePhoto, exportAsset, shareAsset as shareManagedAsset } from "../services/assetService";
-import type { AssetKind, AssetImportSource } from "../types";
+import type {
+  AssetImportSource,
+  AssetKind,
+  AssetRetentionPolicy,
+  AssetUsageState,
+} from "../types";
 
 const router = useRouter();
 const library = useAssetLibrary();
@@ -57,6 +62,21 @@ const kindOptions: Array<{ label: string; value: AssetKind | "all" }> = [
   { label: "其他", value: "other" },
 ];
 
+const retentionOptions: Array<{
+  label: string;
+  value: AssetRetentionPolicy | "all";
+}> = [
+  { label: "全部策略", value: "all" },
+  { label: "可回收原件", value: "reclaimable" },
+  { label: "固定保留", value: "pinned" },
+];
+
+const usageOptions: Array<{ label: string; value: AssetUsageState }> = [
+  { label: "全部影响", value: "all" },
+  { label: "使用中", value: "used" },
+  { label: "未使用", value: "unused" },
+];
+
 const sourceOptions = computed(() => [
   { label: "全部来源", value: "" },
   ...library.facets.value.bySource.map((facet) => ({
@@ -78,7 +98,9 @@ const hasFilters = computed(
     library.kind.value !== "all" ||
     library.libraryState.value !== "visible" ||
     Boolean(library.createdMonth.value) ||
-    Boolean(library.sourceModule.value)
+    Boolean(library.sourceModule.value) ||
+    library.retentionPolicy.value !== "all" ||
+    library.usageState.value !== "all"
 );
 
 const importPercent = computed(() => {
@@ -97,6 +119,8 @@ function clearFilters() {
   library.libraryState.value = "visible";
   library.createdMonth.value = "";
   library.sourceModule.value = "";
+  library.retentionPolicy.value = "all";
+  library.usageState.value = "all";
 }
 
 function monthLabel(month: string) {
@@ -353,6 +377,12 @@ onUnmounted(() => {
             </select>
             <select v-model="library.sourceModule.value" aria-label="来源模块">
               <option v-for="option in sourceOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
+            <select v-model="library.retentionPolicy.value" aria-label="保留策略">
+              <option v-for="option in retentionOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
+            <select v-model="library.usageState.value" aria-label="使用影响">
+              <option v-for="option in usageOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
           </div>
           <div class="facet-row" role="list" aria-label="创建月份">

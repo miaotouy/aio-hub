@@ -6,6 +6,7 @@ export type AssetAvailability =
   | "missing"
   | "error";
 export type AssetRetentionPolicy = "reclaimable" | "pinned";
+export type AssetUsageState = "all" | "used" | "unused";
 export type AssetLibraryState = "visible" | "hidden";
 export type AssetUsagePolicy = "advisory" | "blocking";
 export type AssetOriginKind =
@@ -99,6 +100,8 @@ export interface AssetListQuery {
   createdMonth?: string;
   originKind?: AssetOriginKind;
   sourceModule?: string;
+  retentionPolicy?: AssetRetentionPolicy | "all";
+  usageState?: AssetUsageState;
   includeHidden?: boolean;
   includeUnavailable?: boolean;
   limit?: number;

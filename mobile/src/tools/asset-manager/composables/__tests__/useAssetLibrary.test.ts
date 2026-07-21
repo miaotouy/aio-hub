@@ -67,6 +67,8 @@ describe("asset library query", () => {
         libraryState: "hidden",
         createdMonth: "2026-07",
         sourceModule: "llm-chat",
+        retentionPolicy: "pinned",
+        usageState: "used",
       })
     ).toEqual({
       search: "report",
@@ -74,6 +76,8 @@ describe("asset library query", () => {
       libraryState: "hidden",
       createdMonth: "2026-07",
       sourceModule: "llm-chat",
+      retentionPolicy: "pinned",
+      usageState: "used",
       includeHidden: true,
       includeUnavailable: true,
       limit: 100,
@@ -96,6 +100,8 @@ describe("asset library query", () => {
           libraryState: "visible",
           createdMonth: "",
           sourceModule: "",
+          retentionPolicy: "all",
+          usageState: "all",
         },
         100
       )

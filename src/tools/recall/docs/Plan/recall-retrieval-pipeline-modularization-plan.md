@@ -19,11 +19,11 @@
 >
 > 已可直接复用的测试前置资产包括：
 >
-> - `recall-migration-baseline-v1.json`、Rust `migration_baseline` 和对应 Vitest/Rust 测试已固定当前旧行为、迁移输入、损坏向量边界、Agent/Chat 行为，以及 `keyword`、`vector`、`lens`、`blender`、`semantic`、`associative` 的代表性查询快照。它们只用于旧行为变化报告和迁移夹具，不是新管线等价验收。
+> - `recall-migration-baseline-v1.json`、Rust `migration_baseline` 和对应 Vitest/Rust 测试已固定迁移输入、损坏向量边界、Agent/Chat 调用，以及 `keyword`、`vector`、`lens`、`blender`、`semantic`、`associative` 的代表性查询快照。它们只用于迁移夹具、算法盘点和故障诊断，不是召回质量样本，也不用于判断新旧实现孰优。
 > - `tests/tauri-e2e/support/presets.ts` 已将确定性 Recall、Chat 注入/恢复、外部语料、Ollama、私有 Profile 和 native lane 收口为具名 E2E preset；根 `package.json` 只保留通用、纯逻辑和 native 三个入口。这里的 E2E preset 与本计划的检索 preset 是两个独立命名空间，不能互相替代。
 > - Recall 向量化、语义检索、Chat evidence、SSE 完成态、同数据根二次进程恢复、external-sample/full 和真实 Ollama 已有真实 Tauri WebView 验收，且稳定 `data-testid`、请求摘要、状态回读和恢复探针已落地。
 >
-> 仍未完成的管线前置包括：冻结新 artifact/module/pipeline 契约；把旧行为快照整理为可比较的行为变化报告；建立 `algorithmic` / `comprehensive` 的新质量与性能基线；实现编译、外部产物准备、统一执行和 pipeline trace；以及旧 `engineId` / `profile` 到新预设的版本化迁移。现有 E2E 证明的是旧检索路径的端到端可用性，不能证明新 Runner 的候选、分数、过滤或排序语义。
+> 仍未完成的管线前置包括：冻结新 artifact/module/pipeline 契约；盘点旧实现中的可迁移配置与算法步骤；建立 `algorithmic` / `comprehensive` 的工程契约与性能基线；实现编译、外部产物准备、统一执行和 pipeline trace；以及旧 `engineId` / `profile` 到新预设的版本化迁移。现有 E2E 只能证明旧检索路径的端到端可用性，不能证明召回结果符合某个用户的需要，也不能为新 Runner 的候选、分数、过滤或排序提供质量结论。
 
 ---
 
@@ -64,7 +64,7 @@ associative
 5. 综合配置复用纯算法候选和信号，不再重复实现字面检索。
 6. 中间产物、原始分数、归一化分数、融合依据、过滤原因和最终排名均可进入结构化 trace。
 7. 保持 Recall SQLite、内存索引、向量矩阵和 tag pool 的现有领域边界，不因管线化复制数据真源。
-8. 建立新管线自己的固定查询集、质量基线和性能基线；旧引擎输出只用于记录行为变化，不作为迁移验收门槛。
+8. 建立新管线的确定性工程夹具、契约断言和性能基线；旧引擎输出只用于算法盘点、迁移排错和人工诊断，不作为质量门槛。
 
 ### 2.2 非目标
 
@@ -75,6 +75,16 @@ associative
 - 不要求第一阶段立即删除全部旧 `engineId`，但禁止继续基于旧接口扩展新算法。
 - 不承诺不同信号的原始 score 可以直接比较，也不把融合分数展示为事实准确率。
 - 不保证旧引擎与新管线的候选、分数、过滤结果或排序等价。迁移只保证受支持的配置和数据能够被识别、转换或给出可恢复问题。
+- 不在本计划中设计或宣称已经具备 Recall 召回质量评测。固定语料、固定查询、结果重叠、rank 变化和旧版快照都不能自动推出“更好”或“更差”。
+- 不套用 Knowledge 检索的相关性标注作为 Recall 的质量真值。Recall 允许由个人经历、时间上下文和联想产生有价值的跳跃，直接相关性只是可能的信号之一。
+
+### 2.3 召回质量评测边界
+
+当前仓库没有 Recall 质量评测协议，也没有能够作为真值的个性化标注数据。自动化测试可以验证同一输入是否确定、模块是否遵守契约、过滤与融合是否按配置执行、是否发生意外 Embedding 请求、缓存是否隔离以及性能是否退化；这些都属于工程正确性，不等于召回质量。
+
+旧版与新版在同一查询上的候选、顺序和分数可以作为调试信息展示，但不得据此计算质量提升、回归率或版本优胜关系。结果重叠率、命中率、NDCG、MRR 等指标只有在评测对象、用户意图、时序上下文和人工标注协议明确后才有意义，现阶段不得由 AI 根据少量样例自行补全标签、权重或通过阈值。
+
+若后续要建立 Recall 评测，应另立研究与产品方案，至少先回答：评测服务于哪类用户任务；如何记录查询发生时的个人上下文；如何区分无关噪声与“意外但有用”的跳跃；即时相关、延迟启发和叙事连续性分别如何采集反馈；哪些数据允许进入离线评测。该方案需要真实用户参与和明确的数据授权，不属于本次管线模块化的退出条件。缺少评测既不等于必须保持旧输出逐项等价，也不授权重构自动替换产品默认策略；模块化工程验收与默认策略变更必须分开决策。
 
 ---
 
@@ -104,7 +114,7 @@ associative
 
 中文显示名、最终 ID 和默认参数在产品交互施工前确认。代码不得根据中文名称判断能力。
 
-`semantic`、`associative` 和其他旧引擎 ID 只作为版本化迁移输入保留，不继续包装为需要维持旧算法语义的内置预设。迁移器把已知旧 ID 转成新预设并记录行为变化；未知 ID 返回可恢复问题。旧字段解析的存在不代表新管线需要复现旧候选、分数或排序。
+`semantic`、`associative` 和其他旧引擎 ID 只作为版本化迁移输入保留，不继续包装为需要维持旧算法语义的内置预设。迁移器把已知旧 ID 转成新预设并记录字段取舍与已知算法语义差异；未知 ID 返回可恢复问题。旧字段解析的存在不代表新管线需要复现旧候选、分数或排序。
 
 ### 3.2 固定阶段，不开放任意图
 
@@ -341,14 +351,14 @@ query-normalize
 
 旧 ID 不注册为新 Runner 的可执行预设，只由独立 migration / legacy parser 识别。建议映射如下，最终映射在 Phase 0 冻结：
 
-| 旧 ID                                  | 建议迁移目标    | 迁移说明                                                   |
-| -------------------------------------- | --------------- | ---------------------------------------------------------- |
-| `keyword`                              | `algorithmic`   | 保留纯文本、离线可用这一产品意图，不保证原分数和排序       |
-| `vector`、`semantic`                   | `comprehensive` | 转为新的多信号预设，不复刻旧 Vector 权重、阈值和裁剪顺序   |
-| `lens`、`blender`、`associative`       | `comprehensive` | 转为新的综合召回，不保留旧单分支或 `0.65 / 0.35` 融合语义 |
-| 未知或已移除的第三方 ID                | 不自动映射      | 返回结构化迁移问题，由用户选择目标预设                     |
+| 旧 ID                            | 建议迁移目标    | 迁移说明                                                  |
+| -------------------------------- | --------------- | --------------------------------------------------------- |
+| `keyword`                        | `algorithmic`   | 保留纯文本、离线可用这一产品意图，不保证原分数和排序      |
+| `vector`、`semantic`             | `comprehensive` | 转为新的多信号预设，不复刻旧 Vector 权重、阈值和裁剪顺序  |
+| `lens`、`blender`、`associative` | `comprehensive` | 转为新的综合召回，不保留旧单分支或 `0.65 / 0.35` 融合语义 |
+| 未知或已移除的第三方 ID          | 不自动映射      | 返回结构化迁移问题，由用户选择目标预设                    |
 
-迁移只复制新预设仍有相同语义的通用字段，例如数据范围和最终 `limit`。旧 `minScore`、引擎权重、候选上限及其他动态参数不得直接套入新分数域；迁移报告需要列出目标预设、保留字段、丢弃字段和行为变化。迁移完成后持久化新 schema，正常运行路径不再解析旧 ID。旧检索缓存和已持久化结果直接失效，不尝试转换到新算法版本。
+迁移只复制新预设仍有相同语义的通用字段，例如数据范围和最终 `limit`。旧 `minScore`、引擎权重、候选上限及其他动态参数不得直接套入新分数域；迁移报告需要列出目标预设、保留字段、丢弃字段和已知算法语义差异，但不得把个别查询的新旧结果差异写成质量结论。迁移完成后持久化新 schema，正常运行路径不再解析旧 ID。旧检索缓存和已持久化结果直接失效，不尝试转换到新算法版本。
 
 ---
 
@@ -453,18 +463,18 @@ artifact bundle / asset generation
 
 ### 8.1 现状调查
 
-| 交互面            | 当前实现                                                                                                                                                    | 管线化后的缺口                                                                                                           |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Agent Recall 设置 | `agent-manager/.../RecallSection.vue` 只提供全局 `semantic / associative` 选择；`RecallBindingItem.vue` 的绑定类型虽有 `profile`，界面没有逐集合覆盖入口    | 需要改为稳定预设选择，并清楚表达“继承全局”与“本集合覆盖”；不能向普通用户暴露模块 DAG                                     |
-| Chat 占位符       | `recall-placeholder.ts` 的 `profile` 只接受 `semantic / associative`，Agent 编辑器自动生成对应文本                                                          | 需要新增预设参数契约和 legacy 解析；用户手写提示词不能被无提示重写或默认为另一预设                                       |
-| Playground        | `PlaygroundView.vue` 最多并排 4 个 `SearchSlot.vue`，每槽直接选择底层引擎并读取 `requiresEmbedding`；已增加语义化 `data-testid` 供真实窗口测试，但全量检索仍没有统一运行状态，槽位失败只写 `console.error` | 需要预设副本、阶段列表、编译问题、外部需求、运行 trace 和可比较的 A/B 结果；现有 selector 可复用，但 4 列布局无法容纳阶段与 trace 信息 |
-| 向量准备          | `SearchSlot.vue`、`PlaygroundView.vue` 和 `SearchOrchestrator` 分别做覆盖率检查；`VectorCoverageDialog.vue` 提供补全、忽略和取消                            | 需要由编译结果驱动准备步骤；区分“缺少 Embedding route”“条目向量覆盖不完整”“索引未加载”；后台 Chat 不得弹交互对话框       |
-| Recall 全局设置   | `getRecallSettingsConfig()` 把所有引擎参数合并进“检索与索引策略”，并写入全局 `vectorIndex`                                                                  | 全局设置只应保留 Embedding、索引资产、请求和缓存基础设施；运行时预设/模块参数必须归属于 Agent 安全覆盖或 Playground 配置 |
-| 执行状态          | `useRecallSearchManager.ts` 和 `useRecallSearch.ts` 主要暴露 `loading + results`；失败、取消和空结果都可能落成空数组                                        | 无法可靠展示阻塞、显式降级、部分成功、失败和真正空结果，也无法防止旧请求晚返回覆盖新查询                                 |
-| 结果详情          | `RecallResultDetailDialog.vue` 只展示条目和百分比“匹配分值”，不展示现有 `signals / trace`                                                                   | 管线分数不是概率；需要展示分数语义、信号贡献、请求预设、实际预设、过滤和排名路径                                         |
-| 监控              | `RagTraceContent.vue` 使用通用步骤时间线，并把 score 绘制成相似度百分比进度条                                                                               | 需要消费版本化 pipeline trace，展示阶段、模块、候选数、跳过/失败原因和降级；旧 trace 仍需可读                            |
-| 工作区持久化      | `WorkspaceConfig.playground` 保存槽位 `engineId`、参数、查询和完整结果；`defaultEngineId` 仍在类型与默认配置中，但设置页没有对应选择器                      | 完整结果和 trace 会迅速膨胀且重启后过期；旧引擎字段需要版本化迁移，不能继续作为隐藏真源                                  |
-| 重复/闲置入口     | 2026-07-21 静态扫描确认 Recall 的 `SearchPanel.vue`、`EngineSelector.vue` 无产品引用，`useRecallSearch.ts` 仅被前者使用；store、service 和 Playground 各有搜索路径 | Phase 0 仍需把动态入口与删除影响形成清单；不能为闲置组件再实现一套管线适配                                                |
+| 交互面            | 当前实现                                                                                                                                                                                                   | 管线化后的缺口                                                                                                                                                    |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Agent Recall 设置 | `agent-manager/.../RecallSection.vue` 只提供全局 `semantic / associative` 选择；`RecallBindingItem.vue` 的绑定类型虽有 `profile`，界面没有逐集合覆盖入口                                                   | 需要改为稳定预设选择，并清楚表达“继承全局”与“本集合覆盖”；不能向普通用户暴露模块 DAG                                                                              |
+| Chat 占位符       | `recall-placeholder.ts` 的 `profile` 只接受 `semantic / associative`，Agent 编辑器自动生成对应文本                                                                                                         | 需要新增预设参数契约和 legacy 解析；用户手写提示词不能被无提示重写或默认为另一预设                                                                                |
+| Playground        | `PlaygroundView.vue` 最多并排 4 个 `SearchSlot.vue`，每槽直接选择底层引擎并读取 `requiresEmbedding`；已增加语义化 `data-testid` 供真实窗口测试，但全量检索仍没有统一运行状态，槽位失败只写 `console.error` | 需要预设副本、阶段列表、编译问题、外部需求、运行 trace 和并列诊断结果；现有 selector 可复用，但 4 列布局无法容纳阶段与 trace 信息，诊断差异也不能被解释为质量排名 |
+| 向量准备          | `SearchSlot.vue`、`PlaygroundView.vue` 和 `SearchOrchestrator` 分别做覆盖率检查；`VectorCoverageDialog.vue` 提供补全、忽略和取消                                                                           | 需要由编译结果驱动准备步骤；区分“缺少 Embedding route”“条目向量覆盖不完整”“索引未加载”；后台 Chat 不得弹交互对话框                                                |
+| Recall 全局设置   | `getRecallSettingsConfig()` 把所有引擎参数合并进“检索与索引策略”，并写入全局 `vectorIndex`                                                                                                                 | 全局设置只应保留 Embedding、索引资产、请求和缓存基础设施；运行时预设/模块参数必须归属于 Agent 安全覆盖或 Playground 配置                                          |
+| 执行状态          | `useRecallSearchManager.ts` 和 `useRecallSearch.ts` 主要暴露 `loading + results`；失败、取消和空结果都可能落成空数组                                                                                       | 无法可靠展示阻塞、显式降级、部分成功、失败和真正空结果，也无法防止旧请求晚返回覆盖新查询                                                                          |
+| 结果详情          | `RecallResultDetailDialog.vue` 只展示条目和百分比“匹配分值”，不展示现有 `signals / trace`                                                                                                                  | 管线分数不是概率；需要展示分数语义、信号贡献、请求预设、实际预设、过滤和排名路径                                                                                  |
+| 监控              | `RagTraceContent.vue` 使用通用步骤时间线，并把 score 绘制成相似度百分比进度条                                                                                                                              | 需要消费版本化 pipeline trace，展示阶段、模块、候选数、跳过/失败原因和降级；旧 trace 仍需可读                                                                     |
+| 工作区持久化      | `WorkspaceConfig.playground` 保存槽位 `engineId`、参数、查询和完整结果；`defaultEngineId` 仍在类型与默认配置中，但设置页没有对应选择器                                                                     | 完整结果和 trace 会迅速膨胀且重启后过期；旧引擎字段需要版本化迁移，不能继续作为隐藏真源                                                                           |
+| 重复/闲置入口     | 2026-07-21 静态扫描确认 Recall 的 `SearchPanel.vue`、`EngineSelector.vue` 无产品引用，`useRecallSearch.ts` 仅被前者使用；store、service 和 Playground 各有搜索路径                                         | Phase 0 仍需把动态入口与删除影响形成清单；不能为闲置组件再实现一套管线适配                                                                                        |
 
 调查结论：UI 改造的最小边界不只是替换 Playground 下拉框。Agent 配置、占位符生成、运行响应、结果详情、监控、工作区 schema 和错误反馈必须一起迁移，否则用户会同时遇到 profile、engine 和 preset 三套概念。
 
@@ -540,19 +550,19 @@ interface RecallPipelineRunResponse {
 - 选择预设后仅展示 `allowedOverrides`。`limit`、`minScore` 等覆盖项必须标出作用域；当预设不支持统一 `minScore` 时隐藏或替换为该预设声明的安全参数，不能沿用旧 profile 默认值。
 - 配置页只做能力预检，不自动发送 Embedding 请求。缺少模型 route 时在字段附近显示可定位错误和“前往模型设置”操作，保存策略由配置 schema 决定。
 - Chat 运行属于非交互后台路径，不弹出覆盖率、模型选择或补全向量对话框。它按预设的失败/降级策略执行，并把实际预设和原因写入 Chat pipeline log 与 Recall monitor。
-- 建议自动生成的新占位符使用 `preset=<id>`，最终参数名在 Phase 0 冻结；解析器在迁移期继续接受 `profile=semantic|associative`，通过版本化映射转换为新预设并记录行为变化。对用户手写的 preset message 只做可定位诊断，不进行普通字符串批量替换。
+- 建议自动生成的新占位符使用 `preset=<id>`，最终参数名在 Phase 0 冻结；解析器在迁移期继续接受 `profile=semantic|associative`，通过版本化映射转换为新预设并记录配置字段与算法语义差异。对用户手写的 preset message 只做可定位诊断，不进行普通字符串批量替换。
 - Recall 全局设置页移除动态注入的引擎运行参数，只保留 Embedding 模型、索引资产、请求设置、向量化和缓存。预设安全覆盖放在 Agent Recall 设置，完整模块参数只放在 Playground，避免同一参数出现三处真源。
 - Agent 导入、导出、复制和预设 round-trip 必须覆盖 `defaultPresetId`、绑定级 `presetId` 和 fallback 策略，不能只改编辑器表单。
 
 ### 8.4 Playground 信息架构
 
-Playground 首期继续使用阶段分组列表，不建设自由拖拽画布。建议把现有“最多 4 个窄槽位”改为“配置 A / 配置 B 最多两个可见工作面”，其他配置通过保存、复制和切换复用。两列已经足以完成主要 A/B 场景，也为模块参数、结果和 trace 保留可读宽度。
+Playground 首期继续使用阶段分组列表，不建设自由拖拽画布。建议把现有“最多 4 个窄槽位”改为“配置 A / 配置 B 最多两个可见工作面”，其他配置通过保存、复制和切换复用。这里的 A/B 只表示在相同运行上下文中并列检查两份配置，服务于算法排错、trace 检查和性能观察，不提供自动质量评分或推荐结论。两列也为模块参数、结果和 trace 保留可读宽度。
 
 Playground 分为四个稳定区域：
 
-1. **运行上下文**：查询、思绪集范围、标签/授权过滤、最终 `limit`，以及单查询或固定查询集模式。上下文变更后，现有结果标记为“已过期”，不冒充当前配置结果。
+1. **运行上下文**：查询、思绪集范围、标签/授权过滤、最终 `limit`，以及单查询或可复现的工程夹具模式。上下文变更后，现有结果标记为“已过期”，不冒充当前配置结果。
 2. **配置工作面**：选择内置/已保存预设，复制为草稿，按固定阶段查看模块，编辑 schema 参数，保存副本、恢复预设和删除自定义配置。
-3. **结果与对照**：显示每个配置的运行状态、最终结果、共同命中、仅 A/仅 B、rank 变化和耗时。分数域不兼容时不计算误导性的 score 差值。
+3. **结果与诊断**：显示每个配置的运行状态、最终结果、共同候选、仅 A/仅 B、rank 变化和耗时。它们是可观察差异，不是相关性标签或优劣指标；分数域不兼容时不计算 score 差值。
 4. **诊断面板**：显示编译问题、external requirements、阶段候选数、模块耗时、跳过/失败原因和原始 trace；默认折叠到当前关注的阶段。
 
 具体交互：
@@ -563,7 +573,7 @@ Playground 分为四个稳定区域：
 - 从内置预设开始编辑时先生成草稿副本；内置定义本身只读。未保存变更、恢复预设和切换配置时使用明确的离开确认。
 - 单模块运行使用独立的 fixture 区，列出缺少的输入 artifact，并允许从最近一次完整运行引用不可变快照；不能隐式读取当前全局可变 store。
 - “全量检索”改为统一的 batch run。界面展示总进度和每个配置/查询的独立状态；一个分支失败不清空另一个分支的成功结果。
-- 固定查询集对照必须固定候选超集和配置哈希。报告展示查询级成功/失败、结果重叠、rank 变化、阶段耗时和降级，不只展示汇总命中数。
+- 工程夹具批量重放必须固定数据快照、外部产物身份和配置哈希。报告展示查询级成功/失败、结果集合差异、rank 变化、阶段耗时和降级，明确标注“仅供诊断，不代表召回质量”；不计算汇总命中率或自动给出配置推荐。
 - Playground 草稿可导入/导出版本化 JSON，但导入先编译并展示问题，不直接覆盖当前草稿。
 
 ### 8.5 外部能力准备与覆盖率
@@ -584,7 +594,7 @@ Playground 分为四个稳定区域：
 - 主列表显示 rank、条目 key、思绪集、匹配摘要和预设定义的 `scoreLabel`。默认显示原始数值，不再统一乘以 100 加百分号。
 - `RecallResultDetailDialog.vue` 增加“条目 / 信号 / 执行路径”三个视图。信号视图展示模块、原始分、归一化分、融合权重/贡献；执行路径展示 requested/actual preset、config hash、候选来源、rank 变化和阈值判断。
 - 候选被过滤的原因属于运行诊断，不伪装成最终结果。Playground 可从阶段候选表查看；常规产品只显示最终结果及必要的降级提示。
-- A/B 对照优先比较集合关系和 rank：共同命中、仅 A、仅 B、rank delta。只有 score semantics 和归一化算法一致时才允许直接比较分数。
+- A/B 诊断可以展示集合关系和 rank：共同候选、仅 A、仅 B、rank delta。只有 score semantics 和归一化算法一致时才允许展示分数差；任何差异都不得自动解释为相关性增减或质量提升。
 - 发生 fallback 时在结果区顶部持续显示 requested preset、actual preset 和原因，不能只用一次性消息提示。
 - 空结果单独显示有效运行摘要，包括实际预设、过滤条件和“运行成功但无命中”；失败状态保留上一轮结果并明确标记其已过期。
 
@@ -638,7 +648,7 @@ idle
 - 为 Recall workspace 增加配置 schema version。旧 Playground `engineId` 通过 5.3 的版本化规则映射到新 preset；只迁移语义仍然一致且由目标 preset 明确接收的字段。
 - Playground 只持久化选中集合、可选的查询草稿、A/B 配置引用和自定义 pipeline 草稿，不持久化 `RecallResult[]`、运行 trace、loading、error 或 external requirement 状态。
 - `WorkspaceConfig.defaultEngineId` 和运行时 `searchSettings.engineId` 在调用方清零后删除；未知旧 ID 产生可恢复的迁移问题，不静默改成产品默认预设。
-- Agent `defaultProfile / binding.profile` 使用版本化 migration 转成新 preset ID；导入旧 Agent 时同样执行并产生结构化报告。报告必须明确新检索行为可能改变。
+- Agent `defaultProfile / binding.profile` 使用版本化 migration 转成新 preset ID；导入旧 Agent 时同样执行并产生结构化报告。报告必须明确新算法不承诺复现旧候选和排序，但不对变化作质量判断。
 - 文本占位符在兼容期读取旧 `profile`；若 Phase 0 确定使用 `preset`，新 UI 只生成该参数。移除 legacy parser 前必须有扫描报告证明没有现存 Agent 仍依赖旧参数。
 - 内置 preset 更新后，已保存的“引用预设”使用新版本并在运行前重新编译；用户“复制为自定义”的配置固定自己的 schema 和 algorithm version，不被静默改写。
 
@@ -654,7 +664,7 @@ idle
 6. 运行期间修改查询、集合或配置，旧 `runId` 返回后不覆盖新状态。
 7. 成功无命中、编译阻塞、运行失败、显式 fallback 和用户取消展示为五种不同状态。
 8. 结果详情和 Monitor 对 pipeline score 使用正确 label，不统一渲染为概率百分比。
-9. 重启后恢复 Playground 配置但不恢复过期结果；旧 `engineId` workspace 和旧 Agent profile 能迁移到新预设，并能查看保留字段、丢弃字段和行为变化。
+9. 重启后恢复 Playground 配置但不恢复过期结果；旧 `engineId` workspace 和旧 Agent profile 能迁移到新预设，并能查看保留字段、丢弃字段和算法语义差异。
 10. 真实 Tauri WebView 下验证 compile -> prepare -> run -> trace 往返、模型设置跳转、向量补全和 legacy trace 展开；普通浏览器 mock 不能替代这些 IPC 场景。
 
 视口至少检查 `1024x768`、`1440x900` 和高 DPI Windows 缩放下的单/双工作面，不允许按钮文字截断、模块问题遮挡参数或结果详情超出对话框。
@@ -663,12 +673,12 @@ idle
 
 ## 9. 实施阶段
 
-测试计划中的 Phase 1 至 Phase 5 已完成，提供了本节可复用的 fixture、真实窗口 runner 和验收 lane；本节 Phase 编号只描述检索管线施工进度。除下方明确标记为已完成的旧行为基线外，当前仍处于本计划 Phase 0，不能按测试计划状态顺延为 Phase 5。
+测试计划中的 Phase 1 至 Phase 5 已完成，提供了本节可复用的 fixture、真实窗口 runner 和验收 lane；本节 Phase 编号只描述检索管线施工进度。除下方明确标记为已完成的迁移快照外，当前仍处于本计划 Phase 0，不能按测试计划状态顺延为 Phase 5。
 
-### Phase 0：盘点旧行为并冻结新契约
+### Phase 0：盘点旧实现并冻结新契约
 
-- [x] 保存 `keyword`、`vector`、`lens`、`blender`、`semantic`、`associative` 的代表查询输出。现有证据由共享 migration baseline fixture、Rust 引擎/Facade 快照和 Agent/Chat baseline 测试共同组成，只用于理解旧逻辑和编写行为变化说明。
-- [ ] 把现有旧行为快照整理成统一的行为变化报告格式，明确查询、数据范围、旧算法版本、候选/排序摘要和可接受的缺失证据；不得把旧输出升级为新管线等价门槛。
+- [x] 保存 `keyword`、`vector`、`lens`、`blender`、`semantic`、`associative` 的代表查询输出。现有证据由共享 migration baseline fixture、Rust 引擎/Facade 快照和 Agent/Chat baseline 测试共同组成，只用于理解旧逻辑、维护迁移夹具和排查实现错误。
+- [ ] 把旧实现整理成算法与配置迁移清单，明确旧算法版本、输入字段、裁剪/归一化/过滤/排序步骤和去留决策。代表查询输出可以附作调试材料，但不生成新旧质量对比报告，也不设候选重叠或 rank 变化门槛。
 - [ ] 盘点各引擎重复的候选裁剪、归一化、过滤、排序和 TopK 逻辑。
 - [ ] 冻结 artifact、module info、pipeline schema、错误和 trace v1 契约。
 - [ ] 冻结 preset summary、compile result、run response 和 UI 状态机契约，明确 error code、`runId` 与过期响应规则。
@@ -679,7 +689,7 @@ idle
 - [x] 建立可复用的真实窗口测试底座：稳定 selectors、确定性 mock Chat/Embedding、请求证据、同数据根进程恢复、外部语料和真实 Ollama lane 已具备。
 - [ ] 为新管线增加独立的 E2E preset 或 spec 装配，覆盖 compile -> prepare -> run -> pipeline trace；不能把现有 `recall-vector` / `recall-chat` 的旧语义检索通过结果直接视为新管线通过。
 
-退出门槛：仅新增契约、行为变化报告和新管线基线测试，不改变现有产品检索结果。现有测试底座可以复用，但必须新增能区分旧引擎路径与新 Runner 路径的断言和运行元数据。
+退出门槛：仅新增契约、算法与配置迁移清单和新管线工程测试，不改变现有产品检索路径。现有测试底座可以复用，但必须新增能区分旧引擎路径与新 Runner 路径的断言和运行元数据；不要求也不宣称完成召回质量评测。
 
 ### Phase 1：建立 Runner 与公共尾部阶段
 
@@ -697,41 +707,41 @@ idle
 - [ ] 删除 Keyword 内部的最终过滤、排序和截断重复实现。
 - [ ] 证明未解析模型、未访问向量缓存且未发送 Embedding 请求。
 
-退出门槛：`algorithmic` 在固定查询集上满足新定义的正确性、确定性和性能基线；离线和未配置模型环境可完整运行。旧 Keyword 输出只用于生成行为变化报告。
+退出门槛：`algorithmic` 满足模块契约、确定性、过滤/排序规则和性能基线；离线和未配置模型环境可完整运行。工程夹具验证的是实现是否按已声明算法执行，不把结果排序当作用户相关性真值。
 
 ### Phase 3：拆分向量与联想信号
 
 - [ ] 从 Vector 引擎抽取内容向量候选和标签向量候选。
 - [ ] 从 Lens 抽取标签空间扩散与历史投射模块。
 - [ ] 将 Blender 的 literal / semantic / gravity / resonance 拆成复用模块和融合配置，不再重复检索逻辑。
-- [ ] 完成内容向量、标签向量、Lens 和 Blender 可复用能力的取舍；未纳入新设计的旧逻辑直接淘汰，不为旧 ID 建立等价预设。
+- [ ] 完成内容向量、标签向量、Lens 和 Blender 可复用能力的取舍；旧逻辑只有在记录明确的产品决策、影响范围和恢复方案后才能淘汰，不为旧 ID 建立等价预设，也不把工程夹具差异当作淘汰依据。
 - [ ] 查询向量只生成一次并被所有依赖模块共享。
 
-退出门槛：拆分后的模块满足各自的新契约、确定性和性能基线；查询向量只生成一次。旧 ID 与新模块的能力差异、删除项和替代项有书面说明，并使用新的算法版本和缓存空间。
+退出门槛：拆分后的模块满足各自的新契约、确定性和性能基线；查询向量只生成一次。旧 ID 与新模块的算法步骤差异、删除项和替代项有书面说明，并使用新的算法版本和缓存空间；说明不包含无依据的质量判断。
 
 ### Phase 4：建立综合预设
 
 - [ ] 建立 `comprehensive` 预设并复用 `keyword-recall`。
-- [ ] 比较 weighted fusion 与 RRF，基于固定查询集选择默认融合方案。
-- [ ] 标定候选上限、各路归一化、最终阈值、priority 和多样性参数。
-- [ ] 覆盖精确查询、语义改写、标签联想、历史牵引、弱相关噪声和无向量数据。
+- [ ] 实现并记录 weighted fusion 与 RRF 的分数语义、配置约束、性能和 trace 差异；没有独立 Recall 评测方案前，不根据固定查询集自动选出“更优”方案。
+- [ ] 为候选上限、各路归一化、最终阈值、priority 和多样性参数定义合法范围、默认值来源和版本边界。默认值属于显式产品决策，不得包装成自动标定结果。
+- [ ] 用工程夹具覆盖精确字面信号、向量分支、标签/历史分支、空候选、无向量数据和确定性 tie-break；不为“弱相关”或“有价值跳跃”自动编写真值标签。
 - [ ] 建立显式 `fallbackPresetId` 降级路径。
 
-退出门槛：综合预设在固定查询集上达到 Phase 0 定义的新质量与性能基线；相对现行产品 profile 的变化仅作为演进报告，不作为保持旧行为的门槛。不得仅凭人工个例替换产品默认值。
+退出门槛：综合预设通过编译、执行、分数语义、trace、缓存隔离、确定性和性能测试。产品默认融合方案及参数必须记录决策人、依据和适用边界；在独立 Recall 评测方案建立前，不声称其质量优于现行 profile，也不以自动生成的查询/标签作为替换默认值的依据。
 
 ### Phase 5：产品接入与迁移收口
 
 - [ ] Recall service、Chat processor、Agent tool metadata、设置页和 Agent 配置改用 preset ID。
 - [ ] Agent 编辑器实现全局预设、绑定级继承/覆盖、allowed overrides 和 capability 预检；Chat 后台执行不得弹交互对话框。
-- [ ] 冻结新占位符预设参数名（建议 `preset`），旧 `profile` 由 legacy parser 映射；旧 Agent 配置和 `engineId` 通过版本化迁移转换，并输出包含字段取舍和行为变化的结构化报告。
+- [ ] 冻结新占位符预设参数名（建议 `preset`），旧 `profile` 由 legacy parser 映射；旧 Agent 配置和 `engineId` 通过版本化迁移转换，并输出包含字段取舍与算法语义差异的结构化报告。
 - [ ] UI 只消费编译后的 external requirements 和参数 schema，完成 `idle -> compile -> prepare -> run -> outcome` 状态机与 stale run 防护。
-- [ ] Playground 切换为 A/B 配置工作面、阶段模块编辑、固定查询集、统一 batch run 和 trace 调试界面。
+- [ ] Playground 切换为双配置诊断工作面、阶段模块编辑、工程夹具批量重放、统一 batch run 和 trace 调试界面；界面不输出质量评分或配置优胜结论。
 - [ ] 结果详情与 Monitor 展示 score semantics、信号贡献、requested/actual preset、降级和版本化 trace，并兼容旧 trace。
 - [ ] Playground workspace 不再持久化结果和运行态；确认无动态引用后删除重复/闲置搜索组件和 engine capability 分支。
 - [ ] 缓存 key 切换到 pipeline/config/module version 契约。
 - [ ] 更新 `ARCHITECTURE.md`、工具指南和相关 Chat 文档。
 
-退出门槛：常规产品调用不再发送底层 engine ID；旧用户配置可迁移、问题可定位、迁移前配置有备份可恢复，但不保证恢复旧运行时检索行为；成功、空结果、阻塞、降级、失败和取消在真实 Tauri UI 中可区分。
+退出门槛：常规产品调用不再发送底层 engine ID；旧用户配置可迁移、问题可定位、迁移前配置有备份可恢复，但不保证恢复旧运行时检索行为；成功、空结果、阻塞、降级、失败和取消在真实 Tauri UI 中可区分。若本阶段同时替换产品默认策略，必须有独立于工程测试的明确产品决策与回滚路径，不能以新旧结果对照报告代替该决策。
 
 ### Phase 6：删除旧引擎运行时
 
@@ -755,11 +765,11 @@ idle
 - 多模块共享一次查询向量。
 - 显式降级与禁止静默降级。
 
-### 10.2 新管线回归与演进测试
+### 10.2 新管线工程回归测试
 
-- 新预设和模块的固定查询质量、确定性、分数语义与性能基线。
-- 六个旧引擎/Facade 的代表输出仅用于生成行为变化报告，不作为测试通过条件。
-- 固定查询集优先复用现有 migration baseline、smoke/curated corpus 和 external corpus 的稳定 entry ID/主题标签；需要新增新预设自己的 expected relation/rank/trace 断言，不能沿用旧 `semantic` 精确分数。
+- 新预设和模块的契约、确定性、分数计算语义、trace 完整性与性能基线。
+- 六个旧引擎/Facade 的代表输出只用于算法盘点、迁移排错和人工诊断，不生成质量回归率，也不作为测试通过条件。
+- 可以复用 migration baseline、smoke/curated corpus 和 external corpus 作为可复现输入，但断言只覆盖明确的算法规则和工程不变量，例如已知字面信号、候选 ID 去重、过滤条件、稳定 tie-break、阶段产物和 trace。不得由主题标签自动推导 expected relevance/rank，也不得把旧 `semantic` 精确分数当作质量真值。
 - 数据库重启、向量库缺失、tag pool 缺失和缓存失效。
 - 多集合、集合级阈值、禁用条目、标签过滤和授权范围。
 - 相同最终分数下的稳定 tie-break，避免并行执行改变结果顺序。
@@ -768,7 +778,7 @@ idle
 ### 10.3 UI 与迁移测试
 
 - preset 列表按 visibility/stability 过滤，常规产品不暴露模块和 legacy 引擎；旧 ID 不进入可执行 preset 列表。
-- Agent 全局预设与绑定级继承/覆盖 round-trip；旧 `profile` 和旧 `engineId` 迁移后配置可加载，字段取舍和行为变化可追踪，但不要求保持旧检索行为。
+- Agent 全局预设与绑定级继承/覆盖 round-trip；旧 `profile` 和旧 `engineId` 迁移后配置可加载，字段取舍和算法语义差异可追踪，但不要求保持旧检索行为，也不对结果变化作质量判断。
 - compile issue 可定位字段，blocking requirement 禁用运行，allowed override 以 schema 为唯一来源。
 - `runId / configHash` 过期响应隔离，A/B 单边失败，batch partial failure 和重复点击运行。
 - success、empty、fallback、failed、cancelled 和 compile blocked 的独立渲染；上一轮结果保留但明确标记过期。
@@ -844,6 +854,12 @@ bun run test:tauri:e2e -- --preset ollama-chat
 
 控制：workspace 只保存配置真源和轻量 UI 偏好；结果、trace、运行错误和 capability 状态属于会话态或有边界的诊断存储，不写入 workspace 配置。
 
+### 11.8 把工程差异误写成召回质量
+
+风险：固定查询、新旧结果重叠、rank delta 或模块消融看起来可量化，容易被继续包装成质量分数或版本优胜结论。对高度个性化且允许联想跳跃的 Recall，这些数字没有用户意图、时间上下文和反馈协议就没有统一方向；结果更相似或更直接都不必然更好。
+
+控制：测试报告和 Playground 将上述数据明确标为工程诊断；不计算 Recall 质量总分，不设置自动优胜阈值，不让 AI 自动补写相关性标签。召回质量评测必须通过独立方案建立，并由真实用户参与定义与验证。
+
 ---
 
 ## 12. 待确认事项
@@ -851,16 +867,17 @@ bun run test:tauri:e2e -- --preset ollama-chat
 施工前需要确认：
 
 1. 两个产品默认预设最终使用 `algorithmic / comprehensive`，还是采用更贴近用户的稳定英文 ID。
-2. 综合预设默认使用 weighted fusion、RRF，还是根据候选信号类型采用分层融合。
+2. 综合预设默认使用 weighted fusion、RRF，还是根据候选信号类型采用分层融合；没有独立 Recall 评测时，由谁作产品决策并承担版本变更说明。
 3. `priority` 属于融合前信号、rerank 加成还是最终 policy；同一条目不得在多个阶段重复加权。
 4. 标签文本匹配归入纯算法预设首期范围，还是只保留关键词、key、标题和内容字面匹配。
 5. 自定义管线是否只属于 Playground，还是未来允许保存为工作区级高级预设。
 6. `semantic / associative` 的 legacy parser 保留多久，以及迁移扫描达到什么条件后可以删除；二者不再作为新 Runner 的可执行预设。
 7. 新占位符参数是否确定为 `preset`；若采用其他名称，仍需为旧 `profile` 提供版本化迁移读取期。
 8. 常规产品允许用户配置哪些 fallback 策略；至少需要确定默认是阻塞、回退到 `algorithmic`，还是在特定预设中允许 partial coverage。
-9. Playground 是否接受首期最多两个可见 A/B 工作面，以保存/切换配置替代当前四列并排。
+9. Playground 是否接受首期最多两个可见诊断工作面，以保存/切换配置替代当前四列并排，并明确不提供自动质量评分。
+10. 是否另立 Recall 质量评测研究计划；如需建立，先确定目标用户、反馈采集、隐私边界和“意外但有用”跳跃的判定方式，而不是直接复用 Knowledge 检索相关性指标。
 
-在这些事项确认前可以完成 Phase 0 的旧行为盘点、迁移夹具和契约调查；受待确认事项影响的预设 ID、参数与运行契约只能在相关决策完成后冻结。Phase 0 不替换现有默认检索行为。
+在这些事项确认前可以完成 Phase 0 的旧实现盘点、迁移夹具和契约调查；受待确认事项影响的预设 ID、参数与运行契约只能在相关决策完成后冻结。Phase 0 不替换现有默认检索行为。
 
 ---
 
@@ -874,8 +891,8 @@ bun run test:tauri:e2e -- --preset ollama-chat
 2. **请求级共享产物**：同一请求的查询增强向量、energy field、TagMemo bundle 和历史分段由 Artifact Store 统一持有，避免多占位符、多集合或多模块重复计算。
 3. **虚拟联合索引**：多集合保持物理索引独立，但请求内先合并候选，再执行全局去重、重排和 TopK；不允许每个集合先截断造成配额偏差。
 4. **固定资产代际**：模型签名、Embedding 空间、图、残差、传播核和算法版本形成不可变 bundle，后台更新以原子发布替换活动 bundle。
-5. **候选超集 A/B**：模块对照使用同一候选超集，分别观察原始 KNN、增强向量、重排和融合的净变化；不得用不同候选池伪装模块收益。
-6. **不同任务分层**：TagMemo 负责恢复叙事连续性和结构候选，Rerank 负责判断直接相关性；二者是不同阶段，不互相替代。
+5. **候选超集诊断**：模块对照使用同一候选超集，分别观察原始 KNN、增强向量、重排和融合造成的结果变化；它只隔离算法步骤的影响，不证明模块收益或召回质量。
+6. **不同任务分层**：TagMemo 面向叙事连续性和结构候选，Rerank 面向直接相关性；二者是不同阶段，不互相替代，也不能只用直接相关性评价整条 Recall 管线。
 
 ### 13.2 明确不采用的做法
 
@@ -893,5 +910,5 @@ VCP 调研不改变 Phase 0 至 Phase 6 的总体顺序，但把以下项目提�
 - `RetrievalArtifactBundle` 的身份、生命周期和原子发布；
 - 被动、主动和 Playground 共用 Runner；
 - 无 Embedding 请求的可证明快速路径；
-- 固定候选超集的模块消融回归；
+- 固定候选超集的模块消融诊断，不从差异自动推导质量结论；
 - 多集合先合并后全局重排和 TopK。

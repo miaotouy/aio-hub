@@ -1,16 +1,16 @@
-# 移动端 SQLite 引入与持久化重构计划 (Mobile SQLite Migration Plan)
+# 移动端 SQLite 引入与持久化重构计划 (Mobile SQLite Storage Refactor Plan)
 
-> 状态：施工中；2026-07-21 已完成阶段一 Rust 存储骨架、阶段二前端增量持久化、阶段三附件消费闭环和阶段四 Android 本地搜索，真实上游发送与 iOS 门禁仍待补验。
+> 状态：施工中；2026-07-21 已完成阶段一 Rust 存储骨架、阶段二前端增量持久化、阶段三附件消费闭环和阶段四 Android 本地搜索，Android AVD 端到端附件发送与 iOS 门禁仍待补验。
 > 当前决议：聊天数据库通过 Rust 领域命令访问，默认采用 SQLx、原生 migration runner 和统一连接配置；前端不得执行任意 SQL。
 
 ## 1. 背景与现状
 
-计划发起时，移动端（`mobile/`）的数据持久化采用的是**轻量级 JSON 文件方案**；截至 2026-07-21，会话与消息已迁移到 `llm_chat.db`：
+计划发起时，移动端（`mobile/`）的数据持久化采用的是**轻量级 JSON 文件方案**；截至 2026-07-21，会话与消息已切换到 `llm_chat.db`：
 
 - **配置数据**：使用基于 `@tauri-apps/plugin-store` 封装的 `ConfigManager`，将设置、LLM 渠道等保存为单文件 JSON。
 - **会话数据**：现由 Rust 领域 command 增量读写 `llm_chat.db`；旧 `{sessionId}.json` 只作为一次性开发数据导入源，不再参与后续读写。
 
-同时移动端目前（撰写计划时）还未发布任何版本，还处于纯内部开发阶段，没有用户数据迁移负担
+移动端目前仍未发布任何版本，处于内部开发阶段，因此这里的“迁移”只指存储实现从 JSON 切换到 SQLite，以及一次性导入旧开发数据；它不是正式版本之间的用户数据升级。数据库内部 schema migration 仍由原生 migration runner 管理。
 
 ### 桌面端搜索的“暴力美学”
 
@@ -30,7 +30,7 @@ PC 端拥有强大的多核 CPU、超高速的 NVMe 固态硬盘以及充足的�
 2. **能耗与发热**：高并发的 CPU 预过滤和反序列化会使 CPU 瞬间满载，导致手机发热、耗电激增。
 3. **内存限制**：移动端 WebView 和后台进程的内存限制极严，一次性读取并解析大量 JSON 极易触发 OOM（Out of Memory）被系统强杀。
 
-因此，**移动端在正式发布前，必须将聊天会话与消息数据迁移至 SQLite 数据库**。
+因此，**移动端在正式发布前，应将聊天会话与消息持久化重构为 SQLite 数据库实现**。
 
 ---
 
@@ -75,7 +75,7 @@ AIO Hub 采用模块化工具架构，每个工具作为独立单元接入。为
 
 ## 3. 数据库设计 (Database Schema)
 
-> **设计前置阅读**：请先熟悉移动端 `llm-chat` 的类型定义，特别是 [`ChatSession`](../src/tools/llm-chat/types/session.ts) 和 [`ChatMessageNode`](../src/tools/llm-chat/types/message.ts) 的完整字段清单，以下 Schema 会对照这两个接口进行设计。
+> **设计前置阅读**：请先熟悉移动端 `llm-chat` 的类型定义，特别是 [`ChatSession`](../../src/tools/llm-chat/types/session.ts) 和 [`ChatMessageNode`](../../src/tools/llm-chat/types/message.ts) 的完整字段清单，以下 Schema 会对照这两个接口进行设计。
 
 ### 3.1. 会话表 `chat_sessions`
 
@@ -142,25 +142,25 @@ AIO Hub 采用模块化工具架构，每个工具作为独立单元接入。为
 
 ```sql
 -- 会话列表按更新时间倒序（最频繁的列表查询）
-CREATE INDEX idx_sessions_updated ON chat_sessions(updated_at DESC, id DESC);
+CREATE INDEX idx_chat_sessions_updated ON chat_sessions(updated_at DESC, id DESC);
 
 -- 加载某会话的所有消息并按兄弟顺序排列（会话进入时必查）
 -- 复合索引 (session_id, sibling_order) 同时覆盖 WHERE 和 ORDER BY，避免 filesort
-CREATE INDEX idx_messages_session ON chat_messages(session_id, sibling_order, id);
+CREATE INDEX idx_chat_messages_session ON chat_messages(session_id, sibling_order, id);
 
 -- 查询某节点的子节点（分支导航时用到）
-CREATE INDEX idx_messages_parent ON chat_messages(session_id, parent_id, sibling_order, id);
+CREATE INDEX idx_chat_messages_parent ON chat_messages(session_id, parent_id, sibling_order, id);
 
-CREATE INDEX idx_attachments_message ON chat_attachments(message_id, sort_order);
-CREATE INDEX idx_usage_outbox_pending ON asset_usage_outbox(delivered_at, dead_letter_at, sequence);
-CREATE INDEX idx_usage_outbox_entity_order ON asset_usage_outbox(module_id, entity_type, entity_id, sequence);
+CREATE INDEX idx_chat_attachments_message ON chat_attachments(message_id, sort_order, id);
+CREATE INDEX idx_asset_usage_outbox_pending ON asset_usage_outbox(delivered_at, dead_letter_at, sequence);
+CREATE INDEX idx_asset_usage_outbox_entity_order ON asset_usage_outbox(module_id, entity_type, entity_id, sequence);
 ```
 
 > **设计理由**：
 >
-> - `idx_messages_session` 是复合索引 `(session_id, sibling_order)`，覆盖 `WHERE session_id = ? ORDER BY sibling_order ASC` 查询（即 `loadSession()` 的核心路径），避免全表扫描 **和** 额外排序。如果只索引 `session_id`，SQLite 仍需对结果集做 filesort。
-> - `idx_messages_parent` 支持根据 `session_id` 和 `parent_id` 快速定位子节点（分支切换时实际走 `WHERE session_id = ? AND parent_id = ?`）。
-> - `idx_sessions_updated` 确保会话列表分页查询为索引覆盖扫描。
+> - `idx_chat_messages_session` 是复合索引 `(session_id, sibling_order, id)`，覆盖 `WHERE session_id = ? ORDER BY sibling_order ASC, id ASC` 查询（即 `loadSession()` 的核心路径），避免全表扫描和额外排序。
+> - `idx_chat_messages_parent` 支持根据 `session_id` 和 `parent_id` 快速定位子节点（分支切换时实际走 `WHERE session_id = ? AND parent_id = ?`）。
+> - `idx_chat_sessions_updated` 确保会话列表分页查询为索引覆盖扫描。
 
 ### 3.5. 全文搜索：使用 FTS5（替代 LIKE）
 
@@ -253,7 +253,7 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
   updated_at        TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_sessions_updated
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated
   ON chat_sessions(updated_at DESC, id DESC);
 
 -- ============ 3. 消息表 ============
@@ -275,9 +275,9 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     DEFERRABLE INITIALLY DEFERRED
 );
 
-CREATE INDEX IF NOT EXISTS idx_messages_session
+CREATE INDEX IF NOT EXISTS idx_chat_messages_session
   ON chat_messages(session_id, sibling_order, id);
-CREATE INDEX IF NOT EXISTS idx_messages_parent
+CREATE INDEX IF NOT EXISTS idx_chat_messages_parent
   ON chat_messages(session_id, parent_id, sibling_order, id);
 
 -- ============ 4. 聊天附件引用 ============
@@ -298,8 +298,8 @@ CREATE TABLE IF NOT EXISTS chat_attachments (
   UNIQUE (message_id, asset_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_attachments_message
-  ON chat_attachments(message_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_chat_attachments_message
+  ON chat_attachments(message_id, sort_order, id);
 
 -- ============ 5. 资产 usage 同步 outbox ============
 CREATE TABLE IF NOT EXISTS asset_usage_outbox (
@@ -317,9 +317,9 @@ CREATE TABLE IF NOT EXISTS asset_usage_outbox (
   dead_letter_at  TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_usage_outbox_pending
+CREATE INDEX IF NOT EXISTS idx_asset_usage_outbox_pending
   ON asset_usage_outbox(delivered_at, dead_letter_at, sequence);
-CREATE INDEX IF NOT EXISTS idx_usage_outbox_entity_order
+CREATE INDEX IF NOT EXISTS idx_asset_usage_outbox_entity_order
   ON asset_usage_outbox(module_id, entity_type, entity_id, sequence);
 
 -- ============ 6. FTS5 全文搜索 ============
@@ -359,11 +359,11 @@ END;
 
 ### 阶段零：Android/iOS 能力验证
 
-- 建立最小 Rust + SQLx spike，验证数据库创建、关闭、重开和应用升级。
-- 检查 FTS5 与 trigram 编译能力，并验证所有池连接的 `foreign_keys`、WAL、`busy_timeout` 和 `synchronous` 配置。
-- 覆盖事务中途强杀恢复，以及 10 万条中英混合消息的索引、查询、加载和数据库体积基准。
-- 在 `ui-tester` 增加“SQLite”验证板块，通过固定场景操作隔离测试库，展示结构化步骤与指标，并支持跨重启恢复和脱敏报告导出；不得暴露任意 SQL。
-- 只有 Android 与 iOS 正式构建链均通过后，才冻结具体 crate feature 与连接参数。
+实施状态（2026-07-21）：Android 验证完成，iOS 仍是发布门禁。
+
+- 已完成最小 Rust + SQLx spike、数据库创建/关闭/重开、FTS5 trigram、统一连接配置、事务强杀恢复，以及 10 万条中英混合消息基准。
+- 已在 `ui-tester` 交付只操作隔离测试库的 SQLite 验证板块，具备结构化步骤、跨重启恢复和脱敏报告导出；不提供任意 SQL。
+- Android 真实设备和 AVD 报告已验证运行时能力；iOS 尚无构建与设备报告，因此不能将阶段零记为双端完成，也不能从现有 Android 参数推导 iOS 结论。
 
 验证 UI 的信息架构、安全隔离和场景定义见 [`platform-validation-workbench-plan.md`](../../src/tools/ui-tester/docs/Plan/platform-validation-workbench-plan.md)。
 
@@ -406,7 +406,7 @@ END;
 - 已完成第三批：消息附件按 5 秒 TTL 查询资产详情并区分 reclaimed、missing、missing_record 与其他错误；历史上下文剔除不可用附件但保留文本，当前草稿附件在创建消息前阻断并保留草稿。
 - 已完成第四批：ready 图片附件按需申请资产服务短期预览 descriptor，通过 Teleport 全屏层展示；关闭、消息切换、路由卸载和异步竞态均主动撤销或回收 token。
 - 已完成第五批：文本文档提取结果通过聊天领域 command 在同一事务内写入附件快照、将 blocking usage 降为 advisory 并写 replacement outbox；原件删除发生在 outbox 投递和影响复核之后。
-- 待完成：真实上游模型发送验收；当前 emulator 未配置模型，不能在不添加密钥的情况下宣称通过。
+- 待完成：Android Studio AVD 中的端到端附件发送验收。默认使用可校验 MIME、字节数和 SHA-256 的本机 OpenAI-compatible 协议服务，证明正式资产、Provider wire、Rust Transport、流式响应和 SQLite 落库闭环；Ollama 多模态模型作为可选语义验收，不要求外部账号或 API Key。实施见 [`mobile-android-avd-e2e-plan.md`](./mobile-android-avd-e2e-plan.md)。
 - 已用 Rust 回归覆盖“资产命令已成功但 delivered 未标记”、重复投递、附件替换、分支删除、会话删除、五次失败进入 dead-letter、显式重试和无关实体继续投递。
 
 ### 阶段四：本地搜索

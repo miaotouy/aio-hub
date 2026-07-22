@@ -4,6 +4,7 @@
 > 日期：2026-07-18；2026-07-21 更新平台门禁与测试批次规则
 > 所属工具：`mobile/src/tools/ui-tester/`
 > 目标：为移动端组件、Tauri 平台能力、资产 Phase 0 和 SQLite Phase 0 提供可重复操作、可记录、可导出的真机验证入口。
+> 自动化边界：本工具提供设备内固定场景，不负责外部 UI 驱动；Android AVD 脚本化控制见 [`mobile-android-avd-e2e-plan.md`](../../../../../docs/plan/mobile-android-avd-e2e-plan.md)。
 
 ## 1. 结论
 
@@ -22,6 +23,7 @@
 
 - 这是开发/验收工具，不是面向普通用户的资产页或数据库管理器。
 - 页面只组织验证场景、输入、执行进度、结果和人工观察，不复制业务实现。
+- 页面不是 Android E2E driver。系统 UI、WebView 导航、应用重启和场景编排由外部 Appium/UiAutomator2 runner 完成；验证台只暴露固定、可重复、可脱敏的场景结果。
 - registry id 和路由保持 `ui-tester` / `/tools/ui-tester`；施工时将显示名称调整为“组件与平台测试”。
 - 是否在发布包中隐藏由后续工具可见性机制统一决定，不在本批次硬编码环境判断。
 
@@ -272,3 +274,15 @@ mobile/src/tools/ui-tester/
 - 按当前验证台口径，Android 与 iOS 分别形成平台结论；当前结论代表 Android 11 真机验证台通过，iOS 报告仍是 iOS 资产能力发布门禁，不把缺失的 iOS 报告写成通过。
 - 2026-07-20 施工决议：当前环境没有可用的 iOS 编译与真机设备条件，先允许平台中立内核与 Android 资产链进入 Phase 1；iOS 固定场景和报告延期到设备条件具备后执行，仍是 iOS 资产能力发布前门禁。
 - 资产正式导入还需补充 Rust command 直接打开系统选择结果并流式写入固定沙箱的场景；现有 WebView/plugin-fs 分块读取结果不能替代该数据路径验证。该场景与 Android MVP 主流程合并验收，不再单独拆成重复测试批次。
+
+## 11. Android AVD 自动化补齐（2026-07-21）
+
+现有 Android 虚拟机记录主要来自人工操作验证台、ADB 辅助和截图复核，不能视为可重复 E2E。后续由独立的 Android AVD runner 从外部驱动应用，并复用本工具的固定场景与结构化报告：
+
+- 默认只使用 Android Studio AVD，所有 ADB/Appium 操作显式绑定 serial；不得自动控制用户正在使用的 LDPlayer/雷电等第三方模拟器。
+- Appium 2 + UiAutomator2 负责原生应用、DocumentsUI、Photo Picker 和生命周期；AIO Hub WebView 使用稳定 `data-testid`、可访问名称和 DOM 状态，不使用坐标或截图识别控制流程。
+- 成功运行只保留结构化结果与脱敏请求摘要；截图、UiAutomator hierarchy、DOM 摘要和 logcat 只在失败时采集。
+- 默认附件门禁使用本机确定性 OpenAI-compatible 服务校验 MIME、字节数与 SHA-256，并返回正式 SSE；Ollama 多模态模型为显式 opt-in lane。
+- AVD 自动化负责日常回归，不能替代 Android 真机、真实低存储、相机硬件或 iOS 发布门禁。
+
+完整目录、阶段、设备所有权和验收标准见 [`mobile-android-avd-e2e-plan.md`](../../../../../docs/plan/mobile-android-avd-e2e-plan.md)。

@@ -446,6 +446,139 @@ impl RetrievalModule for ContentVectorRecallModule {
     }
 }
 
+pub struct TagVectorRecallModule;
+
+impl RetrievalModule for TagVectorRecallModule {
+    fn info(&self) -> RetrievalModuleInfo {
+        let mut info = module_info(
+            "tag-vector-recall",
+            RetrievalPhase::Retrieve,
+            vec![ArtifactKey::QueryEmbedding],
+            vec![ArtifactKey::CandidateSignals],
+            json!({
+                "type": "object",
+                "required": ["candidateBudget", "neighborBudget"],
+                "properties": {
+                    "candidateBudget": {"type": "integer", "minimum": 1, "maximum": 10000},
+                    "neighborBudget": {"type": "integer", "minimum": 1, "maximum": 1000}
+                },
+                "additionalProperties": false
+            }),
+        );
+        info.external_requirements = vec![ExternalRequirementKind::QueryEmbedding];
+        info
+    }
+
+    fn execute(
+        &self,
+        context: &RetrievalContext,
+        artifacts: &mut RetrievalArtifacts,
+        params: &Value,
+        _trace: &mut PipelineTraceV1,
+    ) -> Result<RetrievalModuleOutput, RetrievalModuleError> {
+        let query_embedding = match artifacts.get(ArtifactKey::QueryEmbedding) {
+            Some(RetrievalArtifact::QueryEmbedding(vector)) if !vector.is_empty() => vector.clone(),
+            _ => {
+                return Err(external_artifact_error(
+                    "query embedding artifact is missing or empty",
+                ))
+            }
+        };
+        let model_signature = artifacts
+            .bundle()
+            .and_then(|bundle| bundle.model_signature.as_deref())
+            .filter(|model| !model.is_empty())
+            .ok_or_else(|| {
+                external_artifact_error("tag vector recall requires a bundle model signature")
+            })?
+            .to_string();
+        let candidate_budget = params["candidateBudget"].as_u64().unwrap_or(1) as usize;
+        let neighbor_budget = params["neighborBudget"].as_u64().unwrap_or(1) as usize;
+        let request = request(context)?;
+        let pool_lock = context
+            .tag_pool_manager
+            .get_pool(&context.app_data_dir, &model_signature)
+            .map_err(execution_error)?;
+        let pool = pool_lock
+            .read()
+            .map_err(|_| execution_error("failed to read Recall tag pool"))?;
+        if pool.dimension != query_embedding.len() || pool.dimension == 0 {
+            artifacts.append_candidate_signals(Vec::new());
+            return Ok(RetrievalModuleOutput::default());
+        }
+        let tag_scores: BTreeMap<String, f32> = pool
+            .search_neighbors(&query_embedding, neighbor_budget)
+            .into_iter()
+            .filter_map(|(index, distance)| {
+                pool.get_tag_name(index)
+                    .map(|tag| (tag.clone(), (1.0 - distance).max(0.0)))
+            })
+            .filter(|(_, score)| *score > 0.0)
+            .collect();
+        drop(pool);
+
+        let database = context
+            .db
+            .read()
+            .map_err(|_| execution_error("failed to read Recall database"))?;
+        let mut signals = Vec::new();
+        for (recall_id, base_lock) in &database.bases {
+            if request
+                .filters
+                .recall_ids
+                .as_ref()
+                .is_some_and(|ids| !ids.contains(recall_id))
+            {
+                continue;
+            }
+            let base = base_lock
+                .read()
+                .map_err(|_| execution_error("failed to read Recall collection"))?;
+            for entry in base.entries.values() {
+                if !entry_matches_policy(*recall_id, entry, request) {
+                    continue;
+                }
+                let score = entry
+                    .tags
+                    .iter()
+                    .chain(entry.core_tags.iter())
+                    .filter_map(|tag| tag_scores.get(&tag.name).copied())
+                    .fold(0.0_f32, f32::max);
+                if score > 0.0 {
+                    signals.push(CandidateSignal {
+                        recall_id: *recall_id,
+                        entry_id: entry.id,
+                        signal_type: RecallSignalType::TagVector,
+                        raw_score: score,
+                        normalized_score: None,
+                        source_module_id: "tag-vector-recall".to_string(),
+                        details: json!({
+                            "modelSignature": model_signature,
+                            "neighborBudget": neighbor_budget,
+                            "source": "tag-pool"
+                        }),
+                    });
+                }
+            }
+        }
+        signals.sort_by(|left, right| {
+            right
+                .raw_score
+                .total_cmp(&left.raw_score)
+                .then_with(|| left.recall_id.cmp(&right.recall_id))
+                .then_with(|| left.entry_id.cmp(&right.entry_id))
+        });
+        let total = signals.len();
+        signals.truncate(candidate_budget);
+        let trimmed = total.saturating_sub(signals.len());
+        artifacts.append_candidate_signals(signals);
+        Ok(RetrievalModuleOutput {
+            candidate_trimmed: Some(trimmed),
+            trim_reason: (trimmed > 0).then(|| "candidateBudget".to_string()),
+        })
+    }
+}
+
 pub struct KeywordNormalizeModule;
 
 impl RetrievalModule for KeywordNormalizeModule {
@@ -883,6 +1016,7 @@ pub fn production_module_registry() -> Result<RetrievalModuleRegistry, Retrieval
     registry.register(QueryTokenizeModule)?;
     registry.register(KeywordRecallModule)?;
     registry.register(ContentVectorRecallModule)?;
+    registry.register(TagVectorRecallModule)?;
     registry.register(KeywordNormalizeModule)?;
     registry.register(WeightedFusionModule)?;
     registry.register(PriorityBoostModule)?;
@@ -1009,6 +1143,7 @@ mod tests {
         PipelineRunOutcome, RetrievalPipelineCompiler, RetrievalPipelineRunner,
     };
     use crate::recall::tag_pool::GlobalTagPoolManager;
+    use crate::recall::tag_pool::ModelTagPool;
     use std::sync::{Arc, RwLock};
 
     fn entry(id: Uuid, key: &str, content: &str, enabled: bool, priority: i32) -> RecallEntry {
@@ -1258,6 +1393,12 @@ mod tests {
         );
     }
 
+    fn add_tag_vectors(context: &RetrievalContext, model_id: &str) {
+        let mut pool = ModelTagPool::new(model_id.to_string());
+        pool.sync_vectors(vec![("allowed".to_string(), vec![1.0, 0.0])]);
+        context.tag_pool_manager.get_or_insert_pool(pool).unwrap();
+    }
+
     #[test]
     fn content_vector_module_requires_a_bundle_and_respects_model_identity() {
         let context = context("Rust", 5);
@@ -1314,6 +1455,54 @@ mod tests {
                 if signals.len() == 1
                     && signals[0].entry_id == Uuid::from_u128(10)
                     && signals[0].signal_type == RecallSignalType::ContentVector
+        ));
+    }
+
+    #[test]
+    fn tag_vector_module_reads_the_model_matched_tag_pool() {
+        let context = context("Rust", 5);
+        add_tag_vectors(&context, "model-a");
+        let mut artifacts = RetrievalArtifacts::default();
+        artifacts.set_bundle(crate::recall::retrieval_pipeline::RetrievalArtifactBundle {
+            bundle_id: "bundle-a".to_string(),
+            embedding_space: Some("space-a".to_string()),
+            model_signature: Some("model-a".to_string()),
+            asset_generation: Some("generation-a".to_string()),
+            algorithm_version: "test".to_string(),
+            query_embedding: Some(vec![1.0, 0.0]),
+            query_energy_field: None,
+        });
+        artifacts.insert(RetrievalArtifact::QueryEmbedding(vec![1.0, 0.0]));
+        let mut trace = PipelineTraceV1 {
+            trace_version: "test".to_string(),
+            run_id: "test".to_string(),
+            pipeline_id: "test".to_string(),
+            requested_preset_id: None,
+            actual_preset_id: None,
+            fallback_reason: None,
+            algorithm_version: "test".to_string(),
+            config_hash: "test".to_string(),
+            bundle_id: None,
+            candidate_budget: 80,
+            expansion_budget: 0,
+            final_limit: 5,
+            external_requirements: Vec::new(),
+            steps: Vec::new(),
+        };
+        TagVectorRecallModule
+            .execute(
+                &context,
+                &mut artifacts,
+                &json!({"candidateBudget": 1, "neighborBudget": 4}),
+                &mut trace,
+            )
+            .unwrap();
+        assert!(matches!(
+            artifacts.get(ArtifactKey::CandidateSignals),
+            Some(RetrievalArtifact::CandidateSignals(signals))
+                if signals.len() == 1
+                    && signals[0].entry_id == Uuid::from_u128(10)
+                    && signals[0].signal_type == RecallSignalType::TagVector
         ));
     }
 }

@@ -122,6 +122,7 @@ function matchTypeLabel(matchType: RecallResult["matchType"]) {
       keyword: "关键词",
       tag: "标签",
       tag_vector: "标签向量",
+      tag_graph: "标签图",
       key: "键值",
       lens: "透镜",
       blender: "融合",
@@ -198,6 +199,7 @@ function matchTypeLabel(matchType: RecallResult["matchType"]) {
 
 .match-type.tag,
 .match-type.tag_vector,
+.match-type.tag_graph,
 .match-type.lens,
 .match-type.blender,
 .match-type.multi_signal {

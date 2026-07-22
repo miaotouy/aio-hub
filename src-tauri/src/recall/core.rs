@@ -303,6 +303,7 @@ pub enum RecallSignalType {
     Keyword,
     ContentVector,
     TagVector,
+    TagGraph,
     Lens,
     Blender,
     MultiSignal,

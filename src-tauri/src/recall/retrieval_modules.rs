@@ -14,15 +14,14 @@ use crate::recall::retrieval_pipeline::{
     RetrievalModuleError, RetrievalModuleInfo, RetrievalModuleOutput, RetrievalModuleRegistry,
     RetrievalPhase, RetrievalPipelineNodeV1, RetrievalPipelineV1, PIPELINE_SCHEMA_VERSION,
 };
-use crate::recall::search::lens::LensRetrievalEngine;
 use crate::recall::search::vector::cosine_similarity;
-use crate::recall::tag_sea::TagSea;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
 
 pub const ALGORITHMIC_PIPELINE_VERSION: &str = "recall-pipeline-algorithmic-v1";
+pub const COMPREHENSIVE_PIPELINE_VERSION: &str = "recall-pipeline-comprehensive-v2";
 const MODULE_VERSION: &str = "1";
 const DEFAULT_CANDIDATE_BUDGET: usize = 80;
 const DEFAULT_LIMIT: usize = 6;
@@ -456,12 +455,11 @@ impl RetrievalModule for TagVectorRecallModule {
             "tag-vector-recall",
             RetrievalPhase::Retrieve,
             vec![ArtifactKey::QueryEmbedding],
-            vec![ArtifactKey::CandidateSignals],
+            vec![ArtifactKey::QueryEnergyField],
             json!({
                 "type": "object",
-                "required": ["candidateBudget", "neighborBudget"],
+                "required": ["neighborBudget"],
                 "properties": {
-                    "candidateBudget": {"type": "integer", "minimum": 1, "maximum": 10000},
                     "neighborBudget": {"type": "integer", "minimum": 1, "maximum": 1000}
                 },
                 "additionalProperties": false
@@ -494,9 +492,7 @@ impl RetrievalModule for TagVectorRecallModule {
                 external_artifact_error("tag vector recall requires a bundle model signature")
             })?
             .to_string();
-        let candidate_budget = params["candidateBudget"].as_u64().unwrap_or(1) as usize;
         let neighbor_budget = params["neighborBudget"].as_u64().unwrap_or(1) as usize;
-        let request = request(context)?;
         let pool_lock = context
             .tag_pool_manager
             .get_pool(&context.app_data_dir, &model_signature)
@@ -505,10 +501,16 @@ impl RetrievalModule for TagVectorRecallModule {
             .read()
             .map_err(|_| execution_error("failed to read Recall tag pool"))?;
         if pool.dimension != query_embedding.len() || pool.dimension == 0 {
-            artifacts.append_candidate_signals(Vec::new());
+            artifacts.insert(RetrievalArtifact::QueryEnergyField(json!({
+                "version": "tag-energy-field-v1",
+                "modelSignature": model_signature,
+                "seeds": [],
+                "energy": [],
+                "truncated": 0
+            })));
             return Ok(RetrievalModuleOutput::default());
         }
-        let tag_scores: BTreeMap<String, f32> = pool
+        let mut seeds: Vec<Value> = pool
             .search_neighbors(&query_embedding, neighbor_budget)
             .into_iter()
             .filter_map(|(index, distance)| {
@@ -516,14 +518,101 @@ impl RetrievalModule for TagVectorRecallModule {
                     .map(|tag| (tag.clone(), (1.0 - distance).max(0.0)))
             })
             .filter(|(_, score)| *score > 0.0)
+            .map(|(tag, score)| json!({"tag": tag, "score": score}))
             .collect();
-        drop(pool);
+        seeds.sort_by(|left, right| {
+            right["score"]
+                .as_f64()
+                .unwrap_or_default()
+                .total_cmp(&left["score"].as_f64().unwrap_or_default())
+                .then_with(|| left["tag"].as_str().cmp(&right["tag"].as_str()))
+        });
+        let energy = seeds.clone();
+        let truncated = seeds.len().saturating_sub(neighbor_budget);
+        artifacts.insert(RetrievalArtifact::QueryEnergyField(json!({
+            "version": "tag-energy-field-v1",
+            "modelSignature": model_signature,
+            "seeds": seeds,
+            "energy": energy,
+            "truncated": truncated
+        })));
+        Ok(RetrievalModuleOutput {
+            candidate_trimmed: Some(truncated),
+            trim_reason: (truncated > 0).then(|| "neighborBudget".to_string()),
+        })
+    }
+}
 
+pub struct BoundedTagPropagationModule;
+
+impl RetrievalModule for BoundedTagPropagationModule {
+    fn info(&self) -> RetrievalModuleInfo {
+        module_info(
+            "bounded-tag-propagation",
+            RetrievalPhase::Retrieve,
+            vec![ArtifactKey::QueryEnergyField],
+            vec![ArtifactKey::QueryEnergyField],
+            json!({
+                "type": "object",
+                "required": ["maxHops", "maxNeighborsPerTag", "maxStates", "maxOutflow"],
+                "properties": {
+                    "maxHops": {"type": "integer", "minimum": 0, "maximum": 3},
+                    "maxNeighborsPerTag": {"type": "integer", "minimum": 1, "maximum": 100},
+                    "maxStates": {"type": "integer", "minimum": 1, "maximum": 1000},
+                    "maxOutflow": {"type": "number", "exclusiveMinimum": 0, "maximum": 1}
+                },
+                "additionalProperties": false
+            }),
+        )
+    }
+
+    fn execute(
+        &self,
+        context: &RetrievalContext,
+        artifacts: &mut RetrievalArtifacts,
+        params: &Value,
+        trace: &mut PipelineTraceV1,
+    ) -> Result<RetrievalModuleOutput, RetrievalModuleError> {
+        let request = request(context)?;
+        let field = match artifacts.get(ArtifactKey::QueryEnergyField) {
+            Some(RetrievalArtifact::QueryEnergyField(field)) => field.clone(),
+            _ => {
+                return Err(execution_error(
+                    "query energy field artifact has the wrong type",
+                ))
+            }
+        };
+        let max_hops = params["maxHops"].as_u64().unwrap_or(0) as usize;
+        let max_neighbors = params["maxNeighborsPerTag"].as_u64().unwrap_or(1) as usize;
+        let max_states = params["maxStates"].as_u64().unwrap_or(1) as usize;
+        let max_outflow = params["maxOutflow"].as_f64().unwrap_or(0.0) as f32;
+        let mut energy: BTreeMap<String, f32> = field["energy"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|item| {
+                Some((
+                    item["tag"].as_str()?.to_string(),
+                    item["score"].as_f64()? as f32,
+                ))
+            })
+            .filter(|(_, score)| score.is_finite() && *score > 0.0)
+            .collect();
+        let mut initial_energy: Vec<_> = energy.into_iter().collect();
+        initial_energy.sort_by(|left, right| {
+            right
+                .1
+                .total_cmp(&left.1)
+                .then_with(|| left.0.cmp(&right.0))
+        });
+        let mut truncated_states = initial_energy.len().saturating_sub(max_states);
+        initial_energy.truncate(max_states);
+        energy = initial_energy.into_iter().collect();
         let database = context
             .db
             .read()
             .map_err(|_| execution_error("failed to read Recall database"))?;
-        let mut signals = Vec::new();
+        let mut graph: BTreeMap<String, BTreeMap<String, f32>> = BTreeMap::new();
         for (recall_id, base_lock) in &database.bases {
             if request
                 .filters
@@ -540,67 +629,126 @@ impl RetrievalModule for TagVectorRecallModule {
                 if !entry_matches_policy(*recall_id, entry, request) {
                     continue;
                 }
-                let score = entry
+                let tags: Vec<(&str, f32)> = entry
                     .tags
                     .iter()
                     .chain(entry.core_tags.iter())
-                    .filter_map(|tag| tag_scores.get(&tag.name).copied())
-                    .fold(0.0_f32, f32::max);
-                if score > 0.0 {
-                    signals.push(CandidateSignal {
-                        recall_id: *recall_id,
-                        entry_id: entry.id,
-                        signal_type: RecallSignalType::TagVector,
-                        raw_score: score,
-                        normalized_score: None,
-                        source_module_id: "tag-vector-recall".to_string(),
-                        details: json!({
-                            "modelSignature": model_signature,
-                            "neighborBudget": neighbor_budget,
-                            "source": "tag-pool"
-                        }),
-                    });
+                    .filter(|tag| tag.weight.is_finite() && tag.weight > 0.0)
+                    .map(|tag| (tag.name.as_str(), tag.weight))
+                    .collect();
+                for (source, source_weight) in &tags {
+                    for (target, target_weight) in &tags {
+                        if source == target {
+                            continue;
+                        }
+                        *graph
+                            .entry((*source).to_string())
+                            .or_default()
+                            .entry((*target).to_string())
+                            .or_default() += source_weight * target_weight;
+                    }
                 }
             }
         }
-        signals.sort_by(|left, right| {
-            right
-                .raw_score
-                .total_cmp(&left.raw_score)
-                .then_with(|| left.recall_id.cmp(&right.recall_id))
-                .then_with(|| left.entry_id.cmp(&right.entry_id))
+
+        let mut frontier = energy.clone();
+        let mut seen: BTreeSet<String> = energy.keys().cloned().collect();
+        let mut backflow_suppressed = 0_usize;
+        let graph_bytes = serde_json::to_vec(&graph).unwrap_or_default();
+        let graph_hash = blake3::hash(&graph_bytes).to_hex().to_string();
+        let graph_generation = format!("cooccurrence-v1:{}", &graph_hash[..16]);
+        for _ in 0..max_hops {
+            let mut next = BTreeMap::new();
+            for (source, source_energy) in &frontier {
+                let Some(neighbors) = graph.get(source) else {
+                    continue;
+                };
+                let mut ranked_neighbors: Vec<_> = neighbors.iter().collect();
+                ranked_neighbors.sort_by(|left, right| {
+                    right.1.total_cmp(left.1).then_with(|| left.0.cmp(right.0))
+                });
+                ranked_neighbors.truncate(max_neighbors);
+                let total_weight: f32 = ranked_neighbors.iter().map(|(_, weight)| **weight).sum();
+                if total_weight <= 0.0 {
+                    continue;
+                }
+                for (target, weight) in ranked_neighbors {
+                    if seen.contains(target) {
+                        backflow_suppressed += 1;
+                        continue;
+                    }
+                    *next.entry(target.clone()).or_insert(0.0) +=
+                        source_energy * max_outflow * (*weight / total_weight);
+                }
+            }
+            let mut ranked: Vec<_> = next.into_iter().collect();
+            ranked.sort_by(|left, right| {
+                right
+                    .1
+                    .total_cmp(&left.1)
+                    .then_with(|| left.0.cmp(&right.0))
+            });
+            let remaining_states = max_states.saturating_sub(seen.len());
+            truncated_states += ranked.len().saturating_sub(remaining_states);
+            ranked.truncate(remaining_states);
+            frontier = ranked.into_iter().collect();
+            if frontier.is_empty() {
+                break;
+            }
+            for (tag, score) in &frontier {
+                seen.insert(tag.clone());
+                *energy.entry(tag.clone()).or_insert(0.0) += *score;
+            }
+        }
+        let mut values: Vec<Value> = energy
+            .into_iter()
+            .map(|(tag, score)| json!({"tag": tag, "score": score}))
+            .collect();
+        values.sort_by(|left, right| {
+            right["score"]
+                .as_f64()
+                .unwrap_or_default()
+                .total_cmp(&left["score"].as_f64().unwrap_or_default())
+                .then_with(|| left["tag"].as_str().cmp(&right["tag"].as_str()))
         });
-        let total = signals.len();
-        signals.truncate(candidate_budget);
-        let trimmed = total.saturating_sub(signals.len());
-        artifacts.append_candidate_signals(signals);
+        let mut next_field = field;
+        next_field["energy"] = Value::Array(values);
+        next_field["propagation"] = json!({
+            "algorithmVersion": "bounded-tag-propagation-v1",
+            "configHash": trace.config_hash,
+            "graphGeneration": graph_generation,
+            "sourceAssetGeneration": artifacts.bundle().and_then(|bundle| bundle.asset_generation.clone()),
+            "maxHops": max_hops,
+            "maxNeighborsPerTag": max_neighbors,
+            "maxStates": max_states,
+            "maxOutflow": max_outflow,
+            "truncatedStates": truncated_states,
+            "backflowSuppressed": backflow_suppressed
+        });
+        artifacts.insert(RetrievalArtifact::QueryEnergyField(next_field));
         Ok(RetrievalModuleOutput {
-            candidate_trimmed: Some(trimmed),
-            trim_reason: (trimmed > 0).then(|| "candidateBudget".to_string()),
+            candidate_trimmed: Some(truncated_states),
+            trim_reason: (truncated_states > 0).then(|| "maxStates".to_string()),
         })
     }
 }
 
-pub struct LensAssociationRecallModule;
+pub struct TagToEntryExpansionModule;
 
-impl RetrievalModule for LensAssociationRecallModule {
+impl RetrievalModule for TagToEntryExpansionModule {
     fn info(&self) -> RetrievalModuleInfo {
-        let mut info = module_info(
-            "lens-association-recall",
+        module_info(
+            "tag-to-entry-expansion",
             RetrievalPhase::Retrieve,
-            vec![ArtifactKey::QueryEmbedding],
+            vec![ArtifactKey::QueryEnergyField],
             vec![ArtifactKey::CandidateSignals],
             json!({
                 "type": "object",
                 "required": ["candidateBudget"],
-                "properties": {
-                    "candidateBudget": {"type": "integer", "minimum": 1, "maximum": 10000}
-                },
+                "properties": {"candidateBudget": {"type": "integer", "minimum": 1, "maximum": 10000}},
                 "additionalProperties": false
             }),
-        );
-        info.external_requirements = vec![ExternalRequirementKind::QueryEmbedding];
-        info
+        )
     }
 
     fn execute(
@@ -610,85 +758,66 @@ impl RetrievalModule for LensAssociationRecallModule {
         params: &Value,
         _trace: &mut PipelineTraceV1,
     ) -> Result<RetrievalModuleOutput, RetrievalModuleError> {
-        let query_embedding = match artifacts.get(ArtifactKey::QueryEmbedding) {
-            Some(RetrievalArtifact::QueryEmbedding(vector)) if !vector.is_empty() => vector.clone(),
+        let request = request(context)?;
+        let field = match artifacts.get(ArtifactKey::QueryEnergyField) {
+            Some(RetrievalArtifact::QueryEnergyField(field)) => field.clone(),
             _ => {
-                return Err(external_artifact_error(
-                    "query embedding artifact is missing or empty",
+                return Err(execution_error(
+                    "query energy field artifact has the wrong type",
                 ))
             }
         };
-        let model_signature = artifacts
-            .bundle()
-            .and_then(|bundle| bundle.model_signature.as_deref())
-            .filter(|model| !model.is_empty())
-            .ok_or_else(|| {
-                external_artifact_error("Lens recall requires a bundle model signature")
-            })?
-            .to_string();
-        let request = request(context)?;
+        let energy: BTreeMap<String, f32> = field["energy"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|item| {
+                Some((
+                    item["tag"].as_str()?.to_string(),
+                    item["score"].as_f64()? as f32,
+                ))
+            })
+            .filter(|(_, score)| score.is_finite() && *score > 0.0)
+            .collect();
         let budget = params["candidateBudget"].as_u64().unwrap_or(1) as usize;
-        let pool_lock = context
-            .tag_pool_manager
-            .get_pool(&context.app_data_dir, &model_signature)
-            .map_err(execution_error)?;
-        let pool = {
-            let mut pool = pool_lock
-                .write()
-                .map_err(|_| execution_error("failed to write Recall tag pool"))?;
-            if pool.dimension != query_embedding.len() || pool.dimension == 0 {
-                artifacts.append_candidate_signals(Vec::new());
-                return Ok(RetrievalModuleOutput::default());
-            }
-            if pool.index.is_none() && !pool.registry.is_empty() {
-                pool.rebuild_index();
-            }
-            pool.clone()
-        };
-
         let database = context
             .db
             .read()
             .map_err(|_| execution_error("failed to read Recall database"))?;
-        let engine = LensRetrievalEngine::new();
         let mut signals = Vec::new();
         for (recall_id, base_lock) in &database.bases {
-            if request
-                .filters
-                .recall_ids
-                .as_ref()
-                .is_some_and(|ids| !ids.contains(recall_id))
-            {
-                continue;
-            }
             let base = base_lock
                 .read()
                 .map_err(|_| execution_error("failed to read Recall collection"))?;
-            let tag_sea = TagSea::build(&base, pool.clone());
-            let raw_scores = engine
-                .execute_lens_candidate_scores(&query_embedding, &request.filters, &tag_sea)
-                .map_err(execution_error)?;
-            for (entry_id, raw_score) in raw_scores {
-                let Some(entry) = base.entries.get(&entry_id) else {
-                    continue;
-                };
-                if !entry_matches_policy(*recall_id, entry, request) || !raw_score.is_finite() {
+            for entry in base.entries.values() {
+                if !entry_matches_policy(*recall_id, entry, request) {
                     continue;
                 }
-                signals.push(CandidateSignal {
-                    recall_id: *recall_id,
-                    entry_id,
-                    signal_type: RecallSignalType::Lens,
-                    raw_score,
-                    normalized_score: None,
-                    source_module_id: "lens-association-recall".to_string(),
-                    details: json!({
-                        "modelSignature": model_signature,
-                        "historyVectorCount": request.filters.history_vectors.as_ref().map_or(0, Vec::len),
-                        "texture": request.filters.texture,
-                        "source": "lens-association"
-                    }),
-                });
+                let score: f32 = entry
+                    .tags
+                    .iter()
+                    .chain(entry.core_tags.iter())
+                    .filter_map(|tag| {
+                        energy
+                            .get(&tag.name)
+                            .map(|value| value * tag.weight.max(0.0))
+                    })
+                    .sum();
+                if score > 0.0 {
+                    signals.push(CandidateSignal {
+                        recall_id: *recall_id,
+                        entry_id: entry.id,
+                        signal_type: RecallSignalType::TagGraph,
+                        raw_score: score,
+                        normalized_score: None,
+                        source_module_id: "tag-to-entry-expansion".to_string(),
+                        details: json!({
+                            "energyTagCount": energy.len(),
+                            "graphGeneration": field.pointer("/propagation/graphGeneration").and_then(Value::as_str),
+                            "source": "tag-graph"
+                        }),
+                    });
+                }
             }
         }
         signals.sort_by(|left, right| {
@@ -797,7 +926,7 @@ impl RetrievalModule for WeightedFusionModule {
                     "keyWeight": {"type": "number", "minimum": 0, "maximum": 1},
                     "contentVectorWeight": {"type": "number", "minimum": 0, "maximum": 1},
                     "tagVectorWeight": {"type": "number", "minimum": 0, "maximum": 1},
-                    "lensWeight": {"type": "number", "minimum": 0, "maximum": 1},
+                    "tagGraphWeight": {"type": "number", "minimum": 0, "maximum": 1},
                     "matchType": {"type": "string"}
                 },
                 "additionalProperties": false
@@ -824,7 +953,7 @@ impl RetrievalModule for WeightedFusionModule {
         let key_weight = params["keyWeight"].as_f64().unwrap_or(0.3) as f32;
         let content_vector_weight = params["contentVectorWeight"].as_f64().unwrap_or(0.0) as f32;
         let tag_vector_weight = params["tagVectorWeight"].as_f64().unwrap_or(0.0) as f32;
-        let lens_weight = params["lensWeight"].as_f64().unwrap_or(0.0) as f32;
+        let tag_graph_weight = params["tagGraphWeight"].as_f64().unwrap_or(0.0) as f32;
         let mut grouped = BTreeMap::<(Uuid, Uuid), Vec<SignalContribution>>::new();
         for signal in signals {
             let weight = match signal.signal_type {
@@ -832,7 +961,7 @@ impl RetrievalModule for WeightedFusionModule {
                 RecallSignalType::Keyword => keyword_weight,
                 RecallSignalType::ContentVector => content_vector_weight,
                 RecallSignalType::TagVector => tag_vector_weight,
-                RecallSignalType::Lens => lens_weight,
+                RecallSignalType::TagGraph => tag_graph_weight,
                 _ => 0.0,
             };
             let normalized_score = signal.normalized_score.unwrap_or(0.0);
@@ -1160,7 +1289,8 @@ pub fn production_module_registry() -> Result<RetrievalModuleRegistry, Retrieval
     registry.register(KeywordRecallModule)?;
     registry.register(ContentVectorRecallModule)?;
     registry.register(TagVectorRecallModule)?;
-    registry.register(LensAssociationRecallModule)?;
+    registry.register(BoundedTagPropagationModule)?;
+    registry.register(TagToEntryExpansionModule)?;
     registry.register(KeywordNormalizeModule)?;
     registry.register(WeightedFusionModule)?;
     registry.register(PriorityBoostModule)?;
@@ -1194,10 +1324,10 @@ pub fn builtin_preset_summaries() -> Vec<PresetSummary> {
         PresetSummary {
             id: RecallPresetId::Comprehensive,
             display_name: "综合召回".to_string(),
-            description: "融合字面、向量、标签与联想信号的召回".to_string(),
+            description: "融合字面、内容向量和标签图信号的召回".to_string(),
             visibility: PresetVisibility::Product,
             stability: PresetStability::Stable,
-            algorithm_version: "recall-pipeline-comprehensive-v1".to_string(),
+            algorithm_version: COMPREHENSIVE_PIPELINE_VERSION.to_string(),
             allowed_overrides: vec![limit_override],
         },
     ]
@@ -1292,7 +1422,7 @@ pub fn comprehensive_pipeline(limit: Option<usize>) -> RetrievalPipelineV1 {
         schema_version: PIPELINE_SCHEMA_VERSION,
         id: "comprehensive".to_string(),
         display_name: "综合召回".to_string(),
-        algorithm_version: "recall-pipeline-comprehensive-v1".to_string(),
+        algorithm_version: COMPREHENSIVE_PIPELINE_VERSION.to_string(),
         candidate_budget: DEFAULT_CANDIDATE_BUDGET,
         expansion_budget: 0,
         nodes: vec![
@@ -1319,12 +1449,18 @@ pub fn comprehensive_pipeline(limit: Option<usize>) -> RetrievalPipelineV1 {
                 "retrieve-tag-vector",
                 "tag-vector-recall",
                 Some(vec!["tokenize-query"]),
-                json!({"candidateBudget": DEFAULT_CANDIDATE_BUDGET, "neighborBudget": 40}),
+                json!({"neighborBudget": 40}),
             ),
             node(
-                "retrieve-lens",
-                "lens-association-recall",
-                Some(vec!["tokenize-query"]),
+                "propagate-tags",
+                "bounded-tag-propagation",
+                Some(vec!["retrieve-tag-vector"]),
+                json!({"maxHops": 1, "maxNeighborsPerTag": 12, "maxStates": 80, "maxOutflow": 0.6}),
+            ),
+            node(
+                "expand-tag-entries",
+                "tag-to-entry-expansion",
+                Some(vec!["propagate-tags"]),
                 json!({"candidateBudget": DEFAULT_CANDIDATE_BUDGET}),
             ),
             node(
@@ -1333,8 +1469,7 @@ pub fn comprehensive_pipeline(limit: Option<usize>) -> RetrievalPipelineV1 {
                 Some(vec![
                     "retrieve-keyword",
                     "retrieve-content-vector",
-                    "retrieve-tag-vector",
-                    "retrieve-lens",
+                    "expand-tag-entries",
                 ]),
                 json!({}),
             ),
@@ -1342,7 +1477,7 @@ pub fn comprehensive_pipeline(limit: Option<usize>) -> RetrievalPipelineV1 {
                 "fuse-signals",
                 "weighted-fusion",
                 Some(vec!["normalize-signals"]),
-                json!({"keywordWeight": 0.35, "keyWeight": 0.45, "contentVectorWeight": 0.55, "tagVectorWeight": 0.25, "lensWeight": 0.2, "matchType": "comprehensive"}),
+                json!({"keywordWeight": 0.35, "keyWeight": 0.45, "contentVectorWeight": 0.55, "tagVectorWeight": 0.0, "tagGraphWeight": 0.2, "matchType": "comprehensive"}),
             ),
             node(
                 "boost-priority",
@@ -1753,16 +1888,134 @@ mod tests {
             .execute(
                 &context,
                 &mut artifacts,
-                &json!({"candidateBudget": 1, "neighborBudget": 4}),
+                &json!({"neighborBudget": 4}),
+                &mut trace,
+            )
+            .unwrap();
+        assert!(matches!(
+            artifacts.get(ArtifactKey::QueryEnergyField),
+            Some(RetrievalArtifact::QueryEnergyField(field))
+                if field["seeds"][0]["tag"] == "allowed"
+        ));
+    }
+
+    #[test]
+    fn tag_graph_modules_propagate_once_without_backflow_and_expand_entries() {
+        let context = context("Rust", 5);
+        {
+            let database = context.db.write().unwrap();
+            let base = database.bases.get(&Uuid::from_u128(1)).unwrap().clone();
+            base.write()
+                .unwrap()
+                .entries
+                .get_mut(&Uuid::from_u128(10))
+                .unwrap()
+                .tags = vec![
+                TagWithWeight {
+                    name: "allowed".to_string(),
+                    weight: 1.0,
+                    hash: String::new(),
+                },
+                TagWithWeight {
+                    name: "seed".to_string(),
+                    weight: 1.0,
+                    hash: String::new(),
+                },
+                TagWithWeight {
+                    name: "related".to_string(),
+                    weight: 2.0,
+                    hash: String::new(),
+                },
+            ];
+        }
+        let mut artifacts = RetrievalArtifacts::default();
+        artifacts.set_bundle(crate::recall::retrieval_pipeline::RetrievalArtifactBundle {
+            bundle_id: "bundle-a".to_string(),
+            embedding_space: Some("space-a".to_string()),
+            model_signature: Some("model-a".to_string()),
+            asset_generation: Some("generation-a".to_string()),
+            algorithm_version: "test".to_string(),
+            query_embedding: None,
+            query_energy_field: None,
+        });
+        artifacts.insert(RetrievalArtifact::QueryEnergyField(json!({
+            "version": "tag-energy-field-v1",
+            "seeds": [{"tag": "seed", "score": 1.0}],
+            "energy": [{"tag": "seed", "score": 1.0}]
+        })));
+        let mut trace = PipelineTraceV1 {
+            trace_version: "test".to_string(),
+            run_id: "test".to_string(),
+            pipeline_id: "test".to_string(),
+            requested_preset_id: None,
+            actual_preset_id: None,
+            fallback_reason: None,
+            algorithm_version: "test".to_string(),
+            config_hash: "config-a".to_string(),
+            bundle_id: None,
+            candidate_budget: 80,
+            expansion_budget: 0,
+            final_limit: 5,
+            external_requirements: Vec::new(),
+            steps: Vec::new(),
+        };
+        BoundedTagPropagationModule
+            .execute(
+                &context,
+                &mut artifacts,
+                &json!({"maxHops": 2, "maxNeighborsPerTag": 4, "maxStates": 2, "maxOutflow": 0.6}),
+                &mut trace,
+            )
+            .unwrap();
+        let field = match artifacts.get(ArtifactKey::QueryEnergyField) {
+            Some(RetrievalArtifact::QueryEnergyField(field)) => field,
+            _ => panic!("missing propagated tag energy field"),
+        };
+        assert!(field["propagation"]["graphGeneration"]
+            .as_str()
+            .unwrap()
+            .starts_with("cooccurrence-v1:"));
+        assert_eq!(
+            field["propagation"]["sourceAssetGeneration"],
+            "generation-a"
+        );
+        assert!(field["energy"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["tag"] == "related"));
+        assert_eq!(field["energy"].as_array().unwrap().len(), 2);
+        assert!(field["propagation"]["backflowSuppressed"].as_u64().unwrap() > 0);
+
+        TagToEntryExpansionModule
+            .execute(
+                &context,
+                &mut artifacts,
+                &json!({"candidateBudget": 5}),
                 &mut trace,
             )
             .unwrap();
         assert!(matches!(
             artifacts.get(ArtifactKey::CandidateSignals),
             Some(RetrievalArtifact::CandidateSignals(signals))
-                if signals.len() == 1
-                    && signals[0].entry_id == Uuid::from_u128(10)
-                    && signals[0].signal_type == RecallSignalType::TagVector
+                if signals.iter().any(|signal| signal.entry_id == Uuid::from_u128(10)
+                    && signal.signal_type == RecallSignalType::TagGraph
+                    && signal.source_module_id == "tag-to-entry-expansion")
         ));
+    }
+
+    #[test]
+    fn comprehensive_pipeline_uses_atomic_tag_graph_modules() {
+        let pipeline = comprehensive_pipeline(Some(6));
+        let module_ids: Vec<_> = pipeline
+            .nodes
+            .iter()
+            .map(|node| node.module_id.as_str())
+            .collect();
+        assert!(module_ids.contains(&"tag-vector-recall"));
+        assert!(module_ids.contains(&"bounded-tag-propagation"));
+        assert!(module_ids.contains(&"tag-to-entry-expansion"));
+        assert!(!module_ids.iter().any(|id| id.contains("lens")));
+        assert_eq!(pipeline.algorithm_version, COMPREHENSIVE_PIPELINE_VERSION);
     }
 }

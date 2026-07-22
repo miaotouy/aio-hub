@@ -80,7 +80,9 @@ Recall 条目不自动切片，也不保存文档 manifest、文件监听状态�
 Recall service、Chat 被动召回、Agent tool 和 Agent 配置已通过 pipeline service 使用预设；
 该 service 先编译配置，再按编译结果准备外部产物并执行 Runner。Playground 和旧
 `recall_search` 仍保留 legacy engine 路径，直到后续迁移阶段删除。`comprehensive` 已包含
-关键词、内容向量、标签向量和 Lens 候选模块，并复用同一请求的查询向量 bundle。
+关键词、内容向量与原子标签图模块，并复用同一请求的查询向量 bundle：`tag-vector-recall`
+输出标签种子，`bounded-tag-propagation` 生成受限的查询能量场，`tag-to-entry-expansion`
+输出 `tag-graph` 候选。生产管线不再调用 Lens engine。
 完整的稳定契约见
 `docs/architecture/retrieval-pipeline-contract.md`；当前施工状态见
 `docs/Plan/recall-retrieval-pipeline-modularization-plan.md`。

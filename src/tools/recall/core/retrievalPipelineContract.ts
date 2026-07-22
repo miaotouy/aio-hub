@@ -14,7 +14,7 @@ import {
 
 export const RECALL_PIPELINE_ALGORITHM_VERSIONS = {
   algorithmic: "recall-pipeline-algorithmic-v1",
-  comprehensive: "recall-pipeline-comprehensive-v1",
+  comprehensive: "recall-pipeline-comprehensive-v2",
 } as const;
 
 const LIMIT_OVERRIDE = {
@@ -41,7 +41,7 @@ export const RECALL_BUILTIN_PRESETS: readonly RecallPresetSummary[] = [
   {
     id: "comprehensive",
     displayName: "综合召回",
-    description: "融合字面、向量、标签与联想信号的召回",
+    description: "融合字面、内容向量和标签图信号的召回",
     visibility: "product",
     stability: "stable",
     algorithmVersion: RECALL_PIPELINE_ALGORITHM_VERSIONS.comprehensive,

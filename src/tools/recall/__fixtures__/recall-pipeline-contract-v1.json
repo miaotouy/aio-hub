@@ -24,10 +24,10 @@
     {
       "id": "comprehensive",
       "displayName": "综合召回",
-      "description": "融合字面、向量、标签与联想信号的召回",
+      "description": "融合字面、内容向量和标签图信号的召回",
       "visibility": "product",
       "stability": "stable",
-      "algorithmVersion": "recall-pipeline-comprehensive-v1",
+      "algorithmVersion": "recall-pipeline-comprehensive-v2",
       "allowedOverrides": [
         {
           "key": "limit",

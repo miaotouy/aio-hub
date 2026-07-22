@@ -20,6 +20,7 @@ export type RecallSignalType =
   | "keyword"
   | "content-vector"
   | "tag-vector"
+  | "tag-graph"
   | "lens"
   | "blender"
   | "multi-signal";
@@ -58,6 +59,7 @@ export interface RecallResult {
     | "keyword"
     | "tag"
     | "tag_vector"
+    | "tag_graph"
     | "key"
     | "lens"
     | "blender"

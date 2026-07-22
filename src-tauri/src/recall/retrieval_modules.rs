@@ -8,12 +8,13 @@ use crate::recall::core::{
 };
 use crate::recall::index::tokenize_query;
 use crate::recall::retrieval_pipeline::{
-    AllowedOverride, ArtifactKey, CandidateSignal, FailurePolicy, PipelineCandidate,
-    PipelineErrorCode, PipelineTraceV1, PresetStability, PresetSummary, PresetVisibility,
-    RecallPresetId, RetrievalArtifact, RetrievalArtifacts, RetrievalModule, RetrievalModuleError,
-    RetrievalModuleInfo, RetrievalModuleOutput, RetrievalModuleRegistry, RetrievalPhase,
-    RetrievalPipelineNodeV1, RetrievalPipelineV1, PIPELINE_SCHEMA_VERSION,
+    AllowedOverride, ArtifactKey, CandidateSignal, ExternalRequirementKind, FailurePolicy,
+    PipelineCandidate, PipelineErrorCode, PipelineTraceV1, PresetStability, PresetSummary,
+    PresetVisibility, RecallPresetId, RetrievalArtifact, RetrievalArtifacts, RetrievalModule,
+    RetrievalModuleError, RetrievalModuleInfo, RetrievalModuleOutput, RetrievalModuleRegistry,
+    RetrievalPhase, RetrievalPipelineNodeV1, RetrievalPipelineV1, PIPELINE_SCHEMA_VERSION,
 };
+use crate::recall::search::vector::cosine_similarity;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
@@ -45,6 +46,15 @@ fn module_info(
 fn execution_error(message: impl Into<String>) -> RetrievalModuleError {
     RetrievalModuleError {
         code: PipelineErrorCode::ModuleExecutionFailed,
+        message: message.into(),
+        node_id: None,
+        details: None,
+    }
+}
+
+fn external_artifact_error(message: impl Into<String>) -> RetrievalModuleError {
+    RetrievalModuleError {
+        code: PipelineErrorCode::ExternalArtifactInvalid,
         message: message.into(),
         node_id: None,
         details: None,
@@ -305,6 +315,130 @@ impl RetrievalModule for KeywordRecallModule {
         artifacts.append_candidate_signals(signals);
 
         let trimmed = total_candidates.saturating_sub(kept.len());
+        Ok(RetrievalModuleOutput {
+            candidate_trimmed: Some(trimmed),
+            trim_reason: (trimmed > 0).then(|| "candidateBudget".to_string()),
+        })
+    }
+}
+
+pub struct ContentVectorRecallModule;
+
+impl RetrievalModule for ContentVectorRecallModule {
+    fn info(&self) -> RetrievalModuleInfo {
+        let mut info = module_info(
+            "content-vector-recall",
+            RetrievalPhase::Retrieve,
+            vec![ArtifactKey::QueryEmbedding],
+            vec![ArtifactKey::CandidateSignals],
+            json!({
+                "type": "object",
+                "required": ["candidateBudget"],
+                "properties": {
+                    "candidateBudget": {"type": "integer", "minimum": 1, "maximum": 10000}
+                },
+                "additionalProperties": false
+            }),
+        );
+        info.external_requirements = vec![ExternalRequirementKind::QueryEmbedding];
+        info
+    }
+
+    fn execute(
+        &self,
+        context: &RetrievalContext,
+        artifacts: &mut RetrievalArtifacts,
+        params: &Value,
+        _trace: &mut PipelineTraceV1,
+    ) -> Result<RetrievalModuleOutput, RetrievalModuleError> {
+        let query_embedding = match artifacts.get(ArtifactKey::QueryEmbedding) {
+            Some(RetrievalArtifact::QueryEmbedding(vector)) if !vector.is_empty() => vector.clone(),
+            _ => {
+                return Err(external_artifact_error(
+                    "query embedding artifact is missing or empty",
+                ))
+            }
+        };
+        let bundle = artifacts.bundle().ok_or_else(|| {
+            external_artifact_error("query embedding is missing its immutable artifact bundle")
+        })?;
+        let model_signature = bundle
+            .model_signature
+            .as_deref()
+            .filter(|value| !value.is_empty());
+        let request = request(context)?;
+        let budget = params["candidateBudget"].as_u64().unwrap_or(1) as usize;
+        let database = context
+            .db
+            .read()
+            .map_err(|_| execution_error("failed to read Recall database"))?;
+        let mut candidates = Vec::new();
+
+        for (recall_id, base_lock) in &database.bases {
+            if request
+                .filters
+                .recall_ids
+                .as_ref()
+                .is_some_and(|ids| !ids.contains(recall_id))
+            {
+                continue;
+            }
+            let base = base_lock
+                .read()
+                .map_err(|_| execution_error("failed to read Recall collection"))?;
+            if base.vector_store.dimension != query_embedding.len()
+                || base.vector_store.dimension == 0
+                || (model_signature.is_some_and(|model| {
+                    !base.vector_store.model_id.is_empty() && base.vector_store.model_id != model
+                }))
+            {
+                continue;
+            }
+            for (index, entry_id) in base.vector_store.ids.iter().enumerate() {
+                let Some(entry) = base.entries.get(entry_id) else {
+                    continue;
+                };
+                if !entry_matches_policy(*recall_id, entry, request) {
+                    continue;
+                }
+                let start = index * base.vector_store.dimension;
+                let end = start + base.vector_store.dimension;
+                let Some(stored_vector) = base.vector_store.data.get(start..end) else {
+                    return Err(execution_error(
+                        "Recall vector matrix is internally inconsistent",
+                    ));
+                };
+                let score = cosine_similarity(&query_embedding, stored_vector);
+                if !score.is_finite() || score <= 0.0 {
+                    continue;
+                }
+                candidates.push(CandidateSignal {
+                    recall_id: *recall_id,
+                    entry_id: *entry_id,
+                    signal_type: RecallSignalType::ContentVector,
+                    raw_score: score,
+                    normalized_score: None,
+                    source_module_id: "content-vector-recall".to_string(),
+                    details: json!({
+                        "modelSignature": bundle.model_signature,
+                        "embeddingSpace": bundle.embedding_space,
+                        "source": "content-vector"
+                    }),
+                });
+            }
+        }
+
+        candidates.sort_by(|left, right| {
+            right
+                .raw_score
+                .total_cmp(&left.raw_score)
+                .then_with(|| left.recall_id.cmp(&right.recall_id))
+                .then_with(|| left.entry_id.cmp(&right.entry_id))
+        });
+        let total_candidates = candidates.len();
+        candidates.truncate(budget);
+        let trimmed = total_candidates.saturating_sub(candidates.len());
+        artifacts.append_candidate_signals(candidates);
         Ok(RetrievalModuleOutput {
             candidate_trimmed: Some(trimmed),
             trim_reason: (trimmed > 0).then(|| "candidateBudget".to_string()),
@@ -748,6 +882,7 @@ pub fn production_module_registry() -> Result<RetrievalModuleRegistry, Retrieval
     registry.register(QueryNormalizeModule)?;
     registry.register(QueryTokenizeModule)?;
     registry.register(KeywordRecallModule)?;
+    registry.register(ContentVectorRecallModule)?;
     registry.register(KeywordNormalizeModule)?;
     registry.register(WeightedFusionModule)?;
     registry.register(PriorityBoostModule)?;
@@ -1105,6 +1240,80 @@ mod tests {
             artifacts.get(ArtifactKey::FinalResults),
             Some(RetrievalArtifact::FinalResults(results))
                 if results.len() == 1 && results[0].entry.id == Uuid::from_u128(10)
+        ));
+    }
+
+    fn add_content_vectors(context: &RetrievalContext, model_id: &str) {
+        let database = context.db.clone();
+        let database = database.write().unwrap();
+        let base = database.bases.get(&Uuid::from_u128(1)).unwrap().clone();
+        base.write().unwrap().vector_store.rebuild(
+            model_id.to_string(),
+            2,
+            0,
+            vec![
+                (Uuid::from_u128(10), vec![1.0, 0.0]),
+                (Uuid::from_u128(11), vec![0.0, 1.0]),
+            ],
+        );
+    }
+
+    #[test]
+    fn content_vector_module_requires_a_bundle_and_respects_model_identity() {
+        let context = context("Rust", 5);
+        add_content_vectors(&context, "model-a");
+        let mut artifacts = RetrievalArtifacts::default();
+        artifacts.insert(RetrievalArtifact::QueryEmbedding(vec![1.0, 0.0]));
+        let mut trace = PipelineTraceV1 {
+            trace_version: "test".to_string(),
+            run_id: "test".to_string(),
+            pipeline_id: "test".to_string(),
+            requested_preset_id: None,
+            actual_preset_id: None,
+            fallback_reason: None,
+            algorithm_version: "test".to_string(),
+            config_hash: "test".to_string(),
+            bundle_id: None,
+            candidate_budget: 80,
+            expansion_budget: 0,
+            final_limit: 5,
+            external_requirements: Vec::new(),
+            steps: Vec::new(),
+        };
+
+        let error = ContentVectorRecallModule
+            .execute(
+                &context,
+                &mut artifacts,
+                &json!({"candidateBudget": 5}),
+                &mut trace,
+            )
+            .unwrap_err();
+        assert_eq!(error.code, PipelineErrorCode::ExternalArtifactInvalid);
+
+        artifacts.set_bundle(crate::recall::retrieval_pipeline::RetrievalArtifactBundle {
+            bundle_id: "bundle-a".to_string(),
+            embedding_space: Some("space-a".to_string()),
+            model_signature: Some("model-a".to_string()),
+            asset_generation: Some("generation-a".to_string()),
+            algorithm_version: "test".to_string(),
+            query_embedding: Some(vec![1.0, 0.0]),
+            query_energy_field: None,
+        });
+        ContentVectorRecallModule
+            .execute(
+                &context,
+                &mut artifacts,
+                &json!({"candidateBudget": 5}),
+                &mut trace,
+            )
+            .unwrap();
+        assert!(matches!(
+            artifacts.get(ArtifactKey::CandidateSignals),
+            Some(RetrievalArtifact::CandidateSignals(signals))
+                if signals.len() == 1
+                    && signals[0].entry_id == Uuid::from_u128(10)
+                    && signals[0].signal_type == RecallSignalType::ContentVector
         ));
     }
 }

@@ -151,9 +151,18 @@ impl RetrievalArtifact {
 #[derive(Debug, Default)]
 pub struct RetrievalArtifacts {
     entries: BTreeMap<ArtifactKey, RetrievalArtifact>,
+    bundle: Option<RetrievalArtifactBundle>,
 }
 
 impl RetrievalArtifacts {
+    pub fn set_bundle(&mut self, bundle: RetrievalArtifactBundle) {
+        self.bundle = Some(bundle);
+    }
+
+    pub fn bundle(&self) -> Option<&RetrievalArtifactBundle> {
+        self.bundle.as_ref()
+    }
+
     pub fn insert(&mut self, artifact: RetrievalArtifact) -> Option<RetrievalArtifact> {
         self.entries.insert(artifact.key(), artifact)
     }
@@ -848,6 +857,9 @@ impl RetrievalPipelineRunner {
                 None,
             );
         }
+        if let Some(bundle) = bundle {
+            artifacts.set_bundle(bundle.clone());
+        }
         if compiled
             .result
             .external_requirements
@@ -864,12 +876,22 @@ impl RetrievalPipelineRunner {
         for node in &compiled.nodes {
             for required in &node.info.requires {
                 if !artifacts.contains(*required) {
+                    let code = if *required == ArtifactKey::QueryEmbedding
+                        && node
+                            .info
+                            .external_requirements
+                            .contains(&ExternalRequirementKind::QueryEmbedding)
+                    {
+                        PipelineErrorCode::ExternalRequirementMissing
+                    } else {
+                        PipelineErrorCode::ArtifactMissing
+                    };
                     return failed_response(
                         compiled,
                         requested_preset_id,
                         actual_preset_id,
                         trace,
-                        PipelineErrorCode::ArtifactMissing,
+                        code,
                         format!(
                             "node '{}' is missing runtime artifact '{:?}'",
                             node.node.id, required
@@ -1665,5 +1687,46 @@ mod tests {
         let compiled = RetrievalPipelineCompiler::new(Arc::new(registry))
             .compile(&pipeline, "parallel-merge".to_string());
         assert!(compiled.result.valid, "{:?}", compiled.result.issues);
+    }
+
+    #[test]
+    fn runner_reports_missing_external_query_embedding_before_module_execution() {
+        let mut registry = RetrievalModuleRegistry::default();
+        let mut finalizer = TestModule::new(
+            "embedding-finalizer",
+            RetrievalPhase::Finalize,
+            vec![ArtifactKey::QueryEmbedding],
+            vec![ArtifactKey::FinalResults],
+        );
+        finalizer.info.external_requirements = vec![ExternalRequirementKind::QueryEmbedding];
+        registry.register(finalizer).unwrap();
+        let pipeline = RetrievalPipelineV1 {
+            nodes: vec![RetrievalPipelineNodeV1 {
+                id: "embedding-finalizer".to_string(),
+                module_id: "embedding-finalizer".to_string(),
+                enabled: true,
+                depends_on: None,
+                params: serde_json::json!({}),
+                failure_policy: Some(FailurePolicy::Abort),
+            }],
+            ..test_pipeline()
+        };
+        let compiled = RetrievalPipelineCompiler::new(Arc::new(registry))
+            .compile(&pipeline, "missing-external".to_string());
+        assert!(compiled.result.valid, "{:?}", compiled.result.issues);
+
+        let response = RetrievalPipelineRunner.run(
+            &compiled,
+            &test_context(),
+            RetrievalArtifacts::default(),
+            None,
+            RecallPresetId::Comprehensive,
+            RecallPresetId::Comprehensive,
+        );
+        assert_eq!(response.outcome, PipelineRunOutcome::Failed);
+        assert_eq!(
+            response.error.unwrap().code,
+            PipelineErrorCode::ExternalRequirementMissing
+        );
     }
 }

@@ -794,7 +794,11 @@ impl RetrievalModule for WeightedFusionModule {
                 "required": ["keywordWeight", "keyWeight"],
                 "properties": {
                     "keywordWeight": {"type": "number", "minimum": 0, "maximum": 1},
-                    "keyWeight": {"type": "number", "minimum": 0, "maximum": 1}
+                    "keyWeight": {"type": "number", "minimum": 0, "maximum": 1},
+                    "contentVectorWeight": {"type": "number", "minimum": 0, "maximum": 1},
+                    "tagVectorWeight": {"type": "number", "minimum": 0, "maximum": 1},
+                    "lensWeight": {"type": "number", "minimum": 0, "maximum": 1},
+                    "matchType": {"type": "string"}
                 },
                 "additionalProperties": false
             }),
@@ -818,11 +822,17 @@ impl RetrievalModule for WeightedFusionModule {
         };
         let keyword_weight = params["keywordWeight"].as_f64().unwrap_or(0.7) as f32;
         let key_weight = params["keyWeight"].as_f64().unwrap_or(0.3) as f32;
+        let content_vector_weight = params["contentVectorWeight"].as_f64().unwrap_or(0.0) as f32;
+        let tag_vector_weight = params["tagVectorWeight"].as_f64().unwrap_or(0.0) as f32;
+        let lens_weight = params["lensWeight"].as_f64().unwrap_or(0.0) as f32;
         let mut grouped = BTreeMap::<(Uuid, Uuid), Vec<SignalContribution>>::new();
         for signal in signals {
             let weight = match signal.signal_type {
                 RecallSignalType::Key => key_weight,
                 RecallSignalType::Keyword => keyword_weight,
+                RecallSignalType::ContentVector => content_vector_weight,
+                RecallSignalType::TagVector => tag_vector_weight,
+                RecallSignalType::Lens => lens_weight,
                 _ => 0.0,
             };
             let normalized_score = signal.normalized_score.unwrap_or(0.0);
@@ -842,7 +852,10 @@ impl RetrievalModule for WeightedFusionModule {
         for ((recall_id, entry_id), signals) in grouped {
             let score = signals.iter().map(|signal| signal.contribution).sum();
             let details = serde_json::to_value(CandidateDetails {
-                match_type: "algorithmic".to_string(),
+                match_type: params["matchType"]
+                    .as_str()
+                    .unwrap_or("algorithmic")
+                    .to_string(),
                 signals,
                 priority: None,
                 priority_boost: None,
@@ -1263,6 +1276,102 @@ pub fn algorithmic_pipeline(limit: Option<usize>) -> RetrievalPipelineV1 {
     }
 }
 
+pub fn comprehensive_pipeline(limit: Option<usize>) -> RetrievalPipelineV1 {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT);
+    let node = |id: &str, module_id: &str, depends_on: Option<Vec<&str>>, params: Value| {
+        RetrievalPipelineNodeV1 {
+            id: id.to_string(),
+            module_id: module_id.to_string(),
+            enabled: true,
+            depends_on: depends_on.map(|ids| ids.into_iter().map(ToString::to_string).collect()),
+            params,
+            failure_policy: Some(FailurePolicy::Abort),
+        }
+    };
+    RetrievalPipelineV1 {
+        schema_version: PIPELINE_SCHEMA_VERSION,
+        id: "comprehensive".to_string(),
+        display_name: "综合召回".to_string(),
+        algorithm_version: "recall-pipeline-comprehensive-v1".to_string(),
+        candidate_budget: DEFAULT_CANDIDATE_BUDGET,
+        expansion_budget: 0,
+        nodes: vec![
+            node("normalize-query", "query-normalize", None, json!({})),
+            node(
+                "tokenize-query",
+                "query-tokenize",
+                Some(vec!["normalize-query"]),
+                json!({}),
+            ),
+            node(
+                "retrieve-keyword",
+                "keyword-recall",
+                Some(vec!["tokenize-query"]),
+                json!({"candidateBudget": DEFAULT_CANDIDATE_BUDGET}),
+            ),
+            node(
+                "retrieve-content-vector",
+                "content-vector-recall",
+                Some(vec!["tokenize-query"]),
+                json!({"candidateBudget": DEFAULT_CANDIDATE_BUDGET}),
+            ),
+            node(
+                "retrieve-tag-vector",
+                "tag-vector-recall",
+                Some(vec!["tokenize-query"]),
+                json!({"candidateBudget": DEFAULT_CANDIDATE_BUDGET, "neighborBudget": 40}),
+            ),
+            node(
+                "retrieve-lens",
+                "lens-association-recall",
+                Some(vec!["tokenize-query"]),
+                json!({"candidateBudget": DEFAULT_CANDIDATE_BUDGET}),
+            ),
+            node(
+                "normalize-signals",
+                "keyword-normalize",
+                Some(vec![
+                    "retrieve-keyword",
+                    "retrieve-content-vector",
+                    "retrieve-tag-vector",
+                    "retrieve-lens",
+                ]),
+                json!({}),
+            ),
+            node(
+                "fuse-signals",
+                "weighted-fusion",
+                Some(vec!["normalize-signals"]),
+                json!({"keywordWeight": 0.35, "keyWeight": 0.45, "contentVectorWeight": 0.55, "tagVectorWeight": 0.25, "lensWeight": 0.2, "matchType": "comprehensive"}),
+            ),
+            node(
+                "boost-priority",
+                "priority-boost",
+                Some(vec!["fuse-signals"]),
+                json!({}),
+            ),
+            node(
+                "filter-policy",
+                "entry-policy-filter",
+                Some(vec!["boost-priority"]),
+                json!({}),
+            ),
+            node(
+                "filter-score",
+                "score-threshold",
+                Some(vec!["filter-policy"]),
+                json!({}),
+            ),
+            node(
+                "finalize-results",
+                "result-finalizer",
+                Some(vec!["filter-score"]),
+                json!({"limit": limit}),
+            ),
+        ],
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1452,6 +1561,26 @@ mod tests {
         assert_eq!(
             serde_json::to_value(algorithmic_pipeline(Some(DEFAULT_LIMIT))).unwrap(),
             fixture["pipeline"]
+        );
+    }
+
+    #[test]
+    fn comprehensive_pipeline_declares_one_shared_query_embedding_requirement() {
+        let compiled =
+            RetrievalPipelineCompiler::new(Arc::new(production_module_registry().unwrap()))
+                .compile(
+                    &comprehensive_pipeline(Some(6)),
+                    "comprehensive-run".to_string(),
+                );
+        assert!(compiled.result.valid, "{:?}", compiled.result.issues);
+        assert_eq!(
+            compiled.result.external_requirements.len(),
+            1,
+            "all vector branches must share one query embedding requirement"
+        );
+        assert_eq!(
+            compiled.result.external_requirements[0].kind,
+            ExternalRequirementKind::QueryEmbedding
         );
     }
 

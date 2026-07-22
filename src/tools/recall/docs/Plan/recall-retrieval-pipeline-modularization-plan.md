@@ -1,6 +1,6 @@
 # Recall 检索管线模块化设计与实施计划
 
-**状态**: Phase 0、Phase 1 已完成；Phase 2 已落地纯算法生产模块、`algorithmic` 预设和独立 IPC；Phase 3 已落地内容/标签向量候选，Lens 与综合预设尚未完成
+**状态**: Phase 0、Phase 1 已完成；Phase 2 已落地纯算法生产模块；Phase 3 已落地内容/标签/Lens 候选；Phase 4 comprehensive 固定预设已可通过 bundle IPC 执行
 **创建日期**: 2026-07-20
 **最近修订**: 2026-07-22
 **适用范围**: `src/tools/recall/`、`src-tauri/src/recall/`、Recall Playground、Agent Recall 配置、Recall Chat 召回入口
@@ -25,6 +25,8 @@
 > **2026-07-22 Phase 1/2 施工进度**：生产 registry 已注册查询规范化/分词、关键词候选、信号归一化、加权融合、priority rerank、policy/score filter 和 finalizer；`algorithmic` 可通过独立 compile/run IPC 执行，配置哈希不一致会在模块运行前拒绝。真实 Tauri `recall-pipeline` preset 已验证 `list -> compile -> run -> pipeline trace`、稳定运行元数据和零 Embedding 请求。现有产品仍走 legacy `recall_search`，因此旧 Keyword engine 的重复过滤、排序和 TopK 尚未删除。
 >
 > **2026-07-22 Phase 3 施工进度**：`content-vector-recall` 与 `tag-vector-recall` 已注册为独立生产模块，二者复用同一请求的 query embedding 和带 model/space identity 的不可变 bundle；缺失 Embedding 产物会返回 `external-requirement-missing`，模型不匹配的内容向量矩阵不会进入候选。Lens 的历史投射、折射和标签图传播仍在 legacy engine 中，尚未接入 `comprehensive`。
+>
+> **2026-07-22 Phase 4 施工进度**：Lens 原始能量已抽为 entry ID/raw score helper 并注册 `lens-association-recall`；`comprehensive` 固定管线复用 keyword/content-vector/tag-vector/Lens 四路候选，经统一归一化、显式加权融合、priority、公共过滤和 finalizer 输出。编译后只声明一个共享 query embedding requirement；真实 Tauri `recall-pipeline` lane 已用预生成 bundle 验证四路 trace、bundle identity 和零重复 Embedding 请求。当前权重仅作为版本化工程默认值，不宣称质量优于 legacy profile。
 >
 > 已可直接复用的测试前置资产包括：
 >
@@ -743,17 +745,17 @@ idle
 
 ### Phase 3：拆分向量与联想信号
 
-- [ ] 从 Vector 引擎抽取内容向量候选和标签向量候选。
-- [ ] 从 Lens 抽取标签空间扩散与历史投射模块。
+- [x] 从 Vector 引擎抽取内容向量候选和标签向量候选。
+- [x] 从 Lens 抽取标签空间扩散与历史投射模块。
 - [ ] 将 Blender 的 literal / semantic / gravity / resonance 拆成复用模块和融合配置，不再重复检索逻辑。
 - [ ] 完成内容向量、标签向量、Lens 和 Blender 可复用能力的取舍；旧逻辑只有在记录明确的产品决策、影响范围和恢复方案后才能淘汰，不为旧 ID 建立等价预设，也不把工程夹具差异当作淘汰依据。
-- [ ] 查询向量只生成一次并被所有依赖模块共享。
+- [x] 查询向量只生成一次并被所有依赖模块共享。
 
 退出门槛：拆分后的模块满足各自的新契约、确定性和性能基线；查询向量只生成一次。旧 ID 与新模块的算法步骤差异、删除项和替代项有书面说明，并使用新的算法版本和缓存空间；说明不包含无依据的质量判断。
 
 ### Phase 4：建立综合预设
 
-- [ ] 建立 `comprehensive` 预设并复用 `keyword-recall`。
+- [x] 建立 `comprehensive` 预设并复用 `keyword-recall`。
 - [ ] 实现并记录 weighted fusion 与 RRF 的分数语义、配置约束、性能和 trace 差异；没有独立 Recall 评测方案前，不根据固定查询集自动选出“更优”方案。
 - [ ] 为候选上限、各路归一化、最终阈值、priority 和多样性参数定义合法范围、默认值来源和版本边界。默认值属于显式产品决策，不得包装成自动标定结果。
 - [ ] 用工程夹具覆盖精确字面信号、向量分支、标签/历史分支、空候选、无向量数据和确定性 tie-break；不为“弱相关”或“有价值跳跃”自动编写真值标签。

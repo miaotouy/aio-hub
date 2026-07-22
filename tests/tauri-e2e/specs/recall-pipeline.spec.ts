@@ -32,6 +32,7 @@ interface RunResponse {
     algorithmVersion: string;
     requestedPresetId?: string;
     actualPresetId?: string;
+    bundleId?: string;
     configHash: string;
     externalRequirements: string[];
     steps: Array<{ moduleId: string; status: string }>;
@@ -92,11 +93,13 @@ describe("Recall retrieval pipeline", () => {
     const stale = await invokeTauriCommand<RunResponse>(
       "recall_run_retrieval_pipeline",
       {
-        query: "Rust ownership",
-        filters,
-        presetId: "algorithmic",
-        runId,
-        configHash: "stale-config-hash",
+        request: {
+          query: "Rust ownership",
+          filters,
+          presetId: "algorithmic",
+          runId,
+          configHash: "stale-config-hash",
+        },
       }
     );
     if (stale.outcome !== "failed" || stale.error?.code !== "config-hash-mismatch") {
@@ -106,11 +109,13 @@ describe("Recall retrieval pipeline", () => {
     const response = await invokeTauriCommand<RunResponse>(
       "recall_run_retrieval_pipeline",
       {
-        query: "Rust ownership",
-        filters,
-        presetId: "algorithmic",
-        runId,
-        configHash: compiled.configHash,
+        request: {
+          query: "Rust ownership",
+          filters,
+          presetId: "algorithmic",
+          runId,
+          configHash: compiled.configHash,
+        },
       }
     );
     if (response.outcome !== "success" || response.results.length === 0) {
@@ -137,6 +142,63 @@ describe("Recall retrieval pipeline", () => {
       throw new Error("Algorithmic pipeline sent an unexpected Embedding request.");
     }
 
+    const comprehensiveRunId = `recall-comprehensive-${Date.now()}`;
+    const comprehensive = await invokeTauriCommand<CompileResult>(
+      "recall_compile_retrieval_pipeline",
+      { presetId: "comprehensive", runId: comprehensiveRunId, limit: 3 }
+    );
+    if (!comprehensive.valid || comprehensive.externalRequirements.length !== 1) {
+      throw new Error("Comprehensive pipeline did not compile with one shared external requirement.");
+    }
+    const bundleId = `bundle-${comprehensiveRunId}`;
+    const comprehensiveResponse = await invokeTauriCommand<RunResponse>(
+      "recall_run_retrieval_pipeline",
+      {
+        request: {
+          query: "Rust ownership",
+          filters,
+          presetId: "comprehensive",
+          runId: comprehensiveRunId,
+          configHash: comprehensive.configHash,
+          bundle: {
+            bundleId,
+            embeddingSpace: `e2e:${recallRuntimeFixture.embeddingModelId}`,
+            modelSignature: recallRuntimeFixture.embeddingModelId,
+            assetGeneration: "e2e-fixture-v1",
+            algorithmVersion: comprehensive.algorithmVersion,
+            queryEmbedding: Array.from(
+              { length: recallRuntimeFixture.embeddingDimension },
+              (_, index) => (index === 0 ? 1 : 0)
+            ),
+          },
+        },
+      }
+    );
+    if (comprehensiveResponse.outcome !== "success" || !comprehensiveResponse.trace) {
+      throw new Error(`Comprehensive pipeline returned ${comprehensiveResponse.outcome}.`);
+    }
+    const comprehensiveTrace = comprehensiveResponse.trace;
+    const modules = new Set(comprehensiveTrace.steps.map((step) => step.moduleId));
+    for (const moduleId of [
+      "keyword-recall",
+      "content-vector-recall",
+      "tag-vector-recall",
+      "lens-association-recall",
+    ]) {
+      if (!modules.has(moduleId)) {
+        throw new Error(`Comprehensive trace is missing ${moduleId}.`);
+      }
+    }
+    if (
+      comprehensiveTrace.bundleId !== bundleId ||
+      comprehensiveTrace.externalRequirements.join(",") !== "query-embedding"
+    ) {
+      throw new Error("Comprehensive trace did not preserve the shared bundle identity.");
+    }
+    if (lineCount(embeddingLog) !== embeddingBaseline) {
+      throw new Error("Prepared comprehensive pipeline sent a duplicate Embedding request.");
+    }
+
     fs.writeFileSync(
       path.join(artifactDir, "recall-pipeline-run.json"),
       `${JSON.stringify(
@@ -152,6 +214,12 @@ describe("Recall retrieval pipeline", () => {
           stageCount: compiled.stages.length,
           moduleVersions: compiled.moduleVersions,
           embeddingRequests: 0,
+          comprehensive: {
+            configHash: comprehensive.configHash,
+            algorithmVersion: comprehensive.algorithmVersion,
+            bundleId,
+            resultIds: comprehensiveResponse.results.map((result) => result.entry.id),
+          },
         },
         null,
         2

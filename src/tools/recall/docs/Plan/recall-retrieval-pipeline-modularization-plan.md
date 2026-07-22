@@ -9,13 +9,13 @@
 
 ## 当前状态
 
-| 阶段         | 已落地                                                                                  | 完成前还需做什么                                                          |
-| ------------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Phase 0 至 2 | Runner、compiler、artifact store、公共过滤/finalizer、`algorithmic` 和生产 IPC 已可用。 | 仅随 Phase 6 删除 Keyword 重复实现。                                      |
-| Phase 3      | 内容向量、标签种子、受限共现图传播和标签到条目扩展已进入生产管线，并共享一次查询向量。  | 收口 legacy 实现的删除边界，并决定是否单独立项查询残差标签扩展。          |
-| Phase 4      | `comprehensive` 已组合关键词、内容向量和标签图候选，并使用 weighted fusion v1。         | 固化分数与参数契约，补工程夹具和显式 fallback。                           |
-| Phase 5      | service、Chat、Agent tool、Agent 配置及全局/绑定预设已使用 `presetId`。                 | 完成 capability UI、全局模型代际、Playground、Monitor 和 workspace 收口。 |
-| Phase 6      | legacy runner 仍服务 `recall_search`、旧 Playground 和迁移夹具。                        | 完成调用扫描后删除 legacy registry 与已替代实现。                         |
+| 阶段         | 已落地                                                                                                                           | 完成前还需做什么                                                          |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Phase 0 至 2 | Runner、compiler、artifact store、公共过滤/finalizer、`algorithmic` 和生产 IPC 已可用。                                          | 仅随 Phase 6 删除 Keyword 重复实现。                                      |
+| Phase 3      | 内容向量、标签种子、受限共现图传播和标签到条目扩展已进入生产管线，并共享一次查询向量；查询残差标签扩展已确定不进入本轮稳定预设。 | 收口 legacy 实现的删除边界，并记录独立实验的后续立项入口。                |
+| Phase 4      | `comprehensive` 已组合关键词、内容向量和标签图候选，并使用 weighted fusion v1。                                                  | 固化分数与参数契约，补工程夹具和显式 fallback。                           |
+| Phase 5      | service、Chat、Agent tool、Agent 配置及全局/绑定预设已使用 `presetId`。                                                          | 完成 capability UI、全局模型代际、Playground、Monitor 和 workspace 收口。 |
+| Phase 6      | legacy runner 仍服务 `recall_search`、旧 Playground 和迁移夹具。                                                                 | 完成调用扫描后删除 legacy registry 与已替代实现。                         |
 
 ## 施工顺序
 
@@ -23,7 +23,7 @@
 
 - [x] 新管线不再使用 `Lens`、`Blender` 作为模块、预设或产品能力名称；它们只在 legacy migration 和删除前的调试路径中保留。
 - [x] 用原子模块替换当前 legacy Lens helper：标签种子召回、受限标签图传播和标签到条目候选扩展。
-- [ ] 决定是否引入查询残差标签扩展；它不得重复执行字面或内容向量检索。
+- [x] 查询残差标签扩展不进入本轮 `comprehensive`；如后续立项，只能作为 Playground 独立实验模块，且不得重复执行字面或内容向量检索。
 - [ ] 删除历史投射、折射、`texture`、Blender 动态 literal/semantic/gravity 权重和 resonance 乘法；literal、内容向量、标签向量与 priority 必须复用现有原子模块。
 - [ ] 记录 legacy Vector、Lens、Blender 的保留、替代、删除和回滚边界。
 
@@ -46,13 +46,35 @@ query embedding
 - `tag-vector-recall` 是现有标签邻居候选的稳定名称和职责；它不修改查询向量。
 - `bounded-tag-propagation` 只接收标签种子和版本化共现传播核，输出查询级 `query-energy-field`；它限制跳数、按权重稳定截取的每节点邻居数、整次查询总状态数和总出流，并记录截断与回流抑制。当前首版以内存集合的受限标签共现关系生成内容寻址的 `cooccurrence-v1` 图代际；后续预计算 artifact 必须保持相同的身份与 trace 契约。
 - `tag-to-entry-expansion` 将查询能量场与标签到条目的权重映射转换为 `CandidateSignal`；信号类型应表达 `tag-graph`，不得称为 Lens。
-- `query-residual-tag-expansion` 是后续可选的查询准备模块：用已匹配标签子空间解释查询，再以剩余向量寻找补充标签。它的输入/输出必须与 `tag-vector-recall` 可区分，且未完成独立夹具和质量立项前不进入 `comprehensive`。
+- `query-residual-tag-expansion` 不属于当前稳定管线。若后续独立立项，它是查询级标签种子扩展模块：用首层已匹配标签的正交子空间解释查询，再以剩余向量寻找补充标签；它不得修改供 `content-vector-recall` 使用的原始查询向量，也不得直接产生条目候选。
 - 现有历史向量投射、显式/自动折射和 `texture` 已不进入 pipeline service 的产品请求。它们仅留在 legacy engine、迁移基线和旧 Playground 调试路径，Phase 6 删除前不得继续扩展。
-- Blender 的 residual mining、动态融合和 resonance 不迁移。priority 继续只由 `priority-boost` 应用一次；固定、版本化权重由 `weighted-fusion` 负责。
+- Blender 的 residual mining 实现不迁移。其对多个非正交标签投影直接求和，不能作为新模块数学实现；未来实验只能复用标签池等基础设施，并以稳定排序的正交投影重新实现。Blender 的动态融合和 resonance 同样不迁移。priority 继续只由 `priority-boost` 应用一次；固定、版本化权重由 `weighted-fusion` 负责。
 
 此结论参考了 VCPToolBox 的 TagMemo V9.1 调研：其将查询残差分解、受限标签图传播、查询级能量场和候选重排分离，并将 pairwise、残差、传播核和有效配置作为按模型签名、图代际、算法版本绑定的不可变 artifact bundle 发布。相关来源为 `VCPToolBox\docs\TagMemo_Wave_Algorithm_Deep_Dive.md`、`TagMemoEngine.js` 和 `ResidualPyramid.js`。VCPToolBox 不是本模块依赖，其生产观测也不得作为 Recall 的质量结论或参数依据。
 
-Recall 尚不具备 VCPToolBox 的有序标签序位、pairwise 相似度和内生残差资产。因此首版传播只能基于版本化的标签共现/条目映射，不能推断叙事方向，也不能复制其测地线重排。引入图传播前必须先定义：模型签名、图资产代际、配置哈希、构建/发布原子性、缓存身份以及 trace 字段；`query-energy-field` 已是可复用的 artifact key。
+Recall 尚不具备 VCPToolBox 的有序标签序位、pairwise 相似度和内生残差资产。因此首版传播只能基于版本化的标签共现/条目映射，不能推断叙事方向，也不能复制其测地线重排。后续将当前请求内构图改为预计算图资产前，必须先冻结模型签名、图资产代际、配置哈希、构建/发布原子性、缓存身份以及 trace 字段；`query-energy-field` 已是可复用的 artifact key。
+
+#### Phase 3 决策：查询残差标签扩展（2026-07-22）
+
+本轮不实现 `query-residual-tag-expansion`，也不将其加入 `comprehensive`。VCPToolBox 的设计证明查询残差分解可以与节点内生残差、图传播和候选重排分开，但其现有生产观测来自整套 TagMemo 链路，没有隔离证明查询残差扩展在 Recall 的数据、Embedding 模型和标签质量下具有独立正收益。
+
+如后续单独立项，实验边界固定为：
+
+```text
+shared query embedding
+  -> tag-vector-recall（基础标签种子）
+  -> query-residual-tag-expansion（补充标签种子）
+  -> seed merge
+  -> bounded-tag-propagation
+  -> tag-to-entry-expansion
+```
+
+- 首版只扩展标签种子，不改写原始查询向量，不改变内容向量候选，不直接执行标签到条目扩展。
+- 基础种子、残差种子和合并后种子必须使用可区分的 artifact；不得让多个模块通过覆盖同一 `query-energy-field` 隐式通信。
+- 正交投影必须使用归一化向量、确定性邻居顺序和稳定的 Modified Gram-Schmidt 一类实现，并限制最大层数、每层邻居数、总种子数和最小残差能量比例。
+- trace 至少记录每层标签及贡献、残差能量前后值、重复标签抑制、截断数、停止原因、模型签名和配置哈希。
+- 工程夹具只验证数值范围、能量不增、稳定顺序、预算和 trace，不得作为质量结论。
+- 质量裁决先在同一查询向量、搜索范围、下游模块和候选预算下比较有无残差种子的差异，再执行端到端双配置回放；只有形成跨查询、跨集合的可重复正收益后，才允许提出提升 `comprehensive` 算法版本的变更。
 
 ### Phase 4：完成综合预设
 
@@ -95,4 +117,4 @@ Recall 尚不具备 VCPToolBox 的有序标签序位、pairwise 相似度和内�
 
 ## 明确不纳入本轮
 
-retrieve 并行化、RRF、多样性重排、Playground 非活动模型对比，以及独立 Recall 质量评测都需要单独立项；不得以工程夹具或旧结果快照推导质量结论。
+retrieve 并行化、RRF、多样性重排、Playground 非活动模型对比、查询残差标签扩展，以及独立 Recall 质量评测都需要单独立项；不得以工程夹具、legacy Blender 结果或 VCPToolBox 的生产观测推导 Recall 质量结论。

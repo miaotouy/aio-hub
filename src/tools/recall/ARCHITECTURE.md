@@ -82,7 +82,10 @@ Recall service、Chat 被动召回、Agent tool 和 Agent 配置已通过 pipeli
 `recall_search` 仍保留 legacy engine 路径，直到后续迁移阶段删除。`comprehensive` 已包含
 关键词、内容向量与原子标签图模块，并复用同一请求的查询向量 bundle：`tag-vector-recall`
 输出标签种子，`bounded-tag-propagation` 生成受限的查询能量场，`tag-to-entry-expansion`
-输出 `tag-graph` 候选。生产管线不再调用 Lens engine。
+输出 `tag-graph` 候选。当前稳定预设不包含查询残差标签扩展，也不以标签上下文改写
+内容向量召回使用的原始查询向量。该能力如后续立项，只能先进入 Playground 自定义管线，
+并使用独立的基础、残差和合并种子 artifact；legacy Blender 的 residual mining 实现不会迁移。
+生产管线不再调用 Lens engine。
 完整的稳定契约见
 `docs/architecture/retrieval-pipeline-contract.md`；当前施工状态见
 `docs/Plan/recall-retrieval-pipeline-modularization-plan.md`。

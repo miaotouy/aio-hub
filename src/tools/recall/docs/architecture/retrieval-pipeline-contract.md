@@ -12,7 +12,7 @@
 ## 执行与评分边界
 
 - `algorithmic` 不声明外部产物依赖，不读取查询向量，也不得触发 Embedding 请求。
-- `comprehensive` 复用一次查询向量 bundle，组合关键词、内容向量和原子标签图候选。`tag-vector-recall` 只输出标签种子，`bounded-tag-propagation` 以受限共现图生成查询级能量场，`tag-to-entry-expansion` 才输出 `tag-graph` 候选。它使用版本化的 weighted fusion；权重、归一化、阈值或分数语义发生变化时必须提升算法版本。
+- `comprehensive` 复用一次查询向量 bundle，组合关键词、内容向量和原子标签图候选。`tag-vector-recall` 只输出标签种子，`bounded-tag-propagation` 以受限共现图生成查询级能量场，`tag-to-entry-expansion` 才输出 `tag-graph` 候选。当前稳定预设不执行查询残差标签扩展，也不以标签上下文改写供内容向量召回使用的原始查询向量。它使用版本化的 weighted fusion；权重、归一化、阈值或分数语义发生变化时必须提升算法版本。
 - 候选模块只产生候选或信号。集合范围、启用状态、标签等硬过滤、最终阈值、稳定排序、TopK 和条目回源由公共尾部统一处理；同分使用 entry ID 稳定打破平局。
 - `priority` 只在 rerank 阶段应用一次。标签文本匹配不是纯算法预设的额外评分信号，标签仍可作为过滤条件。
 - 缺少 `comprehensive` 的阻塞能力时默认失败；只有显式 `fallbackPresetId=algorithmic` 才能降级。不得静默以部分覆盖结果代替完整预设。
@@ -22,21 +22,21 @@
 
 - Recall service、Chat 被动召回、Agent tool 与 Agent 配置通过 pipeline service 调用；该 service 先编译，再按 external requirements 准备产物，最后执行 Runner。
 - 常规产品路径仅使用 Recall 全局活动 Embedding 模型。Chat、Agent、占位符和普通 service 不得逐查询切换模型；切换全局模型时，向量资产与缓存必须按模型/空间身份隔离。
-- 自定义管线仅属于 Playground。常规产品只允许 preset summary 声明的 overrides；Playground 不保存运行结果或 trace，也不输出自动质量评分。
+- 自定义管线仅属于 Playground。常规产品只允许 preset summary 声明的 overrides；Playground 不保存运行结果或 trace，也不输出自动质量评分。查询残差标签扩展如后续立项，只能先作为独立实验模块进入自定义管线；实验存在不代表稳定预设获得该能力。
 - legacy parser 在旧运行时删除前保留。未知 legacy ID 返回 `legacy-id-unknown`，不得静默选择默认预设；删除前必须扫描 workspace、Agent、preset message 和 Agent tool 参数。
 
 ## Legacy 能力盘点与拆分边界
 
 旧引擎输出没有独立的模块版本，只能用于迁移诊断，不能进入新管线缓存或充当质量基线。下表保留 Phase 0 对旧行为的必要盘点，避免后续删除运行时时丢失能力取舍依据。
 
-| 旧能力        | 旧行为摘要                                                                                                        | 现行处理                                                                                                                                                      |
-| ------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `keyword`     | 倒排候选、key contains 加成、全局非线性归一化，并在集合内提前执行阈值、排序与 TopK。                              | 迁为 `query-tokenize`、`keyword-recall`、独立归一化、policy 与 finalizer；不沿用旧分数和提前裁剪顺序。                                                        |
-| `vector`      | Tag Anchoring、内容余弦与长度调整、tag pool 邻居、动态内容/标签权重、priority 和字面加成；融合前存在候选粗过滤。  | 拆为内容向量、标签向量、字面信号、priority 与 normalize/fuse；不沿用动态权重、阈值和裁剪顺序。                                                                |
-| `lens`        | 历史向量衰减投射、显式或自动标签折射、标签邻居、texture affinity、图传播和标签到条目能量汇聚。                    | 已从生产管线移除。新管线使用标签种子、受限共现图传播和标签到条目扩展；历史投射、折射与 texture 仅在 legacy engine 和迁移诊断保留，待 Phase 6 删除。           |
-| `blender`     | 重复执行字面和内容向量检索，并包含标签残差挖掘、动态 literal/semantic/gravity 权重、resonance 与 priority boost。 | 不迁移动态权重、gravity 与 resonance；字面、内容向量、标签和 priority 复用现有模块。查询残差标签扩展如需引入，必须作为独立实验模块立项，不保留 Blender 名称。 |
-| `semantic`    | 直接委托 `vector`，继承其提前裁剪和旧 trace。                                                                     | legacy parser 映射到 `comprehensive`，不建立等价 facade。                                                                                                     |
-| `associative` | 分别执行 Blender 与 Lens，再以固定权重融合；子引擎和 facade 都可能提前裁剪。                                      | legacy parser 映射到 `comprehensive`，不保留引擎包含引擎或固定旧权重。                                                                                        |
+| 旧能力        | 旧行为摘要                                                                                                        | 现行处理                                                                                                                                                                                               |
+| ------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `keyword`     | 倒排候选、key contains 加成、全局非线性归一化，并在集合内提前执行阈值、排序与 TopK。                              | 迁为 `query-tokenize`、`keyword-recall`、独立归一化、policy 与 finalizer；不沿用旧分数和提前裁剪顺序。                                                                                                 |
+| `vector`      | Tag Anchoring、内容余弦与长度调整、tag pool 邻居、动态内容/标签权重、priority 和字面加成；融合前存在候选粗过滤。  | 拆为内容向量、标签向量、字面信号、priority 与 normalize/fuse；不沿用动态权重、阈值和裁剪顺序。                                                                                                         |
+| `lens`        | 历史向量衰减投射、显式或自动标签折射、标签邻居、texture affinity、图传播和标签到条目能量汇聚。                    | 已从生产管线移除。新管线使用标签种子、受限共现图传播和标签到条目扩展；历史投射、折射与 texture 仅在 legacy engine 和迁移诊断保留，待 Phase 6 删除。                                                    |
+| `blender`     | 重复执行字面和内容向量检索，并包含标签残差挖掘、动态 literal/semantic/gravity 权重、resonance 与 priority boost。 | 不迁移 residual mining 实现、动态权重、gravity 与 resonance；字面、内容向量、标签和 priority 复用现有模块。查询残差标签扩展只保留独立实验立项入口，不进入当前 `comprehensive`，也不保留 Blender 名称。 |
+| `semantic`    | 直接委托 `vector`，继承其提前裁剪和旧 trace。                                                                     | legacy parser 映射到 `comprehensive`，不建立等价 facade。                                                                                                                                              |
+| `associative` | 分别执行 Blender 与 Lens，再以固定权重融合；子引擎和 facade 都可能提前裁剪。                                      | legacy parser 映射到 `comprehensive`，不保留引擎包含引擎或固定旧权重。                                                                                                                                 |
 
 迁移后的公共规则：
 
@@ -44,6 +44,7 @@
 - 归一化模块声明输入信号域与算法版本；不同旧引擎的原始分数不能直接比较或解释成百分比。
 - 候选 artifact 只携带集合和条目 ID，完整条目由 finalizer 回源；priority 只在 rerank 阶段执行一次。
 - 内容向量、标签向量和原子标签扩展模块可以共享同一 query embedding bundle，但必须保留可区分的信号与 trace。
+- 查询残差标签扩展若进入后续实验，必须消费同一 query embedding 和基础标签种子，只输出可区分的补充标签种子；它不得修改原始 query embedding、直接产生候选或复用 legacy Blender 的非正交投影累加实现。基础、残差和合并种子必须使用显式 artifact 契约。
 - `bounded-tag-propagation` 使用 `maxHops <= 3`、每节点邻居数、整次查询总状态数和总出流约束；邻居按共现权重和标签名稳定截取。`query-energy-field` 记录模型签名、配置哈希、截断及回流抑制；图代际由确定性序列化后的 `cooccurrence-v1` 图内容计算，外部 artifact generation 仅作为来源代际另行记录。
 - 新管线不得将多项原子能力重新包装成 Lens、Blender 或等价 facade；旧名称只允许 legacy parser、迁移报告和删除前诊断读取。
 

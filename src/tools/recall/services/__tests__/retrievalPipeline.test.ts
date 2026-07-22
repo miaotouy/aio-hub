@@ -3,7 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
   getVector: vi.fn(),
-  store: { config: { defaultEmbeddingModel: "profile-a:model-a" } },
+  store: {
+    config: {
+      defaultEmbeddingModel: "profile-a:model-a",
+      embeddingAssetGeneration: {
+        schemaVersion: 1,
+        modelIdentity: "profile-a:model-a",
+        generationId: "generation-a",
+        activatedAt: 1,
+      },
+    },
+  },
   profiles: { value: [{ id: "profile-a" }] },
 }));
 
@@ -105,6 +115,7 @@ describe("executeRetrievalPipeline", () => {
     expect(bundle).toMatchObject({
       embeddingSpace: "model-a",
       modelSignature: "profile-a:model-a",
+      assetGeneration: "generation-a",
     });
     expect(bundle.queryEmbedding[0]).toBeCloseTo(0.16);
     expect(bundle.queryEmbedding[1]).toBeCloseTo(0.26);

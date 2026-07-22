@@ -28,6 +28,7 @@ pub struct RetrievalCacheInput {
     pub preset_id: String,
     pub config_hash: String,
     pub embedding_identity: String,
+    pub asset_generation: String,
     pub algorithm_version: String,
 }
 
@@ -67,6 +68,8 @@ fn build_cache_key(input: &RetrievalCacheInput) -> String {
     hasher.update(input.config_hash.as_bytes());
     hasher.update(b"\0");
     hasher.update(input.embedding_identity.as_bytes());
+    hasher.update(b"\0");
+    hasher.update(input.asset_generation.as_bytes());
     hasher.update(b"\0");
     hasher.update(input.algorithm_version.as_bytes());
 
@@ -156,6 +159,7 @@ mod tests {
             preset_id: "comprehensive".to_string(),
             config_hash: "pipeline-config-v1".to_string(),
             embedding_identity: "profile:model".to_string(),
+            asset_generation: "generation-a".to_string(),
             algorithm_version: "recall-pipeline-comprehensive-v1".to_string(),
         }
     }
@@ -169,6 +173,8 @@ mod tests {
         different_config.config_hash = "pipeline-config-v2".to_string();
         let mut different_version = input();
         different_version.algorithm_version = "recall-pipeline-comprehensive-v2".to_string();
+        let mut different_generation = input();
+        different_generation.asset_generation = "generation-b".to_string();
 
         assert_ne!(
             build_cache_key(&baseline),
@@ -181,6 +187,10 @@ mod tests {
         assert_ne!(
             build_cache_key(&baseline),
             build_cache_key(&different_version)
+        );
+        assert_ne!(
+            build_cache_key(&baseline),
+            build_cache_key(&different_generation)
         );
     }
 

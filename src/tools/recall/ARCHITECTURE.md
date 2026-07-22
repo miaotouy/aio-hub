@@ -129,7 +129,12 @@ Chat processor、`{{recall}}` 宏、占位符编排器、Agent action 和普通 
 路径使用同一预设。上述后台入口的错误处理只记录日志或返回结构化失败，不调用用户提示或
 交互对话框。
 
-检索结果缓存使用 `recall_retrieval_cache_*` commands。缓存键包含规范化后的主/次查询、`recallIds`、标签、融合权重、数量、阈值、预设、编译配置哈希、Embedding 身份和算法版本；任一字段变化都会形成不同缓存项。
+`WorkspaceConfig.embeddingAssetGeneration` 记录当前活动模型的 `modelIdentity`、版本化
+`generationId` 和激活时间。旧 workspace 首次加载时会补齐该字段；设置页从已有模型切换或
+清空模型前会提示覆盖率影响，确认后轮换 generation 并清空当前检索缓存。query bundle
+携带同一 `assetGeneration`，使模块 trace 可以关联实际活动资产代际。
+
+检索结果缓存使用 `recall_retrieval_cache_*` commands。缓存键包含规范化后的主/次查询、`recallIds`、标签、融合权重、数量、阈值、预设、编译配置哈希、Embedding 身份、活动资产代际和算法版本；任一字段变化都会形成不同缓存项。
 
 ## 5. IPC 与事件
 

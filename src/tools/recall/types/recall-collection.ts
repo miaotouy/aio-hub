@@ -216,6 +216,13 @@ export interface RecallCacheConfig {
   retrievalCacheMaxItems: number;
 }
 
+export interface EmbeddingAssetGeneration {
+  schemaVersion: 1;
+  modelIdentity: string;
+  generationId: string;
+  activatedAt: number;
+}
+
 /**
  * 思绪集全局工作区配置
  */
@@ -226,6 +233,8 @@ export interface WorkspaceConfig {
   vectorIndex: VectorIndexConfig;
   /** 默认嵌入模型 */
   defaultEmbeddingModel?: string;
+  /** 当前活动 Embedding 模型对应的查询与派生资产代际。 */
+  embeddingAssetGeneration?: EmbeddingAssetGeneration;
   /** 默认检索引擎 ID (vector | keyword | blender | hybrid | lens) */
   defaultEngineId: string;
   /** 导入与预处理设置 */

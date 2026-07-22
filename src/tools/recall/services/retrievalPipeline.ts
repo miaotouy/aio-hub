@@ -14,6 +14,7 @@ import type {
   RecallPresetSummary,
 } from "../types/pipeline";
 import { vectorCacheManager } from "../utils/vectorCache";
+import { resolveEmbeddingAssetGeneration } from "../core/embeddingAssetGeneration";
 
 export type { RecallPresetId } from "../types/pipeline";
 
@@ -157,7 +158,12 @@ async function prepareQueryEmbedding(
       "query-embedding-unavailable"
     );
   }
-  return { embedding, modelId, modelSignature: comboId };
+  return {
+    embedding,
+    modelId,
+    modelSignature: comboId,
+    assetGeneration: resolveEmbeddingAssetGeneration(store.config),
+  };
 }
 
 export async function executeRetrievalPipeline(
@@ -214,6 +220,7 @@ export async function executeRetrievalPipeline(
         bundleId: `${activeCompilation.runId}:${prepared.modelId}`,
         embeddingSpace: prepared.modelId,
         modelSignature: prepared.modelSignature,
+        assetGeneration: prepared.assetGeneration,
         algorithmVersion: activeCompilation.result.algorithmVersion,
         queryEmbedding: prepared.embedding,
       };

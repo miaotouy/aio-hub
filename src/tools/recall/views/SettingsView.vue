@@ -26,6 +26,7 @@ import { useRecallIndexer } from "../composables/useRecallIndexer";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import type { WorkspaceConfig } from "../types";
 
 interface RecallMigrationReport {
   sourcePath: string;
@@ -123,9 +124,31 @@ watch(searchQuery, (newQuery) => {
   }
 });
 
-const handleUpdate = (newConfig: any) => {
-  store.config = newConfig;
-  store.saveWorkspace();
+const handleUpdate = async (newConfig: WorkspaceConfig) => {
+  const previousModel = store.config.defaultEmbeddingModel?.trim() ?? "";
+  const nextModel = newConfig.defaultEmbeddingModel?.trim() ?? "";
+  const modelChanged = previousModel !== nextModel;
+  if (modelChanged && previousModel) {
+    try {
+      await ElMessageBox.confirm(
+        nextModel
+          ? "切换后综合召回会立即使用新模型。原模型向量会保留，但新模型的条目与标签覆盖率需要重新确认。"
+          : "清除活动 Embedding 模型后，综合召回将无法运行，直到重新选择模型。",
+        "确认切换 Recall 活动模型",
+        {
+          type: "warning",
+          confirmButtonText: "确认切换",
+          cancelButtonText: "取消",
+          lockScroll: false,
+        }
+      );
+    } catch {
+      return;
+    }
+  }
+
+  await store.applyWorkspaceConfig(newConfig);
+  if (modelChanged) customMessage.success("Recall 活动模型已切换");
 };
 
 const handleAction = (action: string) => {

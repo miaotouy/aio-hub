@@ -43,6 +43,7 @@ import type {
   RecallRetrievalRequest,
   RecallRetrievalResponse,
 } from "../types/retrieval";
+import { resolveEmbeddingAssetGeneration } from "../core/embeddingAssetGeneration";
 
 const logger = createModuleLogger("recall/api");
 const errorHandler = createModuleErrorHandler("recall/api");
@@ -132,6 +133,7 @@ interface RetrievalCacheKeyInput {
   presetId: RecallPresetId;
   configHash: string;
   embeddingIdentity: string;
+  assetGeneration: string;
   algorithmVersion: string;
 }
 
@@ -260,6 +262,9 @@ export async function searchWithCache(
   const embeddingIdentity = needsEmbedding
     ? store.config?.defaultEmbeddingModel || ""
     : "";
+  const assetGeneration = needsEmbedding
+    ? resolveEmbeddingAssetGeneration(store.config)
+    : "";
 
   const cacheInput: RetrievalCacheKeyInput = {
     query: `${primary}|||${secondary}`,
@@ -271,6 +276,7 @@ export async function searchWithCache(
     presetId,
     configHash: compiled.result.configHash,
     embeddingIdentity,
+    assetGeneration,
     algorithmVersion: compiled.result.algorithmVersion,
   };
 

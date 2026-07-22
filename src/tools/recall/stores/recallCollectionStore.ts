@@ -36,6 +36,7 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import type { LlmProfile } from "@/types/llm-profiles";
 import { SearchOrchestrator } from "../logic/orchestrator";
 import { engineRequiresEmbedding } from "../core/engineCapabilities";
+import { withCurrentEmbeddingAssetGeneration } from "../core/embeddingAssetGeneration";
 
 const searchOrchestrator = new SearchOrchestrator();
 
@@ -228,7 +229,7 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
       watch(
         () => this.config.defaultEmbeddingModel,
         (newModel, oldModel) => {
-          if (newModel && newModel !== oldModel) {
+          if (newModel !== oldModel) {
             logger.info("检测到默认模型变化，触发状态校验", {
               newModel,
               oldModel,
@@ -263,7 +264,14 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
     async loadBases() {
       try {
         const workspace = await recallStorage.loadWorkspace();
-        this.workspace = workspace;
+        const normalized = withCurrentEmbeddingAssetGeneration(
+          workspace.config
+        );
+        this.workspace = {
+          ...workspace,
+          config: normalized.config,
+          bases: [],
+        };
         const metas = await invoke<RecallCollectionMeta[]>("recall_list_bases");
         this.bases = metas.map((meta) => ({
           id: meta.id,
@@ -277,8 +285,9 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
           tags: meta.tags?.map((tag) => tag.name),
           icon: meta.icon,
         }));
-        this.workspace = { ...workspace, bases: [] };
-        this.config = workspace.config;
+        this.config = normalized.config;
+        if (normalized.changed)
+          await recallStorage.saveWorkspace(this.workspace);
         this.ensureModelWatcher();
       } catch (e) {
         errorHandler.error(e, "加载工作区失败");
@@ -294,12 +303,28 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
       await recallStorage.saveWorkspace(this.workspace);
     },
 
+    async applyWorkspaceConfig(nextConfig: WorkspaceConfig) {
+      const previousModel = this.config.defaultEmbeddingModel?.trim() ?? "";
+      const nextModel = nextConfig.defaultEmbeddingModel?.trim() ?? "";
+      const modelChanged = previousModel !== nextModel;
+      const normalized = withCurrentEmbeddingAssetGeneration(
+        nextConfig,
+        modelChanged
+      );
+      this.config = normalized.config;
+      if (this.workspace) this.workspace.config = this.config;
+      await this.saveWorkspace();
+      if (modelChanged) await invoke("recall_retrieval_cache_clear");
+      return { modelChanged, generation: this.config.embeddingAssetGeneration };
+    },
+
     /**
      * 重置配置
      */
     async resetConfig() {
-      this.config = structuredClone(DEFAULT_WORKSPACE_CONFIG);
-      await this.saveWorkspace();
+      await this.applyWorkspaceConfig(
+        structuredClone(DEFAULT_WORKSPACE_CONFIG)
+      );
     },
 
     /**

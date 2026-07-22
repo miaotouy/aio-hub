@@ -8,6 +8,12 @@ const mocks = vi.hoisted(() => ({
   store: {
     config: {
       defaultEmbeddingModel: "profile-a:model-a",
+      embeddingAssetGeneration: {
+        schemaVersion: 1,
+        modelIdentity: "profile-a:model-a",
+        generationId: "generation-a",
+        activatedAt: 1,
+      },
       cache: { retrievalCacheMaxItems: 200 },
     },
     engines: [],
@@ -86,6 +92,7 @@ describe("searchWithCache", () => {
           presetId: "comprehensive",
           configHash: "config-v1",
           embeddingIdentity: "profile-a:model-a",
+          assetGeneration: "generation-a",
           algorithmVersion: "pipeline-v1",
         }),
       })
@@ -125,6 +132,7 @@ describe("searchWithCache", () => {
         input: expect.objectContaining({
           presetId: "algorithmic",
           embeddingIdentity: "",
+          assetGeneration: "",
         }),
       })
     );
@@ -143,6 +151,7 @@ describe("searchWithCache", () => {
       expect.objectContaining({
         input: expect.objectContaining({
           embeddingIdentity: "profile-a:model-a",
+          assetGeneration: "generation-a",
         }),
       })
     );

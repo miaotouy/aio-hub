@@ -61,6 +61,9 @@ export interface RecallResult {
     | "tag_vector"
     | "tag_graph"
     | "key"
+    | "algorithmic"
+    | "comprehensive"
+    | "pipeline"
     | "lens"
     | "blender"
     | "multi_signal";

@@ -8,7 +8,10 @@
 import { computed, ref, watch } from "vue";
 import { ExternalLink, X } from "lucide-vue-next";
 import { getIntegerOverrideBounds } from "../core/retrievalPresetCapabilities";
-import { useRetrievalPipelineRun } from "../composables/useRetrievalPipelineRun";
+import {
+  useRetrievalPipelineRun,
+  type RetrievalPipelineRunSnapshot,
+} from "../composables/useRetrievalPipelineRun";
 import type { RecallPresetId, RecallPresetSummary } from "../types/pipeline";
 import type { RecallResult } from "../types/search";
 
@@ -24,7 +27,11 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (event: "remove"): void;
-  (event: "select", result: RecallResult): void;
+  (
+    event: "select",
+    result: RecallResult,
+    context: RetrievalPipelineRunSnapshot | null
+  ): void;
   (event: "results-updated", results: RecallResult[]): void;
   (
     event: "update:config",
@@ -173,7 +180,7 @@ defineExpose({ search });
           :key="`${result.recallId}:${result.entry.id}`"
           class="result-row"
           :class="{ shared: sharedResultIds.has(result.entry.id) }"
-          @click="emit('select', result)"
+          @click="emit('select', result, controller.snapshot.value)"
         >
           <span class="rank">#{{ index + 1 }}</span>
           <span class="result-main">

@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type { RecallPipelineRunError, RecallPipelineTraceV1 } from "./pipeline";
+import type { RecallSignal, RecallTrace } from "./search";
+
 /**
  * 思绪集监控消息类型
  */
@@ -25,7 +28,8 @@ export type RecallMonitorLevel = "info" | "warn" | "error" | "success";
 /**
  * 步骤状态
  */
-export type RecallStepStatus = "pending" | "running" | "completed" | "failed";
+export type RecallStepStatus =
+  "pending" | "running" | "completed" | "skipped" | "failed";
 
 /**
  * 基础监控消息接口
@@ -71,7 +75,14 @@ export interface RagPayload {
     /** 来源文件/路径 */
     source?: string;
     /** 额外元数据 */
-    metadata?: Record<string, any>;
+    metadata?: {
+      scoreSemantics?: "ranking-score" | "legacy-engine-score";
+      relevanceScore?: number;
+      matchType?: string;
+      signals?: RecallSignal[];
+      legacyTrace?: RecallTrace | null;
+      [key: string]: unknown;
+    };
   }>;
   /** 统计信息 */
   stats: {
@@ -90,11 +101,20 @@ export interface RagPayload {
     query: string;
     /** 使用的模型 ID */
     modelId: string;
-    /** 使用的引擎 ID */
-    engineId: string;
+    /** legacy 检索使用的引擎 ID */
+    engineId?: string;
     /** 检索的思绪集 ID 列表 */
     recallIds: string[];
+    /** 检索执行路径；旧事件可能不存在 */
+    executionPath?: "legacy-engine" | "retrieval-pipeline";
+    runId?: string;
+    requestedPresetId?: string;
+    actualPresetId?: string;
+    outcome?: "success" | "empty" | "fallback" | "failed" | "cancelled";
   };
+  /** 新检索管线的完整版本化 trace；旧事件不存在 */
+  pipelineTrace?: RecallPipelineTraceV1;
+  pipelineError?: RecallPipelineRunError;
 }
 
 /**

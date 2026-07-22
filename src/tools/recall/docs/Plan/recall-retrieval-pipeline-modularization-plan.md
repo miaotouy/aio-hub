@@ -9,13 +9,13 @@
 
 ## 当前状态
 
-| 阶段         | 已落地                                                                                                                                                                                                                                                                                             | 完成前还需做什么                                           |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Phase 0 至 2 | Runner、compiler、artifact store、公共过滤/finalizer、`algorithmic` 和生产 IPC 已可用。                                                                                                                                                                                                            | 仅随 Phase 6 删除 Keyword 重复实现。                       |
-| Phase 3      | 内容向量、标签种子、受限共现图传播和标签到条目扩展已进入生产管线，并共享一次查询向量；查询残差标签扩展已确定不进入本轮稳定预设。                                                                                                                                                                   | 收口 legacy 实现的删除边界，并记录独立实验的后续立项入口。 |
-| Phase 4      | `comprehensive` 已组合关键词、内容向量和标签图候选；weighted fusion v1、独立 `relevanceScore`、预算/priority/阈值边界、工程夹具和显式 fallback 已冻结。                                                                                                                                            | 已完成。                                                   |
-| Phase 5      | service、Chat、Agent tool、Agent 配置及全局/绑定预设已使用 `presetId`；Agent 编辑器已由 preset summary 和 compile result 驱动 override 范围与能力预检；后台入口只读全局活动模型且不弹交互提示；模型切换会轮换活动资产代际并隔离缓存；Playground 已使用 pipeline 状态机、双预设、批量回放和 trace。 | 完成 Playground 阶段模块编辑与 Monitor 收口。              |
-| Phase 6      | legacy runner 仍服务 `recall_search`、管理页局部搜索和迁移夹具。                                                                                                                                                                                                                                   | 完成调用扫描后删除 legacy registry 与已替代实现。          |
+| 阶段         | 已落地                                                                                                                                                                                                                                                                                                                                                            | 完成前还需做什么                                           |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Phase 0 至 2 | Runner、compiler、artifact store、公共过滤/finalizer、`algorithmic` 和生产 IPC 已可用。                                                                                                                                                                                                                                                                           | 仅随 Phase 6 删除 Keyword 重复实现。                       |
+| Phase 3      | 内容向量、标签种子、受限共现图传播和标签到条目扩展已进入生产管线，并共享一次查询向量；查询残差标签扩展已确定不进入本轮稳定预设。                                                                                                                                                                                                                                  | 收口 legacy 实现的删除边界，并记录独立实验的后续立项入口。 |
+| Phase 4      | `comprehensive` 已组合关键词、内容向量和标签图候选；weighted fusion v1、独立 `relevanceScore`、预算/priority/阈值边界、工程夹具和显式 fallback 已冻结。                                                                                                                                                                                                           | 已完成。                                                   |
+| Phase 5      | service、Chat、Agent tool、Agent 配置及全局/绑定预设已使用 `presetId`；Agent 编辑器已由 preset summary 和 compile result 驱动 override 范围与能力预检；后台入口只读全局活动模型且不弹交互提示；模型切换会轮换活动资产代际并隔离缓存；Playground 已使用 pipeline 状态机、双预设、批量回放和 trace；结果详情与 Monitor 已区分分数语义并展示 pipeline/legacy trace。 | 完成 Playground 阶段模块编辑。                             |
+| Phase 6      | legacy runner 仍服务 `recall_search`、管理页局部搜索和迁移夹具。                                                                                                                                                                                                                                                                                                  | 完成调用扫描后删除 legacy registry 与已替代实现。          |
 
 ## 施工顺序
 
@@ -94,10 +94,12 @@ shared query embedding
 - [x] 实现全局模型切换的资产代际标识、覆盖提示和缓存隔离验证。
 - [x] 以编译后的 external requirements 与参数 schema 驱动 `idle -> compile -> prepare -> run -> outcome`，并隔离 stale response。
 - [ ] 将 Playground 收口为双配置诊断工作面，提供阶段模块编辑、fixture 批量重放、batch run 与 trace 调试；首期只使用全局活动模型。
-- [ ] 在结果详情和 Monitor 展示分数语义、信号贡献、requested/actual preset、降级和版本化 trace，并兼容 legacy trace。
+- [x] 在结果详情和 Monitor 展示分数语义、信号贡献、requested/actual preset、降级和版本化 trace，并兼容 legacy trace。
 - [x] 移除 Playground workspace 的结果和运行态持久化；确认无动态引用后删除闲置搜索组件与 engine capability 分支。
 
 Playground 当前已固定为 `algorithmic / comprehensive` 双配置诊断工作面，使用全局活动模型，支持多行查询批量回放、batch run、编译阶段与完整 trace 调试。workspace 只保存集合、查询和 `presetId / limit`，旧 `engineId / config / results` 经迁移后失效；旧 `SearchPanel`、`useRecallSearch` 和 `useRecallSearchManager` 已在无静态或动态引用后删除。尚未完成的是阶段模块编辑：后端目前只有内置 preset 的 compile/run IPC，还没有受限自定义 pipeline 的模块清单、编译和运行命令，因此本条保持未完成。
+
+新管线运行会发送兼容扩展后的 `recall-monitor` RAG 事件。事件在旧 `steps / results / stats / metadata` 之外可选携带完整 `pipelineTrace` 和结构化 `pipelineError`，metadata 标记 `executionPath / runId / outcome / requestedPresetId / actualPresetId`；legacy `recall_search` 继续使用 `engineId` 和条目级 legacy trace。结果详情和 Monitor 不再将未知分数域格式化为百分比：pipeline 的 `relevanceScore` 由信号贡献求和，`score` 表示 priority 重排后的排序分数；legacy 分数只按原值展示。
 
 完成门槛：产品调用不发送底层 engine ID；旧配置可迁移且问题可定位；真实 Tauri UI 可区分 success、empty、blocked、fallback、failed 和 cancelled。
 

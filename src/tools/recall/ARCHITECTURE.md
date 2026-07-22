@@ -147,6 +147,7 @@ Chat processor、`{{recall}}` 宏、占位符编排器、Agent action 和普通 
 - Tauri command 前缀统一为 `recall_*`，前端参数使用 camelCase，例如 `recallId`、`recallIds`。
 - Rust 返回前端的结构体使用 `#[serde(rename_all = "camelCase")]`。
 - 监控事件为 `recall-monitor`，备份进度事件为 `recall-backup-progress`。
+- `recall_run_retrieval_pipeline` 为 success、empty、fallback、failed 和 cancelled 结果发送 RAG 监控事件；payload 可选携带完整 `recall-pipeline-trace-v1`、结构化错误及 requested/actual preset。旧 `recall_search` 事件继续携带 engine metadata 和 legacy 条目 trace，同一前端组件按 `executionPath` 兼容展示。
 - llm-chat 等外部模块优先通过 `src/tools/recall/services/api.ts` 访问 Recall。
 
 ## 6. 存储与迁移边界

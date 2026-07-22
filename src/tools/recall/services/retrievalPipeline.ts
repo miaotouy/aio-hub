@@ -10,6 +10,8 @@ import { useRecallCollectionStore } from "../stores/recallCollectionStore";
 import type { RecallResult } from "../types/search";
 import type {
   RecallPipelineCompileResult,
+  RecallPipelineRunResponse,
+  RecallPipelineTraceV1,
   RecallPresetId,
   RecallPresetSummary,
 } from "../types/pipeline";
@@ -39,16 +41,6 @@ export interface CompiledRetrievalPipeline {
 export interface RetrievalPipelineLifecycleObserver {
   onPreparing?: (compilation: CompiledRetrievalPipeline) => void;
   onRunning?: (compilation: CompiledRetrievalPipeline) => void;
-}
-
-interface PipelineRunResponse {
-  outcome: "success" | "empty" | "fallback" | "failed" | "cancelled";
-  results: RecallResult[];
-  configHash: string;
-  requestedPresetId?: RecallPresetId;
-  actualPresetId?: RecallPresetId;
-  trace?: unknown;
-  error?: { code: string; message: string };
 }
 
 const logger = createModuleLogger("recall/retrieval-pipeline");
@@ -179,10 +171,10 @@ export async function executeRetrievalPipeline(
   runId?: string;
   results: RecallResult[];
   configHash: string;
-  outcome?: PipelineRunResponse["outcome"];
+  outcome?: RecallPipelineRunResponse["outcome"];
   requestedPresetId?: RecallPresetId;
   actualPresetId?: RecallPresetId;
-  trace?: unknown;
+  trace?: RecallPipelineTraceV1;
 }> {
   if (!params.query.trim()) return { results: [], configHash: "empty-query" };
   if (!params.recallIds.length) {
@@ -251,7 +243,7 @@ export async function executeRetrievalPipeline(
   }
   const { runId, result: compileResult } = activeCompilation;
   observer?.onRunning?.(activeCompilation);
-  const response = await invoke<PipelineRunResponse>(
+  const response = await invoke<RecallPipelineRunResponse>(
     "recall_run_retrieval_pipeline",
     {
       request: {

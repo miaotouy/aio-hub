@@ -81,3 +81,5 @@ traceVersion
 ```
 
 分数、信号贡献、requested/actual preset 与降级信息必须在 trace 中分层表达；分数不应被统一解释为百分比，也不能据工程夹具的差异推导召回质量结论。
+
+生产 pipeline command 必须为每次后端运行发送 `recall-monitor` RAG 事件，包括成功、空结果、降级与结构化失败。事件保留 legacy RAG payload 的 `steps / results / stats / metadata` 外形，并以可选字段增加完整 `pipelineTrace`、`pipelineError` 以及 `executionPath / runId / outcome / requestedPresetId / actualPresetId`；因此历史事件和 legacy `recall_search` 事件仍可由同一 Monitor 读取。pipeline 结果的 Monitor metadata 以 `ranking-score` 标记 `score`，另传由信号 contribution 求和得到的 `relevanceScore`；legacy 结果以 `legacy-engine-score` 标记，不推断统一数值范围。

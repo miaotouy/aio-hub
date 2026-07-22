@@ -22,6 +22,8 @@ use crate::recall::monitor::{
 };
 use crate::recall::search::recall::RECALL_ALGORITHM_VERSION;
 use crate::recall::state::RecallState;
+use serde_json::json;
+use std::collections::HashMap;
 use tauri::{AppHandle, State};
 
 #[tauri::command]
@@ -111,7 +113,12 @@ pub async fn recall_search(
             score: r.score,
             content: r.entry.content.chars().take(200).collect(),
             source: Some(r.recall_name.clone()),
-            metadata: None,
+            metadata: Some(HashMap::from([
+                ("scoreSemantics".to_string(), json!("legacy-engine-score")),
+                ("matchType".to_string(), json!(r.match_type)),
+                ("signals".to_string(), json!(r.signals)),
+                ("legacyTrace".to_string(), json!(r.trace)),
+            ])),
         })
         .collect();
 
@@ -159,14 +166,21 @@ pub async fn recall_search(
         metadata: Some(RagMetadata {
             query: query.clone(),
             model_id: model.unwrap_or_default(),
-            engine_id: id.clone(),
+            engine_id: Some(id.clone()),
             recall_ids: recall_ids_str.clone(),
+            execution_path: Some("legacy-engine".to_string()),
+            run_id: None,
+            requested_preset_id: None,
+            actual_preset_id: None,
+            outcome: None,
         }),
+        pipeline_trace: None,
+        pipeline_error: None,
     };
 
     let _ = emit_monitor_event(
         &app,
-        RecallMonitorEvent::RAG(monitor_payload),
+        RecallMonitorEvent::RAG(Box::new(monitor_payload)),
         RecallMonitorLevel::Info,
         "RAG 检索完成",
         &format!(

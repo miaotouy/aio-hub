@@ -14,7 +14,9 @@ import {
   isCurrentRecallPipelineResponse,
   type RecallPipelineCompileResult,
   type RecallPipelineRequestIdentity,
+  type RecallPipelineTraceV1,
   type RecallPipelineUiState,
+  type RecallPresetId,
 } from "../types/pipeline";
 import type { RecallResult } from "../types/search";
 
@@ -23,9 +25,9 @@ export interface RetrievalPipelineRunSnapshot {
   configHash: string;
   outcome: "success" | "empty" | "fallback";
   results: RecallResult[];
-  requestedPresetId?: string;
-  actualPresetId?: string;
-  trace?: unknown;
+  requestedPresetId?: RecallPresetId;
+  actualPresetId?: RecallPresetId;
+  trace?: RecallPipelineTraceV1;
 }
 
 export function useRetrievalPipelineRun() {

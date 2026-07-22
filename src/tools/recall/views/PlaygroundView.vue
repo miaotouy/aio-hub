@@ -11,6 +11,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/customMessage";
 import SearchSlot from "../components/SearchSlot.vue";
 import RecallResultDetailDialog from "../components/RecallResultDetailDialog.vue";
+import type { RetrievalPipelineRunSnapshot } from "../composables/useRetrievalPipelineRun";
 import { LEGACY_RETRIEVAL_PRESET_MAP } from "../core/retrievalPipelineMigration";
 import { listRetrievalPresets } from "../services/retrievalPipeline";
 import { useRecallCollectionStore } from "../stores/recallCollectionStore";
@@ -180,8 +181,11 @@ function updateSlotConfig(
   slot.results = [];
 }
 
-function handleSelect(result: RecallResult) {
-  resultDetailDialog.value?.show(result);
+function handleSelect(
+  result: RecallResult,
+  context: RetrievalPipelineRunSnapshot | null
+) {
+  resultDetailDialog.value?.show(result, context);
 }
 
 watch(

@@ -1,9 +1,9 @@
 # Recall 自动化测试、精简 OAI 渠道与真实向量请求实施计划
 
-**状态**: 已完成（Phase 1 至 Phase 5 与测试入口收口完成；真实 Chat evidence 仍不作精确验收）
+**状态**: 测试装配 Phase 1 至 Phase 5 与测试入口收口已完成；这些资产当前主要验收 legacy 检索路径，不代表检索管线模块化完成。真实 Chat evidence 仍不作精确验收。
 
 **创建日期**: 2026-07-20  
-**最近修订**: 2026-07-21
+**最近修订**: 2026-07-22
 **适用范围**: `src/tools/recall/`、`src-tauri/src/recall/`、`src/tools/agent-manager/`、`src/tools/llm-chat/`、`tests/tauri-e2e/`
 
 关联文档：
@@ -13,7 +13,27 @@
 - [工具测试指南](../../../../../docs/guide/tool-testing-guide.md)
 - [Tauri E2E 说明](../../../../../tests/tauri-e2e/README.md)
 
-> 本文解决的是测试装配与自动化覆盖问题，不改变 Recall / Knowledge 领域边界，也不把本机 Ollama 变成默认测试依赖。确定性本地 OpenAI-compatible 测试渠道同时承担 Chat 与 Embedding，是每次必跑的主通道；真实 Ollama 是显式启用的集成通道。
+> 本文解决的是测试装配与自动化覆盖问题，不改变 Recall / Knowledge 领域边界，也不把本机 Ollama 变成默认测试依赖。确定性本地 OpenAI-compatible 测试渠道同时承担 Chat 与 Embedding，是默认真实窗口主通道；真实 Ollama 是显式启用的集成通道。
+
+## 0. 范围修订与执行约束（2026-07-22）
+
+本计划保留已经建立的真实链路能力，但调整其开发期优先级。测试验收矩阵不是检索管线模块化的前置施工任务；在新 Runner 尚未形成最小可运行垂直链路前，不继续扩展 fixture、scenario、corpus 或 E2E phase。
+
+| 执行层级 | 默认内容 | 适用时机 | 约束 |
+| --- | --- | --- | --- |
+| 每次开发 | Recall Vitest、Rust 定向测试 | 修改纯逻辑、契约或后端模块后 | 只覆盖当前改动相关行为 |
+| 提交前 | 确定性 mock 的 Recall smoke；必要时追加 curated | 交付一个可运行切片前 | 必须使用隔离数据根；不得自动带入 Ollama、外部语料或恢复流程 |
+| 功能里程碑 | Chat 注入、二次启动恢复、curated 全流程 | 新 Runner 或 UI 接线完成后 | 作为里程碑门禁，不作为每轮开发反馈 |
+| 手动/夜间/发布前 | `ollama-vector`、`external-sample`、`external-full`、真实 Chat lane | 需要真实模型、完整 corpus 或发布收口时 | 必须显式选择 preset；缺少前置条件时只能明确 skip/fail，不得静默降级 |
+
+其中 Ollama 真实向量化是有意保留的集成能力，重点验证真实模型的维度、请求链路和相对检索排序；它不应扩展为每次开发都运行的 Chat、全量 corpus 和双进程组合。external corpus 与恢复 lane 也保留，用于数据规模和持久化收口，不作为默认开发路径。
+
+### 范围冻结与停止条件
+
+- 本轮只为当前功能切片补测试；发现无关缺口时记录到问题清单，不顺手扩大测试面。
+- 只有在已有测试无法表达新功能契约时，才新增 fixture 或 runner 基础设施；新增前先写明目标、入口、预计耗时和退出条件。
+- 测试计划的 phase 完成只表示对应测试资产可用，不表示产品功能或新检索管线已完成。模块化进度以 `recall-retrieval-pipeline-modularization-plan.md` 为准。
+- 新检索管线优先补充 compiler、Runner、artifact 传递、Embedding 调用次数、过滤/finalizer 和 trace 等契约测试，不重复扩展 legacy UI 的验收矩阵。
 
 ### 实施进度
 
@@ -662,9 +682,10 @@ preset 只是现有 runner option 的具名装配层，不复制 WDIO 启动、f
 
 执行分层：
 
-- PR / 常规本地检查：Recall Vitest + Rust 定向测试 + smoke/curated deterministic Tauri E2E，包括预设 Chat 回复。
-- 开发反馈：有显式 corpus 文件时先运行 `external-sample`；夜间或最终收口再运行 `external-full`，并按需追加 Ollama lane。
-- 发布前：deterministic lane 的二次启动恢复必须通过；有 Ollama 的发布机再运行真实 lane。
+- 每次开发反馈：只运行与当前改动相关的 Recall Vitest 和 Rust 定向测试。
+- 提交前：运行最小 deterministic mock smoke；当前切片涉及排序语料时再追加 curated。
+- 功能里程碑：运行 Chat 注入、curated 全流程和 deterministic 二次启动恢复。
+- 手动、夜间或发布前：按目标显式运行 `external-sample`、`external-full` 与 Ollama lane；它们不进入默认开发反馈。
 
 不要让 Ollama lane 静默改用 mock。真实通道被请求后只能明确通过、明确跳过或明确失败，产物中必须写出最终模式和原因。
 

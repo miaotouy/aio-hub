@@ -10,9 +10,9 @@
 
 - [`recall-retrieval-pipeline-modularization-plan.md`](recall-retrieval-pipeline-modularization-plan.md)：将 Keyword、Vector、Lens、Blender 和产品 facade 重构为阶段化检索模块，以预设配置组合纯算法召回与综合召回。当前检索管线尚未施工，但旧行为基线、真实窗口 runner 和验收 lane 等测试前置已部分具备。
 
-## 已完成的测试基础设施
+## 已完成的测试基础设施（legacy 路径）
 
-- [`recall-automated-real-vector-testing-plan.md`](recall-automated-real-vector-testing-plan.md)：Phase 1 至 Phase 5 与测试入口收口已完成。已覆盖确定性 Chat/Embedding、Recall 向量与语义检索、Agent 注入、同数据根进程恢复、外部语料、真实 Ollama 和具名 Tauri E2E preset；这些资产可被后续检索管线施工复用，但当前仍验收旧引擎路径。
+- [`recall-automated-real-vector-testing-plan.md`](recall-automated-real-vector-testing-plan.md)：测试装配 Phase 1 至 Phase 5 与测试入口收口已完成。已覆盖确定性 Chat/Embedding、Recall 向量与语义检索、Agent 注入、同数据根进程恢复、外部语料、真实 Ollama 和具名 Tauri E2E preset；这些资产可被后续检索管线施工复用，但当前主要验收旧引擎路径。默认开发只跑轻量 deterministic lane，Ollama、外部语料和恢复流程按需或在里程碑执行。
 
 当前剩余工作集中在首次启动迁移接线、真实目录副本验证、合并迁移报告、Knowledge 固定跨模块回归和发布二进制 smoke test。代码施工与自动化工程检查已完成，不应从归档文档恢复旧 Knowledge processor、检索占位符或 mixed RRF 方案。
 

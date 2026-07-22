@@ -2,7 +2,7 @@
 
 **状态**: Phase 0 已完成；现有产品仍走 legacy engine，Phase 1 Runner 尚未施工
 **创建日期**: 2026-07-20
-**最近修订**: 2026-07-21
+**最近修订**: 2026-07-22
 **适用范围**: `src/tools/recall/`、`src-tauri/src/recall/`、Recall Playground、Agent Recall 配置、Recall Chat 召回入口
 
 关联文档：
@@ -16,7 +16,9 @@
 
 > 本文记录现有 `RetrievalEngine` 体系的后续重构设想，不改变已完成的 Recall / Knowledge 领域拆分，也不把尚未实施的目标写成当前架构。实施完成前，现行行为仍以 `ARCHITECTURE.md` 和当前代码为准。
 
-> **2026-07-21 现状对照**：隔壁测试计划已完成 Phase 1 至 Phase 5 及 Tauri E2E 入口收口，但这不等于本计划的检索管线 Phase 1 至 Phase 6 已完成。当前生产路径仍由 Rust `RetrievalEngine`、`engineId`、`semantic` / `associative` facade 和前端 `SearchOrchestrator` 组成；Phase 0 只有已冻结的模块/artifact 数据类型与 wire fixture，尚未存在可执行模块 registry、pipeline compiler 或统一 Runner。
+> **2026-07-21 现状对照**：`recall-automated-real-vector-testing-plan.md` 已完成 Phase 1 至 Phase 5 及 Tauri E2E 入口收口，但这不等于本计划的检索管线 Phase 1 至 Phase 6 已完成。当前生产路径仍由 Rust `RetrievalEngine`、`engineId`、`semantic` / `associative` facade 和前端 `SearchOrchestrator` 组成；Phase 0 只有已冻结的模块/artifact 数据类型与 wire fixture，尚未存在可执行模块 registry、pipeline compiler 或统一 Runner。
+>
+> **2026-07-22 施工优先级修订**：测试计划中的 deterministic、Ollama、external corpus 和恢复 lane 均是可复用的验收资产，但不再作为本计划 Phase 1 Runner 的前置阻塞。默认开发只运行与当前切片相关的 Vitest/Rust 测试和最小 mock smoke；真实 Ollama 保留为显式集成验证，完整 corpus 与二次启动恢复放在功能里程碑或发布收口。新测试必须围绕新 Runner 的契约补齐，不以继续扩展 legacy E2E 矩阵为施工目标。
 >
 > 已可直接复用的测试前置资产包括：
 >
@@ -25,6 +27,13 @@
 > - Recall 向量化、语义检索、Chat evidence、SSE 完成态、同数据根二次进程恢复、external-sample/full 和真实 Ollama 已有真实 Tauri WebView 验收，且稳定 `data-testid`、请求摘要、状态回读和恢复探针已落地。
 >
 > Phase 0 已冻结 artifact/module/pipeline、preset/compile/run/trace/UI 状态机契约，完成旧算法与调用入口盘点，并建立旧 `engineId` / `profile` 到新预设的版本化迁移夹具。实际 compiler、外部产物准备、统一 Runner、pipeline trace 生成和真实窗口 `recall-pipeline` spec 从 Phase 1 开始施工。现有 E2E 只能证明旧检索路径的端到端可用性，不能证明召回结果符合某个用户的需要，也不能为新 Runner 的候选、分数、过滤或排序提供质量结论。
+
+### 当前施工规则
+
+1. 先实现一条最小垂直链路：preset 解析、compiler、Runner、一个可执行模块和最终结果输出。
+2. 每完成一个模块，补充该模块的纯逻辑或契约测试；不提前施工后续 phase 的完整 E2E。
+3. 新增测试必须能对应一个明确的不变量，例如 algorithmic 路径零 Embedding、查询向量单次生成与复用、阶段 artifact 传递、过滤/TopK 边界或 trace 完整性。
+4. 发现 legacy 行为缺口时只维护已有 baseline；除非该缺口阻塞当前迁移切片，否则不扩展为新的验收 lane。
 
 ---
 

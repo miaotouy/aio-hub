@@ -162,6 +162,19 @@ impl RetrievalArtifacts {
         self.entries.get(&key)
     }
 
+    pub fn get_mut(&mut self, key: ArtifactKey) -> Option<&mut RetrievalArtifact> {
+        self.entries.get_mut(&key)
+    }
+
+    pub fn append_candidate_signals(&mut self, mut values: Vec<CandidateSignal>) {
+        match self.entries.get_mut(&ArtifactKey::CandidateSignals) {
+            Some(RetrievalArtifact::CandidateSignals(existing)) => existing.append(&mut values),
+            _ => {
+                self.insert(RetrievalArtifact::CandidateSignals(values));
+            }
+        }
+    }
+
     pub fn contains(&self, key: ArtifactKey) -> bool {
         self.entries.contains_key(&key)
     }
@@ -207,8 +220,10 @@ pub struct RetrievalPipelineNodeV1 {
     pub id: String,
     pub module_id: String,
     pub enabled: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub depends_on: Option<Vec<String>>,
     pub params: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub failure_policy: Option<FailurePolicy>,
 }
 
@@ -459,6 +474,12 @@ impl std::fmt::Display for RetrievalModuleError {
 
 impl std::error::Error for RetrievalModuleError {}
 
+#[derive(Debug, Clone, Default)]
+pub struct RetrievalModuleOutput {
+    pub candidate_trimmed: Option<usize>,
+    pub trim_reason: Option<String>,
+}
+
 pub trait RetrievalModule: Send + Sync {
     fn info(&self) -> RetrievalModuleInfo;
 
@@ -468,7 +489,7 @@ pub trait RetrievalModule: Send + Sync {
         artifacts: &mut RetrievalArtifacts,
         params: &Value,
         trace: &mut PipelineTraceV1,
-    ) -> Result<(), RetrievalModuleError>;
+    ) -> Result<RetrievalModuleOutput, RetrievalModuleError>;
 }
 
 /// Registry ownership is explicit so the compiler never resolves modules by a stringly runtime
@@ -710,8 +731,19 @@ impl RetrievalPipelineCompiler {
                         .filter_map(|id| compiled_by_id.get(id).map(|index| &nodes[*index]))
                         .filter(|provider| provider.info.provides.contains(required))
                         .collect();
+                    let latest_providers: Vec<&CompiledNode> = providers
+                        .iter()
+                        .copied()
+                        .filter(|provider| {
+                            !providers.iter().any(|other| {
+                                provider.node.id != other.node.id
+                                    && ancestor_ids(&other.node.id, &dependencies)
+                                        .contains(&provider.node.id)
+                            })
+                        })
+                        .collect();
                     let external = is_externally_prepared(*required, &node.info);
-                    if providers.is_empty() && !external {
+                    if latest_providers.is_empty() && !external {
                         push_issue(
                             &mut result,
                             PipelineErrorCode::ArtifactMissing,
@@ -722,7 +754,7 @@ impl RetrievalPipelineCompiler {
                                 required
                             ),
                         );
-                    } else if providers.len() > 1 {
+                    } else if latest_providers.len() > 1 && !is_mergeable_artifact(*required) {
                         push_issue(
                             &mut result,
                             PipelineErrorCode::ArtifactProviderAmbiguous,
@@ -733,7 +765,7 @@ impl RetrievalPipelineCompiler {
                                 required
                             ),
                         );
-                    } else if let Some(provider) = providers.first() {
+                    } else if let Some(provider) = latest_providers.first() {
                         if provider.node.failure_policy == Some(FailurePolicy::Skip) {
                             push_issue(
                                 &mut result,
@@ -816,8 +848,16 @@ impl RetrievalPipelineRunner {
                 None,
             );
         }
-        if let Some(query_embedding) = bundle.and_then(|bundle| bundle.query_embedding.clone()) {
-            artifacts.insert(RetrievalArtifact::QueryEmbedding(query_embedding));
+        if compiled
+            .result
+            .external_requirements
+            .iter()
+            .any(|requirement| requirement.kind == ExternalRequirementKind::QueryEmbedding)
+        {
+            if let Some(query_embedding) = bundle.and_then(|bundle| bundle.query_embedding.clone())
+            {
+                artifacts.insert(RetrievalArtifact::QueryEmbedding(query_embedding));
+            }
         }
 
         let mut trace = trace;
@@ -850,7 +890,7 @@ impl RetrievalPipelineRunner {
                 .module
                 .execute(context, &mut artifacts, &node.node.params, &mut trace)
             {
-                Ok(()) => trace.steps.push(PipelineTraceStepV1 {
+                Ok(output) => trace.steps.push(PipelineTraceStepV1 {
                     node_id: node.node.id.clone(),
                     module_id: node.info.id.clone(),
                     phase: node.info.phase,
@@ -865,8 +905,8 @@ impl RetrievalPipelineRunner {
                     ),
                     status: TraceStepStatus::Completed,
                     reason: None,
-                    candidate_trimmed: None,
-                    trim_reason: None,
+                    candidate_trimmed: output.candidate_trimmed,
+                    trim_reason: output.trim_reason,
                 }),
                 Err(error) if node.node.failure_policy == Some(FailurePolicy::Skip) => {
                     trace.steps.push(PipelineTraceStepV1 {
@@ -937,6 +977,27 @@ impl RetrievalPipelineRunner {
             error: None,
         }
     }
+
+    pub fn validate_config_hash(
+        &self,
+        compiled: &CompiledPipeline,
+        expected_config_hash: &str,
+        requested_preset_id: RecallPresetId,
+        actual_preset_id: RecallPresetId,
+    ) -> Option<PipelineRunResponse> {
+        if compiled.result.config_hash != expected_config_hash {
+            return Some(failed_response(
+                compiled,
+                requested_preset_id,
+                actual_preset_id,
+                new_trace(compiled, None, requested_preset_id, actual_preset_id),
+                PipelineErrorCode::ConfigHashMismatch,
+                "compiled pipeline config hash does not match the run request".to_string(),
+                None,
+            ));
+        }
+        None
+    }
 }
 
 fn config_hash(pipeline: &RetrievalPipelineV1) -> String {
@@ -965,6 +1026,10 @@ fn is_externally_prepared(key: ArtifactKey, info: &RetrievalModuleInfo) -> bool 
         && info
             .external_requirements
             .contains(&ExternalRequirementKind::QueryEmbedding)
+}
+
+fn is_mergeable_artifact(key: ArtifactKey) -> bool {
+    matches!(key, ArtifactKey::CandidateSignals)
 }
 
 fn topological_order(
@@ -1261,7 +1326,7 @@ mod tests {
             artifacts: &mut RetrievalArtifacts,
             _params: &Value,
             _trace: &mut PipelineTraceV1,
-        ) -> Result<(), RetrievalModuleError> {
+        ) -> Result<RetrievalModuleOutput, RetrievalModuleError> {
             for key in &self.info.provides {
                 let artifact = match key {
                     ArtifactKey::NormalizedQuery => {
@@ -1287,7 +1352,7 @@ mod tests {
                 };
                 artifacts.insert(artifact);
             }
-            Ok(())
+            Ok(RetrievalModuleOutput::default())
         }
     }
 
@@ -1298,6 +1363,7 @@ mod tests {
             )),
             tag_pool_manager: crate::recall::tag_pool::GlobalTagPoolManager::new(),
             app_data_dir: std::path::PathBuf::new(),
+            request: None,
         }
     }
 
@@ -1511,5 +1577,93 @@ mod tests {
             .issues
             .iter()
             .any(|issue| issue.code == PipelineErrorCode::ParameterInvalid));
+    }
+
+    #[test]
+    fn compiler_allows_parallel_candidate_signal_providers_for_later_merge() {
+        let mut registry = RetrievalModuleRegistry::default();
+        for module in [
+            TestModule::new(
+                "seed",
+                RetrievalPhase::Prepare,
+                Vec::new(),
+                vec![ArtifactKey::NormalizedQuery],
+            ),
+            TestModule::new(
+                "branch-a",
+                RetrievalPhase::Retrieve,
+                vec![ArtifactKey::NormalizedQuery],
+                vec![ArtifactKey::CandidateSignals],
+            ),
+            TestModule::new(
+                "branch-b",
+                RetrievalPhase::Retrieve,
+                vec![ArtifactKey::NormalizedQuery],
+                vec![ArtifactKey::CandidateSignals],
+            ),
+            TestModule::new(
+                "merge",
+                RetrievalPhase::Normalize,
+                vec![ArtifactKey::CandidateSignals],
+                vec![ArtifactKey::RankedCandidates],
+            ),
+            TestModule::new(
+                "finalizer",
+                RetrievalPhase::Finalize,
+                vec![ArtifactKey::RankedCandidates],
+                vec![ArtifactKey::FinalResults],
+            ),
+        ] {
+            registry.register(module).unwrap();
+        }
+        let pipeline = RetrievalPipelineV1 {
+            nodes: vec![
+                RetrievalPipelineNodeV1 {
+                    id: "seed".to_string(),
+                    module_id: "seed".to_string(),
+                    enabled: true,
+                    depends_on: None,
+                    params: serde_json::json!({}),
+                    failure_policy: None,
+                },
+                RetrievalPipelineNodeV1 {
+                    id: "branch-a".to_string(),
+                    module_id: "branch-a".to_string(),
+                    enabled: true,
+                    depends_on: Some(vec!["seed".to_string()]),
+                    params: serde_json::json!({}),
+                    failure_policy: None,
+                },
+                RetrievalPipelineNodeV1 {
+                    id: "branch-b".to_string(),
+                    module_id: "branch-b".to_string(),
+                    enabled: true,
+                    depends_on: Some(vec!["seed".to_string()]),
+                    params: serde_json::json!({}),
+                    failure_policy: None,
+                },
+                RetrievalPipelineNodeV1 {
+                    id: "merge".to_string(),
+                    module_id: "merge".to_string(),
+                    enabled: true,
+                    depends_on: Some(vec!["branch-a".to_string(), "branch-b".to_string()]),
+                    params: serde_json::json!({}),
+                    failure_policy: None,
+                },
+                RetrievalPipelineNodeV1 {
+                    id: "finalizer".to_string(),
+                    module_id: "finalizer".to_string(),
+                    enabled: true,
+                    depends_on: Some(vec!["merge".to_string()]),
+                    params: serde_json::json!({}),
+                    failure_policy: None,
+                },
+            ],
+            ..test_pipeline()
+        };
+
+        let compiled = RetrievalPipelineCompiler::new(Arc::new(registry))
+            .compile(&pipeline, "parallel-merge".to_string());
+        assert!(compiled.result.valid, "{:?}", compiled.result.issues);
     }
 }

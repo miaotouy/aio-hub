@@ -675,6 +675,7 @@ mod repository_warmup_tests {
             db: recovered_imdb,
             tag_pool_manager: GlobalTagPoolManager::new(),
             app_data_dir: app_data.path().to_path_buf(),
+            request: None,
         };
         let results = KeywordRetrievalEngine::new()
             .search(

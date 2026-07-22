@@ -79,18 +79,22 @@ impl TextInvertedIndex {
     /// 搜索关键词，返回 (条目 ID, 评分) 列表
     pub fn search(&self, query: &str) -> Vec<(Uuid, f32)> {
         let query_lower = query.to_lowercase();
+        let tokens = tokenize_query(&query_lower);
+        self.search_tokens(&query_lower, &tokens)
+    }
+
+    pub fn search_tokens(&self, normalized_query: &str, tokens: &[String]) -> Vec<(Uuid, f32)> {
         let mut scores: HashMap<Uuid, f32> = HashMap::new();
 
         // 1. 尝试标签匹配 (如果 query 本身就是一个标签)
-        if let Some(ids) = self.tag_index.get(&query_lower) {
+        if let Some(ids) = self.tag_index.get(normalized_query) {
             for id in ids {
                 *scores.entry(*id).or_insert(0.0) += 5.0;
             }
         }
 
         // 2. 分词搜索
-        let words = JIEBA.cut(&query_lower, false);
-        for word in words {
+        for word in tokens {
             let word = word.trim();
             if word.is_empty() {
                 continue;
@@ -108,4 +112,14 @@ impl TextInvertedIndex {
         result.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         result
     }
+}
+
+pub fn tokenize_query(query: &str) -> Vec<String> {
+    JIEBA
+        .cut(query, false)
+        .into_iter()
+        .map(str::trim)
+        .filter(|word| !word.is_empty())
+        .map(ToString::to_string)
+        .collect()
 }

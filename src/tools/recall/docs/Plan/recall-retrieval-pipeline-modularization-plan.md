@@ -1,6 +1,6 @@
 # Recall 检索管线模块化设计与实施计划
 
-**状态**: Phase 0 已完成；Phase 1 的 compiler、module registry、artifact store 和串行 Runner 内核已施工，现有产品仍走 legacy engine，公共尾部模块与产品接线尚未施工
+**状态**: Phase 0、Phase 1 已完成；Phase 2 已落地纯算法生产模块、`algorithmic` 预设和独立 IPC，legacy `recall_search` 与 Keyword engine 清理尚未完成
 **创建日期**: 2026-07-20
 **最近修订**: 2026-07-22
 **适用范围**: `src/tools/recall/`、`src-tauri/src/recall/`、Recall Playground、Agent Recall 配置、Recall Chat 召回入口
@@ -21,6 +21,8 @@
 > **2026-07-22 施工优先级修订**：测试计划中的 deterministic、Ollama、external corpus 和恢复 lane 均是可复用的验收资产，但不再作为本计划 Phase 1 Runner 的前置阻塞。默认开发只运行与当前切片相关的 Vitest/Rust 测试和最小 mock smoke；真实 Ollama 保留为显式集成验证，完整 corpus 与二次启动恢复放在功能里程碑或发布收口。新测试必须围绕新 Runner 的契约补齐，不以继续扩展 legacy E2E 矩阵为施工目标。
 >
 > **2026-07-22 Phase 1 内核进度**：`src-tauri/src/recall/retrieval_pipeline.rs` 已提供显式 module registry、配置编译、依赖拓扑排序、artifact 运行时检查、串行 Runner、版本化 trace 和结构化失败响应；Rust 定向测试已用测试模块跑通完整空结果管线，并覆盖缺失 artifact、依赖环路、重复 finalizer 和非法参数。该内核尚未注册为生产 preset，也未接管 legacy `recall_search`。
+>
+> **2026-07-22 Phase 1/2 施工进度**：生产 registry 已注册查询规范化/分词、关键词候选、信号归一化、加权融合、priority rerank、policy/score filter 和 finalizer；`algorithmic` 可通过独立 compile/run IPC 执行，配置哈希不一致会在模块运行前拒绝。真实 Tauri `recall-pipeline` preset 已验证 `list -> compile -> run -> pipeline trace`、稳定运行元数据和零 Embedding 请求。现有产品仍走 legacy `recall_search`，因此旧 Keyword engine 的重复过滤、排序和 TopK 尚未删除。
 >
 > 已可直接复用的测试前置资产包括：
 >
@@ -720,20 +722,20 @@ idle
 ### Phase 1：建立 Runner 与公共尾部阶段
 
 - [x] 新增模块 registry、配置编译器、artifact store 和串行阶段 Runner 内核；当前只由测试模块驱动，尚未接入生产检索路径。
-- [ ] 抽取集合/enabled/标签硬过滤、最终 score threshold、排序、TopK、条目加载和 trace finalizer。
+- [x] 抽取集合/enabled/标签硬过滤、最终 score threshold、排序、TopK、条目加载和 trace finalizer。
 - [x] 第一阶段保持 retrieve 串行，为后续并行保留契约。
 - [x] 用确定性测试模块跑通完整管线，并拒绝非法依赖、环路、缺失 artifact、重复 finalizer 和非法参数。
-- [ ] 支持生产模块单独运行和真实确定性 fixture。
-- [ ] 注册 `recall-pipeline` E2E preset 与真实 spec，覆盖 compile -> prepare -> run -> pipeline trace，并断言运行元数据区别于 legacy engine 路径。
+- [x] 支持生产模块单独运行和真实确定性 fixture。
+- [x] 注册 `recall-pipeline` E2E preset 与真实 spec，覆盖 compile -> prepare -> run -> pipeline trace，并断言运行元数据区别于 legacy engine 路径。
 
 退出门槛：用测试模块跑通完整管线；非法依赖、环路、缺失 artifact、重复 finalizer 和非法参数均被拒绝。
 
 ### Phase 2：拆分纯算法路径
 
-- [ ] 从 Keyword 引擎抽取查询分词、倒排候选、key/title/content 字面信号和归一化模块。
-- [ ] 建立 `algorithmic` 预设，并让旧 `keyword` 配置通过 migration 映射到该预设。
+- [x] 从 Keyword 引擎抽取查询分词、倒排候选、key/title/content 字面信号和归一化模块。
+- [x] 建立 `algorithmic` 预设，并让旧 `keyword` 配置通过 migration 映射到该预设。
 - [ ] 删除 Keyword 内部的最终过滤、排序和截断重复实现。
-- [ ] 证明未解析模型、未访问向量缓存且未发送 Embedding 请求。
+- [x] 证明未解析模型、未访问向量缓存且未发送 Embedding 请求。
 
 退出门槛：`algorithmic` 满足模块契约、确定性、过滤/排序规则和性能基线；离线和未配置模型环境可完整运行。工程夹具验证的是实现是否按已声明算法执行，不把结果排序当作用户相关性真值。
 

@@ -15,6 +15,8 @@
 use crate::recall::core::{RecallResult, RetrievalEngine};
 use crate::recall::index::InMemoryDatabase;
 use crate::recall::ops::warmup_recall_repository;
+use crate::recall::retrieval_modules::production_module_registry;
+use crate::recall::retrieval_pipeline::RetrievalModuleRegistry;
 use crate::recall::search::{
     AssociativeRecallEngine, BlenderRetrievalEngine, KeywordRetrievalEngine, LensRetrievalEngine,
     SemanticRecallEngine, VectorRetrievalEngine,
@@ -45,6 +47,8 @@ pub struct RecallState {
     pub imdb: Arc<RwLock<InMemoryDatabase>>,
     /// 检索算法引擎列表，支持热切换
     pub engines: Vec<Box<dyn RetrievalEngine>>,
+    /// 新检索管线的显式生产模块注册表。
+    pub pipeline_modules: Arc<RetrievalModuleRegistry>,
     /// 全局标签向量池
     pub tag_pool: GlobalTagPoolManager,
     /// 全局 Embedding 缓存 (Key 为 model_id + text 的哈希值，Value 为 (向量, 最后访问时间戳))
@@ -66,11 +70,15 @@ impl RecallState {
             Box::new(SemanticRecallEngine::new()),
             Box::new(AssociativeRecallEngine::new()),
         ];
+        let pipeline_modules = Arc::new(
+            production_module_registry().expect("built-in Recall pipeline modules must be valid"),
+        );
 
         Self {
             lock: Mutex::new(()),
             imdb: Arc::new(RwLock::new(InMemoryDatabase::new())),
             engines,
+            pipeline_modules,
             tag_pool: GlobalTagPoolManager::new(),
             embedding_cache: Arc::new(RwLock::new(HashMap::new())),
             retrieval_cache: Arc::new(RwLock::new(HashMap::new())),

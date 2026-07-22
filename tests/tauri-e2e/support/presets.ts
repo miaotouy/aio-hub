@@ -1,4 +1,5 @@
 export type E2ePresetId =
+  | "recall-pipeline"
   | "recall-vector"
   | "recall-curated"
   | "recall-chat"
@@ -25,6 +26,7 @@ export interface E2ePreset {
 }
 
 const VECTOR_SPEC = "tests/tauri-e2e/specs/recall-vector-workflow.spec.ts";
+const PIPELINE_SPEC = "tests/tauri-e2e/specs/recall-pipeline.spec.ts";
 const CHAT_SPEC = "tests/tauri-e2e/specs/recall-chat-injection.spec.ts";
 const RECOVERY_SPEC = "tests/tauri-e2e/specs/recall-session-recovery.spec.ts";
 const EXTERNAL_SPEC = "tests/tauri-e2e/specs/recall-external-corpus.spec.ts";
@@ -38,6 +40,14 @@ const OLLAMA_EMBEDDING_PREREQUISITE: E2ePresetPrerequisite = {
 };
 
 export const E2E_PRESETS: readonly E2ePreset[] = [
+  {
+    id: "recall-pipeline",
+    purpose: "Deterministic Recall retrieval pipeline compile, run, and trace",
+    args: ["--spec", PIPELINE_SPEC],
+    prerequisites: [],
+    runtimeRequirements: [],
+    includesRestart: false,
+  },
   {
     id: "recall-vector",
     purpose: "Deterministic Recall vectorization and semantic search",

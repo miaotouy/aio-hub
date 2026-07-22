@@ -37,7 +37,8 @@ Recall 条目不自动切片，也不保存文档 manifest、文件监听状态�
 ### 2.2 后端 `src-tauri/src/recall/`
 
 - `core.rs`：`RecallCollection`、`RecallEntry`、`RecallResult`、过滤器及 `RetrievalEngine` 接口。
-- `retrieval_pipeline.rs`：Phase 0 冻结的 artifact、module、pipeline、compile/run 与 trace v1 类型；当前没有可执行 Runner。
+- `retrieval_pipeline.rs`：artifact store、module registry、pipeline compiler、串行 Runner 与 trace v1 契约。
+- `retrieval_modules.rs`：生产检索模块、内置 preset 定义与公共过滤/finalizer；当前已提供 `algorithmic` 可执行链路。
 - `state.rs`：`RecallState`，持有内存数据库、检索引擎、标签池和检索缓存。
 - `commands/`：集合、条目、向量、标签、搜索、备份和检索缓存的 `recall_*` Tauri commands。
 - `index/`：集合内存索引、倒排索引和向量矩阵。
@@ -65,16 +66,20 @@ Recall 条目不自动切片，也不保存文档 manifest、文件监听状态�
 
 所有引擎通过 `RetrievalEngineInfo.requiresEmbedding` 暴露 capability。结果包含结构化 `signals` 和 `trace`，trace 使用 `recall-profile-v1` 算法版本并记录 profile、候选分、融合分、阈值判断与最终 rank。检索缓存 key 同时包含 profile 和算法版本。
 
-### 3.1 后续管线契约（尚未接入运行时）
+### 3.1 检索管线迁移状态
 
-检索管线模块化 Phase 0 已冻结 `recall-retrieval-pipeline-v1` 契约和
+检索管线模块化已冻结 `recall-retrieval-pipeline-v1` 契约和
 `algorithmic / comprehensive` 两个预设 ID。Rust 与 TypeScript 通过
 `recall-pipeline-contract-v1.json` 共享序列化夹具；旧 ID 迁移规则使用
-`recall-retrieval-migration-v1`。这些类型和夹具只约束 Phase 1 之后的实现，
-当前 `recall_search`、Chat、Agent tool 和 Playground 仍走本节前述 legacy engine。
+`recall-retrieval-migration-v1`。后端已有生产 module registry、compiler、串行 Runner、
+公共过滤/finalizer 和 `algorithmic` 预设，并通过独立 IPC 提供 preset 列表、编译与运行。
+`algorithmic` 不声明外部产物依赖，不读取查询向量，也不会触发 Embedding 请求。
 
 `algorithmic` 显示名为“算法召回”，`comprehensive` 显示名为“综合召回”；
 旧 `keyword/vector/lens/blender/semantic/associative` 不属于新预设列表。
+当前 `recall_search`、Chat、Agent tool 和 Playground 仍走 legacy engine；独立 pipeline IPC
+用于迁移施工和真实窗口验收，尚未替换产品默认策略。`comprehensive` 仍只有已冻结 summary，
+其向量、标签、Lens 与融合生产模块将在后续 phase 接入。
 完整盘点与契约决策见
 `docs/Plan/recall-retrieval-pipeline-phase0-inventory.md`。
 

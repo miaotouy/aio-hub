@@ -18,6 +18,7 @@ pub mod index;
 pub mod io;
 pub mod monitor;
 pub mod ops;
+pub mod retrieval_modules;
 pub mod retrieval_pipeline;
 pub mod search;
 pub mod state;

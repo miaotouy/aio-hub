@@ -296,7 +296,7 @@ pub enum RecallProfile {
     Associative,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[serde(rename_all = "kebab-case")]
 pub enum RecallSignalType {
     Key,
@@ -396,6 +396,14 @@ pub struct RetrievalContext {
     pub tag_pool_manager: crate::recall::tag_pool::GlobalTagPoolManager,
     /// 应用数据目录 (用于加载标签池)
     pub app_data_dir: std::path::PathBuf,
+    /// 新检索管线使用的不可变请求快照；legacy engine 继续接收独立参数。
+    pub request: Option<RetrievalRequestSnapshot>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RetrievalRequestSnapshot {
+    pub query: String,
+    pub filters: RecallSearchFilters,
 }
 
 /// 检索查询负载，支持文本或向量

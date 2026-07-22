@@ -186,10 +186,12 @@ export function assertRecallPipelineContractFixture(
   for (const field of ["candidateBudget", "expansionBudget"]) {
     assertNumber(value.compileResult[field], `fixture.compileResult.${field}`);
   }
-  for (const field of ["externalRequirements", "issues", "stages"]) {
+  for (const field of ["externalRequirements", "issues"]) {
     assertArray(value.compileResult[field], `fixture.compileResult.${field}`);
   }
-  for (const [index, stage] of value.compileResult.stages.entries()) {
+  const stages = value.compileResult.stages;
+  assertArray(stages, "fixture.compileResult.stages");
+  for (const [index, stage] of stages.entries()) {
     const path = `fixture.compileResult.stages[${index}]`;
     assertRecord(stage, path);
     assertExactKeys(stage, ["phase", "nodeIds"], [], path);

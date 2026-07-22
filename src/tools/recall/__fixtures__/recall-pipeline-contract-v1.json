@@ -58,18 +58,66 @@
         "failurePolicy": "abort"
       },
       {
+        "id": "tokenize-query",
+        "moduleId": "query-tokenize",
+        "enabled": true,
+        "dependsOn": ["normalize-query"],
+        "params": {},
+        "failurePolicy": "abort"
+      },
+      {
         "id": "retrieve-keyword",
         "moduleId": "keyword-recall",
         "enabled": true,
-        "dependsOn": ["normalize-query"],
+        "dependsOn": ["tokenize-query"],
         "params": { "candidateBudget": 80 },
+        "failurePolicy": "abort"
+      },
+      {
+        "id": "normalize-keyword",
+        "moduleId": "keyword-normalize",
+        "enabled": true,
+        "dependsOn": ["retrieve-keyword"],
+        "params": {},
+        "failurePolicy": "abort"
+      },
+      {
+        "id": "fuse-signals",
+        "moduleId": "weighted-fusion",
+        "enabled": true,
+        "dependsOn": ["normalize-keyword"],
+        "params": { "keywordWeight": 0.7, "keyWeight": 1.0 },
+        "failurePolicy": "abort"
+      },
+      {
+        "id": "boost-priority",
+        "moduleId": "priority-boost",
+        "enabled": true,
+        "dependsOn": ["fuse-signals"],
+        "params": {},
+        "failurePolicy": "abort"
+      },
+      {
+        "id": "filter-policy",
+        "moduleId": "entry-policy-filter",
+        "enabled": true,
+        "dependsOn": ["boost-priority"],
+        "params": {},
+        "failurePolicy": "abort"
+      },
+      {
+        "id": "filter-score",
+        "moduleId": "score-threshold",
+        "enabled": true,
+        "dependsOn": ["filter-policy"],
+        "params": {},
         "failurePolicy": "abort"
       },
       {
         "id": "finalize-results",
         "moduleId": "result-finalizer",
         "enabled": true,
-        "dependsOn": ["retrieve-keyword"],
+        "dependsOn": ["filter-score"],
         "params": { "limit": 6 },
         "failurePolicy": "abort"
       }
@@ -86,13 +134,29 @@
     "externalRequirements": [],
     "issues": [],
     "stages": [
-      { "phase": "prepare", "nodeIds": ["normalize-query"] },
+      {
+        "phase": "prepare",
+        "nodeIds": ["normalize-query", "tokenize-query"]
+      },
       { "phase": "retrieve", "nodeIds": ["retrieve-keyword"] },
+      { "phase": "normalize", "nodeIds": ["normalize-keyword"] },
+      { "phase": "fuse", "nodeIds": ["fuse-signals"] },
+      { "phase": "rerank", "nodeIds": ["boost-priority"] },
+      {
+        "phase": "filter",
+        "nodeIds": ["filter-policy", "filter-score"]
+      },
       { "phase": "finalize", "nodeIds": ["finalize-results"] }
     ],
     "moduleVersions": {
       "query-normalize": "1",
+      "query-tokenize": "1",
       "keyword-recall": "1",
+      "keyword-normalize": "1",
+      "weighted-fusion": "1",
+      "priority-boost": "1",
+      "entry-policy-filter": "1",
+      "score-threshold": "1",
       "result-finalizer": "1"
     }
   },
@@ -126,6 +190,15 @@
           "status": "completed"
         },
         {
+          "nodeId": "tokenize-query",
+          "moduleId": "query-tokenize",
+          "phase": "prepare",
+          "durationMs": 0,
+          "inputCount": 1,
+          "outputCount": 0,
+          "status": "completed"
+        },
+        {
           "nodeId": "retrieve-keyword",
           "moduleId": "keyword-recall",
           "phase": "retrieve",
@@ -136,11 +209,58 @@
           "candidateTrimmed": 0
         },
         {
+          "nodeId": "normalize-keyword",
+          "moduleId": "keyword-normalize",
+          "phase": "normalize",
+          "durationMs": 0,
+          "inputCount": 0,
+          "outputCount": 0,
+          "status": "completed"
+        },
+        {
+          "nodeId": "fuse-signals",
+          "moduleId": "weighted-fusion",
+          "phase": "fuse",
+          "durationMs": 0,
+          "inputCount": 0,
+          "outputCount": 0,
+          "status": "completed"
+        },
+        {
+          "nodeId": "boost-priority",
+          "moduleId": "priority-boost",
+          "phase": "rerank",
+          "durationMs": 0,
+          "inputCount": 0,
+          "outputCount": 0,
+          "status": "completed"
+        },
+        {
+          "nodeId": "filter-policy",
+          "moduleId": "entry-policy-filter",
+          "phase": "filter",
+          "durationMs": 0,
+          "inputCount": 0,
+          "outputCount": 0,
+          "status": "completed",
+          "candidateTrimmed": 0
+        },
+        {
+          "nodeId": "filter-score",
+          "moduleId": "score-threshold",
+          "phase": "filter",
+          "durationMs": 0,
+          "inputCount": 0,
+          "outputCount": 0,
+          "status": "completed",
+          "candidateTrimmed": 0
+        },
+        {
           "nodeId": "finalize-results",
           "moduleId": "result-finalizer",
           "phase": "finalize",
           "durationMs": 0,
-          "inputCount": 0,
+          "inputCount": 1,
           "outputCount": 0,
           "status": "completed"
         }

@@ -62,6 +62,7 @@ pub async fn recall_search(
         db: state.imdb.clone(),
         tag_pool_manager: state.tag_pool.clone(),
         app_data_dir,
+        request: None,
     };
 
     // 步骤1: 查询向量生成 (如果是预向量化的则耗时极短)

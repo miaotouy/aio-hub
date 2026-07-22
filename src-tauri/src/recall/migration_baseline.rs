@@ -408,6 +408,7 @@ fn build_retrieval_context(app_data_dir: &Path, baseline: &MigrationBaseline) ->
         db: Arc::new(RwLock::new(database)),
         tag_pool_manager,
         app_data_dir: app_data_dir.to_path_buf(),
+        request: None,
     }
 }
 
@@ -440,6 +441,7 @@ fn build_repository_retrieval_context(
         db: database,
         tag_pool_manager,
         app_data_dir: app_data_dir.to_path_buf(),
+        request: None,
     }
 }
 

@@ -38,7 +38,7 @@ Recall 条目不自动切片，也不保存文档 manifest、文件监听状态�
 
 - `core.rs`：`RecallCollection`、`RecallEntry`、`RecallResult`、过滤器及 `RetrievalEngine` 接口。
 - `retrieval_pipeline.rs`：artifact store、module registry、pipeline compiler、串行 Runner 与 trace v1 契约。
-- `retrieval_modules.rs`：生产检索模块、内置 preset 定义与公共过滤/finalizer；当前已提供 `algorithmic` 可执行链路。
+- `retrieval_modules.rs`：生产检索模块、内置 preset 定义与公共过滤/finalizer；当前已提供 `algorithmic` 与 `comprehensive` 可执行链路。
 - `state.rs`：`RecallState`，持有内存数据库、检索引擎、标签池和检索缓存。
 - `commands/`：集合、条目、向量、标签、搜索、备份和检索缓存的 `recall_*` Tauri commands。
 - `index/`：集合内存索引、倒排索引和向量矩阵。
@@ -81,8 +81,9 @@ Recall service、Chat 被动召回、Agent tool 和 Agent 配置已通过 pipeli
 该 service 先编译配置，再按编译结果准备外部产物并执行 Runner。Playground 和旧
 `recall_search` 仍保留 legacy engine 路径，直到后续迁移阶段删除。`comprehensive` 已包含
 关键词、内容向量、标签向量和 Lens 候选模块，并复用同一请求的查询向量 bundle。
-完整盘点与契约决策见
-`docs/Plan/recall-retrieval-pipeline-phase0-inventory.md`。
+完整的稳定契约见
+`docs/architecture/retrieval-pipeline-contract.md`；当前施工状态见
+`docs/Plan/recall-retrieval-pipeline-modularization-plan.md`。
 
 ## 4. 核心流程
 
@@ -144,6 +145,8 @@ appData/knowledge/
 
 Stage 2 已建立 `appData/recall/recall.db` 与 `recall-vectors.db` 的 SQLite repository 和独立 migration 表；主库 schema v2 持久化集合活动模型，模型维度、tokens 和最后索引时间从向量库统计恢复。Tauri 启动阶段会先幂等执行旧目录迁移，再从 repository warmup 派生读模型，`recall_initialize` 保留为兼容入口；集合/条目/向量/标签池 command 与备份导入导出均以 repository 为真源。独立的 `LegacyFileRecallImporter` 已覆盖旧集合、条目、向量与 tag pool 的幂等导入、运行中状态续跑和结构化报告。旧目录在校验和用户确认前不得删除。
 
+稳定的数据真源、写入顺序、备份格式、旧目录清理条件和迁移报告字段见 `docs/architecture/storage-migration-contract.md`。
+
 ## 7. 兼容与后续迁移
 
 - `knowledgeBaseConfig`、`knowledgeSettings`、`kbId`、`kbName` 与 `kb-*` 权限 key 只由版本化 Agent migration 读取，迁移后立即删除。
@@ -152,7 +155,8 @@ Stage 2 已建立 `appData/recall/recall.db` 与 `recall-vectors.db` 的 SQLite 
 - 兼容配置必须在版本化迁移中统一转换，不能在各组件挂载时继续扩散临时修补。
 - 新代码不得向 Knowledge 空壳导入 Recall 业务类型，也不得新增 `Thought` 作为第三套领域名。
 
-实施顺序、迁移不变量和阶段完成门槛见 `docs/Plan/recall-knowledge-domain-restructure-implementation-plan.md`。
+检索管线的实施顺序与阶段完成门槛见
+`docs/Plan/recall-retrieval-pipeline-modularization-plan.md`。
 
 ## 8. 验证要求
 
@@ -162,4 +166,4 @@ Stage 2 已建立 `appData/recall/recall.db` 与 `recall-vectors.db` 的 SQLite 
 - Rust 单元测试或 Clippy / backend check。
 - Tauri command、camelCase 参数、事件名和前端调用保持一致。
 - 旧目录、`.aio-kb` v1、`.aio-recall` v1、集合与条目 UUID、Agent binding 在对应迁移阶段保持可恢复。
-- 真实运行态行为使用 Tauri dev / WebView 验证，普通浏览器页面不能替代。
+- 真实运行态行为使用具名 Tauri E2E preset 在真实 WebView 中验证，普通浏览器页面和独立人工清单不能替代。

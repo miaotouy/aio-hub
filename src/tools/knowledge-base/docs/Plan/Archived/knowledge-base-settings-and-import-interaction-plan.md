@@ -7,7 +7,7 @@
 - **关联文档**：
   - [Knowledge 资料库产品方案](../knowledge-base-product-interaction-design.md)
   - [Knowledge 施工步骤计划清单](../knowledge-base-implementation-checklist.md)
-  - [Recall / Knowledge 领域拆分与重构实施计划](../../../../recall/docs/Plan/recall-knowledge-domain-restructure-implementation-plan.md)
+  - [Recall 架构说明](../../../../recall/ARCHITECTURE.md)
   - [Knowledge 架构说明](../../../ARCHITECTURE.md)
 
 > **归档说明（2026-07-19）**：本文从旧实现缺口推导出的草案已经停止执行。配置分层、格式能力、持久摄取队列、目录同步和交互要求中的有效部分已落实并记录到统一施工清单；占位符、授权和主动调用边界以现行产品方案为准。本文只用于追溯早期调查，不得作为当前施工或验收依据。

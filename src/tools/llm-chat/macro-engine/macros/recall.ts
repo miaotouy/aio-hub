@@ -61,6 +61,7 @@ export function registerRecallMacros(registry: MacroRegistry): void {
             const when = options.when ?? binding.when;
             return serializeRecallPlaceholder({
               collection: binding.recallId,
+              preset: options.preset ?? binding.presetId,
               profile: options.profile ?? binding.profile,
               limit: options.limit ?? binding.limit,
               minScore: options.minScore ?? binding.minScore,
@@ -101,7 +102,7 @@ export function registerRecallMacros(registry: MacroRegistry): void {
         return bindings
           .map(
             (binding) =>
-              `- [${binding.recallName}] ID=${binding.recallId}，profile=${binding.profile ?? "semantic"}`
+              `- [${binding.recallName}] ID=${binding.recallId}，preset=${binding.presetId ?? "继承全局预设"}`
           )
           .join("\n");
       },

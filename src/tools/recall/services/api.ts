@@ -214,6 +214,7 @@ export async function search(params: SearchParams): Promise<RecallResult[]> {
         return results;
       },
       {
+        showToUser: false,
         userMessage: "检索思绪集失败",
         context: params,
       }

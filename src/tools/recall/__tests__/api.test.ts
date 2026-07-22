@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
   compilePipeline: vi.fn(),
   executePipeline: vi.fn(),
+  wrapAsync: vi.fn(),
   store: {
     config: {
       defaultEmbeddingModel: "profile-a:model-a",
@@ -23,7 +24,8 @@ vi.mock("@/utils/logger", () => ({
 }));
 vi.mock("@/utils/errorHandler", () => ({
   createModuleErrorHandler: () => ({
-    wrapAsync: <T>(callback: () => Promise<T>) => callback(),
+    wrapAsync: (callback: () => Promise<unknown>, options: unknown) =>
+      mocks.wrapAsync(callback, options),
   }),
 }));
 vi.mock("../stores/recallCollectionStore", () => ({
@@ -43,11 +45,14 @@ vi.mock("../logic/placeholderRetrieval", () => ({
   resolvePlaceholderRetrieval: vi.fn(),
 }));
 
-import { searchWithCache } from "../services/api";
+import { search, searchWithCache } from "../services/api";
 
 describe("searchWithCache", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.wrapAsync.mockImplementation((callback: () => Promise<unknown>) =>
+      callback()
+    );
     mocks.compilePipeline.mockResolvedValue({
       presetId: "comprehensive",
       runId: "run-1",
@@ -122,6 +127,41 @@ describe("searchWithCache", () => {
           embeddingIdentity: "",
         }),
       })
+    );
+  });
+
+  it("ignores caller model overrides and keys by the global active model", async () => {
+    await searchWithCache({
+      primaryQuery: "global model only",
+      recallIds: ["collection-a"],
+      enableCache: true,
+      modelId: "caller:model-b",
+    } as Parameters<typeof searchWithCache>[0] & { modelId: string });
+
+    expect(mocks.invoke).toHaveBeenCalledWith(
+      "recall_retrieval_cache_get",
+      expect.objectContaining({
+        input: expect.objectContaining({
+          embeddingIdentity: "profile-a:model-a",
+        }),
+      })
+    );
+    expect(mocks.executePipeline).toHaveBeenCalledWith(
+      expect.not.objectContaining({ modelId: expect.anything() }),
+      expect.anything()
+    );
+  });
+
+  it("keeps the ordinary service facade non-interactive for background callers", async () => {
+    await search({
+      query: "background query",
+      recallIds: ["collection-a"],
+      presetId: "algorithmic",
+    });
+
+    expect(mocks.wrapAsync).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({ showToUser: false })
     );
   });
 });

@@ -123,6 +123,12 @@ schema；全局预设变更后调用同一 compiler 获取 external requirements
 4. Runner 执行候选、归一化、融合、过滤和 finalizer；前端按需格式化结果并执行字符上限截断。
 5. Chat 的 `RecallProcessor` 解析严格命名参数协议、校验 Agent binding 授权，构造 `RecallRetrievalRequest` 并调用 Recall service；旧自由文本语法只生成告警。
 
+Chat processor、`{{recall}}` 宏、占位符编排器、Agent action 和普通 service 都不接受
+逐请求 Embedding 模型覆盖；pipeline service 只读取 `WorkspaceConfig.defaultEmbeddingModel`，
+缓存也使用这一完整模型身份。`{{recall}}` 会保留 binding `presetId`，使手动宏与自动注入
+路径使用同一预设。上述后台入口的错误处理只记录日志或返回结构化失败，不调用用户提示或
+交互对话框。
+
 检索结果缓存使用 `recall_retrieval_cache_*` commands。缓存键包含规范化后的主/次查询、`recallIds`、标签、融合权重、数量、阈值、预设、编译配置哈希、Embedding 身份和算法版本；任一字段变化都会形成不同缓存项。
 
 ## 5. IPC 与事件

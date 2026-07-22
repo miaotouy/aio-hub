@@ -9,13 +9,13 @@
 
 ## 当前状态
 
-| 阶段         | 已落地                                                                                                                                                  | 完成前还需做什么                                           |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Phase 0 至 2 | Runner、compiler、artifact store、公共过滤/finalizer、`algorithmic` 和生产 IPC 已可用。                                                                 | 仅随 Phase 6 删除 Keyword 重复实现。                       |
-| Phase 3      | 内容向量、标签种子、受限共现图传播和标签到条目扩展已进入生产管线，并共享一次查询向量；查询残差标签扩展已确定不进入本轮稳定预设。                        | 收口 legacy 实现的删除边界，并记录独立实验的后续立项入口。 |
-| Phase 4      | `comprehensive` 已组合关键词、内容向量和标签图候选；weighted fusion v1、独立 `relevanceScore`、预算/priority/阈值边界、工程夹具和显式 fallback 已冻结。 | 已完成。                                                   |
-| Phase 5      | service、Chat、Agent tool、Agent 配置及全局/绑定预设已使用 `presetId`；Agent 编辑器已由 preset summary 和 compile result 驱动 override 范围与能力预检。 | 完成全局模型代际、Playground、Monitor 和 workspace 收口。  |
-| Phase 6      | legacy runner 仍服务 `recall_search`、旧 Playground 和迁移夹具。                                                                                        | 完成调用扫描后删除 legacy registry 与已替代实现。          |
+| 阶段         | 已落地                                                                                                                                                                                          | 完成前还需做什么                                           |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Phase 0 至 2 | Runner、compiler、artifact store、公共过滤/finalizer、`algorithmic` 和生产 IPC 已可用。                                                                                                         | 仅随 Phase 6 删除 Keyword 重复实现。                       |
+| Phase 3      | 内容向量、标签种子、受限共现图传播和标签到条目扩展已进入生产管线，并共享一次查询向量；查询残差标签扩展已确定不进入本轮稳定预设。                                                                | 收口 legacy 实现的删除边界，并记录独立实验的后续立项入口。 |
+| Phase 4      | `comprehensive` 已组合关键词、内容向量和标签图候选；weighted fusion v1、独立 `relevanceScore`、预算/priority/阈值边界、工程夹具和显式 fallback 已冻结。                                         | 已完成。                                                   |
+| Phase 5      | service、Chat、Agent tool、Agent 配置及全局/绑定预设已使用 `presetId`；Agent 编辑器已由 preset summary 和 compile result 驱动 override 范围与能力预检；后台入口只读全局活动模型且不弹交互提示。 | 完成全局模型代际、Playground、Monitor 和 workspace 收口。  |
+| Phase 6      | legacy runner 仍服务 `recall_search`、旧 Playground 和迁移夹具。                                                                                                                                | 完成调用扫描后删除 legacy registry 与已替代实现。          |
 
 ## 施工顺序
 
@@ -90,7 +90,7 @@ shared query embedding
 ### Phase 5：完成产品收口
 
 - [x] Agent 编辑器根据 preset summary / compile result 渲染 allowed overrides 和 capability 预检。
-- [ ] 验证 Chat、Agent、占位符和普通 service 都只读取 Recall 全局活动模型，后台执行不弹交互对话框。
+- [x] 验证 Chat、Agent、占位符和普通 service 都只读取 Recall 全局活动模型，后台执行不弹交互对话框。
 - [ ] 实现全局模型切换的资产代际标识、覆盖提示和缓存隔离验证。
 - [ ] 以编译后的 external requirements 与参数 schema 驱动 `idle -> compile -> prepare -> run -> outcome`，并隔离 stale response。
 - [ ] 将 Playground 收口为双配置诊断工作面，提供阶段模块编辑、fixture 批量重放、batch run 与 trace 调试；首期只使用全局活动模型。

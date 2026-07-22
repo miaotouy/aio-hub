@@ -18,7 +18,7 @@
  * 这是思绪集模块给外部消费方（如 llm-chat）的唯一访问入口。
  * 对外屏蔽：
  *  - Tauri `recall_*` 后端命令
- *  - `SearchOrchestrator` / `vectorCacheManager` 等内部组件
+ *  - `vectorCacheManager` 等内部组件
  *  - 缓存 key 拼接、向量融合等内部策略
  *
  * 消费方禁止直接 invoke `recall_*` 或导入思绪集内部 utils/orchestrator/store。
@@ -29,7 +29,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useRecallCollectionStore } from "../stores/recallCollectionStore";
 import { preprocessQuery } from "../utils/queryPreProcessor";
-import { profileDefaults } from "../core/engineCapabilities";
+import { profileDefaults } from "../core/retrievalPolicy";
 import { resolvePlaceholderRetrieval as resolvePlaceholderRetrievalInternal } from "../logic/placeholderRetrieval";
 import {
   compileRetrievalPipeline,

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import type { RecallResult } from "../types/search";
+import type { RecallProfile } from "../types/search";
 import type { RecallRetrievalRequest } from "../types/retrieval";
 
 /**
@@ -47,6 +48,12 @@ export function shouldActivate(req: RecallRetrievalRequest): boolean {
   }
 }
 
+export function profileDefaults(profile: RecallProfile | undefined) {
+  return profile === "associative"
+    ? { limit: 4, minScore: 0.45 }
+    : { limit: 5, minScore: 0.3 };
+}
+
 /**
  * 解析最终使用的检索参数
  */
@@ -74,10 +81,7 @@ export function resolveRetrievalParams(req: RecallRetrievalRequest): {
     presetId ??
     settings.defaultPresetId ??
     (engineId === "keyword" ? "algorithmic" : "comprehensive");
-  const profileDefaults =
-    resolvedProfile === "associative"
-      ? { limit: 4, minScore: 0.45 }
-      : { limit: 5, minScore: 0.3 };
+  const defaults = profileDefaults(resolvedProfile);
 
   let recallIds: string[] = [];
   if (recallId) {
@@ -96,8 +100,8 @@ export function resolveRetrievalParams(req: RecallRetrievalRequest): {
 
   return {
     recallIds,
-    limit: limit ?? settings.defaultLimit ?? profileDefaults.limit,
-    minScore: minScore ?? settings.defaultMinScore ?? profileDefaults.minScore,
+    limit: limit ?? settings.defaultLimit ?? defaults.limit,
+    minScore: minScore ?? settings.defaultMinScore ?? defaults.minScore,
     engineId,
     profile: resolvedProfile,
     presetId: resolvedPresetId,

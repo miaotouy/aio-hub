@@ -420,8 +420,6 @@ watch(
 onMounted(async () => {
   if (recallStore.bases.length === 0) {
     await recallStore.init();
-  } else if (recallStore.engines.length === 0) {
-    await recallStore.loadEngines();
   }
   await loadPresetSummaries();
   await refreshCapabilityPreflight();

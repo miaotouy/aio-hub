@@ -17,6 +17,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { useRecallCollectionStore } from "../stores/recallCollectionStore";
+import { search as searchRecall } from "../services/api";
 import { useRecallCollection } from "../composables/useRecallCollection";
 import { createModuleLogger } from "@/utils/logger";
 import { useVirtualizer } from "@tanstack/vue-virtual";
@@ -69,6 +70,7 @@ const isSearching = ref(false);
 // 搜索防抖
 const debouncedSearchQuery = ref(props.searchQuery);
 let debounceTimer: any = null;
+let currentSearchId = 0;
 watch(
   () => props.searchQuery,
   (val) => {
@@ -82,9 +84,11 @@ watch(
 // 监听搜索词变化，触发后端搜索
 watch(debouncedSearchQuery, async (val) => {
   const startTime = Date.now();
+  const searchId = ++currentSearchId;
 
   if (!val.trim()) {
     remoteRecallResults.value = [];
+    isSearching.value = false;
     return;
   }
 
@@ -92,7 +96,13 @@ watch(debouncedSearchQuery, async (val) => {
   remoteRecallResults.value = []; // 开始新搜索时立即清空旧结果，触发显示本地预览
 
   try {
-    const results = await recallStore.search(val, 50);
+    const results = await searchRecall({
+      query: val,
+      recallIds: recallStore.activeBaseId ? [recallStore.activeBaseId] : [],
+      presetId: "algorithmic",
+      limit: 50,
+    });
+    if (searchId !== currentSearchId) return;
     const duration = Date.now() - startTime;
     logger.info("后端检索完成", {
       query: val,
@@ -118,9 +128,11 @@ watch(debouncedSearchQuery, async (val) => {
       })
       .filter(Boolean);
   } catch (err) {
-    logger.error("后端检索失败", err, { query: val });
+    if (searchId === currentSearchId) {
+      logger.error("后端检索失败", err, { query: val });
+    }
   } finally {
-    isSearching.value = false;
+    if (searchId === currentSearchId) isSearching.value = false;
   }
 });
 

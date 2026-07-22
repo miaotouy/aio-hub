@@ -27,7 +27,7 @@ Recall 条目不自动切片，也不保存文档 manifest、文件监听状态�
 - `Recall.vue`、`views/`、`components/`：工作区、统计、监控、实验室与设置界面。
 - `stores/recallCollectionStore.ts`：Pinia 运行态，管理工作区、当前集合、条目缓存、向量状态和监控缓冲区。
 - `services/api.ts`：供 llm-chat 等外部模块使用的 Recall 门面；外部消费方不应直接导入内部 store 或 orchestrator。
-- `logic/orchestrator.ts`：索引、向量同步和搜索的业务编排。
+- `logic/orchestrator.ts`：索引与向量同步的业务编排；产品检索统一由 pipeline service 执行。
 - `logic/placeholderRetrieval.ts`：被动召回请求的执行与格式化。
 - `composables/`：集合、条目、索引、搜索、向量同步、监控及备份交互。
 - `core/`：Embedding、检索策略、查询准备与标签生成等纯逻辑。
@@ -77,9 +77,9 @@ Recall 条目不自动切片，也不保存文档 manifest、文件监听状态�
 
 `algorithmic` 显示名为“算法召回”，`comprehensive` 显示名为“综合召回”；
 旧 `keyword/vector/lens/blender/semantic/associative` 不属于新预设列表。
-Recall service、Chat 被动召回、Agent tool、Agent 配置和 Playground 已通过 pipeline service 使用预设；
-该 service 先编译配置，再按编译结果准备外部产物并执行 Runner。旧 `recall_search` 仍为
-少量管理页局部搜索和迁移测试保留，直到 Phase 6 删除。`comprehensive` 已包含
+Recall service、Chat 被动召回、Agent tool、Agent 配置、管理页局部搜索和 Playground 已通过 pipeline service 使用预设；
+该 service 先编译配置，再按编译结果准备外部产物并执行 Runner。前端已无 `recall_search`
+或 `recall_list_engines` 消费方；旧 command、registry 与实现只等待 Phase 6 后端删除。`comprehensive` 已包含
 关键词、内容向量与原子标签图模块，并复用同一请求的查询向量 bundle：`tag-vector-recall`
 输出标签种子，`bounded-tag-propagation` 生成受限的查询能量场，`tag-to-entry-expansion`
 输出 `tag-graph` 候选。当前稳定预设不包含查询残差标签扩展，也不以标签上下文改写

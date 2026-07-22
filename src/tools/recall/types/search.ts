@@ -102,23 +102,3 @@ export interface RecallSearchFilters {
   /** 透镜检索：上下文投射向量 (用于能量衰减) */
   historyVectors?: number[][];
 }
-
-/**
- * 检索算法引擎信息
- */
-export interface RetrievalEngineInfo {
-  /** 引擎唯一标识 */
-  id: string;
-  /** 引擎名称 */
-  name: string;
-  /** 引擎描述 */
-  description: string;
-  /** 引擎图标 */
-  icon: string | null;
-  /** 支持的 Payload 类型: "text", "vector" */
-  supportedPayloadTypes: string[];
-  /** 是否需要 Embedding 模型 */
-  requiresEmbedding: boolean;
-  /** 引擎支持的自定义参数描述 (符合前端 SettingItem 结构) */
-  parameters: any[];
-}

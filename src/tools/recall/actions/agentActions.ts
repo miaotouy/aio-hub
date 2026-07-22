@@ -18,7 +18,6 @@
 
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
-import { invoke } from "@tauri-apps/api/core";
 import { recallStorage } from "../utils/recallStorage";
 import { calculateHash } from "../utils/recallUtils";
 import { useRecallCollectionStore } from "../stores/recallCollectionStore";
@@ -74,10 +73,9 @@ async function locateEntry(
     entryId?: string;
     key?: string;
     searchQuery?: string;
-    searchMode?: "keyword" | "vector";
   }
 ): Promise<RecallEntry> {
-  const { entryId, key, searchQuery, searchMode = "keyword" } = options;
+  const { entryId, key, searchQuery } = options;
 
   if (entryId) {
     const entry = await recallStorage.loadEntry(recallId, entryId);
@@ -107,21 +105,16 @@ async function locateEntry(
   }
 
   if (searchQuery) {
-    // 调用搜索
-    const results = await invoke<any[]>("recall_search", {
+    const results = await searchRecall({
       query: searchQuery,
-      filters: {
-        recallIds: [recallId],
-        limit: 1,
-        engineId: searchMode,
-        enabledOnly: true,
-      },
-      engineId: searchMode,
+      recallIds: [recallId],
+      presetId: "algorithmic",
+      limit: 1,
     });
 
     if (results.length === 0)
       throw new Error(`搜索未命中任何条目: "${searchQuery}"`);
-    const entryId = results[0].entry?.id || results[0].id;
+    const entryId = results[0].entry.id;
     const entry = await recallStorage.loadEntry(recallId, entryId);
     if (!entry) throw new Error(`无法加载搜索命中的条目内容: ${entryId}`);
     return entry;

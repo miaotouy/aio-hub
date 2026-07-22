@@ -16,7 +16,7 @@ import { Cpu, Database, Zap, Tag, FileUp } from "lucide-vue-next";
 import { h } from "vue";
 import { ElButton, ElIcon, ElTooltip } from "element-plus";
 import type { SettingsSection } from "@/types/settings-renderer";
-import type { WorkspaceConfig, RetrievalEngineInfo } from "./types";
+import type { WorkspaceConfig } from "./types";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { cloneDeep } from "lodash-es";
 
@@ -386,51 +386,7 @@ export const recallSettingsConfig: SettingsSection<WorkspaceConfig>[] = [
   },
 ];
 
-/**
- * 获取动态合成后的设置配置
- * 会根据传入的引擎信息，将引擎特有参数注入到“检索与索引策略”章节中
- */
-export function getRecallSettingsConfig(
-  engines: RetrievalEngineInfo[]
-): SettingsSection<WorkspaceConfig>[] {
-  const config = cloneDeep(recallSettingsConfig);
-
-  // 找到“检索与索引策略”这一节
-  const searchSection = config.find((s) => s.title === "检索与索引策略");
-  if (searchSection && engines.length > 0) {
-    // 收集所有引擎的唯一参数
-    const seenParamIds = new Set(searchSection.items.map((i) => i.id));
-
-    engines.forEach((engine) => {
-      if (!engine.parameters) return;
-
-      engine.parameters.forEach((param) => {
-        if (seenParamIds.has(param.id)) return;
-        seenParamIds.add(param.id);
-
-        // 确保 modelPath 指向 vectorIndex.xxx (如果后端没带前缀的话)
-        const item = { ...param };
-        if (item.modelPath && !item.modelPath.startsWith("vectorIndex.")) {
-          item.modelPath = `vectorIndex.${item.modelPath}`;
-        }
-
-        // 如果配置中没有默认值，使用后端提供的 defaultValue
-        if (item.defaultValue !== undefined) {
-          item.props = { ...item.props, defaultValue: item.defaultValue };
-        }
-
-        // 默认布局
-        if (
-          !item.layout &&
-          (item.component === "ElSwitch" || item.component === "ElCheckbox")
-        ) {
-          item.layout = "inline";
-        }
-
-        searchSection.items.push(item as any);
-      });
-    });
-  }
-
-  return config;
+/** 返回隔离副本，避免设置渲染器修改共享配置。 */
+export function getRecallSettingsConfig(): SettingsSection<WorkspaceConfig>[] {
+  return cloneDeep(recallSettingsConfig);
 }

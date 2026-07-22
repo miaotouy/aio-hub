@@ -16,7 +16,6 @@ const mocks = vi.hoisted(() => ({
       },
       cache: { retrievalCacheMaxItems: 200 },
     },
-    engines: [],
     globalStats: { allDiscoveredTags: [] },
   },
 }));

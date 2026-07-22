@@ -76,8 +76,6 @@ export interface UpdateEntryContentOptions {
   key?: string;
   /** 方式3：通过搜索定位 */
   searchQuery?: string;
-  /** 搜索模式（配合 searchQuery） */
-  searchMode?: "keyword" | "vector";
 
   // === 替换模式（二选一） ===
   /** 模式 A：精确内容替换（指定原文片段进行局部替换） */

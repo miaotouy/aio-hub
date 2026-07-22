@@ -15,7 +15,7 @@
 | Phase 3      | 内容向量、标签种子、受限共现图传播和标签到条目扩展已进入生产管线，并共享一次查询向量；查询残差标签扩展已确定不进入本轮稳定预设。                                                                                                                                                                                                                                  | 收口 legacy 实现的删除边界，并记录独立实验的后续立项入口。 |
 | Phase 4      | `comprehensive` 已组合关键词、内容向量和标签图候选；weighted fusion v1、独立 `relevanceScore`、预算/priority/阈值边界、工程夹具和显式 fallback 已冻结。                                                                                                                                                                                                           | 已完成。                                                   |
 | Phase 5      | service、Chat、Agent tool、Agent 配置及全局/绑定预设已使用 `presetId`；Agent 编辑器已由 preset summary 和 compile result 驱动 override 范围与能力预检；后台入口只读全局活动模型且不弹交互提示；模型切换会轮换活动资产代际并隔离缓存；Playground 已使用 pipeline 状态机、双预设、批量回放和 trace；结果详情与 Monitor 已区分分数语义并展示 pipeline/legacy trace。 | 完成 Playground 阶段模块编辑。                             |
-| Phase 6      | legacy runner 仍服务 `recall_search`、管理页局部搜索和迁移夹具。                                                                                                                                                                                                                                                                                                  | 完成调用扫描后删除 legacy registry 与已替代实现。          |
+| Phase 6      | 管理页局部搜索和 Agent 条目定位已改用 pipeline service，前端已删除 SearchOrchestrator、engine capability 和动态 engine 设置；legacy runner 仅剩后端 command、迁移基线与测试使用。                                                                                                                                                                                 | 删除 legacy registry、command 与已替代实现。               |
 
 ## 施工顺序
 
@@ -105,11 +105,18 @@ Playground 当前已固定为 `algorithmic / comprehensive` 双配置诊断工�
 
 ### Phase 6：删除旧运行时
 
-- [ ] 扫描并清除产品、Agent、Chat、测试与迁移层以外对 `RetrievalEngine` 的调用。
+- [x] 扫描并清除产品、Agent、Chat、测试与迁移层以外对 `RetrievalEngine` 的调用。
 - [ ] 删除 legacy registry，以及 Keyword、Vector、legacy Lens/Blender 和 facade 中已被原子模块替代的实现。
 - [ ] 仅在独立 legacy migration 层保留旧 ID 解析。
 
 完成门槛：后端只保留 module registry 与 pipeline runner；删除旧实现不影响当前产品调用，legacy 配置仍能得到确定转换结果或结构化问题。
+
+#### Phase 6 调用扫描结论（2026-07-23）
+
+- `RecallCollectionList` 的跨集合内容筛选与 `RecallEntryList` 的当前集合筛选属于管理界面即时搜索，固定使用 `algorithmic` preset；前者显式传入全部集合 ID，后者只传入活动集合 ID。两者不再读取或选择底层 engine。
+- Agent `updateEntryContent` 的 `searchQuery` 只用于定位一个待更新条目，同样固定使用 `algorithmic`；Agent 对外检索能力 `searchEntries` 继续接受 `presetId` 并调用同一 pipeline service。
+- 前端 `SearchOrchestrator`、`EngineSelector`、`engineCapabilities`、`RetrievalEngineInfo`、store engine registry 与动态 engine 参数注入已删除。索引和向量同步仍由原 orchestrator 文件中的独立类负责。
+- `src/` 产品代码已无 `recall_search` 或 `recall_list_engines` 调用。剩余 legacy 引用都位于 Rust command/registry、旧引擎实现、迁移基线和后端测试，下一步可在同一后端里程碑删除。
 
 ## 发布前的 Recall 遗留门禁
 

@@ -17,6 +17,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { useRecallCollectionStore } from "../stores/recallCollectionStore";
+import { search as searchRecall } from "../services/api";
 import { useRecallCollection } from "../composables/useRecallCollection";
 import { useKnowledgeBackup } from "../composables/useKnowledgeBackup";
 import KnowledgeBackupDialog from "./KnowledgeBackupDialog.vue";
@@ -108,8 +109,12 @@ watch(searchQuery, (val) => {
 
   searchTimer = setTimeout(async () => {
     try {
-      // 执行全局关键词搜索，不指定 recallIds
-      const results = await recallStore.search(trimmed, 100);
+      const results = await searchRecall({
+        query: trimmed,
+        recallIds: recallStore.bases.map((base) => base.id),
+        presetId: "algorithmic",
+        limit: 100,
+      });
 
       // 如果已经发起了新的搜索，则丢弃本次结果
       if (searchId !== currentSearchId) return;

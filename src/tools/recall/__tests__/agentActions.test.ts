@@ -368,6 +368,31 @@ describe("recall agent actions", () => {
     expect(mockRecallStorage.saveEntry).not.toHaveBeenCalled();
   });
 
+  it("updateEntryContent 按搜索定位时应使用 algorithmic preset", async () => {
+    mockSearchRecall.mockResolvedValueOnce([
+      {
+        entry: createEntry(),
+        recallId: "recall-1",
+        recallName: "Dev Notes",
+        score: 1,
+      },
+    ]);
+
+    await updateEntryContent({
+      recallId: "recall-1",
+      searchQuery: "ownership",
+      replaceContent: "replacement content",
+      dryRun: true,
+    });
+
+    expect(mockSearchRecall).toHaveBeenCalledWith({
+      query: "ownership",
+      recallIds: ["recall-1"],
+      presetId: "algorithmic",
+      limit: 1,
+    });
+  });
+
   it("deleteEntry 应要求显式确认，确认后删除并清空当前选中条目", async () => {
     await expect(
       deleteEntry({ recallId: "recall-1", entryId: "entry-1" })

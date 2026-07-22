@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import type { RecallEntry, TagWithWeight } from "./recall-entry";
-import type { RecallResult } from "./search";
 
 /**
  * 思绪集相关类型定义
@@ -254,12 +253,8 @@ export interface WorkspaceConfig {
  */
 export interface PlaygroundSlotConfig {
   id: string;
-  engineId: string;
-  config: {
-    embeddingModel: string;
-    [key: string]: any;
-  };
-  results?: RecallResult[];
+  presetId: "algorithmic" | "comprehensive";
+  limit: number;
 }
 
 /**

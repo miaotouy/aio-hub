@@ -63,12 +63,12 @@ describe("Recall retrieval pipeline legacy migration v1", () => {
         slots: [
           {
             id: "slot-1",
-            config: { embeddingModel: "model-1", maxResidualLayers: 4 },
             presetId: "comprehensive",
+            limit: 6,
           },
         ],
       },
-      invalidatedFields: ["slots[].results"],
+      invalidatedFields: ["slots[].config", "slots[].results"],
     });
   });
 });

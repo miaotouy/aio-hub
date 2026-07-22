@@ -36,6 +36,11 @@ export interface CompiledRetrievalPipeline {
   result: RecallPipelineCompileResult;
 }
 
+export interface RetrievalPipelineLifecycleObserver {
+  onPreparing?: (compilation: CompiledRetrievalPipeline) => void;
+  onRunning?: (compilation: CompiledRetrievalPipeline) => void;
+}
+
 interface PipelineRunResponse {
   outcome: "success" | "empty" | "fallback" | "failed" | "cancelled";
   results: RecallResult[];
@@ -168,8 +173,10 @@ async function prepareQueryEmbedding(
 
 export async function executeRetrievalPipeline(
   params: RetrievalPipelineSearchParams,
-  compiled?: CompiledRetrievalPipeline
+  compiled?: CompiledRetrievalPipeline,
+  observer?: RetrievalPipelineLifecycleObserver
 ): Promise<{
+  runId?: string;
   results: RecallResult[];
   configHash: string;
   outcome?: PipelineRunResponse["outcome"];
@@ -196,6 +203,7 @@ export async function executeRetrievalPipeline(
   let actualPresetId = params.presetId;
   let fallbackReason: string | undefined;
   let bundle: Record<string, unknown> | undefined;
+  observer?.onPreparing?.(activeCompilation);
   try {
     const needsEmbedding = activeCompilation.result.externalRequirements.some(
       (requirement) => requirement.kind === "query-embedding"
@@ -242,6 +250,7 @@ export async function executeRetrievalPipeline(
     bundle = undefined;
   }
   const { runId, result: compileResult } = activeCompilation;
+  observer?.onRunning?.(activeCompilation);
   const response = await invoke<PipelineRunResponse>(
     "recall_run_retrieval_pipeline",
     {
@@ -276,6 +285,7 @@ export async function executeRetrievalPipeline(
     configHash: response.configHash,
   });
   return {
+    runId,
     results: response.results,
     configHash: response.configHash,
     outcome: response.outcome,

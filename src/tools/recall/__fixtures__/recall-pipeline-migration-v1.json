@@ -38,16 +38,13 @@
           "slots": [
             {
               "id": "slot-blender",
-              "config": {
-                "embeddingModel": "embedding-model",
-                "maxResidualLayers": 4
-              },
-              "presetId": "comprehensive"
+              "presetId": "comprehensive",
+              "limit": 6
             }
           ]
         },
         "discardedFields": [],
-        "invalidatedFields": ["slots[].results"],
+        "invalidatedFields": ["slots[].config", "slots[].results"],
         "semanticDifferences": [
           "legacy-score-domain-not-preserved",
           "legacy-candidate-order-not-preserved",

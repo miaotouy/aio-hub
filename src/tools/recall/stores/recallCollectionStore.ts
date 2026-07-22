@@ -303,6 +303,12 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
       await recallStorage.saveWorkspace(this.workspace);
     },
 
+    saveWorkspaceDebounced() {
+      if (!this.workspace) return;
+      this.workspace.config = this.config;
+      recallStorage.saveWorkspaceDebounced(this.workspace);
+    },
+
     async applyWorkspaceConfig(nextConfig: WorkspaceConfig) {
       const previousModel = this.config.defaultEmbeddingModel?.trim() ?? "";
       const nextModel = nextConfig.defaultEmbeddingModel?.trim() ?? "";

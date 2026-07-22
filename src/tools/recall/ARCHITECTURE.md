@@ -59,7 +59,7 @@ Recall 条目不自动切片，也不保存文档 manifest、文件监听状态�
 - `lens`：结合历史向量投射、标签亲和力和空间反转进行扩散式检索。
 - `blender`：融合字面、语义与标签引力信号，并进行残差挖掘和动态权重调整。
 
-底层 `keyword`、`vector`、`lens`、`blender` 保留给 Playground 和调试；产品运行时使用两个 facade：
+底层 `keyword`、`vector`、`lens`、`blender` 只保留给尚未迁移的局部管理搜索、迁移夹具和删除前诊断。旧 facade 为：
 
 - `semantic`：复用 Vector 引擎，以内容向量为主、标签向量为辅，保持稳定相关性语义。
 - `associative`：扩展 Blender 与 Lens 候选，按 `0.65 / 0.35` 融合字面、内容向量、标签扩散、历史投射和残差信号。
@@ -77,9 +77,9 @@ Recall 条目不自动切片，也不保存文档 manifest、文件监听状态�
 
 `algorithmic` 显示名为“算法召回”，`comprehensive` 显示名为“综合召回”；
 旧 `keyword/vector/lens/blender/semantic/associative` 不属于新预设列表。
-Recall service、Chat 被动召回、Agent tool 和 Agent 配置已通过 pipeline service 使用预设；
-该 service 先编译配置，再按编译结果准备外部产物并执行 Runner。Playground 和旧
-`recall_search` 仍保留 legacy engine 路径，直到后续迁移阶段删除。`comprehensive` 已包含
+Recall service、Chat 被动召回、Agent tool、Agent 配置和 Playground 已通过 pipeline service 使用预设；
+该 service 先编译配置，再按编译结果准备外部产物并执行 Runner。旧 `recall_search` 仍为
+少量管理页局部搜索和迁移测试保留，直到 Phase 6 删除。`comprehensive` 已包含
 关键词、内容向量与原子标签图模块，并复用同一请求的查询向量 bundle：`tag-vector-recall`
 输出标签种子，`bounded-tag-propagation` 生成受限的查询能量场，`tag-to-entry-expansion`
 输出 `tag-graph` 候选。当前稳定预设不包含查询残差标签扩展，也不以标签上下文改写
@@ -93,6 +93,12 @@ schema；全局预设变更后调用同一 compiler 获取 external requirements
 活动 Embedding 模型执行 capability 预检。预检使用请求序号隔离异步结果，较早的 compile
 响应不能覆盖较新的预设或 limit。该预检只判断编辑期可知的全局模型路由；条目向量、标签池
 等集合相关资产仍由实际运行的 prepare 阶段校验和准备。
+
+Playground 使用 `useRetrievalPipelineRun` 执行 `idle -> compiling -> ready -> preparing ->
+running -> outcome` 状态机。controller 只接受与当前 `runId + configHash` 一致的响应；新运行
+或取消会提升本地世代，较晚返回的旧 compile/run 结果不会覆盖当前槽位。工作面固定比较两个
+产品预设，支持多查询批量回放、阶段摘要和完整 trace；槽位模型选择、legacy engine 参数、
+覆盖率交互和运行结果持久化已删除。自定义阶段模块编辑仍等待独立的受限 pipeline IPC。
 
 完整的稳定契约见
 `docs/architecture/retrieval-pipeline-contract.md`；当前施工状态见

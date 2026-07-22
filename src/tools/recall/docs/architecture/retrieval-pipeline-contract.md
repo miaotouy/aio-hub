@@ -59,8 +59,8 @@
 
 ## Legacy 调用与删除门槛
 
-- `recall_search`、legacy registry 和 Monitor 的旧 engine metadata 在 Playground 完成迁移前保留，不得继续扩展产品能力。
-- Playground 迁移时保留 slot 配置，将 `engineId` 转换为 `presetId`，并清理持久化的 results、trace 和运行状态。
+- `recall_search`、legacy registry 和 Monitor 的旧 engine metadata 只为尚未迁移的管理页局部搜索、迁移夹具和删除前诊断保留，不得继续扩展产品能力。
+- Playground workspace 只保留集合、查询和 `presetId / limit`；legacy migration 将 `engineId` 转换为 `presetId`，并使旧 config、results、trace 和运行状态失效。
 - service、管理页搜索、Chat processor 和 Agent tool 必须统一经过 pipeline service；后台 Chat 路径不得弹出交互式模型或覆盖率对话框。
 - Agent settings、binding、占位符和工具参数只保留版本化 legacy read；新写入只能使用 `defaultPresetId`、`presetId` 和 `preset`。
 - legacy 检索缓存不转换到新缓存空间。删除 registry 前必须再次扫描动态调用、workspace 和测试夹具；迁移层以外仍有消费者时不得执行 Phase 6 删除。

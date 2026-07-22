@@ -133,32 +133,44 @@ function semanticDifferences(legacyId: string): string[] {
   return differences;
 }
 
-function migratePlaygroundSlots(
-  slots: unknown[]
-): {
+function migratePlaygroundSlots(slots: unknown[]): {
   slots: unknown[];
   presetIds: RecallPresetId[];
   unknownIds: string[];
   invalidatedResults: boolean;
+  invalidatedConfig: boolean;
 } {
   const presetIds = new Set<RecallPresetId>();
   const unknownIds: string[] = [];
   let invalidatedResults = false;
+  let invalidatedConfig = false;
   const migratedSlots = slots.map((slot) => {
     if (!slot || typeof slot !== "object" || Array.isArray(slot)) {
       unknownIds.push("<invalid-slot>");
       return slot;
     }
     const record = slot as Record<string, unknown>;
-    const engineId = typeof record.engineId === "string" ? record.engineId : undefined;
-    const presetId = engineId ? LEGACY_RETRIEVAL_PRESET_MAP[engineId] : undefined;
+    const engineId =
+      typeof record.engineId === "string" ? record.engineId : undefined;
+    const presetId = engineId
+      ? LEGACY_RETRIEVAL_PRESET_MAP[engineId]
+      : undefined;
     if (!presetId) unknownIds.push(engineId ?? "<missing-engineId>");
     else presetIds.add(presetId);
     if ("results" in record) invalidatedResults = true;
-    const { engineId: _engineId, results: _results, ...rest } = record;
+    if ("config" in record) invalidatedConfig = true;
+    const config =
+      record.config && typeof record.config === "object"
+        ? (record.config as Record<string, unknown>)
+        : undefined;
+    const rawLimit = record.limit ?? config?.limit;
     return {
-      ...rest,
+      ...(typeof record.id === "string" ? { id: record.id } : {}),
       ...(presetId ? { presetId } : {}),
+      limit:
+        typeof rawLimit === "number" && Number.isFinite(rawLimit)
+          ? Math.min(100, Math.max(1, Math.trunc(rawLimit)))
+          : 6,
     };
   });
   return {
@@ -166,6 +178,7 @@ function migratePlaygroundSlots(
     presetIds: [...presetIds],
     unknownIds,
     invalidatedResults,
+    invalidatedConfig,
   };
 }
 
@@ -210,6 +223,7 @@ export function migrateLegacyRetrievalSelection(
     }
     preservedFields.slots = migrated.slots;
     if (migrated.invalidatedResults) invalidatedFields.push("slots[].results");
+    if (migrated.invalidatedConfig) invalidatedFields.push("slots[].config");
     if (migrated.unknownIds.length > 0) {
       return {
         migrationVersion: RECALL_PIPELINE_MIGRATION_VERSION,
@@ -234,7 +248,8 @@ export function migrateLegacyRetrievalSelection(
       };
     }
     for (const key of Object.keys(input.fields)) {
-      if (!preserved.has(key) && !invalidated.has(key)) discardedFields.push(key);
+      if (!preserved.has(key) && !invalidated.has(key))
+        discardedFields.push(key);
     }
     return {
       migrationVersion: RECALL_PIPELINE_MIGRATION_VERSION,

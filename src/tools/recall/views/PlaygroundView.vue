@@ -2,479 +2,425 @@
   Copyright 2025-2026 miaotouy(Github@miaotouy)
 
   Licensed under the Apache License, Version 2.0 (the "License");
-  you may not use this file except in compliance with the License.
-  You may obtain a copy of the License at
-
-      http://www.apache.org/licenses/LICENSE-2.0
-
-  Unless required by applicable law or agreed to in writing, software
-  distributed under the License is distributed on an "AS IS" BASIS,
-  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  See the License for the specific language governing permissions and
-  limitations under the License.
 -->
 
-<template>
-  <div class="playground-view" data-testid="recall-playground">
-    <div class="lab-header">
-      <div class="header-controls">
-        <div class="control-group">
-          <span class="label">目标思绪集</span>
-          <el-select
-            v-model="selectedRecallIds"
-            multiple
-            collapse-tags
-            collapse-tags-tooltip
-            placeholder="选择思绪集"
-            style="width: 240px"
-            data-testid="recall-search-collections"
-            :data-recall-ids="selectedRecallIds.join(',') || undefined"
-          >
-            <el-option
-              v-for="base in recallStore.bases"
-              :key="base.id"
-              :label="base.name"
-              :value="base.id"
-              data-testid="recall-search-collection-option"
-              :data-recall-id="base.id"
-            />
-          </el-select>
-        </div>
-
-        <div class="control-group">
-          <span class="label">全局查询</span>
-          <el-input
-            v-model="globalQuery"
-            placeholder="同步到所有槽位..."
-            clearable
-            style="width: 300px"
-            data-testid="recall-search-query"
-            @keyup.enter="syncAndSearchAll"
-          >
-            <template #append>
-              <el-button
-                data-testid="recall-search-submit"
-                @click="syncAndSearchAll"
-                >全量检索</el-button
-              >
-            </template>
-          </el-input>
-        </div>
-
-        <div class="spacer"></div>
-
-        <el-button
-          type="primary"
-          plain
-          @click="addSlot"
-          :disabled="slots.length >= 4"
-        >
-          <Plus :size="16" style="margin-right: 4px" />
-          添加对比槽位
-        </el-button>
-      </div>
-    </div>
-
-    <div class="lab-content">
-      <div class="slots-container" :class="`cols-${slots.length}`">
-        <SearchSlot
-          v-for="slot in slots"
-          :key="slot.id"
-          :ref="(el) => (slotRefs[slot.id] = el)"
-          :selected-recall-ids="selectedRecallIds"
-          :can-remove="slots.length > 1"
-          :shared-result-ids="sharedResultIds"
-          :query-text="globalQuery"
-          :initial-engine-id="slot.engineId"
-          :initial-config="slot.config"
-          :initial-results="slot.results"
-          @remove="removeSlot(slot.id)"
-          @results-updated="
-            (results: RecallResult[]) => updateSlotResults(slot.id, results)
-          "
-          @select="handleSelect"
-          @update:engine-id="(val) => (slot.engineId = val)"
-          @update:config="(val) => (slot.config = val)"
-        />
-      </div>
-    </div>
-
-    <VectorCoverageDialog ref="coverageDialog" />
-    <RecallResultDetailDialog ref="resultDetailDialog" />
-
-    <div v-if="slots.length > 1" class="lab-footer">
-      <div class="stats-bar">
-        <div class="stat-item">
-          <span class="label">对比槽位:</span>
-          <span class="value">{{ slots.length }}</span>
-        </div>
-        <div class="stat-item">
-          <span class="label">共同命中:</span>
-          <span class="value">{{ sharedResultIds.size }}</span>
-        </div>
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from "vue";
-import { Plus } from "lucide-vue-next";
-import { invoke } from "@tauri-apps/api/core";
-import { useRecallCollectionStore } from "../stores/recallCollectionStore";
-import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { useRecallVectorSync } from "../composables/useRecallVectorSync";
-import { getPureModelId, parseModelCombo } from "@/utils/modelIdUtils";
-import SearchSlot from "../components/SearchSlot.vue";
-import VectorCoverageDialog, {
-  BatchCoverageItem,
-} from "../components/VectorCoverageDialog.vue";
-import RecallResultDetailDialog from "../components/RecallResultDetailDialog.vue";
-import { RecallResult } from "../types/search";
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import { Play, Rows3 } from "lucide-vue-next";
+import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/customMessage";
-
-const recallStore = useRecallCollectionStore();
-const { enabledProfiles } = useLlmProfiles();
-const vectorSync = useRecallVectorSync();
+import SearchSlot from "../components/SearchSlot.vue";
+import RecallResultDetailDialog from "../components/RecallResultDetailDialog.vue";
+import { LEGACY_RETRIEVAL_PRESET_MAP } from "../core/retrievalPipelineMigration";
+import { listRetrievalPresets } from "../services/retrievalPipeline";
+import { useRecallCollectionStore } from "../stores/recallCollectionStore";
+import type { RecallPresetId, RecallPresetSummary } from "../types/pipeline";
+import type { RecallResult } from "../types/search";
 
 interface SlotData {
   id: string;
+  presetId: RecallPresetId;
+  limit: number;
   results: RecallResult[];
-  engineId?: string;
-  config?: {
-    embeddingModel: string;
-    [key: string]: any;
-  };
 }
 
+interface BatchReplayRow {
+  query: string;
+  runs: Array<{
+    presetId: RecallPresetId;
+    outcome: string;
+    resultCount: number;
+  }>;
+}
+
+const logger = createModuleLogger("recall/playground");
+const recallStore = useRecallCollectionStore();
+const presetSummaries = ref<RecallPresetSummary[]>([]);
 const selectedRecallIds = ref<string[]>([]);
 const globalQuery = ref("");
+const replayQueries = ref("");
+const runningAll = ref(false);
+const runningBatch = ref(false);
 const slots = reactive<SlotData[]>([]);
-const slotRefs = ref<Record<string, any>>({});
-const coverageDialog = ref<any>(null);
-const resultDetailDialog = ref<any>(null);
+const slotRefs = ref<
+  Record<string, { search: (query: string) => Promise<any> }>
+>({});
+const batchRows = ref<BatchReplayRow[]>([]);
+const resultDetailDialog = ref<InstanceType<
+  typeof RecallResultDetailDialog
+> | null>(null);
 
-onMounted(async () => {
-  if (recallStore.engines.length === 0) {
-    await recallStore.loadEngines();
-  }
-
-  // 尝试从持久化配置中恢复
-  const saved = recallStore.config.playground;
-  if (saved && saved.slots.length > 0) {
-    selectedRecallIds.value = [...saved.selectedRecallIds];
-    globalQuery.value = saved.globalQuery;
-    slots.push(
-      ...saved.slots.map((s) => ({
-        id: s.id,
-        results: s.results ? [...s.results] : [],
-        engineId: s.engineId,
-        config: { ...s.config },
-      }))
-    );
-  } else {
-    // 默认初始化
-    // 默认选中当前激活的库
-    if (recallStore.activeBaseId) {
-      selectedRecallIds.value = [recallStore.activeBaseId];
-    } else if (recallStore.bases.length > 0) {
-      selectedRecallIds.value = [recallStore.bases[0].id];
-    }
-    slots.push({ id: crypto.randomUUID(), results: [] });
-  }
-});
-
-// 深度监听并保存
-watch(
-  [selectedRecallIds, globalQuery, slots],
-  () => {
-    // 提取需要持久化的槽位配置
-    const slotConfigs = slots.map((s) => {
-      return {
-        id: s.id,
-        engineId: s.engineId ?? "keyword",
-        config: s.config
-          ? { ...s.config }
-          : {
-              embeddingModel: recallStore.config.defaultEmbeddingModel || "",
-              ...recallStore.config.vectorIndex,
-            },
-        results: [...s.results],
-      };
-    });
-
-    recallStore.config.playground = {
-      selectedRecallIds: [...selectedRecallIds.value],
-      globalQuery: globalQuery.value,
-      slots: slotConfigs,
-    };
-    recallStore.saveWorkspace();
-  },
-  { deep: true }
-);
-
-function addSlot() {
-  if (slots.length >= 4) return;
-  slots.push({ id: crypto.randomUUID(), results: [] });
-}
-
-function removeSlot(id: string) {
-  const index = slots.findIndex((s) => s.id === id);
-  if (index !== -1) {
-    slots.splice(index, 1);
-    delete slotRefs.value[id];
-  }
-}
-
-function updateSlotResults(id: string, results: RecallResult[]) {
-  const slot = slots.find((s) => s.id === id);
-  if (slot) {
-    slot.results = results;
-  }
-}
-
-async function syncAndSearchAll() {
-  if (!globalQuery.value.trim()) return;
-  if (selectedRecallIds.value.length === 0) {
-    customMessage.warning("请先选择思绪集");
-    return;
-  }
-
-  // 1. 汇总所有槽位的覆盖率检查需求
-  const checkTasks: { modelId: string; slotId: string }[] = [];
-  const activeSlots = Object.entries(slotRefs.value)
-    .filter(([_, el]) => el && el.isVectorEngine && el.config.embeddingModel)
-    .map(([id, el]) => ({ id, el }));
-  for (const { id, el } of activeSlots) {
-    const modelId = getPureModelId(el.config.embeddingModel);
-    checkTasks.push({ modelId, slotId: id });
-  }
-
-  // 2. 批量检查
-  if (checkTasks.length > 0) {
-    const batchItems: BatchCoverageItem[] = [];
-
-    // 按模型分组检查，避免重复请求后端
-    const modelToSlots = new Map<string, string[]>();
-    checkTasks.forEach((t) => {
-      const slots = modelToSlots.get(t.modelId) || [];
-      slots.push(t.slotId);
-      modelToSlots.set(t.modelId, slots);
-    });
-
-    for (const [modelId] of modelToSlots) {
-      const coverage = await invoke<any>("recall_check_vector_coverage", {
-        recallIds: selectedRecallIds.value,
-        modelId: modelId,
-      });
-
-      if (coverage.missingEntries > 0) {
-        batchItems.push({
-          modelName: modelId,
-          recallNames: selectedRecallIds.value.map(
-            (id) => recallStore.bases.find((b) => b.id === id)?.name || id
-          ),
-          missingEntries: coverage.missingEntries,
-          missingMap: coverage.missingMap,
-        });
-      }
-    }
-
-    // 3. 统一弹窗
-    if (batchItems.length > 0) {
-      const action = await coverageDialog.value.show(batchItems);
-      if (action === "cancel") return;
-
-      if (action === "fill") {
-        // 依次执行补全
-        for (const item of batchItems) {
-          // 找到对应的 Profile
-          const slotWithThisModel = activeSlots.find((s) =>
-            s.el.config.embeddingModel.endsWith(item.modelName)
-          );
-          if (slotWithThisModel) {
-            const [profileId] = parseModelCombo(
-              slotWithThisModel.el.config.embeddingModel
-            );
-            const profile = enabledProfiles.value.find(
-              (p) => p.id === profileId
-            );
-            if (profile) {
-              // 收集需要补全的条目 ID
-              const entryIds: string[] = [];
-              for (const ids of Object.values(item.missingMap)) {
-                entryIds.push(...(ids as string[]));
-              }
-
-              // 使用 vectorSync 的 updateVectors 方法
-              if (entryIds.length > 0) {
-                await vectorSync.updateVectors(
-                  selectedRecallIds.value,
-                  entryIds,
-                  {
-                    customComboId: slotWithThisModel.el.config.embeddingModel,
-                  }
-                );
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // 4. 触发搜索
-  Object.values(slotRefs.value).forEach((slot: any) => {
-    if (slot) {
-      slot.search(globalQuery.value, { skipCoverageCheck: true });
-    }
-  });
-}
-
-// 计算共同命中的结果 ID
 const sharedResultIds = computed(() => {
   if (slots.length < 2) return new Set<string>();
-
-  // 统计每个 ID 在多少个槽位中出现
   const counts = new Map<string, number>();
-  slots.forEach((slot) => {
-    const seenInThisSlot = new Set(slot.results.map((r) => r.entry.id));
-    seenInThisSlot.forEach((id) => {
-      counts.set(id, (counts.get(id) || 0) + 1);
-    });
-  });
-
-  // 只有在所有非空槽位中都出现的才算共同命中
-  const activeSlotsCount = slots.filter((s) => s.results.length > 0).length;
-  if (activeSlotsCount < 2) return new Set<string>();
-
-  const shared = new Set<string>();
-  counts.forEach((count, id) => {
-    if (count === activeSlotsCount) {
-      shared.add(id);
+  for (const slot of slots) {
+    for (const id of new Set(slot.results.map((result) => result.entry.id))) {
+      counts.set(id, (counts.get(id) ?? 0) + 1);
     }
-  });
-  return shared;
+  }
+  return new Set(
+    [...counts.entries()]
+      .filter(([, count]) => count === slots.length)
+      .map(([id]) => id)
+  );
 });
+
+function defaultSlots(): SlotData[] {
+  return [
+    {
+      id: crypto.randomUUID(),
+      presetId: "algorithmic",
+      limit: 6,
+      results: [],
+    },
+    {
+      id: crypto.randomUUID(),
+      presetId: "comprehensive",
+      limit: 6,
+      results: [],
+    },
+  ];
+}
+
+function restoreSlots(saved: unknown): SlotData[] {
+  if (!Array.isArray(saved)) return defaultSlots();
+  const restored = saved.flatMap((value) => {
+    if (!value || typeof value !== "object") return [];
+    const record = value as Record<string, unknown>;
+    const presetId =
+      record.presetId === "algorithmic" || record.presetId === "comprehensive"
+        ? record.presetId
+        : typeof record.engineId === "string"
+          ? LEGACY_RETRIEVAL_PRESET_MAP[record.engineId]
+          : undefined;
+    if (!presetId) return [];
+    const legacyConfig =
+      record.config && typeof record.config === "object"
+        ? (record.config as Record<string, unknown>)
+        : undefined;
+    const rawLimit = record.limit ?? legacyConfig?.limit;
+    return [
+      {
+        id: typeof record.id === "string" ? record.id : crypto.randomUUID(),
+        presetId,
+        limit:
+          typeof rawLimit === "number" && Number.isFinite(rawLimit)
+            ? Math.min(100, Math.max(1, Math.trunc(rawLimit)))
+            : 6,
+        results: [],
+      } satisfies SlotData,
+    ];
+  });
+  if (!restored.length) return defaultSlots();
+  if (restored.length === 1) {
+    restored.push({
+      id: crypto.randomUUID(),
+      presetId:
+        restored[0].presetId === "algorithmic"
+          ? "comprehensive"
+          : "algorithmic",
+      limit: restored[0].limit,
+      results: [],
+    });
+  }
+  return restored.slice(0, 2);
+}
+
+async function runQuery(query: string) {
+  if (!query.trim()) return [];
+  if (!selectedRecallIds.value.length) {
+    customMessage.warning("请先选择思绪集");
+    return [];
+  }
+  return Promise.all(
+    slots.map((slot) => slotRefs.value[slot.id]?.search(query) ?? null)
+  );
+}
+
+async function runAll() {
+  runningAll.value = true;
+  try {
+    await runQuery(globalQuery.value);
+  } finally {
+    runningAll.value = false;
+  }
+}
+
+async function replayBatch() {
+  const queries = replayQueries.value
+    .split(/\r?\n/)
+    .map((query) => query.trim())
+    .filter(Boolean);
+  if (!queries.length) return;
+  runningBatch.value = true;
+  batchRows.value = [];
+  try {
+    for (const query of queries) {
+      const snapshots = await runQuery(query);
+      batchRows.value.push({
+        query,
+        runs: slots.map((slot, index) => ({
+          presetId: slot.presetId,
+          outcome: snapshots[index]?.outcome ?? "failed",
+          resultCount: snapshots[index]?.results?.length ?? 0,
+        })),
+      });
+    }
+  } finally {
+    runningBatch.value = false;
+  }
+}
+
+function updateSlotConfig(
+  slot: SlotData,
+  value: { presetId: RecallPresetId; limit: number }
+) {
+  slot.presetId = value.presetId;
+  slot.limit = value.limit;
+  slot.results = [];
+}
 
 function handleSelect(result: RecallResult) {
   resultDetailDialog.value?.show(result);
 }
+
+watch(
+  [selectedRecallIds, globalQuery, slots],
+  () => {
+    recallStore.config.playground = {
+      selectedRecallIds: [...selectedRecallIds.value],
+      globalQuery: globalQuery.value,
+      slots: slots.map((slot) => ({
+        id: slot.id,
+        presetId: slot.presetId,
+        limit: slot.limit,
+      })),
+    };
+    recallStore.saveWorkspaceDebounced();
+  },
+  { deep: true }
+);
+
+onMounted(async () => {
+  try {
+    presetSummaries.value = (await listRetrievalPresets()).filter(
+      (summary) => summary.visibility === "product"
+    );
+  } catch (error) {
+    logger.error("读取 Playground 预设失败", error);
+  }
+
+  const saved = recallStore.config.playground as unknown as
+    Record<string, unknown> | undefined;
+  selectedRecallIds.value = Array.isArray(saved?.selectedRecallIds)
+    ? (saved.selectedRecallIds.filter(
+        (id): id is string => typeof id === "string"
+      ) as string[])
+    : recallStore.activeBaseId
+      ? [recallStore.activeBaseId]
+      : recallStore.bases[0]
+        ? [recallStore.bases[0].id]
+        : [];
+  globalQuery.value =
+    typeof saved?.globalQuery === "string" ? saved.globalQuery : "";
+  slots.push(...restoreSlots(saved?.slots));
+});
 </script>
+
+<template>
+  <main class="playground-view" data-testid="recall-playground">
+    <header class="workbench-header">
+      <div class="header-field collections-field">
+        <span>目标思绪集</span>
+        <el-select
+          v-model="selectedRecallIds"
+          multiple
+          collapse-tags
+          collapse-tags-tooltip
+          data-testid="recall-search-collections"
+        >
+          <el-option
+            v-for="base in recallStore.bases"
+            :key="base.id"
+            :label="base.name"
+            :value="base.id"
+          />
+        </el-select>
+      </div>
+      <div class="header-field query-field">
+        <span>查询</span>
+        <el-input
+          v-model="globalQuery"
+          clearable
+          data-testid="recall-search-query"
+          @keyup.enter="runAll"
+        />
+      </div>
+      <el-button
+        type="primary"
+        :icon="Play"
+        :loading="runningAll"
+        data-testid="recall-search-submit"
+        @click="runAll"
+      >
+        运行双配置
+      </el-button>
+    </header>
+
+    <section class="slots-grid">
+      <SearchSlot
+        v-for="slot in slots"
+        :key="slot.id"
+        :ref="(element: any) => (slotRefs[slot.id] = element)"
+        :selected-recall-ids="selectedRecallIds"
+        :can-remove="false"
+        :shared-result-ids="sharedResultIds"
+        :preset-summaries="presetSummaries"
+        :query-text="globalQuery"
+        :initial-preset-id="slot.presetId"
+        :initial-limit="slot.limit"
+        @results-updated="(results) => (slot.results = results)"
+        @update:config="(value) => updateSlotConfig(slot, value)"
+        @select="handleSelect"
+      />
+    </section>
+
+    <section class="batch-panel">
+      <header>
+        <div>
+          <Rows3 :size="16" />
+          <strong>批量回放</strong>
+        </div>
+        <el-button :loading="runningBatch" @click="replayBatch">
+          运行批次
+        </el-button>
+      </header>
+      <el-input v-model="replayQueries" type="textarea" :rows="4" />
+      <div v-if="batchRows.length" class="batch-results">
+        <div v-for="row in batchRows" :key="row.query" class="batch-row">
+          <span class="batch-query">{{ row.query }}</span>
+          <span v-for="run in row.runs" :key="run.presetId">
+            {{ run.presetId }} · {{ run.outcome }} · {{ run.resultCount }}
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <RecallResultDetailDialog ref="resultDetailDialog" />
+  </main>
+</template>
 
 <style scoped>
 .playground-view {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  padding: 16px;
-  gap: 16px;
-  background-color: var(--main-bg);
-  box-sizing: border-box;
-}
-
-.lab-header {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto minmax(440px, 1fr) auto;
   gap: 12px;
-  box-sizing: border-box;
-}
-
-.header-main .title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 20px;
-  font-weight: bold;
+  height: 100%;
+  min-height: 0;
+  padding: 12px;
   color: var(--el-text-color-primary);
 }
 
-.header-main .subtitle {
-  font-size: 14px;
+.workbench-header,
+.header-field,
+.batch-panel header,
+.batch-panel header div,
+.batch-row {
+  display: flex;
+  align-items: center;
+}
+
+.workbench-header {
+  gap: 14px;
+  padding: 10px 12px;
+  border-bottom: var(--border-width) solid var(--border-color);
+}
+
+.header-field {
+  gap: 8px;
+}
+
+.header-field > span {
+  flex: 0 0 auto;
   color: var(--el-text-color-secondary);
-  margin-top: 4px;
-}
-
-.header-controls {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  padding: 10px 16px;
-  background-color: var(--card-bg);
-  border: var(--border-width) solid var(--border-color);
-  border-radius: 12px;
-  box-sizing: border-box;
-}
-
-.control-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.control-group .label {
   font-size: 12px;
-  font-weight: bold;
-  color: var(--el-text-color-secondary);
-  text-transform: uppercase;
-  white-space: nowrap;
 }
 
-.spacer {
+.collections-field {
+  width: min(34%, 360px);
+}
+
+.collections-field :deep(.el-select),
+.query-field :deep(.el-input) {
+  width: 100%;
+}
+
+.query-field {
+  min-width: 240px;
   flex: 1;
 }
 
-.lab-content {
-  flex: 1;
-  min-height: 0;
-}
-
-.slots-container {
+.slots-grid {
   display: grid;
-  height: 100%;
-  gap: 16px;
-  box-sizing: border-box;
-}
-
-.slots-container.cols-1 {
-  grid-template-columns: 1fr;
-}
-.slots-container.cols-2 {
-  grid-template-columns: 1fr 1fr;
-}
-.slots-container.cols-3 {
-  grid-template-columns: 1fr 1fr 1fr;
-}
-.slots-container.cols-4 {
-  grid-template-columns: 1fr 1fr 1fr 1fr;
-}
-
-.lab-footer {
-  flex-shrink: 0;
-  padding: 8px 16px;
-  background-color: var(--card-bg);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-height: 0;
+  overflow: hidden;
   border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
 }
 
-.stats-bar {
-  display: flex;
-  gap: 20px;
+.batch-panel {
+  padding: 12px;
+  border-top: var(--border-width) solid var(--border-color);
 }
 
-.stat-item {
-  display: flex;
-  gap: 8px;
-  font-size: 12px;
+.batch-panel header {
+  justify-content: space-between;
+  margin-bottom: 8px;
 }
 
-.stat-item .label {
-  color: var(--el-text-color-secondary);
+.batch-panel header div {
+  gap: 7px;
 }
 
-.stat-item .value {
-  font-weight: bold;
-  color: var(--el-color-primary);
+.batch-results {
+  max-height: 180px;
+  margin-top: 10px;
+  overflow: auto;
+}
+
+.batch-row {
+  min-height: 32px;
+  gap: 14px;
+  border-bottom: var(--border-width) solid var(--border-color);
+  font-size: 11px;
+}
+
+.batch-query {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 980px) {
+  .playground-view {
+    height: auto;
+  }
+
+  .workbench-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .collections-field,
+  .query-field {
+    width: 100%;
+  }
+
+  .slots-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

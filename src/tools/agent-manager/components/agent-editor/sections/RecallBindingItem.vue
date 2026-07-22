@@ -47,6 +47,18 @@ const modeLabel = computed(() => {
 });
 
 const macroRef = computed(() => `{{recall::${props.binding.recallId}}}`);
+const presetLabel = computed(() =>
+  props.binding.presetId === "algorithmic"
+    ? "算法召回"
+    : props.binding.presetId === "comprehensive"
+      ? "综合召回"
+      : "继承全局预设"
+);
+
+const setPreset = (presetId: RecallBinding["presetId"] | undefined) => {
+  props.binding.presetId = presetId;
+  delete props.binding.profile;
+};
 </script>
 
 <template>
@@ -67,6 +79,7 @@ const macroRef = computed(() => `{{recall::${props.binding.recallId}}}`);
         <div class="kb-info">
           <span class="kb-name">{{ binding.recallName }}</span>
           <span class="kb-mode-tag">{{ modeLabel }}</span>
+          <span class="kb-mode-tag">{{ presetLabel }}</span>
         </div>
       </div>
       <div class="kb-item-right" @click.stop>
@@ -91,6 +104,19 @@ const macroRef = computed(() => `{{recall::${props.binding.recallId}}}`);
               <el-option label="标签门控 (gate)" value="gate" />
               <el-option label="轮次常驻 (turn)" value="turn" />
               <el-option label="静态注入 (static)" value="static" />
+            </el-select>
+          </el-form-item>
+
+          <el-form-item label="检索预设">
+            <el-select
+              :model-value="binding.presetId"
+              clearable
+              placeholder="继承全局预设"
+              style="width: 100%"
+              @update:model-value="setPreset"
+            >
+              <el-option label="算法召回" value="algorithmic" />
+              <el-option label="综合召回" value="comprehensive" />
             </el-select>
           </el-form-item>
 

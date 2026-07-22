@@ -176,8 +176,8 @@ export interface SearchEntriesOptions {
 
   /** 搜索查询 */
   query: string;
-  /** 检索引擎（可选，默认 keyword） */
-  engineId?: string;
+  /** 产品检索预设（默认 algorithmic）；engineId 仅供 legacy parser 读取。 */
+  presetId?: "algorithmic" | "comprehensive";
   /** 返回结果数量（可选，默认 10） */
   limit?: number;
   /** 最小分数阈值（可选） */

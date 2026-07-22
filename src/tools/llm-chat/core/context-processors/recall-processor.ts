@@ -161,6 +161,7 @@ export class RecallProcessor implements ContextProcessor {
         const raw = generated.map((binding) =>
           serializeRecallPlaceholder({
             collection: binding.recallId,
+            preset: binding.presetId,
             profile: binding.profile,
             limit: binding.limit,
             minScore: binding.minScore,
@@ -216,13 +217,22 @@ export class RecallProcessor implements ContextProcessor {
           (placeholder.everyTurns
             ? [String(placeholder.everyTurns)]
             : placeholder.entries),
-        profile: placeholder.profile ?? settings?.defaultProfile ?? "semantic",
+        presetId:
+          placeholder.preset ??
+          (placeholder.profile === "semantic" ||
+          placeholder.profile === "associative"
+            ? "comprehensive"
+            : undefined) ??
+          settings?.defaultPresetId ??
+          "comprehensive",
+        profile: placeholder.profile,
         userText,
         aiText,
         turnCount,
         recentMessageTexts,
         settings: {
           defaultProfile: settings?.defaultProfile ?? "semantic",
+          defaultPresetId: settings?.defaultPresetId ?? "comprehensive",
           defaultLimit: settings?.defaultLimit,
           defaultMinScore: settings?.defaultMinScore,
           maxRecallChars: settings?.maxRecallChars,

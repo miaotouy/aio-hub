@@ -58,7 +58,7 @@ ensureConfig();
 // 初始化 Recall 设置；旧版字段只在迁移阶段收敛，这里不创建 Knowledge 配置。
 if (!editForm.recallSettings) {
   editForm.recallSettings = {
-    defaultProfile: "semantic",
+    defaultPresetId: "comprehensive",
     defaultLimit: 5,
     maxRecallChars: 0,
     defaultMinScore: 0.3,
@@ -170,23 +170,23 @@ const toggleBinding = (recallId: string, enabled: boolean) => {
 // Recall 高级设置（与 Knowledge 检索和权限完全独立）
 const recallAdvancedSettings = computed<SettingItem[]>(() => [
   {
-    id: "recallDefaultProfile",
+    id: "recallDefaultPreset",
     label: "默认召回配置",
     component: "ElSelect",
-    modelPath: "recallSettings.defaultProfile",
-    hint: "semantic 用于稳定语义检索，associative 用于联想式多信号召回。",
-    keywords: "recall profile 思绪 召回 配置",
+    modelPath: "recallSettings.defaultPresetId",
+    hint: "算法召回不请求查询向量；综合召回会复用一次准备好的查询向量。",
+    keywords: "recall preset 思绪 召回 预设",
     props: { style: { width: "100%" } },
     options: () => [
       {
-        label: "语义 (semantic)",
-        value: "semantic",
-        description: "稳定的语义相关性召回",
+        label: "算法召回 (algorithmic)",
+        value: "algorithmic",
+        description: "低成本、确定性且不请求查询向量",
       },
       {
-        label: "联想 (associative)",
-        value: "associative",
-        description: "标签和多信号的联想式召回",
+        label: "综合召回 (comprehensive)",
+        value: "comprehensive",
+        description: "融合关键词、内容向量、标签和关联信号",
       },
     ],
     groupCollapsible: {

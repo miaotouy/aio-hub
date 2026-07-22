@@ -1,6 +1,6 @@
 # Recall 检索管线模块化设计与实施计划
 
-**状态**: Phase 0、Phase 1 已完成；Phase 2 已落地纯算法生产模块；Phase 3 已落地内容/标签/Lens 候选；Phase 4 comprehensive 固定预设已可通过 bundle IPC 执行
+**状态**: Phase 0、Phase 1 已完成；Phase 2 已落地纯算法生产模块；Phase 3 已落地内容/标签/Lens 候选；Phase 4 comprehensive 固定预设已可通过 bundle IPC 执行；Phase 5 已接入 Recall service、Chat 与 Agent 的预设和缓存链路
 **创建日期**: 2026-07-20
 **最近修订**: 2026-07-22
 **适用范围**: `src/tools/recall/`、`src-tauri/src/recall/`、Recall Playground、Agent Recall 配置、Recall Chat 召回入口
@@ -27,6 +27,8 @@
 > **2026-07-22 Phase 3 施工进度**：`content-vector-recall` 与 `tag-vector-recall` 已注册为独立生产模块，二者复用同一请求的 query embedding 和带 model/space identity 的不可变 bundle；缺失 Embedding 产物会返回 `external-requirement-missing`，模型不匹配的内容向量矩阵不会进入候选。Lens 的历史投射、折射和标签图传播仍在 legacy engine 中，尚未接入 `comprehensive`。
 >
 > **2026-07-22 Phase 4 施工进度**：Lens 原始能量已抽为 entry ID/raw score helper 并注册 `lens-association-recall`；`comprehensive` 固定管线复用 keyword/content-vector/tag-vector/Lens 四路候选，经统一归一化、显式加权融合、priority、公共过滤和 finalizer 输出。编译后只声明一个共享 query embedding requirement；真实 Tauri `recall-pipeline` lane 已用预生成 bundle 验证四路 trace、bundle identity 和零重复 Embedding 请求。当前权重仅作为版本化工程默认值，不宣称质量优于 legacy profile。
+>
+> **2026-07-22 Phase 5 接线进度**：Recall service、Chat 被动召回、Agent tool metadata 和 Agent 预设配置均使用 `presetId`；legacy `engineId` / `profile` 只在版本化迁移或兼容解析时转换。service 先编译管线，以 `presetId + configHash + algorithmVersion + embeddingIdentity` 查询缓存；未命中时复用同一次编译运行，`comprehensive` 仅生成一次主/次查询融合向量 bundle，`algorithmic` 不解析模型。Playground、Monitor、fallback 和旧 engine 运行时删除仍属于后续工作。
 >
 > 已可直接复用的测试前置资产包括：
 >
@@ -765,15 +767,15 @@ idle
 
 ### Phase 5：产品接入与迁移收口
 
-- [ ] Recall service、Chat processor、Agent tool metadata、设置页和 Agent 配置改用 preset ID。
+- [x] Recall service、Chat processor、Agent tool metadata、设置页和 Agent 配置改用 preset ID。
 - [ ] Agent 编辑器实现全局预设、绑定级继承/覆盖、allowed overrides 和 capability 预检；Chat 后台执行不得弹交互对话框。
-- [ ] 冻结新占位符预设参数名（建议 `preset`），旧 `profile` 由 legacy parser 映射；旧 Agent 配置和 `engineId` 通过版本化迁移转换，并输出包含字段取舍与算法语义差异的结构化报告。
+- [x] 冻结新占位符预设参数名 `preset`，旧 `profile` 由 legacy parser 映射；旧 Agent 配置和 `engineId` 通过版本化迁移转换，并输出包含字段取舍与算法语义差异的结构化报告。
 - [ ] UI 只消费编译后的 external requirements 和参数 schema，完成 `idle -> compile -> prepare -> run -> outcome` 状态机与 stale run 防护。
 - [ ] Playground 切换为双配置诊断工作面、阶段模块编辑、工程夹具批量重放、统一 batch run 和 trace 调试界面；界面不输出质量评分或配置优胜结论。
 - [ ] 结果详情与 Monitor 展示 score semantics、信号贡献、requested/actual preset、降级和版本化 trace，并兼容旧 trace。
 - [ ] Playground workspace 不再持久化结果和运行态；确认无动态引用后删除重复/闲置搜索组件和 engine capability 分支。
-- [ ] 缓存 key 切换到 pipeline/config/module version 契约。
-- [ ] 更新 `ARCHITECTURE.md`、工具指南和相关 Chat 文档。
+- [x] 缓存 key 切换到 pipeline/config/module version 契约。
+- [x] 更新 `ARCHITECTURE.md`、工具指南和相关 Chat 文档。
 
 退出门槛：常规产品调用不再发送底层 engine ID；旧用户配置可迁移、问题可定位、迁移前配置有备份可恢复，但不保证恢复旧运行时检索行为；成功、空结果、阻塞、降级、失败和取消在真实 Tauri UI 中可区分。若本阶段同时替换产品默认策略，必须有独立于工程测试的明确产品决策与回滚路径，不能以新旧结果对照报告代替该决策。
 

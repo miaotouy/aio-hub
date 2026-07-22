@@ -24,18 +24,19 @@ describe("Recall placeholder protocol", () => {
   it("serializes in canonical order and round-trips URL encoded values", () => {
     const raw = serializeRecallPlaceholder({
       collection: "collection/1",
-      profile: "semantic",
+      preset: "comprehensive",
       limit: 8,
       minScore: 0.35,
       when: "gate",
       gateTags: ["rust", "async io"],
     });
     expect(raw).toBe(
-      "【recall::collection=collection%2F1::profile=semantic::limit=8::min-score=0.35::when=gate::gate-tags=rust%2Casync%20io】"
+      "【recall::collection=collection%2F1::preset=comprehensive::limit=8::min-score=0.35::when=gate::gate-tags=rust%2Casync%20io】"
     );
     expect(parseRecallPlaceholder(raw, 2)).toMatchObject({
       messageIndex: 2,
       collection: "collection/1",
+      preset: "comprehensive",
       gateTags: ["rust", "async io"],
     });
   });
@@ -44,6 +45,9 @@ describe("Recall placeholder protocol", () => {
     expect(() => parseRecallPlaceholder("【recall::engineId=x】", 0)).toThrow(
       RecallPlaceholderError
     );
+    expect(() =>
+      parseRecallPlaceholder("【recall::preset=vector】", 0)
+    ).toThrow(RecallPlaceholderError);
     expect(() =>
       parseRecallPlaceholder("【recall::limit=3::limit=4】", 1)
     ).toThrow(RecallPlaceholderError);

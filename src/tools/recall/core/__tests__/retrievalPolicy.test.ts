@@ -40,10 +40,11 @@ describe("Recall retrieval policy", () => {
     ]);
   });
 
-  it("uses profiles for product retrieval without leaking a legacy engine", () => {
+  it("uses presets for product retrieval while accepting legacy profiles", () => {
     expect(resolveRetrievalParams(request())).toMatchObject({
       profile: "semantic",
       engineId: undefined,
+      presetId: "comprehensive",
     });
     expect(
       resolveRetrievalParams({ ...request(), profile: "associative" }).profile
@@ -51,6 +52,9 @@ describe("Recall retrieval policy", () => {
     expect(
       resolveRetrievalParams({ ...request(), profile: "associative" })
     ).toMatchObject({ limit: 4, minScore: 0.45 });
+    expect(
+      resolveRetrievalParams({ ...request(), presetId: "algorithmic" }).presetId
+    ).toBe("algorithmic");
   });
 
   it("preserves explicit zero thresholds", () => {

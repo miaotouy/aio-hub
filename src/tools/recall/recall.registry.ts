@@ -37,7 +37,7 @@ const recallBasic: ToolRegistry = {
           name: "searchEntries",
           displayName: "搜索条目",
           description:
-            "在思绪集中搜索条目。支持关键词或向量搜索。结果包含 index 序号方便后续操作引用。",
+            "使用检索预设在思绪集中搜索条目。结果包含 index 序号方便后续操作引用。",
           agentCallable: true,
           parameters: [
             {
@@ -53,9 +53,9 @@ const recallBasic: ToolRegistry = {
               required: true,
             },
             {
-              name: "engineId",
+              name: "presetId",
               type: "string",
-              description: "检索引擎 (keyword/vector)",
+              description: "检索预设 (algorithmic/comprehensive)",
               required: false,
             },
             {

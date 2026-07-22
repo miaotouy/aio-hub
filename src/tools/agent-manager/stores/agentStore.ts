@@ -160,7 +160,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
         worldbookIds: options?.worldbookIds ?? [], // 🌟 补齐
         presetGroups: options?.presetGroups ?? [], // 🌟 补齐
         recallSettings: options?.recallSettings ?? {
-          defaultProfile: "semantic",
+          defaultPresetId: "comprehensive",
         },
         recallConfig: options?.recallConfig ?? {
           enabled: false,

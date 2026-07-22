@@ -18,7 +18,7 @@
  */
 
 import { createModuleLogger } from "@/utils/logger";
-import type { ChatAgent } from "../types/agent";
+import type { ChatAgent, RecallPresetId } from "../types/agent";
 import { DEFAULT_AGENT_EXTENSION_CONFIG } from "../types/agent";
 import { useAnchorRegistry } from "@/tools/llm-chat/composables/ui/useAnchorRegistry";
 import type { ChatMessageNode } from "@/tools/llm-chat/types/message";
@@ -26,7 +26,7 @@ import { normalizeAgentKnowledgeAccess } from "@/tools/knowledge-base/services/a
 
 const logger = createModuleLogger("llm-chat/agentMigrationService");
 
-const RECALL_AGENT_CONFIG_VERSION = 3;
+const RECALL_AGENT_CONFIG_VERSION = 4;
 
 interface LegacyRecallBinding {
   kbId: string;
@@ -142,6 +142,58 @@ function migrateRecallConfiguration(agent: ChatAgent): boolean {
     : legacyAgent.knowledgeSettings;
   const toolConfig = agent.toolCallConfig;
   let changed = false;
+  const addMigrationIssue = (
+    code: "unsupported-legacy-engine" | "unsupported-legacy-profile",
+    field: string,
+    legacyValue: string
+  ) => {
+    const issues = (agent.recallMigrationIssues ??= []);
+    if (
+      issues.some(
+        (issue) =>
+          issue.code === code &&
+          issue.field === field &&
+          issue.legacyValue === legacyValue
+      )
+    ) {
+      return;
+    }
+    issues.push({
+      code,
+      field,
+      legacyValue,
+      message: `无法自动迁移旧 Recall ${field}=${legacyValue}；请在 Agent 编辑器中选择算法召回或综合召回。`,
+    });
+    changed = true;
+  };
+  const profileToPreset = (profile: unknown, field: string) => {
+    if (profile === "semantic" || profile === "associative") {
+      return "comprehensive" as RecallPresetId;
+    }
+    if (typeof profile === "string" && profile) {
+      addMigrationIssue("unsupported-legacy-profile", field, profile);
+    }
+    return undefined;
+  };
+  const engineToPreset = (engineId: unknown, field: string) => {
+    if (engineId === undefined || engineId === null || engineId === "") {
+      return "comprehensive" as RecallPresetId;
+    }
+    if (engineId === "keyword") return "algorithmic" as RecallPresetId;
+    if (
+      engineId === "vector" ||
+      engineId === "lens" ||
+      engineId === "blender" ||
+      engineId === "semantic" ||
+      engineId === "associative"
+    ) {
+      return "comprehensive" as RecallPresetId;
+    }
+    if (typeof engineId === "string") {
+      addMigrationIssue("unsupported-legacy-engine", field, engineId);
+    }
+    return undefined;
+  };
 
   const renameRecordKeys = (record: Record<string, unknown> | undefined) => {
     if (!record) return;
@@ -171,14 +223,46 @@ function migrateRecallConfiguration(agent: ChatAgent): boolean {
   }
 
   if (!legacyConfig && !legacySettings) {
+    for (const binding of agent.recallConfig?.bindings ?? []) {
+      if (!binding.presetId) {
+        const presetId = profileToPreset(
+          binding.profile,
+          `recallConfig.bindings[${binding.recallId}].profile`
+        );
+        if (presetId) {
+          binding.presetId = presetId;
+          delete binding.profile;
+          changed = true;
+        }
+      }
+    }
+    if (agent.recallSettings && !agent.recallSettings.defaultPresetId) {
+      const presetId = profileToPreset(
+        agent.recallSettings.defaultProfile,
+        "recallSettings.defaultProfile"
+      );
+      if (presetId) {
+        agent.recallSettings.defaultPresetId = presetId;
+        delete agent.recallSettings.defaultProfile;
+        changed = true;
+      }
+    }
+    if (
+      (agent.recallConfig || agent.recallSettings) &&
+      (agent.version ?? 0) < RECALL_AGENT_CONFIG_VERSION
+    ) {
+      agent.version = RECALL_AGENT_CONFIG_VERSION;
+      changed = true;
+    }
     if (changed)
       logger.info("迁移 Agent Recall 工具权限", { agentId: agent.id });
     return changed;
   }
 
-  const engineId = legacySettings?.defaultEngineId;
-  const defaultProfile =
-    engineId === "lens" || engineId === "blender" ? "associative" : "semantic";
+  const defaultPresetId = engineToPreset(
+    legacySettings?.defaultEngineId,
+    "knowledgeSettings.defaultEngineId"
+  );
 
   if (!agent.recallConfig) {
     agent.recallConfig = {
@@ -201,7 +285,7 @@ function migrateRecallConfiguration(agent: ChatAgent): boolean {
   }
   if (!agent.recallSettings) {
     agent.recallSettings = {
-      defaultProfile,
+      ...(defaultPresetId ? { defaultPresetId } : {}),
       defaultLimit: legacySettings?.defaultLimit,
       maxRecallChars: legacySettings?.maxRecallChars,
       defaultMinScore: legacySettings?.defaultMinScore,
@@ -211,6 +295,17 @@ function migrateRecallConfiguration(agent: ChatAgent): boolean {
       enableCache: legacySettings?.enableCache,
     };
     changed = true;
+  }
+  if (agent.recallSettings && !agent.recallSettings.defaultPresetId) {
+    const presetId = profileToPreset(
+      agent.recallSettings.defaultProfile,
+      "recallSettings.defaultProfile"
+    );
+    if (presetId) {
+      agent.recallSettings.defaultPresetId = presetId;
+      delete agent.recallSettings.defaultProfile;
+      changed = true;
+    }
   }
   delete legacyAgent.knowledgeBaseConfig;
   if (legacySettings) delete legacyAgent.knowledgeSettings;

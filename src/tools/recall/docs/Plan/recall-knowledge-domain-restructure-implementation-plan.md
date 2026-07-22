@@ -93,7 +93,7 @@ Retrieval / 检索编排
 ```text
 Recall 被动召回
 【recall】
-【recall::collection=<collection-id>::profile=semantic::limit=8::min-score=0.35::when=always】
+【recall::collection=<collection-id>::preset=comprehensive::limit=8::min-score=0.35::when=always】
 
 Knowledge 目录与主动检索
 {{knowledge_list}}
@@ -101,7 +101,7 @@ knowledge.listLibraries / knowledge.search / knowledge.read
 ```
 
 - Recall 信封语法为 `【recall(::<key>=<value>)*】`，key 使用 ASCII kebab-case；参数顺序不影响语义，serializer 输出固定 canonical 顺序。
-- Recall processor 只接受 `collection`、`profile`、`limit`、`min-score`、`when`、`gate-tags`、`every-turns`、`entries`。未知、重复、无值、非法枚举和非法数值必须报错并带消息索引、原文和 key。
+- Recall processor 接受 `collection`、`preset`、`limit`、`min-score`、`when`、`gate-tags`、`every-turns`、`entries`；`profile` 仅作为 legacy 输入映射到预设。未知、重复、无值、非法枚举和非法数值必须报错并带消息索引、原文和 key。
 - Recall collection 只使用稳定 ID。省略目标表示当前 Agent 已启用的 Recall binding；显式目标必须获得授权。serializer 使用 `encodeURIComponent` 处理 value，parser 解码并校验后才构造请求。
 - Knowledge 不注册 `【knowledge::...】` 检索信封，也不保留生成该信封的 `{{knowledge}}`。`{{knowledge_list}}` 只在用户指定的预设位置展开已授权资料库目录，不触发检索。
 - Knowledge 资料访问配置只保存稳定 library ID 与能力权限；strategy、limit、过滤条件等属于主动工具的单次调用参数。

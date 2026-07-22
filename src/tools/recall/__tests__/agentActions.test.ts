@@ -25,30 +25,34 @@ import {
 } from "../actions/agentActions";
 import type { RecallEntry, RecallCollectionMeta } from "../types";
 
-const { mockInvoke, mockRecallStorage, mockStore, mockCalculateHash } =
-  vi.hoisted(() => ({
-    mockInvoke: vi.fn(),
-    mockRecallStorage: {
-      loadWorkspace: vi.fn(),
-      loadBaseMeta: vi.fn(),
-      loadEntry: vi.fn(),
-      saveEntry: vi.fn(),
-      deleteEntry: vi.fn(),
+const {
+  mockInvoke,
+  mockRecallStorage,
+  mockStore,
+  mockCalculateHash,
+  mockSearchRecall,
+} = vi.hoisted(() => ({
+  mockInvoke: vi.fn(),
+  mockRecallStorage: {
+    loadWorkspace: vi.fn(),
+    loadBaseMeta: vi.fn(),
+    loadEntry: vi.fn(),
+    saveEntry: vi.fn(),
+    deleteEntry: vi.fn(),
+  },
+  mockStore: {
+    activeBaseId: "recall-1",
+    activeEntryId: "entry-1",
+    config: {
+      defaultEmbeddingModel: "",
+      embeddingRequestSettings: {},
     },
-    mockStore: {
-      activeBaseId: "recall-1",
-      activeEntryId: "entry-1",
-      config: {
-        defaultEmbeddingModel: "",
-        embeddingRequestSettings: {},
-      },
-      validateVectorStatus: vi.fn(async () => undefined),
-      updateGlobalStats: vi.fn(async () => undefined),
-    },
-    mockCalculateHash: vi.fn(
-      async (content: string) => `hash:${content.length}`
-    ),
-  }));
+    validateVectorStatus: vi.fn(async () => undefined),
+    updateGlobalStats: vi.fn(async () => undefined),
+  },
+  mockCalculateHash: vi.fn(async (content: string) => `hash:${content.length}`),
+  mockSearchRecall: vi.fn(),
+}));
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: mockInvoke,
@@ -76,6 +80,10 @@ vi.mock("../logic/orchestrator", () => ({
   IndexingOrchestrator: vi.fn(() => ({
     indexEntry: vi.fn(),
   })),
+}));
+
+vi.mock("../services/api", () => ({
+  search: mockSearchRecall,
 }));
 
 vi.mock("@/utils/modelIdUtils", () => ({
@@ -200,6 +208,7 @@ describe("recall agent actions", () => {
     mockStore.activeBaseId = "recall-1";
     mockStore.activeEntryId = "entry-1";
     mockCalculateHash.mockClear();
+    mockSearchRecall.mockReset();
 
     mockRecallStorage.loadWorkspace.mockResolvedValue({
       version: "2.0.0",
@@ -239,7 +248,7 @@ describe("recall agent actions", () => {
   });
 
   it("searchEntries 应解析 recallNames、调用后端搜索并格式化 Agent 结果", async () => {
-    mockInvoke.mockResolvedValueOnce([
+    mockSearchRecall.mockResolvedValueOnce([
       {
         recallId: "recall-1",
         recallName: "Dev Notes",
@@ -258,23 +267,19 @@ describe("recall agent actions", () => {
     const result = await searchEntries({
       recallNames: ["Dev Notes"],
       query: "ownership",
-      engineId: "keyword",
+      presetId: "algorithmic",
       limit: 3,
       tags: ["rust"],
       minScore: 0.2,
     });
 
-    expect(mockInvoke).toHaveBeenCalledWith("recall_search", {
+    expect(mockSearchRecall).toHaveBeenCalledWith({
       query: "ownership",
-      filters: {
-        recallIds: ["recall-1"],
-        tags: ["rust"],
-        minScore: 0.2,
-        limit: 3,
-        engineId: "keyword",
-        enabledOnly: true,
-      },
-      engineId: "keyword",
+      recallIds: ["recall-1"],
+      tags: ["rust"],
+      minScore: 0.2,
+      limit: 3,
+      presetId: "algorithmic",
     });
     expect(result).toMatchObject({
       success: true,
@@ -290,6 +295,16 @@ describe("recall agent actions", () => {
         },
       ],
     });
+  });
+
+  it("searchEntries 未指定集合时应搜索全部工作区思绪集", async () => {
+    mockSearchRecall.mockResolvedValueOnce([]);
+
+    await searchEntries({ query: "ownership", presetId: "algorithmic" });
+
+    expect(mockSearchRecall).toHaveBeenCalledWith(
+      expect.objectContaining({ recallIds: ["recall-1", "recall-2"] })
+    );
   });
 
   it("upsertEntry 应创建新条目、保存内容并触发当前库状态同步", async () => {
@@ -470,6 +485,15 @@ describe("recall agent actions", () => {
       "upsertEntry",
       "updateEntryContent",
     ]);
+    const searchMetadata = basicMetadata.methods.find(
+      (method) => method.name === "searchEntries"
+    );
+    expect(
+      searchMetadata?.parameters.map((parameter) => parameter.name)
+    ).toContain("presetId");
+    expect(
+      searchMetadata?.parameters.map((parameter) => parameter.name)
+    ).not.toContain("preset");
     expect(adminMetadata.methods.map((method) => method.name)).toEqual([
       "listRecallCollections",
       "listEntriesMetadata",

@@ -27,18 +27,15 @@
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { getProfileId, getPureModelId } from "@/utils/modelIdUtils";
-import { SearchOrchestrator } from "../logic/orchestrator";
 import { useRecallCollectionStore } from "../stores/recallCollectionStore";
-import { vectorCacheManager } from "../utils/vectorCache";
 import { preprocessQuery } from "../utils/queryPreProcessor";
-import {
-  engineRequiresEmbedding,
-  profileDefaults,
-  RECALL_ALGORITHM_VERSION,
-} from "../core/engineCapabilities";
+import { profileDefaults } from "../core/engineCapabilities";
 import { resolvePlaceholderRetrieval as resolvePlaceholderRetrievalInternal } from "../logic/placeholderRetrieval";
+import {
+  compileRetrievalPipeline,
+  executeRetrievalPipeline,
+  type RecallPresetId,
+} from "./retrievalPipeline";
 import type { RecallProfile, RecallResult } from "../types/search";
 import type { RecallEntry } from "../types/recall-entry";
 import type { RecallCollectionMeta } from "../types/recall-collection";
@@ -49,9 +46,6 @@ import type {
 
 const logger = createModuleLogger("recall/api");
 const errorHandler = createModuleErrorHandler("recall/api");
-
-// SearchOrchestrator 内部无状态，模块级单例即可
-const searchOrchestrator = new SearchOrchestrator();
 
 // ────────────────────────────────────────────────────────────────────────────
 // 类型定义
@@ -75,10 +69,8 @@ export interface SearchParams {
   engineId?: string;
   /** 产品召回 profile；显式 engineId 仅供 Playground / 调试覆盖。 */
   profile?: RecallProfile;
-  /** 外部已有的查询向量（绕过 embedding 调用） */
-  vector?: number[];
-  /** Embedding 模型 ID（pureModelId），不传则使用思绪集默认模型 */
-  modelId?: string;
+  /** 产品检索预设；旧 engine/profile 只用于兼容输入。 */
+  presetId?: RecallPresetId;
 }
 
 /**
@@ -105,16 +97,18 @@ export interface SearchWithCacheParams {
   engineId?: string;
   /** 产品召回 profile。 */
   profile?: RecallProfile;
+  /** 产品检索预设。 */
+  presetId?: RecallPresetId;
   /** 是否启用缓存（默认 false） */
   enableCache?: boolean;
 }
 
 /**
- * 检索结果（带可选的查询向量，用于上层做额外处理）
+ * 检索结果。查询向量只在 Runner 内部使用，不向调用方暴露。
  */
 export interface SearchWithCacheResult {
   results: RecallResult[];
-  /** 实际用于检索的融合向量（缓存命中时也会一并返回） */
+  /** 迁移期兼容字段；检索管线不向调用方返回查询向量。 */
   vector: number[] | null;
 }
 
@@ -135,9 +129,9 @@ interface RetrievalCacheKeyInput {
   fusionWeights: [number, number];
   limit: number;
   minScore: number;
-  engineId: string;
-  modelId: string;
-  profile?: RecallProfile;
+  presetId: RecallPresetId;
+  configHash: string;
+  embeddingIdentity: string;
   algorithmVersion: string;
 }
 
@@ -145,21 +139,17 @@ interface RetrievalCacheKeyInput {
 // 内部辅助
 // ────────────────────────────────────────────────────────────────────────────
 
-/**
- * 解析最终使用的引擎 ID（fallback 链：参数 > 思绪集默认 > "vector"）
- */
-function resolveEngineId(engineId?: string, profile?: RecallProfile): string {
-  if (engineId) return engineId;
-  return profile || "semantic";
-}
-
-/**
- * 解析最终使用的 Embedding 模型 ID（pure model id）
- */
-function resolveModelId(modelId?: string): string {
-  if (modelId) return modelId;
-  const store = useRecallCollectionStore();
-  return getPureModelId(store.config?.defaultEmbeddingModel || "") || "";
+function resolvePresetId(
+  presetId?: RecallPresetId,
+  engineId?: string,
+  profile?: RecallProfile
+): RecallPresetId {
+  if (presetId) return presetId;
+  if (engineId === "keyword") return "algorithmic";
+  if (profile === "semantic" || profile === "associative") {
+    return "comprehensive";
+  }
+  return "comprehensive";
 }
 
 /**
@@ -169,26 +159,6 @@ function getRetrievalCacheMaxItems(): number {
   const store = useRecallCollectionStore();
   const max = store.config?.cache?.retrievalCacheMaxItems;
   return typeof max === "number" && max > 0 ? max : 200;
-}
-
-/**
- * 向量空间加权平均
- */
-function weightedAverageVector(
-  vectors: number[][],
-  weights: number[]
-): number[] {
-  const dim = vectors[0].length;
-  const result = new Array<number>(dim).fill(0);
-  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-  for (let vi = 0; vi < vectors.length; vi++) {
-    const w = weights[vi] / totalWeight;
-    const vec = vectors[vi];
-    for (let d = 0; d < dim; d++) {
-      result[d] += vec[d] * w;
-    }
-  }
-  return result;
 }
 
 function normalizeFusionWeights(
@@ -205,51 +175,6 @@ function normalizeFusionWeights(
   return [selected[0] / total, selected[1] / total];
 }
 
-/**
- * 根据主/次查询文本构建融合查询向量
- *
- * @returns 融合向量；如果两侧都无可用文本或模型未配置则返回 null
- */
-async function buildFusedQueryVector(
-  primaryQuery: string,
-  secondaryQuery: string,
-  weights: [number, number],
-  modelId: string
-): Promise<number[] | null> {
-  if (!modelId) {
-    logger.warn("未配置 Embedding 模型，无法生成检索向量");
-    return null;
-  }
-
-  const { profiles } = useLlmProfiles();
-  // pureModelId 是不带渠道前缀的，需要从思绪集配置取完整 comboId 反查 profile
-  const store = useRecallCollectionStore();
-  const comboId = store.config?.defaultEmbeddingModel || "";
-  const profileId = getProfileId(comboId);
-  const profile = profiles.value.find((p) => p.id === profileId);
-  if (!profile) {
-    logger.warn("未找到 Embedding 模型对应的 LLM Profile", { profileId });
-    return null;
-  }
-
-  try {
-    const primaryVec = primaryQuery
-      ? await vectorCacheManager.getVector(primaryQuery, profile, modelId)
-      : null;
-    const secondaryVec = secondaryQuery
-      ? await vectorCacheManager.getVector(secondaryQuery, profile, modelId)
-      : null;
-
-    if (primaryVec && secondaryVec) {
-      return weightedAverageVector([primaryVec, secondaryVec], weights);
-    }
-    return primaryVec || secondaryVec;
-  } catch (err) {
-    logger.warn("生成融合查询向量失败", err);
-    return null;
-  }
-}
-
 // ────────────────────────────────────────────────────────────────────────────
 // 对外 API
 // ────────────────────────────────────────────────────────────────────────────
@@ -263,29 +188,26 @@ export async function search(params: SearchParams): Promise<RecallResult[]> {
   return (
     (await errorHandler.wrapAsync(
       async () => {
-        const engineId = resolveEngineId(params.engineId, params.profile);
-        const modelId = params.modelId || resolveModelId();
+        const presetId = resolvePresetId(
+          params.presetId,
+          params.engineId,
+          params.profile
+        );
 
         logger.debug("执行思绪集检索", {
           query: params.query,
           recallIds: params.recallIds,
           tags: params.tags,
-          engineId,
+          presetId,
         });
 
-        const results = await searchOrchestrator.search({
+        const { results } = await executeRetrievalPipeline({
           query: params.query,
           recallIds: params.recallIds || [],
-          engineId,
-          modelId: modelId || undefined,
-          extraFilters: {
-            requiredTags: params.tags,
-            minScore: params.minScore,
-          },
+          tags: params.tags,
           limit: params.limit,
-          vector_payload: params.vector,
-          skipPrep: true, // 外部调用跳过环境准备（由调用方或 store 自身保证）
-          availableEngines: useRecallCollectionStore().engines,
+          minScore: params.minScore,
+          presetId,
         });
 
         logger.debug("思绪集检索完成", { count: results.length });
@@ -303,10 +225,10 @@ export async function search(params: SearchParams): Promise<RecallResult[]> {
  * 执行带缓存的双查询融合检索
  *
  * 内部流程：
- *  1. 拼接缓存 key（基于 `primary|||secondary` 与其他过滤条件）
+ *  1. 编译预设并以其配置哈希构造缓存 key
  *  2. 优先查后端 LRU 缓存
- *  3. 未命中则分别 embed 主/次查询，向量空间加权融合
- *  4. 调用 search orchestrator 执行检索
+ *  3. 未命中则由 Runner 准备并复用查询向量
+ *  4. 运行编译后的检索管线
  *  5. 写回缓存
  */
 export async function searchWithCache(
@@ -320,8 +242,7 @@ export async function searchWithCache(
   const defaults = profileDefaults(profile);
   const limit = params.limit ?? defaults.limit;
   const minScore = params.minScore ?? defaults.minScore;
-  const engineId = resolveEngineId(params.engineId, profile);
-  const modelId = resolveModelId();
+  const presetId = resolvePresetId(params.presetId, params.engineId, profile);
   const enableCache = params.enableCache ?? false;
 
   // 主查询执行预处理（清洗 + Tag 池匹配）；次查询不参与 Tag 匹配，避免 AI 回复中的噪音词误触发
@@ -331,19 +252,25 @@ export async function searchWithCache(
   });
   const primary = cleanedQuery;
   const mergedTags = Array.from(new Set([...explicitTags, ...matchedTags]));
+  const compiled = await compileRetrievalPipeline(presetId, limit);
+  const needsEmbedding = compiled.result.externalRequirements.some(
+    (requirement) => requirement.kind === "query-embedding"
+  );
+  const embeddingIdentity = needsEmbedding
+    ? store.config?.defaultEmbeddingModel || ""
+    : "";
 
   const cacheInput: RetrievalCacheKeyInput = {
-    // 拼接策略保持稳定：与历史实现 (`userText|||aiText`) 兼容
     query: `${primary}|||${secondary}`,
     recallIds: params.recallIds,
     tags: mergedTags,
     fusionWeights: weights,
     limit,
     minScore,
-    engineId,
-    modelId,
-    profile,
-    algorithmVersion: RECALL_ALGORITHM_VERSION,
+    presetId,
+    configHash: compiled.result.configHash,
+    embeddingIdentity,
+    algorithmVersion: compiled.result.algorithmVersion,
   };
 
   // 1. 查缓存
@@ -357,8 +284,8 @@ export async function searchWithCache(
         logger.debug("命中后端 RAG 检索缓存", {
           query: cacheInput.query.slice(0, 80),
           recallIds: params.recallIds,
-          engineId,
-          modelId,
+          presetId,
+          configHash: compiled.result.configHash,
         });
         return { results: cached.results, vector: cached.vector };
       }
@@ -367,27 +294,23 @@ export async function searchWithCache(
     }
   }
 
-  // 2. 决定是否需要向量
-  const isVectorEngine = engineRequiresEmbedding(engineId, store.engines);
-  let vector: number[] | null = null;
-  if (isVectorEngine) {
-    vector = await buildFusedQueryVector(primary, secondary, weights, modelId);
-  }
+  // 2. 执行已编译的检索管线，向量预处理由 Runner 根据外部需求完成。
+  const { results } = await executeRetrievalPipeline(
+    {
+      query: primary,
+      secondaryQuery: secondary,
+      fusionWeights: weights,
+      recallIds: params.recallIds,
+      tags: mergedTags.length > 0 ? mergedTags : undefined,
+      limit,
+      minScore,
+      presetId,
+    },
+    compiled
+  );
+  const vector = null;
 
-  // 3. 执行检索
-  const results = await search({
-    query: primary, // 走文本检索时仍以主查询为准
-    recallIds: params.recallIds,
-    tags: mergedTags.length > 0 ? mergedTags : undefined,
-    limit,
-    minScore,
-    engineId,
-    profile,
-    vector: vector || undefined,
-    modelId: modelId || undefined,
-  });
-
-  // 4. 写回缓存
+  // 3. 写回缓存
   if (enableCache) {
     try {
       await invoke("recall_retrieval_cache_set", {

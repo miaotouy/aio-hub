@@ -31,7 +31,7 @@ Recall 条目不自动切片，也不保存文档 manifest、文件监听状态�
 - `logic/placeholderRetrieval.ts`：被动召回请求的执行与格式化。
 - `composables/`：集合、条目、索引、搜索、向量同步、监控及备份交互。
 - `core/`：Embedding、检索策略、查询准备与标签生成等纯逻辑。
-- `types/`：Recall 对外类型与迁移期兼容契约；`types/pipeline.ts` 是尚未接入产品路径的检索管线 v1 wire contract。
+- `types/`：Recall 对外类型与迁移期兼容契约；`types/pipeline.ts` 定义检索管线 v1 wire contract。
 - `utils/recallStorage.ts`：Recall repository IPC 薄客户端和 UI workspace 配置管理。
 
 ### 2.2 后端 `src-tauri/src/recall/`
@@ -72,14 +72,15 @@ Recall 条目不自动切片，也不保存文档 manifest、文件监听状态�
 `algorithmic / comprehensive` 两个预设 ID。Rust 与 TypeScript 通过
 `recall-pipeline-contract-v1.json` 共享序列化夹具；旧 ID 迁移规则使用
 `recall-retrieval-migration-v1`。后端已有生产 module registry、compiler、串行 Runner、
-公共过滤/finalizer 和 `algorithmic` 预设，并通过独立 IPC 提供 preset 列表、编译与运行。
+公共过滤/finalizer 和两个内置预设，并通过独立 IPC 提供 preset 列表、编译与运行。
 `algorithmic` 不声明外部产物依赖，不读取查询向量，也不会触发 Embedding 请求。
 
 `algorithmic` 显示名为“算法召回”，`comprehensive` 显示名为“综合召回”；
 旧 `keyword/vector/lens/blender/semantic/associative` 不属于新预设列表。
-当前 `recall_search`、Chat、Agent tool 和 Playground 仍走 legacy engine；独立 pipeline IPC
-用于迁移施工和真实窗口验收，尚未替换产品默认策略。`comprehensive` 仍只有已冻结 summary，
-其向量、标签、Lens 与融合生产模块将在后续 phase 接入。
+Recall service、Chat 被动召回、Agent tool 和 Agent 配置已通过 pipeline service 使用预设；
+该 service 先编译配置，再按编译结果准备外部产物并执行 Runner。Playground 和旧
+`recall_search` 仍保留 legacy engine 路径，直到后续迁移阶段删除。`comprehensive` 已包含
+关键词、内容向量、标签向量和 Lens 候选模块，并复用同一请求的查询向量 bundle。
 完整盘点与契约决策见
 `docs/Plan/recall-retrieval-pipeline-phase0-inventory.md`。
 
@@ -102,13 +103,13 @@ Recall 条目不自动切片，也不保存文档 manifest、文件监听状态�
 
 ### 4.3 搜索与 Chat 召回
 
-1. 调用方通过 `services/api.ts` 或 Recall 内部编排器构造查询。
-2. 主查询执行清洗和标签匹配；需要向量时生成或融合查询向量。
-3. `recall_search` 根据产品 profile 或 Playground engine ID、集合 ID、标签、阈值和数量执行候选、融合、过滤与排序。
-4. 后端发送 `recall-monitor` trace，前端按需格式化结果并执行字符上限截断。
+1. 调用方通过 `services/api.ts` 构造预设查询；旧 `engineId` / `profile` 仅在 service 和迁移层转换为预设。
+2. service 编译管线，以 `presetId`、配置哈希、算法版本和 Embedding 身份查询缓存。
+3. 缓存未命中时，Runner 仅在编译结果声明 `query-embedding` 时准备主/次查询的融合向量，并将 bundle 交给各检索模块复用。
+4. Runner 执行候选、归一化、融合、过滤和 finalizer；前端按需格式化结果并执行字符上限截断。
 5. Chat 的 `RecallProcessor` 解析严格命名参数协议、校验 Agent binding 授权，构造 `RecallRetrievalRequest` 并调用 Recall service；旧自由文本语法只生成告警。
 
-检索结果缓存使用 `recall_retrieval_cache_*` commands。缓存键包含规范化后的主/次查询、`recallIds`、标签、融合权重、数量、阈值、引擎、模型、召回 profile 和算法版本；任一字段变化都会形成不同缓存项。
+检索结果缓存使用 `recall_retrieval_cache_*` commands。缓存键包含规范化后的主/次查询、`recallIds`、标签、融合权重、数量、阈值、预设、编译配置哈希、Embedding 身份和算法版本；任一字段变化都会形成不同缓存项。
 
 ## 5. IPC 与事件
 

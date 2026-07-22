@@ -56,6 +56,7 @@ export function resolveRetrievalParams(req: RecallRetrievalRequest): {
   minScore: number;
   engineId?: string;
   profile: "semantic" | "associative";
+  presetId: "algorithmic" | "comprehensive";
 } {
   const {
     recallId,
@@ -64,10 +65,15 @@ export function resolveRetrievalParams(req: RecallRetrievalRequest): {
     minScore,
     engineId,
     profile,
+    presetId,
     enabledBindings,
     settings,
   } = req;
   const resolvedProfile = profile || settings.defaultProfile || "semantic";
+  const resolvedPresetId =
+    presetId ??
+    settings.defaultPresetId ??
+    (engineId === "keyword" ? "algorithmic" : "comprehensive");
   const profileDefaults =
     resolvedProfile === "associative"
       ? { limit: 4, minScore: 0.45 }
@@ -94,6 +100,7 @@ export function resolveRetrievalParams(req: RecallRetrievalRequest): {
     minScore: minScore ?? settings.defaultMinScore ?? profileDefaults.minScore,
     engineId,
     profile: resolvedProfile,
+    presetId: resolvedPresetId,
   };
 }
 

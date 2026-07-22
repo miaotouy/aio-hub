@@ -103,6 +103,15 @@ export interface RetrievalBindingGroup {
 }
 
 export type RecallProfile = "semantic" | "associative";
+export type RecallPresetId = "algorithmic" | "comprehensive";
+
+/** 持久化的 Recall 迁移诊断；保留旧值，供编辑器与恢复流程处理。 */
+export interface RecallMigrationIssue {
+  code: "unsupported-legacy-engine" | "unsupported-legacy-profile";
+  field: string;
+  legacyValue: string;
+  message: string;
+}
 
 /** Stage 3 后的思绪绑定。集合 ID 是唯一运行时目标，名称仅用于显示。 */
 export interface RecallBinding {
@@ -114,6 +123,8 @@ export interface RecallBinding {
   limit?: number;
   minScore?: number;
   profile?: RecallProfile;
+  /** Phase 5 起由版本化迁移写入；profile 仅保留作 legacy 输入。 */
+  presetId?: RecallPresetId;
   group?: string;
 }
 
@@ -126,6 +137,8 @@ export interface AgentRecallConfig {
 }
 
 export interface AgentRecallSettings {
+  /** Phase 5 的产品级检索预设；defaultProfile 仅保留作 legacy 输入。 */
+  defaultPresetId?: RecallPresetId;
   defaultProfile?: RecallProfile;
   defaultLimit?: number;
   maxRecallChars?: number;
@@ -455,6 +468,9 @@ export interface AgentBaseConfig {
 
   /** Stage 3 思绪检索设置。 */
   recallSettings?: AgentRecallSettings;
+
+  /** Recall 配置版本化迁移留下的可恢复诊断。 */
+  recallMigrationIssues?: RecallMigrationIssue[];
 
   /** 工具调用配置 */
   toolCallConfig?: ToolCallConfig;

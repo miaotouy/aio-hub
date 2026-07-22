@@ -142,6 +142,37 @@ describe("RecallProcessor", () => {
     );
   });
 
+  it("maps an explicit legacy profile before applying the global preset", async () => {
+    const context = createContext({
+      messages: [
+        {
+          role: "system",
+          content: "【recall::collection=collection-1::profile=semantic】",
+        },
+        { role: "user", content: "query", sourceType: "session_history" },
+      ],
+      agentConfig: {
+        recallConfig: {
+          enabled: true,
+          bindings: [
+            {
+              recallId: "collection-1",
+              recallName: "Engineering",
+              enabled: true,
+            },
+          ],
+        },
+        recallSettings: { defaultPresetId: "algorithmic" },
+      } as PipelineContext["agentConfig"],
+    });
+
+    await new RecallProcessor().execute(context);
+
+    expect(resolvePlaceholderRetrieval).toHaveBeenCalledWith(
+      expect.objectContaining({ presetId: "comprehensive" })
+    );
+  });
+
   it("reports invalid placeholders without blocking valid retrieval", async () => {
     const context = createContext({
       messages: [

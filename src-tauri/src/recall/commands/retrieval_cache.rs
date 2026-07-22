@@ -25,12 +25,10 @@ pub struct RetrievalCacheInput {
     pub fusion_weights: [f32; 2],
     pub limit: u32,
     pub min_score: f32,
-    pub engine_id: String,
-    pub model_id: String,
-    #[serde(default)]
-    pub profile: Option<String>,
-    #[serde(default)]
-    pub algorithm_version: Option<String>,
+    pub preset_id: String,
+    pub config_hash: String,
+    pub embedding_identity: String,
+    pub algorithm_version: String,
 }
 
 fn now_secs() -> u64 {
@@ -64,19 +62,13 @@ fn build_cache_key(input: &RetrievalCacheInput) -> String {
     hasher.update(b"\0");
     hasher.update(input.min_score.to_le_bytes());
     hasher.update(b"\0");
-    hasher.update(input.engine_id.as_bytes());
+    hasher.update(input.preset_id.as_bytes());
     hasher.update(b"\0");
-    hasher.update(input.model_id.as_bytes());
+    hasher.update(input.config_hash.as_bytes());
     hasher.update(b"\0");
-    hasher.update(input.profile.as_deref().unwrap_or_default().as_bytes());
+    hasher.update(input.embedding_identity.as_bytes());
     hasher.update(b"\0");
-    hasher.update(
-        input
-            .algorithm_version
-            .as_deref()
-            .unwrap_or_default()
-            .as_bytes(),
-    );
+    hasher.update(input.algorithm_version.as_bytes());
 
     format!("{:x}", hasher.finalize())
 }
@@ -161,24 +153,30 @@ mod tests {
             fusion_weights: [0.7, 0.3],
             limit: 5,
             min_score: 0.3,
-            engine_id: "semantic".to_string(),
-            model_id: "model".to_string(),
-            profile: Some("semantic".to_string()),
-            algorithm_version: Some("recall-profile-v1".to_string()),
+            preset_id: "comprehensive".to_string(),
+            config_hash: "pipeline-config-v1".to_string(),
+            embedding_identity: "profile:model".to_string(),
+            algorithm_version: "recall-pipeline-comprehensive-v1".to_string(),
         }
     }
 
     #[test]
-    fn cache_key_separates_profile_and_algorithm_versions() {
+    fn cache_key_separates_preset_config_and_algorithm_versions() {
         let baseline = input();
-        let mut different_profile = input();
-        different_profile.profile = Some("associative".to_string());
+        let mut different_preset = input();
+        different_preset.preset_id = "algorithmic".to_string();
+        let mut different_config = input();
+        different_config.config_hash = "pipeline-config-v2".to_string();
         let mut different_version = input();
-        different_version.algorithm_version = Some("recall-profile-v2".to_string());
+        different_version.algorithm_version = "recall-pipeline-comprehensive-v2".to_string();
 
         assert_ne!(
             build_cache_key(&baseline),
-            build_cache_key(&different_profile)
+            build_cache_key(&different_preset)
+        );
+        assert_ne!(
+            build_cache_key(&baseline),
+            build_cache_key(&different_config)
         );
         assert_ne!(
             build_cache_key(&baseline),

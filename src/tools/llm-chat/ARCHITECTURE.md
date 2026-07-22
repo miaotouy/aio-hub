@@ -193,7 +193,7 @@ graph TD
 
 系统集成了一套面向完整语义条目的 Recall 能力（非文档分片），运行实现位于 `src/tools/recall/` 与 `src-tauri/src/recall/`。Agent 通过 `recallConfig` / `recallSettings` 配置 binding 与召回默认值，旧结构化字段只在版本化迁移时读取。
 
-- **占位符语法**: `【recall::collection=<collection-id>::profile=semantic::limit=8::min-score=0.35::when=always】`；参数使用严格命名协议，目标只接受 Agent 已启用 binding 的稳定 ID。
+- **占位符语法**: `【recall::collection=<collection-id>::preset=comprehensive::limit=8::min-score=0.35::when=always】`；参数使用严格命名协议，目标只接受 Agent 已启用 binding 的稳定 ID。`profile` 仅作为 legacy 输入映射到预设。
 - **扫描范围**: 仅扫描 `sourceType !== 'session_history'` 的消息（预设、深度/锚点注入等），**对话历史不参与被动召回**——历史中的主动检索请走工具调用，定位则交给深度注入的预设。
 - **激活模式**:
   - `always`：每次构建都激活。
@@ -201,9 +201,9 @@ graph TD
   - `turn`：按已发出的 user 消息计数取模，控制召回频率。
   - `static`：直接加载指定条目；`static::all` 可加载某个库（或全部库）的全部已启用条目，绕过检索器。
 - **自动注入 (Auto Inject)**: 当 Agent 开启 `recallConfig.autoInjectIfMacroMissing` 时，未被手动占位符引用的 binding 会按 binding 粒度自动注入到 `context_head` 或 `before_last_user`；无名 `【recall】` 视为调用方接管全部已启用 binding。
-- **召回 profile**: 产品配置使用 `semantic` / `associative`；默认 `semantic`，`associative` 使用更少结果和更高阈值。底层 engine ID 只用于 Recall Playground 与调试。
-- **向量空间融合查询**: 主查询取最后一条会话 user 消息，次查询取该消息之前最近的非空 assistant 回复；两者分别 embed 后默认按 `0.7 / 0.3` 加权平均得到查询向量，无 AI 历史时退化为单查询。user 侧文本先经查询预处理管线（Markdown/HTML/占位符清洗 → `Intl.Segmenter` 分词 → 停用词过滤 → Tag 池 n-gram 匹配），关键词检索使用清洗后文本，向量检索使用融合向量。
-- **后端 LRU 检索缓存**: 检索结果缓存位于 Rust Recall 后端（`src-tauri/src/recall/commands/retrieval_cache.rs` 的 `recall_retrieval_cache_*` 系列命令），**全局共享**；缓存键由规范化后的主/次查询、`recallIds`、标签、融合权重、数量、阈值、引擎、模型、召回 profile 和算法版本计算 SHA-256，任一参数变化都会形成不同缓存项。Embedding 向量缓存由 `vectorCacheManager` 独立管理。
+- **召回预设**: 产品配置使用 `algorithmic` / `comprehensive`。前者离线可用且不生成查询向量；后者融合关键词、内容向量、标签和关联信号。底层 engine ID 仅保留给迁移和 Playground 调试。
+- **向量空间融合查询**: 主查询取最后一条会话 user 消息，次查询取该消息之前最近的非空 assistant 回复。`comprehensive` 由检索 Runner 分别 embed 两者并按默认 `0.7 / 0.3` 融合成一个请求级 bundle；无 AI 历史时退化为单查询。`algorithmic` 不解析模型或生成向量。user 侧文本先经查询预处理管线（Markdown/HTML/占位符清洗 → `Intl.Segmenter` 分词 → 停用词过滤 → Tag 池 n-gram 匹配）。
+- **后端 LRU 检索缓存**: 检索结果缓存位于 Rust Recall 后端（`src-tauri/src/recall/commands/retrieval_cache.rs` 的 `recall_retrieval_cache_*` 系列命令），**全局共享**；缓存键由规范化后的主/次查询、`recallIds`、标签、融合权重、数量、阈值、预设、编译配置哈希、Embedding 身份和算法版本计算 SHA-256，任一参数变化都会形成不同缓存项。Embedding 向量缓存由 `vectorCacheManager` 独立管理。
 - **结果约束**: 召回后按 `maxRecallChars` 累加截断（超出则丢弃后续），按 `resultTemplate` 渲染为最终注入文本，空结果回退到 `emptyText`。
 
 ### 1.13. 搜索系统 (Search System)

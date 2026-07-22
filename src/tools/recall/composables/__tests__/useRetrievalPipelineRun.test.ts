@@ -4,11 +4,15 @@ import { useRetrievalPipelineRun } from "../useRetrievalPipelineRun";
 const mocks = vi.hoisted(() => ({
   inspect: vi.fn(),
   execute: vi.fn(),
+  inspectCustom: vi.fn(),
+  executeCustom: vi.fn(),
 }));
 
 vi.mock("../../services/retrievalPipeline", () => ({
   inspectRetrievalPipeline: mocks.inspect,
   executeRetrievalPipeline: mocks.execute,
+  inspectCustomRetrievalPipeline: mocks.inspectCustom,
+  executeCustomRetrievalPipeline: mocks.executeCustom,
 }));
 
 function deferred<T>() {
@@ -46,6 +50,16 @@ function compiled(runId: string, configHash: string, valid = true) {
     },
   };
 }
+
+const customPipeline = {
+  schemaVersion: 1 as const,
+  id: "playground-custom",
+  displayName: "Playground 自定义管线",
+  algorithmVersion: "recall-playground-custom-v1",
+  candidateBudget: 80,
+  expansionBudget: 0,
+  nodes: [],
+};
 
 describe("useRetrievalPipelineRun", () => {
   beforeEach(() => {
@@ -127,5 +141,42 @@ describe("useRetrievalPipelineRun", () => {
     first.resolve(compiled("run-1", "hash-1"));
     await expect(stale).resolves.toBeNull();
     expect(controller.snapshot.value?.runId).toBe("run-2");
+  });
+
+  it("runs custom pipelines through the same stale-response state machine", async () => {
+    const controller = useRetrievalPipelineRun();
+    const value = {
+      ...compiled("custom-run", "custom-hash"),
+      executionId: "custom" as const,
+      pipeline: customPipeline,
+    };
+    mocks.inspectCustom.mockResolvedValueOnce(value);
+    mocks.executeCustom.mockImplementationOnce(
+      async (_params, _compiled, observer) => {
+        observer.onPreparing(value);
+        observer.onRunning(value);
+        return {
+          runId: "custom-run",
+          configHash: "custom-hash",
+          outcome: "empty",
+          results: [],
+          requestedPresetId: "custom",
+          actualPresetId: "custom",
+        };
+      }
+    );
+
+    await expect(
+      controller.runCustom({
+        query: "query",
+        recallIds: ["collection"],
+        pipeline: customPipeline,
+      })
+    ).resolves.toMatchObject({
+      outcome: "empty",
+      requestedPresetId: "custom",
+      actualPresetId: "custom",
+    });
+    expect(controller.state.value).toBe("empty");
   });
 });

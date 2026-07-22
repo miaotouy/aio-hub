@@ -42,10 +42,8 @@ interface RunResponse {
 
 function lineCount(filePath: string): number {
   if (!fs.existsSync(filePath)) return 0;
-  return fs
-    .readFileSync(filePath, "utf8")
-    .split(/\r?\n/)
-    .filter(Boolean).length;
+  return fs.readFileSync(filePath, "utf8").split(/\r?\n/).filter(Boolean)
+    .length;
 }
 
 describe("Recall retrieval pipeline", () => {
@@ -71,10 +69,14 @@ describe("Recall retrieval pipeline", () => {
       { presetId: "algorithmic", runId, limit: 3 }
     );
     if (!compiled.valid || compiled.issues.length > 0) {
-      throw new Error(`Pipeline compile failed: ${JSON.stringify(compiled.issues)}`);
+      throw new Error(
+        `Pipeline compile failed: ${JSON.stringify(compiled.issues)}`
+      );
     }
     if (compiled.externalRequirements.length !== 0) {
-      throw new Error("Algorithmic compile unexpectedly requested an external artifact.");
+      throw new Error(
+        "Algorithmic compile unexpectedly requested an external artifact."
+      );
     }
 
     const filters = {
@@ -83,12 +85,6 @@ describe("Recall retrieval pipeline", () => {
       limit: 3,
       minScore: null,
       enabledOnly: true,
-      texture: null,
-      refractionIndex: null,
-      requiredTags: null,
-      historyVectors: null,
-      k1: null,
-      b: null,
     };
     const stale = await invokeTauriCommand<RunResponse>(
       "recall_run_retrieval_pipeline",
@@ -102,8 +98,13 @@ describe("Recall retrieval pipeline", () => {
         },
       }
     );
-    if (stale.outcome !== "failed" || stale.error?.code !== "config-hash-mismatch") {
-      throw new Error("Pipeline did not reject a stale config hash before execution.");
+    if (
+      stale.outcome !== "failed" ||
+      stale.error?.code !== "config-hash-mismatch"
+    ) {
+      throw new Error(
+        "Pipeline did not reject a stale config hash before execution."
+      );
     }
 
     const response = await invokeTauriCommand<RunResponse>(
@@ -133,13 +134,19 @@ describe("Recall retrieval pipeline", () => {
       trace.actualPresetId !== "algorithmic" ||
       trace.externalRequirements.length !== 0
     ) {
-      throw new Error("Pipeline run metadata does not match the compiled request.");
+      throw new Error(
+        "Pipeline run metadata does not match the compiled request."
+      );
     }
     if (trace.steps.some((step) => step.status !== "completed")) {
-      throw new Error("Algorithmic pipeline contains a non-completed trace step.");
+      throw new Error(
+        "Algorithmic pipeline contains a non-completed trace step."
+      );
     }
     if (lineCount(embeddingLog) !== embeddingBaseline) {
-      throw new Error("Algorithmic pipeline sent an unexpected Embedding request.");
+      throw new Error(
+        "Algorithmic pipeline sent an unexpected Embedding request."
+      );
     }
 
     const comprehensiveRunId = `recall-comprehensive-${Date.now()}`;
@@ -147,8 +154,13 @@ describe("Recall retrieval pipeline", () => {
       "recall_compile_retrieval_pipeline",
       { presetId: "comprehensive", runId: comprehensiveRunId, limit: 3 }
     );
-    if (!comprehensive.valid || comprehensive.externalRequirements.length !== 1) {
-      throw new Error("Comprehensive pipeline did not compile with one shared external requirement.");
+    if (
+      !comprehensive.valid ||
+      comprehensive.externalRequirements.length !== 1
+    ) {
+      throw new Error(
+        "Comprehensive pipeline did not compile with one shared external requirement."
+      );
     }
     const bundleId = `bundle-${comprehensiveRunId}`;
     const comprehensiveResponse = await invokeTauriCommand<RunResponse>(
@@ -174,16 +186,24 @@ describe("Recall retrieval pipeline", () => {
         },
       }
     );
-    if (comprehensiveResponse.outcome !== "success" || !comprehensiveResponse.trace) {
-      throw new Error(`Comprehensive pipeline returned ${comprehensiveResponse.outcome}.`);
+    if (
+      comprehensiveResponse.outcome !== "success" ||
+      !comprehensiveResponse.trace
+    ) {
+      throw new Error(
+        `Comprehensive pipeline returned ${comprehensiveResponse.outcome}.`
+      );
     }
     const comprehensiveTrace = comprehensiveResponse.trace;
-    const modules = new Set(comprehensiveTrace.steps.map((step) => step.moduleId));
+    const modules = new Set(
+      comprehensiveTrace.steps.map((step) => step.moduleId)
+    );
     for (const moduleId of [
       "keyword-recall",
       "content-vector-recall",
       "tag-vector-recall",
-      "lens-association-recall",
+      "bounded-tag-propagation",
+      "tag-to-entry-expansion",
     ]) {
       if (!modules.has(moduleId)) {
         throw new Error(`Comprehensive trace is missing ${moduleId}.`);
@@ -193,11 +213,105 @@ describe("Recall retrieval pipeline", () => {
       comprehensiveTrace.bundleId !== bundleId ||
       comprehensiveTrace.externalRequirements.join(",") !== "query-embedding"
     ) {
-      throw new Error("Comprehensive trace did not preserve the shared bundle identity.");
+      throw new Error(
+        "Comprehensive trace did not preserve the shared bundle identity."
+      );
     }
     if (lineCount(embeddingLog) !== embeddingBaseline) {
-      throw new Error("Prepared comprehensive pipeline sent a duplicate Embedding request.");
+      throw new Error(
+        "Prepared comprehensive pipeline sent a duplicate Embedding request."
+      );
     }
+
+    const moduleRegistry = await invokeTauriCommand<
+      Array<{ id: string; phase: string }>
+    >("recall_list_retrieval_modules");
+    if (
+      !moduleRegistry.some((module) => module.id === "query-normalize") ||
+      !moduleRegistry.some((module) => module.id === "result-finalizer")
+    ) {
+      throw new Error("Custom pipeline module registry is incomplete.");
+    }
+    const template = await invokeTauriCommand<{
+      schemaVersion: number;
+      nodes: unknown[];
+      id: string;
+    }>("recall_get_retrieval_pipeline_template", {
+      presetId: "algorithmic",
+      limit: 3,
+    });
+    const customRunId = `recall-custom-${Date.now()}`;
+    const customCompile = await invokeTauriCommand<CompileResult>(
+      "recall_compile_custom_retrieval_pipeline",
+      { pipeline: template, runId: customRunId }
+    );
+    if (
+      !customCompile.valid ||
+      customCompile.pipelineId !== "playground-custom" ||
+      customCompile.algorithmVersion !== "recall-playground-custom-v1"
+    ) {
+      throw new Error(
+        "Custom pipeline compile did not use the server-owned identity."
+      );
+    }
+    const customResponse = await invokeTauriCommand<RunResponse>(
+      "recall_run_custom_retrieval_pipeline",
+      {
+        request: {
+          query: "Rust ownership",
+          filters,
+          pipeline: template,
+          runId: customRunId,
+          configHash: customCompile.configHash,
+        },
+      }
+    );
+    if (
+      !["success", "empty"].includes(customResponse.outcome) ||
+      customResponse.requestedPresetId !== "custom" ||
+      customResponse.actualPresetId !== "custom" ||
+      customResponse.trace?.pipelineId !== "playground-custom"
+    ) {
+      throw new Error("Custom pipeline run metadata is invalid.");
+    }
+
+    await browser.execute(() => {
+      window.history.pushState({}, "", "/recall");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    await $('[data-testid="recall-workspace"]').waitForDisplayed({
+      timeout: 30_000,
+    });
+    await $('[data-testid="recall-tab-playground"]').click();
+    await $('[data-testid="recall-playground"]').waitForDisplayed({
+      timeout: 10_000,
+    });
+    const openEditor = await $$('[data-testid="recall-pipeline-editor-open"]');
+    if (!openEditor.length)
+      throw new Error("Pipeline editor action is missing.");
+    await openEditor[0].waitForEnabled({ timeout: 10_000 });
+    await openEditor[0].click();
+    await $('[data-testid="recall-pipeline-editor"]').waitForDisplayed({
+      timeout: 10_000,
+    });
+    if ((await $$('[data-testid="recall-pipeline-custom-mode"]')).length) {
+      throw new Error(
+        "Opening the editor applied custom mode before confirmation."
+      );
+    }
+    await $('[data-testid="recall-pipeline-editor-cancel"]').click();
+    await $('[data-testid="recall-pipeline-editor"]').waitForDisplayed({
+      reverse: true,
+      timeout: 5_000,
+    });
+
+    await openEditor[0].click();
+    const applyEditor = await $('[data-testid="recall-pipeline-editor-apply"]');
+    await applyEditor.waitForEnabled({ timeout: 10_000 });
+    await applyEditor.click();
+    await $('[data-testid="recall-pipeline-custom-mode"]').waitForDisplayed({
+      timeout: 5_000,
+    });
 
     fs.writeFileSync(
       path.join(artifactDir, "recall-pipeline-run.json"),
@@ -218,7 +332,9 @@ describe("Recall retrieval pipeline", () => {
             configHash: comprehensive.configHash,
             algorithmVersion: comprehensive.algorithmVersion,
             bundleId,
-            resultIds: comprehensiveResponse.results.map((result) => result.entry.id),
+            resultIds: comprehensiveResponse.results.map(
+              (result) => result.entry.id
+            ),
           },
         },
         null,

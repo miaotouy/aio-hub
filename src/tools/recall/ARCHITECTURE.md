@@ -81,8 +81,12 @@ schema；全局预设变更后调用同一 compiler 获取 external requirements
 Playground 使用 `useRetrievalPipelineRun` 执行 `idle -> compiling -> ready -> preparing ->
 running -> outcome` 状态机。controller 只接受与当前 `runId + configHash` 一致的响应；新运行
 或取消会提升本地世代，较晚返回的旧 compile/run 结果不会覆盖当前槽位。工作面固定比较两个
-产品预设，支持多查询批量回放、阶段摘要和完整 trace；槽位模型选择、legacy engine 参数、
-覆盖率交互和运行结果持久化已删除。自定义阶段模块编辑仍等待独立的受限 pipeline IPC。
+产品预设，支持多查询批量回放、阶段摘要和完整 trace；槽位可从当前预设模板打开阶段编辑器。
+`recall_list_retrieval_modules` 仅返回后端已注册模块，`recall_compile_custom_retrieval_pipeline`
+和 `recall_run_custom_retrieval_pipeline` 会将配置规范化为 `playground-custom`、限制节点数，
+并复用同一 compiler/runner 校验和 trace。custom 只作为临时 Playground 执行身份，不可作为
+产品 preset、fallback 目标或持久化 workspace 配置。槽位模型选择、legacy engine 参数、覆盖率
+交互和运行结果持久化已删除。
 
 完整的稳定契约见
 `docs/architecture/retrieval-pipeline-contract.md`；当前施工状态见

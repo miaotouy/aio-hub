@@ -13,9 +13,16 @@ import SearchSlot from "../components/SearchSlot.vue";
 import RecallResultDetailDialog from "../components/RecallResultDetailDialog.vue";
 import type { RetrievalPipelineRunSnapshot } from "../composables/useRetrievalPipelineRun";
 import { LEGACY_RETRIEVAL_PRESET_MAP } from "../core/retrievalPipelineMigration";
-import { listRetrievalPresets } from "../services/retrievalPipeline";
+import {
+  listRetrievalModules,
+  listRetrievalPresets,
+} from "../services/retrievalPipeline";
 import { useRecallCollectionStore } from "../stores/recallCollectionStore";
-import type { RecallPresetId, RecallPresetSummary } from "../types/pipeline";
+import type {
+  RecallPresetId,
+  RecallPresetSummary,
+  RecallRetrievalModuleInfo,
+} from "../types/pipeline";
 import type { RecallResult } from "../types/search";
 
 interface SlotData {
@@ -37,6 +44,7 @@ interface BatchReplayRow {
 const logger = createModuleLogger("recall/playground");
 const recallStore = useRecallCollectionStore();
 const presetSummaries = ref<RecallPresetSummary[]>([]);
+const modules = ref<RecallRetrievalModuleInfo[]>([]);
 const selectedRecallIds = ref<string[]>([]);
 const globalQuery = ref("");
 const replayQueries = ref("");
@@ -207,9 +215,14 @@ watch(
 
 onMounted(async () => {
   try {
-    presetSummaries.value = (await listRetrievalPresets()).filter(
+    const [summaries, availableModules] = await Promise.all([
+      listRetrievalPresets(),
+      listRetrievalModules(),
+    ]);
+    presetSummaries.value = summaries.filter(
       (summary) => summary.visibility === "product"
     );
+    modules.value = availableModules;
   } catch (error) {
     logger.error("读取 Playground 预设失败", error);
   }
@@ -280,6 +293,7 @@ onMounted(async () => {
         :can-remove="false"
         :shared-result-ids="sharedResultIds"
         :preset-summaries="presetSummaries"
+        :modules="modules"
         :query-text="globalQuery"
         :initial-preset-id="slot.presetId"
         :initial-limit="slot.limit"

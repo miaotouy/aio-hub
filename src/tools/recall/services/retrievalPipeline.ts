@@ -10,10 +10,13 @@ import { useRecallCollectionStore } from "../stores/recallCollectionStore";
 import type { RecallResult } from "../types/search";
 import type {
   RecallPipelineCompileResult,
+  RecallPipelineExecutionId,
   RecallPipelineRunResponse,
   RecallPipelineTraceV1,
   RecallPresetId,
   RecallPresetSummary,
+  RecallRetrievalModuleInfo,
+  RecallRetrievalPipelineV1,
 } from "../types/pipeline";
 import { vectorCacheManager } from "../utils/vectorCache";
 import { resolveEmbeddingAssetGeneration } from "../core/embeddingAssetGeneration";
@@ -38,9 +41,29 @@ export interface CompiledRetrievalPipeline {
   result: RecallPipelineCompileResult;
 }
 
+export interface CompiledCustomRetrievalPipeline {
+  executionId: "custom";
+  pipeline: RecallRetrievalPipelineV1;
+  runId: string;
+  result: RecallPipelineCompileResult;
+}
+
+export type AnyCompiledRetrievalPipeline =
+  CompiledRetrievalPipeline | CompiledCustomRetrievalPipeline;
+
 export interface RetrievalPipelineLifecycleObserver {
-  onPreparing?: (compilation: CompiledRetrievalPipeline) => void;
-  onRunning?: (compilation: CompiledRetrievalPipeline) => void;
+  onPreparing?: (compilation: AnyCompiledRetrievalPipeline) => void;
+  onRunning?: (compilation: AnyCompiledRetrievalPipeline) => void;
+}
+
+export interface CustomRetrievalPipelineSearchParams {
+  query: string;
+  secondaryQuery?: string;
+  fusionWeights?: [number, number];
+  recallIds: string[];
+  tags?: string[];
+  minScore?: number;
+  pipeline: RecallRetrievalPipelineV1;
 }
 
 const logger = createModuleLogger("recall/retrieval-pipeline");
@@ -75,6 +98,22 @@ export async function listRetrievalPresets(): Promise<RecallPresetSummary[]> {
   return invoke<RecallPresetSummary[]>("recall_list_retrieval_presets");
 }
 
+export async function listRetrievalModules(): Promise<
+  RecallRetrievalModuleInfo[]
+> {
+  return invoke<RecallRetrievalModuleInfo[]>("recall_list_retrieval_modules");
+}
+
+export async function getRetrievalPipelineTemplate(
+  presetId: RecallPresetId,
+  limit?: number
+): Promise<RecallRetrievalPipelineV1> {
+  return invoke<RecallRetrievalPipelineV1>(
+    "recall_get_retrieval_pipeline_template",
+    { presetId, limit }
+  );
+}
+
 export async function inspectRetrievalPipeline(
   presetId: RecallPresetId,
   limit?: number
@@ -94,6 +133,25 @@ export async function compileRetrievalPipeline(
   const compilation = await inspectRetrievalPipeline(presetId, limit);
   const { result } = compilation;
   assertValidCompilation(result);
+  return compilation;
+}
+
+export async function inspectCustomRetrievalPipeline(
+  pipeline: RecallRetrievalPipelineV1
+): Promise<CompiledCustomRetrievalPipeline> {
+  const runId = newRunId();
+  const result = await invoke<RecallPipelineCompileResult>(
+    "recall_compile_custom_retrieval_pipeline",
+    { pipeline, runId }
+  );
+  return { executionId: "custom", pipeline, runId, result };
+}
+
+export async function compileCustomRetrievalPipeline(
+  pipeline: RecallRetrievalPipelineV1
+): Promise<CompiledCustomRetrievalPipeline> {
+  const compilation = await inspectCustomRetrievalPipeline(pipeline);
+  assertValidCompilation(compilation.result);
   return compilation;
 }
 
@@ -163,6 +221,45 @@ async function prepareQueryEmbedding(
   };
 }
 
+async function preparePipelineBundle(
+  compilation: AnyCompiledRetrievalPipeline,
+  params: {
+    query: string;
+    secondaryQuery?: string;
+    fusionWeights?: [number, number];
+    recallIds: string[];
+  }
+): Promise<Record<string, unknown> | undefined> {
+  const needsEmbedding = compilation.result.externalRequirements.some(
+    (requirement) => requirement.kind === "query-embedding"
+  );
+  if (!needsEmbedding) return undefined;
+
+  const weights = normalizeWeights(params.fusionWeights);
+  const prepared = await prepareQueryEmbedding(
+    params.query,
+    params.secondaryQuery ?? "",
+    weights
+  );
+  for (const recallId of params.recallIds) {
+    await invoke("recall_load_model_vectors", {
+      recallId,
+      modelId: prepared.modelId,
+    });
+  }
+  await invoke("recall_rebuild_tag_pool_index", {
+    modelId: prepared.modelId,
+  });
+  return {
+    bundleId: `${compilation.runId}:${prepared.modelId}`,
+    embeddingSpace: prepared.modelId,
+    modelSignature: prepared.modelSignature,
+    assetGeneration: prepared.assetGeneration,
+    algorithmVersion: compilation.result.algorithmVersion,
+    queryEmbedding: prepared.embedding,
+  };
+}
+
 export async function executeRetrievalPipeline(
   params: RetrievalPipelineSearchParams,
   compiled?: CompiledRetrievalPipeline,
@@ -172,8 +269,8 @@ export async function executeRetrievalPipeline(
   results: RecallResult[];
   configHash: string;
   outcome?: RecallPipelineRunResponse["outcome"];
-  requestedPresetId?: RecallPresetId;
-  actualPresetId?: RecallPresetId;
+  requestedPresetId?: RecallPipelineExecutionId;
+  actualPresetId?: RecallPipelineExecutionId;
   trace?: RecallPipelineTraceV1;
 }> {
   if (!params.query.trim()) return { results: [], configHash: "empty-query" };
@@ -197,34 +294,7 @@ export async function executeRetrievalPipeline(
   let bundle: Record<string, unknown> | undefined;
   observer?.onPreparing?.(activeCompilation);
   try {
-    const needsEmbedding = activeCompilation.result.externalRequirements.some(
-      (requirement) => requirement.kind === "query-embedding"
-    );
-    if (needsEmbedding) {
-      const weights = normalizeWeights(params.fusionWeights);
-      const prepared = await prepareQueryEmbedding(
-        params.query,
-        params.secondaryQuery ?? "",
-        weights
-      );
-      for (const recallId of params.recallIds) {
-        await invoke("recall_load_model_vectors", {
-          recallId,
-          modelId: prepared.modelId,
-        });
-      }
-      await invoke("recall_rebuild_tag_pool_index", {
-        modelId: prepared.modelId,
-      });
-      bundle = {
-        bundleId: `${activeCompilation.runId}:${prepared.modelId}`,
-        embeddingSpace: prepared.modelId,
-        modelSignature: prepared.modelSignature,
-        assetGeneration: prepared.assetGeneration,
-        algorithmVersion: activeCompilation.result.algorithmVersion,
-        queryEmbedding: prepared.embedding,
-      };
-    }
+    bundle = await preparePipelineBundle(activeCompilation, params);
   } catch (error) {
     const canFallback =
       params.presetId === "comprehensive" &&
@@ -283,6 +353,76 @@ export async function executeRetrievalPipeline(
     outcome: response.outcome,
     requestedPresetId: response.requestedPresetId ?? params.presetId,
     actualPresetId: response.actualPresetId ?? actualPresetId,
+    trace: response.trace,
+  };
+}
+
+export async function executeCustomRetrievalPipeline(
+  params: CustomRetrievalPipelineSearchParams,
+  compiled?: CompiledCustomRetrievalPipeline,
+  observer?: RetrievalPipelineLifecycleObserver
+): Promise<{
+  runId: string;
+  results: RecallResult[];
+  configHash: string;
+  outcome: RecallPipelineRunResponse["outcome"];
+  requestedPresetId: RecallPipelineExecutionId;
+  actualPresetId: RecallPipelineExecutionId;
+  trace?: RecallPipelineTraceV1;
+}> {
+  if (!params.query.trim()) {
+    throw new RetrievalPipelineBlockingError(
+      "自定义管线需要非空查询。",
+      "query-missing"
+    );
+  }
+  if (!params.recallIds.length) {
+    throw new RetrievalPipelineBlockingError(
+      "请先选择至少一个思绪集。",
+      "recall-ids-missing"
+    );
+  }
+  const compilation =
+    compiled ?? (await compileCustomRetrievalPipeline(params.pipeline));
+  assertValidCompilation(compilation.result);
+  observer?.onPreparing?.(compilation);
+  const bundle = await preparePipelineBundle(compilation, params);
+  observer?.onRunning?.(compilation);
+  const response = await invoke<RecallPipelineRunResponse>(
+    "recall_run_custom_retrieval_pipeline",
+    {
+      request: {
+        query: params.query,
+        filters: {
+          recallIds: params.recallIds,
+          tags: params.tags,
+          minScore: params.minScore,
+          enabledOnly: true,
+        },
+        pipeline: params.pipeline,
+        runId: compilation.runId,
+        configHash: compilation.result.configHash,
+        bundle,
+      },
+    }
+  );
+  if (response.outcome === "failed" || response.outcome === "cancelled") {
+    throw new RetrievalPipelineBlockingError(
+      response.error?.message || "自定义检索管线执行失败。",
+      response.error?.code || "pipeline-run-failed"
+    );
+  }
+  logger.info("自定义检索管线执行完成", {
+    resultCount: response.results.length,
+    configHash: response.configHash,
+  });
+  return {
+    runId: response.runId,
+    results: response.results,
+    configHash: response.configHash,
+    outcome: response.outcome,
+    requestedPresetId: response.requestedPresetId,
+    actualPresetId: response.actualPresetId,
     trace: response.trace,
   };
 }

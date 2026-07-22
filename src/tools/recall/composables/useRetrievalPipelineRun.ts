@@ -4,19 +4,24 @@
 
 import { computed, ref } from "vue";
 import {
+  executeCustomRetrievalPipeline,
   executeRetrievalPipeline,
+  inspectCustomRetrievalPipeline,
   inspectRetrievalPipeline,
+  type AnyCompiledRetrievalPipeline,
+  type CompiledCustomRetrievalPipeline,
   type CompiledRetrievalPipeline,
+  type CustomRetrievalPipelineSearchParams,
   type RetrievalPipelineSearchParams,
 } from "../services/retrievalPipeline";
 import {
   canTransitionRecallPipelineUiState,
   isCurrentRecallPipelineResponse,
   type RecallPipelineCompileResult,
+  type RecallPipelineExecutionId,
   type RecallPipelineRequestIdentity,
   type RecallPipelineTraceV1,
   type RecallPipelineUiState,
-  type RecallPresetId,
 } from "../types/pipeline";
 import type { RecallResult } from "../types/search";
 
@@ -25,8 +30,8 @@ export interface RetrievalPipelineRunSnapshot {
   configHash: string;
   outcome: "success" | "empty" | "fallback";
   results: RecallResult[];
-  requestedPresetId?: RecallPresetId;
-  actualPresetId?: RecallPresetId;
+  requestedPresetId?: RecallPipelineExecutionId;
+  actualPresetId?: RecallPipelineExecutionId;
   trace?: RecallPipelineTraceV1;
 }
 
@@ -63,7 +68,7 @@ export function useRetrievalPipelineRun() {
 
   function acceptCompilation(
     requestGeneration: number,
-    value: CompiledRetrievalPipeline
+    value: AnyCompiledRetrievalPipeline
   ) {
     if (requestGeneration !== generation) return false;
     compilation.value = value.result;
@@ -79,10 +84,28 @@ export function useRetrievalPipelineRun() {
     return true;
   }
 
-  async function run(
-    params: RetrievalPipelineSearchParams
+  interface ExecutionResult {
+    runId?: string;
+    configHash: string;
+    outcome?: "success" | "empty" | "fallback" | "failed" | "cancelled";
+    results: RecallResult[];
+    requestedPresetId?: RecallPipelineExecutionId;
+    actualPresetId?: RecallPipelineExecutionId;
+    trace?: RecallPipelineTraceV1;
+  }
+
+  async function runExecution(
+    query: string,
+    inspect: () => Promise<AnyCompiledRetrievalPipeline>,
+    execute: (
+      compiled: AnyCompiledRetrievalPipeline,
+      observer: {
+        onPreparing: (value: AnyCompiledRetrievalPipeline) => void;
+        onRunning: (value: AnyCompiledRetrievalPipeline) => void;
+      }
+    ) => Promise<ExecutionResult>
   ): Promise<RetrievalPipelineRunSnapshot | null> {
-    if (!params.query.trim()) {
+    if (!query.trim()) {
       reset();
       return null;
     }
@@ -94,13 +117,10 @@ export function useRetrievalPipelineRun() {
     error.value = null;
 
     try {
-      const compiled = await inspectRetrievalPipeline(
-        params.presetId,
-        params.limit
-      );
+      const compiled = await inspect();
       if (!acceptCompilation(requestGeneration, compiled)) return null;
 
-      const response = await executeRetrievalPipeline(params, compiled, {
+      const response = await execute(compiled, {
         onPreparing(value) {
           if (requestGeneration !== generation) return;
           activeIdentity.value = {
@@ -164,6 +184,36 @@ export function useRetrievalPipelineRun() {
     }
   }
 
+  async function run(
+    params: RetrievalPipelineSearchParams
+  ): Promise<RetrievalPipelineRunSnapshot | null> {
+    return runExecution(
+      params.query,
+      () => inspectRetrievalPipeline(params.presetId, params.limit),
+      (compiled, observer) =>
+        executeRetrievalPipeline(
+          params,
+          compiled as CompiledRetrievalPipeline,
+          observer
+        )
+    );
+  }
+
+  async function runCustom(
+    params: CustomRetrievalPipelineSearchParams
+  ): Promise<RetrievalPipelineRunSnapshot | null> {
+    return runExecution(
+      params.query,
+      () => inspectCustomRetrievalPipeline(params.pipeline),
+      (compiled, observer) =>
+        executeCustomRetrievalPipeline(
+          params,
+          compiled as CompiledCustomRetrievalPipeline,
+          observer
+        )
+    );
+  }
+
   function cancel() {
     generation += 1;
     activeIdentity.value = null;
@@ -196,6 +246,7 @@ export function useRetrievalPipelineRun() {
     results,
     error,
     run,
+    runCustom,
     cancel,
     reset,
   };

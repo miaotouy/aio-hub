@@ -1,6 +1,6 @@
 # Recall 检索管线模块化实施计划
 
-**状态**：Phase 0 至 Phase 4、Phase 6 已完成；Phase 5 仅剩自定义 Playground 阶段模块编辑。
+**状态**：Phase 0 至 Phase 6 已完成；发布前仅剩真实 Tauri E2E、生产迁移报告与发布二进制 smoke test 门禁。
 
 **最近修订**：2026-07-22
 **范围**：`src/tools/recall/`、`src-tauri/src/recall/`、Recall Playground、Agent Recall 配置与 Chat 召回入口。
@@ -9,13 +9,13 @@
 
 ## 当前状态
 
-| 阶段         | 已落地                                                                                                                                                                                                                                                                                                                                                            | 完成前还需做什么               |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| Phase 0 至 2 | Runner、compiler、artifact store、公共过滤/finalizer、`algorithmic` 和生产 IPC 已可用；旧 Keyword 重复实现已随 Phase 6 删除。                                                                                                                                                                                                                                     | 已完成。                       |
-| Phase 3      | 内容向量、标签种子、受限共现图传播和标签到条目扩展已进入生产管线，并共享一次查询向量；查询残差标签扩展已确定不进入本轮稳定预设；历史投射、折射、texture、动态权重与 resonance runtime 已删除。                                                                                                                                                                    | 已完成。                       |
-| Phase 4      | `comprehensive` 已组合关键词、内容向量和标签图候选；weighted fusion v1、独立 `relevanceScore`、预算/priority/阈值边界、工程夹具和显式 fallback 已冻结。                                                                                                                                                                                                           | 已完成。                       |
-| Phase 5      | service、Chat、Agent tool、Agent 配置及全局/绑定预设已使用 `presetId`；Agent 编辑器已由 preset summary 和 compile result 驱动 override 范围与能力预检；后台入口只读全局活动模型且不弹交互提示；模型切换会轮换活动资产代际并隔离缓存；Playground 已使用 pipeline 状态机、双预设、批量回放和 trace；结果详情与 Monitor 已区分分数语义并展示 pipeline/legacy trace。 | 完成 Playground 阶段模块编辑。 |
-| Phase 6      | 管理页局部搜索和 Agent 条目定位已改用 pipeline service；前端旧 orchestrator、engine capability 和动态设置，以及后端 legacy registry、commands 与引擎实现均已删除。旧 ID 只在版本化迁移、夹具和历史 trace 中读取。                                                                                                                                                 | 已完成。                       |
+| 阶段         | 已落地                                                                                                                                                                                                                                                                                                                                                                              | 完成前还需做什么 |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| Phase 0 至 2 | Runner、compiler、artifact store、公共过滤/finalizer、`algorithmic` 和生产 IPC 已可用；旧 Keyword 重复实现已随 Phase 6 删除。                                                                                                                                                                                                                                                       | 已完成。         |
+| Phase 3      | 内容向量、标签种子、受限共现图传播和标签到条目扩展已进入生产管线，并共享一次查询向量；查询残差标签扩展已确定不进入本轮稳定预设；历史投射、折射、texture、动态权重与 resonance runtime 已删除。                                                                                                                                                                                      | 已完成。         |
+| Phase 4      | `comprehensive` 已组合关键词、内容向量和标签图候选；weighted fusion v1、独立 `relevanceScore`、预算/priority/阈值边界、工程夹具和显式 fallback 已冻结。                                                                                                                                                                                                                             | 已完成。         |
+| Phase 5      | service、Chat、Agent tool、Agent 配置及全局/绑定预设已使用 `presetId`；Agent 编辑器已由 preset summary 和 compile result 驱动 override 范围与能力预检；后台入口只读全局活动模型且不弹交互提示；模型切换会轮换活动资产代际并隔离缓存；Playground 已使用 pipeline 状态机、双预设、批量回放、trace 和受限阶段模块编辑；结果详情与 Monitor 已区分分数语义并展示 pipeline/legacy trace。 | 已完成。         |
+| Phase 6      | 管理页局部搜索和 Agent 条目定位已改用 pipeline service；前端旧 orchestrator、engine capability 和动态设置，以及后端 legacy registry、commands 与引擎实现均已删除。旧 ID 只在版本化迁移、夹具和历史 trace 中读取。                                                                                                                                                                   | 已完成。         |
 
 ## 施工顺序
 
@@ -93,11 +93,13 @@ shared query embedding
 - [x] 验证 Chat、Agent、占位符和普通 service 都只读取 Recall 全局活动模型，后台执行不弹交互对话框。
 - [x] 实现全局模型切换的资产代际标识、覆盖提示和缓存隔离验证。
 - [x] 以编译后的 external requirements 与参数 schema 驱动 `idle -> compile -> prepare -> run -> outcome`，并隔离 stale response。
-- [ ] 将 Playground 收口为双配置诊断工作面，提供阶段模块编辑、fixture 批量重放、batch run 与 trace 调试；首期只使用全局活动模型。
+- [x] 将 Playground 收口为双配置诊断工作面，提供受限阶段模块编辑、fixture 批量重放、batch run 与 trace 调试；首期只使用全局活动模型。
 - [x] 在结果详情和 Monitor 展示分数语义、信号贡献、requested/actual preset、降级和版本化 trace，并兼容 legacy trace。
 - [x] 移除 Playground workspace 的结果和运行态持久化；确认无动态引用后删除闲置搜索组件与 engine capability 分支。
 
-Playground 当前已固定为 `algorithmic / comprehensive` 双配置诊断工作面，使用全局活动模型，支持多行查询批量回放、batch run、编译阶段与完整 trace 调试。workspace 只保存集合、查询和 `presetId / limit`，旧 `engineId / config / results` 经迁移后失效；旧 `SearchPanel`、`useRecallSearch` 和 `useRecallSearchManager` 已在无静态或动态引用后删除。尚未完成的是阶段模块编辑：后端目前只有内置 preset 的 compile/run IPC，还没有受限自定义 pipeline 的模块清单、编译和运行命令，因此本条保持未完成。
+Playground 当前已固定为 `algorithmic / comprehensive` 双配置诊断工作面，使用全局活动模型，支持多行查询批量回放、batch run、编译阶段与完整 trace 调试。每个槽位可从当前预设模板进入自定义阶段编辑：后端只暴露已注册模块的清单、内置模板和专用 custom compile/run IPC，强制 `playground-custom` 执行身份、固定算法版本并限制节点数；同一 compiler 继续校验参数、依赖、artifact、预算和唯一 finalizer。custom 运行不允许 fallback，且不会写回产品 preset、Agent 配置、workspace 或缓存命名空间。workspace 只保存集合、查询和 `presetId / limit`，旧 `engineId / config / results` 经迁移后失效；旧 `SearchPanel`、`useRecallSearch` 和 `useRecallSearchManager` 已在无静态或动态引用后删除。
+
+具名 Tauri E2E preset `recall-pipeline` 已在隔离数据根验证稳定 preset 与 custom 的模块清单、模板、compile、stale config hash、run、trace，以及编辑器打开、取消和应用流程。该场景不替代发布前首次启动迁移、重启、失败回滚和旧目录只读恢复门禁。
 
 新管线运行会发送兼容扩展后的 `recall-monitor` RAG 事件。事件在旧 `steps / results / stats / metadata` 之外可选携带完整 `pipelineTrace` 和结构化 `pipelineError`，metadata 标记 `executionPath / runId / outcome / requestedPresetId / actualPresetId`；历史 `recall_search` 事件仍可通过 `engineId` 和条目级 legacy trace 展示。结果详情和 Monitor 不再将未知分数域格式化为百分比：pipeline 的 `relevanceScore` 由信号贡献求和，`score` 表示 priority 重排后的排序分数；legacy 分数只按原值展示。
 

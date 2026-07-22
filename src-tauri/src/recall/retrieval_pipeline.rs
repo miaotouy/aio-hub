@@ -26,6 +26,23 @@ pub enum RecallPresetId {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+pub enum PipelineExecutionId {
+    Algorithmic,
+    Comprehensive,
+    Custom,
+}
+
+impl From<RecallPresetId> for PipelineExecutionId {
+    fn from(value: RecallPresetId) -> Self {
+        match value {
+            RecallPresetId::Algorithmic => Self::Algorithmic,
+            RecallPresetId::Comprehensive => Self::Comprehensive,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum RetrievalPhase {
     Prepare,
     Retrieve,
@@ -370,8 +387,8 @@ pub struct PipelineTraceV1 {
     pub trace_version: String,
     pub run_id: String,
     pub pipeline_id: String,
-    pub requested_preset_id: Option<RecallPresetId>,
-    pub actual_preset_id: Option<RecallPresetId>,
+    pub requested_preset_id: Option<PipelineExecutionId>,
+    pub actual_preset_id: Option<PipelineExecutionId>,
     pub fallback_reason: Option<String>,
     pub algorithm_version: String,
     pub config_hash: String,
@@ -462,8 +479,8 @@ impl PipelineUiState {
 pub struct PipelineRunResponse {
     pub run_id: String,
     pub outcome: PipelineRunOutcome,
-    pub requested_preset_id: RecallPresetId,
-    pub actual_preset_id: RecallPresetId,
+    pub requested_preset_id: PipelineExecutionId,
+    pub actual_preset_id: PipelineExecutionId,
     pub config_hash: String,
     pub results: Vec<RecallResult>,
     pub trace: Option<PipelineTraceV1>,
@@ -532,6 +549,10 @@ impl RetrievalModuleRegistry {
 
     pub fn get(&self, module_id: &str) -> Option<Arc<dyn RetrievalModule>> {
         self.modules.get(module_id).cloned()
+    }
+
+    pub fn list(&self) -> Vec<RetrievalModuleInfo> {
+        self.modules.values().map(|module| module.info()).collect()
     }
 }
 
@@ -859,16 +880,21 @@ pub struct RetrievalPipelineRunner;
 
 impl RetrievalPipelineRunner {
     #[allow(clippy::too_many_arguments)]
-    pub fn run(
+    pub fn run<T>(
         &self,
         compiled: &CompiledPipeline,
         context: &RetrievalContext,
         mut artifacts: RetrievalArtifacts,
         bundle: Option<&RetrievalArtifactBundle>,
-        requested_preset_id: RecallPresetId,
-        actual_preset_id: RecallPresetId,
+        requested_preset_id: T,
+        actual_preset_id: T,
         fallback_reason: Option<String>,
-    ) -> PipelineRunResponse {
+    ) -> PipelineRunResponse
+    where
+        T: Into<PipelineExecutionId> + Copy,
+    {
+        let requested_preset_id = requested_preset_id.into();
+        let actual_preset_id = actual_preset_id.into();
         let mut trace = new_trace(compiled, bundle, requested_preset_id, actual_preset_id);
         if requested_preset_id != actual_preset_id {
             trace.fallback_reason = fallback_reason;
@@ -1035,8 +1061,8 @@ impl RetrievalPipelineRunner {
         &self,
         compiled: &CompiledPipeline,
         expected_config_hash: &str,
-        requested_preset_id: RecallPresetId,
-        actual_preset_id: RecallPresetId,
+        requested_preset_id: PipelineExecutionId,
+        actual_preset_id: PipelineExecutionId,
     ) -> Option<PipelineRunResponse> {
         if compiled.result.config_hash != expected_config_hash {
             return Some(failed_response(
@@ -1072,9 +1098,14 @@ impl RetrievalPipelineRunner {
         }
         Some(failed_response(
             compiled,
-            requested_preset_id,
-            actual_preset_id,
-            new_trace(compiled, None, requested_preset_id, actual_preset_id),
+            requested_preset_id.into(),
+            actual_preset_id.into(),
+            new_trace(
+                compiled,
+                None,
+                requested_preset_id.into(),
+                actual_preset_id.into(),
+            ),
             PipelineErrorCode::FallbackNotAllowed,
             "pipeline fallback is not explicitly allowed by the request".to_string(),
             None,
@@ -1267,8 +1298,8 @@ fn validate_params(schema: &Value, params: &Value) -> Result<(), String> {
 fn new_trace(
     compiled: &CompiledPipeline,
     bundle: Option<&RetrievalArtifactBundle>,
-    requested_preset_id: RecallPresetId,
-    actual_preset_id: RecallPresetId,
+    requested_preset_id: PipelineExecutionId,
+    actual_preset_id: PipelineExecutionId,
 ) -> PipelineTraceV1 {
     PipelineTraceV1 {
         trace_version: PIPELINE_TRACE_VERSION.to_string(),
@@ -1302,8 +1333,8 @@ fn new_trace(
 
 fn failed_response(
     compiled: &CompiledPipeline,
-    requested_preset_id: RecallPresetId,
-    actual_preset_id: RecallPresetId,
+    requested_preset_id: PipelineExecutionId,
+    actual_preset_id: PipelineExecutionId,
     trace: PipelineTraceV1,
     code: PipelineErrorCode,
     message: String,
@@ -1573,6 +1604,28 @@ mod tests {
     }
 
     #[test]
+    fn runner_records_custom_execution_identity() {
+        let compiled = RetrievalPipelineCompiler::new(test_registry())
+            .compile(&test_pipeline(), "custom-run".to_string());
+        let response = RetrievalPipelineRunner.run(
+            &compiled,
+            &test_context(),
+            RetrievalArtifacts::default(),
+            None,
+            PipelineExecutionId::Custom,
+            PipelineExecutionId::Custom,
+            None,
+        );
+
+        assert_eq!(response.requested_preset_id, PipelineExecutionId::Custom);
+        assert_eq!(response.actual_preset_id, PipelineExecutionId::Custom);
+        assert_eq!(
+            response.trace.unwrap().requested_preset_id,
+            Some(PipelineExecutionId::Custom)
+        );
+    }
+
+    #[test]
     fn compiler_rejects_candidate_and_expansion_budgets_above_the_contract_limit() {
         let compiler = RetrievalPipelineCompiler::new(test_registry());
         let mut pipeline = test_pipeline();
@@ -1631,8 +1684,11 @@ mod tests {
             Some("query-embedding-unconfigured".to_string()),
         );
         assert_eq!(response.outcome, PipelineRunOutcome::Fallback);
-        assert_eq!(response.requested_preset_id, RecallPresetId::Comprehensive);
-        assert_eq!(response.actual_preset_id, RecallPresetId::Algorithmic);
+        assert_eq!(
+            response.requested_preset_id,
+            PipelineExecutionId::Comprehensive
+        );
+        assert_eq!(response.actual_preset_id, PipelineExecutionId::Algorithmic);
         assert_eq!(
             response.trace.unwrap().fallback_reason.as_deref(),
             Some("query-embedding-unconfigured")

@@ -5,6 +5,7 @@
 ## 稳定接口
 
 - 内置产品预设只有 `algorithmic`（算法召回）和 `comprehensive`（综合召回），均为 `product/stable`。普通产品界面不得展示 legacy engine 或模块图。
+- `custom` 是 Playground 专用的执行身份，不是第三个产品预设，不能写入 Agent、Chat、常规 service 或 preset summary。custom trace 的 requested/actual execution ID 均为 `custom`。
 - 结构化接口使用 `presetId`，新文本占位符使用 `preset`。`profile` 和 `engineId` 只允许版本化 legacy parser 读取。
 - pipeline schema 使用 v1；trace 使用 `recall-pipeline-trace-v1`；legacy 配置迁移使用 `recall-retrieval-migration-v1`。不同预设、算法版本和 Embedding 身份必须使用隔离的缓存空间。
 - 每次编译分配 `runId`。compile、prepare、run response 和 trace 必须共同携带 `runId + configHash`；不匹配的晚响应只能标记为 stale，不能覆盖当前结果。需要查询向量的 bundle 还必须携带当前活动 Embedding 模型身份与资产代际。
@@ -31,7 +32,7 @@
 
 - Recall service、Chat 被动召回、Agent tool 与 Agent 配置通过 pipeline service 调用；该 service 先编译，再按 external requirements 准备产物，最后执行 Runner。
 - 常规产品路径仅使用 Recall 全局活动 Embedding 模型。Chat、Agent、占位符和普通 service 不得逐查询切换模型；切换全局模型时必须轮换版本化活动资产代际，并让 query bundle 与缓存同时按完整模型身份和资产代际隔离。
-- 自定义管线仅属于 Playground。常规产品只允许 preset summary 声明的 overrides；Playground 不保存运行结果或 trace，也不输出自动质量评分。查询残差标签扩展如后续立项，只能先作为独立实验模块进入自定义管线；实验存在不代表稳定预设获得该能力。
+- 自定义管线仅属于 Playground。`recall_list_retrieval_modules` 只返回后端已注册模块；custom compile/run 会强制固定 Playground ID 与算法版本、限制节点数，并继续由 compiler 校验参数、依赖、artifact、预算和唯一 finalizer。custom 不支持 fallback，常规产品只允许 preset summary 声明的 overrides；Playground 不保存自定义配置、运行结果或 trace，也不输出自动质量评分。查询残差标签扩展如后续立项，只能先作为独立实验模块进入自定义管线；实验存在不代表稳定预设获得该能力。
 - legacy parser 独立于运行时保留。未知 legacy ID 返回 `legacy-id-unknown`，不得静默选择默认预设；workspace、Agent、preset message 和 Agent tool 参数中的旧 ID 必须只经过版本化迁移入口。
 
 ## Legacy 能力盘点与拆分边界

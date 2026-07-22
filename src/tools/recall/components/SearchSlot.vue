@@ -6,13 +6,21 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { ExternalLink, X } from "lucide-vue-next";
+import { ExternalLink, RotateCcw, SlidersHorizontal, X } from "lucide-vue-next";
+import { customMessage } from "@/utils/customMessage";
 import { getIntegerOverrideBounds } from "../core/retrievalPresetCapabilities";
+import RetrievalPipelineEditorDialog from "./RetrievalPipelineEditorDialog.vue";
 import {
   useRetrievalPipelineRun,
   type RetrievalPipelineRunSnapshot,
 } from "../composables/useRetrievalPipelineRun";
-import type { RecallPresetId, RecallPresetSummary } from "../types/pipeline";
+import type {
+  RecallPresetId,
+  RecallPresetSummary,
+  RecallRetrievalModuleInfo,
+  RecallRetrievalPipelineV1,
+} from "../types/pipeline";
+import { getRetrievalPipelineTemplate } from "../services/retrievalPipeline";
 import type { RecallResult } from "../types/search";
 
 const props = defineProps<{
@@ -20,6 +28,7 @@ const props = defineProps<{
   canRemove: boolean;
   sharedResultIds: Set<string>;
   presetSummaries: RecallPresetSummary[];
+  modules: RecallRetrievalModuleInfo[];
   queryText: string;
   initialPresetId?: RecallPresetId;
   initialLimit?: number;
@@ -43,6 +52,11 @@ const controller = useRetrievalPipelineRun();
 const presetId = ref<RecallPresetId>(props.initialPresetId ?? "algorithmic");
 const limit = ref(props.initialLimit ?? 6);
 const lastQuery = ref("");
+const editorVisible = ref(false);
+const editorPipeline = ref<RecallRetrievalPipelineV1 | null>(null);
+const customPipeline = ref<RecallRetrievalPipelineV1 | null>(null);
+const editorLoading = ref(false);
+const customMode = computed(() => customPipeline.value !== null);
 const selectedSummary = computed(() =>
   props.presetSummaries.find((summary) => summary.id === presetId.value)
 );
@@ -83,6 +97,8 @@ const traceText = computed(() =>
 );
 
 watch([presetId, limit], () => {
+  if (customMode.value) return;
+  editorPipeline.value = null;
   controller.reset();
   emit("results-updated", []);
   emit("update:config", { presetId: presetId.value, limit: limit.value });
@@ -90,14 +106,53 @@ watch([presetId, limit], () => {
 
 async function search(query: string) {
   lastQuery.value = query;
-  const snapshot = await controller.run({
-    query,
-    recallIds: props.selectedRecallIds,
-    presetId: presetId.value,
-    limit: limit.value,
-  });
+  const snapshot = customPipeline.value
+    ? await controller.runCustom({
+        query,
+        recallIds: props.selectedRecallIds,
+        pipeline: customPipeline.value,
+      })
+    : await controller.run({
+        query,
+        recallIds: props.selectedRecallIds,
+        presetId: presetId.value,
+        limit: limit.value,
+      });
   if (snapshot) emit("results-updated", snapshot.results);
   return snapshot;
+}
+
+async function openPipelineEditor() {
+  if (!editorPipeline.value) {
+    editorLoading.value = true;
+    try {
+      editorPipeline.value =
+        customPipeline.value ??
+        (await getRetrievalPipelineTemplate(presetId.value, limit.value));
+    } catch (error) {
+      customMessage.error(
+        error instanceof Error ? error.message : "加载检索管线模板失败"
+      );
+      return;
+    } finally {
+      editorLoading.value = false;
+    }
+  }
+  editorVisible.value = true;
+}
+
+function applyCustomPipeline(pipeline: RecallRetrievalPipelineV1) {
+  customPipeline.value = pipeline;
+  editorPipeline.value = pipeline;
+  controller.reset();
+  emit("results-updated", []);
+}
+
+function resetCustomPipeline() {
+  customPipeline.value = null;
+  editorPipeline.value = null;
+  controller.reset();
+  emit("results-updated", []);
 }
 
 defineExpose({ search });
@@ -109,6 +164,7 @@ defineExpose({ search });
       <el-select
         v-model="presetId"
         class="preset-select"
+        :disabled="customMode"
         data-testid="recall-search-preset"
       >
         <el-option
@@ -119,6 +175,32 @@ defineExpose({ search });
         />
       </el-select>
       <el-tag size="small" :type="stateType">{{ stateLabel }}</el-tag>
+      <el-tag
+        v-if="customMode"
+        size="small"
+        type="warning"
+        data-testid="recall-pipeline-custom-mode"
+      >
+        自定义
+      </el-tag>
+      <el-button
+        circle
+        plain
+        :icon="SlidersHorizontal"
+        title="编辑检索阶段"
+        data-testid="recall-pipeline-editor-open"
+        :loading="editorLoading"
+        :disabled="!modules.length"
+        @click="openPipelineEditor"
+      />
+      <el-button
+        v-if="customMode"
+        circle
+        plain
+        :icon="RotateCcw"
+        title="恢复预设"
+        @click="resetCustomPipeline"
+      />
       <el-button
         v-if="canRemove"
         circle
@@ -133,10 +215,22 @@ defineExpose({ search });
 
     <div class="slot-config">
       <div class="preset-copy">
-        <strong>{{ selectedSummary?.displayName || presetId }}</strong>
-        <span>{{ selectedSummary?.description }}</span>
+        <strong>
+          {{
+            customMode
+              ? "Playground 自定义管线"
+              : selectedSummary?.displayName || presetId
+          }}
+        </strong>
+        <span>
+          {{
+            customMode
+              ? customPipeline?.algorithmVersion
+              : selectedSummary?.description
+          }}
+        </span>
       </div>
-      <label class="limit-control">
+      <label v-if="!customMode" class="limit-control">
         <span>结果上限</span>
         <el-input-number
           v-model="limit"
@@ -207,6 +301,13 @@ defineExpose({ search });
         </el-collapse-item>
       </el-collapse>
     </div>
+
+    <RetrievalPipelineEditorDialog
+      v-model="editorVisible"
+      :pipeline="editorPipeline"
+      :modules="modules"
+      @apply="applyCustomPipeline"
+    />
   </section>
 </template>
 

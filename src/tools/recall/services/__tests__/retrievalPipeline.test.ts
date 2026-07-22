@@ -37,11 +37,22 @@ vi.mock("../../utils/vectorCache", () => ({
 
 import {
   compileRetrievalPipeline,
+  executeCustomRetrievalPipeline,
   inspectRetrievalPipeline,
   listRetrievalPresets,
   RetrievalPipelineBlockingError,
   executeRetrievalPipeline,
 } from "../retrievalPipeline";
+
+const customPipeline = {
+  schemaVersion: 1 as const,
+  id: "playground-custom",
+  displayName: "Playground 自定义管线",
+  algorithmVersion: "recall-playground-custom-v1",
+  candidateBudget: 80,
+  expansionBudget: 0,
+  nodes: [],
+};
 
 const compiled = (requirements: Array<{ kind: string }> = []) => ({
   runId: "run-1",
@@ -216,6 +227,43 @@ describe("executeRetrievalPipeline", () => {
           requestedPresetId: "comprehensive",
           fallbackPresetId: "algorithmic",
           fallbackReason: "query-embedding-unconfigured",
+          bundle: undefined,
+        }),
+      })
+    );
+  });
+
+  it("runs a custom pipeline through the dedicated IPC without fallback", async () => {
+    mocks.invoke.mockResolvedValueOnce(compiled()).mockResolvedValueOnce({
+      ...successfulRun,
+      runId: "run-1",
+      requestedPresetId: "custom",
+      actualPresetId: "custom",
+    });
+
+    await expect(
+      executeCustomRetrievalPipeline({
+        query: "offline query",
+        recallIds: ["recall-1"],
+        pipeline: customPipeline,
+      })
+    ).resolves.toMatchObject({
+      requestedPresetId: "custom",
+      actualPresetId: "custom",
+    });
+
+    expect(mocks.invoke).toHaveBeenNthCalledWith(
+      1,
+      "recall_compile_custom_retrieval_pipeline",
+      expect.objectContaining({ pipeline: customPipeline })
+    );
+    expect(mocks.invoke).toHaveBeenNthCalledWith(
+      2,
+      "recall_run_custom_retrieval_pipeline",
+      expect.objectContaining({
+        request: expect.objectContaining({
+          pipeline: customPipeline,
+          configHash: "hash-1",
           bundle: undefined,
         }),
       })

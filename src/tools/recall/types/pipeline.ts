@@ -11,6 +11,7 @@ export const RECALL_PIPELINE_CONTRACT_VERSION =
   "recall-retrieval-pipeline-v1" as const;
 
 export type RecallPresetId = "algorithmic" | "comprehensive";
+export type RecallPipelineExecutionId = RecallPresetId | "custom";
 
 export type RecallRetrievalPhase =
   | "prepare"
@@ -180,8 +181,8 @@ export interface RecallPipelineTraceV1 {
   traceVersion: typeof RECALL_PIPELINE_TRACE_VERSION;
   runId: string;
   pipelineId: string;
-  requestedPresetId?: RecallPresetId;
-  actualPresetId?: RecallPresetId;
+  requestedPresetId?: RecallPipelineExecutionId;
+  actualPresetId?: RecallPipelineExecutionId;
   fallbackReason?: string;
   algorithmVersion: string;
   configHash: string;
@@ -203,8 +204,8 @@ export interface RecallPipelineRunError {
 export interface RecallPipelineRunResponse {
   runId: string;
   outcome: "success" | "empty" | "fallback" | "failed" | "cancelled";
-  requestedPresetId: RecallPresetId;
-  actualPresetId: RecallPresetId;
+  requestedPresetId: RecallPipelineExecutionId;
+  actualPresetId: RecallPipelineExecutionId;
   configHash: string;
   results: RecallResult[];
   trace?: RecallPipelineTraceV1;

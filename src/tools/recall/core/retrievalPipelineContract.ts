@@ -288,12 +288,12 @@ export function assertRecallPipelineContractFixture(
   );
   assertOneOf(
     value.runResponse.requestedPresetId,
-    ["algorithmic", "comprehensive"],
+    ["algorithmic", "comprehensive", "custom"],
     "fixture.runResponse.requestedPresetId"
   );
   assertOneOf(
     value.runResponse.actualPresetId,
-    ["algorithmic", "comprehensive"],
+    ["algorithmic", "comprehensive", "custom"],
     "fixture.runResponse.actualPresetId"
   );
   assertArray(value.runResponse.results, "fixture.runResponse.results");

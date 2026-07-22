@@ -11,15 +11,20 @@ use crate::recall::retrieval_modules::{
     algorithmic_pipeline, builtin_preset_summaries, comprehensive_pipeline,
 };
 use crate::recall::retrieval_pipeline::{
-    PipelineCompileResult, PipelineRunOutcome, PipelineRunResponse, PresetSummary, RecallPresetId,
-    RetrievalArtifactBundle, RetrievalArtifacts, RetrievalPipelineCompiler,
-    RetrievalPipelineRunner, TraceStepStatus,
+    PipelineCompileResult, PipelineExecutionId, PipelineRunOutcome, PipelineRunResponse,
+    PresetSummary, RecallPresetId, RetrievalArtifactBundle, RetrievalArtifacts,
+    RetrievalModuleInfo, RetrievalPipelineCompiler, RetrievalPipelineRunner, RetrievalPipelineV1,
+    TraceStepStatus,
 };
 use crate::recall::state::RecallState;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use tauri::{AppHandle, State};
+
+const PLAYGROUND_PIPELINE_ID: &str = "playground-custom";
+const PLAYGROUND_PIPELINE_ALGORITHM_VERSION: &str = "recall-playground-custom-v1";
+const MAX_PLAYGROUND_NODES: usize = 64;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -35,9 +40,35 @@ pub struct RetrievalPipelineRunRequest {
     pub bundle: Option<RetrievalArtifactBundle>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomRetrievalPipelineRunRequest {
+    pub query: String,
+    pub filters: RecallSearchFilters,
+    pub pipeline: RetrievalPipelineV1,
+    pub run_id: String,
+    pub config_hash: String,
+    pub bundle: Option<RetrievalArtifactBundle>,
+}
+
 #[tauri::command]
 pub async fn recall_list_retrieval_presets() -> Result<Vec<PresetSummary>, String> {
     Ok(builtin_preset_summaries())
+}
+
+#[tauri::command]
+pub async fn recall_list_retrieval_modules(
+    state: State<'_, RecallState>,
+) -> Result<Vec<RetrievalModuleInfo>, String> {
+    Ok(state.pipeline_modules.list())
+}
+
+#[tauri::command]
+pub async fn recall_get_retrieval_pipeline_template(
+    preset_id: RecallPresetId,
+    limit: Option<usize>,
+) -> Result<RetrievalPipelineV1, String> {
+    executable_pipeline(preset_id, limit)
 }
 
 #[tauri::command]
@@ -48,6 +79,20 @@ pub async fn recall_compile_retrieval_pipeline(
     limit: Option<usize>,
 ) -> Result<PipelineCompileResult, String> {
     let pipeline = executable_pipeline(preset_id, limit)?;
+    Ok(
+        RetrievalPipelineCompiler::new(state.pipeline_modules.clone())
+            .compile(&pipeline, run_id)
+            .result,
+    )
+}
+
+#[tauri::command]
+pub async fn recall_compile_custom_retrieval_pipeline(
+    state: State<'_, RecallState>,
+    pipeline: RetrievalPipelineV1,
+    run_id: String,
+) -> Result<PipelineCompileResult, String> {
+    let pipeline = normalize_custom_pipeline(pipeline)?;
     Ok(
         RetrievalPipelineCompiler::new(state.pipeline_modules.clone())
             .compile(&pipeline, run_id)
@@ -84,6 +129,8 @@ pub async fn recall_run_retrieval_pipeline(
         .and_then(|value| value.embedding_space.clone())
         .unwrap_or_default();
     let requested_preset_id = requested_preset_id.unwrap_or(preset_id);
+    let requested_execution_id = requested_preset_id.into();
+    let actual_execution_id = preset_id.into();
     let pipeline = executable_pipeline(preset_id, filters.limit)?;
     let compiled =
         RetrievalPipelineCompiler::new(state.pipeline_modules.clone()).compile(&pipeline, run_id);
@@ -102,9 +149,12 @@ pub async fn recall_run_retrieval_pipeline(
         fallback_reason.as_deref(),
     ) {
         response
-    } else if let Some(response) =
-        runner.validate_config_hash(&compiled, &config_hash, requested_preset_id, preset_id)
-    {
+    } else if let Some(response) = runner.validate_config_hash(
+        &compiled,
+        &config_hash,
+        requested_execution_id,
+        actual_execution_id,
+    ) {
         response
     } else {
         runner.run(
@@ -112,11 +162,75 @@ pub async fn recall_run_retrieval_pipeline(
             &context,
             RetrievalArtifacts::default(),
             bundle.as_ref(),
-            requested_preset_id,
-            preset_id,
+            requested_execution_id,
+            actual_execution_id,
             fallback_reason,
         )
     };
+    emit_pipeline_monitor(
+        &app,
+        &monitor_query,
+        &monitor_recall_ids,
+        &monitor_model_id,
+        started_at.elapsed().as_millis() as u64,
+        &response,
+    );
+    Ok(response)
+}
+
+#[tauri::command]
+pub async fn recall_run_custom_retrieval_pipeline(
+    app: AppHandle,
+    state: State<'_, RecallState>,
+    request: CustomRetrievalPipelineRunRequest,
+) -> Result<PipelineRunResponse, String> {
+    let started_at = std::time::Instant::now();
+    let CustomRetrievalPipelineRunRequest {
+        query,
+        filters,
+        pipeline,
+        run_id,
+        config_hash,
+        bundle,
+    } = request;
+    let monitor_query = query.clone();
+    let monitor_recall_ids = filters
+        .recall_ids
+        .as_ref()
+        .map(|ids| ids.iter().map(ToString::to_string).collect::<Vec<_>>())
+        .unwrap_or_default();
+    let monitor_model_id = bundle
+        .as_ref()
+        .and_then(|value| value.embedding_space.clone())
+        .unwrap_or_default();
+    let pipeline = normalize_custom_pipeline(pipeline)?;
+    let compiled =
+        RetrievalPipelineCompiler::new(state.pipeline_modules.clone()).compile(&pipeline, run_id);
+    let context = RetrievalContext {
+        db: state.imdb.clone(),
+        tag_pool_manager: state.tag_pool.clone(),
+        app_data_dir: crate::get_app_data_dir(app.config()),
+        request: Some(RetrievalRequestSnapshot { query, filters }),
+    };
+    let runner = RetrievalPipelineRunner;
+    let response = runner
+        .validate_config_hash(
+            &compiled,
+            &config_hash,
+            PipelineExecutionId::Custom,
+            PipelineExecutionId::Custom,
+        )
+        .unwrap_or_else(|| {
+            runner.run(
+                &compiled,
+                &context,
+                RetrievalArtifacts::default(),
+                bundle.as_ref(),
+                PipelineExecutionId::Custom,
+                PipelineExecutionId::Custom,
+                None,
+            )
+        });
     emit_pipeline_monitor(
         &app,
         &monitor_query,
@@ -263,5 +377,49 @@ fn executable_pipeline(
     match preset_id {
         RecallPresetId::Algorithmic => Ok(algorithmic_pipeline(limit)),
         RecallPresetId::Comprehensive => Ok(comprehensive_pipeline(limit)),
+    }
+}
+
+fn normalize_custom_pipeline(
+    mut pipeline: RetrievalPipelineV1,
+) -> Result<RetrievalPipelineV1, String> {
+    if pipeline.nodes.len() > MAX_PLAYGROUND_NODES {
+        return Err(format!(
+            "custom Playground pipelines may contain at most {MAX_PLAYGROUND_NODES} nodes"
+        ));
+    }
+    pipeline.id = PLAYGROUND_PIPELINE_ID.to_string();
+    pipeline.display_name = "Playground 自定义管线".to_string();
+    pipeline.algorithm_version = PLAYGROUND_PIPELINE_ALGORITHM_VERSION.to_string();
+    Ok(pipeline)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn custom_pipeline_identity_is_server_owned() {
+        let mut pipeline = algorithmic_pipeline(Some(4));
+        pipeline.id = "forged-product-id".to_string();
+        pipeline.display_name = "forged display name".to_string();
+        pipeline.algorithm_version = "forged-version".to_string();
+
+        let normalized = normalize_custom_pipeline(pipeline).unwrap();
+        assert_eq!(normalized.id, PLAYGROUND_PIPELINE_ID);
+        assert_eq!(
+            normalized.algorithm_version,
+            PLAYGROUND_PIPELINE_ALGORITHM_VERSION
+        );
+    }
+
+    #[test]
+    fn custom_pipeline_rejects_excessive_nodes() {
+        let mut pipeline = algorithmic_pipeline(None);
+        pipeline.nodes = vec![pipeline.nodes[0].clone(); MAX_PLAYGROUND_NODES + 1];
+
+        assert!(normalize_custom_pipeline(pipeline)
+            .unwrap_err()
+            .contains("at most"));
     }
 }

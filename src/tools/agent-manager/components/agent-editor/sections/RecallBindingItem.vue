@@ -18,11 +18,18 @@
 import { computed } from "vue";
 import { Delete } from "@element-plus/icons-vue";
 import { ChevronDown, ChevronRight, BookOpen } from "lucide-vue-next";
+import { getIntegerOverrideBounds } from "@/tools/recall/core/retrievalPresetCapabilities";
+import type {
+  RecallPresetId,
+  RecallPresetSummary,
+} from "@/tools/recall/types/pipeline";
 import type { RecallBinding } from "@/tools/agent-manager/types/agent";
 
 const props = defineProps<{
   binding: RecallBinding;
   expanded: boolean;
+  presetSummaries: RecallPresetSummary[];
+  defaultPresetId?: RecallPresetId;
 }>();
 
 const emit = defineEmits<{
@@ -47,12 +54,23 @@ const modeLabel = computed(() => {
 });
 
 const macroRef = computed(() => `{{recall::${props.binding.recallId}}}`);
+const effectivePresetSummary = computed(() =>
+  props.presetSummaries.find(
+    (summary) =>
+      summary.id === (props.binding.presetId ?? props.defaultPresetId)
+  )
+);
 const presetLabel = computed(() =>
-  props.binding.presetId === "algorithmic"
-    ? "算法召回"
-    : props.binding.presetId === "comprehensive"
-      ? "综合召回"
-      : "继承全局预设"
+  props.binding.presetId
+    ? (effectivePresetSummary.value?.displayName ?? props.binding.presetId)
+    : "继承全局预设"
+);
+const limitOverride = computed(
+  () =>
+    getIntegerOverrideBounds(effectivePresetSummary.value, "limit") ?? {
+      minimum: 1,
+      maximum: 100,
+    }
 );
 
 const setPreset = (presetId: RecallBinding["presetId"] | undefined) => {
@@ -115,9 +133,16 @@ const setPreset = (presetId: RecallBinding["presetId"] | undefined) => {
               style="width: 100%"
               @update:model-value="setPreset"
             >
-              <el-option label="算法召回" value="algorithmic" />
-              <el-option label="综合召回" value="comprehensive" />
+              <el-option
+                v-for="summary in presetSummaries"
+                :key="summary.id"
+                :label="summary.displayName"
+                :value="summary.id"
+              />
             </el-select>
+            <span v-if="effectivePresetSummary" class="unit-hint">
+              {{ effectivePresetSummary.description }}
+            </span>
           </el-form-item>
 
           <!-- gate 模式参数 -->
@@ -149,8 +174,8 @@ const setPreset = (presetId: RecallBinding["presetId"] | undefined) => {
           <el-form-item label="召回上限">
             <el-input-number
               v-model="binding.limit"
-              :min="1"
-              :max="50"
+              :min="limitOverride.minimum"
+              :max="limitOverride.maximum"
               placeholder="使用全局默认"
               controls-position="right"
             />

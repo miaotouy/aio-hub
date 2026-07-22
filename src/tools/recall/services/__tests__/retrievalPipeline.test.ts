@@ -27,6 +27,8 @@ vi.mock("../../utils/vectorCache", () => ({
 
 import {
   compileRetrievalPipeline,
+  inspectRetrievalPipeline,
+  listRetrievalPresets,
   RetrievalPipelineBlockingError,
   executeRetrievalPipeline,
 } from "../retrievalPipeline";
@@ -125,6 +127,36 @@ describe("executeRetrievalPipeline", () => {
     );
 
     expect(mocks.invoke).toHaveBeenCalledTimes(2);
+  });
+
+  it("lists preset summaries without duplicating product metadata", async () => {
+    mocks.invoke.mockResolvedValueOnce([
+      {
+        id: "algorithmic",
+        displayName: "算法召回",
+        allowedOverrides: [],
+      },
+    ]);
+
+    await expect(listRetrievalPresets()).resolves.toEqual([
+      expect.objectContaining({ id: "algorithmic", displayName: "算法召回" }),
+    ]);
+    expect(mocks.invoke).toHaveBeenCalledWith("recall_list_retrieval_presets");
+  });
+
+  it("returns invalid compilation details to capability preflight callers", async () => {
+    mocks.invoke.mockResolvedValueOnce({
+      ...compiled(),
+      valid: false,
+      issues: [{ message: "limit invalid" }],
+    });
+
+    await expect(
+      inspectRetrievalPipeline("algorithmic", 101)
+    ).resolves.toMatchObject({
+      presetId: "algorithmic",
+      result: { valid: false, issues: [{ message: "limit invalid" }] },
+    });
   });
 
   it("blocks comprehensive before run when the embedding route is unavailable", async () => {

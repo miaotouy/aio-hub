@@ -8,9 +8,14 @@ import { getProfileId, getPureModelId } from "@/utils/modelIdUtils";
 import { createModuleLogger } from "@/utils/logger";
 import { useRecallCollectionStore } from "../stores/recallCollectionStore";
 import type { RecallResult } from "../types/search";
+import type {
+  RecallPipelineCompileResult,
+  RecallPresetId,
+  RecallPresetSummary,
+} from "../types/pipeline";
 import { vectorCacheManager } from "../utils/vectorCache";
 
-export type RecallPresetId = "algorithmic" | "comprehensive";
+export type { RecallPresetId } from "../types/pipeline";
 
 export interface RetrievalPipelineSearchParams {
   query: string;
@@ -24,24 +29,10 @@ export interface RetrievalPipelineSearchParams {
   fallbackPresetId?: "algorithmic";
 }
 
-export interface PipelineExternalRequirement {
-  kind: "query-embedding" | string;
-  blocking: boolean;
-}
-
-export interface PipelineCompileResult {
-  runId: string;
-  valid: boolean;
-  configHash: string;
-  algorithmVersion: string;
-  externalRequirements: PipelineExternalRequirement[];
-  issues: Array<{ message: string }>;
-}
-
 export interface CompiledRetrievalPipeline {
   presetId: RecallPresetId;
   runId: string;
-  result: PipelineCompileResult;
+  result: RecallPipelineCompileResult;
 }
 
 interface PipelineRunResponse {
@@ -72,7 +63,7 @@ function newRunId() {
   );
 }
 
-function assertValidCompilation(result: PipelineCompileResult) {
+function assertValidCompilation(result: RecallPipelineCompileResult) {
   if (!result.valid) {
     throw new RetrievalPipelineBlockingError(
       result.issues.map((issue) => issue.message).join("；") ||
@@ -82,17 +73,30 @@ function assertValidCompilation(result: PipelineCompileResult) {
   }
 }
 
-export async function compileRetrievalPipeline(
+export async function listRetrievalPresets(): Promise<RecallPresetSummary[]> {
+  return invoke<RecallPresetSummary[]>("recall_list_retrieval_presets");
+}
+
+export async function inspectRetrievalPipeline(
   presetId: RecallPresetId,
   limit?: number
 ): Promise<CompiledRetrievalPipeline> {
   const runId = newRunId();
-  const result = await invoke<PipelineCompileResult>(
+  const result = await invoke<RecallPipelineCompileResult>(
     "recall_compile_retrieval_pipeline",
     { presetId, runId, limit }
   );
-  assertValidCompilation(result);
   return { presetId, runId, result };
+}
+
+export async function compileRetrievalPipeline(
+  presetId: RecallPresetId,
+  limit?: number
+): Promise<CompiledRetrievalPipeline> {
+  const compilation = await inspectRetrievalPipeline(presetId, limit);
+  const { result } = compilation;
+  assertValidCompilation(result);
+  return compilation;
 }
 
 function normalizeWeights(

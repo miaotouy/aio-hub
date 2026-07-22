@@ -15,11 +15,35 @@
 -->
 
 <script setup lang="ts">
-import { inject, computed, ref, onMounted, type Ref } from "vue";
+import {
+  inject,
+  computed,
+  ref,
+  onBeforeUnmount,
+  onMounted,
+  watch,
+  type Ref,
+} from "vue";
 import { InfoFilled, Search, Plus } from "@element-plus/icons-vue";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useRecallCollectionStore } from "@/tools/recall/stores/recallCollectionStore";
+import {
+  buildCapabilityPreflight,
+  getIntegerOverrideBounds,
+} from "@/tools/recall/core/retrievalPresetCapabilities";
+import {
+  inspectRetrievalPipeline,
+  listRetrievalPresets,
+} from "@/tools/recall/services/retrievalPipeline";
+import type {
+  RecallPipelineCompileResult,
+  RecallPresetId,
+  RecallPresetSummary,
+} from "@/tools/recall/types/pipeline";
 import type { RecallBinding } from "@/tools/agent-manager/types/agent";
 import type { SettingItem } from "@/types/settings-renderer";
+import { getProfileId, getPureModelId } from "@/utils/modelIdUtils";
+import { createModuleLogger } from "@/utils/logger";
 import RecallBindingItem from "./RecallBindingItem.vue";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 
@@ -32,6 +56,8 @@ const editForm = inject<any>("agent-edit-form");
 const activeTab = inject<Ref<string>>("active-tab");
 
 const recallStore = useRecallCollectionStore();
+const llmProfiles = useLlmProfiles();
+const logger = createModuleLogger("agent-manager/recall-section");
 
 // 确保配置存在
 const ensureConfig = () => {
@@ -76,9 +102,100 @@ if (!editForm.recallSettings) {
   }
 }
 
-// 初始化 Recall store
-if (recallStore.bases.length === 0) {
-  recallStore.init();
+const presetSummaries = ref<RecallPresetSummary[]>([]);
+const presetLoadError = ref("");
+const preflightStatus = ref<"idle" | "compiling" | "failed">("idle");
+const preflightCompilation = ref<RecallPipelineCompileResult | null>(null);
+const preflightError = ref("");
+let preflightRequestId = 0;
+let preflightTimer: ReturnType<typeof setTimeout> | undefined;
+
+const productPresetSummaries = computed(() =>
+  presetSummaries.value.filter((summary) => summary.visibility === "product")
+);
+const selectedPresetSummary = computed(() =>
+  productPresetSummaries.value.find(
+    (summary) => summary.id === editForm.recallSettings.defaultPresetId
+  )
+);
+const limitOverride = computed(
+  () =>
+    getIntegerOverrideBounds(selectedPresetSummary.value, "limit") ?? {
+      minimum: 1,
+      maximum: 100,
+      defaultValue: 6,
+    }
+);
+const queryEmbeddingReady = computed(() => {
+  const modelIdentity = recallStore.config.defaultEmbeddingModel?.trim() ?? "";
+  const profileId = getProfileId(modelIdentity);
+  const modelId = getPureModelId(modelIdentity);
+  return (
+    Boolean(modelId && profileId) &&
+    llmProfiles.profiles.value.some((profile) => profile.id === profileId)
+  );
+});
+const capabilityPreflight = computed(() =>
+  preflightCompilation.value?.valid
+    ? buildCapabilityPreflight(
+        preflightCompilation.value,
+        queryEmbeddingReady.value
+      )
+    : null
+);
+const preflightDisplayStatus = computed(() => {
+  if (preflightStatus.value === "compiling") return "compiling";
+  if (preflightStatus.value === "failed") return "failed";
+  if (preflightCompilation.value && !preflightCompilation.value.valid) {
+    return "blocked";
+  }
+  return capabilityPreflight.value?.status ?? "idle";
+});
+
+async function loadPresetSummaries() {
+  presetLoadError.value = "";
+  try {
+    presetSummaries.value = await listRetrievalPresets();
+  } catch (error) {
+    presetLoadError.value = "无法读取检索预设摘要";
+    logger.error("读取检索预设摘要失败", { error });
+  }
+}
+
+async function refreshCapabilityPreflight() {
+  const presetId = editForm.recallSettings.defaultPresetId as
+    RecallPresetId | undefined;
+  if (!presetId) {
+    preflightCompilation.value = null;
+    preflightStatus.value = "idle";
+    return;
+  }
+
+  const requestId = ++preflightRequestId;
+  preflightStatus.value = "compiling";
+  preflightError.value = "";
+  try {
+    const compilation = await inspectRetrievalPipeline(
+      presetId,
+      editForm.recallSettings.defaultLimit
+    );
+    if (requestId !== preflightRequestId) return;
+    preflightCompilation.value = compilation.result;
+    preflightStatus.value = "idle";
+  } catch (error) {
+    if (requestId !== preflightRequestId) return;
+    preflightCompilation.value = null;
+    preflightStatus.value = "failed";
+    preflightError.value = "检索管线预检失败";
+    logger.error("检索管线预检失败", { error, presetId });
+  }
+}
+
+function scheduleCapabilityPreflight() {
+  if (preflightTimer) clearTimeout(preflightTimer);
+  preflightTimer = setTimeout(() => {
+    void refreshCapabilityPreflight();
+  }, 150);
 }
 
 // 宏检查
@@ -174,21 +291,17 @@ const recallAdvancedSettings = computed<SettingItem[]>(() => [
     label: "默认召回配置",
     component: "ElSelect",
     modelPath: "recallSettings.defaultPresetId",
-    hint: "算法召回不请求查询向量；综合召回会复用一次准备好的查询向量。",
+    hint:
+      selectedPresetSummary.value?.description ??
+      "预设摘要加载后显示召回能力。",
     keywords: "recall preset 思绪 召回 预设",
     props: { style: { width: "100%" } },
-    options: () => [
-      {
-        label: "算法召回 (algorithmic)",
-        value: "algorithmic",
-        description: "低成本、确定性且不请求查询向量",
-      },
-      {
-        label: "综合召回 (comprehensive)",
-        value: "comprehensive",
-        description: "融合关键词、内容向量、标签和关联信号",
-      },
-    ],
+    options: () =>
+      productPresetSummaries.value.map((summary) => ({
+        label: `${summary.displayName} (${summary.id})`,
+        value: summary.id,
+        description: summary.description,
+      })),
     groupCollapsible: {
       name: "recall-advanced",
       title: "思绪高级设置",
@@ -201,7 +314,12 @@ const recallAdvancedSettings = computed<SettingItem[]>(() => [
     modelPath: "recallSettings.defaultLimit",
     hint: "检索结果的数量上限。实际截断以最低分数为主要依据——即使设为 50，只有超过分数阈值的条目才会被召回。",
     keywords: "recall limit 思绪 召回 上限",
-    props: { min: 1, max: 50, step: 1, controlsPosition: "right" },
+    props: {
+      min: limitOverride.value.minimum,
+      max: limitOverride.value.maximum,
+      step: 1,
+      controlsPosition: "right",
+    },
     groupCollapsible: {
       name: "recall-advanced",
       title: "思绪高级设置",
@@ -291,10 +409,27 @@ const handleAdvancedSettingsUpdate = (newSettings: any) => {
   Object.assign(editForm, newSettings);
 };
 
-onMounted(() => {
-  if (recallStore.engines.length === 0) {
-    recallStore.loadEngines();
+watch(
+  () => [
+    editForm.recallSettings.defaultPresetId,
+    editForm.recallSettings.defaultLimit,
+  ],
+  scheduleCapabilityPreflight
+);
+
+onMounted(async () => {
+  if (recallStore.bases.length === 0) {
+    await recallStore.init();
+  } else if (recallStore.engines.length === 0) {
+    await recallStore.loadEngines();
   }
+  await loadPresetSummaries();
+  await refreshCapabilityPreflight();
+});
+
+onBeforeUnmount(() => {
+  preflightRequestId += 1;
+  if (preflightTimer) clearTimeout(preflightTimer);
 });
 </script>
 
@@ -479,6 +614,8 @@ onMounted(() => {
               :key="binding.recallId"
               :binding="binding"
               :expanded="expandedRecallId === binding.recallId"
+              :preset-summaries="productPresetSummaries"
+              :default-preset-id="editForm.recallSettings.defaultPresetId"
               :data-agent-id="editForm.id || undefined"
               @toggle-expand="toggleExpand(binding.recallId)"
               @toggle-enabled="toggleBinding(binding.recallId, $event)"
@@ -529,6 +666,84 @@ onMounted(() => {
           :settings="editForm"
           @update:settings="handleAdvancedSettingsUpdate"
         />
+      </div>
+
+      <div class="pipeline-preflight" aria-live="polite">
+        <div class="pipeline-preflight-header">
+          <span class="pipeline-preflight-title">检索能力预检</span>
+          <el-tag
+            v-if="preflightDisplayStatus === 'compiling'"
+            size="small"
+            type="info"
+          >
+            编译中
+          </el-tag>
+          <el-tag
+            v-else-if="preflightDisplayStatus === 'ready'"
+            size="small"
+            type="success"
+          >
+            可运行
+          </el-tag>
+          <el-tag
+            v-else-if="preflightDisplayStatus === 'blocked'"
+            size="small"
+            type="warning"
+          >
+            能力缺失
+          </el-tag>
+          <el-tag
+            v-else-if="preflightDisplayStatus === 'failed'"
+            size="small"
+            type="danger"
+          >
+            预检失败
+          </el-tag>
+        </div>
+
+        <div v-if="presetLoadError" class="pipeline-preflight-error">
+          {{ presetLoadError }}
+        </div>
+        <div v-if="preflightError" class="pipeline-preflight-error">
+          {{ preflightError }}
+        </div>
+        <template v-if="preflightCompilation">
+          <div class="pipeline-preflight-version">
+            {{
+              selectedPresetSummary?.displayName ||
+              preflightCompilation.pipelineId
+            }}
+            · {{ preflightCompilation.algorithmVersion }}
+          </div>
+          <div
+            v-for="issue in preflightCompilation.issues"
+            :key="`${issue.code}:${issue.fieldPath || ''}`"
+            class="pipeline-preflight-error"
+          >
+            {{ issue.message }}
+          </div>
+          <div
+            v-if="capabilityPreflight?.items.length"
+            class="pipeline-capability-list"
+          >
+            <div
+              v-for="item in capabilityPreflight.items"
+              :key="item.kind"
+              class="pipeline-capability-item"
+            >
+              <span>{{ item.label }}</span>
+              <span class="pipeline-capability-message">{{
+                item.message
+              }}</span>
+            </div>
+          </div>
+          <div
+            v-else-if="preflightCompilation.valid"
+            class="pipeline-preflight-empty"
+          >
+            无外部模型能力依赖
+          </div>
+        </template>
       </div>
     </div>
   </div>
@@ -600,6 +815,65 @@ onMounted(() => {
   margin-bottom: 8px;
   display: flex;
   align-items: center;
+}
+
+.pipeline-preflight {
+  margin-top: 12px;
+  padding: 12px 16px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+}
+
+.pipeline-preflight-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pipeline-preflight-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.pipeline-preflight-version,
+.pipeline-preflight-empty,
+.pipeline-capability-item,
+.pipeline-preflight-error {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.pipeline-preflight-version,
+.pipeline-preflight-empty {
+  color: var(--el-text-color-secondary);
+}
+
+.pipeline-preflight-error {
+  color: var(--el-color-danger);
+}
+
+.pipeline-capability-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.pipeline-capability-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 0;
+  color: var(--el-text-color-regular);
+}
+
+.pipeline-capability-message {
+  color: var(--el-text-color-secondary);
+  text-align: right;
 }
 
 .kb-config-grid :deep(.el-form-item__label) {

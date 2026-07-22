@@ -86,6 +86,14 @@ Recall service、Chat 被动召回、Agent tool 和 Agent 配置已通过 pipeli
 内容向量召回使用的原始查询向量。该能力如后续立项，只能先进入 Playground 自定义管线，
 并使用独立的基础、残差和合并种子 artifact；legacy Blender 的 residual mining 实现不会迁移。
 生产管线不再调用 Lens engine。
+
+Agent 编辑器通过 `recall_list_retrieval_presets` 读取产品预设摘要，不在组件内复制预设
+显示名、描述或 override 范围。全局和绑定级 `limit` 控件使用 `allowedOverrides` 的整数
+schema；全局预设变更后调用同一 compiler 获取 external requirements，并结合 Recall 全局
+活动 Embedding 模型执行 capability 预检。预检使用请求序号隔离异步结果，较早的 compile
+响应不能覆盖较新的预设或 limit。该预检只判断编辑期可知的全局模型路由；条目向量、标签池
+等集合相关资产仍由实际运行的 prepare 阶段校验和准备。
+
 完整的稳定契约见
 `docs/architecture/retrieval-pipeline-contract.md`；当前施工状态见
 `docs/Plan/recall-retrieval-pipeline-modularization-plan.md`。

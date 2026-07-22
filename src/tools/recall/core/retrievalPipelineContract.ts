@@ -13,8 +13,8 @@ import {
 } from "../types/pipeline";
 
 export const RECALL_PIPELINE_ALGORITHM_VERSIONS = {
-  algorithmic: "recall-pipeline-algorithmic-v1",
-  comprehensive: "recall-pipeline-comprehensive-v2",
+  algorithmic: "recall-pipeline-algorithmic-v2",
+  comprehensive: "recall-pipeline-comprehensive-v3",
 } as const;
 
 const LIMIT_OVERRIDE = {
@@ -62,7 +62,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function assertRecord(value: unknown, path: string): asserts value is Record<string, unknown> {
+function assertRecord(
+  value: unknown,
+  path: string
+): asserts value is Record<string, unknown> {
   if (!isRecord(value)) throw new Error(`${path} must be an object`);
 }
 
@@ -118,7 +121,15 @@ export function assertRecallPipelineContractFixture(
     assertRecord(preset, path);
     assertExactKeys(
       preset,
-      ["id", "displayName", "description", "visibility", "stability", "algorithmVersion", "allowedOverrides"],
+      [
+        "id",
+        "displayName",
+        "description",
+        "visibility",
+        "stability",
+        "algorithmVersion",
+        "allowedOverrides",
+      ],
       [],
       path
     );
@@ -126,15 +137,31 @@ export function assertRecallPipelineContractFixture(
       assertString(preset[field], `${path}.${field}`);
     }
     assertOneOf(preset.id, ["algorithmic", "comprehensive"], `${path}.id`);
-    assertOneOf(preset.visibility, ["product", "playground"], `${path}.visibility`);
-    assertOneOf(preset.stability, ["stable", "experimental"], `${path}.stability`);
+    assertOneOf(
+      preset.visibility,
+      ["product", "playground"],
+      `${path}.visibility`
+    );
+    assertOneOf(
+      preset.stability,
+      ["stable", "experimental"],
+      `${path}.stability`
+    );
     assertArray(preset.allowedOverrides, `${path}.allowedOverrides`);
   }
 
   assertRecord(value.pipeline, "fixture.pipeline");
   assertExactKeys(
     value.pipeline,
-    ["schemaVersion", "id", "displayName", "algorithmVersion", "candidateBudget", "expansionBudget", "nodes"],
+    [
+      "schemaVersion",
+      "id",
+      "displayName",
+      "algorithmVersion",
+      "candidateBudget",
+      "expansionBudget",
+      "nodes",
+    ],
     [],
     "fixture.pipeline"
   );
@@ -164,20 +191,42 @@ export function assertRecallPipelineContractFixture(
       throw new Error(`${path}.enabled must be a boolean`);
     }
     assertRecord(node.params, `${path}.params`);
-    if (node.dependsOn !== undefined) assertArray(node.dependsOn, `${path}.dependsOn`);
+    if (node.dependsOn !== undefined)
+      assertArray(node.dependsOn, `${path}.dependsOn`);
     if (node.failurePolicy !== undefined) {
-      assertOneOf(node.failurePolicy, ["abort", "skip"], `${path}.failurePolicy`);
+      assertOneOf(
+        node.failurePolicy,
+        ["abort", "skip"],
+        `${path}.failurePolicy`
+      );
     }
   }
 
   assertRecord(value.compileResult, "fixture.compileResult");
   assertExactKeys(
     value.compileResult,
-    ["runId", "valid", "pipelineId", "configHash", "algorithmVersion", "candidateBudget", "expansionBudget", "externalRequirements", "issues", "stages", "moduleVersions"],
+    [
+      "runId",
+      "valid",
+      "pipelineId",
+      "configHash",
+      "algorithmVersion",
+      "candidateBudget",
+      "expansionBudget",
+      "externalRequirements",
+      "issues",
+      "stages",
+      "moduleVersions",
+    ],
     [],
     "fixture.compileResult"
   );
-  for (const field of ["runId", "pipelineId", "configHash", "algorithmVersion"]) {
+  for (const field of [
+    "runId",
+    "pipelineId",
+    "configHash",
+    "algorithmVersion",
+  ]) {
     assertString(value.compileResult[field], `fixture.compileResult.${field}`);
   }
   if (typeof value.compileResult.valid !== "boolean") {
@@ -197,44 +246,99 @@ export function assertRecallPipelineContractFixture(
     assertExactKeys(stage, ["phase", "nodeIds"], [], path);
     assertOneOf(
       stage.phase,
-      ["prepare", "retrieve", "normalize", "fuse", "rerank", "filter", "finalize"],
+      [
+        "prepare",
+        "retrieve",
+        "normalize",
+        "fuse",
+        "rerank",
+        "filter",
+        "finalize",
+      ],
       `${path}.phase`
     );
     assertArray(stage.nodeIds, `${path}.nodeIds`);
   }
-  assertRecord(value.compileResult.moduleVersions, "fixture.compileResult.moduleVersions");
+  assertRecord(
+    value.compileResult.moduleVersions,
+    "fixture.compileResult.moduleVersions"
+  );
 
   assertRecord(value.runResponse, "fixture.runResponse");
   assertExactKeys(
     value.runResponse,
-    ["runId", "outcome", "requestedPresetId", "actualPresetId", "configHash", "results"],
+    [
+      "runId",
+      "outcome",
+      "requestedPresetId",
+      "actualPresetId",
+      "configHash",
+      "results",
+    ],
     ["trace", "error"],
     "fixture.runResponse"
   );
   for (const field of ["runId", "configHash"]) {
     assertString(value.runResponse[field], `fixture.runResponse.${field}`);
   }
-  assertOneOf(value.runResponse.outcome, ["success", "empty", "fallback", "failed", "cancelled"], "fixture.runResponse.outcome");
-  assertOneOf(value.runResponse.requestedPresetId, ["algorithmic", "comprehensive"], "fixture.runResponse.requestedPresetId");
-  assertOneOf(value.runResponse.actualPresetId, ["algorithmic", "comprehensive"], "fixture.runResponse.actualPresetId");
+  assertOneOf(
+    value.runResponse.outcome,
+    ["success", "empty", "fallback", "failed", "cancelled"],
+    "fixture.runResponse.outcome"
+  );
+  assertOneOf(
+    value.runResponse.requestedPresetId,
+    ["algorithmic", "comprehensive"],
+    "fixture.runResponse.requestedPresetId"
+  );
+  assertOneOf(
+    value.runResponse.actualPresetId,
+    ["algorithmic", "comprehensive"],
+    "fixture.runResponse.actualPresetId"
+  );
   assertArray(value.runResponse.results, "fixture.runResponse.results");
   assertRecord(value.runResponse.trace, "fixture.runResponse.trace");
   assertExactKeys(
     value.runResponse.trace,
-    ["traceVersion", "runId", "pipelineId", "algorithmVersion", "configHash", "candidateBudget", "expansionBudget", "finalLimit", "externalRequirements", "steps"],
+    [
+      "traceVersion",
+      "runId",
+      "pipelineId",
+      "algorithmVersion",
+      "configHash",
+      "candidateBudget",
+      "expansionBudget",
+      "finalLimit",
+      "externalRequirements",
+      "steps",
+    ],
     ["requestedPresetId", "actualPresetId", "fallbackReason", "bundleId"],
     "fixture.runResponse.trace"
   );
   if (value.runResponse.trace.traceVersion !== RECALL_PIPELINE_TRACE_VERSION) {
     throw new Error("fixture.runResponse.trace.traceVersion is unsupported");
   }
-  for (const field of ["runId", "pipelineId", "algorithmVersion", "configHash"]) {
-    assertString(value.runResponse.trace[field], `fixture.runResponse.trace.${field}`);
+  for (const field of [
+    "runId",
+    "pipelineId",
+    "algorithmVersion",
+    "configHash",
+  ]) {
+    assertString(
+      value.runResponse.trace[field],
+      `fixture.runResponse.trace.${field}`
+    );
   }
   for (const field of ["candidateBudget", "expansionBudget", "finalLimit"]) {
-    assertNumber(value.runResponse.trace[field], `fixture.runResponse.trace.${field}`);
+    assertNumber(
+      value.runResponse.trace[field],
+      `fixture.runResponse.trace.${field}`
+    );
   }
-  assertArray(value.runResponse.trace.externalRequirements, "fixture.runResponse.trace.externalRequirements");
+  assertArray(
+    value.runResponse.trace.externalRequirements,
+    "fixture.runResponse.trace.externalRequirements"
+  );
   assertArray(value.runResponse.trace.steps, "fixture.runResponse.trace.steps");
   for (const [index, step] of value.runResponse.trace.steps.entries()) {
     const path = `fixture.runResponse.trace.steps[${index}]`;
@@ -242,18 +346,39 @@ export function assertRecallPipelineContractFixture(
     assertExactKeys(
       step,
       ["nodeId", "moduleId", "phase", "durationMs", "status"],
-      ["inputCount", "outputCount", "reason", "candidateTrimmed", "trimReason"],
+      [
+        "inputCount",
+        "outputCount",
+        "reason",
+        "candidateTrimmed",
+        "trimReason",
+        "details",
+      ],
       path
     );
     assertString(step.nodeId, `${path}.nodeId`);
     assertString(step.moduleId, `${path}.moduleId`);
     assertOneOf(
       step.phase,
-      ["prepare", "retrieve", "normalize", "fuse", "rerank", "filter", "finalize"],
+      [
+        "prepare",
+        "retrieve",
+        "normalize",
+        "fuse",
+        "rerank",
+        "filter",
+        "finalize",
+      ],
       `${path}.phase`
     );
     assertNumber(step.durationMs, `${path}.durationMs`);
-    assertOneOf(step.status, ["completed", "skipped", "failed"], `${path}.status`);
+    assertOneOf(
+      step.status,
+      ["completed", "skipped", "failed"],
+      `${path}.status`
+    );
+    if (step.details !== undefined)
+      assertRecord(step.details, `${path}.details`);
   }
   assertArray(value.uiTransitions, "fixture.uiTransitions");
 }

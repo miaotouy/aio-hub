@@ -20,11 +20,17 @@ use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
 
-pub const ALGORITHMIC_PIPELINE_VERSION: &str = "recall-pipeline-algorithmic-v1";
-pub const COMPREHENSIVE_PIPELINE_VERSION: &str = "recall-pipeline-comprehensive-v2";
+pub const ALGORITHMIC_PIPELINE_VERSION: &str = "recall-pipeline-algorithmic-v2";
+pub const COMPREHENSIVE_PIPELINE_VERSION: &str = "recall-pipeline-comprehensive-v3";
 const MODULE_VERSION: &str = "1";
+const SCORING_MODULE_VERSION: &str = "2";
 const DEFAULT_CANDIDATE_BUDGET: usize = 80;
 const DEFAULT_LIMIT: usize = 6;
+const MIN_RELEVANCE_THRESHOLD: f32 = 0.0;
+const MAX_RELEVANCE_THRESHOLD: f32 = 1.0;
+const DEFAULT_PRIORITY: i32 = 100;
+const MIN_PRIORITY: i32 = 0;
+const MAX_PRIORITY: i32 = 999;
 
 fn module_info(
     id: &str,
@@ -33,9 +39,27 @@ fn module_info(
     provides: Vec<ArtifactKey>,
     parameter_schema: Value,
 ) -> RetrievalModuleInfo {
+    module_info_with_version(
+        id,
+        MODULE_VERSION,
+        phase,
+        requires,
+        provides,
+        parameter_schema,
+    )
+}
+
+fn module_info_with_version(
+    id: &str,
+    version: &str,
+    phase: RetrievalPhase,
+    requires: Vec<ArtifactKey>,
+    provides: Vec<ArtifactKey>,
+    parameter_schema: Value,
+) -> RetrievalModuleInfo {
     RetrievalModuleInfo {
         id: id.to_string(),
-        version: MODULE_VERSION.to_string(),
+        version: version.to_string(),
         phase,
         requires,
         provides,
@@ -97,6 +121,10 @@ fn stable_sort(candidates: &mut [PipelineCandidate]) {
             .then_with(|| left.recall_id.cmp(&right.recall_id))
             .then_with(|| left.entry_id.cmp(&right.entry_id))
     });
+}
+
+fn valid_relevance_threshold(value: f32) -> bool {
+    value.is_finite() && (MIN_RELEVANCE_THRESHOLD..=MAX_RELEVANCE_THRESHOLD).contains(&value)
 }
 
 fn entry_matches_policy(
@@ -319,6 +347,7 @@ impl RetrievalModule for KeywordRecallModule {
         Ok(RetrievalModuleOutput {
             candidate_trimmed: Some(trimmed),
             trim_reason: (trimmed > 0).then(|| "candidateBudget".to_string()),
+            ..RetrievalModuleOutput::default()
         })
     }
 }
@@ -443,6 +472,7 @@ impl RetrievalModule for ContentVectorRecallModule {
         Ok(RetrievalModuleOutput {
             candidate_trimmed: Some(trimmed),
             trim_reason: (trimmed > 0).then(|| "candidateBudget".to_string()),
+            ..RetrievalModuleOutput::default()
         })
     }
 }
@@ -539,6 +569,7 @@ impl RetrievalModule for TagVectorRecallModule {
         Ok(RetrievalModuleOutput {
             candidate_trimmed: Some(truncated),
             trim_reason: (truncated > 0).then(|| "neighborBudget".to_string()),
+            ..RetrievalModuleOutput::default()
         })
     }
 }
@@ -729,6 +760,7 @@ impl RetrievalModule for BoundedTagPropagationModule {
         Ok(RetrievalModuleOutput {
             candidate_trimmed: Some(truncated_states),
             trim_reason: (truncated_states > 0).then(|| "maxStates".to_string()),
+            ..RetrievalModuleOutput::default()
         })
     }
 }
@@ -834,6 +866,7 @@ impl RetrievalModule for TagToEntryExpansionModule {
         Ok(RetrievalModuleOutput {
             candidate_trimmed: Some(trimmed),
             trim_reason: (trimmed > 0).then(|| "candidateBudget".to_string()),
+            ..RetrievalModuleOutput::default()
         })
     }
 }
@@ -883,7 +916,16 @@ impl RetrievalModule for KeywordNormalizeModule {
             });
         }
         artifacts.insert(RetrievalArtifact::NormalizedSignals(signals));
-        Ok(RetrievalModuleOutput::default())
+        Ok(RetrievalModuleOutput {
+            details: Some(json!({
+                "scoreField": "normalizedScore",
+                "algorithm": "ln1p-max-per-signal-v1",
+                "inputDomain": "non-negative-finite",
+                "outputRange": [0.0, 1.0],
+                "normalizationScope": "query-and-signal-type"
+            })),
+            ..RetrievalModuleOutput::default()
+        })
     }
 }
 
@@ -903,8 +945,12 @@ struct SignalContribution {
 struct CandidateDetails {
     match_type: String,
     signals: Vec<SignalContribution>,
+    relevance_score: f32,
+    ranking_score: f32,
     #[serde(default)]
     priority: Option<i32>,
+    #[serde(default)]
+    effective_priority: Option<i32>,
     #[serde(default)]
     priority_boost: Option<f32>,
 }
@@ -913,14 +959,15 @@ pub struct WeightedFusionModule;
 
 impl RetrievalModule for WeightedFusionModule {
     fn info(&self) -> RetrievalModuleInfo {
-        module_info(
+        module_info_with_version(
             "weighted-fusion",
+            SCORING_MODULE_VERSION,
             RetrievalPhase::Fuse,
             vec![ArtifactKey::NormalizedSignals],
             vec![ArtifactKey::FusedCandidates],
             json!({
                 "type": "object",
-                "required": ["keywordWeight", "keyWeight"],
+                "required": ["keywordWeight", "keyWeight", "contentVectorWeight", "tagVectorWeight", "tagGraphWeight", "matchType"],
                 "properties": {
                     "keywordWeight": {"type": "number", "minimum": 0, "maximum": 1},
                     "keyWeight": {"type": "number", "minimum": 0, "maximum": 1},
@@ -929,6 +976,7 @@ impl RetrievalModule for WeightedFusionModule {
                     "tagGraphWeight": {"type": "number", "minimum": 0, "maximum": 1},
                     "matchType": {"type": "string"}
                 },
+                "xPositiveNumberSum": ["keywordWeight", "keyWeight", "contentVectorWeight", "tagVectorWeight", "tagGraphWeight"],
                 "additionalProperties": false
             }),
         )
@@ -949,11 +997,21 @@ impl RetrievalModule for WeightedFusionModule {
                 ))
             }
         };
-        let keyword_weight = params["keywordWeight"].as_f64().unwrap_or(0.7) as f32;
-        let key_weight = params["keyWeight"].as_f64().unwrap_or(0.3) as f32;
+        let keyword_weight = params["keywordWeight"].as_f64().unwrap_or(0.0) as f32;
+        let key_weight = params["keyWeight"].as_f64().unwrap_or(0.0) as f32;
         let content_vector_weight = params["contentVectorWeight"].as_f64().unwrap_or(0.0) as f32;
         let tag_vector_weight = params["tagVectorWeight"].as_f64().unwrap_or(0.0) as f32;
         let tag_graph_weight = params["tagGraphWeight"].as_f64().unwrap_or(0.0) as f32;
+        let total_weight = keyword_weight
+            + key_weight
+            + content_vector_weight
+            + tag_vector_weight
+            + tag_graph_weight;
+        if !total_weight.is_finite() || total_weight <= 0.0 {
+            return Err(execution_error(
+                "weighted fusion requires at least one positive finite weight",
+            ));
+        }
         let mut grouped = BTreeMap::<(Uuid, Uuid), Vec<SignalContribution>>::new();
         for signal in signals {
             let weight = match signal.signal_type {
@@ -986,20 +1044,40 @@ impl RetrievalModule for WeightedFusionModule {
                     .unwrap_or("algorithmic")
                     .to_string(),
                 signals,
+                relevance_score: score,
+                ranking_score: score,
                 priority: None,
+                effective_priority: None,
                 priority_boost: None,
             })
             .map_err(|error| execution_error(error.to_string()))?;
             candidates.push(PipelineCandidate {
                 recall_id,
                 entry_id,
+                relevance_score: score,
                 score,
                 details,
             });
         }
         stable_sort(&mut candidates);
         artifacts.insert(RetrievalArtifact::FusedCandidates(candidates));
-        Ok(RetrievalModuleOutput::default())
+        Ok(RetrievalModuleOutput {
+            details: Some(json!({
+                "scoreField": "relevanceScore",
+                "algorithm": "weighted-sum-v1",
+                "normalization": "ln1p-max-per-signal-v1",
+                "weights": {
+                    "keyword": keyword_weight,
+                    "key": key_weight,
+                    "contentVector": content_vector_weight,
+                    "tagVector": tag_vector_weight,
+                    "tagGraph": tag_graph_weight
+                },
+                "scoreRange": [0.0, total_weight],
+                "rrf": false
+            })),
+            ..RetrievalModuleOutput::default()
+        })
     }
 }
 
@@ -1007,8 +1085,9 @@ pub struct PriorityBoostModule;
 
 impl RetrievalModule for PriorityBoostModule {
     fn info(&self) -> RetrievalModuleInfo {
-        module_info(
+        module_info_with_version(
             "priority-boost",
+            SCORING_MODULE_VERSION,
             RetrievalPhase::Rerank,
             vec![ArtifactKey::FusedCandidates],
             vec![ArtifactKey::RankedCandidates],
@@ -1046,20 +1125,38 @@ impl RetrievalModule for PriorityBoostModule {
                 .entries
                 .get(&candidate.entry_id)
                 .ok_or_else(|| execution_error("candidate entry is missing"))?;
-            let boost = (entry.priority as f32 / 100.0).log10().max(0.0) * 0.1;
+            let effective_priority = entry.priority.clamp(MIN_PRIORITY, MAX_PRIORITY);
+            let boost = if effective_priority > DEFAULT_PRIORITY {
+                (effective_priority as f32 / DEFAULT_PRIORITY as f32).log10() * 0.1
+            } else {
+                0.0
+            };
             candidate.score *= 1.0 + boost;
             if let Ok(mut details) =
                 serde_json::from_value::<CandidateDetails>(candidate.details.clone())
             {
                 details.priority = Some(entry.priority);
+                details.effective_priority = Some(effective_priority);
                 details.priority_boost = Some(boost);
+                details.ranking_score = candidate.score;
                 candidate.details = serde_json::to_value(details)
                     .map_err(|error| execution_error(error.to_string()))?;
             }
         }
         stable_sort(&mut candidates);
         artifacts.insert(RetrievalArtifact::RankedCandidates(candidates));
-        Ok(RetrievalModuleOutput::default())
+        Ok(RetrievalModuleOutput {
+            details: Some(json!({
+                "inputScoreField": "relevanceScore",
+                "outputScoreField": "score",
+                "algorithm": "priority-log-rerank-v1",
+                "formula": "score = relevanceScore * (1 + max(log10(effectivePriority / 100), 0) * 0.1)",
+                "priorityRange": [MIN_PRIORITY, MAX_PRIORITY],
+                "defaultPriority": DEFAULT_PRIORITY,
+                "applications": 1
+            })),
+            ..RetrievalModuleOutput::default()
+        })
     }
 }
 
@@ -1110,6 +1207,7 @@ impl RetrievalModule for EntryPolicyFilterModule {
         Ok(RetrievalModuleOutput {
             candidate_trimmed: Some(trimmed),
             trim_reason: (trimmed > 0).then(|| "recallIds/enabledOnly/tags".to_string()),
+            ..RetrievalModuleOutput::default()
         })
     }
 }
@@ -1118,8 +1216,9 @@ pub struct ScoreThresholdModule;
 
 impl RetrievalModule for ScoreThresholdModule {
     fn info(&self) -> RetrievalModuleInfo {
-        module_info(
+        module_info_with_version(
             "score-threshold",
+            SCORING_MODULE_VERSION,
             RetrievalPhase::Filter,
             vec![ArtifactKey::RankedCandidates],
             vec![ArtifactKey::RankedCandidates],
@@ -1135,29 +1234,55 @@ impl RetrievalModule for ScoreThresholdModule {
         _trace: &mut PipelineTraceV1,
     ) -> Result<RetrievalModuleOutput, RetrievalModuleError> {
         let request = request(context)?;
+        if request
+            .filters
+            .min_score
+            .is_some_and(|value| !valid_relevance_threshold(value))
+        {
+            return Err(execution_error(format!(
+                "minScore must be between {} and {}",
+                MIN_RELEVANCE_THRESHOLD, MAX_RELEVANCE_THRESHOLD
+            )));
+        }
         let candidates = ranked_candidates(artifacts)?;
         let before = candidates.len();
         let database = context
             .db
             .read()
             .map_err(|_| execution_error("failed to read Recall database"))?;
+        let mut collection_thresholds = BTreeMap::new();
+        for candidate in &candidates {
+            if collection_thresholds.contains_key(&candidate.recall_id) {
+                continue;
+            }
+            let collection_minimum = database
+                .bases
+                .get(&candidate.recall_id)
+                .and_then(|base| base.read().ok())
+                .and_then(|base| {
+                    base.meta
+                        .config
+                        .get("minScore")
+                        .and_then(Value::as_f64)
+                        .map(|value| value as f32)
+                });
+            if collection_minimum.is_some_and(|value| !valid_relevance_threshold(value)) {
+                return Err(execution_error(format!(
+                    "collection minScore must be between {} and {}",
+                    MIN_RELEVANCE_THRESHOLD, MAX_RELEVANCE_THRESHOLD
+                )));
+            }
+            collection_thresholds.insert(candidate.recall_id, collection_minimum);
+        }
         let filtered = candidates
             .into_iter()
             .filter(|candidate| {
-                let collection_minimum = database
-                    .bases
+                collection_thresholds
                     .get(&candidate.recall_id)
-                    .and_then(|base| base.read().ok())
-                    .and_then(|base| {
-                        base.meta
-                            .config
-                            .get("minScore")
-                            .and_then(Value::as_f64)
-                            .map(|value| value as f32)
-                    });
-                collection_minimum
+                    .copied()
+                    .flatten()
                     .or(request.filters.min_score)
-                    .is_none_or(|minimum| candidate.score >= minimum)
+                    .is_none_or(|minimum| candidate.relevance_score >= minimum)
             })
             .collect::<Vec<_>>();
         let trimmed = before.saturating_sub(filtered.len());
@@ -1165,6 +1290,13 @@ impl RetrievalModule for ScoreThresholdModule {
         Ok(RetrievalModuleOutput {
             candidate_trimmed: Some(trimmed),
             trim_reason: (trimmed > 0).then(|| "finalScoreThreshold".to_string()),
+            details: Some(json!({
+                "scoreField": "relevanceScore",
+                "thresholdRange": [MIN_RELEVANCE_THRESHOLD, MAX_RELEVANCE_THRESHOLD],
+                "requestThreshold": request.filters.min_score,
+                "precedence": ["collection.minScore", "request.minScore", "none"],
+                "priorityAffectsThreshold": false
+            })),
         })
     }
 }
@@ -1227,7 +1359,10 @@ impl RetrievalModule for ResultFinalizerModule {
                 CandidateDetails {
                     match_type: "pipeline".to_string(),
                     signals: Vec::new(),
+                    relevance_score: candidate.relevance_score,
+                    ranking_score: candidate.score,
                     priority: None,
+                    effective_priority: None,
                     priority_boost: None,
                 },
             );
@@ -1254,6 +1389,12 @@ impl RetrievalModule for ResultFinalizerModule {
         Ok(RetrievalModuleOutput {
             candidate_trimmed: Some(trimmed),
             trim_reason: (trimmed > 0).then(|| "finalLimit".to_string()),
+            details: Some(json!({
+                "sort": ["score:desc", "recallId:asc", "entryId:asc"],
+                "limit": limit,
+                "scoreField": "score",
+                "relevanceScoreField": "relevanceScore"
+            })),
         })
     }
 }
@@ -1376,7 +1517,14 @@ pub fn algorithmic_pipeline(limit: Option<usize>) -> RetrievalPipelineV1 {
                 "fuse-signals",
                 "weighted-fusion",
                 Some(vec!["normalize-keyword"]),
-                json!({"keywordWeight": 0.7, "keyWeight": 1.0}),
+                json!({
+                    "keywordWeight": 0.7,
+                    "keyWeight": 1.0,
+                    "contentVectorWeight": 0.0,
+                    "tagVectorWeight": 0.0,
+                    "tagGraphWeight": 0.0,
+                    "matchType": "algorithmic"
+                }),
             ),
             node(
                 "boost-priority",
@@ -1610,6 +1758,25 @@ mod tests {
         }
     }
 
+    fn test_trace(final_limit: usize) -> PipelineTraceV1 {
+        PipelineTraceV1 {
+            trace_version: "test".to_string(),
+            run_id: "test".to_string(),
+            pipeline_id: "test".to_string(),
+            requested_preset_id: None,
+            actual_preset_id: None,
+            fallback_reason: None,
+            algorithm_version: "test".to_string(),
+            config_hash: "test".to_string(),
+            bundle_id: None,
+            candidate_budget: DEFAULT_CANDIDATE_BUDGET,
+            expansion_budget: 0,
+            final_limit,
+            external_requirements: Vec::new(),
+            steps: Vec::new(),
+        }
+    }
+
     #[test]
     fn algorithmic_pipeline_runs_without_embedding_and_uses_stable_top_k() {
         let registry = Arc::new(production_module_registry().unwrap());
@@ -1640,6 +1807,46 @@ mod tests {
             .unwrap()
             .external_requirements
             .is_empty());
+        let trace = response.trace.unwrap();
+        assert_eq!(
+            trace
+                .steps
+                .iter()
+                .find(|step| step.module_id == "weighted-fusion")
+                .and_then(|step| step.details.as_ref())
+                .and_then(|details| details["algorithm"].as_str()),
+            Some("weighted-sum-v1")
+        );
+        assert_eq!(
+            trace
+                .steps
+                .iter()
+                .find(|step| step.module_id == "score-threshold")
+                .and_then(|step| step.details.as_ref())
+                .and_then(|details| details["scoreField"].as_str()),
+            Some("relevanceScore")
+        );
+    }
+
+    #[test]
+    fn algorithmic_pipeline_returns_empty_for_an_unmatched_query() {
+        let registry = Arc::new(production_module_registry().unwrap());
+        let compiled = RetrievalPipelineCompiler::new(registry).compile(
+            &algorithmic_pipeline(Some(3)),
+            "algorithmic-empty".to_string(),
+        );
+        let response = RetrievalPipelineRunner.run(
+            &compiled,
+            &context("query-with-no-match", 3),
+            RetrievalArtifacts::default(),
+            None,
+            RecallPresetId::Algorithmic,
+            RecallPresetId::Algorithmic,
+            None,
+        );
+
+        assert_eq!(response.outcome, PipelineRunOutcome::Empty);
+        assert!(response.results.is_empty());
     }
 
     #[test]
@@ -1721,6 +1928,34 @@ mod tests {
     }
 
     #[test]
+    fn compiler_rejects_weighted_fusion_without_a_positive_weight() {
+        let mut pipeline = algorithmic_pipeline(Some(6));
+        let fusion = pipeline
+            .nodes
+            .iter_mut()
+            .find(|node| node.module_id == "weighted-fusion")
+            .unwrap();
+        fusion.params = json!({
+            "keywordWeight": 0.0,
+            "keyWeight": 0.0,
+            "contentVectorWeight": 0.0,
+            "tagVectorWeight": 0.0,
+            "tagGraphWeight": 0.0,
+            "matchType": "invalid"
+        });
+
+        let compiled =
+            RetrievalPipelineCompiler::new(Arc::new(production_module_registry().unwrap()))
+                .compile(&pipeline, "zero-weight-run".to_string());
+
+        assert!(!compiled.result.valid);
+        assert!(compiled.result.issues.iter().any(|issue| {
+            issue.code == PipelineErrorCode::ParameterInvalid
+                && issue.node_id.as_deref() == Some("fuse-signals")
+        }));
+    }
+
+    #[test]
     fn public_tail_filters_before_stable_finalization() {
         let mut context = context("Rust", 1);
         context.request.as_mut().unwrap().filters.min_score = Some(0.5);
@@ -1728,6 +1963,7 @@ mod tests {
         let candidate = |entry_id: u128, score: f32| PipelineCandidate {
             recall_id,
             entry_id: Uuid::from_u128(entry_id),
+            relevance_score: score,
             score,
             details: json!({"matchType": "algorithmic", "signals": []}),
         };
@@ -1767,6 +2003,157 @@ mod tests {
 
         assert_eq!(policy.candidate_trimmed, Some(1));
         assert_eq!(threshold.candidate_trimmed, Some(1));
+        assert!(matches!(
+            artifacts.get(ArtifactKey::FinalResults),
+            Some(RetrievalArtifact::FinalResults(results))
+                if results.len() == 1 && results[0].entry.id == Uuid::from_u128(10)
+        ));
+    }
+
+    #[test]
+    fn weighted_fusion_exposes_each_signal_contribution() {
+        let recall_id = Uuid::from_u128(1);
+        let entry_id = Uuid::from_u128(10);
+        let signal_types = [
+            RecallSignalType::Key,
+            RecallSignalType::Keyword,
+            RecallSignalType::ContentVector,
+            RecallSignalType::TagVector,
+            RecallSignalType::TagGraph,
+        ];
+        let signals = signal_types
+            .into_iter()
+            .map(|signal_type| CandidateSignal {
+                recall_id,
+                entry_id,
+                signal_type,
+                raw_score: 1.0,
+                normalized_score: Some(1.0),
+                source_module_id: format!("fixture-{signal_type:?}"),
+                details: json!({"fixture": true}),
+            })
+            .collect();
+        let mut artifacts = RetrievalArtifacts::default();
+        artifacts.insert(RetrievalArtifact::NormalizedSignals(signals));
+        let mut trace = test_trace(5);
+
+        let output = WeightedFusionModule
+            .execute(
+                &context("Rust", 5),
+                &mut artifacts,
+                &json!({
+                    "keywordWeight": 0.35,
+                    "keyWeight": 0.45,
+                    "contentVectorWeight": 0.55,
+                    "tagVectorWeight": 0.1,
+                    "tagGraphWeight": 0.2,
+                    "matchType": "fixture"
+                }),
+                &mut trace,
+            )
+            .unwrap();
+
+        let candidates = match artifacts.get(ArtifactKey::FusedCandidates) {
+            Some(RetrievalArtifact::FusedCandidates(candidates)) => candidates,
+            _ => panic!("missing fused candidates"),
+        };
+        assert_eq!(candidates.len(), 1);
+        assert!((candidates[0].relevance_score - 1.65).abs() < 0.0001);
+        assert_eq!(
+            candidates[0].details["signals"].as_array().unwrap().len(),
+            5
+        );
+        assert_eq!(
+            output.details.as_ref().unwrap()["algorithm"],
+            "weighted-sum-v1"
+        );
+        assert_eq!(output.details.as_ref().unwrap()["rrf"], false);
+    }
+
+    #[test]
+    fn priority_rerank_does_not_change_relevance_thresholding() {
+        let mut context = context("Rust", 5);
+        context.request.as_mut().unwrap().filters.min_score = Some(0.5);
+        context
+            .db
+            .write()
+            .unwrap()
+            .bases
+            .get(&Uuid::from_u128(1))
+            .unwrap()
+            .write()
+            .unwrap()
+            .entries
+            .get_mut(&Uuid::from_u128(10))
+            .unwrap()
+            .priority = MAX_PRIORITY;
+        let recall_id = Uuid::from_u128(1);
+        let candidate = |entry_id: u128, relevance_score: f32| PipelineCandidate {
+            recall_id,
+            entry_id: Uuid::from_u128(entry_id),
+            relevance_score,
+            score: relevance_score,
+            details: json!({
+                "matchType": "fixture",
+                "signals": [],
+                "relevanceScore": relevance_score,
+                "rankingScore": relevance_score
+            }),
+        };
+        let mut artifacts = RetrievalArtifacts::default();
+        artifacts.insert(RetrievalArtifact::FusedCandidates(vec![
+            candidate(10, 0.49),
+            candidate(11, 0.51),
+        ]));
+        let mut trace = test_trace(5);
+
+        PriorityBoostModule
+            .execute(&context, &mut artifacts, &json!({}), &mut trace)
+            .unwrap();
+        let ranked = ranked_candidates(&artifacts).unwrap();
+        assert!(ranked
+            .iter()
+            .find(|candidate| candidate.entry_id == Uuid::from_u128(10))
+            .is_some_and(|candidate| candidate.score > 0.49));
+        ScoreThresholdModule
+            .execute(&context, &mut artifacts, &json!({}), &mut trace)
+            .unwrap();
+
+        assert!(matches!(
+            artifacts.get(ArtifactKey::RankedCandidates),
+            Some(RetrievalArtifact::RankedCandidates(candidates))
+                if candidates.len() == 1
+                    && candidates[0].entry_id == Uuid::from_u128(11)
+        ));
+    }
+
+    #[test]
+    fn finalizer_breaks_equal_scores_by_entry_id() {
+        let context = context("Rust", 1);
+        let recall_id = Uuid::from_u128(1);
+        let candidate = |entry_id: u128| PipelineCandidate {
+            recall_id,
+            entry_id: Uuid::from_u128(entry_id),
+            relevance_score: 0.5,
+            score: 0.5,
+            details: json!({"matchType": "fixture", "signals": []}),
+        };
+        let mut artifacts = RetrievalArtifacts::default();
+        artifacts.insert(RetrievalArtifact::NormalizedQuery("rust".to_string()));
+        artifacts.insert(RetrievalArtifact::RankedCandidates(vec![
+            candidate(11),
+            candidate(10),
+        ]));
+
+        ResultFinalizerModule
+            .execute(
+                &context,
+                &mut artifacts,
+                &json!({"limit": 1}),
+                &mut test_trace(1),
+            )
+            .unwrap();
+
         assert!(matches!(
             artifacts.get(ArtifactKey::FinalResults),
             Some(RetrievalArtifact::FinalResults(results))
@@ -1851,6 +2238,36 @@ mod tests {
                 if signals.len() == 1
                     && signals[0].entry_id == Uuid::from_u128(10)
                     && signals[0].signal_type == RecallSignalType::ContentVector
+        ));
+    }
+
+    #[test]
+    fn content_vector_module_returns_no_candidates_when_model_has_no_entry_vectors() {
+        let context = context("Rust", 5);
+        let mut artifacts = RetrievalArtifacts::default();
+        artifacts.set_bundle(crate::recall::retrieval_pipeline::RetrievalArtifactBundle {
+            bundle_id: "bundle-empty".to_string(),
+            embedding_space: Some("model-empty".to_string()),
+            model_signature: Some("model-empty".to_string()),
+            asset_generation: Some("generation-empty".to_string()),
+            algorithm_version: COMPREHENSIVE_PIPELINE_VERSION.to_string(),
+            query_embedding: Some(vec![1.0, 0.0]),
+            query_energy_field: None,
+        });
+        artifacts.insert(RetrievalArtifact::QueryEmbedding(vec![1.0, 0.0]));
+
+        ContentVectorRecallModule
+            .execute(
+                &context,
+                &mut artifacts,
+                &json!({"candidateBudget": 5}),
+                &mut test_trace(5),
+            )
+            .unwrap();
+
+        assert!(matches!(
+            artifacts.get(ArtifactKey::CandidateSignals),
+            Some(RetrievalArtifact::CandidateSignals(signals)) if signals.is_empty()
         ));
     }
 

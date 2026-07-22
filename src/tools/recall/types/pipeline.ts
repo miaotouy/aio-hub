@@ -73,6 +73,7 @@ export interface RecallCandidateSignal {
 export interface RecallPipelineCandidate {
   recallId: string;
   entryId: string;
+  relevanceScore: number;
   score: number;
   details: Record<string, unknown>;
 }
@@ -172,6 +173,7 @@ export interface RecallPipelineTraceStepV1 {
   reason?: string;
   candidateTrimmed?: number;
   trimReason?: string;
+  details?: Record<string, unknown>;
 }
 
 export interface RecallPipelineTraceV1 {

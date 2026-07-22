@@ -18,6 +18,15 @@
 - 缺少 `comprehensive` 的阻塞能力时默认失败；只有显式 `fallbackPresetId=algorithmic` 才能降级。不得静默以部分覆盖结果代替完整预设。
 - fallback 请求必须同时携带 `requestedPresetId=comprehensive`、`actualPresetId=algorithmic`、`fallbackPresetId=algorithmic` 和非空原因；Runner 对未授权组合返回 `fallback-not-allowed`。fallback 即使没有候选也使用 `outcome=fallback`，空结果由 `results` 表达。
 
+### Weighted fusion v1
+
+- `keyword-normalize` 对每次查询、每种信号类型分别计算 `ln(1 + max(rawScore, 0)) / max(ln(1 + rawScore))`，输出范围为 `[0, 1]`。不同信号类型不共享最大值；没有正分的类型归一化为 `0`。
+- `relevanceScore` 是归一化信号乘固定权重后的加和，不包含 priority。每个权重必须位于 `[0, 1]`，且权重总和必须为正数，compiler 会拒绝不满足约束的配置。`algorithmic-v2` 的 `key/keyword` 权重为 `1.0/0.7`，理论范围为 `[0, 1.7]`；`comprehensive-v3` 的 `key/keyword/content-vector/tag-vector/tag-graph` 权重为 `0.45/0.35/0.55/0/0.2`，理论范围为 `[0, 1.55]`。`tag-vector` 在当前预设中只产生标签种子，因此候选权重固定为 `0`。RRF 不属于 v1。
+- `minScore` 合法范围为 `[0, 1]`，依次读取集合 `config.minScore`、请求 `filters.minScore`，均未提供时不执行分数过滤。集合配置优先于请求值。阈值只比较 `relevanceScore`，不比较 priority rerank 后的 `score`。
+- priority 的持久化默认值是 `100`，评分时有效范围固定为 `[0, 999]`；越界旧数据只在评分计算中截取到该范围，不改写存储。rerank 公式为 `score = relevanceScore * (1 + max(log10(effectivePriority / 100), 0) * 0.1)`，仅执行一次。最终按 `score desc, recallId asc, entryId asc` 稳定排序。
+- 内置预设候选预算默认 `80`，管线级候选和扩展预算上限均为 `10000`；`comprehensive` 的标签种子上限为 `40`、每节点邻居上限为 `12`、传播状态上限为 `80`。最终 `limit` 默认 `6`，产品 override 合法范围为 `[1, 100]`。候选预算、扩展预算和最终 limit 是三个独立边界。
+- `normalize`、`weighted-fusion`、`priority-boost`、`score-threshold` 和 `result-finalizer` 的 trace step `details` 分别记录归一化算法、固定权重与分数范围、priority 公式与范围、阈值来源/字段及最终排序规则。评分模块版本为 `2`；上述语义、权重、范围或顺序变化时必须再次提升评分模块和受影响预设的算法版本。
+
 ## 调用与兼容边界
 
 - Recall service、Chat 被动召回、Agent tool 与 Agent 配置通过 pipeline service 调用；该 service 先编译，再按 external requirements 准备产物，最后执行 Runner。

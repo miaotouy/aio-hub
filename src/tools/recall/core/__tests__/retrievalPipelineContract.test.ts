@@ -61,6 +61,34 @@ describe("Recall retrieval pipeline v1 contract", () => {
     ).toEqual({ limit: 6 });
   });
 
+  it("freezes weighted fusion and independent threshold score semantics", () => {
+    const fusion = fixture.runResponse.trace.steps.find(
+      (step) => step.moduleId === "weighted-fusion"
+    );
+    const priority = fixture.runResponse.trace.steps.find(
+      (step) => step.moduleId === "priority-boost"
+    );
+    const threshold = fixture.runResponse.trace.steps.find(
+      (step) => step.moduleId === "score-threshold"
+    );
+
+    expect(fusion?.details).toMatchObject({
+      algorithm: "weighted-sum-v1",
+      scoreField: "relevanceScore",
+      rrf: false,
+    });
+    expect(priority?.details).toMatchObject({
+      inputScoreField: "relevanceScore",
+      outputScoreField: "score",
+      applications: 1,
+    });
+    expect(threshold?.details).toMatchObject({
+      scoreField: "relevanceScore",
+      thresholdRange: [0, 1],
+      priorityAffectsThreshold: false,
+    });
+  });
+
   it("rejects late responses when either run identity component changed", () => {
     const active = { runId: "run-2", configHash: "hash-b" };
     expect(isCurrentRecallPipelineResponse(active, active)).toBe(true);

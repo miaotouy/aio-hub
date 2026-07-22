@@ -101,6 +101,7 @@ pub struct CandidateSignal {
 pub struct PipelineCandidate {
     pub recall_id: Uuid,
     pub entry_id: Uuid,
+    pub relevance_score: f32,
     pub score: f32,
     pub details: Value,
 }
@@ -359,6 +360,8 @@ pub struct PipelineTraceStepV1 {
     pub reason: Option<String>,
     pub candidate_trimmed: Option<usize>,
     pub trim_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -487,6 +490,7 @@ impl std::error::Error for RetrievalModuleError {}
 pub struct RetrievalModuleOutput {
     pub candidate_trimmed: Option<usize>,
     pub trim_reason: Option<String>,
+    pub details: Option<Value>,
 }
 
 pub trait RetrievalModule: Send + Sync {
@@ -586,6 +590,24 @@ impl RetrievalPipelineCompiler {
                 None,
                 Some("candidateBudget".to_string()),
                 "candidateBudget must be greater than zero".to_string(),
+            );
+        }
+        if pipeline.candidate_budget > 10_000 {
+            push_issue(
+                &mut result,
+                PipelineErrorCode::ParameterInvalid,
+                None,
+                Some("candidateBudget".to_string()),
+                "candidateBudget must not exceed 10000".to_string(),
+            );
+        }
+        if pipeline.expansion_budget > 10_000 {
+            push_issue(
+                &mut result,
+                PipelineErrorCode::ParameterInvalid,
+                None,
+                Some("expansionBudget".to_string()),
+                "expansionBudget must not exceed 10000".to_string(),
             );
         }
 
@@ -836,6 +858,7 @@ impl RetrievalPipelineCompiler {
 pub struct RetrievalPipelineRunner;
 
 impl RetrievalPipelineRunner {
+    #[allow(clippy::too_many_arguments)]
     pub fn run(
         &self,
         compiled: &CompiledPipeline,
@@ -932,6 +955,7 @@ impl RetrievalPipelineRunner {
                     reason: None,
                     candidate_trimmed: output.candidate_trimmed,
                     trim_reason: output.trim_reason,
+                    details: output.details,
                 }),
                 Err(error) if node.node.failure_policy == Some(FailurePolicy::Skip) => {
                     trace.steps.push(PipelineTraceStepV1 {
@@ -945,6 +969,7 @@ impl RetrievalPipelineRunner {
                         reason: Some(error.message),
                         candidate_trimmed: None,
                         trim_reason: None,
+                        details: error.details,
                     });
                 }
                 Err(error) => {
@@ -959,6 +984,7 @@ impl RetrievalPipelineRunner {
                         reason: Some(error.message.clone()),
                         candidate_trimmed: None,
                         trim_reason: None,
+                        details: error.details,
                     });
                     return failed_response(
                         compiled,
@@ -1213,6 +1239,26 @@ fn validate_params(schema: &Value, params: &Value) -> Result<(), String> {
             {
                 return Err(format!("module params.{} is above maximum", key));
             }
+        }
+    }
+    if let Some(keys) = schema_object
+        .get("xPositiveNumberSum")
+        .and_then(Value::as_array)
+    {
+        let sum: f64 = keys
+            .iter()
+            .filter_map(Value::as_str)
+            .filter_map(|key| params_object.get(key))
+            .filter_map(Value::as_f64)
+            .sum();
+        if !sum.is_finite() || sum <= 0.0 {
+            return Err(format!(
+                "module params [{}] must contain a positive finite sum",
+                keys.iter()
+                    .filter_map(Value::as_str)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
         }
     }
     Ok(())
@@ -1524,6 +1570,26 @@ mod tests {
         assert_eq!(response.outcome, PipelineRunOutcome::Empty);
         assert_eq!(response.trace.as_ref().unwrap().steps.len(), 3);
         assert_eq!(response.trace.as_ref().unwrap().final_limit, 2);
+    }
+
+    #[test]
+    fn compiler_rejects_candidate_and_expansion_budgets_above_the_contract_limit() {
+        let compiler = RetrievalPipelineCompiler::new(test_registry());
+        let mut pipeline = test_pipeline();
+        pipeline.candidate_budget = 10_001;
+        pipeline.expansion_budget = 10_001;
+
+        let compiled = compiler.compile(&pipeline, "run-budget-invalid".to_string());
+
+        assert!(!compiled.result.valid);
+        assert!(compiled.result.issues.iter().any(|issue| {
+            issue.code == PipelineErrorCode::ParameterInvalid
+                && issue.field_path.as_deref() == Some("candidateBudget")
+        }));
+        assert!(compiled.result.issues.iter().any(|issue| {
+            issue.code == PipelineErrorCode::ParameterInvalid
+                && issue.field_path.as_deref() == Some("expansionBudget")
+        }));
     }
 
     #[test]

@@ -7,7 +7,7 @@
       "description": "离线可用的关键词与字面信号召回",
       "visibility": "product",
       "stability": "stable",
-      "algorithmVersion": "recall-pipeline-algorithmic-v1",
+      "algorithmVersion": "recall-pipeline-algorithmic-v2",
       "allowedOverrides": [
         {
           "key": "limit",
@@ -27,7 +27,7 @@
       "description": "融合字面、内容向量和标签图信号的召回",
       "visibility": "product",
       "stability": "stable",
-      "algorithmVersion": "recall-pipeline-comprehensive-v2",
+      "algorithmVersion": "recall-pipeline-comprehensive-v3",
       "allowedOverrides": [
         {
           "key": "limit",
@@ -46,7 +46,7 @@
     "schemaVersion": 1,
     "id": "algorithmic",
     "displayName": "算法召回",
-    "algorithmVersion": "recall-pipeline-algorithmic-v1",
+    "algorithmVersion": "recall-pipeline-algorithmic-v2",
     "candidateBudget": 80,
     "expansionBudget": 0,
     "nodes": [
@@ -86,7 +86,14 @@
         "moduleId": "weighted-fusion",
         "enabled": true,
         "dependsOn": ["normalize-keyword"],
-        "params": { "keywordWeight": 0.7, "keyWeight": 1.0 },
+        "params": {
+          "keywordWeight": 0.7,
+          "keyWeight": 1.0,
+          "contentVectorWeight": 0.0,
+          "tagVectorWeight": 0.0,
+          "tagGraphWeight": 0.0,
+          "matchType": "algorithmic"
+        },
         "failurePolicy": "abort"
       },
       {
@@ -128,7 +135,7 @@
     "valid": true,
     "pipelineId": "algorithmic",
     "configHash": "contract-config-hash-v1",
-    "algorithmVersion": "recall-pipeline-algorithmic-v1",
+    "algorithmVersion": "recall-pipeline-algorithmic-v2",
     "candidateBudget": 80,
     "expansionBudget": 0,
     "externalRequirements": [],
@@ -153,10 +160,10 @@
       "query-tokenize": "1",
       "keyword-recall": "1",
       "keyword-normalize": "1",
-      "weighted-fusion": "1",
-      "priority-boost": "1",
+      "weighted-fusion": "2",
+      "priority-boost": "2",
       "entry-policy-filter": "1",
-      "score-threshold": "1",
+      "score-threshold": "2",
       "result-finalizer": "1"
     }
   },
@@ -173,7 +180,7 @@
       "pipelineId": "algorithmic",
       "requestedPresetId": "algorithmic",
       "actualPresetId": "algorithmic",
-      "algorithmVersion": "recall-pipeline-algorithmic-v1",
+      "algorithmVersion": "recall-pipeline-algorithmic-v2",
       "configHash": "contract-config-hash-v1",
       "bundleId": "contract-bundle-0001",
       "candidateBudget": 80,
@@ -215,7 +222,14 @@
           "durationMs": 0,
           "inputCount": 0,
           "outputCount": 0,
-          "status": "completed"
+          "status": "completed",
+          "details": {
+            "scoreField": "normalizedScore",
+            "algorithm": "ln1p-max-per-signal-v1",
+            "inputDomain": "non-negative-finite",
+            "outputRange": [0.0, 1.0],
+            "normalizationScope": "query-and-signal-type"
+          }
         },
         {
           "nodeId": "fuse-signals",
@@ -224,7 +238,21 @@
           "durationMs": 0,
           "inputCount": 0,
           "outputCount": 0,
-          "status": "completed"
+          "status": "completed",
+          "details": {
+            "scoreField": "relevanceScore",
+            "algorithm": "weighted-sum-v1",
+            "normalization": "ln1p-max-per-signal-v1",
+            "weights": {
+              "keyword": 0.7,
+              "key": 1.0,
+              "contentVector": 0.0,
+              "tagVector": 0.0,
+              "tagGraph": 0.0
+            },
+            "scoreRange": [0.0, 1.7],
+            "rrf": false
+          }
         },
         {
           "nodeId": "boost-priority",
@@ -233,7 +261,16 @@
           "durationMs": 0,
           "inputCount": 0,
           "outputCount": 0,
-          "status": "completed"
+          "status": "completed",
+          "details": {
+            "inputScoreField": "relevanceScore",
+            "outputScoreField": "score",
+            "algorithm": "priority-log-rerank-v1",
+            "formula": "score = relevanceScore * (1 + max(log10(effectivePriority / 100), 0) * 0.1)",
+            "priorityRange": [0, 999],
+            "defaultPriority": 100,
+            "applications": 1
+          }
         },
         {
           "nodeId": "filter-policy",
@@ -253,7 +290,14 @@
           "inputCount": 0,
           "outputCount": 0,
           "status": "completed",
-          "candidateTrimmed": 0
+          "candidateTrimmed": 0,
+          "details": {
+            "scoreField": "relevanceScore",
+            "thresholdRange": [0.0, 1.0],
+            "requestThreshold": null,
+            "precedence": ["collection.minScore", "request.minScore", "none"],
+            "priorityAffectsThreshold": false
+          }
         },
         {
           "nodeId": "finalize-results",
@@ -262,7 +306,13 @@
           "durationMs": 0,
           "inputCount": 1,
           "outputCount": 0,
-          "status": "completed"
+          "status": "completed",
+          "details": {
+            "sort": ["score:desc", "recallId:asc", "entryId:asc"],
+            "limit": 6,
+            "scoreField": "score",
+            "relevanceScoreField": "relevanceScore"
+          }
         }
       ]
     }

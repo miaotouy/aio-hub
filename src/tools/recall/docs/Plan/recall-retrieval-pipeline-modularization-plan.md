@@ -1,6 +1,6 @@
 # Recall 检索管线模块化实施计划
 
-**状态**：Phase 0 至 Phase 2 已完成；Phase 3 至 Phase 5 部分完成；Phase 6 未开始。
+**状态**：Phase 0 至 Phase 2、Phase 4 已完成；Phase 3 与 Phase 5 部分完成；Phase 6 未开始。
 
 **最近修订**：2026-07-22
 **范围**：`src/tools/recall/`、`src-tauri/src/recall/`、Recall Playground、Agent Recall 配置与 Chat 召回入口。
@@ -9,13 +9,13 @@
 
 ## 当前状态
 
-| 阶段         | 已落地                                                                                                                           | 完成前还需做什么                                                          |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Phase 0 至 2 | Runner、compiler、artifact store、公共过滤/finalizer、`algorithmic` 和生产 IPC 已可用。                                          | 仅随 Phase 6 删除 Keyword 重复实现。                                      |
-| Phase 3      | 内容向量、标签种子、受限共现图传播和标签到条目扩展已进入生产管线，并共享一次查询向量；查询残差标签扩展已确定不进入本轮稳定预设。 | 收口 legacy 实现的删除边界，并记录独立实验的后续立项入口。                |
-| Phase 4      | `comprehensive` 已组合关键词、内容向量和标签图候选，并使用 weighted fusion v1。                                                  | 固化分数与参数契约，补工程夹具和显式 fallback。                           |
-| Phase 5      | service、Chat、Agent tool、Agent 配置及全局/绑定预设已使用 `presetId`。                                                          | 完成 capability UI、全局模型代际、Playground、Monitor 和 workspace 收口。 |
-| Phase 6      | legacy runner 仍服务 `recall_search`、旧 Playground 和迁移夹具。                                                                 | 完成调用扫描后删除 legacy registry 与已替代实现。                         |
+| 阶段         | 已落地                                                                                                                                                  | 完成前还需做什么                                                          |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Phase 0 至 2 | Runner、compiler、artifact store、公共过滤/finalizer、`algorithmic` 和生产 IPC 已可用。                                                                 | 仅随 Phase 6 删除 Keyword 重复实现。                                      |
+| Phase 3      | 内容向量、标签种子、受限共现图传播和标签到条目扩展已进入生产管线，并共享一次查询向量；查询残差标签扩展已确定不进入本轮稳定预设。                        | 收口 legacy 实现的删除边界，并记录独立实验的后续立项入口。                |
+| Phase 4      | `comprehensive` 已组合关键词、内容向量和标签图候选；weighted fusion v1、独立 `relevanceScore`、预算/priority/阈值边界、工程夹具和显式 fallback 已冻结。 | 已完成。                                                                  |
+| Phase 5      | service、Chat、Agent tool、Agent 配置及全局/绑定预设已使用 `presetId`。                                                                                 | 完成 capability UI、全局模型代际、Playground、Monitor 和 workspace 收口。 |
+| Phase 6      | legacy runner 仍服务 `recall_search`、旧 Playground 和迁移夹具。                                                                                        | 完成调用扫描后删除 legacy registry 与已替代实现。                         |
 
 ## 施工顺序
 
@@ -25,7 +25,7 @@
 - [x] 用原子模块替换当前 legacy Lens helper：标签种子召回、受限标签图传播和标签到条目候选扩展。
 - [x] 查询残差标签扩展不进入本轮 `comprehensive`；如后续立项，只能作为 Playground 独立实验模块，且不得重复执行字面或内容向量检索。
 - [ ] 删除历史投射、折射、`texture`、Blender 动态 literal/semantic/gravity 权重和 resonance 乘法；literal、内容向量、标签向量与 priority 必须复用现有原子模块。
-- [ ] 记录 legacy Vector、Lens、Blender 的保留、替代、删除和回滚边界。
+- [x] 记录 legacy Vector、Lens、Blender 的保留、替代、删除和回滚边界。
 
 完成门槛：每个保留能力都有独立模块契约；每个删除能力都有明确替代或迁移结论。
 
@@ -78,9 +78,9 @@ shared query embedding
 
 ### Phase 4：完成综合预设
 
-- [ ] 固化 weighted fusion v1 的分数语义、权重、配置约束、性能边界和 trace 字段；RRF 不属于 v1。
-- [ ] 固化候选上限、各路归一化、最终阈值和 priority 的合法范围、默认值来源与版本边界；`relevanceScore` 必须是独立且可解释的阈值分数，priority 仅用于一次 rerank。
-- [ ] 用工程夹具覆盖精确字面、内容向量、标签、标签图、空候选、无向量数据和稳定 tie-break。
+- [x] 固化 weighted fusion v1 的分数语义、权重、配置约束、性能边界和 trace 字段；RRF 不属于 v1。
+- [x] 固化候选上限、各路归一化、最终阈值和 priority 的合法范围、默认值来源与版本边界；`relevanceScore` 是独立且可解释的阈值分数，priority 仅用于一次 rerank。
+- [x] 用工程夹具覆盖精确字面、内容向量、标签、标签图、空候选、无向量数据和稳定 tie-break。
 - [x] 建立可追踪的 `fallbackPresetId` 降级路径。
 
 显式 fallback 仅允许 `requestedPresetId=comprehensive`、`fallbackPresetId=algorithmic` 和 `actualPresetId=algorithmic` 的组合，并要求非空结构化原因。前端只在外部 artifact 准备失败且调用方显式允许时重新编译 `algorithmic`；后端再次校验授权，成功或空结果都以 `outcome=fallback` 返回，并在 trace 中保留 requested/actual preset 与原因。未声明 fallback 的生产请求继续失败，不执行部分综合召回。

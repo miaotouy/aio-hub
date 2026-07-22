@@ -14,7 +14,9 @@ use crate::recall::retrieval_pipeline::{
     RetrievalModuleError, RetrievalModuleInfo, RetrievalModuleOutput, RetrievalModuleRegistry,
     RetrievalPhase, RetrievalPipelineNodeV1, RetrievalPipelineV1, PIPELINE_SCHEMA_VERSION,
 };
+use crate::recall::search::lens::LensRetrievalEngine;
 use crate::recall::search::vector::cosine_similarity;
+use crate::recall::tag_sea::TagSea;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
@@ -579,6 +581,134 @@ impl RetrievalModule for TagVectorRecallModule {
     }
 }
 
+pub struct LensAssociationRecallModule;
+
+impl RetrievalModule for LensAssociationRecallModule {
+    fn info(&self) -> RetrievalModuleInfo {
+        let mut info = module_info(
+            "lens-association-recall",
+            RetrievalPhase::Retrieve,
+            vec![ArtifactKey::QueryEmbedding],
+            vec![ArtifactKey::CandidateSignals],
+            json!({
+                "type": "object",
+                "required": ["candidateBudget"],
+                "properties": {
+                    "candidateBudget": {"type": "integer", "minimum": 1, "maximum": 10000}
+                },
+                "additionalProperties": false
+            }),
+        );
+        info.external_requirements = vec![ExternalRequirementKind::QueryEmbedding];
+        info
+    }
+
+    fn execute(
+        &self,
+        context: &RetrievalContext,
+        artifacts: &mut RetrievalArtifacts,
+        params: &Value,
+        _trace: &mut PipelineTraceV1,
+    ) -> Result<RetrievalModuleOutput, RetrievalModuleError> {
+        let query_embedding = match artifacts.get(ArtifactKey::QueryEmbedding) {
+            Some(RetrievalArtifact::QueryEmbedding(vector)) if !vector.is_empty() => vector.clone(),
+            _ => {
+                return Err(external_artifact_error(
+                    "query embedding artifact is missing or empty",
+                ))
+            }
+        };
+        let model_signature = artifacts
+            .bundle()
+            .and_then(|bundle| bundle.model_signature.as_deref())
+            .filter(|model| !model.is_empty())
+            .ok_or_else(|| {
+                external_artifact_error("Lens recall requires a bundle model signature")
+            })?
+            .to_string();
+        let request = request(context)?;
+        let budget = params["candidateBudget"].as_u64().unwrap_or(1) as usize;
+        let pool_lock = context
+            .tag_pool_manager
+            .get_pool(&context.app_data_dir, &model_signature)
+            .map_err(execution_error)?;
+        let pool = {
+            let mut pool = pool_lock
+                .write()
+                .map_err(|_| execution_error("failed to write Recall tag pool"))?;
+            if pool.dimension != query_embedding.len() || pool.dimension == 0 {
+                artifacts.append_candidate_signals(Vec::new());
+                return Ok(RetrievalModuleOutput::default());
+            }
+            if pool.index.is_none() && !pool.registry.is_empty() {
+                pool.rebuild_index();
+            }
+            pool.clone()
+        };
+
+        let database = context
+            .db
+            .read()
+            .map_err(|_| execution_error("failed to read Recall database"))?;
+        let engine = LensRetrievalEngine::new();
+        let mut signals = Vec::new();
+        for (recall_id, base_lock) in &database.bases {
+            if request
+                .filters
+                .recall_ids
+                .as_ref()
+                .is_some_and(|ids| !ids.contains(recall_id))
+            {
+                continue;
+            }
+            let base = base_lock
+                .read()
+                .map_err(|_| execution_error("failed to read Recall collection"))?;
+            let tag_sea = TagSea::build(&base, pool.clone());
+            let raw_scores = engine
+                .execute_lens_candidate_scores(&query_embedding, &request.filters, &tag_sea)
+                .map_err(execution_error)?;
+            for (entry_id, raw_score) in raw_scores {
+                let Some(entry) = base.entries.get(&entry_id) else {
+                    continue;
+                };
+                if !entry_matches_policy(*recall_id, entry, request) || !raw_score.is_finite() {
+                    continue;
+                }
+                signals.push(CandidateSignal {
+                    recall_id: *recall_id,
+                    entry_id,
+                    signal_type: RecallSignalType::Lens,
+                    raw_score,
+                    normalized_score: None,
+                    source_module_id: "lens-association-recall".to_string(),
+                    details: json!({
+                        "modelSignature": model_signature,
+                        "historyVectorCount": request.filters.history_vectors.as_ref().map_or(0, Vec::len),
+                        "texture": request.filters.texture,
+                        "source": "lens-association"
+                    }),
+                });
+            }
+        }
+        signals.sort_by(|left, right| {
+            right
+                .raw_score
+                .total_cmp(&left.raw_score)
+                .then_with(|| left.recall_id.cmp(&right.recall_id))
+                .then_with(|| left.entry_id.cmp(&right.entry_id))
+        });
+        let total = signals.len();
+        signals.truncate(budget);
+        let trimmed = total.saturating_sub(signals.len());
+        artifacts.append_candidate_signals(signals);
+        Ok(RetrievalModuleOutput {
+            candidate_trimmed: Some(trimmed),
+            trim_reason: (trimmed > 0).then(|| "candidateBudget".to_string()),
+        })
+    }
+}
+
 pub struct KeywordNormalizeModule;
 
 impl RetrievalModule for KeywordNormalizeModule {
@@ -1017,6 +1147,7 @@ pub fn production_module_registry() -> Result<RetrievalModuleRegistry, Retrieval
     registry.register(KeywordRecallModule)?;
     registry.register(ContentVectorRecallModule)?;
     registry.register(TagVectorRecallModule)?;
+    registry.register(LensAssociationRecallModule)?;
     registry.register(KeywordNormalizeModule)?;
     registry.register(WeightedFusionModule)?;
     registry.register(PriorityBoostModule)?;

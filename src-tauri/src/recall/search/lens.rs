@@ -206,14 +206,29 @@ impl RetrievalEngine for LensRetrievalEngine {
             );
 
             // 执行透镜检索算法流程
-            let mut recall_results = self.execute_lens_pipeline(
-                query_vector,
-                filters,
-                &tag_sea,
-                &base,
-                *recall_id,
-                base.meta.name.clone(),
-            )?;
+            let raw_scores = self.execute_lens_candidate_scores(query_vector, filters, &tag_sea)?;
+            let mut recall_results: Vec<RecallResult> = raw_scores
+                .into_iter()
+                .filter_map(|(entry_id, score)| {
+                    let entry = base.entries.get(&entry_id)?;
+                    if filters.enabled_only.unwrap_or(true) && !entry.enabled {
+                        return None;
+                    }
+                    Some(RecallResult {
+                        entry: entry.clone(),
+                        score,
+                        match_type: "lens".to_string(),
+                        recall_id: *recall_id,
+                        recall_name: base.meta.name.clone(),
+                        highlight: None,
+                        signals: vec![RecallSignal {
+                            signal_type: RecallSignalType::Lens,
+                            score,
+                        }],
+                        trace: None,
+                    })
+                })
+                .collect();
 
             // 应用库级别 TopK 截断
             recall_results.sort_by(|a, b| {
@@ -277,15 +292,12 @@ impl RetrievalEngine for LensRetrievalEngine {
 
 impl LensRetrievalEngine {
     /// 执行透镜检索核心流水线
-    fn execute_lens_pipeline(
+    pub(crate) fn execute_lens_candidate_scores(
         &self,
         query_vector: &[f32],
         filters: &RecallSearchFilters,
         tag_sea: &TagSea,
-        base: &crate::recall::index::db::InMemoryBase,
-        recall_id: Uuid,
-        recall_name: String,
-    ) -> Result<Vec<RecallResult>, String> {
+    ) -> Result<Vec<(Uuid, f32)>, String> {
         // Phase 1: 上下文投射 (Context Projection)
         // 计算投影向量：当前查询向量 + 衰减后的历史消息向量
         let mut projected_vector = query_vector.to_vec();
@@ -427,31 +439,7 @@ impl LensRetrievalEngine {
             }
         }
 
-        // 转换为 RecallResult
-        let mut results = Vec::new();
-        for (entry_id, score) in entry_scores {
-            if let Some(entry) = base.entries.get(&entry_id) {
-                if filters.enabled_only.unwrap_or(true) && !entry.enabled {
-                    continue;
-                }
-
-                results.push(RecallResult {
-                    entry: entry.clone(),
-                    score,
-                    match_type: "lens".to_string(),
-                    recall_id,
-                    recall_name: recall_name.clone(),
-                    highlight: None,
-                    signals: vec![RecallSignal {
-                        signal_type: RecallSignalType::Lens,
-                        score,
-                    }],
-                    trace: None,
-                });
-            }
-        }
-
-        Ok(results)
+        Ok(entry_scores.into_iter().collect())
     }
 
     fn apply_refraction(&self, vector: &[f32], center: &[f32], index: f32) -> Vec<f32> {

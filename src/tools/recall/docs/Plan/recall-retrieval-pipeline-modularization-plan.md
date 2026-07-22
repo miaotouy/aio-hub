@@ -9,13 +9,13 @@
 
 ## 当前状态
 
-| 阶段         | 已落地                                                                                       | 完成前还需做什么                                                          |
-| ------------ | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Phase 0 至 2 | Runner、compiler、artifact store、公共过滤/finalizer、`algorithmic` 和生产 IPC 已可用。      | 仅随 Phase 6 删除 Keyword 重复实现。                                      |
-| Phase 3      | 内容向量、标签种子、受限共现图传播和标签到条目扩展已进入生产管线，并共享一次查询向量。 | 收口 legacy 实现的删除边界，并决定是否单独立项查询残差标签扩展。          |
-| Phase 4      | `comprehensive` 已组合关键词、内容向量和标签图候选，并使用 weighted fusion v1。              | 固化分数与参数契约，补工程夹具和显式 fallback。                           |
-| Phase 5      | service、Chat、Agent tool、Agent 配置及全局/绑定预设已使用 `presetId`。                      | 完成 capability UI、全局模型代际、Playground、Monitor 和 workspace 收口。 |
-| Phase 6      | legacy runner 仍服务 `recall_search`、旧 Playground 和迁移夹具。                             | 完成调用扫描后删除 legacy registry 与已替代实现。                         |
+| 阶段         | 已落地                                                                                  | 完成前还需做什么                                                          |
+| ------------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Phase 0 至 2 | Runner、compiler、artifact store、公共过滤/finalizer、`algorithmic` 和生产 IPC 已可用。 | 仅随 Phase 6 删除 Keyword 重复实现。                                      |
+| Phase 3      | 内容向量、标签种子、受限共现图传播和标签到条目扩展已进入生产管线，并共享一次查询向量。  | 收口 legacy 实现的删除边界，并决定是否单独立项查询残差标签扩展。          |
+| Phase 4      | `comprehensive` 已组合关键词、内容向量和标签图候选，并使用 weighted fusion v1。         | 固化分数与参数契约，补工程夹具和显式 fallback。                           |
+| Phase 5      | service、Chat、Agent tool、Agent 配置及全局/绑定预设已使用 `presetId`。                 | 完成 capability UI、全局模型代际、Playground、Monitor 和 workspace 收口。 |
+| Phase 6      | legacy runner 仍服务 `recall_search`、旧 Playground 和迁移夹具。                        | 完成调用扫描后删除 legacy registry 与已替代实现。                         |
 
 ## 施工顺序
 
@@ -59,7 +59,9 @@ Recall 尚不具备 VCPToolBox 的有序标签序位、pairwise 相似度和内�
 - [ ] 固化 weighted fusion v1 的分数语义、权重、配置约束、性能边界和 trace 字段；RRF 不属于 v1。
 - [ ] 固化候选上限、各路归一化、最终阈值和 priority 的合法范围、默认值来源与版本边界；`relevanceScore` 必须是独立且可解释的阈值分数，priority 仅用于一次 rerank。
 - [ ] 用工程夹具覆盖精确字面、内容向量、标签、标签图、空候选、无向量数据和稳定 tie-break。
-- [ ] 建立可追踪的 `fallbackPresetId` 降级路径。
+- [x] 建立可追踪的 `fallbackPresetId` 降级路径。
+
+显式 fallback 仅允许 `requestedPresetId=comprehensive`、`fallbackPresetId=algorithmic` 和 `actualPresetId=algorithmic` 的组合，并要求非空结构化原因。前端只在外部 artifact 准备失败且调用方显式允许时重新编译 `algorithmic`；后端再次校验授权，成功或空结果都以 `outcome=fallback` 返回，并在 trace 中保留 requested/actual preset 与原因。未声明 fallback 的生产请求继续失败，不执行部分综合召回。
 
 完成门槛：综合预设的编译、执行、trace、缓存隔离和 fallback 都有确定性验证；默认参数与算法版本可追溯。
 

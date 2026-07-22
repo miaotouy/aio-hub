@@ -844,8 +844,12 @@ impl RetrievalPipelineRunner {
         bundle: Option<&RetrievalArtifactBundle>,
         requested_preset_id: RecallPresetId,
         actual_preset_id: RecallPresetId,
+        fallback_reason: Option<String>,
     ) -> PipelineRunResponse {
-        let trace = new_trace(compiled, bundle, requested_preset_id, actual_preset_id);
+        let mut trace = new_trace(compiled, bundle, requested_preset_id, actual_preset_id);
+        if requested_preset_id != actual_preset_id {
+            trace.fallback_reason = fallback_reason;
+        }
         if !compiled.result.valid {
             return failed_response(
                 compiled,
@@ -872,7 +876,6 @@ impl RetrievalPipelineRunner {
             }
         }
 
-        let mut trace = trace;
         for node in &compiled.nodes {
             for required in &node.info.requires {
                 if !artifacts.contains(*required) {
@@ -986,7 +989,9 @@ impl RetrievalPipelineRunner {
         };
         PipelineRunResponse {
             run_id: compiled.result.run_id.clone(),
-            outcome: if results.is_empty() {
+            outcome: if requested_preset_id != actual_preset_id {
+                PipelineRunOutcome::Fallback
+            } else if results.is_empty() {
                 PipelineRunOutcome::Empty
             } else {
                 PipelineRunOutcome::Success
@@ -1019,6 +1024,35 @@ impl RetrievalPipelineRunner {
             ));
         }
         None
+    }
+
+    pub fn validate_fallback(
+        &self,
+        compiled: &CompiledPipeline,
+        requested_preset_id: RecallPresetId,
+        actual_preset_id: RecallPresetId,
+        fallback_preset_id: Option<RecallPresetId>,
+        fallback_reason: Option<&str>,
+    ) -> Option<PipelineRunResponse> {
+        if requested_preset_id == actual_preset_id {
+            return None;
+        }
+        let allowed = requested_preset_id == RecallPresetId::Comprehensive
+            && actual_preset_id == RecallPresetId::Algorithmic
+            && fallback_preset_id == Some(RecallPresetId::Algorithmic)
+            && fallback_reason.is_some_and(|reason| !reason.trim().is_empty());
+        if allowed {
+            return None;
+        }
+        Some(failed_response(
+            compiled,
+            requested_preset_id,
+            actual_preset_id,
+            new_trace(compiled, None, requested_preset_id, actual_preset_id),
+            PipelineErrorCode::FallbackNotAllowed,
+            "pipeline fallback is not explicitly allowed by the request".to_string(),
+            None,
+        ))
     }
 }
 
@@ -1485,10 +1519,58 @@ mod tests {
             None,
             RecallPresetId::Algorithmic,
             RecallPresetId::Algorithmic,
+            None,
         );
         assert_eq!(response.outcome, PipelineRunOutcome::Empty);
         assert_eq!(response.trace.as_ref().unwrap().steps.len(), 3);
         assert_eq!(response.trace.as_ref().unwrap().final_limit, 2);
+    }
+
+    #[test]
+    fn runner_requires_explicit_fallback_and_traces_the_actual_preset() {
+        let compiled = RetrievalPipelineCompiler::new(test_registry())
+            .compile(&test_pipeline(), "fallback-run".to_string());
+        let runner = RetrievalPipelineRunner;
+        let rejected = runner
+            .validate_fallback(
+                &compiled,
+                RecallPresetId::Comprehensive,
+                RecallPresetId::Algorithmic,
+                None,
+                Some("query-embedding-unconfigured"),
+            )
+            .unwrap();
+        assert_eq!(rejected.outcome, PipelineRunOutcome::Failed);
+        assert_eq!(
+            rejected.error.unwrap().code,
+            PipelineErrorCode::FallbackNotAllowed
+        );
+        assert!(runner
+            .validate_fallback(
+                &compiled,
+                RecallPresetId::Comprehensive,
+                RecallPresetId::Algorithmic,
+                Some(RecallPresetId::Algorithmic),
+                Some("query-embedding-unconfigured"),
+            )
+            .is_none());
+
+        let response = runner.run(
+            &compiled,
+            &test_context(),
+            RetrievalArtifacts::default(),
+            None,
+            RecallPresetId::Comprehensive,
+            RecallPresetId::Algorithmic,
+            Some("query-embedding-unconfigured".to_string()),
+        );
+        assert_eq!(response.outcome, PipelineRunOutcome::Fallback);
+        assert_eq!(response.requested_preset_id, RecallPresetId::Comprehensive);
+        assert_eq!(response.actual_preset_id, RecallPresetId::Algorithmic);
+        assert_eq!(
+            response.trace.unwrap().fallback_reason.as_deref(),
+            Some("query-embedding-unconfigured")
+        );
     }
 
     #[test]
@@ -1722,6 +1804,7 @@ mod tests {
             None,
             RecallPresetId::Comprehensive,
             RecallPresetId::Comprehensive,
+            None,
         );
         assert_eq!(response.outcome, PipelineRunOutcome::Failed);
         assert_eq!(

@@ -143,4 +143,39 @@ describe("executeRetrievalPipeline", () => {
     });
     expect(mocks.invoke).toHaveBeenCalledOnce();
   });
+
+  it("uses algorithmic only when comprehensive declares an explicit fallback", async () => {
+    mocks.profiles.value = [];
+    mocks.invoke
+      .mockResolvedValueOnce(compiled([{ kind: "query-embedding" }]))
+      .mockResolvedValueOnce({ ...compiled(), runId: "run-2" })
+      .mockResolvedValueOnce({ ...successfulRun, outcome: "fallback" });
+
+    await expect(
+      executeRetrievalPipeline({
+        query: "vector query",
+        recallIds: ["recall-1"],
+        presetId: "comprehensive",
+        fallbackPresetId: "algorithmic",
+      })
+    ).resolves.toMatchObject({
+      outcome: "fallback",
+      requestedPresetId: "comprehensive",
+      actualPresetId: "algorithmic",
+    });
+
+    expect(mocks.invoke).toHaveBeenNthCalledWith(
+      3,
+      "recall_run_retrieval_pipeline",
+      expect.objectContaining({
+        request: expect.objectContaining({
+          presetId: "algorithmic",
+          requestedPresetId: "comprehensive",
+          fallbackPresetId: "algorithmic",
+          fallbackReason: "query-embedding-unconfigured",
+          bundle: undefined,
+        }),
+      })
+    );
+  });
 });

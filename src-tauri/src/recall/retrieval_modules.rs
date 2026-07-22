@@ -1627,6 +1627,7 @@ mod tests {
             None,
             RecallPresetId::Algorithmic,
             RecallPresetId::Algorithmic,
+            None,
         );
 
         assert_eq!(response.outcome, PipelineRunOutcome::Success);

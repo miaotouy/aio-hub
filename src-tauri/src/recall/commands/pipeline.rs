@@ -21,6 +21,9 @@ pub struct RetrievalPipelineRunRequest {
     pub query: String,
     pub filters: RecallSearchFilters,
     pub preset_id: RecallPresetId,
+    pub requested_preset_id: Option<RecallPresetId>,
+    pub fallback_preset_id: Option<RecallPresetId>,
+    pub fallback_reason: Option<String>,
     pub run_id: String,
     pub config_hash: String,
     pub bundle: Option<RetrievalArtifactBundle>,
@@ -56,10 +59,14 @@ pub async fn recall_run_retrieval_pipeline(
         query,
         filters,
         preset_id,
+        requested_preset_id,
+        fallback_preset_id,
+        fallback_reason,
         run_id,
         config_hash,
         bundle,
     } = request;
+    let requested_preset_id = requested_preset_id.unwrap_or(preset_id);
     let pipeline = executable_pipeline(preset_id, filters.limit)?;
     let compiled =
         RetrievalPipelineCompiler::new(state.pipeline_modules.clone()).compile(&pipeline, run_id);
@@ -70,8 +77,17 @@ pub async fn recall_run_retrieval_pipeline(
         request: Some(RetrievalRequestSnapshot { query, filters }),
     };
     let runner = RetrievalPipelineRunner;
+    if let Some(response) = runner.validate_fallback(
+        &compiled,
+        requested_preset_id,
+        preset_id,
+        fallback_preset_id,
+        fallback_reason.as_deref(),
+    ) {
+        return Ok(response);
+    }
     if let Some(response) =
-        runner.validate_config_hash(&compiled, &config_hash, preset_id, preset_id)
+        runner.validate_config_hash(&compiled, &config_hash, requested_preset_id, preset_id)
     {
         return Ok(response);
     }
@@ -80,8 +96,9 @@ pub async fn recall_run_retrieval_pipeline(
         &context,
         RetrievalArtifacts::default(),
         bundle.as_ref(),
+        requested_preset_id,
         preset_id,
-        preset_id,
+        fallback_reason,
     ))
 }
 

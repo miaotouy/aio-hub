@@ -21,6 +21,7 @@ export interface RetrievalPipelineSearchParams {
   limit?: number;
   minScore?: number;
   presetId: RecallPresetId;
+  fallbackPresetId?: "algorithmic";
 }
 
 export interface PipelineExternalRequirement {
@@ -47,6 +48,8 @@ interface PipelineRunResponse {
   outcome: "success" | "empty" | "fallback" | "failed" | "cancelled";
   results: RecallResult[];
   configHash: string;
+  requestedPresetId?: RecallPresetId;
+  actualPresetId?: RecallPresetId;
   trace?: unknown;
   error?: { code: string; message: string };
 }
@@ -156,7 +159,14 @@ async function prepareQueryEmbedding(
 export async function executeRetrievalPipeline(
   params: RetrievalPipelineSearchParams,
   compiled?: CompiledRetrievalPipeline
-): Promise<{ results: RecallResult[]; configHash: string; trace?: unknown }> {
+): Promise<{
+  results: RecallResult[];
+  configHash: string;
+  outcome?: PipelineRunResponse["outcome"];
+  requestedPresetId?: RecallPresetId;
+  actualPresetId?: RecallPresetId;
+  trace?: unknown;
+}> {
   if (!params.query.trim()) return { results: [], configHash: "empty-query" };
   if (!params.recallIds.length) {
     throw new RetrievalPipelineBlockingError(
@@ -172,35 +182,55 @@ export async function executeRetrievalPipeline(
       "pipeline-preset-mismatch"
     );
   }
-  const { runId, result: compileResult } = compilation;
-  const needsEmbedding = compileResult.externalRequirements.some(
-    (requirement) => requirement.kind === "query-embedding"
-  );
+  let activeCompilation = compilation;
+  let actualPresetId = params.presetId;
+  let fallbackReason: string | undefined;
   let bundle: Record<string, unknown> | undefined;
-  if (needsEmbedding) {
-    const weights = normalizeWeights(params.fusionWeights);
-    const prepared = await prepareQueryEmbedding(
-      params.query,
-      params.secondaryQuery ?? "",
-      weights
+  try {
+    const needsEmbedding = activeCompilation.result.externalRequirements.some(
+      (requirement) => requirement.kind === "query-embedding"
     );
-    for (const recallId of params.recallIds) {
-      await invoke("recall_load_model_vectors", {
-        recallId,
+    if (needsEmbedding) {
+      const weights = normalizeWeights(params.fusionWeights);
+      const prepared = await prepareQueryEmbedding(
+        params.query,
+        params.secondaryQuery ?? "",
+        weights
+      );
+      for (const recallId of params.recallIds) {
+        await invoke("recall_load_model_vectors", {
+          recallId,
+          modelId: prepared.modelId,
+        });
+      }
+      await invoke("recall_rebuild_tag_pool_index", {
         modelId: prepared.modelId,
       });
+      bundle = {
+        bundleId: `${activeCompilation.runId}:${prepared.modelId}`,
+        embeddingSpace: prepared.modelId,
+        modelSignature: prepared.modelSignature,
+        algorithmVersion: activeCompilation.result.algorithmVersion,
+        queryEmbedding: prepared.embedding,
+      };
     }
-    await invoke("recall_rebuild_tag_pool_index", {
-      modelId: prepared.modelId,
-    });
-    bundle = {
-      bundleId: `${runId}:${prepared.modelId}`,
-      embeddingSpace: prepared.modelId,
-      modelSignature: prepared.modelSignature,
-      algorithmVersion: compileResult.algorithmVersion,
-      queryEmbedding: prepared.embedding,
-    };
+  } catch (error) {
+    const canFallback =
+      params.presetId === "comprehensive" &&
+      params.fallbackPresetId === "algorithmic";
+    if (!canFallback) throw error;
+    fallbackReason =
+      error instanceof RetrievalPipelineBlockingError
+        ? error.code
+        : "external-artifact-prepare-failed";
+    actualPresetId = "algorithmic";
+    activeCompilation = await compileRetrievalPipeline(
+      actualPresetId,
+      params.limit
+    );
+    bundle = undefined;
   }
+  const { runId, result: compileResult } = activeCompilation;
   const response = await invoke<PipelineRunResponse>(
     "recall_run_retrieval_pipeline",
     {
@@ -213,7 +243,10 @@ export async function executeRetrievalPipeline(
           minScore: params.minScore,
           enabledOnly: true,
         },
-        presetId: params.presetId,
+        presetId: actualPresetId,
+        requestedPresetId: params.presetId,
+        fallbackPresetId: params.fallbackPresetId,
+        fallbackReason,
         runId,
         configHash: compileResult.configHash,
         bundle,
@@ -234,6 +267,9 @@ export async function executeRetrievalPipeline(
   return {
     results: response.results,
     configHash: response.configHash,
+    outcome: response.outcome,
+    requestedPresetId: response.requestedPresetId ?? params.presetId,
+    actualPresetId: response.actualPresetId ?? actualPresetId,
     trace: response.trace,
   };
 }

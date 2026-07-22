@@ -16,6 +16,7 @@
 - 候选模块只产生候选或信号。集合范围、启用状态、标签等硬过滤、最终阈值、稳定排序、TopK 和条目回源由公共尾部统一处理；同分使用 entry ID 稳定打破平局。
 - `priority` 只在 rerank 阶段应用一次。标签文本匹配不是纯算法预设的额外评分信号，标签仍可作为过滤条件。
 - 缺少 `comprehensive` 的阻塞能力时默认失败；只有显式 `fallbackPresetId=algorithmic` 才能降级。不得静默以部分覆盖结果代替完整预设。
+- fallback 请求必须同时携带 `requestedPresetId=comprehensive`、`actualPresetId=algorithmic`、`fallbackPresetId=algorithmic` 和非空原因；Runner 对未授权组合返回 `fallback-not-allowed`。fallback 即使没有候选也使用 `outcome=fallback`，空结果由 `results` 表达。
 
 ## 调用与兼容边界
 
@@ -28,14 +29,14 @@
 
 旧引擎输出没有独立的模块版本，只能用于迁移诊断，不能进入新管线缓存或充当质量基线。下表保留 Phase 0 对旧行为的必要盘点，避免后续删除运行时时丢失能力取舍依据。
 
-| 旧能力        | 旧行为摘要                                                                                                        | 现行处理                                                                                                                                                                  |
-| ------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `keyword`     | 倒排候选、key contains 加成、全局非线性归一化，并在集合内提前执行阈值、排序与 TopK。                              | 迁为 `query-tokenize`、`keyword-recall`、独立归一化、policy 与 finalizer；不沿用旧分数和提前裁剪顺序。                                                                    |
-| `vector`      | Tag Anchoring、内容余弦与长度调整、tag pool 邻居、动态内容/标签权重、priority 和字面加成；融合前存在候选粗过滤。  | 拆为内容向量、标签向量、字面信号、priority 与 normalize/fuse；不沿用动态权重、阈值和裁剪顺序。                                                                            |
-| `lens`        | 历史向量衰减投射、显式或自动标签折射、标签邻居、texture affinity、图传播和标签到条目能量汇聚。                    | 已从生产管线移除。新管线使用标签种子、受限共现图传播和标签到条目扩展；历史投射、折射与 texture 仅在 legacy engine 和迁移诊断保留，待 Phase 6 删除。 |
-| `blender`     | 重复执行字面和内容向量检索，并包含标签残差挖掘、动态 literal/semantic/gravity 权重、resonance 与 priority boost。 | 不迁移动态权重、gravity 与 resonance；字面、内容向量、标签和 priority 复用现有模块。查询残差标签扩展如需引入，必须作为独立实验模块立项，不保留 Blender 名称。             |
-| `semantic`    | 直接委托 `vector`，继承其提前裁剪和旧 trace。                                                                     | legacy parser 映射到 `comprehensive`，不建立等价 facade。                                                                                                                 |
-| `associative` | 分别执行 Blender 与 Lens，再以固定权重融合；子引擎和 facade 都可能提前裁剪。                                      | legacy parser 映射到 `comprehensive`，不保留引擎包含引擎或固定旧权重。                                                                                                    |
+| 旧能力        | 旧行为摘要                                                                                                        | 现行处理                                                                                                                                                      |
+| ------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `keyword`     | 倒排候选、key contains 加成、全局非线性归一化，并在集合内提前执行阈值、排序与 TopK。                              | 迁为 `query-tokenize`、`keyword-recall`、独立归一化、policy 与 finalizer；不沿用旧分数和提前裁剪顺序。                                                        |
+| `vector`      | Tag Anchoring、内容余弦与长度调整、tag pool 邻居、动态内容/标签权重、priority 和字面加成；融合前存在候选粗过滤。  | 拆为内容向量、标签向量、字面信号、priority 与 normalize/fuse；不沿用动态权重、阈值和裁剪顺序。                                                                |
+| `lens`        | 历史向量衰减投射、显式或自动标签折射、标签邻居、texture affinity、图传播和标签到条目能量汇聚。                    | 已从生产管线移除。新管线使用标签种子、受限共现图传播和标签到条目扩展；历史投射、折射与 texture 仅在 legacy engine 和迁移诊断保留，待 Phase 6 删除。           |
+| `blender`     | 重复执行字面和内容向量检索，并包含标签残差挖掘、动态 literal/semantic/gravity 权重、resonance 与 priority boost。 | 不迁移动态权重、gravity 与 resonance；字面、内容向量、标签和 priority 复用现有模块。查询残差标签扩展如需引入，必须作为独立实验模块立项，不保留 Blender 名称。 |
+| `semantic`    | 直接委托 `vector`，继承其提前裁剪和旧 trace。                                                                     | legacy parser 映射到 `comprehensive`，不建立等价 facade。                                                                                                     |
+| `associative` | 分别执行 Blender 与 Lens，再以固定权重融合；子引擎和 facade 都可能提前裁剪。                                      | legacy parser 映射到 `comprehensive`，不保留引擎包含引擎或固定旧权重。                                                                                        |
 
 迁移后的公共规则：
 

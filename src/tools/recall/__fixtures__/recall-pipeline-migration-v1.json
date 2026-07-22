@@ -1,0 +1,268 @@
+{
+  "format": "aiohub.recall-retrieval-pipeline-migration",
+  "formatVersion": 1,
+  "cases": [
+    {
+      "name": "workspace-playground-blender",
+      "input": {
+        "source": "workspace-playground",
+        "selectorField": "engineId",
+        "targetField": "presetId",
+        "legacyId": "blender",
+        "fields": {
+          "globalQuery": "Rust migration",
+          "selectedRecallIds": ["11111111-1111-4111-8111-111111111111"],
+          "slots": [
+            {
+              "id": "slot-blender",
+              "engineId": "blender",
+              "config": {
+                "embeddingModel": "embedding-model",
+                "maxResidualLayers": 4
+              },
+              "results": [{ "entryId": "stale-result" }]
+            }
+          ]
+        }
+      },
+      "expected": {
+        "migrationVersion": "recall-retrieval-migration-v1",
+        "source": "workspace-playground",
+        "status": "migrated",
+        "legacyId": "blender",
+        "targetPresetId": "comprehensive",
+        "convertedFields": { "slots[].engineId": "slots[].presetId" },
+        "preservedFields": {
+          "globalQuery": "Rust migration",
+          "selectedRecallIds": ["11111111-1111-4111-8111-111111111111"],
+          "slots": [
+            {
+              "id": "slot-blender",
+              "config": {
+                "embeddingModel": "embedding-model",
+                "maxResidualLayers": 4
+              },
+              "presetId": "comprehensive"
+            }
+          ]
+        },
+        "discardedFields": [],
+        "invalidatedFields": ["slots[].results"],
+        "semanticDifferences": [
+          "legacy-score-domain-not-preserved",
+          "legacy-candidate-order-not-preserved",
+          "legacy-fusion-semantics-not-preserved"
+        ]
+      }
+    },
+    {
+      "name": "agent-settings-semantic",
+      "input": {
+        "source": "agent-settings",
+        "selectorField": "defaultProfile",
+        "targetField": "defaultPresetId",
+        "legacyId": "semantic",
+        "fields": {
+          "defaultLimit": 5,
+          "defaultMinScore": 0.3,
+          "enableCache": true,
+          "maxRecallChars": 0
+        }
+      },
+      "expected": {
+        "migrationVersion": "recall-retrieval-migration-v1",
+        "source": "agent-settings",
+        "status": "migrated",
+        "legacyId": "semantic",
+        "targetPresetId": "comprehensive",
+        "convertedFields": { "defaultProfile": "defaultPresetId" },
+        "preservedFields": {
+          "defaultLimit": 5,
+          "enableCache": true,
+          "maxRecallChars": 0
+        },
+        "discardedFields": ["defaultMinScore"],
+        "invalidatedFields": [],
+        "semanticDifferences": [
+          "legacy-score-domain-not-preserved",
+          "legacy-candidate-order-not-preserved",
+          "legacy-vector-weighting-not-preserved"
+        ]
+      }
+    },
+    {
+      "name": "agent-binding-associative",
+      "input": {
+        "source": "agent-binding",
+        "selectorField": "profile",
+        "targetField": "presetId",
+        "legacyId": "associative",
+        "fields": {
+          "recallId": "11111111-1111-4111-8111-111111111111",
+          "recallName": "Engineering Recall",
+          "enabled": true,
+          "when": "gate",
+          "whenParams": ["rust"],
+          "limit": 5,
+          "minScore": 0.35,
+          "group": "engineering"
+        }
+      },
+      "expected": {
+        "migrationVersion": "recall-retrieval-migration-v1",
+        "source": "agent-binding",
+        "status": "migrated",
+        "legacyId": "associative",
+        "targetPresetId": "comprehensive",
+        "convertedFields": { "profile": "presetId" },
+        "preservedFields": {
+          "recallId": "11111111-1111-4111-8111-111111111111",
+          "recallName": "Engineering Recall",
+          "enabled": true,
+          "when": "gate",
+          "whenParams": ["rust"],
+          "limit": 5,
+          "group": "engineering"
+        },
+        "discardedFields": ["minScore"],
+        "invalidatedFields": [],
+        "semanticDifferences": [
+          "legacy-score-domain-not-preserved",
+          "legacy-candidate-order-not-preserved",
+          "legacy-fusion-semantics-not-preserved"
+        ]
+      }
+    },
+    {
+      "name": "placeholder-semantic",
+      "input": {
+        "source": "placeholder",
+        "selectorField": "profile",
+        "targetField": "preset",
+        "legacyId": "semantic",
+        "fields": {
+          "collection": "11111111-1111-4111-8111-111111111111",
+          "limit": 5,
+          "minScore": 0.3,
+          "when": "always"
+        }
+      },
+      "expected": {
+        "migrationVersion": "recall-retrieval-migration-v1",
+        "source": "placeholder",
+        "status": "migrated",
+        "legacyId": "semantic",
+        "targetPresetId": "comprehensive",
+        "convertedFields": { "profile": "preset" },
+        "preservedFields": {
+          "collection": "11111111-1111-4111-8111-111111111111",
+          "limit": 5,
+          "when": "always"
+        },
+        "discardedFields": ["minScore"],
+        "invalidatedFields": [],
+        "semanticDifferences": [
+          "legacy-score-domain-not-preserved",
+          "legacy-candidate-order-not-preserved",
+          "legacy-vector-weighting-not-preserved"
+        ]
+      }
+    },
+    {
+      "name": "agent-tool-keyword",
+      "input": {
+        "source": "agent-tool",
+        "selectorField": "engineId",
+        "targetField": "presetId",
+        "legacyId": "keyword",
+        "fields": {
+          "recallNames": ["Engineering Recall"],
+          "query": "Rust",
+          "limit": 10,
+          "tags": ["rust"],
+          "minScore": 0.2
+        }
+      },
+      "expected": {
+        "migrationVersion": "recall-retrieval-migration-v1",
+        "source": "agent-tool",
+        "status": "migrated",
+        "legacyId": "keyword",
+        "targetPresetId": "algorithmic",
+        "convertedFields": { "engineId": "presetId" },
+        "preservedFields": {
+          "recallNames": ["Engineering Recall"],
+          "query": "Rust",
+          "limit": 10,
+          "tags": ["rust"]
+        },
+        "discardedFields": ["minScore"],
+        "invalidatedFields": [],
+        "semanticDifferences": [
+          "legacy-score-domain-not-preserved",
+          "legacy-candidate-order-not-preserved",
+          "legacy-keyword-ranking-not-preserved"
+        ]
+      }
+    },
+    {
+      "name": "retrieval-cache-vector",
+      "input": {
+        "source": "retrieval-cache",
+        "selectorField": "engineId",
+        "legacyId": "vector",
+        "fields": {
+          "query": "Rust",
+          "recallIds": ["11111111-1111-4111-8111-111111111111"],
+          "minScore": 0.3,
+          "cacheKey": "legacy-cache-key",
+          "results": [{ "entryId": "stale-result" }],
+          "vector": [1, 0, 0, 0]
+        }
+      },
+      "expected": {
+        "migrationVersion": "recall-retrieval-migration-v1",
+        "source": "retrieval-cache",
+        "status": "invalidated",
+        "legacyId": "vector",
+        "targetPresetId": "comprehensive",
+        "convertedFields": {},
+        "preservedFields": {},
+        "discardedFields": ["minScore", "query", "recallIds"],
+        "invalidatedFields": ["cacheKey", "results", "vector"],
+        "semanticDifferences": [
+          "legacy-score-domain-not-preserved",
+          "legacy-candidate-order-not-preserved",
+          "legacy-vector-weighting-not-preserved"
+        ]
+      }
+    },
+    {
+      "name": "unknown-third-party-engine",
+      "input": {
+        "source": "workspace-playground",
+        "selectorField": "engineId",
+        "targetField": "presetId",
+        "legacyId": "third-party-reranker",
+        "fields": { "query": "Rust", "limit": 6 }
+      },
+      "expected": {
+        "migrationVersion": "recall-retrieval-migration-v1",
+        "source": "workspace-playground",
+        "status": "requires-user-choice",
+        "legacyId": "third-party-reranker",
+        "convertedFields": {},
+        "preservedFields": {},
+        "discardedFields": ["limit", "query"],
+        "invalidatedFields": [],
+        "semanticDifferences": [],
+        "issue": {
+          "code": "legacy-id-unknown",
+          "fieldPath": "engineId",
+          "message": "Unknown legacy retrieval ID: third-party-reranker",
+          "recoverable": true
+        }
+      }
+    }
+  ]
+}

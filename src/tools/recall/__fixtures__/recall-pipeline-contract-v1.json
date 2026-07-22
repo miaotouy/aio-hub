@@ -1,0 +1,169 @@
+{
+  "contractVersion": "recall-retrieval-pipeline-v1",
+  "presetSummaries": [
+    {
+      "id": "algorithmic",
+      "displayName": "算法召回",
+      "description": "离线可用的关键词与字面信号召回",
+      "visibility": "product",
+      "stability": "stable",
+      "algorithmVersion": "recall-pipeline-algorithmic-v1",
+      "allowedOverrides": [
+        {
+          "key": "limit",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 6,
+            "scope": "finalize"
+          }
+        }
+      ]
+    },
+    {
+      "id": "comprehensive",
+      "displayName": "综合召回",
+      "description": "融合字面、向量、标签与联想信号的召回",
+      "visibility": "product",
+      "stability": "stable",
+      "algorithmVersion": "recall-pipeline-comprehensive-v1",
+      "allowedOverrides": [
+        {
+          "key": "limit",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 6,
+            "scope": "finalize"
+          }
+        }
+      ]
+    }
+  ],
+  "pipeline": {
+    "schemaVersion": 1,
+    "id": "algorithmic",
+    "displayName": "算法召回",
+    "algorithmVersion": "recall-pipeline-algorithmic-v1",
+    "candidateBudget": 80,
+    "expansionBudget": 0,
+    "nodes": [
+      {
+        "id": "normalize-query",
+        "moduleId": "query-normalize",
+        "enabled": true,
+        "params": {},
+        "failurePolicy": "abort"
+      },
+      {
+        "id": "retrieve-keyword",
+        "moduleId": "keyword-recall",
+        "enabled": true,
+        "dependsOn": ["normalize-query"],
+        "params": { "candidateBudget": 80 },
+        "failurePolicy": "abort"
+      },
+      {
+        "id": "finalize-results",
+        "moduleId": "result-finalizer",
+        "enabled": true,
+        "dependsOn": ["retrieve-keyword"],
+        "params": { "limit": 6 },
+        "failurePolicy": "abort"
+      }
+    ]
+  },
+  "compileResult": {
+    "runId": "contract-run-0001",
+    "valid": true,
+    "pipelineId": "algorithmic",
+    "configHash": "contract-config-hash-v1",
+    "algorithmVersion": "recall-pipeline-algorithmic-v1",
+    "candidateBudget": 80,
+    "expansionBudget": 0,
+    "externalRequirements": [],
+    "issues": [],
+    "stages": [
+      { "phase": "prepare", "nodeIds": ["normalize-query"] },
+      { "phase": "retrieve", "nodeIds": ["retrieve-keyword"] },
+      { "phase": "finalize", "nodeIds": ["finalize-results"] }
+    ],
+    "moduleVersions": {
+      "query-normalize": "1",
+      "keyword-recall": "1",
+      "result-finalizer": "1"
+    }
+  },
+  "runResponse": {
+    "runId": "contract-run-0001",
+    "outcome": "empty",
+    "requestedPresetId": "algorithmic",
+    "actualPresetId": "algorithmic",
+    "configHash": "contract-config-hash-v1",
+    "results": [],
+    "trace": {
+      "traceVersion": "recall-pipeline-trace-v1",
+      "runId": "contract-run-0001",
+      "pipelineId": "algorithmic",
+      "requestedPresetId": "algorithmic",
+      "actualPresetId": "algorithmic",
+      "algorithmVersion": "recall-pipeline-algorithmic-v1",
+      "configHash": "contract-config-hash-v1",
+      "bundleId": "contract-bundle-0001",
+      "candidateBudget": 80,
+      "expansionBudget": 0,
+      "finalLimit": 6,
+      "externalRequirements": [],
+      "steps": [
+        {
+          "nodeId": "normalize-query",
+          "moduleId": "query-normalize",
+          "phase": "prepare",
+          "durationMs": 0,
+          "outputCount": 1,
+          "status": "completed"
+        },
+        {
+          "nodeId": "retrieve-keyword",
+          "moduleId": "keyword-recall",
+          "phase": "retrieve",
+          "durationMs": 0,
+          "inputCount": 1,
+          "outputCount": 0,
+          "status": "completed",
+          "candidateTrimmed": 0
+        },
+        {
+          "nodeId": "finalize-results",
+          "moduleId": "result-finalizer",
+          "phase": "finalize",
+          "durationMs": 0,
+          "inputCount": 0,
+          "outputCount": 0,
+          "status": "completed"
+        }
+      ]
+    }
+  },
+  "uiTransitions": [
+    { "from": "idle", "to": ["compiling"] },
+    { "from": "compiling", "to": ["blocked", "ready", "failed"] },
+    { "from": "blocked", "to": ["idle", "compiling"] },
+    { "from": "ready", "to": ["idle", "compiling", "preparing"] },
+    {
+      "from": "preparing",
+      "to": ["compiling", "running", "failed", "cancelled"]
+    },
+    {
+      "from": "running",
+      "to": ["compiling", "success", "empty", "fallback", "failed", "cancelled"]
+    },
+    { "from": "success", "to": ["idle", "compiling"] },
+    { "from": "empty", "to": ["idle", "compiling"] },
+    { "from": "fallback", "to": ["idle", "compiling"] },
+    { "from": "failed", "to": ["idle", "compiling"] },
+    { "from": "cancelled", "to": ["idle", "compiling"] }
+  ]
+}

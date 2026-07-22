@@ -1,6 +1,6 @@
 # Recall 检索管线模块化设计与实施计划
 
-**状态**: 设计提案，检索管线尚未施工；测试前置已部分完成
+**状态**: Phase 0 已完成；现有产品仍走 legacy engine，Phase 1 Runner 尚未施工
 **创建日期**: 2026-07-20
 **最近修订**: 2026-07-21
 **适用范围**: `src/tools/recall/`、`src-tauri/src/recall/`、Recall Playground、Agent Recall 配置、Recall Chat 召回入口
@@ -11,11 +11,12 @@
 - [检索模式与思绪召回设计调查（已归档）](./Archived/retrieval-profile-knowledge-memory-design.md)
 - [Recall / Knowledge 领域拆分与重构实施计划](./recall-knowledge-domain-restructure-implementation-plan.md)
 - [Recall 自动化测试、精简 OAI 渠道与真实向量请求实施计划](./recall-automated-real-vector-testing-plan.md)
+- [Phase 0 盘点与契约决策](./recall-retrieval-pipeline-phase0-inventory.md)
 - [LLM Chat 上下文管道架构](../../../llm-chat/docs/architecture/context-pipeline.md)
 
 > 本文记录现有 `RetrievalEngine` 体系的后续重构设想，不改变已完成的 Recall / Knowledge 领域拆分，也不把尚未实施的目标写成当前架构。实施完成前，现行行为仍以 `ARCHITECTURE.md` 和当前代码为准。
 
-> **2026-07-21 现状对照**：隔壁测试计划已完成 Phase 1 至 Phase 5 及 Tauri E2E 入口收口，但这不等于本计划的检索管线 Phase 0 至 Phase 6 已完成。当前生产路径仍由 Rust `RetrievalEngine`、`engineId`、`semantic` / `associative` facade 和前端 `SearchOrchestrator` 组成，尚未存在模块 registry、pipeline compiler、artifact store 或统一 Runner。
+> **2026-07-21 现状对照**：隔壁测试计划已完成 Phase 1 至 Phase 5 及 Tauri E2E 入口收口，但这不等于本计划的检索管线 Phase 1 至 Phase 6 已完成。当前生产路径仍由 Rust `RetrievalEngine`、`engineId`、`semantic` / `associative` facade 和前端 `SearchOrchestrator` 组成；Phase 0 只有已冻结的模块/artifact 数据类型与 wire fixture，尚未存在可执行模块 registry、pipeline compiler 或统一 Runner。
 >
 > 已可直接复用的测试前置资产包括：
 >
@@ -23,7 +24,7 @@
 > - `tests/tauri-e2e/support/presets.ts` 已将确定性 Recall、Chat 注入/恢复、外部语料、Ollama、私有 Profile 和 native lane 收口为具名 E2E preset；根 `package.json` 只保留通用、纯逻辑和 native 三个入口。这里的 E2E preset 与本计划的检索 preset 是两个独立命名空间，不能互相替代。
 > - Recall 向量化、语义检索、Chat evidence、SSE 完成态、同数据根二次进程恢复、external-sample/full 和真实 Ollama 已有真实 Tauri WebView 验收，且稳定 `data-testid`、请求摘要、状态回读和恢复探针已落地。
 >
-> 仍未完成的管线前置包括：冻结新 artifact/module/pipeline 契约；盘点旧实现中的可迁移配置与算法步骤；建立 `algorithmic` / `comprehensive` 的工程契约与性能基线；实现编译、外部产物准备、统一执行和 pipeline trace；以及旧 `engineId` / `profile` 到新预设的版本化迁移。现有 E2E 只能证明旧检索路径的端到端可用性，不能证明召回结果符合某个用户的需要，也不能为新 Runner 的候选、分数、过滤或排序提供质量结论。
+> Phase 0 已冻结 artifact/module/pipeline、preset/compile/run/trace/UI 状态机契约，完成旧算法与调用入口盘点，并建立旧 `engineId` / `profile` 到新预设的版本化迁移夹具。实际 compiler、外部产物准备、统一 Runner、pipeline trace 生成和真实窗口 `recall-pipeline` spec 从 Phase 1 开始施工。现有 E2E 只能证明旧检索路径的端到端可用性，不能证明召回结果符合某个用户的需要，也不能为新 Runner 的候选、分数、过滤或排序提供质量结论。
 
 ---
 
@@ -277,6 +278,8 @@ interface RecallRetrievalPipelineV1 {
   id: string;
   displayName: string;
   algorithmVersion: string;
+  candidateBudget: number;
+  expansionBudget: number;
   nodes: Array<{
     id: string;
     moduleId: string;
@@ -287,6 +290,10 @@ interface RecallRetrievalPipelineV1 {
   }>;
 }
 ```
+
+Phase 0 的精确 TypeScript wire contract 位于 `types/pipeline.ts`，Rust 对应类型位于
+`src-tauri/src/recall/retrieval_pipeline.rs`，共享序列化夹具为
+`__fixtures__/recall-pipeline-contract-v1.json`。后续实现不得只修改单侧类型。
 
 配置保存边界：
 
@@ -404,14 +411,16 @@ query-normalize
 ```ts
 interface RecallPipelineTraceV1 {
   traceVersion: "recall-pipeline-trace-v1";
+  runId: string;
   pipelineId: string;
   requestedPresetId?: string;
   actualPresetId?: string;
   algorithmVersion: string;
   configHash: string;
   bundleId?: string;
-  candidateBudget?: number;
-  finalLimit?: number;
+  candidateBudget: number;
+  expansionBudget: number;
+  finalLimit: number;
   externalRequirements: string[];
   steps: Array<{
     nodeId: string;
@@ -422,6 +431,8 @@ interface RecallPipelineTraceV1 {
     outputCount?: number;
     status: "completed" | "skipped" | "failed";
     reason?: string;
+    candidateTrimmed?: number;
+    trimReason?: string;
   }>;
 }
 ```
@@ -496,10 +507,13 @@ interface RecallPresetSummary {
 }
 
 interface RecallPipelineCompileResult {
+  runId: string;
   valid: boolean;
   pipelineId: string;
   configHash: string;
   algorithmVersion: string;
+  candidateBudget: number;
+  expansionBudget: number;
   externalRequirements: Array<{
     kind: string;
     status: "ready" | "missing" | "partial";
@@ -517,6 +531,7 @@ interface RecallPipelineCompileResult {
     phase: string;
     nodeIds: string[];
   }>;
+  moduleVersions: Record<string, string>;
 }
 
 interface RecallPipelineRunResponse {
@@ -673,23 +688,23 @@ idle
 
 ## 9. 实施阶段
 
-测试计划中的 Phase 1 至 Phase 5 已完成，提供了本节可复用的 fixture、真实窗口 runner 和验收 lane；本节 Phase 编号只描述检索管线施工进度。除下方明确标记为已完成的迁移快照外，当前仍处于本计划 Phase 0，不能按测试计划状态顺延为 Phase 5。
+测试计划中的 Phase 1 至 Phase 5 已完成，提供了本节可复用的 fixture、真实窗口 runner 和验收 lane；本节 Phase 编号只描述检索管线施工进度。当前检索管线 Phase 0 已完成，Phase 1 尚未开始，不能按测试计划状态顺延为 Phase 5。
 
 ### Phase 0：盘点旧实现并冻结新契约
 
 - [x] 保存 `keyword`、`vector`、`lens`、`blender`、`semantic`、`associative` 的代表查询输出。现有证据由共享 migration baseline fixture、Rust 引擎/Facade 快照和 Agent/Chat baseline 测试共同组成，只用于理解旧逻辑、维护迁移夹具和排查实现错误。
-- [ ] 把旧实现整理成算法与配置迁移清单，明确旧算法版本、输入字段、裁剪/归一化/过滤/排序步骤和去留决策。代表查询输出可以附作调试材料，但不生成新旧质量对比报告，也不设候选重叠或 rank 变化门槛。
-- [ ] 盘点各引擎重复的候选裁剪、归一化、过滤、排序和 TopK 逻辑。
-- [ ] 冻结 artifact、module info、pipeline schema、错误和 trace v1 契约。
-- [ ] 冻结 preset summary、compile result、run response 和 UI 状态机契约，明确 error code、`runId` 与过期响应规则。
-- [ ] 明确内置预设 ID、显示名和常规产品入口范围。
+- [x] 把旧实现整理成算法与配置迁移清单，明确旧算法版本、输入字段、裁剪/归一化/过滤/排序步骤和去留决策。详见 Phase 0 盘点文档；代表查询输出只作调试材料。
+- [x] 盘点各引擎重复的候选裁剪、归一化、过滤、排序和 TopK 逻辑。
+- [x] 冻结 artifact、module info、pipeline schema、错误和 trace v1 契约，并由 Rust/TypeScript 共享 wire fixture 约束序列化。
+- [x] 冻结 preset summary、compile result、run response 和 UI 状态机契约，明确 error code、`runId + configHash` 与过期响应规则。
+- [x] 明确内置预设为 `algorithmic`（算法召回）与 `comprehensive`（综合召回），均为 `product/stable`；legacy ID 不进入可执行预设列表。
 - [x] 完成 `SearchPanel`、`EngineSelector`、`useRecallSearch` 的静态引用复核；三者目前不在产品渲染路径中。
-- [ ] 继续复核 store search、service、Playground、Chat processor 和 Agent tool 的动态调用，形成完整保留/删除清单。
-- [ ] 冻结旧 ID 到新预设的版本化迁移规则；在现有 migration baseline 之上增加旧 workspace Playground、Agent binding/profile、占位符、Agent 工具参数和缓存 key 的新预设迁移夹具，覆盖字段保留/丢弃报告与旧结果持久化清理。
+- [x] 继续复核 store search、service、Playground、Chat processor 和 Agent tool 的动态调用，形成完整保留/删除清单。
+- [x] 冻结旧 ID 到新预设的版本化迁移规则；新增 workspace Playground、Agent settings/binding、占位符、Agent 工具参数、缓存 key 和未知 ID 夹具，覆盖字段保留/丢弃报告与旧结果持久化清理。
 - [x] 建立可复用的真实窗口测试底座：稳定 selectors、确定性 mock Chat/Embedding、请求证据、同数据根进程恢复、外部语料和真实 Ollama lane 已具备。
-- [ ] 为新管线增加独立的 E2E preset 或 spec 装配，覆盖 compile -> prepare -> run -> pipeline trace；不能把现有 `recall-vector` / `recall-chat` 的旧语义检索通过结果直接视为新管线通过。
+- [x] 冻结独立 E2E ID `recall-pipeline`、spec 路径和运行元数据契约；不注册伪造 Runner 结果的空 spec。真实 `compile -> prepare -> run -> pipeline trace` 装配随 Phase 1 Runner 实现。
 
-退出门槛：仅新增契约、算法与配置迁移清单和新管线工程测试，不改变现有产品检索路径。现有测试底座可以复用，但必须新增能区分旧引擎路径与新 Runner 路径的断言和运行元数据；不要求也不宣称完成召回质量评测。
+退出门槛：仅新增契约、算法与配置迁移清单和共享 wire/migration 工程测试，不改变现有产品检索路径。Phase 0 冻结 `executionPath=retrieval-pipeline` 等真实窗口元数据；因为 Runner 属于 Phase 1，本阶段不以合成响应冒充新 Runner E2E。不要求也不宣称完成召回质量评测。
 
 ### Phase 1：建立 Runner 与公共尾部阶段
 
@@ -697,6 +712,7 @@ idle
 - [ ] 抽取集合/enabled/标签硬过滤、最终 score threshold、排序、TopK、条目加载和 trace finalizer。
 - [ ] 支持模块单独运行和确定性 fixture。
 - [ ] 第一阶段保持 retrieve 串行，为后续并行保留契约。
+- [ ] 注册 `recall-pipeline` E2E preset 与真实 spec，覆盖 compile -> prepare -> run -> pipeline trace，并断言运行元数据区别于 legacy engine 路径。
 
 退出门槛：用测试模块跑通完整管线；非法依赖、环路、缺失 artifact、重复 finalizer 和非法参数均被拒绝。
 
@@ -862,22 +878,25 @@ bun run test:tauri:e2e -- --preset ollama-chat
 
 ---
 
-## 12. 待确认事项
+## 12. Phase 0 决策与后续产品事项
 
-施工前需要确认：
+Phase 0 已确认：
 
-1. 两个产品默认预设最终使用 `algorithmic / comprehensive`，还是采用更贴近用户的稳定英文 ID。
-2. 综合预设默认使用 weighted fusion、RRF，还是根据候选信号类型采用分层融合；没有独立 Recall 评测时，由谁作产品决策并承担版本变更说明。
-3. `priority` 属于融合前信号、rerank 加成还是最终 policy；同一条目不得在多个阶段重复加权。
-4. 标签文本匹配归入纯算法预设首期范围，还是只保留关键词、key、标题和内容字面匹配。
-5. 自定义管线是否只属于 Playground，还是未来允许保存为工作区级高级预设。
-6. `semantic / associative` 的 legacy parser 保留多久，以及迁移扫描达到什么条件后可以删除；二者不再作为新 Runner 的可执行预设。
-7. 新占位符参数是否确定为 `preset`；若采用其他名称，仍需为旧 `profile` 提供版本化迁移读取期。
-8. 常规产品允许用户配置哪些 fallback 策略；至少需要确定默认是阻塞、回退到 `algorithmic`，还是在特定预设中允许 partial coverage。
-9. Playground 是否接受首期最多两个可见诊断工作面，以保存/切换配置替代当前四列并排，并明确不提供自动质量评分。
-10. 是否另立 Recall 质量评测研究计划；如需建立，先确定目标用户、反馈采集、隐私边界和“意外但有用”跳跃的判定方式，而不是直接复用 Knowledge 检索相关性指标。
+- 使用 `algorithmic / comprehensive`，显示名为“算法召回 / 综合召回”。
+- `priority` 只在 rerank 阶段应用一次。
+- 纯算法首期不把标签文本匹配作为额外评分信号；标签仍可作 policy 过滤。
+- 自定义管线首期只属于 Playground；首期最多两个可见诊断工作面。
+- 新占位符字段为 `preset`，结构化 API 字段为 `presetId`。
+- `comprehensive` 默认阻塞，只有显式配置才回退 `algorithmic`；默认不静默 partial coverage。
+- legacy parser 保留到 Phase 6，并以迁移扫描结果作为删除门槛。
 
-在这些事项确认前可以完成 Phase 0 的旧实现盘点、迁移夹具和契约调查；受待确认事项影响的预设 ID、参数与运行契约只能在相关决策完成后冻结。Phase 0 不替换现有默认检索行为。
+仍需在对应实施阶段作产品决策：
+
+1. Phase 4 的综合预设默认使用 weighted fusion、RRF，还是分层融合；该选择必须记录决策依据、适用边界和算法版本，不能由现有 baseline 自动决定。
+2. 是否在首期之后允许把自定义管线发布为工作区级高级预设；首期仍只在 Playground 保存。
+3. 是否另立 Recall 质量评测研究计划；如需建立，先确定目标用户、反馈采集、隐私边界和“意外但有用”跳跃的判定方式，而不是直接复用 Knowledge 检索相关性指标。
+
+上述后续事项不阻塞 Phase 1 的 compiler/Runner 基础设施。Phase 0 不替换现有默认检索行为。
 
 ---
 

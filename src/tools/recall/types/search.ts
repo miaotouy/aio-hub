@@ -91,14 +91,4 @@ export interface RecallSearchFilters {
   enabledOnly?: boolean;
   /** 结果数量限制 */
   limit?: number;
-  /** 指定检索引擎 ID */
-  engineId?: string;
-  /** 透镜检索：纹理 (coarse/fine) */
-  texture?: "coarse" | "fine";
-  /** 透镜检索：折射率 (0.0 - 1.0) */
-  refractionIndex?: number;
-  /** 透镜检索：显式约束标签 */
-  requiredTags?: string[];
-  /** 透镜检索：上下文投射向量 (用于能量衰减) */
-  historyVectors?: number[][];
 }

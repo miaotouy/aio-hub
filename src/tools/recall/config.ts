@@ -26,7 +26,6 @@ import { cloneDeep } from "lodash-es";
 export const DEFAULT_WORKSPACE_CONFIG: WorkspaceConfig = {
   activeBaseId: null,
   defaultEmbeddingModel: "",
-  defaultEngineId: "vector",
   cache: {
     embeddingCacheMaxItems: 500,
     retrievalCacheMaxItems: 200,
@@ -40,10 +39,6 @@ export const DEFAULT_WORKSPACE_CONFIG: WorkspaceConfig = {
   vectorIndex: {
     autoIndex: true,
     dimension: 1536,
-    texture: "coarse",
-    refractionIndex: 0.5,
-    k1: 1.2,
-    b: 0.75,
   },
   tagGeneration: {
     enabled: true,

@@ -151,24 +151,6 @@ export interface VectorIndexConfig {
   model?: string;
   /** 维度 */
   dimension: number;
-  /** @deprecated 保留以兼容旧数据，不再使用 */
-  algorithm?: string;
-  /** @deprecated 保留以兼容旧数据，不再使用 */
-  metric?: string;
-  /** 透镜检索：纹理 (coarse/fine) */
-  texture?: "coarse" | "fine";
-  /** 透镜检索：折射率 (0.0 - 1.0) */
-  refractionIndex?: number;
-  /** 向量检索：BM25 k1 */
-  k1?: number;
-  /** 向量检索：BM25 b */
-  b?: number;
-  /** @deprecated Agent Recall 中已废弃（使用 recallSettings.defaultLimit），但在思绪集 Playground 中仍有效 */
-  limit?: number;
-  /** @deprecated Agent Recall 中已废弃（使用 recallSettings.defaultMinScore），但在思绪集 Playground 中仍有效 */
-  minScore?: number;
-  /** 兼容动态引擎参数 */
-  [key: string]: any;
 }
 
 /**
@@ -234,8 +216,6 @@ export interface WorkspaceConfig {
   defaultEmbeddingModel?: string;
   /** 当前活动 Embedding 模型对应的查询与派生资产代际。 */
   embeddingAssetGeneration?: EmbeddingAssetGeneration;
-  /** 默认检索引擎 ID (vector | keyword | blender | hybrid | lens) */
-  defaultEngineId: string;
   /** 导入与预处理设置 */
   importSettings: ImportSettings;
   /** 标签生成配置 */

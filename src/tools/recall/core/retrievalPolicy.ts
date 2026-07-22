@@ -61,7 +61,6 @@ export function resolveRetrievalParams(req: RecallRetrievalRequest): {
   recallIds: string[];
   limit: number;
   minScore: number;
-  engineId?: string;
   profile: "semantic" | "associative";
   presetId: "algorithmic" | "comprehensive";
 } {
@@ -70,7 +69,6 @@ export function resolveRetrievalParams(req: RecallRetrievalRequest): {
     recallName,
     limit,
     minScore,
-    engineId,
     profile,
     presetId,
     enabledBindings,
@@ -78,9 +76,7 @@ export function resolveRetrievalParams(req: RecallRetrievalRequest): {
   } = req;
   const resolvedProfile = profile || settings.defaultProfile || "semantic";
   const resolvedPresetId =
-    presetId ??
-    settings.defaultPresetId ??
-    (engineId === "keyword" ? "algorithmic" : "comprehensive");
+    presetId ?? settings.defaultPresetId ?? "comprehensive";
   const defaults = profileDefaults(resolvedProfile);
 
   let recallIds: string[] = [];
@@ -102,7 +98,6 @@ export function resolveRetrievalParams(req: RecallRetrievalRequest): {
     recallIds,
     limit: limit ?? settings.defaultLimit ?? defaults.limit,
     minScore: minScore ?? settings.defaultMinScore ?? defaults.minScore,
-    engineId,
     profile: resolvedProfile,
     presetId: resolvedPresetId,
   };

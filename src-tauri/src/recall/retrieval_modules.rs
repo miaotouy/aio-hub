@@ -14,7 +14,7 @@ use crate::recall::retrieval_pipeline::{
     RetrievalModuleError, RetrievalModuleInfo, RetrievalModuleOutput, RetrievalModuleRegistry,
     RetrievalPhase, RetrievalPipelineNodeV1, RetrievalPipelineV1, PIPELINE_SCHEMA_VERSION,
 };
-use crate::recall::search::vector::cosine_similarity;
+use crate::recall::utils::cosine_similarity;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};

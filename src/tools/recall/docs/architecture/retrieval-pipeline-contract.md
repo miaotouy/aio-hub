@@ -32,7 +32,7 @@
 - Recall service、Chat 被动召回、Agent tool 与 Agent 配置通过 pipeline service 调用；该 service 先编译，再按 external requirements 准备产物，最后执行 Runner。
 - 常规产品路径仅使用 Recall 全局活动 Embedding 模型。Chat、Agent、占位符和普通 service 不得逐查询切换模型；切换全局模型时必须轮换版本化活动资产代际，并让 query bundle 与缓存同时按完整模型身份和资产代际隔离。
 - 自定义管线仅属于 Playground。常规产品只允许 preset summary 声明的 overrides；Playground 不保存运行结果或 trace，也不输出自动质量评分。查询残差标签扩展如后续立项，只能先作为独立实验模块进入自定义管线；实验存在不代表稳定预设获得该能力。
-- legacy parser 在旧运行时删除前保留。未知 legacy ID 返回 `legacy-id-unknown`，不得静默选择默认预设；删除前必须扫描 workspace、Agent、preset message 和 Agent tool 参数。
+- legacy parser 独立于运行时保留。未知 legacy ID 返回 `legacy-id-unknown`，不得静默选择默认预设；workspace、Agent、preset message 和 Agent tool 参数中的旧 ID 必须只经过版本化迁移入口。
 
 ## Legacy 能力盘点与拆分边界
 
@@ -42,7 +42,7 @@
 | ------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `keyword`     | 倒排候选、key contains 加成、全局非线性归一化，并在集合内提前执行阈值、排序与 TopK。                              | 迁为 `query-tokenize`、`keyword-recall`、独立归一化、policy 与 finalizer；不沿用旧分数和提前裁剪顺序。                                                                                                 |
 | `vector`      | Tag Anchoring、内容余弦与长度调整、tag pool 邻居、动态内容/标签权重、priority 和字面加成；融合前存在候选粗过滤。  | 拆为内容向量、标签向量、字面信号、priority 与 normalize/fuse；不沿用动态权重、阈值和裁剪顺序。                                                                                                         |
-| `lens`        | 历史向量衰减投射、显式或自动标签折射、标签邻居、texture affinity、图传播和标签到条目能量汇聚。                    | 已从生产管线移除。新管线使用标签种子、受限共现图传播和标签到条目扩展；历史投射、折射与 texture 仅在 legacy engine 和迁移诊断保留，待 Phase 6 删除。                                                    |
+| `lens`        | 历史向量衰减投射、显式或自动标签折射、标签邻居、texture affinity、图传播和标签到条目能量汇聚。                    | 新管线使用标签种子、受限共现图传播和标签到条目扩展；历史投射、折射与 texture runtime 已删除，仅在迁移夹具和能力盘点中保留旧字段。                                                                      |
 | `blender`     | 重复执行字面和内容向量检索，并包含标签残差挖掘、动态 literal/semantic/gravity 权重、resonance 与 priority boost。 | 不迁移 residual mining 实现、动态权重、gravity 与 resonance；字面、内容向量、标签和 priority 复用现有模块。查询残差标签扩展只保留独立实验立项入口，不进入当前 `comprehensive`，也不保留 Blender 名称。 |
 | `semantic`    | 直接委托 `vector`，继承其提前裁剪和旧 trace。                                                                     | legacy parser 映射到 `comprehensive`，不建立等价 facade。                                                                                                                                              |
 | `associative` | 分别执行 Blender 与 Lens，再以固定权重融合；子引擎和 facade 都可能提前裁剪。                                      | legacy parser 映射到 `comprehensive`，不保留引擎包含引擎或固定旧权重。                                                                                                                                 |
@@ -59,11 +59,11 @@
 
 ## Legacy 调用与删除门槛
 
-- 产品、Agent 与 Chat 已不调用 `recall_search` 或 `recall_list_engines`。管理页局部搜索和 Agent 条目定位固定使用 `algorithmic` preset；legacy registry、command 和旧 engine metadata 只在后端删除前供迁移基线与测试读取，不得继续扩展产品能力。
+- 产品、Agent 与 Chat 已不调用 `recall_search` 或 `recall_list_engines`。管理页局部搜索和 Agent 条目定位固定使用 `algorithmic` preset；legacy registry、commands 与引擎实现已经删除。
 - Playground workspace 只保留集合、查询和 `presetId / limit`；legacy migration 将 `engineId` 转换为 `presetId`，并使旧 config、results、trace 和运行状态失效。
 - service、管理页搜索、Chat processor 和 Agent tool 必须统一经过 pipeline service；后台 Chat 路径不得弹出交互式模型或覆盖率对话框。
 - Agent settings、binding、占位符和工具参数只保留版本化 legacy read；新写入只能使用 `defaultPresetId`、`presetId` 和 `preset`。
-- legacy 检索缓存不转换到新缓存空间。删除 registry 前必须再次扫描动态调用、workspace 和测试夹具；迁移层以外仍有消费者时不得执行 Phase 6 删除。
+- legacy 检索缓存不转换到新缓存空间。旧 ID 仅保留在版本化迁移器、迁移夹具、历史 monitor payload 与 legacy trace 类型中，不得重新接入运行时。
 
 ## 可观测性
 
@@ -82,4 +82,4 @@ traceVersion
 
 分数、信号贡献、requested/actual preset 与降级信息必须在 trace 中分层表达；分数不应被统一解释为百分比，也不能据工程夹具的差异推导召回质量结论。
 
-生产 pipeline command 必须为每次后端运行发送 `recall-monitor` RAG 事件，包括成功、空结果、降级与结构化失败。事件保留 legacy RAG payload 的 `steps / results / stats / metadata` 外形，并以可选字段增加完整 `pipelineTrace`、`pipelineError` 以及 `executionPath / runId / outcome / requestedPresetId / actualPresetId`；因此历史事件和 legacy `recall_search` 事件仍可由同一 Monitor 读取。pipeline 结果的 Monitor metadata 以 `ranking-score` 标记 `score`，另传由信号 contribution 求和得到的 `relevanceScore`；legacy 结果以 `legacy-engine-score` 标记，不推断统一数值范围。
+生产 pipeline command 必须为每次后端运行发送 `recall-monitor` RAG 事件，包括成功、空结果、降级与结构化失败。事件保留 legacy RAG payload 的 `steps / results / stats / metadata` 外形，并以可选字段增加完整 `pipelineTrace`、`pipelineError` 以及 `executionPath / runId / outcome / requestedPresetId / actualPresetId`；因此历史 `recall_search` 事件仍可由同一 Monitor 读取。pipeline 结果的 Monitor metadata 以 `ranking-score` 标记 `score`，另传由信号 contribution 求和得到的 `relevanceScore`；legacy 结果以 `legacy-engine-score` 标记，不推断统一数值范围。

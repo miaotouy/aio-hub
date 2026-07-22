@@ -74,46 +74,14 @@ pub fn extract_title_from_content(content: &str) -> Option<String> {
         .and_then(|caps| caps.get(1).map(|m| m.as_str().trim().to_string()))
 }
 
-/// Gram-Schmidt 投影：将 vec 投影到 basis 方向
-/// 返回投影向量 proj = (vec·basis / ||basis||²) * basis
-pub fn project_onto(vec: &[f32], basis: &[f32]) -> Vec<f32> {
-    let dot: f32 = vec.iter().zip(basis).map(|(a, b)| a * b).sum();
-    let basis_norm_sq: f32 = basis.iter().map(|v| v * v).sum();
-    if basis_norm_sq < 1e-10 {
-        return vec![0.0; vec.len()];
-    }
-    let coeff = dot / basis_norm_sq;
-    basis.iter().map(|b| b * coeff).collect()
-}
-
-/// 投影系数：vec 在 basis 方向上的投影长度比
-pub fn projection_coeff(vec: &[f32], basis: &[f32]) -> f32 {
-    let dot: f32 = vec.iter().zip(basis).map(|(a, b)| a * b).sum();
-    let basis_norm_sq: f32 = basis.iter().map(|v| v * v).sum();
-    if basis_norm_sq < 1e-10 {
-        return 0.0;
-    }
-    dot / basis_norm_sq
-}
-
-/// 向量减法：a - b
-pub fn vec_subtract(a: &[f32], b: &[f32]) -> Vec<f32> {
-    a.iter().zip(b).map(|(x, y)| x - y).collect()
-}
-
-/// 向量 L2 范数的平方
-pub fn vec_norm_sq(v: &[f32]) -> f32 {
-    v.iter().map(|x| x * x).sum()
-}
-
-/// 向量归一化（原地修改）
-#[allow(dead_code)]
-pub fn vec_normalize(v: &mut [f32]) {
-    let norm = vec_norm_sq(v).sqrt();
-    if norm > 1e-10 {
-        for x in v.iter_mut() {
-            *x /= norm;
-        }
+pub fn cosine_similarity(left: &[f32], right: &[f32]) -> f32 {
+    let dot_product: f32 = left.iter().zip(right).map(|(a, b)| a * b).sum();
+    let left_norm = left.iter().map(|value| value * value).sum::<f32>().sqrt();
+    let right_norm = right.iter().map(|value| value * value).sum::<f32>().sqrt();
+    if left_norm > 0.0 && right_norm > 0.0 {
+        dot_product / (left_norm * right_norm)
+    } else {
+        0.0
     }
 }
 
@@ -122,39 +90,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_project_onto() {
-        let vec = vec![3.0, 4.0];
-        let basis = vec![1.0, 0.0];
-        let proj = project_onto(&vec, &basis);
-        assert_eq!(proj, vec![3.0, 0.0]);
-
-        let zero_basis = vec![0.0, 0.0];
-        let proj_zero = project_onto(&vec, &zero_basis);
-        assert_eq!(proj_zero, vec![0.0, 0.0]);
-    }
-
-    #[test]
-    fn test_vec_subtract() {
-        let a = vec![5.0, 10.0];
-        let b = vec![2.0, 3.0];
-        assert_eq!(vec_subtract(&a, &b), vec![3.0, 7.0]);
-    }
-
-    #[test]
-    fn test_vec_norm_sq() {
-        let v = vec![3.0, 4.0];
-        assert_eq!(vec_norm_sq(&v), 25.0);
-    }
-
-    #[test]
-    fn test_vec_normalize() {
-        let mut v = vec![3.0, 4.0];
-        vec_normalize(&mut v);
-        assert!((v[0] - 0.6).abs() < 1e-6);
-        assert!((v[1] - 0.8).abs() < 1e-6);
-
-        let mut zero_vec = vec![0.0, 0.0];
-        vec_normalize(&mut zero_vec);
-        assert_eq!(zero_vec, vec![0.0, 0.0]);
+    fn cosine_similarity_handles_normal_and_zero_vectors() {
+        assert!((cosine_similarity(&[1.0, 0.0], &[0.5, 0.5]) - 0.70710677).abs() < 1e-6);
+        assert_eq!(cosine_similarity(&[0.0, 0.0], &[1.0, 0.0]), 0.0);
     }
 }

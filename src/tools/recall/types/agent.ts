@@ -174,7 +174,7 @@ export interface SearchEntriesOptions {
 
   /** 搜索查询 */
   query: string;
-  /** 产品检索预设（默认 algorithmic）；engineId 仅供 legacy parser 读取。 */
+  /** 产品检索预设（默认 algorithmic）。 */
   presetId?: "algorithmic" | "comprehensive";
   /** 返回结果数量（可选，默认 10） */
   limit?: number;

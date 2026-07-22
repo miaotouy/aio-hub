@@ -1,6 +1,6 @@
 # Recall 检索管线模块化实施计划
 
-**状态**：Phase 0 至 Phase 2、Phase 4 已完成；Phase 3 与 Phase 5 部分完成；Phase 6 未开始。
+**状态**：Phase 0 至 Phase 4、Phase 6 已完成；Phase 5 仅剩自定义 Playground 阶段模块编辑。
 
 **最近修订**：2026-07-22
 **范围**：`src/tools/recall/`、`src-tauri/src/recall/`、Recall Playground、Agent Recall 配置与 Chat 召回入口。
@@ -9,22 +9,22 @@
 
 ## 当前状态
 
-| 阶段         | 已落地                                                                                                                                                                                                                                                                                                                                                            | 完成前还需做什么                                           |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Phase 0 至 2 | Runner、compiler、artifact store、公共过滤/finalizer、`algorithmic` 和生产 IPC 已可用。                                                                                                                                                                                                                                                                           | 仅随 Phase 6 删除 Keyword 重复实现。                       |
-| Phase 3      | 内容向量、标签种子、受限共现图传播和标签到条目扩展已进入生产管线，并共享一次查询向量；查询残差标签扩展已确定不进入本轮稳定预设。                                                                                                                                                                                                                                  | 收口 legacy 实现的删除边界，并记录独立实验的后续立项入口。 |
-| Phase 4      | `comprehensive` 已组合关键词、内容向量和标签图候选；weighted fusion v1、独立 `relevanceScore`、预算/priority/阈值边界、工程夹具和显式 fallback 已冻结。                                                                                                                                                                                                           | 已完成。                                                   |
-| Phase 5      | service、Chat、Agent tool、Agent 配置及全局/绑定预设已使用 `presetId`；Agent 编辑器已由 preset summary 和 compile result 驱动 override 范围与能力预检；后台入口只读全局活动模型且不弹交互提示；模型切换会轮换活动资产代际并隔离缓存；Playground 已使用 pipeline 状态机、双预设、批量回放和 trace；结果详情与 Monitor 已区分分数语义并展示 pipeline/legacy trace。 | 完成 Playground 阶段模块编辑。                             |
-| Phase 6      | 管理页局部搜索和 Agent 条目定位已改用 pipeline service，前端已删除 SearchOrchestrator、engine capability 和动态 engine 设置；legacy runner 仅剩后端 command、迁移基线与测试使用。                                                                                                                                                                                 | 删除 legacy registry、command 与已替代实现。               |
+| 阶段         | 已落地                                                                                                                                                                                                                                                                                                                                                            | 完成前还需做什么               |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| Phase 0 至 2 | Runner、compiler、artifact store、公共过滤/finalizer、`algorithmic` 和生产 IPC 已可用；旧 Keyword 重复实现已随 Phase 6 删除。                                                                                                                                                                                                                                     | 已完成。                       |
+| Phase 3      | 内容向量、标签种子、受限共现图传播和标签到条目扩展已进入生产管线，并共享一次查询向量；查询残差标签扩展已确定不进入本轮稳定预设；历史投射、折射、texture、动态权重与 resonance runtime 已删除。                                                                                                                                                                    | 已完成。                       |
+| Phase 4      | `comprehensive` 已组合关键词、内容向量和标签图候选；weighted fusion v1、独立 `relevanceScore`、预算/priority/阈值边界、工程夹具和显式 fallback 已冻结。                                                                                                                                                                                                           | 已完成。                       |
+| Phase 5      | service、Chat、Agent tool、Agent 配置及全局/绑定预设已使用 `presetId`；Agent 编辑器已由 preset summary 和 compile result 驱动 override 范围与能力预检；后台入口只读全局活动模型且不弹交互提示；模型切换会轮换活动资产代际并隔离缓存；Playground 已使用 pipeline 状态机、双预设、批量回放和 trace；结果详情与 Monitor 已区分分数语义并展示 pipeline/legacy trace。 | 完成 Playground 阶段模块编辑。 |
+| Phase 6      | 管理页局部搜索和 Agent 条目定位已改用 pipeline service；前端旧 orchestrator、engine capability 和动态设置，以及后端 legacy registry、commands 与引擎实现均已删除。旧 ID 只在版本化迁移、夹具和历史 trace 中读取。                                                                                                                                                 | 已完成。                       |
 
 ## 施工顺序
 
 ### Phase 3：收口旧能力取舍
 
-- [x] 新管线不再使用 `Lens`、`Blender` 作为模块、预设或产品能力名称；它们只在 legacy migration 和删除前的调试路径中保留。
+- [x] 新管线不再使用 `Lens`、`Blender` 作为模块、预设或产品能力名称；旧名称只在 legacy migration、夹具和历史诊断信息中保留。
 - [x] 用原子模块替换当前 legacy Lens helper：标签种子召回、受限标签图传播和标签到条目候选扩展。
 - [x] 查询残差标签扩展不进入本轮 `comprehensive`；如后续立项，只能作为 Playground 独立实验模块，且不得重复执行字面或内容向量检索。
-- [ ] 删除历史投射、折射、`texture`、Blender 动态 literal/semantic/gravity 权重和 resonance 乘法；literal、内容向量、标签向量与 priority 必须复用现有原子模块。
+- [x] 删除历史投射、折射、`texture`、Blender 动态 literal/semantic/gravity 权重和 resonance 乘法；literal、内容向量、标签向量与 priority 复用现有原子模块。
 - [x] 记录 legacy Vector、Lens、Blender 的保留、替代、删除和回滚边界。
 
 完成门槛：每个保留能力都有独立模块契约；每个删除能力都有明确替代或迁移结论。
@@ -47,7 +47,7 @@ query embedding
 - `bounded-tag-propagation` 只接收标签种子和版本化共现传播核，输出查询级 `query-energy-field`；它限制跳数、按权重稳定截取的每节点邻居数、整次查询总状态数和总出流，并记录截断与回流抑制。当前首版以内存集合的受限标签共现关系生成内容寻址的 `cooccurrence-v1` 图代际；后续预计算 artifact 必须保持相同的身份与 trace 契约。
 - `tag-to-entry-expansion` 将查询能量场与标签到条目的权重映射转换为 `CandidateSignal`；信号类型应表达 `tag-graph`，不得称为 Lens。
 - `query-residual-tag-expansion` 不属于当前稳定管线。若后续独立立项，它是查询级标签种子扩展模块：用首层已匹配标签的正交子空间解释查询，再以剩余向量寻找补充标签；它不得修改供 `content-vector-recall` 使用的原始查询向量，也不得直接产生条目候选。
-- 现有历史向量投射、显式/自动折射和 `texture` 已不进入 pipeline service 或 Playground。它们仅留在 legacy engine、迁移基线和删除前诊断路径，Phase 6 删除前不得继续扩展。
+- 现有历史向量投射、显式/自动折射和 `texture` 已不进入 pipeline service 或 Playground；对应 runtime 已删除，旧字段只在迁移夹具和能力盘点中保留。
 - Blender 的 residual mining 实现不迁移。其对多个非正交标签投影直接求和，不能作为新模块数学实现；未来实验只能复用标签池等基础设施，并以稳定排序的正交投影重新实现。Blender 的动态融合和 resonance 同样不迁移。priority 继续只由 `priority-boost` 应用一次；固定、版本化权重由 `weighted-fusion` 负责。
 
 此结论参考了 VCPToolBox 的 TagMemo V9.1 调研：其将查询残差分解、受限标签图传播、查询级能量场和候选重排分离，并将 pairwise、残差、传播核和有效配置作为按模型签名、图代际、算法版本绑定的不可变 artifact bundle 发布。相关来源为 `VCPToolBox\docs\TagMemo_Wave_Algorithm_Deep_Dive.md`、`TagMemoEngine.js` 和 `ResidualPyramid.js`。VCPToolBox 不是本模块依赖，其生产观测也不得作为 Recall 的质量结论或参数依据。
@@ -99,24 +99,25 @@ shared query embedding
 
 Playground 当前已固定为 `algorithmic / comprehensive` 双配置诊断工作面，使用全局活动模型，支持多行查询批量回放、batch run、编译阶段与完整 trace 调试。workspace 只保存集合、查询和 `presetId / limit`，旧 `engineId / config / results` 经迁移后失效；旧 `SearchPanel`、`useRecallSearch` 和 `useRecallSearchManager` 已在无静态或动态引用后删除。尚未完成的是阶段模块编辑：后端目前只有内置 preset 的 compile/run IPC，还没有受限自定义 pipeline 的模块清单、编译和运行命令，因此本条保持未完成。
 
-新管线运行会发送兼容扩展后的 `recall-monitor` RAG 事件。事件在旧 `steps / results / stats / metadata` 之外可选携带完整 `pipelineTrace` 和结构化 `pipelineError`，metadata 标记 `executionPath / runId / outcome / requestedPresetId / actualPresetId`；legacy `recall_search` 继续使用 `engineId` 和条目级 legacy trace。结果详情和 Monitor 不再将未知分数域格式化为百分比：pipeline 的 `relevanceScore` 由信号贡献求和，`score` 表示 priority 重排后的排序分数；legacy 分数只按原值展示。
+新管线运行会发送兼容扩展后的 `recall-monitor` RAG 事件。事件在旧 `steps / results / stats / metadata` 之外可选携带完整 `pipelineTrace` 和结构化 `pipelineError`，metadata 标记 `executionPath / runId / outcome / requestedPresetId / actualPresetId`；历史 `recall_search` 事件仍可通过 `engineId` 和条目级 legacy trace 展示。结果详情和 Monitor 不再将未知分数域格式化为百分比：pipeline 的 `relevanceScore` 由信号贡献求和，`score` 表示 priority 重排后的排序分数；legacy 分数只按原值展示。
 
 完成门槛：产品调用不发送底层 engine ID；旧配置可迁移且问题可定位；真实 Tauri UI 可区分 success、empty、blocked、fallback、failed 和 cancelled。
 
 ### Phase 6：删除旧运行时
 
 - [x] 扫描并清除产品、Agent、Chat、测试与迁移层以外对 `RetrievalEngine` 的调用。
-- [ ] 删除 legacy registry，以及 Keyword、Vector、legacy Lens/Blender 和 facade 中已被原子模块替代的实现。
-- [ ] 仅在独立 legacy migration 层保留旧 ID 解析。
+- [x] 删除 legacy registry，以及 Keyword、Vector、legacy Lens/Blender 和 facade 中已被原子模块替代的实现。
+- [x] 仅在独立 legacy migration 层保留旧 ID 解析；历史 monitor payload 与 legacy trace 类型只负责旧事件展示。
 
 完成门槛：后端只保留 module registry 与 pipeline runner；删除旧实现不影响当前产品调用，legacy 配置仍能得到确定转换结果或结构化问题。
 
-#### Phase 6 调用扫描结论（2026-07-23）
+#### Phase 6 调用扫描结论（2026-07-22）
 
 - `RecallCollectionList` 的跨集合内容筛选与 `RecallEntryList` 的当前集合筛选属于管理界面即时搜索，固定使用 `algorithmic` preset；前者显式传入全部集合 ID，后者只传入活动集合 ID。两者不再读取或选择底层 engine。
 - Agent `updateEntryContent` 的 `searchQuery` 只用于定位一个待更新条目，同样固定使用 `algorithmic`；Agent 对外检索能力 `searchEntries` 继续接受 `presetId` 并调用同一 pipeline service。
 - 前端 `SearchOrchestrator`、`EngineSelector`、`engineCapabilities`、`RetrievalEngineInfo`、store engine registry 与动态 engine 参数注入已删除。索引和向量同步仍由原 orchestrator 文件中的独立类负责。
-- `src/` 产品代码已无 `recall_search` 或 `recall_list_engines` 调用。剩余 legacy 引用都位于 Rust command/registry、旧引擎实现、迁移基线和后端测试，下一步可在同一后端里程碑删除。
+- `src/` 产品代码已无 `recall_search` 或 `recall_list_engines` 调用；后端 command、registry、旧引擎实现与 `TagSea` 也已删除。迁移基线改由当前 pipeline runner 验证旧数据转换后的结果与 SQLite 重启一致。
+- workspace 加载会剥离 `defaultEngineId`、历史投射/折射/texture 和旧评分参数；生产 request/service 类型不再接受 `engineId`。版本化 workspace、Agent 和 pipeline migration 仍确定性转换旧 ID，未知值继续报告结构化问题。
 
 ## 发布前的 Recall 遗留门禁
 

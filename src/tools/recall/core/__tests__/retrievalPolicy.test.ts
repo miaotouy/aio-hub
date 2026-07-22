@@ -43,7 +43,6 @@ describe("Recall retrieval policy", () => {
   it("uses presets for product retrieval while accepting legacy profiles", () => {
     expect(resolveRetrievalParams(request())).toMatchObject({
       profile: "semantic",
-      engineId: undefined,
       presetId: "comprehensive",
     });
     expect(

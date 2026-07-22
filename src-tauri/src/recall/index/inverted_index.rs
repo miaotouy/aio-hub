@@ -76,13 +76,6 @@ impl TextInvertedIndex {
         }
     }
 
-    /// 搜索关键词，返回 (条目 ID, 评分) 列表
-    pub fn search(&self, query: &str) -> Vec<(Uuid, f32)> {
-        let query_lower = query.to_lowercase();
-        let tokens = tokenize_query(&query_lower);
-        self.search_tokens(&query_lower, &tokens)
-    }
-
     pub fn search_tokens(&self, normalized_query: &str, tokens: &[String]) -> Vec<(Uuid, f32)> {
         let mut scores: HashMap<Uuid, f32> = HashMap::new();
 

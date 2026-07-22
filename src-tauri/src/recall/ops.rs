@@ -550,11 +550,14 @@ pub fn batch_upsert_entries_logic(
 mod repository_warmup_tests {
     use super::warmup_recall_repository;
     use crate::recall::core::{
-        QueryPayload, RecallCollection, RecallCollectionMeta, RecallEntry, RecallSearchFilters,
-        RetrievalContext, RetrievalEngine, VectorizationMeta,
+        RecallCollection, RecallCollectionMeta, RecallEntry, RecallSearchFilters, RetrievalContext,
+        RetrievalRequestSnapshot, VectorizationMeta,
     };
     use crate::recall::index::InMemoryDatabase;
-    use crate::recall::search::KeywordRetrievalEngine;
+    use crate::recall::retrieval_modules::{algorithmic_pipeline, production_module_registry};
+    use crate::recall::retrieval_pipeline::{
+        RecallPresetId, RetrievalArtifacts, RetrievalPipelineCompiler, RetrievalPipelineRunner,
+    };
     use crate::recall::storage::{RecallRepository, SqliteRecallRepository};
     use crate::recall::tag_pool::{GlobalTagPoolManager, ModelTagPool};
     use std::sync::{Arc, RwLock};
@@ -675,19 +678,28 @@ mod repository_warmup_tests {
             db: recovered_imdb,
             tag_pool_manager: GlobalTagPoolManager::new(),
             app_data_dir: app_data.path().to_path_buf(),
-            request: None,
-        };
-        let results = KeywordRetrievalEngine::new()
-            .search(
-                &QueryPayload::Text("数据库".to_string()),
-                &RecallSearchFilters {
+            request: Some(RetrievalRequestSnapshot {
+                query: "数据库".to_string(),
+                filters: RecallSearchFilters {
                     recall_ids: Some(vec![collection_id]),
                     ..Default::default()
                 },
-                &context,
-            )
-            .unwrap();
-        assert_eq!(results[0].entry.id, entry_id);
+            }),
+        };
+        let compiled = RetrievalPipelineCompiler::new(Arc::new(
+            production_module_registry().expect("production registry should be valid"),
+        ))
+        .compile(&algorithmic_pipeline(None), "repository-warmup".to_string());
+        let response = RetrievalPipelineRunner.run(
+            &compiled,
+            &context,
+            RetrievalArtifacts::default(),
+            None,
+            RecallPresetId::Algorithmic,
+            RecallPresetId::Algorithmic,
+            None,
+        );
+        assert_eq!(response.results[0].entry.id, entry_id);
 
         recovered_repository
             .upsert_entry_vector(

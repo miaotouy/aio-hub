@@ -47,9 +47,6 @@ pub struct VectorIndexConfig {
     pub ef_construction: Option<usize>,
     /// HNSW 特定参数: 每个节点的最大连接数
     pub m: Option<usize>,
-    /// 动态引擎参数存储 (透镜折射率、BM25 参数等)
-    #[serde(flatten, default)]
-    pub extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
 /// 思绪集索引（用于列表展示的轻量级元数据）
@@ -272,22 +269,6 @@ pub struct RecallCollection {
     pub entries: Vec<RecallEntry>,
 }
 
-/// Tag 之海：所有唯一标签的向量化索引 (透镜检索核心结构)
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct TagSea {
-    /// tag 哈希 → tag ID 的映射
-    pub hash_to_id: std::collections::HashMap<String, u32>,
-    /// tag ID → tag 文本 的反向映射
-    pub id_to_tag: Vec<String>,
-    /// tag ID → embedding 向量
-    pub vectors: Vec<Vec<f32>>,
-    /// tag ID → 标签本身的语法权重 (例如 #tag::1.5 提取出的 1.5)
-    pub syntax_weights: Vec<f32>,
-    /// tag ID → 该 tag 关联的所有 (CAIU ID, 该 tag 在此单元中的权重)
-    pub tag_to_entry_weights: std::collections::HashMap<u32, Vec<(Uuid, f32)>>,
-}
-
 /// 搜索结果项
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
@@ -353,21 +334,6 @@ pub struct RecallSearchFilters {
     pub limit: Option<usize>,
     pub min_score: Option<f32>,
     pub enabled_only: Option<bool>,
-    /// 透镜检索：纹理 (coarse/fine)
-    pub texture: Option<String>,
-    /// 透镜检索：折射率 (0.0 - 1.0)
-    pub refraction_index: Option<f32>,
-    /// 透镜检索：显式约束标签
-    pub required_tags: Option<Vec<String>>,
-    /// 透镜检索：上下文投射向量 (用于能量衰减)
-    pub history_vectors: Option<Vec<Vec<f32>>>,
-    /// 向量检索：BM25 k1
-    pub k1: Option<f32>,
-    /// 向量检索：BM25 b
-    pub b: Option<f32>,
-    /// 捕获其他动态引擎参数
-    #[serde(flatten, default)]
-    pub extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
 impl Default for RecallSearchFilters {
@@ -378,13 +344,6 @@ impl Default for RecallSearchFilters {
             limit: Some(20),
             min_score: None,
             enabled_only: Some(true),
-            texture: None,
-            refraction_index: None,
-            required_tags: None,
-            history_vectors: None,
-            k1: None,
-            b: None,
-            extra: std::collections::HashMap::new(),
         }
     }
 }
@@ -397,7 +356,7 @@ pub struct RetrievalContext {
     pub tag_pool_manager: crate::recall::tag_pool::GlobalTagPoolManager,
     /// 应用数据目录 (用于加载标签池)
     pub app_data_dir: std::path::PathBuf,
-    /// 新检索管线使用的不可变请求快照；legacy engine 继续接收独立参数。
+    /// 检索管线使用的不可变请求快照。
     pub request: Option<RetrievalRequestSnapshot>,
 }
 
@@ -405,55 +364,6 @@ pub struct RetrievalContext {
 pub struct RetrievalRequestSnapshot {
     pub query: String,
     pub filters: RecallSearchFilters,
-}
-
-/// 检索查询负载，支持文本或向量
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(tag = "type", content = "value", rename_all = "camelCase")]
-pub enum QueryPayload {
-    Text(String),
-    Vector {
-        vector: Vec<f32>,
-        model: String,
-        /// 可选的原始查询文本，用于字面量加权 (Hybrid Search)
-        query: Option<String>,
-    },
-}
-
-/// 检索算法引擎元数据
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct RetrievalEngineInfo {
-    pub id: String,
-    pub name: String,
-    pub description: String,
-    pub icon: Option<String>,
-    /// 支持的 Payload 类型: "text", "vector"
-    pub supported_payload_types: Vec<String>,
-    /// 是否需要配置 Embedding 模型
-    #[serde(default)]
-    pub requires_embedding: bool,
-    /// 引擎支持的自定义参数描述 (符合前端 SettingItem 结构)
-    #[serde(default)]
-    pub parameters: Vec<serde_json::Value>,
-}
-
-/// 检索算法引擎 Trait
-/// 实现此 Trait 即可接入思绪集的检索系统，支持热切换
-pub trait RetrievalEngine: Send + Sync {
-    /// 获取引擎唯一标识 (如 "keyword", "vector", "lens")
-    fn id(&self) -> &str;
-
-    /// 获取引擎元数据
-    fn info(&self) -> RetrievalEngineInfo;
-
-    /// 执行检索逻辑
-    fn search(
-        &self,
-        payload: &QueryPayload,
-        filters: &RecallSearchFilters,
-        context: &RetrievalContext,
-    ) -> Result<Vec<RecallResult>, String>;
 }
 
 #[cfg(test)]
@@ -471,7 +381,6 @@ mod tests {
                 metric: "cosine".to_string(),
                 ef_construction: Some(200),
                 m: Some(16),
-                extra: std::collections::HashMap::new(),
             },
         };
 

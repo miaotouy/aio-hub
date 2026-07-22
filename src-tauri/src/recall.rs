@@ -20,11 +20,9 @@ pub mod monitor;
 pub mod ops;
 pub mod retrieval_modules;
 pub mod retrieval_pipeline;
-pub mod search;
 pub mod state;
 pub mod storage;
 pub mod tag_pool;
-pub mod tag_sea;
 pub mod utils;
 
 #[cfg(test)]

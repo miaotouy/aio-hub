@@ -66,11 +66,9 @@ export interface SearchParams {
   limit?: number;
   /** 最低分数阈值 */
   minScore?: number;
-  /** 检索引擎 ID，不传则使用思绪集默认引擎 */
-  engineId?: string;
-  /** 产品召回 profile；显式 engineId 仅供 Playground / 调试覆盖。 */
+  /** Legacy 产品召回 profile；新调用方应直接使用 presetId。 */
   profile?: RecallProfile;
-  /** 产品检索预设；旧 engine/profile 只用于兼容输入。 */
+  /** 产品检索预设。 */
   presetId?: RecallPresetId;
 }
 
@@ -94,9 +92,7 @@ export interface SearchWithCacheParams {
   limit?: number;
   /** 最低分数阈值 */
   minScore?: number;
-  /** 检索引擎 ID，不传则使用思绪集默认引擎 */
-  engineId?: string;
-  /** 产品召回 profile。 */
+  /** Legacy 产品召回 profile；新调用方应直接使用 presetId。 */
   profile?: RecallProfile;
   /** 产品检索预设。 */
   presetId?: RecallPresetId;
@@ -143,11 +139,9 @@ interface RetrievalCacheKeyInput {
 
 function resolvePresetId(
   presetId?: RecallPresetId,
-  engineId?: string,
   profile?: RecallProfile
 ): RecallPresetId {
   if (presetId) return presetId;
-  if (engineId === "keyword") return "algorithmic";
   if (profile === "semantic" || profile === "associative") {
     return "comprehensive";
   }
@@ -190,11 +184,7 @@ export async function search(params: SearchParams): Promise<RecallResult[]> {
   return (
     (await errorHandler.wrapAsync(
       async () => {
-        const presetId = resolvePresetId(
-          params.presetId,
-          params.engineId,
-          params.profile
-        );
+        const presetId = resolvePresetId(params.presetId, params.profile);
 
         logger.debug("执行思绪集检索", {
           query: params.query,
@@ -245,7 +235,7 @@ export async function searchWithCache(
   const defaults = profileDefaults(profile);
   const limit = params.limit ?? defaults.limit;
   const minScore = params.minScore ?? defaults.minScore;
-  const presetId = resolvePresetId(params.presetId, params.engineId, profile);
+  const presetId = resolvePresetId(params.presetId, profile);
   const enableCache = params.enableCache ?? false;
 
   // 主查询执行预处理（清洗 + Tag 池匹配）；次查询不参与 Tag 匹配，避免 AI 回复中的噪音词误触发

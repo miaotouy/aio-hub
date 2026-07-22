@@ -1,6 +1,6 @@
 # Recall 检索管线模块化设计与实施计划
 
-**状态**: Phase 0、Phase 1 已完成；Phase 2 已落地纯算法生产模块、`algorithmic` 预设和独立 IPC，legacy `recall_search` 与 Keyword engine 清理尚未完成
+**状态**: Phase 0、Phase 1 已完成；Phase 2 已落地纯算法生产模块、`algorithmic` 预设和独立 IPC；Phase 3 已落地内容/标签向量候选，Lens 与综合预设尚未完成
 **创建日期**: 2026-07-20
 **最近修订**: 2026-07-22
 **适用范围**: `src/tools/recall/`、`src-tauri/src/recall/`、Recall Playground、Agent Recall 配置、Recall Chat 召回入口
@@ -23,6 +23,8 @@
 > **2026-07-22 Phase 1 内核进度**：`src-tauri/src/recall/retrieval_pipeline.rs` 已提供显式 module registry、配置编译、依赖拓扑排序、artifact 运行时检查、串行 Runner、版本化 trace 和结构化失败响应；Rust 定向测试已用测试模块跑通完整空结果管线，并覆盖缺失 artifact、依赖环路、重复 finalizer 和非法参数。该内核尚未注册为生产 preset，也未接管 legacy `recall_search`。
 >
 > **2026-07-22 Phase 1/2 施工进度**：生产 registry 已注册查询规范化/分词、关键词候选、信号归一化、加权融合、priority rerank、policy/score filter 和 finalizer；`algorithmic` 可通过独立 compile/run IPC 执行，配置哈希不一致会在模块运行前拒绝。真实 Tauri `recall-pipeline` preset 已验证 `list -> compile -> run -> pipeline trace`、稳定运行元数据和零 Embedding 请求。现有产品仍走 legacy `recall_search`，因此旧 Keyword engine 的重复过滤、排序和 TopK 尚未删除。
+>
+> **2026-07-22 Phase 3 施工进度**：`content-vector-recall` 与 `tag-vector-recall` 已注册为独立生产模块，二者复用同一请求的 query embedding 和带 model/space identity 的不可变 bundle；缺失 Embedding 产物会返回 `external-requirement-missing`，模型不匹配的内容向量矩阵不会进入候选。Lens 的历史投射、折射和标签图传播仍在 legacy engine 中，尚未接入 `comprehensive`。
 >
 > 已可直接复用的测试前置资产包括：
 >

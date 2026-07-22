@@ -9,29 +9,56 @@
 
 ## 当前状态
 
-| 阶段         | 已落地                                                                                  | 完成前还需做什么                                                              |
-| ------------ | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Phase 0 至 2 | Runner、compiler、artifact store、公共过滤/finalizer、`algorithmic` 和生产 IPC 已可用。 | 仅随 Phase 6 删除 Keyword 重复实现。                                          |
-| Phase 3      | 内容向量、标签向量与 Lens entry ID/raw score 候选已进入生产管线，并共享一次查询向量。   | 决定 Lens 的历史投射/折射/标签图传播，以及 Blender gravity/resonance 的去留。 |
-| Phase 4      | `comprehensive` 已组合四路候选并使用 weighted fusion v1。                               | 固化分数与参数契约，补工程夹具和显式 fallback。                               |
-| Phase 5      | service、Chat、Agent tool、Agent 配置及全局/绑定预设已使用 `presetId`。                 | 完成 capability UI、全局模型代际、Playground、Monitor 和 workspace 收口。     |
-| Phase 6      | legacy runner 仍服务 `recall_search`、旧 Playground 和迁移夹具。                        | 完成调用扫描后删除 legacy registry 与已替代实现。                             |
+| 阶段         | 已落地                                                                                       | 完成前还需做什么                                                          |
+| ------------ | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Phase 0 至 2 | Runner、compiler、artifact store、公共过滤/finalizer、`algorithmic` 和生产 IPC 已可用。      | 仅随 Phase 6 删除 Keyword 重复实现。                                      |
+| Phase 3      | 内容向量、标签向量与 legacy Lens entry ID/raw score 候选已进入生产管线，并共享一次查询向量。 | 以原子标签能力替换 legacy Lens/Blender 命名、实现与调用边界。             |
+| Phase 4      | `comprehensive` 已组合四路候选并使用 weighted fusion v1。                                    | 固化分数与参数契约，补工程夹具和显式 fallback。                           |
+| Phase 5      | service、Chat、Agent tool、Agent 配置及全局/绑定预设已使用 `presetId`。                      | 完成 capability UI、全局模型代际、Playground、Monitor 和 workspace 收口。 |
+| Phase 6      | legacy runner 仍服务 `recall_search`、旧 Playground 和迁移夹具。                             | 完成调用扫描后删除 legacy registry 与已替代实现。                         |
 
 ## 施工顺序
 
 ### Phase 3：收口旧能力取舍
 
-- [ ] 决定 Lens 历史投射、折射和标签图传播是独立模块还是删除。
-- [ ] 决定 Blender gravity/resonance 是否需要独立模块；literal/semantic 必须继续复用现有候选。
-- [ ] 记录 Vector、Lens、Blender 的保留、替代、删除和回滚边界。
+- [x] 新管线不再使用 `Lens`、`Blender` 作为模块、预设或产品能力名称；它们只在 legacy migration 和删除前的调试路径中保留。
+- [ ] 用原子模块替换当前 legacy Lens helper：标签种子召回、受限标签图传播和标签到条目候选扩展。
+- [ ] 决定是否引入查询残差标签扩展；它不得重复执行字面或内容向量检索。
+- [ ] 删除历史投射、折射、`texture`、Blender 动态 literal/semantic/gravity 权重和 resonance 乘法；literal、内容向量、标签向量与 priority 必须复用现有原子模块。
+- [ ] 记录 legacy Vector、Lens、Blender 的保留、替代、删除和回滚边界。
 
 完成门槛：每个保留能力都有独立模块契约；每个删除能力都有明确替代或迁移结论。
+
+#### Phase 3 调研结论：原子标签管线（2026-07-22）
+
+用户已确认新管线的命名方向：不再将一组算法包装为 `Lens` 或 `Blender`。目标能力按输入、输出和可观测性拆分；旧名称不能以换名 facade 的形式继续存在。
+
+建议的目标链路如下：
+
+```text
+query embedding
+  -> tag-vector-recall（标签种子）
+  -> bounded-tag-propagation（可选，输出 query-energy-field）
+  -> tag-to-entry-expansion（输出 tag-graph CandidateSignal）
+  -> normalize / weighted-fusion / threshold / priority / finalizer
+```
+
+- `tag-vector-recall` 是现有标签邻居候选的稳定名称和职责；它不修改查询向量。
+- `bounded-tag-propagation` 只接收标签种子和预计算传播核，输出查询级 `query-energy-field`；它必须限制跳数、每节点邻居数、总状态数和总出流，并记录截断与回流抑制。
+- `tag-to-entry-expansion` 将查询能量场与标签到条目的权重映射转换为 `CandidateSignal`；信号类型应表达 `tag-graph`，不得称为 Lens。
+- `query-residual-tag-expansion` 是后续可选的查询准备模块：用已匹配标签子空间解释查询，再以剩余向量寻找补充标签。它的输入/输出必须与 `tag-vector-recall` 可区分，且未完成独立夹具和质量立项前不进入 `comprehensive` v1。
+- 现有历史向量投射、显式/自动折射和 `texture` 都没有进入 pipeline service 的产品请求，直接删除而不迁移。现有 Lens 图候选在原子模块落地前仅属临时实现，不能继续扩展。
+- Blender 的 residual mining、动态融合和 resonance 不迁移。priority 继续只由 `priority-boost` 应用一次；固定、版本化权重由 `weighted-fusion` 负责。
+
+此结论参考了 VCPToolBox 的 TagMemo V9.1 调研：其将查询残差分解、受限标签图传播、查询级能量场和候选重排分离，并将 pairwise、残差、传播核和有效配置作为按模型签名、图代际、算法版本绑定的不可变 artifact bundle 发布。相关来源为 `VCPToolBox\docs\TagMemo_Wave_Algorithm_Deep_Dive.md`、`TagMemoEngine.js` 和 `ResidualPyramid.js`。VCPToolBox 不是本模块依赖，其生产观测也不得作为 Recall 的质量结论或参数依据。
+
+Recall 尚不具备 VCPToolBox 的有序标签序位、pairwise 相似度和内生残差资产。因此首版传播只能基于版本化的标签共现/条目映射，不能推断叙事方向，也不能复制其测地线重排。引入图传播前必须先定义：模型签名、图资产代际、配置哈希、构建/发布原子性、缓存身份以及 trace 字段；`query-energy-field` 已是可复用的 artifact key。
 
 ### Phase 4：完成综合预设 v1
 
 - [ ] 固化 weighted fusion v1 的分数语义、权重、配置约束、性能边界和 trace 字段；RRF 不属于 v1。
-- [ ] 固化候选上限、各路归一化、最终阈值和 priority 的合法范围、默认值来源与版本边界。
-- [ ] 用工程夹具覆盖精确字面、内容向量、标签、Lens、空候选、无向量数据和稳定 tie-break。
+- [ ] 固化候选上限、各路归一化、最终阈值和 priority 的合法范围、默认值来源与版本边界；`relevanceScore` 必须是独立且可解释的阈值分数，priority 仅用于一次 rerank。
+- [ ] 用工程夹具覆盖精确字面、内容向量、标签、标签图、空候选、无向量数据和稳定 tie-break。
 - [ ] 建立可追踪的 `fallbackPresetId` 降级路径。
 
 完成门槛：综合预设的编译、执行、trace、缓存隔离和 fallback 都有确定性验证；默认参数与算法版本可追溯。
@@ -51,7 +78,7 @@
 ### Phase 6：删除旧运行时
 
 - [ ] 扫描并清除产品、Agent、Chat、测试与迁移层以外对 `RetrievalEngine` 的调用。
-- [ ] 删除 legacy registry，以及 Keyword、Vector、Lens、Blender 和 facade 中已被模块替代的实现。
+- [ ] 删除 legacy registry，以及 Keyword、Vector、legacy Lens/Blender 和 facade 中已被原子模块替代的实现。
 - [ ] 仅在独立 legacy migration 层保留旧 ID 解析。
 
 完成门槛：后端只保留 module registry 与 pipeline runner；删除旧实现不影响当前产品调用，legacy 配置仍能得到确定转换结果或结构化问题。

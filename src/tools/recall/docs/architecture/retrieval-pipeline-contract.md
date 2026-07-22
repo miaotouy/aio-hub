@@ -28,21 +28,22 @@
 
 旧引擎输出没有独立的模块版本，只能用于迁移诊断，不能进入新管线缓存或充当质量基线。下表保留 Phase 0 对旧行为的必要盘点，避免后续删除运行时时丢失能力取舍依据。
 
-| 旧能力        | 旧行为摘要                                                                                                        | 现行处理                                                                                                  |
-| ------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `keyword`     | 倒排候选、key contains 加成、全局非线性归一化，并在集合内提前执行阈值、排序与 TopK。                              | 迁为 `query-tokenize`、`keyword-recall`、独立归一化、policy 与 finalizer；不沿用旧分数和提前裁剪顺序。    |
-| `vector`      | Tag Anchoring、内容余弦与长度调整、tag pool 邻居、动态内容/标签权重、priority 和字面加成；融合前存在候选粗过滤。  | 拆为内容向量、标签向量、字面信号、priority 与 normalize/fuse；不沿用动态权重、阈值和裁剪顺序。            |
-| `lens`        | 历史向量衰减投射、显式或自动标签折射、标签邻居、texture affinity、图传播和标签到条目能量汇聚。                    | 当前只保留 entry ID/raw score 候选 helper；历史投射、折射、texture 与标签图传播必须分别决定模块化或删除。 |
-| `blender`     | 重复执行字面和内容向量检索，并包含标签残差挖掘、动态 literal/semantic/gravity 权重、resonance 与 priority boost。 | 字面、内容向量、标签和 priority 必须复用现有模块；gravity、残差与 resonance 只有具备独立契约时才保留。    |
-| `semantic`    | 直接委托 `vector`，继承其提前裁剪和旧 trace。                                                                     | legacy parser 映射到 `comprehensive`，不建立等价 facade。                                                 |
-| `associative` | 分别执行 Blender 与 Lens，再以固定权重融合；子引擎和 facade 都可能提前裁剪。                                      | legacy parser 映射到 `comprehensive`，不保留引擎包含引擎或固定旧权重。                                    |
+| 旧能力        | 旧行为摘要                                                                                                        | 现行处理                                                                                                                                                                  |
+| ------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `keyword`     | 倒排候选、key contains 加成、全局非线性归一化，并在集合内提前执行阈值、排序与 TopK。                              | 迁为 `query-tokenize`、`keyword-recall`、独立归一化、policy 与 finalizer；不沿用旧分数和提前裁剪顺序。                                                                    |
+| `vector`      | Tag Anchoring、内容余弦与长度调整、tag pool 邻居、动态内容/标签权重、priority 和字面加成；融合前存在候选粗过滤。  | 拆为内容向量、标签向量、字面信号、priority 与 normalize/fuse；不沿用动态权重、阈值和裁剪顺序。                                                                            |
+| `lens`        | 历史向量衰减投射、显式或自动标签折射、标签邻居、texture affinity、图传播和标签到条目能量汇聚。                    | 现有 `comprehensive` 暂时复用 entry ID/raw score helper；目标态删除历史投射、折射与 texture，并用标签种子、受限标签图传播和标签到条目扩展原子模块替代，不保留 Lens 名称。 |
+| `blender`     | 重复执行字面和内容向量检索，并包含标签残差挖掘、动态 literal/semantic/gravity 权重、resonance 与 priority boost。 | 不迁移动态权重、gravity 与 resonance；字面、内容向量、标签和 priority 复用现有模块。查询残差标签扩展如需引入，必须作为独立实验模块立项，不保留 Blender 名称。             |
+| `semantic`    | 直接委托 `vector`，继承其提前裁剪和旧 trace。                                                                     | legacy parser 映射到 `comprehensive`，不建立等价 facade。                                                                                                                 |
+| `associative` | 分别执行 Blender 与 Lens，再以固定权重融合；子引擎和 facade 都可能提前裁剪。                                      | legacy parser 映射到 `comprehensive`，不保留引擎包含引擎或固定旧权重。                                                                                                    |
 
 迁移后的公共规则：
 
 - 集合范围、enabled、标签过滤、最终阈值、稳定排序与最终 TopK 由公共尾部统一处理；候选安全上限必须与最终 `limit` 区分。
 - 归一化模块声明输入信号域与算法版本；不同旧引擎的原始分数不能直接比较或解释成百分比。
 - 候选 artifact 只携带集合和条目 ID，完整条目由 finalizer 回源；priority 只在 rerank 阶段执行一次。
-- 内容向量、标签向量和 Lens 可以共享同一 query embedding bundle，但必须保留可区分的信号与 trace。
+- 内容向量、标签向量和原子标签扩展模块可以共享同一 query embedding bundle，但必须保留可区分的信号与 trace。
+- 新管线不得将多项原子能力重新包装成 Lens、Blender 或等价 facade；旧名称只允许 legacy parser、迁移报告和删除前诊断读取。
 
 ## Legacy 调用与删除门槛
 

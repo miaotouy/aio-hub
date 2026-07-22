@@ -1,6 +1,6 @@
 # Recall 检索管线模块化设计与实施计划
 
-**状态**: Phase 0 已完成；现有产品仍走 legacy engine，Phase 1 Runner 尚未施工
+**状态**: Phase 0 已完成；Phase 1 的 compiler、module registry、artifact store 和串行 Runner 内核已施工，现有产品仍走 legacy engine，公共尾部模块与产品接线尚未施工
 **创建日期**: 2026-07-20
 **最近修订**: 2026-07-22
 **适用范围**: `src/tools/recall/`、`src-tauri/src/recall/`、Recall Playground、Agent Recall 配置、Recall Chat 召回入口
@@ -19,6 +19,8 @@
 > **2026-07-21 现状对照**：`recall-automated-real-vector-testing-plan.md` 已完成 Phase 1 至 Phase 5 及 Tauri E2E 入口收口，但这不等于本计划的检索管线 Phase 1 至 Phase 6 已完成。当前生产路径仍由 Rust `RetrievalEngine`、`engineId`、`semantic` / `associative` facade 和前端 `SearchOrchestrator` 组成；Phase 0 只有已冻结的模块/artifact 数据类型与 wire fixture，尚未存在可执行模块 registry、pipeline compiler 或统一 Runner。
 >
 > **2026-07-22 施工优先级修订**：测试计划中的 deterministic、Ollama、external corpus 和恢复 lane 均是可复用的验收资产，但不再作为本计划 Phase 1 Runner 的前置阻塞。默认开发只运行与当前切片相关的 Vitest/Rust 测试和最小 mock smoke；真实 Ollama 保留为显式集成验证，完整 corpus 与二次启动恢复放在功能里程碑或发布收口。新测试必须围绕新 Runner 的契约补齐，不以继续扩展 legacy E2E 矩阵为施工目标。
+>
+> **2026-07-22 Phase 1 内核进度**：`src-tauri/src/recall/retrieval_pipeline.rs` 已提供显式 module registry、配置编译、依赖拓扑排序、artifact 运行时检查、串行 Runner、版本化 trace 和结构化失败响应；Rust 定向测试已用测试模块跑通完整空结果管线，并覆盖缺失 artifact、依赖环路、重复 finalizer 和非法参数。该内核尚未注册为生产 preset，也未接管 legacy `recall_search`。
 >
 > 已可直接复用的测试前置资产包括：
 >
@@ -697,7 +699,7 @@ idle
 
 ## 9. 实施阶段
 
-测试计划中的 Phase 1 至 Phase 5 已完成，提供了本节可复用的 fixture、真实窗口 runner 和验收 lane；本节 Phase 编号只描述检索管线施工进度。当前检索管线 Phase 0 已完成，Phase 1 尚未开始，不能按测试计划状态顺延为 Phase 5。
+测试计划中的 Phase 1 至 Phase 5 已完成，提供了本节可复用的 fixture、真实窗口 runner 和验收 lane；本节 Phase 编号只描述检索管线施工进度。当前检索管线 Phase 0 已完成，Phase 1 的执行内核已开始施工但尚未完成公共尾部和产品接线，不能按测试计划状态顺延为 Phase 5。
 
 ### Phase 0：盘点旧实现并冻结新契约
 
@@ -717,10 +719,11 @@ idle
 
 ### Phase 1：建立 Runner 与公共尾部阶段
 
-- [ ] 新增模块 registry、配置编译器、artifact store 和阶段 Runner。
+- [x] 新增模块 registry、配置编译器、artifact store 和串行阶段 Runner 内核；当前只由测试模块驱动，尚未接入生产检索路径。
 - [ ] 抽取集合/enabled/标签硬过滤、最终 score threshold、排序、TopK、条目加载和 trace finalizer。
-- [ ] 支持模块单独运行和确定性 fixture。
-- [ ] 第一阶段保持 retrieve 串行，为后续并行保留契约。
+- [x] 第一阶段保持 retrieve 串行，为后续并行保留契约。
+- [x] 用确定性测试模块跑通完整管线，并拒绝非法依赖、环路、缺失 artifact、重复 finalizer 和非法参数。
+- [ ] 支持生产模块单独运行和真实确定性 fixture。
 - [ ] 注册 `recall-pipeline` E2E preset 与真实 spec，覆盖 compile -> prepare -> run -> pipeline trace，并断言运行元数据区别于 legacy engine 路径。
 
 退出门槛：用测试模块跑通完整管线；非法依赖、环路、缺失 artifact、重复 finalizer 和非法参数均被拒绝。

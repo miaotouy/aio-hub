@@ -8,7 +8,7 @@
 
 ## 后续设计提案
 
-- [`recall-retrieval-pipeline-modularization-plan.md`](recall-retrieval-pipeline-modularization-plan.md)：将 Keyword、Vector、Lens、Blender 和产品 facade 重构为阶段化检索模块，以预设配置组合纯算法召回与综合召回。当前检索管线尚未施工，但旧行为基线、真实窗口 runner 和验收 lane 等测试前置已部分具备。
+- [`recall-retrieval-pipeline-modularization-plan.md`](recall-retrieval-pipeline-modularization-plan.md)：将 Keyword、Vector、Lens、Blender 和产品 facade 重构为阶段化检索模块，以预设配置组合纯算法召回与综合召回。Phase 1 的 compiler、module registry、artifact store 和串行 Runner 内核已施工，但尚未接入生产路径；旧行为基线、真实窗口 runner 和验收 lane 等测试前置可继续复用。
 
 ## 已完成的测试基础设施（legacy 路径）
 

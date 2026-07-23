@@ -44,6 +44,9 @@ const tokenLabel = computed(() => {
 <template>
   <div
     :data-message-id="message.id"
+    data-testid="chat-message"
+    :data-message-role="message.role"
+    :data-message-status="message.status"
     class="message-item"
     :class="[message.role, message.status, { 'is-active': isActive }]"
   >

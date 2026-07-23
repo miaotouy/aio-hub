@@ -150,7 +150,7 @@ const goToChatHome = () => {
 </script>
 
 <template>
-  <div class="llm-chat-view" :class="{ 'keyboard-open': isKeyboardVisible }">
+  <div class="llm-chat-view" data-testid="chat-view" :class="{ 'keyboard-open': isKeyboardVisible }">
     <var-app-bar
       :title="chatStore.currentSession?.name || '对话'"
       title-size="1.1rem"

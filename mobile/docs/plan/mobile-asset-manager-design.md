@@ -39,7 +39,7 @@
 - 已安装 `@tauri-apps/plugin-fs` 与 `@tauri-apps/plugin-dialog`；Android 系统选择器返回的 `content://` 已在正式资产导入/导出链验证。由于 `tauri-plugin-fs` 2.5.1 对测试 provider 使用 `openAssetFileDescriptor` 会失败，正式链由 Android `AssetContentPlugin` 调用 `ContentResolver.openFileDescriptor`，再交给 Rust 流式处理；应用数据目录仍只通过受控 capability 与 Rust 领域命令访问。
 - 通用 `mobile/src/utils/fsUtils.ts` 仍只封装应用数据目录下的文本文件与目录操作；Phase 1 已新增独立 Rust 二进制资产服务，不把二进制职责塞回通用工具。
 - Rust 已引入 SQLx 与 bundled SQLite 验证依赖，`ui-tester` 已具备平台文件和 SQLite 固定验证板块；Android 分享 bridge 已接入，相机 bridge 已实现但仍需有相机 Activity 的设备验收。
-- `llm-chat` 的 `_attachments` 已改为 `ManagedAssetRef`，并完成 `chat_attachments`/usage outbox、聊天内 ready 资产选择、provider wire、实时 reclaimed/missing 状态降级、受控图片预览和本地消息搜索；Android AVD 端到端附件发送验收仍待完成。
+- `llm-chat` 的 `_attachments` 已改为 `ManagedAssetRef`，并完成 `chat_attachments`/usage outbox、聊天内 ready 资产选择、provider wire、实时 reclaimed/missing 状态降级、受控图片预览和本地消息搜索；Android AVD 端到端附件发送确定性 lane 已通过，Ollama lane 为显式 opt-in，Android 真机与 iOS 门禁仍独立保留。
 - `agent-manager` 的 `assets` 与 `assetGroups` 仍是占位类型，但其桌面端语义是智能体私有资产，不应因此并入全局资产库。
 - 工作区已有“一模块一数据库”的移动端 SQLite 计划；Phase 1 首批已建立资产库 migration 与 repository，尚未接用户界面和聊天消费者。
 
@@ -509,7 +509,7 @@ Android MVP 的停止条件：
 - [x] 建立短期 token、可撤销自定义协议、单 Range 读取和大原件响应上限的受控预览候选实现。
 - [x] 在 Android 模拟器 `emulator-5558` 验证 Rust command 通过原生 bridge 直读 Photo Picker `content://` 的正式导入路径并回写报告。
 - [x] 完成 Android 图片、视频和音频受控预览验收，并通过固定场景验证 Range/CORS、HEAD、主动撤销与 token 自然过期。
-- [x] [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md) 阶段一 Rust 存储骨架、阶段二会话增量持久化和阶段三附件消费闭环已完成；Android AVD 端到端附件发送与 iOS 验收仍待完成。聊天本地搜索属于 Chat 自身路线，不作为资产管理器施工门禁。不在 `any[]` 附件上增加过渡持久化。
+- [x] [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md) 阶段一 Rust 存储骨架、阶段二会话增量持久化和阶段三附件消费闭环已完成；Android AVD 确定性附件发送与 Ollama opt-in lane 已通过，Android 真机和 iOS 验收仍待完成。聊天本地搜索属于 Chat 自身路线，不作为资产管理器施工门禁。不在 `any[]` 附件上增加过渡持久化。
 
 ### Phase 2：资产页
 
@@ -766,6 +766,8 @@ Android MVP 的停止条件：
 - 本批通过移动端 123 个前端测试、Rust 定向 fixture、Clippy、前端类型检查、Vite 生产构建和 Android x86_64 debug APK 构建。`emulator-5558` 真实 WebView 验证 360dp 筛选文案完整显示，固定保留、使用中和未使用筛选按设备现有数据返回 0、0、2 项；该设备 `ro.boot.qemu=1`，结果只记为模拟器 smoke。
 
 ### 2026-07-21：Android AVD E2E 自动化决议
+
+2026-07-23：`tests/mobile-android-e2e/` 已通过正式 DocumentsUI 导入、ManagedAssetRef 附件发送、聊天 SQLite 重启恢复、usage 释放和可选 Ollama 模型回复。
 
 - 后续 Android 模拟器验收默认只使用 Android Studio AVD，并由外部 runner 显式绑定 serial；不得自动接管、安装、映射端口、清数据、重启或关闭用户正在使用的 LDPlayer/雷电等第三方模拟器。
 - 自动化控制层采用 Appium 2 + UiAutomator2，原生上下文负责 DocumentsUI/Photo Picker，WebView 上下文使用稳定 `data-testid` 与可访问名称。截图只作为失败证据和视觉复核，不参与逐步决策。

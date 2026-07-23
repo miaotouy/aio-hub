@@ -93,6 +93,7 @@ function confirm() {
     <div v-if="open" class="picker-backdrop" @click.self="emit('close')">
       <section
         class="picker-sheet"
+        data-testid="chat-asset-picker"
         role="dialog"
         aria-modal="true"
         aria-label="选择资产"
@@ -111,7 +112,7 @@ function confirm() {
 
         <label class="search-field">
           <Search :size="17" />
-          <input v-model="search" type="search" placeholder="搜索资产" />
+          <input v-model="search" type="search" placeholder="搜索资产" data-testid="chat-asset-search" />
         </label>
 
         <div class="asset-list">
@@ -125,6 +126,9 @@ function confirm() {
             :key="asset.id"
             type="button"
             class="asset-row"
+            data-testid="chat-asset-row"
+            :data-asset-id="asset.id"
+            :data-asset-name="asset.displayName"
             :aria-pressed="selectedIds.includes(asset.id)"
             @click="toggle(asset.id)"
           >
@@ -139,12 +143,13 @@ function confirm() {
         </div>
 
         <footer>
-          <button type="button" class="secondary" @click="emit('close')">
+          <button type="button" class="secondary" data-testid="chat-asset-cancel" @click="emit('close')">
             取消
           </button>
           <button
             type="button"
             class="primary"
+            data-testid="chat-asset-confirm"
             :disabled="!selectedIds.length"
             @click="confirm"
           >

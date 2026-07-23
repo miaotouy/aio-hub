@@ -47,7 +47,7 @@ const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString
 
 <template>
   <div class="sheet-layer" role="presentation" @click.self="emit('close')">
-    <section class="detail-sheet" role="dialog" aria-modal="true" aria-labelledby="asset-detail-title">
+    <section class="detail-sheet" role="dialog" aria-modal="true" aria-labelledby="asset-detail-title" data-testid="asset-detail" :data-asset-id="detail.id" :data-asset-mime="detail.mimeType" :data-asset-size="detail.sizeBytes" :data-origin-count="detail.origins.length" :data-origin-kinds="detail.origins.map((origin) => origin.originKind).join(',')" :data-source-modules="detail.origins.map((origin) => origin.sourceModule).join(',')">
       <header class="sheet-header">
         <div class="header-copy">
           <h2 id="asset-detail-title">{{ detail.displayName }}</h2>
@@ -57,6 +57,7 @@ const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString
           <button
             v-if="detail.availability === 'ready'"
             class="icon-button"
+            data-testid="asset-detail-save"
             type="button"
             aria-label="保存到文件"
             :disabled="props.saving || props.sharing || props.busy"
@@ -68,6 +69,7 @@ const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString
           <button
             v-if="detail.availability === 'ready'"
             class="icon-button"
+            data-testid="asset-detail-share"
             type="button"
             aria-label="分享资产"
             :disabled="props.saving || props.sharing || props.busy"
@@ -76,19 +78,19 @@ const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString
             <LoaderCircle v-if="props.sharing" class="spin" :size="21" />
             <Share2 v-else :size="21" />
           </button>
-          <button class="icon-button" type="button" aria-label="关闭详情" :disabled="props.busy" @click="emit('close')">
+          <button class="icon-button" type="button" data-testid="asset-detail-close" aria-label="关闭详情" :disabled="props.busy" @click="emit('close')">
             <X :size="22" />
           </button>
         </div>
       </header>
 
       <div class="sheet-scroll">
-        <div v-if="preview" class="preview-stage">
-          <img v-if="detail.kind === 'image'" :src="preview.url" :alt="detail.displayName" />
+        <div v-if="preview" class="preview-stage" data-testid="asset-preview-ready">
+          <img v-if="detail.kind === 'image'" :src="preview.url" :alt="detail.displayName" data-testid="asset-preview-image" />
           <video v-else-if="detail.kind === 'video'" :src="preview.url" controls playsinline />
           <audio v-else-if="detail.kind === 'audio'" :src="preview.url" controls />
         </div>
-        <button v-else-if="canPreview" class="preview-button" type="button" :disabled="props.busy" @click="emit('preview', detail.id)">
+        <button v-else-if="canPreview" class="preview-button" type="button" data-testid="asset-detail-preview" :disabled="props.busy" @click="emit('preview', detail.id)">
           <Eye :size="18" />
           打开临时预览
         </button>
@@ -114,6 +116,7 @@ const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString
           </button>
           <button
             class="danger-action"
+            data-testid="asset-detail-delete"
             type="button"
             :disabled="props.busy"
             @click="emit('remove', detail.id)"
@@ -143,7 +146,11 @@ const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString
           <div><dt>内容哈希</dt><dd class="hash">{{ detail.contentHash }}</dd></div>
         </dl>
 
-        <section class="detail-section">
+        <section
+          class="detail-section"
+          data-testid="asset-usage-list"
+          :data-usage-count="detail.usages.length"
+        >
           <h3>来源</h3>
           <p v-if="!detail.origins.length" class="quiet">无来源记录</p>
           <div v-for="origin in detail.origins" :key="origin.id" class="detail-row">
@@ -155,7 +162,13 @@ const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString
         <section class="detail-section">
           <h3>使用关系</h3>
           <p v-if="!detail.usages.length" class="quiet">当前没有工具引用此资产</p>
-          <div v-for="usage in detail.usages" :key="usage.id" class="detail-row">
+          <div
+            v-for="usage in detail.usages"
+            :key="usage.id"
+            class="detail-row"
+            data-testid="asset-usage-row"
+            :data-usage-entity-id="usage.entityId"
+          >
             <strong>{{ usage.moduleId }} / {{ usage.role }}</strong>
             <span>{{ usage.usagePolicy === "blocking" ? "阻止删除" : "删除前提醒" }}</span>
           </div>

@@ -331,6 +331,7 @@ export default mergeConfig(
         "**/.roo/**",
         "**/.jj/**",
         "tests/tauri-e2e/**",
+        "tests/mobile-android-e2e/**",
       ],
     },
   })

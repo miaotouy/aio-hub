@@ -86,7 +86,7 @@ const goToChatHome = () => {
 </script>
 
 <template>
-  <div class="session-list-view">
+  <div class="session-list-view" data-testid="chat-session-list">
     <var-app-bar
       title="历史会话"
       title-size="1.1rem"
@@ -167,6 +167,8 @@ const goToChatHome = () => {
           v-for="session in chatStore.sessionMetas"
           :key="session.id"
           class="session-item"
+          data-testid="chat-session-row"
+          :data-session-id="session.id"
           @click="goToChat(session.id)"
         >
           <div class="session-icon">
@@ -181,6 +183,7 @@ const goToChatHome = () => {
           <div class="actions">
             <button
               class="delete-btn"
+              data-testid="chat-session-delete"
               @click="deleteSession($event, session.id)"
             >
               <Trash2 :size="18" />

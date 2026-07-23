@@ -277,6 +277,8 @@ mobile/src/tools/ui-tester/
 
 ## 11. Android AVD 自动化补齐（2026-07-21）
 
+2026-07-23：独立 runner 已施工并通过核心、恢复和 Ollama lanes。`ui-tester` 仍只负责设备内固定场景；外部 Appium runner 的结果写入 `.dev-data/mobile-android-e2e/`，不把 AVD 结果当作真机或 iOS 门禁。
+
 现有 Android 虚拟机记录主要来自人工操作验证台、ADB 辅助和截图复核，不能视为可重复 E2E。后续由独立的 Android AVD runner 从外部驱动应用，并复用本工具的固定场景与结构化报告：
 
 - 默认只使用 Android Studio AVD，所有 ADB/Appium 操作显式绑定 serial；不得自动控制用户正在使用的 LDPlayer/雷电等第三方模拟器。

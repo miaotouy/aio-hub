@@ -216,7 +216,7 @@ const toggleCapabilityFilter = (capKey: string) => {
     position="right"
     style="width: 100%; height: 100%"
   >
-    <div class="fetcher-popup">
+    <div class="fetcher-popup" data-testid="llm-model-fetcher">
       <var-app-bar
         :title="tRaw('tools.llm-api.ModelFetcherPopup.从 API 添加模型')"
         fixed
@@ -230,6 +230,7 @@ const toggleCapabilityFilter = (capKey: string) => {
         <template #right>
           <var-button
             type="primary"
+            data-testid="llm-model-add-selected"
             :disabled="selectedModels.length === 0"
             @click="handleConfirm"
           >
@@ -288,7 +289,7 @@ const toggleCapabilityFilter = (capKey: string) => {
               count: allVisibleModels.length,
             })
           }}</span>
-          <var-button size="mini" type="primary" plain @click="toggleSelectAll">
+          <var-button size="mini" type="primary" plain data-testid="llm-model-select-all" @click="toggleSelectAll">
             {{ isAllSelected ? t("common.取消全选") : t("common.全选") }}
           </var-button>
         </div>
@@ -345,6 +346,8 @@ const toggleCapabilityFilter = (capKey: string) => {
                     v-for="model in groupModels"
                     :key="model.id"
                     class="model-card"
+                    data-testid="llm-model-fetcher-item"
+                    :data-model-id="model.id"
                     :class="{
                       selected: isModelSelected(model),
                       disabled: isModelExisting(model.id),

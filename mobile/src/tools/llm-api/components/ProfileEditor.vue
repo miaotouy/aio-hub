@@ -328,7 +328,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
     position="right"
     style="width: 100%; height: 100%"
   >
-    <div class="editor-popup">
+    <div class="editor-popup" data-testid="llm-profile-editor">
       <var-app-bar
         :title="tRaw('tools.llm-api.ProfileEditor.编辑渠道')"
         fixed
@@ -340,7 +340,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
           </var-button>
         </template>
         <template #right>
-          <var-button text @click="saveEdit">{{ t("common.保存") }}</var-button>
+          <var-button text data-testid="llm-profile-save" @click="saveEdit">{{ t("common.保存") }}</var-button>
         </template>
       </var-app-bar>
 
@@ -378,6 +378,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
             }}</label>
             <input
               v-model="profileName"
+              data-testid="llm-profile-name"
               type="text"
               class="native-input"
               :placeholder="tRaw('tools.llm-api.ProfileEditor.请输入渠道名称')"
@@ -440,6 +441,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 
             <input
               v-model="profileBaseUrl"
+              data-testid="llm-profile-base-url"
               type="url"
               class="native-input mono"
               :placeholder="tRaw('tools.llm-api.ProfileEditor.请输入基础 URL')"
@@ -487,6 +489,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
             <div class="native-input-with-action">
               <input
                 v-model="apiKeyString"
+                data-testid="llm-profile-api-key"
                 :type="showApiKey ? 'text' : 'password'"
                 class="native-input mono"
                 :placeholder="
@@ -512,6 +515,8 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
             <var-cell
               ripple
               class="custom-cell"
+              data-testid="llm-profile-custom-headers"
+              :data-header-keys="Object.keys(innerProfile.customHeaders || {}).join(',')"
               @click="showHeadersPopup = true"
             >
               <template #icon

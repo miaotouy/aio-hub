@@ -27,7 +27,7 @@ const goToSettings = () => {
 </script>
 
 <template>
-  <div class="app-view app-view--safe-top home-container">
+  <div class="app-view app-view--safe-top home-container" data-testid="home-view">
     <div class="content">
       <div class="header">
         <div class="header-main">
@@ -40,6 +40,7 @@ const goToSettings = () => {
             text
             color="transparent"
             class="settings-button"
+            data-testid="home-settings"
             :aria-label="t('nav.设置')"
             @click="goToSettings"
           >
@@ -53,6 +54,8 @@ const goToSettings = () => {
           v-for="tool in tools"
           :key="tool.id"
           class="tool-card"
+          :data-testid="`home-tool-${tool.id}`"
+          :aria-label="tool.name"
           v-ripple
           @click="handleToolClick(tool)"
         >

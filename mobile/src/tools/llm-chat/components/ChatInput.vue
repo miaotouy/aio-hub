@@ -78,7 +78,7 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
 </script>
 
 <template>
-  <div class="chat-input" :class="{ 'keyboard-open': isKeyboardVisible }">
+  <div class="chat-input" data-testid="chat-input" :class="{ 'keyboard-open': isKeyboardVisible }">
     <div class="toolbar">
       <LlmModelSelector v-model="chatStore.selectedModelValue" />
       <div
@@ -121,6 +121,7 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
       <button
         type="button"
         class="attachment-btn"
+        data-testid="chat-add-asset"
         :disabled="chatStore.isSending"
         aria-label="添加资产"
         @click="pickerOpen = true"
@@ -131,6 +132,7 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
       <textarea
         v-model="inputText"
         class="text-area"
+        data-testid="chat-message-input"
         rows="1"
         placeholder="输入消息 (Ctrl+Enter 发送)..."
         @keydown="handleKeyDown"
@@ -138,6 +140,7 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
 
       <button
         class="send-btn"
+        data-testid="chat-send"
         :disabled="
           (!inputText.trim() && !attachments.length) || chatStore.isSending
         "
@@ -148,7 +151,7 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
       </button>
     </div>
 
-    <div v-if="attachments.length" class="pending-attachments">
+    <div v-if="attachments.length" class="pending-attachments" data-testid="chat-pending-attachments">
       <span v-for="attachment in attachments" :key="attachment.id">
         {{ attachment.snapshot.displayName }}
         <button

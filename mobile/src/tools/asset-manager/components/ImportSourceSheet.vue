@@ -9,24 +9,24 @@ const emit = defineEmits<{
 
 <template>
   <div class="sheet-layer" role="presentation" @click.self="emit('close')">
-    <section class="source-sheet" role="dialog" aria-modal="true" aria-labelledby="import-source-title">
+    <section class="source-sheet" role="dialog" aria-modal="true" aria-labelledby="import-source-title" data-testid="asset-import-source-sheet">
       <header class="sheet-header">
         <div>
           <h2 id="import-source-title">导入资产</h2>
           <p>选择要导入的来源</p>
         </div>
-        <button class="icon-button" type="button" aria-label="关闭导入选择" @click="emit('close')"><X :size="22" /></button>
+        <button class="icon-button" type="button" data-testid="asset-import-close" aria-label="关闭导入选择" @click="emit('close')"><X :size="22" /></button>
       </header>
       <div class="source-actions">
-        <button type="button" @click="emit('pick', 'file')">
+        <button type="button" data-testid="asset-import-file" @click="emit('pick', 'file')">
           <FilePlus2 :size="23" />
           <span><strong>从文件导入</strong><small>选择文档、音频、视频或其他文件</small></span>
         </button>
-        <button type="button" @click="emit('pick', 'photo')">
+        <button type="button" data-testid="asset-import-photo" @click="emit('pick', 'photo')">
           <Images :size="23" />
           <span><strong>从照片和视频导入</strong><small>使用系统媒体选择器，不申请全库权限</small></span>
         </button>
-        <button type="button" @click="emit('pick', 'camera')">
+        <button type="button" data-testid="asset-import-camera" @click="emit('pick', 'camera')">
           <Camera :size="23" />
           <span><strong>拍摄照片</strong><small>调用系统相机，照片会复制到资产库</small></span>
         </button>

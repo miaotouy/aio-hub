@@ -87,7 +87,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="app-view workbench-view">
+  <div class="app-view workbench-view" data-testid="ui-tester-view">
     <header class="workbench-header safe-area-top">
       <button
         class="icon-button"
@@ -113,6 +113,7 @@ onMounted(async () => {
         :key="section.id"
         type="button"
         :class="{ active: activeSection === section.id }"
+        :data-testid="`ui-tester-section-${section.id}`"
         @click="activeSection = section.id"
       >
         <component :is="section.icon" :size="16" />

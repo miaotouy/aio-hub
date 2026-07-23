@@ -78,7 +78,7 @@ const togglePopup = () => {
 </script>
 
 <template>
-  <div class="llm-model-selector" :class="{ disabled }" @click="togglePopup">
+  <div class="llm-model-selector" data-testid="chat-model-selector" :class="{ disabled }" @click="togglePopup">
     <div class="selector-trigger" v-ripple>
       <div class="selected-content">
         <template v-if="selectedInfo">

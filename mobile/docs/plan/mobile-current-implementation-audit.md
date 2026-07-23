@@ -166,7 +166,7 @@ LLM 渠道与模型配置
 - `mobile-asset-manager-design.md` 是资产管理器唯一施工范围来源，当前为 Android MVP 收尾；本快照不得覆盖其状态。
 - `mobile-design-language-investigation.md` 的 Phase 0 已完成，Phase 1 只完成了包装 API 的局部落地，业务调用尚未收口。
 - `platform-validation-workbench-plan.md` 的验证台、平台文件 spike 和 SQLite spike 已施工，并取得 Android 真机报告；平台结论按 Android/iOS 分别记录，iOS 报告保留为 iOS 发布门禁。
-- `mobile-android-avd-e2e-plan.md` 已建立移动端脚本化测试补齐路线；当前仍为待实施，既有 Android 模拟器记录以人工 smoke 为主，不得写成自动化回归已完成。
+- `mobile-android-avd-e2e-plan.md` 已实施；`tests/mobile-android-e2e/` 现提供核心、资产、附件、恢复和 opt-in Ollama lanes。AVD 自动化结果不替代 Android 真机或 iOS 发布门禁。
 - `llm-provider-adapter-sharing-investigation.md` 的代码与自动化验收已完成；本次真机报告未覆盖 LLM transport，相关人工性能与双平台真机验收仍未完成。
 - 2026-07-16 完成的移动端模型批量检查和 2026-07-18 完成的模型身份/Embedding 空间分离已纳入本快照；它们属于现有 `llm-api` 工具能力，不新增工具 registry。
 
@@ -175,7 +175,7 @@ LLM 渠道与模型配置
 ## 5. 当前收敛路线（2026-07-21）
 
 1. 冻结资产 Android MVP 范围，只完成文件/照片导入、资产页、基础预览、导出、删除影响、恢复修复和一个真实聊天附件消费者。
-2. 优先完成 Android Studio AVD 中的端到端附件发送和一轮 Android 真机主流程。附件默认由本机确定性 OpenAI-compatible 服务校验 MIME、字节数与 SHA-256 并返回流式响应，Ollama 多模态模型作为可选语义验收；不再为聊天搜索、相机、文本替代或 token 长时间到期验证创建资产施工批次。
+2. Android Studio AVD 端到端附件发送已由确定性 OpenAI-compatible 服务和 opt-in Ollama lane 验收；下一步是一轮 Android 真机主流程。AVD 结果不替代真机、相机、真实低存储或 iOS 门禁。
 3. 相机、分享进入 AIO、文件关联、批量转写/文本提取和其他消费者移至资产 Phase 3。已经存在的实现可以保留，但不作为 MVP 门禁继续扩展。
 4. iOS 在设备条件具备后执行同一套平台场景，作为 iOS 发布门禁；缺少 iOS 设备不重复阻塞 Android 开发，也不能被记录为通过。
 5. 开发循环只跑受影响测试；功能批次结束运行全量测试、Clippy、类型检查和 Vite 构建；单 ABI debug APK 用于原生能力变化，四 ABI APK/AAB 只用于里程碑或发布候选。

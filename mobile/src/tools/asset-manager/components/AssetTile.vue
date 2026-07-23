@@ -110,10 +110,17 @@ const statusLabel = computed(() => {
 <template>
   <article
     class="asset-tile"
+    data-testid="asset-tile"
+    :data-asset-id="asset.id"
+    :data-asset-name="asset.displayName"
+    :data-asset-mime="asset.mimeType"
+    :data-asset-status="asset.availability"
     :class="{ 'asset-tile--selected': selected, 'asset-tile--muted': asset.libraryState === 'hidden' }"
   >
     <button
       class="asset-main"
+      data-testid="asset-open"
+      :aria-label="asset.displayName"
       type="button"
       @pointerdown="startPress"
       @pointermove="movePress"
@@ -137,6 +144,7 @@ const statusLabel = computed(() => {
     </div>
     <button
       class="select-button"
+      data-testid="asset-select"
       type="button"
       :aria-label="selected ? '取消选择' : '选择资产'"
       :aria-pressed="selected"

@@ -139,7 +139,7 @@ const handleSelect = (item: (typeof availableModels.value)[0]) => {
 
 <template>
   <var-popup position="bottom" v-model:show="isVisible" round>
-    <div class="model-select-popup">
+    <div class="model-select-popup" data-testid="chat-model-popup">
       <div class="popup-header">
         <div class="popup-title">
           {{ tRaw("tools.llm-api.common.选择模型") }}
@@ -191,6 +191,9 @@ const handleSelect = (item: (typeof availableModels.value)[0]) => {
                     v-for="item in subGroup.items"
                     :key="item.value"
                     class="model-item"
+                    data-testid="chat-model-item"
+                    :data-model-id="item.model.id"
+                    :data-profile-id="item.profile.id"
                     :class="{ active: modelValue === item.value }"
                     v-ripple
                     @click="handleSelect(item)"

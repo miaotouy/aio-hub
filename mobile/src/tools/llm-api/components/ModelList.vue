@@ -217,6 +217,7 @@ const handleModelAction = (
         </p>
         <button
           class="empty-fetch-button"
+          data-testid="llm-model-fetch"
           :disabled="loading"
           @click="emit('fetch')"
         >

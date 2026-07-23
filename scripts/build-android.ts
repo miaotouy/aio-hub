@@ -27,6 +27,7 @@ export interface AndroidBuildOptions {
   profile: AndroidBuildProfile;
   splitPerAbi: boolean;
   targetAbis: string[];
+  e2ePackaging: boolean;
 }
 
 export interface AndroidArtifact {
@@ -94,7 +95,22 @@ export function parseBuildOptions(args: string[]): AndroidBuildOptions {
     profile: args.includes("--debug") ? "debug" : "release",
     splitPerAbi: args.includes("--split-per-abi"),
     targetAbis,
+    e2ePackaging: args.includes("--e2e"),
   };
+}
+
+export function validateBuildOptions(options: AndroidBuildOptions): void {
+  if (options.e2ePackaging) {
+    if (!options.buildApk || options.buildAab) {
+      throw new Error("Android E2E packaging must build one APK and no AAB.");
+    }
+    if (options.splitPerAbi || options.targetAbis.length !== 1) {
+      throw new Error("Android E2E packaging requires exactly one --target.");
+    }
+    if (options.profile !== "debug") {
+      throw new Error("Android E2E packaging is debug-only.");
+    }
+  }
 }
 
 function walkFiles(root: string): string[] {
@@ -290,6 +306,8 @@ function exportArtifacts(
 function run(): void {
   const args = process.argv.slice(2);
   const options = parseBuildOptions(args);
+  validateBuildOptions(options);
+  const tauriArgs = args.filter((arg) => arg !== "--e2e");
   const identity = loadAppIdentity();
 
   console.log(
@@ -299,10 +317,18 @@ function run(): void {
   cleanAndroidOutputs(androidOutputsRoot, options);
   const result = spawnSync(
     "bun",
-    ["run", "tauri", "android", "build", ...args],
+    ["run", "tauri", "android", "build", ...tauriArgs],
     {
       cwd: mobileRoot,
-      env: process.env,
+      env: {
+        ...process.env,
+        ...(options.e2ePackaging
+          ? {
+              AIO_MOBILE_E2E_PACKAGING: "1",
+              AIO_MOBILE_E2E_ABI: options.targetAbis[0],
+            }
+          : {}),
+      },
       shell: true,
       stdio: "inherit",
     }

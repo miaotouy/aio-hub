@@ -44,7 +44,7 @@ function progress(job: AssetImportJob) {
 
 <template>
   <div class="sheet-layer" role="presentation" @click.self="emit('close')">
-    <section class="jobs-sheet" role="dialog" aria-modal="true" aria-labelledby="import-jobs-title">
+    <section class="jobs-sheet" role="dialog" aria-modal="true" aria-labelledby="import-jobs-title" data-testid="asset-import-jobs-sheet">
       <header class="sheet-header">
         <div>
           <h2 id="import-jobs-title">导入任务</h2>
@@ -54,7 +54,14 @@ function progress(job: AssetImportJob) {
       </header>
       <div v-if="!orderedJobs.length" class="empty-jobs">还没有导入任务</div>
       <div v-else class="jobs-list">
-        <article v-for="job in orderedJobs" :key="job.id" class="job-row">
+        <article
+          v-for="job in orderedJobs"
+          :key="job.id"
+          class="job-row"
+          data-testid="asset-import-job"
+          :data-job-state="job.state"
+          :data-error-code="job.errorCode || itemErrorCodes(job)"
+        >
           <div class="job-header">
             <strong>{{ job.sourceKind === "unknown" ? "文件" : job.sourceKind }}</strong>
             <span :data-state="visualState(job)">

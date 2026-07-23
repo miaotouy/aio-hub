@@ -8,6 +8,7 @@ import {
   cleanAndroidOutputs,
   collectAndroidArtifacts,
   parseBuildOptions,
+  validateBuildOptions,
 } from "./build-android";
 
 const temporaryDirectories: string[] = [];
@@ -38,7 +39,42 @@ describe("Android build artifact naming", () => {
       profile: "release",
       splitPerAbi: false,
       targetAbis: [],
+      e2ePackaging: false,
     });
+  });
+
+  it("enables the dedicated E2E packaging mode without changing the ABI", () => {
+    expect(
+      parseBuildOptions([
+        "--apk",
+        "--debug",
+        "--target",
+        "x86_64",
+        "--ci",
+        "--e2e",
+      ])
+    ).toEqual({
+      buildApk: true,
+      buildAab: false,
+      profile: "debug",
+      splitPerAbi: false,
+      targetAbis: ["x86_64"],
+      e2ePackaging: true,
+    });
+  });
+
+  it("rejects E2E packaging without one debug APK target", () => {
+    expect(() => validateBuildOptions(parseBuildOptions(["--e2e"]))).toThrow(
+      "one APK and no AAB"
+    );
+    expect(() =>
+      validateBuildOptions(parseBuildOptions(["--apk", "--debug", "--e2e"]))
+    ).toThrow("exactly one --target");
+    expect(() =>
+      validateBuildOptions(
+        parseBuildOptions(["--apk", "--target", "x86_64", "--e2e"])
+      )
+    ).toThrow("debug-only");
   });
 
   it("uses the desktop-style versioned name", () => {

@@ -34,6 +34,7 @@ export async function fetchModelsFromApi(
       provider: profile.type,
       baseUrl: profile.baseUrl,
       apiKey: profile.apiKeys?.[0],
+      headers: profile.customHeaders,
       endpoints: profile.customEndpoints?.models
         ? { models: profile.customEndpoints.models }
         : undefined,

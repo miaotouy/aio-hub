@@ -20,6 +20,10 @@ val signingProperties = Properties().apply {
     }
 }
 
+val e2ePackaging = System.getenv("AIO_MOBILE_E2E_PACKAGING") == "1"
+val e2eAbi = System.getenv("AIO_MOBILE_E2E_ABI")
+val e2eJniRoot = layout.buildDirectory.dir("generated/e2eJniLibs")
+
 android {
     compileSdk = 36
     namespace = "com.aiohub.mobile"
@@ -46,12 +50,15 @@ android {
         getByName("debug") {
             manifestPlaceholders["usesCleartextTraffic"] = "true"
             isDebuggable = true
-            isJniDebuggable = true
+            isJniDebuggable = !e2ePackaging
             isMinifyEnabled = false
-            packaging {                jniLibs.keepDebugSymbols.add("*/arm64-v8a/*.so")
-                jniLibs.keepDebugSymbols.add("*/armeabi-v7a/*.so")
-                jniLibs.keepDebugSymbols.add("*/x86/*.so")
-                jniLibs.keepDebugSymbols.add("*/x86_64/*.so")
+            packaging {
+                if (!e2ePackaging) {
+                    jniLibs.keepDebugSymbols.add("*/arm64-v8a/*.so")
+                    jniLibs.keepDebugSymbols.add("*/armeabi-v7a/*.so")
+                    jniLibs.keepDebugSymbols.add("*/x86/*.so")
+                    jniLibs.keepDebugSymbols.add("*/x86_64/*.so")
+                }
             }
         }
         getByName("release") {
@@ -73,10 +80,66 @@ android {
     buildFeatures {
         buildConfig = true
     }
+    sourceSets {
+        getByName("main") {
+            jniLibs.setSrcDirs(
+                if (e2ePackaging) listOf(e2eJniRoot.get().asFile)
+                else listOf("src/main/jniLibs")
+            )
+        }
+    }
 }
 
 rust {
     rootDirRel = "../../../"
+}
+
+if (e2ePackaging) {
+    val requiredE2eAbi = requireNotNull(e2eAbi?.takeIf { it.isNotBlank() }) {
+        "AIO_MOBILE_E2E_ABI is required for E2E packaging"
+    }
+    val prepareE2eJniLibs = tasks.register("prepareE2eJniLibs") {
+        dependsOn("rustBuildUniversalDebug")
+        doLast {
+            val sourceDirectory = file("src/main/jniLibs/$requiredE2eAbi")
+            require(sourceDirectory.isDirectory) {
+                "E2E JNI source directory not found: $sourceDirectory"
+            }
+            val outputDirectory = e2eJniRoot.get().dir(requiredE2eAbi).asFile
+            delete(outputDirectory)
+            outputDirectory.mkdirs()
+            copy {
+                from(sourceDirectory)
+                into(outputDirectory)
+                include("*.so")
+            }
+
+            val ndkHome = System.getenv("NDK_HOME")
+                ?: System.getenv("ANDROID_NDK_HOME")
+                ?: error("NDK_HOME or ANDROID_NDK_HOME is required for E2E packaging")
+            val hostTag = when {
+                System.getProperty("os.name").startsWith("Windows", ignoreCase = true) -> "windows-x86_64"
+                System.getProperty("os.name").startsWith("Mac", ignoreCase = true) -> "darwin-x86_64"
+                else -> "linux-x86_64"
+            }
+            val executableName = if (hostTag.startsWith("windows")) "llvm-strip.exe" else "llvm-strip"
+            val stripExecutable = file("$ndkHome/toolchains/llvm/prebuilt/$hostTag/bin/$executableName")
+            require(stripExecutable.isFile) {
+                "NDK llvm-strip not found: $stripExecutable"
+            }
+            outputDirectory.listFiles { candidate -> candidate.extension == "so" }
+                ?.forEach { library ->
+                    exec {
+                        commandLine(stripExecutable, "--strip-debug", library)
+                    }
+                }
+        }
+    }
+    tasks.matching {
+        it.name.startsWith("merge") && it.name.endsWith("DebugJniLibFolders")
+    }.configureEach {
+        dependsOn(prepareE2eJniLibs)
+    }
 }
 
 dependencies {

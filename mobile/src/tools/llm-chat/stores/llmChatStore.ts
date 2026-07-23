@@ -10,6 +10,8 @@ import { useNodeManager } from "../composables/useNodeManager";
 import { BranchNavigator } from "../utils/BranchNavigator";
 import { v4 as uuidv4 } from "uuid";
 import { createModuleLogger } from "@/utils/logger";
+import { recoverInterruptedChatMessages } from "../services/chatStorageCodec";
+import { parseSelectedModelValue } from "../utils/modelSelection";
 
 const logger = createModuleLogger("llm-chat/store");
 
@@ -71,6 +73,16 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
     if (lastId) {
       await switchSession(lastId);
+      const interruptedCount = currentSessionDetail.value
+        ? recoverInterruptedChatMessages(currentSessionDetail.value)
+        : 0;
+      if (interruptedCount) {
+        await persistCurrentSession();
+        logger.warn("Recovered interrupted message generation", {
+          sessionId: lastId,
+          messageCount: interruptedCount,
+        });
+      }
     }
 
     isLoaded.value = true;
@@ -197,7 +209,9 @@ export const useLlmChatStore = defineStore("llmChat", () => {
    */
   function syncSelectedModel() {
     const profilesStore = useLlmProfilesStore();
-    const [profileId, modelId] = selectedModelValue.value.split(":");
+    const [profileId, modelId] = parseSelectedModelValue(
+      selectedModelValue.value
+    );
 
     const isAvailable = (pId: string, mId: string) => {
       const profile = profilesStore.enabledProfiles.find((p) => p.id === pId);

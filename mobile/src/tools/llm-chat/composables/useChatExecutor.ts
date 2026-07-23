@@ -1,4 +1,5 @@
 import { useLlmChatStore } from "../stores/llmChatStore";
+import { parseSelectedModelValue } from "../utils/modelSelection";
 import { useLlmRequest } from "../../llm-api/composables/useLlmRequest";
 import { useLlmProfilesStore } from "../../llm-api/stores/llmProfiles";
 import { useNodeManager } from "./useNodeManager";
@@ -73,8 +74,9 @@ export function useChatExecutor() {
     const activeAgent = agentStore.getAgentById(session.displayAgentId);
 
     // 智能体绑定优先；普通会话继续使用聊天页当前选择的模型。
-    const [selectedProfileId, selectedModelId] =
-      chatStore.selectedModelValue.split(":");
+    const [selectedProfileId, selectedModelId] = parseSelectedModelValue(
+      chatStore.selectedModelValue
+    );
     const profileId = activeAgent?.profileId || selectedProfileId;
     const modelId = activeAgent?.modelId || selectedModelId;
     if (!profileId || !modelId) {
@@ -129,6 +131,10 @@ export function useChatExecutor() {
     chatStore.isSending = true;
 
     try {
+      // Persist the durable request boundary before network I/O so a process stop can be
+      // recovered as an interrupted generation instead of losing the submitted message.
+      await chatStore.persistCurrentSession();
+
       // 4. 构造管道上下文并执行
       const pipelineContext: PipelineContext = {
         messages: [],
@@ -242,6 +248,7 @@ export function useChatExecutor() {
           presencePenalty: activeAgent?.parameters?.presencePenalty,
           stop: activeAgent?.parameters?.stop,
           stream: true,
+          timeout: settings.value.requestSettings.timeout,
           onStream: (chunk) => {
             handleStreamUpdate(session, assistantNode.id, chunk, false);
           },

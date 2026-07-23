@@ -47,6 +47,28 @@ const keyStatuses = computed(() => {
   });
 });
 
+const enableAutoDisable = computed({
+  get: () =>
+    props.profile
+      ? keyManager.getEnableAutoDisable(props.profile.id)
+      : false,
+  set: (enabled: boolean) => {
+    if (props.profile) {
+      keyManager.setEnableAutoDisable(props.profile.id, enabled);
+    }
+  },
+});
+
+const autoRecoveryTime = computed({
+  get: () =>
+    props.profile ? keyManager.getAutoRecoveryTime(props.profile.id) : 60000,
+  set: (timeMs: number) => {
+    if (props.profile) {
+      keyManager.setAutoRecoveryTime(props.profile.id, timeMs);
+    }
+  },
+});
+
 const formatTime = (timestamp?: number) => {
   if (!timestamp) return "";
   return new Date(timestamp).toLocaleTimeString();
@@ -175,10 +197,7 @@ const handleBatchImport = () => {
               }}</template>
               <template #extra>
                 <var-switch
-                  :model-value="keyManager.getEnableAutoDisable()"
-                  @update:model-value="
-                    (val) => keyManager.setEnableAutoDisable(val as boolean)
-                  "
+                  v-model="enableAutoDisable"
                 />
               </template>
             </var-cell>
@@ -189,10 +208,7 @@ const handleBatchImport = () => {
               }}</template>
               <template #extra>
                 <var-select
-                  :model-value="keyManager.getAutoRecoveryTime()"
-                  @update:model-value="
-                    (val) => keyManager.setAutoRecoveryTime(val as number)
-                  "
+                  v-model="autoRecoveryTime"
                   size="small"
                   style="width: 100px"
                 >

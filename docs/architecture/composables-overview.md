@@ -34,7 +34,7 @@ AI 模型配置与请求处理。
 | :--------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `useLlmProfiles`       | 管理 LLM 服务商配置（API Key 数组、Base URL、模型列表），支持 localStorage 迁移、参数能力查询及预设模板创建。                                                    |
 | `useLlmRequest`        | **核心请求中间件**。封装多提供商 LLM 请求，支持多模态输入与双流并行（Content/Reasoning），智能过滤参数（基于 Provider 和 Model 能力），处理 AbortError。         |
-| `useLlmKeyManager`     | **密钥调度中心**。管理多 API Key 的轮询、健康检测、成功率反馈及自动熔断机制。                                                                                    |
+| `useLlmKeyManager`     | **密钥调度中心**。管理多 API Key 的轮询、健康检测、成功率反馈及可选自动熔断（默认关闭）。                                                                        |
 | `useModelMetadata`     | **通用元数据系统**。基于规则管理模型元数据（图标、分组、能力、上下文限制），支持模糊/精确/正则匹配，提供三级优先级图标解析（模型自定义 > 规则匹配 > fallback）。 |
 | `useModelSelectDialog` | 全局模型选择对话框，基于 Promise 的异步选择机制，返回 `{ profile, model }` 或 `null`。                                                                           |
 | `useAgentPresets`      | 从 `config/agent-presets/` 自动加载 Agent 预设（JSON/YAML），支持按标签/分类查询。                                                                               |

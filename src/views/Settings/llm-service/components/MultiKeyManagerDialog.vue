@@ -96,13 +96,13 @@ const recoveryTimeOptions = [
 ];
 
 const currentRecoveryTime = computed({
-  get: () => getAutoRecoveryTime(),
-  set: (val) => setAutoRecoveryTime(val),
+  get: () => getAutoRecoveryTime(props.profile.id),
+  set: (val) => setAutoRecoveryTime(props.profile.id, val),
 });
 
 const enableAutoDisable = computed({
-  get: () => getEnableAutoDisable(),
-  set: (val) => setEnableAutoDisable(val),
+  get: () => getEnableAutoDisable(props.profile.id),
+  set: (val) => setEnableAutoDisable(props.profile.id, val),
 });
 
 // 同步并获取状态

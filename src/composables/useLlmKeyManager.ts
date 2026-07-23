@@ -21,6 +21,7 @@ import type { LlmProfile } from "../types/llm-profiles";
 import type {
   ApiKeyStatus,
   KeyStatesStorage,
+  ProfileKeyManagerSettings,
   ProfileKeyStatusMap,
 } from "../types/llm-key-manager";
 import { createConfigManager } from "@utils/configManager";
@@ -34,12 +35,11 @@ const errorHandler = createModuleErrorHandler("LlmKeyManager");
 const configManager = createConfigManager<KeyStatesStorage>({
   moduleName: "llm-service",
   fileName: "key-states.json",
-  version: "1.0.0",
+  version: "1.1.0",
   createDefault: () => ({
     states: {},
     lastUsedIndices: {},
-    enableAutoDisable: true,
-    autoRecoveryTime: 60000, // 默认 1 分钟恢复
+    profileSettings: {},
   }),
 });
 
@@ -47,20 +47,40 @@ const configManager = createConfigManager<KeyStatesStorage>({
 const keyStates = ref<KeyStatesStorage>({
   states: {},
   lastUsedIndices: {},
-  enableAutoDisable: true,
-  autoRecoveryTime: 60000,
+  profileSettings: {},
 });
 const isLoaded = ref(false);
 
 export function useLlmKeyManager() {
+  const getProfileSettings = (
+    profileId: string
+  ): ProfileKeyManagerSettings => {
+    if (!keyStates.value.profileSettings[profileId]) {
+      keyStates.value.profileSettings[profileId] = {
+        enableAutoDisable: false,
+        autoRecoveryTime: 60000,
+      };
+    }
+    return keyStates.value.profileSettings[profileId];
+  };
+
   /**
    * 加载状态
    */
   const loadKeyStates = async () => {
     if (isLoaded.value) return;
     try {
-      const config = await configManager.load();
-      keyStates.value = config;
+      const config = (await configManager.load()) as KeyStatesStorage & {
+        enableAutoDisable?: boolean;
+        autoRecoveryTime?: number;
+      };
+      // 旧版把渠道弹窗中的设置错误地存成全局值，升级时不再扩散到各渠道。
+      delete config.enableAutoDisable;
+      delete config.autoRecoveryTime;
+      keyStates.value = {
+        ...config,
+        profileSettings: config.profileSettings ?? {},
+      };
       isLoaded.value = true;
       logger.debug("LLM Key 状态加载成功");
     } catch (error) {
@@ -128,7 +148,7 @@ export function useLlmKeyManager() {
 
     // 过滤出可用的 Key
     const now = Date.now();
-    const autoRecoveryTime = getAutoRecoveryTime();
+    const autoRecoveryTime = getAutoRecoveryTime(profile.id);
 
     const availableKeys = profile.apiKeys.filter((key) => {
       const state = profileStates[key];
@@ -248,11 +268,16 @@ export function useLlmKeyManager() {
         error?.statusCode === 429 ||
         state.lastErrorMessage?.includes("429") ||
         state.lastErrorMessage?.toLowerCase().includes("rate limit");
+      const hasAlternativeKey = Object.entries(profileStates).some(
+        ([otherKey, otherState]) =>
+          otherKey !== key && otherState.isEnabled && !otherState.isBroken
+      );
 
       // 熔断逻辑：如果是频率限制则直接熔断，否则连续错误超过 3 次触发
-      // 仅在启用自动禁用开关时生效
+      // 仅在启用自动禁用且同渠道仍有其他可用 Key 时生效
       if (
-        (options.forceBroken || keyStates.value.enableAutoDisable) &&
+        getEnableAutoDisable(profileId) &&
+        hasAlternativeKey &&
         options.allowAutoDisable !== false &&
         !state.isBroken &&
         (options.forceBroken ||
@@ -266,7 +291,7 @@ export function useLlmKeyManager() {
           : isRateLimit
             ? "触发频率限制 (429)，已自动熔断"
             : "连续多次请求失败，已自动熔断";
-        logger.error(
+        logger.warn(
           options.forceBroken
             ? "API Key 凭据认证失败"
             : isRateLimit
@@ -358,30 +383,30 @@ export function useLlmKeyManager() {
   /**
    * 获取自动恢复时长
    */
-  const getAutoRecoveryTime = () => {
-    return keyStates.value.autoRecoveryTime ?? 60000;
+  const getAutoRecoveryTime = (profileId: string) => {
+    return getProfileSettings(profileId).autoRecoveryTime;
   };
 
   /**
    * 设置自动恢复时长
    */
-  const setAutoRecoveryTime = (timeMs: number) => {
-    keyStates.value.autoRecoveryTime = timeMs;
+  const setAutoRecoveryTime = (profileId: string, timeMs: number) => {
+    getProfileSettings(profileId).autoRecoveryTime = timeMs;
     saveKeyStates();
   };
 
   /**
    * 获取是否启用自动禁用
    */
-  const getEnableAutoDisable = () => {
-    return keyStates.value.enableAutoDisable;
+  const getEnableAutoDisable = (profileId: string) => {
+    return getProfileSettings(profileId).enableAutoDisable;
   };
 
   /**
    * 设置是否启用自动禁用
    */
-  const setEnableAutoDisable = (enabled: boolean) => {
-    keyStates.value.enableAutoDisable = enabled;
+  const setEnableAutoDisable = (profileId: string, enabled: boolean) => {
+    getProfileSettings(profileId).enableAutoDisable = enabled;
     saveKeyStates();
   };
 

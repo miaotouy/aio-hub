@@ -41,7 +41,11 @@ export function classifyProbeError(
     return classified("authentication", "response-status", status, message);
   if (status === 403)
     return classified("authorization", "response-status", status, message);
-  if (status === 404 || /model.+(not found|不存在|unavailable)/.test(lower)) {
+  if (
+    status === 404 ||
+    /model.+(not[\s_-]*found|不存在|unavailable)/.test(lower) ||
+    /no available channel for model/.test(lower)
+  ) {
     return classified("model-unavailable", "response-status", status, message);
   }
   if (status === 429)

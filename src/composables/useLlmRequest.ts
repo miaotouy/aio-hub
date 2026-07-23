@@ -34,6 +34,7 @@ import {
 } from "../llm-apis/common";
 import { adapters } from "../llm-apis/adapters";
 import { filterParametersByCapabilities } from "../llm-apis/request-builder";
+import { getKeyHealthActionForError } from "../llm-apis/key-health-policy";
 import type { LlmProfile } from "../types/llm-profiles";
 import { inspectorHookRegistry } from "@/tools/llm-inspector/core/hookRegistry";
 import type { InspectorContextMetadata } from "@/tools/llm-inspector/types/hooks";
@@ -384,6 +385,41 @@ export function useLlmRequest() {
 
       return response;
     } catch (error) {
+      const suppressErrorLog = options.suppressErrorLog === true;
+
+      // 所有非静默失败先统一分类。与 Key 无关的错误只记录最近状态，
+      // 主动取消完全忽略；是否自动熔断最终仍由 Key 管理器总开关决定。
+      if (selectedApiKey && !suppressErrorLog) {
+        const keyHealthAction = getKeyHealthActionForError(
+          error,
+          options.signal
+        );
+        switch (keyHealthAction) {
+          case "authentication-failure":
+            reportFailure(options.profileId, selectedApiKey, error, {
+              forceBroken: true,
+            });
+            break;
+          case "rate-limit-failure":
+            reportFailure(options.profileId, selectedApiKey, error);
+            break;
+          case "transient-failure":
+            reportFailure(options.profileId, selectedApiKey, error, {
+              treatRateLimitAsImmediateBreak: false,
+            });
+            break;
+          case "record-only":
+            reportFailure(options.profileId, selectedApiKey, error, {
+              allowAutoDisable: false,
+              countTowardThreshold: false,
+            });
+            break;
+          case "success":
+          case "ignore":
+            break;
+        }
+      }
+
       // B3: 此处先继续既有错误处理；inspectorContext 清理在 finally 中统一执行
       // TimeoutError 是请求超时
       if (error instanceof TimeoutError) {
@@ -483,13 +519,6 @@ export function useLlmRequest() {
           }
         }
       } else {
-        const suppressErrorLog = options.suppressErrorLog === true;
-
-        // 报告失败，累加错误计数
-        if (selectedApiKey && !suppressErrorLog) {
-          reportFailure(options.profileId, selectedApiKey, error);
-        }
-
         if (suppressErrorLog) {
           logger.debug("LLM 请求失败但已按调用方要求静默", {
             profileId: options.profileId,

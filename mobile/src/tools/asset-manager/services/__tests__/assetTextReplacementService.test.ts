@@ -166,10 +166,7 @@ describe("asset text replacement orchestration", () => {
       items: [{ assetId: "asset-b", canDelete: true }],
     });
 
-    const result = await replaceAssetsWithExtractedText([
-      "asset-a",
-      "asset-b",
-    ]);
+    const result = await replaceAssetsWithExtractedText(["asset-a", "asset-b"]);
 
     expect(result).toMatchObject({ completedCount: 1, failedCount: 1 });
     expect(result.items.map((item) => item.assetId)).toEqual([

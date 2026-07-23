@@ -53,7 +53,9 @@ describe("AssetDetailSheet", () => {
         .findAll(".header-actions button")
         .every((button) => button.attributes("disabled") !== undefined)
     ).toBe(true);
-    expect(wrapper.get(".preview-button").attributes("disabled")).not.toBeUndefined();
+    expect(
+      wrapper.get(".preview-button").attributes("disabled")
+    ).not.toBeUndefined();
   });
 
   it("emits reverse actions for a hidden pinned asset", async () => {

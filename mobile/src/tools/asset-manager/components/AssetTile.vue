@@ -110,7 +110,10 @@ const statusLabel = computed(() => {
 <template>
   <article
     class="asset-tile"
-    :class="{ 'asset-tile--selected': selected, 'asset-tile--muted': asset.libraryState === 'hidden' }"
+    :class="{
+      'asset-tile--selected': selected,
+      'asset-tile--muted': asset.libraryState === 'hidden',
+    }"
   >
     <button
       class="asset-main"
@@ -128,12 +131,20 @@ const statusLabel = computed(() => {
       </span>
       <span class="asset-copy">
         <span class="asset-name">{{ asset.displayName }}</span>
-        <span class="asset-meta">{{ formatAssetBytes(asset.sizeBytes) }} · {{ asset.mimeType }}</span>
+        <span class="asset-meta"
+          >{{ formatAssetBytes(asset.sizeBytes) }} · {{ asset.mimeType }}</span
+        >
       </span>
     </button>
     <div class="asset-footer">
-      <span class="status" :data-status="asset.availability">{{ statusLabel }}</span>
-      <Pin v-if="asset.retentionPolicy === 'pinned'" :size="15" aria-label="已固定" />
+      <span class="status" :data-status="asset.availability">{{
+        statusLabel
+      }}</span>
+      <Pin
+        v-if="asset.retentionPolicy === 'pinned'"
+        :size="15"
+        aria-label="已固定"
+      />
     </div>
     <button
       class="select-button"

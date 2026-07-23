@@ -97,7 +97,9 @@ function sanitizeImportedAgent(agent: any): any {
       autoInjectIfMacroMissing: true,
       autoInjectPosition: "context_head",
     },
-    recallSettings: source.recallSettings ?? { defaultPresetId: "comprehensive" },
+    recallSettings: source.recallSettings ?? {
+      defaultPresetId: "comprehensive",
+    },
     knowledgeAccess: normalizeAgentKnowledgeAccess(
       source.knowledgeAccess ?? DEFAULT_AGENT_KNOWLEDGE_ACCESS
     ),

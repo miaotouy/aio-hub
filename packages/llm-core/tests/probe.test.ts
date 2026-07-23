@@ -134,7 +134,8 @@ describe("classifyProbeError", () => {
     expect(
       classifyProbeError({
         status: 503,
-        message: "No available channel for model gpt-image-2 (code model_not_found)",
+        message:
+          "No available channel for model gpt-image-2 (code model_not_found)",
       }).category
     ).toBe("model-unavailable");
   });

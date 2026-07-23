@@ -38,9 +38,7 @@ const keyStates = ref<KeyStatesStorage>({
 const isLoaded = ref(false);
 
 export function useLlmKeyManager() {
-  const getProfileSettings = (
-    profileId: string
-  ): ProfileKeyManagerSettings => {
+  const getProfileSettings = (profileId: string): ProfileKeyManagerSettings => {
     if (!keyStates.value.profileSettings[profileId]) {
       keyStates.value.profileSettings[profileId] = {
         enableAutoDisable: false,

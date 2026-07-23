@@ -23,8 +23,15 @@ import AssetDetailSheet from "../components/AssetDetailSheet.vue";
 import AssetTile from "../components/AssetTile.vue";
 import ImportJobsSheet from "../components/ImportJobsSheet.vue";
 import ImportSourceSheet from "../components/ImportSourceSheet.vue";
-import { formatAssetBytes, useAssetLibrary } from "../composables/useAssetLibrary";
-import { capturePhoto, exportAsset, shareAsset as shareManagedAsset } from "../services/assetService";
+import {
+  formatAssetBytes,
+  useAssetLibrary,
+} from "../composables/useAssetLibrary";
+import {
+  capturePhoto,
+  exportAsset,
+  shareAsset as shareManagedAsset,
+} from "../services/assetService";
 import type {
   AssetImportSource,
   AssetKind,
@@ -41,16 +48,15 @@ const replacingTextAssetId = ref<string | null>(null);
 const sharingAssetId = ref<string | null>(null);
 const detailActionAssetId = ref<string | null>(null);
 const previewingAssetId = ref<string | null>(null);
-const detailBusy = computed(
-  () =>
-    Boolean(
-      detailActionAssetId.value ||
-        previewingAssetId.value ||
-        savingAssetId.value ||
-        sharingAssetId.value ||
-        replacingTextAssetId.value ||
-        library.replacingText.value
-    )
+const detailBusy = computed(() =>
+  Boolean(
+    detailActionAssetId.value ||
+    previewingAssetId.value ||
+    savingAssetId.value ||
+    sharingAssetId.value ||
+    replacingTextAssetId.value ||
+    library.replacingText.value
+  )
 );
 
 const kindOptions: Array<{ label: string; value: AssetKind | "all" }> = [
@@ -87,10 +93,14 @@ const sourceOptions = computed(() => [
 
 const selectedCount = computed(() => library.selectedIds.value.length);
 const selectedAreHidden = computed(
-  () => library.selected.value.length > 0 && library.selected.value.every((asset) => asset.libraryState === "hidden")
+  () =>
+    library.selected.value.length > 0 &&
+    library.selected.value.every((asset) => asset.libraryState === "hidden")
 );
 const selectedArePinned = computed(
-  () => library.selected.value.length > 0 && library.selected.value.every((asset) => asset.retentionPolicy === "pinned")
+  () =>
+    library.selected.value.length > 0 &&
+    library.selected.value.every((asset) => asset.retentionPolicy === "pinned")
 );
 const hasFilters = computed(
   () =>
@@ -106,7 +116,10 @@ const hasFilters = computed(
 const importPercent = computed(() => {
   const progress = library.importProgress.value;
   if (!progress?.totalBytes) return null;
-  return Math.min(100, Math.round((progress.bytesCopied / progress.totalBytes) * 100));
+  return Math.min(
+    100,
+    Math.round((progress.bytesCopied / progress.totalBytes) * 100)
+  );
 });
 
 function goBack() {
@@ -130,7 +143,10 @@ function monthLabel(month: string) {
 
 function fileName(reference: string) {
   try {
-    return decodeURIComponent(reference.replace(/\\/g, "/")).split("/").pop() || "未命名文件";
+    return (
+      decodeURIComponent(reference.replace(/\\/g, "/")).split("/").pop() ||
+      "未命名文件"
+    );
   } catch {
     return reference.split("/").pop() || "未命名文件";
   }
@@ -189,9 +205,15 @@ async function saveAsset(assetId: string) {
     if (!destination) return;
     savingAssetId.value = assetId;
     const result = await exportAsset(assetId, destination);
-    customMessage(`已保存 ${result.fileName}（${formatAssetBytes(result.bytesWritten)}）`, "success");
+    customMessage(
+      `已保存 ${result.fileName}（${formatAssetBytes(result.bytesWritten)}）`,
+      "success"
+    );
   } catch (cause) {
-    customMessage(cause instanceof Error ? cause.message : "无法保存资产原件", "error");
+    customMessage(
+      cause instanceof Error ? cause.message : "无法保存资产原件",
+      "error"
+    );
   } finally {
     savingAssetId.value = null;
   }
@@ -204,7 +226,10 @@ async function shareAsset(assetId: string) {
     await shareManagedAsset(assetId);
     await library.load({ keepSelection: true });
   } catch (cause) {
-    customMessage(cause instanceof Error ? cause.message : "无法打开系统分享", "error");
+    customMessage(
+      cause instanceof Error ? cause.message : "无法打开系统分享",
+      "error"
+    );
   } finally {
     sharingAssetId.value = null;
   }
@@ -250,7 +275,8 @@ async function setDetailVisibility(assetId: string, hidden: boolean) {
   detailActionAssetId.value = assetId;
   try {
     const updated = await library.setDetailHidden(assetId, hidden);
-    if (updated && library.detail.value?.id === assetId) await closeDetail(true);
+    if (updated && library.detail.value?.id === assetId)
+      await closeDetail(true);
   } catch (cause) {
     customMessage(
       cause instanceof Error ? cause.message : "无法更新资产可见状态",
@@ -281,7 +307,8 @@ async function removeDetailAsset(assetId: string) {
   detailActionAssetId.value = assetId;
   try {
     const removed = await library.removeDetailAsset(assetId);
-    if (removed && library.detail.value?.id === assetId) await closeDetail(true);
+    if (removed && library.detail.value?.id === assetId)
+      await closeDetail(true);
   } catch (cause) {
     customMessage(
       cause instanceof Error ? cause.message : "无法清理资产原件",
@@ -306,7 +333,10 @@ async function cancelImportJob(jobId: string) {
     await library.cancelImport(jobId);
     customMessage("已请求取消导入任务", "info");
   } catch (cause) {
-    customMessage(cause instanceof Error ? cause.message : "无法取消导入任务", "error");
+    customMessage(
+      cause instanceof Error ? cause.message : "无法取消导入任务",
+      "error"
+    );
   }
 }
 
@@ -323,18 +353,40 @@ onUnmounted(() => {
 <template>
   <div class="asset-manager-view">
     <header class="page-header">
-      <button class="icon-button" type="button" aria-label="返回首页" @click="goBack">
+      <button
+        class="icon-button"
+        type="button"
+        aria-label="返回首页"
+        @click="goBack"
+      >
         <ChevronLeft :size="24" />
       </button>
       <div class="header-copy">
         <h1>资产管理器</h1>
-        <p v-if="library.summary.value">{{ library.summary.value.assetCount }} 项资产 · {{ formatAssetBytes(library.summary.value.originalBytes) }}</p>
+        <p v-if="library.summary.value">
+          {{ library.summary.value.assetCount }} 项资产 ·
+          {{ formatAssetBytes(library.summary.value.originalBytes) }}
+        </p>
       </div>
-      <button class="icon-button tasks-button" type="button" aria-label="查看导入任务" @click="openImportJobs">
+      <button
+        class="icon-button tasks-button"
+        type="button"
+        aria-label="查看导入任务"
+        @click="openImportJobs"
+      >
         <ListRestart :size="20" />
-        <span v-if="library.activeImportJobId.value" class="activity-dot" aria-hidden="true" />
+        <span
+          v-if="library.activeImportJobId.value"
+          class="activity-dot"
+          aria-hidden="true"
+        />
       </button>
-      <button class="header-action" type="button" :disabled="library.importing.value" @click="importFromDevice">
+      <button
+        class="header-action"
+        type="button"
+        :disabled="library.importing.value"
+        @click="importFromDevice"
+      >
         <LoaderCircle v-if="library.importing.value" class="spin" :size="18" />
         <Import v-else :size="18" />
         <span>{{ library.importing.value ? "导入中" : "导入" }}</span>
@@ -346,15 +398,27 @@ onUnmounted(() => {
         <span>正在导入资产</span>
         <button type="button" @click="library.cancelImport()">取消</button>
       </div>
-      <div class="progress-track"><span :style="{ width: `${importPercent ?? 18}%` }" /></div>
-      <span v-if="importPercent !== null" class="progress-label">{{ importPercent }}%</span>
+      <div class="progress-track">
+        <span :style="{ width: `${importPercent ?? 18}%` }" />
+      </div>
+      <span v-if="importPercent !== null" class="progress-label"
+        >{{ importPercent }}%</span
+      >
     </div>
 
     <nav class="mode-tabs" aria-label="资产视图">
-      <button type="button" :class="{ active: library.mode.value === 'assets' }" @click="library.mode.value = 'assets'">
+      <button
+        type="button"
+        :class="{ active: library.mode.value === 'assets' }"
+        @click="library.mode.value = 'assets'"
+      >
         <FileArchive :size="17" /> 资产
       </button>
-      <button type="button" :class="{ active: library.mode.value === 'storage' }" @click="library.mode.value = 'storage'">
+      <button
+        type="button"
+        :class="{ active: library.mode.value === 'storage' }"
+        @click="library.mode.value = 'storage'"
+      >
         <HardDrive :size="17" /> 存储空间
       </button>
     </nav>
@@ -364,25 +428,59 @@ onUnmounted(() => {
         <section class="filters" aria-label="资产筛选">
           <label class="search-field">
             <Search :size="18" />
-            <input v-model="library.search.value" type="search" placeholder="搜索文件名" />
+            <input
+              v-model="library.search.value"
+              type="search"
+              placeholder="搜索文件名"
+            />
           </label>
           <div class="filter-row">
             <select v-model="library.kind.value" aria-label="资产类型">
-              <option v-for="option in kindOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+              <option
+                v-for="option in kindOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
             </select>
-            <select v-model="library.libraryState.value" aria-label="资产可见性">
+            <select
+              v-model="library.libraryState.value"
+              aria-label="资产可见性"
+            >
               <option value="visible">可见资产</option>
               <option value="hidden">已隐藏</option>
               <option value="all">全部状态</option>
             </select>
             <select v-model="library.sourceModule.value" aria-label="来源模块">
-              <option v-for="option in sourceOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+              <option
+                v-for="option in sourceOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
             </select>
-            <select v-model="library.retentionPolicy.value" aria-label="保留策略">
-              <option v-for="option in retentionOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+            <select
+              v-model="library.retentionPolicy.value"
+              aria-label="保留策略"
+            >
+              <option
+                v-for="option in retentionOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
             </select>
             <select v-model="library.usageState.value" aria-label="使用影响">
-              <option v-for="option in usageOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+              <option
+                v-for="option in usageOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
             </select>
           </div>
           <div class="facet-row" role="list" aria-label="创建月份">
@@ -391,12 +489,20 @@ onUnmounted(() => {
               :key="facet.month"
               type="button"
               :class="{ active: library.createdMonth.value === facet.month }"
-              @click="library.createdMonth.value = library.createdMonth.value === facet.month ? '' : facet.month"
+              @click="
+                library.createdMonth.value =
+                  library.createdMonth.value === facet.month ? '' : facet.month
+              "
             >
               {{ monthLabel(facet.month) }} · {{ facet.assetCount }}
             </button>
           </div>
-          <button v-if="hasFilters" class="clear-filters" type="button" @click="clearFilters">
+          <button
+            v-if="hasFilters"
+            class="clear-filters"
+            type="button"
+            @click="clearFilters"
+          >
             <FilterX :size="15" /> 清除筛选
           </button>
         </section>
@@ -404,17 +510,26 @@ onUnmounted(() => {
         <div v-if="library.error.value" class="state-panel state-panel--error">
           <Database :size="30" />
           <p>无法读取资产列表</p>
-          <button type="button" @click="library.load()"><RefreshCw :size="16" /> 重试</button>
+          <button type="button" @click="library.load()">
+            <RefreshCw :size="16" /> 重试
+          </button>
         </div>
-        <div v-else-if="library.loading.value && !library.assets.value.length" class="state-panel">
+        <div
+          v-else-if="library.loading.value && !library.assets.value.length"
+          class="state-panel"
+        >
           <LoaderCircle class="spin" :size="30" />
           <p>正在读取资产库</p>
         </div>
         <div v-else-if="!library.assets.value.length" class="state-panel">
           <FileArchive :size="38" />
           <p>{{ hasFilters ? "没有匹配的资产" : "资产库还是空的" }}</p>
-          <button v-if="hasFilters" type="button" @click="clearFilters"><FilterX :size="16" /> 清除筛选</button>
-          <button v-else type="button" @click="importFromDevice"><Import :size="16" /> 导入第一个文件</button>
+          <button v-if="hasFilters" type="button" @click="clearFilters">
+            <FilterX :size="16" /> 清除筛选
+          </button>
+          <button v-else type="button" @click="importFromDevice">
+            <Import :size="16" /> 导入第一个文件
+          </button>
         </div>
         <template v-else>
           <div class="asset-grid">
@@ -434,8 +549,14 @@ onUnmounted(() => {
             :disabled="library.loading.value || library.loadingMore.value"
             @click="library.loadMore"
           >
-            <LoaderCircle v-if="library.loadingMore.value" class="spin" :size="17" />
-            <span>{{ library.loadingMore.value ? "正在加载" : "加载更多" }}</span>
+            <LoaderCircle
+              v-if="library.loadingMore.value"
+              class="spin"
+              :size="17"
+            />
+            <span>{{
+              library.loadingMore.value ? "正在加载" : "加载更多"
+            }}</span>
           </button>
         </template>
       </template>
@@ -444,30 +565,76 @@ onUnmounted(() => {
         <div v-if="library.summary.value" class="storage-overview">
           <div class="storage-total">
             <span>原件占用</span>
-            <strong>{{ formatAssetBytes(library.summary.value.originalBytes) }}</strong>
+            <strong>{{
+              formatAssetBytes(library.summary.value.originalBytes)
+            }}</strong>
             <small>{{ library.summary.value.assetCount }} 项资产</small>
           </div>
           <div class="storage-stats">
-            <div><span>可用</span><strong>{{ library.summary.value.readyCount }}</strong></div>
-            <div><span>待回收</span><strong>{{ formatAssetBytes(library.summary.value.reclaimableBytes) }}</strong></div>
-            <div><span>缓存</span><strong>{{ formatAssetBytes(library.summary.value.cacheBytes) }}</strong></div>
-            <div><span>临时文件</span><strong>{{ formatAssetBytes(library.summary.value.temporaryBytes) }}</strong></div>
+            <div>
+              <span>可用</span
+              ><strong>{{ library.summary.value.readyCount }}</strong>
+            </div>
+            <div>
+              <span>待回收</span
+              ><strong>{{
+                formatAssetBytes(library.summary.value.reclaimableBytes)
+              }}</strong>
+            </div>
+            <div>
+              <span>缓存</span
+              ><strong>{{
+                formatAssetBytes(library.summary.value.cacheBytes)
+              }}</strong>
+            </div>
+            <div>
+              <span>临时文件</span
+              ><strong>{{
+                formatAssetBytes(library.summary.value.temporaryBytes)
+              }}</strong>
+            </div>
           </div>
         </div>
         <section class="storage-section">
-          <div class="section-heading"><h2>按类型占用</h2><span>{{ library.summary?.value?.byKind.length ?? 0 }} 类</span></div>
+          <div class="section-heading">
+            <h2>按类型占用</h2>
+            <span>{{ library.summary?.value?.byKind.length ?? 0 }} 类</span>
+          </div>
           <div v-if="library.summary?.value?.byKind.length" class="kind-bars">
-            <div v-for="item in library.summary.value.byKind" :key="item.kind" class="kind-bar">
-              <div class="kind-label"><span>{{ item.kind }}</span><span>{{ formatAssetBytes(item.sizeBytes) }}</span></div>
-              <div class="bar-track"><span :style="{ width: `${Math.max(4, (item.sizeBytes / Math.max(library.summary.value.originalBytes, 1)) * 100)}%` }" /></div>
+            <div
+              v-for="item in library.summary.value.byKind"
+              :key="item.kind"
+              class="kind-bar"
+            >
+              <div class="kind-label">
+                <span>{{ item.kind }}</span
+                ><span>{{ formatAssetBytes(item.sizeBytes) }}</span>
+              </div>
+              <div class="bar-track">
+                <span
+                  :style="{
+                    width: `${Math.max(4, (item.sizeBytes / Math.max(library.summary.value.originalBytes, 1)) * 100)}%`,
+                  }"
+                />
+              </div>
             </div>
           </div>
           <p v-else class="quiet">暂无占用统计</p>
         </section>
         <section class="storage-section maintenance">
           <div class="section-heading"><h2>维护</h2></div>
-          <button type="button" @click="library.clearCache"><Trash2 :size="18" /><span><strong>清理可重建缓存</strong><small>不会影响原件和工具引用</small></span></button>
-          <button type="button" @click="library.repairLibrary"><Wrench :size="18" /><span><strong>修复资产库</strong><small>清理临时文件并标记缺失原件</small></span></button>
+          <button type="button" @click="library.clearCache">
+            <Trash2 :size="18" /><span
+              ><strong>清理可重建缓存</strong
+              ><small>不会影响原件和工具引用</small></span
+            >
+          </button>
+          <button type="button" @click="library.repairLibrary">
+            <Wrench :size="18" /><span
+              ><strong>修复资产库</strong
+              ><small>清理临时文件并标记缺失原件</small></span
+            >
+          </button>
         </section>
       </section>
     </main>
@@ -482,14 +649,32 @@ onUnmounted(() => {
           title="提取文本并清理原件"
           @click="library.replaceWithExtractedText()"
         >
-          <LoaderCircle v-if="library.replacingText.value" class="spin" :size="17" />
+          <LoaderCircle
+            v-if="library.replacingText.value"
+            class="spin"
+            :size="17"
+          />
           <FileText v-else :size="17" />
           文本化
         </button>
-        <button type="button" @click="library.setHidden(!selectedAreHidden)"><ArchiveRestore :size="17" /> {{ selectedAreHidden ? "恢复" : "隐藏" }}</button>
-        <button type="button" @click="library.pinSelected(!selectedArePinned)"><HardDrive :size="17" /> {{ selectedArePinned ? "取消固定" : "固定" }}</button>
-        <button type="button" class="danger" @click="library.removeSelected"><Trash2 :size="17" /> 删除</button>
-        <button type="button" class="close-selection" aria-label="清除选择" @click="library.clearSelection">×</button>
+        <button type="button" @click="library.setHidden(!selectedAreHidden)">
+          <ArchiveRestore :size="17" />
+          {{ selectedAreHidden ? "恢复" : "隐藏" }}
+        </button>
+        <button type="button" @click="library.pinSelected(!selectedArePinned)">
+          <HardDrive :size="17" /> {{ selectedArePinned ? "取消固定" : "固定" }}
+        </button>
+        <button type="button" class="danger" @click="library.removeSelected">
+          <Trash2 :size="17" /> 删除
+        </button>
+        <button
+          type="button"
+          class="close-selection"
+          aria-label="清除选择"
+          @click="library.clearSelection"
+        >
+          ×
+        </button>
       </div>
     </div>
 
@@ -499,7 +684,10 @@ onUnmounted(() => {
       :preview="library.preview.value"
       :saving="savingAssetId === library.detail.value.id"
       :sharing="sharingAssetId === library.detail.value.id"
-      :replacing-text="replacingTextAssetId === library.detail.value.id || library.replacingText.value"
+      :replacing-text="
+        replacingTextAssetId === library.detail.value.id ||
+        library.replacingText.value
+      "
       :busy="detailBusy"
       @close="closeDetail"
       @preview="previewAsset"
@@ -799,7 +987,8 @@ onUnmounted(() => {
   gap: 7px;
   color: var(--primary-color);
   background: transparent;
-  border: 1px solid color-mix(in srgb, var(--primary-color) 40%, var(--border-color));
+  border: 1px solid
+    color-mix(in srgb, var(--primary-color) 40%, var(--border-color));
   border-radius: var(--app-radius-md);
 }
 
@@ -1010,10 +1199,14 @@ onUnmounted(() => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (min-width: 620px) {
-  .asset-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .asset-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 </style>

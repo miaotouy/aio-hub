@@ -1,10 +1,6 @@
 export type AssetKind = "image" | "audio" | "video" | "document" | "other";
 export type AssetAvailability =
-  | "ready"
-  | "importing"
-  | "reclaimed"
-  | "missing"
-  | "error";
+  "ready" | "importing" | "reclaimed" | "missing" | "error";
 export type AssetRetentionPolicy = "reclaimable" | "pinned";
 export type AssetUsageState = "all" | "used" | "unused";
 export type AssetLibraryState = "visible" | "hidden";
@@ -62,11 +58,7 @@ export interface AssetImportResult {
 }
 
 export type AssetImportJobState =
-  | "pending"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled";
+  "pending" | "running" | "completed" | "failed" | "cancelled";
 
 export interface AssetImportJob {
   id: string;

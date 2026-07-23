@@ -49,9 +49,7 @@ const keyStatuses = computed(() => {
 
 const enableAutoDisable = computed({
   get: () =>
-    props.profile
-      ? keyManager.getEnableAutoDisable(props.profile.id)
-      : false,
+    props.profile ? keyManager.getEnableAutoDisable(props.profile.id) : false,
   set: (enabled: boolean) => {
     if (props.profile) {
       keyManager.setEnableAutoDisable(props.profile.id, enabled);
@@ -196,9 +194,7 @@ const handleBatchImport = () => {
                 tRaw("tools.llm-api.KeyManager.自动熔断说明")
               }}</template>
               <template #extra>
-                <var-switch
-                  v-model="enableAutoDisable"
-                />
+                <var-switch v-model="enableAutoDisable" />
               </template>
             </var-cell>
             <var-cell>

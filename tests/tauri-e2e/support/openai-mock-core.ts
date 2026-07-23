@@ -205,7 +205,7 @@ export function createSsePayload(
   finishReason: "stop",
   id = "chatcmpl-e2e"
 ): string {
-  const events = chunks.map((content, index) => ({
+  const events: Array<Record<string, unknown>> = chunks.map((content, index) => ({
     id,
     object: "chat.completion.chunk",
     choices: [

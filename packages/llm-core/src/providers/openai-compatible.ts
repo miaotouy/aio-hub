@@ -259,6 +259,11 @@ export class OpenAiCompatibleStreamDecoder implements ProviderStreamDecoder {
   finish(): LlmStreamEvent[] {
     if (this.completed) return [];
     const events = this.decodeDataLines(this.decoder.finish());
+    if (!this.completed && this.finishReason === undefined) {
+      throw new Error(
+        "OpenAI-compatible stream ended before a finish reason or [DONE] event"
+      );
+    }
     if (!this.completed) events.push(...this.complete());
     return events;
   }

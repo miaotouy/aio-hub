@@ -1,10 +1,10 @@
 # 移动端 SQLite 持久化方案调查报告
 
 > 调查日期：2026-07-15  
-> 调查对象：[`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md)  
+> 调查对象：[`mobile-sqlite-migration-plan.md`](../plan/mobile-sqlite-migration-plan.md)  
 > 调查范围：移动端 AI 聊天、笔记与 local-first 跨平台应用的本地持久化方案；Tauri v2、SQLite、事务、迁移与全文搜索能力。  
 > 说明：本报告是定向技术样本调查，不是对整个移动应用市场的统计抽样。
-> 文档状态：历史调查。调查结论已在 `llm_chat_storage.rs`、SQLx migrations 和 [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md) 中落地；本报告不再提供实施步骤、验收状态或当前待办。
+> 文档状态：历史调查。调查结论已在 `llm_chat_storage.rs`、SQLx migrations 和 [`mobile-sqlite-migration-plan.md`](../plan/mobile-sqlite-migration-plan.md) 中落地；本报告不再提供实施步骤、验收状态或当前待办。
 
 ## 1. 执行结论
 
@@ -153,7 +153,7 @@ LobeChat 当前使用 Dexie/IndexedDB 作为本地缓存层，并提供 PGlite/P
 
 ## 5. 调查结论与落地结果
 
-以下内容记录 2026-07-15 的风险识别和决策依据，不是当前任务清单。当前代码与剩余 Android AVD/iOS 门禁以 [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md) 为准。
+以下内容记录 2026-07-15 的风险识别和决策依据，不是当前任务清单。当前代码与剩余 Android AVD/iOS 门禁以 [`mobile-sqlite-migration-plan.md`](../plan/mobile-sqlite-migration-plan.md) 为准。
 
 ### 5.1 建议保留的设计
 

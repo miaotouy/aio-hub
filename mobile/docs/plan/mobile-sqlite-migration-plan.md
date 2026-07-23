@@ -1,6 +1,7 @@
 # 移动端 SQLite 引入与持久化重构计划 (Mobile SQLite Storage Refactor Plan)
 
 > 状态：施工中；2026-07-23 已完成阶段一 Rust 存储骨架、阶段二前端增量持久化、阶段三附件消费闭环和阶段四 Android 本地搜索，并通过 Android AVD 确定性附件与 Ollama opt-in lane；Android 真机与 iOS 门禁仍待补验。
+> 已实施架构以 [`llm-chat/ARCHITECTURE.md`](../../src/tools/llm-chat/ARCHITECTURE.md) 为准；本文只继续维护剩余平台门禁、风险和验收记录。
 > 当前决议：聊天数据库通过 Rust 领域命令访问，默认采用 SQLx、原生 migration runner 和统一连接配置；前端不得执行任意 SQL。
 
 ## 1. 背景与现状
@@ -406,7 +407,7 @@ END;
 - 已完成第三批：消息附件按 5 秒 TTL 查询资产详情并区分 reclaimed、missing、missing_record 与其他错误；历史上下文剔除不可用附件但保留文本，当前草稿附件在创建消息前阻断并保留草稿。
 - 已完成第四批：ready 图片附件按需申请资产服务短期预览 descriptor，通过 Teleport 全屏层展示；关闭、消息切换、路由卸载和异步竞态均主动撤销或回收 token。
 - 已完成第五批：文本文档提取结果通过聊天领域 command 在同一事务内写入附件快照、将 blocking usage 降为 advisory 并写 replacement outbox；原件删除发生在 outbox 投递和影响复核之后。
-- 已完成：Android Studio AVD 中的端到端附件发送验收。确定性 lane 校验 MIME、字节数和 SHA-256 并证明正式资产、Provider wire、Rust Transport、流式响应和 SQLite 落库闭环；Ollama 多模态模型作为 opt-in 语义验收。不替代 Android 真机或 iOS 门禁。实施见 [`mobile-android-avd-e2e-plan.md`](./mobile-android-avd-e2e-plan.md)。
+- 已完成：Android Studio AVD 中的端到端附件发送验收。确定性 lane 校验 MIME、字节数和 SHA-256 并证明正式资产、Provider wire、Rust Transport、流式响应和 SQLite 落库闭环；Ollama 多模态模型作为 opt-in 语义验收。不替代 Android 真机或 iOS 门禁。运行契约见 [`mobile-android-avd-e2e.md`](../architecture/mobile-android-avd-e2e.md)。
 - 已用 Rust 回归覆盖“资产命令已成功但 delivered 未标记”、重复投递、附件替换、分支删除、会话删除、五次失败进入 dead-letter、显式重试和无关实体继续投递。
 
 ### 阶段四：本地搜索

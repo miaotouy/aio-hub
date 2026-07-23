@@ -1,6 +1,6 @@
-# 移动端 Android AVD E2E 自动化补齐计划
+# 移动端 Android AVD E2E 架构与运行契约
 
-> 状态：已实施；2026-07-23 已完成 Android Studio AVD 核心、恢复和 Ollama lanes；Android 真机与 iOS 门禁仍独立保留
+> 文档状态：已实施的长期架构文档；2026-07-23 已完成 Android Studio AVD 核心、恢复和 Ollama lanes；Android 真机与 iOS 门禁仍独立保留。
 > 日期：2026-07-21
 > 范围：Android Studio AVD、移动端 Tauri WebView、Android 系统 UI、资产主流程与聊天附件发送
 > 不包含：Android 真机发布门禁、iOS 自动化、相机硬件、真实低存储设备和第三方 Android 模拟器控制
@@ -228,7 +228,7 @@ Ollama lane 使用明确支持所测附件类型的模型，例如视觉模型�
 
 产物目录不得包含 API Key、Authorization header、完整附件 base64、聊天正文、完整本机路径或原始数据库。所有日志使用已有脱敏规则，并为移动端请求摘要增加固定测试。
 
-## 9. 实施批次
+## 9. 已实施能力与记录
 
 ### 阶段零：驱动可行性
 
@@ -269,7 +269,7 @@ Ollama lane 使用明确支持所测附件类型的模型，例如视觉模型�
 
 > 2026-07-23 验收整改：具名 preset 增加 80 MiB APK 基线，`e2e-run.json` 不再记录绝对路径，Appium/emulator/DOM/hierarchy/logcat/activity 产物统一脱敏。Smoke 通过正式 UI tester 页面执行 sandbox round-trip；资产场景增加详情大小/来源、取消不创建 import job 和预览 token 撤销断言；恢复场景增加延迟首响应 timeout lane，并修复聊天请求未应用 `requestSettings.timeout` 的运行时缺口。当前 APK 的 `core` 与 `recovery` preset 均重新通过。
 
-## 10. 验收标准
+## 10. 持续回归标准
 
 - 一条 Bun 命令可以从明确的 Android Studio AVD 开始并输出最终退出码与 JSON 结果。
 - runner 只构建与目标 AVD 主 ABI 对应的 APK，安装前验证包内只有该 ABI；常规 E2E 不产生多 ABI universal APK、多份 split APK 或 AAB。
@@ -282,12 +282,12 @@ Ollama lane 使用明确支持所测附件类型的模型，例如视觉模型�
 - 普通成功运行不产生逐步截图；失败产物足以复盘 selector、系统 UI、WebView 和后端日志状态。
 - Android AVD 结果只解除自动化回归门禁；Android 真机主流程和 iOS 仍分别保留发布门禁。E2E 运行日志、DOM、UI hierarchy、logcat 和 activity 产物统一脱敏，不记录输入正文、凭据或完整本机路径。
 
-## 11. 文档同步
+## 11. 关联文档
 
-实施时同步更新：
+规则或运行边界变化时同步更新：
 
 - [`platform-validation-workbench-plan.md`](../../src/tools/ui-tester/docs/Plan/platform-validation-workbench-plan.md)：设备内固定场景与外部 E2E runner 的职责边界。
-- [`mobile-asset-manager-design.md`](./mobile-asset-manager-design.md)：附件确定性闭环、可选模型 lane 与 Android 真机门禁。
-- [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md)：将“迁移”明确为发布前存储重构，并接入重启恢复 E2E。
-- [`mobile-current-implementation-audit.md`](./mobile-current-implementation-audit.md)：记录自动化补齐状态，不把旧人工 smoke 当作长期回归方案。
+- [`mobile-asset-manager-design.md`](../plan/mobile-asset-manager-design.md)：附件确定性闭环、可选模型 lane 与 Android 真机门禁。
+- [`mobile-sqlite-migration-plan.md`](../plan/mobile-sqlite-migration-plan.md)：将“迁移”明确为发布前存储重构，并接入重启恢复 E2E。
+- [`mobile-current-implementation-audit.md`](../archive/mobile-current-implementation-audit.md)：记录自动化补齐状态，不把旧人工 smoke 当作长期回归方案。
 - [`docs/guide/tool-testing-guide.md`](../../../docs/guide/tool-testing-guide.md)：增加 Android AVD E2E 入口、selector 和设备所有权规范。

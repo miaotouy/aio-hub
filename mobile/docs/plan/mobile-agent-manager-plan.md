@@ -5,6 +5,7 @@
 > **最近核对**: 2026-07-14
 > **关联模块**: `mobile/src/tools/agent-manager/`
 > **前置依赖**: `mobile/src/tools/llm-api/`, `mobile/src/tools/llm-chat/`
+> **架构入口**: 已实施模块边界与当前能力以 [`ARCHITECTURE.md`](../../src/tools/agent-manager/ARCHITECTURE.md) 为准；本文继续维护私有资源、参数、用户档案和聊天协作的剩余工作。
 
 ## 1. 背景与动机
 
@@ -369,7 +370,7 @@ sequenceDiagram
 
 #### 2.1. 移动端预设消息编辑器设计规范（严格遵循《移动端设计语言与 Varlet 降级决议》）
 
-编辑器采用项目组件和主题 token 承担页面骨架；Varlet 仅用于可替换的原子控件。通用规范以 [`mobile-design-language-investigation.md`](./mobile-design-language-investigation.md) 为准。
+编辑器采用项目组件和主题 token 承担页面骨架；Varlet 仅用于可替换的原子控件。通用规范以 [`mobile-design-language.md`](../../../docs/guide/mobile-design-language.md) 为准。
 
 1. **手势与排序**：
    - 移动端不适合复杂的鼠标拖拽。我们将采用 **“拖拽手柄（Touch Drag） + 快捷上移/下移按钮”** 双轨制。
@@ -457,4 +458,3 @@ sequenceDiagram
 
 3. **存储路径是否与桌面端对齐**：用 `agent-manager/` 还是 `llm-chat/agents/`？
    - 已决定：使用独立的 `agent-manager/`，物理隔离更干净。跨端迁移通过导入导出解决。
-

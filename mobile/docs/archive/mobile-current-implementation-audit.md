@@ -74,7 +74,7 @@ LLM 渠道与模型配置
 - [x] 会话执行时加载 Agent 预设，并透传绑定模型与常用生成参数。
 - [x] Rust `o200k_base` Token 估算在预设编辑器中的防抖接入。
 
-当前实现进度详见 [`mobile-agent-manager-plan.md`](./mobile-agent-manager-plan.md)。
+当前实现进度详见 [`mobile-agent-manager-plan.md`](../plan/mobile-agent-manager-plan.md)。
 
 ### 2.5 辅助工具与验证
 
@@ -151,12 +151,12 @@ LLM 渠道与模型配置
 
 本次盘点不再维护跨模块未完成清单。该清单已混入 2026-07-18 前的实现假设，继续保留会与已完成的 SQLite、资产和搜索链路冲突。后续施工按模块进入对应的唯一计划或架构文档：
 
-- 聊天 SQLite、附件 outbox 和搜索：[`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md)。
-- 资产 Android MVP、真实设备与 iOS 门禁：[`mobile-asset-manager-design.md`](./mobile-asset-manager-design.md)。
-- Android Studio AVD 自动化、确定性附件发送与失败产物：[`mobile-android-avd-e2e-plan.md`](./mobile-android-avd-e2e-plan.md)。
-- Agent 管理器剩余管道与私有资产：[`mobile-agent-manager-plan.md`](./mobile-agent-manager-plan.md) 和 [`ARCHITECTURE.md`](../../src/tools/agent-manager/ARCHITECTURE.md)。
-- 设计分层和项目级 UI 收尾：[`mobile-design-language-investigation.md`](./mobile-design-language-investigation.md)。
-- Token 的设备性能和 iOS 验证：[`mobile-token-counting-plan.md`](./mobile-token-counting-plan.md)。
+- 聊天 SQLite、附件 outbox 和搜索：[`mobile-sqlite-migration-plan.md`](../plan/mobile-sqlite-migration-plan.md)。
+- 资产 Android MVP、真实设备与 iOS 门禁：[`mobile-asset-manager-design.md`](../plan/mobile-asset-manager-design.md)。
+- Android Studio AVD 自动化、确定性附件发送与失败产物：[`mobile-android-avd-e2e.md`](../architecture/mobile-android-avd-e2e.md)。
+- Agent 管理器剩余管道与私有资产：[`mobile-agent-manager-plan.md`](../plan/mobile-agent-manager-plan.md) 和 [`ARCHITECTURE.md`](../../src/tools/agent-manager/ARCHITECTURE.md)。
+- 设计分层和项目级 UI 收尾：[`mobile-design-language.md`](../../../docs/guide/mobile-design-language.md)。
+- Token 的设备性能和 iOS 验证：[`mobile-token-counting-plan.md`](../plan/mobile-token-counting-plan.md)。
 
 ## 4. 文档状态与使用规则
 
@@ -164,9 +164,9 @@ LLM 渠道与模型配置
 - `mobile-agent-manager-plan.md` 和 `mobile-token-counting-plan.md` 的阶段状态与当前代码基本一致。
 - `mobile-sqlite-migration-plan.md` 已进入施工并完成聊天 SQLite 与附件消费主链；其当前状态以该文件为准。
 - `mobile-asset-manager-design.md` 是资产管理器唯一施工范围来源，当前为 Android MVP 收尾；本快照不得覆盖其状态。
-- `mobile-design-language-investigation.md` 的 Phase 0 已完成，Phase 1 只完成了包装 API 的局部落地，业务调用尚未收口。
+- `mobile-design-language.md` 的 Phase 0 已完成，Phase 1 只完成了包装 API 的局部落地，业务调用尚未收口。
 - `platform-validation-workbench-plan.md` 的验证台、平台文件 spike 和 SQLite spike 已施工，并取得 Android 真机报告；平台结论按 Android/iOS 分别记录，iOS 报告保留为 iOS 发布门禁。
-- `mobile-android-avd-e2e-plan.md` 已实施；`tests/mobile-android-e2e/` 现提供核心、资产、附件、恢复和 opt-in Ollama lanes。AVD 自动化结果不替代 Android 真机或 iOS 发布门禁。
+- `mobile-android-avd-e2e.md` 已实施；`tests/mobile-android-e2e/` 现提供核心、资产、附件、恢复和 opt-in Ollama lanes。AVD 自动化结果不替代 Android 真机或 iOS 发布门禁。
 - `llm-provider-adapter-sharing-investigation.md` 的代码与自动化验收已完成；本次真机报告未覆盖 LLM transport，相关人工性能与双平台真机验收仍未完成。
 - 2026-07-16 完成的移动端模型批量检查和 2026-07-18 完成的模型身份/Embedding 空间分离已纳入本快照；它们属于现有 `llm-api` 工具能力，不新增工具 registry。
 
@@ -180,6 +180,6 @@ LLM 渠道与模型配置
 4. iOS 在设备条件具备后执行同一套平台场景，作为 iOS 发布门禁；缺少 iOS 设备不重复阻塞 Android 开发，也不能被记录为通过。
 5. 开发循环只跑受影响测试；功能批次结束运行全量测试、Clippy、类型检查和 Vite 构建；单 ABI debug APK 用于原生能力变化，四 ABI APK/AAB 只用于里程碑或发布候选。
 
-Android 模拟器回归的后续施工以 [`mobile-android-avd-e2e-plan.md`](./mobile-android-avd-e2e-plan.md) 为准：默认只使用 Android Studio AVD，所有设备操作显式绑定 serial，禁止自动接管用户正在使用的 LDPlayer/雷电等第三方模拟器；截图只作为失败证据和视觉复核，不作为逐步控制手段。
+Android 模拟器回归以 [`mobile-android-avd-e2e.md`](../architecture/mobile-android-avd-e2e.md) 的运行契约为准：默认只使用 Android Studio AVD，所有设备操作显式绑定 serial，禁止自动接管用户正在使用的 LDPlayer/雷电等第三方模拟器；截图只作为失败证据和视觉复核，不作为逐步控制手段。
 
 施工顺序的硬约束保持不变：聊天附件依赖全局资产契约；Agent 私有资产属于不可被全局清理策略回收的角色包内容。两者只能复制内容，不能共享 ID 或生命周期。

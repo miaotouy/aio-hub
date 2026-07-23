@@ -365,7 +365,7 @@ bun run test:tauri:e2e:native
 具名 preset 默认执行 80 MiB 单 ABI E2E debug APK 大小门禁；`e2e-run.json` 只保留 APK 文件名，Appium、emulator、DOM、UI hierarchy、logcat 和 activity 产物在落盘前统一脱敏。需要审查有意的 APK 基线变更时显式传入 `--max-apk-bytes`。
 
 移动端脚本化测试使用独立的 Android Studio AVD runner，详细施工计划见
-[`mobile-android-avd-e2e-plan.md`](../../mobile/docs/plan/mobile-android-avd-e2e-plan.md)。
+[`mobile-android-avd-e2e.md`](../../mobile/docs/architecture/mobile-android-avd-e2e.md)。
 默认不得控制用户正在使用的第三方模拟器；多设备连接时，所有 ADB、Appium、安装、
 端口映射、清数据和进程命令都必须显式绑定 serial。只有 runner 本次启动的 AVD 才能
 在结束时关闭。

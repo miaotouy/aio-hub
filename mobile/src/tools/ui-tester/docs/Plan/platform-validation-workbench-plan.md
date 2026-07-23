@@ -1,10 +1,10 @@
 # 移动端开发验证台设计与实施计划
 
-> 状态：Android 虚拟机与首轮真机验收通过；iOS 因当前缺少编译与真机设备条件暂缓，不计为通过
+> 状态：Android 虚拟机与首轮真机验收通过；iOS 因当前缺少编译与真机设备条件暂缓，不计为完整通过
 > 日期：2026-07-18；2026-07-21 更新平台门禁与测试批次规则
 > 所属工具：`mobile/src/tools/ui-tester/`
 > 目标：为移动端组件、Tauri 平台能力、资产 Phase 0 和 SQLite Phase 0 提供可重复操作、可记录、可导出的真机验证入口。
-> 自动化边界：本工具提供设备内固定场景，不负责外部 UI 驱动；Android AVD 脚本化控制见 [`mobile-android-avd-e2e-plan.md`](../../../../../docs/plan/mobile-android-avd-e2e-plan.md)。
+> 自动化边界：本工具提供设备内固定场景，不负责外部 UI 驱动；Android AVD 脚本化控制见 [`mobile-android-avd-e2e.md`](../../../../../docs/architecture/mobile-android-avd-e2e.md)。
 
 ## 1. 结论
 
@@ -79,12 +79,7 @@
 
 ```ts
 type ValidationRunStatus =
-  | "idle"
-  | "running"
-  | "passed"
-  | "failed"
-  | "cancelled"
-  | "manualPending";
+  "idle" | "running" | "passed" | "failed" | "cancelled" | "manualPending";
 
 interface ValidationRun {
   id: string;
@@ -287,4 +282,5 @@ mobile/src/tools/ui-tester/
 - 默认附件门禁使用本机确定性 OpenAI-compatible 服务校验 MIME、字节数与 SHA-256，并返回正式 SSE；Ollama 多模态模型为显式 opt-in lane。
 - AVD 自动化负责日常回归，不能替代 Android 真机、真实低存储、相机硬件或 iOS 发布门禁。
 
-完整目录、阶段、设备所有权和验收标准见 [`mobile-android-avd-e2e-plan.md`](../../../../../docs/plan/mobile-android-avd-e2e-plan.md)。
+完整目录、阶段、设备所有权和验收标准见 [`mobile-android-avd-e2e.md`](../../../../../docs/architecture/mobile-android-avd-e2e.md)。
+

@@ -2,6 +2,7 @@
 
 > 状态：范围冻结，Android MVP 收尾（iOS 发布门禁待设备条件）
 > 日期：2026-07-15；2026-07-21 更新施工状态；2026-07-21 收敛范围
+> 已实施架构以 [`asset-manager/ARCHITECTURE.md`](../../src/tools/asset-manager/ARCHITECTURE.md) 为准；本文只继续维护冻结范围、剩余真机/iOS 门禁和施工记录。
 > 范围：产品信息架构、移动端存储语义、数据模型与实施边界。本文件不包含功能实现。
 
 ## 1. 结论
@@ -457,7 +458,7 @@ interface ManagedAssetRef {
 
 ### 12.0 范围冻结与状态口径
 
-本文件是资产管理器的唯一施工范围来源。`mobile-current-implementation-audit.md` 只记录移动端全局盘点，`platform-validation-workbench-plan.md` 只记录验证工具和平台能力；两者不得重新打开本文件已冻结的产品范围。
+本文件是资产管理器的唯一施工范围来源。[`mobile-current-implementation-audit.md`](../archive/mobile-current-implementation-audit.md) 只记录移动端全局盘点，`platform-validation-workbench-plan.md` 只记录验证工具和平台能力；两者不得重新打开本文件已冻结的产品范围。
 
 当前目标是完成 Android 资产 MVP 的主链收尾，不继续扩展旁支功能。已经落地但不属于本轮门禁的功能保留为历史实现，不能据此新增测试批次或改变 MVP 完成条件。
 
@@ -567,7 +568,7 @@ Android MVP 的停止条件：
 - 四 ABI APK/AAB、完整 Android 真机矩阵和 iOS 构建只在 MVP 里程碑或发布候选执行，不随每个小提交重复执行。
 - token 自然过期、吞吐和中断恢复优先使用可注入时钟/固定夹具的自动化测试；设备只保留一次代表性 smoke，不创建独立长时间批次。
 - 任何测试若不对应本节 MVP 停止条件或明确的平台发布门禁，必须延期，不得新增施工批次。
-- Android 模拟器回归统一迁移到 Android Studio AVD 自动化 runner；默认不得控制用户正在使用的第三方模拟器。具体设备所有权、selector、协议服务和失败产物规则见 [`mobile-android-avd-e2e-plan.md`](./mobile-android-avd-e2e-plan.md)。
+- Android 模拟器回归统一迁移到 Android Studio AVD 自动化 runner；默认不得控制用户正在使用的第三方模拟器。具体设备所有权、selector、协议服务和失败产物规则见 [`mobile-android-avd-e2e.md`](../architecture/mobile-android-avd-e2e.md)。
 
 ## 14. 待评审决策
 
@@ -772,7 +773,7 @@ Android MVP 的停止条件：
 - 后续 Android 模拟器验收默认只使用 Android Studio AVD，并由外部 runner 显式绑定 serial；不得自动接管、安装、映射端口、清数据、重启或关闭用户正在使用的 LDPlayer/雷电等第三方模拟器。
 - 自动化控制层采用 Appium 2 + UiAutomator2，原生上下文负责 DocumentsUI/Photo Picker，WebView 上下文使用稳定 `data-testid` 与可访问名称。截图只作为失败证据和视觉复核，不参与逐步决策。
 - 附件门禁拆为确定性协议验收与可选 Ollama 模型验收。两者都必须经过正式 `ManagedAssetRef`、Rust 资产解析、原生 HTTP Transport、流式响应和聊天 SQLite 持久化；只有端口可达或前端 mock 不计通过。
-- 详细施工批次与验收标准见 [`mobile-android-avd-e2e-plan.md`](./mobile-android-avd-e2e-plan.md)。Android Studio AVD 自动化不能替代本节保留的 Android 真机主流程和 iOS 发布门禁。
+- 详细施工批次与验收标准见 [`mobile-android-avd-e2e.md`](../architecture/mobile-android-avd-e2e.md)。Android Studio AVD 自动化不能替代本节保留的 Android 真机主流程和 iOS 发布门禁。
 
 ## 16. 调查来源
 
@@ -787,3 +788,4 @@ Android MVP 的停止条件：
 - [Apple File System Programming Guide](https://developer.apple.com/library/archive/documentation/FileManagement/Conceptual/FileSystemProgrammingGuide/FileSystemOverview/FileSystemOverview.html)
 - [Apple Document Picker](https://developer.apple.com/documentation/uikit/uidocumentpickerviewcontroller)
 - [Apple Photos Picker](https://developer.apple.com/documentation/photosui/photospicker)
+

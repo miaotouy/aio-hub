@@ -1,5 +1,7 @@
 # Embedding 测试场重构与翻新计划书
 
+> 状态：主体代码已实施，核心交互与结果验收待补
+
 本计划书旨在对 `Embedding 测试场` 进行深度重构与翻新，解决用户无法直观进行 A vs B 极简对比的痛点，并引入多模型横向对比、RAG 跨模型阈值校准等高级功能，同时通过彻底的模块解耦提升代码的可维护性。
 
 ---
@@ -198,14 +200,14 @@ export const useEmbeddingPlaygroundStore = defineStore(
 
 ### 5.1 增量缓存机制 (Incremental Cache)
 
-在多模型对比和 1:N 排行中，我们将继续使用并优化现有的二级缓存机制：
+在多模型对比和 1:N 排行中，当前实现使用按请求路由与契约隔离的二级缓存：
 
-- **结构**：`Map<ModelId, Map<TextContent, number[]>>`
+- **结构**：`Map<RouteAndContractFingerprint, Map<InputContentHash, EmbeddingVector>>`
 - **逻辑**：
-  1. 每次对比时，系统自动对比“当前文本组”与“该模型的缓存池”。
-  2. 仅对未命中的文本发起 API 请求。
-  3. 请求成功后自动合并新旧向量。
-  4. 在多模型模式下，使用 `Promise.all` 并行请求各个模型未命中的向量，确保极速响应。
+  1. 使用 model combo、dimensions、task type、encoding、title、adapter contract version、dataset version 和 input kind 构造作用域键。
+  2. 对去重后的文本计算 SHA-256 内容哈希，仅对未命中内容发起 API 请求。
+  3. 请求成功后按内容哈希写回对应作用域，query/document 不共享缓存。
+  4. 按原始文本顺序组装结果；多模型组件分别调用该缓存层，不跨请求契约复用向量。
 
 ### 5.2 跨模型阈值校准算法 (Threshold Calibration)
 

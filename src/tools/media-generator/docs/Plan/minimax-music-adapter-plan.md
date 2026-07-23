@@ -1,5 +1,7 @@
 # MiniMax Music 适配计划
 
+> 状态：主体代码已实施，测试与真实运行验收待收口
+
 ## 背景
 
 MiniMax 音乐生成接口覆盖三类能力：
@@ -34,7 +36,11 @@ MiniMax 音乐生成接口覆盖三类能力：
 新增专用 provider 类型，避免影响现有 MiniMax OpenAI-compatible 聊天预设：
 
 - provider type：`minimax-music`
-- 默认 base URL：`https://api.minimax.io`
+- 区域 Base URL（必须与 API Key 区域匹配）：
+  - 中国大陆：`https://api.minimaxi.com`（当前 AIO Hub preset/provider/adapter 默认值，对应 `platform.minimaxi.com`）
+  - 国际版：`https://api.minimax.io`（对应 `platform.minimax.io`）
+- 端点路径：`/v1/music_generation`、`/v1/music_cover_preprocess`、`/v1/lyrics_generation`
+- 用户切换区域时应同时更换 Base URL 和 API Key；不能只替换域名。
 - 支持模型列表：否
 - 默认模型建议：
   - `music-2.6`，能力 `musicGeneration: true`
@@ -201,49 +207,54 @@ Adapter 将 MiniMax 响应统一转换为：
 - [x] 7. 更新任务执行校验：
   - [x] 一步翻唱必须有 `audio_url` 或音频附件。
   - [x] 自动歌词/纯音乐/手填歌词参数互斥清理。
-- [x] 8. 增加单元测试：
+- [x] 8. 增加定向单元测试：
   - [x] adapter 请求体映射。
   - [x] hex 解码。
   - [x] `audio_url` / `audio_base64` / `cover_feature_id` 互斥。
-  - [x] provider 注册和模型能力识别。
-- [x] 9. 运行 `bun run build:tsc`，必要时补 `bun run test:run` 中相关测试。
+  - [ ] provider 注册和模型能力识别专用测试。
+- [ ] 9. 收口验证：
+  - [x] 运行 `bun run check:frontend`。
+  - [x] 运行 MiniMax adapter/client/utils 定向测试。
+  - [ ] 在干净工作区运行全量测试并记录失败归属。
+  - [ ] 验证真实 API、音频入库和 AbortSignal 中止行为。
 
 ## 验证清单
 
-- [x] `music-2.6` + 自动歌词：只填风格描述即可生成音频并入库。
-- [x] `music-2.6` + 手填歌词：发送 `lyrics` 和风格 `prompt`。
-- [x] `music-2.6` + 纯音乐：发送 `is_instrumental: true`，不发送歌词。
-- [x] `music-cover` + `audio_url`：一步翻唱成功，结果入库。
-- [x] `music-cover` + 本地音频附件：附件转 base64，发送 `audio_base64`，不触发 `fetch(dataUrl)`。
-- [x] `url` 输出：远程音频可下载入库，24 小时过期前本地资产可播放。
-- [x] `hex` 输出：可解码并作为音频资产保存。
-- [x] 中止任务时 `AbortSignal` 可停止当前请求或至少停止后续处理。
+- [ ] `music-2.6` + 自动歌词：真实 API 生成音频并入库。
+- [ ] `music-2.6` + 手填歌词：真实 API 发送 `lyrics` 和风格 `prompt`。
+- [ ] `music-2.6` + 纯音乐：真实 API 发送 `is_instrumental: true`，不发送歌词。
+- [ ] `music-cover` + `audio_url`：真实 API 一步翻唱并入库。
+- [ ] `music-cover` + 本地音频附件：真实运行态转 base64，且不触发 `fetch(dataUrl)`。
+- [ ] `url` 输出：远程音频可下载入库，24 小时过期前本地资产可播放。
+- [ ] `hex` 输出：可解码并作为音频资产保存。
+- [ ] 中止任务时 `AbortSignal` 可停止当前请求或至少停止后续处理。
 
 ## 进度更新与总结 (2026-06-07)
 
-第一期 MiniMax Music 适配计划的所有核心功能已**全部高质量实现**，并通过了前端类型检查与单元测试：
+第一期 MiniMax Music 的主体代码已实现。当前定向测试和前端类型检查通过，但 provider/模型能力专测、真实 API、资产入库和中止行为仍待验收：
 
 1. **基础设施与注册**：
-   - 在 [`src/types/llm-profiles.ts`](src/types/llm-profiles.ts) 和 [`src/config/llm-providers.ts`](src/config/llm-providers.ts) 中注册了 `minimax-music` 供应商类型。
-   - 在 [`src/config/llm-presets.ts`](src/config/llm-presets.ts) 中添加了 MiniMax Music 预设及默认模型（`music-2.6`, `music-cover`, `music-2.6-free`, `music-cover-free`）。
-   - 在 [`src/utils/llm-api-url.ts`](src/utils/llm-api-url.ts) 中注册了 `minimaxMusicUrlHandler`。
-   - 在 [`src/llm-apis/adapters/index.ts`](src/llm-apis/adapters/index.ts) 中注册了 `minimaxMusicAdapter`。
+   - 在 [`src/types/llm-profiles.ts`](../../../../../src/types/llm-profiles.ts) 和 [`src/config/llm-providers.ts`](../../../../../src/config/llm-providers.ts) 中注册了 `minimax-music` 供应商类型。
+   - 在 [`src/config/llm-presets.ts`](../../../../../src/config/llm-presets.ts) 中添加了 MiniMax Music 预设及默认模型（`music-2.6`, `music-cover`, `music-2.6-free`, `music-cover-free`）。
+   - 在 [`src/utils/llm-api-url.ts`](../../../../../src/utils/llm-api-url.ts) 中注册了 `minimaxMusicUrlHandler`。
+   - 在 [`src/llm-apis/adapters/index.ts`](../../../../../src/llm-apis/adapters/index.ts) 中注册了 `minimaxMusicAdapter`。
 
 2. **适配器与客户端实现**：
-   - 在 [`src/llm-apis/adapters/minimax-music/client.ts`](src/llm-apis/adapters/minimax-music/client.ts) 中实现了 `MinimaxMusicClient`，支持歌词生成和音乐生成。
-   - 在 [`src/llm-apis/adapters/minimax-music/adapter.ts`](src/llm-apis/adapters/minimax-music/adapter.ts) 中实现了 `minimaxMusicAdapter`，支持根据模式分发请求，并处理了 `audio_url`、`audio_base64`、`cover_feature_id` 的互斥逻辑。
-   - 在 [`src/llm-apis/adapters/minimax-music/utils.ts`](src/llm-apis/adapters/minimax-music/utils.ts) 中实现了 `hexToBase64` 解码、Base64 Data URL 剥离、响应归一化等工具函数。
+   - 在 [`src/llm-apis/adapters/minimax-music/client.ts`](../../../../../src/llm-apis/adapters/minimax-music/client.ts) 中实现了 `MinimaxMusicClient`，支持歌词生成和音乐生成。
+   - 在 [`src/llm-apis/adapters/minimax-music/adapter.ts`](../../../../../src/llm-apis/adapters/minimax-music/adapter.ts) 中实现了 `minimaxMusicAdapter`，支持根据模式分发请求，并处理了 `audio_url`、`audio_base64`、`cover_feature_id` 的互斥逻辑。
+   - 在 [`src/llm-apis/adapters/minimax-music/utils.ts`](../../../../../src/llm-apis/adapters/minimax-music/utils.ts) 中实现了 `hexToBase64` 解码、Base64 Data URL 剥离、响应归一化等工具函数。
 
 3. **媒体生成中心集成**：
-   - 在 [`src/composables/useFileInteraction.ts`](src/composables/useFileInteraction.ts) 中扩展了 `inferAssetTypeFromMime`，支持音频类型的 Asset 推断。
-   - 在 [`src/tools/media-generator/components/MediaGenerationInput.vue`](src/tools/media-generator/components/MediaGenerationInput.vue) 中放开了音频附件选择（支持 `mp3`, `wav`, `m4a`, `aac`, `flac`, `ogg`），并支持音频拖拽/粘贴。
-   - 在 [`src/tools/media-generator/components/ParameterPanel.vue`](src/tools/media-generator/components/ParameterPanel.vue) 中添加了 MiniMax Music 专属的参数面板，支持生成模式、歌词来源、歌词输入、参考音频 URL、输出格式、音频设置等。
-   - 在 [`src/tools/media-generator/composables/useMediaGenerationManager.ts`](src/tools/media-generator/composables/useMediaGenerationManager.ts) 中实现了音频附件读取并转 Base64，以及提取 MiniMax 翻唱的音频 Base64，避免了 `fetch(dataUrl)` 触发 Tauri CSP 拦截。
-   - 在 [`src/tools/media-generator/composables/useSessionManager.ts`](src/tools/media-generator/composables/useSessionManager.ts) 中添加了 MiniMax Music 的默认参数。
+   - 在 [`src/composables/useFileInteraction.ts`](../../../../../src/composables/useFileInteraction.ts) 中扩展了 `inferAssetTypeFromMime`，支持音频类型的 Asset 推断。
+   - 在 [`src/tools/media-generator/components/MediaGenerationInput.vue`](../../../../../src/tools/media-generator/components/MediaGenerationInput.vue) 中放开了音频附件选择（支持 `mp3`, `wav`, `m4a`, `aac`, `flac`, `ogg`），并支持音频拖拽/粘贴。
+   - 在 [`src/tools/media-generator/components/ParameterPanel.vue`](../../../../../src/tools/media-generator/components/ParameterPanel.vue) 中添加了 MiniMax Music 专属的参数面板，支持生成模式、歌词来源、歌词输入、参考音频 URL、输出格式、音频设置等。
+   - 在 [`src/tools/media-generator/composables/useMediaGenerationManager.ts`](../../../../../src/tools/media-generator/composables/useMediaGenerationManager.ts) 中实现了音频附件读取并转 Base64，以及提取 MiniMax 翻唱的音频 Base64，避免了 `fetch(dataUrl)` 触发 Tauri CSP 拦截。
+   - 在 [`src/tools/media-generator/composables/useSessionManager.ts`](../../../../../src/tools/media-generator/composables/useSessionManager.ts) 中添加了 MiniMax Music 的默认参数。
 
 4. **质量保障**：
-   - 编写了完整的单元测试 [`src/llm-apis/adapters/minimax-music/__tests__/utils.test.ts`](src/llm-apis/adapters/minimax-music/__tests__/utils.test.ts)，覆盖了 hex 解码、Base64 剥离、URL 响应转换、Hex 响应转换等核心逻辑，测试全部通过。
+   - 已有定向测试覆盖 adapter/client/utils 的请求和响应核心逻辑；完整 workflow、provider 注册、真实 API、资产入库和中止行为测试仍待补。
    - 运行 `bun run check:frontend` 成功通过，无任何 TypeScript 编译错误。
+   - 2026-07-23 在线复核 MiniMax 官方 OpenAPI：国际版使用 `api.minimax.io`，中国大陆版使用 `api.minimaxi.com`；两者均支持上述音乐路径，且 API Key 必须与区域 Host 匹配。
 
 ## 风险与注意事项
 
@@ -252,4 +263,3 @@ Adapter 将 MiniMax 响应统一转换为：
 - `fetchWithTimeout` 代理层会 JSON stringify 请求体，大音频 base64 会放大内存压力，需要实际压测。
 - 翻唱音频的版权和内容合规由用户侧负责，UI 可在后续补提示。
 - 两步翻唱的 `cover_feature_id` 有 24 小时有效期，不适合直接长期持久化为可复用参数。
-

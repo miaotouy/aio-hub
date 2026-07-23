@@ -1,8 +1,8 @@
 # LLM Chat: User Profile 配置管理解耦及用户档案中心建设方案 (施工级图纸版)
 
-> 最后更新：2026-07-08
-> 状态：RFC (Request for Comments)
-> 关联模块：`src/tools/user-profile-manager/` (待创建)
+> 最后更新：2026-07-23
+> 状态：已随 `v0.6.6-r.1` 发布；2026-07-23 代码审计发现迁移语义与测试证据缺口，待收口
+> 关联模块：`src/tools/user-profile-manager/`（已创建）
 
 ## 1. 核心设计哲学：工具高度自治与门户化
 
@@ -76,16 +76,18 @@ graph TD
 
 #### 现状与痛点
 
-用户的用户档案配置文件和头像资产已经保存在 `{appConfigDir}/llm-chat/user-profile.json` 目录下。如果直接修改存储路径，会导致老用户数据“丢失”。但如果永远不改，就无法实现彻底的工具自治。
+历史版本实际使用的是 `llm-chat/user-profiles-index.json` 加 `llm-chat/user-profiles/{profileId}/profile.json` 的多档案结构；并非单一的 `user-profile.json` 文件。如果直接修改存储路径，会导致老用户数据“丢失”。
 
 #### 施工方案
 
-1.  **彻底自治**：在迁移后的 `useUserProfileStorage.ts` 中，将 `MODULE_NAME` 修改为 `"user-profile-manager"`，实现物理路径的彻底自治。
-2.  **冷启动自动迁移**：通过 5.1 节设计的“冷启动自动检测与物理迁移”管道，在应用首次启动时，自动将旧路径数据安全迁移到新路径下。
+1.  **彻底自治**：当前 `useUserProfileStorage.ts` 使用 `MODULE_NAME = "user-profile-manager"`，主存储为 `user-profiles-index.json` 加独立 profile 目录。
+2.  **冷启动自动迁移**：`loadProfilesIndex()` 先执行 `migrateFromOldModule()`，在新索引不存在且旧索引存在时复制旧索引、每个 `profile.json` 和目录内资产到新模块。
 
 ---
 
-## 4. Git 移动指令集 (Git Move Commands)
+## 4. 历史 Git 移动指令集（已执行，仅供追溯）
+
+> 以下命令对应早期物理迁移阶段，目标目录已经存在，禁止在当前工作区重复执行。
 
 为了完美继承 Git 历史记录，**严禁直接复制文件**。必须在 Windows PowerShell 终端中按顺序执行以下 `git mv` 命令：
 
@@ -107,56 +109,35 @@ git mv "src/tools/llm-chat/components/user-profile" "src/tools/user-profile-mana
 
 ---
 
-## 5. 数据迁移与历史兼容方案 (Data Migration & Compatibility)
+## 5. 实际存储与迁移语义
 
-To ensure that old users do not lose, damage, or break their historical user profiles, custom avatars, etc. when upgrading to the decoupled version, we must design a rigorous data migration and path compatibility mechanism.
+### 5.1. 当前路径映射
 
-### 5.1. 迁移策略：渐进式物理迁移 (Progressive Migration)
+| 数据类型       | 已发布版本旧路径                                     | 当前新路径                                                       |
+| :------------- | :--------------------------------------------------- | :--------------------------------------------------------------- |
+| 档案索引       | `{appConfigDir}/llm-chat/user-profiles-index.json`   | `{appConfigDir}/user-profile-manager/user-profiles-index.json`   |
+| 档案配置与资产 | `{appConfigDir}/llm-chat/user-profiles/{profileId}/` | `{appConfigDir}/user-profile-manager/user-profiles/{profileId}/` |
+| 单档案配置文件 | `.../user-profiles/{profileId}/profile.json`         | `.../user-profiles/{profileId}/profile.json`                     |
 
-虽然“保持原路径不变”是最省事的方案，但为了实现彻底的工具自治，数据最终应当归属于各自的工具目录下。我们采用**“冷启动自动检测与物理迁移”**的渐进式策略：
+### 5.2. 已实现的冷启动迁移
 
-```
-[旧路径] {appConfigDir}/llm-chat/user-profile.json
-   │
-   ├── (冷启动检测：新路径无数据 && 旧路径有数据)
-   │
-   ▼
-[备份] {appConfigDir}/backups/migration_backup_{timestamp}/  (安全第一，先行备份)
-   │
-   ├── (物理复制与校验)
-   │
-   ▼
-[新路径] {appConfigDir}/user-profile-manager/profile.json
-```
+`loadProfilesIndex()` 调用 `migrateFromOldModule()`：
 
-#### 路径映射规范
+1. 仅当新索引不存在、旧索引存在时开始迁移；新索引存在时直接跳过。
+2. 读取旧索引，复制每个 profile 的 `profile.json` 和目录内资产，最后保存新索引。
+3. 旧索引和旧 profile 目录不会被重命名、删除或备份；资产复制失败只记录 warning，迁移仍可能提交新索引。
+4. 同一轮 `userProfileStore.loadProfiles()` 会并行调用 `loadProfiles()` 与 `loadSettings()`；首次迁移时需要验证 `loadSettings()` 不会在新索引写入前读到默认设置。
 
-| 数据类型         | 旧物理路径 (寄生在 `llm-chat`)              | 新物理路径 (独立自治)                              |
-| :--------------- | :------------------------------------------ | :------------------------------------------------- |
-| **用户档案配置** | `{appConfigDir}/llm-chat/user-profile.json` | `{appConfigDir}/user-profile-manager/profile.json` |
+### 5.3. 头像兼容
 
----
+- 当前解析器把旧 `appdata://llm-chat/user-profiles/` 协议重定向到 `appdata://user-profile-manager/user-profiles/`。
+- 保存时会截断当前新模块前缀为相对文件名；旧协议值可继续被解析，但跨模块迁移复制失败时可能指向不存在的新资产。
 
-### 5.2. 核心迁移算法与冷启动流程
+### 5.4. 发布后收口清单
 
-用户档案数据量较小（通常只有一个 `user-profile.json` 文件），迁移逻辑更加轻量：
+- [ ] 明确旧索引/目录的保留、备份、归档和清理策略，避免“新索引已存在但旧数据未迁完”时永久跳过。
+- [ ] 迁移资产失败时不得静默提交不可用索引；需要可恢复的部分迁移状态和重试策略。
+- [ ] 补跨模块迁移测试：成功复制、重复启动、部分目标已存在、资产复制失败、索引写入失败和旧头像解析。
+- [ ] 补首次升级真实 Tauri 验收，特别是全局档案 ID、头像、档案内容和标题栏/Chat 两个入口的一致性。
 
-1.  **读取兜底**：`userProfileStore` 初始化时，优先读取新路径 `{appConfigDir}/user-profile-manager/profile.json`。
-2.  **历史回退**：如果新路径不存在，尝试读取旧路径 `{appConfigDir}/llm-chat/user-profile.json`。
-3.  **就地升级**：如果成功读取到旧路径数据，将其写入新路径，并安全删除/重命名旧文件，实现无感知的单向升级。
-
----
-
-### 5.3. 历史资产路径 of 动态适配 (Asset Path Resolver)
-
-#### 解决方案：动态协议头解析与保存截断更新
-
-由于保存在 `profile.json` 中的是相对路径（如 `avatar-123.png`），我们不需要对配置文件中的头像路径进行任何物理修改。我们只需要在解耦迁移时，同步更新协议头的解析与截断逻辑：
-
-1. **动态解析器更新 (`useResolvedAvatar.ts`)**：
-   将动态拼接的协议头从旧路径变更为新路径：
-   - 用户档案头像：从 `appdata://llm-chat/user-profiles/${entity.id}/${icon}` 变更为 `appdata://user-profile-manager/profiles/${entity.id}/${icon}`。
-
-2. **保存截断逻辑更新 (`useUserProfileStorage.ts`)**：
-   在保存配置文件时，截断前缀的逻辑也同步更新为新的前缀：
-   - 用户档案：`appdata://user-profile-manager/profiles/${profile.id}/`
+完成以上项目后，才将本计划恢复为“已完成”。

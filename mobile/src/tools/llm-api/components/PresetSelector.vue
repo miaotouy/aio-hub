@@ -64,7 +64,13 @@ const handleCreateCustom = () => {
       </div>
 
       <div class="popup-footer">
-        <var-button block type="primary" outline data-testid="llm-preset-custom" @click="handleCreateCustom">
+        <var-button
+          block
+          type="primary"
+          outline
+          data-testid="llm-preset-custom"
+          @click="handleCreateCustom"
+        >
           <Plus :size="18" />
           {{ tRaw("tools.llm-api.PresetSelector.自定义添加") }}
         </var-button>

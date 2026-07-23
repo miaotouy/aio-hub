@@ -90,7 +90,9 @@ export async function getAssetImportJob(
   return job;
 }
 
-export async function listAssetImportJobs(limit = 20): Promise<AssetImportJob[]> {
+export async function listAssetImportJobs(
+  limit = 20
+): Promise<AssetImportJob[]> {
   return invoke<AssetImportJob[]>("asset_list_import_jobs", { limit });
 }
 
@@ -135,7 +137,8 @@ export async function importAssetSources(
         ["imported", "deduplicated", "restored"].includes(result.status)
       ).length,
       failed: results.filter((result) => result.status === "failed").length,
-      cancelled: results.filter((result) => result.status === "cancelled").length,
+      cancelled: results.filter((result) => result.status === "cancelled")
+        .length,
     });
     return results;
   } catch (error) {

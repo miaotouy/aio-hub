@@ -340,7 +340,9 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
           </var-button>
         </template>
         <template #right>
-          <var-button text data-testid="llm-profile-save" @click="saveEdit">{{ t("common.保存") }}</var-button>
+          <var-button text data-testid="llm-profile-save" @click="saveEdit">{{
+            t("common.保存")
+          }}</var-button>
         </template>
       </var-app-bar>
 
@@ -516,7 +518,9 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
               ripple
               class="custom-cell"
               data-testid="llm-profile-custom-headers"
-              :data-header-keys="Object.keys(innerProfile.customHeaders || {}).join(',')"
+              :data-header-keys="
+                Object.keys(innerProfile.customHeaders || {}).join(',')
+              "
               @click="showHeadersPopup = true"
             >
               <template #icon

@@ -8,7 +8,9 @@ const props = defineProps<{ jobs: AssetImportJob[] }>();
 const emit = defineEmits<{ close: []; cancel: [jobId: string] }>();
 
 const orderedJobs = computed(() =>
-  [...props.jobs].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+  [...props.jobs].sort((left, right) =>
+    right.updatedAt.localeCompare(left.updatedAt)
+  )
 );
 
 function stateLabel(job: AssetImportJob) {
@@ -19,7 +21,9 @@ function stateLabel(job: AssetImportJob) {
     failed: "失败",
     cancelled: "已取消",
   };
-  const failedCount = job.results.filter((result) => result.status === "failed").length;
+  const failedCount = job.results.filter(
+    (result) => result.status === "failed"
+  ).length;
   if (job.state === "completed" && failedCount > 0) {
     return `完成，${failedCount} 项失败`;
   }
@@ -27,13 +31,16 @@ function stateLabel(job: AssetImportJob) {
 }
 
 function visualState(job: AssetImportJob) {
-  return job.state === "completed" && job.results.some((result) => result.status === "failed")
+  return job.state === "completed" &&
+    job.results.some((result) => result.status === "failed")
     ? "failed"
     : job.state;
 }
 
 function itemErrorCodes(job: AssetImportJob) {
-  return [...new Set(job.results.map((result) => result.errorCode).filter(Boolean))].join(" · ");
+  return [
+    ...new Set(job.results.map((result) => result.errorCode).filter(Boolean)),
+  ].join(" · ");
 }
 
 function progress(job: AssetImportJob) {
@@ -44,13 +51,26 @@ function progress(job: AssetImportJob) {
 
 <template>
   <div class="sheet-layer" role="presentation" @click.self="emit('close')">
-    <section class="jobs-sheet" role="dialog" aria-modal="true" aria-labelledby="import-jobs-title" data-testid="asset-import-jobs-sheet">
+    <section
+      class="jobs-sheet"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="import-jobs-title"
+      data-testid="asset-import-jobs-sheet"
+    >
       <header class="sheet-header">
         <div>
           <h2 id="import-jobs-title">导入任务</h2>
           <p>任务状态由本地数据库恢复</p>
         </div>
-        <button class="icon-button" type="button" aria-label="关闭任务列表" @click="emit('close')"><X :size="22" /></button>
+        <button
+          class="icon-button"
+          type="button"
+          aria-label="关闭任务列表"
+          @click="emit('close')"
+        >
+          <X :size="22" />
+        </button>
       </header>
       <div v-if="!orderedJobs.length" class="empty-jobs">还没有导入任务</div>
       <div v-else class="jobs-list">
@@ -63,23 +83,42 @@ function progress(job: AssetImportJob) {
           :data-error-code="job.errorCode || itemErrorCodes(job)"
         >
           <div class="job-header">
-            <strong>{{ job.sourceKind === "unknown" ? "文件" : job.sourceKind }}</strong>
+            <strong>{{
+              job.sourceKind === "unknown" ? "文件" : job.sourceKind
+            }}</strong>
             <span :data-state="visualState(job)">
-              <LoaderCircle v-if="job.state === 'running'" class="spin" :size="14" />
+              <LoaderCircle
+                v-if="job.state === 'running'"
+                class="spin"
+                :size="14"
+              />
               {{ stateLabel(job) }}
             </span>
           </div>
           <div class="job-meta">
             <span>{{ job.completedCount }}/{{ job.sourceCount }} 项</span>
-            <span v-if="job.totalBytes">{{ formatAssetBytes(job.bytesCopied) }} / {{ formatAssetBytes(job.totalBytes) }}</span>
+            <span v-if="job.totalBytes"
+              >{{ formatAssetBytes(job.bytesCopied) }} /
+              {{ formatAssetBytes(job.totalBytes) }}</span
+            >
             <span v-else>{{ new Date(job.updatedAt).toLocaleString() }}</span>
           </div>
-          <div v-if="job.state === 'running' || job.state === 'pending'" class="job-progress">
+          <div
+            v-if="job.state === 'running' || job.state === 'pending'"
+            class="job-progress"
+          >
             <span :style="{ width: `${progress(job) ?? 14}%` }" />
           </div>
           <p v-if="job.errorCode" class="job-error">{{ job.errorCode }}</p>
-          <p v-else-if="itemErrorCodes(job)" class="job-error">{{ itemErrorCodes(job) }}</p>
-          <button v-if="job.state === 'running' || job.state === 'pending'" class="cancel-button" type="button" @click="emit('cancel', job.id)">
+          <p v-else-if="itemErrorCodes(job)" class="job-error">
+            {{ itemErrorCodes(job) }}
+          </p>
+          <button
+            v-if="job.state === 'running' || job.state === 'pending'"
+            class="cancel-button"
+            type="button"
+            @click="emit('cancel', job.id)"
+          >
             取消任务
           </button>
         </article>
@@ -119,8 +158,15 @@ function progress(job: AssetImportJob) {
   border-bottom: var(--border-width) solid var(--border-color);
 }
 
-.sheet-header h2 { margin: 0; font-size: 17px; }
-.sheet-header p { margin: 4px 0 0; color: var(--text-color-light); font-size: 12px; }
+.sheet-header h2 {
+  margin: 0;
+  font-size: 17px;
+}
+.sheet-header p {
+  margin: 4px 0 0;
+  color: var(--text-color-light);
+  font-size: 12px;
+}
 
 .icon-button {
   width: 44px;
@@ -152,7 +198,9 @@ function progress(job: AssetImportJob) {
   border-bottom: var(--border-width) solid var(--border-color);
 }
 
-.job-row:last-child { border-bottom: 0; }
+.job-row:last-child {
+  border-bottom: 0;
+}
 
 .job-header,
 .job-meta {
@@ -162,12 +210,30 @@ function progress(job: AssetImportJob) {
   gap: 10px;
 }
 
-.job-header strong { font-size: 14px; }
-.job-header span { display: inline-flex; align-items: center; gap: 4px; color: var(--text-color-light); font-size: 12px; }
-.job-header span[data-state="failed"] { color: var(--danger-color); }
-.job-header span[data-state="running"] { color: var(--primary-color); }
-.job-header span[data-state="completed"] { color: var(--success-color); }
-.job-meta { margin-top: 5px; color: var(--text-color-light); font-size: 12px; }
+.job-header strong {
+  font-size: 14px;
+}
+.job-header span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-color-light);
+  font-size: 12px;
+}
+.job-header span[data-state="failed"] {
+  color: var(--danger-color);
+}
+.job-header span[data-state="running"] {
+  color: var(--primary-color);
+}
+.job-header span[data-state="completed"] {
+  color: var(--success-color);
+}
+.job-meta {
+  margin-top: 5px;
+  color: var(--text-color-light);
+  font-size: 12px;
+}
 
 .job-progress {
   height: 5px;
@@ -177,8 +243,18 @@ function progress(job: AssetImportJob) {
   border-radius: 99px;
 }
 
-.job-progress span { display: block; height: 100%; background: var(--primary-color); border-radius: inherit; }
-.job-error { margin: 8px 0 0; color: var(--danger-color); font-size: 12px; overflow-wrap: anywhere; }
+.job-progress span {
+  display: block;
+  height: 100%;
+  background: var(--primary-color);
+  border-radius: inherit;
+}
+.job-error {
+  margin: 8px 0 0;
+  color: var(--danger-color);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
 
 .cancel-button {
   min-height: 36px;
@@ -191,6 +267,12 @@ function progress(job: AssetImportJob) {
   font-size: 12px;
 }
 
-.spin { animation: spin 0.9s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 </style>

@@ -36,7 +36,12 @@ onMounted(() => {
     </div>
   </div>
 
-  <div v-else class="app-container" data-testid="app-ready" :data-locale="locale">
+  <div
+    v-else
+    class="app-container"
+    data-testid="app-ready"
+    :data-locale="locale"
+  >
     <div class="app-wallpaper" aria-hidden="true"></div>
     <var-style-provider
       :style="themeStore.themeVars"

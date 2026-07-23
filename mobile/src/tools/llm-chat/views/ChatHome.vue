@@ -88,7 +88,14 @@ const goHome = () => {
     </div>
 
     <div class="action-grid">
-      <div class="action-card primary" role="button" tabindex="0" data-testid="chat-new" @click="handleNewChat" @keydown.enter="handleNewChat">
+      <div
+        class="action-card primary"
+        role="button"
+        tabindex="0"
+        data-testid="chat-new"
+        @click="handleNewChat"
+        @keydown.enter="handleNewChat"
+      >
         <div class="icon-box">
           <Plus :size="32" />
         </div>
@@ -98,7 +105,14 @@ const goHome = () => {
         </div>
       </div>
 
-      <div class="action-card" role="button" tabindex="0" data-testid="chat-sessions" @click="goToSessions" @keydown.enter="goToSessions">
+      <div
+        class="action-card"
+        role="button"
+        tabindex="0"
+        data-testid="chat-sessions"
+        @click="goToSessions"
+        @keydown.enter="goToSessions"
+      >
         <div class="icon-box">
           <MessageSquare :size="24" />
         </div>

@@ -289,7 +289,13 @@ const toggleCapabilityFilter = (capKey: string) => {
               count: allVisibleModels.length,
             })
           }}</span>
-          <var-button size="mini" type="primary" plain data-testid="llm-model-select-all" @click="toggleSelectAll">
+          <var-button
+            size="mini"
+            type="primary"
+            plain
+            data-testid="llm-model-select-all"
+            @click="toggleSelectAll"
+          >
             {{ isAllSelected ? t("common.取消全选") : t("common.全选") }}
           </var-button>
         </div>

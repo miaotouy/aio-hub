@@ -78,7 +78,11 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
 </script>
 
 <template>
-  <div class="chat-input" data-testid="chat-input" :class="{ 'keyboard-open': isKeyboardVisible }">
+  <div
+    class="chat-input"
+    data-testid="chat-input"
+    :class="{ 'keyboard-open': isKeyboardVisible }"
+  >
     <div class="toolbar">
       <LlmModelSelector v-model="chatStore.selectedModelValue" />
       <div
@@ -151,7 +155,11 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
       </button>
     </div>
 
-    <div v-if="attachments.length" class="pending-attachments" data-testid="chat-pending-attachments">
+    <div
+      v-if="attachments.length"
+      class="pending-attachments"
+      data-testid="chat-pending-attachments"
+    >
       <span v-for="attachment in attachments" :key="attachment.id">
         {{ attachment.snapshot.displayName }}
         <button

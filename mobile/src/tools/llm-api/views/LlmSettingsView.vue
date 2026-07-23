@@ -125,7 +125,13 @@ const goHome = () => {
         </var-button>
       </template>
       <template #right>
-        <var-button round text data-testid="llm-profile-add" aria-label="添加渠道" @click="handleAddProfile">
+        <var-button
+          round
+          text
+          data-testid="llm-profile-add"
+          aria-label="添加渠道"
+          @click="handleAddProfile"
+        >
           <Plus :size="24" />
         </var-button>
       </template>

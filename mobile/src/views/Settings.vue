@@ -161,7 +161,11 @@ const handleRefresh = async () => {
       <var-paper :elevation="1" class="settings-group">
         <div class="group-title">{{ t("settings.外观") }}</div>
 
-        <var-cell ripple data-testid="settings-theme-entry" @click="openThemeSettings">
+        <var-cell
+          ripple
+          data-testid="settings-theme-entry"
+          @click="openThemeSettings"
+        >
           <template #icon>
             <div class="group-icon">
               <Palette :size="20" />

@@ -83,7 +83,9 @@ async function replaceOneAsset(
   const analysis = await analyzeAssetDeletion([assetId]);
   const item = analysis.items[0];
   if (!analysis.canDeleteAll || !item?.canDelete) {
-    throw new Error(item?.blockedReason ?? "ASSET_TEXT_REPLACEMENT_DELETE_BLOCKED");
+    throw new Error(
+      item?.blockedReason ?? "ASSET_TEXT_REPLACEMENT_DELETE_BLOCKED"
+    );
   }
   const deletion = await deleteAssets(
     [assetId],

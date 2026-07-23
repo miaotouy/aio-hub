@@ -72,16 +72,15 @@ export function parseJsonDocuments(
     if (data._type === NEW_API_CONNECTION_INFO_TYPE) {
       outcome.score += 110;
       const baseUrl =
-        typeof data.url === "string"
-          ? normalizeLlmBaseUrl(data.url) || ""
-          : "";
+        typeof data.url === "string" ? normalizeLlmBaseUrl(data.url) || "" : "";
       const apiKey = sanitizeApiKey(data.key);
       const warnings = [];
 
       if (!baseUrl) {
         warnings.push({
           code: "base-url-invalid",
-          message: "New API 连接信息中的 URL 不是有效的 HTTP(S) URL，无法导入。",
+          message:
+            "New API 连接信息中的 URL 不是有效的 HTTP(S) URL，无法导入。",
           severity: "error" as const,
           blocking: true,
           documentId: document.id,

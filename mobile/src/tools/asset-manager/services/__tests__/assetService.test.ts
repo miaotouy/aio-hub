@@ -88,7 +88,9 @@ describe("asset import jobs", () => {
     });
     const onProgress = vi.fn();
 
-    await expect(startAssetImportJob(sources, onProgress)).resolves.toEqual(job());
+    await expect(startAssetImportJob(sources, onProgress)).resolves.toEqual(
+      job()
+    );
     expect(onProgress).toHaveBeenCalledWith(progress);
   });
 
@@ -98,18 +100,14 @@ describe("asset import jobs", () => {
       completedCount: 1,
       results: [{ sourceIndex: 0, status: "imported" }],
     });
-    invokeMock
-      .mockResolvedValueOnce(job())
-      .mockResolvedValueOnce(completed);
+    invokeMock.mockResolvedValueOnce(job()).mockResolvedValueOnce(completed);
 
     await expect(
       importAssetSources(sources, { pollIntervalMs: 50 })
     ).resolves.toEqual(completed.results);
-    expect(invokeMock).toHaveBeenNthCalledWith(
-      2,
-      "asset_get_import_job",
-      { jobId: "job-1" }
-    );
+    expect(invokeMock).toHaveBeenNthCalledWith(2, "asset_get_import_job", {
+      jobId: "job-1",
+    });
   });
 
   it("cancels the native job when its abort signal is already aborted", async () => {
@@ -120,11 +118,9 @@ describe("asset import jobs", () => {
     await expect(
       importAssetSources(sources, { signal: controller.signal })
     ).rejects.toMatchObject({ name: "AbortError" });
-    expect(invokeMock).toHaveBeenNthCalledWith(
-      2,
-      "asset_cancel_import_job",
-      { jobId: "job-1" }
-    );
+    expect(invokeMock).toHaveBeenNthCalledWith(2, "asset_cancel_import_job", {
+      jobId: "job-1",
+    });
   });
 
   it("lists persisted jobs for WebView recovery", async () => {
@@ -183,14 +179,14 @@ describe("asset library management", () => {
       byMonth: [],
       bySource: [],
     });
-    await expect(clearRebuildableAssetCache(["asset-1"])).resolves.toMatchObject({
+    await expect(
+      clearRebuildableAssetCache(["asset-1"])
+    ).resolves.toMatchObject({
       reclaimedBytes: 1024,
     });
-    expect(invokeMock).toHaveBeenNthCalledWith(
-      1,
-      "asset_get_library_facets",
-      { includeHidden: true }
-    );
+    expect(invokeMock).toHaveBeenNthCalledWith(1, "asset_get_library_facets", {
+      includeHidden: true,
+    });
     expect(invokeMock).toHaveBeenNthCalledWith(
       2,
       "asset_clear_rebuildable_cache",
@@ -242,8 +238,12 @@ describe("asset library management", () => {
   it("starts system sharing by asset id only", async () => {
     invokeMock.mockResolvedValueOnce({ fileName: "sample.png" });
 
-    await expect(shareAsset("asset-1")).resolves.toEqual({ fileName: "sample.png" });
-    expect(invokeMock).toHaveBeenCalledWith("asset_share", { assetId: "asset-1" });
+    await expect(shareAsset("asset-1")).resolves.toEqual({
+      fileName: "sample.png",
+    });
+    expect(invokeMock).toHaveBeenCalledWith("asset_share", {
+      assetId: "asset-1",
+    });
   });
 
   it("requests a camera source without exposing camera bytes", async () => {

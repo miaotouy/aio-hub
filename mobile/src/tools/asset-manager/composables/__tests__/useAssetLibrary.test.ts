@@ -54,7 +54,10 @@ beforeEach(() => {
     pendingCleanupCount: 0,
     byKind: [],
   });
-  service.getAssetLibraryFacets.mockResolvedValue({ byMonth: [], bySource: [] });
+  service.getAssetLibraryFacets.mockResolvedValue({
+    byMonth: [],
+    bySource: [],
+  });
   service.listAssetImportJobs.mockResolvedValue([]);
 });
 
@@ -139,7 +142,9 @@ describe("asset library pagination", () => {
     }));
     const overlappingPage = [
       ...firstPage.slice(99),
-      ...Array.from({ length: 99 }, (_, index) => ({ id: `asset-${100 + index}` })),
+      ...Array.from({ length: 99 }, (_, index) => ({
+        id: `asset-${100 + index}`,
+      })),
     ];
     service.listAssets
       .mockResolvedValueOnce(firstPage)
@@ -484,7 +489,9 @@ describe("asset selection actions", () => {
 
     await library.replaceWithExtractedText(["asset-a"]);
 
-    expect(textReplacement.replaceAssetsWithExtractedText).not.toHaveBeenCalled();
+    expect(
+      textReplacement.replaceAssetsWithExtractedText
+    ).not.toHaveBeenCalled();
   });
 });
 

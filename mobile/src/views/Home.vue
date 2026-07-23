@@ -27,7 +27,10 @@ const goToSettings = () => {
 </script>
 
 <template>
-  <div class="app-view app-view--safe-top home-container" data-testid="home-view">
+  <div
+    class="app-view app-view--safe-top home-container"
+    data-testid="home-view"
+  >
     <div class="content">
       <div class="header">
         <div class="header-main">

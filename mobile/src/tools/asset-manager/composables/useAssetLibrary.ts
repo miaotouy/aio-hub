@@ -184,7 +184,10 @@ export function useAssetLibrary() {
       summary.value = storage;
       facets.value = libraryFacets;
       if (!options.keepSelection) selectedIds.value = [];
-      else selectedIds.value = selectedIds.value.filter((id) => pageResult.records.some((asset) => asset.id === id));
+      else
+        selectedIds.value = selectedIds.value.filter((id) =>
+          pageResult.records.some((asset) => asset.id === id)
+        );
     } catch (cause) {
       if (sequence !== loadSequence) return;
       error.value = cause instanceof Error ? cause.message : String(cause);
@@ -236,7 +239,8 @@ export function useAssetLibrary() {
 
   async function openPreview(assetId: string) {
     const requestId = ++previewRequestId;
-    if (preview.value) await revokeAssetPreviewSource(preview.value.id).catch(() => undefined);
+    if (preview.value)
+      await revokeAssetPreviewSource(preview.value.id).catch(() => undefined);
     const nextPreview = await getAssetPreviewSource(assetId);
     if (requestId !== previewRequestId) {
       await revokeAssetPreviewSource(nextPreview.id).catch(() => undefined);
@@ -397,7 +401,9 @@ export function useAssetLibrary() {
         },
       });
       const successCount = results.filter((result) => result.asset).length;
-      const failedCount = results.filter((result) => result.status === "failed").length;
+      const failedCount = results.filter(
+        (result) => result.status === "failed"
+      ).length;
       if (successCount === 0 && failedCount > 0) {
         throw new Error(results[0]?.errorCode ?? "ASSET_IMPORT_FAILED");
       }
@@ -426,7 +432,8 @@ export function useAssetLibrary() {
     importJobs.value = jobs;
     if (!importing.value) {
       activeImportJobId.value =
-        jobs.find((job) => job.state === "running" || job.state === "pending")?.id ?? null;
+        jobs.find((job) => job.state === "running" || job.state === "pending")
+          ?.id ?? null;
     }
   }
 
@@ -444,7 +451,10 @@ export function useAssetLibrary() {
 
   async function clearCache() {
     const result = await clearRebuildableAssetCache();
-    customMessage(`已释放 ${formatAssetBytes(result.reclaimedBytes)} 缓存`, "success");
+    customMessage(
+      `已释放 ${formatAssetBytes(result.reclaimedBytes)} 缓存`,
+      "success"
+    );
     await load({ keepSelection: true });
   }
 
@@ -458,7 +468,15 @@ export function useAssetLibrary() {
   }
 
   watch(
-    [search, kind, libraryState, createdMonth, sourceModule, retentionPolicy, usageState],
+    [
+      search,
+      kind,
+      libraryState,
+      createdMonth,
+      sourceModule,
+      retentionPolicy,
+      usageState,
+    ],
     (_value, _oldValue, onCleanup) => {
       loadSequence += 1;
       loadMoreRequestId += 1;

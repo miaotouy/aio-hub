@@ -42,16 +42,36 @@ const canPreview = computed(
     ["image", "audio", "video"].includes(props.detail.kind)
 );
 
-const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString());
+const createdAt = computed(() =>
+  new Date(props.detail.createdAt).toLocaleString()
+);
 </script>
 
 <template>
   <div class="sheet-layer" role="presentation" @click.self="emit('close')">
-    <section class="detail-sheet" role="dialog" aria-modal="true" aria-labelledby="asset-detail-title" data-testid="asset-detail" :data-asset-id="detail.id" :data-asset-mime="detail.mimeType" :data-asset-size="detail.sizeBytes" :data-origin-count="detail.origins.length" :data-origin-kinds="detail.origins.map((origin) => origin.originKind).join(',')" :data-source-modules="detail.origins.map((origin) => origin.sourceModule).join(',')">
+    <section
+      class="detail-sheet"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="asset-detail-title"
+      data-testid="asset-detail"
+      :data-asset-id="detail.id"
+      :data-asset-mime="detail.mimeType"
+      :data-asset-size="detail.sizeBytes"
+      :data-origin-count="detail.origins.length"
+      :data-origin-kinds="
+        detail.origins.map((origin) => origin.originKind).join(',')
+      "
+      :data-source-modules="
+        detail.origins.map((origin) => origin.sourceModule).join(',')
+      "
+    >
       <header class="sheet-header">
         <div class="header-copy">
           <h2 id="asset-detail-title">{{ detail.displayName }}</h2>
-          <p>{{ formatAssetBytes(detail.sizeBytes) }} · {{ detail.mimeType }}</p>
+          <p>
+            {{ formatAssetBytes(detail.sizeBytes) }} · {{ detail.mimeType }}
+          </p>
         </div>
         <div class="header-actions">
           <button
@@ -78,19 +98,51 @@ const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString
             <LoaderCircle v-if="props.sharing" class="spin" :size="21" />
             <Share2 v-else :size="21" />
           </button>
-          <button class="icon-button" type="button" data-testid="asset-detail-close" aria-label="关闭详情" :disabled="props.busy" @click="emit('close')">
+          <button
+            class="icon-button"
+            type="button"
+            data-testid="asset-detail-close"
+            aria-label="关闭详情"
+            :disabled="props.busy"
+            @click="emit('close')"
+          >
             <X :size="22" />
           </button>
         </div>
       </header>
 
       <div class="sheet-scroll">
-        <div v-if="preview" class="preview-stage" data-testid="asset-preview-ready">
-          <img v-if="detail.kind === 'image'" :src="preview.url" :alt="detail.displayName" data-testid="asset-preview-image" />
-          <video v-else-if="detail.kind === 'video'" :src="preview.url" controls playsinline />
-          <audio v-else-if="detail.kind === 'audio'" :src="preview.url" controls />
+        <div
+          v-if="preview"
+          class="preview-stage"
+          data-testid="asset-preview-ready"
+        >
+          <img
+            v-if="detail.kind === 'image'"
+            :src="preview.url"
+            :alt="detail.displayName"
+            data-testid="asset-preview-image"
+          />
+          <video
+            v-else-if="detail.kind === 'video'"
+            :src="preview.url"
+            controls
+            playsinline
+          />
+          <audio
+            v-else-if="detail.kind === 'audio'"
+            :src="preview.url"
+            controls
+          />
         </div>
-        <button v-else-if="canPreview" class="preview-button" type="button" data-testid="asset-detail-preview" :disabled="props.busy" @click="emit('preview', detail.id)">
+        <button
+          v-else-if="canPreview"
+          class="preview-button"
+          type="button"
+          data-testid="asset-detail-preview"
+          :disabled="props.busy"
+          @click="emit('preview', detail.id)"
+        >
           <Eye :size="18" />
           打开临时预览
         </button>
@@ -99,20 +151,27 @@ const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString
           <button
             type="button"
             :disabled="props.busy"
-            @click="emit('retention', detail.id, detail.retentionPolicy !== 'pinned')"
+            @click="
+              emit('retention', detail.id, detail.retentionPolicy !== 'pinned')
+            "
           >
             <PinOff v-if="detail.retentionPolicy === 'pinned'" :size="17" />
             <Pin v-else :size="17" />
-            {{ detail.retentionPolicy === 'pinned' ? "取消固定" : "固定原件" }}
+            {{ detail.retentionPolicy === "pinned" ? "取消固定" : "固定原件" }}
           </button>
           <button
             type="button"
             :disabled="props.busy"
-            @click="emit('visibility', detail.id, detail.libraryState !== 'hidden')"
+            @click="
+              emit('visibility', detail.id, detail.libraryState !== 'hidden')
+            "
           >
-            <ArchiveRestore v-if="detail.libraryState === 'hidden'" :size="17" />
+            <ArchiveRestore
+              v-if="detail.libraryState === 'hidden'"
+              :size="17"
+            />
             <EyeOff v-else :size="17" />
-            {{ detail.libraryState === 'hidden' ? "恢复可见" : "隐藏资产" }}
+            {{ detail.libraryState === "hidden" ? "恢复可见" : "隐藏资产" }}
           </button>
           <button
             class="danger-action"
@@ -139,11 +198,28 @@ const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString
         </button>
 
         <dl class="facts">
-          <div><dt>状态</dt><dd>{{ detail.availability }}</dd></div>
-          <div><dt>保留策略</dt><dd>{{ detail.retentionPolicy === "pinned" ? "固定保留" : "可回收" }}</dd></div>
-          <div><dt>资产库</dt><dd>{{ detail.libraryState === "hidden" ? "已隐藏" : "可见" }}</dd></div>
-          <div><dt>创建时间</dt><dd>{{ createdAt }}</dd></div>
-          <div><dt>内容哈希</dt><dd class="hash">{{ detail.contentHash }}</dd></div>
+          <div>
+            <dt>状态</dt>
+            <dd>{{ detail.availability }}</dd>
+          </div>
+          <div>
+            <dt>保留策略</dt>
+            <dd>
+              {{ detail.retentionPolicy === "pinned" ? "固定保留" : "可回收" }}
+            </dd>
+          </div>
+          <div>
+            <dt>资产库</dt>
+            <dd>{{ detail.libraryState === "hidden" ? "已隐藏" : "可见" }}</dd>
+          </div>
+          <div>
+            <dt>创建时间</dt>
+            <dd>{{ createdAt }}</dd>
+          </div>
+          <div>
+            <dt>内容哈希</dt>
+            <dd class="hash">{{ detail.contentHash }}</dd>
+          </div>
         </dl>
 
         <section
@@ -153,7 +229,11 @@ const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString
         >
           <h3>来源</h3>
           <p v-if="!detail.origins.length" class="quiet">无来源记录</p>
-          <div v-for="origin in detail.origins" :key="origin.id" class="detail-row">
+          <div
+            v-for="origin in detail.origins"
+            :key="origin.id"
+            class="detail-row"
+          >
             <strong>{{ origin.originalName }}</strong>
             <span>{{ origin.sourceModule }} · {{ origin.originKind }}</span>
           </div>
@@ -161,7 +241,9 @@ const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString
 
         <section class="detail-section">
           <h3>使用关系</h3>
-          <p v-if="!detail.usages.length" class="quiet">当前没有工具引用此资产</p>
+          <p v-if="!detail.usages.length" class="quiet">
+            当前没有工具引用此资产
+          </p>
           <div
             v-for="usage in detail.usages"
             :key="usage.id"
@@ -170,7 +252,9 @@ const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString
             :data-usage-entity-id="usage.entityId"
           >
             <strong>{{ usage.moduleId }} / {{ usage.role }}</strong>
-            <span>{{ usage.usagePolicy === "blocking" ? "阻止删除" : "删除前提醒" }}</span>
+            <span>{{
+              usage.usagePolicy === "blocking" ? "阻止删除" : "删除前提醒"
+            }}</span>
           </div>
         </section>
       </div>
@@ -247,7 +331,9 @@ const createdAt = computed(() => new Date(props.detail.createdAt).toLocaleString
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .header-actions {

@@ -112,7 +112,12 @@ function confirm() {
 
         <label class="search-field">
           <Search :size="17" />
-          <input v-model="search" type="search" placeholder="搜索资产" data-testid="chat-asset-search" />
+          <input
+            v-model="search"
+            type="search"
+            placeholder="搜索资产"
+            data-testid="chat-asset-search"
+          />
         </label>
 
         <div class="asset-list">
@@ -143,7 +148,12 @@ function confirm() {
         </div>
 
         <footer>
-          <button type="button" class="secondary" data-testid="chat-asset-cancel" @click="emit('close')">
+          <button
+            type="button"
+            class="secondary"
+            data-testid="chat-asset-cancel"
+            @click="emit('close')"
+          >
             取消
           </button>
           <button

@@ -1,11 +1,12 @@
 # 移动端 Agent 独立化管理器 — 规划方案
 
-> **文档状态**: 实施中（阶段 1、2 已完成，阶段 3 主链路已接通）
+> **文档状态**: 实施中（阶段 1、2 已完成，阶段 3 主链路已接通；增强项依赖移动端上下文管线迁移）
 > **创建日期**: 2025-06-23  
-> **最近核对**: 2026-07-14
+> **最近核对**: 2026-07-24
 > **关联模块**: `mobile/src/tools/agent-manager/`
 > **前置依赖**: `mobile/src/tools/llm-api/`, `mobile/src/tools/llm-chat/`
 > **架构入口**: 已实施模块边界与当前能力以 [`ARCHITECTURE.md`](../../src/tools/agent-manager/ARCHITECTURE.md) 为准；本文继续维护私有资源、参数、用户档案和聊天协作的剩余工作。
+> **跨模块施工索引**: [`mobile-development-checklist.md`](./mobile-development-checklist.md)
 
 ## 1. 背景与动机
 
@@ -341,7 +342,7 @@ sequenceDiagram
 - [x] 阶段 1：独立目录存储、CRUD Store、工具注册与默认智能体；未知字段可无损保留。
 - [x] 阶段 2：完整预设消息编辑器体系的移植与移动端适配（多轮消息、消息组、触摸排序、批量管理、导入导出与高级字段编辑）。
 - [x] 阶段 3 主链路：角色大厅入口、会话绑定、模型与基础参数绑定、基础预设管道注入、聊天栏智能体标识。
-- [ ] 阶段 3 增强：执行 `injectionStrategy`、执行 `modelMatch`、聊天内切换 Agent、开局消息实例化。
+- [ ] 阶段 3 增强：执行 `injectionStrategy`、执行 `modelMatch`、聊天内切换 Agent、开局消息实例化；其中注入策略和模型匹配必须接入完整上下文管线后实现。
 - [x] 后续增强（已提前完成）：AIO Agent JSON、SillyTavern JSON/PNG 导入和预设 JSON 导入导出。
 - [ ] 后续增强（未完成）：Agent 私有头像与二进制资产管理、完整参数编辑、用户档案；不得将私有资产改存为全局 `assetId`。
 - [ ] 兼容性收尾：将移动端显式类型和分类筛选项同步到桌面端最新定义。

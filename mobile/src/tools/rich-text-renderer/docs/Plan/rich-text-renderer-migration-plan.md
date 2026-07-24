@@ -1,8 +1,10 @@
-# 移动端 RichTextRenderer 模块化重构与测试页建设计划
+# 移动端 RichTextRenderer 模块化初版与 PC 能力迁移计划
 
-> 状态: **Completed**
+> 状态：初版模块化迁移完成；PC 能力迁移施工中
 > 创建时间: 2026-06-26
+> 最近核对：2026-07-24
 > 负责人: 咕咕-kilo
+> 跨模块施工索引：[`mobile-development-checklist.md`](../../../../../docs/plan/mobile-development-checklist.md)
 
 ## 1. 背景与目标
 
@@ -18,9 +20,10 @@
   - [x] 编写本计划文档 `rich-text-renderer-migration-plan.md`
 - [x] **2. 迁移核心组件 `RichTextRenderer.vue`**
   - [x] 将 `mobile/src/components/common/RichTextRenderer.vue` 移动到 `mobile/src/tools/rich-text-renderer/RichTextRenderer.vue`
-  - [x] 检查并微调组件内部的样式和依赖，确保其完全适配移动端主题变量
+  - [x] 完成首版组件的样式和依赖适配；这不代表已经具备 PC 富文本引擎的完整能力
 - [x] **3. 编写预设测试用例 `presets/test-cases.ts`**
-  - [x] 通过 `@shared` 别名和 `tsconfig.json` 的 paths 回退机制，完美链接并复用 PC 端的 26 个硬核测试用例，实现双端同步
+  - [x] 建立移动端预设样例和测试入口
+  - [ ] 与 PC 端完整测试用例和节点能力逐项对齐
 - [x] **4. 编写移动端专属测试页面 `views/TesterView.vue`**
   - [x] **布局适配**：放弃 PC 端的 Split 双栏，采用移动端单栏 Tab 切换（编辑 / 预览 / 帘幕 / 调试）。
   - [x] **帘幕模式 (Curtain)**：完美移植卡拉OK式原文消费扫过效果，针对窄屏优化滚动，让当前消费行始终居中。
@@ -40,9 +43,43 @@
 
 ---
 
-## 3. 关键设计细节
+## 3. PC 能力迁移清单（新增）
 
-### 3.1 目录结构
+本节是初版模块化迁移之后的实际施工范围。开始阶段允许直接复制 PC 文件和目录，先完成移动端可运行的行为对齐；共享包抽取、Rust/原生下沉和性能重构都必须等真实设备数据出现后再决定。
+
+### 3.1 独立工作树边界
+
+RichTextRenderer 可以独立工作树并行开发。建议工作树只修改：
+
+- `mobile/src/tools/rich-text-renderer/**`
+- 为测试或构建所必需的移动端依赖配置
+
+聊天入口、资产服务和消息类型的跨模块修改集中到主线或单独的小合并提交，避免与上下文管线工作树互相覆盖。建议分支名：`codex/mobile-rich-text-parity`。
+
+### 3.2 迁移阶段
+
+- [ ] 复制 PC AST、节点类型、解析器、流式处理和 Patch 更新模块，先完成移动端路径、主题和 Tauri API 适配。
+- [ ] 迁移稳定区/待定区、流式节流、节点复用、资源解析和销毁清理。
+- [ ] 迁移基础 Markdown 节点和 LLM 专用非媒体节点：代码块、数学公式、思考块、VCP。
+- [ ] 等待移动端媒体组件按已收敛方案完成资产管理器实现与交互验证后，再接入图片、视频和音频节点；不直接复制 PC 的 `BaseDialog`、`ImageViewer`、`AudioPlayer`、`VideoPlayer` 或桌面 composable。
+- [ ] 迁移 Mermaid、HTML 交互预览、样式隔离和 CDN 本地化；高级交互可按移动端能力分批启用。
+- [ ] 在启用 HTML 输出前，明确 `v-html` 的白名单、沙箱或禁用策略。
+- [ ] 完成长消息、流式输出、窄屏布局、滚动稳定性和内存释放验证。
+- [ ] 依据真实 Android/iOS 设备数据评估 Web Worker、Rust 或原生下沉；没有性能证据时不提前抽取共享实现。
+
+移动端测试页中的字符/单词切分只用于流式演示和速度模拟，不等同于聊天上下文使用的 Rust `o200k_base` Token 计数。
+
+### 3.3 当前可复用的移动端基础
+
+- `mobile/src/tools/asset-manager/services/assetService.ts` 已提供短期预览来源和主动撤销命令。
+- `mobile/src/tools/asset-manager/components/AssetDetailSheet.vue` 已以内联 `<img>`、`<video>`、`<audio>` 展示资产详情预览。
+- `mobile/src/tools/llm-chat/components/MessageContent.vue` 已实现图片预览 overlay 和预览 token 关闭/撤销。
+
+这些实现尚未形成跨工具的媒体组件契约。媒体设计已经在 [`mobile-media-components-plan.md`](../../../../../docs/plan/mobile-media-components-plan.md) 收敛；富文本的图片、音频和视频节点要等资产管理器中的组件实现、交互验证和聊天消费者接入完成后再复用稳定契约，在此之前只迁移非媒体渲染能力。
+
+## 4. 关键设计细节
+
+### 4.1 目录结构
 
 ```
 mobile/src/tools/rich-text-renderer/
@@ -57,7 +94,7 @@ mobile/src/tools/rich-text-renderer/
     └── test-cases.ts                             # 预设测试用例
 ```
 
-### 3.2 移动端测试页交互与 UI 架构规范
+### 4.2 移动端测试页交互与 UI 架构规范
 
 为了严格遵循项目移动端规范（`AGENTS.md`），测试页将采用**“原生 Vue 骨架 + 自研 CSS 变量 + Varlet 原子件”**的架构设计，拒绝将 Varlet 作为页面骨架或设计语言来源：
 

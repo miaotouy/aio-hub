@@ -216,7 +216,7 @@ LlamaChatView.send() → useChatExecutor.execute()
   → 输出 messages[] 给 llmRequest.sendRequest()
 ```
 
-**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载与智能体预设加载；宏替换、深度注入、用户档案注入等仍待移植。
+**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载与智能体预设加载；宏、变量、注入组装、世界书、召回、Token 限制和消息格式化等 PC 处理器仍待逐个复制与移动端适配。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
 
 ### 4.3. Token 统计与上下文预警
 
@@ -224,6 +224,8 @@ LlamaChatView.send() → useChatExecutor.execute()
 - 发送前，`useChatExecutor` 对管道最终文本调用同一 `count_tokens_batch`，保存消息级估算和本次请求的上下文快照；工具 schema、附件和非文本多模态开销不在该通用计数中。
 - API 返回 usage 后，助手消息的 `completionTokens` 和本次请求的 `promptTokens` 优先显示为实际值；usage 缺失时使用 Rust `o200k`，IPC 异常时使用字符 fallback。已有实际值不会被后续估算覆盖。
 - 上下文窗口来自模型对象自身的 `tokenLimits.contextLength`。80% / 90% 阈值集中在 `ChatSettings.contextManagement`，Rust 后端不持有业务预警策略。
+- 当前最终 Token 计数发生在 `executePipeline()` 完成之后，只用于风险提示、消息级估算和请求快照；管线内部尚无 `token-limiter`，不会按 Token 预算裁剪历史消息，也不能向前置处理器提供本次最终计数。
+- 后续先直接复用现有 `countTokensBatch()` 迁移 PC Token 限制语义。只有真实设备数据证明需要时，才评估 Worker、Rust 或原生层调整。
 
 ### 4.4. 对话执行流程
 
@@ -419,7 +421,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - [ ] `depth-injector`：深度注入（系统提示词）
 - [ ] `user-profile-injector`：用户档案注入
 - [x] `agent-preset-loader`：智能体预设加载
-- [ ] 是否将现有 Token 统计进一步收敛为独立 `token-counter` 处理器；当前功能已经由 `useContextTokenUsage`、`useChatExecutor` 和 `useChatResponseHandler` 完成，此项属于架构收口而非功能缺失
+- [ ] `token-limiter`：复用现有 Rust `o200k` 计数，根据预设占用和上下文预算保留或截断历史消息；当前计数展示已完成，但 Token 驱动的上下文编排尚未实现
 - [x] `ProcessableMessage._attachments` 的强类型加载与空文本消息保留
 
 ### 🔄 多模态支持
@@ -457,16 +459,16 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 
 ## 10. 与桌面端的差异
 
-| 维度           | 桌面端 (`src/tools/llm-chat`)                                                  | 移动端 (`mobile/src/tools/llm-chat`)                                                  |
-| -------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| **UI 分层**    | 自研业务组件 + Element Plus 叶子控件                                           | 原生 Vue/AIO token 骨架 + Varlet 叶子控件                                             |
-| **类型**       | 完整 `ChatAgent`, `Asset`, `ChatSettings`                                      | 已接入兼容 `ChatAgent`；目标使用轻量 `ManagedAssetRef`，当前仍为占位                  |
-| **管道处理器** | 完整：session-loader + macros + depth-injection + user-profile + token-counter | `session-loader` + `agent-preset-loader`；Token 统计当前位于执行层与 composable       |
-| **组件**       | 丰富（BaseDialog, ImageViewer 等）                                             | 基础的列表/输入组件                                                                   |
-| **编辑器**     | RichCodeEditor（双引擎）                                                       | 纯文本输入                                                                            |
-| **路由**       | `main`, `settings` 两页                                                        | `home`, `sessions`, `chat/:id`, `settings` 四页                                       |
-| **存储**       | ConfigManager + 独立文件                                                       | `llm_chat.db` 增量存储；ConfigManager 仅保存当前会话 ID                               |
-| **多模态**     | 支持完整 Asset 系统                                                            | 已接入 `ManagedAssetRef`、SQLite 附件快照、受控预览和 Rust 原生传输；平台门禁独立跟踪 |
+| 维度           | 桌面端 (`src/tools/llm-chat`)                                        | 移动端 (`mobile/src/tools/llm-chat`)                                                  |
+| -------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| **UI 分层**    | 自研业务组件 + Element Plus 叶子控件                                 | 原生 Vue/AIO token 骨架 + Varlet 叶子控件                                             |
+| **类型**       | 完整 `ChatAgent`, `Asset`, `ChatSettings`                            | 已接入兼容 `ChatAgent` 和 `ManagedAssetRef + 轻量快照`，不持久化全局资产路径          |
+| **管道处理器** | 完整：会话、注入、宏/变量、世界书/召回、Token 限制、格式化和资源解析 | `session-loader` + `agent-preset-loader`；Token 统计位于执行层与 composable，尚不裁剪 |
+| **组件**       | 丰富（BaseDialog, ImageViewer 等）                                   | 基础的列表/输入组件                                                                   |
+| **编辑器**     | RichCodeEditor（双引擎）                                             | 纯文本输入                                                                            |
+| **路由**       | `main`, `settings` 两页                                              | `home`, `sessions`, `chat/:id`, `settings` 四页                                       |
+| **存储**       | ConfigManager + 独立文件                                             | `llm_chat.db` 增量存储；ConfigManager 仅保存当前会话 ID                               |
+| **多模态**     | 支持完整 Asset 系统                                                  | 已接入 `ManagedAssetRef`、SQLite 附件快照、受控预览和 Rust 原生传输；平台门禁独立跟踪 |
 
 ## 11. 关键代码约定
 

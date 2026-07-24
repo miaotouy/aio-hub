@@ -12,13 +12,14 @@ import {
   Trash2,
   X,
 } from "lucide-vue-next";
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
+import MediaPreviewHost from "@/components/media/MediaPreviewHost.vue";
+import type { MediaItem } from "@/components/media/types";
 import { formatAssetBytes } from "../composables/useAssetLibrary";
-import type { AssetDetail, AssetPreviewSource } from "../types";
+import type { AssetDetail } from "../types";
 
 const props = defineProps<{
   detail: AssetDetail;
-  preview: AssetPreviewSource | null;
   saving?: boolean;
   sharing?: boolean;
   replacingText?: boolean;
@@ -27,7 +28,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: [];
-  preview: [assetId: string];
   save: [assetId: string];
   share: [assetId: string];
   replaceText: [assetId: string];
@@ -40,6 +40,25 @@ const canPreview = computed(
   () =>
     props.detail.availability === "ready" &&
     ["image", "audio", "video"].includes(props.detail.kind)
+);
+
+const previewOpen = ref(false);
+const mediaItem = computed<MediaItem | null>(() =>
+  canPreview.value
+    ? {
+        assetId: props.detail.id,
+        kind: props.detail.kind as MediaItem["kind"],
+        displayName: props.detail.displayName,
+        mimeType: props.detail.mimeType,
+      }
+    : null
+);
+
+watch(
+  () => props.detail.id,
+  () => {
+    previewOpen.value = false;
+  }
 );
 
 const createdAt = computed(() =>
@@ -112,36 +131,21 @@ const createdAt = computed(() =>
       </header>
 
       <div class="sheet-scroll">
-        <div
-          v-if="preview"
+        <MediaPreviewHost
+          v-if="mediaItem && previewOpen"
+          v-model="previewOpen"
           class="preview-stage"
           data-testid="asset-preview-ready"
-        >
-          <img
-            v-if="detail.kind === 'image'"
-            :src="preview.url"
-            :alt="detail.displayName"
-            data-testid="asset-preview-image"
-          />
-          <video
-            v-else-if="detail.kind === 'video'"
-            :src="preview.url"
-            controls
-            playsinline
-          />
-          <audio
-            v-else-if="detail.kind === 'audio'"
-            :src="preview.url"
-            controls
-          />
-        </div>
+          :item="mediaItem"
+          mode="inline"
+        />
         <button
           v-else-if="canPreview"
           class="preview-button"
           type="button"
           data-testid="asset-detail-preview"
           :disabled="props.busy"
-          @click="emit('preview', detail.id)"
+          @click="previewOpen = true"
         >
           <Eye :size="18" />
           打开临时预览
@@ -355,17 +359,6 @@ const createdAt = computed(() =>
   overflow: hidden;
   background: #101214;
   border-radius: var(--app-radius-md);
-}
-
-.preview-stage img,
-.preview-stage video {
-  width: 100%;
-  max-height: 42vh;
-  object-fit: contain;
-}
-
-.preview-stage audio {
-  width: calc(100% - 24px);
 }
 
 .preview-button {

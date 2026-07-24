@@ -8,13 +8,11 @@ import {
   getAssetImportJob,
   getAssetDetail,
   getAssetLibraryFacets,
-  getAssetPreviewSource,
   getAssetStorageSummary,
   importAssetSources,
   listAssetImportJobs,
   listAssets,
   repairAssetLibrary,
-  revokeAssetPreviewSource,
   setAssetLibraryState,
   setAssetRetentionPolicy,
 } from "../services/assetService";
@@ -28,7 +26,6 @@ import type {
   AssetLibraryFacets,
   AssetLibraryState,
   AssetListQuery,
-  AssetPreviewSource,
   AssetRecord,
   AssetRetentionPolicy,
   AssetStorageSummary,
@@ -98,14 +95,12 @@ export function useAssetLibrary() {
   const hasMore = ref(false);
   const error = ref<string | null>(null);
   const detail = ref<AssetDetail | null>(null);
-  const preview = ref<AssetPreviewSource | null>(null);
   const importing = ref(false);
   const replacingText = ref(false);
   const importProgress = ref<AssetImportProgressEvent | null>(null);
   const importJobs = ref<AssetImportJob[]>([]);
   const activeImportJobId = ref<string | null>(null);
   let importController: AbortController | null = null;
-  let previewRequestId = 0;
 
   const query = computed(() =>
     createAssetListQuery({
@@ -235,26 +230,6 @@ export function useAssetLibrary() {
 
   async function openDetail(assetId: string) {
     detail.value = await getAssetDetail(assetId);
-  }
-
-  async function openPreview(assetId: string) {
-    const requestId = ++previewRequestId;
-    if (preview.value)
-      await revokeAssetPreviewSource(preview.value.id).catch(() => undefined);
-    const nextPreview = await getAssetPreviewSource(assetId);
-    if (requestId !== previewRequestId) {
-      await revokeAssetPreviewSource(nextPreview.id).catch(() => undefined);
-      return;
-    }
-    preview.value = nextPreview;
-  }
-
-  async function closePreview() {
-    previewRequestId += 1;
-    if (!preview.value) return;
-    const current = preview.value;
-    preview.value = null;
-    await revokeAssetPreviewSource(current.id).catch(() => undefined);
   }
 
   async function updateHiddenAssets(
@@ -512,7 +487,6 @@ export function useAssetLibrary() {
     hasMore,
     error,
     detail,
-    preview,
     importing,
     replacingText,
     importProgress,
@@ -524,8 +498,6 @@ export function useAssetLibrary() {
     toggleSelection,
     clearSelection,
     openDetail,
-    openPreview,
-    closePreview,
     setHidden,
     setDetailHidden,
     pinSelected,

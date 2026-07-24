@@ -16,7 +16,7 @@ import {
   Trash2,
   Wrench,
 } from "lucide-vue-next";
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { customMessage } from "@/utils/feedback";
 import { createModuleLogger } from "@/utils/logger";
@@ -49,11 +49,9 @@ const savingAssetId = ref<string | null>(null);
 const replacingTextAssetId = ref<string | null>(null);
 const sharingAssetId = ref<string | null>(null);
 const detailActionAssetId = ref<string | null>(null);
-const previewingAssetId = ref<string | null>(null);
 const detailBusy = computed(() =>
   Boolean(
     detailActionAssetId.value ||
-    previewingAssetId.value ||
     savingAssetId.value ||
     sharingAssetId.value ||
     replacingTextAssetId.value ||
@@ -242,25 +240,9 @@ async function openDetail(assetId: string) {
   await library.openDetail(assetId);
 }
 
-async function previewAsset(assetId: string) {
-  if (detailBusy.value) return;
-  previewingAssetId.value = assetId;
-  try {
-    await library.openPreview(assetId);
-  } catch (cause) {
-    customMessage(
-      cause instanceof Error ? cause.message : "无法打开资产预览",
-      "error"
-    );
-  } finally {
-    previewingAssetId.value = null;
-  }
-}
-
 async function closeDetail(force = false) {
   if (detailBusy.value && !force) return;
   library.detail.value = null;
-  await library.closePreview();
 }
 
 async function replaceAssetText(assetId: string) {
@@ -346,10 +328,6 @@ async function cancelImportJob(jobId: string) {
 onMounted(() => {
   void library.load();
   void library.loadImportJobs().catch(() => undefined);
-});
-
-onUnmounted(() => {
-  void library.closePreview();
 });
 </script>
 
@@ -711,7 +689,6 @@ onUnmounted(() => {
     <AssetDetailSheet
       v-if="library.detail.value"
       :detail="library.detail.value"
-      :preview="library.preview.value"
       :saving="savingAssetId === library.detail.value.id"
       :sharing="sharingAssetId === library.detail.value.id"
       :replacing-text="
@@ -720,7 +697,6 @@ onUnmounted(() => {
       "
       :busy="detailBusy"
       @close="closeDetail"
-      @preview="previewAsset"
       @save="saveAsset"
       @share="shareAsset"
       @replace-text="replaceAssetText"

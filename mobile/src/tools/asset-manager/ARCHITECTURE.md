@@ -104,7 +104,8 @@ AppData/assets/
 - 手机资产列表使用稳定 1:1 三列网格，平板增加列数；普通点击打开详情，长按进入多选，显式选择按钮继续作为无障碍和精确操作入口。
 - 多选操作复用后端原子命令完成隐藏/恢复、固定/取消固定和安全删除。删除前必须重新调用影响分析，advisory usage 经平台对话框确认后才传入 `confirmAdvisory`。
 - 存储视图展示原件、可回收量、缓存、临时文件和类型占用，并提供全库可重建缓存清理与资产库修复入口。
-- 详情面板只展示脱敏来源和 usage 摘要。媒体预览按需申请短期 descriptor，关闭详情或卸载页面时主动撤销，不持久化预览 URL。
+- 详情面板只展示脱敏来源和 usage 摘要。`mobile/src/components/media/` 提供 `MediaPreviewHost`、图片/视频/音频主体和 `useManagedMediaPreview`；详情只传 `assetId +` 轻量媒体元数据，不持有或持久化预览 URL。
+- `useManagedMediaPreview` 统一处理 descriptor 请求序号、迟到响应撤销、换资源、重复清理、过期重试和媒体错误映射。host 负责加载/错误层、安全区、背景滚动锁定和“先退出沉浸层、再关闭宿主”的返回顺序；各媒体组件分别保留适合触屏的播放或缩放控制。
 - 详情页的固定/取消固定、隐藏/恢复和清理原件都按详情自身 `assetId` 调用领域命令，不借用列表选择；清理仍复用删除影响分析与 advisory 确认，完成后才关闭详情并撤销预览。
 - 文件导入通过系统文件选择器或移动端 media picker 获得引用后交给 import job；WebView 不读取原件字节。页面可恢复最近任务、显示累计进度与中断错误码，并取消 pending/running 任务。
 - 详情页的“保存到文件”使用系统 save picker，目标引用直接传给 `asset_export`；Rust 对 Android `content://` 目标通过 `AssetContentPlugin` 的 `openFileDescriptor(..., "wt")` 打开，其他目标按平台使用 plugin-fs，并流式复制 managed 原件，内部对象路径不返回 WebView。
@@ -115,6 +116,7 @@ AppData/assets/
 ## 12. 后续门禁
 
 - Android 预览 token 自然过期已在 `emulator-5558` 真实 WebView 验证；iOS scheme/HEAD/Range/CORS/撤销仍受编译与设备条件门禁约束。
+- 新媒体组件的 jsdom 自动化只验证生命周期和 DOM 交互契约；图片手势、视频全屏 fallback、音频播放、横竖屏、安全区和快速切换仍需在 Android AVD 与真机复验。
 - Android 真机需完成一次导入、预览、导出、删除影响和应用重启恢复主流程，并记录结果；不得用 emulator 或普通浏览器替代。
 - `ManagedAssetRef` 需完成一次真实上游模型附件发送验收；模型未配置时保持门禁未通过，不新增旁支功能。
 - 相机、分享进入 AIO、文件关联、批量/复杂格式文本化和其他消费者替代均属于 Phase 3，本轮不继续扩展。

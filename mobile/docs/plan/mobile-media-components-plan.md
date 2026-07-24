@@ -1,6 +1,6 @@
 # 移动端媒体组件设计方案
 
-> 状态：设计方案已收敛，待按本方案实现与设备验收
+> 状态：Phase 1 资产管理器原型与组件测试已完成，待设备验收和消费者接入
 > 最近核对：2026-07-24
 > 范围：图片、视频、音频的内联预览、沉浸式预览和播放；不把桌面组件缩小后直接移植
 > 关联文档：[`mobile-asset-manager-design.md`](./mobile-asset-manager-design.md)、[`mobile-development-checklist.md`](./mobile-development-checklist.md)、[`asset-manager/ARCHITECTURE.md`](../../src/tools/asset-manager/ARCHITECTURE.md)
@@ -48,7 +48,7 @@
 
 #### 当前移动端场景
 
-- `AssetDetailSheet.vue` 已能在详情 Sheet 内联渲染 `<img>`、`<video controls playsinline>`、`<audio controls>`，并由详情页面负责申请预览。
+- `AssetDetailSheet.vue` 已接入 `MediaPreviewHost`，由 `useManagedMediaPreview` 统一申请和撤销 descriptor；详情页不再持有预览 URL。
 - `llm-chat/components/MessageContent.vue` 已有图片 overlay，并处理资源切换、过期和撤销竞态；它目前没有缩放、平移、视频和音频统一契约。
 - 资产管理器已有 `AssetDetailSheet` 单测和 Android WebView 预览验证；这使它适合作为第一块真实原型和回归入口。
 
@@ -208,10 +208,12 @@ closed
 
 完成标准是资产管理器、聊天和富文本三个真实入口都能复用同一套资产生命周期和容器返回语义，同时保留各媒体类型适合手机的控制方式；不是目录里出现了几个与 PC 同名的 `.vue` 文件。
 
-## 9. 仍待执行的事项
+## 9. 执行状态与待办
 
-- [ ] 按本方案在资产管理器完成第一版真实原型。
-- [ ] 为 `useManagedMediaPreview`、`MediaPreviewHost` 和三个媒体子组件补单测及组件测试。
-- [ ] 接入资产详情、聊天附件和 RichTextRenderer，并保持各自现有错误/引用语义。
+- [x] 按本方案在资产管理器完成第一版真实原型。
+- [x] 为 `useManagedMediaPreview`、`MediaPreviewHost` 和三个媒体子组件补单测及组件测试。
+- [ ] 接入聊天附件和 RichTextRenderer，并保持各自现有错误/引用语义；资产详情已在 Phase 1 接通。
 - [ ] 完成 Android AVD 回归和 Android 真机报告；具备 iOS 条件后补充平台差异记录。
 - [ ] 根据设备实测再决定是否增加方向锁定、后台音频、截图或更多原生能力；没有证据时不扩展公共 API。
+
+Phase 1 的实现位于 `mobile/src/components/media/`。自动化已覆盖 descriptor 迟到响应撤销、重复清理、过期重试、错误映射、host 先退沉浸层再关闭入口、图片缩放边界、视频 Fullscreen API fallback 和音频卸载暂停。图片下拉关闭、双指手势可用性、系统返回、方向切换和真实播放仍属于 Android AVD/真机门禁，不能由 jsdom 或浏览器构建结果替代。

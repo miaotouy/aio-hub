@@ -80,18 +80,30 @@
       </div>
     </div>
 
+    <div class="dashboard-toolbar">
+      <span class="filter-label">显示</span>
+      <el-segmented
+        v-model="filterMode"
+        :options="filterOptions"
+        size="small"
+      />
+      <span class="repo-count">
+        {{ visibleRepos.length }} / {{ repositories.length }} 个仓库
+      </span>
+    </div>
+
     <!-- 仓库卡片网格 -->
     <div class="dashboard-content">
-      <div v-if="activeRepos.length === 0" class="empty-state">
+      <div v-if="visibleRepos.length === 0" class="empty-state">
         <CheckCircle2 :size="64" class="text-success empty-icon" />
-        <h3 class="empty-title">所有仓库都很干净</h3>
+        <h3 class="empty-title">{{ emptyTitle }}</h3>
         <p class="text-secondary empty-desc">
-          当前没有检测到任何未提交的更改或未推送的提交。
+          {{ emptyDescription }}
         </p>
       </div>
 
       <div v-else class="repo-grid">
-        <RepoCard v-for="repo in activeRepos" :key="repo.path" :repo="repo" />
+        <RepoCard v-for="repo in visibleRepos" :key="repo.path" :repo="repo" />
       </div>
     </div>
   </div>
@@ -126,6 +138,17 @@ import {
 } from "../composables/useGitCommitterRunner";
 import RepoCard from "./RepoCard.vue";
 
+type RepoFilter = "all" | "changes" | "staged" | "ahead" | "clean";
+
+const filterMode = ref<RepoFilter>("changes");
+const filterOptions = [
+  { label: "有更改", value: "changes" },
+  { label: "全部", value: "all" },
+  { label: "已暂存", value: "staged" },
+  { label: "待推送", value: "ahead" },
+  { label: "干净", value: "clean" },
+];
+
 // ===== 全局 Loading 状态 =====
 const isGlobalStaging = ref(false);
 const isGlobalGenerating = ref(false);
@@ -133,14 +156,58 @@ const isGlobalCommitting = ref(false);
 const isGlobalPushing = ref(false);
 
 // ===== 过滤出有变更或有未推送提交的活跃仓库 =====
-const activeRepos = computed(() => {
+const visibleRepos = computed(() => {
   return repositories.value.filter((repo) => {
     const status = repoStatuses.value[repo.path];
-    if (!status) return true; // 未加载状态的也显示出来
+    if (!status) {
+      return filterMode.value === "all" || filterMode.value === "changes";
+    }
+    const hasChanges = status.staged.length > 0 || status.unstaged.length > 0;
+    if (filterMode.value === "all") return true;
+    if (filterMode.value === "staged") return status.staged.length > 0;
+    if (filterMode.value === "ahead") return status.ahead > 0;
+    if (filterMode.value === "clean") {
+      return !hasChanges && status.ahead === 0;
+    }
+    return hasChanges || status.ahead > 0;
+  });
+});
+
+// 批量操作始终针对有工作流动作可执行的仓库，不受显示筛选影响。
+const batchRepos = computed(() => {
+  return repositories.value.filter((repo) => {
+    const status = repoStatuses.value[repo.path];
+    if (!status) return true;
     return (
       status.staged.length > 0 || status.unstaged.length > 0 || status.ahead > 0
     );
   });
+});
+
+const emptyTitle = computed(() => {
+  if (repositories.value.length === 0) return "还没有关联仓库";
+  if (filterMode.value === "staged") return "没有已暂存更改的仓库";
+  if (filterMode.value === "ahead") return "没有待推送的仓库";
+  if (filterMode.value === "clean") return "没有干净的仓库";
+  if (filterMode.value === "changes") return "所有仓库都很干净";
+  return "没有符合条件的仓库";
+});
+
+const emptyDescription = computed(() => {
+  if (repositories.value.length === 0) {
+    return "使用左侧仓库栏的添加按钮导入本地 Git 仓库。";
+  }
+  if (filterMode.value === "staged") {
+    return "当前没有已暂存的更改，切换筛选条件查看其他仓库。";
+  }
+  if (filterMode.value === "ahead") return "当前没有检测到未推送的提交。";
+  if (filterMode.value === "clean") {
+    return "当前仓库仍有未提交的更改或未推送的提交。";
+  }
+  if (filterMode.value === "changes") {
+    return "当前没有检测到任何未提交的更改或未推送的提交。";
+  }
+  return "切换筛选条件查看其他仓库。";
 });
 
 // ===== 辅助校验函数 =====
@@ -167,7 +234,7 @@ const canCommit = (path: string) => {
 const handleStageAllRepos = async () => {
   isGlobalStaging.value = true;
   try {
-    await stageAllRepos(activeRepos.value);
+    await stageAllRepos(batchRepos.value);
     customMessage.success("一键暂存完成");
   } finally {
     isGlobalStaging.value = false;
@@ -187,7 +254,7 @@ const handleGenerateAllMessages = async () => {
   try {
     // 并发为所有符合条件的仓库生成提交消息
     await Promise.all(
-      activeRepos.value
+      batchRepos.value
         .filter((repo) => canGenerateMessage(repo.path))
         .map((repo) =>
           handleGenerateMessageForRepo(repo.path).catch(() => null)
@@ -203,7 +270,7 @@ const handleCommitAllRepos = async () => {
   isGlobalCommitting.value = true;
   try {
     let successCount = 0;
-    for (const repo of activeRepos.value) {
+    for (const repo of batchRepos.value) {
       if (canCommit(repo.path)) {
         const msg = repoSessions.value[repo.path]?.commitDraft || "";
         const ok = await executeCommit(repo.path, msg);
@@ -251,7 +318,7 @@ const handlePushAllRepos = async () => {
 
 /* 顶部全局操作栏 */
 .global-action-bar {
-  height: 56px;
+  min-height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -260,6 +327,27 @@ const handlePushAllRepos = async () => {
   border-bottom: var(--border-width) solid var(--border-color);
   backdrop-filter: blur(var(--ui-blur));
   flex-shrink: 0;
+}
+
+.dashboard-toolbar {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px;
+  border-bottom: var(--border-width) solid var(--border-color);
+  background-color: var(--card-bg);
+  flex-shrink: 0;
+}
+
+.filter-label,
+.repo-count {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.repo-count {
+  margin-left: auto;
 }
 
 .title-section {
@@ -309,6 +397,9 @@ const handlePushAllRepos = async () => {
 .actions-section {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 /* 看板内容区 */
@@ -332,8 +423,44 @@ const handlePushAllRepos = async () => {
 /* 仓库网格 */
 .repo-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
   gap: 20px;
   align-items: start;
+}
+
+@media (max-width: 900px) {
+  .global-action-bar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 16px;
+  }
+
+  .actions-section {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .actions-section :deep(.el-button-group) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 6px;
+  }
+
+  .actions-section :deep(.el-button-group .el-button) {
+    width: 100%;
+    margin: 0;
+    border-radius: 4px;
+  }
+
+  .dashboard-toolbar {
+    padding: 8px 16px;
+    flex-wrap: wrap;
+  }
+
+  .repo-count {
+    margin-left: 0;
+  }
 }
 </style>

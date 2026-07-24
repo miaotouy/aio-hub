@@ -17,7 +17,11 @@
 <template>
   <div
     class="repo-bar-container"
-    :class="{ 'is-pinned': isPinned, 'is-hovered': isHovered }"
+    :class="{
+      'is-pinned': isPinned,
+      'is-hovered': isHovered,
+      'is-managing': isManaging,
+    }"
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave"
   >
@@ -37,7 +41,30 @@
             <component :is="isPinned ? PinOff : Pin" :size="14" />
           </el-button>
         </el-tooltip>
-        <span v-if="isPinned || isHovered" class="header-title">代码仓库</span>
+        <span v-if="isPinned || isHovered || isManaging" class="header-title"
+          >代码仓库</span
+        >
+        <div v-if="isPinned || isHovered || isManaging" class="header-actions">
+          <el-tooltip content="添加仓库" placement="bottom">
+            <el-button circle size="small" @click.stop="selectScanFolders">
+              <Plus :size="14" />
+            </el-button>
+          </el-tooltip>
+          <el-tooltip
+            :content="isManaging ? '完成管理' : '管理仓库'"
+            placement="bottom"
+          >
+            <el-button
+              circle
+              size="small"
+              :type="isManaging ? 'primary' : undefined"
+              @click.stop="isManaging = !isManaging"
+            >
+              <Check v-if="isManaging" :size="14" />
+              <ListPlus v-else :size="14" />
+            </el-button>
+          </el-tooltip>
+        </div>
       </div>
 
       <!-- 仓库列表 -->
@@ -66,7 +93,7 @@
 
           <div
             class="repo-info"
-            :class="{ 'show-info': isPinned || isHovered }"
+            :class="{ 'show-info': isPinned || isHovered || isManaging }"
           >
             <div class="repo-name">全景模式</div>
             <div class="repo-branch">所有仓库看板</div>
@@ -75,46 +102,63 @@
 
         <div class="divider" v-if="repositories.length > 0" />
 
-        <div
-          v-for="repo in repositories"
-          :key="repo.path"
-          class="repo-item"
-          :class="{ active: currentRepoPath === repo.path }"
-          @click="switchRepoWithAutoPull(repo.path)"
+        <VueDraggableNext
+          v-model="repositories"
+          item-key="path"
+          handle=".drag-handle"
+          class="repo-draggable-list"
+          :disabled="!isManaging"
         >
-          <!-- 仓库头像与状态徽章 -->
-          <div class="repo-avatar-wrapper">
-            <Avatar src="" :alt="repo.alias || repo.name" class="repo-avatar" />
-            <!-- 状态徽章 -->
-            <div class="badges-container">
-              <span
-                v-if="getUncommittedCount(repo.path) > 0"
-                class="badge badge-red"
-              >
-                {{ getUncommittedCount(repo.path) }}
-              </span>
-              <span
-                v-if="getAheadCount(repo.path) > 0"
-                class="badge badge-blue"
-              >
-                {{ getAheadCount(repo.path) }}
-              </span>
-            </div>
-          </div>
-
-          <!-- 仓库详细信息（展开时显示） -->
           <div
-            class="repo-info"
-            :class="{ 'show-info': isPinned || isHovered }"
+            v-for="repo in repositories"
+            :key="repo.path"
+            class="repo-item"
+            :class="{
+              active: currentRepoPath === repo.path,
+              managing: isManaging,
+            }"
+            @click="!isManaging && switchRepoWithAutoPull(repo.path)"
           >
-            <div class="repo-name" :title="repo.alias || repo.name">
-              {{ repo.alias || repo.name }}
+            <GripVertical v-if="isManaging" :size="14" class="drag-handle" />
+            <!-- 仓库头像与状态徽章 -->
+            <div class="repo-avatar-wrapper">
+              <Avatar
+                src=""
+                :alt="repo.alias || repo.name"
+                class="repo-avatar"
+              />
+              <!-- 状态徽章 -->
+              <div class="badges-container">
+                <span
+                  v-if="getUncommittedCount(repo.path) > 0"
+                  class="badge badge-red"
+                >
+                  {{ getUncommittedCount(repo.path) }}
+                </span>
+                <span
+                  v-if="getAheadCount(repo.path) > 0"
+                  class="badge badge-blue"
+                >
+                  {{ getAheadCount(repo.path) }}
+                </span>
+              </div>
             </div>
-            <div class="repo-branch" :title="getBranchName(repo.path)">
-              {{ getBranchName(repo.path) }}
+
+            <!-- 仓库详细信息（展开时显示） -->
+            <div
+              class="repo-info"
+              :class="{ 'show-info': isPinned || isHovered || isManaging }"
+            >
+              <div class="repo-name" :title="repo.alias || repo.name">
+                {{ repo.alias || repo.name }}
+              </div>
+              <div class="repo-branch" :title="getBranchName(repo.path)">
+                {{ getBranchName(repo.path) }}
+              </div>
             </div>
+            <RepoActionsMenu v-if="isManaging" :repo="repo" />
           </div>
-        </div>
+        </VueDraggableNext>
       </div>
 
       <!-- 底部操作区 -->
@@ -132,7 +176,7 @@
         </div>
 
         <div class="footer-item">
-          <el-tooltip content="仓库管理与设置" placement="right">
+          <el-tooltip content="打开设置" placement="right">
             <el-button circle @click="$emit('open-settings')">
               <Settings :size="16" />
             </el-button>
@@ -145,8 +189,22 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { Pin, PinOff, RefreshCw, Settings, LayoutGrid } from "lucide-vue-next";
+import {
+  Check,
+  GripVertical,
+  LayoutGrid,
+  ListPlus,
+  Pin,
+  PinOff,
+  Plus,
+  RefreshCw,
+  Settings,
+} from "lucide-vue-next";
+import { VueDraggableNext } from "vue-draggable-next";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import Avatar from "@/components/common/Avatar.vue";
+import RepoActionsMenu from "./RepoActionsMenu.vue";
+import { importRepositories } from "../composables/useGitRepositoryImport";
 import {
   repositories,
   currentRepoPath,
@@ -168,6 +226,7 @@ defineEmits<{
 }>();
 
 const isHovered = ref(false);
+const isManaging = ref(false);
 let hoverTimeout: number | null = null;
 
 const handleMouseEnter = () => {
@@ -215,6 +274,16 @@ const getAllAheadCount = () => {
     0
   );
 };
+
+const selectScanFolders = async () => {
+  const selected = await openDialog({
+    directory: true,
+    multiple: true,
+    title: "选择要扫描的目录",
+  });
+  if (!selected) return;
+  await importRepositories(Array.isArray(selected) ? selected : [selected]);
+};
 </script>
 
 <style scoped>
@@ -233,6 +302,10 @@ const getAllAheadCount = () => {
   width: 240px;
 }
 
+.repo-bar-container.is-managing {
+  width: 280px;
+}
+
 .repo-bar-content {
   position: absolute;
   left: 0;
@@ -246,8 +319,13 @@ const getAllAheadCount = () => {
 }
 
 .repo-bar-container.is-pinned .repo-bar-content,
-.repo-bar-container.is-hovered .repo-bar-content {
+.repo-bar-container.is-hovered .repo-bar-content,
+.repo-bar-container.is-managing .repo-bar-content {
   width: 240px;
+}
+
+.repo-bar-container.is-managing .repo-bar-content {
+  width: 280px;
 }
 
 /* 悬停展开时的毛玻璃与微弱阴影 */
@@ -280,7 +358,8 @@ const getAllAheadCount = () => {
 }
 
 .repo-bar-container.is-pinned .header-title,
-.repo-bar-container.is-hovered .header-title {
+.repo-bar-container.is-hovered .header-title,
+.repo-bar-container.is-managing .header-title {
   opacity: 1;
   /* 延迟显示文字，等宽度展开得差不多了再淡入，避免竖排抖动 */
   transition-delay: 0.1s;
@@ -290,11 +369,24 @@ const getAllAheadCount = () => {
   flex-shrink: 0;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
 /* 仓库列表 */
 .repo-list {
   flex: 1;
   overflow-y: auto;
   padding: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.repo-draggable-list {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -326,6 +418,22 @@ const getAllAheadCount = () => {
   transition: background-color 0.2s ease;
   position: relative;
   gap: 12px;
+}
+
+.repo-item.managing {
+  padding-left: 8px;
+  padding-right: 8px;
+  gap: 6px;
+}
+
+.drag-handle {
+  color: var(--el-text-color-placeholder);
+  cursor: grab;
+  flex-shrink: 0;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
 }
 
 .repo-item:hover {

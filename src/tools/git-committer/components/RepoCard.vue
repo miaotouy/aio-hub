@@ -32,6 +32,7 @@
       </div>
 
       <div class="card-actions">
+        <RepoActionsMenu :repo="repo" />
         <el-tooltip content="拉取" placement="top">
           <el-button circle size="small" :loading="isPulling" @click="pull">
             <ArrowDown :size="12" />
@@ -152,6 +153,7 @@ import {
   Sparkles,
 } from "lucide-vue-next";
 import type { RepositoryConfig } from "../types";
+import RepoActionsMenu from "./RepoActionsMenu.vue";
 import {
   repoStatuses,
   aiIncludeUnstaged,

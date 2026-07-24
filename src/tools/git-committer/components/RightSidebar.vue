@@ -22,7 +22,11 @@
         <History :size="16" class="history-icon" />
         <span class="section-title">最近提交历史</span>
       </div>
-      <div class="section-content">
+      <div
+        ref="historyContentRef"
+        class="section-content history-content"
+        @scroll="handleHistoryScroll"
+      >
         <div v-if="isLoadingHistory" class="loading-wrapper">
           <el-icon class="is-loading" :size="18"><Loading /></el-icon>
           <span class="loading-text text-secondary">正在加载历史...</span>
@@ -57,6 +61,12 @@
               </div>
             </div>
           </div>
+          <div v-if="isLoadingMoreHistory" class="load-more-tip">
+            正在加载更多...
+          </div>
+          <div v-else-if="hasMoreHistory" class="load-more-tip">
+            向下滚动加载更多
+          </div>
         </div>
       </div>
     </div>
@@ -67,15 +77,15 @@
         <BarChart3 :size="16" class="chart-icon" />
         <span class="section-title">近 14 天提交频次</span>
       </div>
-      <div class="section-content">
-        <CommitChart :commits="commits" />
+      <div class="section-content chart-content">
+        <CommitChart :commits="chartCommits" />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { nextTick, ref, watch } from "vue";
 import { History, BarChart3 } from "lucide-vue-next";
 import { Loading } from "@element-plus/icons-vue";
 import { invoke } from "@tauri-apps/api/core";
@@ -86,6 +96,7 @@ import {
   currentStatus,
 } from "../composables/useGitCommitterState";
 import CommitChart from "./CommitChart.vue";
+import { errorHandler } from "../composables/useGitCommitterErrorHandler";
 
 interface GitCommit {
   hash: string;
@@ -96,27 +107,127 @@ interface GitCommit {
 }
 
 const commits = ref<GitCommit[]>([]);
+const chartCommits = ref<GitCommit[]>([]);
 const isLoadingHistory = ref(false);
+const isLoadingMoreHistory = ref(false);
+const hasMoreHistory = ref(true);
+const historySkip = ref(0);
+const historyContentRef = ref<HTMLElement | null>(null);
+const HISTORY_PAGE_SIZE = 30;
+let historyRequestId = 0;
+
+const chartCutoff = () => Date.now() - 14 * 24 * 60 * 60 * 1000;
 
 // ===== 加载 Commit 历史 =====
-const loadHistory = async () => {
+const loadHistoryPage = async (reset = false, requestId = historyRequestId) => {
+  if (requestId !== historyRequestId) return;
   if (!currentRepoPath.value || !currentStatus.value?.branch) {
     commits.value = [];
+    chartCommits.value = [];
     return;
   }
-  isLoadingHistory.value = true;
-  try {
-    const list = await invoke<GitCommit[]>("git_get_branch_commits", {
-      path: currentRepoPath.value,
-      branch: currentStatus.value.branch,
-      limit: 20,
-    });
-    commits.value = list || [];
-  } catch (e) {
-    console.error("加载 Commit 历史失败", e);
+  const branch = currentStatus.value.branch;
+  if (reset) {
+    historySkip.value = 0;
+    hasMoreHistory.value = true;
     commits.value = [];
-  } finally {
-    isLoadingHistory.value = false;
+  }
+  if (
+    !hasMoreHistory.value ||
+    isLoadingHistory.value ||
+    isLoadingMoreHistory.value
+  )
+    return;
+  const isInitial = historySkip.value === 0;
+  if (isInitial) isLoadingHistory.value = true;
+  else isLoadingMoreHistory.value = true;
+  const list = await errorHandler.wrapAsync(
+    () =>
+      invoke<GitCommit[]>("git_get_incremental_commits", {
+        path: currentRepoPath.value,
+        branch,
+        skip: historySkip.value,
+        limit: HISTORY_PAGE_SIZE,
+      }),
+    { userMessage: "加载提交历史失败", showToUser: false }
+  );
+  if (requestId !== historyRequestId) return;
+  const page = list || [];
+  if (page.length < HISTORY_PAGE_SIZE) hasMoreHistory.value = false;
+  if (page.length > 0) {
+    commits.value = reset ? page : [...commits.value, ...page];
+    historySkip.value += page.length;
+  }
+  if (isInitial) isLoadingHistory.value = false;
+  else isLoadingMoreHistory.value = false;
+};
+
+const loadChartHistory = async (requestId = historyRequestId) => {
+  if (requestId !== historyRequestId) return;
+  if (!currentRepoPath.value || !currentStatus.value?.branch) {
+    chartCommits.value = [];
+    return;
+  }
+  const branch = currentStatus.value.branch;
+  const result: GitCommit[] = [];
+  let skip = 0;
+  const limit = 200;
+  const cutoff = chartCutoff();
+  while (true) {
+    const list = await errorHandler.wrapAsync(
+      () =>
+        invoke<GitCommit[]>("git_get_incremental_commits", {
+          path: currentRepoPath.value,
+          branch,
+          skip,
+          limit,
+        }),
+      { userMessage: "加载提交统计失败", showToUser: false }
+    );
+    if (requestId !== historyRequestId) return;
+    const page = list || [];
+    result.push(...page);
+    if (page.length < limit) break;
+    const oldest = page[page.length - 1];
+    if (oldest && new Date(oldest.date).getTime() < cutoff) break;
+    skip += page.length;
+  }
+  chartCommits.value = result;
+};
+
+const loadHistory = async () => {
+  const requestId = ++historyRequestId;
+  isLoadingHistory.value = false;
+  isLoadingMoreHistory.value = false;
+  if (!currentRepoPath.value || !currentStatus.value?.branch) {
+    commits.value = [];
+    chartCommits.value = [];
+    return;
+  }
+  await Promise.all([
+    loadHistoryPage(true, requestId),
+    loadChartHistory(requestId),
+  ]);
+  await nextTick();
+  await fillHistoryViewport(requestId);
+};
+
+const fillHistoryViewport = async (requestId: number) => {
+  while (
+    requestId === historyRequestId &&
+    hasMoreHistory.value &&
+    historyContentRef.value &&
+    historyContentRef.value.scrollHeight <= historyContentRef.value.clientHeight
+  ) {
+    await loadHistoryPage(false, requestId);
+    await nextTick();
+  }
+};
+
+const handleHistoryScroll = (event: Event) => {
+  const element = event.target as HTMLElement;
+  if (element.scrollHeight - element.scrollTop - element.clientHeight < 80) {
+    loadHistoryPage();
   }
 };
 
@@ -197,8 +308,17 @@ const formatTime = (dateStr: string) => {
 
 .section-content {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;
   position: relative;
+}
+
+.history-content {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.chart-content {
+  overflow: hidden;
 }
 
 .loading-wrapper {
@@ -214,6 +334,13 @@ const formatTime = (dateStr: string) => {
   text-align: center;
   color: var(--el-text-color-placeholder);
   font-size: 12px;
+}
+
+.load-more-tip {
+  padding: 8px 0 2px;
+  text-align: center;
+  font-size: 10px;
+  color: var(--el-text-color-placeholder);
 }
 
 /* Commit 历史树 */

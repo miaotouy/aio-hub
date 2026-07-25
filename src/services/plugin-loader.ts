@@ -914,7 +914,10 @@ export function validatePluginCompatibility(
             label: "已声明平台",
             value: availablePlatforms.join(", ") || "无",
           },
-          { label: "manifest 字段", value: `native.library.${currentPlatform}` },
+          {
+            label: "manifest 字段",
+            value: `native.library.${currentPlatform}`,
+          },
           { label: "安装目录", value: proxy.installPath },
         ],
         resolution: `构建 ${currentPlatform} 动态库，并让 manifest 指向实际部署文件`,

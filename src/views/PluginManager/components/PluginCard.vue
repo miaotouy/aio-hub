@@ -43,8 +43,7 @@ const errorDiagnostics = computed(() => {
       severity: "error" as const,
       title: "插件不可用",
       message:
-        props.plugin.error?.message ||
-        "未记录具体故障原因，请查看应用日志",
+        props.plugin.error?.message || "未记录具体故障原因，请查看应用日志",
       details: [
         { label: "插件 ID", value: props.plugin.manifest.id },
         { label: "安装目录", value: props.plugin.installPath },

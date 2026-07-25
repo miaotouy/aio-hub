@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type {
-  PluginDiagnostic,
-  PluginProxy,
-} from "./plugin-types";
+import type { PluginDiagnostic, PluginProxy } from "./plugin-types";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

@@ -76,8 +76,7 @@ describe("SidecarPluginAdapter resident timeout recovery", () => {
 
   it("injects a top-level host context into API v3 one-shot requests", async () => {
     let outputListener:
-      | ((event: { payload: Record<string, unknown> }) => void)
-      | undefined;
+      ((event: { payload: Record<string, unknown> }) => void) | undefined;
     mocks.listen.mockImplementation(
       (_eventName: string, callback: typeof outputListener) => {
         outputListener = callback;
@@ -103,9 +102,9 @@ describe("SidecarPluginAdapter resident timeout recovery", () => {
     );
 
     await adapter.enable();
-    await expect(adapter.callPluginMethod("work", { value: 1 })).resolves.toEqual(
-      { ok: true }
-    );
+    await expect(
+      adapter.callPluginMethod("work", { value: 1 })
+    ).resolves.toEqual({ ok: true });
 
     expect(outputListener).toBeTypeOf("function");
     const executeCall = mocks.invoke.mock.calls.find(

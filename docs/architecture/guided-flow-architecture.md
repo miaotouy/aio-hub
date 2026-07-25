@@ -1,6 +1,6 @@
 # Guided Flow 引导模块设计方案
 
-> 状态：设计讨论稿
+> 状态：Phase 1 通用容器已实现；Phase 2–4 待后续接入
 >
 > 日期：2026-07-25
 >
@@ -159,6 +159,7 @@ export interface GuidedFlowDefinition<TContext = Record<string, unknown>> {
   priority: number;
   resumable: boolean;
   dismissible: boolean;
+  dismissLabel?: string;
   blockingScope?: "none" | "module" | "application";
 
   createContext?: () => Promise<TContext> | TContext;
@@ -166,7 +167,7 @@ export interface GuidedFlowDefinition<TContext = Record<string, unknown>> {
 }
 ```
 
-`id` 标识业务流程，`version` 标识流程定义版本。流程定义版本发生变化时，不能直接复用旧步骤状态，必须由流程决定是迁移旧状态、重新检测还是重新开始。
+`id` 标识业务流程，`version` 标识流程定义版本。Phase 1 运行时不会在版本不匹配时自动恢复旧步骤状态；恢复队列会忽略该旧状态，后续手动打开或重新触发时会通过 `createContext` 重新初始化。需要迁移旧状态的具体流程应在自己的领域服务中先完成状态检测或转换，再显式触发新的流程版本。
 
 ### 4.2 步骤定义
 
@@ -175,6 +176,8 @@ export interface GuidedFlowStep<TContext> {
   id: string;
   title: string;
   description?: string;
+  nextLabel?: string;
+  backLabel?: string;
   component: Component;
 
   when?: (context: TContext) => boolean;
@@ -187,13 +190,16 @@ export interface GuidedFlowStep<TContext> {
 
 步骤可以根据检测结果动态显示。例如没有旧知识库时，不显示“备份确认”和“迁移执行”步骤；没有模型配置时，初始设置流程才显示模型设置步骤。
 
+实现中的步骤组件会接收 `context`、`flowState` 和 `updateContext` 三个 props。步骤应通过 `updateContext` 保存可恢复的小型上下文；不能直接把 API Key、完整正文、向量或其他领域大对象写入该上下文。
+
 ### 4.3 流程状态
 
 ```ts
 export interface GuidedFlowState {
   flowId: string;
   flowVersion: string;
-  status: "pending" | "in-progress" | "completed" | "skipped" | "failed";
+  status:
+    "pending" | "in-progress" | "completed" | "skipped" | "failed" | "deferred";
 
   currentStepId?: string;
   completedStepIds: string[];
@@ -212,6 +218,7 @@ export interface GuidedFlowState {
 - 已完成步骤；
 - 业务上下文的安全子集；
 - 最近错误；
+- 延后状态；
 - 流程版本；
 - 最后更新时间。
 
@@ -447,13 +454,18 @@ Guided Flow 仍应复用项目主题变量和通用按钮规范，不得把 `el-
 
 ## 12. 分阶段实施
 
-### Phase 1：通用容器
+### Phase 1：通用容器（已实现）
 
 - 类型、注册表和状态模型；
 - `GuidedFlowHost`、`GuidedFlowModal` 与呈现无关的 `GuidedFlowShell`；
 - 基于 `requestClose` 的前进、后退、关闭、恢复和完成；
 - 默认禁止遮罩点击退出，按 `dismissible` 和运行状态提供明确关闭入口；
 - 应用配置中的流程状态。
+
+当前实现位于 `src/services/guided-flow/`、`src/stores/guidedFlowStore.ts` 和
+`src/components/common/GuidedFlow/`。通用运行时支持按优先级排队、可恢复流程、
+流程版本失配后的重新初始化、条件步骤重算、明确延后和手动重新打开；它尚未注册
+版本升级、知识库迁移或首次设置等具体业务流程。
 
 ### Phase 2：版本升级流程
 

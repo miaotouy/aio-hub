@@ -107,4 +107,130 @@ describe("SessionPersistenceCoordinator", () => {
       '{"index":2}',
     ]);
   });
+  it("coalesces one hundred dirty signals into the running and final revision", async () => {
+    const first = deferred<any>();
+    const write = vi
+      .fn()
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValue({ outcome: "committed", revision: 2, bytes: 1 });
+    const coordinator = new SessionPersistenceCoordinator({
+      writer: { write },
+    });
+    let value = 0;
+
+    coordinator.markSessionDirty("session-a", () => JSON.stringify({ value }));
+    await vi.waitFor(() => expect(write).toHaveBeenCalledTimes(1));
+    for (value = 1; value <= 100; value += 1) {
+      coordinator.markSessionDirty("session-a", () =>
+        JSON.stringify({ value })
+      );
+    }
+    first.resolve({ outcome: "committed", revision: 1, bytes: 1 });
+
+    await coordinator.flushSession("session-a");
+    expect(write).toHaveBeenCalledTimes(2);
+    expect(write.mock.calls[1][0].content).toBe('{"value":101}');
+  });
+
+  it("does not let a retry of an older snapshot overwrite a newer revision", async () => {
+    const retry = deferred<any>();
+    const write = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("temporary failure"))
+      .mockReturnValueOnce(retry.promise)
+      .mockResolvedValue({ outcome: "committed", revision: 3, bytes: 1 });
+    const onBackgroundError = vi.fn();
+    const coordinator = new SessionPersistenceCoordinator({
+      writer: { write },
+      onBackgroundError,
+    });
+    let value = "first";
+
+    coordinator.markSessionDirty("session-a", () => JSON.stringify({ value }));
+    await vi.waitFor(() => expect(onBackgroundError).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(write).toHaveBeenCalledTimes(2));
+    value = "latest";
+    coordinator.markSessionDirty("session-a", () => JSON.stringify({ value }));
+    retry.resolve({ outcome: "committed", revision: 2, bytes: 1 });
+
+    await vi.waitFor(() => expect(write).toHaveBeenCalledTimes(3));
+    expect(write.mock.calls[2][0].content).toBe('{"value":"latest"}');
+    expect(write.mock.calls[2][0].revision).toBe(3);
+  });
+
+  it("retries a failed index commit through the same single writer slot", async () => {
+    const write = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("index disk unavailable"))
+      .mockResolvedValue({ outcome: "committed", revision: 2, bytes: 1 });
+    const onBackgroundError = vi.fn();
+    const coordinator = new SessionPersistenceCoordinator({
+      writer: { write },
+      onBackgroundError,
+    });
+
+    coordinator.markIndexDirty(() => '{"index":true}');
+    await vi.waitFor(() => expect(onBackgroundError).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(write).toHaveBeenCalledTimes(2));
+
+    expect(
+      write.mock.calls.every(([request]) => request.kind === "index")
+    ).toBe(true);
+    expect(write.mock.calls.map(([request]) => request.revision)).toEqual([
+      1, 2,
+    ]);
+  });
+
+  it("backs off persistent session write retries instead of spinning in microtasks", async () => {
+    const onBackgroundError = vi.fn();
+    const write = vi.fn().mockRejectedValue(new Error("disk unavailable"));
+    const coordinator = new SessionPersistenceCoordinator({
+      writer: { write },
+      onBackgroundError,
+    });
+
+    coordinator.markSessionDirty("session-a", () => '{"id":"session-a"}');
+    await vi.waitFor(() => expect(onBackgroundError).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    expect(write).toHaveBeenCalledTimes(1);
+    coordinator.markSessionDeleted("session-a");
+  });
+
+  it("limits independent session writes while keeping index commits separate", async () => {
+    let activeSessions = 0;
+    let maxActiveSessions = 0;
+    const write = vi.fn(async (request) => {
+      if (request.kind === "session") {
+        activeSessions += 1;
+        maxActiveSessions = Math.max(maxActiveSessions, activeSessions);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        activeSessions -= 1;
+      }
+      return {
+        outcome: "committed" as const,
+        revision: request.revision,
+        bytes: 1,
+      };
+    });
+    const coordinator = new SessionPersistenceCoordinator({
+      writer: { write },
+      maxConcurrentSessionWrites: 2,
+    });
+    const sessionIds = ["a", "b", "c", "d"];
+
+    for (const sessionId of sessionIds) {
+      coordinator.markSessionDirty(sessionId, () => `{"id":"${sessionId}"}`);
+    }
+    coordinator.markIndexDirty(() => '{"index":true}');
+    await Promise.all([
+      ...sessionIds.map((sessionId) => coordinator.flushSession(sessionId)),
+      coordinator.flushIndex(),
+    ]);
+
+    expect(maxActiveSessions).toBe(2);
+    expect(write.mock.calls.some(([request]) => request.kind === "index")).toBe(
+      true
+    );
+  });
 });

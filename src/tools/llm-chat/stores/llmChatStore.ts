@@ -44,6 +44,7 @@ import type {
   ModelIdentifier,
 } from "../types";
 import type { FavoriteFolder } from "../composables/storage/useChatStorageSeparated";
+import type { RecoveryState } from "../types/persistence";
 import type { PendingInputData } from "../types/context";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
@@ -63,6 +64,11 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   const sessionDetailMap = ref<Map<string, ChatSessionDetail>>(new Map());
   const favoriteFolders = ref<FavoriteFolder[]>([]);
   const currentSessionId = ref<string | null>(null);
+  const sessionRecovery = ref<RecoveryState>({
+    status: "ready",
+    failedSessionCount: 0,
+    scannedSessionCount: 0,
+  });
   const parameters = ref<LlmParameters>({
     temperature: 1,
     maxTokens: 4096,
@@ -403,6 +409,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       sessionDetailMap,
       currentSessionId,
       favoriteFolders,
+      sessionRecovery,
     },
     {
       runtime: sessionRuntime,
@@ -420,6 +427,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     importSessions,
     clearEmptySessions,
     refreshSessionsIndex,
+    cancelIndexRecovery,
     updateSession,
     loadSessions,
     persistSessions,
@@ -600,6 +608,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     sessionDetailMap,
     favoriteFolders,
     currentSessionId,
+    sessionRecovery,
     parameters,
     isSending,
     abortControllers,
@@ -645,6 +654,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     importSessions,
     clearEmptySessions,
     refreshSessionsIndex,
+    cancelIndexRecovery,
     updateSession,
     loadSessions,
     persistSessions,

@@ -169,6 +169,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         clean_temp_dir,
         // LLM Chat 会话原子持久化
         llm_chat_atomic_write,
+        llm_chat_delete_session,
         // LLM检查器命令
         start_llm_inspector,
         stop_llm_inspector,

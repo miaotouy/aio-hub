@@ -21,7 +21,7 @@
  * selection persistence.
  */
 
-import { exists, readTextFile, remove } from "@tauri-apps/plugin-fs";
+import { exists, readTextFile } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
 import { toRaw } from "vue";
 import { useDebounceFn } from "@vueuse/core";
@@ -35,6 +35,7 @@ import {
 } from "../../services/sessionPersistenceCoordinator";
 import {
   createPersistenceMeta,
+  isValidSessionPayload,
   readRevision,
   SessionPersistenceRepository,
 } from "../../services/sessionPersistenceRepository";
@@ -124,6 +125,15 @@ const writer: SessionPersistenceWriter = {
     return invoke<CommitResult>("llm_chat_atomic_write", { request });
   },
 };
+
+async function deleteSessionFromNative(sessionId: string): Promise<void> {
+  if (isDetachedComponentWindow()) {
+    throw new Error(
+      "Detached llm-chat windows must proxy persistence to the main window"
+    );
+  }
+  await invoke("llm_chat_delete_session", { request: { sessionId } });
+}
 const coordinator = new SessionPersistenceCoordinator({
   writer,
   onBackgroundError(error, context) {
@@ -136,6 +146,7 @@ const coordinator = new SessionPersistenceCoordinator({
 });
 
 let cachedIndex: SessionsIndex | null = null;
+let needsPrimaryRepair = false;
 let recoveryState: RecoveryState = {
   status: "ready",
   failedSessionCount: 0,
@@ -152,6 +163,7 @@ async function ensureIndex(): Promise<SessionsIndex> {
       : [];
     coordinator.primeIndexRevision(readRevision(cachedIndex));
     if (result.status === "recovered") {
+      needsPrimaryRepair = true;
       recoveryState = {
         status: "ready",
         failedSessionCount: 0,
@@ -201,17 +213,39 @@ async function appendCorruptionManifest(
   entries: CorruptionManifestEntry[]
 ): Promise<void> {
   if (entries.length === 0) return;
-  const manifest = await repository.loadCorruptionManifest();
+
+  let manifest: Awaited<ReturnType<typeof repository.loadCorruptionManifest>>;
+  try {
+    manifest = await repository.loadCorruptionManifest();
+  } catch (error) {
+    // A damaged manifest must not prevent the rebuilt index from becoming
+    // usable. Preserve the sample when possible, then start a fresh manifest.
+    await repository.preserveCorruptManifest().catch((preserveError) => {
+      logger.warn("保留损坏会话清单失败", { preserveError });
+    });
+    manifest = {
+      version: 1,
+      entries: [],
+      _persistence: createPersistenceMeta(),
+    };
+    logger.warn("会话损坏清单无效，已重新建立", { error });
+  }
+
   const revision = readRevision(manifest) + 1;
   manifest.entries.push(...entries);
   manifest._persistence = createPersistenceMeta(revision);
-  await writer.write({
-    kind: "corruptionManifest",
-    content: serialize(manifest),
-    revision,
-    expectedMinRevision: revision - 1,
-    keepLastValidBackup: false,
-  });
+  try {
+    await writer.write({
+      kind: "corruptionManifest",
+      content: serialize(manifest),
+      revision,
+      expectedMinRevision: revision - 1,
+      keepLastValidBackup: false,
+    });
+  } catch (error) {
+    // Recovery remains useful even if diagnostics cannot be persisted.
+    logger.warn("写入会话损坏清单失败", { error, entryCount: entries.length });
+  }
 }
 
 /** Separated-session storage facade. */
@@ -224,6 +258,36 @@ export function useChatStorageSeparated() {
     return repository.getSessionsDir();
   }
 
+  async function getCorruptSessionsDir(): Promise<string> {
+    return repository.ensureCorruptSessionsDir();
+  }
+
+  async function listSessionIds(): Promise<string[]> {
+    return repository.listSessionIds();
+  }
+
+  async function exportCorruptionDiagnostics(): Promise<string> {
+    let manifest: unknown;
+    try {
+      manifest = await repository.loadCorruptionManifest();
+    } catch (error) {
+      manifest = { error: String(error) };
+    }
+    return JSON.stringify(
+      {
+        generatedAt: new Date().toISOString(),
+        recoveryState,
+        manifest,
+      },
+      null,
+      2
+    );
+  }
+
+  async function clearQuarantinedSessionFiles(): Promise<number> {
+    return repository.clearQuarantinedSessionFiles();
+  }
+
   async function loadIndex(): Promise<SessionsIndex> {
     return ensureIndex();
   }
@@ -234,16 +298,11 @@ export function useChatStorageSeparated() {
     try {
       const sessionPath = await repository.getSessionPath(sessionId);
       if (!(await exists(sessionPath))) return null;
-      const fullData: Record<string, any> = JSON.parse(
-        await readTextFile(sessionPath)
-      );
-      if (
-        fullData.id !== sessionId ||
-        !fullData.nodes ||
-        typeof fullData.nodes !== "object"
-      ) {
+      const parsed: unknown = JSON.parse(await readTextFile(sessionPath));
+      if (!isValidSessionPayload(parsed, sessionId)) {
         throw new Error("会话文件结构无效");
       }
+      const fullData = parsed;
       coordinator.primeSessionRevision(sessionId, readRevision(fullData));
       return {
         index: {
@@ -349,8 +408,34 @@ export function useChatStorageSeparated() {
 
   async function deleteSessionFile(sessionId: string): Promise<void> {
     coordinator.markSessionDeleted(sessionId);
-    const path = await repository.getSessionPath(sessionId);
-    if (await exists(path)) await remove(path);
+    await deleteSessionFromNative(sessionId);
+  }
+
+  async function deleteSessionFiles(sessionIds: string[]): Promise<void> {
+    const uniqueIds = [...new Set(sessionIds)];
+    coordinator.markSessionsDeleted(uniqueIds);
+    const failures: Array<{ sessionId: string; error: unknown }> = [];
+    let cursor = 0;
+    const workerCount = Math.max(1, Math.min(4, uniqueIds.length || 1));
+    await Promise.all(
+      Array.from({ length: workerCount }, async () => {
+        while (cursor < uniqueIds.length) {
+          const sessionId = uniqueIds[cursor++];
+          try {
+            await deleteSessionFromNative(sessionId);
+          } catch (error) {
+            failures.push({ sessionId, error });
+          }
+        }
+      })
+    );
+    if (failures.length > 0) {
+      throw new Error(
+        `删除 ${failures.length} 个会话文件失败：${failures
+          .map(({ sessionId, error }) => `${sessionId}: ${String(error)}`)
+          .join("；")}`
+      );
+    }
   }
 
   async function deleteSession(sessionId: string): Promise<void> {
@@ -423,11 +508,85 @@ export function useChatStorageSeparated() {
     return loadSessionsAll();
   }
 
+  /**
+   * Compare only directory names with the loaded index. Existing sessions are
+   * not parsed; only new files are read in the background after first paint.
+   */
+  async function reconcileIndexIncrementally(options?: {
+    concurrency?: number;
+    onNewSessions?: (sessions: ChatSessionIndex[]) => void;
+  }): Promise<{
+    addedCount: number;
+    removedCount: number;
+    failedCount: number;
+  }> {
+    if (isDetachedComponentWindow()) {
+      return { addedCount: 0, removedCount: 0, failedCount: 0 };
+    }
+    const index = await ensureIndex();
+    const sessionIdsOnDisk = new Set(await repository.listSessionIds());
+    const indexedIds = new Set(index.sessions.map((session) => session.id));
+    const missingIds = index.sessions
+      .filter((session) => !sessionIdsOnDisk.has(session.id))
+      .map((session) => session.id);
+    const newIds = [...sessionIdsOnDisk].filter(
+      (sessionId) => !indexedIds.has(sessionId)
+    );
+    const recovered: ChatSessionIndex[] = [];
+    const corruptions: CorruptionManifestEntry[] = [];
+    let cursor = 0;
+    const workerCount = Math.max(
+      1,
+      Math.min(options?.concurrency ?? 4, 8, newIds.length || 1)
+    );
+    await Promise.all(
+      Array.from({ length: workerCount }, async () => {
+        while (cursor < newIds.length) {
+          const sessionId = newIds[cursor++];
+          const session = await loadSession(sessionId);
+          if (session) {
+            recovered.push(session.index);
+          } else {
+            try {
+              corruptions.push(
+                await repository.quarantineSessionFile(
+                  sessionId,
+                  "Session JSON could not be parsed or failed structural validation"
+                )
+              );
+            } catch (error) {
+              logger.warn("隔离增量扫描中的损坏会话失败", { sessionId, error });
+            }
+          }
+        }
+      })
+    );
+    await appendCorruptionManifest(corruptions);
+    if (missingIds.length > 0 || recovered.length > 0) {
+      const missingIdSet = new Set(missingIds);
+      index.sessions = [
+        ...index.sessions.filter((session) => !missingIdSet.has(session.id)),
+        ...recovered,
+      ];
+      options?.onNewSessions?.(recovered);
+    }
+    if (missingIds.length > 0 || recovered.length > 0 || needsPrimaryRepair) {
+      await commitIndex("repair");
+      needsPrimaryRepair = false;
+    }
+    return {
+      addedCount: recovered.length,
+      removedCount: missingIds.length,
+      failedCount: corruptions.length,
+    };
+  }
+
   /** Explicit, non-startup recovery/repair operation. */
   async function repairIndex(options?: {
     signal?: AbortSignal;
     concurrency?: number;
     onProgress?: (state: RecoveryState) => void;
+    onBatch?: (sessions: ChatSessionIndex[]) => void;
   }): Promise<{
     repairedCount: number;
     failedCount: number;
@@ -443,6 +602,7 @@ export function useChatStorageSeparated() {
 
     const repaired: ChatSessionIndex[] = [];
     const corruptions: CorruptionManifestEntry[] = [];
+    const pendingBatch: ChatSessionIndex[] = [];
     let failedCount = 0;
     let nextIndex = 0;
     const workerCount = Math.max(
@@ -457,6 +617,10 @@ export function useChatStorageSeparated() {
           const session = await loadSession(sessionId);
           if (session) {
             repaired.push(session.index);
+            pendingBatch.push(session.index);
+            if (pendingBatch.length >= 25) {
+              options?.onBatch?.(pendingBatch.splice(0));
+            }
           } else {
             failedCount += 1;
             try {
@@ -480,6 +644,9 @@ export function useChatStorageSeparated() {
       })
     );
 
+    if (pendingBatch.length > 0) {
+      options?.onBatch?.(pendingBatch.splice(0));
+    }
     const cancelled = Boolean(options?.signal?.aborted);
     if (cancelled) {
       recoveryState = {
@@ -532,12 +699,18 @@ export function useChatStorageSeparated() {
     saveSessions,
     persistSession,
     repairIndex,
+    reconcileIndexIncrementally,
     deleteSession,
+    deleteSessionFiles,
     updateCurrentSessionId,
     createDebouncedSave,
     loadSession,
     saveSession,
     getSessionsDir,
+    getCorruptSessionsDir,
+    listSessionIds,
+    exportCorruptionDiagnostics,
+    clearQuarantinedSessionFiles,
     getSessionPath,
     flushAll: () => coordinator.flushAll(),
     getRecoveryState: () => recoveryState,

@@ -33,6 +33,7 @@ use uuid::Uuid;
 
 const MODULE_NAME: &str = "llm-chat";
 const LOCK_TIMEOUT: Duration = Duration::from_secs(5);
+const TOMBSTONE_REVISION: u64 = 9_007_199_254_740_991;
 
 static PATH_LOCKS: Lazy<Mutex<HashMap<PathBuf, Arc<Mutex<()>>>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
@@ -65,6 +66,18 @@ pub struct LlmChatAtomicWriteResult {
     pub write_ms: u128,
     pub sync_ms: u128,
     pub replace_ms: u128,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LlmChatDeleteSessionRequest {
+    pub session_id: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LlmChatDeleteSessionResult {
+    pub moved_to_trash: bool,
 }
 
 fn path_lock(path: &Path) -> Arc<Mutex<()>> {
@@ -119,6 +132,27 @@ fn resolve_target(app: &AppHandle, request: &LlmChatAtomicWriteRequest) -> Resul
     }
 }
 
+fn session_tombstone_path(app: &AppHandle, session_id: &str) -> Result<PathBuf, String> {
+    validate_session_id(session_id)?;
+    Ok(get_app_data_dir(app.config())
+        .join(MODULE_NAME)
+        .join("sessions-tombstones")
+        .join(format!("{session_id}.json")))
+}
+
+fn session_trash_path(app: &AppHandle, session_id: &str) -> Result<PathBuf, String> {
+    validate_session_id(session_id)?;
+    Ok(get_app_data_dir(app.config())
+        .join(MODULE_NAME)
+        .join("sessions-trash")
+        .join(format!("{session_id}.{}.json", Uuid::new_v4())))
+}
+
+fn tombstone_revision(app: &AppHandle, session_id: &str) -> Result<u64, String> {
+    let path = session_tombstone_path(app, session_id)?;
+    Ok(read_valid_revision(&path).unwrap_or(0))
+}
+
 fn content_revision(value: &Value) -> u64 {
     value
         .get("_persistence")
@@ -155,6 +189,19 @@ fn read_valid_revision(path: &Path) -> Option<u64> {
         return None;
     }
     Some(content_revision(&value))
+}
+
+fn is_stale_revision(
+    revision: u64,
+    current_revision: u64,
+    tombstone_revision: u64,
+    expected_min_revision: Option<u64>,
+    target_exists: bool,
+) -> bool {
+    revision <= current_revision
+        || revision <= tombstone_revision
+        || (target_exists
+            && expected_min_revision.is_some_and(|expected| current_revision < expected))
 }
 
 fn acquire_process_lock(lock_path: &Path) -> Result<File, String> {
@@ -288,15 +335,29 @@ pub fn llm_chat_atomic_write(
     let process_lock = acquire_process_lock(&lock_path)?;
 
     let current_revision = read_valid_revision(&target).unwrap_or(0);
-    if request.revision <= current_revision
-        || request
-            .expected_min_revision
-            .is_some_and(|expected| current_revision < expected)
-    {
+    let tombstone_revision = match request.kind {
+        LlmChatFileKind::Session => tombstone_revision(
+            &app,
+            request
+                .session_id
+                .as_deref()
+                .expect("validated session request"),
+        )?,
+        _ => 0,
+    };
+    // Revision ordering is the final defense against older writers. A missing
+    // primary index is deliberately allowed here so a valid backup can repair it.
+    if is_stale_revision(
+        request.revision,
+        current_revision,
+        tombstone_revision,
+        request.expected_min_revision,
+        target.exists(),
+    ) {
         let _ = process_lock.unlock();
         return Ok(LlmChatAtomicWriteResult {
             outcome: "staleRejected".to_string(),
-            revision: current_revision,
+            revision: current_revision.max(tombstone_revision),
             bytes: 0,
             write_ms: 0,
             sync_ms: 0,
@@ -318,6 +379,53 @@ pub fn llm_chat_atomic_write(
         sync_ms,
         replace_ms,
     })
+}
+
+#[tauri::command]
+pub fn llm_chat_delete_session(
+    app: AppHandle,
+    request: LlmChatDeleteSessionRequest,
+) -> Result<LlmChatDeleteSessionResult, String> {
+    validate_session_id(&request.session_id)?;
+    let target = get_app_data_dir(app.config())
+        .join(MODULE_NAME)
+        .join("sessions")
+        .join(format!("{}.json", request.session_id));
+    let in_process_lock = path_lock(&target);
+    let _guard = in_process_lock
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    let lock_path = target.with_extension("json.lock");
+    let process_lock = acquire_process_lock(&lock_path)?;
+
+    let tombstone = session_tombstone_path(&app, &request.session_id)?;
+    let tombstone_content = serde_json::to_vec(&serde_json::json!({
+        "_persistence": {
+            "schema": 1,
+            "revision": TOMBSTONE_REVISION,
+            "committedAt": chrono::Utc::now().to_rfc3339(),
+        },
+        "sessionId": request.session_id,
+    }))
+    .map_err(|error| format!("serialize session tombstone failed: {error}"))?;
+    replace_with_synced_content(&tombstone, &tombstone_content)?;
+
+    let moved_to_trash = if target.exists() {
+        let trash = session_trash_path(&app, &request.session_id)?;
+        let parent = trash
+            .parent()
+            .ok_or_else(|| "session trash path has no parent".to_string())?;
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("create session trash directory failed: {error}"))?;
+        fs::rename(&target, &trash)
+            .map_err(|error| format!("move deleted session to trash failed: {error}"))?;
+        true
+    } else {
+        false
+    };
+
+    let _ = process_lock.unlock();
+    Ok(LlmChatDeleteSessionResult { moved_to_trash })
 }
 
 #[cfg(test)]
@@ -355,5 +463,28 @@ mod tests {
         fs::write(&backup, content(9)).unwrap();
         rotate_valid_backup(&target).unwrap();
         assert_eq!(read_valid_revision(&backup), Some(9));
+    }
+
+    #[test]
+    fn stale_revision_checks_protect_existing_targets_and_tombstones() {
+        assert!(is_stale_revision(4, 4, 0, Some(3), true));
+        assert!(is_stale_revision(4, 3, 5, Some(3), true));
+        assert!(is_stale_revision(4, 3, 0, Some(5), true));
+        // A missing primary can be rebuilt from a valid backup even when the
+        // writer still carries the previous revision as its expected minimum.
+        assert!(!is_stale_revision(4, 0, 0, Some(3), false));
+    }
+
+    #[test]
+    fn invalid_json_is_rejected_before_atomic_replacement() {
+        let request = LlmChatAtomicWriteRequest {
+            kind: LlmChatFileKind::Index,
+            session_id: None,
+            content: "not-json".to_string(),
+            revision: 1,
+            expected_min_revision: None,
+            keep_last_valid_backup: false,
+        };
+        assert!(parse_and_validate_content(&request).is_err());
     }
 }

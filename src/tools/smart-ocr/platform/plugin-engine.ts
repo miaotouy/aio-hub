@@ -14,6 +14,7 @@
 
 import { execute } from "@/services/executor";
 import { pluginManager } from "@/services/plugin-manager";
+import { getPluginFailureSummary } from "@/services/plugin-diagnostics";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 import type {
@@ -184,7 +185,9 @@ function assertPluginReady(
 
   const state = pluginManager.pluginStates[plugin.id];
   if (state?.isBroken) {
-    throw new Error(`OCR 插件 "${plugin.name}" 已损坏，请重新安装插件`);
+    throw new Error(
+      `OCR 插件 "${plugin.name}" 当前不可用：${getPluginFailureSummary(plugin)}`
+    );
   }
 
   if (!(state?.enabled ?? plugin.enabled)) {

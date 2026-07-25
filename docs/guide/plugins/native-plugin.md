@@ -25,9 +25,9 @@
   "native": {
     "reloadable": false,
     "library": {
-      "windows": "target/release/my_native_plugin.dll",
-      "macos": "target/release/libmy_native_plugin.dylib",
-      "linux": "target/release/libmy_native_plugin.so"
+      "win32-x64": "dev-bin/win32-x64/my_native_plugin.dll",
+      "darwin-x64": "dev-bin/darwin-x64/libmy_native_plugin.dylib",
+      "linux-x64": "dev-bin/linux-x64/libmy_native_plugin.so"
     }
   },
   "methods": [
@@ -46,7 +46,7 @@
 
 ### `native` 配置项
 
-- **`library`**: 一个对象，按平台 (`windows`, `macos`, `linux`) 指定动态库文件的相对路径。
+- **`library`**: 一个对象，按平台和架构 (`<os>-<arch>`) 指定动态库文件的相对路径。
 - **`reloadable`** (可选, 默认为 `false`): 是否支持运行时安全重载。
   - `false`: 插件加载后无法安全卸载，禁用插件需要重启应用。适用于有状态或管理全局资源的服务。
   - `true`: 插件支持在不重启应用的情况下被禁用和重新启用。要求插件本身是无状态的，或者能正确处理资源的清理和重新初始化。
@@ -164,7 +164,7 @@ serde_json = "1.0"
 cargo build --release
 ```
 
-生成的动态库路径需与 `manifest.json` 中的 `library` 字段匹配。
+Cargo 产物应由构建脚本复制到稳定开发或发布目录。最终动态库路径必须与 `manifest.json` 当前平台键对应的 `library` 字段匹配，并对该文件执行实际加载验证。
 
 ## 下一步
 

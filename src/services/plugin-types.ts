@@ -97,6 +97,20 @@ export type PlatformKey =
   | "linux-x64"
   | "linux-arm64";
 
+export interface PluginDiagnosticDetail {
+  label: string;
+  value: string;
+}
+
+export interface PluginDiagnostic {
+  code: string;
+  severity: "error" | "warning";
+  title: string;
+  message: string;
+  details?: PluginDiagnosticDetail[];
+  resolution?: string;
+}
+
 /**
  * Sidecar 插件配置
  */
@@ -455,6 +469,8 @@ export interface PluginProxy extends ToolRegistry {
   isBroken?: boolean;
   /** 插件加载或兼容性错误 */
   error?: Error;
+  /** 可展示、可操作的插件诊断信息 */
+  diagnostics?: PluginDiagnostic[];
   /** 展示给插件管理界面的兼容性说明 */
   compatibilityWarning?: string;
   /** 不可通过手动启用清除的协议或版本不兼容错误 */

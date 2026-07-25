@@ -29,6 +29,7 @@
 
 - 桌面端和移动端工具分别位于 `src/tools/` 与 `mobile/src/tools/`，注册文件使用 `{toolId}.registry.ts`。新增或修改工具前阅读[添加新工具指南](docs/guide/adding-new-tool.md)和[工具注册指南](docs/guide/tool-registry-guide.md)。
 - `plugins/` 下的插件是独立 Git 仓库，拥有独立版本和生命周期。修改插件时必须在对应插件仓库中操作，并遵循该仓库规范与 [`plugins/AGENTS.template.md`](plugins/AGENTS.template.md)。
+- Native / Sidecar 插件的 manifest 不得直接依赖 Cargo `target/` 缓存布局；构建脚本应把当前平台产物部署到稳定相对路径。验证时必须执行 manifest 当前平台键实际指向的文件，不能只以 `cargo build` 成功作为结论。
 - 涉及 VCP 时，必须先阅读 [`tool-calling` 架构](src/tools/tool-calling/ARCHITECTURE.md)与 [`vcp-connector` 架构](src/tools/vcp-connector/ARCHITECTURE.md)，不得根据名称猜测协议含义。
 - 模型元数据规则只在模型创建、导入、刷新或显式应用预设时写入模型对象。`media-generator` 运行时只读取模型自身的 `mediaGenParams`，不得实时合并或回退到全局元数据规则。
 

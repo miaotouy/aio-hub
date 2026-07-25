@@ -21,6 +21,11 @@
 import { toolRegistryManager } from "./registry";
 import { createPluginLoader, PluginLoader } from "./plugin-loader";
 import type { PluginProxy } from "./plugin-types";
+import {
+  clearPluginRuntimeFailures,
+  getPrimaryPluginDiagnostic,
+  markPluginRuntimeFailure,
+} from "./plugin-diagnostics";
 import { useToolsStore } from "@/stores/tools";
 import type { ToolConfig } from "@/services/types";
 import { markRaw, h, ref, reactive, type Component } from "vue";
@@ -619,15 +624,11 @@ class PluginManager {
               await plugin.enable(this.createPluginContext(plugin.id));
             } catch (enableError) {
               logger.error(
-                `激活插件 ${plugin.id} 失败，将自动禁用并标记为损坏`,
+                `激活插件 ${plugin.id} 失败，将自动禁用并标记为不可用`,
                 enableError
               );
               isBroken = true;
-              (plugin as any).isBroken = true;
-              (plugin as any).error =
-                enableError instanceof Error
-                  ? enableError
-                  : new Error(String(enableError));
+              markPluginRuntimeFailure(plugin, "activation", enableError);
 
               // 确保清理可能已经启动的后台进程
               try {
@@ -651,10 +652,19 @@ class PluginManager {
           // 注意：plugin.enable() 内部已经调用了 updateRuntimeState()，
           // updateRuntimeState() 已经负责了 registerPluginUi()。
           // 这里不需要再次手动注册，除非插件是禁用的。
-          if (!plugin.enabled || isBroken) {
-            logger.info(`跳过禁用或损坏插件的UI注册: ${plugin.id}`, {
+          if (isBroken) {
+            logger.warn(`跳过不可用插件的UI注册: ${plugin.id}`, {
               enabled: plugin.enabled,
               isBroken,
+              diagnostic:
+                getPrimaryPluginDiagnostic(plugin) ??
+                plugin.error?.message ??
+                "未记录具体故障原因",
+            });
+          } else if (!plugin.enabled) {
+            logger.info(`跳过禁用插件的UI注册: ${plugin.id}`, {
+              enabled: false,
+              isBroken: false,
             });
           }
         } catch (error) {
@@ -724,24 +734,21 @@ class PluginManager {
           if ((plugin as any).isBroken) {
             (plugin as any).isBroken = false;
             delete (plugin as any).error;
+            clearPluginRuntimeFailures(plugin);
           }
         } catch (enableError) {
           logger.error(
-            `手动启用插件 ${pluginId} 失败，自动回滚为禁用并标记为损坏`,
+            `手动启用插件 ${pluginId} 失败，自动回滚为禁用并标记为不可用`,
             enableError
           );
 
-          // 标记为损坏
+          // 标记为不可用
           if (this.pluginStates[pluginId]) {
             this.pluginStates[pluginId].isBroken = true;
           } else {
             this.pluginStates[pluginId] = { enabled: false, isBroken: true };
           }
-          (plugin as any).isBroken = true;
-          (plugin as any).error =
-            enableError instanceof Error
-              ? enableError
-              : new Error(String(enableError));
+          markPluginRuntimeFailure(plugin, "activation", enableError);
 
           // 确保清理可能已经启动的后台进程
           try {

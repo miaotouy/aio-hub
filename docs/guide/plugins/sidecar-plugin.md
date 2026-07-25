@@ -23,9 +23,9 @@ Sidecar 插件以独立的子进程运行，通过标准输入/输出 (stdio) �
   "type": "sidecar",
   "sidecar": {
     "executable": {
-      "win32-x64": "target/debug/file-hasher.exe",
-      "darwin-x64": "target/debug/file-hasher",
-      "linux-x64": "target/debug/file-hasher"
+      "win32-x64": "dev-bin/win32-x64/file-hasher.exe",
+      "darwin-x64": "dev-bin/darwin-x64/file-hasher",
+      "linux-x64": "dev-bin/linux-x64/file-hasher"
     },
     "args": []
   },
@@ -50,6 +50,8 @@ Sidecar 插件以独立的子进程运行，通过标准输入/输出 (stdio) �
 - **`executable`**: 一个对象，按平台和架构 (`<os>-<arch>`) 指定可执行文件的相对路径。
 - **`args`**: 启动可执行文件时传递的命令行参数数组。
 - **`resident`** (可选): 是否为持久型模式（见下文）。
+
+`target/debug` 只表示 Cargo 为当前宿主平台生成的默认缓存目录；显式使用 `--target` 时产物位于 `target/<target-triple>/debug`。不要让 manifest 直接依赖这两种缓存布局。构建脚本应将二进制复制到 `dev-bin/<platform>/` 等稳定开发路径，发布时再复制到 ZIP 内的 `bin/` 并生成对应 manifest。
 
 ### 方法声明
 
@@ -80,7 +82,7 @@ API v3 普通 Sidecar 每次调用都会启动新进程，因此每个请求都�
 
 ## 编译
 
-你需要自行编译 Sidecar 插件，并将可执行文件放置在 `manifest.json` 中指定的路径。
+你需要通过插件构建脚本编译 Sidecar，并将可执行文件部署到 `manifest.json` 当前平台键指定的路径。验证必须针对该路径实际启动一次，不能只检查 Cargo 编译成功。
 
 ## 持久型 Sidecar 插件 (Resident Mode)
 

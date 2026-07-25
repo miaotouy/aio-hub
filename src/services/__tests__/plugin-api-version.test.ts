@@ -12,7 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@tauri-apps/plugin-os", () => ({
+  platform: () => "windows",
+  arch: () => "x86_64",
+}));
 import {
   createSidecarHostContext,
   isPluginApiVersionSupported,
@@ -20,6 +25,8 @@ import {
 } from "../plugin-api-version";
 import {
   getApiV3ManifestErrors,
+  getCurrentPlatform,
+  toPlatformKey,
   validatePluginCompatibility,
 } from "../plugin-loader";
 import type {
@@ -27,6 +34,7 @@ import type {
   PluginOcrEngineContribution,
   PluginProxy,
 } from "../plugin-types";
+import { markPluginRuntimeFailure } from "../plugin-diagnostics";
 
 function createJobManifest(): PluginManifest {
   return {
@@ -65,6 +73,15 @@ function createJobManifest(): PluginManifest {
 }
 
 describe("Plugin API v3 compatibility", () => {
+  it("maps native OS and architecture values to plugin platform keys", () => {
+    expect(getCurrentPlatform()).toBe("win32-x64");
+    expect(toPlatformKey("macos", "aarch64")).toBe("darwin-arm64");
+    expect(toPlatformKey("linux", "x86_64")).toBe("linux-x64");
+    expect(() => toPlatformKey("windows", "x86")).toThrow(
+      "不支持的平台: windows-x86"
+    );
+  });
+
   it("keeps API v2 plugins compatible and rejects future API versions", () => {
     expect(isPluginApiVersionSupported(2)).toBe(true);
     expect(isPluginApiVersionSupported(3)).toBe(true);
@@ -131,6 +148,63 @@ describe("Plugin API v3 compatibility", () => {
 
     expect(getApiV3ManifestErrors(manifest)).toContain(
       "OCR contribution primary 的 job 模式仅支持常驻 Sidecar 插件"
+    );
+  });
+
+  it("marks native plugins without a current-platform binary as broken", () => {
+    const manifest = createJobManifest();
+    manifest.sidecar!.executable = { "linux-x64": "bin/test-ocr" };
+    const proxy = { installPath: "plugins/test-ocr" } as PluginProxy;
+
+    validatePluginCompatibility(manifest, proxy);
+
+    expect(proxy.isBroken).toBe(true);
+    expect(proxy.compatibilityError?.message).toContain(
+      "manifest.sidecar.executable 未声明 win32-x64"
+    );
+    expect(proxy.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "PLUGIN_SIDECAR_PLATFORM_BINARY_UNDECLARED",
+        title: "当前平台没有 Sidecar 产物声明",
+        details: expect.arrayContaining([
+          { label: "当前平台", value: "win32-x64" },
+          { label: "已声明平台", value: "linux-x64" },
+          {
+            label: "manifest 字段",
+            value: "sidecar.executable.win32-x64",
+          },
+          { label: "安装目录", value: "plugins/test-ocr" },
+        ]),
+      })
+    );
+  });
+
+  it("classifies stale Sidecar method errors with artifact details", () => {
+    const manifest = createJobManifest();
+    const proxy = {
+      manifest,
+      installPath: "plugins/test-ocr",
+    } as PluginProxy;
+
+    markPluginRuntimeFailure(
+      proxy,
+      "activation",
+      new Error("未知方法: submitOcrJob")
+    );
+
+    expect(proxy.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "PLUGIN_PROTOCOL_METHOD_UNSUPPORTED",
+        title: "插件协议方法不匹配",
+        message: "未知方法: submitOcrJob",
+        details: expect.arrayContaining([
+          {
+            label: "Sidecar 产物声明",
+            value: JSON.stringify(manifest.sidecar!.executable),
+          },
+        ]),
+        resolution: expect.stringContaining("同一次构建"),
+      })
     );
   });
 });

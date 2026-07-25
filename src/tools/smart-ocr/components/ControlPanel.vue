@@ -103,6 +103,7 @@ const pluginStatus = computed(() => {
       installed: false,
       enabled: false,
       broken: false,
+      failureReason: undefined,
       name: "插件 OCR",
       devMode: false,
     };
@@ -112,6 +113,7 @@ const pluginStatus = computed(() => {
     installed: true,
     enabled: extension.enabled,
     broken: extension.broken,
+    failureReason: extension.failureReason,
     name: extension.name,
     devMode: extension.devMode,
   };
@@ -127,7 +129,7 @@ const pluginStatusHint = computed(() => {
   }
   const devSuffix = pluginStatus.value.devMode ? " [开发版]" : "";
   if (pluginStatus.value.broken) {
-    return `${pluginStatus.value.name}${devSuffix} 插件已损坏，请重新安装`;
+    return `${pluginStatus.value.name}${devSuffix} 当前不可用：${pluginStatus.value.failureReason || "未记录具体故障原因，请查看插件管理与应用日志"}`;
   }
   if (!pluginStatus.value.enabled) {
     return `${pluginStatus.value.name}${devSuffix} 插件未启用，请先在插件管理中启用`;

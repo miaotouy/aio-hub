@@ -106,5 +106,6 @@ export interface OcrExtension {
   };
   enabled: boolean;
   broken: boolean;
+  failureReason?: string;
   devMode?: boolean;
 }

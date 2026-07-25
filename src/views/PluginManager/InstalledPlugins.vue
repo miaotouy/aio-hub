@@ -34,6 +34,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useFileDrop } from "@/composables/useFileDrop";
 import { compareVersions } from "compare-versions";
+import { CURRENT_PLUGIN_API_VERSION } from "@/services/plugin-api-version";
 
 const logger = createModuleLogger("PluginManager/InstalledPlugins");
 const errorHandler = createModuleErrorHandler("PluginManager/InstalledPlugins");
@@ -75,7 +76,7 @@ const preflightResult = ref<PreflightResult | null>(null);
 const preflightLoading = ref(false);
 
 // 当前主应用的插件 API 版本
-const HOST_PLUGIN_API_VERSION = 2;
+const HOST_PLUGIN_API_VERSION = CURRENT_PLUGIN_API_VERSION;
 
 // 插件列表容器 ref（用于拖放）
 const pluginsListRef = ref<HTMLElement>();

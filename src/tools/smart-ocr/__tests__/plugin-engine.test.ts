@@ -19,15 +19,16 @@ const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
   getActivePlugin: vi.fn(),
   handleError: vi.fn(),
+  pluginStates: {
+    "test-ocr": { enabled: true, isBroken: false },
+  },
 }));
 
 vi.mock("@/services/executor", () => ({ execute: mocks.execute }));
 vi.mock("@/services/plugin-manager", () => ({
   pluginManager: {
     getActivePlugin: mocks.getActivePlugin,
-    pluginStates: {
-      "test-ocr": { enabled: true, isBroken: false },
-    },
+    pluginStates: mocks.pluginStates,
   },
 }));
 vi.mock("@/utils/logger", () => ({
@@ -127,6 +128,7 @@ describe("plugin OCR batch scheduling", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     eventListeners.clear();
+    mocks.pluginStates["test-ocr"] = { enabled: true, isBroken: false };
     installPlugin(4);
     mocks.execute.mockImplementation(successResponse);
   });
@@ -266,6 +268,30 @@ describe("plugin OCR batch scheduling", () => {
     expect(mocks.execute).not.toHaveBeenCalled();
     expect(results.every((result) => result.status === "error")).toBe(true);
     expect(results[0].error).toContain("removed-contribution");
+  });
+
+  it("preserves the structured failure reason for unavailable plugins", async () => {
+    const plugin = installPlugin(4) as any;
+    plugin.diagnostics = [
+      {
+        code: "PLUGIN_SIDECAR_PLATFORM_BINARY_UNDECLARED",
+        severity: "error",
+        title: "当前平台没有 Sidecar 产物声明",
+        message: "manifest.sidecar.executable 未声明 win32-x64",
+        resolution: "构建并部署 win32-x64 产物",
+      },
+    ];
+    mocks.pluginStates["test-ocr"] = { enabled: false, isBroken: true };
+
+    const { recognizeBatch } = usePluginOcrEngine();
+    const results = await recognizeBatch(createBlocks(1), {
+      pluginId: "test-ocr",
+      contributionId: "primary",
+    });
+
+    expect(results[0].error).toContain("manifest.sidecar.executable");
+    expect(results[0].error).toContain("构建并部署 win32-x64 产物");
+    expect(results[0].error).not.toContain("请重新安装插件");
   });
 
   it("waits for API v3 job events after the submit acknowledgement", async () => {

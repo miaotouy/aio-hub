@@ -331,6 +331,7 @@ export default mergeConfig(
         "**/.roo/**",
         "**/.jj/**",
         "tests/tauri-e2e/**",
+        ".dev-data/**",
       ],
     },
   })

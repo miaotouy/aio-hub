@@ -14,9 +14,14 @@
     "mtib": "tauri ios build",
     "tauri": "tauri",
     "test:run": "vitest --run --config vite.config.ts",
-    "check": "bun run check:frontend ; bun run check:backend",
+    "test:backend": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "check": "bun run check:frontend && bun run check:backend",
     "check:frontend": "vue-tsc --noEmit",
-    "check:backend": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings"
+    "check:backend": "bun run check:backend:lint",
+    "check:backend:compile": "cargo check --manifest-path src-tauri/Cargo.toml",
+    "check:backend:lint": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings",
+    "format:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml",
+    "format:rust:check": "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check"
   },
   "dependencies": {
     "@aiohub/llm-core": "workspace:*",

@@ -44,13 +44,10 @@ jobs:
         run: bun run check:mobile:frontend
 
       - name: Cargo 检查 (桌面端)
-        working-directory: src-tauri
-        run: cargo check
+        run: bun run check:backend:compile
 
       - name: Cargo 检查 (移动端)
-        working-directory: mobile/src-tauri
-        run: cargo check
+        run: bun run check:mobile:backend:compile
 
       - name: Cargo 测试 (桌面端)
-        working-directory: src-tauri
-        run: cargo test
+        run: bun run test:backend

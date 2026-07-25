@@ -209,6 +209,7 @@ fn acquire_process_lock(lock_path: &Path) -> Result<File, String> {
         .create(true)
         .read(true)
         .write(true)
+        .truncate(false)
         .open(lock_path)
         .map_err(|error| format!("open persistence lock failed: {error}"))?;
     let started = Instant::now();

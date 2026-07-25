@@ -33,7 +33,7 @@ const emit = defineEmits<{
 }>();
 
 const errorHandler = createModuleErrorHandler("LlmProfileExport");
-const includeSecrets = ref(true);
+const includeSecrets = ref(false);
 const exporting = ref(false);
 const searchQuery = ref("");
 
@@ -115,7 +115,7 @@ watch(
   (visible) => {
     if (!visible) return;
     searchQuery.value = "";
-    includeSecrets.value = true;
+    includeSecrets.value = false;
     selectedIds.value.clear();
 
     if (props.selectedProfileId) {
@@ -125,7 +125,8 @@ watch(
       // 如果没有选中的渠道（比如从侧边栏头部点击），默认全选所有渠道
       props.profiles.forEach((p) => selectedIds.value.add(p.id));
     }
-  }
+  },
+  { immediate: true }
 );
 
 const sanitizeFileName = (value: string) =>

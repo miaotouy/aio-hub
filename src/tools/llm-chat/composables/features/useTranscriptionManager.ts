@@ -518,6 +518,14 @@ export function useTranscriptionManager() {
     }
 
     const assetsToTranscribe = assets.filter((asset) => {
+      const status = getTranscriptionStatus(asset);
+      const hasActiveTask = status === "pending" || status === "processing";
+
+      // 只要资产已经有正在运行的转写任务，就必须等待它结束。
+      // 不能先用模型原生能力过滤：Vision/Audio 模型虽然可以直接接收原文件，
+      // 但此时转写结果仍可能是当前消息需要注入的内容。
+      if (hasActiveTask) return true;
+
       const isForced = forceAssetIds?.has(asset.id) ?? false;
       if (isForced) {
         return isSupportedTranscriptionType(asset);

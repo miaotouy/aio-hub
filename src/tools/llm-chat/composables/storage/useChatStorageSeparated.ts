@@ -13,721 +13,533 @@
 // limitations under the License.
 
 /**
- * LLM Chat 会话分离式文件存储
- * 使用 ConfigManager 管理索引文件，每个会话存储为独立文件
+ * Compatibility facade for llm-chat's separated session files.
+ *
+ * All writes now flow through SessionPersistenceCoordinator and the native
+ * atomic-write command. The facade intentionally keeps legacy call sites
+ * working while separating session content, index metadata and current-session
+ * selection persistence.
  */
 
-import {
-  exists,
-  readTextFile,
-  writeTextFile,
-  remove,
-} from "@tauri-apps/plugin-fs";
-import { join } from "@tauri-apps/api/path";
-import { getAppConfigDir } from "@/utils/appPath";
-import { createConfigManager } from "@/utils/configManager";
+import { exists, readTextFile, remove } from "@tauri-apps/plugin-fs";
+import { invoke } from "@tauri-apps/api/core";
+import { toRaw } from "vue";
 import { useDebounceFn } from "@vueuse/core";
-import type { ChatSessionIndex, ChatSessionDetail } from "../../types";
+import type { ChatSessionDetail, ChatSessionIndex } from "../../types";
 import { getEffectiveMessageCount } from "../../utils/sessionMessageCount";
-import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { createModuleLogger } from "@/utils/logger";
+import {
+  SessionPersistenceCoordinator,
+  type SessionPersistenceWriter,
+} from "../../services/sessionPersistenceCoordinator";
+import {
+  createPersistenceMeta,
+  readRevision,
+  SessionPersistenceRepository,
+} from "../../services/sessionPersistenceRepository";
+import type {
+  CommitResult,
+  CorruptionManifestEntry,
+  FavoriteFolder,
+  RecoveryState,
+  SessionsIndex,
+} from "../../types/persistence";
+
+export type { FavoriteFolder } from "../../types/persistence";
 
 const logger = createModuleLogger("llm-chat/storage-separated");
 const errorHandler = createModuleErrorHandler("llm-chat/storage-separated");
+const INDEX_VERSION = "1.1.2";
 
-const MODULE_NAME = "llm-chat";
-const SESSIONS_SUBDIR = "sessions";
-
-/**
- * 收藏夹实体
- */
-export interface FavoriteFolder {
-  id: string;
-  name: string;
-  icon?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/**
- * 会话索引配置（包含元数据以优化列表显示）
- */
-interface SessionsIndex {
-  version: string;
-  currentSessionId: string | null;
-  sessions: ChatSessionIndex[]; // 会话元数据列表（用于排序和快速显示）
-  favoriteFolders?: FavoriteFolder[];
-}
-
-/**
- * 创建默认索引配置
- */
 function createDefaultIndex(): SessionsIndex {
   return {
-    version: "1.1.2",
+    version: INDEX_VERSION,
     currentSessionId: null,
     sessions: [],
     favoriteFolders: [],
+    _persistence: createPersistenceMeta(),
   };
 }
 
-function normalizeIndex(index: SessionsIndex): SessionsIndex {
-  index.favoriteFolders = Array.isArray(index.favoriteFolders)
-    ? index.favoriteFolders
-    : [];
-  return index;
+function serialize(value: unknown): string {
+  // JSON.stringify is deliberately synchronous so a queued commit cannot keep
+  // reactive references that later mutate underneath it.
+  return JSON.stringify(toRaw(value));
 }
 
-/**
- * 索引文件管理器（使用 ConfigManager）
- */
-const indexManager = createConfigManager<SessionsIndex>({
-  moduleName: MODULE_NAME,
-  fileName: "sessions-index.json",
-  version: "1.1.2",
-  createDefault: createDefaultIndex,
+function createIndexItem(
+  session: ChatSessionIndex & Partial<ChatSessionDetail>
+): ChatSessionIndex {
+  return {
+    id: session.id,
+    name: session.name,
+    displayAgentId: session.displayAgentId,
+    messageCount: session.nodes
+      ? getEffectiveMessageCount(session.nodes, session.rootNodeId)
+      : session.messageCount || 0,
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+    isFavorite: session.isFavorite,
+    favoriteFolderId: session.favoriteFolderId,
+  };
+}
+
+function toStoredSession(
+  session: ChatSessionIndex & ChatSessionDetail,
+  revision: number
+): Record<string, unknown> {
+  const {
+    history: _history,
+    historyIndex: _historyIndex,
+    ...persisted
+  } = toRaw(session);
+  const result = {
+    ...persisted,
+    _persistence: createPersistenceMeta(revision),
+  } as Record<string, unknown>;
+  delete result.isFavorite;
+  delete result.favoriteFolderId;
+  return result;
+}
+
+const repository = new SessionPersistenceRepository();
+
+function isDetachedComponentWindow(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    window.location.pathname.startsWith("/detached-component/")
+  );
+}
+
+const writer: SessionPersistenceWriter = {
+  write(request) {
+    if (isDetachedComponentWindow()) {
+      return Promise.reject(
+        new Error(
+          "Detached llm-chat windows must proxy persistence to the main window"
+        )
+      );
+    }
+    return invoke<CommitResult>("llm_chat_atomic_write", { request });
+  },
+};
+const coordinator = new SessionPersistenceCoordinator({
+  writer,
+  onBackgroundError(error, context) {
+    errorHandler.handle(error as Error, {
+      userMessage: "会话持久化失败",
+      showToUser: false,
+      context,
+    });
+  },
 });
 
-/**
- * 分离式会话存储 composable
- */
+let cachedIndex: SessionsIndex | null = null;
+let recoveryState: RecoveryState = {
+  status: "ready",
+  failedSessionCount: 0,
+  scannedSessionCount: 0,
+};
+
+async function ensureIndex(): Promise<SessionsIndex> {
+  if (cachedIndex) return cachedIndex;
+  const result = await repository.loadIndex();
+  if (result.status === "ready" || result.status === "recovered") {
+    cachedIndex = result.index;
+    cachedIndex.favoriteFolders = Array.isArray(cachedIndex.favoriteFolders)
+      ? cachedIndex.favoriteFolders
+      : [];
+    coordinator.primeIndexRevision(readRevision(cachedIndex));
+    if (result.status === "recovered") {
+      recoveryState = {
+        status: "ready",
+        failedSessionCount: 0,
+        scannedSessionCount: 0,
+      };
+      // Preserve the damaged primary before any later normal mutation replaces
+      // it, so diagnostics are not silently lost.
+      await repository.preserveCorruptPrimary().catch((error) => {
+        logger.warn("保留损坏会话索引样本失败", { error });
+      });
+      logger.warn("使用会话索引备份恢复", { source: result.source });
+    }
+    return cachedIndex;
+  }
+  if (result.status === "missing" && result.sessionsDirectoryEmpty) {
+    cachedIndex = createDefaultIndex();
+    return cachedIndex;
+  }
+
+  recoveryState = {
+    status: "corrupt",
+    failedSessionCount: 0,
+    scannedSessionCount: 0,
+  };
+  throw new Error(
+    result.status === "corrupt"
+      ? `会话索引损坏：${result.primaryError}`
+      : "会话索引当前不可用"
+  );
+}
+
+function captureIndex(revision: number): string {
+  if (!cachedIndex) throw new Error("Session index has not been loaded");
+  cachedIndex._persistence = createPersistenceMeta(revision);
+  return serialize(cachedIndex);
+}
+
+async function commitIndex(
+  reason: Parameters<typeof coordinator.flushIndex>[1]
+): Promise<CommitResult> {
+  const index = await ensureIndex();
+  coordinator.primeIndexRevision(readRevision(index));
+  return coordinator.flushIndex(captureIndex, reason);
+}
+
+async function appendCorruptionManifest(
+  entries: CorruptionManifestEntry[]
+): Promise<void> {
+  if (entries.length === 0) return;
+  const manifest = await repository.loadCorruptionManifest();
+  const revision = readRevision(manifest) + 1;
+  manifest.entries.push(...entries);
+  manifest._persistence = createPersistenceMeta(revision);
+  await writer.write({
+    kind: "corruptionManifest",
+    content: serialize(manifest),
+    revision,
+    expectedMinRevision: revision - 1,
+    keepLastValidBackup: false,
+  });
+}
+
+/** Separated-session storage facade. */
 export function useChatStorageSeparated() {
-  /**
-   * 获取会话文件路径
-   */
   async function getSessionPath(sessionId: string): Promise<string> {
-    const appDir = await getAppConfigDir();
-    const moduleDir = await join(appDir, MODULE_NAME);
-    const sessionsDir = await join(moduleDir, SESSIONS_SUBDIR);
-    return join(sessionsDir, `${sessionId}.json`);
+    return repository.getSessionPath(sessionId);
   }
 
-  /**
-   * 加载会话索引（使用 ConfigManager）
-   */
+  async function getSessionsDir(): Promise<string> {
+    return repository.getSessionsDir();
+  }
+
   async function loadIndex(): Promise<SessionsIndex> {
-    return normalizeIndex(await indexManager.load());
+    return ensureIndex();
   }
 
-  /**
-   * 保存会话索引（使用 ConfigManager）
-   */
-  async function saveIndex(index: SessionsIndex): Promise<void> {
-    await indexManager.save(index);
-  }
-
-  /**
-   * 加载单个会话
-   */
   async function loadSession(
     sessionId: string
   ): Promise<{ index: ChatSessionIndex; detail: ChatSessionDetail } | null> {
     try {
-      const sessionPath = await getSessionPath(sessionId);
-      const sessionExists = await exists(sessionPath);
-
-      if (!sessionExists) {
-        logger.warn("会话文件不存在", { sessionId });
-        return null;
+      const sessionPath = await repository.getSessionPath(sessionId);
+      if (!(await exists(sessionPath))) return null;
+      const fullData: Record<string, any> = JSON.parse(
+        await readTextFile(sessionPath)
+      );
+      if (
+        fullData.id !== sessionId ||
+        !fullData.nodes ||
+        typeof fullData.nodes !== "object"
+      ) {
+        throw new Error("会话文件结构无效");
       }
-
-      const content = await readTextFile(sessionPath);
-      const fullData = JSON.parse(content);
-
-      // 拆分索引和详情
-      const index: ChatSessionIndex = {
-        id: fullData.id,
-        name: fullData.name,
-        displayAgentId: fullData.displayAgentId,
-        messageCount: fullData.nodes
-          ? getEffectiveMessageCount(fullData.nodes, fullData.rootNodeId)
-          : fullData.messageCount || 0,
-        createdAt: fullData.createdAt,
-        updatedAt: fullData.updatedAt,
+      coordinator.primeSessionRevision(sessionId, readRevision(fullData));
+      return {
+        index: {
+          id: fullData.id,
+          name: fullData.name,
+          displayAgentId: fullData.displayAgentId,
+          messageCount: getEffectiveMessageCount(
+            fullData.nodes,
+            fullData.rootNodeId
+          ),
+          createdAt: fullData.createdAt,
+          updatedAt: fullData.updatedAt,
+        },
+        detail: {
+          id: fullData.id,
+          nodes: fullData.nodes,
+          rootNodeId: fullData.rootNodeId || "",
+          activeLeafId: fullData.activeLeafId || "",
+          updatedAt: fullData.updatedAt || fullData.createdAt,
+          parameterOverrides: fullData.parameterOverrides,
+          history: fullData.history || [],
+          historyIndex: fullData.historyIndex || 0,
+          agentUsage: fullData.agentUsage,
+        },
       };
-
-      const detail: ChatSessionDetail = {
-        id: fullData.id,
-        nodes: fullData.nodes || {},
-        rootNodeId: fullData.rootNodeId || "",
-        activeLeafId: fullData.activeLeafId || "",
-        updatedAt: fullData.updatedAt || fullData.createdAt,
-        parameterOverrides: fullData.parameterOverrides,
-        history: fullData.history || [],
-        historyIndex: fullData.historyIndex || 0,
-        agentUsage: fullData.agentUsage,
-      };
-
-      return { index, detail };
     } catch (error) {
-      errorHandler.handle(error as Error, {
-        userMessage: "加载会话失败",
-        showToUser: false,
-        context: { sessionId },
-      });
+      logger.warn("加载会话失败", { sessionId, error });
       return null;
     }
   }
 
-  /**
-   * 确保 sessions 子目录存在
-   */
-  async function ensureSessionsDir(): Promise<void> {
-    const appDir = await getAppConfigDir();
-    const moduleDir = await join(appDir, MODULE_NAME);
-    const sessionsDir = await join(moduleDir, SESSIONS_SUBDIR);
-
-    if (!(await exists(sessionsDir))) {
-      const { mkdir } = await import("@tauri-apps/plugin-fs");
-      await mkdir(sessionsDir, { recursive: true });
-      logger.debug("创建 sessions 目录", { sessionsDir });
-    }
-  }
-
-  /**
-   * 保存单个会话（仅在内容变化时写入）
-   */
   async function saveSession(
     session: ChatSessionIndex & ChatSessionDetail,
-    forceWrite: boolean = false
+    _forceWrite = false
   ): Promise<void> {
-    try {
-      await indexManager.ensureModuleDir(); // 使用 ConfigManager 确保模块目录存在
-      await ensureSessionsDir(); // 确保 sessions 子目录存在
-      const sessionPath = await getSessionPath(session.id);
-
-      // 创建要保存的数据副本，移除运行时专用的 history 字段
-      // 避免将撤销/重做栈持久化到磁盘
-      const { history, historyIndex, ...sessionToSave } = session;
-      delete (sessionToSave as Partial<ChatSessionIndex>).isFavorite;
-      delete (sessionToSave as Partial<ChatSessionIndex>).favoriteFolderId;
-      const newContent = JSON.stringify(sessionToSave, null, 2);
-
-      // 如果不是强制写入，先检查内容是否真的改变了
-      if (!forceWrite) {
-        const fileExists = await exists(sessionPath);
-        if (fileExists) {
-          try {
-            const oldContent = await readTextFile(sessionPath);
-            // 内容相同则跳过写入
-            if (oldContent === newContent) {
-              logger.debug("会话内容未变化，跳过写入", {
-                sessionId: session.id,
-              });
-              return;
-            }
-          } catch (readError) {
-            // 读取失败则继续写入
-            logger.warn("读取现有会话文件失败，继续写入", {
-              sessionId: session.id,
-            });
-          }
-        }
-      }
-
-      await writeTextFile(sessionPath, newContent);
-
-      logger.debug("会话保存成功", {
-        sessionId: session.id,
-        nodeCount: Object.keys(session.nodes || {}).length,
-      });
-    } catch (error) {
-      errorHandler.handle(error as Error, {
-        userMessage: "保存会话失败",
-        showToUser: false,
-        context: { sessionId: session.id },
-      });
-      throw error;
-    }
+    await repository.ensureSessionsDir();
+    const currentRevision = readRevision(session as unknown);
+    coordinator.primeSessionRevision(session.id, currentRevision);
+    await coordinator.flushSession(
+      session.id,
+      (revision) => serialize(toStoredSession(session, revision)),
+      "session-completed"
+    );
   }
 
-  /**
-   * 删除单个会话文件
-   */
-  async function deleteSessionFile(sessionId: string): Promise<void> {
-    try {
-      const sessionPath = await getSessionPath(sessionId);
-      const sessionExists = await exists(sessionPath);
-      if (sessionExists) {
-        await remove(sessionPath);
-        logger.info("会话文件已删除", { sessionId });
-      }
-    } catch (error) {
-      errorHandler.handle(error as Error, {
-        userMessage: "删除会话文件失败",
-        showToUser: false,
-        context: { sessionId },
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * 扫描 sessions 目录，获取所有会话文件的 ID
-   */
-  async function scanSessionDirectory(): Promise<string[]> {
-    try {
-      const { readDir } = await import("@tauri-apps/plugin-fs");
-      const appDir = await getAppConfigDir();
-      const moduleDir = await join(appDir, MODULE_NAME);
-      const sessionsDir = await join(moduleDir, SESSIONS_SUBDIR);
-
-      const dirExists = await exists(sessionsDir);
-      if (!dirExists) {
-        return [];
-      }
-
-      const entries = await readDir(sessionsDir);
-      const sessionIds = entries
-        .filter((entry) => entry.name?.endsWith(".json"))
-        .map((entry) => entry.name!.replace(".json", ""));
-
-      logger.debug("扫描会话目录完成", { count: sessionIds.length });
-      return sessionIds;
-    } catch (error) {
-      errorHandler.handle(error as Error, {
-        userMessage: "扫描会话目录失败",
-        showToUser: false,
-      });
-      return [];
-    }
-  }
-
-  /**
-   * 从会话创建索引项
-   */
-  function createIndexItem(
-    session: ChatSessionIndex & Partial<ChatSessionDetail>
-  ): ChatSessionIndex {
-    const messageCount = session.nodes
-      ? getEffectiveMessageCount(session.nodes, session.rootNodeId)
-      : session.messageCount || 0;
-
-    return {
-      id: session.id,
-      name: session.name,
-      updatedAt: session.updatedAt,
-      createdAt: session.createdAt,
-      messageCount: Math.max(0, messageCount), // 最终防御，确保不为负数
-      displayAgentId: session.displayAgentId,
-      isFavorite: session.isFavorite,
-      favoriteFolderId: session.favoriteFolderId ?? null,
-    };
-  }
-
-  /**
-   * 同步索引：合并索引中的 ID 和目录中的文件，加载新文件的元数据
-   */
-  async function syncIndex(index: SessionsIndex): Promise<ChatSessionIndex[]> {
-    // 1. 扫描目录获取所有会话文件 ID
-    const fileIds = await scanSessionDirectory();
-
-    // 2. 创建 ID 映射
-    const fileIdSet = new Set(fileIds);
-    const indexMap = new Map(index.sessions.map((item) => [item.id, item]));
-
-    // 3. 找出新增的文件 ID
-    const newIds = fileIds.filter((id) => !indexMap.has(id));
-
-    // 4. 加载新文件的元数据
-    const newItems: ChatSessionIndex[] = [];
-    for (const id of newIds) {
-      const session = await loadSession(id);
-      if (session) {
-        newItems.push(createIndexItem({ ...session.index, ...session.detail }));
-      }
-    }
-
-    // 5. 过滤掉已删除的文件，保持原有顺序
-    const validItems = index.sessions.filter((item) => fileIdSet.has(item.id));
-
-    // 6. 合并：保持原有顺序，新文件追加在后面
-    const syncedItems = [...validItems, ...newItems];
-
-    if (newItems.length > 0 || validItems.length !== index.sessions.length) {
-      logger.info("索引已同步", {
-        total: syncedItems.length,
-        new: newItems.length,
-        removed: index.sessions.length - validItems.length,
-      });
-    }
-
-    return syncedItems;
-  }
-
-  /**
-   * 加载会话索引（轻量级，仅包含元数据）
-   */
-  async function loadSessionsIndex(): Promise<{
-    sessions: ChatSessionIndex[];
-    currentSessionId: string | null;
-    favoriteFolders: FavoriteFolder[];
-  }> {
-    try {
-      logger.debug("开始加载会话索引");
-
-      // 1. 加载索引
-      let index = await loadIndex();
-
-      // 2. 迁移旧版本索引（v2.0.0 只有 sessionIds）
-      interface LegacyIndex {
-        sessionIds?: string[];
-      }
-
-      if (!index.sessions && (index as unknown as LegacyIndex).sessionIds) {
-        logger.info("检测到旧版本索引，开始迁移");
-        const oldIds = (index as unknown as LegacyIndex).sessionIds as string[];
-        const sessions = await Promise.all(oldIds.map((id) => loadSession(id)));
-        index.sessions = sessions
-          .filter(
-            (s): s is { index: ChatSessionIndex; detail: ChatSessionDetail } =>
-              s !== null
-          )
-          .map((s) => createIndexItem({ ...s.index, ...s.detail }));
-        index.version = "1.1.2";
-        index.favoriteFolders = index.favoriteFolders || [];
-        await saveIndex(index);
-        logger.info("索引迁移完成", { count: index.sessions.length });
-      }
-
-      index.sessions = Array.isArray(index.sessions) ? index.sessions : [];
-      index.favoriteFolders = Array.isArray(index.favoriteFolders)
-        ? index.favoriteFolders
-        : [];
-
-      // 3. 同步索引（自动发现新文件并加载其元数据）
-      const syncedItems = await syncIndex(index);
-
-      // 4. 如果索引被同步过，保存更新后的索引
-      if (
-        syncedItems.length !== index.sessions.length ||
-        !syncedItems.every((item, i) => item.id === index.sessions[i]?.id)
-      ) {
-        index.sessions = syncedItems;
-        await saveIndex(index);
-      }
-
-      return {
-        sessions: syncedItems,
-        currentSessionId: index.currentSessionId,
-        favoriteFolders: index.favoriteFolders || [],
-      };
-    } catch (error) {
-      errorHandler.handle(error as Error, {
-        userMessage: "加载会话索引失败",
-        showToUser: false,
-      });
-      return { sessions: [], currentSessionId: null, favoriteFolders: [] };
-    }
-  }
-
-  /**
-   * 加载所有会话（全量加载，已标记为重型操作）
-   * @deprecated 请优先使用 loadSessionsIndex + loadSession 组合
-   */
-  async function loadSessionsAll(): Promise<{
-    sessions: Array<{ index: ChatSessionIndex; detail: ChatSessionDetail }>;
-    currentSessionId: string | null;
-    favoriteFolders: FavoriteFolder[];
-  }> {
-    try {
-      logger.debug("开始全量加载所有会话");
-
-      // 1. 先加载索引元数据
-      const {
-        sessions: indexItems,
-        currentSessionId,
-        favoriteFolders,
-      } = await loadSessionsIndex();
-
-      // 2. 并行加载所有会话的完整数据
-      const sessionPromises = indexItems.map((item) => loadSession(item.id));
-      const sessionResults = await Promise.all(sessionPromises);
-      const indexItemMap = new Map(indexItems.map((item) => [item.id, item]));
-
-      // 3. 过滤掉加载失败的会话
-      const sessions = sessionResults
-        .filter(
-          (s): s is { index: ChatSessionIndex; detail: ChatSessionDetail } =>
-            s !== null
-        )
-        .map((session) => ({
-          ...session,
-          index: indexItemMap.get(session.index.id) || session.index,
-        }));
-
-      // 4. 验证数据格式：检查是否是树形结构
-      const validSessions = sessions.filter(
-        (session) =>
-          session.detail.nodes !== undefined &&
-          session.detail.rootNodeId !== undefined &&
-          session.detail.activeLeafId !== undefined
-      );
-
-      logger.info(`全量加载了 ${validSessions.length} 个会话`);
-
-      return {
-        sessions: validSessions,
-        currentSessionId,
-        favoriteFolders,
-      };
-    } catch (error) {
-      errorHandler.handle(error as Error, {
-        userMessage: "全量加载会话失败",
-        showToUser: false,
-      });
-      return { sessions: [], currentSessionId: null, favoriteFolders: [] };
-    }
-  }
-
-  /**
-   * 加载所有会话（兼容接口，目前指向全量加载）
-   */
-  async function loadSessions(): Promise<{
-    sessions: Array<{ index: ChatSessionIndex; detail: ChatSessionDetail }>;
-    currentSessionId: string | null;
-    favoriteFolders: FavoriteFolder[];
-  }> {
-    return await loadSessionsAll();
-  }
-  /**
-   * 保存单个会话并更新索引
-   */
   async function persistSession(
-    indexItem: ChatSessionIndex,
+    index: ChatSessionIndex,
     detail: ChatSessionDetail,
-    currentSessionId: string | null
+    _currentSessionId?: string | null
   ): Promise<void> {
-    try {
-      logger.debug("保存单个会话", { sessionId: indexItem.id });
+    // Deliberately do not use currentSessionId: a background session save must
+    // never move the user's active-session selection on disk.
+    await repository.ensureSessionsDir();
+    coordinator.markSessionDirty(
+      index.id,
+      (revision) =>
+        serialize(toStoredSession({ ...index, ...detail }, revision)),
+      "session-content"
+    );
 
-      // 1. 保存会话文件
-      // 合并为临时对象以适配旧的 saveSession 接口（或者我们也可以重构 saveSession）
-      const fullSession = { ...indexItem, ...detail };
-      await saveSession(fullSession, true); // 强制写入
-
-      // 2. 更新索引（仅更新元数据，不触碰其他文件）
-      const index = await loadIndex();
-      index.currentSessionId = currentSessionId;
-
-      // 更新或添加当前会话的索引项
-      const sessionIndex = index.sessions.findIndex(
-        (s) => s.id === indexItem.id
-      );
-      const newIndexItem = createIndexItem(fullSession);
-
-      if (sessionIndex >= 0) {
-        index.sessions[sessionIndex] = newIndexItem;
-      } else {
-        index.sessions.push(newIndexItem);
-      }
-
-      await saveIndex(index);
-
-      logger.debug("单个会话保存成功", { sessionId: indexItem.id });
-    } catch (error) {
-      errorHandler.handle(error as Error, {
-        userMessage: "保存单个会话失败",
-        showToUser: false,
-        context: { sessionId: indexItem.id },
-      });
-      throw error;
-    }
+    const persistedIndex = await ensureIndex();
+    const position = persistedIndex.sessions.findIndex(
+      (item) => item.id === index.id
+    );
+    const item = createIndexItem({ ...index, ...detail });
+    if (position === -1) persistedIndex.sessions.push(item);
+    else
+      persistedIndex.sessions[position] = {
+        ...persistedIndex.sessions[position],
+        ...item,
+      };
+    coordinator.markIndexDirty(captureIndex, "index-mutation");
   }
 
-  /**
-   * 保存所有会话（仅用于批量操作，如初始化）
-   */
+  async function saveIndex(index: SessionsIndex): Promise<void> {
+    cachedIndex = {
+      ...index,
+      favoriteFolders: Array.isArray(index.favoriteFolders)
+        ? index.favoriteFolders
+        : [],
+    };
+    coordinator.primeIndexRevision(readRevision(cachedIndex));
+    await commitIndex("index-mutation");
+  }
+
   async function saveSessions(
     sessions: Array<{ index: ChatSessionIndex; detail?: ChatSessionDetail }>,
     currentSessionId: string | null,
     favoriteFolders: FavoriteFolder[] = []
   ): Promise<void> {
-    try {
-      // 过滤掉详情未加载的会话，防止空数据覆盖磁盘文件
-      const sessionsWithDetails = sessions
-        .filter((s) => !!s.detail)
-        .map((s) => ({ ...s.index, ...s.detail! }));
-
-      logger.debug("开始批量保存会话", {
-        total: sessions.length,
-        toSave: sessionsWithDetails.length,
-      });
-
-      // 1. 并行保存已加载详情的会话文件（强制写入）
-      await Promise.all(
-        sessionsWithDetails.map((session) => saveSession(session, true))
-      );
-
-      // 2. 更新索引（保存元数据）
-      const index: SessionsIndex = {
-        version: "1.1.2",
-        currentSessionId,
-        sessions: sessions.map((s) =>
-          createIndexItem({ ...s.index, ...s.detail })
-        ),
-        favoriteFolders,
-      };
-
-      await saveIndex(index);
-
-      logger.info("所有会话批量保存成功", {
-        sessionCount: sessions.length,
-        currentSessionId,
-      });
-    } catch (error) {
-      errorHandler.handle(error as Error, {
-        userMessage: "批量保存所有会话失败",
-        showToUser: false,
-        context: { sessionCount: sessions.length },
-      });
-      throw error;
+    const index = await ensureIndex();
+    index.currentSessionId = currentSessionId;
+    index.favoriteFolders = favoriteFolders;
+    index.sessions = sessions.map(({ index: item, detail }) =>
+      createIndexItem({ ...item, ...(detail || {}) })
+    );
+    for (const session of sessions) {
+      if (session.detail)
+        await saveSession({ ...session.index, ...session.detail }, true);
     }
+    await commitIndex("index-mutation");
   }
 
-  /**
-   * 删除会话（同时删除文件和索引）
-   */
+  async function deleteSessionFile(sessionId: string): Promise<void> {
+    coordinator.markSessionDeleted(sessionId);
+    const path = await repository.getSessionPath(sessionId);
+    if (await exists(path)) await remove(path);
+  }
+
   async function deleteSession(sessionId: string): Promise<void> {
-    try {
-      // 1. 删除会话文件
-      await deleteSessionFile(sessionId);
-
-      // 2. 从索引中移除
-      const index = await loadIndex();
-      index.sessions = index.sessions.filter((item) => item.id !== sessionId);
-
-      // 3. 如果删除的是当前会话，切换到第一个会话
-      if (index.currentSessionId === sessionId) {
-        index.currentSessionId = index.sessions[0]?.id || null;
-      }
-
-      await saveIndex(index);
-
-      logger.info("会话已删除", { sessionId });
-    } catch (error) {
-      errorHandler.handle(error as Error, {
-        userMessage: "删除会话失败",
-        showToUser: false,
-        context: { sessionId },
-      });
-      throw error;
-    }
+    await deleteSessionFile(sessionId);
+    const index = await ensureIndex();
+    index.sessions = index.sessions.filter((item) => item.id !== sessionId);
+    if (index.currentSessionId === sessionId)
+      index.currentSessionId = index.sessions[0]?.id || null;
+    await commitIndex("delete");
   }
 
-  /**
-   * 更新当前会话 ID（轻量级操作，只更新索引）
-   */
   async function updateCurrentSessionId(
     currentSessionId: string | null
   ): Promise<void> {
+    const index = await ensureIndex();
+    index.currentSessionId = currentSessionId;
+    await commitIndex("current-session");
+  }
+
+  async function loadSessionsIndex(): Promise<{
+    sessions: ChatSessionIndex[];
+    currentSessionId: string | null;
+    favoriteFolders: FavoriteFolder[];
+    recoveryState: RecoveryState;
+  }> {
     try {
-      const index = await loadIndex();
-      index.currentSessionId = currentSessionId;
-      await saveIndex(index);
-      logger.debug("当前会话 ID 已更新", { currentSessionId });
+      const index = await ensureIndex();
+      return {
+        sessions: index.sessions,
+        currentSessionId: index.currentSessionId,
+        favoriteFolders: index.favoriteFolders || [],
+        recoveryState,
+      };
     } catch (error) {
-      errorHandler.handle(error as Error, {
-        userMessage: "更新当前会话 ID 失败",
-        showToUser: false,
-        context: { currentSessionId },
-      });
-      throw error;
+      logger.warn("会话索引需要恢复", { error });
+      return {
+        sessions: [],
+        currentSessionId: null,
+        favoriteFolders: [],
+        recoveryState,
+      };
     }
   }
 
-  /**
-   * 创建防抖保存函数
-   */
-  function createDebouncedSave(delay: number = 500) {
-    return useDebounceFn(
-      async (
-        sessions: Array<{ index: ChatSessionIndex; detail: ChatSessionDetail }>,
-        currentSessionId: string | null
-      ) => {
-        try {
-          await saveSessions(sessions, currentSessionId);
-          logger.debug("防抖保存完成", { delay });
-        } catch (error) {
-          errorHandler.handle(error as Error, {
-            userMessage: "防抖保存失败",
-            showToUser: false,
-          });
-        }
-      },
-      delay
+  async function loadSessionsAll(): Promise<{
+    sessions: Array<{ index: ChatSessionIndex; detail: ChatSessionDetail }>;
+    currentSessionId: string | null;
+    favoriteFolders: FavoriteFolder[];
+  }> {
+    const index = await loadSessionsIndex();
+    const results = await Promise.all(
+      index.sessions.map((item) => loadSession(item.id))
     );
+    const details = results.filter(
+      (session): session is NonNullable<typeof session> => session !== null
+    );
+    return {
+      sessions: details.map((session) => ({
+        ...session,
+        index:
+          index.sessions.find((item) => item.id === session.index.id) ||
+          session.index,
+      })),
+      currentSessionId: index.currentSessionId,
+      favoriteFolders: index.favoriteFolders,
+    };
   }
 
-  /**
-   * 修复索引中损坏或过期的项。
-   * 会重算 messageCount，确保未固化开场白不计入有效消息数。
-   */
-  async function repairIndex(): Promise<{ repairedCount: number }> {
-    try {
-      const index = await loadIndex();
+  async function loadSessions() {
+    return loadSessionsAll();
+  }
 
-      let repairedCount = 0;
-      for (const item of index.sessions) {
-        try {
-          // 加载完整会话以重新计算计数
-          const session = await loadSession(item.id);
-          if (session && session.detail.nodes) {
-            const newItem = createIndexItem({
-              ...session.index,
-              ...session.detail,
-              isFavorite: item.isFavorite,
-              favoriteFolderId: item.favoriteFolderId,
-            });
-            if (
-              newItem.messageCount !== item.messageCount ||
-              newItem.displayAgentId !== item.displayAgentId
-            ) {
-              const idx = index.sessions.findIndex((s) => s.id === item.id);
-              if (idx === -1) continue;
-              index.sessions[idx] = newItem;
-              repairedCount++;
+  /** Explicit, non-startup recovery/repair operation. */
+  async function repairIndex(options?: {
+    signal?: AbortSignal;
+    concurrency?: number;
+    onProgress?: (state: RecoveryState) => void;
+  }): Promise<{
+    repairedCount: number;
+    failedCount: number;
+    cancelled: boolean;
+  }> {
+    const ids = await repository.listSessionIds();
+    recoveryState = {
+      status: "recovering",
+      failedSessionCount: 0,
+      scannedSessionCount: 0,
+    };
+    options?.onProgress?.({ ...recoveryState });
+
+    const repaired: ChatSessionIndex[] = [];
+    const corruptions: CorruptionManifestEntry[] = [];
+    let failedCount = 0;
+    let nextIndex = 0;
+    const workerCount = Math.max(
+      1,
+      Math.min(options?.concurrency ?? 4, 8, ids.length || 1)
+    );
+    await Promise.all(
+      Array.from({ length: workerCount }, async () => {
+        while (!options?.signal?.aborted) {
+          const sessionId = ids[nextIndex++];
+          if (!sessionId) return;
+          const session = await loadSession(sessionId);
+          if (session) {
+            repaired.push(session.index);
+          } else {
+            failedCount += 1;
+            try {
+              corruptions.push(
+                await repository.quarantineSessionFile(
+                  sessionId,
+                  "Session JSON could not be parsed or failed structural validation"
+                )
+              );
+            } catch (error) {
+              logger.warn("隔离损坏会话失败", { sessionId, error });
             }
           }
-        } catch (e) {
-          logger.warn("修复单个会话索引失败", { sessionId: item.id, error: e });
+          recoveryState = {
+            status: "recovering",
+            failedSessionCount: failedCount,
+            scannedSessionCount: recoveryState.scannedSessionCount + 1,
+          };
+          options?.onProgress?.({ ...recoveryState });
         }
-      }
+      })
+    );
 
-      if (repairedCount > 0) {
-        await saveIndex(index);
-        logger.info("索引自愈完成", { repairedCount });
-      }
-
-      return { repairedCount };
-    } catch (error) {
-      logger.error("索引自愈过程发生错误", error);
-      return { repairedCount: 0 };
+    const cancelled = Boolean(options?.signal?.aborted);
+    if (cancelled) {
+      recoveryState = {
+        status: "corrupt",
+        failedSessionCount: failedCount,
+        scannedSessionCount: recoveryState.scannedSessionCount,
+      };
+      return { repairedCount: 0, failedCount, cancelled: true };
     }
+
+    await appendCorruptionManifest(corruptions);
+    const index = await ensureIndex().catch(async () => {
+      await repository.preserveCorruptPrimary().catch(() => undefined);
+      cachedIndex = createDefaultIndex();
+      return cachedIndex;
+    });
+    const previousCount = index.sessions.length;
+    index.sessions = repaired.sort(
+      (left, right) =>
+        new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
+    );
+    index.currentSessionId =
+      index.currentSessionId &&
+      repaired.some((item) => item.id === index.currentSessionId)
+        ? index.currentSessionId
+        : repaired[0]?.id || null;
+    recoveryState = {
+      status: "ready",
+      failedSessionCount: failedCount,
+      scannedSessionCount: ids.length,
+    };
+    await commitIndex("repair");
+    return {
+      repairedCount: Math.abs(repaired.length - previousCount),
+      failedCount,
+      cancelled: false,
+    };
   }
 
-  /**
-   * 获取会话存储目录路径
-   */
-  async function getSessionsDir(): Promise<string> {
-    const appDir = await getAppConfigDir();
-    const moduleDir = await join(appDir, MODULE_NAME);
-    return await join(moduleDir, SESSIONS_SUBDIR);
+  function createDebouncedSave(delay = 500) {
+    return useDebounceFn(saveSessions, delay);
   }
 
   return {
+    loadIndex,
+    saveIndex,
     loadSessions,
     loadSessionsIndex,
     loadSessionsAll,
     saveSessions,
-    persistSession, // 新增：单会话保存
+    persistSession,
     repairIndex,
     deleteSession,
-    updateCurrentSessionId, // 新增：更新当前会话ID
+    updateCurrentSessionId,
     createDebouncedSave,
     loadSession,
     saveSession,
     getSessionsDir,
     getSessionPath,
+    flushAll: () => coordinator.flushAll(),
+    getRecoveryState: () => recoveryState,
   };
 }

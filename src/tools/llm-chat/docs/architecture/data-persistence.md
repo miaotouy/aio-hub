@@ -4,18 +4,24 @@
 
 ## 1. 会话存储 ([`useChatStorageSeparated`](../../composables/storage/useChatStorageSeparated.ts))
 
-- **索引文件**: `llm-chat/sessions-index.json`，存储 `currentSessionId` 与会话元信息列表（`ChatSessionIndex[]`），通过 `createConfigManager` 管理读写与版本。
-- **会话文件**: 每个会话的完整数据存储为 `llm-chat/sessions/{sessionId}.json`（直接以 `sessionId` 作为文件名，无 `session-` 前缀）。
+- **索引文件**: `llm-chat/sessions-index.json`，存储 `currentSessionId`、收藏夹与会话元信息列表（`ChatSessionIndex[]`）。索引额外维护 `sessions-index.json.bak`，保存最近一次有效主索引。
+- **会话文件**: 每个会话的完整数据存储为 `llm-chat/sessions/{sessionId}.json`（直接以 `sessionId` 作为文件名，无 `session-` 前缀）。会话和索引均带有 `_persistence` 元数据（schema、revision、committedAt）；旧文件以 revision 0 兼容读取。
+- **写入模型**: `useChatStorageSeparated()` 仅作为兼容 facade。`SessionPersistenceCoordinator` 对每个会话保持“一个运行中写入 + 一个最新 dirty 标记”，索引使用全局单写者；快照在真正提交前同步 JSON 序列化。内容保存不会修改 `currentSessionId`。
+- **原子提交**: 前端调用限定用途的 Rust command `llm_chat_atomic_write`。该命令只解析 llm-chat 的逻辑标识，校验 JSON/revision/sessionId，按逻辑路径获取进程内锁和跨进程文件锁，在同目录临时文件 `sync_all()` 后执行原子替换。索引只会在原主文件有效时轮换备份，避免损坏主文件覆盖最后有效备份。
 - **目录结构**:
   ```
   {appConfigDir}/llm-chat/
   ├── sessions-index.json        # 会话索引（含 currentSessionId）
-  └── sessions/
-      ├── {sessionId-1}.json     # 单会话完整数据
-      ├── {sessionId-2}.json
-      └── ...
+  ├── sessions-index.json.bak    # 最后有效索引备份
+  ├── sessions/
+  │   ├── {sessionId-1}.json     # 单会话完整数据
+  │   ├── {sessionId-2}.json
+  │   └── ...
+  └── sessions-corrupt/
+      ├── corruption-manifest.json # 原子维护的隔离记录
+      └── {sessionId}.{timestamp}.json # 无法解析的原始会话字节
   ```
-- **加载过程**: 启动时先读索引以快速展示列表，点击会话时再通过 `loadSession(sessionId)` 异步加载完整数据；索引会在加载时按需扫描 `sessions/` 目录自愈，自动补全新增或清理已删除的会话项。
+- **加载与恢复**: 启动只读取主索引或有效备份，并按需读取当前会话详情；不会为首屏扫描全部会话。索引缺失且会话目录为空时才创建默认索引。主索引和备份均不可用时，facade 返回恢复状态而非静默写入空索引；`repairIndex()` 是显式恢复操作，支持固定并发度、进度回调与 `AbortSignal` 取消。无法解析的会话被移动到 `sessions-corrupt/`，并写入隔离清单，避免下次启动重复解析。
 
 ## 2. 智能体存储 ([`useAgentStorageSeparated`](../../composables/storage/useAgentStorageSeparated.ts))
 

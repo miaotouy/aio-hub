@@ -544,26 +544,8 @@ export function createSessionLifecycleManager(
 
     await managers.fillMissingTokenMetadata();
 
-    setTimeout(async () => {
-      try {
-        const { repairedCount } = await storage.repairIndex();
-        if (repairedCount > 0) {
-          const { sessions: updatedIndexItems } =
-            await sessionManager.loadSessionsIndex();
-          updatedIndexItems.forEach((updated) => {
-            const existing = state.sessionIndexMap.value.get(updated.id);
-            if (existing) {
-              state.sessionIndexMap.value.set(updated.id, {
-                ...existing,
-                ...updated,
-              });
-            }
-          });
-        }
-      } catch (e) {
-        logger.warn("索引自愈执行失败", e);
-      }
-    }, 3000);
+    // Normal startup must not scan and parse every session file. Index repair is
+    // an explicit recovery action, executed only when the user requests it.
   }
 
   async function switchSession(sessionId: string): Promise<void> {

@@ -84,7 +84,48 @@ VCP 的 [`withDistributedTimeout`](../../../vcp-connector/services/vcpNodeProtoc
 
 本地 Tool Calling 的 `withTimeout()` 具有相同的外层超时语义。现有 [`ToolContext`](../../../../../src/services/types.ts) 已定义可选 `signal?: AbortSignal`，但同步 Tool Calling 和 VCP 分布式调用没有在超时时创建并触发 AbortController；VCP 创建的 context 也没有填入 `requestId`。
 
-### 3.5. 取消状态和事件缺少搜索身份
+### 3.5. VCPToolBox 的分布式超时会遗留节点侧执行
+
+本次补查了实际 VCP 服务端 `E:\rc20\vcp\VCPToolBox\WebSocketServer.js` 与 AIO 节点实现，确认链路如下：
+
+1. VCPToolBox 在 `executeDistributedTool()` 中为每个 `execute_tool` 创建 `pendingToolRequests` 项，并以工具 manifest 的 `communication.timeout`（缺省 60 秒）设置 `setTimeout()`。
+2. 到时回调仅删除该 requestId 的 pending 项并 reject 本地 Promise；协议没有 `cancel_tool` 消息，代码也不会向节点发送任何取消帧。
+3. 节点收到 `execute_tool` 后由 `vcpConnectorStore` 直接调用 `VcpNodeProtocol.handleExecuteTool()`；该处理器在 115 秒 `withDistributedTimeout()` 后只 reject 外层 Promise。
+4. `handleExecuteTool()` 创建的 `ToolContext` 当前只有 `isAsync` 与 `reportStatus`，没有 `requestId` 或 `signal`；原始 `service[method](args, context)` Promise 因而继续执行。
+
+这说明服务端超时、AIO 节点 115 秒超时，以及本地 Tool Calling 超时都尚未构成取消闭环。对于 `dir-search`，任一层提前返回都不会自动停止已经进入 Tauri/Rust 的 walker；下一请求仍可被 VCPToolBox 或上层 Agent 发出，形成与日志一致的重叠扫描。
+
+另有两个协议兼容性/完整性事实需要纳入实施范围：
+
+- AIO 支持 `register_tools_ack`，并在 1.5 秒后以兼容性 fallback 确认工具；当前 VCPToolBox 处理 `register_tools` 时只更新本地工具表，没有发送该 ack。这不是本事故根因，但以后不能把“已发送注册”误写成服务端已确认。
+- VCPToolBox 用全局 `pendingToolRequests` 按 requestId 匹配 `tool_result`，当前处理分支未核对结果消息的 `serverId` 是否就是请求发往的节点。随机 requestId 降低了误匹配概率，但服务端应在 pending 项保存目标 `serverId` 并拒绝其他节点的结果，避免多节点环境中的跨节点结果注入或错误完成。
+
+#### 3.5.1. VCPToolBox 外部仓库与 PR 可行性复核（2026-07-25）
+
+VCPToolBox 位于独立 Git 仓库 `E:\rc20\vcp\VCPToolBox`，不属于 AIO Hub 主仓。复核结果如下：
+
+- `origin` 是 `miaotouy/VCPToolBox-fork`，`upstream` 是 `lioensky/VCPToolBox`，具备标准 fork -> upstream PR 路径。
+- 对 fork 的临时功能分支执行 `git push --dry-run` 已成功，说明当前凭据和远端配置允许推送 PR 分支；这只能证明可以发起 PR，不能保证上游接受或合并。
+- 复核时本地主工作区 `main` 与 `origin/main` 位于 `42da7f46`，`upstream/main` 已前进到 `50540c7d`，领先 2 个提交；这两个提交未修改 `WebSocketServer.js` 或分布式协议文档。实施时必须先 fetch，并从最新 `upstream/main` 建分支，不能从滞后的 `origin/main` 直接开始。
+- 现有 VCPToolBox 主工作区长期包含多项已修改和未跟踪的 Agent、配置、锁文件、插件运行数据与启动脚本。当前拟修改的 `WebSocketServer.js` 和协议文档本身未被本地改动占用，但仍禁止在该脏工作区直接实现、stash、reset、clean 或批量暂存。
+
+为避免覆盖 VCP 用户数据或把无关文件带入 PR，VCPToolBox 改动必须使用独立 worktree，例如 `E:\rc20\vcp\agent-work\vcp-toolbox-distributed-cancel`，并遵守：
+
+1. 从最新 `upstream/main` 创建 `codex/distributed-tool-cancellation` 一类功能分支。
+2. 主工作区只读；实施前后分别记录其 `git status --porcelain`，不得改变既有脏文件。
+3. 只在 worktree 中修改和验证；使用明确文件路径暂存，禁止 `git add -A`。
+4. 推送到 `origin` 后向 `upstream/main` 发 PR；PR 中说明协议兼容策略、测试方式和 AIO 节点侧依赖。
+5. 上游 PR 未合并时，AIO 的 30 秒搜索 deadline、节点本地 AbortController 和断线时本地 abort 必须独立生效，不能把资源安全依赖于外部仓库合并。
+
+协议层还需修正一个边界：VCPToolBox 在 WebSocket `close` 回调执行时已经无法可靠向断开的节点发送 `cancel_tool`。正确语义应是：
+
+- 服务端 timeout，或未来调用方确实传入 AbortSignal 并触发取消时，仅在目标 socket 仍为 OPEN 时 best-effort 发送一次 `cancel_tool`；
+- 目标节点断线时，VCPToolBox 立即清理并 reject 绑定该 `serverId` 的所有 pending 请求；AIO 节点在自身连接关闭时 abort 全部由该连接启动的在途调用；
+- 当前 `executeDistributedTool()` 没有调用方 signal 参数，因此“上游取消”不能作为现状能力写进验收标准；如要支持，应增加向后兼容的可选参数并单独贯通调用链。
+
+为提高上游接受概率，VCPToolBox PR 应聚焦于同一生命周期问题：pending 绑定目标 `serverId`、拒绝非目标节点结果、断线立即清理、对声明支持能力的节点发送 timeout cancel，以及对应 `node:test` 与分布式协议文档。`register_tools_ack` 不是本事故阻塞项，除非它被选作能力协商载体，否则建议拆为独立后续 PR。
+
+### 3.6. 取消状态和事件缺少搜索身份
 
 Rust 端所有搜索共享一个 `DirSearchCancellation.cancelled: AtomicBool`：
 
@@ -94,13 +135,13 @@ Rust 端所有搜索共享一个 `DirSearchCancellation.cancelled: AtomicBool`�
 
 前端结果事件同样使用全局 `dir-search-result-batch` 和 `dir-search-progress` 名称，载荷中没有 `searchId`。多个 [`actions.ts`](../../actions.ts) 监听器并存时会收集彼此的结果。
 
-### 3.6. Agent 批量替换风险更高
+### 3.7. Agent 批量替换风险更高
 
 [`replaceInDirectory()`](../../actions.ts) 的预搜索固定传入 `maxResults: 0`，即无限匹配数，因为它需要获得完整影响范围。该行为没有深度、文件数或 deadline 保护。
 
 未来增加资源上限后，替换流程不能拿被截断的预搜索结果继续执行部分替换；只要预搜索因扫描预算、deadline、取消或错误而不完整，就必须拒绝进入写入阶段。
 
-### 3.7. Agent 方法描述容易诱发误用
+### 3.8. Agent 方法描述容易诱发误用
 
 [`dir-search.registry.ts`](../../dir-search.registry.ts) 将方法描述为“搜索目录内容”，但没有强调：
 
@@ -179,6 +220,8 @@ bytesRead: number
 5. action 在 `finally` 中移除 abort listener 和 Tauri event listener。
 6. 后端退出 walker、join 协调线程并清理 search state 后，Tauri command 才真正 settle。
 
+VCP 采用两层兼容策略：AIO 节点必须立即把 115 秒 timeout 和连接断开转换为本地 abort；VCPToolBox 再增加可选的 `cancel_tool` 协议帧，仅在服务端 timeout 或已接入的调用方 AbortSignal 取消且目标 socket 仍为 OPEN 时 best-effort 发送。节点按 `requestId` 查找对应 AbortController，再由 `ToolContext.signal` 传播到 `searchId`。协议能力应通过 `register_tools` 的可选 capability 字段协商；旧 VCPToolBox 不发送取消帧，旧节点未声明能力时服务端也不发送。在外部 PR 尚未部署或合并期间，节点侧 deadline（本方案 30 秒）仍是阻止宽范围 `dir-search` 持续运行的独立硬边界，不能等待 115 秒外层保护。
+
 其他长耗时工具可以逐步接入同一 signal 语义，但本计划先以 `dir-search` 闭环验证。
 
 ### 5.3. 并发策略
@@ -232,6 +275,10 @@ bytesRead: number
 - [ ] Agent `searchDirectory` 默认 `maxDepth=5`、`maxFilesScanned=50_000`、`maxBytesRead=2 GiB`、`deadlineMs=30_000`、`includeHidden=false`。
 - [ ] Tool Calling executor 在超时时 abort `ToolContext.signal`。
 - [ ] VCP context 补入 `requestId` 和 `signal`，115 秒超时时 abort。
+- [ ] AIO 节点维护 `requestId -> AbortController` 在途表，处理协商后的 `cancel_tool(requestId)`；115 秒 timeout 与节点 WebSocket 断开都 abort 并在 `finally` 清理。
+- [ ] VCPToolBox 的 pending 项保存目标 `serverId` 和能力状态，`tool_result` 仅接受该节点的结果；节点断线立即 clear timeout 并 reject 对应 pending。
+- [ ] VCPToolBox 仅在目标 socket OPEN 且节点声明支持时，于服务端 timeout 或已接入的调用方 signal 取消后 best-effort 发送一次 `cancel_tool`。旧服务端/节点继续由 AIO 本地 deadline 兜底。
+- [ ] `register_tools_ack` 的显式确认语义作为非阻塞兼容改进评估；若不用于 capability 协商，则拆出本次资源安全 PR。
 - [ ] `actions.ts` 将 abort 转换为按 searchId 取消，并保证监听器清理。
 - [ ] 更新 Agent 方法描述，明确内容搜索边界与缩小范围要求。
 - [ ] 替换预搜索遇到不完整结果时禁止写盘。
@@ -270,7 +317,7 @@ bytesRead: number
 - 超时、取消、busy 和 truncated 结果格式；
 - 替换在预搜索截断时零写入。
 
-为 Tool Calling 与 VCP 增加超时测试，断言不仅返回 timeout，还实际触发 context signal。
+为 Tool Calling 与 VCP 增加超时测试，断言不仅返回 timeout，还实际触发 context signal。AIO 节点测试还要覆盖收到 `cancel_tool`、115 秒 timeout 和连接断开时均只 abort 对应在途调用，并在完成后清理 requestId 映射。VCPToolBox 使用现有 `node:test` 风格增加定向协议测试：服务端 timeout 在 socket OPEN 且能力已声明时只发送一次 `cancel_tool`；节点断线立即 reject 该节点的 pending 且不尝试向已关闭 socket 发送；来自非目标节点的同 requestId `tool_result` 被拒绝且不会完成请求。根 `npm test` 仍是占位脚本，VCP PR 应显式运行 `node --test <新增测试文件>` 和 `node --check WebSocketServer.js`。
 
 ### 7.3. 工程检查
 
@@ -291,7 +338,7 @@ bun run check:backend
 
 1. 在测试根目录搜索不存在的 pattern，确认按 deadline 或文件数上限停止。
 2. 搜索期间连续发起第二次调用，确认不会出现两个 12 worker 扫描。
-3. 从 VCP 发起长搜索并触发超时，确认后端日志随后出现对应 searchId 的 cancelled/end，而不是继续遍历。
+3. 从 VCP 发起长搜索：用测试配置把服务端 timeout 调短时，确认支持 capability 的在线节点收到 `cancel_tool`，后端日志随后出现对应 requestId/searchId 的 cancelled/end；断开节点连接时，确认 VCPToolBox 立即结束该节点 pending，AIO 节点本地也 abort 在途搜索，而不是等待原 timeout。
 4. 搜索期间打开资源管理器、拖动窗口并操作 AIO Hub，确认桌面仍可交互。
 5. 对替换流程制造截断预搜索，确认磁盘文件没有任何修改。
 
@@ -304,12 +351,18 @@ bun run check:backend
 - 搜索结果明确标识完整、截断及终止原因。
 - 截断的替换预搜索不会产生部分写入。
 - 定向测试、前端类型检查、Vite 构建、Rust 检查和真实 Tauri 验收全部通过。
+- VCPToolBox 外部改动在独立 clean worktree 中形成可审查分支，主脏工作区实施前后状态不变；即使上游 PR 尚未合并，AIO 本地 deadline 与取消链路也已满足资源安全目标。
 
 ## 9. 当前决策记录
 
 - 深度限制：采纳，但作为组合资源预算的一部分。
 - 单纯依赖 `maxResults`：拒绝，因为无匹配时没有保护。
 - 单纯延长 VCP 超时：拒绝，因为会延后暴露问题且不停止底层工作。
+- 仅由节点侧 115 秒 timeout 处理 VCP 取消：拒绝；它既不会取消原始 Promise，也无法在 VCPToolBox 已先超时时通知节点。须由可选 `cancel_tool`、节点 AbortSignal 与搜索 deadline 共同覆盖。
+- 节点断线后仍要求 VCPToolBox 发送 `cancel_tool`：拒绝；socket 已关闭时应由服务端立即 reject pending、节点本地 abort 在途调用。
+- VCPToolBox `tool_result` 按 requestId 即接受：拒绝；pending 请求必须绑定目标 `serverId`。
+- 在 VCPToolBox 现有脏主工作区直接修改：拒绝；必须从最新 `upstream/main` 创建独立 worktree 和功能分支。
+- 将 `register_tools_ack` 与资源取消 PR 强绑定：默认拒绝；除非用于 capability 协商，否则拆分以降低上游审查范围。
 - 立即替换搜索引擎：不采用，当前风险来自资源生命周期和并发边界。
 - 第一阶段 worker 数：建议 4，实施后以真实机器基准校准。
 - 第一阶段并发数：建议 1，优先确保桌面可响应。

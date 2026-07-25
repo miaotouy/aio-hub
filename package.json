@@ -33,7 +33,7 @@
     "dev": "bun run generate:shims && bun scripts/dev.ts",
     "vite": "vite",
     "download:libs": "bun scripts/download-libs.ts",
-    "build": "bun run generate:shims && bun run download:libs && bun run build:tsc && bun run build:vite",
+    "build": "bun run generate:shims && bun run download:libs && bun run check:release-notes && bun run build:tsc && bun run build:vite",
     "build:tsc": "vue-tsc --noEmit",
     "build:vite": "vite build",
     "build:mobile": "bun run --cwd mobile build",
@@ -74,8 +74,8 @@
     "format:check": "prettier --check \"src/**/*.{ts,js,vue,json,css,scss}\" \"mobile/src/**/*.{ts,js,vue,json,css,scss}\" \"packages/**/*.{ts,js,vue,json,css,scss}\" \"docs/**/*.md\"",
     "format:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml && cargo fmt --manifest-path mobile/src-tauri/Cargo.toml",
     "format:rust:check": "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check && cargo fmt --manifest-path mobile/src-tauri/Cargo.toml -- --check",
-    "check": "bun run lint && bun run check:model-icons && bun run check:frontend && bun run check:backend && bun run check:mobile && bun run check:packages",
-    "check:ci": "bun run check:frontend && bun run check:mobile:frontend && bun run check:backend:compile && bun run check:mobile:backend:compile && bun run test:backend",
+    "check": "bun run lint && bun run check:model-icons && bun run check:release-notes && bun run check:frontend && bun run check:backend && bun run check:mobile && bun run check:packages",
+    "check:ci": "bun run check:release-notes && bun run check:frontend && bun run check:mobile:frontend && bun run check:backend:compile && bun run check:mobile:backend:compile && bun run test:backend",
     "check:full": "bun run format:check && bun run format:rust:check && bun run check && bun run test:all && bun run build:vite && bun run build:mobile && bun run docs:build",
     "check:frontend": "vue-tsc --noEmit",
     "check:backend": "bun run check:backend:lint",
@@ -89,7 +89,8 @@
     "check:packages": "bun run check:llm-core",
     "check:llm-core": "bun run --cwd packages/llm-core check",
     "license:add": "bun run scripts/add-license.ts",
-    "license:check": "bun run scripts/add-license.ts --dry-run"
+    "license:check": "bun run scripts/add-license.ts --dry-run",
+    "check:release-notes": "bun scripts/check-release-notes.ts"
   },
   "dependencies": {
     "@aiohub/llm-core": "workspace:*",
@@ -279,4 +280,3 @@
     "@lezer/highlight": "^1.2.1"
   }
 }
-

@@ -15,7 +15,7 @@
 -->
 
 <script setup lang="ts">
-import { computed, ref, onMounted, markRaw } from "vue";
+import { computed, ref, onBeforeUnmount, onMounted, markRaw } from "vue";
 import { getName, getVersion } from "@tauri-apps/api/app";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
@@ -24,6 +24,12 @@ import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import { RendererVersion } from "@/tools/rich-text-renderer/types";
 import { useAppUpdater } from "@/composables/useAppUpdater";
+import {
+  getUpgradeCenterStatus,
+  openCurrentReleaseNotes,
+  resumePendingUpgrade,
+  subscribeUpgradeCenterStatus,
+} from "@/flows/upgrade";
 import {
   User,
   Link,
@@ -47,6 +53,10 @@ const appInfo = ref({
   version: "",
 });
 const showUpdateDialog = ref(false);
+const releaseNotesAvailable = ref(false);
+const hasPendingUpgrade = ref(false);
+const isOpeningUpgradeFlow = ref(false);
+let unsubscribeUpgradeStatus: (() => void) | null = null;
 const {
   status: updateStatus,
   updateInfo,
@@ -127,6 +137,38 @@ const handleUpdateConfirm = async () => {
     errorHandler.error(error as Error, "安装更新失败", { showToUser: true });
   }
 };
+
+async function refreshUpgradeStatus() {
+  const status = await getUpgradeCenterStatus();
+  releaseNotesAvailable.value = status.releaseNotesAvailable;
+  hasPendingUpgrade.value = status.pending;
+}
+
+async function handleOpenReleaseNotes() {
+  try {
+    isOpeningUpgradeFlow.value = true;
+    await openCurrentReleaseNotes();
+  } catch (error) {
+    errorHandler.error(error as Error, "打开版本说明失败", {
+      showToUser: true,
+    });
+  } finally {
+    isOpeningUpgradeFlow.value = false;
+  }
+}
+
+async function handleResumeUpgrade() {
+  try {
+    isOpeningUpgradeFlow.value = true;
+    await resumePendingUpgrade();
+  } catch (error) {
+    errorHandler.error(error as Error, "继续升级事项失败", {
+      showToUser: true,
+    });
+  } finally {
+    isOpeningUpgradeFlow.value = false;
+  }
+}
 // 链接
 const links = [
   {
@@ -209,6 +251,22 @@ onMounted(async () => {
     appInfo.value.name = "AIO Hub";
     appInfo.value.version = "1.0.0";
   }
+
+  try {
+    await refreshUpgradeStatus();
+    unsubscribeUpgradeStatus = subscribeUpgradeCenterStatus((status) => {
+      releaseNotesAvailable.value = status.releaseNotesAvailable;
+      hasPendingUpgrade.value = status.pending;
+    });
+  } catch (error) {
+    errorHandler.handle(error as Error, {
+      userMessage: "读取版本升级状态失败",
+      showToUser: false,
+    });
+  }
+});
+onBeforeUnmount(() => {
+  unsubscribeUpgradeStatus?.();
 });
 </script>
 
@@ -221,16 +279,38 @@ onMounted(async () => {
         <h1 class="app-name">{{ appInfo.name || "AIO Hub" }}</h1>
         <div class="app-version-row">
           <p class="app-version">版本 {{ appInfo.version || "1.0.0" }}</p>
-          <el-button
-            link
-            type="primary"
-            size="small"
-            :loading="isCheckingUpdate"
-            @click="checkUpdate"
-            title="按住 Alt 点击可强制测试弹窗"
-          >
-            检查更新
-          </el-button>
+          <div class="version-actions">
+            <el-button
+              v-if="releaseNotesAvailable"
+              link
+              type="primary"
+              size="small"
+              :loading="isOpeningUpgradeFlow"
+              @click="handleOpenReleaseNotes"
+            >
+              版本说明
+            </el-button>
+            <el-button
+              v-if="hasPendingUpgrade"
+              link
+              type="warning"
+              size="small"
+              :disabled="isOpeningUpgradeFlow"
+              @click="handleResumeUpgrade"
+            >
+              继续升级事项
+            </el-button>
+            <el-button
+              link
+              type="primary"
+              size="small"
+              :loading="isCheckingUpdate"
+              @click="checkUpdate"
+              title="按住 Alt 点击可强制测试弹窗"
+            >
+              检查更新
+            </el-button>
+          </div>
         </div>
         <p class="app-description">
           提供多种实用的开发和日常工具，以及高可控性的LLM交互。
@@ -425,6 +505,13 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
   margin-bottom: 8px;
+}
+
+.version-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
 }
 
 .app-version {

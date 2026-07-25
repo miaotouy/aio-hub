@@ -27,6 +27,7 @@ const emit = defineEmits<{
   next: [];
   back: [];
   close: [];
+  skip: [];
   retry: [];
 }>();
 
@@ -48,8 +49,16 @@ const nextLabel = computed(() => {
   return isLastStep.value ? "完成" : "下一步";
 });
 const backLabel = computed(() => currentStep.value?.backLabel ?? "上一步");
-const dismissLabel = computed(
-  () => props.runtime.definition.dismissLabel ?? "稍后处理"
+const dismissLabel = computed(() =>
+  props.runtime.mode === "replay"
+    ? "关闭"
+    : (props.runtime.definition.dismissLabel ?? "稍后处理")
+);
+const canSkip = computed(
+  () => props.runtime.mode !== "replay" && props.runtime.definition.skippable
+);
+const skipLabel = computed(
+  () => props.runtime.definition.skipLabel ?? "跳过此流程"
 );
 </script>
 
@@ -68,6 +77,9 @@ const dismissLabel = computed(
         @click="emit('close')"
       >
         {{ dismissLabel }}
+      </el-button>
+      <el-button v-if="canSkip" :disabled="busy" @click="emit('skip')">
+        {{ skipLabel }}
       </el-button>
       <el-button
         v-if="runtime.state.lastError"

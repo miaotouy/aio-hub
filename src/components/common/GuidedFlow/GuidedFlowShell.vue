@@ -31,6 +31,7 @@ const emit = defineEmits<{
   next: [];
   back: [];
   requestClose: [];
+  skip: [];
   retry: [];
   updateContext: [updates: Record<string, unknown>];
 }>();
@@ -46,6 +47,11 @@ const currentIndex = computed(() =>
 const currentStep = computed(() => props.runtime.steps[currentIndex.value]);
 const canRequestClose = computed(
   () => props.runtime.definition.dismissible && !props.busy
+);
+const closeAriaLabel = computed(() =>
+  props.runtime.mode === "replay"
+    ? "关闭版本说明"
+    : (props.runtime.definition.dismissLabel ?? "稍后处理")
 );
 </script>
 
@@ -64,7 +70,7 @@ const canRequestClose = computed(
         class="close-button"
         text
         circle
-        aria-label="稍后处理"
+        :aria-label="closeAriaLabel"
         @click="emit('requestClose')"
       >
         <el-icon><Close /></el-icon>
@@ -106,6 +112,7 @@ const canRequestClose = computed(
       @next="emit('next')"
       @back="emit('back')"
       @close="emit('requestClose')"
+      @skip="emit('skip')"
       @retry="emit('retry')"
     />
   </section>

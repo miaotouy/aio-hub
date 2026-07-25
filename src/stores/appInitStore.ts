@@ -26,6 +26,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useModelMetadataStore } from "./modelMetadataStore";
 import { initAppContext } from "@/config/appContext";
+import { initializeUpgradeFlow } from "@/flows/upgrade";
 
 const logger = createModuleLogger("stores/appInitStore");
 const errorHandler = createModuleErrorHandler("stores/appInitStore");
@@ -107,6 +108,8 @@ export const useAppInitStore = defineStore("appInit", () => {
       setProgress(100, "启动完成");
       isReady.value = true;
       logger.info("主应用初始化成功");
+
+      schedulePostReadyTask("初始化版本升级引导", initializeUpgradeFlow);
 
       schedulePostReadyTask("加载模型元数据", async () => {
         const modelMetadataStore = useModelMetadataStore();

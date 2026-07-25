@@ -28,6 +28,7 @@ const emit = defineEmits<{
   next: [];
   back: [];
   requestClose: [];
+  skip: [];
   retry: [];
   updateContext: [updates: Record<string, unknown>];
 }>();
@@ -50,6 +51,7 @@ const emit = defineEmits<{
       @next="emit('next')"
       @back="emit('back')"
       @request-close="emit('requestClose')"
+      @skip="emit('skip')"
       @retry="emit('retry')"
       @update-context="emit('updateContext', $event)"
     />

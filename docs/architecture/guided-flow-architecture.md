@@ -1,6 +1,6 @@
 # Guided Flow 引导模块设计方案
 
-> 状态：Phase 1 通用容器已实现；Phase 2–4 待后续接入
+> 状态：Phase 1 通用容器与 Phase 2 版本升级流程已实现；Phase 2 真实 Tauri 安装后重启验收待补；Phase 3–4 待后续接入
 >
 > 日期：2026-07-25
 >
@@ -160,14 +160,27 @@ export interface GuidedFlowDefinition<TContext = Record<string, unknown>> {
   resumable: boolean;
   dismissible: boolean;
   dismissLabel?: string;
+  skippable?: boolean;
+  skipLabel?: string;
   blockingScope?: "none" | "module" | "application";
 
   createContext?: () => Promise<TContext> | TContext;
+  onCompleted?: (
+    event: GuidedFlowTerminalEvent<TContext>
+  ) => Promise<void> | void;
+  onSkipped?: (
+    event: GuidedFlowTerminalEvent<TContext>
+  ) => Promise<void> | void;
+  onDeferred?: (
+    event: GuidedFlowTerminalEvent<TContext>
+  ) => Promise<void> | void;
   steps: GuidedFlowStep<TContext>[];
 }
 ```
 
-`id` 标识业务流程，`version` 标识流程定义版本。Phase 1 运行时不会在版本不匹配时自动恢复旧步骤状态；恢复队列会忽略该旧状态，后续手动打开或重新触发时会通过 `createContext` 重新初始化。需要迁移旧状态的具体流程应在自己的领域服务中先完成状态检测或转换，再显式触发新的流程版本。
+`id` 标识业务流程，`version` 标识流程定义版本。运行时不会在版本不匹配时自动恢复旧步骤状态；恢复队列会忽略该旧状态，后续手动打开或重新触发时会通过 `createContext` 重新初始化。需要迁移旧状态的具体流程应在自己的领域服务中先完成状态检测或转换，再显式触发新的流程版本。
+
+`dismissible` 表示流程能否延后，`skippable` 表示能否明确写入 `skipped` 终态，两者不能混用。终态回调由 Manager 在统一状态转换路径中触发，使生命周期服务不依赖某个最终步骤组件是否被展示。
 
 ### 4.2 步骤定义
 
@@ -212,6 +225,8 @@ export interface GuidedFlowState {
 }
 ```
 
+运行时还会标记当前呈现是 `persistent` 还是 `replay`。`replay` 使用临时状态，从首个可见只读步骤开始，关闭或完成后均不覆盖上表中的持久化终态。
+
 状态持久化至少需要支持：
 
 - 当前步骤；
@@ -241,19 +256,25 @@ export type GuidedFlowTrigger =
 
 ### 5.2 版本升级识别
 
-应用生命周期至少需要记录：
+应用生命周期状态与 Guided Flow 运行状态分开保存。生命周期状态只描述“应用启动过哪些版本、哪些版本说明已明确处理”，不复制当前步骤、队列或业务迁移状态：
 
 ```ts
 interface AppLifecycleState {
+  schemaVersion: 1;
   lastLaunchedVersion?: string;
-  lastReleaseNotesSeenVersion?: string;
-  acknowledgedVersions?: string[];
+  releaseNotes: Record<
+    string,
+    {
+      status: "completed" | "skipped";
+      acknowledgedAt: string;
+    }
+  >;
 }
 ```
 
-判断依据是当前应用版本和上次启动版本是否变化，而不是是否刚刚使用了应用内更新器。这样可以覆盖手动安装、便携版、离线更新和开发环境启动。
+判断依据是当前应用版本和上次启动版本是否变化，而不是是否刚刚使用了应用内更新器。这样可以覆盖手动安装、便携版、离线更新和开发环境启动。`lastLaunchedVersion` 只用于识别版本转换，不能代替版本说明确认状态；用户延后版本说明后，即使随后又升级了应用，尚未处理且仍在本地资源目录中的版本说明也应继续进入候选集合。
 
-同一版本的版本说明只自动展示一次，但可以从关于页永久重新打开。开发环境应提供显式的测试重置方式，不应通过每次启动自动重复弹出解决。
+版本说明只有在流程完成或用户明确选择“跳过本版本说明”后，才写入 `releaseNotes`。普通关闭只产生 `deferred` 流程状态，不得提前标记为已读。同一版本的版本说明只自动展示一次，但可以从关于页以只读回放模式永久重新打开。开发环境应提供显式的测试重置方式，不应通过每次启动自动重复弹出解决。
 
 ### 5.3 排队策略
 
@@ -337,7 +358,9 @@ Guided Flow 仍应复用项目主题变量和通用按钮规范，不得把 `el-
 
 - `上一步`：返回前一步，不执行隐式回滚；
 - `下一步`：校验当前输入后进入下一步；
-- `稍后处理`：仅在流程允许延后时显示；
+- `稍后处理`：仅在流程允许延后时显示，写入 `deferred`；
+- `跳过本版本说明`：仅在流程明确允许跳过时显示，写入 `skipped`；
+- `关闭`：只读 replay 的退出动作，不修改持久化终态；
 - `开始迁移`、`确认清理`：对高风险动作使用明确动词；
 - `重新检测`：放弃不可信的旧上下文并重新读取事实状态；
 - `完成`：确认用户已经看到结果，并关闭流程。
@@ -387,7 +410,8 @@ Guided Flow 仍应复用项目主题变量和通用按钮规范，不得把 `el-
 
 | 数据                             | 所有者            | 存储建议                                                                                           |
 | -------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------- |
-| 当前流程、当前步骤、已确认版本   | Guided Flow       | 低频、扁平状态可使用项目配置管理能力；具体实现遵循 [`配置管理指南`](../guide/config-management.md) |
+| 当前流程、当前步骤、流程终态     | Guided Flow       | 低频、扁平状态可使用项目配置管理能力；具体实现遵循 [`配置管理指南`](../guide/config-management.md) |
+| 应用版本转换、已处理版本说明     | 应用生命周期服务  | 独立的低频扁平配置；不与步骤状态或远程 updater 状态混存                                            |
 | 高频任务进度                     | 业务任务/迁移领域 | 使用任务或领域状态；必要时再考虑 `saveDebounced`，不默认写入通用流程配置                           |
 | 迁移任务状态、source fingerprint | 迁移领域          | Recall/Knowledge 数据库                                                                            |
 | 详细迁移报告                     | 迁移领域          | 领域数据库或报告文件                                                                               |
@@ -452,7 +476,324 @@ Guided Flow 仍应复用项目主题变量和通用按钮规范，不得把 `el-
 
 涉及 Tauri IPC、窗口生命周期、原生文件和迁移任务时，不能只依赖普通浏览器验证。应按照仓库的工具测试、Tauri E2E 和 Windows UI Automation 说明执行真实验证。
 
-## 12. 分阶段实施
+## 12. Phase 2：版本升级流程详细设计
+
+### 12.1 定位与边界
+
+Phase 2 处理的是**当前版本已经安装并启动后**的升级说明与相关待办，不替代现有的在线更新检查和安装能力。三个概念必须分开：
+
+| 概念           | 事实来源                                  | 主要入口                     | 是否属于 Guided Flow          |
+| -------------- | ----------------------------------------- | ---------------------------- | ----------------------------- |
+| 当前已安装版本 | 根 `package.json` 经 Tauri 暴露的应用版本 | 应用启动、关于页             | 是升级识别输入                |
+| 线上可更新版本 | Tauri updater / GitHub Releases           | 关于页“检查更新”             | 否，继续由 `app-updater` 负责 |
+| 已安装版本说明 | 随应用打包的本地发布资源                  | 启动自动展示、关于页重新打开 | 是                            |
+
+因此：
+
+- `src/services/app-updater.ts` 继续负责检查、下载、安装和重启，不把远程 `Update` 对象放入 Guided Flow 上下文；
+- GitHub Release 正文只用于“发现可更新版本”弹窗，不能作为已安装版本说明的唯一来源；
+- 应用完成安装并重启后，再由版本生命周期服务触发本地升级流程；
+- 网络不可用、GitHub 不可达或 updater 检查失败，不影响用户查看当前已安装版本的说明；
+- Phase 2 不执行知识库迁移，但要提供稳定的升级事项贡献契约，供 Phase 3 接入。
+
+### 12.2 现有实现的复用与调整
+
+| 当前实现                                     | Phase 2 处理方式                                         |
+| -------------------------------------------- | -------------------------------------------------------- |
+| `src/services/app-updater.ts`                | 保留更新通道、远程检查、下载安装和重启职责               |
+| `src/composables/useAppUpdater.ts`           | 保留远程更新状态；不与升级流程状态合并                   |
+| `src/views/Settings/about/AboutSettings.vue` | 将“检查更新”和“查看当前版本说明”拆成两个明确入口         |
+| `src/services/guided-flow/`                  | 复用注册、排队、恢复和通用外壳，并补充回放与终态事件能力 |
+| `guided-flow-state.json`                     | 继续保存流程运行状态，不保存发布说明正文和领域迁移报告   |
+| 新增应用生命周期配置                         | 保存版本转换和已处理版本集合，不能由关于页组件自行维护   |
+
+现有关于页更新弹窗可以继续展示远程版本正文和安装进度。它与升级流程即使使用相似视觉组件，也不能共享同一份状态，避免“检查到了新版本”被误记成“用户已经看过已安装版本说明”。
+
+### 12.3 建议代码结构
+
+```text
+src/flows/upgrade/
+  index.ts
+  upgradeFlowComposer.ts
+  upgradeContributionRegistry.ts
+  appLifecycleService.ts
+  releaseNotesRegistry.ts
+  types.ts
+  components/
+    UpgradeOverviewStep.vue
+    UpgradeReleaseNotesStep.vue
+    UpgradeActionsStep.vue
+    UpgradeCompleteStep.vue
+  releases/
+    index.ts
+    v0.7.0.md
+    v0.7.0.ts
+
+src/services/guided-flow/
+  types.ts                    # 增加 replay 与终态事件契约
+  guidedFlowManager.ts        # 支持不污染持久化状态的只读回放
+```
+
+版本资源目录按真实版本逐步增加，不要求预先补齐所有历史版本。文件名只是组织方式，版本匹配必须以 manifest 中的规范化 `version` 为准。
+
+### 12.4 本地版本说明资源
+
+版本说明采用“类型化 manifest + 本地 Markdown 正文”。Markdown 通过 Vite 静态导入随应用打包，不能在应用启动时从远程下载：
+
+```ts
+interface ReleaseNoteManifest {
+  version: string;
+  revision: number;
+  channel: "stable" | "prerelease";
+  title: string;
+  summary: string;
+  publishedAt: string;
+  body: string;
+  highlights?: string[];
+  contributionIds?: string[];
+  unknownBaselinePolicy?: "manual-only" | "show-current";
+}
+```
+
+字段约束：
+
+- `version` 使用去掉 `v` 前缀后的应用 SemVer，并与对应发布包版本一致；
+- `revision` 只表示同一应用版本内的流程资源修订，开发阶段修改步骤或正文结构时递增；正式发布后不得远程替换本地正文；
+- `body` 是可信的仓库内 Markdown，不允许携带可执行脚本；渲染继续复用 `RichTextRenderer` 的安全边界；
+- `contributionIds` 声明该版本希望展示的升级事项，实际是否出现仍以贡献方的只读检测结果为准；
+- `unknownBaselinePolicy` 默认 `manual-only`。只有首次引入生命周期记录或包含必须告知事项的版本，才显式使用 `show-current`。
+
+发布构建应增加一致性检查：生产版本必须存在与根 `package.json` 匹配的 manifest，版本号不可重复，Markdown 文件必须可导入，`contributionIds` 必须能在内置贡献注册表中解析。该检查应接入现有检查或发布链路，具体脚本名称在施工时按根 `package.json` 的当前结构确定。
+
+### 12.5 升级流程上下文
+
+流程上下文只保存可序列化的展示快照和领域记录引用：
+
+```ts
+interface UpgradeFlowContext {
+  mode: "automatic" | "manual-replay";
+  currentVersion: string;
+  previousLaunchedVersion?: string;
+  releaseVersions: string[];
+  primaryReleaseVersion: string;
+  transition: "upgrade" | "downgrade" | "same-version" | "unknown-baseline";
+  contributions: Record<
+    string,
+    {
+      instanceKey: string;
+      status: "pending" | "completed" | "unavailable";
+      snapshot: unknown;
+      reportRef?: string;
+    }
+  >;
+}
+```
+
+不得放入上下文的内容包括 Vue 组件实例、函数、Tauri updater 的 `Update` 对象、数据库连接、大体积报告正文、密钥和用户业务正文。贡献方的 `snapshot` 必须是经过裁剪的只读摘要；详细事实仍由领域服务和领域存储持有。
+
+### 12.6 流程实例版本
+
+Phase 1 当前以固定 `flowId` 保存一份状态。升级流程不能只使用固定的定义版本，否则用户完成一次后，后续应用版本会被误判为同一已完成流程。Phase 2 组装定义时应生成稳定的实例版本：
+
+```text
+app-upgrade@<flow-schema>/<current-app-version>/<release-fingerprint>/<contribution-fingerprint>
+```
+
+其中：
+
+- `flow-schema` 在步骤语义或上下文结构不兼容时递增；
+- `current-app-version` 确保每个安装版本有独立流程实例；
+- `release-fingerprint` 由本次聚合的所有 `version + revision` 稳定生成，支持同版本开发期资源调整；
+- `contribution-fingerprint` 由已检测到的贡献项 `id + revision + instanceKey` 稳定生成，不包含随机值和时间戳。
+
+`flowId` 仍固定为 `app-upgrade`，以便关于页、队列和测试使用稳定入口。若定义版本变化，Phase 1 的既有规则会重新创建通用流程状态；领域贡献必须依靠自己的 `instanceKey`、migration ID 和 fingerprint 保证业务动作幂等，不能只依赖 Guided Flow 的定义版本。
+
+### 12.7 启动判定与状态提交顺序
+
+启动后的只读探测顺序如下：
+
+```text
+应用 ready
+  ↓
+读取当前应用版本与 AppLifecycleState
+  ↓
+规范化并比较 current / lastLaunchedVersion
+  ↓
+收集尚未处理的本地版本说明
+  ↓
+执行升级贡献项的只读 detect
+  ↓
+组装 upgrade definition 与 context
+  ↓
+先持久化 pending Guided Flow，再更新 lastLaunchedVersion
+  ↓
+进入全局队列
+```
+
+先写入待处理流程、再更新 `lastLaunchedVersion`，是为了避免应用在两次写入之间退出后永久丢失自动展示机会。若第二次写入失败，下次启动可以再次执行探测；Manager 的队列去重和既有 pending 状态应避免同一运行期重复入队。
+
+判定规则：
+
+| 场景                       | 自动行为                                                               |
+| -------------------------- | ---------------------------------------------------------------------- |
+| `current > lastLaunched`   | 收集升级路径中未处理且本地存在的版本说明，并检测贡献项                 |
+| `current === lastLaunched` | 不创建新的纯版本说明流程；恢复既有 pending/deferred/failed 流程        |
+| `current < lastLaunched`   | 记录降级，不自动把升级说明当作新版本弹出；仍检测独立的高风险待办       |
+| 无生命周期基线             | 按当前 manifest 的 `unknownBaselinePolicy` 决定是否展示当前版本        |
+| 当前版本缺少本地 manifest  | 记录警告并跳过纯说明自动弹窗；不能用远程正文静默替代                   |
+| 跨多个版本升级             | 将未处理的本地说明聚合到同一流程，当前版本优先展示，历史版本可折叠查看 |
+
+`releaseNotes[version]` 只在以下终态写入：
+
+- 用户走到升级流程完成页：`completed`；
+- 用户点击明确的“跳过本版本说明”：`skipped`。
+
+关闭、Escape 请求、应用退出、执行失败和普通延后都不能写入已处理状态。包含未完成的阻塞型贡献项时，不显示“跳过整个升级流程”，只能延后或按领域规则继续处理。
+
+### 12.8 升级事项贡献机制
+
+为了让版本说明与知识库迁移等事项在同一升级体验中呈现，Phase 2 增加只面向内置模块的贡献注册表：
+
+```ts
+interface UpgradeContributionDefinition<TSnapshot> {
+  id: string;
+  revision: number;
+  order: number;
+  appliesTo(releases: ReleaseNoteManifest[]): boolean;
+  detect(input: {
+    currentVersion: string;
+    previousLaunchedVersion?: string;
+  }): Promise<{
+    instanceKey: string;
+    snapshot: TSnapshot;
+    blockingScope: "none" | "module" | "application";
+  } | null>;
+  steps: GuidedFlowStep<UpgradeFlowContext>[];
+}
+```
+
+约束如下：
+
+- `detect` 必须只读、可重入，并且适合在 ready 后的后台启动任务中执行；
+- `instanceKey` 必须来自领域事实，例如 `migrationId + sourceFingerprint`，不能使用当前时间；
+- 贡献步骤可以调用领域服务，但不可把迁移事实写回通用生命周期配置；
+- 贡献项没有被检测到时，其步骤通过 `when` 隐藏；
+- 多个贡献按 `order` 稳定排序，阻塞范围取所有待处理贡献中的最高级别；
+- 插件动态贡献、远程下发贡献和脚本化步骤不属于 Phase 2；第一版只支持仓库内置模块。
+
+Phase 2 先实现注册、检测、组装和只读事项摘要。Phase 3 的知识库迁移再提供具体 contribution、步骤组件和领域动作。这样 Phase 3 不需要修改升级中心的生命周期和关于页入口。
+
+### 12.9 步骤编排
+
+升级流程的基础步骤为：
+
+1. **升级概览**：显示从哪个版本进入当前版本、聚合了多少份说明、是否存在必须处理的事项；
+2. **版本说明**：展示当前版本正文，跨版本升级时提供历史版本折叠区；
+3. **升级事项**：仅在检测到 contribution 时显示，列出影响模块、风险、预计动作和阻塞范围；
+4. **贡献步骤**：按贡献注册顺序插入检测、预览、确认、执行、校验和报告步骤；
+5. **完成摘要**：区分说明已读、事项已完成、事项已延后、部分成功和报告入口。
+
+交互规则：
+
+- 纯版本说明流程可关闭和明确跳过，按钮文案使用“稍后查看”和“跳过本版本说明”；
+- 只要存在未完成的模块级或应用级贡献项，关闭只能产生 `deferred`，不能把整个流程标记为 `skipped`；
+- 贡献步骤执行中沿用 Manager 的 busy 锁，禁用返回、关闭和重复提交；
+- 流程步骤进度显示“当前处于第几步”，迁移任务进度仍由贡献组件使用 `GuidedFlowProgress` 单独展示；
+- 完成页从领域报告引用读取最新摘要，不把第一次检测快照伪装成最终结果。
+
+### 12.10 手动重开与只读回放
+
+关于页“查看当前版本说明”不能直接使用当前的 `open(flowId, { restart: true })`。当前实现会覆盖已完成状态；如果用户随后关闭，流程会变成 `deferred`，导致下一次启动错误地再次自动排队。
+
+Phase 2 需要给通用运行时增加明确的回放模式：
+
+```ts
+interface GuidedFlowOpenOptions {
+  mode?: "resume" | "restart" | "replay";
+}
+```
+
+- `resume`：恢复持久化状态，是默认行为；
+- `restart`：丢弃旧运行状态并重新创建，仅供显式重新执行或开发测试；
+- `replay`：从首个只读步骤打开临时运行态，不修改原有 completed/skipped 状态，不参与下次启动恢复。
+
+`replay` 还必须满足：
+
+- 不持久化临时步骤位置和关闭状态；
+- 不展示会重复执行业务写入的贡献步骤；
+- 已完成贡献只展示报告摘要和“前往模块”入口；
+- 发现贡献仍处于 pending/failed 时，引导用户切换到正式 `resume`，而不是在回放态执行；
+- 关闭后恢复打开前的焦点，不改变自动展示判定。
+
+此外，Manager 需要提供完成、跳过、延后三类终态回调或事件。生命周期服务只监听 `completed` 和 `skipped` 写入版本处理记录；`deferred` 只保留恢复资格。不能把这些写入逻辑塞进最终 Vue 步骤组件，否则遮罩关闭、快捷关闭和未来其他呈现适配器会绕过状态同步。
+
+### 12.11 关于页与升级入口
+
+关于页调整为三个互不混淆的动作：
+
+1. **查看当前版本说明**：始终读取本地 manifest，以 `replay` 打开；
+2. **继续待处理升级事项**：仅在存在 pending/deferred/failed 的升级流程或贡献项时显示，以 `resume` 打开；
+3. **检查更新**：继续调用 `useAppUpdater()`，展示远程可用版本并执行安装或跳转下载。
+
+关于页不直接读写 `app-lifecycle.json`，而是调用升级流程服务暴露的查询和打开方法。现有按住 Alt 强制展示远程更新弹窗的调试能力即使保留，也不能承担重置生命周期或重复触发本地版本说明的职责。开发环境应提供独立的“重置当前版本说明状态”测试入口或测试辅助函数，并限制在开发构建中。
+
+后续如果增加独立“升级中心”页面，该页面也只能作为查询和打开入口；流程执行仍由全局 `GuidedFlowHost` 承载，不能再实现一套步骤状态机。
+
+### 12.12 初始化集成
+
+升级流程的注册与触发安排在现有 `appInitStore` 进入 ready 后的后台任务中：
+
+1. 基础配置、主题、工具和服务注册完成；
+2. 注册内置 release manifests 与 upgrade contributions；
+3. 初始化 Guided Flow Manager，先恢复已有流程；
+4. 执行版本生命周期和 contribution 的只读探测；
+5. 仅在需要时组装并注册当前会话唯一的升级流程定义，然后触发；
+6. 由 Manager 与其他流程一起按优先级排队。
+
+必须避免 `GuidedFlowHost` 自己承担版本探测。Host 只负责展示；生命周期服务负责事实判断；`appInitStore` 或独立 startup task 负责启动时序。探测失败不阻塞应用 ready，只记录模块化错误并保留关于页手动重试入口。
+
+### 12.13 失败与降级策略
+
+- 生命周期配置损坏：备份或重置该配置，按 unknown baseline 处理，不删除 Guided Flow 或领域数据；
+- 单份历史 Markdown 缺失：跳过该历史正文并在概览标记“说明资源不可用”，仍展示当前版本；
+- 当前版本 manifest 缺失：不自动弹出空流程，关于页显示“此构建未包含本地更新说明”；
+- contribution 检测失败：该事项显示为“暂时无法检测”，不得默认视为无需处理；
+- 版本字符串无法比较：记录原值，按 unknown transition 处理，不通过字符串大小猜测升级或降级；
+- 用户切换 stable/prerelease 更新通道：只影响远程更新检查，不改写已安装版本说明和生命周期记录；
+- 应用离线：本地说明和本地领域检测正常工作，仅远程检查更新不可用。
+
+### 12.14 Phase 2 测试矩阵
+
+除第 11 节的通用测试外，Phase 2 至少覆盖：
+
+- `0.7.0 -> 0.7.1` 自动展示一次，完成后同版本重启不再展示；
+- 用户关闭后状态为 deferred，下次启动从正确步骤恢复；
+- 用户明确跳过后不再自动展示，但关于页仍可 replay；
+- `0.7.0 -> 0.8.0` 能聚合中间未处理且本地存在的说明；
+- prerelease 到 stable、stable 到 prerelease 依据 SemVer 和本地 manifest 正确选择；
+- 降级启动不把旧版本错误识别成新升级；
+- 生命周期文件缺失时分别验证 `manual-only` 和 `show-current`；
+- 当前版本 manifest 缺失时不弹空白流程；
+- replay 不修改原 completed/skipped 状态，也不会在重启后入队；
+- contribution fingerprint 变化时能重新组装流程，业务动作仍由领域幂等校验保护；
+- 远程检查失败不影响本地版本说明；
+- 关于页三个入口的加载、禁用、错误和焦点恢复行为；
+- Vite 生产构建能正确打包 Markdown 资源和动态步骤组件；
+- 真实 Tauri 环境中验证版本获取、安装后重启和启动触发时序。
+
+### 12.15 施工顺序
+
+1. 新增 release manifest、生命周期服务和对应单元测试；
+2. 为 Guided Flow 增加 `replay` 运行态与终态事件，并补齐 Manager 测试；
+3. 新增 contribution registry 和升级流程 composer；
+4. 实现基础四步 UI，并接入全局注册/启动任务；
+5. 重构关于页入口，保留现有 updater 职责；
+6. 增加发布资源一致性检查、Vite 构建验证和真实 Tauri smoke test；
+7. Phase 3 再注册知识库迁移 contribution，不在 Phase 2 中提前实现领域迁移。
+
+截至 2026-07-25，前六项的代码、单元测试、类型检查、本地版本资源检查和 Vite 生产构建已经完成。普通浏览器不能替代 Tauri WebView、应用版本 API 和安装后重启链路，因此真实 Tauri smoke test 保留到发布候选包验收。
+
+## 13. 分阶段实施
 
 ### Phase 1：通用容器（已实现）
 
@@ -464,16 +805,18 @@ Guided Flow 仍应复用项目主题变量和通用按钮规范，不得把 `el-
 
 当前实现位于 `src/services/guided-flow/`、`src/stores/guidedFlowStore.ts` 和
 `src/components/common/GuidedFlow/`。通用运行时支持按优先级排队、可恢复流程、
-流程版本失配后的重新初始化、条件步骤重算、明确延后和手动重新打开；它尚未注册
-版本升级、知识库迁移或首次设置等具体业务流程。
+流程版本失配后的重新初始化、条件步骤重算、明确延后、显式跳过、终态事件和不污染
+持久化终态的只读回放。当前已注册版本升级流程；知识库迁移和首次设置仍待接入。
 
-### Phase 2：版本升级流程
+### Phase 2：版本升级流程（已实现）
 
-- 版本生命周期记录；
-- 本地版本说明资源；
-- 首次升级引导；
-- 关于页重新打开当前版本说明；
-- 版本说明和待迁移事项合并展示。
+- 已增加独立的版本生命周期记录和 `0.7.0-alpha.1` 本地 release manifest；
+- 已按当前应用版本、资源 revision 和贡献 fingerprint 生成流程实例版本；
+- 已增加升级事项 contribution registry，为 Phase 3 预留组合入口；
+- 已补充 Guided Flow 的只读 `replay`、显式跳过、终态事件和并发初始化去重；
+- 已在关于页拆分“版本说明”“继续升级事项”和“检查更新”；
+- 已增加 release manifest 构建一致性检查及生命周期、跨版本、降级和回放测试；
+- Vite 生产构建已通过，真实 Tauri 安装后重启 smoke test 待发布候选包补验。
 
 ### Phase 3：知识库迁移流程
 
@@ -490,7 +833,7 @@ Guided Flow 仍应复用项目主题变量和通用按钮规范，不得把 `el-
 - 模块首次使用教程；
 - 将现有零散引导逐步迁入通用容器。
 
-## 13. 验收标准
+## 14. 验收标准
 
 - 同一版本只自动展示一次版本说明；
 - 关于页可以随时打开当前版本说明；

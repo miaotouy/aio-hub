@@ -168,4 +168,101 @@ describe("GuidedFlowManager", () => {
       context: { showOptional: true },
     });
   });
+
+  it("opens a replay without overwriting the persisted terminal state", async () => {
+    const registry = new GuidedFlowRegistry();
+    registry.register(createFlow("replay"));
+    const persistence = new MemoryPersistence({
+      replay: {
+        flowId: "replay",
+        flowVersion: "1.0.0",
+        status: "completed",
+        currentStepId: "finish",
+        completedStepIds: ["start", "optional", "finish"],
+        context: { showOptional: true, preserved: true },
+      },
+    });
+    const manager = new GuidedFlowManager(registry, persistence);
+
+    await manager.open("replay", {
+      mode: "replay",
+      context: { showOptional: false, replayed: true },
+    });
+
+    expect(manager.getSnapshot().activeFlow).toMatchObject({
+      mode: "replay",
+      state: {
+        status: "in-progress",
+        currentStepId: "start",
+        context: { showOptional: false, replayed: true },
+      },
+    });
+
+    await manager.requestClose();
+
+    expect(manager.getSnapshot().activeFlow).toBeNull();
+    expect(persistence.snapshot().replay).toMatchObject({
+      status: "completed",
+      currentStepId: "finish",
+      context: { showOptional: true, preserved: true },
+    });
+  });
+
+  it("emits persistent terminal events for completion and explicit skip", async () => {
+    const registry = new GuidedFlowRegistry();
+    const completedEvents: string[] = [];
+    const skippedEvents: string[] = [];
+    const completedFlow = createFlow("terminal-completed");
+    completedFlow.onCompleted = (event) => {
+      completedEvents.push(`${event.mode}:${event.status}`);
+    };
+    const skippedFlow = createFlow("terminal-skipped");
+    skippedFlow.skippable = true;
+    skippedFlow.onSkipped = (event) => {
+      skippedEvents.push(`${event.mode}:${event.status}`);
+    };
+    registry.register(completedFlow);
+    registry.register(skippedFlow);
+    const persistence = new MemoryPersistence();
+    const manager = new GuidedFlowManager(registry, persistence);
+
+    await manager.trigger("terminal-completed");
+    await manager.next();
+    await manager.next();
+    await manager.next();
+
+    await manager.trigger("terminal-skipped");
+    expect(await manager.skip()).toBe(true);
+
+    expect(completedEvents).toEqual(["persistent:completed"]);
+    expect(skippedEvents).toEqual(["persistent:skipped"]);
+    expect(persistence.snapshot()["terminal-skipped"]).toMatchObject({
+      status: "skipped",
+    });
+  });
+
+  it("deduplicates concurrent initialization calls", async () => {
+    const registry = new GuidedFlowRegistry();
+    let loadCount = 0;
+    let releaseLoad: (() => void) | undefined;
+    const loadGate = new Promise<void>((resolve) => {
+      releaseLoad = resolve;
+    });
+    const persistence: GuidedFlowPersistence = {
+      async load() {
+        loadCount += 1;
+        await loadGate;
+        return {};
+      },
+      async save() {},
+    };
+    const manager = new GuidedFlowManager(registry, persistence);
+
+    const first = manager.initialize();
+    const second = manager.initialize();
+    releaseLoad?.();
+    await Promise.all([first, second]);
+
+    expect(loadCount).toBe(1);
+  });
 });

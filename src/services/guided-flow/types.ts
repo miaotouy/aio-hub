@@ -26,6 +26,10 @@ export type GuidedFlowStatus =
 
 export type GuidedFlowBlockingScope = "none" | "module" | "application";
 
+export type GuidedFlowRuntimeMode = "persistent" | "replay";
+
+export type GuidedFlowTerminalStatus = "completed" | "skipped" | "deferred";
+
 export interface GuidedFlowStepComponentProps<TContext> {
   context: TContext;
   flowState: GuidedFlowState;
@@ -46,6 +50,13 @@ export interface GuidedFlowStep<TContext> {
   onBack?: (context: TContext) => Promise<void> | void;
 }
 
+export interface GuidedFlowTerminalEvent<TContext> {
+  mode: GuidedFlowRuntimeMode;
+  status: GuidedFlowTerminalStatus;
+  state: GuidedFlowState<TContext>;
+  context: TContext;
+}
+
 export interface GuidedFlowDefinition<TContext = Record<string, unknown>> {
   id: string;
   version: string;
@@ -56,8 +67,19 @@ export interface GuidedFlowDefinition<TContext = Record<string, unknown>> {
   resumable: boolean;
   dismissible: boolean;
   dismissLabel?: string;
+  skippable?: boolean;
+  skipLabel?: string;
   blockingScope?: GuidedFlowBlockingScope;
   createContext?: () => Promise<TContext> | TContext;
+  onCompleted?: (
+    event: GuidedFlowTerminalEvent<TContext>
+  ) => Promise<void> | void;
+  onSkipped?: (
+    event: GuidedFlowTerminalEvent<TContext>
+  ) => Promise<void> | void;
+  onDeferred?: (
+    event: GuidedFlowTerminalEvent<TContext>
+  ) => Promise<void> | void;
   steps: GuidedFlowStep<TContext>[];
 }
 
@@ -78,6 +100,7 @@ export interface GuidedFlowRuntime<TContext = Record<string, unknown>> {
   definition: GuidedFlowDefinition<TContext>;
   state: GuidedFlowState<TContext>;
   steps: GuidedFlowStep<TContext>[];
+  mode: GuidedFlowRuntimeMode;
 }
 
 export interface GuidedFlowSnapshot {
@@ -88,5 +111,8 @@ export interface GuidedFlowSnapshot {
 }
 
 export interface GuidedFlowOpenOptions {
+  /** @deprecated 使用 mode: "restart"。 */
   restart?: boolean;
+  mode?: "resume" | "restart" | "replay";
+  context?: Record<string, unknown>;
 }

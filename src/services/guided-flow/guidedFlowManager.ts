@@ -26,9 +26,11 @@ import type {
   GuidedFlowDefinition,
   GuidedFlowOpenOptions,
   GuidedFlowRuntime,
+  GuidedFlowRuntimeMode,
   GuidedFlowSnapshot,
   GuidedFlowState,
   GuidedFlowStep,
+  GuidedFlowTerminalStatus,
 } from "./types";
 
 const logger = createModuleLogger("services/guided-flow/manager");
@@ -50,7 +52,10 @@ export class GuidedFlowManager {
   private states: Record<string, GuidedFlowState> = {};
   private queue: string[] = [];
   private activeFlowId: string | null = null;
+  private activeMode: GuidedFlowRuntimeMode = "persistent";
+  private replayState: GuidedFlowState | null = null;
   private initialized = false;
+  private initializationPromise: Promise<void> | null = null;
   private busy = false;
   private readonly listeners = new Set<SnapshotListener>();
 
@@ -67,7 +72,15 @@ export class GuidedFlowManager {
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
+    if (!this.initializationPromise) {
+      this.initializationPromise = this.initializeInternal().finally(() => {
+        this.initializationPromise = null;
+      });
+    }
+    await this.initializationPromise;
+  }
 
+  private async initializeInternal(): Promise<void> {
     try {
       this.states = await this.persistence.load();
       this.initialized = true;
@@ -123,14 +136,44 @@ export class GuidedFlowManager {
     await this.initialize();
     await this.run("打开引导流程", async () => {
       const definition = this.requireDefinition(flowId);
+      const mode = options.mode ?? (options.restart ? "restart" : "resume");
+
+      if (mode === "replay") {
+        if (this.activeFlowId) {
+          throw new Error("当前已有正在展示的 Guided Flow，暂时无法打开回放。");
+        }
+
+        const state = await this.createInitialState(
+          definition,
+          options.context
+        );
+        const steps = this.getVisibleSteps(definition, state);
+        state.status = "in-progress";
+        state.currentStepId = steps[0]?.id;
+        state.startedAt = now();
+        state.updatedAt = now();
+        this.activeFlowId = flowId;
+        this.activeMode = "replay";
+        this.replayState = state;
+        await this.enterStep(
+          definition,
+          state,
+          this.requireCurrentStep(this.getRuntime(flowId)!)
+        );
+        return;
+      }
+
       const existing = this.states[flowId];
       const shouldRestart =
-        options.restart ||
+        mode === "restart" ||
         !definition.resumable ||
         existing?.flowVersion !== definition.version;
 
       if (!existing || shouldRestart) {
-        this.states[flowId] = await this.createInitialState(definition);
+        this.states[flowId] = await this.createInitialState(
+          definition,
+          options.context
+        );
       } else {
         const state = existing;
         const steps = this.getVisibleSteps(definition, state);
@@ -156,7 +199,7 @@ export class GuidedFlowManager {
       if (currentStep.validate && !(await currentStep.validate(context))) {
         state.lastError = "请先完成当前步骤的必填内容。";
         state.updatedAt = now();
-        await this.persist();
+        await this.persistActiveState();
         return;
       }
 
@@ -177,7 +220,7 @@ export class GuidedFlowManager {
 
       state.currentStepId = nextStep.id;
       await this.enterStep(definition, state, nextStep);
-      await this.persist();
+      await this.persistActiveState();
     });
   }
 
@@ -198,7 +241,7 @@ export class GuidedFlowManager {
       runtime.state.lastError = undefined;
       runtime.state.updatedAt = now();
       await this.enterStep(runtime.definition, runtime.state, previousStep);
-      await this.persist();
+      await this.persistActiveState();
     });
   }
 
@@ -208,11 +251,11 @@ export class GuidedFlowManager {
     if (!runtime.definition.dismissible) return false;
 
     await this.run("延后引导流程", async () => {
+      await this.notifyTerminal(runtime, "deferred");
       runtime.state.status = "deferred";
       runtime.state.updatedAt = now();
-      await this.persist();
-      this.activeFlowId = null;
-      await this.activateNext();
+      await this.persistActiveState();
+      await this.closeActiveFlow();
     });
     return true;
   }
@@ -220,16 +263,16 @@ export class GuidedFlowManager {
   async skip(): Promise<boolean> {
     if (!this.activeFlowId || this.busy) return false;
     const runtime = this.requireActiveFlow();
-    if (!runtime.definition.dismissible) return false;
+    if (!runtime.definition.skippable) return false;
 
     await this.run("跳过引导流程", async () => {
+      await this.notifyTerminal(runtime, "skipped");
       runtime.state.status = "skipped";
       runtime.state.completedAt = now();
       runtime.state.updatedAt = now();
       runtime.state.lastError = undefined;
-      await this.persist();
-      this.activeFlowId = null;
-      await this.activateNext();
+      await this.persistActiveState();
+      await this.closeActiveFlow();
     });
     return true;
   }
@@ -242,7 +285,7 @@ export class GuidedFlowManager {
       runtime.state.status = "in-progress";
       runtime.state.updatedAt = now();
       await this.enterStep(runtime.definition, runtime.state, currentStep);
-      await this.persist();
+      await this.persistActiveState();
     });
   }
 
@@ -253,7 +296,7 @@ export class GuidedFlowManager {
       Object.assign(context, cloneValue(updates));
       runtime.state.context = context;
       runtime.state.updatedAt = now();
-      await this.persist();
+      await this.persistActiveState();
     });
   }
 
@@ -264,7 +307,7 @@ export class GuidedFlowManager {
       runtime.state.lastError =
         error instanceof Error ? error.message : String(error);
       runtime.state.updatedAt = now();
-      await this.persist();
+      await this.persistActiveState();
     });
   }
 
@@ -296,13 +339,13 @@ export class GuidedFlowManager {
       await operation();
     } catch (error) {
       const activeState = this.activeFlowId
-        ? this.states[this.activeFlowId]
+        ? this.getRuntime(this.activeFlowId)?.state
         : undefined;
       if (activeState) {
         activeState.lastError =
           error instanceof Error ? error.message : String(error);
         activeState.updatedAt = now();
-        await this.persist();
+        await this.persistActiveState();
       }
       errorHandler.error(error, `${action}失败`, { showToUser: false });
       throw error;
@@ -362,6 +405,8 @@ export class GuidedFlowManager {
     state.startedAt ??= now();
     state.updatedAt = now();
     this.activeFlowId = flowId;
+    this.activeMode = "persistent";
+    this.replayState = null;
     await this.enterStep(
       definition,
       state,
@@ -372,27 +417,39 @@ export class GuidedFlowManager {
 
   private async completeActiveFlow(): Promise<void> {
     const runtime = this.requireActiveFlow();
+    await this.notifyTerminal(runtime, "completed");
     runtime.state.status = "completed";
     runtime.state.completedAt = now();
     runtime.state.updatedAt = now();
     runtime.state.lastError = undefined;
-    await this.persist();
+    await this.persistActiveState();
+    await this.closeActiveFlow();
+  }
+
+  private async closeActiveFlow(): Promise<void> {
     this.activeFlowId = null;
+    this.activeMode = "persistent";
+    this.replayState = null;
     await this.activateNext();
   }
 
   private async createInitialState(
-    definition: GuidedFlowDefinition
+    definition: GuidedFlowDefinition,
+    contextUpdates?: Record<string, unknown>
   ): Promise<GuidedFlowState> {
-    const context = definition.createContext
+    const createdContext = definition.createContext
       ? await definition.createContext()
       : {};
+    const context = {
+      ...(cloneValue(createdContext) as Record<string, unknown>),
+      ...cloneValue(contextUpdates ?? {}),
+    };
     const state: GuidedFlowState = {
       flowId: definition.id,
       flowVersion: definition.version,
       status: "pending",
       completedStepIds: [],
-      context: cloneValue(context),
+      context,
       updatedAt: now(),
     };
     const steps = this.getVisibleSteps(definition, state);
@@ -408,12 +465,19 @@ export class GuidedFlowManager {
     cloneState = false
   ): GuidedFlowRuntime | null {
     const definition = this.registry.get(flowId);
-    const state = this.states[flowId];
+    const state =
+      this.activeFlowId === flowId && this.activeMode === "replay"
+        ? this.replayState
+        : this.states[flowId];
     if (!definition || !state) return null;
     return {
       definition,
       state: cloneState ? cloneValue(state) : state,
       steps: this.getVisibleSteps(definition, state),
+      mode:
+        this.activeFlowId === flowId
+          ? this.activeMode
+          : ("persistent" as const),
     };
   }
 
@@ -468,9 +532,39 @@ export class GuidedFlowManager {
     state.updatedAt = now();
   }
 
+  private async notifyTerminal(
+    runtime: GuidedFlowRuntime,
+    status: GuidedFlowTerminalStatus
+  ): Promise<void> {
+    const callback =
+      status === "completed"
+        ? runtime.definition.onCompleted
+        : status === "skipped"
+          ? runtime.definition.onSkipped
+          : runtime.definition.onDeferred;
+    if (!callback) return;
+
+    const state = cloneValue(runtime.state);
+    state.status = status;
+    if (status === "completed" || status === "skipped") {
+      state.completedAt = now();
+    }
+    await callback({
+      mode: runtime.mode,
+      status,
+      state,
+      context: cloneValue(this.getContext(runtime.state)),
+    });
+  }
+
   private markStepCompleted(state: GuidedFlowState, stepId: string): void {
     if (!state.completedStepIds.includes(stepId))
       state.completedStepIds.push(stepId);
+  }
+
+  private async persistActiveState(): Promise<void> {
+    if (this.activeMode === "replay") return;
+    await this.persist();
   }
 
   private async persist(): Promise<void> {

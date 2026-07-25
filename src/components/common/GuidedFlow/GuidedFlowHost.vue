@@ -41,6 +41,7 @@ onMounted(() => {
     @next="run(() => guidedFlowStore.next())"
     @back="run(() => guidedFlowStore.back())"
     @request-close="run(() => guidedFlowStore.requestClose())"
+    @skip="run(() => guidedFlowStore.skip())"
     @retry="run(() => guidedFlowStore.retry())"
     @update-context="run(() => guidedFlowStore.updateContext($event))"
   />

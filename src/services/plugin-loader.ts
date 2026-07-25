@@ -33,6 +33,7 @@ import type {
   PluginManifest,
   PluginLoadOptions,
   PluginLoadResult,
+  PluginOcrEngineContribution,
   JsPluginExport,
   PluginProxy,
   PlatformKey,
@@ -46,6 +47,11 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { pluginConfigService } from "./plugin-config.service";
 import { pluginStateService } from "./plugin-state.service";
 import { getAppContext } from "@/config/appContext";
+import {
+  CURRENT_PLUGIN_API_VERSION,
+  isPluginApiVersionSupported,
+  requiresStrictPluginCompatibility,
+} from "./plugin-api-version";
 
 const logger = createModuleLogger("services/plugin-loader");
 const errorHandler = createModuleErrorHandler("services/plugin-loader");
@@ -610,7 +616,70 @@ export function getCurrentPlatform(): PlatformKey {
 /**
  * 当前插件系统支持的最高 API 版本
  */
-export const CURRENT_API_VERSION = 2;
+export const CURRENT_API_VERSION = CURRENT_PLUGIN_API_VERSION;
+
+export function getApiV3ManifestErrors(manifest: PluginManifest): string[] {
+  if (!requiresStrictPluginCompatibility(manifest.host?.apiVersion)) return [];
+
+  const errors: string[] = [];
+  const methodNames = new Set(
+    (manifest.methods ?? []).map((method) => method.name)
+  );
+
+  for (const contribution of manifest.contributions ?? []) {
+    if (contribution.type !== "ocr-engine") continue;
+    const ocrContribution = contribution as PluginOcrEngineContribution;
+
+    const contributionId = ocrContribution.id?.trim();
+    if (!contributionId) {
+      errors.push("API v3 OCR contribution 必须声明稳定 id");
+    }
+    if (!ocrContribution.method || !methodNames.has(ocrContribution.method)) {
+      errors.push(
+        `OCR contribution ${contributionId || "<unknown>"} 引用了未声明的方法 ${ocrContribution.method || "<empty>"}`
+      );
+    }
+
+    const capabilities = ocrContribution.capabilities;
+    if (capabilities?.executionMode !== "job") continue;
+
+    if (capabilities.streamingResults !== true) {
+      errors.push(
+        `OCR contribution ${contributionId || "<unknown>"} 的 job 模式必须声明 streamingResults: true`
+      );
+    }
+    if (manifest.type !== "sidecar" || manifest.sidecar?.resident !== true) {
+      errors.push(
+        `OCR contribution ${contributionId || "<unknown>"} 的 job 模式仅支持常驻 Sidecar 插件`
+      );
+    }
+
+    const requiredCapabilities = [
+      "progressEvent",
+      "completionEvent",
+      "failureEvent",
+      "cancelledEvent",
+      "cancelMethod",
+    ] as const;
+    for (const key of requiredCapabilities) {
+      if (!capabilities[key]?.trim()) {
+        errors.push(
+          `OCR contribution ${contributionId || "<unknown>"} 的 job 模式缺少 ${key}`
+        );
+      }
+    }
+    if (
+      capabilities.cancelMethod &&
+      !methodNames.has(capabilities.cancelMethod)
+    ) {
+      errors.push(
+        `OCR contribution ${contributionId || "<unknown>"} 的 cancelMethod 未在 methods 中声明`
+      );
+    }
+  }
+
+  return errors;
+}
 
 /**
  * 净化版本号，剥离预发布后缀
@@ -636,6 +705,12 @@ export function validatePluginCompatibility(
 ): void {
   const { host, type } = manifest;
   const warnings: string[] = [];
+  const hardErrors: string[] = [];
+  const requiresStrictCompatibility = requiresStrictPluginCompatibility(
+    host?.apiVersion
+  );
+
+  hardErrors.push(...getApiV3ManifestErrors(manifest));
 
   // 1. 校验应用版本 (appVersion)
   if (host?.appVersion) {
@@ -650,6 +725,11 @@ export function validatePluginCompatibility(
         warnings.push(
           `应用版本可能不兼容。当前版本为 ${currentAppVersion}，插件推荐版本为 ${host.appVersion}`
         );
+        if (requiresStrictCompatibility) {
+          hardErrors.push(
+            `当前应用版本 ${currentAppVersion} 不满足插件要求 ${host.appVersion}`
+          );
+        }
         logger.warn(`插件 ${manifest.id} 应用版本不兼容`, {
           currentVersion: currentAppVersion,
           cleanVersion: cleanCurrentVersion,
@@ -677,12 +757,15 @@ export function validatePluginCompatibility(
         appVersion: host.appVersion,
         err,
       });
+      if (requiresStrictCompatibility) {
+        hardErrors.push(`无法解析插件要求的应用版本范围: ${host.appVersion}`);
+      }
     }
   }
 
   // 2. 校验 API 版本 (apiVersion)
   if (host?.apiVersion !== undefined) {
-    if (host.apiVersion > CURRENT_API_VERSION) {
+    if (!isPluginApiVersionSupported(host.apiVersion)) {
       warnings.push(
         `插件 API 版本可能不兼容。当前系统支持的最高 API 版本为 ${CURRENT_API_VERSION}，插件要求 API 版本为 ${host.apiVersion}`
       );
@@ -690,7 +773,18 @@ export function validatePluginCompatibility(
         currentApiVersion: CURRENT_API_VERSION,
         requiredApiVersion: host.apiVersion,
       });
+      hardErrors.push(
+        `当前插件 API 版本为 ${CURRENT_API_VERSION}，插件要求 ${host.apiVersion}`
+      );
     }
+  }
+
+  if (hardErrors.length > 0) {
+    const message = hardErrors.join("；");
+    proxy.isBroken = true;
+    proxy.error = new Error(message);
+    proxy.compatibilityError = proxy.error;
+    proxy.compatibilityWarning = message;
   }
 
   // 3. 校验系统类型/平台兼容性

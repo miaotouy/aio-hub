@@ -189,11 +189,30 @@ export interface PluginOcrEngineContribution {
   /** 可选能力声明 */
   capabilities?: {
     batch?: boolean;
+    /** 批量任务由宿主分片，或由插件接收完整任务后自行排队分片 */
+    batchMode?: "host" | "plugin";
     detectionBoxes?: boolean;
     confidence?: boolean;
     preferredImageMimeTypes?: string[];
+    /** host 模式为单次调用上限，plugin 模式为插件内部推理分片上限 */
     maxBatchSize?: number;
     maxImagePixels?: number;
+    /** 插件是否会推送可关联的部分结果 */
+    streamingResults?: boolean;
+    /** 部分结果使用的 resident sidecar 自定义事件名 */
+    progressEvent?: string;
+    /** request 等待方法最终响应；job 由方法快速确认并通过事件结束 */
+    executionMode?: "request" | "job";
+    /** job 模式的完成事件 */
+    completionEvent?: string;
+    /** job 模式的失败事件 */
+    failureEvent?: string;
+    /** job 模式的取消事件 */
+    cancelledEvent?: string;
+    /** job 模式用于取消作业的方法 */
+    cancelMethod?: string;
+    /** job 模式连续多久无合法进度后视为失联 */
+    idleTimeoutMs?: number;
   };
 }
 
@@ -432,10 +451,25 @@ export interface PluginProxy extends ToolRegistry {
   enabled: boolean;
   /** 是否为开发模式插件 */
   devMode: boolean;
+  /** 插件因加载或兼容性错误而不可启用 */
+  isBroken?: boolean;
+  /** 插件加载或兼容性错误 */
+  error?: Error;
+  /** 展示给插件管理界面的兼容性说明 */
+  compatibilityWarning?: string;
+  /** 不可通过手动启用清除的协议或版本不兼容错误 */
+  compatibilityError?: Error;
   /** 启用插件 */
   enable(context: PluginContext): Promise<void>;
   /** 禁用插件 */
   disable(): Promise<void>;
+  /** 常驻 Sidecar 可选的自定义事件订阅能力 */
+  onSidecarEvent?: (
+    eventName: string,
+    callback: (data: unknown) => void
+  ) => () => void;
+  /** 强制重启当前常驻 Sidecar，并重新执行启动握手 */
+  restartSidecar?: () => Promise<void>;
 }
 
 // ==================== 插件加载与管理 ====================

@@ -35,7 +35,7 @@ AIO Hub 的插件系统基于现有的服务架构，支持三种类型的插件
 - **author**: 插件作者
 - **host**: 主机要求
   - **appVersion**: AIO Hub 的最低版本要求（semver 格式）
-  - **apiVersion**: (可选) 插件所依赖的插件系统 API 版本 (整数)。这是一个独立的版本号，仅在插件系统发生不兼容更新时才会增加。**推荐所有新插件填写此字段**，以确保兼容性。如果未提供，将跳过 API 版本检查。
+  - **apiVersion**: (可选) 插件所依赖的插件系统 API 版本。API v3 起，不满足应用版本或要求高于宿主能力的插件会被标记为损坏且不会启用；API v3 Sidecar 还必须通过宿主注入的启动上下文完成握手。
   - **platforms**: (可选) 支持的系统平台列表。如果不提供，默认支持所有平台。可选值：`win32-x64`、`win32-arm64`、`darwin-x64`、`darwin-arm64`、`linux-x64`、`linux-arm64`。
 - **type**: 插件类型：`javascript`、`native`、`sidecar`
 
@@ -66,13 +66,28 @@ AIO Hub 的插件系统基于现有的服务架构，支持三种类型的插件
       "id": "paddle-ocr",
       "name": "Paddle OCR",
       "description": "通过插件 sidecar 提供本地 OCR 识别",
-      "method": "recognizeBatch",
+      "method": "submitOcrJob",
       "modelProfiles": [{ "id": "ppocr-v5-mobile", "name": "PP-OCRv5 Mobile" }],
-      "defaultModelProfile": "ppocr-v5-mobile"
+      "defaultModelProfile": "ppocr-v5-mobile",
+      "capabilities": {
+        "batch": true,
+        "batchMode": "plugin",
+        "executionMode": "job",
+        "maxBatchSize": 4,
+        "streamingResults": true,
+        "progressEvent": "ocrJobProgress",
+        "completionEvent": "ocrJobCompleted",
+        "failureEvent": "ocrJobFailed",
+        "cancelledEvent": "ocrJobCancelled",
+        "cancelMethod": "cancelOcrJob",
+        "idleTimeoutMs": 300000
+      }
     }
   ]
 }
 ```
+
+`executionMode: "job"` 是 API v3 长任务契约：提交方法快速返回确认，插件通过声明的事件报告进度和终态，并由 `cancelMethod` 处理取消。未声明时仍使用等待方法最终响应的 request 模式。完整契约见 [Smart OCR 架构](../../../src/tools/smart-ocr/ARCHITECTURE.md)。
 
 ## 调用插件
 

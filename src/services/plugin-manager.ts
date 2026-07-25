@@ -701,6 +701,17 @@ class PluginManager {
 
     const plugin = this.getPlugin(pluginId);
 
+    if (enabled && plugin?.compatibilityError) {
+      if (this.pluginStates[pluginId]) {
+        this.pluginStates[pluginId].enabled = false;
+        this.pluginStates[pluginId].isBroken = true;
+      } else {
+        this.pluginStates[pluginId] = { enabled: false, isBroken: true };
+      }
+      plugin.enabled = false;
+      throw plugin.compatibilityError;
+    }
+
     // 如果是远程更新，或者状态不一致，同步插件实例的启用状态
     if (plugin && plugin.enabled !== enabled) {
       if (enabled) {

@@ -83,7 +83,9 @@ const currentPluginOcrExtension = computed(() => {
   const config = pluginEngineConfig.value;
   if (!config) return null;
 
-  return getOcrExtensionByConfig(config.pluginId, config.method) ?? null;
+  return (
+    getOcrExtensionByConfig(config.pluginId, config.contributionId) ?? null
+  );
 });
 
 const pluginEngineOptions = computed(() =>
@@ -101,7 +103,7 @@ const pluginStatus = computed(() => {
       installed: false,
       enabled: false,
       broken: false,
-      name: pluginEngineConfig.value?.name || "插件 OCR",
+      name: "插件 OCR",
       devMode: false,
     };
   }
@@ -152,9 +154,8 @@ const selectedEngineValue = computed({
 
       emit("updateEngineConfig", {
         type: "plugin",
-        name: extension.name,
         pluginId: extension.pluginId,
-        method: extension.method,
+        contributionId: extension.contributionId,
         modelProfile:
           extension.defaultModelProfile ?? extension.modelProfiles[0]?.id,
         language: extension.defaultLanguage ?? extension.languages[0]?.id,
@@ -540,9 +541,8 @@ const handleNavigateToSettings = () => {
             <el-form-item>
               <el-text size="small" type="info">
                 通过插件契约调用
-                {{ pluginEngineConfig.pluginId }}.{{
-                  pluginEngineConfig.method
-                }}
+                {{ pluginEngineConfig.pluginId }} /
+                {{ pluginEngineConfig.contributionId }}
               </el-text>
             </el-form-item>
           </template>

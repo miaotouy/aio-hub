@@ -405,9 +405,8 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
 
       return {
         type: "plugin",
-        name: extension.name,
         pluginId: extension.pluginId,
-        method: extension.method,
+        contributionId: extension.contributionId,
         modelProfile,
         language,
       };

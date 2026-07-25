@@ -87,10 +87,14 @@ export function useOcrExtensions() {
       );
   });
 
-  const getOcrExtensionByConfig = (pluginId?: string, method?: string) =>
+  const getOcrExtensionByConfig = (
+    pluginId?: string,
+    contributionId?: string
+  ) =>
     ocrExtensions.value.find(
       (extension) =>
-        extension.pluginId === pluginId && extension.method === method
+        extension.pluginId === pluginId &&
+        extension.contributionId === contributionId
     );
 
   const getOcrExtensionById = (id: string) =>

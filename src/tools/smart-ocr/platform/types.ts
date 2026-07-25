@@ -89,11 +89,20 @@ export interface OcrExtension {
   defaultLanguage?: string;
   capabilities?: {
     batch?: boolean;
+    batchMode?: "host" | "plugin";
     detectionBoxes?: boolean;
     confidence?: boolean;
     preferredImageMimeTypes?: string[];
     maxBatchSize?: number;
     maxImagePixels?: number;
+    streamingResults?: boolean;
+    progressEvent?: string;
+    executionMode?: "request" | "job";
+    completionEvent?: string;
+    failureEvent?: string;
+    cancelledEvent?: string;
+    cancelMethod?: string;
+    idleTimeoutMs?: number;
   };
   enabled: boolean;
   broken: boolean;

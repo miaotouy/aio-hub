@@ -49,9 +49,8 @@ export type OcrEngineConfig =
     }
   | {
       type: "plugin";
-      name: string;
       pluginId: string;
-      method: string;
+      contributionId: string;
       modelProfile?: string;
       language?: string;
     };
@@ -98,9 +97,8 @@ export interface CloudEngineConfig {
  * 插件 OCR 引擎配置
  */
 export interface PluginOcrEngineConfig {
-  name: string;
   pluginId: string;
-  method: string;
+  contributionId: string;
   modelProfile?: string;
   language?: string;
 }
@@ -152,6 +150,19 @@ export interface OcrResult {
   imageId: string; // 所属图片ID
   text: string;
   confidence?: number;
+  boxes?: Array<{
+    text?: string;
+    confidence?: number;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }>;
+  lines?: Array<{
+    text: string;
+    score: number;
+    bbox: number[][];
+  }>;
   status: "pending" | "processing" | "success" | "error" | "cancelled";
   error?: string;
   ignored?: boolean; // 是否被忽略（复制时跳过）

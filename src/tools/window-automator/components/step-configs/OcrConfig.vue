@@ -125,9 +125,8 @@ function defaultEngineConfig(
     case "plugin":
       return {
         type: "plugin",
-        name: "default",
         pluginId: "",
-        method: "",
+        contributionId: "",
         modelProfile: "",
         language: "",
       };

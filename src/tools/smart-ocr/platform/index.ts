@@ -25,6 +25,11 @@ export { useOcrRunner } from "./runner";
 export { useOcrExtensions } from "./extension-registry";
 export { useOcrProfiles } from "./cloud/profiles";
 export {
+  migrateOcrEngineConfig,
+  migratePluginOcrEngineConfig,
+  resolveLegacyOcrContributionId,
+} from "./config-migration";
+export {
   createOcrImageFromDataUrl,
   imageBlockToOcrImage,
   ocrImageToPluginImage,

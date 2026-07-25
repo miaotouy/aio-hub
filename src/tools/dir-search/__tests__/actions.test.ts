@@ -32,8 +32,15 @@ vi.mock("@tauri-apps/api/event", () => ({
   listen: mockListen,
 }));
 
-function emitBatch(results: FileSearchResult[]) {
-  listeners.get("dir-search-result-batch")?.({ payload: { results } });
+function emitBatch(results: FileSearchResult[], searchId?: string) {
+  const request =
+    mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1]?.[1]?.request;
+  listeners.get("dir-search-result-batch")?.({
+    payload: {
+      searchId: searchId ?? request?.searchId ?? "test-search",
+      results,
+    },
+  });
 }
 
 const resultA: FileSearchResult = {
@@ -130,7 +137,8 @@ describe("dir-search actions", () => {
         expect.any(Function)
       );
       expect(mockInvoke).toHaveBeenCalledWith("dir_search", {
-        request: {
+        request: expect.objectContaining({
+          searchId: expect.any(String),
           rootPath: "C:/repo",
           pattern: "needle",
           isRegex: true,
@@ -141,7 +149,12 @@ describe("dir-search actions", () => {
           useGitignore: false,
           contextLines: 2,
           maxResults: 50,
-        },
+          maxDepth: 5,
+          maxFilesScanned: 50_000,
+          maxBytesRead: 2 * 1024 * 1024 * 1024,
+          deadlineMs: 30_000,
+          includeHidden: false,
+        }),
       });
       expect(mockUnlisten).toHaveBeenCalledTimes(1);
       expect(reportStatus).toHaveBeenCalledWith("正在搜索目录...", 10);
@@ -181,8 +194,85 @@ describe("dir-search actions", () => {
       });
 
       expect(output).toBe("搜索失败: backend failed");
-      expect(mockUnlisten).toHaveBeenCalledTimes(2);
+      expect(mockUnlisten).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it("应隔离不同 searchId 的事件，并把 Agent 参数限制在安全预算内", async () => {
+    mockInvoke.mockImplementation(async () => {
+      const request =
+        mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1]?.[1]?.request;
+      emitBatch([resultA], "other-search");
+      emitBatch([resultB], request?.searchId);
+      return {
+        searchId: request?.searchId,
+        filesScanned: 1,
+        filesMatched: 1,
+        totalMatches: 1,
+        bytesRead: 128,
+        durationMs: 3,
+        stopReason: "completed",
+        truncated: false,
+        cancelled: false,
+      };
+    });
+
+    const output = await searchDirectory({
+      path: "C:/repo",
+      pattern: "needle",
+      maxDepth: Number.NaN,
+      maxResults: -10,
+    });
+
+    expect(output).toContain("src/b.vue");
+    expect(output).not.toContain("src/a.ts");
+    expect(mockInvoke).toHaveBeenCalledWith("dir_search", {
+      request: expect.objectContaining({
+        maxDepth: 5,
+        maxResults: 200,
+        maxFilesScanned: 50_000,
+        maxBytesRead: 2 * 1024 * 1024 * 1024,
+        deadlineMs: 30_000,
+        includeHidden: false,
+      }),
+    });
+  });
+
+  it("AbortSignal 触发时应按 searchId 调用后端取消并清理监听", async () => {
+    const controller = new AbortController();
+    let resolveSearch: ((summary: unknown) => void) | undefined;
+    mockInvoke.mockImplementation((command: string) => {
+      if (command === "dir_search") {
+        return new Promise((resolve) => {
+          resolveSearch = resolve;
+        });
+      }
+      return Promise.resolve(undefined);
+    });
+
+    const promise = searchDirectory({ path: "C:/repo", pattern: "needle" }, {
+      signal: controller.signal,
+      reportStatus: vi.fn(),
+    } as any);
+    await Promise.resolve();
+    controller.abort();
+    resolveSearch?.({
+      searchId: "unused",
+      filesScanned: 0,
+      filesMatched: 0,
+      totalMatches: 0,
+      bytesRead: 0,
+      durationMs: 1,
+      stopReason: "cancelled",
+      truncated: true,
+      cancelled: true,
+    });
+
+    await expect(promise).resolves.toContain("停止原因");
+    expect(mockInvoke).toHaveBeenCalledWith("dir_search_cancel", {
+      searchId: expect.any(String),
+    });
+    expect(mockUnlisten).toHaveBeenCalledTimes(1);
   });
 
   describe("replaceInDirectory", () => {
@@ -265,7 +355,8 @@ describe("dir-search actions", () => {
       );
 
       expect(mockInvoke).toHaveBeenNthCalledWith(1, "dir_search", {
-        request: {
+        request: expect.objectContaining({
+          searchId: expect.any(String),
           rootPath: "C:/repo",
           pattern: "needle",
           isRegex: true,
@@ -274,8 +365,14 @@ describe("dir-search actions", () => {
           includeGlobs: ["*.ts", "*.vue"],
           excludeGlobs: ["dist"],
           useGitignore: false,
+          contextLines: 0,
           maxResults: 0,
-        },
+          maxDepth: 5,
+          maxFilesScanned: 50_000,
+          maxBytesRead: 2 * 1024 * 1024 * 1024,
+          deadlineMs: 30_000,
+          includeHidden: false,
+        }),
       });
       expect(mockInvoke).toHaveBeenNthCalledWith(2, "dir_replace", {
         request: {
@@ -334,6 +431,38 @@ describe("dir-search actions", () => {
         })
       ).resolves.toBe("替换执行失败: replace failed");
     });
+  });
+
+  it("预搜索被截断时必须零写入并返回拒绝原因", async () => {
+    mockInvoke.mockImplementation(async (command: string) => {
+      if (command === "dir_search") {
+        const request =
+          mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1]?.[1]?.request;
+        emitBatch([resultA], request?.searchId);
+        return {
+          searchId: request?.searchId,
+          filesScanned: 50_000,
+          filesMatched: 1,
+          totalMatches: 2,
+          bytesRead: 2 * 1024 * 1024 * 1024,
+          durationMs: 30_000,
+          stopReason: "deadline",
+          truncated: true,
+          cancelled: false,
+        };
+      }
+      throw new Error("dir_replace must not be called");
+    });
+
+    const output = await replaceInDirectory({
+      path: "C:/repo",
+      pattern: "needle",
+      replacement: "thread",
+    });
+
+    expect(output).toContain("拒绝执行替换");
+    expect(output).toContain("达到执行期限");
+    expect(mockInvoke).toHaveBeenCalledTimes(1);
   });
 
   describe("registry", () => {

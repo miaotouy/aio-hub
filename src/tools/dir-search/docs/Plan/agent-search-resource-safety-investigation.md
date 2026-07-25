@@ -1,6 +1,6 @@
 # 目录搜索 Agent 宽范围扫描资源占用调查与加固计划
 
-> 状态：调查完成，待实施
+> 状态：实施中（代码与自动化验证已完成；真实 Tauri 基础验收已部分完成，取消/并发/替换验收、资源基准和外部上游 PR 待完成）
 >
 > 调查日期：2026-07-25
 >
@@ -263,32 +263,68 @@ VCP 采用两层兼容策略：AIO 节点必须立即把 115 秒 timeout 和连�
 
 ### 批次 A：搜索身份与资源硬限制
 
-- [ ] 扩展 Rust/TypeScript 搜索类型，加入 `searchId`、深度、文件数、deadline、隐藏目录和终止原因。
-- [ ] 对 `WalkBuilder` 设置 `max_depth`、`threads(4)` 和隐藏目录策略。
-- [ ] 增加 files/bytes/deadline 原子预算检查。
-- [ ] 将取消状态改为按 `searchId` 管理。
-- [ ] 为 batch/progress 事件增加 `searchId` 并在所有消费者过滤。
-- [ ] 增加全局活动搜索上限，确保 worker 完全退出后再释放。
+- [x] 扩展 Rust/TypeScript 搜索类型，加入 `searchId`、深度、文件数、deadline、隐藏目录和终止原因。
+- [x] 对 `WalkBuilder` 设置 `max_depth`、`threads(4)` 和隐藏目录策略。
+- [x] 增加 files/bytes/deadline 原子预算检查。
+- [x] 将取消状态改为按 `searchId` 管理。
+- [x] 为 batch/progress 事件增加 `searchId` 并在所有消费者过滤。
+- [x] 增加全局活动搜索上限，确保 worker 完全退出后再释放。
 
 ### 批次 B：Agent、Tool Calling 与 VCP 取消闭环
 
-- [ ] Agent `searchDirectory` 默认 `maxDepth=5`、`maxFilesScanned=50_000`、`maxBytesRead=2 GiB`、`deadlineMs=30_000`、`includeHidden=false`。
-- [ ] Tool Calling executor 在超时时 abort `ToolContext.signal`。
-- [ ] VCP context 补入 `requestId` 和 `signal`，115 秒超时时 abort。
-- [ ] AIO 节点维护 `requestId -> AbortController` 在途表，处理协商后的 `cancel_tool(requestId)`；115 秒 timeout 与节点 WebSocket 断开都 abort 并在 `finally` 清理。
-- [ ] VCPToolBox 的 pending 项保存目标 `serverId` 和能力状态，`tool_result` 仅接受该节点的结果；节点断线立即 clear timeout 并 reject 对应 pending。
-- [ ] VCPToolBox 仅在目标 socket OPEN 且节点声明支持时，于服务端 timeout 或已接入的调用方 signal 取消后 best-effort 发送一次 `cancel_tool`。旧服务端/节点继续由 AIO 本地 deadline 兜底。
-- [ ] `register_tools_ack` 的显式确认语义作为非阻塞兼容改进评估；若不用于 capability 协商，则拆出本次资源安全 PR。
-- [ ] `actions.ts` 将 abort 转换为按 searchId 取消，并保证监听器清理。
-- [ ] 更新 Agent 方法描述，明确内容搜索边界与缩小范围要求。
-- [ ] 替换预搜索遇到不完整结果时禁止写盘。
+- [x] Agent `searchDirectory` 默认 `maxDepth=5`、`maxFilesScanned=50_000`、`maxBytesRead=2 GiB`、`deadlineMs=30_000`、`includeHidden=false`。
+- [x] Tool Calling executor 在超时时 abort `ToolContext.signal`。
+- [x] VCP context 补入 `requestId` 和 `signal`，115 秒超时时 abort。
+- [x] AIO 节点维护 `requestId -> AbortController` 在途表，处理协商后的 `cancel_tool(requestId)`；115 秒 timeout 与节点 WebSocket 断开都 abort 并在 `finally` 清理。
+- [x] VCPToolBox 的 pending 项保存目标 `serverId` 和能力状态，`tool_result` 仅接受该节点的结果；节点断线立即 clear timeout 并 reject 对应 pending。
+- [x] VCPToolBox 仅在目标 socket OPEN 且节点声明支持时，于服务端 timeout 或已接入的调用方 signal 取消后 best-effort 发送一次 `cancel_tool`。旧服务端/节点继续由 AIO 本地 deadline 兜底。
+- [x] `register_tools_ack` 的显式确认语义已评估；未用于 capability 协商，按非阻塞兼容改进拆出本次资源安全实施范围。
+- [x] `actions.ts` 将 abort 转换为按 searchId 取消，并保证监听器清理。
+- [x] 更新 Agent 方法描述，明确内容搜索边界与缩小范围要求。
+- [x] 替换预搜索遇到不完整结果时禁止写盘。
 
 ### 批次 C：观测、文档和基准
 
-- [ ] 增加结构化开始/结束日志与 stopReason。
-- [ ] 更新 [`ARCHITECTURE.md`](../../ARCHITECTURE.md) 中的并行、取消、性能和 Agent 契约说明。
-- [ ] 在 24 逻辑处理器机器上记录修改前后 CPU、线程数、扫描量、取消延迟和 UI 响应。
+- [x] 增加结构化开始/结束日志与 stopReason。
+- [x] 更新 [`ARCHITECTURE.md`](../../ARCHITECTURE.md) 中的并行、取消、性能和 Agent 契约说明。
+- [ ] 在 24 逻辑处理器机器上记录修改前后 CPU、线程数、扫描量、取消延迟和 UI 响应（已记录首个真实扫描量与结束时延样本，CPU/线程采样仍缺失）。
 - [ ] 根据基准决定是否调整 4 worker、5 层、50,000 文件和 30 秒默认值。
+
+### 6.1. 施工记录（2026-07-25）
+
+本轮已完成主仓库代码实施与自动化验证，并取得一条真实 Tauri 宽范围扫描样本，但尚未宣告整个计划完成；取消、并发、替换安全验收以及 24 逻辑处理器机器资源基准仍待执行。
+
+| 范围                     | 当前状态           | 已完成内容 / 边界                                                                                                                                                                                                                                                                                         |
+| ------------------------ | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 批次 A                   | 已完成             | Rust 与 TypeScript 已加入 `searchId`、资源预算、终止原因、事件隔离和单活动搜索槽位；walker 固定为 4 个 worker，只有在 walker 线程 join 后才释放槽位。                                                                                                                                                     |
+| 批次 B（AIO Hub）        | 已完成             | Agent 默认资源参数、参数归一化、按 `searchId` 取消、监听器清理、Tool Calling timeout abort、VCP `requestId`/`signal` 与节点在途调用取消链路均已落地；替换预搜索不完整时拒绝写盘。                                                                                                                         |
+| 批次 B（VCPToolBox）     | 已完成，待上游集成 | 外部仓库改动位于独立 clean worktree `E:\rc20\vcp\agent-work\vcp-toolbox-distributed-cancel` 的 `codex/distributed-tool-cancellation` 分支：pending 绑定目标节点、拒绝非目标结果、节点断线立即 reject，以及 capability 协商后的定向 `cancel_tool`。未提交、未推送、未创建 PR，遵守未获授权不得提交的约束。 |
+| 批次 C（文档与可观测性） | 部分完成           | 开始/结束日志与 `stopReason` 已加入，`ARCHITECTURE.md` 已同步；已取得一次真实机宽范围扫描的扫描量、字节量、时延与 walker join 样本，但 CPU/线程采样、取消延迟、UI 响应和默认值校准仍未完成。                                                                                                                                                                                                       |
+
+#### 已执行验证
+
+- `bun run test:run -- src/tools/dir-search/__tests__/actions.test.ts src/tools/tool-calling/__tests__/tool-calling.test.ts`：37 项测试通过。
+- `cargo test --manifest-path src-tauri/Cargo.toml search_lifecycle_tests`：2 项生命周期测试通过。
+- `cargo check --manifest-path src-tauri/Cargo.toml`、`bun run build:tsc`、`bun run build:vite`、`bun run check:backend`：均通过；Vite 仅有既有的非阻塞 chunk/eval 警告。
+- 外部 VCPToolBox worktree：`node --check WebSocketServer.js` 通过；以原主工作区依赖设置 `NODE_PATH=E:\rc20\vcp\VCPToolBox\node_modules` 后，`node --test tests/distributedToolCancellation.test.js` 的 3 项定向测试通过。worktree 本身未安装 `node_modules`，故该依赖路径只用于测试，不改变外部主工作区。
+
+#### 真实 Tauri 复测记录（2026-07-25）
+
+复测日志位于 `E:\rc20\allinweb\test\com.mty.aiohub\logs`。本轮没有再次观察到此前整机近乎停滞或大量占用的现象，但该判断来自测试者的交互观察，不等同于 CPU/线程性能计数器采样。
+
+- 16:57:36 通过本地 Tool Calling 发起一次目录搜索，16:57:38 进入“格式化结果”并返回成功，调用阶段约 1.47 秒。
+- 16:59:06 通过 VCP 对 `E:\rc20` 发起宽范围内容搜索：`maxDepth=5`、`maxResults=50`、无 include glob，pattern 为测试用稀有字符串。
+- 后端在 16:59:12 记录结构化结束日志：`stop_reason=FileLimit`、`truncated=true`、`files_scanned=22089`、`bytes_read=2147437494`、`files_matched=1`、`matches=2`、`duration_ms=5812.4`、`walker_joined=true`。这里的 `FileLimit` 按当前契约同时表示文件数或读取字节预算；本次实际接近 2 GiB 读取上限，因此是字节预算止损。
+- VCP 前端在 16:59:12 进入“格式化结果”，与后端 5.8 秒结束时延一致；没有出现 115 秒外层 timeout，也没有超时后 walker 继续活动的证据。
+- 该 pattern 会先被调用日志写入 `E:\rc20` 根目录下的应用日志，因此本次出现 1 个文件、2 个匹配，不能称为严格零匹配测试；但匹配数远低于 `maxResults=50`，没有触发匹配数提前终止，仍实际覆盖了宽范围扫描与资源预算停止。后续严格零匹配复测应排除日志目录，或将测试根目录放到日志存储路径之外。
+
+这条样本确认了 2 GiB 预算、结构化截断结果和 walker join 在真实 Tauri/VCP 链路中生效；它不能替代并发 busy、服务端 `cancel_tool`、断线 abort、替换零写入以及 CPU/线程/UI 响应基准。
+
+#### 未完成项与有意偏差
+
+1. 第 7.4 节仅完成宽范围稀有匹配搜索的资源预算停止与 walker join 基础验收；并发 busy、服务端取消、断线 abort、UI 交互和替换零写入仍未执行。24 逻辑处理器机器也尚未记录 CPU、线程数、取消延迟和 UI 响应，因此 4 worker、5 层、50,000 文件、2 GiB、30 秒仍是第一阶段默认值，待基准校准。
+2. `register_tools_ack` 未与本次取消协议强绑定：`cancelTool` capability 已通过注册能力协商，ack 语义保留为独立的非阻塞兼容改进。
+3. VCPToolBox 改动尚未提交、推送或发起上游 PR；在其合并前，AIO Hub 仍依靠自身 30 秒 deadline、AbortSignal 以及连接断开时本地 abort 保持资源边界。
 
 ## 7. 验证计划
 
@@ -336,11 +372,11 @@ bun run check:backend
 
 普通浏览器不能验证 Tauri IPC、Rust walker、事件隔离和原生进程资源占用。真实窗口至少覆盖：
 
-1. 在测试根目录搜索不存在的 pattern，确认按 deadline 或文件数上限停止。
-2. 搜索期间连续发起第二次调用，确认不会出现两个 12 worker 扫描。
-3. 从 VCP 发起长搜索：用测试配置把服务端 timeout 调短时，确认支持 capability 的在线节点收到 `cancel_tool`，后端日志随后出现对应 requestId/searchId 的 cancelled/end；断开节点连接时，确认 VCPToolBox 立即结束该节点 pending，AIO 节点本地也 abort 在途搜索，而不是等待原 timeout。
-4. 搜索期间打开资源管理器、拖动窗口并操作 AIO Hub，确认桌面仍可交互。
-5. 对替换流程制造截断预搜索，确认磁盘文件没有任何修改。
+1. [x] 对 `E:\rc20` 执行宽范围稀有匹配搜索，确认按资源预算停止并完成 walker join。2026-07-25 样本由 2 GiB 字节预算在约 5.8 秒终止；严格零匹配仍需排除根目录内的应用日志后补测。
+2. [ ] 搜索期间连续发起第二次调用，确认返回 busy，且不会出现两个完整 worker 池扫描。
+3. [ ] 从 VCP 发起长搜索：用测试配置把服务端 timeout 调短时，确认支持 capability 的在线节点收到 `cancel_tool`，后端日志随后出现对应 requestId/searchId 的 cancelled/end；断开节点连接时，确认 VCPToolBox 立即结束该节点 pending，AIO 节点本地也 abort 在途搜索，而不是等待原 timeout。
+4. [ ] 搜索期间采集 AIO Hub 进程 CPU 与线程数，同时打开资源管理器、拖动窗口并操作 AIO Hub，确认桌面仍可交互。
+5. [ ] 对替换流程制造截断预搜索，确认磁盘文件没有任何修改。
 
 ## 8. 完成标准
 

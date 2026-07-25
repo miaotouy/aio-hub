@@ -21,33 +21,79 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{mpsc, Arc};
+use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{Emitter, State, Window};
 
-// ===== 取消机制 =====
+// ===== 搜索生命周期与取消机制 =====
 
+struct ActiveSearch {
+    search_id: String,
+    cancelled: Arc<AtomicBool>,
+}
+
+/// 全局只允许一个活动目录搜索。
+///
+/// 将取消 token 绑定到 searchId，避免新搜索重置旧搜索的取消标志，或任意
+/// `dir_search_cancel` 误取消其他调用。活动槽位会持续持有到 walker 线程 join 后。
 pub struct DirSearchCancellation {
-    pub(crate) cancelled: Arc<AtomicBool>,
+    active: Mutex<Option<ActiveSearch>>,
 }
 
 impl DirSearchCancellation {
     pub fn new() -> Self {
         Self {
-            cancelled: Arc::new(AtomicBool::new(false)),
+            active: Mutex::new(None),
         }
     }
 
-    pub fn cancel(&self) {
-        self.cancelled.store(true, Ordering::SeqCst);
+    pub fn begin(&self, search_id: &str) -> Result<Arc<AtomicBool>, String> {
+        let mut active = self
+            .active
+            .lock()
+            .map_err(|_| "目录搜索状态锁已损坏".to_string())?;
+
+        if active.is_some() {
+            return Err("已有目录搜索正在运行".to_string());
+        }
+
+        let cancelled = Arc::new(AtomicBool::new(false));
+        *active = Some(ActiveSearch {
+            search_id: search_id.to_string(),
+            cancelled: cancelled.clone(),
+        });
+        Ok(cancelled)
     }
 
-    pub fn reset(&self) {
-        self.cancelled.store(false, Ordering::SeqCst);
+    pub fn cancel(&self, search_id: &str) -> Result<bool, String> {
+        let active = self
+            .active
+            .lock()
+            .map_err(|_| "目录搜索状态锁已损坏".to_string())?;
+        let Some(active) = active.as_ref() else {
+            return Ok(false);
+        };
+
+        if active.search_id != search_id {
+            return Ok(false);
+        }
+
+        active.cancelled.store(true, Ordering::SeqCst);
+        Ok(true)
     }
 
-    pub fn is_cancelled(&self) -> bool {
-        self.cancelled.load(Ordering::SeqCst)
+    pub fn finish(&self, search_id: &str) -> Result<(), String> {
+        let mut active = self
+            .active
+            .lock()
+            .map_err(|_| "目录搜索状态锁已损坏".to_string())?;
+        if active
+            .as_ref()
+            .is_some_and(|current| current.search_id == search_id)
+        {
+            *active = None;
+        }
+        Ok(())
     }
 }
 
@@ -57,11 +103,43 @@ impl Default for DirSearchCancellation {
     }
 }
 
+#[cfg(test)]
+mod search_lifecycle_tests {
+    use super::*;
+
+    #[test]
+    fn cancellation_is_scoped_to_search_id() {
+        let state = DirSearchCancellation::new();
+        let token = state.begin("search-a").expect("first search should start");
+
+        assert!(!state.cancel("search-b").expect("cancel should not fail"));
+        assert!(!token.load(Ordering::SeqCst));
+        assert!(state.cancel("search-a").expect("cancel should not fail"));
+        assert!(token.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn active_slot_is_released_only_by_matching_search() {
+        let state = DirSearchCancellation::new();
+        state.begin("search-a").expect("first search should start");
+
+        assert!(state.begin("search-b").is_err());
+        state.finish("search-b").expect("finish should not fail");
+        assert!(state.begin("search-b").is_err());
+
+        state.finish("search-a").expect("finish should not fail");
+        assert!(state.begin("search-b").is_ok());
+    }
+}
+
 // ===== 搜索请求 =====
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchRequest {
+    /// 本次搜索的唯一身份，用于取消和事件隔离。
+    #[serde(default = "default_search_id")]
+    pub search_id: String,
     /// 搜索根目录
     pub root_path: String,
     /// 搜索模式（文本内容）
@@ -83,10 +161,24 @@ pub struct SearchRequest {
     pub context_lines: Option<usize>,
     /// 最大结果数限制
     pub max_results: Option<usize>,
+    /// 最大递归深度；0 表示无限深度（保留 UI 的显式能力）。
+    pub max_depth: Option<usize>,
+    /// 最大扫描文件数。
+    pub max_files_scanned: Option<usize>,
+    /// 最大读取字节数。
+    pub max_bytes_read: Option<u64>,
+    /// 搜索 deadline（毫秒）。
+    pub deadline_ms: Option<u64>,
+    /// 是否包含隐藏文件和目录。
+    pub include_hidden: Option<bool>,
 }
 
 fn default_true() -> bool {
     true
+}
+
+fn default_search_id() -> String {
+    format!("dir-search-{}", nanoid::nanoid!())
 }
 
 // ===== 单个匹配项 =====
@@ -128,6 +220,7 @@ pub struct FileSearchResult {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchResultBatch {
+    pub search_id: String,
     pub results: Vec<FileSearchResult>,
 }
 
@@ -136,6 +229,7 @@ pub struct SearchResultBatch {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchProgress {
+    pub search_id: String,
     /// 已扫描的文件数
     pub files_scanned: usize,
     /// 已找到匹配的文件数
@@ -148,18 +242,61 @@ pub struct SearchProgress {
 
 // ===== 搜索完成汇总 =====
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SearchStopReason {
+    Completed,
+    MatchLimit,
+    FileLimit,
+    Deadline,
+    Cancelled,
+    Busy,
+}
+
+const STOP_REASON_UNSET: usize = usize::MAX;
+const STOP_REASON_MATCH_LIMIT: usize = 1;
+const STOP_REASON_FILE_LIMIT: usize = 2;
+const STOP_REASON_DEADLINE: usize = 3;
+const STOP_REASON_CANCELLED: usize = 4;
+
+fn record_stop_reason(stop_reason: &AtomicUsize, reason: usize) {
+    let _ = stop_reason.compare_exchange(
+        STOP_REASON_UNSET,
+        reason,
+        Ordering::SeqCst,
+        Ordering::Relaxed,
+    );
+}
+
+fn read_stop_reason(stop_reason: &AtomicUsize) -> SearchStopReason {
+    match stop_reason.load(Ordering::SeqCst) {
+        STOP_REASON_MATCH_LIMIT => SearchStopReason::MatchLimit,
+        STOP_REASON_FILE_LIMIT => SearchStopReason::FileLimit,
+        STOP_REASON_DEADLINE => SearchStopReason::Deadline,
+        STOP_REASON_CANCELLED => SearchStopReason::Cancelled,
+        _ => SearchStopReason::Completed,
+    }
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchSummary {
+    pub search_id: String,
     /// 总扫描文件数
     pub files_scanned: usize,
     /// 包含匹配的文件数
     pub files_matched: usize,
     /// 总匹配数
     pub total_matches: usize,
+    /// 实际读取的文件字节数
+    pub bytes_read: usize,
     /// 搜索耗时（毫秒）
     pub duration_ms: f64,
-    /// 是否被用户取消
+    /// 本次搜索停止原因
+    pub stop_reason: SearchStopReason,
+    /// 是否因资源限制、取消或繁忙而未完整扫描。
+    pub truncated: bool,
+    /// 是否被用户或调用方取消（兼容旧调用方）。
     pub cancelled: bool,
 }
 
@@ -484,15 +621,33 @@ const MAX_FILE_SIZE: u64 = 5 * 1024 * 1024;
 
 // ===== Tauri 命令 =====
 
+const SEARCH_WORKER_THREADS: usize = 4;
+const DEFAULT_MAX_FILES_SCANNED: usize = 50_000;
+const HARD_MAX_FILES_SCANNED: usize = 100_000;
+const DEFAULT_MAX_BYTES_READ: usize = 2 * 1024 * 1024 * 1024;
+const HARD_MAX_BYTES_READ: usize = 4 * 1024 * 1024 * 1024;
+const DEFAULT_DEADLINE_MS: u64 = 30_000;
+const HARD_DEADLINE_MS: u64 = 60_000;
+const HARD_MAX_DEPTH: usize = 20;
+
+fn normalized_resource_limit(value: Option<usize>, default: usize, hard_max: usize) -> usize {
+    value.unwrap_or(default).clamp(1, hard_max)
+}
+
+fn normalized_deadline(value: Option<u64>) -> Duration {
+    Duration::from_millis(
+        value
+            .unwrap_or(DEFAULT_DEADLINE_MS)
+            .clamp(1, HARD_DEADLINE_MS),
+    )
+}
+
 #[tauri::command]
 pub async fn dir_search(
     request: SearchRequest,
     window: Window,
     cancellation: State<'_, DirSearchCancellation>,
 ) -> Result<SearchSummary, String> {
-    // 重置取消标志
-    cancellation.reset();
-
     let start_time = Instant::now();
     let root_path = Path::new(&request.root_path);
 
@@ -507,10 +662,33 @@ pub async fn dir_search(
     // 构建匹配器（自动选择 memchr 快速路径或 regex）
     let matcher = FastMatcher::build(&request)?;
 
+    // 资源预算。UI 未提供 maxDepth 时保留无限深度能力；其他预算始终有
+    // 保守默认值，避免无匹配或宽目录扫描无限占用机器资源。
+    let max_depth = request
+        .max_depth
+        .filter(|depth| *depth > 0)
+        .map(|depth| depth.min(HARD_MAX_DEPTH));
+    let max_files_scanned = normalized_resource_limit(
+        request.max_files_scanned,
+        DEFAULT_MAX_FILES_SCANNED,
+        HARD_MAX_FILES_SCANNED,
+    );
+    let max_bytes_read = normalized_resource_limit(
+        request
+            .max_bytes_read
+            .and_then(|bytes| usize::try_from(bytes).ok()),
+        DEFAULT_MAX_BYTES_READ,
+        HARD_MAX_BYTES_READ,
+    );
+    let deadline = normalized_deadline(request.deadline_ms);
+    let include_hidden = request.include_hidden.unwrap_or(true);
+
     // 构建 WalkBuilder
     let mut builder = WalkBuilder::new(root_path);
     builder
-        .hidden(false) // 搜索隐藏文件
+        .hidden(!include_hidden)
+        .max_depth(max_depth)
+        .threads(SEARCH_WORKER_THREADS)
         .parents(false) // 不向上查找父目录的 .gitignore（避免父级规则误排除搜索目录内容）
         .git_ignore(request.use_gitignore) // 是否尊重搜索目录内的 .gitignore
         .git_global(false) // 不使用全局 gitignore
@@ -553,19 +731,44 @@ pub async fn dir_search(
         builder.overrides(overrides);
     }
 
+    let search_id = request.search_id.clone();
+    let cancelled_flag = match cancellation.begin(&search_id) {
+        Ok(flag) => flag,
+        Err(_) => {
+            log::warn!(
+                "[dir-search] 拒绝并发搜索: search_id={}, root={}",
+                search_id,
+                request.root_path
+            );
+            return Ok(SearchSummary {
+                search_id,
+                files_scanned: 0,
+                files_matched: 0,
+                total_matches: 0,
+                bytes_read: 0,
+                duration_ms: start_time.elapsed().as_secs_f64() * 1000.0,
+                stop_reason: SearchStopReason::Busy,
+                truncated: true,
+                cancelled: false,
+            });
+        }
+    };
+
     // 提取搜索参数（供并行闭包使用，usize 是 Copy 的）
     let context_lines = request.context_lines.unwrap_or(0);
-
-    // 统计变量（原子类型，供并行线程安全访问）
     // max_results: 0 或 None 表示无限制
     let max_results = match request.max_results {
         Some(0) | None => usize::MAX,
         Some(n) => n,
     };
+
+    // 统计变量（原子类型，供并行线程安全访问）
     let total_matches_atomic = Arc::new(AtomicUsize::new(0));
     let files_scanned_atomic = Arc::new(AtomicUsize::new(0));
     let files_matched_atomic = Arc::new(AtomicUsize::new(0));
-    let cancelled_flag = cancellation.cancelled.clone();
+    let bytes_read_atomic = Arc::new(AtomicUsize::new(0));
+    let bytes_reserved_atomic = Arc::new(AtomicUsize::new(0));
+    let stop_reason_atomic = Arc::new(AtomicUsize::new(STOP_REASON_UNSET));
 
     // 使用有界 channel 收集并行搜索结果
     // 容量限制为 500，当 channel 满时 walker 线程会自动阻塞等待主线程消费
@@ -573,11 +776,19 @@ pub async fn dir_search(
     let (tx, rx) = mpsc::sync_channel::<FileSearchResult>(500);
 
     log::info!(
-        "[dir-search] 开始搜索: pattern={:?}, root={}, max_results={}, gitignore={}",
-        request.pattern,
+        "[dir-search] 开始搜索: search_id={}, root={}, pattern_length={}, regex={}, max_depth={:?}, max_files={}, max_bytes={}, deadline_ms={}, workers={}, include_hidden={}, include_globs={}, exclude_globs={}",
+        search_id,
         request.root_path,
-        max_results,
-        request.use_gitignore
+        request.pattern.len(),
+        request.is_regex,
+        max_depth,
+        max_files_scanned,
+        max_bytes_read,
+        deadline.as_millis(),
+        SEARCH_WORKER_THREADS,
+        include_hidden,
+        request.include_globs.len(),
+        request.exclude_globs.len(),
     );
 
     // 启动并行遍历
@@ -588,7 +799,10 @@ pub async fn dir_search(
         let total_matches_atomic = total_matches_atomic.clone();
         let files_scanned_atomic = files_scanned_atomic.clone();
         let files_matched_atomic = files_matched_atomic.clone();
+        let bytes_read_atomic = bytes_read_atomic.clone();
+        let bytes_reserved_atomic = bytes_reserved_atomic.clone();
         let cancelled_flag = cancelled_flag.clone();
+        let stop_reason_atomic = stop_reason_atomic.clone();
 
         move || {
             walker.run(|| {
@@ -598,16 +812,24 @@ pub async fn dir_search(
                 let total_matches_atomic = total_matches_atomic.clone();
                 let files_scanned_atomic = files_scanned_atomic.clone();
                 let files_matched_atomic = files_matched_atomic.clone();
+                let bytes_read_atomic = bytes_read_atomic.clone();
+                let bytes_reserved_atomic = bytes_reserved_atomic.clone();
+                let stop_reason_atomic = stop_reason_atomic.clone();
                 let root_path_buf = root_path_buf.clone();
 
                 Box::new(move |entry| {
-                    // 检查取消
+                    // 所有 worker 都在每个 entry 前先检查取消和 deadline，确保外层
+                    // IPC/VCP timeout 传播后不会继续盲目遍历目录树。
                     if cancelled_flag.load(Ordering::Relaxed) {
+                        record_stop_reason(&stop_reason_atomic, STOP_REASON_CANCELLED);
                         return WalkState::Quit;
                     }
-
-                    // 检查是否已达上限
+                    if start_time.elapsed() >= deadline {
+                        record_stop_reason(&stop_reason_atomic, STOP_REASON_DEADLINE);
+                        return WalkState::Quit;
+                    }
                     if total_matches_atomic.load(Ordering::Relaxed) >= max_results {
+                        record_stop_reason(&stop_reason_atomic, STOP_REASON_MATCH_LIMIT);
                         return WalkState::Quit;
                     }
 
@@ -621,22 +843,61 @@ pub async fn dir_search(
                         return WalkState::Continue;
                     }
 
-                    let path = entry.path();
-
-                    // 检查文件大小
-                    if let Ok(metadata) = path.metadata() {
-                        if metadata.len() > MAX_FILE_SIZE {
-                            return WalkState::Continue;
-                        }
+                    // 通过 CAS 预留文件预算，保证并行 worker 不会超出全局上限。
+                    if files_scanned_atomic
+                        .fetch_update(Ordering::SeqCst, Ordering::Relaxed, |current| {
+                            (current < max_files_scanned).then_some(current + 1)
+                        })
+                        .is_err()
+                    {
+                        record_stop_reason(&stop_reason_atomic, STOP_REASON_FILE_LIMIT);
+                        return WalkState::Quit;
                     }
 
-                    files_scanned_atomic.fetch_add(1, Ordering::Relaxed);
-
-                    // 读取文件内容
-                    let content = match fs::read(path) {
-                        Ok(bytes) => bytes,
+                    let path = entry.path();
+                    let metadata = match path.metadata() {
+                        Ok(metadata) => metadata,
                         Err(_) => return WalkState::Continue,
                     };
+
+                    // 单个大文件不会计入读取预算，也不会被读入内存。
+                    if metadata.len() > MAX_FILE_SIZE {
+                        return WalkState::Continue;
+                    }
+
+                    let reserved_bytes = metadata.len() as usize;
+                    if bytes_reserved_atomic
+                        .fetch_update(Ordering::SeqCst, Ordering::Relaxed, |current| {
+                            current
+                                .checked_add(reserved_bytes)
+                                .filter(|next| *next <= max_bytes_read)
+                        })
+                        .is_err()
+                    {
+                        // stopReason 契约将“扫描文件数/读取字节数”共同归为 fileLimit，
+                        // 具体字节计数由 bytesRead 暴露，避免模糊地宣称搜索已完成。
+                        record_stop_reason(&stop_reason_atomic, STOP_REASON_FILE_LIMIT);
+                        return WalkState::Quit;
+                    }
+
+                    // 读取文件内容。读取失败时归还预留预算；bytesRead 仅累加实际成功读取量。
+                    let content = match fs::read(path) {
+                        Ok(bytes) => bytes,
+                        Err(_) => {
+                            bytes_reserved_atomic.fetch_sub(reserved_bytes, Ordering::SeqCst);
+                            return WalkState::Continue;
+                        }
+                    };
+                    bytes_read_atomic.fetch_add(content.len(), Ordering::Relaxed);
+
+                    if cancelled_flag.load(Ordering::Relaxed) {
+                        record_stop_reason(&stop_reason_atomic, STOP_REASON_CANCELLED);
+                        return WalkState::Quit;
+                    }
+                    if start_time.elapsed() >= deadline {
+                        record_stop_reason(&stop_reason_atomic, STOP_REASON_DEADLINE);
+                        return WalkState::Quit;
+                    }
 
                     // 跳过二进制文件
                     let check_len = content.len().min(8192);
@@ -650,42 +911,85 @@ pub async fn dir_search(
                         None => return WalkState::Continue,
                     };
 
-                    // 计算剩余可用的匹配数
-                    let current_total = total_matches_atomic.load(Ordering::Relaxed);
-                    if current_total >= max_results {
-                        return WalkState::Quit;
-                    }
-                    let remaining = Some(max_results - current_total);
-
-                    // 搜索文件内容
-                    let file_matches = search_in_content(&text, &matcher, remaining, context_lines);
-
-                    if !file_matches.is_empty() {
-                        let match_count = file_matches.len();
-                        total_matches_atomic.fetch_add(match_count, Ordering::Relaxed);
-                        files_matched_atomic.fetch_add(1, Ordering::Relaxed);
-
-                        // 计算相对路径
-                        let relative_path = path
-                            .strip_prefix(&root_path_buf)
-                            .unwrap_or(path)
-                            .to_string_lossy()
-                            .to_string()
-                            .replace('\\', "/");
-
-                        let result = FileSearchResult {
-                            file_path: path.to_string_lossy().to_string(),
-                            relative_path,
-                            matches: file_matches,
-                        };
-
-                        // 发送到 channel（如果接收端已关闭则停止）
-                        if tx.send(result).is_err() {
+                    let remaining_hint = if max_results == usize::MAX {
+                        None
+                    } else {
+                        let current = total_matches_atomic.load(Ordering::SeqCst);
+                        if current >= max_results {
+                            record_stop_reason(&stop_reason_atomic, STOP_REASON_MATCH_LIMIT);
                             return WalkState::Quit;
                         }
+                        Some(max_results - current)
+                    };
+                    let mut file_matches =
+                        search_in_content(&text, &matcher, remaining_hint, context_lines);
+                    if file_matches.is_empty() {
+                        return WalkState::Continue;
                     }
 
-                    WalkState::Continue
+                    // 并行 worker 在获得结果后再通过 CAS 认领全局匹配预算，避免
+                    // 多个线程各自读取旧计数而让 maxResults 大幅超额。
+                    let found_matches = file_matches.len();
+                    let accepted_matches = if max_results == usize::MAX {
+                        total_matches_atomic.fetch_add(found_matches, Ordering::SeqCst);
+                        found_matches
+                    } else {
+                        loop {
+                            let current = total_matches_atomic.load(Ordering::SeqCst);
+                            if current >= max_results {
+                                break 0;
+                            }
+                            let accepted = found_matches.min(max_results - current);
+                            if total_matches_atomic
+                                .compare_exchange(
+                                    current,
+                                    current + accepted,
+                                    Ordering::SeqCst,
+                                    Ordering::Relaxed,
+                                )
+                                .is_ok()
+                            {
+                                break accepted;
+                            }
+                        }
+                    };
+
+                    if accepted_matches == 0 {
+                        record_stop_reason(&stop_reason_atomic, STOP_REASON_MATCH_LIMIT);
+                        return WalkState::Quit;
+                    }
+                    if accepted_matches < found_matches
+                        || total_matches_atomic.load(Ordering::Relaxed) >= max_results
+                    {
+                        record_stop_reason(&stop_reason_atomic, STOP_REASON_MATCH_LIMIT);
+                    }
+                    file_matches.truncate(accepted_matches);
+                    files_matched_atomic.fetch_add(1, Ordering::Relaxed);
+
+                    // 计算相对路径
+                    let relative_path = path
+                        .strip_prefix(&root_path_buf)
+                        .unwrap_or(path)
+                        .to_string_lossy()
+                        .to_string()
+                        .replace('\\', "/");
+
+                    let result = FileSearchResult {
+                        file_path: path.to_string_lossy().to_string(),
+                        relative_path,
+                        matches: file_matches,
+                    };
+
+                    // 发送到 channel（如果接收端已关闭则停止）
+                    if tx.send(result).is_err() {
+                        return WalkState::Quit;
+                    }
+
+                    if stop_reason_atomic.load(Ordering::Relaxed) == STOP_REASON_MATCH_LIMIT {
+                        WalkState::Quit
+                    } else {
+                        WalkState::Continue
+                    }
                 })
             });
         }
@@ -700,47 +1004,34 @@ pub async fn dir_search(
     let progress_interval = Duration::from_millis(400);
 
     loop {
-        // 主线程也检查取消标志，避免 walker 退出后仍继续 emit 残留数据
         if cancelled_flag.load(Ordering::Relaxed) {
-            // 丢弃 channel 中的残留数据
+            record_stop_reason(&stop_reason_atomic, STOP_REASON_CANCELLED);
             while rx.try_recv().is_ok() {}
             break;
         }
-
-        // 达到上限后停止发送，丢弃残留
-        if total_matches_atomic.load(Ordering::Relaxed) >= max_results {
-            // flush 当前 batch 后退出
-            if !batch.is_empty() {
-                let _ = window.emit(
-                    "dir-search-result-batch",
-                    &SearchResultBatch {
-                        results: std::mem::take(&mut batch),
-                    },
-                );
-            }
-            // 丢弃 channel 残留
+        if start_time.elapsed() >= deadline {
+            record_stop_reason(&stop_reason_atomic, STOP_REASON_DEADLINE);
             while rx.try_recv().is_ok() {}
             break;
         }
-
         match rx.recv_timeout(Duration::from_millis(80)) {
             Ok(result) => {
                 batch.push(result);
 
-                // 批量发送条件：满 200 条或超过 300ms
                 if batch.len() >= 200 || last_emit.elapsed() >= batch_interval {
                     let _ = window.emit(
                         "dir-search-result-batch",
                         &SearchResultBatch {
+                            search_id: search_id.clone(),
                             results: std::mem::take(&mut batch),
                         },
                     );
                     last_emit = Instant::now();
                 }
 
-                // 定期发送进度
                 if last_progress.elapsed() >= progress_interval {
                     let progress = SearchProgress {
+                        search_id: search_id.clone(),
                         files_scanned: files_scanned_atomic.load(Ordering::Relaxed),
                         files_matched: files_matched_atomic.load(Ordering::Relaxed),
                         total_matches: total_matches_atomic.load(Ordering::Relaxed),
@@ -751,25 +1042,24 @@ pub async fn dir_search(
                 }
             }
             Err(mpsc::RecvTimeoutError::Timeout) => {
-                // 超时：flush 当前 batch（如果有）
                 if !batch.is_empty() {
                     let _ = window.emit(
                         "dir-search-result-batch",
                         &SearchResultBatch {
+                            search_id: search_id.clone(),
                             results: std::mem::take(&mut batch),
                         },
                     );
                     last_emit = Instant::now();
                 }
 
-                // 检查 walker 是否已完成
                 if walker_handle.is_finished() {
                     break;
                 }
 
-                // 发送进度
                 if last_progress.elapsed() >= progress_interval {
                     let progress = SearchProgress {
+                        search_id: search_id.clone(),
                         files_scanned: files_scanned_atomic.load(Ordering::Relaxed),
                         files_matched: files_matched_atomic.load(Ordering::Relaxed),
                         total_matches: total_matches_atomic.load(Ordering::Relaxed),
@@ -779,24 +1069,20 @@ pub async fn dir_search(
                     last_progress = Instant::now();
                 }
             }
-            Err(mpsc::RecvTimeoutError::Disconnected) => {
-                break;
-            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => break,
         }
     }
 
-    // 立即 drop 接收端，使 walker 线程的 tx.send() 立即返回 Err 并退出
-    // 这避免了 walker 线程因 channel 满而阻塞，大幅减少 join 等待时间
+    // 立即 drop 接收端，使 walker 线程的 tx.send() 立即返回 Err 并退出。
     drop(rx);
+    let joined = walker_handle.join().is_ok();
 
-    // 等待 walker 线程结束（由于 rx 已 drop，线程会很快退出）
-    let _ = walker_handle.join();
-
-    // Flush 剩余的 batch
-    if !batch.is_empty() {
+    let stop_reason = read_stop_reason(&stop_reason_atomic);
+    if !batch.is_empty() && stop_reason != SearchStopReason::Cancelled {
         let _ = window.emit(
             "dir-search-result-batch",
             &SearchResultBatch {
+                search_id: search_id.clone(),
                 results: std::mem::take(&mut batch),
             },
         );
@@ -806,12 +1092,11 @@ pub async fn dir_search(
     let files_scanned = files_scanned_atomic.load(Ordering::Relaxed);
     let files_matched = files_matched_atomic.load(Ordering::Relaxed);
     let total_matches = total_matches_atomic.load(Ordering::Relaxed);
+    let bytes_read = bytes_read_atomic.load(Ordering::Relaxed);
     let duration = start_time.elapsed();
-    let cancelled = cancellation.is_cancelled();
-    let reached_limit = total_matches >= max_results;
 
-    // 发送最终进度
     let final_progress = SearchProgress {
+        search_id: search_id.clone(),
         files_scanned,
         files_matched,
         total_matches,
@@ -819,25 +1104,50 @@ pub async fn dir_search(
     };
     let _ = window.emit("dir-search-progress", &final_progress);
 
-    if reached_limit {
-        log::info!("[dir-search] 搜索达到上限 {} 条结果，已停止", max_results);
-    }
+    // 只有 walker 已退出并 join 后才能释放全局活动槽位。
+    let _ = cancellation.finish(&search_id);
+
+    let truncated = stop_reason != SearchStopReason::Completed;
+    log::info!(
+        "[dir-search] 搜索结束: search_id={}, root={}, stop_reason={:?}, truncated={}, files_scanned={}, bytes_read={}, files_matched={}, matches={}, duration_ms={:.1}, walker_joined={}",
+        search_id,
+        request.root_path,
+        stop_reason,
+        truncated,
+        files_scanned,
+        bytes_read,
+        files_matched,
+        total_matches,
+        duration.as_secs_f64() * 1000.0,
+        joined,
+    );
 
     Ok(SearchSummary {
+        search_id,
         files_scanned,
         files_matched,
         total_matches,
+        bytes_read,
         duration_ms: duration.as_secs_f64() * 1000.0,
-        cancelled,
+        stop_reason,
+        truncated,
+        cancelled: stop_reason == SearchStopReason::Cancelled,
     })
 }
 
 #[tauri::command]
 pub async fn dir_search_cancel(
+    search_id: String,
     cancellation: State<'_, DirSearchCancellation>,
 ) -> Result<(), String> {
-    cancellation.cancel();
-    log::info!("[dir-search] 搜索已取消");
+    if cancellation.cancel(&search_id)? {
+        log::info!("[dir-search] 已请求取消搜索: search_id={}", search_id);
+    } else {
+        log::debug!(
+            "[dir-search] 忽略无匹配活动搜索的取消请求: search_id={}",
+            search_id
+        );
+    }
     Ok(())
 }
 
@@ -1067,6 +1377,7 @@ pub async fn dir_replace_preview(request: ReplaceRequest) -> Result<Vec<FileSear
 
     // 构建匹配器（预览使用 FastMatcher 以获得最佳性能）
     let matcher = FastMatcher::build(&SearchRequest {
+        search_id: String::new(),
         root_path: String::new(),
         pattern: request.pattern.clone(),
         is_regex: request.is_regex,
@@ -1077,6 +1388,11 @@ pub async fn dir_replace_preview(request: ReplaceRequest) -> Result<Vec<FileSear
         use_gitignore: true,
         context_lines: None,
         max_results: None,
+        max_depth: None,
+        max_files_scanned: None,
+        max_bytes_read: None,
+        deadline_ms: None,
+        include_hidden: None,
     })?;
 
     let mut results: Vec<FileSearchResult> = Vec::new();

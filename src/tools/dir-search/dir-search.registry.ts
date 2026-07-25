@@ -95,6 +95,7 @@ export default class DirSearchRegistry implements ToolRegistry {
         args.maxMatchesPerFile !== undefined
           ? Number(args.maxMatchesPerFile)
           : undefined,
+      maxDepth: args.maxDepth !== undefined ? Number(args.maxDepth) : undefined,
     };
     return searchDirectory(searchArgs, context);
   }
@@ -128,7 +129,7 @@ export default class DirSearchRegistry implements ToolRegistry {
           name: "searchDirectory",
           displayName: "搜索目录内容",
           description:
-            "在指定目录中搜索文件内容。支持纯文本和正则表达式模式，返回匹配的文件列表及行内容。适用于代码搜索、日志分析、批量查找等场景。",
+            "仅在文件内容中搜索（不按文件名查找）。请优先提供最具体的已知目录；搜索代码或文档时建议提供 includeGlobs。宽范围目录会受扫描深度、文件数、读取字节数和执行期限保护，结果会标记是否完整。",
           agentCallable: true,
           parameters: [
             {
@@ -187,9 +188,18 @@ export default class DirSearchRegistry implements ToolRegistry {
               defaultValue: true,
             },
             {
+              name: "maxDepth",
+              type: "number",
+              description:
+                "最大递归深度（1-20，默认 5）。请优先缩小 path 或使用 glob，而不是搜索工作盘或工作区上层目录。",
+              required: false,
+              defaultValue: 5,
+            },
+            {
               name: "maxResults",
               type: "number",
-              description: "最大返回匹配数（0 表示无限制，默认 200）",
+              description:
+                "最大返回匹配数（0 表示不限制返回数；它不限制实际扫描文件数，默认 200）",
               required: false,
               defaultValue: 200,
             },

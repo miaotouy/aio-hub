@@ -20,7 +20,7 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
   - 当前宏引擎迁移存在前置门禁：桌面端注册表必须同时注册工具、Recall、Knowledge、资产与 CSS 等宏；移动端尚无 `tool-calling`、Recall、Knowledge 基础模块，也没有与桌面端兼容的用户档案/变量定义模型。不得以少量常用宏或空实现替代完整注册，待这些领域契约落地后再恢复施工。
 - [x] 将现有 Rust `o200k_base` / `countTokensBatch()` 接入上下文预算编排。Token 限制器在最终格式化前以预设优先、最新历史优先的策略裁剪文本消息；发送后的最终计数仍用于 usage 缺失时展示与快照。
 - [x] 迁移 PC `token-limiter` 的文本预算和历史消息截断逻辑；处理器位于注入之后、最终消息格式化之前。当前配置随 Agent 参数持久化，移动端尚未提供完整编辑 UI。
-- [ ] 明确附件、工具 schema 和多模态额外 Token 仍属于独立估算范围，不在首批通用文本 tokenizer 中隐式处理。
+- [x] 明确附件、工具 schema 和多模态额外 Token 仍属于独立估算范围，不在首批通用文本 tokenizer 中隐式处理：通用文本计数仅服务于风险预警、文本 limiter 与 usage 缺失 fallback；当前聊天执行器不传递 `tools`，未来接入后必须单独估算 schema，媒体成本待实际模型/协议结构稳定后单独处理。
 
 入口：[`mobile/src/tools/llm-chat/ARCHITECTURE.md`](../../src/tools/llm-chat/ARCHITECTURE.md)、[`mobile-token-counting-plan.md`](./mobile-token-counting-plan.md)。
 

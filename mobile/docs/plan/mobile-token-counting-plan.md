@@ -83,7 +83,15 @@ estimatedUsageRatio = localO200kTokens / contextLength
 
 API 返回的 `promptTokens` 适合表示“上一次实际请求”的整体占用；逐消息裁剪仍使用本地 o200k 结果，以保证所有消息具有一致的可比较值。
 
-### 3.3. 显示规范
+### 3.3. 文本计数边界
+
+`contentToTokenText()` 与 `token-limiter` 只处理普通文本和 `tool_result` 中可回放的嵌套文本。这一范围用于发送前风险预警、文本历史裁剪，以及 API usage 缺失时的 fallback；它不代表完整请求的实际 prompt Token。
+
+图片、音频、视频、文档和托管资产引用不进入首批通用文本 tokenizer。它们的成本取决于模型、输入尺寸、编码方式和渠道协议，必须在对应请求结构稳定后独立估算。`LlmRequestOptions` 虽有 `tools` 类型，当前移动端聊天执行器没有传递 `tools`；未来接入工具调用时，工具 schema、tool choice 和协议包装开销同样必须单独估算，不能伪装为已由文本计数覆盖。
+
+响应中的 API `promptTokens` 仍是已发送请求的优先真实统计，能够覆盖渠道实际计入的文本、媒体和工具相关成本时应覆盖本地预估。
+
+### 3.4. 显示规范
 
 - 本地结果显示 `~` 或“o200k 预估”；
 - API usage 显示为实际统计，不附加 o200k 标签；

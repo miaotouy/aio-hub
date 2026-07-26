@@ -225,7 +225,7 @@ LlamaChatView.send() → useChatExecutor.execute()
 ### 4.3. Token 统计与上下文预警
 
 - `useContextTokenUsage` 对当前分支、启用的智能体预设和输入草稿执行 500ms 防抖批量计数，输入变化后用请求序号丢弃过期结果。
-- 发送前，`useChatExecutor` 对管道最终文本调用同一 `count_tokens_batch`，保存消息级估算和本次请求的上下文快照；工具 schema、附件和非文本多模态开销不在该通用计数中。
+- 发送前，`useChatExecutor` 对管道最终文本调用同一 `count_tokens_batch`，保存消息级估算和本次请求的上下文快照；工具 schema、附件和非文本多模态开销不在该通用计数中。`LlmRequestOptions` 虽支持 `tools`，当前聊天执行器未传递它；未来接入工具调用时，schema、tool choice 与协议包装成本必须另行估算。
 - API 返回 usage 后，助手消息的 `completionTokens` 和本次请求的 `promptTokens` 优先显示为实际值；usage 缺失时使用 Rust `o200k`，IPC 异常时使用字符 fallback。已有实际值不会被后续估算覆盖。
 - 上下文窗口来自模型对象自身的 `tokenLimits.contextLength`。80% / 90% 阈值集中在 `ChatSettings.contextManagement`，Rust 后端不持有业务预警策略。
 - `token-limiter` 已位于 `injection-assembler` 之后、`message-formatter` 之前：复用 `countTokensBatch()`，让预设先占预算并从最新历史倒序保留文本消息，必要时截断单条字符串。最终发送前计数继续用于风险提示、消息级估算和请求快照；附件、工具 schema 和非文本多模态开销不在该通用文本计数中。
@@ -469,7 +469,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 | -------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | **UI 分层**    | 自研业务组件 + Element Plus 叶子控件                                 | 原生 Vue/AIO token 骨架 + Varlet 叶子控件                                                               |
 | **类型**       | 完整 `ChatAgent`, `Asset`, `ChatSettings`                            | 已接入兼容 `ChatAgent` 和 `ManagedAssetRef + 轻量快照`，不持久化全局资产路径                            |
-| **管道处理器** | 完整：会话、注入、宏/变量、世界书/召回、Token 限制、格式化和资源解析 | `session-loader` + `injection-assembler`（默认/深度/锚点）；Token 统计位于执行层与 composable，尚不裁剪 |
+| **管道处理器** | 完整：会话、注入、宏/变量、世界书/召回、Token 限制、格式化和资源解析 | `session-loader` + `injection-assembler` + `token-limiter` + `message-formatter`；Token 仅裁剪文本，附件、工具 schema 与多模态成本独立处理 |
 | **组件**       | 丰富（BaseDialog, ImageViewer 等）                                   | 基础的列表/输入组件                                                                                     |
 | **编辑器**     | RichCodeEditor（双引擎）                                             | 纯文本输入                                                                                              |
 | **路由**       | `main`, `settings` 两页                                              | `home`, `sessions`, `chat/:id`, `settings` 四页                                                         |

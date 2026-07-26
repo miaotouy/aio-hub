@@ -85,6 +85,7 @@ const migrationFixtureId =
     ? "legacy-file-system-v1/minimal"
     : undefined;
 const shouldSeedFixtures =
+  runnerOptions.presetId !== "guided-flow-baseline" &&
   !migrationFixtureId &&
   (process.env.AIO_E2E_SEED_FIXTURES === "1" ||
     (!explicitDataDir && process.env.AIO_E2E_SEED_FIXTURES !== "0"));
@@ -621,6 +622,27 @@ if (shouldSeedFixtures) {
   );
 }
 
+if (runnerOptions.presetId === "guided-flow-baseline") {
+  const lifecyclePath = path.join(dataDir, "guided-flow", "app-lifecycle.json");
+  const legacyKnowledgePath = path.join(dataDir, "knowledge");
+  if (fs.existsSync(lifecyclePath)) {
+    throw new Error(
+      `guided-flow-baseline requires missing lifecycle state: ${lifecyclePath}`
+    );
+  }
+  if (fs.existsSync(legacyKnowledgePath)) {
+    throw new Error(
+      `guided-flow-baseline requires missing legacy Knowledge data: ${legacyKnowledgePath}`
+    );
+  }
+}
+
+const desktopVersion = (
+  JSON.parse(
+    fs.readFileSync(path.join(projectRoot, "package.json"), "utf8")
+  ) as { version: string }
+).version;
+
 const env = {
   ...process.env,
   AIO_ID_SUFFIX: runSuffix,
@@ -633,6 +655,10 @@ const env = {
   AIO_E2E_FRONTEND_URL: frontendUrl.href,
   AIO_E2E_LANE: runnerOptions.lane.kind,
   AIO_E2E_CORPUS_MODE: runnerOptions.corpusMode,
+  AIO_E2E_PRESET_ID: runnerOptions.presetId ?? "custom",
+  ...(runnerOptions.presetId === "guided-flow-baseline"
+    ? { AIO_E2E_EXPECTED_APP_VERSION: desktopVersion }
+    : {}),
   AIO_E2E_MIGRATION_SCENARIO:
     runnerOptions.presetId === "migration-cleanup" ? "cleanup" : "standard",
   AIO_E2E_CHAT_PROFILE_ID: chatRole.profileId,
@@ -902,10 +928,7 @@ try {
         recoveryWdioArgs(runnerOptions.restartSpec),
         "recovery"
       );
-    } else {
-      if (!shouldSeedFixtures || !recallManifest) {
-        throw new Error("Recovery requires seeded Recall fixtures.");
-      }
+    } else if (shouldSeedFixtures && recallManifest) {
       const verifyMode = { AIO_E2E_FIXTURE_MODE: "verify" };
       if (!isExternalCorpusMode(runnerOptions.corpusMode)) {
         fixtureSeedResult = seedRecallWorkflowFixtures({
@@ -930,6 +953,11 @@ try {
         recoveryWdioArgs(runnerOptions.restartSpec),
         "recovery",
         verifyMode
+      );
+    } else {
+      exitCode = await launchWdio(
+        recoveryWdioArgs(runnerOptions.restartSpec),
+        "recovery"
       );
     }
   }

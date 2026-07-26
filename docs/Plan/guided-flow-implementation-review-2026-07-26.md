@@ -245,3 +245,24 @@ recovery spec 验证最终计数、报告、向量覆盖率和流程未再次显
 4. 对 0.7.0 正式版与 prerelease 分别执行精确 manifest/version 一致性检查，并保留“从未知基线首次启动”的 Tauri smoke test。
 
 在这些门禁补齐前，可以继续修复现有 Guided Flow 的产品缺陷，但不应把“首次运行看到 0.7.0 说明”描述成完整的跨版本升级历史，也不应把知识库迁移状态归因于应用版本号。
+
+## 10. 首次引入基线门禁处理结果（2026-07-26）
+
+第 9.3 节的 Guided Flow 范围门禁已补齐：
+
+- 生命周期状态新增显式 `APP_LIFECYCLE_SCHEMA_VERSION`、默认状态工厂和按版本顺序执行的迁移函数；无 `schemaVersion` 的历史形态按 v0 迁移到 v1，不再把 ConfigManager 的 `version` 字段当作领域迁移证明。
+- 新增首次启动契约测试：无生命周期记录时判定为 `unknown-baseline`，按 manifest 策略展示当前说明，启动后记录当前版本，同版本再次选择时不再自动展示。
+- 新增老用户与全新安装两组无旧数据检测测试；无论 `previousLaunchedVersion` 是否存在，只要 `recall_preview_legacy_migration` 返回空，就不创建知识迁移 contribution。
+- release notes 检查脚本已改为可测试函数，并同时校验 package 版本、文件名、manifest 静态版本和 stable/prerelease channel；稳定版与 prerelease 的精确匹配均有自动化测试。
+- 新增 `guided-flow-baseline` 真实 Tauri preset。runner 会拒绝已有生命周期文件或旧 Knowledge 目录的输入，首次启动验证当前说明、零迁移事项和生命周期落盘；同根重启验证已确认说明不再自动入队。为支持非 Recall 场景，runner 的 restart spec 不再强制要求 Recall fixture。
+
+本次通过：
+
+- `bun run test:run -- src/flows src/services/guided-flow src/components/common/GuidedFlow scripts/__tests__/check-release-notes.test.ts`
+- `bun run test:tauri:e2e:unit`
+- `bun run check:release-notes`
+- `bun run check:frontend`
+- `bun run build:vite`
+- `bun run test:tauri:e2e -- --preset guided-flow-baseline`
+
+仍属于发布候选阶段的事项保持不变：`migration-interruption`、部分主数据失败的真实 Tauri 故障注入重试、可溯源旧正式发布版本 fixture，以及安装包 smoke test。正式发布版本切换到 `0.7.0` 时仍必须提供精确的 `v0.7.0.ts`/`v0.7.0.md`，现有 `0.7.0-alpha.1` 资源不能替代。

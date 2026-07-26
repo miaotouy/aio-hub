@@ -957,7 +957,7 @@ interface GuidedFlowOpenOptions {
 - 已补充 Guided Flow 的只读 `replay`、显式跳过、终态事件和并发初始化去重；
 - 已在关于页拆分“版本说明”“继续升级事项”和“检查更新”；
 - 已增加 release manifest 构建一致性检查及生命周期、跨版本、降级和回放测试；
-- Vite 生产构建已通过，真实 Tauri 安装后重启 smoke test 待发布候选包补验。
+- Vite 生产构建已通过；新增 `guided-flow-baseline` 真实 Tauri preset，覆盖无生命周期文件的首次启动、当前说明展示一次、生命周期落盘和同根重启不再入队。安装包级重启 smoke test 仍待发布候选包补验。
 
 ### Phase 3：知识库迁移流程（已实现）
 
@@ -966,7 +966,7 @@ interface GuidedFlowOpenOptions {
 - 已注册 `knowledge-migration` upgrade contribution，并将来源检测、方案与备份确认合并为“迁移方案与确认”，将执行进度与校验报告合并为“迁移与校验”，保留独立清理步骤；与版本概览和通用完成页组合后最多 5 个可见步骤；
 - 迁移执行通过专用事件报告阶段、集合、条目、待重建向量和问题数量，执行后重新 warmup Recall 内存读模型；
 - Knowledge 工具入口会显示待迁移摘要并可继续升级事项；关于页继续复用升级中心的待处理入口；
-- 已覆盖启动不自动导入、预览计数、迁移幂等和 contribution 确认/执行测试；已选定本地旧数据候选集并通过外部目录 Rust 迁移验证。正式旧发布版本溯源、真实 Tauri 中断恢复与安装包 smoke test 待发布候选包补验。
+- 已覆盖启动不自动导入、预览计数、迁移幂等和 contribution 确认/执行测试；老用户与全新安装在没有旧数据事实时均不会创建迁移 contribution；已选定本地旧数据候选集并通过外部目录 Rust 迁移验证。正式旧发布版本溯源、真实 Tauri 中断恢复与安装包 smoke test 待发布候选包补验。
 
 ### Phase 4：首次设置和模块引导
 

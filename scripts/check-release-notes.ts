@@ -19,47 +19,76 @@ interface PackageJson {
   version: string;
 }
 
-const root = process.cwd();
-const packageJson = JSON.parse(
-  await readFile(join(root, "package.json"), "utf8")
-) as PackageJson;
-const releasesDir = join(root, "src", "flows", "upgrade", "releases");
-const expectedBaseName = `v${packageJson.version}`;
-const expectedFiles = [`${expectedBaseName}.ts`, `${expectedBaseName}.md`];
-const files = await readdir(releasesDir);
+export interface ReleaseNotesCheckResult {
+  version: string;
+  manifestCount: number;
+}
 
-for (const file of expectedFiles) {
-  if (!files.includes(file)) {
+export async function checkReleaseNotes(
+  root = process.cwd()
+): Promise<ReleaseNotesCheckResult> {
+  const packageJson = JSON.parse(
+    await readFile(join(root, "package.json"), "utf8")
+  ) as PackageJson;
+  const releasesDir = join(root, "src", "flows", "upgrade", "releases");
+  const expectedBaseName = `v${packageJson.version}`;
+  const expectedFiles = [`${expectedBaseName}.ts`, `${expectedBaseName}.md`];
+  const files = await readdir(releasesDir);
+
+  for (const file of expectedFiles) {
+    if (!files.includes(file)) {
+      throw new Error(
+        `当前桌面版本 ${packageJson.version} 缺少本地版本说明资源: ${file}`
+      );
+    }
+  }
+
+  const manifestFiles = files.filter(
+    (file) => file.startsWith("v") && file.endsWith(".ts")
+  );
+  const versions = new Map<string, string>();
+  const channels = new Map<string, string>();
+  for (const file of manifestFiles) {
+    const content = await readFile(join(releasesDir, file), "utf8");
+    const version = content.match(/\bversion:\s*["']([^"']+)["']/)?.[1];
+    const channel = content.match(/\bchannel:\s*["']([^"']+)["']/)?.[1];
+    if (!version) {
+      throw new Error(`版本说明 manifest 缺少静态 version 字段: ${file}`);
+    }
+    if (!channel) {
+      throw new Error(`版本说明 manifest 缺少静态 channel 字段: ${file}`);
+    }
+    const duplicate = versions.get(version);
+    if (duplicate) {
+      throw new Error(`版本说明版本号重复: ${version} (${duplicate}, ${file})`);
+    }
+    versions.set(version, file);
+    channels.set(version, channel);
+  }
+
+  const expectedManifest = versions.get(packageJson.version);
+  if (expectedManifest !== `${expectedBaseName}.ts`) {
     throw new Error(
-      `当前桌面版本 ${packageJson.version} 缺少本地版本说明资源: ${file}`
+      `当前桌面版本 ${packageJson.version} 的 manifest 版本字段与文件名不一致`
     );
   }
+
+  const expectedChannel = packageJson.version.includes("-")
+    ? "prerelease"
+    : "stable";
+  const actualChannel = channels.get(packageJson.version);
+  if (actualChannel !== expectedChannel) {
+    throw new Error(
+      `当前桌面版本 ${packageJson.version} 的 manifest channel 应为 ${expectedChannel}，实际为 ${actualChannel}`
+    );
+  }
+
+  return { version: packageJson.version, manifestCount: manifestFiles.length };
 }
 
-const manifestFiles = files.filter(
-  (file) => file.startsWith("v") && file.endsWith(".ts")
-);
-const versions = new Map<string, string>();
-for (const file of manifestFiles) {
-  const content = await readFile(join(releasesDir, file), "utf8");
-  const version = content.match(/\bversion:\s*["']([^"']+)["']/)?.[1];
-  if (!version) {
-    throw new Error(`版本说明 manifest 缺少静态 version 字段: ${file}`);
-  }
-  const duplicate = versions.get(version);
-  if (duplicate) {
-    throw new Error(`版本说明版本号重复: ${version} (${duplicate}, ${file})`);
-  }
-  versions.set(version, file);
-}
-
-const expectedManifest = versions.get(packageJson.version);
-if (expectedManifest !== `${expectedBaseName}.ts`) {
-  throw new Error(
-    `当前桌面版本 ${packageJson.version} 的 manifest 版本字段与文件名不一致`
+if (import.meta.main) {
+  const result = await checkReleaseNotes();
+  console.info(
+    `本地版本说明检查通过: ${result.version} (${result.manifestCount} 个 manifest)`
   );
 }
-
-console.info(
-  `本地版本说明检查通过: ${packageJson.version} (${manifestFiles.length} 个 manifest)`
-);

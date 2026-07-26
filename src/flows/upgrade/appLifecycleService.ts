@@ -14,6 +14,72 @@
 
 import type { AppLifecycleState, ReleaseNoteAcknowledgement } from "./types";
 
+export const APP_LIFECYCLE_SCHEMA_VERSION = 1 as const;
+
+type PersistedAppLifecycleState = Omit<
+  Partial<AppLifecycleState>,
+  "schemaVersion"
+> & {
+  schemaVersion?: number;
+};
+
+export function createDefaultAppLifecycleState(): AppLifecycleState {
+  return {
+    schemaVersion: APP_LIFECYCLE_SCHEMA_VERSION,
+    releaseNotes: {},
+  };
+}
+
+function migrateSchemaV0ToV1(
+  state: PersistedAppLifecycleState
+): PersistedAppLifecycleState {
+  return {
+    ...state,
+    schemaVersion: 1,
+    releaseNotes: state.releaseNotes ?? {},
+  };
+}
+
+export function migrateAppLifecycleState(
+  loaded: PersistedAppLifecycleState
+): AppLifecycleState {
+  let state = structuredClone(loaded);
+  let schemaVersion = Number.isInteger(state.schemaVersion)
+    ? state.schemaVersion!
+    : 0;
+
+  if (schemaVersion < 0) {
+    throw new Error(`无效的应用生命周期 schemaVersion: ${schemaVersion}`);
+  }
+
+  // Downgraded builds retain every field they understand instead of
+  // replacing a newer lifecycle file with empty defaults.
+  if (schemaVersion > APP_LIFECYCLE_SCHEMA_VERSION) {
+    return {
+      ...state,
+      schemaVersion: APP_LIFECYCLE_SCHEMA_VERSION,
+      releaseNotes: state.releaseNotes ?? {},
+    };
+  }
+
+  while (schemaVersion < APP_LIFECYCLE_SCHEMA_VERSION) {
+    switch (schemaVersion) {
+      case 0:
+        state = migrateSchemaV0ToV1(state);
+        schemaVersion = 1;
+        break;
+      default:
+        throw new Error(`缺少应用生命周期迁移器: ${schemaVersion}`);
+    }
+  }
+
+  return {
+    ...state,
+    schemaVersion: APP_LIFECYCLE_SCHEMA_VERSION,
+    releaseNotes: state.releaseNotes ?? {},
+  };
+}
+
 export interface AppLifecyclePersistence {
   load(): Promise<AppLifecycleState>;
   save(state: AppLifecycleState): Promise<void>;
@@ -41,16 +107,8 @@ class ConfigAppLifecyclePersistence implements AppLifecyclePersistence {
           moduleName: "guided-flow",
           fileName: "app-lifecycle.json",
           version: "1.0.0",
-          createDefault: () => ({
-            schemaVersion: 1,
-            releaseNotes: {},
-          }),
-          mergeConfig: (defaults, loaded) => ({
-            ...defaults,
-            ...loaded,
-            schemaVersion: 1,
-            releaseNotes: loaded.releaseNotes ?? {},
-          }),
+          createDefault: createDefaultAppLifecycleState,
+          mergeConfig: (_defaults, loaded) => migrateAppLifecycleState(loaded),
         })
     );
     return this.managerPromise;
@@ -71,11 +129,7 @@ export class AppLifecycleService {
       this.loadPromise = this.persistence
         .load()
         .then((loaded) => {
-          this.state = {
-            ...loaded,
-            schemaVersion: 1,
-            releaseNotes: loaded.releaseNotes ?? {},
-          };
+          this.state = migrateAppLifecycleState(loaded);
           return this.state;
         })
         .catch((error) => {

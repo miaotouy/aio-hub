@@ -68,6 +68,18 @@ be combined with `--spec`, `--restart-spec`, `--required-scenarios`,
 `--corpus-mode`, `--vector-mode`, `--llm-profile`, or `--native`. Those low-level
 options remain available only for focused diagnosis when no preset is selected.
 
+For the Guided Flow first-introduction baseline, run:
+
+```powershell
+bun run test:tauri:e2e -- --preset guided-flow-baseline
+```
+
+This preset requires a fresh isolated app-data root with no
+`guided-flow/app-lifecycle.json` and no legacy `knowledge/` directory. It checks
+the `unknown-baseline` release flow, lifecycle persistence, absence of a
+Knowledge migration contribution, and a same-root restart where the
+acknowledged release is not queued again.
+
 ## Recall model lanes
 
 The deterministic mock remains the default. A local Ollama embedding lane is

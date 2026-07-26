@@ -10,6 +10,7 @@ export type E2ePresetId =
   | "private-profile"
   | "migration-minimal"
   | "migration-cleanup"
+  | "guided-flow-baseline"
   | "native";
 
 export interface E2ePresetPrerequisite {
@@ -40,6 +41,10 @@ const MIGRATION_RECOVERY_SPEC =
   "tests/tauri-e2e/specs/guided-knowledge-migration-recovery.spec.ts";
 const MIGRATION_CLEANUP_SPEC =
   "tests/tauri-e2e/specs/guided-knowledge-migration-cleanup.spec.ts";
+const GUIDED_FLOW_BASELINE_SPEC =
+  "tests/tauri-e2e/specs/guided-flow-unknown-baseline.spec.ts";
+const GUIDED_FLOW_BASELINE_RECOVERY_SPEC =
+  "tests/tauri-e2e/specs/guided-flow-unknown-baseline-recovery.spec.ts";
 
 const OLLAMA_EMBEDDING_PREREQUISITE: E2ePresetPrerequisite = {
   env: "AIO_E2E_OLLAMA_MODEL",
@@ -126,12 +131,7 @@ export const E2E_PRESETS: readonly E2ePreset[] = [
     id: "migration-minimal",
     purpose:
       "Synthetic legacy-file migration through Guided Flow with same-root restart verification",
-    args: [
-      "--spec",
-      MIGRATION_SPEC,
-      "--restart-spec",
-      MIGRATION_RECOVERY_SPEC,
-    ],
+    args: ["--spec", MIGRATION_SPEC, "--restart-spec", MIGRATION_RECOVERY_SPEC],
     prerequisites: [],
     runtimeRequirements: [
       "Uses the repository-managed legacy-file-system-v1/minimal fixture and an isolated app-data directory",
@@ -148,6 +148,22 @@ export const E2E_PRESETS: readonly E2ePreset[] = [
       "Uses a fresh repository-managed legacy-file-system-v1/minimal fixture copy and verifies only legacy directories are removed",
     ],
     includesRestart: false,
+  },
+  {
+    id: "guided-flow-baseline",
+    purpose:
+      "Unknown-baseline first launch, lifecycle persistence, and same-root restart verification",
+    args: [
+      "--spec",
+      GUIDED_FLOW_BASELINE_SPEC,
+      "--restart-spec",
+      GUIDED_FLOW_BASELINE_RECOVERY_SPEC,
+    ],
+    prerequisites: [],
+    runtimeRequirements: [
+      "Uses a fresh isolated app-data directory without lifecycle or legacy Knowledge data",
+    ],
+    includesRestart: true,
   },
   {
     id: "ollama-vector",

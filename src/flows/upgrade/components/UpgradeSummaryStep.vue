@@ -22,7 +22,13 @@ const hasContributions = computed(
 </script>
 
 <template>
-  <div class="upgrade-summary">
+  <div
+    class="upgrade-summary"
+    :data-transition="context.transition"
+    :data-current-version="context.currentVersion"
+    :data-release-count="context.releaseVersions.length"
+    :data-contribution-count="Object.keys(context.contributions).length"
+  >
     <UpgradeOverviewStep :context="context" />
 
     <section v-if="hasReleaseNotes" class="summary-section">

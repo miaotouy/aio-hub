@@ -15,9 +15,14 @@
 import { describe, expect, it } from "vitest";
 import {
   AppLifecycleService,
+  migrateAppLifecycleState,
   type AppLifecyclePersistence,
 } from "../appLifecycleService";
-import type { AppLifecycleState } from "../types";
+import {
+  detectUpgradeTransition,
+  ReleaseNotesRegistry,
+} from "../releaseNotesRegistry";
+import type { AppLifecycleState, ReleaseNoteManifest } from "../types";
 
 class MemoryLifecyclePersistence implements AppLifecyclePersistence {
   constructor(
@@ -41,6 +46,69 @@ class MemoryLifecyclePersistence implements AppLifecyclePersistence {
 }
 
 describe("AppLifecycleService", () => {
+  it("migrates an unversioned lifecycle file through the ordered schema path", () => {
+    expect(
+      migrateAppLifecycleState({
+        lastLaunchedVersion: "0.6.9",
+        releaseNotes: {},
+      })
+    ).toEqual({
+      schemaVersion: 1,
+      lastLaunchedVersion: "0.6.9",
+      releaseNotes: {},
+    });
+  });
+
+  it("preserves recognized fields from a newer lifecycle schema", () => {
+    expect(
+      migrateAppLifecycleState({
+        schemaVersion: 2,
+        lastLaunchedVersion: "0.8.0",
+        releaseNotes: {
+          "0.7.0": {
+            status: "completed",
+            acknowledgedAt: "2026-07-26T00:00:00.000Z",
+          },
+        },
+      })
+    ).toMatchObject({
+      schemaVersion: 1,
+      lastLaunchedVersion: "0.8.0",
+      releaseNotes: {
+        "0.7.0": { status: "completed" },
+      },
+    });
+  });
+
+  it("treats the first launch as unknown baseline, shows the current note once, and records the version", async () => {
+    const persistence = new MemoryLifecyclePersistence();
+    const service = new AppLifecycleService(persistence);
+    const registry = new ReleaseNotesRegistry();
+    const manifest: ReleaseNoteManifest = {
+      version: "0.7.0",
+      revision: 1,
+      channel: "stable",
+      title: "0.7.0",
+      summary: "Guided Flow first release",
+      publishedAt: "2026-07-26",
+      body: "# 0.7.0",
+      unknownBaselinePolicy: "show-current",
+    };
+    registry.register(manifest);
+
+    const beforeLaunch = await service.load();
+    expect(
+      detectUpgradeTransition("0.7.0", beforeLaunch.lastLaunchedVersion)
+    ).toBe("unknown-baseline");
+    expect(registry.selectAutomatic("0.7.0", beforeLaunch)).toEqual([manifest]);
+
+    await service.markLaunched("0.7.0");
+
+    const afterLaunch = persistence.snapshot();
+    expect(afterLaunch.lastLaunchedVersion).toBe("0.7.0");
+    expect(registry.selectAutomatic("0.7.0", afterLaunch)).toEqual([]);
+  });
+
   it("records launched versions separately from release-note acknowledgement", async () => {
     const persistence = new MemoryLifecyclePersistence();
     const service = new AppLifecycleService(persistence);

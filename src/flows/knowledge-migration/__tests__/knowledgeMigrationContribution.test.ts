@@ -119,6 +119,30 @@ describe("knowledge migration contribution", () => {
     ]);
   });
 
+  it.each([
+    ["unknown-baseline fresh install", undefined],
+    ["existing user without legacy data", "0.6.9"],
+  ])(
+    "does not create migration work for %s when domain detection finds no source",
+    async (_scenario, previousLaunchedVersion) => {
+      mocks.invoke.mockResolvedValueOnce(null);
+      const definition = upgradeContributionRegistry.get(
+        KNOWLEDGE_MIGRATION_CONTRIBUTION_ID
+      )!;
+
+      const detected = await definition.detect({
+        currentVersion: release.version,
+        previousLaunchedVersion,
+      });
+
+      expect(detected).toBeNull();
+      expect(mocks.invoke).toHaveBeenCalledOnce();
+      expect(mocks.invoke).toHaveBeenCalledWith(
+        "recall_preview_legacy_migration"
+      );
+    }
+  );
+
   it("detects legacy data as a module-blocking pending contribution", async () => {
     mocks.invoke.mockResolvedValueOnce(preview);
     const definition = upgradeContributionRegistry.get(

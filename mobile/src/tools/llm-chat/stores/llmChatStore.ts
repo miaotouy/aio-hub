@@ -12,7 +12,7 @@ import { BranchNavigator } from "../utils/BranchNavigator";
 import { v4 as uuidv4 } from "uuid";
 import { createModuleLogger } from "@/utils/logger";
 import { recoverInterruptedChatMessages } from "../services/chatStorageCodec";
-import { parseSelectedModelValue } from "../utils/modelSelection";
+import { resolveSelectedModelValue } from "../utils/modelSelection";
 import { instantiateAgentGreetings } from "../services/greetingService";
 import { setSessionAgentBinding } from "../services/agentSessionService";
 
@@ -267,28 +267,15 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   }
 
   /**
-   * 同步并校验当前选中的模型
+   * 同步并校验当前选中的模型。仅在当前选择失效时使用设置中的默认模型。
    */
-  function syncSelectedModel() {
+  function syncSelectedModel(defaultModel = "") {
     const profilesStore = useLlmProfilesStore();
-    const [profileId, modelId] = parseSelectedModelValue(
-      selectedModelValue.value
+    selectedModelValue.value = resolveSelectedModelValue(
+      selectedModelValue.value,
+      defaultModel,
+      profilesStore.enabledProfiles
     );
-
-    const isAvailable = (pId: string, mId: string) => {
-      const profile = profilesStore.enabledProfiles.find((p) => p.id === pId);
-      return !!(profile && profile.models.some((m) => m.id === mId));
-    };
-
-    if (!selectedModelValue.value || !isAvailable(profileId, modelId)) {
-      const firstEnabledProfile = profilesStore.enabledProfiles[0];
-      if (firstEnabledProfile && firstEnabledProfile.models.length > 0) {
-        const newValue = `${firstEnabledProfile.id}:${firstEnabledProfile.models[0].id}`;
-        selectedModelValue.value = newValue;
-      } else {
-        selectedModelValue.value = "";
-      }
-    }
   }
 
   /**

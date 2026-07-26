@@ -20,7 +20,7 @@ const route = useRoute();
 const { tRaw } = useI18n();
 const chatStore = useLlmChatStore();
 const profilesStore = useLlmProfilesStore();
-const { loadSettings } = useChatSettings();
+const { settings, loadSettings } = useChatSettings();
 
 onMounted(async () => {
   // 加载设置
@@ -35,7 +35,7 @@ onMounted(async () => {
   }
 
   // 确保有选中的模型且模型有效
-  chatStore.syncSelectedModel();
+  chatStore.syncSelectedModel(settings.value.modelPreferences.defaultModel);
 
   const agentId =
     typeof route.query.agentId === "string" ? route.query.agentId : null;

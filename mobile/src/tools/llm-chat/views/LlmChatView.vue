@@ -82,7 +82,7 @@ onMounted(async () => {
   }
 
   // 确保有选中的模型且模型有效
-  chatStore.syncSelectedModel();
+  chatStore.syncSelectedModel(settings.value.modelPreferences.defaultModel);
 });
 
 // 监听消息变化，自动滚动到底部

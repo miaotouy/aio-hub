@@ -41,7 +41,8 @@ llm-chat/
 │       └── processors/
 │           ├── session-loader.ts       # 管道处理器：会话历史加载器
 │           ├── injection-assembler.ts  # 管道处理器：预设/深度/锚点组装器
-│           └── message-formatter.ts    # 管道处理器：合并/角色格式化
+│           ├── message-formatter.ts    # 管道处理器：合并/角色格式化
+│           └── token-limiter.ts        # 管道处理器：文本历史 Token 截断
 ├── docs/                      # 规划文档（已删除，仅 Git 记录中存在）
 ├── locales/
 │   ├── zh-CN.json             # 中文语言包
@@ -213,11 +214,11 @@ Actions:
 LlamaChatView.send() → useChatExecutor.execute()
   → 构建 PipelineContext
   → pipelineStore.executePipeline(context)
-  → [session-loader, injection-assembler, message-formatter, ...其他处理器]
+  → [session-loader, injection-assembler, token-limiter, message-formatter, ...其他处理器]
   → 输出 messages[] 给 llmRequest.sendRequest()
 ```
 
-**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载、预设注入组装和最终消息格式化；预设支持默认、深度、高级深度、锚点与模型匹配，格式化支持模型默认规则与 Agent 覆盖的 system 合并、连续角色合并、system 转 user 和角色交替。宏替换、私有预设附件、变量、世界书、召回、Token 限制仍待逐个复制与移动端适配。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
+**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载、预设注入组装和最终消息格式化；预设支持默认、深度、高级深度、锚点与模型匹配，格式化支持模型默认规则与 Agent 覆盖的 system 合并、连续角色合并、system 转 user 和角色交替。宏替换、私有预设附件、变量、世界书、召回仍待逐个复制与移动端适配。Token 限制器仅计算文本；附件、工具 schema 和其他多模态额外开销继续由独立估算处理。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
 
 ### 4.3. Token 统计与上下文预警
 
@@ -380,7 +381,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - [x] PipelineContext 定义
 - [x] ContextProcessor 接口
 - [x] 处理器注册/注销/排序/启用
-- [x] 核心处理器：session-loader、injection-assembler（默认、深度、高级深度、锚点和模型匹配）、message-formatter（最终角色格式化）
+- [x] 核心处理器：session-loader、injection-assembler（默认、深度、高级深度、锚点和模型匹配）、token-limiter（文本历史预算）、message-formatter（最终角色格式化）
 - [x] 待处理器的执行、日志和共享黑板
 
 ### ✅ Agent 对话接入
@@ -423,7 +424,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - [x] `injection-assembler`：默认、深度/高级深度和锚点预设组装；私有预设附件待 Agent 资源包完成后接入
 - [ ] `user-profile-injector`：用户档案注入
 - [ ] `model-match-filter`：按模型与渠道筛选预设消息
-- [ ] `token-limiter`：复用现有 Rust `o200k` 计数，根据预设占用和上下文预算保留或截断历史消息；当前计数展示已完成，但 Token 驱动的上下文编排尚未实现
+- [x] `token-limiter`：复用现有 Rust `o200k` 批量计数，预设先占预算、从最新历史倒序保留，并支持字符串部分截断；附件、工具 schema 和多模态额外开销仍由独立估算处理
 - [x] `ProcessableMessage._attachments` 的强类型加载与空文本消息保留
 
 ### 🔄 多模态支持

@@ -9,6 +9,12 @@ export interface LlmParameters {
   frequencyPenalty?: number;
   presencePenalty?: number;
   stop?: string[];
+  /** 请求前文本历史截断配置；附件与工具 schema 仍由独立估算处理。 */
+  contextManagement?: {
+    enabled?: boolean;
+    maxContextTokens?: number;
+    retainedCharacters?: number;
+  };
   custom?: {
     enabled?: boolean;
     params?: Record<string, unknown>;

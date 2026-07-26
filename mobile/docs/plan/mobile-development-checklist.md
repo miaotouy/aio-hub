@@ -17,8 +17,8 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 - [ ] 逐个复制 PC 上已存在的上下文处理器到移动端，先保持 TS 实现和处理语义，不提前抽取共享包或下沉 Rust。
 - [x] 在移动端接入 `injection-assembler`，支持预设消息的 `injectionStrategy`、深度和锚点语义；宏、模型匹配和 Agent 私有附件仍由后续处理器补齐。
 - [ ] 迁移宏、变量、世界书、召回、转写和资源解析等处理器；`message-formatter` 已迁移并覆盖模型默认规则与 Agent 覆盖，每迁移一个处理器补对应测试和移动端依赖适配。
-- [ ] 将现有 Rust `o200k_base` / `countTokensBatch()` 接入上下文预算编排。当前它已经支持编辑器、输入区和发送后统计，但发送前的最终计数发生在 pipeline 之后，不能被前置处理器消费。
-- [ ] 迁移 PC `token-limiter` 的文本预算和历史消息截断逻辑；处理器必须位于所有会增加或改变消息的处理器之后、provider 格式化之前。
+- [x] 将现有 Rust `o200k_base` / `countTokensBatch()` 接入上下文预算编排。Token 限制器在最终格式化前以预设优先、最新历史优先的策略裁剪文本消息；发送后的最终计数仍用于 usage 缺失时展示与快照。
+- [x] 迁移 PC `token-limiter` 的文本预算和历史消息截断逻辑；处理器位于注入之后、最终消息格式化之前。当前配置随 Agent 参数持久化，移动端尚未提供完整编辑 UI。
 - [ ] 明确附件、工具 schema 和多模态额外 Token 仍属于独立估算范围，不在首批通用文本 tokenizer 中隐式处理。
 
 入口：[`mobile/src/tools/llm-chat/ARCHITECTURE.md`](../../src/tools/llm-chat/ARCHITECTURE.md)、[`mobile-token-counting-plan.md`](./mobile-token-counting-plan.md)。

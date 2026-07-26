@@ -26,6 +26,7 @@ const handleListClick = () => {
 
 const emit = defineEmits<{
   (e: "copy", message: ChatMessageNode): void;
+  (e: "copy-error"): void;
   (e: "edit", message: ChatMessageNode): void;
   (e: "regenerate", message: ChatMessageNode): void;
   (e: "delete", message: ChatMessageNode): void;
@@ -115,9 +116,10 @@ defineExpose({
         :key="msg.id"
         :message="msg"
         :is-active="activeMessageId === msg.id"
-        @click.stop="handleMessageClick(msg.id)"
+        @click="handleMessageClick(msg.id)"
         @close="activeMessageId = null"
         @copy="(m) => emit('copy', m)"
+        @copy-error="emit('copy-error')"
         @edit="(m) => emit('edit', m)"
         @regenerate="(m) => emit('regenerate', m)"
         @delete="(m) => emit('delete', m)"

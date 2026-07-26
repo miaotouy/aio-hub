@@ -20,7 +20,9 @@
     "选择智能体": "Select agent",
     "切换智能体": "Switch agent",
     "已切换智能体": "Agent switched",
-    "暂无可切换智能体": "No agents available"
+    "暂无可切换智能体": "No agents available",
+    "已复制内容": "Content copied",
+    "复制失败": "Copy failed. Check clipboard permissions."
   },
   "ChatSettingsView": {
     "界面偏好": "UI Preferences",

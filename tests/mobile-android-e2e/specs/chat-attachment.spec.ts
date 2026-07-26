@@ -187,6 +187,24 @@ export async function runDeterministicAttachmentScenario(
   if (recoveredMessageCount < 2) {
     throw new Error("Chat messages did not recover after app restart.");
   }
+  const recoveredAssistant = await context.driver.$(
+    '[data-testid="chat-message"][data-message-role="assistant"]'
+  );
+  await recoveredAssistant.waitForDisplayed({ timeout: 20_000 });
+  const copiedContent = (await recoveredAssistant.$(".content-body").getText()).trim();
+  if (!copiedContent) {
+    throw new Error("Recovered assistant message has no copyable text.");
+  }
+  await (await recoveredAssistant.$(".content-body")).click();
+  await clickTestElement(context.driver, "message-copy");
+  await context.driver.waitUntil(
+    async () =>
+      context.driver.execute(() => document.body.innerText.includes("已复制内容")),
+    {
+      timeout: 10_000,
+      timeoutMsg: "Native clipboard write did not produce a success feedback.",
+    }
+  );
   const recoveredAttachment = await context.driver.$(
     ".message-item.user .attachment-item"
   );
@@ -263,6 +281,7 @@ export async function runDeterministicAttachmentScenario(
     requestId: request.requestId,
     sessionId,
     recoveredMessageCount,
+    clipboardWriteVerified: true,
     usageReleased: true,
   };
 }

@@ -14,3 +14,7 @@ export async function confirmDeleteMessage(): Promise<boolean> {
 export function showChatSuccess(content: string): void {
   Snackbar.success(content);
 }
+
+export function showChatError(content: string): void {
+  Snackbar.error(content);
+}

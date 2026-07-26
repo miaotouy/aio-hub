@@ -38,3 +38,4 @@ tauri-plugin-dialog = "2"
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "macros", "migrate"] }
 sha2 = "0.10"
 uuid = { version = "1", features = ["v4"] }
+tauri-plugin-clipboard-manager = "2"

@@ -18,6 +18,7 @@ const emit = defineEmits<{
   (e: "click"): void;
   (e: "close"): void;
   (e: "copy", message: ChatMessageNode): void;
+  (e: "copy-error"): void;
   (e: "edit", message: ChatMessageNode): void;
   (e: "regenerate", message: ChatMessageNode): void;
   (e: "delete", message: ChatMessageNode): void;
@@ -102,6 +103,7 @@ const tokenLabel = computed(() => {
             :message="message"
             @close="emit('close')"
             @copy="emit('copy', message)"
+            @copy-error="emit('copy-error')"
             @edit="emit('edit', message)"
             @regenerate="emit('regenerate', message)"
             @delete="emit('delete', message)"

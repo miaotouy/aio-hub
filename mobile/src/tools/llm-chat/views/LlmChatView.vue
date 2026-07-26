@@ -7,7 +7,11 @@ import { useKeyboardAvoidance } from "@/composables/useKeyboardAvoidance";
 import { useChatExecutor } from "../composables/useChatExecutor";
 import { useNodeManager } from "../composables/useNodeManager";
 import { useChatSettings } from "../composables/useChatSettings";
-import { confirmDeleteMessage, showChatSuccess } from "../utils/chatFeedback";
+import {
+  confirmDeleteMessage,
+  showChatError,
+  showChatSuccess,
+} from "../utils/chatFeedback";
 import type { ChatMessageNode } from "../types";
 import { Check, ChevronDown, ChevronLeft } from "lucide-vue-next";
 import { useRouter } from "vue-router";
@@ -122,7 +126,11 @@ const handleDelete = async (message: ChatMessageNode) => {
 };
 
 const handleCopy = () => {
-  showChatSuccess("已复制内容");
+  showChatSuccess(tRaw("tools.llm-chat.ChatView.已复制内容"));
+};
+
+const handleCopyError = () => {
+  showChatError(tRaw("tools.llm-chat.ChatView.复制失败"));
 };
 
 const handleEdit = (message: ChatMessageNode) => {
@@ -220,6 +228,7 @@ const goToChatHome = () => {
         :messages="chatStore.currentActivePath"
         class="message-list-area"
         @copy="handleCopy"
+        @copy-error="handleCopyError"
         @edit="handleEdit"
         @regenerate="handleRegenerate"
         @delete="handleDelete"

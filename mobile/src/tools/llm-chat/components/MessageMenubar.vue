@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import {
   ChevronLeft,
   ChevronRight,
@@ -20,6 +21,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: "copy"): void;
+  (e: "copy-error"): void;
   (e: "edit"): void;
   (e: "regenerate"): void;
   (e: "delete"): void;
@@ -50,12 +52,12 @@ const handleSwitchBranch = async (direction: "prev" | "next") => {
 
 const handleCopy = async () => {
   try {
-    await navigator.clipboard.writeText(props.message.content);
+    await writeText(props.message.content);
     emit("copy");
-    emit("close");
   } catch {
-    emit("close");
+    emit("copy-error");
   }
+  emit("close");
 };
 
 const handleDelete = () => {
@@ -110,7 +112,14 @@ const handleSwitchToBranch = (nodeId: string) => {
 
     <!-- 操作按钮 (右侧) -->
     <div class="action-buttons">
-      <var-button text round size="mini" class="menu-btn" @click="handleCopy">
+      <var-button
+        data-testid="message-copy"
+        text
+        round
+        size="mini"
+        class="menu-btn"
+        @click="handleCopy"
+      >
         <Copy :size="14" />
       </var-button>
       <var-button text round size="mini" class="menu-btn" @click="handleEdit">

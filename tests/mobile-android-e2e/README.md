@@ -31,7 +31,7 @@ bun tests/mobile-android-e2e/run.ts --preset attachment `
   --apk mobile/src-tauri/target/release/bundle/android/AIO-Hub_0.1.1-m-beta.2_android-x86_64-debug.apk
 ```
 
-Available presets are `feasibility`, `smoke`, `asset`, `attachment`,
+Available presets are `feasibility`, `smoke`, `asset`, `media`, `attachment`,
 `recovery`, `core`, and opt-in `ollama`. The `core` preset intentionally does
 not create the 768 MiB interrupted-import fixture; run `recovery` separately
 when exercising that path.

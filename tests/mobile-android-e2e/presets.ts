@@ -7,6 +7,7 @@ import {
   runOllamaAttachmentScenario,
 } from "./specs/chat-attachment.spec";
 import { runFailureRecoveryScenario } from "./specs/failure-recovery.spec";
+import { runAudioMediaScenario } from "./specs/audio-media.spec";
 import type { MobileE2ePresetId } from "./support/runner-options";
 
 export interface MobileE2ePreset {
@@ -50,6 +51,14 @@ export const MOBILE_E2E_PRESETS: Record<MobileE2ePresetId, MobileE2ePreset> = {
       { id: "feasibility", run: runFeasibilityScenario },
       { id: "asset-workflow", run: runAssetWorkflowScenario },
     ],
+    requiresDeterministicServer: false,
+    requiresOllama: false,
+    apkSizeBaselineBytes: E2E_APK_SIZE_BASELINE_BYTES,
+  },
+  media: {
+    id: "media",
+    purpose: "Managed audio preview and immersive controls",
+    scenarios: [{ id: "audio-media", run: runAudioMediaScenario }],
     requiresDeterministicServer: false,
     requiresOllama: false,
     apkSizeBaselineBytes: E2E_APK_SIZE_BASELINE_BYTES,

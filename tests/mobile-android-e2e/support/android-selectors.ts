@@ -7,6 +7,7 @@ async function firstDisplayed(
 ): Promise<ChainablePromiseElement> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
+    await dismissSystemCrashDialog(driver);
     for (const selector of selectors) {
       const element = driver.$(selector);
       if ((await element.isExisting()) && (await element.isDisplayed())) {
@@ -52,6 +53,14 @@ export async function completeDocumentsUiSave(
   }
 }
 
+async function dismissSystemCrashDialog(driver: Browser): Promise<void> {
+  const close = driver.$("id=android:id/aerr_close");
+  if ((await close.isExisting()) && (await close.isDisplayed())) {
+    await close.click();
+    await driver.pause(200);
+  }
+}
+
 async function waitForPackage(
   driver: Browser,
   packageName: string,
@@ -73,11 +82,36 @@ export async function chooseDocumentsUiFile(
   timeoutMs = 20_000
 ): Promise<void> {
   const escapedName = fileName.replace(/"/g, '\\"');
-  const row = driver.$(
-    `//*[@resource-id="android:id/title" and @text="${escapedName}"]/ancestor::*[@clickable="true"][1]`
-  );
-  await row.waitForDisplayed({ timeout: timeoutMs });
-  await row.click();
+  const rowSelector = `//*[@resource-id="android:id/title" and @text="${escapedName}"]/ancestor::*[@clickable="true"][1]`;
+  const deadline = Date.now() + timeoutMs;
+  let selected = false;
+
+  while (Date.now() < deadline) {
+    // AVD system-app crashes must not obscure DocumentsUI rows. This closes
+    // only Android's process-crash action, never the picker confirmation.
+    await dismissSystemCrashDialog(driver);
+    const row = driver.$(rowSelector);
+    if ((await row.isExisting()) && (await row.isDisplayed())) {
+      await row.click();
+      selected = true;
+      break;
+    }
+
+    try {
+      // DocumentsUI uses a lazily populated, scrollable grid on API 36. The
+      // title may exist in its MediaStore query but not in the visible subtree.
+      await driver.$(
+        `android=new UiScrollable(new UiSelector().scrollable(true)).scrollIntoView(new UiSelector().resourceId("android:id/title").text("${escapedName}"))`
+      );
+    } catch {
+      // The target is not indexed or is not in the current DocumentsUI page yet.
+    }
+    await driver.pause(200);
+  }
+
+  if (!selected) {
+    throw new Error(`DocumentsUI file was not selectable: ${fileName}`);
+  }
   if (await waitForPackage(driver, returnPackage, 3_000)) return;
 
   const confirm = await firstDisplayed(

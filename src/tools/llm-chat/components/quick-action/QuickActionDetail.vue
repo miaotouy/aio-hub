@@ -40,7 +40,7 @@ import type {
   CompletionContext,
   CompletionResult,
 } from "@codemirror/autocomplete";
-import * as monaco from "monaco-editor";
+import * as monaco from "@/utils/monaco";
 import { useDebounceFn } from "@vueuse/core";
 
 const props = defineProps<{

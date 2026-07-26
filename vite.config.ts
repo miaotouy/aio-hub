@@ -10,7 +10,6 @@ import { FileSystemIconLoader } from "unplugin-icons/loaders";
 import IconsResolver from "unplugin-icons/resolver";
 import Components from "unplugin-vue-components/vite";
 import VueDevTools from "vite-plugin-vue-devtools";
-import monaco from "@tomjs/vite-plugin-monaco-editor";
 import { fileURLToPath, URL } from "node:url";
 
 const host = process.env.TAURI_DEV_HOST;
@@ -151,20 +150,6 @@ const viteConfig = defineConfig({
             }
             next();
           }
-        );
-      },
-    },
-    monaco({
-      // 替换旧的 monacoEditorPlugin，直接用 local: true 强制本地打包，避免 CDN
-      local: true,
-    }),
-    {
-      name: "monaco-remove-missing-nls-script",
-      enforce: "post",
-      transformIndexHtml(html: string) {
-        return html.replace(
-          /\n<script src="\/npm\/monaco-editor@[^"]+\/min\/vs\/editor\/editor\.main\.nls\.js"><\/script>/,
-          ""
         );
       },
     },

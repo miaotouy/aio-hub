@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed, shallowRef } from "vue";
-import * as monaco from "monaco-editor";
+import * as monaco from "@/utils/monaco";
 import { useTheme } from "@/composables/useTheme";
 import { monacoModelManager } from "./MonacoModelManager";
 import type { CanvasMonacoEditorProps, CanvasMonacoEditorEmits } from "./types";

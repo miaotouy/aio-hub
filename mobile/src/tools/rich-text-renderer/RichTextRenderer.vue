@@ -6,6 +6,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/feedback";
 import ThinkBlock from "./components/ThinkBlock.vue";
 import KatexRenderer from "./components/KatexRenderer.vue";
+import MermaidDiagram from "./components/MermaidDiagram.vue";
 
 defineOptions({
   name: "RichTextRenderer",
@@ -241,7 +242,15 @@ async function copyCode(code: string, index: number) {
             />
           </p>
 
-          <!-- 3. 代码块 -->
+          <!-- 3. Mermaid 图表 -->
+          <MermaidDiagram
+            v-else-if="
+              token.type === 'code' && token.lang?.toLowerCase() === 'mermaid'
+            "
+            :content="token.text"
+          />
+
+          <!-- 4. 代码块 -->
           <div v-else-if="token.type === 'code'" class="code-block-container">
             <div class="code-block-header">
               <span class="code-lang">{{ token.lang || "code" }}</span>

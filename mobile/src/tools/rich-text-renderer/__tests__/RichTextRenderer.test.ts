@@ -62,6 +62,24 @@ After`,
     );
   });
 
+  it("routes fenced Mermaid code to the Mermaid diagram node", () => {
+    const wrapper = mount(RichTextRenderer, {
+      props: { content: "```mermaid\ngraph TD\nA --> B\n```" },
+      global: {
+        stubs: {
+          MermaidDiagram: {
+            props: ["content"],
+            template: '<div class="mermaid-diagram-stub">{{ content }}</div>',
+          },
+        },
+      },
+    });
+
+    expect(wrapper.get(".mermaid-diagram-stub").text()).toContain(
+      "graph TD\nA --> B"
+    );
+    expect(wrapper.find(".code-block-container").exists()).toBe(false);
+  });
   it("renders raw HTML tokens as literal text instead of mounting untrusted DOM", () => {
     const rawHtml = '<img src="x" onerror="window.richTextXss = true">';
     const wrapper = mount(RichTextRenderer, {

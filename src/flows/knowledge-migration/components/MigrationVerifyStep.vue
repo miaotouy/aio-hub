@@ -40,7 +40,7 @@
         </div>
       </div>
       <el-alert
-        v-if="report.mainStatus !== 'completed'"
+        v-if="!isComplete && report.mainStatus !== 'completed'"
         :closable="false"
         type="error"
         show-icon
@@ -48,14 +48,12 @@
         description="流程完成后仍会保留为待处理事项；请根据问题明细修复源数据后重试。"
       />
       <el-alert
-        v-else-if="
-          report.pendingVectors > 0 || report.vectorStatus !== 'completed'
-        "
+        v-else-if="!isComplete"
         :closable="false"
         type="warning"
         show-icon
-        title="主数据可用，但部分向量需要重建"
-        :description="`${report.pendingVectors} 个向量未通过迁移校验，不会被标记为 ready。`"
+        title="迁移尚未完全通过校验"
+        :description="`${report.pendingVectors} 个向量未通过迁移校验，或报告包含待处理问题。`"
       />
       <el-collapse v-if="report.issues.length">
         <el-collapse-item
@@ -89,10 +87,16 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { UpgradeFlowContext } from "@/flows/upgrade/types";
-import { getKnowledgeMigrationSnapshot } from "../types";
+import {
+  getKnowledgeMigrationSnapshot,
+  isKnowledgeMigrationReportComplete,
+} from "../types";
 const props = defineProps<{ context: UpgradeFlowContext }>();
 const report = computed(
   () => getKnowledgeMigrationSnapshot(props.context).report
+);
+const isComplete = computed(() =>
+  isKnowledgeMigrationReportComplete(report.value)
 );
 </script>
 

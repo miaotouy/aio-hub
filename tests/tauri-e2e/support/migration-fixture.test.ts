@@ -41,7 +41,9 @@ describe("migration fixture staging", () => {
       issues: 0,
     });
     expect(staged.copiedFiles).toHaveLength(4);
-    expect(fs.existsSync(path.join(destination, "knowledge", "bases"))).toBe(true);
+    expect(fs.existsSync(path.join(destination, "knowledge", "bases"))).toBe(
+      true
+    );
     expect(fs.existsSync(path.join(destination, "llm-service"))).toBe(false);
   });
 
@@ -68,6 +70,46 @@ describe("migration fixture staging", () => {
     );
   });
 
+  it("rejects a staged target that is a symlink or junction", () => {
+    const fixture = prepareMigrationFixture("legacy-file-system-v1/minimal");
+    const root = tempDir("aio-migration-links-");
+    const target = path.join(root, "app-data");
+    const outside = path.join(root, "outside");
+    fs.mkdirSync(outside, { recursive: true });
+    fs.symlinkSync(
+      outside,
+      target,
+      process.platform === "win32" ? "junction" : "dir"
+    );
+
+    expect(() => stageMigrationFixture(fixture, target)).toThrow(
+      /links|reparse|real directory/
+    );
+  });
+
+  it("rejects cleanup when a controlled run directory is replaced by a junction", () => {
+    const controlledRunsRoot = path.join(tempDir("aio-e2e-links-"), "e2e-runs");
+    const runId = "migration-link-run";
+    const runRoot = path.join(controlledRunsRoot, runId);
+    const outside = path.join(tempDir("aio-e2e-outside-"), "run");
+    fs.mkdirSync(controlledRunsRoot, { recursive: true });
+    fs.mkdirSync(outside, { recursive: true });
+    fs.symlinkSync(
+      outside,
+      runRoot,
+      process.platform === "win32" ? "junction" : "dir"
+    );
+
+    expect(() =>
+      cleanupStagedMigrationData({
+        runRoot,
+        runId,
+        dataDir: path.join(runRoot, "app-data"),
+        controlledRunsRoot,
+      })
+    ).toThrow(/links|reparse|real directory/);
+  });
+
   it("only removes staged app-data when the run marker and controlled root agree", () => {
     const controlledRunsRoot = path.join(tempDir("aio-e2e-runs-"), "e2e-runs");
     const runId = "migration-test-run";
@@ -83,7 +125,12 @@ describe("migration fixture staging", () => {
     fs.mkdirSync(dataDir, { recursive: true });
     writeE2eRunMarker(runRoot, "different-run", dataDir);
     expect(() =>
-      cleanupStagedMigrationData({ runRoot, runId, dataDir, controlledRunsRoot })
+      cleanupStagedMigrationData({
+        runRoot,
+        runId,
+        dataDir,
+        controlledRunsRoot,
+      })
     ).toThrow(/mismatched run marker/);
     expect(fs.existsSync(dataDir)).toBe(true);
   });

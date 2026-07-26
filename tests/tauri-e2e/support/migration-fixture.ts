@@ -50,7 +50,8 @@ function sha256(filePath: string): string {
 }
 
 function isSafeRelativePath(value: string): boolean {
-  if (!value || value.includes("\\") || path.posix.isAbsolute(value)) return false;
+  if (!value || value.includes("\\") || path.posix.isAbsolute(value))
+    return false;
   const normalized = path.posix.normalize(value);
   return (
     normalized === value &&
@@ -66,14 +67,57 @@ function assertSafeFixtureId(fixtureId: string): void {
   }
 }
 
+function normalizedPath(value: string): string {
+  const resolved = path.resolve(value);
+  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+}
+
+function assertPathChainSafe(target: string): void {
+  const resolved = path.resolve(target);
+  const root = path.parse(resolved).root;
+  let current = root;
+  for (const segment of path
+    .relative(root, resolved)
+    .split(path.sep)
+    .filter(Boolean)) {
+    current = path.join(current, segment);
+    if (!fs.existsSync(current)) continue;
+    const stat = fs.lstatSync(current);
+    if (stat.isSymbolicLink()) {
+      throw new Error(
+        `Migration fixture path must not contain links or junctions: ${current}`
+      );
+    }
+    const real = fs.realpathSync.native(current);
+    if (normalizedPath(real) !== normalizedPath(current)) {
+      throw new Error(
+        `Migration fixture path resolves through a reparse point: ${current}`
+      );
+    }
+  }
+}
+
+function assertSafeDirectory(directory: string): void {
+  assertPathChainSafe(directory);
+  const stat = fs.lstatSync(directory);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    throw new Error(
+      `Migration fixture path must be a real directory: ${directory}`
+    );
+  }
+}
+
 function assertNoSymlinks(root: string): void {
   const visit = (current: string): void => {
     const stat = fs.lstatSync(current);
     if (stat.isSymbolicLink()) {
-      throw new Error(`Migration fixture must not contain symbolic links: ${current}`);
+      throw new Error(
+        `Migration fixture must not contain symbolic links: ${current}`
+      );
     }
     if (!stat.isDirectory()) return;
-    for (const entry of fs.readdirSync(current)) visit(path.join(current, entry));
+    for (const entry of fs.readdirSync(current))
+      visit(path.join(current, entry));
   };
   visit(root);
 }
@@ -85,11 +129,16 @@ function listFiles(root: string): string[] {
       const absolute = path.join(current, entry.name);
       const relative = path.relative(root, absolute).split(path.sep).join("/");
       if (entry.isSymbolicLink()) {
-        throw new Error(`Migration fixture must not contain symbolic links: ${relative}`);
+        throw new Error(
+          `Migration fixture must not contain symbolic links: ${relative}`
+        );
       }
       if (entry.isDirectory()) visit(absolute);
       else if (entry.isFile()) result.push(relative);
-      else throw new Error(`Migration fixture contains an unsupported entry: ${relative}`);
+      else
+        throw new Error(
+          `Migration fixture contains an unsupported entry: ${relative}`
+        );
     }
   };
   visit(root);
@@ -101,12 +150,20 @@ function asExpectedCounts(value: unknown): MigrationFixtureExpectedCounts {
     throw new Error("Migration fixture manifest must include expected counts.");
   }
   const record = value as Record<string, unknown>;
-  const keys = ["collections", "entries", "vectors", "pendingVectors", "issues"] as const;
+  const keys = [
+    "collections",
+    "entries",
+    "vectors",
+    "pendingVectors",
+    "issues",
+  ] as const;
   const expected = {} as MigrationFixtureExpectedCounts;
   for (const key of keys) {
     const count = record[key];
     if (!Number.isInteger(count) || (count as number) < 0) {
-      throw new Error(`Migration fixture expected.${key} must be a non-negative integer.`);
+      throw new Error(
+        `Migration fixture expected.${key} must be a non-negative integer.`
+      );
     }
     expected[key] = count as number;
   }
@@ -130,21 +187,29 @@ function readManifest(manifestPath: string): MigrationFixtureManifest {
   const strings = ["fixtureId", "sourceAppVersion", "migrationId"] as const;
   for (const key of strings) {
     if (typeof record[key] !== "string" || !record[key].trim()) {
-      throw new Error(`Migration fixture manifest ${key} must be a non-empty string.`);
+      throw new Error(
+        `Migration fixture manifest ${key} must be a non-empty string.`
+      );
     }
   }
   if (!Array.isArray(record.allowedPaths) || !Array.isArray(record.files)) {
-    throw new Error("Migration fixture manifest must declare allowedPaths and files.");
+    throw new Error(
+      "Migration fixture manifest must declare allowedPaths and files."
+    );
   }
   const allowedPaths = record.allowedPaths.map((item) => {
     if (typeof item !== "string" || !isSafeRelativePath(item)) {
-      throw new Error("Migration fixture manifest contains an unsafe allowed path.");
+      throw new Error(
+        "Migration fixture manifest contains an unsafe allowed path."
+      );
     }
     return item;
   });
   const files = record.files.map((item): MigrationFixtureManifestFile => {
     if (!item || typeof item !== "object") {
-      throw new Error("Migration fixture manifest contains an invalid file entry.");
+      throw new Error(
+        "Migration fixture manifest contains an invalid file entry."
+      );
     }
     const file = item as Record<string, unknown>;
     if (
@@ -153,7 +218,9 @@ function readManifest(manifestPath: string): MigrationFixtureManifest {
       typeof file.sha256 !== "string" ||
       !/^[a-f0-9]{64}$/i.test(file.sha256)
     ) {
-      throw new Error("Migration fixture manifest contains an invalid file hash entry.");
+      throw new Error(
+        "Migration fixture manifest contains an invalid file hash entry."
+      );
     }
     return { path: file.path, sha256: file.sha256.toLowerCase() };
   });
@@ -164,7 +231,9 @@ function readManifest(manifestPath: string): MigrationFixtureManifest {
     new Set(sortedFilePaths).size !== sortedFilePaths.length ||
     JSON.stringify(sortedAllowed) !== JSON.stringify(sortedFilePaths)
   ) {
-    throw new Error("Migration fixture allowedPaths must exactly match hashed files.");
+    throw new Error(
+      "Migration fixture allowedPaths must exactly match hashed files."
+    );
   }
 
   return {
@@ -184,14 +253,22 @@ export function prepareMigrationFixture(
 ): PreparedMigrationFixture {
   assertSafeFixtureId(fixtureId);
   const fixturesRoot = path.resolve(
-    options.fixturesRoot ?? path.resolve(fileURLToPath(new URL("../fixtures/migrations", import.meta.url)))
+    options.fixturesRoot ??
+      path.resolve(
+        fileURLToPath(new URL("../fixtures/migrations", import.meta.url))
+      )
   );
   const fixtureRoot = path.resolve(fixturesRoot, fixtureId);
   if (path.relative(fixturesRoot, fixtureRoot).startsWith("..")) {
     throw new Error("Migration fixture resolved outside the fixture root.");
   }
   const sourceAppDataDir = path.join(fixtureRoot, "app-data");
-  if (!fs.statSync(fixtureRoot).isDirectory() || !fs.statSync(sourceAppDataDir).isDirectory()) {
+  assertPathChainSafe(fixturesRoot);
+  assertPathChainSafe(fixtureRoot);
+  if (
+    !fs.statSync(fixtureRoot).isDirectory() ||
+    !fs.statSync(sourceAppDataDir).isDirectory()
+  ) {
     throw new Error(`Migration fixture is incomplete: ${fixtureId}`);
   }
   assertNoSymlinks(fixtureRoot);
@@ -202,7 +279,9 @@ export function prepareMigrationFixture(
   const actualFiles = listFiles(sourceAppDataDir);
   const expectedFiles = manifest.files.map((file) => file.path).sort();
   if (JSON.stringify(actualFiles) !== JSON.stringify(expectedFiles)) {
-    throw new Error("Migration fixture app-data does not exactly match its manifest.");
+    throw new Error(
+      "Migration fixture app-data does not exactly match its manifest."
+    );
   }
   for (const file of manifest.files) {
     const filePath = path.join(sourceAppDataDir, ...file.path.split("/"));
@@ -214,7 +293,9 @@ export function prepareMigrationFixture(
 }
 
 function assertEmptyDirectory(directory: string): void {
+  assertPathChainSafe(directory);
   fs.mkdirSync(directory, { recursive: true });
+  assertSafeDirectory(directory);
   if (fs.readdirSync(directory).length > 0) {
     throw new Error(`Migration fixture target must be empty: ${directory}`);
   }
@@ -230,8 +311,12 @@ export function stageMigrationFixture(
   for (const file of fixture.manifest.files) {
     const source = path.join(fixture.sourceAppDataDir, ...file.path.split("/"));
     const target = path.join(targetDir, ...file.path.split("/"));
-    fs.mkdirSync(path.dirname(target), { recursive: true });
+    const targetParent = path.dirname(target);
+    assertPathChainSafe(targetParent);
+    fs.mkdirSync(targetParent, { recursive: true });
+    assertSafeDirectory(targetParent);
     fs.copyFileSync(source, target, fs.constants.COPYFILE_EXCL);
+    assertPathChainSafe(target);
     const copiedHash = sha256(target);
     if (copiedHash !== file.sha256) {
       throw new Error(`Staged migration fixture hash mismatch: ${file.path}`);
@@ -243,7 +328,12 @@ export function stageMigrationFixture(
   if (JSON.stringify(stagedFiles) !== JSON.stringify(expectedFiles)) {
     throw new Error("Staged migration fixture contains unexpected files.");
   }
-  return { fixtureId: fixture.manifest.fixtureId, dataDir: targetDir, manifest: fixture.manifest, copiedFiles };
+  return {
+    fixtureId: fixture.manifest.fixtureId,
+    dataDir: targetDir,
+    manifest: fixture.manifest,
+    copiedFiles,
+  };
 }
 
 export function writeE2eRunMarker(
@@ -252,7 +342,11 @@ export function writeE2eRunMarker(
   dataDir: string
 ): string {
   const markerPath = path.join(runRoot, ".aio-e2e-run.json");
+  assertPathChainSafe(runRoot);
   fs.mkdirSync(runRoot, { recursive: true });
+  assertSafeDirectory(runRoot);
+  assertPathChainSafe(dataDir);
+  assertPathChainSafe(markerPath);
   fs.writeFileSync(
     markerPath,
     `${JSON.stringify({ schemaVersion: 1, runId, dataDir: path.resolve(dataDir) }, null, 2)}\n`,
@@ -270,18 +364,37 @@ export function cleanupStagedMigrationData(options: {
   const runRoot = path.resolve(options.runRoot);
   const controlledRunsRoot = path.resolve(options.controlledRunsRoot);
   const dataDir = path.resolve(options.dataDir);
-  if (path.dirname(runRoot) !== controlledRunsRoot || path.dirname(dataDir) !== runRoot) {
-    throw new Error("Refusing to clean migration data outside the controlled E2E run root.");
+  if (
+    path.dirname(runRoot) !== controlledRunsRoot ||
+    path.dirname(dataDir) !== runRoot
+  ) {
+    throw new Error(
+      "Refusing to clean migration data outside the controlled E2E run root."
+    );
   }
+  assertPathChainSafe(controlledRunsRoot);
+  assertSafeDirectory(controlledRunsRoot);
+  assertPathChainSafe(runRoot);
+  assertSafeDirectory(runRoot);
+  assertPathChainSafe(dataDir);
+  assertSafeDirectory(dataDir);
+  assertNoSymlinks(dataDir);
   const markerPath = path.join(runRoot, ".aio-e2e-run.json");
+  assertPathChainSafe(markerPath);
+  const markerStat = fs.lstatSync(markerPath);
+  if (!markerStat.isFile() || markerStat.isSymbolicLink()) {
+    throw new Error(
+      "Refusing to clean migration data with an unsafe run marker."
+    );
+  }
   const marker = JSON.parse(fs.readFileSync(markerPath, "utf8")) as {
     runId?: unknown;
     dataDir?: unknown;
   };
   if (marker.runId !== options.runId || marker.dataDir !== dataDir) {
-    throw new Error("Refusing to clean migration data with a mismatched run marker.");
+    throw new Error(
+      "Refusing to clean migration data with a mismatched run marker."
+    );
   }
   fs.rmSync(dataDir, { recursive: true, force: true });
 }
-
-

@@ -137,10 +137,14 @@ describe("GuidedFlowManager", () => {
 
     await manager.trigger("current-step-hidden");
     await manager.next();
-    expect(manager.getSnapshot().activeFlow?.state.currentStepId).toBe("cleanup");
+    expect(manager.getSnapshot().activeFlow?.state.currentStepId).toBe(
+      "cleanup"
+    );
 
     await manager.next();
-    expect(manager.getSnapshot().activeFlow?.state.currentStepId).toBe("finish");
+    expect(manager.getSnapshot().activeFlow?.state.currentStepId).toBe(
+      "finish"
+    );
   });
 
   it("defers a resumable flow and restores its current step", async () => {

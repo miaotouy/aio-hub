@@ -11,6 +11,7 @@ import { knowledgeMigrationService } from "./knowledgeMigrationService";
 import {
   getKnowledgeMigrationSnapshot,
   KNOWLEDGE_MIGRATION_CONTRIBUTION_ID,
+  isKnowledgeMigrationReportComplete,
   type KnowledgeMigrationSnapshot,
 } from "./types";
 
@@ -24,11 +25,11 @@ const definition: UpgradeContributionDefinition<KnowledgeMigrationSnapshot> = {
   async detect() {
     const preview = await knowledgeMigrationService.preview();
     if (!preview) return null;
-    const completed = preview.mainStatus === "completed";
     const report =
       preview.mainStatus === "not_started"
         ? null
         : await knowledgeMigrationService.inspect();
+    const completed = isKnowledgeMigrationReportComplete(report);
     return {
       instanceKey: [
         preview.migrationId,
@@ -79,23 +80,38 @@ const definition: UpgradeContributionDefinition<KnowledgeMigrationSnapshot> = {
         const contribution =
           context.contributions[KNOWLEDGE_MIGRATION_CONTRIBUTION_ID];
         const snapshot = getKnowledgeMigrationSnapshot(context);
-        if (snapshot.report?.mainStatus === "completed") return;
+        if (isKnowledgeMigrationReportComplete(snapshot.report)) return;
+
+        const preview = await knowledgeMigrationService.preview();
+        if (!preview) {
+          throw new Error("迁移源已不存在，请重新检测后再试");
+        }
+        if (
+          preview.migrationId !== snapshot.preview.migrationId ||
+          preview.sourceFingerprint !== snapshot.preview.sourceFingerprint
+        ) {
+          throw new Error("迁移源已发生变化，请重新检测并确认后再试");
+        }
+        const previousReport = snapshot.report;
+        snapshot.preview = preview;
+        snapshot.report = undefined;
+        snapshot.removedPaths = undefined;
         snapshot.executionStatus = "running";
         try {
           const report = await knowledgeMigrationService.run(
-            snapshot.preview.migrationId,
-            snapshot.preview.sourceFingerprint
+            preview.migrationId,
+            preview.sourceFingerprint
           );
           snapshot.report = report;
-          snapshot.executionStatus =
-            report.mainStatus === "completed" ? "completed" : "partial";
-          contribution.status =
-            report.mainStatus === "completed" ? "completed" : "pending";
-          contribution.blockingScope =
-            report.mainStatus === "completed" ? "none" : "module";
+          const completed = isKnowledgeMigrationReportComplete(report);
+          snapshot.executionStatus = completed ? "completed" : "partial";
+          contribution.status = completed ? "completed" : "pending";
+          contribution.blockingScope = completed ? "none" : "module";
         } catch (error) {
+          snapshot.report = previousReport;
           snapshot.executionStatus = "failed";
           contribution.status = "pending";
+          contribution.blockingScope = "module";
           throw error;
         }
       },
@@ -113,12 +129,7 @@ const definition: UpgradeContributionDefinition<KnowledgeMigrationSnapshot> = {
         const snapshot = getKnowledgeMigrationSnapshot(context);
         const report = snapshot.report;
         return Boolean(
-          report &&
-          report.mainStatus === "completed" &&
-          report.vectorStatus === "completed" &&
-          report.pendingVectors === 0 &&
-          report.issues.length === 0 &&
-          !snapshot.removedPaths
+          isKnowledgeMigrationReportComplete(report) && !snapshot.removedPaths
         );
       },
       validate: (context) => {

@@ -1,6 +1,6 @@
 # Guided Flow 引导模块实施与验收计划
 
-> 状态：Phase 1–3 已实现；升级与知识库迁移的可见步骤已由约 10 步收敛为最多 5 步，步骤条已改为无横向滚动的点式导航；知识库迁移已完成合成旧数据的真实 Tauri 检测、确认、迁移、同根重启幂等与独立清理验收，并保留已通过 Rust 外部迁移验证的本地旧数据候选集；进程中断恢复、正式旧发布版本溯源与安装包验收待补；Phase 4 待后续接入
+> 状态：Phase 1–3 已实现；升级与知识库迁移的可见步骤已由约 10 步收敛为最多 5 步，步骤条已改为无横向滚动的点式导航；知识库迁移已完成合成旧数据的真实 Tauri 检测、确认、迁移、最终状态一致性重启验证与独立清理验收，迁移异常重试、完整报告判定、fixture 路径防护和 runner 异常收尾已补齐，并保留已通过 Rust 外部迁移验证的本地旧数据候选集；进程中断恢复、正式旧发布版本溯源与安装包验收待补；Phase 4 待后续接入
 >
 > 最近更新：2026-07-26
 >
@@ -541,7 +541,7 @@ tests/tauri-e2e/fixtures/migrations/
 2. 以该目录启动真实 Tauri，先断言启动只检测旧数据，未确认前没有导入主数据、删除旧目录或写入完成报告；
 3. 通过可见 Guided Flow 完成预览和备份确认，核对 migration ID、source fingerprint 与预期计数；
 4. 执行迁移并等待真实 IPC 进度和终态，随后从 UI 与生产 command 两侧交叉核对报告、集合、条目、向量保留/待重建数量；
-5. 关闭并用同一个 appData 启动第二个 Tauri 进程，断言已完成迁移不会重复写入，流程状态和报告可以恢复或回放；
+5. 关闭并用同一个 appData 启动第二个 Tauri 进程，断言已完成迁移的最终状态一致且流程不会再次入队；这属于最终状态幂等验证，不单独证明没有发生重复写入；
 6. 在专门的 staged 副本上测试显式清理，断言只删除 legacy 目录，不删除 SQLite 真源、迁移报告或无关目录；
 7. 最后写出脱敏的 `migration-result.json`，再按清理策略处理运行 appData。
 
@@ -563,16 +563,16 @@ tests/tauri-e2e/fixtures/migrations/
 1. 新增 `support/migration-fixture.ts`，实现 manifest 校验、安全复制、marker 与结果型清理，并为路径越界、显式外部目录和失败保留规则写单元测试；
 2. 增加 `migration-minimal` preset 和 `guided-knowledge-migration.spec.ts`，先完成首次启动、显式确认、迁移报告和同根重启幂等；
 3. 将 runner 默认目录调整为同一 run root 下互为兄弟的 `app-data/` 与 `artifacts/`，保持 `AIO_E2E_DATA_DIR` 显式覆盖兼容；
-4. 增加进程中断通道和清理步骤验证；
+4. 增加进程中断通道；清理步骤验证与 runner 的异常/信号收尾已补齐；
 5. 最后接入不入库的正式旧数据快照与发布二进制 smoke test，并在发布清单中记录 fixture hash、旧/新二进制版本和脱敏结果摘要。
 
 #### 11.4.6 合成旧数据真实 Tauri 验收（2026-07-26）
 
 以下自动化验收已在真实 Tauri 进程中通过，来源为仓库内 `legacy-file-system-v1/minimal` 合成夹具；夹具只包含固定 ID、脱敏正文和模拟向量，不包含用户数据或来源绝对路径：
 
-- `bun run test:tauri:e2e -- --preset migration-minimal`：首次启动只读检测；可见 Guided Flow 中的预览、备份与风险确认；真实 `recall_*` command 的报告、集合和向量覆盖率交叉核对；完成整个升级流程后以同一 `app-data` 启动第二个 Tauri 进程，确认不重复导入且不会再次入队迁移流程；
+- `bun run test:tauri:e2e -- --preset migration-minimal`：首次启动只读检测；可见 Guided Flow 中的预览、备份与风险确认；真实 `recall_*` command 的报告、集合和向量覆盖率交叉核对；完成整个升级流程后以同一 `app-data` 启动第二个 Tauri 进程，确认最终状态一致且不会再次入队迁移流程；该场景不宣称可证明没有发生重复写入；
 - `bun run test:tauri:e2e -- --preset migration-cleanup`：在新的 staged 副本中经可见清理确认删除 `knowledge/bases` 与 `knowledge/vectors`（夹具未包含 `tag_pool`），同时核对 `recall.db`、`recall-vectors.db`、已完成 Guided Flow 报告和构造的 `knowledge_meta.db` 哨兵文件仍存在；
-- runner 会把两个场景的失败截图、WDIO 日志和脱敏结果摘要写到同级 `artifacts/`；成功时只删除 marker 校验通过的 `app-data`，不会删除 artifacts 或来源夹具；
+- runner 会把两个场景的失败截图、WDIO 日志和脱敏结果摘要写到同级 `artifacts/`；staged `app-data` 采用受控 `always-delete` 收尾策略，普通退出、WDIO 异常和信号路径共享幂等清理；显式 `AIO_E2E_DATA_DIR` 始终保留，不会删除 artifacts 或来源夹具；
 - 清理步骤暴露出一个通用导航边界：步骤 `onNext` 令当前步骤的 `when` 条件失效时，Manager 必须从定义顺序寻找下一个当前可见步骤，而不能按更新后的可见列表重新查找当前步骤；该行为已有单元测试覆盖。
 
 尚未实现的通道仍是：在约定进度阶段终止整个 Tauri 进程并同根重启的 `migration-interruption`，以及基于可溯源旧正式发布二进制/快照的 `migration-release`。因此本节的真实 Tauri 结果不能替代发布候选包验收。

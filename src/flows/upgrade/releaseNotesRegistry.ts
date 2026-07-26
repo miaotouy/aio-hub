@@ -85,10 +85,12 @@ export class ReleaseNotesRegistry {
     }
 
     if (transition !== "upgrade") return [];
-    const previous = normalizeAppVersion(lifecycle.lastLaunchedVersion ?? "");
+
+    // A deferred flow is deliberately not acknowledged in lifecycle state.
+    // Select every locally available, unacknowledged note up to the current
+    // version so a later upgrade cannot lose an earlier deferred release.
     return this.getAll().filter(
       (manifest) =>
-        compareVersions(manifest.version, previous) > 0 &&
         compareVersions(manifest.version, current) <= 0 &&
         !lifecycle.releaseNotes[manifest.version]
     );

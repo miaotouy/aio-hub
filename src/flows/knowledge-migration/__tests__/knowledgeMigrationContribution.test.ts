@@ -10,6 +10,7 @@ import type {
 } from "@/flows/upgrade/types";
 import { registerKnowledgeMigrationContribution } from "../knowledgeMigrationContribution";
 import {
+  isKnowledgeMigrationReportComplete,
   KNOWLEDGE_MIGRATION_CONTRIBUTION_ID,
   type RecallMigrationPreview,
   type RecallMigrationReport,
@@ -69,6 +70,35 @@ const release: ReleaseNoteManifest = {
   body: "# release",
   contributionIds: [KNOWLEDGE_MIGRATION_CONTRIBUTION_ID],
 };
+
+describe("knowledge migration completion", () => {
+  it.each([
+    [
+      "partial vector status",
+      { vectorStatus: "partial", pendingVectors: 0, issues: [] },
+    ],
+    [
+      "pending vectors",
+      { vectorStatus: "completed", pendingVectors: 1, issues: [] },
+    ],
+    [
+      "reported issues",
+      {
+        vectorStatus: "completed",
+        pendingVectors: 0,
+        issues: [{ path: "legacy.json", message: "invalid" }],
+      },
+    ],
+  ])("rejects %s", (_name, overrides) => {
+    expect(
+      isKnowledgeMigrationReportComplete({
+        ...report,
+        ...overrides,
+        mainStatus: "completed",
+      })
+    ).toBe(false);
+  });
+});
 
 describe("knowledge migration contribution", () => {
   beforeEach(() => {
@@ -141,6 +171,7 @@ describe("knowledge migration contribution", () => {
     snapshot.riskConfirmed = true;
     expect(await planStep.validate?.(context)).toBe(true);
 
+    mocks.invoke.mockResolvedValueOnce(preview);
     mocks.invoke.mockResolvedValueOnce(report);
     const resultStep = definition.steps.find((step) => step.id === "result")!;
     await resultStep.onEnter?.(context);
@@ -155,8 +186,69 @@ describe("knowledge migration contribution", () => {
         },
       }
     );
-    expect(snapshot.executionStatus).toBe("completed");
+    expect(snapshot.executionStatus).toBe("partial");
     expect(snapshot.report.pendingVectors).toBe(2);
+    expect(
+      context.contributions[KNOWLEDGE_MIGRATION_CONTRIBUTION_ID].status
+    ).toBe("pending");
+  });
+
+  it("re-runs migration after a partial main-data report", async () => {
+    const definition = upgradeContributionRegistry.get(
+      KNOWLEDGE_MIGRATION_CONTRIBUTION_ID
+    )!;
+    const detected = {
+      instanceKey: "migration:fingerprint:not_started:not_started:0",
+      blockingScope: "module" as const,
+      status: "pending" as const,
+      snapshot: {
+        preview,
+        backupConfirmed: true,
+        riskConfirmed: true,
+        executionStatus: "pending" as const,
+        cleanupChoice: "keep" as const,
+        cleanupConfirmation: "",
+      },
+    };
+    const context: UpgradeFlowContext = {
+      mode: "automatic",
+      currentVersion: release.version,
+      releaseVersions: [release.version],
+      primaryReleaseVersion: release.version,
+      transition: "upgrade",
+      contributions: {
+        [KNOWLEDGE_MIGRATION_CONTRIBUTION_ID]: {
+          ...detected,
+          revision: definition.revision,
+          title: definition.title,
+        },
+      },
+    };
+    const partial = {
+      ...report,
+      mainStatus: "partial",
+      vectorStatus: "not_started",
+    };
+    const complete = {
+      ...report,
+      mainStatus: "completed",
+      vectorStatus: "completed",
+      pendingVectors: 0,
+      issues: [],
+    };
+    mocks.invoke
+      .mockResolvedValueOnce(preview)
+      .mockResolvedValueOnce(partial)
+      .mockResolvedValueOnce(preview)
+      .mockResolvedValueOnce(complete);
+    const resultStep = definition.steps.find((step) => step.id === "result")!;
+
+    await resultStep.onEnter?.(context);
+    expect(resultStep.validate?.(context)).toBe(false);
+    await resultStep.onEnter?.(context);
+
+    expect(mocks.invoke).toHaveBeenCalledTimes(4);
+    expect(resultStep.validate?.(context)).toBe(true);
     expect(
       context.contributions[KNOWLEDGE_MIGRATION_CONTRIBUTION_ID].status
     ).toBe("completed");

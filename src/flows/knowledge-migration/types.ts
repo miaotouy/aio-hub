@@ -35,6 +35,18 @@ export interface RecallMigrationReport {
   issues: RecallMigrationIssue[];
 }
 
+export function isKnowledgeMigrationReportComplete(
+  report: RecallMigrationReport | null | undefined
+): report is RecallMigrationReport {
+  return Boolean(
+    report &&
+    report.mainStatus === "completed" &&
+    report.vectorStatus === "completed" &&
+    report.pendingVectors === 0 &&
+    report.issues.length === 0
+  );
+}
+
 export interface RecallMigrationPreview {
   migrationId: string;
   sourceFingerprint: string;

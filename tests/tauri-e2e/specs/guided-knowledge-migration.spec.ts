@@ -42,6 +42,10 @@ function expectedCount(name: string): number {
   return value;
 }
 
+function exactMetricValue(selector: string): Promise<string> {
+  return $(selector).$("strong").getText();
+}
+
 async function expectCurrentStep(stepId: string): Promise<void> {
   const shell = await $(".guided-flow-shell");
   await shell.waitForDisplayed({ timeout: 30_000 });
@@ -77,20 +81,24 @@ migrationDescribe("Guided legacy Knowledge migration", () => {
     );
     const expectedEntries = expectedCount("AIO_E2E_MIGRATION_EXPECTED_ENTRIES");
     const expectedVectors = expectedCount("AIO_E2E_MIGRATION_EXPECTED_VECTORS");
+    const expectedPendingVectors = expectedCount(
+      "AIO_E2E_MIGRATION_EXPECTED_PENDING_VECTORS"
+    );
+    const expectedIssues = expectedCount("AIO_E2E_MIGRATION_EXPECTED_ISSUES");
     const artifactDir = requiredEnv("AIO_E2E_ARTIFACT_DIR");
 
     await advanceToStep("contribution:knowledge-migration:plan");
     await $(".migration-step").waitForDisplayed();
     if (
-      !(
-        await $(".migration-step .metric-grid > div:nth-child(1)").getText()
-      ).includes(String(expectedCollections)) ||
-      !(
-        await $(".migration-step .metric-grid > div:nth-child(2)").getText()
-      ).includes(String(expectedEntries)) ||
-      !(
-        await $(".migration-step .metric-grid > div:nth-child(3)").getText()
-      ).includes(String(expectedVectors))
+      (await exactMetricValue(
+        ".migration-step .metric-grid > div:nth-child(1)"
+      )) !== String(expectedCollections) ||
+      (await exactMetricValue(
+        ".migration-step .metric-grid > div:nth-child(2)"
+      )) !== String(expectedEntries) ||
+      (await exactMetricValue(
+        ".migration-step .metric-grid > div:nth-child(3)"
+      )) !== String(expectedVectors)
     ) {
       throw new Error(
         "Guided Flow did not display the staged legacy source counts."
@@ -166,13 +174,13 @@ migrationDescribe("Guided legacy Knowledge migration", () => {
       report.migratedEntries !== expectedEntries ||
       report.sourceVectors !== expectedVectors ||
       report.migratedVectors !== expectedVectors ||
-      report.pendingVectors !== 0 ||
-      report.issues.length !== 0 ||
+      report.pendingVectors !== expectedPendingVectors ||
+      report.issues.length !== expectedIssues ||
       !migratedBase ||
       migratedBase.id !== MIGRATION_COLLECTION_ID ||
       coverage.totalEntries !== expectedEntries ||
       coverage.cachedEntries !== expectedVectors ||
-      coverage.missingEntries !== 0
+      coverage.missingEntries !== expectedPendingVectors
     ) {
       throw new Error(
         `Migration UI and production IPC results did not match the fixture manifest: ${JSON.stringify(
@@ -181,7 +189,13 @@ migrationDescribe("Guided legacy Knowledge migration", () => {
             report,
             migratedBase,
             coverage,
-            expected: { expectedCollections, expectedEntries, expectedVectors },
+            expected: {
+              expectedCollections,
+              expectedEntries,
+              expectedVectors,
+              expectedPendingVectors,
+              expectedIssues,
+            },
           }
         )}`
       );

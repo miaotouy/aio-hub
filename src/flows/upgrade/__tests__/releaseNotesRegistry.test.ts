@@ -65,6 +65,18 @@ describe("ReleaseNotesRegistry", () => {
     ).toEqual(["0.7.0-alpha.1", "0.7.0"]);
   });
 
+  it("keeps an earlier deferred note in a later upgrade", () => {
+    const registry = new ReleaseNotesRegistry();
+    registry.register(release("0.7.0"));
+    registry.register(release("0.8.0"));
+
+    expect(
+      registry
+        .selectAutomatic("0.8.0", lifecycle("0.7.0"))
+        .map((item) => item.version)
+    ).toEqual(["0.7.0", "0.8.0"]);
+  });
+
   it("uses the manifest policy when no lifecycle baseline exists", () => {
     const registry = new ReleaseNotesRegistry();
     registry.register(release("0.7.0-alpha.1", "show-current"));

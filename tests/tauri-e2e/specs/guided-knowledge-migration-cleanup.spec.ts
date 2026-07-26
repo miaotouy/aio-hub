@@ -12,6 +12,53 @@ function requiredEnv(name: string): string {
   return value;
 }
 
+function requiredRelativePaths(): string[] {
+  let paths: unknown;
+  try {
+    paths = JSON.parse(requiredEnv("AIO_E2E_MIGRATION_ALLOWED_PATHS"));
+  } catch (error) {
+    throw new Error(
+      `AIO_E2E_MIGRATION_ALLOWED_PATHS is invalid: ${String(error)}`
+    );
+  }
+  if (
+    !Array.isArray(paths) ||
+    paths.some((value) => typeof value !== "string" || path.isAbsolute(value))
+  ) {
+    throw new Error("AIO_E2E_MIGRATION_ALLOWED_PATHS must be relative paths.");
+  }
+  return paths;
+}
+
+interface PersistedMigrationSnapshot {
+  preview: { migrationId: string; sourceFingerprint: string };
+  report?: { sourceFingerprint: string; mainStatus: string };
+  cleanupChoice: string;
+  removedPaths?: string[];
+}
+
+function readMigrationSnapshot(statePath: string): PersistedMigrationSnapshot {
+  const persisted = JSON.parse(fs.readFileSync(statePath, "utf8")) as {
+    states?: {
+      "app-upgrade"?: {
+        context?: {
+          contributions?: {
+            "knowledge-migration"?: { snapshot?: unknown };
+          };
+        };
+      };
+    };
+  };
+  const snapshot =
+    persisted.states?.["app-upgrade"]?.context?.contributions?.[
+      "knowledge-migration"
+    ]?.snapshot;
+  if (!snapshot || typeof snapshot !== "object") {
+    throw new Error("Persisted Guided Flow migration snapshot is missing.");
+  }
+  return snapshot as PersistedMigrationSnapshot;
+}
+
 async function expectCurrentStep(stepId: string): Promise<void> {
   const shell = await $(".guided-flow-shell");
   await shell.waitForDisplayed({ timeout: 30_000 });
@@ -74,6 +121,28 @@ cleanupDescribe("Guided legacy Knowledge migration cleanup", () => {
     await $('[data-testid="guided-flow-next"]').click();
     await expectCurrentStep("contribution:knowledge-migration:cleanup");
 
+    const allowedPaths = requiredRelativePaths();
+    for (const relativePath of allowedPaths) {
+      if (!fs.existsSync(path.join(dataDir, ...relativePath.split("/")))) {
+        throw new Error(
+          `Legacy fixture file was missing before cleanup: ${relativePath}`
+        );
+      }
+    }
+    const reportBeforeCleanup = await invokeTauriCommand<{
+      migrationId?: string;
+      sourceFingerprint: string;
+      mainStatus: string;
+    } | null>("recall_inspect_legacy_migration");
+    if (
+      !reportBeforeCleanup ||
+      reportBeforeCleanup.mainStatus !== "completed"
+    ) {
+      throw new Error(
+        "Cleanup precondition report was not available before confirmation."
+      );
+    }
+
     await $(".cleanup-step .el-radio:nth-of-type(2)").click();
     const confirmation = await $(".cleanup-step .el-input__inner");
     await confirmation.setValue("DELETE");
@@ -122,14 +191,23 @@ cleanupDescribe("Guided legacy Knowledge migration cleanup", () => {
       );
     }
 
-    const persistedFlow = fs.readFileSync(guidedFlowState, "utf8");
+    const snapshot = readMigrationSnapshot(guidedFlowState);
+    const normalizedRemoved = (snapshot.removedPaths ?? [])
+      .map((target) => path.resolve(target))
+      .sort();
+    const normalizedExpected = expectedRemoved
+      .map((target) => path.resolve(target))
+      .sort();
     if (
-      !persistedFlow.includes('"mainStatus": "completed"') ||
-      !persistedFlow.includes('"cleanupChoice": "cleanup"') ||
-      !persistedFlow.includes('"removedPaths"')
+      snapshot.preview.migrationId !== requiredEnv("AIO_E2E_MIGRATION_ID") ||
+      snapshot.report?.sourceFingerprint !==
+        reportBeforeCleanup.sourceFingerprint ||
+      snapshot.report?.mainStatus !== "completed" ||
+      snapshot.cleanupChoice !== "cleanup" ||
+      JSON.stringify(normalizedRemoved) !== JSON.stringify(normalizedExpected)
     ) {
       throw new Error(
-        "Guided Flow did not retain the completed migration report after cleanup."
+        "Guided Flow did not retain the exact migration identity and cleanup report."
       );
     }
 

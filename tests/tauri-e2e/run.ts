@@ -33,6 +33,22 @@ import {
   parseE2eRunnerOptions,
 } from "./support/runner-options";
 
+let vite: ReturnType<typeof Bun.spawn> | undefined;
+let mock: ReturnType<typeof startOpenAiMock> | undefined;
+let ollamaEmbeddingProxy:
+  ReturnType<typeof startOllamaEmbeddingProxy> | undefined;
+let wdio: ReturnType<typeof Bun.spawn> | undefined;
+let stopped = false;
+let signalRequested = false;
+const stop = () => {
+  if (stopped) return;
+  stopped = true;
+  if (wdio && !wdio.killed) wdio.kill();
+  if (vite && !vite.killed) vite.kill();
+  mock?.stop();
+  ollamaEmbeddingProxy?.stop();
+};
+
 const projectRoot = path.resolve(
   fileURLToPath(new URL("../..", import.meta.url))
 );
@@ -45,7 +61,7 @@ if (runnerOptions.listPresetsRequested) {
 const { nativeUiEnabled, wdioArgs } = runnerOptions;
 function activeSpecFromArgs(args: string[]): string {
   const index = args.lastIndexOf("--spec");
-  return index >= 0 ? args[index + 1] ?? "" : "";
+  return index >= 0 ? (args[index + 1] ?? "") : "";
 }
 const explicitDataDir = process.env.AIO_E2E_DATA_DIR?.trim() || undefined;
 const runSuffix =
@@ -100,6 +116,38 @@ if (migrationFixtureId) {
   );
 }
 
+let stagedCleanupAttempted = false;
+let stagedCleanupError: unknown;
+function cleanupDisposableMigrationData(): void {
+  if (stagedCleanupAttempted || !stagedMigrationFixture || explicitDataDir)
+    return;
+  stagedCleanupAttempted = true;
+  try {
+    cleanupStagedMigrationData({
+      runRoot,
+      runId: runSuffix,
+      dataDir,
+      controlledRunsRoot,
+    });
+  } catch (error) {
+    stagedCleanupError = error;
+  }
+}
+process.once("exit", () => {
+  stop();
+  cleanupDisposableMigrationData();
+});
+process.once("SIGINT", () => {
+  signalRequested = true;
+  stop();
+  process.exit(130);
+});
+process.once("SIGTERM", () => {
+  signalRequested = true;
+  stop();
+  process.exit(143);
+});
+
 const startedAt = new Date().toISOString();
 const writeEarlyRunMetadata = (value: Record<string, unknown>) => {
   fs.writeFileSync(
@@ -120,10 +168,9 @@ const writeEarlyRunMetadata = (value: Record<string, unknown>) => {
   );
 };
 
-const externalRecallCorpus =
-  isExternalCorpusMode(runnerOptions.corpusMode)
-    ? await prepareExternalRecallCorpus(process.env.AIO_E2E_RECALL_SOURCE)
-    : null;
+const externalRecallCorpus = isExternalCorpusMode(runnerOptions.corpusMode)
+  ? await prepareExternalRecallCorpus(process.env.AIO_E2E_RECALL_SOURCE)
+  : null;
 if (isExternalCorpusMode(runnerOptions.corpusMode) && !externalRecallCorpus) {
   writeEarlyRunMetadata({
     status: "skipped",
@@ -281,24 +328,6 @@ async function waitForUrl(url: string, timeoutMs: number): Promise<boolean> {
   }
   return false;
 }
-
-let vite: ReturnType<typeof Bun.spawn> | undefined;
-let mock: ReturnType<typeof startOpenAiMock> | undefined;
-let ollamaEmbeddingProxy:
-  ReturnType<typeof startOllamaEmbeddingProxy> | undefined;
-let wdio: ReturnType<typeof Bun.spawn> | undefined;
-let stopped = false;
-const stop = () => {
-  if (stopped) return;
-  stopped = true;
-  if (wdio && !wdio.killed) wdio.kill();
-  if (vite && !vite.killed) vite.kill();
-  mock?.stop();
-  ollamaEmbeddingProxy?.stop();
-};
-process.once("exit", stop);
-process.once("SIGINT", stop);
-process.once("SIGTERM", stop);
 
 if (!(await waitForUrl(frontendUrl.href, 1_000))) {
   const viteEntry = path.join(
@@ -533,10 +562,9 @@ if (shouldSeedFixtures) {
     "utf8"
   );
 
-  const fixtureCorpusMode =
-    isExternalCorpusMode(runnerOptions.corpusMode)
-      ? "smoke"
-      : runnerOptions.corpusMode;
+  const fixtureCorpusMode = isExternalCorpusMode(runnerOptions.corpusMode)
+    ? "smoke"
+    : runnerOptions.corpusMode;
   recallManifest = buildRecallWorkflowManifestForCorpus(
     {
       chat: chatRole,
@@ -636,6 +664,15 @@ const env = {
         ),
         AIO_E2E_MIGRATION_EXPECTED_VECTORS: String(
           stagedMigrationFixture.manifest.expected.vectors
+        ),
+        AIO_E2E_MIGRATION_EXPECTED_PENDING_VECTORS: String(
+          stagedMigrationFixture.manifest.expected.pendingVectors
+        ),
+        AIO_E2E_MIGRATION_EXPECTED_ISSUES: String(
+          stagedMigrationFixture.manifest.expected.issues
+        ),
+        AIO_E2E_MIGRATION_ALLOWED_PATHS: JSON.stringify(
+          stagedMigrationFixture.manifest.allowedPaths
         ),
       }
     : {}),
@@ -855,51 +892,69 @@ function validateScenarioArtifacts(): void {
   }
 }
 
-let exitCode = await launchWdio(wdioArgs, "initial");
-if (exitCode === 0 && runnerOptions.restartSpec) {
-  if (stagedMigrationFixture) {
-    exitCode = await launchWdio(
-      recoveryWdioArgs(runnerOptions.restartSpec),
-      "recovery"
-    );
-  } else {
-    if (!shouldSeedFixtures || !recallManifest) {
-      throw new Error("Recovery requires seeded Recall fixtures.");
-    }
-    const verifyMode = { AIO_E2E_FIXTURE_MODE: "verify" };
-    if (!isExternalCorpusMode(runnerOptions.corpusMode)) {
-      fixtureSeedResult = seedRecallWorkflowFixtures({
-        dataDir,
-        artifactDir,
-        manifest: recallManifest,
-        enabled: true,
-        mode: "verify",
-      });
-      fixtureSeedResult.files.push(
-        seedRecallWorkspaceConfig({
+let exitCode = 1;
+try {
+  exitCode = await launchWdio(wdioArgs, "initial");
+  if (signalRequested) exitCode = 130;
+  if (exitCode === 0 && runnerOptions.restartSpec) {
+    if (stagedMigrationFixture) {
+      exitCode = await launchWdio(
+        recoveryWdioArgs(runnerOptions.restartSpec),
+        "recovery"
+      );
+    } else {
+      if (!shouldSeedFixtures || !recallManifest) {
+        throw new Error("Recovery requires seeded Recall fixtures.");
+      }
+      const verifyMode = { AIO_E2E_FIXTURE_MODE: "verify" };
+      if (!isExternalCorpusMode(runnerOptions.corpusMode)) {
+        fixtureSeedResult = seedRecallWorkflowFixtures({
           dataDir,
-          recallId: recallManifest.recall.id,
-          embeddingProfileId: embeddingRole.profileId,
-          embeddingModelId: embeddingRole.modelId,
-          embeddingDimension: embeddingRole.dimension!,
+          artifactDir,
+          manifest: recallManifest,
+          enabled: true,
           mode: "verify",
-        })
+        });
+        fixtureSeedResult.files.push(
+          seedRecallWorkspaceConfig({
+            dataDir,
+            recallId: recallManifest.recall.id,
+            embeddingProfileId: embeddingRole.profileId,
+            embeddingModelId: embeddingRole.modelId,
+            embeddingDimension: embeddingRole.dimension!,
+            mode: "verify",
+          })
+        );
+      }
+      exitCode = await launchWdio(
+        recoveryWdioArgs(runnerOptions.restartSpec),
+        "recovery",
+        verifyMode
       );
     }
-    exitCode = await launchWdio(
-      recoveryWdioArgs(runnerOptions.restartSpec),
-      "recovery",
-      verifyMode
-    );
   }
-}
-stop();
-if (exitCode === 0) {
-  try {
-    validateScenarioArtifacts();
-  } catch (error) {
-    console.error(`[tauri-e2e] Artifact validation failed: ${String(error)}`);
-    exitCode = 1;
+  if (exitCode === 0) {
+    try {
+      validateScenarioArtifacts();
+    } catch (error) {
+      console.error(`[tauri-e2e] Artifact validation failed: ${String(error)}`);
+      exitCode = 1;
+    }
+  }
+} catch (error) {
+  console.error(`[tauri-e2e] Runner failed: ${String(error)}`);
+  exitCode = 1;
+} finally {
+  // Signals, WDIO failures and setup exceptions all share this idempotent
+  // shutdown path. Staged fixture data is disposable; explicit data roots are
+  // user-owned and are never removed by the runner.
+  stop();
+  cleanupDisposableMigrationData();
+  if (stagedCleanupError) {
+    console.error(
+      `[tauri-e2e] Staged migration cleanup failed: ${String(stagedCleanupError)}`
+    );
+    if (exitCode === 0) exitCode = 1;
   }
 }
 fs.writeFileSync(
@@ -933,22 +988,12 @@ fs.writeFileSync(
       nativeFileFixture,
       nativeDirectoryFixture,
       exitCode,
+      signalRequested,
+      cleanupError: stagedCleanupError ? String(stagedCleanupError) : undefined,
     },
     null,
     2
   ),
   "utf8"
 );
-if (exitCode === 0 && stagedMigrationFixture && !explicitDataDir) {
-  try {
-    cleanupStagedMigrationData({
-      runRoot,
-      runId: runSuffix,
-      dataDir,
-      controlledRunsRoot,
-    });
-  } catch (error) {
-    console.warn(`[tauri-e2e] Could not clean staged migration data: ${String(error)}`);
-  }
-}
 process.exitCode = exitCode;

@@ -7,13 +7,19 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { UpgradeFlowContext } from "@/flows/upgrade/types";
-import { getKnowledgeMigrationSnapshot } from "../types";
+import {
+  getKnowledgeMigrationSnapshot,
+  isKnowledgeMigrationReportComplete,
+} from "../types";
 import MigrationExecuteStep from "./MigrationExecuteStep.vue";
 import MigrationVerifyStep from "./MigrationVerifyStep.vue";
 
 const props = defineProps<{ context: UpgradeFlowContext }>();
 const report = computed(
   () => getKnowledgeMigrationSnapshot(props.context).report
+);
+const isComplete = computed(() =>
+  isKnowledgeMigrationReportComplete(report.value)
 );
 </script>
 
@@ -24,13 +30,9 @@ const report = computed(
     <template v-else>
       <el-alert
         :closable="false"
-        :type="report.mainStatus === 'completed' ? 'success' : 'warning'"
+        :type="isComplete ? 'success' : 'warning'"
         show-icon
-        :title="
-          report.mainStatus === 'completed'
-            ? '迁移与校验已完成'
-            : '迁移仅部分完成'
-        "
+        :title="isComplete ? '迁移与校验已完成' : '迁移仅部分完成'"
         description="下面是本次执行保存的结构化校验报告。"
       />
       <MigrationVerifyStep :context="context" />

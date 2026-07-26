@@ -47,9 +47,8 @@ const props = defineProps<{
 const snapshot = computed(() => getKnowledgeMigrationSnapshot(props.context));
 
 function updateSnapshot(updates: Partial<typeof snapshot.value>) {
-  const contribution = props.context.contributions[
-    KNOWLEDGE_MIGRATION_CONTRIBUTION_ID
-  ];
+  const contribution =
+    props.context.contributions[KNOWLEDGE_MIGRATION_CONTRIBUTION_ID];
   if (!contribution || !props.updateContext) return;
   void props.updateContext({
     contributions: {

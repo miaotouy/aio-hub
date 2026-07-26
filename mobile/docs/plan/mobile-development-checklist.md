@@ -15,7 +15,7 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 ### P0：聊天上下文管线与 Token 编排
 
 - [ ] 逐个复制 PC 上已存在的上下文处理器到移动端，先保持 TS 实现和处理语义，不提前抽取共享包或下沉 Rust。
-- [ ] 在移动端接入 `injection-assembler`，支持预设消息的 `injectionStrategy`、深度和锚点语义。
+- [x] 在移动端接入 `injection-assembler`，支持预设消息的 `injectionStrategy`、深度和锚点语义；宏、模型匹配和 Agent 私有附件仍由后续处理器补齐。
 - [ ] 迁移宏、变量、世界书、召回、转写、资源解析和消息格式化等处理器；每迁移一个处理器补对应测试和移动端依赖适配。
 - [ ] 将现有 Rust `o200k_base` / `countTokensBatch()` 接入上下文预算编排。当前它已经支持编辑器、输入区和发送后统计，但发送前的最终计数发生在 pipeline 之后，不能被前置处理器消费。
 - [ ] 迁移 PC `token-limiter` 的文本预算和历史消息截断逻辑；处理器必须位于所有会增加或改变消息的处理器之后、provider 格式化之前。
@@ -25,7 +25,7 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 
 ### P1：Agent 阶段 3 及其依赖功能
 
-- [ ] 完成 `injectionStrategy` 和 `modelMatch` 的运行时执行；编辑器字段持久化已经完成，但当前 loader 仍统一前置注入。
+- [ ] 完成 `modelMatch` 的运行时执行；`injectionStrategy` 的默认、深度/高级深度和锚点语义已接入，宏与 Agent 私有附件仍待后续处理器补齐。
 - [ ] 将 Agent 开局消息实例化到新会话。
 - [ ] 增加聊天内切换 Agent，并保持历史消息的 Agent 快照语义。
 - [ ] 同步移动端与 PC 的显式 Agent 类型、分类枚举和 `defaultGreetingId`。

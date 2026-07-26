@@ -1,7 +1,7 @@
 # 移动端 LLM Chat — 实现情况
 
 > **文档状态**: Implementing
-> **最后更新**: 2026-07-23
+> **最后更新**: 2026-07-26
 > **对应路径**: `mobile/src/tools/llm-chat/`
 
 ## 1. 概述
@@ -40,7 +40,7 @@ llm-chat/
 │   └── pipeline/
 │       └── processors/
 │           ├── session-loader.ts       # 管道处理器：会话历史加载器
-│           └── agent-preset-loader.ts  # 管道处理器：智能体预设加载器
+│           └── injection-assembler.ts  # 管道处理器：预设/深度/锚点组装器
 ├── docs/                      # 规划文档（已删除，仅 Git 记录中存在）
 ├── locales/
 │   ├── zh-CN.json             # 中文语言包
@@ -202,21 +202,21 @@ Actions:
    ├── 过滤掉空内容和根节点
    └── 转换为 ProcessableMessage[] 放入 context.messages
 
-2. primary:agent-preset-loader (priority: 200)
-   ├── 读取会话绑定的 ChatAgent
-   ├── 过滤禁用消息和禁用消息组
-   ├── 保留预设消息顺序与角色
-   └── 将非空预设消息插入会话历史之前
+2. primary:injection-assembler (priority: 400)
+   ├── 读取会话绑定的 ChatAgent，过滤禁用消息和禁用消息组
+   ├── 将默认预设作为骨架，并以 `chat_history` 占位符切分前后位置
+   ├── 按 order 组装锚点注入，并按深度/高级深度规则插入会话历史
+   └── 保留来源 ID、索引与注入来源类型，供后续处理器和 Token 统计使用
 
 管道执行流程：
 LlamaChatView.send() → useChatExecutor.execute()
   → 构建 PipelineContext
   → pipelineStore.executePipeline(context)
-  → [session-loader, agent-preset-loader, ...其他处理器]
+  → [session-loader, injection-assembler, ...其他处理器]
   → 输出 messages[] 给 llmRequest.sendRequest()
 ```
 
-**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载与智能体预设加载；宏、变量、注入组装、世界书、召回、Token 限制和消息格式化等 PC 处理器仍待逐个复制与移动端适配。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
+**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载与预设注入组装；预设支持默认、深度、高级深度与锚点语义。宏替换、模型匹配、私有预设附件、变量、世界书、召回、Token 限制和消息格式化仍待逐个复制与移动端适配。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
 
 ### 4.3. Token 统计与上下文预警
 
@@ -237,7 +237,7 @@ LlamaChatView.send() → useChatExecutor.execute()
   ├─ 3. 创建助手消息节点（生成中状态）
   ├─ 4. 更新 activeLeaf
   ├─ 5. 读取会话绑定的 Agent 与模型/常用生成参数
-  ├─ 6. 执行 pipeline（加载历史消息和 Agent 预设 → 构建 ProcessableMessage[]）
+  ├─ 6. 执行 pipeline（加载历史消息，并按默认/深度/锚点策略组装 Agent 预设 → 构建 ProcessableMessage[]）
   ├─ 7. 统计最终请求上下文 Token 并写入风险快照
   ├─ 8. 调用 useLlmRequest.sendRequest()（流式）
   │    └─ onStream: 逐 chunk 追加到 assistantNode.content
@@ -379,14 +379,14 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - [x] PipelineContext 定义
 - [x] ContextProcessor 接口
 - [x] 处理器注册/注销/排序/启用
-- [x] 核心处理器：session-loader、agent-preset-loader
+- [x] 核心处理器：session-loader、injection-assembler（默认、深度、高级深度和锚点）
 - [x] 待处理器的执行、日志和共享黑板
 
 ### ✅ Agent 对话接入
 
 - [x] 从角色大厅创建绑定 Agent 的会话
 - [x] 会话通过 `displayAgentId` 持久化 Agent 绑定
-- [x] 加载并注入启用的 Agent 预设消息
+- [x] 加载并按默认、深度和锚点策略组装启用的 Agent 预设消息
 - [x] Agent 渠道、模型与常用生成参数进入请求层
 - [x] 聊天导航栏展示当前 Agent 标识
 
@@ -418,9 +418,9 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 ### 🔄 管道处理器
 
 - [ ] `macros-renderer`：宏替换/模板渲染
-- [ ] `depth-injector`：深度注入（系统提示词）
+- [x] `injection-assembler`：默认、深度/高级深度和锚点预设组装；私有预设附件待 Agent 资源包完成后接入
 - [ ] `user-profile-injector`：用户档案注入
-- [x] `agent-preset-loader`：智能体预设加载
+- [ ] `model-match-filter`：按模型与渠道筛选预设消息
 - [ ] `token-limiter`：复用现有 Rust `o200k` 计数，根据预设占用和上下文预算保留或截断历史消息；当前计数展示已完成，但 Token 驱动的上下文编排尚未实现
 - [x] `ProcessableMessage._attachments` 的强类型加载与空文本消息保留
 
@@ -463,7 +463,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 | -------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | **UI 分层**    | 自研业务组件 + Element Plus 叶子控件                                 | 原生 Vue/AIO token 骨架 + Varlet 叶子控件                                             |
 | **类型**       | 完整 `ChatAgent`, `Asset`, `ChatSettings`                            | 已接入兼容 `ChatAgent` 和 `ManagedAssetRef + 轻量快照`，不持久化全局资产路径          |
-| **管道处理器** | 完整：会话、注入、宏/变量、世界书/召回、Token 限制、格式化和资源解析 | `session-loader` + `agent-preset-loader`；Token 统计位于执行层与 composable，尚不裁剪 |
+| **管道处理器** | 完整：会话、注入、宏/变量、世界书/召回、Token 限制、格式化和资源解析 | `session-loader` + `injection-assembler`（默认/深度/锚点）；Token 统计位于执行层与 composable，尚不裁剪 |
 | **组件**       | 丰富（BaseDialog, ImageViewer 等）                                   | 基础的列表/输入组件                                                                   |
 | **编辑器**     | RichCodeEditor（双引擎）                                             | 纯文本输入                                                                            |
 | **路由**       | `main`, `settings` 两页                                              | `home`, `sessions`, `chat/:id`, `settings` 四页                                       |

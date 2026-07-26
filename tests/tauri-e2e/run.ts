@@ -79,6 +79,33 @@ const artifactDir = path.resolve(
   projectRoot,
   process.env.AIO_E2E_ARTIFACT_DIR?.trim() || path.join(runRoot, "artifacts")
 );
+
+/**
+ * E2E 不覆盖真实插件行为，统一把示例 Native 插件置为禁用。
+ *
+ * 该状态不能依赖 Recall fixture seed：migration/guided-flow 等测试会跳过
+ * fixture seed，但应用对缺失的插件状态默认按“启用”处理。
+ */
+function disableE2eNativePlugins(appDataDir: string): void {
+  const pluginStateDir = path.join(appDataDir, "plugin-manager");
+  const pluginStatePath = path.join(pluginStateDir, "plugin-states.json");
+  const state = fs.existsSync(pluginStatePath)
+    ? (JSON.parse(fs.readFileSync(pluginStatePath, "utf8")) as {
+        version?: string;
+        enabledStates?: Record<string, boolean>;
+      })
+    : {};
+
+  fs.mkdirSync(pluginStateDir, { recursive: true });
+  state.version ??= "1.0.0";
+  state.enabledStates = {
+    ...(state.enabledStates ?? {}),
+    "native-example": false,
+    "native-example-dev": false,
+  };
+  fs.writeFileSync(pluginStatePath, JSON.stringify(state, null, 2), "utf8");
+}
+
 const migrationFixtureId =
   runnerOptions.presetId === "migration-minimal" ||
   runnerOptions.presetId === "migration-cleanup"
@@ -602,24 +629,6 @@ if (shouldSeedFixtures) {
     mode: process.env.AIO_E2E_FIXTURE_MODE === "verify" ? "verify" : "write",
   });
   fixtureSeedResult?.files.push(workspaceSeedFile);
-
-  const pluginStateDir = path.join(dataDir, "plugin-manager");
-  fs.mkdirSync(pluginStateDir, { recursive: true });
-  fs.writeFileSync(
-    path.join(pluginStateDir, "plugin-states.json"),
-    JSON.stringify(
-      {
-        version: "1.0.0",
-        enabledStates: {
-          "native-example": false,
-          "native-example-dev": false,
-        },
-      },
-      null,
-      2
-    ),
-    "utf8"
-  );
 }
 
 if (runnerOptions.presetId === "guided-flow-baseline") {
@@ -636,6 +645,8 @@ if (runnerOptions.presetId === "guided-flow-baseline") {
     );
   }
 }
+
+disableE2eNativePlugins(dataDir);
 
 const desktopVersion = (
   JSON.parse(

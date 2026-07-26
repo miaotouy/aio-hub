@@ -22,7 +22,22 @@
     "已切换智能体": "Agent switched",
     "暂无可切换智能体": "No agents available",
     "已复制内容": "Content copied",
-    "复制失败": "Copy failed. Check clipboard permissions."
+    "复制失败": "Copy failed. Check clipboard permissions.",
+    "消息已删除": "Message deleted",
+    "消息已更新": "Message updated",
+    "已保存为新分支": "Saved as a new branch",
+    "对话": "Chat",
+    "编辑消息": "Edit message",
+    "输入消息内容": "Enter message content",
+    "取消": "Cancel",
+    "另存为分支": "Save as branch",
+    "保存": "Save",
+    "删除消息": "Delete message",
+    "删除消息提示": "This will delete this message and all of its subsequent branches. Continue?",
+    "删除": "Delete",
+    "所选附件不可用提示": "One or more selected attachments are unavailable. Remove them and try again.",
+    "跳过不可用历史附件": "Skipped {count} unavailable historical attachments",
+    "对话执行失败": "Chat request failed"
   },
   "ChatSettingsView": {
     "界面偏好": "UI Preferences",
@@ -62,7 +77,12 @@
     "消息最多": "Most messages",
     "消息最少": "Fewest messages",
     "名称正序": "Name (A–Z)",
-    "名称倒序": "Name (Z–A)"
+    "名称倒序": "Name (Z–A)",
+    "搜索消息": "Search messages",
+    "清除搜索": "Clear search",
+    "搜索中": "Searching",
+    "暂无匹配消息": "No matching messages",
+    "暂无历史会话": "No chat history"
   },
   "TokenUsage": {
     "计算中": "Calculating",
@@ -72,5 +92,41 @@
     "实际": "actual",
     "上下文紧张提示": "Context is approaching the model limit. Consider trimming history.",
     "上下文高风险提示": "Context is in the high-risk range and may exceed the model limit."
+  },
+  "ChatInput": {
+    "添加资产": "Add assets",
+    "输入消息 (Ctrl+Enter 发送)...": "Enter a message (Ctrl+Enter to send)...",
+    "移除 {name}": "Remove {name}"
+  },
+  "AssetPicker": {
+    "无法读取资产列表": "Unable to load assets",
+    "选择资产": "Select assets",
+    "关闭": "Close",
+    "搜索资产": "Search assets",
+    "加载中...": "Loading...",
+    "暂无可用资产": "No assets available",
+    "取消": "Cancel",
+    "添加": "Add"
+  },
+  "BranchSelector": {
+    "生成中...": "Generating...",
+    "发送失败": "Send failed",
+    "空消息": "Empty message",
+    "选择分支": "Select branch",
+    "用户消息": "User message",
+    "助手回复": "Assistant response"
+  },
+  "MessageContent": {
+    "原件已清理": "Original removed",
+    "原件缺失": "Original missing",
+    "原件导入中": "Original importing",
+    "原件不可用": "Original unavailable",
+    "预览 {kind}": "Preview {kind}",
+    "AI 思考过程": "AI reasoning",
+    "发送失败": "Send failed"
+  },
+  "MessageList": {
+    "开始新的对话": "Start a new chat",
+    "空会话提示": "Send a message to display the active branch of this conversation."
   }
 }

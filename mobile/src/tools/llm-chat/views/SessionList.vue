@@ -185,7 +185,7 @@ const goToChatHome = () => {
 <template>
   <div class="session-list-view" data-testid="chat-session-list">
     <var-app-bar
-      title="历史会话"
+      :title="tRaw('tools.llm-chat.common.历史会话')"
       title-size="1.1rem"
       safe-area
       fixed
@@ -224,13 +224,13 @@ const goToChatHome = () => {
         <input
           v-model="searchQuery"
           type="search"
-          placeholder="搜索消息"
-          aria-label="搜索消息"
+          :placeholder="tRaw('tools.llm-chat.SessionList.搜索消息')"
+          :aria-label="tRaw('tools.llm-chat.SessionList.搜索消息')"
         />
         <button
           v-if="searchQuery"
           type="button"
-          aria-label="清除搜索"
+          :aria-label="tRaw('tools.llm-chat.SessionList.清除搜索')"
           @click="clearSearch"
         >
           <X :size="16" />
@@ -240,14 +240,14 @@ const goToChatHome = () => {
       <div v-if="searchQuery.trim()" class="search-results" aria-live="polite">
         <div v-if="searchLoading" class="search-state">
           <LoaderCircle class="spin" :size="20" />
-          <span>搜索中</span>
+          <span>{{ tRaw("tools.llm-chat.SessionList.搜索中") }}</span>
         </div>
         <div v-else-if="searchError" class="search-state error-state">
           <span>{{ searchError }}</span>
         </div>
         <div v-else-if="searchResults.length === 0" class="search-state">
           <MessageSquare :size="24" />
-          <span>暂无匹配消息</span>
+          <span>{{ tRaw("tools.llm-chat.SessionList.暂无匹配消息") }}</span>
         </div>
         <button
           v-for="result in searchResults"
@@ -309,7 +309,7 @@ const goToChatHome = () => {
 
         <div v-if="chatStore.sessionMetas.length === 0" class="empty-state">
           <MessageSquare :size="48" />
-          <p>暂无历史会话</p>
+          <p>{{ tRaw("tools.llm-chat.SessionList.暂无历史会话") }}</p>
         </div>
 
         <div

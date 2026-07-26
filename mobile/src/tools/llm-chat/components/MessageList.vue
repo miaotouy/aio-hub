@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from "vue";
 import { useThrottleFn } from "@vueuse/core";
+import { useI18n } from "@/i18n";
 import type { ChatMessageNode } from "../types";
 import ChatMessage from "./ChatMessage.vue";
+
+const { tRaw } = useI18n();
+const t = (key: string) => tRaw(`tools.llm-chat.MessageList.${key}`);
 
 const props = withDefaults(
   defineProps<{
@@ -116,9 +120,9 @@ defineExpose({
     @scroll="handleScroll"
   >
     <div v-if="messages.length === 0" class="empty-state">
-      <div class="empty-title">开始新的对话</div>
+      <div class="empty-title">{{ t("开始新的对话") }}</div>
       <div class="empty-subtitle">
-        输入消息后，这里会显示当前分支的线性对话。
+        {{ t("空会话提示") }}
       </div>
     </div>
 

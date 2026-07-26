@@ -21,6 +21,7 @@ const pickerOpen = ref(false);
 const { settings } = useChatSettings();
 const { tRaw } = useI18n();
 const t = (key: string) => tRaw(`tools.llm-chat.TokenUsage.${key}`);
+const inputT = (key: string) => tRaw(`tools.llm-chat.ChatInput.${key}`);
 const {
   estimatedTokens,
   contextLength,
@@ -127,7 +128,7 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
         class="attachment-btn"
         data-testid="chat-add-asset"
         :disabled="chatStore.isSending"
-        aria-label="添加资产"
+        :aria-label="inputT('添加资产')"
         @click="pickerOpen = true"
       >
         <Paperclip :size="19" />
@@ -138,7 +139,7 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
         class="text-area"
         data-testid="chat-message-input"
         rows="1"
-        placeholder="输入消息 (Ctrl+Enter 发送)..."
+        :placeholder="inputT('输入消息 (Ctrl+Enter 发送)...')"
         @keydown="handleKeyDown"
       ></textarea>
 
@@ -164,7 +165,7 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
         {{ attachment.snapshot.displayName }}
         <button
           type="button"
-          :aria-label="`移除 ${attachment.snapshot.displayName}`"
+          :aria-label="inputT('移除 {name}').replace('{name}', attachment.snapshot.displayName)"
           @click="
             attachments = attachments.filter(
               (item) => item.id !== attachment.id

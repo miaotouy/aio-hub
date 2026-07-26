@@ -123,7 +123,7 @@ const handleDelete = async (message: ChatMessageNode) => {
 
     nodeManager.hardDeleteNode(chatStore.currentSession, message.id);
     await chatStore.persistCurrentSession();
-    showChatSuccess("消息已删除");
+    showChatSuccess(tRaw("tools.llm-chat.ChatView.消息已删除"));
   }
 };
 
@@ -145,7 +145,7 @@ const handleSaveEdit = async () => {
   if (!editingMessage.value) return;
   await chatStore.editMessage(editingMessage.value.id, editContent.value);
   showEditDialog.value = false;
-  showChatSuccess("消息已更新");
+  showChatSuccess(tRaw("tools.llm-chat.ChatView.消息已更新"));
 };
 
 const handleSaveEditAsBranch = async () => {
@@ -156,7 +156,7 @@ const handleSaveEditAsBranch = async () => {
   );
   showEditDialog.value = false;
   if (branch) {
-    showChatSuccess("已保存为新分支");
+    showChatSuccess(tRaw("tools.llm-chat.ChatView.已保存为新分支"));
   }
 };
 
@@ -183,7 +183,7 @@ const goToChatHome = () => {
     :class="{ 'keyboard-open': isKeyboardVisible }"
   >
     <var-app-bar
-      :title="chatStore.currentSession?.name || '对话'"
+      :title="chatStore.currentSession?.name || tRaw('tools.llm-chat.ChatView.对话')"
       title-size="1.1rem"
       safe-area
       fixed
@@ -285,7 +285,7 @@ const goToChatHome = () => {
 
     <var-dialog
       v-model:show="showEditDialog"
-      title="编辑消息"
+      :title="tRaw('tools.llm-chat.ChatView.编辑消息')"
       :close-on-click-overlay="true"
       :show-cancel-button="false"
       :show-confirm-button="false"
@@ -295,14 +295,18 @@ const goToChatHome = () => {
           v-model="editContent"
           class="edit-textarea"
           rows="8"
-          placeholder="输入消息内容"
+          :placeholder="tRaw('tools.llm-chat.ChatView.输入消息内容')"
         ></textarea>
         <div class="edit-actions">
-          <var-button text @click="showEditDialog = false">取消</var-button>
-          <var-button type="primary" plain @click="handleSaveEditAsBranch">
-            另存为分支
+          <var-button text @click="showEditDialog = false">
+            {{ tRaw("tools.llm-chat.ChatView.取消") }}
           </var-button>
-          <var-button type="primary" @click="handleSaveEdit"> 保存 </var-button>
+          <var-button type="primary" plain @click="handleSaveEditAsBranch">
+            {{ tRaw("tools.llm-chat.ChatView.另存为分支") }}
+          </var-button>
+          <var-button type="primary" @click="handleSaveEdit">
+            {{ tRaw("tools.llm-chat.ChatView.保存") }}
+          </var-button>
         </div>
       </div>
     </var-dialog>

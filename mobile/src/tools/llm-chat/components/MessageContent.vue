@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
+import { useI18n } from "@/i18n";
 import {
   AlertCircle,
   Brain,
@@ -20,6 +21,9 @@ import {
   getAttachmentAvailabilityMap,
   type ChatAttachmentAvailability,
 } from "../utils/attachmentStatus";
+
+const { tRaw } = useI18n();
+const t = (key: string) => tRaw(`tools.llm-chat.MessageContent.${key}`);
 
 const props = defineProps<{
   message: ChatMessageNode;
@@ -92,14 +96,14 @@ const getAttachmentStatusLabel = (
 ): string => {
   switch (status) {
     case "reclaimed":
-      return "原件已清理";
+      return t("原件已清理");
     case "missing":
     case "missing_record":
-      return "原件缺失";
+      return t("原件缺失");
     case "importing":
-      return "原件导入中";
+      return t("原件导入中");
     case "error":
-      return "原件不可用";
+      return t("原件不可用");
     default:
       return "";
   }
@@ -158,7 +162,7 @@ const formatBytes = (value: number) => {
           "
           type="button"
           class="attachment-preview-trigger"
-          :aria-label="`预览${attachment.snapshot.kind}`"
+          :aria-label="t('预览 {kind}').replace('{kind}', attachment.snapshot.kind)"
           :data-testid="`message-attachment-preview-${attachment.snapshot.kind}`"
           @click.stop="
             openMediaPreview(
@@ -202,7 +206,7 @@ const formatBytes = (value: number) => {
       >
         <div class="reasoning-title">
           <Brain :size="14" class="brain-icon" />
-          <span>AI 思考过程</span>
+          <span>{{ t("AI 思考过程") }}</span>
         </div>
         <ChevronDown v-if="isReasoningExpanded" :size="16" />
         <ChevronRight v-else :size="16" />
@@ -233,7 +237,7 @@ const formatBytes = (value: number) => {
     <div v-if="message.status === 'error'" class="error-info">
       <AlertCircle :size="14" />
       <div class="error-text">
-        <div class="error-title">发送失败</div>
+        <div class="error-title">{{ t("发送失败") }}</div>
         <div v-if="message.metadata?.error" class="error-detail">
           {{ message.metadata.error }}
         </div>

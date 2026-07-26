@@ -175,7 +175,7 @@ export function useChatResponseHandler() {
     session: ChatSession,
     nodeId: string,
     error: unknown,
-    context: string
+    userMessage: string
   ): void => {
     const errorNode = session.nodes[nodeId];
     if (!errorNode) return;
@@ -190,7 +190,7 @@ export function useChatResponseHandler() {
 
     errorHandler.handle((error as Error) || new Error(String(error)), {
       level: ErrorLevel.ERROR,
-      userMessage: `${context}失败`,
+      userMessage,
       showToUser: false,
       context: { nodeId, originalError: error },
     });

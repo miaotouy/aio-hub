@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "@/i18n";
 import { Bot, Check, User } from "lucide-vue-next";
 import type { ChatMessageNode } from "../types";
 
@@ -8,6 +9,9 @@ const props = defineProps<{
   siblings: ChatMessageNode[];
   currentSiblingIndex: number;
 }>();
+
+const { tRaw } = useI18n();
+const t = (key: string) => tRaw(`tools.llm-chat.BranchSelector.${key}`);
 
 const emit = defineEmits<{
   (e: "update:show", value: boolean): void;
@@ -22,9 +26,9 @@ const visible = computed({
 const getPreview = (message: ChatMessageNode) => {
   const text = message.content.replace(/\s+/g, " ").trim();
   if (text) return text.length > 92 ? `${text.slice(0, 92)}...` : text;
-  if (message.status === "generating") return "生成中...";
-  if (message.status === "error") return message.metadata?.error || "发送失败";
-  return "空消息";
+  if (message.status === "generating") return t("生成中...");
+  if (message.status === "error") return message.metadata?.error || t("发送失败");
+  return t("空消息");
 };
 
 const formatTime = (timestamp?: string) => {
@@ -50,7 +54,7 @@ const handleSwitch = (nodeId: string) => {
     <div class="branch-selector">
       <div class="drawer-handle"></div>
       <div class="selector-header">
-        <div class="title">选择分支</div>
+        <div class="title">{{ t("选择分支") }}</div>
         <div class="count">
           {{ currentSiblingIndex + 1 }} / {{ siblings.length }}
         </div>
@@ -72,7 +76,7 @@ const handleSwitch = (nodeId: string) => {
           <div class="branch-body">
             <div class="branch-meta">
               <span class="branch-title">
-                {{ sibling.role === "user" ? "用户消息" : "助手回复" }}
+                {{ sibling.role === "user" ? t("用户消息") : t("助手回复") }}
                 #{{ index + 1 }}
               </span>
               <span v-if="formatTime(sibling.timestamp)" class="branch-time">

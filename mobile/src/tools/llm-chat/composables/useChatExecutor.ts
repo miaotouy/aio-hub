@@ -44,6 +44,7 @@ export function useChatExecutor() {
   const { settings, loadSettings } = useChatSettings();
   const { tRaw } = useI18n();
   const t = (key: string) => tRaw(`tools.llm-chat.TokenUsage.${key}`);
+  const chatT = (key: string) => tRaw(`tools.llm-chat.ChatView.${key}`);
 
   /**
    * 执行对话请求
@@ -65,7 +66,7 @@ export function useChatExecutor() {
         availability
       );
       if (unavailable.length) {
-        customMessage("所选附件原件已被清理或缺失，请移除后重试", "warning");
+        customMessage(chatT("所选附件不可用提示"), "warning");
         return false;
       }
     }
@@ -172,7 +173,10 @@ export function useChatExecutor() {
         }
         if (unavailableHistoryCount) {
           customMessage(
-            `已跳过 ${unavailableHistoryCount} 个原件不可用的历史附件`,
+            chatT("跳过不可用历史附件").replace(
+              "{count}",
+              String(unavailableHistoryCount)
+            ),
             "warning"
           );
         }
@@ -279,7 +283,7 @@ export function useChatExecutor() {
         });
       }
     } catch (error: any) {
-      handleNodeError(session, assistantNode.id, error, "对话执行");
+      handleNodeError(session, assistantNode.id, error, chatT("对话执行失败"));
     } finally {
       chatStore.isSending = false;
       session.updatedAt = new Date().toISOString();

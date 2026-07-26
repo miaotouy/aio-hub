@@ -443,7 +443,8 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - [x] 本地角色大厅与基础编辑
 - [ ] 用户档案管理
 - [x] 智能体预设加载
-- [ ] 执行预设消息的 `injectionStrategy` 和 `modelMatch`
+- [x] 执行预设消息的 `injectionStrategy` 和 `modelMatch`
+- [ ] 迁移完整宏引擎：桌面端必须一起注册工具、Recall、Knowledge、资产和 CSS 宏；移动端缺少 `tool-calling`、Recall、Knowledge 与兼容变量/用户档案契约，不能用子集或空实现替代
 - [x] 聊天内切换 Agent（顶部选择器仅更新会话绑定；历史节点保留原快照，后续助手消息保存 Agent 和模型/渠道快照）
 - [x] 将 Agent 开局消息实例化到新会话（根节点兄弟分支、默认开局选择和旧字符串兼容；宏与私有附件仍待依赖能力）
 

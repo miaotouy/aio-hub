@@ -10,7 +10,12 @@ import { join } from "@tauri-apps/api/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
-import type { AgentIndexItem, AgentsIndex, ChatAgent } from "../types/agent";
+import {
+  normalizeAgentCategory,
+  type AgentIndexItem,
+  type AgentsIndex,
+  type ChatAgent,
+} from "../types/agent";
 
 const MODULE_NAME = "agent-manager";
 const INDEX_VERSION = "1.1.0";
@@ -105,7 +110,11 @@ export function useAgentStorage() {
     try {
       const path = await getAgentPath(agentId);
       if (!(await exists(path))) return null;
-      return JSON.parse(await readTextFile(path)) as ChatAgent;
+      const agent = JSON.parse(await readTextFile(path)) as ChatAgent;
+      const normalizedCategory = normalizeAgentCategory(agent.category);
+      return normalizedCategory === undefined || normalizedCategory === agent.category
+        ? agent
+        : { ...agent, category: normalizedCategory };
     } catch (error) {
       errorHandler.handle(error as Error, {
         userMessage: "加载智能体失败",

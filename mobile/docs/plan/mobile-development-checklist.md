@@ -28,7 +28,7 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 - [x] 完成 `injectionStrategy` 和 `modelMatch` 的运行时执行；默认、深度/高级深度、锚点和模型/渠道匹配已接入，宏与 Agent 私有附件仍待后续处理器补齐。
 - [ ] 将 Agent 开局消息实例化到新会话。
 - [ ] 增加聊天内切换 Agent，并保持历史消息的 Agent 快照语义。
-- [ ] 同步移动端与 PC 的显式 Agent 类型、分类枚举和 `defaultGreetingId`。
+- [x] 同步移动端与 PC 的显式 Agent 类型、分类枚举和 `defaultGreetingId`；加载旧持久化 `custom` 分类时归一化到 `other`，写入与筛选统一使用桌面端枚举。
 - [ ] 在上下文管线稳定后再实施用户档案注入、完整参数编辑和 Agent 私有资产。
 
 入口：[`mobile-agent-manager-plan.md`](./mobile-agent-manager-plan.md)、[`agent-manager/ARCHITECTURE.md`](../../src/tools/agent-manager/ARCHITECTURE.md)。

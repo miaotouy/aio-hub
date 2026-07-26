@@ -46,5 +46,5 @@ AgentList --route query(agentId)--> ChatHome
 
 ## 当前边界
 
-- **已支持**：基础 CRUD、搜索与分类筛选、模型绑定、会话绑定、预设注入，以及完整预设消息编辑器体系（多轮消息、消息组、注入策略、模型匹配、触摸排序、批量管理、Rust o200k Token 估算、AIO/SillyTavern 导入与预设导入导出）。
+- **已支持**：基础 CRUD、搜索与分类筛选、模型绑定、会话绑定、预设注入，以及完整预设消息编辑器体系（多轮消息、消息组、注入策略、模型匹配、触摸排序、批量管理、Rust o200k Token 估算、AIO/SillyTavern 导入与预设导入导出）。分类采用与桌面端一致的 `AgentCategory` 枚举；历史 `custom` 在加载时归一化为 `other`，未知未来值仍保留在完整 Agent 对象中。
 - **待移植**：Agent 私有头像与资产管理、完整参数编辑和用户档案。私有资产不得以全局 `assetId` 代替 Handle 或相对路径。

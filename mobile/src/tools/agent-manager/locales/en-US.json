@@ -23,7 +23,9 @@
     "助手": "Assistant",
     "角色": "Character",
     "专家": "Expert",
-    "自定义": "Custom"
+    "创意": "Creative",
+    "工作流": "Workflow",
+    "其他": "Other"
   },
   "AgentDetail": {
     "显示名称": "Display name",

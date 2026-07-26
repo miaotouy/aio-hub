@@ -17,7 +17,7 @@ import { customDialog, customMessage } from "@/utils/feedback";
 import { useLlmProfilesStore } from "@/tools/llm-api/stores/llmProfiles";
 import { useAgentImporter } from "../composables/useAgentImporter";
 import { useAgentStore } from "../stores/agentStore";
-import type { AgentCategory, ChatAgent } from "../types/agent";
+import { AgentCategory, type ChatAgent } from "../types/agent";
 
 const router = useRouter();
 const agentStore = useAgentStore();
@@ -201,17 +201,23 @@ async function importAgents(event: Event): Promise<void> {
         <option value="all">
           {{ tRaw("tools.agent-manager.AgentList.全部分类") }}
         </option>
-        <option value="assistant">
+        <option :value="AgentCategory.Assistant">
           {{ tRaw("tools.agent-manager.AgentList.助手") }}
         </option>
-        <option value="character">
+        <option :value="AgentCategory.Character">
           {{ tRaw("tools.agent-manager.AgentList.角色") }}
         </option>
-        <option value="expert">
+        <option :value="AgentCategory.Expert">
           {{ tRaw("tools.agent-manager.AgentList.专家") }}
         </option>
-        <option value="custom">
-          {{ tRaw("tools.agent-manager.AgentList.自定义") }}
+        <option :value="AgentCategory.Creative">
+          {{ tRaw("tools.agent-manager.AgentList.创意") }}
+        </option>
+        <option :value="AgentCategory.Workflow">
+          {{ tRaw("tools.agent-manager.AgentList.工作流") }}
+        </option>
+        <option :value="AgentCategory.Other">
+          {{ tRaw("tools.agent-manager.AgentList.其他") }}
         </option>
       </select>
     </div>

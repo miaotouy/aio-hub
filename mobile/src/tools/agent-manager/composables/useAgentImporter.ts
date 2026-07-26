@@ -1,4 +1,4 @@
-import type { ChatAgent, PresetMessage } from "../types/agent";
+import { AgentCategory, type ChatAgent, type PresetMessage } from "../types/agent";
 
 export type ImportedAgentDraft = Partial<ChatAgent> & Pick<ChatAgent, "name">;
 
@@ -123,7 +123,7 @@ function convertSillyTavernCard(card: UnknownRecord): ImportedAgentDraft {
     displayName: name,
     description:
       readString(data, "description") || readString(data, "creator_notes"),
-    category: "character",
+    category: AgentCategory.Character,
     icon: "Bot",
     presetMessages: messages,
     presetGroups: [],

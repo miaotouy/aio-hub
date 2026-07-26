@@ -6,6 +6,7 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createConfigManager } from "@/utils/configManager";
 import { sessionLoader } from "../core/pipeline/processors/session-loader";
 import { userProfileInjector } from "../core/pipeline/processors/user-profile-injector";
+import { regexProcessor } from "../core/pipeline/processors/regex-processor";
 import { injectionAssembler } from "../core/pipeline/processors/injection-assembler";
 import { messageFormatter } from "../core/pipeline/processors/message-formatter";
 import { tokenLimiter } from "../core/pipeline/processors/token-limiter";
@@ -33,6 +34,7 @@ const getInitialProcessors = (): ContextProcessor[] => {
   return [
     sessionLoader,
     userProfileInjector,
+    regexProcessor,
     injectionAssembler,
     tokenLimiter,
     messageFormatter,

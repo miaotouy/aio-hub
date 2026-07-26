@@ -40,6 +40,8 @@ llm-chat/
 │   └── pipeline/
 │       └── processors/
 │           ├── session-loader.ts       # 管道处理器：会话历史加载器
+│           ├── user-profile-injector.ts # 管道处理器：基础档案系统上下文
+│           ├── regex-processor.ts      # 管道处理器：导入 Agent 请求正则
 │           ├── injection-assembler.ts  # 管道处理器：预设/深度/锚点组装器
 │           ├── message-formatter.ts    # 管道处理器：合并/角色格式化
 │           └── token-limiter.ts        # 管道处理器：文本历史 Token 截断
@@ -206,7 +208,15 @@ Actions:
    ├── 过滤掉空内容和根节点
    └── 转换为 ProcessableMessage[] 放入 context.messages
 
-2. primary:injection-assembler (priority: 400)
+2. primary:user-profile-injector (priority: 200)
+   └── 将启用的 Agent 绑定或全局默认基础档案注入为历史前的系统上下文
+
+3. primary:regex-processor (priority: 300)
+   ├── 读取导入 Agent 的 `regexConfig`，按预设优先级、角色与消息深度应用 request 规则
+   ├── 仅改写文本或多模态消息的 text part；无效规则记录日志但不会阻断请求
+   └── 脚本类型规则不会在移动端执行；全局/用户档案正则 UI 仍待完整桌面契约迁移
+
+4. primary:injection-assembler (priority: 400)
    ├── 读取会话绑定的 ChatAgent，过滤禁用消息和禁用消息组
    ├── 将默认预设作为骨架，并以 `chat_history` 占位符切分前后位置
    ├── 按 order 组装锚点注入，并按深度/高级深度规则插入会话历史
@@ -220,7 +230,7 @@ LlamaChatView.send() → useChatExecutor.execute()
   → 输出 messages[] 给 llmRequest.sendRequest()
 ```
 
-**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载、预设注入组装和最终消息格式化；预设支持默认、深度、高级深度、锚点与模型匹配，格式化支持模型默认规则与 Agent 覆盖的 system 合并、连续角色合并、system 转 user 和角色交替。宏替换、私有预设附件、变量、世界书、召回仍待逐个复制与移动端适配。Token 限制器仅计算文本；附件、工具 schema 和其他多模态额外开销继续由独立估算处理。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
+**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载、基础用户档案注入、导入 Agent 的 request 阶段正则、预设注入组装和最终消息格式化；预设支持默认、深度、高级深度、锚点与模型匹配，格式化支持模型默认规则与 Agent 覆盖的 system 合并、连续角色合并、system 转 user 和角色交替。正则仅兼容已持久化的 Agent `regexConfig`，不执行脚本替换，完整全局/用户档案正则、宏替换、私有预设附件、变量、世界书、召回仍待逐个复制与移动端适配。Token 限制器仅计算文本；附件、工具 schema 和其他多模态额外开销继续由独立估算处理。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
 
 ### 4.3. Token 统计与上下文预警
 
@@ -392,7 +402,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - [x] PipelineContext 定义
 - [x] ContextProcessor 接口
 - [x] 处理器注册/注销/排序/启用
-- [x] 核心处理器：session-loader、user-profile-injector（基础档案系统上下文）、injection-assembler（默认、深度、高级深度、锚点和模型匹配）、token-limiter（文本历史预算）、message-formatter（最终角色格式化）
+- [x] 核心处理器：session-loader、user-profile-injector（基础档案系统上下文）、regex-processor（导入 Agent 的请求正则，不执行脚本规则）、injection-assembler（默认、深度、高级深度、锚点和模型匹配）、token-limiter（文本历史预算）、message-formatter（最终角色格式化）
 - [x] 待处理器的执行、日志和共享黑板
 
 ### ✅ Agent 对话接入
@@ -432,6 +442,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 ### 🔄 管道处理器
 
 - [ ] `macros-renderer`：宏替换/模板渲染
+- [x] `regex-processor`：兼容导入 Agent 的 request 阶段文本正则，按预设优先级、角色和消息深度执行；脚本规则与全局/用户档案配置仍待独立能力
 - [x] `message-formatter`：模型默认规则与 Agent 覆盖的消息合并、角色转换和交替补位
 - [x] `injection-assembler`：默认、深度/高级深度和锚点预设组装；私有预设附件待 Agent 资源包完成后接入
 - [x] `user-profile-injector`：启用的 Agent 绑定或全局默认基础档案在历史前以 `<user_profile>` 系统上下文注入；完整桌面用户档案宏契约仍不在此范围

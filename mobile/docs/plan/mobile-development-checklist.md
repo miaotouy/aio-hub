@@ -31,6 +31,7 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 - [x] 增加聊天内切换 Agent，并保持历史消息的 Agent 快照语义：会话仅更新 `displayAgentId`；既有节点不改写，新生成的助手消息固化 Agent 身份和模型/渠道快照。
 - [x] 同步移动端与 PC 的显式 Agent 类型、分类枚举和 `defaultGreetingId`；加载旧持久化 `custom` 分类时归一化到 `other`，写入与筛选统一使用桌面端枚举。
 - [x] 在上下文管线稳定后完成基础用户档案注入，以及移动端当前请求链路支持的 Agent 参数编辑（生成参数、停止序列、Token 预算和截断保留字符）；完整桌面宏/用户档案契约、工具/Recall/Knowledge 参数和 Agent 私有资产仍依赖各自领域能力，不能以空 UI 替代。
+- [x] 已迁移导入 Agent `regexConfig` 的 request 阶段文本正则：按预设优先级、角色和消息深度执行，支持多模态 text part；脚本规则保持禁用，全局/用户档案正则编辑和宏替换仍待完整桌面契约。
 
 入口：[`mobile-agent-manager-plan.md`](./mobile-agent-manager-plan.md)、[`agent-manager/ARCHITECTURE.md`](../../src/tools/agent-manager/ARCHITECTURE.md)。
 

@@ -171,6 +171,11 @@ function resolveImageUrl(url: string) {
   return url;
 }
 
+function isCodeFenceClosed(raw: unknown) {
+  if (typeof raw !== "string") return true;
+  return /(?:^|\n)\s*(?:`{3,}|~{3,})\s*$/.test(raw.trimEnd());
+}
+
 function isSafeLinkUrl(url: unknown): url is string {
   if (typeof url !== "string") return false;
   const normalized = url.trim();
@@ -248,6 +253,8 @@ async function copyCode(code: string, index: number) {
               token.type === 'code' && token.lang?.toLowerCase() === 'mermaid'
             "
             :content="token.text"
+            :is-streaming="isStreaming"
+            :is-complete="isCodeFenceClosed(token.raw)"
           />
 
           <!-- 4. 代码块 -->

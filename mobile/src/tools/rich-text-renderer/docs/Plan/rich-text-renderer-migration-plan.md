@@ -64,7 +64,7 @@ RichTextRenderer 可以独立工作树并行开发。建议工作树只修改：
 - [x] 已接入 KaTeX 行内/块级公式，并在思考块内复用；`trust: false`，失败时不执行 HTML 或脚本。
 - [x] 已实现桌面默认 `<think>` / `<guguthink>` 的移动端折叠块和未闭合流式状态；不提前伪造自定义规则 UI 或完整 AST/Patch 管线。
 - [ ] 等待移动端媒体组件按已收敛方案完成资产管理器实现与交互验证后，再接入图片、视频和音频节点；不直接复制 PC 的 `BaseDialog`、`ImageViewer`、`AudioPlayer`、`VideoPlayer` 或桌面 composable。
-- [ ] 已实现 Mermaid fenced code 的安全基础渲染：运行时按需加载 Mermaid，固定 `securityLevel: "strict"`，解析 SVG 后以 DOM 挂载并清除事件属性及非片段链接；渲染失败保留原始代码。尚未迁移缩放、导出、自动修复、HTML 交互预览、样式隔离和 CDN 本地化，高级交互仍须按移动端能力分批启用。
+- [ ] 已实现 Mermaid fenced code 的安全基础渲染：运行时按需加载 Mermaid，固定 `securityLevel: "strict"`，解析 SVG 后以 DOM 挂载并清除事件属性及非片段链接；流式未闭合 fenced code 仅显示等待状态，渲染失败保留原始代码。尚未迁移缩放、导出、自动修复、HTML 交互预览、样式隔离和 CDN 本地化，高级交互仍须按移动端能力分批启用。
 - [x] 当前移动端已禁用 raw `v-html`，并拒绝锚点、HTTP(S) 与 `mailto:` 之外的 Markdown 链接协议：未受信任 HTML token 仅以字面文本显示，不产生 DOM 节点或脚本执行面。
 - [ ] 后续如需启用 HTML 输出，必须先实现可审计的白名单或沙箱；不得恢复直接 `v-html`。
 - [ ] 完成长消息、流式输出、窄屏布局、滚动稳定性和内存释放验证。

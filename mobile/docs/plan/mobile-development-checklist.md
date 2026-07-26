@@ -52,7 +52,7 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 - [ ] 迁移非媒体节点和 LLM 专用节点：代码与 VCP；媒体节点等待移动端媒体契约稳定后接入。
 - [x] 已接入 KaTeX 数学公式节点：支持行内 `$...$` 和块级 `$$...$$`，思考块内同样可用；KaTeX 关闭 trust，渲染失败回退为文本。
 - [x] 已先迁移桌面默认的 `<think>` / `<guguthink>` 思考块：完整块默认折叠，流式未闭合块保持可见的“思考中”状态；自定义规则 UI、完整 AST/Patch 语义仍待后续阶段。
-- [ ] 已接入 Mermaid fenced code 的安全基础渲染：组件按需加载 Mermaid、使用 `securityLevel: "strict"`，以清洗后的 SVG DOM 挂载并仅保留片段引用；渲染失败回退原始代码。缩放、导出、HTML 交互预览、样式隔离与 CDN 本地化仍待后续评估，且不把 PC 全量交互能力作为初始合并条件。
+- [ ] 已接入 Mermaid fenced code 的安全基础渲染：组件按需加载 Mermaid、使用 `securityLevel: "strict"`，以清洗后的 SVG DOM 挂载并仅保留片段引用；流式未闭合 fenced code 保持等待状态，渲染失败回退原始代码。缩放、导出、HTML 交互预览、样式隔离与 CDN 本地化仍待后续评估，且不把 PC 全量交互能力作为初始合并条件。
 - [x] 已关闭移动端现存的 raw `v-html` 渲染，并将 Markdown 链接限制为锚点、HTTP(S) 与 `mailto:`：HTML token 仅按字面文本显示，避免未受信任内容在聊天内执行。
 - [ ] 后续如需重新启用 HTML 能力，必须先实现可审计的白名单或沙箱，不能恢复直接 `v-html`。
 - [ ] 完成窄屏、长消息、流式输出、滚动和内存释放验证。

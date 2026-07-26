@@ -68,8 +68,9 @@ After`,
       global: {
         stubs: {
           MermaidDiagram: {
-            props: ["content"],
-            template: '<div class="mermaid-diagram-stub">{{ content }}</div>',
+            props: ["content", "isStreaming", "isComplete"],
+            template:
+              '<div class="mermaid-diagram-stub" :data-streaming="isStreaming" :data-complete="isComplete">{{ content }}</div>',
           },
         },
       },
@@ -77,6 +78,9 @@ After`,
 
     expect(wrapper.get(".mermaid-diagram-stub").text()).toContain(
       "graph TD\nA --> B"
+    );
+    expect(wrapper.get(".mermaid-diagram-stub").attributes("data-complete")).toBe(
+      "true"
     );
     expect(wrapper.find(".code-block-container").exists()).toBe(false);
   });

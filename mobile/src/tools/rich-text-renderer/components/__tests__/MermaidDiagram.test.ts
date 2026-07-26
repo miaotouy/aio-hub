@@ -38,6 +38,27 @@ describe("MermaidDiagram", () => {
     expect(wrapper.text()).toContain("Safe");
   });
 
+  it("waits for an unfinished streaming fence before rendering", async () => {
+    mermaid.render.mockResolvedValue({ svg: "<svg><text>Ready</text></svg>" });
+    const wrapper = mount(MermaidDiagram, {
+      props: {
+        content: "graph TD\nA --> B",
+        isStreaming: true,
+        isComplete: false,
+      },
+    });
+
+    await flushPromises();
+
+    expect(mermaid.render).not.toHaveBeenCalled();
+    expect(wrapper.get(".mermaid-pending").text()).toContain("正在接收");
+
+    await wrapper.setProps({ isComplete: true });
+    await flushPromises();
+
+    expect(mermaid.render).toHaveBeenCalledOnce();
+    expect(wrapper.get("svg").text()).toContain("Ready");
+  });
   it("keeps Mermaid source visible when rendering fails", async () => {
     mermaid.render.mockRejectedValue(new Error("Invalid Mermaid"));
     const source = "graph TD\nA --> B";

@@ -1,17 +1,28 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("rich-text-renderer/mermaid");
 const errorHandler = createModuleErrorHandler("rich-text-renderer/mermaid");
 
-const props = defineProps<{
-  content: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    content: string;
+    isStreaming?: boolean;
+    isComplete?: boolean;
+  }>(),
+  {
+    isStreaming: false,
+    isComplete: true,
+  }
+);
 
 const containerRef = ref<HTMLElement | null>(null);
 const errorMessage = ref("");
+const isAwaitingCompletion = computed(
+  () => props.isStreaming && !props.isComplete
+);
 let renderRevision = 0;
 const renderId = `aio-mobile-mermaid-${crypto.randomUUID()}`;
 
@@ -76,10 +87,20 @@ async function renderDiagram() {
   if (result) logger.debug("Mermaid 图表渲染完成");
 }
 
-onMounted(() => void renderDiagram());
+function refreshDiagram() {
+  if (isAwaitingCompletion.value) {
+    renderRevision++;
+    errorMessage.value = "";
+    containerRef.value?.replaceChildren();
+    return;
+  }
+  void renderDiagram();
+}
+
+onMounted(refreshDiagram);
 watch(
-  () => props.content,
-  () => void renderDiagram()
+  () => [props.content, props.isStreaming, props.isComplete],
+  refreshDiagram
 );
 onBeforeUnmount(() => {
   renderRevision++;
@@ -89,7 +110,10 @@ onBeforeUnmount(() => {
 <template>
   <section class="mermaid-diagram">
     <div ref="containerRef" class="mermaid-canvas" aria-label="Mermaid 图表" />
-    <div v-if="errorMessage" class="mermaid-error" role="status">
+    <div v-if="isAwaitingCompletion" class="mermaid-pending" role="status">
+      正在接收 Mermaid 图表…
+    </div>
+    <div v-else-if="errorMessage" class="mermaid-error" role="status">
       {{ errorMessage }}
     </div>
     <pre
@@ -121,6 +145,7 @@ onBeforeUnmount(() => {
   margin: 0 auto;
 }
 
+.mermaid-pending,
 .mermaid-error {
   padding: 8px 12px;
   border-top: var(--border-width) solid var(--border-color);

@@ -23,6 +23,19 @@ export function normalizeAgentCategory(
     : undefined;
 }
 
+/**
+ * 开局消息不参与预设上下文装配；创建会话时会被实体化为根节点的子分支。
+ * 私有附件的可移植解析仍由 Agent 私有资产阶段负责。
+ */
+export interface GreetingMessage {
+  id: string;
+  name?: string;
+  content: string;
+  role: Extract<ChatMessageNode["role"], "assistant" | "user">;
+  attachments?: unknown[];
+  [key: string]: unknown;
+}
+
 export interface LlmParameters {
   temperature?: number;
   maxTokens?: number;
@@ -51,7 +64,7 @@ export interface AgentBaseConfig {
   description?: string;
   icon?: string;
   presetMessages?: PresetMessage[];
-  greetings?: unknown[];
+  greetings?: GreetingMessage[];
   /** 默认选中的开局消息 ID；保留桌面端显式字段。 */
   defaultGreetingId?: string;
   displayPresetCount?: number;

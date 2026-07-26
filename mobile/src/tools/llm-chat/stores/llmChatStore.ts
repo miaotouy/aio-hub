@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import type { ChatSession, ChatMessageNode } from "../types";
 import { useLlmProfilesStore } from "../../llm-api/stores/llmProfiles";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import {
   useSessionManager,
   type SessionIndexItem,
@@ -12,6 +13,7 @@ import { v4 as uuidv4 } from "uuid";
 import { createModuleLogger } from "@/utils/logger";
 import { recoverInterruptedChatMessages } from "../services/chatStorageCodec";
 import { parseSelectedModelValue } from "../utils/modelSelection";
+import { instantiateAgentGreetings } from "../services/greetingService";
 
 const logger = createModuleLogger("llm-chat/store");
 
@@ -121,6 +123,20 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+
+    if (agentId) {
+      const agentStore = useAgentStore();
+      if (!agentStore.isLoaded) await agentStore.init();
+      const agent = agentStore.getAgentById(agentId);
+      if (agent) {
+        instantiateAgentGreetings(session, agent);
+      } else {
+        logger.warn("Cannot instantiate greetings for a missing agent", {
+          sessionId,
+          agentId,
+        });
+      }
+    }
 
     currentSessionDetail.value = session;
     currentSessionId.value = sessionId;

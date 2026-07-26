@@ -118,6 +118,7 @@ type MessageType = "message" | string;
 - 采用**字典 + 指针**方式而非嵌套树，方便增减节点
 - `activeLeafId` 指向当前分支末端，配合 `parentId` 可回溯完整路径
 - `lastSelectedChildId` 实现分支记忆导航
+- 新建绑定 Agent 的会话会将有效开局消息固化为根节点下的兄弟分支，优先激活 `defaultGreetingId`；未迁移的宏和 Agent 私有附件不会在此阶段隐式处理
 
 ### 3.4. 可处理消息 (`types/context.ts`)
 
@@ -443,7 +444,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - [x] 智能体预设加载
 - [ ] 执行预设消息的 `injectionStrategy` 和 `modelMatch`
 - [ ] 聊天内切换 Agent
-- [ ] 将 Agent 开局消息实例化到新会话
+- [x] 将 Agent 开局消息实例化到新会话（根节点兄弟分支、默认开局选择和旧字符串兼容；宏与私有附件仍待依赖能力）
 
 ### 🔄 体验优化
 

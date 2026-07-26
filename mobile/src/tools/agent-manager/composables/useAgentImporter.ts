@@ -1,4 +1,10 @@
-import { AgentCategory, type ChatAgent, type PresetMessage } from "../types/agent";
+import { v4 as uuidv4 } from "uuid";
+import {
+  AgentCategory,
+  type ChatAgent,
+  type GreetingMessage,
+  type PresetMessage,
+} from "../types/agent";
 
 export type ImportedAgentDraft = Partial<ChatAgent> & Pick<ChatAgent, "name">;
 
@@ -110,12 +116,22 @@ function convertSillyTavernCard(card: UnknownRecord): ImportedAgentDraft {
     );
   }
 
-  const alternateGreetings = Array.isArray(data.alternate_greetings)
-    ? data.alternate_greetings.filter(
-        (item): item is string => typeof item === "string"
-      )
-    : [];
-  const firstMessage = readString(data, "first_mes");
+  const greetingContents = [
+    readString(data, "first_mes"),
+    ...(Array.isArray(data.alternate_greetings)
+      ? data.alternate_greetings.filter(
+          (item): item is string => typeof item === "string"
+        )
+      : []),
+  ].filter((content) => content.trim());
+  const greetings: GreetingMessage[] = greetingContents.map(
+    (content, index) => ({
+      id: uuidv4(),
+      name: index === 0 ? "First Message" : `Alternate Greeting ${index}`,
+      content,
+      role: "assistant",
+    })
+  );
 
   return {
     version: 2,
@@ -127,7 +143,7 @@ function convertSillyTavernCard(card: UnknownRecord): ImportedAgentDraft {
     icon: "Bot",
     presetMessages: messages,
     presetGroups: [],
-    greetings: [firstMessage, ...alternateGreetings].filter(Boolean),
+    greetings,
   };
 }
 

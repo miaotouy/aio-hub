@@ -17,9 +17,19 @@ export interface ContextTokenUsage {
   criticalRatio: number;
 }
 
+export interface ChatMessageReference {
+  /** 被回复消息的稳定 ID；源消息删除后仍保留快照用于展示。 */
+  messageId: string;
+  role: MessageRole;
+  content: string;
+  timestamp?: string;
+}
+
 export interface ChatMessageMetadata {
   /** Allow storage round-trips to preserve fields added by newer clients. */
   [key: string]: unknown;
+  /** 用户输入所回复的消息快照。 */
+  replyTo?: ChatMessageReference;
   /** 使用的模型 ID */
   modelId?: string;
   /** 生成该消息时绑定的智能体 ID */

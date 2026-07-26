@@ -5,6 +5,10 @@ import type {
   ProcessableMessage,
 } from "../../../types";
 import type { ChatMessageNode } from "../../../types/message";
+import {
+  formatReplyReferenceContent,
+  isChatMessageReference,
+} from "../../../utils/replyReference";
 
 const logger = createModuleLogger("primary:session-loader");
 
@@ -69,7 +73,12 @@ export const sessionLoader: ContextProcessor = {
 
       const processableMessage: ProcessableMessage = {
         role: node.role as any,
-        content: node.content,
+        content: formatReplyReferenceContent(
+          isChatMessageReference(node.metadata?.replyTo)
+            ? node.metadata.replyTo
+            : undefined,
+          node.content
+        ),
         sourceType: "session_history",
         sourceId: node.id,
         _attachments: node.attachments?.map(

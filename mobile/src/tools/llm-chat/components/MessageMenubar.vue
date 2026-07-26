@@ -9,6 +9,7 @@ import {
   Trash2,
   Edit3,
   GitBranch,
+  Reply,
 } from "lucide-vue-next";
 import type { ChatMessageNode, ChatSession } from "../types";
 import { BranchNavigator } from "../utils/BranchNavigator";
@@ -23,6 +24,7 @@ const emit = defineEmits<{
   (e: "copy"): void;
   (e: "copy-error"): void;
   (e: "edit"): void;
+  (e: "reply"): void;
   (e: "regenerate"): void;
   (e: "delete"): void;
   (e: "close"): void;
@@ -67,6 +69,11 @@ const handleDelete = () => {
 
 const handleEdit = () => {
   emit("edit");
+  emit("close");
+};
+
+const handleReply = () => {
+  emit("reply");
   emit("close");
 };
 
@@ -124,6 +131,16 @@ const handleSwitchToBranch = (nodeId: string) => {
       </var-button>
       <var-button text round size="mini" class="menu-btn" @click="handleEdit">
         <Edit3 :size="14" />
+      </var-button>
+      <var-button
+        data-testid="message-reply"
+        text
+        round
+        size="mini"
+        class="menu-btn"
+        @click="handleReply"
+      >
+        <Reply :size="14" />
       </var-button>
       <var-button
         v-if="message.role === 'assistant'"

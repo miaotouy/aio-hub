@@ -12,7 +12,8 @@ import {
   showChatError,
   showChatSuccess,
 } from "../utils/chatFeedback";
-import type { ChatMessageNode } from "../types";
+import type { ChatMessageNode, ChatMessageReference } from "../types";
+import { createReplyReference } from "../utils/replyReference";
 import { Check, ChevronDown, ChevronLeft } from "lucide-vue-next";
 import { useRouter } from "vue-router";
 import MessageList from "../components/MessageList.vue";
@@ -35,6 +36,7 @@ const editingMessage = ref<ChatMessageNode | null>(null);
 const editContent = ref("");
 const showEditDialog = ref(false);
 const showAgentSelector = ref(false);
+const replyTo = ref<ChatMessageReference | null>(null);
 const activeAgent = computed(() =>
   agentStore.getAgentById(chatStore.currentSession?.displayAgentId)
 );
@@ -106,6 +108,10 @@ const scrollToBottom = () => {
   nextTick(() => {
     messageListRef.value?.scrollToBottom?.();
   });
+};
+
+const handleReply = (message: ChatMessageNode) => {
+  replyTo.value = createReplyReference(message);
 };
 
 const handleRegenerate = async (message: ChatMessageNode) => {
@@ -234,13 +240,18 @@ const goToChatHome = () => {
         @copy="handleCopy"
         @copy-error="handleCopyError"
         @edit="handleEdit"
+        @reply="handleReply"
         @regenerate="handleRegenerate"
         @delete="handleDelete"
         @switch-sibling="handleSwitchSibling"
         @switch-branch="handleSwitchBranch"
       />
 
-      <ChatInput class="chat-input-area" />
+      <ChatInput
+        class="chat-input-area"
+        :reply-to="replyTo"
+        @clear-reply="replyTo = null"
+      />
     </div>
 
     <var-popup v-model:show="showAgentSelector" position="bottom" round>

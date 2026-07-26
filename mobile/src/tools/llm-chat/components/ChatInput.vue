@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AlertTriangle, Send, Loader2, Paperclip, X } from "lucide-vue-next";
+import { AlertTriangle, Send, Loader2, Paperclip, Reply, X } from "lucide-vue-next";
 import { useLlmChatStore } from "../stores/llmChatStore";
 import { useKeyboardAvoidance } from "@/composables/useKeyboardAvoidance";
 import { useChatExecutor } from "../composables/useChatExecutor";
@@ -9,7 +9,17 @@ import { useChatSettings } from "../composables/useChatSettings";
 import { useI18n } from "@/i18n";
 import LlmModelSelector from "../../llm-api/components/LlmModelSelector.vue";
 import AssetPickerSheet from "./AssetPickerSheet.vue";
-import type { ChatMessageAttachment } from "../types";
+import type {
+  ChatMessageAttachment,
+  ChatMessageReference,
+} from "../types";
+
+const props = defineProps<{
+  replyTo?: ChatMessageReference | null;
+}>();
+const emit = defineEmits<{
+  (e: "clear-reply"): void;
+}>();
 
 const chatStore = useLlmChatStore();
 const { execute } = useChatExecutor();
@@ -38,6 +48,14 @@ const formattedRatio = computed(() =>
   usageRatio.value === undefined ? "" : `${Math.round(usageRatio.value * 100)}%`
 );
 const formatTokens = (value: number) => value.toLocaleString();
+const replyRoleLabel = (role: ChatMessageReference["role"]) =>
+  inputT(
+    role === "assistant"
+      ? "助手消息"
+      : role === "system"
+        ? "系统消息"
+        : "用户消息"
+  );
 
 const handleKeyDown = (e: KeyboardEvent) => {
   if (e.ctrlKey && e.key === "Enter") {
@@ -60,11 +78,13 @@ const handleSend = async () => {
       chatStore.currentSession,
       content,
       undefined,
-      attachments.value
+      attachments.value,
+      props.replyTo ?? undefined
     );
     if (accepted) {
       inputText.value = "";
       attachments.value = [];
+      emit("clear-reply");
     }
   }
 };
@@ -120,6 +140,26 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
           <i :style="{ width: meterWidth }" />
         </div>
       </div>
+    </div>
+
+    <div v-if="replyTo" class="reply-preview" data-testid="chat-reply-preview">
+      <Reply :size="16" aria-hidden="true" />
+      <div class="reply-preview-copy">
+        <strong>
+          {{
+            inputT("回复 {role}").replace("{role}", replyRoleLabel(replyTo.role))
+          }}
+        </strong>
+        <span>{{ replyTo.content }}</span>
+      </div>
+      <button
+        type="button"
+        class="reply-preview-dismiss"
+        :aria-label="inputT('取消回复')"
+        @click="emit('clear-reply')"
+      >
+        <X :size="16" />
+      </button>
     </div>
 
     <div class="input-container">
@@ -271,6 +311,52 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
 
 .context-usage.critical .context-meter i {
   background: var(--color-danger, #d14343);
+}
+
+.reply-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  color: var(--color-on-surface-variant);
+  background: var(--color-surface-container-low);
+}
+
+.reply-preview-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.reply-preview-copy strong,
+.reply-preview-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reply-preview-copy strong {
+  font-size: 0.74rem;
+  color: var(--color-primary);
+}
+
+.reply-preview-copy span {
+  font-size: 0.78rem;
+}
+
+.reply-preview-dismiss {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: inherit;
+  background: transparent;
 }
 
 .input-container {

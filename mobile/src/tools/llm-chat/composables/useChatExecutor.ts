@@ -10,6 +10,7 @@ import { useChatSettings } from "./useChatSettings";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import type {
   ChatMessageAttachment,
+  ChatMessageReference,
   ChatSession,
   PipelineContext,
   ChatMessageNode,
@@ -53,7 +54,8 @@ export function useChatExecutor() {
     session: ChatSession,
     userContent: string,
     parentNodeId?: string,
-    attachments: ChatMessageAttachment[] = []
+    attachments: ChatMessageAttachment[] = [],
+    replyTo?: ChatMessageReference
   ): Promise<boolean> {
     if (chatStore.isSending) return false;
 
@@ -108,6 +110,7 @@ export function useChatExecutor() {
         content: userContent,
         parentId: session.activeLeafId,
         attachments,
+        metadata: replyTo ? { replyTo } : undefined,
       });
       nodeManager.addNodeToSession(session, userNode);
       currentUserNodeId = userNode.id;

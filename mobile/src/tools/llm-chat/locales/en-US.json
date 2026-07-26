@@ -96,7 +96,12 @@
   "ChatInput": {
     "添加资产": "Add assets",
     "输入消息 (Ctrl+Enter 发送)...": "Enter a message (Ctrl+Enter to send)...",
-    "移除 {name}": "Remove {name}"
+    "移除 {name}": "Remove {name}",
+    "回复 {role}": "Replying to {role}",
+    "取消回复": "Cancel reply",
+    "用户消息": "user message",
+    "助手消息": "assistant message",
+    "系统消息": "system message"
   },
   "AssetPicker": {
     "无法读取资产列表": "Unable to load assets",
@@ -123,7 +128,11 @@
     "原件不可用": "Original unavailable",
     "预览 {kind}": "Preview {kind}",
     "AI 思考过程": "AI reasoning",
-    "发送失败": "Send failed"
+    "发送失败": "Send failed",
+    "回复 {role}": "Replying to {role}",
+    "用户消息": "user message",
+    "助手消息": "assistant message",
+    "系统消息": "system message"
   },
   "MessageList": {
     "开始新的对话": "Start a new chat",

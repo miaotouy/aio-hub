@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "@/i18n";
 import {
   AlertCircle,
@@ -12,11 +12,13 @@ import {
   FileText,
   FileVideo,
   Paperclip,
+  Reply,
 } from "lucide-vue-next";
 import MediaPreviewHost from "@/components/media/MediaPreviewHost.vue";
 import type { MediaItem } from "@/components/media/types";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import type { ChatMessageAttachment, ChatMessageNode } from "../types";
+import { isChatMessageReference } from "../utils/replyReference";
 import {
   getAttachmentAvailabilityMap,
   type ChatAttachmentAvailability,
@@ -30,6 +32,21 @@ const props = defineProps<{
 }>();
 
 const isReasoningExpanded = ref(true);
+const replyTo = computed(() =>
+  isChatMessageReference(props.message.metadata?.replyTo)
+    ? props.message.metadata.replyTo
+    : null
+);
+const replyRoleLabel = computed(() => {
+  if (!replyTo.value) return "";
+  return t(
+    replyTo.value.role === "assistant"
+      ? "助手消息"
+      : replyTo.value.role === "system"
+        ? "系统消息"
+        : "用户消息"
+  );
+});
 const attachmentAvailability = ref(
   new Map<string, ChatAttachmentAvailability>()
 );
@@ -124,6 +141,16 @@ const formatBytes = (value: number) => {
 
 <template>
   <div class="message-content">
+    <div v-if="replyTo" class="reply-reference" data-testid="message-reply-reference">
+      <Reply :size="15" aria-hidden="true" />
+      <div>
+        <strong>
+          {{ t("回复 {role}").replace("{role}", replyRoleLabel) }}
+        </strong>
+        <p>{{ replyTo.content }}</p>
+      </div>
+    </div>
+
     <div v-if="message.attachments?.length" class="attachment-list">
       <div
         v-for="attachment in message.attachments"

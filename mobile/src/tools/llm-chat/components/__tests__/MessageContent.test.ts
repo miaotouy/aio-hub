@@ -122,3 +122,29 @@ describe("MessageContent media attachments", () => {
     expect(wrapper.text()).toContain("原件已清理");
   });
 });
+
+
+describe("MessageContent reply references", () => {
+  it("renders the persisted reply snapshot without relying on the source node", () => {
+    const wrapper = mount(MessageContent, {
+      props: {
+        message: {
+          ...message([]),
+          content: "Follow-up",
+          metadata: {
+            replyTo: {
+              messageId: "deleted-source",
+              role: "assistant",
+              content: "Original reply snapshot",
+            },
+          },
+        },
+      },
+      global: { stubs: { RichTextRenderer: true, MediaPreviewHost: true } },
+    });
+
+    expect(wrapper.get('[data-testid="message-reply-reference"]').text()).toContain(
+      "Original reply snapshot"
+    );
+  });
+});

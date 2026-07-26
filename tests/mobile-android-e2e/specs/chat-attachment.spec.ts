@@ -133,6 +133,42 @@ async function sendFixture(context: ScenarioContext, timeoutMs: number) {
   const text = (await assistant.getText()).trim();
   if (!text)
     throw new Error("Attachment lane returned an empty assistant reply.");
+
+  await (await assistant.$(".content-body")).click();
+  await clickTestElement(context.driver, "message-reply");
+  const replyPreview = await testElement(context.driver, "chat-reply-preview");
+  if (!(await replyPreview.getText()).includes("Attachment verified")) {
+    throw new Error("Reply mode did not retain the selected message snapshot.");
+  }
+
+  await clickTestElement(context.driver, "chat-add-asset");
+  await testElement(context.driver, "chat-asset-picker");
+  const replyAssetRow = await context.driver.$(
+    `[data-testid="chat-asset-row"][data-asset-name="${context.fixtures.image.fileName}"]`
+  );
+  await replyAssetRow.waitForDisplayed({ timeout: 20_000 });
+  await replyAssetRow.click();
+  await clickTestElement(context.driver, "chat-asset-confirm");
+  await setInput(context, "chat-message-input", "Reply-mode Android E2E follow-up.");
+  await clickTestElement(context.driver, "chat-send");
+  const replyReference = await context.driver.$(
+    '[data-message-role="user"] [data-testid="message-reply-reference"]'
+  );
+  await replyReference.waitForDisplayed({ timeout: timeoutMs });
+  if (!(await replyReference.getText()).includes("Attachment verified")) {
+    throw new Error("Reply reference was not rendered on the sent user message.");
+  }
+  await context.driver.waitUntil(
+    async () =>
+      (await context.driver.$$(
+        '[data-testid="chat-message"][data-message-role="assistant"][data-message-status="complete"]'
+      ).length) >= 2,
+    {
+      timeout: timeoutMs,
+      timeoutMsg: "Reply-mode follow-up did not receive an assistant response.",
+    }
+  );
+
   const sessionId = await context.driver.execute(() => {
     const match = window.location.hash.match(/\/chat\/([^?]+)/);
     return match?.[1] ? decodeURIComponent(match[1]) : null;
@@ -186,6 +222,13 @@ export async function runDeterministicAttachmentScenario(
   const recoveredMessageCount = await recoveredMessages.length;
   if (recoveredMessageCount < 2) {
     throw new Error("Chat messages did not recover after app restart.");
+  }
+  const recoveredReplyReference = await context.driver.$(
+    '[data-message-role="user"] [data-testid="message-reply-reference"]'
+  );
+  await recoveredReplyReference.waitForDisplayed({ timeout: 20_000 });
+  if (!(await recoveredReplyReference.getText()).includes("Attachment verified")) {
+    throw new Error("Reply reference did not persist after the app restart.");
   }
   const recoveredAssistant = await context.driver.$(
     '[data-testid="chat-message"][data-message-role="assistant"]'

@@ -42,7 +42,16 @@ beforeEach(() => {
   clipboard.writeText.mockReset();
 });
 
-describe("MessageMenubar clipboard action", () => {
+describe("MessageMenubar actions", () => {
+  it("emits a reply selection and closes the active action bar", async () => {
+    const wrapper = mountMenubar();
+
+    await wrapper.get('[data-testid="message-reply"]').trigger("click");
+
+    expect(wrapper.emitted("reply")).toHaveLength(1);
+    expect(wrapper.emitted("close")).toHaveLength(1);
+  });
+
   it("writes message content through the native clipboard plugin", async () => {
     clipboard.writeText.mockResolvedValue(undefined);
     const wrapper = mountMenubar();

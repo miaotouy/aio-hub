@@ -116,7 +116,7 @@ AppData/assets/
 ## 12. 后续门禁
 
 - Android 预览 token 自然过期已在 `emulator-5558` 真实 WebView 验证；iOS scheme/HEAD/Range/CORS/撤销仍受编译与设备条件门禁约束。
-- 新媒体组件的 jsdom 自动化只验证生命周期和 DOM 交互契约；图片手势、视频全屏 fallback、音频播放、横竖屏、安全区和快速切换仍需在 Android AVD 与真机复验。
+- 新媒体组件的 jsdom 自动化只验证生命周期和 DOM 交互契约。2026-07-26 已在 `emulator-5554`（`Medium_Phone_API_36`）以 APK 端到端回归资产详情图片预览与聊天附件持久化链路；资产详情通过调用方可选的 `imageTestId` 暴露稳定图片元素标识。图片手势、视频全屏 fallback、音频播放、横竖屏、安全区和快速切换仍需在 Android AVD 与真机复验。
 - Android 真机需完成一次导入、预览、导出、删除影响和应用重启恢复主流程，并记录结果；不得用 emulator 或普通浏览器替代。
 - `ManagedAssetRef` 需完成一次真实上游模型附件发送验收；模型未配置时保持门禁未通过，不新增旁支功能。
 - 相机、分享进入 AIO、文件关联、批量/复杂格式文本化和其他消费者替代均属于 Phase 3，本轮不继续扩展。

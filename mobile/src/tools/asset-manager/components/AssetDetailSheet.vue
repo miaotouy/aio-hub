@@ -137,6 +137,7 @@ const createdAt = computed(() =>
           class="preview-stage"
           data-testid="asset-preview-ready"
           :item="mediaItem"
+          image-test-id="asset-preview-image"
           mode="inline"
         />
         <button

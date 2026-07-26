@@ -1,7 +1,7 @@
 # 移动端媒体组件设计方案
 
-> 状态：Phase 1 资产管理器原型与组件测试已完成，待设备验收和消费者接入
-> 最近核对：2026-07-24
+> 状态：Phase 1 资产管理器原型、组件测试与 Android AVD 资产/附件回归已完成；全面交互设备验收和消费者接入仍待进行
+> 最近核对：2026-07-26
 > 范围：图片、视频、音频的内联预览、沉浸式预览和播放；不把桌面组件缩小后直接移植
 > 关联文档：[`mobile-asset-manager-design.md`](./mobile-asset-manager-design.md)、[`mobile-development-checklist.md`](./mobile-development-checklist.md)、[`asset-manager/ARCHITECTURE.md`](../../src/tools/asset-manager/ARCHITECTURE.md)
 
@@ -213,7 +213,13 @@ closed
 - [x] 按本方案在资产管理器完成第一版真实原型。
 - [x] 为 `useManagedMediaPreview`、`MediaPreviewHost` 和三个媒体子组件补单测及组件测试。
 - [ ] 接入聊天附件和 RichTextRenderer，并保持各自现有错误/引用语义；资产详情已在 Phase 1 接通。
-- [ ] 完成 Android AVD 回归和 Android 真机报告；具备 iOS 条件后补充平台差异记录。
+- [ ] Android AVD 已通过资产预览及聊天附件的 APK 端到端回归；手势、播放、方向、安全区、快速切换和 Android 真机报告仍待完成。
 - [ ] 根据设备实测再决定是否增加方向锁定、后台音频、截图或更多原生能力；没有证据时不扩展公共 API。
 
 Phase 1 的实现位于 `mobile/src/components/media/`。自动化已覆盖 descriptor 迟到响应撤销、重复清理、过期重试、错误映射、host 先退沉浸层再关闭入口、图片缩放边界、视频 Fullscreen API fallback 和音频卸载暂停。图片下拉关闭、双指手势可用性、系统返回、方向切换和真实播放仍属于 Android AVD/真机门禁，不能由 jsdom 或浏览器构建结果替代。
+
+### 9.1 Android AVD 回归记录（2026-07-26）
+
+- `Medium_Phone_API_36`（`emulator-5554`，API 36，x86_64）安装单 ABI debug APK 后，`asset` preset 已覆盖资产详情打开图片、短期预览 URL 加载、关闭后的 URL 撤销；此前因通用图片查看器缺少稳定图片元素标识而失败，现由调用方可选 `imageTestId` 契约恢复。
+- 同一 APK 的 `attachment` preset 通过，覆盖附件导入、发送、请求附件匹配、应用重启恢复、usage 注册及删除会话后的 usage 释放。
+- 上述结果只构成受控工作流回归，不替代本节 Phase 2 的真实手势、视频/音频播放、方向、安全区、错误恢复和 Android 真机可用性验收。

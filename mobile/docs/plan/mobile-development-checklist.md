@@ -38,7 +38,7 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 
 - [x] 完成外部参考、资产管理器能力、PC 媒体组件和移动端消费者的联合调查，收敛组件边界与交互方案。
 - [x] 按方案先在资产管理器完成 `MediaPreviewHost`、图片/视频/音频组件和 descriptor 生命周期 composable。
-- [ ] 组件完成后先在 Android AVD 和 Android 真机验证手势冲突、返回、方向、安全区、全屏 fallback、快速切换和资源回收，并按可用性结果迭代。
+- [ ] Android AVD 的资产预览和聊天附件工作流已于 2026-07-26 通过 APK 端到端回归；仍需在 AVD 与 Android 真机验证手势冲突、返回、方向、安全区、全屏 fallback、快速切换和资源回收，并按可用性结果迭代。
 - [ ] 交互通过后接入聊天附件；稳定公共契约只保留资产详情、聊天和富文本实际需要的字段。
 - [ ] 具备 iOS 编译和设备条件后补验平台差异，不提前冻结方向锁定、后台播放或预览协议行为。
 
@@ -56,7 +56,7 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 
 入口：[`rich-text-renderer-migration-plan.md`](../../src/tools/rich-text-renderer/docs/Plan/rich-text-renderer-migration-plan.md)。
 
-当前可复用基础：资产服务已提供短期预览来源和主动撤销命令；`mobile/src/components/media/` 已落地统一 host、三类媒体主体和 descriptor 生命周期，`AssetDetailSheet` 已接入该入口。`MessageContent` 仍保留旧的图片预览实现，聊天和 RichTextRenderer 接线以及设备交互验收继续以 [`mobile-media-components-plan.md`](./mobile-media-components-plan.md) 为准。
+当前可复用基础：资产服务已提供短期预览来源和主动撤销命令；`mobile/src/components/media/` 已落地统一 host、三类媒体主体和 descriptor 生命周期，`AssetDetailSheet` 已接入该入口。资产详情通过可选 `imageTestId` 将稳定的图片元素标识限定在资产调用方，2026-07-26 的 Android AVD 已通过资产预览与聊天附件 APK 回归。`MessageContent` 仍保留旧的图片预览实现，聊天和 RichTextRenderer 接线以及其余设备交互验收继续以 [`mobile-media-components-plan.md`](./mobile-media-components-plan.md) 为准。
 
 ### P2：平台门禁与已落地能力的最终验收
 

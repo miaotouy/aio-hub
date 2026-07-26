@@ -28,6 +28,8 @@ const props = withDefaults(
     items?: MediaItem[];
     initialIndex?: number;
     mode?: MediaPreviewMode;
+    /** Optional caller-owned selector for the inline image element. */
+    imageTestId?: string;
   }>(),
   {
     items: undefined,
@@ -239,6 +241,7 @@ onBeforeUnmount(() => {
         v-if="currentItem.kind === 'image'"
         :src="managed.source.value.url"
         :alt="currentItem.displayName"
+        :image-test-id="imageTestId"
         @ready="managed.markReady"
         @error="managed.markMediaError"
         @open="setImmersive(true)"

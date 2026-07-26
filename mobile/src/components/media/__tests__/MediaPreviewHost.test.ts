@@ -45,6 +45,21 @@ afterEach(() => {
 });
 
 describe("MediaPreviewHost", () => {
+  it("passes its optional image selector to the inline viewer", async () => {
+    const wrapper = mount(MediaPreviewHost, {
+      props: {
+        modelValue: true,
+        item,
+        imageTestId: "caller-preview-image",
+      },
+    });
+    await flushPromises();
+
+    expect(wrapper.get("[data-testid='caller-preview-image']").attributes("src")).toBe(
+      "http://aio-asset.localhost/preview-1"
+    );
+  });
+
   it("closes the immersive layer before closing the inline host", async () => {
     const wrapper = mount(MediaPreviewHost, {
       attachTo: document.body,

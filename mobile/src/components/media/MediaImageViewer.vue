@@ -7,6 +7,8 @@ const props = withDefaults(
     src: string;
     alt: string;
     immersive?: boolean;
+    /** Optional caller-owned selector for the image element. */
+    imageTestId?: string;
   }>(),
   { immersive: false }
 );
@@ -187,6 +189,7 @@ watch(
     <img
       :src="src"
       :alt="alt"
+      :data-testid="imageTestId"
       draggable="false"
       :style="{ transform: imageTransform }"
       @load="emit('ready')"

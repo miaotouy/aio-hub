@@ -252,7 +252,7 @@ export function useChatExecutor() {
           frequencyPenalty: activeAgent?.parameters?.frequencyPenalty,
           presencePenalty: activeAgent?.parameters?.presencePenalty,
           stop: activeAgent?.parameters?.stop,
-          stream: true,
+          stream: settings.value.uiPreferences.isStreaming,
           timeout: settings.value.requestSettings.timeout,
           onStream: (chunk) => {
             handleStreamUpdate(session, assistantNode.id, chunk, false);

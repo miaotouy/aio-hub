@@ -12,6 +12,8 @@ import BranchSwitcher from "./BranchSwitcher.vue";
 const props = defineProps<{
   message: ChatMessageNode;
   isActive?: boolean;
+  /** Multiplier from the chat UI font-size preference. */
+  fontSize?: number;
 }>();
 
 const emit = defineEmits<{
@@ -32,8 +34,19 @@ const emit = defineEmits<{
 
 const chatStore = useLlmChatStore();
 const { settings } = useChatSettings();
-const { tRaw } = useI18n();
+const { tRaw, locale } = useI18n();
 const t = (key: string) => tRaw(`tools.llm-chat.TokenUsage.${key}`);
+const timestampLabel = computed(() => {
+  if (!props.message.timestamp) return null;
+
+  const timestamp = new Date(props.message.timestamp);
+  if (Number.isNaN(timestamp.getTime())) return null;
+
+  return new Intl.DateTimeFormat(locale.value, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(timestamp);
+});
 const tokenLabel = computed(() => {
   if (props.message.metadata?.contentTokenSource === "api") return t("实际");
   if (props.message.metadata?.contentTokenSource === "fallback")
@@ -50,6 +63,7 @@ const tokenLabel = computed(() => {
     :data-message-status="message.status"
     class="message-item"
     :class="[message.role, message.status, { 'is-active': isActive }]"
+    :style="{ '--chat-message-font-scale': fontSize ?? 1 }"
   >
     <!-- 头部：头像 + 信息 -->
     <div class="message-header">
@@ -59,12 +73,22 @@ const tokenLabel = computed(() => {
       </div>
       <div
         v-if="
-          message.role === 'assistant' && message.metadata?.modelDisplayName
+          settings.uiPreferences.showModelInfo &&
+          message.role === 'assistant' &&
+          message.metadata?.modelDisplayName
         "
         class="model-info"
       >
         {{ message.metadata.modelDisplayName }}
       </div>
+      <time
+        v-if="settings.uiPreferences.showTimestamp && timestampLabel"
+        class="timestamp-info"
+        :datetime="message.timestamp"
+        data-testid="chat-message-timestamp"
+      >
+        {{ timestampLabel }}
+      </time>
     </div>
 
     <div class="message-container">
@@ -171,6 +195,7 @@ const tokenLabel = computed(() => {
   position: relative;
   transition: all 0.2s ease;
   width: 100%;
+  font-size: calc(1rem * var(--chat-message-font-scale, 1));
   line-height: 1.6;
 }
 
@@ -189,7 +214,7 @@ const tokenLabel = computed(() => {
   background: transparent;
   border: none;
   color: var(--el-text-color-primary);
-  font-size: 1.05rem; /* AI 消息稍微大一点，方便阅读长文 */
+  font-size: calc(1.05rem * var(--chat-message-font-scale, 1));
 }
 
 .message-item.is-active .content-body {
@@ -207,11 +232,16 @@ const tokenLabel = computed(() => {
   justify-content: flex-end;
 }
 
-.model-info {
+.model-info,
+.timestamp-info {
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--el-text-color-secondary);
   opacity: 0.9;
+}
+
+.timestamp-info {
+  font-variant-numeric: tabular-nums;
 }
 
 .token-info {

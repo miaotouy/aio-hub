@@ -89,13 +89,15 @@ onMounted(async () => {
 watch(
   () => chatStore.currentActivePath.length,
   () => {
-    scrollToBottom();
+    if (settings.value.uiPreferences.autoScroll) {
+      scrollToBottom();
+    }
   }
 );
 
 // 监听键盘状态，键盘弹出时也尝试滚动到底部
 watch(isKeyboardVisible, (visible) => {
-  if (visible) {
+  if (visible && settings.value.uiPreferences.autoScroll) {
     setTimeout(scrollToBottom, 300);
   }
 });
@@ -226,6 +228,8 @@ const goToChatHome = () => {
       <MessageList
         ref="messageListRef"
         :messages="chatStore.currentActivePath"
+        :auto-scroll="settings.uiPreferences.autoScroll"
+        :font-size="settings.uiPreferences.fontSize"
         class="message-list-area"
         @copy="handleCopy"
         @copy-error="handleCopyError"
@@ -252,11 +256,15 @@ const goToChatHome = () => {
             :key="agent.id"
             type="button"
             class="agent-selector-item"
-            :class="{ active: agent.id === chatStore.currentSession?.displayAgentId }"
+            :class="{
+              active: agent.id === chatStore.currentSession?.displayAgentId,
+            }"
             @click="handleSelectAgent(agent.id)"
           >
             <span class="agent-selector-avatar">
-              {{ agent.icon?.length && agent.icon.length <= 4 ? agent.icon : "AI" }}
+              {{
+                agent.icon?.length && agent.icon.length <= 4 ? agent.icon : "AI"
+              }}
             </span>
             <span class="agent-selector-copy">
               <strong>{{ agent.displayName || agent.name }}</strong>

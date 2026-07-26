@@ -4,9 +4,19 @@ import { useThrottleFn } from "@vueuse/core";
 import type { ChatMessageNode } from "../types";
 import ChatMessage from "./ChatMessage.vue";
 
-const props = defineProps<{
-  messages: ChatMessageNode[];
-}>();
+const props = withDefaults(
+  defineProps<{
+    messages: ChatMessageNode[];
+    /** Controls only automatic scroll reactions; explicit navigation remains available. */
+    autoScroll?: boolean;
+    /** Multiplier persisted by the chat UI preference. */
+    fontSize?: number;
+  }>(),
+  {
+    autoScroll: true,
+    fontSize: 1,
+  }
+);
 
 const scrollContainerRef = ref<HTMLElement | null>(null);
 const activeMessageId = ref<string | null>(null);
@@ -76,7 +86,7 @@ watch(
       .map((msg) => `${msg.id}:${msg.content.length}:${msg.status}`)
       .join("|"),
   () => {
-    if (isNearBottom.value) {
+    if (props.autoScroll && isNearBottom.value) {
       scrollToBottom("auto");
     }
   }
@@ -86,7 +96,9 @@ watch(
   () => props.messages.map((msg) => msg.id).join("|"),
   () => {
     activeMessageId.value = null;
-    scrollToBottom("smooth");
+    if (props.autoScroll) {
+      scrollToBottom("smooth");
+    }
   }
 );
 
@@ -115,6 +127,7 @@ defineExpose({
         v-for="msg in messages"
         :key="msg.id"
         :message="msg"
+        :font-size="fontSize"
         :is-active="activeMessageId === msg.id"
         @click="handleMessageClick(msg.id)"
         @close="activeMessageId = null"

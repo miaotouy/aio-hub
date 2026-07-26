@@ -1,6 +1,6 @@
 # Guided Flow 引导模块设计方案
 
-> 状态：Phase 1 通用容器与 Phase 2 版本升级流程已实现；Phase 2 真实 Tauri 安装后重启验收待补；Phase 3–4 待后续接入
+> 状态：Phase 1–3 已实现；版本升级与知识库迁移的真实 Tauri 安装包/正式旧数据验收待补；Phase 4 待后续接入
 >
 > 日期：2026-07-25
 >
@@ -806,7 +806,7 @@ interface GuidedFlowOpenOptions {
 当前实现位于 `src/services/guided-flow/`、`src/stores/guidedFlowStore.ts` 和
 `src/components/common/GuidedFlow/`。通用运行时支持按优先级排队、可恢复流程、
 流程版本失配后的重新初始化、条件步骤重算、明确延后、显式跳过、终态事件和不污染
-持久化终态的只读回放。当前已注册版本升级流程；知识库迁移和首次设置仍待接入。
+持久化终态的只读回放。当前已注册版本升级与知识库迁移流程；首次设置仍待接入。
 
 ### Phase 2：版本升级流程（已实现）
 
@@ -818,13 +818,14 @@ interface GuidedFlowOpenOptions {
 - 已增加 release manifest 构建一致性检查及生命周期、跨版本、降级和回放测试；
 - Vite 生产构建已通过，真实 Tauri 安装后重启 smoke test 待发布候选包补验。
 
-### Phase 3：知识库迁移流程
+### Phase 3：知识库迁移流程（已实现）
 
-- 只读检测；
-- 迁移预览；
-- 明确确认；
-- 执行、校验、报告和恢复；
-- 独立的旧数据清理确认。
+- `RecallState::initialize()` 已移除旧用户数据自动导入，启动只初始化 schema、恢复新存储并记录待迁移来源；
+- 已增加 `recall_preview_legacy_migration` 与 `recall_run_legacy_migration`，执行前复核 migration ID、source fingerprint、用户确认和并发占用；
+- 已注册 `knowledge-migration` upgrade contribution，包含检测、方案、备份确认、执行、校验报告、独立清理和完成步骤；
+- 迁移执行通过专用事件报告阶段、集合、条目、待重建向量和问题数量，执行后重新 warmup Recall 内存读模型；
+- Knowledge 工具入口会显示待迁移摘要并可继续升级事项；关于页继续复用升级中心的待处理入口；
+- 已覆盖启动不自动导入、预览计数、迁移幂等和 contribution 确认/执行测试；正式旧数据夹具、真实 Tauri 中断恢复与安装包 smoke test 待发布候选包补验。
 
 ### Phase 4：首次设置和模块引导
 

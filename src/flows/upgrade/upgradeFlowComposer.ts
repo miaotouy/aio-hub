@@ -68,10 +68,15 @@ function wrapContributionStep(
   return {
     ...step,
     id: `contribution:${contribution.id}:${step.id}`,
-    when: (context) =>
-      context.mode === "automatic" &&
-      Boolean(context.contributions[contribution.id]) &&
-      (originalWhen?.(context) ?? true),
+    when: (context) => {
+      const contributionState = context.contributions[contribution.id];
+      return (
+        context.mode === "automatic" &&
+        Boolean(contributionState) &&
+        contributionState.status !== "unavailable" &&
+        (originalWhen?.(context) ?? true)
+      );
+    },
   };
 }
 

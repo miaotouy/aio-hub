@@ -17,12 +17,13 @@ import type { ReleaseNoteManifest } from "../types";
 
 export const releaseNoteV070Alpha1: ReleaseNoteManifest = {
   version: "0.7.0-alpha.1",
-  revision: 1,
+  revision: 2,
   channel: "prerelease",
   title: "统一升级引导基础设施",
   summary: "引入 Guided Flow、版本生命周期记录和本地版本说明入口。",
   publishedAt: "2026-07-25",
   body,
+  contributionIds: ["knowledge-migration"],
   highlights: [
     "统一的分步引导容器",
     "可恢复的版本说明流程",

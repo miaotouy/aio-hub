@@ -42,6 +42,22 @@ export class GuidedFlowRegistry {
     this.definitions.set(definition.id, definition as GuidedFlowDefinition);
   }
 
+  replace<TContext>(definition: GuidedFlowDefinition<TContext>): void {
+    const existing = this.definitions.get(definition.id);
+    if (!existing) {
+      this.register(definition);
+      return;
+    }
+
+    this.definitions.delete(definition.id);
+    try {
+      this.register(definition);
+    } catch (error) {
+      this.definitions.set(definition.id, existing);
+      throw error;
+    }
+  }
+
   get(id: string): GuidedFlowDefinition | undefined {
     return this.definitions.get(id);
   }

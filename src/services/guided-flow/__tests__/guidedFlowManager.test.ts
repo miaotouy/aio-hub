@@ -266,3 +266,30 @@ describe("GuidedFlowManager", () => {
     expect(loadCount).toBe(1);
   });
 });
+
+describe("GuidedFlowRegistry", () => {
+  it("replaces an existing definition after validating the new version", () => {
+    const registry = new GuidedFlowRegistry();
+    registry.register(createFlow("replaceable"));
+    const replacement = createFlow("replaceable");
+    replacement.version = "2.0.0";
+
+    registry.replace(replacement);
+
+    expect(registry.get("replaceable")?.version).toBe("2.0.0");
+  });
+
+  it("keeps the previous definition if replacement validation fails", () => {
+    const registry = new GuidedFlowRegistry();
+    registry.register(createFlow("replaceable"));
+    const invalid = createFlow("replaceable");
+    invalid.steps.push({
+      id: "start",
+      title: "duplicate",
+      component: TestStep,
+    });
+
+    expect(() => registry.replace(invalid)).toThrow(/重复/);
+    expect(registry.get("replaceable")?.version).toBe("1.0.0");
+  });
+});

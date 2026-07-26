@@ -88,36 +88,10 @@ impl RecallState {
 
         let repository = SqliteRecallRepository::new(app_data_dir);
         repository.initialize()?;
-        let importer = LegacyFileRecallImporter::new(app_data_dir, repository.clone());
-        if importer.has_legacy_source() {
-            let report = importer.import()?;
-            if report.main_status != "completed" {
-                return Err(format!(
-                    "旧 Recall 主数据迁移未完整完成（集合 {}/{}, 条目 {}/{}, 跳过 {}, 问题 {}），已阻止进入可写态",
-                    report.migrated_collections,
-                    report.source_collections,
-                    report.migrated_entries,
-                    report.source_entries,
-                    report.skipped_entries,
-                    report.issues.len()
-                ));
-            }
-            if report.vector_status != "completed" {
-                log::warn!(
-                    "[Recall] 旧向量迁移未完整完成，Recall 将使用已迁移主数据并等待向量重建: {}/{} migrated, {} pending, {} issues",
-                    report.migrated_vectors,
-                    report.source_vectors,
-                    report.pending_vectors,
-                    report.issues.len()
-                );
-            } else {
-                log::info!(
-                    "[Recall] 旧数据迁移完成: {} collections, {} entries, {} vectors",
-                    report.migrated_collections,
-                    report.migrated_entries,
-                    report.migrated_vectors
-                );
-            }
+        if LegacyFileRecallImporter::new(app_data_dir, repository.clone()).has_legacy_source() {
+            log::info!(
+                "[Recall] 检测到旧文件目录，启动阶段仅初始化新存储；等待用户通过 Guided Flow 明确确认迁移"
+            );
         }
         warmup_recall_repository(&repository, &self.imdb, &self.tag_pool)?;
 
@@ -135,6 +109,17 @@ impl RecallState {
             .map_err(|_| "获取 Recall repository 读锁失败".to_string())?
             .clone()
             .ok_or_else(|| "Recall repository 尚未初始化".to_string())
+    }
+
+    /// 在显式领域迁移完成后，从 SQLite 真源刷新内存读模型。
+    pub fn refresh_from_repository(&self) -> Result<(), String> {
+        let _guard = self
+            .lock
+            .lock()
+            .map_err(|_| "获取 Recall 刷新锁失败".to_string())?;
+        let repository = self.repository()?;
+        warmup_recall_repository(repository.as_ref(), &self.imdb, &self.tag_pool)?;
+        self.clear_retrieval_cache()
     }
 
     pub fn clear_retrieval_cache(&self) -> Result<(), String> {
@@ -232,7 +217,7 @@ mod tests {
     }
 
     #[test]
-    fn initialization_migrates_legacy_data_before_warmup() {
+    fn initialization_only_detects_legacy_data_without_importing() {
         let directory = tempdir().unwrap();
         let (recall_id, entry_id) = write_legacy_collection(directory.path());
         let state = RecallState::new();
@@ -240,15 +225,11 @@ mod tests {
         state.initialize(directory.path()).unwrap();
 
         let repository = state.repository().unwrap();
-        assert_eq!(
-            repository
-                .load_entry(recall_id, entry_id)
-                .unwrap()
-                .unwrap()
-                .content,
-            "legacy-content"
-        );
-        assert!(state.imdb.read().unwrap().bases.contains_key(&recall_id));
+        assert!(repository
+            .load_entry(recall_id, entry_id)
+            .unwrap()
+            .is_none());
+        assert!(!state.imdb.read().unwrap().bases.contains_key(&recall_id));
         let report = LegacyFileRecallImporter::new(
             directory.path(),
             SqliteRecallRepository::new(directory.path()),
@@ -256,34 +237,30 @@ mod tests {
         .inspect()
         .unwrap()
         .unwrap();
-        assert_eq!(report.main_status, "completed");
+        assert_eq!(report.main_status, "not_started");
 
         let restarted_state = RecallState::new();
         restarted_state.initialize(directory.path()).unwrap();
-        assert_eq!(
-            restarted_state
-                .repository()
-                .unwrap()
-                .load_entry(recall_id, entry_id)
-                .unwrap()
-                .unwrap()
-                .content,
-            "legacy-content"
-        );
+        assert!(restarted_state
+            .repository()
+            .unwrap()
+            .load_entry(recall_id, entry_id)
+            .unwrap()
+            .is_none());
     }
 
     #[test]
-    fn initialization_blocks_write_state_after_partial_main_migration() {
+    fn invalid_legacy_source_does_not_block_application_initialization() {
         let directory = tempdir().unwrap();
         let invalid_collection = get_recall_dir(directory.path(), &Uuid::new_v4().to_string());
         fs::create_dir_all(&invalid_collection).unwrap();
         fs::write(invalid_collection.join("meta.json"), b"not-json").unwrap();
         let state = RecallState::new();
 
-        let error = state.initialize(directory.path()).unwrap_err();
+        state.initialize(directory.path()).unwrap();
 
-        assert!(error.contains("已阻止进入可写态"));
-        assert!(state.repository().is_err());
+        assert!(state.repository().is_ok());
+        assert!(state.imdb.read().unwrap().bases.is_empty());
     }
 
     #[test]

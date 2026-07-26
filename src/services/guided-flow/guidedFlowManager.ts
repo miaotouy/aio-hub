@@ -219,6 +219,7 @@ export class GuidedFlowManager {
       }
 
       state.currentStepId = nextStep.id;
+      this.emit();
       await this.enterStep(definition, state, nextStep);
       await this.persistActiveState();
     });
@@ -239,6 +240,7 @@ export class GuidedFlowManager {
       const previousStep = visibleSteps[currentIndex - 1];
       runtime.state.currentStepId = previousStep.id;
       runtime.state.lastError = undefined;
+      this.emit();
       runtime.state.updatedAt = now();
       await this.enterStep(runtime.definition, runtime.state, previousStep);
       await this.persistActiveState();

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { getAppContext } from "@/config/appContext";
+import { registerKnowledgeMigrationContribution } from "@/flows/knowledge-migration";
 import {
   guidedFlowManager,
   guidedFlowRegistry,
@@ -117,6 +118,7 @@ async function detectContributions(
 
 async function initializeUpgradeFlowInternal(): Promise<void> {
   registerBuiltInReleaseNotes();
+  registerKnowledgeMigrationContribution();
   await guidedFlowManager.initialize();
 
   const currentVersion = normalizeAppVersion(getAppContext().appVersion);
@@ -147,17 +149,18 @@ async function initializeUpgradeFlowInternal(): Promise<void> {
     .filter((definition) => Boolean(contributions[definition.id]));
 
   if (compositionManifests.length > 0 || contributionDefinitions.length > 0) {
-    if (!guidedFlowRegistry.get(APP_UPGRADE_FLOW_ID)) {
-      guidedFlowRegistry.register(
-        composeUpgradeFlowDefinition({
-          currentVersion,
-          previousLaunchedVersion: lifecycle.lastLaunchedVersion,
-          transition,
-          manifests: compositionManifests,
-          contributions,
-          contributionDefinitions,
-        })
-      );
+    const definition = composeUpgradeFlowDefinition({
+      currentVersion,
+      previousLaunchedVersion: lifecycle.lastLaunchedVersion,
+      transition,
+      manifests: compositionManifests,
+      contributions,
+      contributionDefinitions,
+    });
+    if (guidedFlowRegistry.get(APP_UPGRADE_FLOW_ID)) {
+      guidedFlowRegistry.replace(definition);
+    } else {
+      guidedFlowRegistry.register(definition);
     }
   }
 
@@ -191,6 +194,11 @@ export async function initializeUpgradeFlow(): Promise<void> {
     });
   }
   await initializationPromise;
+}
+
+export async function refreshUpgradeFlow(): Promise<void> {
+  initializedVersion = null;
+  await initializeUpgradeFlow();
 }
 
 export async function openCurrentReleaseNotes(): Promise<void> {

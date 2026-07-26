@@ -16,6 +16,12 @@
     "选择智能体并开始对话": "Choose an agent and start chatting",
     "用户档案": "User Profile"
   },
+  "ChatView": {
+    "选择智能体": "Select agent",
+    "切换智能体": "Switch agent",
+    "已切换智能体": "Agent switched",
+    "暂无可切换智能体": "No agents available"
+  },
   "ChatSettingsView": {
     "界面偏好": "UI Preferences",
     "模型偏好": "Model Preferences",

@@ -14,6 +14,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { recoverInterruptedChatMessages } from "../services/chatStorageCodec";
 import { parseSelectedModelValue } from "../utils/modelSelection";
 import { instantiateAgentGreetings } from "../services/greetingService";
+import { setSessionAgentBinding } from "../services/agentSessionService";
 
 const logger = createModuleLogger("llm-chat/store");
 
@@ -170,6 +171,38 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         sessionId,
       });
     }
+  }
+
+  /**
+   * 切换当前会话后续请求使用的智能体。
+   * 已存在的消息节点保持原 metadata，因此历史 Agent 快照不会被改写。
+   */
+  async function setSessionAgent(agentId: string): Promise<boolean> {
+    const session = currentSessionDetail.value;
+    if (!session) return false;
+
+    const agentStore = useAgentStore();
+    if (!agentStore.isLoaded) await agentStore.init();
+    const agent = agentStore.getAgentById(agentId);
+    if (!agent) {
+      logger.warn("Cannot switch to a missing agent", {
+        sessionId: session.id,
+        agentId,
+      });
+      return false;
+    }
+
+    const previousAgentId = session.displayAgentId;
+    if (!setSessionAgentBinding(session, agentId, new Date().toISOString())) {
+      return true;
+    }
+    await persistCurrentSession();
+    logger.info("Switched session agent", {
+      sessionId: session.id,
+      previousAgentId,
+      agentId,
+    });
+    return true;
   }
 
   async function focusMessage(messageId: string): Promise<boolean> {
@@ -345,6 +378,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     init,
     createSession,
     switchSession,
+    setSessionAgent,
     focusMessage,
     deleteSession,
     persistCurrentSession,

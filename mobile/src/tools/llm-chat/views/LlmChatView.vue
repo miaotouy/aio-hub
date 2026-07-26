@@ -9,11 +9,12 @@ import { useNodeManager } from "../composables/useNodeManager";
 import { useChatSettings } from "../composables/useChatSettings";
 import { confirmDeleteMessage, showChatSuccess } from "../utils/chatFeedback";
 import type { ChatMessageNode } from "../types";
-import { ChevronLeft } from "lucide-vue-next";
+import { Check, ChevronDown, ChevronLeft } from "lucide-vue-next";
 import { useRouter } from "vue-router";
 import MessageList from "../components/MessageList.vue";
 import ChatInput from "../components/ChatInput.vue";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
+import { useI18n } from "@/i18n";
 const route = useRoute();
 const router = useRouter();
 const chatStore = useLlmChatStore();
@@ -23,14 +24,30 @@ const { isKeyboardVisible } = useKeyboardAvoidance();
 const { regenerate } = useChatExecutor();
 const nodeManager = useNodeManager();
 const { settings, loadSettings } = useChatSettings();
+const { tRaw } = useI18n();
 
 const messageListRef = ref<any>(null);
 const editingMessage = ref<ChatMessageNode | null>(null);
 const editContent = ref("");
 const showEditDialog = ref(false);
+const showAgentSelector = ref(false);
 const activeAgent = computed(() =>
   agentStore.getAgentById(chatStore.currentSession?.displayAgentId)
 );
+const selectableAgents = computed(() => agentStore.sortedAgents);
+const activeAgentLabel = computed(
+  () =>
+    activeAgent.value?.displayName ||
+    activeAgent.value?.name ||
+    tRaw("tools.llm-chat.ChatView.选择智能体")
+);
+
+async function handleSelectAgent(agentId: string) {
+  const changed = await chatStore.setSessionAgent(agentId);
+  if (!changed) return;
+  showAgentSelector.value = false;
+  showChatSuccess(tRaw("tools.llm-chat.ChatView.已切换智能体"));
+}
 
 // 初始化会话
 onMounted(async () => {
@@ -175,22 +192,24 @@ const goToChatHome = () => {
         </var-button>
       </template>
       <template #right>
-        <div
-          v-if="activeAgent"
+        <button
           class="active-agent"
-          :title="activeAgent.displayName || activeAgent.name"
+          type="button"
+          :title="tRaw('tools.llm-chat.ChatView.切换智能体')"
+          :aria-label="tRaw('tools.llm-chat.ChatView.切换智能体')"
+          :disabled="selectableAgents.length === 0 || chatStore.isSending"
+          @click="showAgentSelector = true"
         >
           <span class="active-agent-avatar">
             {{
-              activeAgent.icon?.length && activeAgent.icon.length <= 4
+              activeAgent?.icon?.length && activeAgent.icon.length <= 4
                 ? activeAgent.icon
                 : "AI"
             }}
           </span>
-          <span class="active-agent-name">{{
-            activeAgent.displayName || activeAgent.name
-          }}</span>
-        </div>
+          <span class="active-agent-name">{{ activeAgentLabel }}</span>
+          <ChevronDown :size="15" />
+        </button>
       </template>
     </var-app-bar>
     <div class="nav-bar-placeholder"></div>
@@ -210,6 +229,42 @@ const goToChatHome = () => {
 
       <ChatInput class="chat-input-area" />
     </div>
+
+    <var-popup v-model:show="showAgentSelector" position="bottom" round>
+      <section class="agent-selector" data-testid="chat-agent-selector">
+        <div class="drawer-handle"></div>
+        <header class="agent-selector-header">
+          <h2>{{ tRaw("tools.llm-chat.ChatView.切换智能体") }}</h2>
+          <span>{{ selectableAgents.length }}</span>
+        </header>
+        <div class="agent-selector-list">
+          <button
+            v-for="agent in selectableAgents"
+            :key="agent.id"
+            type="button"
+            class="agent-selector-item"
+            :class="{ active: agent.id === chatStore.currentSession?.displayAgentId }"
+            @click="handleSelectAgent(agent.id)"
+          >
+            <span class="agent-selector-avatar">
+              {{ agent.icon?.length && agent.icon.length <= 4 ? agent.icon : "AI" }}
+            </span>
+            <span class="agent-selector-copy">
+              <strong>{{ agent.displayName || agent.name }}</strong>
+              <small>{{ agent.modelId }}</small>
+            </span>
+            <Check
+              v-if="agent.id === chatStore.currentSession?.displayAgentId"
+              :size="19"
+              class="agent-selector-check"
+            />
+          </button>
+          <p v-if="selectableAgents.length === 0" class="agent-selector-empty">
+            {{ tRaw("tools.llm-chat.ChatView.暂无可切换智能体") }}
+          </p>
+        </div>
+      </section>
+    </var-popup>
 
     <var-dialog
       v-model:show="showEditDialog"
@@ -264,10 +319,21 @@ const goToChatHome = () => {
 }
 
 .active-agent {
-  max-width: 132px;
+  max-width: 148px;
   display: flex;
   align-items: center;
   gap: 7px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 8px;
+  color: inherit;
+  background: transparent;
+}
+.active-agent:active:not(:disabled) {
+  background: var(--input-bg);
+}
+.active-agent:disabled {
+  opacity: 0.58;
 }
 
 .active-agent-avatar {
@@ -289,6 +355,98 @@ const goToChatHome = () => {
   white-space: nowrap;
   text-overflow: ellipsis;
   font-size: 0.78rem;
+}
+
+.agent-selector {
+  max-height: min(68vh, 520px);
+  display: flex;
+  flex-direction: column;
+  padding: 10px 14px calc(18px + env(safe-area-inset-bottom));
+  color: var(--text-color);
+  background: var(--card-bg);
+}
+.drawer-handle {
+  width: 40px;
+  height: 4px;
+  align-self: center;
+  margin-bottom: 12px;
+  border-radius: 999px;
+  background: var(--border-color);
+}
+.agent-selector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px 12px;
+}
+.agent-selector-header h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+.agent-selector-header span {
+  color: var(--color-on-surface-variant);
+  font-size: 0.82rem;
+}
+.agent-selector-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.agent-selector-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+  color: inherit;
+  background: var(--input-bg);
+  text-align: left;
+}
+.agent-selector-item.active {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--input-bg));
+}
+.agent-selector-avatar {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: white;
+  background: var(--color-primary);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+.agent-selector-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.agent-selector-copy strong,
+.agent-selector-copy small {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.agent-selector-copy small {
+  color: var(--color-on-surface-variant);
+  font-size: 0.75rem;
+}
+.agent-selector-check {
+  flex: 0 0 auto;
+  color: var(--color-primary);
+}
+.agent-selector-empty {
+  margin: 16px 0;
+  color: var(--color-on-surface-variant);
+  text-align: center;
 }
 
 .chat-container {

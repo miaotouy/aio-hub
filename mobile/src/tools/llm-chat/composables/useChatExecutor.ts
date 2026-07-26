@@ -27,6 +27,7 @@ import {
   getAttachmentAvailabilityMap,
   partitionAttachmentsByAvailability,
 } from "../utils/attachmentStatus";
+import { createAssistantAgentSnapshot } from "../services/agentSessionService";
 
 const logger = createModuleLogger("llm-chat/useChatExecutor");
 
@@ -117,11 +118,12 @@ export function useChatExecutor() {
       content: "",
       parentId: currentUserNodeId,
       status: "generating",
-      metadata: {
-        modelId: modelId,
-        modelDisplayName: model?.name || modelId,
-        agentId: activeAgent?.id,
-      },
+      metadata: createAssistantAgentSnapshot(
+        activeAgent,
+        profileId,
+        modelId,
+        model.name || modelId
+      ),
     });
     nodeManager.addNodeToSession(session, assistantNode);
 

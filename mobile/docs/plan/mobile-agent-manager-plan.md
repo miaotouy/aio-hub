@@ -342,7 +342,7 @@ sequenceDiagram
 - [x] 阶段 1：独立目录存储、CRUD Store、工具注册与默认智能体；未知字段可无损保留。
 - [x] 阶段 2：完整预设消息编辑器体系的移植与移动端适配（多轮消息、消息组、触摸排序、批量管理、导入导出与高级字段编辑）。
 - [x] 阶段 3 主链路：角色大厅入口、会话绑定、模型与基础参数绑定、基础预设管道注入、聊天栏智能体标识。
-- [ ] 阶段 3 增强：聊天内切换 Agent；历史消息的 Agent 快照与已实例化开局消息必须保持稳定。
+- [x] 阶段 3 增强：聊天内切换 Agent；会话绑定可单独更新，历史消息的 Agent 快照与已实例化开局消息保持稳定。
 - [x] 后续增强（已提前完成）：AIO Agent JSON、SillyTavern JSON/PNG 导入和预设 JSON 导入导出。
 - [ ] 后续增强（未完成）：Agent 私有头像与二进制资产管理、完整参数编辑、用户档案；不得将私有资产改存为全局 `assetId`。
 - [x] 兼容性收尾：已同步桌面端显式类型、分类枚举、`defaultGreetingId` 和开局消息结构；旧 `custom` 分类及字符串开局消息在运行时兼容。
@@ -351,7 +351,7 @@ sequenceDiagram
 
 阶段 2 实现说明：Rust 后端已经接入单一 `o200k_base` 词表，前端通过 `mobile/src/utils/tokenCounting.ts` 批量调用 `count_tokens_batch`，编辑器以 500ms 防抖更新启用消息的 Token 估算，并排除禁用消息和禁用消息组。IPC 失败时回退为字符估算。AIO Agent JSON 与 SillyTavern JSON/PNG 角色数据已支持导入，头像和随包二进制资产仍归入后续“Agent 私有头像与资产管理”阶段。详见 [`mobile-token-counting-plan.md`](./mobile-token-counting-plan.md)。
 
-阶段 3 实现说明：当前管道已执行已启用预设消息的默认、深度/高级深度、锚点、模型与渠道匹配，并将 Agent 的模型和常用生成参数传给请求层。创建绑定 Agent 的新会话时，开局消息会作为根节点下的真实兄弟分支固化，优先选中 `defaultGreetingId`，且兼容旧字符串开局消息；移动端尚未迁移宏引擎或 Agent 私有资产，故开局内容暂不展开宏、私有附件暂不转换。聊天页当前仅展示 Agent 标识，尚未提供切换入口。
+阶段 3 实现说明：当前管道已执行已启用预设消息的默认、深度/高级深度、锚点、模型与渠道匹配，并将 Agent 的模型和常用生成参数传给请求层。创建绑定 Agent 的新会话时，开局消息会作为根节点下的真实兄弟分支固化，优先选中 `defaultGreetingId`，且兼容旧字符串开局消息；移动端尚未迁移宏引擎或 Agent 私有资产，故开局内容暂不展开宏、私有附件暂不转换。聊天页顶部可打开 Agent 选择器：切换仅更新会话 `displayAgentId`，历史节点不变；后续助手消息会写入 Agent 身份和模型/渠道快照。
 
 验证记录（2026-07-14）：`bun run build`、`bun run test:run`、`bun run check:backend` 和 `cargo test --manifest-path src-tauri/Cargo.toml` 均通过。现有自动化测试主要覆盖 Token 计数，Agent 存储、导入、会话绑定和预设管道仍缺少专项测试。
 

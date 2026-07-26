@@ -2,14 +2,19 @@
 import { onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useLlmChatStore } from "../stores/llmChatStore";
+import { useChatSettings } from "../composables/useChatSettings";
 import {
   searchChatMessages,
   type ChatSearchResult,
 } from "../services/chatStorageService";
+import { customDialog, customMessage } from "@/utils/feedback";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { useI18n } from "@/i18n";
 import {
   MessageSquare,
   ChevronRight,
   Trash2,
+  Trash,
   ChevronLeft,
   Search,
   LoaderCircle,
@@ -18,13 +23,18 @@ import {
 
 const router = useRouter();
 const chatStore = useLlmChatStore();
+const { settings, loadSettings } = useChatSettings();
+const { tRaw } = useI18n();
+const moduleErrorHandler = createModuleErrorHandler("llm-chat/session-list");
 const searchQuery = ref("");
 const searchResults = ref<ChatSearchResult[]>([]);
 const searchLoading = ref(false);
 const searchError = ref<string | null>(null);
+const isMutatingSessions = ref(false);
 let searchSequence = 0;
 
 onMounted(async () => {
+  await loadSettings();
   if (!chatStore.isLoaded) {
     await chatStore.init();
   }
@@ -75,9 +85,73 @@ const clearSearch = () => {
   searchQuery.value = "";
 };
 
-const deleteSession = async (event: Event, id: string) => {
+const showMutationError = (error: unknown, message: string) => {
+  moduleErrorHandler.handle(error, {
+    userMessage: message,
+    showToUser: false,
+  });
+  customMessage(message, "error");
+};
+
+const deleteSession = async (
+  event: Event,
+  session: { id: string; name: string }
+) => {
   event.stopPropagation();
-  await chatStore.deleteSession(id);
+  if (isMutatingSessions.value) return;
+
+  if (settings.value.messageManagement.confirmBeforeDeleteSession) {
+    const confirmed = await customDialog({
+      title: tRaw("tools.llm-chat.SessionList.删除会话"),
+      message: tRaw("tools.llm-chat.SessionList.删除会话提示").replace(
+        "{name}",
+        session.name
+      ),
+      confirmButtonText: tRaw("tools.llm-chat.SessionList.删除"),
+      cancelButtonText: tRaw("tools.llm-chat.SessionList.取消"),
+    });
+    if (!confirmed) return;
+  }
+
+  isMutatingSessions.value = true;
+  try {
+    await chatStore.deleteSession(session.id);
+    customMessage(tRaw("tools.llm-chat.SessionList.会话已删除"), "success");
+  } catch (error) {
+    showMutationError(error, tRaw("tools.llm-chat.SessionList.删除会话失败"));
+  } finally {
+    isMutatingSessions.value = false;
+  }
+};
+
+const clearAllSessions = async () => {
+  if (isMutatingSessions.value || chatStore.sessionMetas.length === 0) return;
+
+  if (settings.value.messageManagement.confirmBeforeClearAll) {
+    const confirmed = await customDialog({
+      title: tRaw("tools.llm-chat.SessionList.清空所有会话"),
+      message: tRaw("tools.llm-chat.SessionList.清空所有会话提示"),
+      confirmButtonText: tRaw("tools.llm-chat.SessionList.清空"),
+      cancelButtonText: tRaw("tools.llm-chat.SessionList.取消"),
+    });
+    if (!confirmed) return;
+  }
+
+  isMutatingSessions.value = true;
+  try {
+    const clearedCount = await chatStore.clearAllSessions();
+    customMessage(
+      tRaw("tools.llm-chat.SessionList.已清空会话").replace(
+        "{count}",
+        String(clearedCount)
+      ),
+      "success"
+    );
+  } catch (error) {
+    showMutationError(error, tRaw("tools.llm-chat.SessionList.清空会话失败"));
+  } finally {
+    isMutatingSessions.value = false;
+  }
 };
 
 const goToChatHome = () => {
@@ -104,6 +178,19 @@ const goToChatHome = () => {
           @click="goToChatHome"
         >
           <ChevronLeft :size="24" />
+        </var-button>
+      </template>
+      <template #right>
+        <var-button
+          round
+          text
+          color="transparent"
+          :disabled="isMutatingSessions || chatStore.sessionMetas.length === 0"
+          :aria-label="tRaw('tools.llm-chat.SessionList.清空所有会话')"
+          data-testid="chat-sessions-clear-all"
+          @click="clearAllSessions"
+        >
+          <Trash :size="21" />
         </var-button>
       </template>
     </var-app-bar>
@@ -184,7 +271,9 @@ const goToChatHome = () => {
             <button
               class="delete-btn"
               data-testid="chat-session-delete"
-              @click="deleteSession($event, session.id)"
+              :disabled="isMutatingSessions"
+              :aria-label="tRaw('tools.llm-chat.SessionList.删除会话')"
+              @click="deleteSession($event, session)"
             >
               <Trash2 :size="18" />
             </button>

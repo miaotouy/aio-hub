@@ -257,6 +257,9 @@ export async function runDeterministicAttachmentScenario(
   );
   await sessionRow.waitForDisplayed({ timeout: 20_000 });
   await (await sessionRow.$('[data-testid="chat-session-delete"]')).click();
+  const confirmDelete = await context.driver.$(".var-dialog__confirm-button");
+  await confirmDelete.waitForClickable({ timeout: 10_000 });
+  await confirmDelete.click();
   await sessionRow.waitForExist({ timeout: 20_000, reverse: true });
 
   await context.driver.execute(() => {

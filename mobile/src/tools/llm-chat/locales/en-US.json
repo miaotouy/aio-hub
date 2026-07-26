@@ -42,6 +42,19 @@
     "请求超时时间": "Request Timeout",
     "最大重试次数": "Max Retries"
   },
+  "SessionList": {
+    "删除会话": "Delete chat",
+    "删除会话提示": "Delete \"{name}\"? This action cannot be undone.",
+    "清空所有会话": "Clear all chats",
+    "清空所有会话提示": "All chat history will be permanently deleted. This action cannot be undone.",
+    "删除": "Delete",
+    "清空": "Clear all",
+    "取消": "Cancel",
+    "会话已删除": "Chat deleted",
+    "已清空会话": "Cleared {count} chats",
+    "删除会话失败": "Couldn't delete the chat. Try again later.",
+    "清空会话失败": "Couldn't clear chats. Try again later."
+  },
   "TokenUsage": {
     "计算中": "Calculating",
     "字符估算": "character estimate",

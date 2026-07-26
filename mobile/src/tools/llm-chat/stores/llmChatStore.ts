@@ -242,6 +242,19 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   }
 
   /**
+   * 清空全部会话
+   */
+  async function clearAllSessions(): Promise<number> {
+    const clearedCount = await sessionManager.clearAllSessions();
+    sessionMetas.value = [];
+    currentSessionId.value = null;
+    currentSessionDetail.value = null;
+
+    logger.info("Cleared all sessions", { clearedCount });
+    return clearedCount;
+  }
+
+  /**
    * 持久化当前会话
    */
   async function persistCurrentSession() {
@@ -381,6 +394,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     setSessionAgent,
     focusMessage,
     deleteSession,
+    clearAllSessions,
     persistCurrentSession,
     syncSelectedModel,
     switchSibling,

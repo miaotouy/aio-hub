@@ -57,6 +57,8 @@ const session = {
   id: "session-1",
   name: "Example chat",
   updatedAt: "2026-07-26T00:00:00.000Z",
+  createdAt: "2026-07-22T00:00:00.000Z",
+  messageCount: 1,
 };
 
 const appBarStub = {
@@ -123,6 +125,29 @@ describe("SessionList confirmation settings", () => {
       "tools.llm-chat.SessionList.会话已删除",
       "success"
     );
+  });
+
+  it("reorders visible session rows when the user changes the sort control", async () => {
+    store.sessionMetas = [
+      session,
+      {
+        id: "session-2",
+        name: "Alpha chat",
+        updatedAt: "2026-07-24T00:00:00.000Z",
+        createdAt: "2026-07-21T00:00:00.000Z",
+        messageCount: 4,
+      },
+    ];
+    const wrapper = mountSessionList();
+    await settle();
+
+    await wrapper.get('[data-testid="chat-session-sort"]').setValue("name:asc");
+
+    expect(
+      wrapper
+        .findAll('[data-testid="chat-session-row"]')
+        .map((row) => row.attributes("data-session-id"))
+    ).toEqual(["session-2", "session-1"]);
   });
 
   it("confirms before clearing all sessions and reports the cleared count", async () => {

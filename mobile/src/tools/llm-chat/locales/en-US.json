@@ -53,7 +53,16 @@
     "会话已删除": "Chat deleted",
     "已清空会话": "Cleared {count} chats",
     "删除会话失败": "Couldn't delete the chat. Try again later.",
-    "清空会话失败": "Couldn't clear chats. Try again later."
+    "清空会话失败": "Couldn't clear chats. Try again later.",
+    "排序方式": "Sort chats",
+    "最近更新": "Recently updated",
+    "最早更新": "Least recently updated",
+    "最近创建": "Newest created",
+    "最早创建": "Oldest created",
+    "消息最多": "Most messages",
+    "消息最少": "Fewest messages",
+    "名称正序": "Name (A–Z)",
+    "名称倒序": "Name (Z–A)"
   },
   "TokenUsage": {
     "计算中": "Calculating",

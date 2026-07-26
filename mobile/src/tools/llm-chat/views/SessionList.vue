@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useLlmChatStore } from "../stores/llmChatStore";
 import { useChatSettings } from "../composables/useChatSettings";
@@ -7,6 +7,11 @@ import {
   searchChatMessages,
   type ChatSearchResult,
 } from "../services/chatStorageService";
+import {
+  DEFAULT_SESSION_SORT,
+  sortSessionMetas,
+  type SessionSortOption,
+} from "../utils/sessionSorting";
 import { customDialog, customMessage } from "@/utils/feedback";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useI18n } from "@/i18n";
@@ -15,6 +20,7 @@ import {
   ChevronRight,
   Trash2,
   Trash,
+  ArrowUpDown,
   ChevronLeft,
   Search,
   LoaderCircle,
@@ -31,6 +37,23 @@ const searchResults = ref<ChatSearchResult[]>([]);
 const searchLoading = ref(false);
 const searchError = ref<string | null>(null);
 const isMutatingSessions = ref(false);
+const sessionSortOptions = {
+  "updatedAt:desc": DEFAULT_SESSION_SORT,
+  "updatedAt:asc": { field: "updatedAt", direction: "asc" },
+  "createdAt:desc": { field: "createdAt", direction: "desc" },
+  "createdAt:asc": { field: "createdAt", direction: "asc" },
+  "messageCount:desc": { field: "messageCount", direction: "desc" },
+  "messageCount:asc": { field: "messageCount", direction: "asc" },
+  "name:asc": { field: "name", direction: "asc" },
+  "name:desc": { field: "name", direction: "desc" },
+} as const satisfies Record<string, SessionSortOption>;
+const sessionSort = ref<keyof typeof sessionSortOptions>("updatedAt:desc");
+const sortedSessionMetas = computed(() =>
+  sortSessionMetas(
+    chatStore.sessionMetas,
+    sessionSortOptions[sessionSort.value]
+  )
+);
 let searchSequence = 0;
 
 onMounted(async () => {
@@ -245,13 +268,52 @@ const goToChatHome = () => {
       </div>
 
       <template v-else>
+        <div
+          v-if="chatStore.sessionMetas.length > 0"
+          class="session-list-toolbar"
+        >
+          <label class="session-sort-control">
+            <ArrowUpDown :size="16" aria-hidden="true" />
+            <select
+              v-model="sessionSort"
+              data-testid="chat-session-sort"
+              :aria-label="tRaw('tools.llm-chat.SessionList.排序方式')"
+            >
+              <option value="updatedAt:desc">
+                {{ tRaw("tools.llm-chat.SessionList.最近更新") }}
+              </option>
+              <option value="updatedAt:asc">
+                {{ tRaw("tools.llm-chat.SessionList.最早更新") }}
+              </option>
+              <option value="createdAt:desc">
+                {{ tRaw("tools.llm-chat.SessionList.最近创建") }}
+              </option>
+              <option value="createdAt:asc">
+                {{ tRaw("tools.llm-chat.SessionList.最早创建") }}
+              </option>
+              <option value="messageCount:desc">
+                {{ tRaw("tools.llm-chat.SessionList.消息最多") }}
+              </option>
+              <option value="messageCount:asc">
+                {{ tRaw("tools.llm-chat.SessionList.消息最少") }}
+              </option>
+              <option value="name:asc">
+                {{ tRaw("tools.llm-chat.SessionList.名称正序") }}
+              </option>
+              <option value="name:desc">
+                {{ tRaw("tools.llm-chat.SessionList.名称倒序") }}
+              </option>
+            </select>
+          </label>
+        </div>
+
         <div v-if="chatStore.sessionMetas.length === 0" class="empty-state">
           <MessageSquare :size="48" />
           <p>暂无历史会话</p>
         </div>
 
         <div
-          v-for="session in chatStore.sessionMetas"
+          v-for="session in sortedSessionMetas"
           :key="session.id"
           class="session-item"
           data-testid="chat-session-row"
@@ -419,6 +481,33 @@ const goToChatHome = () => {
   to {
     transform: rotate(360deg);
   }
+}
+
+.session-list-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 12px;
+}
+
+.session-sort-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 10px;
+  color: var(--color-on-surface-variant);
+  background: var(--color-surface-container-low);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 10px;
+}
+
+.session-sort-control select {
+  max-width: min(46vw, 220px);
+  border: 0;
+  outline: 0;
+  color: var(--color-on-surface);
+  background: transparent;
+  font: inherit;
 }
 
 .empty-state {

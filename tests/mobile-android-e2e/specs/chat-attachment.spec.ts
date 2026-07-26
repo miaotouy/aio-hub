@@ -249,9 +249,36 @@ export async function runDeterministicAttachmentScenario(
   await clickTestElement(context.driver, "asset-detail-close");
 
   await context.driver.execute(() => {
+    window.location.hash = "#/tools/llm-chat/home";
+  });
+  await testElement(context.driver, "chat-home");
+  await clickTestElement(context.driver, "chat-new");
+  await testElement(context.driver, "chat-view");
+  const emptySessionId = await context.driver.execute(() => {
+    const match = window.location.hash.match(/\/chat\/([^?]+)/);
+    return match?.[1] ? decodeURIComponent(match[1]) : null;
+  });
+  if (typeof emptySessionId !== "string" || !emptySessionId) {
+    throw new Error("Could not determine the empty chat session ID.");
+  }
+
+  await context.driver.execute(() => {
     window.location.hash = "#/tools/llm-chat/sessions";
   });
   await testElement(context.driver, "chat-session-list");
+  const sessionSort = await testElement(context.driver, "chat-session-sort");
+  await sessionSort.selectByAttribute("value", "messageCount:asc");
+  await context.driver.waitUntil(
+    async () => {
+      const firstSession = await context.driver.$('[data-testid="chat-session-row"]');
+      return (await firstSession.getAttribute("data-session-id")) === emptySessionId;
+    },
+    {
+      timeout: 10_000,
+      timeoutMsg: "Session sorting did not place the empty chat first.",
+    }
+  );
+
   const sessionRow = await context.driver.$(
     `[data-testid="chat-session-row"][data-session-id="${sessionId}"]`
   );

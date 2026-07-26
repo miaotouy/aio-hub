@@ -1,25 +1,21 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from "vue";
+import { ref, watch } from "vue";
 import {
   AlertCircle,
+  Brain,
   ChevronDown,
   ChevronRight,
-  Brain,
   Eye,
   FileAudio,
   FileImage,
   FileText,
   FileVideo,
   Paperclip,
-  X,
 } from "lucide-vue-next";
-import type { ChatMessageNode } from "../types";
+import MediaPreviewHost from "@/components/media/MediaPreviewHost.vue";
+import type { MediaItem } from "@/components/media/types";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
-import {
-  getAssetPreviewSource,
-  revokeAssetPreviewSource,
-} from "../../asset-manager/services/assetService";
-import { customMessage } from "@/utils/feedback";
+import type { ChatMessageAttachment, ChatMessageNode } from "../types";
 import {
   getAttachmentAvailabilityMap,
   type ChatAttachmentAvailability,
@@ -33,14 +29,8 @@ const isReasoningExpanded = ref(true);
 const attachmentAvailability = ref(
   new Map<string, ChatAttachmentAvailability>()
 );
-const imagePreview = ref<{
-  id: string;
-  url: string;
-  displayName: string;
-} | null>(null);
-const imagePreviewLoading = ref(false);
+const mediaPreview = ref<MediaItem | null>(null);
 let availabilityRequest = 0;
-let previewRequest = 0;
 
 const refreshAttachmentAvailability = async () => {
   const request = ++availabilityRequest;
@@ -61,56 +51,36 @@ watch(
       ?.map((attachment) => attachment.assetId)
       .join("|")}`,
   async () => {
-    await closeImagePreview();
+    mediaPreview.value = null;
     await refreshAttachmentAvailability();
   },
   { immediate: true }
 );
 
-async function closeImagePreview() {
-  previewRequest += 1;
-  imagePreviewLoading.value = false;
-  const current = imagePreview.value;
-  imagePreview.value = null;
-  if (current) {
-    await revokeAssetPreviewSource(current.id).catch(() => undefined);
-  }
+function mediaItemForAttachment(
+  attachment: ChatMessageAttachment
+): MediaItem | null {
+  const { kind, mimeType, displayName } = attachment.snapshot;
+  if (kind !== "image" && kind !== "video" && kind !== "audio") return null;
+  return {
+    assetId: attachment.assetId,
+    kind,
+    displayName,
+    mimeType,
+  };
 }
 
-async function openImagePreview(
-  assetId: string,
-  displayName: string,
+function openMediaPreview(
+  attachment: ChatMessageAttachment,
   status: ChatAttachmentAvailability | undefined
 ) {
-  if (status !== "ready" || imagePreviewLoading.value) return;
-  await closeImagePreview();
-  const request = ++previewRequest;
-  imagePreviewLoading.value = true;
-  try {
-    const preview = await getAssetPreviewSource(assetId);
-    if (request !== previewRequest) {
-      await revokeAssetPreviewSource(preview.id).catch(() => undefined);
-      return;
-    }
-    imagePreview.value = {
-      id: preview.id,
-      url: preview.url,
-      displayName,
-    };
-  } catch {
-    if (request === previewRequest) {
-      customMessage("无法打开图片预览", "warning");
-    }
-  } finally {
-    if (request === previewRequest) {
-      imagePreviewLoading.value = false;
-    }
-  }
+  if (status !== "ready") return;
+  mediaPreview.value = mediaItemForAttachment(attachment);
 }
 
-onBeforeUnmount(() => {
-  void closeImagePreview();
-});
+function onMediaPreviewVisibilityChange(visible: boolean) {
+  if (!visible) mediaPreview.value = null;
+}
 
 const getAttachmentStatus = (
   assetId: string
@@ -183,17 +153,16 @@ const formatBytes = (value: number) => {
         }}</span>
         <button
           v-if="
-            attachment.snapshot.kind === 'image' &&
+            mediaItemForAttachment(attachment) &&
             getAttachmentStatus(attachment.assetId) === 'ready'
           "
           type="button"
           class="attachment-preview-trigger"
-          aria-label="预览图片"
-          :disabled="imagePreviewLoading"
+          :aria-label="`预览${attachment.snapshot.kind}`"
+          :data-testid="`message-attachment-preview-${attachment.snapshot.kind}`"
           @click.stop="
-            openImagePreview(
-              attachment.assetId,
-              attachment.snapshot.displayName,
+            openMediaPreview(
+              attachment,
               getAttachmentStatus(attachment.assetId)
             )
           "
@@ -215,28 +184,14 @@ const formatBytes = (value: number) => {
     </div>
 
     <Teleport to="body">
-      <div
-        v-if="imagePreview"
-        class="image-preview-overlay"
-        role="dialog"
-        aria-modal="true"
-        aria-label="图片预览"
-        @click.self="closeImagePreview"
-      >
-        <button
-          type="button"
-          class="image-preview-close"
-          aria-label="关闭图片预览"
-          @click="closeImagePreview"
-        >
-          <X :size="22" />
-        </button>
-        <img
-          class="image-preview-image"
-          :src="imagePreview.url"
-          :alt="imagePreview.displayName"
-        />
-      </div>
+      <MediaPreviewHost
+        v-if="mediaPreview"
+        data-testid="chat-attachment-media-preview"
+        :model-value="true"
+        :item="mediaPreview"
+        mode="sheet"
+        @update:model-value="onMediaPreviewVisibilityChange"
+      />
     </Teleport>
 
     <!-- 思考过程折叠框 -->
@@ -328,23 +283,15 @@ const formatBytes = (value: number) => {
   white-space: nowrap;
 }
 
-.attachment-preview-trigger,
-.image-preview-close {
+.attachment-preview-trigger {
+  width: 32px;
+  height: 32px;
   display: grid;
   place-items: center;
   border: 0;
+  border-radius: 50%;
   color: inherit;
   background: transparent;
-}
-
-.attachment-preview-trigger {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-}
-
-.attachment-preview-trigger:disabled {
-  opacity: 0.45;
 }
 
 .attachment-item.unavailable {
@@ -358,38 +305,6 @@ const formatBytes = (value: number) => {
   gap: 4px;
   color: var(--color-warning, #a86400);
   font-size: 0.72rem;
-}
-
-.image-preview-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-  display: grid;
-  place-items: center;
-  padding: calc(60px + env(safe-area-inset-top)) 16px
-    calc(28px + env(safe-area-inset-bottom));
-  overflow: hidden;
-  background: rgba(0, 0, 0, 0.92);
-}
-
-.image-preview-close {
-  position: absolute;
-  top: calc(10px + env(safe-area-inset-top));
-  right: 10px;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  color: white;
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.image-preview-image {
-  display: block;
-  max-width: calc(100vw - 32px);
-  max-height: calc(
-    100dvh - 88px - env(safe-area-inset-top) - env(safe-area-inset-bottom)
-  );
-  object-fit: contain;
 }
 
 .reasoning-container {

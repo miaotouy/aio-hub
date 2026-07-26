@@ -1,10 +1,7 @@
 import { switchToWebview } from "../support/appium";
 import { MOBILE_E2E_MODEL_ID } from "../support/openai-conformance";
 import { clickTestElement, testElement } from "../support/webview";
-import {
-  ensureFixtureImported,
-  findFixtureTile,
-} from "./asset-workflow.spec";
+import { ensureFixtureImported, findFixtureTile } from "./asset-workflow.spec";
 import type { ScenarioContext } from "./context";
 
 const APP_PACKAGE = "com.aiohub.mobile";
@@ -16,8 +13,7 @@ async function setInput(
   const field = await testElement(context.driver, testId);
   const tagName = await field.getTagName();
   const isNativeInput = tagName === "input" || tagName === "textarea";
-  const input =
-    isNativeInput ? field : await field.$("input, textarea");
+  const input = isNativeInput ? field : await field.$("input, textarea");
   await input.waitForDisplayed({ timeout: 10_000 });
   if (isNativeInput) {
     await input.clearValue();
@@ -70,7 +66,7 @@ export async function configureOpenAiProfile(
     );
     await context.driver.waitUntil(
       async () =>
-        (await headerEntry.getAttribute("data-header-keys") ?? "")
+        ((await headerEntry.getAttribute("data-header-keys")) ?? "")
           .split(",")
           .includes(key),
       {
@@ -195,6 +191,32 @@ export async function runDeterministicAttachmentScenario(
     ".message-item.user .attachment-item"
   );
   await recoveredAttachment.waitForDisplayed({ timeout: 20_000 });
+  const attachmentPreview = await recoveredAttachment.$(
+    '[data-testid="message-attachment-preview-image"]'
+  );
+  await attachmentPreview.waitForClickable({ timeout: 20_000 });
+  await attachmentPreview.click();
+  const previewHost = await testElement(
+    context.driver,
+    "chat-attachment-media-preview"
+  );
+  await context.driver.waitUntil(
+    async () => (await previewHost.getAttribute("data-state")) === "ready",
+    {
+      timeout: 20_000,
+      interval: 250,
+      timeoutMsg: "Chat attachment image preview did not become ready.",
+    }
+  );
+  const previewImage = await previewHost.$("img");
+  await previewImage.waitForDisplayed({ timeout: 5_000 });
+  const immersivePreview = await testElement(
+    context.driver,
+    "media-preview-immersive"
+  );
+  const closePreview = await immersivePreview.$(".immersive-header button");
+  await closePreview.click();
+  await previewHost.waitForExist({ timeout: 10_000, reverse: true });
 
   await context.driver.execute(() => {
     window.location.hash = "#/tools/asset-manager";
@@ -224,11 +246,17 @@ export async function runDeterministicAttachmentScenario(
   });
   const releasedTile = await findFixtureTile(context);
   await (await releasedTile.$('[data-testid="asset-open"]')).click();
-  const releasedUsageList = await testElement(context.driver, "asset-usage-list");
+  const releasedUsageList = await testElement(
+    context.driver,
+    "asset-usage-list"
+  );
   await context.driver.waitUntil(
     async () =>
       (await releasedUsageList.getAttribute("data-usage-count")) === "0",
-    { timeout: 20_000, timeoutMsg: "Session deletion did not release asset usage." }
+    {
+      timeout: 20_000,
+      timeoutMsg: "Session deletion did not release asset usage.",
+    }
   );
   return {
     replyLength: reply.length,

@@ -39,7 +39,7 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 - [x] 完成外部参考、资产管理器能力、PC 媒体组件和移动端消费者的联合调查，收敛组件边界与交互方案。
 - [x] 按方案先在资产管理器完成 `MediaPreviewHost`、图片/视频/音频组件和 descriptor 生命周期 composable。
 - [ ] Android AVD 的资产图片预览、聊天附件和音频受控预览/沉浸层控制工作流已于 2026-07-26 通过 APK 端到端回归；仍需在 AVD 与 Android 真机验证手势冲突、返回、方向、安全区、全屏 fallback、快速切换、真实播放和资源回收，并按可用性结果迭代。
-- [ ] 交互通过后接入聊天附件；稳定公共契约只保留资产详情、聊天和富文本实际需要的字段。
+- [x] 聊天附件已接入统一 `MediaPreviewHost`：图片、视频和音频均只传 `assetId +` 轻量快照，保留 reclaimed/missing 降级；RichTextRenderer 仍待接入。
 - [ ] 具备 iOS 编译和设备条件后补验平台差异，不提前冻结方向锁定、后台播放或预览协议行为。
 
 入口：[`mobile-media-components-plan.md`](./mobile-media-components-plan.md)。

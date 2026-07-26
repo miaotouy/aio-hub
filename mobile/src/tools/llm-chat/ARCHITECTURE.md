@@ -228,8 +228,8 @@ LlamaChatView.send() → useChatExecutor.execute()
 - 发送前，`useChatExecutor` 对管道最终文本调用同一 `count_tokens_batch`，保存消息级估算和本次请求的上下文快照；工具 schema、附件和非文本多模态开销不在该通用计数中。
 - API 返回 usage 后，助手消息的 `completionTokens` 和本次请求的 `promptTokens` 优先显示为实际值；usage 缺失时使用 Rust `o200k`，IPC 异常时使用字符 fallback。已有实际值不会被后续估算覆盖。
 - 上下文窗口来自模型对象自身的 `tokenLimits.contextLength`。80% / 90% 阈值集中在 `ChatSettings.contextManagement`，Rust 后端不持有业务预警策略。
-- 当前最终 Token 计数发生在 `executePipeline()` 完成之后，只用于风险提示、消息级估算和请求快照；管线内部尚无 `token-limiter`，不会按 Token 预算裁剪历史消息，也不能向前置处理器提供本次最终计数。
-- 后续先直接复用现有 `countTokensBatch()` 迁移 PC Token 限制语义。只有真实设备数据证明需要时，才评估 Worker、Rust 或原生层调整。
+- `token-limiter` 已位于 `injection-assembler` 之后、`message-formatter` 之前：复用 `countTokensBatch()`，让预设先占预算并从最新历史倒序保留文本消息，必要时截断单条字符串。最终发送前计数继续用于风险提示、消息级估算和请求快照；附件、工具 schema 和非文本多模态开销不在该通用文本计数中。
+- 只有真实设备数据证明需要时，才评估 Worker、Rust 或原生层调整。
 
 ### 4.4. 对话执行流程
 
@@ -300,7 +300,7 @@ LlamaChatView.send() → useChatExecutor.execute()
 | 组件                 | 职责                                             |
 | -------------------- | ------------------------------------------------ |
 | `MessageList.vue`    | 消息列表容器，处理滚动和自动滚动                 |
-| `MessageContent.vue` | 渲染消息正文（纯文本/Markdown）                  |
+| `MessageContent.vue` | 渲染消息正文、附件状态与统一受控媒体预览         |
 | `ChatMessage.vue`    | 单条消息的整体排版（头像、气泡、元信息）         |
 | `MessageMenubar.vue` | 操作菜单（重新生成、复制、编辑、删除、分支切换） |
 | `BranchSwitcher.vue` | 兄弟分支切换器（上一分支/下一分支）              |
@@ -350,7 +350,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - `chat_attachments` 归 `llm_chat.db` 所有；资产原件和 tombstone 归 `asset_manager.db` 所有，两者不建立跨数据库外键。
 - 消息、分支和会话变更在聊天事务内写 usage outbox，再由幂等投递器调用资产服务整体替换业务实体的 usage。
 - `session-loader` 已把消息与附件引用一起加载到强类型 `_attachments`；只有文本为空但存在附件的消息不会被过滤。
-- 附件预览使用资产服务返回的受控预览来源；发送给模型时传递 `managed-asset-ref`，由 Rust 解析并流式读取，不把原件读入 JS 后再经 base64 IPC 复制。
+- 附件预览统一由 `MessageContent` 映射 `ManagedAssetRef` 的 `assetId +` 轻量快照到 `MediaItem`，再交给 `MediaPreviewHost` 申请和撤销受控来源；图片、视频和音频共享返回/沉浸层/错误生命周期。发送给模型时仍只传递 `managed-asset-ref`，由 Rust 解析并流式读取，不把原件读入 JS 后再经 base64 IPC 复制。
 - 移动端共享 wire 类型和 Rust 原生传输已经支持 `managed-asset-ref`；聊天附件持久化、usage outbox、消息快照展示和 reclaimed/missing 实时降级已接入，provider 请求组装已覆盖 OpenAI-compatible、Gemini 和 Anthropic。
 - 资产为 `reclaimed` 时保留消息和附件快照，界面显示“原件已清理”；`missing` 表示异常缺失，两者不能合并处理。
 - 智能体预设附件继续引用 Agent 私有资产 Handle，随 Agent 资源包迁移，不登记为全局聊天资产。
@@ -435,7 +435,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - [x] 按移动端资产设计引入 `ManagedAssetRef + 轻量快照`
 - [x] 接入 `chat_attachments`、usage outbox 和消息/分支/会话删除释放流程
 - [x] 接入 `managed-asset-ref` 原生发送与 `reclaimed`/`missing` 降级展示
-- [x] 图片受控预览（短期 descriptor、Teleport 全屏层和关闭/卸载主动撤销）
+- [x] 图片、视频和音频附件的统一受控预览（`MediaPreviewHost`、短期 descriptor、Teleport 沉浸层和关闭/卸载主动撤销）
 - [x] 文本文档提取结果写入附件快照、blocking usage 降级和 replacement outbox
 
 ### 🔄 智能体支持
@@ -465,16 +465,16 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 
 ## 10. 与桌面端的差异
 
-| 维度           | 桌面端 (`src/tools/llm-chat`)                                        | 移动端 (`mobile/src/tools/llm-chat`)                                                  |
-| -------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| **UI 分层**    | 自研业务组件 + Element Plus 叶子控件                                 | 原生 Vue/AIO token 骨架 + Varlet 叶子控件                                             |
-| **类型**       | 完整 `ChatAgent`, `Asset`, `ChatSettings`                            | 已接入兼容 `ChatAgent` 和 `ManagedAssetRef + 轻量快照`，不持久化全局资产路径          |
+| 维度           | 桌面端 (`src/tools/llm-chat`)                                        | 移动端 (`mobile/src/tools/llm-chat`)                                                                    |
+| -------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| **UI 分层**    | 自研业务组件 + Element Plus 叶子控件                                 | 原生 Vue/AIO token 骨架 + Varlet 叶子控件                                                               |
+| **类型**       | 完整 `ChatAgent`, `Asset`, `ChatSettings`                            | 已接入兼容 `ChatAgent` 和 `ManagedAssetRef + 轻量快照`，不持久化全局资产路径                            |
 | **管道处理器** | 完整：会话、注入、宏/变量、世界书/召回、Token 限制、格式化和资源解析 | `session-loader` + `injection-assembler`（默认/深度/锚点）；Token 统计位于执行层与 composable，尚不裁剪 |
-| **组件**       | 丰富（BaseDialog, ImageViewer 等）                                   | 基础的列表/输入组件                                                                   |
-| **编辑器**     | RichCodeEditor（双引擎）                                             | 纯文本输入                                                                            |
-| **路由**       | `main`, `settings` 两页                                              | `home`, `sessions`, `chat/:id`, `settings` 四页                                       |
-| **存储**       | ConfigManager + 独立文件                                             | `llm_chat.db` 增量存储；ConfigManager 仅保存当前会话 ID                               |
-| **多模态**     | 支持完整 Asset 系统                                                  | 已接入 `ManagedAssetRef`、SQLite 附件快照、受控预览和 Rust 原生传输；平台门禁独立跟踪 |
+| **组件**       | 丰富（BaseDialog, ImageViewer 等）                                   | 基础的列表/输入组件                                                                                     |
+| **编辑器**     | RichCodeEditor（双引擎）                                             | 纯文本输入                                                                                              |
+| **路由**       | `main`, `settings` 两页                                              | `home`, `sessions`, `chat/:id`, `settings` 四页                                                         |
+| **存储**       | ConfigManager + 独立文件                                             | `llm_chat.db` 增量存储；ConfigManager 仅保存当前会话 ID                                                 |
+| **多模态**     | 支持完整 Asset 系统                                                  | 已接入 `ManagedAssetRef`、SQLite 附件快照、受控预览和 Rust 原生传输；平台门禁独立跟踪                   |
 
 ## 11. 关键代码约定
 

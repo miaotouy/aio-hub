@@ -181,9 +181,9 @@ closed
 
 ### Phase 3：现有消费者接入
 
-1. 用 `useManagedMediaPreview` 替换 `MessageContent` 现有的图片 descriptor 获取、撤销和竞态处理，删除重复生命周期代码。
+1. [x] 用 `MediaPreviewHost`（内部使用 `useManagedMediaPreview`）替换 `MessageContent` 现有的图片 descriptor 获取、撤销和竞态处理，删除重复生命周期代码；聊天的图片、视频和音频附件均以 `assetId +` 轻量快照构造 `MediaItem`。
 2. 保持资产详情在 Phase 1 已接通的三种媒体入口；详情操作（固定、隐藏、清理、导出、分享）不迁入媒体组件。
-3. 聊天附件接入图片和视频预览，保持 `ManagedAssetRef` 和 reclaimed/missing 降级语义；纯文本消息和附件状态逻辑不改写。
+3. [x] 聊天附件已接入图片、视频和音频预览，保持 `ManagedAssetRef` 和 reclaimed/missing 降级语义；纯文本消息和附件状态逻辑不改写。
 4. RichTextRenderer 只接入已稳定的 `MediaItem` 和打开事件，不让媒体迁移阻塞非媒体 AST、流式渲染和 Patch。
 
 ### Phase 4：平台门禁和架构收口
@@ -212,8 +212,8 @@ closed
 
 - [x] 按本方案在资产管理器完成第一版真实原型。
 - [x] 为 `useManagedMediaPreview`、`MediaPreviewHost` 和三个媒体子组件补单测及组件测试。
-- [ ] 接入聊天附件和 RichTextRenderer，并保持各自现有错误/引用语义；资产详情已在 Phase 1 接通。
-- [ ] Android AVD 已通过资产图片预览、聊天附件及音频受控预览/沉浸层控制的 APK 端到端回归；手势、实际播放、方向、安全区、快速切换和 Android 真机报告仍待完成。
+- [ ] RichTextRenderer 待接入已稳定的 `MediaItem` 与打开事件；资产详情和聊天附件已接通，并保持各自现有错误/引用语义。
+- [ ] Android AVD 已通过资产图片预览、聊天附件发送/重启恢复/图片预览及音频受控预览/沉浸层控制的 APK 端到端回归；手势、实际播放、方向、安全区、快速切换和 Android 真机报告仍待完成。
 - [ ] 根据设备实测再决定是否增加方向锁定、后台音频、截图或更多原生能力；没有证据时不扩展公共 API。
 
 Phase 1 的实现位于 `mobile/src/components/media/`。自动化已覆盖 descriptor 迟到响应撤销、重复清理、过期重试、错误映射、host 先退沉浸层再关闭入口、图片缩放边界、视频 Fullscreen API fallback 和音频卸载暂停。图片下拉关闭、双指手势可用性、系统返回、方向切换和真实播放仍属于 Android AVD/真机门禁，不能由 jsdom 或浏览器构建结果替代。
@@ -223,4 +223,5 @@ Phase 1 的实现位于 `mobile/src/components/media/`。自动化已覆盖 desc
 - `Medium_Phone_API_36`（`emulator-5554`，API 36，x86_64）安装单 ABI debug APK 后，`asset` preset 已覆盖资产详情打开图片、短期预览 URL 加载、关闭后的 URL 撤销；此前因通用图片查看器缺少稳定图片元素标识而失败，现由调用方可选 `imageTestId` 契约恢复。
 - 同一 APK 的 `attachment` preset 通过，覆盖附件导入、发送、请求附件匹配、应用重启恢复、usage 注册及删除会话后的 usage 释放。
 - 新增独立 `media` preset 并已通过：生成并推送可扫描 WAV fixture，经 DocumentsUI 导入后验证 `audio/wav` 或 `audio/x-wav` MIME、资产详情受控预览 URL、`ready` 状态及音频沉浸层的后退/前进、倍速和静音控制。DocumentsUI API 36 网格会惰性加载文件，选择器先滚动定位再沿用可点击行，避免把原生 `<audio>` 的不可视性误判为预览失败。
+- `attachment` preset 已追加聊天附件预览回归：在附件导入、发送和应用重启恢复后，点击用户图片附件的统一入口，验证 `MediaPreviewHost` 的受控图片 descriptor、`ready` 状态、沉浸层打开与关闭后的 descriptor 回收。
 - 上述结果只构成受控工作流回归，不替代本节 Phase 2 的真实手势、视频/音频实际播放、方向、安全区、错误恢复和 Android 真机可用性验收。

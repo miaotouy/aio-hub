@@ -56,7 +56,7 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 
 入口：[`rich-text-renderer-migration-plan.md`](../../src/tools/rich-text-renderer/docs/Plan/rich-text-renderer-migration-plan.md)。
 
-当前可复用基础：资产服务已提供短期预览来源和主动撤销命令；`mobile/src/components/media/` 已落地统一 host、三类媒体主体和 descriptor 生命周期，`AssetDetailSheet` 已接入该入口。资产详情通过可选 `imageTestId` 将稳定的图片元素标识限定在资产调用方；2026-07-26 的 Android AVD 已通过资产图片预览、聊天附件及 WAV 音频受控预览/沉浸层控制 APK 回归。`MessageContent` 仍保留旧的图片预览实现，聊天和 RichTextRenderer 接线以及其余设备交互验收继续以 [`mobile-media-components-plan.md`](./mobile-media-components-plan.md) 为准。
+当前可复用基础：资产服务已提供短期预览来源和主动撤销命令；`mobile/src/components/media/` 已落地统一 host、三类媒体主体和 descriptor 生命周期，`AssetDetailSheet` 与聊天 `MessageContent` 已接入该入口。资产详情通过可选 `imageTestId` 将稳定的图片元素标识限定在资产调用方；2026-07-26 的 Android AVD 已通过资产图片预览、聊天附件及 WAV 音频受控预览/沉浸层控制 APK 回归。RichTextRenderer 媒体节点接线以及其余设备交互验收继续以 [`mobile-media-components-plan.md`](./mobile-media-components-plan.md) 为准。
 
 ### P2：平台门禁与已落地能力的最终验收
 

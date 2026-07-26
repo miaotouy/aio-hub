@@ -45,7 +45,11 @@ describe("composeUpgradeFlowDefinition", () => {
       .filter((step) => step.when?.(context) ?? true)
       .map((step) => step.id);
 
-    expect(visibleIds).toContain("contribution:migration:execute");
+    expect(visibleIds).toEqual([
+      "summary",
+      "contribution:migration:execute",
+      "complete",
+    ]);
   });
 
   it("hides contribution steps when detection is unavailable", async () => {
@@ -55,7 +59,6 @@ describe("composeUpgradeFlowDefinition", () => {
       .filter((step) => step.when?.(context) ?? true)
       .map((step) => step.id);
 
-    expect(visibleIds).not.toContain("contribution:migration:execute");
-    expect(visibleIds).toContain("upgrade-actions");
+    expect(visibleIds).toEqual(["summary", "complete"]);
   });
 });

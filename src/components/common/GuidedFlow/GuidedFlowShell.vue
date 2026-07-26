@@ -211,5 +211,9 @@ h2 {
     align-items: flex-start;
     flex-direction: column;
   }
+
+  .guided-flow-stepper {
+    width: 100%;
+  }
 }
 </style>

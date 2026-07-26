@@ -4,13 +4,9 @@
 
 import type { UpgradeContributionDefinition } from "@/flows/upgrade/types";
 import { upgradeContributionRegistry } from "@/flows/upgrade/upgradeContributionRegistry";
-import MigrationBackupStep from "./components/MigrationBackupStep.vue";
 import MigrationCleanupStep from "./components/MigrationCleanupStep.vue";
-import MigrationCompleteStep from "./components/MigrationCompleteStep.vue";
-import MigrationDiscoveryStep from "./components/MigrationDiscoveryStep.vue";
-import MigrationExecuteStep from "./components/MigrationExecuteStep.vue";
-import MigrationPreviewStep from "./components/MigrationPreviewStep.vue";
-import MigrationVerifyStep from "./components/MigrationVerifyStep.vue";
+import MigrationPlanStep from "./components/MigrationPlanStep.vue";
+import MigrationResultStep from "./components/MigrationResultStep.vue";
 import { knowledgeMigrationService } from "./knowledgeMigrationService";
 import {
   getKnowledgeMigrationSnapshot,
@@ -20,7 +16,7 @@ import {
 
 const definition: UpgradeContributionDefinition<KnowledgeMigrationSnapshot> = {
   id: KNOWLEDGE_MIGRATION_CONTRIBUTION_ID,
-  revision: 1,
+  revision: 2,
   title: "旧知识库数据迁移",
   description: "将旧文件目录中的 Recall 数据迁移到新的 SQLite 存储。",
   order: 100,
@@ -61,39 +57,24 @@ const definition: UpgradeContributionDefinition<KnowledgeMigrationSnapshot> = {
   },
   steps: [
     {
-      id: "discovery",
-      title: "检测结果",
-      description: "确认旧数据来源、规模和当前迁移状态。",
-      component: MigrationDiscoveryStep,
-    },
-    {
-      id: "preview",
-      title: "迁移方案",
-      description: "了解会保留、重建或无法自动处理的内容。",
-      component: MigrationPreviewStep,
-    },
-    {
-      id: "backup",
-      title: "备份与确认",
-      description: "执行前确认备份和不可逆写入风险。",
-      component: MigrationBackupStep,
-      when: (context) =>
-        getKnowledgeMigrationSnapshot(context).preview.mainStatus !==
-        "completed",
+      id: "plan",
+      title: "迁移方案与确认",
+      description: "核对旧数据、处理方案和风险，并在写入前集中确认。",
+      component: MigrationPlanStep,
       validate: (context) => {
         const snapshot = getKnowledgeMigrationSnapshot(context);
-        return snapshot.backupConfirmed && snapshot.riskConfirmed;
+        return (
+          snapshot.preview.mainStatus === "completed" ||
+          (snapshot.backupConfirmed && snapshot.riskConfirmed)
+        );
       },
       nextLabel: "确认并开始迁移",
     },
     {
-      id: "execute",
-      title: "执行迁移",
-      description: "迁移期间请保持应用运行，不要修改旧数据目录。",
-      component: MigrationExecuteStep,
-      when: (context) =>
-        getKnowledgeMigrationSnapshot(context).preview.mainStatus !==
-        "completed",
+      id: "result",
+      title: "迁移与校验",
+      description: "执行迁移并在同一页展示最终校验报告。",
+      component: MigrationResultStep,
       async onEnter(context) {
         const contribution =
           context.contributions[KNOWLEDGE_MIGRATION_CONTRIBUTION_ID];
@@ -119,17 +100,9 @@ const definition: UpgradeContributionDefinition<KnowledgeMigrationSnapshot> = {
         }
       },
       validate: (context) =>
-        Boolean(getKnowledgeMigrationSnapshot(context).report),
-      nextLabel: "查看校验报告",
-    },
-    {
-      id: "verify",
-      title: "校验报告",
-      description: "检查主数据、向量、待重建项和问题明细。",
-      component: MigrationVerifyStep,
-      validate: (context) =>
         getKnowledgeMigrationSnapshot(context).report?.mainStatus ===
         "completed",
+      nextLabel: "继续",
     },
     {
       id: "cleanup",
@@ -163,11 +136,6 @@ const definition: UpgradeContributionDefinition<KnowledgeMigrationSnapshot> = {
         );
       },
       nextLabel: "确认清理选择",
-    },
-    {
-      id: "complete",
-      title: "完成",
-      component: MigrationCompleteStep,
     },
   ],
 };

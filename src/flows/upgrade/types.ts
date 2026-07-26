@@ -15,7 +15,7 @@
 import type { GuidedFlowStep } from "@/services/guided-flow";
 
 export const APP_UPGRADE_FLOW_ID = "app-upgrade";
-export const UPGRADE_FLOW_SCHEMA_VERSION = 1;
+export const UPGRADE_FLOW_SCHEMA_VERSION = 2;
 
 export type ReleaseChannel = "stable" | "prerelease";
 export type UnknownBaselinePolicy = "manual-only" | "show-current";

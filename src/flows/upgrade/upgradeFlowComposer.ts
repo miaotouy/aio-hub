@@ -16,10 +16,8 @@ import type {
   GuidedFlowDefinition,
   GuidedFlowStep,
 } from "@/services/guided-flow";
-import UpgradeActionsStep from "./components/UpgradeActionsStep.vue";
 import UpgradeCompleteStep from "./components/UpgradeCompleteStep.vue";
-import UpgradeOverviewStep from "./components/UpgradeOverviewStep.vue";
-import UpgradeReleaseNotesStep from "./components/UpgradeReleaseNotesStep.vue";
+import UpgradeSummaryStep from "./components/UpgradeSummaryStep.vue";
 import { appLifecycleService } from "./appLifecycleService";
 import type {
   ReleaseNoteManifest,
@@ -157,28 +155,13 @@ export function composeUpgradeFlowDefinition(
     },
     steps: [
       {
-        id: "overview",
-        title: "升级概览",
-        description: "先了解本次版本变化和需要处理的事项。",
-        component: UpgradeOverviewStep,
-        when: (context) => context.mode === "automatic",
-      },
-      {
-        id: "release-notes",
-        title: "版本说明",
-        description: "以下内容来自当前安装包内置的离线版本说明。",
-        component: UpgradeReleaseNotesStep,
-        nextLabel: "我知道了",
-        when: (context) => context.releaseVersions.length > 0,
-      },
-      {
-        id: "upgrade-actions",
-        title: "升级事项",
-        description: "这些事项由对应模块只读检测，不会在打开页面时自动执行。",
-        component: UpgradeActionsStep,
+        id: "summary",
+        title: "版本概览",
+        description: "集中查看版本变化与待处理事项。",
+        component: UpgradeSummaryStep,
+        nextLabel: "继续",
         when: (context) =>
-          context.mode === "automatic" &&
-          Object.keys(context.contributions).length > 0,
+          context.mode === "automatic" || context.releaseVersions.length > 0,
       },
       ...contributionSteps,
       {

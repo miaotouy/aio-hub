@@ -13,7 +13,7 @@ function requiredEnv(name: string): string {
 }
 
 async function expectCurrentStep(stepId: string): Promise<void> {
-  const shell = await $('.guided-flow-shell');
+  const shell = await $(".guided-flow-shell");
   await shell.waitForDisplayed({ timeout: 30_000 });
   await browser.waitUntil(
     async () => (await shell.getAttribute("data-current-step-id")) === stepId,
@@ -26,7 +26,7 @@ async function expectCurrentStep(stepId: string): Promise<void> {
 
 async function advanceToStep(stepId: string): Promise<void> {
   for (let remaining = 0; remaining < 6; remaining += 1) {
-    const shell = await $('.guided-flow-shell');
+    const shell = await $(".guided-flow-shell");
     await shell.waitForDisplayed({ timeout: 30_000 });
     if ((await shell.getAttribute("data-current-step-id")) === stepId) return;
     await $('[data-testid="guided-flow-next"]').click();
@@ -35,7 +35,8 @@ async function advanceToStep(stepId: string): Promise<void> {
 }
 
 const cleanupDescribe =
-  process.env.AIO_E2E_MIGRATION_FIXTURE_ID === "legacy-file-system-v1/minimal" &&
+  process.env.AIO_E2E_MIGRATION_FIXTURE_ID ===
+    "legacy-file-system-v1/minimal" &&
   process.env.AIO_E2E_MIGRATION_SCENARIO === "cleanup" &&
   process.env.AIO_E2E_PHASE === "initial"
     ? describe
@@ -49,45 +50,46 @@ cleanupDescribe("Guided legacy Knowledge migration cleanup", () => {
     fs.mkdirSync(path.dirname(sentinelPath), { recursive: true });
     fs.writeFileSync(sentinelPath, SENTINEL_CONTENT, "utf8");
 
-    await advanceToStep("contribution:knowledge-migration:discovery");
-    await $('[data-testid="migration-discovery"]').waitForDisplayed();
-    await $('[data-testid="guided-flow-next"]').click();
-    await expectCurrentStep("contribution:knowledge-migration:preview");
-    await $('[data-testid="guided-flow-next"]').click();
-    await expectCurrentStep("contribution:knowledge-migration:backup");
+    await advanceToStep("contribution:knowledge-migration:plan");
+    await $('[data-testid="migration-plan"]').waitForDisplayed();
 
-    await $('.backup-step .confirm-card:nth-of-type(1) .el-checkbox').click();
-    await $('.backup-step .confirm-card:nth-of-type(2) .el-checkbox').click();
+    await $(".backup-step .confirm-card:nth-of-type(1) .el-checkbox").click();
+    await $(".backup-step .confirm-card:nth-of-type(2) .el-checkbox").click();
     await browser.waitUntil(
       async () =>
-        (await $('[data-testid="guided-flow-next"]').getAttribute("disabled")) ===
-        null,
-      { timeout: 10_000, timeoutMsg: "Migration confirmation did not enable Next." }
+        (await $('[data-testid="guided-flow-next"]').getAttribute(
+          "disabled"
+        )) === null,
+      {
+        timeout: 10_000,
+        timeoutMsg: "Migration confirmation did not enable Next.",
+      }
     );
 
     await $('[data-testid="guided-flow-next"]').click();
-    await expectCurrentStep("contribution:knowledge-migration:execute");
-    await $('[data-testid="migration-execute-result"]').waitForDisplayed({
+    await expectCurrentStep("contribution:knowledge-migration:result");
+    await $('[data-testid="migration-verify"]').waitForDisplayed({
       timeout: 60_000,
     });
     await $('[data-testid="guided-flow-next"]').click();
-    await expectCurrentStep("contribution:knowledge-migration:verify");
-    await $('[data-testid="migration-verify"]').waitForDisplayed();
-    await $('[data-testid="guided-flow-next"]').click();
     await expectCurrentStep("contribution:knowledge-migration:cleanup");
 
-    await $('.cleanup-step .el-radio:nth-of-type(2)').click();
-    const confirmation = await $('.cleanup-step .el-input__inner');
+    await $(".cleanup-step .el-radio:nth-of-type(2)").click();
+    const confirmation = await $(".cleanup-step .el-input__inner");
     await confirmation.setValue("DELETE");
     await browser.waitUntil(
       async () =>
-        (await $('[data-testid="guided-flow-next"]').getAttribute("disabled")) ===
-        null,
-      { timeout: 10_000, timeoutMsg: "Cleanup confirmation did not enable Next." }
+        (await $('[data-testid="guided-flow-next"]').getAttribute(
+          "disabled"
+        )) === null,
+      {
+        timeout: 10_000,
+        timeoutMsg: "Cleanup confirmation did not enable Next.",
+      }
     );
 
     await $('[data-testid="guided-flow-next"]').click();
-    await expectCurrentStep("contribution:knowledge-migration:complete");
+    await expectCurrentStep("complete");
 
     const expectedRemoved = [
       path.join(dataDir, "knowledge", "bases"),
@@ -115,7 +117,9 @@ cleanupDescribe("Guided legacy Knowledge migration cleanup", () => {
       !migratedBase ||
       migratedBase.id !== MIGRATION_COLLECTION_ID
     ) {
-      throw new Error("Legacy cleanup removed data outside its managed legacy directories.");
+      throw new Error(
+        "Legacy cleanup removed data outside its managed legacy directories."
+      );
     }
 
     const persistedFlow = fs.readFileSync(guidedFlowState, "utf8");
@@ -124,7 +128,9 @@ cleanupDescribe("Guided legacy Knowledge migration cleanup", () => {
       !persistedFlow.includes('"cleanupChoice": "cleanup"') ||
       !persistedFlow.includes('"removedPaths"')
     ) {
-      throw new Error("Guided Flow did not retain the completed migration report after cleanup.");
+      throw new Error(
+        "Guided Flow did not retain the completed migration report after cleanup."
+      );
     }
 
     fs.writeFileSync(
@@ -133,7 +139,9 @@ cleanupDescribe("Guided legacy Knowledge migration cleanup", () => {
         {
           schemaVersion: 1,
           phase: "cleanup",
-          removed: expectedRemoved.map((target) => path.relative(dataDir, target)),
+          removed: expectedRemoved.map((target) =>
+            path.relative(dataDir, target)
+          ),
           retained: [
             path.relative(dataDir, recallDb),
             path.relative(dataDir, vectorDb),
@@ -148,12 +156,10 @@ cleanupDescribe("Guided legacy Knowledge migration cleanup", () => {
     );
 
     await $('[data-testid="guided-flow-next"]').click();
-    await expectCurrentStep("complete");
-    await $('[data-testid="guided-flow-next"]').click();
     await browser.waitUntil(
       async () =>
         !(await browser.execute(() =>
-          Boolean(document.querySelector('.guided-flow-shell'))
+          Boolean(document.querySelector(".guided-flow-shell"))
         )),
       {
         timeout: 15_000,

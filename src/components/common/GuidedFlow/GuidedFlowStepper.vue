@@ -41,9 +41,20 @@ const currentIndex = computed(() =>
           active: step.id === currentStepId,
           completed: index < currentIndex,
         }"
+        :aria-current="step.id === currentStepId ? 'step' : undefined"
       >
-        <span class="step-index">{{ index + 1 }}</span>
-        <span class="step-title">{{ step.title }}</span>
+        <span class="step-dot" aria-hidden="true" />
+        <span v-if="step.id === currentStepId" class="step-title">
+          {{ step.title }}
+        </span>
+        <span class="visually-hidden">
+          第 {{ index + 1 }} 步：{{ step.title }}
+        </span>
+        <span
+          v-if="index < steps.length - 1"
+          class="step-connector"
+          aria-hidden="true"
+        />
       </li>
     </ol>
   </nav>
@@ -51,14 +62,16 @@ const currentIndex = computed(() =>
 
 <style scoped>
 .guided-flow-stepper {
-  overflow-x: auto;
-  padding-bottom: 2px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
 }
 
 ol {
   display: flex;
-  min-width: max-content;
-  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -66,45 +79,87 @@ ol {
 
 li {
   display: flex;
+  min-width: 0;
+  flex: 1 1 0;
   align-items: center;
-  gap: 6px;
   color: var(--text-color-secondary);
+}
+
+li:last-child {
+  flex: 0 0 auto;
+}
+
+.step-dot {
+  box-sizing: border-box;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  background: var(--bg-color);
+  transition:
+    width 160ms ease,
+    height 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.step-title {
+  min-width: 0;
+  max-width: clamp(72px, 24vw, 180px);
+  margin-left: 8px;
+  overflow: hidden;
+  color: var(--text-color);
   font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-li:not(:last-child)::after {
-  width: 20px;
+.step-connector {
+  min-width: 4px;
   height: 1px;
-  margin-left: 2px;
+  flex: 1 1 auto;
+  margin: 0 7px;
   background: var(--border-color);
-  content: "";
 }
 
-.step-index {
-  display: inline-flex;
-  width: 20px;
-  height: 20px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border-color);
-  border-radius: 50%;
-  font-size: 11px;
-}
-
-li.active {
-  color: var(--primary-color);
-  font-weight: 600;
-}
-
-li.active .step-index,
-li.completed .step-index {
+li.completed .step-dot {
   border-color: var(--primary-color);
   background: var(--primary-color);
-  color: var(--primary-text-color, #fff);
 }
 
-li.completed {
-  color: var(--text-color);
+li.completed .step-connector {
+  background: color-mix(in srgb, var(--primary-color) 55%, var(--border-color));
+}
+
+li.active .step-dot {
+  width: 10px;
+  height: 10px;
+  flex-basis: 10px;
+  border: 2px solid var(--bg-color);
+  background: var(--primary-color);
+  box-shadow: 0 0 0 2px var(--primary-color);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .step-dot {
+    transition: none;
+  }
 }
 </style>

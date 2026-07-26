@@ -77,6 +77,18 @@ describe("knowledge migration contribution", () => {
     registerKnowledgeMigrationContribution();
   });
 
+  it("groups migration work into three user-facing steps", () => {
+    const definition = upgradeContributionRegistry.get(
+      KNOWLEDGE_MIGRATION_CONTRIBUTION_ID
+    )!;
+
+    expect(definition.steps.map((step) => step.id)).toEqual([
+      "plan",
+      "result",
+      "cleanup",
+    ]);
+  });
+
   it("detects legacy data as a module-blocking pending contribution", async () => {
     mocks.invoke.mockResolvedValueOnce(preview);
     const definition = upgradeContributionRegistry.get(
@@ -121,17 +133,17 @@ describe("knowledge migration contribution", () => {
         },
       },
     };
-    const backupStep = definition.steps.find((step) => step.id === "backup")!;
-    expect(await backupStep.validate?.(context)).toBe(false);
+    const planStep = definition.steps.find((step) => step.id === "plan")!;
+    expect(await planStep.validate?.(context)).toBe(false);
     const snapshot = context.contributions[KNOWLEDGE_MIGRATION_CONTRIBUTION_ID]
       .snapshot as any;
     snapshot.backupConfirmed = true;
     snapshot.riskConfirmed = true;
-    expect(await backupStep.validate?.(context)).toBe(true);
+    expect(await planStep.validate?.(context)).toBe(true);
 
     mocks.invoke.mockResolvedValueOnce(report);
-    const executeStep = definition.steps.find((step) => step.id === "execute")!;
-    await executeStep.onEnter?.(context);
+    const resultStep = definition.steps.find((step) => step.id === "result")!;
+    await resultStep.onEnter?.(context);
 
     expect(mocks.invoke).toHaveBeenLastCalledWith(
       "recall_run_legacy_migration",

@@ -43,7 +43,7 @@ function expectedCount(name: string): number {
 }
 
 async function expectCurrentStep(stepId: string): Promise<void> {
-  const shell = await $('.guided-flow-shell');
+  const shell = await $(".guided-flow-shell");
   await shell.waitForDisplayed({ timeout: 30_000 });
   await browser.waitUntil(
     async () => (await shell.getAttribute("data-current-step-id")) === stepId,
@@ -56,41 +56,45 @@ async function expectCurrentStep(stepId: string): Promise<void> {
 
 async function advanceToStep(stepId: string): Promise<void> {
   for (let remaining = 0; remaining < 5; remaining += 1) {
-    const shell = await $('.guided-flow-shell');
+    const shell = await $(".guided-flow-shell");
     await shell.waitForDisplayed({ timeout: 30_000 });
     if ((await shell.getAttribute("data-current-step-id")) === stepId) return;
-    await $('.guided-flow-footer .el-button--primary').click();
+    await $(".guided-flow-footer .el-button--primary").click();
   }
   await expectCurrentStep(stepId);
 }
 
 const migrationDescribe =
-  process.env.AIO_E2E_MIGRATION_FIXTURE_ID === "legacy-file-system-v1/minimal" &&
-  process.env.AIO_E2E_PHASE === "initial"
+  process.env.AIO_E2E_MIGRATION_FIXTURE_ID ===
+    "legacy-file-system-v1/minimal" && process.env.AIO_E2E_PHASE === "initial"
     ? describe
     : describe.skip;
 
 migrationDescribe("Guided legacy Knowledge migration", () => {
   it("detects without importing, migrates through visible confirmations, and records a cross-checked report", async () => {
-    const expectedCollections = expectedCount("AIO_E2E_MIGRATION_EXPECTED_COLLECTIONS");
+    const expectedCollections = expectedCount(
+      "AIO_E2E_MIGRATION_EXPECTED_COLLECTIONS"
+    );
     const expectedEntries = expectedCount("AIO_E2E_MIGRATION_EXPECTED_ENTRIES");
     const expectedVectors = expectedCount("AIO_E2E_MIGRATION_EXPECTED_VECTORS");
     const artifactDir = requiredEnv("AIO_E2E_ARTIFACT_DIR");
 
-    await advanceToStep("contribution:knowledge-migration:discovery");
-    await $('.migration-step').waitForDisplayed();
+    await advanceToStep("contribution:knowledge-migration:plan");
+    await $(".migration-step").waitForDisplayed();
     if (
-      !(await $('.migration-step .metric-grid > div:nth-child(1)').getText()).includes(
-        String(expectedCollections)
-      ) ||
-      !(await $('.migration-step .metric-grid > div:nth-child(2)').getText()).includes(
-        String(expectedEntries)
-      ) ||
-      !(await $('.migration-step .metric-grid > div:nth-child(3)').getText()).includes(
-        String(expectedVectors)
-      )
+      !(
+        await $(".migration-step .metric-grid > div:nth-child(1)").getText()
+      ).includes(String(expectedCollections)) ||
+      !(
+        await $(".migration-step .metric-grid > div:nth-child(2)").getText()
+      ).includes(String(expectedEntries)) ||
+      !(
+        await $(".migration-step .metric-grid > div:nth-child(3)").getText()
+      ).includes(String(expectedVectors))
     ) {
-      throw new Error("Guided Flow did not display the staged legacy source counts.");
+      throw new Error(
+        "Guided Flow did not display the staged legacy source counts."
+      );
     }
 
     await invokeTauriCommand<void>("recall_initialize");
@@ -107,31 +111,29 @@ migrationDescribe("Guided legacy Knowledge migration", () => {
       before.vectorStatus !== "not_started" ||
       beforeBase !== null
     ) {
-      throw new Error("Legacy data was imported before the user confirmed migration.");
+      throw new Error(
+        "Legacy data was imported before the user confirmed migration."
+      );
     }
 
-    await $('.guided-flow-footer .el-button--primary').click();
-    await expectCurrentStep("contribution:knowledge-migration:preview");
-    await $('.guided-flow-footer .el-button--primary').click();
-    await expectCurrentStep("contribution:knowledge-migration:backup");
-
-    await $('.backup-step .confirm-card:nth-of-type(1) .el-checkbox').click();
-    await $('.backup-step .confirm-card:nth-of-type(2) .el-checkbox').click();
+    await $(".backup-step .confirm-card:nth-of-type(1) .el-checkbox").click();
+    await $(".backup-step .confirm-card:nth-of-type(2) .el-checkbox").click();
     await browser.waitUntil(
       async () =>
-        (await $('.guided-flow-footer .el-button--primary').getAttribute("disabled")) ===
-        null,
-      { timeout: 10_000, timeoutMsg: "Migration confirmation did not enable Next." }
+        (await $(".guided-flow-footer .el-button--primary").getAttribute(
+          "disabled"
+        )) === null,
+      {
+        timeout: 10_000,
+        timeoutMsg: "Migration confirmation did not enable Next.",
+      }
     );
 
-    await $('.guided-flow-footer .el-button--primary').click();
-    await expectCurrentStep("contribution:knowledge-migration:execute");
-    await $('.execute-step .el-result').waitForDisplayed({
+    await $(".guided-flow-footer .el-button--primary").click();
+    await expectCurrentStep("contribution:knowledge-migration:result");
+    await $(".verify-step .status-grid").waitForDisplayed({
       timeout: 60_000,
     });
-    await $('.guided-flow-footer .el-button--primary').click();
-    await expectCurrentStep("contribution:knowledge-migration:verify");
-    await $('.verify-step .status-grid').waitForDisplayed();
 
     const preview = await invokeTauriCommand<MigrationPreview | null>(
       "recall_preview_legacy_migration"
@@ -173,13 +175,15 @@ migrationDescribe("Guided legacy Knowledge migration", () => {
       coverage.missingEntries !== 0
     ) {
       throw new Error(
-        `Migration UI and production IPC results did not match the fixture manifest: ${JSON.stringify({
-          preview,
-          report,
-          migratedBase,
-          coverage,
-          expected: { expectedCollections, expectedEntries, expectedVectors },
-        })}`
+        `Migration UI and production IPC results did not match the fixture manifest: ${JSON.stringify(
+          {
+            preview,
+            report,
+            migratedBase,
+            coverage,
+            expected: { expectedCollections, expectedEntries, expectedVectors },
+          }
+        )}`
       );
     }
 
@@ -187,19 +191,17 @@ migrationDescribe("Guided legacy Knowledge migration", () => {
     await expectCurrentStep("contribution:knowledge-migration:cleanup");
     await $('[data-testid="migration-cleanup"]').waitForDisplayed();
     await $('[data-testid="guided-flow-next"]').click();
-    await expectCurrentStep("contribution:knowledge-migration:complete");
-    await $('[data-testid="guided-flow-next"]').click();
     await expectCurrentStep("complete");
     await $('[data-testid="guided-flow-next"]').click();
     await browser.waitUntil(
       async () => {
         const isOpen = await browser.execute(() =>
-          Boolean(document.querySelector('.guided-flow-shell'))
+          Boolean(document.querySelector(".guided-flow-shell"))
         );
         if (isOpen) return false;
         await browser.pause(500);
         return !(await browser.execute(() =>
-          Boolean(document.querySelector('.guided-flow-shell'))
+          Boolean(document.querySelector(".guided-flow-shell"))
         ));
       },
       {

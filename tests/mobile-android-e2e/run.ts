@@ -1,5 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type { Subprocess } from "bun";
 import type { Browser } from "webdriverio";
 import { resolveAndroidSdkTools } from "./support/android-sdk";
 import { AdbClient } from "./support/adb";
@@ -28,6 +29,7 @@ import {
 import { parseRunnerOptions } from "./support/runner-options";
 import { formatPresetList, MOBILE_E2E_PRESETS } from "./presets";
 import type { MobileE2eRunResult } from "./types";
+import { terminateSubprocess, withTimeout } from "./support/process";
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -70,6 +72,7 @@ async function main(): Promise<void> {
   const tools = resolveAndroidSdkTools();
   const adb = new AdbClient(tools.adb);
   let ownedAvd: OwnedAvd | undefined;
+  let startingAvdProcess: Subprocess | undefined;
   let appium: AppiumServer | undefined;
   let driver: Browser | undefined;
   let deterministic:
@@ -79,6 +82,86 @@ async function main(): Promise<void> {
     hostPort: number;
     purpose: "deterministic-openai" | "ollama";
   }> = [];
+  let cleanupPromise: Promise<void> | undefined;
+  let signalExitStarted = false;
+
+  const noteCleanupFailure = (description: string, error: unknown) => {
+    const message = errorSummary(error).message;
+    result.warnings.push(`${description}: ${message}`);
+  };
+  const cleanup = (): Promise<void> => {
+    cleanupPromise ??= (async () => {
+      if (driver) {
+        await withTimeout(driver.deleteSession(), {
+          timeoutMs: 10_000,
+          description: "Appium session deletion",
+        }).catch((error) =>
+          noteCleanupFailure("Appium session cleanup failed", error)
+        );
+      }
+      if (appium) {
+        await withTimeout(appium.stop(), {
+          timeoutMs: 7_000,
+          description: "Appium server shutdown",
+        }).catch((error) =>
+          noteCleanupFailure("Appium server cleanup failed", error)
+        );
+      }
+      deterministic?.stop();
+      if (ownedAvd) {
+        for (const mapping of reverseMappings) {
+          await adb
+            .removeReverse(ownedAvd.device.serial, mapping.devicePort)
+            .catch((error) =>
+              noteCleanupFailure(
+                `ADB reverse cleanup failed for tcp:${mapping.devicePort}`,
+                error
+              )
+            );
+        }
+      }
+      if (ownedAvd && !options.keepAvd) {
+        await withTimeout(stopOwnedAvd(adb, ownedAvd), {
+          timeoutMs: 40_000,
+          description: `AVD ${ownedAvd.device.avdName} shutdown`,
+        }).catch((error) => noteCleanupFailure("AVD cleanup failed", error));
+      } else if (startingAvdProcess) {
+        await withTimeout(
+          terminateSubprocess(startingAvdProcess, {
+            gracefulTimeoutMs: 7_000,
+            forceTimeoutMs: 3_000,
+          }),
+          { timeoutMs: 12_000, description: "starting AVD process shutdown" }
+        ).catch((error) =>
+          noteCleanupFailure("Starting AVD cleanup failed", error)
+        );
+      }
+      result.finishedAt ??= new Date().toISOString();
+      artifacts.writeRun();
+      artifacts.redactExistingLog("appium.log", true);
+      artifacts.redactExistingLog("emulator.log");
+      console.log(
+        `[mobile-e2e] ${result.status}: ${artifacts.path("e2e-run.json")}`
+      );
+    })();
+    return cleanupPromise;
+  };
+  const handleSignal = (signal: NodeJS.Signals) => {
+    if (signalExitStarted) return;
+    signalExitStarted = true;
+    result.status = "failed";
+    result.error = {
+      name: signal,
+      message: `Mobile Android E2E interrupted by ${signal}.`,
+    };
+    const exitCode = signal === "SIGINT" ? 130 : 143;
+    process.exitCode = exitCode;
+    void Promise.race([cleanup(), Bun.sleep(45_000)]).finally(() => {
+      process.exit(exitCode);
+    });
+  };
+  process.once("SIGINT", handleSignal);
+  process.once("SIGTERM", handleSignal);
 
   try {
     ownedAvd = await ensureAvd({
@@ -87,7 +170,11 @@ async function main(): Promise<void> {
       avdName: options.avdName,
       serial: options.serial,
       logPath: artifacts.path("emulator.log"),
+      onProcessStarted: (process) => {
+        startingAvdProcess = process;
+      },
     });
+    startingAvdProcess = undefined;
     const device = ownedAvd.device;
     result.device = {
       serial: device.serial,
@@ -281,33 +368,25 @@ async function main(): Promise<void> {
     }
     result.status = "passed";
   } catch (error) {
-    result.status = "failed";
-    result.error = errorSummary(error);
-    await artifacts.captureFailure({
-      driver,
-      adb: ownedAvd ? adb : undefined,
-      serial: ownedAvd?.device.serial,
-    });
+    if (!signalExitStarted) {
+      result.status = "failed";
+      result.error = errorSummary(error);
+      await withTimeout(
+        artifacts.captureFailure({
+          driver,
+          adb: ownedAvd ? adb : undefined,
+          serial: ownedAvd?.device.serial,
+        }),
+        { timeoutMs: 30_000, description: "failure artifact capture" }
+      ).catch((captureError) =>
+        noteCleanupFailure("Failure artifact capture incomplete", captureError)
+      );
+    }
     throw error;
   } finally {
-    result.finishedAt = new Date().toISOString();
-    artifacts.writeRun();
-    if (driver) await driver.deleteSession().catch(() => undefined);
-    if (appium) await appium.stop().catch(() => undefined);
-    deterministic?.stop();
-    if (ownedAvd) {
-      for (const mapping of reverseMappings) {
-        await adb.removeReverse(ownedAvd.device.serial, mapping.devicePort);
-      }
-    }
-    if (ownedAvd && !options.keepAvd) {
-      await stopOwnedAvd(adb, ownedAvd);
-    }
-    artifacts.redactExistingLog("appium.log", true);
-    artifacts.redactExistingLog("emulator.log");
-    console.log(
-      `[mobile-e2e] ${result.status}: ${artifacts.path("e2e-run.json")}`
-    );
+    process.off("SIGINT", handleSignal);
+    process.off("SIGTERM", handleSignal);
+    await cleanup();
   }
 }
 

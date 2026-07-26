@@ -3,7 +3,12 @@ import path from "node:path";
 import type { Subprocess } from "bun";
 import { remote, type Browser } from "webdriverio";
 import { createCapabilities } from "../capabilities";
-import { waitUntil } from "./process";
+import {
+  FatalWaitError,
+  terminateSubprocess,
+  trackSubprocessExit,
+  waitUntil,
+} from "./process";
 
 export const PINNED_APPIUM_VERSION = "2.19.0";
 export const PINNED_UIAUTOMATOR2_VERSION = "4.2.3";
@@ -19,9 +24,16 @@ export async function startAppiumServer(options: {
   port: number;
   logPath: string;
 }): Promise<AppiumServer> {
-  const appiumEntry = path.join(options.repoRoot, "node_modules", "appium", "index.js");
+  const appiumEntry = path.join(
+    options.repoRoot,
+    "node_modules",
+    "appium",
+    "index.js"
+  );
   if (!fs.existsSync(appiumEntry)) {
-    throw new Error("Pinned Appium dependency is not installed. Run bun install.");
+    throw new Error(
+      "Pinned Appium dependency is not installed. Run bun install."
+    );
   }
   const logFile = Bun.file(options.logPath);
   const subprocess = Bun.spawn(
@@ -48,10 +60,12 @@ export async function startAppiumServer(options: {
     }
   );
   const baseUrl = `http://127.0.0.1:${options.port}`;
+  const processExitCode = trackSubprocessExit(subprocess);
   await waitUntil(
     async () => {
-      if (subprocess.exitCode !== null) {
-        throw new Error(`Appium exited with code ${subprocess.exitCode}.`);
+      const exitCode = processExitCode();
+      if (exitCode !== null) {
+        throw new FatalWaitError(`Appium exited with code ${exitCode}.`);
       }
       const response = await fetch(`${baseUrl}/status`).catch(() => null);
       return response?.ok ? true : null;
@@ -62,13 +76,10 @@ export async function startAppiumServer(options: {
     process: subprocess,
     baseUrl,
     stop: async () => {
-      subprocess.kill();
-      await Promise.race([
-        subprocess.exited,
-        Bun.sleep(5_000).then(() => {
-          subprocess.kill(9);
-        }),
-      ]).catch(() => undefined);
+      await terminateSubprocess(subprocess, {
+        gracefulTimeoutMs: 3_000,
+        forceTimeoutMs: 2_000,
+      });
     },
   };
 }
@@ -94,7 +105,9 @@ export async function waitForWebview(
   return waitUntil(
     async () => {
       const contexts = await driver.getContexts();
-      const context = contexts.find((value) => String(value).startsWith("WEBVIEW"));
+      const context = contexts.find((value) =>
+        String(value).startsWith("WEBVIEW")
+      );
       return context ? String(context) : null;
     },
     { timeoutMs, intervalMs: 500, description: "AIO Hub WebView context" }

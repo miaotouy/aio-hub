@@ -5,7 +5,14 @@ import type { AndroidStudioAvd, ConnectedAndroidDevice } from "../types";
 import type { AndroidSdkTools } from "./android-sdk";
 import { AdbClient } from "./adb";
 import type { CommandRunner } from "./process";
-import { runCommand, waitUntil } from "./process";
+import {
+  FatalWaitError,
+  runCommand,
+  terminateSubprocess,
+  trackSubprocessExit,
+  waitForSubprocessExit,
+  waitUntil,
+} from "./process";
 
 export function parseAvdList(output: string): string[] {
   return output
@@ -47,7 +54,9 @@ export function selectRunningAvd(
   requestedSerial?: string
 ): AndroidStudioAvd | null {
   if (requestedSerial) {
-    const device = devices.find((candidate) => candidate.serial === requestedSerial);
+    const device = devices.find(
+      (candidate) => candidate.serial === requestedSerial
+    );
     if (!device) {
       throw new Error(
         `Requested serial ${requestedSerial} is not a configured Android Studio AVD.`
@@ -82,6 +91,7 @@ export async function ensureAvd(options: {
   serial?: string;
   logPath: string;
   bootTimeoutMs?: number;
+  onProcessStarted?: (process: Subprocess) => void;
 }): Promise<OwnedAvd> {
   const configuredAvds = await listConfiguredAvds(options.tools);
   if (!configuredAvds.includes(options.avdName)) {
@@ -115,14 +125,25 @@ export async function ensureAvd(options: {
       stdout: logFile,
       stderr: logFile,
       windowsHide: true,
+      env: {
+        ...Bun.env,
+        ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL:
+          Bun.env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL ?? "5",
+      },
     }
   );
+  options.onProcessStarted?.(process);
+  const processExitCode = trackSubprocessExit(process);
   const previousSerials = new Set(before.all.map((device) => device.serial));
   try {
     const device = await waitUntil(
       async () => {
-        if (process.exitCode !== null) {
-          throw new Error(`AVD process exited with code ${process.exitCode}.`);
+        const exitCode = processExitCode();
+        if (exitCode !== null) {
+          const tail = emulatorLogTail(options.logPath);
+          throw new FatalWaitError(
+            `AVD process exited with code ${exitCode}.${tail}`
+          );
         }
         const current = await inspectConnectedAvds(options.adb, configuredAvds);
         const match = current.androidStudioAvds.find(
@@ -146,16 +167,53 @@ export async function ensureAvd(options: {
     process.unref();
     return { device, startedByRunner: true, process };
   } catch (error) {
-    process.kill();
+    await terminateSubprocess(process, {
+      gracefulTimeoutMs: 7_000,
+      forceTimeoutMs: 3_000,
+    });
     throw error;
   }
 }
 
+function emulatorLogTail(logPath: string): string {
+  if (!fs.existsSync(logPath)) return "";
+  const lines = fs
+    .readFileSync(logPath, "utf8")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(-6);
+  return lines.length > 0 ? ` Emulator log: ${lines.join(" | ")}` : "";
+}
+
 export async function stopOwnedAvd(adb: AdbClient, owned: OwnedAvd) {
   if (!owned.startedByRunner) return;
-  await adb.serial(owned.device.serial, ["emu", "kill"], {
-    allowFailure: true,
-    timeoutMs: 10_000,
-  });
-  owned.process?.kill();
+  await adb
+    .serial(owned.device.serial, ["emu", "kill"], {
+      allowFailure: true,
+      timeoutMs: 5_000,
+    })
+    .catch(() => undefined);
+  if (owned.process) {
+    const exited = await waitForSubprocessExit(owned.process, 7_000);
+    if (!exited) {
+      await terminateSubprocess(owned.process, {
+        gracefulTimeoutMs: 3_000,
+        forceTimeoutMs: 2_000,
+      });
+    }
+  }
+  await waitUntil(
+    async () => {
+      const devices = await adb.devices();
+      return devices.some((device) => device.serial === owned.device.serial)
+        ? null
+        : true;
+    },
+    {
+      timeoutMs: 20_000,
+      intervalMs: 500,
+      description: `ADB serial ${owned.device.serial} to disconnect`,
+    }
+  );
 }

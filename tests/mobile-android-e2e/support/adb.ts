@@ -51,7 +51,9 @@ export class AdbClient {
   ) {}
 
   async devices(): Promise<ConnectedAndroidDevice[]> {
-    const result = await this.run([this.executable, "devices", "-l"]);
+    const result = await this.run([this.executable, "devices", "-l"], {
+      timeoutMs: 10_000,
+    });
     return parseAdbDevices(result.stdout);
   }
 
@@ -64,8 +66,14 @@ export class AdbClient {
     return this.run([this.executable, "-s", serial, ...args], options);
   }
 
-  async getProp(serial: string, name: string): Promise<string> {
-    const result = await this.serial(serial, ["shell", "getprop", name]);
+  async getProp(
+    serial: string,
+    name: string,
+    timeoutMs = 5_000
+  ): Promise<string> {
+    const result = await this.serial(serial, ["shell", "getprop", name], {
+      timeoutMs,
+    });
     return result.stdout.trim();
   }
 
@@ -234,6 +242,7 @@ export class AdbClient {
   async removeReverse(serial: string, devicePort: number): Promise<void> {
     await this.serial(serial, ["reverse", "--remove", `tcp:${devicePort}`], {
       allowFailure: true,
+      timeoutMs: 5_000,
     });
   }
 }

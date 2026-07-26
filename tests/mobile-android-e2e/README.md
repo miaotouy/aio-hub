@@ -83,3 +83,36 @@ low-storage, camera, or iOS release validation.
 Named presets enforce an 80 MiB single-ABI debug APK baseline. Use
 `--max-apk-bytes` only when reviewing an intentional baseline change; an
 oversized APK fails before installation.
+
+## Stuck AVD and ADB recovery
+
+The runner bounds ADB discovery and property probes, treats an emulator or
+Appium subprocess exit as immediately fatal, and applies hard deadlines to
+failure capture and cleanup. Successful command probes cancel their pending
+timeout timers so an otherwise completed Bun process is not kept alive until a
+stale 60-second timer expires. `SIGINT` and `SIGTERM` trigger the same bounded
+cleanup path. A runner-owned AVD receives `adb emu kill` first and is then
+terminated only if it does not exit within the shutdown deadline; cleanup also
+waits for the owned serial to disappear from `adb devices` before returning.
+
+A serial passed with `--serial` is user-owned. The runner deliberately does not
+stop it, restart the shared ADB server, or kill unrelated Android processes.
+This protects LDPlayer, real devices, and Android Studio sessions that may be
+using the same ADB server.
+
+When an AVD stops responding, inspect ownership before retrying:
+
+```powershell
+$adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
+& $adb devices -l
+Get-CimInstance Win32_Process |
+  Where-Object { $_.Name -match '^(emulator|qemu-system.*)\.exe$' } |
+  Select-Object ProcessId, ParentProcessId, Name, CommandLine
+```
+
+If `adb devices` no longer lists the AVD but an emulator/QEMU process still
+references the same AVD, stop that instance from Android Studio Device Manager
+or terminate only the confirmed process tree before retrying. Do not delete
+AVD lock files while any matching emulator/QEMU process exists. A historical
+`e2e-run.json` with `status: running` means the runner did not reach its final
+cleanup write; it is not proof that the process is still active.

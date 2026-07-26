@@ -4,6 +4,7 @@ import { marked } from "marked";
 import { Copy, Check } from "lucide-vue-next";
 import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/feedback";
+import ThinkBlock from "./components/ThinkBlock.vue";
 
 defineOptions({
   name: "RichTextRenderer",
@@ -17,6 +18,7 @@ const props = withDefaults(
     tokens?: any[]; // 支持直接传入 tokens 数组用于递归
     isStreaming?: boolean;
     resolveAsset?: (content: string) => string;
+    disableThinkParsing?: boolean;
   }>(),
   {
     content: "",
@@ -38,24 +40,77 @@ const processedContent = computed(() => {
   return text;
 });
 
-/**
- * 解析得到的 Tokens 列表
- */
-const displayTokens = computed(() => {
-  if (props.tokens) {
-    return props.tokens;
-  }
-  const text = processedContent.value;
-  if (!text) return [];
+type RenderSegment =
+  | { type: "markdown"; tokens: any[] }
+  | {
+      type: "think";
+      tagName: string;
+      content: string;
+      isThinking: boolean;
+    };
 
+const THINK_TAG_PATTERN = /<(think|guguthink)\s*>/gi;
+
+function parseMarkdownTokens(text: string): any[] {
+  if (!text) return [];
   try {
-    // 使用 marked.lexer 拿到标准的 AST Tokens 数组
     return marked.lexer(text);
-  } catch (err) {
-    logger.error("Markdown 解析失败，降级为纯文本", err);
-    // 降级为纯文本 Token
+  } catch (error) {
+    logger.error("Markdown 解析失败，降级为纯文本", error);
     return [{ type: "text", text }];
   }
+}
+
+function splitThinkSegments(text: string): RenderSegment[] {
+  const segments: RenderSegment[] = [];
+  let cursor = 0;
+  let opening: RegExpExecArray | null;
+  THINK_TAG_PATTERN.lastIndex = 0;
+
+  while ((opening = THINK_TAG_PATTERN.exec(text))) {
+    const tagName = opening[1].toLowerCase();
+    const closePattern = new RegExp(`</${tagName}\\s*>`, "i");
+    closePattern.lastIndex = THINK_TAG_PATTERN.lastIndex;
+    const closing = closePattern.exec(text.slice(THINK_TAG_PATTERN.lastIndex));
+
+    if (!closing && !props.isStreaming) break;
+    if (opening.index > cursor) {
+      segments.push({
+        type: "markdown",
+        tokens: parseMarkdownTokens(text.slice(cursor, opening.index)),
+      });
+    }
+
+    const contentStart = THINK_TAG_PATTERN.lastIndex;
+    const contentEnd = closing ? contentStart + closing.index : text.length;
+    segments.push({
+      type: "think",
+      tagName,
+      content: text.slice(contentStart, contentEnd),
+      isThinking: !closing,
+    });
+    cursor = closing ? contentEnd + closing[0].length : text.length;
+    THINK_TAG_PATTERN.lastIndex = cursor;
+    if (!closing) break;
+  }
+
+  if (cursor < text.length || !segments.length) {
+    segments.push({
+      type: "markdown",
+      tokens: parseMarkdownTokens(text.slice(cursor)),
+    });
+  }
+  return segments;
+}
+
+const displaySegments = computed<RenderSegment[]>(() => {
+  if (props.tokens) return [{ type: "markdown", tokens: props.tokens }];
+  const text = processedContent.value;
+  if (!text) return [];
+  if (props.disableThinkParsing) {
+    return [{ type: "markdown", tokens: parseMarkdownTokens(text) }];
+  }
+  return splitThinkSegments(text);
 });
 
 /**
@@ -94,191 +149,217 @@ async function copyCode(code: string, index: number) {
 
 <template>
   <div class="rich-text-renderer" :class="{ 'is-recursive': isRecursive }">
-    <template v-for="(token, index) in displayTokens" :key="index">
-      <!-- 1. 标题 -->
-      <component
-        v-if="token.type === 'heading'"
-        :is="'h' + token.depth"
-        class="md-heading"
-        :class="'md-h' + token.depth"
+    <template
+      v-for="(segment, segmentIndex) in displaySegments"
+      :key="segmentIndex"
+    >
+      <ThinkBlock
+        v-if="segment.type === 'think'"
+        :tag-name="segment.tagName"
+        :raw-content="segment.content"
+        :is-thinking="segment.isThinking"
       >
         <RichTextRenderer
-          :tokens="token.tokens"
+          :content="segment.content"
+          :is-streaming="isStreaming"
           :resolve-asset="resolveAsset"
+          disable-think-parsing
         />
-      </component>
-
-      <!-- 2. 段落 -->
-      <p v-else-if="token.type === 'paragraph'" class="md-paragraph">
-        <RichTextRenderer
-          :tokens="token.tokens"
-          :resolve-asset="resolveAsset"
-        />
-      </p>
-
-      <!-- 3. 代码块 -->
-      <div v-else-if="token.type === 'code'" class="code-block-container">
-        <div class="code-block-header">
-          <span class="code-lang">{{ token.lang || "code" }}</span>
-          <button class="copy-btn" @click="copyCode(token.text, index)">
-            <Check
-              v-if="copiedIndex === index"
-              :size="14"
-              class="success-icon"
+      </ThinkBlock>
+      <template v-else>
+        <template v-for="(token, index) in segment.tokens" :key="index">
+          <!-- 1. 标题 -->
+          <component
+            v-if="token.type === 'heading'"
+            :is="'h' + token.depth"
+            class="md-heading"
+            :class="'md-h' + token.depth"
+          >
+            <RichTextRenderer
+              :tokens="token.tokens"
+              :resolve-asset="resolveAsset"
             />
-            <Copy v-else :size="14" />
-            <span>{{ copiedIndex === index ? "已复制" : "复制" }}</span>
-          </button>
-        </div>
-        <pre class="code-block-pre"><code>{{ token.text }}</code></pre>
-      </div>
+          </component>
 
-      <!-- 4. 引用块 -->
-      <blockquote v-else-if="token.type === 'blockquote'" class="md-blockquote">
-        <RichTextRenderer
-          :tokens="token.tokens"
-          :resolve-asset="resolveAsset"
-        />
-      </blockquote>
+          <!-- 2. 段落 -->
+          <p v-else-if="token.type === 'paragraph'" class="md-paragraph">
+            <RichTextRenderer
+              :tokens="token.tokens"
+              :resolve-asset="resolveAsset"
+            />
+          </p>
 
-      <!-- 5. 列表 -->
-      <component
-        v-else-if="token.type === 'list'"
-        :is="token.ordered ? 'ol' : 'ul'"
-        :start="token.start || undefined"
-        class="md-list"
-        :class="{ 'is-ordered': token.ordered }"
-      >
-        <li
-          v-for="(item, itemIdx) in token.items"
-          :key="itemIdx"
-          class="md-list-item"
-        >
-          <!-- 递归渲染列表项内部的 tokens -->
-          <RichTextRenderer
-            :tokens="item.tokens"
-            :resolve-asset="resolveAsset"
-          />
-        </li>
-      </component>
-
-      <!-- 6. 水平线 -->
-      <hr v-else-if="token.type === 'hr'" class="md-hr" />
-
-      <!-- 7. 表格 -->
-      <div v-else-if="token.type === 'table'" class="table-wrapper">
-        <table class="md-table">
-          <thead>
-            <tr>
-              <th
-                v-for="(headerCell, cellIdx) in token.header"
-                :key="cellIdx"
-                :style="{ textAlign: token.align[cellIdx] || 'left' }"
-              >
-                <RichTextRenderer
-                  :tokens="headerCell.tokens"
-                  :resolve-asset="resolveAsset"
+          <!-- 3. 代码块 -->
+          <div v-else-if="token.type === 'code'" class="code-block-container">
+            <div class="code-block-header">
+              <span class="code-lang">{{ token.lang || "code" }}</span>
+              <button class="copy-btn" @click="copyCode(token.text, index)">
+                <Check
+                  v-if="copiedIndex === index"
+                  :size="14"
+                  class="success-icon"
                 />
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(row, rowIdx) in token.rows" :key="rowIdx">
-              <td
-                v-for="(cell, cellIdx) in row"
-                :key="cellIdx"
-                :style="{ textAlign: token.align[cellIdx] || 'left' }"
-              >
-                <RichTextRenderer
-                  :tokens="cell.tokens"
-                  :resolve-asset="resolveAsset"
-                />
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+                <Copy v-else :size="14" />
+                <span>{{ copiedIndex === index ? "已复制" : "复制" }}</span>
+              </button>
+            </div>
+            <pre class="code-block-pre"><code>{{ token.text }}</code></pre>
+          </div>
 
-      <!-- 8. HTML 块：移动端尚未具备白名单/沙箱，保持字面文本以禁止执行。 -->
-      <pre v-else-if="token.type === 'html'" class="md-html">{{
-        token.text
-      }}</pre>
+          <!-- 4. 引用块 -->
+          <blockquote
+            v-else-if="token.type === 'blockquote'"
+            class="md-blockquote"
+          >
+            <RichTextRenderer
+              :tokens="token.tokens"
+              :resolve-asset="resolveAsset"
+            />
+          </blockquote>
 
-      <!-- 9. 行内粗体 -->
-      <strong v-else-if="token.type === 'strong'" class="md-strong">
-        <RichTextRenderer
-          :tokens="token.tokens"
-          :resolve-asset="resolveAsset"
-        />
-      </strong>
+          <!-- 5. 列表 -->
+          <component
+            v-else-if="token.type === 'list'"
+            :is="token.ordered ? 'ol' : 'ul'"
+            :start="token.start || undefined"
+            class="md-list"
+            :class="{ 'is-ordered': token.ordered }"
+          >
+            <li
+              v-for="(item, itemIdx) in token.items"
+              :key="itemIdx"
+              class="md-list-item"
+            >
+              <!-- 递归渲染列表项内部的 tokens -->
+              <RichTextRenderer
+                :tokens="item.tokens"
+                :resolve-asset="resolveAsset"
+              />
+            </li>
+          </component>
 
-      <!-- 10. 行内斜体 -->
-      <em v-else-if="token.type === 'em'" class="md-italic">
-        <RichTextRenderer
-          :tokens="token.tokens"
-          :resolve-asset="resolveAsset"
-        />
-      </em>
+          <!-- 6. 水平线 -->
+          <hr v-else-if="token.type === 'hr'" class="md-hr" />
 
-      <!-- 11. 行内代码 -->
-      <code v-else-if="token.type === 'codespan'" class="md-inline-code">{{
-        token.text
-      }}</code>
+          <!-- 7. 表格 -->
+          <div v-else-if="token.type === 'table'" class="table-wrapper">
+            <table class="md-table">
+              <thead>
+                <tr>
+                  <th
+                    v-for="(headerCell, cellIdx) in token.header"
+                    :key="cellIdx"
+                    :style="{ textAlign: token.align[cellIdx] || 'left' }"
+                  >
+                    <RichTextRenderer
+                      :tokens="headerCell.tokens"
+                      :resolve-asset="resolveAsset"
+                    />
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(row, rowIdx) in token.rows" :key="rowIdx">
+                  <td
+                    v-for="(cell, cellIdx) in row"
+                    :key="cellIdx"
+                    :style="{ textAlign: token.align[cellIdx] || 'left' }"
+                  >
+                    <RichTextRenderer
+                      :tokens="cell.tokens"
+                      :resolve-asset="resolveAsset"
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-      <!-- 12. 删除线 -->
-      <del v-else-if="token.type === 'del'" class="md-del">
-        <RichTextRenderer
-          :tokens="token.tokens"
-          :resolve-asset="resolveAsset"
-        />
-      </del>
+          <!-- 8. HTML 块：移动端尚未具备白名单/沙箱，保持字面文本以禁止执行。 -->
+          <pre v-else-if="token.type === 'html'" class="md-html">{{
+            token.text
+          }}</pre>
 
-      <!-- 13. 链接 -->
-      <a
-        v-else-if="token.type === 'link' && isSafeLinkUrl(token.href)"
-        :href="token.href"
-        :title="token.title || undefined"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="md-link"
-      >
-        <RichTextRenderer
-          :tokens="token.tokens"
-          :resolve-asset="resolveAsset"
-        />
-      </a>
-      <span v-else-if="token.type === 'link'" class="md-link md-link-disabled">
-        <RichTextRenderer
-          :tokens="token.tokens"
-          :resolve-asset="resolveAsset"
-        />
-      </span>
+          <!-- 9. 行内粗体 -->
+          <strong v-else-if="token.type === 'strong'" class="md-strong">
+            <RichTextRenderer
+              :tokens="token.tokens"
+              :resolve-asset="resolveAsset"
+            />
+          </strong>
 
-      <!-- 14. 图片 -->
-      <img
-        v-else-if="token.type === 'image'"
-        :src="resolveImageUrl(token.href)"
-        :alt="token.text"
-        :title="token.title || undefined"
-        class="md-image"
-      />
+          <!-- 10. 行内斜体 -->
+          <em v-else-if="token.type === 'em'" class="md-italic">
+            <RichTextRenderer
+              :tokens="token.tokens"
+              :resolve-asset="resolveAsset"
+            />
+          </em>
 
-      <!-- 15. 换行 -->
-      <br v-else-if="token.type === 'br'" />
+          <!-- 11. 行内代码 -->
+          <code v-else-if="token.type === 'codespan'" class="md-inline-code">{{
+            token.text
+          }}</code>
 
-      <!-- 16. 纯文本 -->
-      <span v-else-if="token.type === 'text'" class="md-text">
-        <template v-if="token.tokens">
-          <RichTextRenderer
-            :tokens="token.tokens"
-            :resolve-asset="resolveAsset"
+          <!-- 12. 删除线 -->
+          <del v-else-if="token.type === 'del'" class="md-del">
+            <RichTextRenderer
+              :tokens="token.tokens"
+              :resolve-asset="resolveAsset"
+            />
+          </del>
+
+          <!-- 13. 链接 -->
+          <a
+            v-else-if="token.type === 'link' && isSafeLinkUrl(token.href)"
+            :href="token.href"
+            :title="token.title || undefined"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="md-link"
+          >
+            <RichTextRenderer
+              :tokens="token.tokens"
+              :resolve-asset="resolveAsset"
+            />
+          </a>
+          <span
+            v-else-if="token.type === 'link'"
+            class="md-link md-link-disabled"
+          >
+            <RichTextRenderer
+              :tokens="token.tokens"
+              :resolve-asset="resolveAsset"
+            />
+          </span>
+
+          <!-- 14. 图片 -->
+          <img
+            v-else-if="token.type === 'image'"
+            :src="resolveImageUrl(token.href)"
+            :alt="token.text"
+            :title="token.title || undefined"
+            class="md-image"
           />
+
+          <!-- 15. 换行 -->
+          <br v-else-if="token.type === 'br'" />
+
+          <!-- 16. 纯文本 -->
+          <span v-else-if="token.type === 'text'" class="md-text">
+            <template v-if="token.tokens">
+              <RichTextRenderer
+                :tokens="token.tokens"
+                :resolve-asset="resolveAsset"
+              />
+            </template>
+            <template v-else>{{ token.text }}</template>
+          </span>
+
+          <!-- 17. 空间/空白 -->
+          <span v-else-if="token.type === 'space'"> </span>
         </template>
-        <template v-else>{{ token.text }}</template>
-      </span>
-
-      <!-- 17. 空间/空白 -->
-      <span v-else-if="token.type === 'space'"> </span>
+      </template>
     </template>
   </div>
 </template>
@@ -378,7 +459,7 @@ async function copyCode(code: string, index: number) {
 }
 
 .md-link-disabled {
-  color: var(--text-secondary);
+  color: var(--text-color-light);
   cursor: not-allowed;
 }
 

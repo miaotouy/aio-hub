@@ -40,7 +40,8 @@ llm-chat/
 │   └── pipeline/
 │       └── processors/
 │           ├── session-loader.ts       # 管道处理器：会话历史加载器
-│           └── injection-assembler.ts  # 管道处理器：预设/深度/锚点组装器
+│           ├── injection-assembler.ts  # 管道处理器：预设/深度/锚点组装器
+│           └── message-formatter.ts    # 管道处理器：合并/角色格式化
 ├── docs/                      # 规划文档（已删除，仅 Git 记录中存在）
 ├── locales/
 │   ├── zh-CN.json             # 中文语言包
@@ -212,11 +213,11 @@ Actions:
 LlamaChatView.send() → useChatExecutor.execute()
   → 构建 PipelineContext
   → pipelineStore.executePipeline(context)
-  → [session-loader, injection-assembler, ...其他处理器]
+  → [session-loader, injection-assembler, message-formatter, ...其他处理器]
   → 输出 messages[] 给 llmRequest.sendRequest()
 ```
 
-**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载与预设注入组装；预设支持默认、深度、高级深度与锚点语义。宏替换、私有预设附件、变量、世界书、召回、Token 限制和消息格式化仍待逐个复制与移动端适配；模型匹配已在注入组装阶段按模型 ID/名称和渠道名称执行。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
+**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载、预设注入组装和最终消息格式化；预设支持默认、深度、高级深度、锚点与模型匹配，格式化支持模型默认规则与 Agent 覆盖的 system 合并、连续角色合并、system 转 user 和角色交替。宏替换、私有预设附件、变量、世界书、召回、Token 限制仍待逐个复制与移动端适配。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
 
 ### 4.3. Token 统计与上下文预警
 
@@ -379,7 +380,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - [x] PipelineContext 定义
 - [x] ContextProcessor 接口
 - [x] 处理器注册/注销/排序/启用
-- [x] 核心处理器：session-loader、injection-assembler（默认、深度、高级深度和锚点）
+- [x] 核心处理器：session-loader、injection-assembler（默认、深度、高级深度、锚点和模型匹配）、message-formatter（最终角色格式化）
 - [x] 待处理器的执行、日志和共享黑板
 
 ### ✅ Agent 对话接入
@@ -418,6 +419,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 ### 🔄 管道处理器
 
 - [ ] `macros-renderer`：宏替换/模板渲染
+- [x] `message-formatter`：模型默认规则与 Agent 覆盖的消息合并、角色转换和交替补位
 - [x] `injection-assembler`：默认、深度/高级深度和锚点预设组装；私有预设附件待 Agent 资源包完成后接入
 - [ ] `user-profile-injector`：用户档案注入
 - [ ] `model-match-filter`：按模型与渠道筛选预设消息

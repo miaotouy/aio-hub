@@ -6,6 +6,7 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createConfigManager } from "@/utils/configManager";
 import { sessionLoader } from "../core/pipeline/processors/session-loader";
 import { injectionAssembler } from "../core/pipeline/processors/injection-assembler";
+import { messageFormatter } from "../core/pipeline/processors/message-formatter";
 
 const logger = createModuleLogger("contextPipelineStore");
 const errorHandler = createModuleErrorHandler("contextPipelineStore");
@@ -27,7 +28,7 @@ const settingsManager = createConfigManager<PipelineSettings>({
 });
 
 const getInitialProcessors = (): ContextProcessor[] => {
-  return [sessionLoader, injectionAssembler];
+  return [sessionLoader, injectionAssembler, messageFormatter];
 };
 
 export const useContextPipelineStore = defineStore("contextPipeline", () => {

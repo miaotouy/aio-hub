@@ -25,11 +25,13 @@ const runSuffix =
   `tauri-e2e-${process.pid}-${Date.now().toString(36)}`;
 const dataDir = path.resolve(
   projectRoot,
-  process.env.AIO_DATA_DIR?.trim() || path.join(".dev-data", runSuffix)
+  process.env.AIO_DATA_DIR?.trim() ||
+    path.join(".dev-data", "e2e-runs", runSuffix, "app-data")
 );
 const artifactDir = path.resolve(
   projectRoot,
-  process.env.AIO_E2E_ARTIFACT_DIR?.trim() || path.join(".dev-data", runSuffix)
+  process.env.AIO_E2E_ARTIFACT_DIR?.trim() ||
+    path.join(".dev-data", "e2e-runs", runSuffix, "artifacts")
 );
 const embeddedPort = Number(
   process.env.AIO_E2E_WEBDRIVER_PORT ??

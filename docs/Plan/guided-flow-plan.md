@@ -1,6 +1,6 @@
 # Guided Flow 引导模块实施与验收计划
 
-> 状态：Phase 1–3 已实现；知识库迁移已选定并通过 Rust 外部迁移验证的本地旧数据候选集；正式旧发布版本溯源、真实 Tauri 安装包/中断恢复验收待补；Phase 4 待后续接入
+> 状态：Phase 1–3 已实现；知识库迁移已完成合成旧数据的真实 Tauri 检测、确认、迁移、同根重启幂等与独立清理验收，并保留已通过 Rust 外部迁移验证的本地旧数据候选集；进程中断恢复、正式旧发布版本溯源与安装包验收待补；Phase 4 待后续接入
 >
 > 最近更新：2026-07-26
 >
@@ -522,9 +522,12 @@ tests/tauri-e2e/fixtures/migrations/
 
 | 通道                     | 数据来源                                                           | 用途                                                    | 默认门禁                     |
 | ------------------------ | ------------------------------------------------------------------ | ------------------------------------------------------- | ---------------------------- |
-| `migration-minimal`      | 仓库内合成、脱敏夹具                                               | 检测、预览、确认、执行、报告、重启幂等                  | PR / 日常必跑                |
+| `migration-minimal`      | 仓库内合成、脱敏夹具                                               | 检测、预览、确认、执行、报告、同根重启幂等              | PR / 日常必跑                |
+| `migration-cleanup`      | `migration-minimal` 的全新 staged 副本                            | 显式清理仅删除受管 legacy 目录，保留 SQLite 与无关文件 | PR / 日常必跑                |
 | `migration-interruption` | 仓库内较小夹具                                                     | 迁移中断、同根目录重启、恢复或重试                      | 定期或发布前                 |
 | `migration-release`      | 由最近正式发布版本生成并经审核的本地快照，或先运行旧发布二进制生成 | 安装后版本生命周期、真实历史布局和发布二进制 smoke test | 发布候选包必跑，不上传源数据 |
+
+`migration-cleanup` 是 `migration-minimal` 的独立安全子场景，不复用前者已经迁移过的 appData；它用新的 staged 副本验证破坏性清理，避免影响重启幂等断言。
 
 首个自动化实现不应直接从开发者正在使用的 appData “移动一部分数据”。应先制作一个最小合成夹具跑通必测链路，再提供类似 `AIO_E2E_MIGRATION_SOURCE` 的显式本地来源用于正式旧数据抽样。后者在复制前只输出 hash、文件数和格式摘要，不输出源路径、正文或凭据。
 
@@ -559,7 +562,18 @@ tests/tauri-e2e/fixtures/migrations/
 4. 增加进程中断通道和清理步骤验证；
 5. 最后接入不入库的正式旧数据快照与发布二进制 smoke test，并在发布清单中记录 fixture hash、旧/新二进制版本和脱敏结果摘要。
 
-#### 11.4.6 已处理的本地旧数据候选集（2026-07-26）
+#### 11.4.6 合成旧数据真实 Tauri 验收（2026-07-26）
+
+以下自动化验收已在真实 Tauri 进程中通过，来源为仓库内 `legacy-file-system-v1/minimal` 合成夹具；夹具只包含固定 ID、脱敏正文和模拟向量，不包含用户数据或来源绝对路径：
+
+- `bun run test:tauri:e2e -- --preset migration-minimal`：首次启动只读检测；可见 Guided Flow 中的预览、备份与风险确认；真实 `recall_*` command 的报告、集合和向量覆盖率交叉核对；完成整个升级流程后以同一 `app-data` 启动第二个 Tauri 进程，确认不重复导入且不会再次入队迁移流程；
+- `bun run test:tauri:e2e -- --preset migration-cleanup`：在新的 staged 副本中经可见清理确认删除 `knowledge/bases` 与 `knowledge/vectors`（夹具未包含 `tag_pool`），同时核对 `recall.db`、`recall-vectors.db`、已完成 Guided Flow 报告和构造的 `knowledge_meta.db` 哨兵文件仍存在；
+- runner 会把两个场景的失败截图、WDIO 日志和脱敏结果摘要写到同级 `artifacts/`；成功时只删除 marker 校验通过的 `app-data`，不会删除 artifacts 或来源夹具；
+- 清理步骤暴露出一个通用导航边界：步骤 `onNext` 令当前步骤的 `when` 条件失效时，Manager 必须从定义顺序寻找下一个当前可见步骤，而不能按更新后的可见列表重新查找当前步骤；该行为已有单元测试覆盖。
+
+尚未实现的通道仍是：在约定进度阶段终止整个 Tauri 进程并同根重启的 `migration-interruption`，以及基于可溯源旧正式发布二进制/快照的 `migration-release`。因此本节的真实 Tauri 结果不能替代发布候选包验收。
+
+#### 11.4.7 已处理的本地旧数据候选集（2026-07-26）
 
 已从用户明确指定的本地旧版知识库目录中筛选出一个**不入库、仅本地使用**的迁移候选集。快照和审计 manifest 均位于仓库外；manifest 只保存相对路径、文件 SHA-256、数量和迁移结果，不保存来源绝对路径、正文、凭据或向量内容。
 

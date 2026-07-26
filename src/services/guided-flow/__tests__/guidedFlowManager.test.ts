@@ -120,6 +120,29 @@ describe("GuidedFlowManager", () => {
     });
   });
 
+  it("advances past a current step that becomes hidden after its action", async () => {
+    const registry = new GuidedFlowRegistry();
+    const flow = createFlow("current-step-hidden");
+    flow.steps.splice(1, 1, {
+      id: "cleanup",
+      title: "清理",
+      component: TestStep,
+      when: (context) => context.showOptional === true,
+      onNext: (context) => {
+        context.showOptional = false;
+      },
+    });
+    registry.register(flow);
+    const manager = new GuidedFlowManager(registry, new MemoryPersistence());
+
+    await manager.trigger("current-step-hidden");
+    await manager.next();
+    expect(manager.getSnapshot().activeFlow?.state.currentStepId).toBe("cleanup");
+
+    await manager.next();
+    expect(manager.getSnapshot().activeFlow?.state.currentStepId).toBe("finish");
+  });
+
   it("defers a resumable flow and restores its current step", async () => {
     const registry = new GuidedFlowRegistry();
     registry.register(createFlow("resume"));

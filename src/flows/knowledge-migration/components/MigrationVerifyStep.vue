@@ -1,7 +1,7 @@
 <template>
-  <div class="verify-step">
+  <div class="verify-step" data-testid="migration-verify">
     <template v-if="report">
-      <div class="status-grid">
+      <div class="status-grid" data-testid="migration-report">
         <div>
           <span>主数据</span
           ><el-tag

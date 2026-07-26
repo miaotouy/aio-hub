@@ -12,6 +12,13 @@ import {
   seedRecallWorkspaceConfig,
 } from "./support/fixture-seeder";
 import { prepareExternalRecallCorpus } from "./support/external-recall-corpus";
+import {
+  cleanupStagedMigrationData,
+  prepareMigrationFixture,
+  stageMigrationFixture,
+  writeE2eRunMarker,
+  type StagedMigrationFixture,
+} from "./support/migration-fixture";
 import { startOllamaEmbeddingProxy } from "./support/ollama-embedding-proxy";
 import { preflightOllamaChat } from "./support/ollama-chat-preflight";
 import { preflightOllama } from "./support/ollama-preflight";
@@ -44,18 +51,27 @@ const explicitDataDir = process.env.AIO_E2E_DATA_DIR?.trim() || undefined;
 const runSuffix =
   process.env.AIO_E2E_ID_SUFFIX?.trim() ||
   `tauri-e2e-${process.pid}-${Date.now().toString(36)}`;
+const controlledRunsRoot = path.resolve(projectRoot, ".dev-data", "e2e-runs");
+const runRoot = explicitDataDir
+  ? path.dirname(path.resolve(projectRoot, explicitDataDir))
+  : path.join(controlledRunsRoot, runSuffix);
 const dataDir = path.resolve(
   projectRoot,
-  explicitDataDir ?? path.join(".dev-data", runSuffix)
+  explicitDataDir ?? path.join(".dev-data", "e2e-runs", runSuffix, "app-data")
 );
 const artifactDir = path.resolve(
   projectRoot,
-  process.env.AIO_E2E_ARTIFACT_DIR?.trim() ||
-    path.join(".dev-data", runSuffix, "artifacts")
+  process.env.AIO_E2E_ARTIFACT_DIR?.trim() || path.join(runRoot, "artifacts")
 );
+const migrationFixtureId =
+  runnerOptions.presetId === "migration-minimal" ||
+  runnerOptions.presetId === "migration-cleanup"
+    ? "legacy-file-system-v1/minimal"
+    : undefined;
 const shouldSeedFixtures =
-  process.env.AIO_E2E_SEED_FIXTURES === "1" ||
-  (!explicitDataDir && process.env.AIO_E2E_SEED_FIXTURES !== "0");
+  !migrationFixtureId &&
+  (process.env.AIO_E2E_SEED_FIXTURES === "1" ||
+    (!explicitDataDir && process.env.AIO_E2E_SEED_FIXTURES !== "0"));
 const frontendUrl = new URL(
   process.env.AIO_E2E_FRONTEND_URL?.trim() || "http://localhost:1420/"
 );
@@ -74,6 +90,15 @@ if (!Number.isInteger(frontendPort) || frontendPort < 1024) {
 }
 
 fs.mkdirSync(artifactDir, { recursive: true });
+if (!explicitDataDir) writeE2eRunMarker(runRoot, runSuffix, dataDir);
+
+let stagedMigrationFixture: StagedMigrationFixture | undefined;
+if (migrationFixtureId) {
+  stagedMigrationFixture = stageMigrationFixture(
+    prepareMigrationFixture(migrationFixtureId),
+    dataDir
+  );
+}
 
 const startedAt = new Date().toISOString();
 const writeEarlyRunMetadata = (value: Record<string, unknown>) => {
@@ -580,6 +605,8 @@ const env = {
   AIO_E2E_FRONTEND_URL: frontendUrl.href,
   AIO_E2E_LANE: runnerOptions.lane.kind,
   AIO_E2E_CORPUS_MODE: runnerOptions.corpusMode,
+  AIO_E2E_MIGRATION_SCENARIO:
+    runnerOptions.presetId === "migration-cleanup" ? "cleanup" : "standard",
   AIO_E2E_CHAT_PROFILE_ID: chatRole.profileId,
   AIO_E2E_CHAT_MODEL_ID: chatRole.modelId,
   AIO_E2E_CHAT_EXPECTATION:
@@ -596,6 +623,21 @@ const env = {
   AIO_E2E_EMBEDDING_MODEL_ID: embeddingRole.modelId,
   ...(embeddingRole.dimension
     ? { AIO_E2E_EMBEDDING_DIMENSION: String(embeddingRole.dimension) }
+    : {}),
+  ...(stagedMigrationFixture
+    ? {
+        AIO_E2E_MIGRATION_FIXTURE_ID: stagedMigrationFixture.fixtureId,
+        AIO_E2E_MIGRATION_ID: stagedMigrationFixture.manifest.migrationId,
+        AIO_E2E_MIGRATION_EXPECTED_COLLECTIONS: String(
+          stagedMigrationFixture.manifest.expected.collections
+        ),
+        AIO_E2E_MIGRATION_EXPECTED_ENTRIES: String(
+          stagedMigrationFixture.manifest.expected.entries
+        ),
+        AIO_E2E_MIGRATION_EXPECTED_VECTORS: String(
+          stagedMigrationFixture.manifest.expected.vectors
+        ),
+      }
     : {}),
   ...(externalRecallCorpus
     ? {
@@ -648,6 +690,13 @@ fs.writeFileSync(
       fixtureSeedResult,
       workspaceSeedFile,
       externalRecallCorpus: externalRecallCorpus?.metadata,
+      migrationFixture: stagedMigrationFixture
+        ? {
+            fixtureId: stagedMigrationFixture.fixtureId,
+            manifest: stagedMigrationFixture.manifest,
+            copiedFiles: stagedMigrationFixture.copiedFiles,
+          }
+        : undefined,
       nativeUiEnabled,
       nativeUiHelper,
       nativeFileFixture,
@@ -808,34 +857,41 @@ function validateScenarioArtifacts(): void {
 
 let exitCode = await launchWdio(wdioArgs, "initial");
 if (exitCode === 0 && runnerOptions.restartSpec) {
-  if (!shouldSeedFixtures || !recallManifest) {
-    throw new Error("Recovery requires seeded Recall fixtures.");
-  }
-  const verifyMode = { AIO_E2E_FIXTURE_MODE: "verify" };
-  if (!isExternalCorpusMode(runnerOptions.corpusMode)) {
-    fixtureSeedResult = seedRecallWorkflowFixtures({
-      dataDir,
-      artifactDir,
-      manifest: recallManifest,
-      enabled: true,
-      mode: "verify",
-    });
-    fixtureSeedResult.files.push(
-      seedRecallWorkspaceConfig({
+  if (stagedMigrationFixture) {
+    exitCode = await launchWdio(
+      recoveryWdioArgs(runnerOptions.restartSpec),
+      "recovery"
+    );
+  } else {
+    if (!shouldSeedFixtures || !recallManifest) {
+      throw new Error("Recovery requires seeded Recall fixtures.");
+    }
+    const verifyMode = { AIO_E2E_FIXTURE_MODE: "verify" };
+    if (!isExternalCorpusMode(runnerOptions.corpusMode)) {
+      fixtureSeedResult = seedRecallWorkflowFixtures({
         dataDir,
-        recallId: recallManifest.recall.id,
-        embeddingProfileId: embeddingRole.profileId,
-        embeddingModelId: embeddingRole.modelId,
-        embeddingDimension: embeddingRole.dimension!,
+        artifactDir,
+        manifest: recallManifest,
+        enabled: true,
         mode: "verify",
-      })
+      });
+      fixtureSeedResult.files.push(
+        seedRecallWorkspaceConfig({
+          dataDir,
+          recallId: recallManifest.recall.id,
+          embeddingProfileId: embeddingRole.profileId,
+          embeddingModelId: embeddingRole.modelId,
+          embeddingDimension: embeddingRole.dimension!,
+          mode: "verify",
+        })
+      );
+    }
+    exitCode = await launchWdio(
+      recoveryWdioArgs(runnerOptions.restartSpec),
+      "recovery",
+      verifyMode
     );
   }
-  exitCode = await launchWdio(
-    recoveryWdioArgs(runnerOptions.restartSpec),
-    "recovery",
-    verifyMode
-  );
 }
 stop();
 if (exitCode === 0) {
@@ -865,6 +921,13 @@ fs.writeFileSync(
       fixtureSeedResult,
       workspaceSeedFile,
       externalRecallCorpus: externalRecallCorpus?.metadata,
+      migrationFixture: stagedMigrationFixture
+        ? {
+            fixtureId: stagedMigrationFixture.fixtureId,
+            manifest: stagedMigrationFixture.manifest,
+            copiedFiles: stagedMigrationFixture.copiedFiles,
+          }
+        : undefined,
       nativeUiEnabled,
       nativeUiHelper,
       nativeFileFixture,
@@ -876,4 +939,16 @@ fs.writeFileSync(
   ),
   "utf8"
 );
+if (exitCode === 0 && stagedMigrationFixture && !explicitDataDir) {
+  try {
+    cleanupStagedMigrationData({
+      runRoot,
+      runId: runSuffix,
+      dataDir,
+      controlledRunsRoot,
+    });
+  } catch (error) {
+    console.warn(`[tauri-e2e] Could not clean staged migration data: ${String(error)}`);
+  }
+}
 process.exitCode = exitCode;

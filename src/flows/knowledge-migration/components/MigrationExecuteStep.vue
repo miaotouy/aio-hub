@@ -1,5 +1,5 @@
 <template>
-  <div class="execute-step">
+  <div class="execute-step" data-testid="migration-execute">
     <div v-if="!snapshot.report" class="running-card">
       <el-icon class="is-loading"><Loading /></el-icon>
       <h3>正在迁移旧数据</h3>
@@ -24,6 +24,7 @@
     </div>
     <el-result
       v-else
+      data-testid="migration-execute-result"
       :icon="snapshot.report.mainStatus === 'completed' ? 'success' : 'warning'"
       :title="
         snapshot.report.mainStatus === 'completed'

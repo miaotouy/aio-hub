@@ -8,6 +8,8 @@ export type E2ePresetId =
   | "ollama-vector"
   | "ollama-chat"
   | "private-profile"
+  | "migration-minimal"
+  | "migration-cleanup"
   | "native";
 
 export interface E2ePresetPrerequisite {
@@ -32,6 +34,12 @@ const RECOVERY_SPEC = "tests/tauri-e2e/specs/recall-session-recovery.spec.ts";
 const EXTERNAL_SPEC = "tests/tauri-e2e/specs/recall-external-corpus.spec.ts";
 const EXTERNAL_RECOVERY_SPEC =
   "tests/tauri-e2e/specs/recall-external-corpus-recovery.spec.ts";
+const MIGRATION_SPEC =
+  "tests/tauri-e2e/specs/guided-knowledge-migration.spec.ts";
+const MIGRATION_RECOVERY_SPEC =
+  "tests/tauri-e2e/specs/guided-knowledge-migration-recovery.spec.ts";
+const MIGRATION_CLEANUP_SPEC =
+  "tests/tauri-e2e/specs/guided-knowledge-migration-cleanup.spec.ts";
 
 const OLLAMA_EMBEDDING_PREREQUISITE: E2ePresetPrerequisite = {
   env: "AIO_E2E_OLLAMA_MODEL",
@@ -113,6 +121,33 @@ export const E2E_PRESETS: readonly E2ePreset[] = [
     ],
     runtimeRequirements: [],
     includesRestart: true,
+  },
+  {
+    id: "migration-minimal",
+    purpose:
+      "Synthetic legacy-file migration through Guided Flow with same-root restart verification",
+    args: [
+      "--spec",
+      MIGRATION_SPEC,
+      "--restart-spec",
+      MIGRATION_RECOVERY_SPEC,
+    ],
+    prerequisites: [],
+    runtimeRequirements: [
+      "Uses the repository-managed legacy-file-system-v1/minimal fixture and an isolated app-data directory",
+    ],
+    includesRestart: true,
+  },
+  {
+    id: "migration-cleanup",
+    purpose:
+      "Synthetic legacy-file migration cleanup on a dedicated staged app-data copy",
+    args: ["--spec", MIGRATION_CLEANUP_SPEC],
+    prerequisites: [],
+    runtimeRequirements: [
+      "Uses a fresh repository-managed legacy-file-system-v1/minimal fixture copy and verifies only legacy directories are removed",
+    ],
+    includesRestart: false,
   },
   {
     id: "ollama-vector",

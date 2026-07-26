@@ -45,6 +45,7 @@ const emit = defineEmits<{
     content-class="guided-flow-modal-content"
   >
     <GuidedFlowShell
+      data-testid="guided-flow-modal"
       v-if="runtime"
       :runtime="runtime"
       :busy="busy"

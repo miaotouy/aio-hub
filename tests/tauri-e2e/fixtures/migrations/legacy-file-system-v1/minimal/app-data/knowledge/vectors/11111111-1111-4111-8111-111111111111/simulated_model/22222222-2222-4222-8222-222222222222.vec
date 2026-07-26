@@ -1,0 +1,12 @@
+{
+  "entry_id": "22222222-2222-4222-8222-222222222222",
+  "vector": [
+    0.25,
+    0.5,
+    0.75
+  ],
+  "model": "e2e/simulated-embedding",
+  "tokens": 7,
+  "contentHash": "e2e-content-hash-v1",
+  "timestamp": 1700000004
+}

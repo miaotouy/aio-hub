@@ -208,11 +208,12 @@ export class GuidedFlowManager {
       state.lastError = undefined;
       state.updatedAt = now();
 
-      const visibleSteps = this.getVisibleSteps(definition, state);
-      const currentIndex = visibleSteps.findIndex(
+      const currentDefinitionIndex = definition.steps.findIndex(
         (step) => step.id === currentStep.id
       );
-      const nextStep = visibleSteps[currentIndex + 1];
+      const nextStep = definition.steps
+        .slice(currentDefinitionIndex + 1)
+        .find((step) => step.when?.(context) ?? true);
       if (!nextStep) {
         await this.completeActiveFlow();
         return;

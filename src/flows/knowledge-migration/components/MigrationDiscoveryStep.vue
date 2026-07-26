@@ -1,5 +1,5 @@
 <template>
-  <div class="migration-step">
+  <div class="migration-step" data-testid="migration-discovery">
     <div class="source-card">
       <DatabaseBackup :size="28" />
       <div>
@@ -10,19 +10,19 @@
       </div>
     </div>
     <div class="metric-grid">
-      <div>
+      <div data-testid="migration-source-collections">
         <strong>{{ snapshot.preview.sourceCollections }}</strong
         ><span>集合</span>
       </div>
-      <div>
+      <div data-testid="migration-source-entries">
         <strong>{{ snapshot.preview.sourceEntries }}</strong
         ><span>条目</span>
       </div>
-      <div>
+      <div data-testid="migration-source-vectors">
         <strong>{{ snapshot.preview.sourceVectors }}</strong
         ><span>向量</span>
       </div>
-      <div>
+      <div data-testid="migration-source-issues">
         <strong>{{ snapshot.preview.issueCount }}</strong
         ><span>已知问题</span>
       </div>

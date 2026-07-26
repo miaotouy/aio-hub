@@ -65,7 +65,12 @@ const skipLabel = computed(
 <template>
   <footer class="guided-flow-footer">
     <div class="footer-start">
-      <el-button v-if="!isFirstStep" :disabled="busy" @click="emit('back')">
+      <el-button
+        v-if="!isFirstStep"
+        data-testid="guided-flow-back"
+        :disabled="busy"
+        @click="emit('back')"
+      >
         {{ backLabel }}
       </el-button>
     </div>
@@ -73,22 +78,34 @@ const skipLabel = computed(
     <div class="footer-actions">
       <el-button
         v-if="runtime.definition.dismissible"
+        data-testid="guided-flow-close"
         :disabled="busy"
         @click="emit('close')"
       >
         {{ dismissLabel }}
       </el-button>
-      <el-button v-if="canSkip" :disabled="busy" @click="emit('skip')">
+      <el-button
+        v-if="canSkip"
+        data-testid="guided-flow-skip"
+        :disabled="busy"
+        @click="emit('skip')"
+      >
         {{ skipLabel }}
       </el-button>
       <el-button
         v-if="runtime.state.lastError"
+        data-testid="guided-flow-retry"
         :disabled="busy"
         @click="emit('retry')"
       >
         重试
       </el-button>
-      <el-button type="primary" :loading="busy" @click="emit('next')">
+      <el-button
+        data-testid="guided-flow-next"
+        type="primary"
+        :loading="busy"
+        @click="emit('next')"
+      >
         {{ nextLabel }}
       </el-button>
     </div>

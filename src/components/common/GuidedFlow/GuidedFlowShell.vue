@@ -56,7 +56,13 @@ const closeAriaLabel = computed(() =>
 </script>
 
 <template>
-  <section class="guided-flow-shell" :aria-busy="busy">
+  <section
+    class="guided-flow-shell"
+    data-testid="guided-flow-shell"
+    :data-flow-id="runtime.definition.id"
+    :data-current-step-id="runtime.state.currentStepId"
+    :aria-busy="busy"
+  >
     <header class="guided-flow-header">
       <div class="header-copy">
         <p class="eyebrow">{{ runtime.definition.trigger }}</p>

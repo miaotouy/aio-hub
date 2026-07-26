@@ -7,14 +7,17 @@
       title="建议先备份"
       :description="`请备份旧目录 ${snapshot.preview.legacyDataPath}，并确保其他相关窗口没有修改其中的数据。`"
     />
-    <label class="confirm-card">
+    <label class="confirm-card" data-testid="migration-backup-confirmation">
       <el-checkbox v-model="backupConfirmed" />
       <span
         ><strong>我已完成或确认无需额外备份</strong
         ><small>旧目录在迁移完成后仍会保留，除非最后单独确认清理。</small></span
       >
     </label>
-    <label class="confirm-card danger">
+    <label
+      class="confirm-card danger"
+      data-testid="migration-risk-confirmation"
+    >
       <el-checkbox v-model="riskConfirmed" />
       <span
         ><strong>我确认开始写入新的 Recall 数据库</strong
@@ -32,20 +35,45 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { UpgradeFlowContext } from "@/flows/upgrade/types";
-import { getKnowledgeMigrationSnapshot } from "../types";
+import {
+  getKnowledgeMigrationSnapshot,
+  KNOWLEDGE_MIGRATION_CONTRIBUTION_ID,
+} from "../types";
 
-const props = defineProps<{ context: UpgradeFlowContext }>();
+const props = defineProps<{
+  context: UpgradeFlowContext;
+  updateContext?: (updates: Record<string, unknown>) => void | Promise<void>;
+}>();
 const snapshot = computed(() => getKnowledgeMigrationSnapshot(props.context));
+
+function updateSnapshot(updates: Partial<typeof snapshot.value>) {
+  const contribution = props.context.contributions[
+    KNOWLEDGE_MIGRATION_CONTRIBUTION_ID
+  ];
+  if (!contribution || !props.updateContext) return;
+  void props.updateContext({
+    contributions: {
+      ...props.context.contributions,
+      [KNOWLEDGE_MIGRATION_CONTRIBUTION_ID]: {
+        ...contribution,
+        snapshot: {
+          ...snapshot.value,
+          ...updates,
+        },
+      },
+    },
+  });
+}
 const backupConfirmed = computed({
   get: () => snapshot.value.backupConfirmed,
   set: (value) => {
-    snapshot.value.backupConfirmed = value;
+    updateSnapshot({ backupConfirmed: value });
   },
 });
 const riskConfirmed = computed({
   get: () => snapshot.value.riskConfirmed,
   set: (value) => {
-    snapshot.value.riskConfirmed = value;
+    updateSnapshot({ riskConfirmed: value });
   },
 });
 </script>

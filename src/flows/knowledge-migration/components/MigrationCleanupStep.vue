@@ -1,5 +1,5 @@
 <template>
-  <div class="cleanup-step">
+  <div class="cleanup-step" data-testid="migration-cleanup">
     <el-alert
       :closable="false"
       type="warning"
@@ -24,19 +24,44 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { UpgradeFlowContext } from "@/flows/upgrade/types";
-import { getKnowledgeMigrationSnapshot } from "../types";
-const props = defineProps<{ context: UpgradeFlowContext }>();
+import {
+  getKnowledgeMigrationSnapshot,
+  KNOWLEDGE_MIGRATION_CONTRIBUTION_ID,
+} from "../types";
+const props = defineProps<{
+  context: UpgradeFlowContext;
+  updateContext?: (updates: Record<string, unknown>) => void | Promise<void>;
+}>();
 const snapshot = computed(() => getKnowledgeMigrationSnapshot(props.context));
+
+function updateSnapshot(updates: Partial<typeof snapshot.value>) {
+  const contribution = props.context.contributions[
+    KNOWLEDGE_MIGRATION_CONTRIBUTION_ID
+  ];
+  if (!contribution || !props.updateContext) return;
+  void props.updateContext({
+    contributions: {
+      ...props.context.contributions,
+      [KNOWLEDGE_MIGRATION_CONTRIBUTION_ID]: {
+        ...contribution,
+        snapshot: {
+          ...snapshot.value,
+          ...updates,
+        },
+      },
+    },
+  });
+}
 const cleanupChoice = computed({
   get: () => snapshot.value.cleanupChoice,
   set: (value: "keep" | "cleanup") => {
-    snapshot.value.cleanupChoice = value;
+    updateSnapshot({ cleanupChoice: value });
   },
 });
 const cleanupConfirmation = computed({
   get: () => snapshot.value.cleanupConfirmation,
   set: (value: string) => {
-    snapshot.value.cleanupConfirmation = value;
+    updateSnapshot({ cleanupConfirmation: value });
   },
 });
 </script>

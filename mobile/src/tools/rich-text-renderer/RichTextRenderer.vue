@@ -68,6 +68,12 @@ function resolveImageUrl(url: string) {
   return url;
 }
 
+function isSafeLinkUrl(url: unknown): url is string {
+  if (typeof url !== "string") return false;
+  const normalized = url.trim();
+  return normalized.startsWith("#") || /^(https?:|mailto:)/i.test(normalized);
+}
+
 // 复制代码块内容
 const copiedIndex = ref<number | null>(null);
 async function copyCode(code: string, index: number) {
@@ -229,7 +235,7 @@ async function copyCode(code: string, index: number) {
 
       <!-- 13. 链接 -->
       <a
-        v-else-if="token.type === 'link'"
+        v-else-if="token.type === 'link' && isSafeLinkUrl(token.href)"
         :href="token.href"
         :title="token.title || undefined"
         target="_blank"
@@ -241,6 +247,12 @@ async function copyCode(code: string, index: number) {
           :resolve-asset="resolveAsset"
         />
       </a>
+      <span v-else-if="token.type === 'link'" class="md-link md-link-disabled">
+        <RichTextRenderer
+          :tokens="token.tokens"
+          :resolve-asset="resolveAsset"
+        />
+      </span>
 
       <!-- 14. 图片 -->
       <img
@@ -363,6 +375,11 @@ async function copyCode(code: string, index: number) {
 
 .md-link:hover {
   text-decoration: underline;
+}
+
+.md-link-disabled {
+  color: var(--text-secondary);
+  cursor: not-allowed;
 }
 
 .md-image {

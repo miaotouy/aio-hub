@@ -18,6 +18,26 @@ describe("RichTextRenderer security boundary", () => {
     ).toBeUndefined();
   });
 
+  it("renders unsafe link protocols as non-interactive text", () => {
+    const wrapper = mount(RichTextRenderer, {
+      props: {
+        tokens: [
+          {
+            type: "link",
+            href: "javascript:window.richTextXss = true",
+            tokens: [{ type: "text", text: "Do not run" }],
+          },
+        ],
+      },
+    });
+
+    expect(wrapper.find("a.md-link").exists()).toBe(false);
+    expect(wrapper.get(".md-link-disabled").text()).toContain("Do not run");
+    expect(
+      (window as Window & { richTextXss?: boolean }).richTextXss
+    ).toBeUndefined();
+  });
+
   it("keeps ordinary Markdown links available with opener isolation", () => {
     const wrapper = mount(RichTextRenderer, {
       props: { content: "[AIO Hub](https://example.com)" },

@@ -63,7 +63,8 @@ RichTextRenderer 可以独立工作树并行开发。建议工作树只修改：
 - [ ] 迁移基础 Markdown 节点和 LLM 专用非媒体节点：代码块、数学公式、思考块、VCP。
 - [ ] 等待移动端媒体组件按已收敛方案完成资产管理器实现与交互验证后，再接入图片、视频和音频节点；不直接复制 PC 的 `BaseDialog`、`ImageViewer`、`AudioPlayer`、`VideoPlayer` 或桌面 composable。
 - [ ] 迁移 Mermaid、HTML 交互预览、样式隔离和 CDN 本地化；高级交互可按移动端能力分批启用。
-- [ ] 在启用 HTML 输出前，明确 `v-html` 的白名单、沙箱或禁用策略。
+- [x] 当前移动端已禁用 raw `v-html`：未受信任 HTML token 仅以字面文本显示，不产生 DOM 节点或脚本执行面。
+- [ ] 后续如需启用 HTML 输出，必须先实现可审计的白名单或沙箱；不得恢复直接 `v-html`。
 - [ ] 完成长消息、流式输出、窄屏布局、滚动稳定性和内存释放验证。
 - [ ] 依据真实 Android/iOS 设备数据评估 Web Worker、Rust 或原生下沉；没有性能证据时不提前抽取共享实现。
 

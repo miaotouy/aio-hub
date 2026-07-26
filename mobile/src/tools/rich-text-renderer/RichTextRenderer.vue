@@ -2,10 +2,14 @@
 import { computed, ref } from "vue";
 import { marked } from "marked";
 import { Copy, Check } from "lucide-vue-next";
+import { createModuleLogger } from "@/utils/logger";
+import { customMessage } from "@/utils/feedback";
 
 defineOptions({
   name: "RichTextRenderer",
 });
+
+const logger = createModuleLogger("rich-text-renderer");
 
 const props = withDefaults(
   defineProps<{
@@ -48,7 +52,7 @@ const displayTokens = computed(() => {
     // 使用 marked.lexer 拿到标准的 AST Tokens 数组
     return marked.lexer(text);
   } catch (err) {
-    console.error("[RichTextRenderer] Failed to parse markdown:", err);
+    logger.error("Markdown 解析失败，降级为纯文本", err);
     // 降级为纯文本 Token
     return [{ type: "text", text }];
   }
@@ -76,7 +80,8 @@ async function copyCode(code: string, index: number) {
       }
     }, 2000);
   } catch (err) {
-    console.error("Failed to copy code:", err);
+    logger.warn("复制代码失败", err);
+    customMessage("复制失败", "error");
   }
 }
 </script>
@@ -188,12 +193,10 @@ async function copyCode(code: string, index: number) {
         </table>
       </div>
 
-      <!-- 8. HTML 块 -->
-      <div
-        v-else-if="token.type === 'html'"
-        v-html="token.text"
-        class="md-html"
-      ></div>
+      <!-- 8. HTML 块：移动端尚未具备白名单/沙箱，保持字面文本以禁止执行。 -->
+      <pre v-else-if="token.type === 'html'" class="md-html">{{
+        token.text
+      }}</pre>
 
       <!-- 9. 行内粗体 -->
       <strong v-else-if="token.type === 'strong'" class="md-strong">
@@ -230,6 +233,7 @@ async function copyCode(code: string, index: number) {
         :href="token.href"
         :title="token.title || undefined"
         target="_blank"
+        rel="noopener noreferrer"
         class="md-link"
       >
         <RichTextRenderer
@@ -506,5 +510,8 @@ async function copyCode(code: string, index: number) {
 
 .md-html {
   margin: 8px 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  font: inherit;
 }
 </style>

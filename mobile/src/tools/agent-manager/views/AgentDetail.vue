@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, toRaw, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ChevronLeft, Save } from "lucide-vue-next";
 import SafeTop from "@/components/SafeTop.vue";
@@ -9,6 +9,7 @@ import { useLlmProfilesStore } from "@/tools/llm-api/stores/llmProfiles";
 import { useAgentStore } from "../stores/agentStore";
 import type { ChatAgent } from "../types/agent";
 import PresetMessageEditor from "../components/PresetMessageEditor.vue";
+import AgentParametersEditor from "../components/AgentParametersEditor.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -42,7 +43,8 @@ onMounted(async () => {
     router.replace("/tools/agent-manager/list");
     return;
   }
-  draft.value = structuredClone(agent);
+  // Pinia returns a reactive proxy; clone its raw value before making an editable draft.
+  draft.value = structuredClone(toRaw(agent));
 });
 
 async function save() {
@@ -70,7 +72,7 @@ async function save() {
 </script>
 
 <template>
-  <div class="detail-page">
+  <div class="detail-page" data-testid="agent-detail">
     <SafeTop />
     <header class="page-header">
       <button
@@ -85,6 +87,7 @@ async function save() {
       <button
         class="icon-button primary"
         type="button"
+        data-testid="agent-save"
         :title="tRaw('tools.agent-manager.AgentDetail.保存')"
         @click="save"
       >
@@ -137,6 +140,7 @@ async function save() {
           </select></label
         >
       </section>
+      <AgentParametersEditor v-model="draft.parameters" />
       <PresetMessageEditor
         v-model:messages="draft.presetMessages"
         v-model:groups="draft.presetGroups"

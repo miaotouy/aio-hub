@@ -30,7 +30,7 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 - [x] 将 Agent 开局消息实例化到新会话：有效开局消息成为根节点下的兄弟分支，优先选中 `defaultGreetingId`；兼容旧字符串数组。当前按原文本固化，宏展开与 Agent 私有附件待各自依赖完成后接入。
 - [x] 增加聊天内切换 Agent，并保持历史消息的 Agent 快照语义：会话仅更新 `displayAgentId`；既有节点不改写，新生成的助手消息固化 Agent 身份和模型/渠道快照。
 - [x] 同步移动端与 PC 的显式 Agent 类型、分类枚举和 `defaultGreetingId`；加载旧持久化 `custom` 分类时归一化到 `other`，写入与筛选统一使用桌面端枚举。
-- [ ] 在上下文管线稳定后再实施用户档案注入、完整参数编辑和 Agent 私有资产。
+- [x] 在上下文管线稳定后完成基础用户档案注入，以及移动端当前请求链路支持的 Agent 参数编辑（生成参数、停止序列、Token 预算和截断保留字符）；完整桌面宏/用户档案契约、工具/Recall/Knowledge 参数和 Agent 私有资产仍依赖各自领域能力，不能以空 UI 替代。
 
 入口：[`mobile-agent-manager-plan.md`](./mobile-agent-manager-plan.md)、[`agent-manager/ARCHITECTURE.md`](../../src/tools/agent-manager/ARCHITECTURE.md)。
 
@@ -71,7 +71,7 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 
 - [ ] Agent 私有头像、背景、预设附件和随包二进制资产。
 - [ ] 相机、分享进入 AIO、移动端文件关联、批量转写、PDF/Office 提取、音视频转写和其他资产消费者。
-- [ ] 聊天引用、会话排序、更多设置运行时接线和完整双语收尾；先核对 `llm-chat/ARCHITECTURE.md` 中仍有过期条目，再拆成独立任务。
+- [ ] 继续核对 `llm-chat/ARCHITECTURE.md` 中仍有过期条目，并将尚未具备依赖的完整宏引擎、世界书、Recall 与工具调用拆成独立任务；聊天引用、会话排序、基础用户档案和当前支持的 Agent 参数编辑已完成。
 
 ## 3. 执行顺序
 

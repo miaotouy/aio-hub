@@ -344,7 +344,7 @@ sequenceDiagram
 - [x] 阶段 3 主链路：角色大厅入口、会话绑定、模型与基础参数绑定、基础预设管道注入、聊天栏智能体标识。
 - [x] 阶段 3 增强：聊天内切换 Agent；会话绑定可单独更新，历史消息的 Agent 快照与已实例化开局消息保持稳定。
 - [x] 后续增强（已提前完成）：AIO Agent JSON、SillyTavern JSON/PNG 导入和预设 JSON 导入导出。
-- [ ] 后续增强（未完成）：Agent 私有头像与二进制资产管理、完整参数编辑、用户档案；不得将私有资产改存为全局 `assetId`。
+- [ ] 后续增强（未完成）：Agent 私有头像与二进制资产管理，以及依赖工具调用、Recall/Knowledge、媒体/压缩能力的桌面高级参数；不得将私有资产改存为全局 `assetId`。基础用户档案与移动端当前支持的生成参数/上下文截断编辑已完成。
 - [x] 兼容性收尾：已同步桌面端显式类型、分类枚举、`defaultGreetingId` 和开局消息结构；旧 `custom` 分类及字符串开局消息在运行时兼容。
 
 实现偏差：移动端当前全量加载智能体详情，以降低首版状态复杂度；列表使用页面内紧凑行而非独立 `AgentCard`。存储格式仍保持 `agent-manager/agents/{id}/agent.json` 与轻量索引分离，后续可在数据规模需要时切换为按需加载，不影响磁盘格式。索引不保存 `currentAgentId`，Agent 选择状态以聊天会话的 `displayAgentId` 为准。
@@ -414,13 +414,13 @@ sequenceDiagram
 
 ### 阶段 3：打通对话连接（合体）
 
-| 任务               | 修改文件                                                   | 状态     | 说明                                                            |
-| ------------------ | ---------------------------------------------------------- | -------- | --------------------------------------------------------------- |
-| 解除"角色大厅"禁用 | `llm-chat/views/ChatHome.vue`                              | 已完成   | 点击跳转到 `/tools/agent-manager`                               |
-| 修改会话创建       | `llm-chat/stores/llmChatStore.ts`                          | 已完成   | `createSession()` 支持传入 `agentId`                            |
-| 修改执行器         | `llm-chat/composables/useChatExecutor.ts`                  | 已完成   | 从 agentStore 获取配置，填充 `agentConfig` 并绑定模型与基础参数 |
+| 任务               | 修改文件                                                   | 状态     | 说明                                                                                        |
+| ------------------ | ---------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------- |
+| 解除"角色大厅"禁用 | `llm-chat/views/ChatHome.vue`                              | 已完成   | 点击跳转到 `/tools/agent-manager`                                                           |
+| 修改会话创建       | `llm-chat/stores/llmChatStore.ts`                          | 已完成   | `createSession()` 支持传入 `agentId`                                                        |
+| 修改执行器         | `llm-chat/composables/useChatExecutor.ts`                  | 已完成   | 从 agentStore 获取配置，填充 `agentConfig` 并绑定模型与基础参数                             |
 | 实现管道处理器     | `llm-chat/core/pipeline/processors/injection-assembler.ts` | 部分完成 | 已执行启用消息组、默认、深度/高级深度、锚点，以及模型/渠道匹配；宏和 Agent 私有附件尚未执行 |
-| 聊天界面显示 Agent | `llm-chat/views/LlmChatView.vue`                           | 已完成   | 导航栏展示当前 Agent 头像和名称；切换入口尚未实现               |
+| 聊天界面显示 Agent | `llm-chat/views/LlmChatView.vue`                           | 已完成   | 导航栏展示当前 Agent 头像和名称；切换入口尚未实现                                           |
 
 ---
 
@@ -429,7 +429,7 @@ sequenceDiagram
 | 维度             | 策略                                                                                                                                                                                                                                                                                                                                                                                        |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **存储路径**     | 移动端与桌面端当前都采用各自应用配置目录下的 `agent-manager/agents/{id}/agent.json` 与 `agents-index.json` 布局；跨端迁移通过导入导出完成                                                                                                                                                                                                                                                   |
-| **类型定义**     | 运行时通过完整对象克隆和未知字段保留确保未编辑字段不被裁剪；显式 TypeScript 类型需持续跟随桌面端演进，已同步 `defaultGreetingId` 和桌面端分类枚举；加载旧持久化 `custom` 时归一化为 `other`，未知未来值仍由完整对象保留                                                                                                                                                                                                                                         |
+| **类型定义**     | 运行时通过完整对象克隆和未知字段保留确保未编辑字段不被裁剪；显式 TypeScript 类型需持续跟随桌面端演进，已同步 `defaultGreetingId` 和桌面端分类枚举；加载旧持久化 `custom` 时归一化为 `other`，未知未来值仍由完整对象保留                                                                                                                                                                     |
 | **无损编辑**     | **核心策略（Lossless Editing）**：<br>1. 移动端编辑时从完整 Agent 对象执行 `structuredClone`，保存时提交完整草稿，从而保留 UI 暂不支持的桌面端高级字段（如 `toolCallConfig`、`knowledgeBaseConfig`、`worldbookIds`、`quickActionSetIds` 等）。<br>2. 编辑单条预设消息时同样克隆完整 `ChatMessageNode`，原样保留 `presetAttachments`、`childrenIds` 等未编辑字段，只覆盖用户明确修改的内容。 |
 | **导入格式**     | 当前支持 `AIO_Agent_Export` JSON 字段和 SillyTavern JSON/PNG 角色数据；未知字段可保留，但随包二进制资产尚未迁移，因此在 Agent 私有资产阶段完成前不能宣称完整资源包无损迁移                                                                                                                                                                                                                  |
 | **资产生命周期** | 头像、`assets[]` 和 `presetAttachments` 属于 Agent 私有资源包，使用 Handle 与相对路径；不转换为全局 `assetId`。从全局资产添加时复制文件，导入导出时携带私有二进制内容。                                                                                                                                                                                                                     |

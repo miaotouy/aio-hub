@@ -4,17 +4,22 @@ import type { Browser } from "webdriverio";
 import type { AdbClient } from "./adb";
 import type { MobileE2eRunResult } from "../types";
 
-const SENSITIVE_KEYS = /authorization|api[-_]?key|token|secret|password/i;
+const SENSITIVE_KEYS =
+  /^(?:authorization|api[-_]?key|token|(?:access|refresh|id)[-_]?token|secret|password)$/i;
 const WINDOWS_PATH_PATTERN = /\b[A-Za-z]:\\[^\r\n"']+/g;
 const MOBILE_PATH_PATTERN = /\/(?:storage|data|private|var)\/[^\s"']+/g;
 const URI_PATTERN = /\b(?:content|file):\/\/[^\s"']+/gi;
-const SECRET_PATTERN = /\b(?:sk-[A-Za-z0-9_-]{12,}|Bearer\s+[A-Za-z0-9._-]{12,})\b/gi;
+const SECRET_PATTERN =
+  /\b(?:sk-[A-Za-z0-9_-]{12,}|Bearer\s+[A-Za-z0-9._-]{12,})\b/gi;
 
 /** Keep diagnostics useful while removing values that may contain user data. */
 export function redactArtifactText(value: string): string {
   return value
     .replace(SECRET_PATTERN, "[REDACTED_SECRET]")
-    .replace(/(authorization|api[-_]?key|token|secret|password)\s*[:=]\s*[^,}\s]+/gi, "$1=[REDACTED]")
+    .replace(
+      /(authorization|api[-_]?key|token|secret|password)\s*[:=]\s*[^,}\s]+/gi,
+      "$1=[REDACTED]"
+    )
     .replace(URI_PATTERN, "[REDACTED_URI]")
     .replace(WINDOWS_PATH_PATTERN, "[REDACTED_PATH]")
     .replace(MOBILE_PATH_PATTERN, "[REDACTED_PATH]");
@@ -30,7 +35,10 @@ export function redactAppiumLog(value: string): string {
           line
         )
       ) {
-        return line.replace(/\s(?:with body:|Got response[^:]*:|\{)\s*.*$/, " [REDACTED_BODY]");
+        return line.replace(
+          /\s(?:with body:|Got response[^:]*:|\{)\s*.*$/,
+          " [REDACTED_BODY]"
+        );
       }
       return line;
     })

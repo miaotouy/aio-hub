@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatSession, MobileUserProfile } from "../../types";
+import type { ChatAgent } from "@/tools/agent-manager/types/agent";
 
 const state = vi.hoisted(() => ({
   chatStore: {
@@ -45,7 +46,9 @@ const state = vi.hoisted(() => ({
   agentStore: {
     isLoaded: true,
     init: vi.fn(),
-    getAgentById: vi.fn(() => undefined),
+    getAgentById: vi.fn<(agentId?: string | null) => ChatAgent | undefined>(
+      () => undefined
+    ),
   },
   userProfileStore: {
     isLoaded: true,
@@ -179,6 +182,43 @@ describe("useChatExecutor streaming preference", () => {
       "profile-1"
     );
     expect(state.responseHandler.finalizeNode).toHaveBeenCalledOnce();
+  });
+});
+
+describe("useChatExecutor agent generation parameters", () => {
+  it("forwards the active agent's supported generation parameters", async () => {
+    state.agentStore.getAgentById.mockReturnValue({
+      id: "agent-1",
+      name: "Parameter agent",
+      profileId: "profile-1",
+      modelId: "model-1",
+      parameters: {
+        temperature: 0.35,
+        maxTokens: 2048,
+        topP: 0.8,
+        frequencyPenalty: 0.3,
+        presencePenalty: -0.2,
+        stop: ["END"],
+      },
+      createdAt: "2026-07-26T10:00:00.000Z",
+    });
+
+    await useChatExecutor().execute(
+      { ...session(), displayAgentId: "agent-1" },
+      "Hello"
+    );
+
+    expect(state.llmRequest.sendRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        temperature: 0.35,
+        maxTokens: 2048,
+        topP: 0.8,
+        frequencyPenalty: 0.3,
+        presencePenalty: -0.2,
+        stop: ["END"],
+      }),
+      "profile-1"
+    );
   });
 });
 

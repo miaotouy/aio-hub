@@ -48,5 +48,5 @@ AgentList --route query(agentId)--> ChatHome
 
 ## 当前边界
 
-- **已支持**：基础 CRUD、搜索与分类筛选、模型绑定、会话绑定、聊天内 Agent 切换、开局消息实例化、预设注入，以及完整预设消息编辑器体系（多轮消息、消息组、注入策略、模型匹配、触摸排序、批量管理、Rust o200k Token 估算、AIO/SillyTavern 导入与预设导入导出）。切换只更新会话 `displayAgentId`；既有消息不被改写，后续助手消息会固化 Agent 身份和模型/渠道快照。绑定 Agent 的新会话会将有效开局消息固化为根节点下的兄弟分支并优先使用 `defaultGreetingId`；旧字符串开局消息兼容读取，宏展开与私有附件仍等待对应能力。分类采用与桌面端一致的 `AgentCategory` 枚举；历史 `custom` 在加载时归一化为 `other`，未知未来值仍保留在完整 Agent 对象中。
-- **待移植**：Agent 私有头像与资产管理、完整参数编辑和用户档案。私有资产不得以全局 `assetId` 代替 Handle 或相对路径。
+- **已支持**：基础 CRUD、搜索与分类筛选、模型绑定、会话绑定、聊天内 Agent 切换、开局消息实例化、预设注入，以及完整预设消息编辑器体系（多轮消息、消息组、注入策略、模型匹配、触摸排序、批量管理、Rust o200k Token 估算、AIO/SillyTavern 导入与预设导入导出）。Agent 详情页还可编辑当前移动端请求层实际传递的 `temperature`、`maxTokens`、`topP`、频率/存在惩罚、停止序列，以及 Token limiter 的上下文预算和截断保留字符；留空时不覆盖渠道或模型默认值。切换只更新会话 `displayAgentId`；既有消息不被改写，后续助手消息会固化 Agent 身份和模型/渠道快照。绑定 Agent 的新会话会将有效开局消息固化为根节点下的兄弟分支并优先使用 `defaultGreetingId`；旧字符串开局消息兼容读取，宏展开与私有附件仍等待对应能力。分类采用与桌面端一致的 `AgentCategory` 枚举；历史 `custom` 在加载时归一化为 `other`，未知未来值仍保留在完整 Agent 对象中。
+- **待移植**：Agent 私有头像与资产管理，以及依赖尚未接入的桌面高级参数（工具调用、Recall/Knowledge、媒体/压缩等）。用户档案已由 `llm-chat` 的基础档案管理页和上下文注入支持；桌面完整宏/用户档案契约仍不在此范围。私有资产不得以全局 `assetId` 代替 Handle 或相对路径。

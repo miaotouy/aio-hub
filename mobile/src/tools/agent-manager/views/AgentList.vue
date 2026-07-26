@@ -143,7 +143,7 @@ async function importAgents(event: Event): Promise<void> {
 </script>
 
 <template>
-  <div class="agent-list-page">
+  <div class="agent-list-page" data-testid="agent-list">
     <SafeTop />
     <header class="page-header">
       <button
@@ -233,6 +233,8 @@ async function importAgents(event: Event): Promise<void> {
         v-for="agent in filteredAgents"
         :key="agent.id"
         class="agent-row"
+        data-testid="agent-row"
+        :data-agent-id="agent.id"
       >
         <div class="agent-avatar">
           {{ agent.icon?.length && agent.icon.length <= 4 ? agent.icon : "AI" }}
@@ -254,6 +256,7 @@ async function importAgents(event: Event): Promise<void> {
           <button
             type="button"
             class="icon-button"
+            data-testid="agent-edit"
             :title="tRaw('tools.agent-manager.AgentList.编辑')"
             @click="router.push(`/tools/agent-manager/${agent.id}`)"
           >

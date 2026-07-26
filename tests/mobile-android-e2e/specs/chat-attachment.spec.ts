@@ -41,6 +41,33 @@ async function ensureUserProfile(context: ScenarioContext) {
     }
   );
 }
+async function configureAgentParameters(
+  context: ScenarioContext
+): Promise<string> {
+  await context.driver.execute(() => {
+    window.location.hash = "#/tools/agent-manager/list";
+  });
+  await testElement(context.driver, "agent-list");
+  const agentRow = await context.driver.$('[data-testid="agent-row"]');
+  await agentRow.waitForDisplayed({ timeout: 20_000 });
+  const agentId = await agentRow.getAttribute("data-agent-id");
+  if (!agentId) {
+    throw new Error("Android E2E could not determine the default agent ID.");
+  }
+
+  await (await agentRow.$('[data-testid="agent-edit"]')).click();
+  await testElement(context.driver, "agent-detail");
+  await setInput(context, "agent-parameter-temperature", "0.35");
+  await setInput(context, "agent-parameter-maxTokens", "2048");
+  await setInput(context, "agent-parameter-topP", "0.8");
+  await setInput(context, "agent-parameter-frequencyPenalty", "0.3");
+  await setInput(context, "agent-parameter-presencePenalty", "-0.2");
+  await setInput(context, "agent-parameter-stop", "END");
+  await clickTestElement(context.driver, "agent-save");
+  await testElement(context.driver, "agent-list");
+  return agentId;
+}
+
 async function setInput(
   context: ScenarioContext,
   testId: string,
@@ -140,13 +167,23 @@ export async function configureOpenAiProfile(
   await saved.waitForDisplayed({ timeout: 20_000 });
 }
 
-async function sendFixture(context: ScenarioContext, timeoutMs: number) {
-  await context.driver.execute(() => {
-    window.location.hash = "#/tools/llm-chat/home";
-  });
-  await testElement(context.driver, "chat-home");
-  await clickTestElement(context.driver, "chat-new");
-  await testElement(context.driver, "chat-view");
+async function sendFixture(
+  context: ScenarioContext,
+  timeoutMs: number,
+  agentId?: string
+) {
+  await context.driver.execute((selectedAgentId) => {
+    window.location.hash = selectedAgentId
+      ? `#/tools/llm-chat/home?agentId=${encodeURIComponent(selectedAgentId)}`
+      : "#/tools/llm-chat/home";
+  }, agentId);
+  if (agentId) {
+    await testElement(context.driver, "chat-view");
+  } else {
+    await testElement(context.driver, "chat-home");
+    await clickTestElement(context.driver, "chat-new");
+    await testElement(context.driver, "chat-view");
+  }
   await clickTestElement(context.driver, "chat-add-asset");
   await testElement(context.driver, "chat-asset-picker");
   const assetRow = await context.driver.$(
@@ -234,7 +271,12 @@ export async function runDeterministicAttachmentScenario(
     modelId: MOBILE_E2E_MODEL_ID,
   });
   await ensureUserProfile(context);
-  const { text: reply, sessionId } = await sendFixture(context, 60_000);
+  const agentId = await configureAgentParameters(context);
+  const { text: reply, sessionId } = await sendFixture(
+    context,
+    60_000,
+    agentId
+  );
   if (!reply.includes("Attachment verified")) {
     throw new Error(`Unexpected deterministic reply: ${reply}`);
   }
@@ -246,6 +288,20 @@ export async function runDeterministicAttachmentScenario(
   }
   if (request.hasUserProfileTag !== true) {
     throw new Error("Mock did not observe the selected user profile context.");
+  }
+  const generationParameters = request.generationParameters as
+    Record<string, unknown> | undefined;
+  if (
+    generationParameters?.temperature !== 0.35 ||
+    generationParameters.maxTokens !== 2048 ||
+    generationParameters.topP !== 0.8 ||
+    generationParameters.frequencyPenalty !== 0.3 ||
+    generationParameters.presencePenalty !== -0.2 ||
+    generationParameters.stopCount !== 1
+  ) {
+    throw new Error(
+      "Mock did not receive the saved Agent generation parameters."
+    );
   }
 
   await context.driver.switchContext("NATIVE_APP");
@@ -263,6 +319,19 @@ export async function runDeterministicAttachmentScenario(
   if (!(await recoveredProfile.getAttribute("class"))?.includes("global")) {
     throw new Error(
       "Default user profile did not persist after the app restart."
+    );
+  }
+  await context.driver.execute((savedAgentId) => {
+    window.location.hash = `#/tools/agent-manager/${encodeURIComponent(savedAgentId)}`;
+  }, agentId);
+  await testElement(context.driver, "agent-detail");
+  const recoveredTemperature = await testElement(
+    context.driver,
+    "agent-parameter-temperature"
+  );
+  if ((await recoveredTemperature.getValue()) !== "0.35") {
+    throw new Error(
+      "Agent generation parameters did not persist after the app restart."
     );
   }
   await context.driver.execute(() => {

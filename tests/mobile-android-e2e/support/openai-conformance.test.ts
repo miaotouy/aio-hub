@@ -9,6 +9,7 @@ import {
   sseEventCountForMode,
   summarizeOpenAiAttachments,
   hasUserProfileTag,
+  summarizeGenerationParameters,
 } from "./openai-conformance";
 
 describe("mobile OpenAI attachment summaries", () => {
@@ -71,5 +72,25 @@ describe("mobile OpenAI profile context summaries", () => {
 
     expect(hasUserProfileTag(messages)).toBe(true);
     expect(hasUserProfileTag([{ role: "user", content: "Hello" }])).toBe(false);
+  });
+});
+
+it("summarizes scalar generation parameters without retaining stop strings", () => {
+  expect(
+    summarizeGenerationParameters({
+      temperature: 0.35,
+      max_tokens: 2048,
+      top_p: 0.8,
+      frequency_penalty: 0.3,
+      presence_penalty: -0.2,
+      stop: ["END", "PRIVATE STOP"],
+    })
+  ).toEqual({
+    temperature: 0.35,
+    maxTokens: 2048,
+    topP: 0.8,
+    frequencyPenalty: 0.3,
+    presencePenalty: -0.2,
+    stopCount: 2,
   });
 });

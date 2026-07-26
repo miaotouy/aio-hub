@@ -73,6 +73,24 @@ function readDataUrl(value: unknown): AttachmentSummary | null {
   };
 }
 
+export function summarizeGenerationParameters(body: Record<string, unknown>) {
+  const readNumber = (key: string): number | null => {
+    const value = body[key];
+    return typeof value === "number" && Number.isFinite(value) ? value : null;
+  };
+  const stop = body.stop;
+  return {
+    temperature: readNumber("temperature"),
+    maxTokens: readNumber("max_tokens") ?? readNumber("max_completion_tokens"),
+    topP: readNumber("top_p"),
+    frequencyPenalty: readNumber("frequency_penalty"),
+    presencePenalty: readNumber("presence_penalty"),
+    stopCount: Array.isArray(stop)
+      ? stop.filter((item) => typeof item === "string").length
+      : 0,
+  };
+}
+
 export function hasUserProfileTag(messages: unknown): boolean {
   if (!Array.isArray(messages)) return false;
   return messages.some((message) => {
@@ -210,6 +228,7 @@ export function startMobileOpenAiConformanceServer(options: {
         messageCount: Array.isArray(body.messages) ? body.messages.length : 0,
         messageDigest: sha256(JSON.stringify(body.messages ?? [])),
         attachments,
+        generationParameters: summarizeGenerationParameters(body),
         hasUserProfileTag: hasUserProfileTag(body.messages),
         attachmentRequired,
         attachmentMatch,

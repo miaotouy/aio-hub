@@ -39,6 +39,14 @@ describe("mobile E2E artifact redaction", () => {
     expect(redacted).not.toContain('aria-label="发送"');
   });
 
+  it("keeps non-sensitive generation limits in structured diagnostics", () => {
+    const redacted = redactStructured({
+      maxTokens: 2048,
+      accessToken: "sensitive",
+    }) as { maxTokens: number; accessToken: string };
+    expect(redacted).toEqual({ maxTokens: 2048, accessToken: "[REDACTED]" });
+  });
+
   it("stores only the APK filename in structured run metadata", () => {
     const redacted = redactStructured({
       apk: { path: "E:\\repo\\app.apk", sha256: "hash" },

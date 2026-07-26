@@ -5,6 +5,42 @@ import { ensureFixtureImported, findFixtureTile } from "./asset-workflow.spec";
 import type { ScenarioContext } from "./context";
 
 const APP_PACKAGE = "com.aiohub.mobile";
+const E2E_USER_PROFILE_NAME = "Android E2E User Profile";
+const E2E_USER_PROFILE_CONTENT =
+  "Provide direct, concise answers for this Android E2E profile.";
+
+async function ensureUserProfile(context: ScenarioContext) {
+  await context.driver.execute(() => {
+    window.location.hash = "#/tools/llm-chat/profiles";
+  });
+  await testElement(context.driver, "chat-user-profiles");
+
+  let profileCard = await context.driver.$(
+    `[data-profile-name="${E2E_USER_PROFILE_NAME}"]`
+  );
+  if (!(await profileCard.isExisting())) {
+    await clickTestElement(context.driver, "user-profile-create");
+    await testElement(context.driver, "user-profile-editor");
+    await setInput(context, "user-profile-name", E2E_USER_PROFILE_NAME);
+    await setInput(context, "user-profile-content", E2E_USER_PROFILE_CONTENT);
+    await clickTestElement(context.driver, "user-profile-save");
+    profileCard = await context.driver.$(
+      `[data-profile-name="${E2E_USER_PROFILE_NAME}"]`
+    );
+  }
+  await profileCard.waitForDisplayed({ timeout: 20_000 });
+  await (
+    await profileCard.$('[data-testid="user-profile-set-default"]')
+  ).click();
+  await context.driver.waitUntil(
+    async () =>
+      (await profileCard.getAttribute("class"))?.includes("global") ?? false,
+    {
+      timeout: 10_000,
+      timeoutMsg: "Android E2E user profile was not selected as the default.",
+    }
+  );
+}
 async function setInput(
   context: ScenarioContext,
   testId: string,
@@ -149,14 +185,20 @@ async function sendFixture(context: ScenarioContext, timeoutMs: number) {
   await replyAssetRow.waitForDisplayed({ timeout: 20_000 });
   await replyAssetRow.click();
   await clickTestElement(context.driver, "chat-asset-confirm");
-  await setInput(context, "chat-message-input", "Reply-mode Android E2E follow-up.");
+  await setInput(
+    context,
+    "chat-message-input",
+    "Reply-mode Android E2E follow-up."
+  );
   await clickTestElement(context.driver, "chat-send");
   const replyReference = await context.driver.$(
     '[data-message-role="user"] [data-testid="message-reply-reference"]'
   );
   await replyReference.waitForDisplayed({ timeout: timeoutMs });
   if (!(await replyReference.getText()).includes("Attachment verified")) {
-    throw new Error("Reply reference was not rendered on the sent user message.");
+    throw new Error(
+      "Reply reference was not rendered on the sent user message."
+    );
   }
   await context.driver.waitUntil(
     async () =>
@@ -191,6 +233,7 @@ export async function runDeterministicAttachmentScenario(
     baseUrl: context.deterministicBaseUrl,
     modelId: MOBILE_E2E_MODEL_ID,
   });
+  await ensureUserProfile(context);
   const { text: reply, sessionId } = await sendFixture(context, 60_000);
   if (!reply.includes("Attachment verified")) {
     throw new Error(`Unexpected deterministic reply: ${reply}`);
@@ -201,11 +244,27 @@ export async function runDeterministicAttachmentScenario(
   if (!request) {
     throw new Error("Mock did not record a matching attachment request.");
   }
+  if (request.hasUserProfileTag !== true) {
+    throw new Error("Mock did not observe the selected user profile context.");
+  }
 
   await context.driver.switchContext("NATIVE_APP");
   await context.driver.terminateApp(APP_PACKAGE);
   await context.driver.activateApp(APP_PACKAGE);
   await switchToWebview(context.driver);
+  await context.driver.execute(() => {
+    window.location.hash = "#/tools/llm-chat/profiles";
+  });
+  await testElement(context.driver, "chat-user-profiles", 30_000);
+  const recoveredProfile = await context.driver.$(
+    `[data-profile-name="${E2E_USER_PROFILE_NAME}"]`
+  );
+  await recoveredProfile.waitForDisplayed({ timeout: 30_000 });
+  if (!(await recoveredProfile.getAttribute("class"))?.includes("global")) {
+    throw new Error(
+      "Default user profile did not persist after the app restart."
+    );
+  }
   await context.driver.execute(() => {
     window.location.hash = "#/tools/llm-chat/sessions";
   });
@@ -227,14 +286,18 @@ export async function runDeterministicAttachmentScenario(
     '[data-message-role="user"] [data-testid="message-reply-reference"]'
   );
   await recoveredReplyReference.waitForDisplayed({ timeout: 20_000 });
-  if (!(await recoveredReplyReference.getText()).includes("Attachment verified")) {
+  if (
+    !(await recoveredReplyReference.getText()).includes("Attachment verified")
+  ) {
     throw new Error("Reply reference did not persist after the app restart.");
   }
   const recoveredAssistant = await context.driver.$(
     '[data-testid="chat-message"][data-message-role="assistant"]'
   );
   await recoveredAssistant.waitForDisplayed({ timeout: 20_000 });
-  const copiedContent = (await recoveredAssistant.$(".content-body").getText()).trim();
+  const copiedContent = (
+    await recoveredAssistant.$(".content-body").getText()
+  ).trim();
   if (!copiedContent) {
     throw new Error("Recovered assistant message has no copyable text.");
   }
@@ -242,7 +305,9 @@ export async function runDeterministicAttachmentScenario(
   await clickTestElement(context.driver, "message-copy");
   await context.driver.waitUntil(
     async () =>
-      context.driver.execute(() => document.body.innerText.includes("已复制内容")),
+      context.driver.execute(() =>
+        document.body.innerText.includes("已复制内容")
+      ),
     {
       timeout: 10_000,
       timeoutMsg: "Native clipboard write did not produce a success feedback.",
@@ -313,8 +378,12 @@ export async function runDeterministicAttachmentScenario(
   await sessionSort.selectByAttribute("value", "messageCount:asc");
   await context.driver.waitUntil(
     async () => {
-      const firstSession = await context.driver.$('[data-testid="chat-session-row"]');
-      return (await firstSession.getAttribute("data-session-id")) === emptySessionId;
+      const firstSession = await context.driver.$(
+        '[data-testid="chat-session-row"]'
+      );
+      return (
+        (await firstSession.getAttribute("data-session-id")) === emptySessionId
+      );
     },
     {
       timeout: 10_000,

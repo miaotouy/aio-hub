@@ -26,7 +26,9 @@ export type MobileE2eResponseMode =
   | "delayed-stream"
   | "timeout";
 
-export function responseModeForModel(model: string | null): MobileE2eResponseMode {
+export function responseModeForModel(
+  model: string | null
+): MobileE2eResponseMode {
   if (model === MOBILE_E2E_HTTP_ERROR_MODEL_ID) return "http-error";
   if (model === MOBILE_E2E_INTERRUPTED_MODEL_ID) return "interrupted-stream";
   if (model === MOBILE_E2E_DELAYED_MODEL_ID) return "delayed-stream";
@@ -69,6 +71,17 @@ function readDataUrl(value: unknown): AttachmentSummary | null {
     bytes: bytes.byteLength,
     sha256: createHash("sha256").update(bytes).digest("hex"),
   };
+}
+
+export function hasUserProfileTag(messages: unknown): boolean {
+  if (!Array.isArray(messages)) return false;
+  return messages.some((message) => {
+    const content = asRecord(message)?.content;
+    return (
+      typeof content === "string" &&
+      /<user_profile\s+name="[^"]+">/.test(content)
+    );
+  });
 }
 
 export function summarizeOpenAiAttachments(
@@ -185,7 +198,8 @@ export function startMobileOpenAiConformanceServer(options: {
             attachment.bytes === expected.bytes &&
             attachment.sha256 === expected.sha256
         );
-      const responseStatus = mode === "http-error" ? 429 : attachmentMatch ? 200 : 422;
+      const responseStatus =
+        mode === "http-error" ? 429 : attachmentMatch ? 200 : 422;
       const summary = {
         requestId,
         at: new Date().toISOString(),
@@ -196,6 +210,7 @@ export function startMobileOpenAiConformanceServer(options: {
         messageCount: Array.isArray(body.messages) ? body.messages.length : 0,
         messageDigest: sha256(JSON.stringify(body.messages ?? [])),
         attachments,
+        hasUserProfileTag: hasUserProfileTag(body.messages),
         attachmentRequired,
         attachmentMatch,
         status: responseStatus,
@@ -266,9 +281,12 @@ export function startMobileOpenAiConformanceServer(options: {
       }
       if (mode === "timeout") {
         await Bun.sleep(90_000);
-        return new Response(createSsePayload(["Late response"], "stop", requestId), {
-          headers: sseHeaders(requestId),
-        });
+        return new Response(
+          createSsePayload(["Late response"], "stop", requestId),
+          {
+            headers: sseHeaders(requestId),
+          }
+        );
       }
       const chunks = attachmentRequired
         ? ["Attachment ", "verified ", "by Android E2E."]

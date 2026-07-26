@@ -3,6 +3,7 @@ import type { ProcessableMessage } from "./context";
 import type { ModelCapabilities } from "@/tools/llm-api/types";
 import type { ChatAgent } from "@/tools/agent-manager/types/agent";
 import type { ChatSettings } from "./settings";
+import type { MobileUserProfile } from "./userProfile";
 
 export interface PipelineContext {
   // --- 核心可变数据 ---
@@ -15,6 +16,8 @@ export interface PipelineContext {
   // --- 只读元数据 ---
   readonly session: ChatSession;
   readonly agentConfig: ChatAgent | null;
+  /** Effective enabled profile for the active agent or global selection. */
+  readonly userProfile?: MobileUserProfile | null;
   readonly settings: ChatSettings;
   readonly capabilities?: ModelCapabilities;
   readonly timestamp: number;

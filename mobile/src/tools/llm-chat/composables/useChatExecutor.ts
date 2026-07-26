@@ -8,6 +8,7 @@ import { useChatResponseHandler } from "./useChatResponseHandler";
 import { useTopicNamer } from "./useTopicNamer";
 import { useChatSettings } from "./useChatSettings";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
+import { useUserProfileStore } from "../stores/userProfileStore";
 import type {
   ChatMessageAttachment,
   ChatMessageReference,
@@ -39,6 +40,7 @@ export function useChatExecutor() {
   const nodeManager = useNodeManager();
   const pipelineStore = useContextPipelineStore();
   const agentStore = useAgentStore();
+  const userProfileStore = useUserProfileStore();
   const { handleStreamUpdate, finalizeNode, handleNodeError } =
     useChatResponseHandler();
   const { shouldAutoName, generateTopicName } = useTopicNamer();
@@ -74,8 +76,12 @@ export function useChatExecutor() {
     }
 
     if (!agentStore.isLoaded) await agentStore.init();
+    if (!userProfileStore.isLoaded) await userProfileStore.init();
     await loadSettings();
     const activeAgent = agentStore.getAgentById(session.displayAgentId);
+    const effectiveUserProfile = userProfileStore.getEffectiveProfile(
+      activeAgent?.userProfileId
+    );
 
     // 智能体绑定优先；普通会话继续使用聊天页当前选择的模型。
     const [selectedProfileId, selectedModelId] = parseSelectedModelValue(
@@ -146,6 +152,7 @@ export function useChatExecutor() {
         messages: [],
         session,
         agentConfig: activeAgent,
+        userProfile: effectiveUserProfile,
         settings: settings.value,
         capabilities: model.capabilities,
         timestamp: Date.now(),
@@ -157,6 +164,8 @@ export function useChatExecutor() {
       };
 
       await pipelineStore.executePipeline(pipelineContext);
+      if (effectiveUserProfile)
+        await userProfileStore.markUsed(effectiveUserProfile.id);
 
       const pipelineAttachments = pipelineContext.messages.flatMap(
         (message) => message._attachments ?? []

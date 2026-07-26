@@ -62,6 +62,10 @@ const goToAgents = () => {
   router.push("/tools/agent-manager/list");
 };
 
+const goToUserProfiles = () => {
+  router.push("/tools/llm-chat/profiles");
+};
+
 const goHome = () => {
   router.push("/");
 };
@@ -132,13 +136,20 @@ const goHome = () => {
         </div>
       </div>
 
-      <div class="action-card disabled">
+      <div
+        class="action-card"
+        role="button"
+        tabindex="0"
+        data-testid="chat-user-profiles"
+        @click="goToUserProfiles"
+        @keydown.enter="goToUserProfiles"
+      >
         <div class="icon-box">
           <UserCircle :size="24" />
         </div>
         <div class="text-box">
           <h3>{{ tRaw("tools.llm-chat.ChatHome.用户档案") }}</h3>
-          <p>{{ tRaw("tools.llm-chat.ChatHome.敬请期待") }}</p>
+          <p>{{ tRaw("tools.llm-chat.ChatHome.管理用户档案") }}</p>
         </div>
       </div>
     </div>

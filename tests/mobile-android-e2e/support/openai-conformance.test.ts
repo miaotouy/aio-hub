@@ -8,6 +8,7 @@ import {
   responseModeForModel,
   sseEventCountForMode,
   summarizeOpenAiAttachments,
+  hasUserProfileTag,
 } from "./openai-conformance";
 
 describe("mobile OpenAI attachment summaries", () => {
@@ -27,7 +28,8 @@ describe("mobile OpenAI attachment summaries", () => {
       {
         mimeType: "image/png",
         bytes: 5,
-        sha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+        sha256:
+          "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
       },
     ]);
     expect(JSON.stringify(summaries)).not.toContain("aGVsbG8");
@@ -54,5 +56,20 @@ describe("mobile OpenAI attachment summaries", () => {
     expect(sseEventCountForMode("timeout", true, true)).toBe(0);
     expect(sseEventCountForMode("interrupted-stream", true, true)).toBe(1);
     expect(sseEventCountForMode("attachment", true, true)).toBe(4);
+  });
+});
+
+describe("mobile OpenAI profile context summaries", () => {
+  it("records profile-tag presence without retaining profile content", () => {
+    const messages = [
+      {
+        role: "system",
+        content:
+          '<user_profile name="Ada">\nSensitive profile content\n</user_profile>',
+      },
+    ];
+
+    expect(hasUserProfileTag(messages)).toBe(true);
+    expect(hasUserProfileTag([{ role: "user", content: "Hello" }])).toBe(false);
   });
 });

@@ -259,6 +259,7 @@ LlamaChatView.send() → useChatExecutor.execute()
 | `/tools/llm-chat/home`     | `ChatHome.vue`         | 主页入口，4个操作卡片 |
 | `/tools/llm-chat/sessions` | `SessionList.vue`      | 历史会话列表          |
 | `/tools/llm-chat/chat/:id` | `LlmChatView.vue`      | 聊天主界面            |
+| `/tools/llm-chat/profiles` | `UserProfilesView.vue` | 用户档案管理          |
 | `/tools/llm-chat/settings` | `ChatSettingsView.vue` | 聊天设置页面          |
 
 ### 5.1. ChatHome.vue — 主页
@@ -268,7 +269,7 @@ LlamaChatView.send() → useChatExecutor.execute()
   - **开启新对话** — `createSession()` + 跳转
   - **历史会话** — 跳转到 `SessionList`
   - **角色大厅** — 跳转到独立 `agent-manager`，可选择智能体发起绑定会话
-  - **用户档案** — 禁用状态（"敬请期待"）
+  - **用户档案** — 跳转到 `UserProfilesView`，管理基础档案和默认选择
 - 使用 SafeTop 组件处理刘海屏
 
 ### 5.2. LlmChatView.vue — 聊天主界面
@@ -298,14 +299,14 @@ LlamaChatView.send() → useChatExecutor.execute()
 
 ### 6.1. 列表组件
 
-| 组件                 | 职责                                             |
-| -------------------- | ------------------------------------------------ |
+| 组件                 | 职责                                                     |
+| -------------------- | -------------------------------------------------------- |
 | `MessageList.vue`    | 消息列表容器，处理滚动；自动滚动与字号由聊天 UI 偏好控制 |
-| `MessageContent.vue` | 渲染消息正文、附件状态与统一受控媒体预览         |
-| `ChatMessage.vue`    | 单条消息的整体排版（头像、气泡、模型、时间戳等元信息） |
-| `MessageMenubar.vue` | 操作菜单（重新生成、复制、编辑、删除、分支切换） |
-| `BranchSwitcher.vue` | 兄弟分支切换器（上一分支/下一分支）              |
-| `BranchSelector.vue` | 底部抽屉式分支列表，支持直接切换到任意同级分支   |
+| `MessageContent.vue` | 渲染消息正文、附件状态与统一受控媒体预览                 |
+| `ChatMessage.vue`    | 单条消息的整体排版（头像、气泡、模型、时间戳等元信息）   |
+| `MessageMenubar.vue` | 操作菜单（重新生成、复制、编辑、删除、分支切换）         |
+| `BranchSwitcher.vue` | 兄弟分支切换器（上一分支/下一分支）                      |
+| `BranchSelector.vue` | 底部抽屉式分支列表，支持直接切换到任意同级分支           |
 
 ### 6.2. 输入组件
 
@@ -343,7 +344,14 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - 持久化处理器顺序和启用状态
 - 版本 `1.0.0`
 
-### 7.4. 已实施的资产引用
+### 7.4. 用户档案存储与请求注入
+
+- 使用 `createConfigManager` 在 `llm-chat/user-profiles.json` 持久化基础档案列表和全局默认档案 ID。
+- 每个档案只包含移动端可完整支持的名称、显示名称、图标、纯文本内容、启用状态和使用时间；不冒充或替代桌面端完整用户档案/宏契约。
+- 请求执行时，启用的 `ChatAgent.userProfileId` 优先于启用的全局默认档案；`user-profile-injector` 在会话历史之前插入 `<user_profile name="…">` 系统上下文，并更新最后使用时间。
+- 管理页支持创建、编辑、启用/禁用、删除和设为默认；确定性 Android E2E 同时验证默认档案持久化与请求中存在档案标签。
+
+### 7.5. 已实施的资产引用
 
 会话与消息 SQLite 迁移、附件存储/outbox、聊天内资产选择、provider wire、受控图片预览、文本文档提取和实时原件状态降级均已接入。Android Studio AVD 的确定性附件发送与 Ollama opt-in 验收已完成；Android 真机主流程和 iOS 仍是平台门禁，剩余施工以 [`mobile-sqlite-migration-plan.md`](../../../docs/plan/mobile-sqlite-migration-plan.md) 为准。
 
@@ -384,7 +392,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - [x] PipelineContext 定义
 - [x] ContextProcessor 接口
 - [x] 处理器注册/注销/排序/启用
-- [x] 核心处理器：session-loader、injection-assembler（默认、深度、高级深度、锚点和模型匹配）、token-limiter（文本历史预算）、message-formatter（最终角色格式化）
+- [x] 核心处理器：session-loader、user-profile-injector（基础档案系统上下文）、injection-assembler（默认、深度、高级深度、锚点和模型匹配）、token-limiter（文本历史预算）、message-formatter（最终角色格式化）
 - [x] 待处理器的执行、日志和共享黑板
 
 ### ✅ Agent 对话接入
@@ -426,7 +434,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - [ ] `macros-renderer`：宏替换/模板渲染
 - [x] `message-formatter`：模型默认规则与 Agent 覆盖的消息合并、角色转换和交替补位
 - [x] `injection-assembler`：默认、深度/高级深度和锚点预设组装；私有预设附件待 Agent 资源包完成后接入
-- [ ] `user-profile-injector`：用户档案注入
+- [x] `user-profile-injector`：启用的 Agent 绑定或全局默认基础档案在历史前以 `<user_profile>` 系统上下文注入；完整桌面用户档案宏契约仍不在此范围
 - [ ] `model-match-filter`：按模型与渠道筛选预设消息
 - [x] `token-limiter`：复用现有 Rust `o200k` 批量计数，预设先占预算、从最新历史倒序保留，并支持字符串部分截断；附件、工具 schema 和多模态额外开销仍由独立估算处理
 - [x] `ProcessableMessage._attachments` 的强类型加载与空文本消息保留
@@ -443,7 +451,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 ### 🔄 智能体支持
 
 - [x] 本地角色大厅与基础编辑
-- [ ] 用户档案管理
+- [x] 基础用户档案管理：多档案 CRUD、启用/禁用、全局默认选择、Agent `userProfileId` 覆盖与请求系统上下文注入
 - [x] 智能体预设加载
 - [x] 执行预设消息的 `injectionStrategy` 和 `modelMatch`
 - [ ] 迁移完整宏引擎：桌面端必须一起注册工具、Recall、Knowledge、资产和 CSS 宏；移动端缺少 `tool-calling`、Recall、Knowledge 与兼容变量/用户档案契约，不能用子集或空实现替代
@@ -466,16 +474,16 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 
 ## 10. 与桌面端的差异
 
-| 维度           | 桌面端 (`src/tools/llm-chat`)                                        | 移动端 (`mobile/src/tools/llm-chat`)                                                                    |
-| -------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| **UI 分层**    | 自研业务组件 + Element Plus 叶子控件                                 | 原生 Vue/AIO token 骨架 + Varlet 叶子控件                                                               |
-| **类型**       | 完整 `ChatAgent`, `Asset`, `ChatSettings`                            | 已接入兼容 `ChatAgent` 和 `ManagedAssetRef + 轻量快照`，不持久化全局资产路径                            |
+| 维度           | 桌面端 (`src/tools/llm-chat`)                                        | 移动端 (`mobile/src/tools/llm-chat`)                                                                                                       |
+| -------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **UI 分层**    | 自研业务组件 + Element Plus 叶子控件                                 | 原生 Vue/AIO token 骨架 + Varlet 叶子控件                                                                                                  |
+| **类型**       | 完整 `ChatAgent`, `Asset`, `ChatSettings`                            | 已接入兼容 `ChatAgent` 和 `ManagedAssetRef + 轻量快照`，不持久化全局资产路径                                                               |
 | **管道处理器** | 完整：会话、注入、宏/变量、世界书/召回、Token 限制、格式化和资源解析 | `session-loader` + `injection-assembler` + `token-limiter` + `message-formatter`；Token 仅裁剪文本，附件、工具 schema 与多模态成本独立处理 |
-| **组件**       | 丰富（BaseDialog, ImageViewer 等）                                   | 基础的列表/输入组件                                                                                     |
-| **编辑器**     | RichCodeEditor（双引擎）                                             | 纯文本输入                                                                                              |
-| **路由**       | `main`, `settings` 两页                                              | `home`, `sessions`, `chat/:id`, `settings` 四页                                                         |
-| **存储**       | ConfigManager + 独立文件                                             | `llm_chat.db` 增量存储；ConfigManager 仅保存当前会话 ID                                                 |
-| **多模态**     | 支持完整 Asset 系统                                                  | 已接入 `ManagedAssetRef`、SQLite 附件快照、受控预览和 Rust 原生传输；平台门禁独立跟踪                   |
+| **组件**       | 丰富（BaseDialog, ImageViewer 等）                                   | 基础的列表/输入组件                                                                                                                        |
+| **编辑器**     | RichCodeEditor（双引擎）                                             | 纯文本输入                                                                                                                                 |
+| **路由**       | `main`, `settings` 两页                                              | `home`, `sessions`, `chat/:id`, `settings` 四页                                                                                            |
+| **存储**       | ConfigManager + 独立文件                                             | `llm_chat.db` 增量存储；ConfigManager 仅保存当前会话 ID                                                                                    |
+| **多模态**     | 支持完整 Asset 系统                                                  | 已接入 `ManagedAssetRef`、SQLite 附件快照、受控预览和 Rust 原生传输；平台门禁独立跟踪                                                      |
 
 ## 11. 关键代码约定
 

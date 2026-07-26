@@ -14,7 +14,8 @@
     "角色大厅": "Character Hub",
     "敬请期待": "Coming Soon",
     "选择智能体并开始对话": "Choose an agent and start chatting",
-    "用户档案": "User Profile"
+    "用户档案": "User Profile",
+    "管理用户档案": "Create and manage user profiles for chat context"
   },
   "ChatView": {
     "选择智能体": "Select agent",
@@ -137,5 +138,40 @@
   "MessageList": {
     "开始新的对话": "Start a new chat",
     "空会话提示": "Send a message to display the active branch of this conversation."
+  },
+  "UserProfiles": {
+    "用户档案": "User Profiles",
+    "说明": "The active profile is sent to the model as system context",
+    "返回": "Back",
+    "新建": "New",
+    "暂无档案": "No user profiles",
+    "暂无档案提示": "Create a profile, then make it the global default for chats.",
+    "默认": "Default",
+    "设为默认": "Set as default",
+    "编辑": "Edit",
+    "删除": "Delete",
+    "已启用": "Enabled",
+    "已禁用": "Disabled",
+    "编辑档案": "Edit user profile",
+    "新建档案": "New user profile",
+    "名称": "Name",
+    "名称提示": "For example: traveler",
+    "显示名称": "Display name",
+    "显示名称提示": "For example: Traveler",
+    "图标": "Icon",
+    "图标提示": "For example: 🙂",
+    "档案内容": "Profile content",
+    "内容提示": "Describe the user identity, preferences, and background…",
+    "启用": "Enable this profile",
+    "取消": "Cancel",
+    "保存": "Save",
+    "已保存": "User profile saved",
+    "名称重复": "This name is already used by another profile",
+    "名称必填": "Enter a profile name",
+    "保存失败": "Could not save user profile",
+    "删除档案": "Delete user profile",
+    "删除提示": "Delete user profile “{name}”?",
+    "已删除": "User profile deleted",
+    "已设为默认": "Set as global default"
   }
 }

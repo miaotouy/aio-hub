@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ChatSession } from "../../types";
+import type { ChatSession, MobileUserProfile } from "../../types";
 
 const state = vi.hoisted(() => ({
   chatStore: {
@@ -29,6 +29,31 @@ const state = vi.hoisted(() => ({
       requestSettings: { timeout: 60_000 },
       contextManagement: { warningRatio: 0.8, criticalRatio: 0.9 },
     },
+  },
+  pipelineStore: {
+    executePipeline: vi.fn(async (context) => {
+      context.messages = [
+        {
+          role: "user",
+          content: "Hello",
+          sourceType: "session_history",
+          sourceId: "user-1",
+        },
+      ];
+    }),
+  },
+  agentStore: {
+    isLoaded: true,
+    init: vi.fn(),
+    getAgentById: vi.fn(() => undefined),
+  },
+  userProfileStore: {
+    isLoaded: true,
+    init: vi.fn(),
+    getEffectiveProfile: vi.fn<
+      (agentProfileId?: string | null) => MobileUserProfile | null
+    >(() => null),
+    markUsed: vi.fn(),
   },
 }));
 
@@ -65,18 +90,7 @@ vi.mock("../useNodeManager", () => ({
   }),
 }));
 vi.mock("../../stores/contextPipelineStore", () => ({
-  useContextPipelineStore: () => ({
-    executePipeline: vi.fn(async (context) => {
-      context.messages = [
-        {
-          role: "user",
-          content: "Hello",
-          sourceType: "session_history",
-          sourceId: "user-1",
-        },
-      ];
-    }),
-  }),
+  useContextPipelineStore: () => state.pipelineStore,
 }));
 vi.mock("../useChatResponseHandler", () => ({
   useChatResponseHandler: () => state.responseHandler,
@@ -91,7 +105,10 @@ vi.mock("../useChatSettings", () => ({
   useChatSettings: () => ({ settings: state.settings, loadSettings: vi.fn() }),
 }));
 vi.mock("@/tools/agent-manager/stores/agentStore", () => ({
-  useAgentStore: () => ({ isLoaded: true, getAgentById: () => undefined }),
+  useAgentStore: () => state.agentStore,
+}));
+vi.mock("../../stores/userProfileStore", () => ({
+  useUserProfileStore: () => state.userProfileStore,
 }));
 vi.mock("@/utils/tokenCounting", () => ({
   countTokensBatch: vi.fn(async () => ({
@@ -143,6 +160,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.chatStore.isSending = false;
   state.settings.value.uiPreferences.isStreaming = false;
+  state.pipelineStore.executePipeline.mockClear();
+  state.agentStore.getAgentById.mockReturnValue(undefined);
+  state.userProfileStore.isLoaded = true;
+  state.userProfileStore.getEffectiveProfile.mockReturnValue(null);
   state.llmRequest.sendRequest.mockResolvedValue({
     content: "Complete response",
     isStream: false,
@@ -158,5 +179,34 @@ describe("useChatExecutor streaming preference", () => {
       "profile-1"
     );
     expect(state.responseHandler.finalizeNode).toHaveBeenCalledOnce();
+  });
+});
+
+describe("useChatExecutor user profile context", () => {
+  it("provides the effective profile to the pipeline and records its usage", async () => {
+    const profile = {
+      id: "user-profile-1",
+      name: "Ada",
+      content: "I prefer concise answers.",
+      enabled: true,
+      createdAt: "2026-07-26T10:00:00.000Z",
+    };
+    state.userProfileStore.getEffectiveProfile.mockReturnValue(profile);
+
+    await useChatExecutor().execute(session(), "Hello");
+
+    expect(state.pipelineStore.executePipeline).toHaveBeenCalledWith(
+      expect.objectContaining({ userProfile: profile })
+    );
+    expect(state.userProfileStore.markUsed).toHaveBeenCalledWith(profile.id);
+  });
+
+  it("does not record usage when no effective profile is available", async () => {
+    await useChatExecutor().execute(session(), "Hello");
+
+    expect(state.pipelineStore.executePipeline).toHaveBeenCalledWith(
+      expect.objectContaining({ userProfile: null })
+    );
+    expect(state.userProfileStore.markUsed).not.toHaveBeenCalled();
   });
 });

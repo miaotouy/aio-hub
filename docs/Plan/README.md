@@ -35,6 +35,7 @@
 - [ ] **D-P0-02 Recall 发布迁移门禁**：在干净工作区完成全量工程检查、具名迁移 E2E、真实 Recall/Agent/Knowledge 合并报告和发布二进制 smoke test。详见 [Recall 检索管线计划](../../src/tools/recall/docs/Plan/recall-retrieval-pipeline-modularization-plan.md)。
 - [ ] **D-P0-03 Agent / User Profile 发布后路径收口**：两项解耦已随 `v0.6.6-r.1` 发布，但 2026-07-23 代码审计发现 Agent 导入、内置预设资产、升级覆盖和 Rust 搜索仍残留旧 `llm-chat/agents` 路径；User Profile 的实际多档案迁移与原计划单文件描述不符，且缺少部分迁移恢复、重复启动和首载设置一致性测试。先修正残余路径并补迁移级测试，再恢复“已完成”状态。详见 [LLM Chat 计划索引](../../src/tools/llm-chat/docs/Plan/README.md)。
 - [ ] **D-P0-04 Agent 目录搜索资源保护**：一次宽范围 VCP 搜索超时后未取消底层 walker，随后与新搜索重叠；当前单次默认最多使用 12 个 worker，且缺少深度、扫描文件数、deadline、总并发和 searchId 隔离。按组合资源预算、按请求取消、超时 signal 传播和替换完整性门禁实施。详见 [目录搜索资源占用调查与加固计划](../../src/tools/dir-search/docs/Plan/agent-search-resource-safety-investigation.md)。
+- [ ] **D-P0-05 Guided Flow 迁移发布门禁**：复用真实 Tauri E2E 的隔离 `AIO_DATA_DIR`，建立只读旧数据夹具、一次性 appData、安全清理、同根重启和中断恢复通道；发布候选包再用经审核的正式旧数据快照验收。详见 [Guided Flow 实施与验收计划](./guided-flow-plan.md#114-旧数据迁移自动化验收)。
 
 ### P1：共享基础设施
 

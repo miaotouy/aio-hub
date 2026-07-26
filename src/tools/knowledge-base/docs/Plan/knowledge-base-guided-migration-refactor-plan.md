@@ -4,7 +4,7 @@
 >
 > 日期：2026-07-25
 >
-> 关联架构：[Guided Flow 引导模块设计方案](../../../../docs/architecture/guided-flow-architecture.md)
+> 关联计划：[Guided Flow 引导模块实施与验收计划](../../../../../docs/Plan/guided-flow-plan.md)
 >
 > 适用范围：旧知识库/Recall 文件目录迁移、新知识库模块重构后的首次升级迁移
 
@@ -430,7 +430,7 @@ src/flows/knowledge-migration/
 - `src/tools/recall/docs/architecture/storage-migration-contract.md`；
 - 知识库用户指南；
 - 版本发布说明；
-- 迁移和 Tauri E2E 测试说明。
+- 迁移和 Tauri E2E 测试说明；具体数据目录、夹具和清理策略见 [Guided Flow 计划的旧数据迁移自动化验收](../../../../../docs/Plan/guided-flow-plan.md#114-旧数据迁移自动化验收)。
 
 现有文档中“旧目录自动迁移”的描述需要改为“启动时只读检测，用户确认后通过迁移流程执行”，避免文档与代码行为不一致。
 

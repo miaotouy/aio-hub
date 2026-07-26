@@ -1,8 +1,10 @@
-# Guided Flow 引导模块设计方案
+# Guided Flow 引导模块实施与验收计划
 
 > 状态：Phase 1–3 已实现；版本升级与知识库迁移的真实 Tauri 安装包/正式旧数据验收待补；Phase 4 待后续接入
 >
-> 日期：2026-07-25
+> 最近更新：2026-07-26
+>
+> 文档定位：跨模块实施、分阶段状态与发布验收计划；Guided Flow 的当前稳定契约以实际源码和本文第 2–10 节为准。
 >
 > 关联方案：[知识库迁移方式重构方案](../../src/tools/knowledge-base/docs/Plan/knowledge-base-guided-migration-refactor-plan.md)
 
@@ -474,7 +476,88 @@ Guided Flow 仍应复用项目主题变量和通用按钮规范，不得把 `el-
 
 ### 11.3 真实 Tauri 验证
 
-涉及 Tauri IPC、窗口生命周期、原生文件和迁移任务时，不能只依赖普通浏览器验证。应按照仓库的工具测试、Tauri E2E 和 Windows UI Automation 说明执行真实验证。
+涉及 Tauri IPC、窗口生命周期、原生文件和迁移任务时，不能只依赖普通浏览器验证。应按照[工具测试指南](../guide/tool-testing-guide.md)、[Tauri E2E 说明](../../tests/tauri-e2e/README.md)和 [Windows UI Automation 说明](../../tests/windows-ui-automation/README.md)执行真实验证。
+
+### 11.4 旧数据迁移自动化验收
+
+现有 `tests/tauri-e2e/run.ts` 已经为每次运行生成隔离目录，并通过 `AIO_DATA_DIR` 和 `AIO_ID_SUFFIX` 把真实 Tauri 进程指向该目录。迁移测试应复用这条启动链路，不再维护一个会被测试反复修改的固定“测试数据目录”。
+
+测试数据分为三个角色，不能混用：
+
+1. **只读来源夹具**：版本化、脱敏、可复核的旧版本 appData 子集；
+2. **一次性运行 appData**：每次测试新建，从来源夹具复制，唯一允许应用写入；
+3. **诊断产物目录**：保存截图、日志、迁移摘要和失败说明，不放在待删除的 appData 内。
+
+建议的运行布局如下：
+
+```text
+tests/tauri-e2e/fixtures/migrations/
+  legacy-file-system-v1/
+    minimal/
+      manifest.json
+      app-data/
+        knowledge/
+          bases/
+          vectors/
+          tag_pool/
+
+.dev-data/e2e-runs/<runId>/
+  .aio-e2e-run.json
+  app-data/
+  artifacts/
+```
+
+`manifest.json` 至少记录 fixture schema、来源应用版本、migration ID、允许复制的相对路径、文件 SHA-256、预期集合/条目/向量数量和预期问题数。提交仓库的夹具应使用固定 ID 和合成内容，不包含真实用户文本、模型密钥、渠道配置、聊天记录或绝对路径。正式用户备份只允许通过显式的本地参数接入，不能进入 Git 或 CI artifact。
+
+#### 11.4.1 准备与复制规则
+
+- 每次运行创建新的 `<runId>/app-data`，不得直接在来源夹具上启动应用，也不得用 `move` 消耗来源数据；
+- 只复制 manifest 白名单中的迁移相关目录，避免把账号、模型配置和其他模块状态一起带入；需要验证真实版本跃迁时，由场景构造器额外生成最小 `guided-flow/app-lifecycle.json`，不复制来源中的整套前端配置；
+- 复制前校验 fixture hash，复制后再次校验 staged appData；符号链接、junction、越界相对路径和未声明文件应直接拒绝；
+- 默认运行布局应把 `artifactDir` 从 `dataDir` 中移出，避免清理 appData 时同时丢失失败证据；
+- 运行根写入专用 marker，并记录规范化绝对路径和 run ID。清理脚本只有在 marker 匹配、目标位于仓库 `.dev-data/e2e-runs/` 或受控系统临时目录内时才允许递归删除；
+- 显式传入的外部来源永远只读，清理逻辑只能删除本次 staged 副本。
+
+#### 11.4.2 三层测试通道
+
+| 通道                     | 数据来源                                                           | 用途                                                    | 默认门禁                     |
+| ------------------------ | ------------------------------------------------------------------ | ------------------------------------------------------- | ---------------------------- |
+| `migration-minimal`      | 仓库内合成、脱敏夹具                                               | 检测、预览、确认、执行、报告、重启幂等                  | PR / 日常必跑                |
+| `migration-interruption` | 仓库内较小夹具                                                     | 迁移中断、同根目录重启、恢复或重试                      | 定期或发布前                 |
+| `migration-release`      | 由最近正式发布版本生成并经审核的本地快照，或先运行旧发布二进制生成 | 安装后版本生命周期、真实历史布局和发布二进制 smoke test | 发布候选包必跑，不上传源数据 |
+
+首个自动化实现不应直接从开发者正在使用的 appData “移动一部分数据”。应先制作一个最小合成夹具跑通必测链路，再提供类似 `AIO_E2E_MIGRATION_SOURCE` 的显式本地来源用于正式旧数据抽样。后者在复制前只输出 hash、文件数和格式摘要，不输出源路径、正文或凭据。
+
+#### 11.4.3 单个场景的执行顺序
+
+1. runner 校验来源 manifest，创建隔离运行根并复制到 `app-data`；
+2. 以该目录启动真实 Tauri，先断言启动只检测旧数据，未确认前没有导入主数据、删除旧目录或写入完成报告；
+3. 通过可见 Guided Flow 完成预览和备份确认，核对 migration ID、source fingerprint 与预期计数；
+4. 执行迁移并等待真实 IPC 进度和终态，随后从 UI 与生产 command 两侧交叉核对报告、集合、条目、向量保留/待重建数量；
+5. 关闭并用同一个 appData 启动第二个 Tauri 进程，断言已完成迁移不会重复写入，流程状态和报告可以恢复或回放；
+6. 在专门的 staged 副本上测试显式清理，断言只删除 legacy 目录，不删除 SQLite 真源、迁移报告或无关目录；
+7. 最后写出脱敏的 `migration-result.json`，再按清理策略处理运行 appData。
+
+中断场景不能只关闭前端弹窗来模拟。runner 应在收到约定迁移阶段事件后终止整个 Tauri 进程，再以同一 appData 重启；断言后端依靠 migration ID、source fingerprint 和持久化事实恢复，而不是依赖前端内存状态。
+
+#### 11.4.4 清理策略
+
+清理行为应由明确策略决定，而不是脚本临时“看情况”：
+
+- 默认 `on-success`：全部断言和产物写入成功后删除运行 appData；失败时保留并打印其绝对路径；
+- `always-keep`：本地调试时无论结果都保留；
+- `always-delete`：受控 CI 在已提取脱敏诊断后删除，但不得删除 artifact 目录；
+- runner 被 Ctrl+C、超时或异常终止时也应执行同一套 `finally` 收尾；若清理失败，记录警告和剩余路径，不能覆盖原测试失败原因。
+
+为避免长期堆积，还应提供单独的陈旧运行目录清理命令，只删除 marker 合法且超过保留期的目录；它不属于单次测试的关键路径。
+
+#### 11.4.5 建议施工切片
+
+1. 新增 `support/migration-fixture.ts`，实现 manifest 校验、安全复制、marker 与结果型清理，并为路径越界、显式外部目录和失败保留规则写单元测试；
+2. 增加 `migration-minimal` preset 和 `guided-knowledge-migration.spec.ts`，先完成首次启动、显式确认、迁移报告和同根重启幂等；
+3. 将 runner 默认目录调整为同一 run root 下互为兄弟的 `app-data/` 与 `artifacts/`，保持 `AIO_E2E_DATA_DIR` 显式覆盖兼容；
+4. 增加进程中断通道和清理步骤验证；
+5. 最后接入不入库的正式旧数据快照与发布二进制 smoke test，并在发布清单中记录 fixture hash、旧/新二进制版本和脱敏结果摘要。
 
 ## 12. Phase 2：版本升级流程详细设计
 

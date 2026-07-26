@@ -15,6 +15,8 @@
 import { join } from "@tauri-apps/api/path";
 import { mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
+import { gunzipSync, strFromU8 } from "fflate";
+import builtinTokenizerAssetUrls from "virtual:aiohub-builtin-tokenizer-assets";
 import { getAppConfigDir } from "@/utils/appPath";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
@@ -34,6 +36,50 @@ const SAMPLE_TEXTS = [
   "emoji 🙂 and newline\nsecond line",
   "<|endoftext|>",
 ];
+
+interface ProfileFileContents {
+  tokenizerJSON: string;
+  tokenizerConfigJSON?: string;
+}
+
+async function readGzipJsonAsset(url: string, label: string): Promise<string> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(
+      `读取内置 Tokenizer 资产失败（${label}）：${response.status} ${response.statusText}`
+    );
+  }
+
+  try {
+    const compressed = new Uint8Array(await response.arrayBuffer());
+    return strFromU8(gunzipSync(compressed));
+  } catch (error) {
+    throw new Error(
+      `解压内置 Tokenizer 资产失败（${label}）：${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+}
+
+async function readBundledProfileFiles(
+  profileId: string,
+  packageName: string
+): Promise<ProfileFileContents> {
+  const assets = builtinTokenizerAssetUrls[packageName];
+  if (!assets) {
+    throw new Error(`内置 Tokenizer 资产未注册：${packageName}`);
+  }
+
+  const [tokenizerJSON, tokenizerConfigJSON] = await Promise.all([
+    readGzipJsonAsset(assets.tokenizerUrl, `${profileId}/tokenizer.json.gz`),
+    readGzipJsonAsset(
+      assets.tokenizerConfigUrl,
+      `${profileId}/tokenizer_config.json.gz`
+    ),
+  ]);
+  return { tokenizerJSON, tokenizerConfigJSON };
+}
 
 export interface TokenizerProfileInstallInput {
   id: string;
@@ -316,6 +362,10 @@ export async function readProfileFiles(profile: TokenizerProfile): Promise<{
   tokenizerConfigJSON?: string;
 }> {
   try {
+    if (profile.source.type === "bundled") {
+      return readBundledProfileFiles(profile.id, profile.source.packageName);
+    }
+
     if (profile.source.type === "local") {
       return {
         tokenizerJSON: await readTextFile(profile.source.tokenizerJsonPath),
@@ -338,7 +388,7 @@ export async function readProfileFiles(profile: TokenizerProfile): Promise<{
       };
     }
 
-    throw new Error("内置 profile 不需要读取本地资产");
+    throw new Error(`不支持的 Tokenizer 资产来源：${profile.id}`);
   } catch (error) {
     errorHandler.handle(error as Error, {
       userMessage: "读取 Tokenizer 资产失败",

@@ -20,7 +20,7 @@
  *
  * v2 改造说明（详见 docs/Plan/分词器资产注册表方案.md）：
  * - 移除硬编码 tokenizer 包列表与正则映射
- * - 通过外部注入 profiles / rules / loaders 完成 modelId → tokenizer 的解析
+ * - 通过外部注入 profiles / rules 完成 modelId → tokenizer 的解析
  * - 计算结果新增 rawCount / tokenizerProfileId / tokenizerConfidence / appliedCalibration 字段
  */
 
@@ -41,14 +41,7 @@ import type {
 type PreTrainedTokenizer = any;
 
 /**
- * Profile 加载器函数（一般指向 `import("@lenml/tokenizer-xxx")` 等动态 import）
- */
-export type ProfileLoader = () => Promise<{
-  fromPreTrained: () => PreTrainedTokenizer;
-}>;
-
-/**
- * Worker 端按需获取 profile 数据的回调（针对 local / remote 来源）
+ * 按需获取 profile 模型数据的回调（bundled / local / remote 共用）
  *
  * 主线程通过 needProfileData ↔ profileData 通道实现，Worker 在引擎内部
  * 把它包装成 Promise<string>。
@@ -197,8 +190,7 @@ function getMatchedModelProperties(
  * v2 核心契约：
  * - 引擎本身不再持有任何硬编码的 tokenizer 列表 / 正则
  * - 通过 `setRegistry({ profiles, rules })` 注入注册表
- * - 通过 `setLoader(profileId, loader)` 注入内置 profile 的动态 import
- * - 通过 `setProfileDataFetcher(fetcher)` 注入 local / remote profile 的按需加载回调
+ * - 通过 `setProfileDataFetcher(fetcher)` 注入所有 profile 的按需资产加载回调
  */
 export class TokenCalculatorEngine {
   /** profileId → 已实例化的 tokenizer */
@@ -210,10 +202,7 @@ export class TokenCalculatorEngine {
   /** 用户匹配规则 */
   private rules: TokenizerRule[] = [];
 
-  /** profileId → 动态 import 加载器（用于 bundled 来源） */
-  private loaders = new Map<string, ProfileLoader>();
-
-  /** local / remote 来源的按需数据获取回调（一般由 Worker 注入） */
+  /** 所有 profile 来源共用的按需数据获取回调（一般由 Worker 注入） */
   private profileDataFetcher: ProfileDataFetcher | null = null;
 
   // =================================================================
@@ -235,17 +224,7 @@ export class TokenCalculatorEngine {
   }
 
   /**
-   * 注入内置 profile 的动态 import 加载器
-   *
-   * 主线程通过 postMessage 推送 profile 时 loader 函数无法被序列化，
-   * 因此 Worker 需要在本地用此方法补全。
-   */
-  setLoader(profileId: string, loader: ProfileLoader): void {
-    this.loaders.set(profileId, loader);
-  }
-
-  /**
-   * 注入 local / remote profile 的按需数据获取回调
+   * 注入 profile 模型数据的按需获取回调
    */
   setProfileDataFetcher(fetcher: ProfileDataFetcher | null): void {
     this.profileDataFetcher = fetcher;
@@ -335,38 +314,23 @@ export class TokenCalculatorEngine {
     try {
       let tokenizer: PreTrainedTokenizer | null = null;
 
-      if (profile.source.type === "bundled") {
-        const loader = this.loaders.get(profile.id);
-        if (!loader) {
-          console.warn(
-            `[TokenCalculator] 内置 profile "${profile.id}" 缺少 loader，无法实例化`
-          );
-          return null;
-        }
-        const mod = await loader();
-        tokenizer = mod.fromPreTrained();
-      } else if (
-        profile.source.type === "local" ||
-        profile.source.type === "remote"
-      ) {
-        if (!this.profileDataFetcher) {
-          console.warn(
-            `[TokenCalculator] profile "${profile.id}" 来源为 ${profile.source.type}，但未注入 profileDataFetcher`
-          );
-          return null;
-        }
-        const { tokenizerJSON, tokenizerConfigJSON } =
-          await this.profileDataFetcher(profile.id);
-
-        // 动态 import TokenizerLoader（同 @lenml/tokenizers 系列接口一致）
-        const { TokenizerLoader } = await import("@lenml/tokenizers");
-        tokenizer = TokenizerLoader.fromPreTrained({
-          tokenizerJSON: JSON.parse(tokenizerJSON),
-          tokenizerConfig: tokenizerConfigJSON
-            ? JSON.parse(tokenizerConfigJSON)
-            : undefined,
-        });
+      if (!this.profileDataFetcher) {
+        console.warn(
+          `[TokenCalculator] profile "${profile.id}" 来源为 ${profile.source.type}，但未注入 profileDataFetcher`
+        );
+        return null;
       }
+      const { tokenizerJSON, tokenizerConfigJSON } =
+        await this.profileDataFetcher(profile.id);
+
+      // 执行引擎保持为单一轻量模块，模型数据由资产服务按需提供。
+      const { TokenizerLoader } = await import("@lenml/tokenizers");
+      tokenizer = TokenizerLoader.fromPreTrained({
+        tokenizerJSON: JSON.parse(tokenizerJSON),
+        tokenizerConfig: tokenizerConfigJSON
+          ? JSON.parse(tokenizerConfigJSON)
+          : undefined,
+      });
 
       if (tokenizer) {
         this.tokenizerCache.set(profile.id, tokenizer);

@@ -1,6 +1,6 @@
 # 前端 Chunk 体积与 Monaco 装载治理计划
 
-> 状态：P0（Monaco ESM-only）已完成并通过构建与真实 Tauri E2E；P1 待实施
+> 状态：P0（Monaco ESM-only）与 P2（Tokenizer 资产化）已完成并通过构建；P1 待实施
 >
 > 最后更新：2026-07-26
 >
@@ -137,15 +137,31 @@ P0 不会拆小 Monaco ESM 自身：当前仍生成约 3.46 MiB（gzip 0.92 MiB�
 - 构建日志：未出现 Monaco NLS、缺失 source map、`ENOENT` 或 `Could not load` 警告；
 - Tauri 窄 E2E：1 条通过，确认 Text Diff 双编辑区挂载、ESM Worker 可创建，且运行资源中没有 AMD/CDN Monaco 请求。当前本地调试二进制内嵌 dev URL 为 `http://localhost:1520/`，因此本次按 README 使用 `AIO_E2E_FRONTEND_URL` 与其对齐；首次使用默认 1420 的失败发生在 WebView 连接前端阶段，与 Monaco 无关。
 
-仍存在但不属于 P0 的构建警告：Tokenizer 和 Monaco ESM 大 chunk、Paddle OCR 插件 glob 纳入 Node 下载脚本、3 条 ineffective dynamic import、`file-type` 直接 `eval`，以及 public 资源路径提示。E2E 隔离数据目录没有 `plugins/` 时会记录“插件目录不存在，跳过加载”，属于预期跳过，不是 Native 插件产物加载失败。
+仍存在但不属于已完成治理范围的构建警告：Monaco ESM 大 chunk、Paddle OCR 插件 glob 纳入 Node 下载脚本、3 条 ineffective dynamic import、`file-type` 直接 `eval`，以及 public 资源路径提示。Tokenizer 大 chunk 已由 P2 移除。E2E 隔离数据目录没有 `plugins/` 时会记录“插件目录不存在，跳过加载”，属于预期跳过，不是 Native 插件产物加载失败。
 
 ### P1：移除粗粒度 `manualChunks`
 
 先以自动分包作为基线，再以实际首屏、路由加载和安装体积决定精细分组。禁止仅为消警告提高 `chunkSizeWarningLimit`。
 
-### P2：Tokenizer 资产化
+### ✅ P2：Tokenizer 资产化 — 已完成
 
-将 tokenizer 执行引擎与模型资产分离，复用现有注册表、Worker 和资产服务；评估默认内置、压缩资源与按需下载组合。
+将 tokenizer 执行引擎与模型资产分离，复用现有注册表、Worker 和资产服务；内置模型在构建期压缩为独立 gzip 资源，运行时首次使用时按需读取、解压并推送给 Worker。
+
+实施内容：
+
+- 新增 [`builtin-tokenizer-assets-manifest.ts`](../../src/tools/token-calculator/data/builtin-tokenizer-assets-manifest.ts)，统一维护七个内置包到 profile 的资产来源；
+- 新增 Vite `aiohub-tokenizer-assets` 插件，从 `@lenml/tokenizer-*` 的 `models/` 目录读取 JSON，在构建期输出 `dist/tokenizers/<profile>/*.json.gz`；开发模式由同一路径中间件提供；
+- `tokenizerAssetService` 使用 `fflate` 解压内置 gzip 资源，并复用已有 `needProfileData` / `profileData` 通道；
+- 移除 Worker 与主线程对七个 `@lenml/tokenizer-*` 动态 JS 入口的依赖，执行引擎统一通过 `@lenml/tokenizers` 解析 JSON 资产；
+- 保留用户导入 / 远端缓存 profile 的读取路径与注册表协议不变。
+
+本次构建实测（2026-07-26）：
+
+- 七个内置 tokenizer 资产：约 15.54 MiB gzip 后静态资源；
+- JavaScript：约 40.87 MiB，gzip 合计约 12.05 MiB；相较 P0 后基线约减少 36.45 MiB 原始 JS；
+- `dist/assets/` 中不再生成七个 tokenizer 专属大 JS chunk；
+- 14 个 gzip 资产逐一解压后与 npm 包源文件字节一致；
+- `bun run build:tsc`、Tokenizer engine / gzip 资产读取单测和 `bun run build:vite` 均通过。
 
 ### P3：缩小入口和 registry 初始化面
 

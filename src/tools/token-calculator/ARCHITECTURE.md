@@ -17,7 +17,7 @@ Token Calculator 既是一个**面向用户**的 Token 计数器，也是 AIO Hu
 
 Profile 由 [`tokenizerRegistryStore`](./stores/tokenizerRegistryStore.ts) 集中管理，分为：
 
-- **内置 Profile**：由 [`builtin-tokenizer-index.ts`](./data/builtin-tokenizer-index.ts) 提供，对应 7 个 `@lenml/tokenizer-*` 包，每次启动从源码重建。
+- **内置 Profile**：由 [`builtin-tokenizer-index.ts`](./data/builtin-tokenizer-index.ts) 提供，对应 7 个 `@lenml/tokenizer-*` 资产来源，每次启动从轻量元数据重建；模型 JSON 在构建期压缩为 `dist/tokenizers/<profile>/*.json.gz`。
 - **用户 Profile**：本地导入或远端下载，持久化在 AppData `tokenizer-registry/profiles.json`。
 - **匹配规则**：用户在「匹配规则」Tab 添加的显式覆盖，存于 `tokenizer-registry/rules.json`。
 
@@ -38,11 +38,11 @@ profiles, rules    ─init→  engine.setRegistry(...)
 
 ### 1.3. tokenizer.json 按需推送
 
-local / remote 来源的 Profile 包含可达 MB 级的 `tokenizer.json` 文件。这些**不参与 init 阶段的批量传输**，而是由 Worker 在首次调用时按需请求：
+bundled / local / remote 来源的 Profile 都可能包含可达 MB 级的 `tokenizer.json` 文件。这些**不参与 init 阶段的批量传输**，而是由 Worker 在首次调用时按需请求；bundled 资产由主线程从 gzip 静态资源读取并解压：
 
 ```
 Worker → 主线程: { type: "needProfileData", profileId }
-主线程: 读文件 + (可选) sha256 校验
+主线程: bundled=fetch+gunzip；local/remote=读 AppData 文件
 主线程 → Worker: { type: "profileData", profileId, tokenizerJSON, ... }
 Worker: TokenizerLoader.fromPreTrained({ tokenizerJSON, tokenizerConfig })
 ```
@@ -113,22 +113,22 @@ sequenceDiagram
     Store-->>Proxy: setSnapshotProvider(getSnap)
     Worker-->>Proxy: ready
     Proxy->>Worker: init(profiles, rules)
-    Worker->>Engine: setRegistry / setLoader
+    Worker->>Engine: setRegistry
     Worker-->>Proxy: initialized
     Proxy->>Worker: flush startupQueue
 
     Worker->>Engine: calculateTokens
     Engine->>Engine: resolveProfile (rule → metadata → pattern)
 
-    alt profile.source 为 local / remote
-        Engine->>Worker: profileDataFetcher(profileId)
-        Worker->>Proxy: needProfileData
+    Engine->>Worker: profileDataFetcher(profileId)
+    Worker->>Proxy: needProfileData
+    alt profile.source 为 bundled
+        Proxy->>Proxy: fetch gzip 静态资源 + 解压
+    else profile.source 为 local / remote
         Proxy->>Proxy: 读 AppData 文件
-        Proxy->>Worker: profileData(JSON)
-        Engine->>Engine: TokenizerLoader.fromPreTrained
-    else profile.source 为 bundled
-        Engine->>Engine: import("@lenml/tokenizer-...")
     end
+    Proxy->>Worker: profileData(JSON)
+    Engine->>Engine: TokenizerLoader.fromPreTrained
 
     Engine->>Engine: encode + applyCalibration
     Engine-->>Worker: TokenCalculationResult
@@ -199,8 +199,11 @@ const result = await tokenCalculatorService.calculateMessageTokens(
 2. 用户在弹窗里填写显示名 / Profile ID（强制 `user.` 前缀）/ 匹配正则 / 置信度等元数据。
 3. [`tokenizerAssetService`](./services/tokenizerAssetService.ts) 执行：
    - 用 `@lenml/tokenizers` 跑样本计数测试（ASCII / 中文 / emoji / 特殊 token / 换行）；
-   - 把资产落盘到 `AppData/tokenizer-assets/<profileId>/`，远端 URL 通过 `@tauri-apps/plugin-http` 下载缓存；
-   - 写出 `install-manifest.json`（schemaVersion / 来源 / 文件清单 / 警告）。
+
+- 内置模型资产由构建期 gzip 插件输出，运行时通过 `tokenizerAssetService` 解压后复用 `needProfileData` 通道；
+  - 把资产落盘到 `AppData/tokenizer-assets/<profileId>/`，远端 URL 通过 `@tauri-apps/plugin-http` 下载缓存；
+  - 写出 `install-manifest.json`（schemaVersion / 来源 / 文件清单 / 警告）。
+
 4. [`tokenizerRegistryStore.installProfile`](./stores/tokenizerRegistryStore.ts) 写盘 `profiles.json` 并触发 `calculatorProxy.restartWorker()`。
 5. 主线程通过 [`syncProxyReaders`](./stores/tokenizerRegistryStore.ts) 把 [`readProfileFiles`](./services/tokenizerAssetService.ts) 注入到 [`calculatorProxy.setProfileDataReader`](./worker/calculator.proxy.ts)，Worker 在首次使用该 Profile 时按需取数。
 
@@ -212,4 +215,3 @@ const result = await tokenCalculatorService.calculateMessageTokens(
 - **Phase 6**：校准参数可视化
 - **Phase 7**：移动端 profile 展示（按需）
 - **后续加固**：Profile schema 的 Zod 校验、Hugging Face 慢分词器 / SentencePiece / tiktoken / Tekken / GGUF 等形态的转换器或 adapter
-

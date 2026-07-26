@@ -210,3 +210,38 @@ recovery spec 验证最终计数、报告、向量覆盖率和流程未再次显
 - `bun run test:tauri:e2e -- --preset migration-cleanup`
 
 尚未在本次修改中完成、仍需单独排期的发布验收项：`migration-interruption`、部分主数据失败的真实 Tauri 重试故障注入场景、可溯源旧正式发布版本 fixture，以及发布候选安装包 smoke test。
+
+## 9. 追加架构评审：首次引入时的版本与数据基线（2026-07-26）
+
+### 9.1 当前实现的事实
+
+用户提出的风险成立，但需要区分“应用生命周期基线”和“领域数据版本”：
+
+- 当前仓库版本来源是根 `package.json`，实际工作版本为 `0.7.0-alpha.1`；当前本地 manifest 也使用该精确版本。未来发布 `0.7.0` 时，manifest 必须与发布包的精确 SemVer 一致，不能用 alpha manifest 代替稳定版说明。
+- `src/flows/upgrade/appLifecycleService.ts` 是 Guided Flow 引入后新增的生命周期记录，只有 `app-lifecycle.json` 自身的 `schemaVersion: 1`，以及 `lastLaunchedVersion` 和已确认版本说明集合；它不能知道用户在引入前究竟运行过哪个旧版本。
+- 因此没有生命周期文件时，当前设计会得到 `unknown-baseline`。`0.7.0-alpha.1` manifest 已显式配置 `unknownBaselinePolicy: "show-current"`，首次运行可以展示当前版本说明；这并不宣称用户是从某个特定版本升级而来。
+- `createConfigManager` 的 `version: "1.0.0"` 不是应用版本，也不是全局数据版本。它主要负责写入配置字段；实际字段迁移仍由各配置域的 `mergeConfig` 或领域 service 完成，且自定义 `mergeConfig` 不能自动等同于完整迁移流水线。
+
+### 9.2 0.7.0 首次引入的处理契约
+
+在 0.7.0 首次带入 Guided Flow 时，必须按下表验收：
+
+| 场景                                      | 生命周期判断       | 版本说明                      | 数据迁移                         |
+| ----------------------------------------- | ------------------ | ----------------------------- | -------------------------------- |
+| 已有旧配置/旧 Recall 数据，首次启动 0.7.0 | `unknown-baseline` | 展示 0.7.0 当前说明一次       | 由旧数据实际存在性检测触发待迁移 |
+| 已有旧配置，但没有可迁移旧数据            | `unknown-baseline` | 展示 0.7.0 当前说明一次       | 不创建迁移事项                   |
+| 全新安装 0.7.0                            | `unknown-baseline` | 展示 0.7.0 当前说明一次       | 不创建迁移事项                   |
+| 已记录 0.7.0，随后启动 0.7.1              | `upgrade`          | 收集 0.7.1 及未确认的本地说明 | 只检测适用且尚未完成的领域迁移   |
+
+旧用户和全新安装在首次引入时可能共享同一个 `unknown-baseline`，这是有意的：不能从缺少历史记录推导旧版本。两者是否存在待迁移数据，应由领域检测结果决定；不可逆操作仍必须经过确认，且通过 migration ID、source fingerprint 和领域状态保证幂等。
+
+### 9.3 在继续扩展前需要补齐的门禁
+
+这不是要求把全仓库改造成一个全局 `dataVersion`，而是要把分层契约写成测试和实现约束：
+
+1. 增加“无 `app-lifecycle.json` 首次启动 0.7.0”的生命周期测试，验证 `unknown-baseline`、当前说明展示一次、启动后写入当前版本；
+2. 增加老用户/全新安装两组迁移检测测试：只要旧数据事实不存在，就不能因为 `contributionIds` 或当前版本而创建迁移事项；
+3. 为需要结构演进的配置补充显式 `schemaVersion` 和有序迁移测试；单个 ConfigManager 的 `version` 字段不得作为迁移完成证明；
+4. 对 0.7.0 正式版与 prerelease 分别执行精确 manifest/version 一致性检查，并保留“从未知基线首次启动”的 Tauri smoke test。
+
+在这些门禁补齐前，可以继续修复现有 Guided Flow 的产品缺陷，但不应把“首次运行看到 0.7.0 说明”描述成完整的跨版本升级历史，也不应把知识库迁移状态归因于应用版本号。

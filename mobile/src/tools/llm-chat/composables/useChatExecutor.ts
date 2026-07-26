@@ -254,6 +254,7 @@ export function useChatExecutor() {
           stop: activeAgent?.parameters?.stop,
           stream: settings.value.uiPreferences.isStreaming,
           timeout: settings.value.requestSettings.timeout,
+          maxRetries: settings.value.requestSettings.maxRetries,
           onStream: (chunk) => {
             handleStreamUpdate(session, assistantNode.id, chunk, false);
           },

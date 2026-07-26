@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { LlmApiError, TimeoutError } from "../../core/common";
 import type { LlmProfile } from "../../types";
 import type { LlmRequestOptions, LlmResponse } from "../../types/common";
 import {
@@ -157,6 +158,58 @@ describe("createLlmRequest", () => {
       expect.objectContaining({ id: selectedProfile.id }),
       expect.objectContaining({ stream: false, timeout: 1000 })
     );
+  });
+
+  it("retries a recoverable failure up to the configured limit", async () => {
+    vi.useFakeTimers();
+    try {
+      const profile = createProfile();
+      const { dependencies, executeAdapter } = createDependencies([profile]);
+      executeAdapter
+        .mockRejectedValueOnce(
+          new LlmApiError("temporary outage", 503, "Service Unavailable")
+        )
+        .mockResolvedValueOnce({ content: "ok", isStream: false });
+
+      const request = createLlmRequest(dependencies);
+      const resultPromise = request.sendRequest({
+        modelId: "retry-model",
+        messages: [{ role: "user", content: "hello" }],
+        maxRetries: 1,
+      });
+      await vi.advanceTimersByTimeAsync(300);
+
+      await expect(resultPromise).resolves.toMatchObject({ content: "ok" });
+      expect(executeAdapter).toHaveBeenCalledTimes(2);
+      expect(dependencies.keyManager.reportFailure).toHaveBeenCalledOnce();
+      expect(dependencies.keyManager.reportSuccess).toHaveBeenCalledOnce();
+      expect(dependencies.errorHandler.handle).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not retry after a stream has emitted content", async () => {
+    const profile = createProfile();
+    const { dependencies, executeAdapter } = createDependencies([profile]);
+    const failure = new TimeoutError();
+    executeAdapter.mockImplementation(async (_profile, options) => {
+      options.onStream?.("partial");
+      throw failure;
+    });
+
+    const request = createLlmRequest(dependencies);
+    await expect(
+      request.sendRequest({
+        modelId: "streaming-model",
+        messages: [{ role: "user", content: "hello" }],
+        maxRetries: 2,
+        onStream: vi.fn(),
+      })
+    ).rejects.toBe(failure);
+
+    expect(executeAdapter).toHaveBeenCalledOnce();
+    expect(dependencies.errorHandler.handle).toHaveBeenCalledOnce();
   });
 
   it("reports adapter failures against the selected key and rethrows them", async () => {

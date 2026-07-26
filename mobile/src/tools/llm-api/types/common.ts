@@ -414,6 +414,8 @@ export interface LlmRequestOptions {
   onPartialImage?: (base64: string, index: number) => void;
   /** 请求超时时间（毫秒），默认 60000 */
   timeout?: number;
+  /** 可重试请求的最大额外尝试次数；流式响应已收到内容后不再重试。 */
+  maxRetries?: number;
   /** 用于中止请求的 AbortSignal */
   signal?: AbortSignal;
 

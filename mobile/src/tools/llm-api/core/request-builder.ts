@@ -352,6 +352,7 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   "onPartialImage",
   "signal",
   "timeout",
+  "maxRetries",
   "relaxIdCerts",
   "http1Only",
   "temperature",

@@ -9,6 +9,7 @@ import { callCohereApi } from "../core/adapters/cohere";
 import { callVertexAiApi } from "../core/adapters/vertexai";
 import type { LlmProfile } from "../types";
 import type { LlmRequestOptions, LlmResponse } from "../types/common";
+import { LlmApiError, TimeoutError } from "../core/common";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
@@ -49,6 +50,44 @@ export interface LlmRequestDependencies {
   errorHandler: LlmRequestErrorHandler;
 }
 
+export function isRetryableLlmRequestError(error: unknown): boolean {
+  if (error instanceof TimeoutError) return true;
+  if (error instanceof DOMException && error.name === "AbortError")
+    return false;
+  if (error instanceof LlmApiError) {
+    return error.status === 408 || error.status === 429 || error.status >= 500;
+  }
+  return error instanceof TypeError;
+}
+
+function normalizeMaxRetries(value: number | undefined): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.floor(value ?? 0));
+}
+
+function waitForRetry(delayMs: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason || new DOMException("Aborted", "AbortError"));
+      return;
+    }
+
+    const timeoutId = setTimeout(cleanupAndResolve, delayMs);
+    const onAbort = () => {
+      clearTimeout(timeoutId);
+      signal?.removeEventListener("abort", onAbort);
+      reject(signal?.reason || new DOMException("Aborted", "AbortError"));
+    };
+
+    function cleanupAndResolve() {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }
+
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
 async function executeProviderAdapter(
   profile: LlmProfile,
   options: LlmRequestOptions
@@ -82,14 +121,15 @@ export function createLlmRequest(dependencies: LlmRequestDependencies) {
    * @param profileId 可选，指定使用的 Profile ID，不传则使用当前选中的
    */
   async function sendRequest(options: LlmRequestOptions, profileId?: string) {
+    const requestOptions: LlmRequestOptions = { ...options };
     // 默认开启流式，除非显式指定为 false
-    if (options.stream === undefined) {
-      options.stream = true;
+    if (requestOptions.stream === undefined) {
+      requestOptions.stream = true;
     }
 
     // 默认超时设为 5 分钟 (适配长思考模型)
-    if (options.timeout === undefined) {
-      options.timeout = 300000;
+    if (requestOptions.timeout === undefined) {
+      requestOptions.timeout = 300000;
     }
 
     if (!store.isLoaded) await store.init();
@@ -104,52 +144,84 @@ export function createLlmRequest(dependencies: LlmRequestDependencies) {
       throw err;
     }
 
-    // 通过 KeyManager 选择一个可用的 Key (轮询 + 熔断过滤)
-    const pickedKey = keyManager.pickKey(originalProfile);
-
-    // 克隆 Profile 并注入选中的单个 Key，以保持适配器接口兼容
-    const profile = {
-      ...originalProfile,
-      apiKeys: pickedKey ? [pickedKey] : [],
-    };
-
-    // 注入代理行为配置
-    if (profile.relaxIdCerts !== undefined) {
-      options.relaxIdCerts = profile.relaxIdCerts;
+    const originalOnStream = requestOptions.onStream;
+    const originalOnReasoningStream = requestOptions.onReasoningStream;
+    let receivedStreamContent = false;
+    if (originalOnStream) {
+      requestOptions.onStream = (chunk) => {
+        if (chunk) receivedStreamContent = true;
+        originalOnStream(chunk);
+      };
     }
-    if (profile.http1Only !== undefined) {
-      options.http1Only = profile.http1Only;
+    if (originalOnReasoningStream) {
+      requestOptions.onReasoningStream = (chunk) => {
+        if (chunk) receivedStreamContent = true;
+        originalOnReasoningStream(chunk);
+      };
     }
 
+    const maxRetries = normalizeMaxRetries(requestOptions.maxRetries);
+    let attempt = 0;
     isSending.value = true;
-    logger.info("开始发送 LLM 请求", {
-      modelId: options.modelId,
-      profile: profile.name,
-      keyUsed: pickedKey ? `${pickedKey.substring(0, 8)}...` : "none",
-    });
 
     try {
-      const result = await executeAdapter(profile, options);
+      while (true) {
+        const pickedKey = keyManager.pickKey(originalProfile);
+        const profile = {
+          ...originalProfile,
+          apiKeys: pickedKey ? [pickedKey] : [],
+        };
+        const adapterOptions: LlmRequestOptions = {
+          ...requestOptions,
+          relaxIdCerts: profile.relaxIdCerts ?? requestOptions.relaxIdCerts,
+          http1Only: profile.http1Only ?? requestOptions.http1Only,
+        };
 
-      // 请求成功，上报状态
-      if (pickedKey) {
-        keyManager.reportSuccess(originalProfile.id, pickedKey);
+        logger.info("开始发送 LLM 请求", {
+          modelId: adapterOptions.modelId,
+          profile: profile.name,
+          attempt: attempt + 1,
+          keyUsed: pickedKey ? `${pickedKey.substring(0, 8)}...` : "none",
+        });
+
+        try {
+          const result = await executeAdapter(profile, adapterOptions);
+          if (pickedKey) {
+            keyManager.reportSuccess(originalProfile.id, pickedKey);
+          }
+          logger.debug("LLM 请求完成", {
+            isStream: result.isStream,
+            attempt: attempt + 1,
+          });
+          return result;
+        } catch (err: unknown) {
+          if (pickedKey) {
+            keyManager.reportFailure(originalProfile.id, pickedKey, err);
+          }
+
+          const canRetry =
+            attempt < maxRetries &&
+            !receivedStreamContent &&
+            isRetryableLlmRequestError(err);
+          if (!canRetry) {
+            errorHandler.handle(err, {
+              showToUser: false,
+              context: { modelId: requestOptions.modelId },
+            });
+            throw err;
+          }
+
+          attempt += 1;
+          const delayMs = Math.min(300 * 2 ** (attempt - 1), 2000);
+          logger.info("LLM 请求失败，将重试", {
+            modelId: requestOptions.modelId,
+            attempt,
+            maxRetries,
+            delayMs,
+          });
+          await waitForRetry(delayMs, requestOptions.signal);
+        }
       }
-
-      logger.debug("LLM 请求完成", { isStream: result.isStream });
-      return result;
-    } catch (err: any) {
-      // 请求失败，上报状态以便触发熔断
-      if (pickedKey) {
-        keyManager.reportFailure(originalProfile.id, pickedKey, err);
-      }
-
-      // 静默处理：记录日志并触发熔断，但不弹出全局提示，交给业务层处理
-      errorHandler.handle(err, {
-        showToUser: false,
-        context: { modelId: options.modelId },
-      });
-      throw err;
     } finally {
       isSending.value = false;
     }

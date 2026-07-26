@@ -5,6 +5,7 @@ import { Copy, Check } from "lucide-vue-next";
 import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/feedback";
 import ThinkBlock from "./components/ThinkBlock.vue";
+import KatexRenderer from "./components/KatexRenderer.vue";
 
 defineOptions({
   name: "RichTextRenderer",
@@ -47,41 +48,92 @@ type RenderSegment =
       tagName: string;
       content: string;
       isThinking: boolean;
-    };
+    }
+  | { type: "katex_block"; content: string };
 
 const THINK_TAG_PATTERN = /<(think|guguthink)\s*>/gi;
+const KATEX_BLOCK_PATTERN = /\$\$([\s\S]*?)\$\$/g;
+const KATEX_INLINE_PATTERN = /(?<!\$)\$([^$\n]+?)\$(?!\$)/g;
+
+function splitInlineMath(text: string): any[] {
+  const tokens: any[] = [];
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+  KATEX_INLINE_PATTERN.lastIndex = 0;
+  while ((match = KATEX_INLINE_PATTERN.exec(text))) {
+    if (match.index > cursor) {
+      tokens.push({ type: "text", text: text.slice(cursor, match.index) });
+    }
+    tokens.push({ type: "katex_inline", text: match[1].trim() });
+    cursor = KATEX_INLINE_PATTERN.lastIndex;
+  }
+  if (cursor < text.length || !tokens.length) {
+    tokens.push({ type: "text", text: text.slice(cursor) });
+  }
+  return tokens;
+}
+
+function transformMathTokens(tokens: any[]): any[] {
+  return tokens.flatMap((token) => {
+    if (Array.isArray(token.tokens)) {
+      return [{ ...token, tokens: transformMathTokens(token.tokens) }];
+    }
+    if (token.type === "text" && typeof token.text === "string") {
+      return splitInlineMath(token.text);
+    }
+    return [token];
+  });
+}
 
 function parseMarkdownTokens(text: string): any[] {
   if (!text) return [];
   try {
-    return marked.lexer(text);
+    return transformMathTokens(marked.lexer(text));
   } catch (error) {
     logger.error("Markdown 解析失败，降级为纯文本", error);
     return [{ type: "text", text }];
   }
 }
 
-function splitThinkSegments(text: string): RenderSegment[] {
+function splitContentSegments(
+  text: string,
+  includeThinkTags = true
+): RenderSegment[] {
   const segments: RenderSegment[] = [];
   let cursor = 0;
-  let opening: RegExpExecArray | null;
-  THINK_TAG_PATTERN.lastIndex = 0;
 
-  while ((opening = THINK_TAG_PATTERN.exec(text))) {
-    const tagName = opening[1].toLowerCase();
-    const closePattern = new RegExp(`</${tagName}\\s*>`, "i");
-    closePattern.lastIndex = THINK_TAG_PATTERN.lastIndex;
-    const closing = closePattern.exec(text.slice(THINK_TAG_PATTERN.lastIndex));
+  while (cursor < text.length) {
+    THINK_TAG_PATTERN.lastIndex = cursor;
+    KATEX_BLOCK_PATTERN.lastIndex = cursor;
+    const opening = includeThinkTags ? THINK_TAG_PATTERN.exec(text) : null;
+    const math = KATEX_BLOCK_PATTERN.exec(text);
+    const next =
+      opening && (!math || opening.index <= math.index)
+        ? { type: "think" as const, match: opening }
+        : math
+          ? { type: "katex_block" as const, match: math }
+          : null;
 
-    if (!closing && !props.isStreaming) break;
-    if (opening.index > cursor) {
+    if (!next) break;
+    if (next.match.index > cursor) {
       segments.push({
         type: "markdown",
-        tokens: parseMarkdownTokens(text.slice(cursor, opening.index)),
+        tokens: parseMarkdownTokens(text.slice(cursor, next.match.index)),
       });
     }
 
+    if (next.type === "katex_block") {
+      segments.push({ type: "katex_block", content: next.match[1].trim() });
+      cursor = KATEX_BLOCK_PATTERN.lastIndex;
+      continue;
+    }
+
+    const tagName = next.match[1].toLowerCase();
     const contentStart = THINK_TAG_PATTERN.lastIndex;
+    const closing = new RegExp(`</${tagName}\\s*>`, "i").exec(
+      text.slice(contentStart)
+    );
+    if (!closing && !props.isStreaming) break;
     const contentEnd = closing ? contentStart + closing.index : text.length;
     segments.push({
       type: "think",
@@ -90,8 +142,6 @@ function splitThinkSegments(text: string): RenderSegment[] {
       isThinking: !closing,
     });
     cursor = closing ? contentEnd + closing[0].length : text.length;
-    THINK_TAG_PATTERN.lastIndex = cursor;
-    if (!closing) break;
   }
 
   if (cursor < text.length || !segments.length) {
@@ -107,10 +157,7 @@ const displaySegments = computed<RenderSegment[]>(() => {
   if (props.tokens) return [{ type: "markdown", tokens: props.tokens }];
   const text = processedContent.value;
   if (!text) return [];
-  if (props.disableThinkParsing) {
-    return [{ type: "markdown", tokens: parseMarkdownTokens(text) }];
-  }
-  return splitThinkSegments(text);
+  return splitContentSegments(text, !props.disableThinkParsing);
 });
 
 /**
@@ -153,8 +200,13 @@ async function copyCode(code: string, index: number) {
       v-for="(segment, segmentIndex) in displaySegments"
       :key="segmentIndex"
     >
+      <KatexRenderer
+        v-if="segment.type === 'katex_block'"
+        :content="segment.content"
+        display-mode
+      />
       <ThinkBlock
-        v-if="segment.type === 'think'"
+        v-else-if="segment.type === 'think'"
         :tag-name="segment.tagName"
         :raw-content="segment.content"
         :is-thinking="segment.isThinking"
@@ -280,7 +332,13 @@ async function copyCode(code: string, index: number) {
             token.text
           }}</pre>
 
-          <!-- 9. 行内粗体 -->
+          <!-- 9. 行内数学公式 -->
+          <KatexRenderer
+            v-else-if="token.type === 'katex_inline'"
+            :content="token.text"
+          />
+
+          <!-- 10. 行内粗体 -->
           <strong v-else-if="token.type === 'strong'" class="md-strong">
             <RichTextRenderer
               :tokens="token.tokens"

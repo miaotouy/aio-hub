@@ -33,6 +33,7 @@
     "@varlet/ui": "^3.13.0",
     "@varlet/use": "^3.13.0",
     "@vueuse/core": "^14.1.0",
+    "katex": "^0.16.25",
     "lodash-es": "^4.17.22",
     "lucide-vue-next": "^0.562.0",
     "marked": "^18.0.5",

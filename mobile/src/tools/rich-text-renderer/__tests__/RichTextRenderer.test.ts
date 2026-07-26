@@ -5,10 +5,28 @@ import { describe, expect, it } from "vitest";
 import RichTextRenderer from "../RichTextRenderer.vue";
 
 describe("RichTextRenderer security boundary", () => {
+  it("renders inline and block KaTeX without treating formulas as raw HTML", () => {
+    const wrapper = mount(RichTextRenderer, {
+      props: {
+        content: String.raw`Inline $e^{i\pi} + 1 = 0$ formula.
+
+$$\frac{a}{b}$$`,
+      },
+    });
+
+    expect(wrapper.find(".katex-inline .katex").exists()).toBe(true);
+    expect(wrapper.find(".katex-block .katex-display").exists()).toBe(true);
+    expect(wrapper.find(".md-html").exists()).toBe(false);
+  });
+
   it("renders configured LLM think tags as collapsed Markdown blocks", async () => {
     const wrapper = mount(RichTextRenderer, {
       props: {
-        content: "Before\n<think>**Private reasoning**</think>\nAfter",
+        content: String.raw`Before
+<think>**Private reasoning**
+
+$$\frac{a}{b}$$</think>
+After`,
       },
     });
 
@@ -23,6 +41,7 @@ describe("RichTextRenderer security boundary", () => {
       "Private reasoning"
     );
     expect(block.find("strong").text()).toBe("Private reasoning");
+    expect(block.find(".katex-block .katex-display").exists()).toBe(true);
   });
 
   it("keeps an unfinished think block visible while streaming", async () => {

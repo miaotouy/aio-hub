@@ -419,7 +419,7 @@ sequenceDiagram
 | 解除"角色大厅"禁用 | `llm-chat/views/ChatHome.vue`                              | 已完成   | 点击跳转到 `/tools/agent-manager`                               |
 | 修改会话创建       | `llm-chat/stores/llmChatStore.ts`                          | 已完成   | `createSession()` 支持传入 `agentId`                            |
 | 修改执行器         | `llm-chat/composables/useChatExecutor.ts`                  | 已完成   | 从 agentStore 获取配置，填充 `agentConfig` 并绑定模型与基础参数 |
-| 实现管道处理器     | `llm-chat/core/pipeline/processors/injection-assembler.ts` | 部分完成 | 已执行启用消息组与默认、深度/高级深度、锚点注入；模型匹配、宏和 Agent 私有附件尚未执行 |
+| 实现管道处理器     | `llm-chat/core/pipeline/processors/injection-assembler.ts` | 部分完成 | 已执行启用消息组、默认、深度/高级深度、锚点，以及模型/渠道匹配；宏和 Agent 私有附件尚未执行 |
 | 聊天界面显示 Agent | `llm-chat/views/LlmChatView.vue`                           | 已完成   | 导航栏展示当前 Agent 头像和名称；切换入口尚未实现               |
 
 ---

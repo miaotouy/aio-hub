@@ -25,7 +25,7 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 
 ### P1：Agent 阶段 3 及其依赖功能
 
-- [ ] 完成 `modelMatch` 的运行时执行；`injectionStrategy` 的默认、深度/高级深度和锚点语义已接入，宏与 Agent 私有附件仍待后续处理器补齐。
+- [x] 完成 `injectionStrategy` 和 `modelMatch` 的运行时执行；默认、深度/高级深度、锚点和模型/渠道匹配已接入，宏与 Agent 私有附件仍待后续处理器补齐。
 - [ ] 将 Agent 开局消息实例化到新会话。
 - [ ] 增加聊天内切换 Agent，并保持历史消息的 Agent 快照语义。
 - [ ] 同步移动端与 PC 的显式 Agent 类型、分类枚举和 `defaultGreetingId`。

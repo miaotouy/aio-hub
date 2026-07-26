@@ -194,6 +194,54 @@ describe("injectionAssembler", () => {
     ]);
   });
 
+  it("filters preset messages with model and profile matching rules", async () => {
+    const agent = createAgent();
+    agent.presetMessages = [
+      {
+        id: "model-match",
+        parentId: null,
+        childrenIds: [],
+        content: "model match",
+        role: "system",
+        status: "complete",
+        modelMatch: { enabled: true, patterns: ["model-1"] },
+      },
+      {
+        id: "profile-match",
+        parentId: null,
+        childrenIds: [],
+        content: "profile match",
+        role: "system",
+        status: "complete",
+        modelMatch: {
+          enabled: true,
+          patterns: [],
+          profilePatterns: ["production"],
+          mode: "all",
+        },
+      },
+      {
+        id: "model-miss",
+        parentId: null,
+        childrenIds: [],
+        content: "model miss",
+        role: "system",
+        status: "complete",
+        modelMatch: { enabled: true, patterns: ["does-not-match"] },
+      },
+    ];
+    const context = createContext(agent);
+    context.sharedData.set("profile", { name: "Production API" });
+
+    await injectionAssembler.execute(context);
+
+    expect(context.messages.map((message) => message.sourceId)).toEqual([
+      "model-match",
+      "profile-match",
+      "history-user",
+      "history-assistant",
+    ]);
+  });
   it("keeps history unchanged when no agent is bound", async () => {
     const context = createContext(null);
 

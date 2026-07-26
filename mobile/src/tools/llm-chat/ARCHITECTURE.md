@@ -216,7 +216,7 @@ LlamaChatView.send() → useChatExecutor.execute()
   → 输出 messages[] 给 llmRequest.sendRequest()
 ```
 
-**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载与预设注入组装；预设支持默认、深度、高级深度与锚点语义。宏替换、模型匹配、私有预设附件、变量、世界书、召回、Token 限制和消息格式化仍待逐个复制与移动端适配。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
+**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载与预设注入组装；预设支持默认、深度、高级深度与锚点语义。宏替换、私有预设附件、变量、世界书、召回、Token 限制和消息格式化仍待逐个复制与移动端适配；模型匹配已在注入组装阶段按模型 ID/名称和渠道名称执行。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
 
 ### 4.3. Token 统计与上下文预警
 

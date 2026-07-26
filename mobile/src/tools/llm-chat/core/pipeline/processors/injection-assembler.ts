@@ -1,5 +1,7 @@
 import type { ChatAgent, PresetMessage } from "@/tools/agent-manager/types/agent";
 import { createModuleLogger } from "@/utils/logger";
+import { isModelMatchSatisfied } from "@/tools/llm-chat/utils/modelMatch";
+import type { LlmModelInfo, LlmProfile } from "@/tools/llm-api/types";
 import type { ProcessableMessage } from "../../../types/context";
 import type { ContextProcessor, PipelineContext } from "../../../types/pipeline";
 
@@ -18,11 +20,24 @@ interface ClassifiedMessages {
 
 const CHAT_HISTORY_ANCHOR = "chat_history";
 
-function isEnabled(message: PresetMessage, agent: ChatAgent): boolean {
+function isEnabled(
+  message: PresetMessage,
+  agent: ChatAgent,
+  model: LlmModelInfo | undefined,
+  profile: LlmProfile | undefined
+): boolean {
   if (message.isEnabled === false) return false;
-  if (!message.groupId) return true;
-  return agent.presetGroups?.find((group) => group.id === message.groupId)
-    ?.enabled !== false;
+  const groupEnabled =
+    !message.groupId ||
+    agent.presetGroups?.find((group) => group.id === message.groupId)
+      ?.enabled !== false;
+  if (!groupEnabled) return false;
+  if (!message.modelMatch?.enabled) return true;
+  return isModelMatchSatisfied(message.modelMatch, {
+    modelId: agent.modelId,
+    modelName: model?.name,
+    profileName: profile?.name,
+  });
 }
 
 function classifyPresetMessages(messages: PresetMessage[]): ClassifiedMessages {
@@ -197,9 +212,11 @@ export const injectionAssembler: ContextProcessor = {
       return;
     }
 
+    const model = context.sharedData.get("model") as LlmModelInfo | undefined;
+    const profile = context.sharedData.get("profile") as LlmProfile | undefined;
     const presetMessages = (agent.presetMessages ?? []).filter(
       (message) =>
-        isEnabled(message, agent) &&
+        isEnabled(message, agent, model, profile) &&
         (Boolean(message.content.trim()) || message.type === CHAT_HISTORY_ANCHOR)
     );
     if (!presetMessages.length) {

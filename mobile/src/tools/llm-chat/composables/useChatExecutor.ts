@@ -143,7 +143,10 @@ export function useChatExecutor() {
         settings: settings.value,
         capabilities: model.capabilities,
         timestamp: Date.now(),
-        sharedData: new Map(),
+        sharedData: new Map([
+          ["model", model],
+          ["profile", profile],
+        ]),
         logs: [],
       };
 

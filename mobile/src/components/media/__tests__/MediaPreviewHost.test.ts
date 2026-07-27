@@ -3,6 +3,7 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { defineComponent, KeepAlive, ref } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import MediaAudioPlayer from "../MediaAudioPlayer.vue";
 import MediaImageViewer from "../MediaImageViewer.vue";
 import MediaVideoPlayer from "../MediaVideoPlayer.vue";
 import MediaPreviewHost from "../MediaPreviewHost.vue";
@@ -174,6 +175,77 @@ describe("MediaPreviewHost", () => {
       document.body.querySelector("[data-testid='media-preview-immersive']")
     ).toBeNull();
     expect(inlineVideo.currentTime).toBe(2.5);
+    expect(pause).toHaveBeenCalled();
+    expect(play).toHaveBeenCalled();
+  });
+
+  it("keeps audio position, playing, mute and rate through expansion", async () => {
+    const pause = vi
+      .spyOn(HTMLMediaElement.prototype, "pause")
+      .mockImplementation(() => undefined);
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockResolvedValue(undefined);
+    const audioItem: MediaItem = {
+      ...item,
+      kind: "audio",
+      displayName: "sample.wav",
+      mimeType: "audio/wav",
+    };
+    const wrapper = mount(MediaPreviewHost, {
+      attachTo: document.body,
+      props: { modelValue: true, item: audioItem, mode: "inline" },
+    });
+    await flushPromises();
+
+    const inlinePlayer = wrapper.findComponent(MediaAudioPlayer);
+    const inlineAudio = inlinePlayer.get("audio").element as HTMLAudioElement;
+    Object.defineProperties(inlineAudio, {
+      currentTime: { configurable: true, writable: true, value: 3.25 },
+      paused: { configurable: true, value: false },
+      ended: { configurable: true, value: false },
+      muted: { configurable: true, writable: true, value: true },
+      playbackRate: { configurable: true, writable: true, value: 1.5 },
+      duration: { configurable: true, value: 30 },
+    });
+
+    inlinePlayer.vm.$emit("expand");
+    await flushPromises();
+    const immersive = document.body.querySelector(
+      "[data-testid='media-preview-immersive']"
+    );
+    expect(immersive).not.toBeNull();
+
+    const immersiveAudio = immersive?.querySelector(
+      "audio"
+    ) as HTMLAudioElement;
+    Object.defineProperties(immersiveAudio, {
+      currentTime: { configurable: true, writable: true, value: 0 },
+      paused: { configurable: true, value: false },
+      ended: { configurable: true, value: false },
+      muted: { configurable: true, writable: true, value: false },
+      playbackRate: { configurable: true, writable: true, value: 1 },
+      duration: { configurable: true, value: 30 },
+    });
+    immersiveAudio.dispatchEvent(new Event("loadedmetadata"));
+    await flushPromises();
+
+    expect(immersiveAudio.currentTime).toBe(3.25);
+    expect(immersiveAudio.muted).toBe(true);
+    expect(immersiveAudio.playbackRate).toBe(1.5);
+
+    immersiveAudio.currentTime = 6.5;
+    immersiveAudio.muted = false;
+    immersiveAudio.playbackRate = 2;
+    window.history.back();
+    await flushPromises();
+
+    expect(
+      document.body.querySelector("[data-testid='media-preview-immersive']")
+    ).toBeNull();
+    expect(inlineAudio.currentTime).toBe(6.5);
+    expect(inlineAudio.muted).toBe(false);
+    expect(inlineAudio.playbackRate).toBe(2);
     expect(pause).toHaveBeenCalled();
     expect(play).toHaveBeenCalled();
   });

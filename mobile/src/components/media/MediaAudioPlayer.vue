@@ -15,8 +15,18 @@ const props = withDefaults(
     src: string;
     title: string;
     expanded?: boolean;
+    resumeAt?: number;
+    resumePlaying?: boolean;
+    resumeMuted?: boolean;
+    resumePlaybackRate?: number;
   }>(),
-  { expanded: false }
+  {
+    expanded: false,
+    resumeAt: 0,
+    resumePlaying: false,
+    resumeMuted: false,
+    resumePlaybackRate: 1,
+  }
 );
 
 const emit = defineEmits<{
@@ -62,6 +72,12 @@ function updateMetadata() {
   const audio = audioRef.value;
   if (!audio) return;
   duration.value = Number.isFinite(audio.duration) ? audio.duration : 0;
+  restorePlayback({
+    currentTime: props.resumeAt,
+    playing: props.resumePlaying,
+    muted: props.resumeMuted,
+    playbackRate: props.resumePlaybackRate,
+  });
   emit("ready");
 }
 
@@ -103,6 +119,38 @@ function setPlaying(value: boolean) {
   emit("play-state-change", value);
 }
 
+interface AudioPlaybackSnapshot {
+  currentTime: number;
+  playing: boolean;
+  muted: boolean;
+  playbackRate: number;
+}
+
+function restorePlayback(snapshot: AudioPlaybackSnapshot) {
+  const audio = audioRef.value;
+  if (!audio) return;
+  audio.currentTime = Math.max(0, snapshot.currentTime);
+  audio.muted = snapshot.muted;
+  audio.playbackRate =
+    Number.isFinite(snapshot.playbackRate) && snapshot.playbackRate > 0
+      ? snapshot.playbackRate
+      : 1;
+  currentTime.value = audio.currentTime;
+  muted.value = audio.muted;
+  playbackRate.value = audio.playbackRate;
+  if (snapshot.playing) void audio.play().catch(() => undefined);
+}
+
+function getPlaybackSnapshot(): AudioPlaybackSnapshot {
+  const audio = audioRef.value;
+  return {
+    currentTime: audio?.currentTime ?? 0,
+    playing: Boolean(audio && !audio.paused && !audio.ended),
+    muted: audio?.muted ?? muted.value,
+    playbackRate: audio?.playbackRate ?? playbackRate.value,
+  };
+}
+
 function pause() {
   audioRef.value?.pause();
 }
@@ -113,11 +161,13 @@ watch(
     playing.value = false;
     currentTime.value = 0;
     duration.value = 0;
+    muted.value = props.resumeMuted;
+    playbackRate.value = props.resumePlaybackRate;
   }
 );
 
 onBeforeUnmount(pause);
-defineExpose({ pause });
+defineExpose({ pause, getPlaybackSnapshot, restorePlayback });
 </script>
 
 <template>

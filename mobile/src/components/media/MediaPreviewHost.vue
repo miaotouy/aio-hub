@@ -50,11 +50,16 @@ const emit = defineEmits<{
 const managed = useManagedMediaPreview();
 const immersive = ref(false);
 const currentIndex = ref(props.initialIndex);
+const inlineAudioRef = ref<InstanceType<typeof MediaAudioPlayer> | null>(null);
 const audioRef = ref<InstanceType<typeof MediaAudioPlayer> | null>(null);
 const inlineVideoRef = ref<InstanceType<typeof MediaVideoPlayer> | null>(null);
 const videoRef = ref<InstanceType<typeof MediaVideoPlayer> | null>(null);
 const videoResumeAt = ref(0);
 const videoResumePlaying = ref(false);
+const audioResumeAt = ref(0);
+const audioResumePlaying = ref(false);
+const audioResumeMuted = ref(false);
+const audioResumePlaybackRate = ref(1);
 let sourceFocus: HTMLElement | null = null;
 let previousBodyOverflow = "";
 let historyEntryActive = false;
@@ -99,9 +104,34 @@ async function restoreInlineVideoPlayback() {
   });
 }
 
+function captureInlineAudioPlayback() {
+  if (currentItem.value.kind !== "audio") return;
+  const snapshot = inlineAudioRef.value?.getPlaybackSnapshot();
+  if (!snapshot) return;
+  audioResumeAt.value = snapshot.currentTime;
+  audioResumePlaying.value = snapshot.playing;
+  audioResumeMuted.value = snapshot.muted;
+  audioResumePlaybackRate.value = snapshot.playbackRate;
+  inlineAudioRef.value?.pause();
+}
+
+async function restoreInlineAudioPlayback() {
+  if (currentItem.value.kind !== "audio") return;
+  await nextTick();
+  inlineAudioRef.value?.restorePlayback({
+    currentTime: audioResumeAt.value,
+    playing: audioResumePlaying.value,
+    muted: audioResumeMuted.value,
+    playbackRate: audioResumePlaybackRate.value,
+  });
+}
+
 function setImmersive(value: boolean) {
   if (immersive.value === value) return;
-  if (value) captureInlineVideoPlayback();
+  if (value) {
+    captureInlineVideoPlayback();
+    captureInlineAudioPlayback();
+  }
   immersive.value = value;
   if (value) {
     audioRef.value?.pause();
@@ -120,6 +150,15 @@ function setImmersive(value: boolean) {
 }
 
 async function closeImmersive() {
+  if (currentItem.value.kind === "audio") {
+    const snapshot = audioRef.value?.getPlaybackSnapshot();
+    if (snapshot) {
+      audioResumeAt.value = snapshot.currentTime;
+      audioResumePlaying.value = snapshot.playing;
+      audioResumeMuted.value = snapshot.muted;
+      audioResumePlaybackRate.value = snapshot.playbackRate;
+    }
+  }
   audioRef.value?.pause();
   if (currentItem.value.kind === "video") {
     const snapshot = videoRef.value?.getPlaybackSnapshot();
@@ -133,6 +172,7 @@ async function closeImmersive() {
     await document.exitFullscreen().catch(() => undefined);
   setImmersive(false);
   await restoreInlineVideoPlayback();
+  await restoreInlineAudioPlayback();
 }
 
 async function requestClose() {
@@ -155,7 +195,9 @@ async function onPopState() {
 }
 
 async function suspendPreview() {
+  inlineAudioRef.value?.pause();
   audioRef.value?.pause();
+  inlineVideoRef.value?.pause();
   videoRef.value?.pause();
   // A route navigation already owns history movement. Do not call history.back()
   // from a deactivated keep-alive view, otherwise it can undo the route change.
@@ -308,7 +350,7 @@ onBeforeUnmount(() => {
       />
       <MediaAudioPlayer
         v-else
-        ref="audioRef"
+        ref="inlineAudioRef"
         :src="managed.source.value.url"
         :title="currentItem.displayName"
         @ready="managed.markReady"
@@ -363,6 +405,10 @@ onBeforeUnmount(() => {
             ref="audioRef"
             :src="managed.source.value.url"
             :title="currentItem.displayName"
+            :resume-at="audioResumeAt"
+            :resume-playing="audioResumePlaying"
+            :resume-muted="audioResumeMuted"
+            :resume-playback-rate="audioResumePlaybackRate"
             expanded
             @ready="managed.markReady"
             @error="managed.markMediaError"

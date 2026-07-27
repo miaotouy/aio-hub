@@ -216,7 +216,7 @@ closed
 - [ ] Android AVD 已于 2026-07-26 通过资产图片预览、聊天附件发送/重启恢复/图片预览及音频受控预览/沉浸层控制；2026-07-27 又以 x86_64 debug APK 通过 `media` preset（`audio-media`、`video-media`）与 `rich-text-media` preset（消息自有 `asset://` Markdown 图片、受管 descriptor、inline ready、沉浸层打开/关闭和 WebView 双击 2x 缩放）。`audio-media` 额外验证用户触发的 WebView 原生 WAV 播放、`currentTime` 推进、暂停稳定，以及 keep-alive 路由停用时暂停/撤销预览、激活后重新申请；`video-media` 通过 DocumentsUI 导入 H.264 MP4、保留 `video/mp4` MIME、获取受管 URL、WebView `<video>` 解码/播放进度/暂停，且强制 Fullscreen API 拒绝后会进入应用内沉浸层，并在 Android 原生 Back 返回时保留播放位置和状态恢复内联播放器，最后于关闭详情后确认 URL 回收。AVD 运行时无可听输出；这些回归仍不替代真实手势、原生全屏/系统返回、设备音频输出、方向、安全区、快速切换、Android 真机和 iOS 报告。
 - [ ] 根据设备实测再决定是否增加方向锁定、后台音频、截图或更多原生能力；没有证据时不扩展公共 API。
 
-Phase 1 的实现位于 `mobile/src/components/media/`。自动化已覆盖 descriptor 迟到响应撤销、重复清理、过期重试、错误映射、host 先退沉浸层再关闭入口、图片缩放边界、视频 Fullscreen API fallback 与位置/播放状态交接、音频卸载暂停，以及 Android WebView 上用户触发的 WAV 播放进度与暂停稳定、keep-alive 路由停用时的暂停/descriptor 撤销和激活后重取。2026-07-27 的 Android AVD `video-media` 又覆盖 H.264 MP4 的 DocumentsUI 导入、`video/mp4` 受管预览 URL、真实 `<video>` 解码/播放进度/暂停、强制 Fullscreen API 拒绝后的应用内沉浸层及 Android 原生 Back 返回后的内联续播与详情关闭后的 URL 回收。图片下拉关闭、双指手势可用性、原生全屏、方向切换、长视频拖动、设备音频输出和 Android 真机/iOS 仍属于设备门禁，不能由 jsdom、浏览器构建或 AVD 单条回归替代。
+Phase 1 的实现位于 `mobile/src/components/media/`。自动化已覆盖 descriptor 迟到响应撤销、重复清理、过期重试、错误映射、host 先退沉浸层再关闭入口、图片缩放边界、视频 Fullscreen API fallback 与位置/播放状态交接、音频内联/展开之间的位置、播放态、静音和倍速交接、音频卸载暂停，以及 Android WebView 上用户触发的 WAV 播放进度与暂停稳定、keep-alive 路由停用时的暂停/descriptor 撤销和激活后重取。2026-07-27 的 Android AVD `video-media` 又覆盖 H.264 MP4 的 DocumentsUI 导入、`video/mp4` 受管预览 URL、真实 `<video>` 解码/播放进度/暂停、强制 Fullscreen API 拒绝后的应用内沉浸层及 Android 原生 Back 返回后的内联续播与详情关闭后的 URL 回收。图片下拉关闭、双指手势可用性、原生全屏、方向切换、长视频拖动、设备音频输出和 Android 真机/iOS 仍属于设备门禁，不能由 jsdom、浏览器构建或 AVD 单条回归替代。
 
 ### 9.1 Android AVD 回归记录（2026-07-26）
 

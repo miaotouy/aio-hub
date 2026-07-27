@@ -17,7 +17,11 @@ export async function runAudioMediaScenario(context: ScenarioContext) {
     await clickTestElement(context.driver, "asset-import");
     await clickTestElement(context.driver, "asset-import-file");
     await switchToNative(context.driver);
-    await chooseDocumentsUiFile(context.driver, context.fixtures.audio.fileName, APP_PACKAGE);
+    await chooseDocumentsUiFile(
+      context.driver,
+      context.fixtures.audio.fileName,
+      APP_PACKAGE
+    );
     await switchToWebview(context.driver);
     tile = await context.driver.$(selector);
   }
@@ -47,10 +51,60 @@ export async function runAudioMediaScenario(context: ScenarioContext) {
   if (!source?.startsWith("http://aio-asset.localhost/")) {
     throw new Error("Audio preview did not receive a managed preview URL.");
   }
+
+  const inlinePlayer = await testElement(context.driver, "media-audio-player");
+  const playToggle = await testElement(
+    context.driver,
+    "media-audio-play-toggle"
+  );
+  await playToggle.click();
+  await context.driver.waitUntil(
+    async () =>
+      (await inlinePlayer.getAttribute("data-playing")) === "true" &&
+      Number(await inlinePlayer.getAttribute("data-current-time")) > 0,
+    {
+      timeout: 15_000,
+      interval: 250,
+      timeoutMsg:
+        "Managed audio did not begin playback or advance its progress.",
+    }
+  );
+  const playedSeconds = Number(
+    await inlinePlayer.getAttribute("data-current-time")
+  );
+  await playToggle.click();
+  await context.driver.waitUntil(
+    async () => (await inlinePlayer.getAttribute("data-playing")) === "false",
+    {
+      timeout: 5_000,
+      interval: 100,
+      timeoutMsg:
+        "Managed audio did not pause after the play toggle was pressed.",
+    }
+  );
+  // Android WebView may deliver the final timeupdate after the pause event. Let
+  // that event settle, then assert that the paused clock no longer advances.
+  await context.driver.pause(500);
+  const pausedSeconds = Number(
+    await inlinePlayer.getAttribute("data-current-time")
+  );
+  await context.driver.pause(500);
+  const pausedSecondsAfterWait = Number(
+    await inlinePlayer.getAttribute("data-current-time")
+  );
+  if (Math.abs(pausedSecondsAfterWait - pausedSeconds) > 0.05) {
+    throw new Error(
+      `Managed audio progress advanced after pause: ${JSON.stringify({ playedSeconds, pausedSeconds, pausedSecondsAfterWait })}`
+    );
+  }
+
   const expand = await context.driver.$('[aria-label="展开音频播放器"]');
   await expand.waitForClickable({ timeout: 15_000 });
   await expand.click();
-  const immersive = await testElement(context.driver, "media-preview-immersive");
+  const immersive = await testElement(
+    context.driver,
+    "media-preview-immersive"
+  );
   for (const label of ["后退 10 秒", "前进 10 秒", "调整播放速度", "静音"]) {
     const control = await immersive.$(`[aria-label="${label}"]`);
     await control.waitForDisplayed({ timeout: 15_000 });
@@ -58,5 +112,9 @@ export async function runAudioMediaScenario(context: ScenarioContext) {
   const close = await immersive.$(".immersive-header button");
   await close.click();
   await immersive.waitForExist({ timeout: 10_000, reverse: true });
-  return { fileName: context.fixtures.audio.fileName, sourceKind: "managed-preview" };
+  return {
+    fileName: context.fixtures.audio.fileName,
+    sourceKind: "managed-preview",
+    playedSeconds,
+  };
 }

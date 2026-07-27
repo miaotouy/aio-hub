@@ -121,7 +121,14 @@ defineExpose({ pause });
 </script>
 
 <template>
-  <div class="media-audio-player" :class="{ expanded }">
+  <div
+    class="media-audio-player"
+    :class="{ expanded }"
+    data-testid="media-audio-player"
+    :data-playing="playing ? 'true' : 'false'"
+    :data-current-time="currentTime"
+    :data-duration="duration"
+  >
     <audio
       ref="audioRef"
       :src="src"
@@ -146,6 +153,7 @@ defineExpose({ pause });
       <button
         class="play-button"
         type="button"
+        data-testid="media-audio-play-toggle"
         :aria-label="playing ? '暂停' : '播放'"
         @click="togglePlayback"
       >

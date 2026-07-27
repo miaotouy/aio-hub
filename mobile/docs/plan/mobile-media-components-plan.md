@@ -213,16 +213,16 @@ closed
 - [x] 按本方案在资产管理器完成第一版真实原型。
 - [x] 为 `useManagedMediaPreview`、`MediaPreviewHost` 和三个媒体子组件补单测及组件测试。
 - [x] RichTextRenderer 已接入稳定的 `MediaItem` 与打开事件：受管 Markdown 资产仅匹配当前消息附件，descriptor、错误与资源释放继续由 `MediaPreviewHost` 负责；外部图片不改写为本地资产。
-- [ ] Android AVD 已于 2026-07-26 通过资产图片预览、聊天附件发送/重启恢复/图片预览及音频受控预览/沉浸层控制；2026-07-27 又以新构建的 x86_64 debug APK 通过 `media` preset（`audio-media`）与 `rich-text-media` preset（消息自有 `asset://` Markdown 图片、受管 descriptor、inline ready 和沉浸层打开/关闭）。这些回归不替代手势、实际播放、方向、安全区、快速切换、Android 真机和 iOS 报告。
+- [ ] Android AVD 已于 2026-07-26 通过资产图片预览、聊天附件发送/重启恢复/图片预览及音频受控预览/沉浸层控制；2026-07-27 又以新构建的 x86_64 debug APK 通过 `media` preset（`audio-media`）与 `rich-text-media` preset（消息自有 `asset://` Markdown 图片、受管 descriptor、inline ready 和沉浸层打开/关闭）。`audio-media` 现额外验证用户触发的 WebView 原生 WAV 播放、`currentTime` 推进和暂停稳定；AVD 运行时无可听输出，这些回归仍不替代手势、视频实际播放、设备音频输出、方向、安全区、快速切换、Android 真机和 iOS 报告。
 - [ ] 根据设备实测再决定是否增加方向锁定、后台音频、截图或更多原生能力；没有证据时不扩展公共 API。
 
-Phase 1 的实现位于 `mobile/src/components/media/`。自动化已覆盖 descriptor 迟到响应撤销、重复清理、过期重试、错误映射、host 先退沉浸层再关闭入口、图片缩放边界、视频 Fullscreen API fallback 和音频卸载暂停。图片下拉关闭、双指手势可用性、系统返回、方向切换和真实播放仍属于 Android AVD/真机门禁，不能由 jsdom 或浏览器构建结果替代。
+Phase 1 的实现位于 `mobile/src/components/media/`。自动化已覆盖 descriptor 迟到响应撤销、重复清理、过期重试、错误映射、host 先退沉浸层再关闭入口、图片缩放边界、视频 Fullscreen API fallback、音频卸载暂停，以及 Android WebView 上用户触发的 WAV 播放进度与暂停稳定。图片下拉关闭、双指手势可用性、系统返回、方向切换、视频实际播放和设备音频输出仍属于 Android AVD/真机门禁，不能由 jsdom 或浏览器构建结果替代。
 
 ### 9.1 Android AVD 回归记录（2026-07-26）
 
 - `Medium_Phone_API_36`（`emulator-5554`，API 36，x86_64）安装单 ABI debug APK 后，`asset` preset 已覆盖资产详情打开图片、短期预览 URL 加载、关闭后的 URL 撤销；此前因通用图片查看器缺少稳定图片元素标识而失败，现由调用方可选 `imageTestId` 契约恢复。
 - 同一 APK 的 `attachment` preset 通过，覆盖附件导入、发送、请求附件匹配、应用重启恢复、usage 注册及删除会话后的 usage 释放。
-- 新增独立 `media` preset 并已通过：生成并推送可扫描 WAV fixture，经 DocumentsUI 导入后验证 `audio/wav` 或 `audio/x-wav` MIME、资产详情受控预览 URL、`ready` 状态及音频沉浸层的后退/前进、倍速和静音控制。DocumentsUI API 36 网格会惰性加载文件，选择器先滚动定位再沿用可点击行，避免把原生 `<audio>` 的不可视性误判为预览失败。
+- 新增独立 `media` preset 并已通过：生成并推送可扫描 WAV fixture，经 DocumentsUI 导入后验证 `audio/wav` 或 `audio/x-wav` MIME、资产详情受控预览 URL、`ready` 状态、用户触发后的原生 `<audio>` 播放进度与暂停稳定，以及音频沉浸层的后退/前进、倍速和静音控制。WAV fixture 延长至 3 秒以避免 AVD 在进度断言前播放结束；当前 runner 使用无可听输出的 AVD，不能据此推断设备扬声器或后台音频成立。DocumentsUI API 36 网格会惰性加载文件，选择器先滚动定位再沿用可点击行，避免把原生 `<audio>` 的不可视性误判为预览失败。
 - `attachment` preset 已追加聊天附件预览回归：在附件导入、发送和应用重启恢复后，点击用户图片附件的统一入口，验证 `MediaPreviewHost` 的受控图片 descriptor、`ready` 状态、沉浸层打开与关闭后的 descriptor 回收。
 - `rich-text-media` preset 已通过：消息将自身选中的图片附件以 `![...](asset://<assetId>)` 写入 Markdown，RichTextRenderer 只对该消息自有 assetId 解析为 `MediaItem`；Android WebView 已验证 managed preview URL、inline `ready` 与沉浸层图片的打开/关闭。该场景不验证模型输出对任意资产的探测，也不替代真机、iOS、手势、方向或实际视频/音频播放。
-- 上述结果只构成受控工作流回归，不替代本节 Phase 2 的真实手势、视频/音频实际播放、方向、安全区、错误恢复和 Android 真机可用性验收。
+- 上述结果只构成受控工作流回归，不替代本节 Phase 2 的真实手势、视频实际播放、设备音频输出、方向、安全区、错误恢复和 Android 真机可用性验收。

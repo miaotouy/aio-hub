@@ -9,7 +9,9 @@ const NOTE_TEXT = "AIO Hub Android E2E deterministic fixture.\n";
 
 function createWavFixture() {
   const sampleRate = 8_000;
-  const samples = Buffer.alloc(sampleRate / 2, 128);
+  // Keep this longer than the playback assertion so Android WebView can advance
+  // currentTime before the fixture ends, even on a loaded AVD.
+  const samples = Buffer.alloc(sampleRate * 3, 128);
   const header = Buffer.alloc(44);
   header.write("RIFF", 0);
   header.writeUInt32LE(36 + samples.length, 4);
@@ -29,9 +31,27 @@ function createWavFixture() {
 export interface PreparedFixtures {
   hostDirectory: string;
   deviceDirectory: string;
-  image: { fileName: string; hostPath: string; devicePath: string; bytes: number; sha256: string };
-  note: { fileName: string; hostPath: string; devicePath: string; bytes: number; sha256: string };
-  audio: { fileName: string; hostPath: string; devicePath: string; bytes: number; sha256: string };
+  image: {
+    fileName: string;
+    hostPath: string;
+    devicePath: string;
+    bytes: number;
+    sha256: string;
+  };
+  note: {
+    fileName: string;
+    hostPath: string;
+    devicePath: string;
+    bytes: number;
+    sha256: string;
+  };
+  audio: {
+    fileName: string;
+    hostPath: string;
+    devicePath: string;
+    bytes: number;
+    sha256: string;
+  };
 }
 
 function metadata(hostPath: string, devicePath: string) {
@@ -66,7 +86,12 @@ export async function prepareFixtures(options: {
   fs.writeFileSync(imageHostPath, Buffer.from(IMAGE_BASE64, "base64"));
   fs.writeFileSync(noteHostPath, NOTE_TEXT, "utf8");
   fs.writeFileSync(audioHostPath, createWavFixture());
-  await options.adb.serial(options.serial, ["shell", "mkdir", "-p", deviceDirectory]);
+  await options.adb.serial(options.serial, [
+    "shell",
+    "mkdir",
+    "-p",
+    deviceDirectory,
+  ]);
   const imageDevicePath = `${deviceDirectory}/${imageFileName}`;
   const noteDevicePath = `${deviceDirectory}/${noteFileName}`;
   const audioDevicePath = `${deviceDirectory}/${audioFileName}`;

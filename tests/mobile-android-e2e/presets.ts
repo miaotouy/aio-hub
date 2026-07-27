@@ -60,7 +60,7 @@ export const MOBILE_E2E_PRESETS: Record<MobileE2ePresetId, MobileE2ePreset> = {
   },
   media: {
     id: "media",
-    purpose: "Managed audio preview and immersive controls",
+    purpose: "Managed audio preview, WebView playback, and immersive controls",
     scenarios: [{ id: "audio-media", run: runAudioMediaScenario }],
     requiresDeterministicServer: false,
     requiresOllama: false,

@@ -59,12 +59,12 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 - [ ] 后续如需重新启用 HTML 能力，必须先实现可审计的白名单或沙箱，不能恢复直接 `v-html`。
 - [x] 已完成可单测的流式渲染稳定性基础：中间 chunk 使用 80ms 快照节流，首内容、清空内容和流式结束立即刷新，组件卸载会清理流式与复制反馈 timer。
 - [ ] 完成 Android/iOS 真实设备上的窄屏、长消息、流式输出、滚动和内存释放验证；浏览器/Vitest 不能替代 Tauri WebView 和原生运行态门禁。
-  - 2026-07-27：runner-owned Android AVD `Medium_Phone_API_36`（SDK 36、x86_64）已通过 `rich-text` 预设，验证 RichText 测试页的代码块、Mermaid DOM 挂载、自动换行、长无空格代码容器滚动，以及长 Markdown 流式进度、预览自动贴底、显式停止和 keep-alive 路由停用清理；Android 真机、iOS、正式聊天消息、受管媒体和内存释放仍是未完成门禁。
+  - 2026-07-27：runner-owned Android AVD `Medium_Phone_API_36`（SDK 36、x86_64）已通过 `rich-text` 与 `rich-text-media` 预设，验证 RichText 测试页的代码块、Mermaid DOM 挂载、自动换行、长无空格代码容器滚动，以及长 Markdown 流式进度、预览自动贴底、显式停止和 keep-alive 路由停用清理；正式聊天通过原生 reqwest 拉取式分块桥接逐块交给共享 SSE 解码器，已在 `generating` 状态挂载首个 Markdown 标题，并继续覆盖受管媒体。Android 真机、iOS 与内存释放仍是未完成门禁。
 - [ ] 功能迁移稳定后再依据真实设备数据决定 Web Worker、Rust 或原生下沉；没有性能证据时不重构为共享包。
 
 入口：[`rich-text-renderer-migration-plan.md`](../../src/tools/rich-text-renderer/docs/Plan/rich-text-renderer-migration-plan.md)。
 
-当前可复用基础：资产服务已提供短期预览来源和主动撤销命令；`mobile/src/components/media/` 已落地统一 host、三类媒体主体和 descriptor 生命周期，`AssetDetailSheet`、聊天 `MessageContent` 与 RichTextRenderer 的受管 Markdown 资产入口均已接入该契约。资产详情通过可选 `imageTestId` 将稳定的图片元素标识限定在资产调用方；2026-07-26 的 Android AVD 已通过资产图片预览、聊天附件及 WAV 音频受控预览/沉浸层控制 APK 回归，2026-07-27 的新构建又通过 `media` / `audio-media` AVD 回归。2026-07-27 的 `rich-text-media` AVD 预设已覆盖消息自有图片 `asset://` Markdown 到 `MediaPreviewHost` 的 descriptor、inline ready 与沉浸层打开/关闭，也通过确定性 assistant SSE 覆盖正式聊天消息内的标题、代码块、行内 KaTeX 及未受信任 HTML 字面回退；其余手势、真实播放、Android 真机与 iOS 验收继续以 [`mobile-media-components-plan.md`](./mobile-media-components-plan.md) 为准。
+当前可复用基础：资产服务已提供短期预览来源和主动撤销命令；`mobile/src/components/media/` 已落地统一 host、三类媒体主体和 descriptor 生命周期，`AssetDetailSheet`、聊天 `MessageContent` 与 RichTextRenderer 的受管 Markdown 资产入口均已接入该契约。资产详情通过可选 `imageTestId` 将稳定的图片元素标识限定在资产调用方；2026-07-26 的 Android AVD 已通过资产图片预览、聊天附件及 WAV 音频受控预览/沉浸层控制 APK 回归，2026-07-27 的新构建又通过 `media` / `audio-media` AVD 回归。2026-07-27 的 `rich-text-media` AVD 预设已覆盖消息自有图片 `asset://` Markdown 到 `MediaPreviewHost` 的 descriptor、inline ready 与沉浸层打开/关闭；确定性 assistant SSE 的首个 Markdown 标题会在正式聊天 `generating` 状态内挂载，后续继续验证代码块、行内 KaTeX 及未受信任 HTML 字面回退。流式请求使用原生 reqwest 拉取式分块桥接，避免 Tauri HTTP 插件响应流在 Android WebView 中批量交付；其余手势、真实播放、Android 真机与 iOS 验收继续以 [`mobile-media-components-plan.md`](./mobile-media-components-plan.md) 为准。
 
 ### P2：平台门禁与已落地能力的最终验收
 

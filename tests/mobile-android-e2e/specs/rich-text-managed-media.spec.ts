@@ -50,6 +50,31 @@ export async function runRichTextManagedMediaScenario(
   });
 
   const assetId = await sendRichTextManagedAsset(context);
+  const streamedMarkdownMounted = await context.driver.waitUntil(
+    async () =>
+      context.driver.execute(() => {
+        const message = document.querySelector<HTMLElement>(
+          '[data-testid="chat-message"][data-message-role="assistant"][data-message-status="generating"]'
+        );
+        return Boolean(
+          message
+            ?.querySelector(".md-heading")
+            ?.textContent?.includes("Android assistant Markdown")
+        );
+      }),
+    {
+      timeout: 15_000,
+      interval: 100,
+      timeoutMsg:
+        "Streaming assistant Markdown was not mounted before completion.",
+    }
+  );
+  if (!streamedMarkdownMounted) {
+    throw new Error(
+      "Streaming assistant Markdown was not rendered before completion."
+    );
+  }
+
   const userMessage = await context.driver.$(
     '[data-testid="chat-message"][data-message-role="user"]'
   );

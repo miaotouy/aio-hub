@@ -142,7 +142,7 @@ function json(data: unknown, status = 200): Response {
   });
 }
 
-function sseEvent(id: string, content: string): Uint8Array {
+function sseEvent(id: string, content: string, includeRole = true): Uint8Array {
   return new TextEncoder().encode(
     `data: ${JSON.stringify({
       id,
@@ -150,11 +150,21 @@ function sseEvent(id: string, content: string): Uint8Array {
       choices: [
         {
           index: 0,
-          delta: { role: "assistant", content },
+          delta: { ...(includeRole ? { role: "assistant" } : {}), content },
           finish_reason: null,
         },
       ],
     })}\n\n`
+  );
+}
+
+function sseStopEvent(id: string): Uint8Array {
+  return new TextEncoder().encode(
+    `data: ${JSON.stringify({
+      id,
+      object: "chat.completion.chunk",
+      choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+    })}\n\ndata: [DONE]\n\n`
   );
 }
 
@@ -323,6 +333,38 @@ export function startMobileOpenAiConformanceServer(options: {
           : attachmentRequired
             ? ["Attachment ", "verified ", "by Android E2E."]
             : ["Android E2E Chat"];
+      if (body.stream === true && mode === "rich-text") {
+        let cancelled = false;
+        return new Response(
+          new ReadableStream({
+            start(controller) {
+              // Keep the first Markdown node in the generating state long
+              // enough for the Android WebView assertion to observe it before
+              // the subsequent SSE chunks complete the response.
+              void (async () => {
+                try {
+                  for (const [index, chunk] of chunks.entries()) {
+                    if (cancelled) return;
+                    controller.enqueue(
+                      sseEvent(requestId, chunk, index === 0)
+                    );
+                    await Bun.sleep(index === 0 ? 5_000 : 150);
+                  }
+                  if (cancelled) return;
+                  controller.enqueue(sseStopEvent(requestId));
+                  controller.close();
+                } catch (error) {
+                  if (!cancelled) controller.error(error);
+                }
+              })();
+            },
+            cancel() {
+              cancelled = true;
+            },
+          }),
+          { headers: sseHeaders(requestId) }
+        );
+      }
       if (body.stream === true) {
         return new Response(createSsePayload(chunks, "stop", requestId), {
           headers: sseHeaders(requestId),

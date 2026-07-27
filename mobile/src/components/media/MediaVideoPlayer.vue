@@ -19,6 +19,8 @@ const emit = defineEmits<{
 }>();
 
 const videoRef = ref<HTMLVideoElement | null>(null);
+const playing = ref(false);
+const currentTime = ref(0);
 
 async function requestFullscreen() {
   const video = videoRef.value;
@@ -34,6 +36,15 @@ async function requestFullscreen() {
   emit("expand");
 }
 
+function updateTime() {
+  currentTime.value = videoRef.value?.currentTime ?? 0;
+}
+
+function setPlaying(value: boolean) {
+  playing.value = value;
+  emit("play-state-change", value);
+}
+
 function pause() {
   videoRef.value?.pause();
 }
@@ -44,18 +55,27 @@ defineExpose({ pause, requestFullscreen });
 </script>
 
 <template>
-  <div class="media-video-player" :class="{ immersive }">
+  <div
+    class="media-video-player"
+    :class="{ immersive }"
+    data-testid="media-video-player"
+    :data-playing="playing ? 'true' : 'false'"
+    :data-current-time="currentTime"
+  >
     <video
       ref="videoRef"
+      data-testid="media-video-element"
       :src="src"
       :aria-label="title"
       controls
       playsinline
       preload="metadata"
       @loadedmetadata="emit('ready')"
+      @timeupdate="updateTime"
       @error="emit('error')"
-      @play="emit('play-state-change', true)"
-      @pause="emit('play-state-change', false)"
+      @play="setPlaying(true)"
+      @pause="setPlaying(false)"
+      @ended="setPlaying(false)"
     />
     <button
       v-if="!immersive"

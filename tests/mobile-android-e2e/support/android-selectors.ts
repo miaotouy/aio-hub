@@ -67,7 +67,16 @@ async function waitForPackage(
   timeoutMs: number
 ): Promise<boolean> {
   return driver
-    .waitUntil(async () => (await driver.getCurrentPackage()) === packageName, {
+    .waitUntil(async () => {
+      const [currentPackage, currentActivity] = await Promise.all([
+        driver.getCurrentPackage(),
+        driver.getCurrentActivity(),
+      ]);
+      return (
+        currentPackage === packageName &&
+        !currentActivity.toLowerCase().includes("documentsui")
+      );
+    }, {
       timeout: timeoutMs,
       interval: 200,
     })
@@ -112,8 +121,10 @@ export async function chooseDocumentsUiFile(
   if (!selected) {
     throw new Error(`DocumentsUI file was not selectable: ${fileName}`);
   }
-  if (await waitForPackage(driver, returnPackage, 3_000)) return;
-
+  // `getCurrentPackage()` may already report the caller while DocumentsUI's
+  // multi-select confirmation is still on screen on API 36. Prefer an
+  // explicit Open action when it is available; otherwise the picker can close
+  // without delivering the selected content URI to the application.
   const confirm = await firstDisplayed(
     driver,
     [
@@ -121,9 +132,10 @@ export async function chooseDocumentsUiFile(
       "id=com.android.documentsui:id/action_menu_open",
       "id=android:id/button1",
     ],
-    timeoutMs
-  );
-  await confirm.click();
+    3_000
+  ).catch(() => null);
+  if (confirm) await confirm.click();
+
   if (!(await waitForPackage(driver, returnPackage, timeoutMs))) {
     throw new Error(`DocumentsUI did not return to ${returnPackage}.`);
   }

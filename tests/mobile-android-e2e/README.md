@@ -36,18 +36,22 @@ Available presets are `feasibility`, `smoke`, `asset`, `media`, `rich-text`, `ri
 not create the 768 MiB interrupted-import fixture; run `recovery` separately
 when exercising that path.
 
-Run the managed-audio regression lane:
+Run the managed media regression lane:
 
 ```powershell
 bun tests/mobile-android-e2e/run.ts --preset media --avd Medium_Phone_API_36
 ```
 
-This imports a generated WAV fixture and verifies its managed preview URL, metadata
-ready state, user-initiated native WebView audio playback with `currentTime`
-progression, pause stability, keep-alive route deactivation/reacquisition, and
-expanded-player controls. The runner uses an AVD without audible output, so this
-is not evidence for device speakers, background audio, video playback, real-device,
-or iOS acceptance.
+This imports generated three-second WAV and H.264 MP4 fixtures through DocumentsUI.
+The audio scenario verifies its managed preview URL, metadata ready state,
+user-initiated native WebView playback with `currentTime` progression, pause
+stability, keep-alive route deactivation/reacquisition, and expanded-player
+controls. The video scenario verifies the imported `video/mp4` MIME, a managed
+preview URL, native WebView `<video>` decode/playback progress/pause, and URL
+revocation after closing the asset detail. The runner uses an AVD without audible
+output; this does not replace real-device or iOS acceptance for speakers,
+background audio, system back, gestures, orientation, safe areas, long-video
+seeking, or performance/memory behavior.
 
 Run the RichText narrow-screen regression lane:
 

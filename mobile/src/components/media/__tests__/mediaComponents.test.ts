@@ -49,6 +49,25 @@ describe("mobile media components", () => {
     expect(wrapper.emitted("close")).toHaveLength(1);
   });
 
+  it("exposes native video playback state for managed WebView regression", async () => {
+    const wrapper = mount(MediaVideoPlayer, {
+      props: { src: "video://sample", title: "sample" },
+    });
+    const video = wrapper.get("video").element as HTMLVideoElement;
+    Object.defineProperty(video, "currentTime", {
+      configurable: true,
+      value: 0.5,
+    });
+
+    await wrapper.get("video").trigger("play");
+    await wrapper.get("video").trigger("timeupdate");
+    expect(wrapper.attributes("data-playing")).toBe("true");
+    expect(wrapper.attributes("data-current-time")).toBe("0.5");
+
+    await wrapper.get("video").trigger("pause");
+    expect(wrapper.attributes("data-playing")).toBe("false");
+  });
+
   it("falls back to the app-level video layer when fullscreen is rejected", async () => {
     const wrapper = mount(MediaVideoPlayer, {
       props: { src: "video://sample", title: "sample" },

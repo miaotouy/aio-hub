@@ -959,6 +959,8 @@ interface GuidedFlowOpenOptions {
 - 已增加 release manifest 构建一致性检查及生命周期、跨版本、降级和回放测试；
 - Vite 生产构建已通过；新增 `guided-flow-baseline` 真实 Tauri preset，覆盖无生命周期文件的首次启动、当前说明展示一次、生命周期落盘和同根重启不再入队。安装包级重启 smoke test 仍待发布候选包补验。
 
+这里的“已实现”指升级流程运行时、生命周期和本地资源注册已经落地，不表示 `0.7.0-alpha.1` 的最终版本说明体验已经定稿。当前 release note 和引导文案仍是占位内容；面对本次大规模改动，摘要/详情分层、展开与回看方式、迁移事项关系和正式人工文案均待设计与打磨。详见 [v0.7.0-alpha.1 发布收口与体验优化记录](./v0.7.0-alpha.1-release-readiness-and-experience-plan.md)。
+
 ### Phase 3：知识库迁移流程（已实现）
 
 - `RecallState::initialize()` 已移除旧用户数据自动导入，启动只初始化 schema、恢复新存储并记录待迁移来源；

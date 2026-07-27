@@ -36,6 +36,7 @@
 - [ ] **D-P0-03 Agent / User Profile 发布后路径收口**：两项解耦已随 `v0.6.6-r.1` 发布，但 2026-07-23 代码审计发现 Agent 导入、内置预设资产、升级覆盖和 Rust 搜索仍残留旧 `llm-chat/agents` 路径；User Profile 的实际多档案迁移与原计划单文件描述不符，且缺少部分迁移恢复、重复启动和首载设置一致性测试。先修正残余路径并补迁移级测试，再恢复“已完成”状态。详见 [LLM Chat 计划索引](../../src/tools/llm-chat/docs/Plan/README.md)。
 - [ ] **D-P0-04 Agent 目录搜索资源保护**：一次宽范围 VCP 搜索超时后未取消底层 walker，随后与新搜索重叠；当前单次默认最多使用 12 个 worker，且缺少深度、扫描文件数、deadline、总并发和 searchId 隔离。按组合资源预算、按请求取消、超时 signal 传播和替换完整性门禁实施。详见 [目录搜索资源占用调查与加固计划](../../src/tools/dir-search/docs/Plan/agent-search-resource-safety-investigation.md)。
 - [ ] **D-P0-05 Guided Flow 迁移发布门禁**：复用真实 Tauri E2E 的隔离 `AIO_DATA_DIR`，建立只读旧数据夹具、一次性 appData、安全清理、同根重启和中断恢复通道；发布候选包再用经审核的正式旧数据快照验收。详见 [Guided Flow 实施与验收计划](./guided-flow-plan.md#114-旧数据迁移自动化验收)。
+- [ ] **D-P0-06 0.7 Alpha 1 发布体验收口**：主体功能基本完成，集中打磨新功能 UI，设计升级说明的摘要/详情信息架构与交互，并用发布候选主应用和插件完成 Sidecar API v3 分批作业联合验收后同步发布。详见 [v0.7.0-alpha.1 发布收口与体验优化记录](./v0.7.0-alpha.1-release-readiness-and-experience-plan.md)。
 
 ### P1：共享基础设施
 
@@ -70,14 +71,15 @@
 
 ## 4. 跨模块计划台账
 
-| 文档                                                                          | 当前状态 | 下一动作                            |
-| ----------------------------------------------------------------------------- | -------- | ----------------------------------- |
-| [LLM 渠道配置导入](./llm-channel-config-import-plan.md)                       | 已完成   | 仅保留实施记录                      |
-| [LLM 渠道探测改进](./llm-channel-probe-improvement-plan.md)                   | 已完成   | 运行态健康能力另行立项              |
-| [Provider Adapter 多端共享](./llm-provider-adapter-sharing-investigation.md)  | 待收口   | 真实 Tauri 性能观测；移动端真机另排 |
-| [模型元数据系统优化](./model-metadata-system-optimization-plan.md)            | 待实施   | D-P1-01，从批次 1 开始              |
-| [原生工具调用与编排](./native-tool-calling-adapter-and-orchestration-plan.md) | 待实施   | D-P1-02，先关闭设计决策             |
-| [AI 小说专精模块调查](./ai-novel-studio-investigation.md)                     | 候选     | D-P2-06，做垂直切片验证             |
+| 文档                                                                                           | 当前状态 | 下一动作                                            |
+| ---------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------- |
+| [v0.7.0-alpha.1 发布收口与体验优化](./v0.7.0-alpha.1-release-readiness-and-experience-plan.md) | 待收口   | D-P0-06，完成 UI、升级说明与主应用/插件联合发布验收 |
+| [LLM 渠道配置导入](./llm-channel-config-import-plan.md)                                        | 已完成   | 仅保留实施记录                                      |
+| [LLM 渠道探测改进](./llm-channel-probe-improvement-plan.md)                                    | 已完成   | 运行态健康能力另行立项                              |
+| [Provider Adapter 多端共享](./llm-provider-adapter-sharing-investigation.md)                   | 待收口   | 真实 Tauri 性能观测；移动端真机另排                 |
+| [模型元数据系统优化](./model-metadata-system-optimization-plan.md)                             | 待实施   | D-P1-01，从批次 1 开始                              |
+| [原生工具调用与编排](./native-tool-calling-adapter-and-orchestration-plan.md)                  | 待实施   | D-P1-02，先关闭设计决策                             |
+| [AI 小说专精模块调查](./ai-novel-studio-investigation.md)                                      | 候选     | D-P2-06，做垂直切片验证                             |
 
 ## 5. 工具模块计划台账
 

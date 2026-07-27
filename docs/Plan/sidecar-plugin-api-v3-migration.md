@@ -1,8 +1,9 @@
 # Sidecar Plugin API v3 不兼容迁移计划
 
-> 状态：主体实施完成，待真实 Tauri E2E  
-> 创建日期：2026-07-24  
-> 首个迁移插件：`paddle-ocr` 0.8.0
+> - 状态：主体实施完成；开发模式已成功调用 API v3 插件并使用新的分批优化，待主应用与插件发布候选组合的完整联合验收
+> - 创建日期：2026-07-24
+> - 最近更新：2026-07-27
+> - 首个迁移插件：`paddle-ocr` 0.8.0
 
 ## 1. 背景
 
@@ -129,9 +130,9 @@ Paddle OCR sidecar 拆分为协调线程和单个 OCR worker：
 - [x] 运行主程序类型检查、Vite 构建、相关 Vitest 与 Tauri Rust 测试。
 - [x] 运行 Paddle OCR Rust/UI 构建和直接 JSON Lines 协议测试。
 - [x] 修复开发 manifest 直接引用 Cargo target 缓存造成的旧二进制误启动；Rust 构建现在部署到稳定 `dev-bin/<platform>/` 并校验路径一致性。
-- [ ] 在真实 Tauri WebView 中验证选择、进度、取消、超时恢复和重启后的首次调用。
+- [ ] 完成真实 Tauri WebView 的发布验收矩阵：选择、分批进度、局部结果、取消、超时恢复和重启后的首次调用。
 
-2026-07-25 首次真实联调发现宿主调用 `submitOcrJob` 时启动了旧 API v2 二进制。根因是 `build:rust` 生成 `target/debug`，开发 manifest 却引用 `target/<target-triple>/debug`。该构建链已统一，真实 Tauri 验收需基于 manifest 指向的 `dev-bin` 产物重新执行，原验收项保持未完成。
+2026-07-25 首次真实联调发现宿主调用 `submitOcrJob` 时启动了旧 API v2 二进制。根因是 `build:rust` 生成 `target/debug`，开发 manifest 却引用 `target/<target-triple>/debug`。该构建链已经统一。2026-07-27 已确认开发模式能够成功调用 API v3 插件并实际使用新的分批优化特性，主链路不再处于未打通状态；剩余事项是用主应用与插件发布候选组合补齐完整场景矩阵，并在同一发布窗口同步发布两侧。
 
 ## 6. 非目标
 

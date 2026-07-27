@@ -1,5 +1,5 @@
 import { switchToWebview } from "../support/appium";
-import { MOBILE_E2E_MODEL_ID } from "../support/openai-conformance";
+import { MOBILE_E2E_RICH_TEXT_MODEL_ID } from "../support/openai-conformance";
 import { clickTestElement, testElement } from "../support/webview";
 import { ensureFixtureImported } from "./asset-workflow.spec";
 import { configureOpenAiProfile } from "./chat-attachment.spec";
@@ -46,7 +46,7 @@ export async function runRichTextManagedMediaScenario(
   await configureOpenAiProfile(context, {
     name: "Android E2E RichText Media",
     baseUrl: context.deterministicBaseUrl,
-    modelId: MOBILE_E2E_MODEL_ID,
+    modelId: MOBILE_E2E_RICH_TEXT_MODEL_ID,
   });
 
   const assetId = await sendRichTextManagedAsset(context);
@@ -76,6 +76,11 @@ export async function runRichTextManagedMediaScenario(
     );
   }
 
+  // The streamed assistant response can extend the chat and auto-scroll it away
+  // from the user-owned inline preview. Return the preview to the viewport
+  // before using the real touch/click path.
+  await image.scrollIntoView({ block: "center", inline: "center" });
+  await image.waitForClickable({ timeout: 10_000 });
   await image.click();
   const immersive = await testElement(
     context.driver,
@@ -102,5 +107,72 @@ export async function runRichTextManagedMediaScenario(
   );
   await assistant.waitForDisplayed({ timeout: 30_000 });
 
-  return { assetId, sourceKind: "managed-preview" };
+  const heading = await assistant.$(".md-heading");
+  await heading.waitForDisplayed({ timeout: 15_000 });
+  if (!(await heading.getText()).includes("Android assistant Markdown")) {
+    throw new Error("Assistant Markdown heading did not render in the chat.");
+  }
+  const code = await assistant.$('[data-testid="rich-text-code-block"]');
+  await code.waitForDisplayed({ timeout: 15_000 });
+  if (!(await code.getText()).includes("const renderedInChat = true;")) {
+    throw new Error(
+      "Assistant Markdown code block did not render in the chat."
+    );
+  }
+  const formula = await assistant.$(".katex-inline .katex");
+  await formula.waitForDisplayed({ timeout: 15_000 });
+  const assistantSelector =
+    '[data-testid="chat-message"][data-message-role="assistant"][data-message-status="complete"]';
+  const htmlFallback = await context.driver.waitUntil(
+    async () =>
+      context.driver.execute((selector) => {
+        const message = document.querySelector<HTMLElement>(selector);
+        if (!message) return null;
+        return {
+          literalTokens: Array.from(message.querySelectorAll(".md-html")).map(
+            (node) => node.textContent ?? ""
+          ),
+          text: message.innerText,
+          mountedUnsafeElement: Boolean(
+            message.querySelector('[data-e2e-untrusted="1"]')
+          ),
+        };
+      }, assistantSelector),
+    {
+      timeout: 15_000,
+      interval: 200,
+      timeoutMsg: "Assistant raw HTML tags did not reach the literal fallback.",
+    }
+  );
+  if (
+    !htmlFallback ||
+    htmlFallback.literalTokens.length < 2 ||
+    !htmlFallback.literalTokens.some((token) =>
+      token.includes("data-e2e-untrusted")
+    ) ||
+    !htmlFallback.text.includes("literal HTML")
+  ) {
+    throw new Error(
+      "Assistant HTML fallback did not preserve its literal text."
+    );
+  }
+  if (htmlFallback.mountedUnsafeElement) {
+    throw new Error(
+      "Assistant raw HTML was mounted as an interactive DOM node."
+    );
+  }
+
+  const request = context.deterministicRequests?.find(
+    (summary) => summary.mode === "rich-text"
+  );
+  if (!request || request.sseEventCount !== 5) {
+    throw new Error("RichText chat reply did not use the expected SSE stream.");
+  }
+
+  return {
+    assetId,
+    sourceKind: "managed-preview",
+    assistantMarkdown: true,
+    assistantRawHtmlLiteral: true,
+  };
 }

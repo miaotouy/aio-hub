@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   MOBILE_E2E_DELAYED_MODEL_ID,
+  MOBILE_E2E_RICH_TEXT_MODEL_ID,
   MOBILE_E2E_HTTP_ERROR_MODEL_ID,
   MOBILE_E2E_INTERRUPTED_MODEL_ID,
   MOBILE_E2E_TIMEOUT_MODEL_ID,
@@ -39,10 +40,14 @@ describe("mobile OpenAI attachment summaries", () => {
   it("maps advertised deterministic models to isolated response modes", () => {
     expect(MOBILE_E2E_MODEL_IDS).toEqual(
       expect.arrayContaining([
+        MOBILE_E2E_RICH_TEXT_MODEL_ID,
         MOBILE_E2E_HTTP_ERROR_MODEL_ID,
         MOBILE_E2E_INTERRUPTED_MODEL_ID,
         MOBILE_E2E_DELAYED_MODEL_ID,
       ])
+    );
+    expect(responseModeForModel(MOBILE_E2E_RICH_TEXT_MODEL_ID)).toBe(
+      "rich-text"
     );
     expect(responseModeForModel(MOBILE_E2E_HTTP_ERROR_MODEL_ID)).toBe(
       "http-error"
@@ -57,6 +62,7 @@ describe("mobile OpenAI attachment summaries", () => {
     expect(sseEventCountForMode("timeout", true, true)).toBe(0);
     expect(sseEventCountForMode("interrupted-stream", true, true)).toBe(1);
     expect(sseEventCountForMode("attachment", true, true)).toBe(4);
+    expect(sseEventCountForMode("rich-text", true, true)).toBe(5);
   });
 });
 

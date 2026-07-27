@@ -78,7 +78,10 @@ This sends a message that owns an imported image attachment and embeds it as
 `![...](asset://<assetId>)`. The scenario verifies the chat RichText resolver
 only accepts that message-owned asset, obtains a managed preview URL, reaches
 ready state, opens/closes the immersive image view, and handles a WebView
-double-click zoom to 2x. It does not cover multi-touch or drag-dismiss gestures.
+double-click zoom to 2x. Its deterministic assistant stream also verifies the
+production chat-message entry renders Markdown headings, fenced code, inline
+KaTeX, and literal raw-HTML fallback without mounting the untrusted element.
+It does not cover multi-touch or drag-dismiss gestures.
 
 Run the Ollama attachment lane explicitly:
 

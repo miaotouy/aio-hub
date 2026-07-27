@@ -6,6 +6,7 @@ import {
 import type { ArtifactManager } from "./artifacts";
 
 export const MOBILE_E2E_MODEL_ID = "e2e-mobile-attachment";
+export const MOBILE_E2E_RICH_TEXT_MODEL_ID = "e2e-mobile-rich-text";
 export const MOBILE_E2E_HTTP_ERROR_MODEL_ID = "e2e-mobile-http-error";
 export const MOBILE_E2E_INTERRUPTED_MODEL_ID = "e2e-mobile-interrupted-stream";
 export const MOBILE_E2E_DELAYED_MODEL_ID = "e2e-mobile-delayed-stream";
@@ -13,6 +14,7 @@ export const MOBILE_E2E_TIMEOUT_MODEL_ID = "e2e-mobile-timeout";
 
 export const MOBILE_E2E_MODEL_IDS = [
   MOBILE_E2E_MODEL_ID,
+  MOBILE_E2E_RICH_TEXT_MODEL_ID,
   MOBILE_E2E_HTTP_ERROR_MODEL_ID,
   MOBILE_E2E_INTERRUPTED_MODEL_ID,
   MOBILE_E2E_DELAYED_MODEL_ID,
@@ -21,6 +23,7 @@ export const MOBILE_E2E_MODEL_IDS = [
 
 export type MobileE2eResponseMode =
   | "attachment"
+  | "rich-text"
   | "http-error"
   | "interrupted-stream"
   | "delayed-stream"
@@ -29,6 +32,7 @@ export type MobileE2eResponseMode =
 export function responseModeForModel(
   model: string | null
 ): MobileE2eResponseMode {
+  if (model === MOBILE_E2E_RICH_TEXT_MODEL_ID) return "rich-text";
   if (model === MOBILE_E2E_HTTP_ERROR_MODEL_ID) return "http-error";
   if (model === MOBILE_E2E_INTERRUPTED_MODEL_ID) return "interrupted-stream";
   if (model === MOBILE_E2E_DELAYED_MODEL_ID) return "delayed-stream";
@@ -43,6 +47,7 @@ export function sseEventCountForMode(
 ): number {
   if (!streaming || !attachmentMatch || mode === "timeout") return 0;
   if (mode === "interrupted-stream" || mode === "delayed-stream") return 1;
+  if (mode === "rich-text") return 5;
   return 4;
 }
 
@@ -307,9 +312,17 @@ export function startMobileOpenAiConformanceServer(options: {
           }
         );
       }
-      const chunks = attachmentRequired
-        ? ["Attachment ", "verified ", "by Android E2E."]
-        : ["Android E2E Chat"];
+      const chunks =
+        mode === "rich-text"
+          ? [
+              "# Android assistant Markdown\n\n",
+              "```ts\nconst renderedInChat = true;\n```\n\n",
+              "Inline math: $E = mc^2$.\n\n",
+              '<span data-e2e-untrusted="1">literal HTML</span>',
+            ]
+          : attachmentRequired
+            ? ["Attachment ", "verified ", "by Android E2E."]
+            : ["Android E2E Chat"];
       if (body.stream === true) {
         return new Response(createSsePayload(chunks, "stop", requestId), {
           headers: sseHeaders(requestId),

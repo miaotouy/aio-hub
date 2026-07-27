@@ -62,7 +62,7 @@ describe("mobile OpenAI attachment summaries", () => {
     expect(sseEventCountForMode("timeout", true, true)).toBe(0);
     expect(sseEventCountForMode("interrupted-stream", true, true)).toBe(1);
     expect(sseEventCountForMode("attachment", true, true)).toBe(4);
-    expect(sseEventCountForMode("rich-text", true, true)).toBe(5);
+    expect(sseEventCountForMode("rich-text", true, true)).toBe(6);
   });
 });
 

@@ -52,6 +52,50 @@ describe("RichTextRenderer streaming lifecycle", () => {
   });
 });
 
+describe("RichTextRenderer GitHub-style alerts", () => {
+  it("renders a typed alert and removes its marker from the message body", () => {
+    const wrapper = mount(RichTextRenderer, {
+      props: {
+        content: `> [!WARNING]
+> Continue with **care** and [read the guide](https://example.com).
+>
+> A second paragraph remains part of the alert.`,
+      },
+    });
+
+    const alert = wrapper.get('[data-testid="rich-text-alert-warning"]');
+    expect(alert.attributes("role")).toBe("note");
+    expect(alert.get(".rich-text-alert__header").text()).toContain("Warning");
+    expect(alert.text()).toContain("Continue with care");
+    expect(alert.text()).toContain("A second paragraph remains part of the alert.");
+    expect(alert.text()).not.toContain("[!WARNING]");
+    expect(alert.get("a.md-link").attributes("href")).toBe(
+      "https://example.com"
+    );
+  });
+
+  it("keeps non-standard alert-like blockquotes as ordinary quotes", () => {
+    const wrapper = mount(RichTextRenderer, {
+      props: { content: "> [!NOTE] inline suffix\n> Ordinary quote text" },
+    });
+
+    expect(wrapper.find(".rich-text-alert").exists()).toBe(false);
+    expect(wrapper.get(".md-blockquote").text()).toContain(
+      "[!NOTE] inline suffix"
+    );
+  });
+
+  it("keeps an alert title visible while its streamed body is still incomplete", () => {
+    const wrapper = mount(RichTextRenderer, {
+      props: { content: "> [!TIP]", isStreaming: true },
+    });
+
+    expect(wrapper.get('[data-testid="rich-text-alert-tip"]').text()).toContain(
+      "Tip"
+    );
+  });
+});
+
 describe("RichTextRenderer mobile code blocks", () => {
   it("provides touch-sized wrapping and copy controls without changing code text", async () => {
     vi.useFakeTimers();

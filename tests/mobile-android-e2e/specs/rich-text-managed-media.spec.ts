@@ -146,6 +146,11 @@ export async function runRichTextManagedMediaScenario(
   }
   const formula = await assistant.$(".katex-inline .katex");
   await formula.waitForDisplayed({ timeout: 15_000 });
+  const alert = await assistant.$('[data-testid="rich-text-alert-tip"]');
+  await alert.waitForDisplayed({ timeout: 15_000 });
+  if (!(await alert.getText()).includes("Android alert content.")) {
+    throw new Error("Assistant GitHub-style alert did not render in the chat.");
+  }
   const assistantSelector =
     '[data-testid="chat-message"][data-message-role="assistant"][data-message-status="complete"]';
   const htmlFallback = await context.driver.waitUntil(
@@ -190,7 +195,7 @@ export async function runRichTextManagedMediaScenario(
   const request = context.deterministicRequests?.find(
     (summary) => summary.mode === "rich-text"
   );
-  if (!request || request.sseEventCount !== 5) {
+  if (!request || request.sseEventCount !== 6) {
     throw new Error("RichText chat reply did not use the expected SSE stream.");
   }
 
@@ -198,6 +203,7 @@ export async function runRichTextManagedMediaScenario(
     assetId,
     sourceKind: "managed-preview",
     assistantMarkdown: true,
+    assistantGitHubAlert: true,
     assistantRawHtmlLiteral: true,
   };
 }

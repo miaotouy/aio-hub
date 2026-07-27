@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { marked } from "marked";
 import { createModuleLogger } from "@/utils/logger";
 import ThinkBlock from "./components/ThinkBlock.vue";
+import AlertBlock from "./components/AlertBlock.vue";
 import CodeBlock from "./components/CodeBlock.vue";
 import KatexRenderer from "./components/KatexRenderer.vue";
 import MermaidDiagram from "./components/MermaidDiagram.vue";
@@ -214,10 +215,34 @@ function transformMathTokens(tokens: any[]): any[] {
   });
 }
 
+type AlertVariant = "note" | "tip" | "important" | "warning" | "caution";
+
+const ALERT_MARKER_PATTERN =
+  /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:\r?\n|$)/i;
+
+function transformAlertTokens(tokens: any[]): any[] {
+  return tokens.map((token) => {
+    if (token.type === "blockquote" && typeof token.text === "string") {
+      const marker = ALERT_MARKER_PATTERN.exec(token.text);
+      if (marker) {
+        return {
+          type: "alert",
+          variant: marker[1].toLowerCase() as AlertVariant,
+          tokens: parseMarkdownTokens(token.text.slice(marker[0].length)),
+        };
+      }
+    }
+    if (Array.isArray(token.tokens)) {
+      return { ...token, tokens: transformAlertTokens(token.tokens) };
+    }
+    return token;
+  });
+}
+
 function parseMarkdownTokens(text: string): any[] {
   if (!text) return [];
   try {
-    return transformMathTokens(marked.lexer(text));
+    return transformAlertTokens(transformMathTokens(marked.lexer(text)));
   } catch (error) {
     logger.error("Markdown 解析失败，降级为纯文本", error);
     return [{ type: "text", text }];
@@ -412,7 +437,19 @@ onBeforeUnmount(() => {
             :language="token.lang"
           />
 
-          <!-- 4. 引用块 -->
+          <!-- 4. GitHub 风格提示块 -->
+          <AlertBlock
+            v-else-if="token.type === 'alert'"
+            :variant="token.variant"
+          >
+            <RichTextRenderer
+              :tokens="token.tokens"
+              :resolve-asset="resolveAsset"
+              :resolve-media-item="resolveMediaItem"
+            />
+          </AlertBlock>
+
+          <!-- 5. 引用块 -->
           <blockquote
             v-else-if="token.type === 'blockquote'"
             class="md-blockquote"
@@ -424,7 +461,7 @@ onBeforeUnmount(() => {
             />
           </blockquote>
 
-          <!-- 5. 列表 -->
+          <!-- 6. 列表 -->
           <component
             v-else-if="token.type === 'list'"
             :is="token.ordered ? 'ol' : 'ul'"

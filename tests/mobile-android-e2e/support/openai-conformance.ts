@@ -47,7 +47,7 @@ export function sseEventCountForMode(
 ): number {
   if (!streaming || !attachmentMatch || mode === "timeout") return 0;
   if (mode === "interrupted-stream" || mode === "delayed-stream") return 1;
-  if (mode === "rich-text") return 5;
+  if (mode === "rich-text") return 6;
   return 4;
 }
 
@@ -328,6 +328,7 @@ export function startMobileOpenAiConformanceServer(options: {
               "# Android assistant Markdown\n\n",
               "```ts\nconst renderedInChat = true;\n```\n\n",
               "Inline math: $E = mc^2$.\n\n",
+              "> [!TIP]\n> Android alert content.\n\n",
               '<span data-e2e-untrusted="1">literal HTML</span>',
             ]
           : attachmentRequired

@@ -52,6 +52,7 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 - [ ] 迁移 PC 的 AST、流式处理、稳定区/待定区、Patch 更新和 Worker tokenizer 能力。
 - [x] 已完成基础非媒体代码节点：代码块提供复制和自动换行切换，并保留窄屏横向滚动与原文；受管媒体节点已接入，当前消息附件可经 `![说明](asset://<assetId>)` 复用 `MediaPreviewHost`，外部图片维持普通安全回退；VCP 展示节点已单独完成。桌面高亮、CodeMirror、导出和 HTML 预览不作为移动端初始对齐条件。
 - [x] 已接入 KaTeX 数学公式节点：支持行内 `$...$` 和块级 `$$...$$`，思考块内同样可用；KaTeX 关闭 trust，渲染失败回退为文本。
+- [x] 已接入 GitHub 风格 Markdown 提示块：仅识别引用首行完整的 `[!NOTE]`、`[!TIP]`、`[!IMPORTANT]`、`[!WARNING]` 与 `[!CAUTION]`，去除协议标记后递归复用安全 Markdown 渲染；近似标记保留为普通引用，不开启 HTML 或脚本执行面。
 - [x] 已先迁移桌面默认的 `<think>` / `<guguthink>` 思考块：完整块默认折叠，流式未闭合块保持可见的“思考中”状态；自定义规则 UI、完整 AST/Patch 语义仍待后续阶段。
 - [x] 已接入只读 VCP 协议输出块：角色分隔、工具请求/结果、日记和调用摘要以可折叠移动端卡片显示，未闭合流式请求保留生成状态；仅解析展示，绝不在移动端执行或连接桌面 VCP 工具调用链路。
 - [x] 已接入 Mermaid fenced code 的安全基础渲染：组件按需加载 Mermaid、使用 `securityLevel: "strict"`，以清洗后的 SVG DOM 挂载并仅保留片段引用；流式未闭合 fenced code 保持等待状态，渲染失败回退原始代码。缩放、导出、HTML 交互预览、样式隔离与 CDN 本地化仍待后续评估，且不把 PC 全量交互能力作为初始合并条件。
@@ -59,7 +60,7 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 - [ ] 后续如需重新启用 HTML 能力，必须先实现可审计的白名单或沙箱，不能恢复直接 `v-html`。
 - [x] 已完成可单测的流式渲染稳定性基础：中间 chunk 使用 80ms 快照节流，首内容、清空内容和流式结束立即刷新，组件卸载会清理流式与复制反馈 timer。
 - [ ] 完成 Android/iOS 真实设备上的窄屏、长消息、流式输出、滚动和内存释放验证；浏览器/Vitest 不能替代 Tauri WebView 和原生运行态门禁。
-  - 2026-07-27：runner-owned Android AVD `Medium_Phone_API_36`（SDK 36、x86_64）已通过 `rich-text` 与 `rich-text-media` 预设，验证 RichText 测试页的代码块、Mermaid DOM 挂载、自动换行、长无空格代码容器滚动，以及长 Markdown 流式进度、预览自动贴底、显式停止和 keep-alive 路由停用清理；正式聊天通过原生 reqwest 拉取式分块桥接逐块交给共享 SSE 解码器，已在 `generating` 状态挂载首个 Markdown 标题，并继续覆盖受管媒体。Android 真机、iOS 与内存释放仍是未完成门禁。
+  - 2026-07-27：runner-owned Android AVD `Medium_Phone_API_36`（SDK 36、x86_64）已通过 `rich-text` 与 `rich-text-media` 预设，验证 RichText 测试页的代码块、Mermaid DOM 挂载、自动换行、长无空格代码容器滚动，以及长 Markdown 流式进度、预览自动贴底、显式停止和 keep-alive 路由停用清理；正式聊天通过原生 reqwest 拉取式分块桥接逐块交给共享 SSE 解码器，已在 `generating` 状态挂载首个 Markdown 标题，并继续覆盖 GitHub 风格提示块和受管媒体。Android 真机、iOS 与内存释放仍是未完成门禁。
 - [ ] 功能迁移稳定后再依据真实设备数据决定 Web Worker、Rust 或原生下沉；没有性能证据时不重构为共享包。
 
 入口：[`rich-text-renderer-migration-plan.md`](../../src/tools/rich-text-renderer/docs/Plan/rich-text-renderer-migration-plan.md)。

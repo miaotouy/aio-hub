@@ -10,7 +10,9 @@ import {
 import {
   computed,
   nextTick,
+  onActivated,
   onBeforeUnmount,
+  onDeactivated,
   onMounted,
   ref,
   watch,
@@ -53,6 +55,7 @@ const videoRef = ref<InstanceType<typeof MediaVideoPlayer> | null>(null);
 let sourceFocus: HTMLElement | null = null;
 let previousBodyOverflow = "";
 let historyEntryActive = false;
+let wasDeactivated = false;
 
 const mediaItems = computed(() =>
   props.items?.length ? props.items : [props.item]
@@ -119,6 +122,16 @@ async function onPopState() {
   historyEntryActive = false;
   await closeImmersive();
   if (props.mode !== "inline") emit("update:modelValue", false);
+}
+
+async function suspendPreview() {
+  audioRef.value?.pause();
+  videoRef.value?.pause();
+  // A route navigation already owns history movement. Do not call history.back()
+  // from a deactivated keep-alive view, otherwise it can undo the route change.
+  historyEntryActive = false;
+  await closeImmersive();
+  await managed.close();
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -194,14 +207,21 @@ onMounted(() => {
   window.addEventListener("keydown", onKeydown);
 });
 
+onActivated(() => {
+  if (!wasDeactivated) return;
+  wasDeactivated = false;
+  if (props.modelValue) void openCurrent();
+});
+
+onDeactivated(() => {
+  wasDeactivated = true;
+  void suspendPreview();
+});
+
 onBeforeUnmount(() => {
   window.removeEventListener("popstate", onPopState);
   window.removeEventListener("keydown", onKeydown);
-  if (historyEntryActive) {
-    historyEntryActive = false;
-    window.history.back();
-  }
-  document.body.style.overflow = previousBodyOverflow;
+  void suspendPreview();
 });
 </script>
 

@@ -44,9 +44,10 @@ bun tests/mobile-android-e2e/run.ts --preset media --avd Medium_Phone_API_36
 
 This imports a generated WAV fixture and verifies its managed preview URL, metadata
 ready state, user-initiated native WebView audio playback with `currentTime`
-progression, pause stability, and expanded-player controls. The runner uses an AVD
-without audible output, so this is not evidence for device speakers, background
-audio, video playback, real-device, or iOS acceptance.
+progression, pause stability, keep-alive route deactivation/reacquisition, and
+expanded-player controls. The runner uses an AVD without audible output, so this
+is not evidence for device speakers, background audio, video playback, real-device,
+or iOS acceptance.
 
 Run the RichText narrow-screen regression lane:
 

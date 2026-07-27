@@ -1,6 +1,10 @@
 import { switchToNative, switchToWebview } from "../support/appium";
 import { chooseDocumentsUiFile } from "../support/android-selectors";
-import { clickTestElement, testElement } from "../support/webview";
+import {
+  clickTestElement,
+  testElement,
+  waitForTestElementGone,
+} from "../support/webview";
 import type { ScenarioContext } from "./context";
 
 const APP_PACKAGE = "com.aiohub.mobile";
@@ -72,9 +76,59 @@ export async function runAudioMediaScenario(context: ScenarioContext) {
   const playedSeconds = Number(
     await inlinePlayer.getAttribute("data-current-time")
   );
-  await playToggle.click();
+
+  await context.driver.execute(() => {
+    window.location.hash = "#/";
+  });
+  await waitForTestElementGone(context.driver, "asset-detail");
+  await context.driver.execute(() => {
+    window.location.hash = "#/tools/asset-manager";
+  });
+  await testElement(context.driver, "asset-manager-view");
+  await testElement(context.driver, "asset-detail");
+  const restoredPreviewHost = await testElement(
+    context.driver,
+    "asset-preview-ready",
+    30_000
+  );
   await context.driver.waitUntil(
-    async () => (await inlinePlayer.getAttribute("data-playing")) === "false",
+    async () =>
+      (await restoredPreviewHost.getAttribute("data-state")) === "ready",
+    {
+      timeout: 20_000,
+      interval: 250,
+      timeoutMsg:
+        "Managed audio preview did not recover after keep-alive route activation.",
+    }
+  );
+  const restoredPlayer = await testElement(
+    context.driver,
+    "media-audio-player"
+  );
+  if ((await restoredPlayer.getAttribute("data-playing")) !== "false") {
+    throw new Error(
+      "Managed audio was still playing after leaving the asset route."
+    );
+  }
+
+  const restoredPlayToggle = await testElement(
+    context.driver,
+    "media-audio-play-toggle"
+  );
+  await restoredPlayToggle.click();
+  await context.driver.waitUntil(
+    async () =>
+      (await restoredPlayer.getAttribute("data-playing")) === "true" &&
+      Number(await restoredPlayer.getAttribute("data-current-time")) > 0,
+    {
+      timeout: 15_000,
+      interval: 250,
+      timeoutMsg: "Reactivated managed audio did not begin playback.",
+    }
+  );
+  await restoredPlayToggle.click();
+  await context.driver.waitUntil(
+    async () => (await restoredPlayer.getAttribute("data-playing")) === "false",
     {
       timeout: 5_000,
       interval: 100,
@@ -86,11 +140,11 @@ export async function runAudioMediaScenario(context: ScenarioContext) {
   // that event settle, then assert that the paused clock no longer advances.
   await context.driver.pause(500);
   const pausedSeconds = Number(
-    await inlinePlayer.getAttribute("data-current-time")
+    await restoredPlayer.getAttribute("data-current-time")
   );
   await context.driver.pause(500);
   const pausedSecondsAfterWait = Number(
-    await inlinePlayer.getAttribute("data-current-time")
+    await restoredPlayer.getAttribute("data-current-time")
   );
   if (Math.abs(pausedSecondsAfterWait - pausedSeconds) > 0.05) {
     throw new Error(

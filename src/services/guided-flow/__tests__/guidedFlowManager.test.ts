@@ -268,6 +268,38 @@ describe("GuidedFlowManager", () => {
     });
   });
 
+  it("runs a step-owned action with busy state, persistence, and error reporting", async () => {
+    const registry = new GuidedFlowRegistry();
+    registry.register(createFlow("step-action"));
+    const persistence = new MemoryPersistence();
+    const manager = new GuidedFlowManager(registry, persistence);
+    const busyStates: boolean[] = [];
+    manager.subscribe((snapshot) => busyStates.push(snapshot.isBusy));
+
+    await manager.trigger("step-action");
+    await manager.runActiveStepAction("执行步骤操作", async (context) => {
+      context.result = "completed";
+    });
+
+    expect(manager.getSnapshot().activeFlow?.state.context).toMatchObject({
+      result: "completed",
+    });
+    expect(persistence.snapshot()["step-action"].context).toMatchObject({
+      result: "completed",
+    });
+    expect(busyStates).toContain(true);
+    expect(busyStates[busyStates.length - 1]).toBe(false);
+
+    await expect(
+      manager.runActiveStepAction("失败步骤操作", async () => {
+        throw new Error("action failed");
+      })
+    ).rejects.toThrow("action failed");
+    expect(manager.getSnapshot().activeFlow?.state.lastError).toBe(
+      "action failed"
+    );
+  });
+
   it("deduplicates concurrent initialization calls", async () => {
     const registry = new GuidedFlowRegistry();
     let loadCount = 0;

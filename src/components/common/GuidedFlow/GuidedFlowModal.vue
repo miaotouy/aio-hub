@@ -16,12 +16,16 @@
 
 <script setup lang="ts">
 import BaseDialog from "@/components/common/BaseDialog.vue";
-import type { GuidedFlowRuntime } from "@/services/guided-flow";
+import type {
+  GuidedFlowRuntime,
+  GuidedFlowStepAction,
+} from "@/services/guided-flow";
 import GuidedFlowShell from "./GuidedFlowShell.vue";
 
 const props = defineProps<{
   runtime: GuidedFlowRuntime | null;
   busy: boolean;
+  runStepAction: GuidedFlowStepAction<Record<string, unknown>>;
 }>();
 
 const emit = defineEmits<{
@@ -49,6 +53,7 @@ const emit = defineEmits<{
       v-if="runtime"
       :runtime="runtime"
       :busy="busy"
+      :run-step-action="runStepAction"
       @next="emit('next')"
       @back="emit('back')"
       @request-close="emit('requestClose')"

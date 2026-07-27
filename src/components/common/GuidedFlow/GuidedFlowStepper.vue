@@ -72,6 +72,7 @@ ol {
   width: 100%;
   min-width: 0;
   align-items: center;
+  justify-content: center;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -80,13 +81,9 @@ ol {
 li {
   display: flex;
   min-width: 0;
-  flex: 1 1 0;
+  flex: 0 0 auto;
   align-items: center;
   color: var(--text-color-secondary);
-}
-
-li:last-child {
-  flex: 0 0 auto;
 }
 
 .step-dot {
@@ -119,10 +116,10 @@ li:last-child {
 }
 
 .step-connector {
-  min-width: 4px;
+  width: 32px;
   height: 1px;
-  flex: 1 1 auto;
-  margin: 0 7px;
+  flex: 0 0 32px;
+  margin: 0 8px;
   background: var(--border-color);
 }
 

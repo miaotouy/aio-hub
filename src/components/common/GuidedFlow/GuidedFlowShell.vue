@@ -15,9 +15,13 @@
 -->
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, provide } from "vue";
 import { Close } from "@element-plus/icons-vue";
-import type { GuidedFlowRuntime } from "@/services/guided-flow";
+import { guidedFlowStepControlsKey } from "@/services/guided-flow/stepControls";
+import type {
+  GuidedFlowRuntime,
+  GuidedFlowStepAction,
+} from "@/services/guided-flow/types";
 import GuidedFlowFooter from "./GuidedFlowFooter.vue";
 import GuidedFlowProgress from "./GuidedFlowProgress.vue";
 import GuidedFlowStepper from "./GuidedFlowStepper.vue";
@@ -25,6 +29,7 @@ import GuidedFlowStepper from "./GuidedFlowStepper.vue";
 const props = defineProps<{
   runtime: GuidedFlowRuntime;
   busy: boolean;
+  runStepAction: GuidedFlowStepAction<Record<string, unknown>>;
 }>();
 
 const emit = defineEmits<{
@@ -53,6 +58,14 @@ const closeAriaLabel = computed(() =>
     ? "关闭版本说明"
     : (props.runtime.definition.dismissLabel ?? "稍后处理")
 );
+
+provide(guidedFlowStepControlsKey, {
+  isBusy: computed(() => props.busy),
+  canGoBack: computed(() => currentIndex.value > 0),
+  runAction: props.runStepAction,
+  requestNext: () => emit("next"),
+  requestBack: () => emit("back"),
+});
 </script>
 
 <template>
@@ -65,11 +78,7 @@ const closeAriaLabel = computed(() =>
   >
     <header class="guided-flow-header">
       <div class="header-copy">
-        <p class="eyebrow">{{ runtime.definition.trigger }}</p>
         <h2>{{ runtime.definition.title }}</h2>
-        <p v-if="runtime.definition.description" class="flow-description">
-          {{ runtime.definition.description }}
-        </p>
       </div>
       <el-button
         v-if="canRequestClose"
@@ -113,6 +122,7 @@ const closeAriaLabel = computed(() =>
     </main>
 
     <GuidedFlowFooter
+      v-if="currentStep?.footer !== 'step'"
       :runtime="runtime"
       :busy="busy"
       @next="emit('next')"
@@ -135,22 +145,15 @@ const closeAriaLabel = computed(() =>
 
 .guided-flow-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
   border-bottom: 1px solid var(--border-color);
-  padding: 24px 24px 18px;
+  padding: 18px 24px;
 }
 
 .header-copy {
   min-width: 0;
-}
-
-.eyebrow {
-  margin: 0 0 5px;
-  color: var(--text-color-secondary);
-  font-size: 12px;
-  text-transform: uppercase;
 }
 
 h2 {
@@ -160,7 +163,6 @@ h2 {
   line-height: 1.35;
 }
 
-.flow-description,
 .step-description {
   margin: 8px 0 0;
   color: var(--text-color-secondary);

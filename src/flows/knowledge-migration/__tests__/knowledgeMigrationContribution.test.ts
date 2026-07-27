@@ -9,6 +9,7 @@ import type {
   UpgradeFlowContext,
 } from "@/flows/upgrade/types";
 import { registerKnowledgeMigrationContribution } from "../knowledgeMigrationContribution";
+import { executeKnowledgeMigration } from "../knowledgeMigrationOperations";
 import {
   isKnowledgeMigrationReportComplete,
   KNOWLEDGE_MIGRATION_CONTRIBUTION_ID,
@@ -107,16 +108,13 @@ describe("knowledge migration contribution", () => {
     registerKnowledgeMigrationContribution();
   });
 
-  it("groups migration work into three user-facing steps", () => {
+  it("groups migration work into one user-facing step", () => {
     const definition = upgradeContributionRegistry.get(
       KNOWLEDGE_MIGRATION_CONTRIBUTION_ID
     )!;
 
-    expect(definition.steps.map((step) => step.id)).toEqual([
-      "plan",
-      "result",
-      "cleanup",
-    ]);
+    expect(definition.steps.map((step) => step.id)).toEqual(["migration"]);
+    expect(definition.steps[0].footer).toBe("step");
   });
 
   it.each([
@@ -187,18 +185,16 @@ describe("knowledge migration contribution", () => {
         },
       },
     };
-    const planStep = definition.steps.find((step) => step.id === "plan")!;
-    expect(await planStep.validate?.(context)).toBe(false);
+    const migrationStep = definition.steps[0];
+    expect(await migrationStep.validate?.(context)).toBe(false);
     const snapshot = context.contributions[KNOWLEDGE_MIGRATION_CONTRIBUTION_ID]
       .snapshot as any;
     snapshot.backupConfirmed = true;
     snapshot.riskConfirmed = true;
-    expect(await planStep.validate?.(context)).toBe(true);
 
     mocks.invoke.mockResolvedValueOnce(preview);
     mocks.invoke.mockResolvedValueOnce(report);
-    const resultStep = definition.steps.find((step) => step.id === "result")!;
-    await resultStep.onEnter?.(context);
+    await executeKnowledgeMigration(context);
 
     expect(mocks.invoke).toHaveBeenLastCalledWith(
       "recall_run_legacy_migration",
@@ -212,9 +208,47 @@ describe("knowledge migration contribution", () => {
     );
     expect(snapshot.executionStatus).toBe("partial");
     expect(snapshot.report.pendingVectors).toBe(2);
+    expect(await migrationStep.validate?.(context)).toBe(true);
     expect(
       context.contributions[KNOWLEDGE_MIGRATION_CONTRIBUTION_ID].status
     ).toBe("pending");
+  });
+
+  it("requires DELETE only when a complete report is selected for cleanup", async () => {
+    mocks.invoke.mockResolvedValueOnce(preview);
+    const definition = upgradeContributionRegistry.get(
+      KNOWLEDGE_MIGRATION_CONTRIBUTION_ID
+    )!;
+    const detected = await definition.detect({
+      currentVersion: release.version,
+    });
+    const context: UpgradeFlowContext = {
+      mode: "automatic",
+      currentVersion: release.version,
+      releaseVersions: [release.version],
+      primaryReleaseVersion: release.version,
+      transition: "upgrade",
+      contributions: {
+        [KNOWLEDGE_MIGRATION_CONTRIBUTION_ID]: {
+          ...detected!,
+          revision: definition.revision,
+          title: definition.title,
+        },
+      },
+    };
+    const snapshot = context.contributions[KNOWLEDGE_MIGRATION_CONTRIBUTION_ID]
+      .snapshot as any;
+    snapshot.report = {
+      ...report,
+      vectorStatus: "completed",
+      pendingVectors: 0,
+      issues: [],
+    };
+    snapshot.cleanupChoice = "cleanup";
+
+    expect(definition.steps[0].validate?.(context)).toBe(false);
+    snapshot.cleanupConfirmation = "DELETE";
+    expect(definition.steps[0].validate?.(context)).toBe(true);
   });
 
   it("re-runs migration after a partial main-data report", async () => {
@@ -265,14 +299,14 @@ describe("knowledge migration contribution", () => {
       .mockResolvedValueOnce(partial)
       .mockResolvedValueOnce(preview)
       .mockResolvedValueOnce(complete);
-    const resultStep = definition.steps.find((step) => step.id === "result")!;
+    const migrationStep = definition.steps[0];
 
-    await resultStep.onEnter?.(context);
-    expect(resultStep.validate?.(context)).toBe(false);
-    await resultStep.onEnter?.(context);
+    await executeKnowledgeMigration(context);
+    expect(migrationStep.validate?.(context)).toBe(false);
+    await executeKnowledgeMigration(context);
 
     expect(mocks.invoke).toHaveBeenCalledTimes(4);
-    expect(resultStep.validate?.(context)).toBe(true);
+    expect(migrationStep.validate?.(context)).toBe(true);
     expect(
       context.contributions[KNOWLEDGE_MIGRATION_CONTRIBUTION_ID].status
     ).toBe("completed");

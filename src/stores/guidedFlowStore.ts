@@ -18,6 +18,7 @@ import { guidedFlowManager } from "@/services/guided-flow";
 import type {
   GuidedFlowOpenOptions,
   GuidedFlowRuntime,
+  GuidedFlowStepAction,
 } from "@/services/guided-flow";
 
 export const useGuidedFlowStore = defineStore("guidedFlow", () => {
@@ -73,6 +74,13 @@ export const useGuidedFlowStore = defineStore("guidedFlow", () => {
     await guidedFlowManager.updateActiveContext(updates);
   }
 
+  async function runStepAction(
+    action: string,
+    operation: Parameters<GuidedFlowStepAction<Record<string, unknown>>>[1]
+  ) {
+    await guidedFlowManager.runActiveStepAction(action, operation);
+  }
+
   return {
     activeFlow,
     queuedFlowIds,
@@ -88,5 +96,6 @@ export const useGuidedFlowStore = defineStore("guidedFlow", () => {
     skip,
     retry,
     updateContext,
+    runStepAction,
   };
 });

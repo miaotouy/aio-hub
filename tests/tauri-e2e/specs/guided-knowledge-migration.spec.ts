@@ -87,7 +87,7 @@ migrationDescribe("Guided legacy Knowledge migration", () => {
     const expectedIssues = expectedCount("AIO_E2E_MIGRATION_EXPECTED_ISSUES");
     const artifactDir = requiredEnv("AIO_E2E_ARTIFACT_DIR");
 
-    await advanceToStep("contribution:knowledge-migration:plan");
+    await advanceToStep("contribution:knowledge-migration:migration");
     await $(".migration-step").waitForDisplayed();
     if (
       (await exactMetricValue(
@@ -128,7 +128,7 @@ migrationDescribe("Guided legacy Knowledge migration", () => {
     await $(".backup-step .confirm-card:nth-of-type(2) .el-checkbox").click();
     await browser.waitUntil(
       async () =>
-        (await $(".guided-flow-footer .el-button--primary").getAttribute(
+        (await $('[data-testid="migration-start"]').getAttribute(
           "disabled"
         )) === null,
       {
@@ -137,8 +137,8 @@ migrationDescribe("Guided legacy Knowledge migration", () => {
       }
     );
 
-    await $(".guided-flow-footer .el-button--primary").click();
-    await expectCurrentStep("contribution:knowledge-migration:result");
+    await $('[data-testid="migration-start"]').click();
+    await expectCurrentStep("contribution:knowledge-migration:migration");
     await $(".verify-step .status-grid").waitForDisplayed({
       timeout: 60_000,
     });
@@ -201,10 +201,8 @@ migrationDescribe("Guided legacy Knowledge migration", () => {
       );
     }
 
-    await $('[data-testid="guided-flow-next"]').click();
-    await expectCurrentStep("contribution:knowledge-migration:cleanup");
     await $('[data-testid="migration-cleanup"]').waitForDisplayed();
-    await $('[data-testid="guided-flow-next"]').click();
+    await $('[data-testid="migration-finish"]').click();
     await expectCurrentStep("complete");
     await $('[data-testid="guided-flow-next"]').click();
     await browser.waitUntil(

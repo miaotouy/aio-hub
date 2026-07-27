@@ -30,6 +30,7 @@ import type {
   GuidedFlowSnapshot,
   GuidedFlowState,
   GuidedFlowStep,
+  GuidedFlowStepAction,
   GuidedFlowTerminalStatus,
 } from "./types";
 
@@ -298,6 +299,19 @@ export class GuidedFlowManager {
       const context = this.getContext(runtime.state);
       Object.assign(context, cloneValue(updates));
       runtime.state.context = context;
+      runtime.state.updatedAt = now();
+      await this.persistActiveState();
+    });
+  }
+
+  async runActiveStepAction(
+    action: string,
+    operation: Parameters<GuidedFlowStepAction<Record<string, unknown>>>[1]
+  ): Promise<void> {
+    await this.run(action, async () => {
+      const runtime = this.requireActiveFlow();
+      await operation(this.getContext(runtime.state));
+      runtime.state.lastError = undefined;
       runtime.state.updatedAt = now();
       await this.persistActiveState();
     });

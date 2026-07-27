@@ -353,15 +353,16 @@ RecallState::initialize()
 ```text
 src/flows/knowledge-migration/
   knowledgeMigrationContribution.ts
+  knowledgeMigrationOperations.ts
   components/
+    MigrationStep.vue           # 单个可见步骤，管理确认、执行、校验与清理子状态
     MigrationPlanStep.vue       # 组合检测、预览、备份与风险确认
-    MigrationResultStep.vue     # 组合执行进度与结构化校验报告
-    MigrationCleanupStep.vue    # 独立、默认不执行的清理确认
+    MigrationCleanupStep.vue    # 默认不执行的清理确认
     MigrationDiscoveryStep.vue  # 由 Plan 组合复用
     MigrationPreviewStep.vue    # 由 Plan 组合复用
     MigrationBackupStep.vue     # 由 Plan 组合复用
-    MigrationExecuteStep.vue    # 由 Result 组合复用
-    MigrationVerifyStep.vue     # 由 Result 组合复用
+    MigrationExecuteStep.vue    # 由 MigrationStep 组合复用
+    MigrationVerifyStep.vue     # 由 MigrationStep 组合复用
 ```
 
 流程上下文只保存：
@@ -455,14 +456,14 @@ src/flows/knowledge-migration/
 
 ### Phase 2：接入 Guided Flow（已完成）
 
-- 实现检测、预览、备份确认、执行和校验动作，并按用户决策收敛为“迁移方案与确认”“迁移与校验”两个页面；通用完成页由升级流程统一提供；
+- 实现检测、预览、备份确认、执行和校验动作，并收敛为单个“旧知识库数据迁移”可见步骤；步骤内部管理确认、执行、校验与清理子状态，通用完成页由升级流程统一提供；
 - 在升级中心、关于页和知识库入口提供打开方式；
 - 显示真实任务进度和结构化报告；
 - 支持延后和恢复。
 
 ### Phase 3：清理和发布收口（合成数据 E2E 已完成，发布验收待补）
 
-- [已完成] 增加独立旧目录清理步骤；知识库迁移 contribution 共 3 个可见步骤，与版本概览和通用完成页组合后最多 5 步；以新的 staged 合成 appData 验证仅删除 `bases`/`vectors` 等受管 legacy 目录，保留 Recall SQLite 真源、Guided Flow 报告和无关 `knowledge_meta.db` 文件；
+- [已完成] 将旧目录清理并入迁移步骤的校验子状态；知识库迁移 contribution 仅保留 1 个可见步骤，与版本概览和通用完成页组合后共 3 步；以新的 staged 合成 appData 验证仅删除 `bases`/`vectors` 等受管 legacy 目录，保留 Recall SQLite 真源、Guided Flow 报告和无关 `knowledge_meta.db` 文件；
 - [已完成] `migration-minimal` 在真实 Tauri 中覆盖首次只读检测、显式确认、迁移报告交叉核对与同根重启幂等；`migration-cleanup` 覆盖可见清理确认；
 - [待完成] 进程中断、重试、部分成功和 source fingerprint 变化测试；中断必须终止完整 Tauri 进程后同根重启，不能只关闭前端弹窗；
 - 更新架构文档和用户指南；

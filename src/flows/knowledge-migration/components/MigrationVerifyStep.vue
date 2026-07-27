@@ -80,7 +80,7 @@
         </ul>
       </div>
     </template>
-    <el-empty v-else description="尚无迁移报告，请返回并重试执行步骤。" />
+    <el-empty v-else description="尚无迁移报告，请返回方案并重新执行迁移。" />
   </div>
 </template>
 

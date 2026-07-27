@@ -89,6 +89,19 @@ export interface KnowledgeMigrationSnapshot {
   removedPaths?: string[];
 }
 
+export function canCompleteKnowledgeMigration(
+  snapshot: KnowledgeMigrationSnapshot
+): boolean {
+  if (snapshot.report?.mainStatus !== "completed") return false;
+  if (
+    isKnowledgeMigrationReportComplete(snapshot.report) &&
+    snapshot.cleanupChoice === "cleanup"
+  ) {
+    return snapshot.cleanupConfirmation === "DELETE";
+  }
+  return true;
+}
+
 export function getKnowledgeMigrationSnapshot(
   context: UpgradeFlowContext
 ): KnowledgeMigrationSnapshot {

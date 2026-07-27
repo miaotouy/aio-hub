@@ -30,6 +30,11 @@ export type GuidedFlowRuntimeMode = "persistent" | "replay";
 
 export type GuidedFlowTerminalStatus = "completed" | "skipped" | "deferred";
 
+export type GuidedFlowStepAction<TContext> = (
+  action: string,
+  operation: (context: TContext) => Promise<void> | void
+) => Promise<void>;
+
 export interface GuidedFlowStepComponentProps<TContext> {
   context: TContext;
   flowState: GuidedFlowState;
@@ -42,6 +47,7 @@ export interface GuidedFlowStep<TContext> {
   description?: string;
   nextLabel?: string;
   backLabel?: string;
+  footer?: "default" | "step";
   component: Component;
   when?: (context: TContext) => boolean;
   onEnter?: (context: TContext) => Promise<void> | void;

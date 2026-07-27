@@ -97,14 +97,14 @@ cleanupDescribe("Guided legacy Knowledge migration cleanup", () => {
     fs.mkdirSync(path.dirname(sentinelPath), { recursive: true });
     fs.writeFileSync(sentinelPath, SENTINEL_CONTENT, "utf8");
 
-    await advanceToStep("contribution:knowledge-migration:plan");
+    await advanceToStep("contribution:knowledge-migration:migration");
     await $('[data-testid="migration-plan"]').waitForDisplayed();
 
     await $(".backup-step .confirm-card:nth-of-type(1) .el-checkbox").click();
     await $(".backup-step .confirm-card:nth-of-type(2) .el-checkbox").click();
     await browser.waitUntil(
       async () =>
-        (await $('[data-testid="guided-flow-next"]').getAttribute(
+        (await $('[data-testid="migration-start"]').getAttribute(
           "disabled"
         )) === null,
       {
@@ -113,13 +113,11 @@ cleanupDescribe("Guided legacy Knowledge migration cleanup", () => {
       }
     );
 
-    await $('[data-testid="guided-flow-next"]').click();
-    await expectCurrentStep("contribution:knowledge-migration:result");
+    await $('[data-testid="migration-start"]').click();
+    await expectCurrentStep("contribution:knowledge-migration:migration");
     await $('[data-testid="migration-verify"]').waitForDisplayed({
       timeout: 60_000,
     });
-    await $('[data-testid="guided-flow-next"]').click();
-    await expectCurrentStep("contribution:knowledge-migration:cleanup");
 
     const allowedPaths = requiredRelativePaths();
     for (const relativePath of allowedPaths) {
@@ -148,7 +146,7 @@ cleanupDescribe("Guided legacy Knowledge migration cleanup", () => {
     await confirmation.setValue("DELETE");
     await browser.waitUntil(
       async () =>
-        (await $('[data-testid="guided-flow-next"]').getAttribute(
+        (await $('[data-testid="migration-finish"]').getAttribute(
           "disabled"
         )) === null,
       {
@@ -157,7 +155,7 @@ cleanupDescribe("Guided legacy Knowledge migration cleanup", () => {
       }
     );
 
-    await $('[data-testid="guided-flow-next"]').click();
+    await $('[data-testid="migration-finish"]').click();
     await expectCurrentStep("complete");
 
     const expectedRemoved = [

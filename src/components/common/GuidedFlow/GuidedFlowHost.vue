@@ -38,6 +38,7 @@ onMounted(() => {
   <GuidedFlowModal
     :runtime="guidedFlowStore.activeFlow"
     :busy="guidedFlowStore.isBusy"
+    :run-step-action="guidedFlowStore.runStepAction"
     @next="run(() => guidedFlowStore.next())"
     @back="run(() => guidedFlowStore.back())"
     @request-close="run(() => guidedFlowStore.requestClose())"

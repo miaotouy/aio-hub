@@ -51,8 +51,8 @@ const transitionLabel = computed(() => {
       <span class="version-badge">v{{ context.currentVersion }}</span>
       <h3>{{ transitionLabel }}</h3>
       <p>
-        本流程包含 {{ manifests.length }} 份本地版本说明<span
-          v-if="contributionCount"
+        AIO Hub {{ context.currentVersion }} 的版本变化与待处理事项。本流程包含
+        {{ manifests.length }} 份本地版本说明<span v-if="contributionCount"
           >，以及 {{ contributionCount }} 个需要确认的升级事项</span
         >。
       </p>

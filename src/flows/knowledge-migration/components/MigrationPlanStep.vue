@@ -43,7 +43,7 @@ const requiresConfirmation = computed(
       type="success"
       show-icon
       title="此来源的主数据迁移已经完成"
-      description="无需再次确认写入；下一步会展示已保存的校验报告。"
+      description="无需再次确认写入；可以直接查看已保存的校验报告。"
     />
   </div>
 </template>

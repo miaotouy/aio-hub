@@ -1,6 +1,6 @@
 <template>
   <div class="execute-step" data-testid="migration-execute">
-    <div v-if="!snapshot.report" class="running-card">
+    <div v-if="forceRunning || !snapshot.report" class="running-card">
       <el-icon class="is-loading"><Loading /></el-icon>
       <h3>正在迁移旧数据</h3>
       <p>{{ phaseLabel }}</p>
@@ -47,7 +47,11 @@ import {
   type RecallMigrationProgress,
 } from "../types";
 
-const props = defineProps<{ context: UpgradeFlowContext }>();
+const props = withDefaults(
+  defineProps<{ context: UpgradeFlowContext; forceRunning?: boolean }>(),
+  { forceRunning: false }
+);
+const forceRunning = computed(() => props.forceRunning);
 const snapshot = computed(() => getKnowledgeMigrationSnapshot(props.context));
 const progress = reactive<RecallMigrationProgress>({
   migrationId: snapshot.value.preview.migrationId,

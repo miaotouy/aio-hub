@@ -5,6 +5,7 @@
 > 最近核对：2026-07-27
 > 负责人: 咕咕-kilo
 > 跨模块施工索引：[`mobile-development-checklist.md`](../../../../../docs/plan/mobile-development-checklist.md)
+> 稳定架构：[`ARCHITECTURE.md`](../../ARCHITECTURE.md)
 
 ## 1. 背景与目标
 

@@ -8,7 +8,11 @@ defineProps<{
 </script>
 
 <template>
-  <div class="rich-text-managed-media" data-testid="rich-text-managed-media">
+  <div
+    class="rich-text-managed-media"
+    data-testid="rich-text-managed-media"
+    :data-asset-id="item.assetId"
+  >
     <MediaPreviewHost :model-value="true" :item="item" mode="inline" />
   </div>
 </template>

@@ -17,4 +17,13 @@ describe("mobile E2E preset gates", () => {
     expect(preset.requiresDeterministicServer).toBe(false);
     expect(preset.requiresOllama).toBe(false);
   });
+
+  it("registers the RichText managed-media scenario with deterministic transport", () => {
+    const preset = MOBILE_E2E_PRESETS["rich-text-media"];
+    expect(preset.scenarios.map((scenario) => scenario.id)).toEqual([
+      "rich-text-managed-media",
+    ]);
+    expect(preset.requiresDeterministicServer).toBe(true);
+    expect(preset.requiresOllama).toBe(false);
+  });
 });

@@ -67,7 +67,7 @@ RichTextRenderer 可以独立工作树并行开发。建议工作树只修改：
 - [x] 已接入只读 VCP 输出块：角色分隔、工具请求（含 `TOOL_REQUEST_ESCAPE`）、调用结果、日记和本轮摘要会去除协议围栏后以可折叠卡片显示；流式未闭合请求保持可见。该能力只负责安全展示，既不连接也不执行桌面 `vcp-connector` / `tool-calling` 协议。
 - [x] 已接入 KaTeX 行内/块级公式，并在思考块内复用；`trust: false`，失败时不执行 HTML 或脚本。
 - [x] 已实现桌面默认 `<think>` / `<guguthink>` 的移动端折叠块和未闭合流式状态；不提前伪造自定义规则 UI 或完整 AST/Patch 管线。
-- [x] 已接入受管资产媒体节点：当前消息内的 Markdown `![说明](asset://<assetId>)` 仅在 `<assetId>` 匹配该消息 `attachments` 时解析为稳定 `MediaItem`，并复用 `MediaPreviewHost` 处理 descriptor、打开和卸载；外部图片继续走普通安全 `<img>` 回退。解析器不会根据模型文本探测任意资产，也不复制 PC 的 `BaseDialog`、`ImageViewer`、`AudioPlayer`、`VideoPlayer` 或桌面 composable。Android/iOS 手势与真实播放仍待设备门禁。
+- [x] 已接入受管资产媒体节点：当前消息内的 Markdown `![说明](asset://<assetId>)` 仅在 `<assetId>` 匹配该消息 `attachments` 时解析为稳定 `MediaItem`，并复用 `MediaPreviewHost` 处理 descriptor、打开和卸载；外部图片继续走普通安全 `<img>` 回退。解析器不会根据模型文本探测任意资产，也不复制 PC 的 `BaseDialog`、`ImageViewer`、`AudioPlayer`、`VideoPlayer` 或桌面 composable。2026-07-27 的 Android AVD `rich-text-media` 回归已覆盖消息自有图片 asset 的 Markdown 解析、managed preview URL、inline ready 和沉浸层打开/关闭；Android/iOS 手势、真实播放与真机门禁仍待完成。
 - [x] 已实现 Mermaid fenced code 的安全基础渲染：运行时按需加载 Mermaid，固定 `securityLevel: "strict"`，解析 SVG 后以 DOM 挂载并清除事件属性及非片段链接；流式未闭合 fenced code 仅显示等待状态，渲染失败保留原始代码。尚未迁移缩放、导出、自动修复、HTML 交互预览、样式隔离和 CDN 本地化，高级交互仍须按移动端能力分批启用。
 - [x] 当前移动端已禁用 raw `v-html`，并拒绝锚点、HTTP(S) 与 `mailto:` 之外的 Markdown 链接协议：未受信任 HTML token 仅以字面文本显示，不产生 DOM 节点或脚本执行面。
 - [ ] 后续如需启用 HTML 输出，必须先实现可审计的白名单或沙箱；不得恢复直接 `v-html`。

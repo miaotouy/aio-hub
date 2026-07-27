@@ -9,6 +9,7 @@ import {
 import { runFailureRecoveryScenario } from "./specs/failure-recovery.spec";
 import { runAudioMediaScenario } from "./specs/audio-media.spec";
 import { runRichTextRendererScenario } from "./specs/rich-text-renderer.spec";
+import { runRichTextManagedMediaScenario } from "./specs/rich-text-managed-media.spec";
 import type { MobileE2ePresetId } from "./support/runner-options";
 
 export interface MobileE2ePreset {
@@ -70,6 +71,16 @@ export const MOBILE_E2E_PRESETS: Record<MobileE2ePresetId, MobileE2ePreset> = {
     purpose: "RichText code, Mermaid, and narrow-screen long-code rendering",
     scenarios: [{ id: "rich-text-renderer", run: runRichTextRendererScenario }],
     requiresDeterministicServer: false,
+    requiresOllama: false,
+    apkSizeBaselineBytes: E2E_APK_SIZE_BASELINE_BYTES,
+  },
+  "rich-text-media": {
+    id: "rich-text-media",
+    purpose: "Managed Markdown asset rendering through the chat RichText entry",
+    scenarios: [
+      { id: "rich-text-managed-media", run: runRichTextManagedMediaScenario },
+    ],
+    requiresDeterministicServer: true,
     requiresOllama: false,
     apkSizeBaselineBytes: E2E_APK_SIZE_BASELINE_BYTES,
   },

@@ -64,7 +64,7 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 
 入口：[`rich-text-renderer-migration-plan.md`](../../src/tools/rich-text-renderer/docs/Plan/rich-text-renderer-migration-plan.md)。
 
-当前可复用基础：资产服务已提供短期预览来源和主动撤销命令；`mobile/src/components/media/` 已落地统一 host、三类媒体主体和 descriptor 生命周期，`AssetDetailSheet`、聊天 `MessageContent` 与 RichTextRenderer 的受管 Markdown 资产入口均已接入该契约。资产详情通过可选 `imageTestId` 将稳定的图片元素标识限定在资产调用方；2026-07-26 的 Android AVD 已通过资产图片预览、聊天附件及 WAV 音频受控预览/沉浸层控制 APK 回归，2026-07-27 的新构建又通过 `media` / `audio-media` AVD 回归。RichText 受管资产的独立设备场景以及其余设备交互验收继续以 [`mobile-media-components-plan.md`](./mobile-media-components-plan.md) 为准。
+当前可复用基础：资产服务已提供短期预览来源和主动撤销命令；`mobile/src/components/media/` 已落地统一 host、三类媒体主体和 descriptor 生命周期，`AssetDetailSheet`、聊天 `MessageContent` 与 RichTextRenderer 的受管 Markdown 资产入口均已接入该契约。资产详情通过可选 `imageTestId` 将稳定的图片元素标识限定在资产调用方；2026-07-26 的 Android AVD 已通过资产图片预览、聊天附件及 WAV 音频受控预览/沉浸层控制 APK 回归，2026-07-27 的新构建又通过 `media` / `audio-media` AVD 回归。2026-07-27 的 `rich-text-media` AVD 预设已覆盖消息自有图片 `asset://` Markdown 到 `MediaPreviewHost` 的 descriptor、inline ready 与沉浸层打开/关闭；其余手势、真实播放、Android 真机与 iOS 验收继续以 [`mobile-media-components-plan.md`](./mobile-media-components-plan.md) 为准。
 
 ### P2：平台门禁与已落地能力的最终验收
 

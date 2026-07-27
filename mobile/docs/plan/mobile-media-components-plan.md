@@ -1,7 +1,7 @@
 # 移动端媒体组件设计方案
 
 > 状态：Phase 1 资产管理器原型、组件测试与 Android AVD 资产/附件/音频受控预览回归已完成；全面交互设备验收和消费者接入仍待进行
-> 最近核对：2026-07-26
+> 最近核对：2026-07-27
 > 范围：图片、视频、音频的内联预览、沉浸式预览和播放；不把桌面组件缩小后直接移植
 > 关联文档：[`mobile-asset-manager-design.md`](./mobile-asset-manager-design.md)、[`mobile-development-checklist.md`](./mobile-development-checklist.md)、[`asset-manager/ARCHITECTURE.md`](../../src/tools/asset-manager/ARCHITECTURE.md)
 
@@ -213,7 +213,7 @@ closed
 - [x] 按本方案在资产管理器完成第一版真实原型。
 - [x] 为 `useManagedMediaPreview`、`MediaPreviewHost` 和三个媒体子组件补单测及组件测试。
 - [x] RichTextRenderer 已接入稳定的 `MediaItem` 与打开事件：受管 Markdown 资产仅匹配当前消息附件，descriptor、错误与资源释放继续由 `MediaPreviewHost` 负责；外部图片不改写为本地资产。
-- [ ] Android AVD 已于 2026-07-26 通过资产图片预览、聊天附件发送/重启恢复/图片预览及音频受控预览/沉浸层控制；2026-07-27 又以新构建的 x86_64 debug APK 通过 `media` preset（`audio-media`）。该回归不替代 RichText 受管资产的独立设备场景，手势、实际播放、方向、安全区、快速切换和 Android 真机报告仍待完成。
+- [ ] Android AVD 已于 2026-07-26 通过资产图片预览、聊天附件发送/重启恢复/图片预览及音频受控预览/沉浸层控制；2026-07-27 又以新构建的 x86_64 debug APK 通过 `media` preset（`audio-media`）与 `rich-text-media` preset（消息自有 `asset://` Markdown 图片、受管 descriptor、inline ready 和沉浸层打开/关闭）。这些回归不替代手势、实际播放、方向、安全区、快速切换、Android 真机和 iOS 报告。
 - [ ] 根据设备实测再决定是否增加方向锁定、后台音频、截图或更多原生能力；没有证据时不扩展公共 API。
 
 Phase 1 的实现位于 `mobile/src/components/media/`。自动化已覆盖 descriptor 迟到响应撤销、重复清理、过期重试、错误映射、host 先退沉浸层再关闭入口、图片缩放边界、视频 Fullscreen API fallback 和音频卸载暂停。图片下拉关闭、双指手势可用性、系统返回、方向切换和真实播放仍属于 Android AVD/真机门禁，不能由 jsdom 或浏览器构建结果替代。
@@ -224,4 +224,5 @@ Phase 1 的实现位于 `mobile/src/components/media/`。自动化已覆盖 desc
 - 同一 APK 的 `attachment` preset 通过，覆盖附件导入、发送、请求附件匹配、应用重启恢复、usage 注册及删除会话后的 usage 释放。
 - 新增独立 `media` preset 并已通过：生成并推送可扫描 WAV fixture，经 DocumentsUI 导入后验证 `audio/wav` 或 `audio/x-wav` MIME、资产详情受控预览 URL、`ready` 状态及音频沉浸层的后退/前进、倍速和静音控制。DocumentsUI API 36 网格会惰性加载文件，选择器先滚动定位再沿用可点击行，避免把原生 `<audio>` 的不可视性误判为预览失败。
 - `attachment` preset 已追加聊天附件预览回归：在附件导入、发送和应用重启恢复后，点击用户图片附件的统一入口，验证 `MediaPreviewHost` 的受控图片 descriptor、`ready` 状态、沉浸层打开与关闭后的 descriptor 回收。
+- `rich-text-media` preset 已通过：消息将自身选中的图片附件以 `![...](asset://<assetId>)` 写入 Markdown，RichTextRenderer 只对该消息自有 assetId 解析为 `MediaItem`；Android WebView 已验证 managed preview URL、inline `ready` 与沉浸层图片的打开/关闭。该场景不验证模型输出对任意资产的探测，也不替代真机、iOS、手势、方向或实际视频/音频播放。
 - 上述结果只构成受控工作流回归，不替代本节 Phase 2 的真实手势、视频/音频实际播放、方向、安全区、错误恢复和 Android 真机可用性验收。

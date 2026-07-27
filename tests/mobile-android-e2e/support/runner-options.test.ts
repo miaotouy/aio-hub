@@ -32,6 +32,15 @@ describe("mobile E2E runner options", () => {
     expect(options.preset).toBe("rich-text");
   });
 
+  it("accepts the RichText managed media preset", () => {
+    const options = parseRunnerOptions(
+      ["--preset", "rich-text-media"],
+      {},
+      "C:\\repo"
+    );
+    expect(options.preset).toBe("rich-text-media");
+  });
+
   it("rejects unknown presets", () => {
     expect(() =>
       parseRunnerOptions(["--preset", "all"], {}, "C:\\repo")

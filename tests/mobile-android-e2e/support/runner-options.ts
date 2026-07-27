@@ -6,6 +6,7 @@ export type MobileE2ePresetId =
   | "asset"
   | "media"
   | "rich-text"
+  | "rich-text-media"
   | "attachment"
   | "recovery"
   | "core"
@@ -34,6 +35,7 @@ const PRESETS = new Set<MobileE2ePresetId>([
   "asset",
   "media",
   "rich-text",
+  "rich-text-media",
   "attachment",
   "recovery",
   "core",

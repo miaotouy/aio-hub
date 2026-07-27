@@ -2,13 +2,17 @@
 import { Expand } from "lucide-vue-next";
 import { onBeforeUnmount, ref } from "vue";
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     src: string;
     title: string;
     immersive?: boolean;
+    /** Position transferred from the inline player after app-level fullscreen fallback. */
+    resumeAt?: number;
+    /** Whether to resume after app-level fullscreen fallback. */
+    resumePlaying?: boolean;
   }>(),
-  { immersive: false }
+  { immersive: false, resumeAt: 0, resumePlaying: false }
 );
 
 const emit = defineEmits<{
@@ -40,6 +44,29 @@ function updateTime() {
   currentTime.value = videoRef.value?.currentTime ?? 0;
 }
 
+function restorePlayback(snapshot: { currentTime: number; playing: boolean }) {
+  const video = videoRef.value;
+  if (!video) return;
+  video.currentTime = Math.max(0, snapshot.currentTime);
+  updateTime();
+  if (snapshot.playing) void video.play().catch(() => undefined);
+}
+
+function getPlaybackSnapshot() {
+  const video = videoRef.value;
+  return {
+    currentTime: video?.currentTime ?? 0,
+    playing: Boolean(video && !video.paused && !video.ended),
+  };
+}
+
+function resumeTransferredPlayback() {
+  restorePlayback({
+    currentTime: props.resumeAt,
+    playing: props.resumePlaying,
+  });
+}
+
 function setPlaying(value: boolean) {
   playing.value = value;
   emit("play-state-change", value);
@@ -51,7 +78,12 @@ function pause() {
 
 onBeforeUnmount(pause);
 
-defineExpose({ pause, requestFullscreen });
+defineExpose({
+  pause,
+  requestFullscreen,
+  getPlaybackSnapshot,
+  restorePlayback,
+});
 </script>
 
 <template>
@@ -70,7 +102,10 @@ defineExpose({ pause, requestFullscreen });
       controls
       playsinline
       preload="metadata"
-      @loadedmetadata="emit('ready')"
+      @loadedmetadata="
+        resumeTransferredPlayback();
+        emit('ready');
+      "
       @timeupdate="updateTime"
       @error="emit('error')"
       @play="setPlaying(true)"

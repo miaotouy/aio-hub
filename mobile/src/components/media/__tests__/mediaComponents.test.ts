@@ -68,6 +68,32 @@ describe("mobile media components", () => {
     expect(wrapper.attributes("data-playing")).toBe("false");
   });
 
+  it("restores transferred video position and playing state after metadata is ready", async () => {
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockResolvedValue(undefined);
+    const wrapper = mount(MediaVideoPlayer, {
+      props: {
+        src: "video://sample",
+        title: "sample",
+        resumeAt: 2.5,
+        resumePlaying: true,
+      },
+    });
+    const video = wrapper.get("video").element as HTMLVideoElement;
+    Object.defineProperty(video, "currentTime", {
+      configurable: true,
+      writable: true,
+      value: 0,
+    });
+
+    await wrapper.get("video").trigger("loadedmetadata");
+
+    expect(video.currentTime).toBe(2.5);
+    expect(wrapper.attributes("data-current-time")).toBe("2.5");
+    expect(play).toHaveBeenCalledOnce();
+  });
+
   it("falls back to the app-level video layer when fullscreen is rejected", async () => {
     const wrapper = mount(MediaVideoPlayer, {
       props: { src: "video://sample", title: "sample" },

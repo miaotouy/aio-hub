@@ -51,7 +51,10 @@ const managed = useManagedMediaPreview();
 const immersive = ref(false);
 const currentIndex = ref(props.initialIndex);
 const audioRef = ref<InstanceType<typeof MediaAudioPlayer> | null>(null);
+const inlineVideoRef = ref<InstanceType<typeof MediaVideoPlayer> | null>(null);
 const videoRef = ref<InstanceType<typeof MediaVideoPlayer> | null>(null);
+const videoResumeAt = ref(0);
+const videoResumePlaying = ref(false);
 let sourceFocus: HTMLElement | null = null;
 let previousBodyOverflow = "";
 let historyEntryActive = false;
@@ -78,8 +81,27 @@ const errorMessage = computed(() => {
   }
 });
 
+function captureInlineVideoPlayback() {
+  if (currentItem.value.kind !== "video") return;
+  const snapshot = inlineVideoRef.value?.getPlaybackSnapshot();
+  if (!snapshot) return;
+  videoResumeAt.value = snapshot.currentTime;
+  videoResumePlaying.value = snapshot.playing;
+  inlineVideoRef.value?.pause();
+}
+
+async function restoreInlineVideoPlayback() {
+  if (currentItem.value.kind !== "video") return;
+  await nextTick();
+  inlineVideoRef.value?.restorePlayback({
+    currentTime: videoResumeAt.value,
+    playing: videoResumePlaying.value,
+  });
+}
+
 function setImmersive(value: boolean) {
   if (immersive.value === value) return;
+  if (value) captureInlineVideoPlayback();
   immersive.value = value;
   if (value) {
     audioRef.value?.pause();
@@ -99,10 +121,18 @@ function setImmersive(value: boolean) {
 
 async function closeImmersive() {
   audioRef.value?.pause();
+  if (currentItem.value.kind === "video") {
+    const snapshot = videoRef.value?.getPlaybackSnapshot();
+    if (snapshot) {
+      videoResumeAt.value = snapshot.currentTime;
+      videoResumePlaying.value = snapshot.playing;
+    }
+  }
   videoRef.value?.pause();
   if (document.fullscreenElement)
     await document.exitFullscreen().catch(() => undefined);
   setImmersive(false);
+  await restoreInlineVideoPlayback();
 }
 
 async function requestClose() {
@@ -268,6 +298,7 @@ onBeforeUnmount(() => {
       />
       <MediaVideoPlayer
         v-else-if="currentItem.kind === 'video'"
+        ref="inlineVideoRef"
         :src="managed.source.value.url"
         :title="currentItem.displayName"
         @ready="managed.markReady"
@@ -320,6 +351,8 @@ onBeforeUnmount(() => {
           ref="videoRef"
           :src="managed.source.value.url"
           :title="currentItem.displayName"
+          :resume-at="videoResumeAt"
+          :resume-playing="videoResumePlaying"
           immersive
           @ready="managed.markReady"
           @error="managed.markMediaError"

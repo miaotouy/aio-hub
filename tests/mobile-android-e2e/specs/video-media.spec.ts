@@ -76,8 +76,6 @@ export async function runVideoMediaScenario(context: ScenarioContext) {
       await new Promise((resolve) => window.setTimeout(resolve, 700));
       const currentTime = element.currentTime;
       const readyState = element.readyState;
-      element.pause();
-      await new Promise((resolve) => window.setTimeout(resolve, 150));
       return { currentTime, paused: element.paused, readyState };
     } catch (cause) {
       return {
@@ -89,11 +87,78 @@ export async function runVideoMediaScenario(context: ScenarioContext) {
     !playback ||
     "error" in playback ||
     playback.currentTime <= 0 ||
-    !playback.paused ||
+    playback.paused ||
     playback.readyState < 2
   ) {
     throw new Error(
-      `Managed video did not decode, play, and pause in Android WebView: ${JSON.stringify(playback)}`
+      `Managed video did not decode and begin playback in Android WebView: ${JSON.stringify(playback)}`
+    );
+  }
+
+  const fallbackInstalled = await context.driver.execute(() => {
+    const element = document.querySelector<HTMLVideoElement>(
+      '[data-testid="media-video-element"]'
+    );
+    if (!element) return false;
+    Object.defineProperty(element, "requestFullscreen", {
+      configurable: true,
+      value: () => Promise.reject(new Error("forced WebView fallback")),
+    });
+    return true;
+  });
+  if (!fallbackInstalled) {
+    throw new Error("Could not install the video Fullscreen API fallback probe.");
+  }
+  await (await context.driver.$('[aria-label="全屏播放视频"]')).click();
+  const immersive = await testElement(
+    context.driver,
+    "media-preview-immersive"
+  );
+  const immersivePlayer = await immersive.$(
+    '[data-testid="media-video-player"]'
+  );
+  await context.driver.waitUntil(
+    async () =>
+      (await immersivePlayer.getAttribute("data-playing")) === "true" &&
+      Number(await immersivePlayer.getAttribute("data-current-time")) > 0,
+    {
+      timeout: 15_000,
+      interval: 250,
+      timeoutMsg:
+        "Video fullscreen fallback did not preserve the active playback state.",
+    }
+  );
+
+  await context.driver.back();
+  await immersive.waitForExist({ timeout: 10_000, reverse: true });
+  await testElement(context.driver, "asset-detail");
+  const resumedInlinePlayer = await testElement(
+    context.driver,
+    "media-video-player"
+  );
+  await context.driver.waitUntil(
+    async () =>
+      (await resumedInlinePlayer.getAttribute("data-playing")) === "true" &&
+      Number(await resumedInlinePlayer.getAttribute("data-current-time")) > 0,
+    {
+      timeout: 15_000,
+      interval: 250,
+      timeoutMsg:
+        "Video playback did not resume inline after system back closed fallback.",
+    }
+  );
+  const paused = await context.driver.execute(async () => {
+    const element = document.querySelector<HTMLVideoElement>(
+      '[data-testid="media-video-element"]'
+    );
+    if (!element) return { error: "inline video element missing" };
+    element.pause();
+    await new Promise((resolve) => window.setTimeout(resolve, 150));
+    return { paused: element.paused };
+  });
+  if (!paused || "error" in paused || !paused.paused) {
+    throw new Error(
+      `Managed video did not pause after returning inline: ${JSON.stringify(paused)}`
     );
   }
 
@@ -119,5 +184,6 @@ export async function runVideoMediaScenario(context: ScenarioContext) {
     fileName: context.fixtures.video.fileName,
     sourceKind: "managed-preview",
     playedSeconds: playback.currentTime,
+    fullscreenFallback: "app-layer-system-back",
   };
 }

@@ -47,11 +47,13 @@ The audio scenario verifies its managed preview URL, metadata ready state,
 user-initiated native WebView playback with `currentTime` progression, pause
 stability, keep-alive route deactivation/reacquisition, and expanded-player
 controls. The video scenario verifies the imported `video/mp4` MIME, a managed
-preview URL, native WebView `<video>` decode/playback progress/pause, and URL
-revocation after closing the asset detail. The runner uses an AVD without audible
-output; this does not replace real-device or iOS acceptance for speakers,
-background audio, system back, gestures, orientation, safe areas, long-video
-seeking, or performance/memory behavior.
+preview URL, native WebView `<video>` decode/playback progress/pause, a forced
+Fullscreen API rejection that falls back to the app layer, WebView history return
+with preserved inline playback, and URL revocation after closing the asset detail.
+The runner uses an AVD without audible output; this does not replace real-device
+or iOS acceptance for speakers, background audio, native fullscreen/system back,
+gestures, orientation, safe areas, long-video seeking, or performance/memory
+behavior.
 
 Run the RichText narrow-screen regression lane:
 

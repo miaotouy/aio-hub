@@ -4,6 +4,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { defineComponent, KeepAlive, ref } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import MediaImageViewer from "../MediaImageViewer.vue";
+import MediaVideoPlayer from "../MediaVideoPlayer.vue";
 import MediaPreviewHost from "../MediaPreviewHost.vue";
 import type { MediaItem } from "../types";
 
@@ -117,6 +118,64 @@ describe("MediaPreviewHost", () => {
     expect(wrapper.get("img").attributes("src")).toBe(
       "http://aio-asset.localhost/preview-cached-2"
     );
+  });
+
+  it("keeps video position and playing state through app-level fullscreen fallback", async () => {
+    const pause = vi
+      .spyOn(HTMLMediaElement.prototype, "pause")
+      .mockImplementation(() => undefined);
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockResolvedValue(undefined);
+    const videoItem: MediaItem = {
+      ...item,
+      kind: "video",
+      displayName: "sample.mp4",
+      mimeType: "video/mp4",
+    };
+    const wrapper = mount(MediaPreviewHost, {
+      attachTo: document.body,
+      props: { modelValue: true, item: videoItem, mode: "inline" },
+    });
+    await flushPromises();
+
+    const inlinePlayer = wrapper.findComponent(MediaVideoPlayer);
+    const inlineVideo = inlinePlayer.get("video").element as HTMLVideoElement;
+    Object.defineProperties(inlineVideo, {
+      currentTime: { configurable: true, writable: true, value: 1.25 },
+      paused: { configurable: true, value: false },
+      ended: { configurable: true, value: false },
+    });
+
+    inlinePlayer.vm.$emit("expand");
+    await flushPromises();
+    const immersive = document.body.querySelector(
+      "[data-testid='media-preview-immersive']"
+    );
+    expect(immersive).not.toBeNull();
+
+    const immersiveVideo = immersive?.querySelector(
+      "video"
+    ) as HTMLVideoElement;
+    Object.defineProperties(immersiveVideo, {
+      currentTime: { configurable: true, writable: true, value: 0 },
+      paused: { configurable: true, value: false },
+      ended: { configurable: true, value: false },
+    });
+    immersiveVideo.dispatchEvent(new Event("loadedmetadata"));
+    await flushPromises();
+    expect(immersiveVideo.currentTime).toBe(1.25);
+
+    immersiveVideo.currentTime = 2.5;
+    window.history.back();
+    await flushPromises();
+
+    expect(
+      document.body.querySelector("[data-testid='media-preview-immersive']")
+    ).toBeNull();
+    expect(inlineVideo.currentTime).toBe(2.5);
+    expect(pause).toHaveBeenCalled();
+    expect(play).toHaveBeenCalled();
   });
 
   it("closes the immersive layer before closing the inline host", async () => {

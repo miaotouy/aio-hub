@@ -24,6 +24,16 @@ const MediaPreviewHostStub = defineComponent({
     '<button data-testid="media-preview-host" @click="$emit(\'update:modelValue\', false)">{{ item.kind }}</button>',
 });
 
+
+const RichTextRendererStub = defineComponent({
+  name: "RichTextRenderer",
+  props: {
+    content: { type: String, required: true },
+    resolveMediaItem: { type: Function, required: false },
+  },
+  template: '<div data-testid="rich-text-renderer-stub">{{ content }}</div>',
+});
+
 function attachment(kind: "image" | "video" | "audio"): ChatMessageAttachment {
   return {
     id: `attachment-${kind}`,
@@ -123,6 +133,39 @@ describe("MessageContent media attachments", () => {
   });
 });
 
+
+describe("MessageContent RichText managed media", () => {
+  it("resolves only the current message attachment through asset Markdown URLs", async () => {
+    const wrapper = mount(MessageContent, {
+      props: {
+        message: {
+          ...message([attachment("image")]),
+          content: "![Attachment](asset://asset-image)",
+        },
+      },
+      global: {
+        stubs: {
+          RichTextRenderer: RichTextRendererStub,
+          MediaPreviewHost: MediaPreviewHostStub,
+        },
+      },
+    });
+    await flushPromises();
+
+    const renderer = wrapper.getComponent(RichTextRendererStub);
+    const resolveMediaItem = renderer.props("resolveMediaItem") as (
+      source: string
+    ) => unknown;
+
+    expect(resolveMediaItem("asset://asset-image")).toMatchObject({
+      assetId: "asset-image",
+      kind: "image",
+      mimeType: "image/png",
+    });
+    expect(resolveMediaItem("asset://asset-video")).toBeNull();
+    expect(resolveMediaItem("https://example.com/image.png")).toBeNull();
+  });
+});
 
 describe("MessageContent reply references", () => {
   it("renders the persisted reply snapshot without relying on the source node", () => {

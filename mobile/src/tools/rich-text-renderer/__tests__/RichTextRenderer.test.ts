@@ -52,6 +52,53 @@ describe("RichTextRenderer streaming lifecycle", () => {
   });
 });
 
+describe("RichTextRenderer managed media", () => {
+  it("uses the caller-owned MediaItem resolver for managed Markdown assets", () => {
+    const wrapper = mount(RichTextRenderer, {
+      props: {
+        content: "![Managed image](asset://asset-image)",
+        resolveMediaItem: (source) =>
+          source === "asset://asset-image"
+            ? {
+                assetId: "asset-image",
+                kind: "image",
+                displayName: "sample.png",
+                mimeType: "image/png",
+              }
+            : null,
+      },
+      global: {
+        stubs: {
+          RichTextMediaNode: {
+            props: ["item"],
+            template:
+              '<div data-testid="rich-text-managed-media-stub">{{ item.assetId }}</div>',
+          },
+        },
+      },
+    });
+
+    expect(wrapper.get('[data-testid="rich-text-managed-media-stub"]').text()).toBe(
+      "asset-image"
+    );
+    expect(wrapper.find("img").exists()).toBe(false);
+  });
+
+  it("keeps ordinary remote Markdown images on the existing image fallback", () => {
+    const wrapper = mount(RichTextRenderer, {
+      props: {
+        content: "![Remote image](https://example.com/image.png)",
+        resolveMediaItem: () => null,
+      },
+      global: { stubs: { RichTextMediaNode: true } },
+    });
+
+    expect(wrapper.get("img.md-image").attributes("src")).toBe(
+      "https://example.com/image.png"
+    );
+  });
+});
+
 describe("RichTextRenderer VCP output blocks", () => {
   it("renders a completed VCP tool request as a collapsible structured block", async () => {
     const wrapper = mount(RichTextRenderer, {

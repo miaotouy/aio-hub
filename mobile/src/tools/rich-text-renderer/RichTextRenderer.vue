@@ -8,6 +8,8 @@ import ThinkBlock from "./components/ThinkBlock.vue";
 import KatexRenderer from "./components/KatexRenderer.vue";
 import MermaidDiagram from "./components/MermaidDiagram.vue";
 import VcpBlock from "./components/VcpBlock.vue";
+import RichTextMediaNode from "./components/RichTextMediaNode.vue";
+import type { MediaItem } from "@/components/media/types";
 
 defineOptions({
   name: "RichTextRenderer",
@@ -21,6 +23,7 @@ const props = withDefaults(
     tokens?: any[]; // 支持直接传入 tokens 数组用于递归
     isStreaming?: boolean;
     resolveAsset?: (content: string) => string;
+    resolveMediaItem?: (source: string) => MediaItem | null;
     disableThinkParsing?: boolean;
     disableVcpParsing?: boolean;
   }>(),
@@ -314,6 +317,11 @@ function resolveImageUrl(url: string) {
   return url;
 }
 
+function resolveManagedMediaItem(source: unknown): MediaItem | null {
+  if (typeof source !== "string") return null;
+  return props.resolveMediaItem?.(source) ?? null;
+}
+
 function isCodeFenceClosed(raw: unknown) {
   if (typeof raw !== "string") return true;
   return /(?:^|\n)\s*(?:`{3,}|~{3,})\s*$/.test(raw.trimEnd());
@@ -384,6 +392,7 @@ onBeforeUnmount(() => {
           :content="segment.content"
           :is-streaming="isStreaming"
           :resolve-asset="resolveAsset"
+          :resolve-media-item="resolveMediaItem"
           disable-think-parsing
         />
       </ThinkBlock>
@@ -399,6 +408,7 @@ onBeforeUnmount(() => {
             <RichTextRenderer
               :tokens="token.tokens"
               :resolve-asset="resolveAsset"
+              :resolve-media-item="resolveMediaItem"
             />
           </component>
 
@@ -407,6 +417,7 @@ onBeforeUnmount(() => {
             <RichTextRenderer
               :tokens="token.tokens"
               :resolve-asset="resolveAsset"
+              :resolve-media-item="resolveMediaItem"
             />
           </p>
 
@@ -445,6 +456,7 @@ onBeforeUnmount(() => {
             <RichTextRenderer
               :tokens="token.tokens"
               :resolve-asset="resolveAsset"
+              :resolve-media-item="resolveMediaItem"
             />
           </blockquote>
 
@@ -465,6 +477,7 @@ onBeforeUnmount(() => {
               <RichTextRenderer
                 :tokens="item.tokens"
                 :resolve-asset="resolveAsset"
+                :resolve-media-item="resolveMediaItem"
               />
             </li>
           </component>
@@ -485,6 +498,7 @@ onBeforeUnmount(() => {
                     <RichTextRenderer
                       :tokens="headerCell.tokens"
                       :resolve-asset="resolveAsset"
+                      :resolve-media-item="resolveMediaItem"
                     />
                   </th>
                 </tr>
@@ -499,6 +513,7 @@ onBeforeUnmount(() => {
                     <RichTextRenderer
                       :tokens="cell.tokens"
                       :resolve-asset="resolveAsset"
+                      :resolve-media-item="resolveMediaItem"
                     />
                   </td>
                 </tr>
@@ -522,6 +537,7 @@ onBeforeUnmount(() => {
             <RichTextRenderer
               :tokens="token.tokens"
               :resolve-asset="resolveAsset"
+              :resolve-media-item="resolveMediaItem"
             />
           </strong>
 
@@ -530,6 +546,7 @@ onBeforeUnmount(() => {
             <RichTextRenderer
               :tokens="token.tokens"
               :resolve-asset="resolveAsset"
+              :resolve-media-item="resolveMediaItem"
             />
           </em>
 
@@ -543,6 +560,7 @@ onBeforeUnmount(() => {
             <RichTextRenderer
               :tokens="token.tokens"
               :resolve-asset="resolveAsset"
+              :resolve-media-item="resolveMediaItem"
             />
           </del>
 
@@ -558,6 +576,7 @@ onBeforeUnmount(() => {
             <RichTextRenderer
               :tokens="token.tokens"
               :resolve-asset="resolveAsset"
+              :resolve-media-item="resolveMediaItem"
             />
           </a>
           <span
@@ -567,10 +586,17 @@ onBeforeUnmount(() => {
             <RichTextRenderer
               :tokens="token.tokens"
               :resolve-asset="resolveAsset"
+              :resolve-media-item="resolveMediaItem"
             />
           </span>
 
-          <!-- 14. 图片 -->
+          <!-- 14. 图片 / 当前消息受管资产媒体 -->
+          <RichTextMediaNode
+            v-else-if="
+              token.type === 'image' && resolveManagedMediaItem(token.href)
+            "
+            :item="resolveManagedMediaItem(token.href)!"
+          />
           <img
             v-else-if="token.type === 'image'"
             :src="resolveImageUrl(token.href)"
@@ -588,6 +614,7 @@ onBeforeUnmount(() => {
               <RichTextRenderer
                 :tokens="token.tokens"
                 :resolve-asset="resolveAsset"
+                :resolve-media-item="resolveMediaItem"
               />
             </template>
             <template v-else>{{ token.text }}</template>

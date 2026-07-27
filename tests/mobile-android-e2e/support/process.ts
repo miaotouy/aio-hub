@@ -63,24 +63,37 @@ function captureStream(
   stream: ReadableStream<Uint8Array> | number | undefined
 ): {
   result: Promise<string>;
+  snapshot: () => string;
   cancel: () => Promise<void>;
 } {
   if (!stream || typeof stream === "number") {
-    return { result: Promise.resolve(""), cancel: async () => undefined };
+    return {
+      result: Promise.resolve(""),
+      snapshot: () => "",
+      cancel: async () => undefined,
+    };
   }
   const reader = stream.getReader();
   const decoder = new TextDecoder();
+  let output = "";
+  let cancelled = false;
   const result = (async () => {
-    let output = "";
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) return output + decoder.decode();
-      output += decoder.decode(value, { stream: true });
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) return output + decoder.decode();
+        output += decoder.decode(value, { stream: true });
+      }
+    } catch (error) {
+      if (cancelled) return output + decoder.decode();
+      throw error;
     }
   })();
   return {
     result,
+    snapshot: () => output,
     cancel: async () => {
+      cancelled = true;
       await reader.cancel().catch(() => undefined);
     },
   };
@@ -163,10 +176,20 @@ export const runCommand: CommandRunner = async (command, options = {}) => {
   }
   const captured = await valueWithin(output, 2_000);
   if (captured === null) {
+    // On Windows, a command can exit after starting a child that still owns an
+    // inherited pipe. Its exit code is authoritative; retain captured output
+    // and release the readers instead of turning a successful APK build into
+    // a false-negative E2E failure.
+    const partial = [stdout.snapshot(), stderr.snapshot()] as const;
     await cancelOutput();
-    throw new Error(
-      `Command exited but its output streams did not close: ${printable(command)}`
-    );
+    const [stdoutText, stderrText] = partial;
+    const result = { command, exitCode, stdout: stdoutText, stderr: stderrText };
+    if (exitCode !== 0 && !options.allowFailure) {
+      throw new Error(
+        `Command failed (${exitCode}): ${printable(command)}\n${stderrText.trim()}`
+      );
+    }
+    return result;
   }
   const [stdoutText, stderrText] = captured;
   const result = { command, exitCode, stdout: stdoutText, stderr: stderrText };

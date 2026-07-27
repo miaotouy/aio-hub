@@ -50,7 +50,7 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 
 - [ ] 将 PC 富文本模块按现有目录和依赖直接复制到移动端工具目录，先做必要的路径、主题、Tauri 和移动端 API 适配。
 - [ ] 迁移 PC 的 AST、流式处理、稳定区/待定区、Patch 更新和 Worker tokenizer 能力。
-- [ ] 继续完善非媒体代码节点；媒体节点等待移动端媒体契约稳定后接入。VCP 展示节点已单独完成。
+- [ ] 继续完善非媒体代码节点。受管媒体节点已接入：当前消息附件可经 `![说明](asset://<assetId>)` 复用 `MediaPreviewHost`，外部图片维持普通安全回退；VCP 展示节点已单独完成。
 - [x] 已接入 KaTeX 数学公式节点：支持行内 `$...$` 和块级 `$$...$$`，思考块内同样可用；KaTeX 关闭 trust，渲染失败回退为文本。
 - [x] 已先迁移桌面默认的 `<think>` / `<guguthink>` 思考块：完整块默认折叠，流式未闭合块保持可见的“思考中”状态；自定义规则 UI、完整 AST/Patch 语义仍待后续阶段。
 - [x] 已接入只读 VCP 协议输出块：角色分隔、工具请求/结果、日记和调用摘要以可折叠移动端卡片显示，未闭合流式请求保留生成状态；仅解析展示，绝不在移动端执行或连接桌面 VCP 工具调用链路。
@@ -63,7 +63,7 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 
 入口：[`rich-text-renderer-migration-plan.md`](../../src/tools/rich-text-renderer/docs/Plan/rich-text-renderer-migration-plan.md)。
 
-当前可复用基础：资产服务已提供短期预览来源和主动撤销命令；`mobile/src/components/media/` 已落地统一 host、三类媒体主体和 descriptor 生命周期，`AssetDetailSheet` 与聊天 `MessageContent` 已接入该入口。资产详情通过可选 `imageTestId` 将稳定的图片元素标识限定在资产调用方；2026-07-26 的 Android AVD 已通过资产图片预览、聊天附件及 WAV 音频受控预览/沉浸层控制 APK 回归。RichTextRenderer 媒体节点接线以及其余设备交互验收继续以 [`mobile-media-components-plan.md`](./mobile-media-components-plan.md) 为准。
+当前可复用基础：资产服务已提供短期预览来源和主动撤销命令；`mobile/src/components/media/` 已落地统一 host、三类媒体主体和 descriptor 生命周期，`AssetDetailSheet`、聊天 `MessageContent` 与 RichTextRenderer 的受管 Markdown 资产入口均已接入该契约。资产详情通过可选 `imageTestId` 将稳定的图片元素标识限定在资产调用方；2026-07-26 的 Android AVD 已通过资产图片预览、聊天附件及 WAV 音频受控预览/沉浸层控制 APK 回归，2026-07-27 的新构建又通过 `media` / `audio-media` AVD 回归。RichText 受管资产的独立设备场景以及其余设备交互验收继续以 [`mobile-media-components-plan.md`](./mobile-media-components-plan.md) 为准。
 
 ### P2：平台门禁与已落地能力的最终验收
 

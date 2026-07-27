@@ -2,6 +2,7 @@ import type { Subprocess } from "bun";
 import { describe, expect, it, vi } from "vitest";
 import {
   FatalWaitError,
+  runCommand,
   waitForSubprocessExit,
   waitUntil,
   withTimeout,
@@ -43,6 +44,47 @@ describe("mobile E2E process control", () => {
       })
     ).rejects.toThrow("cleanup probe");
   });
+  it("keeps a successful command result when an inherited output pipe stays open", async () => {
+    vi.useFakeTimers();
+    const encoder = new TextEncoder();
+    const stdout = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode("completed\n"));
+      },
+    });
+    const stderr = new ReadableStream<Uint8Array>();
+    const previousBun = Object.getOwnPropertyDescriptor(globalThis, "Bun");
+    const spawn = vi.fn().mockReturnValue({
+      exited: Promise.resolve(0),
+      stdout,
+      stderr,
+    } as unknown as Subprocess);
+    Object.defineProperty(globalThis, "Bun", {
+      configurable: true,
+      value: { env: {}, spawn },
+    });
+
+    try {
+      const result = runCommand(["synthetic-command"]);
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(2_000);
+      await expect(result).resolves.toMatchObject({
+        exitCode: 0,
+        stdout: "completed\n",
+        stderr: "",
+      });
+      expect(spawn).toHaveBeenCalledOnce();
+    } finally {
+      if (previousBun) {
+        Object.defineProperty(globalThis, "Bun", previousBun);
+      } else {
+        Reflect.deleteProperty(globalThis, "Bun");
+      }
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    }
+  });
+
   it("clears the losing subprocess timeout timer after an early exit", async () => {
     vi.useFakeTimers();
     try {

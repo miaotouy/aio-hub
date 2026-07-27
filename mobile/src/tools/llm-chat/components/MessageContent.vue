@@ -91,6 +91,19 @@ function mediaItemForAttachment(
   };
 }
 
+/**
+ * Only message-owned attachments can be resolved from Markdown. This keeps an
+ * LLM-generated `asset://` URL from probing arbitrary local library assets.
+ */
+function resolveMessageMediaItem(source: string): MediaItem | null {
+  const match = /^asset:\/\/([a-zA-Z0-9_-]+)$/.exec(source.trim());
+  if (!match) return null;
+  const attachment = props.message.attachments?.find(
+    (candidate) => candidate.assetId === match[1]
+  );
+  return attachment ? mediaItemForAttachment(attachment) : null;
+}
+
 function openMediaPreview(
   attachment: ChatMessageAttachment,
   status: ChatAttachmentAvailability | undefined
@@ -239,7 +252,10 @@ const formatBytes = (value: number) => {
         <ChevronRight v-else :size="16" />
       </div>
       <div v-show="isReasoningExpanded" class="reasoning-content">
-        <RichTextRenderer :content="message.metadata.reasoningContent" />
+        <RichTextRenderer
+          :content="message.metadata.reasoningContent"
+          :resolve-media-item="resolveMessageMediaItem"
+        />
       </div>
     </div>
 
@@ -258,6 +274,7 @@ const formatBytes = (value: number) => {
       <RichTextRenderer
         :content="message.content"
         :is-streaming="message.status === 'generating'"
+        :resolve-media-item="resolveMessageMediaItem"
       />
     </div>
 

@@ -16,6 +16,7 @@
 - ADB 只负责设备生命周期、安装、端口映射、fixture 准备、进程控制和日志采集，不以坐标点击作为常规 selector。
 - `ui-tester` 继续提供设备内固定场景和结构化报告，不承担外部 UI 驱动职责。
 - runner 根据目标 AVD 的主 ABI 只构建和安装单 ABI APK；日常 E2E 不构建多 ABI universal APK、AAB 或无关 ABI，避免将多份 Rust native library 打入同一测试包。
+- 命令进程退出后，runner 会有界收集 stdout/stderr；若 Windows 子进程继续持有继承管道，已确认的退出码与已捕获输出仍可继续用于 APK 检查，避免把成功构建误判为流关闭超时。
 
 桌面端 [`tests/tauri-e2e/`](../../../tests/tauri-e2e/README.md) 已有确定性 OpenAI-compatible 服务、隔离 fixture 和脱敏产物模型。Android runner 应复用其中可移植的协议服务与结果模型，不复制第二套不同语义的 mock。
 

@@ -184,7 +184,7 @@ closed
 1. [x] 用 `MediaPreviewHost`（内部使用 `useManagedMediaPreview`）替换 `MessageContent` 现有的图片 descriptor 获取、撤销和竞态处理，删除重复生命周期代码；聊天的图片、视频和音频附件均以 `assetId +` 轻量快照构造 `MediaItem`。
 2. 保持资产详情在 Phase 1 已接通的三种媒体入口；详情操作（固定、隐藏、清理、导出、分享）不迁入媒体组件。
 3. [x] 聊天附件已接入图片、视频和音频预览，保持 `ManagedAssetRef` 和 reclaimed/missing 降级语义；纯文本消息和附件状态逻辑不改写。
-4. RichTextRenderer 只接入已稳定的 `MediaItem` 和打开事件，不让媒体迁移阻塞非媒体 AST、流式渲染和 Patch。
+4. [x] RichTextRenderer 已只接入稳定的 `MediaItem` 和 `MediaPreviewHost` 打开语义：当前消息的 `![说明](asset://<assetId>)` 只能解析为同一消息附件，避免模型文本探测任意本地资产；外部图片不伪装为受管资源，保留原有安全回退。
 
 ### Phase 4：平台门禁和架构收口
 
@@ -212,8 +212,8 @@ closed
 
 - [x] 按本方案在资产管理器完成第一版真实原型。
 - [x] 为 `useManagedMediaPreview`、`MediaPreviewHost` 和三个媒体子组件补单测及组件测试。
-- [ ] RichTextRenderer 待接入已稳定的 `MediaItem` 与打开事件；资产详情和聊天附件已接通，并保持各自现有错误/引用语义。
-- [ ] Android AVD 已通过资产图片预览、聊天附件发送/重启恢复/图片预览及音频受控预览/沉浸层控制的 APK 端到端回归；手势、实际播放、方向、安全区、快速切换和 Android 真机报告仍待完成。
+- [x] RichTextRenderer 已接入稳定的 `MediaItem` 与打开事件：受管 Markdown 资产仅匹配当前消息附件，descriptor、错误与资源释放继续由 `MediaPreviewHost` 负责；外部图片不改写为本地资产。
+- [ ] Android AVD 已于 2026-07-26 通过资产图片预览、聊天附件发送/重启恢复/图片预览及音频受控预览/沉浸层控制；2026-07-27 又以新构建的 x86_64 debug APK 通过 `media` preset（`audio-media`）。该回归不替代 RichText 受管资产的独立设备场景，手势、实际播放、方向、安全区、快速切换和 Android 真机报告仍待完成。
 - [ ] 根据设备实测再决定是否增加方向锁定、后台音频、截图或更多原生能力；没有证据时不扩展公共 API。
 
 Phase 1 的实现位于 `mobile/src/components/media/`。自动化已覆盖 descriptor 迟到响应撤销、重复清理、过期重试、错误映射、host 先退沉浸层再关闭入口、图片缩放边界、视频 Fullscreen API fallback 和音频卸载暂停。图片下拉关闭、双指手势可用性、系统返回、方向切换和真实播放仍属于 Android AVD/真机门禁，不能由 jsdom 或浏览器构建结果替代。

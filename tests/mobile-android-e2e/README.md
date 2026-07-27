@@ -43,9 +43,12 @@ bun tests/mobile-android-e2e/run.ts --preset rich-text --avd Medium_Phone_API_36
 ```
 
 This verifies the in-app RichText test page through the Android WebView: normal
-code blocks, Mermaid rendering, code wrapping, and a long unbroken code line
-that must remain inside its scroll container. It does not replace Android
-real-device, iOS, chat-message, or managed-media acceptance.
+code blocks, Mermaid DOM rendering, code wrapping, and a long unbroken code line
+that remains inside its scroll container. It also verifies long Markdown streaming
+progress, preview auto-scroll to the bottom, explicit cancellation without
+subsequent content growth, and cleanup when the keep-alive route deactivates.
+It does not replace Android real-device, iOS, chat-message, managed-media, or
+memory acceptance.
 
 Run the RichText managed-media regression lane:
 

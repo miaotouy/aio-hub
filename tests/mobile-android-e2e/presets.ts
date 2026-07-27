@@ -68,7 +68,8 @@ export const MOBILE_E2E_PRESETS: Record<MobileE2ePresetId, MobileE2ePreset> = {
   },
   "rich-text": {
     id: "rich-text",
-    purpose: "RichText code, Mermaid, and narrow-screen long-code rendering",
+    purpose:
+      "RichText code, Mermaid, narrow-screen long-code, and stream lifecycle rendering",
     scenarios: [{ id: "rich-text-renderer", run: runRichTextRendererScenario }],
     requiresDeterministicServer: false,
     requiresOllama: false,

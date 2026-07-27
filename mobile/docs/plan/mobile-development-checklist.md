@@ -1,7 +1,7 @@
 # 移动端持续施工清单
 
 > 状态：施工中
-> 最近核对：2026-07-26
+> 最近核对：2026-07-27
 > 文档定位：跨模块施工索引，不替代各工具的唯一计划或 `ARCHITECTURE.md`
 
 ## 1. 使用规则
@@ -12,26 +12,25 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 
 ## 2. 当前优先级
 
-### P0：聊天上下文管线与 Token 编排
+当前移动端产品基线是先完成一个独立、完整的角色聊天产品：能力参照桌面端引入工具调用、向量 RAG 和后续 Knowledge/Recall 模块之前的聊天形态，并吸收类似酒馆类产品的角色、预设、上下文、分支和富文本体验。工具调用、向量检索、知识库和桌面 Agent 高级能力不是 Chat 完整性的前置依赖，也不要求移动端未来与桌面实现完全一致。
 
-- [ ] 逐个复制 PC 上已存在的上下文处理器到移动端，先保持 TS 实现和处理语义，不提前抽取共享包或下沉 Rust。
-- [x] 在移动端接入 `injection-assembler`，支持预设消息的 `injectionStrategy`、深度、锚点和模型/渠道匹配语义；宏和 Agent 私有附件仍由后续处理器补齐。
-- [ ] 迁移宏、变量、世界书、召回、转写和资源解析等处理器；`message-formatter` 已迁移并覆盖模型默认规则与 Agent 覆盖，每迁移一个处理器补对应测试和移动端依赖适配。
-  - 当前宏引擎迁移存在前置门禁：桌面端注册表必须同时注册工具、Recall、Knowledge、资产与 CSS 等宏；移动端尚无 `tool-calling`、Recall、Knowledge 基础模块，也没有与桌面端兼容的用户档案/变量定义模型。不得以少量常用宏或空实现替代完整注册，待这些领域契约落地后再恢复施工。
+### P0：Chat 功能完整性（不依赖工具调用或向量 RAG）
+
+- [ ] 以角色聊天实际需要为边界迁移剩余上下文能力，优先补齐移动端宏/变量、传统关键词世界书或同类确定性上下文注入、资源解析和消息编排；不以复制桌面当前全部处理器为目标。
+- [x] 在移动端接入 `injection-assembler`，支持预设消息的 `injectionStrategy`、深度、锚点和模型/渠道匹配语义。
+- [ ] 建立移动端 Chat 自己的宏注册范围，只实现角色聊天当前可消费的会话、角色、用户、预设和资产等宏。桌面后续增加的工具、Recall、Knowledge 或 CSS 宏不进入本阶段，也不得反向阻塞基础宏施工。
+- [ ] 按聊天功能清单逐项核对新建会话、历史恢复、编辑、删除、继续、重新生成、分支切换、引用、停止、失败恢复、长上下文和设置接线，缺项直接在 `llm-chat` 内补齐并增加测试。
 - [x] 将现有 Rust `o200k_base` / `countTokensBatch()` 接入上下文预算编排。Token 限制器在最终格式化前以预设优先、最新历史优先的策略裁剪文本消息；发送后的最终计数仍用于 usage 缺失时展示与快照。
-- [x] 迁移 PC `token-limiter` 的文本预算和历史消息截断逻辑；处理器位于注入之后、最终消息格式化之前。当前配置随 Agent 参数持久化，移动端尚未提供完整编辑 UI。
-- [x] 明确附件、工具 schema 和多模态额外 Token 仍属于独立估算范围，不在首批通用文本 tokenizer 中隐式处理：通用文本计数仅服务于风险预警、文本 limiter 与 usage 缺失 fallback；当前聊天执行器不传递 `tools`，未来接入后必须单独估算 schema，媒体成本待实际模型/协议结构稳定后单独处理。
+- [x] 迁移文本预算和历史消息截断逻辑；处理器位于注入之后、最终消息格式化之前，预算和截断参数已有移动端编辑入口。
+- [x] 附件和非文本多模态成本继续按实际模型与渠道协议独立估算。工具 schema 只在未来确实设计移动端工具调用时处理，不属于当前 Chat 完整性门禁。
 
 入口：[`mobile/src/tools/llm-chat/ARCHITECTURE.md`](../../src/tools/llm-chat/ARCHITECTURE.md)、[`mobile-token-counting-plan.md`](./mobile-token-counting-plan.md)。
 
-### P1：Agent 阶段 3 及其依赖功能
+### 非当前主线：Agent 已有能力维护
 
-- [x] 完成 `injectionStrategy` 和 `modelMatch` 的运行时执行；默认、深度/高级深度、锚点和模型/渠道匹配已接入，宏与 Agent 私有附件仍待后续处理器补齐。
-- [x] 将 Agent 开局消息实例化到新会话：有效开局消息成为根节点下的兄弟分支，优先选中 `defaultGreetingId`；兼容旧字符串数组。当前按原文本固化，宏展开与 Agent 私有附件待各自依赖完成后接入。
-- [x] 增加聊天内切换 Agent，并保持历史消息的 Agent 快照语义：会话仅更新 `displayAgentId`；既有节点不改写，新生成的助手消息固化 Agent 身份和模型/渠道快照。
-- [x] 同步移动端与 PC 的显式 Agent 类型、分类枚举和 `defaultGreetingId`；加载旧持久化 `custom` 分类时归一化到 `other`，写入与筛选统一使用桌面端枚举。
-- [x] 在上下文管线稳定后完成基础用户档案注入，以及移动端当前请求链路支持的 Agent 参数编辑（生成参数、停止序列、Token 预算和截断保留字符）；完整桌面宏/用户档案契约、工具/Recall/Knowledge 参数和 Agent 私有资产仍依赖各自领域能力，不能以空 UI 替代。
-- [x] 已迁移导入 Agent `regexConfig` 的 request 阶段文本正则：按预设优先级、角色和消息深度执行，支持多模态 text part；脚本规则保持禁用，全局/用户档案正则编辑和宏替换仍待完整桌面契约。
+- [x] 当前已经具备角色/Agent CRUD、导入、预设编辑、模型与生成参数绑定、开局消息、聊天内切换和历史快照，可继续为角色聊天提供配置来源。
+- [x] 基础用户档案、`injectionStrategy`、`modelMatch` 和导入 Agent `regexConfig` 的 request 文本正则已经接入聊天请求链路。
+- [ ] 当前阶段不继续追求桌面 Agent 功能对齐；私有头像/二进制资产、工具/Recall/Knowledge 参数、媒体压缩和其他高级能力统一留在 MVP 之后，只有移动端产品需求明确时再单独设计。
 
 入口：[`mobile-agent-manager-plan.md`](./mobile-agent-manager-plan.md)、[`agent-manager/ARCHITECTURE.md`](../../src/tools/agent-manager/ARCHITECTURE.md)。
 
@@ -71,23 +70,24 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 
 入口：[`mobile-asset-manager-design.md`](./mobile-asset-manager-design.md)、[`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md)、[`mobile-token-counting-plan.md`](./mobile-token-counting-plan.md)、[`platform-validation-workbench-plan.md`](../../src/tools/ui-tester/docs/Plan/platform-validation-workbench-plan.md)。
 
-### P3：MVP 之后的扩展
+### P3：MVP 之后的可选扩展
 
-- [ ] Agent 私有头像、背景、预设附件和随包二进制资产。
+- [ ] Agent 私有头像、背景、预设附件、随包二进制资产和其他高级管理能力；不作为当前 Chat 主线。
+- [ ] 工具调用、向量 RAG、Knowledge/Recall 和自主工作流如在移动端确有需求，作为独立产品能力重新设计，不默认复制桌面模块或协议。
 - [ ] 相机、分享进入 AIO、移动端文件关联、批量转写、PDF/Office 提取、音视频转写和其他资产消费者。
-- [ ] 继续核对 `llm-chat/ARCHITECTURE.md` 中仍有过期条目，并将尚未具备依赖的完整宏引擎、世界书、Recall 与工具调用拆成独立任务；聊天引用、会话排序、基础用户档案和当前支持的 Agent 参数编辑已完成。
 
 ## 3. 执行顺序
 
-1. 主线先迁移上下文处理器和 Token 预算编排。
-2. 媒体组件按已收敛方案在资产管理器实现并完成交互验证；RichTextRenderer 工作树并行迁移非媒体能力。
-3. Agent 阶段 3 功能在上下文处理器具备真实语义后接入。
-4. 媒体契约稳定后，RichTextRenderer 再接入媒体节点。
-5. 功能批次稳定后运行真实设备性能和平台门禁。
-6. 只根据实测热点决定 Worker、Rust、原生下沉，最后再抽取共享代码。
+1. 主线先按角色聊天产品清单补齐 Chat 交互、上下文、分支、恢复和设置，不等待工具调用、向量 RAG、Knowledge/Recall 或 Agent 高级能力。
+2. 在 Chat 范围内完成移动端宏/变量和确定性上下文注入；世界书采用非向量方案即可满足首阶段需求。
+3. RichTextRenderer、附件与媒体预览作为 Chat 完整体验并行推进，媒体契约稳定后接入富文本媒体节点。
+4. 功能批次稳定后运行 Android 真机性能和平台门禁，再补 iOS 验收。
+5. Agent 仅维护当前已经可服务角色聊天的能力；高级 Agent、工具和向量检索留到 MVP 后按移动端需求独立立项。
+6. 只根据实测热点决定 Worker、Rust、原生下沉，最后再判断是否抽取共享代码。
 
 ## 4. 文档同步要求
 
 - RichTextRenderer 的初版迁移清单完成，不代表 PC 能力迁移完成。
-- Token 计数计划必须区分“计数服务已完成”和“Token 驱动的上下文编排未完成”。
+- Token 计数服务和文本上下文预算编排已完成；文档只继续跟踪非文本成本、真实设备性能和平台验证。
 - 各模块完成阶段后，把稳定边界和验证记录同步到对应 `ARCHITECTURE.md`；本文只更新勾选状态、优先级和入口。
+

@@ -1,11 +1,11 @@
 # 移动端 Agent 独立化管理器 — 规划方案
 
-> **文档状态**: 实施中（阶段 1、2 已完成，阶段 3 主链路已接通；增强项依赖移动端上下文管线迁移）
+> **文档状态**: 基础能力已落地并进入维护；非当前移动端主施工线，不以桌面 Agent 完全对齐为目标
 > **创建日期**: 2025-06-23  
-> **最近核对**: 2026-07-24
+> **最近核对**: 2026-07-27
 > **关联模块**: `mobile/src/tools/agent-manager/`
 > **前置依赖**: `mobile/src/tools/llm-api/`, `mobile/src/tools/llm-chat/`
-> **架构入口**: 已实施模块边界与当前能力以 [`ARCHITECTURE.md`](../../src/tools/agent-manager/ARCHITECTURE.md) 为准；本文继续维护私有资源、参数、用户档案和聊天协作的剩余工作。
+> **架构入口**: 已实施模块边界与当前能力以 [`ARCHITECTURE.md`](../../src/tools/agent-manager/ARCHITECTURE.md) 为准；本文只保留已落地能力、兼容边界和 MVP 之后的可选增强。当前主线优先完成不依赖工具调用、向量 RAG 或高级 Agent 的移动端 Chat。
 > **跨模块施工索引**: [`mobile-development-checklist.md`](./mobile-development-checklist.md)
 
 ## 1. 背景与动机
@@ -344,7 +344,7 @@ sequenceDiagram
 - [x] 阶段 3 主链路：角色大厅入口、会话绑定、模型与基础参数绑定、基础预设管道注入、聊天栏智能体标识。
 - [x] 阶段 3 增强：聊天内切换 Agent；会话绑定可单独更新，历史消息的 Agent 快照与已实例化开局消息保持稳定。
 - [x] 后续增强（已提前完成）：AIO Agent JSON、SillyTavern JSON/PNG 导入和预设 JSON 导入导出。
-- [ ] 后续增强（未完成）：Agent 私有头像与二进制资产管理，以及依赖工具调用、Recall/Knowledge、媒体/压缩能力的桌面高级参数；不得将私有资产改存为全局 `assetId`。基础用户档案与移动端当前支持的生成参数/上下文截断编辑已完成。
+- [ ] MVP 之后的可选增强：Agent 私有头像与二进制资产管理，以及工具调用、Knowledge/Recall、媒体/压缩等高级参数。它们不属于当前 Chat 完整性的依赖；移动端确有需求时再独立设计，且私有资产不得改存为全局 `assetId`。基础用户档案与移动端当前支持的生成参数/上下文截断编辑已完成。
 - [x] 兼容性收尾：已同步桌面端显式类型、分类枚举、`defaultGreetingId` 和开局消息结构；旧 `custom` 分类及字符串开局消息在运行时兼容。
 
 实现偏差：移动端当前全量加载智能体详情，以降低首版状态复杂度；列表使用页面内紧凑行而非独立 `AgentCard`。存储格式仍保持 `agent-manager/agents/{id}/agent.json` 与轻量索引分离，后续可在数据规模需要时切换为按需加载，不影响磁盘格式。索引不保存 `currentAgentId`，Agent 选择状态以聊天会话的 `displayAgentId` 为准。

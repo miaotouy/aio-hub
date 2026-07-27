@@ -1,12 +1,14 @@
 # 移动端 LLM Chat — 实现情况
 
 > **文档状态**: Implementing
-> **最后更新**: 2026-07-26
+> **最后更新**: 2026-07-27
 > **对应路径**: `mobile/src/tools/llm-chat/`
 
 ## 1. 概述
 
 LLM Chat 是 AIO Hub 移动端的核心交互工具，提供与 LLM 的即时对话体验。本实现为桌面端 `src/tools/llm-chat` 的**移动端适配移植版**，整体架构与桌面端对齐，但针对移动端环境做了精简和调整：
+
+当前产品目标是先完成不依赖工具调用、向量 RAG、Knowledge/Recall 或高级 Agent 的完整角色聊天体验。参考基线是桌面端引入这些后续模块之前的聊天能力，并结合移动端交互独立取舍；“与桌面端对齐”只表示复用成熟的聊天语义，不表示复制桌面当前全部模块或依赖关系。
 
 - **UI 分层**: 页面与聊天骨架由原生 Vue 结构和 AIO Hub 主题 token 主导，Varlet 仅作为按钮、开关、弹层等底层组件库
 - **类型系统**: 精简了部分桌面端复杂类型（如完整 `ChatAgent`、完整 `Asset` 类型），保留核心契约
@@ -230,7 +232,7 @@ LlamaChatView.send() → useChatExecutor.execute()
   → 输出 messages[] 给 llmRequest.sendRequest()
 ```
 
-**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载、基础用户档案注入、导入 Agent 的 request 阶段正则、预设注入组装和最终消息格式化；预设支持默认、深度、高级深度、锚点与模型匹配，格式化支持模型默认规则与 Agent 覆盖的 system 合并、连续角色合并、system 转 user 和角色交替。正则仅兼容已持久化的 Agent `regexConfig`，不执行脚本替换，完整全局/用户档案正则、宏替换、私有预设附件、变量、世界书、召回仍待逐个复制与移动端适配。Token 限制器仅计算文本；附件、工具 schema 和其他多模态额外开销继续由独立估算处理。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
+**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载、基础用户档案注入、导入 Agent 的 request 阶段正则、预设注入组装和最终消息格式化；预设支持默认、深度、高级深度、锚点与模型匹配，格式化支持模型默认规则与 Agent 覆盖的 system 合并、连续角色合并、system 转 user 和角色交替。后续只按角色聊天需求补移动端宏/变量、传统关键词世界书或同类确定性上下文注入、资源解析和必要正则能力；工具调用、向量 RAG、Knowledge/Recall 不属于这条管线完成的前置条件。Token 限制器当前计算文本，附件和其他多模态成本继续按实际模型与渠道协议独立估算。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
 
 ### 4.3. Token 统计与上下文预警
 
@@ -465,9 +467,10 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - [x] 基础用户档案管理：多档案 CRUD、启用/禁用、全局默认选择、Agent `userProfileId` 覆盖与请求系统上下文注入
 - [x] 智能体预设加载
 - [x] 执行预设消息的 `injectionStrategy` 和 `modelMatch`
-- [ ] 迁移完整宏引擎：桌面端必须一起注册工具、Recall、Knowledge、资产和 CSS 宏；移动端缺少 `tool-calling`、Recall、Knowledge 与兼容变量/用户档案契约，不能用子集或空实现替代
+- [ ] 实现移动端角色聊天所需的宏/变量注册表，只覆盖会话、角色、用户、预设和当前资产等真实消费方；不要求注册桌面后续工具、Recall、Knowledge 或 CSS 宏
+- [ ] 接入传统关键词世界书或同类确定性上下文注入；向量 RAG 与 Knowledge/Recall 不属于本阶段依赖
 - [x] 聊天内切换 Agent（顶部选择器仅更新会话绑定；历史节点保留原快照，后续助手消息保存 Agent 和模型/渠道快照）
-- [x] 将 Agent 开局消息实例化到新会话（根节点兄弟分支、默认开局选择和旧字符串兼容；宏与私有附件仍待依赖能力）
+- [x] 将 Agent 开局消息实例化到新会话（根节点兄弟分支、默认开局选择和旧字符串兼容；聊天宏与私有附件后续按各自范围接入）
 
 ### 🔄 体验优化
 

@@ -1,8 +1,56 @@
 // @vitest-environment jsdom
 
 import { mount } from "@vue/test-utils";
-import { describe, expect, it } from "vitest";
+import { nextTick } from "vue";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import RichTextRenderer from "../RichTextRenderer.vue";
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
+
+
+describe("RichTextRenderer streaming lifecycle", () => {
+  it("throttles intermediate streaming chunks and flushes the completed response", async () => {
+    vi.useFakeTimers();
+    const wrapper = mount(RichTextRenderer, {
+      props: { content: "First chunk", isStreaming: true },
+    });
+
+    expect(wrapper.text()).toContain("First chunk");
+
+    await wrapper.setProps({ content: "Second chunk" });
+    await vi.advanceTimersByTimeAsync(79);
+    await nextTick();
+    expect(wrapper.text()).toContain("First chunk");
+    expect(wrapper.text()).not.toContain("Second chunk");
+
+    await vi.advanceTimersByTimeAsync(1);
+    await nextTick();
+    expect(wrapper.text()).toContain("Second chunk");
+
+    await wrapper.setProps({
+      content: "Final **answer**",
+      isStreaming: false,
+    });
+    expect(wrapper.text()).toContain("Final answer");
+    expect(wrapper.get("strong").text()).toBe("answer");
+  });
+
+  it("clears a pending streaming timer when unmounted", async () => {
+    vi.useFakeTimers();
+    const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
+    const wrapper = mount(RichTextRenderer, {
+      props: { content: "First chunk", isStreaming: true },
+    });
+
+    await wrapper.setProps({ content: "Second chunk" });
+    wrapper.unmount();
+
+    expect(clearTimeoutSpy).toHaveBeenCalled();
+  });
+});
 
 describe("RichTextRenderer security boundary", () => {
   it("renders inline and block KaTeX without treating formulas as raw HTML", () => {

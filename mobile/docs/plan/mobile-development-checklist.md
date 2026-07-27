@@ -56,7 +56,8 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 - [ ] 已接入 Mermaid fenced code 的安全基础渲染：组件按需加载 Mermaid、使用 `securityLevel: "strict"`，以清洗后的 SVG DOM 挂载并仅保留片段引用；流式未闭合 fenced code 保持等待状态，渲染失败回退原始代码。缩放、导出、HTML 交互预览、样式隔离与 CDN 本地化仍待后续评估，且不把 PC 全量交互能力作为初始合并条件。
 - [x] 已关闭移动端现存的 raw `v-html` 渲染，并将 Markdown 链接限制为锚点、HTTP(S) 与 `mailto:`：HTML token 仅按字面文本显示，避免未受信任内容在聊天内执行。
 - [ ] 后续如需重新启用 HTML 能力，必须先实现可审计的白名单或沙箱，不能恢复直接 `v-html`。
-- [ ] 完成窄屏、长消息、流式输出、滚动和内存释放验证。
+- [x] 已完成可单测的流式渲染稳定性基础：中间 chunk 使用 80ms 快照节流，首内容、清空内容和流式结束立即刷新，组件卸载会清理流式与复制反馈 timer。
+- [ ] 完成 Android/iOS 真实设备上的窄屏、长消息、流式输出、滚动和内存释放验证；浏览器/Vitest 不能替代 Tauri WebView 和原生运行态门禁。
 - [ ] 功能迁移稳定后再依据真实设备数据决定 Web Worker、Rust 或原生下沉；没有性能证据时不重构为共享包。
 
 入口：[`rich-text-renderer-migration-plan.md`](../../src/tools/rich-text-renderer/docs/Plan/rich-text-renderer-migration-plan.md)。

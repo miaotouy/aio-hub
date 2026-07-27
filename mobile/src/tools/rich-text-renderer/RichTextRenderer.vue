@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { marked } from "marked";
 import { Copy, Check } from "lucide-vue-next";
 import { createModuleLogger } from "@/utils/logger";
@@ -41,6 +41,58 @@ const processedContent = computed(() => {
   }
   return text;
 });
+
+// Streaming providers can deliver several chunks inside one frame. Rendering
+// the complete Markdown tree for every chunk is needlessly expensive on a
+// narrow mobile WebView, so stage updates at a small fixed cadence instead.
+const STREAM_RENDER_THROTTLE_MS = 80;
+const renderedContent = ref("");
+let pendingRenderedContent = "";
+let streamRenderTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearStreamRenderTimer() {
+  if (streamRenderTimer === null) return;
+  clearTimeout(streamRenderTimer);
+  streamRenderTimer = null;
+}
+
+function flushRenderedContent() {
+  clearStreamRenderTimer();
+  renderedContent.value = pendingRenderedContent;
+}
+
+function scheduleRenderedContent() {
+  if (streamRenderTimer !== null) return;
+  streamRenderTimer = setTimeout(() => {
+    streamRenderTimer = null;
+    renderedContent.value = pendingRenderedContent;
+  }, STREAM_RENDER_THROTTLE_MS);
+}
+
+watch(
+  () =>
+    [
+      processedContent.value,
+      props.isStreaming,
+      isRecursive.value,
+    ] as const,
+  ([content, isStreaming, recursive]) => {
+    pendingRenderedContent = content;
+    if (recursive) {
+      clearStreamRenderTimer();
+      return;
+    }
+
+    // First content, cleared content, and a completed response must reach the
+    // DOM immediately. Only intermediate streaming chunks are throttled.
+    if (!isStreaming || !content || !renderedContent.value) {
+      flushRenderedContent();
+      return;
+    }
+    scheduleRenderedContent();
+  },
+  { immediate: true }
+);
 
 type RenderSegment =
   | { type: "markdown"; tokens: any[] }
@@ -156,7 +208,7 @@ function splitContentSegments(
 
 const displaySegments = computed<RenderSegment[]>(() => {
   if (props.tokens) return [{ type: "markdown", tokens: props.tokens }];
-  const text = processedContent.value;
+  const text = renderedContent.value;
   if (!text) return [];
   return splitContentSegments(text, !props.disableThinkParsing);
 });
@@ -184,11 +236,15 @@ function isSafeLinkUrl(url: unknown): url is string {
 
 // 复制代码块内容
 const copiedIndex = ref<number | null>(null);
+let copiedResetTimer: ReturnType<typeof setTimeout> | null = null;
+
 async function copyCode(code: string, index: number) {
   try {
     await navigator.clipboard.writeText(code);
     copiedIndex.value = index;
-    setTimeout(() => {
+    if (copiedResetTimer !== null) clearTimeout(copiedResetTimer);
+    copiedResetTimer = setTimeout(() => {
+      copiedResetTimer = null;
       if (copiedIndex.value === index) {
         copiedIndex.value = null;
       }
@@ -198,6 +254,14 @@ async function copyCode(code: string, index: number) {
     customMessage("复制失败", "error");
   }
 }
+
+onBeforeUnmount(() => {
+  clearStreamRenderTimer();
+  if (copiedResetTimer !== null) {
+    clearTimeout(copiedResetTimer);
+    copiedResetTimer = null;
+  }
+});
 </script>
 
 <template>

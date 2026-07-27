@@ -81,6 +81,18 @@ export async function runRichTextManagedMediaScenario(
     context.driver,
     "media-preview-immersive"
   );
+  const viewer = await immersive.$(".media-image-viewer");
+  await viewer.waitForDisplayed({ timeout: 10_000 });
+  await viewer.doubleClick();
+  await context.driver.waitUntil(
+    async () => (await viewer.getAttribute("data-scale")) === "2",
+    {
+      timeout: 5_000,
+      interval: 100,
+      timeoutMsg:
+        "Managed image did not zoom to 2x after a WebView double-click.",
+    }
+  );
   const close = await immersive.$(".immersive-header button");
   await close.click();
   await immersive.waitForExist({ timeout: 10_000, reverse: true });

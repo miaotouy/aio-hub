@@ -72,7 +72,8 @@ bun tests/mobile-android-e2e/run.ts --preset rich-text-media --avd Medium_Phone_
 This sends a message that owns an imported image attachment and embeds it as
 `![...](asset://<assetId>)`. The scenario verifies the chat RichText resolver
 only accepts that message-owned asset, obtains a managed preview URL, reaches
-ready state, and opens/closes the immersive image view.
+ready state, opens/closes the immersive image view, and handles a WebView
+double-click zoom to 2x. It does not cover multi-touch or drag-dismiss gestures.
 
 Run the Ollama attachment lane explicitly:
 

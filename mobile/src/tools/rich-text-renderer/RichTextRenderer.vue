@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { marked } from "marked";
-import { Copy, Check } from "lucide-vue-next";
 import { createModuleLogger } from "@/utils/logger";
-import { customMessage } from "@/utils/feedback";
 import ThinkBlock from "./components/ThinkBlock.vue";
+import CodeBlock from "./components/CodeBlock.vue";
 import KatexRenderer from "./components/KatexRenderer.vue";
 import MermaidDiagram from "./components/MermaidDiagram.vue";
 import VcpBlock from "./components/VcpBlock.vue";
@@ -333,33 +332,8 @@ function isSafeLinkUrl(url: unknown): url is string {
   return normalized.startsWith("#") || /^(https?:|mailto:)/i.test(normalized);
 }
 
-// 复制代码块内容
-const copiedIndex = ref<number | null>(null);
-let copiedResetTimer: ReturnType<typeof setTimeout> | null = null;
-
-async function copyCode(code: string, index: number) {
-  try {
-    await navigator.clipboard.writeText(code);
-    copiedIndex.value = index;
-    if (copiedResetTimer !== null) clearTimeout(copiedResetTimer);
-    copiedResetTimer = setTimeout(() => {
-      copiedResetTimer = null;
-      if (copiedIndex.value === index) {
-        copiedIndex.value = null;
-      }
-    }, 2000);
-  } catch (err) {
-    logger.warn("复制代码失败", err);
-    customMessage("复制失败", "error");
-  }
-}
-
 onBeforeUnmount(() => {
   clearStreamRenderTimer();
-  if (copiedResetTimer !== null) {
-    clearTimeout(copiedResetTimer);
-    copiedResetTimer = null;
-  }
 });
 </script>
 
@@ -432,21 +406,11 @@ onBeforeUnmount(() => {
           />
 
           <!-- 4. 代码块 -->
-          <div v-else-if="token.type === 'code'" class="code-block-container">
-            <div class="code-block-header">
-              <span class="code-lang">{{ token.lang || "code" }}</span>
-              <button class="copy-btn" @click="copyCode(token.text, index)">
-                <Check
-                  v-if="copiedIndex === index"
-                  :size="14"
-                  class="success-icon"
-                />
-                <Copy v-else :size="14" />
-                <span>{{ copiedIndex === index ? "已复制" : "复制" }}</span>
-              </button>
-            </div>
-            <pre class="code-block-pre"><code>{{ token.text }}</code></pre>
-          </div>
+          <CodeBlock
+            v-else-if="token.type === 'code'"
+            :content="token.text"
+            :language="token.lang"
+          />
 
           <!-- 4. 引用块 -->
           <blockquote
@@ -803,71 +767,6 @@ onBeforeUnmount(() => {
 
 .md-table tr:nth-child(even) {
   background-color: var(--el-fill-color-extra-light);
-}
-
-/* 代码块样式 */
-.code-block-container {
-  margin: 12px 0;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 1px solid var(--el-border-color-light);
-  background-color: var(--el-fill-color-blank);
-}
-
-.code-block-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 12px;
-  background-color: var(--el-fill-color-darker);
-  border-bottom: 1px solid var(--el-border-color-light);
-  font-size: 0.8rem;
-  color: var(--el-text-color-secondary);
-}
-
-.code-lang {
-  font-family: monospace;
-  text-transform: lowercase;
-  font-weight: 500;
-}
-
-.copy-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  border: none;
-  background: transparent;
-  color: var(--el-text-color-secondary);
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: all 0.2s;
-}
-
-.copy-btn:hover {
-  background-color: var(--el-fill-color-light);
-  color: var(--el-text-color-primary);
-}
-
-.success-icon {
-  color: var(--el-color-success);
-}
-
-.code-block-pre {
-  margin: 0;
-  padding: 12px;
-  overflow-x: auto;
-  font-family: monospace;
-  font-size: 0.85rem;
-  line-height: 1.4;
-  background-color: var(--el-fill-color-extra-light);
-}
-
-.code-block-pre code {
-  font-family: monospace;
-  white-space: pre;
-  word-break: normal;
-  word-wrap: normal;
 }
 
 .md-html {

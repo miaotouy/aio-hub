@@ -52,6 +52,64 @@ describe("RichTextRenderer streaming lifecycle", () => {
   });
 });
 
+describe("RichTextRenderer mobile code blocks", () => {
+  it("provides touch-sized wrapping and copy controls without changing code text", async () => {
+    vi.useFakeTimers();
+    const originalClipboard = navigator.clipboard;
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+
+    try {
+      const wrapper = mount(RichTextRenderer, {
+        props: { content: "```typescript\nconst value = veryLongIdentifier;\n```" },
+      });
+
+      const block = wrapper.get('[data-testid="rich-text-code-block"]');
+      expect(block.get(".mobile-code-language").text()).toBe("typescript");
+      expect(block.get("code").text()).toBe(
+        "const value = veryLongIdentifier;"
+      );
+
+      const wrapButton = block.get('[data-testid="rich-text-code-wrap"]');
+      expect(wrapButton.attributes("aria-pressed")).toBe("false");
+      await wrapButton.trigger("click");
+      expect(wrapButton.attributes("aria-pressed")).toBe("true");
+      expect(block.get(".mobile-code-pre").classes()).toContain("is-wrapped");
+
+      await block.get('[data-testid="rich-text-code-copy"]').trigger("click");
+      expect(writeText).toHaveBeenCalledWith(
+        "const value = veryLongIdentifier;"
+      );
+      expect(block.text()).toContain("已复制");
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(block.text()).toContain("复制");
+    } finally {
+      Object.assign(navigator, { clipboard: originalClipboard });
+    }
+  });
+
+  it("clears a pending copied-state timer when the code block is unmounted", async () => {
+    vi.useFakeTimers();
+    const originalClipboard = navigator.clipboard;
+    Object.assign(navigator, { clipboard: { writeText: vi.fn() } });
+    const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
+
+    try {
+      const wrapper = mount(RichTextRenderer, {
+        props: { content: "```text\ncopy me\n```" },
+      });
+      await wrapper
+        .get('[data-testid="rich-text-code-copy"]')
+        .trigger("click");
+      wrapper.unmount();
+
+      expect(clearTimeoutSpy).toHaveBeenCalled();
+    } finally {
+      Object.assign(navigator, { clipboard: originalClipboard });
+    }
+  });
+});
+
 describe("RichTextRenderer managed media", () => {
   it("uses the caller-owned MediaItem resolver for managed Markdown assets", () => {
     const wrapper = mount(RichTextRenderer, {

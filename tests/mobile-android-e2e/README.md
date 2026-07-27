@@ -31,10 +31,21 @@ bun tests/mobile-android-e2e/run.ts --preset attachment `
   --apk mobile/src-tauri/target/release/bundle/android/AIO-Hub_0.1.1-m-beta.2_android-x86_64-debug.apk
 ```
 
-Available presets are `feasibility`, `smoke`, `asset`, `media`, `attachment`,
-`recovery`, `core`, and opt-in `ollama`. The `core` preset intentionally does
+Available presets are `feasibility`, `smoke`, `asset`, `media`, `rich-text`,
+`attachment`, `recovery`, `core`, and opt-in `ollama`. The `core` preset intentionally does
 not create the 768 MiB interrupted-import fixture; run `recovery` separately
 when exercising that path.
+
+Run the RichText narrow-screen regression lane:
+
+```powershell
+bun tests/mobile-android-e2e/run.ts --preset rich-text --avd Medium_Phone_API_36
+```
+
+This verifies the in-app RichText test page through the Android WebView: normal
+code blocks, Mermaid rendering, code wrapping, and a long unbroken code line
+that must remain inside its scroll container. It does not replace Android
+real-device, iOS, chat-message, or managed-media acceptance.
 
 Run the Ollama attachment lane explicitly:
 

@@ -8,6 +8,7 @@ import {
 } from "./specs/chat-attachment.spec";
 import { runFailureRecoveryScenario } from "./specs/failure-recovery.spec";
 import { runAudioMediaScenario } from "./specs/audio-media.spec";
+import { runRichTextRendererScenario } from "./specs/rich-text-renderer.spec";
 import type { MobileE2ePresetId } from "./support/runner-options";
 
 export interface MobileE2ePreset {
@@ -35,7 +36,8 @@ export const MOBILE_E2E_PRESETS: Record<MobileE2ePresetId, MobileE2ePreset> = {
   },
   smoke: {
     id: "smoke",
-    purpose: "Registration, navigation, language/theme, and restart persistence",
+    purpose:
+      "Registration, navigation, language/theme, and restart persistence",
     scenarios: [
       { id: "feasibility", run: runFeasibilityScenario },
       { id: "smoke", run: runSmokeScenario },
@@ -59,6 +61,14 @@ export const MOBILE_E2E_PRESETS: Record<MobileE2ePresetId, MobileE2ePreset> = {
     id: "media",
     purpose: "Managed audio preview and immersive controls",
     scenarios: [{ id: "audio-media", run: runAudioMediaScenario }],
+    requiresDeterministicServer: false,
+    requiresOllama: false,
+    apkSizeBaselineBytes: E2E_APK_SIZE_BASELINE_BYTES,
+  },
+  "rich-text": {
+    id: "rich-text",
+    purpose: "RichText code, Mermaid, and narrow-screen long-code rendering",
+    scenarios: [{ id: "rich-text-renderer", run: runRichTextRendererScenario }],
     requiresDeterministicServer: false,
     requiresOllama: false,
     apkSizeBaselineBytes: E2E_APK_SIZE_BASELINE_BYTES,

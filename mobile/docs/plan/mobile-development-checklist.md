@@ -59,6 +59,7 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 - [ ] 后续如需重新启用 HTML 能力，必须先实现可审计的白名单或沙箱，不能恢复直接 `v-html`。
 - [x] 已完成可单测的流式渲染稳定性基础：中间 chunk 使用 80ms 快照节流，首内容、清空内容和流式结束立即刷新，组件卸载会清理流式与复制反馈 timer。
 - [ ] 完成 Android/iOS 真实设备上的窄屏、长消息、流式输出、滚动和内存释放验证；浏览器/Vitest 不能替代 Tauri WebView 和原生运行态门禁。
+  - 2026-07-27：runner-owned Android AVD `Medium_Phone_API_36`（SDK 36、x86_64）已通过 `rich-text` 预设，验证 RichText 测试页的代码块、Mermaid、自动换行与长无空格代码容器滚动；Android 真机、iOS、正式聊天消息、受管媒体和内存释放仍是未完成门禁。
 - [ ] 功能迁移稳定后再依据真实设备数据决定 Web Worker、Rust 或原生下沉；没有性能证据时不重构为共享包。
 
 入口：[`rich-text-renderer-migration-plan.md`](../../src/tools/rich-text-renderer/docs/Plan/rich-text-renderer-migration-plan.md)。
@@ -94,4 +95,3 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 - RichTextRenderer 的初版迁移清单完成，不代表 PC 能力迁移完成。
 - Token 计数服务和文本上下文预算编排已完成；文档只继续跟踪非文本成本、真实设备性能和平台验证。
 - 各模块完成阶段后，把稳定边界和验证记录同步到对应 `ARCHITECTURE.md`；本文只更新勾选状态、优先级和入口。
-

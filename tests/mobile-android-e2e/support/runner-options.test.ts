@@ -23,6 +23,15 @@ describe("mobile E2E runner options", () => {
     expect(options.keepAvd).toBe(true);
   });
 
+  it("accepts the RichText preset", () => {
+    const options = parseRunnerOptions(
+      ["--preset", "rich-text"],
+      {},
+      "C:\\repo"
+    );
+    expect(options.preset).toBe("rich-text");
+  });
+
   it("rejects unknown presets", () => {
     expect(() =>
       parseRunnerOptions(["--preset", "all"], {}, "C:\\repo")

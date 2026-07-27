@@ -488,7 +488,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="tester-view">
+  <div class="tester-view" data-testid="rich-text-tester-view">
     <!-- 顶部控制栏 -->
     <header class="tester-header">
       <div class="header-row">
@@ -497,6 +497,7 @@ onUnmounted(() => {
           size="small"
           class="preset-select"
           :hint="false"
+          data-testid="rich-text-preset-select"
         >
           <var-option
             v-for="p in presets"
@@ -513,6 +514,7 @@ onUnmounted(() => {
             size="small"
             round
             class="control-btn"
+            data-testid="rich-text-render-start"
             @click="startRender"
           >
             <Play :size="14" />
@@ -557,6 +559,7 @@ onUnmounted(() => {
       <div class="tab-nav">
         <button
           class="tab-item"
+          data-testid="rich-text-edit-tab"
           :class="{ active: activeTab === 'edit' }"
           @click="activeTab = 'edit'"
         >
@@ -565,6 +568,7 @@ onUnmounted(() => {
         </button>
         <button
           class="tab-item"
+          data-testid="rich-text-preview-tab"
           :class="{ active: activeTab === 'preview' }"
           @click="activeTab = 'preview'"
         >
@@ -581,6 +585,7 @@ onUnmounted(() => {
         </button>
         <button
           class="tab-item"
+          data-testid="rich-text-debug-tab"
           :class="{ active: activeTab === 'debug' }"
           @click="activeTab = 'debug'"
         >
@@ -598,6 +603,7 @@ onUnmounted(() => {
           v-model="inputContent"
           :placeholder="tRaw('tools.rich-text-renderer.tester.输入提示')"
           class="markdown-textarea"
+          data-testid="rich-text-editor"
         ></textarea>
       </div>
 
@@ -606,6 +612,7 @@ onUnmounted(() => {
         v-show="activeTab === 'preview'"
         ref="previewContainerRef"
         class="workspace-pane preview-pane"
+        data-testid="rich-text-preview-pane"
       >
         <div v-if="currentContent" class="render-wrapper">
           <div class="render-header">
@@ -683,7 +690,11 @@ onUnmounted(() => {
             <span class="config-label">{{
               tRaw("tools.rich-text-renderer.tester.启用流式模拟")
             }}</span>
-            <var-switch v-model="streamEnabled" size="20" />
+            <var-switch
+              v-model="streamEnabled"
+              size="20"
+              data-testid="rich-text-stream-switch"
+            />
           </div>
           <div class="config-item" v-if="streamEnabled">
             <span class="config-label">{{

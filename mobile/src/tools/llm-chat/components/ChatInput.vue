@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AlertTriangle, Send, Loader2, Paperclip, Reply, X } from "lucide-vue-next";
+import {
+  AlertTriangle,
+  Send,
+  Square,
+  Paperclip,
+  Reply,
+  X,
+} from "lucide-vue-next";
 import { useLlmChatStore } from "../stores/llmChatStore";
 import { useKeyboardAvoidance } from "@/composables/useKeyboardAvoidance";
 import { useChatExecutor } from "../composables/useChatExecutor";
@@ -22,7 +29,7 @@ const emit = defineEmits<{
 }>();
 
 const chatStore = useLlmChatStore();
-const { execute } = useChatExecutor();
+const { execute, stop } = useChatExecutor();
 const { isKeyboardVisible } = useKeyboardAvoidance();
 
 const inputText = ref("");
@@ -65,9 +72,12 @@ const handleKeyDown = (e: KeyboardEvent) => {
 };
 
 const handleSend = async () => {
+  if (chatStore.isSending) {
+    if (chatStore.currentSession) stop(chatStore.currentSession);
+    return;
+  }
   if (
-    (!inputText.value.trim() && !attachments.value.length) ||
-    chatStore.isSending
+    !inputText.value.trim() && !attachments.value.length
   )
     return;
 
@@ -185,13 +195,13 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
 
       <button
         class="send-btn"
+        :class="{ stopping: chatStore.isSending }"
         data-testid="chat-send"
-        :disabled="
-          (!inputText.trim() && !attachments.length) || chatStore.isSending
-        "
+        :aria-label="chatStore.isSending ? inputT('停止生成') : inputT('发送')"
+        :disabled="!chatStore.isSending && !inputText.trim() && !attachments.length"
         @click="handleSend"
       >
-        <Loader2 v-if="chatStore.isSending" class="animate-spin" :size="20" />
+        <Square v-if="chatStore.isSending" :size="18" />
         <Send v-else :size="20" />
       </button>
     </div>

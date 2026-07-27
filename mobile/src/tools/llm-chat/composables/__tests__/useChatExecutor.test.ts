@@ -260,3 +260,39 @@ describe("useChatExecutor user profile context", () => {
     expect(state.userProfileStore.markUsed).not.toHaveBeenCalled();
   });
 });
+
+describe("useChatExecutor stop generation", () => {
+  it("aborts the in-flight request and keeps streamed content as an interrupted complete message", async () => {
+    const targetSession = session();
+    state.responseHandler.handleStreamUpdate.mockImplementation(
+      (currentSession: ChatSession, nodeId: string, chunk: string) => {
+        currentSession.nodes[nodeId].content += chunk;
+      }
+    );
+    state.llmRequest.sendRequest.mockImplementationOnce((options) => {
+      options.onStream?.("Partial reply");
+      return new Promise((_, reject) => {
+        options.signal?.addEventListener("abort", () => {
+          reject(options.signal?.reason);
+        });
+      });
+    });
+
+    const executor = useChatExecutor();
+    const execution = executor.execute(targetSession, "Hello");
+    await vi.waitFor(() => {
+      expect(state.llmRequest.sendRequest).toHaveBeenCalledOnce();
+    });
+
+    expect(executor.stop(targetSession)).toBe(true);
+    await execution;
+
+    const assistant = targetSession.nodes["assistant-1"];
+    expect(assistant).toMatchObject({
+      status: "complete",
+      content: "Partial reply",
+      metadata: expect.objectContaining({ interrupted: true }),
+    });
+    expect(state.responseHandler.handleNodeError).not.toHaveBeenCalled();
+  });
+});

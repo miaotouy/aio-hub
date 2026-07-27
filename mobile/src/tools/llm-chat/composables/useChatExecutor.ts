@@ -33,6 +33,16 @@ import {
 import { createAssistantAgentSnapshot } from "../services/agentSessionService";
 
 const logger = createModuleLogger("llm-chat/useChatExecutor");
+interface ActiveGeneration {
+  controller: AbortController;
+  sessionId: string;
+  assistantNodeId: string;
+}
+
+// ChatInput and LlmChatView each create this composable independently. The
+// active cancellation boundary must therefore be shared for the one global
+// in-flight chat request.
+let activeGeneration: ActiveGeneration | null = null;
 
 export function useChatExecutor() {
   const chatStore = useLlmChatStore();
@@ -50,6 +60,14 @@ export function useChatExecutor() {
   const { tRaw } = useI18n();
   const t = (key: string) => tRaw(`tools.llm-chat.TokenUsage.${key}`);
   const chatT = (key: string) => tRaw(`tools.llm-chat.ChatView.${key}`);
+
+  function stop(session: ChatSession): boolean {
+    if (!activeGeneration || activeGeneration.sessionId !== session.id) return false;
+    activeGeneration.controller.abort(
+      new DOMException("Generation stopped by user", "AbortError")
+    );
+    return true;
+  }
 
   /**
    * 执行对话请求
@@ -144,6 +162,12 @@ export function useChatExecutor() {
     nodeManager.updateActiveLeaf(session, assistantNode.id);
 
     chatStore.isSending = true;
+    const generation: ActiveGeneration = {
+      controller: new AbortController(),
+      sessionId: session.id,
+      assistantNodeId: assistantNode.id,
+    };
+    activeGeneration = generation;
 
     try {
       // Persist the durable request boundary before network I/O so a process stop can be
@@ -168,6 +192,9 @@ export function useChatExecutor() {
       };
 
       await pipelineStore.executePipeline(pipelineContext);
+      if (generation.controller.signal.aborted) {
+        throw generation.controller.signal.reason;
+      }
       if (effectiveUserProfile)
         await userProfileStore.markUsed(effectiveUserProfile.id);
 
@@ -275,6 +302,7 @@ export function useChatExecutor() {
           stream: settings.value.uiPreferences.isStreaming,
           timeout: settings.value.requestSettings.timeout,
           maxRetries: settings.value.requestSettings.maxRetries,
+          signal: generation.controller.signal,
           onStream: (chunk) => {
             handleStreamUpdate(session, assistantNode.id, chunk, false);
           },
@@ -298,9 +326,22 @@ export function useChatExecutor() {
           logger.error("Failed to auto name session", err);
         });
       }
-    } catch (error: any) {
-      handleNodeError(session, assistantNode.id, error, chatT("对话执行失败"));
+    } catch (error: unknown) {
+      if (generation.controller.signal.aborted) {
+        const interruptedNode = session.nodes[assistantNode.id];
+        if (interruptedNode) {
+          interruptedNode.status = "complete";
+          interruptedNode.metadata = {
+            ...interruptedNode.metadata,
+            interrupted: true,
+            interruptedAt: Date.now(),
+          };
+        }
+      } else {
+        handleNodeError(session, assistantNode.id, error, chatT("对话执行失败"));
+      }
     } finally {
+      if (activeGeneration === generation) activeGeneration = null;
       chatStore.isSending = false;
       session.updatedAt = new Date().toISOString();
       // 持久化当前会话
@@ -329,5 +370,6 @@ export function useChatExecutor() {
   return {
     execute,
     regenerate,
+    stop,
   };
 }

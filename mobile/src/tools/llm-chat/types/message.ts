@@ -40,6 +40,10 @@ export interface ChatMessageMetadata {
   modelDisplayName?: string;
   /** 错误信息 */
   error?: string;
+  /** 用户主动停止了本次生成；已有流式内容会被保留。 */
+  interrupted?: boolean;
+  /** 用户主动停止生成的时间戳。 */
+  interruptedAt?: number;
   /** 推理内容（DeepSeek reasoning 模式） */
   reasoningContent?: string;
   /** 推理开始时间戳 */

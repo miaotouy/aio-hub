@@ -269,8 +269,9 @@ LlamaChatView.send() → useChatExecutor.execute()
   ├─ 6. 执行 pipeline（加载历史消息，并按默认/深度/锚点策略组装 Agent 预设 → 构建 ProcessableMessage[]）
   ├─ 7. 统计最终请求上下文 Token 并写入风险快照
   ├─ 8. 调用 useLlmRequest.sendRequest()（流式）
-  │    └─ onStream: 逐 chunk 追加到 assistantNode.content
-  ├─ 9. 收口实际/估算 usage，更新节点状态（complete / error）
+  │    ├─ onStream: 逐 chunk 追加到 assistantNode.content
+  │    └─ ChatInput 的停止按钮通过共享 AbortController 传入 request signal
+  ├─ 9. 收口实际/估算 usage，更新节点状态（complete / error）；主动停止保留已有流式内容，以 complete + metadata.interrupted 持久化
   └─ 10. 持久化会话
 ```
 
@@ -285,16 +286,18 @@ LlamaChatView.send() → useChatExecutor.execute()
 | `/tools/llm-chat/sessions` | `SessionList.vue`      | 历史会话列表          |
 | `/tools/llm-chat/chat/:id` | `LlmChatView.vue`      | 聊天主界面            |
 | `/tools/llm-chat/profiles` | `UserProfilesView.vue` | 用户档案管理          |
+| `/tools/llm-chat/worldbooks` | `WorldbooksView.vue` | 关键词世界书管理      |
 | `/tools/llm-chat/settings` | `ChatSettingsView.vue` | 聊天设置页面          |
 
 ### 5.1. ChatHome.vue — 主页
 
 - 加载设置、LLM Profiles、会话索引
-- 4个操作卡片：
+- 5个操作卡片：
   - **开启新对话** — `createSession()` + 跳转
   - **历史会话** — 跳转到 `SessionList`
   - **角色大厅** — 跳转到独立 `agent-manager`，可选择智能体发起绑定会话
   - **用户档案** — 跳转到 `UserProfilesView`，管理基础档案和默认选择
+  - **世界书** — 跳转到 `WorldbooksView`，管理关键词背景条目
 - 使用 SafeTop 组件处理刘海屏
 
 ### 5.2. LlmChatView.vue — 聊天主界面

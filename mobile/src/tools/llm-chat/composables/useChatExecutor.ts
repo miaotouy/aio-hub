@@ -222,31 +222,17 @@ export function useChatExecutor() {
       if (effectiveUserProfile)
         await userProfileStore.markUsed(effectiveUserProfile.id);
 
-      const pipelineAttachments = pipelineContext.messages.flatMap(
-        (message) => message._attachments ?? []
-      );
-      if (pipelineAttachments.length) {
-        const availability =
-          await getAttachmentAvailabilityMap(pipelineAttachments);
-        let unavailableHistoryCount = 0;
-        for (const message of pipelineContext.messages) {
-          if (!message._attachments?.length) continue;
-          const { ready, unavailable } = partitionAttachmentsByAvailability(
-            message._attachments,
-            availability
-          );
-          message._attachments = ready.length ? ready : undefined;
-          unavailableHistoryCount += unavailable.length;
-        }
-        if (unavailableHistoryCount) {
-          customMessage(
-            chatT("跳过不可用历史附件").replace(
-              "{count}",
-              String(unavailableHistoryCount)
-            ),
-            "warning"
-          );
-        }
+      const attachmentPreparation = pipelineContext.sharedData.get(
+        "attachmentPreparationStats"
+      ) as { skippedAttachmentCount?: number } | undefined;
+      if (attachmentPreparation?.skippedAttachmentCount) {
+        customMessage(
+          chatT("跳过不可用历史附件").replace(
+            "{count}",
+            String(attachmentPreparation.skippedAttachmentCount)
+          ),
+          "warning"
+        );
       }
 
       const requestContextMessages = pipelineContext.messages.filter(

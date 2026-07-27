@@ -12,6 +12,7 @@ import { macrosRenderer } from "../core/pipeline/processors/macros-renderer";
 import { worldbookInjector } from "../core/pipeline/processors/worldbook-injector";
 import { messageFormatter } from "../core/pipeline/processors/message-formatter";
 import { tokenLimiter } from "../core/pipeline/processors/token-limiter";
+import { attachmentPreparer } from "../core/pipeline/processors/attachment-preparer";
 
 const logger = createModuleLogger("contextPipelineStore");
 const errorHandler = createModuleErrorHandler("contextPipelineStore");
@@ -40,6 +41,7 @@ const getInitialProcessors = (): ContextProcessor[] => {
     injectionAssembler,
     worldbookInjector,
     macrosRenderer,
+    attachmentPreparer,
     tokenLimiter,
     messageFormatter,
   ];

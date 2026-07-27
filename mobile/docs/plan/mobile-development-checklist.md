@@ -16,7 +16,7 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 
 ### P0：Chat 功能完整性（不依赖工具调用或向量 RAG）
 
-- [ ] 以角色聊天实际需要为边界迁移剩余上下文能力，优先补齐移动端宏/变量、传统关键词世界书或同类确定性上下文注入、资源解析和消息编排；不以复制桌面当前全部处理器为目标。
+- [x] 已以角色聊天实际需要为边界完成移动端宏/变量、传统关键词世界书、确定性注入、资源解析和消息编排：可用附件保留匿名托管引用并由 Rust 原生传输在发网前读取；历史文档在“提取文本并清理原件”后会将持久化 `extractedText` 于 Token 裁剪前回退进请求上下文。媒体压缩、PDF/Office 深度解析、转写、工具调用、向量 RAG、Knowledge/Recall 不以复制桌面全部处理器为目标，按后续产品需求独立设计。
 - [x] 在移动端接入 `injection-assembler`，支持预设消息的 `injectionStrategy`、深度、锚点和模型/渠道匹配语义。
 - [x] 建立移动端 Chat 自己的宏注册范围：`primary:macros-renderer` 在预设装配后、Token 裁剪前顺序展开角色、用户、会话、模型和当前附件轻量摘要，并支持导入角色的局部变量定义、`<svar>`、`getvar` / `setvar` / `incvar` / `decvar`。未知与转义宏保持字面文本；工具、Recall、Knowledge、CSS 与全局变量宏不进入本阶段。
 - [x] 接入移动端传统关键词世界书：全局 `worldbooks.json` 仅保存文本条目与匹配设置，Agent 通过既有 `worldbookIds` 选择世界书；`primary:worldbook-injector` 以选中顺序、条目 order 和 ID 做稳定排序，在历史尾部有限扫描并按 `before_history` / `after_character` / `depth` 注入。首阶段不迁移桌面的递归、概率、分组竞争、向量、Outlet、自动化或 Knowledge/Recall；世界书创建、条目编辑与 Agent 关联均已有移动端入口。

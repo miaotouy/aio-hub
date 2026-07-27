@@ -239,15 +239,22 @@ Actions:
    ├── 对历史 `last*` 宏只读取该消息之前的同分支历史；转义和未知宏保持字面文本
    └── 仅把替换前文本写到 `ProcessableMessage._originalContent`，不把资产路径或系统 URI 写入聊天数据
 
+7. primary:attachment-preparer (priority: 600)
+   ├── 通过 AssetManager 检查历史 `ManagedAssetRef` 可用性，保留 ready 资产的匿名托管引用
+   ├── 原件已清理、缺失或读取失败时，跳过二进制引用；如果聊天附件快照已有 `extractedText`，则以带名称和 MIME 标识的文本块确定性回退
+   ├── 文本回退发生在 Token 限制器之前，因此会参与历史裁剪和最终请求 Token 快照
+   └── `useChatExecutor` 只对没有文本回退的失效历史附件显示跳过提示；可用引用继续在最终序列化时交给 Rust 原生传输读取
+
 管道执行流程：
 LlamaChatView.send() → useChatExecutor.execute()
   → 构建 PipelineContext
   → pipelineStore.executePipeline(context)
-  → [session-loader, user-profile-injector, regex-processor, injection-assembler, worldbook-injector, macros-renderer, token-limiter, message-formatter]
+  → [session-loader, user-profile-injector, regex-processor, injection-assembler, worldbook-injector, macros-renderer, attachment-preparer, token-limiter, message-formatter]
+  → buildMessageContent() 序列化可用托管引用 → Rust 原生传输在发网前解析资产字节
   → 输出 messages[] 给 llmRequest.sendRequest()
 ```
 
-**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载、基础用户档案注入、导入 Agent 的 request 阶段正则、预设注入组装、移动端限定范围的关键词世界书注入、宏/局部变量渲染、Token 裁剪和最终消息格式化；预设支持默认、深度、高级深度、锚点与模型匹配，格式化支持模型默认规则与 Agent 覆盖的 system 合并、连续角色合并、system 转 user 和角色交替。宏只覆盖角色聊天当前消费的 `user` / `agent` / `char`、用户档案、会话 `last*` / `input`、模型、`assets` 与导入角色局部变量；未知与转义宏不会被执行。世界书由 `worldbookStore` 用 `llm-chat/worldbooks.json` 单独持久化，数据只包含文本、关键词、扫描深度、位置和顺序；世界书管理页创建条目，Agent 编辑页使用既有 `worldbookIds` 选择。后续只按角色聊天需求补资源解析和必要正则能力；工具调用、向量 RAG、Knowledge/Recall 不属于这条管线完成的前置条件。Token 限制器当前计算文本，附件和其他多模态成本继续按实际模型与渠道协议独立估算。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
+**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载、基础用户档案注入、导入 Agent 的 request 阶段正则、预设注入组装、移动端限定范围的关键词世界书注入、宏/局部变量渲染、附件可用性与提取文本回退、Token 裁剪和最终消息格式化；预设支持默认、深度、高级深度、锚点与模型匹配，格式化支持模型默认规则与 Agent 覆盖的 system 合并、连续角色合并、system 转 user 和角色交替。宏只覆盖角色聊天当前消费的 `user` / `agent` / `char`、用户档案、会话 `last*` / `input`、模型、`assets` 与导入角色局部变量；未知与转义宏不会被执行。世界书由 `worldbookStore` 用 `llm-chat/worldbooks.json` 单独持久化，数据只包含文本、关键词、扫描深度、位置和顺序；世界书管理页创建条目，Agent 编辑页使用既有 `worldbookIds` 选择。资源解析当前边界为：聊天只持久化 `assetId +` 轻量快照；可用图片、音频、视频和文档以托管引用在 Rust 原生传输层读取，历史文档在用户执行“提取文本并清理原件”后可用持久化 `extractedText` 回退；同一进程中的活跃会话通过轻量缓存立即可见，重载后以 SQLite 快照为准。媒体压缩、PDF/Office 深度解析、转写、工具调用、向量 RAG、Knowledge/Recall 不属于这条管线完成的前置条件。Token 限制器当前计算文本，附件和其他多模态成本继续按实际模型与渠道协议独立估算。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
 
 ### 4.3. Token 统计与上下文预警
 
@@ -268,7 +275,7 @@ Assistant 续写 → useChatExecutor.continueGeneration(session, assistantNode)
   ├─ 2. 普通发送创建用户节点；重新生成复用父用户节点；续写创建复制源内容的 Assistant 同级分支
   ├─ 3. 创建或复用生成中的助手节点并更新 activeLeaf
   ├─ 4. 读取会话绑定的 Agent 与模型/常用生成参数，固化本次助手快照
-  ├─ 5. 执行 pipeline（续写时活跃路径以复制前缀的 Assistant 分支结尾；加载历史并按默认/深度/锚点策略组装 Agent 预设）
+  ├─ 5. 执行 pipeline（续写时活跃路径以复制前缀的 Assistant 分支结尾；加载历史并按默认/深度/锚点策略组装 Agent 预设；在 Token 裁剪前筛除失效附件并回退已持久化的提取文本）
   ├─ 6. 统计最终请求上下文 Token 并写入风险快照
   ├─ 7. 调用 useLlmRequest.sendRequest()（流式）
   │    ├─ onStream: 逐 chunk 追加到 assistantNode.content
@@ -511,7 +518,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 | -------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | **UI 分层**    | 自研业务组件 + Element Plus 叶子控件                                 | 原生 Vue/AIO token 骨架 + Varlet 叶子控件                                                                                                  |
 | **类型**       | 完整 `ChatAgent`, `Asset`, `ChatSettings`                            | 已接入兼容 `ChatAgent` 和 `ManagedAssetRef + 轻量快照`，不持久化全局资产路径                                                               |
-| **管道处理器** | 完整：会话、注入、宏/变量、世界书/召回、Token 限制、格式化和资源解析 | `session-loader` + `user-profile-injector` + `regex-processor` + `injection-assembler` + `macros-renderer` + `token-limiter` + `message-formatter`；宏仅覆盖角色聊天范围，Token 仅裁剪文本，附件、工具 schema 与多模态成本独立处理 |
+| **管道处理器** | 完整：会话、注入、宏/变量、世界书/召回、Token 限制、格式化和资源解析 | `session-loader` + `user-profile-injector` + `regex-processor` + `injection-assembler` + `macros-renderer` + `attachment-preparer` + `token-limiter` + `message-formatter`；宏仅覆盖角色聊天范围，Token 仅裁剪文本；可用附件由原生传输解析，已清理文档可回退持久化提取文本，多模态成本独立处理 |
 | **组件**       | 丰富（BaseDialog, ImageViewer 等）                                   | 基础的列表/输入组件                                                                                                                        |
 | **编辑器**     | RichCodeEditor（双引擎）                                             | 纯文本输入                                                                                                                                 |
 | **路由**       | `main`, `settings` 两页                                              | `home`, `sessions`, `chat/:id`, `settings` 四页                                                                                            |

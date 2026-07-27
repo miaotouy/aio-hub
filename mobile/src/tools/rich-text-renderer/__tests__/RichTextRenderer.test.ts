@@ -4,6 +4,7 @@ import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import RichTextRenderer from "../RichTextRenderer.vue";
+import { presets } from "../presets/test-cases";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -290,6 +291,28 @@ WeatherLookup 调用成功。
       wrapper.get('[data-testid="rich-text-vcp-tool_summary"]').text()
     ).toContain("WeatherLookup 调用成功");
   });
+});
+
+describe("RichTextRenderer shared desktop preset baseline", () => {
+  it.each(presets)(
+    "safely renders the shared desktop preset: $name",
+    (preset) => {
+      const wrapper = mount(RichTextRenderer, {
+        props: { content: preset.content },
+        global: {
+          stubs: {
+            MermaidDiagram: {
+              props: ["content", "isStreaming", "isComplete"],
+              template: '<div class="mermaid-diagram-stub">{{ content }}</div>',
+            },
+          },
+        },
+      });
+
+      expect(wrapper.text().trim()).not.toBe("");
+      expect(wrapper.findAll("script, style")).toHaveLength(0);
+    }
+  );
 });
 
 describe("RichTextRenderer security boundary", () => {

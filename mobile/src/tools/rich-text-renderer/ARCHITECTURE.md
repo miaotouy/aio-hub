@@ -87,7 +87,7 @@ AVD 不是 Android 真机或 iOS 发布门禁；真实手势、内存释放、�
 
 ## 7. 验证入口
 
-- Web 层：`mobile/src/tools/rich-text-renderer/__tests__/RichTextRenderer.test.ts` 以及各节点单测；
+- Web 层：`mobile/src/tools/rich-text-renderer/__tests__/RichTextRenderer.test.ts` 以及各节点单测；其中共享桌面预设逐一挂载并检查不会生成 `<script>` / `<style>` DOM，只作为安全回退与不崩溃基线，不能替代节点交互对齐；
 - 移动端构建：`cd mobile && bun run build`；
 - Android 真实 WebView：`tests/mobile-android-e2e/run.ts --preset rich-text-media --avd Medium_Phone_API_36 --apk <apk>`；
 - 施工计划：[`docs/Plan/rich-text-renderer-migration-plan.md`](./docs/Plan/rich-text-renderer-migration-plan.md)。

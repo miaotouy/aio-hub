@@ -200,6 +200,36 @@ describe("RichTextRenderer managed media", () => {
       "https://example.com/image.png"
     );
   });
+
+  it("does not load ordinary Markdown images from non-HTTP protocols", () => {
+    const wrapper = mount(RichTextRenderer, {
+      props: {
+        content: "![Local image](file:///private/secret.png)",
+        resolveMediaItem: () => null,
+      },
+      global: { stubs: { RichTextMediaNode: true } },
+    });
+
+    expect(wrapper.get("img.md-image").attributes("src")).toBeUndefined();
+    expect(wrapper.get("img.md-image").attributes("alt")).toBe("Local image");
+  });
+
+  it.each([
+    "http://localhost/private.png",
+    "http://127.0.0.1/private.png",
+    "http://192.168.1.10/private.png",
+    "http://[::1]/private.png",
+  ])("does not load Markdown images from local network targets: %s", (url) => {
+    const wrapper = mount(RichTextRenderer, {
+      props: {
+        content: `![Private image](${url})`,
+        resolveMediaItem: () => null,
+      },
+      global: { stubs: { RichTextMediaNode: true } },
+    });
+
+    expect(wrapper.get("img.md-image").attributes("src")).toBeUndefined();
+  });
 });
 
 describe("RichTextRenderer VCP output blocks", () => {

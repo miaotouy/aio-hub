@@ -3,6 +3,7 @@ import { chooseDocumentsUiFile } from "../support/android-selectors";
 import {
   clickTestElement,
   testElement,
+  waitForImportedAssetTile,
   waitForTestElementGone,
 } from "../support/webview";
 import type { ScenarioContext } from "./context";
@@ -41,7 +42,10 @@ export async function runVideoMediaScenario(context: ScenarioContext) {
     await switchToWebview(context.driver);
     tile = await context.driver.$(selector);
   }
-  await tile.waitForDisplayed({ timeout: 30_000 });
+  tile = await waitForImportedAssetTile(
+    context.driver,
+    context.fixtures.video.fileName
+  );
   if ((await tile.getAttribute("data-asset-mime")) !== "video/mp4") {
     throw new Error(
       "Imported video fixture did not retain the video/mp4 MIME type."
@@ -72,6 +76,9 @@ export async function runVideoMediaScenario(context: ScenarioContext) {
     );
     if (!element) return { error: "video element missing" };
     try {
+      // The shared fixture is only three seconds long. Loop it so this E2E
+      // scenario verifies playback-state transfer rather than fixture exhaustion.
+      element.loop = true;
       await element.play();
       await new Promise((resolve) => window.setTimeout(resolve, 700));
       const currentTime = element.currentTime;
@@ -117,6 +124,17 @@ export async function runVideoMediaScenario(context: ScenarioContext) {
   const immersivePlayer = await immersive.$(
     '[data-testid="media-video-player"]'
   );
+  const immersiveLoopEnabled = await context.driver.execute(() => {
+    const element = document.querySelector<HTMLVideoElement>(
+      '[data-testid="media-preview-immersive"] [data-testid="media-video-element"]'
+    );
+    if (!element) return false;
+    element.loop = true;
+    return true;
+  });
+  if (!immersiveLoopEnabled) {
+    throw new Error("Could not keep the immersive fallback video looped.");
+  }
   await context.driver.waitUntil(
     async () =>
       (await immersivePlayer.getAttribute("data-playing")) === "true" &&
@@ -129,8 +147,10 @@ export async function runVideoMediaScenario(context: ScenarioContext) {
     }
   );
 
+  await switchToNative(context.driver);
   await context.driver.back();
-  await immersive.waitForExist({ timeout: 10_000, reverse: true });
+  await switchToWebview(context.driver);
+  await waitForTestElementGone(context.driver, "media-preview-immersive");
   await testElement(context.driver, "asset-detail");
   const resumedInlinePlayer = await testElement(
     context.driver,
@@ -184,6 +204,6 @@ export async function runVideoMediaScenario(context: ScenarioContext) {
     fileName: context.fixtures.video.fileName,
     sourceKind: "managed-preview",
     playedSeconds: playback.currentTime,
-    fullscreenFallback: "app-layer-system-back",
+    fullscreenFallback: "app-layer-android-back",
   };
 }

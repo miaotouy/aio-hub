@@ -8,6 +8,7 @@ import {
 import {
   clickTestElement,
   testElement,
+  waitForImportedAssetTile,
   waitForTestElementGone,
 } from "../support/webview";
 import type { ScenarioContext } from "./context";
@@ -93,11 +94,10 @@ async function chooseFixtureFromDocumentsUi(context: ScenarioContext) {
 }
 
 export async function findFixtureTile(context: ScenarioContext) {
-  const tile = await context.driver.$(
-    `[data-testid="asset-tile"][data-asset-name="${context.fixtures.image.fileName}"]`
+  return waitForImportedAssetTile(
+    context.driver,
+    context.fixtures.image.fileName
   );
-  await tile.waitForDisplayed({ timeout: 30_000 });
-  return tile;
 }
 
 export async function ensureFixtureImported(context: ScenarioContext) {

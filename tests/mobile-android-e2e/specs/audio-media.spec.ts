@@ -3,6 +3,7 @@ import { chooseDocumentsUiFile } from "../support/android-selectors";
 import {
   clickTestElement,
   testElement,
+  waitForImportedAssetTile,
   waitForTestElementGone,
 } from "../support/webview";
 import type { ScenarioContext } from "./context";
@@ -29,7 +30,10 @@ export async function runAudioMediaScenario(context: ScenarioContext) {
     await switchToWebview(context.driver);
     tile = await context.driver.$(selector);
   }
-  await tile.waitForDisplayed({ timeout: 30_000 });
+  tile = await waitForImportedAssetTile(
+    context.driver,
+    context.fixtures.audio.fileName
+  );
   if (
     !new Set(["audio/wav", "audio/x-wav"]).has(
       (await tile.getAttribute("data-asset-mime")) ?? ""

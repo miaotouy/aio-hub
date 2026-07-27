@@ -139,4 +139,8 @@ export async function chooseDocumentsUiFile(
   if (!(await waitForPackage(driver, returnPackage, timeoutMs))) {
     throw new Error(`DocumentsUI did not return to ${returnPackage}.`);
   }
+  // The Android activity resumes before Tauri's JavaScript bridge receives the
+  // picker result. Let the bridge dispatch the content URI before WebView
+  // assertions inspect import state.
+  await driver.pause(500);
 }

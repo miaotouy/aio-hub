@@ -1,4 +1,9 @@
-use std::{collections::HashMap, path::PathBuf, sync::Mutex, time::Duration};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use reqwest::{
@@ -23,7 +28,7 @@ pub struct NativeRequestState {
 
 #[derive(Default)]
 pub struct NativeStreamState {
-    streams: AsyncMutex<HashMap<String, ActiveNativeStream>>,
+    streams: AsyncMutex<HashMap<String, Arc<AsyncMutex<ActiveNativeStream>>>>,
 }
 
 struct ActiveNativeStream {
@@ -168,11 +173,10 @@ pub async fn start_llm_stream_request(
             .to_string(),
         headers: response_headers(&response),
     };
-    stream_state
-        .streams
-        .lock()
-        .await
-        .insert(request_id, ActiveNativeStream { response });
+    stream_state.streams.lock().await.insert(
+        request_id,
+        Arc::new(AsyncMutex::new(ActiveNativeStream { response })),
+    );
     Ok(start)
 }
 
@@ -190,11 +194,19 @@ pub async fn read_llm_stream_chunk(
         .cloned()
         .ok_or_else(|| "Native stream request was not found".to_string())?;
 
+    // Clone the per-stream entry while holding the registry lock, then release
+    // the registry before awaiting network I/O. Independent conversations can
+    // therefore read their streams concurrently, while reads for the same
+    // request remain serialized by the entry mutex.
+    let stream = stream_state
+        .streams
+        .lock()
+        .await
+        .get(&request_id)
+        .cloned()
+        .ok_or_else(|| "Native stream response was not found".to_string())?;
     let result = {
-        let mut streams = stream_state.streams.lock().await;
-        let stream = streams
-            .get_mut(&request_id)
-            .ok_or_else(|| "Native stream response was not found".to_string())?;
+        let mut stream = stream.lock().await;
         tokio::select! {
             _ = cancellation.cancelled() => Err("Native stream request cancelled".to_string()),
             result = stream.response.chunk() => result

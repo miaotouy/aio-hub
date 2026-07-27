@@ -20,7 +20,7 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 - [x] 在移动端接入 `injection-assembler`，支持预设消息的 `injectionStrategy`、深度、锚点和模型/渠道匹配语义。
 - [x] 建立移动端 Chat 自己的宏注册范围：`primary:macros-renderer` 在预设装配后、Token 裁剪前顺序展开角色、用户、会话、模型和当前附件轻量摘要，并支持导入角色的局部变量定义、`<svar>`、`getvar` / `setvar` / `incvar` / `decvar`。未知与转义宏保持字面文本；工具、Recall、Knowledge、CSS 与全局变量宏不进入本阶段。
 - [x] 接入移动端传统关键词世界书：全局 `worldbooks.json` 仅保存文本条目与匹配设置，Agent 通过既有 `worldbookIds` 选择世界书；`primary:worldbook-injector` 以选中顺序、条目 order 和 ID 做稳定排序，在历史尾部有限扫描并按 `before_history` / `after_character` / `depth` 注入。首阶段不迁移桌面的递归、概率、分组竞争、向量、Outlet、自动化或 Knowledge/Recall；世界书创建、条目编辑与 Agent 关联均已有移动端入口。
-- [ ] 按聊天功能清单逐项核对新建会话、历史恢复、编辑、删除、继续、重新生成、分支切换、引用、停止、失败恢复、长上下文和设置接线，缺项直接在 `llm-chat` 内补齐并增加测试；本轮已补齐 Assistant 续写：在同父节点创建带原回复前缀的生成中分支，管线读取新活跃分支，停止时保留前缀与部分输出。剩余核对以失败恢复交互和 `showMessageNavigator` 的产品取舍为主。
+- [x] 已逐项核对并接线新建会话、历史恢复、编辑、删除、继续、重新生成、分支切换、引用、停止、失败恢复、长上下文和设置：Assistant 续写在同父节点创建带原回复前缀的生成中分支；进程中断恢复会将持久化的 `generating` 节点标为可见错误，Assistant 菜单可重新生成；`showMessageNavigator` 已提供可选的首条/上下条/末条浮层导航。相应的执行器、codec、消息视图和导航器测试均已覆盖。
 - [x] 已接入主动停止生成：ChatInput 通过共享 `AbortController` 将停止操作传到 LLM 请求 `signal`；停止后的助手节点保留已流式输出内容，并持久化为 `complete + metadata.interrupted`，不误标为发送失败。
 - [x] 将现有 Rust `o200k_base` / `countTokensBatch()` 接入上下文预算编排。Token 限制器在最终格式化前以预设优先、最新历史优先的策略裁剪文本消息；发送后的最终计数仍用于 usage 缺失时展示与快照。
 - [x] 迁移文本预算和历史消息截断逻辑；处理器位于注入之后、最终消息格式化之前，预算和截断参数已有移动端编辑入口。

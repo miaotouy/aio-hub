@@ -91,6 +91,13 @@
     "继续生成": "Continue generation",
     "对话执行失败": "Chat request failed"
   },
+  "MessageNavigator": {
+    "消息导航器": "Message navigator",
+    "跳至顶部": "Jump to top",
+    "上一条消息": "Previous message",
+    "下一条消息": "Next message",
+    "跳至底部": "Jump to bottom"
+  },
   "ChatSettingsView": {
     "界面偏好": "UI Preferences",
     "模型偏好": "Model Preferences",
@@ -101,6 +108,7 @@
     "显示 Token 统计": "Show Token Count",
     "显示模型信息": "Show Model Info",
     "自动滚动": "Auto Scroll",
+    "显示消息导航器": "Show Message Navigator",
     "聊天字体缩放": "Font Scale",
     "默认模型": "Default Model",
     "删除消息前确认": "Confirm before deleting message",

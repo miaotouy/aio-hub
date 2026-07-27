@@ -148,3 +148,32 @@ describe("MessageContent reply references", () => {
     );
   });
 });
+
+describe("MessageContent generation failure", () => {
+  it("shows persisted failure details after an interrupted generation is recovered", () => {
+    const wrapper = mount(MessageContent, {
+      props: {
+        message: {
+          ...message([]),
+          role: "assistant",
+          status: "error",
+          content: "Partial reply",
+          metadata: {
+            error: "Generation was interrupted when the application stopped.",
+          },
+        },
+      },
+      global: {
+        stubs: {
+          RichTextRenderer: true,
+          MediaPreviewHost: MediaPreviewHostStub,
+        },
+      },
+    });
+
+    expect(wrapper.get(".error-info").text()).toContain("发送失败");
+    expect(wrapper.get(".error-info").text()).toContain(
+      "Generation was interrupted when the application stopped."
+    );
+  });
+});

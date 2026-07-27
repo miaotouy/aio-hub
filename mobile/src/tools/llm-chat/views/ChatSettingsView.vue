@@ -122,6 +122,22 @@ const handleReset = async () => {
           </var-cell>
 
           <var-cell
+            :title="tRaw('tools.llm-chat.ChatSettingsView.显示消息导航器')"
+          >
+            <template #extra>
+              <var-switch
+                v-model="settings.uiPreferences.showMessageNavigator"
+                @change="
+                  updateSettingItem('uiPreferences', {
+                    showMessageNavigator:
+                      settings.uiPreferences.showMessageNavigator,
+                  })
+                "
+              />
+            </template>
+          </var-cell>
+
+          <var-cell
             :title="
               tRaw('tools.llm-chat.ChatSettingsView.聊天字体缩放') +
               ` (${Math.round(settings.uiPreferences.fontSize * 100)}%)`

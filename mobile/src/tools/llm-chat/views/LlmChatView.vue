@@ -242,6 +242,7 @@ const goToChatHome = () => {
         :messages="chatStore.currentActivePath"
         :auto-scroll="settings.uiPreferences.autoScroll"
         :font-size="settings.uiPreferences.fontSize"
+        :show-navigator="settings.uiPreferences.showMessageNavigator"
         class="message-list-area"
         @copy="handleCopy"
         @copy-error="handleCopyError"

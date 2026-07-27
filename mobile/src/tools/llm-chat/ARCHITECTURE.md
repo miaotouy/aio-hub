@@ -27,7 +27,8 @@ llm-chat/
 │   ├── ChatInput.vue          # 聊天输入框
 │   ├── ChatMessage.vue        # 单条消息展示
 │   ├── MessageContent.vue     # 消息内容渲染（纯文本/富文本）
-│   ├── MessageList.vue        # 消息列表容器
+│   ├── MessageList.vue        # 消息列表容器与可视消息定位
+│   ├── MessageNavigator.vue   # 可选的浮层消息导航器
 │   └── MessageMenubar.vue     # 消息操作菜单栏（续写、重新生成、编辑、删除等）
 ├── composables/               # 可复用的组合式逻辑
 │   ├── useBranchManager.ts    # 分支管理（切换、编辑、重试）
@@ -168,7 +169,7 @@ ChatSettings
 └── requestSettings       # 超时（60s）与重试次数（2）
 ```
 
-设置已接入实际执行路径：流式开关、时间戳、Token 与模型信息展示、自动滚动、消息字号、默认模型、请求超时/重试，以及消息/会话删除和清空确认均已消费。`showMessageNavigator` 仍只是兼容性持久化字段，当前没有独立移动端导航控件。
+设置已接入实际执行路径：流式开关、时间戳、Token 与模型信息展示、自动滚动、消息字号、消息导航器、默认模型、请求超时/重试，以及消息/会话删除和清空确认均已消费。消息导航器关闭时不创建浮层；开启后由 `MessageList` 根据滚动容器的可视消息索引提供首条、上一条、下一条和末条跳转，不改变自动滚动偏好。
 
 ## 4. 数据流架构
 
@@ -308,6 +309,7 @@ Assistant 续写 → useChatExecutor.continueGeneration(session, assistantNode)
 - 监听键盘弹出状态（`useKeyboardAvoidance`）
 - 消息变化和键盘弹出时仅在“自动滚动”偏好开启时滚动到底部；显式搜索定位不受该开关影响
 - 将“聊天字体缩放”偏好传递至消息列表，统一缩放用户与助手消息正文
+- `showMessageNavigator` 开启时，在消息区右下角显示紧凑导航器；它以当前可视消息计数定位，不影响自动滚动开关
 - 导航栏展示当前绑定的 Agent 名称和头像标识
 - 输入区可直接切换当前模型；绑定 Agent 时优先使用 Agent 的渠道与模型
 - 支持删除消息、助手消息续写、重新生成与分支切换；续写只在非生成中的 Assistant 消息菜单展示

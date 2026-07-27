@@ -201,34 +201,35 @@ describe("RichTextRenderer managed media", () => {
     );
   });
 
-  it("does not load ordinary Markdown images from non-HTTP protocols", () => {
+  it.each([
+    "http://localhost:5890/表情包/sample.png",
+    "http://127.0.0.1:5890/表情包/sample.png",
+    "http://192.168.1.20:5890/表情包/sample.png",
+  ])("keeps local HTTP Markdown images on the ordinary image fallback: %s", (url) => {
     const wrapper = mount(RichTextRenderer, {
       props: {
-        content: "![Local image](file:///private/secret.png)",
+        content: `![VCP emoticon](${url})`,
         resolveMediaItem: () => null,
       },
       global: { stubs: { RichTextMediaNode: true } },
     });
 
-    expect(wrapper.get("img.md-image").attributes("src")).toBeUndefined();
-    expect(wrapper.get("img.md-image").attributes("alt")).toBe("Local image");
+    expect(wrapper.get("img.md-image").attributes("src")).toBe(url);
   });
 
-  it.each([
-    "http://localhost/private.png",
-    "http://127.0.0.1/private.png",
-    "http://192.168.1.10/private.png",
-    "http://[::1]/private.png",
-  ])("does not load Markdown images from local network targets: %s", (url) => {
+  it("keeps caller-resolved local image URLs available", () => {
+    const source = "http://localhost:5890/表情包/sample.png";
+    const resolved = "http://127.0.0.1:5890/表情包/sample.png?pw=test-token";
     const wrapper = mount(RichTextRenderer, {
       props: {
-        content: `![Private image](${url})`,
+        content: `![VCP emoticon](${source})`,
+        resolveAsset: (content) => content.replace(source, resolved),
         resolveMediaItem: () => null,
       },
       global: { stubs: { RichTextMediaNode: true } },
     });
 
-    expect(wrapper.get("img.md-image").attributes("src")).toBeUndefined();
+    expect(wrapper.get("img.md-image").attributes("src")).toBe(resolved);
   });
 });
 

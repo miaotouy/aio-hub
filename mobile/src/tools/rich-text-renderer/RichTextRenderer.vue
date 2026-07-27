@@ -332,46 +332,17 @@ const displaySegments = computed<RenderSegment[]>(() => {
 });
 
 /**
- * 解析图片 URL
+ * 解析图片 URL。
+ *
+ * 此处只应用调用方提供的资源转换，不根据协议、主机名或地址段判断内容
+ * 是否允许显示。本地回环与私网 HTTP 地址可能是 VCP 等集成的正常资源
+ * 链路；访问控制应由调用方、服务鉴权、CSP 与 Tauri capability 负责。
  */
-function isPrivateOrLoopbackHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
-  if (host === "localhost" || host.endsWith(".localhost")) return true;
-  if (host === "::" || host === "::1") return true;
-  if (/^(?:fc|fd)[0-9a-f]{2}:/i.test(host)) return true;
-  if (/^fe[89ab][0-9a-f]:/i.test(host)) return true;
-
-  const octets = host.split(".").map(Number);
-  if (
-    octets.length !== 4 ||
-    octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)
-  ) {
-    return false;
+function resolveImageUrl(url: string) {
+  if (props.resolveAsset) {
+    return props.resolveAsset(url);
   }
-  const [first, second] = octets;
-  return (
-    first === 0 ||
-    first === 10 ||
-    first === 127 ||
-    (first === 169 && second === 254) ||
-    (first === 172 && second >= 16 && second <= 31) ||
-    (first === 192 && second === 168)
-  );
-}
-
-function resolveImageUrl(url: string): string | undefined {
-  const resolved = props.resolveAsset ? props.resolveAsset(url) : url;
-  try {
-    const parsed = new URL(resolved.trim());
-    // Managed message assets are rendered by RichTextMediaNode before this
-    // fallback. Raw model output may load only HTTP(S) images that are not explicit local/private literals; local,
-    // private-network and custom-protocol access requires an explicit managed
-    // media resolver.
-    if (!/^https?:$/.test(parsed.protocol)) return undefined;
-    return isPrivateOrLoopbackHost(parsed.hostname) ? undefined : parsed.href;
-  } catch {
-    return undefined;
-  }
+  return url;
 }
 
 function resolveManagedMediaItem(source: unknown): MediaItem | null {

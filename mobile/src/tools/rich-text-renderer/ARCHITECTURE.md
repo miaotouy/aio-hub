@@ -57,9 +57,10 @@ flowchart LR
 ## 4. 安全与媒体边界
 
 - 原始 HTML token 只以 `.md-html` 字面文本显示；禁止恢复 `v-html`。若未来需要 HTML，必须先建设可审计白名单或沙箱。
-- 可点击链接仅允许锚点、`http:`、`https:` 与 `mailto:`，并带 `target="_blank"` 与 `rel="noopener noreferrer"`；其他协议显示为非交互文本。普通 Markdown 图片只允许 HTTP(S) URL，并显式拒绝 `file:`、自定义协议、`localhost`、回环地址和常见私网/链路本地字面地址。
+- 可点击链接仅允许锚点、`http:`、`https:` 与 `mailto:`，并带 `target="_blank"` 与 `rel="noopener noreferrer"`；其他协议显示为非交互文本。
+- 普通 Markdown 图片保留原始来源或调用方 `resolveAsset` 的转换结果，不按协议、主机名或地址段限制可显示内容。本地回环与私网 HTTP 地址可能承载 VCP 表情包等正常集成资源；访问控制由调用方、服务鉴权、CSP 与 Tauri capability 负责。
 - Mermaid 固定 `securityLevel: "strict"`，渲染产物去除事件属性和非片段链接；失败时保留原始代码。
-- `asset://` 不从模型文本自行探测。聊天调用方必须将 URI 映射到**该消息附件**中的 `MediaItem`；未解析的 `asset://` 不产生图片网络加载。受管的 `aio-asset.localhost` descriptor 只经 `RichTextMediaNode` 获取，不进入普通 Markdown 图片回退。
+- `asset://` 不从模型文本自行探测。聊天调用方可将 URI 映射到**该消息附件**中的 `MediaItem` 以启用受管媒体预览；未映射来源仍保持普通图片回退，资产归属不作为富文本内容的显示白名单。
 - `AlertBlock` 使用移动端 Material/AIO Hub 主题 token；提示块正文仍走相同安全 Markdown 分支，不解释 HTML 或脚本。
 
 ## 5. 流式与原生运行态

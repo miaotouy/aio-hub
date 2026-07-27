@@ -1,6 +1,16 @@
-import { describe, expect, it } from "vitest";
-import type { ProcessableMessage } from "@/tools/llm-chat/types";
-import { limitHistoryByTokens } from "../token-limiter";
+import { describe, expect, it, vi } from "vitest";
+import type {
+  PipelineContext,
+  ProcessableMessage,
+} from "@/tools/llm-chat/types";
+
+const tokenCounting = vi.hoisted(() => ({
+  countTokensBatch: vi.fn(),
+}));
+
+vi.mock("@/utils/tokenCounting", () => tokenCounting);
+
+import { limitHistoryByTokens, tokenLimiter } from "../token-limiter";
 
 const preset: ProcessableMessage = {
   role: "system",
@@ -32,9 +42,58 @@ describe("tokenLimiter", () => {
   });
 
   it("keeps a partial string message when the retained-character fallback fits", () => {
-    const result = limitHistoryByTokens([preset, history[0]], [1, 10], 10, 3);
+    const result = limitHistoryByTokens(
+      [preset, history[0]],
+      [1, 10],
+      10,
+      3,
+      [undefined, 8]
+    );
     expect(result.messages).toHaveLength(2);
     expect(result.messages[1].content).toBe("old\n...(已截断)");
     expect(result.stats.truncatedCount).toBe(1);
+    expect(result.stats.totalTokens).toBe(9);
   });
+
+  it("does not use a character-ratio estimate without an exact partial count", () => {
+    const result = limitHistoryByTokens([preset, history[0]], [1, 10], 10, 3);
+    expect(result.messages).toEqual([preset]);
+    expect(result.stats.truncatedCount).toBe(0);
+  });
+
+  it("reports a safe degradation when native token counting uses the character fallback", async () => {
+    tokenCounting.countTokensBatch.mockResolvedValueOnce({
+      counts: [4],
+      total: 4,
+      tokenizer: "character_fallback",
+      estimated: true,
+      fallback: true,
+    });
+    const pipelineContext: PipelineContext = {
+      messages: [structuredClone(history[0])],
+      session: {} as PipelineContext["session"],
+      agentConfig: {
+        parameters: {
+          contextManagement: {
+            enabled: true,
+            maxContextTokens: 100,
+          },
+        },
+      } as PipelineContext["agentConfig"],
+      settings: {} as PipelineContext["settings"],
+      timestamp: 0,
+      sharedData: new Map(),
+      logs: [],
+    };
+
+    const result = await tokenLimiter.execute(pipelineContext);
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        status: "degraded",
+        message: expect.stringContaining("字符估算"),
+      })
+    );
+  });
+
 });

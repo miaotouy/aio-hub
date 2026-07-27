@@ -1,4 +1,7 @@
-import type { ContextProcessor } from "../../../types/pipeline";
+import {
+  processorResult,
+  type ContextProcessor,
+} from "../../../types/pipeline";
 import type { ProcessableMessage } from "../../../types/context";
 import { createModuleLogger } from "@/utils/logger";
 
@@ -167,11 +170,10 @@ export const messageFormatter: ContextProcessor = {
       );
     }
 
-    context.logs.push({
-      processorId: "primary:message-formatter",
-      level: "info",
-      message: `消息格式化完成，最终 ${context.messages.length} 条。`,
+    const message = `消息格式化完成，最终 ${context.messages.length} 条。`;
+    logger.debug(message, { messageCount: context.messages.length });
+    return processorResult.applied(message, {
+      messageCount: context.messages.length,
     });
-    logger.debug("消息格式化完成", { messageCount: context.messages.length });
   },
 };

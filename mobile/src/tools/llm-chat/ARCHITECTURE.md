@@ -430,8 +430,19 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - [x] PipelineContext 定义
 - [x] ContextProcessor 接口
 - [x] 处理器注册/注销/排序/启用
-- [x] 核心处理器：session-loader、user-profile-injector（基础档案系统上下文）、regex-processor（导入 Agent 的请求正则，不执行脚本规则）、injection-assembler（默认、深度、高级深度、锚点和模型匹配）、token-limiter（文本历史预算）、message-formatter（最终角色格式化）
-- [x] 待处理器的执行、日志和共享黑板
+- [x] 核心处理器：session-loader、user-profile-injector、regex-processor、injection-assembler（含模型/渠道匹配）、worldbook-injector（移动端限定关键词世界书）、macros-renderer（角色聊天限定宏/局部变量）、attachment-preparer、token-limiter、message-formatter
+- [x] 处理器的顺序执行、日志和共享黑板；处理器必须明确返回 `applied`、`skipped`、`degraded` 或 `failed`，未命中和安全降级继续执行，显式失败、无效结果或未恢复异常终止请求构造
+
+处理结果契约：
+
+| 状态 | 含义 | 管线行为 |
+| --- | --- | --- |
+| `applied` | 处理器成功完成适用工作 | 记录 `info`，继续 |
+| `skipped` | 未配置、未命中或当前上下文不适用 | 记录 `info`，继续 |
+| `degraded` | 发生预期问题，但处理器已完成安全回退 | 记录 `warn`，继续 |
+| `failed` | 无法保证后续请求正确性 | 记录 `error`，立即终止 |
+
+处理器抛出的未恢复异常和未返回合法结果都按 `failed` 处理。可恢复问题必须由处理器完成回退后显式返回 `degraded`；不得由管线引擎静默吞掉异常。`session-loader` 缺少会话、附件准备无法完成、Token 限制或最终格式化发生未恢复异常等情况不得继续发网。
 
 ### ✅ Agent 对话接入
 
@@ -469,13 +480,13 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 
 ### 🔄 管道处理器
 
-- [ ] `macros-renderer`：宏替换/模板渲染
+- [x] `macros-renderer`：已完成移动端角色聊天限定范围的角色、用户、会话、模型、附件摘要宏与局部变量；工具、Recall、Knowledge、CSS 和全局变量宏不属于当前范围
 - [x] `regex-processor`：兼容导入 Agent 的 request 阶段文本正则，按预设优先级、角色和消息深度执行；脚本规则与全局/用户档案配置仍待独立能力
 - [x] `message-formatter`：模型默认规则与 Agent 覆盖的消息合并、角色转换和交替补位
 - [x] `injection-assembler`：默认、深度/高级深度和锚点预设组装；私有预设附件待 Agent 资源包完成后接入
 - [x] `user-profile-injector`：启用的 Agent 绑定或全局默认基础档案在历史前以 `<user_profile>` 系统上下文注入；完整桌面用户档案宏契约仍不在此范围
-- [ ] `model-match-filter`：按模型与渠道筛选预设消息
-- [x] `token-limiter`：复用现有 Rust `o200k` 批量计数，预设先占预算、从最新历史倒序保留，并支持字符串部分截断；附件、工具 schema 和多模态额外开销仍由独立估算处理
+- [x] 模型与渠道匹配：由 `injection-assembler` 统一执行；Agent 的 `profileId` 与 provider-native `modelId` 分字段保存，Ollama 等带冒号模型 ID 不再二次拆分
+- [x] `token-limiter`：复用现有 Rust `o200k` 批量计数，预设先占预算、从最新历史倒序保留；部分截断保留消息开头并对候选文本重新计数，附件、工具 schema 和多模态额外开销仍由独立估算处理
 - [x] `ProcessableMessage._attachments` 的强类型加载与空文本消息保留
 
 ### 🔄 多模态支持
@@ -494,7 +505,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - [x] 智能体预设加载
 - [x] 执行预设消息的 `injectionStrategy` 和 `modelMatch`
 - [x] `primary:macros-renderer` 已在预设装配后展开角色、用户、会话、模型和当前附件的轻量摘要宏，并复用导入 Agent `variableConfig` 的局部变量定义；仅支持 `<svar>`、`getvar` / `setvar` / `incvar` / `decvar`，不注册工具、Recall、Knowledge、CSS 或全局变量宏
-- [ ] 接入传统关键词世界书或同类确定性上下文注入；向量 RAG 与 Knowledge/Recall 不属于本阶段依赖
+- [x] 已接入移动端限定的传统关键词世界书：有限历史扫描、常量/关键词激活和确定性注入；递归、概率、分组竞争、向量 RAG 与 Knowledge/Recall 不属于当前范围
 - [x] 聊天内切换 Agent（顶部选择器仅更新会话绑定；历史节点保留原快照，后续助手消息保存 Agent 和模型/渠道快照）
 - [x] 将 Agent 开局消息实例化到新会话（根节点兄弟分支、默认开局选择和旧字符串兼容；聊天宏与私有附件后续按各自范围接入）
 
@@ -527,7 +538,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 
 ## 11. 关键代码约定
 
-1. **模型选择格式**: `"profileId:modelId"`（例如 `"openai:gpt-4"`）
+1. **模型选择格式**: 选择器和会话设置使用 `"profileId:modelId"` 组合值并只在首个冒号处分割；Agent 持久化时 `profileId` 与 provider-native `modelId` 分字段保存，因此 `modelId` 自身可包含冒号（如 `llama3.2:latest`）
 2. **会话根节点**: 每个会话必有 `rootNode`，`role: "system"`, `content: ""`，不计入 `messageCount`
 3. **无法编辑根节点**: `hardDeleteNode` 明确禁止删除根节点
 4. **分支切换策略**: 优先使用 `lastSelectedChildId` 记忆，无记忆时用第一个子节点

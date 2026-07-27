@@ -3,7 +3,11 @@ import { createModuleLogger } from "@/utils/logger";
 import { isModelMatchSatisfied } from "@/tools/llm-chat/utils/modelMatch";
 import type { LlmModelInfo, LlmProfile } from "@/tools/llm-api/types";
 import type { ProcessableMessage } from "../../../types/context";
-import type { ContextProcessor, PipelineContext } from "../../../types/pipeline";
+import {
+  processorResult,
+  type ContextProcessor,
+  type PipelineContext,
+} from "../../../types/pipeline";
 
 const logger = createModuleLogger("llm-chat/injection-assembler");
 
@@ -204,12 +208,7 @@ export const injectionAssembler: ContextProcessor = {
   execute: async (context: PipelineContext) => {
     const agent = context.agentConfig;
     if (!agent) {
-      context.logs.push({
-        processorId: "primary:injection-assembler",
-        level: "info",
-        message: "当前会话未绑定智能体，已保留会话历史。",
-      });
-      return;
+      return processorResult.skipped("当前会话未绑定智能体，已保留会话历史。");
     }
 
     const model = context.sharedData.get("model") as LlmModelInfo | undefined;
@@ -220,12 +219,7 @@ export const injectionAssembler: ContextProcessor = {
         (Boolean(message.content.trim()) || message.type === CHAT_HISTORY_ANCHOR)
     );
     if (!presetMessages.length) {
-      context.logs.push({
-        processorId: "primary:injection-assembler",
-        level: "info",
-        message: "智能体无已启用预设消息，已保留会话历史。",
-      });
-      return;
+      return processorResult.skipped("智能体无已启用预设消息，已保留会话历史。");
     }
 
     const { skeleton, depthInjections, anchorInjections } =
@@ -292,12 +286,14 @@ export const injectionAssembler: ContextProcessor = {
     }
 
     context.messages = finalMessages;
-    const logMessage = `注入组装完成：预设 ${presetMessages.length} 条，深度注入 ${depthInjections.length} 条，锚点注入 ${anchorInjections.length} 条，最终 ${finalMessages.length} 条。`;
-    context.logs.push({
-      processorId: "primary:injection-assembler",
-      level: "info",
-      message: logMessage,
-    });
-    logger.info(logMessage, { agentId: agent.id });
+    const details = {
+      presetCount: presetMessages.length,
+      depthInjectionCount: depthInjections.length,
+      anchorInjectionCount: anchorInjections.length,
+      finalMessageCount: finalMessages.length,
+    };
+    const message = `注入组装完成：预设 ${presetMessages.length} 条，深度注入 ${depthInjections.length} 条，锚点注入 ${anchorInjections.length} 条，最终 ${finalMessages.length} 条。`;
+    logger.info(message, { agentId: agent.id, ...details });
+    return processorResult.applied(message, details);
   },
 };

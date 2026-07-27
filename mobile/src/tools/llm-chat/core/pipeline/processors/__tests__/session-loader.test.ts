@@ -58,8 +58,9 @@ describe("sessionLoader reply references", () => {
   it("keeps the display content unchanged while adding the selected target to model context", async () => {
     const pipelineContext = context();
 
-    await sessionLoader.execute(pipelineContext);
+    const result = await sessionLoader.execute(pipelineContext);
 
+    expect(result.status).toBe("applied");
     expect(pipelineContext.messages).toEqual([
       expect.objectContaining({
         sourceId: "assistant-1",
@@ -72,4 +73,19 @@ describe("sessionLoader reply references", () => {
       }),
     ]);
   });
+
+  it("reports failure when the required session is missing", async () => {
+    const pipelineContext = context();
+    Object.defineProperty(pipelineContext, "session", { value: null });
+
+    const result = await sessionLoader.execute(pipelineContext);
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        status: "failed",
+        message: expect.stringContaining("缺少 session"),
+      })
+    );
+  });
+
 });

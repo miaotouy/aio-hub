@@ -1,7 +1,12 @@
 import type { ChatAgent } from "@/tools/agent-manager/types/agent";
 import type { ManagedAssetRef } from "@/tools/asset-manager/types";
 import { createModuleLogger } from "@/utils/logger";
-import type { ContextProcessor, PipelineContext, ProcessableMessage } from "../../../types";
+import {
+  processorResult,
+  type ContextProcessor,
+  type PipelineContext,
+  type ProcessableMessage,
+} from "../../../types";
 
 const logger = createModuleLogger("primary:macros-renderer");
 
@@ -308,7 +313,9 @@ export const macrosRenderer: ContextProcessor = {
         typeof message.content === "string" &&
         (message.content.includes("{{") || /<svar\s/i.test(message.content))
     );
-    if (!hasMacroSyntax) return;
+    if (!hasMacroSyntax) {
+      return processorResult.skipped("当前消息中没有可渲染的宏或会话变量语法。");
+    }
 
     const variables = createVariableState(context.agentConfig);
     const baseRuntime = createMacroRuntimeContext(context);
@@ -341,8 +348,13 @@ export const macrosRenderer: ContextProcessor = {
     }
 
     context.sharedData.set("sessionVariables", new Map(variables));
+    const details = { renderedCount, variableCount: variables.size };
+    if (!renderedCount) {
+      return processorResult.skipped("宏处理器未产生内容变更。", details);
+    }
+
     const message = `已渲染 ${renderedCount} 条包含宏或会话变量的消息。`;
-    logger.info(message, { renderedCount, variableCount: variables.size });
-    context.logs.push({ processorId: PROCESSOR_ID, level: "info", message });
+    logger.info(message, details);
+    return processorResult.applied(message, details);
   },
 };

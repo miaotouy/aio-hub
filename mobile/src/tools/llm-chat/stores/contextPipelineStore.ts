@@ -13,6 +13,7 @@ import { worldbookInjector } from "../core/pipeline/processors/worldbook-injecto
 import { messageFormatter } from "../core/pipeline/processors/message-formatter";
 import { tokenLimiter } from "../core/pipeline/processors/token-limiter";
 import { attachmentPreparer } from "../core/pipeline/processors/attachment-preparer";
+import { PipelineEngine } from "../core/pipeline/PipelineEngine";
 
 const logger = createModuleLogger("contextPipelineStore");
 const errorHandler = createModuleErrorHandler("contextPipelineStore");
@@ -194,26 +195,7 @@ export const useContextPipelineStore = defineStore("contextPipeline", () => {
   async function executePipeline(
     context: PipelineContext
   ): Promise<PipelineContext> {
-    logger.info("开始执行上下文管道", {
-      processorCount: sortedAndEnabledProcessors.value.length,
-      processors: sortedAndEnabledProcessors.value.map((p) => p.id),
-    });
-
-    for (const processor of sortedAndEnabledProcessors.value) {
-      await errorHandler.wrapAsync(
-        async () => {
-          logger.debug("执行处理器", { id: processor.id });
-          await processor.execute(context);
-        },
-        {
-          userMessage: `处理步骤 [${processor.name}] 失败`,
-          context: { processorId: processor.id },
-        }
-      );
-    }
-
-    logger.info("上下文管道执行完毕");
-    return context;
+    return PipelineEngine.execute(context, sortedAndEnabledProcessors.value);
   }
 
   return {

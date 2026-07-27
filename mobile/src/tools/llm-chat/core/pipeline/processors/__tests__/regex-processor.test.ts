@@ -156,12 +156,14 @@ describe("regexProcessor", () => {
       ],
     });
 
-    await regexProcessor.execute(pipeline);
+    const result = await regexProcessor.execute(pipeline);
 
     expect(pipeline.messages[0].content).toBe("keep me");
-    expect(pipeline.logs.some((entry) => entry.level === "error")).toBe(true);
-    expect(pipeline.logs[pipeline.logs.length - 1]?.message).toContain(
-      "跳过 1 条脚本规则"
+    expect(result).toEqual(
+      expect.objectContaining({
+        status: "degraded",
+        message: expect.stringContaining("跳过 1 次脚本规则"),
+      })
     );
   });
 });

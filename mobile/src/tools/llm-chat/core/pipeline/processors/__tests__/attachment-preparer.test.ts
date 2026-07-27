@@ -84,7 +84,7 @@ describe("attachmentPreparer", () => {
   it("keeps ready managed refs while inserting reclaimed document text before token limiting", async () => {
     const pipelineContext = context();
 
-    await attachmentPreparer.execute(pipelineContext);
+    const result = await attachmentPreparer.execute(pipelineContext);
     const stats = pipelineContext.sharedData.get(
       "attachmentPreparationStats"
     );
@@ -106,6 +106,9 @@ describe("attachmentPreparer", () => {
       textFallbackCount: 1,
       skippedAttachmentCount: 1,
     });
+    expect(result).toEqual(
+      expect.objectContaining({ status: "degraded", details: stats })
+    );
   });
 
   it("appends fallback text as a normal text part for structured content", () => {

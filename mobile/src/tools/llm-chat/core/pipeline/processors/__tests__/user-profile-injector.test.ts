@@ -39,8 +39,9 @@ describe("userProfileInjector", () => {
       createdAt: "2026-07-26T10:00:00.000Z",
     });
 
-    await userProfileInjector.execute(context);
+    const result = await userProfileInjector.execute(context);
 
+    expect(result.status).toBe("applied");
     expect(context.messages).toEqual([
       {
         role: "system",
@@ -82,8 +83,9 @@ describe("userProfileInjector", () => {
     it(`keeps history unchanged for ${label}`, async () => {
       const context = createContext(profile);
 
-      await userProfileInjector.execute(context);
+      const result = await userProfileInjector.execute(context);
 
+      expect(result.status).toBe("skipped");
       expect(context.messages).toEqual(history);
     });
   }

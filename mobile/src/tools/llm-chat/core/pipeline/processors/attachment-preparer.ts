@@ -2,7 +2,12 @@ import type { LlmMessageContent } from "@/tools/llm-api/types";
 import { createModuleLogger } from "@/utils/logger";
 import type { ManagedAssetRef } from "../../../../asset-manager/types";
 import { getReplacedAssetText } from "../../../../asset-manager/services/assetTextReplacementCache";
-import type { ContextProcessor, PipelineContext, ProcessableMessage } from "../../../types";
+import {
+  processorResult,
+  type ContextProcessor,
+  type PipelineContext,
+  type ProcessableMessage,
+} from "../../../types";
 import {
   getAttachmentAvailabilityMap,
   partitionAttachmentsByAvailability,
@@ -109,17 +114,16 @@ export const attachmentPreparer: ContextProcessor = {
       !stats.skippedAttachmentCount &&
       !stats.textFallbackCount
     ) {
-      return;
+      return processorResult.skipped("当前没有需要准备的附件。", stats);
     }
 
-    const level = stats.skippedAttachmentCount ? "warn" : "info";
     const message = `附件准备完成：保留 ${stats.readyAttachmentCount} 个托管引用，使用 ${stats.textFallbackCount} 个文本回退，跳过 ${stats.skippedAttachmentCount} 个不可用附件。`;
-    context.logs.push({
-      processorId: "primary:attachment-preparer",
-      level,
-      message,
-      details: stats,
-    });
+    if (stats.textFallbackCount || stats.skippedAttachmentCount) {
+      logger.warn(message, stats);
+      return processorResult.degraded(message, stats);
+    }
+
     logger.info(message, stats);
+    return processorResult.applied(message, stats);
   },
 };

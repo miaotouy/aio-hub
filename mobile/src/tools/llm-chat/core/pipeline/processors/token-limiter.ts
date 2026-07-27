@@ -1,4 +1,7 @@
-import type { ContextProcessor } from "../../../types/pipeline";
+import {
+  processorResult,
+  type ContextProcessor,
+} from "../../../types/pipeline";
 import type { ProcessableMessage } from "../../../types/context";
 import { countTokensBatch } from "@/utils/tokenCounting";
 import { contentToTokenText } from "../../../utils/contextTokenUsage";
@@ -29,12 +32,14 @@ export function limitHistoryByTokens(
   messages: ProcessableMessage[],
   counts: number[],
   maxTokens: number,
-  retainedCharacters = 0
+  retainedCharacters = 0,
+  partialCounts: Array<number | undefined> = []
 ): { messages: ProcessableMessage[]; stats: TokenLimiterStats } {
   const counted = messages.map((message, index) => ({
     message,
     tokens: counts[index] ?? 0,
     chars: contentToTokenText(message.content).length,
+    partialTokens: partialCounts[index],
   }));
   const history = counted.filter(
     (item) => item.message.sourceType === "session_history"
@@ -66,12 +71,15 @@ export function limitHistoryByTokens(
         finalHistoryChars += item.chars;
         continue;
       }
-      if (retainedCharacters > 0 && typeof item.message.content === "string") {
-        const content = item.message.content.slice(0, retainedCharacters) + TRUNCATION_SUFFIX;
-        const partialTokens = Math.min(
-          item.tokens,
-          Math.ceil((content.length / Math.max(item.chars, 1)) * item.tokens)
-        );
+      if (
+        retainedCharacters > 0 &&
+        typeof item.message.content === "string" &&
+        retainedCharacters < item.message.content.length &&
+        item.partialTokens !== undefined
+      ) {
+        const content =
+          item.message.content.slice(0, retainedCharacters) + TRUNCATION_SUFFIX;
+        const partialTokens = item.partialTokens;
         if (used + partialTokens <= available) {
           kept.set(item.message, { ...item.message, content });
           used += partialTokens;
@@ -116,28 +124,70 @@ export const tokenLimiter: ContextProcessor = {
     const config = (context.agentConfig?.parameters as
       | { contextManagement?: TokenLimiterConfig }
       | undefined)?.contextManagement;
-    if (!config?.enabled || !config.maxContextTokens || context.messages.length === 0) {
-      context.logs.push({
-        processorId: "primary:token-limiter",
-        level: "info",
-        message: "上下文 Token 限制未启用或未设置预算，已跳过。",
-      });
-      return;
+    if (!config?.enabled || !config.maxContextTokens) {
+      return processorResult.skipped("上下文 Token 限制未启用或未设置预算。");
     }
-    const result = await countTokensBatch(
-      context.messages.map((message) => contentToTokenText(message.content))
+    if (context.messages.length === 0) {
+      return processorResult.skipped("当前没有需要进行 Token 限制的消息。");
+    }
+
+    const retainedCharacters = config.retainedCharacters ?? 0;
+    const originalTexts = context.messages.map((message) =>
+      contentToTokenText(message.content)
     );
+    const result = await countTokensBatch(originalTexts);
+    const partialCounts: Array<number | undefined> = new Array(
+      context.messages.length
+    ).fill(undefined);
+    const partialCandidates = context.messages.flatMap((message, index) => {
+      if (
+        message.sourceType !== "session_history" ||
+        retainedCharacters <= 0 ||
+        typeof message.content !== "string" ||
+        retainedCharacters >= message.content.length
+      ) {
+        return [];
+      }
+      return [
+        {
+          index,
+          content:
+            message.content.slice(0, retainedCharacters) + TRUNCATION_SUFFIX,
+        },
+      ];
+    });
+    let partialCountFallback = false;
+    if (partialCandidates.length > 0) {
+      const partialResult = await countTokensBatch(
+        partialCandidates.map((candidate) => candidate.content)
+      );
+      partialCountFallback = partialResult.fallback;
+      partialCandidates.forEach((candidate, index) => {
+        partialCounts[candidate.index] = partialResult.counts[index];
+      });
+    }
     const limited = limitHistoryByTokens(
       context.messages,
       result.counts,
       config.maxContextTokens,
-      config.retainedCharacters
+      retainedCharacters,
+      partialCounts
     );
     context.messages = limited.messages;
     context.sharedData.set("tokenLimiterStats", limited.stats);
-    const level = limited.stats.savedTokens > 0 ? "warn" : "info";
+    const details = {
+      ...limited.stats,
+      tokenCountFallback: result.fallback,
+      partialCountFallback,
+    };
     const message = `Token 限制完成：保留 ${limited.stats.finalHistoryCount}/${limited.stats.originalHistoryCount} 条历史消息，节省 ${limited.stats.savedTokens} Token。`;
-    context.logs.push({ processorId: "primary:token-limiter", level, message });
-    logger.info(message, limited.stats);
+    if (result.fallback || partialCountFallback) {
+      const degradedMessage = `${message} Token IPC 不可用，已使用字符估算安全降级。`;
+      logger.warn(degradedMessage, details);
+      return processorResult.degraded(degradedMessage, details);
+    }
+
+    logger.info(message, details);
+    return processorResult.applied(message, details);
   },
 };

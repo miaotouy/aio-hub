@@ -123,9 +123,33 @@ describe("worldbookInjector", () => {
     const pipelineContext = context();
     pipelineContext.sharedData.set("worldbooks", worldbooks);
 
-    await worldbookInjector.execute(pipelineContext);
+    const result = await worldbookInjector.execute(pipelineContext);
 
     expect(pipelineContext.sharedData.get("activatedWorldbookEntries")).toHaveLength(3);
-    expect(pipelineContext.logs[0]?.message).toContain("3");
+    expect(result).toEqual(
+      expect.objectContaining({ status: "applied", message: expect.stringContaining("3") })
+    );
   });
+
+  it("reports skipped when configured worldbooks do not match", async () => {
+    const pipelineContext = context();
+    pipelineContext.sharedData.set("worldbooks", [
+      {
+        ...worldbooks[0],
+        entries: [
+          {
+            ...worldbooks[0].entries[1],
+            keys: ["not-present"],
+            scanDepth: 2,
+          },
+        ],
+      },
+    ]);
+
+    const result = await worldbookInjector.execute(pipelineContext);
+
+    expect(result.status).toBe("skipped");
+    expect(pipelineContext.sharedData.get("activatedWorldbookEntries")).toEqual([]);
+  });
+
 });

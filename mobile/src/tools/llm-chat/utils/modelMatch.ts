@@ -17,12 +17,6 @@ export interface ModelMatchConfig {
   matchProfileName?: boolean;
 }
 
-function getPureModelId(modelId: string | undefined): string | undefined {
-  if (!modelId) return undefined;
-  const separator = modelId.indexOf(":");
-  return separator === -1 ? modelId : modelId.slice(separator + 1);
-}
-
 function matchesAny(patterns: string[], value: string | undefined): boolean {
   if (!value) return false;
   return patterns.some((pattern) => {
@@ -41,15 +35,18 @@ export function isModelMatchSatisfied(
 ): boolean {
   const patterns = config.patterns ?? [];
   const profilePatterns = config.profilePatterns ?? [];
-  const pureModelId = getPureModelId(context.modelId);
+  // Mobile Agent stores profileId and modelId in separate fields. modelId is
+  // already the provider-native ID and may legitimately contain colons
+  // (for example, Ollama's `llama3.2:latest`), so it must not be split again.
+  const modelId = context.modelId;
   const hasModelCriteria = patterns.length > 0;
   const modelIsMatched =
     matchesAny(patterns, context.modelName) ||
-    matchesAny(patterns, pureModelId) ||
+    matchesAny(patterns, modelId) ||
     matchesAny(
       patterns,
-      pureModelId?.includes("/")
-        ? pureModelId.slice(pureModelId.lastIndexOf("/") + 1)
+      modelId?.includes("/")
+        ? modelId.slice(modelId.lastIndexOf("/") + 1)
         : undefined
     );
   const effectiveProfilePatterns = [

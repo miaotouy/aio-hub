@@ -1,4 +1,8 @@
-import type { ContextProcessor, PipelineContext } from "../../../types/pipeline";
+import {
+  processorResult,
+  type ContextProcessor,
+  type PipelineContext,
+} from "../../../types/pipeline";
 import type { ProcessableMessage } from "../../../types/context";
 import type { MobileWorldbook, MobileWorldbookEntry } from "../../../types/worldbook";
 import { createModuleLogger } from "@/utils/logger";
@@ -137,12 +141,24 @@ export const worldbookInjector: ContextProcessor = {
   priority: 450,
   isCore: true,
   execute: async (context) => {
-    const worldbooks = context.sharedData.get("worldbooks") as MobileWorldbook[] | undefined;
-    if (!worldbooks?.length) return;
+    const worldbooks = context.sharedData.get("worldbooks") as
+      | MobileWorldbook[]
+      | undefined;
+    if (!worldbooks?.length) {
+      return processorResult.skipped("当前没有已绑定的世界书。");
+    }
     const matched = injectWorldbooks(context, worldbooks);
     context.sharedData.set("activatedWorldbookEntries", matched);
+    if (!matched.length) {
+      return processorResult.skipped("世界书未命中当前会话内容。", {
+        worldbookCount: worldbooks.length,
+        matched: 0,
+      });
+    }
+
     const message = `已激活 ${matched.length} 条世界书条目。`;
-    logger.info(message, { matched: matched.length });
-    context.logs.push({ processorId: PROCESSOR_ID, level: "info", message });
+    const details = { worldbookCount: worldbooks.length, matched: matched.length };
+    logger.info(message, details);
+    return processorResult.applied(message, details);
   },
 };

@@ -1,4 +1,7 @@
-import type { ContextProcessor } from "../../../types/pipeline";
+import {
+  processorResult,
+  type ContextProcessor,
+} from "../../../types/pipeline";
 
 function escapeXmlAttribute(value: string): string {
   return value
@@ -17,7 +20,12 @@ export const userProfileInjector: ContextProcessor = {
   defaultEnabled: true,
   execute: async (context) => {
     const profile = context.userProfile;
-    if (!profile?.enabled || !profile.content.trim()) return;
+    if (!profile?.enabled) {
+      return processorResult.skipped("当前没有启用的用户档案。");
+    }
+    if (!profile.content.trim()) {
+      return processorResult.skipped("当前用户档案内容为空。");
+    }
 
     context.messages.unshift({
       role: "system",
@@ -28,6 +36,9 @@ export const userProfileInjector: ContextProcessor = {
       ].join("\n"),
       sourceType: "unknown",
       sourceId: `user-profile:${profile.id}`,
+    });
+    return processorResult.applied(`已注入用户档案“${profile.name}”。`, {
+      profileId: profile.id,
     });
   },
 };

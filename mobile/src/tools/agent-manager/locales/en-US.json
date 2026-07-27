@@ -65,7 +65,7 @@
     "最大上下文Token": "Maximum context tokens",
     "最大上下文Token说明": "Older history is trimmed when the budget is reached.",
     "截断保留字符": "Characters retained on truncation",
-    "截断保留字符说明": "Number of trailing characters retained for a history message when it cannot be kept in full."
+    "截断保留字符说明": "Number of leading characters retained for a history message when it cannot be kept in full."
   },
   "PresetEditor": {
     "消息内容不能为空": "Message content is required",

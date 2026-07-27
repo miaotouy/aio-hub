@@ -1,6 +1,7 @@
-import type {
-  ContextProcessor,
-  PipelineContext,
+import {
+  processorResult,
+  type ContextProcessor,
+  type PipelineContext,
 } from "../../../types/pipeline";
 import type { ProcessableMessage } from "../../../types/context";
 import { createModuleLogger } from "@/utils/logger";
@@ -154,10 +155,16 @@ export const regexProcessor: ContextProcessor = {
   defaultEnabled: true,
   execute: async (context: PipelineContext) => {
     const rules = resolveRequestRules(context.agentConfig?.regexConfig);
-    if (!rules.length || !context.messages.length) return;
+    if (!rules.length) {
+      return processorResult.skipped("当前没有可执行的请求正则规则。");
+    }
+    if (!context.messages.length) {
+      return processorResult.skipped("当前没有可供正则处理的消息。");
+    }
 
     let replacements = 0;
     let skippedScripts = 0;
+    const failedRules: Array<{ name: string; error: string }> = [];
     const total = context.messages.length;
     for (const [index, message] of context.messages.entries()) {
       const applicable = rules.filter(
@@ -186,11 +193,12 @@ export const regexProcessor: ContextProcessor = {
           if (replaced !== next) replacements++;
           next = replaced;
         } catch (error) {
-          context.logs.push({
-            processorId: PROCESSOR_ID,
-            level: "error",
-            message: `正则规则“${rule.name || "未命名"}”执行失败：${error instanceof Error ? error.message : String(error)}`,
-          });
+          const failure = {
+            name: rule.name || "未命名",
+            error: error instanceof Error ? error.message : String(error),
+          };
+          failedRules.push(failure);
+          logger.warn(`正则规则“${failure.name}”执行失败，已安全跳过。`, failure);
         }
       }
       if (next !== original) {
@@ -199,8 +207,22 @@ export const regexProcessor: ContextProcessor = {
       }
     }
 
-    const message = `正则处理完成，执行 ${replacements} 次替换${skippedScripts ? `，跳过 ${skippedScripts} 条脚本规则` : ""}。`;
-    context.logs.push({ processorId: PROCESSOR_ID, level: "info", message });
-    logger.debug(message, { replacements, skippedScripts });
+    const details = {
+      replacements,
+      skippedScripts,
+      failedRules,
+    };
+    if (skippedScripts || failedRules.length) {
+      const message = `正则处理已降级完成：执行 ${replacements} 次替换，跳过 ${skippedScripts} 次脚本规则和 ${failedRules.length} 次无效规则。`;
+      logger.warn(message, details);
+      return processorResult.degraded(message, details);
+    }
+    if (!replacements) {
+      return processorResult.skipped("请求正则规则未匹配到需要替换的内容。", details);
+    }
+
+    const message = `正则处理完成，执行 ${replacements} 次替换。`;
+    logger.debug(message, details);
+    return processorResult.applied(message, details);
   },
 };

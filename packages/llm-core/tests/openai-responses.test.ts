@@ -145,7 +145,15 @@ describe("OpenAI Responses provider adapter", () => {
 
   it("parses output, reasoning state, tools, citations, images and usage", () => {
     const output = [
-      { id: "rs_1", type: "reasoning", encrypted_content: "state" },
+      {
+        id: "rs_1",
+        type: "reasoning",
+        encrypted_content: "state",
+        summary: [
+          { type: "summary_text", text: "First summary." },
+          { type: "summary_text", text: "Second summary." },
+        ],
+      },
       {
         type: "message",
         content: [
@@ -162,7 +170,6 @@ describe("OpenAI Responses provider adapter", () => {
               },
             ],
           },
-          { type: "reasoning_text", text: "Reasoning." },
         ],
       },
       {
@@ -194,7 +201,7 @@ describe("OpenAI Responses provider adapter", () => {
       })
     ).toEqual({
       content: "Done.",
-      reasoningContent: "Reasoning.",
+      reasoningContent: "First summary.\n\nSecond summary.",
       refusal: null,
       finishReason: "tool_calls",
       usage: {
@@ -285,6 +292,51 @@ describe("OpenAI Responses provider adapter", () => {
           content: "结果",
           reasoningContent: "分析",
           finishReason: "stop",
+        }),
+      },
+    ]);
+  });
+
+  it("preserves GPT reasoning summary part boundaries while streaming", () => {
+    const completed = {
+      id: "resp_reasoning_parts",
+      status: "completed",
+      output: [
+        {
+          id: "rs_1",
+          type: "reasoning",
+          summary: [
+            { type: "summary_text", text: "**First phase**" },
+            { type: "summary_text", text: "**Second phase**" },
+          ],
+        },
+        {
+          type: "message",
+          content: [{ type: "output_text", text: "Done." }],
+        },
+      ],
+    };
+    const fixture = [
+      'data: {"type":"response.reasoning_summary_text.delta","output_index":0,"summary_index":0,"delta":"**First phase**"}\n\n',
+      'data: {"type":"response.reasoning_summary_text.done","output_index":0,"summary_index":0,"text":"**First phase**"}\n\n',
+      'data: {"type":"response.reasoning_summary_part.done","output_index":0,"summary_index":0,"part":{"type":"summary_text","text":"**First phase**"}}\n\n',
+      'data: {"type":"response.reasoning_summary_text.delta","output_index":0,"summary_index":1,"delta":"**Second phase**"}\n\n',
+      'data: {"type":"response.output_text.delta","delta":"Done."}\n\n',
+      `data: ${JSON.stringify({ type: "response.completed", response: completed })}\n\n`,
+    ].join("");
+    const decoder = new OpenAiResponsesStreamDecoder();
+    const events = decoder.push(new TextEncoder().encode(fixture));
+
+    expect(events).toEqual([
+      { type: "reasoning-delta", delta: "**First phase**" },
+      { type: "reasoning-delta", delta: "\n\n" },
+      { type: "reasoning-delta", delta: "**Second phase**" },
+      { type: "text-delta", delta: "Done." },
+      {
+        type: "completed",
+        response: expect.objectContaining({
+          content: "Done.",
+          reasoningContent: "**First phase**\n\n**Second phase**",
         }),
       },
     ]);

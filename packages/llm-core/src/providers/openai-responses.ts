@@ -172,6 +172,21 @@ export function parseOpenAiResponsesResponseValue(value: unknown): LlmResponse {
     const item = asObject(rawItem);
     if (!item) continue;
 
+    if (item.type === "reasoning") {
+      const summaries = readArray(item.summary) ?? [];
+      const summaryTexts = summaries
+        .map(asObject)
+        .map((summary) => readString(summary?.text))
+        .filter((text): text is string => Boolean(text));
+
+      if (summaryTexts.length > 0) {
+        for (const text of summaryTexts) {
+          reasoningContent = appendReasoningPart(reasoningContent, text);
+        }
+        continue;
+      }
+    }
+
     if (item.type === "image_generation_call") {
       const data = readString(item.result);
       if (data) {
@@ -201,7 +216,10 @@ export function parseOpenAiResponsesResponseValue(value: unknown): LlmResponse {
         contentItem.type === "reasoning_text" ||
         contentItem.type === "summary_text"
       ) {
-        reasoningContent += readString(contentItem.text) ?? "";
+        reasoningContent = appendReasoningPart(
+          reasoningContent,
+          readString(contentItem.text) ?? ""
+        );
       } else if (contentItem.type === "refusal") {
         refusal = readString(contentItem.refusal) ?? "";
       }
@@ -275,6 +293,7 @@ export class OpenAiResponsesStreamDecoder implements ProviderStreamDecoder {
   private refusal: string | null = null;
   private completed = false;
   private finalResponse: LlmResponse | undefined;
+  private reasoningPartKey: string | undefined;
 
   push(chunk: Uint8Array): LlmStreamEvent[] {
     if (this.completed) return [];
@@ -325,6 +344,19 @@ export class OpenAiResponsesStreamDecoder implements ProviderStreamDecoder {
       ) {
         const delta = readString(event.delta);
         if (delta) {
+          const partKey = getReasoningPartKey(type, event);
+          if (
+            partKey &&
+            this.reasoningPartKey &&
+            partKey !== this.reasoningPartKey
+          ) {
+            const separator = reasoningSeparator(this.reasoningContent, delta);
+            if (separator) {
+              this.reasoningContent += separator;
+              events.push({ type: "reasoning-delta", delta: separator });
+            }
+          }
+          this.reasoningPartKey = partKey ?? this.reasoningPartKey;
           this.reasoningContent += delta;
           events.push({ type: "reasoning-delta", delta });
         }
@@ -351,8 +383,10 @@ export class OpenAiResponsesStreamDecoder implements ProviderStreamDecoder {
             response.content || response.refusal
               ? response.content
               : this.content,
-          reasoningContent:
-            response.reasoningContent || this.reasoningContent || undefined,
+          reasoningContent: preferCompleteReasoningContent(
+            response.reasoningContent,
+            this.reasoningContent
+          ),
         };
         events.push(...this.complete());
       }
@@ -379,6 +413,54 @@ export class OpenAiResponsesStreamDecoder implements ProviderStreamDecoder {
     events.push({ type: "completed", response });
     return events;
   }
+}
+
+function appendReasoningPart(current: string, next: string): string {
+  if (!next) return current;
+  if (!current) return next;
+  return current + reasoningSeparator(current, next) + next;
+}
+
+function reasoningSeparator(current: string, next: string): string {
+  if (!current || !next || current.endsWith("\n") || next.startsWith("\n")) {
+    return "";
+  }
+  return "\n\n";
+}
+
+function getReasoningPartKey(
+  type: string | undefined,
+  event: Record<string, unknown>
+): string | undefined {
+  const outputIndex = readNumber(event.output_index);
+  if (outputIndex === undefined) return undefined;
+
+  if (type === "response.reasoning_summary_text.delta") {
+    const summaryIndex = readNumber(event.summary_index);
+    return summaryIndex === undefined
+      ? undefined
+      : `summary:${outputIndex}:${summaryIndex}`;
+  }
+
+  if (type === "response.reasoning_text.delta") {
+    const contentIndex = readNumber(event.content_index);
+    return contentIndex === undefined
+      ? undefined
+      : `content:${outputIndex}:${contentIndex}`;
+  }
+
+  return undefined;
+}
+
+function preferCompleteReasoningContent(
+  finalContent: string | undefined,
+  streamedContent: string
+): string | undefined {
+  if (!finalContent) return streamedContent || undefined;
+  if (!streamedContent) return finalContent;
+  return streamedContent.length > finalContent.length
+    ? streamedContent
+    : finalContent;
 }
 
 export const openAiResponsesAdapter: ProviderAdapter = {

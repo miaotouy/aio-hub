@@ -52,6 +52,97 @@ describe("RichTextRenderer streaming lifecycle", () => {
   });
 });
 
+describe("RichTextRenderer VCP output blocks", () => {
+  it("renders a completed VCP tool request as a collapsible structured block", async () => {
+    const wrapper = mount(RichTextRenderer, {
+      props: {
+        content: `Before
+<<<[TOOL_REQUEST]>>>
+tool_name:「始」WeatherLookup「末」
+command:「始」weather.current「末」
+city:「始」Shanghai「末」
+unsafe:「始」<img src="x" onerror="window.richTextXss = true">「末」
+<<<[END_TOOL_REQUEST]>>>
+After`,
+      },
+    });
+
+    const block = wrapper.get('[data-testid="rich-text-vcp-tool_request"]');
+    expect(block.text()).toContain("VCP 工具请求");
+    expect(block.text()).not.toContain("<<<[TOOL_REQUEST]>>>");
+    expect(wrapper.find("img").exists()).toBe(false);
+
+    await block.get(".vcp-header").trigger("click");
+    expect(block.text()).toContain("WeatherLookup");
+    expect(block.text()).toContain("weather.current");
+    expect(block.text()).toContain("Shanghai");
+  });
+
+  it("keeps an unfinished streaming VCP request visible without treating it as Markdown", async () => {
+    const wrapper = mount(RichTextRenderer, {
+      props: {
+        content: `<<<[TOOL_REQUEST_ESCAPE]>>>
+tool_name:「始ESCAPE」Search「末ESCAPE」
+query:「始」partial query`,
+        isStreaming: true,
+      },
+    });
+
+    const block = wrapper.get('[data-testid="rich-text-vcp-tool_request"]');
+    expect(block.classes()).toContain("is-pending");
+    expect(block.text()).toContain("生成中");
+
+    await block.get(".vcp-header").trigger("click");
+    expect(block.text()).toContain("Search");
+    expect(block.text()).toContain("partial query");
+  });
+
+  it("keeps an unclosed VCP block literal once streaming has ended", () => {
+    const content = `Before
+<<<[TOOL_REQUEST]>>>
+tool_name:「始」Search`;
+    const wrapper = mount(RichTextRenderer, { props: { content } });
+
+    expect(wrapper.find(".vcp-block").exists()).toBe(false);
+    expect(wrapper.text()).toContain("<<<[TOOL_REQUEST]>>>");
+    expect(wrapper.text()).toContain("tool_name:「始」Search");
+  });
+
+  it("renders role, daily note, result, and summary VCP envelopes", () => {
+    const wrapper = mount(RichTextRenderer, {
+      props: {
+        content: `<<<[ROLE_DIVIDE_ASSISTANT]>>>
+Protocol message
+<<<[END_ROLE_DIVIDE_ASSISTANT]>>>
+<<<DailyNoteStart>>>
+Daily note content
+<<<DailyNoteEnd>>>
+[[VCP调用结果信息汇总:
+- 工具名称: WeatherLookup
+- 执行状态: ✅ SUCCESS
+- 返回内容: Sunny
+VCP调用结果结束]]
+[本轮工具调用摘要:]
+WeatherLookup 调用成功。
+[本轮工具调用摘要结束]`,
+      },
+    });
+
+    expect(wrapper.get('[data-testid="rich-text-vcp-role"]').text()).toContain(
+      "Protocol message"
+    );
+    expect(
+      wrapper.get('[data-testid="rich-text-vcp-daily_note"]').text()
+    ).toContain("VCP 日记");
+    expect(
+      wrapper.get('[data-testid="rich-text-vcp-tool_result"]').text()
+    ).toContain("✅ SUCCESS");
+    expect(
+      wrapper.get('[data-testid="rich-text-vcp-tool_summary"]').text()
+    ).toContain("WeatherLookup 调用成功");
+  });
+});
+
 describe("RichTextRenderer security boundary", () => {
   it("renders inline and block KaTeX without treating formulas as raw HTML", () => {
     const wrapper = mount(RichTextRenderer, {

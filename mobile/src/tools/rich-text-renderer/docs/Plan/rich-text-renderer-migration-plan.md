@@ -62,7 +62,8 @@ RichTextRenderer 可以独立工作树并行开发。建议工作树只修改：
 - [ ] 迁移稳定区/待定区、节点复用和完整资源解析；不在缺乏实测热点时机械复制 PC AST/Patch 管线。
 - [x] 已完成可单测的流式渲染快照节流：中间 chunk 最多每 80ms 触发一次完整 Markdown 重算，首内容、清空内容和结束响应立即刷新；卸载时清理待执行的流式与代码复制反馈 timer。
 - [ ] 在真实 Android/iOS 设备完成长消息、窄屏布局、滚动稳定性和内存释放验收；Vitest 只覆盖 Web 层节流与卸载清理，不能替代 WebView/原生运行态证据。
-- [ ] 迁移基础 Markdown 节点和 LLM 专用非媒体节点：代码块、VCP。
+- [ ] 继续完善基础 Markdown 代码块能力；不在无移动端需求时照搬桌面高亮、导出等交互。
+- [x] 已接入只读 VCP 输出块：角色分隔、工具请求（含 `TOOL_REQUEST_ESCAPE`）、调用结果、日记和本轮摘要会去除协议围栏后以可折叠卡片显示；流式未闭合请求保持可见。该能力只负责安全展示，既不连接也不执行桌面 `vcp-connector` / `tool-calling` 协议。
 - [x] 已接入 KaTeX 行内/块级公式，并在思考块内复用；`trust: false`，失败时不执行 HTML 或脚本。
 - [x] 已实现桌面默认 `<think>` / `<guguthink>` 的移动端折叠块和未闭合流式状态；不提前伪造自定义规则 UI 或完整 AST/Patch 管线。
 - [ ] 等待移动端媒体组件按已收敛方案完成资产管理器实现与交互验证后，再接入图片、视频和音频节点；不直接复制 PC 的 `BaseDialog`、`ImageViewer`、`AudioPlayer`、`VideoPlayer` 或桌面 composable。

@@ -7,6 +7,7 @@ import { customMessage } from "@/utils/feedback";
 import ThinkBlock from "./components/ThinkBlock.vue";
 import KatexRenderer from "./components/KatexRenderer.vue";
 import MermaidDiagram from "./components/MermaidDiagram.vue";
+import VcpBlock from "./components/VcpBlock.vue";
 
 defineOptions({
   name: "RichTextRenderer",
@@ -21,6 +22,7 @@ const props = withDefaults(
     isStreaming?: boolean;
     resolveAsset?: (content: string) => string;
     disableThinkParsing?: boolean;
+    disableVcpParsing?: boolean;
   }>(),
   {
     content: "",
@@ -94,6 +96,13 @@ watch(
   { immediate: true }
 );
 
+type VcpBlockVariant =
+  | "role"
+  | "tool_request"
+  | "tool_result"
+  | "daily_note"
+  | "tool_summary";
+
 type RenderSegment =
   | { type: "markdown"; tokens: any[] }
   | {
@@ -102,11 +111,76 @@ type RenderSegment =
       content: string;
       isThinking: boolean;
     }
-  | { type: "katex_block"; content: string };
+  | { type: "katex_block"; content: string }
+  | {
+      type: "vcp";
+      variant: VcpBlockVariant;
+      content: string;
+      closed: boolean;
+      role?: "user" | "assistant" | "system";
+    };
+
+type VcpBlockMatch = Extract<RenderSegment, { type: "vcp" }> & {
+  start: number;
+  end: number;
+};
+
+type RenderSegmentCandidate =
+  | { type: "think"; index: number; match: RegExpExecArray }
+  | { type: "katex_block"; index: number; match: RegExpExecArray }
+  | { type: "vcp"; index: number; match: VcpBlockMatch };
 
 const THINK_TAG_PATTERN = /<(think|guguthink)\s*>/gi;
 const KATEX_BLOCK_PATTERN = /\$\$([\s\S]*?)\$\$/g;
 const KATEX_INLINE_PATTERN = /(?<!\$)\$([^$\n]+?)\$(?!\$)/g;
+const VCP_OPEN_PATTERN =
+  /^[\t ]*(<<<\[(?:ROLE_DIVIDE_(?:USER|ASSISTANT|SYSTEM)|TOOL_REQUEST(?:_ESCAPE)?)\]>>>|<<<DailyNoteStart>>>|\[\[VCP调用结果信息汇总:|\[本轮工具调用摘要:\])/gim;
+
+function findNextVcpBlock(text: string, cursor: number): VcpBlockMatch | null {
+  VCP_OPEN_PATTERN.lastIndex = cursor;
+  const match = VCP_OPEN_PATTERN.exec(text);
+  if (!match) return null;
+
+  const marker = match[1];
+  const start = match.index + match[0].lastIndexOf(marker);
+  const contentStart = start + marker.length;
+  let variant: VcpBlockVariant;
+  let endMarker: string;
+  let role: VcpBlockMatch["role"];
+
+  if (marker.startsWith("<<<[ROLE_DIVIDE_")) {
+    const roleMatch = marker.match(/ROLE_DIVIDE_(USER|ASSISTANT|SYSTEM)/);
+    role = roleMatch?.[1].toLowerCase() as VcpBlockMatch["role"];
+    variant = "role";
+    endMarker = `<<<[END_ROLE_DIVIDE_${roleMatch?.[1] ?? "USER"}]>>>`;
+  } else if (marker.startsWith("<<<[TOOL_REQUEST")) {
+    variant = "tool_request";
+    endMarker = marker.includes("_ESCAPE")
+      ? "<<<[END_TOOL_REQUEST_ESCAPE]>>>"
+      : "<<<[END_TOOL_REQUEST]>>>";
+  } else if (marker === "<<<DailyNoteStart>>>") {
+    variant = "daily_note";
+    endMarker = "<<<DailyNoteEnd>>>";
+  } else if (marker.startsWith("[[VCP调用结果信息汇总:")) {
+    variant = "tool_result";
+    endMarker = "VCP调用结果结束]]";
+  } else {
+    variant = "tool_summary";
+    endMarker = "[本轮工具调用摘要结束]";
+  }
+
+  const closingIndex = text.indexOf(endMarker, contentStart);
+  const closed = closingIndex !== -1;
+  return {
+    type: "vcp",
+    variant,
+    content: text.slice(contentStart, closed ? closingIndex : text.length),
+    closed,
+    ...(role ? { role } : {}),
+    start,
+    end: closed ? closingIndex + endMarker.length : text.length,
+  };
+}
 
 function splitInlineMath(text: string): any[] {
   const tokens: any[] = [];
@@ -160,24 +234,41 @@ function splitContentSegments(
     KATEX_BLOCK_PATTERN.lastIndex = cursor;
     const opening = includeThinkTags ? THINK_TAG_PATTERN.exec(text) : null;
     const math = KATEX_BLOCK_PATTERN.exec(text);
-    const next =
-      opening && (!math || opening.index <= math.index)
-        ? { type: "think" as const, match: opening }
-        : math
-          ? { type: "katex_block" as const, match: math }
-          : null;
+    const vcp = props.disableVcpParsing
+      ? null
+      : findNextVcpBlock(text, cursor);
+    const candidates: RenderSegmentCandidate[] = [];
 
+    if (opening) {
+      candidates.push({ type: "think", index: opening.index, match: opening });
+    }
+    if (math) {
+      candidates.push({ type: "katex_block", index: math.index, match: math });
+    }
+    if (vcp) {
+      candidates.push({ type: "vcp", index: vcp.start, match: vcp });
+    }
+
+    const next = candidates.sort((left, right) => left.index - right.index)[0];
     if (!next) break;
-    if (next.match.index > cursor) {
+
+    if (next.index > cursor) {
       segments.push({
         type: "markdown",
-        tokens: parseMarkdownTokens(text.slice(cursor, next.match.index)),
+        tokens: parseMarkdownTokens(text.slice(cursor, next.index)),
       });
     }
 
     if (next.type === "katex_block") {
       segments.push({ type: "katex_block", content: next.match[1].trim() });
       cursor = KATEX_BLOCK_PATTERN.lastIndex;
+      continue;
+    }
+
+    if (next.type === "vcp") {
+      if (!next.match.closed && !props.isStreaming) break;
+      segments.push(next.match);
+      cursor = next.match.end;
       continue;
     }
 
@@ -274,6 +365,14 @@ onBeforeUnmount(() => {
         v-if="segment.type === 'katex_block'"
         :content="segment.content"
         display-mode
+      />
+      <VcpBlock
+        v-else-if="segment.type === 'vcp'"
+        :variant="segment.variant"
+        :content="segment.content"
+        :closed="segment.closed"
+        :is-streaming="isStreaming"
+        :role="segment.role"
       />
       <ThinkBlock
         v-else-if="segment.type === 'think'"

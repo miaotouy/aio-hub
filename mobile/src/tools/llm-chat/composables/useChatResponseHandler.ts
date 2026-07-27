@@ -81,7 +81,17 @@ export function useChatResponseHandler() {
     if (!finalNode) return;
 
     finalNode.status = "complete";
-    finalNode.content = response.content || finalNode.content;
+    const responseContent = response.content || "";
+    if (responseContent) {
+      if (finalNode.metadata?.isContinuation) {
+        const prefix = finalNode.metadata.continuationPrefix || "";
+        finalNode.content = responseContent.startsWith(prefix)
+          ? responseContent
+          : `${prefix}${responseContent}`;
+      } else {
+        finalNode.content = responseContent;
+      }
+    }
 
     if (!finalNode.metadata) {
       finalNode.metadata = {};

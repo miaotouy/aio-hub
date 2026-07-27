@@ -11,6 +11,9 @@ const clipboard = vi.hoisted(() => ({
 }));
 
 vi.mock("@tauri-apps/plugin-clipboard-manager", () => clipboard);
+vi.mock("@/i18n", () => ({
+  useI18n: () => ({ tRaw: (key: string) => key }),
+}));
 
 const VarButtonStub = defineComponent({
   inheritAttrs: false,
@@ -49,6 +52,15 @@ describe("MessageMenubar actions", () => {
     await wrapper.get('[data-testid="message-reply"]').trigger("click");
 
     expect(wrapper.emitted("reply")).toHaveLength(1);
+    expect(wrapper.emitted("close")).toHaveLength(1);
+  });
+
+  it("emits continuation for an assistant message and closes the action bar", async () => {
+    const wrapper = mountMenubar();
+
+    await wrapper.get('[data-testid="message-continue"]').trigger("click");
+
+    expect(wrapper.emitted("continue")).toHaveLength(1);
     expect(wrapper.emitted("close")).toHaveLength(1);
   });
 

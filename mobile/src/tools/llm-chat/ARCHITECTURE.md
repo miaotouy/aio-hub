@@ -28,7 +28,7 @@ llm-chat/
 │   ├── ChatMessage.vue        # 单条消息展示
 │   ├── MessageContent.vue     # 消息内容渲染（纯文本/富文本）
 │   ├── MessageList.vue        # 消息列表容器
-│   └── MessageMenubar.vue     # 消息操作菜单栏（重新生成、编辑、删除等）
+│   └── MessageMenubar.vue     # 消息操作菜单栏（续写、重新生成、编辑、删除等）
 ├── composables/               # 可复用的组合式逻辑
 │   ├── useBranchManager.ts    # 分支管理（切换、编辑、重试）
 │   ├── useChatExecutor.ts     # 对话执行器（构建上下文、发起 LLM 请求）
@@ -125,6 +125,7 @@ type MessageType = "message" | string;
 - `lastSelectedChildId` 实现分支记忆导航
 - 新建绑定 Agent 的会话会将有效开局消息固化为根节点下的兄弟分支，优先激活 `defaultGreetingId`；未迁移的宏和 Agent 私有附件不会在此阶段隐式处理
 - 聊天内切换 Agent 仅更新会话 `displayAgentId`；历史节点保持原样，后续助手节点固化 Agent 身份与模型/渠道快照
+- Assistant 续写创建同父节点的生成中分支，初始文本复制源回复并记录 `isContinuation + continuationPrefix`；旧分支不变。续写分支会清除旧 error、usage、Token、推理和中断状态，再固化本次实际使用的 Agent/模型快照
 
 ### 3.4. 可处理消息 (`types/context.ts`)
 
@@ -162,12 +163,12 @@ PipelineContext
 ```
 ChatSettings
 ├── uiPreferences         # 流式输出、时间戳、Token统计、模型信息、自动滚动、字体、消息导航
-├── modelPreferences      # 默认模型（当前仅持久化，运行时尚未消费）
+├── modelPreferences      # 默认模型（主页/聊天页初始化时校验并同步当前选择）
 ├── messageManagement     # 删除/清空确认开关
-└── requestSettings       # 超时（60s）、重试次数（2，当前仅持久化）
+└── requestSettings       # 超时（60s）与重试次数（2）
 ```
 
-设置界面和持久化结构已经建立，但运行时接线尚未全部完成。目前明确生效的是 Token 显示、上下文预警阈值和消息删除确认；流式开关、时间戳、模型信息开关、自动滚动开关、消息字号、默认模型、请求超时/重试，以及会话删除/清空确认仍需逐项接入实际执行路径。
+设置已接入实际执行路径：流式开关、时间戳、Token 与模型信息展示、自动滚动、消息字号、默认模型、请求超时/重试，以及消息/会话删除和清空确认均已消费。`showMessageNavigator` 仍只是兼容性持久化字段，当前没有独立移动端导航控件。
 
 ## 4. 数据流架构
 
@@ -260,19 +261,19 @@ LlamaChatView.send() → useChatExecutor.execute()
 
 ```
 用户输入 → useChatExecutor.execute(session, content, parentNodeId?)
+Assistant 续写 → useChatExecutor.continueGeneration(session, assistantNode)
   │
   ├─ 1. 校验模型有效性（profile + model）
-  ├─ 2. 创建用户消息节点（推入树）
-  ├─ 3. 创建助手消息节点（生成中状态）
-  ├─ 4. 更新 activeLeaf
-  ├─ 5. 读取会话绑定的 Agent 与模型/常用生成参数
-  ├─ 6. 执行 pipeline（加载历史消息，并按默认/深度/锚点策略组装 Agent 预设 → 构建 ProcessableMessage[]）
-  ├─ 7. 统计最终请求上下文 Token 并写入风险快照
-  ├─ 8. 调用 useLlmRequest.sendRequest()（流式）
+  ├─ 2. 普通发送创建用户节点；重新生成复用父用户节点；续写创建复制源内容的 Assistant 同级分支
+  ├─ 3. 创建或复用生成中的助手节点并更新 activeLeaf
+  ├─ 4. 读取会话绑定的 Agent 与模型/常用生成参数，固化本次助手快照
+  ├─ 5. 执行 pipeline（续写时活跃路径以复制前缀的 Assistant 分支结尾；加载历史并按默认/深度/锚点策略组装 Agent 预设）
+  ├─ 6. 统计最终请求上下文 Token 并写入风险快照
+  ├─ 7. 调用 useLlmRequest.sendRequest()（流式）
   │    ├─ onStream: 逐 chunk 追加到 assistantNode.content
   │    └─ ChatInput 的停止按钮通过共享 AbortController 传入 request signal
-  ├─ 9. 收口实际/估算 usage，更新节点状态（complete / error）；主动停止保留已有流式内容，以 complete + metadata.interrupted 持久化
-  └─ 10. 持久化会话
+  ├─ 8. 收口实际/估算 usage，更新节点状态（complete / error）；续写响应只返回新增文本时会自动保留前缀，主动停止同样保留前缀和已流式输出，以 complete + metadata.interrupted 持久化
+  └─ 9. 持久化会话
 ```
 
 ## 5. 路由与页面
@@ -282,7 +283,7 @@ LlamaChatView.send() → useChatExecutor.execute()
 | 路由路径                   | 页面组件               | 说明                  |
 | -------------------------- | ---------------------- | --------------------- |
 | `/tools/llm-chat`          | —                      | 根路由，重定向到 home |
-| `/tools/llm-chat/home`     | `ChatHome.vue`         | 主页入口，4个操作卡片 |
+| `/tools/llm-chat/home`     | `ChatHome.vue`         | 主页入口，5个操作卡片 |
 | `/tools/llm-chat/sessions` | `SessionList.vue`      | 历史会话列表          |
 | `/tools/llm-chat/chat/:id` | `LlmChatView.vue`      | 聊天主界面            |
 | `/tools/llm-chat/profiles` | `UserProfilesView.vue` | 用户档案管理          |
@@ -309,7 +310,7 @@ LlamaChatView.send() → useChatExecutor.execute()
 - 将“聊天字体缩放”偏好传递至消息列表，统一缩放用户与助手消息正文
 - 导航栏展示当前绑定的 Agent 名称和头像标识
 - 输入区可直接切换当前模型；绑定 Agent 时优先使用 Agent 的渠道与模型
-- 支持删除消息、重新生成
+- 支持删除消息、助手消息续写、重新生成与分支切换；续写只在非生成中的 Assistant 消息菜单展示
 
 ### 5.3. SessionList.vue — 会话列表
 

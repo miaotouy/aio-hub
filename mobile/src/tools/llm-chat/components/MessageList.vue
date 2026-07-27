@@ -44,6 +44,7 @@ const emit = defineEmits<{
   (e: "edit", message: ChatMessageNode): void;
   (e: "reply", message: ChatMessageNode): void;
   (e: "regenerate", message: ChatMessageNode): void;
+  (e: "continue", message: ChatMessageNode): void;
   (e: "delete", message: ChatMessageNode): void;
   (
     e: "switch-sibling",
@@ -141,6 +142,7 @@ defineExpose({
         @edit="(m) => emit('edit', m)"
         @reply="(m) => emit('reply', m)"
         @regenerate="(m) => emit('regenerate', m)"
+        @continue="(m) => emit('continue', m)"
         @delete="(m) => emit('delete', m)"
         @switch-sibling="(m, direction) => emit('switch-sibling', m, direction)"
         @switch-branch="(nodeId) => emit('switch-branch', nodeId)"

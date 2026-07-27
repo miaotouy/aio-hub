@@ -77,7 +77,8 @@ export function useChatExecutor() {
     userContent: string,
     parentNodeId?: string,
     attachments: ChatMessageAttachment[] = [],
-    replyTo?: ChatMessageReference
+    replyTo?: ChatMessageReference,
+    continuationSource?: ChatMessageNode
   ): Promise<boolean> {
     if (chatStore.isSending) return false;
 
@@ -129,34 +130,57 @@ export function useChatExecutor() {
       return false;
     }
 
-    // 1. 创建用户消息节点 (如果提供了 parentNodeId，说明是重试，不需要再创建用户节点)
+    // 1. 创建用户消息节点（重试和续写会复用已有用户节点）。
     let currentUserNodeId = parentNodeId || "";
-    if (!currentUserNodeId) {
-      const userNode = nodeManager.createNode({
-        role: "user",
-        content: userContent,
-        parentId: session.activeLeafId,
-        attachments,
-        metadata: replyTo ? { replyTo } : undefined,
-      });
-      nodeManager.addNodeToSession(session, userNode);
-      currentUserNodeId = userNode.id;
-    }
+    let assistantNode: ChatMessageNode;
 
-    // 2. 创建助手消息节点（初始状态为 generating）
-    const assistantNode = nodeManager.createNode({
-      role: "assistant",
-      content: "",
-      parentId: currentUserNodeId,
-      status: "generating",
-      metadata: createAssistantAgentSnapshot(
-        activeAgent,
-        profileId,
-        modelId,
-        model.name || modelId
-      ),
-    });
-    nodeManager.addNodeToSession(session, assistantNode);
+    if (continuationSource) {
+      const continuationNode = nodeManager.createContinuationBranch(
+        session,
+        continuationSource.id
+      );
+      if (!continuationNode) return false;
+
+      assistantNode = continuationNode;
+      currentUserNodeId = continuationNode.parentId || "";
+      // 使用本次实际请求的 Agent / 模型快照覆盖源分支中的旧绑定。
+      assistantNode.metadata = {
+        ...assistantNode.metadata,
+        ...createAssistantAgentSnapshot(
+          activeAgent,
+          profileId,
+          modelId,
+          model.name || modelId
+        ),
+      };
+    } else {
+      if (!currentUserNodeId) {
+        const userNode = nodeManager.createNode({
+          role: "user",
+          content: userContent,
+          parentId: session.activeLeafId,
+          attachments,
+          metadata: replyTo ? { replyTo } : undefined,
+        });
+        nodeManager.addNodeToSession(session, userNode);
+        currentUserNodeId = userNode.id;
+      }
+
+      // 2. 创建助手消息节点（初始状态为 generating）
+      assistantNode = nodeManager.createNode({
+        role: "assistant",
+        content: "",
+        parentId: currentUserNodeId,
+        status: "generating",
+        metadata: createAssistantAgentSnapshot(
+          activeAgent,
+          profileId,
+          modelId,
+          model.name || modelId
+        ),
+      });
+      nodeManager.addNodeToSession(session, assistantNode);
+    }
 
     // 3. 更新活跃节点
     nodeManager.updateActiveLeaf(session, assistantNode.id);
@@ -351,6 +375,32 @@ export function useChatExecutor() {
   }
 
   /**
+   * 在已有助手消息的同级分支上继续生成。新分支从源回复的完整内容开始，
+   * 请求管线读取该新活跃分支，因此模型可见续写前缀而不会改写原分支。
+   */
+  async function continueGeneration(
+    session: ChatSession,
+    messageNode: ChatMessageNode
+  ): Promise<boolean> {
+    if (
+      chatStore.isSending ||
+      messageNode.role !== "assistant" ||
+      messageNode.status === "generating"
+    ) {
+      return false;
+    }
+
+    return execute(
+      session,
+      "",
+      messageNode.parentId || undefined,
+      [],
+      undefined,
+      messageNode
+    );
+  }
+
+  /**
    * 重新生成（基于指定节点的父节点）
    */
   async function regenerate(
@@ -369,6 +419,7 @@ export function useChatExecutor() {
 
   return {
     execute,
+    continueGeneration,
     regenerate,
     stop,
   };

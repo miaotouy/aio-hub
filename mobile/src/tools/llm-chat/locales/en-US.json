@@ -88,6 +88,7 @@
     "删除": "Delete",
     "所选附件不可用提示": "One or more selected attachments are unavailable. Remove them and try again.",
     "跳过不可用历史附件": "Skipped {count} unavailable historical attachments",
+    "继续生成": "Continue generation",
     "对话执行失败": "Chat request failed"
   },
   "ChatSettingsView": {

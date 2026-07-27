@@ -26,7 +26,7 @@ const chatStore = useLlmChatStore();
 const profilesStore = useLlmProfilesStore();
 const agentStore = useAgentStore();
 const { isKeyboardVisible } = useKeyboardAvoidance();
-const { regenerate } = useChatExecutor();
+const { regenerate, continueGeneration } = useChatExecutor();
 const nodeManager = useNodeManager();
 const { settings, loadSettings } = useChatSettings();
 const { tRaw } = useI18n();
@@ -117,6 +117,12 @@ const handleReply = (message: ChatMessageNode) => {
 const handleRegenerate = async (message: ChatMessageNode) => {
   if (chatStore.currentSession) {
     await regenerate(chatStore.currentSession, message);
+  }
+};
+
+const handleContinue = async (message: ChatMessageNode) => {
+  if (chatStore.currentSession) {
+    await continueGeneration(chatStore.currentSession, message);
   }
 };
 
@@ -242,6 +248,7 @@ const goToChatHome = () => {
         @edit="handleEdit"
         @reply="handleReply"
         @regenerate="handleRegenerate"
+        @continue="handleContinue"
         @delete="handleDelete"
         @switch-sibling="handleSwitchSibling"
         @switch-branch="handleSwitchBranch"

@@ -63,22 +63,7 @@ const state = vi.hoisted(() => ({
     >(() => null),
     markUsed: vi.fn(),
   },
-}));
-
-vi.mock("../../stores/llmChatStore", () => ({
-  useLlmChatStore: () => state.chatStore,
-}));
-vi.mock("../../../llm-api/composables/useLlmRequest", () => ({
-  useLlmRequest: () => state.llmRequest,
-}));
-vi.mock("../../../llm-api/stores/llmProfiles", () => ({
-  useLlmProfilesStore: () => state.profilesStore,
-}));
-vi.mock("../../utils/modelSelection", () => ({
-  parseSelectedModelValue: () => ["profile-1", "model-1"],
-}));
-vi.mock("../useNodeManager", () => ({
-  useNodeManager: () => ({
+  nodeManager: {
     createNode: vi.fn((config) => ({
       id: config.role === "user" ? "user-1" : "assistant-1",
       parentId: config.parentId,
@@ -95,7 +80,45 @@ vi.mock("../useNodeManager", () => ({
     updateActiveLeaf: vi.fn((session, nodeId) => {
       session.activeLeafId = nodeId;
     }),
-  }),
+    createContinuationBranch: vi.fn((session, sourceNodeId) => {
+      const source = session.nodes[sourceNodeId];
+      if (!source?.parentId || source.role !== "assistant") return null;
+
+      const node = {
+        id: "assistant-continuation",
+        parentId: source.parentId,
+        childrenIds: [],
+        content: source.content,
+        role: "assistant" as const,
+        status: "generating" as const,
+        metadata: {
+          isContinuation: true,
+          continuationPrefix: source.content,
+        },
+        timestamp: "2026-07-26T10:00:00.000Z",
+      };
+      session.nodes[node.id] = node;
+      session.nodes[source.parentId].childrenIds.push(node.id);
+      session.activeLeafId = node.id;
+      return node;
+    }),
+  },
+}));
+
+vi.mock("../../stores/llmChatStore", () => ({
+  useLlmChatStore: () => state.chatStore,
+}));
+vi.mock("../../../llm-api/composables/useLlmRequest", () => ({
+  useLlmRequest: () => state.llmRequest,
+}));
+vi.mock("../../../llm-api/stores/llmProfiles", () => ({
+  useLlmProfilesStore: () => state.profilesStore,
+}));
+vi.mock("../../utils/modelSelection", () => ({
+  parseSelectedModelValue: () => ["profile-1", "model-1"],
+}));
+vi.mock("../useNodeManager", () => ({
+  useNodeManager: () => state.nodeManager,
 }));
 vi.mock("../../stores/contextPipelineStore", () => ({
   useContextPipelineStore: () => state.pipelineStore,
@@ -177,6 +200,7 @@ beforeEach(() => {
   state.worldbookStore.isLoaded = true;
   state.worldbookStore.getWorldbooksByIds.mockReturnValue([]);
   state.userProfileStore.getEffectiveProfile.mockReturnValue(null);
+  state.nodeManager.createContinuationBranch.mockClear();
   state.llmRequest.sendRequest.mockResolvedValue({
     content: "Complete response",
     isStream: false,
@@ -258,6 +282,171 @@ describe("useChatExecutor user profile context", () => {
       expect.objectContaining({ userProfile: null })
     );
     expect(state.userProfileStore.markUsed).not.toHaveBeenCalled();
+  });
+});
+
+describe("useChatExecutor continue generation", () => {
+  it("creates a sibling assistant branch with the source content as its request prefix", async () => {
+    const targetSession = session();
+    targetSession.nodes["user-1"] = {
+      id: "user-1",
+      parentId: "root",
+      childrenIds: ["assistant-source"],
+      role: "user",
+      status: "complete",
+      content: "Hello",
+    };
+    targetSession.nodes.root.childrenIds = ["user-1"];
+    targetSession.nodes["assistant-source"] = {
+      id: "assistant-source",
+      parentId: "user-1",
+      childrenIds: [],
+      role: "assistant",
+      status: "complete",
+      content: "Original reply",
+      metadata: { modelId: "old-model", usage: { promptTokens: 8, completionTokens: 3, totalTokens: 11 } },
+    };
+    targetSession.activeLeafId = "assistant-source";
+
+    state.pipelineStore.executePipeline.mockImplementationOnce(async (context) => {
+      context.messages = [
+        {
+          role: "user",
+          content: "Hello",
+          sourceType: "session_history",
+          sourceId: "user-1",
+        },
+        {
+          role: "assistant",
+          content: "Original reply",
+          sourceType: "session_history",
+          sourceId: "assistant-continuation",
+        },
+      ];
+    });
+    state.responseHandler.handleStreamUpdate.mockImplementation(
+      (currentSession: ChatSession, nodeId: string, chunk: string) => {
+        currentSession.nodes[nodeId].content += chunk;
+      }
+    );
+    state.llmRequest.sendRequest.mockImplementationOnce((options) => {
+      options.onStream?.(" continued");
+      return Promise.resolve({ content: " continued", isStream: false });
+    });
+
+    const continued = await useChatExecutor().continueGeneration(
+      targetSession,
+      targetSession.nodes["assistant-source"]
+    );
+
+    expect(continued).toBe(true);
+    expect(state.nodeManager.createContinuationBranch).toHaveBeenCalledWith(
+      targetSession,
+      "assistant-source"
+    );
+    expect(targetSession.nodes["assistant-source"].content).toBe(
+      "Original reply"
+    );
+    expect(targetSession.nodes["assistant-continuation"]).toMatchObject({
+      parentId: "user-1",
+      status: "generating",
+      content: "Original reply continued",
+      metadata: expect.objectContaining({
+        isContinuation: true,
+        continuationPrefix: "Original reply",
+      }),
+    });
+    expect(targetSession.activeLeafId).toBe("assistant-continuation");
+    expect(state.llmRequest.sendRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [
+          { role: "user", content: "Hello" },
+          { role: "assistant", content: "Original reply" },
+        ],
+      }),
+      "profile-1"
+    );
+    expect(state.responseHandler.finalizeNode).toHaveBeenCalledWith(
+      targetSession,
+      "assistant-continuation",
+      expect.objectContaining({ content: " continued" })
+    );
+  });
+
+  it("keeps the copied prefix and partial continuation when stopped", async () => {
+    const targetSession = session();
+    targetSession.nodes["user-1"] = {
+      id: "user-1",
+      parentId: "root",
+      childrenIds: ["assistant-source"],
+      role: "user",
+      status: "complete",
+      content: "Hello",
+    };
+    targetSession.nodes.root.childrenIds = ["user-1"];
+    targetSession.nodes["assistant-source"] = {
+      id: "assistant-source",
+      parentId: "user-1",
+      childrenIds: [],
+      role: "assistant",
+      status: "complete",
+      content: "Original reply",
+    };
+    targetSession.activeLeafId = "assistant-source";
+    state.responseHandler.handleStreamUpdate.mockImplementation(
+      (currentSession: ChatSession, nodeId: string, chunk: string) => {
+        currentSession.nodes[nodeId].content += chunk;
+      }
+    );
+    state.llmRequest.sendRequest.mockImplementationOnce((options) => {
+      options.onStream?.(" partial");
+      return new Promise((_, reject) => {
+        options.signal?.addEventListener("abort", () => {
+          reject(options.signal?.reason);
+        });
+      });
+    });
+
+    const executor = useChatExecutor();
+    const execution = executor.continueGeneration(
+      targetSession,
+      targetSession.nodes["assistant-source"]
+    );
+    await vi.waitFor(() => {
+      expect(state.llmRequest.sendRequest).toHaveBeenCalledOnce();
+    });
+
+    expect(executor.stop(targetSession)).toBe(true);
+    await execution;
+
+    expect(targetSession.nodes["assistant-continuation"]).toMatchObject({
+      status: "complete",
+      content: "Original reply partial",
+      metadata: expect.objectContaining({
+        interrupted: true,
+        continuationPrefix: "Original reply",
+      }),
+    });
+    expect(state.responseHandler.handleNodeError).not.toHaveBeenCalled();
+  });
+
+  it("refuses to start a continuation while another request is active", async () => {
+    state.chatStore.isSending = true;
+    const targetSession = session();
+    const source = {
+      id: "assistant-source",
+      parentId: "root",
+      childrenIds: [],
+      role: "assistant" as const,
+      status: "complete" as const,
+      content: "Original reply",
+    };
+    targetSession.nodes[source.id] = source;
+
+    await expect(
+      useChatExecutor().continueGeneration(targetSession, source)
+    ).resolves.toBe(false);
+    expect(state.nodeManager.createContinuationBranch).not.toHaveBeenCalled();
   });
 });
 

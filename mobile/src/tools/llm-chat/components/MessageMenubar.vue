@@ -6,12 +6,14 @@ import {
   ChevronRight,
   Copy,
   RotateCcw,
+  FastForward,
   Trash2,
   Edit3,
   GitBranch,
   Reply,
 } from "lucide-vue-next";
 import type { ChatMessageNode, ChatSession } from "../types";
+import { useI18n } from "@/i18n";
 import { BranchNavigator } from "../utils/BranchNavigator";
 import BranchSelector from "./BranchSelector.vue";
 
@@ -26,12 +28,15 @@ const emit = defineEmits<{
   (e: "edit"): void;
   (e: "reply"): void;
   (e: "regenerate"): void;
+  (e: "continue"): void;
   (e: "delete"): void;
   (e: "close"): void;
   (e: "switch-sibling", direction: "prev" | "next"): void;
   (e: "switch-branch", nodeId: string): void;
 }>();
 
+const { tRaw } = useI18n();
+const t = (key: string) => tRaw(`tools.llm-chat.ChatView.${key}`);
 const showBranchSelector = ref(false);
 
 const siblings = computed(() => {
@@ -79,6 +84,11 @@ const handleReply = () => {
 
 const handleRegenerate = () => {
   emit("regenerate");
+  emit("close");
+};
+
+const handleContinue = () => {
+  emit("continue");
   emit("close");
 };
 
@@ -141,6 +151,19 @@ const handleSwitchToBranch = (nodeId: string) => {
         @click="handleReply"
       >
         <Reply :size="14" />
+      </var-button>
+      <var-button
+        v-if="message.role === 'assistant' && message.status !== 'generating'"
+        data-testid="message-continue"
+        text
+        round
+        size="mini"
+        class="menu-btn"
+        :title="t('继续生成')"
+        :aria-label="t('继续生成')"
+        @click="handleContinue"
+      >
+        <FastForward :size="14" />
       </var-button>
       <var-button
         v-if="message.role === 'assistant'"

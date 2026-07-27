@@ -24,6 +24,7 @@ const emit = defineEmits<{
   (e: "edit", message: ChatMessageNode): void;
   (e: "reply", message: ChatMessageNode): void;
   (e: "regenerate", message: ChatMessageNode): void;
+  (e: "continue", message: ChatMessageNode): void;
   (e: "delete", message: ChatMessageNode): void;
   (
     e: "switch-sibling",
@@ -132,6 +133,7 @@ const tokenLabel = computed(() => {
             @edit="emit('edit', message)"
             @reply="emit('reply', message)"
             @regenerate="emit('regenerate', message)"
+            @continue="emit('continue', message)"
             @delete="emit('delete', message)"
             @switch-sibling="
               (direction) => emit('switch-sibling', message, direction)

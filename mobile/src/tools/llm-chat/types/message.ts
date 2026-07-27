@@ -44,6 +44,10 @@ export interface ChatMessageMetadata {
   interrupted?: boolean;
   /** 用户主动停止生成的时间戳。 */
   interruptedAt?: number;
+  /** 此消息由助手消息的续写分支生成。 */
+  isContinuation?: boolean;
+  /** 续写分支创建时复制的助手回复前缀。 */
+  continuationPrefix?: string;
   /** 推理内容（DeepSeek reasoning 模式） */
   reasoningContent?: string;
   /** 推理开始时间戳 */

@@ -37,6 +37,10 @@
     "系统提示词": "System prompt",
     "保存": "Save",
     "保存成功": "Agent saved",
+    "世界书": "Worldbooks",
+    "世界书说明": "Selected enabled Worldbooks are injected deterministically by keyword before requests.",
+    "管理世界书": "Manage",
+    "暂无世界书": "No Worldbooks are available yet. Create one first.",
     "必填提示": "Display name, internal name, and model are required"
   },
   "Parameters": {

@@ -5,6 +5,7 @@ import {
   MessageSquare,
   Users,
   UserCircle,
+  BookOpen,
   Plus,
   Settings,
   ChevronLeft,
@@ -64,6 +65,10 @@ const goToAgents = () => {
 
 const goToUserProfiles = () => {
   router.push("/tools/llm-chat/profiles");
+};
+
+const goToWorldbooks = () => {
+  router.push("/tools/llm-chat/worldbooks");
 };
 
 const goHome = () => {
@@ -150,6 +155,23 @@ const goHome = () => {
         <div class="text-box">
           <h3>{{ tRaw("tools.llm-chat.ChatHome.用户档案") }}</h3>
           <p>{{ tRaw("tools.llm-chat.ChatHome.管理用户档案") }}</p>
+        </div>
+      </div>
+
+      <div
+        class="action-card"
+        role="button"
+        tabindex="0"
+        data-testid="chat-worldbooks"
+        @click="goToWorldbooks"
+        @keydown.enter="goToWorldbooks"
+      >
+        <div class="icon-box">
+          <BookOpen :size="24" />
+        </div>
+        <div class="text-box">
+          <h3>{{ tRaw("tools.llm-chat.ChatHome.世界书") }}</h3>
+          <p>{{ tRaw("tools.llm-chat.ChatHome.管理世界书") }}</p>
         </div>
       </div>
     </div>

@@ -9,6 +9,7 @@ import { useTopicNamer } from "./useTopicNamer";
 import { useChatSettings } from "./useChatSettings";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../stores/userProfileStore";
+import { useWorldbookStore } from "../stores/worldbookStore";
 import type {
   ChatMessageAttachment,
   ChatMessageReference,
@@ -41,6 +42,7 @@ export function useChatExecutor() {
   const pipelineStore = useContextPipelineStore();
   const agentStore = useAgentStore();
   const userProfileStore = useUserProfileStore();
+  const worldbookStore = useWorldbookStore();
   const { handleStreamUpdate, finalizeNode, handleNodeError } =
     useChatResponseHandler();
   const { shouldAutoName, generateTopicName } = useTopicNamer();
@@ -77,6 +79,7 @@ export function useChatExecutor() {
 
     if (!agentStore.isLoaded) await agentStore.init();
     if (!userProfileStore.isLoaded) await userProfileStore.init();
+    if (!worldbookStore.isLoaded) await worldbookStore.init();
     await loadSettings();
     const activeAgent = agentStore.getAgentById(session.displayAgentId);
     const effectiveUserProfile = userProfileStore.getEffectiveProfile(
@@ -156,9 +159,10 @@ export function useChatExecutor() {
         settings: settings.value,
         capabilities: model.capabilities,
         timestamp: Date.now(),
-        sharedData: new Map([
+        sharedData: new Map<string, unknown>([
           ["model", model],
           ["profile", profile],
+          ["worldbooks", worldbookStore.getWorldbooksByIds(activeAgent?.worldbookIds)],
         ]),
         logs: [],
       };

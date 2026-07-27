@@ -18,7 +18,8 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 
 - [ ] 以角色聊天实际需要为边界迁移剩余上下文能力，优先补齐移动端宏/变量、传统关键词世界书或同类确定性上下文注入、资源解析和消息编排；不以复制桌面当前全部处理器为目标。
 - [x] 在移动端接入 `injection-assembler`，支持预设消息的 `injectionStrategy`、深度、锚点和模型/渠道匹配语义。
-- [ ] 建立移动端 Chat 自己的宏注册范围，只实现角色聊天当前可消费的会话、角色、用户、预设和资产等宏。桌面后续增加的工具、Recall、Knowledge 或 CSS 宏不进入本阶段，也不得反向阻塞基础宏施工。
+- [x] 建立移动端 Chat 自己的宏注册范围：`primary:macros-renderer` 在预设装配后、Token 裁剪前顺序展开角色、用户、会话、模型和当前附件轻量摘要，并支持导入角色的局部变量定义、`<svar>`、`getvar` / `setvar` / `incvar` / `decvar`。未知与转义宏保持字面文本；工具、Recall、Knowledge、CSS 与全局变量宏不进入本阶段。
+- [x] 接入移动端传统关键词世界书：全局 `worldbooks.json` 仅保存文本条目与匹配设置，Agent 通过既有 `worldbookIds` 选择世界书；`primary:worldbook-injector` 以选中顺序、条目 order 和 ID 做稳定排序，在历史尾部有限扫描并按 `before_history` / `after_character` / `depth` 注入。首阶段不迁移桌面的递归、概率、分组竞争、向量、Outlet、自动化或 Knowledge/Recall；世界书创建、条目编辑与 Agent 关联均已有移动端入口。
 - [ ] 按聊天功能清单逐项核对新建会话、历史恢复、编辑、删除、继续、重新生成、分支切换、引用、停止、失败恢复、长上下文和设置接线，缺项直接在 `llm-chat` 内补齐并增加测试。
 - [x] 将现有 Rust `o200k_base` / `countTokensBatch()` 接入上下文预算编排。Token 限制器在最终格式化前以预设优先、最新历史优先的策略裁剪文本消息；发送后的最终计数仍用于 usage 缺失时展示与快照。
 - [x] 迁移文本预算和历史消息截断逻辑；处理器位于注入之后、最终消息格式化之前，预算和截断参数已有移动端编辑入口。

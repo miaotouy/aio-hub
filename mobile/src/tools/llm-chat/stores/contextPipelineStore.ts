@@ -8,6 +8,8 @@ import { sessionLoader } from "../core/pipeline/processors/session-loader";
 import { userProfileInjector } from "../core/pipeline/processors/user-profile-injector";
 import { regexProcessor } from "../core/pipeline/processors/regex-processor";
 import { injectionAssembler } from "../core/pipeline/processors/injection-assembler";
+import { macrosRenderer } from "../core/pipeline/processors/macros-renderer";
+import { worldbookInjector } from "../core/pipeline/processors/worldbook-injector";
 import { messageFormatter } from "../core/pipeline/processors/message-formatter";
 import { tokenLimiter } from "../core/pipeline/processors/token-limiter";
 
@@ -36,6 +38,8 @@ const getInitialProcessors = (): ContextProcessor[] => {
     userProfileInjector,
     regexProcessor,
     injectionAssembler,
+    worldbookInjector,
+    macrosRenderer,
     tokenLimiter,
     messageFormatter,
   ];

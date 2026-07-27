@@ -50,6 +50,11 @@ const state = vi.hoisted(() => ({
       () => undefined
     ),
   },
+  worldbookStore: {
+    isLoaded: true,
+    init: vi.fn(),
+    getWorldbooksByIds: vi.fn(() => []),
+  },
   userProfileStore: {
     isLoaded: true,
     init: vi.fn(),
@@ -113,6 +118,9 @@ vi.mock("@/tools/agent-manager/stores/agentStore", () => ({
 vi.mock("../../stores/userProfileStore", () => ({
   useUserProfileStore: () => state.userProfileStore,
 }));
+vi.mock("../../stores/worldbookStore", () => ({
+  useWorldbookStore: () => state.worldbookStore,
+}));
 vi.mock("@/utils/tokenCounting", () => ({
   countTokensBatch: vi.fn(async () => ({
     counts: [1],
@@ -166,6 +174,8 @@ beforeEach(() => {
   state.pipelineStore.executePipeline.mockClear();
   state.agentStore.getAgentById.mockReturnValue(undefined);
   state.userProfileStore.isLoaded = true;
+  state.worldbookStore.isLoaded = true;
+  state.worldbookStore.getWorldbooksByIds.mockReturnValue([]);
   state.userProfileStore.getEffectiveProfile.mockReturnValue(null);
   state.llmRequest.sendRequest.mockResolvedValue({
     content: "Complete response",

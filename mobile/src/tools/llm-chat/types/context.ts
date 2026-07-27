@@ -23,6 +23,7 @@ export interface ProcessableMessage {
     | "session_history"
     | "depth_injection"
     | "anchor_injection"
+    | "worldbook_injection"
     | "unknown"
     | "merged";
   /** 来源标识（预设消息的 index 或会话历史的 nodeId） */

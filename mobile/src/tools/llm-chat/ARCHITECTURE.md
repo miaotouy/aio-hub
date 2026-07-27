@@ -45,8 +45,9 @@ llm-chat/
 │           ├── user-profile-injector.ts # 管道处理器：基础档案系统上下文
 │           ├── regex-processor.ts      # 管道处理器：导入 Agent 请求正则
 │           ├── injection-assembler.ts  # 管道处理器：预设/深度/锚点组装器
-│           ├── message-formatter.ts    # 管道处理器：合并/角色格式化
-│           └── token-limiter.ts        # 管道处理器：文本历史 Token 截断
+│           ├── macros-renderer.ts      # 管道处理器：角色聊天宏与局部变量
+│           ├── token-limiter.ts        # 管道处理器：文本历史 Token 截断
+│           └── message-formatter.ts    # 管道处理器：合并/角色格式化
 ├── docs/                      # 规划文档（已删除，仅 Git 记录中存在）
 ├── locales/
 │   ├── zh-CN.json             # 中文语言包
@@ -224,15 +225,27 @@ Actions:
    ├── 按 order 组装锚点注入，并按深度/高级深度规则插入会话历史
    └── 保留来源 ID、索引与注入来源类型，供后续处理器和 Token 统计使用
 
+5. primary:worldbook-injector (priority: 450)
+   ├── 从执行器预加载的 Agent `worldbookIds` 获取全局 `worldbooks.json` 的已启用世界书
+   ├── 对最近 `scanDepth` 条同分支历史执行确定性关键词匹配，常量条目始终激活
+   ├── 用选中世界书顺序、条目 order 与 ID 作为稳定排序，并在预设/历史之间或相对历史尾部注入
+   └── 不实现递归、概率、分组竞争、向量、Outlet、自动化或 Knowledge/Recall
+
+6. primary:macros-renderer (priority: 500)
+   ├── 按管线顺序展开角色、用户、会话、模型与 `ManagedAssetRef` 轻量摘要宏
+   ├── 从导入 Agent 的 `variableConfig` 初始化局部变量，并应用 `<svar>`、`getvar` / `setvar` / `incvar` / `decvar`
+   ├── 对历史 `last*` 宏只读取该消息之前的同分支历史；转义和未知宏保持字面文本
+   └── 仅把替换前文本写到 `ProcessableMessage._originalContent`，不把资产路径或系统 URI 写入聊天数据
+
 管道执行流程：
 LlamaChatView.send() → useChatExecutor.execute()
   → 构建 PipelineContext
   → pipelineStore.executePipeline(context)
-  → [session-loader, injection-assembler, token-limiter, message-formatter, ...其他处理器]
+  → [session-loader, user-profile-injector, regex-processor, injection-assembler, worldbook-injector, macros-renderer, token-limiter, message-formatter]
   → 输出 messages[] 给 llmRequest.sendRequest()
 ```
 
-**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载、基础用户档案注入、导入 Agent 的 request 阶段正则、预设注入组装和最终消息格式化；预设支持默认、深度、高级深度、锚点与模型匹配，格式化支持模型默认规则与 Agent 覆盖的 system 合并、连续角色合并、system 转 user 和角色交替。后续只按角色聊天需求补移动端宏/变量、传统关键词世界书或同类确定性上下文注入、资源解析和必要正则能力；工具调用、向量 RAG、Knowledge/Recall 不属于这条管线完成的前置条件。Token 限制器当前计算文本，附件和其他多模态成本继续按实际模型与渠道协议独立估算。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
+**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载、基础用户档案注入、导入 Agent 的 request 阶段正则、预设注入组装、移动端限定范围的关键词世界书注入、宏/局部变量渲染、Token 裁剪和最终消息格式化；预设支持默认、深度、高级深度、锚点与模型匹配，格式化支持模型默认规则与 Agent 覆盖的 system 合并、连续角色合并、system 转 user 和角色交替。宏只覆盖角色聊天当前消费的 `user` / `agent` / `char`、用户档案、会话 `last*` / `input`、模型、`assets` 与导入角色局部变量；未知与转义宏不会被执行。世界书由 `worldbookStore` 用 `llm-chat/worldbooks.json` 单独持久化，数据只包含文本、关键词、扫描深度、位置和顺序；世界书管理页创建条目，Agent 编辑页使用既有 `worldbookIds` 选择。后续只按角色聊天需求补资源解析和必要正则能力；工具调用、向量 RAG、Knowledge/Recall 不属于这条管线完成的前置条件。Token 限制器当前计算文本，附件和其他多模态成本继续按实际模型与渠道协议独立估算。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
 
 ### 4.3. Token 统计与上下文预警
 
@@ -467,7 +480,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - [x] 基础用户档案管理：多档案 CRUD、启用/禁用、全局默认选择、Agent `userProfileId` 覆盖与请求系统上下文注入
 - [x] 智能体预设加载
 - [x] 执行预设消息的 `injectionStrategy` 和 `modelMatch`
-- [ ] 实现移动端角色聊天所需的宏/变量注册表，只覆盖会话、角色、用户、预设和当前资产等真实消费方；不要求注册桌面后续工具、Recall、Knowledge 或 CSS 宏
+- [x] `primary:macros-renderer` 已在预设装配后展开角色、用户、会话、模型和当前附件的轻量摘要宏，并复用导入 Agent `variableConfig` 的局部变量定义；仅支持 `<svar>`、`getvar` / `setvar` / `incvar` / `decvar`，不注册工具、Recall、Knowledge、CSS 或全局变量宏
 - [ ] 接入传统关键词世界书或同类确定性上下文注入；向量 RAG 与 Knowledge/Recall 不属于本阶段依赖
 - [x] 聊天内切换 Agent（顶部选择器仅更新会话绑定；历史节点保留原快照，后续助手消息保存 Agent 和模型/渠道快照）
 - [x] 将 Agent 开局消息实例化到新会话（根节点兄弟分支、默认开局选择和旧字符串兼容；聊天宏与私有附件后续按各自范围接入）
@@ -492,7 +505,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 | -------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | **UI 分层**    | 自研业务组件 + Element Plus 叶子控件                                 | 原生 Vue/AIO token 骨架 + Varlet 叶子控件                                                                                                  |
 | **类型**       | 完整 `ChatAgent`, `Asset`, `ChatSettings`                            | 已接入兼容 `ChatAgent` 和 `ManagedAssetRef + 轻量快照`，不持久化全局资产路径                                                               |
-| **管道处理器** | 完整：会话、注入、宏/变量、世界书/召回、Token 限制、格式化和资源解析 | `session-loader` + `injection-assembler` + `token-limiter` + `message-formatter`；Token 仅裁剪文本，附件、工具 schema 与多模态成本独立处理 |
+| **管道处理器** | 完整：会话、注入、宏/变量、世界书/召回、Token 限制、格式化和资源解析 | `session-loader` + `user-profile-injector` + `regex-processor` + `injection-assembler` + `macros-renderer` + `token-limiter` + `message-formatter`；宏仅覆盖角色聊天范围，Token 仅裁剪文本，附件、工具 schema 与多模态成本独立处理 |
 | **组件**       | 丰富（BaseDialog, ImageViewer 等）                                   | 基础的列表/输入组件                                                                                                                        |
 | **编辑器**     | RichCodeEditor（双引擎）                                             | 纯文本输入                                                                                                                                 |
 | **路由**       | `main`, `settings` 两页                                              | `home`, `sessions`, `chat/:id`, `settings` 四页                                                                                            |

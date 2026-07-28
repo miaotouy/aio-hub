@@ -95,7 +95,7 @@ describe("useConnectionTest", () => {
     expect(mocks.reportSuccess).not.toHaveBeenCalled();
   });
 
-  it("does not alter key health for configuration failures", async () => {
+  it("records configuration failures without counting them", async () => {
     mocks.probe.mockResolvedValue(
       result({
         success: false,
@@ -108,11 +108,14 @@ describe("useConnectionTest", () => {
       computed(() => source)
     );
     await composable.handleTestKey({ key: "key-1", modelId: "model-1" });
-    expect(mocks.reportFailure).not.toHaveBeenCalled();
+    expect(mocks.reportFailure.mock.calls[0][3]).toEqual({
+      allowAutoDisable: false,
+      countTowardThreshold: false,
+    });
     expect(mocks.reportSuccess).not.toHaveBeenCalled();
   });
 
-  it("records bad requests only in the probe result", async () => {
+  it("records bad requests without counting them", async () => {
     mocks.probe.mockResolvedValue(
       result({
         success: false,
@@ -126,11 +129,14 @@ describe("useConnectionTest", () => {
       computed(() => source)
     );
     await composable.handleTestKey({ key: "key-1", modelId: "model-1" });
-    expect(mocks.reportFailure).not.toHaveBeenCalled();
+    expect(mocks.reportFailure.mock.calls[0][3]).toEqual({
+      allowAutoDisable: false,
+      countTowardThreshold: false,
+    });
     expect(mocks.reportSuccess).not.toHaveBeenCalled();
   });
 
-  it("records rate limits without contributing to the broken threshold", async () => {
+  it("lets rate limits trigger the breaker when it is enabled", async () => {
     mocks.probe.mockResolvedValue(
       result({
         success: false,
@@ -144,10 +150,7 @@ describe("useConnectionTest", () => {
       computed(() => source)
     );
     await composable.handleTestKey({ key: "key-1", modelId: "model-1" });
-    expect(mocks.reportFailure.mock.calls[0][3]).toEqual({
-      allowAutoDisable: false,
-      countTowardThreshold: false,
-    });
+    expect(mocks.reportFailure.mock.calls[0][3]).toBeUndefined();
   });
 
   it("passes explicit endpoint options to a single model probe", async () => {

@@ -17,7 +17,7 @@ import { useLlmKeyManager } from "@/composables/useLlmKeyManager";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
 import { customMessage } from "@/utils/customMessage";
 import { createChannelProbeService } from "../probe/channel-probe-service";
-import { getKeyHealthAction } from "../probe/key-health-policy";
+import { getKeyHealthAction } from "@/llm-apis/key-health-policy";
 import type {
   BatchProbeProgress,
   ChannelProbeResult,
@@ -229,6 +229,9 @@ export function useConnectionTest(
         break;
       case "authentication-failure":
         reportFailure(profileId, key, error, { forceBroken: true });
+        break;
+      case "rate-limit-failure":
+        reportFailure(profileId, key, error);
         break;
       case "transient-failure":
         reportFailure(profileId, key, error, {

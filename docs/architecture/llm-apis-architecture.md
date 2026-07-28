@@ -96,7 +96,7 @@ const {
 
 ### 2.2 多 Key 管理 — [`useLlmKeyManager`](/src/composables/useLlmKeyManager.ts)
 
-支持一个渠道配置绑定多个 API Key，自动实现**轮询 + 熔断 + 恢复**的负载均衡。
+支持一个渠道配置绑定多个 API Key，提供**轮询 + 可选熔断 + 恢复**能力。熔断开关和恢复时长按渠道独立存储，自动熔断默认关闭，建议仅在多 Key 配置且确认需要故障摘除时开启。
 
 **轮询策略**（[`pickKey()`](/src/composables/useLlmKeyManager.ts:102)）：
 
@@ -107,8 +107,9 @@ const {
 
 **熔断逻辑**（[`reportFailure()`](/src/composables/useLlmKeyManager.ts:188)）：
 
-- 识别 `429 Too Many Requests`，直接熔断
-- 连续 3 次非 429 错误也触发熔断
+- 开启自动熔断后，识别 `429 Too Many Requests`，直接熔断
+- 开启自动熔断后，连续 3 次非 429 暂态错误也触发熔断
+- 仅当同一渠道仍有另一把可用 Key 时才熔断当前 Key；单 Key 不进入熔断态
 - 熔断后的 Key 标记 `isBroken: true`，记录 `disabledTime`
 - 错误消息截断至 2000 字符，防止配置文件膨胀（[第 196 行](/src/composables/useLlmKeyManager.ts:196)）
 
@@ -444,5 +445,5 @@ useLlmRequest.sendRequest(options)
 - **利用 Request Builder**: 优先使用 `filterParametersByCapabilities` 和 `cleanPayload` 处理请求体，确保 API 兼容性
 - **统一媒体处理**: 新 Provider 的图片、音频、视频、音乐和模型列表协议优先实现于 `@aiohub/llm-core`，应用目录只保留 Profile、业务参数和响应兼容映射
 - **文件引用**: 大文件使用 tagged `LocalFileRef`，不要在 Facade 中预读成 Base64；Provider JSON、multipart part 与顶层请求体均已有明确契约
-- **Key 管理**: 合理配置 `autoRecoveryTime`，429 熔断后自动恢复，无需人工干预
+- **Key 管理**: 多 Key 配置且开启自动熔断后，合理配置 `autoRecoveryTime`，429 熔断后自动恢复；单 Key 或无多渠道容灾时保持默认关闭
 - **代理策略**: 桌面外部请求默认走 Rust 代理，可通过 `networkStrategy: "native"` 直连；涉及 `LocalFileRef` 或兼容期 `local-file://` 时始终走 Rust 原生文件路径，不能把路径或引用对象直接发送给 Provider

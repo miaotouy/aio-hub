@@ -37,6 +37,7 @@ import {
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
+import { useNotification } from "@/composables/useNotification";
 import {
   mergeMissingDirectoryTree,
   repairInvalidEntityConfigs,
@@ -153,6 +154,7 @@ export function mergeProfilesIndexes(
 }
 
 async function ensureUserProfileDataMigrated(): Promise<void> {
+  let profileDataMigrated = false;
   try {
     await runVersionedDataMigration({
       id: MODULE_NAME,
@@ -199,20 +201,37 @@ async function ensureUserProfileDataMigrated(): Promise<void> {
         );
         await verifyDirectorySubset(oldProfilesDir, targetProfilesDir);
 
+        let indexChanged = false;
         if (sourceIndex || targetIndexWasInvalid) {
+          const mergedIndex = mergeProfilesIndexes(sourceIndex, targetIndex);
+          indexChanged =
+            targetIndexWasInvalid ||
+            JSON.stringify(mergedIndex) !== JSON.stringify(targetIndex);
           await mkdir(targetModuleDir, { recursive: true });
-          await writeJsonAtomically(
-            targetIndexPath,
-            mergeProfilesIndexes(sourceIndex, targetIndex)
-          );
+          await writeJsonAtomically(targetIndexPath, mergedIndex);
         }
 
         if (repairedFiles > 0) {
           logger.info("历史用户档案数据已补充迁移", { repairedFiles });
         }
+        profileDataMigrated = repairedFiles > 0 || indexChanged;
       },
     });
     profileMigrationFailureReported = false;
+    if (profileDataMigrated) {
+      try {
+        useNotification().success(
+          "用户档案迁移完成",
+          "历史用户档案已安全迁移到新存储位置，原数据仍保留。",
+          {
+            source: MODULE_NAME,
+            metadata: { path: "/user-profile-manager" },
+          }
+        );
+      } catch (error) {
+        logger.warn("发送用户档案迁移完成通知失败", { error });
+      }
+    }
   } catch (error) {
     if (!profileMigrationFailureReported) {
       customMessage.error(

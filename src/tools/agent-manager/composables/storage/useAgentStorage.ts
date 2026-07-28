@@ -37,6 +37,7 @@ import { migrateAgent } from "../../services/agentMigrationService";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
+import { useNotification } from "@/composables/useNotification";
 import {
   mergeMissingDirectoryTree,
   repairInvalidEntityConfigs,
@@ -56,6 +57,7 @@ const MIGRATION_IGNORED_NAMES = new Set([".migration_in_progress"]);
 let agentMigrationFailureReported = false;
 
 async function ensureAgentDataMigrated(): Promise<void> {
+  let migratedFiles = 0;
   try {
     await runVersionedDataMigration({
       id: MODULE_NAME,
@@ -88,9 +90,24 @@ async function ensureAgentDataMigrated(): Promise<void> {
         if (copiedFiles > 0) {
           logger.info("历史智能体数据已补充迁移", { copiedFiles });
         }
+        migratedFiles = copiedFiles;
       },
     });
     agentMigrationFailureReported = false;
+    if (migratedFiles > 0) {
+      try {
+        useNotification().success(
+          "智能体数据迁移完成",
+          `已成功迁移 ${migratedFiles} 个历史智能体文件，原数据仍保留。`,
+          {
+            source: MODULE_NAME,
+            metadata: { path: "/agent-manager" },
+          }
+        );
+      } catch (error) {
+        logger.warn("发送智能体迁移完成通知失败", { error });
+      }
+    }
   } catch (error) {
     if (!agentMigrationFailureReported) {
       customMessage.error(

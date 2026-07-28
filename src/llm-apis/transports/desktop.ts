@@ -218,9 +218,12 @@ async function* responseBodyToAsyncIterable(
   response: Response,
   options: TransportOptions
 ): AsyncIterable<Uint8Array> {
+  throwIfAborted(options.signal);
+
   if (!response.body) {
     if (typeof response.arrayBuffer === "function") {
       const bytes = new Uint8Array(await response.arrayBuffer());
+      throwIfAborted(options.signal);
       if (bytes.length > 0) yield bytes;
       return;
     }
@@ -228,14 +231,24 @@ async function* responseBodyToAsyncIterable(
       typeof response.text === "function"
         ? await response.text()
         : JSON.stringify(await response.json());
+    throwIfAborted(options.signal);
     if (fallbackValue) yield new TextEncoder().encode(fallbackValue);
     return;
   }
 
   const reader = response.body.getReader();
+  const onAbort = () => {
+    void reader.cancel(options.signal?.reason).catch(() => undefined);
+  };
+
   try {
+    options.signal?.addEventListener("abort", onAbort, { once: true });
+    if (options.signal?.aborted) onAbort();
+
     while (true) {
+      throwIfAborted(options.signal);
       const { value, done } = await reader.read();
+      throwIfAborted(options.signal);
       if (done) break;
       options.observer?.onResponseChunk?.({
         requestId: options.requestId,
@@ -252,6 +265,20 @@ async function* responseBodyToAsyncIterable(
     });
     throw error;
   } finally {
+    options.signal?.removeEventListener("abort", onAbort);
     reader.releaseLock();
   }
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (!signal?.aborted) return;
+  throw createAbortError(signal);
+}
+
+function createAbortError(signal?: AbortSignal): Error {
+  const reason = signal?.reason;
+  if (reason instanceof Error) return reason;
+  return typeof DOMException === "undefined"
+    ? new Error("The request was aborted")
+    : new DOMException("The request was aborted", "AbortError");
 }

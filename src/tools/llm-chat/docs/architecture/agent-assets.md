@@ -1,6 +1,6 @@
 # Agent 内置资产扩展 (Agent Assets Extension) 功能说明
 
-本文档描述了 LLM Chat 工具中 Agent 专属资产管理、引用协议及渲染机制的实现。
+本文档描述了 Agent Manager 持有的 Agent 专属资产，以及 LLM Chat 中的引用协议和渲染机制。
 
 ## 1. 核心概念
 
@@ -12,7 +12,7 @@ Agent 资产是指与特定智能体绑定的媒体文件（如表情包、背�
 
 资产存储在 Agent 的私有目录下，确保数据的独立性：
 
-- **路径**: `appdata://llm-chat/agents/{agent_id}/assets/`
+- **路径**: `appdata://agent-manager/agents/{agent_id}/assets/`
 - **管理**: 用户可以通过 `AgentAssetsManager.vue` 界面进行资产的上传、删除、重命名和分组。
 
 ### 2.2 数据模型 (`AgentAsset`)
@@ -61,6 +61,6 @@ Agent 资产是指与特定智能体绑定的媒体文件（如表情包、背�
 
 ## 6. 开发参考
 
-- **协议转换**: `src/tools/llm-chat/utils/agentAssetUtils.ts`
+- **协议转换**: `src/tools/agent-manager/utils/agentAssetUtils.ts`
 - **宏实现**: `src/tools/llm-chat/macro-engine/macros/assets.ts`
-- **UI 组件**: `AgentAssetsManager.vue` (管理), `MessageContent.vue` (渲染)
+- **UI 组件**: `src/tools/agent-manager/components/assets/AgentAssetsManager.vue` (管理), `MessageContent.vue` (渲染)

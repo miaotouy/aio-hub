@@ -41,6 +41,7 @@ import {
   isVcpChatConfig,
 } from "./vcpChatAgentImportService";
 import { DEFAULT_AGENT_EXTENSION_CONFIG } from "../types/agent";
+import { getAgentStorageSubdirectory } from "../utils/agentAssetUtils";
 
 const logger = createModuleLogger("llm-chat/agentImportService");
 const errorHandler = createModuleErrorHandler("llm-chat/agentImportService");
@@ -959,11 +960,10 @@ export async function commitImportAgents(
             const filename = pathParts.pop() || "file";
             const relativeSubDir = pathParts.join("/");
 
-            const subdirectory =
-              `llm-chat/agents/${finalAgentId}/${relativeSubDir}`.replace(
-                /\/+$/,
-                ""
-              );
+            const subdirectory = getAgentStorageSubdirectory(
+              finalAgentId,
+              relativeSubDir
+            );
             const bytes = new Uint8Array(assetInfo.binary);
 
             await invoke("save_uploaded_file", {

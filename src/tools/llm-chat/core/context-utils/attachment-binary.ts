@@ -15,6 +15,7 @@
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { appConfigDir, join } from "@tauri-apps/api/path";
 import { readFile } from "@tauri-apps/plugin-fs";
+import { getAgentStorageSubdirectory } from "@/tools/agent-manager/utils/agentAssetUtils";
 import type { PipelineAttachment } from "../../types/pipeline-attachment";
 
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
@@ -43,9 +44,7 @@ export async function getAttachmentBuffer(
     case "agent-private": {
       const agentDir = await join(
         await appConfigDir(),
-        "llm-chat",
-        "agents",
-        attachment.source.agentId
+        getAgentStorageSubdirectory(attachment.source.agentId)
       );
       const fullPath = await join(agentDir, attachment.source.relativePath);
       return toStandaloneArrayBuffer(await readFile(fullPath));

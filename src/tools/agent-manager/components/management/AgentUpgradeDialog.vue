@@ -38,6 +38,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readFile, readDir } from "@tauri-apps/plugin-fs";
 import { isEqual } from "lodash-es";
+import { getAgentStorageSubdirectory } from "../../utils/agentAssetUtils";
 
 const logger = createModuleLogger("llm-chat/AgentUpgradeDialog");
 const errorHandler = createModuleErrorHandler("llm-chat/AgentUpgradeDialog");
@@ -393,10 +394,7 @@ const processAssetUpdates = async (agentId: string) => {
     const filename = pathParts.pop() || "file";
     const relativeSubDir = pathParts.join("/");
 
-    const subdirectory = `llm-chat/agents/${agentId}/${relativeSubDir}`.replace(
-      /\/+$/,
-      ""
-    );
+    const subdirectory = getAgentStorageSubdirectory(agentId, relativeSubDir);
 
     await invoke("save_uploaded_file", {
       fileData: new Uint8Array(buffer),

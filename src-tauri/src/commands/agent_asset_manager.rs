@@ -19,7 +19,7 @@
 //! - 删除 Agent 资产
 //! - 列出 Agent 的所有资产
 //!
-//! 资产存储路径：`appdata://llm-chat/agents/{agent_id}/assets/{filename}`
+//! 资产存储路径：`appdata://agent-manager/agents/{agent_id}/assets/{filename}`
 
 use crate::utils::mime;
 use image::ImageFormat;

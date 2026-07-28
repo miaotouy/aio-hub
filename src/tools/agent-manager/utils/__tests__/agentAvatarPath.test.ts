@@ -23,6 +23,9 @@ describe("agent avatar path", () => {
     expect(getAgentStorageSubdirectory("agent-1")).toBe(
       "agent-manager/agents/agent-1"
     );
+    expect(getAgentStorageSubdirectory("agent-1", "\\assets\\nested\\")).toBe(
+      "agent-manager/agents/agent-1/assets/nested"
+    );
     expect(resolveAgentAvatarPath({ id: "agent-1", icon: "avatar.png" })).toBe(
       "appdata://agent-manager/agents/agent-1/avatar.png"
     );

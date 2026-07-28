@@ -131,6 +131,7 @@ export class MockTimeoutTool implements ToolRegistry {
   readonly id = "mock-timeout";
   readonly name = "Mock 超时工具";
   readonly description = "用于测试超时熔断的 Mock 工具";
+  lastSignal?: AbortSignal;
 
   getMetadata(): ServiceMetadata {
     return {
@@ -155,9 +156,23 @@ export class MockTimeoutTool implements ToolRegistry {
     };
   }
 
-  async longRunning(args: { delayMs?: number }): Promise<string> {
+  async longRunning(
+    args: { delayMs?: number },
+    context?: ToolContext
+  ): Promise<string> {
+    this.lastSignal = context?.signal;
     const delay = Number(args.delayMs) || 5000;
-    await new Promise((resolve) => setTimeout(resolve, delay));
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, delay);
+      context?.signal?.addEventListener(
+        "abort",
+        () => {
+          clearTimeout(timer);
+          resolve();
+        },
+        { once: true }
+      );
+    });
     return "done";
   }
 }

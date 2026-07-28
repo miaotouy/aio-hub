@@ -32,6 +32,16 @@ import { useDirSearchUiState } from "./useDirSearchUiState";
 
 const errorHandler = createModuleErrorHandler("tools/dir-search/useDirSearch");
 
+let searchIdSequence = 0;
+
+function createSearchId(): string {
+  const uuid = globalThis.crypto?.randomUUID?.();
+  if (uuid) return `dir-search-${uuid}`;
+
+  searchIdSequence += 1;
+  return `dir-search-${Date.now()}-${searchIdSequence}`;
+}
+
 export function useDirSearch() {
   const uiState = useDirSearchUiState();
 
@@ -55,6 +65,8 @@ export function useDirSearch() {
 
   // 搜索代计数器：用于解决并发竞态，确保旧搜索的 finally 不会破坏新搜索的状态
   let searchGeneration = 0;
+  let activeSearchId: string | null = null;
+  let activeSearchPromise: Promise<SearchSummary> | null = null;
 
   // UI 状态
   const showReplace = uiState.showReplace;
@@ -119,7 +131,7 @@ export function useDirSearch() {
   }
 
   /** 设置事件监听 */
-  async function setupListeners() {
+  async function setupListeners(searchId: string) {
     // 清理旧监听
     await cleanupListeners();
 
@@ -128,6 +140,7 @@ export function useDirSearch() {
       "dir-search-result-batch",
       (event) => {
         const batch = event.payload;
+        if (batch.searchId !== searchId) return;
 
         // 前端侧上限防护：如果已有结果数超过 maxResults，丢弃后续 batch
         const maxR = uiState.maxResults.value;
@@ -144,7 +157,9 @@ export function useDirSearch() {
     unlistenProgress = await listen<SearchProgress>(
       "dir-search-progress",
       (event) => {
-        progress.value = event.payload;
+        if (event.payload.searchId === searchId) {
+          progress.value = event.payload;
+        }
       }
     );
   }
@@ -173,14 +188,14 @@ export function useDirSearch() {
   async function executeSearch() {
     if (!rootPath.value || !pattern.value) return;
 
-    // 如果正在搜索，先取消上一次
-    if (isSearching.value) {
+    // UI 主动启动新搜索时，必须等待旧 walker 已结束并释放后端活动槽位。
+    if (activeSearchId) {
       await cancelSearch();
-      await cleanupListeners();
+      await activeSearchPromise?.catch(() => undefined);
     }
 
-    // 递增搜索代，标记当前搜索会话
     const currentGeneration = ++searchGeneration;
+    const searchId = createSearchId();
 
     // 清空旧结果
     results.value = new Map();
@@ -188,9 +203,10 @@ export function useDirSearch() {
     summary.value = null;
     progress.value = null;
     isSearching.value = true;
+    activeSearchId = searchId;
 
     // 设置监听
-    await setupListeners();
+    await setupListeners(searchId);
 
     // 解析 glob 字符串为数组
     const parseGlobs = (str: string): string[] =>
@@ -200,6 +216,7 @@ export function useDirSearch() {
         .filter((s) => s.length > 0);
 
     const request: SearchRequest = {
+      searchId,
       rootPath: rootPath.value,
       pattern: pattern.value,
       isRegex: isRegex.value,
@@ -216,11 +233,17 @@ export function useDirSearch() {
         uiState.maxResults.value > 0
           ? uiState.maxResults.value
           : undefined,
+      // UI 保留原有的隐藏目录和无限深度行为；后端仍会统一限制线程数、
+      // 总活动搜索数、扫描文件数、读取字节数和 deadline。
+      maxDepth: 0,
+      includeHidden: true,
     };
 
+    const searchPromise = invoke<SearchSummary>("dir_search", { request });
+    activeSearchPromise = searchPromise;
+
     try {
-      const result = await invoke<SearchSummary>("dir_search", { request });
-      // 只有当前代的搜索才更新结果
+      const result = await searchPromise;
       if (currentGeneration === searchGeneration) {
         summary.value = result;
       }
@@ -229,7 +252,11 @@ export function useDirSearch() {
         errorHandler.error(e, "搜索执行失败");
       }
     } finally {
-      // 只有当前代的搜索才执行清理，避免破坏后续搜索的状态
+      // activeSearchId 独立于 generation 清理，避免被取消的旧搜索留下僵尸引用。
+      if (activeSearchId === searchId) {
+        activeSearchId = null;
+        activeSearchPromise = null;
+      }
       if (currentGeneration === searchGeneration) {
         isSearching.value = false;
         await cleanupListeners();
@@ -239,17 +266,16 @@ export function useDirSearch() {
 
   /** 取消搜索 */
   async function cancelSearch() {
-    if (!isSearching.value) return;
+    const searchId = activeSearchId;
+    if (!searchId) return;
 
-    // 立即递增 generation，使当前搜索的 finally 失效
+    // 立即递增 generation，使当前搜索的 finally 不会破坏后续搜索的 UI 状态。
     searchGeneration++;
-    // 立即更新前端状态，给用户即时反馈
     isSearching.value = false;
-    // 清理监听器，停止接收后续结果
     await cleanupListeners();
 
     try {
-      await invoke("dir_search_cancel");
+      await invoke("dir_search_cancel", { searchId });
     } catch (e) {
       errorHandler.error(e, "取消搜索失败");
     }

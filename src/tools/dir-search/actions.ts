@@ -31,6 +31,96 @@ import type {
 } from "./types";
 import type { ToolContext } from "@/services/types";
 
+const AGENT_MAX_DEPTH = 5;
+const AGENT_MAX_FILES_SCANNED = 50_000;
+const AGENT_MAX_BYTES_READ = 2 * 1024 * 1024 * 1024;
+const AGENT_DEADLINE_MS = 30_000;
+const AGENT_MAX_RESULTS = 10_000;
+const AGENT_MAX_CONTEXT_LINES = 20;
+
+let searchIdSequence = 0;
+
+function createSearchId(): string {
+  const uuid = globalThis.crypto?.randomUUID?.();
+  if (uuid) return `dir-search-${uuid}`;
+
+  searchIdSequence += 1;
+  return `dir-search-${Date.now()}-${searchIdSequence}`;
+}
+
+function normalizeInteger(
+  value: unknown,
+  defaultValue: number,
+  min: number,
+  max: number
+): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return defaultValue;
+  return Math.min(max, Math.max(min, Math.trunc(parsed)));
+}
+
+function normalizeMaxResults(value: unknown): number {
+  if (value === undefined || value === null) return 200;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return 200;
+  if (parsed === 0) return 0;
+  return Math.min(AGENT_MAX_RESULTS, Math.max(1, Math.trunc(parsed)));
+}
+
+function createAgentSearchRequest(
+  args: Pick<
+    AgentSearchArgs,
+    | "path"
+    | "pattern"
+    | "isRegex"
+    | "caseSensitive"
+    | "wholeWord"
+    | "includeGlobs"
+    | "excludeGlobs"
+    | "useGitignore"
+    | "contextLines"
+    | "maxResults"
+    | "maxDepth"
+  >,
+  maxResults: number
+): SearchRequest {
+  return {
+    searchId: createSearchId(),
+    rootPath: args.path,
+    pattern: args.pattern,
+    isRegex: args.isRegex ?? false,
+    caseSensitive: args.caseSensitive ?? false,
+    wholeWord: args.wholeWord ?? false,
+    includeGlobs: parseGlobs(args.includeGlobs),
+    excludeGlobs: parseGlobs(args.excludeGlobs),
+    useGitignore: args.useGitignore ?? true,
+    contextLines: normalizeInteger(
+      args.contextLines,
+      0,
+      0,
+      AGENT_MAX_CONTEXT_LINES
+    ),
+    maxResults,
+    maxDepth: normalizeInteger(args.maxDepth, AGENT_MAX_DEPTH, 1, 20),
+    maxFilesScanned: AGENT_MAX_FILES_SCANNED,
+    maxBytesRead: AGENT_MAX_BYTES_READ,
+    deadlineMs: AGENT_DEADLINE_MS,
+    includeHidden: false,
+  };
+}
+
+function bindAbortToSearch(searchId: string, signal?: AbortSignal): () => void {
+  if (!signal) return () => undefined;
+
+  const cancel = () => {
+    void invoke("dir_search_cancel", { searchId }).catch(() => undefined);
+  };
+  signal.addEventListener("abort", cancel, { once: true });
+  if (signal.aborted) cancel();
+
+  return () => signal.removeEventListener("abort", cancel);
+}
+
 /** Agent 搜索参数 */
 export interface AgentSearchArgs {
   path: string;
@@ -47,6 +137,8 @@ export interface AgentSearchArgs {
   maxDisplayFiles?: number;
   /** 每个文件中最多展示的匹配数（默认 20） */
   maxMatchesPerFile?: number;
+  /** 最大递归深度（1-20，默认 5） */
+  maxDepth?: number;
 }
 
 /** Agent 替换参数 */
@@ -83,47 +175,45 @@ export async function searchDirectory(
 ): Promise<string> {
   if (!args.path) return "错误: 必须指定搜索目录路径 (path)。";
   if (!args.pattern) return "错误: 必须指定搜索模式 (pattern)。";
+  if (context?.signal?.aborted) return "搜索已取消。";
 
   const collectedResults: FileSearchResult[] = [];
+  const request = createAgentSearchRequest(
+    args,
+    normalizeMaxResults(args.maxResults)
+  );
   let unlisten: UnlistenFn | null = null;
-
-  // 监听流式结果事件
-  unlisten = await listen<SearchResultBatch>(
-    "dir-search-result-batch",
-    (event) => {
-      collectedResults.push(...event.payload.results);
-    }
+  const removeAbortListener = bindAbortToSearch(
+    request.searchId,
+    context?.signal
   );
 
-  const request: SearchRequest = {
-    rootPath: args.path,
-    pattern: args.pattern,
-    isRegex: args.isRegex ?? false,
-    caseSensitive: args.caseSensitive ?? false,
-    wholeWord: args.wholeWord ?? false,
-    includeGlobs: parseGlobs(args.includeGlobs),
-    excludeGlobs: parseGlobs(args.excludeGlobs),
-    useGitignore: args.useGitignore ?? true,
-    contextLines: args.contextLines ?? 0,
-    maxResults: args.maxResults ?? 200,
-  };
-
-  context?.reportStatus("正在搜索目录...", 10);
-
-  let summary: SearchSummary;
   try {
-    summary = await invoke<SearchSummary>("dir_search", { request });
+    // 只接收本次 searchId 的事件，多个 Agent/VCP 调用不会串收结果。
+    unlisten = await listen<SearchResultBatch>(
+      "dir-search-result-batch",
+      (event) => {
+        if (event.payload.searchId === request.searchId) {
+          collectedResults.push(...event.payload.results);
+        }
+      }
+    );
+
+    if (context?.signal?.aborted) {
+      return "搜索已取消。";
+    }
+
+    context?.reportStatus("正在搜索目录...", 10);
+    const summary = await invoke<SearchSummary>("dir_search", { request });
+    context?.reportStatus("格式化结果...", 90);
+    return formatSearchResults(collectedResults, summary, args);
   } catch (e) {
-    unlisten?.();
     const msg = e instanceof Error ? e.message : String(e);
     return `搜索失败: ${msg}`;
   } finally {
     unlisten?.();
+    removeAbortListener();
   }
-
-  context?.reportStatus("格式化结果...", 90);
-
-  return formatSearchResults(collectedResults, summary, args);
 }
 
 /**
@@ -138,42 +228,63 @@ export async function replaceInDirectory(
   if (args.replacement === undefined || args.replacement === null) {
     return "错误: 必须指定替换文本 (replacement)，可以为空字符串。";
   }
+  if (context?.signal?.aborted) return "替换已取消。";
 
-  // 先执行搜索以确定影响范围
+  // 预搜索也必须使用有限预算。只要未完整结束，绝不能拿部分结果写盘。
   const searchResults: FileSearchResult[] = [];
+  const searchRequest = createAgentSearchRequest(
+    {
+      ...args,
+      contextLines: 0,
+      maxDepth: AGENT_MAX_DEPTH,
+    },
+    0
+  );
   let unlisten: UnlistenFn | null = null;
-
-  unlisten = await listen<SearchResultBatch>(
-    "dir-search-result-batch",
-    (event) => {
-      searchResults.push(...event.payload.results);
-    }
+  const removeAbortListener = bindAbortToSearch(
+    searchRequest.searchId,
+    context?.signal
   );
 
-  const searchRequest: SearchRequest = {
-    rootPath: args.path,
-    pattern: args.pattern,
-    isRegex: args.isRegex ?? false,
-    caseSensitive: args.caseSensitive ?? false,
-    wholeWord: args.wholeWord ?? false,
-    includeGlobs: parseGlobs(args.includeGlobs),
-    excludeGlobs: parseGlobs(args.excludeGlobs),
-    useGitignore: args.useGitignore ?? true,
-    maxResults: 0, // 无限制，需要知道完整范围
-  };
-
-  context?.reportStatus("搜索匹配项...", 20);
-
+  let summary: SearchSummary;
   try {
-    await invoke<SearchSummary>("dir_search", { request: searchRequest });
+    unlisten = await listen<SearchResultBatch>(
+      "dir-search-result-batch",
+      (event) => {
+        if (event.payload.searchId === searchRequest.searchId) {
+          searchResults.push(...event.payload.results);
+        }
+      }
+    );
+
+    if (context?.signal?.aborted) {
+      return "替换已取消。";
+    }
+
+    context?.reportStatus("搜索匹配项...", 20);
+    summary = await invoke<SearchSummary>("dir_search", {
+      request: searchRequest,
+    });
   } catch (e) {
-    unlisten?.();
     const msg = e instanceof Error ? e.message : String(e);
     return `搜索阶段失败: ${msg}`;
   } finally {
     unlisten?.();
+    removeAbortListener();
   }
 
+  if (
+    summary.truncated ||
+    (summary.stopReason && summary.stopReason !== "completed")
+  ) {
+    return [
+      "搜索范围不完整，已拒绝执行替换以避免部分写入。",
+      `停止原因: ${formatStopReason(summary.stopReason)}。`,
+      "请缩小目录范围或提供 includeGlobs/excludeGlobs 后重试。",
+    ].join("\n");
+  }
+
+  if (context?.signal?.aborted) return "替换已取消。";
   if (searchResults.length === 0) {
     return "未找到匹配项，无需替换。";
   }
@@ -268,6 +379,27 @@ function truncateLine(
   return result.trimEnd();
 }
 
+function formatStopReason(
+  reason: SearchSummary["stopReason"] | undefined
+): string {
+  switch (reason) {
+    case "completed":
+      return "完整完成";
+    case "matchLimit":
+      return "达到匹配数上限";
+    case "fileLimit":
+      return "达到扫描资源上限";
+    case "deadline":
+      return "达到执行期限";
+    case "cancelled":
+      return "已取消";
+    case "busy":
+      return "已有搜索正在运行";
+    default:
+      return "未知";
+  }
+}
+
 /**
  * 格式化搜索结果为 LLM 可读文本
  */
@@ -288,9 +420,15 @@ function formatSearchResults(
   lines.push(`- **匹配文件数**: ${summary.filesMatched}`);
   lines.push(`- **总匹配数**: ${summary.totalMatches}`);
   lines.push(`- **扫描文件数**: ${summary.filesScanned}`);
+  if (summary.bytesRead !== undefined) {
+    lines.push(`- **读取字节数**: ${summary.bytesRead}`);
+  }
   lines.push(`- **耗时**: ${summary.durationMs}ms`);
-  if (summary.cancelled) {
-    lines.push(`- ⚠️ 搜索被取消（结果可能不完整）`);
+  if (summary.stopReason !== undefined) {
+    lines.push(`- **停止原因**: ${formatStopReason(summary.stopReason)}`);
+  }
+  if (summary.truncated || summary.cancelled) {
+    lines.push(`- ⚠️ 搜索未完整结束，结果可能不完整。`);
   }
   lines.push("");
 
@@ -300,8 +438,9 @@ function formatSearchResults(
   }
 
   // 结果截断提示
-  const maxDisplay = args.maxDisplayFiles ?? 50; // 最多展示 N 个文件的详细结果
-  const displayResults = results.slice(0, maxDisplay);
+  const maxDisplay = normalizeInteger(args.maxDisplayFiles, 50, 0, 500);
+  const displayResults =
+    maxDisplay === 0 ? results : results.slice(0, maxDisplay);
   const truncated = results.length > maxDisplay;
 
   // 逐文件展示
@@ -310,8 +449,16 @@ function formatSearchResults(
     lines.push("");
 
     // 每个文件最多展示 N 个匹配
-    const maxMatchesPerFile = args.maxMatchesPerFile ?? 20;
-    const displayMatches = file.matches.slice(0, maxMatchesPerFile);
+    const maxMatchesPerFile = normalizeInteger(
+      args.maxMatchesPerFile,
+      20,
+      0,
+      200
+    );
+    const displayMatches =
+      maxMatchesPerFile === 0
+        ? file.matches
+        : file.matches.slice(0, maxMatchesPerFile);
 
     for (const match of displayMatches) {
       const linePrefix = `L${match.lineNumber}`;
@@ -323,7 +470,7 @@ function formatSearchResults(
       lines.push(`- **${linePrefix}**: \`${escapeBackticks(content)}\``);
     }
 
-    if (file.matches.length > maxMatchesPerFile) {
+    if (maxMatchesPerFile > 0 && file.matches.length > maxMatchesPerFile) {
       lines.push(
         `- ... 还有 ${file.matches.length - maxMatchesPerFile} 处匹配`
       );

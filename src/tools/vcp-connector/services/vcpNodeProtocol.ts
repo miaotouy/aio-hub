@@ -131,10 +131,12 @@ function stripProtocolArgs(args: Record<string, any>): Record<string, any> {
 
 async function withDistributedTimeout<T>(
   promise: Promise<T>,
-  label: string
+  label: string,
+  onTimeout?: () => void
 ): Promise<T> {
   return await new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
+      onTimeout?.();
       reject(
         new Error(
           `${label} 分布式执行超时（${DISTRIBUTED_TOOL_TIMEOUT_MS}ms），已提前返回以避免 VCP 服务端 60s 等待超时`
@@ -155,7 +157,36 @@ async function withDistributedTimeout<T>(
 }
 
 export class VcpNodeProtocol {
+  private readonly inFlightControllers = new Map<string, AbortController>();
+
   constructor(private sendJson: (data: any) => void) {}
+
+  /**
+   * Best-effort cancellation for the optional distributed cancel_tool frame.
+   */
+  public handleCancelTool(requestId: string): boolean {
+    const controller = this.inFlightControllers.get(requestId);
+    if (!controller || controller.signal.aborted) return false;
+
+    controller.abort();
+    logger.info("Cancelled in-flight distributed tool", { requestId });
+    return true;
+  }
+
+  /**
+   * A disconnected node can no longer receive server-side cancellation frames.
+   * Abort every execution started by this WebSocket locally instead.
+   */
+  public abortAllInFlight(): void {
+    for (const [requestId, controller] of this.inFlightControllers) {
+      if (!controller.signal.aborted) {
+        controller.abort();
+        logger.info("Cancelled in-flight distributed tool after disconnect", {
+          requestId,
+        });
+      }
+    }
+  }
 
   /**
    * AIO -> VCP: 工具注册 (register_tools)
@@ -167,6 +198,9 @@ export class VcpNodeProtocol {
       data: {
         serverName,
         tools,
+        capabilities: {
+          cancelTool: true,
+        },
       },
     });
   }
@@ -289,6 +323,9 @@ export class VcpNodeProtocol {
       normalizeExecuteToolRequest(request);
     logger.info(`Executing tool: ${toolName}`, { requestId, toolArgs });
 
+    const abortController = new AbortController();
+    this.inFlightControllers.set(requestId, abortController);
+
     try {
       // 0. 特殊处理内置工具：internal_request_file
       if (toolName === "internal_request_file") {
@@ -392,6 +429,8 @@ export class VcpNodeProtocol {
       const cleanArgs = stripProtocolArgs(toolArgs);
       const context: ToolContext = {
         isAsync: false,
+        requestId,
+        signal: abortController.signal,
         reportStatus: (message: string) => {
           logger.debug(`Distributed tool progress: ${toolId}`, {
             requestId,
@@ -403,7 +442,8 @@ export class VcpNodeProtocol {
 
       const result = await withDistributedTimeout(
         Promise.resolve(service[resolvedMethodName](cleanArgs, context)),
-        `${toolId}.${resolvedMethodName}`
+        `${toolId}.${resolvedMethodName}`,
+        () => abortController.abort()
       );
 
       // 5. 回传成功结果
@@ -423,6 +463,8 @@ export class VcpNodeProtocol {
         status: "error",
         error: error.message || String(error),
       });
+    } finally {
+      this.inFlightControllers.delete(requestId);
     }
   }
 

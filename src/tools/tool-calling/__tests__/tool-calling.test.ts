@@ -326,6 +326,10 @@ delayMs:「始」5000「末」
 
     expect(results[0].status).toBe("error");
     expect(results[0].result).toContain("超时");
+    const tool = toolRegistryManager.getRegistry(
+      "mock-timeout"
+    ) as MockTimeoutTool;
+    expect(tool.lastSignal?.aborted).toBe(true);
   }, 5000);
 });
 

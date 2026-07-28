@@ -266,6 +266,9 @@ export type ToolRegistryItem = ToolRegistry | ToolRegistryFactory;
  * 同步工具和异步任务均使用此接口，屏蔽底层执行模式差异
  */
 export interface ToolContext {
+  /** 当前工具请求 ID，用于取消关联、业务日志和来源追踪。 */
+  requestId?: string;
+
   /**
    * 状态/进度上报
    * @param message 状态描述文字
@@ -274,7 +277,7 @@ export interface ToolContext {
   reportStatus: (message: string, progress?: number) => void;
 
   /**
-   * 取消信号（异步任务模式下由 TaskManager 提供，同步模式下通常为 undefined）
+   * 取消信号（异步任务由 TaskManager 提供；同步 Tool Calling/VCP 调用也会在超时或断线时 abort）
    */
   signal?: AbortSignal;
 

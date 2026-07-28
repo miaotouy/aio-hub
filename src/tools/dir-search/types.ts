@@ -48,6 +48,8 @@ export interface FileSearchResult {
 
 /** 搜索进度事件 */
 export interface SearchProgress {
+  /** 本次搜索唯一身份，用于过滤其他并发调用的事件 */
+  searchId: string;
   /** 已扫描的文件数 */
   filesScanned: number;
   /** 已找到匹配的文件数 */
@@ -58,22 +60,36 @@ export interface SearchProgress {
   currentFile: string | null;
 }
 
+/** 搜索停止原因 */
+export type SearchStopReason =
+  "completed" | "matchLimit" | "fileLimit" | "deadline" | "cancelled" | "busy";
+
 /** 搜索完成汇总 */
 export interface SearchSummary {
+  /** 本次搜索唯一身份 */
+  searchId: string;
   /** 总扫描文件数 */
   filesScanned: number;
   /** 包含匹配的文件数 */
   filesMatched: number;
   /** 总匹配数 */
   totalMatches: number;
+  /** 实际读取的字节数 */
+  bytesRead: number;
   /** 搜索耗时（毫秒） */
   durationMs: number;
-  /** 是否被用户取消 */
+  /** 搜索停止原因 */
+  stopReason: SearchStopReason;
+  /** 是否因资源预算、取消或繁忙而未完整扫描 */
+  truncated: boolean;
+  /** 是否被用户或调用方取消 */
   cancelled: boolean;
 }
 
 /** 搜索请求参数 */
 export interface SearchRequest {
+  /** 本次搜索唯一身份；取消与事件都会按此隔离 */
+  searchId: string;
   rootPath: string;
   pattern: string;
   isRegex: boolean;
@@ -84,6 +100,16 @@ export interface SearchRequest {
   useGitignore: boolean;
   contextLines?: number;
   maxResults?: number;
+  /** 最大递归深度；0 表示无限深度 */
+  maxDepth?: number;
+  /** 最大扫描文件数 */
+  maxFilesScanned?: number;
+  /** 最大读取字节数 */
+  maxBytesRead?: number;
+  /** 搜索 deadline（毫秒） */
+  deadlineMs?: number;
+  /** 是否包含隐藏文件和目录 */
+  includeHidden?: boolean;
 }
 
 /** 替换请求 */
@@ -145,6 +171,7 @@ export interface TargetMatch {
 
 /** 搜索结果批次（IPC 批处理） */
 export interface SearchResultBatch {
+  searchId: string;
   results: FileSearchResult[];
 }
 

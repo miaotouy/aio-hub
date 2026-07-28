@@ -108,7 +108,8 @@ export function limitHistoryByTokens(
       savedTokens: originalHistoryTokens - used,
       savedChars: originalHistoryChars - finalHistoryChars,
       originalTotalChars:
-        fixed.reduce((total, item) => total + item.chars, 0) + originalHistoryChars,
+        fixed.reduce((total, item) => total + item.chars, 0) +
+        originalHistoryChars,
     },
   };
 }
@@ -121,9 +122,10 @@ export const tokenLimiter: ContextProcessor = {
   isCore: true,
   defaultEnabled: true,
   execute: async (context) => {
-    const config = (context.agentConfig?.parameters as
-      | { contextManagement?: TokenLimiterConfig }
-      | undefined)?.contextManagement;
+    const config = (
+      context.agentConfig?.parameters as
+        { contextManagement?: TokenLimiterConfig } | undefined
+    )?.contextManagement;
     if (!config?.enabled || !config.maxContextTokens) {
       return processorResult.skipped("上下文 Token 限制未启用或未设置预算。");
     }
@@ -175,14 +177,39 @@ export const tokenLimiter: ContextProcessor = {
     );
     context.messages = limited.messages;
     context.sharedData.set("tokenLimiterStats", limited.stats);
+    const overflowTokens = Math.max(
+      0,
+      limited.stats.presetTokens - config.maxContextTokens
+    );
+    const fixedBudgetExhausted =
+      limited.stats.presetTokens >= config.maxContextTokens;
+    const historyFullyRemoved =
+      limited.stats.originalHistoryCount > 0 &&
+      limited.stats.finalHistoryCount === 0;
     const details = {
       ...limited.stats,
+      maxContextTokens: config.maxContextTokens,
+      overflowTokens,
+      historyFullyRemoved,
       tokenCountFallback: result.fallback,
       partialCountFallback,
     };
     const message = `Token 限制完成：保留 ${limited.stats.finalHistoryCount}/${limited.stats.originalHistoryCount} 条历史消息，节省 ${limited.stats.savedTokens} Token。`;
+    const degradationReasons: string[] = [];
+    if (fixedBudgetExhausted) {
+      const budgetMessage =
+        overflowTokens > 0
+          ? `固定消息已超出预算 ${overflowTokens} Token`
+          : "固定消息已耗尽 Token 预算";
+      degradationReasons.push(
+        `${budgetMessage}${historyFullyRemoved ? "，历史消息已全部删除" : ""}。`
+      );
+    }
     if (result.fallback || partialCountFallback) {
-      const degradedMessage = `${message} Token IPC 不可用，已使用字符估算安全降级。`;
+      degradationReasons.push("Token IPC 不可用，已使用字符估算安全降级。");
+    }
+    if (degradationReasons.length > 0) {
+      const degradedMessage = `${message} ${degradationReasons.join(" ")}`;
       logger.warn(degradedMessage, details);
       return processorResult.degraded(degradedMessage, details);
     }

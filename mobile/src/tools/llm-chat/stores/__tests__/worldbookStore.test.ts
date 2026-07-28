@@ -29,13 +29,17 @@ describe("worldbookStore", () => {
     const store = useWorldbookStore();
     await store.init();
     const first = await store.createWorldbook({ name: "First" });
-    const second = await store.createWorldbook({ name: "Second", enabled: false });
+    const second = await store.createWorldbook({
+      name: "Second",
+      enabled: false,
+    });
     const third = await store.createWorldbook({ name: "Third" });
 
-    expect(store.getWorldbooksByIds([third.id, "missing", second.id, first.id]).map((item) => item.id)).toEqual([
-      third.id,
-      first.id,
-    ]);
+    expect(
+      store
+        .getWorldbooksByIds([third.id, "missing", second.id, first.id])
+        .map((item) => item.id)
+    ).toEqual([third.id, first.id]);
   });
 
   it("normalizes entries on save and persists the updated Worldbook", async () => {
@@ -58,9 +62,26 @@ describe("worldbookStore", () => {
     });
     expect(state.save).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        worldbooks: [expect.objectContaining({ entries: [expect.objectContaining({ id: entry?.id })] })],
+        worldbooks: [
+          expect.objectContaining({
+            entries: [expect.objectContaining({ id: entry?.id })],
+          }),
+        ],
       })
     );
+  });
+
+  it("uses SillyTavern depth 4 when a new entry omits depth", async () => {
+    const store = useWorldbookStore();
+    await store.init();
+    const worldbook = await store.createWorldbook({ name: "Default depth" });
+
+    const entry = await store.upsertEntry(worldbook.id, {
+      content: "A default-depth fact.",
+      position: "depth",
+    });
+
+    expect(entry?.depth).toBe(4);
   });
 
   it("rejects names that only differ by surrounding whitespace or casing", async () => {
@@ -68,6 +89,8 @@ describe("worldbookStore", () => {
     await store.init();
     await store.createWorldbook({ name: " Starport " });
 
-    await expect(store.createWorldbook({ name: "starport" })).rejects.toThrow("WORLDBOOK_NAME_DUPLICATE");
+    await expect(store.createWorldbook({ name: "starport" })).rejects.toThrow(
+      "WORLDBOOK_NAME_DUPLICATE"
+    );
   });
 });

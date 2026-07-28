@@ -230,7 +230,7 @@ Actions:
 5. primary:worldbook-injector (priority: 450)
    ├── 从执行器预加载的 Agent `worldbookIds` 获取全局 `worldbooks.json` 的已启用世界书
    ├── 对最近 `scanDepth` 条同分支历史执行确定性关键词匹配，常量条目始终激活
-   ├── 用选中世界书顺序、条目 order 与 ID 作为稳定排序，并在预设/历史之间或相对历史尾部注入
+   ├── 用选中世界书顺序、条目 order 与 ID 作为稳定排序；`depth` 默认 4，并始终相对注入前的 session history 锚点计算，超长深度夹到最旧历史之前
    └── 不实现递归、概率、分组竞争、向量、Outlet、自动化或 Knowledge/Recall
 
 6. primary:macros-renderer (priority: 500)
@@ -262,7 +262,7 @@ LlamaChatView.send() → useChatExecutor.execute()
 - 发送前，`useChatExecutor` 对管道最终文本调用同一 `count_tokens_batch`，保存消息级估算和本次请求的上下文快照；工具 schema、附件和非文本多模态开销不在该通用计数中。`LlmRequestOptions` 虽支持 `tools`，当前聊天执行器未传递它；未来接入工具调用时，schema、tool choice 与协议包装成本必须另行估算。
 - API 返回 usage 后，助手消息的 `completionTokens` 和本次请求的 `promptTokens` 优先显示为实际值；usage 缺失时使用 Rust `o200k`，IPC 异常时使用字符 fallback。已有实际值不会被后续估算覆盖。
 - 上下文窗口来自模型对象自身的 `tokenLimits.contextLength`。80% / 90% 阈值集中在 `ChatSettings.contextManagement`，Rust 后端不持有业务预警策略。
-- `token-limiter` 已位于 `injection-assembler` 之后、`message-formatter` 之前：复用 `countTokensBatch()`，让预设先占预算并从最新历史倒序保留文本消息，必要时截断单条字符串。最终发送前计数继续用于风险提示、消息级估算和请求快照；附件、工具 schema 和非文本多模态开销不在该通用文本计数中。
+- `token-limiter` 已位于 `injection-assembler` 之后、`message-formatter` 之前：复用 `countTokensBatch()`，让预设先占预算并从最新历史倒序保留文本消息，必要时截断单条字符串。固定消息耗尽或超出预算时仍按继承策略保留固定消息并删除历史，但处理结果必须为 `degraded`/warn，并记录 `presetTokens`、`maxContextTokens`、`overflowTokens` 与历史是否全部删除。最终发送前计数继续用于风险提示、消息级估算和请求快照；附件、工具 schema 和非文本多模态开销不在该通用文本计数中。
 - 只有真实设备数据证明需要时，才评估 Worker、Rust 或原生层调整。
 
 ### 4.4. 对话执行流程
@@ -284,19 +284,21 @@ Assistant 续写 → useChatExecutor.continueGeneration(session, assistantNode)
   └─ 9. 持久化会话
 ```
 
+原生 reqwest 流在成功响应时注册为前端拉取式 stream；非 2xx 在 Rust 端按响应上限读取错误正文后直接返回状态，不进入 stream registry。取消命令会先触发 token，再立即移除 request 与 response registry；已在执行的 read 由 token 唤醒并自行收口。
+
 ## 5. 路由与页面
 
 注册于 `llm-chat.registry.ts`，采用嵌套路由结构：
 
-| 路由路径                   | 页面组件               | 说明                  |
-| -------------------------- | ---------------------- | --------------------- |
-| `/tools/llm-chat`          | —                      | 根路由，重定向到 home |
-| `/tools/llm-chat/home`     | `ChatHome.vue`         | 主页入口，5个操作卡片 |
-| `/tools/llm-chat/sessions` | `SessionList.vue`      | 历史会话列表          |
-| `/tools/llm-chat/chat/:id` | `LlmChatView.vue`      | 聊天主界面            |
-| `/tools/llm-chat/profiles` | `UserProfilesView.vue` | 用户档案管理          |
-| `/tools/llm-chat/worldbooks` | `WorldbooksView.vue` | 关键词世界书管理      |
-| `/tools/llm-chat/settings` | `ChatSettingsView.vue` | 聊天设置页面          |
+| 路由路径                     | 页面组件               | 说明                  |
+| ---------------------------- | ---------------------- | --------------------- |
+| `/tools/llm-chat`            | —                      | 根路由，重定向到 home |
+| `/tools/llm-chat/home`       | `ChatHome.vue`         | 主页入口，5个操作卡片 |
+| `/tools/llm-chat/sessions`   | `SessionList.vue`      | 历史会话列表          |
+| `/tools/llm-chat/chat/:id`   | `LlmChatView.vue`      | 聊天主界面            |
+| `/tools/llm-chat/profiles`   | `UserProfilesView.vue` | 用户档案管理          |
+| `/tools/llm-chat/worldbooks` | `WorldbooksView.vue`   | 关键词世界书管理      |
+| `/tools/llm-chat/settings`   | `ChatSettingsView.vue` | 聊天设置页面          |
 
 ### 5.1. ChatHome.vue — 主页
 
@@ -435,12 +437,12 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 
 处理结果契约：
 
-| 状态 | 含义 | 管线行为 |
-| --- | --- | --- |
-| `applied` | 处理器成功完成适用工作 | 记录 `info`，继续 |
-| `skipped` | 未配置、未命中或当前上下文不适用 | 记录 `info`，继续 |
-| `degraded` | 发生预期问题，但处理器已完成安全回退 | 记录 `warn`，继续 |
-| `failed` | 无法保证后续请求正确性 | 记录 `error`，立即终止 |
+| 状态       | 含义                                 | 管线行为               |
+| ---------- | ------------------------------------ | ---------------------- |
+| `applied`  | 处理器成功完成适用工作               | 记录 `info`，继续      |
+| `skipped`  | 未配置、未命中或当前上下文不适用     | 记录 `info`，继续      |
+| `degraded` | 发生预期问题，但处理器已完成安全回退 | 记录 `warn`，继续      |
+| `failed`   | 无法保证后续请求正确性               | 记录 `error`，立即终止 |
 
 处理器抛出的未恢复异常和未返回合法结果都按 `failed` 处理。可恢复问题必须由处理器完成回退后显式返回 `degraded`；不得由管线引擎静默吞掉异常。`session-loader` 缺少会话、附件准备无法完成、Token 限制或最终格式化发生未恢复异常等情况不得继续发网。
 
@@ -525,16 +527,16 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 
 ## 10. 与桌面端的差异
 
-| 维度           | 桌面端 (`src/tools/llm-chat`)                                        | 移动端 (`mobile/src/tools/llm-chat`)                                                                                                       |
-| -------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| **UI 分层**    | 自研业务组件 + Element Plus 叶子控件                                 | 原生 Vue/AIO token 骨架 + Varlet 叶子控件                                                                                                  |
-| **类型**       | 完整 `ChatAgent`, `Asset`, `ChatSettings`                            | 已接入兼容 `ChatAgent` 和 `ManagedAssetRef + 轻量快照`，不持久化全局资产路径                                                               |
+| 维度           | 桌面端 (`src/tools/llm-chat`)                                        | 移动端 (`mobile/src/tools/llm-chat`)                                                                                                                                                                                                                                                           |
+| -------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **UI 分层**    | 自研业务组件 + Element Plus 叶子控件                                 | 原生 Vue/AIO token 骨架 + Varlet 叶子控件                                                                                                                                                                                                                                                      |
+| **类型**       | 完整 `ChatAgent`, `Asset`, `ChatSettings`                            | 已接入兼容 `ChatAgent` 和 `ManagedAssetRef + 轻量快照`，不持久化全局资产路径                                                                                                                                                                                                                   |
 | **管道处理器** | 完整：会话、注入、宏/变量、世界书/召回、Token 限制、格式化和资源解析 | `session-loader` + `user-profile-injector` + `regex-processor` + `injection-assembler` + `macros-renderer` + `attachment-preparer` + `token-limiter` + `message-formatter`；宏仅覆盖角色聊天范围，Token 仅裁剪文本；可用附件由原生传输解析，已清理文档可回退持久化提取文本，多模态成本独立处理 |
-| **组件**       | 丰富（BaseDialog, ImageViewer 等）                                   | 基础的列表/输入组件                                                                                                                        |
-| **编辑器**     | RichCodeEditor（双引擎）                                             | 纯文本输入                                                                                                                                 |
-| **路由**       | `main`, `settings` 两页                                              | `home`, `sessions`, `chat/:id`, `settings` 四页                                                                                            |
-| **存储**       | ConfigManager + 独立文件                                             | `llm_chat.db` 增量存储；ConfigManager 仅保存当前会话 ID                                                                                    |
-| **多模态**     | 支持完整 Asset 系统                                                  | 已接入 `ManagedAssetRef`、SQLite 附件快照、受控预览和 Rust 原生传输；平台门禁独立跟踪                                                      |
+| **组件**       | 丰富（BaseDialog, ImageViewer 等）                                   | 基础的列表/输入组件                                                                                                                                                                                                                                                                            |
+| **编辑器**     | RichCodeEditor（双引擎）                                             | 纯文本输入                                                                                                                                                                                                                                                                                     |
+| **路由**       | `main`, `settings` 两页                                              | `home`, `sessions`, `chat/:id`, `settings` 四页                                                                                                                                                                                                                                                |
+| **存储**       | ConfigManager + 独立文件                                             | `llm_chat.db` 增量存储；ConfigManager 仅保存当前会话 ID                                                                                                                                                                                                                                        |
+| **多模态**     | 支持完整 Asset 系统                                                  | 已接入 `ManagedAssetRef`、SQLite 附件快照、受控预览和 Rust 原生传输；平台门禁独立跟踪                                                                                                                                                                                                          |
 
 ## 11. 关键代码约定
 

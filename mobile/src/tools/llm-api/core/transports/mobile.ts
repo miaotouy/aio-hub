@@ -37,6 +37,7 @@ export interface MobileNativeStreamResponseStart {
   status: number;
   statusText: string;
   headers: Record<string, string>;
+  errorBody?: number[] | Uint8Array;
 }
 
 export interface MobileNativeStreamChunk {
@@ -247,11 +248,14 @@ async function sendNativeStreamRequest(
     if (options.signal?.aborted) throw createAbortError();
 
     const responseHeaders = new Headers(response.headers);
-    const responseForStatus = new Response(null, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: responseHeaders,
-    });
+    const responseForStatus = new Response(
+      response.errorBody ? new Uint8Array(response.errorBody) : null,
+      {
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseHeaders,
+      }
+    );
     await dependencies.ensureResponseOk(responseForStatus);
     options.observer?.onResponseStart?.({
       requestId: options.requestId,
@@ -264,15 +268,13 @@ async function sendNativeStreamRequest(
       status: response.status,
       statusText: response.statusText,
       headers: response.headers,
-      body: nativeStreamBodyToAsyncIterable(
-        options,
-        dependencies,
-        onAbort
-      ),
+      body: nativeStreamBodyToAsyncIterable(options, dependencies, onAbort),
     };
   } catch (error) {
     options.signal?.removeEventListener("abort", onAbort);
-    await dependencies.cancelStreamRequest?.(options.requestId).catch(() => undefined);
+    await dependencies
+      .cancelStreamRequest?.(options.requestId)
+      .catch(() => undefined);
     throw error;
   }
 }
@@ -309,9 +311,9 @@ async function* nativeStreamBodyToAsyncIterable(
   } finally {
     options.signal?.removeEventListener("abort", onAbort);
     if (!completed) {
-      await dependencies.cancelStreamRequest?.(options.requestId).catch(
-        () => undefined
-      );
+      await dependencies
+        .cancelStreamRequest?.(options.requestId)
+        .catch(() => undefined);
     }
   }
 }

@@ -1,12 +1,12 @@
 # 移动端持续施工清单
 
 > 状态：施工中
-> 最近核对：2026-07-27
+> 最近核对：2026-07-28
 > 文档定位：跨模块施工索引，不替代各工具的唯一计划或 `ARCHITECTURE.md`
 
 ## 1. 使用规则
 
-本文只维护以下内容：当前优先级、模块依赖、并行工作边界和下一步入口。实现细节、验收数据和历史记录必须回写对应模块文档，不在本文复制一份。
+本文只维护以下内容：当前优先级、模块依赖、并行工作边界和下一步入口。实现细节、验收数据和历史记录必须回写对应模块文档，不在本文复制一份。近期 AI 施工的 PC 对照、问题分级与安全取舍见 [`mobile-pc-parity-construction-review.md`](./mobile-pc-parity-construction-review.md)。
 
 RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修改 `mobile/src/tools/rich-text-renderer/`，最后再由主线协调 `llm-chat/components/MessageContent.vue` 的入口接线、资产解析和消息类型变更。建议分支名：`codex/mobile-rich-text-parity`。
 
@@ -19,10 +19,10 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 - [x] 已以角色聊天实际需要为边界完成移动端宏/变量、传统关键词世界书、确定性注入、资源解析和消息编排：可用附件保留匿名托管引用并由 Rust 原生传输在发网前读取；历史文档在“提取文本并清理原件”后会将持久化 `extractedText` 于 Token 裁剪前回退进请求上下文。媒体压缩、PDF/Office 深度解析、转写、工具调用、向量 RAG、Knowledge/Recall 不以复制桌面全部处理器为目标，按后续产品需求独立设计。
 - [x] 在移动端接入 `injection-assembler`，支持预设消息的 `injectionStrategy`、深度、锚点和模型/渠道匹配语义。
 - [x] 建立移动端 Chat 自己的宏注册范围：`primary:macros-renderer` 在预设装配后、Token 裁剪前顺序展开角色、用户、会话、模型和当前附件轻量摘要，并支持导入角色的局部变量定义、`<svar>`、`getvar` / `setvar` / `incvar` / `decvar`。未知与转义宏保持字面文本；工具、Recall、Knowledge、CSS 与全局变量宏不进入本阶段。
-- [x] 接入移动端传统关键词世界书：全局 `worldbooks.json` 仅保存文本条目与匹配设置，Agent 通过既有 `worldbookIds` 选择世界书；`primary:worldbook-injector` 以选中顺序、条目 order 和 ID 做稳定排序，在历史尾部有限扫描并按 `before_history` / `after_character` / `depth` 注入。首阶段不迁移桌面的递归、概率、分组竞争、向量、Outlet、自动化或 Knowledge/Recall；世界书创建、条目编辑与 Agent 关联均已有移动端入口。
+- [x] 接入移动端传统关键词世界书：全局 `worldbooks.json` 仅保存文本条目与匹配设置，Agent 通过既有 `worldbookIds` 选择世界书；`primary:worldbook-injector` 以选中顺序、条目 order 和 ID 做稳定排序，在历史尾部有限扫描并按 `before_history` / `after_character` / `depth` 注入。`depth` 默认 4，按注入前的 session history 锚点计算且超长深度不越过最旧历史。首阶段不迁移桌面的递归、概率、分组竞争、向量、Outlet、自动化或 Knowledge/Recall；世界书创建、条目编辑与 Agent 关联均已有移动端入口。
 - [x] 已逐项核对并接线新建会话、历史恢复、编辑、删除、继续、重新生成、分支切换、引用、停止、失败恢复、长上下文和设置：Assistant 续写在同父节点创建带原回复前缀的生成中分支；进程中断恢复会将持久化的 `generating` 节点标为可见错误，Assistant 菜单可重新生成；`showMessageNavigator` 已提供可选的首条/上下条/末条浮层导航。相应的执行器、codec、消息视图和导航器测试均已覆盖。
-- [x] 已接入主动停止生成：ChatInput 通过共享 `AbortController` 将停止操作传到 LLM 请求 `signal`；停止后的助手节点保留已流式输出内容，并持久化为 `complete + metadata.interrupted`，不误标为发送失败。
-- [x] 将现有 Rust `o200k_base` / `countTokensBatch()` 接入上下文预算编排。Token 限制器在最终格式化前以预设优先、最新历史优先的策略裁剪文本消息；发送后的最终计数仍用于 usage 缺失时展示与快照。
+- [x] 已接入主动停止生成：ChatInput 通过共享 `AbortController` 将停止操作传到 LLM 请求 `signal`；原生流取消会立即清理 request/response registry，非 2xx 在 Rust 端受限读取并保留上游错误正文；停止后的助手节点保留已流式输出内容，并持久化为 `complete + metadata.interrupted`，不误标为发送失败。
+- [x] 将现有 Rust `o200k_base` / `countTokensBatch()` 接入上下文预算编排。Token 限制器在最终格式化前以预设优先、最新历史优先的策略裁剪文本消息；固定消息耗尽或超出预算时保留继承行为但返回 `degraded`/warn 与结构化溢出数据；发送后的最终计数仍用于 usage 缺失时展示与快照。
 - [x] 迁移文本预算和历史消息截断逻辑；处理器位于注入之后、最终消息格式化之前，预算和截断参数已有移动端编辑入口。
 - [x] 附件和非文本多模态成本继续按实际模型与渠道协议独立估算。工具 schema 只在未来确实设计移动端工具调用时处理，不属于当前 Chat 完整性门禁。
 
@@ -41,7 +41,7 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 - [x] 完成外部参考、资产管理器能力、PC 媒体组件和移动端消费者的联合调查，收敛组件边界与交互方案。
 - [x] 按方案先在资产管理器完成 `MediaPreviewHost`、图片/视频/音频组件和 descriptor 生命周期 composable。
 - [ ] Android AVD 的资产图片预览、聊天附件、音频受控预览/沉浸层控制，以及 `video/mp4` 的 DocumentsUI 导入、受管 URL、WebView 解码/播放进度/暂停、强制 Fullscreen API 拒绝时的应用内沉浸层回退、Android 原生 Back 返回后的内联续播和关闭后的 URL 回收，已于 2026-07-26 至 2026-07-27 通过 APK 端到端回归；仍需在 AVD 与 Android 真机验证真实手势冲突、原生全屏、方向、安全区、快速切换、长视频拖动、设备音频输出和性能/内存，并按可用性结果迭代。
-- [x] 聊天附件已接入统一 `MediaPreviewHost`：图片、视频和音频均只传 `assetId +` 轻量快照，保留 reclaimed/missing 降级；RichTextRenderer 仍待接入。
+- [x] 聊天附件与 RichTextRenderer 受管 Markdown 资产均已接入统一 `MediaPreviewHost`：图片、视频和音频只传 `assetId +` 轻量快照，保留 reclaimed/missing 降级；RichTextRenderer 仅解析当前消息自有的 `asset://<assetId>`。
 - [ ] 具备 iOS 编译和设备条件后补验平台差异，不提前冻结方向锁定、后台播放或预览协议行为。
 
 入口：[`mobile-media-components-plan.md`](./mobile-media-components-plan.md)。
@@ -50,7 +50,7 @@ RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修
 
 - [ ] 将 PC 富文本模块按现有目录和依赖直接复制到移动端工具目录，先做必要的路径、主题、Tauri 和移动端 API 适配。
 - [ ] 迁移 PC 的 AST、流式处理、稳定区/待定区、Patch 更新和 Worker tokenizer 能力。
-- [x] 已完成基础非媒体代码节点：代码块提供复制和自动换行切换，并保留窄屏横向滚动与原文；受管媒体节点已接入，当前消息附件可经 `![说明](asset://<assetId>)` 复用 `MediaPreviewHost`，外部图片维持普通安全回退；VCP 展示节点已单独完成。桌面高亮、CodeMirror、导出和 HTML 预览不作为移动端初始对齐条件。
+- [x] 已完成基础非媒体代码节点：代码块提供复制和自动换行切换，并保留窄屏横向滚动与原文；受管媒体节点已接入，当前消息附件可经 `![说明](asset://<assetId>)` 复用 `MediaPreviewHost`，外部图片维持普通 `<img>` 回退；图片来源兼容、调用方解析和隐私属性的复核结论见施工复核记录；VCP 展示节点已单独完成。桌面高亮、CodeMirror、导出和 HTML 预览不作为移动端初始对齐条件。
 - [x] 已接入 KaTeX 数学公式节点：支持行内 `$...$` 和块级 `$$...$$`，思考块内同样可用；KaTeX 关闭 trust，渲染失败回退为文本。
 - [x] 已接入 GitHub 风格 Markdown 提示块：仅识别引用首行完整的 `[!NOTE]`、`[!TIP]`、`[!IMPORTANT]`、`[!WARNING]` 与 `[!CAUTION]`，去除协议标记后递归复用安全 Markdown 渲染；近似标记保留为普通引用，不开启 HTML 或脚本执行面。
 - [x] 已先迁移桌面默认的 `<think>` / `<guguthink>` 思考块：完整块默认折叠，流式未闭合块保持可见的“思考中”状态；自定义规则 UI、完整 AST/Patch 语义仍待后续阶段。

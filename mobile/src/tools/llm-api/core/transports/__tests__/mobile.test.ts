@@ -230,6 +230,46 @@ describe("mobile LLM transport", () => {
     );
   });
 
+  it("passes native streaming error bodies to status validation without reading chunks", async () => {
+    const upstreamBody = '{"error":"invalid API key"}';
+    const ensureResponseOk = vi.fn(async (response: Response) => {
+      expect(response.status).toBe(401);
+      expect(await response.text()).toBe(upstreamBody);
+      throw new Error("invalid API key");
+    });
+    const readStreamChunk = vi.fn();
+    const cancelStreamRequest = vi.fn(async () => false);
+    const transport = createMobileLlmTransport({
+      fetch: vi.fn(),
+      ensureResponseOk,
+      startStreamRequest: vi.fn(async () => ({
+        status: 401,
+        statusText: "Unauthorized",
+        headers: { "content-type": "application/json" },
+        errorBody: new TextEncoder().encode(upstreamBody),
+      })),
+      readStreamChunk,
+      cancelStreamRequest,
+    });
+
+    await expect(
+      transport.send(
+        {
+          method: "POST",
+          url: "https://example.com/chat",
+          headers: {},
+          body: { kind: "json", value: { stream: true } },
+          streaming: true,
+        },
+        { requestId: "rejected-stream" }
+      )
+    ).rejects.toThrow("invalid API key");
+
+    expect(ensureResponseOk).toHaveBeenCalledOnce();
+    expect(readStreamChunk).not.toHaveBeenCalled();
+    expect(cancelStreamRequest).toHaveBeenCalledWith("rejected-stream");
+  });
+
   it("cancels an abandoned native stream", async () => {
     const cancelStreamRequest = vi.fn(async () => true);
     const transport = createMobileLlmTransport({

@@ -70,7 +70,8 @@ export const useWorldbookStore = defineStore("llm-chat-worldbooks", () => {
     if (
       worldbooks.value.some(
         (worldbook) =>
-          worldbook.id !== exceptId && normalizeName(worldbook.name) === normalized
+          worldbook.id !== exceptId &&
+          normalizeName(worldbook.name) === normalized
       )
     ) {
       throw new Error("WORLDBOOK_NAME_DUPLICATE");
@@ -101,7 +102,9 @@ export const useWorldbookStore = defineStore("llm-chat-worldbooks", () => {
     id: string,
     updates: Partial<Omit<MobileWorldbook, "id" | "createdAt" | "updatedAt">>
   ): Promise<MobileWorldbook | null> {
-    const index = worldbooks.value.findIndex((worldbook) => worldbook.id === id);
+    const index = worldbooks.value.findIndex(
+      (worldbook) => worldbook.id === id
+    );
     if (index < 0) return null;
     if (updates.name !== undefined) assertNameAvailable(updates.name, id);
     const previous = worldbooks.value[index];
@@ -145,7 +148,7 @@ export const useWorldbookStore = defineStore("llm-chat-worldbooks", () => {
       constant: input.constant ?? false,
       order: Number.isFinite(input.order) ? Number(input.order) : 100,
       position: input.position ?? "before_history",
-      depth: Math.max(0, Math.floor(input.depth ?? 0)),
+      depth: Math.max(0, Math.floor(input.depth ?? 4)),
       scanDepth: Math.max(1, Math.floor(input.scanDepth ?? 8)),
       caseSensitive: input.caseSensitive ?? false,
       matchWholeWords: input.matchWholeWords ?? false,
@@ -157,7 +160,10 @@ export const useWorldbookStore = defineStore("llm-chat-worldbooks", () => {
     return entry;
   }
 
-  async function removeEntry(worldbookId: string, entryId: string): Promise<void> {
+  async function removeEntry(
+    worldbookId: string,
+    entryId: string
+  ): Promise<void> {
     const worldbook = worldbooks.value.find((item) => item.id === worldbookId);
     if (!worldbook) return;
     const entries = worldbook.entries.filter((entry) => entry.id !== entryId);
@@ -167,12 +173,19 @@ export const useWorldbookStore = defineStore("llm-chat-worldbooks", () => {
     await persist();
   }
 
-  function getWorldbooksByIds(ids: readonly string[] | undefined): MobileWorldbook[] {
+  function getWorldbooksByIds(
+    ids: readonly string[] | undefined
+  ): MobileWorldbook[] {
     if (!ids?.length) return [];
-    const byId = new Map(worldbooks.value.map((worldbook) => [worldbook.id, worldbook]));
+    const byId = new Map(
+      worldbooks.value.map((worldbook) => [worldbook.id, worldbook])
+    );
     return ids
       .map((id) => byId.get(id))
-      .filter((worldbook): worldbook is MobileWorldbook => !!worldbook && worldbook.enabled);
+      .filter(
+        (worldbook): worldbook is MobileWorldbook =>
+          !!worldbook && worldbook.enabled
+      );
   }
 
   return {

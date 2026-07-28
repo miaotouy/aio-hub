@@ -36,16 +36,10 @@ const props = withDefaults(
 // 是否是递归子调用
 const isRecursive = computed(() => !!props.tokens);
 
-/**
- * 经过资产解析处理后的内容
- */
-const processedContent = computed(() => {
-  let text = props.content || "";
-  if (props.resolveAsset && !isRecursive.value) {
-    text = props.resolveAsset(text);
-  }
-  return text;
-});
+// Keep Markdown source untouched. Asset resolvers operate on concrete resource
+// node URLs below so non-idempotent rewrites are never applied to the same
+// top-level image once before parsing and again while rendering.
+const processedContent = computed(() => props.content || "");
 
 // Streaming providers can deliver several chunks inside one frame. Rendering
 // the complete Markdown tree for every chunk is needlessly expensive on a
@@ -75,12 +69,7 @@ function scheduleRenderedContent() {
 }
 
 watch(
-  () =>
-    [
-      processedContent.value,
-      props.isStreaming,
-      isRecursive.value,
-    ] as const,
+  () => [processedContent.value, props.isStreaming, isRecursive.value] as const,
   ([content, isStreaming, recursive]) => {
     pendingRenderedContent = content;
     if (recursive) {
@@ -100,11 +89,7 @@ watch(
 );
 
 type VcpBlockVariant =
-  | "role"
-  | "tool_request"
-  | "tool_result"
-  | "daily_note"
-  | "tool_summary";
+  "role" | "tool_request" | "tool_result" | "daily_note" | "tool_summary";
 
 type RenderSegment =
   | { type: "markdown"; tokens: any[] }
@@ -261,9 +246,7 @@ function splitContentSegments(
     KATEX_BLOCK_PATTERN.lastIndex = cursor;
     const opening = includeThinkTags ? THINK_TAG_PATTERN.exec(text) : null;
     const math = KATEX_BLOCK_PATTERN.exec(text);
-    const vcp = props.disableVcpParsing
-      ? null
-      : findNextVcpBlock(text, cursor);
+    const vcp = props.disableVcpParsing ? null : findNextVcpBlock(text, cursor);
     const candidates: RenderSegmentCandidate[] = [];
 
     if (opening) {
@@ -607,6 +590,7 @@ onBeforeUnmount(() => {
             :src="resolveImageUrl(token.href)"
             :alt="token.text"
             :title="token.title || undefined"
+            referrerpolicy="no-referrer"
             class="md-image"
           />
 

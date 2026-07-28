@@ -39,16 +39,16 @@ rich-text-renderer/
 ```mermaid
 flowchart LR
   A["聊天消息 / Tester 内容"] --> B["RichTextRenderer props"]
-  B --> C["根实例资产文本解析"]
-  C --> D["80ms 流式快照节流"]
-  D --> E["think / KaTeX block / VCP 分段"]
-  E --> F["marked lexer"]
-  F --> G["行内 KaTeX 与 GitHub alert token 规范化"]
-  G --> H["递归 Vue token renderer"]
-  H --> I["Code / Mermaid / KaTeX / VCP / Media 节点"]
+  B --> C["80ms 流式快照节流"]
+  C --> D["think / KaTeX block / VCP 分段"]
+  D --> E["marked lexer"]
+  E --> F["行内 KaTeX 与 GitHub alert token 规范化"]
+  F --> G["递归 Vue token renderer"]
+  G --> H["Code / Mermaid / KaTeX / VCP / Media 节点"]
+  H --> I["资源节点 URL 单次解析"]
 ```
 
-1. **根实例资产解析**：仅非递归实例可调用 `resolveAsset`，避免子节点重复改写 URL。
+1. **资源节点资产解析**：Markdown 原文不执行全文 `resolveAsset`；普通图片节点只把自身 URL 交给调用方解析一次，递归节点沿用同一契约，避免非幂等 resolver 重复编码或追加鉴权参数。
 2. **流式节流**：首内容、清空内容与完成态立即刷新；仅连续 generating 内容最多每 80ms 更新一次。组件卸载会清理挂起 timer。
 3. **结构化分段**：思考标签、块级 KaTeX 与 VCP 协议先从普通 Markdown 中切出；流式未闭合的 think/VCP 块保持可见，完成态未闭合 VCP 不伪装成结构化块。
 4. **Markdown token 规范化**：`marked` 负责基础 Markdown token；行内 KaTeX 与完整 GitHub 提示标记会转换为专有 token。提示块只匹配 blockquote 首行完整的 `[!NOTE]`、`[!TIP]`、`[!IMPORTANT]`、`[!WARNING]`、`[!CAUTION]`，近似文本仍是普通引用。
@@ -58,7 +58,7 @@ flowchart LR
 
 - 原始 HTML token 只以 `.md-html` 字面文本显示；禁止恢复 `v-html`。若未来需要 HTML，必须先建设可审计白名单或沙箱。
 - 可点击链接仅允许锚点、`http:`、`https:` 与 `mailto:`，并带 `target="_blank"` 与 `rel="noopener noreferrer"`；其他协议显示为非交互文本。
-- 普通 Markdown 图片保留原始来源或调用方 `resolveAsset` 的转换结果，不按协议、主机名或地址段限制可显示内容。本地回环与私网 HTTP 地址可能承载 VCP 表情包等正常集成资源；访问控制由调用方、服务鉴权、CSP 与 Tauri capability 负责。
+- 普通 Markdown 图片保留原始来源或调用方 `resolveAsset` 的单次 URL 转换结果，并设置 `referrerpolicy="no-referrer"`；不按协议、主机名或地址段限制可显示内容。本地回环与私网 HTTP 地址可能承载合理的集成资源。移动端当前没有桌面 VCP base URL、image key 或表情包清单 resolver，未来接入时应按明确配置做窄范围转换，不为所有 URL 注入参数。
 - Mermaid 固定 `securityLevel: "strict"`，渲染产物去除事件属性和非片段链接；失败时保留原始代码。
 - `asset://` 不从模型文本自行探测。聊天调用方可将 URI 映射到**该消息附件**中的 `MediaItem` 以启用受管媒体预览；未映射来源仍保持普通图片回退，资产归属不作为富文本内容的显示白名单。
 - `AlertBlock` 使用移动端 Material/AIO Hub 主题 token；提示块正文仍走相同安全 Markdown 分支，不解释 HTML 或脚本。

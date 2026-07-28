@@ -11,7 +11,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-
 describe("RichTextRenderer streaming lifecycle", () => {
   it("throttles intermediate streaming chunks and flushes the completed response", async () => {
     vi.useFakeTimers();
@@ -68,7 +67,9 @@ describe("RichTextRenderer GitHub-style alerts", () => {
     expect(alert.attributes("role")).toBe("note");
     expect(alert.get(".rich-text-alert__header").text()).toContain("Warning");
     expect(alert.text()).toContain("Continue with care");
-    expect(alert.text()).toContain("A second paragraph remains part of the alert.");
+    expect(alert.text()).toContain(
+      "A second paragraph remains part of the alert."
+    );
     expect(alert.text()).not.toContain("[!WARNING]");
     expect(alert.get("a.md-link").attributes("href")).toBe(
       "https://example.com"
@@ -106,7 +107,9 @@ describe("RichTextRenderer mobile code blocks", () => {
 
     try {
       const wrapper = mount(RichTextRenderer, {
-        props: { content: "```typescript\nconst value = veryLongIdentifier;\n```" },
+        props: {
+          content: "```typescript\nconst value = veryLongIdentifier;\n```",
+        },
       });
 
       const block = wrapper.get('[data-testid="rich-text-code-block"]');
@@ -143,9 +146,7 @@ describe("RichTextRenderer mobile code blocks", () => {
       const wrapper = mount(RichTextRenderer, {
         props: { content: "```text\ncopy me\n```" },
       });
-      await wrapper
-        .get('[data-testid="rich-text-code-copy"]')
-        .trigger("click");
+      await wrapper.get('[data-testid="rich-text-code-copy"]').trigger("click");
       wrapper.unmount();
 
       expect(clearTimeoutSpy).toHaveBeenCalled();
@@ -181,9 +182,9 @@ describe("RichTextRenderer managed media", () => {
       },
     });
 
-    expect(wrapper.get('[data-testid="rich-text-managed-media-stub"]').text()).toBe(
-      "asset-image"
-    );
+    expect(
+      wrapper.get('[data-testid="rich-text-managed-media-stub"]').text()
+    ).toBe("asset-image");
     expect(wrapper.find("img").exists()).toBe(false);
   });
 
@@ -205,31 +206,38 @@ describe("RichTextRenderer managed media", () => {
     "http://localhost:5890/表情包/sample.png",
     "http://127.0.0.1:5890/表情包/sample.png",
     "http://192.168.1.20:5890/表情包/sample.png",
-  ])("keeps local HTTP Markdown images on the ordinary image fallback: %s", (url) => {
-    const wrapper = mount(RichTextRenderer, {
-      props: {
-        content: `![VCP emoticon](${url})`,
-        resolveMediaItem: () => null,
-      },
-      global: { stubs: { RichTextMediaNode: true } },
-    });
+  ])(
+    "keeps local HTTP Markdown images on the ordinary image fallback: %s",
+    (url) => {
+      const wrapper = mount(RichTextRenderer, {
+        props: {
+          content: `![VCP emoticon](${url})`,
+          resolveMediaItem: () => null,
+        },
+        global: { stubs: { RichTextMediaNode: true } },
+      });
 
-    expect(wrapper.get("img.md-image").attributes("src")).toBe(url);
-  });
+      expect(wrapper.get("img.md-image").attributes("src")).toBe(url);
+    }
+  );
 
-  it("keeps caller-resolved local image URLs available", () => {
+  it("resolves each ordinary image URL once and omits the referrer", () => {
     const source = "http://localhost:5890/表情包/sample.png";
-    const resolved = "http://127.0.0.1:5890/表情包/sample.png?pw=test-token";
+    const resolveAsset = vi.fn((url: string) => `${url}?pw=test-token`);
     const wrapper = mount(RichTextRenderer, {
       props: {
         content: `![VCP emoticon](${source})`,
-        resolveAsset: (content) => content.replace(source, resolved),
+        resolveAsset,
         resolveMediaItem: () => null,
       },
       global: { stubs: { RichTextMediaNode: true } },
     });
 
-    expect(wrapper.get("img.md-image").attributes("src")).toBe(resolved);
+    const image = wrapper.get("img.md-image");
+    expect(image.attributes("src")).toBe(`${source}?pw=test-token`);
+    expect(image.attributes("referrerpolicy")).toBe("no-referrer");
+    expect(resolveAsset).toHaveBeenCalledOnce();
+    expect(resolveAsset).toHaveBeenCalledWith(source);
   });
 });
 
@@ -421,9 +429,9 @@ After`,
     expect(wrapper.get(".mermaid-diagram-stub").text()).toContain(
       "graph TD\nA --> B"
     );
-    expect(wrapper.get(".mermaid-diagram-stub").attributes("data-complete")).toBe(
-      "true"
-    );
+    expect(
+      wrapper.get(".mermaid-diagram-stub").attributes("data-complete")
+    ).toBe("true");
     expect(wrapper.find(".code-block-container").exists()).toBe(false);
   });
   it("renders raw HTML tokens as literal text instead of mounting untrusted DOM", () => {

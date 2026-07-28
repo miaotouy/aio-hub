@@ -117,6 +117,8 @@ pub struct NativeStreamResponseStart {
     status: u16,
     status_text: String,
     headers: HashMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error_body: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -164,16 +166,35 @@ pub async fn start_llm_stream_request(
             return Err(error);
         }
     };
+    let status = response.status();
+    let status_text = status.canonical_reason().unwrap_or_default().to_string();
+    let headers = response_headers(&response);
+    if !status.is_success() {
+        let error_body = tokio::select! {
+            _ = cancellation.cancelled() => Err("Native stream request cancelled".to_string()),
+            result = read_limited_response(response) => result,
+        };
+        remove_request(&state, &request_id);
+        return error_body.map(|error_body| NativeStreamResponseStart {
+            status: status.as_u16(),
+            status_text,
+            headers,
+            error_body: Some(error_body),
+        });
+    }
+
     let start = NativeStreamResponseStart {
-        status: response.status().as_u16(),
-        status_text: response
-            .status()
-            .canonical_reason()
-            .unwrap_or_default()
-            .to_string(),
-        headers: response_headers(&response),
+        status: status.as_u16(),
+        status_text,
+        headers,
+        error_body: None,
     };
-    stream_state.streams.lock().await.insert(
+    let mut streams = stream_state.streams.lock().await;
+    if cancellation.is_cancelled() {
+        remove_request(&state, &request_id);
+        return Err("Native stream request cancelled".into());
+    }
+    streams.insert(
         request_id,
         Arc::new(AsyncMutex::new(ActiveNativeStream { response })),
     );
@@ -236,11 +257,19 @@ pub async fn read_llm_stream_chunk(
 }
 
 #[tauri::command]
-pub fn cancel_llm_stream_request(
+pub async fn cancel_llm_stream_request(
     request_id: String,
     state: tauri::State<'_, NativeRequestState>,
+    stream_state: tauri::State<'_, NativeStreamState>,
 ) -> Result<bool, String> {
-    cancel_native_request(request_id, &state)
+    let request_removed = cancel_and_remove_native_request(&request_id, &state)?;
+    let stream_removed = stream_state
+        .streams
+        .lock()
+        .await
+        .remove(&request_id)
+        .is_some();
+    Ok(request_removed || stream_removed)
 }
 
 #[tauri::command]
@@ -273,6 +302,21 @@ fn remove_request(state: &NativeRequestState, request_id: &str) {
     if let Ok(mut requests) = state.requests.lock() {
         requests.remove(request_id);
     }
+}
+
+fn cancel_and_remove_native_request(
+    request_id: &str,
+    state: &NativeRequestState,
+) -> Result<bool, String> {
+    let mut requests = state
+        .requests
+        .lock()
+        .map_err(|_| "Native request state is unavailable".to_string())?;
+    if let Some(token) = requests.remove(request_id) {
+        token.cancel();
+        return Ok(true);
+    }
+    Ok(false)
 }
 
 fn cancel_native_request(request_id: String, state: &NativeRequestState) -> Result<bool, String> {
@@ -652,6 +696,17 @@ mod tests {
             encode_json_file_bytes(b"abc", "image/png", false),
             "data:image/png;base64,YWJj"
         );
+    }
+
+    #[test]
+    fn stream_cancellation_removes_and_signals_the_request() {
+        let state = NativeRequestState::default();
+        let cancellation = register_request(&state, "stream-1").unwrap();
+
+        assert!(cancel_and_remove_native_request("stream-1", &state).unwrap());
+        assert!(cancellation.is_cancelled());
+        assert!(!state.requests.lock().unwrap().contains_key("stream-1"));
+        assert!(!cancel_and_remove_native_request("stream-1", &state).unwrap());
     }
 
     #[test]

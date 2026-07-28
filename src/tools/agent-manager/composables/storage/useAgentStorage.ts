@@ -21,17 +21,12 @@ import {
   exists,
   readTextFile,
   writeTextFile,
-  mkdir,
-  readDir,
   remove,
-  rename,
-  copyFile,
 } from "@tauri-apps/plugin-fs";
 import { join, extname } from "@tauri-apps/api/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import { invoke } from "@tauri-apps/api/core";
 import { createConfigManager } from "@/utils/configManager";
-import { customMessage } from "@/utils/customMessage";
 import {
   type ChatAgent,
   AgentCategory,
@@ -41,6 +36,13 @@ import { stripDefaultContextCompressionPromptsFromParameters } from "@/tools/llm
 import { migrateAgent } from "../../services/agentMigrationService";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { customMessage } from "@/utils/customMessage";
+import {
+  mergeMissingDirectoryTree,
+  repairInvalidEntityConfigs,
+  runVersionedDataMigration,
+  verifyDirectorySubset,
+} from "@/utils/dataMigration";
 
 const logger = createModuleLogger("llm-chat/agent-storage-separated");
 const errorHandler = createModuleErrorHandler(
@@ -49,6 +51,56 @@ const errorHandler = createModuleErrorHandler(
 
 const MODULE_NAME = "agent-manager";
 const AGENTS_SUBDIR = "agents";
+const AGENT_MIGRATION_VERSION = "cross-module-v2";
+const MIGRATION_IGNORED_NAMES = new Set([".migration_in_progress"]);
+let agentMigrationFailureReported = false;
+
+async function ensureAgentDataMigrated(): Promise<void> {
+  try {
+    await runVersionedDataMigration({
+      id: MODULE_NAME,
+      version: AGENT_MIGRATION_VERSION,
+      migrate: async ({ appDir }) => {
+        const target = await join(appDir, MODULE_NAME, AGENTS_SUBDIR);
+        const legacyRoot = await join(appDir, "llm-chat");
+        const sources = [
+          await join(legacyRoot, AGENTS_SUBDIR),
+          await join(legacyRoot, `${AGENTS_SUBDIR}.migrated.bak`),
+        ];
+        let copiedFiles = 0;
+
+        for (const source of sources) {
+          copiedFiles += await repairInvalidEntityConfigs(
+            source,
+            target,
+            "agent.json"
+          );
+          copiedFiles += await mergeMissingDirectoryTree(
+            source,
+            target,
+            MIGRATION_IGNORED_NAMES
+          );
+          await verifyDirectorySubset(source, target, MIGRATION_IGNORED_NAMES);
+        }
+
+        const staleMarker = await join(target, ".migration_in_progress");
+        if (await exists(staleMarker)) await remove(staleMarker);
+        if (copiedFiles > 0) {
+          logger.info("历史智能体数据已补充迁移", { copiedFiles });
+        }
+      },
+    });
+    agentMigrationFailureReported = false;
+  } catch (error) {
+    if (!agentMigrationFailureReported) {
+      customMessage.error(
+        "历史智能体数据迁移失败，旧数据仍保留，请重试启动或检查日志。"
+      );
+      agentMigrationFailureReported = true;
+    }
+    throw error;
+  }
+}
 
 /**
  * 智能体索引项（包含显示所需的元数据）
@@ -161,6 +213,7 @@ export function useAgentStorage() {
    * 加载智能体索引（使用 ConfigManager）
    */
   async function loadIndex(): Promise<AgentsIndex> {
+    await ensureAgentDataMigrated();
     return await indexManager.load();
   }
 
@@ -168,6 +221,7 @@ export function useAgentStorage() {
    * 保存智能体索引（使用 ConfigManager）
    */
   async function saveIndex(index: AgentsIndex): Promise<void> {
+    await ensureAgentDataMigrated();
     await indexManager.save(index);
   }
 
@@ -175,6 +229,7 @@ export function useAgentStorage() {
    * 加载单个智能体
    */
   async function loadAgent(agentId: string): Promise<ChatAgent | null> {
+    await ensureAgentDataMigrated();
     try {
       const agentPath = await getAgentConfigPath(agentId);
       const agentExists = await exists(agentPath);
@@ -399,6 +454,7 @@ export function useAgentStorage() {
     agent: ChatAgent,
     forceWrite: boolean = false
   ): Promise<void> {
+    await ensureAgentDataMigrated();
     try {
       // 保存前的严格校验
       const validation = validateAgent(agent);
@@ -469,6 +525,7 @@ export function useAgentStorage() {
    * 删除单个智能体目录（移入回收站）
    */
   async function deleteAgentDirectory(agentId: string): Promise<void> {
+    await ensureAgentDataMigrated();
     try {
       const agentDir = await getAgentDirPath(agentId);
       const relativePath = (
@@ -520,7 +577,7 @@ export function useAgentStorage() {
         userMessage: "扫描智能体目录失败",
         showToUser: false,
       });
-      return [];
+      throw error;
     }
   }
 
@@ -667,118 +724,6 @@ export function useAgentStorage() {
   }
 
   /**
-   * 递归复制目录
-   */
-  async function deepCopyDirectory(src: string, dest: string): Promise<void> {
-    await mkdir(dest, { recursive: true });
-    const entries = await readDir(src);
-    for (const entry of entries) {
-      const srcPath = await join(src, entry.name);
-      const destPath = await join(dest, entry.name);
-      if (entry.isDirectory) {
-        await deepCopyDirectory(srcPath, destPath);
-      } else if (entry.isFile) {
-        await copyFile(srcPath, destPath);
-      }
-    }
-  }
-
-  /**
-   * 校验迁移结果（对比文件数量）
-   */
-  async function verifyMigration(src: string, dest: string): Promise<boolean> {
-    try {
-      const srcEntries = await readDir(src);
-      const destEntries = await readDir(dest);
-      // 过滤掉临时标记文件
-      const destFiles = destEntries.filter(
-        (e) => e.name !== ".migration_in_progress"
-      );
-      return srcEntries.length === destFiles.length;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /**
-   * 冷启动自动检测与物理迁移
-   */
-  async function triggerDataMigration(): Promise<void> {
-    try {
-      const configDir = await getAppConfigDir();
-      const oldPath = await join(configDir, "llm-chat", "agents");
-      const newPath = await join(configDir, "agent-manager", "agents");
-
-      // 1. 幂等性检查：如果新路径已经存在数据，说明已经迁移过，直接跳过
-      if (await exists(newPath)) {
-        const newFiles = await readDir(newPath);
-        // 排除可能残留的临时标记文件
-        const actualFiles = newFiles.filter(
-          (f) => f.name !== ".migration_in_progress"
-        );
-        if (actualFiles.length > 0) return; // 已有数据，无需迁移
-      }
-
-      // 2. 检测旧路径是否存在数据
-      if (!(await exists(oldPath))) return; // 无旧数据，纯净新安装
-      const oldFiles = await readDir(oldPath);
-      if (oldFiles.length === 0) return;
-
-      logger.info("检测到历史智能体数据，启动自动迁移管道...");
-
-      const timestamp = Date.now();
-      const backupPath = await join(
-        configDir,
-        "backups",
-        `migration_backup_${timestamp}`
-      );
-
-      // 引入临时标记文件，确保迁移的原子性
-      const progressFlagPath = await join(newPath, ".migration_in_progress");
-
-      try {
-        // 3. 安全备份：将旧数据完整复制到备份目录
-        await mkdir(backupPath, { recursive: true });
-        await deepCopyDirectory(oldPath, backupPath);
-        logger.info("历史数据备份成功", { backupPath });
-
-        // 4. 物理迁移：创建新目录并复制数据
-        await mkdir(newPath, { recursive: true });
-        // 写入临时标记文件，表示迁移正在进行中
-        await writeTextFile(progressFlagPath, "in_progress");
-        await deepCopyDirectory(oldPath, newPath);
-        logger.info("数据物理迁移完成，开始完整性校验...");
-
-        // 5. 完整性校验：对比新旧目录文件数量
-        const isVerified = await verifyMigration(oldPath, newPath);
-        if (!isVerified) {
-          throw new Error("迁移校验失败：文件数量不一致");
-        }
-
-        // 校验通过，安全删除临时标记文件
-        await remove(progressFlagPath);
-
-        // 6. 清理旧路径：为了绝对安全，第一阶段仅重命名旧路径为 .bak，稳定运行一个版本后再物理删除
-        const oldPathBak = `${oldPath}.migrated.bak`;
-        await rename(oldPath, oldPathBak);
-        logger.info("旧数据已安全归档", { oldPathBak });
-      } catch (error) {
-        logger.error("数据迁移失败，启动自动回滚！", error);
-        // 异常回滚：如果新路径创建了一半，清理掉，防止残留脏数据
-        if (await exists(newPath)) {
-          await remove(newPath, { recursive: true });
-        }
-        // 提示用户，但不阻断程序启动（降级为使用空数据启动）
-        customMessage.error(
-          "历史数据迁移失败，已安全回滚。请在群里反馈、提交 Issue 或检查日志。"
-        );
-      }
-    } catch (e) {
-      logger.error("迁移检测过程发生异常", e as Error);
-    }
-  }
-
-  /**
    * 加载智能体索引（轻量级，仅包含元数据）
    */
   async function loadAgentsIndex(): Promise<{
@@ -787,8 +732,8 @@ export function useAgentStorage() {
     try {
       logger.debug("开始加载智能体索引");
 
-      // 在加载前执行冷启动物理迁移
-      await triggerDataMigration();
+      // 在 ConfigManager 创建默认索引前完成一次性跨模块迁移。
+      await ensureAgentDataMigrated();
 
       // 在加载前执行数据迁移
       await runMigration();
@@ -816,8 +761,29 @@ export function useAgentStorage() {
         userMessage: "加载智能体索引失败",
         showToUser: false,
       });
-      return { agents: [] };
+      throw error;
     }
+  }
+
+  interface LoadedAgentsState {
+    agents: ChatAgent[];
+    indexedCount: number;
+  }
+
+  async function loadAgentsState(): Promise<LoadedAgentsState> {
+    logger.debug("开始全量加载所有智能体");
+    const { agents: indexItems } = await loadAgentsIndex();
+    const agentResults = await Promise.all(
+      indexItems.map((item) => loadAgent(item.id))
+    );
+    const agents = agentResults.filter(
+      (agent: ChatAgent | null): agent is ChatAgent => agent !== null
+    );
+    logger.info(`全量加载了 ${agents.length} 个智能体`, {
+      indexedCount: indexItems.length,
+      failedCount: indexItems.length - agents.length,
+    });
+    return { agents, indexedCount: indexItems.length };
   }
 
   /**
@@ -826,28 +792,13 @@ export function useAgentStorage() {
    */
   async function loadAgentsAll(): Promise<ChatAgent[]> {
     try {
-      logger.debug("开始全量加载所有智能体");
-
-      // 1. 先加载索引元数据
-      const { agents: indexItems } = await loadAgentsIndex();
-
-      // 2. 并行加载所有智能体的完整数据
-      const agentPromises = indexItems.map((item) => loadAgent(item.id));
-      const agentResults = await Promise.all(agentPromises);
-
-      // 3. 过滤掉加载失败的智能体
-      const agents = agentResults.filter(
-        (a: ChatAgent | null): a is ChatAgent => a !== null
-      );
-
-      logger.info(`全量加载了 ${agents.length} 个智能体`);
-      return agents;
+      return (await loadAgentsState()).agents;
     } catch (error) {
       errorHandler.handle(error as Error, {
         userMessage: "全量加载智能体失败",
         showToUser: false,
       });
-      return [];
+      throw error;
     }
   }
 
@@ -1037,6 +988,7 @@ export function useAgentStorage() {
     loadAgents,
     loadAgentsIndex,
     loadAgentsAll,
+    loadAgentsState,
     saveAgents,
     refreshAgentFromFile,
     persistAgent,

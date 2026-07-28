@@ -205,6 +205,8 @@ To ensure that old users do not lose, damage, or break their historical agent co
 
 ### 5.2. 核心迁移算法与冷启动流程
 
+> `0.6.6-r.2` 修复补充：实际恢复流程已改为模块内收敛迁移。目标有效文件优先，只递归补齐旧目录缺失项；跨 WebView 锁和版本完成标记由轻量协调器提供，不再整目录回滚或按启动重复备份。
+
 在 `agent-manager` 的 `useAgentStorage.ts` 初始化（`load()`）时，自动触发以下迁移管道：
 
 ```typescript

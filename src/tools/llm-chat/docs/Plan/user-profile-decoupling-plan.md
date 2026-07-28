@@ -139,6 +139,8 @@ To ensure that old users do not lose, damage, or break their historical user pro
 
 ### 5.2. 核心迁移算法与冷启动流程
 
+> `0.6.6-r.2` 修复补充：当前数据结构已演进为索引加独立档案目录。迁移仍保持轻量，由模块自身合并索引和档案，协调器仅提供跨 WebView 锁与版本完成标记。
+
 用户档案数据量较小（通常只有一个 `user-profile.json` 文件），迁移逻辑更加轻量：
 
 1.  **读取兜底**：`userProfileStore` 初始化时，优先读取新路径 `{appConfigDir}/user-profile-manager/profile.json`。

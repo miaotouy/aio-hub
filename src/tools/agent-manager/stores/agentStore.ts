@@ -42,6 +42,7 @@ import type {
 
 const logger = createModuleLogger("llm-chat/agentStore");
 const errorHandler = createModuleErrorHandler("llm-chat/agentStore");
+let loadAgentsPromise: Promise<void> | null = null;
 
 // 重新导出类型，保持向后兼容
 export type {
@@ -523,25 +524,37 @@ export const useAgentStore = defineStore("llmChatAgent", {
      * 从文件加载智能体（全量加载，杜绝没详情的索引导致数据损坏）
      */
     async loadAgents(): Promise<void> {
-      try {
-        const { loadAgentsAll } = useAgentStorage();
-        const allAgents = await loadAgentsAll();
+      if (loadAgentsPromise) return loadAgentsPromise;
 
-        if (allAgents.length > 0) {
-          this.agents = allAgents;
-          logger.info("全量加载智能体成功", { agentCount: this.agents.length });
-        } else {
-          // 首次加载，创建默认智能体
-          this.createDefaultAgents();
+      loadAgentsPromise = (async () => {
+        try {
+          const { loadAgentsState } = useAgentStorage();
+          const { agents, indexedCount } = await loadAgentsState();
+
+          if (agents.length > 0) {
+            this.agents = agents;
+            logger.info("全量加载智能体成功", {
+              agentCount: this.agents.length,
+            });
+          } else if (indexedCount === 0) {
+            await this.createDefaultAgents();
+          } else {
+            logger.warn("智能体详情暂时不可读，保留磁盘索引", {
+              indexedCount,
+            });
+          }
+        } catch (error) {
+          errorHandler.handle(error as Error, {
+            userMessage: "加载智能体失败",
+            showToUser: false,
+          });
+          // 保留当前内存状态，避免读取失败被误判为纯净安装。
+        } finally {
+          loadAgentsPromise = null;
         }
-      } catch (error) {
-        errorHandler.handle(error as Error, {
-          userMessage: "加载智能体失败",
-          showToUser: false,
-        });
-        this.agents = [];
-        this.createDefaultAgents();
-      }
+      })();
+
+      return loadAgentsPromise;
     },
 
     /**

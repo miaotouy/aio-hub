@@ -40,6 +40,7 @@ import { embedDataIntoPng } from "@/utils/pngMetadataWriter";
 import { convertArrayBufferToBase64 } from "@/utils/base64";
 import { sanitizeFilename } from "@/utils/fileUtils";
 import { useWorldbookStore } from "@/tools/st-worldbook-manager/stores/worldbookStore";
+import { getAgentStorageSubdirectory } from "../utils/agentAssetUtils";
 
 const logger = createModuleLogger("llm-chat/agentExportService");
 const errorHandler = createModuleErrorHandler("llm-chat/agentExportService");
@@ -295,9 +296,7 @@ export async function exportAgents(
 
       const agentPrivateDir = await join(
         await getAppConfigDir(),
-        "llm-chat",
-        "agents",
-        agent.id
+        getAgentStorageSubdirectory(agent.id)
       );
 
       const isAgentPrivateAsset = (path: string): boolean => {

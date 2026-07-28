@@ -18,6 +18,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { join } from "@tauri-apps/api/path";
 import { getAppConfigDir } from "@/utils/appPath";
+import { getAgentStorageSubdirectory } from "../../utils/agentAssetUtils";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
@@ -432,10 +433,7 @@ export function useAgentAssetsManager(props: Props, emit: any) {
       const appDir = await getAppConfigDir();
       const assetsPath = await join(
         appDir,
-        "llm-chat",
-        "agents",
-        props.agentId,
-        "assets"
+        getAgentStorageSubdirectory(props.agentId, "assets")
       );
       logger.info("尝试打开资产目录", {
         appDir,

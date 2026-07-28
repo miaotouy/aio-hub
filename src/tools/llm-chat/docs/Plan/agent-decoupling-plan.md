@@ -1,6 +1,6 @@
 # LLM Chat: Agent 配置管理解耦及智能体大厅建设方案 (施工级图纸版)
 
-> 最后更新：2026-07-23
+> 最后更新：2026-07-28
 > 状态：已随 `v0.6.6-r.1` 发布；2026-07-23 代码审计发现旧路径残留与迁移测试缺口，待收口
 > 关联模块：`src/tools/agent-manager/`（已创建）
 
@@ -345,11 +345,8 @@ export async function triggerDataMigration() {
 
 ### 6.2. 代码审计发现的待办
 
-- [ ] **清理活动旧路径写入**：以下真实调用链仍把新资产写入 `llm-chat/agents`，而保存后的相对路径会由解析器指向 `agent-manager/agents`，可能造成导入或升级后的头像、附件不可见：
-  - `src/tools/agent-manager/services/agentAssetService.ts`：内置预设图标和资产导入。
-  - `src/tools/agent-manager/services/agentImportService.ts`：带资产的 Agent 导入。
-  - `src/tools/agent-manager/components/management/AgentUpgradeDialog.vue`：Agent 升级/覆盖资产写入。
-- [ ] **修正 Rust 全文搜索目录**：`src-tauri/src/commands/llmchat_search.rs` 的普通与流式搜索仍从 `{appConfigDir}/llm-chat/agents` 扫描并返回旧路径，迁移后的 Agent 不会进入该搜索结果。
+- [x] **清理活动旧路径读写**：内置预设资产导入、带资产 Agent 导入、升级覆盖、Agent ZIP/PNG 导出、聊天管道私有附件读取和“打开资产目录”均已通过 `getAgentStorageSubdirectory()` 使用 `agent-manager/agents`；已补导出资产与私有附件读取回归测试。
+- [x] **修正 Rust 全文搜索目录**：普通与流式搜索分别从 `{appConfigDir}/agent-manager/agents` 和 `{appConfigDir}/llm-chat/sessions` 扫描数据，Agent 搜索结果路径同步返回 `agent-manager/agents/{id}/agent.json`，并用 Rust 单元测试冻结两个存储根。
 - [ ] **加强迁移校验与恢复语义**：当前 `verifyMigration()` 只比较迁移目录的顶层条目数量，并不递归校验文件数量、大小或内容；新目录已有任意实际条目时会直接跳过旧目录迁移。需要明确部分迁移、残留目录和重复启动的恢复策略。
 - [ ] **补迁移级自动化测试**：现有 `agentMigrationService.test.ts` 测试的是 Agent 配置字段迁移，不覆盖 `triggerDataMigration()`。至少覆盖成功迁移、第二次启动不重复、目标目录部分存在、复制/校验/重命名失败回滚，以及旧协议头像解析。
 - [ ] **补当前版本真实升级证据**：记录从含旧 `llm-chat/agents` 数据的已发布版本升级到当前构建后的目录、索引、头像/资产、导入、升级覆盖和搜索结果；不能只用“已发版”替代该证据。

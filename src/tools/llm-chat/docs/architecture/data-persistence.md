@@ -1,6 +1,6 @@
 # 数据持久化 (Data Persistence)
 
-为了性能和数据安全，本模块采用**分离式存储策略**，将索引和数据文件分开存储。所有持久化文件统一存放在应用配置目录下的 `llm-chat/` 子目录中（即 `{appConfigDir}/llm-chat/`），由 [`useChatStorageSeparated()`](../../composables/storage/useChatStorageSeparated.ts) 与 [`useAgentStorageSeparated()`](../../composables/storage/useAgentStorageSeparated.ts) 分别管理会话与智能体。
+为了性能和数据安全，会话与智能体都采用**分离式存储策略**，将索引和数据文件分开存储。会话由 LLM Chat 持有，保存在 `{appConfigDir}/llm-chat/`；智能体由 Agent Manager 持有，保存在 `{appConfigDir}/agent-manager/`。
 
 ## 1. 会话存储 ([`useChatStorageSeparated`](../../composables/storage/useChatStorageSeparated.ts))
 
@@ -23,17 +23,17 @@
   ```
 - **加载与恢复**: 启动只读取主索引或有效备份，并按需读取当前会话详情；不会为首屏扫描全部会话。索引缺失且会话目录为空时才创建默认索引。主索引和备份均不可用时，facade 返回恢复状态而非静默写入空索引；`repairIndex()` 是显式恢复操作，支持固定并发度、进度回调与 `AbortSignal` 取消。无法解析的会话被移动到 `sessions-corrupt/`，并写入隔离清单，避免下次启动重复解析。
 
-## 2. 智能体存储 ([`useAgentStorageSeparated`](../../composables/storage/useAgentStorageSeparated.ts))
+## 2. 智能体存储 ([`useAgentStorage`](../../../agent-manager/composables/storage/useAgentStorage.ts))
 
-- **索引文件**: `llm-chat/agents-index.json`，存储 `currentAgentId` 与智能体元信息列表（含 `id` / `name` / `icon` / `category` / `tags` 等），同样由 `createConfigManager` 管理。
-- **智能体目录**: 每个智能体在 `llm-chat/agents/{agentId}/` 下拥有**独立的目录**（而非单个 JSON 文件），用于承载配置、头像和私有资产，保证 Agent 的自包含性。
+- **索引文件**: `agent-manager/agents-index.json`，存储智能体元信息列表（含 `id` / `name` / `icon` / `category` / `tags` 等），由 `createConfigManager` 管理；当前聊天所选智能体属于 LLM Chat UI 状态，不写入该索引。
+- **智能体目录**: 每个智能体在 `agent-manager/agents/{agentId}/` 下拥有**独立的目录**（而非单个 JSON 文件），用于承载配置、头像和私有资产，保证 Agent 的自包含性。
   - `agent.json`: 智能体完整配置（`ChatAgent` 结构）。
   - 头像文件（如 `avatar-{timestamp}.{ext}`、历史头像等图片）：直接平铺在目录根部，由 `agent.icon` / `avatarHistory` 引用相对文件名。
   - `assets/`: 智能体私有资产子目录（表情包、BGM、场景图等），通过 `agent-asset://{group}/{id}.{ext}` 协议引用，详见 [`agent-assets.md`](./agent-assets.md)。
 - **目录结构**:
   ```
-  {appConfigDir}/llm-chat/
-  ├── agents-index.json          # 智能体索引（含 currentAgentId）
+  {appConfigDir}/agent-manager/
+  ├── agents-index.json          # 智能体元数据索引
   └── agents/
       ├── {agentId-1}/
       │   ├── agent.json         # 智能体配置
@@ -45,7 +45,7 @@
       │   └── ...
       └── ...
   ```
-- **历史迁移**: 加载索引时会自动检测旧版 `agents/{agentId}.json` 单文件结构，将其升级为 `agents/{agentId}/agent.json` 目录结构，并把 `appdata://` 形式的头像迁移为智能体目录内的相对文件名。
+- **历史迁移**: 加载智能体索引前会检测旧 `{appConfigDir}/llm-chat/agents/`，将其迁移到 `{appConfigDir}/agent-manager/agents/`；旧 `appdata://llm-chat/agents/...` 头像协议仍会在解析时重定向到新路径。
 
 ## 3. 多会话架构与子管理器 (Multi-Session Sub-Managers)
 

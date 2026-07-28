@@ -24,7 +24,7 @@
 
 **没有任何持久化索引结构**（不是倒排表、不是 Trie、不是 SQLite FTS）。每次搜索都走以下流程（见 [`llmchat_search.rs:289-514`](../../../../../src-tauri/src/commands/llmchat_search.rs:289)）：
 
-1.  **walkdir** 递归遍历 `{appConfigDir}/llm-chat/agents/{id}/agent.json` 与 `{appConfigDir}/llm-chat/sessions/{id}.json` 收集所有文件路径。
+1.  **walkdir** 分别递归遍历 `{appConfigDir}/agent-manager/agents/{id}/agent.json` 与 `{appConfigDir}/llm-chat/sessions/{id}.json` 收集所有文件路径；Agent 和 Session 保持各自工具的数据根。
 2.  通过 `tokio::join!` **并行**执行 `search_agents` 与 `search_sessions`（`scope = all` 时）。
 3.  `stream::iter(paths).buffer_unordered(50)` 以 **50 并发**异步读取每个文件，先用 `matcher.is_match(&content)` 做**全文预过滤**：原始字符串都不命中则直接跳过昂贵的 `serde_json` 反序列化，这是核心性能优化点。
 4.  命中文件用 `PartialAgent` / `PartialSession`（带 `#[serde(borrow)]` 零拷贝结构）解析后逐字段调用 `matcher.extract_context` 提取片段。

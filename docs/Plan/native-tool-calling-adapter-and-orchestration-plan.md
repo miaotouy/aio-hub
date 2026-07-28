@@ -1,6 +1,6 @@
 # LLM 原生工具调用适配修补与编排设计
 
-> 状态：调查与设计讨论归档，尚未开始施工  
+> 状态：待实施；开工前先关闭第 14.2 节的设计决策
 > 更新日期：2026-07-18  
 > 影响范围：`packages/llm-core`、`src/llm-apis`、`src/tools/llm-chat`、`src/tools/tool-calling`、`src/tools/agent-manager`
 

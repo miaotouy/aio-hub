@@ -1,47 +1,29 @@
-# Sidecar Plugin API v3 不兼容迁移计划
+# Sidecar Plugin API v3 发布收口计划
 
-> - 状态：主体实施完成；开发模式已成功调用 API v3 插件并使用新的分批优化，待主应用与插件发布候选组合的完整联合验收
-> - 创建日期：2026-07-24
-> - 最近更新：2026-07-27
-> - 首个迁移插件：`paddle-ocr` 0.8.0
+> 状态：主体实施与 review 修复已完成；开发模式已验证 API v3 和分批优化，待发布候选主应用与插件联合验收
+>
+> 最近更新：2026-07-28
+>
+> 首个迁移插件：`paddle-ocr` 0.8.0
 
-## 1. 背景
+## 1. 兼容边界
 
-当前 Sidecar Plugin API v2 将短命令调用、长任务、业务进度和进程恢复混在同一套请求模型中：
+API v3 为长任务提供显式作业协议，不为 Paddle OCR 0.8.0 保留 v2 OCR 调用回退；新主程序仍可加载既有 API v2 插件。
 
-- `sidecar_send_command` 持有请求直到插件返回最终结果，长 OCR 任务受固定 300 秒超时约束。
-- OCR 配置同时持久化 `pluginId`、`contributionId`、`method` 和 `name`，同一事实存在多个来源。
-- `contributionId` 不存在时会回退到同名 `method`，插件升级后可能静默选择错误贡献点。
-- stdout 读取任务按 `pluginId` 查询当前进程的 pending request；进程重启并重置请求 ID 后，旧进程的迟到响应可能进入新进程请求。
-- `AbortSignal` 只能阻止前端继续合并结果，无法通知插件停止推理。
-- manifest 兼容性校验只产生警告，不能阻止不兼容插件被旧主程序启用。
+| 组合                        | 结果                     |
+| --------------------------- | ------------------------ |
+| 新主程序 + API v2 插件      | 保持兼容                 |
+| 新主程序 + Paddle OCR 0.8.0 | 使用 API v3 作业协议     |
+| 旧主程序 + Paddle OCR 0.8.0 | 启动健康检查失败，不启用 |
+| 新主程序 + 未知更高 API     | 标记损坏，不启用         |
 
-API v3 选择显式不兼容，不为 Paddle OCR 0.8.0 保留 v2 OCR 调用回退。主程序仍可加载既有 API v2 插件。
+API v3 插件必须校验宿主运行时注入的 `hostContext`：常驻 Sidecar 在首次启动方法中校验，一次性 Sidecar 在每次请求顶层校验。该信息不得来自 manifest。
 
-## 2. 兼容边界
+## 2. 已落地契约
 
-### 2.1 版本声明
+### 2.1 稳定贡献点
 
-- 主程序将 `CURRENT_API_VERSION` 提升到 `3`。
-- Paddle OCR manifest 声明 `host.apiVersion: 3`，最低主程序版本为首个包含 API v3 的版本。
-- Paddle OCR 插件版本提升到 `0.8.0`。
-- 新主程序对高于自身能力的插件 API 版本执行硬门禁，将插件标记为损坏且不启用。
-- API v3 插件启动时必须收到由宿主运行时注入的 `hostContext`。常驻 Sidecar 在首次 `startupMethod` 的 `params.hostContext` 中校验；一次性 Sidecar 在每次请求的顶层 `hostContext` 中校验。该字段不能来自 manifest，避免旧宿主原样转发 manifest 参数后伪装成兼容宿主。
-
-### 2.2 旧版本行为
-
-| 组合                           | 结果                         |
-| ------------------------------ | ---------------------------- |
-| 新主程序 + API v2 插件         | 保持兼容                     |
-| 新主程序 + Paddle OCR 0.8.0    | 使用 API v3 作业协议         |
-| 旧主程序 + Paddle OCR 0.8.0    | 启动健康检查失败，插件不启用 |
-| 新主程序 + 未知的更高 API 版本 | 加载为损坏状态，不启用       |
-
-## 3. API v3 契约
-
-### 3.1 稳定贡献点标识
-
-Smart OCR 只持久化以下插件配置：
+OCR 配置只持久化稳定事实：
 
 ```ts
 interface PluginOcrEngineConfig {
@@ -52,91 +34,66 @@ interface PluginOcrEngineConfig {
 }
 ```
 
-`name`、`method` 和 capabilities 每次从当前 manifest 的贡献点解析。显式 `contributionId` 未找到时直接失败，不按方法回退。加载 API v2 本地配置时只执行确定性迁移：已知 Paddle 映射、唯一方法匹配或插件唯一 OCR contribution 可以自动补齐；存在歧义时保留空 `contributionId`，要求用户重新选择。Smart OCR、实时字幕和窗口自动化共用同一个迁移器。
+`name`、`method` 和 capabilities 每次从当前 manifest 解析。找不到显式 `contributionId` 时直接失败，不按方法名回退。旧配置仅在已知映射、唯一方法或唯一 OCR contribution 时自动迁移；有歧义时要求用户重新选择。Smart OCR、实时字幕和窗口自动化共用该迁移器。
 
-### 3.2 作业生命周期
+### 2.2 作业生命周期
 
-API v3 长任务采用确认与完成分离的作业协议：
+1. 宿主生成不可复用的 `jobId` 并先订阅事件。
+2. 插件提交方法立即返回 `{ accepted: true, jobId }`。
+3. 插件 FIFO 分批执行，并通过 progress event 推送合法进度和局部结果。
+4. completion、failure 或 cancelled event 产生唯一终态。
+5. 取消通过 manifest 声明的 `cancelMethod` 执行；宿主等待取消终态后清理临时资源。
+6. 超时按“无合法进度时长”计算，每次合法进度刷新计时。
 
-1. 宿主生成不可复用的 `jobId`，订阅贡献点声明的作业事件。
-2. 宿主调用贡献点 `method` 提交完整任务，插件立即返回 `{ accepted: true, jobId }`。
-3. 插件在内部 FIFO 队列中分片执行，通过 `progressEvent` 推送部分结果。
-4. 插件通过 `completionEvent`、`failureEvent` 或 `cancelledEvent` 结束作业。
-5. 取消时宿主调用 `cancelMethod({ jobId })`，等待插件发出取消终态后再清理临时图片。
-6. 宿主使用无进度超时；每次收到合法进度事件后刷新计时，不再使用任务总时长作为超时依据。
+`maxBatchSize` 是插件运行时能力描述，不授权宿主二次分片。job 模式必须声明流式结果和常驻事件通道。
 
-贡献点能力声明：
+### 2.3 进程代际
 
-```ts
-capabilities: {
-  batch: true,
-  batchMode: "plugin",
-  executionMode: "job",
-  streamingResults: true,
-  maxBatchSize: 4,
-  progressEvent: "ocrJobProgress",
-  completionEvent: "ocrJobCompleted",
-  failureEvent: "ocrJobFailed",
-  cancelledEvent: "ocrJobCancelled",
-  cancelMethod: "cancelOcrJob",
-  idleTimeoutMs: 300000
-}
-```
+- 每次常驻进程启动生成 `generationId`，pending map 与 stdout reader 绑定同一代际。
+- 插入、完成和超时清理只访问所属代际；前端忽略旧代际事件。
+- 强制终止后等待子进程退出，再启动同 `pluginId` 新进程。
+- Broker 转发同时校验源、目标 generation；等待 I/O 时不持有全局进程表锁。
+- 旧代际不得转发、回写或完成新代际请求。
 
-`maxBatchSize` 是插件运行时能力描述，不授权宿主再次分片。Paddle OCR 的实际值由 Rust 常量生成健康检查能力并接受 manifest 一致性测试，避免无约束的双事实来源。
+## 3. Paddle OCR 运行模型
 
-### 3.3 进程代际
+- 协调线程持续读取 stdin，可及时处理提交、取消、健康检查和关闭。
+- 单一 OCR worker 独占 `EngineHolder`，按 FIFO 执行，并在内部批次前后检查取消令牌。
+- 作业表保存 `jobId -> cancellation token`，拒绝重复 ID。
+- 协议输出与 `NativeStdoutSilencer` 共用 stdout 锁，避免原生输出抑制吞掉 JSONL。
+- 单图识别错误保留在正常完成结果；模型加载、队列和协议错误才产生失败终态。
 
-每次启动常驻进程时由主程序生成 `generationId`：
+## 4. 已合并的 review 处理结果
 
-- `ResidentProcess` 的 pending map 使用独立 `Arc`，stdout 读取任务只访问自己所属代际的 map。
-- `sidecar_send_command` 的插入、完成和超时清理都使用同一代际 map。
-- Tauri 转发事件携带 `generationId`，前端适配器忽略非当前代际事件。
-- 强制终止后等待子进程退出，再允许相同 `pluginId` 的新进程启动。
-- Broker 转发同时捕获源、目标进程 generation；转发前和回写前都校验两个 generation。目标已重启时丢弃旧响应，并向仍处于当前代际的源进程返回明确错误。目标 I/O 与等待过程不持有全局进程表锁。
+原 review 跟进已合并到本文，以下问题均已关闭：
 
-## 4. Paddle OCR 运行模型
+- 排队取消立即产生唯一终态；单作业取消超时不再重启共享 Sidecar 误伤其他作业。
+- 消除提交前 AbortSignal 竞态，所有退出路径清理计时器。
+- Paddle OCR UI 按合法进度刷新超时，不使用任务总时长超时。
+- `hard-subtitle-extractor` 使用稳定 `contributionId`；AHK Automator 使用宿主 OCR facade 和 `ServiceResult`。
+- 旧 OCR 配置与历史记录兼容展示；歧义配置显式降级为待选择。
+- manifest job capability、`hostContext` 和 Broker 双代际均有运行时校验。
+- 标准 OCR 结果保留可选行框，满足点击定位等结构化消费。
+- Native / Sidecar 开发产物统一部署到 `dev-bin/<platform>/`；manifest 不再依赖 Cargo `target/` 缓存布局。
+- 插件不可用状态保留结构化诊断，不覆盖协议、握手、产物或兼容性原始原因。
 
-Paddle OCR sidecar 拆分为协调线程和单个 OCR worker：
+“通用 Sidecar 作业客户端”不再作为本轮未完成项：当前状态机先收敛在 OCR 平台，出现第二个 job contribution 后再单独评估抽取。
 
-- 协调线程持续读取 stdin，可立即处理提交、取消、健康检查和关闭命令。
-- OCR worker 独占 `EngineHolder`，按 FIFO 顺序处理作业，并在每个内部批次前后检查取消令牌。
-- 作业注册表保存 `jobId -> cancellation token`，重复 `jobId` 被拒绝。
-- 所有协议输出与 `NativeStdoutSilencer` 共用进程级 stdout 锁，防止原生推理重定向期间吞掉 JSONL。
-- 单个图片的识别错误保留在正常完成结果中；模型加载、队列和协议错误才产生作业失败终态。
+## 5. 当前唯一剩余门禁
 
-## 5. 实施阶段
+- [ ] 使用主应用与 Paddle OCR 发布候选产物，在真实 Tauri WebView 完成选择、分批进度、局部结果、取消、无进度超时恢复、失败恢复、多窗口事件和进程重启后的首次调用。
+- [ ] 核对主应用、插件版本、API version、最低宿主版本和 manifest 当前平台产物路径。
+- [ ] 主应用与依赖 API v3 的插件安排在同一发布窗口；不得仅凭开发态成功调用宣称发布验收完成。
 
-### 阶段 A：契约与进程安全
-
-- [x] 增加 API v3 常量与宿主启动上下文。
-- [x] 对不支持的插件 API 执行硬门禁。
-- [x] Smart OCR 使用严格贡献点配置。
-- [x] pending request 与 stdout reader 按进程代际隔离。
-- [x] 补充兼容门禁、贡献点选择和重启竞态测试。
-- [x] 迁移 Smart OCR、实时字幕、窗口自动化和相关插件的旧 OCR 配置。
-
-### 阶段 B：OCR 作业协议
-
-- [x] 扩展 OCR contribution 作业能力声明。
-- [x] Smart OCR 实现提交、事件终态、取消和无进度超时。
-- [x] Paddle OCR 实现协调线程、FIFO worker 和取消令牌。
-- [x] stdout 协议写入与原生输出抑制共享锁。
-- [x] 补充宿主作业状态机和插件协议测试。
-
-### 阶段 C：验证与发布
-
-- [x] 同步插件指南、Smart OCR 架构和 Paddle OCR README。
-- [x] 运行主程序类型检查、Vite 构建、相关 Vitest 与 Tauri Rust 测试。
-- [x] 运行 Paddle OCR Rust/UI 构建和直接 JSON Lines 协议测试。
-- [x] 修复开发 manifest 直接引用 Cargo target 缓存造成的旧二进制误启动；Rust 构建现在部署到稳定 `dev-bin/<platform>/` 并校验路径一致性。
-- [ ] 完成真实 Tauri WebView 的发布验收矩阵：选择、分批进度、局部结果、取消、超时恢复和重启后的首次调用。
-
-2026-07-25 首次真实联调发现宿主调用 `submitOcrJob` 时启动了旧 API v2 二进制。根因是 `build:rust` 生成 `target/debug`，开发 manifest 却引用 `target/<target-triple>/debug`。该构建链已经统一。2026-07-27 已确认开发模式能够成功调用 API v3 插件并实际使用新的分批优化特性，主链路不再处于未打通状态；剩余事项是用主应用与插件发布候选组合补齐完整场景矩阵，并在同一发布窗口同步发布两侧。
+2026-07-25 曾因开发 manifest 指向错误的 target-triple 缓存而启动旧 API v2 二进制；构建链已统一到稳定 `dev-bin/<platform>/`。2026-07-27 已确认开发模式实际调用 API v3 并使用新的分批优化。
 
 ## 6. 非目标
 
-- 不在 API v3 中删除 API v2 插件加载能力。
-- 不猜测存在多个候选项的旧 OCR 插件配置；歧义配置必须由用户重新选择。
-- 不自动重试已经开始执行的 OCR 作业，避免重复副作用和结果混淆。
-- 本阶段不把所有 Sidecar 通信迁移到命名管道；JSON Lines 仍为传输层，但严格串行化协议输出。
+- 不删除 API v2 插件加载能力。
+- 不猜测有多个候选项的旧配置。
+- 不自动重试已经开始执行的 OCR 作业，避免重复副作用。
+- 不在本阶段把全部 Sidecar 通信迁移到命名管道；JSON Lines 仍是传输层。
+
+## 7. 完成口径
+
+联合验收矩阵通过并同步发布安排明确后，删除本文；稳定 API 契约继续由插件开发指南、宿主源码和插件自身文档维护。

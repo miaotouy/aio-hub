@@ -43,6 +43,7 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "bun scripts/build.ts",
     "tauri:build:local": "bun scripts/build.ts --local",
+    "test:build-app": "bun scripts/run-build-test.ts",
     "build:portable": "bun scripts/build-portable.ts",
     "build:portable:local": "bun scripts/build-portable.ts --local",
     "b:p": "bun scripts/build-portable.ts",

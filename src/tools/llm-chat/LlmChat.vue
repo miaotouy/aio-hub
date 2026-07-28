@@ -46,6 +46,10 @@ import { useChatInputManager } from "./composables/input/useChatInputManager";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { customMessage } from "@/utils/customMessage";
+import { ElMessageBox } from "element-plus";
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 
 const logger = createModuleLogger("LlmChat");
 const errorHandler = createModuleErrorHandler("LlmChat");
@@ -59,6 +63,14 @@ const inputManager = useChatInputManager();
 const { open: openModelSelectDialog } = useModelSelectDialog();
 const isClearingEmptySessions = ref(false);
 const isRefreshingSessionIndex = ref(false);
+const sessionRecoveryMessage = computed(() => {
+  const { status, scannedSessionCount, failedSessionCount } =
+    store.sessionRecovery;
+  if (status === "recovering") {
+    return `已扫描 ${scannedSessionCount} 个会话，发现 ${failedSessionCount} 个损坏文件。`;
+  }
+  return "会话索引损坏，正在等待恢复或手动重试。";
+});
 
 // 检测当前窗口类型
 const isInDetachedToolWindow = bus.windowType === "detached-tool";
@@ -149,7 +161,11 @@ onMounted(async () => {
       logger.info("主窗口：状态同步服务已激活");
 
       // 3. 处理初始会话
-      if (store.sessions.length === 0 && uiCurrentAgentId.value) {
+      if (
+        store.sessions.length === 0 &&
+        store.sessionRecovery.status === "ready" &&
+        uiCurrentAgentId.value
+      ) {
         handleNewSession({ agentId: uiCurrentAgentId.value });
       }
     } catch (error) {
@@ -164,11 +180,11 @@ onMounted(async () => {
     // ================== 分离窗口初始化 ==================
     logger.info("分离窗口：开始独立加载核心数据...");
     try {
-      // 1. 分离窗口独立加载所有核心数据（与主窗口相同）
+      // 会话状态由 useLlmChatStateConsumer 经 WindowSyncBus 提供；分离窗口
+      // 不得重新读取会话目录或触发任何 llm-chat 持久化路径。
       await Promise.all([
         agentStore.loadAgents(),
         userProfileStore.loadProfiles(),
-        store.loadSessions(),
         chatSettings.loadSettings(),
       ]);
 
@@ -299,6 +315,59 @@ const handleDeleteSession = (sessionId: string) => {
   store.deleteSession(sessionId);
 };
 
+const handleCancelSessionRecovery = () => {
+  store.cancelIndexRecovery();
+};
+
+async function getSessionPersistenceStorage() {
+  const { useChatStorageSeparated } =
+    await import("./composables/storage/useChatStorageSeparated");
+  return useChatStorageSeparated();
+}
+
+const handleOpenCorruptSessionsDirectory = async () => {
+  try {
+    const storage = await getSessionPersistenceStorage();
+    await revealItemInDir(await storage.getCorruptSessionsDir());
+  } catch (error) {
+    errorHandler.error(error, "打开损坏会话目录失败");
+  }
+};
+
+const handleExportCorruptionDiagnostics = async () => {
+  try {
+    const storage = await getSessionPersistenceStorage();
+    const path = await save({
+      defaultPath: "llm-chat-corruption-diagnostics.json",
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (!path) return;
+    await writeTextFile(path, await storage.exportCorruptionDiagnostics());
+    customMessage.success("会话损坏诊断信息已导出");
+  } catch (error) {
+    errorHandler.error(error, "导出会话损坏诊断信息失败");
+  }
+};
+
+const handleClearQuarantinedSessionFiles = async () => {
+  try {
+    await ElMessageBox.confirm(
+      "将删除已隔离的损坏会话文件，但保留损坏清单。此操作不可撤销，是否继续？",
+      "删除隔离文件",
+      { type: "warning", lockScroll: false }
+    );
+  } catch {
+    return;
+  }
+  try {
+    const storage = await getSessionPersistenceStorage();
+    const count = await storage.clearQuarantinedSessionFiles();
+    customMessage.success(`已删除 ${count} 个隔离文件`);
+  } catch (error) {
+    errorHandler.error(error, "删除隔离会话文件失败");
+  }
+};
+
 const handleClearEmptySessions = async (data?: {
   orderedSessionIds?: string[];
 }) => {
@@ -328,12 +397,18 @@ const handleRefreshSessionIndex = async () => {
   isRefreshingSessionIndex.value = true;
   customMessage.info("正在刷新会话列表索引...");
   try {
-    const repairedCount = await store.refreshSessionsIndex();
-    customMessage.success(
-      repairedCount > 0
-        ? `会话列表索引已刷新，修复 ${repairedCount} 项`
-        : "会话列表索引已刷新"
-    );
+    const result = await store.refreshSessionsIndex();
+    if (result.cancelled) {
+      customMessage.warning("会话索引修复已取消");
+      return;
+    }
+    const details = [
+      result.repairedCount > 0 ? `修复 ${result.repairedCount} 项` : "无需修复",
+      result.failedCount > 0 ? `隔离 ${result.failedCount} 个损坏文件` : null,
+    ]
+      .filter(Boolean)
+      .join("，");
+    customMessage.success(`会话列表索引已刷新：${details}`);
   } catch (error) {
     errorHandler.error(error, "刷新会话列表索引失败");
   } finally {
@@ -376,6 +451,58 @@ useStateSyncEngine(parametersToSync, {
 
       <!-- Actual Content -->
       <template v-else>
+        <div
+          v-if="store.sessionRecovery.status !== 'ready'"
+          class="session-recovery-banner"
+        >
+          <el-alert
+            :title="
+              store.sessionRecovery.status === 'recovering'
+                ? '正在后台恢复会话索引'
+                : '会话索引需要恢复'
+            "
+            type="warning"
+            :closable="false"
+            show-icon
+          >
+            <template #default>
+              <div class="session-recovery-content">
+                <span>{{ sessionRecoveryMessage }}</span>
+                <el-button
+                  v-if="store.sessionRecovery.status === 'recovering'"
+                  text
+                  type="warning"
+                  @click="handleCancelSessionRecovery"
+                >
+                  取消恢复
+                </el-button>
+                <el-button
+                  text
+                  type="warning"
+                  @click="handleOpenCorruptSessionsDirectory"
+                >
+                  打开目录
+                </el-button>
+                <el-button
+                  text
+                  type="warning"
+                  @click="handleExportCorruptionDiagnostics"
+                >
+                  导出诊断
+                </el-button>
+                <el-button
+                  v-if="store.sessionRecovery.failedSessionCount > 0"
+                  text
+                  type="warning"
+                  @click="handleClearQuarantinedSessionFiles"
+                >
+                  删除隔离文件
+                </el-button>
+              </div>
+            </template>
+          </el-alert>
+        </div>
+
         <!-- 左侧边栏 -->
         <div
           v-if="!isLeftSidebarCollapsed"
@@ -582,6 +709,22 @@ useStateSyncEngine(parametersToSync, {
   height: 100%;
   overflow: hidden;
   border-radius: 8px;
+}
+
+.session-recovery-banner {
+  position: absolute;
+  z-index: 20;
+  top: 12px;
+  left: 50%;
+  width: min(560px, calc(100% - 32px));
+  transform: translateX(-50%);
+}
+
+.session-recovery-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .llm-chat-container {

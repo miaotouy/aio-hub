@@ -30,6 +30,7 @@ pub mod file_operations;
 pub mod font_list;
 pub mod git_analyzer;
 pub mod git_committer;
+pub mod llm_chat_persistence;
 pub mod llm_inspector;
 pub mod llm_proxy;
 pub mod llmchat_search;
@@ -65,6 +66,7 @@ pub use file_operations::*;
 pub use font_list::*;
 pub use git_analyzer::*;
 pub use git_committer::*;
+pub use llm_chat_persistence::*;
 pub use llm_inspector::*;
 pub use llm_proxy::*;
 pub use llmchat_search::*;
@@ -165,6 +167,9 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         get_installed_bundles,
         prepare_and_detect_package,
         clean_temp_dir,
+        // LLM Chat 会话原子持久化
+        llm_chat_atomic_write,
+        llm_chat_delete_session,
         // LLM检查器命令
         start_llm_inspector,
         stop_llm_inspector,

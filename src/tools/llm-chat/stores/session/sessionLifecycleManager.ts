@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import type { Ref } from "vue";
+import type { RecoveryState } from "../../types/persistence";
 import type { ChatMessageNode } from "../../types/message";
 import type { ChatSessionDetail, ChatSessionIndex } from "../../types/session";
 import type {
@@ -37,6 +38,7 @@ export interface LifecycleState {
   sessionDetailMap: Ref<Map<string, ChatSessionDetail>>;
   currentSessionId: Ref<string | null>;
   favoriteFolders: Ref<FavoriteFolder[]>;
+  sessionRecovery: Ref<RecoveryState>;
 }
 
 export interface LifecycleManagers {
@@ -69,6 +71,61 @@ export function createSessionLifecycleManager(
     const { useChatInputManager } =
       await import("../../composables/input/useChatInputManager");
     return useChatInputManager();
+  }
+
+  let recoveryAbortController: AbortController | null = null;
+
+  function cancelIndexRecovery(): void {
+    recoveryAbortController?.abort();
+  }
+
+  function startBackgroundIndexRecovery(
+    storage: Awaited<ReturnType<typeof getStorage>>
+  ): void {
+    if (
+      recoveryAbortController ||
+      state.sessionRecovery.value.status !== "corrupt"
+    ) {
+      return;
+    }
+    const abortController = new AbortController();
+    recoveryAbortController = abortController;
+    state.sessionRecovery.value = {
+      ...state.sessionRecovery.value,
+      status: "recovering",
+    };
+    void storage
+      .repairIndex({
+        signal: abortController.signal,
+        concurrency: 4,
+        onProgress: (progress) => {
+          state.sessionRecovery.value = progress;
+        },
+        onBatch: (batch) => {
+          for (const item of batch) {
+            state.sessionIndexMap.value.set(item.id, item);
+          }
+        },
+      })
+      .then(async (result) => {
+        if (result.cancelled) {
+          state.sessionRecovery.value = storage.getRecoveryState();
+          return;
+        }
+        const latest = await storage.loadSessionsIndex();
+        state.favoriteFolders.value = latest.favoriteFolders;
+        state.currentSessionId.value = latest.currentSessionId;
+      })
+      .catch((error) => {
+        logger.error("后台恢复会话索引失败", error);
+        state.sessionRecovery.value = {
+          ...state.sessionRecovery.value,
+          status: "corrupt",
+        };
+      })
+      .finally(() => {
+        recoveryAbortController = null;
+      });
   }
 
   function normalizeLoadedDetail(
@@ -389,41 +446,81 @@ export function createSessionLifecycleManager(
     );
   }
 
-  async function refreshSessionsIndex(): Promise<number> {
+  async function refreshSessionsIndex(): Promise<{
+    repairedCount: number;
+    failedCount: number;
+    cancelled: boolean;
+  }> {
     return managers.executeOrProxy("refresh-sessions-index", {}, async () => {
+      if (recoveryAbortController) {
+        throw new Error("会话索引恢复正在进行中");
+      }
       const storage = await getStorage();
       const sessionManager = getSessionManager();
+      const abortController = new AbortController();
+      recoveryAbortController = abortController;
+      state.sessionRecovery.value = {
+        status: "recovering",
+        failedSessionCount: 0,
+        scannedSessionCount: 0,
+      };
 
-      const { repairedCount } = await storage.repairIndex();
-      const {
-        sessions: refreshedSessions,
-        favoriteFolders: refreshedFavoriteFolders,
-      } = await sessionManager.loadSessionsIndex();
+      try {
+        const result = await storage.repairIndex({
+          signal: abortController.signal,
+          concurrency: 4,
+          onProgress: (progress) => {
+            state.sessionRecovery.value = progress;
+          },
+          onBatch: (batch) => {
+            for (const item of batch) {
+              state.sessionIndexMap.value.set(item.id, item);
+            }
+          },
+        });
+        state.sessionRecovery.value = storage.getRecoveryState();
+        if (result.cancelled) return result;
 
-      const nextMap = new Map<string, ChatSessionIndex>();
-      refreshedSessions.forEach((session) => {
-        nextMap.set(session.id, session);
-      });
-      state.sessionIndexMap.value = nextMap;
-      state.favoriteFolders.value = refreshedFavoriteFolders;
+        const {
+          sessions: refreshedSessions,
+          favoriteFolders: refreshedFavoriteFolders,
+        } = await sessionManager.loadSessionsIndex();
 
-      if (
-        state.currentSessionId.value &&
-        !nextMap.has(state.currentSessionId.value)
-      ) {
-        state.currentSessionId.value =
-          [...nextMap.values()].sort(
-            (a, b) =>
-              new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-          )[0]?.id || null;
+        const nextMap = new Map<string, ChatSessionIndex>();
+        refreshedSessions.forEach((session) => {
+          nextMap.set(session.id, session);
+        });
+        state.sessionIndexMap.value = nextMap;
+        state.favoriteFolders.value = refreshedFavoriteFolders;
+        if (
+          !state.currentSessionId.value ||
+          !nextMap.has(state.currentSessionId.value)
+        ) {
+          state.currentSessionId.value =
+            [...nextMap.values()].sort(
+              (a, b) =>
+                new Date(b.updatedAt).getTime() -
+                new Date(a.updatedAt).getTime()
+            )[0]?.id || null;
+        }
+
+        logger.info("会话列表索引已刷新", {
+          sessionCount: refreshedSessions.length,
+          repairedCount: result.repairedCount,
+          failedCount: result.failedCount,
+        });
+        return result;
+      } catch (error) {
+        state.sessionRecovery.value = {
+          ...state.sessionRecovery.value,
+          status: "corrupt",
+        };
+        throw error;
+      } finally {
+        if (recoveryAbortController === abortController) {
+          recoveryAbortController = null;
+        }
       }
-
-      logger.info("会话列表索引已刷新", {
-        sessionCount: refreshedSessions.length,
-        repairedCount,
-      });
-
-      return repairedCount;
     });
   }
 
@@ -508,6 +605,7 @@ export function createSessionLifecycleManager(
       sessions: indexItems,
       currentSessionId: loadedId,
       favoriteFolders: loadedFavoriteFolders,
+      recoveryState,
     } = await sessionManager.loadSessionsIndex();
 
     state.sessionIndexMap.value.clear();
@@ -517,6 +615,7 @@ export function createSessionLifecycleManager(
 
     state.currentSessionId.value = loadedId;
     state.favoriteFolders.value = loadedFavoriteFolders;
+    state.sessionRecovery.value = recoveryState;
 
     if (loadedId) {
       const fullSession = await storage.loadSession(loadedId);
@@ -544,26 +643,23 @@ export function createSessionLifecycleManager(
 
     await managers.fillMissingTokenMetadata();
 
-    setTimeout(async () => {
-      try {
-        const { repairedCount } = await storage.repairIndex();
-        if (repairedCount > 0) {
-          const { sessions: updatedIndexItems } =
-            await sessionManager.loadSessionsIndex();
-          updatedIndexItems.forEach((updated) => {
-            const existing = state.sessionIndexMap.value.get(updated.id);
-            if (existing) {
-              state.sessionIndexMap.value.set(updated.id, {
-                ...existing,
-                ...updated,
-              });
-            }
-          });
-        }
-      } catch (e) {
-        logger.warn("索引自愈执行失败", e);
-      }
-    }, 3000);
+    if (recoveryState.status === "corrupt") {
+      startBackgroundIndexRecovery(storage);
+      return;
+    }
+
+    // Normal startup only compares directory names with the index. It does not
+    // parse every session file or block first paint.
+    void storage
+      .reconcileIndexIncrementally({
+        concurrency: 4,
+        onNewSessions: (sessions) => {
+          for (const session of sessions) {
+            state.sessionIndexMap.value.set(session.id, session);
+          }
+        },
+      })
+      .catch((error) => logger.warn("增量核对会话索引失败", error));
   }
 
   async function switchSession(sessionId: string): Promise<void> {
@@ -858,20 +954,34 @@ export function createSessionLifecycleManager(
   }
 
   async function clearAllSessions(): Promise<void> {
-    const inputManager = await getInputManager();
-    for (const sessionId of state.sessionIndexMap.value.keys()) {
-      cleanupSessionMemory(sessionId);
-    }
+    return managers.executeOrProxy("clear-all-sessions", {}, async () => {
+      const storage = await getStorage();
+      const inputManager = await getInputManager();
+      const sessionIds = [
+        ...new Set([
+          ...state.sessionIndexMap.value.keys(),
+          ...(await storage.listSessionIds()),
+        ]),
+      ];
 
-    state.sessionIndexMap.value.clear();
-    state.sessionDetailMap.value.clear();
-    state.currentSessionId.value = null;
-    inputManager.clearAllDrafts();
-    persistSessions();
-    await clearRetrievalCache();
-    const sessionManager = getSessionManager();
-    sessionManager.clearAllSessions();
-    logger.info("清空所有会话");
+      // Tombstone and move every session before publishing an empty index. This
+      // closes the write path first, so late streaming saves cannot resurrect a
+      // file after the clear operation.
+      await storage.deleteSessionFiles(sessionIds);
+
+      for (const sessionId of sessionIds) {
+        cleanupSessionMemory(sessionId);
+      }
+      state.sessionIndexMap.value.clear();
+      state.sessionDetailMap.value.clear();
+      state.currentSessionId.value = null;
+      inputManager.clearAllDrafts();
+      await storage.saveSessions([], null, state.favoriteFolders.value);
+      await clearRetrievalCache();
+      const sessionManager = getSessionManager();
+      sessionManager.clearAllSessions();
+      logger.info("清空所有会话", { count: sessionIds.length });
+    });
   }
 
   return {
@@ -881,6 +991,7 @@ export function createSessionLifecycleManager(
     importSessions,
     clearEmptySessions,
     refreshSessionsIndex,
+    cancelIndexRecovery,
     updateSession,
     loadSessions,
     switchSession,

@@ -81,19 +81,19 @@ Git Analyzer 是一个高性能的 Git 仓库分析工具，其核心能力由 R
 
 ### 2.3. 后端命令
 
-| 命令                          | 实现方式  | 说明                                    |
-| ----------------------------- | --------- | --------------------------------------- |
-| `git_load_repository_stream`  | git2-rs   | 流式全量加载，支持 `include_files` 参数 |
-| `git_load_incremental_stream` | git2-rs   | 流式增量加载，支持 skip/limit           |
-| `git_get_branches`            | git2-rs   | 获取分支列表                            |
-| `git_get_branch_commits`      | git2-rs   | 获取指定分支的提交                      |
-| `git_get_commit_detail`       | git2-rs   | 获取单个提交详情（含文件变更）          |
-| `git_load_commits_with_files` | git2-rs   | 批量加载带文件变更信息的提交            |
-| `git_cancel_load`             | -         | 通过 CancellationToken 终止流式加载     |
-| `git_update_commit_message`   | git (CLI) | 修改最近一次提交消息（amend）           |
-| `git_cherry_pick`             | git (CLI) | Cherry-pick 操作                        |
-| `git_revert`                  | git (CLI) | Revert 操作                             |
-| `git_format_log`              | git (CLI) | 自定义格式化日志输出                    |
+| 命令                          | 实现方式  | 说明                                              |
+| ----------------------------- | --------- | ------------------------------------------------- |
+| `git_load_repository_stream`  | git2-rs   | 按所选分支流式全量加载，支持 `include_files` 参数 |
+| `git_load_incremental_stream` | git2-rs   | 流式增量加载，支持 skip/limit                     |
+| `git_get_branches`            | git2-rs   | 获取分支列表                                      |
+| `git_get_branch_commits`      | git2-rs   | 获取指定分支的提交                                |
+| `git_get_commit_detail`       | git2-rs   | 获取单个提交详情（含文件变更）                    |
+| `git_load_commits_with_files` | git2-rs   | 批量加载带文件变更信息的提交                      |
+| `git_cancel_load`             | -         | 通过 CancellationToken 终止流式加载               |
+| `git_update_commit_message`   | git (CLI) | 修改最近一次提交消息（amend）                     |
+| `git_cherry_pick`             | git (CLI) | Cherry-pick 操作                                  |
+| `git_revert`                  | git (CLI) | Revert 操作                                       |
+| `git_format_log`              | git (CLI) | 自定义格式化日志输出                              |
 
 ## 3. 数据流
 

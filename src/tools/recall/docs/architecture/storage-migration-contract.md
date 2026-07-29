@@ -43,6 +43,30 @@
 - 多集合包中的每个集合是独立原子单元；单个集合失败不回滚其他成功集合，但最终报告必须列出成功、跳过、失败和取消状态。
 - 旧 `.aio-kb` 默认恢复到 Recall。只有用户明确确认旧内容应作为传统文档资料时，才转换到 Knowledge；转换不携带标签、priority、enabled、条目关联或附件语义，失败时回滚本次新建资料库。
 
+### 真实旧备份手工回归
+
+`src-tauri/src/recall/commands/backup.rs` 中的
+`manual_verifies_external_legacy_backup_files` 是旧备份兼容性的手工回归入口，补充合成夹具无法覆盖的真实历史导出差异。该测试同时验证：
+
+- 旧单库 `aiohub.knowledge-library@1` 可解析，并返回 `legacyRecallBackup` 告警；
+- 旧多库 `aiohub.knowledge-library-backup-collection@1` 可列举并解析集合；
+- 单库和多库集合均可转换为新版 Knowledge 文档。
+
+测试依赖仓库外的历史导出文件，可能包含私有用户数据，必须保持 `#[ignore]`，不得把真实文件、文件内容或固定本机路径提交到仓库，也不得加入默认 CI。输入文件只读，转换结果写入测试临时目录。
+
+在 PowerShell 中按需运行：
+
+```powershell
+$env:AIO_RECALL_LEGACY_SINGLE_BACKUP = '<旧单库 .aio-kb 的绝对路径>'
+$env:AIO_RECALL_LEGACY_MULTI_BACKUP = '<旧多库 ZIP 的绝对路径>'
+
+cargo test --manifest-path src-tauri/Cargo.toml `
+  recall::commands::backup::tests::manual_verifies_external_legacy_backup_files `
+  -- --ignored --exact --nocapture
+```
+
+执行前应确认单库和多库文件来自旧版应用的真实导出，而不是由当前测试辅助函数重新生成。若本机不再保留可授权使用的历史文件，应跳过该手工回归，不得用真实用户原始 appData 替代。只有在产品明确停止支持上述两种旧备份格式时，才可将本测试与对应只读解析、告警和 Knowledge 转换分支一并删除。
+
 ## 旧目录确认式迁移
 
 - 迁移源为旧 `appData/knowledge/bases`、`vectors` 和 `tag_pool`；正式备份包通过备份恢复入口处理，不与旧目录扫描混为同一职责。启动阶段只读检测，不自动导入用户数据。

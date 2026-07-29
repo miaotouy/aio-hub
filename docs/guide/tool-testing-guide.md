@@ -247,9 +247,17 @@ describe("MyTool 单元测试", () => {
 # 运行指定工具的测试
 bun run test src/tools/{your-tool-id}
 
-# 运行全量测试，确保没有破坏其他模块
+# 运行桌面前端测试；不包含 mobile、Tauri E2E 和 workspace package
 bun run test:run
+
+# 运行共享 llm-core package 测试
+bun run test:llm-core
+
+# 运行桌面、移动端与 llm-core 的常规完整测试集合
+bun run test:all
 ```
+
+根 Vitest 配置不收集 `packages/**`。workspace package 应使用各自的测试脚本和运行环境，避免 `test:all` 重复执行，也避免根项目的 jsdom 与 setup mock 意外改变 package 测试语义。真实 Tauri E2E 仍按第 8 节单独运行，不包含在 `test:all` 中。
 
 ### 7.1. 构建版行为差异检查
 

@@ -2184,9 +2184,12 @@ mod tests {
         assert_eq!(parsed.format, LEGACY_BACKUP_FORMAT);
     }
 
+    // Manual regression against real exports produced before the Recall/Knowledge split.
+    // The files stay outside the repository because they may contain private user data.
+    // Run instructions: src/tools/recall/docs/architecture/storage-migration-contract.md
     #[test]
-    #[ignore = "requires AIO_RECALL_LEGACY_SINGLE_BACKUP and AIO_RECALL_LEGACY_MULTI_BACKUP"]
-    fn verifies_external_legacy_backup_files() {
+    #[ignore = "manual real-backup regression requiring AIO_RECALL_LEGACY_SINGLE_BACKUP and AIO_RECALL_LEGACY_MULTI_BACKUP"]
+    fn manual_verifies_external_legacy_backup_files() {
         let single = PathBuf::from(
             std::env::var_os("AIO_RECALL_LEGACY_SINGLE_BACKUP")
                 .expect("AIO_RECALL_LEGACY_SINGLE_BACKUP must be set"),

@@ -2,7 +2,19 @@
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("../components/UpgradeCompleteStep.vue", () => ({
+  default: {},
+}));
+vi.mock("../components/UpgradeSummaryStep.vue", () => ({
+  default: {},
+}));
+vi.mock("../appLifecycleService", () => ({
+  appLifecycleService: {
+    acknowledgeReleaseNotes: vi.fn(),
+  },
+}));
 import type { Component } from "vue";
 import type { UpgradeContributionDefinition } from "../types";
 import { composeUpgradeFlowDefinition } from "../upgradeFlowComposer";

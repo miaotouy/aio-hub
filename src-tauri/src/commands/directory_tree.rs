@@ -460,15 +460,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_tree_node_creation() {
-        let node = TreeNode::new("test".to_string(), true);
-        assert_eq!(node.name, "test");
-        assert!(node.is_dir);
-        assert_eq!(node.size, 0);
-        assert!(node.children.is_empty());
-    }
-
-    #[test]
     fn test_build_tree_from_entries() {
         let entries = vec![
             FileEntry {

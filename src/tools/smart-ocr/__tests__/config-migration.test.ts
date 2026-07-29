@@ -12,8 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { pluginManager } from "@/services/plugin-manager";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  getActivePlugin: vi.fn(),
+  getPlugin: vi.fn(),
+}));
+
+vi.mock("@/services/plugin-manager", () => ({
+  pluginManager: {
+    getActivePlugin: mocks.getActivePlugin,
+    getPlugin: mocks.getPlugin,
+  },
+}));
 import type { PluginProxy } from "@/services/plugin-types";
 import {
   migratePluginOcrEngineConfig,
@@ -21,10 +32,15 @@ import {
 } from "../platform/config-migration";
 
 function mockPlugin(contributions: PluginProxy["manifest"]["contributions"]) {
-  vi.spyOn(pluginManager, "getActivePlugin").mockReturnValue({
+  mocks.getActivePlugin.mockReturnValue({
     manifest: { contributions },
   } as PluginProxy);
 }
+
+beforeEach(() => {
+  mocks.getActivePlugin.mockReset();
+  mocks.getPlugin.mockReset();
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -65,7 +81,7 @@ describe("OCR plugin config migration", () => {
       "second"
     );
 
-    vi.restoreAllMocks();
+    mocks.getActivePlugin.mockReset();
     mockPlugin([{ type: "ocr-engine", id: "only", method: "newMethod" }]);
     expect(resolveLegacyOcrContributionId("custom-ocr", "oldMethod")).toBe(
       "only"

@@ -312,6 +312,7 @@ export default mergeConfig(
         "src-tauri/**",
         "dist/**",
         "mobile/**",
+        "packages/**", // workspace packages use their own test scripts and environments
         "**/.claude/**",
         "**/.kilo/**",
         "**/.kilocode/**",

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ref } from "vue";
 import { useMarkdownAst } from "../useMarkdownAst";
 import type { AstNode } from "../../types";
 
@@ -82,5 +83,32 @@ describe("useMarkdownAst", () => {
 
     expect(markdownAst.ast.value).toEqual([paragraph("p1", [text("b", "B!")])]);
     expect(markdownAst.nodeMap.get("b")?.path).toEqual([0, 0]);
+  });
+
+  it("uses the latest throttle setting instead of an initialization snapshot", () => {
+    const animationFrames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      animationFrames.push(cb);
+      return animationFrames.length;
+    });
+
+    const throttleEnabled = ref(true);
+    const markdownAst = useMarkdownAst({
+      throttleEnabled,
+      throttleMs: 10_000,
+    });
+
+    markdownAst.enqueuePatch({
+      op: "replace-root",
+      newRoot: [text("dynamic", "updated")],
+    });
+
+    expect(markdownAst.ast.value).toEqual([]);
+    expect(animationFrames).toHaveLength(1);
+
+    throttleEnabled.value = false;
+    animationFrames.shift()?.(performance.now());
+
+    expect(markdownAst.ast.value).toEqual([text("dynamic", "updated")]);
   });
 });

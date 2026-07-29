@@ -45,6 +45,11 @@ import {
 } from "../../utils/chatRegexUtils";
 import { createMacroContext } from "../../macro-engine/MacroContext";
 import type { ChatRegexRule } from "../../types/chatRegex";
+import type {
+  LlmThinkRule,
+  RichTextRendererStyleOptions,
+} from "@/tools/rich-text-renderer/types";
+import { buildRichTextRendererSettings } from "../../utils/richTextRendererSettings";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 
 interface Props {
@@ -52,6 +57,8 @@ interface Props {
   sessionDetail: ChatSessionDetail | null;
   message: ChatMessageNode;
   messageDepth?: number;
+  llmThinkRules?: LlmThinkRule[];
+  richTextStyleOptions?: RichTextRendererStyleOptions;
   /** 是否处于截图模式：隐藏编辑/删除按钮、禁用角色切换下拉 */
   screenshotMode?: boolean;
 }
@@ -70,6 +77,9 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<Emits>();
 
 const { settings } = useChatSettings();
+const rendererSettingsProps = computed(() =>
+  buildRichTextRendererSettings(settings.value.uiPreferences)
+);
 const agentStore = useAgentStore();
 const userProfileStore = useUserProfileStore();
 
@@ -385,14 +395,11 @@ defineExpose({
         />
         <template v-else>
           <RichTextRenderer
+            v-bind="rendererSettingsProps"
             :content="message.content"
             :regex-rules="processedRules"
-            :version="settings.uiPreferences.rendererVersion"
-            :default-render-html="settings.uiPreferences.defaultRenderHtml"
-            :throttle-ms="settings.uiPreferences.rendererThrottleMs"
-            :enable-enter-animation="
-              settings.uiPreferences.enableEnterAnimation
-            "
+            :llm-think-rules="llmThinkRules"
+            :style-options="richTextStyleOptions"
           />
         </template>
       </div>

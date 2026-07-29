@@ -45,7 +45,7 @@
       <RichTextRenderer
         v-if="format === 'markdown' && viewMode === 'preview'"
         :content="content"
-        :version="RendererVersion.V2_CUSTOM_PARSER"
+        v-bind="rendererSettingsProps"
         :resolve-asset="resolveAsset"
         class="markdown-preview"
       />
@@ -68,7 +68,8 @@ import { useClipboard } from "@vueuse/core";
 import { customMessage } from "@/utils/customMessage";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
-import { RendererVersion } from "@/tools/rich-text-renderer/types";
+import { useChatSettings } from "../../composables/settings/useChatSettings";
+import { buildRichTextRendererSettings } from "../../utils/richTextRendererSettings";
 
 interface Props {
   content: string;
@@ -77,6 +78,10 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+const { settings } = useChatSettings();
+const rendererSettingsProps = computed(() =>
+  buildRichTextRendererSettings(settings.value.uiPreferences)
+);
 
 const viewMode = ref<"preview" | "source">("source");
 const { copy } = useClipboard();

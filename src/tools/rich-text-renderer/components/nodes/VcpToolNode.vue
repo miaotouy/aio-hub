@@ -147,7 +147,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, inject, watch } from "vue";
+import { ref, computed, inject, watch } from "vue";
 import { useThrottleFn } from "@vueuse/core";
 import {
   Settings,
@@ -299,17 +299,23 @@ watch(
   }
 );
 
-onMounted(() => {
+const defaultCollapsed = computed(() => {
   // 优先级：如果是结果块则默认折叠 > Props 传入 > 上下文全局设置 > 默认不折叠(false)
-  if (props.isResult) {
-    isCollapsed.value = true;
-  } else {
-    isCollapsed.value =
-      props.collapsedByDefault ??
-      context?.defaultToolCallCollapsed?.value ??
-      false;
-  }
+  if (props.isResult) return true;
+  return (
+    props.collapsedByDefault ??
+    context?.defaultToolCallCollapsed?.value ??
+    false
+  );
 });
+
+watch(
+  defaultCollapsed,
+  (collapsed) => {
+    isCollapsed.value = collapsed;
+  },
+  { immediate: true }
+);
 
 const copyContent = async () => {
   try {

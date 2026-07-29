@@ -249,10 +249,10 @@ const {
   emergencyShutdown,
   dispose: disposeMarkdownAst,
 } = useMarkdownAst({
-  throttleMs: props.throttleMs,
-  throttleEnabled: props.throttleEnabled,
-  verboseLogging: props.verboseLogging,
-  safetyGuardEnabled: props.safetyGuardEnabled,
+  throttleMs: () => props.throttleMs,
+  throttleEnabled: () => props.throttleEnabled,
+  verboseLogging: () => props.verboseLogging,
+  safetyGuardEnabled: () => props.safetyGuardEnabled,
 });
 
 // 图片列表状态
@@ -524,10 +524,16 @@ watch(
 );
 
 /**
- * 监听版本或规则变化
+ * 监听会影响 AST 结构或处理器行为的配置变化
  */
 watch(
-  () => [props.version, props.llmThinkRules] as const,
+  () =>
+    [
+      props.version,
+      props.llmThinkRules,
+      props.defaultToolCallCollapsed,
+      props.safetyGuardEnabled,
+    ] as const,
   ([newVersion]) => {
     // 流式模式或无静态内容时，交给流式逻辑处理
     if (!props.content || props.streamSource) {
@@ -538,24 +544,26 @@ watch(
       return;
     }
 
-    // 静态内容 + 版本切换
-    buffer.value = props.content;
+    // 静态内容 + 处理器配置切换：继续使用统一预处理后的内容，
+    // 避免配置变更后丢失正则、换行规范化或裸 HTML 包裹结果。
+    const content = processedContent.value;
+    buffer.value = content;
 
     if (useAstRenderer.value) {
       // AST 模式
       const processor = createProcessor(newVersion);
       streamProcessor.value = processor;
       if (typeof processor.setStaticContent === "function") {
-        processor.setStaticContent(props.content);
+        processor.setStaticContent(content);
       } else {
-        processor.setContent(props.content).then(() => {
+        processor.setContent(content).then(() => {
           processor.finalize();
         });
       }
     } else {
       // 纯渲染模式
       streamProcessor.value = null;
-      htmlContent.value = md.render(props.content);
+      htmlContent.value = md.render(content);
     }
   },
   { deep: true }

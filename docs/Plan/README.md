@@ -2,7 +2,7 @@
 
 > 状态：现行桌面端计划入口
 >
-> 最近盘点：2026-07-28
+> 最近盘点：2026-07-29
 >
 > 范围：根目录跨模块计划与 `src/tools/*/docs/Plan/`；移动端和独立插件仅在构成桌面任务依赖时列入
 
@@ -10,7 +10,7 @@
 
 - 本文只维护跨模块优先级、依赖和权威入口；详细验收以对应模块计划为准。
 - `docs/Plan/` 只保留待实施、待收口、候选或仍有长期决策价值的文档。
-- 施工完成后，将稳定契约写入架构、指南或源码附近文档；没有剩余待办的施工记录直接删除，历史由 Git 保留。
+- 施工完成后，将稳定契约写入架构、指南或源码附近文档；没有剩余待办的施工记录不再进入当前执行顺序，可直接删除并由 Git 保留历史，或在仍有复盘价值时明确标记“已完成”并只作为完成记录保留。
 - Review 文档不长期并列：未解决问题合并回主计划，已解决问题只保留必要结论。
 - 新的跨模块计划放在本目录；单工具计划放在 `src/tools/{toolId}/docs/Plan/`。
 - 没有活动计划的工具保持现状，不因盘点自动产生重构任务。
@@ -34,9 +34,10 @@
 - [ ] **D-P0-01 Knowledge 最终门禁**：完成真实 Tauri 下的 Agent 主动查询、显式引用、文件/目录摄取、重建恢复、研究成功/取消回归，并关闭 `P5-T06` 与 `P5-GATE`。详见 [Knowledge 施工清单](../../src/tools/knowledge-base/docs/Plan/knowledge-base-implementation-checklist.md)。
 - [ ] **D-P0-02 Recall 发布迁移门禁**：在干净工作区完成全量工程检查、具名迁移 E2E、真实 Recall/Agent/Knowledge 合并报告和发布二进制 smoke test。详见 [Recall 检索管线计划](../../src/tools/recall/docs/Plan/recall-retrieval-pipeline-modularization-plan.md)。
 - [ ] **D-P0-03 Agent / User Profile 迁移收口**：两项解耦已随 `v0.6.6-r.1` 发布；补 Agent 部分迁移恢复、递归校验、重复启动与真实升级证据，以及 User Profile 多档案迁移恢复、幂等和首载设置一致性测试。详见 [LLM Chat 计划索引](../../src/tools/llm-chat/docs/Plan/README.md)。
-- [ ] **D-P0-04 Agent 目录搜索资源保护**：实施组合资源预算、按请求取消、超时传播、总并发和 `searchId` 隔离。详见 [目录搜索资源占用调查与加固计划](../../src/tools/dir-search/docs/Plan/agent-search-resource-safety-investigation.md)。
+- [ ] **D-P0-04 Agent 目录搜索专项收口**：主仓资源预算、按请求取消、超时传播、总并发与 `searchId` 隔离已经实施，并已通过 LLM/VCP 普通搜索和 2 GiB 宽范围资源止损的真实 dev/Tauri 验收；补并发 `busy`、服务端取消、节点断线 abort、替换截断零写入、CPU/线程/UI 响应基准及 VCPToolBox 上游集成。详见 [目录搜索资源占用调查与加固计划](../../src/tools/dir-search/docs/Plan/agent-search-resource-safety-investigation.md)。
 - [ ] **D-P0-05 Guided Flow 迁移发布门禁**：补进程中断恢复、部分主数据失败重试、可溯源旧正式版本 fixture 和发布候选安装包 smoke test。详见 [Guided Flow 收口计划](./guided-flow-plan.md#114-旧数据迁移自动化验收)。
 - [ ] **D-P0-06 0.7 Alpha 1 发布体验收口**：打磨新功能 UI，完成升级说明信息架构与正式文案，并用发布候选主应用和插件完成 Sidecar API v3 联合验收后同步发布。详见 [发布收口记录](./v0.7.0-alpha.1-release-readiness-and-experience-plan.md)与 [Sidecar API v3 收口计划](./sidecar-plugin-api-v3-migration.md)。
+- [ ] **D-P0-07 LLM Chat 会话持久化专项验收**：Phase 0 至 Phase 2 的单写者协调、Rust 原子替换、备份恢复、坏文件隔离和非阻塞重建已经实施；补真实进程中止、Windows 文件占用和多 WebView 竞争验收。详见 [会话持久化损坏与启动阻塞调查](../../src/tools/llm-chat/docs/Plan/session-persistence-corruption-investigation.md)。
 
 ### P1：共享基础设施
 
@@ -55,11 +56,13 @@
 - [ ] **D-P2-06 AI 小说工作台垂直切片**：在 Knowledge/Recall 门禁稳定后，验证项目、正文、事实状态、证据追踪和可回退修改的最小闭环。详见 [AI 小说模块调查](./ai-novel-studio-investigation.md)。
 - [ ] **D-P2-07 MiniMax Music 工作流验收**：补 provider/模型能力测试、两步翻唱 workflow 单测和真实音频入库验收。详见 [Media Generator 计划索引](../../src/tools/media-generator/docs/Plan/README.md)。
 - [ ] **D-P2-08 前端构建边界收口**：先验证移除粗粒度 `manualChunks` 的自动分包基线，再按真实 Tauri 数据决定低风险 registry 懒加载；不要继续提高 chunk 警告阈值。详见 [前端 Chunk 治理计划](./frontend-chunk-size-investigation.md)。
+- [ ] **D-P2-09 Embedding Playground 交互与结果验收**：多模型竞技场、阈值校准和重构主体已经实施；补极简 A/B、多模型结果一致性、错误态和核心交互的真实验收。详见 [Embedding 测试场重构计划](../../src/tools/embedding-playground/docs/Plan/refactoring-plan.md)。
 
 ### P3：平台验证与观察项
 
 - [ ] **D-P3-01 壁纸探测跨平台真机验证**：在 macOS、GNOME、KDE 核对系统 API、权限拒绝、路径解析和定位行为。详见 [壁纸探测器计划](../../src/tools/wallpaper-detector/docs/Plan/wallpaper-detector-plan.md)。
 - [ ] **D-P3-02 Provider 共享运行态观测**：记录真实 Tauri WebView 性能；Android/iOS 真机验收属于移动端队列，不阻塞桌面已完成代码。详见 [Provider Adapter 收口记录](./llm-provider-adapter-sharing-investigation.md)。
+- [ ] **D-P3-03 Transcription OCR 行为验收**：图片 VLM/OCR 配置、设置联动和引擎分流已经实施；补 OCR/VLM 行为、错误回退和真实运行验证。详见 [引入本地 OCR 引擎计划](../../src/tools/transcription/docs/Plan/introduce-ocr-engine.md)。
 
 ## 3. 关键依赖
 
@@ -90,12 +93,15 @@
 | `agent-manager`、`user-profile-manager` | 待收口 | [LLM Chat 计划索引](../../src/tools/llm-chat/docs/Plan/README.md)，执行 D-P0-03                                        |
 | `knowledge-base`、`retrieval`           | 待收口 | [Knowledge 计划索引](../../src/tools/knowledge-base/docs/Plan/README.md)，执行 D-P0-01                                 |
 | `recall`                                | 待收口 | [Recall 检索管线计划](../../src/tools/recall/docs/Plan/recall-retrieval-pipeline-modularization-plan.md)，执行 D-P0-02 |
-| `llm-chat`                              | 活动   | [LLM Chat 计划索引](../../src/tools/llm-chat/docs/Plan/README.md)，按 D-P1-03、D-P1-04、D-P2-04 排序                   |
-| `dir-search`                            | 待实施 | 执行 D-P0-04                                                                                                           |
-| `translator`、`token-calculator`        | 待实施 | 执行 D-P2-01、D-P2-03                                                                                                  |
+| `llm-chat`                              | 活动   | [LLM Chat 计划索引](../../src/tools/llm-chat/docs/Plan/README.md)，按 D-P0-07、D-P1-03、D-P1-04、D-P2-04 排序          |
+| `dir-search`                            | 待收口 | LLM/VCP 普通调用与宽范围资源止损已验收，执行 D-P0-04 的专项安全、资源基准和上游集成                                    |
+| `translator`                            | 待实施 | 执行 D-P2-01                                                                                                           |
+| `token-calculator`                      | 待实施 | 桌面核心 Phase 0–4.5、6 已完成，仅执行 D-P2-03 的 Phase 5 远端下载                                                     |
 | `rich-text-renderer`、`web-distillery`  | 按需   | 先复核基线或现代码差异                                                                                                 |
 | `media-generator`                       | 待收口 | [计划索引](../../src/tools/media-generator/docs/Plan/README.md)，执行 D-P2-07                                          |
 | `wallpaper-detector`                    | 待收口 | 执行 D-P3-01                                                                                                           |
+| `embedding-playground`                  | 待收口 | 主体代码已实施，执行 D-P2-09 的核心交互与结果验收                                                                      |
+| `transcription`                         | 待收口 | OCR 配置、UI 和引擎分流已实施，执行 D-P3-03                                                                            |
 
 ## 6. 回写顺序
 

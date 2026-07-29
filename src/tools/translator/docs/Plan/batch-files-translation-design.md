@@ -1,5 +1,9 @@
 # 翻译工作台（Translator）批量本地文件翻译架构设计方案
 
+> 状态：待实施；当前完成调研、架构修正与分阶段设计，Phase 1 可靠纯文本批量尚未开工
+>
+> 最近复核：2026-07-29
+
 > 调研结论：本方案的方向是正确的，但不能只把批量翻译理解为“多个纯文本文件依次调用长文本翻译”。优秀的批量翻译工具通常同时解决队列调度、格式保留、术语一致性、任务恢复、导出安全和质量检查。本文档在原始方案基础上补充外部参考、架构修正和分阶段落地路线。
 
 ## 1. 背景与挑战
@@ -126,9 +130,7 @@ export interface BatchJob {
 }
 
 export type BatchOutputMode =
-  | "translation_only"
-  | "bilingual_paragraph"
-  | "preserve_structure";
+  "translation_only" | "bilingual_paragraph" | "preserve_structure";
 
 export interface BatchConfig {
   maxConcurrentFiles: number; // 默认 2

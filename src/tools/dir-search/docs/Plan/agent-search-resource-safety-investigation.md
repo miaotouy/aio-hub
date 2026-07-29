@@ -1,8 +1,10 @@
 # 目录搜索 Agent 宽范围扫描资源占用调查与加固计划
 
-> 状态：实施中（代码与自动化验证已完成；真实 Tauri 基础验收已部分完成，取消/并发/替换验收、资源基准和外部上游 PR 待完成）
+> 状态：主体施工与自动化验证已完成；LLM/VCP 普通搜索、直接 Tool Calling 和 2 GiB 宽范围资源止损的真实 dev/Tauri 基础验收已完成，取消/并发/断线/替换专项验收、资源基准和外部上游 PR 待收口
 >
 > 调查日期：2026-07-25
+>
+> 最近复核：2026-07-29
 >
 > 范围：桌面端 `dir-search` Agent 搜索/替换、Rust 目录遍历、Tool Calling 与 VCP 分布式超时链路
 >
@@ -292,14 +294,14 @@ VCP 采用两层兼容策略：AIO 节点必须立即把 115 秒 timeout 和连�
 
 ### 6.1. 施工记录（2026-07-25）
 
-本轮已完成主仓库代码实施与自动化验证，并取得一条真实 Tauri 宽范围扫描样本，但尚未宣告整个计划完成；取消、并发、替换安全验收以及 24 逻辑处理器机器资源基准仍待执行。
+本轮已完成主仓库代码实施与自动化验证，并通过真实 dev/Tauri 完成 LLM/VCP 普通搜索、直接 Tool Calling 和宽范围资源止损基础验收，但尚未宣告整个专项加固计划完成；取消、并发、断线、替换安全验收以及 24 逻辑处理器机器资源基准仍待执行。
 
 | 范围                     | 当前状态           | 已完成内容 / 边界                                                                                                                                                                                                                                                                                         |
 | ------------------------ | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 批次 A                   | 已完成             | Rust 与 TypeScript 已加入 `searchId`、资源预算、终止原因、事件隔离和单活动搜索槽位；walker 固定为 4 个 worker，只有在 walker 线程 join 后才释放槽位。                                                                                                                                                     |
 | 批次 B（AIO Hub）        | 已完成             | Agent 默认资源参数、参数归一化、按 `searchId` 取消、监听器清理、Tool Calling timeout abort、VCP `requestId`/`signal` 与节点在途调用取消链路均已落地；替换预搜索不完整时拒绝写盘。                                                                                                                         |
 | 批次 B（VCPToolBox）     | 已完成，待上游集成 | 外部仓库改动位于独立 clean worktree `E:\rc20\vcp\agent-work\vcp-toolbox-distributed-cancel` 的 `codex/distributed-tool-cancellation` 分支：pending 绑定目标节点、拒绝非目标结果、节点断线立即 reject，以及 capability 协商后的定向 `cancel_tool`。未提交、未推送、未创建 PR，遵守未获授权不得提交的约束。 |
-| 批次 C（文档与可观测性） | 部分完成           | 开始/结束日志与 `stopReason` 已加入，`ARCHITECTURE.md` 已同步；已取得一次真实机宽范围扫描的扫描量、字节量、时延与 walker join 样本，但 CPU/线程采样、取消延迟、UI 响应和默认值校准仍未完成。                                                                                                                                                                                                       |
+| 批次 C（文档与可观测性） | 部分完成           | 开始/结束日志与 `stopReason` 已加入，`ARCHITECTURE.md` 已同步；LLM/VCP 普通搜索、直接 Tool Calling 和宽范围资源止损已在真实 dev/Tauri 中返回成功，并取得扫描量、字节量、时延与 walker join 样本，但 CPU/线程采样、取消延迟、UI 响应和默认值校准仍未完成。                                                 |
 
 #### 已执行验证
 
@@ -310,19 +312,20 @@ VCP 采用两层兼容策略：AIO 节点必须立即把 115 秒 timeout 和连�
 
 #### 真实 Tauri 复测记录（2026-07-25）
 
-复测日志位于 `E:\rc20\allinweb\test\com.mty.aiohub\logs`。本轮没有再次观察到此前整机近乎停滞或大量占用的现象，但该判断来自测试者的交互观察，不等同于 CPU/线程性能计数器采样。
+复测日志位于 `E:\rc20\allinweb\test\com.mty.aiohub\logs`，LLM 结果还持久化在 `E:\rc20\allinweb\test\com.mty.aiohub\llm-chat\sessions\session-1784969582396-3a3zfypm0.json`。本轮没有再次观察到此前整机近乎停滞或大量占用的现象，但该判断来自测试者的交互观察，不等同于 CPU/线程性能计数器采样。
 
+- 16:53:54 由聊天中的 LLM 自主生成 VCP `dir-search.searchDirectory` 请求，对 `E:\rc20\allinweb\aiohub-dev` 搜索 `dir-search`；调用成功扫描 519 个文件、读取 3,896,096 字节，得到 5 个匹配文件和 30 处匹配，181.3537 ms 完整结束，结构化结果成功回注会话并被 LLM 继续消费。
 - 16:57:36 通过本地 Tool Calling 发起一次目录搜索，16:57:38 进入“格式化结果”并返回成功，调用阶段约 1.47 秒。
 - 16:59:06 通过 VCP 对 `E:\rc20` 发起宽范围内容搜索：`maxDepth=5`、`maxResults=50`、无 include glob，pattern 为测试用稀有字符串。
 - 后端在 16:59:12 记录结构化结束日志：`stop_reason=FileLimit`、`truncated=true`、`files_scanned=22089`、`bytes_read=2147437494`、`files_matched=1`、`matches=2`、`duration_ms=5812.4`、`walker_joined=true`。这里的 `FileLimit` 按当前契约同时表示文件数或读取字节预算；本次实际接近 2 GiB 读取上限，因此是字节预算止损。
 - VCP 前端在 16:59:12 进入“格式化结果”，与后端 5.8 秒结束时延一致；没有出现 115 秒外层 timeout，也没有超时后 walker 继续活动的证据。
 - 该 pattern 会先被调用日志写入 `E:\rc20` 根目录下的应用日志，因此本次出现 1 个文件、2 个匹配，不能称为严格零匹配测试；但匹配数远低于 `maxResults=50`，没有触发匹配数提前终止，仍实际覆盖了宽范围扫描与资源预算停止。后续严格零匹配复测应排除日志目录，或将测试根目录放到日志存储路径之外。
 
-这条样本确认了 2 GiB 预算、结构化截断结果和 walker join 在真实 Tauri/VCP 链路中生效；它不能替代并发 busy、服务端 `cancel_tool`、断线 abort、替换零写入以及 CPU/线程/UI 响应基准。
+上述样本确认了 LLM → VCP → AIO 节点 → Tool Registry → Tauri/Rust walker → 结构化结果回注的普通调用闭环，以及 2 GiB 预算、结构化截断结果和 walker join 在真实 Tauri/VCP 链路中生效；它们不能替代并发 busy、服务端 `cancel_tool`、断线 abort、替换零写入以及 CPU/线程/UI 响应基准。
 
 #### 未完成项与有意偏差
 
-1. 第 7.4 节仅完成宽范围稀有匹配搜索的资源预算停止与 walker join 基础验收；并发 busy、服务端取消、断线 abort、UI 交互和替换零写入仍未执行。24 逻辑处理器机器也尚未记录 CPU、线程数、取消延迟和 UI 响应，因此 4 worker、5 层、50,000 文件、2 GiB、30 秒仍是第一阶段默认值，待基准校准。
+1. 第 7.4 节已完成 LLM/VCP 普通搜索闭环、直接 Tool Calling 和宽范围稀有匹配搜索的资源预算停止与 walker join 基础验收；并发 busy、服务端取消、断线 abort、UI 交互和替换零写入仍未执行。24 逻辑处理器机器也尚未记录 CPU、线程数、取消延迟和 UI 响应，因此 4 worker、5 层、50,000 文件、2 GiB、30 秒仍是第一阶段默认值，待基准校准。
 2. `register_tools_ack` 未与本次取消协议强绑定：`cancelTool` capability 已通过注册能力协商，ack 语义保留为独立的非阻塞兼容改进。
 3. VCPToolBox 改动尚未提交、推送或发起上游 PR；在其合并前，AIO Hub 仍依靠自身 30 秒 deadline、AbortSignal 以及连接断开时本地 abort 保持资源边界。
 
@@ -372,7 +375,7 @@ bun run check:backend
 
 普通浏览器不能验证 Tauri IPC、Rust walker、事件隔离和原生进程资源占用。真实窗口至少覆盖：
 
-1. [x] 对 `E:\rc20` 执行宽范围稀有匹配搜索，确认按资源预算停止并完成 walker join。2026-07-25 样本由 2 GiB 字节预算在约 5.8 秒终止；严格零匹配仍需排除根目录内的应用日志后补测。
+1. [x] 从聊天 LLM 经 VCP 执行普通目录搜索并消费返回结果，再对 `E:\rc20` 执行宽范围稀有匹配搜索，确认端到端调用闭环、按资源预算停止和 walker join。2026-07-25 普通样本在 181.3537 ms 完整结束；宽范围样本由 2 GiB 字节预算在约 5.8 秒终止。严格零匹配仍需排除根目录内的应用日志后补测。
 2. [ ] 搜索期间连续发起第二次调用，确认返回 busy，且不会出现两个完整 worker 池扫描。
 3. [ ] 从 VCP 发起长搜索：用测试配置把服务端 timeout 调短时，确认支持 capability 的在线节点收到 `cancel_tool`，后端日志随后出现对应 requestId/searchId 的 cancelled/end；断开节点连接时，确认 VCPToolBox 立即结束该节点 pending，AIO 节点本地也 abort 在途搜索，而不是等待原 timeout。
 4. [ ] 搜索期间采集 AIO Hub 进程 CPU 与线程数，同时打开资源管理器、拖动窗口并操作 AIO Hub，确认桌面仍可交互。

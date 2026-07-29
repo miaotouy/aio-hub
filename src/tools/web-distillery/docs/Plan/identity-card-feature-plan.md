@@ -2,7 +2,7 @@
 
 > **状态**: 核心功能已实施（P0-P2.5、P1.5 完成，P3 部分待实施）
 > **创建日期**: 2025-05-12
-> **最后更新**: 2025-05-17
+> **最后更新**: 2026-07-29
 > **所属模块**: `src/tools/web-distillery/components/cookie/CookieLab.vue`
 
 ---
@@ -31,12 +31,12 @@ iframe 通过代理加载 → 代理的 fallback 转发 XHR 请求
 
 ### 0.3 历史缺失点与当前对应
 
-| #   | 历史缺失环节                             | 当前实现                                                                                                         | 结果                         |
-| --- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| #   | 历史缺失环节                             | 当前实现                                                                                                                  | 结果                         |
+| --- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
 | 1   | **交互式浏览加载页面时注入 cookies**     | `iframe-bridge.ts:create()` 在创建 iframe 前调用 `syncActiveCookiesToProxy()`，同步激活 Profile 的 Cookie 和 localStorage | 首个页面请求即可携带当前身份 |
-| 2   | **身份切换后更新代理状态**               | `BrowserToolbar` 的身份切换流程更新激活 Profile，并触发代理同步与页面刷新                                      | 当前页面感知新身份           |
-| 3   | **用户在 iframe 中登录后保存 cookies**   | `InteractiveWorkbench` 将代理侧更新后的 Cookie 状态同步回当前 Profile                                            | 登录状态可持久化             |
-| 4   | **代理层 Set-Cookie 响应头的捕获与回传** | `proxy.rs` 合并响应中的 `Set-Cookie`，并由 `distillery_get_proxy_cookies` 提供读取                               | 后续请求继续携带更新值       |
+| 2   | **身份切换后更新代理状态**               | `BrowserToolbar` 的身份切换流程更新激活 Profile，并触发代理同步与页面刷新                                                 | 当前页面感知新身份           |
+| 3   | **用户在 iframe 中登录后保存 cookies**   | `InteractiveWorkbench` 将代理侧更新后的 Cookie 状态同步回当前 Profile                                                     | 登录状态可持久化             |
+| 4   | **代理层 Set-Cookie 响应头的捕获与回传** | `proxy.rs` 合并响应中的 `Set-Cookie`，并由 `distillery_get_proxy_cookies` 提供读取                                        | 后续请求继续携带更新值       |
 
 ### 0.4 当前实现与待补项
 
@@ -308,7 +308,9 @@ function toggleProfile(profileId: string) {
     target.isActive = false;
   } else {
     // 激活目标，同时取消同域名下其他 profile
-    profiles.filter((p) => p.domain === target.domain).forEach((p) => (p.isActive = false));
+    profiles
+      .filter((p) => p.domain === target.domain)
+      .forEach((p) => (p.isActive = false));
     target.isActive = true;
   }
 }
@@ -321,7 +323,9 @@ function getActiveProfileForUrl(url: string): CookieProfile | null {
     profiles.find(
       (p) =>
         p.isActive &&
-        (hostname === p.domain || hostname.endsWith("." + p.domain) || p.domainAliases?.includes(hostname)),
+        (hostname === p.domain ||
+          hostname.endsWith("." + p.domain) ||
+          p.domainAliases?.includes(hostname))
     ) || null
   );
 }
@@ -468,7 +472,9 @@ await cookieProfileStore.load();
 const activeProfile = await cookieProfileStore.getActiveProfileForUrl(url);
 
 if (activeProfile) {
-  const cookieStr = activeProfile.cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+  const cookieStr = activeProfile.cookies
+    .map((c) => `${c.name}=${c.value}`)
+    .join("; ");
   await invoke("distillery_set_proxy_cookies", { cookies: cookieStr });
 } else {
   await invoke("distillery_set_proxy_cookies", { cookies: null });
@@ -494,9 +500,13 @@ async function handleIdentitySwitch(profileId: string | null) {
   await refreshIdentityState(props.modelValue);
 
   // ⚠️ 新增：立即更新代理 cookies
-  const newActive = await cookieProfileStore.getActiveProfileForUrl(props.modelValue);
+  const newActive = await cookieProfileStore.getActiveProfileForUrl(
+    props.modelValue
+  );
   if (newActive) {
-    const cookieStr = newActive.cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+    const cookieStr = newActive.cookies
+      .map((c) => `${c.name}=${c.value}`)
+      .join("; ");
     await invoke("distillery_set_proxy_cookies", { cookies: cookieStr });
   } else {
     await invoke("distillery_set_proxy_cookies", { cookies: null });
@@ -657,3 +667,4 @@ graph TD
 | 备份工具意外同步敏感文件    | 云端泄露                | 加密后即使被同步也无法解密                 | Phase 6   |
 | DPAPI 密钥随用户密码重置    | 数据不可恢复            | 提供明文 JSON 导出备份功能（用户主动操作） | Phase 7   |
 | **交互式浏览不注入 cookie** | **功能完全不可用**      | Phase 4.5 实现注入闭环                     | Phase 4.5 |
+

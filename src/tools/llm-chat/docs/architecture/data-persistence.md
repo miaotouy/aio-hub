@@ -45,7 +45,7 @@
       │   └── ...
       └── ...
   ```
-- **历史迁移**: 加载智能体索引前会检测旧 `{appConfigDir}/llm-chat/agents/`，将其迁移到 `{appConfigDir}/agent-manager/agents/`；旧 `appdata://llm-chat/agents/...` 头像协议仍会在解析时重定向到新路径。
+- **历史迁移**: Agent 索引及实体读写前运行一次版本化收敛迁移。迁移通过跨 WebView 锁串行化，只补齐目标目录缺失的旧配置与嵌套资产，不覆盖有效目标文件、不交换整个模块目录；完成后仅检查版本标记。旧 `appdata://llm-chat/agents/...` 头像协议仍会在解析时重定向到新路径。
 
 ## 3. 多会话架构与子管理器 (Multi-Session Sub-Managers)
 

@@ -119,25 +119,23 @@ git mv "src/tools/llm-chat/components/user-profile" "src/tools/user-profile-mana
 | 档案配置与资产 | `{appConfigDir}/llm-chat/user-profiles/{profileId}/` | `{appConfigDir}/user-profile-manager/user-profiles/{profileId}/` |
 | 单档案配置文件 | `.../user-profiles/{profileId}/profile.json`         | `.../user-profiles/{profileId}/profile.json`                     |
 
-### 5.2. 已实现的冷启动迁移
+### 5.2. 已实现的版本化收敛迁移
 
-`loadProfilesIndex()` 调用 `migrateFromOldModule()`：
+索引和档案实体读写前会调用 `ensureUserProfileDataMigrated()`，由共享的 `runVersionedDataMigration()` 协调迁移：
 
-1. 仅当新索引不存在、旧索引存在时开始迁移；新索引存在时直接跳过。
-2. 读取旧索引，复制每个 profile 的 `profile.json` 和目录内资产，最后保存新索引。
-3. 旧索引和旧 profile 目录不会被重命名、删除或备份；资产复制失败只记录 warning，迁移仍可能提交新索引。
-4. 同一轮 `userProfileStore.loadProfiles()` 会并行调用 `loadProfiles()` 与 `loadSettings()`；首次迁移时需要验证 `loadSettings()` 不会在新索引写入前读到默认设置。
+1. 通过跨 WebView 文件锁串行化同一模块的迁移，并以版本完成标记避免重复执行。
+2. 迁移前恢复目标索引可能遗留的原子写备份；旧索引与新索引按档案 ID 合并，保留有效的新数据，只补入缺失的历史档案。
+3. 旧档案目录以“补缺不覆盖”的方式合并到新目录；目标 `profile.json` 无效时先保存 `.migration-invalid.bak`，再用有效旧配置修复。
+4. 写入完成标记前验证旧目录内容已在目标目录中得到覆盖；失败时不写完成标记，旧数据保持不变，下次启动可重试。
+5. 实际迁移到历史数据后发送成功通知；失败时显示一次错误提示并保留日志。
 
 ### 5.3. 头像兼容
 
 - 当前解析器把旧 `appdata://llm-chat/user-profiles/` 协议重定向到 `appdata://user-profile-manager/user-profiles/`。
-- 保存时会截断当前新模块前缀为相对文件名；旧协议值可继续被解析，但跨模块迁移复制失败时可能指向不存在的新资产。
+- 保存时会截断当前新模块前缀为相对文件名；迁移会递归补齐档案目录内缺失的头像等资产。
+- 旧索引、旧档案目录和有效目标文件不会在迁移中被删除或覆盖。
 
-### 5.4. 发布后收口清单
+### 5.4. 验证覆盖
 
-- [ ] 明确旧索引/目录的保留、备份、归档和清理策略，避免“新索引已存在但旧数据未迁完”时永久跳过。
-- [ ] 迁移资产失败时不得静默提交不可用索引；需要可恢复的部分迁移状态和重试策略。
-- [ ] 补跨模块迁移测试：成功复制、重复启动、部分目标已存在、资产复制失败、索引写入失败和旧头像解析。
-- [ ] 补首次升级真实 Tauri 验收，特别是全局档案 ID、头像、档案内容和标题栏/Chat 两个入口的一致性。
-
-完成以上项目后，才将本计划恢复为“已完成”。
+- 共享迁移测试覆盖版本标记、跨调用串行化、失败重试、嵌套文件补齐、原子写备份恢复、无效配置拒绝与修复备份。
+- 用户档案测试覆盖索引合并、目标冲突保留、单次在途加载、无效全局档案 ID 清理，以及迁移失败时保留当前内存状态。

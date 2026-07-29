@@ -51,6 +51,32 @@ const keyStates = ref<KeyStatesStorage>({
 });
 const isLoaded = ref(false);
 
+type LoadableKeyStatesStorage = Partial<KeyStatesStorage> & {
+  enableAutoDisable?: boolean;
+  autoRecoveryTime?: number;
+};
+
+/**
+ * 规范化旧版 Key 状态存储。
+ *
+ * 1.0.0 将熔断开关和恢复时间错误地保存为全局值，无法无歧义地映射到
+ * 某个渠道。升级时保留 Key 状态与轮询位置，但丢弃这两个全局设置，
+ * 让每个渠道按 1.1.0 的安全默认值重新显式启用。
+ */
+export function normalizeKeyStatesStorage(
+  config: LoadableKeyStatesStorage
+): KeyStatesStorage {
+  const normalized = { ...config };
+  delete normalized.enableAutoDisable;
+  delete normalized.autoRecoveryTime;
+  return {
+    ...normalized,
+    states: normalized.states ?? {},
+    lastUsedIndices: normalized.lastUsedIndices ?? {},
+    profileSettings: normalized.profileSettings ?? {},
+  };
+}
+
 export function useLlmKeyManager() {
   const getProfileSettings = (profileId: string): ProfileKeyManagerSettings => {
     if (!keyStates.value.profileSettings[profileId]) {
@@ -68,17 +94,7 @@ export function useLlmKeyManager() {
   const loadKeyStates = async () => {
     if (isLoaded.value) return;
     try {
-      const config = (await configManager.load()) as KeyStatesStorage & {
-        enableAutoDisable?: boolean;
-        autoRecoveryTime?: number;
-      };
-      // 旧版把渠道弹窗中的设置错误地存成全局值，升级时不再扩散到各渠道。
-      delete config.enableAutoDisable;
-      delete config.autoRecoveryTime;
-      keyStates.value = {
-        ...config,
-        profileSettings: config.profileSettings ?? {},
-      };
+      keyStates.value = normalizeKeyStatesStorage(await configManager.load());
       isLoaded.value = true;
       logger.debug("LLM Key 状态加载成功");
     } catch (error) {

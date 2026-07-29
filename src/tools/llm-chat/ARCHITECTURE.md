@@ -571,9 +571,9 @@ graph TD
 - **会话存储**: `sessions-index.json`（索引，含收藏夹元数据 `favoriteFolders`）+ `sessions/{sessionId}.json`（完整数据）。收藏状态变更仅修改索引层，无需读写会话详情文件，确保高性能。
 - **智能体存储**: 由 `agent-manager` 持有，位于 `agent-manager/agents-index.json`（索引）+ `agent-manager/agents/{agentId}/`（独立目录，含 `agent.json`、头像和私有资产）。`llm-chat` 只经由 `useAgentStore` 读取和使用。
   - **全量加载与手动刷新**: `loadAgents()` 读取所有完整智能体，避免索引与详情字段不一致；`refreshAgentFromFile()` 可从磁盘重新读取单个智能体并同步索引元数据。
-  - **历史路径兼容**: 首次加载会把旧 `llm-chat/agents/` 物理迁移到 `agent-manager/agents/`，并保留迁移标记、备份和校验；资产路径解析同时兼容旧 `appdata://llm-chat/agents/...` 协议头。
+  - **历史路径兼容**: 索引和实体读写前执行版本化收敛迁移；跨 WebView 锁保证同一时刻只有一个迁移者，目标有效文件优先，仅补入旧 `llm-chat/agents/` 或 `agents.migrated.bak/` 中缺失的配置与嵌套资产，成功后以完成标记常量时间跳过后续扫描。旧目录只读保留，资产路径解析继续兼容旧 `appdata://llm-chat/agents/...` 协议头。
 - **用户档案存储**: 由 `user-profile-manager` 持有，位于 `user-profile-manager/user-profiles-index.json`（索引，含 `globalProfileId`）+ `user-profile-manager/user-profiles/{profileId}/profile.json`（完整档案），头像与档案文件放在同一专属目录。`loadProfiles()` 会全量读取完整档案。
-  - **历史路径兼容**: 首次加载会检测旧 `llm-chat/user-profiles-index.json` 和 `llm-chat/user-profiles/`，复制索引、完整配置与头像到新模块目录；头像解析兼容旧 `appdata://llm-chat/user-profiles/...` 协议头。
+  - **历史路径兼容**: 与 Agent 使用同一轻量协调机制，但索引合并规则保留在 `user-profile-manager` 内：目标条目优先、补入旧条目，空或损坏目标索引可从旧索引恢复，详情与头像只补缺失文件。迁移失败不写完成标记并可原地重试；头像解析继续兼容旧 `appdata://llm-chat/user-profiles/...` 协议头。
 
 会话的目录结构、加载过程和历史迁移逻辑详见 [`data-persistence.md`](./docs/architecture/data-persistence.md)；智能体和用户档案的实际读写入口分别见 [`useAgentStorage.ts`](../agent-manager/composables/storage/useAgentStorage.ts) 与 [`useUserProfileStorage.ts`](../user-profile-manager/composables/storage/useUserProfileStorage.ts)。
 

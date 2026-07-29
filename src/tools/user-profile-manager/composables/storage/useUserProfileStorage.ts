@@ -19,7 +19,13 @@
  * - 每个用户档案存储为一个独立目录（user-profiles/{profileId}/），包含 profile.json 和相关资源
  */
 
-import { exists, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import {
+  copyFile,
+  exists,
+  mkdir,
+  readTextFile,
+  writeTextFile,
+} from "@tauri-apps/plugin-fs";
 import { join, extname } from "@tauri-apps/api/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import { invoke } from "@tauri-apps/api/core";
@@ -30,6 +36,16 @@ import {
 } from "../../types/profile";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { customMessage } from "@/utils/customMessage";
+import { useNotification } from "@/composables/useNotification";
+import {
+  mergeMissingDirectoryTree,
+  repairInvalidEntityConfigs,
+  restoreAtomicWriteBackup,
+  runVersionedDataMigration,
+  verifyDirectorySubset,
+  writeJsonAtomically,
+} from "@/utils/dataMigration";
 
 const logger = createModuleLogger("user-profile-manager/storage");
 const errorHandler = createModuleErrorHandler("user-profile-manager/storage");
@@ -80,12 +96,160 @@ const indexManager = createConfigManager<ProfilesIndex>({
   createDefault: createDefaultIndex,
 });
 
+const PROFILE_MIGRATION_VERSION = "cross-module-v2";
+let profileMigrationFailureReported = false;
+
+function parseProfilesIndex(content: string, path: string): ProfilesIndex {
+  const value = JSON.parse(content) as Partial<ProfilesIndex>;
+  if (
+    !value ||
+    !Array.isArray(value.profiles) ||
+    !value.profiles.every(
+      (profile) =>
+        typeof profile === "object" &&
+        profile !== null &&
+        typeof profile.id === "string"
+    )
+  ) {
+    throw new Error(`用户档案索引格式无效: ${path}`);
+  }
+  return {
+    version: typeof value.version === "string" ? value.version : "1.1.0",
+    profiles: value.profiles,
+    globalProfileId:
+      typeof value.globalProfileId === "string" ? value.globalProfileId : null,
+  };
+}
+
+async function readProfilesIndexFile(
+  path: string
+): Promise<ProfilesIndex | null> {
+  if (!(await exists(path))) return null;
+  return parseProfilesIndex(await readTextFile(path), path);
+}
+
+export function mergeProfilesIndexes(
+  source: ProfilesIndex | null,
+  target: ProfilesIndex | null
+): ProfilesIndex {
+  const profiles = [...(target?.profiles ?? [])];
+  const ids = new Set(profiles.map((profile) => profile.id));
+  for (const profile of source?.profiles ?? []) {
+    if (!ids.has(profile.id)) {
+      profiles.push(profile);
+      ids.add(profile.id);
+    }
+  }
+
+  const targetGlobal = target?.globalProfileId;
+  const sourceGlobal = source?.globalProfileId;
+  const globalProfileId =
+    targetGlobal && ids.has(targetGlobal)
+      ? targetGlobal
+      : sourceGlobal && ids.has(sourceGlobal)
+        ? sourceGlobal
+        : null;
+
+  return { version: "1.1.0", profiles, globalProfileId };
+}
+
+async function ensureUserProfileDataMigrated(): Promise<void> {
+  let profileDataMigrated = false;
+  try {
+    await runVersionedDataMigration({
+      id: MODULE_NAME,
+      version: PROFILE_MIGRATION_VERSION,
+      migrate: async ({ appDir }) => {
+        const oldModuleDir = await join(appDir, "llm-chat");
+        const targetModuleDir = await join(appDir, MODULE_NAME);
+        const oldProfilesDir = await join(oldModuleDir, PROFILES_SUBDIR);
+        const targetProfilesDir = await join(targetModuleDir, PROFILES_SUBDIR);
+        const oldIndexPath = await join(
+          oldModuleDir,
+          "user-profiles-index.json"
+        );
+        const targetIndexPath = await join(
+          targetModuleDir,
+          "user-profiles-index.json"
+        );
+
+        const sourceIndex = await readProfilesIndexFile(oldIndexPath);
+        await restoreAtomicWriteBackup(targetIndexPath);
+        let targetIndex: ProfilesIndex | null = null;
+        let targetIndexWasInvalid = false;
+        if (await exists(targetIndexPath)) {
+          try {
+            targetIndex = await readProfilesIndexFile(targetIndexPath);
+          } catch (error) {
+            if (!sourceIndex) throw error;
+            targetIndexWasInvalid = true;
+            const invalidBackup = `${targetIndexPath}.migration-invalid.bak`;
+            if (!(await exists(invalidBackup))) {
+              await copyFile(targetIndexPath, invalidBackup);
+            }
+          }
+        }
+
+        let repairedFiles = await repairInvalidEntityConfigs(
+          oldProfilesDir,
+          targetProfilesDir,
+          "profile.json"
+        );
+        repairedFiles += await mergeMissingDirectoryTree(
+          oldProfilesDir,
+          targetProfilesDir
+        );
+        await verifyDirectorySubset(oldProfilesDir, targetProfilesDir);
+
+        let indexChanged = false;
+        if (sourceIndex || targetIndexWasInvalid) {
+          const mergedIndex = mergeProfilesIndexes(sourceIndex, targetIndex);
+          indexChanged =
+            targetIndexWasInvalid ||
+            JSON.stringify(mergedIndex) !== JSON.stringify(targetIndex);
+          await mkdir(targetModuleDir, { recursive: true });
+          await writeJsonAtomically(targetIndexPath, mergedIndex);
+        }
+
+        if (repairedFiles > 0) {
+          logger.info("历史用户档案数据已补充迁移", { repairedFiles });
+        }
+        profileDataMigrated = repairedFiles > 0 || indexChanged;
+      },
+    });
+    profileMigrationFailureReported = false;
+    if (profileDataMigrated) {
+      try {
+        useNotification().success(
+          "用户档案迁移完成",
+          "历史用户档案已安全迁移到新存储位置，原数据仍保留。",
+          {
+            source: MODULE_NAME,
+            metadata: { path: "/user-profile-manager" },
+          }
+        );
+      } catch (error) {
+        logger.warn("发送用户档案迁移完成通知失败", { error });
+      }
+    }
+  } catch (error) {
+    if (!profileMigrationFailureReported) {
+      customMessage.error(
+        "历史用户档案迁移失败，旧数据仍保留，请重试启动或检查日志。"
+      );
+      profileMigrationFailureReported = true;
+    }
+    throw error;
+  }
+}
+
 let indexMutationQueue: Promise<void> = Promise.resolve();
 
 async function updateIndex<T>(
   updater: (index: ProfilesIndex) => T | Promise<T>
 ): Promise<T> {
   const task = indexMutationQueue.then(async () => {
+    await ensureUserProfileDataMigrated();
     const index = await indexManager.load();
     const result = await updater(index);
     await indexManager.save(index);
@@ -133,6 +297,7 @@ export function useUserProfileStorage() {
    * 加载用户档案索引
    */
   async function loadIndex(): Promise<ProfilesIndex> {
+    await ensureUserProfileDataMigrated();
     return await indexManager.load();
   }
 
@@ -140,6 +305,7 @@ export function useUserProfileStorage() {
    * 保存用户档案索引
    */
   async function saveIndex(index: ProfilesIndex): Promise<void> {
+    await ensureUserProfileDataMigrated();
     await indexManager.save(index);
   }
 
@@ -174,6 +340,7 @@ export function useUserProfileStorage() {
    * 加载单个用户档案
    */
   async function loadProfile(profileId: string): Promise<UserProfile | null> {
+    await ensureUserProfileDataMigrated();
     try {
       const profilePath = await getProfileConfigPath(profileId);
       const profileExists = await exists(profilePath);
@@ -404,6 +571,7 @@ export function useUserProfileStorage() {
    * 删除单个用户档案目录（移入回收站）
    */
   async function deleteProfileDirectory(profileId: string): Promise<void> {
+    await ensureUserProfileDataMigrated();
     try {
       const profileDir = await getProfileDirPath(profileId);
       const relativePath = (
@@ -461,7 +629,7 @@ export function useUserProfileStorage() {
         userMessage: "扫描用户档案目录失败",
         showToUser: false,
       });
-      return [];
+      throw error;
     }
   }
 
@@ -605,126 +773,6 @@ export function useUserProfileStorage() {
   }
 
   /**
-   * 跨模块冷启动自动检测与物理迁移
-   */
-  async function migrateFromOldModule(): Promise<void> {
-    try {
-      const appDir = await getAppConfigDir();
-      const oldModuleName = "llm-chat";
-      const newModuleName = "user-profile-manager";
-
-      const oldIndexManager = createConfigManager<ProfilesIndex>({
-        moduleName: oldModuleName,
-        fileName: "user-profiles-index.json",
-        version: "1.1.0",
-        createDefault: createDefaultIndex,
-      });
-
-      const newIndexExists = await exists(
-        await join(appDir, newModuleName, "user-profiles-index.json")
-      );
-      const oldIndexExists = await exists(
-        await join(appDir, oldModuleName, "user-profiles-index.json")
-      );
-
-      if (!newIndexExists && oldIndexExists) {
-        logger.info("检测到旧版用户档案索引，开始跨模块迁移...");
-
-        // 1. 加载旧索引
-        const oldIndex = await oldIndexManager.load();
-
-        // 2. 确保新目录存在
-        const newProfilesDir = await join(
-          appDir,
-          newModuleName,
-          PROFILES_SUBDIR
-        );
-        if (!(await exists(newProfilesDir))) {
-          const { mkdir } = await import("@tauri-apps/plugin-fs");
-          await mkdir(newProfilesDir, { recursive: true });
-        }
-
-        // 3. 迁移每个 profile
-        const { readDir } = await import("@tauri-apps/plugin-fs");
-        const oldProfilesDir = await join(
-          appDir,
-          oldModuleName,
-          PROFILES_SUBDIR
-        );
-        if (await exists(oldProfilesDir)) {
-          const entries = await readDir(oldProfilesDir);
-          for (const entry of entries) {
-            if (entry.isDirectory && entry.name) {
-              const profileId = entry.name;
-              const oldProfileConfigPath = await join(
-                oldProfilesDir,
-                profileId,
-                "profile.json"
-              );
-              if (await exists(oldProfileConfigPath)) {
-                const content = await readTextFile(oldProfileConfigPath);
-
-                // 确保新 profile 目录存在
-                const newProfileDir = await join(newProfilesDir, profileId);
-                if (!(await exists(newProfileDir))) {
-                  const { mkdir } = await import("@tauri-apps/plugin-fs");
-                  await mkdir(newProfileDir, { recursive: true });
-                }
-
-                // 写入新路径
-                const newProfileConfigPath = await join(
-                  newProfileDir,
-                  "profile.json"
-                );
-                await writeTextFile(newProfileConfigPath, content);
-
-                // 迁移头像资产
-                const oldProfileDir = await join(oldProfilesDir, profileId);
-                const profileEntries = await readDir(oldProfileDir);
-                for (const pEntry of profileEntries) {
-                  if (
-                    pEntry.isFile &&
-                    pEntry.name &&
-                    pEntry.name !== "profile.json"
-                  ) {
-                    const oldAssetPath = await join(oldProfileDir, pEntry.name);
-                    // 复制头像文件
-                    try {
-                      await invoke("copy_file_to_app_data", {
-                        sourcePath: oldAssetPath,
-                        subdirectory: await join(
-                          newModuleName,
-                          PROFILES_SUBDIR,
-                          profileId
-                        ),
-                        newFilename: pEntry.name,
-                      });
-                    } catch (e) {
-                      logger.warn("复制头像资产失败", {
-                        profileId,
-                        asset: pEntry.name,
-                        error: e,
-                      });
-                    }
-                  }
-                }
-
-                logger.info(`跨模块迁移用户档案成功: ${profileId}`);
-              }
-            }
-          }
-        }
-
-        // 4. 保存新索引
-        await indexManager.save(oldIndex);
-        logger.info("跨模块迁移用户档案索引成功");
-      }
-    } catch (error) {
-      logger.error("跨模块迁移用户档案失败", error);
-    }
-  }
-
-  /**
    * 加载用户档案索引（轻量级，仅包含元数据）
    */
   const loadProfilesIndex = async (): Promise<{
@@ -734,8 +782,8 @@ export function useUserProfileStorage() {
     try {
       logger.debug("开始加载用户档案索引");
 
-      // 跨模块迁移
-      await migrateFromOldModule();
+      // 在 ConfigManager 创建默认索引前完成一次性跨模块迁移。
+      await ensureUserProfileDataMigrated();
 
       // 在加载前执行数据迁移
       await runMigration();
@@ -764,8 +812,47 @@ export function useUserProfileStorage() {
         userMessage: "加载用户档案索引失败",
         showToUser: false,
       });
-      return { profiles: [], globalProfileId: null };
+      throw error;
     }
+  };
+
+  interface LoadedProfilesState {
+    profiles: UserProfile[];
+    globalProfileId: string | null;
+  }
+
+  const loadProfilesState = async (): Promise<LoadedProfilesState> => {
+    logger.debug("开始全量加载所有用户档案");
+    const { profiles: indexItems, globalProfileId } = await loadProfilesIndex();
+    const profileResults = await Promise.all(
+      indexItems.map((item) => loadProfile(item.id))
+    );
+    const profiles = profileResults.filter(
+      (profile): profile is UserProfile => profile !== null
+    );
+
+    const loadedById = new Map(
+      profiles.map((profile) => [profile.id, profile])
+    );
+    const refreshedItems = indexItems.map((item) => {
+      const profile = loadedById.get(item.id);
+      return profile ? createIndexItem(profile) : item;
+    });
+    const metadataChanged = !indexItems.every(
+      (item, index) =>
+        JSON.stringify(item) === JSON.stringify(refreshedItems[index])
+    );
+    if (metadataChanged) {
+      await updateIndex((index) => {
+        index.profiles = refreshedItems;
+      });
+    }
+
+    logger.info(`全量加载了 ${profiles.length} 个用户档案`, {
+      indexedCount: indexItems.length,
+      failedCount: indexItems.length - profiles.length,
+    });
+    return { profiles, globalProfileId };
   };
 
   /**
@@ -773,51 +860,13 @@ export function useUserProfileStorage() {
    */
   const loadProfilesAll = async (): Promise<UserProfile[]> => {
     try {
-      logger.debug("开始全量加载所有用户档案");
-
-      // 1. 先加载索引元数据
-      const { profiles: indexItems } = await loadProfilesIndex();
-
-      // 2. 并行加载所有档案的完整数据
-      const profilePromises = indexItems.map((item) => loadProfile(item.id));
-      const profileResults = await Promise.all(profilePromises);
-
-      // 3. 过滤掉加载失败的档案
-      const profiles = profileResults.filter(
-        (p): p is UserProfile => p !== null
-      );
-
-      const loadedIds = new Set(profiles.map((profile) => profile.id));
-      const nextIndexItems = profiles.map((profile) =>
-        createIndexItem(profile)
-      );
-      const indexNeedsUpdate =
-        nextIndexItems.length !== indexItems.length ||
-        !indexItems.every(
-          (item, index) =>
-            JSON.stringify(item) === JSON.stringify(nextIndexItems[index])
-        );
-
-      if (
-        indexNeedsUpdate ||
-        (profiles.length > 0 && indexItems.length === 0)
-      ) {
-        await updateIndex((index) => {
-          index.profiles = nextIndexItems;
-          if (index.globalProfileId && !loadedIds.has(index.globalProfileId)) {
-            index.globalProfileId = null;
-          }
-        });
-      }
-
-      logger.info(`全量加载了 ${profiles.length} 个用户档案`);
-      return profiles;
+      return (await loadProfilesState()).profiles;
     } catch (error) {
       errorHandler.handle(error as Error, {
         userMessage: "全量加载用户档案失败",
         showToUser: false,
       });
-      return [];
+      throw error;
     }
   };
 
@@ -971,6 +1020,7 @@ export function useUserProfileStorage() {
     loadProfiles,
     loadProfilesIndex,
     loadProfilesAll,
+    loadProfilesState,
     saveProfiles,
     persistProfile,
     deleteProfile,

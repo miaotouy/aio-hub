@@ -18,8 +18,7 @@ import type { UserProfile } from "../../types/profile";
 import { useUserProfileStore } from "../userProfileStore";
 
 const storageMocks = vi.hoisted(() => ({
-  loadProfiles: vi.fn(),
-  loadSettings: vi.fn(),
+  loadProfilesState: vi.fn(),
   loadProfile: vi.fn(),
   saveProfiles: vi.fn(),
   persistProfile: vi.fn(),
@@ -73,8 +72,8 @@ describe("userProfileStore", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
-    storageMocks.loadProfiles.mockResolvedValue([createProfile()]);
-    storageMocks.loadSettings.mockResolvedValue({
+    storageMocks.loadProfilesState.mockResolvedValue({
+      profiles: [createProfile()],
       globalProfileId: "profile-1",
     });
   });
@@ -84,7 +83,7 @@ describe("userProfileStore", () => {
 
     await Promise.all([store.loadProfiles(), store.loadProfiles()]);
 
-    expect(storageMocks.loadProfiles).toHaveBeenCalledTimes(1);
+    expect(storageMocks.loadProfilesState).toHaveBeenCalledTimes(1);
     expect(store.profiles).toHaveLength(1);
     expect(store.profiles[0].content).toBe("完整档案内容");
     expect(store.profiles[0].regexConfig).toEqual({ presets: [] });
@@ -93,7 +92,8 @@ describe("userProfileStore", () => {
   });
 
   it("drops a saved global profile id that is not present after full load", async () => {
-    storageMocks.loadSettings.mockResolvedValue({
+    storageMocks.loadProfilesState.mockResolvedValue({
+      profiles: [createProfile()],
       globalProfileId: "missing-profile",
     });
 
@@ -102,6 +102,21 @@ describe("userProfileStore", () => {
     await store.loadProfiles();
 
     expect(store.globalProfileId).toBeNull();
+  });
+
+  it("preserves the current in-memory profiles when migration or loading fails", async () => {
+    storageMocks.loadProfilesState.mockRejectedValue(
+      new Error("migration failed")
+    );
+    const store = useUserProfileStore();
+    const existing = createProfile({ id: "existing-profile" });
+    store.profiles = [existing];
+    store.globalProfileId = existing.id;
+
+    await store.loadProfiles();
+
+    expect(store.profiles).toEqual([existing]);
+    expect(store.globalProfileId).toBe(existing.id);
   });
 
   it("keeps ensureProfileLoaded as an in-memory compatibility lookup", async () => {

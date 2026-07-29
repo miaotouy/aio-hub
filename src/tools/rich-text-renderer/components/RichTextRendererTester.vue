@@ -26,6 +26,8 @@
         v-show="!isConfigCollapsed"
         v-model:selectedTokenizer="selectedTokenizer"
         v-model:simulateMeta="simulateMeta"
+        :agents="agents"
+        :user-profiles="userProfiles"
       />
 
       <!-- 右侧工作区 -->
@@ -450,13 +452,12 @@ import type { StreamSource } from "../types";
 import { presets } from "../config/presets";
 import { useRichTextRendererStore } from "../stores/store";
 import { storeToRefs } from "pinia";
-import { llmChatRegistry } from "@/tools/llm-chat/llm-chat.registry";
-import { useAgentPresets } from "@/composables/useAgentPresets";
 import {
   processMessageAssetsSync,
   initAgentAssetCache,
-} from "@/tools/llm-chat/utils/agentAssetUtils";
-import type { ChatAgent } from "@/tools/llm-chat/types";
+} from "@/tools/agent-manager/utils/agentAssetUtils";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
+import { useUserProfileStore } from "@/tools/user-profile-manager/stores/userProfileStore";
 import customMessage from "@/utils/customMessage";
 import MarkdownStyleEditor from "./style-editor/MarkdownStyleEditor.vue";
 import DraggablePanel from "@/components/common/DraggablePanel.vue";
@@ -530,17 +531,16 @@ const {
 } = storeToRefs(store);
 
 const activeRegexRules = computed(() => store.getActiveRegexRules());
-// Agent Presets 用于资产解析
-const { getPresetById } = useAgentPresets();
+
+// 测试角色数据统一从解耦后的领域 Store 获取，避免依赖 llm-chat 兼容桥接。
+const agentStore = useAgentStore();
+const userProfileStore = useUserProfileStore();
+const { agents } = storeToRefs(agentStore);
+const { profiles: userProfiles } = storeToRefs(userProfileStore);
+
 const currentAgent = computed(() => {
   if (profileType.value === "agent" && selectedProfileId.value) {
-    // 优先从 llmChatRegistry 获取，它包含完整的运行时数据（如 assets）
-    const agents = llmChatRegistry.getAgents();
-    const found = agents.find((a) => a.id === selectedProfileId.value);
-    if (found) return found;
-
-    // 回退到预设
-    return getPresetById(selectedProfileId.value);
+    return agentStore.getAgentById(selectedProfileId.value) ?? null;
   }
   return null;
 });
@@ -567,11 +567,10 @@ const resolveAsset = (content: string): string => {
     "agent-asset://$1"
   );
 
-  // 使用标准的资产解析逻辑
-  // 注意：processMessageAssetsSync 需要 ChatAgent 类型，这里进行适配
+  // 使用 agent-manager 提供的标准资产解析逻辑。
   return processMessageAssetsSync(
     processedContent,
-    currentAgent.value as unknown as ChatAgent
+    currentAgent.value ?? undefined
   );
 };
 // 修复 v-model 类型转换导致的构建错误
@@ -1630,6 +1629,16 @@ const saveScreenshot = async () => {
 
 // 组件挂载时加载配置
 onMounted(async () => {
+  // Agent 与 User Profile 已解耦为独立领域，测试页直接初始化对应 Store。
+  await Promise.all([
+    agentStore.agents.length === 0
+      ? agentStore.loadAgents()
+      : Promise.resolve(),
+    userProfileStore.profiles.length === 0
+      ? userProfileStore.loadProfiles()
+      : Promise.resolve(),
+  ]);
+
   // 初始化 Agent 资产缓存，以支持同步路径解析
   initAgentAssetCache().catch((err) => {
     console.error("Failed to init agent asset cache:", err);

@@ -71,8 +71,8 @@ import { useImageViewer } from "@/composables/useImageViewer";
 import { ZoomIn, Copy, Download, Check } from "lucide-vue-next";
 import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../../types";
 import { customMessage } from "@/utils/customMessage";
-import { resolveAgentAssetUrlSync } from "@/tools/llm-chat/utils/agentAssetUtils";
-import type { ChatAgent } from "@/tools/llm-chat/types";
+import { resolveAgentAssetUrlSync } from "@/tools/agent-manager/utils/agentAssetUtils";
+import type { ChatAgent } from "@/tools/agent-manager/types/agent";
 import { resolveLocalPath } from "../../utils/path-utils";
 import { fixVcpEmoticonUrl } from "@/tools/vcp-connector/utils/emoticonFixer";
 

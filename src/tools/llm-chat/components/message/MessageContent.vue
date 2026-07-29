@@ -66,7 +66,10 @@ import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
 import { fixVcpEmoticonUrl } from "@/tools/vcp-connector/utils/emoticonFixer";
 import { isEqual } from "lodash-es";
 import { mergeStyleOptions } from "@/tools/rich-text-renderer/utils/styleUtils";
-import { buildRichTextRendererSettings } from "../../utils/richTextRendererSettings";
+import {
+  buildRichTextRendererSettings,
+  resolveMessageEnterAnimationEnabled,
+} from "../../utils/richTextRendererSettings";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import LlmThinkNode from "@/tools/rich-text-renderer/components/nodes/LlmThinkNode.vue";
 import AttachmentCard from "../AttachmentCard.vue";
@@ -313,11 +316,11 @@ const originalRendererContent = computed(() =>
   isGenerating.value ? "" : displayedContent.value || ""
 );
 
-const originalRendererEnterAnimation = computed(
-  () =>
-    settings.value.uiPreferences.enableEnterAnimation &&
-    !isGenerating.value &&
-    !props.screenshotMode
+const originalRendererEnterAnimation = computed(() =>
+  resolveMessageEnterAnimationEnabled(
+    settings.value.uiPreferences.enableEnterAnimation,
+    props.screenshotMode
+  )
 );
 
 // 提取生成元数据用于渲染器计时

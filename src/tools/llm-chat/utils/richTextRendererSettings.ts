@@ -40,3 +40,17 @@ export function buildRichTextRendererSettings(
     showTokenCount: uiPreferences.showTokenCountForBlocks,
   };
 }
+
+/**
+ * 解析聊天消息渲染器的节点进入动画总开关。
+ *
+ * 流式生成状态不应在这里禁用动画：具体节点是否适合播放动画由
+ * AstNodeRenderer 的节点类型规则决定，流式结束后的防重播由
+ * RichTextRenderer 自身负责。截图模式则必须关闭动画以保证输出稳定。
+ */
+export function resolveMessageEnterAnimationEnabled(
+  enabled: boolean,
+  screenshotMode: boolean
+): boolean {
+  return enabled && !screenshotMode;
+}

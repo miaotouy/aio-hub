@@ -14,7 +14,10 @@
 
 import { describe, expect, it } from "vitest";
 import type { ChatSettings } from "../../types/settings";
-import { buildRichTextRendererSettings } from "../richTextRendererSettings";
+import {
+  buildRichTextRendererSettings,
+  resolveMessageEnterAnimationEnabled,
+} from "../richTextRendererSettings";
 
 describe("buildRichTextRendererSettings", () => {
   it("maps every llm-chat renderer preference to the renderer prop name", () => {
@@ -51,5 +54,11 @@ describe("buildRichTextRendererSettings", () => {
       enableEnterAnimation: false,
       showTokenCount: false,
     });
+  });
+
+  it("keeps enter animation enabled for live rendering and disables it for screenshots", () => {
+    expect(resolveMessageEnterAnimationEnabled(true, false)).toBe(true);
+    expect(resolveMessageEnterAnimationEnabled(true, true)).toBe(false);
+    expect(resolveMessageEnterAnimationEnabled(false, false)).toBe(false);
   });
 });

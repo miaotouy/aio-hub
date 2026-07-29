@@ -35,6 +35,7 @@ import {
   normalizeIconPath,
 } from "../config/model-metadata";
 import { getAioDefaultHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
+import { resolveAppliedModelGroup } from "@/utils/modelMetadataApplication";
 
 const logger = createModuleLogger("LlmProfiles");
 const errorHandler = createModuleErrorHandler("LlmProfiles");
@@ -341,7 +342,7 @@ export function useLlmProfiles() {
     return materializeModelIdentity({
       ...model,
       provider,
-      group: model.group || matchedProps?.group,
+      group: resolveAppliedModelGroup(model.group, matchedProps?.group),
       icon: model.icon || matchedProps?.icon,
       description: model.description || matchedProps?.description,
       capabilities: {

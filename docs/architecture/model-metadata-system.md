@@ -448,6 +448,8 @@ getModelIconPath(rules, modelId, provider):
 
 上图中的非 Vue 运行时读取是当前遗留实现，不是新增消费方的推荐入口。后续迁移以 [`model-metadata-system-optimization-plan.md`](../Plan/model-metadata-system-optimization-plan.md) 为准；新代码不得继续扩大实时全局规则的运行时读取范围。
 
+模型创建、导入或从渠道刷新时，元数据规则匹配出的 `group` 是用户侧分类配置，持久化优先级高于渠道响应或内置预设携带的来源分组；仅在规则未提供分组时保留来源分组。该优先级只在上述元数据应用阶段生效，不在运行时动态覆盖已经持久化到模型对象上的分组。
+
 ---
 
 ## 8. 与其他模块的集成点

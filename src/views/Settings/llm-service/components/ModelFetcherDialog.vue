@@ -18,6 +18,7 @@
 import { ref, computed } from "vue";
 import { merge } from "lodash-es";
 import { customMessage } from "@/utils/customMessage";
+import { resolveAppliedModelGroup } from "@/utils/modelMetadataApplication";
 import type { LlmModelInfo } from "@/types/llm-profiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import { MODEL_CAPABILITIES } from "@/config/model-capabilities";
@@ -33,7 +34,7 @@ const props = defineProps<{
 
 const emit = defineEmits(["update:visible", "add-models"]);
 
-const { getDisplayIconPath, getIconPath, getModelGroup, getMatchedProperties } =
+const { getDisplayIconPath, getIconPath, getMatchedProperties } =
   useModelMetadata();
 
 const searchQuery = ref("");
@@ -46,7 +47,12 @@ const groupedModels = computed(() => {
   const groups: Record<string, LlmModelInfo[]> = {};
 
   for (const model of props.models) {
-    const groupName = getModelGroup(model);
+    const matchedProps = getMatchedProperties(
+      model.id,
+      model.provider || props.providerType
+    );
+    const groupName =
+      resolveAppliedModelGroup(model.group, matchedProps?.group) || "未分组";
     if (!groups[groupName]) {
       groups[groupName] = [];
     }
@@ -227,7 +233,7 @@ const handleConfirm = () => {
       ...persistedModel,
       provider,
       name: formatModelName(model.id),
-      group: model.group || matchedProps?.group,
+      group: resolveAppliedModelGroup(model.group, matchedProps?.group),
       icon: model.icon || matchedProps?.icon,
       description: model.description || matchedProps?.description,
       capabilities: getModelCapabilities(model),

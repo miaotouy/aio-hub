@@ -28,12 +28,39 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
 }));
 
-import { fetchModelsFromApi } from "../model-fetcher";
+import { fetchModelsFromApi, toDesktopModelInfo } from "../model-fetcher";
 import { fetchWithTimeout } from "@/llm-apis/common";
 
 describe("ModelFetcher", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("keeps metadata vision capability when the API omits input modalities", () => {
+    const gptModel = toDesktopModelInfo({
+      id: "gpt-5.6",
+      name: "gpt-5.6",
+      provider: "openai",
+    });
+    const claudeModel = toDesktopModelInfo({
+      id: "claude-5-opus",
+      name: "Claude 5 Opus",
+      provider: "anthropic",
+    });
+
+    expect(gptModel.capabilities?.vision).toBe(true);
+    expect(claudeModel.capabilities?.vision).toBe(true);
+  });
+
+  it("uses an explicitly returned text-only modality over metadata", () => {
+    const model = toDesktopModelInfo({
+      id: "gpt-5.6",
+      name: "gpt-5.6",
+      provider: "openai",
+      inputModalities: ["text"],
+    });
+
+    expect(model.capabilities?.vision).toBe(false);
   });
 
   it("uses Ollama api/tags endpoint for model list", async () => {

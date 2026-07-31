@@ -10,6 +10,7 @@ import {
   type ProviderProfile,
 } from "@aiohub/llm-core";
 import { getProviderTypeInfo } from "@/config/llm-providers";
+import { getActiveModelProperties } from "@/config/model-metadata";
 import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -96,7 +97,7 @@ export async function fetchModelsFromApi(
   }
 }
 
-function toDesktopModelInfo(model: ProviderModelInfo): LlmModelInfo {
+export function toDesktopModelInfo(model: ProviderModelInfo): LlmModelInfo {
   const pricing = model.pricing
     ? Object.fromEntries(
         Object.entries(model.pricing).map(([key, value]) => [
@@ -109,6 +110,23 @@ function toDesktopModelInfo(model: ProviderModelInfo): LlmModelInfo {
     model.id,
     model.declaredOwner
   );
+  const matchedCapabilities = getActiveModelProperties(
+    model.id,
+    model.provider
+  )?.capabilities;
+  const apiCapabilities: LlmModelInfo["capabilities"] = {};
+
+  // 模型列表 API 经常不提供 architecture.input_modalities。
+  // 此时视觉能力是“未知”，不能把它降级成 false 覆盖内置模型元数据。
+  if (model.inputModalities !== undefined) {
+    apiCapabilities.vision = model.inputModalities.includes("image");
+  }
+  if (model.supportedParameters !== undefined) {
+    apiCapabilities.thinking =
+      model.supportedParameters.includes("reasoning") ||
+      model.supportedParameters.includes("include_reasoning");
+  }
+
   return materializeModelIdentity(
     {
       id: model.id,
@@ -116,11 +134,11 @@ function toDesktopModelInfo(model: ProviderModelInfo): LlmModelInfo {
       group: model.group,
       provider: model.provider,
       description: model.description,
+      // 先附加当前激活的模型元数据，再用 API 明确返回的能力覆盖。
+      // API 未返回某项能力时，不应写入 false。
       capabilities: {
-        vision: model.inputModalities?.includes("image") ?? false,
-        thinking:
-          model.supportedParameters?.includes("reasoning") ||
-          model.supportedParameters?.includes("include_reasoning"),
+        ...(matchedCapabilities || {}),
+        ...apiCapabilities,
       },
       tokenLimits:
         model.contextLength !== undefined || model.maxOutputTokens !== undefined

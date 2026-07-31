@@ -1,4 +1,4 @@
-# 移动端当前实现盘点与后续参考
+# 移动端实现盘点快照与当前工作入口
 
 > 状态：Historical Snapshot（施工状态与范围以各工具当前计划为准）
 > 代码调查日期：2026-07-18
@@ -22,7 +22,7 @@ LLM 渠道与模型配置
 
 当前不是空壳或单纯 UI 原型。核心文本对话链路、Agent 主链、跨端 Provider Core、原生文件请求边界和主题系统均已有真实实现。Android 真机已完成一轮隔离验证台测试，证明 SQLite spike 和部分系统文件场景能够在真实 Tauri 运行态工作，但这不等同于 SQLite 业务迁移、资产内核或双平台 Phase 0 已完成。尚未闭环的主体是 SQLite 持久化、全局资产与聊天附件、Agent 高级执行语义、设计层 API 收敛，以及 Android/iOS 最终真机发布验收。
 
-## 2. 已完成清单
+## 2. 2026-07-18 已完成快照
 
 ### 2.1 应用基础
 
@@ -74,7 +74,7 @@ LLM 渠道与模型配置
 - [x] 会话执行时加载 Agent 预设，并透传绑定模型与常用生成参数。
 - [x] Rust `o200k_base` Token 估算在预设编辑器中的防抖接入。
 
-当前实现进度详见 [`mobile-agent-manager-plan.md`](./mobile-agent-manager-plan.md)。
+当前实现进度详见 [`mobile-agent-manager-plan.md`](../plan/mobile-agent-manager-plan.md)。
 
 ### 2.5 辅助工具与验证
 
@@ -131,11 +131,11 @@ LLM 渠道与模型配置
 
 2026-07-20 的 schema `1.0` 报告记录环境为 Android `16.0.0`、x86_64、应用 `0.1.1-m-beta.2`、Tauri `2.11.5`，视口为 412 x 891、像素比 2.625。新增环境字段、SQLite memory high-water 和 ENOSPC 注入均在报告中正常输出。
 
-| 规模 | 总步骤 | 插入 | 冷/热查询 | 删除 | 索引重建 | 数据库 | SQLite high-water |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1k | 33 ms | 8 ms | 0 / 0 ms | 3 ms | 3 ms | 118,784 bytes | 181,944 bytes |
-| 10k | 81 ms | 32 ms | 2 / 2 ms | 5 ms | 12 ms | 659,456 bytes | 1,043,080 bytes |
-| 100k | 665 ms | 396 ms | 21 / 20 ms | 78 ms | 111 ms | 6,594,560 bytes | 5,343,704 bytes |
+| 规模 | 总步骤 |   插入 |  冷/热查询 |  删除 | 索引重建 |          数据库 | SQLite high-water |
+| ---- | -----: | -----: | ---------: | ----: | -------: | --------------: | ----------------: |
+| 1k   |  33 ms |   8 ms |   0 / 0 ms |  3 ms |     3 ms |   118,784 bytes |     181,944 bytes |
+| 10k  |  81 ms |  32 ms |   2 / 2 ms |  5 ms |    12 ms |   659,456 bytes |   1,043,080 bytes |
+| 100k | 665 ms | 396 ms | 21 / 20 ms | 78 ms |   111 ms | 6,594,560 bytes |   5,343,704 bytes |
 
 - [x] SQLx 环境与连接烟测通过：SQLite `3.46.0`、FTS5、WAL、foreign key、`synchronous=NORMAL` 和 4 连接池符合预期，写锁等待 86 ms。
 - [x] Migration、codec、FTS 与事务强杀恢复再次通过。
@@ -147,83 +147,39 @@ LLM 渠道与模型配置
 
 大文件复测证明 64 KiB/1 MiB IPC 块、EOF 完成判定以及同一运行内的关闭、重开和 `seek` 续读可在当前 Android 16 x86_64 虚拟机工作。恢复只需 14–65 ms，旧 UI 来不及呈现中断阶段；验证台现已保留阶段提示和独立报告步骤。应用在吞吐 run 进行中重启时，现有恢复逻辑会将未完成 run 标记为 `RUN_INTERRUPTED`，不会自动续读文件。该结果仍属于验证台方向性吞吐，不代表正式资产导入管线或跨进程断点续传，也不替代 Android 真机和 iOS 验收。
 
-## 3. 未完成清单
+## 3. 当前工作入口
 
-### 3.1 持久化与资产主线（历史快照，不作为当前施工清单）
+本次盘点不再维护跨模块未完成清单。该清单已混入 2026-07-18 前的实现假设，继续保留会与已完成的 SQLite、资产和搜索链路冲突。后续施工按模块进入对应的唯一计划或架构文档：
 
-- [ ] 引入 `tauri-plugin-sql` 并建立移动端数据库服务和 migration 机制。
-- [ ] 将 LLM Chat 从 JSON 会话文件迁移到 `llm_chat.db`。
-- [ ] 建立 `chat_sessions`、`chat_messages`、`chat_attachments`、FTS5 和 usage outbox。
-- [ ] 实现消息/分支/会话删除时的附件引用释放和幂等 outbox 投递。
-- [ ] 完成资产管理 Phase 0。Android 已覆盖真实多文件、大文件读取和固定 ENOSPC 注入，仍缺真实低存储设备、云端异常、专用照片/分享入口等覆盖；iOS 尚未开始真机验收。
-- [ ] 建立 `asset_manager.db`、内容寻址、来源、usage、分页查询和一致性恢复。
-- [ ] 实现资产/空间页面、详情、筛选、清理、影响分析和保留策略。
-- [ ] 在聊天中接入 `ManagedAssetRef`、图片/文件发送、预览和 `reclaimed` 降级展示。
-
-SQLite 施工顺序见 [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md)，资产边界见 [`mobile-asset-manager-design.md`](./mobile-asset-manager-design.md)。
-
-### 3.2 Chat 与 Agent 功能
-
-- [ ] `macros-renderer` 宏替换/模板渲染。
-- [ ] `depth-injector` 深度注入。
-- [ ] 用户档案管理和 `user-profile-injector`。
-- [ ] 执行 Agent 预设消息的 `injectionStrategy` 和 `modelMatch`；当前只编辑和保存这些字段。
-- [ ] 聊天内切换 Agent。
-- [ ] 将 Agent 开局消息实例化到新会话。
-- [ ] Agent 私有头像、背景、预设附件和二进制资产管理。
-- [ ] Agent 完整参数编辑和与桌面端最新类型/分类定义的兼容性收尾。
-- [ ] 消息搜索/过滤、消息引用回复、会话搜索和排序。
-- [ ] 补齐消息复制失败反馈与 Android/iOS 剪贴板权限验收；当前已调用 `navigator.clipboard.writeText()`，但失败分支会静默关闭菜单。
-- [ ] 会话删除、清空确认设置的完整接线。
-- [ ] 流式开关、时间戳、模型信息开关、自动滚动开关和消息字号的运行时接线。
-- [ ] 默认模型偏好的运行时接线；当前无有效选择时直接回退到第一个可用模型。
-- [ ] 请求超时和最大重试次数的运行时接线。
-- [ ] 清理聊天页、会话列表、编辑弹窗和输入提示中的硬编码中文，完成双语覆盖。
-
-### 3.3 设置、设计分层与工程收尾
-
-- [ ] 实现触感反馈。
-- [ ] 实现当前设置页中禁用的全局网络/代理设置，或删除无效入口并明确 Profile 网络设置边界。
-- [ ] 完成设计语言 Phase 1：业务代码统一通过项目 `customMessage/customDialog`，不再直接调用 Varlet `Snackbar/Dialog`。
-- [ ] 按实际痛点逐步减少 `var-cell`、`var-app-bar`、`var-popup`、`var-paper` 对页面骨架的承担。
-- [ ] 根据真实复用需求建立 `mobile/src/components/base/`，不预建无消费者的组件库。
-- [ ] 将设置页硬编码版本 `0.1.0` 改为与 `0.1.1-m-beta.1` 的单一版本来源同步。
-- [ ] 处理或接受记录 `vconsole` 直接 `eval` 的构建警告。
-- [ ] 拆分首页超过 500 kB 的构建 chunk；本次生产构建中 `Home` chunk 为 580.68 kB，重点检查工具 registry eager import 与共享配置进入首页包的影响。
-- [ ] 增加 Agent 存储/导入、会话绑定、分支操作和上下文管道专项测试。
-- [x] 将 `ui-tester` 升级为“组件与平台测试”验证台，已交付平台文件与 SQLite 操作板块、统一运行记录、跨重启续测和脱敏报告导出。
-
-设计分层决议见 [`mobile-design-language-investigation.md`](./mobile-design-language-investigation.md)。
-
-### 3.4 平台与发布验收
-
-- [x] 完成 Android universal APK/AAB 构建，并在至少一台 Android 真机运行验证台和导出 schema `1.0` 报告。
-- [ ] 补齐 Android 真机最终验收：仍需运行新增的 1 MiB 吞吐基线与中断后重开续读，并覆盖真实低存储设备、云端异常、专用 Photo Picker/分享入口和具体设备型号；本次已完成 SQLite 10k/100k 与 high-water、真实多文件和 64 KiB 大文件读取。
-- [ ] 初始化或补齐仓库中的 iOS 生成工程，并完成 iOS 构建与真机验收。
-- [ ] 在真实 Tauri WebView 验证长流逐段交付、取消、前后台切换和系统终止行为。
-- [ ] 验证 JSON/顶层/multipart 文件引用在 Android/iOS 的权限和生命周期行为。
-- [ ] 采集大文本与文件请求的 WebView/Rust 峰值内存、主线程阻塞和 TTFB。
-- [ ] 验证 Token 初始化耗时、批量性能和真机峰值内存。
+- 聊天 SQLite、附件 outbox 和搜索：[`mobile-sqlite-migration-plan.md`](../plan/mobile-sqlite-migration-plan.md)。
+- 资产 Android MVP、真实设备与 iOS 门禁：[`mobile-asset-manager-design.md`](../plan/mobile-asset-manager-design.md)。
+- Android Studio AVD 自动化、确定性附件发送与失败产物：[`mobile-android-avd-e2e.md`](../architecture/mobile-android-avd-e2e.md)。
+- Agent 管理器剩余管道与私有资产：[`mobile-agent-manager-plan.md`](../plan/mobile-agent-manager-plan.md) 和 [`ARCHITECTURE.md`](../../src/tools/agent-manager/ARCHITECTURE.md)。
+- 设计分层和项目级 UI 收尾：[`mobile-design-language.md`](../../../docs/guide/mobile-design-language.md)。
+- Token 的设备性能和 iOS 验证：[`mobile-token-counting-plan.md`](../plan/mobile-token-counting-plan.md)。
 
 ## 4. 文档状态与使用规则
 
 - `mobile/src/tools/llm-chat/ARCHITECTURE.md` 已于本次调查同步到当前代码状态。
 - `mobile-agent-manager-plan.md` 和 `mobile-token-counting-plan.md` 的阶段状态与当前代码基本一致。
 - `mobile-sqlite-migration-plan.md` 已进入施工并完成聊天 SQLite 与附件消费主链；其当前状态以该文件为准。
-- `mobile-asset-manager-design.md` 是资产管理器唯一施工范围来源，当前为 Android MVP 收尾；本快照中的旧未完成清单不得覆盖其状态。
-- `mobile-design-language-investigation.md` 的 Phase 0 已完成，Phase 1 只完成了包装 API 的局部落地，业务调用尚未收口。
+- `mobile-asset-manager-design.md` 是资产管理器唯一施工范围来源，当前为 Android MVP 收尾；本快照不得覆盖其状态。
+- `mobile-design-language.md` 的 Phase 0 已完成，Phase 1 只完成了包装 API 的局部落地，业务调用尚未收口。
 - `platform-validation-workbench-plan.md` 的验证台、平台文件 spike 和 SQLite spike 已施工，并取得 Android 真机报告；平台结论按 Android/iOS 分别记录，iOS 报告保留为 iOS 发布门禁。
+- `mobile-android-avd-e2e.md` 已实施；`tests/mobile-android-e2e/` 现提供核心、资产、附件、恢复和 opt-in Ollama lanes。AVD 自动化结果不替代 Android 真机或 iOS 发布门禁。
 - `llm-provider-adapter-sharing-investigation.md` 的代码与自动化验收已完成；本次真机报告未覆盖 LLM transport，相关人工性能与双平台真机验收仍未完成。
 - 2026-07-16 完成的移动端模型批量检查和 2026-07-18 完成的模型身份/Embedding 空间分离已纳入本快照；它们属于现有 `llm-api` 工具能力，不新增工具 registry。
 
-本文件保留 2026-07-18 盘点事实，不再承担资产或聊天的实时施工清单。后续施工必须读取对应工具当前计划和架构，不能继续按本文件第 3 节的旧未完成项扩展范围。
+本文件保留 2026-07-18 的盘点事实，不承担资产或聊天的实时施工清单。后续施工必须读取对应工具当前计划和架构，不能从本快照扩展范围。
 
 ## 5. 当前收敛路线（2026-07-21）
 
 1. 冻结资产 Android MVP 范围，只完成文件/照片导入、资产页、基础预览、导出、删除影响、恢复修复和一个真实聊天附件消费者。
-2. 优先完成一次真实上游模型附件发送和一轮 Android 真机主流程；不再为聊天搜索、相机、文本替代或 token 长时间到期验证创建资产施工批次。
+2. Android Studio AVD 端到端附件发送已由确定性 OpenAI-compatible 服务和 opt-in Ollama lane 验收；下一步是一轮 Android 真机主流程。AVD 结果不替代真机、相机、真实低存储或 iOS 门禁。
 3. 相机、分享进入 AIO、文件关联、批量转写/文本提取和其他消费者移至资产 Phase 3。已经存在的实现可以保留，但不作为 MVP 门禁继续扩展。
 4. iOS 在设备条件具备后执行同一套平台场景，作为 iOS 发布门禁；缺少 iOS 设备不重复阻塞 Android 开发，也不能被记录为通过。
 5. 开发循环只跑受影响测试；功能批次结束运行全量测试、Clippy、类型检查和 Vite 构建；单 ABI debug APK 用于原生能力变化，四 ABI APK/AAB 只用于里程碑或发布候选。
+
+Android 模拟器回归以 [`mobile-android-avd-e2e.md`](../architecture/mobile-android-avd-e2e.md) 的运行契约为准：默认只使用 Android Studio AVD，所有设备操作显式绑定 serial，禁止自动接管用户正在使用的 LDPlayer/雷电等第三方模拟器；截图只作为失败证据和视觉复核，不作为逐步控制手段。
 
 施工顺序的硬约束保持不变：聊天附件依赖全局资产契约；Agent 私有资产属于不可被全局清理策略回收的角色包内容。两者只能复制内容，不能共享 ID 或生命周期。

@@ -11,6 +11,7 @@ import { countTokensBatch } from "@/utils/tokenCounting";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmProfilesStore } from "@/tools/llm-api/stores/llmProfiles";
 import { useLlmChatStore } from "../stores/llmChatStore";
+import { parseSelectedModelValue } from "../utils/modelSelection";
 import { useChatSettings } from "./useChatSettings";
 import {
   contentToTokenText,
@@ -36,8 +37,9 @@ export function useContextTokenUsage(draft: MaybeRef<string>) {
   );
 
   const activeModel = computed(() => {
-    const [selectedProfileId, selectedModelId] =
-      chatStore.selectedModelValue.split(":");
+    const [selectedProfileId, selectedModelId] = parseSelectedModelValue(
+      chatStore.selectedModelValue
+    );
     const profileId = activeAgent.value?.profileId || selectedProfileId;
     const modelId = activeAgent.value?.modelId || selectedModelId;
     return profilesStore.profiles

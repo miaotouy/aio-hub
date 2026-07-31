@@ -11,6 +11,13 @@ export interface ContextThresholds {
   criticalRatio: number;
 }
 
+/**
+ * Extract the text-only scope used by the shared local tokenizer.
+ *
+ * Media payloads and tool schemas have provider-specific token costs, so they
+ * intentionally stay out of this estimate. Text nested in a tool result is
+ * retained because it is part of the replayed message content.
+ */
 export function contentToTokenText(
   content: string | LlmMessageContent[]
 ): string {

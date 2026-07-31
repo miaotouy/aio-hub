@@ -1,6 +1,40 @@
 import type { ChatMessageNode } from "@/tools/llm-chat/types";
 
-export type AgentCategory = "assistant" | "character" | "expert" | "custom";
+/** 与桌面端保持一致的智能体分类。 */
+export enum AgentCategory {
+  Assistant = "assistant",
+  Character = "character",
+  Expert = "expert",
+  Creative = "creative",
+  Workflow = "workflow",
+  Other = "other",
+}
+
+/**
+ * 将持久化数据中的旧分类归一化为当前桌面端枚举。
+ * 未识别值保持未处理，由完整对象克隆与后续桌面端类型演进共同保留。
+ */
+export function normalizeAgentCategory(
+  category: unknown
+): AgentCategory | undefined {
+  if (category === "custom") return AgentCategory.Other;
+  return Object.values(AgentCategory).includes(category as AgentCategory)
+    ? (category as AgentCategory)
+    : undefined;
+}
+
+/**
+ * 开局消息不参与预设上下文装配；创建会话时会被实体化为根节点的子分支。
+ * 私有附件的可移植解析仍由 Agent 私有资产阶段负责。
+ */
+export interface GreetingMessage {
+  id: string;
+  name?: string;
+  content: string;
+  role: Extract<ChatMessageNode["role"], "assistant" | "user">;
+  attachments?: unknown[];
+  [key: string]: unknown;
+}
 
 export interface LlmParameters {
   temperature?: number;
@@ -9,6 +43,12 @@ export interface LlmParameters {
   frequencyPenalty?: number;
   presencePenalty?: number;
   stop?: string[];
+  /** 请求前文本历史截断配置；附件与工具 schema 仍由独立估算处理。 */
+  contextManagement?: {
+    enabled?: boolean;
+    maxContextTokens?: number;
+    retainedCharacters?: number;
+  };
   custom?: {
     enabled?: boolean;
     params?: Record<string, unknown>;
@@ -24,7 +64,9 @@ export interface AgentBaseConfig {
   description?: string;
   icon?: string;
   presetMessages?: PresetMessage[];
-  greetings?: unknown[];
+  greetings?: GreetingMessage[];
+  /** 默认选中的开局消息 ID；保留桌面端显式字段。 */
+  defaultGreetingId?: string;
   displayPresetCount?: number;
   parameters?: LlmParameters;
   llmThinkRules?: unknown[];

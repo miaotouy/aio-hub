@@ -60,6 +60,28 @@ export default {
         },
       },
       {
+        path: "profiles",
+        name: "LlmChatUserProfiles",
+        component: () => import("./views/UserProfilesView.vue"),
+        meta: {
+          get title() {
+            const { tRaw } = useI18n();
+            return tRaw("tools.llm-chat.UserProfiles.用户档案");
+          },
+        },
+      },
+      {
+        path: "worldbooks",
+        name: "LlmChatWorldbooks",
+        component: () => import("./views/WorldbooksView.vue"),
+        meta: {
+          get title() {
+            const { tRaw } = useI18n();
+            return tRaw("tools.llm-chat.Worldbooks.世界书");
+          },
+        },
+      },
+      {
         path: "settings",
         name: "LlmChatSettings",
         component: () => import("./views/ChatSettingsView.vue"),

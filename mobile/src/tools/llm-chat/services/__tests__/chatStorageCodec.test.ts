@@ -4,6 +4,7 @@ import {
   buildPersistChatChanges,
   chatSessionToMessageInputs,
   decodeChatSessionSnapshot,
+  recoverInterruptedChatMessages,
 } from "../chatStorageCodec";
 import type { ChatSessionSnapshot } from "../chatStorageService";
 
@@ -181,5 +182,34 @@ describe("chat storage codec", () => {
     current.activeLeafId = "root";
 
     expect(() => chatSessionToMessageInputs(current)).toThrow("unreachable");
+  });
+
+  it("recovers persisted generating messages as explicit errors", () => {
+    const current = session({
+      root: node("root", null, "", ["assistant-1", "assistant-2"]),
+      "assistant-1": {
+        ...node("assistant-1", "root", "partial"),
+        role: "assistant",
+        status: "generating",
+        metadata: { modelId: "model-1" },
+      },
+      "assistant-2": {
+        ...node("assistant-2", "root", "complete"),
+        role: "assistant",
+      },
+    });
+
+    expect(
+      recoverInterruptedChatMessages(current, "2026-07-22T00:00:00.000Z")
+    ).toBe(1);
+    expect(current.nodes["assistant-1"]).toMatchObject({
+      status: "error",
+      metadata: {
+        modelId: "model-1",
+        error: "Generation was interrupted when the application stopped.",
+      },
+    });
+    expect(current.nodes["assistant-2"].status).toBe("complete");
+    expect(current.updatedAt).toBe("2026-07-22T00:00:00.000Z");
   });
 });

@@ -98,6 +98,35 @@ describe("provider executor", () => {
       response: expect.objectContaining({ content: "done" }),
     });
   });
+
+  it("rejects an OpenAI-compatible stream that ends without a terminal event", async () => {
+    const wireRequest: WireRequest = {
+      method: "POST",
+      url: "https://example.com/v1/chat/completions",
+      headers: {},
+      body: { kind: "json", value: {} },
+      streaming: true,
+    };
+
+    await expect(
+      executeProviderWireRequest({
+        adapter: openAiCompatibleAdapter,
+        request: { ...request, stream: true },
+        wireRequest,
+        transport: {
+          send: async () => ({
+            status: 200,
+            statusText: "OK",
+            headers: { "content-type": "text/event-stream" },
+            body: chunks(
+              'data: {"choices":[{"delta":{"content":"partial"},"finish_reason":null}]}\n\n'
+            ),
+          }),
+        },
+        transportOptions: { requestId: "request-interrupted" },
+      })
+    ).rejects.toThrow("ended before a finish reason or [DONE]");
+  });
 });
 
 async function* chunks(value: string, size = value.length) {

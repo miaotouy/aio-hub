@@ -1,8 +1,11 @@
-# 移动端 RichTextRenderer 模块化重构与测试页建设计划
+# 移动端 RichTextRenderer 模块化初版与 PC 能力迁移计划
 
-> 状态: **Completed**
+> 状态：初版模块化迁移完成；PC 能力迁移施工中
 > 创建时间: 2026-06-26
+> 最近核对：2026-07-27
 > 负责人: 咕咕-kilo
+> 跨模块施工索引：[`mobile-development-checklist.md`](../../../../../docs/plan/mobile-development-checklist.md)
+> 稳定架构：[`ARCHITECTURE.md`](../../ARCHITECTURE.md)
 
 ## 1. 背景与目标
 
@@ -18,9 +21,11 @@
   - [x] 编写本计划文档 `rich-text-renderer-migration-plan.md`
 - [x] **2. 迁移核心组件 `RichTextRenderer.vue`**
   - [x] 将 `mobile/src/components/common/RichTextRenderer.vue` 移动到 `mobile/src/tools/rich-text-renderer/RichTextRenderer.vue`
-  - [x] 检查并微调组件内部的样式和依赖，确保其完全适配移动端主题变量
+  - [x] 完成首版组件的样式和依赖适配；这不代表已经具备 PC 富文本引擎的完整能力
 - [x] **3. 编写预设测试用例 `presets/test-cases.ts`**
-  - [x] 通过 `@shared` 别名和 `tsconfig.json` 的 paths 回退机制，完美链接并复用 PC 端的 26 个硬核测试用例，实现双端同步
+  - [x] 建立移动端预设样例和测试入口
+  - [ ] 与 PC 端完整测试用例和节点能力逐项对齐
+  - [x] 使用共享桌面预设建立安全渲染基线：每个现有预设均会在 jsdom 中挂载，且断言不会生成 `<script>` 或 `<style>` DOM；这仅验证不崩溃与安全字面回退，不表示 HTML、动作按钮、`details` 等桌面交互已经对齐。
 - [x] **4. 编写移动端专属测试页面 `views/TesterView.vue`**
   - [x] **布局适配**：放弃 PC 端的 Split 双栏，采用移动端单栏 Tab 切换（编辑 / 预览 / 帘幕 / 调试）。
   - [x] **帘幕模式 (Curtain)**：完美移植卡拉OK式原文消费扫过效果，针对窄屏优化滚动，让当前消费行始终居中。
@@ -40,9 +45,51 @@
 
 ---
 
-## 3. 关键设计细节
+## 3. PC 能力迁移清单（新增）
 
-### 3.1 目录结构
+本节是初版模块化迁移之后的实际施工范围。开始阶段允许直接复制 PC 文件和目录，先完成移动端可运行的行为对齐；共享包抽取、Rust/原生下沉和性能重构都必须等真实设备数据出现后再决定。
+
+### 3.1 独立工作树边界
+
+RichTextRenderer 可以独立工作树并行开发。建议工作树只修改：
+
+- `mobile/src/tools/rich-text-renderer/**`
+- 为测试或构建所必需的移动端依赖配置
+
+聊天入口、资产服务和消息类型的跨模块修改集中到主线或单独的小合并提交，避免与上下文管线工作树互相覆盖。建议分支名：`codex/mobile-rich-text-parity`。
+
+### 3.2 迁移阶段
+
+- [ ] 复制 PC AST、节点类型、解析器、流式处理和 Patch 更新模块，先完成移动端路径、主题和 Tauri API 适配。
+- [ ] 迁移稳定区/待定区、节点复用和完整资源解析；不在缺乏实测热点时机械复制 PC AST/Patch 管线。
+- [x] 已完成可单测的流式渲染快照节流：中间 chunk 最多每 80ms 触发一次完整 Markdown 重算，首内容、清空内容和结束响应立即刷新；卸载时清理待执行的流式与代码复制反馈 timer。
+- [ ] 在真实 Android/iOS 设备完成长消息、窄屏布局、滚动稳定性和内存释放验收；Vitest 只覆盖 Web 层节流与卸载清理，不能替代 WebView/原生运行态证据。
+  - 2026-07-27：runner-owned Android AVD `Medium_Phone_API_36`（SDK 36、x86_64）通过 `rich-text` APK 回归，覆盖 RichText 测试页的普通代码块、Mermaid DOM 挂载、代码自动换行、长无空格代码行的容器横向滚动/页面不溢出，以及长 Markdown 流式进度、预览自动贴底、停止后内容不再增长和 keep-alive 路由停用后的流式清理；`rich-text-media` 进一步以确定性 assistant SSE 验证正式聊天在 `generating` 状态已挂载首个 Markdown 标题，随后覆盖 fenced code、行内 KaTeX、GitHub 风格 `TIP` 提示块、原始 HTML 字面回退及消息自有 `asset://` 图片的受管预览与沉浸层。该聊天流经原生 reqwest 拉取式分块桥接后逐块进入共享 SSE 解码器，避免 Tauri HTTP 插件响应流在 Android WebView 中批量交付。该结果仍不替代 Android 真机、iOS、多指/下拉手势或内存释放验收。
+- [x] 已完成移动端基础 Markdown 代码块交互：独立节点提供可访问的复制与自动换行切换，保留横向滚动、最大高度和原始代码文本；复制反馈 timer 在节点卸载时清理。不在无移动端需求时照搬桌面高亮、导出、CodeMirror 或 HTML 预览交互。
+- [x] 已接入 GitHub 风格提示块：仅识别 blockquote 首行完整的 `[!NOTE]`、`[!TIP]`、`[!IMPORTANT]`、`[!WARNING]` 与 `[!CAUTION]` 标记，将其从正文移除后递归复用安全 Markdown 渲染；近似标记仍按普通引用显示。提示块使用移动端主题 token，未引入 HTML 解释或交互执行面。
+- [x] 已接入只读 VCP 输出块：角色分隔、工具请求（含 `TOOL_REQUEST_ESCAPE`）、调用结果、日记和本轮摘要会去除协议围栏后以可折叠卡片显示；流式未闭合请求保持可见。该能力只负责安全展示，既不连接也不执行桌面 `vcp-connector` / `tool-calling` 协议。
+- [x] 已接入 KaTeX 行内/块级公式，并在思考块内复用；`trust: false`，失败时不执行 HTML 或脚本。
+- [x] 已实现桌面默认 `<think>` / `<guguthink>` 的移动端折叠块和未闭合流式状态；不提前伪造自定义规则 UI 或完整 AST/Patch 管线。
+- [x] 已接入受管资产媒体节点：当前消息内的 Markdown `![说明](asset://<assetId>)` 仅在 `<assetId>` 匹配该消息 `attachments` 时解析为稳定 `MediaItem`，并复用 `MediaPreviewHost` 处理 descriptor、打开和卸载；外部图片继续走普通 `<img>` 回退；不以推测性风险统一封禁本地或私网来源，调用方解析、VCP 兼容和隐私属性按 [`mobile-pc-parity-construction-review.md`](../../../../../docs/plan/mobile-pc-parity-construction-review.md) 的复核结论处理。解析器不会根据模型文本探测任意资产，也不复制 PC 的 `BaseDialog`、`ImageViewer`、`AudioPlayer`、`VideoPlayer` 或桌面 composable。2026-07-27 的 Android AVD `rich-text-media` 回归已覆盖消息自有图片 asset 的 Markdown 解析、managed preview URL、inline ready 和沉浸层打开/关闭；Android/iOS 手势、真实播放与真机门禁仍待完成。
+- [x] 已实现 Mermaid fenced code 的安全基础渲染：运行时按需加载 Mermaid，固定 `securityLevel: "strict"`，解析 SVG 后以 DOM 挂载并清除事件属性及非片段链接；流式未闭合 fenced code 仅显示等待状态，渲染失败保留原始代码。尚未迁移缩放、导出、自动修复、HTML 交互预览、样式隔离和 CDN 本地化，高级交互仍须按移动端能力分批启用。
+- [x] 当前移动端已禁用 raw `v-html`，并拒绝锚点、HTTP(S) 与 `mailto:` 之外的 Markdown 链接协议：未受信任 HTML token 仅以字面文本显示，不产生 DOM 节点或脚本执行面。
+- [ ] 后续如需启用 HTML 输出，必须先实现可审计的白名单或沙箱；不得恢复直接 `v-html`。
+- [ ] 完成长消息、流式输出、窄屏布局、滚动稳定性和内存释放验证；其中 Web 层流式节流和 timer 释放已有单测覆盖，Android AVD 已验证正式聊天生成中首包渲染，Android 真机、iOS 与内存释放门禁仍待执行。
+- [ ] 依据真实 Android/iOS 设备数据评估 Web Worker、Rust 或原生下沉；没有性能证据时不提前抽取共享实现。
+
+移动端测试页中的字符/单词切分只用于流式演示和速度模拟，不等同于聊天上下文使用的 Rust `o200k_base` Token 计数。
+
+### 3.3 当前可复用的移动端基础
+
+- `mobile/src/tools/asset-manager/services/assetService.ts` 已提供短期预览来源和主动撤销命令。
+- `mobile/src/tools/asset-manager/components/AssetDetailSheet.vue` 已以内联 `<img>`、`<video>`、`<audio>` 展示资产详情预览。
+- `mobile/src/tools/llm-chat/components/MessageContent.vue` 已实现图片预览 overlay 和预览 token 关闭/撤销。
+
+这些实现尚未形成跨工具的媒体组件契约。媒体设计已经在 [`mobile-media-components-plan.md`](../../../../../docs/plan/mobile-media-components-plan.md) 收敛；富文本的图片、音频和视频节点要等资产管理器中的组件实现、交互验证和聊天消费者接入完成后再复用稳定契约，在此之前只迁移非媒体渲染能力。
+
+## 4. 关键设计细节
+
+### 4.1 目录结构
 
 ```
 mobile/src/tools/rich-text-renderer/
@@ -57,7 +104,7 @@ mobile/src/tools/rich-text-renderer/
     └── test-cases.ts                             # 预设测试用例
 ```
 
-### 3.2 移动端测试页交互与 UI 架构规范
+### 4.2 移动端测试页交互与 UI 架构规范
 
 为了严格遵循项目移动端规范（`AGENTS.md`），测试页将采用**“原生 Vue 骨架 + 自研 CSS 变量 + Varlet 原子件”**的架构设计，拒绝将 Varlet 作为页面骨架或设计语言来源：
 

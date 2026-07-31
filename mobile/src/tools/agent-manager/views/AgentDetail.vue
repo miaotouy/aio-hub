@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, toRaw, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ChevronLeft, Save } from "lucide-vue-next";
 import SafeTop from "@/components/SafeTop.vue";
@@ -7,13 +7,16 @@ import { useI18n } from "@/i18n";
 import { customMessage } from "@/utils/feedback";
 import { useLlmProfilesStore } from "@/tools/llm-api/stores/llmProfiles";
 import { useAgentStore } from "../stores/agentStore";
+import { useWorldbookStore } from "@/tools/llm-chat/stores/worldbookStore";
 import type { ChatAgent } from "../types/agent";
 import PresetMessageEditor from "../components/PresetMessageEditor.vue";
+import AgentParametersEditor from "../components/AgentParametersEditor.vue";
 
 const route = useRoute();
 const router = useRouter();
 const { tRaw } = useI18n();
 const agentStore = useAgentStore();
+const worldbookStore = useWorldbookStore();
 const profilesStore = useLlmProfilesStore();
 const draft = ref<ChatAgent | null>(null);
 
@@ -36,13 +39,14 @@ watch(
 );
 
 onMounted(async () => {
-  await Promise.all([agentStore.init(), profilesStore.init()]);
+  await Promise.all([agentStore.init(), profilesStore.init(), worldbookStore.init()]);
   const agent = agentStore.getAgentById(String(route.params.id));
   if (!agent) {
     router.replace("/tools/agent-manager/list");
     return;
   }
-  draft.value = structuredClone(agent);
+  // Pinia returns a reactive proxy; clone its raw value before making an editable draft.
+  draft.value = { ...structuredClone(toRaw(agent)), worldbookIds: [...(agent.worldbookIds ?? [])] };
 });
 
 async function save() {
@@ -70,7 +74,7 @@ async function save() {
 </script>
 
 <template>
-  <div class="detail-page">
+  <div class="detail-page" data-testid="agent-detail">
     <SafeTop />
     <header class="page-header">
       <button
@@ -85,6 +89,7 @@ async function save() {
       <button
         class="icon-button primary"
         type="button"
+        data-testid="agent-save"
         :title="tRaw('tools.agent-manager.AgentDetail.保存')"
         @click="save"
       >
@@ -137,6 +142,39 @@ async function save() {
           </select></label
         >
       </section>
+      <section class="form-section worldbook-section">
+        <div class="section-heading">
+          <div>
+            <h2>{{ tRaw("tools.agent-manager.AgentDetail.世界书") }}</h2>
+            <p>{{ tRaw("tools.agent-manager.AgentDetail.世界书说明") }}</p>
+          </div>
+          <router-link class="worldbook-link" to="/tools/llm-chat/worldbooks">
+            {{ tRaw("tools.agent-manager.AgentDetail.管理世界书") }}
+          </router-link>
+        </div>
+        <p v-if="!worldbookStore.sortedWorldbooks.length" class="worldbook-empty">
+          {{ tRaw("tools.agent-manager.AgentDetail.暂无世界书") }}
+        </p>
+        <label
+          v-for="worldbook in worldbookStore.sortedWorldbooks"
+          v-else
+          :key="worldbook.id"
+          class="worldbook-option"
+          :class="{ disabled: !worldbook.enabled }"
+        >
+          <input
+            v-model="draft.worldbookIds"
+            type="checkbox"
+            :value="worldbook.id"
+            :disabled="!worldbook.enabled"
+          />
+          <span>
+            <strong>{{ worldbook.name }}</strong>
+            <small>{{ worldbook.description }}</small>
+          </span>
+        </label>
+      </section>
+      <AgentParametersEditor v-model="draft.parameters" />
       <PresetMessageEditor
         v-model:messages="draft.presetMessages"
         v-model:groups="draft.presetGroups"
@@ -191,6 +229,53 @@ async function save() {
 }
 .form-section.two-column {
   grid-template-columns: 1fr 1fr;
+}
+.worldbook-section {
+  gap: 10px;
+}
+.section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.section-heading h2 {
+  margin: 0;
+  color: var(--color-on-surface);
+  font-size: 1rem;
+}
+.section-heading p,
+.worldbook-empty {
+  margin: 4px 0 0;
+  color: var(--color-on-surface-variant);
+  font-size: 0.78rem;
+}
+.worldbook-link {
+  color: var(--color-primary);
+  font-size: 0.78rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.worldbook-option {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--input-bg);
+}
+.worldbook-option span {
+  display: grid;
+  gap: 3px;
+}
+.worldbook-option small {
+  color: var(--color-on-surface-variant);
+  font-size: 0.74rem;
+}
+.worldbook-option.disabled {
+  opacity: 0.58;
 }
 label {
   display: flex;

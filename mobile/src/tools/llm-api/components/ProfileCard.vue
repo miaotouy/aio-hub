@@ -24,6 +24,9 @@ defineEmits<{
 <template>
   <div
     class="profile-card"
+    data-testid="llm-profile-card"
+    :data-profile-id="profile.id"
+    :data-profile-name="profile.name"
     :class="{ 'is-disabled': !profile.enabled }"
     @click="$emit('click')"
   >

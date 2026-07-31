@@ -1,12 +1,14 @@
 # 移动端 LLM Chat — 实现情况
 
 > **文档状态**: Implementing
-> **最后更新**: 2026-07-21
+> **最后更新**: 2026-07-27
 > **对应路径**: `mobile/src/tools/llm-chat/`
 
 ## 1. 概述
 
 LLM Chat 是 AIO Hub 移动端的核心交互工具，提供与 LLM 的即时对话体验。本实现为桌面端 `src/tools/llm-chat` 的**移动端适配移植版**，整体架构与桌面端对齐，但针对移动端环境做了精简和调整：
+
+当前产品目标是先完成不依赖工具调用、向量 RAG、Knowledge/Recall 或高级 Agent 的完整角色聊天体验。参考基线是桌面端引入这些后续模块之前的聊天能力，并结合移动端交互独立取舍；“与桌面端对齐”只表示复用成熟的聊天语义，不表示复制桌面当前全部模块或依赖关系。
 
 - **UI 分层**: 页面与聊天骨架由原生 Vue 结构和 AIO Hub 主题 token 主导，Varlet 仅作为按钮、开关、弹层等底层组件库
 - **类型系统**: 精简了部分桌面端复杂类型（如完整 `ChatAgent`、完整 `Asset` 类型），保留核心契约
@@ -25,8 +27,9 @@ llm-chat/
 │   ├── ChatInput.vue          # 聊天输入框
 │   ├── ChatMessage.vue        # 单条消息展示
 │   ├── MessageContent.vue     # 消息内容渲染（纯文本/富文本）
-│   ├── MessageList.vue        # 消息列表容器
-│   └── MessageMenubar.vue     # 消息操作菜单栏（重新生成、编辑、删除等）
+│   ├── MessageList.vue        # 消息列表容器与可视消息定位
+│   ├── MessageNavigator.vue   # 可选的浮层消息导航器
+│   └── MessageMenubar.vue     # 消息操作菜单栏（续写、重新生成、编辑、删除等）
 ├── composables/               # 可复用的组合式逻辑
 │   ├── useBranchManager.ts    # 分支管理（切换、编辑、重试）
 │   ├── useChatExecutor.ts     # 对话执行器（构建上下文、发起 LLM 请求）
@@ -40,7 +43,12 @@ llm-chat/
 │   └── pipeline/
 │       └── processors/
 │           ├── session-loader.ts       # 管道处理器：会话历史加载器
-│           └── agent-preset-loader.ts  # 管道处理器：智能体预设加载器
+│           ├── user-profile-injector.ts # 管道处理器：基础档案系统上下文
+│           ├── regex-processor.ts      # 管道处理器：导入 Agent 请求正则
+│           ├── injection-assembler.ts  # 管道处理器：预设/深度/锚点组装器
+│           ├── macros-renderer.ts      # 管道处理器：角色聊天宏与局部变量
+│           ├── token-limiter.ts        # 管道处理器：文本历史 Token 截断
+│           └── message-formatter.ts    # 管道处理器：合并/角色格式化
 ├── docs/                      # 规划文档（已删除，仅 Git 记录中存在）
 ├── locales/
 │   ├── zh-CN.json             # 中文语言包
@@ -116,6 +124,9 @@ type MessageType = "message" | string;
 - 采用**字典 + 指针**方式而非嵌套树，方便增减节点
 - `activeLeafId` 指向当前分支末端，配合 `parentId` 可回溯完整路径
 - `lastSelectedChildId` 实现分支记忆导航
+- 新建绑定 Agent 的会话会将有效开局消息固化为根节点下的兄弟分支，优先激活 `defaultGreetingId`；未迁移的宏和 Agent 私有附件不会在此阶段隐式处理
+- 聊天内切换 Agent 仅更新会话 `displayAgentId`；历史节点保持原样，后续助手节点固化 Agent 身份与模型/渠道快照
+- Assistant 续写创建同父节点的生成中分支，初始文本复制源回复并记录 `isContinuation + continuationPrefix`；旧分支不变。续写分支会清除旧 error、usage、Token、推理和中断状态，再固化本次实际使用的 Agent/模型快照
 
 ### 3.4. 可处理消息 (`types/context.ts`)
 
@@ -130,7 +141,7 @@ type MessageType = "message" | string;
 | `_originalContent` | 原始内容快照（宏调试用）                                            |
 | `_mergedSources`   | 被合并的原始消息                                                    |
 
-当前 `_attachments` 只是管道扩展点，不代表已经确定持久化结构。后续聊天附件必须遵循 [`mobile-asset-manager-design.md`](../../../docs/plan/mobile-asset-manager-design.md) 的全局可回收资产契约，使用 `assetId + 轻量快照`，不能直接移植桌面端包含路径的完整 `Asset` 对象。
+聊天附件已经采用 [`mobile-asset-manager-design.md`](../../../docs/plan/mobile-asset-manager-design.md) 的全局可回收资产契约，使用 `assetId + 轻量快照`，不能直接移植桌面端包含路径的完整 `Asset` 对象。`_attachments` 由 codec、session loader 和消息视图共同维护，纯附件消息也必须保留。
 
 ### 3.5. 管道上下文 (`types/pipeline.ts`)
 
@@ -153,12 +164,12 @@ PipelineContext
 ```
 ChatSettings
 ├── uiPreferences         # 流式输出、时间戳、Token统计、模型信息、自动滚动、字体、消息导航
-├── modelPreferences      # 默认模型（当前仅持久化，运行时尚未消费）
+├── modelPreferences      # 默认模型（主页/聊天页初始化时校验并同步当前选择）
 ├── messageManagement     # 删除/清空确认开关
-└── requestSettings       # 超时（60s）、重试次数（2，当前仅持久化）
+└── requestSettings       # 超时（60s）与重试次数（2）
 ```
 
-设置界面和持久化结构已经建立，但运行时接线尚未全部完成。目前明确生效的是 Token 显示、上下文预警阈值和消息删除确认；流式开关、时间戳、模型信息开关、自动滚动开关、消息字号、默认模型、请求超时/重试，以及会话删除/清空确认仍需逐项接入实际执行路径。
+设置已接入实际执行路径：流式开关、时间戳、Token 与模型信息展示、自动滚动、消息字号、消息导航器、默认模型、请求超时/重试，以及消息/会话删除和清空确认均已消费。消息导航器关闭时不创建浮层；开启后由 `MessageList` 根据滚动容器的可视消息索引提供首条、上一条、下一条和末条跳转，不改变自动滚动偏好。
 
 ## 4. 数据流架构
 
@@ -202,67 +213,102 @@ Actions:
    ├── 过滤掉空内容和根节点
    └── 转换为 ProcessableMessage[] 放入 context.messages
 
-2. primary:agent-preset-loader (priority: 200)
-   ├── 读取会话绑定的 ChatAgent
-   ├── 过滤禁用消息和禁用消息组
-   ├── 保留预设消息顺序与角色
-   └── 将非空预设消息插入会话历史之前
+2. primary:user-profile-injector (priority: 200)
+   └── 将启用的 Agent 绑定或全局默认基础档案注入为历史前的系统上下文
+
+3. primary:regex-processor (priority: 300)
+   ├── 读取导入 Agent 的 `regexConfig`，按预设优先级、角色与消息深度应用 request 规则
+   ├── 仅改写文本或多模态消息的 text part；无效规则记录日志但不会阻断请求
+   └── 脚本类型规则不会在移动端执行；全局/用户档案正则 UI 仍待完整桌面契约迁移
+
+4. primary:injection-assembler (priority: 400)
+   ├── 读取会话绑定的 ChatAgent，过滤禁用消息和禁用消息组
+   ├── 将默认预设作为骨架，并以 `chat_history` 占位符切分前后位置
+   ├── 按 order 组装锚点注入，并按深度/高级深度规则插入会话历史
+   └── 保留来源 ID、索引与注入来源类型，供后续处理器和 Token 统计使用
+
+5. primary:worldbook-injector (priority: 450)
+   ├── 从执行器预加载的 Agent `worldbookIds` 获取全局 `worldbooks.json` 的已启用世界书
+   ├── 对最近 `scanDepth` 条同分支历史执行确定性关键词匹配，常量条目始终激活
+   ├── 用选中世界书顺序、条目 order 与 ID 作为稳定排序；`depth` 默认 4，并始终相对注入前的 session history 锚点计算，超长深度夹到最旧历史之前
+   └── 不实现递归、概率、分组竞争、向量、Outlet、自动化或 Knowledge/Recall
+
+6. primary:macros-renderer (priority: 500)
+   ├── 按管线顺序展开角色、用户、会话、模型与 `ManagedAssetRef` 轻量摘要宏
+   ├── 从导入 Agent 的 `variableConfig` 初始化局部变量，并应用 `<svar>`、`getvar` / `setvar` / `incvar` / `decvar`
+   ├── 对历史 `last*` 宏只读取该消息之前的同分支历史；转义和未知宏保持字面文本
+   └── 仅把替换前文本写到 `ProcessableMessage._originalContent`，不把资产路径或系统 URI 写入聊天数据
+
+7. primary:attachment-preparer (priority: 600)
+   ├── 通过 AssetManager 检查历史 `ManagedAssetRef` 可用性，保留 ready 资产的匿名托管引用
+   ├── 原件已清理、缺失或读取失败时，跳过二进制引用；如果聊天附件快照已有 `extractedText`，则以带名称和 MIME 标识的文本块确定性回退
+   ├── 文本回退发生在 Token 限制器之前，因此会参与历史裁剪和最终请求 Token 快照
+   └── `useChatExecutor` 只对没有文本回退的失效历史附件显示跳过提示；可用引用继续在最终序列化时交给 Rust 原生传输读取
 
 管道执行流程：
 LlamaChatView.send() → useChatExecutor.execute()
   → 构建 PipelineContext
   → pipelineStore.executePipeline(context)
-  → [session-loader, agent-preset-loader, ...其他处理器]
+  → [session-loader, user-profile-injector, regex-processor, injection-assembler, worldbook-injector, macros-renderer, attachment-preparer, token-limiter, message-formatter]
+  → buildMessageContent() 序列化可用托管引用 → Rust 原生传输在发网前解析资产字节
   → 输出 messages[] 给 llmRequest.sendRequest()
 ```
 
-**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载与智能体预设加载；宏替换、深度注入、用户档案注入等仍待移植。
+**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载、基础用户档案注入、导入 Agent 的 request 阶段正则、预设注入组装、移动端限定范围的关键词世界书注入、宏/局部变量渲染、附件可用性与提取文本回退、Token 裁剪和最终消息格式化；预设支持默认、深度、高级深度、锚点与模型匹配，格式化支持模型默认规则与 Agent 覆盖的 system 合并、连续角色合并、system 转 user 和角色交替。宏只覆盖角色聊天当前消费的 `user` / `agent` / `char`、用户档案、会话 `last*` / `input`、模型、`assets` 与导入角色局部变量；未知与转义宏不会被执行。世界书由 `worldbookStore` 用 `llm-chat/worldbooks.json` 单独持久化，数据只包含文本、关键词、扫描深度、位置和顺序；世界书管理页创建条目，Agent 编辑页使用既有 `worldbookIds` 选择。资源解析当前边界为：聊天只持久化 `assetId +` 轻量快照；可用图片、音频、视频和文档以托管引用在 Rust 原生传输层读取，历史文档在用户执行“提取文本并清理原件”后可用持久化 `extractedText` 回退；同一进程中的活跃会话通过轻量缓存立即可见，重载后以 SQLite 快照为准。媒体压缩、PDF/Office 深度解析、转写、工具调用、向量 RAG、Knowledge/Recall 不属于这条管线完成的前置条件。Token 限制器当前计算文本，附件和其他多模态成本继续按实际模型与渠道协议独立估算。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
 
 ### 4.3. Token 统计与上下文预警
 
 - `useContextTokenUsage` 对当前分支、启用的智能体预设和输入草稿执行 500ms 防抖批量计数，输入变化后用请求序号丢弃过期结果。
-- 发送前，`useChatExecutor` 对管道最终文本调用同一 `count_tokens_batch`，保存消息级估算和本次请求的上下文快照；工具 schema、附件和非文本多模态开销不在该通用计数中。
+- 发送前，`useChatExecutor` 对管道最终文本调用同一 `count_tokens_batch`，保存消息级估算和本次请求的上下文快照；工具 schema、附件和非文本多模态开销不在该通用计数中。`LlmRequestOptions` 虽支持 `tools`，当前聊天执行器未传递它；未来接入工具调用时，schema、tool choice 与协议包装成本必须另行估算。
 - API 返回 usage 后，助手消息的 `completionTokens` 和本次请求的 `promptTokens` 优先显示为实际值；usage 缺失时使用 Rust `o200k`，IPC 异常时使用字符 fallback。已有实际值不会被后续估算覆盖。
 - 上下文窗口来自模型对象自身的 `tokenLimits.contextLength`。80% / 90% 阈值集中在 `ChatSettings.contextManagement`，Rust 后端不持有业务预警策略。
+- `token-limiter` 已位于 `injection-assembler` 之后、`message-formatter` 之前：复用 `countTokensBatch()`，让预设先占预算并从最新历史倒序保留文本消息，必要时截断单条字符串。固定消息耗尽或超出预算时仍按继承策略保留固定消息并删除历史，但处理结果必须为 `degraded`/warn，并记录 `presetTokens`、`maxContextTokens`、`overflowTokens` 与历史是否全部删除。最终发送前计数继续用于风险提示、消息级估算和请求快照；附件、工具 schema 和非文本多模态开销不在该通用文本计数中。
+- 只有真实设备数据证明需要时，才评估 Worker、Rust 或原生层调整。
 
 ### 4.4. 对话执行流程
 
 ```
 用户输入 → useChatExecutor.execute(session, content, parentNodeId?)
+Assistant 续写 → useChatExecutor.continueGeneration(session, assistantNode)
   │
   ├─ 1. 校验模型有效性（profile + model）
-  ├─ 2. 创建用户消息节点（推入树）
-  ├─ 3. 创建助手消息节点（生成中状态）
-  ├─ 4. 更新 activeLeaf
-  ├─ 5. 读取会话绑定的 Agent 与模型/常用生成参数
-  ├─ 6. 执行 pipeline（加载历史消息和 Agent 预设 → 构建 ProcessableMessage[]）
-  ├─ 7. 统计最终请求上下文 Token 并写入风险快照
-  ├─ 8. 调用 useLlmRequest.sendRequest()（流式）
-  │    └─ onStream: 逐 chunk 追加到 assistantNode.content
-  ├─ 9. 收口实际/估算 usage，更新节点状态（complete / error）
-  └─ 10. 持久化会话
+  ├─ 2. 普通发送创建用户节点；重新生成复用父用户节点；续写创建复制源内容的 Assistant 同级分支
+  ├─ 3. 创建或复用生成中的助手节点并更新 activeLeaf
+  ├─ 4. 读取会话绑定的 Agent 与模型/常用生成参数，固化本次助手快照
+  ├─ 5. 执行 pipeline（续写时活跃路径以复制前缀的 Assistant 分支结尾；加载历史并按默认/深度/锚点策略组装 Agent 预设；在 Token 裁剪前筛除失效附件并回退已持久化的提取文本）
+  ├─ 6. 统计最终请求上下文 Token 并写入风险快照
+  ├─ 7. 调用 useLlmRequest.sendRequest()（流式）
+  │    ├─ onStream: 逐 chunk 追加到 assistantNode.content
+  │    └─ ChatInput 的停止按钮通过共享 AbortController 传入 request signal
+  ├─ 8. 收口实际/估算 usage，更新节点状态（complete / error）；续写响应只返回新增文本时会自动保留前缀，主动停止同样保留前缀和已流式输出，以 complete + metadata.interrupted 持久化
+  └─ 9. 持久化会话
 ```
+
+原生 reqwest 流在成功响应时注册为前端拉取式 stream；非 2xx 在 Rust 端按响应上限读取错误正文后直接返回状态，不进入 stream registry。取消命令会先触发 token，再立即移除 request 与 response registry；已在执行的 read 由 token 唤醒并自行收口。
 
 ## 5. 路由与页面
 
 注册于 `llm-chat.registry.ts`，采用嵌套路由结构：
 
-| 路由路径                   | 页面组件               | 说明                  |
-| -------------------------- | ---------------------- | --------------------- |
-| `/tools/llm-chat`          | —                      | 根路由，重定向到 home |
-| `/tools/llm-chat/home`     | `ChatHome.vue`         | 主页入口，4个操作卡片 |
-| `/tools/llm-chat/sessions` | `SessionList.vue`      | 历史会话列表          |
-| `/tools/llm-chat/chat/:id` | `LlmChatView.vue`      | 聊天主界面            |
-| `/tools/llm-chat/settings` | `ChatSettingsView.vue` | 聊天设置页面          |
+| 路由路径                     | 页面组件               | 说明                  |
+| ---------------------------- | ---------------------- | --------------------- |
+| `/tools/llm-chat`            | —                      | 根路由，重定向到 home |
+| `/tools/llm-chat/home`       | `ChatHome.vue`         | 主页入口，5个操作卡片 |
+| `/tools/llm-chat/sessions`   | `SessionList.vue`      | 历史会话列表          |
+| `/tools/llm-chat/chat/:id`   | `LlmChatView.vue`      | 聊天主界面            |
+| `/tools/llm-chat/profiles`   | `UserProfilesView.vue` | 用户档案管理          |
+| `/tools/llm-chat/worldbooks` | `WorldbooksView.vue`   | 关键词世界书管理      |
+| `/tools/llm-chat/settings`   | `ChatSettingsView.vue` | 聊天设置页面          |
 
 ### 5.1. ChatHome.vue — 主页
 
 - 加载设置、LLM Profiles、会话索引
-- 4个操作卡片：
+- 5个操作卡片：
   - **开启新对话** — `createSession()` + 跳转
   - **历史会话** — 跳转到 `SessionList`
   - **角色大厅** — 跳转到独立 `agent-manager`，可选择智能体发起绑定会话
-  - **用户档案** — 禁用状态（"敬请期待"）
+  - **用户档案** — 跳转到 `UserProfilesView`，管理基础档案和默认选择
+  - **世界书** — 跳转到 `WorldbooksView`，管理关键词背景条目
 - 使用 SafeTop 组件处理刘海屏
 
 ### 5.2. LlmChatView.vue — 聊天主界面
@@ -270,10 +316,12 @@ LlamaChatView.send() → useChatExecutor.execute()
 - 全屏模式（`position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1001`）
 - 使用 `var-app-bar` 作为导航栏
 - 监听键盘弹出状态（`useKeyboardAvoidance`）
-- 消息变化时自动滚动到底部
+- 消息变化和键盘弹出时仅在“自动滚动”偏好开启时滚动到底部；显式搜索定位不受该开关影响
+- 将“聊天字体缩放”偏好传递至消息列表，统一缩放用户与助手消息正文
+- `showMessageNavigator` 开启时，在消息区右下角显示紧凑导航器；它以当前可视消息计数定位，不影响自动滚动开关
 - 导航栏展示当前绑定的 Agent 名称和头像标识
 - 输入区可直接切换当前模型；绑定 Agent 时优先使用 Agent 的渠道与模型
-- 支持删除消息、重新生成
+- 支持删除消息、助手消息续写、重新生成与分支切换；续写只在非生成中的 Assistant 消息菜单展示
 
 ### 5.3. SessionList.vue — 会话列表
 
@@ -291,14 +339,14 @@ LlamaChatView.send() → useChatExecutor.execute()
 
 ### 6.1. 列表组件
 
-| 组件                 | 职责                                             |
-| -------------------- | ------------------------------------------------ |
-| `MessageList.vue`    | 消息列表容器，处理滚动和自动滚动                 |
-| `MessageContent.vue` | 渲染消息正文（纯文本/Markdown）                  |
-| `ChatMessage.vue`    | 单条消息的整体排版（头像、气泡、元信息）         |
-| `MessageMenubar.vue` | 操作菜单（重新生成、复制、编辑、删除、分支切换） |
-| `BranchSwitcher.vue` | 兄弟分支切换器（上一分支/下一分支）              |
-| `BranchSelector.vue` | 底部抽屉式分支列表，支持直接切换到任意同级分支   |
+| 组件                 | 职责                                                     |
+| -------------------- | -------------------------------------------------------- |
+| `MessageList.vue`    | 消息列表容器，处理滚动；自动滚动与字号由聊天 UI 偏好控制 |
+| `MessageContent.vue` | 渲染消息正文、附件状态与统一受控媒体预览                 |
+| `ChatMessage.vue`    | 单条消息的整体排版（头像、气泡、模型、时间戳等元信息）   |
+| `MessageMenubar.vue` | 操作菜单（重新生成、复制、编辑、删除、分支切换）         |
+| `BranchSwitcher.vue` | 兄弟分支切换器（上一分支/下一分支）                      |
+| `BranchSelector.vue` | 底部抽屉式分支列表，支持直接切换到任意同级分支           |
 
 ### 6.2. 输入组件
 
@@ -336,15 +384,22 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - 持久化处理器顺序和启用状态
 - 版本 `1.0.0`
 
-### 7.4. 计划中的资产引用
+### 7.4. 用户档案存储与请求注入
 
-会话与消息 SQLite 迁移已完成，附件存储/outbox、聊天内资产选择和 provider wire 第一批已接入；实时原件状态仍按 [`mobile-sqlite-migration-plan.md`](../../../docs/plan/mobile-sqlite-migration-plan.md) 阶段三推进。
+- 使用 `createConfigManager` 在 `llm-chat/user-profiles.json` 持久化基础档案列表和全局默认档案 ID。
+- 每个档案只包含移动端可完整支持的名称、显示名称、图标、纯文本内容、启用状态和使用时间；不冒充或替代桌面端完整用户档案/宏契约。
+- 请求执行时，启用的 `ChatAgent.userProfileId` 优先于启用的全局默认档案；`user-profile-injector` 在会话历史之前插入 `<user_profile name="…">` 系统上下文，并更新最后使用时间。
+- 管理页支持创建、编辑、启用/禁用、删除和设为默认；确定性 Android E2E 同时验证默认档案持久化与请求中存在档案标签。
+
+### 7.5. 已实施的资产引用
+
+会话与消息 SQLite 迁移、附件存储/outbox、聊天内资产选择、provider wire、受控图片预览、文本文档提取和实时原件状态降级均已接入。Android Studio AVD 的确定性附件发送与 Ollama opt-in 验收已完成；Android 真机主流程和 iOS 仍是平台门禁，剩余施工以 [`mobile-sqlite-migration-plan.md`](../../../docs/plan/mobile-sqlite-migration-plan.md) 为准。
 
 - 聊天消息附件使用 `ManagedAssetRef`：持久化 `assetId`、`usagePolicy` 和名称、类型、MIME、大小、提取文本等轻量快照，不保存资产路径。
 - `chat_attachments` 归 `llm_chat.db` 所有；资产原件和 tombstone 归 `asset_manager.db` 所有，两者不建立跨数据库外键。
 - 消息、分支和会话变更在聊天事务内写 usage outbox，再由幂等投递器调用资产服务整体替换业务实体的 usage。
 - `session-loader` 已把消息与附件引用一起加载到强类型 `_attachments`；只有文本为空但存在附件的消息不会被过滤。
-- 附件预览使用资产服务返回的受控预览来源；发送给模型时传递 `managed-asset-ref`，由 Rust 解析并流式读取，不把原件读入 JS 后再经 base64 IPC 复制。
+- 附件预览统一由 `MessageContent` 映射 `ManagedAssetRef` 的 `assetId +` 轻量快照到 `MediaItem`，再交给 `MediaPreviewHost` 申请和撤销受控来源；图片、视频和音频共享返回/沉浸层/错误生命周期。发送给模型时仍只传递 `managed-asset-ref`，由 Rust 解析并流式读取，不把原件读入 JS 后再经 base64 IPC 复制。
 - 移动端共享 wire 类型和 Rust 原生传输已经支持 `managed-asset-ref`；聊天附件持久化、usage outbox、消息快照展示和 reclaimed/missing 实时降级已接入，provider 请求组装已覆盖 OpenAI-compatible、Gemini 和 Anthropic。
 - 资产为 `reclaimed` 时保留消息和附件快照，界面显示“原件已清理”；`missing` 表示异常缺失，两者不能合并处理。
 - 智能体预设附件继续引用 Agent 私有资产 Handle，随 Agent 资源包迁移，不登记为全局聊天资产。
@@ -377,14 +432,25 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - [x] PipelineContext 定义
 - [x] ContextProcessor 接口
 - [x] 处理器注册/注销/排序/启用
-- [x] 核心处理器：session-loader、agent-preset-loader
-- [x] 待处理器的执行、日志和共享黑板
+- [x] 核心处理器：session-loader、user-profile-injector、regex-processor、injection-assembler（含模型/渠道匹配）、worldbook-injector（移动端限定关键词世界书）、macros-renderer（角色聊天限定宏/局部变量）、attachment-preparer、token-limiter、message-formatter
+- [x] 处理器的顺序执行、日志和共享黑板；处理器必须明确返回 `applied`、`skipped`、`degraded` 或 `failed`，未命中和安全降级继续执行，显式失败、无效结果或未恢复异常终止请求构造
+
+处理结果契约：
+
+| 状态       | 含义                                 | 管线行为               |
+| ---------- | ------------------------------------ | ---------------------- |
+| `applied`  | 处理器成功完成适用工作               | 记录 `info`，继续      |
+| `skipped`  | 未配置、未命中或当前上下文不适用     | 记录 `info`，继续      |
+| `degraded` | 发生预期问题，但处理器已完成安全回退 | 记录 `warn`，继续      |
+| `failed`   | 无法保证后续请求正确性               | 记录 `error`，立即终止 |
+
+处理器抛出的未恢复异常和未返回合法结果都按 `failed` 处理。可恢复问题必须由处理器完成回退后显式返回 `degraded`；不得由管线引擎静默吞掉异常。`session-loader` 缺少会话、附件准备无法完成、Token 限制或最终格式化发生未恢复异常等情况不得继续发网。
 
 ### ✅ Agent 对话接入
 
 - [x] 从角色大厅创建绑定 Agent 的会话
 - [x] 会话通过 `displayAgentId` 持久化 Agent 绑定
-- [x] 加载并注入启用的 Agent 预设消息
+- [x] 加载并按默认、深度和锚点策略组装启用的 Agent 预设消息
 - [x] Agent 渠道、模型与常用生成参数进入请求层
 - [x] 聊天导航栏展示当前 Agent 标识
 
@@ -400,6 +466,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 
 - [x] UI、模型、消息管理、请求和上下文阈值的设置界面与持久化结构
 - [x] Token 显示、上下文预警阈值和消息删除确认运行时接线
+- [x] 流式开关、时间戳、模型信息、自动滚动和消息字号运行时接线
 - [x] 重置为默认
 - [x] 中英文语言包与工具级 i18n 注册
 
@@ -415,11 +482,13 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 
 ### 🔄 管道处理器
 
-- [ ] `macros-renderer`：宏替换/模板渲染
-- [ ] `depth-injector`：深度注入（系统提示词）
-- [ ] `user-profile-injector`：用户档案注入
-- [x] `agent-preset-loader`：智能体预设加载
-- [ ] 是否将现有 Token 统计进一步收敛为独立 `token-counter` 处理器；当前功能已经由 `useContextTokenUsage`、`useChatExecutor` 和 `useChatResponseHandler` 完成，此项属于架构收口而非功能缺失
+- [x] `macros-renderer`：已完成移动端角色聊天限定范围的角色、用户、会话、模型、附件摘要宏与局部变量；工具、Recall、Knowledge、CSS 和全局变量宏不属于当前范围
+- [x] `regex-processor`：兼容导入 Agent 的 request 阶段文本正则，按预设优先级、角色和消息深度执行；脚本规则与全局/用户档案配置仍待独立能力
+- [x] `message-formatter`：模型默认规则与 Agent 覆盖的消息合并、角色转换和交替补位
+- [x] `injection-assembler`：默认、深度/高级深度和锚点预设组装；私有预设附件待 Agent 资源包完成后接入
+- [x] `user-profile-injector`：启用的 Agent 绑定或全局默认基础档案在历史前以 `<user_profile>` 系统上下文注入；完整桌面用户档案宏契约仍不在此范围
+- [x] 模型与渠道匹配：由 `injection-assembler` 统一执行；Agent 的 `profileId` 与 provider-native `modelId` 分字段保存，Ollama 等带冒号模型 ID 不再二次拆分
+- [x] `token-limiter`：复用现有 Rust `o200k` 批量计数，预设先占预算、从最新历史倒序保留；部分截断保留消息开头并对候选文本重新计数，附件、工具 schema 和多模态额外开销仍由独立估算处理
 - [x] `ProcessableMessage._attachments` 的强类型加载与空文本消息保留
 
 ### 🔄 多模态支持
@@ -428,49 +497,50 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - [x] 按移动端资产设计引入 `ManagedAssetRef + 轻量快照`
 - [x] 接入 `chat_attachments`、usage outbox 和消息/分支/会话删除释放流程
 - [x] 接入 `managed-asset-ref` 原生发送与 `reclaimed`/`missing` 降级展示
-- [x] 图片受控预览（短期 descriptor、Teleport 全屏层和关闭/卸载主动撤销）
+- [x] 图片、视频和音频附件的统一受控预览（`MediaPreviewHost`、短期 descriptor、Teleport 沉浸层和关闭/卸载主动撤销）
 - [x] 文本文档提取结果写入附件快照、blocking usage 降级和 replacement outbox
 
 ### 🔄 智能体支持
 
 - [x] 本地角色大厅与基础编辑
-- [ ] 用户档案管理
+- [x] 基础用户档案管理：多档案 CRUD、启用/禁用、全局默认选择、Agent `userProfileId` 覆盖与请求系统上下文注入
 - [x] 智能体预设加载
-- [ ] 执行预设消息的 `injectionStrategy` 和 `modelMatch`
-- [ ] 聊天内切换 Agent
-- [ ] 将 Agent 开局消息实例化到新会话
+- [x] 执行预设消息的 `injectionStrategy` 和 `modelMatch`
+- [x] `primary:macros-renderer` 已在预设装配后展开角色、用户、会话、模型和当前附件的轻量摘要宏，并复用导入 Agent `variableConfig` 的局部变量定义；仅支持 `<svar>`、`getvar` / `setvar` / `incvar` / `decvar`，不注册工具、Recall、Knowledge、CSS 或全局变量宏
+- [x] 已接入移动端限定的传统关键词世界书：有限历史扫描、常量/关键词激活和确定性注入；递归、概率、分组竞争、向量 RAG 与 Knowledge/Recall 不属于当前范围
+- [x] 聊天内切换 Agent（顶部选择器仅更新会话绑定；历史节点保留原快照，后续助手消息保存 Agent 和模型/渠道快照）
+- [x] 将 Agent 开局消息实例化到新会话（根节点兄弟分支、默认开局选择和旧字符串兼容；聊天宏与私有附件后续按各自范围接入）
 
 ### 🔄 体验优化
 
 - [x] 消息全文搜索、结果 snippet、分支定位与目标消息高亮
-- [ ] 消息引用（回复模式）
-- [ ] 会话列表排序（历史会话页已提供跨会话消息搜索入口）
-- [ ] 消息复制真正写入系统剪贴板；当前操作只显示成功提示
+- [x] 消息引用（回复模式）：操作栏选择任意消息后在输入区保留可取消的引用快照；新用户消息经 `metadata.replyTo` 持久化，在会话恢复后继续展示，并在请求历史中以 `<reply_to>` 明确传递给模型
+- [x] 会话列表排序（历史会话页提供最近更新、创建时间、消息数和名称的双向排序；跨会话消息搜索结果保持服务端相关性顺序）
+- [x] 消息复制通过 `tauri-plugin-clipboard-manager` 写入系统剪贴板；仅在原生写入成功后显示成功反馈，失败时提示检查权限
 - [x] 消息删除前按设置显示确认弹窗
-- [ ] 会话删除和清空确认设置完整接线
+- [x] 会话删除和清空确认设置完整接线（历史会话页会在设置开启时确认单个删除或清空全部；取消不会触发写入，完成后给出本地化反馈）
 - [x] Token 用量统计展示
 - [x] 聊天输入区模型切换下拉按钮
-- [ ] 流式开关、时间戳、模型信息开关、自动滚动开关和消息字号运行时接线
-- [ ] 默认模型偏好运行时接线；当前无有效选择时直接回退到第一个可用模型
-- [ ] 请求超时和最大重试次数运行时接线
-- [ ] 清理聊天页、会话列表、编辑弹窗和输入提示中的硬编码中文，完成双语覆盖
+- [x] 默认模型偏好运行时接线：当前选择为空或失效时优先使用设置的可用默认模型，再回退到第一个可用模型；不覆盖仍有效的手动选择
+- [x] 请求超时和最大重试次数运行时接线：超时传递至 provider transport；仅在尚未收到流式内容且遇到可恢复的超时、限流或服务端错误时退避重试，避免重复拼接响应
+- [x] 聊天页、会话列表、编辑弹窗、输入与附件提示已改用工具私有语言包，补齐中英文覆盖
 
 ## 10. 与桌面端的差异
 
-| 维度           | 桌面端 (`src/tools/llm-chat`)                                                  | 移动端 (`mobile/src/tools/llm-chat`)                                            |
-| -------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
-| **UI 分层**    | 自研业务组件 + Element Plus 叶子控件                                           | 原生 Vue/AIO token 骨架 + Varlet 叶子控件                                       |
-| **类型**       | 完整 `ChatAgent`, `Asset`, `ChatSettings`                                      | 已接入兼容 `ChatAgent`；目标使用轻量 `ManagedAssetRef`，当前仍为占位            |
-| **管道处理器** | 完整：session-loader + macros + depth-injection + user-profile + token-counter | `session-loader` + `agent-preset-loader`；Token 统计当前位于执行层与 composable |
-| **组件**       | 丰富（BaseDialog, ImageViewer 等）                                             | 基础的列表/输入组件                                                             |
-| **编辑器**     | RichCodeEditor（双引擎）                                                       | 纯文本输入                                                                      |
-| **路由**       | `main`, `settings` 两页                                                        | `home`, `sessions`, `chat/:id`, `settings` 四页                                 |
-| **存储**       | ConfigManager + 独立文件                                                       | `llm_chat.db` 增量存储；ConfigManager 仅保存当前会话 ID                         |
-| **多模态**     | 支持完整 Asset 系统                                                            | 当前仅占位；目标接入移动端可回收资产契约                                        |
+| 维度           | 桌面端 (`src/tools/llm-chat`)                                        | 移动端 (`mobile/src/tools/llm-chat`)                                                                                                                                                                                                                                                           |
+| -------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **UI 分层**    | 自研业务组件 + Element Plus 叶子控件                                 | 原生 Vue/AIO token 骨架 + Varlet 叶子控件                                                                                                                                                                                                                                                      |
+| **类型**       | 完整 `ChatAgent`, `Asset`, `ChatSettings`                            | 已接入兼容 `ChatAgent` 和 `ManagedAssetRef + 轻量快照`，不持久化全局资产路径                                                                                                                                                                                                                   |
+| **管道处理器** | 完整：会话、注入、宏/变量、世界书/召回、Token 限制、格式化和资源解析 | `session-loader` + `user-profile-injector` + `regex-processor` + `injection-assembler` + `macros-renderer` + `attachment-preparer` + `token-limiter` + `message-formatter`；宏仅覆盖角色聊天范围，Token 仅裁剪文本；可用附件由原生传输解析，已清理文档可回退持久化提取文本，多模态成本独立处理 |
+| **组件**       | 丰富（BaseDialog, ImageViewer 等）                                   | 基础的列表/输入组件                                                                                                                                                                                                                                                                            |
+| **编辑器**     | RichCodeEditor（双引擎）                                             | 纯文本输入                                                                                                                                                                                                                                                                                     |
+| **路由**       | `main`, `settings` 两页                                              | `home`, `sessions`, `chat/:id`, `settings` 四页                                                                                                                                                                                                                                                |
+| **存储**       | ConfigManager + 独立文件                                             | `llm_chat.db` 增量存储；ConfigManager 仅保存当前会话 ID                                                                                                                                                                                                                                        |
+| **多模态**     | 支持完整 Asset 系统                                                  | 已接入 `ManagedAssetRef`、SQLite 附件快照、受控预览和 Rust 原生传输；平台门禁独立跟踪                                                                                                                                                                                                          |
 
 ## 11. 关键代码约定
 
-1. **模型选择格式**: `"profileId:modelId"`（例如 `"openai:gpt-4"`）
+1. **模型选择格式**: 选择器和会话设置使用 `"profileId:modelId"` 组合值并只在首个冒号处分割；Agent 持久化时 `profileId` 与 provider-native `modelId` 分字段保存，因此 `modelId` 自身可包含冒号（如 `llama3.2:latest`）
 2. **会话根节点**: 每个会话必有 `rootNode`，`role: "system"`, `content: ""`，不计入 `messageCount`
 3. **无法编辑根节点**: `hardDeleteNode` 明确禁止删除根节点
 4. **分支切换策略**: 优先使用 `lastSelectedChildId` 记忆，无记忆时用第一个子节点

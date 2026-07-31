@@ -154,7 +154,7 @@ const handleRadiusScaleChange = async (value: any) => {
 </script>
 
 <template>
-  <div class="theme-settings-view">
+  <div class="theme-settings-view" data-testid="theme-settings-view">
     <var-app-bar
       :title="t('settings.主题与壁纸')"
       title-position="center"
@@ -163,12 +163,26 @@ const handleRadiusScaleChange = async (value: any) => {
       z-index="100"
     >
       <template #left>
-        <var-button round text color="transparent" @click="handleBack">
+        <var-button
+          round
+          text
+          color="transparent"
+          data-testid="theme-settings-back"
+          aria-label="返回"
+          @click="handleBack"
+        >
           <ChevronLeft :size="24" />
         </var-button>
       </template>
       <template #right>
-        <var-button round text color="transparent" @click="handleReset">
+        <var-button
+          round
+          text
+          color="transparent"
+          data-testid="theme-settings-reset"
+          :aria-label="t('common.重置')"
+          @click="handleReset"
+        >
           <RotateCcw :size="20" />
         </var-button>
       </template>
@@ -202,6 +216,7 @@ const handleRadiusScaleChange = async (value: any) => {
           </div>
           <template #extra>
             <var-select
+              data-testid="theme-mode"
               v-model="appearanceDraft.theme"
               variant="standard"
               :hint="false"
@@ -211,6 +226,7 @@ const handleRadiusScaleChange = async (value: any) => {
               <var-option
                 v-for="opt in themeOptions"
                 :key="opt.value"
+                :data-testid="`theme-mode-${opt.value}`"
                 :label="opt.label"
                 :value="opt.value"
               />

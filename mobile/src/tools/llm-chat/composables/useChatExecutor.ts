@@ -1,4 +1,5 @@
 import { useLlmChatStore } from "../stores/llmChatStore";
+import { parseSelectedModelValue } from "../utils/modelSelection";
 import { useLlmRequest } from "../../llm-api/composables/useLlmRequest";
 import { useLlmProfilesStore } from "../../llm-api/stores/llmProfiles";
 import { useNodeManager } from "./useNodeManager";
@@ -7,8 +8,11 @@ import { useChatResponseHandler } from "./useChatResponseHandler";
 import { useTopicNamer } from "./useTopicNamer";
 import { useChatSettings } from "./useChatSettings";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
+import { useUserProfileStore } from "../stores/userProfileStore";
+import { useWorldbookStore } from "../stores/worldbookStore";
 import type {
   ChatMessageAttachment,
+  ChatMessageReference,
   ChatSession,
   PipelineContext,
   ChatMessageNode,
@@ -26,8 +30,19 @@ import {
   getAttachmentAvailabilityMap,
   partitionAttachmentsByAvailability,
 } from "../utils/attachmentStatus";
+import { createAssistantAgentSnapshot } from "../services/agentSessionService";
 
 const logger = createModuleLogger("llm-chat/useChatExecutor");
+interface ActiveGeneration {
+  controller: AbortController;
+  sessionId: string;
+  assistantNodeId: string;
+}
+
+// ChatInput and LlmChatView each create this composable independently. The
+// active cancellation boundary must therefore be shared for the one global
+// in-flight chat request.
+let activeGeneration: ActiveGeneration | null = null;
 
 export function useChatExecutor() {
   const chatStore = useLlmChatStore();
@@ -36,12 +51,23 @@ export function useChatExecutor() {
   const nodeManager = useNodeManager();
   const pipelineStore = useContextPipelineStore();
   const agentStore = useAgentStore();
+  const userProfileStore = useUserProfileStore();
+  const worldbookStore = useWorldbookStore();
   const { handleStreamUpdate, finalizeNode, handleNodeError } =
     useChatResponseHandler();
   const { shouldAutoName, generateTopicName } = useTopicNamer();
   const { settings, loadSettings } = useChatSettings();
   const { tRaw } = useI18n();
   const t = (key: string) => tRaw(`tools.llm-chat.TokenUsage.${key}`);
+  const chatT = (key: string) => tRaw(`tools.llm-chat.ChatView.${key}`);
+
+  function stop(session: ChatSession): boolean {
+    if (!activeGeneration || activeGeneration.sessionId !== session.id) return false;
+    activeGeneration.controller.abort(
+      new DOMException("Generation stopped by user", "AbortError")
+    );
+    return true;
+  }
 
   /**
    * 执行对话请求
@@ -50,7 +76,9 @@ export function useChatExecutor() {
     session: ChatSession,
     userContent: string,
     parentNodeId?: string,
-    attachments: ChatMessageAttachment[] = []
+    attachments: ChatMessageAttachment[] = [],
+    replyTo?: ChatMessageReference,
+    continuationSource?: ChatMessageNode
   ): Promise<boolean> {
     if (chatStore.isSending) return false;
 
@@ -63,18 +91,24 @@ export function useChatExecutor() {
         availability
       );
       if (unavailable.length) {
-        customMessage("所选附件原件已被清理或缺失，请移除后重试", "warning");
+        customMessage(chatT("所选附件不可用提示"), "warning");
         return false;
       }
     }
 
     if (!agentStore.isLoaded) await agentStore.init();
+    if (!userProfileStore.isLoaded) await userProfileStore.init();
+    if (!worldbookStore.isLoaded) await worldbookStore.init();
     await loadSettings();
     const activeAgent = agentStore.getAgentById(session.displayAgentId);
+    const effectiveUserProfile = userProfileStore.getEffectiveProfile(
+      activeAgent?.userProfileId
+    );
 
     // 智能体绑定优先；普通会话继续使用聊天页当前选择的模型。
-    const [selectedProfileId, selectedModelId] =
-      chatStore.selectedModelValue.split(":");
+    const [selectedProfileId, selectedModelId] = parseSelectedModelValue(
+      chatStore.selectedModelValue
+    );
     const profileId = activeAgent?.profileId || selectedProfileId;
     const modelId = activeAgent?.modelId || selectedModelId;
     if (!profileId || !modelId) {
@@ -96,75 +130,109 @@ export function useChatExecutor() {
       return false;
     }
 
-    // 1. 创建用户消息节点 (如果提供了 parentNodeId，说明是重试，不需要再创建用户节点)
+    // 1. 创建用户消息节点（重试和续写会复用已有用户节点）。
     let currentUserNodeId = parentNodeId || "";
-    if (!currentUserNodeId) {
-      const userNode = nodeManager.createNode({
-        role: "user",
-        content: userContent,
-        parentId: session.activeLeafId,
-        attachments,
-      });
-      nodeManager.addNodeToSession(session, userNode);
-      currentUserNodeId = userNode.id;
-    }
+    let assistantNode: ChatMessageNode;
 
-    // 2. 创建助手消息节点（初始状态为 generating）
-    const assistantNode = nodeManager.createNode({
-      role: "assistant",
-      content: "",
-      parentId: currentUserNodeId,
-      status: "generating",
-      metadata: {
-        modelId: modelId,
-        modelDisplayName: model?.name || modelId,
-        agentId: activeAgent?.id,
-      },
-    });
-    nodeManager.addNodeToSession(session, assistantNode);
+    if (continuationSource) {
+      const continuationNode = nodeManager.createContinuationBranch(
+        session,
+        continuationSource.id
+      );
+      if (!continuationNode) return false;
+
+      assistantNode = continuationNode;
+      currentUserNodeId = continuationNode.parentId || "";
+      // 使用本次实际请求的 Agent / 模型快照覆盖源分支中的旧绑定。
+      assistantNode.metadata = {
+        ...assistantNode.metadata,
+        ...createAssistantAgentSnapshot(
+          activeAgent,
+          profileId,
+          modelId,
+          model.name || modelId
+        ),
+      };
+    } else {
+      if (!currentUserNodeId) {
+        const userNode = nodeManager.createNode({
+          role: "user",
+          content: userContent,
+          parentId: session.activeLeafId,
+          attachments,
+          metadata: replyTo ? { replyTo } : undefined,
+        });
+        nodeManager.addNodeToSession(session, userNode);
+        currentUserNodeId = userNode.id;
+      }
+
+      // 2. 创建助手消息节点（初始状态为 generating）
+      assistantNode = nodeManager.createNode({
+        role: "assistant",
+        content: "",
+        parentId: currentUserNodeId,
+        status: "generating",
+        metadata: createAssistantAgentSnapshot(
+          activeAgent,
+          profileId,
+          modelId,
+          model.name || modelId
+        ),
+      });
+      nodeManager.addNodeToSession(session, assistantNode);
+    }
 
     // 3. 更新活跃节点
     nodeManager.updateActiveLeaf(session, assistantNode.id);
 
     chatStore.isSending = true;
+    const generation: ActiveGeneration = {
+      controller: new AbortController(),
+      sessionId: session.id,
+      assistantNodeId: assistantNode.id,
+    };
+    activeGeneration = generation;
 
     try {
+      // Persist the durable request boundary before network I/O so a process stop can be
+      // recovered as an interrupted generation instead of losing the submitted message.
+      await chatStore.persistCurrentSession();
+
       // 4. 构造管道上下文并执行
       const pipelineContext: PipelineContext = {
         messages: [],
         session,
         agentConfig: activeAgent,
+        userProfile: effectiveUserProfile,
         settings: settings.value,
         capabilities: model.capabilities,
         timestamp: Date.now(),
-        sharedData: new Map(),
+        sharedData: new Map<string, unknown>([
+          ["model", model],
+          ["profile", profile],
+          ["worldbooks", worldbookStore.getWorldbooksByIds(activeAgent?.worldbookIds)],
+        ]),
         logs: [],
       };
 
       await pipelineStore.executePipeline(pipelineContext);
+      if (generation.controller.signal.aborted) {
+        throw generation.controller.signal.reason;
+      }
+      if (effectiveUserProfile)
+        await userProfileStore.markUsed(effectiveUserProfile.id);
 
-      const pipelineAttachments = pipelineContext.messages.flatMap(
-        (message) => message._attachments ?? []
-      );
-      if (pipelineAttachments.length) {
-        const availability =
-          await getAttachmentAvailabilityMap(pipelineAttachments);
-        let unavailableHistoryCount = 0;
-        for (const message of pipelineContext.messages) {
-          if (!message._attachments?.length) continue;
-          const { ready, unavailable } = partitionAttachmentsByAvailability(
-            message._attachments,
-            availability
-          );
-          message._attachments = ready.length ? ready : undefined;
-          unavailableHistoryCount += unavailable.length;
-        }
-        if (unavailableHistoryCount) {
-          customMessage(
-            `已跳过 ${unavailableHistoryCount} 个原件不可用的历史附件`,
-            "warning"
-          );
-        }
+      const attachmentPreparation = pipelineContext.sharedData.get(
+        "attachmentPreparationStats"
+      ) as { skippedAttachmentCount?: number } | undefined;
+      if (attachmentPreparation?.skippedAttachmentCount) {
+        customMessage(
+          chatT("跳过不可用历史附件").replace(
+            "{count}",
+            String(attachmentPreparation.skippedAttachmentCount)
+          ),
+          "warning"
+        );
       }
 
       const requestContextMessages = pipelineContext.messages.filter(
@@ -241,7 +309,10 @@ export function useChatExecutor() {
           frequencyPenalty: activeAgent?.parameters?.frequencyPenalty,
           presencePenalty: activeAgent?.parameters?.presencePenalty,
           stop: activeAgent?.parameters?.stop,
-          stream: true,
+          stream: settings.value.uiPreferences.isStreaming,
+          timeout: settings.value.requestSettings.timeout,
+          maxRetries: settings.value.requestSettings.maxRetries,
+          signal: generation.controller.signal,
           onStream: (chunk) => {
             handleStreamUpdate(session, assistantNode.id, chunk, false);
           },
@@ -265,15 +336,54 @@ export function useChatExecutor() {
           logger.error("Failed to auto name session", err);
         });
       }
-    } catch (error: any) {
-      handleNodeError(session, assistantNode.id, error, "对话执行");
+    } catch (error: unknown) {
+      if (generation.controller.signal.aborted) {
+        const interruptedNode = session.nodes[assistantNode.id];
+        if (interruptedNode) {
+          interruptedNode.status = "complete";
+          interruptedNode.metadata = {
+            ...interruptedNode.metadata,
+            interrupted: true,
+            interruptedAt: Date.now(),
+          };
+        }
+      } else {
+        handleNodeError(session, assistantNode.id, error, chatT("对话执行失败"));
+      }
     } finally {
+      if (activeGeneration === generation) activeGeneration = null;
       chatStore.isSending = false;
       session.updatedAt = new Date().toISOString();
       // 持久化当前会话
       await chatStore.persistCurrentSession();
     }
     return true;
+  }
+
+  /**
+   * 在已有助手消息的同级分支上继续生成。新分支从源回复的完整内容开始，
+   * 请求管线读取该新活跃分支，因此模型可见续写前缀而不会改写原分支。
+   */
+  async function continueGeneration(
+    session: ChatSession,
+    messageNode: ChatMessageNode
+  ): Promise<boolean> {
+    if (
+      chatStore.isSending ||
+      messageNode.role !== "assistant" ||
+      messageNode.status === "generating"
+    ) {
+      return false;
+    }
+
+    return execute(
+      session,
+      "",
+      messageNode.parentId || undefined,
+      [],
+      undefined,
+      messageNode
+    );
   }
 
   /**
@@ -295,6 +405,8 @@ export function useChatExecutor() {
 
   return {
     execute,
+    continueGeneration,
     regenerate,
+    stop,
   };
 }

@@ -5,7 +5,15 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createConfigManager } from "@/utils/configManager";
 import { sessionLoader } from "../core/pipeline/processors/session-loader";
-import { agentPresetLoader } from "../core/pipeline/processors/agent-preset-loader";
+import { userProfileInjector } from "../core/pipeline/processors/user-profile-injector";
+import { regexProcessor } from "../core/pipeline/processors/regex-processor";
+import { injectionAssembler } from "../core/pipeline/processors/injection-assembler";
+import { macrosRenderer } from "../core/pipeline/processors/macros-renderer";
+import { worldbookInjector } from "../core/pipeline/processors/worldbook-injector";
+import { messageFormatter } from "../core/pipeline/processors/message-formatter";
+import { tokenLimiter } from "../core/pipeline/processors/token-limiter";
+import { attachmentPreparer } from "../core/pipeline/processors/attachment-preparer";
+import { PipelineEngine } from "../core/pipeline/PipelineEngine";
 
 const logger = createModuleLogger("contextPipelineStore");
 const errorHandler = createModuleErrorHandler("contextPipelineStore");
@@ -27,7 +35,17 @@ const settingsManager = createConfigManager<PipelineSettings>({
 });
 
 const getInitialProcessors = (): ContextProcessor[] => {
-  return [sessionLoader, agentPresetLoader];
+  return [
+    sessionLoader,
+    userProfileInjector,
+    regexProcessor,
+    injectionAssembler,
+    worldbookInjector,
+    macrosRenderer,
+    attachmentPreparer,
+    tokenLimiter,
+    messageFormatter,
+  ];
 };
 
 export const useContextPipelineStore = defineStore("contextPipeline", () => {
@@ -177,26 +195,7 @@ export const useContextPipelineStore = defineStore("contextPipeline", () => {
   async function executePipeline(
     context: PipelineContext
   ): Promise<PipelineContext> {
-    logger.info("开始执行上下文管道", {
-      processorCount: sortedAndEnabledProcessors.value.length,
-      processors: sortedAndEnabledProcessors.value.map((p) => p.id),
-    });
-
-    for (const processor of sortedAndEnabledProcessors.value) {
-      await errorHandler.wrapAsync(
-        async () => {
-          logger.debug("执行处理器", { id: processor.id });
-          await processor.execute(context);
-        },
-        {
-          userMessage: `处理步骤 [${processor.name}] 失败`,
-          context: { processorId: processor.id },
-        }
-      );
-    }
-
-    logger.info("上下文管道执行完毕");
-    return context;
+    return PipelineEngine.execute(context, sortedAndEnabledProcessors.value);
   }
 
   return {

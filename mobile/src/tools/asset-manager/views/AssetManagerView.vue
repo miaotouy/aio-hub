@@ -351,11 +351,12 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="asset-manager-view">
+  <div class="asset-manager-view" data-testid="asset-manager-view">
     <header class="page-header">
       <button
         class="icon-button"
         type="button"
+        data-testid="asset-back"
         aria-label="返回首页"
         @click="goBack"
       >
@@ -371,6 +372,7 @@ onUnmounted(() => {
       <button
         class="icon-button tasks-button"
         type="button"
+        data-testid="asset-import-jobs"
         aria-label="查看导入任务"
         @click="openImportJobs"
       >
@@ -384,6 +386,7 @@ onUnmounted(() => {
       <button
         class="header-action"
         type="button"
+        data-testid="asset-import"
         :disabled="library.importing.value"
         @click="importFromDevice"
       >
@@ -393,7 +396,12 @@ onUnmounted(() => {
       </button>
     </header>
 
-    <div v-if="library.importing.value" class="import-banner" role="status">
+    <div
+      v-if="library.importing.value"
+      class="import-banner"
+      role="status"
+      data-testid="asset-import-progress"
+    >
       <div class="import-copy">
         <span>正在导入资产</span>
         <button type="button" @click="library.cancelImport()">取消</button>
@@ -507,7 +515,11 @@ onUnmounted(() => {
           </button>
         </section>
 
-        <div v-if="library.error.value" class="state-panel state-panel--error">
+        <div
+          v-if="library.error.value"
+          class="state-panel state-panel--error"
+          data-testid="asset-list-error"
+        >
           <Database :size="30" />
           <p>无法读取资产列表</p>
           <button type="button" @click="library.load()">
@@ -517,11 +529,16 @@ onUnmounted(() => {
         <div
           v-else-if="library.loading.value && !library.assets.value.length"
           class="state-panel"
+          data-testid="asset-list-loading"
         >
           <LoaderCircle class="spin" :size="30" />
           <p>正在读取资产库</p>
         </div>
-        <div v-else-if="!library.assets.value.length" class="state-panel">
+        <div
+          v-else-if="!library.assets.value.length"
+          class="state-panel"
+          data-testid="asset-list-empty"
+        >
           <FileArchive :size="38" />
           <p>{{ hasFilters ? "没有匹配的资产" : "资产库还是空的" }}</p>
           <button v-if="hasFilters" type="button" @click="clearFilters">
@@ -532,7 +549,7 @@ onUnmounted(() => {
           </button>
         </div>
         <template v-else>
-          <div class="asset-grid">
+          <div class="asset-grid" data-testid="asset-grid">
             <AssetTile
               v-for="asset in library.assets.value"
               :key="asset.id"
@@ -639,7 +656,12 @@ onUnmounted(() => {
       </section>
     </main>
 
-    <div v-if="selectedCount" class="selection-bar" role="toolbar">
+    <div
+      v-if="selectedCount"
+      class="selection-bar"
+      role="toolbar"
+      data-testid="asset-selection-bar"
+    >
       <strong>已选 {{ selectedCount }} 项</strong>
       <div class="selection-actions">
         <button
@@ -664,7 +686,12 @@ onUnmounted(() => {
         <button type="button" @click="library.pinSelected(!selectedArePinned)">
           <HardDrive :size="17" /> {{ selectedArePinned ? "取消固定" : "固定" }}
         </button>
-        <button type="button" class="danger" @click="library.removeSelected">
+        <button
+          type="button"
+          class="danger"
+          data-testid="asset-delete-selected"
+          @click="library.removeSelected"
+        >
           <Trash2 :size="17" /> 删除
         </button>
         <button

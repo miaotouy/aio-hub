@@ -32,7 +32,7 @@ const handleCreateCustom = () => {
     position="bottom"
     style="height: 85%; border-radius: 24px 24px 0 0"
   >
-    <div class="presets-popup-container">
+    <div class="presets-popup-container" data-testid="llm-preset-selector">
       <div class="popup-header">
         <div class="popup-title-group">
           <Zap :size="20" class="title-icon" />
@@ -64,7 +64,13 @@ const handleCreateCustom = () => {
       </div>
 
       <div class="popup-footer">
-        <var-button block type="primary" outline @click="handleCreateCustom">
+        <var-button
+          block
+          type="primary"
+          outline
+          data-testid="llm-preset-custom"
+          @click="handleCreateCustom"
+        >
           <Plus :size="18" />
           {{ tRaw("tools.llm-api.PresetSelector.自定义添加") }}
         </var-button>

@@ -1,9 +1,10 @@
 # 移动端 SQLite 持久化方案调查报告
 
 > 调查日期：2026-07-15  
-> 调查对象：[`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md)  
+> 调查对象：[`mobile-sqlite-migration-plan.md`](../plan/mobile-sqlite-migration-plan.md)  
 > 调查范围：移动端 AI 聊天、笔记与 local-first 跨平台应用的本地持久化方案；Tauri v2、SQLite、事务、迁移与全文搜索能力。  
 > 说明：本报告是定向技术样本调查，不是对整个移动应用市场的统计抽样。
+> 文档状态：历史调查。调查结论已在 `llm_chat_storage.rs`、SQLx migrations 和 [`mobile-sqlite-migration-plan.md`](../plan/mobile-sqlite-migration-plan.md) 中落地；本报告不再提供实施步骤、验收状态或当前待办。
 
 ## 1. 执行结论
 
@@ -150,7 +151,9 @@ LobeChat 当前使用 Dexie/IndexedDB 作为本地缓存层，并提供 PGlite/P
 - [Tauri SQL 插件平台 metadata 与版本](https://github.com/tauri-apps/plugins-workspace/blob/13c63af965a249c21b998a95d006aab2b687ca0c/plugins/sql/Cargo.toml)
 - [`libsqlite3-sys` 0.30.1 捆绑编译脚本](https://docs.rs/crate/libsqlite3-sys/0.30.1/source/build.rs)
 
-## 5. 对现计划的评估
+## 5. 调查结论与落地结果
+
+以下内容记录 2026-07-15 的风险识别和决策依据，不是当前任务清单。当前代码与剩余 Android AVD/iOS 门禁以 [`mobile-sqlite-migration-plan.md`](../plan/mobile-sqlite-migration-plan.md) 为准。
 
 ### 5.1 建议保留的设计
 
@@ -163,7 +166,9 @@ LobeChat 当前使用 Dexie/IndexedDB 作为本地缓存层，并提供 PGlite/P
 - 跨库不尝试外键，使用 ID + transactional outbox。
 - 删除业务数据前先写 release outbox，并依赖资产命令幂等处理重复投递。
 
-### 5.2 必须在实施前修正的问题
+### 5.2 已在实施中处理的风险
+
+下列 P0/P1 已由当前 Rust storage、migration、codec、outbox 与搜索实现处理；保留原始命令式表述仅用于说明当时为何作出这些设计。P2 仍是产品级备份与加密决策，不是聊天 SQLite 施工遗留项。
 
 #### P0：事务边界改到 Rust
 
@@ -267,7 +272,7 @@ LobeChat 当前使用 Dexie/IndexedDB 作为本地缓存层，并提供 PGlite/P
 - 多数据库架构的“单工具备份”很方便，但“全应用一致快照”不能天然保证，需要产品明确备份粒度。
 - Chatbox 当前显式使用 `no-encryption`，Jan 也未展示聊天库加密；这说明未加密 SQLite 很常见，但不代表适合 AIO Hub 的隐私承诺。首版至少要记录威胁模型：依赖系统沙盒，还是引入 SQLCipher/安全密钥存储。
 
-## 6. 推荐目标架构
+## 6. 调查时推荐的目标架构（已采用）
 
 ```text
 Pinia / composables
@@ -304,7 +309,7 @@ ConfigManager
 
 这会同时维护插件接口和自定义数据库服务，复杂度通常高于直接采用 Rust SQLx 服务，因此仅作为次选。
 
-## 7. 方案决策矩阵
+## 7. 调查时的方案决策矩阵
 
 | 方案                       | 开发成本 | 事务可靠性       | Android/iOS 可控性        | FTS/迁移可控性 | 结论                       |
 | -------------------------- | -------- | ---------------- | ------------------------- | -------------- | -------------------------- |
@@ -314,7 +319,7 @@ ConfigManager
 | IndexedDB/Dexie            | 低       | 中               | 低，依赖 WebView 生命周期 | 中             | 不推荐作为移动端主存储     |
 | 继续 JSON 文件             | 低       | 低               | 中                        | 低             | 仅保留配置，不用于聊天主体 |
 
-## 8. 建议实施顺序
+## 8. 历史实施建议（已由当前计划取代）
 
 ### 阶段 0：双端能力验证
 
@@ -355,7 +360,7 @@ ConfigManager
 - 增加 query encoder、rank、snippet 与结果上限。
 - 只有通过双端构建和真实 WebView/Tauri 运行态后，才把 FTS 设为强依赖；否则保留 basic search 降级。
 
-## 9. 验收清单
+## 9. 历史验收建议（当前门禁见实施计划）
 
 - Android 与 iOS 均完成 Tauri 真实构建和数据库启动验证。
 - 每个 migration 均可从上一版本升级，并在失败时完整回滚。
@@ -368,7 +373,7 @@ ConfigManager
 - 备份过程包含 WAL 一致性策略，恢复后通过 `PRAGMA integrity_check`。
 - 日志不记录消息正文、附件内容或其他敏感数据。
 
-## 10. 最终建议
+## 10. 最终结论
 
 应继续推进 SQLite 迁移，不建议退回 JSON，也不建议改用 IndexedDB。现计划最需要的不是换数据库，而是把数据库的**所有权**从前端 SQL 调用提升到 Rust 领域服务。
 
@@ -377,4 +382,3 @@ ConfigManager
 > **ConfigManager + 每领域独立 SQLite + Rust/SQLx 服务层 + 原生 migrations + 领域事务/outbox + 可降级的多语言 FTS。**
 
 这与 Jan、Chatbox、Joplin、AppFlowy 的共同趋势一致，也能真正满足 AIO Hub 当前文档已经提出的附件、跨库 usage、模块自治和移动端资源约束。
-

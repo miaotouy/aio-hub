@@ -915,12 +915,16 @@ pub async fn asset_export(
     let file_name = managed.display_name.clone();
     let export_app = app.clone();
     let bytes_written = tauri::async_runtime::spawn_blocking(move || {
-        let result = (|| {
+        let result: Result<u64, String> = (|| {
             let input = fs::File::open(&managed.path)
                 .map_err(|error| format!("ASSET_EXPORT_SOURCE_OPEN: {error}"))?;
-            let output = open_export_destination(&export_app, destination.clone())
+            let mut output = open_export_destination(&export_app, destination.clone())
                 .map_err(|error| format!("ASSET_EXPORT_DESTINATION_OPEN: {error}"))?;
-            copy_asset_to_writer(input, output)
+            let bytes_written = copy_asset_to_writer(input, &mut output)?;
+            output
+                .sync_all()
+                .map_err(|error| format!("ASSET_EXPORT_SYNC: {error}"))?;
+            Ok(bytes_written)
         })();
         #[cfg(target_os = "ios")]
         {

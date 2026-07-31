@@ -86,6 +86,34 @@ export function useNodeManager() {
   };
 
   /**
+   * 克隆节点元数据时移除与一次既有生成结果绑定的字段。
+   */
+  const cleanMetadataForContinuation = (
+    metadata?: Record<string, any>
+  ): Record<string, any> | undefined => {
+    if (!metadata) return undefined;
+
+    const clean = JSON.parse(JSON.stringify(toRaw(metadata)));
+    delete clean.error;
+    delete clean.interrupted;
+    delete clean.interruptedAt;
+    delete clean.usage;
+    delete clean.contentTokens;
+    delete clean.contentTokenSource;
+    delete clean.contentTokenizer;
+    delete clean.contextUsage;
+    delete clean.reasoningContent;
+    delete clean.reasoningStartTime;
+    delete clean.reasoningEndTime;
+    delete clean.requestStartTime;
+    delete clean.requestEndTime;
+    delete clean.firstTokenTime;
+    delete clean.tokensPerSecond;
+
+    return clean;
+  };
+
+  /**
    * 基于现有节点创建一个同级分支。
    */
   const createSiblingBranch = (
@@ -130,6 +158,61 @@ export function useNodeManager() {
     session.updatedAt = new Date().toISOString();
 
     logger.info("已创建同级分支", {
+      sessionId: session.id,
+      sourceNodeId,
+      branchNodeId: branchNode.id,
+    });
+
+    return branchNode;
+  };
+
+  /**
+   * 为助手消息创建续写分支。新分支保留原始文本作为前缀，后续流式内容
+   * 追加到该分支；原节点保持不变，因而仍可通过分支切换回看。
+   */
+  const createContinuationBranch = (
+    session: ChatSession,
+    sourceNodeId: string
+  ): ChatMessageNode | null => {
+    const sourceNode = session.nodes[sourceNodeId];
+    const parentNode = sourceNode?.parentId
+      ? session.nodes[sourceNode.parentId]
+      : undefined;
+    if (
+      !sourceNode ||
+      sourceNode.role !== "assistant" ||
+      !parentNode ||
+      sourceNode.status === "generating"
+    ) {
+      logger.warn("创建续写分支失败：源节点不是可续写的助手消息", {
+        sessionId: session.id,
+        sourceNodeId,
+      });
+      return null;
+    }
+
+    const branchNode = createNode({
+      role: "assistant",
+      content: sourceNode.content,
+      parentId: sourceNode.parentId,
+      status: "generating",
+      metadata: {
+        ...cleanMetadataForContinuation(sourceNode.metadata),
+        isContinuation: true,
+        continuationPrefix: sourceNode.content,
+      },
+    });
+
+    session.nodes[branchNode.id] = branchNode;
+    const sourceIndex = parentNode.childrenIds.indexOf(sourceNodeId);
+    const insertIndex =
+      sourceIndex >= 0 ? sourceIndex + 1 : parentNode.childrenIds.length;
+    parentNode.childrenIds.splice(insertIndex, 0, branchNode.id);
+
+    updateActiveLeaf(session, branchNode.id);
+    session.updatedAt = new Date().toISOString();
+
+    logger.info("已创建助手续写分支", {
       sessionId: session.id,
       sourceNodeId,
       branchNodeId: branchNode.id,
@@ -255,6 +338,7 @@ export function useNodeManager() {
     createNode,
     addNodeToSession,
     createSiblingBranch,
+    createContinuationBranch,
     updateActiveLeaf,
     hardDeleteNode,
   };

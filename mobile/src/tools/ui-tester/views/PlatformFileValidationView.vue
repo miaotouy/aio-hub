@@ -217,7 +217,7 @@ function recordObservation(verdict: "passed" | "failed"): void {
 </script>
 
 <template>
-  <section class="validation-page">
+  <section class="validation-page" data-testid="ui-tester-platform-files-view">
     <ValidationRunHeader
       :passed="suiteTotals.passed"
       :failed="suiteTotals.failed"
@@ -292,6 +292,7 @@ function recordObservation(verdict: "passed" | "failed"): void {
       title="沙箱写入闭环"
       description="临时写入、原子改名、重开读取并清理，只操作固定验证目录。"
       :status="statusFor('sandbox-round-trip')"
+      test-id="ui-tester-platform-sandbox-round-trip"
       @run="
         runAutomated('platform-files', 'sandbox-round-trip', {}, () =>
           runPlatformFileScenario('sandbox-round-trip')

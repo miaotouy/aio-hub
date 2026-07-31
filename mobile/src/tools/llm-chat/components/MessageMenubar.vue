@@ -1,15 +1,19 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import {
   ChevronLeft,
   ChevronRight,
   Copy,
   RotateCcw,
+  FastForward,
   Trash2,
   Edit3,
   GitBranch,
+  Reply,
 } from "lucide-vue-next";
 import type { ChatMessageNode, ChatSession } from "../types";
+import { useI18n } from "@/i18n";
 import { BranchNavigator } from "../utils/BranchNavigator";
 import BranchSelector from "./BranchSelector.vue";
 
@@ -20,14 +24,19 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: "copy"): void;
+  (e: "copy-error"): void;
   (e: "edit"): void;
+  (e: "reply"): void;
   (e: "regenerate"): void;
+  (e: "continue"): void;
   (e: "delete"): void;
   (e: "close"): void;
   (e: "switch-sibling", direction: "prev" | "next"): void;
   (e: "switch-branch", nodeId: string): void;
 }>();
 
+const { tRaw } = useI18n();
+const t = (key: string) => tRaw(`tools.llm-chat.ChatView.${key}`);
 const showBranchSelector = ref(false);
 
 const siblings = computed(() => {
@@ -50,12 +59,12 @@ const handleSwitchBranch = async (direction: "prev" | "next") => {
 
 const handleCopy = async () => {
   try {
-    await navigator.clipboard.writeText(props.message.content);
+    await writeText(props.message.content);
     emit("copy");
-    emit("close");
   } catch {
-    emit("close");
+    emit("copy-error");
   }
+  emit("close");
 };
 
 const handleDelete = () => {
@@ -68,8 +77,18 @@ const handleEdit = () => {
   emit("close");
 };
 
+const handleReply = () => {
+  emit("reply");
+  emit("close");
+};
+
 const handleRegenerate = () => {
   emit("regenerate");
+  emit("close");
+};
+
+const handleContinue = () => {
+  emit("continue");
   emit("close");
 };
 
@@ -110,11 +129,41 @@ const handleSwitchToBranch = (nodeId: string) => {
 
     <!-- 操作按钮 (右侧) -->
     <div class="action-buttons">
-      <var-button text round size="mini" class="menu-btn" @click="handleCopy">
+      <var-button
+        data-testid="message-copy"
+        text
+        round
+        size="mini"
+        class="menu-btn"
+        @click="handleCopy"
+      >
         <Copy :size="14" />
       </var-button>
       <var-button text round size="mini" class="menu-btn" @click="handleEdit">
         <Edit3 :size="14" />
+      </var-button>
+      <var-button
+        data-testid="message-reply"
+        text
+        round
+        size="mini"
+        class="menu-btn"
+        @click="handleReply"
+      >
+        <Reply :size="14" />
+      </var-button>
+      <var-button
+        v-if="message.role === 'assistant' && message.status !== 'generating'"
+        data-testid="message-continue"
+        text
+        round
+        size="mini"
+        class="menu-btn"
+        :title="t('继续生成')"
+        :aria-label="t('继续生成')"
+        @click="handleContinue"
+      >
+        <FastForward :size="14" />
       </var-button>
       <var-button
         v-if="message.role === 'assistant'"

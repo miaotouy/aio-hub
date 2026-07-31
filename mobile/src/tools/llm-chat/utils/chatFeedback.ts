@@ -1,11 +1,14 @@
 import { Dialog, Snackbar } from "@varlet/ui";
+import { useI18n } from "@/i18n";
 
 export async function confirmDeleteMessage(): Promise<boolean> {
+  const { tRaw } = useI18n();
+  const t = (key: string) => tRaw(`tools.llm-chat.ChatView.${key}`);
   const action = await Dialog({
-    title: "删除消息",
-    message: "将删除这条消息及其所有后续分支，确定继续吗？",
-    confirmButtonText: "删除",
-    cancelButtonText: "取消",
+    title: t("删除消息"),
+    message: t("删除消息提示"),
+    confirmButtonText: t("删除"),
+    cancelButtonText: t("取消"),
   });
 
   return action === "confirm";
@@ -13,4 +16,8 @@ export async function confirmDeleteMessage(): Promise<boolean> {
 
 export function showChatSuccess(content: string): void {
   Snackbar.success(content);
+}
+
+export function showChatError(content: string): void {
+  Snackbar.error(content);
 }

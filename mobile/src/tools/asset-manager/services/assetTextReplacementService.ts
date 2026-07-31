@@ -4,6 +4,7 @@ import {
   replaceChatAssetWithText,
 } from "../../llm-chat/services/chatStorageService";
 import type { AssetDetail } from "../types";
+import { rememberReplacedAssetText } from "./assetTextReplacementCache";
 import {
   analyzeAssetDeletion,
   deleteAssets,
@@ -73,6 +74,7 @@ async function replaceOneAsset(
   const expectedMessages = validateChatReplacementScope(detail);
   const extraction = await extractAssetText(assetId);
   const replacement = await replaceChatAssetWithText(assetId, extraction.text);
+  rememberReplacedAssetText(assetId, extraction.text);
   if (
     replacement.updatedAttachments !== expectedMessages ||
     replacement.affectedMessages !== expectedMessages

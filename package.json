@@ -64,6 +64,14 @@
     "test:tauri:e2e": "bun tests/tauri-e2e/run.ts",
     "test:tauri:e2e:unit": "vitest --config tests/tauri-e2e/vitest.config.ts --run",
     "test:tauri:e2e:native": "bun tests/tauri-e2e/run.ts --preset native",
+    "test:mobile:e2e": "bun tests/mobile-android-e2e/run.ts",
+    "test:mobile:e2e:unit": "vitest --config tests/mobile-android-e2e/vitest.config.ts --run",
+    "test:mobile:e2e:typecheck": "tsc --noEmit -p tests/mobile-android-e2e/tsconfig.json",
+    "test:mobile:e2e:smoke": "bun tests/mobile-android-e2e/run.ts --preset smoke",
+    "test:mobile:e2e:asset": "bun tests/mobile-android-e2e/run.ts --preset asset",
+    "test:mobile:e2e:attachment": "bun tests/mobile-android-e2e/run.ts --preset attachment",
+    "test:mobile:e2e:recovery": "bun tests/mobile-android-e2e/run.ts --preset recovery",
+    "test:mobile:e2e:ollama": "bun tests/mobile-android-e2e/run.ts --preset ollama",
     "test:backend": "cargo test --manifest-path src-tauri/Cargo.toml",
     "test:mobile": "bun run --cwd mobile test:run",
     "test:mobile:backend": "bun run --cwd mobile test:backend",
@@ -256,6 +264,8 @@
     "@wdio/mocha-framework": "^9.29.1",
     "@wdio/spec-reporter": "^9.29.1",
     "@wdio/tauri-service": "1.1.0",
+    "appium": "2.19.0",
+    "appium-uiautomator2-driver": "4.2.3",
     "cross-env": "^7.0.3",
     "dotenv": "^17.2.3",
     "fs-extra": "^11.3.2",
@@ -273,7 +283,8 @@
     "vitepress": "^1.6.4",
     "vitepress-plugin-mermaid": "^2.0.17",
     "vitest": "^4.1.8",
-    "vue-tsc": "^2.1.10"
+    "vue-tsc": "^2.1.10",
+    "webdriverio": "9.29.1"
   },
   "overrides": {
     "@lezer/common": "^1.2.3",

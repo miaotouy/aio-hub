@@ -176,6 +176,133 @@ describe("mobile LLM transport", () => {
     expect(response.status).toBe(202);
   });
 
+  it("uses the native pull transport for streaming responses", async () => {
+    const startStreamRequest = vi.fn(async () => ({
+      status: 200,
+      statusText: "OK",
+      headers: { "content-type": "text/event-stream" },
+    }));
+    const readStreamChunk = vi
+      .fn()
+      .mockResolvedValueOnce({
+        body: new TextEncoder().encode("first"),
+        done: false,
+      })
+      .mockResolvedValueOnce({ body: [], done: true });
+    const fetch = vi.fn();
+    const onResponseChunk = vi.fn();
+    const transport = createMobileLlmTransport({
+      fetch,
+      ensureResponseOk: vi.fn(async () => undefined),
+      startStreamRequest,
+      readStreamChunk,
+    });
+
+    const response = await transport.send(
+      {
+        method: "POST",
+        url: "https://example.com/chat",
+        headers: { authorization: "Bearer test" },
+        body: { kind: "json", value: { stream: true } },
+        streaming: true,
+      },
+      {
+        requestId: "stream-request",
+        observer: { onResponseChunk },
+      }
+    );
+    const chunks: Uint8Array[] = [];
+    for await (const chunk of response.body) chunks.push(chunk);
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(startStreamRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: "stream-request",
+        body: { kind: "json", value: { stream: true } },
+      })
+    );
+    expect(new TextDecoder().decode(concat(chunks))).toBe("first");
+    expect(onResponseChunk).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: "stream-request",
+        chunk: expect.any(Uint8Array),
+      })
+    );
+  });
+
+  it("passes native streaming error bodies to status validation without reading chunks", async () => {
+    const upstreamBody = '{"error":"invalid API key"}';
+    const ensureResponseOk = vi.fn(async (response: Response) => {
+      expect(response.status).toBe(401);
+      expect(await response.text()).toBe(upstreamBody);
+      throw new Error("invalid API key");
+    });
+    const readStreamChunk = vi.fn();
+    const cancelStreamRequest = vi.fn(async () => false);
+    const transport = createMobileLlmTransport({
+      fetch: vi.fn(),
+      ensureResponseOk,
+      startStreamRequest: vi.fn(async () => ({
+        status: 401,
+        statusText: "Unauthorized",
+        headers: { "content-type": "application/json" },
+        errorBody: new TextEncoder().encode(upstreamBody),
+      })),
+      readStreamChunk,
+      cancelStreamRequest,
+    });
+
+    await expect(
+      transport.send(
+        {
+          method: "POST",
+          url: "https://example.com/chat",
+          headers: {},
+          body: { kind: "json", value: { stream: true } },
+          streaming: true,
+        },
+        { requestId: "rejected-stream" }
+      )
+    ).rejects.toThrow("invalid API key");
+
+    expect(ensureResponseOk).toHaveBeenCalledOnce();
+    expect(readStreamChunk).not.toHaveBeenCalled();
+    expect(cancelStreamRequest).toHaveBeenCalledWith("rejected-stream");
+  });
+
+  it("cancels an abandoned native stream", async () => {
+    const cancelStreamRequest = vi.fn(async () => true);
+    const transport = createMobileLlmTransport({
+      fetch: vi.fn(),
+      ensureResponseOk: vi.fn(async () => undefined),
+      startStreamRequest: vi.fn(async () => ({
+        status: 200,
+        statusText: "OK",
+        headers: {},
+      })),
+      readStreamChunk: vi.fn(async () => ({
+        body: new TextEncoder().encode("partial"),
+        done: false,
+      })),
+      cancelStreamRequest,
+    });
+    const response = await transport.send(
+      {
+        method: "POST",
+        url: "https://example.com/chat",
+        headers: {},
+        body: { kind: "json", value: {} },
+        streaming: true,
+      },
+      { requestId: "abandoned-stream" }
+    );
+    const iterator = response.body[Symbol.asyncIterator]();
+    await iterator.next();
+    await iterator.return?.();
+
+    expect(cancelStreamRequest).toHaveBeenCalledWith("abandoned-stream");
+  });
+
   it("routes managed asset references without adding a path", async () => {
     const sendFileRequest = vi.fn(async () => new Response("{}"));
     const transport = createMobileLlmTransport({

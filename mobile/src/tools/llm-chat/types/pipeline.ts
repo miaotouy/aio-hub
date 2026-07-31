@@ -3,6 +3,49 @@ import type { ProcessableMessage } from "./context";
 import type { ModelCapabilities } from "@/tools/llm-api/types";
 import type { ChatAgent } from "@/tools/agent-manager/types/agent";
 import type { ChatSettings } from "./settings";
+import type { MobileUserProfile } from "./userProfile";
+
+export type ProcessorExecutionResult =
+  | {
+      status: "applied";
+      message: string;
+      details?: unknown;
+    }
+  | {
+      status: "skipped";
+      message: string;
+      details?: unknown;
+    }
+  | {
+      status: "degraded";
+      message: string;
+      details?: unknown;
+    }
+  | {
+      status: "failed";
+      message: string;
+      error: unknown;
+      details?: unknown;
+    };
+
+export const processorResult = {
+  applied(message: string, details?: unknown): ProcessorExecutionResult {
+    return { status: "applied", message, details };
+  },
+  skipped(message: string, details?: unknown): ProcessorExecutionResult {
+    return { status: "skipped", message, details };
+  },
+  degraded(message: string, details?: unknown): ProcessorExecutionResult {
+    return { status: "degraded", message, details };
+  },
+  failed(
+    message: string,
+    error: unknown,
+    details?: unknown
+  ): ProcessorExecutionResult {
+    return { status: "failed", message, error, details };
+  },
+};
 
 export interface PipelineContext {
   // --- 核心可变数据 ---
@@ -15,6 +58,8 @@ export interface PipelineContext {
   // --- 只读元数据 ---
   readonly session: ChatSession;
   readonly agentConfig: ChatAgent | null;
+  /** Effective enabled profile for the active agent or global selection. */
+  readonly userProfile?: MobileUserProfile | null;
   readonly settings: ChatSettings;
   readonly capabilities?: ModelCapabilities;
   readonly timestamp: number;
@@ -34,6 +79,8 @@ export interface PipelineContext {
     level: "info" | "warn" | "error";
     message: string;
     details?: any;
+    /** 管线引擎记录的处理结果；处理器附加的诊断日志可以省略。 */
+    status?: ProcessorExecutionResult["status"];
   }>;
 }
 
@@ -75,7 +122,7 @@ export interface ContextProcessor {
    * 核心执行逻辑
    * @param context 管道上下文
    */
-  execute(context: PipelineContext): Promise<void>;
+  execute(context: PipelineContext): Promise<ProcessorExecutionResult>;
 
   /**
    * 配置组件 (可选)

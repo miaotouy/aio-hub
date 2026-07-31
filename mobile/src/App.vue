@@ -4,10 +4,12 @@ import { useAppInit } from "@/composables/useAppInit";
 import { useThemeStore } from "@/stores/theme";
 import { useKeyboardAvoidance } from "@/composables/useKeyboardAvoidance";
 import { useDebugPanel } from "@/composables/useDebugPanel";
+import { useI18n } from "@/i18n";
 
 const { isReady, progress, statusMessage, bootstrap } = useAppInit();
 const themeStore = useThemeStore();
 const { syncWithSettings } = useDebugPanel();
+const { locale } = useI18n();
 
 // 全局键盘避让
 useKeyboardAvoidance();
@@ -34,7 +36,12 @@ onMounted(() => {
     </div>
   </div>
 
-  <div v-else class="app-container">
+  <div
+    v-else
+    class="app-container"
+    data-testid="app-ready"
+    :data-locale="locale"
+  >
     <div class="app-wallpaper" aria-hidden="true"></div>
     <var-style-provider
       :style="themeStore.themeVars"

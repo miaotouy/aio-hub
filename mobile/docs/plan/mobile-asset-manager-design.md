@@ -2,6 +2,7 @@
 
 > 状态：范围冻结，Android MVP 收尾（iOS 发布门禁待设备条件）
 > 日期：2026-07-15；2026-07-21 更新施工状态；2026-07-21 收敛范围
+> 已实施架构以 [`asset-manager/ARCHITECTURE.md`](../../src/tools/asset-manager/ARCHITECTURE.md) 为准；本文只继续维护冻结范围、剩余真机/iOS 门禁和施工记录。
 > 范围：产品信息架构、移动端存储语义、数据模型与实施边界。本文件不包含功能实现。
 
 ## 1. 结论
@@ -39,7 +40,7 @@
 - 已安装 `@tauri-apps/plugin-fs` 与 `@tauri-apps/plugin-dialog`；Android 系统选择器返回的 `content://` 已在正式资产导入/导出链验证。由于 `tauri-plugin-fs` 2.5.1 对测试 provider 使用 `openAssetFileDescriptor` 会失败，正式链由 Android `AssetContentPlugin` 调用 `ContentResolver.openFileDescriptor`，再交给 Rust 流式处理；应用数据目录仍只通过受控 capability 与 Rust 领域命令访问。
 - 通用 `mobile/src/utils/fsUtils.ts` 仍只封装应用数据目录下的文本文件与目录操作；Phase 1 已新增独立 Rust 二进制资产服务，不把二进制职责塞回通用工具。
 - Rust 已引入 SQLx 与 bundled SQLite 验证依赖，`ui-tester` 已具备平台文件和 SQLite 固定验证板块；Android 分享 bridge 已接入，相机 bridge 已实现但仍需有相机 Activity 的设备验收。
-- `llm-chat` 的 `_attachments` 已改为 `ManagedAssetRef`，并完成 `chat_attachments`/usage outbox、聊天内 ready 资产选择、provider wire、实时 reclaimed/missing 状态降级、受控图片预览和本地消息搜索；真实上游发送验收仍待完成。
+- `llm-chat` 的 `_attachments` 已改为 `ManagedAssetRef`，并完成 `chat_attachments`/usage outbox、聊天内 ready 资产选择、provider wire、实时 reclaimed/missing 状态降级、受控图片预览和本地消息搜索；Android AVD 端到端附件发送确定性 lane 已通过，Ollama lane 为显式 opt-in，Android 真机与 iOS 门禁仍独立保留。
 - `agent-manager` 的 `assets` 与 `assetGroups` 仍是占位类型，但其桌面端语义是智能体私有资产，不应因此并入全局资产库。
 - 工作区已有“一模块一数据库”的移动端 SQLite 计划；Phase 1 首批已建立资产库 migration 与 repository，尚未接用户界面和聊天消费者。
 
@@ -457,7 +458,7 @@ interface ManagedAssetRef {
 
 ### 12.0 范围冻结与状态口径
 
-本文件是资产管理器的唯一施工范围来源。`mobile-current-implementation-audit.md` 只记录移动端全局盘点，`platform-validation-workbench-plan.md` 只记录验证工具和平台能力；两者不得重新打开本文件已冻结的产品范围。
+本文件是资产管理器的唯一施工范围来源。[`mobile-current-implementation-audit.md`](../archive/mobile-current-implementation-audit.md) 只记录移动端全局盘点，`platform-validation-workbench-plan.md` 只记录验证工具和平台能力；两者不得重新打开本文件已冻结的产品范围。
 
 当前目标是完成 Android 资产 MVP 的主链收尾，不继续扩展旁支功能。已经落地但不属于本轮门禁的功能保留为历史实现，不能据此新增测试批次或改变 MVP 完成条件。
 
@@ -465,7 +466,7 @@ Android MVP 的停止条件：
 
 1. 文件/照片导入、内容寻址去重、列表/筛选/详情、基础媒体预览和导出可用。
 2. 删除影响分析、usage、reclaimed tombstone、缓存清理、导入恢复和修复命令可用。
-3. `ManagedAssetRef` 至少完成一个真实聊天附件消费者，并通过一次真实上游模型发送验收。
+3. `ManagedAssetRef` 至少完成一个真实聊天附件消费者，并在 Android Studio AVD 通过一次端到端发送验收：本机确定性 OpenAI-compatible 服务必须校验收到的附件 MIME、字节数和 SHA-256，并返回正式流式响应；Ollama 多模态模型作为可选语义验收。
 4. Android 真机完成一次导入、预览、导出、删除影响和应用重启恢复主流程。
 
 相机、分享进入 AIO、文件关联、聊天搜索、批量转写/文本替代、PDF/Office 提取、音视频转写和跨设备同步不属于 Android MVP 停止条件。
@@ -509,7 +510,7 @@ Android MVP 的停止条件：
 - [x] 建立短期 token、可撤销自定义协议、单 Range 读取和大原件响应上限的受控预览候选实现。
 - [x] 在 Android 模拟器 `emulator-5558` 验证 Rust command 通过原生 bridge 直读 Photo Picker `content://` 的正式导入路径并回写报告。
 - [x] 完成 Android 图片、视频和音频受控预览验收，并通过固定场景验证 Range/CORS、HEAD、主动撤销与 token 自然过期。
-- [x] [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md) 阶段一 Rust 存储骨架、阶段二会话增量持久化和阶段三附件消费闭环已完成；真实上游发送与 iOS 验收仍待完成。聊天本地搜索属于 Chat 自身路线，不作为资产管理器施工门禁。不在 `any[]` 附件上增加过渡持久化。
+- [x] [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md) 阶段一 Rust 存储骨架、阶段二会话增量持久化和阶段三附件消费闭环已完成；Android AVD 确定性附件发送与 Ollama opt-in lane 已通过，Android 真机和 iOS 验收仍待完成。聊天本地搜索属于 Chat 自身路线，不作为资产管理器施工门禁。不在 `any[]` 附件上增加过渡持久化。
 
 ### Phase 2：资产页
 
@@ -567,6 +568,7 @@ Android MVP 的停止条件：
 - 四 ABI APK/AAB、完整 Android 真机矩阵和 iOS 构建只在 MVP 里程碑或发布候选执行，不随每个小提交重复执行。
 - token 自然过期、吞吐和中断恢复优先使用可注入时钟/固定夹具的自动化测试；设备只保留一次代表性 smoke，不创建独立长时间批次。
 - 任何测试若不对应本节 MVP 停止条件或明确的平台发布门禁，必须延期，不得新增施工批次。
+- Android 模拟器回归统一迁移到 Android Studio AVD 自动化 runner；默认不得控制用户正在使用的第三方模拟器。具体设备所有权、selector、协议服务和失败产物规则见 [`mobile-android-avd-e2e.md`](../architecture/mobile-android-avd-e2e.md)。
 
 ## 14. 待评审决策
 
@@ -748,11 +750,11 @@ Android MVP 的停止条件：
 
 ### 2026-07-21：范围审计与 MVP 收尾修正
 
-- 独立审阅确认后续施工只保留真实上游附件发送、Android 真机主流程和 iOS 发布门禁；相机、分享进入 AIO、文件关联、复杂格式文本化等已移至 Phase 3 的能力不再扩展。
+- 独立审阅确认后续施工只保留 Android AVD 端到端附件发送、Android 真机主流程和 iOS 发布门禁；相机、分享进入 AIO、文件关联、复杂格式文本化等已移至 Phase 3 的能力不再扩展。
 - 修复 advisory usage 回收后的成功提示计数：页面现在汇总彻底删除和 reclaimed tombstone 两类清理结果，测试不再构造单项同时计入两类结果的不可能数据。
 - 修复预览关闭/切换竞态：迟到的 descriptor 不再重新挂回页面，并会立即撤销 token；增加关闭发生在 IPC 返回前的固定测试。
 - 在已连接的 `emulator-5558` 补做图片文件导入、受控预览、save picker 导出、应用重启恢复和无引用删除 smoke。导入与导出文件均为 17,781 bytes，SHA-256 均为 `afae612fe15659729fa58cc56266e8cfb6ee251372efd901469cc0a715e4b66f`。该设备 `ro.boot.qemu=1` 且由 LDPlayer 提供，仍按模拟器记录，不能解除 Android 真机门禁。
-- 真实上游附件发送仍未执行；在模型和测试账号条件明确前保持门禁未通过，不用模拟传输替代。
+- 端到端附件发送仍未执行。门禁不要求外部模型账号：默认由本机确定性 OpenAI-compatible 服务校验附件内容并返回流式响应，可选 Ollama 多模态模型补充语义验收；只 mock 前端 Transport 或只证明端口连通均不能替代正式移动运行态链路。
 - 补齐资产首页“加载更多”主链：前端按现有 100 项分页契约追加查询，短页结束后停止加载；筛选重载会丢弃迟到的旧分页响应，资产数量超过 100 时不再永久不可达。
 - 资产卡片收敛为手机 1:1 三列网格、平板增列，并补长按多选与点击抑制；显式选择按钮继续保留，避免只依赖手势。可重建缩略图仍需独立后端管线，本批不以原图预览 token 冒充完成。
 - 详情页补齐固定/取消固定、隐藏/恢复和清理原件入口；这些入口直接携带详情 `assetId`，删除仍经过影响分析和 advisory 确认，不改变列表多选语义。
@@ -761,8 +763,17 @@ Android MVP 的停止条件：
 
 - 资产列表补齐首版线框要求的保留策略和使用影响筛选；前端查询状态、Tauri camelCase 契约与 Rust SQL 保持同一组 `all/reclaimable/pinned`、`all/used/unused` 枚举。8.2 同步为当前首版的可换行行内筛选区，底部筛选面板延后到条件继续增长时再建设。
 - 使用影响直接按 `asset_usages` 的 `EXISTS/NOT EXISTS` 判定，避免把来源模块或显示名称当成引用关系；非法枚举由 command 拒绝。
-- 本批仅扩展现有查询与筛选条，不新增 Phase 3 导入入口、跨设备同步或复杂格式处理；Android 真机主流程、真实上游附件发送和 iOS 发布门禁仍未通过。
+- 本批仅扩展现有查询与筛选条，不新增 Phase 3 导入入口、跨设备同步或复杂格式处理；Android 真机主流程、Android AVD 端到端附件发送和 iOS 发布门禁仍未通过。
 - 本批通过移动端 123 个前端测试、Rust 定向 fixture、Clippy、前端类型检查、Vite 生产构建和 Android x86_64 debug APK 构建。`emulator-5558` 真实 WebView 验证 360dp 筛选文案完整显示，固定保留、使用中和未使用筛选按设备现有数据返回 0、0、2 项；该设备 `ro.boot.qemu=1`，结果只记为模拟器 smoke。
+
+### 2026-07-21：Android AVD E2E 自动化决议
+
+2026-07-23：`tests/mobile-android-e2e/` 已通过正式 DocumentsUI 导入、ManagedAssetRef 附件发送、聊天 SQLite 重启恢复、usage 释放和可选 Ollama 模型回复。
+
+- 后续 Android 模拟器验收默认只使用 Android Studio AVD，并由外部 runner 显式绑定 serial；不得自动接管、安装、映射端口、清数据、重启或关闭用户正在使用的 LDPlayer/雷电等第三方模拟器。
+- 自动化控制层采用 Appium 2 + UiAutomator2，原生上下文负责 DocumentsUI/Photo Picker，WebView 上下文使用稳定 `data-testid` 与可访问名称。截图只作为失败证据和视觉复核，不参与逐步决策。
+- 附件门禁拆为确定性协议验收与可选 Ollama 模型验收。两者都必须经过正式 `ManagedAssetRef`、Rust 资产解析、原生 HTTP Transport、流式响应和聊天 SQLite 持久化；只有端口可达或前端 mock 不计通过。
+- 详细施工批次与验收标准见 [`mobile-android-avd-e2e.md`](../architecture/mobile-android-avd-e2e.md)。Android Studio AVD 自动化不能替代本节保留的 Android 真机主流程和 iOS 发布门禁。
 
 ## 16. 调查来源
 
@@ -777,3 +788,4 @@ Android MVP 的停止条件：
 - [Apple File System Programming Guide](https://developer.apple.com/library/archive/documentation/FileManagement/Conceptual/FileSystemProgrammingGuide/FileSystemOverview/FileSystemOverview.html)
 - [Apple Document Picker](https://developer.apple.com/documentation/uikit/uidocumentpickerviewcontroller)
 - [Apple Photos Picker](https://developer.apple.com/documentation/photosui/photospicker)
+

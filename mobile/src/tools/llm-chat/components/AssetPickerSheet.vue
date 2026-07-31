@@ -12,6 +12,7 @@ import {
 } from "lucide-vue-next";
 import { v4 as uuidv4 } from "uuid";
 import { customMessage } from "@/utils/feedback";
+import { useI18n } from "@/i18n";
 import { listAssets } from "../../asset-manager/services/assetService";
 import type { AssetRecord } from "../../asset-manager/types";
 import type { ChatMessageAttachment } from "../types";
@@ -26,6 +27,8 @@ const assets = ref<AssetRecord[]>([]);
 const selectedIds = ref<string[]>([]);
 const search = ref("");
 const loading = ref(false);
+const { tRaw } = useI18n();
+const t = (key: string) => tRaw(`tools.llm-chat.AssetPicker.${key}`);
 
 const filteredAssets = computed(() => {
   const query = search.value.trim().toLocaleLowerCase();
@@ -53,7 +56,7 @@ watch(
       });
     } catch (error) {
       customMessage(
-        error instanceof Error ? error.message : "无法读取资产列表",
+        error instanceof Error ? error.message : t("无法读取资产列表"),
         "error"
       );
     } finally {
@@ -93,16 +96,17 @@ function confirm() {
     <div v-if="open" class="picker-backdrop" @click.self="emit('close')">
       <section
         class="picker-sheet"
+        data-testid="chat-asset-picker"
         role="dialog"
         aria-modal="true"
-        aria-label="选择资产"
+        :aria-label="t('选择资产')"
       >
         <header>
-          <h2>选择资产</h2>
+          <h2>{{ t("选择资产") }}</h2>
           <button
             type="button"
             class="icon-button"
-            aria-label="关闭"
+            :aria-label="t('关闭')"
             @click="emit('close')"
           >
             <X :size="21" />
@@ -111,13 +115,18 @@ function confirm() {
 
         <label class="search-field">
           <Search :size="17" />
-          <input v-model="search" type="search" placeholder="搜索资产" />
+          <input
+            v-model="search"
+            type="search"
+            :placeholder="t('搜索资产')"
+            data-testid="chat-asset-search"
+          />
         </label>
 
         <div class="asset-list">
-          <div v-if="loading" class="empty-state">加载中...</div>
+          <div v-if="loading" class="empty-state">{{ t("加载中...") }}</div>
           <div v-else-if="!filteredAssets.length" class="empty-state">
-            暂无可用资产
+            {{ t("暂无可用资产") }}
           </div>
           <button
             v-for="asset in filteredAssets"
@@ -125,6 +134,9 @@ function confirm() {
             :key="asset.id"
             type="button"
             class="asset-row"
+            data-testid="chat-asset-row"
+            :data-asset-id="asset.id"
+            :data-asset-name="asset.displayName"
             :aria-pressed="selectedIds.includes(asset.id)"
             @click="toggle(asset.id)"
           >
@@ -139,16 +151,23 @@ function confirm() {
         </div>
 
         <footer>
-          <button type="button" class="secondary" @click="emit('close')">
-            取消
+          <button
+            type="button"
+            class="secondary"
+            data-testid="chat-asset-cancel"
+            @click="emit('close')"
+          >
+            {{ t("取消") }}
           </button>
           <button
             type="button"
             class="primary"
+            data-testid="chat-asset-confirm"
             :disabled="!selectedIds.length"
             @click="confirm"
           >
-            添加<span v-if="selectedIds.length"> {{ selectedIds.length }}</span>
+            {{ t("添加") }}
+            <span v-if="selectedIds.length"> {{ selectedIds.length }}</span>
           </button>
         </footer>
       </section>

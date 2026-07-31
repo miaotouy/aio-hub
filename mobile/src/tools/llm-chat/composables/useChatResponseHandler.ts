@@ -81,7 +81,17 @@ export function useChatResponseHandler() {
     if (!finalNode) return;
 
     finalNode.status = "complete";
-    finalNode.content = response.content || finalNode.content;
+    const responseContent = response.content || "";
+    if (responseContent) {
+      if (finalNode.metadata?.isContinuation) {
+        const prefix = finalNode.metadata.continuationPrefix || "";
+        finalNode.content = responseContent.startsWith(prefix)
+          ? responseContent
+          : `${prefix}${responseContent}`;
+      } else {
+        finalNode.content = responseContent;
+      }
+    }
 
     if (!finalNode.metadata) {
       finalNode.metadata = {};
@@ -175,7 +185,7 @@ export function useChatResponseHandler() {
     session: ChatSession,
     nodeId: string,
     error: unknown,
-    context: string
+    userMessage: string
   ): void => {
     const errorNode = session.nodes[nodeId];
     if (!errorNode) return;
@@ -190,7 +200,7 @@ export function useChatResponseHandler() {
 
     errorHandler.handle((error as Error) || new Error(String(error)), {
       level: ErrorLevel.ERROR,
-      userMessage: `${context}失败`,
+      userMessage,
       showToUser: false,
       context: { nodeId, originalError: error },
     });

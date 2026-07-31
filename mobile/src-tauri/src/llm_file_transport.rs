@@ -1,4 +1,9 @@
-use std::{collections::HashMap, path::PathBuf, sync::Mutex, time::Duration};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use reqwest::{
@@ -7,6 +12,7 @@ use reqwest::{
 };
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
+use tokio::sync::Mutex as AsyncMutex;
 use tokio_util::{io::ReaderStream, sync::CancellationToken};
 
 use crate::asset_manager::{self, AssetManagerState};
@@ -18,6 +24,15 @@ const MAX_RESPONSE_SIZE: usize = 128 * 1024 * 1024;
 #[derive(Default)]
 pub struct NativeRequestState {
     requests: Mutex<HashMap<String, CancellationToken>>,
+}
+
+#[derive(Default)]
+pub struct NativeStreamState {
+    streams: AsyncMutex<HashMap<String, Arc<AsyncMutex<ActiveNativeStream>>>>,
+}
+
+struct ActiveNativeStream {
+    response: reqwest::Response,
 }
 
 #[derive(Debug, Deserialize)]
@@ -96,6 +111,23 @@ pub struct NativeFileResponse {
     body: Vec<u8>,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeStreamResponseStart {
+    status: u16,
+    status_text: String,
+    headers: HashMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error_body: Option<Vec<u8>>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeStreamChunk {
+    body: Vec<u8>,
+    done: bool,
+}
+
 #[tauri::command]
 pub async fn send_llm_file_request(
     app: AppHandle,
@@ -104,30 +136,140 @@ pub async fn send_llm_file_request(
     asset_state: tauri::State<'_, AssetManagerState>,
 ) -> Result<NativeFileResponse, String> {
     validate_request(&request)?;
-    let cancellation = CancellationToken::new();
-    {
-        let mut requests = state
-            .requests
-            .lock()
-            .map_err(|_| "Native request state is unavailable".to_string())?;
-        if requests
-            .insert(request.request_id.clone(), cancellation.clone())
-            .is_some()
-        {
-            return Err("A native request with this id is already running".into());
-        }
-    }
-
+    let cancellation = register_request(&state, &request.request_id)?;
     let request_id = request.request_id.clone();
     let result = tokio::select! {
         _ = cancellation.cancelled() => Err("Native file request cancelled".to_string()),
         result = execute_request(&app, asset_state.inner(), request, cancellation.clone()) => result,
     };
 
-    if let Ok(mut requests) = state.requests.lock() {
-        requests.remove(&request_id);
-    }
+    remove_request(&state, &request_id);
     result
+}
+
+#[tauri::command]
+pub async fn start_llm_stream_request(
+    app: AppHandle,
+    request: NativeFileRequest,
+    state: tauri::State<'_, NativeRequestState>,
+    stream_state: tauri::State<'_, NativeStreamState>,
+    asset_state: tauri::State<'_, AssetManagerState>,
+) -> Result<NativeStreamResponseStart, String> {
+    validate_request(&request)?;
+    let cancellation = register_request(&state, &request.request_id)?;
+    let request_id = request.request_id.clone();
+    let result = send_request(&app, asset_state.inner(), request, cancellation.clone()).await;
+    let response = match result {
+        Ok(response) => response,
+        Err(error) => {
+            remove_request(&state, &request_id);
+            return Err(error);
+        }
+    };
+    let status = response.status();
+    let status_text = status.canonical_reason().unwrap_or_default().to_string();
+    let headers = response_headers(&response);
+    if !status.is_success() {
+        let error_body = tokio::select! {
+            _ = cancellation.cancelled() => Err("Native stream request cancelled".to_string()),
+            result = read_limited_response(response) => result,
+        };
+        remove_request(&state, &request_id);
+        return error_body.map(|error_body| NativeStreamResponseStart {
+            status: status.as_u16(),
+            status_text,
+            headers,
+            error_body: Some(error_body),
+        });
+    }
+
+    let start = NativeStreamResponseStart {
+        status: status.as_u16(),
+        status_text,
+        headers,
+        error_body: None,
+    };
+    let mut streams = stream_state.streams.lock().await;
+    if cancellation.is_cancelled() {
+        remove_request(&state, &request_id);
+        return Err("Native stream request cancelled".into());
+    }
+    streams.insert(
+        request_id,
+        Arc::new(AsyncMutex::new(ActiveNativeStream { response })),
+    );
+    Ok(start)
+}
+
+#[tauri::command]
+pub async fn read_llm_stream_chunk(
+    request_id: String,
+    state: tauri::State<'_, NativeRequestState>,
+    stream_state: tauri::State<'_, NativeStreamState>,
+) -> Result<NativeStreamChunk, String> {
+    let cancellation = state
+        .requests
+        .lock()
+        .map_err(|_| "Native request state is unavailable".to_string())?
+        .get(&request_id)
+        .cloned()
+        .ok_or_else(|| "Native stream request was not found".to_string())?;
+
+    // Clone the per-stream entry while holding the registry lock, then release
+    // the registry before awaiting network I/O. Independent conversations can
+    // therefore read their streams concurrently, while reads for the same
+    // request remain serialized by the entry mutex.
+    let stream = stream_state
+        .streams
+        .lock()
+        .await
+        .get(&request_id)
+        .cloned()
+        .ok_or_else(|| "Native stream response was not found".to_string())?;
+    let result = {
+        let mut stream = stream.lock().await;
+        tokio::select! {
+            _ = cancellation.cancelled() => Err("Native stream request cancelled".to_string()),
+            result = stream.response.chunk() => result
+                .map_err(|error| format!("Failed to read native stream response: {error}")),
+        }
+    };
+
+    match result {
+        Ok(Some(chunk)) => Ok(NativeStreamChunk {
+            body: chunk.to_vec(),
+            done: false,
+        }),
+        Ok(None) => {
+            stream_state.streams.lock().await.remove(&request_id);
+            remove_request(&state, &request_id);
+            Ok(NativeStreamChunk {
+                body: Vec::new(),
+                done: true,
+            })
+        }
+        Err(error) => {
+            stream_state.streams.lock().await.remove(&request_id);
+            remove_request(&state, &request_id);
+            Err(error)
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn cancel_llm_stream_request(
+    request_id: String,
+    state: tauri::State<'_, NativeRequestState>,
+    stream_state: tauri::State<'_, NativeStreamState>,
+) -> Result<bool, String> {
+    let request_removed = cancel_and_remove_native_request(&request_id, &state)?;
+    let stream_removed = stream_state
+        .streams
+        .lock()
+        .await
+        .remove(&request_id)
+        .is_some();
+    Ok(request_removed || stream_removed)
 }
 
 #[tauri::command]
@@ -135,6 +277,49 @@ pub fn cancel_llm_file_request(
     request_id: String,
     state: tauri::State<'_, NativeRequestState>,
 ) -> Result<bool, String> {
+    cancel_native_request(request_id, &state)
+}
+
+fn register_request(
+    state: &NativeRequestState,
+    request_id: &str,
+) -> Result<CancellationToken, String> {
+    let cancellation = CancellationToken::new();
+    let mut requests = state
+        .requests
+        .lock()
+        .map_err(|_| "Native request state is unavailable".to_string())?;
+    if requests
+        .insert(request_id.to_string(), cancellation.clone())
+        .is_some()
+    {
+        return Err("A native request with this id is already running".into());
+    }
+    Ok(cancellation)
+}
+
+fn remove_request(state: &NativeRequestState, request_id: &str) {
+    if let Ok(mut requests) = state.requests.lock() {
+        requests.remove(request_id);
+    }
+}
+
+fn cancel_and_remove_native_request(
+    request_id: &str,
+    state: &NativeRequestState,
+) -> Result<bool, String> {
+    let mut requests = state
+        .requests
+        .lock()
+        .map_err(|_| "Native request state is unavailable".to_string())?;
+    if let Some(token) = requests.remove(request_id) {
+        token.cancel();
+        return Ok(true);
+    }
+    Ok(false)
+}
+
+fn cancel_native_request(request_id: String, state: &NativeRequestState) -> Result<bool, String> {
     let requests = state
         .requests
         .lock()
@@ -162,9 +347,31 @@ fn validate_request(request: &NativeFileRequest) -> Result<(), String> {
 async fn execute_request(
     app: &AppHandle,
     asset_state: &AssetManagerState,
-    mut request: NativeFileRequest,
+    request: NativeFileRequest,
     cancellation: CancellationToken,
 ) -> Result<NativeFileResponse, String> {
+    let response = send_request(app, asset_state, request, cancellation.clone()).await?;
+    let status = response.status();
+    let headers = response_headers(&response);
+    let body = tokio::select! {
+        _ = cancellation.cancelled() => return Err("Native file request cancelled".into()),
+        result = read_limited_response(response) => result?,
+    };
+
+    Ok(NativeFileResponse {
+        status: status.as_u16(),
+        status_text: status.canonical_reason().unwrap_or_default().to_string(),
+        headers,
+        body,
+    })
+}
+
+async fn send_request(
+    app: &AppHandle,
+    asset_state: &AssetManagerState,
+    mut request: NativeFileRequest,
+    cancellation: CancellationToken,
+) -> Result<reqwest::Response, String> {
     let mut builder = reqwest::Client::builder();
     if let Some(timeout_ms) = request.timeout_ms.filter(|value| *value > 0) {
         builder = builder.timeout(Duration::from_millis(timeout_ms));
@@ -215,23 +422,10 @@ async fn execute_request(
         }
     };
 
-    let response = tokio::select! {
-        _ = cancellation.cancelled() => return Err("Native file request cancelled".into()),
-        result = outgoing.send() => result.map_err(|error| format!("Native file request failed: {error}"))?,
-    };
-    let status = response.status();
-    let headers = response_headers(&response);
-    let body = tokio::select! {
-        _ = cancellation.cancelled() => return Err("Native file request cancelled".into()),
-        result = read_limited_response(response) => result?,
-    };
-
-    Ok(NativeFileResponse {
-        status: status.as_u16(),
-        status_text: status.canonical_reason().unwrap_or_default().to_string(),
-        headers,
-        body,
-    })
+    tokio::select! {
+        _ = cancellation.cancelled() => Err("Native file request cancelled".into()),
+        result = outgoing.send() => result.map_err(|error| format!("Native file request failed: {error}")),
+    }
 }
 
 async fn read_limited_response(mut response: reqwest::Response) -> Result<Vec<u8>, String> {
@@ -502,6 +696,17 @@ mod tests {
             encode_json_file_bytes(b"abc", "image/png", false),
             "data:image/png;base64,YWJj"
         );
+    }
+
+    #[test]
+    fn stream_cancellation_removes_and_signals_the_request() {
+        let state = NativeRequestState::default();
+        let cancellation = register_request(&state, "stream-1").unwrap();
+
+        assert!(cancel_and_remove_native_request("stream-1", &state).unwrap());
+        assert!(cancellation.is_cancelled());
+        assert!(!state.requests.lock().unwrap().contains_key("stream-1"));
+        assert!(!cancel_and_remove_native_request("stream-1", &state).unwrap());
     }
 
     #[test]

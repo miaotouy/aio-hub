@@ -216,3 +216,38 @@ describe("useSessionManager SQLite migration", () => {
     );
   });
 });
+
+describe("useSessionManager session clearing", () => {
+  it("deletes every stored session and clears the current-session index", async () => {
+    const first = storedSnapshot().session;
+    const second = {
+      ...storedSnapshot().session,
+      id: "second-session",
+      name: "Second",
+      createdAt: "2026-07-21T00:01:00.000Z",
+      updatedAt: "2026-07-21T00:02:00.000Z",
+    };
+    mocks.index = {
+      ...mocks.index,
+      currentSessionId: first.id,
+      sqliteMigrationVersion: 1,
+    };
+    mocks.listChatSessions.mockResolvedValue([first, second]);
+    mocks.deleteChatSession.mockResolvedValue({
+      deletedMessages: 1,
+      queuedReleaseEvents: 0,
+    });
+
+    const clearedCount = await useSessionManager().clearAllSessions();
+
+    expect(clearedCount).toBe(2);
+    expect(mocks.deleteChatSession).toHaveBeenCalledTimes(2);
+    expect(mocks.deleteChatSession).toHaveBeenNthCalledWith(1, first.id);
+    expect(mocks.deleteChatSession).toHaveBeenNthCalledWith(2, second.id);
+    expect(mocks.index).toMatchObject({
+      currentSessionId: null,
+      sessions: [],
+    });
+    expect(mocks.drainAssetUsageOutbox).toHaveBeenCalledOnce();
+  });
+});

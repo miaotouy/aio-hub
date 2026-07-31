@@ -7,6 +7,7 @@ import { ref } from "vue";
 import type { ChatSession, ChatMessageNode } from "../types";
 import { useLlmRequest } from "../../llm-api/composables/useLlmRequest";
 import { useLlmChatStore } from "../stores/llmChatStore";
+import { parseSelectedModelValue } from "../utils/modelSelection";
 import { useSessionManager } from "./useSessionManager";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -85,7 +86,9 @@ export function useTopicNamer() {
     }
 
     // 解析当前选中的模型
-    const [profileId, modelId] = chatStore.selectedModelValue.split(":");
+    const [profileId, modelId] = parseSelectedModelValue(
+      chatStore.selectedModelValue
+    );
     if (!profileId || !modelId) {
       logger.warn("No model selected for topic naming");
       return null;

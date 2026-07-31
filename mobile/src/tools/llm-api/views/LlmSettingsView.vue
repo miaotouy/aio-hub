@@ -113,7 +113,7 @@ const goHome = () => {
 </script>
 
 <template>
-  <div class="llm-settings-view">
+  <div class="llm-settings-view" data-testid="llm-settings-view">
     <var-app-bar
       :title="tRaw('tools.llm-api.common.LLM 渠道管理')"
       fixed
@@ -125,7 +125,13 @@ const goHome = () => {
         </var-button>
       </template>
       <template #right>
-        <var-button round text @click="handleAddProfile">
+        <var-button
+          round
+          text
+          data-testid="llm-profile-add"
+          aria-label="添加渠道"
+          @click="handleAddProfile"
+        >
           <Plus :size="24" />
         </var-button>
       </template>
@@ -137,7 +143,7 @@ const goHome = () => {
         <p>{{ tRaw("tools.llm-api.LlmSettingsView.暂无渠道提示") }}</p>
       </div>
 
-      <div v-else class="profile-list">
+      <div v-else class="profile-list" data-testid="llm-profile-list">
         <ProfileCard
           v-for="profile in store.profiles"
           :key="profile.id"

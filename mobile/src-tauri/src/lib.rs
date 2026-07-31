@@ -27,6 +27,7 @@ pub fn run() {
         })
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_os::init())
@@ -34,6 +35,7 @@ pub fn run() {
         .manage(asset_manager::AssetManagerState::default())
         .manage(llm_chat_storage::LlmChatStorageState::default())
         .manage(llm_file_transport::NativeRequestState::default())
+        .manage(llm_file_transport::NativeStreamState::default())
         .manage(validation::ValidationState::default())
         .invoke_handler(tauri::generate_handler![
             greet,
@@ -70,6 +72,9 @@ pub fn run() {
             llm_chat_storage::retry_asset_usage_outbox,
             llm_file_transport::send_llm_file_request,
             llm_file_transport::cancel_llm_file_request,
+            llm_file_transport::start_llm_stream_request,
+            llm_file_transport::read_llm_stream_chunk,
+            llm_file_transport::cancel_llm_stream_request,
             token_counting::count_tokens,
             token_counting::count_tokens_batch,
             validation::run_platform_file_validation,

@@ -401,21 +401,36 @@ bun run test:tauri:e2e:native
 
 普通浏览器页面测试仍可用于纯前端 Mock 场景，但不能替代真实 Tauri E2E。
 
-## 9. Android 模拟器访问本地模型的验收边界
+## 9. Android AVD E2E 与本机模型边界
 
-Android 模拟器中的回环地址、宿主机网关和 ADB 端口映射依赖本机工具与模拟器实现，
-相关设备清单、探测命令和实测结果不写入仓库文档。执行本地模型连通性检查时，应在
-设备内请求真实 HTTP API 并核对成功响应，不要只依据 TCP 工具的退出码，也不要为了
-临时验收把本地模型服务公开到局域网。
+仓库入口：`bun run test:mobile:e2e:unit` 运行 runner 单元测试；`bun run test:mobile:e2e -- --preset core` 运行核心 AVD 回归。runner 使用 Bun、Appium 2、UiAutomator2 和目标 AVD 主 ABI 的单 ABI APK；完整命令、preset 和失败产物见 [`tests/mobile-android-e2e/README.md`](../../tests/mobile-android-e2e/README.md)。
 
-模拟器到宿主机模型服务连通只能证明网络路径成立，不能单独证明：
+具名 preset 默认执行 80 MiB 单 ABI E2E debug APK 大小门禁；`e2e-run.json` 只保留 APK 文件名，Appium、emulator、DOM、UI hierarchy、logcat 和 activity 产物在落盘前统一脱敏。需要审查有意的 APK 基线变更时显式传入 `--max-apk-bytes`。
 
-- 模型支持当前附件类型或 OpenAI-compatible 多模态格式；
-- AIO Hub 的 `ManagedAssetRef` 已经由 Rust 原生传输正确解析并发送；
-- 流式响应、取消、前后台切换和大文件行为正确；
-- Android 真机或 iOS 具备相同行为。
+移动端脚本化测试使用独立的 Android Studio AVD runner，详细施工计划见
+[`mobile-android-avd-e2e.md`](../../mobile/docs/architecture/mobile-android-avd-e2e.md)。
+默认不得控制用户正在使用的第三方模拟器；多设备连接时，所有 ADB、Appium、安装、
+端口映射、清数据和进程命令都必须显式绑定 serial。只有 runner 本次启动的 AVD 才能
+在结束时关闭。
 
-资产附件门禁仍必须在真实应用流程中选择托管资产、发送到明确支持该附件类型的
-模型并收到有效响应；Android 真机门禁不得用模拟器或本机端口映射代替。测试记录
-应注明设备类型、系统版本、模拟器标识、连接方式、模型 ID 和实际请求结果，不得
-记录 API Key、Authorization header 或其他凭据。
+Android Studio AVD 可通过 `10.0.2.2` 访问宿主机服务；必要时也可以只对目标 serial
+建立 `adb reverse`。执行连通性检查时，应在设备内请求真实 HTTP API 并核对响应，
+不要只依据 TCP 工具退出码，也不要为了临时验收把本机服务公开到局域网。
+
+附件发送分成两个独立 lane：
+
+1. **确定性协议验收**：本机 OpenAI-compatible 服务解析正式请求，校验附件 MIME、
+   解码后字节数和 SHA-256，并返回流式 SSE。该 lane 用于证明 `ManagedAssetRef`、Rust
+   资产解析、Provider wire、原生 HTTP Transport、流式响应、聊天 UI 和 SQLite 持久化
+   形成闭环，不要求外部账号或真实推理模型。
+2. **Ollama 模型验收**：显式选择支持当前附件类型的本机模型，检查请求到达且返回有效
+   非空响应。该 lane 补充模型实际消费附件的语义证据，但不替代确定性请求断言。
+
+只证明模拟器能访问宿主机端口、只 mock 前端 Transport，或只断言服务收到任意 HTTP
+请求，都不能视为附件闭环通过。Android AVD 结果也不能替代 Android 真机、真实低存储、
+相机硬件或 iOS 门禁。
+
+Android UI 自动化优先使用稳定 `data-testid`、可访问名称、系统 resource-id 和 DOM 状态；
+不得把固定坐标、截图识别或本地化文案作为主要控制方式。成功运行保留结构化结果与
+脱敏请求摘要，截图、UI hierarchy、DOM 摘要和 logcat 仅作为失败证据。任何产物都不得
+记录 API Key、Authorization header、完整附件 base64、用户正文或完整本机路径。

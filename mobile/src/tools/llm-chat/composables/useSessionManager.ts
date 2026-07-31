@@ -280,6 +280,28 @@ export function useSessionManager() {
     return currentSessionId;
   }
 
+  async function clearAllSessions(): Promise<number> {
+    const records = await listAllStoredSessions();
+
+    for (const record of records) {
+      await enqueueSessionWrite(record.id, async () => {
+        await deleteStoredChatSession(record.id);
+        persistedSnapshots.delete(record.id);
+      });
+    }
+
+    await drainUsageOutbox();
+
+    const index = await loadIndex();
+    await indexManager.save({
+      ...index,
+      currentSessionId: null,
+      sessions: [],
+    });
+
+    return records.length;
+  }
+
   async function updateCurrentSessionId(id: string | null): Promise<void> {
     const index = await loadIndex();
     if (index.currentSessionId !== id) {
@@ -301,6 +323,7 @@ export function useSessionManager() {
     loadSession,
     persistSession,
     deleteSession,
+    clearAllSessions,
     updateCurrentSessionId,
     createDebouncedSave,
   };

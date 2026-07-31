@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import type { ChatSession, ChatMessageNode } from "../types";
 import { useLlmProfilesStore } from "../../llm-api/stores/llmProfiles";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import {
   useSessionManager,
   type SessionIndexItem,
@@ -10,6 +11,10 @@ import { useNodeManager } from "../composables/useNodeManager";
 import { BranchNavigator } from "../utils/BranchNavigator";
 import { v4 as uuidv4 } from "uuid";
 import { createModuleLogger } from "@/utils/logger";
+import { recoverInterruptedChatMessages } from "../services/chatStorageCodec";
+import { resolveSelectedModelValue } from "../utils/modelSelection";
+import { instantiateAgentGreetings } from "../services/greetingService";
+import { setSessionAgentBinding } from "../services/agentSessionService";
 
 const logger = createModuleLogger("llm-chat/store");
 
@@ -71,6 +76,16 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
     if (lastId) {
       await switchSession(lastId);
+      const interruptedCount = currentSessionDetail.value
+        ? recoverInterruptedChatMessages(currentSessionDetail.value)
+        : 0;
+      if (interruptedCount) {
+        await persistCurrentSession();
+        logger.warn("Recovered interrupted message generation", {
+          sessionId: lastId,
+          messageCount: interruptedCount,
+        });
+      }
     }
 
     isLoaded.value = true;
@@ -110,6 +125,20 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       updatedAt: new Date().toISOString(),
     };
 
+    if (agentId) {
+      const agentStore = useAgentStore();
+      if (!agentStore.isLoaded) await agentStore.init();
+      const agent = agentStore.getAgentById(agentId);
+      if (agent) {
+        instantiateAgentGreetings(session, agent);
+      } else {
+        logger.warn("Cannot instantiate greetings for a missing agent", {
+          sessionId,
+          agentId,
+        });
+      }
+    }
+
     currentSessionDetail.value = session;
     currentSessionId.value = sessionId;
 
@@ -142,6 +171,38 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         sessionId,
       });
     }
+  }
+
+  /**
+   * 切换当前会话后续请求使用的智能体。
+   * 已存在的消息节点保持原 metadata，因此历史 Agent 快照不会被改写。
+   */
+  async function setSessionAgent(agentId: string): Promise<boolean> {
+    const session = currentSessionDetail.value;
+    if (!session) return false;
+
+    const agentStore = useAgentStore();
+    if (!agentStore.isLoaded) await agentStore.init();
+    const agent = agentStore.getAgentById(agentId);
+    if (!agent) {
+      logger.warn("Cannot switch to a missing agent", {
+        sessionId: session.id,
+        agentId,
+      });
+      return false;
+    }
+
+    const previousAgentId = session.displayAgentId;
+    if (!setSessionAgentBinding(session, agentId, new Date().toISOString())) {
+      return true;
+    }
+    await persistCurrentSession();
+    logger.info("Switched session agent", {
+      sessionId: session.id,
+      previousAgentId,
+      agentId,
+    });
+    return true;
   }
 
   async function focusMessage(messageId: string): Promise<boolean> {
@@ -181,6 +242,19 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   }
 
   /**
+   * 清空全部会话
+   */
+  async function clearAllSessions(): Promise<number> {
+    const clearedCount = await sessionManager.clearAllSessions();
+    sessionMetas.value = [];
+    currentSessionId.value = null;
+    currentSessionDetail.value = null;
+
+    logger.info("Cleared all sessions", { clearedCount });
+    return clearedCount;
+  }
+
+  /**
    * 持久化当前会话
    */
   async function persistCurrentSession() {
@@ -193,26 +267,15 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   }
 
   /**
-   * 同步并校验当前选中的模型
+   * 同步并校验当前选中的模型。仅在当前选择失效时使用设置中的默认模型。
    */
-  function syncSelectedModel() {
+  function syncSelectedModel(defaultModel = "") {
     const profilesStore = useLlmProfilesStore();
-    const [profileId, modelId] = selectedModelValue.value.split(":");
-
-    const isAvailable = (pId: string, mId: string) => {
-      const profile = profilesStore.enabledProfiles.find((p) => p.id === pId);
-      return !!(profile && profile.models.some((m) => m.id === mId));
-    };
-
-    if (!selectedModelValue.value || !isAvailable(profileId, modelId)) {
-      const firstEnabledProfile = profilesStore.enabledProfiles[0];
-      if (firstEnabledProfile && firstEnabledProfile.models.length > 0) {
-        const newValue = `${firstEnabledProfile.id}:${firstEnabledProfile.models[0].id}`;
-        selectedModelValue.value = newValue;
-      } else {
-        selectedModelValue.value = "";
-      }
-    }
+    selectedModelValue.value = resolveSelectedModelValue(
+      selectedModelValue.value,
+      defaultModel,
+      profilesStore.enabledProfiles
+    );
   }
 
   /**
@@ -315,8 +378,10 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     init,
     createSession,
     switchSession,
+    setSessionAgent,
     focusMessage,
     deleteSession,
+    clearAllSessions,
     persistCurrentSession,
     syncSelectedModel,
     switchSibling,

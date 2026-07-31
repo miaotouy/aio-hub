@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { ref, reactive, computed, watch, nextTick, onUnmounted } from "vue";
+import {
+  ref,
+  reactive,
+  computed,
+  watch,
+  nextTick,
+  onDeactivated,
+  onUnmounted,
+} from "vue";
 import {
   Play,
   Square,
@@ -56,6 +64,8 @@ const isDebugDrawerOpen = ref(false);
 // 计时器与 AbortController
 let streamAbortController: AbortController | null = null;
 let elapsedTimer: number | null = null;
+let pendingScrollFrame: number | null = null;
+let pendingScrollTimer: number | null = null;
 
 // 容器引用用于自动滚动
 const previewContainerRef = ref<HTMLDivElement | null>(null);
@@ -132,8 +142,9 @@ const startRender = () => {
     curtainFullContent.value = inputContent.value;
     streamedChars.value = 0;
 
-    streamAbortController = new AbortController();
-    startStreaming(inputContent.value);
+    const streamController = new AbortController();
+    streamAbortController = streamController;
+    startStreaming(inputContent.value, streamController);
   } else {
     currentContent.value = inputContent.value;
     renderStats.totalChars = inputContent.value.length;
@@ -146,7 +157,10 @@ const startRender = () => {
 };
 
 // 模拟流式输出（累计时间债务补偿波动算法）
-const startStreaming = async (content: string) => {
+const startStreaming = async (
+  content: string,
+  streamController: AbortController
+) => {
   const tokens = tokenizeText(content);
   renderStats.totalTokens = tokens.length;
   renderStats.renderedTokens = 0;
@@ -154,11 +168,14 @@ const startStreaming = async (content: string) => {
   renderStats.startTime = Date.now();
   renderStats.elapsedTime = 0;
 
-  elapsedTimer = window.setInterval(() => {
-    renderStats.elapsedTime = Date.now() - renderStats.startTime;
+  const streamElapsedTimer = window.setInterval(() => {
+    if (streamAbortController === streamController) {
+      renderStats.elapsedTime = Date.now() - renderStats.startTime;
+    }
   }, 100);
+  elapsedTimer = streamElapsedTimer;
 
-  const signal = streamAbortController!.signal;
+  const signal = streamController.signal;
 
   if (initialDelay.value > 0) {
     await new Promise((resolve) => setTimeout(resolve, initialDelay.value));
@@ -210,11 +227,15 @@ const startStreaming = async (content: string) => {
     }
   }
 
-  if (elapsedTimer !== null) {
-    clearInterval(elapsedTimer);
+  if (elapsedTimer === streamElapsedTimer) {
+    clearInterval(streamElapsedTimer);
     elapsedTimer = null;
   }
+  // 已被停止或被新流替换的旧异步任务只能自行退出，不能清理新流的状态。
+  if (streamAbortController !== streamController) return;
+
   renderStats.elapsedTime = Date.now() - renderStats.startTime;
+  streamAbortController = null;
   isRendering.value = false;
 };
 
@@ -227,6 +248,14 @@ const stopRender = () => {
   if (elapsedTimer !== null) {
     clearInterval(elapsedTimer);
     elapsedTimer = null;
+  }
+  if (pendingScrollFrame !== null) {
+    cancelAnimationFrame(pendingScrollFrame);
+    pendingScrollFrame = null;
+  }
+  if (pendingScrollTimer !== null) {
+    clearTimeout(pendingScrollTimer);
+    pendingScrollTimer = null;
   }
   isRendering.value = false;
 };
@@ -244,24 +273,42 @@ const clearOutput = () => {
   renderStats.elapsedTime = 0;
 };
 
-// 自动滚动到底部
+const scrollActiveContainerToBottom = () => {
+  if (activeTab.value === "preview" && previewContainerRef.value) {
+    previewContainerRef.value.scrollTop =
+      previewContainerRef.value.scrollHeight;
+  } else if (activeTab.value === "curtain" && curtainContainerRef.value) {
+    const container = curtainContainerRef.value;
+    const karaokeEl = container.querySelector(
+      ".curtain-karaoke"
+    ) as HTMLElement | null;
+    if (karaokeEl) {
+      const containerHeight = container.clientHeight;
+      const targetScrollTop = karaokeEl.offsetTop - containerHeight / 2;
+      container.scrollTop = Math.max(0, targetScrollTop);
+    } else {
+      container.scrollTop = container.scrollHeight;
+    }
+  }
+};
+
+// 自动滚动到底部。RichTextRenderer 会节流中间流式 chunk：先在下一帧滚动，
+// 再在节流窗口之后补一次，确保预览按实际挂载后的 DOM 高度保持在底部。
 const scrollToBottom = () => {
   nextTick(() => {
-    if (activeTab.value === "preview" && previewContainerRef.value) {
-      previewContainerRef.value.scrollTop =
-        previewContainerRef.value.scrollHeight;
-    } else if (activeTab.value === "curtain" && curtainContainerRef.value) {
-      const container = curtainContainerRef.value;
-      const karaokeEl = container.querySelector(
-        ".curtain-karaoke"
-      ) as HTMLElement | null;
-      if (karaokeEl) {
-        const containerHeight = container.clientHeight;
-        const targetScrollTop = karaokeEl.offsetTop - containerHeight / 2;
-        container.scrollTop = Math.max(0, targetScrollTop);
-      } else {
-        container.scrollTop = container.scrollHeight;
-      }
+    if (pendingScrollFrame !== null) {
+      cancelAnimationFrame(pendingScrollFrame);
+    }
+    pendingScrollFrame = requestAnimationFrame(() => {
+      pendingScrollFrame = null;
+      scrollActiveContainerToBottom();
+    });
+
+    if (pendingScrollTimer === null) {
+      pendingScrollTimer = window.setTimeout(() => {
+        pendingScrollTimer = null;
+        scrollActiveContainerToBottom();
+      }, 96);
     }
   });
 };
@@ -482,13 +529,19 @@ const astJson = computed(() => {
   }
 });
 
+// 全局 router-view 使用 keep-alive；离开页面时会先 deactivate 而非 unmount，
+// 因此两个生命周期都必须停止流式任务并释放相关 timer。
+onDeactivated(() => {
+  stopRender();
+});
+
 onUnmounted(() => {
   stopRender();
 });
 </script>
 
 <template>
-  <div class="tester-view">
+  <div class="tester-view" data-testid="rich-text-tester-view">
     <!-- 顶部控制栏 -->
     <header class="tester-header">
       <div class="header-row">
@@ -497,6 +550,7 @@ onUnmounted(() => {
           size="small"
           class="preset-select"
           :hint="false"
+          data-testid="rich-text-preset-select"
         >
           <var-option
             v-for="p in presets"
@@ -513,6 +567,7 @@ onUnmounted(() => {
             size="small"
             round
             class="control-btn"
+            data-testid="rich-text-render-start"
             @click="startRender"
           >
             <Play :size="14" />
@@ -524,6 +579,7 @@ onUnmounted(() => {
             size="small"
             round
             class="control-btn"
+            data-testid="rich-text-render-stop"
             @click="stopRender"
           >
             <Square :size="14" />
@@ -557,6 +613,7 @@ onUnmounted(() => {
       <div class="tab-nav">
         <button
           class="tab-item"
+          data-testid="rich-text-edit-tab"
           :class="{ active: activeTab === 'edit' }"
           @click="activeTab = 'edit'"
         >
@@ -565,6 +622,7 @@ onUnmounted(() => {
         </button>
         <button
           class="tab-item"
+          data-testid="rich-text-preview-tab"
           :class="{ active: activeTab === 'preview' }"
           @click="activeTab = 'preview'"
         >
@@ -573,6 +631,7 @@ onUnmounted(() => {
         </button>
         <button
           class="tab-item"
+          data-testid="rich-text-curtain-tab"
           :class="{ active: activeTab === 'curtain' }"
           @click="activeTab = 'curtain'"
         >
@@ -581,6 +640,7 @@ onUnmounted(() => {
         </button>
         <button
           class="tab-item"
+          data-testid="rich-text-debug-tab"
           :class="{ active: activeTab === 'debug' }"
           @click="activeTab = 'debug'"
         >
@@ -598,6 +658,7 @@ onUnmounted(() => {
           v-model="inputContent"
           :placeholder="tRaw('tools.rich-text-renderer.tester.输入提示')"
           class="markdown-textarea"
+          data-testid="rich-text-editor"
         ></textarea>
       </div>
 
@@ -606,6 +667,9 @@ onUnmounted(() => {
         v-show="activeTab === 'preview'"
         ref="previewContainerRef"
         class="workspace-pane preview-pane"
+        data-testid="rich-text-preview-pane"
+        :data-rendering="isRendering ? 'true' : 'false'"
+        :data-rendered-length="currentContent.length"
       >
         <div v-if="currentContent" class="render-wrapper">
           <div class="render-header">
@@ -683,7 +747,11 @@ onUnmounted(() => {
             <span class="config-label">{{
               tRaw("tools.rich-text-renderer.tester.启用流式模拟")
             }}</span>
-            <var-switch v-model="streamEnabled" size="20" />
+            <var-switch
+              v-model="streamEnabled"
+              size="20"
+              data-testid="rich-text-stream-switch"
+            />
           </div>
           <div class="config-item" v-if="streamEnabled">
             <span class="config-label">{{
@@ -766,7 +834,14 @@ onUnmounted(() => {
     </main>
 
     <!-- 底部状态栏 -->
-    <footer class="tester-footer">
+    <footer
+      class="tester-footer"
+      data-testid="rich-text-render-stats"
+      :data-rendering="isRendering ? 'true' : 'false'"
+      :data-rendered-length="currentContent.length"
+      :data-rendered-tokens="renderStats.renderedTokens"
+      :data-total-tokens="renderStats.totalTokens"
+    >
       <div class="stat-item">
         <span class="stat-val">{{ renderStats.renderedTokens }}</span>
         <span class="stat-lbl">{{

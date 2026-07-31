@@ -17,9 +17,19 @@ export interface ContextTokenUsage {
   criticalRatio: number;
 }
 
+export interface ChatMessageReference {
+  /** 被回复消息的稳定 ID；源消息删除后仍保留快照用于展示。 */
+  messageId: string;
+  role: MessageRole;
+  content: string;
+  timestamp?: string;
+}
+
 export interface ChatMessageMetadata {
   /** Allow storage round-trips to preserve fields added by newer clients. */
   [key: string]: unknown;
+  /** 用户输入所回复的消息快照。 */
+  replyTo?: ChatMessageReference;
   /** 使用的模型 ID */
   modelId?: string;
   /** 生成该消息时绑定的智能体 ID */
@@ -30,6 +40,14 @@ export interface ChatMessageMetadata {
   modelDisplayName?: string;
   /** 错误信息 */
   error?: string;
+  /** 用户主动停止了本次生成；已有流式内容会被保留。 */
+  interrupted?: boolean;
+  /** 用户主动停止生成的时间戳。 */
+  interruptedAt?: number;
+  /** 此消息由助手消息的续写分支生成。 */
+  isContinuation?: boolean;
+  /** 续写分支创建时复制的助手回复前缀。 */
+  continuationPrefix?: string;
   /** 推理内容（DeepSeek reasoning 模式） */
   reasoningContent?: string;
   /** 推理开始时间戳 */

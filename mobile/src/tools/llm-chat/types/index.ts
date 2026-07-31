@@ -4,3 +4,6 @@ export * from "./session";
 export * from "./context";
 export * from "./pipeline";
 export * from "./settings";
+export * from "./userProfile";
+
+export * from './worldbook';

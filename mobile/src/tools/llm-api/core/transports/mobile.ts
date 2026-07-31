@@ -26,6 +26,23 @@ export interface MobileLlmTransportDependencies {
   serializeJson?: (value: WireJsonValue) => string;
   sendFileRequest?: (request: MobileNativeFileRequest) => Promise<Response>;
   cancelFileRequest?: (requestId: string) => Promise<unknown>;
+  startStreamRequest?: (
+    request: MobileNativeFileRequest
+  ) => Promise<MobileNativeStreamResponseStart>;
+  readStreamChunk?: (requestId: string) => Promise<MobileNativeStreamChunk>;
+  cancelStreamRequest?: (requestId: string) => Promise<unknown>;
+}
+
+export interface MobileNativeStreamResponseStart {
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  errorBody?: number[] | Uint8Array;
+}
+
+export interface MobileNativeStreamChunk {
+  body: number[] | Uint8Array;
+  done: boolean;
 }
 
 export interface MobileNativeFileRequest {
@@ -78,6 +95,14 @@ export function createMobileLlmTransport(
       });
 
       try {
+        if (request.streaming && dependencies.startStreamRequest) {
+          return await sendNativeStreamRequest(
+            request,
+            options,
+            dependencies,
+            startedAt
+          );
+        }
         if (requiresNativeFileRequest(request.body)) {
           return await sendNativeFileRequest(
             request,
@@ -137,6 +162,11 @@ export const mobileLlmTransport = createMobileLlmTransport({
   sendFileRequest: invokeNativeFileRequest,
   cancelFileRequest: (requestId) =>
     invoke("cancel_llm_file_request", { requestId }),
+  startStreamRequest: invokeNativeStreamRequest,
+  readStreamChunk: (requestId) =>
+    invoke("read_llm_stream_chunk", { requestId }),
+  cancelStreamRequest: (requestId) =>
+    invoke("cancel_llm_stream_request", { requestId }),
 });
 
 function serializeBody(
@@ -181,6 +211,111 @@ function requiresNativeFileRequest(body: WireBody | undefined): boolean {
     body.kind === "multipart" &&
     body.parts.some((part) => part.body.kind === "file-ref")
   );
+}
+
+async function sendNativeStreamRequest(
+  request: WireRequest,
+  options: TransportOptions,
+  dependencies: MobileLlmTransportDependencies,
+  startedAt: number
+): Promise<WireResponse> {
+  if (!request.body) throw new Error("Native stream request requires a body");
+  if (!dependencies.startStreamRequest || !dependencies.readStreamChunk) {
+    throw new Error("Mobile native stream transport is unavailable");
+  }
+  if (options.signal?.aborted) throw createAbortError();
+
+  const onAbort = () => {
+    void dependencies.cancelStreamRequest?.(options.requestId);
+  };
+  options.signal?.addEventListener("abort", onAbort, { once: true });
+  try {
+    const response = await dependencies.startStreamRequest({
+      requestId: options.requestId,
+      method: request.method,
+      url: request.url,
+      headers: request.headers,
+      body: toNativeFileRequestBody(request.body),
+      timeoutMs: options.timeoutMs,
+      network: options.network
+        ? {
+            proxyUrl: options.network.proxyUrl,
+            relaxInvalidCerts: options.network.relaxInvalidCerts,
+            http1Only: options.network.http1Only,
+          }
+        : undefined,
+    });
+    if (options.signal?.aborted) throw createAbortError();
+
+    const responseHeaders = new Headers(response.headers);
+    const responseForStatus = new Response(
+      response.errorBody ? new Uint8Array(response.errorBody) : null,
+      {
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseHeaders,
+      }
+    );
+    await dependencies.ensureResponseOk(responseForStatus);
+    options.observer?.onResponseStart?.({
+      requestId: options.requestId,
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+      startedAt,
+    });
+    return {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+      body: nativeStreamBodyToAsyncIterable(options, dependencies, onAbort),
+    };
+  } catch (error) {
+    options.signal?.removeEventListener("abort", onAbort);
+    await dependencies
+      .cancelStreamRequest?.(options.requestId)
+      .catch(() => undefined);
+    throw error;
+  }
+}
+
+async function* nativeStreamBodyToAsyncIterable(
+  options: TransportOptions,
+  dependencies: MobileLlmTransportDependencies,
+  onAbort: () => void
+): AsyncIterable<Uint8Array> {
+  let completed = false;
+  try {
+    while (true) {
+      const chunk = await dependencies.readStreamChunk!(options.requestId);
+      if (chunk.done) {
+        completed = true;
+        break;
+      }
+      const body = new Uint8Array(chunk.body);
+      if (!body.length) continue;
+      options.observer?.onResponseChunk?.({
+        requestId: options.requestId,
+        chunk: body,
+        receivedAt: Date.now(),
+      });
+      yield body;
+    }
+  } catch (error) {
+    options.observer?.onError?.({
+      requestId: options.requestId,
+      error,
+      occurredAt: Date.now(),
+    });
+    throw error;
+  } finally {
+    options.signal?.removeEventListener("abort", onAbort);
+    if (!completed) {
+      await dependencies
+        .cancelStreamRequest?.(options.requestId)
+        .catch(() => undefined);
+    }
+  }
 }
 
 async function sendNativeFileRequest(
@@ -255,6 +390,14 @@ function toNativeFileRequestBody(body: WireBody): NativeFileRequestBody {
           : part.body,
     })),
   };
+}
+
+async function invokeNativeStreamRequest(
+  request: MobileNativeFileRequest
+): Promise<MobileNativeStreamResponseStart> {
+  return invoke<MobileNativeStreamResponseStart>("start_llm_stream_request", {
+    request,
+  });
 }
 
 async function invokeNativeFileRequest(

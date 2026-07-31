@@ -32,6 +32,7 @@
 - Native / Sidecar 插件的 manifest 不得直接依赖 Cargo `target/` 缓存布局；构建脚本应把当前平台产物部署到稳定相对路径。验证时必须执行 manifest 当前平台键实际指向的文件，不能只以 `cargo build` 成功作为结论。
 - 涉及 VCP 时，必须先阅读 [`tool-calling` 架构](src/tools/tool-calling/ARCHITECTURE.md)与 [`vcp-connector` 架构](src/tools/vcp-connector/ARCHITECTURE.md)，不得根据名称猜测协议含义。
 - 模型元数据规则只在模型创建、导入、刷新或显式应用预设时写入模型对象。`media-generator` 运行时只读取模型自身的 `mediaGenParams`，不得实时合并或回退到全局元数据规则。
+- 移动端特有的文档入口、验证边界和实现约定见 [`mobile/AGENTS.md`](mobile/AGENTS.md)；处理 `mobile/**` 时先读取该局部指引。
 
 ## 5. 前端规范
 

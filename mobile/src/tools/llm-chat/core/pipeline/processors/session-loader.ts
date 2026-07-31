@@ -1,10 +1,15 @@
 import { createModuleLogger } from "@/utils/logger";
-import type {
-  ContextProcessor,
-  PipelineContext,
-  ProcessableMessage,
+import {
+  processorResult,
+  type ContextProcessor,
+  type PipelineContext,
+  type ProcessableMessage,
 } from "../../../types";
 import type { ChatMessageNode } from "../../../types/message";
+import {
+  formatReplyReferenceContent,
+  isChatMessageReference,
+} from "../../../utils/replyReference";
 
 const logger = createModuleLogger("primary:session-loader");
 
@@ -49,14 +54,10 @@ export const sessionLoader: ContextProcessor = {
   priority: 100,
   execute: async (context: PipelineContext) => {
     if (!context.session) {
-      const message = "上下文中缺少 session 对象，已跳过。";
-      logger.warn(message);
-      context.logs.push({
-        processorId: "primary:session-loader",
-        level: "warn",
-        message,
-      });
-      return;
+      const error = new Error("PIPELINE_SESSION_REQUIRED");
+      const message = "上下文中缺少 session 对象，无法安全构造聊天请求。";
+      logger.error(message, error);
+      return processorResult.failed(message, error);
     }
 
     const historyNodes = getActiveBranchHistory(context.session);
@@ -69,7 +70,12 @@ export const sessionLoader: ContextProcessor = {
 
       const processableMessage: ProcessableMessage = {
         role: node.role as any,
-        content: node.content,
+        content: formatReplyReferenceContent(
+          isChatMessageReference(node.metadata?.replyTo)
+            ? node.metadata.replyTo
+            : undefined,
+          node.content
+        ),
         sourceType: "session_history",
         sourceId: node.id,
         _attachments: node.attachments?.map(
@@ -82,10 +88,6 @@ export const sessionLoader: ContextProcessor = {
     context.messages = messages;
     const message = `已加载 ${messages.length} 条历史消息。`;
     logger.info(message, { count: messages.length });
-    context.logs.push({
-      processorId: "primary:session-loader",
-      level: "info",
-      message,
-    });
+    return processorResult.applied(message, { count: messages.length });
   },
 };

@@ -54,6 +54,17 @@ const createdAt = computed(() =>
       role="dialog"
       aria-modal="true"
       aria-labelledby="asset-detail-title"
+      data-testid="asset-detail"
+      :data-asset-id="detail.id"
+      :data-asset-mime="detail.mimeType"
+      :data-asset-size="detail.sizeBytes"
+      :data-origin-count="detail.origins.length"
+      :data-origin-kinds="
+        detail.origins.map((origin) => origin.originKind).join(',')
+      "
+      :data-source-modules="
+        detail.origins.map((origin) => origin.sourceModule).join(',')
+      "
     >
       <header class="sheet-header">
         <div class="header-copy">
@@ -66,6 +77,7 @@ const createdAt = computed(() =>
           <button
             v-if="detail.availability === 'ready'"
             class="icon-button"
+            data-testid="asset-detail-save"
             type="button"
             aria-label="保存到文件"
             :disabled="props.saving || props.sharing || props.busy"
@@ -77,6 +89,7 @@ const createdAt = computed(() =>
           <button
             v-if="detail.availability === 'ready'"
             class="icon-button"
+            data-testid="asset-detail-share"
             type="button"
             aria-label="分享资产"
             :disabled="props.saving || props.sharing || props.busy"
@@ -88,6 +101,7 @@ const createdAt = computed(() =>
           <button
             class="icon-button"
             type="button"
+            data-testid="asset-detail-close"
             aria-label="关闭详情"
             :disabled="props.busy"
             @click="emit('close')"
@@ -120,6 +134,7 @@ const createdAt = computed(() =>
           v-else-if="canPreview"
           class="preview-button"
           type="button"
+          data-testid="asset-detail-preview"
           :disabled="props.busy"
           @click="emit('preview', detail.id)"
         >
@@ -223,6 +238,8 @@ const createdAt = computed(() =>
             v-for="usage in detail.usages"
             :key="usage.id"
             class="detail-row"
+            data-testid="asset-usage-row"
+            :data-usage-entity-id="usage.entityId"
           >
             <strong>{{ usage.moduleId }} / {{ usage.role }}</strong>
             <span>{{

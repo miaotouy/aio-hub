@@ -140,13 +140,15 @@ const handleRefresh = async () => {
 </script>
 
 <template>
-  <div class="app-view settings-container">
+  <div class="app-view settings-container" data-testid="settings-view">
     <div class="header">
       <var-button
         round
         text
         color="transparent"
         class="back-button"
+        data-testid="settings-back"
+        aria-label="返回"
         @click="goHome"
       >
         <ChevronLeft :size="24" />
@@ -159,7 +161,11 @@ const handleRefresh = async () => {
       <var-paper :elevation="1" class="settings-group">
         <div class="group-title">{{ t("settings.外观") }}</div>
 
-        <var-cell ripple @click="openThemeSettings">
+        <var-cell
+          ripple
+          data-testid="settings-theme-entry"
+          @click="openThemeSettings"
+        >
           <template #icon>
             <div class="group-icon">
               <Palette :size="20" />
@@ -225,6 +231,7 @@ const handleRefresh = async () => {
           </div>
           <template #extra>
             <var-select
+              data-testid="settings-language"
               v-model="settingsStore.settings.language"
               variant="standard"
               :hint="false"
@@ -234,6 +241,7 @@ const handleRefresh = async () => {
               <var-option
                 v-for="opt in languageOptions"
                 :key="opt.value"
+                :data-testid="`settings-language-${opt.value}`"
                 :label="opt.label"
                 :value="opt.value"
               />
@@ -293,6 +301,7 @@ const handleRefresh = async () => {
           </div>
           <template #extra>
             <var-switch
+              data-testid="settings-debug-mode"
               v-model="settingsStore.settings.debugMode"
               @change="handleDebugChange"
             />

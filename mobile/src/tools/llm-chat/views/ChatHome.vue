@@ -5,6 +5,7 @@ import {
   MessageSquare,
   Users,
   UserCircle,
+  BookOpen,
   Plus,
   Settings,
   ChevronLeft,
@@ -20,7 +21,7 @@ const route = useRoute();
 const { tRaw } = useI18n();
 const chatStore = useLlmChatStore();
 const profilesStore = useLlmProfilesStore();
-const { loadSettings } = useChatSettings();
+const { settings, loadSettings } = useChatSettings();
 
 onMounted(async () => {
   // 加载设置
@@ -35,7 +36,7 @@ onMounted(async () => {
   }
 
   // 确保有选中的模型且模型有效
-  chatStore.syncSelectedModel();
+  chatStore.syncSelectedModel(settings.value.modelPreferences.defaultModel);
 
   const agentId =
     typeof route.query.agentId === "string" ? route.query.agentId : null;
@@ -62,13 +63,21 @@ const goToAgents = () => {
   router.push("/tools/agent-manager/list");
 };
 
+const goToUserProfiles = () => {
+  router.push("/tools/llm-chat/profiles");
+};
+
+const goToWorldbooks = () => {
+  router.push("/tools/llm-chat/worldbooks");
+};
+
 const goHome = () => {
   router.push("/");
 };
 </script>
 
 <template>
-  <div class="chat-home">
+  <div class="chat-home" data-testid="chat-home">
     <safe-top />
     <div class="header">
       <div class="header-main">
@@ -88,7 +97,14 @@ const goHome = () => {
     </div>
 
     <div class="action-grid">
-      <div class="action-card primary" @click="handleNewChat">
+      <div
+        class="action-card primary"
+        role="button"
+        tabindex="0"
+        data-testid="chat-new"
+        @click="handleNewChat"
+        @keydown.enter="handleNewChat"
+      >
         <div class="icon-box">
           <Plus :size="32" />
         </div>
@@ -98,7 +114,14 @@ const goHome = () => {
         </div>
       </div>
 
-      <div class="action-card" @click="goToSessions">
+      <div
+        class="action-card"
+        role="button"
+        tabindex="0"
+        data-testid="chat-sessions"
+        @click="goToSessions"
+        @keydown.enter="goToSessions"
+      >
         <div class="icon-box">
           <MessageSquare :size="24" />
         </div>
@@ -118,13 +141,37 @@ const goHome = () => {
         </div>
       </div>
 
-      <div class="action-card disabled">
+      <div
+        class="action-card"
+        role="button"
+        tabindex="0"
+        data-testid="chat-user-profiles"
+        @click="goToUserProfiles"
+        @keydown.enter="goToUserProfiles"
+      >
         <div class="icon-box">
           <UserCircle :size="24" />
         </div>
         <div class="text-box">
           <h3>{{ tRaw("tools.llm-chat.ChatHome.用户档案") }}</h3>
-          <p>{{ tRaw("tools.llm-chat.ChatHome.敬请期待") }}</p>
+          <p>{{ tRaw("tools.llm-chat.ChatHome.管理用户档案") }}</p>
+        </div>
+      </div>
+
+      <div
+        class="action-card"
+        role="button"
+        tabindex="0"
+        data-testid="chat-worldbooks"
+        @click="goToWorldbooks"
+        @keydown.enter="goToWorldbooks"
+      >
+        <div class="icon-box">
+          <BookOpen :size="24" />
+        </div>
+        <div class="text-box">
+          <h3>{{ tRaw("tools.llm-chat.ChatHome.世界书") }}</h3>
+          <p>{{ tRaw("tools.llm-chat.ChatHome.管理世界书") }}</p>
         </div>
       </div>
     </div>

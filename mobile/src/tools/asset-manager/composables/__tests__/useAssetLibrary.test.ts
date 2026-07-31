@@ -8,13 +8,11 @@ const service = vi.hoisted(() => ({
   getAssetDetail: vi.fn(),
   getAssetImportJob: vi.fn(),
   getAssetLibraryFacets: vi.fn(),
-  getAssetPreviewSource: vi.fn(),
   getAssetStorageSummary: vi.fn(),
   importAssetSources: vi.fn(),
   listAssetImportJobs: vi.fn(),
   listAssets: vi.fn(),
   repairAssetLibrary: vi.fn(),
-  revokeAssetPreviewSource: vi.fn(),
   setAssetLibraryState: vi.fn(),
   setAssetRetentionPolicy: vi.fn(),
 }));
@@ -398,27 +396,6 @@ describe("asset selection actions", () => {
     expect(feedback.customMessage).toHaveBeenCalledWith(
       "已清理 1 项资产",
       "success"
-    );
-  });
-
-  it("revokes a late preview response after the preview is closed", async () => {
-    const library = useAssetLibrary();
-    let resolvePreview!: (value: { id: string }) => void;
-    service.getAssetPreviewSource.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolvePreview = resolve;
-      })
-    );
-    service.revokeAssetPreviewSource.mockResolvedValue(true);
-
-    const pending = library.openPreview("asset-1");
-    await library.closePreview();
-    resolvePreview({ id: "preview-late" });
-    await pending;
-
-    expect(library.preview.value).toBeNull();
-    expect(service.revokeAssetPreviewSource).toHaveBeenCalledWith(
-      "preview-late"
     );
   });
 

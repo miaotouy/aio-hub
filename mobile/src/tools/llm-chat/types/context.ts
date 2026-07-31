@@ -23,6 +23,7 @@ export interface ProcessableMessage {
     | "session_history"
     | "depth_injection"
     | "anchor_injection"
+    | "worldbook_injection"
     | "unknown"
     | "merged";
   /** 来源标识（预设消息的 index 或会话历史的 nodeId） */
@@ -33,7 +34,7 @@ export interface ProcessableMessage {
   _mergedSources?: ProcessableMessage[];
   /**
    * [中间格式] 暂存的附件列表
-   * 在 asset-resolver 阶段会被处理并合并入 content
+   * `attachment-preparer` 会先筛除失效引用、为已持久化的提取文本生成回退上下文；`useChatExecutor` 随后将可用引用序列化给 Rust 原生传输
    */
   _attachments?: ManagedAssetRef[];
   /**

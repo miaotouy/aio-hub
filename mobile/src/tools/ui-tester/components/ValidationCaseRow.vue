@@ -8,6 +8,7 @@ defineProps<{
   status?: ValidationRunStatus;
   actionLabel?: string;
   disabled?: boolean;
+  testId?: string;
 }>();
 
 defineEmits<{ run: [] }>();
@@ -23,7 +24,7 @@ const statusText: Record<ValidationRunStatus, string> = {
 </script>
 
 <template>
-  <div class="case-row">
+  <div class="case-row" :data-testid="testId" :data-status="status">
     <div class="case-copy">
       <div class="case-title">{{ title }}</div>
       <div class="case-description">{{ description }}</div>
@@ -33,6 +34,7 @@ const statusText: Record<ValidationRunStatus, string> = {
     </div>
     <var-button
       class="run-button"
+      :data-testid="testId ? `${testId}-run` : undefined"
       type="primary"
       size="small"
       :loading="status === 'running'"

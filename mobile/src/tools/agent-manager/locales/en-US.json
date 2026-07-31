@@ -23,7 +23,9 @@
     "助手": "Assistant",
     "角色": "Character",
     "专家": "Expert",
-    "自定义": "Custom"
+    "创意": "Creative",
+    "工作流": "Workflow",
+    "其他": "Other"
   },
   "AgentDetail": {
     "显示名称": "Display name",
@@ -35,7 +37,35 @@
     "系统提示词": "System prompt",
     "保存": "Save",
     "保存成功": "Agent saved",
+    "世界书": "Worldbooks",
+    "世界书说明": "Selected enabled Worldbooks are injected deterministically by keyword before requests.",
+    "管理世界书": "Manage",
+    "暂无世界书": "No Worldbooks are available yet. Create one first.",
     "必填提示": "Display name, internal name, and model are required"
+  },
+  "Parameters": {
+    "运行参数": "Generation parameters",
+    "运行参数说明": "Only parameters implemented by the current mobile request and context pipeline are saved here.",
+    "temperature": "Temperature",
+    "temperature说明": "Controls randomness. Leave empty to use the profile or model default.",
+    "maxTokens": "Max output tokens",
+    "maxTokens说明": "Limits the maximum length of one generated reply.",
+    "topP": "Top P",
+    "topP说明": "Nucleus-sampling threshold. It is normally adjusted instead of temperature.",
+    "frequencyPenalty": "Frequency penalty",
+    "frequencyPenalty说明": "Reduces repeated words and phrases.",
+    "presencePenalty": "Presence penalty",
+    "presencePenalty说明": "Encourages the model to introduce topics not yet present.",
+    "停止序列": "Stop sequences",
+    "停止序列提示": "One stop sequence per line",
+    "停止序列说明": "Generation stops when the output matches any sequence.",
+    "上下文截断": "Context truncation",
+    "上下文截断说明": "Keeps presets and the newest chat history within a token budget before a request.",
+    "启用": "Enable",
+    "最大上下文Token": "Maximum context tokens",
+    "最大上下文Token说明": "Older history is trimmed when the budget is reached.",
+    "截断保留字符": "Characters retained on truncation",
+    "截断保留字符说明": "Number of leading characters retained for a history message when it cannot be kept in full."
   },
   "PresetEditor": {
     "消息内容不能为空": "Message content is required",

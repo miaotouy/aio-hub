@@ -46,6 +46,24 @@ export function cloneChatSession(session: ChatSession): ChatSession {
   return JSON.parse(JSON.stringify(persistent)) as ChatSession;
 }
 
+export function recoverInterruptedChatMessages(
+  session: ChatSession,
+  recoveredAt = new Date().toISOString()
+): number {
+  const interrupted = Object.values(session.nodes).filter(
+    (node) => node.status === "generating"
+  );
+  for (const node of interrupted) {
+    node.status = "error";
+    node.metadata = {
+      ...node.metadata,
+      error: "Generation was interrupted when the application stopped.",
+    };
+  }
+  if (interrupted.length) session.updatedAt = recoveredAt;
+  return interrupted.length;
+}
+
 export function chatSessionToInput(session: ChatSession): ChatSessionInput {
   return {
     id: session.id,

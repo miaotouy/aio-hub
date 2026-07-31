@@ -1,98 +1,96 @@
-# 移动端持续施工清单
+# 移动端当前待办总表
 
-> 状态：施工中
-> 最近核对：2026-07-28
-> 文档定位：跨模块施工索引，不替代各工具的唯一计划或 `ARCHITECTURE.md`
+> 状态：实现主线已基本收敛，当前以 Android 真机 / iOS 平台门禁和性能证据为主
+> 最近核对：2026-07-31
+> 文档定位：移动端跨模块待办、优先级、依赖和验收入口；实现细节仍以各模块 `ARCHITECTURE.md` 和专项计划为准
 
-## 1. 使用规则
+## 1. 当前结论
 
-本文只维护以下内容：当前优先级、模块依赖、并行工作边界和下一步入口。实现细节、验收数据和历史记录必须回写对应模块文档，不在本文复制一份。近期 AI 施工的 PC 对照、问题分级与安全取舍见 [`mobile-pc-parity-construction-review.md`](./mobile-pc-parity-construction-review.md)。
+移动端角色聊天主线已经具备可用的产品闭环：会话树、恢复/重试/停止、Agent 与预设、宏与变量、传统关键词世界书、注入编排、Token 文本预算、附件原生发送、文档提取回退、统一媒体预览、富文本安全基础渲染和 Android AVD 日常回归均已落地。
 
-RichTextRenderer 可以在独立工作树中并行开发。建议工作树只修改 `mobile/src/tools/rich-text-renderer/`，最后再由主线协调 `llm-chat/components/MessageContent.vue` 的入口接线、资产解析和消息类型变更。建议分支名：`codex/mobile-rich-text-parity`。
+**当前没有需要继续拆分的 P0 功能开发项。** 剩余工作主要分为：
 
-## 2. 当前优先级
+1. Android 真机的资产、聊天附件、媒体预览和富文本体验验收；
+2. Token 计数与富文本在真实设备上的性能/内存证据；
+3. iOS 编译、设备和平台差异验收；
+4. 明确列出但暂不进入当前主线的产品扩展。
 
-当前移动端产品基线是先完成一个独立、完整的角色聊天产品：能力参照桌面端引入工具调用、向量 RAG 和后续 Knowledge/Recall 模块之前的聊天形态，并吸收类似酒馆类产品的角色、预设、上下文、分支和富文本体验。工具调用、向量检索、知识库和桌面 Agent 高级能力不是 Chat 完整性的前置依赖，也不要求移动端未来与桌面实现完全一致。
+Android AVD 只作为日常回归和故障诊断环境，不能替代 Android 真机、iOS 或真实低存储设备门禁。
 
-### P0：Chat 功能完整性（不依赖工具调用或向量 RAG）
+## 2. 近期待办（按执行顺序）
 
-- [x] 已以角色聊天实际需要为边界完成移动端宏/变量、传统关键词世界书、确定性注入、资源解析和消息编排：可用附件保留匿名托管引用并由 Rust 原生传输在发网前读取；历史文档在“提取文本并清理原件”后会将持久化 `extractedText` 于 Token 裁剪前回退进请求上下文。媒体压缩、PDF/Office 深度解析、转写、工具调用、向量 RAG、Knowledge/Recall 不以复制桌面全部处理器为目标，按后续产品需求独立设计。
-- [x] 在移动端接入 `injection-assembler`，支持预设消息的 `injectionStrategy`、深度、锚点和模型/渠道匹配语义。
-- [x] 建立移动端 Chat 自己的宏注册范围：`primary:macros-renderer` 在预设装配后、Token 裁剪前顺序展开角色、用户、会话、模型和当前附件轻量摘要，并支持导入角色的局部变量定义、`<svar>`、`getvar` / `setvar` / `incvar` / `decvar`。未知与转义宏保持字面文本；工具、Recall、Knowledge、CSS 与全局变量宏不进入本阶段。
-- [x] 接入移动端传统关键词世界书：全局 `worldbooks.json` 仅保存文本条目与匹配设置，Agent 通过既有 `worldbookIds` 选择世界书；`primary:worldbook-injector` 以选中顺序、条目 order 和 ID 做稳定排序，在历史尾部有限扫描并按 `before_history` / `after_character` / `depth` 注入。`depth` 默认 4，按注入前的 session history 锚点计算且超长深度不越过最旧历史。首阶段不迁移桌面的递归、概率、分组竞争、向量、Outlet、自动化或 Knowledge/Recall；世界书创建、条目编辑与 Agent 关联均已有移动端入口。
-- [x] 已逐项核对并接线新建会话、历史恢复、编辑、删除、继续、重新生成、分支切换、引用、停止、失败恢复、长上下文和设置：Assistant 续写在同父节点创建带原回复前缀的生成中分支；进程中断恢复会将持久化的 `generating` 节点标为可见错误，Assistant 菜单可重新生成；`showMessageNavigator` 已提供可选的首条/上下条/末条浮层导航。相应的执行器、codec、消息视图和导航器测试均已覆盖。
-- [x] 已接入主动停止生成：ChatInput 通过共享 `AbortController` 将停止操作传到 LLM 请求 `signal`；原生流取消会立即清理 request/response registry，非 2xx 在 Rust 端受限读取并保留上游错误正文；停止后的助手节点保留已流式输出内容，并持久化为 `complete + metadata.interrupted`，不误标为发送失败。
-- [x] 将现有 Rust `o200k_base` / `countTokensBatch()` 接入上下文预算编排。Token 限制器在最终格式化前以预设优先、最新历史优先的策略裁剪文本消息；固定消息耗尽或超出预算时保留继承行为但返回 `degraded`/warn 与结构化溢出数据；发送后的最终计数仍用于 usage 缺失时展示与快照。
-- [x] 迁移文本预算和历史消息截断逻辑；处理器位于注入之后、最终消息格式化之前，预算和截断参数已有移动端编辑入口。
-- [x] 附件和非文本多模态成本继续按实际模型与渠道协议独立估算。工具 schema 只在未来确实设计移动端工具调用时处理，不属于当前 Chat 完整性门禁。
+### P0 — Android 真机资产与聊天附件主流程
 
-入口：[`mobile/src/tools/llm-chat/ARCHITECTURE.md`](../../src/tools/llm-chat/ARCHITECTURE.md)、[`mobile-token-counting-plan.md`](./mobile-token-counting-plan.md)。
+- [ ] 在 Android 真机完成资产 MVP 主流程：导入、列表/详情预览、导出、删除影响、应用重启恢复。
+- [ ] 在同一真机报告中覆盖正式聊天附件链路：资产选择、原生发送、流式回复、消息恢复，以及 `reclaimed` / `missing` 等降级状态。
+- [ ] 记录设备型号、Android 版本、ABI、应用版本、场景结果和失败证据；不得用普通浏览器或 AVD 结果替代。
 
-### 非当前主线：Agent 已有能力维护
+**完成标准**：资产管理器和聊天附件主流程在至少一个明确的 Android 真机环境形成可复查报告；失败、取消、重启和临时文件清理均有结论。
 
-- [x] 当前已经具备角色/Agent CRUD、导入、预设编辑、模型与生成参数绑定、开局消息、聊天内切换和历史快照，可继续为角色聊天提供配置来源。
-- [x] 基础用户档案、`injectionStrategy`、`modelMatch` 和导入 Agent `regexConfig` 的 request 文本正则已经接入聊天请求链路。
-- [ ] 当前阶段不继续追求桌面 Agent 功能对齐；私有头像/二进制资产、工具/Recall/Knowledge 参数、媒体压缩和其他高级能力统一留在 MVP 之后，只有移动端产品需求明确时再单独设计。
+入口：[`mobile-asset-manager-design.md`](./mobile-asset-manager-design.md)、[`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md)、[`asset-manager/ARCHITECTURE.md`](../../src/tools/asset-manager/ARCHITECTURE.md)。
 
-入口：[`mobile-agent-manager-plan.md`](./mobile-agent-manager-plan.md)、[`agent-manager/ARCHITECTURE.md`](../../src/tools/agent-manager/ARCHITECTURE.md)。
+### P1 — Android 真机媒体与富文本可用性
 
-### P1：移动端媒体组件实现与交互验证
+- [ ] 在 Android 真机验证图片/视频/音频预览的真实手势：下拉关闭、双指缩放、快速切换、长视频拖动、系统 Back、全屏回退和内联续播。
+- [ ] 验证设备音频输出、方向变化、安全区、后台/路由切换、预览 URL 回收，以及大媒体/长消息下的内存表现。
+- [ ] 在正式聊天中验证 RichTextRenderer 的窄屏长消息、流式输出、滚动稳定性、代码块/Mermaid/KaTeX/提示块和受管 `asset://` 媒体。
+- [ ] 根据真机数据决定是否需要方向锁定、后台播放或其他原生能力；没有性能/可用性证据时不扩展公共 API。
 
-- [x] 完成外部参考、资产管理器能力、PC 媒体组件和移动端消费者的联合调查，收敛组件边界与交互方案。
-- [x] 按方案先在资产管理器完成 `MediaPreviewHost`、图片/视频/音频组件和 descriptor 生命周期 composable。
-- [ ] Android AVD 的资产图片预览、聊天附件、音频受控预览/沉浸层控制，以及 `video/mp4` 的 DocumentsUI 导入、受管 URL、WebView 解码/播放进度/暂停、强制 Fullscreen API 拒绝时的应用内沉浸层回退、Android 原生 Back 返回后的内联续播和关闭后的 URL 回收，已于 2026-07-26 至 2026-07-27 通过 APK 端到端回归；仍需在 AVD 与 Android 真机验证真实手势冲突、原生全屏、方向、安全区、快速切换、长视频拖动、设备音频输出和性能/内存，并按可用性结果迭代。
-- [x] 聊天附件与 RichTextRenderer 受管 Markdown 资产均已接入统一 `MediaPreviewHost`：图片、视频和音频只传 `assetId +` 轻量快照，保留 reclaimed/missing 降级；RichTextRenderer 仅解析当前消息自有的 `asset://<assetId>`。
-- [ ] 具备 iOS 编译和设备条件后补验平台差异，不提前冻结方向锁定、后台播放或预览协议行为。
+**已有证据**：2026-07-26 至 2026-07-27 的 Android AVD APK 回归已覆盖资产图片、聊天附件、WAV 音频受控预览、H.264 MP4 导入/解码/暂停、应用内沉浸层、原生 Back 后内联续播、RichTextRenderer 测试页和正式聊天首包 Markdown 渲染。上述结果不替代真机手势、设备音频、方向、安全区和内存验收。
 
-入口：[`mobile-media-components-plan.md`](./mobile-media-components-plan.md)。
+入口：[`mobile-media-components-plan.md`](./mobile-media-components-plan.md)、[`rich-text-renderer-migration-plan.md`](../../src/tools/rich-text-renderer/docs/Plan/rich-text-renderer-migration-plan.md)、[`rich-text-renderer/ARCHITECTURE.md`](../../src/tools/rich-text-renderer/ARCHITECTURE.md)。
 
-### P1（可并行工作树）：RichTextRenderer 非媒体能力迁移
+### P1 — 真实设备性能基线
 
-- [ ] 将 PC 富文本模块按现有目录和依赖直接复制到移动端工具目录，先做必要的路径、主题、Tauri 和移动端 API 适配。
-- [ ] 迁移 PC 的 AST、流式处理、稳定区/待定区、Patch 更新和 Worker tokenizer 能力。
-- [x] 已完成基础非媒体代码节点：代码块提供复制和自动换行切换，并保留窄屏横向滚动与原文；受管媒体节点已接入，当前消息附件可经 `![说明](asset://<assetId>)` 复用 `MediaPreviewHost`，外部图片维持普通 `<img>` 回退；图片来源兼容、调用方解析和隐私属性的复核结论见施工复核记录；VCP 展示节点已单独完成。桌面高亮、CodeMirror、导出和 HTML 预览不作为移动端初始对齐条件。
-- [x] 已接入 KaTeX 数学公式节点：支持行内 `$...$` 和块级 `$$...$$`，思考块内同样可用；KaTeX 关闭 trust，渲染失败回退为文本。
-- [x] 已接入 GitHub 风格 Markdown 提示块：仅识别引用首行完整的 `[!NOTE]`、`[!TIP]`、`[!IMPORTANT]`、`[!WARNING]` 与 `[!CAUTION]`，去除协议标记后递归复用安全 Markdown 渲染；近似标记保留为普通引用，不开启 HTML 或脚本执行面。
-- [x] 已先迁移桌面默认的 `<think>` / `<guguthink>` 思考块：完整块默认折叠，流式未闭合块保持可见的“思考中”状态；自定义规则 UI、完整 AST/Patch 语义仍待后续阶段。
-- [x] 已接入只读 VCP 协议输出块：角色分隔、工具请求/结果、日记和调用摘要以可折叠移动端卡片显示，未闭合流式请求保留生成状态；仅解析展示，绝不在移动端执行或连接桌面 VCP 工具调用链路。
-- [x] 已接入 Mermaid fenced code 的安全基础渲染：组件按需加载 Mermaid、使用 `securityLevel: "strict"`，以清洗后的 SVG DOM 挂载并仅保留片段引用；流式未闭合 fenced code 保持等待状态，渲染失败回退原始代码。缩放、导出、HTML 交互预览、样式隔离与 CDN 本地化仍待后续评估，且不把 PC 全量交互能力作为初始合并条件。
-- [x] 已关闭移动端现存的 raw `v-html` 渲染，并将 Markdown 链接限制为锚点、HTTP(S) 与 `mailto:`：HTML token 仅按字面文本显示，避免未受信任内容在聊天内执行。
-- [ ] 后续如需重新启用 HTML 能力，必须先实现可审计的白名单或沙箱，不能恢复直接 `v-html`。
-- [x] 已完成可单测的流式渲染稳定性基础：中间 chunk 使用 80ms 快照节流，首内容、清空内容和流式结束立即刷新，组件卸载会清理流式与复制反馈 timer。
-- [ ] 完成 Android/iOS 真实设备上的窄屏、长消息、流式输出、滚动和内存释放验证；浏览器/Vitest 不能替代 Tauri WebView 和原生运行态门禁。
-  - 2026-07-27：runner-owned Android AVD `Medium_Phone_API_36`（SDK 36、x86_64）已通过 `rich-text` 与 `rich-text-media` 预设，验证 RichText 测试页的代码块、Mermaid DOM 挂载、自动换行、长无空格代码容器滚动，以及长 Markdown 流式进度、预览自动贴底、显式停止和 keep-alive 路由停用清理；正式聊天通过原生 reqwest 拉取式分块桥接逐块交给共享 SSE 解码器，已在 `generating` 状态挂载首个 Markdown 标题，并继续覆盖 GitHub 风格提示块和受管媒体。Android 真机、iOS 与内存释放仍是未完成门禁。
-- [ ] 功能迁移稳定后再依据真实设备数据决定 Web Worker、Rust 或原生下沉；没有性能证据时不重构为共享包。
+- [ ] 在 Android 真机测量 Token tokenizer 的首次初始化耗时、批量计数性能、峰值内存和交互流畅度。
+- [ ] 在长消息/流式富文本/媒体预览链路稳定后，补充内存释放和长时间运行观察；记录基线而不是凭感觉引入 Worker、Rust 或原生下沉。
+- [ ] 若性能数据不足以支持架构变更，保持当前实现，不提前抽取共享包或复制 PC 的完整 AST/Patch 管线。
 
-入口：[`rich-text-renderer-migration-plan.md`](../../src/tools/rich-text-renderer/docs/Plan/rich-text-renderer-migration-plan.md)、[`ARCHITECTURE.md`](../../src/tools/rich-text-renderer/ARCHITECTURE.md)。
+**已完成范围**：Rust `o200k_base` 计数服务、前端 IPC、Agent Manager 与 Chat 上下文预算接入、文本历史裁剪、发送后估算和缺失 usage 时的展示均已完成；附件/多模态成本仍按实际模型和渠道协议独立处理。
 
-当前可复用基础：资产服务已提供短期预览来源和主动撤销命令；`mobile/src/components/media/` 已落地统一 host、三类媒体主体和 descriptor 生命周期，`AssetDetailSheet`、聊天 `MessageContent` 与 RichTextRenderer 的受管 Markdown 资产入口均已接入该契约。资产详情通过可选 `imageTestId` 将稳定的图片元素标识限定在资产调用方；2026-07-26 的 Android AVD 已通过资产图片预览、聊天附件及 WAV 音频受控预览/沉浸层控制 APK 回归，2026-07-27 的新构建又通过 `media` / `audio-media` AVD 回归。2026-07-27 的 `rich-text-media` AVD 预设已覆盖消息自有图片 `asset://` Markdown 到 `MediaPreviewHost` 的 descriptor、inline ready 与沉浸层打开/关闭；确定性 assistant SSE 的首个 Markdown 标题会在正式聊天 `generating` 状态内挂载，后续继续验证代码块、行内 KaTeX 及未受信任 HTML 字面回退。流式请求使用原生 reqwest 拉取式分块桥接，避免 Tauri HTTP 插件响应流在 Android WebView 中批量交付；其余手势、真实播放、Android 真机与 iOS 验收继续以 [`mobile-media-components-plan.md`](./mobile-media-components-plan.md) 为准。
+入口：[`mobile-token-counting-plan.md`](./mobile-token-counting-plan.md)、[`rich-text-renderer-migration-plan.md`](../../src/tools/rich-text-renderer/docs/Plan/rich-text-renderer-migration-plan.md)。
 
-### P2：平台门禁与已落地能力的最终验收
+### P1 — iOS 平台报告
 
-- [ ] Android 真机完成资产 MVP 主流程：导入、预览、导出、删除影响和重启恢复，并覆盖正式聊天附件链路。
-- [ ] Android 真机补测 Token 初始化耗时、批量性能、峰值内存和交互流畅度。
-- [ ] iOS 具备编译和设备条件后，运行 SQLite、资产、预览协议和 Token 固定场景，单独形成 iOS 报告。
-- [ ] Android AVD 结果继续作为日常回归，不替代 Android 真机或 iOS 发布门禁。
+- [ ] 具备 iOS 编译环境和设备条件后，执行 SQLite、资产、预览协议、聊天附件和 Token 固定场景。
+- [ ] 单独记录 iOS 的 security-scoped URL、文件选择/导出、预览、方向、后台行为和内存结果；不能用 Android 结论代替。
+- [ ] 根据 iOS 实测再决定方向锁定、后台播放和其他平台特化能力，不提前冻结协议。
 
-入口：[`mobile-asset-manager-design.md`](./mobile-asset-manager-design.md)、[`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md)、[`mobile-token-counting-plan.md`](./mobile-token-counting-plan.md)、[`platform-validation-workbench-plan.md`](../../src/tools/ui-tester/docs/Plan/platform-validation-workbench-plan.md)。
+入口：[`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md)、[`mobile-asset-manager-design.md`](./mobile-asset-manager-design.md)、[`mobile-media-components-plan.md`](./mobile-media-components-plan.md)、[`mobile-token-counting-plan.md`](./mobile-token-counting-plan.md)。
 
-### P3：MVP 之后的可选扩展
+## 3. 已完成或不再作为待办的内容
 
-- [ ] Agent 私有头像、背景、预设附件、随包二进制资产和其他高级管理能力；不作为当前 Chat 主线。
-- [ ] 工具调用、向量 RAG、Knowledge/Recall 和自主工作流如在移动端确有需求，作为独立产品能力重新设计，不默认复制桌面模块或协议。
-- [ ] 相机、分享进入 AIO、移动端文件关联、批量转写、PDF/Office 提取、音视频转写和其他资产消费者。
+- [x] Chat P0 主线：会话 CRUD/恢复/分支/引用/停止/重试、Agent/预设/开局消息、宏变量、传统关键词世界书、注入编排、文本 Token 预算和上下文裁剪。
+- [x] 附件闭环：`ManagedAssetRef +` 轻量快照、SQLite 会话/消息与附件引用、原生 Provider wire、文档提取文本回退、usage outbox 和降级状态。
+- [x] Android AVD E2E：设备所有权、单 ABI APK、系统文件选择器、资产/附件/音频/视频/富文本固定场景、失败证据聚合和 Ollama opt-in lane。
+- [x] Android 真机 SQLite 与基础文件链路已有验证台报告；当前仍缺的是资产管理器 UI 主流程、正式聊天附件主流程以及媒体/富文本可用性报告。
+- [x] RichTextRenderer 初版模块化、代码块、KaTeX、GitHub 风格提示块、思考块、只读 VCP 展示、Mermaid 安全基础渲染、受管媒体节点和 raw `v-html` 关闭。
+- [x] Agent Manager 基础能力已进入维护，不再把桌面 Agent 完全对齐作为移动端当前主线。
 
-## 3. 执行顺序
+## 4. 延后队列（不是当前发布阻塞项）
 
-1. 主线先按角色聊天产品清单补齐 Chat 交互、上下文、分支、恢复和设置，不等待工具调用、向量 RAG、Knowledge/Recall 或 Agent 高级能力。
-2. 在 Chat 范围内完成移动端宏/变量和确定性上下文注入；世界书采用非向量方案即可满足首阶段需求。
-3. RichTextRenderer、附件与媒体预览作为 Chat 完整体验并行推进，媒体契约稳定后接入富文本媒体节点。
-4. 功能批次稳定后运行 Android 真机性能和平台门禁，再补 iOS 验收。
-5. Agent 仅维护当前已经可服务角色聊天的能力；高级 Agent、工具和向量检索留到 MVP 后按移动端需求独立立项。
-6. 只根据实测热点决定 Worker、Rust、原生下沉，最后再判断是否抽取共享代码。
+以下项目必须保留边界，但当前不应与平台门禁混在同一批次推进：
 
-## 4. 文档同步要求
+- [ ] RichTextRenderer 的 PC 完整 AST/Patch、稳定区/待定区、完整资源解析、Worker tokenizer 和桌面交互逐项对齐；只有移动端需求或真机性能证据明确时再立项。
+- [ ] HTML 输出白名单或沙箱；当前继续保持 HTML 按字面显示，不能恢复直接 `v-html`。
+- [ ] Agent 私有头像、背景、预设附件、随包二进制资源等私有资产能力；私有资产不得改存为全局 `assetId`。
+- [ ] 工具调用、向量 RAG、Knowledge/Recall、自主工作流和桌面 Agent 高级参数；如有移动端需求，应独立设计，不默认复制桌面协议。
+- [ ] 相机、分享进入 AIO、移动端文件关联、批量转写、音视频模型转写、PDF/Office 深度提取，以及 `llm-chat` 之外的资产消费者。
 
-- RichTextRenderer 的初版迁移清单完成，不代表 PC 能力迁移完成。
-- Token 计数服务和文本上下文预算编排已完成；文档只继续跟踪非文本成本、真实设备性能和平台验证。
-- 各模块完成阶段后，把稳定边界和验证记录同步到对应 `ARCHITECTURE.md`；本文只更新勾选状态、优先级和入口。
+## 5. 执行顺序与文档维护
+
+1. 先完成 Android 真机资产 + 正式聊天附件主流程，并形成报告。
+2. 在同一设备条件下补媒体、富文本和 Token 性能/内存证据。
+3. 具备条件后单独执行 iOS 固定场景并记录平台差异。
+4. 只有真实设备数据暴露热点时，才决定 Worker、Rust、原生下沉或共享包抽取。
+5. 稳定边界、数据流和已验证行为回写对应 `ARCHITECTURE.md`；本表只维护优先级、待办状态、入口和平台门禁，不复制实现细节。
+
+专项计划：
+
+- [`mobile-agent-manager-plan.md`](./mobile-agent-manager-plan.md)
+- [`mobile-asset-manager-design.md`](./mobile-asset-manager-design.md)
+- [`mobile-media-components-plan.md`](./mobile-media-components-plan.md)
+- [`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md)
+- [`mobile-token-counting-plan.md`](./mobile-token-counting-plan.md)
+- [`mobile-pc-parity-construction-review.md`](./mobile-pc-parity-construction-review.md)
+- [`rich-text-renderer-migration-plan.md`](../../src/tools/rich-text-renderer/docs/Plan/rich-text-renderer-migration-plan.md)

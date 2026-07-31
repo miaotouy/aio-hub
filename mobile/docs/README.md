@@ -12,7 +12,7 @@
 
 ## 当前文档
 
-- [`plan/mobile-development-checklist.md`](./plan/mobile-development-checklist.md)：跨模块优先级、上下文管线/Token 编排和可并行的 RichTextRenderer 施工索引；不替代模块计划。
+- [`plan/mobile-development-checklist.md`](./plan/mobile-development-checklist.md)：当前待办总表、优先级、平台门禁、依赖和延后队列；不替代模块计划。
 - [`plan/mobile-media-components-plan.md`](./plan/mobile-media-components-plan.md)：已收敛的移动端媒体组件边界、交互方案、实现顺序和设备验收标准。
 - [`architecture/mobile-android-avd-e2e.md`](./architecture/mobile-android-avd-e2e.md)：Android Studio AVD E2E 的设备所有权、selector、运行和产物契约。
 - [`plan/mobile-sqlite-migration-plan.md`](./plan/mobile-sqlite-migration-plan.md)：SQLite 与聊天附件持久化的剩余 Android 真机/iOS 门禁。

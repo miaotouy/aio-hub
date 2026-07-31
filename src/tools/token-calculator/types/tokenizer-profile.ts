@@ -47,10 +47,8 @@ export type TokenizerSource =
   | {
       /** 应用打包内置 */
       type: "bundled";
-      /** 用于动态 import 的标识（仅供主线程注册器识别） */
+      /** 构建期 tokenizer 资产来源包，用于查找压缩资产 URL */
       packageName: string;
-      /** 模块导出的成员名（默认 fromPreTrained） */
-      exportName?: string;
     }
   | {
       /** 用户从本地导入的 tokenizer 资产 */
@@ -152,15 +150,6 @@ export interface TokenizerRule {
  */
 export interface BuiltinTokenizerEntry extends TokenizerProfile {
   source: Extract<TokenizerSource, { type: "bundled" }>;
-  /**
-   * 动态加载器（仅在主线程或 Worker 内有效，不会被序列化）
-   *
-   * 这是一个不可序列化的函数，所以不会进入持久化/postMessage 通道，
-   * 仅在 Worker 内根据 packageName 重新解析。
-   */
-  loader?: () => Promise<{
-    fromPreTrained: () => unknown;
-  }>;
 }
 
 /**

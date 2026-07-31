@@ -1,5 +1,7 @@
 # 计划：在多模态转写中引入本地 OCR 引擎支持
 
+> 状态：主体代码已实施，OCR/VLM 行为验证待补
+
 本计划旨在为 `transcription`（多模态转写）工具的图片转写模块引入本地/轻量级 OCR 引擎支持，作为原有 VLM（视觉大模型）转写方案的平替。
 
 ## 1. 背景与动机
@@ -43,12 +45,12 @@ export interface ImageSpecificConfig extends TypeSpecificConfig {
 
 - **`vlm` 模式**：执行原有的 VLM 视觉转写逻辑。
 - **`ocr` 模式**：
-  1. **实例化注册表**：动态导入并实例化 [`SmartOcrRegistry`](src/tools/smart-ocr/smart-ocr.registry.ts)。
+  1. **实例化注册表**：静态导入并实例化 [`SmartOcrRegistry`](../../../smart-ocr/smart-ocr.registry.ts)。
   2. **智能切图与单图兼容**：
      - 调用 `ocrRegistry.sliceImage(img, slicerConfig, task.assetId)`。
      - _优雅设计_：若 `config.enableImageSlicer` 为 `false`，则将 `aspectRatioThreshold` 临时设为 `99999` 传给 `sliceImage`，使其自动跳过切图，直接返回整张图的单个 `ImageBlock`。
   3. **引擎配置加载**：
-     - 导入 [`loadSmartOcrConfig`](src/tools/smart-ocr/config/config.ts:127) 和 [`getCurrentEngineConfig`](src/tools/smart-ocr/config/config.ts:181)。
+     - 导入 [`loadSmartOcrConfig`](../../../smart-ocr/config/config.ts) 和 [`getCurrentEngineConfig`](../../../smart-ocr/config/config.ts)。
      - 若 `imageConfig.ocrEngineType === 'default'`，调用 `getCurrentEngineConfig(globalConfig)` 获取当前全局激活的 OCR 引擎配置。
      - 否则，从 `globalConfig.engineConfigs[ocrEngineType]` 中提取对应类型的配置，并组装成 `OcrEngineConfig`。
   4. **运行 OCR**：调用 `ocrRegistry.runOcr(blocks, ocrEngineConfig)` 获取识别结果。
@@ -65,16 +67,17 @@ export interface ImageSpecificConfig extends TypeSpecificConfig {
 
 ## 3. 实施步骤
 
-1. **第一阶段：文档与设计记录**（当前阶段）
+1. **第一阶段：文档与设计记录**（已完成）
    - 创建本设计文档，明确架构与交互。
-2. **第二阶段：类型与配置扩展**
+2. **第二阶段：类型与配置扩展**（已完成）
    - 修改 `src/tools/transcription/types.ts`，扩展 `ImageSpecificConfig`。
    - 修改 `src/tools/transcription/config.ts`，添加默认值与 UI 联动配置。
-3. **第三阶段：引擎层重构**
+3. **第三阶段：引擎层重构**（已完成）
    - 重构 `src/tools/transcription/engines/image.engine.ts`，实现 `executeOcr` 分支，对接 `SmartOcrRegistry`。
-4. **第四阶段：验证与测试**
-   - 运行前端类型检查 `bun run check:frontend`。
-   - 验证 VLM 模式与 OCR 模式的转写效果与速度。
+4. **第四阶段：验证与测试**（待收口）
+   - [x] 运行前端类型检查 `bun run check:frontend`。
+   - [ ] 增加 `ImageTranscriptionEngine` 的 OCR/VLM 分流、配置解析、取消和错误回退测试。
+   - [ ] 在真实 Tauri 运行态验证 VLM 与 OCR 模式的转写效果、速度和插件 OCR 选择。
 
 ## 4. 实施记录
 

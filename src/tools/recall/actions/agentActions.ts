@@ -18,13 +18,13 @@
 
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
-import { invoke } from "@tauri-apps/api/core";
 import { recallStorage } from "../utils/recallStorage";
 import { calculateHash } from "../utils/recallUtils";
 import { useRecallCollectionStore } from "../stores/recallCollectionStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { getPureModelId, getProfileId } from "@/utils/modelIdUtils";
 import { IndexingOrchestrator } from "../logic/orchestrator";
+import { search as searchRecall } from "../services/api";
 import type {
   UpsertEntryOptions,
   UpsertEntryResult,
@@ -73,10 +73,9 @@ async function locateEntry(
     entryId?: string;
     key?: string;
     searchQuery?: string;
-    searchMode?: "keyword" | "vector";
   }
 ): Promise<RecallEntry> {
-  const { entryId, key, searchQuery, searchMode = "keyword" } = options;
+  const { entryId, key, searchQuery } = options;
 
   if (entryId) {
     const entry = await recallStorage.loadEntry(recallId, entryId);
@@ -106,21 +105,16 @@ async function locateEntry(
   }
 
   if (searchQuery) {
-    // 调用搜索
-    const results = await invoke<any[]>("recall_search", {
+    const results = await searchRecall({
       query: searchQuery,
-      filters: {
-        recallIds: [recallId],
-        limit: 1,
-        engineId: searchMode,
-        enabledOnly: true,
-      },
-      engineId: searchMode,
+      recallIds: [recallId],
+      presetId: "algorithmic",
+      limit: 1,
     });
 
     if (results.length === 0)
       throw new Error(`搜索未命中任何条目: "${searchQuery}"`);
-    const entryId = results[0].entry?.id || results[0].id;
+    const entryId = results[0].entry.id;
     const entry = await recallStorage.loadEntry(recallId, entryId);
     if (!entry) throw new Error(`无法加载搜索命中的条目内容: ${entryId}`);
     return entry;
@@ -490,52 +484,53 @@ export async function searchEntries(
   try {
     const {
       query,
-      engineId = "keyword",
+      presetId = "algorithmic",
       limit = 10,
       minScore,
       tags,
-      enabledOnly = true,
     } = options;
 
     // 解析思绪集 ID 列表
     const recallIds: string[] = [];
     if (options.recallIds) recallIds.push(...options.recallIds);
-    if (options.recallNames) {
+    const hasExplicitTargets = Boolean(
+      options.recallIds?.length || options.recallNames?.length
+    );
+    if (options.recallNames?.length) {
       const workspace = await recallStorage.loadWorkspace();
       for (const name of options.recallNames) {
         const base = workspace.bases.find((b) => b.name === name);
         if (base) recallIds.push(base.id);
       }
+    } else if (!hasExplicitTargets) {
+      const workspace = await recallStorage.loadWorkspace();
+      recallIds.push(...workspace.bases.map((base) => base.id));
     }
 
-    logger.info("执行 searchEntries", { query, recallIds, engineId });
+    logger.info("执行 searchEntries", { query, recallIds, presetId });
 
     // 1. 执行搜索
-    const results = await invoke<any[]>("recall_search", {
+    const results = await searchRecall({
       query,
-      filters: {
-        recallIds: recallIds.length > 0 ? recallIds : undefined,
-        tags,
-        minScore,
-        limit,
-        engineId,
-        enabledOnly,
-      },
-      engineId,
+      recallIds,
+      tags,
+      minScore,
+      limit,
+      presetId,
     });
 
     // 2. 格式化结果
     const formattedResults = results.map((r, index) => ({
       index: index + 1, // 提供 1-based 序号方便 Agent 引用
-      id: r.entry?.id || r.id,
-      key: r.entry?.key || r.key,
-      content: r.entry?.content || r.content || "",
-      summary: r.entry?.summary || r.summary || "",
+      id: r.entry.id,
+      key: r.entry.key,
+      content: r.entry.content,
+      summary: r.entry.summary || "",
       score: r.score || 0,
       recallId: r.recallId,
       recallName: r.recallName,
-      tags: r.entry?.tags?.map((t: any) => t.name) || r.tags || [],
-      highlight: r.highlight,
+      tags: r.entry.tags.map((tag) => tag.name),
+      highlight: r.highlight ?? undefined,
     }));
 
     return {

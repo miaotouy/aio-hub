@@ -27,6 +27,10 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useDeepLinkStore } from "@/stores/deepLink";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import {
+  redactDeepLinkUrl,
+  redactDeepLinkValue,
+} from "@/utils/deepLinkRedaction";
 import { llmPresets } from "@/config/llm-presets";
 import type { LlmProfile, ProviderType } from "@/types/llm-profiles";
 
@@ -56,7 +60,9 @@ export function useDeepLinkHandler() {
         params: Object.fromEntries(params.entries()),
       };
     } catch (e) {
-      logger.error("解析 Deep Link URL 失败", e as Error, { urlStr });
+      logger.error("解析 Deep Link URL 失败", e as Error, {
+        urlStr: redactDeepLinkUrl(urlStr),
+      });
       return null;
     }
   };
@@ -172,13 +178,15 @@ export function useDeepLinkHandler() {
       url === lastProcessedUrl &&
       now - lastProcessedTime < DUPLICATE_THRESHOLD
     ) {
-      logger.info("忽略重复的 Deep Link 请求", { url });
+      logger.info("忽略重复的 Deep Link 请求", {
+        url: redactDeepLinkUrl(url),
+      });
       return;
     }
     lastProcessedUrl = url;
     lastProcessedTime = now;
 
-    logger.info("正在处理 Deep Link", { url });
+    logger.info("正在处理 Deep Link", { url: redactDeepLinkUrl(url) });
     const parsed = parseUrlParams(url);
     if (!parsed) return;
 
@@ -204,7 +212,9 @@ export function useDeepLinkHandler() {
       getCurrentDeepLinkUrls()
         .then((urls) => {
           if (urls && urls.length > 0) {
-            logger.info("获取到初始 Deep Link", { urls });
+            logger.info("获取到初始 Deep Link", {
+              urls: urls.map(redactDeepLinkUrl),
+            });
             for (const url of urls) {
               processUrl(url);
             }
@@ -216,7 +226,9 @@ export function useDeepLinkHandler() {
 
       // 2. 监听原生插件提供的 Deep Link 事件 (主要针对 macOS/iOS/Android)
       unlistenDeepLink = await onOpenUrl((urls) => {
-        logger.info("onOpenUrl 捕获到协议请求", { urls });
+        logger.info("onOpenUrl 捕获到协议请求", {
+          urls: urls.map(redactDeepLinkUrl),
+        });
         for (const url of urls) {
           processUrl(url);
         }
@@ -225,7 +237,7 @@ export function useDeepLinkHandler() {
       // 3. 监听 Rust 端转发的自定义事件
       unlistenEvent = await listen<string[]>("deep-link://opened", (event) => {
         logger.info("收到 Rust 转发的 deep-link://opened 事件", {
-          payload: event.payload,
+          payload: redactDeepLinkValue(event.payload),
         });
         const urls = event.payload;
         if (Array.isArray(urls)) {
@@ -237,7 +249,9 @@ export function useDeepLinkHandler() {
 
       // 4. 监听 single-instance 事件 (针对 Windows/Linux 的热启动)
       unlistenSingleInstance = await listen<any>("single-instance", (event) => {
-        logger.info("收到 single-instance 原始参数", { data: event.payload });
+        logger.info("收到 single-instance 原始参数", {
+          data: redactDeepLinkValue(event.payload),
+        });
 
         const payload = event.payload;
         // 尝试从所有可能的字段中提取参数列表
@@ -258,13 +272,15 @@ export function useDeepLinkHandler() {
           );
 
           if (urls.length > 0) {
-            logger.info("从原始参数中提取到有效 URL", { urls });
+            logger.info("从原始参数中提取到有效 URL", {
+              urls: urls.map(redactDeepLinkUrl),
+            });
             for (const url of urls) {
               processUrl(url);
             }
           } else {
             logger.warn("所有原始参数中均未找到 aiohub:// 协议", {
-              allPossibleArgs,
+              allPossibleArgs: redactDeepLinkValue(allPossibleArgs),
             });
           }
         }

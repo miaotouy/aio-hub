@@ -34,6 +34,7 @@ import {
 import { getAppConfigDir } from "@/utils/appPath";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { migrateOcrEngineConfig } from "@/tools/smart-ocr/platform";
 import type { ActionFlow, FlowStep, StepType, SubFlow } from "../types";
 
 const logger = createModuleLogger("window-automator/useFlowPersistence");
@@ -99,9 +100,30 @@ function normalizeSubFlows(value: unknown): SubFlow[] | null {
     if (!Array.isArray(item.steps) || !item.steps.every(isValidStep)) {
       return null;
     }
-    subFlows.push(item as unknown as SubFlow);
+    subFlows.push({
+      ...(item as unknown as SubFlow),
+      steps: migrateOcrSteps(item.steps as FlowStep[]),
+    });
   }
   return subFlows;
+}
+
+function migrateOcrSteps(steps: FlowStep[]): FlowStep[] {
+  return steps.map((step) => {
+    if (step.stepConfig.type !== "ocr") return step;
+    return {
+      ...step,
+      stepConfig: {
+        ...step.stepConfig,
+        params: {
+          ...step.stepConfig.params,
+          engineConfig: migrateOcrEngineConfig(
+            step.stepConfig.params.engineConfig
+          ),
+        },
+      },
+    } as FlowStep;
+  });
 }
 
 export function normalizeActionFlow(value: unknown): ActionFlow | null {
@@ -116,6 +138,7 @@ export function normalizeActionFlow(value: unknown): ActionFlow | null {
   if (!subFlows) return null;
   return {
     ...(value as unknown as ActionFlow),
+    steps: migrateOcrSteps(value.steps as FlowStep[]),
     description: typeof value.description === "string" ? value.description : "",
     targetWindow: isRecord(value.targetWindow)
       ? {

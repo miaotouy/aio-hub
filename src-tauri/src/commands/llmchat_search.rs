@@ -29,6 +29,22 @@ use tokio_util::sync::CancellationToken;
 use unicode_segmentation::UnicodeSegmentation;
 use walkdir::WalkDir;
 
+const LLM_CHAT_MODULE_DIR: &str = "llm-chat";
+const AGENT_MANAGER_MODULE_DIR: &str = "agent-manager";
+const AGENTS_SUBDIR: &str = "agents";
+
+fn llm_chat_data_dir(app_data_dir: &Path) -> PathBuf {
+    app_data_dir.join(LLM_CHAT_MODULE_DIR)
+}
+
+fn agent_manager_data_dir(app_data_dir: &Path) -> PathBuf {
+    app_data_dir.join(AGENT_MANAGER_MODULE_DIR)
+}
+
+fn agent_search_result_path(agent_id: &str) -> String {
+    format!("{AGENT_MANAGER_MODULE_DIR}/{AGENTS_SUBDIR}/{agent_id}/agent.json")
+}
+
 // --- 输出数据结构 ---
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -396,7 +412,7 @@ fn extract_context_with_regex(
 }
 
 async fn search_agents(base_dir: &Path, matcher: &SearchMatcher) -> Vec<SearchResult> {
-    let agents_dir = base_dir.join("agents");
+    let agents_dir = base_dir.join(AGENTS_SUBDIR);
     if !agents_dir.exists() {
         return Vec::new();
     }
@@ -514,7 +530,7 @@ async fn search_agents(base_dir: &Path, matcher: &SearchMatcher) -> Vec<SearchRe
                     .last_used_at
                     .or(agent.created_at)
                     .map(|s| s.to_string()),
-                path: format!("llm-chat/agents/{}/agent.json", agent.id),
+                path: agent_search_result_path(&agent.id),
             })
         })
         .buffer_unordered(50) // 并发度 50
@@ -656,11 +672,12 @@ pub async fn search_llm_data(
     // 获取 AppData 目录
     let app_data_dir = crate::get_app_data_dir(app.config());
 
-    let llm_chat_dir = app_data_dir.join("llm-chat");
+    let llm_chat_dir = llm_chat_data_dir(&app_data_dir);
+    let agent_manager_dir = agent_manager_data_dir(&app_data_dir);
 
     let (mut results, agent_count, session_count) = match scope.as_str() {
         "agent" => {
-            let agents = search_agents(&llm_chat_dir, &matcher).await;
+            let agents = search_agents(&agent_manager_dir, &matcher).await;
             let count = agents.len();
             (agents, count, 0)
         }
@@ -672,7 +689,7 @@ pub async fn search_llm_data(
         _ => {
             // 并行执行 Agent 和 Session 搜索
             let (agents, mut sessions) = tokio::join!(
-                search_agents(&llm_chat_dir, &matcher),
+                search_agents(&agent_manager_dir, &matcher),
                 search_sessions(&llm_chat_dir, &matcher)
             );
             let a_count = agents.len();
@@ -734,7 +751,8 @@ pub async fn search_llm_data_stream(
     let max_results = limit.unwrap_or(500);
 
     let app_data_dir = crate::get_app_data_dir(app.config());
-    let llm_chat_dir = app_data_dir.join("llm-chat");
+    let llm_chat_dir = llm_chat_data_dir(&app_data_dir);
+    let agent_manager_dir = agent_manager_data_dir(&app_data_dir);
 
     let files_scanned = Arc::new(AtomicUsize::new(0));
     let files_matched = Arc::new(AtomicUsize::new(0));
@@ -757,7 +775,7 @@ pub async fn search_llm_data_stream(
     let tx_agent = tx.clone();
     let tx_session = tx.clone();
 
-    let agent_dir = llm_chat_dir.clone();
+    let agent_dir = agent_manager_dir.clone();
     let session_dir = llm_chat_dir.clone();
     let query_agent = query.clone();
     let query_session = query.clone();
@@ -773,7 +791,7 @@ pub async fn search_llm_data_stream(
         if scope_agent == "session" {
             return;
         }
-        let agents_dir = agent_dir.join("agents");
+        let agents_dir = agent_dir.join(AGENTS_SUBDIR);
         if !agents_dir.exists() {
             return;
         }
@@ -910,7 +928,7 @@ pub async fn search_llm_data_stream(
                             .last_used_at
                             .or(agent.created_at)
                             .map(|s| s.to_string()),
-                        path: format!("llm-chat/agents/{}/agent.json", agent.id),
+                        path: agent_search_result_path(&agent.id),
                     };
 
                     let sent = tokio::select! {
@@ -1202,4 +1220,28 @@ pub async fn cancel_llm_chat_search(
     cancellation.cancel();
     log::info!("[LLM_CHAT_SEARCH] 搜索已取消");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{agent_manager_data_dir, agent_search_result_path, llm_chat_data_dir};
+    use std::path::Path;
+
+    #[test]
+    fn separates_agent_and_session_storage_roots() {
+        let app_data_dir = Path::new("app-data");
+
+        assert_eq!(
+            agent_manager_data_dir(app_data_dir),
+            app_data_dir.join("agent-manager")
+        );
+        assert_eq!(
+            llm_chat_data_dir(app_data_dir),
+            app_data_dir.join("llm-chat")
+        );
+        assert_eq!(
+            agent_search_result_path("agent-1"),
+            "agent-manager/agents/agent-1/agent.json"
+        );
+    }
 }

@@ -4,7 +4,7 @@
 >
 > 日期：2026-07-16
 >
-> 关联计划：[`docs/Plan/llm-channel-probe-improvement-plan.md`](../Plan/llm-channel-probe-improvement-plan.md)
+> 关联架构：[`docs/architecture/llm-apis-architecture.md`](../architecture/llm-apis-architecture.md)；桌面端探测施工已完成并由 Git 历史保留
 
 ## 1. 设计结论
 

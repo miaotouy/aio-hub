@@ -27,10 +27,7 @@ import { ref, computed } from "vue";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import {
-  BUILTIN_TOKENIZERS,
-  getSerializableBuiltinProfiles,
-} from "../data/builtin-tokenizer-index";
+import { getSerializableBuiltinProfiles } from "../data/builtin-tokenizer-index";
 import { calculatorProxy } from "../worker/calculator.proxy";
 import { tokenCalculatorEngine } from "../core/tokenCalculatorEngine";
 import { readProfileFiles } from "../services/tokenizerAssetService";
@@ -189,8 +186,7 @@ export const useTokenizerRegistryStore = defineStore(
      * 主要用于 tokenCalculatorEngine.calculateImageTokens 等同步方法，
      * 这些方法不走 Worker，但需要 engine 知道注册表才能正常工作。
      *
-     * 注意：主线程 engine 的 setLoader 也需要为内置 profile 注入 loader，
-     * 否则 calculateMessageTokens 这类组合调用在主线程退化路径下会失败。
+     * 所有 profile（包括内置）都通过统一资产读取器按需实例化。
      */
     function syncEngineFromRegistry() {
       const snap = snapshot();
@@ -202,11 +198,6 @@ export const useTokenizerRegistryStore = defineStore(
         }
         return readProfileFiles(profile);
       });
-      for (const builtin of BUILTIN_TOKENIZERS) {
-        if (builtin.loader) {
-          tokenCalculatorEngine.setLoader(builtin.id, builtin.loader);
-        }
-      }
       engineReady.value = true;
     }
 

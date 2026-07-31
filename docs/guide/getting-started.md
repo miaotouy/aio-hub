@@ -60,7 +60,30 @@ bun run check:frontend
 bun run check:backend
 ```
 
-运行 Rust 后端检查。
+运行 Rust 后端 Clippy 检查。需要只验证编译时使用
+`bun run check:backend:compile`。
+
+```bash
+bun run check
+```
+
+运行桌面端、移动端和工作区包的静态检查。聚合脚本使用 `&&` 串联，任一检查失败会立即停止。
+
+```bash
+bun run check:ci
+```
+
+复现 PR workflow 的类型检查、桌面端与移动端 Cargo 编译检查，以及桌面端 Rust 单元测试。
+
+```bash
+bun run check:full
+```
+
+运行格式、静态检查、全部常规单元测试、桌面端与移动端前端生产构建和文档构建。真实 Tauri
+窗口 E2E、原生 UI Automation 和平台安装包构建仍需按对应测试文档单独执行。
+
+格式检查可分别使用 `bun run format:check` 和 `bun run format:rust:check`；完整测试集合可使用
+`bun run test:all`。
 
 完整脚本请以根目录 `package.json` 为准。
 

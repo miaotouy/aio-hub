@@ -17,6 +17,7 @@ function context() {
           recallId: "collection/1",
           recallName: "Engineering",
           enabled: true,
+          presetId: "algorithmic",
           profile: "semantic",
           limit: 4,
         },
@@ -42,7 +43,7 @@ describe("Recall macros", () => {
         "profile=associative",
       ])
     ).toBe(
-      "【recall::collection=collection%2F1::profile=associative::limit=8】"
+      "【recall::collection=collection%2F1::preset=algorithmic::profile=associative::limit=8】"
     );
   });
 
@@ -51,5 +52,16 @@ describe("Recall macros", () => {
     const macro = registry.getMacro("recall");
 
     expect(() => macro?.execute(context(), ["collection/1", "8"])).toThrow();
+  });
+
+  it("preserves the binding preset and reports it in the binding list", () => {
+    registerRecallMacros(registry);
+
+    expect(registry.getMacro("recall")?.execute(context(), undefined)).toBe(
+      "【recall::collection=collection%2F1::preset=algorithmic::profile=semantic::limit=4】"
+    );
+    expect(registry.getMacro("recall_list")?.execute(context())).toContain(
+      "preset=algorithmic"
+    );
   });
 });

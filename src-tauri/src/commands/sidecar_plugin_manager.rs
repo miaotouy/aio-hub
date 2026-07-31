@@ -60,20 +60,23 @@ use uuid::Uuid;
 
 /// 常驻 Sidecar 进程句柄
 pub(crate) struct ResidentProcess {
+    /// 本次进程启动的唯一代际标识
+    generation_id: String,
     /// 子进程句柄
     child: Option<Child>,
     /// stdin 写入器（通过 Mutex 包裹以支持 &self 共享访问）
-    stdin: Option<tokio::sync::Mutex<tokio::process::ChildStdin>>,
+    stdin: Option<Arc<tokio::sync::Mutex<tokio::process::ChildStdin>>>,
     /// 请求 ID 自增计数器
     next_id: AtomicU64,
     /// 待处理的请求（id → oneshot::Sender）
-    pending_requests: Mutex<HashMap<u64, oneshot::Sender<String>>>,
+    pending_requests: Arc<Mutex<HashMap<u64, oneshot::Sender<String>>>>,
 }
 
 /// 常驻进程内部事件（用于跨任务通信）
 #[derive(Debug, Clone, Serialize)]
 struct ResidentEvent {
     plugin_id: String,
+    generation_id: String,
     event_type: String,
     event_name: Option<String>,
     data: String,
@@ -91,6 +94,98 @@ impl Default for SidecarPluginManager {
             processes: Arc::new(Mutex::new(HashMap::new())),
         }
     }
+}
+
+fn is_terminal_response(event_type: &str) -> bool {
+    matches!(event_type, "result" | "error")
+}
+
+fn generation_matches(current: Option<&str>, expected: &str) -> bool {
+    current.is_some_and(|generation| generation == expected)
+}
+
+fn broker_generation_status(
+    source_current: Option<&str>,
+    source_expected: &str,
+    target_current: Option<&str>,
+    target_expected: &str,
+) -> (bool, bool) {
+    (
+        generation_matches(source_current, source_expected),
+        generation_matches(target_current, target_expected),
+    )
+}
+
+async fn is_current_generation(
+    processes: &Arc<Mutex<HashMap<String, ResidentProcess>>>,
+    plugin_id: &str,
+    generation_id: &str,
+) -> bool {
+    let processes = processes.lock().await;
+    generation_matches(
+        processes
+            .get(plugin_id)
+            .map(|process| process.generation_id.as_str()),
+        generation_id,
+    )
+}
+
+async fn current_broker_generation_status(
+    processes: &Arc<Mutex<HashMap<String, ResidentProcess>>>,
+    source_id: &str,
+    source_generation_id: &str,
+    target_id: &str,
+    target_generation_id: &str,
+) -> (bool, bool) {
+    let processes = processes.lock().await;
+    broker_generation_status(
+        processes
+            .get(source_id)
+            .map(|process| process.generation_id.as_str()),
+        source_generation_id,
+        processes
+            .get(target_id)
+            .map(|process| process.generation_id.as_str()),
+        target_generation_id,
+    )
+}
+
+fn broker_result_event(
+    forward_id: u64,
+    target: &str,
+    result: serde_json::Value,
+    error: Option<String>,
+) -> serde_json::Value {
+    serde_json::json!({
+        "type": "event",
+        "event": "forward_result",
+        "data": {
+            "id": forward_id,
+            "targetId": target,
+            "result": result,
+            "error": error
+        }
+    })
+}
+
+async fn write_to_stdin_handle(
+    stdin_mutex: &Arc<tokio::sync::Mutex<tokio::process::ChildStdin>>,
+    data: &str,
+) -> Result<(), String> {
+    let mut stdin = stdin_mutex.lock().await;
+    stdin
+        .write_all(data.as_bytes())
+        .await
+        .map_err(|e| format!("写入 stdin 失败: {}", e))?;
+    stdin
+        .write_all(b"\n")
+        .await
+        .map_err(|e| format!("写入换行符失败: {}", e))?;
+    stdin
+        .flush()
+        .await
+        .map_err(|e| format!("刷新 stdin 失败: {}", e))?;
+    Ok(())
 }
 
 impl SidecarPluginManager {
@@ -125,7 +220,7 @@ pub async fn sidecar_spawn_resident(
     args: Vec<String>,
     install_path: Option<String>,
     state: tauri::State<'_, SidecarPluginManager>,
-) -> Result<(), String> {
+) -> Result<String, String> {
     log::info!(
         "[SIDECAR_RESIDENT] 启动常驻进程: {}, 可执行文件: {}, 插件目录: {:?}",
         plugin_id,
@@ -156,7 +251,7 @@ pub async fn sidecar_spawn_resident(
                                 "[SIDECAR_RESIDENT] 插件 {} 的常驻进程仍在运行，复用已有进程",
                                 plugin_id
                             );
-                            return Ok(());
+                            return Ok(process.generation_id.clone());
                         }
                         Err(e) => {
                             // 无法确定状态，清理后重新启动
@@ -281,11 +376,16 @@ pub async fn sidecar_spawn_resident(
     // 创建事件通道和写入端
     let (_event_tx, mut event_rx) = mpsc::unbounded_channel::<ResidentEvent>();
 
+    let generation_id = Uuid::new_v4().to_string();
+    let pending_requests = Arc::new(Mutex::new(HashMap::new()));
+    let stdin = Arc::new(tokio::sync::Mutex::new(stdin));
+    let source_stdin = Arc::clone(&stdin);
     let process = ResidentProcess {
+        generation_id: generation_id.clone(),
         child: Some(child),
-        stdin: Some(tokio::sync::Mutex::new(stdin)),
+        stdin: Some(stdin),
         next_id: AtomicU64::new(1),
-        pending_requests: Mutex::new(HashMap::new()),
+        pending_requests: Arc::clone(&pending_requests),
     };
 
     // 插入管理器
@@ -296,6 +396,7 @@ pub async fn sidecar_spawn_resident(
 
     // 启动 stdout 读取任务
     let plugin_id_clone = plugin_id.clone();
+    let generation_id_clone = generation_id.clone();
     let app_clone = app.clone();
     let processes = state.processes.clone();
     tokio::spawn(async move {
@@ -323,173 +424,161 @@ pub async fn sidecar_spawn_resident(
 
                 // === Broker 模式识别：type === "forward" ===
                 if event_type == "forward" {
-                    let processes_lock = processes.lock().await;
-
-                    // 可能需要让自身的 pending_requests 也注入
-                    // 获取源进程
-                    if let Some(src_process) = processes_lock.get(&plugin_id_clone) {
-                        // 解析中转请求
-                        let forward_id = json_val.get("id").and_then(|v| v.as_u64()).unwrap_or(0);
-                        let target = json_val
-                            .get("target")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("");
-                        let method = json_val
-                            .get("method")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("");
-                        let params = json_val.get("params");
-
-                        if target.is_empty() || method.is_empty() {
-                            log::error!(
-                                "[SIDECAR_RESIDENT:{}] broker 转发格式错误: target={}, method={}",
-                                plugin_id_clone,
-                                target,
-                                method
-                            );
-                            // 推送错误事件给源进程
-                            let error_event = serde_json::json!({
-                                "type": "event",
-                                "event": "forward_result",
-                                "data": {
-                                    "id": forward_id,
-                                    "targetId": target,
-                                    "result": null,
-                                    "error": format!("Broker 转发格式错误: target/method 为空")
-                                }
-                            });
-                            let _ = src_process
-                                .write_to_stdin_internal(&error_event.to_string())
-                                .await;
-                            continue;
-                        }
-
-                        log::info!(
-                            "[SIDECAR_RESIDENT] broker 转发: {} -> {}::{}(params={:?})",
+                    if !is_current_generation(&processes, &plugin_id_clone, &generation_id_clone)
+                        .await
+                    {
+                        log::warn!(
+                            "[SIDECAR_RESIDENT:{}] 丢弃旧代际 {} 的 broker 转发",
                             plugin_id_clone,
-                            target,
-                            method,
-                            params
+                            generation_id_clone
                         );
+                        continue;
+                    }
 
-                        if let Some(target_process) = processes_lock.get(target) {
-                            // 生成内部 ID 并发送到目标进程
-                            let internal_id = target_process.next_id.fetch_add(1, Ordering::SeqCst);
-                            let cmd = serde_json::json!({
-                                "id": internal_id,
-                                "method": method,
-                                "params": params
-                            });
+                    let forward_id = json_val.get("id").and_then(|v| v.as_u64()).unwrap_or(0);
+                    let target = json_val
+                        .get("target")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let method = json_val
+                        .get("method")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let params = json_val.get("params").cloned();
 
-                            // 创建 oneshot 接收器
-                            let (tx, mut rx) = oneshot::channel::<String>();
-                            {
-                                let mut pending = target_process.pending_requests.lock().await;
-                                pending.insert(internal_id, tx);
-                            }
+                    if target.is_empty() || method.is_empty() {
+                        let error_event = broker_result_event(
+                            forward_id,
+                            &target,
+                            serde_json::Value::Null,
+                            Some("Broker 转发格式错误: target/method 为空".to_string()),
+                        );
+                        let _ =
+                            write_to_stdin_handle(&source_stdin, &error_event.to_string()).await;
+                        continue;
+                    }
 
-                            // 写入目标进程 stdin
-                            if let Err(e) = target_process
-                                .write_to_stdin_internal(&cmd.to_string())
-                                .await
-                            {
-                                log::error!("[SIDECAR_RESIDENT] broker 转发写入失败: {}", e);
-                                // 清理 pending
-                                {
-                                    let mut pending = target_process.pending_requests.lock().await;
-                                    pending.remove(&internal_id);
-                                }
-                                let error_event = serde_json::json!({
-                                    "type": "event",
-                                    "event": "forward_result",
-                                    "data": {
-                                        "id": forward_id,
-                                        "targetId": target,
-                                        "result": null,
-                                        "error": format!("写入目标进程 stdin 失败: {}", e)
-                                    }
-                                });
-                                // 需要重新获取 src_process 引用
-                                drop(processes_lock);
-                                let processes_lock2 = processes.lock().await;
-                                if let Some(sp) = processes_lock2.get(&plugin_id_clone) {
-                                    let _ =
-                                        sp.write_to_stdin_internal(&error_event.to_string()).await;
-                                }
-                                continue;
-                            }
-                            drop(processes_lock);
+                    let target_handle = {
+                        let processes_lock = processes.lock().await;
+                        processes_lock.get(&target).and_then(|target_process| {
+                            target_process.stdin.as_ref().map(|stdin| {
+                                (
+                                    Arc::clone(stdin),
+                                    Arc::clone(&target_process.pending_requests),
+                                    target_process.next_id.fetch_add(1, Ordering::SeqCst),
+                                    target_process.generation_id.clone(),
+                                )
+                            })
+                        })
+                    };
 
-                            // 等待目标进程响应（带超时）
-                            let timeout = tokio::time::Duration::from_secs(120);
-                            let result = tokio::time::timeout(timeout, &mut rx).await;
+                    let Some((target_stdin, target_pending, internal_id, target_generation_id)) =
+                        target_handle
+                    else {
+                        let error_event = broker_result_event(
+                            forward_id,
+                            &target,
+                            serde_json::Value::Null,
+                            Some(format!("目标常驻进程 {} 未启动", target)),
+                        );
+                        let _ =
+                            write_to_stdin_handle(&source_stdin, &error_event.to_string()).await;
+                        continue;
+                    };
 
-                            let response_str = match result {
-                                Ok(Ok(resp)) => resp,
-                                Ok(Err(_)) => {
-                                    "{\"type\":\"error\",\"data\":\"目标进程响应通道已关闭\"}"
-                                        .to_string()
-                                }
-                                Err(_) => {
-                                    "{\"type\":\"error\",\"data\":\"目标进程响应超时\"}".to_string()
-                                }
-                            };
+                    let cmd = serde_json::json!({
+                        "id": internal_id,
+                        "method": method,
+                        "params": params
+                    });
+                    let (tx, rx) = oneshot::channel::<String>();
+                    target_pending.lock().await.insert(internal_id, tx);
 
-                            // 解析响应并提取 result
-                            let result_data =
-                                serde_json::from_str::<serde_json::Value>(&response_str)
-                                    .ok()
-                                    .and_then(|v| v.get("data").cloned())
-                                    .unwrap_or(serde_json::Value::Null);
-
-                            let error_str =
-                                serde_json::from_str::<serde_json::Value>(&response_str)
-                                    .ok()
-                                    .and_then(|v| {
-                                        if v.get("type").and_then(|t| t.as_str()) == Some("error") {
-                                            v.get("data")
-                                                .and_then(|d| d.as_str())
-                                                .map(|s| s.to_string())
-                                        } else {
-                                            None
-                                        }
-                                    });
-
-                            // 将结果推回给源进程的 stdout
-                            let forward_result = serde_json::json!({
-                                "type": "event",
-                                "event": "forward_result",
-                                "data": {
-                                    "id": forward_id,
-                                    "targetId": target,
-                                    "result": result_data,
-                                    "error": error_str
-                                }
-                            });
-
-                            let processes_lock3 = processes.lock().await;
-                            if let Some(sp) = processes_lock3.get(&plugin_id_clone) {
-                                let _ = sp
-                                    .write_to_stdin_internal(&forward_result.to_string())
-                                    .await;
-                            }
-                        } else {
-                            // 目标进程不存在
-                            log::error!("[SIDECAR_RESIDENT] broker 转发目标 {} 不存在", target);
-                            let error_event = serde_json::json!({
-                                "type": "event",
-                                "event": "forward_result",
-                                "data": {
-                                    "id": forward_id,
-                                    "targetId": target,
-                                    "result": null,
-                                    "error": format!("目标常驻进程 {} 未启动", target)
-                                }
-                            });
-                            if let Some(sp) = processes_lock.get(&plugin_id_clone) {
-                                let _ = sp.write_to_stdin_internal(&error_event.to_string()).await;
-                            }
+                    let (source_is_current, target_is_current) = current_broker_generation_status(
+                        &processes,
+                        &plugin_id_clone,
+                        &generation_id_clone,
+                        &target,
+                        &target_generation_id,
+                    )
+                    .await;
+                    if !source_is_current || !target_is_current {
+                        target_pending.lock().await.remove(&internal_id);
+                        if source_is_current {
+                            let error_event = broker_result_event(
+                                forward_id,
+                                &target,
+                                serde_json::Value::Null,
+                                Some(format!("目标常驻进程 {} 已重启，Broker 转发已取消", target)),
+                            );
+                            let _ = write_to_stdin_handle(&source_stdin, &error_event.to_string())
+                                .await;
                         }
+                        continue;
+                    }
+
+                    if let Err(error) = write_to_stdin_handle(&target_stdin, &cmd.to_string()).await
+                    {
+                        target_pending.lock().await.remove(&internal_id);
+                        let error_event = broker_result_event(
+                            forward_id,
+                            &target,
+                            serde_json::Value::Null,
+                            Some(format!("写入目标进程 stdin 失败: {}", error)),
+                        );
+                        let _ =
+                            write_to_stdin_handle(&source_stdin, &error_event.to_string()).await;
+                        continue;
+                    }
+
+                    let response_str =
+                        match tokio::time::timeout(tokio::time::Duration::from_secs(120), rx).await
+                        {
+                            Ok(Ok(response)) => response,
+                            Ok(Err(_)) => {
+                                "{\"type\":\"error\",\"data\":\"目标进程响应通道已关闭\"}"
+                                    .to_string()
+                            }
+                            Err(_) => {
+                                target_pending.lock().await.remove(&internal_id);
+                                "{\"type\":\"error\",\"data\":\"目标进程响应超时\"}".to_string()
+                            }
+                        };
+                    let response = serde_json::from_str::<serde_json::Value>(&response_str).ok();
+                    let result_data = response
+                        .as_ref()
+                        .and_then(|value| value.get("data").cloned())
+                        .unwrap_or(serde_json::Value::Null);
+                    let error = response.as_ref().and_then(|value| {
+                        (value.get("type").and_then(|kind| kind.as_str()) == Some("error"))
+                            .then(|| value.get("data").and_then(|data| data.as_str()))
+                            .flatten()
+                            .map(str::to_string)
+                    });
+
+                    let (source_is_current, target_is_current) = current_broker_generation_status(
+                        &processes,
+                        &plugin_id_clone,
+                        &generation_id_clone,
+                        &target,
+                        &target_generation_id,
+                    )
+                    .await;
+                    if source_is_current {
+                        let (result_data, error) = if target_is_current {
+                            (result_data, error)
+                        } else {
+                            (
+                                serde_json::Value::Null,
+                                Some(format!("目标常驻进程 {} 已重启，已丢弃旧代际响应", target)),
+                            )
+                        };
+                        let forward_result =
+                            broker_result_event(forward_id, &target, result_data, error);
+                        let _ =
+                            write_to_stdin_handle(&source_stdin, &forward_result.to_string()).await;
                     }
                     continue;
                 }
@@ -498,17 +587,14 @@ pub async fn sidecar_spawn_resident(
                 // 检查是否有 id 字段（响应匹配）
                 let has_id = json_val.get("id").and_then(|v| v.as_u64()).is_some();
 
-                if has_id {
+                if has_id && is_terminal_response(&event_type) {
                     // 尝试匹配 pending_requests
                     let id = json_val.get("id").and_then(|v| v.as_u64()).unwrap();
-                    let processes_lock = processes.lock().await;
-                    if let Some(process) = processes_lock.get(&plugin_id_clone) {
-                        let mut pending = process.pending_requests.lock().await;
-                        if let Some(tx) = pending.remove(&id) {
-                            // 通过 oneshot 直接送回，不转发给前端
-                            let _ = tx.send(line.clone());
-                            continue;
-                        }
+                    let mut pending = pending_requests.lock().await;
+                    if let Some(tx) = pending.remove(&id) {
+                        // 通过本进程代际的通道送回，不能查询同 ID 的新进程。
+                        let _ = tx.send(line.clone());
+                        continue;
                     }
                 }
 
@@ -524,6 +610,7 @@ pub async fn sidecar_spawn_resident(
 
                 let resident_event = ResidentEvent {
                     plugin_id: plugin_id_clone.clone(),
+                    generation_id: generation_id_clone.clone(),
                     event_type,
                     event_name,
                     data: line.clone(),
@@ -537,6 +624,7 @@ pub async fn sidecar_spawn_resident(
                 // 非 JSON 输出，作为 log 事件发送
                 let resident_event = ResidentEvent {
                     plugin_id: plugin_id_clone.clone(),
+                    generation_id: generation_id_clone.clone(),
                     event_type: "log".to_string(),
                     event_name: None,
                     data: line,
@@ -553,6 +641,7 @@ pub async fn sidecar_spawn_resident(
 
     // 启动 stderr 读取任务
     let plugin_id_clone = plugin_id.clone();
+    let generation_id_clone = generation_id.clone();
     let app_clone = app.clone();
     tokio::spawn(async move {
         let mut reader = BufReader::new(stderr);
@@ -571,6 +660,7 @@ pub async fn sidecar_spawn_resident(
 
             let resident_event = ResidentEvent {
                 plugin_id: plugin_id_clone.clone(),
+                generation_id: generation_id_clone.clone(),
                 event_type: "error".to_string(),
                 event_name: None,
                 data: line,
@@ -595,7 +685,49 @@ pub async fn sidecar_spawn_resident(
         log::info!("[SIDECAR_RESIDENT:{}] 事件转发任务结束", pid_clone);
     });
 
-    Ok(())
+    Ok(generation_id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        broker_generation_status, broker_result_event, generation_matches, is_terminal_response,
+    };
+
+    #[test]
+    fn only_result_and_error_complete_pending_requests() {
+        assert!(is_terminal_response("result"));
+        assert!(is_terminal_response("error"));
+        assert!(!is_terminal_response("progress"));
+        assert!(!is_terminal_response("event"));
+    }
+
+    #[test]
+    fn broker_result_keeps_forward_identity() {
+        let event =
+            broker_result_event(42, "target-plugin", serde_json::json!({ "ok": true }), None);
+
+        assert_eq!(event["event"], "forward_result");
+        assert_eq!(event["data"]["id"], 42);
+        assert_eq!(event["data"]["targetId"], "target-plugin");
+        assert_eq!(event["data"]["result"]["ok"], true);
+    }
+
+    #[test]
+    fn rejects_broker_results_from_an_old_generation() {
+        assert!(generation_matches(Some("generation-2"), "generation-2"));
+        assert!(!generation_matches(Some("generation-2"), "generation-1"));
+        assert!(!generation_matches(None, "generation-1"));
+
+        assert_eq!(
+            broker_generation_status(Some("source-2"), "source-2", Some("target-2"), "target-2"),
+            (true, true)
+        );
+        assert_eq!(
+            broker_generation_status(Some("source-2"), "source-2", Some("target-3"), "target-2"),
+            (true, false)
+        );
+    }
 }
 
 /// 向常驻 Sidecar 进程发送命令
@@ -611,7 +743,7 @@ pub async fn sidecar_send_command(
     log::info!("[SIDECAR_RESIDENT] 发送命令: {}.{}", plugin_id, method);
 
     // 提取 id 和 cmd_str 后立即释放 processes 锁，避免阻塞 stdout 读取任务
-    let (id, _cmd_str, rx) = {
+    let (id, _cmd_str, rx, pending_requests) = {
         let processes = state.processes.lock().await;
         let process = processes
             .get(&plugin_id)
@@ -645,7 +777,7 @@ pub async fn sidecar_send_command(
             return Err(format!("写入 stdin 失败: {}", e));
         }
 
-        (id, cmd_str, rx)
+        (id, cmd_str, rx, Arc::clone(&process.pending_requests))
     };
     // processes 锁在此处自动 drop，stdout 任务现在可以获取锁并完成 tx.send()
 
@@ -657,20 +789,12 @@ pub async fn sidecar_send_command(
         Ok(Ok(response)) => Ok(response),
         Ok(Err(_)) => {
             // 发送端已关闭，清理 pending
-            let processes = state.processes.lock().await;
-            if let Some(p) = processes.get(&plugin_id) {
-                let mut pending = p.pending_requests.lock().await;
-                pending.remove(&id);
-            }
+            pending_requests.lock().await.remove(&id);
             Err("进程响应通道已关闭".to_string())
         }
         Err(_) => {
             // 超时，清理 pending
-            let processes = state.processes.lock().await;
-            if let Some(p) = processes.get(&plugin_id) {
-                let mut pending = p.pending_requests.lock().await;
-                pending.remove(&id);
-            }
+            pending_requests.lock().await.remove(&id);
             Err(format!("命令执行超时 ({}s): {}.{}", 300, plugin_id, method))
         }
     }
@@ -728,6 +852,7 @@ pub async fn sidecar_kill_resident(
                     e
                 );
                 let _ = child.start_kill();
+                let _ = child.wait().await;
             }
             Err(_) => {
                 log::warn!(
@@ -735,6 +860,7 @@ pub async fn sidecar_kill_resident(
                     plugin_id
                 );
                 let _ = child.start_kill();
+                let _ = child.wait().await;
             }
         }
     }
@@ -751,28 +877,10 @@ impl ResidentProcess {
     /// 写入 stdin（带换行和 flush）
     async fn write_to_stdin(&self, data: &str) -> Result<(), String> {
         if let Some(stdin_mutex) = &self.stdin {
-            let mut stdin = stdin_mutex.lock().await;
-            stdin
-                .write_all(data.as_bytes())
-                .await
-                .map_err(|e| format!("写入 stdin 失败: {}", e))?;
-            stdin
-                .write_all(b"\n")
-                .await
-                .map_err(|e| format!("写入换行符失败: {}", e))?;
-            stdin
-                .flush()
-                .await
-                .map_err(|e| format!("刷新 stdin 失败: {}", e))?;
-            Ok(())
+            write_to_stdin_handle(stdin_mutex, data).await
         } else {
             Err("stdin 已关闭".to_string())
         }
-    }
-
-    /// 内部写 stdin（用于 broker 转发，不对外暴露）
-    async fn write_to_stdin_internal(&self, data: &str) -> Result<(), String> {
-        self.write_to_stdin(data).await
     }
 }
 

@@ -20,6 +20,7 @@
 
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { migratePluginOcrEngineConfig } from "../platform/config-migration";
 import type {
   OcrEngineConfig,
   OcrEngineType,
@@ -68,9 +69,8 @@ export const defaultSmartOcrConfig: SmartOcrConfig = {
       activeProfileId: "", // 默认未选中任何云端服务
     },
     plugin: {
-      name: "Plugin OCR",
       pluginId: "",
-      method: "",
+      contributionId: "",
     },
   },
   slicerConfig: {
@@ -81,14 +81,14 @@ export const defaultSmartOcrConfig: SmartOcrConfig = {
     minCutHeight: 680,
     cutLineOffset: 0.2,
   },
-  version: "1.0.0",
+  version: "2.0.0",
 };
 
 // 创建配置管理器实例
 const smartOcrConfigManager = createConfigManager<SmartOcrConfig>({
   moduleName: "smart-ocr",
   fileName: "config.json",
-  version: "1.0.0",
+  version: "2.0.0",
   debounceDelay: 200,
   createDefault: () => defaultSmartOcrConfig,
   mergeConfig: (defaultConfig, loadedConfig) => {
@@ -114,10 +114,7 @@ const smartOcrConfigManager = createConfigManager<SmartOcrConfig>({
         ...defaultConfig.engineConfigs.cloud,
         ...(loadedConfig.engineConfigs?.cloud || {}),
       },
-      plugin: {
-        ...defaultConfig.engineConfigs.plugin,
-        ...(loadedConfig.engineConfigs?.plugin || {}),
-      },
+      plugin: migratePluginOcrEngineConfig(loadedConfig.engineConfigs?.plugin),
     };
 
     // 合并切图配置
@@ -130,7 +127,7 @@ const smartOcrConfigManager = createConfigManager<SmartOcrConfig>({
       currentEngineType,
       engineConfigs: mergedEngineConfigs,
       slicerConfig: mergedSlicerConfig,
-      version: "1.0.0",
+      version: "2.0.0",
     };
   },
 });

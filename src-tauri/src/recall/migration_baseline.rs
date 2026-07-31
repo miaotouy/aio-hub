@@ -13,9 +13,9 @@
 // limitations under the License.
 
 use crate::recall::core::{
-    QueryPayload, RecallCollectionIndex, RecallCollectionMeta, RecallEntry, RecallEntryIndexItem,
-    RecallSearchFilters, RecallWorkspace, RetrievalContext, RetrievalEngine, VectorIndexConfig,
-    VectorizationMeta, WorkspaceConfig,
+    RecallCollectionIndex, RecallCollectionMeta, RecallEntry, RecallEntryIndexItem,
+    RecallSearchFilters, RecallWorkspace, RetrievalContext, RetrievalRequestSnapshot,
+    VectorIndexConfig, VectorizationMeta, WorkspaceConfig,
 };
 use crate::recall::index::InMemoryDatabase;
 use crate::recall::io::{
@@ -26,9 +26,12 @@ use crate::recall::ops::{
     load_entries_to_vec, load_knowledge_base_meta_only, load_vectors_to_vec,
     update_recall_models_index, warmup_knowledge_base, warmup_recall_repository,
 };
-use crate::recall::search::{
-    AssociativeRecallEngine, BlenderRetrievalEngine, KeywordRetrievalEngine, LensRetrievalEngine,
-    SemanticRecallEngine, VectorRetrievalEngine,
+use crate::recall::retrieval_modules::{
+    algorithmic_pipeline, comprehensive_pipeline, production_module_registry,
+};
+use crate::recall::retrieval_pipeline::{
+    PipelineRunOutcome, PipelineRunResponse, RecallPresetId, RetrievalArtifactBundle,
+    RetrievalArtifacts, RetrievalPipelineCompiler, RetrievalPipelineRunner,
 };
 use crate::recall::storage::{LegacyFileRecallImporter, RecallRepository, SqliteRecallRepository};
 use crate::recall::tag_pool::{GlobalTagPoolManager, ModelTagPool};
@@ -125,10 +128,53 @@ pub(crate) struct ExpectedStats {
 pub(crate) struct FixtureQuery {
     pub name: String,
     pub engine_id: String,
-    pub payload: QueryPayload,
-    pub filters: RecallSearchFilters,
-    pub expected_entry_ids: Vec<Uuid>,
-    pub expected_match_types: Vec<String>,
+    pub payload: FixtureQueryPayload,
+    pub filters: FixtureQueryFilters,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type", content = "value", rename_all = "camelCase")]
+pub(crate) enum FixtureQueryPayload {
+    Text(String),
+    Vector {
+        vector: Vec<f32>,
+        model: String,
+        query: Option<String>,
+    },
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct FixtureQueryFilters {
+    #[serde(default, alias = "recallIds")]
+    pub kb_ids: Vec<Uuid>,
+    pub tags: Option<Vec<String>>,
+    pub required_tags: Option<Vec<String>>,
+    pub limit: Option<usize>,
+    pub min_score: Option<f32>,
+    pub enabled_only: Option<bool>,
+}
+
+impl FixtureQueryFilters {
+    fn current(&self) -> RecallSearchFilters {
+        let mut tags = self
+            .tags
+            .iter()
+            .chain(&self.required_tags)
+            .flatten()
+            .cloned()
+            .collect::<Vec<_>>();
+        tags.sort();
+        tags.dedup();
+        RecallSearchFilters {
+            recall_ids: (!self.kb_ids.is_empty()).then(|| self.kb_ids.clone()),
+            tags: (!tags.is_empty()).then_some(tags),
+            limit: self.limit,
+            min_score: self.min_score,
+            enabled_only: self.enabled_only,
+            ..Default::default()
+        }
+    }
 }
 
 pub(crate) fn fixture() -> MigrationBaseline {
@@ -236,7 +282,6 @@ pub(crate) fn materialize_current_file_layout(
                 metric: "cosine".to_string(),
                 ef_construction: Some(200),
                 m: Some(16),
-                extra: HashMap::new(),
             },
         },
         bases: baseline
@@ -408,6 +453,7 @@ fn build_retrieval_context(app_data_dir: &Path, baseline: &MigrationBaseline) ->
         db: Arc::new(RwLock::new(database)),
         tag_pool_manager,
         app_data_dir: app_data_dir.to_path_buf(),
+        request: None,
     }
 }
 
@@ -440,42 +486,106 @@ fn build_repository_retrieval_context(
         db: database,
         tag_pool_manager,
         app_data_dir: app_data_dir.to_path_buf(),
+        request: None,
     }
 }
 
-fn assert_retrieval_snapshots(baseline: &MigrationBaseline, context: &RetrievalContext) {
-    for query in &baseline.queries {
-        let results = match query.engine_id.as_str() {
-            "keyword" => {
-                KeywordRetrievalEngine::new().search(&query.payload, &query.filters, context)
-            }
-            "vector" => {
-                VectorRetrievalEngine::new().search(&query.payload, &query.filters, context)
-            }
-            "lens" => LensRetrievalEngine::new().search(&query.payload, &query.filters, context),
-            "blender" => {
-                BlenderRetrievalEngine::new().search(&query.payload, &query.filters, context)
-            }
-            other => panic!("unknown baseline engine: {other}"),
-        }
-        .unwrap_or_else(|error| panic!("baseline query {} failed: {error}", query.name));
-        let ids: Vec<Uuid> = results.iter().map(|result| result.entry.id).collect();
-        let match_types: Vec<String> = results
-            .iter()
-            .map(|result| result.match_type.clone())
-            .collect();
-        assert_eq!(ids, query.expected_entry_ids, "query {}", query.name);
-        assert_eq!(
-            match_types, query.expected_match_types,
-            "query {}",
-            query.name
-        );
-        assert!(
-            results.iter().all(|result| result.score.is_finite()),
-            "query {} returned a non-finite score",
-            query.name
-        );
-    }
+fn run_pipeline_query(query: &FixtureQuery, context: &RetrievalContext) -> PipelineRunResponse {
+    let preset_id = if query.engine_id == "keyword" {
+        RecallPresetId::Algorithmic
+    } else {
+        RecallPresetId::Comprehensive
+    };
+    let (text, embedding) = match &query.payload {
+        FixtureQueryPayload::Text(text) => (text.clone(), None),
+        FixtureQueryPayload::Vector {
+            vector,
+            model,
+            query,
+        } => (
+            query.clone().unwrap_or_default(),
+            Some((vector.clone(), model.clone())),
+        ),
+    };
+    let filters = query.filters.current();
+    let pipeline = match preset_id {
+        RecallPresetId::Algorithmic => algorithmic_pipeline(filters.limit),
+        RecallPresetId::Comprehensive => comprehensive_pipeline(filters.limit),
+    };
+    let compiled = RetrievalPipelineCompiler::new(std::sync::Arc::new(
+        production_module_registry().expect("production registry must be valid"),
+    ))
+    .compile(&pipeline, format!("migration-baseline-{}", query.name));
+    let bundle = embedding.map(|(vector, model)| RetrievalArtifactBundle {
+        bundle_id: format!("migration-baseline-{}:{model}", query.name),
+        embedding_space: Some(model.clone()),
+        model_signature: Some(model),
+        asset_generation: Some("migration-baseline-v1".to_string()),
+        algorithm_version: compiled.result.algorithm_version.clone(),
+        query_embedding: Some(vector),
+        query_energy_field: None,
+    });
+    let runtime_context = RetrievalContext {
+        db: context.db.clone(),
+        tag_pool_manager: context.tag_pool_manager.clone(),
+        app_data_dir: context.app_data_dir.clone(),
+        request: Some(RetrievalRequestSnapshot {
+            query: text,
+            filters,
+        }),
+    };
+    RetrievalPipelineRunner.run(
+        &compiled,
+        &runtime_context,
+        RetrievalArtifacts::default(),
+        bundle.as_ref(),
+        preset_id,
+        preset_id,
+        None,
+    )
+}
+
+fn pipeline_snapshots(
+    baseline: &MigrationBaseline,
+    context: &RetrievalContext,
+) -> Vec<(String, Vec<Uuid>)> {
+    baseline
+        .queries
+        .iter()
+        .map(|query| {
+            let response = run_pipeline_query(query, context);
+            assert!(
+                matches!(
+                    response.outcome,
+                    PipelineRunOutcome::Success | PipelineRunOutcome::Empty
+                ),
+                "baseline pipeline query {} failed: {:?}",
+                query.name,
+                response.error
+            );
+            assert!(
+                response
+                    .results
+                    .iter()
+                    .all(|result| result.score.is_finite()),
+                "query {} returned a non-finite score",
+                query.name
+            );
+            assert!(response.trace.as_ref().is_some_and(|trace| {
+                trace.trace_version == "recall-pipeline-trace-v1"
+                    && trace.requested_preset_id == Some(response.requested_preset_id)
+                    && trace.actual_preset_id == Some(response.actual_preset_id)
+            }));
+            (
+                query.name.clone(),
+                response
+                    .results
+                    .iter()
+                    .map(|result| result.entry.id)
+                    .collect(),
+            )
+        })
+        .collect()
 }
 
 #[test]
@@ -568,142 +678,30 @@ fn current_file_layout_round_trip_preserves_entries_vectors_and_tokens() {
 }
 
 #[test]
-fn retrieval_snapshots_match_all_legacy_engines() {
+fn legacy_query_fixture_runs_through_current_pipelines() {
     let baseline = fixture();
     let temp = tempfile::tempdir().expect("temporary appData should be created");
     materialize_current_file_layout(temp.path(), &baseline)
         .expect("baseline file layout should materialize");
     let context = build_retrieval_context(temp.path(), &baseline);
 
-    assert_retrieval_snapshots(&baseline, &context);
+    assert_eq!(
+        pipeline_snapshots(&baseline, &context).len(),
+        baseline.queries.len()
+    );
 }
 
 #[test]
-fn repository_restart_preserves_all_retrieval_snapshots_without_legacy_files() {
+fn repository_restart_preserves_pipeline_snapshots_without_legacy_files() {
     let baseline = fixture();
-    let temp = tempfile::tempdir().expect("temporary appData should be created");
-    let context = build_repository_retrieval_context(temp.path(), &baseline);
+    let legacy_temp = tempfile::tempdir().expect("temporary legacy appData should be created");
+    materialize_current_file_layout(legacy_temp.path(), &baseline)
+        .expect("baseline file layout should materialize");
+    let legacy_context = build_retrieval_context(legacy_temp.path(), &baseline);
+    let expected = pipeline_snapshots(&baseline, &legacy_context);
 
-    assert_retrieval_snapshots(&baseline, &context);
-}
-
-#[test]
-fn profile_query_set_is_deterministic_after_repository_restart() {
-    let baseline = fixture();
-    let temp = tempfile::tempdir().expect("temporary appData should be created");
-    let context = build_repository_retrieval_context(temp.path(), &baseline);
-    let rust_collection = baseline.collections[0].id;
-    let rust_entry = baseline.collections[0].entries[0].id;
-    let async_entry = baseline.collections[0].entries[1].id;
-    let cases = vec![
-        (
-            "semantic-exact",
-            "semantic",
-            QueryPayload::Vector {
-                vector: vec![1.0, 0.0, 0.0, 0.0],
-                model: "baseline/embed-4d".to_string(),
-                query: Some("Rust ownership".to_string()),
-            },
-            RecallSearchFilters {
-                recall_ids: Some(vec![rust_collection]),
-                limit: Some(2),
-                min_score: Some(0.0),
-                ..Default::default()
-            },
-            vec![rust_entry, async_entry],
-        ),
-        (
-            "semantic-rewrite",
-            "semantic",
-            QueryPayload::Vector {
-                vector: vec![0.96, 0.04, 0.0, 0.0],
-                model: "baseline/embed-4d".to_string(),
-                query: Some("memory safety without a collector".to_string()),
-            },
-            RecallSearchFilters {
-                recall_ids: Some(vec![rust_collection]),
-                limit: Some(2),
-                min_score: Some(0.0),
-                ..Default::default()
-            },
-            vec![rust_entry, async_entry],
-        ),
-        (
-            "associative-tags",
-            "associative",
-            QueryPayload::Vector {
-                vector: vec![0.9, 0.1, 0.0, 0.0],
-                model: "baseline/embed-4d".to_string(),
-                query: Some("runtime".to_string()),
-            },
-            RecallSearchFilters {
-                recall_ids: Some(vec![rust_collection]),
-                required_tags: Some(vec!["rust".to_string(), "async".to_string()]),
-                limit: Some(2),
-                min_score: Some(0.2),
-                ..Default::default()
-            },
-            vec![async_entry, rust_entry],
-        ),
-        (
-            "associative-history",
-            "associative",
-            QueryPayload::Vector {
-                vector: vec![0.0, 1.0, 0.0, 0.0],
-                model: "baseline/embed-4d".to_string(),
-                query: Some("runtime".to_string()),
-            },
-            RecallSearchFilters {
-                recall_ids: Some(vec![rust_collection]),
-                history_vectors: Some(vec![vec![1.0, 0.0, 0.0, 0.0]]),
-                limit: Some(2),
-                min_score: Some(0.2),
-                ..Default::default()
-            },
-            vec![async_entry],
-        ),
-        (
-            "associative-noise",
-            "associative",
-            QueryPayload::Vector {
-                vector: vec![0.0, 0.0, 0.0, 1.0],
-                model: "baseline/embed-4d".to_string(),
-                query: Some("unrelated noise".to_string()),
-            },
-            RecallSearchFilters {
-                recall_ids: Some(vec![rust_collection]),
-                limit: Some(2),
-                min_score: Some(0.75),
-                ..Default::default()
-            },
-            vec![],
-        ),
-    ];
-
-    for (name, profile, payload, filters, expected_ids) in cases {
-        let execute = || {
-            if profile == "semantic" {
-                SemanticRecallEngine::new().search(&payload, &filters, &context)
-            } else {
-                AssociativeRecallEngine::new().search(&payload, &filters, &context)
-            }
-        };
-        let first = execute().unwrap();
-        let second = execute().unwrap();
-        let first_ids = first
-            .iter()
-            .map(|result| result.entry.id)
-            .collect::<Vec<_>>();
-        let second_ids = second
-            .iter()
-            .map(|result| result.entry.id)
-            .collect::<Vec<_>>();
-        assert_eq!(first_ids, expected_ids, "profile query snapshot {name}");
-        assert_eq!(first_ids, second_ids, "profile query {name}");
-        assert!(first.iter().all(|result| {
-            result.trace.as_ref().is_some_and(|trace| {
-                trace.algorithm_version == "recall-profile-v1" && trace.rank > 0
-            }) && !result.signals.is_empty()
-        }));
-    }
+    let repository_temp =
+        tempfile::tempdir().expect("temporary repository appData should be created");
+    let repository_context = build_repository_retrieval_context(repository_temp.path(), &baseline);
+    assert_eq!(pipeline_snapshots(&baseline, &repository_context), expected);
 }

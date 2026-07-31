@@ -394,3 +394,13 @@ sequenceDiagram
 ### 已评估并放弃的方案
 
 - **虚拟滚动**：经实测，2 万条结果在 Vue 中渲染简单 DOM 元素不会出现滚动卡顿，虚拟滚动的复杂度收益比不划算，不予引入。
+
+## 10. Agent 资源安全与取消生命周期
+
+目录搜索的请求、事件和取消命令都使用同一个 `searchId`。Rust 后端按 `searchId` 保存取消 token，并且只允许一个活动搜索；取消请求不会重置或影响其他搜索。活动槽位直到 walker 完成并 `join` 后才释放，因此 UI 发起下一次搜索前会等待旧搜索真正退出。
+
+后端固定使用 4 个 walker worker，并对每次搜索施加组合预算：默认最多扫描 50,000 个文件、读取 2 GiB、运行 30 秒；Agent 默认还使用 5 层深度、隐藏目录排除。文件数和读取字节数受后端硬上限约束，`maxResults` 只限制返回匹配数，不替代扫描预算。UI 可以显式保留无限深度和包含隐藏目录，但仍受后端 worker、活动搜索数、文件数、字节数和 deadline 保护。
+
+`SearchSummary` 会返回 `stopReason`（`completed`、`matchLimit`、`fileLimit`、`deadline`、`cancelled` 或 `busy`）、`truncated`、`filesScanned` 和 `bytesRead`。Agent 搜索会在文本结果中明确标记截断；批量替换的预搜索只要不是完整 `completed` 就拒绝写盘，避免对不完整影响范围执行部分替换。
+
+Tool Calling 和 VCP 节点把 `AbortSignal` 放入 `ToolContext`。本地 Tool Calling 超时时先 abort，再返回 timeout；VCP 节点的 115 秒兜底和 WebSocket 断开也会 abort 所属在途调用。VCP `register_tools` 可声明 `capabilities.cancelTool`；服务端只在目标连接仍为 OPEN 且节点声明能力时 best-effort 发送 `cancel_tool`，旧节点仍由 AIO 本地 deadline 独立止损。

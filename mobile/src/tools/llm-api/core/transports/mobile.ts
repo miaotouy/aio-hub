@@ -328,7 +328,7 @@ async function sendNativeFileRequest(
   if (!dependencies.sendFileRequest) {
     throw new Error("Mobile native file transport is unavailable");
   }
-  if (options.signal?.aborted) throw createAbortError();
+  if (options.signal?.aborted) throw createAbortError(options.signal);
 
   const onAbort = () => {
     void dependencies.cancelFileRequest?.(options.requestId);
@@ -350,7 +350,7 @@ async function sendNativeFileRequest(
           }
         : undefined,
     });
-    if (options.signal?.aborted) throw createAbortError();
+    if (options.signal?.aborted) throw createAbortError(options.signal);
     await dependencies.ensureResponseOk(response);
     const headers = responseHeadersToRecord(response.headers);
     options.observer?.onResponseStart?.({
@@ -427,7 +427,9 @@ function encodeBase64(value: Uint8Array): string {
   return btoa(binary);
 }
 
-function createAbortError(): Error {
+function createAbortError(signal?: AbortSignal): Error {
+  const reason = signal?.reason;
+  if (reason instanceof Error) return reason;
   return typeof DOMException === "undefined"
     ? new Error("The request was aborted")
     : new DOMException("The request was aborted", "AbortError");
@@ -445,19 +447,31 @@ async function* responseBodyToAsyncIterable(
   response: Response,
   options: TransportOptions
 ): AsyncIterable<Uint8Array> {
+  throwIfAborted(options.signal);
+
   if (!response.body) {
     const fallbackValue =
       typeof response.text === "function"
         ? await response.text()
         : JSON.stringify(await response.json());
+    throwIfAborted(options.signal);
     if (fallbackValue) yield new TextEncoder().encode(fallbackValue);
     return;
   }
 
   const reader = response.body.getReader();
+  const onAbort = () => {
+    void reader.cancel(options.signal?.reason).catch(() => undefined);
+  };
+
   try {
+    options.signal?.addEventListener("abort", onAbort, { once: true });
+    if (options.signal?.aborted) onAbort();
+
     while (true) {
+      throwIfAborted(options.signal);
       const { value, done } = await reader.read();
+      throwIfAborted(options.signal);
       if (done) break;
       options.observer?.onResponseChunk?.({
         requestId: options.requestId,
@@ -474,6 +488,12 @@ async function* responseBodyToAsyncIterable(
     });
     throw error;
   } finally {
+    options.signal?.removeEventListener("abort", onAbort);
     reader.releaseLock();
   }
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (!signal?.aborted) return;
+  throw createAbortError(signal);
 }

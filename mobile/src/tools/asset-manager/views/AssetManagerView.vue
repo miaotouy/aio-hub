@@ -16,10 +16,9 @@ import {
   Trash2,
   Wrench,
 } from "lucide-vue-next";
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { customMessage } from "@/utils/feedback";
-import { createModuleLogger } from "@/utils/logger";
 import AssetDetailSheet from "../components/AssetDetailSheet.vue";
 import AssetTile from "../components/AssetTile.vue";
 import ImportJobsSheet from "../components/ImportJobsSheet.vue";
@@ -41,7 +40,6 @@ import type {
 } from "../types";
 
 const router = useRouter();
-const logger = createModuleLogger("asset-manager/view");
 const library = useAssetLibrary();
 const jobsOpen = ref(false);
 const importSourceOpen = ref(false);
@@ -49,9 +47,11 @@ const savingAssetId = ref<string | null>(null);
 const replacingTextAssetId = ref<string | null>(null);
 const sharingAssetId = ref<string | null>(null);
 const detailActionAssetId = ref<string | null>(null);
+const previewingAssetId = ref<string | null>(null);
 const detailBusy = computed(() =>
   Boolean(
     detailActionAssetId.value ||
+    previewingAssetId.value ||
     savingAssetId.value ||
     sharingAssetId.value ||
     replacingTextAssetId.value ||
@@ -198,19 +198,18 @@ async function pickAndImport(source: "file" | "photo" | "camera") {
 async function saveAsset(assetId: string) {
   const detail = library.detail.value;
   if (!detail || detailBusy.value) return;
-  savingAssetId.value = assetId;
   try {
     const destination = await save({
       defaultPath: detail.displayName,
     });
     if (!destination) return;
+    savingAssetId.value = assetId;
     const result = await exportAsset(assetId, destination);
     customMessage(
       `已保存 ${result.fileName}（${formatAssetBytes(result.bytesWritten)}）`,
       "success"
     );
   } catch (cause) {
-    logger.error("资产导出失败", cause);
     customMessage(
       cause instanceof Error ? cause.message : "无法保存资产原件",
       "error"
@@ -240,9 +239,25 @@ async function openDetail(assetId: string) {
   await library.openDetail(assetId);
 }
 
+async function previewAsset(assetId: string) {
+  if (detailBusy.value) return;
+  previewingAssetId.value = assetId;
+  try {
+    await library.openPreview(assetId);
+  } catch (cause) {
+    customMessage(
+      cause instanceof Error ? cause.message : "无法打开资产预览",
+      "error"
+    );
+  } finally {
+    previewingAssetId.value = null;
+  }
+}
+
 async function closeDetail(force = false) {
   if (detailBusy.value && !force) return;
   library.detail.value = null;
+  await library.closePreview();
 }
 
 async function replaceAssetText(assetId: string) {
@@ -328,6 +343,10 @@ async function cancelImportJob(jobId: string) {
 onMounted(() => {
   void library.load();
   void library.loadImportJobs().catch(() => undefined);
+});
+
+onUnmounted(() => {
+  void library.closePreview();
 });
 </script>
 
@@ -689,6 +708,7 @@ onMounted(() => {
     <AssetDetailSheet
       v-if="library.detail.value"
       :detail="library.detail.value"
+      :preview="library.preview.value"
       :saving="savingAssetId === library.detail.value.id"
       :sharing="sharingAssetId === library.detail.value.id"
       :replacing-text="
@@ -697,6 +717,7 @@ onMounted(() => {
       "
       :busy="detailBusy"
       @close="closeDetail"
+      @preview="previewAsset"
       @save="saveAsset"
       @share="shareAsset"
       @replace-text="replaceAssetText"

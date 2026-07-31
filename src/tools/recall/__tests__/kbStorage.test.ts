@@ -84,3 +84,36 @@ describe("KnowledgeStorage.deleteBase", () => {
     expect(mocks.save).not.toHaveBeenCalled();
   });
 });
+
+describe("KnowledgeStorage.loadWorkspace", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.invoke.mockResolvedValue([]);
+  });
+
+  it("strips legacy engine and scoring fields from the runtime workspace", async () => {
+    mocks.load.mockResolvedValue({
+      version: "2.0.0",
+      config: {
+        defaultEngineId: "lens",
+        vectorIndex: {
+          autoIndex: true,
+          dimension: 4,
+          texture: "fine",
+          refractionIndex: 0.6,
+          k1: 1.2,
+          b: 0.75,
+          limit: 9,
+          minScore: 0.4,
+        },
+      },
+      bases: [],
+    });
+
+    const workspace = await new KnowledgeStorage().loadWorkspace();
+
+    expect(workspace.config).toEqual({
+      vectorIndex: { autoIndex: true, dimension: 4 },
+    });
+  });
+});

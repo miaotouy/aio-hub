@@ -247,9 +247,52 @@ describe("MyTool 单元测试", () => {
 # 运行指定工具的测试
 bun run test src/tools/{your-tool-id}
 
-# 运行全量测试，确保没有破坏其他模块
+# 运行桌面前端测试；不包含 mobile、Tauri E2E 和 workspace package
 bun run test:run
+
+# 运行共享 llm-core package 测试
+bun run test:llm-core
+
+# 运行桌面、移动端与 llm-core 的常规完整测试集合
+bun run test:all
 ```
+
+根 Vitest 配置不收集 `packages/**`。workspace package 应使用各自的测试脚本和运行环境，避免 `test:all` 重复执行，也避免根项目的 jsdom 与 setup mock 意外改变 package 测试语义。真实 Tauri E2E 仍按第 8 节单独运行，不包含在 `test:all` 中。
+
+### 7.1. 构建版行为差异检查
+
+主要功能和回归测试应优先在 dev、Vitest 或真实 Tauri E2E 中完成。需要确认
+release 构建与 dev 在资源加载、CSP、动态导入、Sidecar、权限或持久化行为上
+是否存在偏差时，运行轻量构建版检查：
+
+```powershell
+# 构建 release 二进制并用隔离数据目录启动
+bun run test:build-app
+
+# 复用已有构建产物，避免重复构建
+bun run test:build-app --no-build
+
+# 清空默认测试数据后启动
+bun run test:build-app --clean
+```
+
+默认数据目录为 `.dev-data/build-test`，应用通过
+`--data-dir <absolute-path>` 启动，不会读取正式安装版的默认 appData。需要测试其他
+固定数据集时可以显式指定目录：
+
+```powershell
+bun run test:build-app --no-build --data-dir .dev-data/build-migration
+```
+
+默认构建会向 `tauri:build:local` 传递 `--no-bundle`，只生成用于行为检查的
+release 二进制，避免额外生成安装包。只有验证安装包生成或 bundle 阶段本身时才使用：
+
+```powershell
+bun run test:build-app --bundle
+```
+
+`--clean` 为防止误删，只允许清理仓库 `.dev-data/` 下的子目录。构建版检查用于
+补充确认 dev/release 差异，不应替代更快的单元测试、组件测试和日常 dev 验证。
 
 ---
 

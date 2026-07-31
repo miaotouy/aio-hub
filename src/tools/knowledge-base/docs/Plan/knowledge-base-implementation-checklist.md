@@ -8,7 +8,7 @@
   - [Knowledge 资料库产品方案](./knowledge-base-product-interaction-design.md)
   - [Knowledge 设置与文档导入交互补完计划（已归档）](./Archived/knowledge-base-settings-and-import-interaction-plan.md)
   - [Knowledge 架构说明](../../ARCHITECTURE.md)
-  - [Recall / Knowledge 领域拆分与重构实施计划](../../../recall/docs/Plan/recall-knowledge-domain-restructure-implementation-plan.md)
+  - [Recall 架构说明](../../../recall/ARCHITECTURE.md)
   - [模型身份与 Embedding 空间设计](../../../../../docs/design/model-identity-and-embedding-space-design.md)
 
 ## 1. 文档目的

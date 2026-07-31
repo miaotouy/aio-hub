@@ -1,33 +1,39 @@
 # 数据持久化 (Data Persistence)
 
-为了性能和数据安全，本模块采用**分离式存储策略**，将索引和数据文件分开存储。所有持久化文件统一存放在应用配置目录下的 `llm-chat/` 子目录中（即 `{appConfigDir}/llm-chat/`），由 [`useChatStorageSeparated()`](../../composables/storage/useChatStorageSeparated.ts) 与 [`useAgentStorageSeparated()`](../../composables/storage/useAgentStorageSeparated.ts) 分别管理会话与智能体。
+为了性能和数据安全，会话与智能体都采用**分离式存储策略**，将索引和数据文件分开存储。会话由 LLM Chat 持有，保存在 `{appConfigDir}/llm-chat/`；智能体由 Agent Manager 持有，保存在 `{appConfigDir}/agent-manager/`。
 
 ## 1. 会话存储 ([`useChatStorageSeparated`](../../composables/storage/useChatStorageSeparated.ts))
 
-- **索引文件**: `llm-chat/sessions-index.json`，存储 `currentSessionId` 与会话元信息列表（`ChatSessionIndex[]`），通过 `createConfigManager` 管理读写与版本。
-- **会话文件**: 每个会话的完整数据存储为 `llm-chat/sessions/{sessionId}.json`（直接以 `sessionId` 作为文件名，无 `session-` 前缀）。
+- **索引文件**: `llm-chat/sessions-index.json`，存储 `currentSessionId`、收藏夹与会话元信息列表（`ChatSessionIndex[]`）。索引额外维护 `sessions-index.json.bak`，保存最近一次有效主索引。
+- **会话文件**: 每个会话的完整数据存储为 `llm-chat/sessions/{sessionId}.json`（直接以 `sessionId` 作为文件名，无 `session-` 前缀）。会话和索引均带有 `_persistence` 元数据（schema、revision、committedAt）；旧文件以 revision 0 兼容读取。
+- **写入模型**: `useChatStorageSeparated()` 仅作为兼容 facade。`SessionPersistenceCoordinator` 对每个会话保持“一个运行中写入 + 一个最新 dirty 标记”，索引使用全局单写者；快照在真正提交前同步 JSON 序列化。内容保存不会修改 `currentSessionId`。
+- **原子提交**: 前端调用限定用途的 Rust command `llm_chat_atomic_write`。该命令只解析 llm-chat 的逻辑标识，校验 JSON/revision/sessionId，按逻辑路径获取进程内锁和跨进程文件锁，在同目录临时文件 `sync_all()` 后执行原子替换。索引只会在原主文件有效时轮换备份，避免损坏主文件覆盖最后有效备份。
 - **目录结构**:
   ```
   {appConfigDir}/llm-chat/
   ├── sessions-index.json        # 会话索引（含 currentSessionId）
-  └── sessions/
-      ├── {sessionId-1}.json     # 单会话完整数据
-      ├── {sessionId-2}.json
-      └── ...
+  ├── sessions-index.json.bak    # 最后有效索引备份
+  ├── sessions/
+  │   ├── {sessionId-1}.json     # 单会话完整数据
+  │   ├── {sessionId-2}.json
+  │   └── ...
+  └── sessions-corrupt/
+      ├── corruption-manifest.json # 原子维护的隔离记录
+      └── {sessionId}.{timestamp}.json # 无法解析的原始会话字节
   ```
-- **加载过程**: 启动时先读索引以快速展示列表，点击会话时再通过 `loadSession(sessionId)` 异步加载完整数据；索引会在加载时按需扫描 `sessions/` 目录自愈，自动补全新增或清理已删除的会话项。
+- **加载与恢复**: 启动只读取主索引或有效备份，并按需读取当前会话详情；不会为首屏扫描全部会话。索引缺失且会话目录为空时才创建默认索引。主索引和备份均不可用时，facade 返回恢复状态而非静默写入空索引；`repairIndex()` 是显式恢复操作，支持固定并发度、进度回调与 `AbortSignal` 取消。无法解析的会话被移动到 `sessions-corrupt/`，并写入隔离清单，避免下次启动重复解析。
 
-## 2. 智能体存储 ([`useAgentStorageSeparated`](../../composables/storage/useAgentStorageSeparated.ts))
+## 2. 智能体存储 ([`useAgentStorage`](../../../agent-manager/composables/storage/useAgentStorage.ts))
 
-- **索引文件**: `llm-chat/agents-index.json`，存储 `currentAgentId` 与智能体元信息列表（含 `id` / `name` / `icon` / `category` / `tags` 等），同样由 `createConfigManager` 管理。
-- **智能体目录**: 每个智能体在 `llm-chat/agents/{agentId}/` 下拥有**独立的目录**（而非单个 JSON 文件），用于承载配置、头像和私有资产，保证 Agent 的自包含性。
+- **索引文件**: `agent-manager/agents-index.json`，存储智能体元信息列表（含 `id` / `name` / `icon` / `category` / `tags` 等），由 `createConfigManager` 管理；当前聊天所选智能体属于 LLM Chat UI 状态，不写入该索引。
+- **智能体目录**: 每个智能体在 `agent-manager/agents/{agentId}/` 下拥有**独立的目录**（而非单个 JSON 文件），用于承载配置、头像和私有资产，保证 Agent 的自包含性。
   - `agent.json`: 智能体完整配置（`ChatAgent` 结构）。
   - 头像文件（如 `avatar-{timestamp}.{ext}`、历史头像等图片）：直接平铺在目录根部，由 `agent.icon` / `avatarHistory` 引用相对文件名。
   - `assets/`: 智能体私有资产子目录（表情包、BGM、场景图等），通过 `agent-asset://{group}/{id}.{ext}` 协议引用，详见 [`agent-assets.md`](./agent-assets.md)。
 - **目录结构**:
   ```
-  {appConfigDir}/llm-chat/
-  ├── agents-index.json          # 智能体索引（含 currentAgentId）
+  {appConfigDir}/agent-manager/
+  ├── agents-index.json          # 智能体元数据索引
   └── agents/
       ├── {agentId-1}/
       │   ├── agent.json         # 智能体配置
@@ -39,7 +45,7 @@
       │   └── ...
       └── ...
   ```
-- **历史迁移**: 加载索引时会自动检测旧版 `agents/{agentId}.json` 单文件结构，将其升级为 `agents/{agentId}/agent.json` 目录结构，并把 `appdata://` 形式的头像迁移为智能体目录内的相对文件名。
+- **历史迁移**: Agent 索引及实体读写前运行一次版本化收敛迁移。迁移通过跨 WebView 锁串行化，只补齐目标目录缺失的旧配置与嵌套资产，不覆盖有效目标文件、不交换整个模块目录；完成后仅检查版本标记。旧 `appdata://llm-chat/agents/...` 头像协议仍会在解析时重定向到新路径。
 
 ## 3. 多会话架构与子管理器 (Multi-Session Sub-Managers)
 

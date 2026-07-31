@@ -1,0 +1,20 @@
+{
+  "states": {
+    "legacy-profile": {
+      "legacy-key": {
+        "key": "legacy-key",
+        "isEnabled": true,
+        "isBroken": true,
+        "errorCount": 3,
+        "lastErrorTime": 1722067200000,
+        "disabledTime": 1722067200000,
+        "lastErrorMessage": "legacy authentication failure"
+      }
+    }
+  },
+  "lastUsedIndices": {
+    "legacy-profile": 0
+  },
+  "enableAutoDisable": true,
+  "autoRecoveryTime": 300000
+}

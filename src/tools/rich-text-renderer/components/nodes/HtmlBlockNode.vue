@@ -25,8 +25,8 @@
 <script setup lang="ts">
 import { computed, inject, type ComputedRef } from "vue";
 import DOMPurify from "dompurify";
-import { processMessageAssetsSync } from "@/tools/llm-chat/utils/agentAssetUtils";
-import type { ChatAgent } from "@/tools/llm-chat/types";
+import { processMessageAssetsSync } from "@/tools/agent-manager/utils/agentAssetUtils";
+import type { ChatAgent } from "@/tools/agent-manager/types/agent";
 import { processHtmlStyles, generateSimpleId } from "../../utils/cssUtils";
 
 const props = defineProps<{

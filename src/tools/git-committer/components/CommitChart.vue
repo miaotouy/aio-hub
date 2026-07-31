@@ -39,6 +39,7 @@ const props = defineProps<{
 
 const chartRef = ref<HTMLElement | null>(null);
 let chartInstance: echarts.ECharts | null = null;
+let resizeObserver: ResizeObserver | null = null;
 
 // 获取 CSS 变量的真实颜色值
 const getCssVar = (name: string) => {
@@ -48,26 +49,38 @@ const getCssVar = (name: string) => {
 
 // ===== 渲染 ECharts 柱状图 =====
 const renderChart = () => {
-  if (!chartRef.value || props.commits.length === 0) return;
+  if (!chartRef.value) return;
 
   if (!chartInstance) {
     chartInstance = echarts.init(chartRef.value);
+  }
+
+  if (props.commits.length === 0) {
+    chartInstance.clear();
+    return;
   }
 
   const primaryColor = getCssVar("--el-color-primary") || "#409eff";
   const primaryColorRgb = getCssVar("--el-color-primary-rgb") || "64, 158, 255";
 
   // 计算近 14 天的提交频次
+  const toDayKey = (value: Date) => {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   const days = Array.from({ length: 14 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    return d.toISOString().split("T")[0];
+    return toDayKey(d);
   }).reverse();
 
   const counts = days.map((day) => {
     return props.commits.filter((c) => {
       try {
-        return c.date.startsWith(day);
+        return toDayKey(new Date(c.date)) === day;
       } catch {
         return false;
       }
@@ -84,16 +97,21 @@ const renderChart = () => {
     xAxis: {
       type: "category",
       data: days.map((d) => d.substring(5)), // 仅显示月-日
-      axisLine: { lineStyle: { color: "var(--border-color)" } },
-      axisLabel: { fontSize: 9, color: "var(--el-text-color-secondary)" },
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: getCssVar("--border-color") } },
+      axisLabel: {
+        interval: 1,
+        fontSize: 9,
+        color: getCssVar("--el-text-color-secondary"),
+      },
     },
     yAxis: {
       type: "value",
       minInterval: 1,
-      axisLine: { lineStyle: { color: "var(--border-color)" } },
-      axisLabel: { fontSize: 9, color: "var(--el-text-color-secondary)" },
+      axisLine: { show: false },
+      axisLabel: { fontSize: 9, color: getCssVar("--el-text-color-secondary") },
       splitLine: {
-        lineStyle: { color: "var(--border-color)", type: "dashed" },
+        lineStyle: { color: getCssVar("--border-color"), type: "dashed" },
       },
     },
     tooltip: {
@@ -104,7 +122,7 @@ const renderChart = () => {
       {
         data: counts,
         type: "bar",
-        barWidth: "60%",
+        barMaxWidth: 14,
         itemStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
             { offset: 0, color: primaryColor },
@@ -130,22 +148,18 @@ watch(
   { deep: true }
 );
 
-// ===== 监听窗口大小变化，重绘图表 =====
-const handleResize = () => {
-  if (chartInstance) {
-    chartInstance.resize();
-  }
-};
-
 onMounted(() => {
-  window.addEventListener("resize", handleResize);
+  if (chartRef.value) {
+    resizeObserver = new ResizeObserver(() => chartInstance?.resize());
+    resizeObserver.observe(chartRef.value);
+  }
   nextTick(() => {
     renderChart();
   });
 });
 
 onUnmounted(() => {
-  window.removeEventListener("resize", handleResize);
+  resizeObserver?.disconnect();
   if (chartInstance) {
     chartInstance.dispose();
   }

@@ -76,8 +76,6 @@ export interface UpdateEntryContentOptions {
   key?: string;
   /** 方式3：通过搜索定位 */
   searchQuery?: string;
-  /** 搜索模式（配合 searchQuery） */
-  searchMode?: "keyword" | "vector";
 
   // === 替换模式（二选一） ===
   /** 模式 A：精确内容替换（指定原文片段进行局部替换） */
@@ -176,8 +174,8 @@ export interface SearchEntriesOptions {
 
   /** 搜索查询 */
   query: string;
-  /** 检索引擎（可选，默认 keyword） */
-  engineId?: string;
+  /** 产品检索预设（默认 algorithmic）。 */
+  presetId?: "algorithmic" | "comprehensive";
   /** 返回结果数量（可选，默认 10） */
   limit?: number;
   /** 最小分数阈值（可选） */

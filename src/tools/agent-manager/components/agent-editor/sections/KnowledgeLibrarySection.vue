@@ -1,140 +1,143 @@
 <template>
-  <div class="agent-section knowledge-domain" data-setting-id="knowledge">
-    <div class="section-header">
-      <div>
-        <div class="section-title">资料库 (Knowledge)</div>
-        <div class="section-subtitle">
-          {{ knowledgeListMacro }} 只在预设放置位置列出授权目录
+  <div class="agent-section">
+    <div class="section-group" data-setting-id="knowledge">
+      <div class="section-header">
+        <div class="section-group-title">资料库 (Knowledge)</div>
+        <el-switch
+          v-model="editForm.knowledgeAccess.enabled"
+          data-testid="agent-knowledge-enabled"
+          aria-label="启用 Knowledge 资料访问权限"
+        />
+      </div>
+      <div class="form-hint">
+        关联资料库后，智能体可在对话中按 Knowledge 规则检索相关资料。通过
+        <code style="color: var(--el-color-primary)">{{
+          knowledgeListMacro
+        }}</code>
+        只在预设放置位置列出授权目录。
+      </div>
+
+      <template v-if="editForm.knowledgeAccess.enabled">
+        <div class="domain-settings">
+          <el-form-item label="允许省略资料库范围">
+            <el-switch
+              v-model="editForm.knowledgeAccess.allowSearchAll"
+              data-testid="agent-knowledge-search-all"
+              aria-label="允许全库搜索"
+            />
+          </el-form-item>
+          <el-form-item label="允许继续读取文档">
+            <el-switch
+              v-model="editForm.knowledgeAccess.allowDocumentRead"
+              data-testid="agent-knowledge-document-read"
+              aria-label="允许继续读取文档"
+            />
+          </el-form-item>
+          <el-form-item label="允许高成本研究任务">
+            <el-switch
+              v-model="editForm.knowledgeAccess.allowResearch"
+              data-testid="agent-knowledge-research"
+              aria-label="允许研究任务"
+            />
+          </el-form-item>
         </div>
-      </div>
-      <el-switch
-        v-model="editForm.knowledgeAccess.enabled"
-        data-testid="agent-knowledge-enabled"
-        aria-label="启用 Knowledge 资料访问权限"
-      />
-    </div>
 
-    <template v-if="editForm.knowledgeAccess.enabled">
-      <div class="domain-settings">
-        <el-form-item label="允许省略资料库范围">
-          <el-switch
-            v-model="editForm.knowledgeAccess.allowSearchAll"
-            data-testid="agent-knowledge-search-all"
-            aria-label="允许全库搜索"
-          />
-        </el-form-item>
-        <el-form-item label="允许继续读取文档">
-          <el-switch
-            v-model="editForm.knowledgeAccess.allowDocumentRead"
-            data-testid="agent-knowledge-document-read"
-            aria-label="允许继续读取文档"
-          />
-        </el-form-item>
-        <el-form-item label="允许高成本研究任务">
-          <el-switch
-            v-model="editForm.knowledgeAccess.allowResearch"
-            data-testid="agent-knowledge-research"
-            aria-label="允许研究任务"
-          />
-        </el-form-item>
-      </div>
-
-      <div class="binding-box">
-        <header class="binding-header">
-          <div>
-            <strong>已授权资料库</strong>
-            <el-tag size="small" type="info">
-              {{ allowedLibraryIds.length }}
-            </el-tag>
-          </div>
-          <el-popover
-            v-model:visible="showSelector"
-            placement="bottom-end"
-            :width="320"
-            trigger="click"
-          >
-            <template #reference>
-              <el-button
-                type="primary"
-                link
-                :icon="Plus"
-                data-testid="agent-knowledge-add-library"
-                aria-label="添加资料库授权"
-                >添加资料库</el-button
-              >
-            </template>
-            <div class="library-options">
-              <el-input
-                v-model="librarySearch"
-                :prefix-icon="Search"
-                placeholder="搜索资料库"
-                clearable
-                size="small"
-              />
-              <button
-                v-for="library in availableLibraries"
-                :key="library.id"
-                type="button"
-                data-testid="agent-knowledge-library-option"
-                :data-library-id="library.id"
-                @click="addLibrary(library)"
-              >
-                <span>{{ library.name }}</span>
-                <small>{{ library.documentCount }} 文档</small>
-              </button>
-              <el-empty
-                v-if="availableLibraries.length === 0"
-                description="没有可添加的资料库"
-                :image-size="44"
-              />
+        <div class="binding-box">
+          <header class="binding-header">
+            <div>
+              <strong>已授权资料库</strong>
+              <el-tag size="small" type="info">
+                {{ allowedLibraryIds.length }}
+              </el-tag>
             </div>
-          </el-popover>
-        </header>
-
-        <div v-if="authorizedLibraries.length" class="binding-list">
-          <article
-            v-for="library in authorizedLibraries"
-            :key="library.id"
-            data-testid="agent-knowledge-authorized-library"
-            :data-library-id="library.id"
-          >
-            <div class="binding-identity">
-              <BookOpenText :size="18" />
-              <div>
-                <strong>{{ library.name }}</strong>
-                <code>{{ library.id }}</code>
-              </div>
-            </div>
-            <el-tag
-              size="small"
-              :type="
-                library.availability === 'available' ? 'success' : 'danger'
-              "
+            <el-popover
+              v-model:visible="showSelector"
+              placement="bottom-end"
+              :width="320"
+              trigger="click"
             >
-              {{
-                library.availability === "available"
-                  ? `${library.documentCount} 个来源`
-                  : library.availability === "deleted"
-                    ? "已删除"
-                    : "暂时不可用"
-              }}
-            </el-tag>
-            <el-tooltip content="撤销授权" placement="left">
-              <div>
+              <template #reference>
                 <el-button
-                  :icon="Trash2"
-                  text
-                  circle
-                  aria-label="撤销资料库授权"
-                  @click="removeLibrary(library.id)"
+                  type="primary"
+                  link
+                  :icon="Plus"
+                  data-testid="agent-knowledge-add-library"
+                  aria-label="添加资料库授权"
+                  >添加资料库</el-button
+                >
+              </template>
+              <div class="library-options">
+                <el-input
+                  v-model="librarySearch"
+                  :prefix-icon="Search"
+                  placeholder="搜索资料库"
+                  clearable
+                  size="small"
+                />
+                <button
+                  v-for="library in availableLibraries"
+                  :key="library.id"
+                  type="button"
+                  data-testid="agent-knowledge-library-option"
+                  :data-library-id="library.id"
+                  @click="addLibrary(library)"
+                >
+                  <span>{{ library.name }}</span>
+                  <small>{{ library.documentCount }} 文档</small>
+                </button>
+                <el-empty
+                  v-if="availableLibraries.length === 0"
+                  description="没有可添加的资料库"
+                  :image-size="44"
                 />
               </div>
-            </el-tooltip>
-          </article>
+            </el-popover>
+          </header>
+          <div v-if="authorizedLibraries.length" class="binding-list">
+            <article
+              v-for="library in authorizedLibraries"
+              :key="library.id"
+              data-testid="agent-knowledge-authorized-library"
+              :data-library-id="library.id"
+            >
+              <div class="binding-identity">
+                <BookOpenText :size="18" />
+                <div>
+                  <strong>{{ library.name }}</strong>
+                  <code>{{ library.id }}</code>
+                </div>
+              </div>
+              <el-tag
+                size="small"
+                :type="
+                  library.availability === 'available' ? 'success' : 'danger'
+                "
+              >
+                {{
+                  library.availability === "available"
+                    ? `${library.documentCount} 个来源`
+                    : library.availability === "deleted"
+                      ? "已删除"
+                      : "暂时不可用"
+                }}
+              </el-tag>
+              <el-tooltip content="撤销授权" placement="left">
+                <div>
+                  <el-button
+                    :icon="Trash2"
+                    text
+                    circle
+                    aria-label="撤销资料库授权"
+                    @click="removeLibrary(library.id)"
+                  />
+                </div>
+              </el-tooltip>
+            </article>
+          </div>
+          <el-empty v-else description="尚未授权资料库" :image-size="52" />
         </div>
-        <el-empty v-else description="尚未授权资料库" :image-size="52" />
-      </div>
-    </template>
+      </template>
+    </div>
   </div>
 </template>
 
@@ -198,15 +201,31 @@ onMounted(() => {
   }
 });
 </script>
-
 <style scoped>
-.knowledge-domain {
-  margin-top: 24px;
-  padding-top: 24px;
-  border-top: 1px solid var(--el-border-color-light);
+.section-group {
+  margin-bottom: 24px;
 }
 
-.section-header,
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.section-group-title {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.form-hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-top: 4px;
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
 .binding-header,
 .binding-header > div,
 .binding-identity {
@@ -214,21 +233,8 @@ onMounted(() => {
   align-items: center;
 }
 
-.section-header,
 .binding-header {
   justify-content: space-between;
-}
-
-.section-title {
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.section-subtitle {
-  margin-top: 3px;
-  color: var(--el-text-color-secondary);
-  font-family: var(--el-font-family-mono);
-  font-size: 12px;
 }
 
 .domain-settings {
@@ -245,15 +251,17 @@ onMounted(() => {
 .binding-box {
   margin-top: 18px;
   overflow: hidden;
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 6px;
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
 }
 
 .binding-header {
   min-height: 44px;
   padding: 0 12px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-  background: var(--input-bg);
+  background: var(--el-fill-color-light);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .binding-header > div {
@@ -267,7 +275,7 @@ onMounted(() => {
   align-items: center;
   gap: 10px;
   padding: 8px 10px 8px 14px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .binding-list article:last-child {
@@ -297,7 +305,7 @@ onMounted(() => {
 }
 
 .binding-identity code {
-  color: var(--el-text-color-secondary);
+  color: var(--text-color-secondary);
   font-size: 11px;
 }
 

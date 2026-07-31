@@ -1,9 +1,11 @@
 # MiniMax Music 第二阶段：两步翻唱
 
+> 状态：主体代码已实施，workflow 测试与真实运行验收待收口
+
 ## Summary
 
 - 两步翻唱流程是：参考音频预处理 -> 得到 `cover_feature_id`、`formatted_lyrics`、`structure_result` -> 用户编辑歌词 -> 用 `cover_feature_id + lyrics` 调 `music_generation`。本地文档明确 `cover_feature_id` 24 小时有效，且最终生成时 `lyrics` 必填。
-- 现有架构“够做基础”，但“不够直接做好”。底层 adapter 已能把 `cover_feature_id` 发给生成接口，并校验歌词必填；但缺少 `music_cover_preprocess` client 方法、预处理 UI、中间结果缓存、过期处理、歌词编辑体验，以及最终生成时避免 `audio_url/audio_base64/cover_feature_id` 冲突的显式模式。
+- 施工前架构只具备基础 adapter 能力；当前已补 `music_cover_preprocess` client、预处理 UI、中间结果、过期处理、歌词编辑和显式 feature 模式。剩余缺口是 workflow 自动化测试与真实运行验收。
 - 交互上不要只塞进左侧 320px 参数面板。参数面板适合放开关和状态；歌词编辑、结构结果、刷新预处理更适合新增一个 MiniMax Cover 工作流面板/抽屉，挂在主工作区或输入区上方。
 
 ## Key Changes
@@ -11,7 +13,7 @@
 - API/adapter：
   - 在 `minimax-music` types/client 增加 `CoverPreprocessRequest/Response` 和 `client.coverPreprocess()`，复用现有 `MINIMAX_MUSIC_PATHS.coverPreprocess`。
   - 保留现有 `adapter.audio()` 生成入口；新增显式参数 `cover_reference_mode: "audio" | "feature"`，当为 `feature` 时只发送 `cover_feature_id`，忽略/剥离 `audio_url`、`audio_base64`。
-  - 继续沿用现有互斥校验和歌词必填校验，相关逻辑在 [adapter.ts](E:/rc20/allinweb/all-in-one-tools/src/llm-apis/adapters/minimax-music/adapter.ts:186)。
+  - 继续沿用现有互斥校验和歌词必填校验，相关逻辑在 [adapter.ts](../../../../../src/llm-apis/adapters/minimax-music/adapter.ts)。
 
 - 状态/数据：
   - 在音乐参数中新增：
@@ -22,30 +24,31 @@
   - 预处理成功后写入 `params.lyrics = formattedLyrics`、`lyrics_source = "manual"`、`cover_reference_mode = "feature"`、`cover_feature_id = coverFeatureId`。
 
 - UI/交互：
-  - 在 [ModelParameterFields.vue](E:/rc20/allinweb/all-in-one-tools/src/tools/media-generator/components/ModelParameterFields.vue:508) 的 MiniMax 翻唱模式中增加“一步翻唱 / 两步翻唱”切换。
+  - 在 [ModelParameterFields.vue](../../../../../src/tools/media-generator/components/ModelParameterFields.vue) 的 MiniMax 翻唱模式中增加“一步翻唱 / 两步翻唱”切换。
   - 两步模式显示“预处理参考音频”按钮、状态、过期时间、重新预处理按钮；歌词编辑器使用预处理返回的 `formatted_lyrics` 初始化。
   - 解析 `structure_result` 为段落列表展示；JSON 解析失败时保留原始文本，不阻断生成。
   - 最终 Ctrl+Enter 仍然是生成音乐，不把预处理伪装成媒体生成任务。
 
 - 执行链路：
-  - 从 [useMediaGenerationManager.ts](E:/rc20/allinweb/all-in-one-tools/src/tools/media-generator/composables/useMediaGenerationManager.ts:426) 抽出音频附件转 base64 的可复用工具，供“预处理”和“最终生成”共同使用。
+  - 从 [useMediaGenerationManager.ts](../../../../../src/tools/media-generator/composables/useMediaGenerationManager.ts) 抽出音频附件转 base64 的可复用工具，供“预处理”和“最终生成”共同使用。
   - 在提交生成前校验：两步模式必须有未过期 `cover_feature_id` 和非空歌词；过期则提示重新预处理。
   - 最终任务仍走现有 `submitTaskInSession -> buildTask -> executeGeneration` 链路，任务快照继续用于重试和分支。
 
 ## Test Plan
 
 - Unit：
-  - `coverPreprocess()` 请求路径、请求体、错误码处理。
-  - `cover_reference_mode = "feature"` 时只发送 `cover_feature_id + lyrics`。
-  - 同时存在 `audio_url` 和 `cover_feature_id` 时，一步模式报错，两步 feature 模式不报错。
-  - 过期预处理结果禁止生成；刷新预处理后可生成。
-  - `structure_result` 正常 JSON 和异常字符串都能稳定展示。
+  - [x] `coverPreprocess()` 请求路径、请求体、错误码处理。
+  - [x] `cover_reference_mode = "feature"` 时只发送 `cover_feature_id + lyrics`。
+  - [x] 一步模式的音频引用互斥，以及 feature 模式剥离音频参数。
+  - [ ] 过期预处理结果禁止生成；刷新预处理后可生成。
+  - [ ] `structure_result` 正常 JSON 和异常字符串都能稳定展示。
 
 - Integration/manual：
-  - MiniMax `music-cover` + URL 两步翻唱：预处理 -> 编辑歌词 -> 生成音频入库。
-  - MiniMax `music-cover` + 本地音频附件两步翻唱：附件只在请求时转 base64，不写入持久化参数。
-  - 重试已完成任务时，若 `cover_feature_id` 仍有效则复用；若过期则提示重新预处理。
-  - 运行 `bun run test:run` 和 `bun run check:frontend`。
+  - [ ] MiniMax `music-cover` + URL 两步翻唱：预处理 -> 编辑歌词 -> 生成音频入库。
+  - [ ] MiniMax `music-cover` + 本地音频附件两步翻唱：附件只在请求时转 base64，不写入持久化参数。
+  - [ ] 重试已完成任务时，若 `cover_feature_id` 仍有效则复用；若过期则提示重新预处理。
+  - [x] 运行 MiniMax 定向测试和 `bun run check:frontend`。
+  - [ ] 在干净工作区运行全量 `bun run test:run`。
 
 ## Assumptions
 
@@ -61,7 +64,7 @@
 
 #### 1.1. 整体布局
 
-在 `MediaWorkbench.vue` 中，我们在消息流区域（`content-body`）和输入框区域（`workbench-footer`）之间，插入一个全新的组件 [`MiniMaxCoverWorkflowPanel.vue`](src/tools/media-generator/components/MiniMaxCoverWorkflowPanel.vue)。
+在 `MediaWorkbench.vue` 中，[`MiniMaxCoverWorkflowPanel.vue`](../../../../../src/tools/media-generator/components/MiniMaxCoverWorkflowPanel.vue) 实际挂载为 `workbench-footer` 的子项，位于输入组件上方；视觉上处于消息流与输入框之间，但不是二者的同级 DOM 节点。
 
 当且仅当满足以下条件时，该面板会以优雅的展开动画（Slide/Fade）显示在输入框上方：
 
@@ -100,7 +103,7 @@
 
 ##### 1.2.1. 预处理状态与控制区 (Header)
 
-- **未开始状态**：展示“等待预处理参考音频”提示。如果输入框有音频附件或参数面板有 URL，则激活“开始预处理”按钮；否则置灰并提示“请先添加参考音频附件或填写 URL”。
+- **未开始状态**：展示“等待预处理参考音频”提示。如果输入框有音频附件或参数面板有 URL，则激活“开始预处理”按钮；否则按钮置灰。当前实现没有额外的“请先添加参考音频附件或填写 URL”提示。
 - **预处理中状态**：展示优雅的加载动画（如波浪形音频动效）和“正在提取音频特征与歌词...”状态。
 - **成功状态**：展示“预处理完成”，显示 `cover_feature_id`（缩略显示如 `a1b2...7890`），显示音频时长，显示 24 小时倒计时（或具体过期时间），并提供“重新预处理”按钮。
 - **失败状态**：展示红色错误提示和“重新预处理”按钮。
@@ -111,7 +114,7 @@
 - 顶部提供快捷操作：
   - **重置为提取歌词**：一键恢复为 ASR 提取的原始歌词 `formatted_lyrics`。
   - **清空歌词**：一键清空。
-- 侧边提供段落标签快捷插入按钮（如 `[Verse]`、`[Chorus]`、`[Bridge]`），点击即可在光标处插入，极大提升手填体验。
+- 侧边提供段落标签快捷按钮（如 `[Verse]`、`[Chorus]`、`[Bridge]`）；当前实现会把标签追加到歌词末尾，不读取 textarea 光标位置。
 
 ##### 1.2.3. 歌曲结构分析区 (Right Column) - **高颜值可视化设计**
 
@@ -134,7 +137,7 @@
 
 ### 2. 状态管理与数据流 (State & Data Flow)
 
-为了保持代码的高内聚和低耦合，我们新建一个 Vue Composable [`useMiniMaxCoverWorkflow.ts`](src/tools/media-generator/composables/useMiniMaxCoverWorkflow.ts) 来专门管理两步翻唱的状态和 API 请求。
+为了保持代码的高内聚和低耦合，我们新建一个 Vue Composable [`useMiniMaxCoverWorkflow.ts`](../../../../../src/tools/media-generator/composables/useMiniMaxCoverWorkflow.ts) 来专门管理两步翻唱的状态和 API 请求。
 
 #### 2.1. Composable 状态定义
 
@@ -227,7 +230,7 @@ export function useMiniMaxCoverWorkflow() {
 
 为了支持上述数据流，我们需要对底层进行外科手术式的扩展：
 
-#### 3.1. 扩展 `MinimaxMusicClient` ([`client.ts`](src/llm-apis/adapters/minimax-music/client.ts))
+#### 3.1. 扩展 `MinimaxMusicClient` ([`client.ts`](../../../../../src/llm-apis/adapters/minimax-music/client.ts))
 
 新增 `coverPreprocess` 方法，复用现有的 `MINIMAX_MUSIC_PATHS.coverPreprocess`：
 
@@ -245,7 +248,7 @@ async coverPreprocess(
 }
 ```
 
-#### 3.2. 扩展 `minimaxMusicAdapter` ([`adapter.ts`](src/llm-apis/adapters/minimax-music/adapter.ts))
+#### 3.2. 扩展 `minimaxMusicAdapter` ([`adapter.ts`](../../../../../src/llm-apis/adapters/minimax-music/adapter.ts))
 
 在 `buildMusicRequest` 中，当 `cover_reference_mode === "feature"` 时，只发送 `cover_feature_id`，忽略并剥离 `audio_url` 和 `audio_base64`，避免参数冲突：
 
@@ -281,4 +284,5 @@ function applyCoverReference(
 - 施工调整：MiniMax 两边文档可能不同步，预处理请求不在本地固定为 `music-cover`；若用户当前选择 `music-cover-free`，`coverPreprocess()` 也原样发送 `music-cover-free`。
 - 施工中调整：附件音频 base64 复用能力落在 `mediaAttachmentUtils.ts`，预处理与最终生成共用；两步 feature 模式最终生成不再注入附件音频 base64。
 - 验证记录：`bun run check:frontend` 通过；MiniMax 定向 `bun run test:run src/llm-apis/adapters/minimax-music/__tests__/adapter.test.ts src/llm-apis/adapters/minimax-music/__tests__/client.test.ts src/llm-apis/adapters/minimax-music/__tests__/utils.test.ts` 通过。
-- 已知非本次阻塞：全量 `bun run test:run` 当前失败在既有 llm-chat/openai 温度期望（`0.7` vs 实际 `1`），且 Vitest 会额外扫描 `.kilo/worktrees/ninth-shoe` 下的重复测试；该失败不在本次 MiniMax 改动范围内。
+- 2026-07-23 审计：现有 11 个定向测试覆盖 adapter/client/utils，但没有覆盖过期判断、workflow 状态和结构解析；URL、附件、重试和真实音频入库仍缺运行态验收。
+- 2026-06-08 记录的全量测试失败原因只代表当时快照，不再作为当前失败归因；收口时需在干净工作区重新运行并记录实际结果。

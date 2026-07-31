@@ -71,7 +71,7 @@
             style="width: 100%"
           >
             <el-option
-              v-for="agent in agentPresets"
+              v-for="agent in agents"
               :key="agent.id"
               :label="agent.displayName || agent.name"
               :value="agent.id"
@@ -513,20 +513,26 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, computed } from "vue";
+import { computed } from "vue";
 import { storeToRefs } from "pinia";
 import {
   useRichTextRendererStore,
   availableVersions,
 } from "../../stores/store";
 import { presets } from "../../config/presets";
-import { llmChatRegistry } from "@/tools/llm-chat/llm-chat.registry";
 import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 import { resolveProfileAvatarPath } from "@/tools/user-profile-manager/utils/profileAssetUtils";
+import type { ChatAgent } from "@/tools/agent-manager/types/agent";
+import type { UserProfile } from "@/tools/user-profile-manager/types/profile";
 import { tokenCalculatorRegistry } from "@/tools/token-calculator/token-calculator.registry";
 import Avatar from "@/components/common/Avatar.vue";
 import InfoCard from "@/components/common/InfoCard.vue";
 import LlmThinkRulesEditor from "../../components/LlmThinkRulesEditor.vue";
+
+defineProps<{
+  agents: ChatAgent[];
+  userProfiles: UserProfile[];
+}>();
 
 // Props for local state
 const selectedTokenizer = defineModel<string>("selectedTokenizer", {
@@ -566,19 +572,12 @@ const {
 } = storeToRefs(store);
 
 // Computed
-const agentPresets = computed(() => llmChatRegistry.getAgents());
-const userProfiles = computed(() => llmChatRegistry.getUserProfiles());
 const enabledVersions = computed(() =>
   availableVersions.filter((v: any) => v.enabled)
 );
 const availableTokenizers = tokenCalculatorRegistry.getAvailableTokenizers();
 
 // Methods
-onMounted(async () => {
-  // 确保 LlmChat 的数据已加载，否则 Agent 和 UserProfile 列表会为空
-  await llmChatRegistry.ensureInitialized();
-});
-
 const loadPreset = () => {
   const preset = presets.find((p: any) => p.id === selectedPreset.value);
   if (preset) {

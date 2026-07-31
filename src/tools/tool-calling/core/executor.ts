@@ -54,7 +54,8 @@ function buildErrorResult(
 async function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
-  label: string
+  label: string,
+  onTimeout?: () => void
 ): Promise<T> {
   if (timeoutMs <= 0) {
     return promise;
@@ -62,6 +63,9 @@ async function withTimeout<T>(
 
   return await new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
+      // 先向工具传播取消，再向调用方返回超时；仅 reject 外层 Promise 会让
+      // 正在执行的 IPC/文件扫描继续消耗资源。
+      onTimeout?.();
       reject(new Error(`${label} 执行超时（${timeoutMs}ms）`));
     }, timeoutMs);
 
@@ -365,10 +369,12 @@ async function executeSingleRequest(
   }
   try {
     // 构造统一的 ToolContext，通过第二参数传递
+    const abortController = new AbortController();
     const toolContext: ToolContext = {
       isAsync: false,
       agent: options.agent,
       requestId: request.requestId,
+      signal: abortController.signal,
       reportStatus: (message: string) => {
         options.onStatusChange?.(request.requestId, "executing");
         logger.debug(`工具执行进度上报: ${request.toolName}`, { message });
@@ -386,7 +392,8 @@ async function executeSingleRequest(
     const data = await withTimeout(
       invokePromise,
       options.config.timeout,
-      request.toolName
+      request.toolName,
+      () => abortController.abort()
     );
     const durationMs = Date.now() - startedAt;
     const structured =

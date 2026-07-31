@@ -209,6 +209,7 @@ V2 版本引入了自研的模块化解析器，以克服 `markdown-it` 的局�
   - **节点渲染阶段**: `agent-asset://` 等协议留给具体节点组件（如 `ImageNode`、`VideoNode`、`AudioNode`、`GenericHtmlNode`）处理。这些组件通过注入的 `resolveAsset` 钩子或 `currentAgent` 上下文，在运行时动态解析真实 URL。
   - **优势**: 避免了 Markdown 解析器对转换后的长本地路径（包含 `%` 等字符）进行二次编码，导致 Tauri 无法识别。
 - **HTML 预览**: 在 `HtmlInteractiveViewer` 的沙箱中，内容在注入前会经过资产解析，确保预览中的所有外部资源引用都能正确加载。
+- **测试页数据来源**: `RichTextRendererTester` 直接通过 `agent-manager` 与 `user-profile-manager` 的 Pinia Store 获取并初始化测试角色数据，并直接调用 `agent-manager` 的资产解析工具；不再经由 `llm-chat` Registry 或兼容重导出读取。侧边栏只接收父测试页传入的响应式列表，保证角色选择与资产解析使用同一份领域状态。
 
 ### 3.6 CDN 资源本地化
 
@@ -399,6 +400,8 @@ src/tools/rich-text-renderer/
   - **VCP 角色分割**: 支持 `vcp_role`（user/assistant/system 角色容器，含 `tool_summary` 变体）和 `vcp_daily_note`（日记容器）的结构化渲染。
 - **LLM 思考过程**:
   - 原生支持可配置的 XML 风格标签（如 `<think>`, `<guguthink>`）。
+  - 闭合标签除精确匹配外，还会通过 `isFuzzyMatchCloseTag` 对分隔符、常见 think/thinking/thought 词根偏移和有限编辑距离进行归一化匹配；V1/V2 流式边界检测与块解析共用该判定，减少模型手抖导致正文被持续吞入思考块。
+  - 模糊闭合导致 `isThinking` 从 `true` 变为 `false` 时，即使内容指纹未变化也会触发节点替换，确保计时与流式状态及时停止。
   - 渲染为可折叠、可交互的思考块，并支持流式动画效果。
   - 通过 `LlmThinkRulesEditor` 组件提供规则的图形化编辑。
   - **可交互按钮**: 支持 LLM 输出 `<button>` 标签来创建可交互的按钮（`ActionButtonNode`）。这些按钮可以执行前端预定义的安全操作（如 `发送消息`、`插入内容到输入框`、`复制`），并支持通过 `style` 属性自定义外观（经过安全过滤），通过严格的白名单机制保证安全性。
@@ -540,4 +543,3 @@ src/tools/rich-text-renderer/
 
 - **实时反馈**: 当开发者修改智能体的"预设消息串"时，渲染器提供即时的 Markdown 预览。
 - **上下文模拟**: 即使在编辑阶段，也会通过 `provide` 模拟 `currentAgent` 上下文，确保预设中的资产链接（图片等）能够被正确解析和预览。
-

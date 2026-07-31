@@ -282,7 +282,7 @@ export interface ToolContext {
   reportStatus: (message: string, progress?: number) => void;
 
   /**
-   * 取消信号（异步任务模式下由 TaskManager 提供，同步模式下通常为 undefined）
+   * 取消信号（异步任务由 TaskManager 提供；同步 Tool Calling/VCP 调用也会在超时或断线时 abort）
    */
   signal?: AbortSignal;
 

@@ -35,14 +35,27 @@ const selectedIds = computed(
 const mode = computed(
   () => inputManager.knowledgeReference.value?.mode || "search"
 );
-const canOpen = computed(
-  () => !props.disabled && Boolean(currentAgent.value && access.value.enabled)
-);
+const canOpen = computed(() => !props.disabled && Boolean(currentAgent.value));
 const tooltipText = computed(() => {
   if (!currentAgent.value) return "请先选择 Agent";
-  if (!access.value.enabled) return "当前 Agent 未启用 Knowledge 资料访问";
   return "引用 Knowledge 资料库";
 });
+
+function toggleGlobal(val: boolean) {
+  if (!currentAgent.value) return;
+  if (!currentAgent.value.knowledgeAccess) {
+    currentAgent.value.knowledgeAccess = {
+      enabled: val,
+      allowedLibraryIds: [],
+      allowSearchAll: false,
+      allowDocumentRead: false,
+      allowResearch: false,
+    };
+  } else {
+    currentAgent.value.knowledgeAccess.enabled = val;
+  }
+  agentStore.persistAgent(currentAgent.value);
+}
 
 const allLibraries = computed(() => {
   const byId = new Map(libraries.value.map((item) => [item.id, item]));
@@ -177,14 +190,20 @@ watch(currentAgentId, () => {
         <template #reference>
           <button
             class="knowledge-button"
-            :class="{ active: selectedIds.size > 0 || visible }"
+            :class="{
+              active: access.enabled && selectedIds.size > 0,
+              'popover-open': visible,
+            }"
             :disabled="!canOpen"
             data-testid="chat-knowledge-reference-button"
             aria-label="选择 Knowledge 资料库"
             type="button"
           >
             <BookOpenCheck :size="16" />
-            <span v-if="selectedIds.size" class="selection-count">
+            <span
+              v-if="access.enabled && selectedIds.size"
+              class="selection-count"
+            >
               {{ selectedIds.size }}
             </span>
           </button>
@@ -195,84 +214,125 @@ watch(currentAgentId, () => {
           data-testid="chat-knowledge-reference-selector"
           aria-label="Knowledge 资料库选择器"
         >
-          <div class="selector-search">
-            <Search :size="15" aria-hidden="true" />
-            <input
-              v-model="searchText"
-              type="search"
-              data-testid="chat-knowledge-library-filter"
-              placeholder="搜索已授权资料库"
-              aria-label="搜索已授权资料库"
-            />
-          </div>
-
-          <div class="mode-switch" role="group" aria-label="Knowledge 查询模式">
-            <button
-              type="button"
-              data-testid="chat-knowledge-mode-search"
-              :class="{ active: mode === 'search' }"
-              @click="setMode('search')"
-            >
-              快速查询
-            </button>
-            <button
-              type="button"
-              data-testid="chat-knowledge-mode-research"
-              :class="{ active: mode === 'research' }"
-              :disabled="!access.allowResearch"
-              :title="
-                access.allowResearch
-                  ? '多轮整理证据'
-                  : '当前 Agent 未获研究权限'
-              "
-              @click="setMode('research')"
-            >
-              研究任务
-            </button>
-          </div>
-
-          <div class="selector-list" role="listbox" aria-multiselectable="true">
-            <div v-if="loading" class="selector-empty">正在加载...</div>
-            <div v-else-if="loadError" class="selector-empty is-error">
-              {{ loadError }}
+          <div class="settings-header">
+            <div class="header-title">
+              <BookOpenCheck :size="14" />
+              <span>知识库 (Knowledge)</span>
             </div>
-            <button
-              v-for="library in filteredLibraries"
-              v-else
-              :key="library.id"
-              class="library-option"
-              data-testid="chat-knowledge-library-option"
-              :data-library-id="library.id"
-              :class="{
-                selected: selectedIds.has(library.id),
-                unavailable: !isSelectable(library),
-              }"
-              :disabled="!isSelectable(library) && !selectedIds.has(library.id)"
-              role="option"
-              :aria-selected="selectedIds.has(library.id)"
-              type="button"
-              @click="toggleLibrary(library)"
-              @keydown.enter.prevent="toggleLibrary(library)"
-              @keydown.space.prevent="toggleLibrary(library)"
-            >
-              <span class="option-check" aria-hidden="true">
-                {{ selectedIds.has(library.id) ? "✓" : "" }}
-              </span>
-              <span class="option-copy">
-                <span class="option-name" :title="library.name">
-                  {{ library.name }}
-                </span>
-                <span class="option-meta">
-                  {{ library.documentCount }} 个来源 · {{ statusText(library) }}
-                </span>
-              </span>
-            </button>
+            <div class="header-actions">
+              <el-switch
+                :model-value="access.enabled"
+                @update:model-value="toggleGlobal"
+                size="small"
+              />
+            </div>
+          </div>
+
+          <template v-if="access.enabled">
+            <div class="selector-search">
+              <Search :size="15" aria-hidden="true" />
+              <input
+                v-model="searchText"
+                type="search"
+                data-testid="chat-knowledge-library-filter"
+                placeholder="搜索已授权资料库"
+                aria-label="搜索已授权资料库"
+              />
+            </div>
+
             <div
-              v-if="!loading && !loadError && filteredLibraries.length === 0"
-              class="selector-empty"
+              class="mode-switch"
+              role="group"
+              aria-label="Knowledge 查询模式"
             >
-              没有匹配的资料库
+              <button
+                type="button"
+                data-testid="chat-knowledge-mode-search"
+                :class="{ active: mode === 'search' }"
+                @click="setMode('search')"
+              >
+                快速查询
+              </button>
+              <button
+                type="button"
+                data-testid="chat-knowledge-mode-research"
+                :class="{ active: mode === 'research' }"
+                :disabled="!access.allowResearch"
+                :title="
+                  access.allowResearch
+                    ? '多轮整理证据'
+                    : '当前 Agent 未获研究权限'
+                "
+                @click="setMode('research')"
+              >
+                研究任务
+              </button>
             </div>
+
+            <div
+              class="selector-list"
+              role="listbox"
+              aria-multiselectable="true"
+            >
+              <div v-if="loading" class="selector-empty">正在加载...</div>
+              <div v-else-if="loadError" class="selector-empty is-error">
+                {{ loadError }}
+              </div>
+              <button
+                v-for="library in filteredLibraries"
+                v-else
+                :key="library.id"
+                class="library-option"
+                data-testid="chat-knowledge-library-option"
+                :data-library-id="library.id"
+                :class="{
+                  selected: selectedIds.has(library.id),
+                  unavailable: !isSelectable(library),
+                }"
+                :disabled="
+                  !isSelectable(library) && !selectedIds.has(library.id)
+                "
+                role="option"
+                :aria-selected="selectedIds.has(library.id)"
+                type="button"
+                @click="toggleLibrary(library)"
+                @keydown.enter.prevent="toggleLibrary(library)"
+                @keydown.space.prevent="toggleLibrary(library)"
+              >
+                <span class="option-check" aria-hidden="true">
+                  {{ selectedIds.has(library.id) ? "✓" : "" }}
+                </span>
+                <span class="option-copy">
+                  <span class="option-name" :title="library.name">
+                    {{ library.name }}
+                  </span>
+                  <span class="option-meta">
+                    {{ library.documentCount }} 个来源 ·
+                    {{ statusText(library) }}
+                  </span>
+                </span>
+              </button>
+              <div
+                v-if="!loading && !loadError && filteredLibraries.length === 0"
+                class="selector-empty"
+              >
+                没有匹配的资料库
+              </div>
+            </div>
+          </template>
+          <div v-else class="empty-hint">
+            <el-empty
+              :image-size="40"
+              description="当前 Agent 未启用知识库访问"
+            >
+              <el-button
+                type="primary"
+                size="small"
+                @click="toggleGlobal(true)"
+              >
+                立即启用
+              </el-button>
+            </el-empty>
           </div>
         </div>
       </el-popover>
@@ -304,6 +364,11 @@ watch(currentAgentId, () => {
   color: var(--text-color-primary);
 }
 
+.knowledge-button.popover-open {
+  color: var(--text-color-primary);
+  background-color: color-mix(in srgb, var(--primary-color) 10%, transparent);
+}
+
 .knowledge-button.active {
   color: var(--primary-color);
 }
@@ -311,6 +376,32 @@ watch(currentAgentId, () => {
 .knowledge-button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 8px;
+  border-bottom: var(--border-width) solid var(--border-color);
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-color-primary);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+}
+
+.empty-hint {
+  padding: 12px 0;
 }
 
 .selection-count {

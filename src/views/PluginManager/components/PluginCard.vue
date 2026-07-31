@@ -16,8 +16,9 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { Delete, Setting } from "@element-plus/icons-vue";
+import { Delete, Setting, WarningFilled } from "@element-plus/icons-vue";
 import type { PluginProxy } from "@/services/plugin-types";
+import { getPrimaryPluginDiagnostic } from "@/services/plugin-diagnostics";
 import Avatar from "@/components/common/Avatar.vue";
 
 // Props
@@ -28,10 +29,28 @@ interface Props {
 
 const props = defineProps<Props>();
 
-const isBroken = computed(() => (props.plugin as any).isBroken);
-const brokenError = computed(
-  () => (props.plugin as any).error?.message || "未知错误"
-);
+const isBroken = computed(() => props.plugin.isBroken === true);
+const errorDiagnostics = computed(() => {
+  const diagnostics = (props.plugin.diagnostics ?? []).filter(
+    (item) => item.severity === "error"
+  );
+  if (diagnostics.length > 0) return diagnostics;
+
+  const fallback = getPrimaryPluginDiagnostic(props.plugin);
+  return [
+    fallback ?? {
+      code: "PLUGIN_UNKNOWN_FAILURE",
+      severity: "error" as const,
+      title: "插件不可用",
+      message:
+        props.plugin.error?.message || "未记录具体故障原因，请查看应用日志",
+      details: [
+        { label: "插件 ID", value: props.plugin.manifest.id },
+        { label: "安装目录", value: props.plugin.installPath },
+      ],
+    },
+  ];
+});
 
 // Emits
 const emit = defineEmits<{
@@ -80,7 +99,7 @@ const pluginTypeInfo = computed(() => {
         </el-tooltip>
       </div>
       <div v-else class="plugin-status-tag" @click.stop>
-        <el-tag type="danger" size="small" effect="dark">损坏</el-tag>
+        <el-tag type="danger" size="small" effect="dark">不可用</el-tag>
       </div>
     </div>
 
@@ -103,7 +122,7 @@ const pluginTypeInfo = computed(() => {
               Dev
             </el-tag>
             <el-tag v-if="isBroken" type="danger" size="small" effect="plain">
-              损坏
+              不可用
             </el-tag>
           </div>
         </div>
@@ -170,9 +189,29 @@ const pluginTypeInfo = computed(() => {
       <p v-if="!isBroken" class="plugin-description" @click.stop>
         {{ plugin.description }}
       </p>
-      <p v-else class="plugin-description broken-error" @click.stop>
-        加载失败: {{ brokenError }}
-      </p>
+      <div v-else class="plugin-diagnostics" @click.stop>
+        <section
+          v-for="diagnostic in errorDiagnostics"
+          :key="`${diagnostic.code}-${diagnostic.message}`"
+          class="diagnostic-item"
+        >
+          <div class="diagnostic-heading">
+            <el-icon :size="15"><WarningFilled /></el-icon>
+            <strong>{{ diagnostic.title }}</strong>
+            <code>{{ diagnostic.code }}</code>
+          </div>
+          <p class="diagnostic-message">{{ diagnostic.message }}</p>
+          <dl v-if="diagnostic.details?.length" class="diagnostic-details">
+            <div v-for="detail in diagnostic.details" :key="detail.label">
+              <dt>{{ detail.label }}</dt>
+              <dd>{{ detail.value }}</dd>
+            </div>
+          </dl>
+          <p v-if="diagnostic.resolution" class="diagnostic-resolution">
+            处理建议：{{ diagnostic.resolution }}
+          </p>
+        </section>
+      </div>
     </div>
   </div>
 </template>
@@ -304,10 +343,69 @@ const pluginTypeInfo = computed(() => {
   justify-content: center;
 }
 
-.broken-error {
-  color: var(--el-color-danger) !important;
-  font-family: monospace;
+.plugin-diagnostics {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-left: 3px solid var(--el-color-danger);
+  padding-left: 10px;
+}
+
+.diagnostic-item {
+  min-width: 0;
+}
+
+.diagnostic-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--el-color-danger);
+  font-size: 13px;
+}
+
+.diagnostic-heading code {
+  color: var(--text-color-secondary);
+  font-size: 11px;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.diagnostic-message,
+.diagnostic-resolution {
+  margin: 4px 0 0;
+  color: var(--text-color);
   font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.diagnostic-details {
+  display: grid;
+  gap: 3px;
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+
+.diagnostic-details > div {
+  display: grid;
+  grid-template-columns: minmax(88px, 120px) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.diagnostic-details dt {
+  color: var(--text-color-secondary);
+}
+
+.diagnostic-details dd {
+  margin: 0;
+  color: var(--text-color);
+  font-family: monospace;
+  overflow-wrap: anywhere;
+}
+
+.diagnostic-resolution {
+  color: var(--el-color-warning-dark-2);
 }
 
 :deep(.el-button) {

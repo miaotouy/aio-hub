@@ -303,6 +303,7 @@ defineExpose({
         :llm-think-rules="llmThinkRules"
         :rich-text-style-options="richTextStyleOptions"
         :message-depth="messageDepth"
+        :screenshot-mode="props.screenshotMode"
         @save-edit="saveEdit"
         @cancel-edit="cancelEdit"
         @save-to-branch="onSaveToBranch"

@@ -56,6 +56,7 @@ import { useConnectionTest } from "./composables/useConnectionTest";
 import type { LlmProfile } from "@/types/llm-profiles";
 import type { ParsedLlmProfileDraft } from "@/utils/llm-config-import";
 import { customMessage } from "@/utils/customMessage";
+import { resolveAppliedModelGroup } from "@/utils/modelMetadataApplication";
 
 // ─── Composables ───
 const {
@@ -429,7 +430,7 @@ const applyMatchedModelMetadata = (
   return {
     ...model,
     provider,
-    group: model.group || matchedProps?.group,
+    group: resolveAppliedModelGroup(model.group, matchedProps?.group),
     icon: model.icon || matchedProps?.icon,
     description: model.description || matchedProps?.description,
     capabilities: {

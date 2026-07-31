@@ -16,19 +16,15 @@
  * 思绪集业务编排层 (统一编排器)
  * 职责: 协调 Core 层纯函数与 Tauri 后端，执行完整业务流程
  *
- * 包含三大核心能力:
+ * 包含两项核心能力:
  * 1. IndexingOrchestrator - 索引编排（条目向量化、标签同步）
- * 2. SearchOrchestrator - 检索编排（环境准备、向量搜索）
- * 3. VectorSyncManager - 向量同步（覆盖率检查、自动补全）
+ * 2. VectorSyncManager - 向量同步（覆盖率检查、自动补全）
  */
 
 import { invoke } from "@tauri-apps/api/core";
 import type { LlmProfile } from "@/types/llm-profiles";
 import type { RecallEntry, RecallRequestSettings } from "../types";
-import type { RecallResult, RetrievalEngineInfo } from "../types/search";
 import { generateVectors, vectorizeTags } from "../core/embedding";
-import { prepareSearchVector } from "../core/search";
-import { engineRequiresEmbedding } from "../core/engineCapabilities";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("recall-orchestrator");
@@ -328,140 +324,5 @@ export class VectorSyncManager {
     }
 
     logger.info(`向量自动补全任务结束`, { modelId, completed: current });
-  }
-}
-
-// ============================================================================
-// 检索编排器 (Search Orchestrator)
-// ============================================================================
-
-export class SearchOrchestrator {
-  constructor(
-    private config: OrchestratorConfig = {},
-    private syncManager?: VectorSyncManager
-  ) {}
-
-  /**
-   * 执行统一检索流程
-   */
-  async search(params: {
-    query: string;
-    engineId: string;
-    recallIds: string[];
-    modelId?: string;
-    profile?: LlmProfile;
-    limit?: number;
-    extraFilters?: Record<string, any>;
-    vector_payload?: number[];
-    availableEngines?: RetrievalEngineInfo[];
-    skipPrep?: boolean;
-    onCoverageRequired?: (
-      data: CoverageData
-    ) => Promise<"cancel" | "fill" | "ignore">;
-  }): Promise<RecallResult[]> {
-    const {
-      query,
-      engineId,
-      recallIds,
-      modelId,
-      profile,
-      limit = 20,
-      extraFilters,
-      vector_payload,
-      availableEngines,
-      skipPrep = false,
-      onCoverageRequired,
-    } = params;
-
-    if (!query.trim()) return [];
-    if (recallIds.length === 0) throw new Error("请先选择思绪集");
-
-    const isVectorEngine = engineRequiresEmbedding(engineId, availableEngines);
-    let vector: number[] | undefined;
-
-    // 1. 如果是向量引擎，执行环境准备和向量获取
-    if (isVectorEngine) {
-      if (!modelId) throw new Error("执行向量搜索需要配置模型信息");
-
-      if (!skipPrep) {
-        if (!profile) throw new Error("执行向量搜索需要配置模型 Profile");
-        // A. 覆盖率检查与补全 (由外部 UI 控制)
-        if (onCoverageRequired && this.syncManager) {
-          const coverage = await this.syncManager.checkCoverage({
-            recallIds,
-            modelId,
-          });
-          if (coverage.missingEntries > 0) {
-            const action = await onCoverageRequired({
-              ...coverage,
-              modelId,
-            });
-
-            if (action === "cancel") return [];
-            if (action === "fill") {
-              await this.syncManager.syncMissingVectors({
-                missingMap: coverage.missingMap,
-                modelId,
-                profile,
-              });
-            }
-          }
-        }
-
-        // B. 环境准备：加载向量到内存
-        for (const recallId of recallIds) {
-          await invoke("recall_load_model_vectors", { recallId, modelId });
-        }
-        // 确保标签池索引就绪
-        await invoke("recall_rebuild_tag_pool_index", { modelId });
-      }
-
-      // 获取查询向量 (Core 层纯函数)
-      if (vector_payload) {
-        vector = vector_payload;
-      } else {
-        if (!profile) throw new Error("生成查询向量需要配置模型 Profile");
-        vector = await prepareSearchVector({
-          query,
-          modelId,
-          profile,
-          requestSettings: this.config.requestSettings,
-        });
-      }
-    }
-
-    // 2. 调用后端检索
-    const results = await invoke<RecallResult[]>("recall_search", {
-      query,
-      filters: {
-        recallIds,
-        limit,
-        engineId,
-        ...(extraFilters || {}),
-      },
-      engineId,
-      vectorPayload: vector,
-      model: modelId,
-    });
-
-    logger.info(`检索执行完成 [${engineId}]`, { count: results.length });
-    return results;
-  }
-
-  /**
-   * 极简外部检索接口
-   */
-  async searchExternally(params: {
-    query: string;
-    modelId: string;
-    profile: LlmProfile;
-    recallIds?: string[];
-    engineId?: string;
-  }): Promise<RecallResult[]> {
-    return this.search({
-      ...params,
-      engineId: params.engineId || "vector",
-      recallIds: params.recallIds || [],
-    });
   }
 }

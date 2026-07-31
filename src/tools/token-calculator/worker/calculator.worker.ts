@@ -18,14 +18,13 @@
  * 协议：
  * - 启动 → postMessage({ type: "ready" })，等待主线程 init
  * - 收到 { type: "init", profiles, rules } → 重建 engine 状态 → postMessage({ type: "initialized" })
- * - 计算时若需要 local/remote profile 数据 → postMessage({ type: "needProfileData", profileId })
+ * - 计算时按需请求 bundled/local/remote profile 数据 → postMessage({ type: "needProfileData", profileId })
  * - 主线程回推 { type: "profileData", profileId, tokenizerJSON, tokenizerConfigJSON } → 引擎实例化
  *
  * 详见 docs/Plan/分词器资产注册表方案.md §9
  */
 
 import { tokenCalculatorEngine } from "../core/tokenCalculatorEngine";
-import { WORKER_BUILTIN_LOADERS } from "../data/builtin-tokenizer-index";
 import type { WorkerInbound, WorkerOutbound } from "./workerProtocol";
 import type {
   TokenizerProfile,
@@ -90,16 +89,6 @@ function installProfileDataFetcher() {
  */
 function applyRegistry(profiles: TokenizerProfile[], rules: TokenizerRule[]) {
   tokenCalculatorEngine.setRegistry({ profiles, rules });
-
-  // 为 bundled 来源的 profile 注入静态 loader
-  for (const profile of profiles) {
-    if (profile.source.type === "bundled") {
-      const loader = WORKER_BUILTIN_LOADERS[profile.source.packageName];
-      if (loader) {
-        tokenCalculatorEngine.setLoader(profile.id, loader);
-      }
-    }
-  }
 }
 
 /**

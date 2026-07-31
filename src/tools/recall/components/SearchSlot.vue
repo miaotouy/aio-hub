@@ -2,590 +2,470 @@
   Copyright 2025-2026 miaotouy(Github@miaotouy)
 
   Licensed under the Apache License, Version 2.0 (the "License");
-  you may not use this file except in compliance with the License.
-  You may obtain a copy of the License at
-
-      http://www.apache.org/licenses/LICENSE-2.0
-
-  Unless required by applicable law or agreed to in writing, software
-  distributed under the License is distributed on an "AS IS" BASIS,
-  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  See the License for the specific language governing permissions and
-  limitations under the License.
 -->
 
-<template>
-  <div class="search-slot">
-    <div class="slot-header">
-      <div class="engine-select-wrapper">
-        <el-select
-          v-model="engineId"
-          placeholder="选择检索引擎"
-          style="width: 100%"
-          popper-class="recall-search-engine-popper"
-          data-testid="recall-search-engine"
-          :data-engine-id="engineId"
-        >
-          <template #prefix>
-            <Icon
-              :icon="activeEngine?.icon || 'lucide:cpu'"
-              :width="16"
-              :height="16"
-            />
-          </template>
-          <el-option
-            v-for="engine in recallStore.engines"
-            :key="engine.id"
-            :label="engine.name"
-            :value="engine.id"
-            data-testid="recall-search-engine-option"
-            :data-engine-id="engine.id"
-          >
-            <div class="engine-option">
-              <Icon
-                :icon="engine.icon || 'lucide:cpu'"
-                :width="16"
-                :height="16"
-              />
-              <div class="engine-option-info">
-                <div class="name">{{ engine.name }}</div>
-                <div class="desc">{{ engine.description }}</div>
-              </div>
-            </div>
-          </el-option>
-        </el-select>
-      </div>
-      <el-button
-        v-if="canRemove"
-        type="danger"
-        plain
-        circle
-        @click="$emit('remove')"
-      >
-        <X :size="14" />
-      </el-button>
-    </div>
-
-    <div class="slot-body custom-scrollbar">
-      <VectorCoverageDialog ref="coverageDialog" />
-      <VectorGenerationProgress ref="generationProgress" />
-
-      <!-- 参数配置区 (可折叠) -->
-      <div v-if="hasEngineParams" class="config-section">
-        <div class="config-header" @click="configExpanded = !configExpanded">
-          <Icon
-            :icon="
-              configExpanded ? 'lucide:chevron-down' : 'lucide:chevron-right'
-            "
-            :width="14"
-          />
-          <span class="config-title">引擎参数</span>
-          <div class="spacer"></div>
-          <span class="config-hint">{{
-            configExpanded ? "收起" : "展开"
-          }}</span>
-        </div>
-
-        <el-collapse-transition>
-          <div v-show="configExpanded">
-            <div class="config-body">
-              <el-form label-position="top">
-                <!-- 如果引擎需要嵌入模型，显式渲染模型选择器 -->
-                <el-form-item
-                  v-if="activeEngine?.requiresEmbedding"
-                  label="EMBEDDING MODEL"
-                >
-                  <LlmModelSelector
-                    v-model="config.embeddingModel"
-                    :capabilities="{ embedding: true, rerank: false }"
-                    placeholder="选择 Embedding 模型"
-                  />
-                </el-form-item>
-
-                <SettingListRenderer
-                  v-model:settings="config"
-                  :settings-context="displaySettings"
-                  :items="activeEngine?.parameters || []"
-                />
-              </el-form>
-            </div>
-          </div>
-        </el-collapse-transition>
-      </div>
-
-      <!-- 结果列表 -->
-      <div
-        v-loading="loading"
-        element-loading-background="rgba(0, 0, 0, 0)"
-        class="results-list"
-        data-testid="recall-search-results"
-        :data-search-state="loading ? 'loading' : 'idle'"
-        :data-last-query="lastQuery || undefined"
-        :data-result-count="results.length"
-      >
-        <template v-if="results.length > 0">
-          <div
-            v-for="(result, index) in results"
-            :key="result.entry.id"
-            class="result-card"
-            data-testid="recall-search-result"
-            :data-recall-id="result.recallId || undefined"
-            :data-entry-id="result.entry.id"
-            :data-match-type="result.matchType"
-            :data-trace-engine="result.trace?.engineId || undefined"
-            :data-trace-version="result.trace?.algorithmVersion || undefined"
-            :data-trace-rank="result.trace?.rank || undefined"
-            :class="{ 'is-shared': sharedResultIds.has(result.entry.id) }"
-            @click="$emit('select', result)"
-          >
-            <div class="result-header">
-              <span class="rank">#{{ index + 1 }}</span>
-              <span
-                class="score"
-                data-testid="recall-search-result-score"
-                :data-score="result.score"
-                >{{ result.score.toFixed(3) }}</span
-              >
-              <span
-                v-if="sharedResultIds.has(result.entry.id)"
-                class="shared-tag"
-                >共同命中</span
-              >
-              <div class="spacer"></div>
-              <el-tooltip
-                content="查看完整详情"
-                placement="top"
-                :show-after="500"
-              >
-                <ExternalLink :size="12" class="detail-icon" />
-              </el-tooltip>
-            </div>
-            <div class="result-key">{{ result.entry.key }}</div>
-            <div class="result-content">
-              {{ result.entry.content.substring(0, 100) }}...
-            </div>
-          </div>
-        </template>
-        <el-empty
-          v-else
-          :description="loading ? '正在检索...' : '暂无结果'"
-          :image-size="60"
-        />
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
-import { X, ExternalLink } from "lucide-vue-next";
-import { Icon } from "@iconify/vue";
-import { useRecallCollectionStore } from "../stores/recallCollectionStore";
-import { useRecallSearchManager } from "../composables/useRecallSearchManager";
-import { getPureModelId } from "../utils/recallUtils";
-import { RecallResult } from "../types/search";
-import VectorCoverageDialog from "./VectorCoverageDialog.vue";
-import VectorGenerationProgress from "./VectorGenerationProgress.vue";
-import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
-import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
+import { computed, ref, watch } from "vue";
+import { ExternalLink, RotateCcw, SlidersHorizontal, X } from "lucide-vue-next";
+import { customMessage } from "@/utils/customMessage";
+import { getIntegerOverrideBounds } from "../core/retrievalPresetCapabilities";
+import RetrievalPipelineEditorDialog from "./RetrievalPipelineEditorDialog.vue";
+import {
+  useRetrievalPipelineRun,
+  type RetrievalPipelineRunSnapshot,
+} from "../composables/useRetrievalPipelineRun";
+import type {
+  RecallPresetId,
+  RecallPresetSummary,
+  RecallRetrievalModuleInfo,
+  RecallRetrievalPipelineV1,
+} from "../types/pipeline";
+import { getRetrievalPipelineTemplate } from "../services/retrievalPipeline";
+import type { RecallResult } from "../types/search";
 
 const props = defineProps<{
   selectedRecallIds: string[];
   canRemove: boolean;
   sharedResultIds: Set<string>;
+  presetSummaries: RecallPresetSummary[];
+  modules: RecallRetrievalModuleInfo[];
   queryText: string;
-  initialEngineId?: string;
-  initialConfig?: any;
-  initialResults?: RecallResult[];
+  initialPresetId?: RecallPresetId;
+  initialLimit?: number;
 }>();
 
 const emit = defineEmits<{
-  (e: "remove"): void;
-  (e: "select", result: RecallResult): void;
-  (e: "results-updated", results: RecallResult[]): void;
-  (e: "update:engineId", val: string): void;
-  (e: "update:config", val: any): void;
+  (event: "remove"): void;
+  (
+    event: "select",
+    result: RecallResult,
+    context: RetrievalPipelineRunSnapshot | null
+  ): void;
+  (event: "results-updated", results: RecallResult[]): void;
+  (
+    event: "update:config",
+    value: { presetId: RecallPresetId; limit: number }
+  ): void;
 }>();
 
-const recallStore = useRecallCollectionStore();
-const {
-  results,
-  loading,
-  lastQuery,
-  search: _search,
-} = useRecallSearchManager();
-
-// 初始化结果
-if (props.initialResults && props.initialResults.length > 0) {
-  results.value = [...props.initialResults];
-}
-
-const engineId = ref(props.initialEngineId || "keyword");
-const coverageDialog = ref<any>(null);
-const generationProgress = ref<any>(null);
-const configExpanded = ref(true);
-
-const config = ref<any>({
-  embeddingModel:
-    props.initialConfig?.embeddingModel ??
-    (recallStore.config.defaultEmbeddingModel || ""),
-  ...(props.initialConfig || {}),
-});
-
-/**
- * 适配层：将平铺的 config 包装成符合设置项插值预期的结构
- * 许多引擎参数的 label 使用了 {{ localSettings.vectorIndex.xxx }}
- */
-const displaySettings = computed(() => {
-  return {
-    ...recallStore.config, // 包含全局配置作为回退
-    ...config.value,
-    vectorIndex: {
-      ...recallStore.config.vectorIndex,
-      ...config.value, // 将平铺的参数映射到 vectorIndex 下供插值使用
-    },
-  };
-});
-
-const activeEngine = computed(() =>
-  recallStore.engines.find((e) => e.id === engineId.value)
+const controller = useRetrievalPipelineRun();
+const presetId = ref<RecallPresetId>(props.initialPresetId ?? "algorithmic");
+const limit = ref(props.initialLimit ?? 6);
+const lastQuery = ref("");
+const editorVisible = ref(false);
+const editorPipeline = ref<RecallRetrievalPipelineV1 | null>(null);
+const customPipeline = ref<RecallRetrievalPipelineV1 | null>(null);
+const editorLoading = ref(false);
+const customMode = computed(() => customPipeline.value !== null);
+const selectedSummary = computed(() =>
+  props.presetSummaries.find((summary) => summary.id === presetId.value)
 );
-const isVectorEngine = computed(() => activeEngine.value?.requiresEmbedding);
-const hasEngineParams = computed(
+const limitBounds = computed(
   () =>
-    (activeEngine.value?.parameters?.length || 0) > 0 ||
-    activeEngine.value?.requiresEmbedding
-);
-
-// 监听模型变化，重置结果并同步到父组件
-watch(
-  () => config.value.embeddingModel,
-  () => {
-    results.value = [];
-  }
-);
-
-watch(
-  () => engineId.value,
-  (val) => emit("update:engineId", val)
-);
-
-watch(config, (val) => emit("update:config", { ...val }), { deep: true });
-
-async function search(
-  query: string,
-  options: { skipCoverageCheck?: boolean } = {}
-) {
-  try {
-    // 将 config 中的所有参数（除 embeddingModel 外）作为 extraFilters 传递
-    // 注意：SettingListRenderer 可能会根据 modelPath 写入嵌套的 vectorIndex 对象
-    const { embeddingModel, vectorIndex, ...otherParams } = config.value;
-    const extraFilters = {
-      ...otherParams,
-      ...(vectorIndex || {}), // 拍平 vectorIndex
-    };
-
-    const searchResults = await _search({
-      query,
-      engineId: engineId.value,
-      recallIds: props.selectedRecallIds,
-      embeddingModel,
-      extraFilters,
-      skipCoverageCheck: options.skipCoverageCheck,
-      onCoverageRequired: async (data: any) => {
-        const action = await coverageDialog.value.show([
-          {
-            modelName: getPureModelId(data.modelId),
-            recallNames: props.selectedRecallIds,
-            missingEntries: data.missingEntries,
-            missingMap: data.missingMap,
-          },
-        ]);
-        if (action === "fill") {
-          generationProgress.value.show(data.missingEntries);
-        }
-        return action;
-      },
-      onProgress: (current: number) => {
-        generationProgress.value.update(current);
-      },
-    });
-
-    if (searchResults) {
-      emit("results-updated", searchResults);
+    getIntegerOverrideBounds(selectedSummary.value, "limit") ?? {
+      minimum: 1,
+      maximum: 100,
+      defaultValue: 6,
     }
-  } catch (error: any) {
-    console.error(`[SearchSlot] 检索失败:`, error);
-  }
+);
+const stateLabel = computed(
+  () =>
+    ({
+      idle: "待运行",
+      compiling: "编译中",
+      blocked: "已阻塞",
+      ready: "已编译",
+      preparing: "准备资产",
+      running: "运行中",
+      success: "成功",
+      empty: "空结果",
+      fallback: "已降级",
+      failed: "失败",
+      cancelled: "已取消",
+    })[controller.state.value]
+);
+const stateType = computed(() => {
+  if (controller.state.value === "success") return "success";
+  if (controller.state.value === "fallback") return "warning";
+  if (["blocked", "failed"].includes(controller.state.value)) return "danger";
+  return "info";
+});
+const traceText = computed(() =>
+  controller.snapshot.value?.trace
+    ? JSON.stringify(controller.snapshot.value.trace, null, 2)
+    : ""
+);
+
+watch([presetId, limit], () => {
+  if (customMode.value) return;
+  editorPipeline.value = null;
+  controller.reset();
+  emit("results-updated", []);
+  emit("update:config", { presetId: presetId.value, limit: limit.value });
+});
+
+async function search(query: string) {
+  lastQuery.value = query;
+  const snapshot = customPipeline.value
+    ? await controller.runCustom({
+        query,
+        recallIds: props.selectedRecallIds,
+        pipeline: customPipeline.value,
+      })
+    : await controller.run({
+        query,
+        recallIds: props.selectedRecallIds,
+        presetId: presetId.value,
+        limit: limit.value,
+      });
+  if (snapshot) emit("results-updated", snapshot.results);
+  return snapshot;
 }
 
-defineExpose({
-  search,
-  config,
-  isVectorEngine,
-  selectedRecallIds: props.selectedRecallIds,
-});
+async function openPipelineEditor() {
+  if (!editorPipeline.value) {
+    editorLoading.value = true;
+    try {
+      editorPipeline.value =
+        customPipeline.value ??
+        (await getRetrievalPipelineTemplate(presetId.value, limit.value));
+    } catch (error) {
+      customMessage.error(
+        error instanceof Error ? error.message : "加载检索管线模板失败"
+      );
+      return;
+    } finally {
+      editorLoading.value = false;
+    }
+  }
+  editorVisible.value = true;
+}
+
+function applyCustomPipeline(pipeline: RecallRetrievalPipelineV1) {
+  customPipeline.value = pipeline;
+  editorPipeline.value = pipeline;
+  controller.reset();
+  emit("results-updated", []);
+}
+
+function resetCustomPipeline() {
+  customPipeline.value = null;
+  editorPipeline.value = null;
+  controller.reset();
+  emit("results-updated", []);
+}
+
+defineExpose({ search });
 </script>
+
+<template>
+  <section class="search-slot">
+    <header class="slot-header">
+      <el-select
+        v-model="presetId"
+        class="preset-select"
+        :disabled="customMode"
+        data-testid="recall-search-preset"
+      >
+        <el-option
+          v-for="summary in presetSummaries"
+          :key="summary.id"
+          :label="summary.displayName"
+          :value="summary.id"
+        />
+      </el-select>
+      <el-tag size="small" :type="stateType">{{ stateLabel }}</el-tag>
+      <el-tag
+        v-if="customMode"
+        size="small"
+        type="warning"
+        data-testid="recall-pipeline-custom-mode"
+      >
+        自定义
+      </el-tag>
+      <el-button
+        circle
+        plain
+        :icon="SlidersHorizontal"
+        title="编辑检索阶段"
+        data-testid="recall-pipeline-editor-open"
+        :loading="editorLoading"
+        :disabled="!modules.length"
+        @click="openPipelineEditor"
+      />
+      <el-button
+        v-if="customMode"
+        circle
+        plain
+        :icon="RotateCcw"
+        title="恢复预设"
+        @click="resetCustomPipeline"
+      />
+      <el-button
+        v-if="canRemove"
+        circle
+        plain
+        type="danger"
+        title="移除配置"
+        @click="emit('remove')"
+      >
+        <X :size="14" />
+      </el-button>
+    </header>
+
+    <div class="slot-config">
+      <div class="preset-copy">
+        <strong>
+          {{
+            customMode
+              ? "Playground 自定义管线"
+              : selectedSummary?.displayName || presetId
+          }}
+        </strong>
+        <span>
+          {{
+            customMode
+              ? customPipeline?.algorithmVersion
+              : selectedSummary?.description
+          }}
+        </span>
+      </div>
+      <label v-if="!customMode" class="limit-control">
+        <span>结果上限</span>
+        <el-input-number
+          v-model="limit"
+          :min="limitBounds.minimum"
+          :max="limitBounds.maximum"
+          controls-position="right"
+        />
+      </label>
+    </div>
+
+    <div
+      class="slot-body"
+      :data-search-state="controller.state.value"
+      :data-last-query="lastQuery || undefined"
+      :data-result-count="controller.results.value.length"
+    >
+      <div v-if="controller.compilation.value" class="compile-stages">
+        <span
+          v-for="stage in controller.compilation.value.stages"
+          :key="stage.phase"
+          class="stage-chip"
+        >
+          {{ stage.phase }} · {{ stage.nodeIds.length }}
+        </span>
+      </div>
+
+      <div v-if="controller.error.value" class="run-error">
+        {{ controller.error.value.message }}
+      </div>
+      <div
+        v-for="issue in controller.compilation.value?.issues || []"
+        :key="`${issue.code}:${issue.fieldPath || ''}`"
+        class="run-error"
+      >
+        {{ issue.message }}
+      </div>
+
+      <div v-loading="controller.loading.value" class="results-list">
+        <button
+          v-for="(result, index) in controller.results.value"
+          :key="`${result.recallId}:${result.entry.id}`"
+          class="result-row"
+          :class="{ shared: sharedResultIds.has(result.entry.id) }"
+          @click="emit('select', result, controller.snapshot.value)"
+        >
+          <span class="rank">#{{ index + 1 }}</span>
+          <span class="result-main">
+            <strong>{{ result.entry.key }}</strong>
+            <small>{{ result.entry.content.slice(0, 110) }}</small>
+          </span>
+          <span class="score">{{ result.score.toFixed(3) }}</span>
+          <ExternalLink :size="13" />
+        </button>
+        <el-empty
+          v-if="
+            !controller.loading.value && controller.results.value.length === 0
+          "
+          :description="
+            controller.state.value === 'empty' ? '空结果' : '暂无结果'
+          "
+          :image-size="54"
+        />
+      </div>
+
+      <el-collapse v-if="traceText" class="trace-panel">
+        <el-collapse-item title="运行 trace" name="trace">
+          <pre>{{ traceText }}</pre>
+        </el-collapse-item>
+      </el-collapse>
+    </div>
+
+    <RetrievalPipelineEditorDialog
+      v-model="editorVisible"
+      :pipeline="editorPipeline"
+      :modules="modules"
+      @apply="applyCustomPipeline"
+    />
+  </section>
+</template>
 
 <style scoped>
 .search-slot {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  min-width: 0;
   height: 100%;
-  border: var(--border-width) solid var(--border-color);
-  border-radius: 12px;
-  background-color: var(--card-bg);
-  overflow: hidden;
-  min-width: 320px;
-  flex: 1;
+  border-left: var(--border-width) solid var(--border-color);
+  background: var(--card-bg);
+}
+
+.search-slot:first-child {
+  border-left: 0;
+}
+
+.slot-header,
+.slot-config,
+.limit-control,
+.result-row,
+.preset-copy,
+.result-main {
+  display: flex;
 }
 
 .slot-header {
-  padding: 12px;
-  display: flex;
   align-items: center;
-  gap: 8px;
-  background-color: var(--card-bg);
+  gap: 10px;
+  min-height: 54px;
+  padding: 10px 14px;
   border-bottom: var(--border-width) solid var(--border-color);
 }
 
-.engine-select-wrapper {
+.preset-select {
+  min-width: 0;
   flex: 1;
 }
 
-.engine-option {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 0;
+.slot-config {
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border-bottom: var(--border-width) solid var(--border-color);
+  background: var(--el-fill-color-lighter);
 }
 
-.engine-option-info {
-  display: flex;
+.preset-copy,
+.result-main {
+  min-width: 0;
   flex-direction: column;
-  line-height: 1.2;
+  gap: 3px;
 }
 
-.engine-option-info .name {
-  font-weight: 600;
+.preset-copy strong,
+.result-main strong {
   font-size: 13px;
 }
 
-.engine-option-info .desc {
-  font-size: 11px;
+.preset-copy span,
+.result-main small {
+  overflow: hidden;
   color: var(--el-text-color-secondary);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.limit-control {
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 8px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.limit-control :deep(.el-input-number) {
+  width: 108px;
 }
 
 .slot-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 14px;
 }
 
-.config-section {
+.compile-stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.stage-chip {
+  padding: 2px 6px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
-  /* 移除 overflow: hidden 以免干扰 collapse 动画 */
-  background-color: rgba(var(--el-text-color-placeholder-rgb), 0.02);
-}
-
-.config-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  cursor: pointer;
-  user-select: none;
-  background-color: rgba(var(--el-color-primary-rgb), 0.03);
-  border-radius: 8px;
-  transition: background-color 0.2s;
-}
-
-.config-header:hover {
-  background-color: rgba(var(--el-color-primary-rgb), 0.1);
-}
-
-.config-title {
-  font-size: 12px;
-  font-weight: bold;
-  color: var(--el-text-color-primary);
-}
-
-.config-hint {
-  font-size: 11px;
-  color: var(--el-text-color-placeholder);
-}
-
-.config-body {
-  padding: 12px;
-}
-
-.config-body :deep(.el-form-item) {
-  margin-bottom: 12px;
-  padding-left: 0; /* 侧边栏内不需要额外的左缩进 */
-}
-
-.config-body :deep(.el-form-item:last-child) {
-  margin-bottom: 0;
-}
-
-.config-body :deep(.el-form-item__label) {
-  padding-bottom: 4px !important;
-  line-height: 1.2 !important;
-  font-size: 11px !important;
-  font-weight: bold !important;
-  color: var(--el-text-color-secondary) !important;
-  text-transform: uppercase;
-}
-
-.config-group-title {
-  font-size: 11px;
-  font-weight: bold;
-  color: var(--el-color-primary);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 4px;
-  opacity: 0.8;
-}
-
-.spacer {
-  flex: 1;
-}
-
-.config-item {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.label-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.config-item .label {
-  font-size: 11px;
-  font-weight: bold;
-  color: var(--el-text-color-secondary);
-  text-transform: uppercase;
-}
-
-.info-icon {
-  color: var(--el-text-color-placeholder);
-  cursor: help;
-}
-
-.query-preview {
-  padding: 10px;
-  background-color: rgba(var(--el-color-primary-rgb), 0.02);
-  border-radius: 8px;
-  border: var(--border-width) solid var(--border-color);
-}
-
-.query-preview .label {
-  font-size: 11px;
-  font-weight: bold;
-  color: var(--el-text-color-secondary);
-  text-transform: uppercase;
-  margin-bottom: 4px;
-}
-
-.query-preview .query-text {
-  font-size: 13px;
-  color: var(--el-text-color-regular);
-  line-height: 1.4;
-  word-break: break-word;
-}
-
-.query-placeholder {
-  padding: 20px 0;
-}
-
-.results-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-height: 100px;
-  position: relative;
-}
-
-:deep(.el-loading-mask) {
-  border-radius: 8px;
-  transition: all 0.3s;
-}
-
-.result-card {
-  padding: 10px;
-  border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-  background-color: rgba(var(--el-color-primary-rgb), 0.01);
-}
-
-.result-card:hover {
-  border-color: var(--el-color-primary);
-  background-color: rgba(var(--el-color-primary-rgb), 0.03);
-}
-
-.result-card.is-shared {
-  border-left: 3px solid var(--el-color-warning);
-}
-
-.result-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-  font-size: 11px;
-}
-
-.result-header .rank {
-  font-weight: bold;
-  color: var(--el-text-color-placeholder);
-}
-
-.result-header .score {
-  color: var(--el-color-success);
-  font-weight: bold;
-}
-
-.detail-icon {
-  color: var(--el-text-color-placeholder);
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.result-card:hover .detail-icon {
-  opacity: 1;
-}
-
-.shared-tag {
-  background-color: var(--el-color-warning-light-9);
-  color: var(--el-color-warning);
-  padding: 1px 4px;
   border-radius: 4px;
+  color: var(--el-text-color-secondary);
   font-size: 10px;
 }
 
-.result-key {
-  font-weight: bold;
-  font-size: 13px;
-  margin-bottom: 4px;
+.run-error {
+  margin-bottom: 8px;
+  color: var(--el-color-danger);
+  font-size: 12px;
 }
 
-.result-content {
-  font-size: 12px;
+.results-list {
+  min-height: 120px;
+}
+
+.result-row {
+  width: 100%;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 0;
+  border: 0;
+  border-bottom: var(--border-width) solid var(--border-color);
+  color: var(--el-text-color-primary);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.result-row:hover {
+  background: var(--el-fill-color-light);
+}
+
+.result-row.shared {
+  box-shadow: inset 3px 0 var(--el-color-warning);
+  padding-left: 8px;
+}
+
+.rank,
+.score {
+  flex: 0 0 auto;
+  color: var(--el-text-color-secondary);
+  font-family: var(--el-font-family-mono);
+  font-size: 11px;
+}
+
+.result-main {
+  flex: 1;
+}
+
+.trace-panel {
+  margin-top: 12px;
+}
+
+.trace-panel pre {
+  max-height: 320px;
+  margin: 0;
+  overflow: auto;
   color: var(--el-text-color-regular);
-  line-height: 1.4;
-  display: -webkit-box;
-  line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  font-family: var(--el-font-family-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
 }
 </style>

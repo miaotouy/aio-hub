@@ -34,10 +34,10 @@ export interface RecallRetrievalRequest {
   mode: "always" | "gate" | "turn" | "static";
   /** 模式特定参数 (如标签列表、轮次数、条目 ID 列表) */
   modeParams?: string[];
-  /** 检索引擎 ID (可选，覆盖默认设置) */
-  engineId?: string;
-  /** 产品召回配置；常规 Chat 运行时优先使用 profile。 */
+  /** Legacy 产品召回配置；新占位符在 parser 层转换为 presetId。 */
   profile?: "semantic" | "associative";
+  /** 新版产品预设；profile 仅由 legacy parser 读取。 */
+  presetId?: "algorithmic" | "comprehensive";
 
   // —— 查询文本（chat 从消息树提取）——
   /** 主查询文本 (通常是当前用户消息) */
@@ -53,10 +53,10 @@ export interface RecallRetrievalRequest {
 
   // —— 检索配置（Chat 从 recallSettings 映射）——
   settings: {
-    /** 默认检索引擎 ID */
-    defaultEngineId?: string;
-    /** 默认 Recall profile。 */
+    /** Legacy 默认 Recall profile。 */
     defaultProfile?: "semantic" | "associative";
+    /** 默认 Recall 预设。 */
+    defaultPresetId?: "algorithmic" | "comprehensive";
     /** 默认召回上限 */
     defaultLimit?: number;
     /** 默认最低分数阈值 */

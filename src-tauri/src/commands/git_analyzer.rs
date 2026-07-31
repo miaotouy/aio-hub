@@ -97,6 +97,7 @@ pub enum GitProgressEvent {
     Start {
         total: usize,
         branches: Vec<GitBranch>,
+        branch: Option<String>,
     },
     Data {
         commits: Vec<GitCommit>,
@@ -315,9 +316,11 @@ pub async fn git_enrich_commits_stream(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn git_load_repository_stream(
     window: tauri::Window,
     path: String,
+    branch: Option<String>,
     limit: usize,
     batch_size: Option<usize>,
     include_files: Option<bool>,
@@ -348,6 +351,16 @@ pub async fn git_load_repository_stream(
             }
         };
 
+        // 已保存的分支可能属于另一个仓库；此时回退到当前检出分支。
+        let selected_branch = branch
+            .filter(|name| branches.iter().any(|candidate| candidate.name == *name))
+            .or_else(|| {
+                branches
+                    .iter()
+                    .find(|candidate| candidate.current)
+                    .map(|candidate| candidate.name.clone())
+            });
+
         // 先发送开始事件，避免主线程等待完整 revwalk 计数。
         let estimated_total = limit;
         let _ = window.emit(
@@ -355,6 +368,7 @@ pub async fn git_load_repository_stream(
             GitProgressEvent::Start {
                 total: estimated_total,
                 branches: branches.clone(),
+                branch: selected_branch.clone(),
             },
         );
 
@@ -382,22 +396,14 @@ pub async fn git_load_repository_stream(
 
         let revwalk = match repo.revwalk() {
             Ok(mut rw) => {
-                let head_oid = match repo.head().and_then(|h| {
-                    h.target()
-                        .ok_or(git2::Error::from_str("HEAD has no target"))
-                }) {
+                let start_oid = match resolve_start_oid(&repo, selected_branch.as_deref()) {
                     Ok(oid) => oid,
                     Err(e) => {
-                        let _ = window.emit(
-                            "git-progress",
-                            GitProgressEvent::Error {
-                                message: format!("获取 HEAD 失败: {}", e),
-                            },
-                        );
+                        let _ = window.emit("git-progress", GitProgressEvent::Error { message: e });
                         return;
                     }
                 };
-                let _ = rw.push(head_oid);
+                let _ = rw.push(start_oid);
                 let _ = rw.set_sorting(git2::Sort::TIME);
                 rw
             }
@@ -531,6 +537,7 @@ pub async fn git_load_incremental_stream(
             GitProgressEvent::Start {
                 total: if limit == 0 { 0 } else { skip + limit },
                 branches: vec![],
+                branch: branch.clone(),
             },
         );
 
@@ -891,6 +898,26 @@ pub async fn git_format_log(
 }
 
 // 辅助函数
+fn resolve_start_oid(repo: &Repository, branch: Option<&str>) -> Result<Oid, String> {
+    if let Some(branch_name) = branch.filter(|name| !name.is_empty()) {
+        let reference = repo
+            .find_reference(&format!("refs/heads/{}", branch_name))
+            .or_else(|_| repo.find_reference(&format!("refs/remotes/{}", branch_name)))
+            .or_else(|_| repo.find_reference(&format!("refs/remotes/origin/{}", branch_name)))
+            .or_else(|_| repo.find_reference(branch_name))
+            .map_err(|e| format!("Failed to find branch '{}': {}", branch_name, e))?;
+
+        return reference
+            .target()
+            .ok_or_else(|| format!("Branch '{}' has no target", branch_name));
+    }
+
+    repo.head()
+        .map_err(|e| format!("Failed to get HEAD: {}", e))?
+        .target()
+        .ok_or_else(|| "HEAD has no target".to_string())
+}
+
 fn get_branches(repo_path: &str) -> Result<Vec<GitBranch>, String> {
     let repo =
         Repository::open(repo_path).map_err(|e| format!("Failed to open repository: {}", e))?;
@@ -1544,4 +1571,39 @@ fn get_total_commits(repo_path: &str, branch: Option<&str>) -> Result<usize, Str
         .map_err(|e| format!("Failed to push starting commit: {}", e))?;
 
     Ok(revwalk.count())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_start_oid;
+    use git2::{Repository, Signature};
+
+    #[test]
+    fn resolves_selected_branch_instead_of_head() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let repo = Repository::init(temp_dir.path()).expect("init repository");
+        let signature = Signature::now("tester", "tester@example.com").expect("signature");
+        let tree_oid = repo.index().expect("index").write_tree().expect("tree oid");
+        let tree = repo.find_tree(tree_oid).expect("tree");
+        let main_oid = repo
+            .commit(Some("HEAD"), &signature, &signature, "main", &tree, &[])
+            .expect("main commit");
+        let main_commit = repo.find_commit(main_oid).expect("main commit lookup");
+        let feature_oid = repo
+            .commit(
+                Some("refs/heads/feature"),
+                &signature,
+                &signature,
+                "feature",
+                &tree,
+                &[&main_commit],
+            )
+            .expect("feature commit");
+
+        assert_eq!(resolve_start_oid(&repo, None).unwrap(), main_oid);
+        assert_eq!(
+            resolve_start_oid(&repo, Some("feature")).unwrap(),
+            feature_oid
+        );
+    }
 }

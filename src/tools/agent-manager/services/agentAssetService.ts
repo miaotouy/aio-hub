@@ -20,6 +20,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
 import type { ChatAgent } from "../types/agent";
+import { getAgentStorageSubdirectory } from "../utils/agentAssetUtils";
 
 const logger = createModuleLogger("llm-chat/agentAssetService");
 
@@ -69,7 +70,7 @@ export async function ensurePresetAssetsImported(
         const buffer = await response.arrayBuffer();
         const filename = fetchUrl.split("/").pop() || "icon.jpg";
 
-        const subdirectory = `llm-chat/agents/${agent.id}`;
+        const subdirectory = getAgentStorageSubdirectory(agent.id);
         const bytes = new Uint8Array(buffer);
 
         await invoke("save_uploaded_file", {
@@ -119,7 +120,10 @@ export async function ensurePresetAssetsImported(
             const relativeSubDir = asset.path.includes("/assets/")
               ? "assets"
               : "";
-            const subdirectory = `llm-chat/agents/${agent.id}${relativeSubDir ? "/" + relativeSubDir : ""}`;
+            const subdirectory = getAgentStorageSubdirectory(
+              agent.id,
+              relativeSubDir
+            );
 
             const bytes = new Uint8Array(buffer);
 

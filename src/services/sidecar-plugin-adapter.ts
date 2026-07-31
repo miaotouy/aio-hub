@@ -29,6 +29,10 @@ import { pluginEnvironmentService } from "./plugin-environment.service";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentPlatform } from "./plugin-loader";
+import {
+  createSidecarHostContext,
+  requiresStrictPluginCompatibility,
+} from "./plugin-api-version";
 
 const logger = createModuleLogger("services/sidecar-plugin-adapter");
 const errorHandler = createModuleErrorHandler(
@@ -49,6 +53,7 @@ interface SidecarOutputEvent {
  */
 interface SidecarResidentEvent {
   plugin_id: string;
+  generation_id?: string;
   event_type: string;
   event_name: string | null;
   data: string;
@@ -88,6 +93,7 @@ export class SidecarPluginAdapter implements PluginProxy {
 
   private unlisten: UnlistenFn | null = null;
   private residentEventUnlisten: UnlistenFn | null = null;
+  private residentGeneration: string | null = null;
   private eventHandlers: Map<string, (event: SidecarOutputEvent) => void> =
     new Map();
   /** 常驻模式自定义事件回调 */
@@ -96,6 +102,7 @@ export class SidecarPluginAdapter implements PluginProxy {
   /** 常驻模式通用事件回调（对应 onSidecarEvent） */
   private sidecarEventCallbacks: Set<(eventName: string, data: any) => void> =
     new Set();
+  private residentRecoveryPromise: Promise<void> | null = null;
 
   constructor(
     manifest: PluginManifest,
@@ -185,7 +192,7 @@ export class SidecarPluginAdapter implements PluginProxy {
 
     try {
       // 启动常驻进程
-      await invoke("sidecar_spawn_resident", {
+      this.residentGeneration = await invoke<string>("sidecar_spawn_resident", {
         pluginId: this.manifest.id,
         executablePath,
         args,
@@ -200,7 +207,11 @@ export class SidecarPluginAdapter implements PluginProxy {
           const data = event.payload;
 
           // 只处理本插件的事件
-          if (data.plugin_id === this.manifest.id) {
+          if (
+            data.plugin_id === this.manifest.id &&
+            (!data.generation_id ||
+              data.generation_id === this.residentGeneration)
+          ) {
             logger.debug(`收到常驻 Sidecar 事件: ${data.event_type}`, {
               eventName: data.event_name,
               data: data.data,
@@ -269,7 +280,8 @@ export class SidecarPluginAdapter implements PluginProxy {
         try {
           const startupResult = await this.executeSidecarResident(
             startupMethod,
-            startupParams
+            this.buildStartupParams(startupParams),
+            false
           );
           logger.info(`常驻插件启动检查/初始化完成: ${this.id}`, {
             result: startupResult,
@@ -295,6 +307,7 @@ export class SidecarPluginAdapter implements PluginProxy {
           await invoke("sidecar_kill_resident", {
             pluginId: this.manifest.id,
           });
+          this.residentGeneration = null;
         } catch (killError) {
           logger.warn(`清理常驻进程失败: ${this.id}`, { killError });
         }
@@ -317,6 +330,8 @@ export class SidecarPluginAdapter implements PluginProxy {
     }
 
     logger.info(`禁用 Sidecar 插件: ${this.id}`);
+    // 先更新内存态，使并发中的超时恢复无法在禁用流程之后重新拉起进程。
+    this.enabled = false;
 
     // 移除一次性模式的事件监听
     if (this.unlisten) {
@@ -340,6 +355,7 @@ export class SidecarPluginAdapter implements PluginProxy {
       } catch (error) {
         errorHandler.error(error, `停止常驻进程失败: ${this.id}`);
       }
+      this.residentGeneration = null;
     }
 
     // 清空处理器
@@ -347,7 +363,6 @@ export class SidecarPluginAdapter implements PluginProxy {
     this.residentEventCallbacks.clear();
     this.sidecarEventCallbacks.clear();
 
-    this.enabled = false;
     await pluginManager.updateRuntimeState(this.id, false);
   }
 
@@ -457,13 +472,26 @@ export class SidecarPluginAdapter implements PluginProxy {
    */
   private async executeSidecarResident(
     methodName: string,
-    params: any
+    params: any,
+    recoverOnTimeout: boolean = true
   ): Promise<any> {
-    const resultJson = await invoke<string>("sidecar_send_command", {
-      pluginId: this.manifest.id,
-      method: methodName,
-      params: params || {},
-    });
+    let resultJson: string;
+
+    try {
+      resultJson = await invoke<string>("sidecar_send_command", {
+        pluginId: this.manifest.id,
+        method: methodName,
+        params: params || {},
+      });
+    } catch (error) {
+      if (recoverOnTimeout && this.isResidentTimeout(error)) {
+        logger.warn(`常驻插件命令超时，正在重启进程: ${this.id}`, {
+          methodName,
+        });
+        await this.recoverResidentProcess();
+      }
+      throw error;
+    }
 
     try {
       const response = JSON.parse(resultJson);
@@ -484,6 +512,78 @@ export class SidecarPluginAdapter implements PluginProxy {
     }
   }
 
+  private isResidentTimeout(error: unknown): boolean {
+    return String(error).includes("命令执行超时");
+  }
+
+  private buildStartupParams(
+    params: Record<string, unknown>
+  ): Record<string, unknown> {
+    return {
+      ...params,
+      hostContext: createSidecarHostContext(),
+    };
+  }
+
+  private async recoverResidentProcess(): Promise<void> {
+    if (this.residentRecoveryPromise) {
+      return this.residentRecoveryPromise;
+    }
+
+    this.residentRecoveryPromise = this.restartResidentProcess().finally(() => {
+      this.residentRecoveryPromise = null;
+    });
+    return this.residentRecoveryPromise;
+  }
+
+  private async restartResidentProcess(): Promise<void> {
+    try {
+      await invoke("sidecar_kill_resident", {
+        pluginId: this.manifest.id,
+      });
+    } catch (error) {
+      logger.warn(`超时恢复时停止旧进程失败: ${this.id}`, { error });
+    }
+
+    if (!this.enabled) {
+      logger.info(`插件已禁用，跳过常驻进程恢复: ${this.id}`);
+      return;
+    }
+
+    this.residentGeneration = await invoke<string>("sidecar_spawn_resident", {
+      pluginId: this.manifest.id,
+      executablePath: this.getExecutablePath(),
+      args: this.manifest.sidecar?.args || [],
+      installPath: this.resolveInstallPath(),
+    });
+
+    if (!this.enabled) {
+      await invoke("sidecar_kill_resident", {
+        pluginId: this.manifest.id,
+      });
+      logger.info(`插件在恢复期间被禁用，已停止新进程: ${this.id}`);
+      return;
+    }
+
+    const startupMethod = this.manifest.sidecar?.startupMethod;
+    if (startupMethod) {
+      await this.executeSidecarResident(
+        startupMethod,
+        this.buildStartupParams(this.manifest.sidecar?.startupParams || {}),
+        false
+      );
+    }
+
+    logger.info(`常驻插件进程已恢复: ${this.id}`);
+  }
+
+  public async restartSidecar(): Promise<void> {
+    if (!this.isResident) {
+      throw new Error(`插件 ${this.id} 不是常驻 Sidecar`);
+    }
+    await this.recoverResidentProcess();
+  }
+
   /**
    * 一次性模式：spawn 进程执行
    */
@@ -500,6 +600,9 @@ export class SidecarPluginAdapter implements PluginProxy {
       params,
       settings: await settings.getAll(),
       environment: pluginEnvironmentService.get(),
+      ...(requiresStrictPluginCompatibility(this.manifest.host?.apiVersion)
+        ? { hostContext: createSidecarHostContext() }
+        : {}),
     };
 
     const request: SidecarExecuteRequest = {

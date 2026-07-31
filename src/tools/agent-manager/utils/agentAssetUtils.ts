@@ -694,9 +694,21 @@ function isLikelyFilename(icon: string): boolean {
   );
 }
 
-/** 获取智能体目录相对于 AppData 的路径。 */
-export function getAgentStorageSubdirectory(agentId: string): string {
-  return `agent-manager/agents/${agentId}`;
+/**
+ * 获取智能体目录相对于 AppData 的路径。
+ *
+ * 所有需要直接读写 Agent 私有文件的调用都应通过此函数构造子目录，
+ * 避免存储根目录重构后出现局部硬编码遗漏。
+ */
+export function getAgentStorageSubdirectory(
+  agentId: string,
+  relativeSubdirectory: string = ""
+): string {
+  const root = `agent-manager/agents/${agentId}`;
+  const normalizedSubdirectory = relativeSubdirectory
+    .replace(/\\/g, "/")
+    .replace(/^\/+|\/+$/g, "");
+  return normalizedSubdirectory ? `${root}/${normalizedSubdirectory}` : root;
 }
 
 /**

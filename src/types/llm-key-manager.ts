@@ -43,6 +43,13 @@ export interface ApiKeyStatus {
  */
 export type ProfileKeyStatusMap = Record<string, ApiKeyStatus>;
 
+export interface ProfileKeyManagerSettings {
+  /** 是否为该渠道启用自动熔断/禁用 */
+  enableAutoDisable: boolean;
+  /** 该渠道的自动恢复时间（毫秒） */
+  autoRecoveryTime: number;
+}
+
 /**
  * 全局 Key 状态存储结构
  * Key 为 profileId
@@ -52,8 +59,6 @@ export interface KeyStatesStorage {
   states: Record<string, ProfileKeyStatusMap>;
   /** 上次使用的 Key 索引（用于轮询持久化，可选） */
   lastUsedIndices: Record<string, number>;
-  /** 是否启用自动熔断/禁用 */
-  enableAutoDisable: boolean;
-  /** 自动恢复时间（毫秒），针对 429 等错误，默认 60000 (1分钟) */
-  autoRecoveryTime?: number;
+  /** profileId -> 渠道级 Key 管理设置 */
+  profileSettings: Record<string, ProfileKeyManagerSettings>;
 }

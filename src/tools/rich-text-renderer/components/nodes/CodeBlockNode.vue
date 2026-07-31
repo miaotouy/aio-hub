@@ -228,10 +228,11 @@ const isAutoPreviewable = computed(() => {
 
 // 监听内容变化，实现流式输出过程中的自动预览切换
 watch(
-  isAutoPreviewable,
-  (canPreview) => {
-    // 仅当开启了自动预览开关，且当前还是代码模式时，才尝试自动切换
-    if (canPreview && defaultRenderHtml?.value && viewMode.value === "code") {
+  [isAutoPreviewable, () => defaultRenderHtml?.value],
+  ([canPreview, shouldAutoRender]) => {
+    // 仅当开启了自动预览开关，且当前还是代码模式时，才尝试自动切换。
+    // 将全局开关纳入依赖，确保设置变更能作用于已挂载的代码块。
+    if (canPreview && shouldAutoRender && viewMode.value === "code") {
       viewMode.value = "preview";
     }
   },
@@ -287,9 +288,15 @@ const fontBaselineReady = computed(() => {
 });
 
 // 展开状态
-const isExpanded = ref(
-  props.defaultExpanded ?? context?.defaultCodeBlockExpanded?.value ?? false
+const defaultExpanded = computed(
+  () =>
+    props.defaultExpanded ?? context?.defaultCodeBlockExpanded?.value ?? false
 );
+const isExpanded = ref(defaultExpanded.value);
+
+watch(defaultExpanded, (expanded) => {
+  isExpanded.value = expanded;
+});
 
 const tokenCount = ref<number>(0);
 

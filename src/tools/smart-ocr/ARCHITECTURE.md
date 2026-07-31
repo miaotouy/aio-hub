@@ -2,7 +2,7 @@
 
 本文档旨在解析 Smart OCR 工具的内部架构、设计理念、数据流以及插件扩展机制，为后续开发和维护提供清晰的指引。
 
-> 最后更新：2026-6-22
+> 最后更新：2026-7-24
 
 ---
 
@@ -38,7 +38,7 @@ Smart OCR 是一个多引擎、智能化的图片文字识别工具，旨在为�
 - **本地引擎 (Tesseract)**: 利用 `Promise.all` 配合多 Web Worker 进行并行处理，充分利用多核 CPU。
 - **原生引擎 (Native OCR)**: 采用串行队列处理，避免高频并发调用 Windows 原生 API 导致系统过载或冲突。
 - **VLM 引擎**: 实现了专门的**并发控制器**，允许用户配置并发请求数（`concurrency`）和请求间隔（`delay`），以避免超出大模型 API 的速率限制（Rate Limit）。
-- **插件引擎 (Plugin)**: 采用**批量传递机制**，将所有图片块一次性打包发送给插件进程，由插件内部进行高效的批处理（Batch Inference），最大化 GPU/CPU 利用率。
+- **插件引擎 (Plugin)**: request 模式兼容既有插件；API v3 job 模式将提交确认与任务终态分离，由插件内部排队分片，并通过 `jobId` 关联进度、完成、失败与取消事件。Smart OCR 以无进度超时管理长任务。
 
 ---
 
@@ -125,7 +125,7 @@ Smart OCR 采用"页面工具 + 平台能力层"的混合架构。核心 OCR 能
   - [`native.ts`](src/tools/smart-ocr/platform/built-in-engines/native.ts): 通过 Tauri IPC 调用 Rust 后端的 Windows 原生 OCR 能力。
   - [`vlm.ts`](src/tools/smart-ocr/platform/built-in-engines/vlm.ts): 封装多模态大模型请求，支持自定义 Prompt 和并发控制。
 - **云端 OCR** — [`platform/cloud/`](src/tools/smart-ocr/platform/cloud/): 对接系统全局的云端 OCR 服务配置，含 `types.ts`、`profiles.ts`、`providers.ts`、`runner.ts`。
-- **插件引擎适配** — [`platform/plugin-engine.ts`](src/tools/smart-ocr/platform/plugin-engine.ts): 负责校验插件状态（是否安装、启用、损坏），并将图片块通过 `ocrImageToPluginImage` 组装为标准契约格式，通过 `execute` 跨进程发送给插件。
+- **插件引擎适配** — [`platform/plugin-engine.ts`](src/tools/smart-ocr/platform/plugin-engine.ts): 只按 `pluginId + contributionId` 解析当前贡献点，不持久化方法名。request 模式可由宿主分片；job 模式负责提交确认、事件终态、真实取消、无进度超时和必要的 Sidecar 重启。
 - **扩展发现** — [`platform/extension-registry.ts`](src/tools/smart-ocr/platform/extension-registry.ts): 动态扫描并解析已安装插件的 `ocr-engine` 贡献点（contributions），提取支持的模型、语言等元数据，供 UI 渲染选择。
 - **标准类型与适配器** — [`platform/types.ts`](src/tools/smart-ocr/platform/types.ts) 和 [`platform/adapters/image-input.ts`](src/tools/smart-ocr/platform/adapters/image-input.ts): 定义 `OcrImageInput` 通用标准输入及与 `ImageBlock` 的转换规则，支持 `path`/`dataUrl` 双通道。
 
@@ -191,19 +191,26 @@ sequenceDiagram
     participant Plugin as 外部插件进程 (如 Python/Node)
 
     Dispatcher->>Adapter: runPluginEngine(blocks, config)
-    Adapter->>PM: assertPluginReady(pluginId, method)
+    Adapter->>PM: assertPluginReady(pluginId, contributionId)
     note over PM: 校验插件是否安装、启用、未损坏
     PM-->>Adapter: 校验通过 (返回 resolvedPluginId)
 
-    Adapter->>Adapter: 将 ImageBlock[] 转换为 Base64 DataURL
-    Adapter->>Executor: execute({ service, method, params })
-
-    Executor->>Plugin: 跨进程 IPC 调用 (传入 images 数组及 options)
-    note over Plugin: 插件内部执行批量 OCR 识别
-    Plugin-->>Executor: 返回 PluginOcrBatchResult
-
-    Executor-->>Adapter: 返回执行结果
-    Adapter->>Adapter: 校验并映射为标准 OcrResult[]
+    alt executionMode = job
+        Adapter->>Plugin: 订阅 progress/completion/failure/cancelled
+        Adapter->>Executor: submit(完整 images + jobId)
+        Executor->>Plugin: 返回 accepted + jobId
+        loop 插件内部有界分片
+            Plugin-->>Adapter: progressEvent(jobId, partial results)
+            Adapter->>Adapter: 增量合并 OcrResult
+        end
+        Plugin-->>Adapter: completion/failure/cancelled(jobId)
+    else executionMode = request
+        loop 宿主按 maxBatchSize 顺序调用
+            Adapter->>Executor: execute(当前 images 批次)
+            Executor->>Plugin: 跨进程 IPC 调用
+            Plugin-->>Executor: 返回当前批次结果
+        end
+    end
     Adapter-->>Dispatcher: 返回结果
 ```
 
@@ -226,7 +233,7 @@ sequenceDiagram
       "id": "paddle-ocr-default",
       "name": "PaddleOCR 本地引擎",
       "description": "基于 PaddleOCR 的本地轻量级 OCR 引擎",
-      "method": "recognize",
+      "method": "submitOcrJob",
       "modelProfiles": [
         { "id": "server", "name": "服务器版 (准确率高)" },
         { "id": "mobile", "name": "移动版 (速度快)" }
@@ -236,7 +243,20 @@ sequenceDiagram
         { "id": "ch", "name": "中英文" },
         { "id": "en", "name": "英文" }
       ],
-      "defaultLanguage": "ch"
+      "defaultLanguage": "ch",
+      "capabilities": {
+        "batch": true,
+        "batchMode": "plugin",
+        "executionMode": "job",
+        "maxBatchSize": 4,
+        "streamingResults": true,
+        "progressEvent": "ocrJobProgress",
+        "completionEvent": "ocrJobCompleted",
+        "failureEvent": "ocrJobFailed",
+        "cancelledEvent": "ocrJobCancelled",
+        "cancelMethod": "cancelOcrJob",
+        "idleTimeoutMs": 300000
+      }
     }
   ]
 }
@@ -246,10 +266,11 @@ sequenceDiagram
 
 #### 1. 输入参数 (`params`)
 
-Smart OCR 会将图片块打包，通过以下结构传递给插件的 `method`（如 `recognize`）：
+job 模式下 Smart OCR 一次传入完整任务，由插件按自身能力排队分片：
 
 ```typescript
-interface PluginOcrParams {
+interface PluginOcrJobParams {
+  jobId: string;
   images: Array<{
     blockId: string; // 图片块唯一 ID
     imageId: string; // 所属原始图片 ID
@@ -266,9 +287,9 @@ interface PluginOcrParams {
 }
 ```
 
-#### 2. 输出结果 (`PluginOcrBatchResult`)
+#### 2. 作业确认与结果
 
-插件执行完成后，必须返回以下格式的数据（字段向后兼容）：
+提交方法立即返回 `{ accepted: true, jobId }`。完成事件的 `results` 使用以下结构：
 
 ```typescript
 interface PluginOcrBatchResult {
@@ -295,6 +316,22 @@ interface PluginOcrBatchResult {
 }
 ```
 
+#### 3. 增量结果事件
+
+job 模式在每个内部批次完成后推送 `progressEvent`，最终必须发送完成、失败或取消事件之一。取消时插件在不再读取任务临时文件后发送取消终态。
+
+```typescript
+interface PluginOcrProgressEvent {
+  jobId: string;
+  batchIndex: number;
+  batchCount: number;
+  offset: number;
+  completed: number;
+  total: number;
+  results: PluginOcrBatchResult["results"];
+}
+```
+
 ---
 
 ## 5. 未来展望（AI写的）
@@ -302,4 +339,3 @@ interface PluginOcrBatchResult {
 - **原生引擎多语言支持**: 当前 Rust 后端的原生 OCR 实现（`windows_ocr`）将识别语言硬编码为 `"zh-Hans"`。后续需要将其参数化，允许前端根据用户选择传递语言代码，以支持多语言识别。
 - **版面分析与表格还原**: 引入更先进的版面分析（Layout Analysis）算法，支持将识别出的表格直接导出为 Excel，或保留段落排版导出为 Word。
 - **自动倾斜校正**: 在 OCR 预处理阶段增加自动倾斜校正（Deskew）功能，提高拍摄角度偏斜时的识别准确率。
-

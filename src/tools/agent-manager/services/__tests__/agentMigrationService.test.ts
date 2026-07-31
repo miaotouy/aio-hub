@@ -63,7 +63,7 @@ describe("agent recall migration", () => {
     const agent = legacyAgent();
 
     expect(migrateAgent(agent)).toBe(true);
-    expect(agent.version).toBe(3);
+    expect(agent.version).toBe(4);
     expect(agent.recallConfig).toMatchObject({
       enabled: true,
       bindings: [
@@ -78,7 +78,8 @@ describe("agent recall migration", () => {
         },
       ],
     });
-    expect(agent.recallSettings?.defaultProfile).toBe("associative");
+    expect(agent.recallSettings?.defaultPresetId).toBe("comprehensive");
+    expect(agent.recallSettings).not.toHaveProperty("defaultProfile");
     expect(agent.toolCallConfig?.toolToggles["recall-basic"]).toBe(true);
     expect(agent.toolCallConfig?.autoApproveTools["recall-admin"]).toBe(true);
     expect(agent.toolCallConfig?.overrides?.["recall-basic:search"]).toEqual({
@@ -100,7 +101,8 @@ describe("agent recall migration", () => {
 
     expect(migrateAgent(agent)).toBe(true);
     expect(agent.recallConfig.enabled).toBe(false);
-    expect(agent.recallSettings.defaultProfile).toBe("semantic");
+    expect(agent.recallSettings.defaultPresetId).toBe("comprehensive");
+    expect(agent.recallSettings).not.toHaveProperty("defaultProfile");
     expect(agent.toolCallConfig?.toolToggles).toEqual({ "recall-basic": true });
     expect(migrateAgent(agent)).toBe(false);
   });
@@ -139,5 +141,25 @@ describe("agent recall migration", () => {
     });
     expect(agent).not.toHaveProperty("knowledgeConfig");
     expect(agent).not.toHaveProperty("knowledgeSettings");
+  });
+
+  it("keeps an unknown legacy profile and records a recoverable migration issue", () => {
+    const agent = legacyAgent();
+    delete (agent as any).knowledgeBaseConfig;
+    delete (agent as any).knowledgeSettings;
+    agent.recallConfig = { enabled: true, bindings: [] };
+    agent.recallSettings = { defaultProfile: "experimental" as any };
+
+    expect(migrateAgent(agent)).toBe(true);
+    expect(agent.recallSettings?.defaultPresetId).toBeUndefined();
+    expect(agent.recallSettings?.defaultProfile).toBe("experimental");
+    expect(agent.recallMigrationIssues).toEqual([
+      expect.objectContaining({
+        code: "unsupported-legacy-profile",
+        field: "recallSettings.defaultProfile",
+        legacyValue: "experimental",
+      }),
+    ]);
+    expect(migrateAgent(agent)).toBe(false);
   });
 });

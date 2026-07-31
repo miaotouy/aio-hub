@@ -337,7 +337,7 @@ import type {
 import { useChatSettings } from "@/tools/llm-chat/composables/settings/useChatSettings";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatStore } from "@/tools/llm-chat/stores/llmChatStore";
-import * as monaco from "monaco-editor";
+import * as monaco from "@/utils/monaco";
 import {
   MacroProcessor,
   createMacroContext,

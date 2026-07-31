@@ -62,8 +62,9 @@ describe("model identity", () => {
     };
     expect(materializeModelIdentity(userModel)).toBe(userModel);
     expect(
-      materializeModelIdentity({ id: "text-embedding-3-small" }).modelIdentity
-        ?.source
+      getModelIdentity(
+        materializeModelIdentity({ id: "text-embedding-3-small" })
+      )?.source
     ).toBe("builtin");
   });
 

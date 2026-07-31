@@ -130,12 +130,11 @@ export function useGitAnalyzerRunner() {
     switch (event.type) {
       case "start": {
         state.progress.value.total = event.total || state.limitCount.value;
-        if (event.branches) {
+        if (event.branches?.length) {
           state.branches.value = event.branches;
-          const currentBranchInfo = event.branches.find((b) => b.current);
-          if (currentBranchInfo) {
-            state.selectedBranch.value = currentBranchInfo.name;
-          }
+        }
+        if (event.branch) {
+          state.selectedBranch.value = event.branch;
         }
         const loadType = state.batchSize.value === 0 ? "" : "流式";
         logger.info(
@@ -329,6 +328,7 @@ export function useGitAnalyzerRunner() {
       await streamLoadRepository(
         {
           path: currentRepoPath,
+          branch: currentBranch,
           limit: state.limitCount.value,
           batchSize: state.batchSize.value,
           includeFiles: state.loadConfig.value.includeFilePaths,

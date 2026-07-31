@@ -30,7 +30,10 @@
 import { computed, ref, shallowRef, onBeforeUnmount } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { useOcrRunner } from "@/tools/smart-ocr/platform";
+import {
+  migrateOcrEngineConfig,
+  useOcrRunner,
+} from "@/tools/smart-ocr/platform";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import type { OcrEngineConfig } from "@/tools/smart-ocr/types";
 import type { StateSyncPayload } from "@/types/window-sync";
@@ -55,11 +58,18 @@ const errorHandler = createModuleErrorHandler(
 const configManager = createConfigManager<MonitorConfig>({
   moduleName: "realtime-subtitle-ocr",
   fileName: "config.json",
-  version: "1.0.0",
+  version: "2.0.0",
   createDefault: () => ({
     intervalMs: 1000,
     dedupSensitivity: "medium",
     engineConfig: { type: "native", name: "native" },
+  }),
+  mergeConfig: (defaultConfig, loadedConfig) => ({
+    ...defaultConfig,
+    ...loadedConfig,
+    engineConfig: migrateOcrEngineConfig(
+      loadedConfig.engineConfig ?? defaultConfig.engineConfig
+    ),
   }),
 });
 

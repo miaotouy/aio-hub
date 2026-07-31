@@ -93,4 +93,20 @@ describe("Recall static placeholder retrieval", () => {
     expect(response.resultCount).toBe(1);
     expect(response.content).not.toContain("content-secret-entry");
   });
+
+  it("passes the resolved preset to the pipeline-backed search", async () => {
+    mocks.searchWithCache.mockResolvedValue({ results: [], vector: null });
+
+    await resolvePlaceholderRetrieval(
+      request({
+        mode: "always",
+        presetId: "algorithmic",
+        settings: { defaultPresetId: "comprehensive" },
+      })
+    );
+
+    expect(mocks.searchWithCache).toHaveBeenCalledWith(
+      expect.objectContaining({ presetId: "algorithmic" })
+    );
+  });
 });

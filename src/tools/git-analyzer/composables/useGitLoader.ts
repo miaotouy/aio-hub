@@ -30,6 +30,7 @@ export interface GitProgressEvent {
   type: "start" | "data" | "meta" | "end" | "error" | "cancelled";
   total?: number;
   branches?: GitBranch[];
+  branch?: string;
   commits?: GitCommit[];
   loaded?: number;
   message?: string;
@@ -40,6 +41,7 @@ export interface GitProgressEvent {
  */
 export interface StreamLoadOptions {
   path: string;
+  branch?: string;
   /** 加载条数限制。设置为 0 则加载全部记录。 */
   limit: number;
   batchSize: number;
@@ -228,8 +230,8 @@ export async function streamLoadRepository(
   options: StreamLoadOptions,
   onProgress: (event: GitProgressEvent) => void
 ): Promise<void> {
-  const { path, limit, batchSize } = options;
-  logger.info("开始流式加载仓库", { path, limit, batchSize });
+  const { path, branch, limit, batchSize } = options;
+  logger.info("开始流式加载仓库", { path, branch, limit, batchSize });
 
   return new Promise<void>(async (resolve, reject) => {
     let unlisten: UnlistenFn | null = null;
@@ -261,6 +263,7 @@ export async function streamLoadRepository(
       // 调用流式加载命令
       await invoke("git_load_repository_stream", {
         path,
+        branch,
         limit,
         batchSize,
         includeFiles: options.includeFiles,
@@ -274,7 +277,7 @@ export async function streamLoadRepository(
       }
       errorHandler.handle(error as Error, {
         userMessage: "流式加载失败",
-        context: { path, limit },
+        context: { path, branch, limit },
         showToUser: false,
       });
       reject(error);

@@ -64,6 +64,11 @@ import {
 } from "../../utils/chatRegexUtils";
 import { createMacroContext } from "../../macro-engine/MacroContext";
 import type { ChatRegexRule } from "../../types/chatRegex";
+import type {
+  LlmThinkRule,
+  RichTextRendererStyleOptions,
+} from "@/tools/rich-text-renderer/types";
+import { buildRichTextRendererSettings } from "../../utils/richTextRendererSettings";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import MessageMenubar from "./MessageMenubar.vue";
@@ -81,7 +86,8 @@ interface Props {
   isEditing?: boolean;
   isTranslating?: boolean;
   translationContent?: string;
-  richTextStyleOptions?: any;
+  llmThinkRules?: LlmThinkRule[];
+  richTextStyleOptions?: RichTextRendererStyleOptions;
   buttonVisibility?: ButtonVisibility;
   isSending?: boolean;
   /** 截图模式: 隐藏操作栏 / 预览按钮 / 异步任务操作, 强制展开 */
@@ -123,6 +129,9 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<Emits>();
 
 const { settings } = useChatSettings();
+const rendererSettingsProps = computed(() =>
+  buildRichTextRendererSettings(settings.value.uiPreferences)
+);
 const agentStore = useAgentStore();
 const chatStore = useLlmChatStore();
 const userProfileStore = useUserProfileStore();
@@ -1178,13 +1187,12 @@ defineExpose({
     :close-on-backdrop-click="true"
   >
     <RichTextRenderer
+      v-bind="rendererSettingsProps"
       :content="previewDialogContent"
-      :version="settings.uiPreferences.rendererVersion"
       :regex-rules="processedRules"
+      :llm-think-rules="llmThinkRules"
+      :style-options="richTextStyleOptions"
       :resolve-asset="resolveAsset"
-      :default-render-html="settings.uiPreferences.defaultRenderHtml"
-      :throttle-ms="settings.uiPreferences.rendererThrottleMs"
-      :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
     />
   </BaseDialog>
 </template>

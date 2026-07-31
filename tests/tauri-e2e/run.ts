@@ -12,6 +12,13 @@ import {
   seedRecallWorkspaceConfig,
 } from "./support/fixture-seeder";
 import { prepareExternalRecallCorpus } from "./support/external-recall-corpus";
+import {
+  cleanupStagedMigrationData,
+  prepareMigrationFixture,
+  stageMigrationFixture,
+  writeE2eRunMarker,
+  type StagedMigrationFixture,
+} from "./support/migration-fixture";
 import { startOllamaEmbeddingProxy } from "./support/ollama-embedding-proxy";
 import { preflightOllamaChat } from "./support/ollama-chat-preflight";
 import { preflightOllama } from "./support/ollama-preflight";
@@ -26,6 +33,22 @@ import {
   parseE2eRunnerOptions,
 } from "./support/runner-options";
 
+let vite: ReturnType<typeof Bun.spawn> | undefined;
+let mock: ReturnType<typeof startOpenAiMock> | undefined;
+let ollamaEmbeddingProxy:
+  ReturnType<typeof startOllamaEmbeddingProxy> | undefined;
+let wdio: ReturnType<typeof Bun.spawn> | undefined;
+let stopped = false;
+let signalRequested = false;
+const stop = () => {
+  if (stopped) return;
+  stopped = true;
+  if (wdio && !wdio.killed) wdio.kill();
+  if (vite && !vite.killed) vite.kill();
+  mock?.stop();
+  ollamaEmbeddingProxy?.stop();
+};
+
 const projectRoot = path.resolve(
   fileURLToPath(new URL("../..", import.meta.url))
 );
@@ -38,24 +61,61 @@ if (runnerOptions.listPresetsRequested) {
 const { nativeUiEnabled, wdioArgs } = runnerOptions;
 function activeSpecFromArgs(args: string[]): string {
   const index = args.lastIndexOf("--spec");
-  return index >= 0 ? args[index + 1] ?? "" : "";
+  return index >= 0 ? (args[index + 1] ?? "") : "";
 }
 const explicitDataDir = process.env.AIO_E2E_DATA_DIR?.trim() || undefined;
 const runSuffix =
   process.env.AIO_E2E_ID_SUFFIX?.trim() ||
   `tauri-e2e-${process.pid}-${Date.now().toString(36)}`;
+const controlledRunsRoot = path.resolve(projectRoot, ".dev-data", "e2e-runs");
+const runRoot = explicitDataDir
+  ? path.dirname(path.resolve(projectRoot, explicitDataDir))
+  : path.join(controlledRunsRoot, runSuffix);
 const dataDir = path.resolve(
   projectRoot,
-  explicitDataDir ?? path.join(".dev-data", runSuffix)
+  explicitDataDir ?? path.join(".dev-data", "e2e-runs", runSuffix, "app-data")
 );
 const artifactDir = path.resolve(
   projectRoot,
-  process.env.AIO_E2E_ARTIFACT_DIR?.trim() ||
-    path.join(".dev-data", runSuffix, "artifacts")
+  process.env.AIO_E2E_ARTIFACT_DIR?.trim() || path.join(runRoot, "artifacts")
 );
+
+/**
+ * E2E 不覆盖真实插件行为，统一把示例 Native 插件置为禁用。
+ *
+ * 该状态不能依赖 Recall fixture seed：migration/guided-flow 等测试会跳过
+ * fixture seed，但应用对缺失的插件状态默认按“启用”处理。
+ */
+function disableE2eNativePlugins(appDataDir: string): void {
+  const pluginStateDir = path.join(appDataDir, "plugin-manager");
+  const pluginStatePath = path.join(pluginStateDir, "plugin-states.json");
+  const state = fs.existsSync(pluginStatePath)
+    ? (JSON.parse(fs.readFileSync(pluginStatePath, "utf8")) as {
+        version?: string;
+        enabledStates?: Record<string, boolean>;
+      })
+    : {};
+
+  fs.mkdirSync(pluginStateDir, { recursive: true });
+  state.version ??= "1.0.0";
+  state.enabledStates = {
+    ...(state.enabledStates ?? {}),
+    "native-example": false,
+    "native-example-dev": false,
+  };
+  fs.writeFileSync(pluginStatePath, JSON.stringify(state, null, 2), "utf8");
+}
+
+const migrationFixtureId =
+  runnerOptions.presetId === "migration-minimal" ||
+  runnerOptions.presetId === "migration-cleanup"
+    ? "legacy-file-system-v1/minimal"
+    : undefined;
 const shouldSeedFixtures =
-  process.env.AIO_E2E_SEED_FIXTURES === "1" ||
-  (!explicitDataDir && process.env.AIO_E2E_SEED_FIXTURES !== "0");
+  runnerOptions.presetId !== "guided-flow-baseline" &&
+  !migrationFixtureId &&
+  (process.env.AIO_E2E_SEED_FIXTURES === "1" ||
+    (!explicitDataDir && process.env.AIO_E2E_SEED_FIXTURES !== "0"));
 const frontendUrl = new URL(
   process.env.AIO_E2E_FRONTEND_URL?.trim() || "http://localhost:1420/"
 );
@@ -74,6 +134,47 @@ if (!Number.isInteger(frontendPort) || frontendPort < 1024) {
 }
 
 fs.mkdirSync(artifactDir, { recursive: true });
+if (!explicitDataDir) writeE2eRunMarker(runRoot, runSuffix, dataDir);
+
+let stagedMigrationFixture: StagedMigrationFixture | undefined;
+if (migrationFixtureId) {
+  stagedMigrationFixture = stageMigrationFixture(
+    prepareMigrationFixture(migrationFixtureId),
+    dataDir
+  );
+}
+
+let stagedCleanupAttempted = false;
+let stagedCleanupError: unknown;
+function cleanupDisposableMigrationData(): void {
+  if (stagedCleanupAttempted || !stagedMigrationFixture || explicitDataDir)
+    return;
+  stagedCleanupAttempted = true;
+  try {
+    cleanupStagedMigrationData({
+      runRoot,
+      runId: runSuffix,
+      dataDir,
+      controlledRunsRoot,
+    });
+  } catch (error) {
+    stagedCleanupError = error;
+  }
+}
+process.once("exit", () => {
+  stop();
+  cleanupDisposableMigrationData();
+});
+process.once("SIGINT", () => {
+  signalRequested = true;
+  stop();
+  process.exit(130);
+});
+process.once("SIGTERM", () => {
+  signalRequested = true;
+  stop();
+  process.exit(143);
+});
 
 const startedAt = new Date().toISOString();
 const writeEarlyRunMetadata = (value: Record<string, unknown>) => {
@@ -95,10 +196,9 @@ const writeEarlyRunMetadata = (value: Record<string, unknown>) => {
   );
 };
 
-const externalRecallCorpus =
-  isExternalCorpusMode(runnerOptions.corpusMode)
-    ? await prepareExternalRecallCorpus(process.env.AIO_E2E_RECALL_SOURCE)
-    : null;
+const externalRecallCorpus = isExternalCorpusMode(runnerOptions.corpusMode)
+  ? await prepareExternalRecallCorpus(process.env.AIO_E2E_RECALL_SOURCE)
+  : null;
 if (isExternalCorpusMode(runnerOptions.corpusMode) && !externalRecallCorpus) {
   writeEarlyRunMetadata({
     status: "skipped",
@@ -256,24 +356,6 @@ async function waitForUrl(url: string, timeoutMs: number): Promise<boolean> {
   }
   return false;
 }
-
-let vite: ReturnType<typeof Bun.spawn> | undefined;
-let mock: ReturnType<typeof startOpenAiMock> | undefined;
-let ollamaEmbeddingProxy:
-  ReturnType<typeof startOllamaEmbeddingProxy> | undefined;
-let wdio: ReturnType<typeof Bun.spawn> | undefined;
-let stopped = false;
-const stop = () => {
-  if (stopped) return;
-  stopped = true;
-  if (wdio && !wdio.killed) wdio.kill();
-  if (vite && !vite.killed) vite.kill();
-  mock?.stop();
-  ollamaEmbeddingProxy?.stop();
-};
-process.once("exit", stop);
-process.once("SIGINT", stop);
-process.once("SIGTERM", stop);
 
 if (!(await waitForUrl(frontendUrl.href, 1_000))) {
   const viteEntry = path.join(
@@ -508,10 +590,9 @@ if (shouldSeedFixtures) {
     "utf8"
   );
 
-  const fixtureCorpusMode =
-    isExternalCorpusMode(runnerOptions.corpusMode)
-      ? "smoke"
-      : runnerOptions.corpusMode;
+  const fixtureCorpusMode = isExternalCorpusMode(runnerOptions.corpusMode)
+    ? "smoke"
+    : runnerOptions.corpusMode;
   recallManifest = buildRecallWorkflowManifestForCorpus(
     {
       chat: chatRole,
@@ -548,25 +629,30 @@ if (shouldSeedFixtures) {
     mode: process.env.AIO_E2E_FIXTURE_MODE === "verify" ? "verify" : "write",
   });
   fixtureSeedResult?.files.push(workspaceSeedFile);
-
-  const pluginStateDir = path.join(dataDir, "plugin-manager");
-  fs.mkdirSync(pluginStateDir, { recursive: true });
-  fs.writeFileSync(
-    path.join(pluginStateDir, "plugin-states.json"),
-    JSON.stringify(
-      {
-        version: "1.0.0",
-        enabledStates: {
-          "native-example": false,
-          "native-example-dev": false,
-        },
-      },
-      null,
-      2
-    ),
-    "utf8"
-  );
 }
+
+if (runnerOptions.presetId === "guided-flow-baseline") {
+  const lifecyclePath = path.join(dataDir, "guided-flow", "app-lifecycle.json");
+  const legacyKnowledgePath = path.join(dataDir, "knowledge");
+  if (fs.existsSync(lifecyclePath)) {
+    throw new Error(
+      `guided-flow-baseline requires missing lifecycle state: ${lifecyclePath}`
+    );
+  }
+  if (fs.existsSync(legacyKnowledgePath)) {
+    throw new Error(
+      `guided-flow-baseline requires missing legacy Knowledge data: ${legacyKnowledgePath}`
+    );
+  }
+}
+
+disableE2eNativePlugins(dataDir);
+
+const desktopVersion = (
+  JSON.parse(
+    fs.readFileSync(path.join(projectRoot, "package.json"), "utf8")
+  ) as { version: string }
+).version;
 
 const env = {
   ...process.env,
@@ -580,6 +666,12 @@ const env = {
   AIO_E2E_FRONTEND_URL: frontendUrl.href,
   AIO_E2E_LANE: runnerOptions.lane.kind,
   AIO_E2E_CORPUS_MODE: runnerOptions.corpusMode,
+  AIO_E2E_PRESET_ID: runnerOptions.presetId ?? "custom",
+  ...(runnerOptions.presetId === "guided-flow-baseline"
+    ? { AIO_E2E_EXPECTED_APP_VERSION: desktopVersion }
+    : {}),
+  AIO_E2E_MIGRATION_SCENARIO:
+    runnerOptions.presetId === "migration-cleanup" ? "cleanup" : "standard",
   AIO_E2E_CHAT_PROFILE_ID: chatRole.profileId,
   AIO_E2E_CHAT_MODEL_ID: chatRole.modelId,
   AIO_E2E_CHAT_EXPECTATION:
@@ -596,6 +688,30 @@ const env = {
   AIO_E2E_EMBEDDING_MODEL_ID: embeddingRole.modelId,
   ...(embeddingRole.dimension
     ? { AIO_E2E_EMBEDDING_DIMENSION: String(embeddingRole.dimension) }
+    : {}),
+  ...(stagedMigrationFixture
+    ? {
+        AIO_E2E_MIGRATION_FIXTURE_ID: stagedMigrationFixture.fixtureId,
+        AIO_E2E_MIGRATION_ID: stagedMigrationFixture.manifest.migrationId,
+        AIO_E2E_MIGRATION_EXPECTED_COLLECTIONS: String(
+          stagedMigrationFixture.manifest.expected.collections
+        ),
+        AIO_E2E_MIGRATION_EXPECTED_ENTRIES: String(
+          stagedMigrationFixture.manifest.expected.entries
+        ),
+        AIO_E2E_MIGRATION_EXPECTED_VECTORS: String(
+          stagedMigrationFixture.manifest.expected.vectors
+        ),
+        AIO_E2E_MIGRATION_EXPECTED_PENDING_VECTORS: String(
+          stagedMigrationFixture.manifest.expected.pendingVectors
+        ),
+        AIO_E2E_MIGRATION_EXPECTED_ISSUES: String(
+          stagedMigrationFixture.manifest.expected.issues
+        ),
+        AIO_E2E_MIGRATION_ALLOWED_PATHS: JSON.stringify(
+          stagedMigrationFixture.manifest.allowedPaths
+        ),
+      }
     : {}),
   ...(externalRecallCorpus
     ? {
@@ -648,6 +764,13 @@ fs.writeFileSync(
       fixtureSeedResult,
       workspaceSeedFile,
       externalRecallCorpus: externalRecallCorpus?.metadata,
+      migrationFixture: stagedMigrationFixture
+        ? {
+            fixtureId: stagedMigrationFixture.fixtureId,
+            manifest: stagedMigrationFixture.manifest,
+            copiedFiles: stagedMigrationFixture.copiedFiles,
+          }
+        : undefined,
       nativeUiEnabled,
       nativeUiHelper,
       nativeFileFixture,
@@ -806,44 +929,71 @@ function validateScenarioArtifacts(): void {
   }
 }
 
-let exitCode = await launchWdio(wdioArgs, "initial");
-if (exitCode === 0 && runnerOptions.restartSpec) {
-  if (!shouldSeedFixtures || !recallManifest) {
-    throw new Error("Recovery requires seeded Recall fixtures.");
+let exitCode = 1;
+try {
+  exitCode = await launchWdio(wdioArgs, "initial");
+  if (signalRequested) exitCode = 130;
+  if (exitCode === 0 && runnerOptions.restartSpec) {
+    if (stagedMigrationFixture) {
+      exitCode = await launchWdio(
+        recoveryWdioArgs(runnerOptions.restartSpec),
+        "recovery"
+      );
+    } else if (shouldSeedFixtures && recallManifest) {
+      const verifyMode = { AIO_E2E_FIXTURE_MODE: "verify" };
+      if (!isExternalCorpusMode(runnerOptions.corpusMode)) {
+        fixtureSeedResult = seedRecallWorkflowFixtures({
+          dataDir,
+          artifactDir,
+          manifest: recallManifest,
+          enabled: true,
+          mode: "verify",
+        });
+        fixtureSeedResult.files.push(
+          seedRecallWorkspaceConfig({
+            dataDir,
+            recallId: recallManifest.recall.id,
+            embeddingProfileId: embeddingRole.profileId,
+            embeddingModelId: embeddingRole.modelId,
+            embeddingDimension: embeddingRole.dimension!,
+            mode: "verify",
+          })
+        );
+      }
+      exitCode = await launchWdio(
+        recoveryWdioArgs(runnerOptions.restartSpec),
+        "recovery",
+        verifyMode
+      );
+    } else {
+      exitCode = await launchWdio(
+        recoveryWdioArgs(runnerOptions.restartSpec),
+        "recovery"
+      );
+    }
   }
-  const verifyMode = { AIO_E2E_FIXTURE_MODE: "verify" };
-  if (!isExternalCorpusMode(runnerOptions.corpusMode)) {
-    fixtureSeedResult = seedRecallWorkflowFixtures({
-      dataDir,
-      artifactDir,
-      manifest: recallManifest,
-      enabled: true,
-      mode: "verify",
-    });
-    fixtureSeedResult.files.push(
-      seedRecallWorkspaceConfig({
-        dataDir,
-        recallId: recallManifest.recall.id,
-        embeddingProfileId: embeddingRole.profileId,
-        embeddingModelId: embeddingRole.modelId,
-        embeddingDimension: embeddingRole.dimension!,
-        mode: "verify",
-      })
+  if (exitCode === 0) {
+    try {
+      validateScenarioArtifacts();
+    } catch (error) {
+      console.error(`[tauri-e2e] Artifact validation failed: ${String(error)}`);
+      exitCode = 1;
+    }
+  }
+} catch (error) {
+  console.error(`[tauri-e2e] Runner failed: ${String(error)}`);
+  exitCode = 1;
+} finally {
+  // Signals, WDIO failures and setup exceptions all share this idempotent
+  // shutdown path. Staged fixture data is disposable; explicit data roots are
+  // user-owned and are never removed by the runner.
+  stop();
+  cleanupDisposableMigrationData();
+  if (stagedCleanupError) {
+    console.error(
+      `[tauri-e2e] Staged migration cleanup failed: ${String(stagedCleanupError)}`
     );
-  }
-  exitCode = await launchWdio(
-    recoveryWdioArgs(runnerOptions.restartSpec),
-    "recovery",
-    verifyMode
-  );
-}
-stop();
-if (exitCode === 0) {
-  try {
-    validateScenarioArtifacts();
-  } catch (error) {
-    console.error(`[tauri-e2e] Artifact validation failed: ${String(error)}`);
-    exitCode = 1;
+    if (exitCode === 0) exitCode = 1;
   }
 }
 fs.writeFileSync(
@@ -865,11 +1015,20 @@ fs.writeFileSync(
       fixtureSeedResult,
       workspaceSeedFile,
       externalRecallCorpus: externalRecallCorpus?.metadata,
+      migrationFixture: stagedMigrationFixture
+        ? {
+            fixtureId: stagedMigrationFixture.fixtureId,
+            manifest: stagedMigrationFixture.manifest,
+            copiedFiles: stagedMigrationFixture.copiedFiles,
+          }
+        : undefined,
       nativeUiEnabled,
       nativeUiHelper,
       nativeFileFixture,
       nativeDirectoryFixture,
       exitCode,
+      signalRequested,
+      cleanupError: stagedCleanupError ? String(stagedCleanupError) : undefined,
     },
     null,
     2

@@ -21,6 +21,9 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
+use std::path::Path;
+#[cfg(debug_assertions)]
+use std::path::PathBuf;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc, Mutex,
@@ -66,6 +69,14 @@ pub struct NativePluginCallRequest {
     pub payload: String,
 }
 
+#[cfg(debug_assertions)]
+fn debug_workspace_dir() -> Result<PathBuf, String> {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .map(Path::to_path_buf)
+        .ok_or_else(|| "无法获取项目根目录".to_string())
+}
+
 /// 加载原生插件
 ///
 /// 将动态库加载到内存中，并与插件 ID 关联
@@ -96,23 +107,17 @@ pub async fn load_native_plugin(
         }
     }
 
-    // 在开发模式下，library_path 是相对于项目根目录的
-    // 我们需要获取项目根目录来构建绝对路径
+    // 在开发模式下，library_path 是相对于项目根目录的。
     #[cfg(debug_assertions)]
     let absolute_path = {
-        // 参照 sidecar_plugin.rs 的实现
-        // Tauri 开发模式下 current_dir 是 src-tauri，需要获取父目录（项目根目录）
-        let current_dir =
-            std::env::current_dir().map_err(|e| format!("获取当前目录失败: {}", e))?;
-        let workspace_dir = current_dir
-            .parent()
-            .ok_or_else(|| "无法获取项目根目录".to_string())?;
-
+        // 不依赖进程当前工作目录：Tauri CLI 通常从 src-tauri 启动，
+        // 但 WDIO/E2E 可能从仓库根目录启动。CARGO_MANIFEST_DIR 始终指向
+        // 当前 Rust crate 的 src-tauri 目录，因此它能稳定得到仓库根目录。
+        let workspace_dir = debug_workspace_dir()?;
         let full_path = workspace_dir.join(&library_path);
         log::debug!("[NATIVE] 开发模式，项目根目录: {:?}", workspace_dir);
         log::debug!("[NATIVE] 拼接后的路径: {:?}", full_path);
 
-        // 验证文件是否存在
         if !full_path.exists() {
             return Err(format!("插件文件不存在: {:?}", full_path));
         }
@@ -279,4 +284,15 @@ pub async fn call_native_plugin_method(
 
     log::info!("[NATIVE] 插件方法调用成功");
     Ok(result_str)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::debug_workspace_dir;
+
+    #[test]
+    fn debug_workspace_dir_is_the_repository_root() {
+        let workspace_dir = debug_workspace_dir().expect("workspace root should resolve");
+        assert!(workspace_dir.join("src-tauri").join("Cargo.toml").is_file());
+    }
 }

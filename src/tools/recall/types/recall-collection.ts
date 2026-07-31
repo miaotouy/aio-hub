@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import type { RecallEntry, TagWithWeight } from "./recall-entry";
-import type { RecallResult } from "./search";
 
 /**
  * 思绪集相关类型定义
@@ -152,24 +151,6 @@ export interface VectorIndexConfig {
   model?: string;
   /** 维度 */
   dimension: number;
-  /** @deprecated 保留以兼容旧数据，不再使用 */
-  algorithm?: string;
-  /** @deprecated 保留以兼容旧数据，不再使用 */
-  metric?: string;
-  /** 透镜检索：纹理 (coarse/fine) */
-  texture?: "coarse" | "fine";
-  /** 透镜检索：折射率 (0.0 - 1.0) */
-  refractionIndex?: number;
-  /** 向量检索：BM25 k1 */
-  k1?: number;
-  /** 向量检索：BM25 b */
-  b?: number;
-  /** @deprecated Agent Recall 中已废弃（使用 recallSettings.defaultLimit），但在思绪集 Playground 中仍有效 */
-  limit?: number;
-  /** @deprecated Agent Recall 中已废弃（使用 recallSettings.defaultMinScore），但在思绪集 Playground 中仍有效 */
-  minScore?: number;
-  /** 兼容动态引擎参数 */
-  [key: string]: any;
 }
 
 /**
@@ -216,6 +197,13 @@ export interface RecallCacheConfig {
   retrievalCacheMaxItems: number;
 }
 
+export interface EmbeddingAssetGeneration {
+  schemaVersion: 1;
+  modelIdentity: string;
+  generationId: string;
+  activatedAt: number;
+}
+
 /**
  * 思绪集全局工作区配置
  */
@@ -226,8 +214,8 @@ export interface WorkspaceConfig {
   vectorIndex: VectorIndexConfig;
   /** 默认嵌入模型 */
   defaultEmbeddingModel?: string;
-  /** 默认检索引擎 ID (vector | keyword | blender | hybrid | lens) */
-  defaultEngineId: string;
+  /** 当前活动 Embedding 模型对应的查询与派生资产代际。 */
+  embeddingAssetGeneration?: EmbeddingAssetGeneration;
   /** 导入与预处理设置 */
   importSettings: ImportSettings;
   /** 标签生成配置 */
@@ -245,12 +233,8 @@ export interface WorkspaceConfig {
  */
 export interface PlaygroundSlotConfig {
   id: string;
-  engineId: string;
-  config: {
-    embeddingModel: string;
-    [key: string]: any;
-  };
-  results?: RecallResult[];
+  presetId: "algorithmic" | "comprehensive";
+  limit: number;
 }
 
 /**

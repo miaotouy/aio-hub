@@ -22,7 +22,12 @@
  * 4. 维护 nodeMap 用于 O(1) 节点查找
  */
 
-import { shallowRef, type ShallowRef } from "vue";
+import {
+  shallowRef,
+  toValue,
+  type MaybeRefOrGetter,
+  type ShallowRef,
+} from "vue";
 import type { AstNode, Patch, NodeMap } from "../types";
 
 const MAX_QUEUE_SIZE = 1000;
@@ -32,19 +37,20 @@ const MAX_RAF_RETRIES = 1000; // 最多重试次数
 
 export function useMarkdownAst(
   options: {
-    throttleMs?: number;
-    throttleEnabled?: boolean;
-    verboseLogging?: boolean;
-    safetyGuardEnabled?: boolean;
+    throttleMs?: MaybeRefOrGetter<number | undefined>;
+    throttleEnabled?: MaybeRefOrGetter<boolean | undefined>;
+    verboseLogging?: MaybeRefOrGetter<boolean | undefined>;
+    safetyGuardEnabled?: MaybeRefOrGetter<boolean | undefined>;
   } = {}
 ) {
   const ast: ShallowRef<AstNode[]> = shallowRef([]);
   const nodeMap: NodeMap = new Map();
 
-  const throttleMs = options.throttleMs ?? BATCH_TIMEOUT_MS;
-  const throttleEnabled = options.throttleEnabled !== false;
-  const verboseLogging = options.verboseLogging ?? false;
-  const safetyGuardEnabled = options.safetyGuardEnabled !== false;
+  const getThrottleMs = () => toValue(options.throttleMs) ?? BATCH_TIMEOUT_MS;
+  const isThrottleEnabled = () => toValue(options.throttleEnabled) !== false;
+  const isVerboseLogging = () => toValue(options.verboseLogging) ?? false;
+  const isSafetyGuardEnabled = () =>
+    toValue(options.safetyGuardEnabled) !== false;
 
   let patchQueue: Patch[] = [];
   let rafHandle = 0;
@@ -303,8 +309,8 @@ export function useMarkdownAst(
 
     // 5. 安全护栏：节点总数硬上限检查（仅在更新后检查，防止极端异常）
     // 改进：不再清空整个 AST，而是只在控制台报错并停止后续 patch
-    if (safetyGuardEnabled && nodeMap.size > MAX_TOTAL_NODES) {
-      if (verboseLogging) {
+    if (isSafetyGuardEnabled() && nodeMap.size > MAX_TOTAL_NODES) {
+      if (isVerboseLogging()) {
         console.error(
           `[useMarkdownAst] Critical: Node count ${nodeMap.size} exceeds hard limit ${MAX_TOTAL_NODES}!`
         );
@@ -341,7 +347,7 @@ export function useMarkdownAst(
       const now = performance.now();
       flushCount++;
 
-      if (verboseLogging) {
+      if (isVerboseLogging()) {
         const interval = lastFlushTime ? (now - lastFlushTime).toFixed(2) : 0;
         console.debug(
           `[useMarkdownAst] Flush #${flushCount}: Applying ${patchQueue.length} patches | Interval: ${interval}ms`
@@ -374,7 +380,7 @@ export function useMarkdownAst(
     // 防止无限循环：如果重试次数过多，强制刷新
     rafRetryCount++;
     if (rafRetryCount > MAX_RAF_RETRIES) {
-      if (verboseLogging) {
+      if (isVerboseLogging()) {
         console.warn(
           `[useMarkdownAst] rAF retry limit reached (${MAX_RAF_RETRIES}), forcing flush with ${patchQueue.length} patches`
         );
@@ -386,7 +392,7 @@ export function useMarkdownAst(
     const now = performance.now();
     const elapsed = now - lastFlushTime;
 
-    if (!throttleEnabled || elapsed >= throttleMs) {
+    if (!isThrottleEnabled() || elapsed >= getThrottleMs()) {
       // 时间到了，或者禁用了节流，立即刷新
       flushPatches();
     } else {
@@ -406,7 +412,7 @@ export function useMarkdownAst(
 
     const patches = Array.isArray(patch) ? patch : [patch];
 
-    if (verboseLogging && patches.length > 0) {
+    if (isVerboseLogging() && patches.length > 0) {
       const ops = patches.map((p) => p.op).join(", ");
       console.debug(
         `[useMarkdownAst] enqueuePatch: ${patches.length} patches (${ops})`

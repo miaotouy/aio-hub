@@ -316,17 +316,14 @@ export const useUserProfileStore = defineStore("llmChatUserProfile", {
 
       loadProfilesPromise = (async () => {
         try {
-          const { loadProfiles, loadSettings } = useUserProfileStorage();
-          const [profiles, settings] = await Promise.all([
-            loadProfiles(),
-            loadSettings(),
-          ]);
+          const { loadProfilesState } = useUserProfileStorage();
+          const { profiles, globalProfileId } = await loadProfilesState();
           const profileIds = new Set(profiles.map((profile) => profile.id));
 
           this.profiles = profiles;
           this.globalProfileId =
-            settings.globalProfileId && profileIds.has(settings.globalProfileId)
-              ? settings.globalProfileId
+            globalProfileId && profileIds.has(globalProfileId)
+              ? globalProfileId
               : null;
 
           logger.info("用户档案全量加载完成", {
@@ -338,8 +335,7 @@ export const useUserProfileStore = defineStore("llmChatUserProfile", {
             userMessage: "加载用户档案失败",
             showToUser: false,
           });
-          this.profiles = [];
-          this.globalProfileId = null;
+          // 保留当前内存状态，避免暂时读取失败被固化为空档案。
         } finally {
           loadProfilesPromise = null;
         }

@@ -5,12 +5,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
   loadWorkspace: vi.fn(),
+  saveWorkspace: vi.fn(),
 }));
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
 vi.mock("../utils/recallStorage", () => ({
   recallStorage: {
     loadWorkspace: mocks.loadWorkspace,
+    saveWorkspace: mocks.saveWorkspace,
   },
 }));
 vi.mock("@/utils/customMessage", () => ({
@@ -65,5 +67,29 @@ describe("recallCollectionStore", () => {
     await nextTick();
 
     expect(validateVectorStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it("migrates and rotates the active embedding asset generation", async () => {
+    const store = useRecallCollectionStore();
+    await store.loadBases();
+
+    const firstGeneration = store.config.embeddingAssetGeneration;
+    expect(firstGeneration).toMatchObject({
+      modelIdentity: "profile-a:model-a",
+    });
+    expect(mocks.saveWorkspace).toHaveBeenCalled();
+
+    await store.applyWorkspaceConfig({
+      ...store.config,
+      defaultEmbeddingModel: "profile-b:model-b",
+    });
+
+    expect(store.config.embeddingAssetGeneration).toMatchObject({
+      modelIdentity: "profile-b:model-b",
+    });
+    expect(store.config.embeddingAssetGeneration?.generationId).not.toBe(
+      firstGeneration?.generationId
+    );
+    expect(mocks.invoke).toHaveBeenCalledWith("recall_retrieval_cache_clear");
   });
 });

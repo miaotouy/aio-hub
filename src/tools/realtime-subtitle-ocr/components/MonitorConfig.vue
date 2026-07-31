@@ -39,7 +39,8 @@ const engineType = computed(() => {
   const cfg = config.value.engineConfig;
   if (cfg.type === "plugin") {
     const ext = ocrExtensions.value.find(
-      (e) => e.pluginId === cfg.pluginId && e.method === cfg.method
+      (e) =>
+        e.pluginId === cfg.pluginId && e.contributionId === cfg.contributionId
     );
     return ext ? `plugin:${ext.id}` : "plugin";
   }
@@ -57,7 +58,8 @@ const currentPluginOcrExtension = computed(() => {
   if (cfg.type !== "plugin") return null;
   return (
     ocrExtensions.value.find(
-      (e) => e.pluginId === cfg.pluginId && e.method === cfg.method
+      (e) =>
+        e.pluginId === cfg.pluginId && e.contributionId === cfg.contributionId
     ) ?? null
   );
 });
@@ -122,9 +124,8 @@ function onEngineTypeChange(val: string) {
     if (ext) {
       next = {
         type: "plugin",
-        name: ext.name,
         pluginId: ext.pluginId,
-        method: ext.method,
+        contributionId: ext.contributionId,
         modelProfile: ext.defaultModelProfile ?? ext.modelProfiles[0]?.id,
         language: ext.defaultLanguage ?? ext.languages[0]?.id,
       };

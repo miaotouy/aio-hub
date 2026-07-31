@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
-use std::io::{Read, Write};
+use std::io::{Read, Seek, Write};
 #[cfg(windows)]
 use std::path::Component;
 use std::path::{Path, PathBuf};
@@ -111,6 +111,152 @@ pub struct PluginManifest {
     pub ui: Option<PluginUiConfig>,
     pub contributions: Option<Vec<Value>>,
     pub permissions: Option<Vec<String>>,
+}
+
+fn current_plugin_platform_key() -> Result<&'static str, String> {
+    match (std::env::consts::OS, std::env::consts::ARCH) {
+        ("windows", "x86_64") => Ok("win32-x64"),
+        ("windows", "aarch64") => Ok("win32-arm64"),
+        ("macos", "x86_64") => Ok("darwin-x64"),
+        ("macos", "aarch64") => Ok("darwin-arm64"),
+        ("linux", "x86_64") => Ok("linux-x64"),
+        ("linux", "aarch64") => Ok("linux-arm64"),
+        (os, arch) => Err(format!("插件系统不支持当前平台: {os}-{arch}")),
+    }
+}
+
+fn manifest_binary_path<'a>(
+    manifest: &'a PluginManifest,
+    platform_key: &str,
+) -> Result<Option<&'a str>, String> {
+    match manifest.plugin_type.as_str() {
+        "sidecar" => manifest
+            .sidecar
+            .as_ref()
+            .ok_or_else(|| "Sidecar 插件缺少 sidecar 配置块".to_string())?
+            .executable
+            .get(platform_key)
+            .map(String::as_str)
+            .map(Some)
+            .ok_or_else(|| format!("Sidecar 插件不支持当前平台: {platform_key}")),
+        "native" => manifest
+            .native
+            .as_ref()
+            .ok_or_else(|| "原生插件缺少 native 配置块".to_string())?
+            .library
+            .get(platform_key)
+            .map(String::as_str)
+            .map(Some)
+            .ok_or_else(|| format!("原生插件不支持当前平台: {platform_key}")),
+        _ => Ok(None),
+    }
+}
+
+fn validate_plugin_archive_platform<R: Read + Seek>(
+    archive: &mut ZipArchive<R>,
+    manifest: &PluginManifest,
+) -> Result<(), String> {
+    let platform_key = current_plugin_platform_key()?;
+    let Some(binary_path) = manifest_binary_path(manifest, platform_key)? else {
+        return Ok(());
+    };
+
+    let normalized_path = binary_path.replace('\\', "/");
+    let path_segments: Vec<&str> = normalized_path.split('/').collect();
+    let has_drive_prefix = normalized_path.as_bytes().get(1) == Some(&b':');
+    if normalized_path.is_empty()
+        || normalized_path.starts_with('/')
+        || has_drive_prefix
+        || path_segments.contains(&"..")
+    {
+        return Err(format!(
+            "插件当前平台二进制路径必须是安全的相对路径: {binary_path}"
+        ));
+    }
+
+    for index in 0..archive.len() {
+        let entry = archive
+            .by_index(index)
+            .map_err(|error| format!("读取 ZIP 条目失败: {error}"))?;
+        if entry.name().replace('\\', "/") == normalized_path && entry.size() > 0 {
+            return Ok(());
+        }
+    }
+
+    Err(format!(
+        "插件包缺少当前平台 ({platform_key}) 的二进制文件: {binary_path}"
+    ))
+}
+
+#[cfg(test)]
+mod plugin_platform_tests {
+    use super::*;
+    use std::io::Cursor;
+    use zip::write::SimpleFileOptions;
+    use zip::ZipWriter;
+
+    fn sidecar_manifest(binary_path: &str) -> PluginManifest {
+        let platform_key = current_plugin_platform_key().unwrap();
+        PluginManifest {
+            id: "test-sidecar".to_string(),
+            name: "Test Sidecar".to_string(),
+            version: "1.0.0".to_string(),
+            description: "test".to_string(),
+            author: "test".to_string(),
+            icon: None,
+            tags: None,
+            host: HostRequirements {
+                app_version: ">=0.0.0".to_string(),
+                api_version: Some(3),
+            },
+            plugin_type: "sidecar".to_string(),
+            main: None,
+            sidecar: Some(SidecarConfig {
+                executable: HashMap::from([(platform_key.to_string(), binary_path.to_string())]),
+                args: None,
+            }),
+            native: None,
+            methods: None,
+            settings_schema: None,
+            ui: None,
+            contributions: None,
+            permissions: None,
+        }
+    }
+
+    fn archive_with_file(path: &str) -> ZipArchive<Cursor<Vec<u8>>> {
+        let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
+        writer
+            .start_file(path, SimpleFileOptions::default())
+            .unwrap();
+        writer.write_all(b"binary").unwrap();
+        ZipArchive::new(writer.finish().unwrap()).unwrap()
+    }
+
+    #[test]
+    fn accepts_the_declared_current_platform_binary() {
+        let manifest = sidecar_manifest("bin/test-sidecar");
+        let mut archive = archive_with_file("bin/test-sidecar");
+
+        assert!(validate_plugin_archive_platform(&mut archive, &manifest).is_ok());
+    }
+
+    #[test]
+    fn rejects_missing_or_unsafe_platform_binaries() {
+        let manifest = sidecar_manifest("bin/test-sidecar");
+        let mut archive = archive_with_file("bin/other-sidecar");
+        assert!(validate_plugin_archive_platform(&mut archive, &manifest)
+            .unwrap_err()
+            .contains("插件包缺少当前平台"));
+
+        let unsafe_manifest = sidecar_manifest("../test-sidecar");
+        let mut archive = archive_with_file("test-sidecar");
+        assert!(
+            validate_plugin_archive_platform(&mut archive, &unsafe_manifest)
+                .unwrap_err()
+                .contains("安全的相对路径")
+        );
+    }
 }
 
 // 进度事件结构体
@@ -1648,6 +1794,10 @@ pub async fn install_plugin_from_zip(
         return Err(format!("非法的插件 ID: {}", plugin_id));
     }
 
+    let typed_manifest: PluginManifest = serde_json::from_value(manifest.clone())
+        .map_err(|error| format!("转换 manifest 类型失败: {error}"))?;
+    validate_plugin_archive_platform(&mut archive, &typed_manifest)?;
+
     // 获取应用数据目录
     let app_data_dir = crate::get_app_data_dir(app.config());
 
@@ -1852,6 +2002,8 @@ pub async fn preflight_plugin_zip(zip_path: String) -> Result<PluginManifest, St
     // 将 serde_json::Value 转换为 PluginManifest 类型
     let plugin_manifest: PluginManifest = serde_json::from_value(manifest_value)
         .map_err(|e| format!("转换 manifest 类型失败: {}", e))?;
+
+    validate_plugin_archive_platform(&mut archive, &plugin_manifest)?;
 
     Ok(plugin_manifest)
 }

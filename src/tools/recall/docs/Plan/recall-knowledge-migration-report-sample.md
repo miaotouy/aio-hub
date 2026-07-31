@@ -4,6 +4,7 @@
 **最近修订**: 2026-07-19
 
 > 本文件是结构和恢复文案样例，不代表本机真实用户数据。施工期不得扫描真实用户 appData。
+> 稳定字段、状态语义和清理条件以 [`../architecture/storage-migration-contract.md`](../architecture/storage-migration-contract.md) 为准。
 
 ```text
 迁移 ID: 2026-07-17T22:00:00+08:00

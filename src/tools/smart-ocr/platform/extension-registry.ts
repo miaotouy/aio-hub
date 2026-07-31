@@ -20,6 +20,7 @@ import type {
   PluginProxy,
 } from "@/services/plugin-types";
 import type { OcrExtension } from "./types";
+import { getPluginFailureSummary } from "@/services/plugin-diagnostics";
 
 export type PluginOcrExtension = OcrExtension;
 
@@ -63,6 +64,10 @@ function mapPluginContribution(
     capabilities: contribution.capabilities,
     enabled: state?.enabled ?? plugin.enabled,
     broken: state?.isBroken ?? false,
+    failureReason:
+      state?.isBroken || plugin.isBroken
+        ? getPluginFailureSummary(plugin)
+        : undefined,
     devMode: plugin.devMode,
   };
 }
@@ -87,10 +92,14 @@ export function useOcrExtensions() {
       );
   });
 
-  const getOcrExtensionByConfig = (pluginId?: string, method?: string) =>
+  const getOcrExtensionByConfig = (
+    pluginId?: string,
+    contributionId?: string
+  ) =>
     ocrExtensions.value.find(
       (extension) =>
-        extension.pluginId === pluginId && extension.method === method
+        extension.pluginId === pluginId &&
+        extension.contributionId === contributionId
     );
 
   const getOcrExtensionById = (id: string) =>

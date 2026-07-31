@@ -10,8 +10,8 @@ import { FileSystemIconLoader } from "unplugin-icons/loaders";
 import IconsResolver from "unplugin-icons/resolver";
 import Components from "unplugin-vue-components/vite";
 import VueDevTools from "vite-plugin-vue-devtools";
-import monaco from "@tomjs/vite-plugin-monaco-editor";
 import { fileURLToPath, URL } from "node:url";
+import { tokenizerAssetsPlugin } from "./scripts/vite/tokenizerAssetPlugin";
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -105,6 +105,7 @@ const viteConfig = defineConfig({
   base: "/",
 
   plugins: [
+    tokenizerAssetsPlugin(),
     // 生产环境禁用 VueDevTools
     process.env.NODE_ENV !== "production" && VueDevTools(),
     vue(),
@@ -151,20 +152,6 @@ const viteConfig = defineConfig({
             }
             next();
           }
-        );
-      },
-    },
-    monaco({
-      // 替换旧的 monacoEditorPlugin，直接用 local: true 强制本地打包，避免 CDN
-      local: true,
-    }),
-    {
-      name: "monaco-remove-missing-nls-script",
-      enforce: "post",
-      transformIndexHtml(html: string) {
-        return html.replace(
-          /\n<script src="\/npm\/monaco-editor@[^"]+\/min\/vs\/editor\/editor\.main\.nls\.js"><\/script>/,
-          ""
         );
       },
     },
@@ -325,6 +312,7 @@ export default mergeConfig(
         "src-tauri/**",
         "dist/**",
         "mobile/**",
+        "packages/**", // workspace packages use their own test scripts and environments
         "**/.claude/**",
         "**/.kilo/**",
         "**/.kilocode/**",
@@ -332,6 +320,7 @@ export default mergeConfig(
         "**/.jj/**",
         "tests/tauri-e2e/**",
         "tests/mobile-android-e2e/**",
+        ".dev-data/**",
       ],
     },
   })

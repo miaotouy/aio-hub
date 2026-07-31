@@ -66,7 +66,7 @@ AIO Hub 不仅仅是一个工具集合，它是一个以开发者为中心、高
 - **增强特性**:
   - **前缀续写 (Prefill)**: 支持 Claude/DeepSeek 的 Assistant 消息续写，实现引导式生成。
   - **Responses 有状态 API**: 适配 OpenAI 新一代 Responses 接口，内置联网搜索与文件检索增强。
-- **高可用 Key 调度**: 内置多 Key 轮询与健康状态检测，具备自动熔断与成功率反馈机制。
+- **Key 调度**: 内置多 Key 轮询与健康状态检测；自动熔断为可选能力且默认关闭，适用于明确配置了多 Key 的场景。
 
 ### 3.4 跨窗口分离架构 (Window Detachment Architecture)
 

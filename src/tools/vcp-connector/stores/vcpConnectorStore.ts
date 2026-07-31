@@ -675,6 +675,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
         distStore.setStatus("disconnected");
         distStore.setNodeId(null);
         distStore.clearExposedTools();
+        nodeProtocol.value?.abortAllInFlight();
         nodeProtocol.value = null;
 
         // 清理桥接工厂
@@ -752,6 +753,11 @@ export const useVcpStore = defineStore("vcp-connector", () => {
       }
     } else if (data.type === "execute_tool") {
       nodeProtocol.value?.handleExecuteTool(data.data);
+    } else if (data.type === "cancel_tool") {
+      const requestId = data.data?.requestId || data.requestId;
+      if (typeof requestId === "string") {
+        nodeProtocol.value?.handleCancelTool(requestId);
+      }
     } else if (data.type === "tool_approval_request") {
       nodeProtocol.value?.handleToolApprovalRequest(data.data);
     } else if (data.type === "tool_approval_response") {

@@ -64,8 +64,9 @@ import { useTheme } from "@composables/useTheme";
 import {
   VueMonacoEditor,
   VueMonacoDiffEditor,
+  loader as monacoLoader,
 } from "@guolao/vue-monaco-editor";
-import type { editor as MonacoEditor } from "monaco-editor";
+import * as monaco from "@/utils/monaco";
 import { EditorState, Compartment } from "@codemirror/state";
 import {
   EditorView,
@@ -102,6 +103,8 @@ import {
   getCodeMirrorLanguage,
 } from "@/utils/codeLanguages";
 
+monacoLoader.config({ monaco });
+
 const props = withDefaults(
   defineProps<{
     modelValue?: string;
@@ -113,8 +116,8 @@ const props = withDefaults(
     lineNumbers?: boolean;
     editorType?: "codemirror" | "monaco";
     options?:
-      | MonacoEditor.IStandaloneDiffEditorConstructionOptions
-      | MonacoEditor.IStandaloneEditorConstructionOptions;
+      | monaco.editor.IStandaloneDiffEditorConstructionOptions
+      | monaco.editor.IStandaloneEditorConstructionOptions;
     /** 自定义补全源（仅 CodeMirror 支持） */
     completionSource?: CompletionSource | CompletionSource[];
     /** 是否禁用默认的语言补全（如 HTML 标签补全） */
@@ -140,9 +143,9 @@ const emit = defineEmits<{
   (
     e: "mount",
     editor:
-      | MonacoEditor.IStandaloneCodeEditor
+      | monaco.editor.IStandaloneCodeEditor
       | EditorView
-      | MonacoEditor.IStandaloneDiffEditor
+      | monaco.editor.IStandaloneDiffEditor
   ): void;
 }>();
 
@@ -214,14 +217,14 @@ const zhCnPhrases = {
 
 // Monaco Editor 相关状态
 const monacoEditorInstance =
-  shallowRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
+  shallowRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 const monacoDiffEditorInstance =
-  shallowRef<MonacoEditor.IStandaloneDiffEditor | null>(null);
+  shallowRef<monaco.editor.IStandaloneDiffEditor | null>(null);
 const monacoValue = ref(props.modelValue);
 
 // Monaco Editor 配置
 const monacoOptions =
-  computed<MonacoEditor.IStandaloneEditorConstructionOptions>(() => ({
+  computed<monaco.editor.IStandaloneEditorConstructionOptions>(() => ({
     readOnly: props.readOnly ?? false,
     lineNumbers: (props.lineNumbers ?? true) ? "on" : "off",
     minimap: { enabled: false },
@@ -240,18 +243,18 @@ const monacoOptions =
     folding: true,
     foldingStrategy: "indentation",
     showFoldingControls: "always",
-    ...(props.options as MonacoEditor.IStandaloneEditorConstructionOptions),
+    ...(props.options as monaco.editor.IStandaloneEditorConstructionOptions),
   }));
 
 // Monaco Diff Editor 配置
 const monacoDiffOptions =
-  computed<MonacoEditor.IStandaloneDiffEditorConstructionOptions>(() => ({
+  computed<monaco.editor.IStandaloneDiffEditorConstructionOptions>(() => ({
     readOnly: props.readOnly ?? false,
     lineNumbers: (props.lineNumbers ?? true) ? "on" : "off",
     automaticLayout: true,
     fontSize: 14,
     scrollBeyondLastLine: false,
-    ...(props.options as MonacoEditor.IStandaloneDiffEditorConstructionOptions),
+    ...(props.options as monaco.editor.IStandaloneDiffEditorConstructionOptions),
   }));
 // Monaco 语言映射
 const getMonacoLanguage = () => {
@@ -259,7 +262,7 @@ const getMonacoLanguage = () => {
 };
 
 // Monaco Editor 事件处理
-const handleMonacoMount = (editor: MonacoEditor.IStandaloneCodeEditor) => {
+const handleMonacoMount = (editor: monaco.editor.IStandaloneCodeEditor) => {
   monacoEditorInstance.value = editor;
   // 确保挂载时设置最新的值，解决初始加载时内容为空的问题
   if (props.modelValue && editor.getValue() !== props.modelValue) {
@@ -268,7 +271,7 @@ const handleMonacoMount = (editor: MonacoEditor.IStandaloneCodeEditor) => {
   emit("mount", editor);
 };
 
-const handleMonacoDiffMount = (editor: MonacoEditor.IStandaloneDiffEditor) => {
+const handleMonacoDiffMount = (editor: monaco.editor.IStandaloneDiffEditor) => {
   monacoDiffEditorInstance.value = editor;
   emit("mount", editor);
 };

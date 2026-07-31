@@ -1,8 +1,8 @@
 # LLM Chat: Agent 配置管理解耦及智能体大厅建设方案 (施工级图纸版)
 
-> 最后更新：2026-07-08
-> 状态：RFC (Request for Comments)
-> 关联模块：`src/tools/agent-manager/` (待创建)
+> 最后更新：2026-07-28
+> 状态：已随 `v0.6.6-r.1` 发布；2026-07-23 代码审计发现旧路径残留与迁移测试缺口，待收口
+> 关联模块：`src/tools/agent-manager/`（已创建）
 
 ## 1. 核心设计哲学：工具高度自治与门户化
 
@@ -205,6 +205,8 @@ To ensure that old users do not lose, damage, or break their historical agent co
 
 ### 5.2. 核心迁移算法与冷启动流程
 
+> `0.6.6-r.2` 修复补充：实际恢复流程已改为模块内收敛迁移。目标有效文件优先，只递归补齐旧目录缺失项；跨 WebView 锁和版本完成标记由轻量协调器提供，不再整目录回滚或按启动重复备份。
+
 在 `agent-manager` 的 `useAgentStorage.ts` 初始化（`load()`）时，自动触发以下迁移管道：
 
 ```typescript
@@ -295,7 +297,7 @@ export async function triggerDataMigration() {
 
 在实际实现中，智能体头像在 `agent.json` 配置文件中，实际上是保存为**基于智能体目录的相对路径**（如 `avatar-123.png`），或者是 emoji（如 `✨`），或者是网络 URL。
 只有在前端运行时，通过 `useResolvedAvatar.ts` 才会动态将其拼接为 `appdata://llm-chat/agents/${entity.id}/${icon}`。
-在保存时，`useAgentStorageSeparated.ts` 会通过 `selfAssetPathPrefix`（即 `appdata://llm-chat/agents/${agent.id}/`）将完整的 `appdata://` 协议路径截断为相对文件名（如 `avatar-123.png`）再写入磁盘。
+在保存时，`useAgentStorage.ts` 会通过 `selfAssetPathPrefix`（即 `appdata://agent-manager/agents/${agent.id}/`）将完整的 `appdata://` 协议路径截断为相对文件名（如 `avatar-123.png`）再写入磁盘。
 
 #### 解决方案：动态协议头解析与保存截断更新
 
@@ -326,33 +328,29 @@ export async function triggerDataMigration() {
 
 ---
 
-## 6. 当前施工进度 (Implementation Progress)
+## 6. 实现核对与发布后收口
 
-> 更新时间：2026-07-08 (运行时状态同步)
+> 代码审计：2026-07-23
+>
+> 发布证据：解耦提交 `36a078644`、存储迁移提交 `578e9e00e` 均包含在 tag `v0.6.6-r.1`。
 
-目前，智能体配置管理解耦及智能体大厅建设已取得阶段性突破，核心物理迁移与解耦架构已基本落地：
+### 6.1. 已落地并发布
 
-### 6.1. 已完成要点 (Completed)
+- 独立工具注册、`AgentManager.vue` 门户和“大厅选人 -> 打开 Chat”入口已经存在。
+- `agentStore`、编辑器、导入导出和资产管理代码已经物理迁入 `src/tools/agent-manager/`；`currentAgentId` 仍由 Chat UI 状态持有。
+- `useAgentStorage.ts` 的主存储根目录已经是 `agent-manager/agents`，`loadAgentsIndex()` 会先调用 `triggerDataMigration()`。
+- 冷启动迁移包含旧目录探测、备份、复制、顶层条目数量校验、失败时删除新目录和旧目录 `.migrated.bak` 归档。
+- Rust `agent_asset_manager.rs` 的实际读写、删除和二进制读取路径已经切到 `agent-manager/agents`。
+- 头像解析器保留旧 `appdata://llm-chat/agents/` 到新协议路径的运行时兼容。
 
-1. **独立工具门户建立**：
-   - 创建了 [`src/tools/agent-manager/agent-manager.registry.ts`](src/tools/agent-manager/agent-manager.registry.ts) 注册文件，正式将智能体管理器注册为 AIO Hub 的平级独立工具。
-   - 建立了智能体大厅主入口 [`src/tools/agent-manager/AgentManager.vue`](src/tools/agent-manager/AgentManager.vue)。
+门户为了实现一键开聊，会直接导入 `useLlmChatUiState`。因此“存储和 Store 不反向依赖 Chat”已经成立，但第 1 节图示所表达的“整个 `agent-manager` 不依赖 Chat”并不成立；这是当前产品联动边界，不应再被描述成完全物理解耦。
 
-2. **物理目录大迁移**：
-   - 成功将原寄生在 `llm-chat` 内部的智能体编辑器（`AgentEditor.vue`）、预设向导（`agent-config-wizard.ts`）、各类编辑子面板（基本信息、性格、知识库、会话变量等）物理迁移至 [`src/tools/agent-manager/components/`](src/tools/agent-manager/components/)。
-   - 迁移并重构了核心存储与状态管理：
-     - [`src/tools/agent-manager/stores/agentStore.ts`](src/tools/agent-manager/stores/agentStore.ts) (纯粹的数据管理，不感知聊天 UI 状态)。
-     - [`src/tools/agent-manager/services/agentImportService.ts`](src/tools/agent-manager/services/agentImportService.ts) (解耦后的智能体导入服务)。
+### 6.2. 代码审计发现的待办
 
-3. **双向联动与解耦设计落地**：
-   - 实现了 `currentAgentId` 状态彻底留在 `llm-chat` 侧（[`src/tools/llm-chat/composables/ui/useLlmChatUiState.ts`](src/tools/llm-chat/composables/ui/useLlmChatUiState.ts)），`agentStore` 保持无状态的单向按需加载设计。
-   - 问候语同步逻辑从 `agentStore` 剥离，改由 `llm-chat` 侧在保存回调中就地触发或通过历史会话切换时懒加载重建，彻底斩断了配置层对聊天运行时的反向依赖。
+- [x] **清理活动旧路径读写**：内置预设资产导入、带资产 Agent 导入、升级覆盖、Agent ZIP/PNG 导出、聊天管道私有附件读取和“打开资产目录”均已通过 `getAgentStorageSubdirectory()` 使用 `agent-manager/agents`；已补导出资产与私有附件读取回归测试。
+- [x] **修正 Rust 全文搜索目录**：普通与流式搜索分别从 `{appConfigDir}/agent-manager/agents` 和 `{appConfigDir}/llm-chat/sessions` 扫描数据，Agent 搜索结果路径同步返回 `agent-manager/agents/{id}/agent.json`，并用 Rust 单元测试冻结两个存储根。
+- [ ] **加强迁移校验与恢复语义**：当前 `verifyMigration()` 只比较迁移目录的顶层条目数量，并不递归校验文件数量、大小或内容；新目录已有任意实际条目时会直接跳过旧目录迁移。需要明确部分迁移、残留目录和重复启动的恢复策略。
+- [ ] **补迁移级自动化测试**：现有 `agentMigrationService.test.ts` 测试的是 Agent 配置字段迁移，不覆盖 `triggerDataMigration()`。至少覆盖成功迁移、第二次启动不重复、目标目录部分存在、复制/校验/重命名失败回滚，以及旧协议头像解析。
+- [ ] **补当前版本真实升级证据**：记录从含旧 `llm-chat/agents` 数据的已发布版本升级到当前构建后的目录、索引、头像/资产、导入、升级覆盖和搜索结果；不能只用“已发版”替代该证据。
 
-### 6.2. 进行中与下一步计划 (In Progress & Next Steps)
-
-- [ ] **物理路径自治与数据迁移**：
-  - 目前 [`src/tools/agent-manager/composables/storage/useAgentStorage.ts`](src/tools/agent-manager/composables/storage/useAgentStorage.ts) 中的 `MODULE_NAME` 依然硬编码为 `"llm-chat"`，尚未切换为 `"agent-manager"`。
-  - 需要实现 5.1 和 5.2 节设计的冷启动自动迁移管道（`triggerDataMigration`），将数据从 `{appConfigDir}/llm-chat/agents/` 物理迁移到 `{appConfigDir}/agent-manager/agents/`。
-  - 需要同步更新 Rust 后端 `agent_asset_manager.rs` 中的存储路径。
-- [ ] 进一步完善智能体大厅（`AgentManager.vue`）的 UI 视觉表现，对齐项目的主题外观系统。
-- [ ] 联调“大厅选人 -> 自动开聊”的无缝闭环体验。
+完成以上项目后，才将本计划恢复为“已完成”。

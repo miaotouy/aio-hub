@@ -30,6 +30,7 @@ pub mod file_operations;
 pub mod font_list;
 pub mod git_analyzer;
 pub mod git_committer;
+pub mod llm_chat_persistence;
 pub mod llm_inspector;
 pub mod llm_proxy;
 pub mod llmchat_search;
@@ -65,6 +66,7 @@ pub use file_operations::*;
 pub use font_list::*;
 pub use git_analyzer::*;
 pub use git_committer::*;
+pub use llm_chat_persistence::*;
 pub use llm_inspector::*;
 pub use llm_proxy::*;
 pub use llmchat_search::*;
@@ -165,6 +167,9 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         get_installed_bundles,
         prepare_and_detect_package,
         clean_temp_dir,
+        // LLM Chat 会话原子持久化
+        llm_chat_atomic_write,
+        llm_chat_delete_session,
         // LLM检查器命令
         start_llm_inspector,
         stop_llm_inspector,
@@ -371,7 +376,13 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         crate::recall::recall_retrieval_cache_set,
         crate::recall::recall_retrieval_cache_clear,
         crate::recall::recall_retrieval_cache_stats,
-        crate::recall::recall_search,
+        crate::recall::recall_list_retrieval_presets,
+        crate::recall::recall_list_retrieval_modules,
+        crate::recall::recall_get_retrieval_pipeline_template,
+        crate::recall::recall_compile_retrieval_pipeline,
+        crate::recall::recall_compile_custom_retrieval_pipeline,
+        crate::recall::recall_run_retrieval_pipeline,
+        crate::recall::recall_run_custom_retrieval_pipeline,
         crate::recall::recall_upsert_entry,
         crate::recall::recall_delete_entry,
         crate::recall::recall_batch_delete_entries,
@@ -384,7 +395,6 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         crate::recall::recall_load_entry,
         crate::recall::recall_get_entries,
         crate::recall::recall_list_entry_ids,
-        crate::recall::recall_list_engines,
         crate::recall::recall_get_missing_tags,
         crate::recall::recall_sync_tag_vectors,
         crate::recall::recall_rebuild_tag_pool_index,
@@ -403,6 +413,8 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         crate::recall::recall_import_backup,
         crate::recall::recall_import_legacy_backup_to_knowledge,
         crate::recall::recall_inspect_legacy_migration,
+        crate::recall::recall_preview_legacy_migration,
+        crate::recall::recall_run_legacy_migration,
         crate::recall::recall_confirm_legacy_cleanup,
         crate::recall::monitor::recall_monitor_heartbeat,
         // Knowledge 资料库命令

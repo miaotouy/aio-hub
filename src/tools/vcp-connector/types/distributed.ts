@@ -65,6 +65,7 @@ export interface VcpDistributedMessage {
     | "register_tools"
     | "register_tools_ack"
     | "execute_tool"
+    | "cancel_tool"
     | "tool_result"
     | "report_ip"
     | "update_static_placeholders"

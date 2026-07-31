@@ -25,12 +25,15 @@
 
     <!-- 中部操作栏 (Sidebar) -->
     <Sidebar
-      v-if="currentRepoPath && currentRepoPath !== '__panorama__'"
+      v-if="
+        currentRepoPath && currentRepoPath !== '__panorama__' && !showSettings
+      "
       :style="{ width: sidebarWidth + 'px' }"
-      @open-settings="showSettings = true"
     />
     <div
-      v-if="currentRepoPath && currentRepoPath !== '__panorama__'"
+      v-if="
+        currentRepoPath && currentRepoPath !== '__panorama__' && !showSettings
+      "
       class="resize-handle"
       :class="{ active: isResizingSidebar }"
       @mousedown="startResizeSidebar"
@@ -220,11 +223,6 @@ onMounted(async () => {
   window.addEventListener("focus", handleWindowFocus);
   // 启动智能轮询
   startPolling();
-
-  // 如果没有仓库，默认打开设置面板
-  if (currentRepoPath.value === "") {
-    showSettings.value = true;
-  }
 });
 
 onUnmounted(() => {

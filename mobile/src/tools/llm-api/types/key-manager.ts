@@ -47,6 +47,11 @@ export interface ApiKeyStatus {
  */
 export type ProfileKeyStatusMap = Record<string, ApiKeyStatus>;
 
+export interface ProfileKeyManagerSettings {
+  enableAutoDisable: boolean;
+  autoRecoveryTime: number;
+}
+
 /**
  * 持久化存储结构
  */
@@ -60,12 +65,6 @@ export interface KeyStatesStorage {
    * 每个 Profile 最后一次使用的 Key 索引 (用于轮询)
    */
   lastUsedIndices: Record<string, number>;
-  /**
-   * 是否启用自动禁用熔断
-   */
-  enableAutoDisable: boolean;
-  /**
-   * 自动恢复时长 (毫秒)，默认 1 分钟
-   */
-  autoRecoveryTime: number;
+  /** 每个 Profile 独立的熔断与恢复设置 */
+  profileSettings: Record<string, ProfileKeyManagerSettings>;
 }

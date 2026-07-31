@@ -22,6 +22,7 @@ import type {
   RecallCollectionMeta,
   RecallEntry,
   RecallCollection,
+  VectorIndexConfig,
 } from "../types";
 import { DEFAULT_WORKSPACE_CONFIG } from "../config";
 
@@ -33,6 +34,29 @@ export interface WorkspaceData {
   /** 仅为运行时兼容保留；集合列表始终由 Recall repository 返回。 */
   bases: RecallCollectionIndex[];
   lastActiveBaseId?: string;
+}
+
+function stripLegacyRetrievalConfig(config: WorkspaceConfig): WorkspaceConfig {
+  const { defaultEngineId: _defaultEngineId, ...workspaceConfig } =
+    config as WorkspaceConfig & {
+      defaultEngineId?: unknown;
+    };
+  const {
+    algorithm: _algorithm,
+    metric: _metric,
+    texture: _texture,
+    refractionIndex: _refractionIndex,
+    k1: _k1,
+    b: _b,
+    limit: _limit,
+    minScore: _minScore,
+    ...vectorIndex
+  } = workspaceConfig.vectorIndex as VectorIndexConfig &
+    Record<string, unknown>;
+  return {
+    ...workspaceConfig,
+    vectorIndex: vectorIndex as VectorIndexConfig,
+  };
 }
 
 /**
@@ -68,6 +92,7 @@ export class KnowledgeStorage {
     const metas = await invoke<RecallCollectionMeta[]>("recall_list_bases");
     return {
       ...workspace,
+      config: stripLegacyRetrievalConfig(workspace.config),
       bases: metas.map((meta) => ({
         id: meta.id,
         name: meta.name,

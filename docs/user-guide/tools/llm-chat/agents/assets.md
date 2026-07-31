@@ -73,7 +73,7 @@ Agent 资产（Assets）系统允许用户为每个智能体绑定专属的多�
 
 ### 1. 物理存储
 
-所有资产物理存储在应用数据目录下的 `llm-chat/agents/{agentId}/assets/` 目录中。你可以通过界面上的“打开目录”按钮直接访问原始文件。
+所有资产物理存储在应用数据目录下的 `agent-manager/agents/{agentId}/assets/` 目录中。你可以通过界面上的“打开目录”按钮直接访问原始文件。
 
 ### 2. SillyTavern 兼容导入
 

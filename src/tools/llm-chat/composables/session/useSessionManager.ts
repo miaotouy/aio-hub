@@ -26,6 +26,7 @@ import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useChatStorageSeparated as useChatStorage } from "../storage/useChatStorageSeparated";
 import type { FavoriteFolder } from "../storage/useChatStorageSeparated";
+import type { RecoveryState } from "../../types/persistence";
 import { insertLiveGreetings } from "../../services/greetingService";
 import { getEffectiveMessageCount } from "../../utils/sessionMessageCount";
 import { createModuleLogger } from "@/utils/logger";
@@ -225,6 +226,10 @@ export function useSessionManager() {
         showToUser: false,
         context: { sessionId },
       });
+      // Do not remove the in-memory/index entry when the tombstone or trash
+      // move failed; otherwise the user loses the retry path while the file
+      // remains on disk.
+      throw error;
     }
 
     return { updatedSessions, newCurrentSessionId };
@@ -287,22 +292,33 @@ export function useSessionManager() {
     sessions: ChatSessionIndex[];
     currentSessionId: string | null;
     favoriteFolders: FavoriteFolder[];
+    recoveryState: RecoveryState;
   }> => {
     try {
       const { loadSessionsIndex: loadIndexFromStorage } = useChatStorage();
-      const { sessions, currentSessionId, favoriteFolders } =
+      const { sessions, currentSessionId, favoriteFolders, recoveryState } =
         await loadIndexFromStorage();
       return {
         sessions: sessions as ChatSessionIndex[],
         currentSessionId,
         favoriteFolders,
+        recoveryState,
       };
     } catch (error) {
       errorHandler.handle(error as Error, {
         userMessage: "加载会话索引失败",
         showToUser: false,
       });
-      return { sessions: [], currentSessionId: null, favoriteFolders: [] };
+      return {
+        sessions: [],
+        currentSessionId: null,
+        favoriteFolders: [],
+        recoveryState: {
+          status: "corrupt",
+          failedSessionCount: 0,
+          scannedSessionCount: 0,
+        },
+      };
     }
   };
 

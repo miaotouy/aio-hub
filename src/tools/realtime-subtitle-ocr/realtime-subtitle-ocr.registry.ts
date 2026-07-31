@@ -57,6 +57,6 @@ export const toolConfig: ToolConfig = {
   component: () => import("./RealtimeSubtitleOcr.vue"),
   description: "windouws 字幕 OCR 识别工具",
   category: ["媒体工具"],
-  version: "1.0.0",
+  version: "2.0.0",
   runMode: "any",
 };

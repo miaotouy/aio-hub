@@ -55,6 +55,14 @@ describe("Tauri E2E runner options", () => {
       requiredScenarioIds: [],
     } as const;
 
+    expect(parseE2eRunnerOptions(["--preset", "recall-pipeline"], {})).toEqual({
+      ...deterministicDefaults,
+      presetId: "recall-pipeline",
+      wdioArgs: [
+        "--spec",
+        "tests/tauri-e2e/specs/recall-pipeline.spec.ts",
+      ],
+    });
     expect(parseE2eRunnerOptions(["--preset", "recall-vector"], {})).toEqual({
       ...deterministicDefaults,
       presetId: "recall-vector",

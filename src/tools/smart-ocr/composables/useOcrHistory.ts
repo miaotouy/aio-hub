@@ -74,6 +74,11 @@ function getEngineDetail(config: OcrEngineConfig): string {
       return config.modelId;
     case "cloud":
       return config.name;
+    case "plugin":
+      return `${config.pluginId}/${
+        config.contributionId ||
+        ((config as OcrEngineConfig & { method?: string }).method ?? "")
+      }`;
     default:
       return "";
   }

@@ -20,6 +20,7 @@ export type RecallSignalType =
   | "keyword"
   | "content-vector"
   | "tag-vector"
+  | "tag-graph"
   | "lens"
   | "blender"
   | "multi-signal";
@@ -58,7 +59,11 @@ export interface RecallResult {
     | "keyword"
     | "tag"
     | "tag_vector"
+    | "tag_graph"
     | "key"
+    | "algorithmic"
+    | "comprehensive"
+    | "pipeline"
     | "lens"
     | "blender"
     | "multi_signal";
@@ -86,34 +91,4 @@ export interface RecallSearchFilters {
   enabledOnly?: boolean;
   /** 结果数量限制 */
   limit?: number;
-  /** 指定检索引擎 ID */
-  engineId?: string;
-  /** 透镜检索：纹理 (coarse/fine) */
-  texture?: "coarse" | "fine";
-  /** 透镜检索：折射率 (0.0 - 1.0) */
-  refractionIndex?: number;
-  /** 透镜检索：显式约束标签 */
-  requiredTags?: string[];
-  /** 透镜检索：上下文投射向量 (用于能量衰减) */
-  historyVectors?: number[][];
-}
-
-/**
- * 检索算法引擎信息
- */
-export interface RetrievalEngineInfo {
-  /** 引擎唯一标识 */
-  id: string;
-  /** 引擎名称 */
-  name: string;
-  /** 引擎描述 */
-  description: string;
-  /** 引擎图标 */
-  icon: string | null;
-  /** 支持的 Payload 类型: "text", "vector" */
-  supportedPayloadTypes: string[];
-  /** 是否需要 Embedding 模型 */
-  requiresEmbedding: boolean;
-  /** 引擎支持的自定义参数描述 (符合前端 SettingItem 结构) */
-  parameters: any[];
 }

@@ -70,8 +70,8 @@ export async function resolvePlaceholderRetrieval(
         recallIds: params.recallIds,
         limit: params.limit,
         minScore: params.minScore,
-        engineId: params.engineId,
         profile: params.profile,
+        presetId: params.presetId,
         enableCache: req.settings.enableCache,
       });
 

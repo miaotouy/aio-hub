@@ -1,7 +1,7 @@
 # 上下文管道扩展与 UI 动态注入测试计划
 
 > 创建时间：2026-07-11
-> 状态：Implementing (实施中)
+> 状态：代码与示例插件已实现，真实 Tauri 插件启用验收待完成
 
 本计划旨在测试和验证 `llm-chat` 的上下文管道（Context Pipeline）扩展能力，以及聊天设置（Chat Settings）的 UI 动态注入能力。通过实现一个“句式改写测试插件”，打通插件系统与聊天核心模块的深度交互。
 
@@ -15,9 +15,9 @@
 
 ### 2.1. 宿主应用插件系统扩展
 
-目前 `PluginContext` 尚未暴露设置注入 API。我们需要在 `PluginContext` 中暴露 `registerSettingsSection` 和 `registerSettingItem`。
+施工前 `PluginContext` 尚未暴露设置注入 API；当前已在 `PluginContext.chat` 中提供 `registerSettingsSection` 和 `registerSettingItem`，并由插件管理器桥接到 Chat 设置注册中心。
 
-#### 修改文件 1：[`src/services/plugin-types.ts`](src/services/plugin-types.ts)
+#### 修改文件 1：[`src/services/plugin-types.ts`](../../../../../src/services/plugin-types.ts)
 
 在 `PluginContext` 的 `chat` 属性中增加 API 声明：
 
@@ -39,7 +39,7 @@ export interface PluginContext {
 }
 ```
 
-#### 修改文件 2：[`src/services/plugin-manager.ts`](src/services/plugin-manager.ts)
+#### 修改文件 2：[`src/services/plugin-manager.ts`](../../../../../src/services/plugin-manager.ts)
 
 在 `createPluginContext` 中实现这两个方法，桥接到 `llm-chat` 的 `usePluginSettings`：
 
@@ -154,7 +154,7 @@ export async function activate(context: PluginContext) {
         component: "ElSelect",
         modelPath: "plugins.sentenceRewriter.targetRoles",
         hint: "该改写规则作用于哪些角色的消息",
-        defaultValue: ["user"],
+        defaultValue: ["assistant"],
         layout: "block",
         props: {
           multiple: true,
@@ -267,7 +267,7 @@ export async function deactivate() {
 
 1. **启用插件**：在“插件管理器”中启用 `example-pipeline-extension` 插件。
 2. **验证 UI 注入**：打开聊天窗口，点击右上角“聊天设置”，验证是否在最下方（或标签页中）成功渲染了“句式改写测试”分区，且包含 4 个配置项。
-3. **修改配置**：在聊天设置中，修改匹配正则或替换模板，验证自动保存是否生效。
+3. **修改配置**：把“作用消息角色”显式设为“用户 (user)”，再修改匹配正则或替换模板，验证自动保存是否生效。当前示例插件 UI 默认显示 `assistant`，而处理器在设置尚未持久化时回退到 `user`，真实 Tauri 验收需要确认并统一这一默认值。
 4. **发送测试消息**：
    - 发送一条消息：“我今天吃的不是苹果，而是香蕉。”
    - 验证 LLM 接收到的上下文是否已被改写为：“我今天吃的与其说是苹果，毋宁说是香蕉。”

@@ -156,10 +156,6 @@ async function loadSettings(): Promise<void> {
 
         let changed = false;
         const oldKb = rawSettings._oldKnowledgeBase;
-        if (oldKb.defaultEngineId) {
-          kbStore.config.defaultEngineId = oldKb.defaultEngineId;
-          changed = true;
-        }
         if (oldKb.embeddingCacheMaxItems !== undefined) {
           kbStore.config.cache.embeddingCacheMaxItems =
             oldKb.embeddingCacheMaxItems;

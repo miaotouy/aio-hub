@@ -95,6 +95,38 @@ export function runTransportContract(options: TransportContractOptions): void {
       );
     });
 
+    it("cancels a response stream when aborted after response headers arrive", async () => {
+      const controller = new AbortController();
+      const cancel = vi.fn();
+      const stream = new ReadableStream<Uint8Array>({
+        start(streamController) {
+          streamController.enqueue(new TextEncoder().encode("partial"));
+        },
+        cancel,
+      });
+      const transport = options.createTransport({
+        fetch: vi.fn(async () => new Response(stream, { status: 200 })),
+        ensureResponseOk: vi.fn(async () => undefined),
+      });
+      const response = await transport.send(
+        {
+          method: "POST",
+          url: "https://example.com/chat",
+          headers: {},
+          streaming: true,
+        },
+        { requestId: "contract-abort-stream", signal: controller.signal }
+      );
+
+      const iterator = response.body[Symbol.asyncIterator]();
+      await expect(iterator.next()).resolves.toMatchObject({ done: false });
+      const pendingRead = iterator.next();
+      controller.abort();
+
+      await expect(pendingRead).rejects.toMatchObject({ name: "AbortError" });
+      expect(cancel).toHaveBeenCalled();
+    });
+
     it("reports response validation failures", async () => {
       const error = new Error("upstream rejected request");
       const onError = vi.fn();

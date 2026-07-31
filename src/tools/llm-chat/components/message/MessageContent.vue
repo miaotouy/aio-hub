@@ -66,6 +66,10 @@ import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
 import { fixVcpEmoticonUrl } from "@/tools/vcp-connector/utils/emoticonFixer";
 import { isEqual } from "lodash-es";
 import { mergeStyleOptions } from "@/tools/rich-text-renderer/utils/styleUtils";
+import {
+  buildRichTextRendererSettings,
+  resolveMessageEnterAnimationEnabled,
+} from "../../utils/richTextRendererSettings";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import LlmThinkNode from "@/tools/rich-text-renderer/components/nodes/LlmThinkNode.vue";
 import AttachmentCard from "../AttachmentCard.vue";
@@ -79,6 +83,9 @@ import DocumentViewer from "@/components/common/DocumentViewer.vue";
 
 const logger = createModuleLogger("MessageContent");
 const { settings } = useChatSettings();
+const rendererSettingsProps = computed(() =>
+  buildRichTextRendererSettings(settings.value.uiPreferences)
+);
 const transcriptionManager = useTranscriptionManager();
 const { computeWillUseTranscription } = transcriptionManager;
 const imageViewer = useImageViewer();
@@ -309,8 +316,11 @@ const originalRendererContent = computed(() =>
   isGenerating.value ? "" : displayedContent.value || ""
 );
 
-const originalRendererEnterAnimation = computed(
-  () => settings.value.uiPreferences.enableEnterAnimation && !isGenerating.value
+const originalRendererEnterAnimation = computed(() =>
+  resolveMessageEnterAnimationEnabled(
+    settings.value.uiPreferences.enableEnterAnimation,
+    props.screenshotMode
+  )
 );
 
 // 提取生成元数据用于渲染器计时
@@ -974,27 +984,14 @@ watch(
       :generation-meta="generationMetaForRenderer"
     >
       <RichTextRenderer
+        v-bind="rendererSettingsProps"
         :content="message.metadata.reasoningContent"
-        :version="settings.uiPreferences.rendererVersion"
         :style-options="frozenStyleOptions"
         :resolve-asset="resolveAsset"
-        :default-render-html="settings.uiPreferences.defaultRenderHtml"
-        :default-code-block-expanded="
-          settings.uiPreferences.defaultCodeBlockExpanded
-        "
         :default-tool-call-collapsed="
           currentAgent?.defaultToolCallCollapsed ??
           settings.uiPreferences.defaultToolCallCollapsed
         "
-        :enable-cdn-localizer="settings.uiPreferences.enableCdnLocalizer"
-        :allow-external-scripts="settings.uiPreferences.allowExternalScripts"
-        :allow-dangerous-html="settings.uiPreferences.allowDangerousHtml"
-        :throttle-ms="settings.uiPreferences.rendererThrottleMs"
-        :smoothing-enabled="settings.uiPreferences.smoothingEnabled"
-        :throttle-enabled="settings.uiPreferences.throttleEnabled"
-        :safety-guard-enabled="settings.uiPreferences.safetyGuardEnabled"
-        :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
-        :show-token-count="settings.uiPreferences.showTokenCountForBlocks"
       />
     </LlmThinkNode>
 
@@ -1146,34 +1143,21 @@ watch(
         <RichTextRenderer
           v-if="displayedContent || isGenerating"
           :key="originalRendererKey"
+          v-bind="rendererSettingsProps"
           :content="originalRendererContent"
           :stream-source="streamingSource"
           :regex-rules="processedRules"
-          :resolve-asset="resolveAsset"
-          :version="settings.uiPreferences.rendererVersion"
           :llm-think-rules="frozenLlmThinkRules"
           :style-options="frozenStyleOptions"
           :generation-meta="generationMetaForRenderer"
           :is-streaming="isGenerating"
-          :default-render-html="settings.uiPreferences.defaultRenderHtml"
-          :default-code-block-expanded="
-            settings.uiPreferences.defaultCodeBlockExpanded
-          "
           :default-tool-call-collapsed="
             currentAgent?.defaultToolCallCollapsed ??
             settings.uiPreferences.defaultToolCallCollapsed
           "
-          :seamless-mode="settings.uiPreferences.seamlessMode"
-          :enable-cdn-localizer="settings.uiPreferences.enableCdnLocalizer"
-          :allow-external-scripts="settings.uiPreferences.allowExternalScripts"
-          :allow-dangerous-html="settings.uiPreferences.allowDangerousHtml"
-          :throttle-ms="settings.uiPreferences.rendererThrottleMs"
-          :smoothing-enabled="settings.uiPreferences.smoothingEnabled"
-          :throttle-enabled="settings.uiPreferences.throttleEnabled"
-          :safety-guard-enabled="settings.uiPreferences.safetyGuardEnabled"
-          :enable-enter-animation="originalRendererEnterAnimation"
+          :resolve-asset="resolveAsset"
           :should-freeze="shouldFreezeHtml"
-          :show-token-count="settings.uiPreferences.showTokenCountForBlocks"
+          :enable-enter-animation="originalRendererEnterAnimation"
         />
         <div
           v-if="isGenerating && !props.screenshotMode"
@@ -1228,6 +1212,7 @@ watch(
         </div>
         <div class="translation-content">
           <RichTextRenderer
+            v-bind="rendererSettingsProps"
             :content="
               resolveAsset(
                 isTranslating || !message.metadata?.translation
@@ -1236,31 +1221,15 @@ watch(
               )
             "
             :regex-rules="processedRules"
-            :version="settings.uiPreferences.rendererVersion"
             :llm-think-rules="frozenLlmThinkRules"
             :style-options="frozenStyleOptions"
-            :default-render-html="settings.uiPreferences.defaultRenderHtml"
-            :default-code-block-expanded="
-              settings.uiPreferences.defaultCodeBlockExpanded
-            "
             :default-tool-call-collapsed="
               currentAgent?.defaultToolCallCollapsed ??
               settings.uiPreferences.defaultToolCallCollapsed
             "
-            :seamless-mode="settings.uiPreferences.seamlessMode"
-            :enable-cdn-localizer="settings.uiPreferences.enableCdnLocalizer"
-            :allow-external-scripts="
-              settings.uiPreferences.allowExternalScripts
-            "
-            :allow-dangerous-html="settings.uiPreferences.allowDangerousHtml"
-            :throttle-ms="settings.uiPreferences.rendererThrottleMs"
-            :smoothing-enabled="settings.uiPreferences.smoothingEnabled"
-            :throttle-enabled="settings.uiPreferences.throttleEnabled"
-            :safety-guard-enabled="settings.uiPreferences.safetyGuardEnabled"
             :is-streaming="isTranslating"
             :resolve-asset="resolveAsset"
             :should-freeze="shouldFreezeHtml"
-            :show-token-count="settings.uiPreferences.showTokenCountForBlocks"
           />
           <div
             v-if="isTranslating && !props.screenshotMode"

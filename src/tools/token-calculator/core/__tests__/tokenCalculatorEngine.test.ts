@@ -12,7 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
+
+const { fromPreTrainedMock } = vi.hoisted(() => ({
+  fromPreTrainedMock: vi.fn(),
+}));
+
+vi.mock("@lenml/tokenizers", () => ({
+  TokenizerLoader: { fromPreTrained: fromPreTrainedMock },
+}));
 import { TokenCalculatorEngine } from "../tokenCalculatorEngine";
 import type { TokenizerProfile } from "../../types/tokenizer-profile";
 
@@ -35,6 +43,10 @@ function createProfile(
 }
 
 describe("TokenCalculatorEngine", () => {
+  beforeEach(() => {
+    fromPreTrainedMock.mockReset();
+  });
+
   it("空文本应返回 0 且不标记为估算", async () => {
     const engine = new TokenCalculatorEngine();
 
@@ -101,7 +113,7 @@ describe("TokenCalculatorEngine", () => {
     expect(result.tokenizerName).toBe("estimator");
   });
 
-  it("应使用 loader 实例化 tokenizer 并应用 calibration", async () => {
+  it("应使用 profile 资产实例化 tokenizer 并应用 calibration", async () => {
     const engine = new TokenCalculatorEngine();
     const profile = createProfile({
       calibration: {
@@ -115,8 +127,10 @@ describe("TokenCalculatorEngine", () => {
       profiles: [profile],
       rules: [],
     });
-    engine.setLoader(profile.id, async () => ({
-      fromPreTrained: () => ({ encode }),
+    fromPreTrainedMock.mockReturnValue({ encode });
+    engine.setProfileDataFetcher(async () => ({
+      tokenizerJSON: "{}",
+      tokenizerConfigJSON: "{}",
     }));
 
     const result = await engine.calculateTokens("hello", "test-model");
@@ -135,18 +149,21 @@ describe("TokenCalculatorEngine", () => {
   it("应缓存同一个 profile 的 tokenizer 实例", async () => {
     const engine = new TokenCalculatorEngine();
     const profile = createProfile();
-    const fromPreTrained = vi.fn(() => ({ encode: () => [1] }));
+    fromPreTrainedMock.mockReturnValue({ encode: () => [1] });
 
     engine.setRegistry({
       profiles: [profile],
       rules: [],
     });
-    engine.setLoader(profile.id, async () => ({ fromPreTrained }));
+    engine.setProfileDataFetcher(async () => ({
+      tokenizerJSON: "{}",
+      tokenizerConfigJSON: "{}",
+    }));
 
     await engine.calculateTokens("first", "test-model");
     await engine.calculateTokens("second", "test-model");
 
-    expect(fromPreTrained).toHaveBeenCalledTimes(1);
+    expect(fromPreTrainedMock).toHaveBeenCalledTimes(1);
     expect(engine.getCacheSize()).toBe(1);
   });
 

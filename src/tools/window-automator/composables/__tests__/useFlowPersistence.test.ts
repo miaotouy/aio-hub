@@ -74,6 +74,53 @@ describe("parseActionFlowText", () => {
     expect(parsed?.subFlows?.[0]?.steps).toHaveLength(1);
   });
 
+  it("migrates legacy plugin OCR selections in main and sub-flow steps", () => {
+    const legacyOcrStep = {
+      id: "ocr-step",
+      label: "OCR",
+      enabled: true,
+      stepConfig: {
+        type: "ocr",
+        params: {
+          rect: { x: 0, y: 0, width: 100, height: 50 },
+          engineType: "plugin",
+          engineConfig: {
+            type: "plugin",
+            pluginId: "paddle-ocr",
+            method: "recognizeBatch",
+          },
+          keyword: "",
+          useRegex: false,
+          matchGoto: "",
+          mismatchGoto: "",
+        },
+      },
+    };
+    const parsed = parseActionFlowText(
+      JSON.stringify({
+        id: "flow-1",
+        name: "Flow",
+        steps: [legacyOcrStep],
+        subFlows: [{ id: "sub-1", name: "Sub", steps: [legacyOcrStep] }],
+      })
+    );
+
+    const mainStep = parsed?.steps[0];
+    const subStep = parsed?.subFlows?.[0].steps[0];
+    expect(mainStep?.stepConfig.type).toBe("ocr");
+    expect(subStep?.stepConfig.type).toBe("ocr");
+    if (mainStep?.stepConfig.type === "ocr") {
+      expect(mainStep.stepConfig.params.engineConfig).toEqual(
+        expect.objectContaining({ contributionId: "ppocr-v5-mobile" })
+      );
+    }
+    if (subStep?.stepConfig.type === "ocr") {
+      expect(subStep.stepConfig.params.engineConfig).toEqual(
+        expect.objectContaining({ contributionId: "ppocr-v5-mobile" })
+      );
+    }
+  });
+
   it("rejects invalid json and missing required fields", () => {
     expect(parseActionFlowText("{")).toBeNull();
     expect(parseActionFlowText(JSON.stringify({ id: "flow-1" }))).toBeNull();

@@ -23,6 +23,31 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
+use walkdir::WalkDir;
+
+pub const LEGACY_RECALL_MIGRATION_ID: &str = "knowledge-to-recall-v2";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecallMigrationPreview {
+    pub migration_id: String,
+    pub source_fingerprint: String,
+    pub source_path: String,
+    pub legacy_data_path: String,
+    pub target_description: String,
+    pub source_collections: usize,
+    pub source_entries: usize,
+    pub source_vectors: usize,
+    pub preserved_fields: Vec<String>,
+    pub rebuilt_fields: Vec<String>,
+    pub unsupported_fields: Vec<String>,
+    pub warnings: Vec<String>,
+    pub requires_backup: bool,
+    pub main_status: String,
+    pub vector_status: String,
+    pub pending_vectors: usize,
+    pub issue_count: usize,
+}
 
 type CollectionImportData = (
     Vec<CollectionSource>,
@@ -110,6 +135,61 @@ impl LegacyFileRecallImporter {
         Ok(Some(report))
     }
 
+    pub fn preview(&self) -> Result<Option<RecallMigrationPreview>, String> {
+        let Some(inspected) = self.inspect()? else {
+            return Ok(None);
+        };
+
+        let mut scanned = RecallMigrationReport::default();
+        self.read_collections(&mut scanned)?;
+        let source_vectors = count_vector_files(&self.source_app_data_dir)?;
+        let issue_count = inspected.issues.len().max(scanned.issues.len());
+        let mut warnings = vec![
+            "迁移会写入新的 Recall SQLite 数据库，但不会自动删除旧目录。".to_string(),
+            "旧向量仅在模型映射和 contentHash 校验通过时保留，否则需要重建。".to_string(),
+        ];
+        if inspected.main_status == "running" || inspected.vector_status == "running" {
+            warnings
+                .push("检测到上次迁移可能中断，重新执行会按迁移记录继续并校验结果。".to_string());
+        }
+        if issue_count > 0 {
+            warnings.push(format!(
+                "当前检测到 {issue_count} 个需要关注的问题，执行后请检查迁移报告。"
+            ));
+        }
+
+        Ok(Some(RecallMigrationPreview {
+            migration_id: LEGACY_RECALL_MIGRATION_ID.to_string(),
+            source_fingerprint: inspected.source_fingerprint,
+            source_path: inspected.source_path,
+            legacy_data_path: inspected.legacy_data_path,
+            target_description: "Recall SQLite 主数据库、向量数据库与标签池".to_string(),
+            source_collections: scanned.source_collections.max(inspected.source_collections),
+            source_entries: scanned.source_entries.max(inspected.source_entries),
+            source_vectors: source_vectors.max(inspected.source_vectors),
+            preserved_fields: vec![
+                "集合 ID、名称、描述、标签和配置".to_string(),
+                "条目 ID、正文、摘要、优先级、时间与引用关系".to_string(),
+                "校验通过的向量和标签池".to_string(),
+            ],
+            rebuilt_fields: vec![
+                "无法验证 contentHash 的向量".to_string(),
+                "缺失模型映射的向量索引".to_string(),
+                "运行时检索缓存".to_string(),
+            ],
+            unsupported_fields: vec![
+                "损坏、重复或无法解析的旧文件".to_string(),
+                "无法关联到源条目的孤立向量".to_string(),
+            ],
+            warnings,
+            requires_backup: true,
+            main_status: inspected.main_status,
+            vector_status: inspected.vector_status,
+            pending_vectors: inspected.pending_vectors,
+            issue_count,
+        }))
+    }
+
     pub fn confirm_cleanup(&self, expected_fingerprint: &str) -> Result<Vec<String>, String> {
         let report = self
             .inspect()?
@@ -145,6 +225,16 @@ impl LegacyFileRecallImporter {
     }
 
     pub fn import(&self) -> Result<RecallMigrationReport, String> {
+        self.import_with_progress(|_, _| {})
+    }
+
+    pub fn import_with_progress<F>(
+        &self,
+        mut on_progress: F,
+    ) -> Result<RecallMigrationReport, String>
+    where
+        F: FnMut(&str, &RecallMigrationReport),
+    {
         self.repository.initialize()?;
         let source_path = get_bases_dir(&self.source_app_data_dir);
         let legacy_data_path = get_knowledge_root(&self.source_app_data_dir);
@@ -169,6 +259,7 @@ impl LegacyFileRecallImporter {
             if report.recovery_instructions.is_empty() {
                 report.recovery_instructions = recovery_instructions(&report.legacy_data_path);
             }
+            on_progress("verify", &report);
             return Ok(report);
         }
 
@@ -208,9 +299,11 @@ impl LegacyFileRecallImporter {
                 updated_at: started_at,
             },
         )?;
+        on_progress("main", &report);
 
         let (collections, entries_by_collection, entry_lookup) =
             self.read_collections(&mut report)?;
+        on_progress("main", &report);
         for collection in collections {
             let collection_id = collection.meta.id;
             let entries = entries_by_collection
@@ -235,6 +328,7 @@ impl LegacyFileRecallImporter {
                     message: error,
                 }),
             }
+            on_progress("main", &report);
         }
 
         let main_status = if report.migrated_collections == report.source_collections
@@ -246,8 +340,10 @@ impl LegacyFileRecallImporter {
             "partial"
         };
         report.main_status = main_status.to_string();
+        on_progress("vector", &report);
         let vector_issue_start = report.issues.len();
         self.import_vectors(&entry_lookup, &mut report)?;
+        on_progress("tag-pool", &report);
         self.import_tag_pools(&mut report)?;
         let vector_status =
             if report.pending_vectors == 0 && report.issues.len() == vector_issue_start {
@@ -256,6 +352,7 @@ impl LegacyFileRecallImporter {
                 "partial"
             };
         report.vector_status = vector_status.to_string();
+        on_progress("verify", &report);
         self.repository.record_legacy_import_state(
             true,
             LegacyImportStateRecord {
@@ -652,6 +749,23 @@ fn read_json_value(path: &Path) -> Result<serde_json::Value, String> {
     read_json(path)
 }
 
+fn count_vector_files(app_data_dir: &Path) -> Result<usize, String> {
+    let root = get_vectors_dir(app_data_dir);
+    if !root.exists() {
+        return Ok(0);
+    }
+    let mut count = 0;
+    for entry in WalkDir::new(root) {
+        let entry = entry.map_err(|error| format!("扫描旧向量目录失败: {error}"))?;
+        if entry.file_type().is_file()
+            && entry.path().extension().and_then(|value| value.to_str()) == Some("vec")
+        {
+            count += 1;
+        }
+    }
+    Ok(count)
+}
+
 fn source_fingerprint(app_data_dir: &Path) -> Result<String, String> {
     let mut paths = Vec::new();
     for root in [
@@ -804,6 +918,17 @@ mod tests {
         let mut tag_pool = ModelTagPool::new(model_id.to_string());
         tag_pool.sync_vectors(vec![("tag".to_string(), vec![0.1, 0.2])]);
         tag_pool.save(app_data.path()).unwrap();
+
+        let preview_repository = SqliteRecallRepository::new(app_data.path());
+        let preview = LegacyFileRecallImporter::new(app_data.path(), preview_repository)
+            .preview()
+            .unwrap()
+            .unwrap();
+        assert_eq!(preview.migration_id, LEGACY_RECALL_MIGRATION_ID);
+        assert_eq!(preview.source_collections, 1);
+        assert_eq!(preview.source_entries, 1);
+        assert_eq!(preview.source_vectors, 1);
+        assert!(preview.requires_backup);
 
         let repository = SqliteRecallRepository::new(app_data.path());
         repository.initialize().unwrap();

@@ -29,6 +29,8 @@
 ## 4. Manifest 规范
 
 - `manifest.json` 是插件能力的事实来源。
+- Native / Sidecar 的运行路径应指向构建脚本部署出的稳定相对目录（例如 `dev-bin/<platform>/` 或发布包内 `bin/`），不要直接引用 Cargo `target/` 缓存目录。
+- 构建命令必须生成或复制到 manifest 当前平台键实际指向的文件；仅检查其他 Cargo 输出目录存在不能证明插件可运行。
 - 修改插件能力时，同步更新：
   - `version`
   - `host.appVersion`
@@ -86,10 +88,10 @@
 - Tauri 真实运行态需要通过 AIO Hub 的 Tauri 开发环境验证；普通浏览器只能做纯前端外观检查。
 - 修改后优先运行当前插件仓库已有的 lint、typecheck、test、build 脚本。
 - Sidecar / Native 插件还应验证目标平台二进制能被宿主正确加载。
+- Sidecar / Native 构建后应解析 manifest 的当前平台路径，检查文件存在且为本次构建产物，并直接对该文件运行最小协议或 ABI smoke test。
 - 修改 Agent 可调用方法后，检查方法元数据是否能被宿主发现，参数名和说明是否对 AI 友好。
 
 ## 11. 文档同步
 
 - 变更插件能力、配置、构建或发布方式时，同步更新当前插件仓库的 `README.md` 和相关开发文档。
 - 如果实现偏离既有计划或设计文档，先完成代码，再把偏差写回文档并标注原因。
-

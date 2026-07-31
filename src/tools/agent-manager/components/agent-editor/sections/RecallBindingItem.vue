@@ -18,11 +18,18 @@
 import { computed } from "vue";
 import { Delete } from "@element-plus/icons-vue";
 import { ChevronDown, ChevronRight, BookOpen } from "lucide-vue-next";
+import { getIntegerOverrideBounds } from "@/tools/recall/core/retrievalPresetCapabilities";
+import type {
+  RecallPresetId,
+  RecallPresetSummary,
+} from "@/tools/recall/types/pipeline";
 import type { RecallBinding } from "@/tools/agent-manager/types/agent";
 
 const props = defineProps<{
   binding: RecallBinding;
   expanded: boolean;
+  presetSummaries: RecallPresetSummary[];
+  defaultPresetId?: RecallPresetId;
 }>();
 
 const emit = defineEmits<{
@@ -47,6 +54,29 @@ const modeLabel = computed(() => {
 });
 
 const macroRef = computed(() => `{{recall::${props.binding.recallId}}}`);
+const effectivePresetSummary = computed(() =>
+  props.presetSummaries.find(
+    (summary) =>
+      summary.id === (props.binding.presetId ?? props.defaultPresetId)
+  )
+);
+const presetLabel = computed(() =>
+  props.binding.presetId
+    ? (effectivePresetSummary.value?.displayName ?? props.binding.presetId)
+    : "继承全局预设"
+);
+const limitOverride = computed(
+  () =>
+    getIntegerOverrideBounds(effectivePresetSummary.value, "limit") ?? {
+      minimum: 1,
+      maximum: 100,
+    }
+);
+
+const setPreset = (presetId: RecallBinding["presetId"] | undefined) => {
+  props.binding.presetId = presetId;
+  delete props.binding.profile;
+};
 </script>
 
 <template>
@@ -67,6 +97,7 @@ const macroRef = computed(() => `{{recall::${props.binding.recallId}}}`);
         <div class="kb-info">
           <span class="kb-name">{{ binding.recallName }}</span>
           <span class="kb-mode-tag">{{ modeLabel }}</span>
+          <span class="kb-mode-tag">{{ presetLabel }}</span>
         </div>
       </div>
       <div class="kb-item-right" @click.stop>
@@ -92,6 +123,26 @@ const macroRef = computed(() => `{{recall::${props.binding.recallId}}}`);
               <el-option label="轮次常驻 (turn)" value="turn" />
               <el-option label="静态注入 (static)" value="static" />
             </el-select>
+          </el-form-item>
+
+          <el-form-item label="检索预设">
+            <el-select
+              :model-value="binding.presetId"
+              clearable
+              placeholder="继承全局预设"
+              style="width: 100%"
+              @update:model-value="setPreset"
+            >
+              <el-option
+                v-for="summary in presetSummaries"
+                :key="summary.id"
+                :label="summary.displayName"
+                :value="summary.id"
+              />
+            </el-select>
+            <span v-if="effectivePresetSummary" class="unit-hint">
+              {{ effectivePresetSummary.description }}
+            </span>
           </el-form-item>
 
           <!-- gate 模式参数 -->
@@ -123,8 +174,8 @@ const macroRef = computed(() => `{{recall::${props.binding.recallId}}}`);
           <el-form-item label="召回上限">
             <el-input-number
               v-model="binding.limit"
-              :min="1"
-              :max="50"
+              :min="limitOverride.minimum"
+              :max="limitOverride.maximum"
               placeholder="使用全局默认"
               controls-position="right"
             />

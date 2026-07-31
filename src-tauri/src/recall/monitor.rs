@@ -14,6 +14,7 @@
 
 use chrono::Utc;
 use serde::Serialize;
+use serde_json::Value;
 use std::collections::HashMap;
 use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
@@ -40,6 +41,7 @@ pub enum RecallStepStatus {
     Pending,
     Running,
     Completed,
+    Skipped,
     #[allow(dead_code)]
     Failed,
 }
@@ -62,6 +64,10 @@ pub struct RagPayload {
     pub results: Option<Vec<RagResult>>,
     pub stats: RagStats,
     pub metadata: Option<RagMetadata>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pipeline_trace: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pipeline_error: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -88,8 +94,19 @@ pub struct RagStats {
 pub struct RagMetadata {
     pub query: String,
     pub model_id: String,
-    pub engine_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub engine_id: Option<String>,
     pub recall_ids: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub execution_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub run_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requested_preset_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub actual_preset_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub outcome: Option<String>,
 }
 
 /// 索引生命周期追踪数据结构
@@ -147,7 +164,7 @@ pub struct SystemPayload {
 #[serde(tag = "type", content = "payload")]
 pub enum RecallMonitorEvent {
     #[allow(clippy::upper_case_acronyms)]
-    RAG(RagPayload),
+    RAG(Box<RagPayload>),
     Index(IndexPayload),
     #[allow(dead_code)]
     Chain(ChainPayload),
@@ -211,4 +228,60 @@ pub async fn recall_monitor_heartbeat(app: AppHandle) -> Result<(), String> {
         "监控系统运行中",
         "System",
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn payload(execution_path: &str, pipeline_trace: Option<Value>) -> RagPayload {
+        RagPayload {
+            steps: Vec::new(),
+            results: None,
+            stats: RagStats {
+                duration: 4,
+                token_count: None,
+                hit_count: Some(0),
+                recall_count: Some(0),
+            },
+            metadata: Some(RagMetadata {
+                query: "query".to_string(),
+                model_id: String::new(),
+                engine_id: (execution_path == "legacy-engine").then(|| "keyword".to_string()),
+                recall_ids: Vec::new(),
+                execution_path: Some(execution_path.to_string()),
+                run_id: None,
+                requested_preset_id: None,
+                actual_preset_id: None,
+                outcome: None,
+            }),
+            pipeline_trace,
+            pipeline_error: None,
+        }
+    }
+
+    #[test]
+    fn rag_payload_keeps_pipeline_fields_optional_for_legacy_events() {
+        let serialized = serde_json::to_value(payload("legacy-engine", None)).unwrap();
+
+        assert_eq!(serialized["metadata"]["engineId"], "keyword");
+        assert!(serialized.get("pipelineTrace").is_none());
+        assert!(serialized.get("pipelineError").is_none());
+    }
+
+    #[test]
+    fn rag_payload_serializes_versioned_pipeline_trace() {
+        let serialized = serde_json::to_value(payload(
+            "retrieval-pipeline",
+            Some(json!({"traceVersion": "recall-pipeline-trace-v1"})),
+        ))
+        .unwrap();
+
+        assert!(serialized["metadata"].get("engineId").is_none());
+        assert_eq!(
+            serialized["pipelineTrace"]["traceVersion"],
+            "recall-pipeline-trace-v1"
+        );
+    }
 }

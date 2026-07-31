@@ -231,14 +231,6 @@
         </el-collapse-item>
       </el-collapse>
     </div>
-
-    <!-- 底部：设置入口 -->
-    <div class="sidebar-footer">
-      <el-button link class="settings-btn" @click="$emit('open-settings')">
-        <Settings :size="16" class="settings-icon" />
-        设置与仓库管理
-      </el-button>
-    </div>
   </div>
 </template>
 
@@ -253,7 +245,6 @@ import {
   ChevronDown,
   Plus,
   Minus,
-  Settings,
 } from "lucide-vue-next";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import {
@@ -273,10 +264,6 @@ import {
 } from "../composables/useGitCommitterRunner";
 import { useGitRepoWorkflow } from "../composables/useGitRepoWorkflow";
 import { getFileName, getFileDir } from "../utils";
-
-defineEmits<{
-  (e: "open-settings"): void;
-}>();
 
 const activeCollapseNames = ref(["staged", "unstaged"]);
 const commitAction = ref<"commit" | "commit-push">("commit");
@@ -584,26 +571,5 @@ const unstageAll = async () => {
   text-align: center;
   color: var(--el-text-color-placeholder);
   font-size: 12px;
-}
-
-/* 底部设置入口 */
-.sidebar-footer {
-  height: 40px;
-  display: flex;
-  align-items: center;
-  padding: 0 12px;
-  border-top: var(--border-width) solid var(--border-color);
-  flex-shrink: 0;
-}
-
-.settings-btn {
-  width: 100%;
-  justify-content: flex-start;
-  font-size: 12px;
-  color: var(--el-text-color-regular);
-}
-
-.settings-btn:hover {
-  color: var(--el-color-primary);
 }
 </style>

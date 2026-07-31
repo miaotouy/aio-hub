@@ -23,21 +23,13 @@ import type {
   RecallCollectionMeta,
   RecallEntry,
   WorkspaceConfig,
-  RetrievalEngineInfo,
   RecallMonitorMessage,
   RecallMessageType,
 } from "../types";
 import { DEFAULT_WORKSPACE_CONFIG, getRecallSettingsConfig } from "../config";
 import { recallStorage, type WorkspaceData } from "../utils/recallStorage";
-import { getPureModelId, getProfileId } from "@/utils/modelIdUtils";
-import { vectorCacheManager } from "../utils/vectorCache";
-import { preprocessQuery } from "../utils/queryPreProcessor";
-import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import type { LlmProfile } from "@/types/llm-profiles";
-import { SearchOrchestrator } from "../logic/orchestrator";
-import { engineRequiresEmbedding } from "../core/engineCapabilities";
-
-const searchOrchestrator = new SearchOrchestrator();
+import { getPureModelId } from "@/utils/modelIdUtils";
+import { withCurrentEmbeddingAssetGeneration } from "../core/embeddingAssetGeneration";
 
 const errorHandler = createModuleErrorHandler("recall-store");
 const logger = createModuleLogger("recall-store");
@@ -79,15 +71,6 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
     pendingIds: new Set<string>(),
     /** 向量化失败的条目 ID 集合 (内存状态) */
     failedIds: new Set<string>(),
-    /** 可用的检索引擎列表 */
-    engines: [] as RetrievalEngineInfo[],
-    /** 搜索设置 */
-    searchSettings: {
-      engineId: "keyword",
-      texture: "coarse" as "coarse" | "fine",
-      refractionIndex: 0.5,
-      requiredTags: [] as string[],
-    },
     /** 全局统计信息 */
     globalStats: {
       totalEntries: 0,
@@ -179,12 +162,7 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
       });
     },
 
-    /**
-     * 获取合成后的设置配置 (包含动态引擎参数)
-     */
-    settingsConfig: (state) => {
-      return getRecallSettingsConfig(state.engines);
-    },
+    settingsConfig: () => getRecallSettingsConfig(),
 
     /**
      * 当前库的统计信息 (基于全局统计中的数据，更准确)
@@ -228,7 +206,7 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
       watch(
         () => this.config.defaultEmbeddingModel,
         (newModel, oldModel) => {
-          if (newModel && newModel !== oldModel) {
+          if (newModel !== oldModel) {
             logger.info("检测到默认模型变化，触发状态校验", {
               newModel,
               oldModel,
@@ -247,9 +225,6 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
       try {
         // SQLite repository 与内存读模型由 Tauri 应用启动周期管理。
         await this.loadBases();
-
-        // 加载引擎列表。
-        await this.loadEngines();
       } catch (e) {
         errorHandler.error(e, "初始化思绪集失败");
       } finally {
@@ -263,7 +238,14 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
     async loadBases() {
       try {
         const workspace = await recallStorage.loadWorkspace();
-        this.workspace = workspace;
+        const normalized = withCurrentEmbeddingAssetGeneration(
+          workspace.config
+        );
+        this.workspace = {
+          ...workspace,
+          config: normalized.config,
+          bases: [],
+        };
         const metas = await invoke<RecallCollectionMeta[]>("recall_list_bases");
         this.bases = metas.map((meta) => ({
           id: meta.id,
@@ -277,8 +259,9 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
           tags: meta.tags?.map((tag) => tag.name),
           icon: meta.icon,
         }));
-        this.workspace = { ...workspace, bases: [] };
-        this.config = workspace.config;
+        this.config = normalized.config;
+        if (normalized.changed)
+          await recallStorage.saveWorkspace(this.workspace);
         this.ensureModelWatcher();
       } catch (e) {
         errorHandler.error(e, "加载工作区失败");
@@ -294,12 +277,34 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
       await recallStorage.saveWorkspace(this.workspace);
     },
 
+    saveWorkspaceDebounced() {
+      if (!this.workspace) return;
+      this.workspace.config = this.config;
+      recallStorage.saveWorkspaceDebounced(this.workspace);
+    },
+
+    async applyWorkspaceConfig(nextConfig: WorkspaceConfig) {
+      const previousModel = this.config.defaultEmbeddingModel?.trim() ?? "";
+      const nextModel = nextConfig.defaultEmbeddingModel?.trim() ?? "";
+      const modelChanged = previousModel !== nextModel;
+      const normalized = withCurrentEmbeddingAssetGeneration(
+        nextConfig,
+        modelChanged
+      );
+      this.config = normalized.config;
+      if (this.workspace) this.workspace.config = this.config;
+      await this.saveWorkspace();
+      if (modelChanged) await invoke("recall_retrieval_cache_clear");
+      return { modelChanged, generation: this.config.embeddingAssetGeneration };
+    },
+
     /**
      * 重置配置
      */
     async resetConfig() {
-      this.config = structuredClone(DEFAULT_WORKSPACE_CONFIG);
-      await this.saveWorkspace();
+      await this.applyWorkspaceConfig(
+        structuredClone(DEFAULT_WORKSPACE_CONFIG)
+      );
     },
 
     /**
@@ -342,116 +347,6 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
       }
       return entry;
     },
-    /**
-     * 通用搜索
-     */
-    async search(query: string, limit = 20) {
-      if (!this.activeBaseId) return [];
-
-      const engineId = this.searchSettings.engineId;
-      const isVectorSearch = engineRequiresEmbedding(engineId, this.engines);
-
-      // 查询预处理：清洗、分词、停用词过滤、Tag 匹配
-      const { cleanedQuery, matchedTags } = preprocessQuery(query, {
-        tagPool: this.globalStats.allDiscoveredTags,
-      });
-
-      if (isVectorSearch) {
-        const comboId = this.config.defaultEmbeddingModel;
-        if (!comboId) {
-          customMessage.warning("请先在设置中配置默认 Embedding 模型");
-          return [];
-        }
-
-        const profileId = getProfileId(comboId);
-        const { profiles } = useLlmProfiles();
-        const profile = profiles.value.find(
-          (p: LlmProfile) => p.id === profileId
-        );
-        if (!profile) {
-          customMessage.error("未找到对应的模型配置 Profile");
-          return [];
-        }
-
-        try {
-          const startTime = Date.now();
-          const modelId = getPureModelId(comboId);
-          // 使用预处理后的查询生成或获取缓存的查询向量
-          const vector = await vectorCacheManager.getVector(
-            cleanedQuery,
-            profile,
-            modelId
-          );
-
-          // 调用编排器执行搜索流程
-          const results = await searchOrchestrator.search({
-            recallIds: [this.activeBaseId],
-            query: cleanedQuery,
-            engineId,
-            modelId,
-            profile,
-            limit,
-            vector_payload: vector || undefined,
-            extraFilters: {
-              texture: this.searchSettings.texture,
-              refractionIndex: this.searchSettings.refractionIndex,
-              requiredTags: [
-                ...this.searchSettings.requiredTags,
-                ...matchedTags,
-              ],
-              enabledOnly: true,
-            },
-            skipPrep: false, // 自动处理环境准备
-            availableEngines: this.engines,
-          });
-
-          const totalDuration = Date.now() - startTime;
-          logger.info("向量搜索流程已通过编排器完成", {
-            originalQuery: query,
-            count: results.length,
-            duration: `${totalDuration}ms`,
-          });
-
-          return results;
-        } catch (e) {
-          errorHandler.error(e, "搜索失败");
-          return [];
-        }
-      } else {
-        // 关键词搜索
-        try {
-          return await invoke<any[]>("recall_search", {
-            query: cleanedQuery,
-            filters: {
-              recallIds: [this.activeBaseId],
-              tags: matchedTags.length > 0 ? matchedTags : undefined,
-              limit,
-              engineId,
-              enabledOnly: true,
-            },
-            engineId,
-          });
-        } catch (e) {
-          errorHandler.error(e, "搜索失败");
-          return [];
-        }
-      }
-    },
-
-    /**
-     * 加载可用的检索引擎
-     */
-    async loadEngines() {
-      try {
-        this.engines = await invoke<RetrievalEngineInfo[]>(
-          "recall_list_engines"
-        );
-        logger.info("加载检索引擎列表成功", { engines: this.engines });
-      } catch (e) {
-        errorHandler.error(e, "加载检索引擎列表失败");
-      }
-    },
-
     /**
      * 校验并同步当前库的向量状态
      * 解决磁盘文件变动导致 UI 状态滞后的问题

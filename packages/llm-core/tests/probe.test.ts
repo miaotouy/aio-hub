@@ -129,4 +129,14 @@ describe("classifyProbeError", () => {
       }).category
     ).toBe("authentication");
   });
+
+  it("recognizes model routing failures even when the provider returns 503", () => {
+    expect(
+      classifyProbeError({
+        status: 503,
+        message:
+          "No available channel for model gpt-image-2 (code model_not_found)",
+      }).category
+    ).toBe("model-unavailable");
+  });
 });

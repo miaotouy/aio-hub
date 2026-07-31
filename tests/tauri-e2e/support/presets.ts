@@ -1,4 +1,5 @@
 export type E2ePresetId =
+  | "recall-pipeline"
   | "recall-vector"
   | "recall-curated"
   | "recall-chat"
@@ -7,6 +8,9 @@ export type E2ePresetId =
   | "ollama-vector"
   | "ollama-chat"
   | "private-profile"
+  | "migration-minimal"
+  | "migration-cleanup"
+  | "guided-flow-baseline"
   | "native";
 
 export interface E2ePresetPrerequisite {
@@ -25,11 +29,22 @@ export interface E2ePreset {
 }
 
 const VECTOR_SPEC = "tests/tauri-e2e/specs/recall-vector-workflow.spec.ts";
+const PIPELINE_SPEC = "tests/tauri-e2e/specs/recall-pipeline.spec.ts";
 const CHAT_SPEC = "tests/tauri-e2e/specs/recall-chat-injection.spec.ts";
 const RECOVERY_SPEC = "tests/tauri-e2e/specs/recall-session-recovery.spec.ts";
 const EXTERNAL_SPEC = "tests/tauri-e2e/specs/recall-external-corpus.spec.ts";
 const EXTERNAL_RECOVERY_SPEC =
   "tests/tauri-e2e/specs/recall-external-corpus-recovery.spec.ts";
+const MIGRATION_SPEC =
+  "tests/tauri-e2e/specs/guided-knowledge-migration.spec.ts";
+const MIGRATION_RECOVERY_SPEC =
+  "tests/tauri-e2e/specs/guided-knowledge-migration-recovery.spec.ts";
+const MIGRATION_CLEANUP_SPEC =
+  "tests/tauri-e2e/specs/guided-knowledge-migration-cleanup.spec.ts";
+const GUIDED_FLOW_BASELINE_SPEC =
+  "tests/tauri-e2e/specs/guided-flow-unknown-baseline.spec.ts";
+const GUIDED_FLOW_BASELINE_RECOVERY_SPEC =
+  "tests/tauri-e2e/specs/guided-flow-unknown-baseline-recovery.spec.ts";
 
 const OLLAMA_EMBEDDING_PREREQUISITE: E2ePresetPrerequisite = {
   env: "AIO_E2E_OLLAMA_MODEL",
@@ -38,6 +53,14 @@ const OLLAMA_EMBEDDING_PREREQUISITE: E2ePresetPrerequisite = {
 };
 
 export const E2E_PRESETS: readonly E2ePreset[] = [
+  {
+    id: "recall-pipeline",
+    purpose: "Deterministic Recall retrieval pipeline compile, run, and trace",
+    args: ["--spec", PIPELINE_SPEC],
+    prerequisites: [],
+    runtimeRequirements: [],
+    includesRestart: false,
+  },
   {
     id: "recall-vector",
     purpose: "Deterministic Recall vectorization and semantic search",
@@ -102,6 +125,44 @@ export const E2E_PRESETS: readonly E2ePreset[] = [
       },
     ],
     runtimeRequirements: [],
+    includesRestart: true,
+  },
+  {
+    id: "migration-minimal",
+    purpose:
+      "Synthetic legacy-file migration through Guided Flow with same-root restart verification",
+    args: ["--spec", MIGRATION_SPEC, "--restart-spec", MIGRATION_RECOVERY_SPEC],
+    prerequisites: [],
+    runtimeRequirements: [
+      "Uses the repository-managed legacy-file-system-v1/minimal fixture and an isolated app-data directory",
+    ],
+    includesRestart: true,
+  },
+  {
+    id: "migration-cleanup",
+    purpose:
+      "Synthetic legacy-file migration cleanup on a dedicated staged app-data copy",
+    args: ["--spec", MIGRATION_CLEANUP_SPEC],
+    prerequisites: [],
+    runtimeRequirements: [
+      "Uses a fresh repository-managed legacy-file-system-v1/minimal fixture copy and verifies only legacy directories are removed",
+    ],
+    includesRestart: false,
+  },
+  {
+    id: "guided-flow-baseline",
+    purpose:
+      "Unknown-baseline first launch, lifecycle persistence, and same-root restart verification",
+    args: [
+      "--spec",
+      GUIDED_FLOW_BASELINE_SPEC,
+      "--restart-spec",
+      GUIDED_FLOW_BASELINE_RECOVERY_SPEC,
+    ],
+    prerequisites: [],
+    runtimeRequirements: [
+      "Uses a fresh isolated app-data directory without lifecycle or legacy Knowledge data",
+    ],
     includesRestart: true,
   },
   {

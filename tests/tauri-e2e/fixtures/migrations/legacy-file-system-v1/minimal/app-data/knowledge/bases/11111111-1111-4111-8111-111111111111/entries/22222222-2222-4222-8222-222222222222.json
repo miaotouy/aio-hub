@@ -1,0 +1,23 @@
+{
+  "id": "22222222-2222-4222-8222-222222222222",
+  "key": "e2e-legacy-entry",
+  "content": "Synthetic migration content.",
+  "summary": "Synthetic E2E legacy entry.",
+  "coreTags": [],
+  "tags": [
+    {
+      "name": "e2e",
+      "weight": 1.0,
+      "hash": "e2e-tag-hash-v1"
+    }
+  ],
+  "assets": [],
+  "priority": 100,
+  "enabled": true,
+  "createdAt": 1700000002,
+  "updatedAt": 1700000003,
+  "errorMessage": null,
+  "contentHash": "e2e-content-hash-v1",
+  "refs": [],
+  "refBy": []
+}

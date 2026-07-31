@@ -12,13 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::recall::core::{RecallResult, RetrievalEngine};
+use crate::recall::core::RecallResult;
 use crate::recall::index::InMemoryDatabase;
 use crate::recall::ops::warmup_recall_repository;
-use crate::recall::search::{
-    AssociativeRecallEngine, BlenderRetrievalEngine, KeywordRetrievalEngine, LensRetrievalEngine,
-    SemanticRecallEngine, VectorRetrievalEngine,
-};
+use crate::recall::retrieval_modules::production_module_registry;
+use crate::recall::retrieval_pipeline::RetrievalModuleRegistry;
 use crate::recall::storage::{LegacyFileRecallImporter, RecallRepository, SqliteRecallRepository};
 use crate::recall::tag_pool::GlobalTagPoolManager;
 use std::collections::HashMap;
@@ -43,8 +41,8 @@ pub struct RecallState {
     pub lock: Mutex<()>,
     /// 内存数据库
     pub imdb: Arc<RwLock<InMemoryDatabase>>,
-    /// 检索算法引擎列表，支持热切换
-    pub engines: Vec<Box<dyn RetrievalEngine>>,
+    /// 新检索管线的显式生产模块注册表。
+    pub pipeline_modules: Arc<RetrievalModuleRegistry>,
     /// 全局标签向量池
     pub tag_pool: GlobalTagPoolManager,
     /// 全局 Embedding 缓存 (Key 为 model_id + text 的哈希值，Value 为 (向量, 最后访问时间戳))
@@ -57,20 +55,14 @@ pub struct RecallState {
 
 impl RecallState {
     pub fn new() -> Self {
-        // 注册默认引擎
-        let engines: Vec<Box<dyn RetrievalEngine>> = vec![
-            Box::new(KeywordRetrievalEngine::new()),
-            Box::new(VectorRetrievalEngine::new()),
-            Box::new(LensRetrievalEngine::new()),
-            Box::new(BlenderRetrievalEngine::new()),
-            Box::new(SemanticRecallEngine::new()),
-            Box::new(AssociativeRecallEngine::new()),
-        ];
+        let pipeline_modules = Arc::new(
+            production_module_registry().expect("built-in Recall pipeline modules must be valid"),
+        );
 
         Self {
             lock: Mutex::new(()),
             imdb: Arc::new(RwLock::new(InMemoryDatabase::new())),
-            engines,
+            pipeline_modules,
             tag_pool: GlobalTagPoolManager::new(),
             embedding_cache: Arc::new(RwLock::new(HashMap::new())),
             retrieval_cache: Arc::new(RwLock::new(HashMap::new())),
@@ -96,36 +88,10 @@ impl RecallState {
 
         let repository = SqliteRecallRepository::new(app_data_dir);
         repository.initialize()?;
-        let importer = LegacyFileRecallImporter::new(app_data_dir, repository.clone());
-        if importer.has_legacy_source() {
-            let report = importer.import()?;
-            if report.main_status != "completed" {
-                return Err(format!(
-                    "旧 Recall 主数据迁移未完整完成（集合 {}/{}, 条目 {}/{}, 跳过 {}, 问题 {}），已阻止进入可写态",
-                    report.migrated_collections,
-                    report.source_collections,
-                    report.migrated_entries,
-                    report.source_entries,
-                    report.skipped_entries,
-                    report.issues.len()
-                ));
-            }
-            if report.vector_status != "completed" {
-                log::warn!(
-                    "[Recall] 旧向量迁移未完整完成，Recall 将使用已迁移主数据并等待向量重建: {}/{} migrated, {} pending, {} issues",
-                    report.migrated_vectors,
-                    report.source_vectors,
-                    report.pending_vectors,
-                    report.issues.len()
-                );
-            } else {
-                log::info!(
-                    "[Recall] 旧数据迁移完成: {} collections, {} entries, {} vectors",
-                    report.migrated_collections,
-                    report.migrated_entries,
-                    report.migrated_vectors
-                );
-            }
+        if LegacyFileRecallImporter::new(app_data_dir, repository.clone()).has_legacy_source() {
+            log::info!(
+                "[Recall] 检测到旧文件目录，启动阶段仅初始化新存储；等待用户通过 Guided Flow 明确确认迁移"
+            );
         }
         warmup_recall_repository(&repository, &self.imdb, &self.tag_pool)?;
 
@@ -145,19 +111,23 @@ impl RecallState {
             .ok_or_else(|| "Recall repository 尚未初始化".to_string())
     }
 
+    /// 在显式领域迁移完成后，从 SQLite 真源刷新内存读模型。
+    pub fn refresh_from_repository(&self) -> Result<(), String> {
+        let _guard = self
+            .lock
+            .lock()
+            .map_err(|_| "获取 Recall 刷新锁失败".to_string())?;
+        let repository = self.repository()?;
+        warmup_recall_repository(repository.as_ref(), &self.imdb, &self.tag_pool)?;
+        self.clear_retrieval_cache()
+    }
+
     pub fn clear_retrieval_cache(&self) -> Result<(), String> {
         self.retrieval_cache
             .write()
             .map_err(|_| "获取检索缓存写锁失败".to_string())?
             .clear();
         Ok(())
-    }
-
-    pub fn get_engine(&self, id: &str) -> Option<&dyn RetrievalEngine> {
-        self.engines
-            .iter()
-            .find(|e| e.id() == id)
-            .map(|e| e.as_ref())
     }
 }
 
@@ -247,7 +217,7 @@ mod tests {
     }
 
     #[test]
-    fn initialization_migrates_legacy_data_before_warmup() {
+    fn initialization_only_detects_legacy_data_without_importing() {
         let directory = tempdir().unwrap();
         let (recall_id, entry_id) = write_legacy_collection(directory.path());
         let state = RecallState::new();
@@ -255,15 +225,11 @@ mod tests {
         state.initialize(directory.path()).unwrap();
 
         let repository = state.repository().unwrap();
-        assert_eq!(
-            repository
-                .load_entry(recall_id, entry_id)
-                .unwrap()
-                .unwrap()
-                .content,
-            "legacy-content"
-        );
-        assert!(state.imdb.read().unwrap().bases.contains_key(&recall_id));
+        assert!(repository
+            .load_entry(recall_id, entry_id)
+            .unwrap()
+            .is_none());
+        assert!(!state.imdb.read().unwrap().bases.contains_key(&recall_id));
         let report = LegacyFileRecallImporter::new(
             directory.path(),
             SqliteRecallRepository::new(directory.path()),
@@ -271,34 +237,30 @@ mod tests {
         .inspect()
         .unwrap()
         .unwrap();
-        assert_eq!(report.main_status, "completed");
+        assert_eq!(report.main_status, "not_started");
 
         let restarted_state = RecallState::new();
         restarted_state.initialize(directory.path()).unwrap();
-        assert_eq!(
-            restarted_state
-                .repository()
-                .unwrap()
-                .load_entry(recall_id, entry_id)
-                .unwrap()
-                .unwrap()
-                .content,
-            "legacy-content"
-        );
+        assert!(restarted_state
+            .repository()
+            .unwrap()
+            .load_entry(recall_id, entry_id)
+            .unwrap()
+            .is_none());
     }
 
     #[test]
-    fn initialization_blocks_write_state_after_partial_main_migration() {
+    fn invalid_legacy_source_does_not_block_application_initialization() {
         let directory = tempdir().unwrap();
         let invalid_collection = get_recall_dir(directory.path(), &Uuid::new_v4().to_string());
         fs::create_dir_all(&invalid_collection).unwrap();
         fs::write(invalid_collection.join("meta.json"), b"not-json").unwrap();
         let state = RecallState::new();
 
-        let error = state.initialize(directory.path()).unwrap_err();
+        state.initialize(directory.path()).unwrap();
 
-        assert!(error.contains("已阻止进入可写态"));
-        assert!(state.repository().is_err());
+        assert!(state.repository().is_ok());
+        assert!(state.imdb.read().unwrap().bases.is_empty());
     }
 
     #[test]

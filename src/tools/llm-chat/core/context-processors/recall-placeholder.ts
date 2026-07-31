@@ -16,11 +16,13 @@ import { scanRetrievalEnvelopes } from "./retrieval-envelope";
 
 export type RecallPlaceholderWhen = "always" | "gate" | "turn" | "static";
 export type RecallPlaceholderProfile = "semantic" | "associative";
+export type RecallPlaceholderPreset = "algorithmic" | "comprehensive";
 
 export interface RecallPlaceholder {
   raw: string;
   messageIndex: number;
   collection?: string;
+  preset?: RecallPlaceholderPreset;
   profile?: RecallPlaceholderProfile;
   limit?: number;
   minScore?: number;
@@ -44,6 +46,7 @@ export class RecallPlaceholderError extends Error {
 
 const CANONICAL_KEYS = [
   "collection",
+  "preset",
   "profile",
   "limit",
   "min-score",
@@ -127,6 +130,12 @@ export function parseRecallPlaceholder(
       case "collection":
         result.collection = value;
         break;
+      case "preset":
+        if (value !== "algorithmic" && value !== "comprehensive") {
+          fail("Recall preset 无效", messageIndex, raw, key);
+        }
+        result.preset = value;
+        break;
       case "profile":
         if (value !== "semantic" && value !== "associative") {
           fail("Recall profile 无效", messageIndex, raw, key);
@@ -192,6 +201,7 @@ export function serializeRecallPlaceholder(
 ) {
   const values: Record<string, string | undefined> = {
     collection: placeholder.collection,
+    preset: placeholder.preset,
     profile: placeholder.profile,
     limit: placeholder.limit?.toString(),
     "min-score": placeholder.minScore?.toString(),

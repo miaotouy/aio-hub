@@ -1,10 +1,10 @@
 # 目录搜索 Agent 宽范围扫描资源占用调查与加固计划
 
-> 状态：主体施工与自动化验证已完成；LLM/VCP 普通搜索、直接 Tool Calling 和 2 GiB 宽范围资源止损的真实 dev/Tauri 基础验收已完成，取消/并发/断线/替换专项验收、资源基准和外部上游 PR 待收口
+> 状态：主体施工与自动化验证已完成；LLM/VCP 普通搜索、直接 Tool Calling 和 2 GiB 宽范围资源止损的真实 dev/Tauri 基础验收已完成；VCPToolBox 分布式取消 PR #423 已于 2026-08-01 合并上游，剩余取消/并发/断线/替换专项验收与资源基准待收口
 >
 > 调查日期：2026-07-25
 >
-> 最近复核：2026-07-29
+> 最近复核：2026-08-01
 >
 > 范围：桌面端 `dir-search` Agent 搜索/替换、Rust 目录遍历、Tool Calling 与 VCP 分布式超时链路
 >
@@ -88,6 +88,8 @@ VCP 的 [`withDistributedTimeout`](../../../vcp-connector/services/vcpNodeProtoc
 
 ### 3.5. VCPToolBox 的分布式超时会遗留节点侧执行
 
+> 2026-08-01 收口：VCPToolBox PR #423 已通过合并提交 `d4eaecfa` 进入上游，分布式节点工具取消不再是 AIO Hub 需要长期维护的外部分叉。AIO 节点侧的 `cancel_tool`、`AbortController`、超时 abort 与断线 abort 已保留并与上游协议对齐。下述链路描述保留为 2026-07-25 修复前的历史证据。
+
 本次补查了实际 VCP 服务端 `E:\rc20\vcp\VCPToolBox\WebSocketServer.js` 与 AIO 节点实现，确认链路如下：
 
 1. VCPToolBox 在 `executeDistributedTool()` 中为每个 `execute_tool` 创建 `pendingToolRequests` 项，并以工具 manifest 的 `communication.timeout`（缺省 60 秒）设置 `setTimeout()`。
@@ -95,29 +97,29 @@ VCP 的 [`withDistributedTimeout`](../../../vcp-connector/services/vcpNodeProtoc
 3. 节点收到 `execute_tool` 后由 `vcpConnectorStore` 直接调用 `VcpNodeProtocol.handleExecuteTool()`；该处理器在 115 秒 `withDistributedTimeout()` 后只 reject 外层 Promise。
 4. `handleExecuteTool()` 创建的 `ToolContext` 当前只有 `isAsync` 与 `reportStatus`，没有 `requestId` 或 `signal`；原始 `service[method](args, context)` Promise 因而继续执行。
 
-这说明服务端超时、AIO 节点 115 秒超时，以及本地 Tool Calling 超时都尚未构成取消闭环。对于 `dir-search`，任一层提前返回都不会自动停止已经进入 Tauri/Rust 的 walker；下一请求仍可被 VCPToolBox 或上层 Agent 发出，形成与日志一致的重叠扫描。
+这说明在 2026-07-25 的修复前状态中，服务端超时、AIO 节点 115 秒超时，以及本地 Tool Calling 超时都尚未构成取消闭环。对于 `dir-search`，任一层提前返回都不会自动停止已经进入 Tauri/Rust 的 walker；下一请求仍可被 VCPToolBox 或上层 Agent 发出，形成与日志一致的重叠扫描。
 
 另有两个协议兼容性/完整性事实需要纳入实施范围：
 
 - AIO 支持 `register_tools_ack`，并在 1.5 秒后以兼容性 fallback 确认工具；当前 VCPToolBox 处理 `register_tools` 时只更新本地工具表，没有发送该 ack。这不是本事故根因，但以后不能把“已发送注册”误写成服务端已确认。
 - VCPToolBox 用全局 `pendingToolRequests` 按 requestId 匹配 `tool_result`，当前处理分支未核对结果消息的 `serverId` 是否就是请求发往的节点。随机 requestId 降低了误匹配概率，但服务端应在 pending 项保存目标 `serverId` 并拒绝其他节点的结果，避免多节点环境中的跨节点结果注入或错误完成。
 
-#### 3.5.1. VCPToolBox 外部仓库与 PR 可行性复核（2026-07-25）
+#### 3.5.1. VCPToolBox 外部仓库与 PR 收口记录（2026-07-25 至 2026-08-01）
 
-VCPToolBox 位于独立 Git 仓库 `E:\rc20\vcp\VCPToolBox`，不属于 AIO Hub 主仓。复核结果如下：
+VCPToolBox 位于独立 Git 仓库 `E:\rc20\vcp\VCPToolBox`，不属于 AIO Hub 主仓。以下记录保留实施前复核结果；对应改动最终已由 PR #423 合并到上游：
 
 - `origin` 是 `miaotouy/VCPToolBox-fork`，`upstream` 是 `lioensky/VCPToolBox`，具备标准 fork -> upstream PR 路径。
 - 对 fork 的临时功能分支执行 `git push --dry-run` 已成功，说明当前凭据和远端配置允许推送 PR 分支；这只能证明可以发起 PR，不能保证上游接受或合并。
 - 复核时本地主工作区 `main` 与 `origin/main` 位于 `42da7f46`，`upstream/main` 已前进到 `50540c7d`，领先 2 个提交；这两个提交未修改 `WebSocketServer.js` 或分布式协议文档。实施时必须先 fetch，并从最新 `upstream/main` 建分支，不能从滞后的 `origin/main` 直接开始。
 - 现有 VCPToolBox 主工作区长期包含多项已修改和未跟踪的 Agent、配置、锁文件、插件运行数据与启动脚本。当前拟修改的 `WebSocketServer.js` 和协议文档本身未被本地改动占用，但仍禁止在该脏工作区直接实现、stash、reset、clean 或批量暂存。
 
-为避免覆盖 VCP 用户数据或把无关文件带入 PR，VCPToolBox 改动必须使用独立 worktree，例如 `E:\rc20\vcp\agent-work\vcp-toolbox-distributed-cancel`，并遵守：
+为避免覆盖 VCP 用户数据或把无关文件带入 PR，VCPToolBox 改动实施时使用独立 worktree，例如 `E:\rc20\vcp\agent-work\vcp-toolbox-distributed-cancel`，并遵守：
 
 1. 从最新 `upstream/main` 创建 `codex/distributed-tool-cancellation` 一类功能分支。
 2. 主工作区只读；实施前后分别记录其 `git status --porcelain`，不得改变既有脏文件。
 3. 只在 worktree 中修改和验证；使用明确文件路径暂存，禁止 `git add -A`。
 4. 推送到 `origin` 后向 `upstream/main` 发 PR；PR 中说明协议兼容策略、测试方式和 AIO 节点侧依赖。
-5. 上游 PR 未合并时，AIO 的 30 秒搜索 deadline、节点本地 AbortController 和断线时本地 abort 必须独立生效，不能把资源安全依赖于外部仓库合并。
+5. 在上游合并前，AIO 的 30 秒搜索 deadline、节点本地 AbortController 和断线时本地 abort 保持独立生效；2026-08-01 上游合并后，这些本地保护仍作为纵深防御保留。
 
 协议层还需修正一个边界：VCPToolBox 在 WebSocket `close` 回调执行时已经无法可靠向断开的节点发送 `cancel_tool`。正确语义应是：
 
@@ -327,7 +329,7 @@ VCP 采用两层兼容策略：AIO 节点必须立即把 115 秒 timeout 和连�
 
 1. 第 7.4 节已完成 LLM/VCP 普通搜索闭环、直接 Tool Calling 和宽范围稀有匹配搜索的资源预算停止与 walker join 基础验收；并发 busy、服务端取消、断线 abort、UI 交互和替换零写入仍未执行。24 逻辑处理器机器也尚未记录 CPU、线程数、取消延迟和 UI 响应，因此 4 worker、5 层、50,000 文件、2 GiB、30 秒仍是第一阶段默认值，待基准校准。
 2. `register_tools_ack` 未与本次取消协议强绑定：`cancelTool` capability 已通过注册能力协商，ack 语义保留为独立的非阻塞兼容改进。
-3. VCPToolBox 改动尚未提交、推送或发起上游 PR；在其合并前，AIO Hub 仍依靠自身 30 秒 deadline、AbortSignal 以及连接断开时本地 abort 保持资源边界。
+3. VCPToolBox 分布式取消改动已由 PR #423 合并上游（合并提交 `d4eaecfa`）；AIO Hub 自身 30 秒 deadline、AbortSignal 以及连接断开时本地 abort 继续作为独立资源边界。
 
 ## 7. 验证计划
 
@@ -390,7 +392,7 @@ bun run check:backend
 - 搜索结果明确标识完整、截断及终止原因。
 - 截断的替换预搜索不会产生部分写入。
 - 定向测试、前端类型检查、Vite 构建、Rust 检查和真实 Tauri 验收全部通过。
-- VCPToolBox 外部改动在独立 clean worktree 中形成可审查分支，主脏工作区实施前后状态不变；即使上游 PR 尚未合并，AIO 本地 deadline 与取消链路也已满足资源安全目标。
+- VCPToolBox 外部改动已通过 PR #423 合并上游；AIO 本地 deadline 与取消链路仍须独立满足资源安全目标。
 
 ## 9. 当前决策记录
 

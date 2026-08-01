@@ -31,9 +31,15 @@
             v-model="searchQuery"
             :prefix-icon="Search"
             clearable
-            placeholder="搜索会话"
+            placeholder="搜索会话名称和消息内容（至少 2 个字符）"
             class="toolbar-search"
-          />
+          >
+            <template #suffix>
+              <el-icon v-if="showLoadingIndicator" class="search-loading-icon">
+                <Loading />
+              </el-icon>
+            </template>
+          </el-input>
 
           <el-select
             v-model="folderFilter"
@@ -90,7 +96,9 @@
           </div>
 
           <div v-if="filteredSessions.length === 0" class="empty-state">
-            未找到匹配的会话
+            <template v-if="searchError">搜索失败，请稍后重试</template>
+            <template v-else-if="isSearching">正在搜索会话内容...</template>
+            <template v-else>未找到匹配的会话</template>
           </div>
 
           <div v-else ref="listRef" class="sessions-virtual-list">
@@ -132,12 +140,57 @@
                     "
                   />
                 </div>
-                <button
-                  class="session-link name-cell"
-                  @click="openSession(filteredSessions[virtualItem.index].id)"
-                >
-                  {{ filteredSessions[virtualItem.index].name || "未命名会话" }}
-                </button>
+                <div class="session-main-cell name-cell">
+                  <button
+                    class="session-link"
+                    @click="openSession(filteredSessions[virtualItem.index].id)"
+                  >
+                    <template
+                      v-for="(part, partIndex) in getSessionTitleParts(
+                        filteredSessions[virtualItem.index]
+                      )"
+                      :key="partIndex"
+                    >
+                      <mark v-if="part.isMatch" class="search-highlight">{{
+                        part.text
+                      }}</mark>
+                      <span v-else>{{ part.text }}</span>
+                    </template>
+                  </button>
+                  <div
+                    v-if="
+                      getSessionMatches(filteredSessions[virtualItem.index].id)
+                        .length > 0
+                    "
+                    class="match-details"
+                  >
+                    <div
+                      v-for="(match, matchIndex) in getSessionMatches(
+                        filteredSessions[virtualItem.index].id
+                      )"
+                      :key="`${match.field}-${matchIndex}`"
+                      class="match-item"
+                    >
+                      <span class="match-field">
+                        {{ getFieldLabel(match.field)
+                        }}<template v-if="match.role"
+                          >({{ getRoleLabel(match.role) }})</template
+                        >:
+                      </span>
+                      <span class="match-context" :title="match.context">
+                        <template
+                          v-for="(part, partIndex) in match.parts"
+                          :key="partIndex"
+                        >
+                          <mark v-if="part.isMatch" class="search-highlight">{{
+                            part.text
+                          }}</mark>
+                          <span v-else>{{ part.text }}</span>
+                        </template>
+                      </span>
+                    </div>
+                  </div>
+                </div>
                 <div class="agent-cell agent-column">
                   <Avatar
                     v-if="
@@ -241,6 +294,7 @@ import {
   Delete,
   Download,
   FolderOpened,
+  Loading,
   Search,
   Upload,
 } from "@element-plus/icons-vue";
@@ -252,6 +306,11 @@ import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { formatDateTime } from "@/utils/time";
 import type { ChatSessionIndex } from "../../types";
+import {
+  useLlmSearch,
+  type HighlightPart,
+  type MatchDetail,
+} from "../../composables/chat/useLlmSearch";
 import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
@@ -290,15 +349,22 @@ const exporting = ref(false);
 const importing = ref(false);
 const deleting = ref(false);
 
-const filteredSessions = computed(() => {
-  if (!localVisible.value) return [];
+const {
+  isSearching,
+  showLoadingIndicator,
+  searchError,
+  sessionResults,
+  search,
+  clearSearch,
+  getFieldLabel,
+  getRoleLabel,
+  formatMatchContext,
+} = useLlmSearch({ debounceMs: 300, scope: "session" });
 
-  const query = searchQuery.value.trim().toLowerCase();
-  return [...llmChatStore.sessions]
-    .filter((session) => {
-      if (!query) return true;
-      return session.name.toLowerCase().includes(query);
-    })
+const isInSearchMode = computed(() => searchQuery.value.trim().length >= 2);
+
+const applyFilters = (sessions: ChatSessionIndex[]) =>
+  sessions
     .filter((session) => {
       if (folderFilter.value === "__all") return true;
       if (folderFilter.value === "__not_favorite") return !session.isFavorite;
@@ -311,19 +377,85 @@ const filteredSessions = computed(() => {
       if (agentFilter.value === "__all") return true;
       if (agentFilter.value === "__none") return !session.displayAgentId;
       return session.displayAgentId === agentFilter.value;
-    })
-    .sort(
-      (a, b) =>
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-    );
+    });
+
+const sortByUpdatedAt = (sessions: ChatSessionIndex[]) =>
+  [...sessions].sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  );
+
+const locallyFilteredSessions = computed(() => {
+  const query = searchQuery.value.trim().toLowerCase();
+  const sessions = llmChatStore.sessions.filter((session) => {
+    if (!query) return true;
+    return session.name.toLowerCase().includes(query);
+  });
+  return sortByUpdatedAt(applyFilters(sessions));
 });
+
+const backendSearchSessions = computed(() => {
+  if (!isInSearchMode.value) return [];
+  const sessionMap = new Map(
+    llmChatStore.sessions.map((session) => [session.id, session])
+  );
+  const sessions = sessionResults.value
+    .map((result) => sessionMap.get(result.id))
+    .filter((session): session is ChatSessionIndex => !!session);
+  return applyFilters(sessions);
+});
+
+const filteredSessions = computed(() => {
+  if (!localVisible.value) return [];
+  if (!isInSearchMode.value) return locallyFilteredSessions.value;
+  if (sessionResults.value.length > 0) return backendSearchSessions.value;
+  if (isSearching.value) return locallyFilteredSessions.value;
+  return [];
+});
+
+type DisplayMatch = MatchDetail & { parts: HighlightPart[] };
+
+const searchMatchesMap = computed(() => {
+  const map = new Map<string, DisplayMatch[]>();
+  for (const result of sessionResults.value) {
+    map.set(
+      result.id,
+      result.matches
+        .filter((match) => match.field !== "name")
+        .slice(0, 2)
+        .map((match) => ({
+          ...match,
+          parts: formatMatchContext(match, 52),
+        }))
+    );
+  }
+  return map;
+});
+
+const titleMatchesMap = computed(() => {
+  const map = new Map<string, HighlightPart[]>();
+  for (const result of sessionResults.value) {
+    const titleMatch = result.matches.find((match) => match.field === "name");
+    if (titleMatch) {
+      map.set(result.id, formatMatchContext(titleMatch, 80));
+    }
+  }
+  return map;
+});
+
+const getSessionMatches = (sessionId: string) =>
+  searchMatchesMap.value.get(sessionId) ?? [];
+
+const getSessionTitleParts = (session: ChatSessionIndex): HighlightPart[] =>
+  titleMatchesMap.value.get(session.id) ?? [
+    { text: session.name || "未命名会话", isMatch: false },
+  ];
 
 const virtualizer = useVirtualizer({
   get count() {
     return filteredSessions.value.length;
   },
   getScrollElement: () => listRef.value,
-  estimateSize: () => 46,
+  estimateSize: () => (isInSearchMode.value ? 76 : 46),
   overscan: 12,
 });
 
@@ -356,11 +488,35 @@ const isSomeFilteredSelected = computed(
 );
 
 watch(
+  [localVisible, searchQuery],
+  ([visible, query], previousValues) => {
+    if (!visible) return;
+
+    const trimmed = query.trim();
+    if (trimmed.length >= 2) {
+      search(trimmed);
+      return;
+    }
+
+    const previousQuery = previousValues?.[1] ?? "";
+    if (
+      previousQuery.trim().length >= 2 ||
+      sessionResults.value.length > 0 ||
+      searchError.value
+    ) {
+      clearSearch();
+    }
+  },
+  { immediate: true }
+);
+
+watch(
   () => [
     localVisible.value,
     searchQuery.value,
     folderFilter.value,
     agentFilter.value,
+    sessionResults.value.length,
   ],
   async () => {
     await nextTick();
@@ -709,6 +865,15 @@ const handleBatchDelete = async () => {
   font-size: 13px;
 }
 
+.session-main-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 0;
+  overflow: hidden;
+}
+
 .session-link {
   max-width: 100%;
   padding: 0;
@@ -720,6 +885,53 @@ const handleBatchDelete = async () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.match-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 11px;
+}
+
+.match-item {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+}
+
+.match-field {
+  flex-shrink: 0;
+  color: var(--text-color-light);
+  font-size: 10px;
+}
+
+.match-context {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-color-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-highlight {
+  padding: 0 2px;
+  border-radius: 2px;
+  background-color: rgba(var(--primary-color-rgb), 0.15);
+  color: var(--primary-color);
+  font-weight: 500;
+}
+
+.search-loading-icon {
+  animation: search-rotate 1s linear infinite;
+}
+
+@keyframes search-rotate {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .agent-cell {

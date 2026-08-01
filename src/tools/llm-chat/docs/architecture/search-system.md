@@ -44,5 +44,5 @@
 **前后端协作完成**：
 
 - 后端 [`extract_context_with_regex`](../../../../../src-tauri/src/commands/llmchat_search.rs:205) 在提取上下文片段时同时返回 `match_offsets: (start_char, end_char)[]` 字符索引数组（基于 grapheme 计数），并合并重叠区间。
-- 前端 [`formatMatchContext`](../../composables/chat/useLlmSearch.ts:297) 据此构建 `HighlightPart[]` 数组（含 `text` 与 `isMatch` 标记），UI 层（如 `LlmChatSidebar` 的搜索结果项）用 `<mark>` 渲染高亮，并提供按字符数智能截断窗口（前缀 1/4 后缀 3/4）。
+- 前端 [`formatMatchContext`](../../composables/chat/useLlmSearch.ts:297) 据此构建 `HighlightPart[]` 数组（含 `text` 与 `isMatch` 标记），UI 层（如 [`SessionsSidebar.vue`](../../components/sidebar/SessionsSidebar.vue) 和 [`BatchManagerDialog.vue`](../../components/sidebar/BatchManagerDialog.vue) 的搜索结果项）用 `<mark>` 渲染高亮，并提供按字符数智能截断窗口（前缀 1/4 后缀 3/4）。批量管理弹窗按后端返回的相关性顺序展示会话，并在名称下方展示消息正文或推理内容的命中片段。
 - **同会话消息列表的搜索**（[`ChatSearchPanel.vue`](../../components/search/ChatSearchPanel.vue)）是**另一套独立的纯前端搜索**，直接在内存中对当前会话的 `messages[]` 做 `toLowerCase().includes(query)`，与 Rust 后端搜索互不依赖；高亮通过简单的 `split(new RegExp(query, 'gi'))` + `<mark>` 实现。

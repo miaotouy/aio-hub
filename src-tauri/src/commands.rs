@@ -134,6 +134,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         validate_file_for_link,
         validate_files_for_link,
         path_exists,
+        resolve_path_for_security,
         preview_skill_manifest,
         rename_skill,
         get_file_metadata,

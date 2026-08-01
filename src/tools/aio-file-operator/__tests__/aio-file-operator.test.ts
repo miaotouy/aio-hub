@@ -798,6 +798,38 @@ describe("AioFileOperator Registry", () => {
       expect(result.status).toBe("allow");
     });
 
+    it("白名单目录前缀碰撞不应被当作子目录", async () => {
+      await whitelistDirs(["C:/Safe"]);
+      const result = await registry.checkSecurityPolicy("read_file", {
+        path: "C:/Safe-copy/file.txt",
+      });
+      expect(result.status).toBe("block");
+    });
+
+    it("相对路径应直接拦截", async () => {
+      await whitelistDirs(["C:/Safe"]);
+      const result = await registry.checkSecurityPolicy("read_file", {
+        path: "Safe/file.txt",
+      });
+      expect(result.status).toBe("block");
+      expect(result.message).toContain("绝对路径");
+    });
+
+    it("符号链接解析到白名单外时应拦截", async () => {
+      mockInvoke.mockImplementation(async (cmd: string, args: any) => {
+        if (cmd !== "resolve_path_for_security") return null;
+        if (args.path === "C:/Safe/link/file.txt") {
+          return "C:/Secret/file.txt";
+        }
+        return args.path;
+      });
+      await whitelistDirs(["C:/Safe"]);
+      const result = await registry.checkSecurityPolicy("read_file", {
+        path: "C:/Safe/link/file.txt",
+      });
+      expect(result.status).toBe("block");
+    });
+
     it("黑名单模式 + 路径匹配死区 → block", async () => {
       await actions.setConfig({
         sandboxMode: "blacklist",
@@ -809,6 +841,17 @@ describe("AioFileOperator Registry", () => {
       expect(result.status).toBe("block");
     });
 
+    it("黑名单目录前缀碰撞不应误伤相邻目录", async () => {
+      await actions.setConfig({
+        sandboxMode: "blacklist",
+        blackListRules: [{ id: "1", path: "C:/Secret", type: "block" }],
+      });
+      const result = await registry.checkSecurityPolicy("read_file", {
+        path: "C:/Secret-copy/data.txt",
+      });
+      expect(result.status).toBe("allow");
+    });
+
     it("黑名单模式 + 路径匹配审批区 → approve", async () => {
       await actions.setConfig({
         sandboxMode: "blacklist",
@@ -818,6 +861,15 @@ describe("AioFileOperator Registry", () => {
         path: "C:/Risky/data.txt",
       });
       expect(result.status).toBe("approve");
+    });
+
+    it("非法安全配置应失败关闭", async () => {
+      await actions.setConfig({ sandboxMode: "invalid" as any });
+      const result = await registry.checkSecurityPolicy("read_file", {
+        path: "C:/Safe/file.txt",
+      });
+      expect(result.status).toBe("block");
+      expect(result.message).toContain("配置无效");
     });
 
     it("无 path 参数时应返回 allow", async () => {

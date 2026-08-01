@@ -14,65 +14,110 @@
 
 /**
  * 路径安全校验工具
- * 用于防止 AI 通过路径穿越攻击访问用户敏感文件
+ * 用于防止 AI 通过路径穿越、目录前缀碰撞或符号链接访问用户敏感文件
  */
+import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
+import type { AioFileOperatorConfig } from "../types";
 
 const logger = createModuleLogger("AioFileOperator/Security");
 
-/**
- * 标准化路径：将路径转换为绝对路径，并处理 `..`、`.`、斜杠方向等
- */
-function normalizePath(path: string): string {
-  // 替换反斜杠为正斜杠
-  let normalized = path.replace(/\\/g, "/");
+type SecurityPolicyResult = {
+  status: "allow" | "approve" | "block";
+  message?: string;
+};
 
-  // 处理相对路径
-  if (!normalized.startsWith("/") && !normalized.match(/^[A-Za-z]:\//)) {
-    // 相对路径，需要转换为绝对路径
-    // 这里我们使用 path.resolve 来处理
-    // 但由于我们在浏览器环境，使用一个简单的实现
-    normalized = resolveRelativePath(normalized);
+function stripWindowsExtendedPrefix(path: string): string {
+  if (/^\\\\\?\\UNC\\/i.test(path)) {
+    return `\\\\${path.slice(8)}`;
   }
-
-  // 处理 .. 和 . 路径穿越
-  const parts = normalized.split("/");
-  const result: string[] = [];
-
-  for (const part of parts) {
-    if (part === "..") {
-      if (result.length > 0 && result[result.length - 1] !== "..") {
-        result.pop();
-      }
-    } else if (part !== "." && part !== "") {
-      result.push(part);
-    }
+  if (/^\\\\\?\\/.test(path)) {
+    return path.slice(4);
   }
+  return path;
+}
 
-  // 保留盘符（Windows）
-  const driveMatch = normalized.match(/^([A-Za-z]:)/);
-  if (driveMatch) {
-    return driveMatch[1] + "/" + result.slice(1).join("/");
-  }
-
-  return "/" + result.join("/");
+function isAbsolutePath(path: string): boolean {
+  const normalized = stripWindowsExtendedPrefix(path).replace(/\\/g, "/");
+  return (
+    normalized.startsWith("/") ||
+    /^[A-Za-z]:\//.test(normalized) ||
+    /^\/\/[^/]+\/[^/]+/.test(normalized)
+  );
 }
 
 /**
- * 简单的相对路径解析（浏览器环境）
+ * 词法标准化路径：统一分隔符并消解 `.` / `..`。
+ * 真实文件系统边界由 Rust 侧 `resolve_path_for_security` 继续解析符号链接。
  */
-function resolveRelativePath(path: string): string {
-  // 如果是 Windows 绝对路径（如 C:/xxx），直接返回
-  if (path.match(/^[A-Za-z]:\//)) {
-    return path;
+function normalizePath(path: string): string {
+  let normalized = stripWindowsExtendedPrefix(path).replace(/\\/g, "/");
+  let root = "";
+  let remainder = normalized;
+
+  const driveMatch = normalized.match(/^([A-Za-z]:)(?:\/|$)/);
+  const uncMatch = normalized.match(/^\/\/([^/]+)\/([^/]+)(?:\/|$)/);
+
+  if (driveMatch) {
+    root = `${driveMatch[1]}/`;
+    remainder = normalized.slice(driveMatch[0].length);
+  } else if (uncMatch) {
+    root = `//${uncMatch[1]}/${uncMatch[2]}`;
+    remainder = normalized.slice(uncMatch[0].length);
+  } else if (normalized.startsWith("/")) {
+    root = "/";
+    remainder = normalized.slice(1);
   }
-  // 如果是 Unix 绝对路径，直接返回
-  if (path.startsWith("/")) {
-    return path;
+
+  const parts: string[] = [];
+  for (const part of remainder.split("/")) {
+    if (!part || part === ".") continue;
+    if (part === "..") {
+      parts.pop();
+      continue;
+    }
+    parts.push(part);
   }
-  // 相对路径，我们无法确定当前工作目录，直接返回
-  // 实际使用时，调用方应传入绝对路径
-  return path;
+
+  if (root === "/") return parts.length > 0 ? `/${parts.join("/")}` : "/";
+  if (root.endsWith("/")) return `${root}${parts.join("/")}`;
+  if (root) return parts.length > 0 ? `${root}/${parts.join("/")}` : root;
+  return parts.join("/");
+}
+
+function comparisonKey(path: string): string {
+  const normalized = normalizePath(path);
+  return /^[A-Za-z]:\//.test(normalized) || normalized.startsWith("//")
+    ? normalized.toLowerCase()
+    : normalized;
+}
+
+/**
+ * 判断目标路径是否等于根目录或位于其真实目录边界内。
+ * 不能使用裸 `startsWith(root)`，否则 `C:/safe-copy` 会冒充 `C:/safe` 的子路径。
+ */
+export function isPathWithinRoot(
+  targetPath: string,
+  rootPath: string
+): boolean {
+  const target = comparisonKey(targetPath);
+  const root = comparisonKey(rootPath);
+  if (!target || !root) return false;
+  if (target === root) return true;
+  if (root === "/" || /^[a-z]:\/$/i.test(root)) return target.startsWith(root);
+  return target.startsWith(`${root.replace(/\/+$/, "")}/`);
+}
+
+async function resolvePathForSecurity(path: string): Promise<string> {
+  if (!isAbsolutePath(path)) {
+    throw new Error(`安全沙箱拦截：路径必须是绝对路径（收到: "${path}"）。`);
+  }
+
+  const resolved = await invoke<unknown>("resolve_path_for_security", { path });
+  // 单元测试和纯前端 mock 可能不实现该命令；真实 Tauri 命令始终返回字符串。
+  return typeof resolved === "string" && resolved.length > 0
+    ? normalizePath(resolved)
+    : normalizePath(path);
 }
 
 /**
@@ -85,19 +130,19 @@ export function getUserHomeDir(): string {
   return process.env.USERPROFILE || process.env.HOME || "";
 }
 
-import type { AioFileOperatorConfig } from "../types";
-
 /**
- * 校验目标路径是否在允许的目录列表中
- * @param targetPath 目标路径（绝对路径）
- * @param config 工具配置
- * @returns 如果路径安全返回 true，否则抛出错误
+ * 校验目标路径是否在允许的目录列表中。
+ * Rust 侧会解析目标及规则的最深已存在祖先，避免符号链接逃逸。
  */
-export function validatePath(
+export async function validatePath(
   targetPath: string,
   config: AioFileOperatorConfig
-): boolean {
-  const policy = checkSecurityPolicy("validate", { path: targetPath }, config);
+): Promise<boolean> {
+  const policy = await checkSecurityPolicy(
+    "validate",
+    { path: targetPath },
+    config
+  );
   if (policy.status === "block") {
     logger.warn("路径安全校验失败", {
       targetPath,
@@ -112,32 +157,59 @@ export function validatePath(
 
 /**
  * 动态安全策略校验
- * @param methodName 方法名称
- * @param args 方法参数
- * @param config 工具配置
- * @returns 安全策略结果
  */
-export function checkSecurityPolicy(
+export async function checkSecurityPolicy(
   _methodName: string,
   args: Record<string, any>,
   config: AioFileOperatorConfig
-): { status: "allow" | "approve" | "block"; message?: string } {
+): Promise<SecurityPolicyResult> {
   const targetPath = args.path;
   if (!targetPath || typeof targetPath !== "string") {
     return { status: "allow" };
   }
 
-  const normalizedTarget = normalizePath(targetPath);
+  if (
+    config.sandboxMode !== "whitelist" &&
+    config.sandboxMode !== "blacklist"
+  ) {
+    return {
+      status: "block",
+      message: "安全沙箱配置无效：sandboxMode 必须是 whitelist 或 blacklist。",
+    };
+  }
+
+  let resolvedTarget: string;
+  try {
+    resolvedTarget = await resolvePathForSecurity(targetPath);
+  } catch (error) {
+    return {
+      status: "block",
+      message:
+        error instanceof Error
+          ? error.message
+          : `安全沙箱拦截：无法解析路径 "${targetPath}"。`,
+    };
+  }
 
   // 1. 基础沙箱校验（白名单/黑名单模式）
   if (config.sandboxMode === "whitelist") {
+    const allowedDirs = Array.isArray(config.allowedDirectories)
+      ? config.allowedDirectories.filter(
+          (dir): dir is string =>
+            typeof dir === "string" && dir.trim().length > 0
+        )
+      : [];
     let inWhitelist = false;
-    const allowedDirs = config.allowedDirectories || [];
+
     for (const dir of allowedDirs) {
-      const normalizedDir = normalizePath(dir);
-      if (normalizedTarget.startsWith(normalizedDir)) {
-        inWhitelist = true;
-        break;
+      try {
+        const resolvedDir = await resolvePathForSecurity(dir);
+        if (isPathWithinRoot(resolvedTarget, resolvedDir)) {
+          inWhitelist = true;
+          break;
+        }
+      } catch (error) {
+        logger.warn("忽略无法解析的白名单目录", { dir, error });
       }
     }
 
@@ -150,17 +222,40 @@ export function checkSecurityPolicy(
   }
 
   // 2. 细分规则校验（黑名单规则）
+  if (
+    config.blackListRules !== undefined &&
+    !Array.isArray(config.blackListRules)
+  ) {
+    return {
+      status: "block",
+      message: "安全沙箱配置无效：blackListRules 必须是数组。",
+    };
+  }
   const rules = config.blackListRules || [];
   let matchedRule: { path: string; type: "block" | "approve" } | null = null;
 
   for (const rule of rules) {
-    if (!rule.path) continue;
-    const normalizedRulePath = normalizePath(rule.path);
-    if (normalizedTarget.startsWith(normalizedRulePath)) {
-      // 如果匹配了多个规则，优先应用 'block' (死区)
-      if (!matchedRule || rule.type === "block") {
-        matchedRule = rule;
+    if (
+      !rule ||
+      typeof rule.path !== "string" ||
+      !rule.path.trim() ||
+      (rule.type !== "block" && rule.type !== "approve")
+    ) {
+      return {
+        status: "block",
+        message: "安全沙箱配置无效：黑名单规则的 path 或 type 非法。",
+      };
+    }
+    try {
+      const resolvedRulePath = await resolvePathForSecurity(rule.path);
+      if (isPathWithinRoot(resolvedTarget, resolvedRulePath)) {
+        // 如果匹配了多个规则，优先应用 'block' (死区)
+        if (!matchedRule || rule.type === "block") {
+          matchedRule = rule;
+        }
       }
+    } catch (error) {
+      logger.warn("忽略无法解析的黑名单规则", { rule, error });
     }
   }
 
@@ -170,12 +265,11 @@ export function checkSecurityPolicy(
         status: "block",
         message: `安全沙箱拦截：路径 "${targetPath}" 属于完全禁止访问的死区（匹配规则: "${matchedRule.path}"）。`,
       };
-    } else if (matchedRule.type === "approve") {
-      return {
-        status: "approve",
-        message: `安全沙箱提示：访问路径 "${targetPath}" 属于高风险审批区，必须人工审批（匹配规则: "${matchedRule.path}"）。`,
-      };
     }
+    return {
+      status: "approve",
+      message: `安全沙箱提示：访问路径 "${targetPath}" 属于高风险审批区，必须人工审批（匹配规则: "${matchedRule.path}"）。`,
+    };
   }
 
   return { status: "allow" };
@@ -183,11 +277,14 @@ export function checkSecurityPolicy(
 
 /**
  * 校验文件大小是否在限制范围内
- * @param size 文件大小（字节）
- * @param maxSize 最大允许大小（字节）
- * @returns 如果安全返回 true，否则抛出错误
  */
 export function validateFileSize(size: number, maxSize: number): boolean {
+  if (!Number.isFinite(size) || size < 0) {
+    throw new Error("文件大小无效，拒绝继续处理。");
+  }
+  if (!Number.isFinite(maxSize) || maxSize < 0) {
+    throw new Error("文件大小限制配置无效，拒绝继续处理。");
+  }
   if (size > maxSize) {
     throw new Error(
       `文件大小超过限制：${(size / 1024 / 1024).toFixed(2)}MB > ${(maxSize / 1024 / 1024).toFixed(2)}MB`

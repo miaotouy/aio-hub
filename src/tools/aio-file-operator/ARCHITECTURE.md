@@ -204,7 +204,7 @@ flowchart TD
 | `whitelist` | 仅允许访问 `allowedDirectories` 下的路径，其他路径直接 `block` |
 | `blacklist` | 默认允许访问，但继续应用 `blackListRules`                      |
 
-路径判断前会将反斜杠统一为正斜杠，并处理 `.` / `..`，降低路径穿越风险。
+路径判断采用两层解析：前端先统一分隔符并处理 `.` / `..`，Rust 命令 `resolve_path_for_security` 再 canonicalize 目标路径或其最深已存在祖先，以解析符号链接。白名单与黑名单都按完整目录边界比较，不能用裸 `startsWith(root)`；例如 `C:/Safe-copy` 不属于 `C:/Safe`。相对路径会直接拒绝。
 
 ### 6.2. 细分规则
 
@@ -294,7 +294,7 @@ flowchart TD
 - 文本读取、元数据校验和大文件保护
 - 删除、追加、目录列表、创建目录、路径存在检查
 - Search/Replace Diff 匹配与换行符保持
-- 白名单、死区、审批区等安全策略
+- 白名单、死区、审批区、目录前缀碰撞和符号链接逃逸等安全策略
 - `getMetadata()` 暴露的 Agent 方法清单
 
 涉及真实 Tauri 文件系统行为时，应优先补 Rust 命令或集成测试；前端单测只验证工具层契约。
@@ -305,7 +305,7 @@ flowchart TD
 
 1. 在 `getMetadata()` 中添加方法描述、参数和 `agentCallable: true`。
 2. 在 registry 类上添加同名实例方法，并委托到 `actions.ts`。
-3. 在 `actions.ts` 中先 `ensureInitialized()`，再执行 `validatePath()` 或更细的安全校验。
+3. 在 `actions.ts` 中先 `ensureInitialized()`，再 `await validatePath()` 或执行更细的安全校验；不得绕过 Rust 真实路径解析。
 4. 如方法有多个路径参数，扩展 `checkSecurityPolicy()`，避免只校验 `args.path`。
 5. 为成功和失败路径调用 `recordLog()` 或 `buildErrorResult()`。
 6. 增补 `__tests__/aio-file-operator.test.ts`。
@@ -316,4 +316,3 @@ flowchart TD
 - **读取类型扩展**：可补充 Markdown 表格、HTML、RTF 等格式的专用提取器。
 - **更强的审计能力**：可增加按方法/路径过滤、导出日志、展示审批记录等能力。
 - **后端级沙箱**：当前沙箱主要在前端工具层执行；如未来暴露给更广泛入口，可考虑在 Rust 命令层增加可复用的策略校验。
-

@@ -277,7 +277,7 @@ export class AioFileOperatorRegistry implements ToolRegistry {
     const { getConfig } = await import("./actions");
     const { checkSecurityPolicy } = await import("./utils/security");
     const config = await getConfig();
-    return checkSecurityPolicy(methodName, args, config);
+    return await checkSecurityPolicy(methodName, args, config);
   }
 
   // ==================== Agent Callable Methods ====================

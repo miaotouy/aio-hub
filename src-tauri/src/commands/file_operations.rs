@@ -20,9 +20,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Seek, Write};
-#[cfg(windows)]
-use std::path::Component;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use std::time::SystemTime;
@@ -1191,6 +1189,118 @@ pub async fn create_links_only(
     }
 
     Ok(message)
+}
+
+fn normalize_absolute_path(path: &Path) -> Result<PathBuf, String> {
+    if !path.is_absolute() {
+        return Err(format!("安全路径解析要求绝对路径: {}", path.display()));
+    }
+
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::Prefix(prefix) => normalized.push(prefix.as_os_str()),
+            Component::RootDir => normalized.push(component.as_os_str()),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                let _ = normalized.pop();
+            }
+            Component::Normal(part) => normalized.push(part),
+        }
+    }
+    Ok(normalized)
+}
+
+fn resolve_path_for_security_impl(path: &Path) -> Result<PathBuf, String> {
+    let mut probe = normalize_absolute_path(path)?;
+    let mut missing_components = Vec::new();
+
+    loop {
+        match fs::symlink_metadata(&probe) {
+            Ok(_) => break,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                let name = probe
+                    .file_name()
+                    .ok_or_else(|| format!("无法找到路径的已存在祖先: {}", path.display()))?;
+                missing_components.push(name.to_os_string());
+                if !probe.pop() {
+                    return Err(format!("无法解析路径: {}", path.display()));
+                }
+            }
+            Err(error) => {
+                return Err(format!("读取路径元数据失败 {}: {error}", probe.display()));
+            }
+        }
+    }
+
+    let mut resolved = fs::canonicalize(&probe)
+        .map_err(|error| format!("解析真实路径失败 {}: {error}", probe.display()))?;
+    for component in missing_components.iter().rev() {
+        resolved.push(component);
+    }
+    Ok(resolved)
+}
+
+/// 为前端安全策略解析路径：
+/// - 现有路径会解析所有符号链接；
+/// - 尚未创建的写入目标会解析最深已存在祖先，再附加剩余路径段。
+#[tauri::command]
+pub fn resolve_path_for_security(path: String) -> Result<String, String> {
+    resolve_path_for_security_impl(Path::new(&path))
+        .map(|resolved| resolved.to_string_lossy().to_string())
+}
+
+#[cfg(test)]
+mod security_path_tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn resolves_the_nearest_existing_ancestor_for_new_paths() {
+        let temp = tempdir().unwrap();
+        let existing = temp.path().join("allowed");
+        fs::create_dir_all(&existing).unwrap();
+        let target = existing.join("new").join("file.txt");
+
+        let resolved = resolve_path_for_security_impl(&target).unwrap();
+        assert_eq!(
+            resolved,
+            fs::canonicalize(&existing)
+                .unwrap()
+                .join("new")
+                .join("file.txt")
+        );
+    }
+
+    #[test]
+    fn rejects_relative_paths() {
+        assert!(resolve_path_for_security_impl(Path::new("relative/file.txt")).is_err());
+    }
+
+    #[test]
+    fn resolves_directory_symlinks_before_policy_comparison() {
+        let temp = tempdir().unwrap();
+        let allowed = temp.path().join("allowed");
+        let outside = temp.path().join("outside");
+        fs::create_dir_all(&allowed).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        let link = allowed.join("link");
+
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&outside, &link).unwrap();
+
+        #[cfg(windows)]
+        if std::os::windows::fs::symlink_dir(&outside, &link).is_err() {
+            // Windows 未开启开发者模式或缺少创建符号链接权限时跳过。
+            return;
+        }
+
+        let resolved = resolve_path_for_security_impl(&link.join("file.txt")).unwrap();
+        assert_eq!(
+            resolved,
+            fs::canonicalize(&outside).unwrap().join("file.txt")
+        );
+    }
 }
 
 // Tauri 命令：检查路径是否存在

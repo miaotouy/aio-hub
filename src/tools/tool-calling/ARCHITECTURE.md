@@ -1,5 +1,7 @@
 # Tool Calling: 架构与开发者指南
 
+> 最后更新：2026-08-01
+
 本文档描述 `tool-calling` 模块的内部架构、设计理念与数据流，为后续开发和维护提供清晰指引。
 
 ## 1. 模块定位
@@ -324,7 +326,7 @@ flowchart TD
 - **审批状态**: 支持 `approved`, `rejected` 和 `silent_cancelled`。其中 `silent_cancelled` 用于静默取消执行且不报错；`rejected` 会触发工具的 `onToolCallDiscarded` 回调并返回 `denied` 状态。
 - **自动预览 (Auto-Preview)**: 在进入审批挂起状态前，执行器会尝试调用工具的 `onToolCallPreview` 钩子，允许工具（如 Canvas）将数据写入内存缓冲区以供用户即时预览效果。
 - **双重安全校验**: 即使方法存在于工具实例上，也必须在 [`getMetadata()`](core/executor.ts:119) 中标记 `agentCallable: true` 才允许执行，防止 LLM 调用非授权方法。
-- **超时保护**: 通过 [`withTimeout()`](core/executor.ts:37) 包装 Promise，超时后自动 reject。
+- **超时与取消**: 本地和分布式执行通过 `AbortController` 传播取消信号，超时必须先中止底层任务再返回错误；完整约束见第 10 节。
 - **结果序列化**: 返回值如果不是字符串，自动 `JSON.stringify`。工具可返回标准 `ToolMethodResult` 信封，把面向 LLM 的 `result` 与写入消息节点的 `executionMetadata` 分开；带 `code` 的异常会记录为结构化 `failureType`。
 
 ### 4.6. 引擎 (`core/engine.ts`)
@@ -512,3 +514,9 @@ interface ToolCallingProtocol {
 - **参数类型**: 所有参数以 `Record<string, string>` 传入，方法内部需自行进行类型转换
 - **超时处理**: 长耗时操作应注意 `config.timeout` 的默认值为 30000ms
 - **缓存失效**: 修改工具的 `getMetadata()` 返回值后，需调用 `invalidateDiscoveryCache()` 刷新 Prompt 缓存
+
+## 10. 取消与超时机制
+
+- **本地执行**: `executeSingleRequest()` 为每次本地调用创建 `AbortController`，并把 `signal` 放入 `ToolContext`。超时处理先调用 `abort()`，再向调用方返回超时错误，避免外层 Promise 结束后底层文件扫描或 IPC 仍继续消耗资源。
+- **分布式执行**: 分布式调用按 `requestId` 保存控制器，支持接收 `cancel_tool` 帧主动取消；WebSocket 断开时会批量终止该节点尚未完成的调用，并在注册能力中声明 `capabilities.cancelTool`。
+- **工具实现约束**: 新增可取消工具时，工具实现应监听 `ToolContext.signal`；仅返回错误而不响应 `AbortSignal` 不能形成完整的资源回收链路。

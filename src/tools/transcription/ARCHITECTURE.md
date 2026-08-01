@@ -1,5 +1,7 @@
 # 多模态转写管理 (Transcription): 架构与开发者指南
 
+> 最后更新：2026-08-01
+
 本文档旨在深入解析 `transcription` 工具的内部架构、设计理念和数据流，为后续的开发和维护提供清晰的指引。
 
 ## 1. 核心概念 (Core Concepts)
@@ -18,10 +20,10 @@
 
 系统采用策略模式，通过 `ITranscriptionEngine` 接口支持多种模态的转写实现：
 
-- **ImageEngine**: 处理图片转写。支持**智能切图 (Image Slicer)**，能自动识别超长图并进行切分，避免模型丢失细节。
+- **ImageEngine**: 处理图片转写。支持**智能切图 (Image Slicer)**，能自动识别超长图并进行切分，避免模型丢失细节。支持 OCR 纯文字提取及分批处理，批次配置由转写设置和任务类型共同决定。
 - **AudioEngine**: 处理音频转写。直接利用多模态模型的语音识别能力。
 - **VideoEngine**: 处理视频转写。集成 **FFmpeg** 管道，支持对大视频进行自动压缩、抽帧或降采样，以平衡转写质量与 Token 消耗。
-- **PdfEngine**: 处理文档转写。支持原生 PDF 解析（若模型支持）或自动转换为图片序列进行视觉转写。
+- **PdfEngine**: 处理文档转写。支持原生 PDF 解析（若模型支持）或自动转换为图片序列进行视觉转写。支持 OCR 纯文字提取及分批处理，批次配置由转写设置和任务类型共同决定；批处理结果汇入统一的 `TranscriptionTask`，不绕过任务状态机。
 
 ### 1.3. 统一调度器 (Unified Manager)
 
@@ -73,15 +75,23 @@
 - **`TranscriptionConfig`**: 全局配置，包括并发数、FFmpeg 路径、各模态的默认模型和 Prompt。
 - **`EngineResult`**: 引擎执行的标准化输出，包含文本内容和空值警告。
 
-## 5. 开发者指南
+## 5. OCR 批处理与作业协议集成
 
-### 5.1. 添加新引擎
+图片和 PDF 引擎通过批处理适配层执行 OCR 纯文字提取，每批结果汇入统一的 `TranscriptionTask`，由同一任务状态机负责取消、失败和重试。
+
+Smart OCR 通过结构化作业协议和稳定 contribution point 提供插件能力；`transcription` 的图片/PDF 引擎只通过适配层消费该能力，插件诊断和配置迁移不得散落在具体 UI 组件中。
+
+新增 OCR 引擎时，应同时验证批次失败、取消、重试以及结构化作业结果到衍生数据的映射，避免只验证单次请求成功路径。
+
+## 6. 开发者指南
+
+### 6.1. 添加新引擎
 
 1.  在 `engines/` 下创建新的实现类，继承 `ITranscriptionEngine`。
 2.  在 `useTranscriptionManager.ts` 的 `engines` 数组中注册该实例。
 3.  在 `types.ts` 的 `TranscriptionConfig` 中添加对应的配置项。
 
-### 5.2. 调试转写任务
+### 6.2. 调试转写任务
 
 - 使用 `TranscriptionWorkbench` 组件可以直观地查看任务队列和错误日志。
 - 开启 `logger` 的 `debug` 级别，可以观察任务调度的详细过程和 LLM 的原始响应。

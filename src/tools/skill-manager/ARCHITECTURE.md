@@ -1,7 +1,7 @@
 # Skill Manager: 架构文档
 
 > 本文档概述 `skill-manager` 工具的核心架构与设计决策。
-> 更新日期：2026-5-17
+> 更新日期：2026-08-01
 
 ## 1. 核心定位
 
@@ -185,3 +185,5 @@ src/tools/skill-manager/
 - **tool-calling**：所有 `agentCallable` 方法出现在 LLM 可用工具列表中。
 - **configManager**：Skill 管理配置（总开关、禁用列表、外部扫描路径）持久化。
 - **Rust Backend**：提供扫描、读写、执行、安装、卸载、重命名等 13 个 Tauri 命令。
+- **错误处理**: `SkillInstallDialog` 的识别失败和安装失败统一通过 `createModuleErrorHandler("skill-manager/install-dialog")` 处理，不在组件内直接拼接异常文本调用全局提示；保持模块日志、错误上下文和用户提示的一致性。
+- **测试约束**: Agent 接口的核心暴露路径必须由测试保护；扩展 Skill 包解析或安装流程时，应同时覆盖解析失败、安装失败和 Agent 调用边界。

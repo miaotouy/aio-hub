@@ -1,5 +1,7 @@
 # Knowledge（知识资料库）架构说明
 
+> 最后更新：2026-08-01
+
 Knowledge 是 AIO Hub 的文档资料与来源回溯领域，与 Recall 思绪领域独立持久化、独立绑定和独立检索。它面向 PDF、DOCX、HTML、Markdown、代码与文本资料，基本单元是 `document + chunk + source`。文档可维护 Knowledge 域内的独立 tags，用于管理与检索过滤；它不承载 Recall entry、Recall 标签池、priority 或联想召回状态。
 
 详细产品与交互方案见 [Knowledge 资料库产品与交互设计](./docs/Plan/knowledge-base-product-interaction-design.md)。
@@ -24,6 +26,15 @@ Knowledge 是 AIO Hub 的文档资料与来源回溯领域，与 Recall 思绪�
 - 旧 manifest `config_json` 和活动向量字段只作为一次性迁移输入：首次初始化 library metadata 时写入单库数据库，确认成功后运行时不再读取这些旧字段。迁移必须可重入，进程中断后可从任一已提交状态继续。
 
 当前运行路径使用 SQLite + FTS5。TriviumDB 的跨平台文件组、锁和恢复验证完成前不进入运行路径。
+
+### 1.1. 旧知识库数据迁移
+
+旧产品目录中的 Recall 数据通过需要用户确认的 Guided Flow 迁移到 Recall SQLite repository。Knowledge 模块只提供迁移事项的产品入口和说明，不在页面组件中实现数据搬运：
+
+- Rust 侧由 `src-tauri/src/recall/commands/migration.rs` 与 `legacy_import` 负责只读发现、迁移预览、执行写入和结构化报告；启动初始化不得自动导入用户数据。
+- 前端通过迁移 contribution 与 `knowledgeMigrationOperations` 编排预览、风险确认、执行、验证和可选清理，执行前必须校验 migration ID 与 source fingerprint。
+- 迁移写入必须可重入；失败或验证未通过时保留源目录，只有验证完成且用户再次确认后才能清理。
+- 扩展数据迁移能力时，应扩展迁移 contribution、service 和 operation 层，不应在 `KnowledgeBase.vue` 或步骤组件中拼接文件搬运逻辑。
 
 ## 2. 前端边界
 

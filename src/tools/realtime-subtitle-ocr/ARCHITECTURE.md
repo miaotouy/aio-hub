@@ -2,7 +2,7 @@
 
 本文档详细记录了“实时字幕OCR”工具的内部架构、设计理念、数据流以及核心算法，为后续的开发、维护和迭代提供清晰的指引。
 
-> 更新时间：2026-07-07
+> 更新时间：2026-08-01
 
 ---
 
@@ -60,7 +60,7 @@
 
 - [`RealtimeSubtitleOcr.vue`](src/tools/realtime-subtitle-ocr/RealtimeSubtitleOcr.vue): 工具主入口，采用**上下分栏布局**。上方为左右分栏（7:3 比例），左侧为 `LivePreview` 实时预览与控制区，右侧为 `ActiveSubtitleEditor` 当前字幕大字编辑框；下方为 `SubtitleTimeline` 字幕时间轴列表。中间提供可拖拽的 Y 轴高度调整条。
 - [`components/MonitorConfig.vue`](src/tools/realtime-subtitle-ocr/components/MonitorConfig.vue): 监控参数配置面板，包含采样频率（500ms - 3000ms）、去重灵敏度（高、中、低）、OCR 引擎选择（Native, Tesseract, VLM, Cloud, Plugin）及引擎额外配置气泡。
-- [`components/SubtitleTimeline.vue`](src/tools/realtime-subtitle-ocr/components/SubtitleTimeline.vue): 字幕时间轴展示，支持单条字幕的删除、一键复制（纯文本/带时间戳）、发送到 Chat（纯文本/带时间戳）、导出 SRT 和一键清空。
+- [`components/SubtitleTimeline.vue`](src/tools/realtime-subtitle-ocr/components/SubtitleTimeline.vue): 字幕时间轴展示，支持自动滚动、单条字幕的删除、一键复制（纯文本/带时间戳）、发送到 Chat（纯文本/带时间戳）、导出 SRT 和一键清空。
 - [`components/ActiveSubtitleEditor.vue`](src/tools/realtime-subtitle-ocr/components/ActiveSubtitleEditor.vue): 当前字幕大字编辑框，支持双击下方时间轴列表中的字幕，或等待最新识别结果在此处编辑，支持 `Ctrl+Enter` 快捷键提交保存。
 - [`components/LivePreview.vue`](src/tools/realtime-subtitle-ocr/components/LivePreview.vue): 实时预览组件，展示当前截取的最新帧画面，并提供打开/关闭监控框、聚焦监控框、开始/停止监控的控制按钮，以及 aHash 指纹和延迟（ms）的实时显示。
 - [`components/MonitorBox.vue`](src/tools/realtime-subtitle-ocr/components/MonitorBox.vue): 屏幕监控框悬浮窗。通过统一的 `detachableComponents` 体系注册为 `type: "component"` 可分离组件：透明 + 无边框 + 置顶 + 可缩放 + 无阴影，由 `DetachedComponentContainer.vue` 在 `/detached-component/:componentId` 路由下加载，复用 `useDetachable` / `useDetachedManager` / `useWindowSyncBus` 全套悬浮窗基础设施，无需自造独立窗口。
@@ -76,11 +76,13 @@
   - 监听 `MonitorBox` 悬浮窗通过窗口同步总线上报的几何信息（`realtime-subtitle-ocr:monitor-box-geometry`）。
   - 实现基于编辑距离（Levenshtein Distance）的文本合并与断句算法。
   - 生成并导出 SRT 格式字幕。
+  - 基于异步 OCR 队列执行识别，高频采样与时间轴更新解耦；采样/识别链路发生取消或重启时清理对应队列状态，不让旧任务继续向当前时间轴写入结果。
 
 #### 3. OCR 平台能力层 (Shared Platform Layer)
 
 - 直接导入并复用 [`src/tools/smart-ocr/platform/runner.ts`](src/tools/smart-ocr/platform/runner.ts) 中的 `useOcrRunner`。
 - 共享全局统一的 OCR Profile 配置，用户在 `Smart OCR` 中配置好的 API Key 和引擎参数在此处直接生效，无需重复配置。
+- Smart OCR 作业协议与稳定 contribution point 配置接入监控配置和工具注册；插件能力由统一引擎层承载，实时工具只负责采样、队列和结果展示。
 
 #### 4. Rust 后端原生能力层 (Rust Backend Layer)
 

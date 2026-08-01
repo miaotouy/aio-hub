@@ -1,6 +1,6 @@
 # LLM Inspector: 架构与开发者指南
 
-> 最后更新：2026-06-2
+> 最后更新：2026-08-01
 
 本文档反映 **LLM Inspector 2.0** 架构（含 detail-panel-rework）。它深入解析工具的内部结构、设计理念和数据流，为后续开发与维护提供清晰指引。
 
@@ -18,6 +18,7 @@ Rust 原生 HTTP 代理，运行在指定端口（默认 8999）。
 - **技术栈**: `axum` + `hyper` + `tokio`，原生线程运行。
 - **能力**: 自定义 Header 覆盖、流式响应直透。
 - **数据通道**: 通过 Tauri `emit` 发送 `inspector-request` / `inspector-response` / `inspector-stream-update` 事件给前端。
+- **监听地址展示**: 外部代理运行时由 `LlmInspector.vue` 计算 `http://localhost:{port}` 监听地址，`HeaderToolbar` 仅在代理运行时展示该地址，并通过剪贴板提供一键复制。监听地址属于运行态派生信息，端口配置变化或代理停止时应由状态重新计算，不持久化可能过期的 URL。
 
 #### 1.1.2. 内部钩子（Internal Hook）
 
@@ -330,6 +331,7 @@ LlmInspector.vue
   - UI 状态: `searchQuery` / `filterStatus` / `maskApiKeys` / `targetUrlHistory`
   - 布局: `layout.splitRatio`
   - Token 行为: `autoEstimateTokens`（是否在响应结束后自动跑客户端 tokenizer 估算，默认 false）
+  - 记录管理: 支持容量配置和单条删除，详情面板以统一的 `CombinedRecord` 为输入，不把记录清理状态写入记录实体。
 - **保存机制**: 通用 `createConfigManager` 防抖（500ms）合并写入。
 
 ## 7. 关键类型定义
@@ -365,4 +367,3 @@ LlmInspector.vue
 - **Token 趋势 mini-chart**: echarts 折线图展示最近 N 条 token 消耗。
 - **请求重放 / 对比**: 选中记录后重发或与另一条对比。
 - **多模态附件 Token 估算**: 当前 [`tokenEstimator.ts`](src/tools/llm-inspector/core/tokenEstimator.ts:109) 的 `estimateAttachmentTokens` 是 stub，待接入真实 VisionTokenCost 配置。
-

@@ -1,6 +1,6 @@
 # Aio File Operator: 架构与开发者指南
 
-> 更新日期：2026-06-30
+> 更新日期：2026-08-01
 
 本文档描述 `aio-file-operator` 的模块定位、调用链、安全边界和维护要点。该工具面向 Agent 暴露受控的本地文件读写能力，同时提供可视化配置与审计日志。
 
@@ -242,8 +242,7 @@ flowchart TD
 `AioFileOperator.vue` 是工具主容器：
 
 - 左侧 `SecurityConfigPanel`：配置沙箱模式、白名单目录、死区/审批区规则、最大读取大小、覆盖策略和审计日志开关。
-- 右侧 `AuditLogPanel`：展示最近调用记录，可清空、可折叠。
-- 中间分割线支持调整日志面板宽度，鼠标释放时再保存配置。
+- 右侧 `AuditLogPanel`：展示最近调用记录，可清空、可折叠。日志面板的拖拽宽度复用 `useResizable`，宽度限制为 250～600px，拖拽结束后才写回 `config.logPanelWidth` 并保存配置，避免高频拖拽过程产生持久化写入。
 - 顶部状态徽章读取 `useVcpDistributedStore()`，显示工具是否已通过 `vcp-connector` 的分布式节点暴露。
 
 `useFileOperator()` 负责把 UI 状态与 `actions.ts` 串起来，并处理路径选择、拖放、规则新增删除、日志刷新等交互。

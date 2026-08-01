@@ -1,5 +1,7 @@
 # 网页蒸馏室 (Web Distillery) — 架构文档
 
+> 最后更新：2026-08-01
+
 ## 1. 概述
 
 网页蒸馏室是一个多模式网页内容提取工具，设计目标是**高纯度地从任意网页中提炼出有价值的内容**。它同时服务于两个场景：
@@ -499,5 +501,7 @@ InteractiveWorkbench
 | `smartExtract` | SPA、动态内容、登录后页面 | `url`, `waitFor`, `cleanMode` |
 
 两个方法都将结果通过 [`formatFetchResult()`](src/tools/web-distillery/formatters.ts) 格式化为 Markdown 字符串返回给 Agent。
+
+Agent 布尔参数统一走共享归一化逻辑，`quickFetch` / `smartExtract` 等入口不应各自实现字符串、数字和布尔值的分支解析。新增蒸馏模式或 recipe action 时，应补充参数归一化、拖拽交互和真实工具调用三类验证。
 
 ---

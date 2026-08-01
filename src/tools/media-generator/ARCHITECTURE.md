@@ -1,5 +1,7 @@
 # Media Generator: 架构与开发者指南 (v1)
 
+> 最后更新：2026-08-01
+
 本文档旨在深入解析 `media-generator` 工具的内部架构、设计理念和数据流，为后续的开发和维护提供清晰的指引。
 
 ## 1. 核心概念 (Core Concepts)
@@ -60,7 +62,7 @@ Root (system)
 - **索引文件**: `sessions-index.json` — 轻量级列表，快速加载会话概览
 - **会话详情文件**: `sessions/{id}.json` — 完整的树形节点数据
 - **任务文件**: `tasks.json` — 全局任务池
-- **设置文件**: `settings.json` — 用户偏好设置
+- **设置文件**: `settings.json` — 全局用户偏好与生成配置，由 `useMediaGenPersistence` 负责加载、监听和防抖保存
 
 ```
 {appDataDir}/media-generator/
@@ -137,7 +139,11 @@ sequenceDiagram
 
 **关键子流程**:
 
-#### 2.2.1. 参数清洁 (Param Sanitization)
+#### 2.2.1. 视频与音频生成
+
+视频生成链路支持 Ark/Agnes 视频 API，并通过统一路径处理远程媒体下载、模型选择、失败重试和错误信息复制。新增生成 Provider 或任务结果类型时，应同时检查 `useMediaGenerationManager`、`MediaTaskCard`、`MediaGallery` 和 `useMediaGenPersistence`，避免只更新请求适配器而遗漏任务展示或持久化。
+
+#### 2.2.2. 参数清洁 (Param Sanitization)
 
 `useMediaGenParamRules.sanitizeParams` 根据模型信息中的 `mediaGenParams` 规则：
 
@@ -145,15 +151,15 @@ sequenceDiagram
 - 校验参数值是否在有效范围内（如 `n` 在 1~10 之间）
 - 对 xAI/Gemini 等特殊模型进行参数适配（如 `aspect_ratio` + `resolution` 替代 `size`）
 
-#### 2.2.2. 上下文规则 (Context Rules)
+#### 2.2.3. 上下文规则 (Context Rules)
 
 `applyContextRules` 决定哪些历史消息作为多轮上下文的输入：
 
 - **无上下文模式**: 只保留最后一条 User 消息
-- **自动上下文模式**: 决定是否包含上一轮的生成结果作为参考图（仅当模型能力支持视觉输入或迭代微调时）
+- **自动上下文模式**: 决定是否包含上一轮的生成结果作为参考图（仅当模型能力支持视觉输入或迭代微调时）；上下文必须由显式模式或 `contextMessageIds` 控制
 - **手动选择模式**: 使用 `contextMessageIds` 精确指定上下文消息
 
-#### 2.2.3. 资产处理 (Asset Handling)
+#### 2.2.4. 资产处理 (Asset Handling)
 
 `handleResponseAssets` 处理 LLM 返回的媒体数据：
 
@@ -165,7 +171,11 @@ sequenceDiagram
    - 持久化衍生数据到 `derived/media-generator/{date}/{assetId}.json`
 3. 更新任务状态，关联结果资产
 
-### 2.3. 重试/分支流
+### 2.3. 结果展示
+
+视频任务支持预览海报与悬停播放，完成任务卡可直接打开文件位置；音频任务的波形加载与持久化纳入任务卡展示。结果展示与衍生数据在 `handleResponseAssets` 中统一处理，不分散在各组件中。
+
+### 2.4. 重试/分支流
 
 当用户在某个 Assistant 节点上点击"重新生成"：
 
@@ -187,7 +197,7 @@ regenerateFromNode(messageId, temporaryModel?)
       └─ 直接调用 executeGeneration(task)
 ```
 
-### 2.4. 会话切换流程
+### 2.5. 会话切换流程
 
 ```
 switchSession(sessionId)
@@ -198,7 +208,7 @@ switchSession(sessionId)
   └─ 触发 UI 重渲染
 ```
 
-### 2.5. 初始化与自愈 (Self-Healing)
+### 2.6. 初始化与自愈 (Self-Healing)
 
 初始化时，`useMediaGenPersistence.init()` 执行以下自愈逻辑：
 

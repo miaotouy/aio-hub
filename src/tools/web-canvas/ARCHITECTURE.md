@@ -559,3 +559,7 @@ web-canvas 采用**多级存储策略**，将索引、元数据和项目文件�
 | Git 仓库   | `projects/{id}/.git/`            | Git      | 通过 isomorphic-git 操作       |
 | 用户配置   | `localStorage`                   | JSON     | 按需读取                       |
 | 物理文件   | 直接文件系统                     | -        | 直接操作                       |
+
+## 9. Monaco 编辑器加载机制
+
+`CanvasMonacoEditor` 与其他 Monaco 使用方共享纯 ESM 加载器 `src/utils/monaco.ts`，不依赖 AMD 插件或运行时 AMD 配置。编辑器扩展必须沿用该加载约定，并通过真实窗口 smoke test 验证加载链路；不得引入 `loader.js` 或 AMD 依赖。

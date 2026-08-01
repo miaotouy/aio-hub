@@ -1,6 +1,6 @@
 # 翻译工作台（Translator）：架构与开发者指南
 
-> 最后更新：2026-06-05
+> 最后更新：2026-08-01
 
 翻译工作台是一个面向 **多渠道 LLM 并排对比翻译** 的工具。本文档是其架构概览，覆盖核心概念、子模块职责、数据流与持久化布局。
 
@@ -33,7 +33,11 @@
 
 ## 2. 核心概念
 
-### 2.1. 渠道（TranslationChannel）
+### 2.1. 输入加载与文件识别
+
+输入面板同时支持系统路径选择和浏览器原生 `File` 拖放。`useTranslatorFileLoader` 统一封装文件加载：通过项目级 [`detectMimeTypeFromBuffer`](src/utils/fileTypeDetector.ts:399) 与 [`isTextFile`](src/utils/fileTypeDetector.ts:489) 先做 MIME/文本类型判断，再执行 [`smartDecode`](src/utils/encoding.ts:29) 编码识别、空文件检查和大文件确认，非文本文件不会进入翻译任务。新增输入来源时应复用该服务，不要在 `InputPanel` 中重复实现编码识别。
+
+### 2.2. 渠道（TranslationChannel）
 
 单个 LLM Profile × Model 的可执行单元，可携带渠道级 prompt 覆盖、temperature、maxTokens。多个渠道在同一次翻译中**并发执行**，互不阻塞。
 
@@ -44,7 +48,7 @@ TranslationChannel {
 }
 ```
 
-### 2.2. 预设（TranslatorPreset）
+### 2.3. 预设（TranslatorPreset）
 
 预设是一组**完整的翻译配置快照**：渠道集合 + 默认源/目标语言 + prompt 模板。
 
@@ -62,7 +66,7 @@ TranslatorPreset {
 - 首次启动时若磁盘无数据，会取前 4 套模板（[`buildInitialDefaultPresets`](src/tools/translator/core/builtinPresets.ts:1)）按当前已启用的 LLM Profiles 自动挑选合适模型填充。
 - 在 PresetManagerDialog 中，每个预设的编辑表单顶部都有「从内置预设导入」折叠区，点击模板卡片 → 二次确认 → 仅替换 `name/icon/prompt/defaultSourceLang/defaultTargetLang`，**保留 `id` 和已配置的 `channels`**（[`applyTemplateToPreset`](src/tools/translator/core/builtinPresets.ts:1)）。
 
-### 2.3. 翻译结果（TranslationResult）
+### 2.4. 翻译结果（TranslationResult）
 
 ```ts
 status: idle | pending | streaming | completed | aborted | failed;
@@ -72,11 +76,11 @@ status: idle | pending | streaming | completed | aborted | failed;
 - 包含 `appliedMaxTokens`/`modelOutputLimit`/`finishReason`/`tokenUsage`，用于结果卡片显示「max xxK / 输出截断 / ↑in ↓out」等元信息。
 - `isStreaming` 字段保留作历史兼容，新逻辑应只读 `status`。
 
-### 2.4. 翻译历史（TranslationHistoryEntry）
+### 2.5. 翻译历史（TranslationHistoryEntry）
 
 完整快照存原文、双语方向、当时的预设 ID、所有渠道的结果。最多保留 30 条（[`TRANSLATOR_MAX_HISTORY_ENTRIES`](src/tools/translator/composables/useTranslatorHistory.ts:130)），可在 `settings.saveHistory` 关闭时停止落盘。
 
-### 2.5. 自定义语言（Custom Languages）
+### 2.6. 自定义语言（Custom Languages）
 
 内置语言库覆盖 ~30 种（分组：cjk / europe / mideast / south-asia），用户可在设置或语言下拉中添加任意自定义语言名（如 `Klingon`、`Toki Pona`、`Old English`）：
 
@@ -84,7 +88,7 @@ status: idle | pending | streaming | completed | aborted | failed;
 - 持久化于 `settings.customLanguages`。
 - 删除自定义语言时，若当前输入区正在用它：源语言回退到 `auto`，目标语言回退到 `Chinese (Simplified)`；预设里的默认语言**不会自动改动**，需用户手动调整。
 
-### 2.6. 智能语言粘性
+### 2.7. 智能语言粘性
 
 切换预设时的语言行为：
 
@@ -188,8 +192,8 @@ graph TD
 
 - [`getModelOutputLimit()`](src/tools/translator/composables/useTranslatorEngine.ts:63) 读取模型元数据 `tokenLimits.output`。
 - [`getModelContextLimit()`](src/tools/translator/composables/useTranslatorEngine.ts:71) 读取 `tokenLimits.contextLength`，缺失时回退到 `contextLengthRange[1]`，两者皆无返回 `undefined`。
-- [`estimateTranslationInputTokens()`](src/tools/translator/composables/useTranslatorEngine.ts:100)：估算输入 tokens。优先使用 store 注入的精确分词缓存（由 `tokenCalculatorService` 异步计算并注入，整段文本完全匹配时命中），未命中时回退字符启发式（CJK 1 字 ≈ 1.5 tokens，其他按词数 × 1.3）。
-- [`estimateTranslationOutputTokens()`](src/tools/translator/composables/useTranslatorEngine.ts:85)：基于输入 token 数乘以膨胀系数（语义：输出 token / 输入 token），加段落格式预留（按行数推算，clamp 在 512~4096 区间）。对高密度语言（如 CJK）比旧版“字符数 × 系数”更准确。
+- [`estimateTranslationInputTokens()`](src/tools/translator/composables/useTranslatorEngine.ts:100)：估算输入 tokens。优先使用 store 注入的精确分词缓存（由 `tokenCalculatorService` 异步计算并注入，整段文本完全匹配时命中），未命中时回退字符启发式（CJK 1 字 ≈ 1.5 tokens，其他按词数 × 1.3）。输入文本变化防抖 500ms 后计算精确 token 并注入 Engine 缓存。
+- [`estimateTranslationOutputTokens()`](src/tools/translator/composables/useTranslatorEngine.ts:85)：基于输入 token 数乘以膨胀系数（语义：输出 token / 输入 token），加段落格式预留（按行数推算，clamp 在 512~4096 区间）；该估算方式适用于 CJK 等高密度语言。
 - [`getEffectiveMaxTokens()`](src/tools/translator/composables/useTranslatorEngine.ts:113)：在 `channel.maxTokens / 估算 / modelLimit` 三者间取合理上限，最终 clamp 在 `[256, 131072]`。
 
 ### 渠道超限风险估算（事前预警）
@@ -367,11 +371,11 @@ modules/translator/
 
 类型定义集中在 [`types.ts`](src/tools/translator/types.ts:1)。最常被引用的核心类型：
 
-- **`TranslationChannel`**：单个 LLM Profile × Model 的可执行单元（详见 [§2.1](#21-渠道translationchannel)）。
-- **`TranslatorPreset`**：完整翻译配置的快照（详见 [§2.2](#22-预设translatorpreset)）。
-- **`TranslationResult`**：单渠道翻译结果，含 `status` / `content` / `tokenUsage` / `finishReason` / `appliedMaxTokens`（详见 [§2.3](#23-翻译结果translationresult)）。
+- **`TranslationChannel`**：单个 LLM Profile × Model 的可执行单元（详见 [§2.2](#22-渠道translationchannel)）。
+- **`TranslatorPreset`**：完整翻译配置的快照（详见 [§2.3](#23-预设translatorpreset)）。
+- **`TranslationResult`**：单渠道翻译结果，含 `status` / `content` / `tokenUsage` / `finishReason` / `appliedMaxTokens`（详见 [§2.4](#24-翻译结果translationresult)）。
 - **`TranslationSession`**：一次翻译的完整上下文（原文 + 双语方向 + 预设 ID + 渠道快照），用于历史记录与单渠道重试时复用上下文。
-- **`TranslationHistoryEntry`**：历史快照（详见 [§2.4](#24-翻译历史translationhistoryentry)）。
+- **`TranslationHistoryEntry`**：历史快照（详见 [§2.5](#25-翻译历史translationhistoryentry)）。
 - **`TranslatorSettings`**：用户偏好设置，关键字段：
 
 | 字段                      | 默认  | 说明                                                                      |
@@ -379,6 +383,8 @@ modules/translator/
 | `defaultMaxTokens`        | 16384 | 渠道未配置且无法估算时的兜底输出上限                                      |
 | `autoExpandMaxTokens`     | true  | 是否根据输入长度自动放大 max_tokens                                       |
 | `outputExpansionFactor`   | 1.5   | 输出膨胀系数（输出 token / 输入 token，中→英/短→长建议 0.8 ~ 1.5 区间）   |
+| `splitChunkSize`          | 2000  | 长文本分片大小（按渠道并发上限执行）                                      |
+| `splitSuggestSmartFilter` | true  | 智能过滤分片建议                                                          |
 | `streamingEnabled`        | true  | 流式输出开关                                                              |
 | `autoScrollResults`       | true  | 流式时自动吸底（用户手动滚走会暂停）                                      |
 | `saveHistory`             | true  | 是否落盘历史                                                              |

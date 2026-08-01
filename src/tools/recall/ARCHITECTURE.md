@@ -1,5 +1,7 @@
 # Recall（思绪）架构说明
 
+> 最后更新：2026-08-01
+
 Recall 是 AIO Hub 的完整语义条目与召回领域。它管理思绪集、原子条目、标签、优先级、向量及检索运行时，不负责文档切片、文件同步或来源回溯；后者属于独立的 Knowledge 文档资料域。
 
 本文描述 Stage 3 完成后的代码边界。Recall 运行时已以 SQLite 为真源；Agent 配置、宏和占位符已迁至 `recallConfig`、`recallSettings`、`{{recall}}` 与 `【recall::key=value】` 契约。旧字段只作为版本化迁移输入，不代表领域所有权仍属于 Knowledge。
@@ -162,7 +164,7 @@ appData/knowledge/
 
 旧格式中的 “knowledge library / 知识库” 是重构前的产品命名，底层实际使用思绪条目结构，不天然等同于新版 Knowledge 文档资料域。检查旧包时后端返回 `legacyRecallBackup` 结构化告警；前端在导入前说明两种去向：完整恢复到 Recall / 思绪，或将旧条目的标题和 Markdown 正文不可逆转换成新版 Knowledge 文档。默认推荐思绪；仅当用户确认旧内容当作传统文档库使用时才进入二次确认并转换到 Knowledge。Knowledge 转换会为每个旧集合新建资料库，任一文档写入失败则删除本次新库；原备份不修改，但标签、优先级、启用状态、条目关联和附件不转换为 Knowledge 字段。
 
-Stage 2 已建立 `appData/recall/recall.db` 与 `recall-vectors.db` 的 SQLite repository 和独立 migration 表；主库 schema v2 持久化集合活动模型，模型维度、tokens 和最后索引时间从向量库统计恢复。Tauri 启动阶段会先幂等执行旧目录迁移，再从 repository warmup 派生读模型，`recall_initialize` 保留为兼容入口；集合/条目/向量/标签池 command 与备份导入导出均以 repository 为真源。独立的 `LegacyFileRecallImporter` 已覆盖旧集合、条目、向量与 tag pool 的幂等导入、运行中状态续跑和结构化报告。旧目录在校验和用户确认前不得删除。
+`appData/recall/recall.db` 与 `recall-vectors.db` 构成 Recall SQLite repository，并各自维护 migration 表；主库 schema v2 持久化集合活动模型，模型维度、tokens 和最后索引时间从向量库统计恢复。Tauri 启动阶段只初始化 repository、检测旧目录并 warmup 内存读模型，不执行旧用户数据迁移；`recall_initialize` 是幂等初始化入口。集合、条目、向量、标签池 command 与备份导入导出均以 repository 为真源。`LegacyFileRecallImporter` 负责旧集合、条目、向量与 tag pool 的幂等导入、运行状态续跑和结构化报告；执行迁移前必须校验 migration ID、source fingerprint 和用户确认，迁移可在中断后从已提交状态继续。迁移失败或验证未通过时必须保留源目录并返回原因，只有验证完成且用户再次确认后才能清理。
 
 稳定的数据真源、写入顺序、备份格式、旧目录清理条件和迁移报告字段见 `docs/architecture/storage-migration-contract.md`。
 

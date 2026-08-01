@@ -1,5 +1,7 @@
 # JSON Formatter: 架构与开发者指南
 
+> 最后更新：2026-08-01
+
 本文档旨在解析 JSON Formatter 工具的内部架构、设计理念和数据流，为后续开发提供清晰的指引。
 
 ## 1. 核心概念
@@ -72,7 +74,11 @@ sequenceDiagram
 - **错误处理**: 统一使用项目规范的 `errorHandler`。在 `Logic` 层捕获解析异常并返回结构化的错误信息，由 `UI` 层负责展示。
 - **解耦设计**: `JsonFormatter.vue` 与插件系统完全解耦，即使在没有注册器的情况下也能独立运行或进行单元测试。
 
-## 5. 未来展望
+## 5. Agent 返回契约
+
+`JsonFormatterRegistry.formatJson()` 的 Agent 返回值为 `Promise<string>`：成功时返回格式化文本，失败时通过 `formatForAgent()` 返回带明确错误前缀的文本；UI/内部逻辑仍可继续使用完整的 `FormatResult`。修改 Agent 方法时，不要把内部结果对象直接暴露给工具调用协议。
+
+## 6. 未来展望
 
 - **新增格式化选项**: 增加更多格式化选项，如 `sortKeys`（按键排序）。
 - **支持更多格式**: 扩展解析器以支持 `.jsonc` (带注释) 和 `.json5` 等更宽松的 JSON 变种。

@@ -27,17 +27,18 @@ CSS 变量宏用于让 LLM Chat 中的视觉化输出读取当前主题颜色、
 
 ## 常用变量
 
-| 变量                      | 用途               |
-| :------------------------ | :----------------- |
-| `--el-color-primary`      | 应用主色           |
-| `--el-text-color-primary` | 主要文字颜色       |
-| `--el-text-color-regular` | 正文文字颜色       |
-| `--el-border-color`       | 常规边框颜色       |
-| `--card-bg`               | 卡片或容器背景     |
-| `--input-bg`              | 输入框背景         |
-| `--sidebar-bg`            | 侧边栏背景         |
-| `--ui-blur`               | 当前毛玻璃模糊强度 |
-| `--card-opacity`          | 卡片透明度数值     |
+| 变量                      | 用途                       |
+| :------------------------ | :------------------------- |
+| `--el-color-primary`      | 应用主色                   |
+| `--el-text-color-primary` | 主要文字颜色               |
+| `--el-text-color-regular` | 正文文字颜色               |
+| `--el-border-color`       | 常规边框颜色               |
+| `--card-bg`               | 卡片或容器背景             |
+| `--input-bg`              | 输入框背景                 |
+| `--sidebar-bg`            | 侧边栏背景                 |
+| `--ui-blur`               | 当前全局毛玻璃模糊强度     |
+| `--chat-message-bg-blur`  | 聊天消息背景的实际模糊强度 |
+| `--card-opacity`          | 卡片透明度数值             |
 
 如果要写可维护的 HTML，优先让 AI 在 CSS 中使用变量名本身，例如 `background: var(--card-bg)`；只有当模型需要知道实际颜色值时，再用宏读取。
 

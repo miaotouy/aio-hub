@@ -156,6 +156,7 @@ html.dark {
 
   /* --- UI 质感 --- */
   --ui-blur: 15px; /* UI 元素的背景模糊强度，由 JS 动态更新 */
+  --chat-message-bg-blur: 15px; /* 聊天消息背景模糊强度 = UI 模糊强度 × 消息系数 */
   --border-opacity: 0.9;
 
   /* --- 动态计算的背景色 (由 useThemeAppearance.ts 注入，包含透明度和颜色叠加) --- */
@@ -174,7 +175,7 @@ html.dark {
 为了让自定义组件能够正确响应外观系统的设置，开发时应遵循 `src/styles/theme-appearance.css` 中定义的规范：
 
 - **背景**: 使用 `--card-bg`, `--sidebar-bg` 等语义化背景变量，而不是自己构造 `rgba()`。
-- **模糊**: 需要毛玻璃效果的组件，应添加 `backdrop-filter: blur(var(--ui-blur));`。
+- **模糊**: 常规毛玻璃组件使用 `backdrop-filter: blur(var(--ui-blur));`；聊天消息背景使用专用的 `--chat-message-bg-blur`，以响应消息模糊系数。
 - **边框**: 边框颜色应使用 `var(--border-color)`，其透明度会受 `--border-opacity` 的影响。
 
 通过这种方式，所有UI元素都能与用户的个性化设置保持一致，提供统一且高度可定制的视觉体验。

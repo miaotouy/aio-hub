@@ -56,6 +56,7 @@ const THEME_VARIABLES = [
 
   // UI 特效
   "--ui-blur",
+  "--chat-message-bg-blur",
 
   // 代码块 (如果 iframe 展示代码)
   "--code-block-bg",

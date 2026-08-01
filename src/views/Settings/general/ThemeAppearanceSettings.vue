@@ -518,6 +518,19 @@
                   :step="1"
                 />
               </el-form-item>
+
+              <el-form-item label="聊天消息背景模糊系数">
+                <el-slider
+                  v-model="chatMessageBlurFactor"
+                  :min="0"
+                  :max="2"
+                  :step="0.1"
+                />
+                <p class="form-item-description">
+                  实际模糊强度为全局 UI 模糊强度乘以该系数；设为 0
+                  时消息背景保持透明但不再模糊。
+                </p>
+              </el-form-item>
             </div>
 
             <el-divider />
@@ -1001,6 +1014,15 @@ const uiBlurIntensity = computed({
   get: () => appearanceSettings.value.uiBlurIntensity,
   set: (val) =>
     updateAppearanceSetting({ uiBlurIntensity: val }, { debounceUi: true }),
+});
+
+const chatMessageBlurFactor = computed({
+  get: () => appearanceSettings.value.chatMessageBlurFactor ?? 1,
+  set: (val) =>
+    updateAppearanceSetting(
+      { chatMessageBlurFactor: val },
+      { debounceUi: true }
+    ),
 });
 
 const borderOpacity = computed({

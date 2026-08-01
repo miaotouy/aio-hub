@@ -6,6 +6,7 @@
 :root {
   /* --- 核心变量 (由 JS 动态更新) --- */
   --ui-blur: 15px;
+  --chat-message-bg-blur: 15px; /* 聊天消息背景专用模糊强度 */
   --wallpaper-url: none; /* JS 注入：壁纸的 URL */
   --wallpaper-opacity: 1; /* JS 注入：壁纸的不透明度 */
   --wallpaper-size: cover; /* JS 注入：填充模式 */

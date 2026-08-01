@@ -379,7 +379,7 @@ defineExpose({
   left: 0;
   right: 0;
   background-color: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
+  backdrop-filter: blur(var(--chat-message-bg-blur, var(--ui-blur)));
   /* 继承容器的圆角，防止在某些浏览器下直角溢出 */
   border-radius: inherit;
 }

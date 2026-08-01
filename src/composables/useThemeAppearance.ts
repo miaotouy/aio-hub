@@ -342,10 +342,22 @@ function _updateCssVariables(settings: AppearanceSettings) {
 
   // --- UI 特效逻辑 ---
   if (settings.enableUiEffects) {
-    const blurValue = settings.enableUiBlur
-      ? `${settings.uiBlurIntensity}px`
+    const uiBlurIntensity = Math.max(
+      0,
+      settings.uiBlurIntensity ?? defaultAppearanceSettings.uiBlurIntensity
+    );
+    const blurValue = settings.enableUiBlur ? `${uiBlurIntensity}px` : "0px";
+    const chatMessageBlurFactor = Math.max(
+      0,
+      settings.chatMessageBlurFactor ??
+        defaultAppearanceSettings.chatMessageBlurFactor ??
+        1
+    );
+    const chatMessageBlurValue = settings.enableUiBlur
+      ? `${Number((uiBlurIntensity * chatMessageBlurFactor).toFixed(2))}px`
       : "0px";
     root.style.setProperty("--ui-blur", blurValue);
+    root.style.setProperty("--chat-message-bg-blur", chatMessageBlurValue);
 
     // 基础透明度 - 分离窗口现在使用 --detached-base-bg 作为底层背景，
     // 所以 --card-bg 等 UI 元素不再需要特殊处理，保持通透
@@ -551,6 +563,7 @@ function _updateCssVariables(settings: AppearanceSettings) {
   } else {
     // 禁用UI特效，恢复默认不透明样式
     root.style.setProperty("--ui-blur", "0px");
+    root.style.setProperty("--chat-message-bg-blur", "0px");
     root.style.removeProperty("--sidebar-bg");
     root.style.removeProperty("--card-bg");
     root.style.removeProperty("--header-bg");

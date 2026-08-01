@@ -163,9 +163,55 @@ describe("dir-search actions", () => {
       expect(output).toContain("- **搜索模式**: `needle` (正则)");
       expect(output).toContain("### src/a.ts");
       expect(output).toContain("\\`needle\\`");
-      expect(output).toContain("- ... 还有 1 处匹配");
+      expect(output).toContain("- ... 还有 1 个匹配行");
       expect(output).toContain("> 结果已截断，仅展示前 1 个文件。");
       expect(output).not.toContain("### src/b.vue");
+    });
+
+    it("应将同一行的多个匹配合并为一条 Agent 输出", async () => {
+      const duplicateLineResult: FileSearchResult = {
+        ...resultA,
+        matches: [
+          {
+            lineNumber: 3,
+            lineContent: "needle then needle",
+            matchStart: 0,
+            matchEnd: 6,
+          },
+          {
+            lineNumber: 3,
+            lineContent: "needle then needle",
+            matchStart: 12,
+            matchEnd: 18,
+          },
+          {
+            lineNumber: 8,
+            lineContent: "needle again",
+            matchStart: 0,
+            matchEnd: 6,
+          },
+        ],
+      };
+      mockInvoke.mockImplementation(async () => {
+        emitBatch([duplicateLineResult]);
+        return {
+          filesScanned: 1,
+          filesMatched: 1,
+          totalMatches: 3,
+          durationMs: 10,
+          cancelled: false,
+        };
+      });
+
+      const output = await searchDirectory({
+        path: "C:/repo",
+        pattern: "needle",
+        maxMatchesPerFile: 2,
+      });
+
+      expect(output.match(/\*\*L3\*\*/g)).toHaveLength(1);
+      expect(output).toContain("**L8**");
+      expect(output).not.toContain("还有");
     });
 
     it("无匹配时应返回空结果说明", async () => {

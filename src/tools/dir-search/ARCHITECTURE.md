@@ -272,7 +272,7 @@ sequenceDiagram
 
 `actions.ts` 抽离了不依赖 Vue 响应式系统的搜索/替换逻辑，供 `DirSearchRegistry` 暴露给 Agent 调用：
 
-- **`searchDirectory()`**：监听 `dir-search-result-batch` 流式事件，同步收集结果，等待 `dir_search` 返回 `SearchSummary` 后格式化为 LLM 可读 Markdown 文本
+- **`searchDirectory()`**：监听 `dir-search-result-batch` 流式事件，同步收集结果；格式化 LLM 可读 Markdown 时将同一文件同一行的多个匹配合并为一条，避免重复行内容
 - **`replaceInDirectory()`**：先用 `dir_search` 获取完整影响范围，再调用 `dir_replace` 执行批量替换，最后格式化替换统计
 - **Glob 参数适配**：Agent 接口接收逗号分隔字符串，内部转换为 `SearchRequest` / `ReplaceRequest` 需要的数组
 - **进度回调**：通过 `ToolContext.reportStatus()` 向调用方汇报搜索、格式化、替换阶段进度

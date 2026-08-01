@@ -135,7 +135,7 @@ export interface AgentSearchArgs {
   contextLines?: number;
   /** 结果展示中最多显示的文件数（默认 50） */
   maxDisplayFiles?: number;
-  /** 每个文件中最多展示的匹配数（默认 20） */
+  /** 每个文件中最多展示的匹配行数（默认 20）；同一行的多个匹配会合并 */
   maxMatchesPerFile?: number;
   /** 最大递归深度（1-20，默认 5） */
   maxDepth?: number;
@@ -448,7 +448,17 @@ function formatSearchResults(
     lines.push(`### ${file.relativePath}`);
     lines.push("");
 
-    // 每个文件最多展示 N 个匹配
+    // 同一行的多个匹配只展示一次。多 match 的行内偏移是前端高亮所需，
+    // 对 Agent 而言重复输出相同行内容没有额外信息。
+    const matchesByLine = new Map<number, (typeof file.matches)[number]>();
+    for (const match of file.matches) {
+      if (!matchesByLine.has(match.lineNumber)) {
+        matchesByLine.set(match.lineNumber, match);
+      }
+    }
+    const uniqueLineMatches = [...matchesByLine.values()];
+
+    // 每个文件最多展示 N 个匹配行
     const maxMatchesPerFile = normalizeInteger(
       args.maxMatchesPerFile,
       20,
@@ -457,8 +467,8 @@ function formatSearchResults(
     );
     const displayMatches =
       maxMatchesPerFile === 0
-        ? file.matches
-        : file.matches.slice(0, maxMatchesPerFile);
+        ? uniqueLineMatches
+        : uniqueLineMatches.slice(0, maxMatchesPerFile);
 
     for (const match of displayMatches) {
       const linePrefix = `L${match.lineNumber}`;
@@ -470,9 +480,12 @@ function formatSearchResults(
       lines.push(`- **${linePrefix}**: \`${escapeBackticks(content)}\``);
     }
 
-    if (maxMatchesPerFile > 0 && file.matches.length > maxMatchesPerFile) {
+    if (
+      maxMatchesPerFile > 0 &&
+      uniqueLineMatches.length > maxMatchesPerFile
+    ) {
       lines.push(
-        `- ... 还有 ${file.matches.length - maxMatchesPerFile} 处匹配`
+        `- ... 还有 ${uniqueLineMatches.length - maxMatchesPerFile} 个匹配行`
       );
     }
     lines.push("");

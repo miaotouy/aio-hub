@@ -75,11 +75,30 @@ pub fn extract_title_from_content(content: &str) -> Option<String> {
 }
 
 pub fn cosine_similarity(left: &[f32], right: &[f32]) -> f32 {
-    let dot_product: f32 = left.iter().zip(right).map(|(a, b)| a * b).sum();
-    let left_norm = left.iter().map(|value| value * value).sum::<f32>().sqrt();
-    let right_norm = right.iter().map(|value| value * value).sum::<f32>().sqrt();
-    if left_norm > 0.0 && right_norm > 0.0 {
-        dot_product / (left_norm * right_norm)
+    if left.is_empty() || left.len() != right.len() {
+        return 0.0;
+    }
+
+    let mut dot_product = 0.0_f64;
+    let mut left_energy = 0.0_f64;
+    let mut right_energy = 0.0_f64;
+    for (&left_value, &right_value) in left.iter().zip(right) {
+        if !left_value.is_finite() || !right_value.is_finite() {
+            return 0.0;
+        }
+        let left_value = f64::from(left_value);
+        let right_value = f64::from(right_value);
+        dot_product += left_value * right_value;
+        left_energy += left_value * left_value;
+        right_energy += right_value * right_value;
+    }
+
+    if left_energy <= 0.0 || right_energy <= 0.0 {
+        return 0.0;
+    }
+    let similarity = dot_product / (left_energy.sqrt() * right_energy.sqrt());
+    if similarity.is_finite() {
+        similarity.clamp(-1.0, 1.0) as f32
     } else {
         0.0
     }
@@ -93,5 +112,9 @@ mod tests {
     fn cosine_similarity_handles_normal_and_zero_vectors() {
         assert!((cosine_similarity(&[1.0, 0.0], &[0.5, 0.5]) - 0.70710677).abs() < 1e-6);
         assert_eq!(cosine_similarity(&[0.0, 0.0], &[1.0, 0.0]), 0.0);
+        assert_eq!(cosine_similarity(&[], &[]), 0.0);
+        assert_eq!(cosine_similarity(&[1.0], &[1.0, 0.0]), 0.0);
+        assert_eq!(cosine_similarity(&[f32::NAN], &[1.0]), 0.0);
+        assert_eq!(cosine_similarity(&[f32::INFINITY], &[1.0]), 0.0);
     }
 }

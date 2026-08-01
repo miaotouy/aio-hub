@@ -3214,13 +3214,32 @@ fn decode_vector(blob: &[u8], dimension: usize) -> Vec<f32> {
 }
 
 fn cosine_similarity(left: &[f32], right: &[f32]) -> f32 {
-    let dot = left.iter().zip(right).map(|(a, b)| a * b).sum::<f32>();
-    let left_norm = left.iter().map(|value| value * value).sum::<f32>().sqrt();
-    let right_norm = right.iter().map(|value| value * value).sum::<f32>().sqrt();
-    if left_norm == 0.0 || right_norm == 0.0 {
-        0.0
+    if left.is_empty() || left.len() != right.len() {
+        return 0.0;
+    }
+
+    let mut dot = 0.0_f64;
+    let mut left_energy = 0.0_f64;
+    let mut right_energy = 0.0_f64;
+    for (&left_value, &right_value) in left.iter().zip(right) {
+        if !left_value.is_finite() || !right_value.is_finite() {
+            return 0.0;
+        }
+        let left_value = f64::from(left_value);
+        let right_value = f64::from(right_value);
+        dot += left_value * right_value;
+        left_energy += left_value * left_value;
+        right_energy += right_value * right_value;
+    }
+
+    if left_energy <= 0.0 || right_energy <= 0.0 {
+        return 0.0;
+    }
+    let similarity = dot / (left_energy.sqrt() * right_energy.sqrt());
+    if similarity.is_finite() {
+        similarity.clamp(-1.0, 1.0) as f32
     } else {
-        (dot / (left_norm * right_norm)).clamp(-1.0, 1.0)
+        0.0
     }
 }
 
@@ -3240,6 +3259,15 @@ fn now() -> i64 {
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    #[test]
+    fn cosine_similarity_rejects_invalid_vectors() {
+        assert_eq!(cosine_similarity(&[], &[]), 0.0);
+        assert_eq!(cosine_similarity(&[1.0], &[1.0, 0.0]), 0.0);
+        assert_eq!(cosine_similarity(&[f32::NAN], &[1.0]), 0.0);
+        assert_eq!(cosine_similarity(&[f32::INFINITY], &[1.0]), 0.0);
+        assert_eq!(cosine_similarity(&[0.0, 0.0], &[1.0, 0.0]), 0.0);
+    }
 
     fn request(library_id: &str, source_path: &str, content: &str) -> KnowledgeIngestRequest {
         KnowledgeIngestRequest {

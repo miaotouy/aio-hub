@@ -19,6 +19,7 @@ Knowledge 是 AIO Hub 的文档资料与来源回溯领域，与 Recall 思绪�
 - 文档以 `sourcePath` 为稳定键。任务完成时校验 lease、入队 checksum 与 parser 版本，并在单个 library transaction 中原子提交 document 版本、chunk、FTS、graph、source file 和 task 状态。
 - 更新已有文档时，旧活动空间的 chunk/vector 复制到 `knowledge_semantic_fallback_chunks`。新 document/chunk/FTS 立即成为关键词真值；语义检索在当前版本向量未全覆盖时继续读取旧快照，最后一个缺失 chunk 的向量落库后在同一事务中删除快照并切换到新版本。配置重建会明确清空回退快照。
 - `knowledge_get_index_status` 从 library 数据库实时读取活动空间并计算当前 `space_id` 的向量覆盖率，不把 manifest 或 UI 缓存当作真源。`embedding_route_key` 只负责调用路由，旧 `model_id` 向量会事务迁移为逐 route 隔离的 legacy space，不按名称自动合并。
+- 语义回退检索的余弦相似度使用 `f64` 累加；空向量、维度不一致、零能量或包含 `NaN` / `Infinity` 的异常向量统一按 `0` 处理，不允许非有限分数进入排序结果。
 - 同 descriptor 的模型 route 可由用户确认后只切换 `embedding_route_key`；不同 identity 或请求契约会生成新 `space_id` 并独立保留向量。
 - `rebuild_library` 在单个 library WAL 数据库事务内提交配置、重切分全部文档、重建 FTS/graph，并清除旧活动向量身份，避免旧向量与新 chunk 混用。
 - 禁止用 WAL 模式下的 `ATTACH` 多数据库事务宣称配置与索引具备崩溃原子性。SQLite 的 attached database 在 rollback-journal 模式下可借助 super-journal 协调多文件提交，但 WAL 模式没有对应的跨 WAL 原子提交保证；进程或设备在提交窗口中断时，可能出现 library 已提交而 manifest 未提交，或相反。普通 SQL 异常触发的 `ROLLBACK` 测试只能证明运行中错误回滚，不能证明这种崩溃窗口安全。

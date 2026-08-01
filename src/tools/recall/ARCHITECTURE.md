@@ -47,6 +47,7 @@ Recall 条目不自动切片，也不保存文档 manifest、文件监听状态�
 - `ops.rs`：预热、模型向量加载和内存读模型同步。
 - `io.rs`：Stage 2 前对旧文件目录的读写。
 - `tag_pool.rs`：按 Embedding 模型隔离的标签向量运行时。
+- `utils.rs` 的余弦相似度使用 `f64` 累加，并将空向量、维度不一致、零能量或包含非有限数值的向量稳定降级为 `0`，避免异常向量把 `NaN` 传播到排序与阈值模块。
 - `monitor.rs`：`recall-monitor` 事件和心跳 command。
 
 `src-tauri/src/lib.rs` 管理 `RecallState`，并在 Tauri `setup` 阶段初始化 repository 与内存读模型；`src-tauri/src/commands.rs` 注册 `recall_*` commands。Knowledge 空壳不持有 Recall 状态，也不导出命令。

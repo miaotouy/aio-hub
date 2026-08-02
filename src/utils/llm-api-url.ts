@@ -28,6 +28,7 @@ import { cohereUrlHandler } from "@/llm-apis/adapters/cohere/utils";
 import { vertexAiUrlHandler } from "@/llm-apis/adapters/vertexai/utils";
 import { sunoNewApiUrlHandler } from "@/llm-apis/adapters/suno-newapi/utils";
 import { minimaxMusicUrlHandler } from "@/llm-apis/adapters/minimax-music/utils";
+import { azureOpenAiUrlHandler } from "@/llm-apis/adapters/azure/utils";
 
 /**
  * 适配器 URL 处理接口
@@ -57,26 +58,10 @@ const ollamaUrlHandler: AdapterUrlHandler = {
  * 适配器 URL 处理映射
  * 注册各个适配器的 URL 处理逻辑
  */
-/**
- * Azure OpenAI URL 处理逻辑
- * 格式: {baseUrl}/chat/completions?api-version={apiVersion}
- * baseUrl 通常为 https://{resource}.openai.azure.com/openai/deployments/{deployment-id}
- */
-const azureUrlHandler: AdapterUrlHandler = {
-  buildUrl: (baseUrl, endpoint, profile) => {
-    const host = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-    const apiVersion = profile?.options?.apiVersion || "2024-12-01-preview";
-    const ep = endpoint || "chat/completions";
-    return `${host}${ep}?api-version=${apiVersion}`;
-  },
-  getHint: () =>
-    "Azure OpenAI 格式，需填写到 /openai/deployments/{deployment-id} 一级",
-};
-
 const adapterUrlHandlers: Record<ProviderType, AdapterUrlHandler> = {
   openai: openAiUrlHandler,
   "openai-compatible": openAiUrlHandler,
-  azure: azureUrlHandler,
+  azure: azureOpenAiUrlHandler,
   deepseek: openAiUrlHandler,
   siliconflow: openAiUrlHandler,
   groq: openAiUrlHandler,
@@ -173,9 +158,10 @@ export function buildLlmApiUrl(
  */
 export function generateLlmApiEndpointPreview(
   baseUrl: string,
-  providerType: ProviderType
+  providerType: ProviderType,
+  profile?: LlmProfile
 ): string {
-  return buildLlmApiUrl(baseUrl, providerType);
+  return buildLlmApiUrl(baseUrl, providerType, undefined, profile);
 }
 
 /**

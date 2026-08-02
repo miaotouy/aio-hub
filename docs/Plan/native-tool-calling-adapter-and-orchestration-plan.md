@@ -153,11 +153,11 @@ VCPToolBox 当前实现也确认了这个边界：
 
 ### 5.1. Azure OpenAI
 
-- `ProviderType` 与渠道配置包含 `azure`，并声明支持 `tools`、`toolChoice`。
-- `src/llm-apis/adapters/index.ts` 没有 `azure` 分发项。
-- `useLlmRequest` 查不到 Adapter 时会抛出“不支持的提供商类型”。
-
-需要先明确 Azure 使用 Chat Completions、Responses 或二者兼容策略，再补 URL、`api-version`、deployment 和鉴权头的契约测试。
+- 已确认当前 Azure 渠道配置采用 deployment 风格的 Chat Completions，并复用 OpenAI 请求体与响应解析。
+- `src/llm-apis/adapters/azure/` 负责替换 `{resource}` / `{deployment}`、补充 `api-version`、将 API Key 放入 `api-key` 请求头，并提供 Chat 与 Embedding facade。
+- `src/llm-apis/adapters/index.ts` 已注册 `azure`；映射通过 `ProviderType` 完整性约束，后续新增可创建渠道但漏注册 Adapter 时会在类型检查阶段失败。
+- 渠道探测在 OpenAI Chat 与 Embedding 端点下保留 Azure Adapter，不再降级成普通 `openai-compatible` 鉴权。
+- Responses API 尚未作为 Azure 渠道默认协议开放；如后续启用，应单独补充 v1/preview 路由与能力契约。
 
 ### 5.2. Ollama
 

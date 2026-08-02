@@ -91,6 +91,7 @@ export const PROBE_ENDPOINT_DEFINITIONS: ProbeEndpointDefinition[] = [
 const OPENAI_CHAT_PROFILE_TYPES = new Set<ProviderType>([
   "openai",
   "openai-compatible",
+  "azure",
   "deepseek",
   "siliconflow",
   "groq",
@@ -191,10 +192,22 @@ export function resolveProbeTarget(
   return {
     profile: {
       ...profile,
-      type: definition.providerType ?? profile.type,
+      type: shouldPreserveAzureAdapter(profile, endpointType)
+        ? profile.type
+        : (definition.providerType ?? profile.type),
       customEndpoints,
     },
     capability: definition.capability,
     supportsStream: definition.supportsStream,
   };
+}
+
+function shouldPreserveAzureAdapter(
+  profile: LlmProfile,
+  endpointType: ProbeEndpointType
+): boolean {
+  return (
+    profile.type === "azure" &&
+    (endpointType === "openai-chat" || endpointType === "embeddings")
+  );
 }

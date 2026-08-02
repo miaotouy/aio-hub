@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { LlmProfile } from "@/types/llm-profiles";
+import type {
+  LlmProfile,
+  ProviderType as LlmProviderType,
+} from "@/types/llm-profiles";
 import type {
   LlmRequestOptions,
   LlmResponse,
@@ -32,6 +35,7 @@ import { callSiliconFlowImageApi } from "./siliconflow/image";
 import { xAiAdapter } from "./xai";
 import { sunoNewApiAdapter } from "./suno-newapi";
 import { minimaxMusicAdapter } from "./minimax-music";
+import { azureOpenAiAdapter } from "./azure";
 
 /**
  * 统一适配器接口
@@ -79,10 +83,15 @@ export interface LlmAdapter {
  * 适配器分发映射
  * 注意：在具体适配器实现完成前，这里先留空或使用占位符
  */
-export const adapters: Record<string, LlmAdapter> = {
+const defineAdapters = <T extends Record<LlmProviderType, LlmAdapter>>(
+  value: T
+): T => value;
+
+export const adapters: Record<string, LlmAdapter> = defineAdapters({
   openai: openAiAdapter,
   "openai-compatible": openAiAdapter,
   "openai-responses": openAiResponsesAdapter,
+  azure: azureOpenAiAdapter,
   groq: openAiAdapter,
   mistral: openAiAdapter,
   perplexity: openAiAdapter,
@@ -107,6 +116,6 @@ export const adapters: Record<string, LlmAdapter> = {
   cohere: cohereAdapter,
   "suno-newapi": sunoNewApiAdapter,
   "minimax-music": minimaxMusicAdapter,
-};
+});
 
 export type ProviderType = keyof typeof adapters;

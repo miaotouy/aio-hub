@@ -458,7 +458,8 @@ const apiEndpointPreview = computed(() => {
   if (!editForm.value.baseUrl) return "";
   return generateLlmApiEndpointPreview(
     editForm.value.baseUrl,
-    editForm.value.type
+    editForm.value.type,
+    editForm.value
   );
 });
 

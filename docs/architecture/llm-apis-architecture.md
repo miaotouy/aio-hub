@@ -245,6 +245,7 @@ export interface LlmAdapter {
 | `openai`            | `openAiAdapter`                    | `openai`            | OpenAI 官方       |
 | `openai-compatible` | `openAiAdapter`                    | `openai-compatible` | 第三方中转        |
 | `openai-responses`  | `openAiResponsesAdapter`           | `openai-responses`  | OpenAI 有状态接口 |
+| `azure`             | `azureOpenAiAdapter`               | `azure`             | Azure OpenAI      |
 | `groq`              | `openAiAdapter`                    | `groq`              | Groq LPU          |
 | `mistral`           | `openAiAdapter`                    | —                   | Mistral AI        |
 | `perplexity`        | `openAiAdapter`                    | —                   | Perplexity        |
@@ -267,6 +268,7 @@ export interface LlmAdapter {
 | `suno-newapi`       | `sunoNewApiAdapter`                | `suno-newapi`       | 音乐生成          |
 
 > **重要**：大部分国产/聚合平台通过 `openai-compatible` 协议走 `openAiAdapter`，无需编写独立适配器。只要 API 格式与 OpenAI Chat Completions 一致，只需在 `adapters/index.ts` 添加映射并可在 `llm-presets.ts` 添加预设即可。
+> Azure 渠道使用 deployment 风格的 Chat Completions / Embeddings；`azureOpenAiAdapter` 复用 OpenAI wire format，同时负责 `{resource}` / `{deployment}`、`api-version` 与 `api-key` 鉴权转换。
 
 ### 3.4 请求构建器 — [`request-builder.ts`](/src/llm-apis/request-builder.ts)
 

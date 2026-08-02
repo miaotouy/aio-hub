@@ -128,6 +128,19 @@ describe("probe endpoint options", () => {
     );
   });
 
+  it("preserves Azure routing for OpenAI chat and embedding probes", () => {
+    const source = profile();
+    source.type = "azure";
+
+    expect(resolveEffectiveProbeEndpointType(source, "chat")).toBe(
+      "openai-chat"
+    );
+    expect(resolveProbeTarget(source, "openai-chat").profile.type).toBe(
+      "azure"
+    );
+    expect(resolveProbeTarget(source, "embeddings").profile.type).toBe("azure");
+  });
+
   it("preserves explicit endpoints and unknown automatic protocols", () => {
     const source = profile();
     source.type = "cohere";

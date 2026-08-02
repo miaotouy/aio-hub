@@ -25,6 +25,7 @@ Agent 与 User Profile 已分别存在 `src/tools/agent-manager/`、`src/tools/u
 
 ## 相关跨模块计划
 
+- [Agent 模型参数适配规则草案](../../../agent-manager/docs/Plan/agent-model-parameter-rules-draft.md)：记录随角色分享的模型匹配参数规则、侧边栏与临时模型接入构想；全局规则暂缓。
 - [模型元数据系统优化](../../../../../docs/Plan/model-metadata-system-optimization-plan.md)：提供模型能力、API family 与物化边界。
 - [原生工具调用适配与编排](../../../../../docs/Plan/native-tool-calling-adapter-and-orchestration-plan.md)：统一 Tool IR、格式解析、审批、执行和续轮。
 - [Knowledge 计划索引](../../../knowledge-base/docs/Plan/README.md)：Chat 显式引用、主动工具和研究任务的现行契约。

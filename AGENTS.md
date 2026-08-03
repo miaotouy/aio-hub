@@ -24,6 +24,7 @@
 - 前端改动确认前除类型检查外还必须运行对应 Vite 构建；打包期导入、插件和 CSS 错误不能由 `tsc` 单独覆盖。
 - 普通浏览器只能验证明确具有 mock 或 browser fallback 的纯前端场景，不能替代真实 Tauri WebView、IPC、插件或窗口运行态。
 - Tauri 单测、真实窗口 E2E、原生文件对话框和 Windows UI Automation 的边界与运行方式见[工具测试指南](docs/guide/tool-testing-guide.md)、[Tauri E2E 说明](tests/tauri-e2e/README.md)和[Windows UI Automation 说明](tests/windows-ui-automation/README.md)。
+- 如果没有在任务中专门要求，默认测试只跑和改动相关的，避免牵扯无关测试运行浪费时间。
 
 ## 4. 工具、插件与专项模块
 

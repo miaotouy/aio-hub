@@ -23,7 +23,7 @@ mod vector_blob;
 #[allow(unused_imports)]
 pub use legacy_import::{
     LegacyFileRecallImporter, RecallMigrationIssue, RecallMigrationPreview, RecallMigrationReport,
-    LEGACY_RECALL_MIGRATION_ID,
+    LEGACY_RECALL_MIGRATION_ID, LEGACY_RECALL_SOURCE_ID,
 };
 pub use repository::RecallRepository;
 pub use sqlite::SqliteRecallRepository;

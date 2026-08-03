@@ -1,14 +1,18 @@
 <template>
-  <div class="migration-step" data-testid="migration-discovery">
-    <div class="source-card">
-      <DatabaseBackup :size="28" />
-      <div>
-        <h3>检测到旧 Recall 文件目录</h3>
-        <p :title="snapshot.preview.legacyDataPath">
-          {{ snapshot.preview.legacyDataPath }}
-        </p>
+  <div class="migration-discovery" data-testid="migration-discovery">
+    <div class="source-row">
+      <div class="source-icon" aria-hidden="true">
+        <DatabaseBackup :size="19" />
       </div>
+      <div class="source-copy">
+        <strong>检测到旧版知识库数据</strong>
+        <el-tooltip :content="snapshot.preview.legacyDataPath" placement="top">
+          <span class="source-path">{{ snapshot.preview.legacyDataPath }}</span>
+        </el-tooltip>
+      </div>
+      <el-tag size="small" type="warning">待迁移</el-tag>
     </div>
+
     <div class="metric-grid">
       <div data-testid="migration-source-collections">
         <strong>{{ snapshot.preview.sourceCollections }}</strong
@@ -27,13 +31,10 @@
         ><span>已知问题</span>
       </div>
     </div>
-    <el-alert
-      :closable="false"
-      type="info"
-      show-icon
-      title="启动阶段尚未迁移任何旧用户数据"
-      description="只有在后续步骤明确确认后，应用才会写入新的 Recall SQLite 存储。"
-    />
+
+    <p class="discovery-hint">
+      应用会将旧目录中的数据写入新的 Recall SQLite 存储，原目录默认保留。
+    </p>
   </div>
 </template>
 
@@ -48,56 +49,92 @@ const snapshot = computed(() => getKnowledgeMigrationSnapshot(props.context));
 </script>
 
 <style scoped>
-.migration-step {
+.migration-discovery {
   display: grid;
-  gap: 16px;
+  gap: 10px;
 }
-.source-card {
+
+.source-row {
   display: flex;
-  gap: 14px;
-  align-items: flex-start;
-  padding: 18px;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 13px;
   border: 1px solid var(--border-color);
-  border-radius: 12px;
-  background: var(--bg-color);
+  border-radius: 10px;
+  background: var(--card-bg);
 }
-.source-card svg {
-  color: var(--el-color-primary);
-  flex: none;
+
+.source-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--primary-color) 11%, transparent);
+  color: var(--primary-color);
 }
-h3 {
-  margin: 0 0 6px;
+
+.source-copy {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 2px;
+}
+
+.source-copy strong {
   color: var(--text-color);
+  font-size: 13px;
 }
-p {
-  margin: 0;
+
+.source-path {
+  display: block;
+  overflow: hidden;
   color: var(--text-color-secondary);
-  overflow-wrap: anywhere;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  gap: 7px;
 }
+
 .metric-grid div {
-  display: grid;
-  gap: 4px;
-  padding: 14px;
-  border-radius: 10px;
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: center;
+  gap: 5px;
+  padding: 9px 7px;
+  border-radius: 8px;
   background: var(--el-fill-color-light);
-  text-align: center;
 }
+
 .metric-grid strong {
   color: var(--text-color);
-  font-size: 22px;
+  font-size: 16px;
+  line-height: 1;
 }
+
 .metric-grid span {
   color: var(--text-color-secondary);
-  font-size: 12px;
+  font-size: 11px;
 }
-@media (max-width: 600px) {
+
+.discovery-hint {
+  margin: 0;
+  color: var(--text-color-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+@media (max-width: 520px) {
   .metric-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>

@@ -8,9 +8,11 @@ import type { GuidedFlowStepAction } from "./types";
 export interface GuidedFlowStepControls<TContext = Record<string, unknown>> {
   isBusy: Readonly<Ref<boolean>>;
   canGoBack: Readonly<Ref<boolean>>;
+  canDefer: Readonly<Ref<boolean>>;
   runAction: GuidedFlowStepAction<TContext>;
   requestNext: () => void | Promise<void>;
   requestBack: () => void | Promise<void>;
+  requestDefer: () => void | Promise<void>;
 }
 
 export const guidedFlowStepControlsKey: InjectionKey<GuidedFlowStepControls> =

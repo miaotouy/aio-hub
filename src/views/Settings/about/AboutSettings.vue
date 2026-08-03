@@ -27,8 +27,10 @@ import { useAppUpdater } from "@/composables/useAppUpdater";
 import {
   getUpgradeCenterStatus,
   openCurrentReleaseNotes,
+  openUpgradeFlowForDebug,
   resumePendingUpgrade,
   subscribeUpgradeCenterStatus,
+  type UpgradeFlowDebugMode,
 } from "@/flows/upgrade";
 import {
   User,
@@ -56,6 +58,8 @@ const showUpdateDialog = ref(false);
 const releaseNotesAvailable = ref(false);
 const hasPendingUpgrade = ref(false);
 const isOpeningUpgradeFlow = ref(false);
+const isDevelopment = import.meta.env.DEV;
+const activeUpgradeDebugAction = ref<UpgradeFlowDebugMode | null>(null);
 let unsubscribeUpgradeStatus: (() => void) | null = null;
 const {
   status: updateStatus,
@@ -167,6 +171,19 @@ async function handleResumeUpgrade() {
     });
   } finally {
     isOpeningUpgradeFlow.value = false;
+  }
+}
+
+async function handleUpgradeDebugAction(mode: UpgradeFlowDebugMode) {
+  try {
+    activeUpgradeDebugAction.value = mode;
+    await openUpgradeFlowForDebug(mode);
+  } catch (error) {
+    errorHandler.error(error as Error, "打开更新引导调试流程失败", {
+      showToUser: true,
+    });
+  } finally {
+    activeUpgradeDebugAction.value = null;
   }
 }
 // 链接
@@ -358,6 +375,39 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
+    <div v-if="isDevelopment" class="section">
+      <div class="upgrade-debug-panel">
+        <div class="upgrade-debug-copy">
+          <strong>更新引导手测</strong>
+          <span>仅开发环境显示，可反复重开或忽略旧知识库迁移完成记录。</span>
+        </div>
+        <div class="upgrade-debug-actions">
+          <el-button
+            :loading="activeUpgradeDebugAction === 'restart'"
+            :disabled="activeUpgradeDebugAction !== null"
+            @click="handleUpgradeDebugAction('restart')"
+          >
+            重开当前引导
+          </el-button>
+          <el-button
+            :loading="activeUpgradeDebugAction === 'redetect'"
+            :disabled="activeUpgradeDebugAction !== null"
+            @click="handleUpgradeDebugAction('redetect')"
+          >
+            重新检测并重开
+          </el-button>
+          <el-button
+            type="primary"
+            :loading="activeUpgradeDebugAction === 'reset-migration'"
+            :disabled="activeUpgradeDebugAction !== null"
+            @click="handleUpgradeDebugAction('reset-migration')"
+          >
+            忽略迁移记录并重开
+          </el-button>
+        </div>
+      </div>
+    </div>
+
     <!-- 项目信息 -->
     <div class="section">
       <div class="project-info">
@@ -538,6 +588,46 @@ onBeforeUnmount(() => {
   font-size: 20px;
   font-weight: 600;
   color: var(--el-text-color-primary);
+}
+
+.upgrade-debug-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+.upgrade-debug-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.upgrade-debug-copy strong {
+  color: var(--text-color);
+  font-size: 14px;
+}
+
+.upgrade-debug-copy span {
+  color: var(--text-color-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.upgrade-debug-actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.upgrade-debug-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 
 /* 项目信息 */
@@ -743,6 +833,15 @@ onBeforeUnmount(() => {
 
   .section-title {
     font-size: 18px;
+  }
+
+  .upgrade-debug-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .upgrade-debug-actions {
+    justify-content: flex-start;
   }
 }
 

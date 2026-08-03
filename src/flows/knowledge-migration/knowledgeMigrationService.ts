@@ -33,4 +33,11 @@ export const knowledgeMigrationService = {
       confirmed: true,
     });
   },
+
+  resetMigrationStateForDebug(): Promise<void> {
+    if (!import.meta.env.DEV) {
+      return Promise.reject(new Error("迁移调试重置仅在开发环境可用"));
+    }
+    return invoke("recall_debug_reset_legacy_migration");
+  },
 };

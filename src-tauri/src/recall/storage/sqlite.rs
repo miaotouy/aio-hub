@@ -146,6 +146,23 @@ impl SqliteRecallRepository {
             .map_err(|error| format!("读取 Recall 迁移报告失败: {error}"))
     }
 
+    pub fn clear_legacy_import_state(&self, source_id: &str) -> Result<(), String> {
+        for vector_database in [false, true] {
+            let connection = if vector_database {
+                self.open_vectors()?
+            } else {
+                self.open_main()?
+            };
+            connection
+                .execute(
+                    "DELETE FROM legacy_import_state WHERE source_id = ?1",
+                    [source_id],
+                )
+                .map_err(|error| format!("重置 Recall 迁移状态失败: {error}"))?;
+        }
+        Ok(())
+    }
+
     fn load_collection_row(
         connection: &Connection,
         collection_id: Uuid,

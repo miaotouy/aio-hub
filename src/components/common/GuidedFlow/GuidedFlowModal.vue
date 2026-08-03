@@ -41,7 +41,8 @@ const emit = defineEmits<{
 <template>
   <BaseDialog
     :model-value="Boolean(props.runtime)"
-    width="min(720px, calc(100vw - 32px))"
+    width="min(760px, calc(100vw - 32px))"
+    height="min(660px, calc(100vh - var(--titlebar-height, 0px) - 32px))"
     max-height="calc(100vh - var(--titlebar-height, 0px) - 32px)"
     :show-close-button="false"
     :close-on-backdrop-click="false"
@@ -49,8 +50,8 @@ const emit = defineEmits<{
     content-class="guided-flow-modal-content"
   >
     <GuidedFlowShell
-      data-testid="guided-flow-modal"
       v-if="runtime"
+      data-testid="guided-flow-modal"
       :runtime="runtime"
       :busy="busy"
       :run-step-action="runStepAction"
@@ -66,6 +67,14 @@ const emit = defineEmits<{
 
 <style>
 .guided-flow-modal-content {
+  min-height: 0 !important;
   padding: 0 !important;
+  overflow: hidden !important;
+}
+
+@media (max-height: 620px) {
+  .guided-flow-modal-content {
+    min-height: 0 !important;
+  }
 }
 </style>

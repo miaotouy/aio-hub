@@ -26,6 +26,7 @@ use uuid::Uuid;
 use walkdir::WalkDir;
 
 pub const LEGACY_RECALL_MIGRATION_ID: &str = "knowledge-to-recall-v2";
+pub const LEGACY_RECALL_SOURCE_ID: &str = "legacy-file-system-v1";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -114,7 +115,7 @@ impl LegacyFileRecallImporter {
         }
         self.repository.initialize()?;
         let fingerprint = source_fingerprint(&self.source_app_data_dir)?;
-        let source_id = "legacy-file-system-v1";
+        let source_id = LEGACY_RECALL_SOURCE_ID;
         let mut report = self.read_cached_report(source_id, &fingerprint)?;
         report.source_path = get_bases_dir(&self.source_app_data_dir)
             .display()
@@ -239,7 +240,7 @@ impl LegacyFileRecallImporter {
         let source_path = get_bases_dir(&self.source_app_data_dir);
         let legacy_data_path = get_knowledge_root(&self.source_app_data_dir);
         let fingerprint = source_fingerprint(&self.source_app_data_dir)?;
-        let source_id = "legacy-file-system-v1";
+        let source_id = LEGACY_RECALL_SOURCE_ID;
         if self
             .repository
             .legacy_import_is_completed(false, source_id, &fingerprint)?
@@ -945,7 +946,7 @@ mod tests {
                 .record_legacy_import_state(
                     vector_database,
                     LegacyImportStateRecord {
-                        source_id: "legacy-file-system-v1",
+                        source_id: LEGACY_RECALL_SOURCE_ID,
                         source_path: &source_path,
                         source_fingerprint: Some(&fingerprint),
                         status: "running",

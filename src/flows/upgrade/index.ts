@@ -13,7 +13,10 @@
 // limitations under the License.
 
 import { getAppContext } from "@/config/appContext";
-import { registerKnowledgeMigrationContribution } from "@/flows/knowledge-migration";
+import {
+  knowledgeMigrationService,
+  registerKnowledgeMigrationContribution,
+} from "@/flows/knowledge-migration";
 import {
   guidedFlowManager,
   guidedFlowRegistry,
@@ -199,6 +202,30 @@ export async function initializeUpgradeFlow(): Promise<void> {
 export async function refreshUpgradeFlow(): Promise<void> {
   initializedVersion = null;
   await initializeUpgradeFlow();
+}
+
+export type UpgradeFlowDebugMode = "restart" | "redetect" | "reset-migration";
+
+export async function openUpgradeFlowForDebug(
+  mode: UpgradeFlowDebugMode
+): Promise<void> {
+  if (!import.meta.env.DEV) {
+    throw new Error("更新引导调试入口仅在开发环境可用");
+  }
+
+  if (mode === "reset-migration") {
+    await knowledgeMigrationService.resetMigrationStateForDebug();
+  }
+  if (mode !== "restart") {
+    await refreshUpgradeFlow();
+  } else {
+    await initializeUpgradeFlow();
+  }
+
+  if (!guidedFlowRegistry.get(APP_UPGRADE_FLOW_ID)) {
+    throw new Error("当前没有可调试的更新引导");
+  }
+  await guidedFlowManager.open(APP_UPGRADE_FLOW_ID, { mode: "restart" });
 }
 
 export async function openCurrentReleaseNotes(): Promise<void> {

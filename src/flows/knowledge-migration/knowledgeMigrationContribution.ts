@@ -16,7 +16,7 @@ import {
 
 const definition: UpgradeContributionDefinition<KnowledgeMigrationSnapshot> = {
   id: KNOWLEDGE_MIGRATION_CONTRIBUTION_ID,
-  revision: 3,
+  revision: 4,
   title: "旧知识库数据迁移",
   description: "将旧文件目录中的 Recall 数据迁移到新的 SQLite 存储。",
   order: 100,

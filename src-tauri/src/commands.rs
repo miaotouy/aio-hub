@@ -417,6 +417,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         crate::recall::recall_preview_legacy_migration,
         crate::recall::recall_run_legacy_migration,
         crate::recall::recall_confirm_legacy_cleanup,
+        crate::recall::recall_debug_reset_legacy_migration,
         crate::recall::monitor::recall_monitor_heartbeat,
         // Knowledge 资料库命令
         crate::knowledge::knowledge_initialize,

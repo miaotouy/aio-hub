@@ -5,7 +5,7 @@
 use crate::recall::state::RecallState;
 use crate::recall::storage::{
     LegacyFileRecallImporter, RecallMigrationPreview, RecallMigrationReport, RecallRepository,
-    SqliteRecallRepository, LEGACY_RECALL_MIGRATION_ID,
+    SqliteRecallRepository, LEGACY_RECALL_MIGRATION_ID, LEGACY_RECALL_SOURCE_ID,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
@@ -140,4 +140,23 @@ pub async fn recall_confirm_legacy_cleanup(
     })
     .await
     .map_err(|error| format!("旧 Recall 目录清理任务异常结束: {error}"))?
+}
+
+#[tauri::command]
+pub async fn recall_debug_reset_legacy_migration(app: AppHandle) -> Result<(), String> {
+    if !cfg!(debug_assertions) {
+        return Err("迁移调试重置仅在开发构建中可用".to_string());
+    }
+
+    let app_data_dir = crate::get_app_data_dir(app.config());
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = LEGACY_MIGRATION_LOCK
+            .try_lock()
+            .map_err(|_| "旧 Recall 数据迁移正在运行，暂时不能重置迁移记录".to_string())?;
+        let repository = SqliteRecallRepository::new(&app_data_dir);
+        repository.initialize()?;
+        repository.clear_legacy_import_state(LEGACY_RECALL_SOURCE_ID)
+    })
+    .await
+    .map_err(|error| format!("重置旧 Recall 迁移记录任务异常结束: {error}"))?
 }

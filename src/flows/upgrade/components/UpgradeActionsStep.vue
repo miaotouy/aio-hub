@@ -2,40 +2,42 @@
   Copyright 2025-2026 miaotouy(Github@miaotouy)
 
   Licensed under the Apache License, Version 2.0 (the "License");
-  you may not use this file except in compliance with the License.
-  You may obtain a copy of the License at
-
-      http://www.apache.org/licenses/LICENSE-2.0
-
-  Unless required by applicable law or agreed to in writing, software
-  distributed under the License is distributed on an "AS IS" BASIS,
-  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  See the License for the specific language governing permissions and
-  limitations under the License.
 -->
 <script setup lang="ts">
 import { computed } from "vue";
-import { CircleCheck, Warning } from "@element-plus/icons-vue";
+import { CircleCheck, Clock3, TriangleAlert } from "lucide-vue-next";
 import type { UpgradeFlowContext } from "../types";
 
 const props = defineProps<{ context: UpgradeFlowContext }>();
 const contributions = computed(() =>
   Object.entries(props.context.contributions)
 );
+
+function statusCopy(blockingScope: "none" | "module" | "application") {
+  if (blockingScope === "none") return "已处理";
+  if (blockingScope === "application") return "需要立即处理";
+  return "可稍后处理";
+}
 </script>
 
 <template>
   <div class="upgrade-actions">
-    <article v-for="[id, item] in contributions" :key="id" class="action-card">
-      <el-icon :class="item.blockingScope === 'none' ? 'ok' : 'warning'">
-        <CircleCheck v-if="item.blockingScope === 'none'" />
-        <Warning v-else />
-      </el-icon>
-      <div>
-        <h3>{{ item.title }}</h3>
+    <article v-for="[id, item] in contributions" :key="id" class="action-row">
+      <span class="status-icon" :data-scope="item.blockingScope">
+        <CircleCheck v-if="item.blockingScope === 'none'" :size="17" />
+        <TriangleAlert
+          v-else-if="item.blockingScope === 'application'"
+          :size="17"
+        />
+        <Clock3 v-else :size="17" />
+      </span>
+      <div class="action-copy">
+        <strong>{{ item.title }}</strong>
         <p v-if="item.description">{{ item.description }}</p>
-        <span>影响范围：{{ item.blockingScope }}</span>
       </div>
+      <span class="status-label" :data-scope="item.blockingScope">
+        {{ statusCopy(item.blockingScope) }}
+      </span>
     </article>
   </div>
 </template>
@@ -43,41 +45,68 @@ const contributions = computed(() =>
 <style scoped>
 .upgrade-actions {
   display: grid;
-  gap: 12px;
+  gap: 8px;
 }
 
-.action-card {
-  display: flex;
-  gap: 14px;
-  padding: 16px;
+.action-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 13px;
   border: 1px solid var(--border-color);
-  border-radius: 12px;
-  background: var(--bg-color);
+  border-radius: 10px;
+  background: var(--card-bg);
 }
 
-.el-icon {
-  margin-top: 2px;
-  font-size: 22px;
-}
-
-.el-icon.ok {
-  color: var(--el-color-success);
-}
-
-.el-icon.warning {
+.status-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--el-fill-color-light);
   color: var(--el-color-warning);
 }
 
-h3 {
-  margin: 0 0 6px;
-  color: var(--text-color);
+.status-icon[data-scope="none"] {
+  color: var(--el-color-success);
 }
 
-p,
-span {
-  margin: 0;
-  color: var(--text-color-secondary);
+.status-icon[data-scope="application"] {
+  color: var(--el-color-danger);
+}
+
+.action-copy {
+  min-width: 0;
+}
+
+.action-copy strong {
+  color: var(--text-color);
   font-size: 13px;
-  line-height: 1.6;
+}
+
+.action-copy p {
+  margin: 3px 0 0;
+  overflow: hidden;
+  color: var(--text-color-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-label {
+  color: var(--el-color-warning);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.status-label[data-scope="none"] {
+  color: var(--el-color-success);
+}
+
+.status-label[data-scope="application"] {
+  color: var(--el-color-danger);
 }
 </style>

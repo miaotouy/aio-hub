@@ -58,13 +58,19 @@ const closeAriaLabel = computed(() =>
     ? "关闭版本说明"
     : (props.runtime.definition.dismissLabel ?? "稍后处理")
 );
+const usesStepFooter = computed(() => currentStep.value?.footer === "step");
 
 provide(guidedFlowStepControlsKey, {
   isBusy: computed(() => props.busy),
   canGoBack: computed(() => currentIndex.value > 0),
+  canDefer: computed(
+    () =>
+      props.runtime.definition.dismissible && props.runtime.mode !== "replay"
+  ),
   runAction: props.runStepAction,
   requestNext: () => emit("next"),
   requestBack: () => emit("back"),
+  requestDefer: () => emit("requestClose"),
 });
 </script>
 
@@ -103,12 +109,17 @@ provide(guidedFlowStepControlsKey, {
       />
     </div>
 
-    <main class="guided-flow-content">
-      <p v-if="currentStep?.description" class="step-description">
-        {{ currentStep.description }}
-      </p>
-      <div v-if="runtime.state.lastError" class="flow-error" role="alert">
-        {{ runtime.state.lastError }}
+    <main
+      class="guided-flow-content"
+      :class="{ 'step-managed-footer': usesStepFooter }"
+    >
+      <div v-if="!usesStepFooter" class="step-intro">
+        <p v-if="currentStep?.description" class="step-description">
+          {{ currentStep.description }}
+        </p>
+        <div v-if="runtime.state.lastError" class="flow-error" role="alert">
+          {{ runtime.state.lastError }}
+        </div>
       </div>
       <component
         v-if="currentStep"
@@ -137,19 +148,23 @@ provide(guidedFlowStepControlsKey, {
 <style scoped>
 .guided-flow-shell {
   display: flex;
-  max-height: min(760px, calc(100vh - var(--titlebar-height, 0px) - 32px));
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   flex-direction: column;
+  overflow: hidden;
   background: var(--bg-color);
   color: var(--text-color);
 }
 
 .guided-flow-header {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   border-bottom: 1px solid var(--border-color);
-  padding: 18px 24px;
+  padding: 16px 24px;
 }
 
 .header-copy {
@@ -159,15 +174,8 @@ provide(guidedFlowStepControlsKey, {
 h2 {
   margin: 0;
   color: var(--text-color);
-  font-size: 20px;
+  font-size: 19px;
   line-height: 1.35;
-}
-
-.step-description {
-  margin: 8px 0 0;
-  color: var(--text-color-secondary);
-  font-size: 14px;
-  line-height: 1.6;
 }
 
 .close-button {
@@ -176,24 +184,55 @@ h2 {
 
 .flow-meta {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   border-bottom: 1px solid var(--border-color);
-  padding: 14px 24px;
+  padding: 11px 24px;
+  background: color-mix(in srgb, var(--card-bg) 72%, transparent);
 }
 
 .guided-flow-content {
-  min-height: 200px;
+  min-height: 0;
   flex: 1;
   overflow: auto;
-  padding: 24px;
+  padding: 22px 24px 24px;
+  scrollbar-gutter: stable;
+}
+
+.guided-flow-content.step-managed-footer {
+  display: flex;
+  padding: 0;
+  overflow: hidden;
+}
+
+.guided-flow-content.step-managed-footer > :deep(*) {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+}
+
+.step-intro {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.step-intro:empty {
+  display: none;
+}
+
+.step-description {
+  margin: 0;
+  color: var(--text-color-secondary);
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .flow-error {
-  margin: 0 0 16px;
   border: 1px solid var(--el-color-danger-light-5);
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--el-color-danger-light-9);
   color: var(--el-color-danger);
   padding: 10px 12px;
@@ -201,10 +240,23 @@ h2 {
   line-height: 1.5;
 }
 
+.guided-flow-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.guided-flow-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.guided-flow-content::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--el-border-color-light);
+}
+
 @media (max-width: 560px) {
   .guided-flow-header,
   .flow-meta,
-  .guided-flow-content {
+  .guided-flow-content:not(.step-managed-footer) {
     padding-right: 16px;
     padding-left: 16px;
   }
@@ -212,6 +264,7 @@ h2 {
   .flow-meta {
     align-items: flex-start;
     flex-direction: column;
+    gap: 8px;
   }
 
   .guided-flow-stepper {

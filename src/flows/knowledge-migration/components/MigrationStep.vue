@@ -5,7 +5,7 @@
 -->
 <script setup lang="ts">
 import { computed, nextTick, ref } from "vue";
-import { ArrowLeft, Right } from "@element-plus/icons-vue";
+import { ArrowLeft, ArrowRight, Check, RotateCcw } from "lucide-vue-next";
 import { useGuidedFlowStepControls } from "@/services/guided-flow/stepControls";
 import type { UpgradeFlowContext } from "@/flows/upgrade/types";
 import { executeKnowledgeMigration } from "../knowledgeMigrationOperations";
@@ -23,17 +23,14 @@ type MigrationSubStep = "plan" | "executing" | "verify";
 
 const props = defineProps<{
   context: UpgradeFlowContext;
+  flowState?: { lastError?: string };
   updateContext?: (updates: Record<string, unknown>) => void | Promise<void>;
 }>();
 
 const controls = useGuidedFlowStepControls<UpgradeFlowContext>();
 const snapshot = computed(() => getKnowledgeMigrationSnapshot(props.context));
 const subStep = ref<MigrationSubStep>(
-  snapshot.value.report &&
-    (snapshot.value.report.mainStatus === "completed" ||
-      (snapshot.value.backupConfirmed && snapshot.value.riskConfirmed))
-    ? "verify"
-    : "plan"
+  snapshot.value.report ? "verify" : "plan"
 );
 const canStart = computed(
   () =>
@@ -41,18 +38,21 @@ const canStart = computed(
     (snapshot.value.backupConfirmed && snapshot.value.riskConfirmed)
 );
 const canFinish = computed(() => canCompleteKnowledgeMigration(snapshot.value));
-const canRetry = computed(
-  () => snapshot.value.report?.mainStatus !== "completed"
-);
 const reportComplete = computed(() =>
   isKnowledgeMigrationReportComplete(snapshot.value.report)
 );
+const canRetry = computed(
+  () => !reportComplete.value && snapshot.value.executionStatus !== "running"
+);
 const canCleanup = reportComplete;
 const startLabel = computed(() =>
-  snapshot.value.executionStatus === "failed"
-    ? "重新尝试迁移"
-    : "确认并开始迁移"
+  snapshot.value.executionStatus === "failed" ? "重新尝试" : "开始迁移"
 );
+const stageIndex = computed(() => {
+  if (subStep.value === "executing") return 1;
+  if (subStep.value === "verify") return 2;
+  return 0;
+});
 
 async function startMigration() {
   if (!canStart.value || controls.isBusy.value) return;
@@ -80,186 +80,318 @@ function retryMigration() {
 
 <template>
   <div class="migration-step" :data-sub-step="subStep">
-    <div class="sub-stepper" aria-label="迁移进度">
-      <span :class="{ active: subStep === 'plan' }">确认方案</span>
-      <i aria-hidden="true" />
-      <span :class="{ active: subStep === 'executing' }">执行迁移</span>
-      <i aria-hidden="true" />
-      <span :class="{ active: subStep === 'verify' }">校验与清理</span>
+    <div class="migration-stagebar" aria-label="迁移进度">
+      <div
+        v-for="(label, index) in ['确认', '迁移', '完成']"
+        :key="label"
+        :class="{ active: index === stageIndex, completed: index < stageIndex }"
+      >
+        <span class="stage-indicator">
+          <Check v-if="index < stageIndex" class="stage-check" :size="12" />
+          <span v-else class="stage-number">{{ index + 1 }}</span>
+        </span>
+        <small>{{ label }}</small>
+        <i v-if="index < 2" aria-hidden="true" />
+      </div>
     </div>
 
-    <MigrationPlanStep
-      v-if="subStep === 'plan'"
-      :context="context"
-      :update-context="updateContext"
-    />
+    <div class="migration-body">
+      <div v-if="flowState?.lastError" class="migration-error" role="alert">
+        {{ flowState.lastError }}
+      </div>
 
-    <MigrationExecuteStep
-      v-else-if="subStep === 'executing'"
-      :context="context"
-      force-running
-    />
-
-    <div v-else class="verify-stage">
-      <el-alert
-        :closable="false"
-        :type="reportComplete ? 'success' : 'warning'"
-        show-icon
-        :title="
-          reportComplete
-            ? '迁移校验已完成'
-            : canFinish
-              ? '主数据迁移完成，仍有后续事项'
-              : '迁移仍有待处理内容'
-        "
-        description="以下报告会保留在升级事项中，旧目录默认不会删除。"
-      />
-      <MigrationVerifyStep :context="context" />
-
-      <section v-if="canCleanup" class="cleanup-section">
-        <h3>旧数据处理</h3>
-        <MigrationCleanupStep
-          :context="context"
-          :update-context="updateContext"
-        />
-      </section>
-    </div>
-
-    <footer class="step-actions">
-      <el-button
-        v-if="controls.canGoBack.value && subStep === 'plan'"
-        :disabled="controls.isBusy.value"
-        @click="controls.requestBack"
-      >
-        <el-icon><ArrowLeft /></el-icon>
-        上一步
-      </el-button>
-      <el-button
-        v-else-if="subStep === 'verify'"
-        :disabled="controls.isBusy.value"
-        @click="showPlan"
-      >
-        <el-icon><ArrowLeft /></el-icon>
-        查看方案
-      </el-button>
-      <span v-else />
-
-      <el-button
+      <MigrationPlanStep
         v-if="subStep === 'plan'"
-        data-testid="migration-start"
-        type="primary"
-        :disabled="!canStart || controls.isBusy.value"
-        :loading="controls.isBusy.value"
-        @click="startMigration"
-      >
-        {{ startLabel }}
-        <el-icon class="el-icon--right"><Right /></el-icon>
-      </el-button>
-      <el-button
-        v-else-if="subStep === 'verify' && canRetry"
-        data-testid="migration-retry"
-        type="primary"
-        :disabled="!canStart || controls.isBusy.value"
-        :loading="controls.isBusy.value"
-        @click="retryMigration"
-      >
-        重试迁移
-      </el-button>
-      <el-button
-        v-else-if="subStep === 'verify'"
-        data-testid="migration-finish"
-        type="primary"
-        :disabled="!canFinish || controls.isBusy.value"
-        :loading="controls.isBusy.value"
-        @click="controls.requestNext"
-      >
-        完成迁移事项
-      </el-button>
+        :context="context"
+        :busy="controls.isBusy.value"
+        :can-start="canStart"
+        :start-label="startLabel"
+        :update-context="updateContext"
+        @start="startMigration"
+      />
+
+      <MigrationExecuteStep
+        v-else-if="subStep === 'executing'"
+        :context="context"
+        force-running
+      />
+
+      <div v-else class="verify-stage">
+        <MigrationVerifyStep :context="context" />
+
+        <el-collapse v-if="canCleanup" class="cleanup-collapse">
+          <el-collapse-item title="可选：处理旧数据目录" name="cleanup">
+            <MigrationCleanupStep
+              :context="context"
+              :update-context="updateContext"
+            />
+          </el-collapse-item>
+        </el-collapse>
+
+        <div class="verify-actions">
+          <el-button :disabled="controls.isBusy.value" @click="showPlan">
+            <ArrowLeft :size="15" />
+            查看方案
+          </el-button>
+          <el-button
+            v-if="canRetry"
+            data-testid="migration-retry"
+            :disabled="!canStart || controls.isBusy.value"
+            @click="retryMigration"
+          >
+            <RotateCcw :size="15" />
+            重新迁移
+          </el-button>
+        </div>
+      </div>
+    </div>
+
+    <footer class="migration-actions">
+      <div class="action-start">
+        <el-button
+          v-if="controls.canGoBack.value"
+          :disabled="controls.isBusy.value"
+          @click="controls.requestBack"
+        >
+          <ArrowLeft :size="15" />
+          上一步
+        </el-button>
+      </div>
+
+      <div class="action-end">
+        <el-button
+          v-if="controls.canDefer.value"
+          text
+          :disabled="controls.isBusy.value"
+          @click="controls.requestDefer"
+        >
+          跳过
+        </el-button>
+        <el-button
+          data-testid="migration-finish"
+          type="primary"
+          :disabled="!canFinish || controls.isBusy.value"
+          :loading="controls.isBusy.value && canFinish"
+          @click="controls.requestNext"
+        >
+          下一步
+          <ArrowRight :size="15" />
+        </el-button>
+      </div>
     </footer>
   </div>
 </template>
 
 <style scoped>
 .migration-step {
-  display: grid;
-  gap: 22px;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-.sub-stepper {
+.migration-stagebar {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  border-bottom: 1px solid var(--border-color);
+  padding: 10px 20px;
+  background: color-mix(in srgb, var(--card-bg) 72%, transparent);
+}
+
+.migration-stagebar > div {
+  display: flex;
+  min-width: 0;
+  flex: 0 0 auto;
+  align-items: center;
   color: var(--text-color-secondary);
-  font-size: 12px;
 }
 
-.sub-stepper span {
-  transition: color 160ms ease;
+.migration-stagebar .stage-indicator {
+  box-sizing: border-box;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  place-items: center;
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  background: var(--bg-color);
+  font-size: 10px;
+  line-height: 1;
 }
 
-.sub-stepper span.active {
+.stage-check,
+.stage-number {
+  grid-area: 1 / 1;
+}
+
+.stage-check {
+  display: block;
+}
+
+.stage-number {
+  font-variant-numeric: tabular-nums;
+}
+
+.migration-stagebar small {
+  margin-left: 6px;
+  font-size: 11px;
+}
+
+.migration-stagebar i {
+  width: 38px;
+  height: 1px;
+  flex: 0 0 38px;
+  margin: 0 10px;
+  background: var(--border-color);
+}
+
+.migration-stagebar .active .stage-indicator {
+  border-color: var(--primary-color);
+  background: var(--primary-color);
+  color: var(--el-color-white);
+}
+
+.migration-stagebar .active small {
   color: var(--text-color);
   font-weight: 600;
 }
 
-.sub-stepper i {
-  width: 24px;
-  height: 1px;
-  background: var(--border-color);
+.migration-stagebar .completed .stage-indicator {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.migration-stagebar .completed i {
+  background: color-mix(in srgb, var(--primary-color) 55%, var(--border-color));
+}
+
+.migration-body {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 18px 24px;
+  scrollbar-gutter: stable;
+}
+
+.migration-error {
+  margin-bottom: 12px;
+  border: 1px solid var(--el-color-danger-light-5);
+  border-radius: 8px;
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
+  padding: 9px 11px;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .verify-stage {
   display: grid;
-  gap: 18px;
+  gap: 11px;
 }
 
-.cleanup-section {
-  display: grid;
-  gap: 14px;
-  border-top: 1px solid var(--border-color);
-  padding-top: 18px;
-}
-
-.cleanup-section > h3 {
-  margin: 0;
-  color: var(--text-color);
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.step-actions {
+.verify-actions {
   display: flex;
-  min-height: 40px;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.cleanup-collapse :deep(.el-collapse) {
+  border: 0;
+}
+
+.cleanup-collapse :deep(.el-collapse-item) {
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+}
+
+.cleanup-collapse :deep(.el-collapse-item__header) {
+  height: 40px;
+  padding: 0 11px;
+  border-bottom: 0;
+  background: var(--card-bg);
+  color: var(--text-color);
+  font-size: 11px;
+}
+
+.cleanup-collapse :deep(.el-collapse-item__wrap) {
+  border-bottom: 0;
+  background: transparent;
+}
+
+.cleanup-collapse :deep(.el-collapse-item__content) {
+  padding: 0 11px 11px;
+}
+
+.migration-actions {
+  display: flex;
+  min-height: 68px;
+  flex: none;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
   border-top: 1px solid var(--border-color);
-  padding-top: 16px;
+  padding: 13px 24px;
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+}
+
+.action-start,
+.action-end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.action-end {
+  justify-content: flex-end;
+}
+
+.migration-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.migration-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.migration-body::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--el-border-color-light);
 }
 
 @media (max-width: 560px) {
-  .sub-stepper {
-    gap: 7px;
+  .migration-stagebar i {
+    width: 18px;
+    margin: 0 6px;
   }
 
-  .sub-stepper i {
-    width: 14px;
+  .migration-body {
+    padding-right: 16px;
+    padding-left: 16px;
   }
 
-  .step-actions {
+  .migration-actions {
+    min-height: auto;
     align-items: stretch;
     flex-direction: column-reverse;
+    padding: 12px 16px;
   }
 
-  .step-actions :deep(.el-button) {
+  .action-start,
+  .action-end {
     width: 100%;
   }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  .sub-stepper span {
-    transition: none;
+  .action-end :deep(.el-button),
+  .action-start :deep(.el-button) {
+    flex: 1;
   }
 }
 </style>

@@ -88,15 +88,15 @@ li {
 
 .step-dot {
   box-sizing: border-box;
-  width: 8px;
-  height: 8px;
-  flex: 0 0 8px;
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
   border: 1px solid var(--border-color);
   border-radius: 50%;
   background: var(--bg-color);
+  transform: scale(0.8);
   transition:
-    width 160ms ease,
-    height 160ms ease,
+    transform 160ms ease,
     border-color 160ms ease,
     background-color 160ms ease,
     box-shadow 160ms ease;
@@ -133,12 +133,10 @@ li.completed .step-connector {
 }
 
 li.active .step-dot {
-  width: 10px;
-  height: 10px;
-  flex-basis: 10px;
   border: 2px solid var(--bg-color);
   background: var(--primary-color);
   box-shadow: 0 0 0 2px var(--primary-color);
+  transform: scale(1);
 }
 
 .visually-hidden {

@@ -15,7 +15,7 @@
 -->
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { useNotificationStore } from "@/stores/notification";
 import { useRouter } from "vue-router";
 import {
@@ -48,9 +48,16 @@ const visible = computed({
   set: (val) => store.toggleCenter(val),
 });
 
-const searchQuery = ref("");
+const PAGE_SIZE = 20;
+const LOAD_MORE_THRESHOLD = 80;
 
-const notifications = computed(() => {
+const searchQuery = ref("");
+const currentPage = ref(1);
+const isLoadingMore = ref(false);
+const contentRef = ref<HTMLElement | null>(null);
+
+// 搜索始终基于 Store 中的完整通知集合，分页只控制当前 UI 展示数量。
+const filteredNotifications = computed(() => {
   const all = store.sortedNotifications;
   const query = searchQuery.value.trim().toLowerCase();
   if (!query) return all;
@@ -61,7 +68,54 @@ const notifications = computed(() => {
       (n.source && n.source.toLowerCase().includes(query))
   );
 });
+
+const displayedNotifications = computed(() =>
+  filteredNotifications.value.slice(0, currentPage.value * PAGE_SIZE)
+);
+const hasMore = computed(
+  () => displayedNotifications.value.length < filteredNotifications.value.length
+);
 const unreadCount = computed(() => store.unreadCount);
+
+const loadMore = () => {
+  if (!hasMore.value || isLoadingMore.value) return;
+
+  isLoadingMore.value = true;
+  currentPage.value += 1;
+  // 让加载状态至少经历一次渲染，避免触底时出现重复触发。
+  nextTick(() => {
+    isLoadingMore.value = false;
+  });
+};
+
+const handleContentScroll = (event: Event) => {
+  const target = event.currentTarget as HTMLElement;
+  const distanceToBottom =
+    target.scrollHeight - target.scrollTop - target.clientHeight;
+  if (distanceToBottom <= LOAD_MORE_THRESHOLD) {
+    loadMore();
+  }
+};
+
+const ensureContentCanScroll = async () => {
+  await nextTick();
+  const content = contentRef.value;
+  if (!content || !hasMore.value) return;
+
+  // 首屏内容不足以产生滚动条时，继续补页，避免用户无法触发触底事件。
+  if (content.scrollHeight <= content.clientHeight + 1) {
+    loadMore();
+  }
+};
+
+watch(searchQuery, () => {
+  currentPage.value = 1;
+  void ensureContentCanScroll();
+});
+
+watch([displayedNotifications, visible], () => {
+  void ensureContentCanScroll();
+});
 
 // 详情弹窗
 const detailVisible = ref(false);
@@ -74,7 +128,7 @@ const handleViewDetail = (notification: Notification) => {
 };
 
 const handleItemClick = (id: string) => {
-  const item = notifications.value.find((n) => n.id === id);
+  const item = filteredNotifications.value.find((n) => n.id === id);
   if (item) {
     store.markRead(id);
     if (item.metadata?.path) {
@@ -193,17 +247,27 @@ const getTypeText = (type: string) => {
       </div>
 
       <!-- 列表区域 -->
-      <div class="center-content">
-        <template v-if="notifications.length > 0">
+      <div
+        ref="contentRef"
+        class="center-content"
+        @scroll.passive="handleContentScroll"
+      >
+        <template v-if="filteredNotifications.length > 0">
           <div class="notification-list">
             <NotificationItem
-              v-for="item in notifications"
+              v-for="item in displayedNotifications"
               :key="item.id"
               :notification="item"
               @click="handleItemClick"
               @delete="store.remove"
               @view-detail="handleViewDetail"
             />
+          </div>
+          <div v-if="isLoadingMore" class="load-more-status">
+            正在加载更多...
+          </div>
+          <div v-else-if="!hasMore" class="load-more-status">
+            已加载全部消息
           </div>
         </template>
         <div v-else class="empty-state">
@@ -213,7 +277,7 @@ const getTypeText = (type: string) => {
       </div>
 
       <!-- 底部操作 -->
-      <div v-if="notifications.length > 0" class="center-footer">
+      <div v-if="filteredNotifications.length > 0" class="center-footer">
         <el-button
           type="danger"
           plain
@@ -401,6 +465,13 @@ const getTypeText = (type: string) => {
 .notification-list {
   display: flex;
   flex-direction: column;
+}
+
+.load-more-status {
+  padding: 12px 0 4px;
+  color: var(--text-color-placeholder);
+  font-size: 12px;
+  text-align: center;
 }
 
 .empty-state {

@@ -43,9 +43,14 @@ const currentIndex = computed(() =>
         }"
         :aria-current="step.id === currentStepId ? 'step' : undefined"
       >
-        <span class="step-dot" aria-hidden="true" />
-        <span v-if="step.id === currentStepId" class="step-title">
-          {{ step.title }}
+        <span class="step-marker" aria-hidden="true">
+          <span class="step-number">{{ index + 1 }}</span>
+        </span>
+        <span class="step-copy">
+          <span class="step-kicker">
+            {{ index < currentIndex ? "已完成" : `步骤 ${index + 1}` }}
+          </span>
+          <span class="step-title">{{ step.title }}</span>
         </span>
         <span class="visually-hidden">
           第 {{ index + 1 }} 步：{{ step.title }}
@@ -63,51 +68,67 @@ const currentIndex = computed(() =>
 <style scoped>
 .guided-flow-stepper {
   min-width: 0;
-  flex: 1;
-  overflow: hidden;
 }
 
 ol {
-  display: flex;
-  width: 100%;
+  display: grid;
   min-width: 0;
-  align-items: center;
-  justify-content: center;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 li {
-  display: flex;
+  position: relative;
+  display: grid;
   min-width: 0;
-  flex: 0 0 auto;
-  align-items: center;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 10px;
+  padding-bottom: 20px;
   color: var(--text-color-secondary);
 }
 
-.step-dot {
+li:last-child {
+  padding-bottom: 0;
+}
+
+.step-marker {
+  z-index: 1;
   box-sizing: border-box;
-  width: 10px;
-  height: 10px;
-  flex: 0 0 10px;
-  border: 1px solid var(--border-color);
-  border-radius: 50%;
-  background: var(--bg-color);
-  transform: scale(0.8);
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 1px solid var(--control-border-color);
+  border-radius: 8px;
+  background: var(--container-bg);
+  color: var(--text-color-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
   transition:
-    transform 160ms ease,
     border-color 160ms ease,
     background-color 160ms ease,
-    box-shadow 160ms ease;
+    color 160ms ease;
+}
+
+.step-copy {
+  display: grid;
+  min-width: 0;
+  align-content: center;
+  gap: 1px;
+}
+
+.step-kicker {
+  color: var(--text-color-secondary);
+  font-size: 9px;
+  letter-spacing: 0.04em;
 }
 
 .step-title {
   min-width: 0;
-  max-width: clamp(72px, 24vw, 180px);
-  margin-left: 8px;
   overflow: hidden;
-  color: var(--text-color);
+  color: var(--text-color-secondary);
   font-size: 12px;
   font-weight: 600;
   line-height: 1.4;
@@ -116,27 +137,40 @@ li {
 }
 
 .step-connector {
-  width: 32px;
-  height: 1px;
-  flex: 0 0 32px;
-  margin: 0 8px;
+  position: absolute;
+  top: 28px;
+  bottom: 2px;
+  left: 12px;
+  width: 1px;
   background: var(--border-color);
 }
 
-li.completed .step-dot {
-  border-color: var(--primary-color);
-  background: var(--primary-color);
+li.completed .step-marker {
+  border-color: color-mix(
+    in srgb,
+    var(--primary-color) 60%,
+    var(--border-color)
+  );
+  background: color-mix(in srgb, var(--primary-color) 13%, var(--container-bg));
+  color: var(--primary-color);
 }
 
 li.completed .step-connector {
   background: color-mix(in srgb, var(--primary-color) 55%, var(--border-color));
 }
 
-li.active .step-dot {
-  border: 2px solid var(--bg-color);
+li.active .step-marker {
+  border-color: var(--primary-color);
   background: var(--primary-color);
-  box-shadow: 0 0 0 2px var(--primary-color);
-  transform: scale(1);
+  color: var(--el-color-white);
+}
+
+li.active .step-kicker {
+  color: var(--primary-color);
+}
+
+li.active .step-title {
+  color: var(--text-color);
 }
 
 .visually-hidden {
@@ -152,8 +186,66 @@ li.active .step-dot {
   white-space: nowrap;
 }
 
+@media (max-width: 760px) {
+  .guided-flow-stepper {
+    overflow: hidden;
+  }
+
+  ol {
+    display: flex;
+    align-items: flex-start;
+    overflow: hidden;
+  }
+
+  li {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 0;
+    align-items: center;
+    gap: 6px;
+    padding: 0 18px 0 0;
+  }
+
+  li:last-child {
+    padding-right: 0;
+  }
+
+  .step-marker {
+    width: 22px;
+    height: 22px;
+    flex: 0 0 22px;
+    border-radius: 7px;
+    font-size: 10px;
+  }
+
+  .step-copy {
+    display: none;
+  }
+
+  li.active .step-copy {
+    display: grid;
+  }
+
+  .step-kicker {
+    display: none;
+  }
+
+  .step-title {
+    max-width: 160px;
+  }
+
+  .step-connector {
+    top: 10px;
+    right: 3px;
+    bottom: auto;
+    left: 25px;
+    width: auto;
+    height: 1px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .step-dot {
+  .step-marker {
     transition: none;
   }
 }

@@ -39,9 +39,14 @@ import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import { RendererVersion } from "@/tools/rich-text-renderer/types";
 import type { Notification } from "@/types/notification";
 import { format } from "date-fns";
+import { openReleaseNotes, resumePendingUpgrade } from "@/flows/upgrade";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const store = useNotificationStore();
 const router = useRouter();
+const errorHandler = createModuleErrorHandler(
+  "components/notification/NotificationCenter"
+);
 
 const visible = computed({
   get: () => store.centerVisible,
@@ -127,14 +132,65 @@ const handleViewDetail = (notification: Notification) => {
   store.markRead(notification.id);
 };
 
-const handleItemClick = (id: string) => {
+const actionInProgress = ref(false);
+
+const getActionLabel = (notification: Notification) => {
+  switch (notification.metadata?.action) {
+    case "open-release-notes":
+      return "查看版本说明";
+    case "resume-upgrade":
+      return "继续处理";
+    default:
+      return "前往查看";
+  }
+};
+
+const handleItemClick = async (id: string) => {
   const item = filteredNotifications.value.find((n) => n.id === id);
-  if (item) {
-    store.markRead(id);
+  if (!item || actionInProgress.value) return;
+
+  store.markRead(id);
+  const action = item.metadata?.action;
+  try {
+    actionInProgress.value = true;
+    if (action === "open-release-notes") {
+      const versions = item.metadata?.data?.versions;
+      const primaryVersion = item.metadata?.data?.primaryVersion;
+      if (
+        !Array.isArray(versions) ||
+        !versions.every((item) => typeof item === "string")
+      ) {
+        throw new Error("版本说明通知缺少有效的版本列表");
+      }
+      detailVisible.value = false;
+      store.toggleCenter(false);
+      await openReleaseNotes(
+        versions,
+        typeof primaryVersion === "string" ? primaryVersion : undefined
+      );
+      return;
+    }
+
+    if (action === "resume-upgrade") {
+      detailVisible.value = false;
+      store.toggleCenter(false);
+      await resumePendingUpgrade();
+      return;
+    }
+
     if (item.metadata?.path) {
-      router.push(item.metadata.path);
+      await router.push(item.metadata.path);
+      detailVisible.value = false;
       store.toggleCenter(false);
     }
+  } catch (error) {
+    errorHandler.error(error as Error, "执行通知操作失败", {
+      showToUser: true,
+      notificationId: item.id,
+      action,
+    });
+  } finally {
+    actionInProgress.value = false;
   }
 };
 
@@ -327,12 +383,19 @@ const getTypeText = (type: string) => {
           :enable-enter-animation="false"
         />
       </div>
-      <div v-if="currentNotification.metadata?.path" class="detail-actions">
+      <div
+        v-if="
+          currentNotification.metadata?.path ||
+          currentNotification.metadata?.action
+        "
+        class="detail-actions"
+      >
         <button
           class="primary-action-btn"
+          :disabled="actionInProgress"
           @click="handleItemClick(currentNotification.id)"
         >
-          前往查看
+          {{ getActionLabel(currentNotification) }}
         </button>
       </div>
     </div>

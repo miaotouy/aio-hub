@@ -17,7 +17,7 @@
 <script setup lang="ts">
 import { onMounted } from "vue";
 import { useGuidedFlowStore } from "@/stores/guidedFlowStore";
-import GuidedFlowModal from "./GuidedFlowModal.vue";
+import GuidedFlowSurface from "./GuidedFlowSurface.vue";
 
 const guidedFlowStore = useGuidedFlowStore();
 
@@ -35,7 +35,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <GuidedFlowModal
+  <GuidedFlowSurface
     :runtime="guidedFlowStore.activeFlow"
     :busy="guidedFlowStore.isBusy"
     :run-step-action="guidedFlowStore.runStepAction"

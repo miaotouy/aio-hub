@@ -10,11 +10,6 @@ vi.mock("../components/UpgradeCompleteStep.vue", () => ({
 vi.mock("../components/UpgradeSummaryStep.vue", () => ({
   default: {},
 }));
-vi.mock("../appLifecycleService", () => ({
-  appLifecycleService: {
-    acknowledgeReleaseNotes: vi.fn(),
-  },
-}));
 import type { Component } from "vue";
 import type { UpgradeContributionDefinition } from "../types";
 import { composeUpgradeFlowDefinition } from "../upgradeFlowComposer";
@@ -62,6 +57,9 @@ describe("composeUpgradeFlowDefinition", () => {
       "contribution:migration:execute",
       "complete",
     ]);
+    expect(definition.title).toBe("升级事项处理");
+    expect(definition.onCompleted).toBeUndefined();
+    expect(definition.onSkipped).toBeUndefined();
   });
 
   it("hides contribution steps when detection is unavailable", async () => {

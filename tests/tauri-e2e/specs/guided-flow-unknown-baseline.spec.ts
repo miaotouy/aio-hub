@@ -22,46 +22,55 @@ const baselineDescribe =
     : describe.skip;
 
 baselineDescribe("Guided Flow unknown baseline", () => {
-  it("shows the current release without migration work and persists lifecycle state", async () => {
+  it("publishes read-only release notes without creating migration work", async () => {
     const expectedVersion = requiredEnv("AIO_E2E_EXPECTED_APP_VERSION");
-    const shell = await $(
-      '.guided-flow-shell[data-flow-id="app-upgrade"][data-current-step-id="summary"]'
-    );
-    await shell.waitForDisplayed({ timeout: 30_000 });
+    const stableNotificationPrefix = `release-notes:${expectedVersion}:r`;
+    const body = await $("body");
+    await body.waitForExist();
 
-    const summary = await $(".upgrade-summary");
-    if (
-      (await summary.getAttribute("data-transition")) !== "unknown-baseline" ||
-      (await summary.getAttribute("data-current-version")) !==
-        expectedVersion ||
-      (await summary.getAttribute("data-release-count")) !== "1" ||
-      (await summary.getAttribute("data-contribution-count")) !== "0"
-    ) {
-      throw new Error(
-        "Unknown-baseline summary did not match the fresh-install contract."
-      );
-    }
-
-    const releaseVersion = await $(
-      ".release-notes-step .release-version"
-    ).getText();
-    if (releaseVersion !== `v${expectedVersion}`) {
-      throw new Error(
-        `Expected v${expectedVersion}, received ${releaseVersion}.`
-      );
-    }
-    if (await $(".upgrade-summary .migration-step").isExisting()) {
-      throw new Error("Migration work was created without legacy domain data.");
-    }
-
-    await $(".guided-flow-footer .el-button--primary").click();
     await browser.waitUntil(
       async () =>
-        (await shell.getAttribute("data-current-step-id")) === "complete",
-      { timeout: 30_000, timeoutMsg: "Guided Flow did not reach completion." }
+        browser.execute((notificationPrefix) => {
+          const stored = JSON.parse(
+            localStorage.getItem("app-notifications") ?? "[]"
+          ) as Array<{ id: string }>;
+          return stored.some((item) => item.id.startsWith(notificationPrefix));
+        }, stableNotificationPrefix),
+      {
+        timeout: 30_000,
+        timeoutMsg: "Release-note notification was not persisted.",
+      }
     );
-    await $(".guided-flow-footer .el-button--primary").click();
-    await shell.waitForDisplayed({ reverse: true, timeout: 30_000 });
+
+    if (await $(".guided-flow-shell").isExisting()) {
+      throw new Error(
+        "Release notes created a Guided Flow without migration work."
+      );
+    }
+
+    await $(".notification-bell .bell-btn").click();
+    const releaseNotification = await $(
+      `.notification-item*=${`AIO Hub v${expectedVersion} 版本说明`}`
+    );
+    await releaseNotification.waitForDisplayed({ timeout: 10_000 });
+    await releaseNotification.click();
+
+    const viewer = await $("[data-testid='release-notes-viewer']");
+    await viewer.waitForDisplayed({ timeout: 10_000 });
+    const versionLabel = await $(
+      "[data-testid='release-notes-viewer'] .release-meta strong"
+    ).getText();
+    if (versionLabel !== `v${expectedVersion}`) {
+      throw new Error(
+        `Expected read-only release notes for v${expectedVersion}, received ${versionLabel}.`
+      );
+    }
+    if (await $(".migration-step").isExisting()) {
+      throw new Error("Migration UI appeared inside the release-notes reader.");
+    }
+
+    await browser.keys(["Escape"]);
+    await viewer.waitForDisplayed({ reverse: true, timeout: 10_000 });
 
     const appConfigDir = await invokeTauriCommand<string>("get_app_config_dir");
     const lifecyclePath = path.join(

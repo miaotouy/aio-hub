@@ -28,6 +28,7 @@ import LlmDeepLinkConfirmDialog from "./Settings/llm-service/components/LlmDeepL
 import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useToolsStore } from "@/stores/tools";
 import { useAppSettingsStore } from "@/stores/appSettingsStore";
+import { useGuidedFlowStore } from "@/stores/guidedFlowStore";
 
 const logger = createModuleLogger("MainLayout");
 const route = useRoute();
@@ -35,6 +36,7 @@ const router = useRouter();
 const detachedManager = useDetachedManager();
 const toolsStore = useToolsStore();
 const appSettingsStore = useAppSettingsStore();
+const guidedFlowStore = useGuidedFlowStore();
 
 const isCollapsed = ref(appSettingsStore.settings.sidebarCollapsed);
 
@@ -165,7 +167,14 @@ onUnmounted(() => {
     <LlmDeepLinkConfirmDialog />
 
     <!-- 主布局容器 -->
-    <el-container class="common-layout">
+    <el-container
+      class="common-layout"
+      :class="{
+        'guided-flow-background-hidden': guidedFlowStore.hasActiveFlow,
+      }"
+      :aria-hidden="guidedFlowStore.hasActiveFlow || undefined"
+      :inert="guidedFlowStore.hasActiveFlow"
+    >
       <!-- 侧边栏 -->
       <MainSidebar
         v-if="
@@ -216,6 +225,12 @@ onUnmounted(() => {
   width: 100vw;
   overflow: hidden;
   min-height: 0;
+}
+
+.common-layout.guided-flow-background-hidden {
+  visibility: hidden;
+  pointer-events: none;
+  user-select: none;
 }
 
 .main-content {

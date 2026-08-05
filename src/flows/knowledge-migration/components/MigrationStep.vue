@@ -165,7 +165,7 @@ function retryMigration() {
           :disabled="controls.isBusy.value"
           @click="controls.requestDefer"
         >
-          跳过
+          稍后处理
         </el-button>
         <el-button
           data-testid="migration-finish"

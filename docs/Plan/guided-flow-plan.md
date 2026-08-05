@@ -1,10 +1,13 @@
 # Guided Flow 引导模块收口计划
 
-> 状态：Phase 1–3 已实现；代码与自动化审查问题已关闭，仅保留真实旧数据、中断恢复与发布候选包门禁
+> 状态：运行时、领域迁移、长交互容器和版本说明分层已实现；完成真实 Tauri 验证前不得视为 UI 收口
 >
-> 最近更新：2026-07-28
+> 最近更新：2026-08-03
 >
-> 关联方案：[知识库迁移方式重构方案](../../src/tools/knowledge-base/docs/Plan/knowledge-base-guided-migration-refactor-plan.md)
+> 关联方案：
+>
+> - [Guided Flow 长交互容器与升级信息分层方案](./guided-flow-long-interaction-redesign.md)
+> - [知识库迁移方式重构方案](../../src/tools/knowledge-base/docs/Plan/knowledge-base-guided-migration-refactor-plan.md)
 
 ## 1. 文档定位
 
@@ -13,7 +16,8 @@
 - `src/services/guided-flow/`：定义、注册、排队、持久化与运行时；
 - `src/stores/guidedFlowStore.ts`：UI 状态桥接；
 - `src/components/common/GuidedFlow/`：宿主、壳层、导航与页脚；
-- `src/flows/upgrade/`：生命周期、版本说明和升级事项组合；
+- `src/flows/upgrade/`：生命周期、版本说明 registry 和升级事项组合；
+- `src/components/notification/`：版本说明通知入口与通知动作分发；
 - `src/flows/knowledge-migration/`：旧 Knowledge/Recall 数据迁移 contribution。
 
 首次设置和模块教程属于后续独立需求，不是本轮发布门禁。
@@ -33,6 +37,7 @@
 - 根 `package.json` 是应用版本唯一来源；release manifest 必须与精确 SemVer 和 stable/prerelease channel 一致。
 - `app-lifecycle.json` 有独立 schema 和有序迁移，不把 `createConfigManager` 的版本字段当作应用或领域数据版本。
 - 自动选择版本说明时会聚合当前版本上界以内、本地存在且尚未确认的说明，不因跨版本延后而丢失。
+- 目标信息架构中，版本说明进入通知中心并由独立阅读面板展示；迁移事项单独进入 Guided Flow。
 - 关于页分别提供版本说明、继续升级事项和检查更新入口。
 - 首次无生命周期记录时使用 `unknown-baseline`；可以按 manifest 策略展示当前说明一次，但不得伪造来源版本。
 
@@ -60,14 +65,18 @@
 
 ## 4. UI 与交互契约
 
-原 UI 专项施工已合并到当前实现：
+当前 UI 实现已经具备流程壳层和迁移步骤，但手测暴露出通用弹窗承载长交互时的尺寸抖动、滚动责任不清和版本说明/迁移信息混杂问题。新的目标契约以[长交互容器与升级信息分层方案](./guided-flow-long-interaction-redesign.md)为准：
 
-- 升级概览、旧知识库迁移和完成页组成当前 3 步主流程；常规流程优先控制在 3–6 个可见步骤。
-- 步骤导航只显示当前标题，其余步骤使用居中点位，不平铺全部标题，不出现横向滚动。
+- Guided Flow 运行时仍保持通用，但长交互展示层不再复用 `BaseDialog`；专用容器自行负责固定几何、遮罩、步骤导航、内容滚动和 footer 边界。
+- 版本说明属于阅读信息，进入通知中心并从通知或关于页打开独立阅读面板；版本说明已读不得等同于迁移完成。
+- 数据迁移只有在真实检测到待处理 contribution 时才打开 Guided Flow，不因只有版本说明而弹出多步流程。
+- 外层 panel 在流程存活期间保持固定宽高；步骤切换、错误提示、执行态和清理展开只能改变内部内容区。
+- 外层进入/退出动画只允许 `opacity` 和 `transform`，禁止使用会覆盖几何属性的 `transition: all`。
+- 默认 footer 与 step-owned footer 必须显式互斥；迁移步骤内部子阶段不得造成双 footer、空占位或外层重新测量。
 - 流程步骤进度与步骤内任务进度分开表达，避免把长任务百分比误认为流程页数。
-- `GuidedFlowModal` 复用 `BaseDialog` 边界；运行中默认禁止遮罩退出，关闭、延后和取消必须有明确语义。
-- 视觉值使用主题变量，组件保持紧凑、低装饰、状态可读；错误、部分成功、等待重建与完成不得只靠颜色区分。
-- Knowledge 工具和关于页都只提供恢复入口，不复制一套业务执行逻辑。
+- 视觉值使用主题变量，错误、部分成功、等待重建与完成不得只靠颜色区分。
+- Knowledge 工具、关于页和通知中心都只提供入口，不复制领域迁移执行逻辑。
+- 普通浏览器构建或组件测试不能证明窗口稳定；必须以真实 Tauri WebView 的尺寸采样和截图/录屏作为“抖动已修复”的证据。
 
 ## 5. 已合并的施工审查结论
 
@@ -91,6 +100,7 @@
 - [ ] 从可溯源旧正式发布版本制作只读 fixture，并记录来源、校验值和预期迁移结果。
 - [ ] 使用发布候选安装包完成首次启动、同根重启、迁移恢复与卸载/残留 smoke test。
 - [ ] 发布版本切换时提供与根 `package.json` 精确匹配的 release manifest 与正文资源；alpha 资源不能替代 stable 资源。
+- [ ] 在真实 Tauri WebView 中证明已实现的长交互 Surface 在步骤切换、执行、失败、重试和清理展开时不会改变外层 panel 几何，并验证版本说明通知/阅读面板不污染迁移状态。
 
 ## 7. 已通过的门禁记录
 
@@ -113,7 +123,7 @@ bun run test:tauri:e2e -- --preset migration-cleanup
 满足以下条件后删除本文，并将长期契约并入 Guided Flow/升级流程架构文档：
 
 - 第 6 节全部关闭并记录环境、fixture 和结果；
-- 同一版本只自动展示一次说明，关于页可回放且不污染终态；
+- 同一版本只生成一次稳定键通知，关于页和通知均可打开独立阅读面板且不污染迁移终态；
 - 未经确认不执行不可逆迁移；失败或部分成功有明确恢复入口；
 - 主应用发布候选包通过精确版本、真实旧数据和重启场景验收。
 

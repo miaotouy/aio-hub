@@ -24,6 +24,7 @@ import {
 } from "@/services/guided-flow";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
+import { useNotificationStore } from "@/stores/notification";
 import { appLifecycleService } from "./appLifecycleService";
 import {
   detectUpgradeTransition,
@@ -38,11 +39,9 @@ import type {
   UpgradeFlowContext,
 } from "./types";
 import { APP_UPGRADE_FLOW_ID } from "./types";
-import {
-  composeUpgradeFlowDefinition,
-  createManualReplayContext,
-} from "./upgradeFlowComposer";
+import { composeUpgradeFlowDefinition } from "./upgradeFlowComposer";
 import { upgradeContributionRegistry } from "./upgradeContributionRegistry";
+import { useReleaseNotesViewerStore } from "./releaseNotesViewerStore";
 
 const logger = createModuleLogger("flows/upgrade");
 const errorHandler = createModuleErrorHandler("flows/upgrade");
@@ -56,6 +55,15 @@ const RECOVERABLE_STATUSES = new Set([
 let initializationPromise: Promise<void> | null = null;
 let initializedVersion: string | null = null;
 
+function hasPendingContributions(context?: UpgradeFlowContext): boolean {
+  return Boolean(
+    context &&
+    Object.values(context.contributions).some(
+      (item) => item.status !== "completed"
+    )
+  );
+}
+
 function isRecoverableState(
   state: GuidedFlowState | undefined,
   currentVersion: string
@@ -64,7 +72,8 @@ function isRecoverableState(
   return Boolean(
     state &&
     RECOVERABLE_STATUSES.has(state.status) &&
-    context?.currentVersion === currentVersion
+    context?.currentVersion === currentVersion &&
+    hasPendingContributions(context)
   );
 }
 
@@ -76,6 +85,43 @@ function manifestsFromState(
       releaseNotesRegistry.get(version)
     )
     .filter((manifest) => manifest !== undefined);
+}
+
+function releaseNotificationId(manifest: ReleaseNoteManifest): string {
+  return `release-notes:${manifest.version}:r${manifest.revision}`;
+}
+
+async function publishReleaseNoteNotifications(
+  manifests: ReleaseNoteManifest[]
+): Promise<void> {
+  if (manifests.length === 0) return;
+
+  const notificationStore = useNotificationStore();
+  for (const manifest of manifests) {
+    const highlights = manifest.highlights?.length
+      ? `\n\n重点：\n${manifest.highlights.map((item) => `- ${item}`).join("\n")}`
+      : "";
+    notificationStore.upsert(releaseNotificationId(manifest), {
+      title: `AIO Hub v${manifest.version} 版本说明`,
+      content: `${manifest.summary}${highlights}`,
+      type: "system",
+      source: "AIO Hub 更新",
+      metadata: {
+        action: "open-release-notes",
+        data: {
+          versions: [manifest.version],
+          primaryVersion: manifest.version,
+        },
+      },
+    });
+  }
+
+  // 生命周期确认表示版本说明已按当前产品规则投递到持久化通知，
+  // 与 notification.read、阅读面板开关及 migration status 保持分离。
+  await appLifecycleService.acknowledgeReleaseNotes(
+    manifests.map((manifest) => manifest.version),
+    "completed"
+  );
 }
 
 async function detectContributions(
@@ -135,6 +181,8 @@ async function initializeUpgradeFlowInternal(): Promise<void> {
   const automaticManifests = recoverable
     ? manifestsFromState(existingState)
     : releaseNotesRegistry.selectAutomatic(currentVersion, lifecycle);
+  await publishReleaseNoteNotifications(automaticManifests);
+
   const currentManifest = releaseNotesRegistry.get(currentVersion);
   const compositionManifests =
     automaticManifests.length > 0
@@ -151,7 +199,7 @@ async function initializeUpgradeFlowInternal(): Promise<void> {
     .getAll()
     .filter((definition) => Boolean(contributions[definition.id]));
 
-  if (compositionManifests.length > 0 || contributionDefinitions.length > 0) {
+  if (contributionDefinitions.length > 0) {
     const definition = composeUpgradeFlowDefinition({
       currentVersion,
       previousLaunchedVersion: lifecycle.lastLaunchedVersion,
@@ -170,8 +218,7 @@ async function initializeUpgradeFlowInternal(): Promise<void> {
   const hasPendingContribution = Object.values(contributions).some(
     (item) => item.status !== "completed"
   );
-  const shouldTrigger =
-    recoverable || automaticManifests.length > 0 || hasPendingContribution;
+  const shouldTrigger = recoverable || hasPendingContribution;
 
   if (shouldTrigger && guidedFlowRegistry.get(APP_UPGRADE_FLOW_ID)) {
     await guidedFlowManager.trigger(APP_UPGRADE_FLOW_ID);
@@ -228,25 +275,27 @@ export async function openUpgradeFlowForDebug(
   await guidedFlowManager.open(APP_UPGRADE_FLOW_ID, { mode: "restart" });
 }
 
-export async function openCurrentReleaseNotes(): Promise<void> {
+export async function openReleaseNotes(
+  versions: string[],
+  primaryVersion?: string
+): Promise<void> {
   await initializeUpgradeFlow();
+  if (guidedFlowManager.getSnapshot().activeFlow) {
+    throw new Error("请先完成或稍后处理当前升级事项，再查看版本说明");
+  }
+  useReleaseNotesViewerStore().open({ versions, primaryVersion });
+}
+
+export async function openCurrentReleaseNotes(): Promise<void> {
   const currentVersion = normalizeAppVersion(getAppContext().appVersion);
-  if (!releaseNotesRegistry.get(currentVersion)) {
-    throw new Error("此构建未包含当前版本的本地版本说明");
-  }
-  if (!guidedFlowRegistry.get(APP_UPGRADE_FLOW_ID)) {
-    throw new Error("当前版本说明流程尚未注册");
-  }
-  await guidedFlowManager.open(APP_UPGRADE_FLOW_ID, {
-    mode: "replay",
-    context: createManualReplayContext(currentVersion),
-  });
+  await openReleaseNotes([currentVersion], currentVersion);
 }
 
 export async function resumePendingUpgrade(): Promise<void> {
   await initializeUpgradeFlow();
+  const currentVersion = normalizeAppVersion(getAppContext().appVersion);
   const state = guidedFlowManager.getState(APP_UPGRADE_FLOW_ID);
-  if (!state || !RECOVERABLE_STATUSES.has(state.status)) {
+  if (!isRecoverableState(state, currentVersion)) {
     throw new Error("当前没有待继续的升级事项");
   }
   await guidedFlowManager.open(APP_UPGRADE_FLOW_ID, { mode: "resume" });
@@ -255,7 +304,12 @@ export async function resumePendingUpgrade(): Promise<void> {
 function readUpgradeCenterStatus(): UpgradeCenterStatus {
   const currentVersion = normalizeAppVersion(getAppContext().appVersion);
   const state = guidedFlowManager.getState(APP_UPGRADE_FLOW_ID);
-  const pending = Boolean(state && RECOVERABLE_STATUSES.has(state.status));
+  const context = state?.context as UpgradeFlowContext | undefined;
+  const pending = Boolean(
+    state &&
+    RECOVERABLE_STATUSES.has(state.status) &&
+    hasPendingContributions(context)
+  );
   return {
     currentVersion,
     releaseNotesAvailable: Boolean(releaseNotesRegistry.get(currentVersion)),

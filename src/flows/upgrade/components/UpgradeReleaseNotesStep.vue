@@ -4,25 +4,35 @@
   Licensed under the Apache License, Version 2.0 (the "License");
 -->
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { CalendarDays, ChevronDown } from "lucide-vue-next";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import { RendererVersion } from "@/tools/rich-text-renderer/types";
 import { releaseNotesRegistry } from "../releaseNotesRegistry";
-import type { UpgradeFlowContext } from "../types";
 
-const props = defineProps<{ context: UpgradeFlowContext }>();
+const props = defineProps<{
+  versions: string[];
+  primaryVersion?: string;
+}>();
 const expandedVersions = ref<string[]>([]);
 
 const manifests = computed(() =>
-  props.context.releaseVersions
+  props.versions
     .map((version) => releaseNotesRegistry.get(version))
     .filter((manifest) => manifest !== undefined)
     .sort((left, right) => {
-      if (left.version === props.context.primaryReleaseVersion) return -1;
-      if (right.version === props.context.primaryReleaseVersion) return 1;
+      if (left.version === props.primaryVersion) return -1;
+      if (right.version === props.primaryVersion) return 1;
       return 0;
     })
+);
+
+watch(
+  manifests,
+  (items) => {
+    expandedVersions.value = items[0] ? [items[0].version] : [];
+  },
+  { immediate: true }
 );
 </script>
 

@@ -23,6 +23,7 @@ import { useDeepLinkHandler } from "@/composables/useDeepLinkHandler";
 import GlobalProviders from "./components/GlobalProviders.vue";
 import LoadingScreen from "./components/LoadingScreen.vue";
 import GuidedFlowHost from "./components/common/GuidedFlow/GuidedFlowHost.vue";
+import ReleaseNotesPanel from "./flows/upgrade/components/ReleaseNotesPanel.vue";
 
 const MainLayout = defineAsyncComponent(() => import("./views/MainLayout.vue"));
 
@@ -78,6 +79,7 @@ onMounted(async () => {
     <!-- 根据初始化状态切换界面 -->
     <MainLayout v-if="appInitStore.isReady" />
     <GuidedFlowHost v-if="appInitStore.isReady" />
+    <ReleaseNotesPanel v-if="appInitStore.isReady" />
     <LoadingScreen v-else />
   </GlobalProviders>
 </template>

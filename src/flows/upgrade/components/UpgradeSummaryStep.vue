@@ -8,13 +8,8 @@ import { computed } from "vue";
 import type { UpgradeFlowContext } from "../types";
 import UpgradeActionsStep from "./UpgradeActionsStep.vue";
 import UpgradeOverviewStep from "./UpgradeOverviewStep.vue";
-import UpgradeReleaseNotesStep from "./UpgradeReleaseNotesStep.vue";
 
 const props = defineProps<{ context: UpgradeFlowContext }>();
-
-const hasReleaseNotes = computed(
-  () => props.context.releaseVersions.length > 0
-);
 const hasContributions = computed(
   () => Object.keys(props.context.contributions).length > 0
 );
@@ -30,17 +25,9 @@ const hasContributions = computed(
   >
     <UpgradeOverviewStep :context="context" />
 
-    <section v-if="hasReleaseNotes" class="summary-section">
-      <div class="section-heading">
-        <h3>版本说明</h3>
-        <span>点击版本卡片展开完整内容</span>
-      </div>
-      <UpgradeReleaseNotesStep :context="context" />
-    </section>
-
     <section v-if="hasContributions" class="summary-section">
       <div class="section-heading">
-        <h3>升级事项</h3>
+        <h3>待处理事项</h3>
         <span>后续步骤会逐项处理</span>
       </div>
       <UpgradeActionsStep :context="context" />

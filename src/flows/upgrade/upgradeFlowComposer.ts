@@ -18,7 +18,6 @@ import type {
 } from "@/services/guided-flow";
 import UpgradeCompleteStep from "./components/UpgradeCompleteStep.vue";
 import UpgradeSummaryStep from "./components/UpgradeSummaryStep.vue";
-import { appLifecycleService } from "./appLifecycleService";
 import type {
   ReleaseNoteManifest,
   UpgradeContributionDefinition,
@@ -128,40 +127,25 @@ export function composeUpgradeFlowDefinition(
   return {
     id: APP_UPGRADE_FLOW_ID,
     version,
-    title: "版本升级说明",
-    description: `AIO Hub ${input.currentVersion} 的版本变化与待处理事项`,
+    title: "升级事项处理",
+    description: `AIO Hub ${input.currentVersion} 检测到需要确认或执行的升级事项`,
     trigger: "version-changed",
     priority: blockingScope === "application" ? 100 : 50,
     resumable: true,
     dismissible: true,
-    dismissLabel: "稍后查看",
+    dismissLabel: "稍后处理",
     skippable: blockingScope === "none",
-    skipLabel: "跳过本版本说明",
+    skipLabel: "跳过可选事项",
     blockingScope,
     createContext,
-    onCompleted: async (event) => {
-      if (event.mode !== "persistent") return;
-      await appLifecycleService.acknowledgeReleaseNotes(
-        event.context.releaseVersions,
-        "completed"
-      );
-    },
-    onSkipped: async (event) => {
-      if (event.mode !== "persistent") return;
-      await appLifecycleService.acknowledgeReleaseNotes(
-        event.context.releaseVersions,
-        "skipped"
-      );
-    },
     steps: [
       {
         id: "summary",
         title: "版本概览",
-        description: "集中查看版本变化与待处理事项。",
+        description: "确认检测到的升级事项及其影响。",
         component: UpgradeSummaryStep,
         nextLabel: "继续",
-        when: (context) =>
-          context.mode === "automatic" || context.releaseVersions.length > 0,
+        when: (context) => context.mode === "automatic",
       },
       ...contributionSteps,
       {
@@ -172,18 +156,5 @@ export function composeUpgradeFlowDefinition(
         when: (context) => context.mode === "automatic",
       },
     ],
-  };
-}
-
-export function createManualReplayContext(
-  currentVersion: string
-): Partial<UpgradeFlowContext> {
-  return {
-    mode: "manual-replay",
-    currentVersion,
-    releaseVersions: [currentVersion],
-    primaryReleaseVersion: currentVersion,
-    transition: "same-version",
-    contributions: {},
   };
 }

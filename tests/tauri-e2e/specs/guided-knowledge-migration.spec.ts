@@ -28,6 +28,43 @@ interface MigrationPreview {
   sourceVectors: number;
 }
 
+interface SurfaceRect {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}
+
+async function readSurfaceRect(): Promise<SurfaceRect> {
+  return browser.execute(() => {
+    const frame = document.querySelector(
+      ".guided-flow-surface__frame"
+    ) as HTMLElement | null;
+    if (!frame) throw new Error("Guided Flow surface frame is missing.");
+    const rect = frame.getBoundingClientRect();
+    return {
+      top: rect.top,
+      left: rect.left,
+      width: rect.width,
+      height: rect.height,
+    };
+  });
+}
+
+function expectStableSurface(
+  expected: SurfaceRect,
+  actual: SurfaceRect,
+  stage: string
+): void {
+  for (const key of ["top", "left", "width", "height"] as const) {
+    if (Math.abs(expected[key] - actual[key]) > 1) {
+      throw new Error(
+        `Guided Flow surface geometry changed during ${stage}: ${JSON.stringify({ expected, actual })}`
+      );
+    }
+  }
+}
+
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`${name} is required for migration E2E.`);
@@ -87,7 +124,46 @@ migrationDescribe("Guided legacy Knowledge migration", () => {
     const expectedIssues = expectedCount("AIO_E2E_MIGRATION_EXPECTED_ISSUES");
     const artifactDir = requiredEnv("AIO_E2E_ARTIFACT_DIR");
 
+    const surface = await $("[data-testid='guided-flow-surface']");
+    await surface.waitForDisplayed({ timeout: 30_000 });
+    const titleBar = await $(".title-bar");
+    await titleBar.waitForDisplayed({ timeout: 10_000 });
+    const backgroundState = await browser.execute(() => {
+      const titleBar = document.querySelector(
+        ".title-bar"
+      ) as HTMLElement | null;
+      const surface = document.querySelector(
+        ".guided-flow-surface"
+      ) as HTMLElement | null;
+      const layout = document.querySelector(
+        ".common-layout"
+      ) as HTMLElement | null;
+      if (!titleBar || !surface || !layout) return null;
+      return {
+        titleBottom: titleBar.getBoundingClientRect().bottom,
+        surfaceTop: surface.getBoundingClientRect().top,
+        visibility: getComputedStyle(layout).visibility,
+        inert: layout.hasAttribute("inert"),
+      };
+    });
+    if (
+      !backgroundState ||
+      Math.abs(backgroundState.titleBottom - backgroundState.surfaceTop) > 1 ||
+      backgroundState.visibility !== "hidden" ||
+      !backgroundState.inert
+    ) {
+      throw new Error(
+        `Guided Flow did not preserve the title bar and hide the mounted main layout: ${JSON.stringify(backgroundState)}`
+      );
+    }
+    const initialSurfaceRect = await readSurfaceRect();
+
     await advanceToStep("contribution:knowledge-migration:migration");
+    expectStableSurface(
+      initialSurfaceRect,
+      await readSurfaceRect(),
+      "overview-to-migration transition"
+    );
     await $(".migration-step").waitForDisplayed();
     if (
       (await exactMetricValue(
@@ -142,6 +218,11 @@ migrationDescribe("Guided legacy Knowledge migration", () => {
     await $(".verify-step .status-grid").waitForDisplayed({
       timeout: 60_000,
     });
+    expectStableSurface(
+      initialSurfaceRect,
+      await readSurfaceRect(),
+      "migration verification"
+    );
 
     const preview = await invokeTauriCommand<MigrationPreview | null>(
       "recall_preview_legacy_migration"
@@ -221,6 +302,27 @@ migrationDescribe("Guided legacy Knowledge migration", () => {
         timeoutMsg: "Guided Flow did not persist the completed migration flow.",
       }
     );
+
+    const restoredLayout = await browser.execute(() => {
+      const layout = document.querySelector(
+        ".common-layout"
+      ) as HTMLElement | null;
+      return layout
+        ? {
+            visibility: getComputedStyle(layout).visibility,
+            inert: layout.hasAttribute("inert"),
+          }
+        : null;
+    });
+    if (
+      !restoredLayout ||
+      restoredLayout.visibility === "hidden" ||
+      restoredLayout.inert
+    ) {
+      throw new Error(
+        `Main layout was not restored after Guided Flow closed: ${JSON.stringify(restoredLayout)}`
+      );
+    }
 
     fs.writeFileSync(
       path.join(artifactDir, "migration-result.json"),

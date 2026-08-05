@@ -15,9 +15,19 @@
 import { defineStore } from "pinia";
 import { ref, computed, watch } from "vue";
 import type { Notification, NotificationType } from "@/types/notification";
+import { createModuleLogger } from "@/utils/logger";
 
 const STORAGE_KEY = "app-notifications";
 const STORAGE_KEY_INIT = "app-notifications-initialized";
+const logger = createModuleLogger("stores/notification");
+
+interface NotificationPayload {
+  title: string;
+  content: string;
+  type?: NotificationType;
+  source?: string;
+  metadata?: Notification["metadata"];
+}
 
 export const useNotificationStore = defineStore("notification", () => {
   const notifications = ref<Notification[]>([]);
@@ -43,7 +53,7 @@ export const useNotificationStore = defineStore("notification", () => {
         localStorage.setItem(STORAGE_KEY_INIT, "true");
       }
     } catch (error) {
-      console.error("Failed to load notifications from localStorage", error);
+      logger.error("从本地存储加载通知失败", error);
     }
   };
 
@@ -53,7 +63,7 @@ export const useNotificationStore = defineStore("notification", () => {
       try {
         notifications.value = JSON.parse(event.newValue);
       } catch (error) {
-        console.error("Failed to sync notifications from storage event", error);
+        logger.error("跨窗口同步通知失败", error);
       }
     }
   });
@@ -65,7 +75,7 @@ export const useNotificationStore = defineStore("notification", () => {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(newVal));
       } catch (error) {
-        console.error("Failed to save notifications to localStorage", error);
+        logger.error("持久化通知失败", error);
       }
     },
     { deep: true }
@@ -81,24 +91,38 @@ export const useNotificationStore = defineStore("notification", () => {
   );
 
   // Actions
-  const push = (payload: {
-    title: string;
-    content: string;
-    type?: NotificationType;
-    source?: string;
-    metadata?: Notification["metadata"];
-  }) => {
-    const newNotification: Notification = {
-      id: crypto.randomUUID(),
-      title: payload.title,
-      content: payload.content,
-      type: payload.type || "info",
-      timestamp: Date.now(),
-      read: false,
-      source: payload.source,
-      metadata: payload.metadata,
-    };
-    notifications.value.push(newNotification);
+  const createNotification = (
+    id: string,
+    payload: NotificationPayload
+  ): Notification => ({
+    id,
+    title: payload.title,
+    content: payload.content,
+    type: payload.type || "info",
+    timestamp: Date.now(),
+    read: false,
+    source: payload.source,
+    metadata: payload.metadata,
+  });
+
+  const push = (payload: NotificationPayload) => {
+    const notification = createNotification(crypto.randomUUID(), payload);
+    notifications.value.push(notification);
+    return notification.id;
+  };
+
+  const upsert = (id: string, payload: NotificationPayload) => {
+    const existing = notifications.value.find((item) => item.id === id);
+    if (!existing) {
+      notifications.value.push(createNotification(id, payload));
+      return;
+    }
+
+    existing.title = payload.title;
+    existing.content = payload.content;
+    existing.type = payload.type || "info";
+    existing.source = payload.source;
+    existing.metadata = payload.metadata;
   };
 
   const markRead = (id: string) => {
@@ -137,6 +161,7 @@ export const useNotificationStore = defineStore("notification", () => {
     unreadCount,
     sortedNotifications,
     push,
+    upsert,
     markRead,
     markAllRead,
     remove,

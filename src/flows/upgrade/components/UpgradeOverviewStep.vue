@@ -5,17 +5,10 @@
 -->
 <script setup lang="ts">
 import { computed } from "vue";
-import { ArrowRight, Sparkles } from "lucide-vue-next";
-import { releaseNotesRegistry } from "../releaseNotesRegistry";
+import { ArrowRight, ListChecks } from "lucide-vue-next";
 import type { UpgradeFlowContext } from "../types";
 
 const props = defineProps<{ context: UpgradeFlowContext }>();
-
-const manifests = computed(() =>
-  props.context.releaseVersions
-    .map((version) => releaseNotesRegistry.get(version))
-    .filter((manifest) => manifest !== undefined)
-);
 const contributionCount = computed(
   () => Object.keys(props.context.contributions).length
 );
@@ -23,14 +16,14 @@ const transitionLabel = computed(() => {
   switch (props.context.transition) {
     case "upgrade":
       return props.context.previousLaunchedVersion
-        ? `从 ${props.context.previousLaunchedVersion} 升级完成`
-        : "版本升级完成";
+        ? `从 ${props.context.previousLaunchedVersion} 升级后检测`
+        : "版本升级后检测";
     case "downgrade":
-      return "当前正在运行此版本";
+      return "当前版本检测";
     case "same-version":
-      return "当前版本说明";
+      return "待处理事项恢复";
     default:
-      return "欢迎使用当前版本";
+      return "首次数据检测";
   }
 });
 </script>
@@ -38,7 +31,7 @@ const transitionLabel = computed(() => {
 <template>
   <section class="upgrade-overview">
     <div class="version-mark" aria-hidden="true">
-      <Sparkles :size="22" />
+      <ListChecks :size="22" />
     </div>
     <div class="overview-copy">
       <span>{{ transitionLabel }}</span>
@@ -46,13 +39,13 @@ const transitionLabel = computed(() => {
         <strong>v{{ context.currentVersion }}</strong>
         <template v-if="context.previousLaunchedVersion">
           <ArrowRight :size="16" />
-          <small>已安装</small>
+          <small>当前</small>
         </template>
       </div>
       <p>
-        {{ manifests.length }} 份版本说明<span v-if="contributionCount"
-          >，{{ contributionCount }} 个待处理事项</span
-        >。先浏览摘要，详细内容按需展开。
+        检测到
+        {{ contributionCount }}
+        个需要确认或执行的升级事项。版本说明已移至消息中心和“设置 → 关于”。
       </p>
     </div>
   </section>

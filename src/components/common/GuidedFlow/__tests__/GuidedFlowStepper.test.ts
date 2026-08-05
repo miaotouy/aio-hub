@@ -15,18 +15,20 @@ const steps = [
 ];
 
 describe("GuidedFlowStepper", () => {
-  it("only renders the current step title while preserving accessible labels", () => {
+  it("renders the complete rail while preserving the current-step label", () => {
     const wrapper = mount(GuidedFlowStepper, {
       props: { steps, currentStepId: "plan" },
     });
 
     expect(wrapper.findAll(".step-title").map((item) => item.text())).toEqual([
+      "版本概览",
       "迁移方案与确认",
+      "迁移与校验",
     ]);
     expect(wrapper.find('[aria-current="step"]').text()).toContain(
       "第 2 步：迁移方案与确认"
     );
-    expect(wrapper.findAll(".step-dot")).toHaveLength(3);
+    expect(wrapper.findAll(".step-marker")).toHaveLength(3);
     expect(wrapper.findAll(".step-connector")).toHaveLength(2);
   });
 });

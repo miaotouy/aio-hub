@@ -22,7 +22,7 @@
  *   bun run test:run
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { toolRegistryManager } from "@/services/registry";
 import { VcpToolCallingProtocol } from "../core/protocols/vcp-protocol";
 import { parseToolRequests } from "../core/parser";
@@ -403,7 +403,7 @@ path:「始」/tmp/test「末」
     expect(results[0].result).toBe("read:/tmp/test");
   });
 
-  it("需要审批的方法在 auto 模式下自动通过", async () => {
+  it("安全策略要求审批时不受 auto 模式绕过", async () => {
     const requests = parseToolRequests(
       `<<<[TOOL_REQUEST]>>>
 tool_name:「始」mock-security「末」,
@@ -414,19 +414,42 @@ content:「始」data「末」
       protocol
     );
 
-    // auto 模式 + 工具级自动批准 = 自动通过
+    const autoConfig: ToolCallConfig = {
+      ...defaultConfig,
+      mode: "auto",
+      autoApproveTools: { "mock-security": true },
+    };
+    const onBeforeExecute = vi.fn(async () => "approved" as const);
+
+    const results = await executeToolRequests(requests, {
+      config: autoConfig,
+      onBeforeExecute,
+    });
+
+    expect(onBeforeExecute).toHaveBeenCalledTimes(1);
+    expect(results[0].status).toBe("success");
+    expect(results[0].result).toContain("wrote to /tmp/test");
+  });
+
+  it("安全策略要求审批但没有可用审批回调时默认拒绝", async () => {
+    const requests = parseToolRequests(
+      `<<<[TOOL_REQUEST]>>>
+tool_name:「始」mock-security「末」,
+command:「始」dangerousWrite「末」,
+path:「始」/tmp/test「末」,
+content:「始」data「末」
+<<<[END_TOOL_REQUEST]>>>`,
+      protocol
+    );
     const autoConfig: ToolCallConfig = {
       ...defaultConfig,
       mode: "auto",
       autoApproveTools: { "mock-security": true },
     };
 
-    const results = await executeToolRequests(requests, {
-      config: autoConfig,
-    });
+    const results = await executeToolRequests(requests, { config: autoConfig });
 
-    expect(results[0].status).toBe("success");
-    expect(results[0].result).toContain("wrote to /tmp/test");
+    expect(results[0].status).toBe("denied");
   });
 
   it("需要审批的方法在 manual 模式下被拒绝", async () => {

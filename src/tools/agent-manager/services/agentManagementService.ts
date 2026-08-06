@@ -28,6 +28,7 @@ import { getLocalISOString } from "@/utils/time";
 import { stripDefaultContextCompressionPromptsFromParameters } from "@/tools/llm-chat/types/llm";
 import type { ChatMessageNode } from "@/tools/llm-chat/types/message";
 import type { ChatAgent } from "../types/agent";
+import type { ToolContext } from "@/services/types";
 import { migrateAgent } from "./agentMigrationService";
 
 const logger = createModuleLogger("llm-chat/agentManagementService");
@@ -88,6 +89,36 @@ const SECTION_FIELDS: Record<string, string[]> = {
     "defaultToolCallCollapsed",
   ],
 };
+
+const SECURITY_SENSITIVE_AGENT_PATHS = ["toolCallConfig"] as const;
+
+/**
+ * 工具审批策略本身仍允许由 Agent 辅助编辑，但必须经过一次不可被当前
+ * 自动批准配置绕过的本地确认，以保留产品功能同时阻断静默提权链。
+ */
+export function isSecuritySensitiveAgentFieldPath(path: string): boolean {
+  const normalized = path.trim();
+  return SECURITY_SENSITIVE_AGENT_PATHS.some(
+    (prefix) => normalized === prefix || normalized.startsWith(`${prefix}.`)
+  );
+}
+
+export function getAgentFieldSecurityPolicy(
+  methodName: string,
+  args: Record<string, unknown>
+): { status: "allow" | "approve"; message?: string } {
+  if (
+    methodName === "set_agent_field" &&
+    typeof args.path === "string" &&
+    isSecuritySensitiveAgentFieldPath(args.path)
+  ) {
+    return {
+      status: "approve",
+      message: "修改工具启用、自动批准或权限覆盖配置需要本地独立确认",
+    };
+  }
+  return { status: "allow" };
+}
 
 // ============================================================
 // 路径解析器
@@ -491,11 +522,14 @@ export async function export_agent_as_text(params: {
 /**
  * 5. set_agent_field - 路径式设置字段值（核心编辑方法）
  */
-export async function set_agent_field(params: {
-  agentId: string;
-  path: string;
-  value: string;
-}): Promise<string> {
+export async function set_agent_field(
+  params: {
+    agentId: string;
+    path: string;
+    value: string;
+  },
+  context?: Pick<ToolContext, "agent" | "requestId">
+): Promise<string> {
   try {
     const agentStore = useAgentStore();
 
@@ -560,8 +594,11 @@ export async function set_agent_field(params: {
     const newDisplay = formatValueForDisplay(newValue);
 
     logger.info("set_agent_field 成功", {
-      agentId: params.agentId,
+      targetAgentId: params.agentId,
+      actorAgentId: context?.agent?.id,
+      requestId: context?.requestId,
       path: params.path,
+      securitySensitive: isSecuritySensitiveAgentFieldPath(params.path),
       oldValue: oldDisplay,
       newValue: newDisplay,
     });

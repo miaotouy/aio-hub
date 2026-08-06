@@ -28,6 +28,7 @@ import type {
   ToolRegistry,
   ToolConfig,
   ServiceMetadata,
+  ToolContext,
 } from "@/services/types";
 import type { DetachableComponentRegistration } from "@/types/detachable";
 import { markRaw, computed, type Ref } from "vue";
@@ -267,6 +268,10 @@ const agentManagement: ToolRegistry = {
   name: "智能体管理",
   description: "管理 LLM 聊天智能体的配置、预设消息和导入导出",
 
+  checkSecurityPolicy(methodName: string, args: Record<string, unknown>) {
+    return agentManagementService.getAgentFieldSecurityPolicy(methodName, args);
+  },
+
   getMetadata(): ServiceMetadata {
     return {
       methods: [
@@ -347,7 +352,8 @@ const agentManagement: ToolRegistry = {
         {
           name: "set_agent_field",
           displayName: "设置字段",
-          description: "通过路径式定位设置智能体配置字段的值",
+          description:
+            "通过路径式定位设置智能体配置字段的值；工具审批策略相关路径会强制要求本地独立确认",
           parameters: [
             {
               name: "agentId",
@@ -555,12 +561,15 @@ const agentManagement: ToolRegistry = {
     return await agentManagementService.export_agent_as_text(args);
   },
 
-  async set_agent_field(args: {
-    agentId: string;
-    path: string;
-    value: string;
-  }): Promise<string> {
-    return await agentManagementService.set_agent_field(args);
+  async set_agent_field(
+    args: {
+      agentId: string;
+      path: string;
+      value: string;
+    },
+    context?: ToolContext
+  ): Promise<string> {
+    return await agentManagementService.set_agent_field(args, context);
   },
 
   async find_replace_in_presets(args: {

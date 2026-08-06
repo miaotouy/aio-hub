@@ -261,7 +261,9 @@ async function executeSingleRequest(
     const approvalResult = approvalCache?.has(request.requestId)
       ? await approvalCache.get(request.requestId)
       : await options.onBeforeExecute?.(request);
-    if (approvalResult === false || approvalResult === "rejected") {
+    const explicitlyApproved =
+      approvalResult === true || approvalResult === "approved";
+    if (!explicitlyApproved) {
       // 尝试通知工具实例执行清理逻辑
       try {
         if (

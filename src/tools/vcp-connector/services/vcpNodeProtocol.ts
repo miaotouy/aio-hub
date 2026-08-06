@@ -15,7 +15,6 @@
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { toolRegistryManager } from "@/services/registry";
-import { invoke } from "@tauri-apps/api/core";
 import { useVcpDistributedStore } from "../stores/vcpDistributedStore";
 import { vcpBridgeFactory } from "./VcpBridgeFactory";
 import { useToolCallingStore } from "@/tools/llm-chat/stores/toolCallingStore";
@@ -29,10 +28,17 @@ import type {
   VcpToolApprovalRequest,
 } from "../types/distributed";
 import type { ToolContext } from "@/services/types";
+import {
+  inspectFileForExternalTransfer,
+  readFileForExternalTransfer,
+} from "@/tools/aio-file-operator/actions";
 
 const logger = createModuleLogger("vcp-connector/node-protocol");
 const errorHandler = createModuleErrorHandler("vcp-connector/node-protocol");
 const DISTRIBUTED_TOOL_TIMEOUT_MS = 115_000;
+const EXTERNAL_FILE_RATE_WINDOW_MS = 60_000;
+const EXTERNAL_FILE_RATE_LIMIT = 20;
+const EXTERNAL_FILE_MAX_CONCURRENCY = 2;
 
 interface NormalizedExecuteToolRequest {
   requestId: string;
@@ -158,8 +164,13 @@ async function withDistributedTimeout<T>(
 
 export class VcpNodeProtocol {
   private readonly inFlightControllers = new Map<string, AbortController>();
+  private readonly externalFileRequestTimes: number[] = [];
+  private externalFileTransfersInFlight = 0;
 
-  constructor(private sendJson: (data: any) => void) {}
+  constructor(
+    private sendJson: (data: any) => void,
+    private readonly serverId = "unknown-vcp-server"
+  ) {}
 
   /**
    * Best-effort cancellation for the optional distributed cancel_tool frame.
@@ -471,47 +482,124 @@ export class VcpNodeProtocol {
   /**
    * 处理内置文件请求工具
    */
-  private async handleInternalRequestFile(requestId: string, args: any) {
-    const fileUrl = args.fileUrl as string;
-    if (!fileUrl) throw new Error("Missing fileUrl in internal_request_file");
-
-    let filePath = "";
-    try {
-      const url = new URL(fileUrl);
-      let decodedPath = decodeURIComponent(url.pathname);
-      // Windows 下 url.pathname 可能是 "/C:/Users/..."，需要去掉开头的斜杠
-      if (decodedPath.startsWith("/") && decodedPath.match(/^\/[a-zA-Z]:/)) {
-        decodedPath = decodedPath.slice(1);
-      }
-      filePath = decodedPath;
-    } catch (e) {
-      // fallback
-      filePath = decodeURIComponent(
-        fileUrl.replace(/^file:\/\/\//, "").replace(/^file:\/\//, "")
-      );
+  private parseLocalFileUrl(fileUrl: unknown): string {
+    if (typeof fileUrl !== "string" || !fileUrl.trim()) {
+      throw new Error("internal_request_file 缺少 fileUrl");
     }
 
-    logger.info(`Handling internal_request_file: ${filePath}`);
+    let url: URL;
+    try {
+      url = new URL(fileUrl);
+    } catch {
+      throw new Error("internal_request_file 只接受格式正确的 file:// URL");
+    }
+    if (url.protocol !== "file:") {
+      throw new Error("internal_request_file 只接受 file:// URL");
+    }
+    if (url.username || url.password || url.port || url.search || url.hash) {
+      throw new Error("file:// URL 不允许凭据、端口、查询参数或片段");
+    }
+    if (url.hostname && url.hostname !== "localhost") {
+      throw new Error("internal_request_file 不允许 UNC 或远程主机路径");
+    }
 
-    // 1. 读取文件为 Base64
-    const fileData = await invoke<string>("read_file_as_base64", {
-      path: filePath,
-    });
+    let filePath = decodeURIComponent(url.pathname);
+    if (/^\/[a-zA-Z]:/.test(filePath)) filePath = filePath.slice(1);
+    if (
+      !filePath ||
+      (!filePath.startsWith("/") && !/^[a-zA-Z]:[\/]/.test(filePath))
+    ) {
+      throw new Error("file:// URL 必须解析为本机绝对路径");
+    }
+    return filePath;
+  }
 
-    // 2. 检测 MIME 类型 (使用后端能力)
-    const mimeType = await invoke<string>("get_file_mime_type", {
-      path: filePath,
-    });
+  private assertExternalFileRateLimit(): void {
+    const now = Date.now();
+    while (
+      this.externalFileRequestTimes.length > 0 &&
+      now - this.externalFileRequestTimes[0] >= EXTERNAL_FILE_RATE_WINDOW_MS
+    ) {
+      this.externalFileRequestTimes.shift();
+    }
+    if (this.externalFileTransfersInFlight >= EXTERNAL_FILE_MAX_CONCURRENCY) {
+      throw new Error("外部文件传输并发请求过多，请稍后重试");
+    }
+    if (this.externalFileRequestTimes.length >= EXTERNAL_FILE_RATE_LIMIT) {
+      throw new Error("外部文件传输请求过于频繁，请稍后重试");
+    }
+    this.externalFileRequestTimes.push(now);
+  }
 
-    // 3. 回传结果
-    this.sendToolResult({
-      requestId,
-      status: "success",
-      result: {
-        status: "success", // 🌟 必须嵌套 status: "success"
-        fileData,
-        mimeType,
-      },
-    });
+  private async handleInternalRequestFile(requestId: string, args: any) {
+    const distStore = useVcpDistributedStore();
+    if (!distStore.config.externalFileTransferEnabled) {
+      throw new Error("当前节点已关闭 VCP 外部文件传输能力");
+    }
+
+    this.assertExternalFileRateLimit();
+    this.externalFileTransfersInFlight += 1;
+    try {
+      const filePath = this.parseLocalFileUrl(args.fileUrl);
+      const inspection = await inspectFileForExternalTransfer(filePath);
+      let approvalGranted = inspection.policy === "allow";
+
+      if (inspection.policy === "approve") {
+        const toolCallingStore = useToolCallingStore();
+        const approvalRequest = {
+          requestId,
+          toolId: "vcp-external-file-transfer",
+          methodName: "read_file",
+          toolName: "VCP 外部文件传输",
+          rawBlock: JSON.stringify(
+            {
+              serverId: this.serverId,
+              requestId,
+              path: inspection.normalizedPath,
+              size: inspection.size,
+              mimeType: inspection.mimeType,
+            },
+            null,
+            2
+          ),
+          args: {
+            serverId: this.serverId,
+            requestId,
+            path: inspection.normalizedPath,
+            size: inspection.size,
+            mimeType: inspection.mimeType,
+          },
+        };
+        const result = await withDistributedTimeout(
+          toolCallingStore.requestApproval(
+            `vcp-file-transfer:${this.serverId}`,
+            approvalRequest as any,
+            requestId
+          ),
+          "VCP 文件传输审批"
+        );
+        approvalGranted = result === "approved";
+        if (!approvalGranted) throw new Error("用户拒绝了外部文件传输请求");
+      }
+
+      const result = await readFileForExternalTransfer({
+        path: filePath,
+        source: { type: "vcp", serverId: this.serverId, requestId },
+        approvalGranted,
+      });
+
+      this.sendToolResult({
+        requestId,
+        status: "success",
+        result: {
+          status: "success",
+          fileData: result.fileData,
+          mimeType: result.mimeType,
+          size: result.size,
+        },
+      });
+    } finally {
+      this.externalFileTransfersInFlight -= 1;
+    }
   }
 }

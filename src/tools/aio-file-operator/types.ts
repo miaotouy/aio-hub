@@ -91,6 +91,27 @@ export interface SecurityRule {
   type: "block" | "approve";
 }
 
+/** 外部文件传输来源，仅用于安全审批与审计。 */
+export interface ExternalFileTransferSource {
+  type: "vcp";
+  serverId: string;
+  requestId: string;
+}
+
+export interface ExternalFileTransferInspection {
+  normalizedPath: string;
+  size: number;
+  mimeType: string;
+  policy: "allow" | "approve";
+}
+
+export interface ExternalFileTransferResult {
+  normalizedPath: string;
+  size: number;
+  mimeType: string;
+  fileData: string;
+}
+
 /** 工具配置 */
 export interface AioFileOperatorConfig {
   /** 允许访问的沙箱目录列表（白名单） */

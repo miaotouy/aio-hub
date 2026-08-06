@@ -21,6 +21,8 @@ export interface VcpDistributedConfig {
   disabledToolIds: string[];
   /** 是否自动发现并注册所有 AI 工具 (agentCallable) */
   autoRegisterTools: boolean;
+  /** 是否允许 VCP 服务端请求本地文件传输（仍受文件安全策略与审批约束） */
+  externalFileTransferEnabled: boolean;
   /** 是否开启桥接 VCP 工具功能 */
   enableBridge: boolean;
   /** 被禁用的桥接工具/命令 ID 列表 (格式: toolName 或 toolName:command) */

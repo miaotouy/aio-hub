@@ -86,6 +86,10 @@ graph TB
     Act --> Diff
 ```
 
+## 3.1. 受信任的外部原始文件传输
+
+`actions.ts` 额外提供不属于 `agentCallable` 的 `inspectFileForExternalTransfer()` 与 `readFileForExternalTransfer()`，供 VCP 等受信任协议适配层复用。Rust 命令负责真实路径解析、白名单/死区/审批区判断、大小检查和原始字节读取；前端仅编排本地审批并记录不含文件内容的审计信息。协议层不能直接调用通用 `read_file_as_base64` 绕过该边界。
+
 ## 4. Agent 调用集成
 
 `aio-file-operator.registry.ts` 同时承担工具 UI 注册和 Agent 方法暴露：

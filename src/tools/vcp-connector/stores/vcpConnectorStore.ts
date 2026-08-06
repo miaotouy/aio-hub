@@ -646,7 +646,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
           if (distributedWs.value?.readyState === WebSocket.OPEN) {
             distributedWs.value.send(JSON.stringify(data));
           }
-        });
+        }, fullUrl);
 
         distStore.setStatus("connected");
 

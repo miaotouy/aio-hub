@@ -157,6 +157,12 @@ export function useVcpDistributedNode() {
 
     // 4. 处理内置工具 (强制暴露)
     for (const tool of BUILTIN_VCP_TOOLS) {
+      if (
+        tool.name === "internal_request_file" &&
+        !distStore.config.externalFileTransferEnabled
+      ) {
+        continue;
+      }
       if (!manifest.some((m) => m.name === tool.name)) {
         manifest.push(tool);
       }

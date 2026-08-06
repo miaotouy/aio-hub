@@ -27,6 +27,9 @@ import type {
   FileOperationResult,
   OperationLogEntry,
   AioFileOperatorConfig,
+  ExternalFileTransferInspection,
+  ExternalFileTransferResult,
+  ExternalFileTransferSource,
 } from "./types";
 
 const errorHandler = createModuleErrorHandler("AioFileOperator/Actions");
@@ -35,6 +38,7 @@ export const configManager = createConfigManager<AioFileOperatorConfig>({
   moduleName: "aio-file-operator",
   fileName: "config.json",
   createDefault: () => DEFAULT_CONFIG,
+  mergeConfig: (defaults, loaded) => ({ ...defaults, ...loaded }),
 });
 
 export const logManager = createConfigManager<{ logs: OperationLogEntry[] }>({
@@ -574,5 +578,74 @@ export async function pathExists(path: string): Promise<FileOperationResult> {
     return result;
   } catch (error: any) {
     return buildErrorResult("pathExists", { path }, error, "检查路径失败");
+  }
+}
+
+function externalTransferInvokeArgs(path: string) {
+  return {
+    path,
+    allowedDirectories: currentConfig.allowedDirectories,
+    blackListRules: currentConfig.blackListRules,
+    sandboxMode: currentConfig.sandboxMode,
+    maxFileSize: currentConfig.maxFileSize,
+  };
+}
+
+/**
+ * 在不读取文件内容的前提下解析真实路径、大小、MIME 与安全策略。
+ * 该接口不暴露为 Agent 工具，仅供受信任的协议适配层使用。
+ */
+export async function inspectFileForExternalTransfer(
+  path: string
+): Promise<ExternalFileTransferInspection> {
+  await ensureInitialized();
+  return await invoke<ExternalFileTransferInspection>(
+    "inspect_file_for_external_transfer",
+    externalTransferInvokeArgs(path)
+  );
+}
+
+/**
+ * 通过 Rust 原子安全读取命令传输原始字节。Rust 会再次解析真实路径、
+ * 校验沙箱/规则/大小，并在审批区要求 approvalGranted=true。
+ */
+export async function readFileForExternalTransfer(params: {
+  path: string;
+  source: ExternalFileTransferSource;
+  approvalGranted: boolean;
+}): Promise<ExternalFileTransferResult> {
+  await ensureInitialized();
+  const auditParams = {
+    sourceType: params.source.type,
+    serverId: params.source.serverId,
+    requestId: params.source.requestId,
+    path: params.path,
+  };
+
+  try {
+    const result = await invoke<ExternalFileTransferResult>(
+      "read_file_for_external_transfer",
+      {
+        ...externalTransferInvokeArgs(params.path),
+        approvalGranted: params.approvalGranted,
+      }
+    );
+    recordLog("externalFileTransfer", auditParams, {
+      success: true,
+      message: `已安全传输文件: ${result.normalizedPath}`,
+      data: {
+        normalizedPath: result.normalizedPath,
+        size: result.size,
+        mimeType: result.mimeType,
+      },
+    });
+    return result;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    recordLog("externalFileTransfer", auditParams, {
+      success: false,
+      message,
+    });
+    throw error;
   }
 }

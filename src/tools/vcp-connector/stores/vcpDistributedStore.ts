@@ -32,9 +32,11 @@ const configManager = createConfigManager<VcpDistributedConfig>({
     exposedToolIds: [],
     disabledToolIds: [],
     autoRegisterTools: true,
+    externalFileTransferEnabled: true,
     enableBridge: true,
     disabledBridgeToolIds: [],
   }),
+  mergeConfig: (defaults, loaded) => ({ ...defaults, ...loaded }),
 });
 
 export const useVcpDistributedStore = defineStore("vcp-distributed", () => {
@@ -49,6 +51,7 @@ export const useVcpDistributedStore = defineStore("vcp-distributed", () => {
     exposedToolIds: [],
     disabledToolIds: [],
     autoRegisterTools: true,
+    externalFileTransferEnabled: true,
     enableBridge: true,
     disabledBridgeToolIds: [],
   });

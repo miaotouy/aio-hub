@@ -68,6 +68,16 @@
             自动注册工具
           </el-checkbox>
         </div>
+        <div class="form-item">
+          <el-checkbox
+            :model-value="distStore.config.externalFileTransferEnabled"
+            @update:model-value="
+              distStore.updateConfig({ externalFileTransferEnabled: $event })
+            "
+          >
+            允许安全文件传输
+          </el-checkbox>
+        </div>
       </div>
 
       <div class="form-item">

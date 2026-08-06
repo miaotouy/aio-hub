@@ -1301,6 +1301,277 @@ mod security_path_tests {
             fs::canonicalize(&outside).unwrap().join("file.txt")
         );
     }
+
+    fn external_rule(path: &Path, rule_type: &str) -> ExternalTransferSecurityRule {
+        ExternalTransferSecurityRule {
+            path: path.to_string_lossy().to_string(),
+            rule_type: rule_type.to_string(),
+        }
+    }
+
+    #[test]
+    fn external_transfer_enforces_whitelist_boundaries_and_size() {
+        let temp = tempdir().unwrap();
+        let allowed = temp.path().join("allowed");
+        let prefix_collision = temp.path().join("allowed-copy");
+        fs::create_dir_all(&allowed).unwrap();
+        fs::create_dir_all(&prefix_collision).unwrap();
+        let allowed_file = allowed.join("small.txt");
+        let outside_file = prefix_collision.join("small.txt");
+        fs::write(&allowed_file, b"ok").unwrap();
+        fs::write(&outside_file, b"no").unwrap();
+        let allowed_dirs = vec![allowed.to_string_lossy().to_string()];
+
+        let inspection =
+            inspect_external_transfer_impl(&allowed_file, &allowed_dirs, &[], "whitelist", 2)
+                .unwrap();
+        assert_eq!(inspection.policy, "allow");
+        assert_eq!(inspection.size, 2);
+
+        assert!(
+            inspect_external_transfer_impl(&outside_file, &allowed_dirs, &[], "whitelist", 2,)
+                .is_err()
+        );
+        assert!(
+            inspect_external_transfer_impl(&allowed_file, &allowed_dirs, &[], "whitelist", 1,)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn external_transfer_requires_approval_and_blocks_dead_zones() {
+        let temp = tempdir().unwrap();
+        let allowed = temp.path().join("allowed");
+        let approve = allowed.join("approve");
+        let blocked = approve.join("blocked");
+        fs::create_dir_all(&blocked).unwrap();
+        let approval_file = approve.join("approval.txt");
+        let blocked_file = blocked.join("blocked.txt");
+        fs::write(&approval_file, b"approval").unwrap();
+        fs::write(&blocked_file, b"blocked").unwrap();
+        let allowed_dirs = vec![allowed.to_string_lossy().to_string()];
+        let rules = vec![
+            external_rule(&approve, "approve"),
+            external_rule(&blocked, "block"),
+        ];
+
+        let inspection = inspect_external_transfer_impl(
+            &approval_file,
+            &allowed_dirs,
+            &rules,
+            "whitelist",
+            1024,
+        )
+        .unwrap();
+        assert_eq!(inspection.policy, "approve");
+        assert!(inspect_external_transfer_impl(
+            &blocked_file,
+            &allowed_dirs,
+            &rules,
+            "whitelist",
+            1024,
+        )
+        .is_err());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn external_transfer_rejects_unc_paths() {
+        assert!(inspect_external_transfer_impl(
+            Path::new(r"\\server\share\file.txt"),
+            &[],
+            &[],
+            "blacklist",
+            1024,
+        )
+        .is_err());
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalTransferSecurityRule {
+    pub path: String,
+    #[serde(rename = "type")]
+    pub rule_type: String,
+}
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalTransferInspection {
+    pub normalized_path: String,
+    pub size: u64,
+    pub mime_type: String,
+    pub policy: String,
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalTransferReadResult {
+    pub normalized_path: String,
+    pub size: u64,
+    pub mime_type: String,
+    pub file_data: String,
+}
+
+fn is_unc_path(path: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        let value = path.as_os_str().to_string_lossy();
+        value.starts_with(r"\\")
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = path;
+        false
+    }
+}
+
+fn path_is_within(target: &Path, root: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        let target = target.to_string_lossy().replace('\\', "/").to_lowercase();
+        let root = root.to_string_lossy().replace('\\', "/").to_lowercase();
+        target == root || target.starts_with(&format!("{}/", root.trim_end_matches('/')))
+    }
+    #[cfg(not(windows))]
+    {
+        target == root || target.starts_with(root)
+    }
+}
+
+fn inspect_external_transfer_impl(
+    path: &Path,
+    allowed_directories: &[String],
+    black_list_rules: &[ExternalTransferSecurityRule],
+    sandbox_mode: &str,
+    max_file_size: u64,
+) -> Result<ExternalTransferInspection, String> {
+    if is_unc_path(path) {
+        return Err("外部文件传输不允许 UNC 或网络共享路径".to_string());
+    }
+    if sandbox_mode != "whitelist" && sandbox_mode != "blacklist" {
+        return Err("安全沙箱配置无效：sandboxMode 必须是 whitelist 或 blacklist".to_string());
+    }
+
+    let resolved = resolve_path_for_security_impl(path)?;
+    let metadata = fs::metadata(&resolved)
+        .map_err(|error| format!("读取文件元数据失败 {}: {error}", resolved.display()))?;
+    if !metadata.is_file() {
+        return Err(format!(
+            "外部文件传输只允许普通文件: {}",
+            resolved.display()
+        ));
+    }
+    if metadata.len() > max_file_size {
+        return Err(format!(
+            "文件大小 {} 字节超过外部传输上限 {} 字节",
+            metadata.len(),
+            max_file_size
+        ));
+    }
+
+    if sandbox_mode == "whitelist" {
+        let mut allowed = false;
+        for directory in allowed_directories {
+            let root = resolve_path_for_security_impl(Path::new(directory))?;
+            if path_is_within(&resolved, &root) {
+                allowed = true;
+                break;
+            }
+        }
+        if !allowed {
+            return Err(format!(
+                "安全沙箱拦截：路径不在允许的白名单目录中: {}",
+                resolved.display()
+            ));
+        }
+    }
+
+    let mut policy = "allow";
+    let mut matched_depth = 0usize;
+    for rule in black_list_rules {
+        if rule.rule_type != "block" && rule.rule_type != "approve" {
+            return Err("安全沙箱配置无效：规则类型必须是 block 或 approve".to_string());
+        }
+        let rule_path = resolve_path_for_security_impl(Path::new(&rule.path))?;
+        if path_is_within(&resolved, &rule_path) {
+            let depth = rule_path.components().count();
+            if depth >= matched_depth {
+                matched_depth = depth;
+                policy = if rule.rule_type == "block" {
+                    "block"
+                } else {
+                    "approve"
+                };
+            }
+        }
+    }
+    if policy == "block" {
+        return Err(format!("安全规则禁止外部传输文件: {}", resolved.display()));
+    }
+
+    Ok(ExternalTransferInspection {
+        normalized_path: resolved.to_string_lossy().to_string(),
+        size: metadata.len(),
+        mime_type: crate::utils::mime::guess_mime_type(&resolved),
+        policy: policy.to_string(),
+    })
+}
+
+#[tauri::command]
+pub fn inspect_file_for_external_transfer(
+    path: String,
+    allowed_directories: Vec<String>,
+    black_list_rules: Vec<ExternalTransferSecurityRule>,
+    sandbox_mode: String,
+    max_file_size: u64,
+) -> Result<ExternalTransferInspection, String> {
+    inspect_external_transfer_impl(
+        Path::new(&path),
+        &allowed_directories,
+        &black_list_rules,
+        &sandbox_mode,
+        max_file_size,
+    )
+}
+
+#[tauri::command]
+pub fn read_file_for_external_transfer(
+    path: String,
+    allowed_directories: Vec<String>,
+    black_list_rules: Vec<ExternalTransferSecurityRule>,
+    sandbox_mode: String,
+    max_file_size: u64,
+    approval_granted: bool,
+) -> Result<ExternalTransferReadResult, String> {
+    use base64::{engine::general_purpose, Engine as _};
+
+    let inspection = inspect_external_transfer_impl(
+        Path::new(&path),
+        &allowed_directories,
+        &black_list_rules,
+        &sandbox_mode,
+        max_file_size,
+    )?;
+    if inspection.policy == "approve" && !approval_granted {
+        return Err("该路径位于审批区，外部文件传输需要本地批准".to_string());
+    }
+
+    let bytes = fs::read(&inspection.normalized_path)
+        .map_err(|error| format!("读取文件失败 {}: {error}", inspection.normalized_path))?;
+    if bytes.len() as u64 > max_file_size {
+        return Err(format!(
+            "文件在读取期间超过外部传输上限 {max_file_size} 字节"
+        ));
+    }
+
+    Ok(ExternalTransferReadResult {
+        normalized_path: inspection.normalized_path,
+        size: bytes.len() as u64,
+        mime_type: inspection.mime_type,
+        file_data: general_purpose::STANDARD.encode(bytes),
+    })
 }
 
 // Tauri 命令：检查路径是否存在

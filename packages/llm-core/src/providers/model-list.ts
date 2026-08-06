@@ -137,6 +137,11 @@ function fromOpenAiModel(
   result.inputModalities = readStringArray(architecture.input_modalities);
   result.outputModalities = readStringArray(architecture.output_modalities);
   result.supportedParameters = readStringArray(model.supported_parameters);
+  // Keep service-defined values verbatim, including future/unknown endpoint
+  // types. The execution resolver decides which values it understands.
+  result.supportedEndpointTypes = readStringArray(
+    model.supported_endpoint_types
+  );
   const pricing = asRecord(model.pricing);
   if (Object.keys(pricing).length > 0) {
     result.pricing = Object.fromEntries(

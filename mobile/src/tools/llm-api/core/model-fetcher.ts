@@ -129,6 +129,13 @@ function toMobileModelInfo(model: ProviderModelInfo): LlmModelInfo {
               generationMethods: model.supportedGenerationMethods,
             }
           : undefined,
+      routing:
+        model.supportedEndpointTypes !== undefined
+          ? {
+              supportedEndpointTypes: [...model.supportedEndpointTypes],
+              discoveredAt: new Date().toISOString(),
+            }
+          : undefined,
       pricing: pricing as LlmModelInfo["pricing"],
       ...(suggestion ? { modelIdentitySuggestion: suggestion } : {}),
     },

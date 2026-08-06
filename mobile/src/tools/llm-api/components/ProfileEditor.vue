@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { mergeDiscoveredModelRouting } from "@aiohub/llm-core";
 import { ref, computed, watch } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import { useI18n } from "@/i18n";
@@ -73,6 +74,21 @@ const probeStale = ref(false);
 
 const innerProfile = ref<LlmProfile | null>(null);
 
+function mergeFetchedRouteDeclarations(
+  existingModels: LlmModelInfo[],
+  fetchedModels: LlmModelInfo[]
+): LlmModelInfo[] {
+  const fetchedById = new Map(fetchedModels.map((model) => [model.id, model]));
+  return existingModels.map((existing) => {
+    const fetched = fetchedById.get(existing.id);
+    const routing = mergeDiscoveredModelRouting(
+      existing.routing,
+      fetched?.routing
+    );
+    return routing === existing.routing ? existing : { ...existing, routing };
+  });
+}
+
 watch(
   () => props.show,
   (val) => {
@@ -118,6 +134,12 @@ const handleFetchModels = async () => {
   isFetchingModels.value = true;
   try {
     const models = await fetchModelsFromApi(innerProfile.value);
+    // Refresh remote route declarations without replacing a user's manual
+    // binding or locally configured model capabilities.
+    innerProfile.value.models = mergeFetchedRouteDeclarations(
+      innerProfile.value.models,
+      models
+    );
     fetchedModels.value = models;
     showModelFetcherPopup.value = true;
   } catch (err: any) {

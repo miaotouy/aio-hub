@@ -248,7 +248,7 @@ export function resolveModelExecution<
 ): ResolvedModelExecution<TProfile> {
   const { profile, model, operation } = options;
   const binding = model.routing?.bindings?.[operation];
-  if (binding) {
+  if (binding && isKnownAdapterId(binding.adapterId)) {
     return resolveBoundExecution(profile, operation, binding);
   }
 
@@ -279,6 +279,13 @@ export function resolveModelExecution<
     routeSource: "profile-default",
     effectiveProfile: profile,
   };
+}
+
+function isKnownAdapterId(adapterId: unknown): adapterId is LlmAdapterId {
+  return (
+    typeof adapterId === "string" &&
+    Object.prototype.hasOwnProperty.call(ADAPTER_PROFILE_TYPES, adapterId)
+  );
 }
 
 function resolveBoundExecution<TProfile extends LlmExecutionProfile>(

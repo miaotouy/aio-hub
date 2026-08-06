@@ -1,7 +1,7 @@
 # LLM 聚合渠道与模型级适配器路由调查
 
-> 状态：Phase 0 + Phase 1 已实施；Phase 2–5 待排期
-> 调查日期：2026-07-30（OpenCode Go 补充核查：2026-08-06；Phase 0 + 1 实施：2026-08-06）
+> 状态：Phase 0–2 已实施；Phase 3–5 待排期
+> 调查日期：2026-07-30（OpenCode Go 补充核查：2026-08-06；Phase 0–2 实施：2026-08-06）
 > 范围：桌面端、移动端（尚未发布）、`@aiohub/llm-core`、渠道导入导出、模型发现与探测  
 > 本地参考仓库：`E:\git\new-api`、`E:\git\sub2api`、`E:\git\cherry-studio`
 
@@ -327,7 +327,7 @@ Phase 1 能否无争议地推进，完全取决于本阶段产出以下四份文
 
 已新增共享 `LlmAdapterId` / `LlmOperation` / `LlmModelRouting` 契约与 `resolveModelExecution()` 实现，默认渠道路径保留原始 `profile.type`，因此未改变旧渠道的 URL、鉴权、参数方言或特化 adapter 行为。桌面聊天、Embedding、Recall 与 Probe 的 adapter 选择，以及移动端聊天分发，均已先经过共享 resolver；桌面 Inspector 与日志同时记录渠道类型、实际 adapter、operation 和路由来源。
 
-Phase 2 前不提供模型路由编辑或服务端端点声明持久化；现阶段 `routing` 是兼容读取的可选结构。详细契约、默认映射、调用点与回归策略见 [`LLM 模型执行路由契约`](../architecture/llm-execution-routing.md)。
+Phase 1 完成时未提供模型路由编辑或服务端端点声明持久化；`routing` 先作为兼容读取的可选结构。详细契约、默认映射、调用点与回归策略见 [`LLM 模型执行路由契约`](../architecture/llm-execution-routing.md)。
 
 ### Phase 2：模型结构与发现链路
 
@@ -338,6 +338,10 @@ Phase 2 前不提供模型路由编辑或服务端端点声明持久化；现阶
 5. 补渠道包导入导出验证和迁移测试。
 
 这一步应与现有模型元数据优化计划保持边界：路由 binding 是运行时执行配置，不属于全局模型元数据规则，不能在每次请求时从全局规则回退合并。
+
+### Phase 2 实施记录（2026-08-06）
+
+共享 `ProviderModelInfo` 与 OpenAI 风格模型列表解析现已保留服务端的 `supported_endpoint_types`，包括当前未知的字符串值；桌面与移动端在模型对象的 `routing.supportedEndpointTypes` 和 `discoveredAt` 中持久化这份远端声明。模型列表刷新仅替换远端端点声明，保留既有的手工/Probe `bindings` 与本地 `capabilities` 等模型配置。渠道包对 routing 执行结构校验，但不拒绝未知 endpoint 或 adapter 字符串；未知 adapter 在当前 resolver 中安全回退到渠道默认路由，数据仍可导出和后续恢复。
 
 ### Phase 3：手工分配与 Probe 应用
 
@@ -422,8 +426,6 @@ Phase 2 前不提供模型路由编辑或服务端端点声明持久化；现阶
 
 ## 9. 推荐下一步
 
-如果决定实施，下一份施工计划应只覆盖 **Phase 0 + Phase 1：模型执行路由基础设施**，暂不增加聚合渠道 UI。
+Phase 0–2 已完成，下一份施工计划应只覆盖 **Phase 3：手工分配与 Probe 应用**，暂不增加新的聚合渠道类型或自动跨协议重试。
 
-**Phase 0 的具体交付物**（见 §5 Phase 0）：`LlmAdapterId` 枚举草稿、`ProviderType → defaultAdapterId` 映射表、`resolveModelExecution()` 函数签名，以及桌面调用点清单与测试策略。这四件事落成文档并经各端确认后，Phase 1 才能无争议地按序推进。
-
-**Phase 1 的完成标准**：桌面所有直接 `adapters[profile.type]` 调用均已迁移到 resolver，每个迁移前有行为快照，旧行为可用测试证明不变；`resolveModelExecution()` 实现在 `@aiohub/llm-core` 中，桌面和移动端均可引用。完成后，New API/Sub2API 支持才会从”特殊补丁”变成普通的模型路由配置。
+**Phase 3 的完成标准**：模型编辑器可按 operation 写入显式 binding；Probe 成功结果可在用户确认后应用到一个或多个模型；存在多个可识别端点时保持不猜测，仍要求用户或渠道默认优先级作出选择。完成后，New API/Sub2API 的模型列表声明才能由用户稳定地转化为实际执行路由。

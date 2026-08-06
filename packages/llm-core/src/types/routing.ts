@@ -58,6 +58,27 @@ export interface LlmModelRouting {
   discoveredAt?: string;
 }
 
+/**
+ * Replaces only the remote declaration portion of a model route. Manual and
+ * probe bindings are local execution choices, so a model-list refresh must
+ * never overwrite them. Unknown endpoint strings are intentionally retained
+ * for forward-compatible import/export and later resolver support.
+ */
+export function mergeDiscoveredModelRouting(
+  existing: LlmModelRouting | undefined,
+  discovered: LlmModelRouting | undefined
+): LlmModelRouting | undefined {
+  if (discovered?.supportedEndpointTypes === undefined) return existing;
+
+  return {
+    ...(existing?.bindings ? { bindings: existing.bindings } : {}),
+    supportedEndpointTypes: [...discovered.supportedEndpointTypes],
+    ...(discovered.discoveredAt
+      ? { discoveredAt: discovered.discoveredAt }
+      : {}),
+  };
+}
+
 /** The minimum profile shape required by the shared execution resolver. */
 export interface LlmExecutionProfile {
   type: string;

@@ -35,6 +35,16 @@ function profile(): LlmProfile {
         provider: "ollama",
         capabilities: { embedding: true },
         tokenLimits: { contextLength: 8192 },
+        routing: {
+          bindings: {
+            embedding: {
+              adapterId: "openai-embeddings",
+              source: "manual",
+            },
+          },
+          supportedEndpointTypes: ["openai", "future-protocol"],
+          discoveredAt: "2026-08-06T00:00:00.000Z",
+        },
       },
     ],
   };
@@ -64,6 +74,16 @@ describe("LLM profile transfer bundle", () => {
     });
     expect(bundle.profiles[0].models[0].tokenLimits).toEqual({
       contextLength: 8192,
+    });
+    expect(bundle.profiles[0].models[0].routing).toEqual({
+      bindings: {
+        embedding: {
+          adapterId: "openai-embeddings",
+          source: "manual",
+        },
+      },
+      supportedEndpointTypes: ["openai", "future-protocol"],
+      discoveredAt: "2026-08-06T00:00:00.000Z",
     });
     expect(bundle.redactedPaths).toEqual(
       expect.arrayContaining([
@@ -103,6 +123,24 @@ describe("LLM profile transfer bundle", () => {
         format: "aiohub.llm-profiles",
         formatVersion: 1,
         profiles: [{ ...profile(), baseUrl: "file:///tmp/profile" }],
+      })
+    ).toMatchObject({ recognized: true, error: expect.any(String) });
+
+    expect(
+      parseLlmProfileBundle({
+        format: "aiohub.llm-profiles",
+        formatVersion: 1,
+        profiles: [
+          {
+            ...profile(),
+            models: [
+              {
+                ...profile().models[0],
+                routing: { supportedEndpointTypes: ["openai", 42] },
+              },
+            ],
+          },
+        ],
       })
     ).toMatchObject({ recognized: true, error: expect.any(String) });
   });

@@ -52,6 +52,20 @@ describe("ModelFetcher", () => {
     expect(claudeModel.capabilities?.vision).toBe(true);
   });
 
+  it("persists declared endpoint types as discovery routing metadata", () => {
+    const model = toDesktopModelInfo({
+      id: "gpt-routed",
+      name: "GPT Routed",
+      provider: "openai",
+      supportedEndpointTypes: ["openai", "openai-response", "future-protocol"],
+    });
+
+    expect(model.routing).toEqual({
+      supportedEndpointTypes: ["openai", "openai-response", "future-protocol"],
+      discoveredAt: expect.any(String),
+    });
+  });
+
   it("uses an explicitly returned text-only modality over metadata", () => {
     const model = toDesktopModelInfo({
       id: "gpt-5.6",

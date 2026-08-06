@@ -140,6 +140,61 @@ function redactSensitiveValues(
   return result;
 }
 
+function validateModelRouting(
+  value: Record<string, unknown>,
+  profileId: string
+): string | null {
+  if (value.routing === undefined) return null;
+  if (!isRecord(value.routing)) {
+    return `渠道 ${profileId} 包含无效模型路由`;
+  }
+
+  const routing = value.routing;
+  if (
+    routing.supportedEndpointTypes !== undefined &&
+    (!Array.isArray(routing.supportedEndpointTypes) ||
+      !routing.supportedEndpointTypes.every((item) => typeof item === "string"))
+  ) {
+    return `渠道 ${profileId} 的模型端点声明格式无效`;
+  }
+  if (
+    routing.discoveredAt !== undefined &&
+    typeof routing.discoveredAt !== "string"
+  ) {
+    return `渠道 ${profileId} 的模型端点发现时间格式无效`;
+  }
+  if (routing.bindings !== undefined && !isRecord(routing.bindings)) {
+    return `渠道 ${profileId} 的模型路由绑定格式无效`;
+  }
+  if (isRecord(routing.bindings)) {
+    for (const binding of Object.values(routing.bindings)) {
+      if (
+        !isRecord(binding) ||
+        typeof binding.adapterId !== "string" ||
+        !binding.adapterId.trim()
+      ) {
+        return `渠道 ${profileId} 的模型路由绑定缺少适配器`;
+      }
+      if (
+        binding.endpointType !== undefined &&
+        typeof binding.endpointType !== "string"
+      ) {
+        return `渠道 ${profileId} 的模型路由端点类型格式无效`;
+      }
+      if (
+        binding.endpoint !== undefined &&
+        typeof binding.endpoint !== "string"
+      ) {
+        return `渠道 ${profileId} 的模型路由端点格式无效`;
+      }
+      if (binding.source !== undefined && typeof binding.source !== "string") {
+        return `渠道 ${profileId} 的模型路由来源格式无效`;
+      }
+    }
+  }
+  return null;
+}
+
 function validateProfile(value: unknown, index: number): string | null {
   if (!isRecord(value)) return `第 ${index + 1} 个渠道不是对象`;
   if (typeof value.id !== "string" || !value.id.trim()) {
@@ -179,6 +234,8 @@ function validateProfile(value: unknown, index: number): string | null {
     ) {
       return `渠道 ${value.id} 包含无效模型`;
     }
+    const routingError = validateModelRouting(model, value.id);
+    if (routingError) return routingError;
   }
   return null;
 }

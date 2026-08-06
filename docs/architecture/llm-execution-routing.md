@@ -75,6 +75,12 @@ type LlmOperation =
 | `suno-newapi`                                                                                           | music          | `suno-newapi`             | —                              |
 | `minimax-music`                                                                                         | music          | `minimax-music`           | —                              |
 
+## 发现与持久化
+
+Phase 2 将 OpenAI 风格模型列表的 `supported_endpoint_types` 映射为 `ProviderModelInfo.supportedEndpointTypes`，随后写入模型自身的 `routing.supportedEndpointTypes` 与 `routing.discoveredAt`。该集合是服务端声明而非用户选择：保留未知字符串供未来协议支持或导入导出使用，resolver 只会识别已注册的 endpoint type。
+
+刷新模型列表时，应用仅更新同 ID 模型的远端端点声明；`routing.bindings`（手工或 Probe 路由）以及本地 `capabilities`、分组、图标等模型配置都不被覆盖。渠道包会校验 routing 的结构，但保留未知 endpoint 和 adapter 值；未知 adapter binding 暂不生效并安全回退到渠道默认执行路径。
+
 ## 解析优先级
 
 1. `model.routing.bindings[operation]`。

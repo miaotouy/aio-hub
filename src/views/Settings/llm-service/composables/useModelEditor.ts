@@ -16,6 +16,7 @@
  * 模型管理逻辑
  * 负责模型的增删改、从 API 获取模型列表
  */
+import { mergeDiscoveredModelRouting } from "@aiohub/llm-core";
 import { ref } from "vue";
 import type { Ref, ComputedRef } from "vue";
 import { customMessage } from "@/utils/customMessage";
@@ -24,6 +25,21 @@ import { fetchModelsFromApi } from "@/llm-apis/model-fetcher";
 import type { LlmProfile, LlmModelInfo } from "@/types/llm-profiles";
 
 const errorHandler = createModuleErrorHandler("LlmServiceSettings/ModelEditor");
+
+function mergeFetchedRouteDeclarations(
+  existingModels: LlmModelInfo[],
+  fetchedModels: LlmModelInfo[]
+): LlmModelInfo[] {
+  const fetchedById = new Map(fetchedModels.map((model) => [model.id, model]));
+  return existingModels.map((existing) => {
+    const fetched = fetchedById.get(existing.id);
+    const routing = mergeDiscoveredModelRouting(
+      existing.routing,
+      fetched?.routing
+    );
+    return routing === existing.routing ? existing : { ...existing, routing };
+  });
+}
 
 export function useModelEditor(
   editForm: Ref<LlmProfile>,
@@ -100,6 +116,12 @@ export function useModelEditor(
         return;
       }
 
+      // A refresh may update only remote endpoint declarations. Keep the
+      // model's local capabilities and any manual/probe bindings untouched.
+      editForm.value.models = mergeFetchedRouteDeclarations(
+        editForm.value.models,
+        models
+      );
       fetchedModels.value = models;
       fetchedRawResponse.value = rawResponse;
       showModelFetcherDialog.value = true;

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  mergeDiscoveredModelRouting,
   resolveModelExecution,
+  type LlmAdapterId,
   type LlmExecutionModel,
   type LlmExecutionProfile,
 } from "../src";
@@ -108,6 +110,51 @@ describe("resolveModelExecution", () => {
       effectiveProfile: { type: "openai-responses" },
     });
     expect(ambiguous).toMatchObject({
+      adapterId: "openai-chat-completions",
+      routeSource: "profile-default",
+      effectiveProfile: { type: "openai" },
+    });
+  });
+
+  it("preserves manual bindings while refreshing remote endpoint declarations", () => {
+    const binding = {
+      adapterId: "anthropic-messages" as const,
+      source: "manual" as const,
+    };
+    const existing = {
+      bindings: { chat: binding },
+      supportedEndpointTypes: ["openai"],
+      discoveredAt: "2026-08-05T00:00:00.000Z",
+    };
+
+    const merged = mergeDiscoveredModelRouting(existing, {
+      supportedEndpointTypes: ["openai-response", "future-protocol"],
+      discoveredAt: "2026-08-06T00:00:00.000Z",
+    });
+
+    expect(merged).toEqual({
+      bindings: { chat: binding },
+      supportedEndpointTypes: ["openai-response", "future-protocol"],
+      discoveredAt: "2026-08-06T00:00:00.000Z",
+    });
+    expect(mergeDiscoveredModelRouting(existing, undefined)).toBe(existing);
+  });
+
+  it("ignores an imported binding whose adapter is not yet known", () => {
+    const execution = resolveModelExecution({
+      profile: profile(),
+      model: model({
+        bindings: {
+          chat: {
+            adapterId: "future-adapter" as LlmAdapterId,
+            source: "manual",
+          },
+        },
+      }),
+      operation: "chat",
+    });
+
+    expect(execution).toMatchObject({
       adapterId: "openai-chat-completions",
       routeSource: "profile-default",
       effectiveProfile: { type: "openai" },

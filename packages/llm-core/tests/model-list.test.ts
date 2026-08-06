@@ -52,6 +52,11 @@ describe("model list adapter", () => {
               output_modalities: ["text"],
             },
             supported_parameters: ["reasoning"],
+            supported_endpoint_types: [
+              "openai",
+              "anthropic",
+              "future-protocol",
+            ],
           },
         ],
       },
@@ -62,6 +67,7 @@ describe("model list adapter", () => {
       contextLength: 128000,
       inputModalities: ["text", "image"],
       supportedParameters: ["reasoning"],
+      supportedEndpointTypes: ["openai", "anthropic", "future-protocol"],
     });
 
     expect(

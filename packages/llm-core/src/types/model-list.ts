@@ -21,6 +21,8 @@ export interface ProviderModelInfo {
   outputModalities?: string[];
   supportedParameters?: string[];
   supportedGenerationMethods?: string[];
+  /** Service-declared protocol endpoint types (for example New API). */
+  supportedEndpointTypes?: string[];
   pricing?: Record<string, string | number>;
   raw?: JsonValue;
 }

@@ -198,6 +198,64 @@ export function parseFilterOptions(args: Record<string, string>): {
     }
   }
 
+  if (!Array.isArray(conditions)) {
+    return {
+      dataPath,
+      conditions: [],
+      keepUnmatched: false,
+      error: "conditions 参数格式错误，应为 JSON 数组",
+    };
+  }
+
+  const declarativeOperators = new Set([
+    "eq",
+    "ne",
+    "contains",
+    "truthy",
+    "falsy",
+    "gt",
+    "ge",
+    "lt",
+    "le",
+  ]);
+  for (const [index, condition] of conditions.entries()) {
+    if (!condition || typeof condition !== "object") {
+      return {
+        dataPath,
+        conditions: [],
+        keepUnmatched: false,
+        error: `conditions[${index}] 必须是对象`,
+      };
+    }
+    if (
+      condition.operator === "custom" ||
+      Object.prototype.hasOwnProperty.call(condition, "customScript")
+    ) {
+      return {
+        dataPath,
+        conditions: [],
+        keepUnmatched: false,
+        error: "Agent 调用不支持 custom 操作符或 customScript",
+      };
+    }
+    if (!declarativeOperators.has(condition.operator)) {
+      return {
+        dataPath,
+        conditions: [],
+        keepUnmatched: false,
+        error: `conditions[${index}].operator 不受支持`,
+      };
+    }
+    if (typeof condition.key !== "string") {
+      return {
+        dataPath,
+        conditions: [],
+        keepUnmatched: false,
+        error: `conditions[${index}].key 必须是字符串`,
+      };
+    }
+  }
+
   const keepUnmatched = keepUnmatchedStr === "true";
 
   return {

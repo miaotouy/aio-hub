@@ -177,6 +177,45 @@ describe("data-filter logic", () => {
       expect(result.conditions).toEqual([]);
       expect(result.keepUnmatched).toBe(false);
     });
+
+    it("Agent 参数层应拒绝 customScript 与构造器逃逸表达式", () => {
+      const payloads = [
+        [
+          {
+            key: "",
+            operator: "custom",
+            customScript: "globalThis.pwned = true",
+          },
+        ],
+        [
+          {
+            key: "name",
+            operator: "eq",
+            value: "alpha",
+            customScript: "({}).constructor.constructor('return globalThis')()",
+          },
+        ],
+      ];
+
+      for (const conditions of payloads) {
+        const result = parseFilterOptions({
+          conditions: JSON.stringify(conditions),
+        });
+        expect(result.error).toContain("不支持 custom");
+        expect(result.conditions).toEqual([]);
+      }
+    });
+
+    it("Agent 参数层应拒绝未知操作符", () => {
+      const result = parseFilterOptions({
+        conditions: JSON.stringify([
+          { key: "name", operator: "constructor", value: "x" },
+        ]),
+      });
+
+      expect(result.error).toContain("operator 不受支持");
+      expect(result.conditions).toEqual([]);
+    });
   });
 
   describe("loadDataFile / applyFilterFromFile", () => {
@@ -212,6 +251,24 @@ describe("data-filter logic", () => {
 
       expect(result.error).toBe("缺少必要参数：path");
       expect(mockReadTextFile).not.toHaveBeenCalled();
+    });
+
+    it("完整流程在读取后仍应拒绝 Agent 自定义脚本", async () => {
+      mockReadTextFile.mockResolvedValue(JSON.stringify(sampleData));
+
+      const result = await applyFilterFromFile({
+        path: "C:/tmp/data.json",
+        conditions: JSON.stringify([
+          {
+            key: "",
+            operator: "custom",
+            customScript: "globalThis.compromised = true",
+          },
+        ]),
+      });
+
+      expect(result.error).toContain("不支持 custom");
+      expect((globalThis as any).compromised).toBeUndefined();
     });
 
     it("完整流程应读取文件、解析条件并执行过滤", async () => {

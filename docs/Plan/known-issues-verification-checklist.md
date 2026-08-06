@@ -24,7 +24,7 @@
 | ID     | 问题                                                   | 状态                 | 风险 | 建议优先级 |
 | ------ | ------------------------------------------------------ | -------------------- | ---- | ---------- |
 | KI-001 | VCP `internal_request_file` 绕过本地文件安全策略和审批 | 已修复，待运行态验收 | 高   | P0         |
-| KI-002 | `data-filter` 自定义条件通过 `new Function` 执行脚本   | 已确认               | 高   | P0         |
+| KI-002 | `data-filter` 自定义条件通过 `new Function` 执行脚本   | 已修复               | 高   | P0         |
 | KI-003 | Agent 可通过 `set_agent_field` 修改自身工具审批配置    | 已确认，利用链有前提 | 高   | P1         |
 | KI-004 | 崩溃或强退后，残留 `generating` 消息节点缺少启动自愈   | 已确认               | 中   | P1         |
 | KI-005 | 所有 API Key 不可用时仍回退到第一个 Key                | 已确认               | 中   | P1         |
@@ -102,7 +102,7 @@ readFileForExternalTransfer({
 
 ### KI-002：`data-filter` 可执行调用方提供的 JavaScript
 
-**状态：已确认**
+**状态：已修复**
 
 `data-filter` 的 `custom` 操作符通过 `new Function("item", "value", ...)` 执行 `customScript`，而 `applyFilter` 同时标记为 `agentCallable: true`。当工具启用且调用被批准或自动批准时，模型生成的字符串会作为 JavaScript 执行。
 
@@ -114,11 +114,11 @@ readFileForExternalTransfer({
 
 处理门禁：
 
-- [ ] 明确决定是否删除 Agent 调用中的 `custom` 操作符。
-- [ ] 若 UI 仍需脚本能力，将脚本模式与 Agent 工具入口分离。
-- [ ] Agent 路径只保留声明式操作符，禁止表达式访问全局对象和函数构造器。
-- [ ] 在参数校验层拒绝 `customScript`，而不是只依赖 Prompt 约束。
-- [ ] 增加恶意表达式、全局对象访问和构造器逃逸回归测试。
+- [x] 明确决定是否删除 Agent 调用中的 `custom` 操作符。
+- [x] 若 UI 仍需脚本能力，将脚本模式与 Agent 工具入口分离。
+- [x] Agent 路径只保留声明式操作符，禁止表达式访问全局对象和函数构造器。
+- [x] 在参数校验层拒绝 `customScript`，而不是只依赖 Prompt 约束。
+- [x] 增加恶意表达式、全局对象访问和构造器逃逸回归测试。
 
 ### KI-003：Agent 可修改自身审批配置
 

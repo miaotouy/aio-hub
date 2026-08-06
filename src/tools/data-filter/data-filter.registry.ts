@@ -22,7 +22,7 @@ export default class DataFilterRegistry implements ToolRegistry {
   public readonly runMode = "any";
   public readonly name = "数据筛选工具";
   public readonly description =
-    "针对 JSON/YAML 列表数据进行条件筛选，支持简单匹配和自定义脚本，轻松剔除无关配置。";
+    "针对 JSON/YAML 列表数据进行声明式条件筛选；界面中的自定义脚本不会暴露给 Agent。";
 
   /**
    * Agent 专用：对文件中的 JSON/YAML 数据进行过滤
@@ -61,7 +61,7 @@ export default class DataFilterRegistry implements ToolRegistry {
               name: "conditions",
               type: "string",
               description:
-                '过滤条件列表的 JSON 字符串。每个条件包含: key (属性路径), operator (eq, ne, contains, truthy, falsy, custom), value (匹配值), customScript (自定义脚本，仅在 operator 为 custom 时使用)。示例: [{"key": "name", "operator": "contains", "value": "test"}]',
+                '过滤条件列表的 JSON 字符串。每个条件包含 key（属性路径）、operator（仅支持 eq、ne、contains、truthy、falsy、gt、ge、lt、le）和可选 value。Agent 路径禁止 custom 与 customScript。示例: [{"key": "name", "operator": "contains", "value": "test"}]',
               required: false,
             },
             {

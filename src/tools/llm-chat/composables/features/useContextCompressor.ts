@@ -291,11 +291,21 @@ export function useContextCompressor() {
 
     const lastNode = nodesToCompress[nodesToCompress.length - 1];
 
-    // 统计原始信息
+    // 统计原始信息。连续压缩时，旧摘要代表的原始消息数和 Token 数需要一并继承。
     let originalTokenCount = 0;
-    nodesToCompress.forEach(
-      (n) => (originalTokenCount += n.metadata?.tokenCount || 0)
-    );
+    let originalMessageCount = 0;
+    nodesToCompress.forEach((node) => {
+      const metadata = node.metadata;
+      if (metadata?.isCompressionNode) {
+        originalTokenCount +=
+          metadata.originalTokenCount ?? metadata.tokenCount ?? 0;
+        originalMessageCount += metadata.originalMessageCount ?? 1;
+        return;
+      }
+
+      originalTokenCount += metadata?.tokenCount || 0;
+      originalMessageCount += 1;
+    });
     const compressedReasoningArtifactCount = nodesToCompress.reduce(
       (count, node) => count + (node.metadata?.reasoningArtifacts?.length || 0),
       0
@@ -312,7 +322,7 @@ export function useContextCompressor() {
         compressedNodeIds: nodesToCompress.map((n) => n.id),
         compressionTimestamp: Date.now(),
         originalTokenCount,
-        originalMessageCount: nodesToCompress.length,
+        originalMessageCount,
         compressionConfig: {
           triggerMode: config.triggerMode || "token",
           thresholds: {
@@ -557,10 +567,33 @@ export function useContextCompressor() {
       return { success: false };
     }
 
+    // 连续压缩时，最靠近本次压缩范围的已有摘要承载了更早的上下文。
+    // 将其作为前情提要传给续写模板，并在新摘要创建后将其一并隐藏，避免上下文中累积多个摘要。
+    const firstNodeIndex = path.findIndex(
+      (node) => node.id === nodesToCompress[0].id
+    );
+    const previousCompressionNode = path
+      .slice(0, firstNodeIndex)
+      .reverse()
+      .find(
+        (node) =>
+          node.metadata?.isCompressionNode &&
+          node.isEnabled !== false &&
+          !hiddenNodeIds.has(node.id)
+      );
+    const compressionNodes = previousCompressionNode
+      ? [previousCompressionNode, ...nodesToCompress]
+      : nodesToCompress;
+
     // 5. 执行压缩
     try {
-      // 生成摘要
-      const summary = await generateSummary(nodesToCompress, effectiveConfig);
+      // 新增对话只放在 context 中；已有摘要作为 previous_summary 触发连续压缩模板。
+      const summary = await generateSummary(
+        nodesToCompress,
+        effectiveConfig,
+        undefined,
+        previousCompressionNode?.content
+      );
 
       // 计算预计节省的 Token
       let originalTokenCount = 0;
@@ -572,7 +605,7 @@ export function useContextCompressor() {
       await compressNodes(
         index,
         detail,
-        nodesToCompress,
+        compressionNodes,
         summary,
         effectiveConfig
       );

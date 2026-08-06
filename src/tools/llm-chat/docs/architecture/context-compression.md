@@ -33,8 +33,8 @@
 
 系统支持**增量摘要（续写）**能力：
 
-- 如果压缩范围涉及之前的摘要节点，系统会调用续写 Prompt（`CONTINUE_CONTEXT_COMPRESSION_PROMPT`）。
-- LLM 会参考“旧摘要”和“新消息”生成一份涵盖全量历史的新摘要，避免信息在多次压缩中丢失。
+- 连续压缩时，系统会找到本次待压缩消息之前最近的已启用摘要节点，将其内容作为 `previous_summary`，并调用续写 Prompt（`CONTINUE_CONTEXT_COMPRESSION_PROMPT` 或用户配置的 `continueSummaryPrompt`）。
+- LLM 会参考“旧摘要”和“新消息”生成一份涵盖全量历史的新摘要；创建新摘要后，旧摘要会和本次新压缩的消息一起被隐藏，避免上下文中累积多个摘要或在多次压缩中丢失早期信息。
 
 ### 2.3. 压缩范围策略
 
@@ -73,4 +73,3 @@
 ---
 
 _注：本功能由 `useContextCompressor` 核心模块驱动，确保了在保持长文本会话能力的同时，最大限度降低 Token 消耗。_
-

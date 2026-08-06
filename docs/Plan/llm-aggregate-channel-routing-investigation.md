@@ -1,7 +1,7 @@
 # LLM 聚合渠道与模型级适配器路由调查
 
 > 状态：已评估 / 推荐实施 Phase 0 + Phase 1  
-> 调查日期：2026-07-30  
+> 调查日期：2026-07-30（OpenCode Go 补充核查：2026-08-06）
 > 范围：桌面端、移动端（尚未发布）、`@aiohub/llm-core`、渠道导入导出、模型发现与探测  
 > 本地参考仓库：`E:\git\new-api`、`E:\git\sub2api`、`E:\git\cherry-studio`
 
@@ -88,6 +88,37 @@ Sub2API 同样在一个服务地址上注册了多种兼容路由，但实际行
 1. `endpoint_type` 是单值，不能自然表达“同一模型的 Chat 使用 Responses、Embedding 使用 Embeddings、Image 使用 Image Generation”。
 2. 导入模型时若支持图片端点，会优先选择 `image-generation`，见 `E:\git\cherry-studio\src\renderer\src\pages\settings\ProviderSettings\ModelList\ManageModelsPopup.tsx:130-145`；这说明单一默认端点会把“能力支持”和“默认聊天协议”混在一起。
 3. 未识别的端点类型会被剪掉。AIO Hub 更适合同时保留原始声明和已识别映射，避免未来新增协议后丢失信息。
+
+### 2.4 OpenCode Go
+
+OpenCode Go 是比 New API/Sub2API 更直接的内置预设候选，同时也进一步证明了模型级执行路由是前置能力，而不是可选优化。
+
+截至 2026-08-06，官方 Go 文档（页面标注最近更新于 2026-08-05）公开了同一服务根地址下的三种请求协议：
+
+- OpenAI Chat Completions：`https://opencode.ai/zen/go/v1/chat/completions`
+- OpenAI Responses：`https://opencode.ai/zen/go/v1/responses`
+- Anthropic Messages：`https://opencode.ai/zen/go/v1/messages`
+
+官方模型表明确要求按模型选择端点：多数 Grok、GLM、Kimi、DeepSeek、MiMo 和 Hy 模型走 Chat Completions；`gpt-5.6-luna` 走 Responses；MiniMax 与 Qwen 的部分模型走 Anthropic Messages。模型列表端点 `https://opencode.ai/zen/go/v1/models` 则只返回标准 OpenAI 风格的 `id/object/created/owned_by`，没有 `supported_endpoint_types` 或等价路由字段。
+
+因此 OpenCode Go 属于**非自描述聚合渠道**：
+
+1. 不能把整个渠道固定为 `openai-compatible`、`openai-responses` 或 `claude` 中的任意一种，否则只能正确覆盖部分模型。
+2. 不能仅依赖模型列表响应自动生成 binding；首版预设需要随应用维护一份官方模型到 adapter 的内置路由表。
+3. 对内置表尚未认识的新模型，应标记为“待选择/待探测”，禁止仅凭模型名称静默猜测协议。
+4. 认证也随协议变化：Chat/Responses 使用 Bearer，Messages 使用 `x-api-key`；应由解析后的实际 adapter 负责生成请求头，而不是在渠道层硬编码单一鉴权方言。
+
+套餐边界也需要谨慎表述。官方文档说明“每个工作空间只能有一名成员订阅”，并按 5 小时、每周、每月的美元使用额度限流；它没有公开声明“接入客户端数量无限”。API Key 可以被兼容客户端直接调用，但 AIO Hub 的预设说明不应宣传“不限客户端”，更准确的文案是“提供标准兼容 API，可供外部客户端接入；所有调用共享工作空间/API Key 的 Go 配额”。
+
+落地建议：将 OpenCode Go 作为 Phase 4 的首个内置 `aggregateFlavor`/预设验收样例，但在 Phase 1 resolver、Phase 2 模型路由持久化以及最小可用的内置 route table 之前，不直接新增单渠道预设。临时兼容只能拆成 Chat Completions、Responses、Anthropic Messages 三个渠道，体验与密钥管理都不理想。
+
+官方参考：
+
+- `https://opencode.ai/docs/zh-cn/go/`
+- `https://opencode.ai/zen/go/v1/models`
+- `https://github.com/anomalyco/opencode/blob/dev/packages/console/app/src/routes/zen/go/v1/chat/completions.ts`
+- `https://github.com/anomalyco/opencode/blob/dev/packages/console/app/src/routes/zen/go/v1/responses.ts`
+- `https://github.com/anomalyco/opencode/blob/dev/packages/console/app/src/routes/zen/go/v1/messages.ts`
 
 ## 3. AIO Hub 当前耦合点
 

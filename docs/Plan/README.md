@@ -86,17 +86,17 @@
 
 ## 4. 根目录计划台账
 
-| 文档                                                                                | 状态   | 下一动作                                                       |
-| ----------------------------------------------------------------------------------- | ------ | -------------------------------------------------------------- |
-| [0.7.0-alpha.1 发布收口](./v0.7.0-alpha.1-release-readiness-and-experience-plan.md) | 待收口 | D-P0-06，关闭 Alpha 硬门禁、登记可接受风险并保留正式版最终门禁 |
-| [Guided Flow](./guided-flow-plan.md)                                                | 待收口 | D-P0-05，按风险拆分 Alpha 数据/安装硬门禁与正式版完整迁移矩阵  |
-| [Sidecar Plugin API v3](./sidecar-plugin-api-v3-migration.md)                       | 待收口 | D-P0-06，先验收 Alpha 最小发布组合，正式版前补齐完整矩阵       |
-| [前端 Chunk 治理](./frontend-chunk-size-investigation.md)                           | 按需   | D-P2-08，先做自动分包与真实 Tauri A/B                          |
-| [Provider Adapter 多端共享](./llm-provider-adapter-sharing-investigation.md)        | 待收口 | D-P3-02，仅剩人工运行态观测                                    |
-| [LLM 聚合渠道与模型路由](./llm-aggregate-channel-routing-investigation.md)          | 候选   | 先实施模型执行路由 resolver，再增加 New API/Sub2API 渠道 UI    |
-| [模型元数据系统优化](./model-metadata-system-optimization-plan.md)                  | 待实施 | D-P1-01，从批次 1 开始                                         |
-| [原生工具调用与编排](./native-tool-calling-adapter-and-orchestration-plan.md)       | 待实施 | D-P1-02，先关闭设计决策                                        |
-| [AI 小说专精模块调查](./ai-novel-studio-investigation.md)                           | 候选   | D-P2-06，做垂直切片验证                                        |
+| 文档                                                                                | 状态   | 下一动作                                                                      |
+| ----------------------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------- |
+| [0.7.0-alpha.1 发布收口](./v0.7.0-alpha.1-release-readiness-and-experience-plan.md) | 待收口 | D-P0-06，关闭 Alpha 硬门禁、登记可接受风险并保留正式版最终门禁                |
+| [Guided Flow](./guided-flow-plan.md)                                                | 待收口 | D-P0-05，按风险拆分 Alpha 数据/安装硬门禁与正式版完整迁移矩阵                 |
+| [Sidecar Plugin API v3](./sidecar-plugin-api-v3-migration.md)                       | 待收口 | D-P0-06，先验收 Alpha 最小发布组合，正式版前补齐完整矩阵                      |
+| [前端 Chunk 治理](./frontend-chunk-size-investigation.md)                           | 按需   | D-P2-08，先做自动分包与真实 Tauri A/B                                         |
+| [Provider Adapter 多端共享](./llm-provider-adapter-sharing-investigation.md)        | 待收口 | D-P3-02，仅剩人工运行态观测                                                   |
+| [LLM 聚合渠道与模型路由](./llm-aggregate-channel-routing-investigation.md)          | 候选   | 先实施模型执行路由 resolver；以 OpenCode Go 验证内置路由表，再增加聚合渠道 UI |
+| [模型元数据系统优化](./model-metadata-system-optimization-plan.md)                  | 待实施 | D-P1-01，从批次 1 开始                                                        |
+| [原生工具调用与编排](./native-tool-calling-adapter-and-orchestration-plan.md)       | 待实施 | D-P1-02，先关闭设计决策                                                       |
+| [AI 小说专精模块调查](./ai-novel-studio-investigation.md)                           | 候选   | D-P2-06，做垂直切片验证                                                       |
 
 ## 5. 活动工具计划入口
 

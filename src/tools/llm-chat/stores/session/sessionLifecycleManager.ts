@@ -53,6 +53,42 @@ export interface LifecycleManagers {
   getActivePath: (sessionId?: string | null) => ChatMessageNode[];
 }
 
+export interface InterruptedGenerationRepairResult {
+  repairedCount: number;
+  completedCount: number;
+  erroredCount: number;
+}
+
+/**
+ * 修复从磁盘加载出的残留 generating 节点。加载阶段没有对应运行时任务，
+ * 因此这些状态必然来自崩溃、强退或进程终止。
+ */
+export function repairInterruptedGeneratingNodes(
+  detail: ChatSessionDetail,
+  now = new Date().toISOString()
+): InterruptedGenerationRepairResult {
+  let completedCount = 0;
+  let erroredCount = 0;
+
+  for (const node of Object.values(detail.nodes || {})) {
+    if (node.status !== "generating") continue;
+    const hasContent =
+      typeof node.content === "string" && node.content.trim().length > 0;
+    node.status = hasContent ? "complete" : "error";
+    node.updatedAt = now;
+    if (!hasContent) {
+      node.metadata = { ...node.metadata, error: "生成意外中断" };
+      erroredCount += 1;
+    } else {
+      completedCount += 1;
+    }
+  }
+
+  const repairedCount = completedCount + erroredCount;
+  if (repairedCount > 0) detail.updatedAt = now;
+  return { repairedCount, completedCount, erroredCount };
+}
+
 export function createSessionLifecycleManager(
   state: LifecycleState,
   managers: LifecycleManagers
@@ -128,6 +164,27 @@ export function createSessionLifecycleManager(
       });
   }
 
+  function persistInterruptedGenerationRepair(
+    index: ChatSessionIndex,
+    detail: ChatSessionDetail
+  ): void {
+    const repair = repairInterruptedGeneratingNodes(detail);
+    if (repair.repairedCount === 0) return;
+
+    index.updatedAt = detail.updatedAt;
+    const sessionManager = getSessionManager();
+    sessionManager.updateMessageCount(
+      detail.id,
+      detail.nodes,
+      state.sessionIndexMap.value
+    );
+    sessionManager.persistSession(index, detail, state.currentSessionId.value);
+    logger.warn("加载会话时已修复残留生成状态", {
+      sessionId: detail.id,
+      ...repair,
+    });
+  }
+
   function normalizeLoadedDetail(
     sessionId: string,
     fullSession: {
@@ -171,6 +228,10 @@ export function createSessionLifecycleManager(
 
     const detail = normalizeLoadedDetail(sessionId, fullSession);
     if (detail) {
+      const index =
+        state.sessionIndexMap.value.get(sessionId) || fullSession.index;
+      persistInterruptedGenerationRepair(index, detail);
+      state.sessionIndexMap.value.set(sessionId, index);
       state.sessionDetailMap.value.set(sessionId, detail);
       logger.info("会话详情按需加载完成", { sessionId });
     }
@@ -622,6 +683,10 @@ export function createSessionLifecycleManager(
       if (fullSession) {
         const detail = normalizeLoadedDetail(loadedId, fullSession);
         if (detail) {
+          const index =
+            state.sessionIndexMap.value.get(loadedId) || fullSession.index;
+          persistInterruptedGenerationRepair(index, detail);
+          state.sessionIndexMap.value.set(loadedId, index);
           state.sessionDetailMap.value.set(loadedId, detail);
           logger.info("当前活跃会话详情加载完成", { sessionId: loadedId });
         }

@@ -18,26 +18,37 @@ import type {
   EmbeddingResponse,
 } from "./embedding-types";
 import { adapters } from "./adapters";
+import { resolveModelExecution } from "@aiohub/llm-core";
 
 /**
  * 统一的 Embedding API 调用入口
- * 根据 profile.type 自动路由到对应的实现
+ * 通过共享模型执行解析器选择 Embedding 适配器。
  */
 export async function callEmbeddingApi(
   profile: LlmProfile,
   options: EmbeddingRequestOptions
 ): Promise<EmbeddingResponse> {
-  const adapter = adapters[profile.type];
+  const model = profile.models.find((item) => item.id === options.modelId) ?? {
+    id: options.modelId,
+  };
+  const execution = resolveModelExecution({
+    profile,
+    model,
+    operation: "embedding",
+  });
+  const adapter = adapters[execution.effectiveProfile.type];
 
   if (!adapter) {
-    throw new Error(`未知的 Provider 类型: ${profile.type}`);
+    throw new Error(`未知的 Provider 类型: ${execution.effectiveProfile.type}`);
   }
 
   if (!adapter.embedding) {
-    throw new Error(`Provider "${profile.type}" 不支持 Embedding API`);
+    throw new Error(
+      `Provider "${execution.effectiveProfile.type}" 不支持 Embedding API`
+    );
   }
 
-  return adapter.embedding(profile, options);
+  return adapter.embedding(execution.effectiveProfile, options);
 }
 
 // 导出类型

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { adapters } from "@/llm-apis/adapters";
+import { resolveModelExecution } from "@aiohub/llm-core";
 import { createModuleLogger } from "@/utils/logger";
 import { createConfigManager } from "@/utils/configManager";
 import { invoke } from "@tauri-apps/api/core";
@@ -135,9 +136,25 @@ export class VectorCacheManager {
       logger.warn("从 Rust 后端获取 Embedding 缓存失败", error);
     }
 
-    const adapter = adapters[profile.type];
-    if (!adapter || !adapter.embedding) {
+    let execution;
+    try {
+      execution = resolveModelExecution({
+        profile,
+        model: profile.models?.find(
+          (item: { id: string }) => item.id === modelId
+        ) ?? { id: modelId },
+        operation: "embedding",
+      });
+    } catch {
+      // Keep Recall's existing unsupported-provider error contract while the
+      // shared resolver supplies the richer configuration diagnosis elsewhere.
       throw new Error(`模型提供商 ${profile.type} 不支持 Embedding`);
+    }
+    const adapter = adapters[execution.effectiveProfile.type];
+    if (!adapter || !adapter.embedding) {
+      throw new Error(
+        `模型提供商 ${execution.effectiveProfile.type} 不支持 Embedding`
+      );
     }
 
     logger.info("生成查询向量", {
@@ -145,7 +162,7 @@ export class VectorCacheManager {
       query: query.substring(0, 20) + "...",
     });
     const startTime = Date.now();
-    const response = await adapter.embedding(profile, {
+    const response = await adapter.embedding(execution.effectiveProfile, {
       modelId: modelId,
       input: query,
     });

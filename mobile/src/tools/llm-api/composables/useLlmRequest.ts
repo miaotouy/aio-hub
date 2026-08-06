@@ -1,4 +1,5 @@
 import { ref } from "vue";
+import { resolveModelExecution } from "@aiohub/llm-core";
 import { useLlmProfilesStore } from "../stores/llmProfiles";
 import { useLlmKeyManager } from "./useLlmKeyManager";
 import { callOpenAiCompatibleApi } from "../core/adapters/openai-compatible";
@@ -92,21 +93,30 @@ async function executeProviderAdapter(
   profile: LlmProfile,
   options: LlmRequestOptions
 ): Promise<LlmResponse> {
-  switch (profile.type) {
-    case "openai":
-      return callOpenAiCompatibleApi(profile, options);
+  const model = profile.models.find((item) => item.id === options.modelId) ?? {
+    id: options.modelId,
+    name: options.modelId,
+  };
+  const execution = resolveModelExecution({
+    profile,
+    model,
+    operation: "chat",
+  });
+  const effectiveProfile = execution.effectiveProfile;
+
+  switch (effectiveProfile.type) {
     case "openai-responses":
-      return callOpenAiResponsesApi(profile, options);
+      return callOpenAiResponsesApi(effectiveProfile, options);
     case "claude":
-      return callClaudeApi(profile, options);
+      return callClaudeApi(effectiveProfile, options);
     case "gemini":
-      return callGeminiApi(profile, options);
+      return callGeminiApi(effectiveProfile, options);
     case "cohere":
-      return callCohereApi(profile, options);
+      return callCohereApi(effectiveProfile, options);
     case "vertexai":
-      return callVertexAiApi(profile, options);
+      return callVertexAiApi(effectiveProfile, options);
     default:
-      return callOpenAiCompatibleApi(profile, options);
+      return callOpenAiCompatibleApi(effectiveProfile, options);
   }
 }
 

@@ -33,6 +33,7 @@ import {
   fetchWithTimeout,
 } from "../llm-apis/common";
 import { adapters } from "../llm-apis/adapters";
+import { resolveModelExecution, type LlmOperation } from "@aiohub/llm-core";
 import { filterParametersByCapabilities } from "../llm-apis/request-builder";
 import { getKeyHealthActionForError } from "../llm-apis/key-health-policy";
 import type { LlmProfile } from "../types/llm-profiles";
@@ -163,7 +164,7 @@ export function useLlmRequest() {
 
       // 构造临时 Profile 对象，注入选中的 Key
       // 如果没有获取到 Key（例如 Profile 没配置 Key），则保持原样，让下游报错
-      const effectiveProfile: LlmProfile = {
+      const keyProfile: LlmProfile = {
         ...profile,
         // 覆盖 apiKeys 为选中的单个 Key，确保下游 Provider 只看到这一个
         apiKeys: selectedApiKey ? [selectedApiKey] : profile.apiKeys || [],
@@ -171,9 +172,19 @@ export function useLlmRequest() {
 
       // 自动分发特种请求 (Embedding)
       if (model.capabilities?.embedding && options.embeddingInput) {
-        const adapter = adapters[effectiveProfile.type];
+        const execution = resolveModelExecution({
+          profile: keyProfile,
+          model,
+          operation: "embedding",
+        });
+        const adapter = adapters[execution.effectiveProfile.type];
         if (adapter && adapter.embedding) {
-          const result = await adapter.embedding(effectiveProfile, {
+          logger.debug("解析 Embedding 执行路由", {
+            channelType: profile.type,
+            effectiveAdapterId: execution.adapterId,
+            routeSource: execution.routeSource,
+          });
+          const result = await adapter.embedding(execution.effectiveProfile, {
             modelId: options.modelId,
             input: options.embeddingInput,
             timeout: options.timeout,
@@ -239,6 +250,39 @@ export function useLlmRequest() {
           logger.debug("自动检测到本地文件协议，已开启 Rust 代理模式");
         }
       }
+      // 检查是否为强制对话模式 (例如在媒体生成中心中，用户选择了“对话迭代”模式)
+      // 或者模型能力中显式指定了偏好 Chat 接口 (如原生多模态生图模型)
+      const forceChatMode =
+        (options as any)._forceChatMode === true ||
+        model.capabilities?.preferChat === true;
+      const operation: LlmOperation = forceChatMode
+        ? "chat"
+        : model.capabilities?.videoGeneration
+          ? "video"
+          : model.capabilities?.imageGeneration
+            ? "image"
+            : model.capabilities?.musicGeneration
+              ? "music"
+              : model.capabilities?.audioGeneration
+                ? "audio"
+                : "chat";
+      const execution = resolveModelExecution({
+        profile: keyProfile,
+        model,
+        operation,
+      });
+      const effectiveProfile = execution.effectiveProfile;
+
+      if (inspectorRequestId) {
+        inspectorHookRegistry.setContext(inspectorRequestId, {
+          ...inspectorHookRegistry.getContext(inspectorRequestId),
+          channelType: profile.type,
+          effectiveAdapterId: execution.adapterId,
+          executionOperation: operation,
+          routeSource: execution.routeSource,
+        });
+      }
+
       // 根据 Provider 和 Model 能力智能过滤参数
       // 使用 any 避开 LlmRequestOptions 和 MediaGenerationOptions 之间 responseFormat 的类型冲突
       let filteredOptions = filterParametersByCapabilities(
@@ -325,16 +369,14 @@ export function useLlmRequest() {
 
       logger.debug("准备分发请求", {
         targetModelId: filteredOptions.modelId,
-        adapterType: effectiveProfile.type,
+        channelType: profile.type,
+        effectiveAdapterId: execution.adapterId,
+        routeSource: execution.routeSource,
+        adapterProfileType: effectiveProfile.type,
+        operation,
         isMediaGeneration,
         hasPrompt: !!(filteredOptions as any).prompt,
       });
-
-      // 检查是否为强制对话模式 (例如在媒体生成中心中，用户选择了“对话迭代”模式)
-      // 或者模型能力中显式指定了偏好 Chat 接口 (如原生多模态生图模型)
-      const forceChatMode =
-        (options as any)._forceChatMode === true ||
-        model.capabilities?.preferChat === true;
 
       if (
         !forceChatMode &&

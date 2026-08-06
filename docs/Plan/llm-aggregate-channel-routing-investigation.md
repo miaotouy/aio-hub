@@ -1,7 +1,7 @@
 # LLM 聚合渠道与模型级适配器路由调查
 
-> 状态：已评估 / 推荐实施 Phase 0 + Phase 1  
-> 调查日期：2026-07-30（OpenCode Go 补充核查：2026-08-06）
+> 状态：Phase 0 + Phase 1 已实施；Phase 2–5 待排期
+> 调查日期：2026-07-30（OpenCode Go 补充核查：2026-08-06；Phase 0 + 1 实施：2026-08-06）
 > 范围：桌面端、移动端（尚未发布）、`@aiohub/llm-core`、渠道导入导出、模型发现与探测  
 > 本地参考仓库：`E:\git\new-api`、`E:\git\sub2api`、`E:\git\cherry-studio`
 
@@ -322,6 +322,12 @@ Phase 1 能否无争议地推进，完全取决于本阶段产出以下四份文
 6. 移动端 `useLlmRequest` 迁移列为本阶段尾项或 Phase 2 前置；移动端尚未发布，可直接对接新 resolver，不需要任何兼容垫片。
 
 本阶段所有旧桌面 profile 的行为必须完全不变，是聚合渠道功能的真正前置施工。
+
+### Phase 1 实施记录（2026-08-06）
+
+已新增共享 `LlmAdapterId` / `LlmOperation` / `LlmModelRouting` 契约与 `resolveModelExecution()` 实现，默认渠道路径保留原始 `profile.type`，因此未改变旧渠道的 URL、鉴权、参数方言或特化 adapter 行为。桌面聊天、Embedding、Recall 与 Probe 的 adapter 选择，以及移动端聊天分发，均已先经过共享 resolver；桌面 Inspector 与日志同时记录渠道类型、实际 adapter、operation 和路由来源。
+
+Phase 2 前不提供模型路由编辑或服务端端点声明持久化；现阶段 `routing` 是兼容读取的可选结构。详细契约、默认映射、调用点与回归策略见 [`LLM 模型执行路由契约`](../architecture/llm-execution-routing.md)。
 
 ### Phase 2：模型结构与发现链路
 

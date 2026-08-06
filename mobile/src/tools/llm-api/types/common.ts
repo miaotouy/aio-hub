@@ -299,6 +299,9 @@ export interface LlmModelInfo {
    */
   provider?: string;
 
+  /** Model-level execution routing shared with desktop. */
+  routing?: LlmModelRouting;
+
   /**
    * 模型能力标识
    */
@@ -684,4 +687,8 @@ export interface LlmResponse {
   }>;
   revisedPrompt?: string;
 }
-import type { ModelIdentity, ModelIdentitySuggestion } from "@aiohub/llm-core";
+import type {
+  LlmModelRouting,
+  ModelIdentity,
+  ModelIdentitySuggestion,
+} from "@aiohub/llm-core";

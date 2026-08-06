@@ -4,6 +4,7 @@ import {
   rerankAdapter,
   resolveProbePlan,
   validateProbeResponse,
+  resolveModelExecution,
   type ProbePlan,
   type TransportObserver,
 } from "@aiohub/llm-core";
@@ -136,17 +137,36 @@ export function createChannelProbeService(
         });
       }
 
-      const effectiveProfile = withExplicitKey(target.profile, request.apiKey);
-      const adapter = adapterMap[effectiveProfile.type];
+      const keyedProfile = withExplicitKey(target.profile, request.apiKey);
+      const route = resolveModelExecution({
+        profile: keyedProfile,
+        // Explicit endpoint checks are a probe override, not a persisted model
+        // binding. Auto checks use the model's normal execution routing.
+        model:
+          request.endpointType && request.endpointType !== "auto"
+            ? { ...model, routing: undefined }
+            : model,
+        operation: plan.capability,
+      });
+      const adapter = adapterMap[route.effectiveProfile.type];
       if (!adapter) {
-        throw new Error(`不支持的提供商类型: ${effectiveProfile.type}`);
+        throw new Error(`不支持的提供商类型: ${route.effectiveProfile.type}`);
+      }
+      if (inspectorHookRegistry.shouldCaptureInternal()) {
+        inspectorHookRegistry.setContext(requestId, {
+          ...inspectorHookRegistry.getContext(requestId),
+          channelType: profile.type,
+          effectiveAdapterId: route.adapterId,
+          executionOperation: route.operation,
+          routeSource: route.routeSource,
+        });
       }
 
       const execution = await executePlan({
         adapter,
         model,
         plan,
-        profile: effectiveProfile,
+        profile: route.effectiveProfile,
         request,
         requestId,
         observer,

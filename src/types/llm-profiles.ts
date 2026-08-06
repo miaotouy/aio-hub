@@ -17,7 +17,11 @@
  */
 import type { SettingItem } from "./settings-renderer";
 import type { MediaGenParamRules } from "./model-metadata";
-import type { ModelIdentity, ModelIdentitySuggestion } from "@aiohub/llm-core";
+import type {
+  LlmModelRouting,
+  ModelIdentity,
+  ModelIdentitySuggestion,
+} from "@aiohub/llm-core";
 
 /**
  * 上下文后处理规则 (简易定义，避免循环依赖和跨端导入问题)
@@ -315,6 +319,11 @@ export interface LlmModelInfo {
    * 用于 UI 显示 logo 等
    */
   provider?: string;
+  /**
+   * Model-level execution routing. Empty for all legacy profiles, which then
+   * resolve through the channel default without behavior changes.
+   */
+  routing?: LlmModelRouting;
   /**
    * 模型能力标识
    */

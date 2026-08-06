@@ -51,6 +51,7 @@ export interface LifecycleManagers {
   ) => Promise<T>;
   fillMissingTokenMetadata: () => Promise<void>;
   getActivePath: (sessionId?: string | null) => ChatMessageNode[];
+  cancelSessionApprovals?: (sessionId: string, reason: string) => void;
 }
 
 export interface InterruptedGenerationRepairResult {
@@ -239,6 +240,7 @@ export function createSessionLifecycleManager(
   }
 
   function cleanupSessionMemory(sessionId: string): void {
+    managers.cancelSessionApprovals?.(sessionId, "会话已删除或清理");
     managers.runtime.clearSessionRuntime(sessionId);
     managers.history.cleanupSession(sessionId);
   }

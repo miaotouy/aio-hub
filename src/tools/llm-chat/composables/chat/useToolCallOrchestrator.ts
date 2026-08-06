@@ -277,7 +277,12 @@ export function useToolCallOrchestrator() {
             responseContent,
             executionAgent.toolCallConfig,
             async (request) =>
-              await toolCallingStore.requestApproval(session.id, request),
+              await toolCallingStore.requestApproval(
+                session.id,
+                request,
+                undefined,
+                { signal: abortController.signal }
+              ),
             async (requestId, status) => {
               // 简化回调：仅更新已有节点的元数据状态
               if (toolNode && session.nodes?.[toolNode.id]) {

@@ -15,7 +15,7 @@
 -->
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   Play,
   X,
@@ -37,6 +37,26 @@ const llmChatStore = useLlmChatStore();
  * 本次消息的静默执行开关 (单次状态)
  */
 const isSilent = ref(false);
+const countdownNow = ref(Date.now());
+let countdownTimer: ReturnType<typeof setInterval> | null = null;
+
+onMounted(() => {
+  countdownTimer = setInterval(() => {
+    countdownNow.value = Date.now();
+  }, 1000);
+});
+
+onBeforeUnmount(() => {
+  if (countdownTimer) clearInterval(countdownTimer);
+});
+
+function formatRemainingTime(expiresAt: number): string {
+  const seconds = Math.max(
+    0,
+    Math.ceil((expiresAt - countdownNow.value) / 1000)
+  );
+  return seconds > 0 ? `剩余 ${seconds} 秒` : "正在超时拒绝";
+}
 
 const currentSessionPendingRequests = computed(() => {
   return toolCallingStore.pendingRequests.filter(
@@ -238,6 +258,9 @@ const handleRejectAll = () => {
                     .join(", ")
                 }}
               </span>
+            </div>
+            <div class="approval-countdown">
+              {{ formatRemainingTime(item.expiresAt) }} · 超时将自动拒绝
             </div>
           </div>
           <div class="item-actions">
@@ -509,6 +532,13 @@ const handleRejectAll = () => {
   background: rgba(var(--el-fill-color-rgb), 0.5);
   padding: 1px 4px;
   border-radius: 3px;
+}
+
+.approval-countdown {
+  width: fit-content;
+  font-size: 11px;
+  color: var(--el-color-warning);
+  font-variant-numeric: tabular-nums;
 }
 
 .item-actions {

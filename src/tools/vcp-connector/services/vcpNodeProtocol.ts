@@ -189,6 +189,7 @@ export class VcpNodeProtocol {
    * Abort every execution started by this WebSocket locally instead.
    */
   public abortAllInFlight(): void {
+    useToolCallingStore().cancelExternalRequests("VCP 连接已断开");
     for (const [requestId, controller] of this.inFlightControllers) {
       if (!controller.signal.aborted) {
         controller.abort();
@@ -340,7 +341,11 @@ export class VcpNodeProtocol {
     try {
       // 0. 特殊处理内置工具：internal_request_file
       if (toolName === "internal_request_file") {
-        await this.handleInternalRequestFile(requestId, toolArgs);
+        await this.handleInternalRequestFile(
+          requestId,
+          toolArgs,
+          abortController.signal
+        );
         return;
       }
 
@@ -531,7 +536,11 @@ export class VcpNodeProtocol {
     this.externalFileRequestTimes.push(now);
   }
 
-  private async handleInternalRequestFile(requestId: string, args: any) {
+  private async handleInternalRequestFile(
+    requestId: string,
+    args: any,
+    signal?: AbortSignal
+  ) {
     const distStore = useVcpDistributedStore();
     if (!distStore.config.externalFileTransferEnabled) {
       throw new Error("当前节点已关闭 VCP 外部文件传输能力");
@@ -574,7 +583,8 @@ export class VcpNodeProtocol {
           toolCallingStore.requestApproval(
             `vcp-file-transfer:${this.serverId}`,
             approvalRequest as any,
-            requestId
+            requestId,
+            { signal }
           ),
           "VCP 文件传输审批"
         );

@@ -4,11 +4,13 @@ const {
   inspectFileForExternalTransfer,
   readFileForExternalTransfer,
   requestApproval,
+  cancelExternalRequests,
   distributedConfig,
 } = vi.hoisted(() => ({
   inspectFileForExternalTransfer: vi.fn(),
   readFileForExternalTransfer: vi.fn(),
   requestApproval: vi.fn(),
+  cancelExternalRequests: vi.fn(),
   distributedConfig: {
     externalFileTransferEnabled: true,
     autoRegisterTools: true,
@@ -51,7 +53,7 @@ vi.mock("../stores/vcpDistributedStore", () => ({
   useVcpDistributedStore: () => ({ config: distributedConfig }),
 }));
 vi.mock("@/tools/llm-chat/stores/toolCallingStore", () => ({
-  useToolCallingStore: () => ({ requestApproval }),
+  useToolCallingStore: () => ({ requestApproval, cancelExternalRequests }),
 }));
 
 import { VcpNodeProtocol } from "../services/vcpNodeProtocol";
@@ -114,6 +116,14 @@ describe("VcpNodeProtocol internal_request_file", () => {
         }),
       })
     );
+  });
+
+  it("VCP 断线时清理所有外部审批请求", () => {
+    const protocol = new VcpNodeProtocol(vi.fn());
+
+    protocol.abortAllInFlight();
+
+    expect(cancelExternalRequests).toHaveBeenCalledWith("VCP 连接已断开");
   });
 
   it("关闭能力后默认拒绝", async () => {

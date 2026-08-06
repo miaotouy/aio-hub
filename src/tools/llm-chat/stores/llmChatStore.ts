@@ -55,6 +55,7 @@ import { createSessionRuntimeManager } from "./session/sessionRuntimeManager";
 import { createSessionHistoryManager } from "./session/sessionHistoryManager";
 import { createSessionGenerationManager } from "./session/sessionGenerationManager";
 import { createSessionLifecycleManager } from "./session/sessionLifecycleManager";
+import { useToolCallingStore } from "./toolCallingStore";
 
 const logger = createModuleLogger("llm-chat/store");
 
@@ -110,6 +111,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     currentSessionId,
   });
   const inputManager = useChatInputManager();
+  const toolCallingStore = useToolCallingStore();
 
   watch(
     currentSessionId,
@@ -417,6 +419,9 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       executeOrProxy,
       fillMissingTokenMetadata,
       getActivePath: sessionAccess.getActivePath,
+      cancelSessionApprovals: (sessionId, reason) => {
+        toolCallingStore.cancelBySession(sessionId, reason);
+      },
     }
   );
   const {
@@ -580,6 +585,10 @@ export const useLlmChatStore = defineStore("llmChat", () => {
    * 中止当前发送
    */
   function abortSending(sessionId?: string): void {
+    const targetSessionId = sessionId || currentSessionId.value;
+    if (targetSessionId) {
+      toolCallingStore.cancelBySession(targetSessionId, "生成已中止");
+    }
     sessionRuntime.abortSessionGeneration(sessionId);
   }
 
@@ -587,6 +596,10 @@ export const useLlmChatStore = defineStore("llmChat", () => {
    * 中止指定节点的生成
    */
   function abortNodeGeneration(nodeId: string): void {
+    const sessionId = sessionAccess.findSessionIdByNodeId(nodeId);
+    if (sessionId) {
+      toolCallingStore.cancelBySession(sessionId, "生成节点已中止");
+    }
     sessionRuntime.abortNodeGeneration(nodeId);
   }
 

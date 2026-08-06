@@ -100,3 +100,93 @@ describe("useLlmKeyManager", () => {
     expect(manager.getAutoRecoveryTime("profile-2")).toBe(60000);
   });
 });
+
+// KI-005 回归：不可用 Key 不能静默回退。
+describe("pickKey availability boundaries", () => {
+  it("全部被用户禁用时抛出配置错误", () => {
+    const manager = useLlmKeyManager();
+    const disabledProfile = {
+      id: "profile-all-disabled",
+      name: "全部禁用渠道",
+      apiKeys: ["disabled-a", "disabled-b"],
+    } as LlmProfile;
+    manager.syncKeyStates(disabledProfile);
+    manager.batchSetEnabled(disabledProfile.id, false);
+
+    expect(() => manager.pickKey(disabledProfile)).toThrowError(
+      expect.objectContaining({ reason: "all-disabled" })
+    );
+  });
+
+  it("全部已启用 Key 熔断时返回最近恢复时间而不回退", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-06T00:00:00.000Z"));
+    try {
+      const manager = useLlmKeyManager();
+      const brokenProfile = {
+        id: "profile-all-broken",
+        name: "全部熔断渠道",
+        apiKeys: ["broken-a", "broken-b"],
+      } as LlmProfile;
+      manager.syncKeyStates(brokenProfile);
+      manager.setAutoRecoveryTime(brokenProfile.id, 60_000);
+      manager.updateKeyStatus(brokenProfile.id, "broken-a", {
+        isBroken: true,
+        disabledTime: Date.now() - 10_000,
+      });
+      manager.updateKeyStatus(brokenProfile.id, "broken-b", {
+        isBroken: true,
+        disabledTime: Date.now() - 20_000,
+      });
+
+      try {
+        manager.pickKey(brokenProfile);
+        throw new Error("expected pickKey to throw");
+      } catch (error) {
+        expect(error).toMatchObject({
+          reason: "all-enabled-circuit-broken",
+          retryAt: Date.now() + 40_000,
+        });
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("熔断时间到期后自动恢复", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-06T00:02:00.000Z"));
+    try {
+      const manager = useLlmKeyManager();
+      const recoveryProfile = {
+        id: "profile-auto-recovery",
+        apiKeys: ["recover-key"],
+      } as LlmProfile;
+      manager.syncKeyStates(recoveryProfile);
+      manager.setAutoRecoveryTime(recoveryProfile.id, 60_000);
+      manager.updateKeyStatus(recoveryProfile.id, "recover-key", {
+        isBroken: true,
+        disabledTime: Date.now() - 61_000,
+      });
+
+      expect(manager.pickKey(recoveryProfile)).toBe("recover-key");
+      expect(
+        manager.getKeyStatuses(recoveryProfile.id)["recover-key"].isBroken
+      ).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("只选择最后一个仍可用的 Key", () => {
+    const manager = useLlmKeyManager();
+    const partialProfile = {
+      id: "profile-last-available",
+      apiKeys: ["bad-key", "good-key"],
+    } as LlmProfile;
+    manager.syncKeyStates(partialProfile);
+    manager.updateKeyStatus(partialProfile.id, "bad-key", { isBroken: true });
+
+    expect(manager.pickKey(partialProfile)).toBe("good-key");
+  });
+});

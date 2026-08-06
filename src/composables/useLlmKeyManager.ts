@@ -51,6 +51,21 @@ const keyStates = ref<KeyStatesStorage>({
 });
 const isLoaded = ref(false);
 
+export type ApiKeyUnavailableReason =
+  "all-disabled" | "all-enabled-circuit-broken";
+
+export class ApiKeyUnavailableError extends Error {
+  constructor(
+    message: string,
+    public readonly reason: ApiKeyUnavailableReason,
+    public readonly profileId: string,
+    public readonly retryAt?: number
+  ) {
+    super(message);
+    this.name = "ApiKeyUnavailableError";
+  }
+}
+
 type LoadableKeyStatesStorage = Partial<KeyStatesStorage> & {
   enableAutoDisable?: boolean;
   autoRecoveryTime?: number;
@@ -189,11 +204,42 @@ export function useLlmKeyManager() {
     });
 
     if (availableKeys.length === 0) {
-      logger.warn("配置下没有可用的 API Key (可能全部被禁用或熔断)", {
+      const enabledStates = profile.apiKeys
+        .map((key) => profileStates[key])
+        .filter((state) => state.isEnabled);
+
+      if (enabledStates.length === 0) {
+        logger.warn("配置下的 API Key 已全部被用户禁用", {
+          profileId: profile.id,
+        });
+        throw new ApiKeyUnavailableError(
+          `配置 "${profile.name || profile.id}" 的 API Key 已全部禁用，请先在渠道设置中启用至少一个 Key`,
+          "all-disabled",
+          profile.id
+        );
+      }
+
+      const recoveryCandidates = enabledStates
+        .filter((state) => state.isBroken && state.disabledTime)
+        .map((state) => state.disabledTime! + autoRecoveryTime)
+        .filter((time) => autoRecoveryTime > 0 && time > now);
+      const retryAt =
+        recoveryCandidates.length > 0
+          ? Math.min(...recoveryCandidates)
+          : undefined;
+      logger.warn("配置下所有已启用 API Key 均处于熔断状态", {
         profileId: profile.id,
+        retryAt,
       });
-      // 如果全部不可用，回退到第一个 Key（或者抛错，这里选择回退第一个，由 API 报错触发反馈）
-      return profile.apiKeys[0];
+      const retryHint = retryAt
+        ? `，最早可在 ${new Date(retryAt).toLocaleString()} 后重试`
+        : "";
+      throw new ApiKeyUnavailableError(
+        `配置 "${profile.name || profile.id}" 的所有已启用 API Key 当前均不可用${retryHint}`,
+        "all-enabled-circuit-broken",
+        profile.id,
+        retryAt
+      );
     }
 
     // 轮询逻辑
@@ -231,7 +277,7 @@ export function useLlmKeyManager() {
       return nextKey;
     }
 
-    return profile.apiKeys[0];
+    return undefined;
   };
 
   /**

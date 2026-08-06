@@ -65,6 +65,8 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     safetyGuardEnabled: true, // 默认启用渲染安全护栏
     globalMediaVolume: 80, // 默认媒体音量 80%
     autoTriggerGenerationAfterQueue: true,
+    toolApprovalTimeoutEnabled: false,
+    toolApprovalTimeoutSeconds: 60,
     queueReplyMode: "combined" as const,
     useNativeTextarea: false,
     bubbleLayout: {

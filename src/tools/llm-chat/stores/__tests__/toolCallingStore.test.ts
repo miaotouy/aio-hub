@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { nextTick, ref } from "vue";
 import { createPinia, setActivePinia } from "pinia";
 
 vi.mock("@/utils/logger", () => ({
@@ -8,6 +9,17 @@ vi.mock("@/utils/logger", () => ({
     warn: vi.fn(),
     error: vi.fn(),
   }),
+}));
+
+const chatSettings = ref({
+  uiPreferences: {
+    toolApprovalTimeoutEnabled: false,
+    toolApprovalTimeoutSeconds: 60,
+  },
+});
+
+vi.mock("../../composables/settings/useChatSettings", () => ({
+  useChatSettings: () => ({ settings: chatSettings }),
 }));
 
 import { useToolCallingStore } from "../toolCallingStore";
@@ -26,7 +38,52 @@ function request(requestId: string) {
 describe("toolCallingStore 审批生命周期", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    chatSettings.value.uiPreferences.toolApprovalTimeoutEnabled = false;
+    chatSettings.value.uiPreferences.toolApprovalTimeoutSeconds = 60;
     vi.useRealTimers();
+  });
+
+  it("默认不超时并一直等待人工处理", async () => {
+    vi.useFakeTimers();
+    const store = useToolCallingStore();
+    const resultPromise = store.requestApproval(
+      "session-wait",
+      request("request-wait")
+    );
+
+    expect(store.pendingRequests).toHaveLength(1);
+    expect(store.pendingRequests[0].expiresAt).toBeNull();
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(store.pendingRequests).toHaveLength(1);
+
+    store.approveRequest(store.pendingRequests[0].id);
+    await expect(resultPromise).resolves.toBe("approved");
+  });
+
+  it("全局开关会为当前默认策略请求启停超时", async () => {
+    vi.useFakeTimers();
+    const store = useToolCallingStore();
+    const resultPromise = store.requestApproval(
+      "session-toggle",
+      request("request-toggle")
+    );
+
+    chatSettings.value.uiPreferences.toolApprovalTimeoutEnabled = true;
+    await nextTick();
+    expect(store.pendingRequests[0].expiresAt).toBe(Date.now() + 60_000);
+
+    chatSettings.value.uiPreferences.toolApprovalTimeoutSeconds = 120;
+    await nextTick();
+    expect(store.pendingRequests[0].expiresAt).toBe(Date.now() + 120_000);
+
+    chatSettings.value.uiPreferences.toolApprovalTimeoutEnabled = false;
+    await nextTick();
+    expect(store.pendingRequests[0].expiresAt).toBeNull();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(store.pendingRequests).toHaveLength(1);
+
+    store.rejectRequest(store.pendingRequests[0].id);
+    await expect(resultPromise).resolves.toBe("rejected");
   });
 
   it("超时后默认拒绝并移除 pending 请求", async () => {

@@ -205,6 +205,10 @@ export interface ChatSettings {
     bubbleLayout: BubbleLayoutConfig;
     /** 是否在队列完成后自动触发生成，默认 true */
     autoTriggerGenerationAfterQueue: boolean;
+    /** 工具审批是否在指定时间后自动拒绝；关闭时一直等待人工处理 */
+    toolApprovalTimeoutEnabled: boolean;
+    /** 工具审批超时秒数，范围 5 秒至 24 小时 */
+    toolApprovalTimeoutSeconds: number;
     /** 队列回复模式：'combined' 合并回复，'chained' 链式独立回复，默认 'combined' */
     queueReplyMode: "combined" | "chained";
     /** 输入框使用原生 textarea（规避 Chromium 149+ IME 回归 Bug） */

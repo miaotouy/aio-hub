@@ -13,18 +13,22 @@
 // limitations under the License.
 
 import { defineStore } from "pinia";
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import type {
   ParsedToolRequest,
   ToolApprovalResult,
 } from "@/tools/tool-calling/types";
 import { createModuleLogger } from "@/utils/logger";
+import { useChatSettings } from "../composables/settings/useChatSettings";
 
 const logger = createModuleLogger("llm-chat/tool-approval");
 export const DEFAULT_TOOL_APPROVAL_TIMEOUT_MS = 60_000;
+export const MIN_TOOL_APPROVAL_TIMEOUT_SECONDS = 5;
+export const MAX_TOOL_APPROVAL_TIMEOUT_SECONDS = 24 * 60 * 60;
 
 export interface ToolApprovalOptions {
-  timeoutMs?: number;
+  /** 正数表示显式超时；0 或 null 表示显式禁用；省略时跟随全局设置。 */
+  timeoutMs?: number | null;
   signal?: AbortSignal;
 }
 
@@ -35,12 +39,14 @@ export interface PendingToolRequest {
   sessionId: string;
   request: ParsedToolRequest;
   createdAt: number;
-  expiresAt: number;
+  expiresAt: number | null;
+  /** 是否跟随全局审批超时设置，显式 timeoutMs 的请求不受开关变化影响。 */
+  usesDefaultTimeout: boolean;
   resolve: (result: ToolApprovalResult) => void;
 }
 
 interface PendingLifecycle {
-  timer: ReturnType<typeof setTimeout>;
+  timer?: ReturnType<typeof setTimeout>;
   signal?: AbortSignal;
   abortHandler?: () => void;
 }
@@ -48,11 +54,19 @@ interface PendingLifecycle {
 export const useToolCallingStore = defineStore("toolCalling", () => {
   const pendingRequests = ref<PendingToolRequest[]>([]);
   const lifecycles = new Map<string, PendingLifecycle>();
+  const { settings: chatSettings } = useChatSettings();
+
+  function clearLifecycleTimer(lifecycle: PendingLifecycle): void {
+    if (lifecycle.timer) {
+      clearTimeout(lifecycle.timer);
+      lifecycle.timer = undefined;
+    }
+  }
 
   function cleanupLifecycle(id: string): void {
     const lifecycle = lifecycles.get(id);
     if (!lifecycle) return;
-    clearTimeout(lifecycle.timer);
+    clearLifecycleTimer(lifecycle);
     if (lifecycle.signal && lifecycle.abortHandler) {
       lifecycle.signal.removeEventListener("abort", lifecycle.abortHandler);
     }
@@ -80,9 +94,56 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
     return true;
   }
 
+  function getConfiguredTimeoutMs(): number {
+    const configuredSeconds = Number(
+      chatSettings.value.uiPreferences.toolApprovalTimeoutSeconds
+    );
+    if (!Number.isFinite(configuredSeconds)) {
+      return DEFAULT_TOOL_APPROVAL_TIMEOUT_MS;
+    }
+    const seconds = Math.min(
+      MAX_TOOL_APPROVAL_TIMEOUT_SECONDS,
+      Math.max(MIN_TOOL_APPROVAL_TIMEOUT_SECONDS, configuredSeconds)
+    );
+    return seconds * 1000;
+  }
+
+  function resolveTimeoutMs(options: ToolApprovalOptions): number | null {
+    if (options.timeoutMs !== undefined) {
+      return typeof options.timeoutMs === "number" && options.timeoutMs > 0
+        ? options.timeoutMs
+        : null;
+    }
+    return chatSettings.value.uiPreferences.toolApprovalTimeoutEnabled
+      ? getConfiguredTimeoutMs()
+      : null;
+  }
+
+  function scheduleTimeout(
+    pending: PendingToolRequest,
+    lifecycle: PendingLifecycle,
+    timeoutMs: number | null
+  ): void {
+    clearLifecycleTimer(lifecycle);
+    pending.expiresAt = timeoutMs === null ? null : Date.now() + timeoutMs;
+    if (timeoutMs === null) return;
+    lifecycle.timer = setTimeout(() => {
+      settleRequest(pending.id, "rejected", "审批超时");
+    }, timeoutMs);
+  }
+
+  function applyDefaultTimeoutPolicy(enabled: boolean): void {
+    const timeoutMs = enabled ? getConfiguredTimeoutMs() : null;
+    for (const pending of pendingRequests.value) {
+      if (!pending.usesDefaultTimeout) continue;
+      const lifecycle = lifecycles.get(pending.id);
+      if (lifecycle) scheduleTimeout(pending, lifecycle, timeoutMs);
+    }
+  }
+
   /**
-   * 请求批准。所有请求都有强制超时，AbortSignal 中止、会话清理或窗口关闭时
-   * 都会默认拒绝并从 pendingRequests 移除。
+   * 请求批准。默认一直等待人工处理；用户启用全局超时或调用方显式传入 timeoutMs
+   * 时才会定时拒绝。AbortSignal 中止、会话清理或窗口关闭仍会拒绝并清理请求。
    */
   function requestApproval(
     sessionId: string,
@@ -93,34 +154,35 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
     if (options.signal?.aborted) return Promise.resolve("rejected");
     if (externalId) cancelByExternalId(externalId, "同一外部请求已被替换");
 
-    const timeoutMs =
-      typeof options.timeoutMs === "number" && options.timeoutMs > 0
-        ? options.timeoutMs
-        : DEFAULT_TOOL_APPROVAL_TIMEOUT_MS;
+    const timeoutMs = resolveTimeoutMs(options);
     const id = Math.random().toString(36).substring(2, 11);
     const createdAt = Date.now();
 
     return new Promise((resolve) => {
-      pendingRequests.value.push({
+      const pending: PendingToolRequest = {
         id,
         externalId,
         sessionId,
         request,
         createdAt,
-        expiresAt: createdAt + timeoutMs,
+        expiresAt: null,
+        usesDefaultTimeout: options.timeoutMs === undefined,
         resolve,
-      });
+      };
+      pendingRequests.value.push(pending);
 
-      const timer = setTimeout(() => {
-        settleRequest(id, "rejected", "审批超时");
-      }, timeoutMs);
       const abortHandler = options.signal
         ? () => settleRequest(id, "rejected", "调用已取消")
         : undefined;
       if (options.signal && abortHandler) {
         options.signal.addEventListener("abort", abortHandler, { once: true });
       }
-      lifecycles.set(id, { timer, signal: options.signal, abortHandler });
+      const lifecycle: PendingLifecycle = {
+        signal: options.signal,
+        abortHandler,
+      };
+      lifecycles.set(id, lifecycle);
+      scheduleTimeout(pending, lifecycle, timeoutMs);
     });
   }
 
@@ -198,6 +260,15 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
       .map((item) => item.id);
     settleByIds(ids, approved ? "approved" : "rejected", "收到外部审批结果");
   }
+
+  watch(
+    () =>
+      [
+        chatSettings.value.uiPreferences.toolApprovalTimeoutEnabled,
+        chatSettings.value.uiPreferences.toolApprovalTimeoutSeconds,
+      ] as const,
+    ([enabled]) => applyDefaultTimeoutPolicy(enabled)
+  );
 
   if (typeof window !== "undefined") {
     const cancelForWindowClose = () => cancelAll("应用窗口已关闭");

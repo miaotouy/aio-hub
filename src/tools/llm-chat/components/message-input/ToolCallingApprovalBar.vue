@@ -50,12 +50,13 @@ onBeforeUnmount(() => {
   if (countdownTimer) clearInterval(countdownTimer);
 });
 
-function formatRemainingTime(expiresAt: number): string {
+function formatApprovalWait(expiresAt: number | null): string {
+  if (expiresAt === null) return "等待人工审批 · 不会自动超时";
   const seconds = Math.max(
     0,
     Math.ceil((expiresAt - countdownNow.value) / 1000)
   );
-  return seconds > 0 ? `剩余 ${seconds} 秒` : "正在超时拒绝";
+  return seconds > 0 ? `剩余 ${seconds} 秒 · 超时将自动拒绝` : "正在超时拒绝";
 }
 
 const currentSessionPendingRequests = computed(() => {
@@ -260,7 +261,7 @@ const handleRejectAll = () => {
               </span>
             </div>
             <div class="approval-countdown">
-              {{ formatRemainingTime(item.expiresAt) }} · 超时将自动拒绝
+              {{ formatApprovalWait(item.expiresAt) }}
             </div>
           </div>
           <div class="item-actions">

@@ -15,7 +15,7 @@
 -->
 
 <script setup lang="ts">
-import { ElPopover, ElSwitch } from "element-plus";
+import { ElInputNumber, ElPopover, ElSwitch } from "element-plus";
 import { Settings } from "lucide-vue-next";
 import { useMessageInputStore } from "../../../stores/messageInputStore";
 import type { InputToolbarSettings } from "../../../stores/messageInputStore";
@@ -136,6 +136,60 @@ function updateSetting(
             />
           </div>
           <div class="setting-item">
+            <span class="setting-label">
+              工具审批超时
+              <el-tooltip
+                content="关闭后会一直等待人工允许或拒绝，不会因审批超时自动触发后续模型调用"
+                placement="top"
+                :show-after="500"
+              >
+                <span class="info-icon">ⓘ</span>
+              </el-tooltip>
+            </span>
+            <el-switch
+              :model-value="
+                chatSettings.uiPreferences.toolApprovalTimeoutEnabled
+              "
+              @update:model-value="
+                (v: boolean | string | number) =>
+                  updateChatSettings({
+                    uiPreferences: {
+                      ...chatSettings.uiPreferences,
+                      toolApprovalTimeoutEnabled: v as boolean,
+                    },
+                  })
+              "
+              size="small"
+            />
+          </div>
+          <div
+            v-if="chatSettings.uiPreferences.toolApprovalTimeoutEnabled"
+            class="setting-item"
+          >
+            <span class="setting-label">审批等待秒数</span>
+            <el-input-number
+              :model-value="
+                chatSettings.uiPreferences.toolApprovalTimeoutSeconds
+              "
+              :min="5"
+              :max="86400"
+              :step="30"
+              :precision="0"
+              controls-position="right"
+              size="small"
+              class="approval-timeout-input"
+              @update:model-value="
+                (v: number | undefined) =>
+                  updateChatSettings({
+                    uiPreferences: {
+                      ...chatSettings.uiPreferences,
+                      toolApprovalTimeoutSeconds: v ?? 60,
+                    },
+                  })
+              "
+            />
+          </div>
+          <div class="setting-item">
             <span class="setting-label">队列消息自动生成</span>
             <el-switch
               :model-value="
@@ -205,6 +259,10 @@ function updateSetting(
 </template>
 
 <style scoped>
+.approval-timeout-input {
+  width: 104px;
+}
+
 .tool-btn {
   display: flex;
   align-items: center;

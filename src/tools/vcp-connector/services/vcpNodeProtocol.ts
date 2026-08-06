@@ -579,14 +579,13 @@ export class VcpNodeProtocol {
             mimeType: inspection.mimeType,
           },
         };
-        const result = await withDistributedTimeout(
-          toolCallingStore.requestApproval(
-            `vcp-file-transfer:${this.serverId}`,
-            approvalRequest as any,
-            requestId,
-            { signal }
-          ),
-          "VCP 文件传输审批"
+        // 该审批处于 execute_tool 的 120 秒分布式传输窗口内，必须使用略短的
+        // 显式协议超时；它不跟随普通工具审批的“无限等待”用户偏好。
+        const result = await toolCallingStore.requestApproval(
+          `vcp-file-transfer:${this.serverId}`,
+          approvalRequest as any,
+          requestId,
+          { signal, timeoutMs: DISTRIBUTED_TOOL_TIMEOUT_MS }
         );
         approvalGranted = result === "approved";
         if (!approvalGranted) throw new Error("用户拒绝了外部文件传输请求");

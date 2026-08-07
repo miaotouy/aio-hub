@@ -43,8 +43,8 @@ jobs:
 
       - name: 安装前端依赖
         run: |
-          bun install
-          cd mobile && bun install
+          bun install --frozen-lockfile
+          cd mobile && bun install --frozen-lockfile
 
       - name: 校验移动端版本与 tag
         if: startsWith(github.ref, 'refs/tags/')

@@ -41,7 +41,7 @@ jobs:
         uses: ./.github/actions/prepare-tauri-bundler-tools
 
       - name: 安装前端依赖
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: 检查并处理无签名构建配置
         shell: bash

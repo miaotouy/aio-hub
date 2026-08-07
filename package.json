@@ -25,7 +25,8 @@
     "mobile"
   ],
   "scripts": {
-    "postinstall": "bun run scripts/setup-wry-patch.ts",
+    "preinstall": "bun scripts/security/scan-dependencies.ts --mode lock",
+    "postinstall": "bun scripts/security/scan-dependencies.ts --mode installed && bun run scripts/setup-wry-patch.ts",
     "generate:shims": "bun scripts/generate-shims.ts",
     "release:updater-manifest": "bun scripts/generate-updater-manifest.ts",
     "version:set": "bun scripts/version.ts set",
@@ -83,8 +84,8 @@
     "format:check": "prettier --check \"src/**/*.{ts,js,vue,json,css,scss}\" \"mobile/src/**/*.{ts,js,vue,json,css,scss}\" \"packages/**/*.{ts,js,vue,json,css,scss}\" \"docs/**/*.md\"",
     "format:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml && cargo fmt --manifest-path mobile/src-tauri/Cargo.toml",
     "format:rust:check": "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check && cargo fmt --manifest-path mobile/src-tauri/Cargo.toml -- --check",
-    "check": "bun run lint && bun run check:model-icons && bun run check:release-notes && bun run check:frontend && bun run check:backend && bun run check:mobile && bun run check:packages",
-    "check:ci": "bun run check:release-notes && bun run check:frontend && bun run check:mobile:frontend && bun run check:backend:compile && bun run check:mobile:backend:compile && bun run test:backend",
+    "check": "bun run lint && bun run check:security && bun run check:model-icons && bun run check:release-notes && bun run check:frontend && bun run check:backend && bun run check:mobile && bun run check:packages",
+    "check:ci": "bun run check:security && bun run check:release-notes && bun run check:frontend && bun run check:mobile:frontend && bun run check:backend:compile && bun run check:mobile:backend:compile && bun run test:backend",
     "check:full": "bun run format:check && bun run format:rust:check && bun run check && bun run test:all && bun run build:vite && bun run build:mobile && bun run docs:build",
     "check:frontend": "vue-tsc --noEmit",
     "check:backend": "bun run check:backend:lint",
@@ -99,7 +100,11 @@
     "check:llm-core": "bun run --cwd packages/llm-core check",
     "license:add": "bun run scripts/add-license.ts",
     "license:check": "bun run scripts/add-license.ts --dry-run",
-    "check:release-notes": "bun scripts/check-release-notes.ts"
+    "check:release-notes": "bun scripts/check-release-notes.ts",
+    "security:dependencies": "bun scripts/security/scan-dependencies.ts --mode installed",
+    "security:dependencies:strict": "bun scripts/security/scan-dependencies.ts --mode installed --fail-on medium",
+    "security:audit": "bun audit --audit-level high",
+    "check:security": "bun run security:dependencies"
   },
   "dependencies": {
     "@aiohub/llm-core": "workspace:*",
@@ -290,5 +295,10 @@
     "@lezer/common": "^1.2.3",
     "@lezer/lr": "^1.4.2",
     "@lezer/highlight": "^1.2.1"
-  }
+  },
+  "trustedDependencies": [
+    "esbuild",
+    "vue-demi",
+    "@parcel/watcher"
+  ]
 }

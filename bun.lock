@@ -54,7 +54,7 @@
         "@tauri-apps/plugin-deep-link": "^2.4.7",
         "@tauri-apps/plugin-dialog": "^2.2.0",
         "@tauri-apps/plugin-fs": "^2.2.0",
-        "@tauri-apps/plugin-http": "2.5.4",
+        "@tauri-apps/plugin-http": "^2.5.2",
         "@tauri-apps/plugin-opener": "^2.2.0",
         "@tauri-apps/plugin-os": "^2.3.1",
         "@tauri-apps/plugin-process": "^2.3.1",
@@ -240,6 +240,11 @@
       },
     },
   },
+  "trustedDependencies": [
+    "esbuild",
+    "vue-demi",
+    "@parcel/watcher",
+  ],
   "overrides": {
     "@lezer/common": "^1.2.3",
     "@lezer/highlight": "^1.2.1",

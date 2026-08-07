@@ -52,7 +52,7 @@ jobs:
           workspaces: "./src-tauri -> target"
 
       - name: 安装前端依赖
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: 获取版本号
         id: get-version

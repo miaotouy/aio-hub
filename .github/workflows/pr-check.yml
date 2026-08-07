@@ -35,7 +35,7 @@ jobs:
             ./mobile/src-tauri -> target
 
       - name: 安装前端依赖
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: 类型检查 (桌面端)
         run: bun run check:frontend

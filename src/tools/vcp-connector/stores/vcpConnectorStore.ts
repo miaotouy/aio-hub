@@ -572,6 +572,8 @@ export const useVcpStore = defineStore("vcp-connector", () => {
       vcpLogWs.value.onclose = (event) => {
         isVcpLogConnecting.value = false;
         logger.info("VCPLog WebSocket closed", event.code);
+        // 取消所有通过 VCPLog 发起的待审批请求，防止它们永久挂起
+        useToolCallingStore().cancelExternalRequests("VCPLog 连接已断开");
         if (!event.wasClean && config.value.autoConnect) {
           // 依赖主 Observer 的重连逻辑，VCPLog 会在 attemptConnect 中一起重连
         }

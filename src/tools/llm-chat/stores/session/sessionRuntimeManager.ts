@@ -32,10 +32,7 @@ interface RuntimeState {
 
 export function createSessionRuntimeManager(state: RuntimeState) {
   function isNodeGenerating(nodeId: string): boolean {
-    return (
-      state.generatingNodes.value.size >= 0 &&
-      state.generatingNodes.value.has(nodeId)
-    );
+    return state.generatingNodes.value.has(nodeId);
   }
 
   function getSessionGeneratingNodeIds(sessionId: string): string[] {

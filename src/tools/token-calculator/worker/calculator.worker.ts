@@ -138,9 +138,6 @@ async function handleRequest(id: number, method: string, params: any) {
         tokenCalculatorEngine.clearCache();
         result = true;
         break;
-      case "listProfiles":
-        result = tokenCalculatorEngine.listProfiles();
-        break;
       default:
         throw new Error(`Unknown method: ${method}`);
     }

@@ -62,8 +62,6 @@ const typeLabel = computed(() => {
       return "检索";
     case "Index":
       return "索引";
-    case "Chain":
-      return "链式";
     case "System":
       return "系统";
     default:

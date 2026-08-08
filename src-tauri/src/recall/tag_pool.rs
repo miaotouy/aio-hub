@@ -231,7 +231,6 @@ impl ModelTagPool {
     }
 
     /// 搜索邻居
-    #[allow(dead_code)]
     pub fn search_neighbors(&self, query_vector: &[f32], k: usize) -> Vec<(usize, f32)> {
         if self.registry.len() <= EXACT_SEARCH_MAX_TAGS {
             return self.search_neighbors_exact(query_vector, k);
@@ -366,7 +365,6 @@ impl GlobalTagPoolManager {
     }
 
     /// 使用持久化真源恢复的标签池替换当前运行时缓存。
-    #[allow(dead_code)] // 由 Stage 2 database warmup 调用，尚未切换运行时真源。
     pub fn replace_pools(&self, loaded_pools: Vec<ModelTagPool>) -> Result<(), String> {
         let mut pools = self.pools.write().map_err(|_| "获取池写锁失败")?;
         pools.clear();

@@ -24,12 +24,9 @@ use uuid::Uuid;
 #[serde(rename_all = "lowercase")]
 pub enum RecallMonitorLevel {
     Info,
-    #[allow(dead_code)]
     Warn,
-    #[allow(dead_code)]
     Error,
     Success,
-    #[allow(dead_code)]
     Debug,
 }
 
@@ -42,7 +39,6 @@ pub enum RecallStepStatus {
     Running,
     Completed,
     Skipped,
-    #[allow(dead_code)]
     Failed,
 }
 
@@ -136,21 +132,6 @@ pub struct IndexMetadata {
     pub file_patterns: Vec<String>,
 }
 
-/// 链式处理追踪数据结构
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ChainPayload {
-    pub steps: Vec<RecallMonitorStep>,
-    pub metadata: Option<ChainMetadata>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ChainMetadata {
-    pub chain_type: String,
-    pub parameters: HashMap<String, serde_json::Value>,
-}
-
 /// 系统级消息数据结构
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -166,8 +147,6 @@ pub enum RecallMonitorEvent {
     #[allow(clippy::upper_case_acronyms)]
     RAG(Box<RagPayload>),
     Index(IndexPayload),
-    #[allow(dead_code)]
-    Chain(ChainPayload),
     System(SystemPayload),
 }
 

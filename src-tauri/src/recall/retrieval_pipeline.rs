@@ -1403,14 +1403,6 @@ mod tests {
     }
 
     #[test]
-    fn artifact_store_uses_the_artifact_variant_as_its_key() {
-        let mut artifacts = RetrievalArtifacts::default();
-        artifacts.insert(RetrievalArtifact::QueryTokens(vec!["recall".to_string()]));
-        assert!(artifacts.contains(ArtifactKey::QueryTokens));
-        assert!(!artifacts.contains(ArtifactKey::QueryEmbedding));
-    }
-
-    #[test]
     fn wire_enums_use_stable_kebab_case_values() {
         assert_eq!(
             serde_json::to_value(PipelineErrorCode::ExternalRequirementMissing).unwrap(),

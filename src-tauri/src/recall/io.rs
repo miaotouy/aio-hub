@@ -145,16 +145,6 @@ pub fn save_entry(app_data_dir: &Path, recall_id: &str, entry: &RecallEntry) -> 
     Ok(())
 }
 
-/// 从磁盘删除单个条目 (仅 JSON)
-#[allow(dead_code)]
-pub fn delete_entry(app_data_dir: &Path, recall_id: &str, entry_id: &str) -> Result<(), String> {
-    let path = get_recall_entries_dir(app_data_dir, recall_id).join(format!("{}.json", entry_id));
-    if path.exists() {
-        fs::remove_file(path).map_err(|e| format!("删除条目文件失败: {}", e))?;
-    }
-    Ok(())
-}
-
 /// 保存思绪集元数据到磁盘
 #[allow(dead_code)]
 pub fn save_recall_meta(

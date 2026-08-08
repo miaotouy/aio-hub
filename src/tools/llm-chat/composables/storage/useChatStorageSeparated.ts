@@ -335,8 +335,7 @@ export function useChatStorageSeparated() {
   }
 
   async function saveSession(
-    session: ChatSessionIndex & ChatSessionDetail,
-    _forceWrite = false
+    session: ChatSessionIndex & ChatSessionDetail
   ): Promise<void> {
     await repository.ensureSessionsDir();
     const currentRevision = readRevision(session as unknown);
@@ -401,7 +400,7 @@ export function useChatStorageSeparated() {
     );
     for (const session of sessions) {
       if (session.detail)
-        await saveSession({ ...session.index, ...session.detail }, true);
+        await saveSession({ ...session.index, ...session.detail });
     }
     await commitIndex("index-mutation");
   }

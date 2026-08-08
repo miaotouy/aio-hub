@@ -40,12 +40,9 @@ pub struct InMemoryBase {
     pub is_fully_loaded: bool,
     /// 原始条目存储：ID -> RecallEntry (全量缓存)
     pub entries: HashMap<Uuid, RecallEntry>,
-    /// 快速 Key 索引：Key -> ID (用于处理 [[Key]] 引用)
-    pub key_to_id: HashMap<String, Uuid>,
     /// 文本索引系统 (用于 Keyword 引擎)
     pub text_index: TextInvertedIndex,
     /// 向量存储系统 (用于基础 Vector 引擎)
-    #[allow(dead_code)]
     pub vector_store: VectorMatrix,
 }
 
@@ -55,7 +52,6 @@ impl InMemoryBase {
             meta,
             is_fully_loaded: false,
             entries: HashMap::new(),
-            key_to_id: HashMap::new(),
             text_index: TextInvertedIndex::new(),
             vector_store: VectorMatrix::new(),
         }
@@ -65,12 +61,7 @@ impl InMemoryBase {
     pub fn sync_entry(&mut self, entry: RecallEntry) {
         let id = entry.id;
 
-        // 1. 更新 Key 映射
-        if !entry.key.is_empty() {
-            self.key_to_id.insert(entry.key.clone(), id);
-        }
-
-        // 2. 更新文本索引
+        // 1. 更新文本索引
         self.text_index.index_entry(&entry);
 
         // 3. 更新元数据中的索引项 (保持同步)
@@ -182,12 +173,8 @@ impl InMemoryBase {
     /// 删除一个条目
     pub fn remove_entry(&mut self, id: &Uuid) {
         // 1. 从条目详情缓存中移除
-        if let Some(entry) = self.entries.remove(id) {
-            // 2. 从 Key 索引中移除
-            if !entry.key.is_empty() {
-                self.key_to_id.remove(&entry.key);
-            }
-            // 3. 从文本倒排索引中移除
+        if let Some(_entry) = self.entries.remove(id) {
+            // 从文本倒排索引中移除
             self.text_index.remove_entry(id);
             // 4. 从向量矩阵中移除
             self.vector_store.remove_vector(id);

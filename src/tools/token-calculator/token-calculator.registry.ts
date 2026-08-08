@@ -133,20 +133,6 @@ class TokenCalculatorRegistry implements ToolRegistry {
   }
 
   /**
-   * 清除所有缓存的 tokenizer 实例
-   */
-  clearCache(): void {
-    calculatorProxy.clearCache();
-  }
-
-  /**
-   * 获取缓存的 tokenizer 数量
-   */
-  getCacheSize(): number {
-    return tokenCalculatorEngine.getCacheSize();
-  }
-
-  /**
    * 计算包含文本和附件的完整消息的 Token 数量
    * @param text - 文本内容
    * @param modelId - 模型ID

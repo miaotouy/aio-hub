@@ -404,13 +404,6 @@ export const useAgentStore = defineStore("llmChatAgent", {
     },
 
     /**
-     * 确保智能体详情已加载（向后兼容接口）
-     * @deprecated 请优先使用 loadAgentDetails
-     */
-    async ensureAgentLoaded(agentId: string): Promise<ChatAgent | null> {
-      return this.loadAgentDetails(agentId);
-    },
-
     /**
      * 确保来自内置预设的资产已被正确导入到用户的 Agent 目录
      */

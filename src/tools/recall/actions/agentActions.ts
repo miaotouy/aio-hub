@@ -135,8 +135,8 @@ export async function upsertEntry(
       key,
       content,
       tags,
-      priority = 100,
-      enabled = true,
+      priority,
+      enabled,
       autoVectorize = false,
     } = options;
     const recallId = await resolveRecallId(
@@ -173,8 +173,8 @@ export async function upsertEntry(
         tags: tags
           ? tags.map((t) => ({ name: t, weight: 1.0 }))
           : fullEntry.tags,
-        priority: priority ?? fullEntry.priority,
-        enabled: enabled ?? fullEntry.enabled,
+        priority: priority !== undefined ? priority : fullEntry.priority,
+        enabled: enabled !== undefined ? enabled : fullEntry.enabled,
         updatedAt: now,
       };
       isNew = false;
@@ -187,8 +187,8 @@ export async function upsertEntry(
         contentHash,
         tags: tags ? tags.map((t) => ({ name: t, weight: 1.0 })) : [],
         assets: [],
-        priority,
-        enabled,
+        priority: priority ?? 100,
+        enabled: enabled ?? true,
         createdAt: now,
         updatedAt: now,
       };

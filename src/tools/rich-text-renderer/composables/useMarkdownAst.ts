@@ -54,7 +54,6 @@ export function useMarkdownAst(
 
   let patchQueue: Patch[] = [];
   let rafHandle = 0;
-  let timeoutHandle = 0; // 兼容旧代码,虽然现在主要用 rafHandle
   let rafRetryCount = 0; // 跟踪 rAF 重试次数，防止无限循环
   let isShutdown = false; // 紧急停止标志
 
@@ -335,10 +334,6 @@ export function useMarkdownAst(
       cancelAnimationFrame(rafHandle);
       rafHandle = 0;
     }
-    if (timeoutHandle) {
-      clearTimeout(timeoutHandle);
-      timeoutHandle = 0;
-    }
 
     // 重置重试计数器
     rafRetryCount = 0;
@@ -442,10 +437,6 @@ export function useMarkdownAst(
     if (rafHandle) {
       cancelAnimationFrame(rafHandle);
       rafHandle = 0;
-    }
-    if (timeoutHandle) {
-      clearTimeout(timeoutHandle);
-      timeoutHandle = 0;
     }
     rafRetryCount = 0;
   }

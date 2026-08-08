@@ -128,7 +128,8 @@ function isOcrEngineContribution(
 ): contribution is PluginOcrEngineContribution {
   return (
     contribution.type === "ocr-engine" &&
-    typeof (contribution as PluginOcrEngineContribution).method === "string"
+    typeof (contribution as PluginOcrEngineContribution).method === "string" &&
+    (contribution as PluginOcrEngineContribution).method.length > 0
   );
 }
 

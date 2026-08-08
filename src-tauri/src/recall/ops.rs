@@ -29,7 +29,6 @@ type VectorizedModelsMap = std::collections::HashMap<Uuid, (Vec<String>, u32)>;
 ///
 /// 该函数只消费数据库真源。旧文件系统仅可由迁移和恢复流程访问，不能作为
 /// repository warmup 的隐式降级来源。
-#[allow(dead_code)] // Stage 2 写路径切换完成后接入启动 warmup。
 pub fn warmup_recall_repository(
     repository: &dyn RecallRepository,
     imdb: &Arc<RwLock<crate::recall::index::InMemoryDatabase>>,
@@ -416,42 +415,6 @@ pub fn scan_all_vectorized_models(
     Ok((result, all_models_vec))
 }
 
-/// 删除单个条目的所有相关文件（条目 JSON + 向量文件）
-#[allow(dead_code)]
-pub fn delete_entry_files(
-    app_data_dir: &std::path::Path,
-    recall_id_str: &str,
-    entry_id: &Uuid,
-) -> Result<(), String> {
-    let entry_id_str = entry_id.to_string();
-
-    // 删除条目主文件
-    if let Err(e) = delete_entry(app_data_dir, recall_id_str, &entry_id_str) {
-        log::warn!("[KB] 删除条目文件失败 {}: {}", entry_id_str, e);
-    }
-
-    // 清理关联的向量文件 (扫描所有模型目录下的该条目向量)
-    let recall_vec_root = get_recall_vectors_root(app_data_dir, recall_id_str);
-    if !recall_vec_root.exists() {
-        return Ok(());
-    }
-
-    // 遍历模型子目录
-    if let Ok(model_dirs) = std::fs::read_dir(recall_vec_root) {
-        for model_dir in model_dirs.flatten() {
-            if model_dir.path().is_dir() {
-                let _model_name = model_dir.file_name().into_string().unwrap_or_default();
-                let vec_file = model_dir.path().join(format!("{}.vec", entry_id_str));
-                if vec_file.exists() {
-                    let _ = std::fs::remove_file(vec_file);
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
-
 /// 更新思绪集模型索引表 (vectors/{recall_id}/models.json)
 #[allow(dead_code)]
 pub fn update_recall_models_index(
@@ -475,76 +438,6 @@ pub fn update_recall_models_index(
     Ok(())
 }
 
-/// 批量导入/更新条目的核心逻辑
-#[allow(dead_code)]
-pub fn batch_upsert_entries_logic(
-    app_data_dir: &std::path::Path,
-    base_lock: &Arc<RwLock<crate::recall::index::InMemoryBase>>,
-    mut entries: Vec<RecallEntry>,
-    deduplicate: bool,
-) -> Result<(Vec<RecallEntry>, usize), String> {
-    let recall_id = {
-        let base = base_lock.read().map_err(|_| "获取读锁失败")?;
-        base.meta.id
-    };
-    let recall_id_str = recall_id.to_string();
-
-    // 1. 获取现有的内容哈希集合（用于去重）
-    let mut seen_hashes: std::collections::HashSet<String> = if deduplicate {
-        let base = base_lock.read().map_err(|_| "获取思绪集读锁失败")?;
-        base.entries
-            .values()
-            .filter_map(|e| e.content_hash.clone())
-            .collect()
-    } else {
-        std::collections::HashSet::new()
-    };
-
-    // 2. 补全哈希和摘要
-    entries.par_iter_mut().for_each(|entry| {
-        if entry.content_hash.is_none() || entry.content_hash.as_ref().unwrap().is_empty() {
-            entry.content_hash = Some(calculate_content_hash(&entry.content));
-        }
-        if entry.summary.is_empty() {
-            entry.summary = generate_summary(&entry.content);
-        }
-    });
-
-    // 3. 去重过滤
-    let mut duplicate_count = 0;
-    let filtered_entries: Vec<RecallEntry> = entries
-        .into_iter()
-        .filter(|entry| {
-            if let Some(hash) = &entry.content_hash {
-                if deduplicate && seen_hashes.contains(hash) {
-                    duplicate_count += 1;
-                    return false;
-                }
-                seen_hashes.insert(hash.clone());
-            }
-            true
-        })
-        .collect();
-
-    if filtered_entries.is_empty() {
-        return Ok((vec![], duplicate_count));
-    }
-
-    // 4. 并行写入磁盘
-    filtered_entries.par_iter().for_each(|entry| {
-        let _ = save_entry(app_data_dir, &recall_id_str, entry);
-    });
-
-    // 5. 更新内存数据库
-    {
-        let mut base = base_lock.write().map_err(|_| "获取思绪集写锁失败")?;
-        for entry in &filtered_entries {
-            base.sync_entry(entry.clone());
-        }
-    }
-
-    Ok((filtered_entries, duplicate_count))
-}
 
 #[cfg(test)]
 mod repository_warmup_tests {

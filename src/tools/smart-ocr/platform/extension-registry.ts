@@ -22,7 +22,6 @@ import type {
 import type { OcrExtension } from "./types";
 import { getPluginFailureSummary } from "@/services/plugin-diagnostics";
 
-export type PluginOcrExtension = OcrExtension;
 
 function isOcrEngineContribution(
   contribution: PluginContribution
@@ -74,15 +73,8 @@ function mapPluginContribution(
 
 export function useOcrExtensions() {
   const ocrExtensions = computed<OcrExtension[]>(() => {
-    const runtimePluginIds = Object.keys(pluginManager.pluginStates);
-
     return pluginManager
       .getInstalledPlugins()
-      .filter(
-        (plugin) =>
-          runtimePluginIds.includes(plugin.id) ||
-          plugin.manifest.contributions?.some(isOcrEngineContribution)
-      )
       .flatMap((plugin) =>
         (plugin.manifest.contributions ?? [])
           .filter(isOcrEngineContribution)

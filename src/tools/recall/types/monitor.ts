@@ -18,7 +18,7 @@ import type { RecallSignal, RecallTrace } from "./search";
 /**
  * 思绪集监控消息类型
  */
-export type RecallMessageType = "RAG" | "Index" | "Chain" | "System";
+export type RecallMessageType = "RAG" | "Index" | "System";
 
 /**
  * 监控消息级别
@@ -157,30 +157,6 @@ export interface IndexPayload {
 }
 
 /**
- * 链式处理追踪数据结构
- */
-export interface ChainPayload {
-  /** 链式步骤详情 */
-  steps: Array<{
-    /** 步骤名称 */
-    name: string;
-    /** 状态 */
-    status: RecallStepStatus;
-    /** 耗时 (ms) */
-    duration: number;
-    /** 详细信息 */
-    details?: string;
-  }>;
-  /** 链式任务元数据 */
-  metadata?: {
-    /** 链类型 */
-    chainType: string;
-    /** 参数详情 */
-    parameters: Record<string, any>;
-  };
-}
-
-/**
  * 系统级消息数据结构
  */
 export interface SystemPayload {
@@ -196,5 +172,4 @@ export interface SystemPayload {
 export type RecallMonitorMessage =
   | (RecallMonitorMessageBase & { type: "RAG"; payload: RagPayload })
   | (RecallMonitorMessageBase & { type: "Index"; payload: IndexPayload })
-  | (RecallMonitorMessageBase & { type: "Chain"; payload: ChainPayload })
   | (RecallMonitorMessageBase & { type: "System"; payload: SystemPayload });

@@ -1,6 +1,6 @@
 # 搜索系统 (Search System)
 
-为海量对话和智能体提供了毫秒级的全文检索能力，前端入口为 [`useLlmSearch`](../../composables/chat/useLlmSearch.ts)，后端实现为 Tauri command [`search_llm_data`](../../../../../src-tauri/src/commands/llmchat_search.rs:519)。
+为海量对话和智能体提供了毫秒级的全文检索能力，前端入口为 [`useLlmSearch`](../../composables/chat/useLlmSearch.ts)，后端实现为 Tauri command [`search_llm_data_stream`](../../../../../src-tauri/src/commands/llmchat_search.rs:644)（流式传输，边搜边推送结果）。
 
 ## 1. 多维搜索 (Scope)
 

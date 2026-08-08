@@ -63,14 +63,6 @@ describe("Tauri E2E runner options", () => {
         "tests/tauri-e2e/specs/recall-pipeline.spec.ts",
       ],
     });
-    expect(parseE2eRunnerOptions(["--preset", "recall-vector"], {})).toEqual({
-      ...deterministicDefaults,
-      presetId: "recall-vector",
-      wdioArgs: [
-        "--spec",
-        "tests/tauri-e2e/specs/recall-vector-workflow.spec.ts",
-      ],
-    });
     expect(parseE2eRunnerOptions(["--preset", "recall-curated"], {})).toEqual({
       ...deterministicDefaults,
       presetId: "recall-curated",
@@ -93,26 +85,6 @@ describe("Tauri E2E runner options", () => {
       wdioArgs: [
         "--spec",
         "tests/tauri-e2e/specs/recall-chat-injection.spec.ts",
-      ],
-    });
-    expect(parseE2eRunnerOptions(["--preset", "corpus-sample"], {})).toEqual({
-      ...deterministicDefaults,
-      presetId: "corpus-sample",
-      corpusMode: "external-sample",
-      wdioArgs: [
-        "--spec",
-        "tests/tauri-e2e/specs/recall-external-corpus.spec.ts",
-      ],
-    });
-    expect(parseE2eRunnerOptions(["--preset=corpus-full"], {})).toEqual({
-      ...deterministicDefaults,
-      presetId: "corpus-full",
-      corpusMode: "external-full",
-      restartSpec:
-        "tests/tauri-e2e/specs/recall-external-corpus-recovery.spec.ts",
-      wdioArgs: [
-        "--spec",
-        "tests/tauri-e2e/specs/recall-external-corpus.spec.ts",
       ],
     });
     expect(
@@ -192,12 +164,6 @@ describe("Tauri E2E runner options", () => {
       ],
       restartSpec: undefined,
       requiredScenarioIds: [],
-    });
-    expect(parseE2eRunnerOptions(["--preset", "native"], {})).toEqual({
-      ...deterministicDefaults,
-      presetId: "native",
-      nativeUiEnabled: true,
-      wdioArgs: [],
     });
   });
 

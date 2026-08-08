@@ -228,16 +228,6 @@ export class VcpNodeProtocol {
   }
 
   /**
-   * AIO -> VCP: 更新静态占位符 (update_static_placeholders)
-   */
-  public sendUpdateStaticPlaceholders(placeholders: Record<string, string>) {
-    this.sendJson({
-      type: "update_static_placeholders",
-      data: { placeholders },
-    });
-  }
-
-  /**
    * AIO -> VCP: 执行结果 (tool_result)
    */
   public sendToolResult(response: ToolResultResponse) {

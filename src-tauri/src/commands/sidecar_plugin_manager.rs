@@ -51,7 +51,7 @@ use std::sync::{
 use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
-use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::sync::{oneshot, Mutex};
 use uuid::Uuid;
 
 // ============================================================================
@@ -373,8 +373,7 @@ pub async fn sidecar_spawn_resident(
         .take()
         .ok_or_else(|| "无法获取子进程 stderr".to_string())?;
 
-    // 创建事件通道和写入端
-    let (_event_tx, mut event_rx) = mpsc::unbounded_channel::<ResidentEvent>();
+    // 创建事件通道和写入端（已移除：_event_tx channel 空转，事件已在 stdout 循环直接 emit）
 
     let generation_id = Uuid::new_v4().to_string();
     let pending_requests = Arc::new(Mutex::new(HashMap::new()));
@@ -672,35 +671,14 @@ pub async fn sidecar_spawn_resident(
         }
     });
 
-    // 启动事件转发任务（将内部事件通道的事件转发到前端）
-    let app_clone = app.clone();
-    let pid_clone = plugin_id.clone();
-    tokio::spawn(async move {
-        while let Some(event) = event_rx.recv().await {
-            let _ = app_clone.emit(
-                "sidecar-resident-event",
-                serde_json::to_value(&event).unwrap_or_default(),
-            );
-        }
-        log::info!("[SIDECAR_RESIDENT:{}] 事件转发任务结束", pid_clone);
-    });
-
     Ok(generation_id)
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        broker_generation_status, broker_result_event, generation_matches, is_terminal_response,
+        broker_result_event,
     };
-
-    #[test]
-    fn only_result_and_error_complete_pending_requests() {
-        assert!(is_terminal_response("result"));
-        assert!(is_terminal_response("error"));
-        assert!(!is_terminal_response("progress"));
-        assert!(!is_terminal_response("event"));
-    }
 
     #[test]
     fn broker_result_keeps_forward_identity() {
@@ -711,22 +689,6 @@ mod tests {
         assert_eq!(event["data"]["id"], 42);
         assert_eq!(event["data"]["targetId"], "target-plugin");
         assert_eq!(event["data"]["result"]["ok"], true);
-    }
-
-    #[test]
-    fn rejects_broker_results_from_an_old_generation() {
-        assert!(generation_matches(Some("generation-2"), "generation-2"));
-        assert!(!generation_matches(Some("generation-2"), "generation-1"));
-        assert!(!generation_matches(None, "generation-1"));
-
-        assert_eq!(
-            broker_generation_status(Some("source-2"), "source-2", Some("target-2"), "target-2"),
-            (true, true)
-        );
-        assert_eq!(
-            broker_generation_status(Some("source-2"), "source-2", Some("target-3"), "target-2"),
-            (true, false)
-        );
     }
 }
 

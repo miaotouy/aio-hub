@@ -354,7 +354,6 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         dir_search_copy_files,
         dir_search_move_files,
         // LLM 搜索命令
-        search_llm_data,
         search_llm_data_stream,
         cancel_llm_chat_search,
         search_media_generator_data,

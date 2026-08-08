@@ -229,20 +229,8 @@ export const tokenLimiter: ContextProcessor = {
         }
 
         // 无论是否截断成功，一旦遇到第一条放不下的消息（处理完后），
-        // 更早的消息都无法保留，直接结束循环
-        // 计算那些被完全丢弃的消息所节省的 Token
-        for (
-          let j = 0;
-          j <=
-          i -
-            (partialTruncatedCount > 0 &&
-            finalHistoryMessages[0].final.isTruncated
-              ? 0
-              : 0);
-          j++
-        ) {
-          // 这里逻辑有点绕，直接重算更清晰
-        }
+        // 更早的消息都无法保留，直接结束循环。
+        // 被丢弃消息节省的 Token 统一在循环外用原始总量减去保留量重算。
         break;
       }
     }

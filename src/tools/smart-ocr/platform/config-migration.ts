@@ -31,6 +31,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isOcrContribution(
   contribution: PluginContribution
 ): contribution is PluginOcrEngineContribution {
+  // 迁移场景故意宽松：旧配置里的贡献点可能缺少 method 字段，
+  // 此处只需能识别类型即可，具体 ID 由下方 contributionId() 兜底。
+  // 运行时过滤（plugin-engine.ts / extension-registry.ts）要求 method 非空字符串。
   return contribution.type === "ocr-engine";
 }
 

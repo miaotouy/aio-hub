@@ -137,15 +137,8 @@ interface RetrievalCacheKeyInput {
 // 内部辅助
 // ────────────────────────────────────────────────────────────────────────────
 
-function resolvePresetId(
-  presetId?: RecallPresetId,
-  profile?: RecallProfile
-): RecallPresetId {
-  if (presetId) return presetId;
-  if (profile === "semantic" || profile === "associative") {
-    return "comprehensive";
-  }
-  return "comprehensive";
+function resolvePresetId(presetId?: RecallPresetId): RecallPresetId {
+  return presetId ?? "comprehensive";
 }
 
 /**
@@ -184,7 +177,7 @@ export async function search(params: SearchParams): Promise<RecallResult[]> {
   return (
     (await errorHandler.wrapAsync(
       async () => {
-        const presetId = resolvePresetId(params.presetId, params.profile);
+        const presetId = resolvePresetId(params.presetId);
 
         logger.debug("执行思绪集检索", {
           query: params.query,
@@ -235,7 +228,7 @@ export async function searchWithCache(
   const defaults = profileDefaults(profile);
   const limit = params.limit ?? defaults.limit;
   const minScore = params.minScore ?? defaults.minScore;
-  const presetId = resolvePresetId(params.presetId, profile);
+  const presetId = resolvePresetId(params.presetId);
   const enableCache = params.enableCache ?? false;
 
   // 主查询执行预处理（清洗 + Tag 池匹配）；次查询不参与 Tag 匹配，避免 AI 回复中的噪音词误触发
@@ -380,18 +373,6 @@ export async function clearRetrievalCache(): Promise<void> {
 }
 
 /**
- /**
-  * 获取检索缓存条目数
-  */
-export async function getRetrievalCacheStats(): Promise<number> {
-  try {
-    return await invoke<number>("recall_retrieval_cache_stats");
-  } catch (err) {
-    logger.warn("读取后端检索缓存统计失败", { err });
-    return 0;
-  }
-}
-
 /**
  * 门面：执行思绪集占位符检索（供 llm-chat 调用）
  */

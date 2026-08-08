@@ -129,7 +129,6 @@ export const useTokenizerRegistryStore = defineStore(
     const isLoaded = ref(false);
 
     /** 主线程也维护一个 engine 实例，便于同步执行轻量逻辑（媒体 token 估算） */
-    const engineReady = ref(false);
 
     // ============ 内部工具：应用覆盖 ============
 
@@ -198,7 +197,6 @@ export const useTokenizerRegistryStore = defineStore(
         }
         return readProfileFiles(profile);
       });
-      engineReady.value = true;
     }
 
     function syncProxyReaders() {
@@ -484,7 +482,6 @@ export const useTokenizerRegistryStore = defineStore(
       userRules,
       builtinOverrides,
       isLoaded,
-      engineReady,
       // computed
       allProfiles,
       allRules,

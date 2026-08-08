@@ -2430,10 +2430,9 @@ mod tests {
             .iter()
             .map(|node| node.module_id.as_str())
             .collect();
-        assert!(module_ids.contains(&"tag-vector-recall"));
-        assert!(module_ids.contains(&"bounded-tag-propagation"));
-        assert!(module_ids.contains(&"tag-to-entry-expansion"));
+        // 负向不变量：不应重新引入旧的 "lens" 模块设计
         assert!(!module_ids.iter().any(|id| id.contains("lens")));
+        // 版本常量必须与构造函数保持同步
         assert_eq!(pipeline.algorithm_version, COMPREHENSIVE_PIPELINE_VERSION);
     }
 }

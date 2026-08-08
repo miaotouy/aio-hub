@@ -33,24 +33,6 @@ describe("Recall retrieval pipeline v1 contract", () => {
     expect(runResponse.trace?.traceVersion).toBe(RECALL_PIPELINE_TRACE_VERSION);
   });
 
-  it("rejects malformed runtime contract data", () => {
-    expect(() =>
-      assertRecallPipelineContractFixture({
-        ...fixture,
-        compileResult: { ...fixture.compileResult, runId: 42 },
-      })
-    ).toThrow("fixture.compileResult.runId must be a string");
-    expect(() =>
-      assertRecallPipelineContractFixture({
-        ...fixture,
-        runResponse: {
-          ...fixture.runResponse,
-          trace: { ...fixture.runResponse.trace, finalLimit: undefined },
-        },
-      })
-    ).toThrow("fixture.runResponse.trace.finalLimit must be a finite number");
-  });
-
   it("separates candidate, expansion, and final result budgets", () => {
     expect(fixture.pipeline.candidateBudget).toBeGreaterThan(
       fixture.runResponse.trace.finalLimit

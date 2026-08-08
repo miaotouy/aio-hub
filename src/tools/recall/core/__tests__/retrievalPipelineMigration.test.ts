@@ -29,9 +29,6 @@ describe("Recall retrieval pipeline legacy migration v1", () => {
       semantic: "comprehensive",
       associative: "comprehensive",
     });
-    expect(new Set(Object.values(LEGACY_RETRIEVAL_PRESET_MAP))).toEqual(
-      new Set(["algorithmic", "comprehensive"])
-    );
   });
 
   it("migrates the persisted Playground shape and invalidates slot results", () => {

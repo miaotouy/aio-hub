@@ -119,15 +119,17 @@ describe("Recall vector cache", () => {
     expect(mocks.embedding).toHaveBeenCalledOnce();
   });
 
-  it("rejects unsupported providers and empty vectors", async () => {
-    const unsupported = new VectorCacheManager();
+  it("rejects unsupported embedding providers", async () => {
+    const cache = new VectorCacheManager();
     await expect(
-      unsupported.getVector("query", { type: "missing" }, "model-a")
+      cache.getVector("query", { type: "missing" }, "model-a")
     ).rejects.toThrow("不支持 Embedding");
+  });
 
+  it("rejects empty vectors returned by the provider", async () => {
     mocks.embedding.mockResolvedValueOnce({ data: [] });
-    const empty = new VectorCacheManager();
-    await expect(empty.getVector("query", profile, "model-a")).rejects.toThrow(
+    const cache = new VectorCacheManager();
+    await expect(cache.getVector("query", profile, "model-a")).rejects.toThrow(
       "获取向量为空"
     );
   });

@@ -419,7 +419,7 @@ describe("recall agent actions", () => {
     expect(mockStore.activeEntryId).toBeNull();
   });
 
-  it("batchUpdateMetadata 应批量调整启用状态和标签并限制单次数量", async () => {
+  it("batchUpdateMetadata 应批量调整启用状态和标签", async () => {
     const result = await batchUpdateMetadata({
       recallId: "recall-1",
       entryIds: ["entry-1", "entry-2"],
@@ -441,7 +441,9 @@ describe("recall agent actions", () => {
         { name: "reviewed", weight: 1 },
       ],
     });
+  });
 
+  it("batchUpdateMetadata 应拒绝单次批量更新超过 100 条条目", async () => {
     const tooMany = await batchUpdateMetadata({
       recallId: "recall-1",
       entryIds: Array.from({ length: 101 }, (_, index) => `e-${index}`),

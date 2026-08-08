@@ -5,7 +5,7 @@
 -->
 <script setup lang="ts">
 import { computed, nextTick, ref } from "vue";
-import { ArrowLeft, ArrowRight, Check, RotateCcw } from "lucide-vue-next";
+import { ArrowLeft, ArrowRight, RotateCcw } from "lucide-vue-next";
 import { useGuidedFlowStepControls } from "@/services/guided-flow/stepControls";
 import type { UpgradeFlowContext } from "@/flows/upgrade/types";
 import { executeKnowledgeMigration } from "../knowledgeMigrationOperations";
@@ -48,11 +48,6 @@ const canCleanup = reportComplete;
 const startLabel = computed(() =>
   snapshot.value.executionStatus === "failed" ? "重新尝试" : "开始迁移"
 );
-const stageIndex = computed(() => {
-  if (subStep.value === "executing") return 1;
-  if (subStep.value === "verify") return 2;
-  return 0;
-});
 
 async function startMigration() {
   if (!canStart.value || controls.isBusy.value) return;
@@ -80,21 +75,6 @@ function retryMigration() {
 
 <template>
   <div class="migration-step" :data-sub-step="subStep">
-    <div class="migration-stagebar" aria-label="迁移进度">
-      <div
-        v-for="(label, index) in ['确认', '迁移', '完成']"
-        :key="label"
-        :class="{ active: index === stageIndex, completed: index < stageIndex }"
-      >
-        <span class="stage-indicator">
-          <Check v-if="index < stageIndex" class="stage-check" :size="12" />
-          <span v-else class="stage-number">{{ index + 1 }}</span>
-        </span>
-        <small>{{ label }}</small>
-        <i v-if="index < 2" aria-hidden="true" />
-      </div>
-    </div>
-
     <div class="migration-body">
       <div v-if="flowState?.lastError" class="migration-error" role="alert">
         {{ flowState.lastError }}
@@ -190,84 +170,6 @@ function retryMigration() {
   flex: 1;
   flex-direction: column;
   overflow: hidden;
-}
-
-.migration-stagebar {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  border-bottom: 1px solid var(--border-color);
-  padding: 10px 20px;
-  background: color-mix(in srgb, var(--card-bg) 72%, transparent);
-}
-
-.migration-stagebar > div {
-  display: flex;
-  min-width: 0;
-  flex: 0 0 auto;
-  align-items: center;
-  color: var(--text-color-secondary);
-}
-
-.migration-stagebar .stage-indicator {
-  box-sizing: border-box;
-  display: grid;
-  width: 20px;
-  height: 20px;
-  flex: 0 0 20px;
-  place-items: center;
-  border: 1px solid var(--border-color);
-  border-radius: 50%;
-  background: var(--bg-color);
-  font-size: 10px;
-  line-height: 1;
-}
-
-.stage-check,
-.stage-number {
-  grid-area: 1 / 1;
-}
-
-.stage-check {
-  display: block;
-}
-
-.stage-number {
-  font-variant-numeric: tabular-nums;
-}
-
-.migration-stagebar small {
-  margin-left: 6px;
-  font-size: 11px;
-}
-
-.migration-stagebar i {
-  width: 38px;
-  height: 1px;
-  flex: 0 0 38px;
-  margin: 0 10px;
-  background: var(--border-color);
-}
-
-.migration-stagebar .active .stage-indicator {
-  border-color: var(--primary-color);
-  background: var(--primary-color);
-  color: var(--el-color-white);
-}
-
-.migration-stagebar .active small {
-  color: var(--text-color);
-  font-weight: 600;
-}
-
-.migration-stagebar .completed .stage-indicator {
-  border-color: var(--primary-color);
-  color: var(--primary-color);
-}
-
-.migration-stagebar .completed i {
-  background: color-mix(in srgb, var(--primary-color) 55%, var(--border-color));
 }
 
 .migration-body {
@@ -367,11 +269,6 @@ function retryMigration() {
 }
 
 @media (max-width: 560px) {
-  .migration-stagebar i {
-    width: 18px;
-    margin: 0 6px;
-  }
-
   .migration-body {
     padding-right: 16px;
     padding-left: 16px;

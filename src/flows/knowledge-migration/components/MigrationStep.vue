@@ -182,9 +182,10 @@ function retryMigration() {
 
 .migration-error {
   margin-bottom: 12px;
-  border: 1px solid var(--el-color-danger-light-5);
+  border: 1px solid
+    color-mix(in srgb, var(--el-color-danger) 30%, var(--border-color));
   border-radius: 8px;
-  background: var(--el-color-danger-light-9);
+  background: color-mix(in srgb, var(--el-color-danger) 7%, var(--card-bg));
   color: var(--el-color-danger);
   padding: 9px 11px;
   font-size: 12px;

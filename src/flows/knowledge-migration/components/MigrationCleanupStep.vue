@@ -80,9 +80,10 @@ const cleanupConfirmation = computed({
 }
 .danger-zone {
   padding: 16px;
-  border: 1px solid var(--el-color-danger-light-5);
+  border: 1px solid
+    color-mix(in srgb, var(--el-color-danger) 30%, var(--border-color));
   border-radius: 10px;
-  background: var(--el-color-danger-light-9);
+  background: color-mix(in srgb, var(--el-color-danger) 7%, var(--card-bg));
 }
 .danger-zone p {
   margin: 0 0 12px;

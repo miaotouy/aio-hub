@@ -65,7 +65,7 @@ function statusCopy(blockingScope: "none" | "module" | "application") {
   height: 30px;
   place-items: center;
   border-radius: 8px;
-  background: var(--el-fill-color-light);
+  background: color-mix(in srgb, var(--text-color) 6%, transparent);
   color: var(--el-color-warning);
 }
 

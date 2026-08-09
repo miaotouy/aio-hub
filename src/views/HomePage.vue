@@ -684,6 +684,7 @@ onMounted(async () => {
 
 .search-input {
   width: 100%;
+  max-width: 600px;
   padding: 0.6rem 1rem;
   background: var(--input-bg);
   color: var(--text-color);

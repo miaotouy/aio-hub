@@ -1,6 +1,6 @@
 # AIO Hub 主页重构计划
 
-> 状态：Draft / 方案设计中
+> 状态：Completed / 已完成
 >
 > 最近更新：2026-08-09
 >
@@ -123,18 +123,29 @@ const recentToolPaths = ref<string[]>([]);
 function loadRecentTools() {
   try {
     const saved = localStorage.getItem("app-recent-tools");
-    if (saved) recentToolPaths.value = JSON.parse(saved);
+    if (saved) {
+      const parsed: unknown = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        recentToolPaths.value = parsed
+          .filter((path): path is string => typeof path === "string")
+          .slice(0, 8);
+      }
+    }
   } catch {}
 }
 
 function addRecentTool(toolPath: string) {
+  if (!tools.value.some((tool) => tool.path === toolPath)) return;
+
   const paths = recentToolPaths.value.filter((p) => p !== toolPath);
   paths.unshift(toolPath);
   recentToolPaths.value = paths.slice(0, 8);
-  localStorage.setItem(
-    "app-recent-tools",
-    JSON.stringify(recentToolPaths.value)
-  );
+  try {
+    localStorage.setItem(
+      "app-recent-tools",
+      JSON.stringify(recentToolPaths.value)
+    );
+  } catch {}
 }
 
 const recentTools = computed<ToolConfig[]>(() =>
@@ -164,11 +175,11 @@ const recentTools = computed<ToolConfig[]>(() =>
 
 | #   | 任务                                                                             | 涉及文件                 | 状态 |
 | --- | -------------------------------------------------------------------------------- | ------------------------ | ---- |
-| 1   | `tools.ts` 新增 `recentToolPaths`、`addRecentTool`、`recentTools`                | `src/stores/tools.ts`    | ⏳   |
-| 2   | 删除 `.title` 大标题，新增 `.quick-access-bar`（最近使用/快速开始横条）          | `src/views/HomePage.vue` | ⏳   |
-| 3   | 删除 `.category-tabs`，`content-section` 改为 flex row，添加 `.category-sidebar` | `src/views/HomePage.vue` | ⏳   |
-| 4   | `handleToolClick` 调用 `addRecentTool`                                           | `src/views/HomePage.vue` | ⏳   |
-| 5   | 样式收尾：侧边栏宽度、胶囊按钮、数量徽章                                         | `src/views/HomePage.vue` | ⏳   |
+| 1   | `tools.ts` 新增 `recentToolPaths`、`addRecentTool`、`recentTools`                | `src/stores/tools.ts`    | ✅   |
+| 2   | 删除 `.title` 大标题，新增 `.quick-access-bar`（最近使用/快速开始横条）          | `src/views/HomePage.vue` | ✅   |
+| 3   | 删除 `.category-tabs`，`content-section` 改为 flex row，添加 `.category-sidebar` | `src/views/HomePage.vue` | ✅   |
+| 4   | `handleToolClick` 调用 `addRecentTool`                                           | `src/views/HomePage.vue` | ✅   |
+| 5   | 样式收尾：侧边栏宽度、胶囊按钮、数量徽章                                         | `src/views/HomePage.vue` | ✅   |
 
 ---
 

@@ -17,10 +17,12 @@ import { ref, computed } from "vue";
 import type { ToolConfig } from "@/services/types";
 import { DEFAULT_TOOLS_ORDER } from "@/config/tools";
 import { useAppSettingsStore } from "./appSettingsStore";
+import { createModuleLogger } from "@/utils/logger";
 
 // 内置工具的静态配置（模块私有）
 // 注意：此数组已清空，工具配置将通过 autoRegisterServices 自动扫描注册
 const initialTools: ToolConfig[] = [];
+const logger = createModuleLogger("ToolsStore");
 
 export const useToolsStore = defineStore("tools", () => {
   // 使用浅拷贝以保留图标的 markRaw 状态
@@ -32,6 +34,8 @@ export const useToolsStore = defineStore("tools", () => {
   const toolsOrder = ref<string[]>([]);
   // 已打开的工具路径列表（标签页模式）
   const openedToolPaths = ref<string[]>([]);
+  // 最近使用的工具路径列表
+  const recentToolPaths = ref<string[]>([]);
 
   /**
    * 初始化工具顺序和已打开的工具（从配置文件和缓存加载）
@@ -47,7 +51,22 @@ export const useToolsStore = defineStore("tools", () => {
         openedToolPaths.value = JSON.parse(saved);
       }
     } catch (e) {
-      console.error("Failed to load opened tools from cache", e);
+      logger.error("Failed to load opened tools from cache", e);
+    }
+
+    // 加载最近使用的工具
+    try {
+      const saved = localStorage.getItem("app-recent-tools");
+      if (saved) {
+        const parsed: unknown = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          recentToolPaths.value = parsed
+            .filter((path): path is string => typeof path === "string")
+            .slice(0, 8);
+        }
+      }
+    } catch (e) {
+      logger.error("Failed to load recent tools from cache", e);
     }
   }
 
@@ -164,11 +183,41 @@ export const useToolsStore = defineStore("tools", () => {
     saveOpenedTools();
   }
 
+  /**
+   * 添加工具到最近使用列表
+   */
+  function addRecentTool(toolPath: string) {
+    if (!tools.value.some((tool) => tool.path === toolPath)) return;
+
+    const paths = recentToolPaths.value.filter((p) => p !== toolPath);
+    paths.unshift(toolPath);
+    recentToolPaths.value = paths.slice(0, 8);
+    try {
+      localStorage.setItem(
+        "app-recent-tools",
+        JSON.stringify(recentToolPaths.value)
+      );
+    } catch (e) {
+      logger.error("Failed to save recent tools to cache", e);
+    }
+  }
+
+  /**
+   * 获取最近使用的工具配置列表
+   */
+  const recentTools = computed<ToolConfig[]>(() =>
+    recentToolPaths.value
+      .map((path) => tools.value.find((t) => t.path === path))
+      .filter((t): t is ToolConfig => !!t)
+  );
+
   return {
     tools,
     orderedTools,
     toolsOrder,
     openedToolPaths,
+    recentToolPaths,
+    recentTools,
     isReady,
     setReady,
     initializeOrder,
@@ -178,5 +227,6 @@ export const useToolsStore = defineStore("tools", () => {
     openTool,
     closeTool,
     setOpenedToolPaths,
+    addRecentTool,
   };
 });

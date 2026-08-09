@@ -19,7 +19,60 @@
     <!-- 实际内容 -->
     <!-- 固定的头部区域 -->
     <div class="header-section">
-      <span class="title">AIO Hub</span>
+      <!-- 快速入口横条 -->
+      <div class="quick-access-bar">
+        <span class="quick-access-label">
+          {{ visibleRecentTools.length > 0 ? "最近使用" : "快速开始" }}
+        </span>
+        <div class="quick-access-list">
+          <template v-if="visibleRecentTools.length > 0">
+            <component
+              :is="
+                detachedManager.isDetached(getToolIdFromPath(tool.path))
+                  ? 'div'
+                  : 'router-link'
+              "
+              v-for="tool in visibleRecentTools"
+              :key="tool.path"
+              :to="
+                detachedManager.isDetached(getToolIdFromPath(tool.path))
+                  ? undefined
+                  : tool.path
+              "
+              class="pill-item"
+              @click="handleToolClick(tool.path)"
+            >
+              <span class="pill-icon">
+                <component :is="tool.icon" />
+              </span>
+              <span class="pill-name">{{ tool.name }}</span>
+            </component>
+          </template>
+          <template v-else>
+            <component
+              :is="
+                detachedManager.isDetached(getToolIdFromPath(tool.path))
+                  ? 'div'
+                  : 'router-link'
+              "
+              v-for="tool in recommendedTools"
+              :key="tool.path"
+              :to="
+                detachedManager.isDetached(getToolIdFromPath(tool.path))
+                  ? undefined
+                  : tool.path
+              "
+              class="pill-item"
+              @click="handleToolClick(tool.path)"
+            >
+              <span class="pill-icon">
+                <component :is="tool.icon" />
+              </span>
+              <span class="pill-name">{{ tool.name }}</span>
+            </component>
+          </template>
+        </div>
+      </div>
 
       <!-- 搜索栏 -->
       <div class="search-bar">
@@ -30,91 +83,101 @@
           class="search-input"
         />
       </div>
-
-      <!-- 分类标签 -->
-      <div v-if="categories.length > 1" class="category-tabs">
-        <button
-          v-for="category in categories"
-          :key="category"
-          @click="selectedCategory = category"
-          :class="{ active: selectedCategory === category }"
-          class="category-tab"
-        >
-          {{ category }}
-        </button>
-      </div>
     </div>
 
     <!-- 可滚动的内容区域 -->
     <div class="content-section">
-      <div class="tool-grid">
-        <!-- 使用 component :is 动态渲染，已分离的工具使用 div，未分离的使用 router-link -->
-        <component
-          :is="
-            detachedManager.isDetached(getToolIdFromPath(tool.path))
-              ? 'div'
-              : 'router-link'
-          "
-          v-for="tool in filteredTools"
-          :key="tool.path"
-          :to="
-            detachedManager.isDetached(getToolIdFromPath(tool.path))
-              ? undefined
-              : tool.path
-          "
-          :class="[
-            'tool-card',
-            {
-              'tool-card-detached': detachedManager.isDetached(
-                getToolIdFromPath(tool.path)
-              ),
-            },
-          ]"
-          @click="handleToolClick(tool.path)"
-        >
-          <!-- 已分离徽章（带下拉菜单） -->
-          <el-dropdown
-            v-if="detachedManager.isDetached(getToolIdFromPath(tool.path))"
-            class="detached-badge-dropdown"
-            trigger="hover"
-            @command="
-              (command: string) => handleDropdownCommand(command, tool.path)
-            "
+      <div class="portal-layout">
+        <!-- 垂直分类侧边栏 -->
+        <div v-if="categories.length > 1" class="category-sidebar">
+          <button
+            v-for="category in categories"
+            :key="category"
+            @click="selectedCategory = category"
+            :class="{ active: selectedCategory === category }"
+            class="sidebar-item"
           >
-            <div class="detached-badge" @click.stop>
-              <el-icon><i-ep-full-screen /></el-icon>
-            </div>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="cancel"> 取消分离 </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-
-          <!-- 统一的图标容器 -->
-          <span class="icon-wrapper">
-            <component :is="tool.icon" />
-          </span>
-          <div class="tool-name">{{ tool.name }}</div>
-          <div class="tool-description">{{ tool.description }}</div>
-        </component>
-      </div>
-
-      <!-- 空状态 -->
-      <div v-if="filteredTools.length === 0" class="empty-state">
-        <div class="empty-icon">🔍</div>
-        <div class="empty-text">
-          {{
-            visibleTools.length === 0 ? "没有可显示的工具" : "未找到匹配的工具"
-          }}
+            <span class="category-name">{{ category }}</span>
+            <span class="category-badge">{{ getCategoryCount(category) }}</span>
+          </button>
         </div>
-        <el-button
-          v-if="visibleTools.length === 0"
-          type="primary"
-          @click="router.push('/settings')"
-        >
-          前往设置页面配置工具
-        </el-button>
+
+        <!-- 工具网格容器 -->
+        <div class="tool-grid-container">
+          <div v-if="filteredTools.length > 0" class="tool-grid">
+            <!-- 使用 component :is 动态渲染，已分离的工具使用 div，未分离的使用 router-link -->
+            <component
+              :is="
+                detachedManager.isDetached(getToolIdFromPath(tool.path))
+                  ? 'div'
+                  : 'router-link'
+              "
+              v-for="tool in filteredTools"
+              :key="tool.path"
+              :to="
+                detachedManager.isDetached(getToolIdFromPath(tool.path))
+                  ? undefined
+                  : tool.path
+              "
+              :class="[
+                'tool-card',
+                {
+                  'tool-card-detached': detachedManager.isDetached(
+                    getToolIdFromPath(tool.path)
+                  ),
+                },
+              ]"
+              @click="handleToolClick(tool.path)"
+            >
+              <!-- 已分离徽章（带下拉菜单） -->
+              <el-dropdown
+                v-if="detachedManager.isDetached(getToolIdFromPath(tool.path))"
+                class="detached-badge-dropdown"
+                trigger="hover"
+                @command="
+                  (command: string) => handleDropdownCommand(command, tool.path)
+                "
+              >
+                <div class="detached-badge" @click.stop>
+                  <el-icon><i-ep-full-screen /></el-icon>
+                </div>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="cancel">
+                      取消分离
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+
+              <!-- 统一的图标容器 -->
+              <span class="icon-wrapper">
+                <component :is="tool.icon" />
+              </span>
+              <div class="tool-name">{{ tool.name }}</div>
+              <div class="tool-description">{{ tool.description }}</div>
+            </component>
+          </div>
+
+          <!-- 空状态 -->
+          <div v-else class="empty-state">
+            <div class="empty-icon">🔍</div>
+            <div class="empty-text">
+              {{
+                visibleTools.length === 0
+                  ? "没有可显示的工具"
+                  : "未找到匹配的工具"
+              }}
+            </div>
+            <el-button
+              v-if="visibleTools.length === 0"
+              type="primary"
+              @click="router.push('/settings')"
+            >
+              前往设置页面配置工具
+            </el-button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -138,6 +201,20 @@ const searchText = ref("");
 
 // 选中的分类
 const selectedCategory = ref("全部");
+
+// 获取分类下的工具数量
+const getCategoryCount = (category: string): number => {
+  if (category === "全部") {
+    return visibleTools.value.length;
+  }
+  return visibleTools.value.filter((tool) => {
+    if (!tool.category) return false;
+    if (Array.isArray(tool.category)) {
+      return tool.category.includes(category);
+    }
+    return tool.category === category;
+  }).length;
+};
 
 // 从路径提取工具ID（与设置页面保持一致）
 const getToolIdFromPath = (path: string): string => {
@@ -179,6 +256,18 @@ const visibleTools = computed(() => {
   });
 });
 
+// 快速入口仅显示当前允许在主页展示的工具
+const visibleRecentTools = computed(() => {
+  const visiblePaths = new Set(visibleTools.value.map((tool) => tool.path));
+  return toolsStore.recentTools.filter((tool) => visiblePaths.has(tool.path));
+});
+
+// 推荐工具
+const recommendedTools = computed(() => {
+  const recommendedPaths = ["/llm-chat", "/media-generator", "/smart-ocr"];
+  return visibleTools.value.filter((t) => recommendedPaths.includes(t.path));
+});
+
 // 过滤后的工具列表（应用搜索和分类筛选）
 const filteredTools = computed(() => {
   let result = [...visibleTools.value];
@@ -215,6 +304,9 @@ const handleToolClick = async (toolPath: string) => {
     await detachedManager.focusWindow(toolId);
     return;
   }
+
+  // 仅记录实际进入主页标签页的工具
+  toolsStore.addRecentTool(toolPath);
 
   // 显式打开标签（虽然 App.vue 也有监听，但这里显式调用更安全）
   toolsStore.openTool(toolPath);
@@ -262,37 +354,181 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 40px 20px 20px 20px;
+  padding: 20px 20px 15px 20px;
   box-sizing: border-box;
+  width: 100%;
 }
 
 /* 可滚动内容区域 */
 .content-section {
   flex: 1; /* 占据剩余空间 */
-  overflow-y: auto; /* 独立滚动 */
+  overflow: hidden; /* 内部有独立滚动 */
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 0 20px 20px 20px;
   box-sizing: border-box;
+  width: 100%;
 }
 
-.title {
-  font-size: 2.5em;
+/* 快速入口横条 */
+.quick-access-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 15px;
+  width: 100%;
+  max-width: 1200px;
+  justify-content: flex-start;
+  padding: 0 10px;
+  box-sizing: border-box;
+}
+
+.quick-access-label {
+  font-size: 0.85rem;
   font-weight: bold;
-  margin-bottom: 20px;
+  color: var(--text-color-light);
+  flex-shrink: 0;
+}
+
+.quick-access-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pill-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: var(--card-bg);
+  border: var(--border-width) solid var(--border-color);
+  text-decoration: none;
   color: var(--text-color);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pill-item:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  transform: translateY(-1px);
+}
+
+.pill-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+  color: var(--primary-color);
+}
+
+.pill-icon svg,
+.pill-icon img {
+  width: 1em;
+  height: 1em;
+}
+
+/* 门户新布局 */
+.portal-layout {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  max-width: 1200px;
+  height: 100%;
+  gap: 20px;
+  align-items: flex-start;
+  overflow: hidden;
+}
+
+/* 垂直分类侧边栏 */
+.category-sidebar {
+  width: 140px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  max-height: 100%;
+  padding-right: 8px;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.sidebar-item:hover {
+  background: var(--input-bg);
+}
+
+.sidebar-item.active {
+  background: color-mix(in srgb, var(--primary-color) 15%, transparent);
+  color: var(--primary-color);
+  font-weight: bold;
+  border-left: 3px solid var(--primary-color);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.category-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-right: 8px;
+}
+
+.category-badge {
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: var(--input-bg);
+  color: var(--text-color-light);
+  flex-shrink: 0;
+}
+
+.sidebar-item.active .category-badge {
+  background: var(--primary-color);
+  color: white;
+}
+
+/* 工具网格容器 */
+.tool-grid-container {
+  flex: 1;
+  overflow-y: auto;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding-right: 4px;
 }
 
 .tool-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   /* 响应式网格布局 */
-  gap: 25px;
+  gap: 20px;
   /* 间距 */
-  padding: 20px;
-  max-width: 1200px;
-  /* 控制最大宽度 */
+  padding: 0 0 20px 0;
   width: 100%;
   box-sizing: border-box;
   /* 确保 padding 包含在 width 内 */
@@ -355,19 +591,21 @@ onMounted(async () => {
 /* 搜索栏 */
 .search-bar {
   width: 100%;
-  max-width: 600px;
-  margin-bottom: 1.5rem;
+  max-width: 1200px;
+  margin-bottom: 10px;
   backdrop-filter: blur(var(--ui-blur));
+  padding: 0 10px;
+  box-sizing: border-box;
 }
 
 .search-input {
   width: 100%;
-  padding: 0.75rem 1rem;
+  padding: 0.6rem 1rem;
   background: var(--input-bg);
   color: var(--text-color);
   border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
-  font-size: 1rem;
+  font-size: 0.95rem;
   box-sizing: border-box;
   transition: all 0.2s;
 }
@@ -376,41 +614,6 @@ onMounted(async () => {
   outline: none;
   border-color: var(--primary-color);
   box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.1);
-}
-
-/* 分类标签 */
-.category-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
-  justify-content: center;
-}
-
-.category-tab {
-  padding: 0.6rem 1.2rem;
-  background: var(--card-bg);
-  color: var(--text-color);
-  border: var(--border-width) solid var(--border-color);
-  backdrop-filter: blur(var(--ui-blur));
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.2s;
-  font-weight: 500;
-}
-
-.category-tab:hover {
-  border-color: var(--primary-color);
-  background: var(--input-bg);
-  transform: translateY(-2px);
-}
-
-.category-tab.active {
-  background: color-mix(in srgb, var(--primary-color) 30%, transparent 0%);
-  color: white;
-  border-color: var(--primary-color);
-  box-shadow: 0 4px 12px rgba(var(--primary-color-rgb), 0.3);
 }
 
 /* 空状态 */

@@ -14,10 +14,6 @@
 
 import { getAppContext } from "@/config/appContext";
 import {
-  knowledgeMigrationService,
-  registerKnowledgeMigrationContribution,
-} from "@/flows/knowledge-migration";
-import {
   guidedFlowManager,
   guidedFlowRegistry,
   type GuidedFlowState,
@@ -58,8 +54,10 @@ let initializedVersion: string | null = null;
 function hasPendingContributions(context?: UpgradeFlowContext): boolean {
   return Boolean(
     context &&
-    Object.values(context.contributions).some(
-      (item) => item.status !== "completed"
+    Object.entries(context.contributions).some(
+      ([contributionId, item]) =>
+        upgradeContributionRegistry.get(contributionId) &&
+        item.status !== "completed"
     )
   );
 }
@@ -167,7 +165,6 @@ async function detectContributions(
 
 async function initializeUpgradeFlowInternal(): Promise<void> {
   registerBuiltInReleaseNotes();
-  registerKnowledgeMigrationContribution();
   await guidedFlowManager.initialize();
 
   const currentVersion = normalizeAppVersion(getAppContext().appVersion);
@@ -251,7 +248,7 @@ export async function refreshUpgradeFlow(): Promise<void> {
   await initializeUpgradeFlow();
 }
 
-export type UpgradeFlowDebugMode = "restart" | "redetect" | "reset-migration";
+export type UpgradeFlowDebugMode = "restart" | "redetect";
 
 export async function openUpgradeFlowForDebug(
   mode: UpgradeFlowDebugMode
@@ -260,9 +257,6 @@ export async function openUpgradeFlowForDebug(
     throw new Error("更新引导调试入口仅在开发环境可用");
   }
 
-  if (mode === "reset-migration") {
-    await knowledgeMigrationService.resetMigrationStateForDebug();
-  }
   if (mode !== "restart") {
     await refreshUpgradeFlow();
   } else {

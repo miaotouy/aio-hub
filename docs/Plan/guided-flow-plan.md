@@ -18,7 +18,7 @@
 - `src/components/common/GuidedFlow/`：宿主、壳层、导航与页脚；
 - `src/flows/upgrade/`：生命周期、版本说明 registry 和升级事项组合；
 - `src/components/notification/`：版本说明通知入口与通知动作分发；
-- `src/flows/knowledge-migration/`：旧 Knowledge/Recall 数据迁移 contribution。
+- `src/tools/knowledge-base/migration/`：Recall 自主检测、触发并提供步骤页面的模块级迁移 Flow。
 
 首次设置和模块教程属于后续独立需求，不是本轮发布门禁。
 
@@ -47,7 +47,7 @@
 - 预览与执行通过 migration ID、source fingerprint、用户确认和并发占用共同约束。
 - 来源检测、备份确认、执行进度、校验报告与可选清理收敛为一个可见迁移步骤。
 - 执行过程报告阶段、集合、条目、待重建向量与问题数量；完成后重新 warmup 内存读模型。
-- 只有主数据、向量、待重建数量和问题明细全部通过，才允许标记 contribution 完成。
+- 只有主数据、向量、待重建数量和问题明细全部通过，才允许完成 Recall 迁移 Flow。
 - 部分成功或失败后重试会重新预览并再次核对 migration ID 与 source fingerprint。
 
 ## 3. 生命周期与数据基线

@@ -320,9 +320,10 @@ RecallState::initialize()
   ├─ 只读检测旧数据状态
   └─ 暴露 repository 和待迁移状态
 
-应用 ready
-  ├─ GuidedFlowManager 查询待处理迁移
-  ├─ 生成 knowledge-to-recall-v2 流程
+Recall 工具注册
+  ├─ Recall migration coordinator 调用 preview / inspect
+  ├─ 按检测结果注册或更新 recall-legacy-migration Flow
+  ├─ 有未完成迁移时触发 pending-migration
   └─ 在用户确认后调用 recall_run_legacy_migration
 ```
 
@@ -342,12 +343,14 @@ RecallState::initialize()
 
 ## 8. 前端 Guided Flow 接入
 
-建议新增流程定义：
+Recall 模块提供自己的流程定义与步骤页面，而不是作为应用升级 contribution：
 
 ```text
-src/flows/knowledge-migration/
-  knowledgeMigrationContribution.ts
+src/tools/knowledge-base/migration/
+  recallMigrationCoordinator.ts # 检测、注册/更新和触发独立 Flow
+  recallMigrationFlow.ts        # recall-legacy-migration 定义与流程上下文
   knowledgeMigrationOperations.ts
+  knowledgeMigrationService.ts
   components/
     MigrationStep.vue           # 单个可见步骤，管理确认、执行、校验与清理子状态
     MigrationPlanStep.vue       # 组合检测、预览、备份与风险确认
@@ -457,14 +460,14 @@ src/flows/knowledge-migration/
 
 ### Phase 2：接入 Guided Flow（已完成）
 
-- 实现检测、预览、备份确认、执行和校验动作，并收敛为单个“旧知识库数据迁移”可见步骤；步骤内部管理确认、执行、校验与清理子状态，通用完成页由升级流程统一提供；
-- 在升级中心、关于页和知识库入口提供打开方式；
+- Recall 模块实现检测、预览、备份确认、执行和校验动作，并注册独立的 `recall-legacy-migration` Flow；单个可见步骤内部管理确认、执行、校验与清理子状态；
+- 在 Recall 入口和开发调试入口提供打开方式；
 - 显示真实任务进度和结构化报告；
 - 支持延后和恢复。
 
 ### Phase 3：清理和发布收口（合成数据 E2E 已完成，发布验收待补）
 
-- [已完成] 将旧目录清理并入迁移步骤的校验子状态；知识库迁移 contribution 保留 1 个可见领域步骤，内部管理确认、执行、校验与清理子状态；以新的 staged 合成 appData 验证仅删除 `bases`/`vectors` 等受管 legacy 目录，保留 Recall SQLite 真源、Guided Flow 报告和无关 `knowledge_meta.db` 文件；
+- [已完成] 将旧目录清理并入迁移步骤的校验子状态；Recall 迁移 Flow 保留 1 个可见领域步骤，内部管理确认、执行、校验与清理子状态；以新的 staged 合成 appData 验证仅删除 `bases`/`vectors` 等受管 legacy 目录，保留 Recall SQLite 真源、Guided Flow 报告和无关 `knowledge_meta.db` 文件；
 - [已完成] `migration-minimal` 在真实 Tauri 中覆盖首次只读检测、显式确认、迁移报告交叉核对与同根重启幂等；`migration-cleanup` 覆盖可见清理确认；
 - [待完成] 进程中断、重试、部分成功和 source fingerprint 变化测试；中断必须终止完整 Tauri 进程后同根重启，不能只关闭前端弹窗；
 - 更新架构文档和用户指南；

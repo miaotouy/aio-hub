@@ -76,13 +76,13 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { CircleCheckBig, TriangleAlert } from "lucide-vue-next";
-import type { UpgradeFlowContext } from "@/flows/upgrade/types";
+import type { RecallMigrationFlowContext } from "../types";
 import {
   getKnowledgeMigrationSnapshot,
   isKnowledgeMigrationReportComplete,
 } from "../types";
 
-const props = defineProps<{ context: UpgradeFlowContext }>();
+const props = defineProps<{ context: RecallMigrationFlowContext }>();
 const report = computed(
   () => getKnowledgeMigrationSnapshot(props.context).report
 );

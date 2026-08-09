@@ -32,6 +32,7 @@ import {
   subscribeUpgradeCenterStatus,
   type UpgradeFlowDebugMode,
 } from "@/flows/upgrade";
+import { openRecallMigrationFlowForDebug } from "@/tools/knowledge-base/migration";
 import {
   User,
   Link,
@@ -59,7 +60,9 @@ const releaseNotesAvailable = ref(false);
 const hasPendingUpgrade = ref(false);
 const isOpeningUpgradeFlow = ref(false);
 const isDevelopment = import.meta.env.DEV;
-const activeUpgradeDebugAction = ref<UpgradeFlowDebugMode | null>(null);
+const activeUpgradeDebugAction = ref<
+  UpgradeFlowDebugMode | "reset-migration" | null
+>(null);
 let unsubscribeUpgradeStatus: (() => void) | null = null;
 const {
   status: updateStatus,
@@ -174,12 +177,18 @@ async function handleResumeUpgrade() {
   }
 }
 
-async function handleUpgradeDebugAction(mode: UpgradeFlowDebugMode) {
+async function handleUpgradeDebugAction(
+  mode: UpgradeFlowDebugMode | "reset-migration"
+) {
   try {
     activeUpgradeDebugAction.value = mode;
-    await openUpgradeFlowForDebug(mode);
+    if (mode === "reset-migration") {
+      await openRecallMigrationFlowForDebug();
+    } else {
+      await openUpgradeFlowForDebug(mode);
+    }
   } catch (error) {
-    errorHandler.error(error as Error, "打开更新引导调试流程失败", {
+    errorHandler.error(error as Error, "打开引导调试流程失败", {
       showToUser: true,
     });
   } finally {

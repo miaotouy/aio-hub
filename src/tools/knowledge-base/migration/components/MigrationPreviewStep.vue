@@ -59,10 +59,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { CircleCheck, RefreshCw, TriangleAlert } from "lucide-vue-next";
-import type { UpgradeFlowContext } from "@/flows/upgrade/types";
+import type { RecallMigrationFlowContext } from "../types";
 import { getKnowledgeMigrationSnapshot } from "../types";
 
-const props = defineProps<{ context: UpgradeFlowContext }>();
+const props = defineProps<{ context: RecallMigrationFlowContext }>();
 const snapshot = computed(() => getKnowledgeMigrationSnapshot(props.context));
 </script>
 

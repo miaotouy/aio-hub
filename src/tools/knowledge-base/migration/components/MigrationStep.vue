@@ -7,7 +7,7 @@
 import { computed, nextTick, ref } from "vue";
 import { ArrowLeft, ArrowRight, RotateCcw } from "lucide-vue-next";
 import { useGuidedFlowStepControls } from "@/services/guided-flow/stepControls";
-import type { UpgradeFlowContext } from "@/flows/upgrade/types";
+import type { RecallMigrationFlowContext } from "../types";
 import { executeKnowledgeMigration } from "../knowledgeMigrationOperations";
 import {
   canCompleteKnowledgeMigration,
@@ -22,12 +22,12 @@ import MigrationVerifyStep from "./MigrationVerifyStep.vue";
 type MigrationSubStep = "plan" | "executing" | "verify";
 
 const props = defineProps<{
-  context: UpgradeFlowContext;
+  context: RecallMigrationFlowContext;
   flowState?: { lastError?: string };
   updateContext?: (updates: Record<string, unknown>) => void | Promise<void>;
 }>();
 
-const controls = useGuidedFlowStepControls<UpgradeFlowContext>();
+const controls = useGuidedFlowStepControls<RecallMigrationFlowContext>();
 const snapshot = computed(() => getKnowledgeMigrationSnapshot(props.context));
 const subStep = ref<MigrationSubStep>(
   snapshot.value.report ? "verify" : "plan"

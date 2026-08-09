@@ -7,14 +7,14 @@
 import { computed, ref } from "vue";
 import { CircleCheckFilled } from "@element-plus/icons-vue";
 import { ChevronDown, Info, Play } from "lucide-vue-next";
-import type { UpgradeFlowContext } from "@/flows/upgrade/types";
+import type { RecallMigrationFlowContext } from "../types";
 import { getKnowledgeMigrationSnapshot } from "../types";
 import MigrationBackupStep from "./MigrationBackupStep.vue";
 import MigrationDiscoveryStep from "./MigrationDiscoveryStep.vue";
 import MigrationPreviewStep from "./MigrationPreviewStep.vue";
 
 const props = defineProps<{
-  context: UpgradeFlowContext;
+  context: RecallMigrationFlowContext;
   busy?: boolean;
   canStart?: boolean;
   startLabel?: string;

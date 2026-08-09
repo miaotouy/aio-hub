@@ -30,12 +30,12 @@ Knowledge 是 AIO Hub 的文档资料与来源回溯领域，与 Recall 思绪�
 
 ### 1.1. 旧知识库数据迁移
 
-旧产品目录中的 Recall 数据通过需要用户确认的 Guided Flow 迁移到 Recall SQLite repository。Knowledge 模块只提供迁移事项的产品入口和说明，不在页面组件中实现数据搬运：
+旧产品目录中的 Recall 数据通过需要用户确认的模块级 Guided Flow 迁移到 Recall SQLite repository。Recall 模块负责检测旧数据、注册或更新自己的 `recall-legacy-migration` Flow，并仅在存在未完成迁移时触发它；全局 Guided Flow Host 只提供宿主、队列和持久化能力：
 
 - Rust 侧由 `src-tauri/src/recall/commands/migration.rs` 与 `legacy_import` 负责只读发现、迁移预览、执行写入和结构化报告；启动初始化不得自动导入用户数据。
-- 前端通过迁移 contribution 与 `knowledgeMigrationOperations` 编排预览、风险确认、执行、验证和可选清理，执行前必须校验 migration ID 与 source fingerprint。
+- 前端由 `migration/recallMigrationCoordinator.ts` 检测并触发流程，`migration/recallMigrationFlow.ts` 提供独立 Flow 定义，`knowledgeMigrationOperations` 编排预览、风险确认、执行、验证和可选清理；执行前必须校验 migration ID 与 source fingerprint。
+- `KnowledgeBase.vue` 只展示 Recall 迁移状态入口并调用模块的打开方法，不得把迁移流程重新包装为应用升级事项。
 - 迁移写入必须可重入；失败或验证未通过时保留源目录，只有验证完成且用户再次确认后才能清理。
-- 扩展数据迁移能力时，应扩展迁移 contribution、service 和 operation 层，不应在 `KnowledgeBase.vue` 或步骤组件中拼接文件搬运逻辑。
 
 ## 2. 前端边界
 

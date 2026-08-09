@@ -2,11 +2,10 @@
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 
-import type { UpgradeFlowContext } from "@/flows/upgrade/types";
-
-export const KNOWLEDGE_MIGRATION_CONTRIBUTION_ID = "knowledge-migration";
-export const KNOWLEDGE_MIGRATION_ID = "knowledge-to-recall-v2";
-export const KNOWLEDGE_MIGRATION_PROGRESS_EVENT =
+export const RECALL_MIGRATION_FLOW_ID = "recall-legacy-migration";
+export const RECALL_MIGRATION_FLOW_SCHEMA_VERSION = 1;
+export const RECALL_MIGRATION_ID = "knowledge-to-recall-v2";
+export const RECALL_MIGRATION_PROGRESS_EVENT =
   "recall://legacy-migration-progress";
 
 export interface RecallMigrationIssue {
@@ -89,6 +88,10 @@ export interface KnowledgeMigrationSnapshot {
   removedPaths?: string[];
 }
 
+export interface RecallMigrationFlowContext extends Record<string, unknown> {
+  migration: KnowledgeMigrationSnapshot;
+}
+
 export function canCompleteKnowledgeMigration(
   snapshot: KnowledgeMigrationSnapshot
 ): boolean {
@@ -103,10 +106,7 @@ export function canCompleteKnowledgeMigration(
 }
 
 export function getKnowledgeMigrationSnapshot(
-  context: UpgradeFlowContext
+  context: RecallMigrationFlowContext
 ): KnowledgeMigrationSnapshot {
-  const contribution =
-    context.contributions[KNOWLEDGE_MIGRATION_CONTRIBUTION_ID];
-  if (!contribution) throw new Error("知识库迁移事项上下文不存在");
-  return contribution.snapshot as KnowledgeMigrationSnapshot;
+  return context.migration;
 }

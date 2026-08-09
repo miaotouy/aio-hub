@@ -2,19 +2,16 @@
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 
-import type { UpgradeFlowContext } from "@/flows/upgrade/types";
+import type { RecallMigrationFlowContext } from "./types";
 import { knowledgeMigrationService } from "./knowledgeMigrationService";
 import {
   getKnowledgeMigrationSnapshot,
-  KNOWLEDGE_MIGRATION_CONTRIBUTION_ID,
   isKnowledgeMigrationReportComplete,
 } from "./types";
 
 export async function executeKnowledgeMigration(
-  context: UpgradeFlowContext
+  context: RecallMigrationFlowContext
 ): Promise<void> {
-  const contribution =
-    context.contributions[KNOWLEDGE_MIGRATION_CONTRIBUTION_ID];
   const snapshot = getKnowledgeMigrationSnapshot(context);
   if (isKnowledgeMigrationReportComplete(snapshot.report)) return;
 
@@ -41,15 +38,12 @@ export async function executeKnowledgeMigration(
       preview.sourceFingerprint
     );
     snapshot.report = report;
-    const completed = isKnowledgeMigrationReportComplete(report);
-    snapshot.executionStatus = completed ? "completed" : "partial";
-    contribution.status = completed ? "completed" : "pending";
-    contribution.blockingScope = completed ? "none" : "module";
+    snapshot.executionStatus = isKnowledgeMigrationReportComplete(report)
+      ? "completed"
+      : "partial";
   } catch (error) {
     snapshot.report = previousReport;
     snapshot.executionStatus = "failed";
-    contribution.status = "pending";
-    contribution.blockingScope = "module";
     throw error;
   }
 }

@@ -47,16 +47,10 @@ import { Database } from "lucide-vue-next";
 import WorkspaceView from "./views/WorkspaceView.vue";
 import SettingsView from "./views/SettingsView.vue";
 import {
-  getUpgradeCenterStatus,
-  refreshUpgradeFlow,
-  resumePendingUpgrade,
-} from "@/flows/upgrade";
-import { APP_UPGRADE_FLOW_ID } from "@/flows/upgrade/types";
-import { guidedFlowManager } from "@/services/guided-flow";
-import {
   knowledgeMigrationService,
+  openRecallMigrationFlow,
   type RecallMigrationPreview,
-} from "@/flows/knowledge-migration";
+} from "./migration";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 type KnowledgeView = "workspace" | "settings";
@@ -102,15 +96,9 @@ async function refreshMigrationPreview() {
 async function openMigrationFlow() {
   openingMigration.value = true;
   try {
-    await refreshUpgradeFlow();
-    const status = await getUpgradeCenterStatus();
-    if (status.pending) {
-      await resumePendingUpgrade();
-    } else {
-      await guidedFlowManager.open(APP_UPGRADE_FLOW_ID, { mode: "restart" });
-    }
+    await openRecallMigrationFlow();
   } catch (error) {
-    errorHandler.error(error, "打开知识库迁移流程失败");
+    errorHandler.error(error, "打开 Recall 迁移流程失败");
   } finally {
     openingMigration.value = false;
   }

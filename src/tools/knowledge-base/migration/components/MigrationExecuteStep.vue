@@ -54,15 +54,18 @@
 import { computed, onMounted, onUnmounted, reactive } from "vue";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { LoaderCircle } from "lucide-vue-next";
-import type { UpgradeFlowContext } from "@/flows/upgrade/types";
+import type { RecallMigrationFlowContext } from "../types";
 import {
   getKnowledgeMigrationSnapshot,
-  KNOWLEDGE_MIGRATION_PROGRESS_EVENT,
+  RECALL_MIGRATION_PROGRESS_EVENT,
   type RecallMigrationProgress,
 } from "../types";
 
 const props = withDefaults(
-  defineProps<{ context: UpgradeFlowContext; forceRunning?: boolean }>(),
+  defineProps<{
+    context: RecallMigrationFlowContext;
+    forceRunning?: boolean;
+  }>(),
   { forceRunning: false }
 );
 const forceRunning = computed(() => props.forceRunning);
@@ -97,7 +100,7 @@ const phaseLabel = computed(
 
 onMounted(async () => {
   unlisten = await listen<RecallMigrationProgress>(
-    KNOWLEDGE_MIGRATION_PROGRESS_EVENT,
+    RECALL_MIGRATION_PROGRESS_EVENT,
     (event) => {
       if (event.payload.migrationId !== snapshot.value.preview.migrationId) {
         return;

@@ -12,32 +12,21 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import type { UpgradeFlowContext } from "@/flows/upgrade/types";
-import {
-  getKnowledgeMigrationSnapshot,
-  KNOWLEDGE_MIGRATION_CONTRIBUTION_ID,
-} from "../types";
+import type { RecallMigrationFlowContext } from "../types";
+import { getKnowledgeMigrationSnapshot } from "../types";
 
 const props = defineProps<{
-  context: UpgradeFlowContext;
+  context: RecallMigrationFlowContext;
   updateContext?: (updates: Record<string, unknown>) => void | Promise<void>;
 }>();
 const snapshot = computed(() => getKnowledgeMigrationSnapshot(props.context));
 
 function updateSnapshot(updates: Partial<typeof snapshot.value>) {
-  const contribution =
-    props.context.contributions[KNOWLEDGE_MIGRATION_CONTRIBUTION_ID];
-  if (!contribution || !props.updateContext) return;
+  if (!props.updateContext) return;
   void props.updateContext({
-    contributions: {
-      ...props.context.contributions,
-      [KNOWLEDGE_MIGRATION_CONTRIBUTION_ID]: {
-        ...contribution,
-        snapshot: {
-          ...snapshot.value,
-          ...updates,
-        },
-      },
+    migration: {
+      ...snapshot.value,
+      ...updates,
     },
   });
 }

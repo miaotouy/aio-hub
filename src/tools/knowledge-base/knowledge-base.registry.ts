@@ -8,6 +8,7 @@ import type {
 import { markRaw } from "vue";
 import { BookOpenText } from "lucide-vue-next";
 import { KnowledgeAccessError } from "./services/access";
+import { initializeRecallMigrationFlow } from "./migration";
 import {
   listKnowledgeForAgent,
   parseKnowledgeToolReadRequest,
@@ -42,6 +43,10 @@ const knowledgeRegistry: ToolRegistry = {
   name: "Knowledge",
   description:
     "发现、搜索和继续阅读当前 Agent 获授权的资料库。资料授权不会自动触发查询。",
+
+  async initialize(): Promise<void> {
+    await initializeRecallMigrationFlow();
+  },
 
   getMetadata(): ServiceMetadata {
     return {

@@ -387,6 +387,7 @@ onMounted(async () => {
 .content-section {
   flex: 1;
   overflow-y: auto;
+  scrollbar-gutter: stable; /* 保持滚动条占位稳定，防止切换和搜索时抖动 */
   display: flex;
   flex-direction: column;
   align-items: center;

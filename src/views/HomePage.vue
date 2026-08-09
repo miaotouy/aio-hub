@@ -121,6 +121,7 @@
                 item-key="path"
                 :animation="180"
                 :force-fallback="true"
+                handle=".quick-manage-drag-handle"
                 ghost-class="quick-manage-item-ghost"
                 @end="handleManagerPinnedDragEnd"
               >
@@ -133,7 +134,7 @@
                   }"
                 >
                   <el-icon class="quick-manage-drag-handle" title="拖拽排序">
-                    <i-ep-rank />
+                    <Menu :size="16" :stroke-width="2" />
                   </el-icon>
                   <span class="quick-manage-item-icon">
                     <component :is="tool.icon" />
@@ -167,16 +168,33 @@
               <el-select
                 v-model="managerSelectedPath"
                 :disabled="managerPinnedTools.length >= QUICK_ACCESS_MAX_ITEMS"
+                filterable
+                filter-placeholder="搜索工具"
                 placeholder="添加工具到快捷栏"
                 class="quick-manage-select"
                 @change="handleManagerToolSelected"
               >
-                <el-option
-                  v-for="tool in availableToolsToPin"
-                  :key="tool.path"
-                  :label="tool.name"
-                  :value="tool.path"
-                />
+                <el-option-group
+                  v-for="group in availableToolsToPinGroups"
+                  :key="group.label"
+                  :label="group.label"
+                >
+                  <el-option
+                    v-for="tool in group.tools"
+                    :key="tool.path"
+                    :label="tool.name"
+                    :value="tool.path"
+                  >
+                    <div class="quick-manage-select-option">
+                      <span class="quick-manage-select-option-icon">
+                        <component :is="tool.icon" />
+                      </span>
+                      <span class="quick-manage-select-option-name">
+                        {{ tool.name }}
+                      </span>
+                    </div>
+                  </el-option>
+                </el-option-group>
               </el-select>
               <div
                 v-if="managerPinnedTools.length >= QUICK_ACCESS_MAX_ITEMS"
@@ -363,6 +381,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
+import { Menu } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
 import { VueDraggableNext } from "vue-draggable-next";
 import type { ToolConfig } from "@/services/types";
@@ -438,6 +457,26 @@ const visiblePinnedTools = computed(() => {
 const availableToolsToPin = computed(() => {
   const pinnedPaths = new Set(toolsStore.effectivePinnedQuickAccessPaths);
   return visibleTools.value.filter((tool) => !pinnedPaths.has(tool.path));
+});
+
+const availableToolsToPinGroups = computed(() => {
+  const groups = new Map<string, ToolConfig[]>();
+
+  availableToolsToPin.value.forEach((tool) => {
+    const primaryCategory = Array.isArray(tool.category)
+      ? tool.category[0]
+      : tool.category;
+    const groupName = primaryCategory || "其他";
+    const tools = groups.get(groupName);
+
+    if (tools) {
+      tools.push(tool);
+    } else {
+      groups.set(groupName, [tool]);
+    }
+  });
+
+  return [...groups].map(([label, tools]) => ({ label, tools }));
 });
 
 const filteredTools = computed(() => {
@@ -844,6 +883,8 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .quick-manage-item {
@@ -866,10 +907,23 @@ onMounted(async () => {
   opacity: 0.45;
 }
 
-.quick-manage-drag-handle {
+.quick-manage-item .quick-manage-drag-handle {
+  display: inline-flex;
+  flex: 0 0 20px;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 26px;
   margin: 0;
   color: var(--text-color-light);
   cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.quick-manage-item .quick-manage-drag-handle:active {
+  cursor: grabbing;
 }
 
 .quick-manage-item-icon,
@@ -947,6 +1001,35 @@ onMounted(async () => {
 
 .quick-manage-select {
   width: 100%;
+}
+
+.quick-manage-select-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.quick-manage-select-option-icon {
+  display: inline-flex;
+  flex: 0 0 20px;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: var(--primary-color);
+}
+
+.quick-manage-select-option-icon :deep(svg),
+.quick-manage-select-option-icon :deep(img) {
+  width: 1em;
+  height: 1em;
+}
+
+.quick-manage-select-option-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .quick-replacement-description {

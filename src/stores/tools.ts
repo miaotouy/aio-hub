@@ -36,6 +36,8 @@ export const useToolsStore = defineStore("tools", () => {
   const openedToolPaths = ref<string[]>([]);
   // 最近使用的工具路径列表
   const recentToolPaths = ref<string[]>([]);
+  // 主页快速入口槽（固定快捷方式）
+  const pinnedQuickAccessPaths = ref<string[]>([]);
 
   /**
    * 初始化工具顺序和已打开的工具（从配置文件和缓存加载）
@@ -67,6 +69,21 @@ export const useToolsStore = defineStore("tools", () => {
       }
     } catch (e) {
       logger.error("Failed to load recent tools from cache", e);
+    }
+
+    // 加载主页快速入口槽
+    try {
+      const saved = localStorage.getItem("app-pinned-quick-access");
+      if (saved) {
+        const parsed: unknown = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          pinnedQuickAccessPaths.value = parsed.filter(
+            (path): path is string => typeof path === "string"
+          );
+        }
+      }
+    } catch (e) {
+      logger.error("Failed to load pinned quick access from cache", e);
     }
   }
 
@@ -211,6 +228,38 @@ export const useToolsStore = defineStore("tools", () => {
       .filter((t): t is ToolConfig => !!t)
   );
 
+  /** 默认快速入口槽路径（首次使用时的兜底） */
+  const DEFAULT_PINNED_PATHS = ["/llm-chat", "/media-generator", "/smart-ocr"];
+
+  /**
+   * 获取主页快速入口槽的工具配置列表
+   * 若用户未自定义，回退到默认推荐列表
+   */
+  const pinnedQuickAccessTools = computed<ToolConfig[]>(() => {
+    const paths =
+      pinnedQuickAccessPaths.value.length > 0
+        ? pinnedQuickAccessPaths.value
+        : DEFAULT_PINNED_PATHS;
+    return paths
+      .map((path) => tools.value.find((t) => t.path === path))
+      .filter((t): t is ToolConfig => !!t);
+  });
+
+  /**
+   * 更新主页快速入口槽
+   */
+  function updatePinnedQuickAccess(paths: string[]) {
+    pinnedQuickAccessPaths.value = paths;
+    try {
+      localStorage.setItem(
+        "app-pinned-quick-access",
+        JSON.stringify(pinnedQuickAccessPaths.value)
+      );
+    } catch (e) {
+      logger.error("Failed to save pinned quick access to cache", e);
+    }
+  }
+
   return {
     tools,
     orderedTools,
@@ -218,6 +267,8 @@ export const useToolsStore = defineStore("tools", () => {
     openedToolPaths,
     recentToolPaths,
     recentTools,
+    pinnedQuickAccessPaths,
+    pinnedQuickAccessTools,
     isReady,
     setReady,
     initializeOrder,
@@ -228,5 +279,6 @@ export const useToolsStore = defineStore("tools", () => {
     closeTool,
     setOpenedToolPaths,
     addRecentTool,
+    updatePinnedQuickAccess,
   };
 });

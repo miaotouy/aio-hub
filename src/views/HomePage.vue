@@ -19,58 +19,69 @@
     <!-- 实际内容 -->
     <!-- 固定的头部区域 -->
     <div class="header-section">
-      <!-- 快速入口横条 -->
-      <div class="quick-access-bar">
-        <span class="quick-access-label">
-          {{ visibleRecentTools.length > 0 ? "最近使用" : "快速开始" }}
-        </span>
-        <div class="quick-access-list">
-          <template v-if="visibleRecentTools.length > 0">
-            <component
-              :is="
-                detachedManager.isDetached(getToolIdFromPath(tool.path))
-                  ? 'div'
-                  : 'router-link'
-              "
-              v-for="tool in visibleRecentTools"
-              :key="tool.path"
-              :to="
-                detachedManager.isDetached(getToolIdFromPath(tool.path))
-                  ? undefined
-                  : tool.path
-              "
-              class="pill-item"
-              @click="handleToolClick(tool.path)"
-            >
-              <span class="pill-icon">
-                <component :is="tool.icon" />
-              </span>
-              <span class="pill-name">{{ tool.name }}</span>
-            </component>
-          </template>
-          <template v-else>
-            <component
-              :is="
-                detachedManager.isDetached(getToolIdFromPath(tool.path))
-                  ? 'div'
-                  : 'router-link'
-              "
-              v-for="tool in recommendedTools"
-              :key="tool.path"
-              :to="
-                detachedManager.isDetached(getToolIdFromPath(tool.path))
-                  ? undefined
-                  : tool.path
-              "
-              class="pill-item"
-              @click="handleToolClick(tool.path)"
-            >
-              <span class="pill-icon">
-                <component :is="tool.icon" />
-              </span>
-              <span class="pill-name">{{ tool.name }}</span>
-            </component>
-          </template>
+      <!-- 快速入口槽 -->
+      <div class="quick-access-section">
+        <div class="quick-access-cards">
+          <component
+            :is="
+              detachedManager.isDetached(getToolIdFromPath(tool.path))
+                ? 'div'
+                : 'router-link'
+            "
+            v-for="tool in visiblePinnedTools"
+            :key="tool.path"
+            :to="
+              detachedManager.isDetached(getToolIdFromPath(tool.path))
+                ? undefined
+                : tool.path
+            "
+            class="quick-card"
+            @click="handleToolClick(tool.path)"
+          >
+            <span class="quick-card-icon">
+              <component :is="tool.icon" />
+            </span>
+            <span class="quick-card-name">{{ tool.name }}</span>
+          </component>
+
+          <!-- 编辑按钮 -->
+          <el-popover
+            v-model:visible="quickEditVisible"
+            placement="bottom"
+            :width="300"
+            trigger="click"
+            popper-class="quick-edit-popover"
+          >
+            <template #reference>
+              <button class="quick-card quick-card-edit" title="自定义快捷入口">
+                <span class="quick-card-icon quick-card-edit-icon">
+                  <el-icon><i-ep-edit /></el-icon>
+                </span>
+                <span class="quick-card-name">自定义</span>
+              </button>
+            </template>
+            <div class="quick-edit-panel">
+              <div class="quick-edit-header">
+                <span class="quick-edit-title">自定义快捷入口</span>
+                <span class="quick-edit-hint">最多选 6 个</span>
+              </div>
+              <el-select
+                v-model="pendingPinnedPaths"
+                multiple
+                :multiple-limit="6"
+                placeholder="选择要固定的工具"
+                class="quick-edit-select"
+                @change="savePinnedTools"
+              >
+                <el-option
+                  v-for="tool in visibleTools"
+                  :key="tool.path"
+                  :label="tool.name"
+                  :value="tool.path"
+                />
+              </el-select>
+            </div>
+          </el-popover>
         </div>
       </div>
 
@@ -184,7 +195,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useDetachedManager } from "../composables/useDetachedManager";
 import { useToolsStore } from "@/stores/tools";
@@ -201,6 +212,11 @@ const searchText = ref("");
 
 // 选中的分类
 const selectedCategory = ref("全部");
+
+// 快速入口编辑 popover 可见状态
+const quickEditVisible = ref(false);
+// 编辑中的待选槽位路径（与 store 独立，保存时再同步）
+const pendingPinnedPaths = ref<string[]>([]);
 
 // 获取分类下的工具数量
 const getCategoryCount = (category: string): number => {
@@ -257,15 +273,23 @@ const visibleTools = computed(() => {
 });
 
 // 快速入口仅显示当前允许在主页展示的工具
-const visibleRecentTools = computed(() => {
+const visiblePinnedTools = computed(() => {
   const visiblePaths = new Set(visibleTools.value.map((tool) => tool.path));
-  return toolsStore.recentTools.filter((tool) => visiblePaths.has(tool.path));
+  return toolsStore.pinnedQuickAccessTools.filter((tool) =>
+    visiblePaths.has(tool.path)
+  );
 });
 
-// 推荐工具
-const recommendedTools = computed(() => {
-  const recommendedPaths = ["/llm-chat", "/media-generator", "/smart-ocr"];
-  return visibleTools.value.filter((t) => recommendedPaths.includes(t.path));
+// 保存快速入口槽的修改
+function savePinnedTools() {
+  toolsStore.updatePinnedQuickAccess(pendingPinnedPaths.value);
+}
+
+// 打开编辑 popover 时同步当前槽位到待编辑状态
+watch(quickEditVisible, (visible) => {
+  if (visible) {
+    pendingPinnedPaths.value = [...toolsStore.pinnedQuickAccessPaths];
+  }
 });
 
 // 过滤后的工具列表（应用搜索和分类筛选）
@@ -350,7 +374,7 @@ onMounted(async () => {
 
 /* 固定头部区域 */
 .header-section {
-  flex-shrink: 0; /* 防止收缩 */
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -361,77 +385,139 @@ onMounted(async () => {
 
 /* 可滚动内容区域 */
 .content-section {
-  flex: 1; /* 占据剩余空间 */
-  overflow: hidden; /* 内部有独立滚动 */
+  flex: 1;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 0 20px 20px 20px;
+  /* padding 移到内层，避免 overflow:hidden 裁掉卡片 hover 阴影 */
+  padding: 0 0 20px 0;
   box-sizing: border-box;
   width: 100%;
 }
 
-/* 快速入口横条 */
-.quick-access-bar {
+/* 快速入口槽区域 */
+.quick-access-section {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 15px;
+  justify-content: center;
   width: 100%;
   max-width: 1200px;
-  justify-content: flex-start;
-  padding: 0 10px;
-  box-sizing: border-box;
+  margin-bottom: 15px;
 }
 
-.quick-access-label {
-  font-size: 0.85rem;
-  font-weight: bold;
-  color: var(--text-color-light);
-  flex-shrink: 0;
-}
-
-.quick-access-list {
+.quick-access-cards {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
+  justify-content: center;
+  align-items: flex-start;
 }
 
-.pill-item {
-  display: inline-flex;
+/* 快捷方式矩形卡片 */
+.quick-card {
+  display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 6px 14px;
-  border-radius: 20px;
+  width: 80px;
+  height: 80px;
+  border-radius: 12px;
   background: var(--card-bg);
   border: var(--border-width) solid var(--border-color);
+  backdrop-filter: blur(var(--ui-blur));
   text-decoration: none;
   color: var(--text-color);
-  font-size: 0.85rem;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-sizing: border-box;
+  /* reset button 默认样式 */
+  font-family: inherit;
+  font-size: inherit;
+  padding: 0;
 }
 
-.pill-item:hover {
+.quick-card:hover {
   border-color: var(--primary-color);
-  color: var(--primary-color);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(var(--primary-color-rgb), 0.15);
 }
 
-.pill-icon {
+.quick-card-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
-  font-size: 16px;
+  width: 28px;
+  height: 28px;
+  font-size: 28px;
+  line-height: 1;
   color: var(--primary-color);
 }
 
-.pill-icon svg,
-.pill-icon img {
+.quick-card-icon svg,
+.quick-card-icon img {
   width: 1em;
   height: 1em;
+}
+
+.quick-card-name {
+  font-size: 0.75rem;
+  color: var(--text-color);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 68px;
+  line-height: 1.2;
+}
+
+/* 编辑按钮卡片 */
+.quick-card-edit {
+  border-style: dashed;
+  background: transparent;
+}
+
+.quick-card-edit:hover {
+  background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+}
+
+.quick-card-edit-icon {
+  color: var(--text-color-light);
+  font-size: 22px;
+  width: 22px;
+  height: 22px;
+}
+
+.quick-card-edit .quick-card-name {
+  color: var(--text-color-light);
+}
+
+/* 快速入口编辑面板 */
+.quick-edit-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.quick-edit-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.quick-edit-title {
+  font-size: 0.9rem;
+  font-weight: bold;
+  color: var(--text-color);
+}
+
+.quick-edit-hint {
+  font-size: 0.75rem;
+  color: var(--text-color-light);
+}
+
+.quick-edit-select {
+  width: 100%;
 }
 
 /* 门户新布局 */
@@ -444,6 +530,9 @@ onMounted(async () => {
   gap: 20px;
   align-items: flex-start;
   overflow: hidden;
+  /* 内侧留出水平边距，让卡片 hover 阴影不被裁掉 */
+  padding: 0 20px;
+  box-sizing: border-box;
 }
 
 /* 垂直分类侧边栏 */
@@ -455,7 +544,7 @@ onMounted(async () => {
   gap: 6px;
   overflow-y: auto;
   max-height: 100%;
-  padding-right: 8px;
+  padding: 4px 8px 0 4px;
   text-align: left;
   box-sizing: border-box;
 }
@@ -519,19 +608,18 @@ onMounted(async () => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding-right: 4px;
+  /* 右侧留出滚动条空间，同时让顶部有内边距给卡片 hover 留空间 */
+  padding: 4px 4px 0 4px;
+  box-sizing: border-box;
 }
 
 .tool-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  /* 响应式网格布局 */
   gap: 20px;
-  /* 间距 */
   padding: 0 0 20px 0;
   width: 100%;
   box-sizing: border-box;
-  /* 确保 padding 包含在 width 内 */
 }
 
 .tool-card {

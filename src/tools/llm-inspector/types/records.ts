@@ -21,6 +21,8 @@
  * - {@link FilterOptions}：列表过滤选项（搜索 / 状态码）。
  */
 
+import type { InspectorToolDiagnostics } from "./hooks";
+
 /** 单条请求记录 */
 export interface RequestRecord {
   id: string;
@@ -63,6 +65,8 @@ export interface RecordInspectorMetadata {
   sessionId?: string;
   toolName?: string;
   purpose?: string;
+  /** Provider 工具声明、Adapter 解码与 VCP 正文标记诊断。 */
+  toolDiagnostics?: InspectorToolDiagnostics;
 }
 
 /** 一次完整的 HTTP 交互记录（请求 + 可选响应） */

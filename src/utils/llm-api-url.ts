@@ -46,18 +46,6 @@ interface AdapterUrlHandler {
  * 适配器 URL 处理映射
  * 注册各个适配器的 URL 处理逻辑
  */
-const ollamaUrlHandler: AdapterUrlHandler = {
-  buildUrl: (baseUrl, endpoint) => {
-    const host = formatLlmApiHost(baseUrl);
-    return endpoint ? `${host}${endpoint}` : `${host}api/chat`;
-  },
-  getHint: () => "将自动补全端点(如 /api/chat)",
-};
-
-/**
- * 适配器 URL 处理映射
- * 注册各个适配器的 URL 处理逻辑
- */
 const adapterUrlHandlers: Record<ProviderType, AdapterUrlHandler> = {
   openai: openAiUrlHandler,
   "openai-compatible": openAiUrlHandler,
@@ -72,7 +60,8 @@ const adapterUrlHandlers: Record<ProviderType, AdapterUrlHandler> = {
   gemini: geminiUrlHandler,
   cohere: cohereUrlHandler,
   vertexai: vertexAiUrlHandler,
-  ollama: ollamaUrlHandler,
+  // Chat requests are dispatched through the OpenAI-compatible adapter.
+  ollama: openAiUrlHandler,
   "suno-newapi": sunoNewApiUrlHandler,
   "minimax-music": minimaxMusicUrlHandler,
 };

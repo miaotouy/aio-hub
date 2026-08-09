@@ -172,6 +172,15 @@ function buildCoreRequest(options: LlmRequestOptions): CoreLlmRequest {
 function toCoreMessage(message: LlmMessage): CoreLlmMessage {
   const replayItems =
     message.role === "assistant" ? getOpenAiResponsesReplayItems(message) : [];
+  const metadata = {
+    ...toJsonObject(message.metadata),
+    ...(replayItems.length
+      ? {
+          [OPENAI_RESPONSES_REPLAY_ITEMS_METADATA_KEY]:
+            toJsonValue(replayItems) ?? [],
+        }
+      : {}),
+  };
   return {
     role: message.role,
     content:
@@ -179,15 +188,10 @@ function toCoreMessage(message: LlmMessage): CoreLlmMessage {
         ? message.content
         : toCoreContents(message.content),
     reasoningContent: message.reasoningContent,
+    name: message.name,
+    toolCallId: message.toolCallId,
+    ...(Object.keys(metadata).length ? { metadata } : {}),
     prefix: message.prefix,
-    ...(replayItems.length
-      ? {
-          metadata: {
-            [OPENAI_RESPONSES_REPLAY_ITEMS_METADATA_KEY]:
-              toJsonValue(replayItems) ?? [],
-          },
-        }
-      : {}),
   };
 }
 
@@ -226,6 +230,7 @@ function toCoreContents(
     ...parsed.toolResultParts.map((part) => ({
       type: "tool_result" as const,
       toolUseId: part.id,
+      name: part.name,
       content:
         typeof part.content === "string"
           ? part.content

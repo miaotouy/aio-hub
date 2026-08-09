@@ -87,6 +87,26 @@ export interface InspectorErrorEvent {
   metadata?: InspectorContextMetadata;
 }
 
+/** Adapter 层归一化后的工具调用诊断（原始上游字段仍保留在响应原文中）。 */
+export interface InspectorToolDiagnostics {
+  /** 实际执行该请求的共享 Core Adapter ID。 */
+  adapterId?: string;
+  /** 从最终上游 JSON 请求体解析出的原生工具声明数。 */
+  requestToolCount?: number;
+  /** 最终上游 JSON 请求体是否实际包含原生工具声明。 */
+  hasNativeTools?: boolean;
+  /** Adapter 归一化后的停止原因。 */
+  decodedFinishReason?: string | null;
+  /** Adapter 归一化后的函数调用；保留 ID、函数名和原始 arguments 字符串。 */
+  decodedToolCalls?: Array<{
+    id: string;
+    name: string;
+    arguments: string;
+  }>;
+  /** 可见正文是否含 VCP 文本协议的工具调用或结果标记。 */
+  responseContainsVcpMarker?: boolean;
+}
+
 /**
  * 调用方上下文元数据
  *
@@ -106,6 +126,8 @@ export interface InspectorContextMetadata {
   purpose?: string;
   /** 检测到的 API 格式（可选，注册器不做强制检测） */
   apiFormat?: ApiFormat;
+  /** Provider 工具声明、Adapter 解码与 VCP 正文标记诊断。 */
+  toolDiagnostics?: InspectorToolDiagnostics;
   /** 其他附加信息 */
   [key: string]: unknown;
 }

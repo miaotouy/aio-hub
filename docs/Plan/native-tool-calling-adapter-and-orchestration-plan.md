@@ -1,6 +1,6 @@
 # LLM 原生工具调用适配修补与编排设计
 
-> 状态：渠道工具处理声明已实施；Azure 运行时 Adapter 已修复；Provider Adapter 其余协议修补与原生工具编排仍待实施
+> 状态：渠道工具处理声明、Azure 与 Provider Adapter A1–A3 codec/config/diagnostics 修补已完成；`llm-chat` 原生工具编排后置至下一版本周期
 > 更新日期：2026-08-09
 > 影响范围：`packages/llm-core`、`src/llm-apis`、`src/tools/llm-chat`、`src/tools/tool-calling`、`src/tools/agent-manager`
 
@@ -602,10 +602,10 @@ interface UnifiedToolResult {
 
 - **已完成：Azure OpenAI 运行时 Adapter 修补。** Azure 已注册到桌面 Adapter 分发，覆盖 deployment URL、`api-version`、`api-key` 鉴权和 Chat / Embedding facade；对应变更已在此前的 `28d48741e` 提交中完成。
 - **已完成：渠道工具处理声明。** `LlmProfile.toolHandling` 已可持久化、导入导出和在设置页编辑；`llm-chat` 以显式声明优先、同主机启发式兼容旧 Profile 的方式，决定文本工具调用是否由 AIO 本地消费。该实现只解决路由归属，不替代 Provider codec 或原生多轮编排。
-- **待实施：A1 统一契约与诊断。** 桌面 `LlmMessage` 仍未完整对齐 Core 的 `tool` 角色、`toolCallId` 与工具内容契约；Tool IR、Provider replay state 的聊天层承载、Inspector 诊断和跨协议 fixture 仍待补齐。
-- **待实施：A2 其余项。** OpenAI Chat 的 assistant `tool_calls` + `role: "tool"` 续轮、Ollama 端点/Codec 一致性与 `tools` 能力声明，以及 Responses 通过聊天层的执行—结果续轮闭环尚未完成。
-- **待实施：A3。** Gemini 的函数名/调用 ID/流式 ID/thought signature 修补、Cohere 的 assistant tool calls 与工具结果消息构造，以及对应 Anthropic/Vertex 回归验证尚未开始。
-- **后置：A4。** Gemini Interactions 与 Bedrock Converse 保持在第一批原生编排之后评估。
+- **完成：A1 统一契约与诊断。** 桌面 `LlmMessage` 已对齐 Core 的 `developer` / `tool` 角色、`name`、`toolCallId`、消息 metadata 和工具结果函数名；OpenAI、Responses、Anthropic、Gemini、Cohere Facade 会将这些字段传入 Core。Inspector 现以**最终编码后的上游请求 JSON**记录是否实际携带原生工具和声明数，保留完整原始响应（包括停止原因与原始调用字段），并展示 Adapter 归一化后的停止原因、函数调用和正文 VCP 标记；共享 Core 还提供跨 OpenAI、Anthropic、Gemini、Cohere 的 Tool IR fixture 与编码契约测试。Provider replay state 的聊天会话承载属于下述工作线二，已后置。
+- **完成：A2 codec/config 修补。** OpenAI Chat 已能编码 assistant `tool_calls` 与顶层 `role: "tool"` 续轮；OpenAI Responses 已能将顶层工具结果编码为 `function_call_output`，且不会覆盖调用方 metadata。Ollama 现明确使用 OpenAI-Compatible Chat / Completions / Embeddings 端点和 URL 预览，保留原生 `api/tags` 模型发现，并声明 `tools` / `toolChoice` 能力与模型负向能力过滤测试；聊天层执行—结果续轮仍属于工作线二。
+- **部分完成：A3 codec 修补。** Gemini 已在工具调用与结果回传中同时保留函数调用 ID 和函数名，流式聚合不再覆盖上游真实 ID；Cohere 已能编码 assistant `tool_calls` 以及并行调用逐条对应的 `role: "tool"` 结果消息。Gemini、Cohere、Anthropic 和 Vertex 的相关 Adapter 回归测试已通过；完整原生多轮端到端验证仍待工作线二。
+- **后置：工作线二与 A4。** 用户明确决定将 `llm-chat` 的原生 Tool Call 检测、审批、执行、结果续轮、多轮会话 replay state，以及 Gemini Interactions / Bedrock Converse 评估一并留到**下一版本周期**；本次在 A1 完成后停止，不进入聊天编排改造。
 
 ## 11. 工作线二：原生工具编排
 

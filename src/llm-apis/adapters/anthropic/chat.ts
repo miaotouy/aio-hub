@@ -131,6 +131,9 @@ function toCoreMessage(message: LlmMessage): CoreLlmMessage {
         ? message.content
         : message.content.map(toCoreContent),
     reasoningContent: message.reasoningContent,
+    name: message.name,
+    toolCallId: message.toolCallId,
+    metadata: toJsonObject(message.metadata),
     prefix: message.prefix,
   };
 }
@@ -177,6 +180,7 @@ function toCoreContent(content: LlmMessageContent): CoreLlmMessageContent {
   return {
     type: "tool_result",
     toolUseId: content.toolResultId,
+    name: content.toolName,
     content:
       typeof content.toolResultContent === "string"
         ? content.toolResultContent

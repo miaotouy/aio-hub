@@ -54,7 +54,7 @@ export function buildCohereChatRequest(
 export function buildCohereChatBody(request: LlmRequest): CohereChatBody {
   const body: CohereChatBody = {
     model: request.model,
-    messages: request.messages.map(buildCohereMessage),
+    messages: request.messages.flatMap(buildCohereMessages),
     temperature: request.temperature ?? 0.5,
   };
   assignDefined(
@@ -335,10 +335,26 @@ export const cohereChatAdapter: ProviderAdapter = {
   createStreamDecoder: () => new CohereChatStreamDecoder(),
 };
 
-function buildCohereMessage(message: LlmMessage): WireJsonValue {
+function buildCohereMessages(message: LlmMessage): WireJsonValue[] {
   if (typeof message.content === "string") {
-    return { role: message.role, content: message.content };
+    if (message.role === "tool" && message.toolCallId) {
+      return [
+        buildCohereToolResultMessage(message.toolCallId, message.content),
+      ];
+    }
+    return [{ role: message.role, content: message.content }];
   }
+
+  const toolResults = message.content.filter(
+    (content): content is Extract<LlmMessageContent, { type: "tool_result" }> =>
+      content.type === "tool_result"
+  );
+  if (toolResults.length) {
+    return toolResults.map((content) =>
+      buildCohereToolResultMessage(content.toolUseId, content.content)
+    );
+  }
+
   const text = message.content
     .filter((content) => content.type === "text")
     .map((content) => content.text)
@@ -347,11 +363,43 @@ function buildCohereMessage(message: LlmMessage): WireJsonValue {
     .filter((content) => content.type === "image")
     .map(buildCohereImagePart)
     .filter((value): value is WireJsonValue => value !== undefined);
+  const toolCalls = message.content
+    .filter(
+      (content): content is Extract<LlmMessageContent, { type: "tool_use" }> =>
+        content.type === "tool_use"
+    )
+    .map((content) => ({
+      id: content.id,
+      type: "function",
+      function: {
+        name: content.name,
+        arguments: JSON.stringify(content.input),
+      },
+    }));
+
+  const result: CohereChatBody = { role: message.role };
+  if (images.length) {
+    result.content = [...(text ? [{ type: "text", text }] : []), ...images];
+  } else if (text || !toolCalls.length) {
+    result.content = text;
+  }
+  if (toolCalls.length) result.tool_calls = toolCalls;
+  return [result];
+}
+
+function buildCohereToolResultMessage(
+  toolCallId: string,
+  content: string | JsonValue
+): WireJsonValue {
   return {
-    role: message.role,
-    content: images.length
-      ? [...(text ? [{ type: "text", text }] : []), ...images]
-      : text,
+    role: "tool",
+    tool_call_id: toolCallId,
+    content: [
+      {
+        type: "document",
+        document: { data: content },
+      },
+    ],
   };
 }
 

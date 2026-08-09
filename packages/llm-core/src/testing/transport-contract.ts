@@ -202,3 +202,5 @@ async function collect(stream: AsyncIterable<Uint8Array>): Promise<Uint8Array> {
   }
   return result;
 }
+
+export * from "./tool-call-contract";

@@ -17,6 +17,7 @@
  * 支持文本和视觉模型的统一调用
  */
 
+import { reactive } from "vue";
 import { useLlmProfiles } from "./useLlmProfiles";
 import { useLlmKeyManager } from "./useLlmKeyManager";
 import { createModuleLogger } from "@utils/logger";
@@ -35,10 +36,14 @@ import {
 import { adapters } from "../llm-apis/adapters";
 import { resolveModelExecution, type LlmOperation } from "@aiohub/llm-core";
 import { filterParametersByCapabilities } from "../llm-apis/request-builder";
+import { buildDecodedToolDiagnostics } from "../llm-apis/tool-diagnostics";
 import { getKeyHealthActionForError } from "../llm-apis/key-health-policy";
 import type { LlmProfile } from "../types/llm-profiles";
 import { inspectorHookRegistry } from "@/tools/llm-inspector/core/hookRegistry";
-import type { InspectorContextMetadata } from "@/tools/llm-inspector/types/hooks";
+import type {
+  InspectorContextMetadata,
+  InspectorToolDiagnostics,
+} from "@/tools/llm-inspector/types/hooks";
 
 const logger = createModuleLogger("LlmRequest");
 const errorHandler = createModuleErrorHandler("LlmRequest");
@@ -354,6 +359,24 @@ export function useLlmRequest() {
         filteredParams: Object.keys(filteredOptions).length,
       });
 
+      // A1：先记录能力过滤后的工具意图；底层 fetch 会再以最终 JSON 请求体覆写为准。
+      if (inspectorRequestId) {
+        const inspectorContext =
+          inspectorHookRegistry.getContext(inspectorRequestId);
+        if (inspectorContext) {
+          const requestedToolCount = Array.isArray(filteredOptions.tools)
+            ? filteredOptions.tools.length
+            : 0;
+          inspectorContext.toolDiagnostics = reactive<InspectorToolDiagnostics>(
+            {
+              adapterId: execution.adapterId,
+              requestToolCount: requestedToolCount,
+              hasNativeTools: requestedToolCount > 0,
+            }
+          );
+        }
+      }
+
       // 根据提供商类型调用对应的适配器
       const adapter = adapters[effectiveProfile.type];
       if (!adapter) {
@@ -411,6 +434,14 @@ export function useLlmRequest() {
           effectiveProfile,
           filteredOptions as LlmRequestOptions
         );
+      }
+
+      if (inspectorRequestId) {
+        const toolDiagnostics =
+          inspectorHookRegistry.getContext(inspectorRequestId)?.toolDiagnostics;
+        if (toolDiagnostics) {
+          Object.assign(toolDiagnostics, buildDecodedToolDiagnostics(response));
+        }
       }
 
       logger.info("LLM 请求成功", {

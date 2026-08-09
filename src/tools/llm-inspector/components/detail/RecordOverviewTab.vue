@@ -373,6 +373,67 @@
             record.inspectorMetadata.sessionId
           }}</span>
         </div>
+        <template v-if="toolDiagnostics">
+          <div v-if="toolDiagnostics.adapterId" class="info-item">
+            <label>Adapter</label>
+            <span class="meta-value mono">{{ toolDiagnostics.adapterId }}</span>
+          </div>
+          <div
+            v-if="toolDiagnostics.hasNativeTools !== undefined"
+            class="info-item"
+          >
+            <label>原生工具</label>
+            <span class="meta-value">
+              {{ toolDiagnostics.hasNativeTools ? "已携带" : "未携带" }}
+              <template v-if="toolDiagnostics.requestToolCount !== undefined">
+                （{{ toolDiagnostics.requestToolCount }} 个）
+              </template>
+            </span>
+          </div>
+          <div
+            v-if="toolDiagnostics.decodedFinishReason !== undefined"
+            class="info-item"
+          >
+            <label>归一化停止原因</label>
+            <span class="meta-value mono">{{
+              toolDiagnostics.decodedFinishReason ?? "—"
+            }}</span>
+          </div>
+          <div
+            v-if="toolDiagnostics.responseContainsVcpMarker !== undefined"
+            class="info-item"
+          >
+            <label>正文 VCP 标记</label>
+            <span class="meta-value">{{
+              toolDiagnostics.responseContainsVcpMarker ? "检测到" : "未检测到"
+            }}</span>
+          </div>
+          <div v-if="record.response" class="info-item tool-diagnostics-item">
+            <label>上游原始字段</label>
+            <span class="meta-value"
+              >完整响应、原始停止原因与调用字段见“原始”标签。</span
+            >
+          </div>
+          <div
+            v-if="toolDiagnostics.decodedToolCalls?.length"
+            class="info-item tool-diagnostics-item"
+          >
+            <label>Adapter 解码调用</label>
+            <div class="decoded-tool-calls">
+              <div
+                v-for="toolCall in toolDiagnostics.decodedToolCalls"
+                :key="toolCall.id"
+                class="decoded-tool-call"
+              >
+                <code>{{ toolCall.name }}</code>
+                <span class="mono">{{ toolCall.id }}</span>
+                <code class="tool-call-arguments">{{
+                  toolCall.arguments
+                }}</code>
+              </div>
+            </div>
+          </div>
+        </template>
       </div>
     </section>
   </div>
@@ -471,9 +532,14 @@ const hasInspectorMetadata = computed(() => {
     meta.purpose ||
     meta.profileId ||
     meta.modelId ||
-    meta.sessionId
+    meta.sessionId ||
+    meta.toolDiagnostics
   );
 });
+
+const toolDiagnostics = computed(
+  () => props.record.inspectorMetadata?.toolDiagnostics
+);
 
 // Token 卡片是否显示（任意数据源有内容就显示）
 const hasTokenInfo = computed(() => {
@@ -736,6 +802,39 @@ const streamMode = computed(() => {
   font-family: "Courier New", monospace;
   font-size: 12px;
   word-break: break-all;
+}
+
+.tool-diagnostics-item {
+  grid-column: 1 / -1;
+}
+
+.decoded-tool-calls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.decoded-tool-call {
+  display: grid;
+  grid-template-columns: auto minmax(120px, 0.75fr) minmax(0, 2fr);
+  gap: 8px;
+  align-items: start;
+  padding: 6px 8px;
+  background: var(--container-bg);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.decoded-tool-call code,
+.decoded-tool-call .mono {
+  font-family: "Courier New", monospace;
+  word-break: break-all;
+}
+
+.tool-call-arguments {
+  color: var(--text-color-light);
 }
 
 /* === 折叠头部 === */

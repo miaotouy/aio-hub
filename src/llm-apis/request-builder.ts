@@ -69,6 +69,7 @@ export interface ParsedMessageContent {
   /** 所有工具结果部分 */
   toolResultParts: Array<{
     id: string;
+    name?: string;
     content: string | LlmMessageContent[];
     isError?: boolean;
   }>;
@@ -134,6 +135,7 @@ export function parseMessageContents(
         if (msg.toolResultId) {
           result.toolResultParts.push({
             id: msg.toolResultId,
+            name: msg.toolName,
             content: msg.toolResultContent || "",
             isError: msg.isError,
           });

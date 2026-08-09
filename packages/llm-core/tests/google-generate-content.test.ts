@@ -202,6 +202,70 @@ describe("Google GenerateContent provider adapter", () => {
     });
   });
 
+  it("preserves function call IDs and names in a tool result continuation", () => {
+    const wire = buildGoogleGenerateContentRequest(
+      developerProfile,
+      createRequest({
+        messages: [
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_use",
+                id: "server-call-1",
+                name: "lookup",
+                input: { query: "aio" },
+              },
+            ],
+          },
+          {
+            role: "tool",
+            content: [
+              {
+                type: "tool_result",
+                toolUseId: "server-call-1",
+                name: "lookup",
+                content: "AIO Hub",
+              },
+            ],
+          },
+        ],
+      })
+    );
+
+    expect(wire.body).toEqual({
+      kind: "json",
+      value: expect.objectContaining({
+        contents: [
+          {
+            role: "model",
+            parts: [
+              {
+                functionCall: {
+                  id: "server-call-1",
+                  name: "lookup",
+                  args: { query: "aio" },
+                },
+              },
+            ],
+          },
+          {
+            role: "user",
+            parts: [
+              {
+                functionResponse: {
+                  id: "server-call-1",
+                  name: "lookup",
+                  response: { result: "AIO Hub" },
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    });
+  });
+
   it("builds the configured Vertex resource path and bearer authorization", () => {
     const wire = buildGoogleGenerateContentRequest(
       {
@@ -335,7 +399,13 @@ describe("Google GenerateContent provider adapter", () => {
             content: {
               parts: [
                 { text: "结果", thoughtSignature: "sig-1" },
-                { functionCall: { name: "lookup", args: { q: "aio" } } },
+                {
+                  functionCall: {
+                    id: "server-call-2",
+                    name: "lookup",
+                    args: { q: "aio" },
+                  },
+                },
               ],
             },
             finishReason: "STOP",
@@ -375,7 +445,7 @@ describe("Google GenerateContent provider adapter", () => {
       {
         type: "tool-call",
         toolCall: {
-          id: "call_0",
+          id: "server-call-2",
           type: "function",
           function: { name: "lookup", arguments: '{"q":"aio"}' },
         },
@@ -393,7 +463,7 @@ describe("Google GenerateContent provider adapter", () => {
           },
           toolCalls: [
             {
-              id: "call_0",
+              id: "server-call-2",
               type: "function",
               function: { name: "lookup", arguments: '{"q":"aio"}' },
             },
@@ -402,7 +472,13 @@ describe("Google GenerateContent provider adapter", () => {
             geminiParts: [
               { text: "分析", thought: true },
               { text: "结果", thoughtSignature: "sig-1" },
-              { functionCall: { name: "lookup", args: { q: "aio" } } },
+              {
+                functionCall: {
+                  id: "server-call-2",
+                  name: "lookup",
+                  args: { q: "aio" },
+                },
+              },
             ],
           },
         },

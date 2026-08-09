@@ -119,6 +119,10 @@ function pickInspectorMetadata(
   if (metadata.sessionId) picked.sessionId = metadata.sessionId;
   if (metadata.toolName) picked.toolName = metadata.toolName;
   if (metadata.purpose) picked.purpose = metadata.purpose;
+  // 保留同一诊断对象引用：Adapter 解码完成后补写的字段会反映到已创建的记录。
+  if (metadata.toolDiagnostics) {
+    picked.toolDiagnostics = metadata.toolDiagnostics;
+  }
   return Object.keys(picked).length > 0 ? picked : undefined;
 }
 

@@ -105,3 +105,45 @@ describe("filterParametersByCapabilities thinking parameters", () => {
     expect(result.includeThoughts).toBeUndefined();
   });
 });
+
+describe("filterParametersByCapabilities Ollama tool parameters", () => {
+  const tools: NonNullable<LlmRequestOptions["tools"]> = [
+    {
+      type: "function",
+      function: {
+        name: "lookup",
+        parameters: { type: "object", properties: {} },
+      },
+    },
+  ];
+
+  it("keeps tools and tool choice for a tool-capable Ollama model", () => {
+    const result = filterParametersByCapabilities(
+      createOptions("qwen3", { tools, toolChoice: "required" }),
+      createProfile("ollama"),
+      {
+        id: "qwen3",
+        name: "qwen3",
+        capabilities: { toolUse: true },
+      }
+    );
+
+    expect(result.tools).toEqual(tools);
+    expect(result.toolChoice).toBe("required");
+  });
+
+  it("removes tools when the selected Ollama model explicitly lacks tool use", () => {
+    const result = filterParametersByCapabilities(
+      createOptions("plain-model", { tools, toolChoice: "required" }),
+      createProfile("ollama"),
+      {
+        id: "plain-model",
+        name: "plain-model",
+        capabilities: { toolUse: false },
+      }
+    );
+
+    expect(result.tools).toBeUndefined();
+    expect(result.toolChoice).toBeUndefined();
+  });
+});

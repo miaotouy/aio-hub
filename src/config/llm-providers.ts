@@ -234,12 +234,16 @@ export const providerTypes: ProviderTypeInfo[] = [
       topK: true,
       seed: true,
       stop: true,
+      tools: true,
+      toolChoice: true,
     },
     endpointPlaceholders: {
-      chatCompletions: "/api/chat",
-      completions: "/api/generate",
+      // Chat and embeddings share the OpenAI-compatible codec at runtime.
+      // Model discovery remains on Ollama's native API through modelListEndpoint.
+      chatCompletions: "/v1/chat/completions",
+      completions: "/v1/completions",
       models: "/api/tags",
-      embeddings: "/api/embed",
+      embeddings: "/v1/embeddings",
       imagesEdits: "暂不支持",
       imagesVariations: "暂不支持",
       audioSpeech: "暂不支持",

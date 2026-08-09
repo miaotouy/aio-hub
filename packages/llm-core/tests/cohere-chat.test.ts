@@ -120,6 +120,92 @@ describe("Cohere Chat provider adapter", () => {
     });
   });
 
+  it("encodes assistant tool calls and one role tool result per call", () => {
+    const wire = buildCohereChatRequest(profile, {
+      model: "command-a-03-2025",
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: "call_1",
+              name: "lookup",
+              input: { query: "aio" },
+            },
+            {
+              type: "tool_use",
+              id: "call_2",
+              name: "get_time",
+              input: { timezone: "Asia/Shanghai" },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          content: [
+            {
+              type: "tool_result",
+              toolUseId: "call_1",
+              name: "lookup",
+              content: { answer: "AIO Hub" },
+            },
+            {
+              type: "tool_result",
+              toolUseId: "call_2",
+              name: "get_time",
+              content: "12:00",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(wire.body).toEqual({
+      kind: "json",
+      value: expect.objectContaining({
+        messages: [
+          {
+            role: "assistant",
+            tool_calls: [
+              {
+                id: "call_1",
+                type: "function",
+                function: {
+                  name: "lookup",
+                  arguments: '{"query":"aio"}',
+                },
+              },
+              {
+                id: "call_2",
+                type: "function",
+                function: {
+                  name: "get_time",
+                  arguments: '{"timezone":"Asia/Shanghai"}',
+                },
+              },
+            ],
+          },
+          {
+            role: "tool",
+            tool_call_id: "call_1",
+            content: [
+              {
+                type: "document",
+                document: { data: { answer: "AIO Hub" } },
+              },
+            ],
+          },
+          {
+            role: "tool",
+            tool_call_id: "call_2",
+            content: [{ type: "document", document: { data: "12:00" } }],
+          },
+        ],
+      }),
+    });
+  });
+
   it("parses text, thinking, tool calls, finish reason and usage", () => {
     expect(
       parseCohereChatResponseValue({

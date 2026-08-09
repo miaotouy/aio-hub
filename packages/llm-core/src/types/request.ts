@@ -45,7 +45,10 @@ export interface LlmToolUseContent {
 
 export interface LlmToolResultContent {
   type: "tool_result";
+  /** Must match the originating function call ID. */
   toolUseId: string;
+  /** Must match the originating function name for providers that require it. */
+  name?: string;
   content: string | JsonValue;
   isError?: boolean;
 }

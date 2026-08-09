@@ -189,6 +189,7 @@ function buildGooglePart(content: LlmMessageContent): WireJsonValue[] {
       return [
         {
           functionCall: {
+            ...(content.id ? { id: content.id } : {}),
             name: content.name,
             args: content.input,
           },
@@ -198,7 +199,10 @@ function buildGooglePart(content: LlmMessageContent): WireJsonValue[] {
       return [
         {
           functionResponse: {
-            name: content.toolUseId,
+            ...(content.toolUseId ? { id: content.toolUseId } : {}),
+            // Legacy callers may omit the name; retain the old fallback while
+            // preserving the canonical function name whenever it is available.
+            name: content.name ?? content.toolUseId,
             response: {
               result:
                 typeof content.content === "string"
@@ -561,12 +565,11 @@ export class GoogleGenerateContentStreamDecoder implements ProviderStreamDecoder
       events.push({ type: "text-delta", delta: parsed.content });
     }
     for (const toolCall of parsed.toolCalls) {
-      const normalized = {
-        ...toolCall,
-        id: `call_${this.toolCalls.length}`,
-      };
-      this.toolCalls.push(normalized);
-      events.push({ type: "tool-call", toolCall: normalized });
+      // parseGoogleParts keeps upstream IDs when Gemini provides them. Do not
+      // overwrite those IDs during stream aggregation: callers must replay the
+      // exact ID alongside the function name in the result turn.
+      this.toolCalls.push(toolCall);
+      events.push({ type: "tool-call", toolCall });
     }
     this.images.push(...parsed.images);
     this.audios.push(...parsed.audios);

@@ -157,6 +157,43 @@ describe("OpenAI Adapter - Responses", () => {
     ]);
   });
 
+  it("encodes a top-level role tool result as function_call_output", async () => {
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: "resp_3",
+        status: "completed",
+        output: [
+          {
+            type: "message",
+            content: [{ type: "output_text", text: "Done." }],
+          },
+        ],
+      }),
+    });
+
+    await callOpenAiResponsesApi(mockProfile, {
+      profileId: mockProfile.id,
+      modelId: "gpt-5",
+      messages: [
+        {
+          role: "tool",
+          toolCallId: "call_1",
+          content: '{"answer":"AIO Hub"}',
+        },
+      ],
+    });
+
+    const [, fetchOptions] = (fetchWithTimeout as any).mock.calls[0];
+    expect(JSON.parse(fetchOptions.body).input).toEqual([
+      {
+        type: "function_call_output",
+        call_id: "call_1",
+        output: '{"answer":"AIO Hub"}',
+      },
+    ]);
+  });
+
   it("requests encrypted reasoning when store is disabled", async () => {
     (fetchWithTimeout as any).mockResolvedValue({
       ok: true,

@@ -117,6 +117,61 @@ describe("OpenAI Adapter - Chat", () => {
     expect(result.usage?.totalTokens).toBe(30);
   });
 
+  it("should preserve assistant tool calls and role tool continuations", async () => {
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: "Done." }, finish_reason: "stop" }],
+      }),
+    });
+
+    await callOpenAiChatApi(mockProfile, {
+      profileId: mockProfile.id,
+      modelId: "gpt-4",
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              toolUseId: "call_weather_1",
+              toolName: "get_weather",
+              toolInput: { city: "Shanghai" },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          toolCallId: "call_weather_1",
+          content: '{"temperature":28}',
+        },
+      ],
+    });
+
+    const [, fetchOptions] = (fetchWithTimeout as any).mock.calls[0];
+    expect(JSON.parse(fetchOptions.body).messages).toEqual([
+      {
+        role: "assistant",
+        content: [],
+        tool_calls: [
+          {
+            id: "call_weather_1",
+            type: "function",
+            function: {
+              name: "get_weather",
+              arguments: '{"city":"Shanghai"}',
+            },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        tool_call_id: "call_weather_1",
+        content: '{"temperature":28}',
+      },
+    ]);
+  });
+
   it("should map shared response metadata back to the desktop facade", async () => {
     (fetchWithTimeout as any).mockResolvedValue({
       ok: true,

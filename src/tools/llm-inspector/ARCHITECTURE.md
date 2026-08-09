@@ -65,7 +65,7 @@ isGlobalEnabled  ─ 总开关（关闭即全停）
 - **更新**: 响应到达后填充 `response` 字段。
 - **来源标识**（2.0 新增）:
   - `source: "external"` — 来自 Rust 外部代理（默认）。
-  - `source: "internal"` — 来自前端钩子（含 [`inspectorMetadata`](src/tools/llm-inspector/types/records.ts:46)：toolName/purpose/profileId/modelId/sessionId）。
+  - `source: "internal"` — 来自前端钩子（含 [`inspectorMetadata`](src/tools/llm-inspector/types/records.ts:48)：toolName/purpose/profileId/modelId/sessionId，以及可选的 Provider 工具调用诊断）。
 
 ### 1.4. 实时流式处理 (`StreamProcessor`)
 
@@ -209,7 +209,7 @@ graph TD
   - 客户端估算按需触发（卡片底部「运行客户端估算」按钮，或全局开启「响应结束后自动估算」）。
   - 同时存在时显示偏差 chip：< 5% 绿色 / 5-15% 黄色 / >= 15% 红色，tooltip 解释。
   - 已估算后卡片头部出现 RefreshCw 按钮，可清缓存重算。
-- **Inspector 元数据卡**（F3）: 仅当 `inspectorMetadata` 存在时显示工具/用途/profileId/modelId/sessionId（一般 internal 来源才会填充）。
+- **Inspector 元数据卡**（F3）: 仅当 `inspectorMetadata` 存在时显示工具/用途/profileId/modelId/sessionId；若存在 Provider 工具调用诊断，还显示实际编码请求中的原生工具数、Adapter 解码调用/停止原因、VCP 正文标记，并明确原始停止原因和调用字段仍以“原始”响应为准（一般 internal 来源才会填充）。
 
 #### 3.2.2. 性能改造（detail-panel-rework）
 
@@ -341,7 +341,7 @@ LlmInspector.vue
 - **记录类**：[`types/records.ts`](src/tools/llm-inspector/types/records.ts:1)
   - `CombinedRecord` — 含 `source` + `inspectorMetadata`（向后兼容可选）
   - `RecordSource` — `"internal" | "external"`
-  - `RecordInspectorMetadata` — 工具/会话/Profile/Model 元数据
+  - `RecordInspectorMetadata` — 工具/会话/Profile/Model 元数据，以及 Provider 工具调用诊断
 - **配置类**：[`types/config.ts`](src/tools/llm-inspector/types/config.ts:1)
   - `InspectorConfig` / `InspectorStatus` / `InspectorServiceState`
   - `InspectorLayoutSettings` — `splitRatio`
@@ -356,7 +356,7 @@ LlmInspector.vue
 钩子事件契约见 [`types/hooks.ts`](src/tools/llm-inspector/types/hooks.ts:1)（独立子模块，不被 `types/index.ts` re-export）：
 
 - `InspectorRequestEvent` / `InspectorResponseEvent` / `InspectorStreamEvent` / `InspectorErrorEvent`
-- `InspectorContextMetadata` — toolName/purpose/profileId/modelId/sessionId
+- `InspectorContextMetadata` — toolName/purpose/profileId/modelId/sessionId，以及 Provider 工具调用诊断
 - `InspectorState` — 全局状态机字段
 - `InspectorHooks` 接口与 `INSPECTOR_INTERNAL_EVENT` 常量
 - `INSPECTOR_SYNC_EVENT` 跨窗口同步事件常量 + `InspectorSyncEnablePayload`

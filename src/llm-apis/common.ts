@@ -17,6 +17,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import { inspectorHookRegistry } from "@/tools/llm-inspector/core/hookRegistry";
 import type { InspectorContextMetadata } from "@/tools/llm-inspector/types/hooks";
+import { inspectNativeToolRequestBody } from "./tool-diagnostics";
 
 const logger = createModuleLogger("llm-apis/common");
 
@@ -99,7 +100,10 @@ export interface ToolUseContent {
 
 export interface ToolResultContent {
   type: "tool_result";
+  /** Must match the originating tool call ID. */
   toolResultId: string;
+  /** Must match the originating function name when the provider requires it. */
+  toolName?: string;
   toolResultContent: string | LlmMessageContent[];
   isError?: boolean;
 }
@@ -143,8 +147,12 @@ export interface LlmReasoningArtifact {
  * LLM 消息结构
  */
 export interface LlmMessage {
-  role: "system" | "user" | "assistant";
+  role: "system" | "developer" | "user" | "assistant" | "tool";
   content: string | LlmMessageContent[];
+  /** Optional participant name used by providers that support named messages. */
+  name?: string;
+  /** Tool call ID for a top-level `role: "tool"` result message. */
+  toolCallId?: string;
   /**
    * 推理内容（DeepSeek reasoning 等）
    * 在多轮对话中，如果存在工具调用，必须回传此内容
@@ -154,6 +162,8 @@ export interface LlmMessage {
    * Provider-owned reasoning state for exact replay.
    */
   reasoningArtifacts?: LlmReasoningArtifact[];
+  /** Opaque provider state that must be replayed without interpretation. */
+  metadata?: Record<string, unknown>;
   /**
    * 是否作为续写前缀 (DeepSeek / Claude Prefill)
    * 如果为 true，该消息必须是列表中的最后一条，且 role 通常为 assistant
@@ -863,6 +873,15 @@ export const fetchWithTimeout = async (
       }
     } else if (options.body instanceof FormData) {
       bodySnapshot = "[FormData body, 跳过采集]";
+    }
+
+    // 以实际编码后的请求 JSON 为准，避免仅根据调用方 options 推断工具是否真的上行。
+    const nativeToolSummary = inspectNativeToolRequestBody(bodySnapshot);
+    if (nativeToolSummary && resolvedInspectorContext?.toolDiagnostics) {
+      Object.assign(
+        resolvedInspectorContext.toolDiagnostics,
+        nativeToolSummary
+      );
     }
 
     inspectorHookRegistry.triggerRequest({

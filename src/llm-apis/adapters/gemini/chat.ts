@@ -165,16 +165,22 @@ export function toGeminiCoreRequest(
 function toCoreMessage(message: LlmMessage): CoreLlmMessage {
   const replayParts =
     message.role === "assistant" ? getGeminiReplayParts(message) : undefined;
+  const metadata = {
+    ...toJsonObject(message.metadata),
+    ...(replayParts?.length
+      ? { geminiReplayParts: toJsonValue(replayParts) ?? [] }
+      : {}),
+  };
   return {
     role: message.role,
     content:
       typeof message.content === "string"
         ? message.content
         : message.content.map(toCoreContent),
+    name: message.name,
+    toolCallId: message.toolCallId,
+    ...(Object.keys(metadata).length ? { metadata } : {}),
     prefix: message.prefix,
-    ...(replayParts
-      ? { metadata: { geminiReplayParts: toJsonValue(replayParts) ?? [] } }
-      : {}),
   };
 }
 
@@ -214,6 +220,7 @@ function toCoreContent(content: LlmMessageContent): CoreLlmMessageContent {
       return {
         type: "tool_result",
         toolUseId: content.toolResultId,
+        name: content.toolName,
         content:
           typeof content.toolResultContent === "string"
             ? content.toolResultContent

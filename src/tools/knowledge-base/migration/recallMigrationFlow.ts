@@ -31,7 +31,6 @@ function createSnapshot(
   return {
     preview,
     backupConfirmed: false,
-    riskConfirmed: false,
     executionStatus: completed ? "completed" : report ? "partial" : "pending",
     report: report ?? undefined,
     cleanupChoice: "keep",

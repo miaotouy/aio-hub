@@ -16,7 +16,7 @@
         将仅删除受管旧目录中的 bases、vectors 和 tag_pool。请输入
         <strong>DELETE</strong> 再继续。
       </p>
-      <el-input v-model="cleanupConfirmation" placeholder="DELETE" />
+      <el-input v-model="cleanupConfirmation" placeholder="输入 DELETE 确认" />
     </div>
   </div>
 </template>
@@ -43,7 +43,10 @@ function updateSnapshot(updates: Partial<typeof snapshot.value>) {
 const cleanupChoice = computed({
   get: () => snapshot.value.cleanupChoice,
   set: (value: "keep" | "cleanup") => {
-    updateSnapshot({ cleanupChoice: value });
+    updateSnapshot({
+      cleanupChoice: value,
+      cleanupConfirmation: value === "keep" ? "" : snapshot.value.cleanupConfirmation,
+    });
   },
 });
 const cleanupConfirmation = computed({

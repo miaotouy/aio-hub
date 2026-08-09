@@ -31,7 +31,6 @@ const context: RecallMigrationFlowContext = {
       issueCount: 0,
     },
     backupConfirmed: false,
-    riskConfirmed: false,
     executionStatus: "pending",
     cleanupChoice: "keep",
     cleanupConfirmation: "",

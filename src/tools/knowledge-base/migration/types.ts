@@ -17,8 +17,8 @@ export interface RecallMigrationReport {
   sourcePath: string;
   legacyDataPath: string;
   sourceFingerprint: string;
-  mainStatus: string;
-  vectorStatus: string;
+  mainStatus: "partial" | "completed";
+  vectorStatus: "not_started" | "partial" | "completed";
   sourceCollections: number;
   migratedCollections: number;
   sourceEntries: number;
@@ -60,8 +60,8 @@ export interface RecallMigrationPreview {
   unsupportedFields: string[];
   warnings: string[];
   requiresBackup: boolean;
-  mainStatus: string;
-  vectorStatus: string;
+  mainStatus: "not_started" | "partial" | "completed";
+  vectorStatus: "not_started" | "partial" | "completed";
   pendingVectors: number;
   issueCount: number;
 }
@@ -80,7 +80,6 @@ export interface RecallMigrationProgress {
 export interface KnowledgeMigrationSnapshot {
   preview: RecallMigrationPreview;
   backupConfirmed: boolean;
-  riskConfirmed: boolean;
   executionStatus: "pending" | "running" | "completed" | "partial" | "failed";
   report?: RecallMigrationReport;
   cleanupChoice: "keep" | "cleanup";

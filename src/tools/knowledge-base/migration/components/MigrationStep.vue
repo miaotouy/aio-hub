@@ -35,7 +35,7 @@ const subStep = ref<MigrationSubStep>(
 const canStart = computed(
   () =>
     snapshot.value.preview.mainStatus === "completed" ||
-    (snapshot.value.backupConfirmed && snapshot.value.riskConfirmed)
+    snapshot.value.backupConfirmed
 );
 const canFinish = computed(() => canCompleteKnowledgeMigration(snapshot.value));
 const reportComplete = computed(() =>

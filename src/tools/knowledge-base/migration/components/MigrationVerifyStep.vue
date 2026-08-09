@@ -69,7 +69,7 @@
         </el-collapse-item>
       </el-collapse>
     </template>
-    <el-empty v-else description="尚无迁移报告，请返回方案并重新执行迁移。" />
+    <el-empty v-else description="暂无迁移报告，执行迁移后将在此显示。" />
   </div>
 </template>
 

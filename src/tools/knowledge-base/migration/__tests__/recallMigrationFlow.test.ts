@@ -154,7 +154,6 @@ describe("Recall migration GuidedFlow", () => {
       snapshot: {
         preview,
         backupConfirmed: true,
-        riskConfirmed: true,
         executionStatus: "pending" as const,
         cleanupChoice: "keep" as const,
         cleanupConfirmation: "",
@@ -198,7 +197,6 @@ describe("Recall migration GuidedFlow", () => {
           vectorStatus: "completed",
         },
         backupConfirmed: false,
-        riskConfirmed: false,
         executionStatus: "completed",
         report: completeReport,
         cleanupChoice: "cleanup",

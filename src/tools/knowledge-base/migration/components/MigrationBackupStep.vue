@@ -2,9 +2,9 @@
   <label class="confirm-card" data-testid="migration-confirmation">
     <el-checkbox v-model="confirmed" />
     <span>
-      <strong>我已确认备份旧数据，并同意开始迁移</strong>
+      <strong>我了解迁移风险，并确认已备份重要数据</strong>
       <small>
-        旧目录为只读来源，迁移完成后会保留；除非最后手动选择清理，否则不会删除。
+        旧目录仅作为只读来源，完成后不会修改或删除。
       </small>
     </span>
   </label>
@@ -32,9 +32,9 @@ function updateSnapshot(updates: Partial<typeof snapshot.value>) {
 }
 
 const confirmed = computed({
-  get: () => snapshot.value.backupConfirmed && snapshot.value.riskConfirmed,
+  get: () => snapshot.value.backupConfirmed,
   set: (value: boolean) => {
-    updateSnapshot({ backupConfirmed: value, riskConfirmed: value });
+    updateSnapshot({ backupConfirmed: value });
   },
 });
 </script>

@@ -60,7 +60,7 @@ const requiresConfirmation = computed(
       <CircleCheckFilled />
       <span>
         <strong>此来源的主数据已经迁移</strong>
-        <small>无需再次确认写入，可以直接查看已保存的校验报告。</small>
+        <small>主数据迁移已完成，可直接查看校验报告。</small>
       </span>
     </div>
 
@@ -75,7 +75,7 @@ const requiresConfirmation = computed(
         {{ props.startLabel ?? "开始迁移" }}
       </el-button>
       <small v-if="!props.canStart" class="start-hint">
-        请先确认已备份旧数据并同意开始迁移。
+        请先勾选确认项。
       </small>
     </div>
   </div>

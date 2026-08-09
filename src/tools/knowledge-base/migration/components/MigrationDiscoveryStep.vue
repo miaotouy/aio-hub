@@ -28,12 +28,12 @@
       </div>
       <div data-testid="migration-source-issues">
         <strong>{{ snapshot.preview.issueCount }}</strong
-        ><span>已知问题</span>
+        ><span>预检问题</span>
       </div>
     </div>
 
     <p class="discovery-hint">
-      应用会将旧目录中的数据写入新的 Recall SQLite 存储，原目录默认保留。
+      迁移将把旧目录数据写入新存储，旧目录默认保留不删除。
     </p>
   </div>
 </template>

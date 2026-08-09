@@ -139,7 +139,9 @@ const isBrushTool = computed(() => {
 });
 
 const isShapeTool = computed(() => {
-  return ["rect", "ellipse", "line", "arrow"].includes(activeTool.value);
+  return ["rect", "ellipse", "star", "line", "arrow"].includes(
+    activeTool.value
+  );
 });
 
 const activeBackgroundLayer = computed(() => {
@@ -164,6 +166,7 @@ const panelTitle = computed(() => {
       const typeLabels: Record<string, string> = {
         rect: "矩形",
         ellipse: "圆形",
+        star: "星形",
         line: "线条",
         arrow: "箭头",
         text: "文本",

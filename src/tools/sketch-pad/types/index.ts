@@ -76,6 +76,7 @@ export interface ObjectLayer extends LayerBase {
 export type SketchObject =
   | RectObject
   | EllipseObject
+  | StarObject
   | LineObject
   | ArrowObject
   | TextObject
@@ -109,6 +110,18 @@ export interface EllipseObject extends ObjectBase {
   fill: string | null;
   stroke: string;
   strokeWidth: number;
+  dash?: number[] | null;
+}
+
+/** 星形对象。x/y 为外接矩形左上角，innerRadius 决定尖角程度。 */
+export interface StarObject extends ObjectBase {
+  type: "star";
+  fill: string | null;
+  stroke: string;
+  strokeWidth: number;
+  numPoints: number;
+  innerRadius: number;
+  outerRadius: number;
   dash?: number[] | null;
 }
 

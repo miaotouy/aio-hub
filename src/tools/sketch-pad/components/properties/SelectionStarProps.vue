@@ -16,111 +16,99 @@
 
 <template>
   <div class="property-group">
+    <SelectionCommonProps :obj="obj" @update-prop="emitProp" />
+
+    <div class="section-divider" />
+
     <PropertySlider
-      label="描边"
-      :model-value="strokeWidth"
+      label="描边粗细"
+      :model-value="obj.strokeWidth"
       :min="1"
       :max="20"
-      @update:model-value="(v) => emitUpdate({ strokeWidth: v })"
+      @update:model-value="(v) => emitProp('strokeWidth', v)"
     />
 
     <PropertyColorPicker
       label="描边颜色"
-      :model-value="strokeColor"
-      @update:model-value="(v) => emitUpdate({ strokeColor: v })"
+      :model-value="obj.stroke"
+      @update:model-value="(v) => emitProp('stroke', v)"
     />
 
-    <div
-      v-if="
-        activeTool === 'rect' ||
-        activeTool === 'ellipse' ||
-        activeTool === 'star'
-      "
-      class="property-item"
-    >
+    <div class="property-item">
       <span class="label">填充</span>
       <div class="fill-row">
         <label class="custom-checkbox">
-          <input type="checkbox" :checked="hasFill" @change="toggleFill" />
-          <span class="checkmark" />
+          <input
+            type="checkbox"
+            :checked="obj.fill !== null"
+            @change="toggleFill"
+          />
           <span>启用</span>
         </label>
         <el-color-picker
-          :model-value="localFillColor"
+          :model-value="obj.fill || '#ffffff'"
           size="small"
-          :disabled="!hasFill"
-          @change="onFillColorChange"
+          :disabled="obj.fill === null"
+          @change="onFillChange"
         />
       </div>
     </div>
 
     <PropertySlider
-      v-if="activeTool === 'rect'"
-      label="圆角"
-      :model-value="cornerRadius"
+      label="顶点数"
+      :model-value="obj.numPoints"
+      :min="3"
+      :max="12"
+      :step="1"
+      @update:model-value="(v) => emitProp('numPoints', Math.round(v))"
+    />
+
+    <PropertySlider
+      label="外角半径"
+      :model-value="obj.outerRadius"
+      :min="1"
+      :max="300"
+      @update:model-value="
+        (v) => emitProp('outerRadius', Math.max(v, obj.innerRadius + 1))
+      "
+    />
+
+    <PropertySlider
+      label="内角半径"
+      :model-value="obj.innerRadius"
       :min="0"
-      :max="50"
-      @update:model-value="(v) => emitUpdate({ cornerRadius: v })"
+      :max="200"
+      @update:model-value="
+        (v) => emitProp('innerRadius', Math.min(v, obj.outerRadius * 0.95))
+      "
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import type { StarObject } from "../../types";
+import SelectionCommonProps from "./SelectionCommonProps.vue";
 import PropertySlider from "./PropertySlider.vue";
 import PropertyColorPicker from "./PropertyColorPicker.vue";
-import type { ToolType } from "../../constants";
 
 const props = defineProps<{
-  activeTool: ToolType;
-  strokeWidth: number;
-  strokeColor: string;
-  fillColor: string | null;
-  cornerRadius: number;
+  obj: StarObject;
 }>();
 
 const emit = defineEmits<{
-  (
-    e: "update",
-    data: {
-      strokeWidth?: number;
-      strokeColor?: string;
-      fillColor?: string | null;
-      cornerRadius?: number;
-    }
-  ): void;
+  (e: "update-prop", key: string, value: any): void;
 }>();
 
-const hasFill = ref(props.fillColor !== null);
-const localFillColor = ref(props.fillColor || "#ffffff");
-
-watch(
-  () => props.fillColor,
-  (val) => {
-    hasFill.value = val !== null;
-    if (val) localFillColor.value = val;
-  }
-);
-
-function emitUpdate(data: {
-  strokeWidth?: number;
-  strokeColor?: string;
-  fillColor?: string | null;
-  cornerRadius?: number;
-}) {
-  emit("update", data);
+function emitProp(key: string, value: any) {
+  emit("update-prop", key, value);
 }
 
 function toggleFill() {
-  hasFill.value = !hasFill.value;
-  emit("update", { fillColor: hasFill.value ? localFillColor.value : null });
+  emitProp("fill", props.obj.fill === null ? "#ffffff" : null);
 }
 
-function onFillColorChange(val: string | null) {
-  if (val) {
-    localFillColor.value = val;
-    emit("update", { fillColor: val });
-  }
+function onFillChange(value: string | null) {
+  if (value) emitProp("fill", value);
 }
 </script>
 
@@ -129,6 +117,12 @@ function onFillColorChange(val: string | null) {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.section-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 2px 0;
 }
 
 .property-item {
@@ -140,9 +134,6 @@ function onFillColorChange(val: string | null) {
 .label {
   font-size: 11px;
   color: var(--el-text-color-secondary);
-  display: flex;
-  align-items: center;
-  gap: 4px;
 }
 
 .fill-row {

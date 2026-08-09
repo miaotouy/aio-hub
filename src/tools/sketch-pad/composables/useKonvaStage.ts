@@ -21,7 +21,12 @@ export function useKonvaStage() {
   const panX = ref<number>(0);
   const panY = ref<number>(0);
 
-  function initStage(container: HTMLDivElement, width: number, height: number) {
+  function initStage(
+    container: HTMLDivElement,
+    width: number,
+    height: number,
+    handleCustomWheel?: (event: WheelEvent) => boolean
+  ) {
     const newStage = new Konva.Stage({
       container,
       width,
@@ -33,6 +38,8 @@ export function useKonvaStage() {
     // 绑定滚轮缩放事件
     newStage.on("wheel", (e) => {
       e.evt.preventDefault();
+      if (handleCustomWheel?.(e.evt)) return;
+
       const oldScale = newStage.scaleX();
       const pointer = newStage.getPointerPosition();
       if (!pointer) return;

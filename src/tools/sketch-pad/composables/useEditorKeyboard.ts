@@ -80,6 +80,13 @@ export function useEditorKeyboard(
         }
         return;
 
+      case "d":
+        if (state.currentView.value === "editor" && !isTextEditing) {
+          e.preventDefault();
+          runtime.capabilities.duplicateSelected();
+        }
+        return;
+
       case "0":
         e.preventDefault();
         runtime.capabilities.resetView();
@@ -138,6 +145,9 @@ export function useEditorKeyboard(
         break;
       case "o":
         state.activeTool.value = "ellipse";
+        break;
+      case "s":
+        state.activeTool.value = "star";
         break;
       case "l":
         state.activeTool.value = "line";

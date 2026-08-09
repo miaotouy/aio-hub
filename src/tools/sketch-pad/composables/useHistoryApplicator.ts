@@ -168,6 +168,21 @@ export function useHistoryApplicator(session: EditorSession) {
       } else if (key === "arrowSize" && node instanceof Konva.Arrow) {
         node.pointerLength(value as number);
         node.pointerWidth(value as number);
+      } else if (key === "innerRadius" && node instanceof Konva.Star) {
+        node.innerRadius(value as number);
+      } else if (key === "outerRadius" && node instanceof Konva.Star) {
+        node.outerRadius(value as number);
+      } else if (key === "numPoints" && node instanceof Konva.Star) {
+        node.numPoints(Math.round(value as number));
+      } else if (key === "locked") {
+        node.draggable(!(value as boolean));
+      } else if (
+        key === "lineCap" &&
+        (node instanceof Konva.Line || node instanceof Konva.Arrow)
+      ) {
+        node.lineCap(value as any);
+      } else if (key === "dash" && node instanceof Konva.Shape) {
+        node.dash((value as number[] | null) || []);
       } else {
         node.setAttr(key, value === null ? undefined : value);
       }

@@ -142,6 +142,15 @@ const {
 } = useTextEditing();
 const { loadImageNode } = useImageAsset();
 
+const SHAPE_DRAW_TOOLS = ["rect", "ellipse", "star", "line", "arrow"] as const;
+type ShapeDrawTool = (typeof SHAPE_DRAW_TOOLS)[number];
+
+type ShapeDrawModifiers = {
+  constrain: boolean;
+  fromCenter: boolean;
+  outlineOnly: boolean;
+};
+
 // 缩放百分比显示
 const zoomPercent = computed(() => Math.round(zoom.value * 100));
 
@@ -153,6 +162,7 @@ const canvasContainerStyle = computed(() => ({
 // 临时绘制形状的状态
 let tempShape: Konva.Shape | null = null;
 let startPoint = { x: 0, y: 0 };
+let starInnerRatio = 0.5;
 
 // 文本工具拖拽创建状态
 let pendingTextCreate = false;
@@ -195,7 +205,12 @@ onMounted(() => {
   // 1. 初始化 Stage（使用专用容器，避免与 Vue 管理的 DOM 冲突）
   const containerWidth = containerRef.value.clientWidth || 800;
   const containerHeight = containerRef.value.clientHeight || 600;
-  const newStage = initStage(stageRef.value, containerWidth, containerHeight);
+  const newStage = initStage(
+    stageRef.value,
+    containerWidth,
+    containerHeight,
+    handleShapeWheel
+  );
 
   // 2. 创建画布边界层（最底层）
   borderLayer = new Konva.Layer({
@@ -284,6 +299,160 @@ function handleKeyUp(e: KeyboardEvent) {
         state.activeTool.value === "hand" ? "grab" : "default";
     }
   }
+}
+
+function isShapeDrawTool(tool: string): tool is ShapeDrawTool {
+  return (SHAPE_DRAW_TOOLS as readonly string[]).includes(tool);
+}
+
+function getShapeDrawModifiers(
+  event?: MouseEvent | PointerEvent | TouchEvent
+): ShapeDrawModifiers {
+  const mouseEvent = event as MouseEvent | undefined;
+  return {
+    // Shift：固定比例，线条与箭头改为 45° 倍数约束。
+    constrain: !!mouseEvent?.shiftKey,
+    // Alt / Option：将起点视为中心点。
+    fromCenter: !!mouseEvent?.altKey,
+    // Ctrl / Cmd：绘制时暂时禁用填充，只保留轮廓。
+    outlineOnly: !!(mouseEvent?.ctrlKey || mouseEvent?.metaKey),
+  };
+}
+
+function getConstrainedLineEnd(point: { x: number; y: number }) {
+  const dx = point.x - startPoint.x;
+  const dy = point.y - startPoint.y;
+  const length = Math.hypot(dx, dy);
+  if (length === 0) return { ...startPoint };
+
+  const angle = Math.atan2(dy, dx);
+  const snappedAngle = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+  return {
+    x: startPoint.x + Math.cos(snappedAngle) * length,
+    y: startPoint.y + Math.sin(snappedAngle) * length,
+  };
+}
+
+function getShapeBounds(
+  point: { x: number; y: number },
+  modifiers: ShapeDrawModifiers
+) {
+  let dx = point.x - startPoint.x;
+  let dy = point.y - startPoint.y;
+
+  if (modifiers.constrain) {
+    const size = Math.max(Math.abs(dx), Math.abs(dy));
+    dx = (dx < 0 ? -1 : 1) * size;
+    dy = (dy < 0 ? -1 : 1) * size;
+  }
+
+  if (modifiers.fromCenter) {
+    return {
+      x: startPoint.x - Math.abs(dx),
+      y: startPoint.y - Math.abs(dy),
+      width: Math.abs(dx) * 2,
+      height: Math.abs(dy) * 2,
+    };
+  }
+
+  return {
+    x: Math.min(startPoint.x, startPoint.x + dx),
+    y: Math.min(startPoint.y, startPoint.y + dy),
+    width: Math.abs(dx),
+    height: Math.abs(dy),
+  };
+}
+
+function applyTempShapeAppearance(modifiers: ShapeDrawModifiers) {
+  if (
+    !tempShape ||
+    !(
+      tempShape instanceof Konva.Rect ||
+      tempShape instanceof Konva.Ellipse ||
+      tempShape instanceof Konva.Star
+    )
+  ) {
+    return;
+  }
+  tempShape.fill(
+    modifiers.outlineOnly ? undefined : state.fillColor.value || undefined
+  );
+}
+
+function updateTempShape(
+  point: { x: number; y: number },
+  modifiers: ShapeDrawModifiers
+) {
+  if (!tempShape) return;
+  applyTempShapeAppearance(modifiers);
+
+  const tool = state.activeTool.value;
+  if (tool === "line" || tool === "arrow") {
+    const end = modifiers.constrain ? getConstrainedLineEnd(point) : point;
+    const start = modifiers.fromCenter
+      ? {
+          x: startPoint.x - (end.x - startPoint.x),
+          y: startPoint.y - (end.y - startPoint.y),
+        }
+      : startPoint;
+    (tempShape as Konva.Line).points([start.x, start.y, end.x, end.y]);
+    return;
+  }
+
+  const bounds = getShapeBounds(point, modifiers);
+  if (tempShape instanceof Konva.Rect) {
+    tempShape.setAttrs(bounds);
+  } else if (tempShape instanceof Konva.Ellipse) {
+    tempShape.setAttrs({
+      x: bounds.x + bounds.width / 2,
+      y: bounds.y + bounds.height / 2,
+      radiusX: bounds.width / 2,
+      radiusY: bounds.height / 2,
+    });
+  } else if (tempShape instanceof Konva.Star) {
+    const outerRadius = Math.min(bounds.width, bounds.height) / 2;
+    tempShape.setAttrs({
+      x: bounds.x + bounds.width / 2,
+      y: bounds.y + bounds.height / 2,
+      numPoints: tempShape.numPoints(),
+      outerRadius,
+      innerRadius: outerRadius * starInnerRatio,
+    });
+  }
+}
+
+/** 临时绘制时，滚轮直接调节可见参数而不是缩放视图。 */
+function handleShapeWheel(event: WheelEvent): boolean {
+  if (!tempShape) return false;
+
+  const direction = event.deltaY > 0 ? -1 : 1;
+  if (tempShape instanceof Konva.Rect) {
+    const maxRadius =
+      Math.min(Math.abs(tempShape.width()), Math.abs(tempShape.height())) / 2;
+    const currentRadius = tempShape.cornerRadius();
+    const scalarRadius = Array.isArray(currentRadius)
+      ? Math.max(...currentRadius)
+      : currentRadius;
+    tempShape.cornerRadius(
+      Math.max(0, Math.min(maxRadius, scalarRadius + direction * 2))
+    );
+  } else if (tempShape instanceof Konva.Star) {
+    const outerRadius = tempShape.outerRadius();
+    const innerRadius = Math.max(
+      0,
+      Math.min(
+        outerRadius * 0.95,
+        tempShape.innerRadius() + direction * Math.max(1, outerRadius * 0.04)
+      )
+    );
+    starInnerRatio = outerRadius > 0 ? innerRadius / outerRadius : 0.5;
+    tempShape.innerRadius(innerRadius);
+  } else {
+    return false;
+  }
+
+  tempShape.getLayer()?.batchDraw();
+  return true;
 }
 
 // 鼠标中键拖拽
@@ -711,14 +880,15 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
       return;
     }
 
-    // 3. 形状工具 (矩形、圆形、线段、箭头)
-    if (["rect", "ellipse", "line", "arrow"].includes(state.activeTool.value)) {
+    // 3. 形状工具
+    if (isShapeDrawTool(state.activeTool.value)) {
       if (activeLayer.type !== "object") {
         customMessage.warning("当前图层不是对象图层，无法绘制形状");
         return;
       }
 
       startPoint = docPoint;
+      const initialShapeModifiers = getShapeDrawModifiers(e.evt as MouseEvent);
 
       if (state.activeTool.value === "rect") {
         tempShape = new Konva.Rect({
@@ -728,7 +898,9 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
           height: 0,
           stroke: state.strokeColor.value,
           strokeWidth: state.strokeWidth.value,
-          fill: state.fillColor.value || undefined,
+          fill: initialShapeModifiers.outlineOnly
+            ? undefined
+            : state.fillColor.value || undefined,
           cornerRadius: state.cornerRadius.value,
         });
       } else if (state.activeTool.value === "ellipse") {
@@ -739,7 +911,24 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
           radiusY: 0,
           stroke: state.strokeColor.value,
           strokeWidth: state.strokeWidth.value,
-          fill: state.fillColor.value || undefined,
+          fill: initialShapeModifiers.outlineOnly
+            ? undefined
+            : state.fillColor.value || undefined,
+        });
+      } else if (state.activeTool.value === "star") {
+        starInnerRatio = 0.5;
+        tempShape = new Konva.Star({
+          x: docPoint.x,
+          y: docPoint.y,
+          numPoints: 5,
+          innerRadius: 0,
+          outerRadius: 0,
+          rotation: 0,
+          stroke: state.strokeColor.value,
+          strokeWidth: state.strokeWidth.value,
+          fill: initialShapeModifiers.outlineOnly
+            ? undefined
+            : state.fillColor.value || undefined,
         });
       } else if (state.activeTool.value === "line") {
         tempShape = new Konva.Line({
@@ -896,23 +1085,8 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
     }
 
     // 形状工具拖拽
-    if (
-      tempShape &&
-      ["rect", "ellipse", "line", "arrow"].includes(state.activeTool.value)
-    ) {
-      if (tempShape instanceof Konva.Rect) {
-        tempShape.width(docPoint.x - startPoint.x);
-        tempShape.height(docPoint.y - startPoint.y);
-      } else if (tempShape instanceof Konva.Ellipse) {
-        tempShape.radiusX(Math.abs(docPoint.x - startPoint.x));
-        tempShape.radiusY(Math.abs(docPoint.y - startPoint.y));
-      } else if (
-        tempShape instanceof Konva.Line ||
-        tempShape instanceof Konva.Arrow
-      ) {
-        tempShape.points([startPoint.x, startPoint.y, docPoint.x, docPoint.y]);
-      }
-
+    if (tempShape && isShapeDrawTool(state.activeTool.value)) {
+      updateTempShape(docPoint, getShapeDrawModifiers(e.evt as MouseEvent));
       overlayLayer.batchDraw();
       return;
     }
@@ -922,7 +1096,7 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
   });
 
   // 鼠标/触摸抬起
-  stageInstance.on("mouseup touchend", () => {
+  stageInstance.on("mouseup touchend", (e) => {
     if (isDrawing.value) {
       stopDrawing(state.activeLayerId.value, (entry) => {
         actions.pushHistory(entry);
@@ -1164,6 +1338,7 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
     }
 
     if (tempShape) {
+      applyTempShapeAppearance(getShapeDrawModifiers(e.evt as MouseEvent));
       const activeLayer = state.layers.value.find(
         (l) => l.id === state.activeLayerId.value
       );
@@ -1172,82 +1347,12 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
       ) as Konva.Layer;
 
       if (activeLayer && konvaLayer) {
-        // 将临时形状转换为正式的 Konva 节点并添加到目标图层
-        let finalObj: SketchObject | null = null;
-        if (tempShape instanceof Konva.Rect) {
-          finalObj = {
-            id: nanoid(),
-            type: "rect",
-            x: tempShape.x(),
-            y: tempShape.y(),
-            width: tempShape.width(),
-            height: tempShape.height(),
-            rotation: 0,
-            opacity: 1,
-            locked: false,
-            fill: state.fillColor.value,
-            stroke: state.strokeColor.value,
-            strokeWidth: state.strokeWidth.value,
-            cornerRadius: state.cornerRadius.value,
-          };
-        } else if (tempShape instanceof Konva.Ellipse) {
-          finalObj = {
-            id: nanoid(),
-            type: "ellipse",
-            x: tempShape.x() - tempShape.radiusX(),
-            y: tempShape.y() - tempShape.radiusY(),
-            width: tempShape.radiusX() * 2,
-            height: tempShape.radiusY() * 2,
-            rotation: 0,
-            opacity: 1,
-            locked: false,
-            fill: state.fillColor.value,
-            stroke: state.strokeColor.value,
-            strokeWidth: state.strokeWidth.value,
-          };
-        } else if (
-          tempShape instanceof Konva.Line &&
-          !(tempShape instanceof Konva.Arrow)
-        ) {
-          const pts = tempShape.points();
-          finalObj = {
-            id: nanoid(),
-            type: "line",
-            x: 0,
-            y: 0,
-            width: 0,
-            height: 0,
-            rotation: 0,
-            opacity: 1,
-            locked: false,
-            points: [
-              { x: pts[0], y: pts[1] },
-              { x: pts[2], y: pts[3] },
-            ],
-            stroke: state.strokeColor.value,
-            strokeWidth: state.strokeWidth.value,
-          };
-        } else if (tempShape instanceof Konva.Arrow) {
-          const pts = tempShape.points();
-          finalObj = {
-            id: nanoid(),
-            type: "arrow",
-            x: 0,
-            y: 0,
-            width: 0,
-            height: 0,
-            rotation: 0,
-            opacity: 1,
-            locked: false,
-            points: [
-              { x: pts[0], y: pts[1] },
-              { x: pts[2], y: pts[3] },
-            ],
-            stroke: state.strokeColor.value,
-            strokeWidth: state.strokeWidth.value,
-            arrowSize: 10,
-          };
-        }
+        // 使用当前临时节点序列化，确保修饰键与滚轮实时改变的属性会完整保留。
+        const finalObj: SketchObject = {
+          ...serializeKonvaNode(tempShape),
+          id: nanoid(),
+          locked: false,
+        };
 
         if (finalObj) {
           const finalNode = createKonvaNode(finalObj);
@@ -1756,9 +1861,21 @@ function contextMoveToBottom() {
 }
 
 function contextToggleLock() {
-  if (contextMenuTarget.value) {
-    const isDraggable = contextMenuTarget.value.draggable();
-    contextMenuTarget.value.draggable(!isDraggable);
+  const node = contextMenuTarget.value;
+  if (node) {
+    const layerId = node.getLayer()?.id();
+    const before = { locked: !node.draggable() };
+    const after = { locked: !before.locked };
+    setNodeAttrValue(node, "locked", after.locked);
+    if (layerId) {
+      actions.pushHistory({
+        type: "object-modify",
+        layerId,
+        objectId: node.id(),
+        before,
+        after,
+      });
+    }
     stage.value?.batchDraw();
   }
   contextMenuVisible.value = false;
@@ -1817,6 +1934,14 @@ function getNodeAttrValue(node: Konva.Node, key: string): any {
     return node.fill();
   } else if (key === "arrowSize" && node instanceof Konva.Arrow) {
     return node.pointerLength();
+  } else if (key === "innerRadius" && node instanceof Konva.Star) {
+    return node.innerRadius();
+  } else if (key === "outerRadius" && node instanceof Konva.Star) {
+    return node.outerRadius();
+  } else if (key === "numPoints" && node instanceof Konva.Star) {
+    return node.numPoints();
+  } else if (key === "locked") {
+    return !node.draggable();
   } else if (key === "dash") {
     return (node as any).dash() || null;
   } else if (key === "fill") {
@@ -1834,6 +1959,19 @@ function setNodeAttrValue(node: Konva.Node, key: string, value: any) {
   } else if (key === "arrowSize" && node instanceof Konva.Arrow) {
     node.pointerLength(value);
     node.pointerWidth(value);
+  } else if (key === "innerRadius" && node instanceof Konva.Star) {
+    node.innerRadius(value);
+  } else if (key === "outerRadius" && node instanceof Konva.Star) {
+    node.outerRadius(value);
+  } else if (key === "numPoints" && node instanceof Konva.Star) {
+    node.numPoints(Math.round(value));
+  } else if (key === "locked") {
+    node.draggable(!value);
+  } else if (
+    key === "lineCap" &&
+    (node instanceof Konva.Line || node instanceof Konva.Arrow)
+  ) {
+    node.lineCap(value);
   } else if (key === "dash") {
     (node as any).dash(value || []);
   } else if (key === "fill") {
@@ -1915,6 +2053,28 @@ function updateSelectionProps(data: Record<string, any>) {
   stage.value?.batchDraw();
 }
 
+function recordPositionChanges(
+  nodes: Konva.Node[],
+  beforePositions: Map<string, { x: number; y: number }>
+) {
+  for (const node of nodes) {
+    const before = beforePositions.get(node.id());
+    const layerId = node.getLayer()?.id();
+    if (!before || !layerId) continue;
+
+    const after = { x: node.x(), y: node.y() };
+    if (before.x !== after.x || before.y !== after.y) {
+      actions.pushHistory({
+        type: "object-modify",
+        layerId,
+        objectId: node.id(),
+        before,
+        after,
+      });
+    }
+  }
+}
+
 /** 对齐选中对象 */
 function alignSelection(
   direction: "left" | "right" | "top" | "bottom" | "center-h" | "center-v"
@@ -1922,6 +2082,9 @@ function alignSelection(
   const nodes = selectedNodes.value;
   if (nodes.length < 2) return;
 
+  const beforePositions = new Map(
+    nodes.map((node) => [node.id(), { x: node.x(), y: node.y() }])
+  );
   const rects = nodes.map((n) => n.getClientRect());
 
   switch (direction) {
@@ -1972,6 +2135,7 @@ function alignSelection(
       break;
     }
   }
+  recordPositionChanges(nodes, beforePositions);
   stage.value?.batchDraw();
 }
 
@@ -1980,6 +2144,9 @@ function distributeSelection(direction: "horizontal" | "vertical") {
   const nodes = selectedNodes.value;
   if (nodes.length < 3) return;
 
+  const beforePositions = new Map(
+    nodes.map((node) => [node.id(), { x: node.x(), y: node.y() }])
+  );
   const rects = nodes.map((n, i) => ({ index: i, rect: n.getClientRect() }));
 
   if (direction === "horizontal") {
@@ -2011,6 +2178,7 @@ function distributeSelection(direction: "horizontal" | "vertical") {
       currentY += item.rect.height + gap;
     });
   }
+  recordPositionChanges(nodes, beforePositions);
   stage.value?.batchDraw();
 }
 
@@ -2080,6 +2248,62 @@ function reorderSelectedObject(action: "up" | "down" | "top" | "bottom") {
   reorderObjectNode(selectedNodes.value[0], action);
 }
 
+function offsetObjectForDuplicate(
+  object: SketchObject,
+  offset: number
+): SketchObject {
+  const duplicate = { ...object, id: nanoid(), locked: false } as SketchObject;
+  if (duplicate.type === "line" || duplicate.type === "arrow") {
+    duplicate.points = duplicate.points.map((point) => ({
+      x: point.x + offset,
+      y: point.y + offset,
+    })) as typeof duplicate.points;
+  } else {
+    duplicate.x += offset;
+    duplicate.y += offset;
+  }
+  return duplicate;
+}
+
+/** Ctrl/Cmd+D：在原图层复制选中对象，并让副本保持选中。 */
+function duplicateSelected() {
+  if (!stage.value || selectedNodes.value.length === 0) return;
+
+  const duplicatedNodes: Konva.Node[] = [];
+  for (const originalNode of selectedNodes.value) {
+    const layer = originalNode.getLayer();
+    if (!layer) continue;
+
+    try {
+      const duplicate = offsetObjectForDuplicate(
+        serializeKonvaNode(originalNode),
+        20
+      );
+      const duplicateNode = createKonvaNode(duplicate);
+      layer.add(duplicateNode as any);
+      duplicatedNodes.push(duplicateNode);
+
+      if (duplicate.type === "image") {
+        loadImageNodeAsync(duplicate as ImageObject, layer);
+      }
+
+      actions.pushHistory({
+        type: "object-add",
+        layerId: layer.id(),
+        object: duplicate,
+      });
+    } catch (error) {
+      logger.warn("复制对象失败", { objectId: originalNode.id(), error });
+    }
+  }
+
+  if (duplicatedNodes.length > 0) {
+    selectNodes(duplicatedNodes);
+    emitSelectionInfo();
+    stage.value.batchDraw();
+  }
+}
+
 // ─── 注册 capabilities 到 EditorSession runtime ───
 onMounted(() => {
   runtime.registerCapabilities({
@@ -2097,6 +2321,7 @@ onMounted(() => {
     selectObjectById,
     reorderObjectsInLayer,
     reorderSelectedObject,
+    duplicateSelected,
     clearSelection: () => {
       clearSelection();
       emitSelectionInfo();

@@ -39,6 +39,11 @@
         :obj="selectionInfo.singleObject as EllipseObject"
         @update-prop="(key, val) => emit('update-prop', key, val)"
       />
+      <SelectionStarProps
+        v-else-if="selectionInfo.singleObject.type === 'star'"
+        :obj="selectionInfo.singleObject as StarObject"
+        @update-prop="(key, val) => emit('update-prop', key, val)"
+      />
       <SelectionLineProps
         v-else-if="selectionInfo.singleObject.type === 'line'"
         :obj="selectionInfo.singleObject as LineObject"
@@ -78,6 +83,7 @@ import type {
   SelectionInfo,
   RectObject,
   EllipseObject,
+  StarObject,
   LineObject,
   ArrowObject,
   TextObject,
@@ -86,6 +92,7 @@ import type {
 import SelectionMultiProps from "./SelectionMultiProps.vue";
 import SelectionRectProps from "./SelectionRectProps.vue";
 import SelectionEllipseProps from "./SelectionEllipseProps.vue";
+import SelectionStarProps from "./SelectionStarProps.vue";
 import SelectionLineProps from "./SelectionLineProps.vue";
 import SelectionArrowProps from "./SelectionArrowProps.vue";
 import SelectionTextProps from "./SelectionTextProps.vue";

@@ -119,6 +119,7 @@ export interface CanvasCapabilities {
   selectObjectById(id: string): void;
   reorderObjectsInLayer(layerId: string, order: string[]): void;
   reorderSelectedObject(action: string): void;
+  duplicateSelected(): void;
   addImageToActiveLayer(img: ImageObject): Promise<void>;
   createKonvaNode(obj: SketchObject): any;
   getZoom(): number;
@@ -318,6 +319,7 @@ export function createEditorSession(): EditorSession {
     selectObjectById() {},
     reorderObjectsInLayer() {},
     reorderSelectedObject() {},
+    duplicateSelected() {},
     async addImageToActiveLayer() {},
     createKonvaNode() {
       return null;

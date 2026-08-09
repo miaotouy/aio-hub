@@ -48,6 +48,7 @@ export type BrushType = (typeof BRUSH_TYPES)[keyof typeof BRUSH_TYPES];
 export const SHAPE_TYPES = {
   RECT: "rect",
   ELLIPSE: "ellipse",
+  STAR: "star",
   LINE: "line",
   ARROW: "arrow",
   TEXT: "text",

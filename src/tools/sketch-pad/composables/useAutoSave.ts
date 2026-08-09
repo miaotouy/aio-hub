@@ -79,7 +79,7 @@ export function useAutoSave(
       if (!state.activeLayer.value) return;
 
       const rasterTools = ["pencil", "marker", "eraser"];
-      const objectTools = ["rect", "ellipse", "line", "arrow", "text"];
+      const objectTools = ["rect", "ellipse", "star", "line", "arrow", "text"];
       if (
         rasterTools.includes(newTool) &&
         state.activeLayer.value.type !== "raster"

@@ -109,6 +109,15 @@
               <Circle :size="18" />
             </button>
           </el-tooltip>
+          <el-tooltip content="星形 (S)" placement="bottom" :show-after="300">
+            <button
+              class="tool-btn"
+              :class="{ active: activeTool === 'star' }"
+              @click="selectTool('star')"
+            >
+              <Star :size="18" />
+            </button>
+          </el-tooltip>
           <el-tooltip content="线段 (L)" placement="bottom" :show-after="300">
             <button
               class="tool-btn"
@@ -248,6 +257,19 @@
                     @click="selectTool('ellipse')"
                   >
                     <Circle :size="18" />
+                  </button>
+                </el-tooltip>
+                <el-tooltip
+                  content="星形 (S)"
+                  placement="top"
+                  :show-after="300"
+                >
+                  <button
+                    class="tool-btn"
+                    :class="{ active: activeTool === 'star' }"
+                    @click="selectTool('star')"
+                  >
+                    <Star :size="18" />
                   </button>
                 </el-tooltip>
                 <el-tooltip
@@ -419,6 +441,7 @@ import {
   Eraser,
   Square,
   Circle,
+  Star,
   Minus,
   ArrowUpRight,
   Type,
@@ -471,7 +494,14 @@ const hasOverflow = computed(
 
 /** 溢出菜单中是否包含当前激活的工具 */
 const drawTools: ToolType[] = ["pencil", "marker", "eraser"];
-const shapeTools: ToolType[] = ["rect", "ellipse", "line", "arrow", "text"];
+const shapeTools: ToolType[] = [
+  "rect",
+  "ellipse",
+  "star",
+  "line",
+  "arrow",
+  "text",
+];
 const overflowHasActiveTool = computed(() => {
   const tool = activeTool.value;
   if (collapseDrawTools.value && drawTools.includes(tool)) return true;

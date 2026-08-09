@@ -17,6 +17,7 @@ import type {
   SketchObject,
   RectObject,
   EllipseObject,
+  StarObject,
   LineObject,
   ArrowObject,
   TextObject,
@@ -41,6 +42,7 @@ export function useObjectLayer() {
       stroke: obj.stroke,
       strokeWidth: obj.strokeWidth,
       cornerRadius: obj.cornerRadius,
+      dash: obj.dash || undefined,
     });
   }
 
@@ -60,6 +62,29 @@ export function useObjectLayer() {
       fill: obj.fill || undefined,
       stroke: obj.stroke,
       strokeWidth: obj.strokeWidth,
+      dash: obj.dash || undefined,
+    });
+  }
+
+  function createStarNode(obj: StarObject): Konva.Star {
+    const outerRadius = obj.outerRadius || Math.min(obj.width, obj.height) / 2;
+    return new Konva.Star({
+      id: obj.id,
+      name: "object-node",
+      x: obj.x + obj.width / 2,
+      y: obj.y + obj.height / 2,
+      numPoints: obj.numPoints,
+      innerRadius: obj.innerRadius,
+      outerRadius,
+      rotation: obj.rotation,
+      opacity: obj.opacity,
+      scaleX: obj.scaleX ?? 1,
+      scaleY: obj.scaleY ?? 1,
+      draggable: !obj.locked,
+      fill: obj.fill || undefined,
+      stroke: obj.stroke,
+      strokeWidth: obj.strokeWidth,
+      dash: obj.dash || undefined,
     });
   }
 
@@ -82,6 +107,8 @@ export function useObjectLayer() {
       draggable: !obj.locked,
       stroke: obj.stroke,
       strokeWidth: obj.strokeWidth,
+      dash: obj.dash || undefined,
+      lineCap: obj.lineCap,
     });
   }
 
@@ -106,6 +133,8 @@ export function useObjectLayer() {
       strokeWidth: obj.strokeWidth,
       pointerLength: obj.arrowSize,
       pointerWidth: obj.arrowSize,
+      dash: obj.dash || undefined,
+      lineCap: obj.lineCap,
     });
   }
 
@@ -166,6 +195,8 @@ export function useObjectLayer() {
         return createRectNode(obj as RectObject);
       case "ellipse":
         return createEllipseNode(obj as EllipseObject);
+      case "star":
+        return createStarNode(obj as StarObject);
       case "line":
         return createLineNode(obj as LineObject);
       case "arrow":
@@ -215,6 +246,7 @@ export function useObjectLayer() {
         stroke: node.stroke() || "#000000",
         strokeWidth: node.strokeWidth() || 1,
         cornerRadius: node.cornerRadius() || 0,
+        dash: node.dash() || null,
       } as RectObject;
     } else if (node instanceof Konva.Ellipse) {
       return {
@@ -225,7 +257,25 @@ export function useObjectLayer() {
         fill: node.fill() || null,
         stroke: node.stroke() || "#000000",
         strokeWidth: node.strokeWidth() || 1,
+        dash: node.dash() || null,
       } as EllipseObject;
+    } else if (node instanceof Konva.Star) {
+      const outerRadius = node.outerRadius();
+      return {
+        ...base,
+        type: "star",
+        x: x - outerRadius,
+        y: y - outerRadius,
+        width: outerRadius * 2,
+        height: outerRadius * 2,
+        fill: node.fill() || null,
+        stroke: node.stroke() || "#000000",
+        strokeWidth: node.strokeWidth() || 1,
+        numPoints: node.numPoints(),
+        innerRadius: node.innerRadius(),
+        outerRadius,
+        dash: node.dash() || null,
+      } as StarObject;
     } else if (node instanceof Konva.Line && !(node instanceof Konva.Arrow)) {
       const pts = node.points();
       return {
@@ -237,6 +287,8 @@ export function useObjectLayer() {
         ],
         stroke: node.stroke() || "#000000",
         strokeWidth: node.strokeWidth() || 1,
+        dash: node.dash() || null,
+        lineCap: node.lineCap() as LineObject["lineCap"],
       } as LineObject;
     } else if (node instanceof Konva.Arrow) {
       const pts = node.points();
@@ -250,6 +302,8 @@ export function useObjectLayer() {
         stroke: node.stroke() || "#000000",
         strokeWidth: node.strokeWidth() || 1,
         arrowSize: node.pointerLength() || 10,
+        dash: node.dash() || null,
+        lineCap: node.lineCap() as ArrowObject["lineCap"],
       } as ArrowObject;
     } else if (node instanceof Konva.Text) {
       const fontStyleStr = node.fontStyle();

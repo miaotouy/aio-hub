@@ -234,6 +234,7 @@ import {
   Grid3x3,
   Square,
   Circle,
+  Star,
   Minus,
   ArrowRight,
   Type,
@@ -360,6 +361,8 @@ function getObjectIcon(type: string) {
       return Square;
     case "ellipse":
       return Circle;
+    case "star":
+      return Star;
     case "line":
       return Minus;
     case "arrow":
@@ -379,6 +382,8 @@ function getObjectName(obj: SketchObject): string {
       return "矩形";
     case "ellipse":
       return "椭圆";
+    case "star":
+      return "星形";
     case "line":
       return "线段";
     case "arrow":

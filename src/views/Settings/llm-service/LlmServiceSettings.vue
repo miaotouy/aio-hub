@@ -48,12 +48,15 @@ import {
   generateLlmApiEndpointPreview,
   getLlmEndpointHint,
 } from "@/utils/llm-api-url";
-import type { LlmModelInfo } from "@/types/llm-profiles";
+import type {
+  ChannelToolHandling,
+  LlmModelInfo,
+  LlmProfile,
+} from "@/types/llm-profiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import { useProfileEditor } from "./composables/useProfileEditor";
 import { useModelEditor } from "./composables/useModelEditor";
 import { useConnectionTest } from "./composables/useConnectionTest";
-import type { LlmProfile } from "@/types/llm-profiles";
 import type { ParsedLlmProfileDraft } from "@/utils/llm-config-import";
 import { customMessage } from "@/utils/customMessage";
 import { resolveAppliedModelGroup } from "@/utils/modelMetadataApplication";
@@ -141,6 +144,72 @@ const getProviderIcon = (profile: LlmProfile) => {
 };
 
 const showPresetIconDialog = ref(false);
+
+type ToolHandlingPreset =
+  "auto" | "aio-local" | "transparent-native" | "vcp-text" | "upstream-native";
+
+const toolHandlingPresets: Record<
+  Exclude<ToolHandlingPreset, "auto">,
+  ChannelToolHandling
+> = {
+  "aio-local": { callConsumer: "aio", upstreamProtocol: "none" },
+  "transparent-native": {
+    callConsumer: "aio",
+    upstreamProtocol: "transparent",
+  },
+  "vcp-text": {
+    callConsumer: "upstream",
+    upstreamProtocol: "vcp-text",
+    aioDistributedExposure: "unknown",
+  },
+  "upstream-native": {
+    callConsumer: "upstream",
+    upstreamProtocol: "provider-native",
+  },
+};
+
+const toolHandlingPreset = computed<ToolHandlingPreset>({
+  get: () => {
+    const handling = editForm.value.toolHandling;
+    if (!handling) return "auto";
+
+    if (
+      handling.callConsumer === "aio" &&
+      handling.upstreamProtocol === "none"
+    ) {
+      return "aio-local";
+    }
+    if (
+      handling.callConsumer === "aio" &&
+      handling.upstreamProtocol === "transparent"
+    ) {
+      return "transparent-native";
+    }
+    if (
+      handling.callConsumer === "upstream" &&
+      handling.upstreamProtocol === "vcp-text"
+    ) {
+      return "vcp-text";
+    }
+    if (
+      handling.callConsumer === "upstream" &&
+      handling.upstreamProtocol === "provider-native"
+    ) {
+      return "upstream-native";
+    }
+    return "auto";
+  },
+  set: (preset) => {
+    if (preset === "auto") {
+      delete editForm.value.toolHandling;
+      return;
+    }
+    editForm.value.toolHandling = {
+      ...toolHandlingPresets[preset],
+      evidence: "explicit",
+    };
+  },
+});
 
 const selectPresetIcon = (icon: any) => {
   editForm.value.icon = icon.path;
@@ -715,6 +784,26 @@ const networkSettingSummary = computed(() => {
                     }}</span
                   >
                 </div>
+              </div>
+            </el-form-item>
+
+            <el-form-item label="工具调用通道">
+              <el-select v-model="toolHandlingPreset" style="width: 100%">
+                <el-option label="自动检测（兼容旧配置）" value="auto" />
+                <el-option label="AIO 本地消费调用" value="aio-local" />
+                <el-option
+                  label="透明代理，AIO 消费原生调用"
+                  value="transparent-native"
+                />
+                <el-option label="VCP 文本协议后端消费" value="vcp-text" />
+                <el-option
+                  label="上游消费原生工具调用"
+                  value="upstream-native"
+                />
+              </el-select>
+              <div class="form-hint">
+                明确调用消费方和上游协议。自动检测仅为旧渠道保留 API 地址与 VCP
+                WebSocket 同主机的兼容期启发式；显式声明会优先覆盖它。
               </div>
             </el-form-item>
 

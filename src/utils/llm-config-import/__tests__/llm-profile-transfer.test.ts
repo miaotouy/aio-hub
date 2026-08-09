@@ -19,6 +19,12 @@ function profile(): LlmProfile {
     apiKeys: ["private-api-key"],
     enabled: true,
     networkStrategy: "native",
+    toolHandling: {
+      callConsumer: "upstream",
+      upstreamProtocol: "vcp-text",
+      aioDistributedExposure: "complete",
+      evidence: "explicit",
+    },
     customHeaders: {
       Authorization: "Bearer private-token",
       "X-Client-Name": "AIO Hub Test",
@@ -139,6 +145,22 @@ describe("LLM profile transfer bundle", () => {
                 routing: { supportedEndpointTypes: ["openai", 42] },
               },
             ],
+          },
+        ],
+      })
+    ).toMatchObject({ recognized: true, error: expect.any(String) });
+
+    expect(
+      parseLlmProfileBundle({
+        format: "aiohub.llm-profiles",
+        formatVersion: 1,
+        profiles: [
+          {
+            ...profile(),
+            toolHandling: {
+              callConsumer: "upstream",
+              upstreamProtocol: "invalid",
+            },
           },
         ],
       })

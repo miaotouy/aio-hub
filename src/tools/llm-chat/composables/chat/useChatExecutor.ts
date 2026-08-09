@@ -43,7 +43,7 @@ import { resolveAttachmentsBatch } from "../../core/context-utils/attachment-res
 import { useAnchorRegistry } from "../ui/useAnchorRegistry";
 import { useTranscriptionManager } from "../features/useTranscriptionManager";
 import { useVcpStore } from "@/tools/vcp-connector/stores/vcpConnectorStore";
-import { isSameHost } from "../useIsVcpChannel";
+import { resolveChannelToolHandling } from "@/tools/llm-chat/core/tool-calling/channel-tool-handling";
 import { useToolCallOrchestrator } from "./useToolCallOrchestrator";
 
 const logger = createModuleLogger("llm-chat/executor");
@@ -145,10 +145,12 @@ export function useChatExecutor() {
     };
 
     const vcpStore = useVcpStore();
-    const isVcpChannel =
-      profile?.baseUrl && vcpStore.config.wsUrl
-        ? isSameHost(profile.baseUrl, vcpStore.config.wsUrl)
-        : false;
+    const channelToolHandling = resolveChannelToolHandling(
+      profile,
+      vcpStore.config.wsUrl
+    );
+    const consumeTextCallsLocally =
+      channelToolHandling.handling.callConsumer === "aio";
 
     // 委托给 Orchestrator
     const { orchestrate } = useToolCallOrchestrator();
@@ -162,7 +164,7 @@ export function useChatExecutor() {
       effectiveUserProfile,
       abortControllers,
       generatingNodes,
-      isVcpChannel,
+      consumeTextCallsLocally,
     });
   };
 

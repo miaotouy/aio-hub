@@ -1,7 +1,7 @@
 # LLM 原生工具调用适配修补与编排设计
 
-> 状态：待实施；开工前先关闭第 14.2 节的设计决策
-> 更新日期：2026-07-18  
+> 状态：渠道工具处理声明已实施；Azure 运行时 Adapter 已修复；Provider Adapter 其余协议修补与原生工具编排仍待实施
+> 更新日期：2026-08-09
 > 影响范围：`packages/llm-core`、`src/llm-apis`、`src/tools/llm-chat`、`src/tools/tool-calling`、`src/tools/agent-manager`
 
 ## 1. 背景
@@ -369,6 +369,8 @@ interface ToolFormatAdapter {
 
 渠道配置需要能够明确声明工具处理所有权和上游协议，例如：
 
+> **已决定（2026-08-09）：** 第一版将用户可编辑的静态声明保存到 `LlmProfile.toolHandling`。该声明优先于运行时推断；未设置的旧 Profile 继续使用“API 地址与 VCP WebSocket 同主机”的兼容期启发式。`aioDistributedExposure` 只表达已知的分布式执行路由状态，不能推断 VCP Agent 已经把 AIO 工具定义写入 Prompt。后续 VCP 握手与渠道探测可提供更高质量的动态证据，但不改变 Profile 显式声明优先的规则。
+
 ```ts
 interface ChannelToolHandling {
   callConsumer: "aio" | "upstream";
@@ -596,6 +598,15 @@ interface UnifiedToolResult {
 - 评估 Bedrock Converse、SigV4 与多模型差异。
 - 不阻塞第一批 `llm-chat` 原生编排上线。
 
+### 10.3. 当前实施进度（2026-08-09）
+
+- **已完成：Azure OpenAI 运行时 Adapter 修补。** Azure 已注册到桌面 Adapter 分发，覆盖 deployment URL、`api-version`、`api-key` 鉴权和 Chat / Embedding facade；对应变更已在此前的 `28d48741e` 提交中完成。
+- **已完成：渠道工具处理声明。** `LlmProfile.toolHandling` 已可持久化、导入导出和在设置页编辑；`llm-chat` 以显式声明优先、同主机启发式兼容旧 Profile 的方式，决定文本工具调用是否由 AIO 本地消费。该实现只解决路由归属，不替代 Provider codec 或原生多轮编排。
+- **待实施：A1 统一契约与诊断。** 桌面 `LlmMessage` 仍未完整对齐 Core 的 `tool` 角色、`toolCallId` 与工具内容契约；Tool IR、Provider replay state 的聊天层承载、Inspector 诊断和跨协议 fixture 仍待补齐。
+- **待实施：A2 其余项。** OpenAI Chat 的 assistant `tool_calls` + `role: "tool"` 续轮、Ollama 端点/Codec 一致性与 `tools` 能力声明，以及 Responses 通过聊天层的执行—结果续轮闭环尚未完成。
+- **待实施：A3。** Gemini 的函数名/调用 ID/流式 ID/thought signature 修补、Cohere 的 assistant tool calls 与工具结果消息构造，以及对应 Anthropic/Vertex 回归验证尚未开始。
+- **后置：A4。** Gemini Interactions 与 Bedrock Converse 保持在第一批原生编排之后评估。
+
 ## 11. 工作线二：原生工具编排
 
 ### 11.1. 目标架构
@@ -785,7 +796,7 @@ bun run build
 1. `ToolPromptRenderer` 第一版采用自由模板还是结构化块列表。
 2. 旧 `{{tools}}` / `{{tool_usage}}` 宏是直接迁移后移除，还是保留一段弃用期。
 3. `upstream_managed` 作为显式“不贡献 AIO 工具”选项放在 Agent、LLM Profile 还是渠道预设中。
-4. 渠道工具处理声明放入 LLM Profile、渠道预设还是独立探测结果，并如何分别表达调用消费方与分布式工具可用性。
+4. **[已决定，2026-08-09]** 用户可编辑的静态渠道工具处理声明放入 LLM Profile 的 `toolHandling`；它保存调用消费方、上游协议及可选的分布式暴露状态。渠道预设不承载该职责；后续独立探测/握手作为更高质量的运行时证据接入解析器，但不覆盖用户显式声明。
 5. VCP 是否提供稳定握手字段，用于确认调用消费协议、AIO 分布式工具注册状态；Prompt 占位符展开仍应视为 Agent 配置，不能从注册状态推断。
 6. Runtime Tool Event 保存在节点 metadata、消息内容块还是独立节点类型。
 7. 原生模式失败后是否允许自动回退文本模式；默认建议只提示并由用户重试，避免同一请求产生重复副作用。

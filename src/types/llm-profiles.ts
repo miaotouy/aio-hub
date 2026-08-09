@@ -60,6 +60,26 @@ export type ProviderType =
   | "minimax-music";
 
 /**
+ * 渠道对 AIO 工具调用的处理声明。
+ *
+ * 这是 LLM Profile 级别的静态覆盖配置：它只描述调用消费方和上游协议，
+ * 不从 VCP 分布式注册状态推断 Prompt 是否已注入工具定义。
+ */
+export interface ChannelToolHandling {
+  /** AIO 前端还是上游渠道负责消费模型返回的工具调用。 */
+  callConsumer: "aio" | "upstream";
+  /** 上游与模型交互时使用或透传的工具调用协议。 */
+  upstreamProtocol: "provider-native" | "vcp-text" | "transparent" | "none";
+  /**
+   * AIO 分布式工具向当前渠道暴露的已知状态。
+   * 该字段仅作为路由可用性证据；不能据此推导 VCP Agent 已注入 AIO 工具提示。
+   */
+  aioDistributedExposure?: "complete" | "partial" | "none" | "unknown";
+  /** 当前声明的证据来源；持久化 Profile 的用户设置固定为 explicit。 */
+  evidence?: "explicit" | "handshake" | "probe" | "heuristic";
+}
+
+/**
  * LLM 参数支持定义
  */
 export interface LlmParameterSupport {
@@ -503,6 +523,11 @@ export interface LlmProfile {
    * - 'native': 强制使用前端原生请求 (由 Tauri 劫持, 性能较好)
    */
   networkStrategy?: NetworkStrategy;
+  /**
+   * 渠道级工具调用处理声明（可选）。
+   * 未设置时使用协议探测或兼容期同主机启发式，不改变旧 Profile 行为。
+   */
+  toolHandling?: ChannelToolHandling;
   /**
    * 渠道类型特有的扩展配置（可选）
    * 由 ProviderTypeInfo.configFields 定义的配置项，值存储在此

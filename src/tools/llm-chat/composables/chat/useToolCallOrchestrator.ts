@@ -51,8 +51,8 @@ export interface OrchestrateParams {
   /** 外部传入的状态集合 */
   abortControllers: Map<string, AbortController>;
   generatingNodes: Set<string>;
-  /** 是否为 VCP 渠道 */
-  isVcpChannel: boolean;
+  /** 当前渠道是否允许 AIO 在本地消费文本工具调用。 */
+  consumeTextCallsLocally: boolean;
   /** 是否为重新解析模式（跳过第一轮 LLM 请求，直接解析现有内容） */
   isReparse?: boolean;
 }
@@ -78,7 +78,7 @@ export function useToolCallOrchestrator() {
       effectiveUserProfile,
       abortControllers,
       generatingNodes,
-      isVcpChannel,
+      consumeTextCallsLocally,
       isReparse = false,
     } = params;
 
@@ -184,7 +184,7 @@ export function useToolCallOrchestrator() {
         }
 
         // 3. 工具调用检测与执行
-        if (executionAgent.toolCallConfig?.enabled && !isVcpChannel) {
+        if (executionAgent.toolCallConfig?.enabled && consumeTextCallsLocally) {
           let toolNode: ChatMessageNode | null = null;
 
           const ensureNodesCreated = async (

@@ -195,6 +195,47 @@ function validateModelRouting(
   return null;
 }
 
+function validateToolHandling(
+  value: unknown,
+  profileId: string
+): string | null {
+  if (value === undefined) return null;
+  if (!isRecord(value)) {
+    return `渠道 ${profileId} 的工具调用通道声明格式无效`;
+  }
+
+  if (value.callConsumer !== "aio" && value.callConsumer !== "upstream") {
+    return `渠道 ${profileId} 的工具调用消费方无效`;
+  }
+  if (
+    value.upstreamProtocol !== "provider-native" &&
+    value.upstreamProtocol !== "vcp-text" &&
+    value.upstreamProtocol !== "transparent" &&
+    value.upstreamProtocol !== "none"
+  ) {
+    return `渠道 ${profileId} 的上游工具协议无效`;
+  }
+  if (
+    value.aioDistributedExposure !== undefined &&
+    value.aioDistributedExposure !== "complete" &&
+    value.aioDistributedExposure !== "partial" &&
+    value.aioDistributedExposure !== "none" &&
+    value.aioDistributedExposure !== "unknown"
+  ) {
+    return `渠道 ${profileId} 的 AIO 分布式工具暴露状态无效`;
+  }
+  if (
+    value.evidence !== undefined &&
+    value.evidence !== "explicit" &&
+    value.evidence !== "handshake" &&
+    value.evidence !== "probe" &&
+    value.evidence !== "heuristic"
+  ) {
+    return `渠道 ${profileId} 的工具调用证据来源无效`;
+  }
+  return null;
+}
+
 function validateProfile(value: unknown, index: number): string | null {
   if (!isRecord(value)) return `第 ${index + 1} 个渠道不是对象`;
   if (typeof value.id !== "string" || !value.id.trim()) {
@@ -224,6 +265,8 @@ function validateProfile(value: unknown, index: number): string | null {
   if (!Array.isArray(value.models)) {
     return `渠道 ${value.id} 的模型列表格式无效`;
   }
+  const toolHandlingError = validateToolHandling(value.toolHandling, value.id);
+  if (toolHandlingError) return toolHandlingError;
   for (const model of value.models) {
     if (
       !isRecord(model) ||

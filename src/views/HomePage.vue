@@ -383,14 +383,13 @@ onMounted(async () => {
   width: 100%;
 }
 
-/* 可滚动内容区域 */
+/* 可滚动内容区域 — 滚动轴在此层，子容器不再需要 overflow 裁切 */
 .content-section {
   flex: 1;
-  overflow: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* padding 移到内层，避免 overflow:hidden 裁掉卡片 hover 阴影 */
   padding: 0 0 20px 0;
   box-sizing: border-box;
   width: 100%;
@@ -520,30 +519,30 @@ onMounted(async () => {
   width: 100%;
 }
 
-/* 门户新布局 */
+/* 门户新布局 — 自然高度流，不设 height/overflow，让 content-section 统一滚动 */
 .portal-layout {
   display: flex;
   flex-direction: row;
   width: 100%;
   max-width: 1200px;
-  height: 100%;
   gap: 20px;
   align-items: flex-start;
-  overflow: hidden;
-  /* 内侧留出水平边距，让卡片 hover 阴影不被裁掉 */
-  padding: 0 20px;
+  /* 顶部 4px 给卡片 hover 阴影留空间，左右 20px 对齐头部搜索框 */
+  padding: 4px 20px 0;
   box-sizing: border-box;
 }
 
-/* 垂直分类侧边栏 */
+/* 垂直分类侧边栏 — sticky 跟随页面滚动，自身超长时内部再滚 */
 .category-sidebar {
   width: 140px;
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  max-height: calc(100vh - 200px);
   overflow-y: auto;
-  max-height: 100%;
   padding: 4px 8px 0 4px;
   text-align: left;
   box-sizing: border-box;
@@ -601,14 +600,11 @@ onMounted(async () => {
   color: white;
 }
 
-/* 工具网格容器 */
+/* 工具网格容器 — 不再承担滚动，overflow 完全透明，阴影自由溢出 */
 .tool-grid-container {
   flex: 1;
-  overflow-y: auto;
-  height: 100%;
   display: flex;
   flex-direction: column;
-  /* 右侧留出滚动条空间，同时让顶部有内边距给卡片 hover 留空间 */
   padding: 4px 4px 0 4px;
   box-sizing: border-box;
 }

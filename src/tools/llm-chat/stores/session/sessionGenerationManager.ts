@@ -150,6 +150,7 @@ export function createSessionGenerationManager(
         state.queuedSessionAgentIds.value.delete(sessionId);
 
         if (queuedNode.role === "user") {
+          queuedNode.status = "complete";
           logger.info("检测到排队中的 User 消息 (isQueued)，自动触发合并回复", {
             sessionId,
             nodeId: queuedNode.id,
@@ -164,6 +165,7 @@ export function createSessionGenerationManager(
             queuedAgentId ? { agentId: queuedAgentId } : undefined
           );
         } else {
+          queuedNode.status = "generating";
           logger.info(
             "检测到排队中的 Assistant 占位节点 (isQueued)，自动触发链式生成",
             {
@@ -199,6 +201,7 @@ export function createSessionGenerationManager(
           const queuedAgentId =
             state.queuedSessionAgentIds.value.get(sessionId);
           state.queuedSessionAgentIds.value.delete(sessionId);
+          activeLeaf.status = "complete";
           logger.info("检测到排队中的 User 消息 (兜底)，自动触发合并回复", {
             sessionId,
             nodeId: activeLeaf.id,
@@ -215,7 +218,9 @@ export function createSessionGenerationManager(
         } else {
           const pendingAssistant = Object.values(detail.nodes).find(
             (node) =>
-              node.role === "assistant" && (node.status as string) === "pending"
+              node.role === "assistant" &&
+              ((node.status as string) === "pending" ||
+                node.status === "queued")
           );
           if (!pendingAssistant) {
             state.queuedSessionIds.value.delete(sessionId);
@@ -227,6 +232,7 @@ export function createSessionGenerationManager(
             state.queuedSessionAgentIds.value.get(sessionId) ||
             pendingAssistant.metadata?.agentId;
           state.queuedSessionAgentIds.value.delete(sessionId);
+          pendingAssistant.status = "generating";
           logger.info(
             "检测到排队中的 Assistant 占位节点 (兜底)，自动触发链式生成",
             {

@@ -25,7 +25,14 @@ export type ApiMessageRole = Exclude<MessageRole, "tool">;
 /**
  * 消息生成状态
  */
-export type MessageStatus = "generating" | "complete" | "error";
+export type MessageStatus =
+  "generating" | "waiting" | "queued" | "complete" | "error";
+
+/**
+ * 消息在 UI 中的展示状态。
+ * abnormal 是成功响应的异常展示分类，不改变消息的 complete 生命周期状态。
+ */
+export type MessageDisplayStatus = MessageStatus | "abnormal";
 
 /**
  * 消息类型

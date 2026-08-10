@@ -139,7 +139,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
         Object.values(detail.nodes).forEach((node) => {
           if (
-            node.status === "generating" &&
+            (node.status === "generating" || node.status === "waiting") &&
             !generatingNodes.value.has(node.id)
           ) {
             logger.warn("检测到僵死节点，正在自动修复状态", {

@@ -413,6 +413,10 @@ export function useChatHandler() {
     // 处理附件（如果有）
     const { settings } = useChatSettings();
     if (options?.attachments && options.attachments.length > 0) {
+      // 附件处理、转写和 Token 计算都属于请求真正开始前的等待阶段。
+      assistantNode.status = "waiting";
+    }
+    if (options?.attachments && options.attachments.length > 0) {
       await processUserAttachments(
         userNode,
         session,
@@ -503,6 +507,9 @@ export function useChatHandler() {
       options?.attachments
     );
 
+    // 前置处理完成，进入真正的请求执行阶段。
+    assistantNode.status = "generating";
+
     // 计算完成后立即持久化一次，确保用户消息的 tokens 及时保存并触发 UI 更新
     if (sessionIndex) {
       sessionManager.persistSession(
@@ -520,6 +527,7 @@ export function useChatHandler() {
       if (queueMode === "combined") {
         nodeManager.hardDeleteNode(session, assistantNode.id);
         nodeManager.updateActiveLeaf(session, userNode.id);
+        userNode.status = "queued";
         // 标记 userNode 为排队中，防止并发状态覆盖导致 activeLeafId 丢失
         if (session.nodes?.[userNode.id]) {
           if (!session.nodes[userNode.id].metadata) {
@@ -530,7 +538,7 @@ export function useChatHandler() {
       } else {
         // Chained: 保留 assistant 占位节点，标记为 pending
         if (session.nodes?.[assistantNode.id]) {
-          (session.nodes[assistantNode.id] as any).status = "pending";
+          session.nodes[assistantNode.id].status = "queued";
           // 标记 assistantNode 为排队中，防止并发状态覆盖导致 activeLeafId 丢失
           if (!session.nodes[assistantNode.id].metadata) {
             session.nodes[assistantNode.id].metadata = {};

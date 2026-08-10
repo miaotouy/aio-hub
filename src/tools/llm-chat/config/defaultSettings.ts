@@ -30,6 +30,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     showAvatar: true,
     showModelInfo: true,
     showPerformanceMetrics: true,
+    showMessageStatus: true,
     showModelSelector: true,
     autoScroll: true,
     smoothAutoScroll: true, // 默认启用平滑滚动

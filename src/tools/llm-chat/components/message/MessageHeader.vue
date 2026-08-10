@@ -16,7 +16,15 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { Wrench, CheckCircle2, XCircle, Clock } from "lucide-vue-next";
+import {
+  Wrench,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Loader2,
+  ListOrdered,
+  AlertTriangle,
+} from "lucide-vue-next";
 import type { ChatMessageNode } from "../../types";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
@@ -28,6 +36,7 @@ import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import { useResolvedAgentAvatar } from "@/tools/agent-manager/utils/agentAssetUtils";
 import { useResolvedProfileAvatar } from "@/tools/user-profile-manager/utils/profileAssetUtils";
 import { formatRelativeTime } from "@/utils/time";
+import { getMessageStatusPresentation } from "../../utils/messageStatus";
 
 interface Props {
   message: ChatMessageNode;
@@ -47,6 +56,27 @@ const userProfileStore = useUserProfileStore();
 const { getProfileById } = useLlmProfiles();
 const { getIconPath, getDisplayIconPath } = useModelMetadata();
 const { settings } = useChatSettings();
+
+const messageStatusPresentation = computed(() =>
+  getMessageStatusPresentation(props.message)
+);
+
+const messageStatusIcon = computed(() => {
+  switch (messageStatusPresentation.value?.status) {
+    case "generating":
+      return Loader2;
+    case "waiting":
+      return Clock;
+    case "queued":
+      return ListOrdered;
+    case "error":
+      return XCircle;
+    case "abnormal":
+      return AlertTriangle;
+    default:
+      return null;
+  }
+});
 
 // 获取消息关联的智能体信息
 const agent = computed(() => {
@@ -291,6 +321,34 @@ const formatLatency = (ms: number) => {
     </div>
 
     <div class="header-right">
+      <!-- 消息生命周期状态；截图模式默认隐藏运行时状态 -->
+      <el-tooltip
+        v-if="
+          !props.screenshotMode &&
+          settings.uiPreferences.showMessageStatus &&
+          messageStatusPresentation
+        "
+        :content="
+          messageStatusPresentation.detail || messageStatusPresentation.label
+        "
+        placement="top"
+      >
+        <span
+          class="message-status"
+          :class="`status-${messageStatusPresentation.status}`"
+          :aria-label="messageStatusPresentation.label"
+        >
+          <component
+            :is="messageStatusIcon"
+            :size="12"
+            :class="{
+              'is-loading': messageStatusPresentation.status === 'generating',
+            }"
+          />
+          <span>{{ messageStatusPresentation.label }}</span>
+        </span>
+      </el-tooltip>
+
       <!-- 工具执行状态 -->
       <div
         v-if="message.role === 'tool' && message.metadata?.toolCall"
@@ -487,6 +545,72 @@ const formatLatency = (ms: number) => {
   background-color: var(--bg-color-soft);
   padding: 2px 6px;
   border-radius: 4px;
+}
+
+.message-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 140px;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.message-status.status-generating {
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  border-color: color-mix(in srgb, var(--primary-color) 24%, transparent);
+}
+
+.message-status.status-waiting,
+.message-status.status-abnormal {
+  color: var(--warning-color, var(--el-color-warning));
+  background: color-mix(
+    in srgb,
+    var(--warning-color, var(--el-color-warning)) 12%,
+    transparent
+  );
+  border-color: color-mix(
+    in srgb,
+    var(--warning-color, var(--el-color-warning)) 24%,
+    transparent
+  );
+}
+
+.message-status.status-queued {
+  color: var(--text-color-secondary);
+  background: var(--bg-color-soft);
+  border-color: var(--border-color);
+}
+
+.message-status.status-error {
+  color: var(--error-color, var(--el-color-danger));
+  background: color-mix(
+    in srgb,
+    var(--error-color, var(--el-color-danger)) 12%,
+    transparent
+  );
+  border-color: color-mix(
+    in srgb,
+    var(--error-color, var(--el-color-danger)) 24%,
+    transparent
+  );
+}
+
+.message-status .is-loading {
+  animation: message-status-spin 1s linear infinite;
+}
+
+@keyframes message-status-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .tool-status-tag {

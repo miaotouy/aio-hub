@@ -29,7 +29,7 @@ const logger = createModuleLogger("media-generator/node-manager");
 /**
  * 创建节点的配置
  */
-import type { MessageRole } from "@/tools/llm-chat/types/common";
+import type { MessageRole, MessageStatus } from "@/tools/llm-chat/types/common";
 
 /**
  * 创建节点的配置
@@ -38,7 +38,7 @@ export interface CreateNodeConfig {
   role: MessageRole;
   content: string;
   parentId: string | null;
-  status?: "complete" | "generating" | "error";
+  status?: MessageStatus;
   isEnabled?: boolean;
   metadata?: Record<string, any>;
   attachments?: Asset[];

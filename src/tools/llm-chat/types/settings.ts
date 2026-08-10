@@ -133,6 +133,8 @@ export interface ChatSettings {
     showModelInfo: boolean;
     /** 是否显示性能指标 */
     showPerformanceMetrics: boolean;
+    /** 是否显示消息生命周期状态 */
+    showMessageStatus: boolean;
     /** 是否显示模型选择器 */
     showModelSelector: boolean;
     /** 是否自动滚动到最新消息 */

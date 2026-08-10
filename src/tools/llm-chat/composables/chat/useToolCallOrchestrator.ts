@@ -225,7 +225,7 @@ export function useToolCallOrchestrator() {
               childrenIds: [],
               role: "tool",
               content: "",
-              status: "generating",
+              status: "waiting",
               timestamp: new Date().toISOString(),
               metadata: {
                 agentId: executionAgent.id,
@@ -293,6 +293,16 @@ export function useToolCallOrchestrator() {
                   );
                   if (tc) {
                     tc.status = status;
+
+                    // 工具节点在审批期间展示等待，审批通过进入执行态。
+                    const hasPendingApproval = node.metadata.toolCalls.some(
+                      (toolCall) => toolCall.status === "awaiting_approval"
+                    );
+                    if (hasPendingApproval) {
+                      node.status = "waiting";
+                    } else if (status === "executing") {
+                      node.status = "generating";
+                    }
 
                     // 同步更新助手节点的请求状态
                     const req =

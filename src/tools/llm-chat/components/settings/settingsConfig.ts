@@ -198,6 +198,16 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         keywords: "ui performance metrics speed latency 性能 速度 延迟",
       },
       {
+        id: "showMessageStatus",
+        label: "显示消息状态",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.showMessageStatus",
+        hint: "显示生成中、等待、排队、错误和异常回复等消息状态",
+        keywords:
+          "message status chat generating waiting queued error abnormal 消息 状态 生成 等待 排队 错误 异常",
+      },
+      {
         id: "fontSize",
         label: "字体大小 ({{ localSettings.uiPreferences.fontSize }}px)",
         component: "ElSlider",

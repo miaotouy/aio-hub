@@ -32,6 +32,7 @@ import type { ButtonVisibility } from "../../types";
 import { useTranslation } from "../../composables/chat/useTranslation";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { customMessage } from "@/utils/customMessage";
+import { resolveMessageDisplayStatus } from "../../utils/messageStatus";
 
 interface Props {
   sessionIndex: ChatSessionIndex | null;
@@ -102,6 +103,10 @@ const isLiveGreeting = computed(
   () =>
     props.message.metadata?.isGreeting === true &&
     props.message.metadata?.greetingLive === true
+);
+
+const messageDisplayStatus = computed(
+  () => resolveMessageDisplayStatus(props.message) || props.message.status
 );
 
 // ----- 背景分块渲染逻辑 (解决超长消息 backdrop-filter 失效问题) -----
@@ -248,7 +253,7 @@ defineExpose({
     :data-message-id="message.id"
     data-testid="chat-message"
     :data-message-role="message.role"
-    :data-message-status="message.status"
+    :data-message-status="messageDisplayStatus"
     :data-agent-id="message.metadata?.agentId || undefined"
     :class="[
       'chat-message',
@@ -279,7 +284,7 @@ defineExpose({
     <div
       class="message-inner"
       data-testid="chat-message-status"
-      :data-message-status="message.status"
+      :data-message-status="messageDisplayStatus"
     >
       <MessageHeader
         v-if="!hideHeader"

@@ -244,6 +244,9 @@ const supportActions = [
   },
 ];
 
+// 赞助者
+const sponsors = ["水云"];
+
 // 打开外部链接
 const openUrl = (url: string) => {
   window.open(url, "_blank");
@@ -467,6 +470,16 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- 赞助者 -->
+    <div class="section">
+      <h2 class="section-title">赞助者</h2>
+      <div class="sponsor-list">
+        <span v-for="sponsor in sponsors" :key="sponsor" class="sponsor-name">
+          {{ sponsor }}
+        </span>
       </div>
     </div>
 
@@ -761,6 +774,26 @@ onBeforeUnmount(() => {
 
 .support-action-card.highlighted .action-icon {
   color: #ff69b4;
+}
+
+/* 赞助者 */
+.sponsor-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px;
+  background: var(--el-bg-color-overlay);
+  border: 1px solid var(--el-border-color);
+  border-radius: 8px;
+}
+
+.sponsor-name {
+  padding: 6px 12px;
+  color: var(--el-text-color-primary);
+  font-size: 14px;
+  font-weight: 500;
+  background: var(--el-fill-color-lighter);
+  border-radius: 999px;
 }
 
 .action-content {

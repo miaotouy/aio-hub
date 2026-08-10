@@ -25,7 +25,7 @@ const detail: AssetDetail = {
 describe("AssetDetailSheet", () => {
   it("emits direct visibility, retention and delete commands for its asset", async () => {
     const wrapper = mount(AssetDetailSheet, {
-      props: { detail },
+      props: { detail, preview: null },
     });
     const actions = wrapper.findAll(".detail-actions button");
 
@@ -40,7 +40,7 @@ describe("AssetDetailSheet", () => {
 
   it("disables every mutating entry while a detail action is running", () => {
     const wrapper = mount(AssetDetailSheet, {
-      props: { detail, busy: true },
+      props: { detail, preview: null, busy: true },
     });
 
     expect(
@@ -66,6 +66,7 @@ describe("AssetDetailSheet", () => {
           libraryState: "hidden",
           retentionPolicy: "pinned",
         },
+        preview: null,
       },
     });
     const actions = wrapper.findAll(".detail-actions button");
@@ -81,6 +82,7 @@ describe("AssetDetailSheet", () => {
     const wrapper = mount(AssetDetailSheet, {
       props: {
         detail: { ...detail, kind: "document", mimeType: "text/plain" },
+        preview: null,
         busy: true,
       },
     });

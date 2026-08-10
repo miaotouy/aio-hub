@@ -264,7 +264,22 @@ sequenceDiagram
     Proto->>VCP: tool_result (requestId, status, result)
 ```
 
-### 4.3. 心跳与 IP 上报流
+### 4.3. 分布式工具批量调用
+
+分布式 `execute_tool` 入口与文本 VCP 工具调用协议保持一致，除单次参数外还支持同一工具的索引化批量参数：
+
+```text
+execute_tool.toolArgs = {
+  command1: "read_file",
+  path1: "G:/work/one.md",
+  command2: "read_file",
+  path2: "G:/work/two.md"
+}
+```
+
+`VcpNodeProtocol` 会按数字后缀拆分参数，非索引参数复制到每一项；每一项使用 `${requestId}_1`、`${requestId}_2` 等内部请求 ID 执行，最后通过原始 `requestId` 返回结果数组。这样既复用单次工具的权限和注册校验，又不会向 VCP 服务器发送无法匹配原始请求 ID 的多个响应。
+
+### 4.4. 心跳与 IP 上报流
 
 ```mermaid
 sequenceDiagram

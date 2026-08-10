@@ -123,15 +123,55 @@ function resolveCommandName(args: Record<string, any>): string {
   ]);
 }
 
+/**
+ * 将 VCP 批量调用参数（command1/path1, command2/path2, ...）拆分成
+ * 与单次调用相同形状的参数对象。非索引参数会作为公共参数复制到每一项。
+ */
+function splitIndexedToolArgs(
+  args: Record<string, any>
+): Record<string, any>[] | null {
+  const indices = Object.keys(args)
+    .map((key) => key.match(/^command(\d+)$/)?.[1])
+    .filter((index): index is string => Boolean(index))
+    .sort((a, b) => Number(a) - Number(b));
+
+  if (indices.length === 0) return null;
+
+  const commonArgs: Record<string, any> = {};
+  for (const [key, value] of Object.entries(args)) {
+    if (!/^.+\d+$/.test(key)) {
+      commonArgs[key] = value;
+    }
+  }
+
+  return indices.map((index) => {
+    const groupArgs: Record<string, any> = { ...commonArgs };
+    const suffix = new RegExp(`^(.+?)${index}$`);
+
+    for (const [key, value] of Object.entries(args)) {
+      const match = key.match(suffix);
+      if (match) groupArgs[match[1]] = value;
+    }
+
+    return groupArgs;
+  });
+}
+
 function stripProtocolArgs(args: Record<string, any>): Record<string, any> {
-  const {
-    command: _command,
-    commandName: _commandName,
-    command_name: _command_name,
-    toolCommand: _toolCommand,
-    tool_command: _tool_command,
-    ...cleanArgs
-  } = args;
+  const cleanArgs: Record<string, any> = {};
+  for (const [key, value] of Object.entries(args)) {
+    if (
+      key === "command" ||
+      key === "commandName" ||
+      key === "command_name" ||
+      key === "toolCommand" ||
+      key === "tool_command" ||
+      /^command\d+$/.test(key)
+    ) {
+      continue;
+    }
+    cleanArgs[key] = value;
+  }
   return cleanArgs;
 }
 
@@ -317,6 +357,107 @@ export class VcpNodeProtocol {
     vcpBridgeFactory.handleToolStatus(data);
   }
 
+  private async executeRegisteredTool(
+    rawToolId: string,
+    toolArgs: Record<string, any>,
+    requestId: string,
+    signal: AbortSignal,
+    onTimeout: () => void
+  ): Promise<any> {
+    const rawMethodName = resolveCommandName(toolArgs);
+    if (!rawToolId || !rawMethodName) {
+      throw new Error(
+        `Invalid tool call: toolName="${rawToolId}", command="${rawMethodName}". ` +
+          `VCP protocol requires toolArgs.command to be provided.`
+      );
+    }
+
+    logger.debug(`Executing VCP tool: ${rawToolId}.${rawMethodName}`);
+
+    // 分布式协议会将连字符转为下划线，这里需要尝试转回连字符格式。
+    let toolId = rawToolId;
+    let registry = null;
+    if (toolRegistryManager.hasTool(toolId)) {
+      registry = toolRegistryManager.getRegistry(toolId);
+    } else {
+      const hyphenId = toolId.replace(/_/g, "-");
+      if (toolRegistryManager.hasTool(hyphenId)) {
+        toolId = hyphenId;
+        registry = toolRegistryManager.getRegistry(toolId);
+        logger.debug(
+          `Resolved toolId through hyphen conversion: ${rawToolId} -> ${toolId}`
+        );
+      }
+    }
+
+    if (!registry) {
+      const availableTools = toolRegistryManager.getAllToolIds().join(", ");
+      throw new Error(
+        `工具 "${rawToolId}" 尚未注册。可用的工具: ${availableTools}`
+      );
+    }
+
+    const distStore = useVcpDistributedStore();
+    const metadata = registry.getMetadata?.();
+    const method = metadata?.methods.find(
+      (m) =>
+        m.name === rawMethodName ||
+        m.protocolConfig?.vcpCommand?.trim() === rawMethodName
+    );
+    if (!method) {
+      throw new Error(`Method ${rawMethodName} not found in tool ${toolId}`);
+    }
+
+    const resolvedMethodName = method.name;
+    const fullId = `${toolId}:${resolvedMethodName}`;
+    const isAutoRegister = distStore.config.autoRegisterTools;
+    const isDisabled = (distStore.config.disabledToolIds || []).includes(
+      fullId
+    );
+    const isManuallyExposed = (distStore.config.exposedToolIds || []).includes(
+      fullId
+    );
+    const isAllowed =
+      (isAutoRegister &&
+        (method.agentCallable || method.distributedExposed) &&
+        !isDisabled) ||
+      isManuallyExposed;
+
+    if (!isAllowed) {
+      throw new Error(
+        `Method ${resolvedMethodName} in tool ${toolId} is not exposed or is disabled for distributed calling`
+      );
+    }
+
+    const service = registry as any;
+    if (typeof service[resolvedMethodName] !== "function") {
+      throw new Error(
+        `Method ${resolvedMethodName} not implemented in tool ${toolId}`
+      );
+    }
+
+    const context: ToolContext = {
+      isAsync: false,
+      requestId,
+      signal,
+      reportStatus: (message: string) => {
+        logger.debug(`Distributed tool progress: ${toolId}`, {
+          requestId,
+          methodName: resolvedMethodName,
+          message,
+        });
+      },
+    };
+
+    return await withDistributedTimeout(
+      Promise.resolve(
+        service[resolvedMethodName](stripProtocolArgs(toolArgs), context)
+      ),
+      `${toolId}.${resolvedMethodName}`,
+      onTimeout
+    );
+  }
+
   /**
    * VCP -> AIO: 执行请求 (execute_tool)
    */
@@ -339,124 +480,29 @@ export class VcpNodeProtocol {
         return;
       }
 
-      // 1. 解析 toolName 和 methodName
-      // VCP 协议标准模式：tool_name 为工具 ID，command 在 toolArgs 中传递
-      const rawToolId = toolName;
-      const rawMethodName = resolveCommandName(toolArgs);
+      // 1. 解析 toolName 和 methodName。VCP 文本协议还支持同一工具的
+      // 批量调用（command1/path1, command2/path2, ...）。
+      const indexedToolArgs = splitIndexedToolArgs(toolArgs);
+      const calls = indexedToolArgs || [toolArgs];
+      const results: any[] = [];
 
-      if (!rawToolId || !rawMethodName) {
-        throw new Error(
-          `Invalid tool call: toolName="${toolName}", command="${rawMethodName}". ` +
-            `VCP protocol requires toolArgs.command to be provided.`
+      for (const [index, callArgs] of calls.entries()) {
+        results.push(
+          await this.executeRegisteredTool(
+            toolName,
+            callArgs,
+            calls.length > 1 ? `${requestId}_${index + 1}` : requestId,
+            abortController.signal,
+            () => abortController.abort()
+          )
         );
       }
 
-      logger.debug(`Executing VCP tool: ${rawToolId}.${rawMethodName}`);
-
-      // 2. 规范化并获取工具注册表
-      // 分布式协议会将连字符转为下划线，这里需要尝试转回连字符格式
-      let toolId = rawToolId;
-      let registry = null;
-
-      if (toolRegistryManager.hasTool(toolId)) {
-        registry = toolRegistryManager.getRegistry(toolId);
-      } else {
-        // 尝试将下划线还原为连字符 (例如 directory_tree -> directory-tree)
-        const hyphenId = toolId.replace(/_/g, "-");
-        if (toolRegistryManager.hasTool(hyphenId)) {
-          toolId = hyphenId;
-          registry = toolRegistryManager.getRegistry(toolId);
-          logger.debug(
-            `Resolved toolId through hyphen conversion: ${rawToolId} -> ${toolId}`
-          );
-        }
-      }
-
-      if (!registry) {
-        const availableTools = toolRegistryManager.getAllToolIds().join(", ");
-        throw new Error(
-          `工具 "${rawToolId}" 尚未注册。可用的工具: ${availableTools}`
-        );
-      }
-
-      const methodName = rawMethodName;
-
-      // 3. 校验权限 (检查是否在暴露名单中)
-      const distStore = useVcpDistributedStore();
-      const metadata = registry.getMetadata?.();
-      const method = metadata?.methods.find(
-        (m) =>
-          m.name === methodName ||
-          m.protocolConfig?.vcpCommand?.trim() === methodName
-      );
-
-      if (!method) {
-        throw new Error(`Method ${methodName} not found in tool ${toolId}`);
-      }
-
-      const resolvedMethodName = method.name;
-
-      // 校验逻辑必须与 ExposedToolsList.vue 保持一致
-      // 注意：store 中的 fullId 依然使用冒号分隔符，这里需要保持一致
-      const fullId = `${toolId}:${resolvedMethodName}`;
-      const isAutoRegister = distStore.config.autoRegisterTools;
-      const isDisabled = (distStore.config.disabledToolIds || []).includes(
-        fullId
-      );
-      const isManuallyExposed = (
-        distStore.config.exposedToolIds || []
-      ).includes(fullId);
-
-      // 判定是否允许暴露：
-      // A. 是自动发现的 AI 工具且未被禁用
-      // B. 是手动添加的工具
-      const isAllowed =
-        (isAutoRegister &&
-          (method.agentCallable || method.distributedExposed) &&
-          !isDisabled) ||
-        isManuallyExposed;
-
-      if (!isAllowed) {
-        throw new Error(
-          `Method ${resolvedMethodName} in tool ${toolId} is not exposed or is disabled for distributed calling`
-        );
-      }
-
-      // 4. 执行工具
-      // 注意：这里假设 registry 实例上有对应的 methodName 方法
-      // 在 AIO 架构中，通常 registry 就是服务本身
-      const service = registry as any;
-      if (typeof service[resolvedMethodName] !== "function") {
-        throw new Error(
-          `Method ${resolvedMethodName} not implemented in tool ${toolId}`
-        );
-      }
-
-      const cleanArgs = stripProtocolArgs(toolArgs);
-      const context: ToolContext = {
-        isAsync: false,
-        requestId,
-        signal: abortController.signal,
-        reportStatus: (message: string) => {
-          logger.debug(`Distributed tool progress: ${toolId}`, {
-            requestId,
-            methodName: resolvedMethodName,
-            message,
-          });
-        },
-      };
-
-      const result = await withDistributedTimeout(
-        Promise.resolve(service[resolvedMethodName](cleanArgs, context)),
-        `${toolId}.${resolvedMethodName}`,
-        () => abortController.abort()
-      );
-
-      // 5. 回传成功结果
+      // 分布式 execute_tool 只有一个 requestId，因此批量调用聚合为一次结果。
       this.sendToolResult({
         requestId,
         status: "success",
-        result,
+        result: calls.length > 1 ? results : results[0],
       });
     } catch (error: any) {
       errorHandler.error(error, "Tool execution failed", {

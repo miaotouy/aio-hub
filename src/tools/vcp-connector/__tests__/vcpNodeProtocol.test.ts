@@ -6,6 +6,8 @@ const {
   requestApproval,
   cancelExternalRequests,
   distributedConfig,
+  toolRegistryManager,
+  registry,
 } = vi.hoisted(() => ({
   inspectFileForExternalTransfer: vi.fn(),
   readFileForExternalTransfer: vi.fn(),
@@ -16,6 +18,17 @@ const {
     autoRegisterTools: true,
     exposedToolIds: [] as string[],
     disabledToolIds: [] as string[],
+  },
+  toolRegistryManager: {
+    hasTool: vi.fn(() => false),
+    getRegistry: vi.fn(),
+    getAllToolIds: vi.fn(() => [] as string[]),
+  },
+  registry: {
+    getMetadata: vi.fn(() => ({
+      methods: [{ name: "read_file", agentCallable: true }],
+    })),
+    read_file: vi.fn(),
   },
 }));
 
@@ -31,11 +44,7 @@ vi.mock("@/utils/errorHandler", () => ({
   createModuleErrorHandler: () => ({ error: vi.fn() }),
 }));
 vi.mock("@/services/registry", () => ({
-  toolRegistryManager: {
-    hasTool: vi.fn(() => false),
-    getRegistry: vi.fn(),
-    getAllToolIds: vi.fn(() => []),
-  },
+  toolRegistryManager,
 }));
 vi.mock("../services/VcpBridgeFactory", () => ({
   vcpBridgeFactory: {
@@ -143,6 +152,66 @@ describe("VcpNodeProtocol internal_request_file", () => {
         data: expect.objectContaining({
           status: "error",
           error: expect.stringContaining("关闭"),
+        }),
+      })
+    );
+  });
+});
+
+describe("VcpNodeProtocol distributed tool execution", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    distributedConfig.autoRegisterTools = true;
+    distributedConfig.exposedToolIds = [];
+    distributedConfig.disabledToolIds = [];
+    toolRegistryManager.hasTool.mockReturnValue(true);
+    toolRegistryManager.getRegistry.mockReturnValue(registry);
+    toolRegistryManager.getAllToolIds.mockReturnValue(["aio-file-operator"]);
+    registry.getMetadata.mockReturnValue({
+      methods: [{ name: "read_file", agentCallable: true }],
+    });
+    registry.read_file.mockImplementation(async (args: any, context: any) => ({
+      path: args.path,
+      requestId: context.requestId,
+    }));
+  });
+
+  it("支持 command1/path1 形式的批量调用并聚合结果", async () => {
+    const sendJson = vi.fn();
+    const protocol = new VcpNodeProtocol(sendJson);
+
+    await protocol.handleExecuteTool({
+      requestId: "req-batch",
+      toolName: "aio-file-operator",
+      toolArgs: {
+        command1: "read_file",
+        path1: "G:/work/one.md",
+        command2: "read_file",
+        path2: "G:/work/two.md",
+      },
+    });
+
+    expect(registry.read_file).toHaveBeenCalledTimes(2);
+    expect(registry.read_file).toHaveBeenNthCalledWith(
+      1,
+      { path: "G:/work/one.md" },
+      expect.objectContaining({ requestId: "req-batch_1" })
+    );
+    expect(registry.read_file).toHaveBeenNthCalledWith(
+      2,
+      { path: "G:/work/two.md" },
+      expect.objectContaining({ requestId: "req-batch_2" })
+    );
+    expect(sendJson).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "tool_result",
+        data: expect.objectContaining({
+          request_id: "req-batch",
+          status: "success",
+          result: [
+            { path: "G:/work/one.md", requestId: "req-batch_1" },
+            { path: "G:/work/two.md", requestId: "req-batch_2" },
+          ],
         }),
       })
     );

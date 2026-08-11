@@ -26,6 +26,59 @@ export interface ConsoleMessage {
   timestamp: number;
 }
 
+function resolvePreviewRelativePath(entryFile: string, reference: string) {
+  const path = reference.split(/[?#]/, 1)[0];
+  if (!path || /^(?:[a-z][a-z+.-]*:|\/|#)/i.test(path)) return null;
+
+  const baseSegments = entryFile.split("/").slice(0, -1);
+  const resolved: string[] = [];
+  for (const segment of [...baseSegments, ...path.split("/")]) {
+    if (!segment || segment === ".") continue;
+    if (segment === "..") {
+      if (!resolved.length) return null;
+      resolved.pop();
+      continue;
+    }
+    resolved.push(segment);
+  }
+  return resolved.join("/");
+}
+
+/**
+ * 将待审批的 CSS / JS 覆盖文件内联到 srcdoc，让预览可以使用内存候选内容，
+ * 而不是提前把候选内容写到磁盘。其他静态资源仍通过 asset:// 从项目读取。
+ */
+function inlinePreviewOverrides(
+  content: string,
+  entryFile: string,
+  overrides: Record<string, string>
+) {
+  if (!Object.keys(overrides).length) return content;
+
+  const inlineStyles = content.replace(/<link\b[^>]*>/gi, (tag) => {
+    const rel = tag.match(/\brel\s*=\s*(["'])(.*?)\1/i)?.[2] || "";
+    const href = tag.match(/\bhref\s*=\s*(["'])(.*?)\1/i)?.[2];
+    if (!/\bstylesheet\b/i.test(rel) || !href) return tag;
+
+    const path = resolvePreviewRelativePath(entryFile, href);
+    const css = path ? overrides[path] : undefined;
+    return css === undefined
+      ? tag
+      : `<style data-canvas-preview-overlay="${path}">${css}</style>`;
+  });
+
+  return inlineStyles.replace(
+    /<script\b([^>]*)\bsrc\s*=\s*(["'])(.*?)\2([^>]*)>\s*<\/script\s*>/gi,
+    (tag, before: string, _quote: string, src: string, after: string) => {
+      const path = resolvePreviewRelativePath(entryFile, src);
+      const script = path ? overrides[path] : undefined;
+      return script === undefined
+        ? tag
+        : `<script${before}${after}>${script}</script>`;
+    }
+  );
+}
+
 /**
  * Canvas 预览引擎 (Physical-First 架构)
  * 统一使用 asset:// 协议加载物理文件
@@ -34,7 +87,8 @@ export function useCanvasPreview(options: {
   canvasId: () => string | null;
   basePath: () => string | null;
   entryFile?: () => string;
-  readPhysicalFile: (canvasId: string, path: string) => Promise<string | null>;
+  readFile: (canvasId: string, path: string) => Promise<string | null>;
+  previewOverrides?: () => Record<string, string>;
 }) {
   const previewSrc = ref("");
   const previewSrcdoc = ref("");
@@ -52,11 +106,17 @@ export function useCanvasPreview(options: {
     if (!canvasId || !path) return;
 
     // 读取入口文件内容
-    let content = await options.readPhysicalFile(canvasId, entry);
-    if (!content) {
+    let content = await options.readFile(canvasId, entry);
+    if (content === null) {
       previewSrcdoc.value = "<h1>Error: Entry file not found</h1>";
       return;
     }
+
+    content = inlinePreviewOverrides(
+      content,
+      entry,
+      options.previewOverrides?.() || {}
+    );
 
     // 构建物理基础路径的 asset:// URL
     // 在 Windows 上，确保路径以盘符开头且格式正确

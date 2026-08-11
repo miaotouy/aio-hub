@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, onMounted, onUnmounted, watch } from "vue";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useStateSyncEngine } from "@/composables/useStateSyncEngine";
 import { createModuleLogger } from "@/utils/logger";
@@ -28,6 +28,10 @@ export function useCanvasStateConsumer() {
   // 本地状态副本
   const activeCanvasId = ref<string | null>(null);
   const lastFileChangeTimestamp = ref(0);
+  const previewOverrides = ref<Record<string, string>>({});
+  const previewOverridesByCanvas = ref<Record<string, Record<string, string>>>(
+    {}
+  );
 
   const engines: ReturnType<typeof useStateSyncEngine>[] = [];
   let unlistenFn: (() => void) | null = null;
@@ -60,7 +64,36 @@ export function useCanvasStateConsumer() {
           filepath: payload.data.filepath,
           timestamp: payload.data.timestamp,
         });
+        return;
       }
+
+      if (payload.stateType === "canvas:preview-overlay") {
+        const canvasId = payload.data?.canvasId;
+        const files = payload.data?.files;
+        if (
+          typeof canvasId === "string" &&
+          files &&
+          typeof files === "object" &&
+          Object.values(files).every((content) => typeof content === "string")
+        ) {
+          previewOverridesByCanvas.value = {
+            ...previewOverridesByCanvas.value,
+            [canvasId]: { ...(files as Record<string, string>) },
+          };
+          if (canvasId === activeCanvasId.value) {
+            previewOverrides.value = { ...(files as Record<string, string>) };
+            lastFileChangeTimestamp.value = payload.data.timestamp;
+          }
+        }
+      }
+    });
+
+    // 切换画布时不能保留前一个项目的候选文件。窗口刚打开时，覆盖层
+    // 消息可能先于 active-id 到达，因此按画布暂存后再切换到对应内容。
+    watch(activeCanvasId, (canvasId) => {
+      previewOverrides.value = canvasId
+        ? { ...(previewOverridesByCanvas.value[canvasId] || {}) }
+        : {};
     });
 
     // 请求初始状态
@@ -90,6 +123,7 @@ export function useCanvasStateConsumer() {
   return {
     activeCanvasId,
     lastFileChangeTimestamp,
+    previewOverrides,
     initialize,
     cleanup,
   };

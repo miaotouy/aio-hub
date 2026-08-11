@@ -75,8 +75,11 @@ const attrs = useAttrs();
 const windowSyncBus = useWindowSyncBus();
 
 // 1. 状态同步消费者
-const { activeCanvasId: syncedId, lastFileChangeTimestamp } =
-  useCanvasStateConsumer();
+const {
+  activeCanvasId: syncedId,
+  lastFileChangeTimestamp,
+  previewOverrides,
+} = useCanvasStateConsumer();
 const activeCanvasId = ref<string | null>(null);
 
 // 调试日志：检查状态来源
@@ -118,7 +121,9 @@ const {
 } = useCanvasPreview({
   canvasId: () => activeCanvasId.value,
   basePath: () => canvasBasePath.value,
-  readPhysicalFile: (id, path) => storage.readPhysicalFile(id, path),
+  readFile: async (id, path) =>
+    previewOverrides.value[path] ?? (await storage.readPhysicalFile(id, path)),
+  previewOverrides: () => previewOverrides.value,
 });
 
 // 4. UI 状态

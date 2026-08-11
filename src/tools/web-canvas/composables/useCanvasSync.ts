@@ -32,6 +32,7 @@ export function useCanvasSync() {
   let isInitialized = false;
   const stateEngines: ReturnType<typeof useStateSyncEngine>[] = [];
   let fileChangedUnlisten: (() => void) | null = null;
+  let previewOverlayUnlisten: (() => void) | null = null;
   let runtimeErrorUnlisten: (() => void) | null = null;
 
   onUnmounted(() => {
@@ -47,6 +48,10 @@ export function useCanvasSync() {
     if (fileChangedUnlisten) {
       fileChangedUnlisten();
       fileChangedUnlisten = null;
+    }
+    if (previewOverlayUnlisten) {
+      previewOverlayUnlisten();
+      previewOverlayUnlisten = null;
     }
     if (runtimeErrorUnlisten) {
       runtimeErrorUnlisten();
@@ -90,6 +95,22 @@ export function useCanvasSync() {
         targetLabel
       );
     });
+
+    const syncPreviewOverlay = (
+      canvasId: string,
+      files = store.getPreviewOverlay(canvasId)
+    ) => {
+      const targetLabel = windowManager.getWindowLabel(canvasId);
+      void bus.syncState(
+        "canvas:preview-overlay" as any,
+        { canvasId, files, timestamp: Date.now() },
+        0,
+        true,
+        targetLabel
+      );
+    };
+
+    previewOverlayUnlisten = store.onPreviewOverlayChanged(syncPreviewOverlay);
 
     // 预览窗口的 Pinia 与主窗口隔离，运行时错误必须显式回传。
     runtimeErrorUnlisten = bus.onMessage("state-sync", (payload: any) => {
@@ -138,6 +159,9 @@ export function useCanvasSync() {
           if (typeof oldSize === "number" && newSize > oldSize) {
             logger.info("Canvas 检测到新窗口打开，强制全量广播");
             stateEngines.forEach((e) => e.manualPush(true, undefined, true));
+            store.getPreviewOverlayCanvasIds().forEach((canvasId) => {
+              syncPreviewOverlay(canvasId);
+            });
           }
         }
       );

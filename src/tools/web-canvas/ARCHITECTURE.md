@@ -87,7 +87,7 @@ web-canvas 通过 `web-canvas.registry.ts` 暴露了一套完整的 Agent 可调
 | `clear_runtime_errors` | 清空运行时错误                   | `canvasId?`                                |
 
 - **上下文注入**: `CanvasAgentService.getExtraPromptContext()` 为 Agent 提供当前画布的项目结构、文件树、未提交变更和运行时错误信息。
-- **审批钩子**: `onToolCallPreview` 只登记待审批请求，不修改物理文件；用户批准后才由正式工具方法执行一次。拒绝时仅清理内存记录，绝不能用 Git `checkout` 覆盖审批前已有的未提交修改。
+- **审批钩子**: `onToolCallPreview` 将候选写入/差异重放到**内存预览覆盖层**并同步给独立预览窗口，不修改物理文件；用户批准后才由正式工具方法执行一次。拒绝时移除相应覆盖层并重新渲染剩余候选改动，绝不能用 Git `checkout` 覆盖审批前已有的未提交修改。
 - **隐式创建**: Agent 操作（如 `apply_canvas_diff`）在无活动画布时会通过 `ensureActiveCanvas()` 隐式创建一个新画布，确保协作流不中断。
 
 ### 1.6. 运行时错误捕获 (Runtime Error Capture)
@@ -187,7 +187,7 @@ web-canvas 支持将预览窗口分离为独立窗口，通过状态同步引擎
 - `canvasId` 必须符合 `cp_{yyyyMMdd}_{short_id}` 格式。
 - 文件路径必须是相对于画布根目录的路径，统一使用 `/`，拒绝绝对路径、盘符、空段、`.` 和 `..`。
 - 物理读写、删除和 watcher 都只能基于校验后的画布根目录。
-- 审批预览不写磁盘；正式工具调用通过同一存储层执行。
+- 审批预览不写磁盘：候选改动会构造成内存覆盖层，入口 HTML 与引用的 CSS / JS 会在 `srcdoc` 中使用该覆盖层渲染；正式工具调用仍通过物理存储层执行。
 
 这层校验不能被 Agent 参数绕过；Tauri capability 仍需保持最小授权，不能把预览内容当成可信代码。
 
@@ -336,8 +336,8 @@ graph TD
 **Agent 与画布之间的桥梁**。负责组装 Prompt 上下文、格式化工具体响应、处理审批钩子。
 
 - 不直接操作 Store，而是通过 Store 提供的 API 进行调用。
-- `onToolCallPreview` 在审批前只记录请求，不执行 `applyDiff` / `writeFile`。
-- `onToolCallDiscarded` 只清理请求记录；审批拒绝不会改变用户已有的工作区内容。
+- `onToolCallPreview` 在审批前构造内存覆盖层，不执行 `applyDiff` / `writeFile`；预览窗口可立即看到候选页面效果。
+- `onToolCallDiscarded` 移除对应覆盖层并重新计算剩余候选改动；审批拒绝不会改变用户已有的工作区内容。
 - `executeToolRequests` 保证批量审批路径不会重复分发同一请求的 preview hook。
 
 #### 3.2.5. `GitInternalService` (版本控制引擎)

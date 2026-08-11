@@ -35,7 +35,33 @@ const errorHandler = createModuleErrorHandler("Canvas/Store");
 
 // 文件变更事件 system
 type FileChangeHandler = (canvasId: string, filepath: string) => void;
+type PreviewOverlayHandler = (
+  canvasId: string,
+  files: Record<string, string>
+) => void;
+
+export type CanvasPreviewMutation =
+  | {
+      type: "write";
+      path: string;
+      content: string;
+    }
+  | {
+      type: "diff";
+      path: string;
+      search: string;
+      replace: string;
+      startLine?: number;
+    };
+
+interface CanvasPreviewRequest {
+  canvasId: string;
+  affectedFiles: string[];
+  mutation?: CanvasPreviewMutation;
+}
+
 const fileChangeHandlers = new Set<FileChangeHandler>();
+const previewOverlayHandlers = new Set<PreviewOverlayHandler>();
 
 export const useCanvasStore = defineStore("canvas", () => {
   const storage = useCanvasStorage();
@@ -77,15 +103,9 @@ export const useCanvasStore = defineStore("canvas", () => {
   const canvasService = new CanvasService(storage);
 
   // 审批系统轻量级映射
-  const previewRequests = reactive<
-    Record<
-      string,
-      {
-        canvasId: string;
-        affectedFiles: string[];
-      }
-    >
-  >({});
+  const previewRequests = reactive<Record<string, CanvasPreviewRequest>>({});
+  // 审批阶段的内存预览覆盖层。它只用于渲染，不会写入画布目录。
+  const previewOverlays = reactive<Record<string, Record<string, string>>>({});
 
   // --- 计算属性 ---
 
@@ -560,17 +580,60 @@ export const useCanvasStore = defineStore("canvas", () => {
   function registerPreviewRequest(
     requestId: string,
     canvasId: string,
-    files: string[]
+    files: string[],
+    mutation?: CanvasPreviewMutation
   ) {
-    previewRequests[requestId] = { canvasId, affectedFiles: files };
+    previewRequests[requestId] = {
+      canvasId,
+      affectedFiles: files,
+      mutation,
+    };
   }
 
   function getPreviewRequest(requestId: string) {
     return previewRequests[requestId] || null;
   }
 
+  function getPreviewRequestsForCanvas(canvasId: string) {
+    return Object.entries(previewRequests)
+      .filter(([, request]) => request.canvasId === canvasId)
+      .map(([requestId, request]) => ({ requestId, ...request }));
+  }
+
   function removePreviewRequest(requestId: string) {
     delete previewRequests[requestId];
+  }
+
+  function consumePreviewMutation(
+    canvasId: string,
+    mutation: CanvasPreviewMutation
+  ) {
+    const request = Object.entries(previewRequests).find(
+      ([, candidate]) =>
+        candidate.canvasId === canvasId &&
+        JSON.stringify(candidate.mutation) === JSON.stringify(mutation)
+    );
+    if (request) {
+      delete previewRequests[request[0]];
+    }
+  }
+
+  function onPreviewOverlayChanged(handler: PreviewOverlayHandler) {
+    previewOverlayHandlers.add(handler);
+    return () => previewOverlayHandlers.delete(handler);
+  }
+
+  function setPreviewOverlay(canvasId: string, files: Record<string, string>) {
+    previewOverlays[canvasId] = files;
+    previewOverlayHandlers.forEach((handler) => handler(canvasId, files));
+  }
+
+  function getPreviewOverlay(canvasId: string) {
+    return previewOverlays[canvasId] || {};
+  }
+
+  function getPreviewOverlayCanvasIds() {
+    return Object.keys(previewOverlays);
   }
 
   /**
@@ -645,7 +708,13 @@ export const useCanvasStore = defineStore("canvas", () => {
     getFileTree,
     registerPreviewRequest,
     getPreviewRequest,
+    getPreviewRequestsForCanvas,
     removePreviewRequest,
+    consumePreviewMutation,
+    onPreviewOverlayChanged,
+    setPreviewOverlay,
+    getPreviewOverlay,
+    getPreviewOverlayCanvasIds,
     repairProject,
     performHealthCheck,
     openInVSCode,

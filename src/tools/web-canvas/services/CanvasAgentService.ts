@@ -14,8 +14,14 @@
 
 import type { AgentExtensionContext } from "@/services/types";
 import { createModuleLogger } from "@/utils/logger";
-import { useCanvasStore } from "../stores/canvasStore";
+import { useCanvasStorage } from "../composables/useCanvasStorage";
+import {
+  type CanvasPreviewMutation,
+  useCanvasStore,
+} from "../stores/canvasStore";
 import type { DiffResult } from "../types/diff";
+import { applySearchReplaceDiff } from "../utils/diff";
+import { normalizeCanvasRelativePath } from "../composables/useCanvasStorage";
 
 const logger = createModuleLogger("Canvas/AgentService");
 
@@ -149,15 +155,26 @@ ${changesStr}`;
     const canvasStore = useCanvasStore();
     const canvasId = args.canvasId || (await canvasStore.ensureActiveCanvas());
 
-    const result = (await canvasStore.applyDiff(
-      canvasId,
-      args.path,
-      args.search,
-      args.replace,
-      args.start_line
-    )) as DiffResult;
+    const mutation: CanvasPreviewMutation = {
+      type: "diff",
+      path: normalizeCanvasRelativePath(args.path),
+      search: args.search,
+      replace: args.replace,
+      startLine: args.start_line,
+    };
 
-    return this.formatDiffFeedback(result, args.path);
+    try {
+      const result = (await canvasStore.applyDiff(
+        canvasId,
+        args.path,
+        args.search,
+        args.replace,
+        args.start_line
+      )) as DiffResult;
+      return this.formatDiffFeedback(result, args.path);
+    } finally {
+      await this.consumePreviewMutation(canvasId, mutation);
+    }
   }
 
   /**
@@ -197,8 +214,18 @@ ${changesStr}`;
   }): Promise<string> {
     const canvasStore = useCanvasStore();
     const canvasId = args.canvasId || (await canvasStore.ensureActiveCanvas());
-    await canvasStore.writeFilePhysical(canvasId, args.path, args.content);
-    return `Successfully wrote to ${args.path}`;
+    const mutation: CanvasPreviewMutation = {
+      type: "write",
+      path: normalizeCanvasRelativePath(args.path),
+      content: args.content,
+    };
+
+    try {
+      await canvasStore.writeFilePhysical(canvasId, args.path, args.content);
+      return `Successfully wrote to ${args.path}`;
+    } finally {
+      await this.consumePreviewMutation(canvasId, mutation);
+    }
   }
 
   /**
@@ -263,10 +290,70 @@ ${changesStr}`;
   }
 
   /**
+   * 将所有待审批变更重放到内存覆盖层。
+   *
+   * 这里的内容只会经窗口同步总线传给预览 iframe，绝不写入项目目录；
+   * 因此用户可以在批准前看效果，拒绝时也不会覆盖已有工作区修改。
+   */
+  private async rebuildPreviewOverlay(canvasId: string) {
+    const canvasStore = useCanvasStore();
+    const storage = useCanvasStorage();
+    const contents = new Map<string, string>();
+    const requests = canvasStore.getPreviewRequestsForCanvas(canvasId);
+
+    for (const request of requests) {
+      const mutation = request.mutation;
+      if (!mutation) continue;
+
+      let original = contents.get(mutation.path);
+      if (original === undefined) {
+        original =
+          (await storage.readPhysicalFile(canvasId, mutation.path)) ?? "";
+      }
+
+      try {
+        const content =
+          mutation.type === "write"
+            ? mutation.content
+            : applySearchReplaceDiff(
+                original,
+                mutation.search,
+                mutation.replace,
+                { startLine: mutation.startLine }
+              ).content;
+        contents.set(mutation.path, content);
+      } catch (error) {
+        // 预览不能阻止审批流程；正式调用仍会返回完整的 Diff 错误。
+        logger.warn("无法生成 Canvas 审批预览", {
+          canvasId,
+          path: mutation.path,
+          error,
+        });
+      }
+    }
+
+    canvasStore.setPreviewOverlay(canvasId, Object.fromEntries(contents));
+  }
+
+  private async consumePreviewMutation(
+    canvasId: string,
+    mutation: CanvasPreviewMutation
+  ) {
+    const canvasStore = useCanvasStore();
+    canvasStore.consumePreviewMutation(canvasId, mutation);
+    try {
+      await this.rebuildPreviewOverlay(canvasId);
+    } catch (error) {
+      // 候选层清理失败不应掩盖已发生的正式工具调用结果。
+      logger.warn("清理 Canvas 审批预览失败", { canvasId, error });
+    }
+  }
+
+  /**
    * 审批预览钩子。
    *
-   * 预览阶段绝不能修改工作区；真正的写入仅在审批通过后由工具方法执行。
-   * 这里仅记录受影响文件，供拒绝或 UI 生命周期清理使用。
+   * 写盘与预览必须分离：此阶段仅构造内存覆盖层，以便用户在独立预览窗口
+   * 看到候选改动；真正的物理写入仍只发生在审批通过后的正式工具调用中。
    */
   async onToolCallPreview(
     requestId: string,
@@ -274,23 +361,57 @@ ${changesStr}`;
     args: Record<string, any>
   ) {
     const canvasStore = useCanvasStore();
-    const isFileMutation =
-      methodName === "apply_canvas_diff" || methodName === "write_canvas_file";
     const canvasId = args.canvasId || canvasStore.activeCanvasId;
+    if (!canvasId) return;
 
-    if (isFileMutation && canvasId && typeof args.path === "string") {
-      canvasStore.registerPreviewRequest(requestId, canvasId, [args.path]);
+    let mutation: CanvasPreviewMutation | null = null;
+    if (
+      methodName === "apply_canvas_diff" &&
+      typeof args.path === "string" &&
+      typeof args.search === "string" &&
+      typeof args.replace === "string"
+    ) {
+      mutation = {
+        type: "diff",
+        path: normalizeCanvasRelativePath(args.path),
+        search: args.search,
+        replace: args.replace,
+        startLine:
+          typeof args.start_line === "number" ? args.start_line : undefined,
+      };
+    } else if (
+      methodName === "write_canvas_file" &&
+      typeof args.path === "string" &&
+      typeof args.content === "string"
+    ) {
+      mutation = {
+        type: "write",
+        path: normalizeCanvasRelativePath(args.path),
+        content: args.content,
+      };
     }
+
+    if (!mutation) return;
+
+    canvasStore.registerPreviewRequest(
+      requestId,
+      canvasId,
+      [mutation.path],
+      mutation
+    );
+    await this.rebuildPreviewOverlay(canvasId);
   }
 
   /**
-   * 审批拒绝钩子。
-   *
-   * 预览阶段没有副作用，因此只需清理内存记录，不能用 Git HEAD 覆盖用户的工作区。
+   * 审批拒绝钩子：移除对应内存覆盖层后重新渲染剩余候选改动。
    */
   async onToolCallDiscarded(requestId: string) {
     const canvasStore = useCanvasStore();
+    const request = canvasStore.getPreviewRequest(requestId);
     canvasStore.removePreviewRequest(requestId);
+    if (request) {
+      await this.rebuildPreviewOverlay(request.canvasId);
+    }
   }
 }
 

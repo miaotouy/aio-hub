@@ -480,10 +480,7 @@ function formatSearchResults(
       lines.push(`- **${linePrefix}**: \`${escapeBackticks(content)}\``);
     }
 
-    if (
-      maxMatchesPerFile > 0 &&
-      uniqueLineMatches.length > maxMatchesPerFile
-    ) {
+    if (maxMatchesPerFile > 0 && uniqueLineMatches.length > maxMatchesPerFile) {
       lines.push(
         `- ... 还有 ${uniqueLineMatches.length - maxMatchesPerFile} 个匹配行`
       );

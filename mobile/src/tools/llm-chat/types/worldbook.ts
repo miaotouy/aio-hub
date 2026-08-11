@@ -1,7 +1,5 @@
 export type WorldbookEntryPosition =
-  | "before_history"
-  | "after_character"
-  | "depth";
+  "before_history" | "after_character" | "depth";
 
 /**
  * Mobile-first, deterministic keyword Worldbook entry. This intentionally

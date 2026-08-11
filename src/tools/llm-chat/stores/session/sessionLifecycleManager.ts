@@ -72,10 +72,7 @@ export function repairInterruptedGeneratingNodes(
   let erroredCount = 0;
 
   for (const node of Object.values(detail.nodes || {})) {
-    if (
-      node.status !== "generating" &&
-      node.status !== "waiting"
-    ) {
+    if (node.status !== "generating" && node.status !== "waiting") {
       continue;
     }
     const hasContent =

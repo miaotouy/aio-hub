@@ -132,9 +132,7 @@
       {{ data.contentPreview }}
       <!-- 生成中指示器 -->
       <div
-        v-if="
-          data.status === 'generating' || data.status === 'waiting'
-        "
+        v-if="data.status === 'generating' || data.status === 'waiting'"
         class="streaming-indicator"
       >
         <span class="dot"></span>

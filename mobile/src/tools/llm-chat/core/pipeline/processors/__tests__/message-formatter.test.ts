@@ -33,10 +33,9 @@ describe("messageFormatter", () => {
       { role: "assistant", content: "three" },
       { role: "assistant", content: "four" },
     ];
-    expect(handleMergeConsecutiveRoles(consecutive, "|").map((item) => item.content)).toEqual([
-      "one|two",
-      "three|four",
-    ]);
+    expect(
+      handleMergeConsecutiveRoles(consecutive, "|").map((item) => item.content)
+    ).toEqual(["one|two", "three|four"]);
     expect(handleConvertSystemToUser(messages)[0].role).toBe("user");
     expect(
       handleEnsureAlternatingRoles(consecutive, "u", "a").map(
@@ -62,7 +61,10 @@ describe("messageFormatter", () => {
       settings: {},
       timestamp: Date.now(),
       sharedData: new Map([
-        ["model", { defaultPostProcessingRules: ["post:convert-system-to-user"] }],
+        [
+          "model",
+          { defaultPostProcessingRules: ["post:convert-system-to-user"] },
+        ],
       ]),
       logs: [],
     } as unknown as Parameters<typeof messageFormatter.execute>[0];

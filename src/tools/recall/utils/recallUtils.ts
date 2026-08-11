@@ -54,4 +54,3 @@ export async function calculateHash(text: string): Promise<string> {
 export function normalizeTagName(name: string): string {
   return name.trim().toLowerCase();
 }
-

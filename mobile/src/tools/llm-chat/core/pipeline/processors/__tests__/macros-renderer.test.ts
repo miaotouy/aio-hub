@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ChatAgent } from "@/tools/agent-manager/types/agent";
-import type { PipelineContext, ProcessableMessage } from "@/tools/llm-chat/types";
+import type {
+  PipelineContext,
+  ProcessableMessage,
+} from "@/tools/llm-chat/types";
 import { macrosRenderer } from "../macros-renderer";
 
 function createContext(
@@ -44,9 +47,7 @@ function createAgent(): ChatAgent {
         {
           key: "status",
           type: "group",
-          children: [
-            { key: "score", type: "variable", initialValue: 3 },
-          ],
+          children: [{ key: "score", type: "variable", initialValue: 3 }],
         },
       ],
     },
@@ -55,33 +56,36 @@ function createAgent(): ChatAgent {
 
 describe("macrosRenderer", () => {
   it("expands the mobile role-chat macro scope without expanding escaped or unknown macros", async () => {
-    const context = createContext([
-      {
-        role: "system",
-        content:
-          "{{char}} / {{user}} / {{persona}} / {{description}} / {{modelName}} / {{profileName}}",
-        sourceType: "agent_preset",
-        sourceId: "preset-1",
-      },
-      {
-        role: "user",
-        content: "Please help me.",
-        sourceType: "session_history",
-        sourceId: "user-1",
-      },
-      {
-        role: "assistant",
-        content: "The previous request was: {{lastUserMessage}}.",
-        sourceType: "session_history",
-        sourceId: "assistant-1",
-      },
-      {
-        role: "user",
-        content: "\\{{char}} {{unknown_macro}} {{input}}",
-        sourceType: "session_history",
-        sourceId: "user-2",
-      },
-    ], createAgent());
+    const context = createContext(
+      [
+        {
+          role: "system",
+          content:
+            "{{char}} / {{user}} / {{persona}} / {{description}} / {{modelName}} / {{profileName}}",
+          sourceType: "agent_preset",
+          sourceId: "preset-1",
+        },
+        {
+          role: "user",
+          content: "Please help me.",
+          sourceType: "session_history",
+          sourceId: "user-1",
+        },
+        {
+          role: "assistant",
+          content: "The previous request was: {{lastUserMessage}}.",
+          sourceType: "session_history",
+          sourceId: "assistant-1",
+        },
+        {
+          role: "user",
+          content: "\\{{char}} {{unknown_macro}} {{input}}",
+          sourceType: "session_history",
+          sourceId: "user-2",
+        },
+      ],
+      createAgent()
+    );
 
     await macrosRenderer.execute(context);
 
@@ -99,26 +103,31 @@ describe("macrosRenderer", () => {
   });
 
   it("applies imported variable definitions, <svar> operations, and stateful variable macros in message order", async () => {
-    const context = createContext([
-      {
-        role: "system",
-        content: "Score {{getvar::status.score}}{{incvar::status.score}} now {{getvar::status.score}}",
-        sourceType: "agent_preset",
-        sourceId: "preset-1",
-      },
-      {
-        role: "assistant",
-        content: '<svar name="status.score" op="+" value="4" />Score {{getvar::status.score}}',
-        sourceType: "session_history",
-        sourceId: "assistant-1",
-      },
-      {
-        role: "user",
-        content: "{{setvar::status.score::12}}Final {{getvar::status.score}}",
-        sourceType: "session_history",
-        sourceId: "user-1",
-      },
-    ], createAgent());
+    const context = createContext(
+      [
+        {
+          role: "system",
+          content:
+            "Score {{getvar::status.score}}{{incvar::status.score}} now {{getvar::status.score}}",
+          sourceType: "agent_preset",
+          sourceId: "preset-1",
+        },
+        {
+          role: "assistant",
+          content:
+            '<svar name="status.score" op="+" value="4" />Score {{getvar::status.score}}',
+          sourceType: "session_history",
+          sourceId: "assistant-1",
+        },
+        {
+          role: "user",
+          content: "{{setvar::status.score::12}}Final {{getvar::status.score}}",
+          sourceType: "session_history",
+          sourceId: "user-1",
+        },
+      ],
+      createAgent()
+    );
 
     await macrosRenderer.execute(context);
 

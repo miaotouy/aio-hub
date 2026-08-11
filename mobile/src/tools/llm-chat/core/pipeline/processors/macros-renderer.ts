@@ -100,8 +100,7 @@ function parseSvarAttributes(rawAttributes: string): Record<string, string> {
   SVAR_ATTRIBUTE_PATTERN.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = SVAR_ATTRIBUTE_PATTERN.exec(rawAttributes))) {
-    attributes[match[1].toLowerCase()] =
-      match[2] ?? match[3] ?? match[4] ?? "";
+    attributes[match[1].toLowerCase()] = match[2] ?? match[3] ?? match[4] ?? "";
   }
   return attributes;
 }
@@ -114,7 +113,8 @@ function applyVariableOperation(
 ): void {
   const value = scalarValue(rawValue);
   const previous = variables.get(name);
-  const previousNumber = typeof previous === "number" ? previous : Number(previous) || 0;
+  const previousNumber =
+    typeof previous === "number" ? previous : Number(previous) || 0;
   const valueNumber = typeof value === "number" ? value : Number(value) || 0;
 
   switch (operation) {
@@ -139,16 +139,17 @@ function applyVariableOperation(
   }
 }
 
-function applySvarTags(content: string, variables: Map<string, MacroValue>): string {
+function applySvarTags(
+  content: string,
+  variables: Map<string, MacroValue>
+): string {
   return content.replace(SVAR_TAG_PATTERN, (_tag, rawAttributes: string) => {
     const attributes = parseSvarAttributes(rawAttributes);
     const name = (attributes.name ?? attributes.path ?? "").trim();
     if (!name) return "";
 
     const operation = (attributes.op ?? "=").toLowerCase() as VariableOperation;
-    if (
-      !["=", "+", "-", "*", "/", "set", "add", "sub"].includes(operation)
-    ) {
+    if (!["=", "+", "-", "*", "/", "set", "add", "sub"].includes(operation)) {
       return "";
     }
     applyVariableOperation(variables, name, operation, attributes.value ?? "");
@@ -176,7 +177,9 @@ function createAssetsSummary(messages: ProcessableMessage[]): string {
     .join("\n");
 }
 
-function createMacroRuntimeContext(context: PipelineContext): MacroRuntimeContext {
+function createMacroRuntimeContext(
+  context: PipelineContext
+): MacroRuntimeContext {
   const history = context.messages.filter(
     (message) => message.sourceType === "session_history"
   );
@@ -184,11 +187,9 @@ function createMacroRuntimeContext(context: PipelineContext): MacroRuntimeContex
     .reverse()
     .find((message) => message.role === "user");
   const model = context.sharedData.get("model") as
-    | { id?: unknown; name?: unknown }
-    | undefined;
+    { id?: unknown; name?: unknown } | undefined;
   const profile = context.sharedData.get("profile") as
-    | { id?: unknown; name?: unknown }
-    | undefined;
+    { id?: unknown; name?: unknown } | undefined;
   const agent = context.agentConfig;
   const agentRecord = agent as Record<string, unknown> | null;
   const userProfile = context.userProfile;
@@ -270,14 +271,21 @@ function resolveMacro(
       return arguments_[0] ? String(variables.get(arguments_[0]) ?? "") : "";
     case "setvar":
       if (arguments_[0] && arguments_.length >= 2) {
-        applyVariableOperation(variables, arguments_[0], "set", arguments_.slice(1).join("::"));
+        applyVariableOperation(
+          variables,
+          arguments_[0],
+          "set",
+          arguments_.slice(1).join("::")
+        );
       }
       return "";
     case "incvar":
-      if (arguments_[0]) applyVariableOperation(variables, arguments_[0], "+", "1");
+      if (arguments_[0])
+        applyVariableOperation(variables, arguments_[0], "+", "1");
       return "";
     case "decvar":
-      if (arguments_[0]) applyVariableOperation(variables, arguments_[0], "-", "1");
+      if (arguments_[0])
+        applyVariableOperation(variables, arguments_[0], "-", "1");
       return "";
     default:
       return `{{${expression}}}`;
@@ -314,7 +322,9 @@ export const macrosRenderer: ContextProcessor = {
         (message.content.includes("{{") || /<svar\s/i.test(message.content))
     );
     if (!hasMacroSyntax) {
-      return processorResult.skipped("当前消息中没有可渲染的宏或会话变量语法。");
+      return processorResult.skipped(
+        "当前消息中没有可渲染的宏或会话变量语法。"
+      );
     }
 
     const variables = createVariableState(context.agentConfig);

@@ -41,7 +41,9 @@ describe("MessageNavigator", () => {
 
   it("hides for fewer than two messages and disables unavailable directions", () => {
     const single = mountNavigator(1, 1);
-    expect(single.find('[data-testid="message-navigator"]').exists()).toBe(false);
+    expect(single.find('[data-testid="message-navigator"]').exists()).toBe(
+      false
+    );
 
     const first = mountNavigator(1, 3);
     const buttons = first.findAll("button");

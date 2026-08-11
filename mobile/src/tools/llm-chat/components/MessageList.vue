@@ -229,7 +229,9 @@ defineExpose({
           @regenerate="(m) => emit('regenerate', m)"
           @continue="(m) => emit('continue', m)"
           @delete="(m) => emit('delete', m)"
-          @switch-sibling="(m, direction) => emit('switch-sibling', m, direction)"
+          @switch-sibling="
+            (m, direction) => emit('switch-sibling', m, direction)
+          "
           @switch-branch="(nodeId) => emit('switch-branch', nodeId)"
         />
       </div>

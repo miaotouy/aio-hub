@@ -45,7 +45,8 @@ const cleanupChoice = computed({
   set: (value: "keep" | "cleanup") => {
     updateSnapshot({
       cleanupChoice: value,
-      cleanupConfirmation: value === "keep" ? "" : snapshot.value.cleanupConfirmation,
+      cleanupConfirmation:
+        value === "keep" ? "" : snapshot.value.cleanupConfirmation,
     });
   },
 });

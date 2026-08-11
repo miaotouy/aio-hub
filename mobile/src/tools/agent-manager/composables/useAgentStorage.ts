@@ -112,7 +112,8 @@ export function useAgentStorage() {
       if (!(await exists(path))) return null;
       const agent = JSON.parse(await readTextFile(path)) as ChatAgent;
       const normalizedCategory = normalizeAgentCategory(agent.category);
-      return normalizedCategory === undefined || normalizedCategory === agent.category
+      return normalizedCategory === undefined ||
+        normalizedCategory === agent.category
         ? agent
         : { ...agent, category: normalizedCategory };
     } catch (error) {

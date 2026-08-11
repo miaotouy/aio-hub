@@ -304,26 +304,31 @@ describe("useChatExecutor continue generation", () => {
       role: "assistant",
       status: "complete",
       content: "Original reply",
-      metadata: { modelId: "old-model", usage: { promptTokens: 8, completionTokens: 3, totalTokens: 11 } },
+      metadata: {
+        modelId: "old-model",
+        usage: { promptTokens: 8, completionTokens: 3, totalTokens: 11 },
+      },
     };
     targetSession.activeLeafId = "assistant-source";
 
-    state.pipelineStore.executePipeline.mockImplementationOnce(async (context) => {
-      context.messages = [
-        {
-          role: "user",
-          content: "Hello",
-          sourceType: "session_history",
-          sourceId: "user-1",
-        },
-        {
-          role: "assistant",
-          content: "Original reply",
-          sourceType: "session_history",
-          sourceId: "assistant-continuation",
-        },
-      ];
-    });
+    state.pipelineStore.executePipeline.mockImplementationOnce(
+      async (context) => {
+        context.messages = [
+          {
+            role: "user",
+            content: "Hello",
+            sourceType: "session_history",
+            sourceId: "user-1",
+          },
+          {
+            role: "assistant",
+            content: "Original reply",
+            sourceType: "session_history",
+            sourceId: "assistant-continuation",
+          },
+        ];
+      }
+    );
     state.responseHandler.handleStreamUpdate.mockImplementation(
       (currentSession: ChatSession, nodeId: string, chunk: string) => {
         currentSession.nodes[nodeId].content += chunk;

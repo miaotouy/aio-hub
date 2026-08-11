@@ -87,5 +87,4 @@ describe("sessionLoader reply references", () => {
       })
     );
   });
-
 });

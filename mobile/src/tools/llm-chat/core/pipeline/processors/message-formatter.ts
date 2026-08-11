@@ -23,7 +23,9 @@ function contentToString(message: ProcessableMessage): string {
   if (typeof message.content === "string") return message.content;
   return message.content
     .filter(
-      (part): part is Extract<(typeof message.content)[number], { type: "text" }> =>
+      (
+        part
+      ): part is Extract<(typeof message.content)[number], { type: "text" }> =>
         part.type === "text"
     )
     .map((part) => part.text)
@@ -127,21 +129,33 @@ export const messageFormatter: ContextProcessor = {
   defaultEnabled: true,
   execute: async (context) => {
     const model = context.sharedData.get("model") as
-      | { defaultPostProcessingRules?: unknown }
-      | undefined;
+      { defaultPostProcessingRules?: unknown } | undefined;
     const agentParameters = context.agentConfig?.parameters as
-      | { contextPostProcessing?: { rules?: unknown } }
-      | undefined;
+      { contextPostProcessing?: { rules?: unknown } } | undefined;
     const rules = new Map<string, ContextPostProcessRule>([
-      ["post:merge-system-to-head", { type: "post:merge-system-to-head", enabled: true }],
-      ["post:merge-consecutive-roles", { type: "post:merge-consecutive-roles", enabled: true }],
-      ["post:convert-system-to-user", { type: "post:convert-system-to-user", enabled: false }],
-      ["post:ensure-alternating-roles", { type: "post:ensure-alternating-roles", enabled: false }],
+      [
+        "post:merge-system-to-head",
+        { type: "post:merge-system-to-head", enabled: true },
+      ],
+      [
+        "post:merge-consecutive-roles",
+        { type: "post:merge-consecutive-roles", enabled: true },
+      ],
+      [
+        "post:convert-system-to-user",
+        { type: "post:convert-system-to-user", enabled: false },
+      ],
+      [
+        "post:ensure-alternating-roles",
+        { type: "post:ensure-alternating-roles", enabled: false },
+      ],
     ]);
     for (const rule of readRules(model?.defaultPostProcessingRules)) {
       rules.set(rule.type, rule);
     }
-    for (const rule of readRules(agentParameters?.contextPostProcessing?.rules)) {
+    for (const rule of readRules(
+      agentParameters?.contextPostProcessing?.rules
+    )) {
       rules.set(rule.type, rule);
     }
 

@@ -198,7 +198,10 @@ export const regexProcessor: ContextProcessor = {
             error: error instanceof Error ? error.message : String(error),
           };
           failedRules.push(failure);
-          logger.warn(`正则规则“${failure.name}”执行失败，已安全跳过。`, failure);
+          logger.warn(
+            `正则规则“${failure.name}”执行失败，已安全跳过。`,
+            failure
+          );
         }
       }
       if (next !== original) {
@@ -218,7 +221,10 @@ export const regexProcessor: ContextProcessor = {
       return processorResult.degraded(message, details);
     }
     if (!replacements) {
-      return processorResult.skipped("请求正则规则未匹配到需要替换的内容。", details);
+      return processorResult.skipped(
+        "请求正则规则未匹配到需要替换的内容。",
+        details
+      );
     }
 
     const message = `正则处理完成，执行 ${replacements} 次替换。`;

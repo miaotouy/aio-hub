@@ -1,5 +1,8 @@
 import { v4 as uuidv4 } from "uuid";
-import type { ChatAgent, GreetingMessage } from "@/tools/agent-manager/types/agent";
+import type {
+  ChatAgent,
+  GreetingMessage,
+} from "@/tools/agent-manager/types/agent";
 import type { ChatMessageNode, ChatSession } from "../types";
 
 interface GreetingInstantiationOptions {
@@ -7,9 +10,7 @@ interface GreetingInstantiationOptions {
   now?: () => string;
 }
 
-function isGreetingRole(
-  value: unknown
-): value is GreetingMessage["role"] {
+function isGreetingRole(value: unknown): value is GreetingMessage["role"] {
   return value === "assistant" || value === "user";
 }
 

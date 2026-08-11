@@ -24,7 +24,6 @@ const MediaPreviewHostStub = defineComponent({
     '<button data-testid="media-preview-host" @click="$emit(\'update:modelValue\', false)">{{ item.kind }}</button>',
 });
 
-
 const RichTextRendererStub = defineComponent({
   name: "RichTextRenderer",
   props: {
@@ -133,7 +132,6 @@ describe("MessageContent media attachments", () => {
   });
 });
 
-
 describe("MessageContent RichText managed media", () => {
   it("resolves only the current message attachment through asset Markdown URLs", async () => {
     const wrapper = mount(MessageContent, {
@@ -186,9 +184,9 @@ describe("MessageContent reply references", () => {
       global: { stubs: { RichTextRenderer: true, MediaPreviewHost: true } },
     });
 
-    expect(wrapper.get('[data-testid="message-reply-reference"]').text()).toContain(
-      "Original reply snapshot"
-    );
+    expect(
+      wrapper.get('[data-testid="message-reply-reference"]').text()
+    ).toContain("Original reply snapshot");
   });
 });
 

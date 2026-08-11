@@ -33,8 +33,14 @@ describe("reply references", () => {
   });
 
   it("only accepts complete reply reference metadata", () => {
-    expect(isChatMessageReference({ messageId: "a", role: "user", content: "x" })).toBe(true);
-    expect(isChatMessageReference({ messageId: "a", role: "tool", content: "x" })).toBe(false);
-    expect(isChatMessageReference({ messageId: "a", role: "user" })).toBe(false);
+    expect(
+      isChatMessageReference({ messageId: "a", role: "user", content: "x" })
+    ).toBe(true);
+    expect(
+      isChatMessageReference({ messageId: "a", role: "tool", content: "x" })
+    ).toBe(false);
+    expect(isChatMessageReference({ messageId: "a", role: "user" })).toBe(
+      false
+    );
   });
 });

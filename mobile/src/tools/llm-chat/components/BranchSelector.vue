@@ -27,7 +27,8 @@ const getPreview = (message: ChatMessageNode) => {
   const text = message.content.replace(/\s+/g, " ").trim();
   if (text) return text.length > 92 ? `${text.slice(0, 92)}...` : text;
   if (message.status === "generating") return t("生成中...");
-  if (message.status === "error") return message.metadata?.error || t("发送失败");
+  if (message.status === "error")
+    return message.metadata?.error || t("发送失败");
   return t("空消息");
 };
 

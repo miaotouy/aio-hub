@@ -1,7 +1,4 @@
-import type {
-  ChatMessageNode,
-  ChatMessageReference,
-} from "../types";
+import type { ChatMessageNode, ChatMessageReference } from "../types";
 
 const MESSAGE_ROLES = new Set(["system", "user", "assistant"]);
 
@@ -29,7 +26,8 @@ export function isChatMessageReference(
     typeof reference.messageId === "string" &&
     MESSAGE_ROLES.has(String(reference.role)) &&
     typeof reference.content === "string" &&
-    (reference.timestamp === undefined || typeof reference.timestamp === "string")
+    (reference.timestamp === undefined ||
+      typeof reference.timestamp === "string")
   );
 }
 

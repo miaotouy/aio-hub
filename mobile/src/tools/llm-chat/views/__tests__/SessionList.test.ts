@@ -62,7 +62,8 @@ const session = {
 };
 
 const appBarStub = {
-  template: '<header><slot name="left" /><slot name="right" /><slot /></header>',
+  template:
+    '<header><slot name="left" /><slot name="right" /><slot /></header>',
 };
 const buttonStub = {
   template: '<button type="button"><slot /></button>',
@@ -154,11 +155,15 @@ describe("SessionList confirmation settings", () => {
     const wrapper = mountSessionList();
     await settle();
 
-    await wrapper.get('[data-testid="chat-sessions-clear-all"]').trigger("click");
+    await wrapper
+      .get('[data-testid="chat-sessions-clear-all"]')
+      .trigger("click");
     await settle();
 
     expect(feedback.customDialog).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "tools.llm-chat.SessionList.清空所有会话" })
+      expect.objectContaining({
+        title: "tools.llm-chat.SessionList.清空所有会话",
+      })
     );
     expect(store.clearAllSessions).toHaveBeenCalledOnce();
     expect(feedback.customMessage).toHaveBeenCalledWith(

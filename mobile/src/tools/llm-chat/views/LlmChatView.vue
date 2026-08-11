@@ -195,7 +195,9 @@ const goToChatHome = () => {
     :class="{ 'keyboard-open': isKeyboardVisible }"
   >
     <var-app-bar
-      :title="chatStore.currentSession?.name || tRaw('tools.llm-chat.ChatView.对话')"
+      :title="
+        chatStore.currentSession?.name || tRaw('tools.llm-chat.ChatView.对话')
+      "
       title-size="1.1rem"
       safe-area
       fixed

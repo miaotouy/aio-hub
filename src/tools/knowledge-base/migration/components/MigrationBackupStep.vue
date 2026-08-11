@@ -3,9 +3,7 @@
     <el-checkbox v-model="confirmed" />
     <span>
       <strong>我了解迁移风险，并确认已备份重要数据</strong>
-      <small>
-        旧目录仅作为只读来源，完成后不会修改或删除。
-      </small>
+      <small> 旧目录仅作为只读来源，完成后不会修改或删除。 </small>
     </span>
   </label>
 </template>

@@ -39,14 +39,21 @@ watch(
 );
 
 onMounted(async () => {
-  await Promise.all([agentStore.init(), profilesStore.init(), worldbookStore.init()]);
+  await Promise.all([
+    agentStore.init(),
+    profilesStore.init(),
+    worldbookStore.init(),
+  ]);
   const agent = agentStore.getAgentById(String(route.params.id));
   if (!agent) {
     router.replace("/tools/agent-manager/list");
     return;
   }
   // Pinia returns a reactive proxy; clone its raw value before making an editable draft.
-  draft.value = { ...structuredClone(toRaw(agent)), worldbookIds: [...(agent.worldbookIds ?? [])] };
+  draft.value = {
+    ...structuredClone(toRaw(agent)),
+    worldbookIds: [...(agent.worldbookIds ?? [])],
+  };
 });
 
 async function save() {
@@ -152,7 +159,10 @@ async function save() {
             {{ tRaw("tools.agent-manager.AgentDetail.管理世界书") }}
           </router-link>
         </div>
-        <p v-if="!worldbookStore.sortedWorldbooks.length" class="worldbook-empty">
+        <p
+          v-if="!worldbookStore.sortedWorldbooks.length"
+          class="worldbook-empty"
+        >
           {{ tRaw("tools.agent-manager.AgentDetail.暂无世界书") }}
         </p>
         <label

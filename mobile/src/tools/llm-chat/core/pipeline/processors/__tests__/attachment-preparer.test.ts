@@ -17,10 +17,7 @@ import {
   attachmentPreparer,
 } from "../attachment-preparer";
 
-function attachment(
-  assetId: string,
-  extractedText?: string
-) {
+function attachment(assetId: string, extractedText?: string) {
   return {
     assetId,
     usagePolicy: "advisory" as const,
@@ -71,10 +68,12 @@ beforeEach(() => {
   attachmentStatus.partitionAttachmentsByAvailability.mockImplementation(
     (attachments, availability) => ({
       ready: attachments.filter(
-        (item: { assetId: string }) => availability.get(item.assetId) === "ready"
+        (item: { assetId: string }) =>
+          availability.get(item.assetId) === "ready"
       ),
       unavailable: attachments.filter(
-        (item: { assetId: string }) => availability.get(item.assetId) !== "ready"
+        (item: { assetId: string }) =>
+          availability.get(item.assetId) !== "ready"
       ),
     })
   );
@@ -85,9 +84,7 @@ describe("attachmentPreparer", () => {
     const pipelineContext = context();
 
     const result = await attachmentPreparer.execute(pipelineContext);
-    const stats = pipelineContext.sharedData.get(
-      "attachmentPreparationStats"
-    );
+    const stats = pipelineContext.sharedData.get("attachmentPreparationStats");
 
     expect(attachmentStatus.getAttachmentAvailabilityMap).toHaveBeenCalledWith(
       expect.arrayContaining([
@@ -129,16 +126,19 @@ describe("attachmentPreparer", () => {
     });
   });
 });
-  it("uses the in-memory replacement cache until an active chat session reloads its durable snapshot", () => {
-    rememberReplacedAssetText("asset-reclaimed", "Replacement cached this runtime.");
+it("uses the in-memory replacement cache until an active chat session reloads its durable snapshot", () => {
+  rememberReplacedAssetText(
+    "asset-reclaimed",
+    "Replacement cached this runtime."
+  );
 
-    expect(
-      appendUnavailableAttachmentText("Please summarize.", [
-        attachment("asset-reclaimed"),
-      ])
-    ).toEqual({
-      content:
-        'Please summarize.\n\n<attachment_text name="asset-reclaimed.txt" mime_type="text/plain">\nReplacement cached this runtime.\n</attachment_text>',
-      recoveredCount: 1,
-    });
+  expect(
+    appendUnavailableAttachmentText("Please summarize.", [
+      attachment("asset-reclaimed"),
+    ])
+  ).toEqual({
+    content:
+      'Please summarize.\n\n<attachment_text name="asset-reclaimed.txt" mime_type="text/plain">\nReplacement cached this runtime.\n</attachment_text>',
+    recoveredCount: 1,
   });
+});

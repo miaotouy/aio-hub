@@ -16,10 +16,7 @@ import { useChatSettings } from "../composables/useChatSettings";
 import { useI18n } from "@/i18n";
 import LlmModelSelector from "../../llm-api/components/LlmModelSelector.vue";
 import AssetPickerSheet from "./AssetPickerSheet.vue";
-import type {
-  ChatMessageAttachment,
-  ChatMessageReference,
-} from "../types";
+import type { ChatMessageAttachment, ChatMessageReference } from "../types";
 
 const props = defineProps<{
   replyTo?: ChatMessageReference | null;
@@ -76,10 +73,7 @@ const handleSend = async () => {
     if (chatStore.currentSession) stop(chatStore.currentSession);
     return;
   }
-  if (
-    !inputText.value.trim() && !attachments.value.length
-  )
-    return;
+  if (!inputText.value.trim() && !attachments.value.length) return;
 
   const content = inputText.value;
 
@@ -157,7 +151,10 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
       <div class="reply-preview-copy">
         <strong>
           {{
-            inputT("回复 {role}").replace("{role}", replyRoleLabel(replyTo.role))
+            inputT("回复 {role}").replace(
+              "{role}",
+              replyRoleLabel(replyTo.role)
+            )
           }}
         </strong>
         <span>{{ replyTo.content }}</span>
@@ -198,7 +195,9 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
         :class="{ stopping: chatStore.isSending }"
         data-testid="chat-send"
         :aria-label="chatStore.isSending ? inputT('停止生成') : inputT('发送')"
-        :disabled="!chatStore.isSending && !inputText.trim() && !attachments.length"
+        :disabled="
+          !chatStore.isSending && !inputText.trim() && !attachments.length
+        "
         @click="handleSend"
       >
         <Square v-if="chatStore.isSending" :size="18" />
@@ -215,7 +214,12 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
         {{ attachment.snapshot.displayName }}
         <button
           type="button"
-          :aria-label="inputT('移除 {name}').replace('{name}', attachment.snapshot.displayName)"
+          :aria-label="
+            inputT('移除 {name}').replace(
+              '{name}',
+              attachment.snapshot.displayName
+            )
+          "
           @click="
             attachments = attachments.filter(
               (item) => item.id !== attachment.id

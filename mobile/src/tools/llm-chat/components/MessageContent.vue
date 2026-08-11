@@ -154,7 +154,11 @@ const formatBytes = (value: number) => {
 
 <template>
   <div class="message-content">
-    <div v-if="replyTo" class="reply-reference" data-testid="message-reply-reference">
+    <div
+      v-if="replyTo"
+      class="reply-reference"
+      data-testid="message-reply-reference"
+    >
       <Reply :size="15" aria-hidden="true" />
       <div>
         <strong>
@@ -202,7 +206,9 @@ const formatBytes = (value: number) => {
           "
           type="button"
           class="attachment-preview-trigger"
-          :aria-label="t('预览 {kind}').replace('{kind}', attachment.snapshot.kind)"
+          :aria-label="
+            t('预览 {kind}').replace('{kind}', attachment.snapshot.kind)
+          "
           :data-testid="`message-attachment-preview-${attachment.snapshot.kind}`"
           @click.stop="
             openMediaPreview(

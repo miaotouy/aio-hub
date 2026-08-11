@@ -94,10 +94,12 @@ describe("MessageList", () => {
         },
       },
     });
-    expect(enabled.get('[data-testid="navigator"]').attributes()).toMatchObject({
-      "data-current": "1",
-      "data-total": "2",
-    });
+    expect(enabled.get('[data-testid="navigator"]').attributes()).toMatchObject(
+      {
+        "data-current": "1",
+        "data-total": "2",
+      }
+    );
   });
 
   it("does not scroll for message changes when automatic scrolling is disabled", async () => {
@@ -105,7 +107,8 @@ describe("MessageList", () => {
       props: { messages: [message], autoScroll: false },
       global: { stubs: { ChatMessage: ChatMessageStub } },
     });
-    const container = wrapper.get(".message-scroll-container").element as HTMLElement & {
+    const container = wrapper.get(".message-scroll-container")
+      .element as HTMLElement & {
       scrollTo: ReturnType<typeof vi.fn>;
     };
     const scrollTo = vi.fn();

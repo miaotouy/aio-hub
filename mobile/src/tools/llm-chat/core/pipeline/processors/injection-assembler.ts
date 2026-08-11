@@ -1,4 +1,7 @@
-import type { ChatAgent, PresetMessage } from "@/tools/agent-manager/types/agent";
+import type {
+  ChatAgent,
+  PresetMessage,
+} from "@/tools/agent-manager/types/agent";
 import { createModuleLogger } from "@/utils/logger";
 import { isModelMatchSatisfied } from "@/tools/llm-chat/utils/modelMatch";
 import type { LlmModelInfo, LlmProfile } from "@/tools/llm-api/types";
@@ -88,7 +91,8 @@ function classifyPresetMessages(messages: PresetMessage[]): ClassifiedMessages {
 
 function sortByOrder(injections: InjectionMessage[]): InjectionMessage[] {
   return [...injections].sort(
-    (left, right) => (left.strategy.order ?? 100) - (right.strategy.order ?? 100)
+    (left, right) =>
+      (left.strategy.order ?? 100) - (right.strategy.order ?? 100)
   );
 }
 
@@ -130,7 +134,11 @@ function parseAdvancedDepths(config: string, historyLength: number): number[] {
     }
 
     const depth = Number.parseInt(segment, 10);
-    if (!Number.isNaN(depth) && depth <= historyLength && !depths.includes(depth)) {
+    if (
+      !Number.isNaN(depth) &&
+      depth <= historyLength &&
+      !depths.includes(depth)
+    ) {
       depths.push(depth);
     }
   }
@@ -190,9 +198,9 @@ function buildAnchorGroups(
     const target = injection.strategy.anchorTarget;
     if (!target) continue;
     const group = groups.get(target) ?? { before: [], after: [] };
-    group[injection.strategy.anchorPosition === "before" ? "before" : "after"].push(
-      injection
-    );
+    group[
+      injection.strategy.anchorPosition === "before" ? "before" : "after"
+    ].push(injection);
     groups.set(target, group);
   }
   return groups;
@@ -216,10 +224,13 @@ export const injectionAssembler: ContextProcessor = {
     const presetMessages = (agent.presetMessages ?? []).filter(
       (message) =>
         isEnabled(message, agent, model, profile) &&
-        (Boolean(message.content.trim()) || message.type === CHAT_HISTORY_ANCHOR)
+        (Boolean(message.content.trim()) ||
+          message.type === CHAT_HISTORY_ANCHOR)
     );
     if (!presetMessages.length) {
-      return processorResult.skipped("智能体无已启用预设消息，已保留会话历史。");
+      return processorResult.skipped(
+        "智能体无已启用预设消息，已保留会话历史。"
+      );
     }
 
     const { skeleton, depthInjections, anchorInjections } =
@@ -246,7 +257,9 @@ export const injectionAssembler: ContextProcessor = {
       (message) => message.type === CHAT_HISTORY_ANCHOR
     );
     const beforeHistory =
-      historyAnchorIndex === -1 ? skeleton : skeleton.slice(0, historyAnchorIndex);
+      historyAnchorIndex === -1
+        ? skeleton
+        : skeleton.slice(0, historyAnchorIndex);
     const afterHistory =
       historyAnchorIndex === -1 ? [] : skeleton.slice(historyAnchorIndex + 1);
     const finalMessages: ProcessableMessage[] = [];

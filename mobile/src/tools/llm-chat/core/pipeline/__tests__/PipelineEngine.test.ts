@@ -57,10 +57,26 @@ describe("PipelineEngine", () => {
 
     expect(calls).toEqual(["applied", "skipped", "degraded", "later"]);
     expect(context.logs).toEqual([
-      expect.objectContaining({ processorId: "applied", status: "applied", level: "info" }),
-      expect.objectContaining({ processorId: "skipped", status: "skipped", level: "info" }),
-      expect.objectContaining({ processorId: "degraded", status: "degraded", level: "warn" }),
-      expect.objectContaining({ processorId: "later", status: "applied", level: "info" }),
+      expect.objectContaining({
+        processorId: "applied",
+        status: "applied",
+        level: "info",
+      }),
+      expect.objectContaining({
+        processorId: "skipped",
+        status: "skipped",
+        level: "info",
+      }),
+      expect.objectContaining({
+        processorId: "degraded",
+        status: "degraded",
+        level: "warn",
+      }),
+      expect.objectContaining({
+        processorId: "later",
+        status: "applied",
+        level: "info",
+      }),
     ]);
   });
 

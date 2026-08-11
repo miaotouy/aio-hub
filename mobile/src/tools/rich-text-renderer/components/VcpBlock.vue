@@ -14,11 +14,7 @@ import {
 } from "lucide-vue-next";
 
 type VcpBlockVariant =
-  | "role"
-  | "tool_request"
-  | "tool_result"
-  | "daily_note"
-  | "tool_summary";
+  "role" | "tool_request" | "tool_result" | "daily_note" | "tool_summary";
 
 const props = defineProps<{
   variant: VcpBlockVariant;

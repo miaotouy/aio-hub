@@ -23,7 +23,9 @@ function isProcessorExecutionResult(
   const candidate = value as Partial<ProcessorExecutionResult>;
   return (
     typeof candidate.status === "string" &&
-    RESULT_STATUSES.has(candidate.status as ProcessorExecutionResult["status"]) &&
+    RESULT_STATUSES.has(
+      candidate.status as ProcessorExecutionResult["status"]
+    ) &&
     typeof candidate.message === "string" &&
     (candidate.status !== "failed" || "error" in candidate)
   );

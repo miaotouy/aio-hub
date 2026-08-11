@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ChatAgent } from "@/tools/agent-manager/types/agent";
-import type { PipelineContext, ProcessableMessage } from "@/tools/llm-chat/types";
+import type {
+  PipelineContext,
+  ProcessableMessage,
+} from "@/tools/llm-chat/types";
 import { injectionAssembler } from "../injection-assembler";
 
 const history: ProcessableMessage[] = [

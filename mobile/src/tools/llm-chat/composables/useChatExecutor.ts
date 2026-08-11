@@ -62,7 +62,8 @@ export function useChatExecutor() {
   const chatT = (key: string) => tRaw(`tools.llm-chat.ChatView.${key}`);
 
   function stop(session: ChatSession): boolean {
-    if (!activeGeneration || activeGeneration.sessionId !== session.id) return false;
+    if (!activeGeneration || activeGeneration.sessionId !== session.id)
+      return false;
     activeGeneration.controller.abort(
       new DOMException("Generation stopped by user", "AbortError")
     );
@@ -210,7 +211,10 @@ export function useChatExecutor() {
         sharedData: new Map<string, unknown>([
           ["model", model],
           ["profile", profile],
-          ["worldbooks", worldbookStore.getWorldbooksByIds(activeAgent?.worldbookIds)],
+          [
+            "worldbooks",
+            worldbookStore.getWorldbooksByIds(activeAgent?.worldbookIds),
+          ],
         ]),
         logs: [],
       };
@@ -348,7 +352,12 @@ export function useChatExecutor() {
           };
         }
       } else {
-        handleNodeError(session, assistantNode.id, error, chatT("对话执行失败"));
+        handleNodeError(
+          session,
+          assistantNode.id,
+          error,
+          chatT("对话执行失败")
+        );
       }
     } finally {
       if (activeGeneration === generation) activeGeneration = null;

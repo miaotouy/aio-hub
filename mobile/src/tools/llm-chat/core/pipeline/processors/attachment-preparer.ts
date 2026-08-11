@@ -84,10 +84,14 @@ export async function prepareAttachments(
     message._attachments = ready.length ? ready : undefined;
     stats.readyAttachmentCount += ready.length;
 
-    const fallback = appendUnavailableAttachmentText(message.content, unavailable);
+    const fallback = appendUnavailableAttachmentText(
+      message.content,
+      unavailable
+    );
     message.content = fallback.content;
     stats.textFallbackCount += fallback.recoveredCount;
-    stats.skippedAttachmentCount += unavailable.length - fallback.recoveredCount;
+    stats.skippedAttachmentCount +=
+      unavailable.length - fallback.recoveredCount;
   }
 
   return stats;

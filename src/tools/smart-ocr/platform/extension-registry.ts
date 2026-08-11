@@ -22,7 +22,6 @@ import type {
 import type { OcrExtension } from "./types";
 import { getPluginFailureSummary } from "@/services/plugin-diagnostics";
 
-
 function isOcrEngineContribution(
   contribution: PluginContribution
 ): contribution is PluginOcrEngineContribution {

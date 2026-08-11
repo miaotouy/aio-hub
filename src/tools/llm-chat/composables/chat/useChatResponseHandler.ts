@@ -191,6 +191,8 @@ export function useChatResponseHandler() {
         ...node.metadata,
         firstTokenTime: Date.now(),
       };
+      // 收到首个内容后，从「等待中」进入「生成中」
+      node.status = "generating";
     }
 
     if (isReasoning) {

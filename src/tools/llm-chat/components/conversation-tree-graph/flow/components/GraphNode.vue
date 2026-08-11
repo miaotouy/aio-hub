@@ -81,7 +81,7 @@ interface NodeData {
   isEnabled: boolean;
   timestamp: string;
   role: "user" | "assistant" | "system" | "tool";
-  status: "generating" | "complete" | "error";
+  status: "generating" | "waiting" | "complete" | "error";
   errorMessage?: string;
   subtitleInfo: {
     profileName: string;

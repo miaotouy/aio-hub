@@ -39,7 +39,7 @@ export interface CreateNodeConfig {
   role: MessageRole;
   content: string;
   parentId: string | null;
-  status?: "complete" | "generating" | "error";
+  status?: "complete" | "generating" | "waiting" | "error";
   isEnabled?: boolean;
   metadata?: Record<string, any>;
   attachments?: Asset[];
@@ -187,12 +187,12 @@ export function useNodeManager() {
       status: "complete",
     });
 
-    // 创建助手消息节点（初始为空）
+    // 创建助手消息节点（初始为空，等待请求发出后的首个内容）
     const assistantNode = createNode({
       role: "assistant",
       content: "",
       parentId: userNode.id,
-      status: "generating",
+      status: "waiting",
     });
 
     // 建立父子关系
@@ -295,7 +295,7 @@ export function useNodeManager() {
       role: "assistant",
       content: "",
       parentId: parentNodeId,
-      status: "generating",
+      status: "waiting",
     });
 
     // 添加到会话
@@ -335,7 +335,7 @@ export function useNodeManager() {
         role: "assistant",
         content: targetNode.content, // 初始内容等于原内容
         parentId: targetNode.parentId,
-        status: "generating",
+        status: "waiting",
         metadata: {
           ...cleanedMetadata,
           continuationPrefix: targetNode.content, // 记录原始前缀，用于后续拼接校验
@@ -363,7 +363,7 @@ export function useNodeManager() {
         role: "assistant",
         content: "", // 初始内容为空（因为是角色接力）
         parentId: targetNode.id,
-        status: "generating",
+        status: "waiting",
         metadata: {
           isContinuation: true,
         },

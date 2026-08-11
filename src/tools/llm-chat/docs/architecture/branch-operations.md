@@ -275,7 +275,7 @@
 
 1. 使用 `createMessagePair` 创建两个节点：
    - **用户节点**：`role: "user"`，`parentId` 为当前 `activeLeafId`
-   - **助手节点**：`role: "assistant"`，`parentId` 为用户节点的 ID，初始 `status: "generating"`
+   - **助手节点**：`role: "assistant"`，`parentId` 为用户节点的 ID，初始 `status: "waiting"`（请求发出后未收到首个内容前展示为等待中，收到首字后切换为 `generating`）
 2. 建立双向父子关系：用户节点的 `childrenIds` 包含助手节点 ID
 3. 两个节点依次添加到 `session.nodes`
 4. 更新 `activeLeafId` 为助手节点 ID
@@ -362,7 +362,7 @@
    - **助手消息**：取其父节点（用户消息），在该用户消息下创建新的助手回复作为兄弟
 
 2. **创建新助手节点**：
-   - `role: "assistant"`，`content: ""`，`status: "generating"`
+   - `role: "assistant"`，`content: ""`，`status: "waiting"`
    - 添加到会话，建立父子关系
 
 3. **元数据填充**（同发送消息）
@@ -562,7 +562,7 @@
 
 ### 6.3 僵死节点修复
 
-系统通过 `watch` 监听 `generatingNodes.size` 的变化。当生成节点减少时，检查当前会话中是否还有 `status: "generating"` 但不在 `generatingNodes` 集合中的节点：
+系统通过 `watch` 监听 `generatingNodes.size` 的变化。当生成节点减少时，检查当前会话中是否还有 `status: "generating"` 或 `status: "waiting"` 但不在 `generatingNodes` 集合中的节点：
 
 - 如果有内容 → 标记为 `complete`
 - 如果没有内容 → 标记为 `error`，附带错误信息 "生成意外中断"

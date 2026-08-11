@@ -61,7 +61,7 @@ export interface InterruptedGenerationRepairResult {
 }
 
 /**
- * 修复从磁盘加载出的残留 generating 节点。加载阶段没有对应运行时任务，
+ * 修复从磁盘加载出的残留 generating / waiting 节点。加载阶段没有对应运行时任务，
  * 因此这些状态必然来自崩溃、强退或进程终止。
  */
 export function repairInterruptedGeneratingNodes(
@@ -72,7 +72,12 @@ export function repairInterruptedGeneratingNodes(
   let erroredCount = 0;
 
   for (const node of Object.values(detail.nodes || {})) {
-    if (node.status !== "generating") continue;
+    if (
+      node.status !== "generating" &&
+      node.status !== "waiting"
+    ) {
+      continue;
+    }
     const hasContent =
       typeof node.content === "string" && node.content.trim().length > 0;
     node.status = hasContent ? "complete" : "error";

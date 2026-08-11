@@ -22,7 +22,7 @@ function createMessage(
 describe("messageStatus", () => {
   it.each([
     ["generating", "生成中"],
-    ["waiting", "等待"],
+    ["waiting", "等待中"],
     ["queued", "排队"],
     ["error", "错误"],
   ] as const)("maps %s to the expected label", (status, label) => {

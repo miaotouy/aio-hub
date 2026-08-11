@@ -165,7 +165,7 @@ export function createSessionGenerationManager(
             queuedAgentId ? { agentId: queuedAgentId } : undefined
           );
         } else {
-          queuedNode.status = "generating";
+          queuedNode.status = "waiting";
           logger.info(
             "检测到排队中的 Assistant 占位节点 (isQueued)，自动触发链式生成",
             {
@@ -232,7 +232,7 @@ export function createSessionGenerationManager(
             state.queuedSessionAgentIds.value.get(sessionId) ||
             pendingAssistant.metadata?.agentId;
           state.queuedSessionAgentIds.value.delete(sessionId);
-          pendingAssistant.status = "generating";
+          pendingAssistant.status = "waiting";
           logger.info(
             "检测到排队中的 Assistant 占位节点 (兜底)，自动触发链式生成",
             {

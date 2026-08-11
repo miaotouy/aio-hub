@@ -402,7 +402,7 @@ export function useToolCallOrchestrator() {
               childrenIds: [],
               role: "assistant",
               content: "",
-              status: "generating",
+              status: "waiting",
               timestamp: new Date().toISOString(),
               metadata: {
                 agentId: executionAgent.id,

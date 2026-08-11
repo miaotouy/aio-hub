@@ -85,7 +85,7 @@ export function getMessageStatusPresentation(
     Omit<MessageStatusPresentation, "status" | "detail">
   > = {
     generating: { label: "生成中" },
-    waiting: { label: "等待" },
+    waiting: { label: "等待中" },
     queued: { label: "排队" },
     complete: { label: "已完成" },
     error: { label: "错误" },

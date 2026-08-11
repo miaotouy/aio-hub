@@ -69,11 +69,13 @@ function node(
 function detail(id: string): ChatSessionDetail {
   const completed = node(`${id}-completed`, "已有正文");
   const interrupted = node(`${id}-interrupted`, "");
+  const interruptedWaiting = node(`${id}-interrupted-waiting`, "", "waiting");
   return {
     id,
     nodes: {
       [completed.id]: completed,
       [interrupted.id]: interrupted,
+      [interruptedWaiting.id]: interruptedWaiting,
     },
     rootNodeId: completed.id,
     activeLeafId: interrupted.id,
@@ -137,8 +139,12 @@ describe("sessionLifecycleManager 重启恢复", () => {
     expect(loaded.nodes["current-interrupted"].metadata?.error).toBe(
       "生成意外中断"
     );
+    expect(loaded.nodes["current-interrupted-waiting"].status).toBe("error");
+    expect(loaded.nodes["current-interrupted-waiting"].metadata?.error).toBe(
+      "生成意外中断"
+    );
     expect(loaded.updatedAt).not.toBe("2026-01-01T00:00:00.000Z");
-    expect(state.sessionIndexMap.value.get("current")?.messageCount).toBe(2);
+    expect(state.sessionIndexMap.value.get("current")?.messageCount).toBe(3);
     expect(sessionManager.persistSession).toHaveBeenCalledWith(
       expect.objectContaining({ id: "current" }),
       loaded,

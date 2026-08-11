@@ -263,7 +263,8 @@ const previewingAsset = ref<Asset | null>(null);
 // 判断是否正在推理中
 const isReasoning = computed(() => {
   return !!(
-    props.message.status === "generating" &&
+    (props.message.status === "generating" ||
+      props.message.status === "waiting") &&
     props.message.metadata?.reasoningContent &&
     !props.message.metadata?.reasoningEndTime &&
     !props.message.metadata?.error && // 如果有错误，停止动画
@@ -274,7 +275,8 @@ const isReasoning = computed(() => {
 // 判断是否正在生成内容（原文）
 const isGenerating = computed(() => {
   return !!(
-    props.message.status === "generating" &&
+    (props.message.status === "generating" ||
+      props.message.status === "waiting") &&
     !props.message.metadata?.error &&
     llmChatStore.isNodeGenerating(props.message.id) // 增加 store 校验
   );

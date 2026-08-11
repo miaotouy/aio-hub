@@ -131,7 +131,12 @@
     <div class="node-preview">
       {{ data.contentPreview }}
       <!-- 生成中指示器 -->
-      <div v-if="data.status === 'generating'" class="streaming-indicator">
+      <div
+        v-if="
+          data.status === 'generating' || data.status === 'waiting'
+        "
+        class="streaming-indicator"
+      >
         <span class="dot"></span>
         <span class="dot"></span>
         <span class="dot"></span>
@@ -190,7 +195,7 @@ interface NodeData {
   isActiveLeaf: boolean;
   timestamp: string;
   role: "user" | "assistant" | "system" | "tool";
-  status: "generating" | "complete" | "error";
+  status: "generating" | "waiting" | "complete" | "error";
   errorMessage?: string;
   subtitleInfo: {
     profileName: string;

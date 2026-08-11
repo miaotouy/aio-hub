@@ -508,7 +508,8 @@ export function useChatHandler() {
     );
 
     // 前置处理完成，进入真正的请求执行阶段。
-    assistantNode.status = "generating";
+    // 请求已发出但尚未收到任何流式内容时展示为等待中，收到首字后由 handleStreamUpdate 切换为生成中。
+    assistantNode.status = "waiting";
 
     // 计算完成后立即持久化一次，确保用户消息的 tokens 及时保存并触发 UI 更新
     if (sessionIndex) {

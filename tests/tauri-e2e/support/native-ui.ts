@@ -21,7 +21,7 @@ function getHelperPath(): string {
   const helperPath = process.env.AIO_E2E_NATIVE_UI_HELPER?.trim();
   if (!helperPath) {
     throw new Error(
-      "AIO_E2E_NATIVE_UI_HELPER is missing. Run the suite through bun run test:tauri:e2e:native."
+      "AIO_E2E_NATIVE_UI_HELPER is missing. Run the suite through bun run test:tauri:e2e -- --preset native."
     );
   }
   return path.resolve(helperPath);

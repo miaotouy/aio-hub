@@ -245,7 +245,7 @@ Ollama lane 使用明确支持所测附件类型的模型，例如视觉模型�
 - [x] 增加专用单 ABI E2E 打包模式，在保留 WebView 调试与失败诊断能力的前提下剥离 APK 内无需的 JNI debug symbol。
 - [x] 实现失败截图、hierarchy、DOM 摘要、logcat 和脱敏结果聚合。
 - [x] 增加纯 Bun 单元测试，覆盖设备选择、ABI/target 映射、多 ABI APK 拒绝、第三方模拟器拒绝、命令参数和清理所有权。
-- [x] 在根 `package.json` 增加 `test:mobile:e2e`、`test:mobile:e2e:unit` 与具名 preset 入口。
+- [x] 在根 `package.json` 保留 `test:mobile:e2e` 入口，由 `scripts/e2e.ts` 统一分发 runner、单元测试、类型检查与具名 preset。
 
 ### 阶段二：Smoke 与资产主流程
 

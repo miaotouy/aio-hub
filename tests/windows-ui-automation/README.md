@@ -18,11 +18,10 @@ the system-owned dialog.
 Run the integrated native suite with:
 
 ```powershell
-bun run test:tauri:e2e:native
+bun run test:tauri:e2e -- --preset native
 ```
 
-The short alias delegates to the `native` preset. The equivalent generic entry
-point is `bun run test:tauri:e2e -- --preset native`; use
+The `native` preset is opt-in through this entry point; use
 `bun run test:tauri:e2e -- --list-presets` to inspect its runtime requirements.
 
 The Bun runner builds the helper, creates isolated file/directory fixtures,

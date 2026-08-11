@@ -20,13 +20,13 @@ release gate.
 Build a target-ABI debug APK and run the core regression preset:
 
 ```powershell
-bun tests/mobile-android-e2e/run.ts --preset core --avd Medium_Phone_API_36
+bun run test:mobile:e2e -- --preset core --avd Medium_Phone_API_36
 ```
 
 Use a prebuilt APK and an explicit serial when the AVD is already running:
 
 ```powershell
-bun tests/mobile-android-e2e/run.ts --preset attachment `
+bun run test:mobile:e2e -- --preset attachment `
   --serial emulator-5554 `
   --apk mobile/src-tauri/target/release/bundle/android/AIO-Hub_0.1.1-m-beta.2_android-x86_64-debug.apk
 ```
@@ -39,7 +39,7 @@ when exercising that path.
 Run the managed media regression lane:
 
 ```powershell
-bun tests/mobile-android-e2e/run.ts --preset media --avd Medium_Phone_API_36
+bun run test:mobile:e2e -- --preset media --avd Medium_Phone_API_36
 ```
 
 This imports generated three-second WAV and H.264 MP4 fixtures through DocumentsUI.
@@ -57,7 +57,7 @@ behavior.
 Run the RichText narrow-screen regression lane:
 
 ```powershell
-bun tests/mobile-android-e2e/run.ts --preset rich-text --avd Medium_Phone_API_36
+bun run test:mobile:e2e -- --preset rich-text --avd Medium_Phone_API_36
 ```
 
 This verifies the in-app RichText test page through the Android WebView: normal
@@ -71,7 +71,7 @@ memory acceptance.
 Run the RichText managed-media regression lane:
 
 ```powershell
-bun tests/mobile-android-e2e/run.ts --preset rich-text-media --avd Medium_Phone_API_36
+bun run test:mobile:e2e -- --preset rich-text-media --avd Medium_Phone_API_36
 ```
 
 This sends a message that owns an imported image attachment and embeds it as
@@ -86,14 +86,14 @@ It does not cover multi-touch or drag-dismiss gestures.
 Run the Ollama attachment lane explicitly:
 
 ```powershell
-bun tests/mobile-android-e2e/run.ts --preset ollama `
+bun run test:mobile:e2e -- --preset ollama `
   --serial emulator-5554 `
   --apk mobile/src-tauri/target/release/bundle/android/AIO-Hub_0.1.1-m-beta.2_android-x86_64-debug.apk `
   --ollama-model qwen3.5:9b --require-ollama
 ```
 
-The root scripts also expose `bun run test:mobile:e2e` and
-`bun run test:mobile:e2e:unit`.
+Use the root CLI for all Android E2E modes: `bun run test:mobile:e2e`,
+`bun run test:mobile:e2e -- --unit`, and `bun run test:mobile:e2e -- --typecheck`.
 
 For repeated stability runs, let the runner own a fresh AVD lifecycle for each
 iteration. Do not pass `--serial` or `--keep-avd` in this lane; each completed
@@ -104,7 +104,7 @@ runs.
 ```powershell
 $apk = "mobile/src-tauri/target/release/bundle/android/AIO-Hub_0.1.1-m-beta.2_android-x86_64-debug.apk"
 1..10 | ForEach-Object {
-  bun tests/mobile-android-e2e/run.ts --preset core `
+  bun run test:mobile:e2e -- --preset core `
     --avd Medium_Phone_API_36 --apk $apk
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }

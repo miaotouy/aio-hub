@@ -537,7 +537,7 @@ E2E 第二批施工记录（2026-07-19）：
 Windows 原生选择器集成记录（2026-07-19）：
 
 - 运行基线按当前 Windows 10 环境确定；未引入 WinAppDriver/Appium。新增 `tests/windows-ui-automation/AioHub.NativeUi`，使用 FlaUI UIA3 直接操作系统文件/目录对话框，并提供不操作窗口的 `probe` 环境检查。
-- `bun run test:tauri:e2e:native` 作为 opt-in 入口：构建 helper、创建隔离文件/目录 fixture、向 WDIO 传递 helper/fixture 路径并启用 `native-file-dialog.spec.ts`；普通 Tauri E2E 不增加 .NET 前置要求。
+- `bun run test:tauri:e2e -- --preset native` 作为 opt-in 入口：构建 helper、创建隔离文件/目录 fixture、向 WDIO 传递 helper/fixture 路径并启用 `native-file-dialog.spec.ts`；普通 Tauri E2E 不增加 .NET 前置要求。
 - WDIO 通过只读 `wa_get_self_pid` 获取当前实例 PID，避免残留 debug 实例导致 helper 命中错误对话框；路径、文件名和确认动作分别使用地址栏/文件名 `ValuePattern` 与按钮 `InvokePattern`，不依赖本地化标题或固定坐标。
 - Windows 10 `10.0.19045` 实测 `native-file-dialog.spec.ts` 2/2 通过：文件选择后文档成功落库并显示，目录选择后持久来源成功新增。原生动作前保存有界 UIA 树，失败时保存桌面截图。
 - 实测同时修复队列导入完成后未刷新资料库/文档状态的问题。该层只完成系统选择器，绝对路径拖放仍需后续通过 Explorer 真实文件项和指针拖动补齐。

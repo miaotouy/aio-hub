@@ -108,7 +108,7 @@
 
 ```text
 bun run test:run -- src/flows src/services/guided-flow src/components/common/GuidedFlow scripts/__tests__/check-release-notes.test.ts
-bun run test:tauri:e2e:unit
+bun run test:tauri:e2e -- --unit
 bun run check:release-notes
 bun run check:frontend
 bun run format:check

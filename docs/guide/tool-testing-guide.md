@@ -389,11 +389,11 @@ Authorization header。
 WDIO 和 WebView2 CDP 只能直接控制 Tauri WebView。Windows 原生文件/目录选择器使用独立的 FlaUI/UIA3 helper：
 
 ```powershell
-bun run test:tauri:e2e:native
+bun run test:tauri:e2e -- --preset native
 ```
 
-该短别名由 `native` preset 装配；需要统一通用入口时可运行
-`bun run test:tauri:e2e -- --preset native`。
+该 `native` preset 由统一 E2E CLI 装配；可运行
+`bun run test:tauri:e2e -- --list-presets` 查看运行前提。
 
 该入口只在 Windows 10 及以上、已登录且未锁屏的交互式桌面运行。helper 与 AIO Hub 必须属于同一用户和相同完整性级别。原生 selector 按进程、Owner/模态窗口、AutomationId、ControlType 和 UIA Pattern 定位；Win10 Common Item Dialog 的 `#32770` 仅作为辅助信号，不依赖“打开”“文件名”等本地化文案。每次动作前保存 UIA 树，失败时额外保存桌面截图。详细契约见 [`tests/windows-ui-automation/README.md`](../../tests/windows-ui-automation/README.md)。
 
@@ -403,7 +403,7 @@ bun run test:tauri:e2e:native
 
 ## 9. Android AVD E2E 与本机模型边界
 
-仓库入口：`bun run test:mobile:e2e:unit` 运行 runner 单元测试；`bun run test:mobile:e2e -- --preset core` 运行核心 AVD 回归。runner 使用 Bun、Appium 2、UiAutomator2 和目标 AVD 主 ABI 的单 ABI APK；完整命令、preset 和失败产物见 [`tests/mobile-android-e2e/README.md`](../../tests/mobile-android-e2e/README.md)。
+仓库入口：`bun run test:mobile:e2e -- --unit` 运行 runner 单元测试；`bun run test:mobile:e2e -- --preset core` 运行核心 AVD 回归。runner 使用 Bun、Appium 2、UiAutomator2 和目标 AVD 主 ABI 的单 ABI APK；完整命令、preset 和失败产物见 [`tests/mobile-android-e2e/README.md`](../../tests/mobile-android-e2e/README.md)。
 
 具名 preset 默认执行 80 MiB 单 ABI E2E debug APK 大小门禁；`e2e-run.json` 只保留 APK 文件名，Appium、emulator、DOM、UI hierarchy、logcat 和 activity 产物在落盘前统一脱敏。需要审查有意的 APK 基线变更时显式传入 `--max-apk-bytes`。
 

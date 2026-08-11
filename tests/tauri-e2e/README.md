@@ -52,7 +52,7 @@ without replacing runtime settings.
 Pure runner, fixture, mock, and corpus checks run without opening the app:
 
 ```powershell
-bun run test:tauri:e2e:unit
+bun run test:tauri:e2e -- --unit
 ```
 
 Named presets own the stable Recall, corpus, model, recovery, and native suite
@@ -217,7 +217,7 @@ process recovery without depending on cross-spec in-memory state.
 On Windows 10 or later, run the opt-in native suite with:
 
 ```powershell
-bun run test:tauri:e2e:native
+bun run test:tauri:e2e -- --preset native
 ```
 
 This mode builds the FlaUI/UIA3 helper under `tests/windows-ui-automation/`,

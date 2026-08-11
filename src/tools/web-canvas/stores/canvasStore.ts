@@ -48,8 +48,15 @@ export const useCanvasStore = defineStore("canvas", () => {
   const activeCanvasId = ref<string | null>(null);
   // 当前正在编辑的文件路径
   const activeFile = ref<string | null>(null);
-  // 未提交的文件状态: filepath -> status ('new'|'modified'|'deleted')
-  const dirtyFiles = ref<Map<string, string>>(new Map());
+  // 未提交的文件状态，按画布隔离：canvasId -> (filepath -> status)
+  const dirtyFilesByCanvas = ref<Map<string, Map<string, string>>>(new Map());
+  const emptyDirtyFiles = new Map<string, string>();
+  // 兼容现有界面：默认暴露当前激活画布的变更状态。
+  const dirtyFiles = computed(
+    () =>
+      dirtyFilesByCanvas.value.get(activeCanvasId.value || "") ||
+      emptyDirtyFiles
+  );
   // 是否正在加载
   const isLoading = ref(false);
 
@@ -90,6 +97,59 @@ export const useCanvasStore = defineStore("canvas", () => {
   // 当前激活画布是否有未提交的更改
   const hasPendingChanges = computed(() => dirtyFiles.value.size > 0);
 
+  function getDirtyFiles(canvasId: string): Map<string, string> {
+    return dirtyFilesByCanvas.value.get(canvasId) || emptyDirtyFiles;
+  }
+
+  // 外部编辑器（例如 VS Code）修改项目文件时的监听状态。
+  let watchedCanvasId: string | null = null;
+  let stopCanvasFileWatch: (() => void) | null = null;
+  let externalChangeTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function isInternalCanvasPath(path: string): boolean {
+    const normalized = path.replace(/\\/g, "/");
+    return (
+      normalized.includes("/.git/") || normalized.endsWith("/.canvas.json")
+    );
+  }
+
+  function stopWatchingCanvasFiles() {
+    stopCanvasFileWatch?.();
+    stopCanvasFileWatch = null;
+    watchedCanvasId = null;
+    if (externalChangeTimer) {
+      clearTimeout(externalChangeTimer);
+      externalChangeTimer = null;
+    }
+  }
+
+  async function startWatchingCanvasFiles(canvasId: string) {
+    if (watchedCanvasId === canvasId && stopCanvasFileWatch) return;
+
+    stopWatchingCanvasFiles();
+    try {
+      stopCanvasFileWatch = await storage.watchCanvasFiles(
+        canvasId,
+        (paths) => {
+          if (!paths.some((path) => !isInternalCanvasPath(path))) return;
+
+          if (externalChangeTimer) clearTimeout(externalChangeTimer);
+          externalChangeTimer = setTimeout(async () => {
+            externalChangeTimer = null;
+            // watcher 同时会收到本应用的写入事件；重复刷新是幂等的，
+            // 但统一从磁盘刷新可确保外部编辑器修改也被正确同步。
+            errorModule.markErrorsAsStale(canvasId);
+            await refreshGitStatus(canvasId);
+            emitFileChanged(canvasId, "*");
+          }, 300);
+        }
+      );
+      watchedCanvasId = canvasId;
+    } catch (error) {
+      logger.warn("启动画布文件监听失败", { canvasId, error });
+    }
+  }
+
   // --- Actions ---
 
   /**
@@ -126,7 +186,9 @@ export const useCanvasStore = defineStore("canvas", () => {
         }
       }
     }
-    dirtyFiles.value = dirty;
+    const nextDirtyFilesByCanvas = new Map(dirtyFilesByCanvas.value);
+    nextDirtyFilesByCanvas.set(canvasId, dirty);
+    dirtyFilesByCanvas.value = nextDirtyFilesByCanvas;
 
     // 更新列表中的状态
     const item = canvasList.value.find((c) => c.metadata.id === canvasId);
@@ -269,6 +331,7 @@ export const useCanvasStore = defineStore("canvas", () => {
     }
 
     await refreshGitStatus(canvasId);
+    await startWatchingCanvasFiles(canvasId);
 
     // 更新列表中的状态
     canvasList.value.forEach((item) => {
@@ -306,6 +369,9 @@ export const useCanvasStore = defineStore("canvas", () => {
     return await errorHandler.wrapAsync(
       async () => {
         // 1. 磁盘删除
+        if (watchedCanvasId === canvasId) {
+          stopWatchingCanvasFiles();
+        }
         await storage.deleteCanvas(canvasId);
 
         // 2. 索引删除
@@ -313,7 +379,9 @@ export const useCanvasStore = defineStore("canvas", () => {
 
         if (activeCanvasId.value === canvasId) {
           activeCanvasId.value = null;
-          dirtyFiles.value.clear();
+          const nextDirtyFilesByCanvas = new Map(dirtyFilesByCanvas.value);
+          nextDirtyFilesByCanvas.delete(canvasId);
+          dirtyFilesByCanvas.value = nextDirtyFilesByCanvas;
         }
         await loadCanvasList();
       },
@@ -473,7 +541,7 @@ export const useCanvasStore = defineStore("canvas", () => {
    */
   async function getFileTree(canvasId: string): Promise<CanvasFileNode[]> {
     const physicalTree = await storage.getCanvasFileTree(canvasId);
-    const dirty = dirtyFiles.value;
+    const dirty = getDirtyFiles(canvasId);
 
     const markStatus = (nodes: CanvasFileNode[]): CanvasFileNode[] => {
       return nodes.map((node) => ({
@@ -556,6 +624,7 @@ export const useCanvasStore = defineStore("canvas", () => {
     activeCanvasId,
     activeFile,
     dirtyFiles,
+    getDirtyFiles,
     isLoading,
     activeCanvas,
     hasPendingChanges,

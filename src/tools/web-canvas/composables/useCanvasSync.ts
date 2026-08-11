@@ -32,6 +32,7 @@ export function useCanvasSync() {
   let isInitialized = false;
   const stateEngines: ReturnType<typeof useStateSyncEngine>[] = [];
   let fileChangedUnlisten: (() => void) | null = null;
+  let runtimeErrorUnlisten: (() => void) | null = null;
 
   onUnmounted(() => {
     cleanupEngines();
@@ -46,6 +47,10 @@ export function useCanvasSync() {
     if (fileChangedUnlisten) {
       fileChangedUnlisten();
       fileChangedUnlisten = null;
+    }
+    if (runtimeErrorUnlisten) {
+      runtimeErrorUnlisten();
+      runtimeErrorUnlisten = null;
     }
     isInitialized = false;
   }
@@ -73,7 +78,7 @@ export function useCanvasSync() {
     // 监听 store 的文件变更事件，广播到分离窗口
     fileChangedUnlisten = store.onFileChanged((canvasId, filepath) => {
       const targetLabel = windowManager.getWindowLabel(canvasId);
-      bus.syncState(
+      void bus.syncState(
         "canvas:file-changed" as any,
         {
           canvasId,
@@ -84,6 +89,45 @@ export function useCanvasSync() {
         false,
         targetLabel
       );
+    });
+
+    // 预览窗口的 Pinia 与主窗口隔离，运行时错误必须显式回传。
+    runtimeErrorUnlisten = bus.onMessage("state-sync", (payload: any) => {
+      if (payload.stateType !== "canvas:runtime-error" || !payload.isFull) {
+        return;
+      }
+
+      const error = payload.data as Record<string, unknown> | undefined;
+      if (
+        !error ||
+        typeof error.canvasId !== "string" ||
+        typeof error.message !== "string" ||
+        !error.message ||
+        (error.level !== "error" &&
+          error.level !== "warn" &&
+          error.level !== "info") ||
+        typeof error.timestamp !== "number"
+      ) {
+        logger.warn("忽略格式非法的 Canvas 运行时错误同步消息");
+        return;
+      }
+
+      store.addRuntimeError({
+        canvasId: error.canvasId,
+        level: error.level,
+        message: error.message.slice(0, 8_000),
+        filename:
+          typeof error.filename === "string"
+            ? error.filename.slice(0, 8_000)
+            : undefined,
+        lineno: typeof error.lineno === "number" ? error.lineno : undefined,
+        colno: typeof error.colno === "number" ? error.colno : undefined,
+        stack:
+          typeof error.stack === "string"
+            ? error.stack.slice(0, 16_000)
+            : undefined,
+        timestamp: error.timestamp,
+      });
     });
 
     // 处理窗口打开事件（全量同步）

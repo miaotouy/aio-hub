@@ -25,7 +25,8 @@
       class="preview-iframe"
       :src="previewSrc || undefined"
       :srcdoc="previewSrcdoc || undefined"
-      sandbox="allow-scripts allow-same-origin allow-popups"
+      sandbox="allow-scripts"
+      @load="emit('load')"
     ></iframe>
   </div>
 </template>
@@ -41,7 +42,8 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: "console-message", payload: any): void;
+  (e: "console-message", payload: CanvasPreviewMessage): void;
+  (e: "load"): void;
 }>();
 
 const iframeRef = ref<HTMLIFrameElement | null>(null);
@@ -50,10 +52,87 @@ defineExpose({
   iframe: iframeRef,
 });
 
+interface CanvasPreviewMessage {
+  type: "canvas-console" | "canvas-runtime-error";
+  level?: "log" | "warn" | "error" | "info";
+  args?: string[];
+  message?: string;
+  filename?: string;
+  lineno?: number;
+  colno?: number;
+  stack?: string;
+  timestamp: number;
+}
+
+const MAX_MESSAGE_LENGTH = 8_000;
+const MAX_STACK_LENGTH = 16_000;
+const MAX_CONSOLE_ARGS = 50;
+
+function boundedText(value: unknown, maxLength: number): string | undefined {
+  if (typeof value !== "string") return undefined;
+  return value.slice(0, maxLength);
+}
+
+function sanitizePreviewMessage(data: unknown): CanvasPreviewMessage | null {
+  if (!data || typeof data !== "object") return null;
+
+  const payload = data as Record<string, unknown>;
+  const type = payload.type;
+  if (type !== "canvas-console" && type !== "canvas-runtime-error") {
+    return null;
+  }
+
+  const level = payload.level;
+  const safeLevel =
+    level === "log" || level === "warn" || level === "error" || level === "info"
+      ? level
+      : type === "canvas-runtime-error"
+        ? "error"
+        : "log";
+
+  const timestamp =
+    typeof payload.timestamp === "number" && Number.isFinite(payload.timestamp)
+      ? payload.timestamp
+      : Date.now();
+
+  if (type === "canvas-console") {
+    const args = Array.isArray(payload.args)
+      ? payload.args
+          .filter((arg): arg is string => typeof arg === "string")
+          .slice(0, MAX_CONSOLE_ARGS)
+          .map((arg) => arg.slice(0, MAX_MESSAGE_LENGTH))
+      : [];
+    return { type, level: safeLevel, args, timestamp };
+  }
+
+  const message = boundedText(payload.message, MAX_MESSAGE_LENGTH);
+  if (!message) return null;
+
+  return {
+    type,
+    level: safeLevel,
+    message,
+    filename: boundedText(payload.filename, MAX_MESSAGE_LENGTH),
+    lineno: typeof payload.lineno === "number" ? payload.lineno : undefined,
+    colno: typeof payload.colno === "number" ? payload.colno : undefined,
+    stack: boundedText(payload.stack, MAX_STACK_LENGTH),
+    timestamp,
+  };
+}
+
 const handleMessage = (event: MessageEvent) => {
-  const type = event.data?.type;
-  if (type === "canvas-console" || type === "canvas-runtime-error") {
-    emit("console-message", event.data);
+  // srcdoc iframe 通过 sandbox="allow-scripts" 获得 opaque origin（序列化为 "null"）。
+  // source 校验是主防线，避免页面中其他 frame / 窗口伪造 Agent 可见的运行时错误。
+  if (
+    event.source !== iframeRef.value?.contentWindow ||
+    event.origin !== "null"
+  ) {
+    return;
+  }
+
+  const payload = sanitizePreviewMessage(event.data);
+  if (payload) {
+    emit("console-message", payload);
   }
 };
 

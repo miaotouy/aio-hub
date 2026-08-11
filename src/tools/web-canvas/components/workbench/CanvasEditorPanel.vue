@@ -15,7 +15,7 @@
 -->
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import {
   ArrowLeft,
   Save,
@@ -31,7 +31,7 @@ import type { CanvasFileNode } from "../../types";
 import CanvasFileTree from "../sidebar/CanvasFileTree.vue";
 import PendingChangesBar from "../shared/PendingChangesBar.vue";
 import CanvasMonacoEditor from "../editor/CanvasMonacoEditor.vue";
-import { useDebounceFn } from "@vueuse/core";
+import { debounce } from "lodash-es";
 import { customMessage } from "@/utils/customMessage";
 import { useCanvasWindowManager } from "../../composables/useCanvasWindowManager";
 
@@ -90,13 +90,19 @@ const loadFileTree = async () => {
 };
 
 const handleSelectFile = async (path: string) => {
+  if (path !== activeTab.value) {
+    await flushPendingWrite();
+  }
   if (!openTabs.value.includes(path)) {
     openTabs.value.push(path);
   }
   activeTab.value = path;
 };
 
-const closeTab = (path: string) => {
+const closeTab = async (path: string) => {
+  if (path === activeTab.value) {
+    await flushPendingWrite();
+  }
   const index = openTabs.value.indexOf(path);
   if (index !== -1) {
     openTabs.value.splice(index, 1);
@@ -124,27 +130,38 @@ const loadActiveFileContent = async () => {
   }
 };
 
-// 重构后：写入物理文件
-const debouncedWriteFile = useDebounceFn(async (content: string) => {
-  if (activeTab.value) {
-    await store.writeFilePhysical(props.canvasId, activeTab.value, content);
-    // 刷新文件树以更新修改状态
-    loadFileTree();
-  }
-}, 500); // 防抖延长，减少磁盘写入频率
+interface PendingFileWrite {
+  canvasId: string;
+  filepath: string;
+  content: string;
+}
+
+// 防抖任务必须捕获原始文件路径，不能在回调执行时读取已切换的 activeTab。
+const debouncedWriteFile = debounce(async (write: PendingFileWrite) => {
+  await store.writeFilePhysical(write.canvasId, write.filepath, write.content);
+  await loadFileTree();
+}, 500);
+
+async function flushPendingWrite() {
+  await debouncedWriteFile.flush();
+}
 
 const handleContentChange = (content: string) => {
   fileContent.value = content;
-  debouncedWriteFile(content);
+  const filepath = activeTab.value;
+  if (!filepath) return;
+  debouncedWriteFile({ canvasId: props.canvasId, filepath, content });
 };
 
 const handleCommit = async () => {
+  await flushPendingWrite();
   await store.commitChanges(props.canvasId);
   customMessage.success("更改已提交");
   loadFileTree();
 };
 
 const handleDiscard = async () => {
+  debouncedWriteFile.cancel();
   await store.discardChanges(props.canvasId);
   customMessage.info("已丢弃更改");
   loadFileTree();
@@ -166,6 +183,8 @@ const handlePreview = async () => {
 
 // --- 生命周期与监听 ---
 
+let stopFileChangedListener: (() => void) | null = null;
+
 onMounted(() => {
   loadFileTree();
   // 默认打开入口文件
@@ -174,8 +193,11 @@ onMounted(() => {
   }
 
   // 监听文件变更事件 (如 AI 写入)
-  store.onFileChanged((canvasId, filepath) => {
-    if (canvasId === props.canvasId && filepath === activeTab.value) {
+  stopFileChangedListener = store.onFileChanged((canvasId, filepath) => {
+    if (
+      canvasId === props.canvasId &&
+      (filepath === "*" || filepath === activeTab.value)
+    ) {
       loadActiveFileContent();
     }
     if (canvasId === props.canvasId) {
@@ -187,6 +209,14 @@ onMounted(() => {
 watch(activeTab, (newTab) => {
   loadActiveFileContent();
   store.activeFile = newTab;
+});
+
+onUnmounted(() => {
+  stopFileChangedListener?.();
+  stopFileChangedListener = null;
+  // 路由切换不能让旧编辑器的异步防抖任务写入后来打开的文件。
+  void flushPendingWrite();
+  debouncedWriteFile.cancel();
 });
 </script>
 
@@ -261,7 +291,7 @@ watch(activeTab, (newTab) => {
         <div class="sidebar-section changes">
           <PendingChangesBar
             :canvas-id="canvasId"
-            :dirty-files="store.dirtyFiles"
+            :dirty-files="store.getDirtyFiles(canvasId)"
             @commit="handleCommit"
             @discard="handleDiscard"
           />
@@ -303,7 +333,8 @@ watch(activeTab, (newTab) => {
       </div>
       <div class="footer-right">
         <span class="status-item">
-          <History :size="12" /> {{ store.dirtyFiles.size }} 个未提交更改
+          <History :size="12" />
+          {{ store.getDirtyFiles(canvasId).size }} 个未提交更改
         </span>
       </div>
     </footer>

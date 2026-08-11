@@ -12,20 +12,62 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { appDataDir, join } from "@tauri-apps/api/path";
+import { appDataDir, dirname, join } from "@tauri-apps/api/path";
 import {
   readTextFile,
   writeTextFile,
   mkdir,
   exists,
+  remove,
+  watch,
+  type UnwatchFn,
 } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { CanvasMetadata, CanvasFileNode } from "../types";
+import { isValidCanvasId } from "../utils/id";
 
 const logger = createModuleLogger("Canvas/Storage");
 const errorHandler = createModuleErrorHandler("Canvas/Storage");
+
+/**
+ * 只接受工具生成的稳定项目 ID，避免将 Agent 参数直接拼接到文件系统路径。
+ */
+function assertCanvasId(canvasId: string): void {
+  if (!isValidCanvasId(canvasId)) {
+    throw new Error("无效的画布 ID");
+  }
+}
+
+/**
+ * 将路径限制为画布目录内的相对文件路径。
+ * 统一拒绝绝对路径、Windows 盘符、空段、当前目录和父目录，防止路径穿越。
+ */
+export function normalizeCanvasRelativePath(filepath: string): string {
+  if (typeof filepath !== "string" || !filepath.trim()) {
+    throw new Error("文件路径不能为空");
+  }
+
+  const normalized = filepath.replace(/\\/g, "/");
+  if (
+    normalized.startsWith("/") ||
+    normalized.startsWith("//") ||
+    /^[A-Za-z]:($|\/)/.test(normalized) ||
+    normalized.includes("\0")
+  ) {
+    throw new Error("文件路径必须是画布目录内的相对路径");
+  }
+
+  const segments = normalized.split("/");
+  if (
+    segments.some((segment) => !segment || segment === "." || segment === "..")
+  ) {
+    throw new Error("文件路径不能包含空目录、当前目录或父目录");
+  }
+
+  return segments.join("/");
+}
 
 /**
  * 画布存储管理 Composable
@@ -35,6 +77,7 @@ export function useCanvasStorage() {
    * 获取画布根路径
    */
   async function getCanvasBasePath(canvasId: string) {
+    assertCanvasId(canvasId);
     const dataDir = await appDataDir();
     return await join(dataDir, "canvases", "projects", canvasId);
   }
@@ -65,7 +108,8 @@ export function useCanvasStorage() {
     return await errorHandler.wrapAsync(
       async () => {
         const basePath = await getCanvasBasePath(canvasId);
-        const fullPath = await join(basePath, filepath);
+        const safePath = normalizeCanvasRelativePath(filepath);
+        const fullPath = await join(basePath, safePath);
         return await readTextFile(fullPath);
       },
       { userMessage: "读取文件失败" }
@@ -83,16 +127,10 @@ export function useCanvasStorage() {
     return await errorHandler.wrapAsync(
       async () => {
         const basePath = await ensureCanvasDir(canvasId);
-        const fullPath = await join(basePath, filepath);
-
-        // 确保父目录存在
-        // 处理 Windows 路径分隔符
-        const normalizedPath = fullPath.replace(/\\/g, "/");
-        const parentDir = normalizedPath.substring(
-          0,
-          normalizedPath.lastIndexOf("/")
-        );
-        if (parentDir && !(await exists(parentDir))) {
+        const safePath = normalizeCanvasRelativePath(filepath);
+        const fullPath = await join(basePath, safePath);
+        const parentDir = await dirname(fullPath);
+        if (!(await exists(parentDir))) {
           await mkdir(parentDir, { recursive: true });
         }
 
@@ -110,18 +148,29 @@ export function useCanvasStorage() {
     return await errorHandler.wrapAsync(
       async () => {
         const basePath = await getCanvasBasePath(canvasId);
-        const fullPath = await join(basePath, filepath);
+        const safePath = normalizeCanvasRelativePath(filepath);
+        const fullPath = await join(basePath, safePath);
         if (await exists(fullPath)) {
-          // 这里使用 invoke 调用 Rust 后端的删除，或者直接使用 fs.remove
-          // 为了保持一致性，如果只是删除文件，可以使用 remove
-          await invoke("delete_file_in_app_data", {
-            relativePath: `canvases/projects/${canvasId}/${filepath}`,
-          });
+          await remove(fullPath);
           logger.info("物理文件已删除", { fullPath });
         }
       },
       { userMessage: "删除文件失败" }
     );
+  }
+
+  /**
+   * 监听当前画布目录的外部文件变更。调用方负责释放返回的监听器。
+   */
+  async function watchCanvasFiles(
+    canvasId: string,
+    onChange: (paths: string[]) => void
+  ): Promise<UnwatchFn> {
+    const basePath = await getCanvasBasePath(canvasId);
+    return await watch(basePath, (event) => onChange(event.paths), {
+      recursive: true,
+      delayMs: 250,
+    });
   }
 
   /**
@@ -198,6 +247,7 @@ export function useCanvasStorage() {
   async function deleteCanvas(canvasId: string) {
     return await errorHandler.wrapAsync(
       async () => {
+        assertCanvasId(canvasId);
         // 使用 Rust 后端的安全删除指令
         await invoke("delete_directory_in_app_data", {
           relativePath: `canvases/projects/${canvasId}`,
@@ -275,5 +325,6 @@ export function useCanvasStorage() {
     deleteCanvas,
     getCanvasFileTree,
     deletePhysicalFile,
+    watchCanvasFiles,
   };
 }

@@ -50,7 +50,10 @@ export function useCanvasStateConsumer() {
 
     // 监听文件变更通知
     unlistenFn = bus.onMessage("state-sync", (payload: any) => {
-      if (payload.stateType === "canvas:file-changed") {
+      if (
+        payload.stateType === "canvas:file-changed" &&
+        payload.data?.canvasId === activeCanvasId.value
+      ) {
         lastFileChangeTimestamp.value = payload.data.timestamp;
         logger.info("收到文件变更通知", {
           canvasId: payload.data.canvasId,

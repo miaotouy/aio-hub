@@ -33,9 +33,11 @@ import CanvasEditorPanel from "./components/workbench/CanvasEditorPanel.vue";
 import CanvasSettings from "./components/CanvasSettings.vue";
 import { customMessage } from "@/utils/customMessage";
 import { useCanvasWindowManager } from "./composables/useCanvasWindowManager";
+import { useCanvasSync } from "./composables/useCanvasSync";
 
 const store = useCanvasStore();
 const windowManager = useCanvasWindowManager();
+useCanvasSync();
 
 // --- 状态 ---
 const viewMode = ref<"grid" | "list">("grid");

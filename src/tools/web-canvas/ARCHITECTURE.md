@@ -87,7 +87,7 @@ web-canvas 通过 `web-canvas.registry.ts` 暴露了一套完整的 Agent 可调
 | `clear_runtime_errors` | 清空运行时错误                   | `canvasId?`                                |
 
 - **上下文注入**: `CanvasAgentService.getExtraPromptContext()` 为 Agent 提供当前画布的项目结构、文件树、未提交变更和运行时错误信息。
-- **审批钩子**: `onToolCallPreview` 在 Agent 操作前先应用变更到磁盘，让用户在预览中实时确认效果。`onToolCallDiscarded` 在拒绝后根据文件状态执行回滚：若为新文件则物理删除，若为已有文件则通过 Git `checkout` 恢复。
+- **审批钩子**: `onToolCallPreview` 只登记待审批请求，不修改物理文件；用户批准后才由正式工具方法执行一次。拒绝时仅清理内存记录，绝不能用 Git `checkout` 覆盖审批前已有的未提交修改。
 - **隐式创建**: Agent 操作（如 `apply_canvas_diff`）在无活动画布时会通过 `ensureActiveCanvas()` 隐式创建一个新画布，确保协作流不中断。
 
 ### 1.6. 运行时错误捕获 (Runtime Error Capture)
@@ -111,16 +111,20 @@ flowchart LR
         C1[postMessage 通信]
     end
 
-    subgraph Process[主窗口处理]
-        P1[useCanvasErrors]
-        P2[去重 & 限流]
-        P3[格式化 Agent 上下文]
+    subgraph Detached[独立预览窗口]
+        D1[来源校验 & payload 限制]
+        D2[独立窗口 Pinia]
     end
 
-    E1 --> C1
-    E2 --> C1
-    E3 --> C1
-    C1 --> P1 --> P2 --> P3
+    subgraph Process[主窗口处理]
+        P1[状态总线 canvas:runtime-error]
+        P2[useCanvasErrors]
+        P3[去重 & 限流]
+        P4[格式化 Agent 上下文]
+    end
+
+    E1 --> C1 --> D1 --> D2
+    D2 --> P1 --> P2 --> P3 --> P4
 ```
 
 ### 1.7. 预览引擎 (Preview Engine)
@@ -133,7 +137,9 @@ flowchart LR
   2. 使用 Tauri 的 `convertFileSrc` 将物理路径转换为 `asset://` URL。
   3. 在 HTML 的 `<head>` 中注入 `<base>` 标签（确保相对路径资源正确加载）。
   4. 注入控制台捕获和错误监听脚本。
-  5. 使用 `srcdoc` 属性渲染到 `iframe` 中。
+  5. 注入预览专用 CSP；iframe 仅允许 `allow-scripts`，不授予 `allow-same-origin`。
+  6. 父窗口只接受目标 iframe 且 opaque origin 为 `null` 的 `postMessage`，并限制 payload 长度。
+  7. 使用 `srcdoc` 属性渲染到 `iframe` 中。
 - **防抖刷新**: `refreshPreview` 使用 `debounce(300ms)` 防止频繁的文件变更导致过度刷新。
 - **Console 消息**: 通过 `postMessage` 实现 `iframe` 与主窗口的控制台消息双向通信。
 
@@ -144,7 +150,8 @@ web-canvas 支持将预览窗口分离为独立窗口，通过状态同步引擎
 - **主从架构**:
   - **主窗口（Main）**: 唯一的状态真实来源，管理所有业务逻辑。
   - **预览窗口（Detached）**: 仅负责渲染预览，通过 `useCanvasStateConsumer` 同步状态。
-- **同步内容**: 当前 `activeCanvasId` 和文件变更通知。
+- **同步内容**: 当前 `activeCanvasId`、文件变更通知和预览运行时错误。
+- **外部文件同步**: 主窗口对当前画布目录使用 Tauri fs watcher，VS Code 等外部编辑器修改后重新读取 Git 状态并广播 `canvas:file-changed`。
 - **操作代理**: 分离窗口的操作（如写文件、提交）通过 `bus.onActionRequest` 发送到主窗口执行。
 
 ## 2. 存储架构 (Storage Architecture)
@@ -172,6 +179,17 @@ web-canvas 支持将预览窗口分离为独立窗口，通过状态同步引擎
         ├── style.css
         └── script.js
 ```
+
+### 2.2. 文件系统安全边界
+
+所有来自 Agent 的 `canvasId` 和 `path` 都必须通过存储层校验：
+
+- `canvasId` 必须符合 `cp_{yyyyMMdd}_{short_id}` 格式。
+- 文件路径必须是相对于画布根目录的路径，统一使用 `/`，拒绝绝对路径、盘符、空段、`.` 和 `..`。
+- 物理读写、删除和 watcher 都只能基于校验后的画布根目录。
+- 审批预览不写磁盘；正式工具调用通过同一存储层执行。
+
+这层校验不能被 Agent 参数绕过；Tauri capability 仍需保持最小授权，不能把预览内容当成可信代码。
 
 ### 2.2. 项目索引 (projects.json)
 
@@ -285,7 +303,8 @@ graph TD
   - `canvasList`: 画布列表
   - `activeCanvasId`: 当前激活的画布 ID
   - `activeFile`: 当前编辑的文件路径
-  - `dirtyFiles`: 未提交变更的文件状态 Map
+  - `dirtyFiles`: 当前激活画布的未提交变更状态 Map
+  - `getDirtyFiles(canvasId)`: 指定画布的未提交变更状态 Map
   - `config`: 用户配置（持久化到 localStorage）
 - **职责**:
   - 协调 `CanvasService`、`CanvasIndexManager`、`GitInternalService`、`useCanvasStorage` 等模块。
@@ -317,8 +336,9 @@ graph TD
 **Agent 与画布之间的桥梁**。负责组装 Prompt 上下文、格式化工具体响应、处理审批钩子。
 
 - 不直接操作 Store，而是通过 Store 提供的 API 进行调用。
-- `onToolCallPreview` 在审批前**直接执行**变更（applyDiff / writeFile），让用户能在预览中看到效果再做决定。
-- `onToolCallDiscarded` 在拒绝后通过 Git `checkout` 或物理删除来回滚变更。
+- `onToolCallPreview` 在审批前只记录请求，不执行 `applyDiff` / `writeFile`。
+- `onToolCallDiscarded` 只清理请求记录；审批拒绝不会改变用户已有的工作区内容。
+- `executeToolRequests` 保证批量审批路径不会重复分发同一请求的 preview hook。
 
 #### 3.2.5. `GitInternalService` (版本控制引擎)
 
@@ -338,7 +358,7 @@ graph TD
 
 ### 4.1. Agent 操作文件编辑流
 
-当 Agent 调用 `apply_canvas_diff` 时：
+当 Agent 调用 `apply_canvas_diff` 时，审批阶段不触碰磁盘；用户批准后才进入以下正式执行流：
 
 ```mermaid
 sequenceDiagram

@@ -14,10 +14,8 @@
 
 import type { AgentExtensionContext } from "@/services/types";
 import { createModuleLogger } from "@/utils/logger";
-import { useCanvasStorage } from "../composables/useCanvasStorage";
 import { useCanvasStore } from "../stores/canvasStore";
 import type { DiffResult } from "../types/diff";
-import { GitInternalService } from "./GitInternalService";
 
 const logger = createModuleLogger("Canvas/AgentService");
 
@@ -51,7 +49,7 @@ export class CanvasAgentService {
 
     try {
       const fileTree = await canvasStore.getFileTree(canvasId);
-      const dirtyFiles = canvasStore.dirtyFiles;
+      const dirtyFiles = canvasStore.getDirtyFiles(canvasId);
 
       const buildFileList = (nodes: any[], indent = ""): string => {
         return nodes
@@ -265,7 +263,10 @@ ${changesStr}`;
   }
 
   /**
-   * 审批预览钩子
+   * 审批预览钩子。
+   *
+   * 预览阶段绝不能修改工作区；真正的写入仅在审批通过后由工具方法执行。
+   * 这里仅记录受影响文件，供拒绝或 UI 生命周期清理使用。
    */
   async onToolCallPreview(
     requestId: string,
@@ -273,61 +274,23 @@ ${changesStr}`;
     args: Record<string, any>
   ) {
     const canvasStore = useCanvasStore();
+    const isFileMutation =
+      methodName === "apply_canvas_diff" || methodName === "write_canvas_file";
+    const canvasId = args.canvasId || canvasStore.activeCanvasId;
 
-    if (
-      methodName === "apply_canvas_diff" &&
-      args.path &&
-      args.search !== undefined &&
-      args.replace !== undefined
-    ) {
-      const canvasId =
-        args.canvasId || (await canvasStore.ensureActiveCanvas());
-      await canvasStore.applyDiff(
-        canvasId,
-        args.path,
-        args.search,
-        args.replace,
-        args.start_line
-      );
-      canvasStore.registerPreviewRequest(requestId, canvasId, [args.path]);
-    }
-
-    if (methodName === "write_canvas_file" && args.path && args.content) {
-      const canvasId =
-        args.canvasId || (await canvasStore.ensureActiveCanvas());
-      await canvasStore.writeFilePhysical(canvasId, args.path, args.content);
+    if (isFileMutation && canvasId && typeof args.path === "string") {
       canvasStore.registerPreviewRequest(requestId, canvasId, [args.path]);
     }
   }
 
   /**
-   * 审批拒绝钩子
+   * 审批拒绝钩子。
+   *
+   * 预览阶段没有副作用，因此只需清理内存记录，不能用 Git HEAD 覆盖用户的工作区。
    */
   async onToolCallDiscarded(requestId: string) {
     const canvasStore = useCanvasStore();
-    const storage = useCanvasStorage();
-    const request = canvasStore.getPreviewRequest(requestId);
-    if (!request) return;
-
-    const basePath = await storage.getCanvasBasePath(request.canvasId);
-    const gitService = new GitInternalService(basePath);
-
-    const matrix = await gitService.statusMatrix();
-
-    for (const filepath of request.affectedFiles) {
-      const fileStatus = matrix?.find(([f]) => f === filepath);
-      if (fileStatus && fileStatus[1] === 0) {
-        await storage.deletePhysicalFile(request.canvasId, filepath);
-      } else {
-        await gitService.checkout([filepath]);
-      }
-    }
-
     canvasStore.removePreviewRequest(requestId);
-    request.affectedFiles.forEach((f) =>
-      canvasStore.emitFileChanged(request.canvasId, f)
-    );
-    await canvasStore.refreshGitStatus(request.canvasId);
   }
 }
 

@@ -170,21 +170,22 @@ export function useCanvasPreview(options: {
       </script>
     `;
 
+    // 预览内容属于不可信项目代码：在 iframe 内再施加最小 CSP，
+    // 即使宿主应用的全局 CSP 因兼容性而宽松，也不能让预览继承该权限边界。
+    const previewCsp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' blob: asset: http: https:; style-src 'unsafe-inline' asset: http: https:; img-src data: blob: asset: http: https:; font-src data: asset: http: https:; media-src data: blob: asset: http: https:; connect-src http: https: ws: wss:; frame-src http: https:; object-src 'none'; form-action 'none'">`;
     const baseTag = `<base href="${finalBaseUrl}">`;
+    const injectedHead = `${previewCsp}\n    ${baseTag}\n    ${injectedScript}`;
 
-    // 注入到 <head> 开头
+    // 注入到 <head> 开头，确保 CSP 出现在项目自身脚本之前。
     if (content.includes("<head>")) {
-      content = content.replace(
-        "<head>",
-        `<head>\n    ${baseTag}\n    ${injectedScript}`
-      );
+      content = content.replace("<head>", `<head>\n    ${injectedHead}`);
     } else if (content.includes("<html>")) {
       content = content.replace(
         "<html>",
-        `<html>\n<head>\n    ${baseTag}\n    ${injectedScript}\n</head>`
+        `<html>\n<head>\n    ${injectedHead}\n</head>`
       );
     } else {
-      content = `${baseTag}\n${injectedScript}\n${content}`;
+      content = `${previewCsp}\n${baseTag}\n${injectedScript}\n${content}`;
     }
 
     previewSrcdoc.value = content;

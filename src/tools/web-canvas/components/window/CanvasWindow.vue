@@ -68,9 +68,11 @@ import CanvasPreviewPane from "./CanvasPreviewPane.vue";
 import CanvasTitleBar from "./CanvasTitleBar.vue";
 import CanvasStatusBar from "./CanvasStatusBar.vue";
 import { createModuleLogger } from "@/utils/logger";
+import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 
 const logger = createModuleLogger("Canvas/Window");
 const attrs = useAttrs();
+const windowSyncBus = useWindowSyncBus();
 
 // 1. 状态同步消费者
 const { activeCanvasId: syncedId, lastFileChangeTimestamp } =
@@ -126,7 +128,9 @@ const titleBarPinned = ref(
 );
 const activeCanvas = ref<any>(null);
 const dirtyFilesCount = computed(() =>
-  activeCanvasId.value ? canvasStore.dirtyFiles.size : 0
+  activeCanvasId.value
+    ? canvasStore.getDirtyFiles(activeCanvasId.value).size
+    : 0
 );
 
 watch(titleBarPinned, (val) => {
@@ -165,7 +169,7 @@ watch(lastFileChangeTimestamp, () => {
 function handleConsoleMessage(payload: any) {
   // 处理运行时错误
   if (payload.type === "canvas-runtime-error" && activeCanvasId.value) {
-    canvasStore.addRuntimeError({
+    const runtimeError = {
       canvasId: activeCanvasId.value,
       level: payload.level,
       message: payload.message,
@@ -174,7 +178,18 @@ function handleConsoleMessage(payload: any) {
       colno: payload.colno,
       stack: payload.stack,
       timestamp: payload.timestamp,
-    });
+    } as const;
+    canvasStore.addRuntimeError(runtimeError);
+
+    // 独立预览窗口拥有自己的 Pinia 实例；显式回传到主窗口，
+    // 才能被 Agent 的 getExtraPromptContext 读取。
+    void windowSyncBus.syncState(
+      "canvas:runtime-error" as any,
+      runtimeError,
+      runtimeError.timestamp,
+      true,
+      "main"
+    );
     return;
   }
 

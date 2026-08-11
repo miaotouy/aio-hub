@@ -53,6 +53,8 @@
     "fs:allow-appdata-read-recursive",
     "fs:allow-appdata-write-recursive",
     "fs:allow-appdata-meta-recursive",
+    "fs:allow-watch",
+    "fs:allow-unwatch",
     {
       "identifier": "fs:allow-read-file",
       "allow": [{ "path": "**" }]

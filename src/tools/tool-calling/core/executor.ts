@@ -239,22 +239,25 @@ async function executeSingleRequest(
 
   // 2. 检查是否需要审批
   if (forceApproval || !shouldAutoApprove(request, options.config)) {
-    // 方案 2.3：在进入审批挂起状态前，允许工具实例先接收到“预览数据”
-    try {
-      if (
-        toolInstance &&
-        typeof toolInstance.onToolCallPreview === "function"
-      ) {
-        await Promise.resolve(
-          toolInstance.onToolCallPreview(
-            request.requestId,
-            target.methodName,
-            mergedArgs
-          )
-        );
+    // 批量执行器已经在创建审批请求前分发过预览；避免同一请求重复触发 hook。
+    const previewWasDispatched = approvalCache?.has(request.requestId) ?? false;
+    if (!previewWasDispatched) {
+      try {
+        if (
+          toolInstance &&
+          typeof toolInstance.onToolCallPreview === "function"
+        ) {
+          await Promise.resolve(
+            toolInstance.onToolCallPreview(
+              request.requestId,
+              target.methodName,
+              mergedArgs
+            )
+          );
+        }
+      } catch (e) {
+        logger.debug(`工具预览分发失败: ${target.toolId}`, e);
       }
-    } catch (e) {
-      logger.debug(`工具预览分发失败: ${target.toolId}`, e);
     }
 
     // 优先从缓存中获取审批结果，避免重复触发审批流程
@@ -505,18 +508,16 @@ export async function executeToolRequests(
             toolInstance &&
             typeof toolInstance.onToolCallPreview === "function"
           ) {
-            Promise.resolve(
+            await Promise.resolve(
               toolInstance.onToolCallPreview(
                 request.requestId,
                 request.methodName,
                 ctx?.mergedArgs ?? {}
               )
-            ).catch((e) =>
-              logger.debug(`预审批预览分发失败: ${request.toolId}`, e)
             );
           }
         } catch (e) {
-          // 静默失败
+          logger.debug(`预审批预览分发失败: ${request.toolId}`, e);
         }
 
         // 发起审批并存入缓存

@@ -118,7 +118,7 @@ API v3 宿主会在首次启动请求的 `params` 中覆盖注入 `hostContext.p
 - **启动**: 当插件被启用（`enable`）时，主应用会自动启动常驻进程，并保持其 `stdin`、`stdout`、`stderr` 句柄。
 - **退出**: 当插件被禁用（`disable`）或应用关闭时，主应用会向常驻进程的 `stdin` 发送 `shutdown` 指令。常驻进程应在收到指令后优雅退出，超时（默认 5 秒）未退出则会被主应用强制 kill。
 - **命令超时恢复**: request 模式单条常驻命令默认最多等待 300 秒。API v3 长任务应使用 job 模式，以合法进度刷新无进度超时；取消宽限期结束仍无终态时才重启 sidecar。
-- **进程代际**: 每次 spawn 都生成 `generationId`。pending request、stdout reader 和前端事件只属于该代际，旧进程的迟到输出不能完成新进程请求。
+- **进程代际**: 每次 spawn 都生成 `generationId`。pending request、stdout reader 和前端事件只属于该代际，旧进程的迟到输出不能完成新进程请求。强制终止后先等待子进程退出，再启动同 `pluginId` 的新进程；Broker 转发同时校验源、目标 generation，等待 I/O 时不持有全局进程表锁，旧代际不得转发、回写或完成新代际请求。
 
 ### JSON-RPC 通信协议规范
 
@@ -146,9 +146,23 @@ type SidecarOutput =
 
 `progress` 是非终态消息，不会完成或移除对应的 pending 请求；只有同一 `id` 的 `result` 或 `error` 会结束本次命令。需要跨窗口或业务级关联部分结果时，可在无 `id` 的自定义事件 `data` 中携带调用方生成的流标识。
 
+### API 版本与兼容边界
+
+插件 `host.apiVersion` 声明其所需的插件 API 版本。API v3 为长任务提供显式作业协议，新主程序仍可加载既有 API v2 插件：
+
+| 组合 | 结果 |
+| --- | --- |
+| 新主程序 + API v2 插件 | 保持兼容 |
+| 新主程序 + API v3 插件 | 使用 API v3 作业协议 |
+| 旧主程序 + API v3 插件 | 启动健康检查失败，不启用 |
+| 新主程序 + 未知更高 API | 标记损坏，不启用 |
+
+- API v3 插件必须校验宿主运行时注入的 `hostContext`：常驻 Sidecar 在首次启动方法中校验，一次性 Sidecar 在每次请求顶层校验。该信息不得来自 manifest。
+- 插件不可用 / 损坏状态保留结构化诊断，不覆盖协议、握手、运行产物或兼容性等原始原因。
+
 ### API v3 长任务
 
-长任务的提交命令应立即以 `result` 返回 `{ accepted: true, jobId }`。实际完成、失败和取消通过无请求 ID 的命名事件报告，所有事件必须携带同一 `jobId`。宿主取消后必须等待取消终态或确认 sidecar 已重启，才能释放任务使用的临时文件。
+长任务的提交命令应立即以 `result` 返回 `{ accepted: true, jobId }`。实际完成、失败和取消通过无请求 ID 的命名事件报告，所有事件必须携带同一 `jobId`。宿主取消后必须等待取消终态或确认 sidecar 已重启，才能释放任务使用的临时文件。`maxBatchSize` 是插件运行时能力描述，不授权宿主二次分片；job 模式必须声明流式结果和常驻事件通道。
 
 **进度事件（带 id）**：
 

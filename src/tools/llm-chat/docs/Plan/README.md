@@ -21,7 +21,7 @@ Agent 与 User Profile 已分别存在 `src/tools/agent-manager/`、`src/tools/u
 
 ## 已完成记录
 
-- [Chat 思考参数与 Gemini 摘要适配](./chat-thinking-parameter-adapter-fix.md)：2026-07-16 已实施并完成定向测试、类型检查与 Vite 构建。
+无活跃遗留；已完成计划的稳定契约已转入对应架构文档（如 Gemini 思考参数 wire 映射见 [LLM API 架构](../../../../../docs/architecture/llm-apis-architecture.md)）。
 
 ## 相关跨模块计划
 

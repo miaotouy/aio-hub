@@ -50,7 +50,7 @@ AIO Hub 是一款**跨平台桌面 AI 工作站**，将 LLM 智能对话、30+ �
 
 | 你的身份                   | 推荐阅读路径                                                                                                                                                                              |
 | :------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **AI 对话 / 角色扮演玩家** | [快速开始](./getting-started.md) → [智能体对话教程](./tools/llm-chat/index.md) → [世界书](./tools/llm-chat/worldbook.md) → [变量与宏](./tools/llm-chat/variables-macros.md)               |
+| **AI 对话 / 角色扮演玩家** | [快速开始](./getting-started.md) → [智能体对话教程](./tools/llm-chat/index.md) → [世界书](./tools/llm-chat/worldbook/index) → [变量与宏](./tools/llm-chat/macro-system/index)               |
 | **开发者**                 | [快速开始](./getting-started.md) → [工具总览](./tools/index.md) → [文本差异对比](./tools/text-diff.md) → [正则批量替换](./tools/regex-applier.md) → [Git 分析器](./tools/git-analyzer.md) |
 | **创作者 / 写作者**        | [快速开始](./getting-started.md) → [智能 OCR](./tools/smart-ocr/index.md) → [多模态转写](./tools/transcription.md) → [媒体生成中心](./tools/media-generator/index.md)                     |
 | **效率工具控**             | [工作区基础](./workspace-basics.md) → [外观定制](./settings/appearance.md) → [工具总览](./tools/index.md)                                                                                 |

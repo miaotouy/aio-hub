@@ -439,6 +439,29 @@ useLlmRequest.sendRequest(options)
 }
 ```
 
+### 5.4 Gemini 思考参数 wire 映射
+
+Gemini 模型经 `openai` / `openai-compatible` 渠道（典型场景：本地 NewAPI 转发 Gemini 官方 Key）访问时，OpenAI Chat Adapter 为 Gemini 模型家族生成 Google 扩展结构，而不是顶层推理参数：
+
+```json
+{
+  "extra_body": {
+    "google": {
+      "thinking_config": {
+        "thinking_level": "high",
+        "include_thoughts": true
+      }
+    }
+  }
+}
+```
+
+- Gemini 3.x 使用 `thinking_level`；Gemini 2.5 预算型使用 `thinking_budget`；摘要开关映射为 `include_thoughts`。
+- 生成 Google 扩展后，不再并发发送冲突的顶层 `reasoning_effort` 或通用 `thinking` 对象。
+- 原生 Gemini Adapter 继续使用 `generationConfig.thinkingConfig`，不改为 OpenAI wire 格式。
+- 自动生成的 Google 配置与显式 `extra_body` 深度合并，显式 `google.thinking_config` 值优先。
+- `openai-compatible` Provider 声明通用 `thinking` 与 `reasoningEffort` 能力；发送过滤结合 Provider Adapter 能力、模型元数据家族与模型能力保留 Gemini 的等级、预算与摘要参数，不把 Gemini 从 OpenAI 兼容推理参数链路中静默排除。
+
 ---
 
 ## 6. 最佳实践

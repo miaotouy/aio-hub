@@ -14,7 +14,7 @@
 | 250    | `transcription-processor`     | [transcription-processor.md](./transcription-processor.md)     |
 | 300    | `primary:worldbook-processor` | [worldbook-processor.md](./worldbook-processor.md)             |
 | 400    | `primary:injection-assembler` | [injection-assembler.md](./injection-assembler.md)             |
-| 450    | `primary:recall-processor`    | [recall-processor.md](./recall-processor.md)                   |
+| 450    | `primary:recall-processor`    | [recall-processor.ts](../../../core/context-processors/recall-processor.ts)          |
 | 500    | `primary:variable-processor`  | [variable-processor.md](./variable-processor.md)               |
 | 600    | `primary:token-limiter`       | [token-limiter.md](./token-limiter.md)                         |
 | 800    | `message-formatter`           | [message-format-processors.md](./message-format-processors.md) |

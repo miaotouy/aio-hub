@@ -60,7 +60,7 @@
 
 ## 4. 配置管理
 
-配置项已集成在**智能体（Agent）参数设置**中，通过 [`ContextCompressionConfigPanel.vue`](src/tools/llm-chat/components/agent/parameters/ContextCompressionConfigPanel.vue) 进行管理。
+配置项已集成在**智能体（Agent）参数设置**中，通过 [`ContextCompressionConfigPanel.vue`](src/tools/agent-manager/components/parameters/ContextCompressionConfigPanel.vue) 进行管理。
 
 主要配置项包括：
 

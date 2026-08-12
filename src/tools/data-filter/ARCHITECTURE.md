@@ -20,7 +20,7 @@ src/tools/data-filter/
 ├── composables/
 │   └── useDataFilterConfig.ts   # 状态管理层：配置持久化、预设 (Preset) 管理
 ├── DataFilter.vue               # UI 表现层：响应式三栏布局、交互逻辑
-├── dataFilter.registry.ts       # 系统集成：工具注册、Agent 能力暴露
+├── data-filter.registry.ts    # 系统集成：工具注册、Agent 能力暴露
 └── ARCHITECTURE.md              # 架构文档
 ```
 
@@ -73,7 +73,7 @@ src/tools/data-filter/
 
 ## 5. Agent 接入能力
 
-[`DataFilterRegistry`](./dataFilter.registry.ts) 暴露了 `applyFilter` 方法，使 LLM 能够处理本地数据文件：
+[`DataFilterRegistry`](./data-filter.registry.ts) 暴露了 `applyFilter` 方法，使 LLM 能够处理本地数据文件：
 
 - **调用流程**:
   1. Agent 提供文件路径 `path`。

@@ -50,5 +50,5 @@
 
 所有由 ST 解析产生的预设消息节点都会通过 [`createPresetMessage()`](../../services/sillyTavernParser.ts:538) 在 `metadata.stPromptName` 写入对应 prompt 的 `name`，用于：
 
-1. **UI 展示**：[`STPresetImportDialog.vue`](../../components/agent/assets/STPresetImportDialog.vue:141) 在导入预览中显示原始 ST 名称作为副标题；
-2. **角色卡 → Agent 迁移识别**：[`agentMigrationService`](../../services/agentMigrationService.ts:220) 把 `stPromptName === "First Message"` 或匹配 `^Alternate Greeting\b` 的预设消息识别并迁移为独立的 `greetings` 列表，避免它们污染上下文装配链。
+1. **UI 展示**：[`STPresetImportDialog.vue`](../../../agent-manager/components/assets/STPresetImportDialog.vue:141) 在导入预览中显示原始 ST 名称作为副标题；
+2. **角色卡 → Agent 迁移识别**：[`agentMigrationService`](../../../agent-manager/services/agentMigrationService.ts:220) 把 `stPromptName === "First Message"` 或匹配 `^Alternate Greeting\b` 的预设消息识别并迁移为独立的 `greetings` 列表，避免它们污染上下文装配链。

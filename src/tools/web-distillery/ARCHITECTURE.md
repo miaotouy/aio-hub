@@ -493,7 +493,7 @@ InteractiveWorkbench
 
 ## 12. Agent 集成
 
-[`WebDistilleryRegistry`](src/tools/web-distillery/webDistillery.registry.ts:7) 实现 `ToolRegistry` 接口，暴露两个 `agentCallable: true` 的方法：
+[`WebDistilleryRegistry`](src/tools/web-distillery/web-distillery.registry.ts:7) 实现 `ToolRegistry` 接口，暴露两个 `agentCallable: true` 的方法：
 
 | 方法           | 适用场景                  | 关键参数                      |
 | -------------- | ------------------------- | ----------------------------- |

@@ -17,7 +17,7 @@ imageCompression?: {
 }
 ```
 
-UI 入口位于 Agent 参数编辑器 [`ModelParametersEditor.vue`](../../components/agent/parameters/ModelParametersEditor.vue:741) 的"图片压缩"折叠面板，提供启用开关、最大尺寸滑块（256~8192，含 1024/2048/4096 快捷标签）、格式下拉与质量滑块；当 `format === 'original'` 时质量滑块自动隐藏，避免误配置。
+UI 入口位于 Agent 参数编辑器 [`ModelParametersEditor.vue`](../../../agent-manager/components/parameters/ModelParametersEditor.vue:741) 的"图片压缩"折叠面板，提供启用开关、最大尺寸滑块（256~8192，含 1024/2048/4096 快捷标签）、格式下拉与质量滑块；当 `format === 'original'` 时质量滑块自动隐藏，避免误配置。
 
 ## 2. 触发时机与执行位置 (Execution)
 

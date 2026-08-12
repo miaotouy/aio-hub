@@ -292,7 +292,7 @@ graph TD
 - 三类弹窗 `v-model` 绑定本地 ref，与 store 解耦。
 
 > 预设下拉的 `command` 事件统一分发：`__manage__` 命令打开预设管理器，其他值视为预设 ID 切换激活预设。
-> `el-dropdown` 的触发器外层包裹了 `<div>`，避免直接子元素绑定异常（遵循 [components-guide](../../.kilocode/rules/development-standards.md) 规范）。
+> `el-dropdown` 的触发器外层包裹了 `<div>`，避免直接子元素绑定异常（遵循 [components-guide](../../../.kilocode/rules/development-standards.md) 规范）。
 > 所有 BaseDialog 都用项目自研属性 `close-on-backdrop-click` / `show-close-button`，符合规范。
 
 ### 6.2. [`InputPanel.vue`](src/tools/translator/components/InputPanel.vue:1)

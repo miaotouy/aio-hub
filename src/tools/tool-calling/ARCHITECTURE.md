@@ -57,7 +57,7 @@ LLM 回复文本 ──→ [解析] ──→ ParsedToolRequest[] ──→ [执
 
 ### 2.5. 配置 (ToolCallConfig)
 
-工具调用的行为由 [`ToolCallConfig`](../llm-chat/types/agent.ts:78) 控制，该配置挂载在智能体 (ChatAgent) 上，支持以下维度：
+工具调用的行为由 [`ToolCallConfig`](../agent-manager/types/agent.ts:78) 控制，该配置挂载在智能体 (ChatAgent) 上，支持以下维度：
 
 | 字段                 | 类型                      | 说明                                                 |
 | -------------------- | ------------------------- | ---------------------------------------------------- |
@@ -490,7 +490,7 @@ interface ToolCallingProtocol {
 - [`MethodMetadata`](../../services/types.ts:18): 方法元数据（名称、描述、参数、agentCallable 标记等）
 - [`MethodParameter`](../../services/types.ts:7): 方法参数定义（名称、类型、必填、默认值等）
 - [`ToolRegistry`](../../services/types.ts:92): 工具注册接口（id、getMetadata 等）
-- [`ToolCallConfig`](../llm-chat/types/agent.ts:78): 工具调用配置（从 llm-chat 重导出）
+- [`ToolCallConfig`](../agent-manager/types/agent.ts:78): 工具调用配置（从 llm-chat 重导出）
 
 ## 9. 扩展指南
 

@@ -44,7 +44,7 @@ Smart OCR 是一个多引擎、智能化的图片文字识别工具，旨在为�
 
 ## 2. 架构设计
 
-Smart OCR 采用"页面工具 + 平台能力层"的混合架构。核心 OCR 能力集中在 [`platform/`](src/tools/smart-ocr/platform/) 目录下，作为对内对外可复用的 OCR 域能力层；UI 和状态管理保留在页面层。详见 [`ocr-platform-refactor-plan.md`](docs/ocr-platform-refactor-plan.md)。
+Smart OCR 采用"页面工具 + 平台能力层"的混合架构。核心 OCR 能力集中在 [`platform/`](src/tools/smart-ocr/platform/) 目录下，作为对内对外可复用的 OCR 域能力层；UI 和状态管理保留在页面层。重构历史见 [`docs/Plan/`](docs/Plan/)。
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
@@ -331,6 +331,23 @@ interface PluginOcrProgressEvent {
   results: PluginOcrBatchResult["results"];
 }
 ```
+
+### 4.3. 配置持久化与旧配置迁移
+
+OCR 配置只持久化稳定事实，方法名与能力不落盘：
+
+```typescript
+interface PluginOcrEngineConfig {
+  pluginId: string;
+  contributionId: string;
+  modelProfile?: string;
+  language?: string;
+}
+```
+
+- `name`、`method` 和 capabilities 每次从当前 manifest 解析；找不到显式 `contributionId` 时直接失败，不按方法名回退。
+- 旧配置仅在已知映射、唯一匹配方法的 contribution 或唯一 OCR contribution 时自动迁移（见 `platform/config-migration.ts`）；有歧义时要求用户重新选择。
+- Smart OCR、实时字幕和窗口自动化共用该迁移器。
 
 ---
 

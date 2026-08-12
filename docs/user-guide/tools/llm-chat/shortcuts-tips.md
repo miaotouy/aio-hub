@@ -102,6 +102,6 @@
 
 - [消息操作](./messages) — 消息编辑、分支管理
 - [上下文管道](./context-pipeline) — 使用上下文分析器调试
-- [聊天参数](./settings-chat) — 快捷键和 UI 偏好设置
+- [聊天参数](./settings/index) — 快捷键和 UI 偏好设置
 
 </div>

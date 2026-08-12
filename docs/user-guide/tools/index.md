@@ -32,7 +32,7 @@ AIO Hub 的旗舰功能，一个高度模块化的对话式 AI 智能体工作�
 
 ### Skill 技能管理器
 
-Agent Skills 运行时基础设施，让你能通过简单的目录结构扩展 LLM 的能力。支持从本地、Git 或 URL 安装 Skill，内置安全沙箱保障执行安全。 [[查看教程](/user-guide/tools/skill-manager)](即将推出)
+Agent Skills 运行时基础设施，让你能通过简单的目录结构扩展 LLM 的能力。支持从本地、Git 或 URL 安装 Skill，内置安全沙箱保障执行安全。 (即将推出)
 
 ---
 

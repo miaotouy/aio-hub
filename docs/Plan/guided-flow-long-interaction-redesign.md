@@ -10,7 +10,6 @@
 >
 > - [Guided Flow 引导模块收口计划](./guided-flow-plan.md)
 > - [知识库迁移方式重构方案](../../src/tools/knowledge-base/docs/Plan/knowledge-base-guided-migration-refactor-plan.md)
-> - [0.7.0-alpha.1 发布就绪与体验计划](./v0.7.0-alpha.1-release-readiness-and-experience-plan.md)
 >
 > 本文记录两项交互决策：
 >

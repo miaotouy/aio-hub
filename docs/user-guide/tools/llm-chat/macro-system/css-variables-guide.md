@@ -58,7 +58,7 @@
 
 ### 相关阅读
 
-- [主题外观系统规范](../../../architecture/theme-system-architecture)
+- [主题外观系统规范](../../../../architecture/theme-system-architecture)
 - [宏参考手册](./macro-reference)
 - [Agent 视觉化输出设置](../agents/editor-guide#4-输出与显示-output)
 

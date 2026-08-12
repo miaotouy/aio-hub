@@ -47,4 +47,4 @@ LLM 对话采用经典的三栏布局：
 - [会话管理](./sessions) — 管理你的多个对话会话
 - [消息操作](./messages) — 编辑、重发、删除消息
 - [智能体](./agents) — 配置角色预设和高级参数
-- [聊天参数](./settings-chat) — 温度、Top-P、Token 上限等模型参数调优
+- [聊天参数](./settings/index) — 温度、Top-P、Token 上限等模型参数调优

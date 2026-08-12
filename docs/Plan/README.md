@@ -34,7 +34,7 @@
 | Alpha 可接受风险 | 已知的中低风险问题，影响有限且可绕过、重试或恢复                                                          | 记录影响、恢复方式和目标版本后可随 Alpha 发布         |
 | 正式版最终门禁   | 面向普通用户稳定发布所需的完整体验、迁移、可靠性、兼容、平台矩阵及尚未补齐的完整证据                      | 最迟在不带预发布标识的正式版前关闭                    |
 
-风险等级按严重度、暴露概率和可恢复性判断。缺少某项测试不自动阻断 Alpha，但若它是排除高风险问题的唯一证据，仍属于 Alpha 硬门禁。P0 表示应优先处理的发布安全或专项收口工作，不表示其中每个未完成项都阻断当前 Alpha。详见 [0.7.0-alpha.1 分层门禁](./v0.7.0-alpha.1-release-readiness-and-experience-plan.md#2-分层发布门禁)。
+风险等级按严重度、暴露概率和可恢复性判断。缺少某项测试不自动阻断 Alpha，但若它是排除高风险问题的唯一证据，仍属于 Alpha 硬门禁。P0 表示应优先处理的发布安全或专项收口工作，不表示其中每个未完成项都阻断当前 Alpha。门禁口径见上表。
 
 ## 2. 当前执行顺序
 
@@ -47,7 +47,7 @@
 - [ ] **D-P0-03 Agent / User Profile 迁移收口**：两项解耦已随 `v0.6.6-r.1` 发布；补 Agent 部分迁移恢复、递归校验、重复启动与真实升级证据，以及 User Profile 多档案迁移恢复、幂等和首载设置一致性测试。除非发现仍会破坏用户数据或阻断启动的回归，否则剩余完整证据作为 `0.7.0` 正式版最终门禁。详见 [LLM Chat 计划索引](../../src/tools/llm-chat/docs/Plan/README.md)。
 - [ ] **D-P0-04 Agent 目录搜索专项收口**：主仓资源预算、按请求取消、超时传播、总并发与 `searchId` 隔离已经实施，并已通过 LLM/VCP 普通搜索和 2 GiB 宽范围资源止损的真实 dev/Tauri 验收；会重新造成资源失控或替换误写的回归阻断 Alpha，并发 `busy`、服务端取消、节点断线 abort、CPU/线程/UI 响应完整基准及 VCPToolBox 上游集成默认进入正式版最终门禁。详见 [目录搜索资源占用调查与加固计划](../../src/tools/dir-search/docs/Plan/agent-search-resource-safety-investigation.md)。
 - [ ] **D-P0-05 Guided Flow 迁移专项最终门禁**：补进程中断恢复、部分主数据失败重试、可溯源旧正式版本 fixture 和发布候选安装包 smoke test。会造成数据破坏、升级阻断且不可恢复的路径以及发布候选基本 smoke 属于 Alpha 硬门禁；更完整的旧版本 fixture 和故障矩阵可在风险可控时进入正式版最终门禁。详见 [Guided Flow 收口计划](./guided-flow-plan.md#114-旧数据迁移自动化验收)。
-- [ ] **D-P0-06 0.7 Alpha 1 分层发布收口**：冻结 Alpha 范围，关闭数据、安全、隐私、资源、安装启动升级和产物一致性硬门禁；用发布候选主应用与插件完成 Sidecar API v3 最小兼容主路径，人工核对 Alpha 发布说明并登记可接受风险。系统性 UI 打磨、完整升级说明信息架构和长尾联合验收进入 `0.7.0` 正式版最终门禁。详见 [发布收口记录](./v0.7.0-alpha.1-release-readiness-and-experience-plan.md)与 [Sidecar API v3 收口计划](./sidecar-plugin-api-v3-migration.md)。
+- [ ] **D-P0-06 0.7 Alpha 1 分层发布收口**：冻结 Alpha 范围，关闭数据、安全、隐私、资源、安装启动升级和产物一致性硬门禁；用发布候选主应用与插件完成 Sidecar API v3 最小兼容主路径，人工核对 Alpha 发布说明并登记可接受风险。系统性 UI 打磨、完整升级说明信息架构和长尾联合验收进入 `0.7.0` 正式版最终门禁。Sidecar API v3 稳定契约见 [插件开发指南](../guide/plugins/index.md)。
 - [ ] **D-P0-07 LLM Chat 会话持久化专项验收**：Phase 0 至 Phase 2 的单写者协调、Rust 原子替换、备份恢复、坏文件隔离和非阻塞重建已经实施；已知会造成会话损坏、丢失或启动阻断的路径属于 Alpha 硬门禁，真实进程中止、Windows 文件占用和多 WebView 竞争的完整矩阵可在无高风险证据时作为正式版最终门禁。详见 [会话持久化损坏与启动阻塞调查](../../src/tools/llm-chat/docs/Plan/session-persistence-corruption-investigation.md)。
 
 ### P1：共享基础设施
@@ -88,9 +88,7 @@
 
 | 文档                                                                                | 状态   | 下一动作                                                                      |
 | ----------------------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------- |
-| [0.7.0-alpha.1 发布收口](./v0.7.0-alpha.1-release-readiness-and-experience-plan.md) | 待收口 | D-P0-06，关闭 Alpha 硬门禁、登记可接受风险并保留正式版最终门禁                |
 | [Guided Flow](./guided-flow-plan.md)                                                | 待收口 | D-P0-05，按风险拆分 Alpha 数据/安装硬门禁与正式版完整迁移矩阵                 |
-| [Sidecar Plugin API v3](./sidecar-plugin-api-v3-migration.md)                       | 待收口 | D-P0-06，先验收 Alpha 最小发布组合，正式版前补齐完整矩阵                      |
 | [前端 Chunk 治理](./frontend-chunk-size-investigation.md)                           | 按需   | D-P2-08，先做自动分包与真实 Tauri A/B                                         |
 | [Provider Adapter 多端共享](./llm-provider-adapter-sharing-investigation.md)        | 待收口 | D-P3-02，仅剩人工运行态观测                                                   |
 | [LLM 聚合渠道与模型路由](./llm-aggregate-channel-routing-investigation.md)          | 候选   | 先实施模型执行路由 resolver；以 OpenCode Go 验证内置路由表，再增加聚合渠道 UI |

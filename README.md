@@ -114,7 +114,7 @@ AIO Hub 的聊天功能是一个专为复杂任务和深度探索而设计的、
 | [原生示例](https://github.com/miaotouy/aiohub-plugin-example-native)             | Native     | 展示 Rust 原生插件能力的示例，含系统信息获取                    |
 | [文本处理器](https://github.com/miaotouy/aiohub-plugin-example-text-processor)   | JavaScript | 文本处理示例插件，演示前缀/后缀、大小写转换等配置化功能         |
 
-> 💡 更多插件开发详情请参阅 [`plugins/README.md`](plugins/README.md) 和 [插件开发指南](docs/guide/plugin-development-guide.md)。
+> 💡 更多插件开发详情请参阅 [`plugins/README.md`](plugins/README.md) 和 [插件开发指南](docs/guide/plugins/index.md)。
 
 ---
 
@@ -230,7 +230,7 @@ bun run tauri build
 
 - **🌐 官方网站**: [aiohub-app.com](https://aiohub-app.com/) — AIO Hub 项目主页，了解产品特性与最新动态。
 - **📖 用户文档站**: [docs.aiohub-app.com](https://docs.aiohub-app.com) — 全新 VitePress 文档站点，涵盖快速入门、各工具模块详细配置指南，支持全文搜索。
-- **插件开发**: [插件开发指南](docs/guide/plugin-development-guide.md)
+- **插件开发**: [插件开发指南](docs/guide/plugins/index.md)
 - **常见问题**: [DeepWiki (AI 自动维护)](https://deepwiki.com/miaotouy/aio-hub)
 
 ### 📘 架构文档
@@ -242,7 +242,7 @@ bun run tauri build
 
 - [**工具架构总集篇**](docs/architecture/tools-architecture-overview.md)
 - [**设置架构总集篇**](docs/architecture/settings-architecture-overview.md)
-- [**项目架构总览**](ARCHITECTURE.md)
+- [**项目架构总览**](docs/architecture/overview.md)
 - [**服务与插件系统**](docs/architecture/services-architecture.md)
 - [**LLM API 适配层**](docs/architecture/llm-apis-architecture.md)
 - [**窗口同步架构**](docs/architecture/window-sync-architecture.md)

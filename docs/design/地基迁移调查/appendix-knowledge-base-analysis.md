@@ -39,7 +39,7 @@
 
 ### 3.1. 🔴 并行向量相似度计算
 
-**位置**: [`search/vector.rs`](../../../src-tauri/src/knowledge/search/vector.rs:298), [`search/blender.rs`](../../../src-tauri/src/knowledge/search/blender.rs:268)
+**位置**: `src-tauri/src/knowledge/search/vector.rs:298`、`src-tauri/src/knowledge/search/blender.rs:268`（知识库 Rust 已重构，旧文件路径仅供历史参考）
 
 ```rust
 // 使用 rayon 并行计算所有条目的余弦相似度
@@ -60,7 +60,7 @@ let scores: Vec<(Uuid, f32)> = base.vector_store.ids
 
 ### 3.2. 🔴 SVD 分解（Lens 引擎）
 
-**位置**: [`search/lens.rs`](../../../src-tauri/src/knowledge/search/lens.rs:393)
+**位置**: `src-tauri/src/knowledge/search/lens.rs:393`（旧文件路径，知识库 Rust 已重构）
 
 ```rust
 // 构建 80×80 亲和力矩阵 → 拉普拉斯矩阵 → SVD 伪逆
@@ -75,7 +75,7 @@ let propagated_energy = inversion_matrix * initial_energy;
 
 ### 3.3. 🟡 HNSW 索引构建与搜索
 
-**位置**: [`tag_pool.rs`](../../../src-tauri/src/knowledge/tag_pool.rs:166)
+**位置**: `src-tauri/src/knowledge/tag_pool.rs:166`（旧文件路径，知识库 Rust 已重构）
 
 ```rust
 let hnsw = Hnsw::new(m, max_elements, 16, ef_construction, DistCosine);
@@ -88,7 +88,7 @@ hnsw.parallel_insert(&refs);
 
 ### 3.4. 🟡 残差挖掘（Blender 引擎）
 
-**位置**: [`search/blender.rs`](../../../src-tauri/src/knowledge/search/blender.rs:36)
+**位置**: `src-tauri/src/knowledge/search/blender.rs:36`（旧文件路径，知识库 Rust 已重构）
 
 - 递归 Gram-Schmidt 投影 + 多层标签激活
 - 计算量取决于 `max_residual_layers`（默认 4）× `k_per_layer`（默认 5）
@@ -96,7 +96,7 @@ hnsw.parallel_insert(&refs);
 
 ### 3.5. 🟢 Jieba 分词 + 倒排索引
 
-**位置**: [`index/inverted_index.rs`](../../../src-tauri/src/knowledge/index/inverted_index.rs:37)
+**位置**: `src-tauri/src/knowledge/index/inverted_index.rs:37`（旧文件路径，知识库 Rust 已重构）
 
 - 标准的分词 + 词频统计
 - **Node.js 替代难度**: 🟢 低。`nodejieba` 是成熟的 C++ binding，API 完全对等。

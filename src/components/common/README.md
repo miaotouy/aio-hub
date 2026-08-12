@@ -76,7 +76,7 @@
   - `loading` (boolean): 内容区域显示加载状态。
 - **Slots**: `default`, `header`, `footer`
 
-- **使用示例** (来自 [`CreateUserProfileDialog.vue`](../../views/Settings/user-profile/components/CreateUserProfileDialog.vue)):
+- **使用示例** (来自 [`CreateUserProfileDialog.vue`](../../tools/user-profile-manager/components/user-profile/CreateUserProfileDialog.vue)):
   ```vue
   <BaseDialog
     :model-value="visible"
@@ -126,7 +126,7 @@
 - **Exposed Methods**:
   - `activate()`: 激活面板。如果面板已最小化，则会展开；同时会确保面板完整显示在视口内。
 
-- **使用示例** (来自 [`RichTextRendererTester.vue`](../../tools/rich-text-renderer/RichTextRendererTester.vue)):
+- **使用示例** (来自 [`RichTextRendererTester.vue`](../../tools/rich-text-renderer/components/RichTextRendererTester.vue)):
 
   ```vue
   <script setup>
@@ -321,7 +321,7 @@
   - `entityId` (string): 实体 ID（用于上传路径隔离）。
   - `profileType` ('agent' | 'user'): 实体类型。
 
-- **使用示例** (来自 [`UserProfileForm.vue`](../../views/Settings/user-profile/components/UserProfileForm.vue)):
+- **使用示例** (来自 [`UserProfileForm.vue`](../../tools/user-profile-manager/components/user-profile/UserProfileForm.vue)):
 
   ```vue
   <script setup>
@@ -379,7 +379,7 @@ LLM 模型下拉选择器，按服务商分组，支持按能力（如 vision, t
   - `modelValue` (string): 格式为 `profileId:modelId`。
   - `capabilities` (Partial<ModelCapabilities>): 需要的模型能力。
 
-- **使用示例** (来自 [`EditAgentDialog.vue`](../../tools/llm-chat/components/agent/EditAgentDialog.vue)):
+- **使用示例** (来自 [`EditAgentDialog.vue`](../../tools/agent-manager/components/management/EditAgentDialog.vue)):
   ```vue
   <el-form-item label="模型" required>
     <LlmModelSelector v-model="editForm.modelCombo" />

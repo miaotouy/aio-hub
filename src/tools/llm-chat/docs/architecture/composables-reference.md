@@ -58,7 +58,7 @@
 
 ## 7. 宏处理引擎
 
-宏引擎以纯类 + 纯函数形式提供，**不存在 `useMacroProcessor` 这一 composable 包装**，业务侧（如 [`useChatHandler.ts`](../../composables/chat/useChatHandler.ts)、[`injection-assembler.ts`](../../core/context-processors/injection-assembler.ts)、[`useMessageInputActions.ts`](../../composables/input/useMessageInputActions.ts) 等）直接 `new MacroProcessor()` 使用。所有公共能力统一从 [`macro-engine/index.ts`](../../macro-engine/index.ts) 导出。
+宏引擎以纯类 + 纯函数形式提供，**不存在 `useMacroProcessor` 这一 composable 包装**，业务侧（如 [`useChatHandler.ts`](../../composables/chat/useChatHandler.ts)、[`injection-assembler.ts`](../../core/context-processors/injection-assembler.ts)、[`messageInputStore.ts`](../../stores/messageInputStore.ts) 等）直接 `new MacroProcessor()` 使用。所有公共能力统一从 [`macro-engine/index.ts`](../../macro-engine/index.ts) 导出。
 
 - **`MacroProcessor`** ([`macro-engine/MacroProcessor.ts`](../../macro-engine/MacroProcessor.ts)): **宏执行的核心引擎**。按 `PRE_PROCESS → SUBSTITUTE → POST_PROCESS` 三阶段处理文本中的 `{{...}}` 占位符，支持参数解析、上下文传递与执行结果统计；同时提供静态方法 `extractMacros` / `executeDirectly` / `getContextFreeMacros` / `isContextFree`，用于在不构建完整管道的情况下做轻量调用与校验。
 - **`MacroRegistry`** ([`macro-engine/MacroRegistry.ts`](../../macro-engine/MacroRegistry.ts)): **宏定义的中心化管理器**（单例）。负责注册、注销、查询所有内置与扩展宏的 `MacroDefinition`，并提供 `getInstance()` / `getAllMacros()` / `getMacro()` 等接口供 UI（如 `MacroSelector`、`PresetMessageEditor`）和处理器消费。

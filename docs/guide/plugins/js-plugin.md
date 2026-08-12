@@ -59,7 +59,7 @@ import { pluginManager, customMessage } from "aiohub-sdk";
 import type { PluginContext, ServiceMetadata } from "aiohub-sdk";
 ```
 
-> **注意**: 在 `vite.config.ts` 中，你需要将这些模块配置为 `external`（详见 [插件 UI 开发](../plugin-ui-development-guide.md)）。
+> **注意**: 在 `vite.config.ts` 中，你需要将这些模块配置为 `external`（详见 [插件 UI 开发](./plugin-ui.md)）。
 
 ### 生命周期钩子
 
@@ -199,6 +199,6 @@ export default {
 
 ## 下一步
 
-- 想开发带 UI 的插件？请参阅 [插件 UI 开发](../plugin-ui-development-guide.md)
+- 想开发带 UI 的插件？请参阅 [插件 UI 开发](./plugin-ui.md)
 - 想了解更深度的扩展能力（钩子、Patch、DOM 注入）？请参阅 [钩子与扩展系统](./hooks-and-extensions.md)
 - 想处理耗时任务并展示进度？请参阅 [异步任务与进度汇报](./async-tasks.md)

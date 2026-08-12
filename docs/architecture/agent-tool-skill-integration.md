@@ -23,7 +23,7 @@
 
 ### 1.1. ChatAgent — 策略控制中心
 
-[`ChatAgent`](src/tools/llm-chat/types/agent.ts) 是一个配置模板，它携带了控制工具调用行为的全部配置：
+[`ChatAgent`](src/tools/agent-manager/types/agent.ts) 是一个配置模板，它携带了控制工具调用行为的全部配置：
 
 ```typescript
 // ChatAgent.toolCallConfig 的关键字段
@@ -455,7 +455,7 @@ graph TD
 
 | 层级       | 文件                                                                                                                                               | 职责                         |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| Agent 配置 | [`src/tools/llm-chat/types/agent.ts`](src/tools/llm-chat/types/agent.ts)                                                                           | ToolCallConfig 类型定义      |
+| Agent 配置 | [`src/tools/agent-manager/types/agent.ts`](src/tools/agent-manager/types/agent.ts)                                                                           | ToolCallConfig 类型定义      |
 | 编排器     | [`src/tools/llm-chat/composables/chat/useToolCallOrchestrator.ts`](src/tools/llm-chat/composables/chat/useToolCallOrchestrator.ts)                 | 核心循环逻辑                 |
 | 执行器     | [`src/tools/llm-chat/composables/chat/useChatExecutor.ts`](src/tools/llm-chat/composables/chat/useChatExecutor.ts)                                 | 请求执行入口                 |
 | 工具调用   | [`src/tools/tool-calling/composables/useToolCalling.ts`](src/tools/tool-calling/composables/useToolCalling.ts)                                     | 统一门面                     |

@@ -260,9 +260,9 @@ A: `sourceModule` 是存储在资产元数据中的，工具更名不会影响�
 
 ## 参考链接
 
-- [资产管理类型定义](../src/types/asset-management.ts)
-- [资产管理 Composable](../src/composables/useAssetManager.ts)
-- [LLM Chat 集成示例](../src/tools/llm-chat/composables/useAttachmentManager.ts)
+- [资产管理类型定义](../../src/types/asset-management.ts)
+- [资产管理 Composable](../../src/composables/useAssetManager.ts)
+- [LLM Chat 集成示例](../../src/tools/llm-chat/composables/features/useAttachmentManager.ts)
 
 ---
 

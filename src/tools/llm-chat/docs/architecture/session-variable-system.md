@@ -6,7 +6,7 @@
 
 ## 1. 系统定位 (Positioning)
 
-- **配置入口**: 每个智能体在 [`ChatAgent.variableConfig`](../../types/agent.ts) 字段中声明自己的变量集合，与宏引擎、世界书、知识库等并列为可选子系统。`VariableConfig.enabled` 关闭时整个处理器直接早退。
+- **配置入口**: 每个智能体在 [`ChatAgent.variableConfig`](../../../agent-manager/types/agent.ts) 字段中声明自己的变量集合，与宏引擎、世界书、知识库等并列为可选子系统。`VariableConfig.enabled` 关闭时整个处理器直接早退。
 - **作用域 (Scope)**: 变量值绑定到**消息节点元数据**，因此天然以"会话 + 树分支"为作用域 —— 不同会话、同会话不同分支之间的快照完全隔离，跟随 `lastSelectedChildId` 自动切换。
 - **回放能力 (Replay)**: 处理器从消息末尾倒查最近一个 `sessionVariableSnapshot` 作为起点，再向前重放所有 `<svar>` 标签，因此即便用户在树状历史中切换分支、删除消息、做 Regenerate，变量状态都能被一致地重建。
 

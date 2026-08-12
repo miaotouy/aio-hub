@@ -29,13 +29,13 @@
 
 ### 2.2 左侧 `.agent-model-info`（智能体 + 模型）
 
-- **智能体点击 / 长按**: 点击触发 [`handleAgentInfoClick`](../../components/ChatAreaHeader.vue:87) → context 中的 `handleEditAgent(tab?, section?)` → 打开 [`EditAgentDialog`](../../components/agent/management/EditAgentDialog.vue)（[`ChatArea.vue:545`](../../components/ChatArea.vue:545)）；长按 500ms 触发 [`onLongPress`](../../components/ChatAreaHeader.vue:62) → 弹出 [`QuickAgentSwitch`](../../components/agent/selectors/QuickAgentSwitch.vue) 列出所有智能体快捷切换。两个手势用 `isLongPressConsumed` 标记互斥（长按后松手的 click 事件被 `e.preventDefault() + e.stopImmediatePropagation()` 拦截）。
+- **智能体点击 / 长按**: 点击触发 [`handleAgentInfoClick`](../../components/ChatAreaHeader.vue:87) → context 中的 `handleEditAgent(tab?, section?)` → 打开 [`EditAgentDialog`](../../../agent-manager/components/management/EditAgentDialog.vue)（[`ChatArea.vue:545`](../../components/ChatArea.vue:545)）；长按 500ms 触发 [`onLongPress`](../../components/ChatAreaHeader.vue:62) → 弹出 [`QuickAgentSwitch`](../../../agent-manager/components/selectors/QuickAgentSwitch.vue) 列出所有智能体快捷切换。两个手势用 `isLongPressConsumed` 标记互斥（长按后松手的 click 事件被 `e.preventDefault() + e.stopImmediatePropagation()` 拦截）。
 - **模型点击**: 触发 context 中的 [`handleSelectModel`](../../composables/useChatAreaContext.ts:121) → `useModelSelectDialog().open()` 弹出**全局模型选择器**（不是 EditAgentDialog 的"模型"标签页，是 `@/composables/useModelSelectDialog` 提供的独立 Dialog），选择后直接 `agentStore.updateAgent(agentId, { profileId, modelId })` 写回当前智能体；分离窗口下走 `bus.requestAction("llm-chat:update-agent")` 上行到主窗口执行。
 - **模型失效降级**: 当 `currentModel` 找不到时（profile 被删 / model id 改了），显示 `AlertCircle` 警告图标 + "未选择模型"占位文案 + 黄色虚线边框（`.model-info.model-invalid` 样式 [`ChatAreaHeader.vue:353`](../../components/ChatAreaHeader.vue:353)），点击同样进入模型选择器但提示"模型未选择或已失效，点击重新选择"。
 
 ### 2.3 右侧 `.header-actions`（用户档案 + 视图切换 + 搜索 + 设置）
 
-- **用户档案点击**: 触发 context 中的 [`handleEditUserProfile`](../../composables/useChatAreaContext.ts:204) → 打开 [`EditUserProfileDialog`](../../components/user-profile/EditUserProfileDialog.vue)（[`ChatArea.vue:557`](../../components/ChatArea.vue:557)），显示的是 `getEffectiveProfile(agent.userProfileId)` 计算出的"智能体绑定优先于全局默认"的生效档案。
+- **用户档案点击**: 触发 context 中的 [`handleEditUserProfile`](../../composables/useChatAreaContext.ts:204) → 打开 [`EditUserProfileDialog`](../../../user-profile-manager/components/user-profile/EditUserProfileDialog.vue)（[`ChatArea.vue:557`](../../components/ChatArea.vue:557)），显示的是 `getEffectiveProfile(agent.userProfileId)` 计算出的"智能体绑定优先于全局默认"的生效档案。
 - **视图切换器 (`ViewModeSwitcher`) 的持久化字段**: 状态字段为 [`LlmChatUiState.viewMode: "linear" | "force-graph"`](../../composables/ui/useLlmChatUiState.ts:45)，持久化到 `{appConfigDir}/llm-chat/ui-state.json`，由 [`createConfigManager`](../../../../utils/configManager.ts) 管理，**防抖 300ms** 自动保存（[`useLlmChatUiState.ts:79`](../../composables/ui/useLlmChatUiState.ts:79)），与侧边栏宽度、参数面板折叠态等 17 项 UI 偏好共用同一份 JSON。`viewMode === "linear"` 时渲染 `MessageList`，`"force-graph"` 时渲染 `FlowTreeGraph`。
 - **搜索按钮**: 切换 `showSearchPanel` 显示/隐藏 [`ChatSearchPanel`](../../components/search/ChatSearchPanel.vue)（**纯前端搜索**当前会话消息，与跨会话搜索不同），快捷键 `Ctrl+F` 全局触发（[`handleKeyDown`](../../components/ChatArea.vue:352)），CodeMirror 编辑器内的 `Ctrl+F` 不被拦截（让编辑器自己的搜索面板处理）。
 - **设置按钮**: 打开 [`ChatSettingsDialog`](../../components/settings/ChatSettingsDialog.vue) 全局聊天设置弹窗（[`ChatArea.vue:565`](../../components/ChatArea.vue:565)）。
@@ -107,7 +107,7 @@
 
 ### 4.2 三种布局模式与切换 UI 入口
 
-由 [`useGraphLayoutMode`](../../components/conversation-tree-graph/flow/composables/useGraphLayoutMode.ts) 管理 `layoutMode: "tree" | "physics" | "static"`，配合 HUD 角标（`TREE` / `PHYSICS` / `STATIC`）展示当前模式：
+由 [`useFlowTreeGraph`](../../components/conversation-tree-graph/flow/composables/useFlowTreeGraph.ts) 管理 `layoutMode: "tree" | "physics" | "static"`，配合 HUD 角标（`TREE` / `PHYSICS` / `STATIC`）展示当前模式：
 
 - **`tree`**: 动态树状布局，每次节点变化都重新跑 `d3-hierarchy.tree()` 重新计算所有节点位置。
 - **`physics`**: 实时力导向仿真，节点持续受力，用户拖动后会重新平衡。
@@ -137,7 +137,7 @@
 - **全局单例的初始化时机**: 通过 [`getOrCreateInstance("ChatInputManager", ...)`](../../composables/input/useChatInputManager.ts:18) 实现**进程级单例**，**首次调用 `useChatInputManager()` 时才懒创建**（不在应用启动时主动初始化），由首个调用方（通常是 `ChatArea` 或 `MessageInput` 组件的 `setup`）触发；后续主窗口、分离窗口、Agent 编辑器等任意调用方都拿到同一个实例，确保跨组件状态一致。
 - **草稿持久化的 Key 与作用域**: 使用单一全局 Key [`STORAGE_KEY = "llm-chat-input-draft"`](../../composables/input/useChatInputManager.ts:46)，**作用域为全局而非按会话**——切换会话不会切换草稿，所有会话共用同一份草稿。持久化结构 `ChatInputDraft` 包含 `text` / `attachments` / `temporaryModel` / `continuationModel` / `timestamp`，文本变化通过 `watch` 自动序列化写入 `localStorage`；这与"按会话隔离"的设计是有意取舍——便于跨会话粘贴未完成的草稿，但缺点是切换会话前需要手动清空或发送。
 - **跨窗口同步**: 通过 `registerSyncSource` 把 `inputText` / `attachments` / `temporaryModel` / `continuationModel` 注册到 [`useStateSyncEngine`](../../../../composables/useStateSyncEngine.ts)，本地修改自动通过 `useWindowSyncBus` 广播到所有窗口；远端状态变更时设置 `isApplyingSyncState` 标记避免循环回写。
-- **QuickActionSelector 在工具栏的位置**: **不在主输入框工具栏内**——`QuickActionSelector` 组件被复用于 ① Agent 编辑器的"快捷操作"绑定项（[`PersonalitySection.vue`](../../components/agent/agent-editor/sections/PersonalitySection.vue)）、② 全局聊天设置中的"全局关联快捷操作"项（[`settingsConfig.ts`](../../components/settings/settingsConfig.ts)）。在工具栏（[`MessageInputToolbar.vue`](../../components/message-input/MessageInputToolbar.vue)）中的入口是不同的呈现形式：① 顶部 `.quick-actions-bar` 平铺栏，按 Agent / Profile / Global 三层合并的 `activeActionSets` 平铺显示所有已激活的快捷操作按钮（支持按组分行展示，由 `groupQuickActionsBySet` 开关控制）；② "更多工具菜单"下拉中的"管理快捷操作"入口打开 `QuickActionManagerDialog`。**无折叠/收起策略**，全部按钮始终展示，依赖 `flex-wrap` 自然换行适配窄屏。
+- **QuickActionSelector 在工具栏的位置**: **不在主输入框工具栏内**——`QuickActionSelector` 组件被复用于 ① Agent 编辑器的"快捷操作"绑定项（[`PersonalitySection.vue`](../../../agent-manager/components/agent-editor/sections/PersonalitySection.vue)）、② 全局聊天设置中的"全局关联快捷操作"项（[`settingsConfig.ts`](../../components/settings/settingsConfig.ts)）。在工具栏（[`MessageInputToolbar.vue`](../../components/message-input/MessageInputToolbar.vue)）中的入口是不同的呈现形式：① 顶部 `.quick-actions-bar` 平铺栏，按 Agent / Profile / Global 三层合并的 `activeActionSets` 平铺显示所有已激活的快捷操作按钮（支持按组分行展示，由 `groupQuickActionsBySet` 开关控制）；② "更多工具菜单"下拉中的"管理快捷操作"入口打开 `QuickActionManagerDialog`。**无折叠/收起策略**，全部按钮始终展示，依赖 `flex-wrap` 自然换行适配窄屏。
 - **外观服务**: 通过 `llmChat.registry.ts` 提供一个轻量级的外观，为其他工具（如 Agent）提供一个稳定的编程接口来与输入框交互。
 
 ## 6. 窗口分离与同步 (Detached Window & Sync)

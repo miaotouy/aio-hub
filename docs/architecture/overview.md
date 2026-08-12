@@ -123,6 +123,6 @@ aio-hub/
 ## 5. 开发者导航 (Navigation)
 
 - 想要了解如何开发新工具？请参考 [新工具开发指南](docs/guide/adding-new-tool.md)。
-- 对插件系统感兴趣？阅读 [插件开发深度手册](docs/guide/plugin-development-guide.md)。
+- 对插件系统感兴趣？阅读 [插件开发深度手册](../guide/plugins/index.md)。
 - 需要处理窗口分离？查看 [窗口同步技术内幕](docs/architecture/window-sync-architecture.md)。
 - 关于日志与错误处理的细节？参见 [日志与错误处理规范](docs/guide/logging-error-handling.md)。

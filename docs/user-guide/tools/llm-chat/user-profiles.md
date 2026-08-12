@@ -96,6 +96,6 @@
 ## 相关阅读
 
 - [智能体](./agents) — Agent 绑定用户档案
-- [变量与宏](./variables-macros) — `{{user}}` 和 `{{persona}}` 宏的使用
+- [变量与宏](./macro-system/index) — `{{user}}` 和 `{{persona}}` 宏的使用
 
 </div>

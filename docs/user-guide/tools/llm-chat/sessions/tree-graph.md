@@ -71,6 +71,6 @@
 
 **相关阅读**：
 
-- [消息管理](./index.md)
+- [消息管理](../messages/index)
 - [Agent 资产](../agents/assets.md)
 - [宏系统](../macro-system/index.md)

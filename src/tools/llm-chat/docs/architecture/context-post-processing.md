@@ -8,7 +8,7 @@
 
 - 后处理管道由统一的 [`messageFormatter`](../../core/context-processors/message-format-processors.ts:263) 单一处理器承载，挂在标准管道 **priority 800** 的槽位上，定义见 [`message-format-processors.ts:263-410`](../../core/context-processors/message-format-processors.ts:263)。
 - 此时上下文压缩（priority 600）、上下文窗口截断（priority 700）等已经完成，消息内容已经定型，后处理只负责"结构"层面的整形，不再修改消息文本本身（除合并时引入分隔符或插入占位符外）。
-- 与 [`registerCoreProcessors`](../../core/context-pipeline.ts:1) 默认注册的 `message-formatter` 是同一处理器，UI（如 Agent 设置 / Inspector）展示的 4 条子规则只是它内部按固定顺序调度的「子任务」，对外仍然只占用一个 ContextProcessor 槽位。
+- 与 [`getInitialProcessors`](../../core/pipeline/defaultProcessors.ts:33) 默认注册的 `message-formatter` 是同一处理器，UI（如 Agent 设置 / Inspector）展示的 4 条子规则只是它内部按固定顺序调度的「子任务」，对外仍然只占用一个 ContextProcessor 槽位。
 
 ## 2. 四条内置子规则 (Built-in Sub-Rules)
 
@@ -44,6 +44,6 @@ interface ContextPostProcessRule {
 
 ## 5. 与统一管道的对应关系 (Pipeline Integration)
 
-- 在统一上下文管道中，本节对应「priority 800：消息格式化」槽位，由 [`registerCoreProcessors`](../../core/context-pipeline.ts:1) 注册的同一个 `messageFormatter` 实例承担。
+- 在统一上下文管道中，本节对应「priority 800：消息格式化」槽位，由 [`getInitialProcessors`](../../core/pipeline/defaultProcessors.ts:33) 注册的同一个 `messageFormatter` 实例承担。
 - 后处理管道运行在 token 限制器（priority 700）之后、最终交付给 LLM 适配层之前，因此**它不会再触发裁剪、压缩或注入**；如果想给 LLM 看到的最终结构再做一层观察，可通过 Inspector / Context Analyzer 抓取该处理器执行后的 `context.messages` 快照。
 - 在预览（`isPreviewMode`）场景中，`messageFormatter` 还会额外计算后处理前后的 Token / 字符差值并写入 `sharedData` 的 `postProcessingTokenDelta` / `postProcessingCharDelta`，供分析视图展示合并/占位插入带来的成本变化（见 [`message-format-processors.ts:390-407`](../../core/context-processors/message-format-processors.ts:390)）。

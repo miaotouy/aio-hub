@@ -175,7 +175,7 @@ function getFormattedStaticErrorContext(canvasId: string): string {
 
 #### 在 Agent 上下文中注入
 
-修改 [`CanvasAgentService`](src/tools/canvas/services/CanvasAgentService.ts) 的上下文构建逻辑：
+修改 [`CanvasAgentService`](src/tools/web-canvas/services/CanvasAgentService.ts) 的上下文构建逻辑：
 
 ```typescript
 const errorContext = [

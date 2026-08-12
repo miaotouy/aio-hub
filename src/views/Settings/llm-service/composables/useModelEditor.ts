@@ -17,6 +17,7 @@
  * 负责模型的增删改、从 API 获取模型列表
  */
 import { mergeDiscoveredModelRouting } from "@aiohub/llm-core";
+import type { LlmOperation, ModelRouteBinding } from "@aiohub/llm-core";
 import { ref } from "vue";
 import type { Ref, ComputedRef } from "vue";
 import { customMessage } from "@/utils/customMessage";
@@ -141,6 +142,27 @@ export function useModelEditor(
     customMessage.success(`成功添加 ${newModels.length} 个模型`);
   };
 
+  // 将用户确认的路由绑定写入模型；保留远端端点声明与既有其他 operation 绑定
+  const applyModelRoutes = (
+    applications: Array<{
+      modelId: string;
+      operation: LlmOperation;
+      binding: ModelRouteBinding;
+    }>
+  ): number => {
+    let applied = 0;
+    for (const { modelId, operation, binding } of applications) {
+      const model = editForm.value.models.find((m) => m.id === modelId);
+      if (!model) continue;
+      model.routing = {
+        ...(model.routing ?? {}),
+        bindings: { ...model.routing?.bindings, [operation]: binding },
+      };
+      applied++;
+    }
+    return applied;
+  };
+
   return {
     showModelDialog,
     editingModel,
@@ -157,5 +179,6 @@ export function useModelEditor(
     clearAllModels,
     fetchModels,
     handleAddModels,
+    applyModelRoutes,
   };
 }

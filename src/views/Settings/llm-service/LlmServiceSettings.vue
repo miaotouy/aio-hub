@@ -31,6 +31,7 @@ import ModelList from "./components/ModelList.vue";
 import ModelProbeDialog from "./components/ModelProbeDialog.vue";
 import ModelFetcherDialog from "./components/ModelFetcherDialog.vue";
 import ModelEditDialog from "./components/ModelEditDialog.vue";
+import BatchRouteBindingDialog from "./components/BatchRouteBindingDialog.vue";
 import CreateProfileDialog from "./components/CreateProfileDialog.vue";
 import ConfigImportDialog from "./components/ConfigImportDialog.vue";
 import CustomHeadersEditor from "./components/CustomHeadersEditor.vue";
@@ -53,6 +54,8 @@ import type {
   LlmModelInfo,
   LlmProfile,
 } from "@/types/llm-profiles";
+import type { ModelRouteBinding } from "@aiohub/llm-core";
+import type { ProbeRouteApplication } from "./probe/route-application";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import { useProfileEditor } from "./composables/useProfileEditor";
 import { useModelEditor } from "./composables/useModelEditor";
@@ -98,6 +101,7 @@ const {
   clearAllModels,
   fetchModels,
   handleAddModels,
+  applyModelRoutes,
 } = useModelEditor(editForm, selectedProfile);
 
 const {
@@ -117,10 +121,33 @@ const {
 
 const showModelProbeDialog = ref(false);
 const modelProbeInitialId = ref<string>();
+const showBatchRouteDialog = ref(false);
 
 const openModelProbeDialog = (model?: LlmModelInfo) => {
   modelProbeInitialId.value = model?.id;
   showModelProbeDialog.value = true;
+};
+
+// 将用户确认的探测结果写入模型路由（source: probe）
+const handleApplyProbeResults = (applications: ProbeRouteApplication[]) => {
+  const applied = applyModelRoutes(applications);
+  if (applied > 0) {
+    customMessage.success(`已应用 ${applied} 个模型的检查结果`);
+  }
+};
+
+// 批量设置 Chat 请求协议（source: manual）
+const handleBatchRouteConfirm = (binding: ModelRouteBinding) => {
+  const applied = applyModelRoutes(
+    editForm.value.models.map((model) => ({
+      modelId: model.id,
+      operation: "chat" as const,
+      binding,
+    }))
+  );
+  if (applied > 0) {
+    customMessage.success(`已为 ${applied} 个模型设置 Chat 请求协议`);
+  }
 };
 
 watch(
@@ -992,6 +1019,7 @@ const networkSettingSummary = computed(() => {
                   @edit="editModel"
                   @test="openModelProbeDialog"
                   @batch-test="openModelProbeDialog()"
+                  @batch-route="showBatchRouteDialog = true"
                   @delete="deleteModel"
                   @delete-group="deleteModelGroup"
                   @clear="clearAllModels"
@@ -1082,6 +1110,13 @@ const networkSettingSummary = computed(() => {
       @test="handleTestModel"
       @batch="handleBatchTestModels"
       @cancel="cancelBatchTest"
+      @apply-results="handleApplyProbeResults"
+    />
+
+    <BatchRouteBindingDialog
+      v-model="showBatchRouteDialog"
+      :model-count="editForm.models.length"
+      @confirm="handleBatchRouteConfirm"
     />
 
     <!-- 自定义请求头配置弹窗 -->

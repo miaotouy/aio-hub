@@ -25,6 +25,8 @@ import {
 import { customMessage } from "@/utils/customMessage";
 import { InfoFilled, MagicStick } from "@element-plus/icons-vue";
 import type { LlmModelInfo } from "@/types/llm-profiles";
+import type { LlmOperation } from "@aiohub/llm-core";
+import ModelRoutingEditor from "./ModelRoutingEditor.vue";
 import { PRESET_ICONS } from "@/config/preset-icons";
 import { MODEL_CAPABILITIES } from "@/config/model-capabilities";
 import { getActiveModelProperties } from "@/config/model-metadata";
@@ -437,6 +439,19 @@ function cloneMediaGenParams(params: MediaGenParamRules): MediaGenParamRules {
   return JSON.parse(JSON.stringify(params));
 }
 
+// 模型声明的能力对应的可编辑路由操作（对话始终可编辑）
+const routingOperations = computed<LlmOperation[]>(() => {
+  const capabilities = modelEditForm.value.capabilities;
+  const operations: LlmOperation[] = ["chat"];
+  if (capabilities?.embedding) operations.push("embedding");
+  if (capabilities?.rerank) operations.push("rerank");
+  if (capabilities?.imageGeneration) operations.push("image");
+  if (capabilities?.audioGeneration) operations.push("audio");
+  if (capabilities?.videoGeneration) operations.push("video");
+  if (capabilities?.musicGeneration) operations.push("music");
+  return operations;
+});
+
 // 自定义参数的 JSON 字符串计算属性
 const customParametersJsonString = computed({
   get: () => {
@@ -662,6 +677,21 @@ const customParametersJsonString = computed({
               </el-tooltip>
             </div>
           </div>
+
+          <!-- 请求协议 / 适配器 -->
+          <el-divider content-position="left">请求协议 / 适配器</el-divider>
+
+          <el-form-item label="模型级路由">
+            <ModelRoutingEditor
+              v-model="modelEditForm.routing"
+              :operations="routingOperations"
+              :provider-type="providerType"
+            />
+            <div class="form-hint">
+              仅按模型能力显示可编辑的操作。留空表示该操作跟随渠道默认协议；
+              设置后将覆盖渠道类型为该模型的请求选择，不改变模型列表解析。
+            </div>
+          </el-form-item>
 
           <!-- 图片输入限制 -->
           <el-divider content-position="left">图片输入限制</el-divider>

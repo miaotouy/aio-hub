@@ -5,6 +5,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { ChevronDown, ChevronUp, Play, Search, Square } from "lucide-vue-next";
+import { CircleCheck } from "@element-plus/icons-vue";
 import { resolveProbePlan } from "@aiohub/llm-core";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
@@ -18,6 +19,10 @@ import type {
   ChannelProbeResult,
   ProbeEndpointType,
 } from "../probe/types";
+import {
+  createProbeRouteApplication,
+  type ProbeRouteApplication,
+} from "../probe/route-application";
 
 interface ProbeRunOptions {
   endpointType: ProbeEndpointType;
@@ -44,6 +49,10 @@ const emit = defineEmits<{
     options: ProbeRunOptions & { concurrency: number }
   ): void;
   (event: "cancel"): void;
+  (
+    event: "apply-results",
+    applications: ProbeRouteApplication[]
+  ): void;
 }>();
 
 const tableRef = ref<{ setScrollTop?: (top: number) => void }>();
@@ -115,6 +124,34 @@ const checkAllLabel = computed(() =>
     ? `检查筛选结果 (${filteredModels.value.length})`
     : `检查全部 (${filteredModels.value.length})`
 );
+
+// 成功结果中可转换为模型路由的部分；仅显式端点且能力可映射时才可应用
+const routeApplications = computed<
+  Record<string, Omit<ProbeRouteApplication, "modelId">>
+>(() => {
+  const applications: Record<
+    string,
+    Omit<ProbeRouteApplication, "modelId">
+  > = {};
+  for (const [modelId, result] of Object.entries(props.results)) {
+    const application = createProbeRouteApplication(result);
+    if (application) applications[modelId] = application;
+  }
+  return applications;
+});
+
+const applyableSelectedIds = computed(() =>
+  selectedIds.value.filter((modelId) => routeApplications.value[modelId])
+);
+
+function applyResults(modelIds: string[]) {
+  const applications: ProbeRouteApplication[] = [];
+  for (const modelId of modelIds) {
+    const application = routeApplications.value[modelId];
+    if (application) applications.push({ modelId, ...application });
+  }
+  if (applications.length > 0) emit("apply-results", applications);
+}
 
 watch(
   () => [props.modelValue, props.initialModelId] as const,
@@ -404,6 +441,15 @@ function formatDuration(value?: number): string {
                 >
                   检查选中 ({{ selectedIds.length }})
                 </el-button>
+                <el-button
+                  v-if="applyableSelectedIds.length > 0"
+                  type="success"
+                  plain
+                  :disabled="isAnyTesting"
+                  @click="applyResults(applyableSelectedIds)"
+                >
+                  应用成功结果到选中 ({{ applyableSelectedIds.length }})
+                </el-button>
               </template>
             </div>
             <el-input
@@ -533,22 +579,39 @@ function formatDuration(value?: number): string {
 
             <el-table-column
               label="操作"
-              width="72"
+              width="96"
               fixed="right"
               align="center"
             >
               <template #default="{ row }">
-                <el-tooltip content="检查此模型" placement="top">
-                  <el-button
-                    :icon="Play"
-                    circle
-                    size="small"
-                    :loading="loading[row.id]"
-                    :disabled="batchRunning || loading[row.id]"
-                    aria-label="检查此模型"
-                    @click.stop="testSingle(row)"
-                  />
-                </el-tooltip>
+                <div class="row-actions">
+                  <el-tooltip
+                    v-if="routeApplications[row.id]"
+                    content="应用成功结果为该模型的请求协议"
+                    placement="top"
+                  >
+                    <el-button
+                      :icon="CircleCheck"
+                      circle
+                      size="small"
+                      type="success"
+                      :disabled="isAnyTesting"
+                      aria-label="应用成功结果"
+                      @click.stop="applyResults([row.id])"
+                    />
+                  </el-tooltip>
+                  <el-tooltip content="检查此模型" placement="top">
+                    <el-button
+                      :icon="Play"
+                      circle
+                      size="small"
+                      :loading="loading[row.id]"
+                      :disabled="batchRunning || loading[row.id]"
+                      aria-label="检查此模型"
+                      @click.stop="testSingle(row)"
+                    />
+                  </el-tooltip>
+                </div>
               </template>
             </el-table-column>
 
@@ -715,6 +778,13 @@ function formatDuration(value?: number): string {
   color: var(--text-color-secondary);
   font-family: monospace;
   font-size: 12px;
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
 }
 
 .status-pending,

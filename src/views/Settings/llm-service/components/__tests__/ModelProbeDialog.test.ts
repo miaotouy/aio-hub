@@ -161,4 +161,79 @@ describe("ModelProbeDialog", () => {
     await stopButton!.trigger("click");
     expect(wrapper.emitted("cancel")).toHaveLength(1);
   });
+
+  it("applies successful probe results to selected models as probe bindings", async () => {
+    const wrapper = mountDialog();
+    const state = stateOf(wrapper);
+    await wrapper.setProps({
+      results: {
+        "chat-model": {
+          success: true,
+          kind: "inference",
+          modelId: "chat-model",
+          capability: "chat",
+          endpointType: "openai-chat",
+          phase: "semantic-validation",
+          totalMs: 100,
+          testedAt: 1786000000000,
+        },
+      },
+    });
+
+    state.toggleModel("chat-model");
+    expect(state.applyableSelectedIds).toEqual(["chat-model"]);
+    state.applyResults(state.applyableSelectedIds);
+
+    expect(wrapper.emitted("apply-results")?.[0]).toEqual([
+      [
+        {
+          modelId: "chat-model",
+          operation: "chat",
+          binding: {
+            adapterId: "openai-chat-completions",
+            endpointType: "openai-chat",
+            source: "probe",
+          },
+        },
+      ],
+    ]);
+  });
+
+  it("never offers apply for failed, unresolved or unmatched results", async () => {
+    const wrapper = mountDialog();
+    const state = stateOf(wrapper);
+    await wrapper.setProps({
+      results: {
+        "chat-model": {
+          success: false,
+          kind: "inference",
+          modelId: "chat-model",
+          capability: "chat",
+          endpointType: "openai-chat",
+          phase: "transport",
+          category: "network",
+          totalMs: 500,
+          errorMessage: "网络错误",
+          errorDetail: "网络错误",
+          testedAt: 1786000000000,
+        },
+        "embedding-model": {
+          success: true,
+          kind: "inference",
+          modelId: "embedding-model",
+          capability: "chat",
+          endpointType: "auto",
+          phase: "semantic-validation",
+          totalMs: 100,
+          testedAt: 1786000000000,
+        },
+      },
+    });
+
+    state.toggleModel("chat-model");
+    state.toggleModel("embedding-model");
+    expect(state.applyableSelectedIds).toEqual([]);
+    state.applyResults(state.applyableSelectedIds);
+    expect(wrapper.emitted("apply-results")).toBeUndefined();
+  });
 });

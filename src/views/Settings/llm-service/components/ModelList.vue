@@ -28,8 +28,11 @@ import {
   MoreFilled,
   VideoPlay,
   MagicStick,
+  Connection,
 } from "@element-plus/icons-vue";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
+import type { LlmOperation, ModelRouteBinding } from "@aiohub/llm-core";
+import { getAdapterLabel, OPERATION_LABELS } from "@/config/llm-routing";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import {
   MODEL_CAPABILITIES,
@@ -96,6 +99,7 @@ interface Emits {
   (e: "fetch"): void;
   (e: "test", model: LlmModelInfo): void;
   (e: "batch-test"): void;
+  (e: "batch-route"): void;
   (e: "update:expandState", state: Record<string, boolean>): void;
   (e: "batch-apply-presets", models: LlmModelInfo[]): void;
 }
@@ -248,6 +252,41 @@ const getTestResultTitle = (result: ChannelProbeResult): string => {
     : result.errorMessage || result.category || "模型检查失败";
   return summary + " (" + formatTestDuration(result.totalMs) + ")";
 };
+
+const MODEL_ROUTE_SOURCE_LABELS: Record<string, string> = {
+  manual: "手动",
+  probe: "探测",
+  discovered: "发现",
+  "profile-default": "渠道默认",
+};
+
+// 路由指示：优先显示 Chat binding，其次服务端声明集合
+const getModelRouteBindings = (
+  model: LlmModelInfo
+): Array<{ operation: LlmOperation; binding: ModelRouteBinding }> => {
+  const bindings = model.routing?.bindings;
+  if (!bindings) return [];
+  return (Object.keys(bindings) as LlmOperation[])
+    .filter((operation) => bindings[operation])
+    .map((operation) => ({
+      operation,
+      binding: bindings[operation]!,
+    }));
+};
+
+const getModelRouteTitle = (model: LlmModelInfo): string => {
+  const lines = getModelRouteBindings(model).map(
+    ({ operation, binding }) =>
+      `${OPERATION_LABELS[operation]}: ${getAdapterLabel(binding.adapterId)}（${
+        MODEL_ROUTE_SOURCE_LABELS[binding.source ?? "manual"]
+      }）`
+  );
+  const supported = model.routing?.supportedEndpointTypes;
+  if (supported?.length) {
+    lines.push(`服务端声明: ${supported.join(", ")}`);
+  }
+  return lines.join("\n");
+};
 </script>
 
 <template>
@@ -274,6 +313,14 @@ const getTestResultTitle = (result: ChannelProbeResult): string => {
             <el-button size="small" :icon="MagicStick">批量应用预设</el-button>
           </template>
         </el-popconfirm>
+        <el-button
+          v-if="editable && models.length > 0"
+          size="small"
+          :icon="Connection"
+          @click="emit('batch-route')"
+        >
+          批量设置协议
+        </el-button>
         <el-button
           v-if="editable"
           size="small"
@@ -372,6 +419,35 @@ const getTestResultTitle = (result: ChannelProbeResult): string => {
                     <span v-if="getOtherIdentityRoutes(item.model).length > 0">
                       ·
                       {{ getOtherIdentityRoutes(item.model).length }} 个其他路由
+                    </span>
+                  </div>
+                  <div
+                    v-if="
+                      item.model.routing?.bindings?.chat ||
+                      item.model.routing?.supportedEndpointTypes?.length
+                    "
+                    class="model-route"
+                    :title="getModelRouteTitle(item.model)"
+                  >
+                    <el-tag
+                      v-if="item.model.routing?.bindings?.chat"
+                      size="small"
+                      type="primary"
+                      effect="plain"
+                    >
+                      {{
+                        getAdapterLabel(
+                          item.model.routing.bindings.chat.adapterId
+                        )
+                      }}
+                    </el-tag>
+                    <span
+                      v-if="item.model.routing?.supportedEndpointTypes?.length"
+                      class="route-endpoints"
+                    >
+                      {{
+                        item.model.routing.supportedEndpointTypes.join(" / ")
+                      }}
                     </span>
                   </div>
                 </div>
@@ -690,6 +766,23 @@ const getTestResultTitle = (result: ChannelProbeResult): string => {
   font-family: monospace;
   font-size: 11px;
   line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-route {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  overflow: hidden;
+}
+
+.route-endpoints {
+  font-size: 11px;
+  color: var(--text-color-light);
+  font-family: monospace;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

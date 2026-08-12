@@ -224,6 +224,34 @@ const ADAPTER_OPERATIONS: Readonly<
   "minimax-music": ["music"],
 };
 
+/**
+ * Lists the protocol adapters that can serve a given operation. Used by
+ * routing editors to build per-operation adapter options.
+ */
+export function listAdaptersForOperation(
+  operation: LlmOperation
+): LlmAdapterId[] {
+  return (Object.keys(ADAPTER_OPERATIONS) as LlmAdapterId[]).filter((adapterId) =>
+    ADAPTER_OPERATIONS[adapterId].includes(operation)
+  );
+}
+
+/**
+ * Maps a service-reported endpoint type to the protocol adapter that can
+ * serve the requested operation, or undefined when the endpoint type is
+ * unknown or incompatible with the operation. The mapping is case-insensitive
+ * and intentionally does not guess protocol from model identifiers.
+ */
+export function resolveAdapterIdForEndpointType(
+  endpointType: string,
+  operation: LlmOperation
+): LlmAdapterId | undefined {
+  const adapterId = ENDPOINT_TYPE_ADAPTERS[endpointType.toLowerCase()];
+  if (!adapterId) return undefined;
+  if (!ADAPTER_OPERATIONS[adapterId].includes(operation)) return undefined;
+  return adapterId;
+}
+
 export interface ResolveModelExecutionOptions<
   TProfile extends LlmExecutionProfile,
   TModel extends LlmExecutionModel,

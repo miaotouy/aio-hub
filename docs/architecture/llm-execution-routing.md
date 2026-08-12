@@ -1,8 +1,8 @@
 # LLM 模型执行路由契约
 
-> 状态：Phase 0 + Phase 1 已实施（2026-08-06）
-> 范围：`@aiohub/llm-core`、桌面端请求 / Embedding / Recall / Probe、移动端聊天请求
-> 后续：模型发现结果保真、路由编辑 UI 与聚合渠道类型仍按 `docs/Plan/llm-aggregate-channel-routing-investigation.md` 的 Phase 2–5 推进。
+> 状态：Phase 0–3 已实施（Phase 0–2：2026-08-06；Phase 3：2026-08-12）
+> 范围：`@aiohub/llm-core`、桌面端请求 / Embedding / Recall / Probe、移动端聊天请求、模型路由编辑与探测结果应用
+> 后续：聚合渠道类型（Phase 4）与多能力路由高级编辑（Phase 5）仍按 `docs/Plan/llm-aggregate-channel-routing-investigation.md` 推进。
 
 ## 目标与边界
 
@@ -49,7 +49,7 @@ type LlmOperation =
   "chat" | "embedding" | "rerank" | "image" | "audio" | "video" | "music";
 ```
 
-`LlmModelRouting` 已作为可选字段加入桌面与移动端 `LlmModelInfo`。本阶段只读取该字段；尚未实现 UI、模型发现写入或导入导出校验。
+`LlmModelRouting` 已作为可选字段加入桌面与移动端 `LlmModelInfo`。Phase 2 起模型发现写入 `supportedEndpointTypes`；Phase 3 起提供模型编辑器、批量设置与 Probe 应用入口，模型刷新只替换远端声明，不覆盖用户 binding（见 `mergeDiscoveredModelRouting`）。
 
 ## Provider 默认映射
 
@@ -80,6 +80,16 @@ type LlmOperation =
 Phase 2 将 OpenAI 风格模型列表的 `supported_endpoint_types` 映射为 `ProviderModelInfo.supportedEndpointTypes`，随后写入模型自身的 `routing.supportedEndpointTypes` 与 `routing.discoveredAt`。该集合是服务端声明而非用户选择：保留未知字符串供未来协议支持或导入导出使用，resolver 只会识别已注册的 endpoint type。
 
 刷新模型列表时，应用仅更新同 ID 模型的远端端点声明；`routing.bindings`（手工或 Probe 路由）以及本地 `capabilities`、分组、图标等模型配置都不被覆盖。渠道包会校验 routing 的结构，但保留未知 endpoint 和 adapter 值；未知 adapter binding 暂不生效并安全回退到渠道默认执行路径。
+
+## 路由编辑与探测应用
+
+Phase 3 提供以下写入入口，全部只覆盖对应 operation 的 binding：
+
+- **模型编辑器**（`ModelRoutingEditor`）：按模型已声明能力逐操作编辑 adapter（对话恒可编辑），可附加绑定专用端点；选择即写 `source: "manual"`，重置即删除该 operation binding。编辑器同时展示服务端声明端点集合与当前生效路由。
+- **批量设置**（`BatchRouteBindingDialog`）：为渠道全部模型设置 Chat binding，覆盖已有 Chat 绑定。
+- **Probe 应用**（模型检查对话框）：成功结果可逐行应用或批量应用到选中模型，写 `source: "probe"`；仅当 `endpointType` 可映射到 adapter 且能力匹配时可用（`createProbeRouteApplication`），失败 / "auto" / 未知端点不提供应用入口，不猜测协议。
+
+共享工具：`listAdaptersForOperation()` 提供各 operation 的可用 adapter；`resolveAdapterIdForEndpointType()` 把服务端端点字符串映射到 adapter，均以 `@aiohub/llm-core` 单一实现为准，桌面与移动端共用。
 
 ## 解析优先级
 

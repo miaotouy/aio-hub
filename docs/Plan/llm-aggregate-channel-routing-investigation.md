@@ -1,7 +1,7 @@
 # LLM 聚合渠道与模型级适配器路由调查
 
-> 状态：Phase 0–2 已实施；Phase 3–5 待排期
-> 调查日期：2026-07-30（OpenCode Go 补充核查：2026-08-06；Phase 0–2 实施：2026-08-06）
+> 状态：Phase 0–3 已实施；Phase 4–5 待排期
+> 调查日期：2026-07-30（OpenCode Go 补充核查：2026-08-06；Phase 0–2 实施：2026-08-06；Phase 3 实施：2026-08-12）
 > 范围：桌面端、移动端（尚未发布）、`@aiohub/llm-core`、渠道导入导出、模型发现与探测  
 > 本地参考仓库：`E:\git\new-api`、`E:\git\sub2api`、`E:\git\cherry-studio`
 
@@ -345,11 +345,19 @@ Phase 1 完成时未提供模型路由编辑或服务端端点声明持久化；
 
 ### Phase 3：手工分配与 Probe 应用
 
-1. 模型编辑器增加“请求协议/适配器”区域。
+1. 模型编辑器增加"请求协议/适配器"区域。
 2. 聚合渠道模型列表展示当前 binding 和服务端支持集合。
 3. 支持批量设置 Chat binding。
-4. Probe 成功后提供“应用到该模型”与“应用到选中模型”。
+4. Probe 成功后提供"应用到该模型"与"应用到选中模型"。
 5. 当发现多个可用 Chat 协议时不擅自选择；允许渠道设置默认优先级。
+
+### Phase 3 实施记录（2026-08-12）
+
+- 共享解析器新增 `listAdaptersForOperation()` 与 `resolveAdapterIdForEndpointType()`，供路由编辑器与探测结果转换复用；解析优先级与旧渠道行为不变。
+- 模型编辑器新增"请求协议 / 适配器"区域（`ModelRoutingEditor`）：按模型已声明能力逐操作编辑 binding（对话恒可编辑，Embedding / Rerank / 图片 / 音频 / 视频 / 音乐跟随能力开关出现），支持绑定专用端点与重置；同时展示服务端声明端点集合和当前生效路由（binding → 唯一发现端点 → 渠道默认）。
+- 模型列表展示每个模型的 Chat 绑定与服务端声明端点集合，并提供"批量设置协议"入口：一次为全部模型设置 Chat binding（`source: manual`），覆盖已有 Chat 绑定但不触碰其他操作与模型列表解析。
+- 模型检查对话框在成功结果后可"应用成功结果到选中"或逐行应用：结果转换为对应 operation 的 probe binding（仅当端点类型可映射且能力匹配），"auto" 结果、失败结果与未知端点不提供应用入口，不猜测协议；应用需用户显式点击。
+- 写入模型路由时仅覆盖对应 operation 的 binding，保留 `supportedEndpointTypes` / `discoveredAt` 与其他 operation 绑定；旧渠道包与旧模型数据不受影响。
 
 ### Phase 4：增加聚合渠道类型
 
@@ -426,6 +434,6 @@ Phase 1 完成时未提供模型路由编辑或服务端端点声明持久化；
 
 ## 9. 推荐下一步
 
-Phase 0–2 已完成，下一份施工计划应只覆盖 **Phase 3：手工分配与 Probe 应用**，暂不增加新的聚合渠道类型或自动跨协议重试。
+Phase 0–3 已完成，下一份施工计划应只覆盖 **Phase 4：增加聚合渠道类型**，暂不开放 Embedding / Rerank / Image 的独立路由编辑之外的自动跨协议重试。
 
-**Phase 3 的完成标准**：模型编辑器可按 operation 写入显式 binding；Probe 成功结果可在用户确认后应用到一个或多个模型；存在多个可识别端点时保持不猜测，仍要求用户或渠道默认优先级作出选择。完成后，New API/Sub2API 的模型列表声明才能由用户稳定地转化为实际执行路由。
+**Phase 4 的完成标准**：新增 `new-api` / `sub2api` / `aggregate-compatible`（或单一 `aggregate` 类型 + `aggregateFlavor`）渠道类型，复用现有 route resolver；渠道级默认优先级（没有模型级 binding 时的回退协议）可配置；OpenCode Go 作为首个内置聚合预设验收样例，模型默认走内置 route table，未收录模型标记"待选择/待探测"而非静默猜测。完成前，OpenCode Go 只能拆分为三个独立渠道使用。

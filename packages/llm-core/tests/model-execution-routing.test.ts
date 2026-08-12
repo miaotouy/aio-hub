@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  listAdaptersForOperation,
   mergeDiscoveredModelRouting,
+  resolveAdapterIdForEndpointType,
   resolveModelExecution,
   type LlmAdapterId,
   type LlmExecutionModel,
@@ -169,5 +171,75 @@ describe("resolveModelExecution", () => {
         operation: "chat",
       })
     ).toThrow("No default execution adapter is registered");
+  });
+});
+
+describe("listAdaptersForOperation", () => {
+  it("returns only adapters that can serve the operation", () => {
+    expect(listAdaptersForOperation("chat")).toEqual(
+      expect.arrayContaining([
+        "openai-chat-completions",
+        "openai-responses",
+        "anthropic-messages",
+        "gemini-generate-content",
+        "cohere-chat",
+        "vertex-google",
+        "vertex-anthropic",
+      ])
+    );
+    expect(listAdaptersForOperation("chat")).not.toContain(
+      "openai-embeddings"
+    );
+    expect(listAdaptersForOperation("embedding")).toEqual(
+      expect.arrayContaining([
+        "openai-embeddings",
+        "gemini-generate-content",
+        "cohere-chat",
+        "vertex-google",
+      ])
+    );
+    expect(listAdaptersForOperation("rerank")).toEqual(["jina-rerank"]);
+    expect(listAdaptersForOperation("music")).toEqual([
+      "suno-newapi",
+      "minimax-music",
+    ]);
+  });
+});
+
+describe("resolveAdapterIdForEndpointType", () => {
+  it("maps recognized endpoint types case-insensitively for a compatible operation", () => {
+    expect(resolveAdapterIdForEndpointType("openai-chat", "chat")).toBe(
+      "openai-chat-completions"
+    );
+    expect(resolveAdapterIdForEndpointType("OPENAI-RESPONSE", "chat")).toBe(
+      "openai-responses"
+    );
+    expect(resolveAdapterIdForEndpointType("anthropic", "chat")).toBe(
+      "anthropic-messages"
+    );
+    expect(resolveAdapterIdForEndpointType("gemini", "chat")).toBe(
+      "gemini-generate-content"
+    );
+    expect(resolveAdapterIdForEndpointType("embeddings", "embedding")).toBe(
+      "openai-embeddings"
+    );
+    expect(resolveAdapterIdForEndpointType("jina-rerank", "rerank")).toBe(
+      "jina-rerank"
+    );
+    expect(resolveAdapterIdForEndpointType("image-generation", "image")).toBe(
+      "openai-image-generation"
+    );
+  });
+
+  it("rejects unknown endpoint types and operation mismatches", () => {
+    expect(resolveAdapterIdForEndpointType("future-protocol", "chat")).toBe(
+      undefined
+    );
+    expect(resolveAdapterIdForEndpointType("openai-chat", "embedding")).toBe(
+      undefined
+    );
+    expect(resolveAdapterIdForEndpointType("embeddings", "chat")).toBe(
+      undefined
+    );
   });
 });

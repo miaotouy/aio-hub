@@ -19,6 +19,9 @@ import { computed } from "vue";
 import {
   listRoutesByCanonicalId,
   materializeModelIdentity,
+  isAggregateChannelType,
+  resolveModelExecution,
+  UnresolvedModelRouteError,
 } from "@aiohub/llm-core";
 import {
   Plus,
@@ -287,6 +290,24 @@ const getModelRouteTitle = (model: LlmModelInfo): string => {
   }
   return lines.join("\n");
 };
+
+// 聚合渠道：模型没有绑定、发现和渠道默认都无法确定对话协议时标记“待选协议”，
+// 请求前必须手动选择或通过探测确认，禁止按模型名猜测。
+const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
+  if (!props.providerType || !isAggregateChannelType(props.providerType)) {
+    return false;
+  }
+  if (model.routing?.bindings?.chat) return false;
+  const profile =
+    props.profiles.find((p) => p.id === props.currentProfileId) ??
+    ({ type: props.providerType } as LlmProfile);
+  try {
+    resolveModelExecution({ profile, model, operation: "chat" });
+    return false;
+  } catch (error) {
+    return error instanceof UnresolvedModelRouteError;
+  }
+};
 </script>
 
 <template>
@@ -449,6 +470,17 @@ const getModelRouteTitle = (model: LlmModelInfo): string => {
                         item.model.routing.supportedEndpointTypes.join(" / ")
                       }}
                     </span>
+                  </div>
+                  <div
+                    v-if="isChatRouteUnresolved(item.model)"
+                    class="model-route"
+                    :title="
+                      '该模型尚未选择对话协议：请求前请先选择协议或运行模型检查'
+                    "
+                  >
+                    <el-tag size="small" type="warning" effect="plain">
+                      待选协议
+                    </el-tag>
                   </div>
                 </div>
 

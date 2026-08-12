@@ -166,4 +166,85 @@ describe("LLM profile transfer bundle", () => {
       })
     ).toMatchObject({ recognized: true, error: expect.any(String) });
   });
+
+  it("round-trips aggregate channel profiles with routing defaults and bindings", () => {
+    const aggregateProfile: LlmProfile = {
+      id: "profile-new-api",
+      name: "My New API",
+      type: "new-api",
+      baseUrl: "https://gateway.example.com",
+      apiKeys: [],
+      enabled: true,
+      options: {
+        routingDefaults: {
+          chat: "openai-chat-completions",
+          embedding: "openai-embeddings",
+          rerank: "jina-rerank",
+          image: "openai-image-generation",
+        },
+        custom: 1,
+      },
+      models: [
+        {
+          id: "claude-3-5-sonnet",
+          name: "Claude Sonnet",
+          provider: "anthropic",
+          routing: {
+            bindings: {
+              chat: {
+                adapterId: "anthropic-messages",
+                source: "probe",
+              },
+            },
+            supportedEndpointTypes: ["anthropic", "future-protocol"],
+            discoveredAt: "2026-08-12T00:00:00.000Z",
+          },
+        },
+      ],
+    };
+
+    const bundle = createLlmProfileBundle([aggregateProfile], {
+      includeSecrets: true,
+    });
+    const parsed = parseLlmProfileBundle(JSON.parse(JSON.stringify(bundle)));
+
+    expect(parsed).toMatchObject({
+      recognized: true,
+      bundle: { profiles: [aggregateProfile] },
+    });
+  });
+
+  it("rejects malformed aggregate routing defaults but preserves unknown adapters", () => {
+    expect(
+      parseLlmProfileBundle({
+        format: "aiohub.llm-profiles",
+        formatVersion: 1,
+        profiles: [
+          {
+            ...profile(),
+            type: "new-api" as LlmProfile["type"],
+            options: { routingDefaults: { chat: 42 } },
+          },
+        ],
+      })
+    ).toMatchObject({ recognized: true, error: expect.any(String) });
+
+    const withUnknownAdapter = parseLlmProfileBundle({
+      format: "aiohub.llm-profiles",
+      formatVersion: 1,
+      profiles: [
+        {
+          ...profile(),
+          type: "opencode-go" as LlmProfile["type"],
+          options: { routingDefaults: { chat: "future-adapter" } },
+        },
+      ],
+    });
+
+    expect(withUnknownAdapter).toMatchObject({ recognized: true });
+    expect(
+      (withUnknownAdapter as { bundle: { profiles: LlmProfile[] } }).bundle
+        .profiles[0].options?.routingDefaults
+    ).toEqual({ chat: "future-adapter" });
+  });
 });

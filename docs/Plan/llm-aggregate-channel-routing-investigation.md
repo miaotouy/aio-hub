@@ -1,7 +1,7 @@
 # LLM 聚合渠道与模型级适配器路由调查
 
-> 状态：Phase 0–3 已实施；Phase 4–5 待排期
-> 调查日期：2026-07-30（OpenCode Go 补充核查：2026-08-06；Phase 0–2 实施：2026-08-06；Phase 3 实施：2026-08-12）
+> 状态：Phase 0–4 已实施；Phase 5 待排期
+> 调查日期：2026-07-30（OpenCode Go 补充核查：2026-08-06；Phase 0–2 实施：2026-08-06；Phase 3 实施：2026-08-12；Phase 4 实施：2026-08-12）
 > 范围：桌面端、移动端（尚未发布）、`@aiohub/llm-core`、渠道导入导出、模型发现与探测  
 > 本地参考仓库：`E:\git\new-api`、`E:\git\sub2api`、`E:\git\cherry-studio`
 
@@ -369,6 +369,17 @@ Phase 1 完成时未提供模型路由编辑或服务端端点声明持久化；
 
 是否需要三个独立 ProviderType 可在实施时再决定，也可以表现为一个 `aggregate` 类型加 `aggregateFlavor` 配置。无论 UI 如何命名，底层都必须复用同一 route resolver。
 
+### Phase 4 实施记录（2026-08-12）
+
+- **新增四种聚合渠道类型**（`new-api` / `sub2api` / `aggregate-compatible` / `opencode-go`），桌面端与移动端共享同一 `ProviderType` 与 `providerTypes` 配置；移动端尚未发布，通过共享解析器与模型列表解析直接获得支持。
+- **共享解析器聚合回退**：`ProviderExecutionDefault` 增加 `modelRoutes` 与 `aggregate` 标记；`LlmExecutionProfile` 增加 `options.routingDefaults`（用户可配置的渠道级默认协议）。聚合渠道回退顺序为 用户渠道默认 → 内置模型路由表 → 渠道静态默认；清空或未知 adapter 视为未设置继续回退。解析成功后把 `effectiveProfile.type` 重映射为实际协议适配器的旧渠道类型，请求构建、参数过滤与鉴权头因此看到真实协议；旧渠道路径行为完全不变。
+- **不可解析即报错**：新增 `UnresolvedModelRouteError`（`@aiohub/llm-core` 导出，含 channelType/modelId/operation），聚合渠道没有任何可用路由时抛出，禁止按模型名猜测协议；模型列表显示"待选协议"标签，路由编辑器与 Probe 服务给出"待选择/待探测"引导。
+- **OpenCode Go 内置路由表**：以官方模型表（2026-08-12）为准收录 19 个模型到 `modelRoutes`（Chat Completions / Responses / Anthropic Messages 三协议），未收录模型标记"待选择/待探测"；同时提供 OpenCode Go 预设（含 19 个默认模型、文档链接与图标）。
+- **渠道级默认协议可配置**：聚合渠道在设置页以"渠道特有配置"提供 Chat / Embedding / Rerank / 图片 的默认协议下拉（写入 `options.routingDefaults`），选项来自共享 `listAdaptersForOperation()`。
+- **注册面同步**：`adapters` 注册表与 `adapterUrlHandlers` 增加防御性 OpenAI 兼容条目（运行时经解析器重映射不命中）；`OPENAI_FAMILY` 纳入四类以解析 `/v1/models` 与保留 `supported_endpoint_types`；渠道包白名单与校验、Probe 自动端点集合同步更新，并新增 New API / Sub2API 预设。
+- **验证**：llm-core 路由测试新增聚合渠道用例（回退、重映射、路由表、未解析报错、清空回退）；桌面 llm-providers 与渠道包 transfer 测试覆盖聚合类型与 `routingDefaults` 往返；桌面 typecheck + Vite build、移动端 typecheck + build、相关单测全部通过。
+- **未纳入本阶段**：New API / OpenCode 配置导入映射到聚合类型（导入仍推断为 `openai-compatible` / 原协议）；binding 级鉴权头覆盖与跨协议失败重试（Phase 5）。
+
 ### Phase 5：多能力路由与高级兼容
 
 1. 为 Embedding、Rerank、Image 等 operation 开放独立 binding。
@@ -434,6 +445,8 @@ Phase 1 完成时未提供模型路由编辑或服务端端点声明持久化；
 
 ## 9. 推荐下一步
 
-Phase 0–3 已完成，下一份施工计划应只覆盖 **Phase 4：增加聚合渠道类型**，暂不开放 Embedding / Rerank / Image 的独立路由编辑之外的自动跨协议重试。
+Phase 0–4 已完成，下一份施工计划应只覆盖 **Phase 5：多能力路由与高级兼容**，暂不开放自动跨协议重试。
 
-**Phase 4 的完成标准**：新增 `new-api` / `sub2api` / `aggregate-compatible`（或单一 `aggregate` 类型 + `aggregateFlavor`）渠道类型，复用现有 route resolver；渠道级默认优先级（没有模型级 binding 时的回退协议）可配置；OpenCode Go 作为首个内置聚合预设验收样例，模型默认走内置 route table，未收录模型标记"待选择/待探测"而非静默猜测。完成前，OpenCode Go 只能拆分为三个独立渠道使用。
+**Phase 5 建议范围**：为 Embedding / Rerank / Image 等 operation 开放独立 binding 的进阶编辑（渠道默认协议下拉已覆盖 Chat / Embedding / Rerank / 图片）；支持每个 binding 的自定义 endpoint 和必要的鉴权覆盖（如聚合渠道绑定 Gemini 协议时的 `x-goog-api-key` 头）；按需引入 `routeId` 支持同模型多个可见路由变体；端点健康状态、最近 Probe 时间和失败回退策略（不自动跨协议重试，避免重复计费和非幂等副作用）。可选收尾：New API 连接信息与 OpenCode 配置导入直接映射到聚合渠道类型。
+
+**Phase 4 完成标准已达成**：新增 `new-api` / `sub2api` / `aggregate-compatible` / `opencode-go` 四种渠道类型，复用现有 route resolver；渠道级默认优先级（没有模型级 binding 时的回退协议）通过 `options.routingDefaults` 可配置；OpenCode Go 作为首个内置聚合预设验收样例，模型默认走内置 route table，未收录模型标记"待选择/待探测"而非静默猜测。

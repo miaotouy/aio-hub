@@ -57,7 +57,12 @@ export type ProviderType =
   | "cohere"
   | "vertexai"
   | "suno-newapi"
-  | "minimax-music";
+  | "minimax-music"
+  // 聚合渠道：渠道身份与线协议解耦，模型按操作绑定协议适配器。
+  | "new-api"
+  | "sub2api"
+  | "aggregate-compatible"
+  | "opencode-go";
 
 /**
  * 渠道对 AIO 工具调用的处理声明。

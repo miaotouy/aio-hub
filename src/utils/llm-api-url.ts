@@ -64,6 +64,12 @@ const adapterUrlHandlers: Record<ProviderType, AdapterUrlHandler> = {
   ollama: openAiUrlHandler,
   "suno-newapi": sunoNewApiUrlHandler,
   "minimax-music": minimaxMusicUrlHandler,
+  // Aggregate channel identities resolve to protocol adapters at runtime;
+  // URL previews use the OpenAI-compatible handler as the common default.
+  "new-api": openAiUrlHandler,
+  sub2api: openAiUrlHandler,
+  "aggregate-compatible": openAiUrlHandler,
+  "opencode-go": openAiUrlHandler,
 };
 
 /**

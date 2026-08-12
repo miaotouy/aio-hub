@@ -98,6 +98,11 @@ const OPENAI_CHAT_PROFILE_TYPES = new Set<ProviderType>([
   "ollama",
   "openrouter",
   "xai",
+  // 聚合渠道的自动探测默认尝试 OpenAI Chat Completions 端点。
+  "new-api",
+  "sub2api",
+  "aggregate-compatible",
+  "opencode-go",
 ]);
 
 export function getProbeEndpointDefinition(

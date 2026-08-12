@@ -16,7 +16,36 @@
  * LLM 服务提供商类型配置
  */
 
+import { listAdaptersForOperation, type LlmOperation } from "@aiohub/llm-core";
+import type { SettingItem } from "../types/settings-renderer";
 import type { ProviderType, ProviderTypeInfo } from "../types/llm-profiles";
+import { getAdapterLabel, OPERATION_LABELS } from "./llm-routing";
+
+/**
+ * 聚合渠道的“渠道默认协议”配置项。
+ * 值写入 `profile.options.routingDefaults`，由共享执行解析器读取；
+ * 仅对聚合渠道生效，旧渠道忽略。
+ */
+function aggregateRoutingConfigFields(): SettingItem[] {
+  const operations: LlmOperation[] = ["chat", "embedding", "rerank", "image"];
+  return operations.map((operation) => ({
+    id: `aggregate-default-${operation}`,
+    label: `默认${OPERATION_LABELS[operation]}协议`,
+    component: "ElSelect",
+    modelPath: `routingDefaults.${operation}`,
+    props: {
+      clearable: true,
+      placeholder: "跟随模型绑定；未配置时提示选择或探测",
+    },
+    hint: "没有模型级绑定时使用的回退协议。留空表示不假设协议：未绑定模型会提示选择或探测，不会静默猜测。",
+    keywords: "aggregate routing default protocol 默认协议 回退",
+    options: () =>
+      listAdaptersForOperation(operation).map((adapterId) => ({
+        label: getAdapterLabel(adapterId),
+        value: adapterId,
+      })),
+  }));
+}
 
 /**
  * 支持的 LLM 服务提供商类型列表
@@ -486,6 +515,106 @@ export const providerTypes: ProviderTypeInfo[] = [
     defaultBaseUrl: "https://api.minimaxi.com",
     supportsModelList: false,
     supportedParameters: {},
+  },
+  // ---- 聚合渠道：渠道身份与线协议解耦，模型按操作绑定协议适配器 ----
+  {
+    type: "new-api",
+    name: "New API",
+    description:
+      "New API 中转/聚合网关：模型列表返回 supported_endpoint_types 端点声明，未声明或存在多个端点时按模型绑定或探测确定协议",
+    defaultBaseUrl: "",
+    supportsModelList: true,
+    modelListEndpoint: "models",
+    supportedParameters: {
+      temperature: true,
+      maxTokens: true,
+      topP: true,
+      frequencyPenalty: true,
+      presencePenalty: true,
+      seed: true,
+      stop: true,
+      responseFormat: true,
+      tools: true,
+      toolChoice: true,
+      parallelToolCalls: true,
+      reasoningEffort: true,
+      thinking: true,
+      webSearch: true,
+    },
+    configFields: aggregateRoutingConfigFields(),
+  },
+  {
+    type: "sub2api",
+    name: "Sub2API",
+    description:
+      "Sub2API 聚合网关：按 Key/Group platform 提供协议；没有端点声明时使用渠道默认或探测确认",
+    defaultBaseUrl: "",
+    supportsModelList: true,
+    modelListEndpoint: "models",
+    supportedParameters: {
+      temperature: true,
+      maxTokens: true,
+      topP: true,
+      frequencyPenalty: true,
+      presencePenalty: true,
+      seed: true,
+      stop: true,
+      responseFormat: true,
+      tools: true,
+      toolChoice: true,
+      parallelToolCalls: true,
+      reasoningEffort: true,
+      thinking: true,
+    },
+    configFields: aggregateRoutingConfigFields(),
+  },
+  {
+    type: "aggregate-compatible",
+    name: "通用聚合渠道",
+    description:
+      "通用手工聚合模式：不假设服务端扩展字段，每个模型需手动选择协议或通过探测确认",
+    defaultBaseUrl: "",
+    supportsModelList: true,
+    modelListEndpoint: "models",
+    supportedParameters: {
+      temperature: true,
+      maxTokens: true,
+      topP: true,
+      frequencyPenalty: true,
+      presencePenalty: true,
+      seed: true,
+      stop: true,
+      responseFormat: true,
+      tools: true,
+      toolChoice: true,
+      parallelToolCalls: true,
+    },
+    configFields: aggregateRoutingConfigFields(),
+  },
+  {
+    type: "opencode-go",
+    name: "OpenCode Go",
+    description:
+      "OpenCode Go 订阅 API：内置官方模型协议路由表；未收录的新模型需手动选择或探测，不会静默猜测协议",
+    defaultBaseUrl: "https://opencode.ai/zen/go/v1",
+    supportsModelList: true,
+    modelListEndpoint: "models",
+    supportedParameters: {
+      temperature: true,
+      maxTokens: true,
+      topP: true,
+      frequencyPenalty: true,
+      presencePenalty: true,
+      seed: true,
+      stop: true,
+      responseFormat: true,
+      tools: true,
+      toolChoice: true,
+      parallelToolCalls: true,
+      reasoningEffort: true,
+      thinking: true,
+    },
+    configFields: aggregateRoutingConfigFields(),
   },
 ];
 

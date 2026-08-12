@@ -83,6 +83,14 @@ export function mergeDiscoveredModelRouting(
 export interface LlmExecutionProfile {
   type: string;
   customEndpoints?: object;
+  /**
+   * Aggregate channels: user-configured channel-level fallback routes used
+   * when a model has no binding and no discoverable endpoint. Only honored
+   * for provider defaults flagged as `aggregate`; legacy channels ignore it.
+   */
+  options?: {
+    routingDefaults?: Partial<Record<LlmOperation, LlmAdapterId>>;
+  };
 }
 
 /** The minimum model shape required by the shared execution resolver. */
@@ -95,11 +103,30 @@ export interface LlmExecutionModel {
  * Legacy provider defaults. `adapterId` is observable protocol identity;
  * callers preserve the original profile type for this fallback so all legacy
  * provider-specific headers, URLs and parameter handling remain unchanged.
+ *
+ * Aggregate channel entries (`aggregate: true`) are channel identities
+ * without their own wire adapter. Their fallback resolves through
+ * `options.routingDefaults`, the built-in `modelRoutes` table, or the static
+ * `defaultAdapterId`, and the compatibility profile is remapped to the
+ * resolved protocol adapter's legacy type.
  */
 export interface ProviderExecutionDefault {
-  defaultAdapterId: LlmAdapterId;
+  defaultAdapterId?: LlmAdapterId;
   defaultOperation: LlmOperation;
   operationAdapters?: Partial<Record<LlmOperation, LlmAdapterId>>;
+  /**
+   * Built-in model-level routes for aggregate presets (e.g. OpenCode Go).
+   * Consulted only when the profile carries no user routing defaults for the
+   * operation and the model has no binding or unique discovery.
+   */
+  modelRoutes?: Readonly<Record<string, LlmAdapterId>>;
+  /**
+   * Marks channel identities that delegate to wire-protocol adapters.
+   * Aggregate channels never keep their own provider type on the fallback
+   * execution path; the resolved protocol adapter's legacy type is used
+   * instead so request builders and parameter filters see the real protocol.
+   */
+  aggregate?: boolean;
 }
 
 /**

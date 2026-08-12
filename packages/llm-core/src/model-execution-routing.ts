@@ -161,6 +161,66 @@ export const PROVIDER_EXECUTION_DEFAULTS: Readonly<
     defaultAdapterId: "minimax-music",
     defaultOperation: "music",
   },
+  // Aggregate channel identities. They have no wire adapter of their own and
+  // delegate to protocol adapters through model bindings, discovery, the
+  // user-configured channel routing defaults, or the built-in model route
+  // table (OpenCode Go). Unresolved models fail with a recoverable
+  // UnresolvedModelRouteError instead of guessing from model identifiers.
+  "new-api": {
+    defaultAdapterId: "openai-chat-completions",
+    defaultOperation: "chat",
+    operationAdapters: {
+      embedding: "openai-embeddings",
+      rerank: "jina-rerank",
+      image: "openai-image-generation",
+    },
+    aggregate: true,
+  },
+  sub2api: {
+    defaultAdapterId: "openai-chat-completions",
+    defaultOperation: "chat",
+    operationAdapters: {
+      embedding: "openai-embeddings",
+      rerank: "jina-rerank",
+      image: "openai-image-generation",
+    },
+    aggregate: true,
+  },
+  // Generic manual aggregate mode: no server extension fields are assumed,
+  // so every model needs an explicit binding, probe result, or channel
+  // routing default before execution.
+  "aggregate-compatible": {
+    defaultOperation: "chat",
+    aggregate: true,
+  },
+  // OpenCode Go subscription API. The official model table maps each model to
+  // exactly one protocol; models added by OpenCode after this table was
+  // shipped stay unresolved until the user binds or probes them.
+  "opencode-go": {
+    defaultOperation: "chat",
+    modelRoutes: {
+      "grok-4.5": "openai-chat-completions",
+      "glm-5.2": "openai-chat-completions",
+      "glm-5.1": "openai-chat-completions",
+      "kimi-k3": "openai-chat-completions",
+      "kimi-k2.7-code": "openai-chat-completions",
+      "kimi-k2.6": "openai-chat-completions",
+      "deepseek-v4-pro": "openai-chat-completions",
+      "deepseek-v4-flash": "openai-chat-completions",
+      "mimo-v2.5": "openai-chat-completions",
+      "mimo-v2.5-pro": "openai-chat-completions",
+      "hy3": "openai-chat-completions",
+      "gpt-5.6-luna": "openai-responses",
+      "minimax-m3": "anthropic-messages",
+      "minimax-m2.7": "anthropic-messages",
+      "minimax-m2.5": "anthropic-messages",
+      "qwen3.8-max": "anthropic-messages",
+      "qwen3.7-max": "anthropic-messages",
+      "qwen3.7-plus": "anthropic-messages",
+      "qwen3.6-plus": "anthropic-messages",
+    },
+    aggregate: true,
+  },
 };
 
 /** Maps a protocol adapter to the legacy profile type that implements it. */
@@ -263,6 +323,41 @@ export interface ResolveModelExecutionOptions<
 }
 
 /**
+ * Raised when an aggregate channel cannot resolve a protocol for one model
+ * operation. This is a recoverable configuration error: the user must choose
+ * a protocol in the routing editor or confirm one through a probe before the
+ * request can run. The resolver intentionally never guesses a protocol from
+ * model identifiers.
+ */
+export class UnresolvedModelRouteError extends Error {
+  readonly channelType: string;
+  readonly modelId: string;
+  readonly operation: LlmOperation;
+
+  constructor(options: {
+    channelType: string;
+    modelId: string;
+    operation: LlmOperation;
+  }) {
+    super(
+      `Model "${options.modelId}" has no execution route for "${options.operation}" on aggregate channel "${options.channelType}". Choose a protocol in the model routing editor or confirm one with a probe first.`
+    );
+    this.name = "UnresolvedModelRouteError";
+    this.channelType = options.channelType;
+    this.modelId = options.modelId;
+    this.operation = options.operation;
+  }
+}
+
+/** True when the provider type delegates to protocol adapters (aggregate). */
+export function isAggregateChannelType(
+  type: string,
+  providerDefaults: Readonly<Record<string, ProviderExecutionDefault>> = PROVIDER_EXECUTION_DEFAULTS
+): boolean {
+  return providerDefaults[type]?.aggregate === true;
+}
+
+/**
  * Resolves the protocol adapter and compatibility profile used for one model
  * operation. The order is binding, uniquely-recognized discovery, then legacy
  * provider default. Ambiguous discoveries intentionally fall back to the
@@ -299,10 +394,44 @@ export function resolveModelExecution<
     );
   }
 
-  return {
-    adapterId:
+  const aggregate = providerDefault.aggregate === true;
+  const rawUserFallback = profile.options?.routingDefaults?.[operation];
+  // Empty or unknown adapter strings are treated as unset so a cleared
+  // channel default falls through to the built-in route or static default.
+  const userFallback =
+    typeof rawUserFallback === "string" && isKnownAdapterId(rawUserFallback)
+      ? rawUserFallback
+      : undefined;
+  const fallbackAdapterId = aggregate
+    ? (userFallback ??
+      providerDefault.modelRoutes?.[model.id] ??
       providerDefault.operationAdapters?.[operation] ??
-      providerDefault.defaultAdapterId,
+      providerDefault.defaultAdapterId)
+    : (providerDefault.operationAdapters?.[operation] ??
+      providerDefault.defaultAdapterId);
+
+  if (!fallbackAdapterId) {
+    throw new UnresolvedModelRouteError({
+      channelType: profile.type,
+      modelId: model.id,
+      operation,
+    });
+  }
+
+  if (aggregate) {
+    return {
+      adapterId: fallbackAdapterId,
+      operation,
+      routeSource: "profile-default",
+      effectiveProfile: {
+        ...profile,
+        type: ADAPTER_PROFILE_TYPES[fallbackAdapterId],
+      } as TProfile,
+    };
+  }
+
+  return {
+    adapterId: fallbackAdapterId,
     operation,
     routeSource: "profile-default",
     effectiveProfile: profile,

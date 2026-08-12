@@ -16,6 +16,12 @@ const OPENAI_FAMILY = new Set([
   "groq",
   "openrouter",
   "xai",
+  // Aggregate channel identities. Their model-list responses are OpenAI
+  // style and may carry supported_endpoint_types extensions.
+  "new-api",
+  "sub2api",
+  "aggregate-compatible",
+  "opencode-go",
 ]);
 
 export const modelListAdapter: ModelListProviderAdapter = {

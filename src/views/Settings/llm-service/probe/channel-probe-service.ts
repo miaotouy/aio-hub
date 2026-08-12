@@ -5,6 +5,7 @@ import {
   resolveProbePlan,
   validateProbeResponse,
   resolveModelExecution,
+  UnresolvedModelRouteError,
   type ProbePlan,
   type TransportObserver,
 } from "@aiohub/llm-core";
@@ -189,6 +190,17 @@ export function createChannelProbeService(
         usage: execution.response?.usage,
       });
     } catch (error) {
+      if (error instanceof UnresolvedModelRouteError) {
+        return failureResult(request, startedAt, {
+          category: "configuration",
+          phase: "prepare",
+          message: `该模型尚未选择${capabilityLabel(resultCapability ?? request.capability ?? "chat")}协议：请在模型编辑器中设置协议，或选择具体端点后重试`,
+          detail: error.message,
+          capability: resultCapability,
+          endpointType: resultEndpointType,
+          firstByteMs,
+        });
+      }
       const classified = classifyProbeError(error, request.signal);
       return failureResult(request, startedAt, {
         ...classified,

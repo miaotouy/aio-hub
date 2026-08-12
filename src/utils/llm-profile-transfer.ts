@@ -25,6 +25,10 @@ const SUPPORTED_PROVIDER_TYPES = new Set<ProviderType>([
   "vertexai",
   "suno-newapi",
   "minimax-music",
+  "new-api",
+  "sub2api",
+  "aggregate-compatible",
+  "opencode-go",
 ]);
 
 export interface LlmProfileBundle {
@@ -236,6 +240,31 @@ function validateToolHandling(
   return null;
 }
 
+/**
+ * 校验聚合渠道的渠道默认协议（profile.options.routingDefaults）。
+ * 只做结构校验，未知 adapter 字符串保留不拒绝，与模型路由规则一致。
+ */
+function validateRoutingDefaults(
+  value: unknown,
+  profileId: string
+): string | null {
+  if (value === undefined) return null;
+  if (!isRecord(value)) {
+    return `渠道 ${profileId} 的渠道默认协议配置格式无效`;
+  }
+  const routingDefaults = value.routingDefaults;
+  if (routingDefaults === undefined) return null;
+  if (!isRecord(routingDefaults)) {
+    return `渠道 ${profileId} 的渠道默认协议配置格式无效`;
+  }
+  for (const [operation, adapterId] of Object.entries(routingDefaults)) {
+    if (typeof adapterId !== "string" || !adapterId.trim()) {
+      return `渠道 ${profileId} 的渠道默认协议无效（${operation}）`;
+    }
+  }
+  return null;
+}
+
 function validateProfile(value: unknown, index: number): string | null {
   if (!isRecord(value)) return `第 ${index + 1} 个渠道不是对象`;
   if (typeof value.id !== "string" || !value.id.trim()) {
@@ -267,6 +296,8 @@ function validateProfile(value: unknown, index: number): string | null {
   }
   const toolHandlingError = validateToolHandling(value.toolHandling, value.id);
   if (toolHandlingError) return toolHandlingError;
+  const routingDefaultsError = validateRoutingDefaults(value.options, value.id);
+  if (routingDefaultsError) return routingDefaultsError;
   for (const model of value.models) {
     if (
       !isRecord(model) ||

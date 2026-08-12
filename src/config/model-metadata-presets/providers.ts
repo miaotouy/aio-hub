@@ -385,6 +385,18 @@ export const providerRules: ModelMetadataRule[] = [
     description: "SiliconFlow 提供商图标",
   },
   {
+    id: "provider-opencode-go",
+    matchType: "provider",
+    matchValue: "opencode-go",
+    properties: {
+      icon: `/model-icons/opencode.svg`,
+      group: "OpenCode Go",
+    },
+    priority: 10,
+    enabled: true,
+    description: "OpenCode Go 提供商图标",
+  },
+  {
     id: "provider-inclusionai",
     matchType: "provider",
     matchValue: "inclusionai",

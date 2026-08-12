@@ -19,6 +19,7 @@ import { computed } from "vue";
 import {
   listAdaptersForOperation,
   resolveModelExecution,
+  UnresolvedModelRouteError,
   type LlmAdapterId,
   type LlmModelRouting,
   type LlmOperation,
@@ -107,6 +108,20 @@ function effectiveExecution(operation: LlmOperation) {
     return null;
   }
 }
+
+function isRouteUnresolved(operation: LlmOperation): boolean {
+  if (!props.providerType) return false;
+  try {
+    resolveModelExecution({
+      profile: { type: props.providerType },
+      model: { id: "", routing: props.modelValue },
+      operation,
+    });
+    return false;
+  } catch (error) {
+    return error instanceof UnresolvedModelRouteError;
+  }
+}
 </script>
 
 <template>
@@ -185,14 +200,22 @@ function effectiveExecution(operation: LlmOperation) {
       </div>
 
       <div class="route-hint">
-        当前生效：
-        {{
-          effectiveExecution(operation)
-            ? `${getAdapterLabel(effectiveExecution(operation)!.adapterId)}（${
-                SOURCE_LABELS[effectiveExecution(operation)!.routeSource]
-              }）`
-            : "—"
-        }}
+        <template v-if="isRouteUnresolved(operation)">
+          <span class="route-unresolved">
+            待选择/待探测：该模型没有可用的{{ OPERATION_LABELS[operation]
+            }}协议路由，请在下方选择协议或先运行模型检查
+          </span>
+        </template>
+        <template v-else>
+          当前生效：
+          {{
+            effectiveExecution(operation)
+              ? `${getAdapterLabel(effectiveExecution(operation)!.adapterId)}（${
+                  SOURCE_LABELS[effectiveExecution(operation)!.routeSource]
+                }）`
+              : "—"
+          }}
+        </template>
       </div>
     </div>
   </div>
@@ -270,5 +293,9 @@ function effectiveExecution(operation: LlmOperation) {
 .route-hint {
   font-size: 12px;
   color: var(--text-color-secondary);
+}
+
+.route-unresolved {
+  color: var(--el-color-warning);
 }
 </style>

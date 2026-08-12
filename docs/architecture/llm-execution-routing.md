@@ -1,8 +1,8 @@
 # LLM 模型执行路由契约
 
-> 状态：Phase 0–3 已实施（Phase 0–2：2026-08-06；Phase 3：2026-08-12）
-> 范围：`@aiohub/llm-core`、桌面端请求 / Embedding / Recall / Probe、移动端聊天请求、模型路由编辑与探测结果应用
-> 后续：聚合渠道类型（Phase 4）与多能力路由高级编辑（Phase 5）仍按 `docs/Plan/llm-aggregate-channel-routing-investigation.md` 推进。
+> 状态：Phase 0–4 已实施（Phase 0–2：2026-08-06；Phase 3：2026-08-12；Phase 4：2026-08-12）
+> 范围：`@aiohub/llm-core`、桌面端请求 / Embedding / Recall / Probe、移动端聊天请求、模型路由编辑与探测结果应用、聚合渠道类型
+> 后续：多能力路由高级编辑与跨协议重试（Phase 5）仍按 `docs/Plan/llm-aggregate-channel-routing-investigation.md` 推进。
 
 ## 目标与边界
 
@@ -22,6 +22,27 @@ resolveModelExecution({ profile, model, operation });
 - `routeSource`：`manual`、`probe`、`discovered` 或 `profile-default`。
 
 首期不增加可见 `routeId`，一个模型只可按 operation 保存一个默认 binding。
+
+## 聚合渠道
+
+Phase 4 新增四种聚合渠道类型，渠道身份与线协议解耦：
+
+| 渠道类型              | 模型列表       | 默认回退                                     | 说明                                                                 |
+| --------------------- | -------------- | -------------------------------------------- | -------------------------------------------------------------------- |
+| `new-api`             | `/v1/models`   | OpenAI Chat Completions + embedding/rerank/image | 理解 `supported_endpoint_types`；模型级绑定与探测优先生效         |
+| `sub2api`             | `/v1/models`   | OpenAI Chat Completions + embedding/rerank/image | 按 Key/Group platform 工作，无端点声明时用渠道默认或探测           |
+| `aggregate-compatible` | `/v1/models`   | 无（必须手工绑定/探测/渠道默认）              | 通用手工模式，不假设服务端扩展字段                                  |
+| `opencode-go`         | `/v1/models`   | 内置官方模型路由表（`modelRoutes`）           | 未收录模型抛出 `UnresolvedModelRouteError`，标记"待选择/待探测"      |
+
+聚合渠道在 `PROVIDER_EXECUTION_DEFAULTS` 中标记 `aggregate: true`，并满足：
+
+1. **渠道级默认协议可配置**：`profile.options.routingDefaults`（`Partial<Record<LlmOperation, LlmAdapterId>>`）是用户配置的回退协议，优先级高于内置路由表。清空或未知 adapter 视为未设置，继续回退。
+2. **回退优先级**：模型 binding → 唯一发现端点 → 用户渠道默认（routingDefaults）→ 内置模型路由表（opencode-go）→ 渠道静态默认 → 否则抛出可恢复的 `UnresolvedModelRouteError`（禁止按模型名猜测协议）。
+3. **兼容视图重映射**：聚合渠道的 profile-default 路径会把 `effectiveProfile.type` 重映射为实际协议适配器的旧渠道类型（如 `openai-compatible` / `claude` / `openai-responses`），请求构建、参数过滤和鉴权头因此看到真实协议；旧渠道路径保持返回原 profile 不变。
+4. **桌面注册**：`src/llm-apis/adapters/index.ts` 与 `src/utils/llm-api-url.ts` 为聚合类型提供防御性的 OpenAI 兼容条目（运行时实际经过解析器重映射，不会命中）；`OPENAI_FAMILY` 纳入四类以便 `/v1/models` 解析与 `supported_endpoint_types` 保留；渠道包白名单与 Probe 自动端点集合同步加入。
+5. **UI 提示**：模型列表对聚合渠道中无法解析对话协议的模型显示"待选协议"标签；路由编辑器显示"待选择/待探测"提示并引导选择或探测。Probe 服务对未解析模型返回"该模型尚未选择协议"的配置错误而不是猜测协议。
+
+OpenCode Go 内置路由表（2026-08-12 官方模型表）位于 `PROVIDER_EXECUTION_DEFAULTS["opencode-go"].modelRoutes`，覆盖 19 个模型：Chat Completions（Grok/GLM/Kimi/DeepSeek/MiMo/Hy 系）、OpenAI Responses（`gpt-5.6-luna`）、Anthropic Messages（MiniMax/Qwen 系）。
 
 ## 稳定类型
 
@@ -74,6 +95,9 @@ type LlmOperation =
 | `xai`                                                                                                   | chat           | `openai-chat-completions` | image                          |
 | `suno-newapi`                                                                                           | music          | `suno-newapi`             | —                              |
 | `minimax-music`                                                                                         | music          | `minimax-music`           | —                              |
+| `new-api`、`sub2api`（聚合）                                                                            | chat           | `openai-chat-completions` | embedding, rerank, image；可配置渠道默认 |
+| `aggregate-compatible`（聚合）                                                                          | chat           | 无（须绑定/探测/渠道默认） | —                              |
+| `opencode-go`（聚合）                                                                                   | chat           | 内置 `modelRoutes` 路由表  | —                              |
 
 ## 发现与持久化
 
@@ -95,9 +119,10 @@ Phase 3 提供以下写入入口，全部只覆盖对应 operation 的 binding�
 
 1. `model.routing.bindings[operation]`。
 2. 模型声明的 `supportedEndpointTypes` 中，唯一可识别且与 operation 匹配的端点。
-3. `PROVIDER_EXECUTION_DEFAULTS[profile.type]`。
+3. 聚合渠道：用户配置的渠道默认（`profile.options.routingDefaults`）→ 内置模型路由表（`modelRoutes`，OpenCode Go）→ 渠道静态默认；旧渠道直接使用渠道静态默认。
+4. 全部缺失时，聚合渠道抛出 `UnresolvedModelRouteError`（可恢复配置错误，UI 标记"待选择/待探测"）；未知渠道没有默认映射时抛出可恢复的配置错误。
 
-多个候选发现端点不会按模型名猜测；解析器回退渠道默认值。未知渠道没有默认映射时抛出可恢复的配置错误。
+多个候选发现端点不会按模型名猜测；解析器回退渠道默认值。`UnresolvedModelRouteError` 与 `isAggregateChannelType()` 由 `@aiohub/llm-core` 导出，供 UI 与 Probe 服务复用。
 
 ## 桌面调用点与行为快照
 

@@ -116,6 +116,13 @@ export const adapters: Record<string, LlmAdapter> = defineAdapters({
   cohere: cohereAdapter,
   "suno-newapi": sunoNewApiAdapter,
   "minimax-music": minimaxMusicAdapter,
+  // Aggregate channel identities. Runtime execution resolves the concrete
+  // protocol first and remaps `effectiveProfile.type`, so these entries are
+  // defensive fallbacks for any path that bypasses the resolver.
+  "new-api": openAiAdapter,
+  sub2api: openAiAdapter,
+  "aggregate-compatible": openAiAdapter,
+  "opencode-go": openAiAdapter,
 });
 
 export type ProviderType = keyof typeof adapters;

@@ -55,6 +55,12 @@ export const USER_ADDED_ICONS: PresetIconInfo[] = [
     suggestedFor: ["agnes", "Sapiens"],
     category: "国内 AI",
   },
+  {
+    name: "OpenCode Go",
+    path: "opencode.svg",
+    suggestedFor: ["opencode-go", "opencode"],
+    category: "开源/本地",
+  },
 ];
 
 /**

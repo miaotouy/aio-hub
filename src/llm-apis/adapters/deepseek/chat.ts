@@ -16,18 +16,28 @@ import type { LlmProfile } from "@/types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
 import { callOpenAiChatApi } from "../openai/chat";
 
+const DEEPSEEK_REASONING_EFFORT_MAP: Record<string, string> = {
+  medium: "high",
+  xhigh: "high",
+};
+
 function normalizeDeepSeekChatOptions(
   options: LlmRequestOptions
 ): LlmRequestOptions {
+  const reasoningEffort = options.reasoningEffort?.trim().toLowerCase();
+
   return {
     ...options,
-    reasoningEffort: undefined,
+    reasoningEffort: reasoningEffort
+      ? (DEEPSEEK_REASONING_EFFORT_MAP[reasoningEffort] ?? reasoningEffort)
+      : undefined,
   };
 }
 
 /**
  * DeepSeek 使用 OpenAI 兼容协议，但推理/思考参数语义不等同于 OpenAI。
- * 这里先做 DeepSeek 专属归一化，再复用 OpenAI Chat 的传输与解析逻辑。
+ * 思考参数是否参与请求由选中模型的 capabilities 决定；这里仅归一化
+ * DeepSeek 官方实际接受的 reasoning_effort 值，再复用 OpenAI Chat 的传输与解析逻辑。
  */
 export async function callDeepSeekChatApi(
   profile: LlmProfile,

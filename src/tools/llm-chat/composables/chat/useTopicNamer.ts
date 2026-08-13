@@ -244,6 +244,7 @@ export function useTopicNamer() {
             structuredOutputMode: useStructuredOutput
               ? structuredOutputMode || undefined
               : undefined,
+            disableThinking: namingConfig.disableThinking,
             isRetry: attempt.isRetry,
           });
 

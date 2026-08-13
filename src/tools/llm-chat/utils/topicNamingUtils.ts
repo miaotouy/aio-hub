@@ -69,6 +69,8 @@ export interface TopicNamingRequestBuildOptions {
   capabilities?: ModelCapabilities;
   useStructuredOutput: boolean;
   structuredOutputMode?: TopicStructuredOutputMode;
+  /** 未传入时保持旧行为；设置页会始终传入该值。 */
+  disableThinking?: boolean;
   isRetry: boolean;
 }
 
@@ -391,6 +393,12 @@ export function buildTopicNamingRequestOptions(
 
   if (!isThinkingModel) {
     if (options.isRetry) request.maxTokens = Math.max(maxTokens, 256);
+    return request;
+  }
+
+  if (options.disableThinking) {
+    request.thinkingEnabled = false;
+    request.maxTokens = Math.max(maxTokens, THINKING_MODEL_MIN_MAX_TOKENS);
     return request;
   }
 

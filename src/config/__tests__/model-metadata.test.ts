@@ -132,6 +132,39 @@ describe("model-metadata presets", () => {
     });
   });
 
+  it("applies official DeepSeek V4 versions, pricing, and effort controls", () => {
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "deepseek-v4-pro")
+    ).toMatchObject({
+      contextLength: 1024000,
+      maxOutputTokens: 384000,
+      version: "DeepSeek-V4-Pro-0813",
+      pricing: {
+        input: 3,
+        output: 6,
+        cacheHitInput: 0.025,
+        unit: "CNY",
+      },
+      capabilities: {
+        thinking: true,
+        thinkingConfigType: "effort",
+        reasoningEffortOptions: ["low", "high", "max"],
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "deepseek-v4-flash")
+    ).toMatchObject({
+      version: "DeepSeek-V4-Flash-0731",
+      pricing: {
+        input: 1,
+        output: 2,
+        cacheHitInput: 0.02,
+        unit: "CNY",
+      },
+    });
+  });
+
   it("applies Gemma 4 family metadata across common model id forms", () => {
     expect(
       getMatchedModelProperties(DEFAULT_METADATA_RULES, "gemma-4")

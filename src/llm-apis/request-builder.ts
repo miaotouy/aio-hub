@@ -816,9 +816,12 @@ export function filterParametersByCapabilities(
     (profile.type === "gemini" || profile.type === "vertexai") &&
     supported.thinking &&
     capabilities?.thinkingConfigType === "effort";
+  // 思考参数由选中模型明确声明的 capabilities 决定，避免同名的
+  // 第三方/中转模型在未声明能力时被字符串匹配误判为兼容。
+  const hasThinkingCapability = capabilities?.thinking === true;
   const supportsReasoning =
     (supportsProviderReasoningEffort || supportsThinkingLevelAlias) &&
-    (!capabilities || capabilities.thinking);
+    hasThinkingCapability;
 
   if (supportsReasoning && options.reasoningEffort !== undefined) {
     filtered.reasoningEffort = options.reasoningEffort;
@@ -827,8 +830,7 @@ export function filterParametersByCapabilities(
   // ===== 思考模式 (通用) =====
   // 只要 Provider 支持 thinking，就允许传递 these 通用参数
   // 具体参数的转换由各 API 模块内部处理
-  const supportsThinking =
-    supported.thinking && (!capabilities || capabilities.thinking);
+  const supportsThinking = supported.thinking && hasThinkingCapability;
   if (supportsThinking) {
     if (options.thinkingEnabled !== undefined)
       filtered.thinkingEnabled = options.thinkingEnabled;

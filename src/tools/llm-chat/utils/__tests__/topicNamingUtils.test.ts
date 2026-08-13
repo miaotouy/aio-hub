@@ -155,6 +155,7 @@ describe("topicNamingUtils", () => {
         temperature: 0.5,
         maxTokens: 30,
         useStructuredOutput: true,
+        disableThinking: false,
         isRetry: false,
         capabilities: {
           thinking: true,
@@ -167,6 +168,27 @@ describe("topicNamingUtils", () => {
       expect(request.responseFormat?.type).toBe("json_schema");
     });
 
+    it("uses the user setting to disable thinking for title generation", () => {
+      const request = buildTopicNamingRequestOptions({
+        profileId: "p1",
+        modelId: "third-party-reasoning-model",
+        temperature: 0.5,
+        maxTokens: 30,
+        useStructuredOutput: true,
+        disableThinking: true,
+        isRetry: false,
+        capabilities: {
+          thinking: true,
+          thinkingConfigType: "effort",
+          reasoningEffortOptions: ["low", "high", "max"],
+        },
+      });
+
+      expect(request.thinkingEnabled).toBe(false);
+      expect(request.reasoningEffort).toBeUndefined();
+      expect(request.maxTokens).toBe(1024);
+    });
+
     it("enables a small thinking budget on retry for budget models", () => {
       const request = buildTopicNamingRequestOptions({
         profileId: "p1",
@@ -174,6 +196,7 @@ describe("topicNamingUtils", () => {
         temperature: 0.5,
         maxTokens: 30,
         useStructuredOutput: false,
+        disableThinking: false,
         isRetry: true,
         capabilities: {
           thinking: true,
@@ -194,6 +217,7 @@ describe("topicNamingUtils", () => {
         temperature: 0.5,
         maxTokens: 128,
         useStructuredOutput: false,
+        disableThinking: false,
         isRetry: false,
         capabilities: {
           thinking: true,

@@ -51,12 +51,12 @@ describe("DeepSeek Adapter - Chat", () => {
     vi.clearAllMocks();
   });
 
-  it("normalizes DeepSeek thinking options without sending OpenAI reasoning_effort", async () => {
+  it("normalizes DeepSeek reasoning effort and preserves the thinking switch", async () => {
     const options: LlmRequestOptions = {
       profileId: "deepseek-profile",
       modelId: "deepseek-v4-flash",
       messages: [{ role: "user", content: "Name this topic" }],
-      reasoningEffort: "low",
+      reasoningEffort: "medium",
       thinkingEnabled: false,
       extraBody: {
         custom_flag: true,
@@ -80,7 +80,7 @@ describe("DeepSeek Adapter - Chat", () => {
     const [, fetchOptions] = (fetchWithTimeout as any).mock.calls[0];
     const body = JSON.parse(fetchOptions.body);
 
-    expect(body.reasoning_effort).toBeUndefined();
+    expect(body.reasoning_effort).toBe("high");
     expect(body.extra_body).toEqual({
       thinking: { type: "disabled" },
       custom_flag: true,

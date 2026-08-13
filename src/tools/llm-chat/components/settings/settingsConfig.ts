@@ -924,7 +924,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         props: {
           capabilities: { embedding: false, rerank: false },
         },
-        hint: "用于生成会话标题的 LLM 模型。留空则使用全局默认模型。<br /><span style='color: var(--el-color-warning)'>普通模型更快；思考模型会自动使用结构化输出、低预算推理和文本清洗兜底。</span>",
+        hint: "用于生成会话标题的 LLM 模型。留空则使用全局默认模型。可按需关闭命名请求的思考，以避免短输出被推理过程挤占。",
         keywords: "topic naming model 话题 命名 模型",
         visible: (settings) => settings.topicNaming.enabled,
         defaultValue: "",
@@ -961,6 +961,17 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "topicNaming.maxTokens",
         hint: "生成标题的最大 token 数。思考模型会自动提高最低预算以避免正文被推理过程挤占。",
         keywords: "topic naming max tokens 话题 命名 token",
+        visible: (settings) => settings.topicNaming.enabled,
+      },
+      {
+        id: "disableThinking",
+        label: "命名时关闭思考",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "topicNaming.disableThinking",
+        hint: "开启后，命名请求会在渠道和模型支持时显式关闭思考，避免短标题输出被推理过程占满。",
+        keywords:
+          "topic naming disable thinking reasoning 话题 命名 关闭 思考 推理",
         visible: (settings) => settings.topicNaming.enabled,
       },
       {

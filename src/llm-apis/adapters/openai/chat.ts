@@ -52,7 +52,9 @@ function shouldSendOpenAiReasoningEffort(
 ): boolean {
   const id = modelId.toLowerCase();
   return (
-    (profile.type === "openai" || profile.type === "openai-compatible") &&
+    (profile.type === "openai" ||
+      profile.type === "openai-compatible" ||
+      profile.type === "deepseek") &&
     (isOpenAIModel(modelId) ||
       id.includes("doubao") ||
       id.includes("seed") ||

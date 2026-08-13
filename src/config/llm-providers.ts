@@ -120,6 +120,7 @@ export const providerTypes: ProviderTypeInfo[] = [
       stop: true,
       responseFormat: true,
       tools: true,
+      reasoningEffort: true,
       thinking: true,
     },
   },

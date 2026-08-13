@@ -27,11 +27,14 @@ export const deepseekModelRules: ModelMetadataRule[] = [
       contextLength: 1024000,
       maxOutputTokens: 384000,
       pricing: {
-        input: 12.0,
-        output: 24.0,
-        cacheHitInput: 1.0,
+        input: 3.0,
+        output: 6.0,
+        cacheHitInput: 0.025,
+        unit: "CNY",
+        note: "每百万 token；价格以 DeepSeek 官方页面为准",
       },
-      description: "DeepSeek V4 Pro 模型详情",
+      version: "DeepSeek-V4-Pro-0813",
+      description: "DeepSeek V4 Pro 正式版模型详情",
     },
     priority: 30,
     enabled: true,
@@ -48,8 +51,11 @@ export const deepseekModelRules: ModelMetadataRule[] = [
       pricing: {
         input: 1.0,
         output: 2.0,
-        cacheHitInput: 0.2,
+        cacheHitInput: 0.02,
+        unit: "CNY",
+        note: "每百万 token；价格以 DeepSeek 官方页面为准",
       },
+      version: "DeepSeek-V4-Flash-0731",
       description: "DeepSeek V4 Flash 模型详情",
     },
     priority: 30,
@@ -79,7 +85,7 @@ export const deepseekModelRules: ModelMetadataRule[] = [
       capabilities: {
         thinking: true,
         thinkingConfigType: "effort",
-        reasoningEffortOptions: ["high", "max"],
+        reasoningEffortOptions: ["low", "high", "max"],
         fim: true, // DeepSeek 支持 FIM 补全（通过 /beta 端点）
         prefixCompletion: true, // DeepSeek 支持对话前缀续写（通过 /beta 端点）
         jsonOutput: true, // DeepSeek 支持 JSON 输出模式

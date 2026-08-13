@@ -90,6 +90,40 @@ describe("filterParametersByCapabilities thinking parameters", () => {
     expect(result.includeThoughts).toBe(true);
   });
 
+  it("uses model thinking capability to control reasoning parameters", () => {
+    const modelId = "deepseek-v4-pro";
+    const profile = createProfile("deepseek");
+
+    const enabled = filterParametersByCapabilities(
+      createOptions(modelId, { reasoningEffort: "high" }),
+      profile,
+      createThinkingModel(modelId, "effort", "deepseek")
+    );
+    const disabled = filterParametersByCapabilities(
+      createOptions(modelId, { reasoningEffort: "high" }),
+      profile,
+      {
+        id: modelId,
+        name: modelId,
+        provider: "deepseek",
+        capabilities: { thinking: false, thinkingConfigType: "none" },
+      }
+    );
+
+    const unspecified = filterParametersByCapabilities(
+      createOptions(modelId, {
+        reasoningEffort: "high",
+        thinkingEnabled: false,
+      }),
+      profile
+    );
+
+    expect(enabled.reasoningEffort).toBe("high");
+    expect(disabled.reasoningEffort).toBeUndefined();
+    expect(unspecified.reasoningEffort).toBeUndefined();
+    expect(unspecified.thinkingEnabled).toBeUndefined();
+  });
+
   it("does not preserve Gemini summaries for non-Gemini thinking models", () => {
     const modelId = "gpt-5";
     const result = filterParametersByCapabilities(

@@ -286,6 +286,8 @@ export interface ChatSettings {
     temperature: number;
     /** 输出上限（token） */
     maxTokens: number;
+    /** 是否在话题命名时关闭模型思考 */
+    disableThinking: boolean;
     /** 自动触发的消息数量阈值 */
     autoTriggerThreshold: number;
     /** 命名时携带的上下文消息数量 */

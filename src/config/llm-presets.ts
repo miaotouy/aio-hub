@@ -76,9 +76,10 @@ export const llmPresets: LlmPreset[] = [
         capabilities: {
           toolUse: true,
           thinking: true,
-          thinkingConfigType: "switch",
+          thinkingConfigType: "effort",
+          reasoningEffortOptions: ["low", "high", "max"],
         },
-        description: "DeepSeek 旗舰模型 (V4 Pro)",
+        description: "DeepSeek V4 Pro 正式版（DeepSeek-V4-Pro-0813）",
       },
       {
         id: "deepseek-v4-flash",
@@ -88,9 +89,10 @@ export const llmPresets: LlmPreset[] = [
         capabilities: {
           toolUse: true,
           thinking: true,
-          thinkingConfigType: "switch",
+          thinkingConfigType: "effort",
+          reasoningEffortOptions: ["low", "high", "max"],
         },
-        description: "DeepSeek 高速模型 (V4 Flash)",
+        description: "DeepSeek V4 Flash（DeepSeek-V4-Flash-0731）",
       },
       {
         id: "deepseek-reasoner",
@@ -102,7 +104,7 @@ export const llmPresets: LlmPreset[] = [
           thinking: true,
           thinkingConfigType: "switch",
         },
-        description: "推理专用模型 (即将弃用，请迁移至 V4 系列)",
+        description: "推理专用模型 (弃用，请迁移至 V4 系列)",
       },
       {
         id: "deepseek-chat",
@@ -114,7 +116,7 @@ export const llmPresets: LlmPreset[] = [
           thinking: true,
           thinkingConfigType: "switch",
         },
-        description: "通用对话模型 (即将弃用，请迁移至 V4 系列)",
+        description: "通用对话模型 (弃用，请迁移至 V4 系列)",
       },
     ],
   },
@@ -2469,8 +2471,7 @@ export const llmPresets: LlmPreset[] = [
   {
     type: "new-api",
     name: "New API",
-    description:
-      "New API 中转/聚合网关 - 支持端点声明，多协议模型统一接入",
+    description: "New API 中转/聚合网关 - 支持端点声明，多协议模型统一接入",
     defaultBaseUrl: "https://your-new-api.example.com",
     links: [{ label: "GitHub", url: "https://github.com/QuantumNous/new-api" }],
   },

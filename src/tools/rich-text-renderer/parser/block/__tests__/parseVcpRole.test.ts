@@ -14,7 +14,7 @@
 
 import { describe, expect, it } from "vitest";
 import { CustomParser } from "../../../core/CustomParser";
-import type { AstNode, VcpRoleNode } from "../../../types";
+import type { AstNode, VcpRoleNode, VcpToolNode } from "../../../types";
 
 function parse(content: string): AstNode[] {
   return new CustomParser().parse(content);
@@ -56,6 +56,22 @@ function findToolResultCount(nodes: AstNode[]): number {
   }
 
   return count;
+}
+
+function findToolRequests(nodes: AstNode[]): VcpToolNode[] {
+  const requests: VcpToolNode[] = [];
+
+  for (const node of nodes) {
+    if (node.type === "vcp_tool" && !node.props.isResult) {
+      requests.push(node as VcpToolNode);
+    }
+
+    if ("children" in node && Array.isArray(node.children)) {
+      requests.push(...findToolRequests(node.children));
+    }
+  }
+
+  return requests;
 }
 
 describe("parseVcpRole", () => {
@@ -101,6 +117,45 @@ DailyNote 调用成功。
         statusLabel: "成功",
       },
     ]);
+  });
+
+  it("does not merge a malformed request block with the following valid request", () => {
+    const ast = parse(`
+<<<[TOOL_REQUEST]>>>
+tool_name:「始」mock-sync「末」,
+command:「始」echo「末」,
+message:「始」broken block has no end
+<<<[TOOL_REQUEST]>>>
+tool_name:「始」mock-sync「末」,
+command:「始」echo「末」,
+message:「始」valid-after-bad「末」
+<<<[END_TOOL_REQUEST]>>>
+`);
+
+    const requests = findToolRequests(ast);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].props.args.message).toBe("valid-after-bad");
+    expect(requests[0].props.raw).not.toContain("broken block has no end");
+  });
+
+  it("keeps standard request markers nested in a complete escape block", () => {
+    const ast = parse(`
+<<<[TOOL_REQUEST_ESCAPE]>>>
+tool_name:「始」mock-sync「末」,
+command:「始」echo「末」,
+message:「始ESCAPE」示例：
+<<<[TOOL_REQUEST]>>>
+tool_name:「始」nested「末」
+<<<[END_TOOL_REQUEST]>>>
+「末ESCAPE」
+<<<[END_TOOL_REQUEST_ESCAPE]>>>
+`);
+
+    const requests = findToolRequests(ast);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].props.args.message).toContain("<<<[TOOL_REQUEST]>>>");
   });
 
   it("keeps only summary items that are not covered by result details", () => {

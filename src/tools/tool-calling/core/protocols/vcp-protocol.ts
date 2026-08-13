@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { createModuleLogger } from "@/utils/logger";
+import { findVcpBlockBoundary } from "@/utils/vcpBlockBoundary";
 import type { MethodMetadata, MethodParameter } from "@/services/types";
 import type { ParsedToolRequest, ToolExecutionResult } from "../../types";
 import type { ToolCallingProtocol, ToolDefinitionInput } from "./base";
@@ -369,9 +370,29 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
 
         const blockStart = match.index + (match[0].startsWith("\n") ? 1 : 0);
         const contentStart = blockStart + startMarker.length;
-        const blockEnd = text.indexOf(endMarker, contentStart);
+        const boundary = findVcpBlockBoundary(text, contentStart, {
+          endMarker,
+          // 标准请求块不能嵌套任何请求块；块级转义块允许嵌套标准请求，
+          // 但新的转义块表示当前转义块已损坏，可以作为恢复点。
+          recoveryStartMarkers: isEscape
+            ? [TOOL_REQUEST_ESCAPE_START]
+            : [TOOL_REQUEST_START, TOOL_REQUEST_ESCAPE_START],
+        });
 
-        if (blockEnd === -1) {
+        if (boundary.status === "interrupted") {
+          logger.warn(`发现被后续请求块中断的 ${startMarker} 块，已丢弃`, {
+            blockStart,
+            recoveryStart: boundary.nextStartIndex,
+            preview: text.slice(
+              blockStart,
+              Math.min(blockStart + 200, text.length)
+            ),
+          });
+          scanner.lastIndex = boundary.nextStartIndex;
+          continue;
+        }
+
+        if (boundary.status === "unclosed") {
           logger.warn(`发现未闭合的 ${startMarker} 块，已丢弃`, {
             blockStart,
             preview: text.slice(
@@ -382,6 +403,7 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
           break;
         }
 
+        const blockEnd = boundary.endIndex;
         const rawBlock = text.slice(blockStart, blockEnd + endMarker.length);
         const content = text.slice(contentStart, blockEnd);
         const parsedList = parseSingleToolRequest(

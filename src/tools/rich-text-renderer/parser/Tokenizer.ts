@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { findVcpBlockBoundary } from "@/utils/vcpBlockBoundary";
 import { Token } from "./types";
 
 // ============ 分词器 (性能优化版) ============
@@ -579,18 +580,35 @@ export class Tokenizer {
               : "<<<[END_TOOL_REQUEST]>>>";
             let currentPos = posAfterIndent + startMarker.length;
 
-            const endIdx = text.indexOf(endMarker, currentPos);
+            const boundary = findVcpBlockBoundary(text, currentPos, {
+              endMarker,
+              recoveryStartMarkers: isEscapeBlock
+                ? ["<<<[TOOL_REQUEST_ESCAPE]>>>"]
+                : ["<<<[TOOL_REQUEST]>>>", "<<<[TOOL_REQUEST_ESCAPE]>>>"],
+            });
+
+            if (boundary.status === "interrupted") {
+              // 将损坏块按普通文本保留，随后从新的请求起始标记恢复，
+              // 防止渲染器把两个独立请求合并成一个工具调用节点。
+              tokens.push({
+                type: "text",
+                content: text.slice(i, boundary.nextStartIndex),
+              });
+              i = boundary.nextStartIndex;
+              atLineStart = true;
+              continue;
+            }
+
             let vcpContent = "";
             let closed = false;
 
-            if (endIdx !== -1) {
-              vcpContent = text.slice(currentPos, endIdx);
-              currentPos = endIdx + endMarker.length;
+            if (boundary.status === "complete") {
+              vcpContent = text.slice(currentPos, boundary.endIndex);
+              currentPos = boundary.endIndex + endMarker.length;
               closed = true;
             } else {
               vcpContent = text.slice(currentPos);
               currentPos = len;
-              closed = false;
             }
 
             const args: Record<string, string> = {};

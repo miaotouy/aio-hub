@@ -148,6 +148,69 @@ message:「始」incomplete
     expect(requests[0].args.message).toBe("incomplete");
   });
 
+  it("跳过被后续标准请求块中断的坏块并继续解析", () => {
+    const text = `<<<[TOOL_REQUEST]>>>
+tool_name:「始」mock-sync「末」,
+command:「始」echo「末」,
+message:「始」before-bad「末」
+<<<[END_TOOL_REQUEST]>>>
+<<<[TOOL_REQUEST]>>>
+tool_name:「始」mock-sync「末」,
+command:「始」echo「末」,
+message:「始」broken block has no end
+<<<[TOOL_REQUEST]>>>
+tool_name:「始」mock-sync「末」,
+command:「始」echo「末」,
+message:「始」after-bad「末」
+<<<[END_TOOL_REQUEST]>>>`;
+
+    const requests = parseToolRequests(text, protocol);
+
+    expect(requests).toHaveLength(2);
+    expect(requests.map((request) => request.args.message)).toEqual([
+      "before-bad",
+      "after-bad",
+    ]);
+    expect(requests.every((request) => request.validation?.isValid)).toBe(true);
+    expect(requests[1].rawBlock).not.toContain("broken block has no end");
+  });
+
+  it("保留转义块中的标准请求嵌套", () => {
+    const text = `<<<[TOOL_REQUEST_ESCAPE]>>>
+tool_name:「始」mock-sync「末」,
+command:「始」echo「末」,
+message:「始ESCAPE」内嵌示例：
+<<<[TOOL_REQUEST]>>>
+tool_name:「始」nested「末」
+<<<[END_TOOL_REQUEST]>>>
+「末ESCAPE」
+<<<[END_TOOL_REQUEST_ESCAPE]>>>`;
+
+    const requests = parseToolRequests(text, protocol);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].args.message).toContain("<<<[TOOL_REQUEST]>>>");
+    expect(requests[0].args.message).toContain("<<<[END_TOOL_REQUEST]>>>");
+  });
+
+  it("从被后续转义请求块中断的坏转义块恢复", () => {
+    const text = `<<<[TOOL_REQUEST_ESCAPE]>>>
+tool_name:「始」mock-sync「末」,
+command:「始」echo「末」,
+message:「始」broken escape block
+<<<[TOOL_REQUEST_ESCAPE]>>>
+tool_name:「始」mock-sync「末」,
+command:「始」echo「末」,
+message:「始」valid escape block「末」
+<<<[END_TOOL_REQUEST_ESCAPE]>>>`;
+
+    const requests = parseToolRequests(text, protocol);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].args.message).toBe("valid escape block");
+    expect(requests[0].rawBlock).not.toContain("broken escape block");
+  });
+
   it("空文本返回空数组", () => {
     expect(parseToolRequests("", protocol)).toHaveLength(0);
     expect(parseToolRequests("   ", protocol)).toHaveLength(0);

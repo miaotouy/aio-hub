@@ -136,6 +136,7 @@
 | `arch`      | CPU 架构 (如 `x86_64`, `aarch64`)        | `{{arch}}`      |
 | `hostname`  | 计算机主机名                             | `{{hostname}}`  |
 | `locale`    | 系统语言环境 (如 `zh-CN`)                | `{{locale}}`    |
+| `appVersion` | AIO Hub 应用版本号                      | `{{appVersion}}` |
 
 ### 3.7. 资产宏
 

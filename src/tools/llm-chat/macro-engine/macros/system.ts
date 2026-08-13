@@ -25,6 +25,7 @@ import {
   hostname,
   locale,
 } from "@tauri-apps/plugin-os";
+import { getVersion } from "@tauri-apps/api/app";
 import type { MacroRegistry } from "../MacroRegistry";
 import { MacroPhase, MacroType } from "../MacroRegistry";
 import type { MacroDefinition } from "../MacroRegistry";
@@ -138,6 +139,27 @@ export function registerSystemMacros(registry: MacroRegistry): void {
           return name || "Unknown";
         } catch (error) {
           logger.warn("获取主机名失败", { error });
+          return "Unknown";
+        }
+      },
+    },
+
+    // 应用版本号
+    {
+      name: "appVersion",
+      type: MacroType.VALUE,
+      phase: MacroPhase.SUBSTITUTE,
+      description: "AIO Hub 应用版本号",
+      example: "{{appVersion}}",
+      acceptsArgs: false,
+      priority: 100,
+      supported: true,
+      contextFree: true,
+      execute: async () => {
+        try {
+          return await getVersion();
+        } catch (error) {
+          logger.warn("获取应用版本号失败", { error });
           return "Unknown";
         }
       },

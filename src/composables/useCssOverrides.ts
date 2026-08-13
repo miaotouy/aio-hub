@@ -28,6 +28,47 @@ import { customMessage } from "@/utils/customMessage";
 const moduleLogger = createModuleLogger("css-overrides");
 const errorHandler = createModuleErrorHandler("css-overrides");
 
+const CUSTOM_CSS_OVERRIDE_STYLE_ID = "custom-css-override";
+
+/**
+ * 将持久化的 CSS 覆盖设置应用到当前页面。
+ *
+ * 该函数不依赖组件生命周期，因此可在应用设置加载后立即调用，确保
+ * 设置页尚未挂载时也能恢复用户启用的自定义 CSS。
+ */
+export function applyPersistedCssOverrides(settings?: UserCssSettings): void {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  const cssContent =
+    settings?.basedOnPresetId === null
+      ? (settings.pureCustomContent ?? settings.customContent)
+      : settings?.customContent;
+  const styleElement = document.getElementById(
+    CUSTOM_CSS_OVERRIDE_STYLE_ID
+  ) as HTMLStyleElement | null;
+
+  if (!settings?.enabled || !cssContent?.trim()) {
+    if (styleElement) {
+      styleElement.remove();
+      moduleLogger.info("已移除自定义 CSS");
+    }
+    return;
+  }
+
+  const targetStyleElement = styleElement ?? document.createElement("style");
+  if (!styleElement) {
+    targetStyleElement.id = CUSTOM_CSS_OVERRIDE_STYLE_ID;
+    document.head.appendChild(targetStyleElement);
+  }
+
+  targetStyleElement.textContent = cssContent;
+  moduleLogger.info("已应用自定义 CSS", {
+    contentLength: cssContent.length,
+  });
+}
+
 export function useCssOverrides() {
   // ========== 状态管理 ==========
 
@@ -370,31 +411,13 @@ export function useCssOverrides() {
    * 动态应用 CSS 到页面
    */
   function applyCssToPage() {
-    const styleId = "custom-css-override";
-    let styleElement = document.getElementById(
-      styleId
-    ) as HTMLStyleElement | null;
-
-    // 如果未启用或内容为空，移除 style 标签
-    if (!userSettings.value.enabled || !editorContent.value.trim()) {
-      if (styleElement) {
-        styleElement.remove();
-        moduleLogger.info("已移除自定义 CSS");
-      }
-      return;
-    }
-
-    // 如果 style 标签不存在，创建它
-    if (!styleElement) {
-      styleElement = document.createElement("style");
-      styleElement.id = styleId;
-      document.head.appendChild(styleElement);
-    }
-
-    // 更新 CSS 内容
-    styleElement.textContent = editorContent.value;
-    moduleLogger.info("已应用自定义 CSS", {
-      contentLength: editorContent.value.length,
+    applyPersistedCssOverrides({
+      ...userSettings.value,
+      customContent: editorContent.value,
+      pureCustomContent:
+        userSettings.value.basedOnPresetId === null
+          ? editorContent.value
+          : userSettings.value.pureCustomContent,
     });
   }
 

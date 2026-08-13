@@ -17,6 +17,7 @@ import { ref } from "vue";
 import { useAppSettingsStore } from "./appSettingsStore";
 import { applyLogConfig } from "@/utils/logConfig";
 import { initTheme } from "@/composables/useTheme";
+import { applyPersistedCssOverrides } from "@/composables/useCssOverrides";
 import { autoRegisterServices, startupManager } from "@/services";
 import { refreshCurrentRoute } from "@/router";
 import { useUserProfileStore } from "@/tools/user-profile-manager/stores/userProfileStore";
@@ -89,6 +90,7 @@ export const useAppInitStore = defineStore("appInit", () => {
       setProgress(10, "加载应用设置...");
       const appSettingsStore = useAppSettingsStore();
       const settings = await appSettingsStore.load();
+      applyPersistedCssOverrides(settings.cssOverride);
 
       // 1.5 初始化应用上下文（缓存应用名称、版本号等，供请求头模板变量使用）
       await initAppContext();
@@ -152,6 +154,7 @@ export const useAppInitStore = defineStore("appInit", () => {
       setProgress(10, "加载设置...");
       const appSettingsStore = useAppSettingsStore();
       const settings = await appSettingsStore.load();
+      applyPersistedCssOverrides(settings.cssOverride);
 
       // 1.5 初始化应用上下文（缓存应用名称、版本号等，供请求头模板变量使用）
       await initAppContext();

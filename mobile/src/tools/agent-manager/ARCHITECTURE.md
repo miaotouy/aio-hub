@@ -25,7 +25,7 @@
 
 头像、背景、预设消息附件和 `assets[]` 属于 Agent 私有资源，使用 Agent 内稳定 Handle 与相对路径，随 Agent 一起复制、导入、导出和删除。它们不进入全局 `asset_manager.db`，也不受全局资产按月份回收、批量转写或清理策略影响。用户从全局资产添加资源时执行内容复制，复制后两侧不共享 ID 或生命周期。
 
-该私有资产边界目前仍是计划态，具体实施见 [`mobile-agent-manager-plan.md`](../../../docs/plan/mobile-agent-manager-plan.md)；全局可回收资产契约见 [`mobile-asset-manager-design.md`](../../../docs/plan/mobile-asset-manager-design.md)。桌面端预设附件使用 Agent Handle 的既有语义见 [`preset-message-multimodal-attachments.md`](../../../../docs/design/preset-message-multimodal-attachments.md)。
+该私有资产边界目前仍是计划态，具体实施见 [`mobile-agent-manager-plan.md`](../../../docs/plan/mobile-agent-manager-plan.md)；全局可回收资产契约见 [`mobile-asset-manager-design.md`](../../../docs/plan/mobile-asset-manager-design.md)。桌面端预设附件使用 Agent Handle 的既有语义见 [LLM Chat 架构](../../../../src/tools/llm-chat/ARCHITECTURE.md) 的预设消息多模态附件记录。
 
 ## 依赖与数据流
 

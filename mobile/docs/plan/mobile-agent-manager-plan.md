@@ -73,7 +73,7 @@ graph LR
     AStorage -->|持久化| AS
 ```
 
-`agent-manager` 同时拥有智能体随包资源的生命周期。头像、背景、预设消息附件等二进制资产存放在智能体私有目录，使用 Agent 内稳定 Handle 和相对路径引用，不接入全局 `asset_manager.db`，也不登记全局 usage。全局资产与智能体私有资产之间只提供用户明确触发的内容复制，复制后两侧独立演进和清理。该边界与 [`mobile-asset-manager-design.md`](./mobile-asset-manager-design.md) 以及桌面端的 [`preset-message-multimodal-attachments.md`](../../../docs/design/preset-message-multimodal-attachments.md) 保持一致。
+`agent-manager` 同时拥有智能体随包资源的生命周期。头像、背景、预设消息附件等二进制资产存放在智能体私有目录，使用 Agent 内稳定 Handle 和相对路径引用，不接入全局 `asset_manager.db`，也不登记全局 usage。全局资产与智能体私有资产之间只提供用户明确触发的内容复制，复制后两侧独立演进和清理。该边界与 [`mobile-asset-manager-design.md`](./mobile-asset-manager-design.md) 以及桌面端 LLM Chat 架构中的[预设消息多模态附件记录](../../../src/tools/llm-chat/ARCHITECTURE.md)保持一致。
 
 ### 2.2. 依赖方向（单向依赖）
 

@@ -438,7 +438,6 @@ pub fn update_recall_models_index(
     Ok(())
 }
 
-
 #[cfg(test)]
 mod repository_warmup_tests {
     use super::warmup_recall_repository;

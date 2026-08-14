@@ -676,9 +676,7 @@ pub async fn sidecar_spawn_resident(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        broker_result_event,
-    };
+    use super::broker_result_event;
 
     #[test]
     fn broker_result_keeps_forward_identity() {

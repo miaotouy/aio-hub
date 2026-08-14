@@ -28,7 +28,7 @@ jobs:
           bun-version: 1.3.11
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install
 
       - name: Build Docs
         run: bun run docs:build

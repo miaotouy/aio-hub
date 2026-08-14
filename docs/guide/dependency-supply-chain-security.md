@@ -73,13 +73,15 @@ bun run security:dependencies:strict
 
 ### 5. CI 锁文件冻结
 
-工作流统一使用：
+<!-- 工作流统一使用：
 
 ```bash
 bun install --frozen-lockfile
 ```
 
-CI 不允许安装时静默改写解析结果。`check` 与 `check:ci` 也会再次运行安装后扫描。
+CI 不允许安装时静默改写解析结果。`check` 与 `check:ci` 也会再次运行安装后扫描。 -->
+
+--frozen-lockfile 和工作区开发策略冲突
 
 ## 策略文件
 

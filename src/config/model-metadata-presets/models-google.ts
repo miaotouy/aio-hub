@@ -414,86 +414,15 @@ export const googleModelRules: ModelMetadataRule[] = [
       group: "Gemini 3",
       capabilities: {
         visionTokenCost: {
-          calculationMethod: "gemini_2_0", // Gemini 3 沿用 2.0 的计算规则
+          calculationMethod: "gemini_2_0", // Gemini 3 系列沿用 2.0 的计算规则
           parameters: {},
         },
       },
     },
     priority: 22,
     enabled: true,
-    description: "Gemini 3 系列模型分组",
-  },
-  {
-    id: "model-prefix-gemini-3.7",
-    matchType: "modelPrefix",
-    matchValue: "gemini-3.7",
-    properties: {
-      group: "Gemini 3.7",
-      capabilities: {
-        visionTokenCost: {
-          calculationMethod: "gemini_2_0", // Gemini 3.7 沿用 2.0 的计算规则
-          parameters: {},
-        },
-      },
-    },
-    priority: 26,
-    enabled: true,
     description:
-      "Gemini 3.7 系列模型分组（3.7 Flash 已稳定，最新最强 Flash，专为复杂编码与 agentic 工作流打造）",
-  },
-  {
-    id: "model-prefix-gemini-3.6",
-    matchType: "modelPrefix",
-    matchValue: "gemini-3.6",
-    properties: {
-      group: "Gemini 3.6",
-      capabilities: {
-        visionTokenCost: {
-          calculationMethod: "gemini_2_0", // Gemini 3.6 沿用 2.0 的计算规则
-          parameters: {},
-        },
-      },
-    },
-    priority: 25,
-    enabled: true,
-    description:
-      "Gemini 3.6 系列模型分组（3.6 Flash 已稳定，平衡速度与多模态能力）",
-  },
-  {
-    id: "model-prefix-gemini-3.5",
-    matchType: "modelPrefix",
-    matchValue: "gemini-3.5",
-    properties: {
-      group: "Gemini 3.5",
-      capabilities: {
-        visionTokenCost: {
-          calculationMethod: "gemini_2_0", // Gemini 3.5 沿用 2.0 的计算规则
-          parameters: {},
-        },
-      },
-    },
-    priority: 24,
-    enabled: true,
-    description:
-      "Gemini 3.5 系列模型分组（3.5 Flash 已 GA，强 agentic workflow、编码与长上下文能力，1M 上下文）",
-  },
-  {
-    id: "model-prefix-gemini-3.1",
-    matchType: "modelPrefix",
-    matchValue: "gemini-3.1",
-    properties: {
-      group: "Gemini 3.1",
-      capabilities: {
-        visionTokenCost: {
-          calculationMethod: "gemini_2_0", // Gemini 3.1 沿用 2.0 的计算规则
-          parameters: {},
-        },
-      },
-    },
-    priority: 23,
-    enabled: true,
-    description:
-      "Gemini 3.1 系列模型分组（3.1 Pro Preview / 3.1 Flash-Lite / 3.1 Flash Image / 3.1 Flash Live / 3.1 Flash TTS）",
+      "Gemini 3 系列模型分组（统一归入 Gemini 3，覆盖 3.7/3.6/3.5/3.1 及 base 3 的全部 Pro/Flash/Lite/Image/Live/TTS 变体）",
   },
   {
     id: "model-prefix-gemini-2.5",

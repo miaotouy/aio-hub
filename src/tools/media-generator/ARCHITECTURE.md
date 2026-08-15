@@ -728,7 +728,14 @@ sequenceDiagram
 - **任务参数**: 通过 `MediaTask.input.params` 传递完整参数快照
 - **状态管理**: 通过 Pinia Store 统一管理状态，不同于 `canvas` 的 Physical-First 架构
 
-## 9. 数据持久化 (Data Persistence)
+## 9. audio.cpp 渠道的语音适配
+
+本地 audio.cpp (`audiocpp`) 渠道的 `/v1/audio/speech` 与 OpenAI 默认行为有两处差异，媒体工作台做了渠道感知适配：
+
+- **输出格式**：audio.cpp 只输出 WAV（除 `json`/`b64_json` 外忽略 `response_format` 值）。wire 层默认按渠道取 `wav`（`packages/llm-core/src/providers/sync-media.ts` 的 `openAiAudioAdapter`），且响应解析以实际 `content-type` 推断真实格式（`metadata.format`），确保资产按 `.wav` 落盘而不是把 WAV 字节存成 `.mp3`。
+- **音色**：audio.cpp 的 voice 语义是服务端预设 / `voice_dir` 音色名 / 模型 cached voice id，与 OpenAI 的 `alloy` 等音色不同。`audiocpp` 渠道下不注入默认 voice（留给服务端 `default_voice_preset`），UI 的 voice 下拉提供"默认（服务端预设）"空选项并允许自由输入（`useMediaGenParameterState` / `ModelParameterFields.vue`），Agent 方法参数默认值同样按渠道调整（`buildAgentMethods.ts`）。
+
+## 10. 数据持久化 (Data Persistence)
 
 | 数据类型 | 存储位置                                      | 格式 | 读写时机                            |
 | -------- | --------------------------------------------- | ---- | ----------------------------------- |

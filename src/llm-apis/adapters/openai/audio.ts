@@ -15,7 +15,7 @@ export async function callOpenAiAudioApi(
   profile: LlmProfile,
   options: MediaGenerationOptions
 ): Promise<LlmResponse> {
-  const format = options.audioConfig?.responseFormat ?? "mp3";
+  const requestedFormat = options.audioConfig?.responseFormat ?? "mp3";
   const extendedOptions = options as unknown as Record<string, unknown>;
   const providerProfile: ProviderProfile = {
     provider: profile.type,
@@ -33,7 +33,7 @@ export async function callOpenAiAudioApi(
       prompt: options.prompt ?? "",
       audio: {
         voice: options.audioConfig?.voice,
-        format,
+        format: requestedFormat,
         speed: options.audioConfig?.speed,
         pitch: options.audioConfig?.pitch,
       },
@@ -58,6 +58,9 @@ export async function callOpenAiAudioApi(
     },
   });
   const buffer = result.binary?.slice().buffer as ArrayBuffer | undefined;
+  // 以服务端实际返回的格式为准 (audio.cpp 等忽略非 WAV 的 response_format)
+  const format =
+    (result.metadata?.format as string | undefined) ?? requestedFormat;
   return {
     content: result.content,
     audioData: buffer,

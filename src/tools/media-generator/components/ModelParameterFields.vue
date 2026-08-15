@@ -499,7 +499,15 @@ const handleExportDiagnostics = async () => {
     <template v-else-if="mediaType === 'speech'">
       <div class="section">
         <div class="section-title">声音 (Voice)</div>
-        <el-select v-model="speechVoice" size="small" style="width: 100%">
+        <el-select
+          v-model="speechVoice"
+          size="small"
+          style="width: 100%"
+          filterable
+          allow-create
+          default-first-option
+        >
+          <el-option label="默认（服务端预设）" value="" />
           <el-option
             v-for="voice in speechVoiceOptions"
             :key="voice"

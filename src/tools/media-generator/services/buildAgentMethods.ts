@@ -155,39 +155,50 @@ function addBooleanParameter(
 
 function addSpeechParameters(
   params: AgentMethodParameter[],
-  supportedMediaTypes: MediaTaskType[]
+  supportedMediaTypes: MediaTaskType[],
+  profileType?: string
 ) {
   if (!supportedMediaTypes.includes("speech")) return;
+
+  // audio.cpp 渠道的音色由服务端预设/voice_dir 决定，且只输出 WAV，
+  // 不套用 OpenAI 的 alloy 等默认值。
+  const isAudioCpp = profileType === "audiocpp";
 
   params.push(
     {
       name: "voice",
       type: "string",
       required: false,
-      description:
-        "TTS 声音。仅在 media_type 为 speech 时有效。可选值: alloy | ash | ballad | coral | echo | fable | nova | onyx | sage | shimmer。",
-      defaultValue: "alloy",
-      enum: [
-        "alloy",
-        "ash",
-        "ballad",
-        "coral",
-        "echo",
-        "fable",
-        "nova",
-        "onyx",
-        "sage",
-        "shimmer",
-      ],
+      description: isAudioCpp
+        ? "TTS 声音。仅在 media_type 为 speech 时有效。留空使用服务端预设（audio.cpp voice preset / voice_dir）。"
+        : "TTS 声音。仅在 media_type 为 speech 时有效。可选值: alloy | ash | ballad | coral | echo | fable | nova | onyx | sage | shimmer。",
+      defaultValue: isAudioCpp ? undefined : "alloy",
+      ...(isAudioCpp
+        ? {}
+        : {
+            enum: [
+              "alloy",
+              "ash",
+              "ballad",
+              "coral",
+              "echo",
+              "fable",
+              "nova",
+              "onyx",
+              "sage",
+              "shimmer",
+            ],
+          }),
     },
     {
       name: "audio_format",
       type: "string",
       required: false,
-      description:
-        "TTS 输出音频格式。仅在 media_type 为 speech 时有效。可选值: mp3 | wav | opus | aac。",
-      defaultValue: "mp3",
-      enum: ["mp3", "wav", "opus", "aac"],
+      description: isAudioCpp
+        ? "TTS 输出音频格式。audio.cpp 仅支持 wav。仅在 media_type 为 speech 时有效。"
+        : "TTS 输出音频格式。仅在 media_type 为 speech 时有效。可选值: mp3 | wav | opus | aac。",
+      defaultValue: isAudioCpp ? "wav" : "mp3",
+      enum: isAudioCpp ? ["wav"] : ["mp3", "wav", "opus", "aac"],
     },
     {
       name: "speed",
@@ -258,7 +269,8 @@ function addMusicParameters(
 
 function buildParameters(
   supportedMediaTypes: MediaTaskType[],
-  mediaGenParams?: MediaGenParamRules
+  mediaGenParams?: MediaGenParamRules,
+  profileType?: string
 ): AgentMethodParameter[] {
   const parameters: AgentMethodParameter[] = [
     {
@@ -292,7 +304,7 @@ function buildParameters(
       description:
         "生成尺寸。适用于图片或视频模型，格式通常为 1024x1024、16:9、720p 等。",
     });
-    addSpeechParameters(parameters, supportedMediaTypes);
+    addSpeechParameters(parameters, supportedMediaTypes, profileType);
     addMusicParameters(parameters, supportedMediaTypes);
     return parameters;
   }
@@ -507,7 +519,7 @@ function buildParameters(
     mediaGenParams.movementAmplitude,
     "media_type 为 video"
   );
-  addSpeechParameters(parameters, supportedMediaTypes);
+  addSpeechParameters(parameters, supportedMediaTypes, profileType);
   addMusicParameters(parameters, supportedMediaTypes);
 
   return parameters;
@@ -774,7 +786,8 @@ export function buildAgentMethods(
       ),
       parameters: buildParameters(
         visibleModel.supportedMediaTypes,
-        mediaGenParams
+        mediaGenParams,
+        visibleModel.profile.type
       ),
       returnType: "Promise<string>",
       agentCallable: true,

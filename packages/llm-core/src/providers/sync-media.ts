@@ -208,7 +208,11 @@ export const geminiImageAdapter: SyncMediaProviderAdapter = {
 export const openAiAudioAdapter: SyncMediaProviderAdapter = {
   id: "openai-audio",
   buildRequest(profile, request) {
-    const format = request.audio?.format ?? "mp3";
+    // audio.cpp (and some other local TTS servers) only emit WAV and resolve
+    // the voice server-side (presets / voice_dir / model defaults), so the
+    // OpenAI defaults are not applicable there.
+    const isAudioCpp = profile.provider === "audiocpp";
+    const format = request.audio?.format ?? (isAudioCpp ? "wav" : "mp3");
     return post(
       buildEndpointUrl(profile, "audio/speech", "audioSpeech"),
       buildBearerHeaders(profile),
@@ -217,7 +221,7 @@ export const openAiAudioAdapter: SyncMediaProviderAdapter = {
         value: compact({
           model: request.model,
           input: request.prompt,
-          voice: request.audio?.voice ?? "alloy",
+          voice: request.audio?.voice ?? (isAudioCpp ? undefined : "alloy"),
           response_format: format,
           speed: request.audio?.speed ?? 1,
           instructions: request.extensions?.instructions,
@@ -227,7 +231,12 @@ export const openAiAudioAdapter: SyncMediaProviderAdapter = {
   },
   async parseResponse(response, request) {
     const bytes = await readWireResponseBytes(response);
-    const format = request.audio?.format ?? "mp3";
+    // Trust the actual content-type over the requested format: servers like
+    // audio.cpp ignore non-WAV response_format values and always return WAV.
+    const format =
+      inferAudioFormat(response.headers["content-type"]) ??
+      request.audio?.format ??
+      "mp3";
     return {
       content: "Audio generated successfully.",
       assets: [
@@ -542,6 +551,22 @@ function decodeBase64(value: string): Uint8Array {
   for (let index = 0; index < binary.length; index++)
     bytes[index] = binary.charCodeAt(index);
   return bytes;
+}
+
+/**
+ * Maps a response content-type to a media format label. Returns undefined
+ * when the content-type does not identify a known audio container so callers
+ * fall back to the requested format.
+ */
+function inferAudioFormat(contentType: string | undefined): string | undefined {
+  const value = (contentType ?? "").toLowerCase();
+  if (value.includes("audio/wav")) return "wav";
+  if (value.includes("audio/x-wav")) return "wav";
+  if (value.includes("audio/mpeg")) return "mp3";
+  if (value.includes("audio/ogg")) return "opus";
+  if (value.includes("audio/aac")) return "aac";
+  if (value.includes("audio/flac")) return "flac";
+  return undefined;
 }
 
 function encodeBase64(value: Uint8Array): string {

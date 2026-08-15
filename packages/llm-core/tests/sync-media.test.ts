@@ -177,6 +177,48 @@ describe("sync media adapters", () => {
       contentType: "audio/mpeg",
     });
   });
+
+  it("uses WAV defaults for audiocpp and reports the actual response format", async () => {
+    const request: SyncMediaRequest = {
+      kind: "audio",
+      model: "pocket-tts",
+      prompt: "hello",
+    };
+    const wire = openAiAudioAdapter.buildRequest(
+      { ...profile, provider: "audiocpp" },
+      request
+    );
+    expect(wire.body).toMatchObject({
+      kind: "json",
+      value: { input: "hello", response_format: "wav" },
+    });
+    // No OpenAI default voice is injected; the server preset decides.
+    expect(wire.body).not.toEqual(
+      expect.objectContaining({
+        value: expect.objectContaining({ voice: expect.anything() }),
+      })
+    );
+
+    const parsed = await openAiAudioAdapter.parseResponse(
+      bytesResponse(new Uint8Array([1, 2, 3]), {
+        "content-type": "audio/wav",
+      }),
+      request
+    );
+    expect(parsed.metadata?.format).toBe("wav");
+    expect(parsed.assets[0]).toMatchObject({
+      contentType: "audio/wav",
+    });
+
+    // A server that ignores the requested format still reports the real one.
+    const mismatched = await openAiAudioAdapter.parseResponse(
+      bytesResponse(new Uint8Array([1, 2, 3]), {
+        "content-type": "audio/wav",
+      }),
+      { ...request, audio: { format: "mp3" } }
+    );
+    expect(mismatched.metadata?.format).toBe("wav");
+  });
 });
 
 function jsonResponse(value: unknown): WireResponse {

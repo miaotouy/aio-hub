@@ -401,26 +401,43 @@ export function useMediaGenParameterState() {
   ];
   const speechFormatOptions = ["mp3", "wav", "opus", "aac"];
 
+  // audio.cpp 渠道的音色由服务端预设/voice_dir 决定，且只输出 WAV，
+  // OpenAI 默认的 alloy/mp3 不适用，默认不指定 voice 并以 wav 为默认格式。
+  const isAudioCppChannel = computed(
+    () => selectedModelInfo.value?.provider === "audiocpp"
+  );
+
   const ensureAudioConfig = () => {
     params.value.audioConfig ||= {
       voice: "alloy",
       responseFormat: "mp3",
       speed: 1,
     };
+    if (isAudioCppChannel.value) {
+      if (params.value.audioConfig.voice === "alloy") {
+        params.value.audioConfig.voice = undefined;
+      }
+      if (params.value.audioConfig.responseFormat === "mp3") {
+        params.value.audioConfig.responseFormat = undefined;
+      }
+    }
     return params.value.audioConfig;
   };
 
   const speechVoice = computed({
-    get: () => ensureAudioConfig().voice || "alloy",
+    get: () =>
+      ensureAudioConfig().voice || (isAudioCppChannel.value ? "" : "alloy"),
     set: (val) => {
-      ensureAudioConfig().voice = val;
+      ensureAudioConfig().voice = val || undefined;
     },
   });
 
   const speechFormat = computed({
-    get: () => ensureAudioConfig().responseFormat || "mp3",
+    get: () =>
+      ensureAudioConfig().responseFormat ||
+      (isAudioCppChannel.value ? "wav" : "mp3"),
     set: (val) => {
-      ensureAudioConfig().responseFormat = val;
+      ensureAudioConfig().responseFormat = val || undefined;
     },
   });
 

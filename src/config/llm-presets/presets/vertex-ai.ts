@@ -189,5 +189,21 @@ export const vertexAiPreset: LlmPreset = {
       capabilities: { vision: true, toolUse: true },
       description: "Anthropic模型集成（2025-10-01）",
     },
+    {
+      id: "claude-sonnet-5",
+      name: "Claude Sonnet 5",
+      group: "Claude",
+      provider: "google",
+      capabilities: { vision: true, toolUse: true },
+      description: "Anthropic模型集成（2026-06-09）",
+    },
+    {
+      id: "claude-opus-5",
+      name: "Claude Opus 5",
+      group: "Claude",
+      provider: "google",
+      capabilities: { vision: true, toolUse: true },
+      description: "Anthropic模型集成（2026-06-09）",
+    },
   ],
 };

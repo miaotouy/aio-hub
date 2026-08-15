@@ -50,14 +50,104 @@ const claudeAdaptiveThinkingCapabilities = {
 };
 
 export const anthropicModelRules: ModelMetadataRule[] = [
-  // === Claude 当前具体模型信息（官方模型页/价格页，2026-05） ===
+  // === Claude 当前具体模型信息（官方模型页/价格页，2026-06） ===
+  {
+    id: "model-claude-fable-5",
+    matchType: "modelPrefix",
+    matchValue: "claude-fable-5",
+    properties: {
+      icon: `/model-icons/claude-color.svg`,
+      group: "Claude 5",
+      tokenizer: "claude",
+      contextLength: 1000000,
+      maxOutputTokens: 128000,
+      pricing: {
+        input: 10.0,
+        output: 50.0,
+        cacheHitInput: 1.0,
+        unit: "USD",
+        note: "每百万 token；Cache Hits & Refreshes 为 $1.00/MTok",
+      },
+      capabilities: claudeAdaptiveThinkingCapabilities,
+      adaptiveThinking: true,
+      releaseDate: "2026-06-09",
+      knowledgeCutoff: "2026-01",
+      trainingDataCutoff: "2026-01",
+      notBeforeRetirementDate: "2027-06-09",
+      description:
+        "Claude Fable 5：Anthropic 能力最强模型，面向长程 agent 的下一代智能，1M 上下文，128K 输出，自适应思考始终开启",
+    },
+    priority: 36,
+    enabled: true,
+    description: "模型前缀 claude-fable-5 元数据规则",
+  },
+  {
+    id: "model-claude-opus-5",
+    matchType: "modelPrefix",
+    matchValue: "claude-opus-5",
+    properties: {
+      icon: `/model-icons/claude-color.svg`,
+      group: "Claude 5",
+      tokenizer: "claude",
+      contextLength: 1000000,
+      maxOutputTokens: 128000,
+      pricing: {
+        input: 5.0,
+        output: 25.0,
+        cacheHitInput: 0.5,
+        unit: "USD",
+        note: "每百万 token；Cache Hits & Refreshes 为 $0.50/MTok",
+      },
+      capabilities: claudeAdaptiveThinkingCapabilities,
+      adaptiveThinking: true,
+      releaseDate: "2026-06-09",
+      knowledgeCutoff: "2026-05",
+      trainingDataCutoff: "2026-05",
+      notBeforeRetirementDate: "2027-06-09",
+      description:
+        "Claude Opus 5：面向复杂 agentic coding 与企业级工作负载，1M 上下文，128K 输出，支持自适应思考",
+    },
+    priority: 36,
+    enabled: true,
+    description: "模型前缀 claude-opus-5 元数据规则",
+  },
+  {
+    id: "model-claude-sonnet-5",
+    matchType: "modelPrefix",
+    matchValue: "claude-sonnet-5",
+    properties: {
+      icon: `/model-icons/claude-color.svg`,
+      group: "Claude 5",
+      tokenizer: "claude",
+      contextLength: 1000000,
+      maxOutputTokens: 128000,
+      pricing: {
+        input: 2.0,
+        output: 10.0,
+        cacheHitInput: 0.2,
+        unit: "USD",
+        note: "每百万 token；Cache Hits & Refreshes 为 $0.20/MTok",
+      },
+      capabilities: claudeAdaptiveThinkingCapabilities,
+      adaptiveThinking: true,
+      releaseDate: "2026-06-09",
+      knowledgeCutoff: "2026-01",
+      trainingDataCutoff: "2026-01",
+      notBeforeRetirementDate: "2027-06-09",
+      description:
+        "Claude Sonnet 5：速度与智能的最佳结合，1M 上下文，128K 输出，支持自适应思考",
+    },
+    priority: 36,
+    enabled: true,
+    description: "模型前缀 claude-sonnet-5 元数据规则",
+  },
   {
     id: "model-claude-opus-4-8",
     matchType: "modelPrefix",
     matchValue: "claude-opus-4-8",
     properties: {
       icon: `/model-icons/claude-color.svg`,
-      group: "Claude Opus 4",
+      group: "Claude 4",
       tokenizer: "claude",
       contextLength: 1000000,
       maxOutputTokens: 128000,
@@ -87,7 +177,7 @@ export const anthropicModelRules: ModelMetadataRule[] = [
     matchValue: "claude-opus-4-7",
     properties: {
       icon: `/model-icons/claude-color.svg`,
-      group: "Claude Opus 4",
+      group: "Claude 4",
       tokenizer: "claude",
       contextLength: 1000000,
       maxOutputTokens: 128000,
@@ -117,7 +207,7 @@ export const anthropicModelRules: ModelMetadataRule[] = [
     matchValue: "claude-opus-4-6",
     properties: {
       icon: `/model-icons/claude-color.svg`,
-      group: "Claude Opus 4",
+      group: "Claude 4",
       tokenizer: "claude",
       contextLength: 1000000,
       maxOutputTokens: 128000,
@@ -147,10 +237,10 @@ export const anthropicModelRules: ModelMetadataRule[] = [
     matchValue: "claude-sonnet-4-6",
     properties: {
       icon: `/model-icons/claude-color.svg`,
-      group: "Claude Sonnet 4",
+      group: "Claude 4",
       tokenizer: "claude",
       contextLength: 1000000,
-      maxOutputTokens: 64000,
+      maxOutputTokens: 128000,
       pricing: {
         input: 3.0,
         output: 15.0,
@@ -165,7 +255,7 @@ export const anthropicModelRules: ModelMetadataRule[] = [
       trainingDataCutoff: "2026-01",
       notBeforeRetirementDate: "2027-02-17",
       description:
-        "Claude Sonnet 4.6：速度与智能均衡的主力模型，1M 上下文，64K 输出，支持扩展思考与自适应思考",
+        "Claude Sonnet 4.6：速度与智能均衡的主力模型，1M 上下文，128K 输出，支持扩展思考与自适应思考",
     },
     priority: 36,
     enabled: true,
@@ -177,7 +267,7 @@ export const anthropicModelRules: ModelMetadataRule[] = [
     matchValue: "claude-haiku-4-5",
     properties: {
       icon: `/model-icons/claude-color.svg`,
-      group: "Claude Haiku 4.5",
+      group: "Claude 4",
       tokenizer: "claude",
       contextLength: 200000,
       maxOutputTokens: 64000,
@@ -206,7 +296,7 @@ export const anthropicModelRules: ModelMetadataRule[] = [
     matchValue: "claude-sonnet-4-5",
     properties: {
       icon: `/model-icons/claude-color.svg`,
-      group: "Claude Sonnet 4",
+      group: "Claude 4",
       tokenizer: "claude",
       contextLength: 200000,
       maxOutputTokens: 64000,
@@ -235,7 +325,7 @@ export const anthropicModelRules: ModelMetadataRule[] = [
     matchValue: "claude-opus-4-5",
     properties: {
       icon: `/model-icons/claude-color.svg`,
-      group: "Claude Opus 4",
+      group: "Claude 4",
       tokenizer: "claude",
       contextLength: 200000,
       maxOutputTokens: 64000,
@@ -264,7 +354,7 @@ export const anthropicModelRules: ModelMetadataRule[] = [
     matchValue: "claude-opus-4-1",
     properties: {
       icon: `/model-icons/claude-color.svg`,
-      group: "Claude Opus 4",
+      group: "Claude 4",
       tokenizer: "claude",
       contextLength: 200000,
       maxOutputTokens: 32000,
@@ -293,7 +383,7 @@ export const anthropicModelRules: ModelMetadataRule[] = [
     matchValue: "claude-sonnet-4-20250514",
     properties: {
       icon: `/model-icons/claude-color.svg`,
-      group: "Claude Sonnet 4",
+      group: "Claude 4",
       tokenizer: "claude",
       contextLength: 200000,
       maxOutputTokens: 64000,
@@ -324,7 +414,7 @@ export const anthropicModelRules: ModelMetadataRule[] = [
     matchValue: "claude-opus-4-20250514",
     properties: {
       icon: `/model-icons/claude-color.svg`,
-      group: "Claude Opus 4",
+      group: "Claude 4",
       tokenizer: "claude",
       contextLength: 200000,
       maxOutputTokens: 32000,
@@ -365,6 +455,23 @@ export const anthropicModelRules: ModelMetadataRule[] = [
     priority: 25,
     enabled: true,
     description: "模型正则 claude-(?:opus|sonnet|haiku)-4 元数据规则",
+  },
+  {
+    id: "model-prefix-claude-5",
+    matchType: "modelPrefix",
+    matchValue: "claude-(?:fable|opus|sonnet|haiku)-5",
+    useRegex: true,
+    properties: {
+      icon: `/model-icons/claude-color.svg`,
+      group: "Claude 5",
+      tokenizer: "claude",
+      capabilities: claudeAdaptiveThinkingCapabilities,
+      description:
+        "Claude 5 系列模型（Fable / Opus / Sonnet / Haiku，支持视觉、工具调用、文档处理与自适应思考）",
+    },
+    priority: 25,
+    enabled: true,
+    description: "模型正则 claude-(?:fable|opus|sonnet|haiku)-5 元数据规则",
   },
   {
     id: "model-prefix-claude-3-7",

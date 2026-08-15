@@ -37,7 +37,7 @@ export const anthropicPreset: LlmPreset = {
     {
       id: "claude-haiku-4.5",
       name: "Claude Haiku 4.5",
-      group: "Claude Haiku 4.5",
+      group: "Claude 4",
       provider: "anthropic",
       capabilities: {
         vision: true,
@@ -48,30 +48,37 @@ export const anthropicPreset: LlmPreset = {
       description: "最快的近前沿模型，200K 上下文，64K 输出（2025-10-01）",
     },
     {
-      id: "claude-sonnet-4.6",
-      name: "Claude Sonnet 4.6",
-      group: "Claude Sonnet 4",
+      id: "claude-sonnet-5",
+      name: "Claude Sonnet 5",
+      group: "Claude 5",
       provider: "anthropic",
       capabilities: {
         vision: true,
         toolUse: true,
-        thinking: true,
-        thinkingConfigType: "budget",
       },
-      description: "速度与智能均衡的主力模型，1M 上下文，64K 输出（2026-02-17）",
+      description: "速度与智能的最佳结合，1M 上下文，128K 输出，自适应思考（2026-06-09）",
     },
     {
-      id: "claude-opus-4.8",
-      name: "Claude Opus 4.8",
-      group: "Claude Opus 4",
+      id: "claude-opus-5",
+      name: "Claude Opus 5",
+      group: "Claude 5",
       provider: "anthropic",
       capabilities: {
         vision: true,
         toolUse: true,
-        thinking: true,
-        thinkingConfigType: "budget",
       },
-      description: "最强复杂推理与长程 agentic coding，1M 上下文，128K 输出（2026-05-28）",
+      description: "复杂 agentic coding 与企业级工作，1M 上下文，128K 输出，自适应思考（2026-06-09）",
+    },
+    {
+      id: "claude-fable-5",
+      name: "Claude Fable 5",
+      group: "Claude 5",
+      provider: "anthropic",
+      capabilities: {
+        vision: true,
+        toolUse: true,
+      },
+      description: "Anthropic 最强模型，长程 agent 下一代智能，1M 上下文，128K 输出（2026-06-09）",
     },
   ],
 };

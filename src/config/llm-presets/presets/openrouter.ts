@@ -32,17 +32,15 @@ export const openrouterPreset: LlmPreset = {
   ],
   defaultModels: [
     {
-      id: "anthropic/claude-sonnet-4.6",
-      name: "Claude Sonnet 4.6",
+      id: "anthropic/claude-sonnet-5",
+      name: "Claude Sonnet 5",
       group: "Claude",
       provider: "openrouter",
       capabilities: {
         vision: true,
         toolUse: true,
-        thinking: true,
-        thinkingConfigType: "budget",
       },
-      description: "通过 OpenRouter 访问 Claude（2026-02-17）",
+      description: "通过 OpenRouter 访问 Claude（2026-06-09）",
     },
     {
       id: "google/gemini-3.7-flash",

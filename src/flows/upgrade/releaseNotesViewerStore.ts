@@ -17,12 +17,15 @@ export const useReleaseNotesViewerStore = defineStore(
     const visible = ref(false);
     const versions = ref<string[]>([]);
     const primaryVersion = ref<string>();
+    const selectedVersion = ref<string>();
 
     const manifests = computed(() =>
       versions.value
         .map((version) => releaseNotesRegistry.get(version))
         .filter((manifest) => manifest !== undefined)
     );
+
+    const history = computed(() => releaseNotesRegistry.getAll());
 
     function open(input: OpenReleaseNotesInput) {
       const availableVersions = [...new Set(input.versions)].filter((version) =>
@@ -37,7 +40,13 @@ export const useReleaseNotesViewerStore = defineStore(
         input.primaryVersion && availableVersions.includes(input.primaryVersion)
           ? input.primaryVersion
           : availableVersions[0];
+      selectedVersion.value = primaryVersion.value;
       visible.value = true;
+    }
+
+    function select(version: string) {
+      if (!releaseNotesRegistry.get(version)) return;
+      selectedVersion.value = version;
     }
 
     function close() {
@@ -48,8 +57,11 @@ export const useReleaseNotesViewerStore = defineStore(
       visible,
       versions,
       primaryVersion,
+      selectedVersion,
       manifests,
+      history,
       open,
+      select,
       close,
     };
   }

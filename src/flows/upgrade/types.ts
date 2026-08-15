@@ -88,6 +88,7 @@ export interface UpgradeContributionDefinition<TSnapshot = unknown> {
 export interface UpgradeCenterStatus {
   currentVersion: string;
   releaseNotesAvailable: boolean;
+  historyAvailable: boolean;
   pending: boolean;
   status?: "pending" | "in-progress" | "deferred" | "failed";
 }

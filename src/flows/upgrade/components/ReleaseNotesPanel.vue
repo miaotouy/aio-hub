@@ -14,10 +14,8 @@ const viewer = useReleaseNotesViewerStore();
 const guidedFlowStore = useGuidedFlowStore();
 const panelRef = ref<HTMLElement | null>(null);
 const panelTitle = computed(() => {
-  if (viewer.manifests.length === 1) {
-    return `v${viewer.manifests[0].version} 版本说明`;
-  }
-  return `${viewer.manifests.length} 份版本说明`;
+  const count = viewer.history.length;
+  return count === 1 ? "1 份版本说明" : `${count} 份版本说明`;
 });
 
 watch(
@@ -161,10 +159,12 @@ watch(
 }
 
 .release-notes-panel__content {
+  display: flex;
   min-width: 0;
   min-height: 0;
   flex: 1;
-  overflow: auto;
+  flex-direction: column;
+  overflow: hidden;
   padding: clamp(18px, 3vw, 30px);
   scrollbar-gutter: stable;
   overscroll-behavior: contain;

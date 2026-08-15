@@ -26,7 +26,7 @@ import { RendererVersion } from "@/tools/rich-text-renderer/types";
 import { useAppUpdater } from "@/composables/useAppUpdater";
 import {
   getUpgradeCenterStatus,
-  openCurrentReleaseNotes,
+  openReleaseNotesArchive,
   openUpgradeFlowForDebug,
   resumePendingUpgrade,
   subscribeUpgradeCenterStatus,
@@ -56,7 +56,7 @@ const appInfo = ref({
   version: "",
 });
 const showUpdateDialog = ref(false);
-const releaseNotesAvailable = ref(false);
+const releaseNotesHistoryAvailable = ref(false);
 const hasPendingUpgrade = ref(false);
 const isOpeningUpgradeFlow = ref(false);
 const isDevelopment = import.meta.env.DEV;
@@ -147,14 +147,14 @@ const handleUpdateConfirm = async () => {
 
 async function refreshUpgradeStatus() {
   const status = await getUpgradeCenterStatus();
-  releaseNotesAvailable.value = status.releaseNotesAvailable;
+  releaseNotesHistoryAvailable.value = status.historyAvailable;
   hasPendingUpgrade.value = status.pending;
 }
 
 async function handleOpenReleaseNotes() {
   try {
     isOpeningUpgradeFlow.value = true;
-    await openCurrentReleaseNotes();
+    await openReleaseNotesArchive();
   } catch (error) {
     errorHandler.error(error as Error, "打开版本说明失败", {
       showToUser: true,
@@ -284,7 +284,7 @@ onMounted(async () => {
   try {
     await refreshUpgradeStatus();
     unsubscribeUpgradeStatus = subscribeUpgradeCenterStatus((status) => {
-      releaseNotesAvailable.value = status.releaseNotesAvailable;
+      releaseNotesHistoryAvailable.value = status.historyAvailable;
       hasPendingUpgrade.value = status.pending;
     });
   } catch (error) {
@@ -310,7 +310,7 @@ onBeforeUnmount(() => {
           <p class="app-version">版本 {{ appInfo.version || "1.0.0" }}</p>
           <div class="version-actions">
             <el-button
-              v-if="releaseNotesAvailable"
+              v-if="releaseNotesHistoryAvailable"
               link
               type="primary"
               size="small"

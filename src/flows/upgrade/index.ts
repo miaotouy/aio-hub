@@ -280,9 +280,13 @@ export async function openReleaseNotes(
   useReleaseNotesViewerStore().open({ versions, primaryVersion });
 }
 
-export async function openCurrentReleaseNotes(): Promise<void> {
+export async function openReleaseNotesArchive(): Promise<void> {
+  await initializeUpgradeFlow();
   const currentVersion = normalizeAppVersion(getAppContext().appVersion);
-  await openReleaseNotes([currentVersion], currentVersion);
+  const versions = releaseNotesRegistry
+    .getAll()
+    .map((manifest) => manifest.version);
+  await openReleaseNotes(versions, currentVersion);
 }
 
 export async function resumePendingUpgrade(): Promise<void> {
@@ -307,6 +311,7 @@ function readUpgradeCenterStatus(): UpgradeCenterStatus {
   return {
     currentVersion,
     releaseNotesAvailable: Boolean(releaseNotesRegistry.get(currentVersion)),
+    historyAvailable: releaseNotesRegistry.getAll().length > 0,
     pending,
     status: pending
       ? (state!.status as UpgradeCenterStatus["status"])

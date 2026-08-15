@@ -4,78 +4,98 @@
   Licensed under the Apache License, Version 2.0 (the "License");
 -->
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import { CalendarDays, ChevronDown } from "lucide-vue-next";
+import { computed } from "vue";
+import { CalendarDays } from "lucide-vue-next";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import { RendererVersion } from "@/tools/rich-text-renderer/types";
+import { useReleaseNotesViewerStore } from "../releaseNotesViewerStore";
 import { releaseNotesRegistry } from "../releaseNotesRegistry";
 
 const props = defineProps<{
   versions: string[];
   primaryVersion?: string;
 }>();
-const expandedVersions = ref<string[]>([]);
 
-const manifests = computed(() =>
-  props.versions
-    .map((version) => releaseNotesRegistry.get(version))
-    .filter((manifest) => manifest !== undefined)
-    .sort((left, right) => {
-      if (left.version === props.primaryVersion) return -1;
-      if (right.version === props.primaryVersion) return 1;
-      return 0;
-    })
+const viewer = useReleaseNotesViewerStore();
+
+const archive = computed(() =>
+  releaseNotesRegistry.getAll().slice().reverse()
 );
 
-watch(
-  manifests,
-  (items) => {
-    expandedVersions.value = items[0] ? [items[0].version] : [];
-  },
-  { immediate: true }
-);
+const selectedManifest = computed(() => {
+  const selected = viewer.selectedVersion
+    ? releaseNotesRegistry.get(viewer.selectedVersion)
+    : undefined;
+  if (selected) return selected;
+  const primary = props.primaryVersion
+    ? releaseNotesRegistry.get(props.primaryVersion)
+    : undefined;
+  if (primary) return primary;
+  for (const version of props.versions) {
+    const manifest = releaseNotesRegistry.get(version);
+    if (manifest) return manifest;
+  }
+  return archive.value[0];
+});
 </script>
 
 <template>
   <div class="release-notes-step">
-    <el-collapse v-if="manifests.length" v-model="expandedVersions">
-      <el-collapse-item
-        v-for="(manifest, index) in manifests"
-        :key="manifest.version"
-        :name="manifest.version"
-      >
-        <template #title>
-          <div class="release-summary">
-            <div class="release-copy">
-              <div class="release-meta">
-                <strong>v{{ manifest.version }}</strong>
-                <span v-if="index === 0" class="current-badge">当前</span>
-                <span class="release-date">
-                  <CalendarDays :size="13" />
-                  {{ manifest.publishedAt }}
-                </span>
-              </div>
-              <h4>{{ manifest.title }}</h4>
-              <p>{{ manifest.summary }}</p>
-            </div>
-            <ChevronDown class="expand-icon" :size="17" aria-hidden="true" />
-          </div>
-        </template>
+    <div v-if="archive.length" class="archive-layout">
+      <aside class="archive-sidebar" aria-label="历史版本列表">
+        <button
+          v-for="manifest in archive"
+          :key="manifest.version"
+          type="button"
+          class="archive-item"
+          :class="{
+            'is-active': manifest.version === selectedManifest?.version,
+            'is-current': manifest.version === primaryVersion,
+          }"
+          @click="viewer.select(manifest.version)"
+        >
+          <span class="archive-item__meta">
+            <strong>v{{ manifest.version }}</strong>
+            <span v-if="manifest.version === primaryVersion" class="current-badge">
+              当前
+            </span>
+            <span class="archive-item__date">{{ manifest.publishedAt }}</span>
+          </span>
+          <span class="archive-item__title">{{ manifest.title }}</span>
+        </button>
+      </aside>
 
-        <div class="release-details">
-          <ul v-if="manifest.highlights?.length" class="highlight-list">
-            <li v-for="item in manifest.highlights" :key="item">{{ item }}</li>
-          </ul>
-          <div class="release-body">
-            <RichTextRenderer
-              :content="manifest.body"
-              :version="RendererVersion.V2_CUSTOM_PARSER"
-              :enable-enter-animation="false"
-            />
-          </div>
+      <section
+        v-if="selectedManifest"
+        :key="selectedManifest.version"
+        class="archive-detail"
+      >
+        <div class="release-meta">
+          <strong>v{{ selectedManifest.version }}</strong>
+          <span v-if="selectedManifest.version === primaryVersion" class="current-badge">
+            当前版本
+          </span>
+          <span class="release-date">
+            <CalendarDays :size="13" />
+            {{ selectedManifest.publishedAt }}
+          </span>
         </div>
-      </el-collapse-item>
-    </el-collapse>
+        <h4>{{ selectedManifest.title }}</h4>
+        <p class="release-summary">{{ selectedManifest.summary }}</p>
+        <ul v-if="selectedManifest.highlights?.length" class="highlight-list">
+          <li v-for="item in selectedManifest.highlights" :key="item">
+            {{ item }}
+          </li>
+        </ul>
+        <div class="release-body">
+          <RichTextRenderer
+            :content="selectedManifest.body"
+            :version="RendererVersion.V2_CUSTOM_PARSER"
+            :enable-enter-animation="false"
+          />
+        </div>
+      </section>
+    </div>
 
     <el-empty
       v-else
@@ -86,53 +106,104 @@ watch(
 </template>
 
 <style scoped>
-.release-notes-step :deep(.el-collapse) {
-  border-top: 0;
-  border-bottom: 0;
-}
-
-.release-notes-step :deep(.el-collapse-item) {
-  margin-bottom: 10px;
-  overflow: hidden;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  background: var(--card-bg);
-}
-
-.release-notes-step :deep(.el-collapse-item__header) {
-  height: auto;
-  min-height: 82px;
-  padding: 13px 14px;
-  border-bottom: 0;
-  background: transparent;
-  line-height: normal;
-}
-
-.release-notes-step :deep(.el-collapse-item__arrow) {
-  display: none;
-}
-
-.release-notes-step :deep(.el-collapse-item__wrap) {
-  border-bottom: 0;
-  background: transparent;
-}
-
-.release-notes-step :deep(.el-collapse-item__content) {
-  padding: 0;
-}
-
-.release-summary {
+.release-notes-step {
   display: flex;
-  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.archive-layout {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  gap: 16px;
+}
+
+.archive-sidebar {
+  display: flex;
+  width: 228px;
+  min-width: 0;
+  flex: none;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+.archive-item {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-color);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.archive-item:hover {
+  border-color: var(--border-color);
+  background: color-mix(in srgb, var(--card-bg) 60%, transparent);
+}
+
+.archive-item.is-active {
+  border-color: color-mix(in srgb, var(--primary-color) 42%, transparent);
+  background: color-mix(in srgb, var(--primary-color) 9%, transparent);
+}
+
+.archive-item__meta {
+  display: flex;
   min-width: 0;
   align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  text-align: left;
+  gap: 7px;
+  color: var(--text-color-secondary);
+  font-size: 11px;
 }
 
-.release-copy {
+.archive-item__meta strong {
+  color: var(--primary-color);
+  font-size: 12px;
+}
+
+.archive-item__date {
+  margin-left: auto;
+  flex: none;
+}
+
+.archive-item__title {
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.current-badge {
+  flex: none;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.archive-detail {
   min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 2px;
 }
 
 .release-meta {
@@ -148,14 +219,6 @@ watch(
   font-size: 12px;
 }
 
-.current-badge {
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
-  color: var(--primary-color);
-  font-weight: 600;
-}
-
 .release-date {
   display: inline-flex;
   align-items: center;
@@ -163,51 +226,24 @@ watch(
 }
 
 h4 {
-  margin: 5px 0 4px;
-  overflow: hidden;
+  margin: 7px 0 4px;
   color: var(--text-color);
-  font-size: 15px;
+  font-size: 17px;
   line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-p {
+.release-summary {
   margin: 0;
-  overflow: hidden;
   color: var(--text-color-secondary);
   font-size: 12px;
-  line-height: 1.5;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.expand-icon {
-  flex: none;
-  color: var(--text-color-secondary);
-  transition: transform 160ms ease;
-}
-
-.release-notes-step
-  :deep(.el-collapse-item.is-active)
-  .release-summary
-  .expand-icon {
-  transform: rotate(180deg);
-}
-
-.release-details {
-  display: grid;
-  gap: 14px;
-  margin: 0 14px 14px;
-  border-top: 1px solid var(--border-color);
-  padding-top: 14px;
+  line-height: 1.6;
 }
 
 .highlight-list {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
-  margin: 0;
+  margin: 14px 0 0;
   padding: 0;
   list-style: none;
 }
@@ -222,12 +258,29 @@ p {
 
 .release-body {
   min-width: 0;
+  margin-top: 14px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 14px;
   font-size: 13px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .expand-icon {
-    transition: none;
+@media (max-width: 620px) {
+  .archive-layout {
+    flex-direction: column;
+  }
+
+  .archive-sidebar {
+    width: auto;
+    max-height: none;
+    flex-direction: row;
+    overflow: auto;
+    padding-right: 0;
+    padding-bottom: 4px;
+  }
+
+  .archive-item {
+    min-width: 190px;
+    flex: none;
   }
 }
 </style>

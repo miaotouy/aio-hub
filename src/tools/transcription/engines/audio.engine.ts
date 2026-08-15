@@ -19,10 +19,12 @@ import { computed } from "vue";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useFFmpeg } from "@/composables/useFFmpeg";
 import { useLlmRequest } from "@/composables/useLlmRequest";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createModuleLogger } from "@/utils/logger";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import type { Asset } from "@/types/asset-management";
 import type { LlmMessageContent } from "@/llm-apis/common";
+import type { TranscriptionAudioSource } from "@/llm-apis/transcription-types";
 import { getModelParams, getEffectiveConfig } from "./base";
 import { cleanLlmOutput, detectRepetition } from "../utils/text";
 import type {
@@ -45,6 +47,7 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
     const { task } = ctx;
     const config = getEffectiveConfig(ctx);
     const { sendRequest, getNetworkStrategy } = useLlmRequest();
+    const { getProfileById } = useLlmProfiles();
 
     const {
       modelIdentifier,
@@ -56,11 +59,17 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
     } = getModelParams(ctx, "audio");
     const [profileId, modelId] = parseModelCombo(modelIdentifier);
 
+    // 模型具备 asr 能力时，走专用 /v1/audio/transcriptions (Whisper 风格) 端点，
+    // 而不是把音频塞进多模态 chat 请求 (如 audio.cpp ASR 模型)。
+    const profile = getProfileById(profileId);
+    const model = profile?.models.find((m) => m.id === modelId);
+    const useSttApi = model?.capabilities?.asr === true;
+
     // 1. 获取资产对象以检查文件大小并处理压缩逻辑
     const assetPath = task.path;
     let finalPath = assetPath;
 
-    // 音频特殊处理：检查是否需要压缩，或复用已有的压缩文件
+    // 音频特殊处理：检查是否需要压缩/转换，或复用已有的处理文件
     let reuseTempFile = false;
     if (task.tempFilePath) {
       try {
@@ -70,12 +79,15 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
           "/"
         );
         await stat(tempFullPath);
-        finalPath = task.tempFilePath;
-        reuseTempFile = true;
-        logger.info("复用已有的压缩音频文件", {
-          assetId: task.assetId,
-          path: finalPath,
-        });
+        // STT 专用端点只接受 WAV；m4a 压缩产物只能用于多模态 chat 路径
+        if (!useSttApi || task.tempFilePath.toLowerCase().endsWith(".wav")) {
+          finalPath = task.tempFilePath;
+          reuseTempFile = true;
+          logger.info("复用已有的压缩音频文件", {
+            assetId: task.assetId,
+            path: finalPath,
+          });
+        }
       } catch (e) {
         task.tempFilePath = undefined;
       }
@@ -84,39 +96,30 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
     if (!reuseTempFile) {
       const { activeFfmpegPath } = useFFmpeg(computed(() => config.ffmpegPath));
       const ffmpegPath = activeFfmpegPath.value;
-      const maxDirectSizeMB = config.audio?.maxDirectSizeMB || 10;
 
       const basePath = await assetManagerEngine.getAssetBasePath();
       const fullPath = `${basePath}/${assetPath}`.replace(/\\/g, "/");
+      const isWavInput = assetPath.toLowerCase().endsWith(".wav");
 
-      let shouldCompress = false;
-      if (config.audio?.enableCompression && ffmpegPath) {
-        const isFFmpegAvailable = await invoke<boolean>(
-          "check_ffmpeg_availability",
-          { path: ffmpegPath }
-        );
-        if (isFFmpegAvailable) {
-          try {
-            const fileStat = await stat(fullPath);
-            const sizeMB = fileStat.size / (1024 * 1024);
-            if (sizeMB > maxDirectSizeMB) {
-              shouldCompress = true;
-              logger.info(
-                `音频大小 (${sizeMB.toFixed(2)}MB) 超过阈值 (${maxDirectSizeMB}MB)，将尝试压缩`
-              );
-            }
-          } catch (e) {
-            logger.warn("无法获取音频文件大小，将尝试直接处理", e);
+      if (useSttApi) {
+        // STT 专用端点需要 WAV 输入（audio.cpp 仅支持 WAV 上传，MP3 尚未支持）
+        if (!isWavInput) {
+          if (!ffmpegPath) {
+            throw new Error(
+              "语音转写 (STT) 需要 WAV 音频输入，请先在设置中配置 ffmpeg 路径以自动转换"
+            );
           }
-        }
-      }
+          const isFFmpegAvailable = await invoke<boolean>(
+            "check_ffmpeg_availability",
+            { path: ffmpegPath }
+          );
+          if (!isFFmpegAvailable) {
+            throw new Error(
+              "语音转写 (STT) 需要 WAV 音频输入，且未检测到可用的 ffmpeg"
+            );
+          }
+          const outputPath = `${fullPath}_stt.wav`;
 
-      if (shouldCompress) {
-        try {
-          const bitrate = config.audio?.bitrate || "128k";
-          const outputPath = `${fullPath}_compressed.m4a`;
-
-          // 监听进度
           const unlisten = await listen<{
             taskId: string;
             progress: { percent: number };
@@ -135,19 +138,80 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
                 outputPath: outputPath,
                 ffmpegPath: ffmpegPath,
                 hwaccel: false,
-                audioBitrate: bitrate,
+                audioEncoder: "pcm_s16le",
               },
             });
           } finally {
             unlisten();
           }
 
-          finalPath = `${assetPath}_compressed.m4a`;
+          finalPath = `${assetPath}_stt.wav`;
           task.tempFilePath = finalPath;
-          logger.info("音频压缩完成，使用压缩文件", { finalPath });
-        } catch (e) {
-          logger.error("音频压缩失败，回退到原始文件", e);
-          finalPath = assetPath;
+          logger.info("音频已转换为 WAV 供 STT 端点使用", {
+            path: finalPath,
+          });
+        }
+      } else if (config.audio?.enableCompression && ffmpegPath) {
+        const maxDirectSizeMB = config.audio?.maxDirectSizeMB || 10;
+
+        let shouldCompress = false;
+        const isFFmpegAvailable = await invoke<boolean>(
+          "check_ffmpeg_availability",
+          { path: ffmpegPath }
+        );
+        if (isFFmpegAvailable) {
+          try {
+            const fileStat = await stat(fullPath);
+            const sizeMB = fileStat.size / (1024 * 1024);
+            if (sizeMB > maxDirectSizeMB) {
+              shouldCompress = true;
+              logger.info(
+                `音频大小 (${sizeMB.toFixed(2)}MB) 超过阈值 (${maxDirectSizeMB}MB)，将尝试压缩`
+              );
+            }
+          } catch (e) {
+            logger.warn("无法获取音频文件大小，将尝试直接处理", e);
+          }
+        }
+
+        if (shouldCompress) {
+          try {
+            const bitrate = config.audio?.bitrate || "128k";
+            const outputPath = `${fullPath}_compressed.m4a`;
+
+            // 监听进度
+            const unlisten = await listen<{
+              taskId: string;
+              progress: { percent: number };
+            }>("ffmpeg-progress", (event) => {
+              if (event.payload.taskId === task.id) {
+                task.progress = event.payload.progress.percent;
+              }
+            });
+
+            try {
+              await invoke("process_media", {
+                taskId: task.id,
+                params: {
+                  mode: "extract_audio",
+                  inputPath: fullPath,
+                  outputPath: outputPath,
+                  ffmpegPath: ffmpegPath,
+                  hwaccel: false,
+                  audioBitrate: bitrate,
+                },
+              });
+            } finally {
+              unlisten();
+            }
+
+            finalPath = `${assetPath}_compressed.m4a`;
+            task.tempFilePath = finalPath;
+            logger.info("音频压缩完成，使用压缩文件", { finalPath });
+          } catch (e) {
+            logger.error("音频压缩失败，回退到原始文件", e);
+            finalPath = assetPath;
+          }
         }
       }
     }
@@ -162,6 +226,79 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
     const finalPrompt = task.filename
       ? prompt.replace(/\{filename\}/g, task.filename)
       : prompt;
+
+    const isWavFinal = finalPath.toLowerCase().endsWith(".wav");
+
+    // 专用 STT 端点路径：Whisper 风格 /v1/audio/transcriptions multipart 上传
+    if (useSttApi) {
+      const sttMime = isWavFinal ? "audio/wav" : task.mimeType || "audio/mpeg";
+      const sttFilename = isWavFinal
+        ? task.filename?.toLowerCase().endsWith(".wav")
+          ? task.filename
+          : "audio.wav"
+        : "audio.wav";
+
+      let audio: TranscriptionAudioSource;
+      try {
+        const finalStat = await stat(fullFullPath);
+        const networkStrategy = getNetworkStrategy(profileId);
+        if (
+          networkStrategy !== "native" &&
+          finalStat.size > FILE_SIZE_THRESHOLD
+        ) {
+          audio = {
+            kind: "local-file",
+            path: fullFullPath,
+            mediaType: sttMime,
+            filename: sttFilename,
+          };
+        } else {
+          audio = {
+            kind: "base64",
+            data: await assetManagerEngine.getAssetBase64(finalPath),
+            mediaType: sttMime,
+            filename: sttFilename,
+          };
+        }
+      } catch (e) {
+        // 回退逻辑
+        audio = {
+          kind: "base64",
+          data: await assetManagerEngine.getAssetBase64(finalPath),
+          mediaType: sttMime,
+          filename: sttFilename,
+        };
+      }
+
+      const response = await sendRequest({
+        profileId,
+        modelId,
+        transcriptionInput: {
+          audio,
+          prompt: finalPrompt,
+        },
+        inspectorContext: {
+          toolName: "transcription",
+          sessionId: task.assetId,
+          purpose: "transcribe-audio-stt",
+        },
+        hasLocalFile: audio.kind === "local-file",
+        timeout: timeout * 1000,
+        signal: ctx.signal,
+      });
+
+      const cleanedText = cleanLlmOutput(response.content);
+      const repetition = detectRepetition(cleanedText, config.repetitionConfig);
+
+      if (enableRepetitionDetection && repetition.isRepetitive) {
+        throw new Error(`检测到模型回复存在严重复读: ${repetition.reason}`);
+      }
+
+      return {
+        text: cleanedText,
+        isEmpty: !cleanedText || cleanedText.trim().length === 0,
+      };
+    }
 
     let audioData: string;
     let hasLocalFile = false;

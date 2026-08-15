@@ -81,7 +81,9 @@ export async function fetchModelsFromApi(
         },
       },
     });
-    const models = result.models.map(toDesktopModelInfo);
+    const models = result.models.map((model) =>
+      toDesktopModelInfo(model, profile.type)
+    );
     logger.info("模型列表获取成功", {
       profileName: profile.name,
       modelCount: models.length,
@@ -97,7 +99,10 @@ export async function fetchModelsFromApi(
   }
 }
 
-export function toDesktopModelInfo(model: ProviderModelInfo): LlmModelInfo {
+export function toDesktopModelInfo(
+  model: ProviderModelInfo,
+  providerType?: string
+): LlmModelInfo {
   const pricing = model.pricing
     ? Object.fromEntries(
         Object.entries(model.pricing).map(([key, value]) => [
@@ -127,11 +132,23 @@ export function toDesktopModelInfo(model: ProviderModelInfo): LlmModelInfo {
       model.supportedParameters.includes("include_reasoning");
   }
 
+  // audio.cpp /v1/models 在 OpenAI 风格条目上带 task/family 扩展字段，
+  // 据此推导 TTS/ASR/音乐生成等能力，让模型选择器能正确过滤。
+  if (providerType === "audiocpp") {
+    const audioCppCapabilities = audiocppTaskCapabilities(model.raw);
+    if (audioCppCapabilities) {
+      Object.assign(apiCapabilities, audioCppCapabilities);
+    }
+  }
+
   return materializeModelIdentity(
     {
       id: model.id,
       name: model.name,
-      group: model.group,
+      group:
+        providerType === "audiocpp"
+          ? (audiocppFamily(model.raw) ?? model.group)
+          : model.group,
       provider: model.provider,
       description: model.description,
       // 先附加当前激活的模型元数据，再用 API 明确返回的能力覆盖。
@@ -173,4 +190,50 @@ export function toDesktopModelInfo(model: ProviderModelInfo): LlmModelInfo {
     },
     { declaredOwner: model.declaredOwner }
   );
+}
+
+/**
+ * audio.cpp /v1/models 条目的 task 字段 → 模型能力推导。
+ * task 值来自 engine::runtime::to_string(VoiceTaskKind)：
+ * asr/tts/clon/vdes/vc/svc/s2s/gen/sep/vad/diar/align/spk/midi。
+ */
+function audiocppTaskCapabilities(
+  raw: unknown
+): LlmModelInfo["capabilities"] | undefined {
+  const task = readRawString(raw, "task");
+  if (task === undefined) return undefined;
+  switch (task) {
+    case "asr":
+      return { audio: true, asr: true };
+    case "tts":
+    case "clon":
+    case "vdes":
+      return { audioGeneration: true };
+    case "gen":
+      return { musicGeneration: true };
+    case "vc":
+    case "svc":
+    case "s2s":
+    case "sep":
+    case "vad":
+    case "diar":
+    case "align":
+    case "spk":
+    case "midi":
+      return { audio: true };
+    default:
+      return undefined;
+  }
+}
+
+function audiocppFamily(raw: unknown): string | undefined {
+  return readRawString(raw, "family");
+}
+
+function readRawString(raw: unknown, key: string): string | undefined {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    return undefined;
+  }
+  const value = (raw as Record<string, unknown>)[key];
+  return typeof value === "string" ? value : undefined;
 }

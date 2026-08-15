@@ -211,6 +211,16 @@ export interface LlmRequestOptions {
   rerankQuery?: string;
   /** 重排 (Rerank) 待排序文档列表 */
   rerankDocuments?: string[] | Array<{ text: string; [key: string]: any }>;
+  /**
+   * 语音转写 (ASR/STT) 输入
+   * 当模型具备 asr 能力时，走专用 /v1/audio/transcriptions 端点，
+   * 而不是把音频塞进 chat 多模态消息。
+   */
+  transcriptionInput?: {
+    audio: import("@/llm-apis/transcription-types").TranscriptionAudioSource;
+    language?: string;
+    prompt?: string;
+  };
 
   // OpenAI 兼容的高级参数
   /** Top-p 采样参数，介于 0 和 1 之间 */

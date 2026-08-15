@@ -52,6 +52,7 @@ import { azureOpenaiPreset } from "./presets/azure-openai";
 import { modelscopePreset } from "./presets/modelscope";
 import { ollamaPreset } from "./presets/ollama";
 import { ollamaCloudPreset } from "./presets/ollama-cloud";
+import { audiocppPreset } from "./presets/audiocpp";
 import { lmStudioPreset } from "./presets/lm-studio";
 import { newapiPreset } from "./presets/newapi";
 import { sunoNewapiPreset } from "./presets/suno-newapi";
@@ -101,6 +102,7 @@ export const llmPresets: LlmPreset[] = [
   modelscopePreset,
   ollamaPreset,
   ollamaCloudPreset,
+  audiocppPreset,
   lmStudioPreset,
   newapiPreset,
   sunoNewapiPreset,

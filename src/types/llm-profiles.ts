@@ -51,6 +51,7 @@ export type ProviderType =
   | "siliconflow"
   | "groq"
   | "ollama"
+  | "audiocpp"
   | "openrouter"
   | "openai-responses"
   | "xai"
@@ -224,6 +225,12 @@ export interface ModelCapabilities {
   audio?: boolean;
   /** 是否支持音频生成 (TTS) */
   audioGeneration?: boolean;
+  /**
+   * 是否支持专用语音转写端点 (ASR/STT)
+   * 走 OpenAI 兼容的 /v1/audio/transcriptions (Whisper 风格)，
+   * 而非把音频作为 input_audio 内容塞进 chat 请求。
+   */
+  asr?: boolean;
   /** 是否支持视频输入 */
   video?: boolean;
   /** 是否支持视频生成 */

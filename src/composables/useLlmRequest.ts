@@ -222,6 +222,57 @@ export function useLlmRequest() {
         };
       }
 
+      // 自动分发特种请求 (语音转写 ASR/STT)
+      // 模型具备 asr 能力时，音频走专用 /v1/audio/transcriptions 端点，
+      // 而不是多模态 chat 的 input_audio。适配器按执行路由的协议适配器查找。
+      if (model.capabilities?.asr && options.transcriptionInput) {
+        const execution = resolveModelExecution({
+          profile: keyProfile,
+          model,
+          operation: "chat",
+        });
+        const adapter = adapters[execution.effectiveProfile.type];
+        if (adapter && adapter.transcribe) {
+          logger.debug("解析语音转写执行路由", {
+            channelType: profile.type,
+            effectiveAdapterId: execution.adapterId,
+            routeSource: execution.routeSource,
+          });
+          const transcription = await adapter.transcribe(
+            execution.effectiveProfile,
+            {
+              modelId: options.modelId,
+              audio: options.transcriptionInput.audio,
+              language: options.transcriptionInput.language,
+              prompt: options.transcriptionInput.prompt,
+              hasLocalFile: options.hasLocalFile,
+              timeout: options.timeout,
+              signal: options.signal,
+              requestId: options.requestId,
+              allowDisabledProfile: options.allowDisabledProfile,
+              networkStrategy:
+                options.networkStrategy ?? profile.networkStrategy,
+              forceProxy: options.forceProxy,
+              relaxIdCerts: options.relaxIdCerts ?? profile.relaxIdCerts,
+              http1Only: options.http1Only ?? profile.http1Only,
+              transportObserver: options.transportObserver,
+            }
+          );
+          return { content: transcription.text };
+        }
+        const error = new Error(
+          `模型 "${options.modelId}" 标记了语音转写能力，但渠道适配器未实现 transcribe`
+        );
+        errorHandler.error(error, "语音转写适配器缺失", {
+          context: {
+            profileId: options.profileId,
+            modelId: options.modelId,
+            channelType: profile.type,
+          },
+        });
+        throw error;
+      }
+
       // 补全请求检查：如果不是特种请求，且不是媒体生成请求，必须有 messages
       const isMediaGeneration =
         model.capabilities?.imageGeneration ||

@@ -618,7 +618,7 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
             capabilities: { audio: true, embedding: false, rerank: false },
           },
           modelPath: "audio.modelIdentifier",
-          hint: "专门用于音频转写的模型。留空则使用上述兜底模型。",
+          hint: "专门用于音频转写的模型。支持多模态模型 (如 GPT-4o-Audio) 与专用 ASR/STT 模型 (如 audio.cpp)。留空则使用上述兜底模型。",
           keywords: "audio model 音频 模型",
         },
         {

@@ -19,6 +19,7 @@ import { callOpenAiImageApi } from "./image";
 import { callOpenAiAudioApi } from "./audio";
 import { callOpenAiVideoApi } from "./video";
 import { callOpenAiResponsesApi } from "./responses";
+import { callOpenAiTranscriptionApi } from "./transcription";
 
 /**
  * OpenAI 适配器实现
@@ -29,6 +30,7 @@ export const openAiAdapter: LlmAdapter = {
   image: callOpenAiImageApi,
   audio: callOpenAiAudioApi,
   video: callOpenAiVideoApi,
+  transcribe: callOpenAiTranscriptionApi,
 };
 
 /**
@@ -48,3 +50,4 @@ export * from "./image";
 export * from "./audio";
 export * from "./video";
 export * from "./responses";
+export * from "./transcription";

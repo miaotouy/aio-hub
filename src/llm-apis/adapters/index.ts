@@ -25,6 +25,10 @@ import type {
   EmbeddingRequestOptions,
   EmbeddingResponse,
 } from "@/llm-apis/embedding-types";
+import type {
+  TranscriptionRequestOptions,
+  TranscriptionResponse,
+} from "@/llm-apis/transcription-types";
 import { openAiAdapter, openAiResponsesAdapter } from "./openai";
 import { geminiAdapter } from "./gemini";
 import { anthropicAdapter } from "./anthropic";
@@ -69,6 +73,15 @@ export interface LlmAdapter {
     profile: LlmProfile,
     options: MediaGenerationOptions
   ): Promise<LlmResponse>;
+
+  /**
+   * 语音转写 (ASR/STT) (可选)
+   * 走 OpenAI 兼容的 /v1/audio/transcriptions (Whisper 风格) 专用端点
+   */
+  transcribe?(
+    profile: LlmProfile,
+    options: TranscriptionRequestOptions
+  ): Promise<TranscriptionResponse>;
 
   /**
    * 视频生成
@@ -116,6 +129,7 @@ export const adapters: Record<string, LlmAdapter> = defineAdapters({
   cohere: cohereAdapter,
   "suno-newapi": sunoNewApiAdapter,
   "minimax-music": minimaxMusicAdapter,
+  audiocpp: openAiAdapter,
   // Aggregate channel identities. Runtime execution resolves the concrete
   // protocol first and remaps `effectiveProfile.type`, so these entries are
   // defensive fallbacks for any path that bypasses the resolver.

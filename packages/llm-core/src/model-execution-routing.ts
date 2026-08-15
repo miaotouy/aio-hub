@@ -111,6 +111,11 @@ export const PROVIDER_EXECUTION_DEFAULTS: Readonly<
     defaultOperation: "chat",
     operationAdapters: { embedding: "openai-embeddings" },
   },
+  // Local audio.cpp inference server. OpenAI-compatible TTS/ASR endpoints.
+  audiocpp: {
+    defaultAdapterId: "openai-chat-completions",
+    defaultOperation: "chat",
+  },
   openrouter: {
     defaultAdapterId: "openai-chat-completions",
     defaultOperation: "chat",
@@ -209,7 +214,7 @@ export const PROVIDER_EXECUTION_DEFAULTS: Readonly<
       "deepseek-v4-flash": "openai-chat-completions",
       "mimo-v2.5": "openai-chat-completions",
       "mimo-v2.5-pro": "openai-chat-completions",
-      "hy3": "openai-chat-completions",
+      hy3: "openai-chat-completions",
       "gpt-5.6-luna": "openai-responses",
       "minimax-m3": "anthropic-messages",
       "minimax-m2.7": "anthropic-messages",
@@ -291,8 +296,8 @@ const ADAPTER_OPERATIONS: Readonly<
 export function listAdaptersForOperation(
   operation: LlmOperation
 ): LlmAdapterId[] {
-  return (Object.keys(ADAPTER_OPERATIONS) as LlmAdapterId[]).filter((adapterId) =>
-    ADAPTER_OPERATIONS[adapterId].includes(operation)
+  return (Object.keys(ADAPTER_OPERATIONS) as LlmAdapterId[]).filter(
+    (adapterId) => ADAPTER_OPERATIONS[adapterId].includes(operation)
   );
 }
 
@@ -352,7 +357,9 @@ export class UnresolvedModelRouteError extends Error {
 /** True when the provider type delegates to protocol adapters (aggregate). */
 export function isAggregateChannelType(
   type: string,
-  providerDefaults: Readonly<Record<string, ProviderExecutionDefault>> = PROVIDER_EXECUTION_DEFAULTS
+  providerDefaults: Readonly<
+    Record<string, ProviderExecutionDefault>
+  > = PROVIDER_EXECUTION_DEFAULTS
 ): boolean {
   return providerDefaults[type]?.aggregate === true;
 }

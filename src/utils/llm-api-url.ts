@@ -62,6 +62,7 @@ const adapterUrlHandlers: Record<ProviderType, AdapterUrlHandler> = {
   vertexai: vertexAiUrlHandler,
   // Chat requests are dispatched through the OpenAI-compatible adapter.
   ollama: openAiUrlHandler,
+  audiocpp: openAiUrlHandler,
   "suno-newapi": sunoNewApiUrlHandler,
   "minimax-music": minimaxMusicUrlHandler,
   // Aggregate channel identities resolve to protocol adapters at runtime;

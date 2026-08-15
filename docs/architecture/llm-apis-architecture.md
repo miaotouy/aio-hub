@@ -231,6 +231,10 @@ export interface LlmAdapter {
     profile: LlmProfile,
     options: MediaGenerationOptions
   ): Promise<LlmResponse>;
+  transcribe?(
+    profile: LlmProfile,
+    options: TranscriptionRequestOptions
+  ): Promise<TranscriptionResponse>;
   video?(
     profile: LlmProfile,
     options: MediaGenerationOptions
@@ -240,32 +244,33 @@ export interface LlmAdapter {
 
 ### 3.3 适配器分发映射 — [`adapters`](/src/llm-apis/adapters/index.ts:47)
 
-| adapters key        | 实现                               | ProviderType        | 说明              |
-| ------------------- | ---------------------------------- | ------------------- | ----------------- |
-| `openai`            | `openAiAdapter`                    | `openai`            | OpenAI 官方       |
-| `openai-compatible` | `openAiAdapter`                    | `openai-compatible` | 第三方中转        |
-| `openai-responses`  | `openAiResponsesAdapter`           | `openai-responses`  | OpenAI 有状态接口 |
-| `azure`             | `azureOpenAiAdapter`               | `azure`             | Azure OpenAI      |
-| `groq`              | `openAiAdapter`                    | `groq`              | Groq LPU          |
-| `mistral`           | `openAiAdapter`                    | —                   | Mistral AI        |
-| `perplexity`        | `openAiAdapter`                    | —                   | Perplexity        |
-| `deepseek`          | `openAiAdapter`                    | `deepseek`          | 深度求索          |
-| `together`          | `openAiAdapter`                    | —                   | Together AI       |
-| `openrouter`        | `openAiAdapter`                    | `openrouter`        | OpenRouter        |
-| `ollama`            | `openAiAdapter`                    | `ollama`            | Ollama 本地       |
-| `lmstudio`          | `openAiAdapter`                    | —                   | LM Studio         |
-| `vllm`              | `openAiAdapter`                    | —                   | vLLM              |
-| `volcengine`        | `openAiAdapter`                    | —                   | 火山引擎          |
-| `dashscope`         | `openAiAdapter`                    | —                   | 阿里百炼          |
-| `zhipu`             | `openAiAdapter`                    | —                   | 智谱 AI           |
-| `moonshot`          | `openAiAdapter`                    | —                   | 月之暗面          |
-| `siliconflow`       | `openAiAdapter` (+ image override) | `siliconflow`       | 硅基流动          |
-| `xai`               | `xAiAdapter`                       | `xai`               | xAI Grok          |
-| `gemini`            | `geminiAdapter`                    | `gemini`            | Google Gemini     |
-| `claude`            | `anthropicAdapter`                 | `claude`            | Anthropic         |
-| `vertexai`          | `vertexAiAdapter`                  | `vertexai`          | Vertex AI         |
-| `cohere`            | `cohereAdapter`                    | `cohere`            | Cohere            |
-| `suno-newapi`       | `sunoNewApiAdapter`                | `suno-newapi`       | 音乐生成          |
+| adapters key        | 实现                               | ProviderType        | 说明                              |
+| ------------------- | ---------------------------------- | ------------------- | --------------------------------- |
+| `openai`            | `openAiAdapter`                    | `openai`            | OpenAI 官方                       |
+| `openai-compatible` | `openAiAdapter`                    | `openai-compatible` | 第三方中转                        |
+| `openai-responses`  | `openAiResponsesAdapter`           | `openai-responses`  | OpenAI 有状态接口                 |
+| `azure`             | `azureOpenAiAdapter`               | `azure`             | Azure OpenAI                      |
+| `groq`              | `openAiAdapter`                    | `groq`              | Groq LPU                          |
+| `mistral`           | `openAiAdapter`                    | —                   | Mistral AI                        |
+| `perplexity`        | `openAiAdapter`                    | —                   | Perplexity                        |
+| `deepseek`          | `openAiAdapter`                    | `deepseek`          | 深度求索                          |
+| `together`          | `openAiAdapter`                    | —                   | Together AI                       |
+| `openrouter`        | `openAiAdapter`                    | `openrouter`        | OpenRouter                        |
+| `ollama`            | `openAiAdapter`                    | `ollama`            | Ollama 本地                       |
+| `lmstudio`          | `openAiAdapter`                    | —                   | LM Studio                         |
+| `vllm`              | `openAiAdapter`                    | —                   | vLLM                              |
+| `volcengine`        | `openAiAdapter`                    | —                   | 火山引擎                          |
+| `dashscope`         | `openAiAdapter`                    | —                   | 阿里百炼                          |
+| `zhipu`             | `openAiAdapter`                    | —                   | 智谱 AI                           |
+| `moonshot`          | `openAiAdapter`                    | —                   | 月之暗面                          |
+| `siliconflow`       | `openAiAdapter` (+ image override) | `siliconflow`       | 硅基流动                          |
+| `xai`               | `xAiAdapter`                       | `xai`               | xAI Grok                          |
+| `gemini`            | `geminiAdapter`                    | `gemini`            | Google Gemini                     |
+| `claude`            | `anthropicAdapter`                 | `claude`            | Anthropic                         |
+| `vertexai`          | `vertexAiAdapter`                  | `vertexai`          | Vertex AI                         |
+| `cohere`            | `cohereAdapter`                    | `cohere`            | Cohere                            |
+| `suno-newapi`       | `sunoNewApiAdapter`                | `suno-newapi`       | 音乐生成                          |
+| `audiocpp`          | `openAiAdapter` (+ transcribe)     | `audiocpp`          | 本地 audio.cpp 音频推理 (TTS/ASR) |
 
 > **重要**：大部分国产/聚合平台通过 `openai-compatible` 协议走 `openAiAdapter`，无需编写独立适配器。只要 API 格式与 OpenAI Chat Completions 一致，只需在 `adapters/index.ts` 添加映射并可在 `llm-presets/` 添加预设即可。
 > Azure 渠道使用 deployment 风格的 Chat Completions / Embeddings；`azureOpenAiAdapter` 复用 OpenAI wire format，同时负责 `{resource}` / `{deployment}`、`api-version` 与 `api-key` 鉴权转换。
@@ -403,6 +408,12 @@ useLlmRequest.sendRequest(options)
 - 若 API 格式与 OpenAI Chat Completions 兼容 → 只需注册到 `adapters` 映射复用 `openAiAdapter`
 - 若不兼容 → 在 `adapters/` 下创建目录，实现 `LlmAdapter` 接口
 - 在 [`adapters`](/src/llm-apis/adapters/index.ts:47) 注册表中添加映射
+
+**语音转写 (ASR/STT) 专用端点**
+
+- 模型标记 `capabilities.asr` 时，`useLlmRequest` 会把带 `transcriptionInput` 的请求分发到适配器的可选方法 `transcribe()`（见 `LlmAdapter`）
+- OpenAI 兼容实现位于 `src/llm-apis/adapters/openai/transcription.ts`，wire 协议在 `packages/llm-core/src/providers/transcription.ts`（Whisper 风格 multipart `/v1/audio/transcriptions`，复用 `customEndpoints.audioTranscriptions` 端点配置）
+- 典型场景：audio.cpp 本地 ASR 模型；audio.cpp `/v1/models` 返回的 `task` 字段由 `model-fetcher.ts` 推导为 `audio/asr` 等能力
 
 **步骤 3: 协议参考**
 

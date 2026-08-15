@@ -42,6 +42,7 @@ import {
   MessageSquareMore,
   Braces,
   RefreshCw,
+  AudioLines,
 } from "lucide-vue-next";
 
 /**
@@ -148,6 +149,15 @@ export const MODEL_CAPABILITIES: readonly CapabilityConfig[] = [
     icon: markRaw(Mic),
     color: "#06b6d4", // Cyan 500
     className: "audio-gen",
+  },
+  {
+    key: "asr",
+    label: "语音转写",
+    description:
+      "支持专用语音转写端点 (ASR/STT)，走 OpenAI 兼容的 /v1/audio/transcriptions",
+    icon: markRaw(AudioLines),
+    color: "#0ea5e9", // Sky 500
+    className: "asr",
   },
 
   // --- 交互与迭代能力 ---

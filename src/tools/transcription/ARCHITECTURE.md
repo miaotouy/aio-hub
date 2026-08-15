@@ -21,7 +21,9 @@
 系统采用策略模式，通过 `ITranscriptionEngine` 接口支持多种模态的转写实现：
 
 - **ImageEngine**: 处理图片转写。支持**智能切图 (Image Slicer)**，能自动识别超长图并进行切分，避免模型丢失细节。支持 OCR 纯文字提取及分批处理，批次配置由转写设置和任务类型共同决定。
-- **AudioEngine**: 处理音频转写。直接利用多模态模型的语音识别能力。
+- **AudioEngine**: 处理音频转写。双路径：
+  - **多模态 chat 路径（默认）**：直接利用多模态模型的语音识别能力，音频作为 `input_audio` 内容上传。
+  - **专用 STT 路径**：当所选模型具备 `capabilities.asr`（如 audio.cpp ASR 模型）时，走 OpenAI 兼容的 `/v1/audio/transcriptions` (Whisper 风格 multipart) 专用端点；非 WAV 输入会先经 ffmpeg (`pcm_s16le`) 转换为 WAV（audio.cpp 仅接受 WAV 上传）。
 - **VideoEngine**: 处理视频转写。集成 **FFmpeg** 管道，支持对大视频进行自动压缩、抽帧或降采样，以平衡转写质量与 Token 消耗。
 - **PdfEngine**: 处理文档转写。支持原生 PDF 解析（若模型支持）或自动转换为图片序列进行视觉转写。支持 OCR 纯文字提取及分批处理，批次配置由转写设置和任务类型共同决定；批处理结果汇入统一的 `TranscriptionTask`，不绕过任务状态机。
 

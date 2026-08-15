@@ -5,7 +5,7 @@
 ```
 ┌──────────────────────────────────────────────────┐
 │                   预设层 (Preset)                  │
-│  llm-presets.ts — 42个预设模板（快速创建渠道）      │
+│  llm-presets/ — 41个预设模板（快速创建渠道）      │
 ├──────────────────────────────────────────────────┤
 │                 渠道管理层 (Channel)               │
 │  useLlmProfiles.ts  — 渠道 CRUD / 持久化          │
@@ -27,7 +27,7 @@
 
 ## 1. 预设层 (Preset Layer)
 
-**文件路径**: [`src/config/llm-presets.ts`](/src/config/llm-presets.ts)
+**文件路径**: [`src/config/llm-presets/`](/src/config/llm-presets/index.ts)
 
 预设层提供开箱即用的服务商模板，用户可以通过 UI 一键创建渠道并自动填充 baseUrl、logo、默认模型列表。
 
@@ -267,7 +267,7 @@ export interface LlmAdapter {
 | `cohere`            | `cohereAdapter`                    | `cohere`            | Cohere            |
 | `suno-newapi`       | `sunoNewApiAdapter`                | `suno-newapi`       | 音乐生成          |
 
-> **重要**：大部分国产/聚合平台通过 `openai-compatible` 协议走 `openAiAdapter`，无需编写独立适配器。只要 API 格式与 OpenAI Chat Completions 一致，只需在 `adapters/index.ts` 添加映射并可在 `llm-presets.ts` 添加预设即可。
+> **重要**：大部分国产/聚合平台通过 `openai-compatible` 协议走 `openAiAdapter`，无需编写独立适配器。只要 API 格式与 OpenAI Chat Completions 一致，只需在 `adapters/index.ts` 添加映射并可在 `llm-presets/` 添加预设即可。
 > Azure 渠道使用 deployment 风格的 Chat Completions / Embeddings；`azureOpenAiAdapter` 复用 OpenAI wire format，同时负责 `{resource}` / `{deployment}`、`api-version` 与 `api-key` 鉴权转换。
 
 ### 3.4 请求构建器 — [`request-builder.ts`](/src/llm-apis/request-builder.ts)
@@ -396,7 +396,7 @@ useLlmRequest.sendRequest(options)
 
 - 在 [`ProviderType`](/src/types/llm-profiles.ts:24) 中添加新类型
 - 在 [`providerTypes`](/src/config/llm-providers.ts) 中添加 `ProviderTypeInfo` 配置（参数支持范围、端点等）
-- 在 [`llmPresets`](/src/config/llm-presets.ts) 中添加预设模板（可选，仅需 UI 快捷创建时）
+- 在 [`llmPresets`](/src/config/llm-presets/index.ts) 中添加预设模板（可选，仅需 UI 快捷创建时）
 
 **步骤 2: 适配实现**
 

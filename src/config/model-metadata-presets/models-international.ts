@@ -21,6 +21,69 @@
 import type { ModelMetadataRule } from "../../types/model-metadata";
 
 export const internationalModelRules: ModelMetadataRule[] = [
+  // === Perplexity 系列模型 ===
+  {
+    id: "model-prefix-sonar",
+    matchType: "modelPrefix",
+    matchValue: "sonar",
+    properties: {
+      icon: `/model-icons/perplexity-color.svg`,
+      group: "Perplexity",
+      tokenizer: "gpt4",
+      capabilities: {
+        webSearch: true,
+        toolUse: true,
+      },
+      description: "Perplexity Sonar 系列搜索增强模型（Sonar / Sonar Pro / Reasoning Pro / Deep Research）",
+    },
+    priority: 20,
+    enabled: true,
+    description: "模型前缀 sonar 元数据规则",
+  },
+  {
+    id: "model-sonar-reasoning-pro",
+    matchType: "model",
+    matchValue: "sonar-reasoning-pro",
+    properties: {
+      icon: `/model-icons/perplexity-color.svg`,
+      group: "Perplexity",
+      tokenizer: "gpt4",
+      capabilities: {
+        webSearch: true,
+        toolUse: true,
+        thinking: true,
+        thinkingConfigType: "switch",
+      },
+      description:
+        "Sonar Reasoning Pro：高级多步 CoT 推理与增强检索，面向复杂问题求解与深度分析",
+      recommendedFor: ["复杂推理", "深度问答", "多源信息整合"],
+    },
+    priority: 30,
+    enabled: true,
+    description: "模型 sonar-reasoning-pro 元数据规则",
+  },
+  {
+    id: "model-sonar-deep-research",
+    matchType: "model",
+    matchValue: "sonar-deep-research",
+    properties: {
+      icon: `/model-icons/perplexity-color.svg`,
+      group: "Perplexity",
+      tokenizer: "gpt4",
+      capabilities: {
+        webSearch: true,
+        fileSearch: true,
+        thinking: true,
+        thinkingConfigType: "switch",
+      },
+      description:
+        "Sonar Deep Research：穷尽式多源研究工作流，自动规划并生成带引用的深度报告",
+      recommendedFor: ["深度研究", "报告生成", "文献综述"],
+    },
+    priority: 30,
+    enabled: true,
+    description: "模型 sonar-deep-research 元数据规则",
+  },
   // === xAI 系列模型 ===
   {
     id: "model-prefix-grok",
@@ -64,6 +127,39 @@ export const internationalModelRules: ModelMetadataRule[] = [
     priority: 30,
     enabled: true,
     description: "模型正则 grok-.*image 元数据规则",
+  },
+  {
+    id: "model-grok-4.6",
+    matchType: "model",
+    matchValue: "(?:^|/)grok[-.]4[-.]6(?::free)?$",
+    useRegex: true,
+    properties: {
+      icon: `/model-icons/grok.svg`,
+      group: "xAI",
+      tokenizer: "gpt4",
+      contextLength: 500000,
+      maxOutputTokens: 128000,
+      pricing: {
+        input: 2.0,
+        output: 6.0,
+        unit: "USD",
+        note: "每百万 token；聚合渠道的 :free 变体价格以渠道为准",
+      },
+      capabilities: {
+        vision: true,
+        toolUse: true,
+        jsonOutput: true,
+        thinking: true,
+        thinkingConfigType: "effort",
+        reasoningEffortOptions: ["low", "medium", "high"],
+      },
+      description:
+        "Grok 4.6：xAI 旗舰模型，agentic 工具调用、低幻觉、可配置推理，500K 上下文。",
+      recommendedFor: ["工具调用", "代码生成", "长上下文分析", "Agent 工作流"],
+    },
+    priority: 36,
+    enabled: true,
+    description: "模型正则 grok 4.6 元数据规则",
   },
   {
     id: "model-grok-4.1-fast",

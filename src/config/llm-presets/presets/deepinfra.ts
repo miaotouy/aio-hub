@@ -33,18 +33,26 @@ export const deepinfraPreset: LlmPreset = {
   ],
   defaultModels: [
     {
-      id: "meta-llama/Meta-Llama-3.1-70B-Instruct",
-      name: "Llama 3.1 70B Instruct",
+      id: "meta-llama/Meta-Llama-3.3-70B-Instruct",
+      name: "Llama 3.3 70B Instruct",
       group: "Llama",
       provider: "deepinfra",
       description: "Meta 开源模型",
     },
     {
-      id: "Qwen/Qwen2.5-72B-Instruct",
-      name: "Qwen 2.5 72B Instruct",
-      group: "Qwen",
+      id: "Qwen/Qwen3-235B-A22B-Instruct",
+      name: "Qwen3 235B Instruct",
+      group: "Qwen3",
       provider: "deepinfra",
-      description: "阿里千问",
+      description: "阿里千问 MoE 旗舰",
+    },
+    {
+      id: "google/gemma-4-12b",
+      name: "Gemma 4 12B",
+      group: "Gemma 4",
+      provider: "deepinfra",
+      capabilities: { vision: true, toolUse: true },
+      description: "多模态开放权重模型（2026-04）",
     },
   ],
 };

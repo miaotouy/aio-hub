@@ -23,6 +23,31 @@ import type { ModelMetadataRule } from "../../types/model-metadata";
 export const chineseModelRules: ModelMetadataRule[] = [
   // === 智谱 AI 系列模型 ===
   {
+    id: "model-glm-5-family",
+    matchType: "model",
+    matchValue: "(?:^|/)GLM-5(?:\\.\\d+)?$",
+    useRegex: true,
+    properties: {
+      icon: `/model-icons/zhipu-color.svg`,
+      group: "Zhipu",
+      tokenizer: "gpt4",
+      contextLength: 1000000,
+      maxOutputTokens: 128000,
+      capabilities: {
+        toolUse: true,
+        thinking: true,
+        thinkingConfigType: "switch",
+        jsonOutput: true,
+      },
+      description:
+        "GLM-5 系列旗舰模型（GLM-5.3 / 5.2 / 5.1 / 5）：1M 上下文、128K 输出，复杂软件工程与 agent 任务，支持思考模式、函数调用与结构化输出",
+      recommendedFor: ["代码生成", "Agent 工作流", "长上下文分析", "中文对话"],
+    },
+    priority: 37,
+    enabled: true,
+    description: "模型正则 GLM-5 / GLM-5.1 / GLM-5.2 / GLM-5.3 元数据规则",
+  },
+  {
     id: "model-glm-4.6-family",
     matchType: "model",
     matchValue: "(?:^|/)GLM-4\\.6(?:-Air)?$",
@@ -494,6 +519,42 @@ export const chineseModelRules: ModelMetadataRule[] = [
   },
 
   // === InternLM 系列模型 ===
+  {
+    id: "model-prefix-intern-s1",
+    matchType: "modelPrefix",
+    matchValue: "intern-s1",
+    properties: {
+      icon: `/model-icons/internlm-color.svg`,
+      group: "InternLM",
+      tokenizer: "llama3_2",
+      capabilities: {
+        thinking: true,
+        thinkingConfigType: "switch",
+        toolUse: true,
+      },
+      description: "Intern-S1 系列推理模型（上海 AI 实验室）",
+    },
+    priority: 25,
+    enabled: true,
+    description: "模型前缀 intern-s1 元数据规则",
+  },
+  {
+    id: "model-prefix-internvl",
+    matchType: "modelPrefix",
+    matchValue: "internvl",
+    properties: {
+      icon: `/model-icons/internlm-color.svg`,
+      group: "InternLM",
+      tokenizer: "llama3_2",
+      capabilities: {
+        vision: true,
+      },
+      description: "InternVL 系列视觉语言模型（上海 AI 实验室）",
+    },
+    priority: 20,
+    enabled: true,
+    description: "模型前缀 internvl 元数据规则",
+  },
   {
     id: "model-prefix-internlm",
     matchType: "modelPrefix",

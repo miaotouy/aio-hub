@@ -33,19 +33,19 @@ export const togetherPreset: LlmPreset = {
   ],
   defaultModels: [
     {
-      id: "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
-      name: "Llama 3.1 405B Turbo",
+      id: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+      name: "Llama 3.3 70B Turbo",
       group: "Llama",
       provider: "together",
       capabilities: { toolUse: true },
-      description: "超大规模开源模型",
+      description: "开源旗舰模型",
     },
     {
-      id: "Qwen/Qwen2.5-72B-Instruct-Turbo",
-      name: "Qwen 2.5 72B Turbo",
-      group: "Qwen",
+      id: "Qwen/Qwen3-235B-A22B-Instruct",
+      name: "Qwen3 235B Instruct",
+      group: "Qwen3",
       provider: "together",
-      description: "千问高速版",
+      description: "千问 MoE 旗舰",
     },
   ],
 };

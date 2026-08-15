@@ -33,6 +33,19 @@ export const coherePreset: LlmPreset = {
   ],
   defaultModels: [
     {
+      id: "command-a-plus",
+      name: "Command A+",
+      group: "Command A+",
+      provider: "cohere",
+      capabilities: {
+        vision: true,
+        toolUse: true,
+        thinking: true,
+        thinkingConfigType: "budget",
+      },
+      description: "Command A 家族 MoE 旗舰，支持视觉输入、推理与工具调用（2026-05）",
+    },
+    {
       id: "command-a-reasoning",
       name: "Command A Reasoning",
       group: "Command A",
@@ -83,21 +96,6 @@ export const coherePreset: LlmPreset = {
       provider: "cohere",
       capabilities: { toolUse: true },
       description: "增强版R+，企业级稳定性和性能",
-    },
-    {
-      id: "command-r-plus",
-      name: "Command R+",
-      group: "Command",
-      provider: "cohere",
-      capabilities: { toolUse: true },
-      description: "企业级主力模型，平衡性能与成本",
-    },
-    {
-      id: "command-light",
-      name: "Command Light",
-      group: "Command",
-      provider: "cohere",
-      description: "轻量级模型，快速响应场景",
     },
   ],
 };

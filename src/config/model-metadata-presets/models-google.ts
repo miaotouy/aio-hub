@@ -20,7 +20,83 @@
 import type { ModelMetadataRule } from "../../types/model-metadata";
 
 export const googleModelRules: ModelMetadataRule[] = [
-  // === Gemini 当前具体模型信息（官方模型页/价格页，2026-05） ===
+  // === Gemini 当前具体模型信息（官方模型页/价格页，2026-08） ===
+  {
+    id: "model-gemini-3.7-flash",
+    matchType: "model",
+    matchValue: "gemini-3.7-flash",
+    properties: {
+      releaseDate: "2026-08",
+      knowledgeCutoff: "2025-01",
+      description:
+        "Gemini 3.7 Flash 稳定版：最新最强（2026年8月）的 Flash 模型，专为复杂编码、agentic 工作流与可靠多步执行打造",
+    },
+    priority: 36,
+    enabled: true,
+    description: "模型 gemini-3.7-flash 元数据规则",
+  },
+  {
+    id: "model-gemini-3.6-flash",
+    matchType: "model",
+    matchValue: "gemini-3.6-flash",
+    properties: {
+      releaseDate: "2026-07",
+      knowledgeCutoff: "2025-01",
+      description:
+        "Gemini 3.6 Flash 稳定版：上一代 Flash 模型，在通用 agentic 与日常任务中平衡速度与多模态能力",
+    },
+    priority: 36,
+    enabled: true,
+    description: "模型 gemini-3.6-flash 元数据规则",
+  },
+  {
+    id: "model-gemini-3.5-flash-lite",
+    matchType: "model",
+    matchValue: "gemini-3.5-flash-lite",
+    properties: {
+      releaseDate: "2026-07",
+      knowledgeCutoff: "2025-01",
+      description:
+        "Gemini 3.5 Flash-Lite 稳定版：最快、最具性价比的 3.5 模型，面向高吞吐执行",
+    },
+    priority: 36,
+    enabled: true,
+    description: "模型 gemini-3.5-flash-lite 元数据规则",
+  },
+  {
+    id: "model-gemini-3.5-live-translate",
+    matchType: "model",
+    matchValue: "gemini-3.5-live-translate-preview",
+    properties: {
+      capabilities: {
+        audio: true,
+        audioGeneration: true,
+      },
+      releaseDate: "2026-08",
+      description:
+        "Gemini 3.5 Live Translate Preview：低延迟、实时的语音到语音翻译模型，支持 70+ 语言",
+    },
+    priority: 36,
+    enabled: true,
+    description: "模型 gemini-3.5-live-translate-preview 元数据规则",
+  },
+  {
+    id: "model-gemini-omni-flash",
+    matchType: "model",
+    matchValue: "gemini-omni-flash",
+    properties: {
+      capabilities: {
+        vision: true,
+        videoGeneration: true,
+      },
+      releaseDate: "2026-08",
+      description:
+        "Gemini Omni Flash Preview：快速、对话式视频生成与编辑，支持自然语言迭代",
+    },
+    priority: 36,
+    enabled: true,
+    description: "模型 gemini-omni-flash 元数据规则",
+  },
   {
     id: "model-gemini-3.5-flash",
     matchType: "model",
@@ -38,7 +114,7 @@ export const googleModelRules: ModelMetadataRule[] = [
       releaseDate: "2026-05",
       knowledgeCutoff: "2025-01",
       description:
-        "Gemini 3.5 Flash 稳定版：面向 agentic workflow、复杂编码迭代和长程任务的高速前沿模型，1M 上下文，65K 输出",
+        "Gemini 3.5 Flash 稳定版：前代 Flash 模型（已降级为 legacy），提供基线速度与基础性能，适合常规高吞吐工作负载，1M 上下文，65K 输出",
     },
     priority: 36,
     enabled: true,
@@ -346,6 +422,42 @@ export const googleModelRules: ModelMetadataRule[] = [
     priority: 22,
     enabled: true,
     description: "Gemini 3 系列模型分组",
+  },
+  {
+    id: "model-prefix-gemini-3.7",
+    matchType: "modelPrefix",
+    matchValue: "gemini-3.7",
+    properties: {
+      group: "Gemini 3.7",
+      capabilities: {
+        visionTokenCost: {
+          calculationMethod: "gemini_2_0", // Gemini 3.7 沿用 2.0 的计算规则
+          parameters: {},
+        },
+      },
+    },
+    priority: 26,
+    enabled: true,
+    description:
+      "Gemini 3.7 系列模型分组（3.7 Flash 已稳定，最新最强 Flash，专为复杂编码与 agentic 工作流打造）",
+  },
+  {
+    id: "model-prefix-gemini-3.6",
+    matchType: "modelPrefix",
+    matchValue: "gemini-3.6",
+    properties: {
+      group: "Gemini 3.6",
+      capabilities: {
+        visionTokenCost: {
+          calculationMethod: "gemini_2_0", // Gemini 3.6 沿用 2.0 的计算规则
+          parameters: {},
+        },
+      },
+    },
+    priority: 25,
+    enabled: true,
+    description:
+      "Gemini 3.6 系列模型分组（3.6 Flash 已稳定，平衡速度与多模态能力）",
   },
   {
     id: "model-prefix-gemini-3.5",

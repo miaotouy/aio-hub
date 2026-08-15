@@ -31,12 +31,28 @@ export const perplexityPreset: LlmPreset = {
   ],
   defaultModels: [
     {
+      id: "sonar-reasoning-pro",
+      name: "Sonar Reasoning Pro",
+      group: "Sonar",
+      provider: "perplexity",
+      capabilities: { webSearch: true, toolUse: true, thinking: true, thinkingConfigType: "switch" },
+      description: "高级多步 CoT 推理与增强检索，复杂问题求解",
+    },
+    {
+      id: "sonar-deep-research",
+      name: "Sonar Deep Research",
+      group: "Sonar",
+      provider: "perplexity",
+      capabilities: { webSearch: true, fileSearch: true, thinking: true, thinkingConfigType: "switch" },
+      description: "穷尽式多源研究工作流，生成带引用的深度报告",
+    },
+    {
       id: "sonar-pro",
       name: "Sonar Pro",
       group: "Sonar",
       provider: "perplexity",
       capabilities: { webSearch: true },
-      description: "联网搜索增强，实时信息",
+      description: "高级搜索增强，实时信息",
     },
     {
       id: "sonar",
@@ -44,7 +60,7 @@ export const perplexityPreset: LlmPreset = {
       group: "Sonar",
       provider: "perplexity",
       capabilities: { webSearch: true },
-      description: "标准联网版本",
+      description: "标准搜索版本",
     },
   ],
 };

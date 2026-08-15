@@ -40,11 +40,11 @@ export const fireworksPreset: LlmPreset = {
       description: "高速 Llama 推理",
     },
     {
-      id: "accounts/fireworks/models/qwen2p5-72b-instruct",
-      name: "Qwen 2.5 72B Instruct",
-      group: "Qwen",
+      id: "accounts/fireworks/models/qwen3-235b-a22b-instruct",
+      name: "Qwen3 235B Instruct",
+      group: "Qwen3",
       provider: "fireworks",
-      description: "高速千问推理",
+      description: "高速千问 MoE 推理",
     },
   ],
 };

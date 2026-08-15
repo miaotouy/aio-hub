@@ -15,7 +15,7 @@
 /**
  * OpenAI 系列模型前缀匹配规则
  *
- * 包括 GPT-4o、GPT-5.5/GPT-5、GPT-4.1、GPT-4、GPT-3.5、o1/o3/o4 推理系列、ChatGPT 等。
+ * 包括 GPT-4o、GPT-5.6/GPT-5.5/GPT-5、GPT-4.1、GPT-4、GPT-3.5、o1/o3/o4 推理系列、ChatGPT 等。
  */
 import type { ModelMetadataRule } from "../../types/model-metadata";
 
@@ -102,6 +102,25 @@ export const openaiModelRules: ModelMetadataRule[] = [
     priority: 25, // 更高优先级，优先匹配 gpt-4o
     enabled: true,
     description: "模型前缀 gpt-4o 元数据规则",
+  },
+  {
+    id: "model-prefix-gpt-5.6",
+    matchType: "modelPrefix",
+    matchValue: "gpt-5.6",
+    properties: {
+      icon: `/model-icons/openai.svg`,
+      group: "OpenAI",
+      tokenizer: "gpt4o", // GPT-5.6 使用 o200k_base 编码
+      capabilities: {
+        ...openaiFlagshipCapabilities,
+        reasoningEffortOptions: ["none", "low", "medium", "high", "xhigh", "max"],
+      },
+      description:
+        "GPT-5.6 旗舰模型家族（Sol / Terra / Luna，支持推理等级至 max，1.05M 上下文，128K 输出）",
+    },
+    priority: 29,
+    enabled: true,
+    description: "模型前缀 gpt-5.6 元数据规则",
   },
   {
     id: "model-prefix-gpt-5.5",

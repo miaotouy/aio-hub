@@ -37,27 +37,8 @@ export const groqPreset: LlmPreset = {
       name: "Llama 3.3 70B Versatile",
       group: "Llama",
       provider: "groq",
+      capabilities: { toolUse: true },
       description: "多功能高速版",
-    },
-    {
-      id: "llama-3.1-8b-instant",
-      name: "Llama 3.1 8B Instant",
-      group: "Llama",
-      provider: "groq",
-      description: "即时响应，轻量首选",
-    },
-    {
-      id: "mixtral-8x7b-32768",
-      name: "Mixtral 8x7B 32K",
-      group: "Mixtral",
-      provider: "groq",
-    },
-    {
-      id: "gemma-2-9b",
-      name: "Gemma 2 9B",
-      group: "Gemma",
-      provider: "groq",
-      description: "高效开源，价格性能比高",
     },
     {
       id: "gpt-oss-120b",

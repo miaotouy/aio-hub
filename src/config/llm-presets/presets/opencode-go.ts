@@ -42,6 +42,14 @@ export const opencodeGoPreset: LlmPreset = {
       description: "OpenCode Go 内置模型（Chat Completions）",
     },
     {
+      id: "glm-5.3",
+      name: "GLM-5.3",
+      group: "GLM",
+      provider: "opencode-go",
+      capabilities: { toolUse: true },
+      description: "OpenCode Go 内置模型（Chat Completions）",
+    },
+    {
       id: "glm-5.2",
       name: "GLM-5.2",
       group: "GLM",

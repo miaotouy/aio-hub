@@ -37,7 +37,7 @@ export const anthropicPreset: LlmPreset = {
     {
       id: "claude-haiku-4.5",
       name: "Claude Haiku 4.5",
-      group: "Claude 4.5",
+      group: "Claude Haiku 4.5",
       provider: "anthropic",
       capabilities: {
         vision: true,
@@ -45,12 +45,12 @@ export const anthropicPreset: LlmPreset = {
         thinking: true,
         thinkingConfigType: "budget",
       },
-      description: "小模型旗舰，成本敏感任务专家（2025-10-15）",
+      description: "最快的近前沿模型，200K 上下文，64K 输出（2025-10-01）",
     },
     {
-      id: "claude-sonnet-4.5-20250929",
-      name: "Claude Sonnet 4.5",
-      group: "Claude 4.5",
+      id: "claude-sonnet-4.6",
+      name: "Claude Sonnet 4.6",
+      group: "Claude Sonnet 4",
       provider: "anthropic",
       capabilities: {
         vision: true,
@@ -58,30 +58,20 @@ export const anthropicPreset: LlmPreset = {
         thinking: true,
         thinkingConfigType: "budget",
       },
-      description: "编码/代理/计算机使用顶级，SWE-bench 77.2%（2025-09-29）",
+      description: "速度与智能均衡的主力模型，1M 上下文，64K 输出（2026-02-17）",
     },
     {
-      id: "claude-opus-4.1-20250805",
-      name: "Claude Opus 4.1",
-      group: "Claude 4",
+      id: "claude-opus-4.8",
+      name: "Claude Opus 4.8",
+      group: "Claude Opus 4",
       provider: "anthropic",
       capabilities: {
         vision: true,
+        toolUse: true,
         thinking: true,
         thinkingConfigType: "budget",
       },
-      description: "旗舰推理模型",
-    },
-    {
-      id: "claude-3.7-sonnet-20250219",
-      name: "Claude 3.7 Sonnet",
-      group: "Claude 3.7",
-      provider: "anthropic",
-      capabilities: {
-        vision: true,
-        thinking: true,
-        thinkingConfigType: "budget",
-      },
+      description: "最强复杂推理与长程 agentic coding，1M 上下文，128K 输出（2026-05-28）",
     },
   ],
 };

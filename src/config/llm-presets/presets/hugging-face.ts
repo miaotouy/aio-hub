@@ -41,29 +41,19 @@ export const huggingFacePreset: LlmPreset = {
       provider: "huggingface",
     },
     {
-      id: "meta-llama/Llama-3.1-8B-Instruct",
-      name: "Llama 3.1 8B Instruct",
-      group: "Llama",
-      provider: "huggingface",
-    },
-    {
-      id: "mistralai/Mixtral-8x7B-Instruct-v0.1",
-      name: "Mixtral 8x7B Instruct",
-      group: "Mixtral",
-      provider: "huggingface",
-    },
-    {
-      id: "microsoft/Phi-3-mini-4k-instruct",
-      name: "Phi-3 Mini 4K",
-      group: "Phi",
-      provider: "huggingface",
-    },
-    {
       id: "Qwen/Qwen3-235B-A22B-Instruct",
       name: "Qwen3 235B Instruct",
       group: "Qwen3",
       provider: "huggingface",
       description: "MoE旗舰，开源热门",
+    },
+    {
+      id: "google/gemma-4-12b",
+      name: "Gemma 4 12B",
+      group: "Gemma 4",
+      provider: "huggingface",
+      capabilities: { vision: true, toolUse: true },
+      description: "多模态开放权重模型（2026-04）",
     },
   ],
 };

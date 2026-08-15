@@ -282,6 +282,17 @@ const isGenerating = computed(() => {
   );
 });
 
+// 三点流式指示器：仅依赖消息生命周期状态（等待中 / 生成中）与错误标记，
+// 不依赖运行时 generatingNodes 注册集合，避免「等待中 → 生成中」状态切换瞬间
+// （运行时集合注册 / 跨窗口同步存在异步延迟）导致指示器闪断或丢失。
+const showStreamingIndicator = computed(() => {
+  return !!(
+    (props.message.status === "generating" ||
+      props.message.status === "waiting") &&
+    !props.message.metadata?.error
+  );
+});
+
 const streamingSource = computed(() => {
   if (!isGenerating.value) return undefined;
   return getOrCreateStreamingMessageSource(
@@ -1162,7 +1173,7 @@ watch(
           :enable-enter-animation="originalRendererEnterAnimation"
         />
         <div
-          v-if="isGenerating && !props.screenshotMode"
+          v-if="showStreamingIndicator && !props.screenshotMode"
           class="streaming-indicator"
         >
           <span class="dot"></span>

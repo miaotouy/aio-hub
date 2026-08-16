@@ -36,9 +36,9 @@ interface ToolFields {
 function parseToolFields(content: string): ToolFields {
   const fields = new Map<string, string>();
   const patterns = [
-    /([a-zA-Z0-9_-]+):「始ESCAPE」([\s\S]*?)「末ESCAPE」/g,
-    /([a-zA-Z0-9_-]+):「始exp」([\s\S]*?)「末exp」/g,
-    /([a-zA-Z0-9_-]+):「始」([\s\S]*?)「末」/g,
+    /([a-zA-Z0-9_-]+):\s*「始ESCAPE」([\s\S]*?)「末ESCAPE」/g,
+    /([a-zA-Z0-9_-]+):\s*「始exp」([\s\S]*?)「末exp」/g,
+    /([a-zA-Z0-9_-]+):\s*「始」([\s\S]*?)「末」/g,
   ];
 
   for (const pattern of patterns) {
@@ -49,7 +49,7 @@ function parseToolFields(content: string): ToolFields {
   }
 
   const pendingStarts = [
-    ...content.matchAll(/([a-zA-Z0-9_-]+):「始(ESCAPE|exp)?」/g),
+    ...content.matchAll(/([a-zA-Z0-9_-]+):\s*「始(ESCAPE|exp)?」/g),
   ];
   const pending = pendingStarts[pendingStarts.length - 1];
   if (pending?.index !== undefined && !fields.has(pending[1])) {

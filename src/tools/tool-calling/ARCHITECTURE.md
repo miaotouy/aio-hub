@@ -227,7 +227,7 @@ path2:「始」src/main.ts「末」
 解析器 ([`parseToolRequests()`](core/protocols/vcp-protocol.ts:268)) 的工作流程：
 
 1. **代码块隔离**：使用复合正则扫描全文，自动跳过 Markdown 代码块（` ``` `）和行内代码，防止解析到示例代码中的伪请求。
-2. **块提取与坏块恢复**：定位非代码块区域的 `<<<[TOOL_REQUEST]>>>` ... `<<<[END_TOOL_REQUEST]>>>` 块；标准块在结束标记前遇到新的请求起始标记时会丢弃当前坏块并从新标记恢复扫描，避免把两个请求合并。块级转义请求仅以新的 `TOOL_REQUEST_ESCAPE` 作为恢复点，内部标准请求块仍可作为转义内容保留。该边界规则由 [`findVcpBlockBoundary()`](../../utils/vcpBlockBoundary.ts) 复用到执行解析和富文本 Tokenizer。
+2. **块提取与坏块恢复**：定位非代码块区域的 `<<<[TOOL_REQUEST]>>>` ... `<<<[END_TOOL_REQUEST]>>>` 块；标准块在结束标记前遇到新的请求起始标记时会丢弃当前坏块并从新标记恢复扫描，避免把两个请求合并。块级转义请求仅以新的 `TOOL_REQUEST_ESCAPE` 作为恢复点，内部标准请求块仍可作为转义内容保留。`「始ESCAPE」...「末ESCAPE」` 参数值转义围栏内的请求标记属于转义内容，扫描块边界时会整段跳过，不会触发坏块恢复（与 VCPToolBox `_findBlockEnd` 语义一致）。该边界规则由 [`findVcpBlockBoundary()`](../../utils/vcpBlockBoundary.ts) 复用到执行解析和富文本 Tokenizer。
 3. **参数提取** ([`parseSingleToolRequest()`](core/protocols/vcp-protocol.ts:86))：
    - 使用正则 `([a-zA-Z0-9_-]+):\s*「始」([\s\S]*?)「末」` 提取键值对。
    - **容错处理**：检测未闭合的 `「始」` 标记并尝试提取。

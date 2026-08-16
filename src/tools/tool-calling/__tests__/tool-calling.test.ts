@@ -211,6 +211,35 @@ message:「始」valid escape block「末」
     expect(requests[0].rawBlock).not.toContain("broken escape block");
   });
 
+  it("解析冒号后带可选空格的 ESCAPE 参数", () => {
+    const text = `<<<[TOOL_REQUEST]>>>
+tool_name: 「始」mock-sync「末」,
+command: 「始」echo「末」,
+message: 「始ESCAPE」含「始」「末」的内容「末ESCAPE」
+<<<[END_TOOL_REQUEST]>>>`;
+
+    const requests = parseToolRequests(text, protocol);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].toolId).toBe("mock-sync");
+    expect(requests[0].methodName).toBe("echo");
+    expect(requests[0].args.message).toBe("含「始」「末」的内容");
+  });
+
+  it("ESCAPE 围栏内的请求标记不会中断外层块", () => {
+    const text = `<<<[TOOL_REQUEST]>>>
+tool_name:「始」FileOperator「末」,
+path:「始ESCAPE」<<<[TOOL_REQUEST]>>>tool_name:「始」inner「末」<<<[END_TOOL_REQUEST]>>>「末ESCAPE」
+<<<[END_TOOL_REQUEST]>>>`;
+
+    const requests = parseToolRequests(text, protocol);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].toolId).toBe("FileOperator");
+    expect(requests[0].args.path).toContain("<<<[TOOL_REQUEST]>>>");
+    expect(requests[0].args.path).toContain("<<<[END_TOOL_REQUEST]>>>");
+  });
+
   it("空文本返回空数组", () => {
     expect(parseToolRequests("", protocol)).toHaveLength(0);
     expect(parseToolRequests("   ", protocol)).toHaveLength(0);

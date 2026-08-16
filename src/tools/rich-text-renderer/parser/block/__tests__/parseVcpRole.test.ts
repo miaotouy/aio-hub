@@ -158,6 +158,59 @@ tool_name:「始」nested「末」
     expect(requests[0].props.args.message).toContain("<<<[TOOL_REQUEST]>>>");
   });
 
+  it("parses ESCAPE args with optional whitespace after the colon", () => {
+    const ast = parse(`
+<<<[TOOL_REQUEST]>>>
+tool_name: 「始」mock-sync「末」,
+command: 「始」echo「末」,
+message: 「始ESCAPE」含「始」「末」的内容「末ESCAPE」
+<<<[END_TOOL_REQUEST]>>>
+`);
+
+    const requests = findToolRequests(ast);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].props.tool_name).toBe("mock-sync");
+    expect(requests[0].props.command).toBe("echo");
+    expect(requests[0].props.args.message).toBe("含「始」「末」的内容");
+  });
+
+  it("does not split a block when nested request markers sit inside an ESCAPE fence", () => {
+    const ast = parse(`
+<<<[TOOL_REQUEST]>>>
+tool_name:「始」FileOperator「末」,
+path:「始ESCAPE」<<<[TOOL_REQUEST]>>>tool_name:「始」inner「末」<<<[END_TOOL_REQUEST]>>>「末ESCAPE」
+<<<[END_TOOL_REQUEST]>>>
+`);
+
+    const requests = findToolRequests(ast);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].props.tool_name).toBe("FileOperator");
+    expect(requests[0].props.args.path).toContain("<<<[TOOL_REQUEST]>>>");
+    expect(requests[0].props.args.path).toContain("<<<[END_TOOL_REQUEST]>>>");
+  });
+
+  it("does not split a block when nested escape markers sit inside an ESCAPE fence", () => {
+    const ast = parse(`
+<<<[TOOL_REQUEST]>>>
+tool_name:「始」FileOperator「末」,
+content:「始ESCAPE」{"desc": "<<<[TOOL_REQUEST_ESCAPE]>>>tool_name:「始」inner「末」<<<[END_TOOL_REQUEST_ESCAPE]>>>"}「末ESCAPE」
+<<<[END_TOOL_REQUEST]>>>
+`);
+
+    const requests = findToolRequests(ast);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].props.tool_name).toBe("FileOperator");
+    expect(requests[0].props.args.content).toContain(
+      "<<<[TOOL_REQUEST_ESCAPE]>>>"
+    );
+    expect(requests[0].props.args.content).toContain(
+      "<<<[END_TOOL_REQUEST_ESCAPE]>>>"
+    );
+  });
+
   it("keeps only summary items that are not covered by result details", () => {
     const ast = parse(`
 <<<[ROLE_DIVIDE_USER]>>>

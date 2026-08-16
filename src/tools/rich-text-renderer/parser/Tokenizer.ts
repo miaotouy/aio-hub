@@ -49,11 +49,12 @@ const RE_ATTR = /([a-zA-Z0-9_-]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
 const RE_SPECIAL_CHARS = /[<`*_~^!\[\]()#>\n$“"”\\]/g;
 // VCP (Variable & Command Protocol) 协议相关正则: https://github.com/lioensky/VCPToolBox
 // 变体优先级: ESCAPE > exp > 标准，ESCAPE/exp 内容中可包含标准 VCP 协议字符（如 「始」/「末」）
+// 冒号后允许可选空格（VCPToolBox _scanFields 会跳过冒号后空白）
 const RE_VCP_ARG_ESCAPE =
-  /([a-zA-Z0-9_-]+):「始ESCAPE」([\s\S]*?)「末ESCAPE」/g;
-const RE_VCP_ARG_EXP = /([a-zA-Z0-9_-]+):「始exp」([\s\S]*?)「末exp」/g;
-const RE_VCP_ARG = /([a-zA-Z0-9_-]+):「始」([\s\S]*?)「末」/g;
-const RE_VCP_PENDING = /([a-zA-Z0-9_-]+):「始(?:ESCAPE|exp)?」([\s\S]*)$/;
+  /([a-zA-Z0-9_-]+):\s*「始ESCAPE」([\s\S]*?)「末ESCAPE」/g;
+const RE_VCP_ARG_EXP = /([a-zA-Z0-9_-]+):\s*「始exp」([\s\S]*?)「末exp」/g;
+const RE_VCP_ARG = /([a-zA-Z0-9_-]+):\s*「始」([\s\S]*?)「末」/g;
+const RE_VCP_PENDING = /([a-zA-Z0-9_-]+):\s*「始(?:ESCAPE|exp)?」([\s\S]*)$/;
 const RE_VCP_RESULT_FIELD =
   /-\s*(工具名称|执行状态|返回内容):\s*([\s\S]*?)(?=\n-\s*(?:工具名称|执行状态|返回内容):|\nVCP调用结果结束\]\]|$)/g;
 const RE_VCP_ROLE_OPEN = /<<<\[ROLE_DIVIDE_(USER|ASSISTANT|SYSTEM)\]>>>/y;
@@ -658,7 +659,7 @@ export class Tokenizer {
               // 使用原始 vcpContent 中对应位置的真实值
               const realValue = vcpContent
                 .slice(match.index, RE_VCP_ARG.lastIndex)
-                .match(/([a-zA-Z0-9_-]+):「始」([\s\S]*?)「末」/);
+                .match(/([a-zA-Z0-9_-]+):\s*「始」([\s\S]*?)「末」/);
               const actualValue = realValue ? realValue[2] : value;
               if (key === "tool_name") tool_name = tool_name || actualValue;
               else if (key === "command") command = command || actualValue;

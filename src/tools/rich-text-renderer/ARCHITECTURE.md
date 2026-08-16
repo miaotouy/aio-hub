@@ -393,7 +393,7 @@ src/tools/rich-text-renderer/
 - **CDN 资源本地化**: 自动将 HTML 预览中的 CDN 链接替换为本地资源，支持 d3、mermaid、echarts、three.js、chart.js 等 8 种常见库。
 - **外部工具调用 (VCP Support)**:
   - 兼容支持外部 VCP 工具调用格式 `<<<[TOOL_REQUEST]>>> ... <<<[END_TOOL_REQUEST]>>>`，以及用于嵌套工具调用的 `TOOL_REQUEST_ESCAPE` 块。
-  - 支持 `maid:「始」...「末」` 等结构化参数定界符的精准解析，以及嵌套工具调用与参数值转义。
+  - 支持 `maid:「始」...「末」` 等结构化参数定界符的精准解析（冒号后允许可选空格），以及嵌套工具调用与参数值转义（`「始ESCAPE」...「末ESCAPE」` / `「始exp」...「末exp」`，围栏内协议字符按转义内容处理，不触发块边界恢复）。
   - 提供专用的 `VcpToolNode` 渲染，支持折叠交互、实时状态反馈和原始报文查看。
   - **执行结果集成**: 支持解析和展示工具调用的返回结果（`isResult`），包括执行状态（SUCCESS/ERROR）和结果报文的结构化预览。
   - **工具摘要渲染**: 支持 `[本轮工具调用摘要:] ... [本轮工具调用摘要结束]`，解析为 `vcp_role` 的 `tool_summary` 变体，并在 `VcpRoleNode` 中渲染为状态 chip。若同一工具与状态已在执行结果详情中出现，摘要项会被过滤，避免重复展示。

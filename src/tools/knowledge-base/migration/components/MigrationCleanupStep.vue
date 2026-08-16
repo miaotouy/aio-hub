@@ -4,8 +4,8 @@
       :closable="false"
       type="warning"
       show-icon
-      title="清理不会提高迁移完整性"
-      description="默认保留旧目录，方便回查和人工恢复。清理仅用于确认迁移报告完全通过后的空间回收。"
+      title="清理仅回收旧目录空间"
+      description="默认保留旧目录，方便回查和人工恢复。迁移报告完全通过后，可用清理释放磁盘空间。"
     />
     <el-radio-group v-model="cleanupChoice" class="choice-group">
       <el-radio value="keep" border>保留旧目录（推荐）</el-radio>

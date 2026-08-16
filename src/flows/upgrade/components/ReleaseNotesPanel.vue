@@ -4,7 +4,7 @@
   Licensed under the Apache License, Version 2.0 (the "License");
 -->
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { nextTick, ref, watch } from "vue";
 import { X } from "lucide-vue-next";
 import { useReleaseNotesViewerStore } from "../releaseNotesViewerStore";
 import { useGuidedFlowStore } from "@/stores/guidedFlowStore";
@@ -13,10 +13,6 @@ import UpgradeReleaseNotesStep from "./UpgradeReleaseNotesStep.vue";
 const viewer = useReleaseNotesViewerStore();
 const guidedFlowStore = useGuidedFlowStore();
 const panelRef = ref<HTMLElement | null>(null);
-const panelTitle = computed(() => {
-  const count = viewer.history.length;
-  return count === 1 ? "1 份版本说明" : `${count} 份版本说明`;
-});
 
 watch(
   () => viewer.visible,
@@ -49,14 +45,12 @@ watch(
         class="release-notes-panel"
         role="dialog"
         aria-modal="true"
-        :aria-label="panelTitle"
+        aria-label="更新档案"
         tabindex="-1"
       >
         <header class="release-notes-panel__header">
           <div>
             <span>更新档案</span>
-            <h2>{{ panelTitle }}</h2>
-            <p>仅用于阅读本地版本信息，不会改变升级事项或迁移状态。</p>
           </div>
           <button type="button" aria-label="关闭版本说明" @click="viewer.close">
             <X :size="18" />
@@ -126,20 +120,6 @@ watch(
   letter-spacing: 0.12em;
 }
 
-.release-notes-panel__header h2 {
-  margin: 0;
-  color: var(--text-color);
-  font-size: clamp(19px, 2.5vw, 25px);
-  line-height: 1.3;
-}
-
-.release-notes-panel__header p {
-  margin: 0;
-  color: var(--text-color-secondary);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
 .release-notes-panel__header button {
   display: grid;
   width: 34px;
@@ -174,10 +154,6 @@ watch(
   .release-notes-panel {
     width: 100%;
     border-left: 0;
-  }
-
-  .release-notes-panel__header p {
-    display: none;
   }
 }
 

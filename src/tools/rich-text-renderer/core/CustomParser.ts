@@ -242,6 +242,7 @@ export class CustomParser implements ParserContext {
             isResult: vcpToken.isResult,
             status: vcpToken.status,
             resultContent: vcpToken.resultContent,
+            fenceError: vcpToken.fenceError,
             collapsedByDefault: this.defaultToolCallCollapsed,
           },
           meta: {

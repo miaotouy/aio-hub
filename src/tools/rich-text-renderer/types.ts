@@ -524,6 +524,8 @@ export interface VcpToolNode extends BaseAstNode {
     status?: string;
     /** 返回内容 */
     resultContent?: string;
+    /** 渲染侧检测并修复了错误围栏时的诊断信息 */
+    fenceError?: string;
   };
   children?: never;
 }

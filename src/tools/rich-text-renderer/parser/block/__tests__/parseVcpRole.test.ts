@@ -211,6 +211,38 @@ content:「始ESCAPE」{"desc": "<<<[TOOL_REQUEST_ESCAPE]>>>tool_name:「始」i
     );
   });
 
+  it("repairs an ESCAPE field closed by a standard end marker for rendering only", () => {
+    const ast = parse(`
+<<<[TOOL_REQUEST]>>>
+tool_name:「始」DailyNote「末」,
+command:「始」create「末」,
+Content:「始ESCAPE」正文包含普通围栏示例：参数:「始」值「末」
+Tag: VCP开发「末」,
+Tag:「始」VCP开发「末」
+<<<[END_TOOL_REQUEST]>>>
+
+后续正文不应被工具节点吞掉。
+`);
+
+    const requests = findToolRequests(ast);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].props.closed).toBe(true);
+    expect(requests[0].props.args.Content).toContain("参数:「始」值「末」");
+    expect(requests[0].props.args.Content).toContain("Tag: VCP开发");
+    expect(requests[0].props.args.Tag).toBe("VCP开发");
+    expect(requests[0].props.fenceError).toContain(
+      "「始ESCAPE」使用了普通「末」闭合"
+    );
+    expect(
+      ast.some(
+        (node) =>
+          node.type === "paragraph" &&
+          JSON.stringify(node).includes("后续正文不应被工具节点吞掉")
+      )
+    ).toBe(true);
+  });
+
   it("keeps only summary items that are not covered by result details", () => {
     const ast = parse(`
 <<<[ROLE_DIVIDE_USER]>>>

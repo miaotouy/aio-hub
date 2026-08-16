@@ -240,6 +240,16 @@ path:「始ESCAPE」<<<[TOOL_REQUEST]>>>tool_name:「始」inner「末」<<<[END
     expect(requests[0].args.path).toContain("<<<[END_TOOL_REQUEST]>>>");
   });
 
+  it("执行解析保持严格，不接受 ESCAPE 字段的普通结束围栏", () => {
+    const text = `<<<[TOOL_REQUEST]>>>
+tool_name:「始」mock-sync「末」,
+command:「始」echo「末」,
+message:「始ESCAPE」render-only recovery「末」
+<<<[END_TOOL_REQUEST]>>>`;
+
+    expect(parseToolRequests(text, protocol)).toHaveLength(0);
+  });
+
   it("空文本返回空数组", () => {
     expect(parseToolRequests("", protocol)).toHaveLength(0);
     expect(parseToolRequests("   ", protocol)).toHaveLength(0);

@@ -60,6 +60,8 @@ export type Token =
       isResult?: boolean;
       status?: string;
       resultContent?: string;
+      /** 渲染侧对错误 VCP 围栏执行恢复时展示的诊断信息 */
+      fenceError?: string;
     }
   | {
       type: "vcp_role";

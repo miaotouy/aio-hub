@@ -82,6 +82,7 @@ graph TD
       - `StreamProcessorV2` (V2): 结合自研的 `CustomParser`，支持更复杂的 HTML 嵌套和自定义标签，是当前的核心。位于 `core/StreamProcessorV2.ts`。
       - `CustomParser`: V2 解析器核心，负责将完整文本块转换为 AST。位于 `core/CustomParser.ts`。
       - `Tokenizer`: V2 解析器的词法分析器，采用 **Sticky RegExp** 优化匹配性能，并支持 **Raw Mode** 以处理特殊 HTML 标签。位于 `parser/Tokenizer.ts`。
+        - VCP 工具块在严格围栏解析失败时，仅渲染侧会对唯一、可结构化验证的 `「始ESCAPE」...「末」` 错配执行显示恢复，并在工具节点标记围栏错误；工具执行协议仍保持严格解析，不会执行该错误调用。
       - `TokenizerService`: 封装了 Web Worker 调度逻辑，通过 `parser/tokenizer.worker.ts` 在后台线程进行异步分词，确保超长文本流下的 UI 响应性。位于 `parser/tokenizerService.ts`。
 
 3.  **状态层 (State Layer)**

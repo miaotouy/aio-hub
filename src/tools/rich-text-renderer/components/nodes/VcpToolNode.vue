@@ -15,7 +15,10 @@
 -->
 
 <template>
-  <div class="vcp-tool-node" :class="{ 'is-pending': isExecuting }">
+  <div
+    class="vcp-tool-node"
+    :class="{ 'is-pending': isExecuting, 'has-fence-error': fenceError }"
+  >
     <div class="vcp-header" @click="toggleCollapse">
       <div class="vcp-title">
         <span class="vcp-icon" :class="{ 'is-expanded': !isCollapsed }">
@@ -28,6 +31,7 @@
             spinning: isExecuting,
             'is-success': isSuccess,
             'is-error': isError,
+            'is-warning': fenceError,
           }"
         />
         <span class="tool-name">
@@ -54,6 +58,16 @@
           >{{ command }}</el-tag
         >
         <span v-if="maid" class="maid-info">{{ maid }}</span>
+        <el-tooltip
+          v-if="fenceError"
+          :content="fenceError"
+          placement="top"
+          :show-after="200"
+        >
+          <el-tag size="small" type="warning" effect="plain">
+            围栏格式错误 · 已修复显示
+          </el-tag>
+        </el-tooltip>
         <!-- Token 计数 -->
         <span v-if="context?.showTokenCount?.value" class="token-info">
           {{ raw.length }} 字 / ~{{ tokenCount }} tokens
@@ -174,6 +188,7 @@ const props = defineProps<{
   status?: string;
   resultContent?: string;
   isPending?: boolean;
+  fenceError?: string;
   generationMeta?: {
     modelId?: string;
     [key: string]: any;
@@ -201,6 +216,7 @@ const isError = computed(() => props.status?.includes("ERROR"));
 
 const statusIcon = computed(() => {
   if (isExecuting.value) return Loader2;
+  if (props.fenceError) return AlertCircle;
   // 未闭合且不在执行中，说明是内容中断
   if (!props.closed) return AlertCircle;
   if (props.isResult) {
@@ -347,6 +363,15 @@ const copyContent = async () => {
   box-shadow: 0 2px 8px rgba(103, 194, 58, 0.1);
 }
 
+.vcp-tool-node.has-fence-error {
+  border-color: var(--el-color-warning);
+}
+
+.vcp-tool-node.has-fence-error:hover {
+  border-color: var(--el-color-warning);
+  box-shadow: 0 2px 8px rgba(var(--el-color-warning-rgb), 0.16);
+}
+
 .vcp-header {
   display: flex;
   align-items: center;
@@ -392,6 +417,11 @@ const copyContent = async () => {
 
 .status-icon.is-error {
   color: var(--el-color-danger);
+  opacity: 1;
+}
+
+.status-icon.is-warning {
+  color: var(--el-color-warning);
   opacity: 1;
 }
 

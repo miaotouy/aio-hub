@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { findVcpBlockBoundary } from "@/utils/vcpBlockBoundary";
 import { Token } from "./types";
+import {
+  findRenderableVcpBlockBoundary,
+  repairVcpContentForRendering,
+} from "./vcpFenceRecovery";
 
 // ============ 分词器 (性能优化版) ============
 
@@ -581,7 +584,7 @@ export class Tokenizer {
               : "<<<[END_TOOL_REQUEST]>>>";
             let currentPos = posAfterIndent + startMarker.length;
 
-            const boundary = findVcpBlockBoundary(text, currentPos, {
+            const boundary = findRenderableVcpBlockBoundary(text, currentPos, {
               endMarker,
               recoveryStartMarkers: isEscapeBlock
                 ? ["<<<[TOOL_REQUEST_ESCAPE]>>>"]
@@ -601,14 +604,24 @@ export class Tokenizer {
             }
 
             let vcpContent = "";
+            let vcpContentForParsing = "";
             let closed = false;
+            let fenceError: string | undefined;
 
             if (boundary.status === "complete") {
               vcpContent = text.slice(currentPos, boundary.endIndex);
+              vcpContentForParsing = repairVcpContentForRendering(
+                vcpContent,
+                currentPos,
+                "recovery" in boundary ? boundary.recovery : undefined
+              );
+              fenceError =
+                "recovery" in boundary ? boundary.recovery.message : undefined;
               currentPos = boundary.endIndex + endMarker.length;
               closed = true;
             } else {
               vcpContent = text.slice(currentPos);
+              vcpContentForParsing = vcpContent;
               currentPos = len;
             }
 
@@ -624,7 +637,7 @@ export class Tokenizer {
             const parseEscapeVariant = (regex: RegExp) => {
               let match;
               regex.lastIndex = 0;
-              while ((match = regex.exec(vcpContent)) !== null) {
+              while ((match = regex.exec(vcpContentForParsing)) !== null) {
                 const key = match[1];
                 const value = match[2];
                 matchedRanges.push([match.index, regex.lastIndex]);
@@ -640,7 +653,7 @@ export class Tokenizer {
 
             // 第二步：构建去除已匹配范围的内容，再用标准正则扫描
             matchedRanges.sort((a, b) => a[0] - b[0]);
-            let maskedContent = vcpContent;
+            let maskedContent = vcpContentForParsing;
             // 从后往前替换，避免偏移量变化
             for (let ri = matchedRanges.length - 1; ri >= 0; ri--) {
               const [start, end] = matchedRanges[ri];
@@ -657,7 +670,7 @@ export class Tokenizer {
               const key = match[1];
               const value = match[2];
               // 使用原始 vcpContent 中对应位置的真实值
-              const realValue = vcpContent
+              const realValue = vcpContentForParsing
                 .slice(match.index, RE_VCP_ARG.lastIndex)
                 .match(/([a-zA-Z0-9_-]+):\s*「始」([\s\S]*?)「末」/);
               const actualValue = realValue ? realValue[2] : value;
@@ -678,7 +691,9 @@ export class Tokenizer {
               );
               const rawPendingMatch =
                 pendingStart >= 0
-                  ? vcpContent.slice(pendingStart).match(RE_VCP_PENDING)
+                  ? vcpContentForParsing
+                      .slice(pendingStart)
+                      .match(RE_VCP_PENDING)
                   : null;
               const value = rawPendingMatch
                 ? rawPendingMatch[2]
@@ -697,6 +712,7 @@ export class Tokenizer {
               command,
               maid,
               args,
+              fenceError,
             });
             i = currentPos;
             atLineStart = true;

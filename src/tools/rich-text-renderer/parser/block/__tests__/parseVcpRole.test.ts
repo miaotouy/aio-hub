@@ -16,8 +16,13 @@ import { describe, expect, it } from "vitest";
 import { CustomParser } from "../../../core/CustomParser";
 import type { AstNode, VcpRoleNode, VcpToolNode } from "../../../types";
 
-function parse(content: string): AstNode[] {
-  return new CustomParser().parse(content);
+function parse(content: string, vcpFuzzyModeEnabled = true): AstNode[] {
+  return new CustomParser(
+    new Set(["think"]),
+    [],
+    false,
+    vcpFuzzyModeEnabled
+  ).parse(content);
 }
 
 function findVcpRoles(nodes: AstNode[]): VcpRoleNode[] {
@@ -241,6 +246,28 @@ Tag:「始」VCP开发「末」
           JSON.stringify(node).includes("后续正文不应被工具节点吞掉")
       )
     ).toBe(true);
+  });
+
+  it("keeps malformed ESCAPE fences unclosed when fuzzy mode is disabled", () => {
+    const ast = parse(
+      `
+<<<[TOOL_REQUEST]>>>
+tool_name:「始」DailyNote「末」,
+command:「始」create「末」,
+Content:「始ESCAPE」正文「末」
+<<<[END_TOOL_REQUEST]>>>
+
+后续正文
+`,
+      false
+    );
+
+    const requests = findToolRequests(ast);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].props.closed).toBe(false);
+    expect(requests[0].props.fenceError).toBeUndefined();
+    expect(requests[0].props.raw).toContain("后续正文");
   });
 
   it("keeps only summary items that are not covered by result details", () => {

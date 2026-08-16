@@ -680,6 +680,15 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         keywords: "ui renderer safety guard guardrails 渲染 安全 护栏 限制",
       },
       {
+        id: "vcpFuzzyModeEnabled",
+        label: "VCP 围栏模糊模式",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.vcpFuzzyModeEnabled",
+        hint: "开启后，渲染器会尝试恢复唯一且结构可验证的 VCP ESCAPE 错误闭合，并显示围栏错误提示；不会放宽工具执行解析。",
+        keywords: "ui renderer vcp fuzzy fence 围栏 模糊 容错 修复",
+      },
+      {
         id: "enableEnterAnimation",
         label: "节点进入动画",
         layout: "inline",

@@ -166,10 +166,11 @@ function findRecoveryCandidates(
 export function findRenderableVcpBlockBoundary(
   text: string,
   contentStart: number,
-  options: FindVcpBlockBoundaryOptions
+  options: FindVcpBlockBoundaryOptions,
+  fuzzyModeEnabled = true
 ): RenderableVcpBlockBoundary {
   const strictBoundary = findVcpBlockBoundary(text, contentStart, options);
-  if (strictBoundary.status !== "unclosed") {
+  if (strictBoundary.status !== "unclosed" || !fuzzyModeEnabled) {
     return strictBoundary;
   }
 

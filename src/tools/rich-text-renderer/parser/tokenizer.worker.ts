@@ -13,16 +13,19 @@
 // limitations under the License.
 
 import { Tokenizer } from "./Tokenizer";
+import type { TokenizerOptions } from "./types";
 
 /**
  * Tokenizer Worker
  * 用于在后台线程执行分词逻辑，避免阻塞主线程。
  */
 
-self.onmessage = (e: MessageEvent<{ text: string; id: number }>) => {
-  const { text, id } = e.data;
+self.onmessage = (
+  e: MessageEvent<{ text: string; id: number; options?: TokenizerOptions }>
+) => {
+  const { text, id, options } = e.data;
   try {
-    const tokenizer = new Tokenizer();
+    const tokenizer = new Tokenizer(options);
     const tokens = tokenizer.tokenize(text);
     self.postMessage({ id, status: "success", tokens });
   } catch (error) {

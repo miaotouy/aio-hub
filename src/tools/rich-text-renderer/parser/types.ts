@@ -80,9 +80,15 @@ export type Token =
 
 // ============ 解析器上下文 ============
 
+export interface TokenizerOptions {
+  /** 是否启用仅显示侧的 VCP 围栏模糊恢复 */
+  vcpFuzzyModeEnabled?: boolean;
+}
+
 export interface ParserOptions {
   llmThinkTagNames: Set<string>;
   llmThinkRules: LlmThinkRule[];
+  vcpFuzzyModeEnabled: boolean;
 }
 
 export interface ParserContext {

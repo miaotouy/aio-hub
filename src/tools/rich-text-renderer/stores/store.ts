@@ -117,6 +117,7 @@ function createDefaultState() {
     initialDelay: 500,
     throttleMs: 80,
     safetyGuardEnabled: true,
+    vcpFuzzyModeEnabled: true,
     fluctuationEnabled: false,
     delayFluctuation: {
       min: 50,

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { Token } from "./types";
+import { Token, type TokenizerOptions } from "./types";
 import {
   findRenderableVcpBlockBoundary,
   repairVcpContentForRendering,
@@ -66,6 +66,12 @@ const VCP_TOOL_SUMMARY_START = "[本轮工具调用摘要:]";
 const VCP_TOOL_SUMMARY_END = "[本轮工具调用摘要结束]";
 
 export class Tokenizer {
+  private readonly vcpFuzzyModeEnabled: boolean;
+
+  constructor(options: TokenizerOptions = {}) {
+    this.vcpFuzzyModeEnabled = options.vcpFuzzyModeEnabled !== false;
+  }
+
   // HTML void elements (不需要闭合标签的元素)
   private static readonly voidElements = new Set([
     "area",
@@ -584,12 +590,17 @@ export class Tokenizer {
               : "<<<[END_TOOL_REQUEST]>>>";
             let currentPos = posAfterIndent + startMarker.length;
 
-            const boundary = findRenderableVcpBlockBoundary(text, currentPos, {
-              endMarker,
-              recoveryStartMarkers: isEscapeBlock
-                ? ["<<<[TOOL_REQUEST_ESCAPE]>>>"]
-                : ["<<<[TOOL_REQUEST]>>>", "<<<[TOOL_REQUEST_ESCAPE]>>>"],
-            });
+            const boundary = findRenderableVcpBlockBoundary(
+              text,
+              currentPos,
+              {
+                endMarker,
+                recoveryStartMarkers: isEscapeBlock
+                  ? ["<<<[TOOL_REQUEST_ESCAPE]>>>"]
+                  : ["<<<[TOOL_REQUEST]>>>", "<<<[TOOL_REQUEST_ESCAPE]>>>"],
+              },
+              this.vcpFuzzyModeEnabled
+            );
 
             if (boundary.status === "interrupted") {
               // 将损坏块按普通文本保留，随后从新的请求起始标记恢复，

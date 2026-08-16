@@ -52,21 +52,25 @@ export class CustomParser implements ParserContext {
   private llmThinkTagNames: Set<string>;
   private llmThinkRules: LlmThinkRule[];
   private defaultToolCallCollapsed: boolean;
+  private vcpFuzzyModeEnabled: boolean;
 
   constructor(
     llmThinkTagNames: Set<string> = new Set(["think"]),
     llmThinkRules: LlmThinkRule[] = [],
-    defaultToolCallCollapsed: boolean = false
+    defaultToolCallCollapsed: boolean = false,
+    vcpFuzzyModeEnabled: boolean = true
   ) {
     this.llmThinkTagNames = llmThinkTagNames;
     this.llmThinkRules = llmThinkRules;
     this.defaultToolCallCollapsed = defaultToolCallCollapsed;
+    this.vcpFuzzyModeEnabled = vcpFuzzyModeEnabled;
   }
 
   public getOptions(): ParserOptions {
     return {
       llmThinkTagNames: this.llmThinkTagNames,
       llmThinkRules: this.llmThinkRules,
+      vcpFuzzyModeEnabled: this.vcpFuzzyModeEnabled,
     };
   }
 
@@ -76,7 +80,9 @@ export class CustomParser implements ParserContext {
   public parse(text: string): AstNode[] {
     if (!text) return [];
 
-    const tokenizer = new Tokenizer();
+    const tokenizer = new Tokenizer({
+      vcpFuzzyModeEnabled: this.vcpFuzzyModeEnabled,
+    });
     const tokens = tokenizer.tokenize(text);
 
     const blocks = this.parseBlocks(tokens);
@@ -91,7 +97,9 @@ export class CustomParser implements ParserContext {
   public async parseAsync(text: string): Promise<AstNode[]> {
     if (!text) return [];
 
-    const tokens = await tokenizerService.tokenize(text);
+    const tokens = await tokenizerService.tokenize(text, {
+      vcpFuzzyModeEnabled: this.vcpFuzzyModeEnabled,
+    });
 
     const blocks = this.parseBlocks(tokens);
 

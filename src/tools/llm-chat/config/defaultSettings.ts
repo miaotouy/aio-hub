@@ -64,6 +64,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     enableHtmlFreezer: true, // 默认启用 HTML 预览冻结
     htmlFreezerKeepAliveCount: 5, // 默认 保持最近 5 个预览活动
     safetyGuardEnabled: true, // 默认启用渲染安全护栏
+    vcpFuzzyModeEnabled: true, // 默认启用仅显示侧的 VCP 围栏模糊恢复
     globalMediaVolume: 80, // 默认媒体音量 80%
     autoTriggerGenerationAfterQueue: true,
     toolApprovalTimeoutEnabled: false,

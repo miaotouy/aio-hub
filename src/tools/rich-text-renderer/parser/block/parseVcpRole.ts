@@ -155,7 +155,9 @@ export function parseVcpRole(
   const { role, variant, content, closed } = token;
 
   // 对内容进行二次分词
-  const tokenizer = new Tokenizer();
+  const tokenizer = new Tokenizer({
+    vcpFuzzyModeEnabled: ctx.getOptions().vcpFuzzyModeEnabled,
+  });
   const innerTokens = tokenizer.tokenize(content);
 
   // 递归解析内部块

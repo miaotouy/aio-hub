@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { Token } from "./types";
+import type { Token, TokenizerOptions } from "./types";
 
 /**
  * TokenizerService
@@ -61,12 +61,15 @@ class TokenizerService {
     };
   }
 
-  public tokenize(text: string): Promise<Token[]> {
+  public tokenize(
+    text: string,
+    options: TokenizerOptions = {}
+  ): Promise<Token[]> {
     this.initWorker();
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
       this.callbacks.set(id, { resolve, reject });
-      this.worker!.postMessage({ text, id });
+      this.worker!.postMessage({ text, id, options });
     });
   }
 

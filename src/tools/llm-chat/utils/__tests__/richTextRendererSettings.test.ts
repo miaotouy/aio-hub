@@ -34,6 +34,7 @@ describe("buildRichTextRendererSettings", () => {
       smoothingEnabled: false,
       throttleEnabled: false,
       safetyGuardEnabled: false,
+      vcpFuzzyModeEnabled: false,
       enableEnterAnimation: false,
       showTokenCountForBlocks: false,
     } as unknown as ChatSettings["uiPreferences"];
@@ -51,6 +52,7 @@ describe("buildRichTextRendererSettings", () => {
       smoothingEnabled: false,
       throttleEnabled: false,
       safetyGuardEnabled: false,
+      vcpFuzzyModeEnabled: false,
       enableEnterAnimation: false,
       showTokenCount: false,
     });

@@ -649,6 +649,8 @@ export interface StreamProcessorOptions {
   defaultToolCallCollapsed?: boolean;
   /** 是否启用安全护栏（默认 true） */
   safetyGuardEnabled?: boolean;
+  /** 是否启用仅显示侧的 VCP 围栏模糊恢复 */
+  vcpFuzzyModeEnabled?: boolean;
 }
 
 /**
@@ -796,6 +798,8 @@ export interface TesterConfig {
   enableCdnLocalizer?: boolean;
   /** 是否启用节点进入动画 */
   enableEnterAnimation?: boolean;
+  /** 是否启用仅显示侧的 VCP 围栏模糊恢复 */
+  vcpFuzzyModeEnabled?: boolean;
   /** 是否模拟元数据 */
   simulateMeta?: boolean;
   /** 选中的分词器 */

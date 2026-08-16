@@ -36,6 +36,7 @@ export function buildRichTextRendererSettings(
     smoothingEnabled: uiPreferences.smoothingEnabled,
     throttleEnabled: uiPreferences.throttleEnabled,
     safetyGuardEnabled: uiPreferences.safetyGuardEnabled,
+    vcpFuzzyModeEnabled: uiPreferences.vcpFuzzyModeEnabled,
     enableEnterAnimation: uiPreferences.enableEnterAnimation,
     showTokenCount: uiPreferences.showTokenCountForBlocks,
   };

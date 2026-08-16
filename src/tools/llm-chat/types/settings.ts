@@ -201,6 +201,8 @@ export interface ChatSettings {
     htmlFreezerKeepAliveCount: number;
     /** 是否启用渲染安全护栏 */
     safetyGuardEnabled: boolean;
+    /** 是否启用仅显示侧的 VCP 围栏模糊恢复 */
+    vcpFuzzyModeEnabled: boolean;
     /** 全局媒体音量 (0-100) */
     globalMediaVolume: number;
     /** 气泡布局配置 */

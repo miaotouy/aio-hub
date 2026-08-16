@@ -220,6 +220,7 @@
                 :throttle-enabled="throttleEnabled"
                 :verbose-logging="verboseLogging"
                 :safety-guard-enabled="safetyGuardEnabled"
+                :vcp-fuzzy-mode-enabled="vcpFuzzyModeEnabled"
                 :seamless-mode="seamlessMode"
               />
               <div v-else class="empty-placeholder">
@@ -310,6 +311,7 @@
                   :throttle-enabled="throttleEnabled"
                   :verbose-logging="verboseLogging"
                   :safety-guard-enabled="safetyGuardEnabled"
+                  :vcp-fuzzy-mode-enabled="vcpFuzzyModeEnabled"
                   :seamless-mode="seamlessMode"
                 />
                 <div v-else class="empty-placeholder">
@@ -512,6 +514,7 @@ const {
   autoScroll,
   visualizeBlockStatus,
   safetyGuardEnabled,
+  vcpFuzzyModeEnabled,
   rendererVersion,
   defaultRenderHtml,
   defaultCodeBlockExpanded,

@@ -533,7 +533,8 @@ export class StreamProcessorV2 {
     this.parser = new CustomParser(
       llmThinkTagNames,
       this.llmThinkRules,
-      options.defaultToolCallCollapsed
+      options.defaultToolCallCollapsed,
+      options.vcpFuzzyModeEnabled
     );
     this.boundaryDetector = new MarkdownBoundaryDetector(llmThinkTagNames);
     this.safetyGuardEnabled = options.safetyGuardEnabled !== false;

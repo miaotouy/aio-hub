@@ -148,6 +148,7 @@ const props = withDefaults(
     throttleEnabled?: boolean; // 是否启用 AST 更新节流（默认 true）
     verboseLogging?: boolean; // 是否启用高级调试日志（默认 false，开启后会刷屏）
     safetyGuardEnabled?: boolean; // 是否启用渲染安全护栏（默认 true）
+    vcpFuzzyModeEnabled?: boolean; // 是否启用仅显示侧的 VCP 围栏模糊恢复
   }>(),
   {
     version: RendererVersion.V2_CUSTOM_PARSER,
@@ -165,6 +166,7 @@ const props = withDefaults(
     smoothingEnabled: true,
     throttleEnabled: true,
     safetyGuardEnabled: true,
+    vcpFuzzyModeEnabled: true,
     throttleMs: 80, // 默认 80ms 节流，避免打字机效果过于频繁
     llmThinkRules: () => [
       // 默认规则：标准 <think> 标签
@@ -404,6 +406,7 @@ const createProcessor = (version: RendererVersion) => {
         llmThinkRules: props.llmThinkRules || [],
         defaultToolCallCollapsed: props.defaultToolCallCollapsed,
         safetyGuardEnabled: props.safetyGuardEnabled,
+        vcpFuzzyModeEnabled: props.vcpFuzzyModeEnabled,
       });
     }
     case RendererVersion.V1_MARKDOWN_IT:
@@ -533,6 +536,7 @@ watch(
       props.llmThinkRules,
       props.defaultToolCallCollapsed,
       props.safetyGuardEnabled,
+      props.vcpFuzzyModeEnabled,
     ] as const,
   ([newVersion]) => {
     // 流式模式或无静态内容时，交给流式逻辑处理

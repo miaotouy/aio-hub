@@ -189,6 +189,19 @@
         </div>
       </div>
 
+      <!-- VCP 围栏模糊模式 -->
+      <div class="control-section">
+        <div class="control-header">
+          <label class="control-label">VCP 围栏模糊模式</label>
+          <el-tooltip
+            content="仅在渲染侧恢复唯一且结构可验证的 ESCAPE 错误闭合，并显示警告；不会执行错误工具调用"
+            placement="left"
+          >
+            <el-switch v-model="vcpFuzzyModeEnabled" />
+          </el-tooltip>
+        </div>
+      </div>
+
       <!-- CDN 本地化控制 -->
       <div class="control-section">
         <div class="control-header">
@@ -564,6 +577,7 @@ const {
   enableCdnLocalizer,
   enableEnterAnimation,
   safetyGuardEnabled,
+  vcpFuzzyModeEnabled,
   llmThinkRules,
   seamlessMode,
   profileType,

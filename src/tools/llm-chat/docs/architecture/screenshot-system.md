@@ -86,6 +86,8 @@ src/tools/llm-chat/utils/
   - 浏览器默认的 `content-visibility: auto` 优化会跳过视口外元素的渲染。系统在克隆树中将所有子元素的 `content-visibility` 设为 `visible !important`，强制全量排版，确保视口外的消息节点也被完整渲染。
 - **滚动条与溢出处理**：
   - 注入临时 `<style>` 样式，强制隐藏所有滚动条（`scrollbar-width: none`），并将代码块（`.cm-editor-inner`）、Markdown 表格等容器的 `overflow` 设为 `visible`，确保内容完整展开不被截断。
+- **智能排版保护**：
+  - 与 `RichTextRendererTester.vue` 截图注入保持一致：对 flex 直接子元素强制 `flex-shrink: 0`，对徽章、药丸标签、`summary`、按钮（含 `.action-button`）等单行文本容器强制 `white-space: nowrap`，并对 `.action-button .action-label` 追加 1px 宽度余量。原因是 SVG foreignObject 离屏渲染时字体度量与亚像素取整会和在线布局有微小偏差，导致按钮宽度略小、最后一个字被挤到下一行（该问题此前未定位到根因）。
 
 ### 3.2. 并发截图与拼接算法 (captureMessagesAndStitch)
 

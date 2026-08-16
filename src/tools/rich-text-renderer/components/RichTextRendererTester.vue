@@ -1544,11 +1544,17 @@ const capturePreview = async () => {
           summary,
           .el-tag,
           .el-button,
+          .action-button,
           [style*="border-radius: 100px"],
           [style*="border-radius: 50px"],
           [style*="border-radius:100px"],
           [style*="border-radius:50px"] {
             white-space: nowrap !important;
+          }
+
+          /* 按钮文本区域追加 1px 宽度余量，吸收离屏渲染的字体度量偏差，防止最后一个字换行 */
+          .action-button .action-label {
+            padding-right: 1px;
           }
           
           /* 确保 details 保持原本的展开状态，不要有奇怪的过渡动画干扰截图 */

@@ -15,6 +15,7 @@
 import type { Ref } from "vue";
 import { BranchNavigator } from "../../utils/BranchNavigator";
 import type { ChatSessionDetail, ChatSessionIndex } from "../../types/session";
+import type { ChatMessageNode } from "../../types/message";
 import type { ModelIdentifier } from "../../types/llm";
 import type { Asset } from "@/types/asset-management";
 import type { KnowledgeReference } from "@/tools/knowledge-base/types";
@@ -52,6 +53,20 @@ interface GenerationState {
   queuedSessionAgentIds: Ref<Map<string, string>>;
 }
 
+function isQueuedMessageNode(node: ChatMessageNode): boolean {
+  return (
+    node.metadata?.isQueued === true ||
+    node.status === "queued" ||
+    (node.role === "assistant" && (node.status as string) === "pending")
+  );
+}
+
+function hasQueuedMessageNodes(detail: ChatSessionDetail): boolean {
+  return (
+    !!detail.nodes && Object.values(detail.nodes).some(isQueuedMessageNode)
+  );
+}
+
 interface GenerationManagers {
   access: ReturnType<typeof createSessionAccessManager>;
   runtime: ReturnType<typeof createSessionRuntimeManager>;
@@ -78,6 +93,10 @@ export function createSessionGenerationManager(
   state: GenerationState,
   managers: GenerationManagers
 ) {
+  // 正在被调度的排队节点。保留这个集合是为了让同一条排队链上的后续节点
+  // 在前一个节点生成期间继续等待，同时允许不同分支的排队链并行启动。
+  const processingQueuedNodeIds = new Set<string>();
+
   async function getChatHandler() {
     if (managers.createChatHandler) return managers.createChatHandler();
     const { useChatHandler } =
@@ -121,37 +140,53 @@ export function createSessionGenerationManager(
       return;
     }
 
-    if (managers.runtime.isSessionGenerating(sessionId)) return;
-
-    const { useChatSettings } =
-      await import("../../composables/settings/useChatSettings");
-    const { settings } = useChatSettings();
-    const queueMode = settings.value.uiPreferences.queueReplyMode ?? "combined";
     const chatHandler = await getChatHandler();
     const sessionManager = await getSessionManager();
 
-    try {
-      // 1. 优先通过专用的 isQueued 字段寻找排队待生成的节点，防止并发状态覆盖导致 activeLeafId 丢失
-      const queuedNode = Object.values(detail.nodes).find(
-        (node) => node.metadata?.isQueued === true
-      );
-
-      if (queuedNode) {
-        // 清除排队标记
-        if (queuedNode.metadata) {
-          delete queuedNode.metadata.isQueued;
+    const hasQueuedAncestor = (node: ChatMessageNode): boolean => {
+      let parentId = node.parentId;
+      while (parentId !== null) {
+        if (
+          processingQueuedNodeIds.has(parentId) ||
+          (detail.nodes[parentId] &&
+            isQueuedMessageNode(detail.nodes[parentId]))
+        ) {
+          return true;
         }
+        parentId = detail.nodes[parentId]?.parentId ?? null;
+      }
+      return false;
+    };
 
-        // 强制将 activeLeafId 设为该排队节点，防止并发状态覆盖
-        detail.activeLeafId = queuedNode.id;
+    // 只调度“当前路径已经空闲”的节点。会话中其它分支仍在生成时，
+    // 不应阻塞本分支的排队任务；同一条排队链则由 queued ancestor 保证顺序。
+    const readyQueuedNodes = Object.values(detail.nodes).filter(
+      (node) =>
+        isQueuedMessageNode(node) &&
+        !processingQueuedNodeIds.has(node.id) &&
+        !managers.runtime.isNodePathGenerating(sessionId, node.id) &&
+        !hasQueuedAncestor(node)
+    );
 
-        state.queuedSessionIds.value.delete(sessionId);
-        const queuedAgentId = state.queuedSessionAgentIds.value.get(sessionId);
-        state.queuedSessionAgentIds.value.delete(sessionId);
+    if (readyQueuedNodes.length === 0) return;
 
+    const triggerQueuedNode = async (
+      queuedNode: ChatMessageNode
+    ): Promise<void> => {
+      processingQueuedNodeIds.add(queuedNode.id);
+
+      // 先保留排队标记，直到本次恢复生成完成。这样并发 watcher 不会把
+      // 正在由 continue/regenerate 接管的旧占位节点误判为僵死节点。
+      detail.activeLeafId = queuedNode.id;
+
+      const queuedAgentId =
+        queuedNode.metadata?.agentId ||
+        state.queuedSessionAgentIds.value.get(sessionId);
+
+      try {
         if (queuedNode.role === "user") {
           queuedNode.status = "complete";
-          logger.info("检测到排队中的 User 消息 (isQueued)，自动触发合并回复", {
+          logger.info("检测到排队中的 User 消息，自动触发合并回复", {
             sessionId,
             nodeId: queuedNode.id,
             agentId: queuedAgentId,
@@ -166,14 +201,11 @@ export function createSessionGenerationManager(
           );
         } else {
           queuedNode.status = "waiting";
-          logger.info(
-            "检测到排队中的 Assistant 占位节点 (isQueued)，自动触发链式生成",
-            {
-              sessionId,
-              nodeId: queuedNode.id,
-              agentId: queuedAgentId,
-            }
-          );
+          logger.info("检测到排队中的 Assistant 占位节点，自动触发链式生成", {
+            sessionId,
+            nodeId: queuedNode.id,
+            agentId: queuedAgentId,
+          });
           await chatHandler.continueGeneration(
             detail,
             queuedNode.id,
@@ -182,98 +214,57 @@ export function createSessionGenerationManager(
             queuedAgentId ? { agentId: queuedAgentId } : undefined
           );
         }
-      } else {
-        // 2. 兜底逻辑：如果未找到 isQueued 标记，则使用原有的基于 activeLeaf 和 pending 的判断（向后兼容）
-        if (queueMode === "combined") {
-          const activeLeaf = detail.activeLeafId
-            ? detail.nodes[detail.activeLeafId]
-            : null;
-          if (
-            !activeLeaf ||
-            activeLeaf.role !== "user" ||
-            (activeLeaf.childrenIds && activeLeaf.childrenIds.length > 0)
-          ) {
-            state.queuedSessionIds.value.delete(sessionId);
-            return;
-          }
 
-          state.queuedSessionIds.value.delete(sessionId);
-          const queuedAgentId =
-            state.queuedSessionAgentIds.value.get(sessionId);
-          state.queuedSessionAgentIds.value.delete(sessionId);
-          activeLeaf.status = "complete";
-          logger.info("检测到排队中的 User 消息 (兜底)，自动触发合并回复", {
-            sessionId,
-            nodeId: activeLeaf.id,
-            agentId: queuedAgentId,
-          });
-          await chatHandler.regenerateFromNode(
-            detail,
-            activeLeaf.id,
-            [],
-            state.abortControllers.value,
-            state.generatingNodes.value,
-            queuedAgentId ? { agentId: queuedAgentId } : undefined
-          );
-        } else {
-          const pendingAssistant = Object.values(detail.nodes).find(
-            (node) =>
-              node.role === "assistant" &&
-              ((node.status as string) === "pending" ||
-                node.status === "queued")
-          );
-          if (!pendingAssistant) {
-            state.queuedSessionIds.value.delete(sessionId);
-            return;
-          }
-
-          state.queuedSessionIds.value.delete(sessionId);
-          const queuedAgentId =
-            state.queuedSessionAgentIds.value.get(sessionId) ||
-            pendingAssistant.metadata?.agentId;
-          state.queuedSessionAgentIds.value.delete(sessionId);
-          pendingAssistant.status = "waiting";
-          logger.info(
-            "检测到排队中的 Assistant 占位节点 (兜底)，自动触发链式生成",
-            {
-              sessionId,
-              nodeId: pendingAssistant.id,
-              agentId: queuedAgentId,
-            }
-          );
-          await chatHandler.continueGeneration(
-            detail,
-            pendingAssistant.id,
-            state.abortControllers.value,
-            state.generatingNodes.value,
-            queuedAgentId ? { agentId: queuedAgentId } : undefined
-          );
+        sessionManager.updateMessageCount(
+          index.id,
+          detail.nodes,
+          state.sessionIndexMap.value
+        );
+        sessionManager.updateSessionDisplayAgent(
+          index.id,
+          detail,
+          state.sessionIndexMap.value
+        );
+        sessionManager.persistSession(
+          index,
+          detail,
+          state.currentSessionId.value
+        );
+      } catch (error) {
+        sessionManager.persistSession(
+          index,
+          detail,
+          state.currentSessionId.value
+        );
+        throw error;
+      } finally {
+        if (queuedNode.metadata) {
+          delete queuedNode.metadata.isQueued;
         }
+        processingQueuedNodeIds.delete(queuedNode.id);
       }
+    };
 
-      sessionManager.updateMessageCount(
-        index.id,
-        detail.nodes,
-        state.sessionIndexMap.value
-      );
-      sessionManager.updateSessionDisplayAgent(
-        index.id,
-        detail,
-        state.sessionIndexMap.value
-      );
-      sessionManager.persistSession(
-        index,
-        detail,
-        state.currentSessionId.value
-      );
-    } catch (error) {
-      sessionManager.persistSession(
-        index,
-        detail,
-        state.currentSessionId.value
-      );
-      throw error;
+    // 不同分支的 ready 节点可以并行启动；同一条链的后续节点由于有 queued
+    // ancestor，不会在本轮被选中，避免把串行链误发成并发请求。
+    const results = await Promise.allSettled(
+      readyQueuedNodes.map((node) => triggerQueuedNode(node))
+    );
+
+    if (
+      !hasQueuedMessageNodes(detail) &&
+      !Array.from(processingQueuedNodeIds).some((nodeId) =>
+        detail.nodes[nodeId] ? true : false
+      )
+    ) {
+      state.queuedSessionIds.value.delete(sessionId);
+      state.queuedSessionAgentIds.value.delete(sessionId);
     }
+
+    const rejected = results.find(
+      (result): result is PromiseRejectedResult => result.status === "rejected"
+    );
+    if (rejected) throw rejected.reason;
   }
 
   async function sendMessage(
@@ -286,7 +277,15 @@ export function createSessionGenerationManager(
       async () => {
         const { sessionId, index, detail } =
           managers.access.resolveSessionContext(options?.sessionId);
-        const skipGeneration = managers.runtime.isSessionGenerating(sessionId);
+
+        // 只在目标父节点所在的路径上已有生成任务时排队。
+        // 同一会话切换到其它分支后，已有生成节点不属于新路径，应允许并行请求。
+        const targetParentId =
+          options?.parentId || detail.activeLeafId || detail.rootNodeId;
+        const skipGeneration = managers.runtime.isNodePathGenerating(
+          sessionId,
+          targetParentId
+        );
         if (skipGeneration) {
           state.queuedSessionIds.value.add(sessionId);
           if (options?.agentId)
@@ -321,7 +320,7 @@ export function createSessionGenerationManager(
           }
 
           await sendPromise;
-          if (!skipGeneration) {
+          if (!skipGeneration && !hasQueuedMessageNodes(detail)) {
             state.queuedSessionIds.value.delete(sessionId);
             state.queuedSessionAgentIds.value.delete(sessionId);
           }
@@ -329,8 +328,10 @@ export function createSessionGenerationManager(
           await persistGeneratedSession(index, detail);
           managers.history.clearHistory(sessionId);
         } catch (error) {
-          state.queuedSessionIds.value.delete(sessionId);
-          state.queuedSessionAgentIds.value.delete(sessionId);
+          if (!hasQueuedMessageNodes(detail)) {
+            state.queuedSessionIds.value.delete(sessionId);
+            state.queuedSessionAgentIds.value.delete(sessionId);
+          }
           const sessionManager = await getSessionManager();
           sessionManager.persistSession(
             index,

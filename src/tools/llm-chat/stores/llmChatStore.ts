@@ -131,45 +131,46 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     async (newSize, oldSize) => {
       // 只有在生成节点减少时（任务结束或中止）才进行检查
       if (newSize < (oldSize || 0)) {
+        // 僵死节点修复只针对当前会话；排队调度则必须覆盖后台会话，
+        // 否则切换会话后完成的请求会让队列永久停留在 queued 状态。
         const detail = currentSessionDetail.value;
-        if (!detail) return;
-
-        let hasFixed = false;
-        if (!detail.nodes) return;
-
-        Object.values(detail.nodes).forEach((node) => {
-          if (
-            (node.status === "generating" || node.status === "waiting") &&
-            !generatingNodes.value.has(node.id)
-          ) {
-            logger.warn("检测到僵死节点，正在自动修复状态", {
-              nodeId: node.id,
-              contentLength: node.content?.length,
-            });
-            // 如果已经有内容了，标记为 complete，否则标记为 error
-            node.status = node.content?.trim() ? "complete" : "error";
-            if (node.status === "error" && !node.metadata?.error) {
-              if (!node.metadata) node.metadata = {};
-              node.metadata.error = "生成意外中断";
+        if (detail?.nodes) {
+          let hasFixed = false;
+          Object.values(detail.nodes).forEach((node) => {
+            if (
+              (node.status === "generating" || node.status === "waiting") &&
+              node.metadata?.isQueued !== true &&
+              !generatingNodes.value.has(node.id)
+            ) {
+              logger.warn("检测到僵死节点，正在自动修复状态", {
+                nodeId: node.id,
+                contentLength: node.content?.length,
+              });
+              // 如果已经有内容了，标记为 complete，否则标记为 error
+              node.status = node.content?.trim() ? "complete" : "error";
+              if (node.status === "error" && !node.metadata?.error) {
+                if (!node.metadata) node.metadata = {};
+                node.metadata.error = "生成意外中断";
+              }
+              hasFixed = true;
             }
-            hasFixed = true;
-          }
-        });
+          });
 
-        if (hasFixed) {
-          const sessionManager = useSessionManager();
-          const index = sessionIndexMap.value.get(detail.id);
-          if (index) {
-            sessionManager.updateMessageCount(
-              detail.id,
-              detail.nodes,
-              sessionIndexMap.value
-            );
-            sessionManager.persistSession(
-              index,
-              detail,
-              currentSessionId.value
-            );
+          if (hasFixed) {
+            const sessionManager = useSessionManager();
+            const index = sessionIndexMap.value.get(detail.id);
+            if (index) {
+              sessionManager.updateMessageCount(
+                detail.id,
+                detail.nodes,
+                sessionIndexMap.value
+              );
+              sessionManager.persistSession(
+                index,
+                detail,
+                currentSessionId.value
+              );
+            }
           }
         }
 
@@ -184,7 +185,8 @@ export const useLlmChatStore = defineStore("llmChat", () => {
           userAbortedNodeIds.value.clear();
         }
 
-        // 排队自动触发：生成节点减少时，只检查本次同会话连续发送产生的队列
+        // 排队调度按节点路径判断，而不是按整个会话加锁。这样同一会话的不同
+        // 分支可以并行恢复；如果目标路径仍在生成，则保留队列标记等待下一次完成事件。
         if (queuedSessionIds.value.size > 0) {
           const { useChatSettings } =
             await import("../composables/settings/useChatSettings");
@@ -192,14 +194,29 @@ export const useLlmChatStore = defineStore("llmChat", () => {
           if (!settings.value.uiPreferences.autoTriggerGenerationAfterQueue) {
             return;
           }
-          const queuedIds = Array.from(queuedSessionIds.value).filter(
-            (sessionId) => !isSessionGenerating(sessionId)
+          // 以节点上的排队标记为最终事实，补上运行时集合可能因跨分支发送
+          // 或旧版本状态清理而遗漏的会话，避免 queued 节点永久无人调度。
+          const queuedIds = new Set(queuedSessionIds.value);
+          sessionDetailMap.value.forEach((session, sessionId) => {
+            if (
+              session.nodes &&
+              Object.values(session.nodes).some(
+                (node) =>
+                  node.metadata?.isQueued === true ||
+                  node.status === "queued" ||
+                  (node.role === "assistant" &&
+                    (node.status as string) === "pending")
+              )
+            ) {
+              queuedIds.add(sessionId);
+            }
+          });
+
+          await Promise.all(
+            Array.from(queuedIds).map((sessionId) =>
+              sessionGeneration.triggerQueuedGenerationForSession(sessionId)
+            )
           );
-          for (const sessionId of queuedIds) {
-            await sessionGeneration.triggerQueuedGenerationForSession(
-              sessionId
-            );
-          }
         }
       }
     },

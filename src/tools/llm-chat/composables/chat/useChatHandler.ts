@@ -535,6 +535,9 @@ export function useChatHandler() {
             session.nodes[userNode.id].metadata = {};
           }
           session.nodes[userNode.id].metadata!.isQueued = true;
+          // 合并模式会删除 assistant 占位节点，因此把 Agent 快照保留在
+          // user 节点上，后续按分支恢复排队任务时仍能使用正确的 Agent。
+          session.nodes[userNode.id].metadata!.agentId = effectiveAgentId;
         }
       } else {
         // Chained: 保留 assistant 占位节点，标记为 pending

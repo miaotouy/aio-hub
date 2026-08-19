@@ -1,6 +1,6 @@
 # LLM Chat: 架构与开发者指南
 
-> 最后更新：2026-07-16
+> 最后更新：2026-08-19
 
 本文档是 `llm-chat` 工具的**架构概览**。每个章节只保留核心理念与定位，详细实现请参考 [`docs/architecture/`](./docs/architecture/) 下的专题文档。
 
@@ -81,7 +81,7 @@ graph TD
 
 #### 1.2.1. 多会话架构与子管理器 (Multi-Session Sub-Managers)
 
-系统采用多会话架构，支持多窗口 UI 并发操作与后台会话独立执行。核心状态管理（`llmChatStore`）采用职责聚合的设计模式，将复杂的会话控制委托给一组专职的子管理器（`sessionAccess`、`sessionRuntime`、`sessionHistory`、`sessionGeneration`、`sessionLifecycle`），并实现了会话级输入草稿隔离、生成状态只读化以及发送链路与 UI 状态的完全解耦。
+系统采用多会话架构，支持多窗口 UI 并发操作与后台会话独立执行。核心状态管理（`llmChatStore`）采用职责聚合的设计模式，将复杂的会话控制委托给一组专职的子管理器（`sessionAccess`、`sessionRuntime`、`sessionHistory`、`sessionGeneration`、`sessionLifecycle`），并实现了会话级输入草稿隔离、生成状态只读化以及发送链路与 UI 状态的完全解耦。消息排队以**目标父节点到根节点的路径**为粒度：同一路径上的后续消息按顺序恢复生成；切换到树的其它分支后，新分支可与已有分支并行执行。调度器同时扫描会话节点上的持久化排队标记，避免切换会话或运行时集合清理后遗留的 `queued` 节点无法恢复。
 
 详见 [`data-persistence.md`](./docs/architecture/data-persistence.md) 第 3 节与 [`key-types.md`](./docs/architecture/key-types.md)。
 

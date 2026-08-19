@@ -48,6 +48,30 @@ export function createSessionRuntimeManager(state: RuntimeState) {
     return getSessionGeneratingNodeIds(sessionId).length > 0;
   }
 
+  /**
+   * 判断指定节点所在的消息路径上是否存在正在生成的节点。
+   *
+   * 会话内的不同分支可以并行生成，因此不能再用“会话中是否存在任意生成节点”
+   * 作为排队条件。发送消息时应只阻塞与目标父节点处于同一路径的生成任务。
+   */
+  function isNodePathGenerating(
+    sessionId: string,
+    targetNodeId: string | null | undefined
+  ): boolean {
+    if (!targetNodeId) return false;
+
+    const detail = state.sessionDetailMap.value.get(sessionId);
+    if (!detail?.nodes) return false;
+
+    let currentId: string | null = targetNodeId;
+    while (currentId !== null) {
+      if (state.generatingNodes.value.has(currentId)) return true;
+      currentId = detail.nodes[currentId]?.parentId ?? null;
+    }
+
+    return false;
+  }
+
   function markNodeAsUserAborted(
     nodeId: string,
     detail?: ChatSessionDetail | null
@@ -141,6 +165,7 @@ export function createSessionRuntimeManager(state: RuntimeState) {
     isNodeGenerating,
     getSessionGeneratingNodeIds,
     isSessionGenerating,
+    isNodePathGenerating,
     abortNodeGeneration,
     abortSessionGeneration,
     clearSessionRuntime,

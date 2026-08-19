@@ -25,21 +25,23 @@ import type {
 
 const mocks = vi.hoisted(() => ({
   sendMessage: vi.fn(),
+  continueGeneration: vi.fn(),
+  regenerateFromNode: vi.fn(),
 }));
 
 vi.mock("../../../composables/chat/useChatHandler", () => ({
   useChatHandler: () => ({
     sendMessage: mocks.sendMessage,
-    continueGeneration: vi.fn(),
-    regenerateFromNode: vi.fn(),
+    continueGeneration: mocks.continueGeneration,
+    regenerateFromNode: mocks.regenerateFromNode,
     completeInput: vi.fn(),
   }),
 }));
 vi.mock("@/tools/llm-chat/composables/chat/useChatHandler", () => ({
   useChatHandler: () => ({
     sendMessage: mocks.sendMessage,
-    continueGeneration: vi.fn(),
-    regenerateFromNode: vi.fn(),
+    continueGeneration: mocks.continueGeneration,
+    regenerateFromNode: mocks.regenerateFromNode,
     completeInput: vi.fn(),
   }),
 }));
@@ -108,10 +110,81 @@ function index(id: string): ChatSessionIndex {
   };
 }
 
+function createGenerationManagerForTest(
+  details: Map<string, ChatSessionDetail>,
+  currentSessionId: string,
+  generatingNodeIds: string[] = [],
+  queuedSessionIds: string[] = []
+) {
+  const sessionIndexMap = ref(
+    new Map(Array.from(details.keys()).map((id) => [id, index(id)]))
+  );
+  const sessionDetailMap = ref(details);
+  const currentSession = ref<string | null>(currentSessionId);
+  const abortControllers = ref(new Map<string, AbortController>());
+  const generatingNodes = ref(new Set(generatingNodeIds));
+  const queuedIds = ref(new Set(queuedSessionIds));
+  const queuedAgentIds = ref(new Map<string, string>());
+  const access = createSessionAccessManager({
+    sessionIndexMap,
+    sessionDetailMap,
+    currentSessionId: currentSession,
+  });
+  const runtime = createSessionRuntimeManager({
+    sessionDetailMap,
+    currentSessionId: currentSession,
+    abortControllers,
+    generatingNodes,
+    queuedSessionIds: queuedIds,
+    queuedSessionAgentIds: queuedAgentIds,
+    userAbortedNodeIds: ref(new Set<string>()),
+    findSessionIdByNodeId: access.findSessionIdByNodeId,
+  });
+  const generation = createSessionGenerationManager(
+    {
+      sessionIndexMap,
+      sessionDetailMap,
+      currentSessionId: currentSession,
+      abortControllers,
+      generatingNodes,
+      queuedSessionIds: queuedIds,
+      queuedSessionAgentIds: queuedAgentIds,
+    },
+    {
+      access,
+      runtime,
+      history: { clearHistory: vi.fn() } as any,
+      executeOrProxy: async (_action, _params, localFn) => localFn(),
+      createChatHandler: () => ({
+        sendMessage: mocks.sendMessage,
+        continueGeneration: mocks.continueGeneration,
+        regenerateFromNode: mocks.regenerateFromNode,
+        completeInput: vi.fn(),
+      }),
+      createSessionManager: () => ({
+        updateMessageCount: vi.fn(),
+        updateSessionDisplayAgent: vi.fn(),
+        persistSession: vi.fn(),
+      }),
+    }
+  );
+
+  return {
+    generation,
+    detailMap: sessionDetailMap,
+    generatingNodes,
+    queuedIds,
+  };
+}
+
 describe("llm-chat session managers", () => {
   beforeEach(() => {
     mocks.sendMessage.mockReset();
+    mocks.continueGeneration.mockReset();
+    mocks.regenerateFromNode.mockReset();
     mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.continueGeneration.mockResolvedValue(undefined);
+    mocks.regenerateFromNode.mockResolvedValue(undefined);
   });
 
   it("sends to a non-current session with that session's active path", async () => {
@@ -215,6 +288,89 @@ describe("llm-chat session managers", () => {
       "target-user",
       "target-assistant",
     ]);
+  });
+
+  it("queues only when the target parent is on a generating path", async () => {
+    const root = node("root", null, "system");
+    const user = node("user", "root", "user");
+    const generatingAssistant = node(
+      "generating-assistant",
+      "user",
+      "assistant"
+    );
+    const parallelAssistant = node("parallel-assistant", "user", "assistant");
+    root.childrenIds = ["user"];
+    user.childrenIds = ["generating-assistant", "parallel-assistant"];
+
+    const detail = session("chat", "generating-assistant", {
+      root,
+      user,
+      "generating-assistant": generatingAssistant,
+      "parallel-assistant": parallelAssistant,
+    });
+    const { generation } = createGenerationManagerForTest(
+      new Map([["chat", detail]]),
+      "chat",
+      ["generating-assistant"]
+    );
+
+    await generation.sendMessage("same branch");
+    expect(mocks.sendMessage.mock.calls[0][5]).toMatchObject({
+      skipGeneration: true,
+    });
+
+    detail.activeLeafId = "parallel-assistant";
+    await generation.sendMessage("other branch");
+    expect(mocks.sendMessage.mock.calls[1][5]).toBeUndefined();
+  });
+
+  it("triggers a queued branch when only another branch is still generating", async () => {
+    const root = node("root", null, "system");
+    const user = node("user", "root", "user");
+    const branchA = node("branch-a", "user", "assistant");
+    const branchB = node("branch-b", "user", "assistant");
+    const branchC = node("branch-c", "user", "assistant");
+    const queuedUser = node("queued-user", "branch-b", "user");
+    queuedUser.status = "queued";
+    queuedUser.metadata = { isQueued: true, agentId: "agent-b" };
+    root.childrenIds = ["user"];
+    user.childrenIds = ["branch-a", "branch-b", "branch-c"];
+    branchB.childrenIds = ["queued-user"];
+
+    const detail = session("chat", "queued-user", {
+      root,
+      user,
+      "branch-a": branchA,
+      "branch-b": branchB,
+      "branch-c": branchC,
+      "queued-user": queuedUser,
+    });
+    const generationState = createGenerationManagerForTest(
+      new Map([["chat", detail]]),
+      "chat",
+      ["branch-a", "branch-b"],
+      ["chat"]
+    );
+    const { generation, generatingNodes } = generationState;
+
+    await generation.triggerQueuedGenerationForSession("chat");
+    expect(mocks.regenerateFromNode).not.toHaveBeenCalled();
+
+    // 非排队分支的请求完成后，不能把另一分支仍在等待的队列标记清掉。
+    detail.activeLeafId = "branch-c";
+    await generation.sendMessage("parallel branch");
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+    expect(generationState.queuedIds.value.has("chat")).toBe(true);
+
+    generatingNodes.value.delete("branch-b");
+    await generation.triggerQueuedGenerationForSession("chat");
+
+    expect(mocks.regenerateFromNode).toHaveBeenCalledTimes(1);
+    expect(mocks.regenerateFromNode.mock.calls[0][1]).toBe("queued-user");
+    expect(mocks.regenerateFromNode.mock.calls[0][5]).toEqual({
+      agentId: "agent-b",
+    });
+    expect(generatingNodes.value.has("branch-a")).toBe(true);
   });
 
   it("isolates generating state and abort queues by session", () => {

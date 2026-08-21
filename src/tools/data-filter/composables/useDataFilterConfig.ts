@@ -17,6 +17,8 @@ import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@/utils/logger";
 import type { FilterOptions } from "../logic/dataFilter.logic";
 
+export type DataFilterMode = "structured" | "plain-text";
+
 const logger = createModuleLogger("tools/data-filter/config");
 
 export interface DataFilterPreset {
@@ -29,6 +31,7 @@ export interface DataFilterPreset {
 interface DataFilterConfig {
   version: string;
   lastState: {
+    mode: DataFilterMode;
     inputText: string;
     options: FilterOptions;
   };
@@ -49,6 +52,7 @@ const configManager = createConfigManager<DataFilterConfig>({
   createDefault: () => ({
     version: "1.0.0",
     lastState: {
+      mode: "structured",
       inputText: "",
       options: {
         ...DEFAULT_OPTIONS,
@@ -60,7 +64,12 @@ const configManager = createConfigManager<DataFilterConfig>({
   mergeConfig: (defaultConfig, loaded) => ({
     ...defaultConfig,
     ...loaded,
-    lastState: loaded.lastState ?? defaultConfig.lastState,
+    lastState: {
+      ...defaultConfig.lastState,
+      ...loaded.lastState,
+      mode:
+        loaded.lastState?.mode === "plain-text" ? "plain-text" : "structured",
+    },
     presets: loaded.presets ?? defaultConfig.presets,
   }),
 });
@@ -69,6 +78,7 @@ export function useDataFilterConfig() {
   const presets = ref<DataFilterPreset[]>([]);
 
   async function loadConfig(): Promise<{
+    mode: DataFilterMode;
     inputText: string;
     options: FilterOptions;
   }> {
@@ -78,10 +88,14 @@ export function useDataFilterConfig() {
     return config.lastState;
   }
 
-  function saveLastState(inputText: string, options: FilterOptions) {
+  function saveLastState(
+    mode: DataFilterMode,
+    inputText: string,
+    options: FilterOptions
+  ) {
     configManager.saveDebounced({
       version: "1.0.0",
-      lastState: { inputText, options },
+      lastState: { mode, inputText, options },
       presets: presets.value,
     });
   }

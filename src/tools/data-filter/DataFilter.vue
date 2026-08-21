@@ -17,7 +17,6 @@
 <template>
   <div class="data-filter-container">
     <div class="tool-wrapper">
-      <!-- 顶部工具栏 -->
       <div class="toolbar">
         <div class="toolbar-left">
           <div class="tool-title">数据筛选工具</div>
@@ -39,7 +38,6 @@
             发送到聊天
           </el-button>
         </div>
-
         <div class="toolbar-right">
           <el-button @click="handleClear" size="small" type="danger" plain>
             <el-icon><DeleteIcon /></el-icon>
@@ -48,33 +46,64 @@
         </div>
       </div>
 
-      <!-- 主内容区 -->
+      <div class="mode-switcher">
+        <el-radio-group v-model="mode" size="small" @change="handleModeChange">
+          <el-radio-button value="structured">结构化数据</el-radio-button>
+          <el-radio-button value="plain-text">纯文本处理</el-radio-button>
+        </el-radio-group>
+        <span class="mode-hint">
+          {{
+            mode === "structured"
+              ? "筛选 JSON / YAML 数组"
+              : "按行处理任意纯文本"
+          }}
+        </span>
+      </div>
+
       <div class="main-content">
         <div class="filter-layout">
-          <!-- 左侧：输入区 -->
           <div class="editor-panel input-panel">
             <div class="panel-header">
-              <span class="panel-title">原始数据</span>
-              <el-tag size="small" type="info" effect="plain">{{
-                inputType
-              }}</el-tag>
+              <span class="panel-title">{{
+                mode === "structured" ? "原始数据" : "原始文本"
+              }}</span>
+              <el-tag
+                v-if="mode === 'structured'"
+                size="small"
+                type="info"
+                effect="plain"
+                >{{ inputType }}</el-tag
+              >
+              <el-tag v-else size="small" type="info" effect="plain"
+                >{{ lineCount }} 行</el-tag
+              >
             </div>
             <div class="editor-content">
               <RichCodeEditor
                 v-model="inputText"
-                :language="inputType === 'YAML' ? 'yaml' : 'json'"
+                :language="
+                  mode === 'structured'
+                    ? inputType === 'YAML'
+                      ? 'yaml'
+                      : 'json'
+                    : 'plaintext'
+                "
                 editor-type="monaco"
-                placeholder="粘贴 JSON 或 YAML 数组数据到这里..."
+                :placeholder="
+                  mode === 'structured'
+                    ? '粘贴 JSON 或 YAML 数组数据到这里...'
+                    : '粘贴需要处理的多行文本到这里...'
+                "
               />
             </div>
           </div>
 
-          <!-- 中间：配置区 -->
           <div class="config-panel">
             <div class="panel-header">
-              <span class="panel-title">筛选规则</span>
-              <div class="panel-header-actions">
-                <!-- 预设选择器 -->
+              <span class="panel-title">{{
+                mode === "structured" ? "筛选规则" : "处理方法"
+              }}</span>
+              <div v-if="mode === 'structured'" class="panel-header-actions">
                 <div class="preset-selector-group">
                   <el-select
                     v-model="activePresetId"
@@ -84,9 +113,9 @@
                     clearable
                     @change="handlePresetChange"
                   >
-                    <template #prefix>
-                      <el-icon><BookmarkIcon /></el-icon>
-                    </template>
+                    <template #prefix
+                      ><el-icon><BookmarkIcon /></el-icon
+                    ></template>
                     <el-option
                       v-for="preset in presets"
                       :key="preset.id"
@@ -98,22 +127,19 @@
                         <el-icon
                           class="delete-icon"
                           @click.stop="handleDeletePreset(preset.id)"
-                        >
-                          <CloseIcon />
-                        </el-icon>
+                          ><CloseIcon
+                        /></el-icon>
                       </div>
                     </el-option>
                   </el-select>
-
                   <div class="preset-actions" v-if="activePresetId">
-                    <el-tooltip content="更新当前预设" placement="top">
-                      <el-button
+                    <el-tooltip content="更新当前预设" placement="top"
+                      ><el-button
                         :icon="SaveIcon"
                         circle
                         size="small"
                         @click="handleUpdatePreset"
-                      />
-                    </el-tooltip>
+                    /></el-tooltip>
                     <el-tooltip content="另存为/重命名" placement="top">
                       <el-dropdown
                         trigger="click"
@@ -133,32 +159,29 @@
                       </el-dropdown>
                     </el-tooltip>
                   </div>
-                  <el-tooltip content="保存为预设" placement="top" v-else>
-                    <el-button
+                  <el-tooltip content="保存为预设" placement="top" v-else
+                    ><el-button
                       :icon="PlusIcon"
                       circle
                       size="small"
                       @click="handleSaveAsPreset"
-                    />
-                  </el-tooltip>
+                  /></el-tooltip>
                 </div>
               </div>
             </div>
 
             <el-scrollbar class="config-scroll">
-              <div class="config-form">
+              <div class="config-form" v-if="mode === 'structured'">
                 <el-form label-position="top" size="small">
                   <div class="config-section-header">
                     <span class="section-label">数据路径 (可选)</span>
                   </div>
-                  <el-form-item>
-                    <el-input
+                  <el-form-item
+                    ><el-input
                       v-model="options.dataPath"
                       placeholder="例如: data.items"
                       clearable
-                    />
-                  </el-form-item>
-
+                  /></el-form-item>
                   <div class="config-section-header">
                     <span class="section-label">筛选条件</span>
                     <el-button
@@ -170,7 +193,6 @@
                       >添加条件</el-button
                     >
                   </div>
-
                   <div
                     v-for="(cond, index) in options.conditions"
                     :key="index"
@@ -193,7 +215,6 @@
                         @click="removeCondition(index)"
                       />
                     </div>
-
                     <div class="cond-row">
                       <el-select
                         v-model="cond.operator"
@@ -201,19 +222,23 @@
                         class="op-select"
                         :disabled="!cond.enabled"
                       >
-                        <el-option label="等于" value="eq" />
-                        <el-option label="不等于" value="ne" />
-                        <el-option label="包含" value="contains" />
-                        <el-option label="大于" value="gt" />
-                        <el-option label="大于等于" value="ge" />
-                        <el-option label="小于" value="lt" />
-                        <el-option label="小于等于" value="le" />
-                        <el-option label="真值" value="truthy" />
-                        <el-option label="假值" value="falsy" />
-                        <el-option label="自定义脚本" value="custom" />
+                        <el-option label="等于" value="eq" /><el-option
+                          label="不等于"
+                          value="ne"
+                        /><el-option label="包含" value="contains" />
+                        <el-option label="大于" value="gt" /><el-option
+                          label="大于等于"
+                          value="ge"
+                        /><el-option label="小于" value="lt" /><el-option
+                          label="小于等于"
+                          value="le"
+                        />
+                        <el-option label="真值" value="truthy" /><el-option
+                          label="假值"
+                          value="falsy"
+                        /><el-option label="自定义脚本" value="custom" />
                       </el-select>
                     </div>
-
                     <div v-if="showValueInput(cond.operator)" class="cond-row">
                       <el-input
                         v-model="cond.value"
@@ -221,7 +246,6 @@
                         :disabled="!cond.enabled"
                       />
                     </div>
-
                     <div v-if="cond.operator === 'custom'" class="cond-row">
                       <el-input
                         v-model="cond.customScript"
@@ -234,8 +258,73 @@
                   </div>
                 </el-form>
               </div>
-            </el-scrollbar>
 
+              <div class="config-form" v-else>
+                <el-form label-position="top" size="small">
+                  <div class="config-section-header">
+                    <span class="section-label">筛选方法</span>
+                  </div>
+                  <el-form-item label="方法">
+                    <el-select
+                      v-model="plainTextOptions.method"
+                      class="op-select"
+                    >
+                      <el-option label="随机删除行" value="random-remove" />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item label="删除方式">
+                    <el-radio-group
+                      v-model="plainTextOptions.removeMode"
+                      size="small"
+                    >
+                      <el-radio-button value="ratio">按比例</el-radio-button>
+                      <el-radio-button value="count">按行数</el-radio-button>
+                    </el-radio-group>
+                  </el-form-item>
+                  <el-form-item
+                    :label="
+                      plainTextOptions.removeMode === 'ratio'
+                        ? '删除比例 (%)'
+                        : '删除行数'
+                    "
+                  >
+                    <el-input-number
+                      v-if="plainTextOptions.removeMode === 'ratio'"
+                      v-model="plainTextOptions.removeRatio"
+                      :min="0"
+                      :max="100"
+                      :precision="2"
+                      controls-position="right"
+                    />
+                    <el-input-number
+                      v-else
+                      v-model="plainTextOptions.removeCount"
+                      :min="0"
+                      :max="lineCount"
+                      :precision="0"
+                      controls-position="right"
+                    />
+                  </el-form-item>
+                  <el-form-item>
+                    <el-checkbox v-model="plainTextOptions.ignoreEmptyLines"
+                      >忽略空行，不参与随机删除</el-checkbox
+                    >
+                  </el-form-item>
+                  <el-form-item label="随机种子（可选）">
+                    <el-input-number
+                      v-model="plainTextOptions.seed"
+                      :step="1"
+                      :precision="0"
+                      controls-position="right"
+                      placeholder="留空则每次随机"
+                    />
+                  </el-form-item>
+                  <div class="method-hint">
+                    随机删除只影响非空行时，空行会原样保留；输出会尽量保持原始换行符风格。
+                  </div>
+                </el-form>
+              </div>
+            </el-scrollbar>
             <div class="config-footer">
               <el-button
                 type="primary"
@@ -247,18 +336,29 @@
             </div>
           </div>
 
-          <!-- 右侧：结果区 -->
           <div class="editor-panel result-panel">
             <div class="panel-header">
               <span class="panel-title">筛选结果</span>
               <div class="stats" v-if="result">
-                <span>{{ result.filtered }} / {{ result.total }} 项</span>
+                <span v-if="mode === 'plain-text'">
+                  {{ result.filtered }} / {{ result.total }} 行，删除
+                  {{ "removed" in result ? result.removed : 0 }} 行
+                </span>
+                <span v-else
+                  >{{ result.filtered }} / {{ result.total }} 项</span
+                >
               </div>
             </div>
             <div class="editor-content">
               <RichCodeEditor
                 :model-value="resultText"
-                :language="inputType === 'YAML' ? 'yaml' : 'json'"
+                :language="
+                  mode === 'structured'
+                    ? inputType === 'YAML'
+                      ? 'yaml'
+                      : 'json'
+                    : 'plaintext'
+                "
                 editor-type="monaco"
                 read-only
               />
@@ -268,50 +368,47 @@
       </div>
     </div>
 
-    <!-- 保存预设对话框 -->
     <BaseDialog
       v-model="savePresetDialogVisible"
       title="保存筛选规则预设"
       width="400px"
     >
-      <el-form label-position="top" size="small">
-        <el-form-item label="预设名称">
-          <el-input
+      <el-form label-position="top" size="small"
+        ><el-form-item label="预设名称"
+          ><el-input
             v-model="saveAsName"
             placeholder="例如：过滤已启用项"
             clearable
             @keyup.enter="confirmSaveAsPreset"
-            ref="saveAsInputRef"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="savePresetDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="confirmSaveAsPreset">保存</el-button>
-      </template>
+            ref="saveAsInputRef" /></el-form-item
+      ></el-form>
+      <template #footer
+        ><el-button @click="savePresetDialogVisible = false">取消</el-button
+        ><el-button type="primary" @click="confirmSaveAsPreset"
+          >保存</el-button
+        ></template
+      >
     </BaseDialog>
-
-    <!-- 重命名预设对话框 -->
     <BaseDialog
       v-model="renamePresetDialogVisible"
       title="重命名预设"
       width="400px"
     >
-      <el-form label-position="top" size="small">
-        <el-form-item label="新的预设名称">
-          <el-input
+      <el-form label-position="top" size="small"
+        ><el-form-item label="新的预设名称"
+          ><el-input
             v-model="renameName"
             placeholder="请输入新的名称"
             clearable
             @keyup.enter="confirmRenamePreset"
-            ref="renameInputRef"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="renamePresetDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="confirmRenamePreset">确定</el-button>
-      </template>
+            ref="renameInputRef" /></el-form-item
+      ></el-form>
+      <template #footer
+        ><el-button @click="renamePresetDialogVisible = false">取消</el-button
+        ><el-button type="primary" @click="confirmRenamePreset"
+          >确定</el-button
+        ></template
+      >
     </BaseDialog>
   </div>
 </template>
@@ -343,7 +440,10 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useSendToChat } from "@/composables/useSendToChat";
 import * as logic from "./logic/dataFilter.logic";
 import yaml from "js-yaml";
-import { useDataFilterConfig } from "./composables/useDataFilterConfig";
+import {
+  useDataFilterConfig,
+  type DataFilterMode,
+} from "./composables/useDataFilterConfig";
 
 // 图标别名
 const BookmarkIcon = Bookmark;
@@ -366,7 +466,10 @@ const {
 
 const inputText = ref("");
 const resultText = ref("");
-const result = ref<logic.FilterResult | null>(null);
+const mode = ref<DataFilterMode>("structured");
+const result = ref<logic.FilterResult | logic.PlainTextFilterResult | null>(
+  null
+);
 const savePresetDialogVisible = ref(false);
 const renamePresetDialogVisible = ref(false);
 const saveAsName = ref("");
@@ -379,12 +482,30 @@ const renameInputRef = ref<InstanceType<
 > | null>(null);
 const activePresetId = ref<string | null>(null);
 const activePresetName = ref("");
+const plainTextOptions = reactive<logic.PlainTextFilterOptions>({
+  method: "random-remove",
+  removeMode: "ratio",
+  removeRatio: 20,
+  removeCount: 1,
+  ignoreEmptyLines: false,
+});
 
 const options = reactive<logic.FilterOptions>({
   dataPath: "",
   conditions: [
     { key: "enabled", operator: "eq", value: "true", enabled: true },
   ],
+});
+
+// 自动识别输入类型
+const lineCount = computed(() => {
+  const text = inputText.value;
+  if (!text) return 0;
+  return text
+    .split(/\r\n|\n|\r/)
+    .filter(
+      (line, index, lines) => !(index === lines.length - 1 && line === "")
+    ).length;
 });
 
 // 自动识别输入类型
@@ -398,6 +519,7 @@ const inputType = computed(() => {
 // 加载持久化配置
 onMounted(async () => {
   const lastState = await loadConfig();
+  mode.value = lastState.mode === "plain-text" ? "plain-text" : "structured";
   if (lastState.inputText) {
     inputText.value = lastState.inputText;
   }
@@ -409,20 +531,41 @@ onMounted(async () => {
           enabled: c.enabled ?? true,
         }))
       : [{ key: "enabled", operator: "eq", value: "true", enabled: true }];
+    const persisted = lastState.options as logic.FilterOptions &
+      Partial<logic.PlainTextFilterOptions>;
+    if (persisted.method === "random-remove") {
+      plainTextOptions.method = persisted.method;
+      plainTextOptions.removeMode = persisted.removeMode ?? "ratio";
+      plainTextOptions.removeRatio = persisted.removeRatio ?? 20;
+      plainTextOptions.removeCount = persisted.removeCount ?? 1;
+      plainTextOptions.ignoreEmptyLines = persisted.ignoreEmptyLines ?? false;
+      plainTextOptions.seed = persisted.seed;
+    }
   }
 });
 
 // 自动保存当前状态（防抖）
 watch(
-  [inputText, () => JSON.stringify(options)],
+  [
+    inputText,
+    mode,
+    () => JSON.stringify(options),
+    () => JSON.stringify(plainTextOptions),
+  ],
   () => {
-    saveLastState(inputText.value, {
+    saveLastState(mode.value, inputText.value, {
       ...options,
+      ...plainTextOptions,
       conditions: [...options.conditions],
     });
   },
   { deep: true }
 );
+
+function handleModeChange() {
+  result.value = null;
+  resultText.value = "";
+}
 
 function addCondition() {
   options.conditions.push({
@@ -463,7 +606,12 @@ async function handleCopy() {
 
 function handleSendToChat() {
   if (!resultText.value) return;
-  const lang = inputType.value === "YAML" ? "yaml" : "json";
+  const lang =
+    mode.value === "plain-text"
+      ? "plaintext"
+      : inputType.value === "YAML"
+        ? "yaml"
+        : "json";
   sendCodeToChat(resultText.value, lang, {
     successMessage: "筛选结果已发送到聊天",
   });
@@ -583,6 +731,15 @@ function doExecuteFilter() {
   }
 
   try {
+    if (mode.value === "plain-text") {
+      const res = logic.applyPlainTextFilter(inputText.value, plainTextOptions);
+      result.value = res;
+      resultText.value = res.error ? "" : res.text;
+      if (res.error) customMessage.error(res.error);
+      else if (res.removed === 0) customMessage.info("筛选完成，没有删除行");
+      return;
+    }
+
     let parsedData: any;
     if (inputType.value === "JSON") {
       parsedData = JSON.parse(inputText.value);
@@ -590,7 +747,6 @@ function doExecuteFilter() {
       parsedData = yaml.load(inputText.value);
     }
 
-    // 预处理 condition 中的 value
     const processedOptions = {
       ...options,
       conditions: options.conditions.map((c) => {
@@ -610,14 +766,11 @@ function doExecuteFilter() {
       customMessage.error(res.error);
       resultText.value = "";
     } else {
-      if (inputType.value === "JSON") {
-        resultText.value = JSON.stringify(res.data, null, 2);
-      } else {
-        resultText.value = yaml.dump(res.data);
-      }
-      if (res.filtered === 0) {
-        customMessage.info("筛选完成，没有匹配的项");
-      }
+      resultText.value =
+        inputType.value === "JSON"
+          ? JSON.stringify(res.data, null, 2)
+          : yaml.dump(res.data);
+      if (res.filtered === 0) customMessage.info("筛选完成，没有匹配的项");
     }
   } catch (e: any) {
     customMessage.error("解析失败: " + e.message);
@@ -664,6 +817,28 @@ function doExecuteFilter() {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-color);
+}
+
+.mode-switcher {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  border-bottom: var(--border-width) solid var(--border-color);
+  background-color: var(--sidebar-bg);
+}
+
+.mode-hint,
+.method-hint {
+  font-size: 12px;
+  color: var(--text-color-light);
+}
+
+.method-hint {
+  line-height: 1.6;
+  padding: 8px 10px;
+  border-radius: 4px;
+  background-color: var(--input-bg);
 }
 
 /* 主内容区 */

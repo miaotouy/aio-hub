@@ -52,6 +52,124 @@ export interface FilterResult {
   error?: string;
 }
 
+export type PlainTextFilterMethod = "random-remove";
+
+export interface PlainTextFilterOptions {
+  method: PlainTextFilterMethod;
+  removeCount?: number;
+  removeRatio?: number;
+  removeMode?: "count" | "ratio";
+  ignoreEmptyLines?: boolean;
+  seed?: number;
+}
+
+export interface PlainTextFilterResult {
+  text: string;
+  total: number;
+  filtered: number;
+  removed: number;
+  error?: string;
+}
+
+/** 将纯文本拆分为行，同时保留原始换行符风格和末尾换行。 */
+function splitPlainTextLines(input: string): {
+  lines: string[];
+  newline: string;
+  hasTrailingNewline: boolean;
+} {
+  const newlineMatch = input.match(/\r\n|\n|\r/);
+  const newline = newlineMatch?.[0] ?? "\n";
+  const hasTrailingNewline = /\r\n$|\r$|\n$/.test(input);
+  const lines = input.length === 0 ? [] : input.split(/\r\n|\n|\r/);
+
+  if (hasTrailingNewline) lines.pop();
+  return { lines, newline, hasTrailingNewline };
+}
+
+function createSeededRandom(seed: number): () => number {
+  let state = Math.trunc(seed) >>> 0 || 0x6d2b79f5;
+  return () => {
+    state = (state + 0x6d2b79f5) | 0;
+    let value = Math.imul(state ^ (state >>> 15), 1 | state);
+    value = (value + Math.imul(value ^ (value >>> 7), 61 | value)) ^ value;
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** 对纯文本按行执行筛选方法。当前支持随机删行，后续方法可在此扩展。 */
+export function applyPlainTextFilter(
+  input: string,
+  options: PlainTextFilterOptions
+): PlainTextFilterResult {
+  const { lines, newline, hasTrailingNewline } = splitPlainTextLines(input);
+  const eligibleIndexes = lines.reduce<number[]>((indexes, line, index) => {
+    if (!options.ignoreEmptyLines || line.trim().length > 0)
+      indexes.push(index);
+    return indexes;
+  }, []);
+
+  if (options.method !== "random-remove") {
+    return {
+      text: input,
+      total: lines.length,
+      filtered: lines.length,
+      removed: 0,
+      error: `不支持的纯文本筛选方法：${options.method}`,
+    };
+  }
+
+  const removeMode = options.removeMode ?? "ratio";
+  const rawValue =
+    removeMode === "count" ? options.removeCount : options.removeRatio;
+  const value = Number(rawValue ?? 0);
+  if (
+    !Number.isFinite(value) ||
+    value < 0 ||
+    (removeMode === "ratio" && value > 100)
+  ) {
+    return {
+      text: input,
+      total: lines.length,
+      filtered: lines.length,
+      removed: 0,
+      error:
+        removeMode === "count"
+          ? "删除行数必须是大于等于 0 的数字"
+          : "删除比例必须在 0 到 100 之间",
+    };
+  }
+
+  const removeCount = Math.min(
+    eligibleIndexes.length,
+    removeMode === "count"
+      ? Math.floor(value)
+      : Math.round((eligibleIndexes.length * value) / 100)
+  );
+  const random =
+    options.seed === undefined ? Math.random : createSeededRandom(options.seed);
+  const shuffled = [...eligibleIndexes];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [
+      shuffled[swapIndex],
+      shuffled[index],
+    ];
+  }
+
+  const removedIndexes = new Set(shuffled.slice(0, removeCount));
+  const resultLines = lines.filter((_, index) => !removedIndexes.has(index));
+  const text =
+    resultLines.join(newline) +
+    (hasTrailingNewline && resultLines.length > 0 ? newline : "");
+
+  return {
+    text,
+    total: lines.length,
+    filtered: resultLines.length,
+    removed: removeCount,
+  };
+}
+
 /**
  * 执行过滤逻辑
  */

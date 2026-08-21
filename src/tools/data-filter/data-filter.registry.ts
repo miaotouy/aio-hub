@@ -22,7 +22,7 @@ export default class DataFilterRegistry implements ToolRegistry {
   public readonly runMode = "any";
   public readonly name = "数据筛选工具";
   public readonly description =
-    "针对 JSON/YAML 列表数据进行声明式条件筛选；界面中的自定义脚本不会暴露给 Agent。";
+    "支持 JSON/YAML 列表条件筛选，以及界面中的纯文本按行处理；纯文本筛选方法仅在 UI 中使用。";
 
   /**
    * Agent 专用：对文件中的 JSON/YAML 数据进行过滤
@@ -88,7 +88,8 @@ export const toolConfig: ToolConfig = {
   runMode: "any",
   icon: markRaw(Filter),
   component: () => import("./DataFilter.vue"),
-  description: "针对 JSON/YAML 列表数据进行条件筛选，支持简单匹配和自定义脚本",
+  description:
+    "处理 JSON/YAML 列表和多行纯文本，支持条件筛选与可扩展的按行处理方法",
   category: ["文本处理"],
   version: "1.3.0",
 };

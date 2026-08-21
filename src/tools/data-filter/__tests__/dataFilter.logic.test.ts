@@ -20,6 +20,7 @@ import {
   formatFilterResult,
   loadDataFile,
   parseFilterOptions,
+  applyPlainTextFilter,
 } from "../logic/dataFilter.logic";
 
 const { mockReadTextFile, mockHandleError } = vi.hoisted(() => ({
@@ -67,6 +68,47 @@ describe("data-filter logic", () => {
   beforeEach(() => {
     mockReadTextFile.mockReset();
     mockHandleError.mockReset();
+  });
+
+  describe("applyPlainTextFilter", () => {
+    it("按固定种子随机删除指定数量的非空行并保留顺序", () => {
+      const input = "a\n\nb\nc\n";
+      const options = {
+        method: "random-remove" as const,
+        removeMode: "count" as const,
+        removeCount: 1,
+        ignoreEmptyLines: true,
+        seed: 42,
+      };
+      const result = applyPlainTextFilter(input, options);
+
+      expect(result.total).toBe(4);
+      expect(result.removed).toBe(1);
+      expect(result.filtered).toBe(3);
+      expect(result.text.endsWith("\n")).toBe(true);
+      expect(result.text.split("\n")).toContain("");
+      expect(result.text).toBe(applyPlainTextFilter(input, options).text);
+    });
+
+    it("按比例删除并校验范围", () => {
+      const result = applyPlainTextFilter("1\r\n2\r\n3\r\n4", {
+        method: "random-remove",
+        removeMode: "ratio",
+        removeRatio: 50,
+        seed: 7,
+      });
+      expect(result.removed).toBe(2);
+      expect(result.filtered).toBe(2);
+      expect(result.text).toContain("\r\n");
+      expect(result.text.split("\r\n")).toHaveLength(2);
+      expect(
+        applyPlainTextFilter("a\nb", {
+          method: "random-remove",
+          removeMode: "ratio",
+          removeRatio: 101,
+        }).error
+      ).toContain("0 到 100");
+    });
   });
 
   describe("applyFilter", () => {

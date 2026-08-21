@@ -88,6 +88,7 @@
 
 | 文档                                                                          | 状态   | 下一动作                                                                      |
 | ----------------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------- |
+| [AIO 调查问题核验台账](./aio-investigation-issue-register.md)                 | 活动   | 跟踪跨会话搜索、媒体任务设置、LLM 凭据持久化和 Agent 接入缺口；按条目关闭     |
 | [Guided Flow](./guided-flow-plan.md)                                          | 待收口 | D-P0-05，按风险拆分 Alpha 数据/安装硬门禁与正式版完整迁移矩阵                 |
 | [前端 Chunk 治理](./frontend-chunk-size-investigation.md)                     | 按需   | D-P2-08，先做自动分包与真实 Tauri A/B                                         |
 | [Provider Adapter 多端共享](./llm-provider-adapter-sharing-investigation.md)  | 待收口 | D-P3-02，仅剩人工运行态观测                                                   |

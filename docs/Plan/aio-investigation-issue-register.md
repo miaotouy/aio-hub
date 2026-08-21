@@ -32,7 +32,7 @@
 | AIO-I-003 | 凭据安全       | LLM Profile 连同 API Key / 自定义请求头以普通 JSON 配置保存                                                                  | `已确认，设计风险` | P1     | 明确受支持平台的凭据保护策略、迁移与降级语义；至少验证本机 ACL/备份/导出边界。                 |
 | AIO-I-004 | 功能契约       | content-deduplicator 暴露 fuzzy、`minSimilarity` 等配置，但扫描结果只有精确/规范化哈希匹配                                   | `已确认，未修复`   | P2     | 实现模糊匹配并测试阈值语义，或从类型、预设和 UI 移除/禁用该承诺。                              |
 | AIO-I-005 | Agent 接口设计 | regex-applier 尚未确定需要向 Agent 暴露的任务场景；现有格式化辅助方法未注册为 Agent 方法                                     | `待产品设计`       | P3     | 先决定是否需要 Agent 编写/维护规则或执行受控批处理；仅在确认场景后定义契约、注册方法并补回归。 |
-| AIO-I-006 | 对话可移植性   | Markdown / JSON / Raw JSON 单会话导出不能从相同格式导回；普通 JSON 也不保留分支关系                                          | `能力缺口`         | P3     | 产品决定是否支持单文件往返；若支持，定义版本化 schema、分支保真、冲突策略和导入安全限制。      |
+| AIO-I-006 | 对话可移植性   | 单会话支持版本化备份 JSON 和历史 Raw JSON 导入；Markdown / 阅读型 JSON 仍为只读导出格式                                      | `已关闭`           | P3     | 回归验证版本化备份、Raw JSON、ZIP 备份、冲突策略与无效会话图拒绝行为。                         |
 | AIO-I-007 | 文档准确性     | media-generator 架构文档仍称 `generateMedia(prompt, type)` 已声明但未实现；当前运行时实际已改为按可见模型动态构建 Agent 方法 | `文档失真`         | P3     | 更新架构文档和 Agent 接入说明，使其与 `buildAgentMethods()` / `getMetadata()` 的当前机制一致。 |
 | AIO-I-008 | 文档准确性     | content-deduplicator 架构文档仍称自定义忽略规则未生效，但当前 Rust walker 已把 `OverrideBuilder` 产物绑定到 `WalkBuilder`    | `文档失真`         | P3     | 更正文档，并增加忽略规则正反例测试，避免以后再次回退。                                         |
 
@@ -88,11 +88,11 @@ Rust 搜索实现仍通过 `WalkDir` 枚举 Agent 和会话 JSON，并对每个�
 
 ### AIO-I-006：结构化单会话导出不可往返
 
-**结论：能力缺口，非自动 defect。**
+**结论：已关闭。**
 
-当前分支导出支持普通 JSON 和 Raw JSON（`src/tools/llm-chat/composables/features/useExportManager.ts:633-639, 1076-`），但批量导入导出服务的往返格式是 ZIP（`src/tools/llm-chat/services/sessionImportExportService.ts:127-`），对应 UI 也只调用 ZIP 管线（`src/tools/llm-chat/components/sidebar/BatchManagerDialog.vue:318-321, 638-`）。调查笔记的全目录检索也未找到读取单文件 Markdown/JSON/Raw JSON 并回写会话的入口。
+桌面端批量管理会话的导入入口现在同时接受 ZIP 批量备份和单会话 `.json`。`sessionImportExportService` 定义了版本化 `aiohub-chat-session` 备份（schema `1.0.0`），导出完整 `index + detail`、完整消息树、根节点和活动叶节点；同一解析入口继续兼容历史 Raw JSON（`{ index, detail }`）与 ZIP 备份。导入前会拒绝缺少会话 ID、节点表、根节点、活动叶节点，或根/活动节点未出现在节点表中的文件，并继续使用 `keep / overwrite / skip` 冲突策略。
 
-普通 JSON 是面向阅读/交换的线性格式，不保留会话树；Raw JSON 虽较接近内部结构，但没有成为受版本管理的导入契约。是否补齐单会话往返应先由产品决定。
+Markdown 和面向阅读的普通 JSON 仍为只读导出格式，不作为导入契约，因为它们不能可靠恢复完整的会话树。导入仅恢复会话数据并保留附件、智能体和模型等既有引用 ID；不会导入、执行、创建或重绑定 Agent、Profile、Provider 配置。
 
 ### AIO-I-007：media-generator 的 Agent 文档已过时
 

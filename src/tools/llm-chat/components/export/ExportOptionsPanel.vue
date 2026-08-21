@@ -23,6 +23,9 @@
           >Markdown{{ isSession ? " (树状)" : "" }}</el-radio-button
         >
         <el-radio-button value="json">JSON</el-radio-button>
+        <el-radio-button v-if="isSession" value="backup"
+          >备份 JSON</el-radio-button
+        >
         <el-radio-button value="raw">Raw (JSON)</el-radio-button>
       </el-radio-group>
     </div>
@@ -167,7 +170,7 @@ withDefaults(defineProps<Props>(), {
   maxRange: 1,
 });
 
-const format = defineModel<"markdown" | "json" | "raw">("format", {
+const format = defineModel<"markdown" | "json" | "backup" | "raw">("format", {
   required: true,
 });
 const includeUserProfile = defineModel<boolean>("includeUserProfile", {

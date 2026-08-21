@@ -639,7 +639,7 @@ const handleExport = async () => {
     const dateStr = formatDateTime(new Date(), "yyyyMMdd");
     const savePath = await save({
       defaultPath: `aiohub-chat-backup-${dateStr}.zip`,
-      filters: [{ name: "AIO Hub Chat Backup", extensions: ["zip"] }],
+      filters: [{ name: "AIO Hub Chat Backup", extensions: ["zip", "json"] }],
     });
 
     if (savePath) {
@@ -678,7 +678,7 @@ const handleImport = async () => {
     importing.value = true;
     const selected = await open({
       multiple: false,
-      filters: [{ name: "AIO Hub Chat Backup", extensions: ["zip"] }],
+      filters: [{ name: "AIO Hub Chat Backup", extensions: ["zip", "json"] }],
     });
     if (!selected || Array.isArray(selected)) return;
 
@@ -692,9 +692,14 @@ const handleImport = async () => {
       return;
     }
 
+    const details = [
+      result.skippedCount > 0 ? `跳过 ${result.skippedCount} 个` : null,
+      result.renamedCount > 0 ? `重命名 ${result.renamedCount} 个` : null,
+      result.overwrittenCount > 0 ? `覆盖 ${result.overwrittenCount} 个` : null,
+    ].filter((detail): detail is string => !!detail);
     customMessage.success(
       `成功导入 ${result.importedCount} 个会话${
-        result.skippedCount > 0 ? `，跳过 ${result.skippedCount} 个` : ""
+        details.length > 0 ? `（${details.join("，")}）` : ""
       }`
     );
   } catch (error) {

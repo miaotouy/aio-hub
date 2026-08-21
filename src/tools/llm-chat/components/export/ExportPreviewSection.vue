@@ -73,7 +73,7 @@ import { buildRichTextRendererSettings } from "../../utils/richTextRendererSetti
 
 interface Props {
   content: string;
-  format: "markdown" | "json" | "raw";
+  format: "markdown" | "json" | "backup" | "raw";
   resolveAsset?: (content: string) => string;
 }
 
@@ -87,7 +87,11 @@ const viewMode = ref<"preview" | "source">("source");
 const { copy } = useClipboard();
 
 const previewLanguage = computed(() => {
-  if (props.format === "json" || props.format === "raw") {
+  if (
+    props.format === "json" ||
+    props.format === "backup" ||
+    props.format === "raw"
+  ) {
     return "json";
   }
   return "markdown";
@@ -97,7 +101,11 @@ const previewStats = computed(() => {
   const lines = props.content.split("\n").length;
   const chars = props.content.length;
   const formatLabel =
-    props.format === "raw" ? "Raw JSON" : props.format.toUpperCase();
+    props.format === "raw"
+      ? "Raw JSON"
+      : props.format === "backup"
+        ? "备份 JSON"
+        : props.format.toUpperCase();
   return `${lines} 行 · ${chars} 字符 · ${formatLabel} 格式`;
 });
 

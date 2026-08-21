@@ -99,6 +99,7 @@ import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { getEffectiveMessageCount } from "../../utils/sessionMessageCount";
 import { formatDateTime } from "@/utils/time";
+import { exportSessionAsBackupJson } from "../../services/sessionImportExportService";
 
 interface Props {
   visible: boolean;
@@ -119,7 +120,7 @@ const localVisible = computed({
 });
 
 // 导出格式
-const exportFormat = ref<"markdown" | "json" | "raw">("markdown");
+const exportFormat = ref<"markdown" | "json" | "backup" | "raw">("markdown");
 
 // 细粒度的导出选项
 const includeUserProfile = ref(true);
@@ -201,7 +202,12 @@ watch(
     };
 
     try {
-      if (exportFormat.value === "raw") {
+      if (exportFormat.value === "backup") {
+        previewContent.value = exportSessionAsBackupJson({
+          index: props.sessionIndex,
+          detail: props.sessionDetail,
+        });
+      } else if (exportFormat.value === "raw") {
         previewContent.value = JSON.stringify(
           {
             index: props.sessionIndex,
@@ -276,7 +282,9 @@ const handleExport = async () => {
     const timestamp = formatDateTime(new Date(), "yyyy-MM-dd");
 
     const isJson =
-      exportFormat.value === "json" || exportFormat.value === "raw";
+      exportFormat.value === "json" ||
+      exportFormat.value === "backup" ||
+      exportFormat.value === "raw";
     const extension = isJson ? "json" : "md";
 
     // 对会话名称和时间戳分别清理并合并，确保万无一失

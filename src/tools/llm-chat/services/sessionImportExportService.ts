@@ -42,6 +42,17 @@ export interface SessionBackupMetadata {
   sessionCount: number;
 }
 
+export const SINGLE_SESSION_BACKUP_FORMAT = "aiohub-chat-session" as const;
+export const SINGLE_SESSION_BACKUP_VERSION = "1.0.0" as const;
+
+export interface SingleSessionBackup {
+  format: typeof SINGLE_SESSION_BACKUP_FORMAT;
+  version: typeof SINGLE_SESSION_BACKUP_VERSION;
+  exportedAt: string;
+  exportedBy?: string;
+  session: ExportableChatSession;
+}
+
 export interface ParsedSessionImport {
   metadata: SessionBackupMetadata | null;
   sessions: ExportableChatSession[];
@@ -56,9 +67,13 @@ export interface ResolvedSessionImport {
 }
 
 type RawSessionFile = Partial<ChatSessionIndex & ChatSessionDetail> & {
-  index?: ChatSessionIndex;
-  detail?: ChatSessionDetail;
+  index?: Partial<ChatSessionIndex>;
+  detail?: Partial<ChatSessionDetail>;
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 function createSessionId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -68,52 +83,126 @@ function createSessionId(): string {
 }
 
 function normalizeSessionFile(
-  raw: RawSessionFile,
+  raw: unknown,
   metadataIndex?: ChatSessionIndex
 ): ExportableChatSession | null {
-  const flat = raw.index && raw.detail ? { ...raw.index, ...raw.detail } : raw;
-  const id = flat.id || raw.index?.id || raw.detail?.id;
-  const nodes = flat.nodes || raw.detail?.nodes;
-  const rootNodeId = flat.rootNodeId || raw.detail?.rootNodeId;
-  const activeLeafId = flat.activeLeafId || raw.detail?.activeLeafId;
+  if (!isRecord(raw)) return null;
 
-  if (!id || !nodes || !rootNodeId || !activeLeafId) {
+  const rawSession = raw as RawSessionFile;
+  const rawIndex = isRecord(rawSession.index) ? rawSession.index : undefined;
+  const rawDetail = isRecord(rawSession.detail) ? rawSession.detail : undefined;
+  const flat = rawIndex && rawDetail ? { ...rawIndex, ...rawDetail } : raw;
+  const typedFlat = flat as Partial<ChatSessionIndex & ChatSessionDetail>;
+  const id = typedFlat.id;
+  const nodes = typedFlat.nodes;
+  const rootNodeId = typedFlat.rootNodeId;
+  const activeLeafId = typedFlat.activeLeafId;
+
+  if (
+    typeof id !== "string" ||
+    !id.trim() ||
+    !isRecord(nodes) ||
+    typeof rootNodeId !== "string" ||
+    !rootNodeId.trim() ||
+    typeof activeLeafId !== "string" ||
+    !activeLeafId.trim() ||
+    !Object.prototype.hasOwnProperty.call(nodes, rootNodeId) ||
+    !Object.prototype.hasOwnProperty.call(nodes, activeLeafId)
+  ) {
     return null;
   }
 
   const now = new Date().toISOString();
   const createdAt =
-    flat.createdAt || metadataIndex?.createdAt || flat.updatedAt || now;
+    typedFlat.createdAt ||
+    metadataIndex?.createdAt ||
+    typedFlat.updatedAt ||
+    now;
   const updatedAt =
-    flat.updatedAt || metadataIndex?.updatedAt || createdAt || now;
-  const messageCount = getEffectiveMessageCount(nodes, rootNodeId);
+    typedFlat.updatedAt || metadataIndex?.updatedAt || createdAt || now;
+  const normalizedNodes = nodes as ChatSessionDetail["nodes"];
+  const messageCount = getEffectiveMessageCount(normalizedNodes, rootNodeId);
 
   const index: ChatSessionIndex = {
     id,
-    name: flat.name || metadataIndex?.name || "导入会话",
-    displayAgentId: flat.displayAgentId ?? metadataIndex?.displayAgentId,
+    name:
+      (typeof typedFlat.name === "string" && typedFlat.name.trim()
+        ? typedFlat.name
+        : metadataIndex?.name) || "导入会话",
+    displayAgentId: typedFlat.displayAgentId ?? metadataIndex?.displayAgentId,
     messageCount,
     createdAt,
     updatedAt,
-    isFavorite: flat.isFavorite ?? metadataIndex?.isFavorite,
+    isFavorite: typedFlat.isFavorite ?? metadataIndex?.isFavorite,
     favoriteFolderId:
-      flat.favoriteFolderId ?? metadataIndex?.favoriteFolderId ?? null,
+      typedFlat.favoriteFolderId ?? metadataIndex?.favoriteFolderId ?? null,
   };
 
   const detail: ChatSessionDetail = {
     id,
     updatedAt,
-    nodes,
+    nodes: normalizedNodes,
     rootNodeId,
     activeLeafId,
     parameterOverrides:
-      flat.parameterOverrides || raw.detail?.parameterOverrides,
-    history: flat.history || raw.detail?.history || [],
-    historyIndex: flat.historyIndex ?? raw.detail?.historyIndex ?? -1,
-    agentUsage: flat.agentUsage || raw.detail?.agentUsage,
+      typedFlat.parameterOverrides || rawDetail?.parameterOverrides,
+    history: typedFlat.history || rawDetail?.history || [],
+    historyIndex: typedFlat.historyIndex ?? rawDetail?.historyIndex ?? -1,
+    agentUsage: typedFlat.agentUsage || rawDetail?.agentUsage,
   };
 
   return { index, detail };
+}
+
+export function exportSessionAsBackupJson(
+  session: ExportableChatSession,
+  options: SessionExportOptions = {}
+): string {
+  const backup: SingleSessionBackup = {
+    format: SINGLE_SESSION_BACKUP_FORMAT,
+    version: SINGLE_SESSION_BACKUP_VERSION,
+    exportedAt: new Date().toISOString(),
+    ...(options.exportedBy ? { exportedBy: options.exportedBy } : {}),
+    session: {
+      index: { ...session.index },
+      detail: { ...session.detail },
+    },
+  };
+  return JSON.stringify(backup, null, 2);
+}
+
+function parseSingleSessionJson(text: string): ParsedSessionImport {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text.replace(/^\uFEFF/, ""));
+  } catch {
+    throw new Error("单会话导入文件不是有效的 JSON");
+  }
+
+  if (!isRecord(raw)) {
+    throw new Error("单会话导入文件必须是 JSON 对象");
+  }
+
+  if (raw.format === SINGLE_SESSION_BACKUP_FORMAT) {
+    if (raw.version !== SINGLE_SESSION_BACKUP_VERSION) {
+      throw new Error(
+        `不支持的单会话备份版本：${String(raw.version ?? "未知")}`
+      );
+    }
+    const normalized = normalizeSessionFile(raw.session);
+    if (!normalized) {
+      throw new Error("单会话备份中的会话结构无效");
+    }
+    return { metadata: null, sessions: [normalized] };
+  }
+
+  const normalized = normalizeSessionFile(raw);
+  if (!normalized) {
+    throw new Error(
+      "JSON 中未找到完整会话。请使用 Raw JSON 或 AIO Hub 备份 JSON，而不是阅读型 JSON。"
+    );
+  }
+  return { metadata: null, sessions: [normalized] };
 }
 
 function toStoredSession(session: ExportableChatSession) {
@@ -163,7 +252,24 @@ export async function exportSessionsAsZip(
 export async function parseImportFile(
   fileData: ArrayBuffer | Uint8Array
 ): Promise<ParsedSessionImport> {
-  const zip = await JSZip.loadAsync(fileData);
+  const bytes =
+    fileData instanceof Uint8Array ? fileData : new Uint8Array(fileData);
+  const text = new TextDecoder().decode(bytes).replace(/^\uFEFF/, "");
+  if (text.trimStart()[0] === "{") {
+    const parsed = parseSingleSessionJson(text);
+    logger.info("单会话 JSON 导入文件解析完成", {
+      count: parsed.sessions.length,
+    });
+    return parsed;
+  }
+
+  let zip: JSZip;
+  try {
+    zip = await JSZip.loadAsync(fileData);
+  } catch {
+    throw new Error("导入文件不是受支持的 ZIP 备份或 JSON 会话");
+  }
+
   const metadataFile = zip.file("metadata.json");
   const metadata = metadataFile
     ? (JSON.parse(await metadataFile.async("string")) as SessionBackupMetadata)

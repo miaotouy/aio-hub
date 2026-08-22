@@ -747,33 +747,72 @@ export function useChatHandler() {
     nodeId: string,
     abortControllers: Map<string, AbortController>,
     generatingNodes: Set<string>,
-    options?: { modelId?: string; profileId?: string; agentId?: string }
+    options?: {
+      modelId?: string;
+      profileId?: string;
+      agentId?: string;
+      /** 仅供排队恢复使用：直接复用已有的 Assistant 占位节点。 */
+      reuseNode?: boolean;
+    }
   ): Promise<void> => {
     const agentStore = useAgentStore();
     const nodeManager = useNodeManager();
+    const reuseNode = options?.reuseNode === true;
 
-    // 1. 创建续写分支
-    const result = nodeManager.createContinuationBranch(session, nodeId);
-    if (!result) return;
+    let assistantNode: ChatMessageNode;
+    let userNode: ChatMessageNode | null;
+    let isContinuation = true;
 
-    const { assistantNode, userNode } = result;
+    if (reuseNode) {
+      const queuedNode = session.nodes?.[nodeId];
+      const parentNode = queuedNode?.parentId
+        ? session.nodes?.[queuedNode.parentId]
+        : undefined;
+
+      if (
+        !queuedNode ||
+        queuedNode.role !== "assistant" ||
+        !parentNode ||
+        parentNode.role !== "user"
+      ) {
+        logger.warn("复用排队 Assistant 占位节点失败：节点或父节点无效", {
+          sessionId: session.id,
+          nodeId,
+        });
+        return;
+      }
+
+      // 排队占位节点本身就是该用户消息的回复目标，不应再创建一个兄弟节点。
+      assistantNode = queuedNode;
+      userNode = parentNode;
+      isContinuation = false;
+      if (assistantNode.metadata) {
+        delete assistantNode.metadata.isQueued;
+      }
+      assistantNode.status = "waiting";
+    } else {
+      // 创建续写分支
+      const result = nodeManager.createContinuationBranch(session, nodeId);
+      if (!result) return;
+
+      assistantNode = result.assistantNode;
+      userNode = result.userNode;
+    }
 
     // 立即加入生成集合
     generatingNodes.add(assistantNode.id);
 
-    // 2. 更新活跃叶节点
+    // 更新活跃叶节点
     nodeManager.updateActiveLeaf(session, assistantNode.id);
 
-    // 3. 获取路径
-    // 如果是 Assistant 续写，路径包含新节点本身（因为新节点内容 = 前缀内容，它就是最后一条消息）
-    // 如果是 User 续写，路径包含 User 节点（新节点是空的助手节点，接在后面）
+    // 获取路径：Assistant 续写包含新节点本身；排队占位节点从父用户消息开始。
+    const sourceNode = session.nodes ? session.nodes[nodeId] : undefined;
     const pathToUserNode = nodeManager.getNodePath(
       session,
-      (session.nodes ? session.nodes[nodeId].role : "user") === "assistant"
+      !reuseNode && sourceNode?.role === "assistant"
         ? assistantNode.id
         : userNode?.id || nodeId
     );
-    const sourceNode = session.nodes ? session.nodes[nodeId] : undefined;
     const { currentAgentId } = useLlmChatUiState();
     const effectiveAgentId =
       options?.agentId || currentAgentId.value || sourceNode?.metadata?.agentId;
@@ -786,7 +825,7 @@ export function useChatHandler() {
       return;
     }
 
-    // 4. 获取配置
+    // 获取配置
     const agentConfig = agentStore.getAgentConfig(effectiveAgentId, {
       parameterOverrides: session.parameterOverrides,
     });
@@ -828,7 +867,7 @@ export function useChatHandler() {
       }
     }
 
-    // 5. 设置元数据
+    // 设置元数据
     const { getProfileById } = useLlmProfiles();
     const profile = getProfileById(agentConfig.profileId);
     const model = profile?.models.find((m) => m.id === agentConfig.modelId);
@@ -851,13 +890,13 @@ export function useChatHandler() {
       };
     }
 
-    // 6. 执行请求
+    // 执行请求
     await executeRequest({
       session,
-      userNode: userNode || assistantNode, // 如果是 Assistant 续写，userNode 为 null 或父节点
+      userNode: userNode || assistantNode,
       assistantNode,
       pathToUserNode,
-      isContinuation: true, // 核心标记
+      isContinuation,
       abortControllers,
       generatingNodes,
       agentConfig,

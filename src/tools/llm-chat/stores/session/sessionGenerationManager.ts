@@ -201,17 +201,22 @@ export function createSessionGenerationManager(
           );
         } else {
           queuedNode.status = "waiting";
+          const reuseQueuedNode = !queuedNode.content?.trim();
           logger.info("检测到排队中的 Assistant 占位节点，自动触发链式生成", {
             sessionId,
             nodeId: queuedNode.id,
             agentId: queuedAgentId,
+            reuseQueuedNode,
           });
           await chatHandler.continueGeneration(
             detail,
             queuedNode.id,
             state.abortControllers.value,
             state.generatingNodes.value,
-            queuedAgentId ? { agentId: queuedAgentId } : undefined
+            {
+              ...(queuedAgentId ? { agentId: queuedAgentId } : {}),
+              ...(reuseQueuedNode ? { reuseNode: true } : {}),
+            }
           );
         }
 

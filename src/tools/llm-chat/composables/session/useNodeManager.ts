@@ -75,6 +75,9 @@ export function useNodeManager() {
     delete clean.tokensPerSecond;
     delete clean.lastCalcHash;
     delete clean.translation;
+    // Queue markers are runtime scheduling state and must not leak into a clone.
+    // Otherwise a queued continuation creates another queued sibling forever.
+    delete clean.isQueued;
 
     return clean;
   };

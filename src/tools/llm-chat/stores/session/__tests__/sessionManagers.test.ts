@@ -324,6 +324,38 @@ describe("llm-chat session managers", () => {
     expect(mocks.sendMessage.mock.calls[1][5]).toBeUndefined();
   });
 
+  it("reuses an empty queued assistant placeholder instead of creating a sibling", async () => {
+    const root = node("root", null, "system");
+    const user = node("user", "root", "user");
+    const queuedAssistant = node("queued-assistant", "user", "assistant", "");
+    queuedAssistant.status = "waiting";
+    queuedAssistant.metadata = { isQueued: true, agentId: "agent-queued" };
+    root.childrenIds = ["user"];
+    user.childrenIds = ["queued-assistant"];
+
+    const detail = session("chat", "queued-assistant", {
+      root,
+      user,
+      "queued-assistant": queuedAssistant,
+    });
+    const { generation } = createGenerationManagerForTest(
+      new Map([["chat", detail]]),
+      "chat",
+      [],
+      ["chat"]
+    );
+
+    await generation.triggerQueuedGenerationForSession("chat");
+
+    expect(mocks.continueGeneration).toHaveBeenCalledTimes(1);
+    expect(mocks.continueGeneration.mock.calls[0][1]).toBe("queued-assistant");
+    expect(mocks.continueGeneration.mock.calls[0][4]).toEqual({
+      agentId: "agent-queued",
+      reuseNode: true,
+    });
+    expect(mocks.regenerateFromNode).not.toHaveBeenCalled();
+  });
+
   it("triggers a queued branch when only another branch is still generating", async () => {
     const root = node("root", null, "system");
     const user = node("user", "root", "user");

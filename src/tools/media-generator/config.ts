@@ -106,6 +106,24 @@ const DEFAULT_TARGET_LANG_LIST = MEDIA_GENERATOR_TARGET_LANG_OPTIONS.map(
   (option) => option.value
 );
 
+export const DEFAULT_MEDIA_ASSET_DOWNLOAD_TIMEOUT = 120_000;
+export const MIN_MEDIA_ASSET_DOWNLOAD_TIMEOUT = 10_000;
+export const MAX_MEDIA_ASSET_DOWNLOAD_TIMEOUT = 1_200_000;
+
+export function normalizeMediaAssetDownloadTimeout(value: unknown): number {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return DEFAULT_MEDIA_ASSET_DOWNLOAD_TIMEOUT;
+  }
+  return Math.min(
+    MAX_MEDIA_ASSET_DOWNLOAD_TIMEOUT,
+    Math.max(
+      MIN_MEDIA_ASSET_DOWNLOAD_TIMEOUT,
+      Math.round(numericValue / 1000) * 1000
+    )
+  );
+}
+
 function createDefaultPromptOptimization(): PromptOptimizationConfig {
   return {
     modelCombo: "",
@@ -229,6 +247,7 @@ export const DEFAULT_MEDIA_GENERATOR_SETTINGS: MediaGeneratorSettings = {
   },
   requestSettings: {
     timeout: 600000, // 默认 10 分钟
+    assetDownloadTimeout: DEFAULT_MEDIA_ASSET_DOWNLOAD_TIMEOUT,
     maxRetries: 0, // 媒体生成通常不建议自动重试，因为很贵且慢
   },
   metadataWrite: {
@@ -520,6 +539,21 @@ export const mediaGeneratorSettingsConfig: SettingsSection<MediaGeneratorSetting
           modelPath: "requestSettings.timeout",
           hint: "媒体生成请求的超时时间。图片/视频生成通常较慢，建议设置在 5 分钟以上。",
           keywords: "request timeout 请求 超时",
+        },
+        {
+          id: "assetDownloadTimeout",
+          label:
+            "结果下载超时 ({{ (localSettings.requestSettings.assetDownloadTimeout / 1000).toFixed(0) }}秒)",
+          component: "ElSlider",
+          props: {
+            min: MIN_MEDIA_ASSET_DOWNLOAD_TIMEOUT,
+            max: MAX_MEDIA_ASSET_DOWNLOAD_TIMEOUT,
+            step: 10000,
+            "format-tooltip": (val: number) => `${(val / 1000).toFixed(0)}秒`,
+          },
+          modelPath: "requestSettings.assetDownloadTimeout",
+          hint: "生成接口返回远程媒体地址后，下载并写入资产库的最大等待时间。该设置独立于上面的生成请求超时。",
+          keywords: "asset download timeout result import 入库 下载 超时 结果",
         },
         {
           id: "maxRetries",

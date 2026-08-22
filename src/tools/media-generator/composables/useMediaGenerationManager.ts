@@ -36,6 +36,10 @@ import { embedMetadata } from "@/utils/mediaMetadataManager";
 import { writeStandardMediaMetadata } from "@/utils/standardMediaMetadataWriter";
 import { useUserProfileStore } from "@/tools/llm-chat/stores/userProfileStore";
 import {
+  DEFAULT_MEDIA_ASSET_DOWNLOAD_TIMEOUT,
+  normalizeMediaAssetDownloadTimeout,
+} from "../config";
+import {
   inferMediaAttachmentType,
   stripAudioDataUrl,
 } from "./mediaAttachmentUtils";
@@ -64,6 +68,7 @@ type MediaGenerationConfig = {
   metadataWrite?: MediaMetadataWriteSettings;
   maxConcurrentTasks?: number;
   autoCleanCompleted?: boolean;
+  assetDownloadTimeout?: number;
 };
 
 type GenerationJob = {
@@ -684,7 +689,14 @@ export function useMediaGenerationManager() {
         progress: 90,
       });
 
-      await handleResponseAssets(taskId, response, type, config?.metadataWrite);
+      await handleResponseAssets(
+        taskId,
+        response,
+        type,
+        config?.metadataWrite,
+        controller.signal,
+        normalizeMediaAssetDownloadTimeout(config?.assetDownloadTimeout)
+      );
 
       taskManager.updateTaskStatus(taskId, "completed", {
         statusText: "生成完成",
@@ -818,7 +830,9 @@ export function useMediaGenerationManager() {
     taskId: string,
     response: LlmResponse,
     type: MediaTaskType,
-    metadataWrite?: MediaMetadataWriteSettings
+    metadataWrite?: MediaMetadataWriteSettings,
+    signal?: AbortSignal,
+    assetDownloadTimeout = DEFAULT_MEDIA_ASSET_DOWNLOAD_TIMEOUT
   ) => {
     const task = taskManager.getTask(taskId);
     if (!task) return;
@@ -876,6 +890,19 @@ export function useMediaGenerationManager() {
 
       try {
         const mediaItem = item as any;
+        if (signal?.aborted) {
+          throw signal.reason || new DOMException("Aborted", "AbortError");
+        }
+        logger.debug("开始处理返回媒体资产", {
+          taskId,
+          index: i,
+          type: itemType,
+          source: mediaItem.b64_json
+            ? "base64"
+            : mediaItem.url
+              ? summarizeUrlForLog(mediaItem.url)
+              : "unknown",
+        });
         if (itemType === "image") {
           mimeType = "image/png";
           extension = "png";
@@ -890,7 +917,11 @@ export function useMediaGenerationManager() {
               extension = mimeTypeToExtension(mimeType, "png");
               bytes = decodeBase64ToArrayBuffer(dataUrlMatch.base64);
             } else {
-              bytes = await fetchAsArrayBuffer(mediaItem.url);
+              bytes = await fetchAsArrayBuffer(
+                mediaItem.url,
+                signal,
+                assetDownloadTimeout
+              );
             }
           }
         } else if (itemType === "video") {
@@ -905,7 +936,11 @@ export function useMediaGenerationManager() {
               extension = mimeTypeToExtension(mimeType, "mp4");
               bytes = decodeBase64ToArrayBuffer(dataUrlMatch.base64);
             } else {
-              bytes = await fetchAsArrayBuffer(mediaItem.url);
+              bytes = await fetchAsArrayBuffer(
+                mediaItem.url,
+                signal,
+                assetDownloadTimeout
+              );
             }
           }
         } else if (itemType === "audio") {
@@ -921,13 +956,23 @@ export function useMediaGenerationManager() {
               extension = mimeTypeToExtension(mimeType, extension);
               bytes = decodeBase64ToArrayBuffer(dataUrlMatch.base64);
             } else {
-              bytes = await fetchAsArrayBuffer(mediaItem.url);
+              bytes = await fetchAsArrayBuffer(
+                mediaItem.url,
+                signal,
+                assetDownloadTimeout
+              );
             }
           }
         }
 
         let asset;
         if (bytes) {
+          logger.debug("媒体资产数据获取完成，开始入库", {
+            taskId,
+            index: i,
+            type: itemType,
+            bytes: bytes.byteLength,
+          });
           if (itemType === "audio" && metadataWrite?.enabled) {
             try {
               bytes = await writeStandardMediaMetadata(
@@ -985,11 +1030,20 @@ export function useMediaGenerationManager() {
         }
 
         if (asset) {
+          logger.info("媒体资产入库成功", {
+            taskId,
+            index: i,
+            assetId: asset.id,
+            size: asset.size,
+          });
           resultAssets.push(asset);
           // 持久化衍生数据
           await persistDerivedData(asset, { ...baseMetadata, itemIndex: i });
         }
       } catch (error) {
+        if (signal?.aborted) {
+          throw signal.reason || new DOMException("Aborted", "AbortError");
+        }
         logger.error(`处理第 ${i} 个资产失败`, error);
       }
     }
@@ -1225,7 +1279,11 @@ export function useMediaGenerationManager() {
   /**
    * 将 URL 转换为 ArrayBuffer
    */
-  async function fetchAsArrayBuffer(url: string): Promise<ArrayBuffer> {
+  async function fetchAsArrayBuffer(
+    url: string,
+    signal?: AbortSignal,
+    downloadTimeout = DEFAULT_MEDIA_ASSET_DOWNLOAD_TIMEOUT
+  ): Promise<ArrayBuffer> {
     // 处理内嵌的 Data URL（兜底，避免 CSP 拦截）
     const dataUrlResult = parseDataUrl(url);
     if (dataUrlResult) {
@@ -1239,7 +1297,7 @@ export function useMediaGenerationManager() {
       url.startsWith("/")
     ) {
       const { convertFileSrc } = await import("@tauri-apps/api/core");
-      const response = await fetch(convertFileSrc(url));
+      const response = await fetch(convertFileSrc(url), { signal });
       if (!response.ok) {
         throw new Error(
           `读取本地媒体失败：${response.status} ${response.statusText}`
@@ -1249,38 +1307,69 @@ export function useMediaGenerationManager() {
     }
 
     const remoteUrl = normalizeRemoteMediaUrl(url);
-    let response: Response;
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(
+      () => timeoutController.abort(),
+      downloadTimeout
+    );
+    const forwardAbort = () => {
+      timeoutController.abort(signal?.reason);
+    };
+    signal?.addEventListener("abort", forwardAbort, { once: true });
 
     try {
-      // 处理远程 URL。走 Tauri HTTP 插件，绕开 WebView CORS 限制。
-      response = await tauriFetch(remoteUrl, {
-        method: "GET",
-        connectTimeout: 30000,
-      });
-    } catch (error) {
-      logger.warn("Tauri HTTP 下载远程媒体失败，改用代理下载", {
-        error: String(error),
-        url: summarizeUrlForLog(remoteUrl),
-      });
-      response = await fetchWithTimeout(
-        remoteUrl,
-        {
+      let response: Response;
+      try {
+        // 处理远程 URL。走 Tauri HTTP 插件，绕开 WebView CORS 限制。
+        response = await tauriFetch(remoteUrl, {
           method: "GET",
-          headers: { Accept: "*/*" },
-          forceProxy: true,
-          relaxIdCerts: true,
-          http1Only: true,
-        },
-        DEFAULT_MEDIA_TIMEOUT
-      );
-    }
+          connectTimeout: 30000,
+          signal: timeoutController.signal,
+        });
+      } catch (error) {
+        if (signal?.aborted) {
+          throw signal.reason || new DOMException("Aborted", "AbortError");
+        }
+        if (timeoutController.signal.aborted) {
+          throw createMediaDownloadTimeoutError(remoteUrl, downloadTimeout);
+        }
 
-    if (!response.ok) {
-      throw new Error(
-        `下载远程媒体失败：${response.status} ${response.statusText}`
-      );
+        logger.warn("Tauri HTTP 下载远程媒体失败，改用代理下载", {
+          error: String(error),
+          url: summarizeUrlForLog(remoteUrl),
+        });
+        response = await fetchWithTimeout(
+          remoteUrl,
+          {
+            method: "GET",
+            headers: { Accept: "*/*" },
+            forceProxy: true,
+            relaxIdCerts: true,
+            http1Only: true,
+          },
+          downloadTimeout,
+          timeoutController.signal
+        );
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          `下载远程媒体失败：${response.status} ${response.statusText}`
+        );
+      }
+      return await response.arrayBuffer();
+    } catch (error) {
+      if (signal?.aborted) {
+        throw signal.reason || new DOMException("Aborted", "AbortError");
+      }
+      if (timeoutController.signal.aborted) {
+        throw createMediaDownloadTimeoutError(remoteUrl, downloadTimeout);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+      signal?.removeEventListener("abort", forwardAbort);
     }
-    return await response.arrayBuffer();
   }
 
   return {
@@ -1301,6 +1390,17 @@ function normalizeRemoteMediaUrl(url: string): string {
   } catch {
     return encodeURI(url);
   }
+}
+
+function createMediaDownloadTimeoutError(
+  url: string,
+  downloadTimeout: number
+): Error {
+  const error = new Error(
+    `下载远程媒体超时（${downloadTimeout / 1000} 秒）：${summarizeUrlForLog(url)}`
+  );
+  error.name = "MediaDownloadTimeoutError";
+  return error;
 }
 
 function summarizeUrlForLog(url: string): string {

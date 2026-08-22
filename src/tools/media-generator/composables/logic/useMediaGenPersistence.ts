@@ -25,6 +25,7 @@ import type {
 } from "../../types";
 import {
   DEFAULT_MEDIA_GENERATOR_SETTINGS,
+  normalizeMediaAssetDownloadTimeout,
   normalizePromptOptimizationConfig,
 } from "../../config";
 import { createModuleLogger } from "@/utils/logger";
@@ -95,6 +96,10 @@ export function useMediaGenPersistence(options: {
           ...DEFAULT_MEDIA_GENERATOR_SETTINGS.requestSettings,
           ...(loadedSettings as Partial<MediaGeneratorSettings> | null)
             ?.requestSettings,
+          assetDownloadTimeout: normalizeMediaAssetDownloadTimeout(
+            (loadedSettings as Partial<MediaGeneratorSettings> | null)
+              ?.requestSettings?.assetDownloadTimeout
+          ),
         },
         metadataWrite: {
           ...DEFAULT_MEDIA_GENERATOR_SETTINGS.metadataWrite,

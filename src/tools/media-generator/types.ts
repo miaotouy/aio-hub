@@ -287,6 +287,8 @@ export interface MediaGeneratorSettings {
   requestSettings: {
     /** 请求超时时间 (ms) */
     timeout: number;
+    /** 生成结果远程媒体下载并入库的超时时间 (ms) */
+    assetDownloadTimeout: number;
     /** 最大重试次数 */
     maxRetries: number;
   };

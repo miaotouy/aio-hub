@@ -66,6 +66,8 @@ const handleSendQuick = async (options: any, mediaType: any) => {
     const config = {
       timeout: store.settings.requestSettings?.timeout,
       maxRetries: store.settings.requestSettings?.maxRetries,
+      assetDownloadTimeout:
+        store.settings.requestSettings?.assetDownloadTimeout,
       metadataWrite: store.settings.metadataWrite,
       maxConcurrentTasks: store.settings.maxConcurrentTasks,
       autoCleanCompleted: store.settings.autoCleanCompleted,

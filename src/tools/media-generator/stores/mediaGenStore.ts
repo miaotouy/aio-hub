@@ -264,6 +264,8 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     const config = {
       timeout: settings.value.requestSettings?.timeout,
       maxRetries: settings.value.requestSettings?.maxRetries,
+      assetDownloadTimeout:
+        settings.value.requestSettings?.assetDownloadTimeout,
       metadataWrite: settings.value.metadataWrite,
       maxConcurrentTasks: settings.value.maxConcurrentTasks,
       autoCleanCompleted: settings.value.autoCleanCompleted,
@@ -584,6 +586,8 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       await mediaGenManager.startGenerationWithTask(task, messages.value, {
         timeout: settings.value.requestSettings?.timeout,
         maxRetries: settings.value.requestSettings?.maxRetries,
+        assetDownloadTimeout:
+          settings.value.requestSettings?.assetDownloadTimeout,
         metadataWrite: settings.value.metadataWrite,
         maxConcurrentTasks: settings.value.maxConcurrentTasks,
         autoCleanCompleted: settings.value.autoCleanCompleted,

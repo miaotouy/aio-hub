@@ -33,8 +33,6 @@ import QuickPromptLibrary from "./QuickPromptLibrary.vue";
 
 const props = defineProps<{
   disabled?: boolean;
-  isGenerating: boolean;
-  hasAttachments: boolean;
   promptText: string;
   includeContext: boolean;
   showContextToggle?: boolean;
@@ -45,8 +43,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: "update:includeContext", value: boolean): void;
-  (e: "send"): void;
-  (e: "abort"): void;
   (e: "trigger-attachment"): void;
   (e: "insert-quick-prompt", prompt: string): void;
 }>();
@@ -178,48 +174,6 @@ const handleInsertQuickPrompt = (prompt: string) => {
         />
       </el-popover>
     </div>
-
-    <div class="toolbar-right">
-      <button
-        v-if="!props.isGenerating"
-        class="btn-send"
-        :disabled="
-          props.disabled || (!props.promptText.trim() && !props.hasAttachments)
-        "
-        @click="emit('send')"
-        title="发送 (Ctrl + Enter)"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <line x1="12" y1="19" x2="12" y2="5"></line>
-          <polyline points="5 12 12 5 19 12"></polyline>
-        </svg>
-      </button>
-      <button v-else class="btn-abort" @click="emit('abort')" title="停止生成">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-        </svg>
-      </button>
-    </div>
   </div>
 </template>
 
@@ -232,8 +186,7 @@ const handleInsertQuickPrompt = (prompt: string) => {
   padding: 0 4px;
 }
 
-.toolbar-left,
-.toolbar-right {
+.toolbar-left {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -284,46 +237,6 @@ const handleInsertQuickPrompt = (prompt: string) => {
   background-color: var(--border-color);
   margin: 0 2px;
   opacity: 0.5;
-}
-
-/* 发送按钮 - 对齐 MessageInputToolbar 样式 */
-.btn-send,
-.btn-abort {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-send {
-  background-color: var(--primary-color);
-  color: white;
-}
-
-.btn-send:hover:not(:disabled) {
-  background-color: var(--primary-hover-color);
-  transform: translateY(-1px);
-}
-
-.btn-send:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.btn-abort {
-  background-color: var(--error-color);
-  color: white;
-}
-
-.btn-abort:hover {
-  opacity: 0.9;
-  transform: translateY(-1px);
 }
 </style>
 

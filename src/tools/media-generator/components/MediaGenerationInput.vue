@@ -504,6 +504,23 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
     ></div>
 
     <div class="input-main-area">
+      <MediaGenerationInputToolbar
+        :disabled="isDisabled"
+        :prompt-text="prompt"
+        :include-context="
+          props.mode === 'session' ? store.currentConfig.includeContext : false
+        "
+        :show-context-toggle="
+          props.mode === 'session' && contextToggleUi.visible
+        "
+        :context-toggle-label="contextToggleUi.toolbarLabel"
+        :context-toggle-tooltip="contextToggleUi.tooltip"
+        :context-toggle-mode="contextToggleUi.mode"
+        @update:include-context="updateIncludeContext"
+        @trigger-attachment="handleTriggerAttachment"
+        @insert-quick-prompt="handleInsertQuickPrompt"
+      />
+
       <!-- 附件展示区 -->
       <div
         v-if="store.hasAttachments"
@@ -544,28 +561,52 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
           "
           @input="adjustHeight"
         ></textarea>
-      </div>
 
-      <MediaGenerationInputToolbar
-        :disabled="isDisabled"
-        :is-generating="isGenerating"
-        :has-attachments="store.hasAttachments"
-        :prompt-text="prompt"
-        :include-context="
-          props.mode === 'session' ? store.currentConfig.includeContext : false
-        "
-        :show-context-toggle="
-          props.mode === 'session' && contextToggleUi.visible
-        "
-        :context-toggle-label="contextToggleUi.toolbarLabel"
-        :context-toggle-tooltip="contextToggleUi.tooltip"
-        :context-toggle-mode="contextToggleUi.mode"
-        @update:include-context="updateIncludeContext"
-        @send="handleSend"
-        @abort="handleAbort"
-        @trigger-attachment="handleTriggerAttachment"
-        @insert-quick-prompt="handleInsertQuickPrompt"
-      />
+        <button
+          v-if="!isGenerating"
+          class="input-action-btn btn-send"
+          :disabled="
+            props.disabled || (!prompt.trim() && !store.hasAttachments)
+          "
+          @click="handleSend"
+          title="发送 (Ctrl + Enter)"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="12" y1="19" x2="12" y2="5"></line>
+            <polyline points="5 12 12 5 19 12"></polyline>
+          </svg>
+        </button>
+        <button
+          v-else
+          class="input-action-btn btn-abort"
+          @click="handleAbort"
+          title="停止生成"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          </svg>
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -645,9 +686,52 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
 }
 
 .input-main {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
+}
+
+.input-action-btn {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+  z-index: 1;
+}
+
+.btn-send {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.btn-send:hover:not(:disabled) {
+  background-color: var(--primary-hover-color);
+  transform: translateY(-1px);
+}
+
+.btn-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-abort {
+  background-color: var(--error-color);
+  color: white;
+}
+
+.btn-abort:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
 }
 
 .native-textarea {
@@ -659,7 +743,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
   font-family: inherit;
   font-size: 14px;
   line-height: 1.6;
-  padding: 4px 8px;
+  padding: 4px 44px 8px 8px;
   resize: none;
   min-height: 36px;
   box-shadow: none;

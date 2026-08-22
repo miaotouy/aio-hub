@@ -190,7 +190,8 @@ const handleInsertQuickPrompt = (insertion: string) => {
   });
 };
 
-const isDisabled = computed(() => isGenerating.value || props.disabled);
+// 生成中的状态只影响会话模式的发送/停止按钮；输入区始终允许继续编辑草稿。
+const isDisabled = computed(() => props.disabled);
 
 const selectedProviderType = computed(() => {
   const mediaType = store.currentConfig.activeType;
@@ -435,7 +436,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
   }
 
   if (!prompt.value.trim() && !store.hasAttachments) return;
-  if (isGenerating.value) {
+  if (props.mode === "session" && isGenerating.value) {
     customMessage.warning("正在生成中，请稍候...");
     return;
   }
@@ -563,7 +564,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
         ></textarea>
 
         <button
-          v-if="!isGenerating"
+          v-if="props.mode === 'quick' || !isGenerating"
           class="input-action-btn btn-send"
           :disabled="
             props.disabled || (!prompt.trim() && !store.hasAttachments)

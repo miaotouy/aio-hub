@@ -114,7 +114,7 @@ URL 输入框显示的是变量替换后的最终 URL，让你在发送前确认
 
 #### 变量的作用范围
 
-变量的作用是 **全局模板替换**——URL、请求头、请求体中的所有 `{{variableName}}` 占位符都会在发送时被替换为当前变量值。例如，修改 `model` 变量为 `deepseek-chat`，URL 和请求体中的 `{{model}}` 会全部自动替换。
+变量的作用是 **全局模板替换**——URL、请求头、请求体中的所有 `{{variableName}}` 占位符都会在发送时被替换为当前变量值。例如，修改 `model` 变量为 `deepseek-v4-flash`，URL 和请求体中的 `{{model}}` 会全部自动替换。
 
 > 💡 **小提示**：你可以通过「配置」按钮打开配置管理对话框，添加自定义变量，扩展预设的能力。
 
@@ -172,7 +172,7 @@ URL 输入框显示的是变量替换后的最终 URL，让你在发送前确认
 
 1. 配置好预设、变量、请求头和请求体
 2. 点击 **配置 → 保存当前配置**
-3. 输入配置名称（如 "DeepSeek Chat 测试"），点击确认
+3. 输入配置名称（如 "DeepSeek V4 Flash 测试"），点击确认
 4. 该配置会保存到浏览器本地存储中
 
 #### 加载已保存配置
@@ -192,9 +192,9 @@ URL 输入框显示的是变量替换后的最终 URL，让你在发送前确认
 许多模型厂商（如 DeepSeek、DashScope、Moonshot、智谱、OpenRouter、Groq、xAI 等）提供与 OpenAI 兼容的 API。可以直接选择对应预设；如果服务商未内置，也可以使用 OpenAI Chat Completion 预设并修改两个变量：
 
 1. `baseUrl` 改为第三方地址（如 `api.deepseek.com`）
-2. 在 `model` 变量的下拉框中手动输入或选择对应的模型名（如 `deepseek-chat`）
+2. 在 `model` 变量的下拉框中手动输入或选择对应的模型名（如 `deepseek-v4-flash`）
 
-> TODO: 截图 - 将 baseUrl 改为 api.deepseek.com，model 选择 deepseek-chat
+> TODO: 截图 - 将 baseUrl 改为 api.deepseek.com，model 选择 deepseek-v4-flash
 
 ### Gemini 流式与非流式切换
 
@@ -226,7 +226,7 @@ Google Gemini API 的非流式和流式使用不同的端点（endpoint）：
 你在调试一个多模型的对比测试时可以这样用：
 
 1. 用 OpenAI 预设配置好 GPT-4 的测试参数，保存为档案「GPT-4 测试」
-2. 将 `baseUrl` 改为 `api.deepseek.com`，`model` 改为 `deepseek-chat`，保存为「DeepSeek 测试」
+2. 将 `baseUrl` 改为 `api.deepseek.com`，`model` 改为 `deepseek-v4-flash`，保存为「DeepSeek 测试」
 3. 在配置管理对话框中点击这两个档案即可快速切换测试不同的模型
 
 ## 常见问题

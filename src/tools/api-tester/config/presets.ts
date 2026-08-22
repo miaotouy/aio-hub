@@ -475,11 +475,11 @@ export const presets: ApiPreset[] = [
   },
   openAiCompatiblePreset({
     id: "deepseek-chat",
-    name: "DeepSeek Chat",
-    description: "DeepSeek OpenAI 兼容聊天接口",
+    name: "DeepSeek V4 Flash",
+    description: "DeepSeek V4 Flash OpenAI 兼容聊天接口",
     baseUrl: "api.deepseek.com",
     apiVersion: "v1",
-    model: "deepseek-chat",
+    model: "deepseek-v4-flash",
     apiKeyDescription: "DeepSeek API 密钥",
   }),
   openAiCompatiblePreset({

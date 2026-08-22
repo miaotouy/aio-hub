@@ -107,7 +107,7 @@ export const providerTypes: ProviderTypeInfo[] = [
   {
     type: "deepseek",
     name: "DeepSeek",
-    description: "DeepSeek 官方 API，支持深度思考和联网搜索",
+    description: "DeepSeek 官方 API，支持深度思考、视觉理解与多种兼容协议",
     defaultBaseUrl: "https://api.deepseek.com",
     supportsModelList: true,
     modelListEndpoint: "models",

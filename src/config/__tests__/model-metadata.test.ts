@@ -140,9 +140,9 @@ describe("model-metadata presets", () => {
       maxOutputTokens: 384000,
       version: "DeepSeek-V4-Pro-0813",
       pricing: {
-        input: 3,
-        output: 6,
-        cacheHitInput: 0.025,
+        input: 9,
+        output: 27,
+        cacheHitInput: 0.3,
         unit: "CNY",
       },
       capabilities: {
@@ -157,12 +157,43 @@ describe("model-metadata presets", () => {
     ).toMatchObject({
       version: "DeepSeek-V4-Flash-0731",
       pricing: {
-        input: 1,
-        output: 2,
-        cacheHitInput: 0.02,
+        input: 3,
+        output: 9,
+        cacheHitInput: 0.1,
         unit: "CNY",
       },
     });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "deepseek-v4-flash-vision-exp"
+      )
+    ).toMatchObject({
+      contextLength: 1024000,
+      maxOutputTokens: 384000,
+      version: "DeepSeek-V4-Flash-Vision-Exp",
+      pricing: {
+        input: 3,
+        output: 9,
+        cacheHitInput: 0.1,
+        unit: "CNY",
+      },
+      capabilities: {
+        vision: true,
+        thinking: true,
+        thinkingConfigType: "switch",
+        fim: false,
+        prefixCompletion: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "deepseek-chat")
+    ).toMatchObject({ deprecated: true });
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "deepseek-reasoner")
+    ).toMatchObject({ deprecated: true });
   });
 
   it("applies Gemma 4 family metadata across common model id forms", () => {

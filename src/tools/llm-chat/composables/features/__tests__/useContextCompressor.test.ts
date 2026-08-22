@@ -161,4 +161,42 @@ describe("useContextCompressor", () => {
     ]);
     expect(detail.nodes["new-summary"].metadata.originalMessageCount).toBe(4);
   });
+
+  it("reports a request failure instead of treating it as insufficient history", async () => {
+    const first: any = {
+      id: "first",
+      content: "first message",
+      childrenIds: ["recent"],
+      role: "user",
+      status: "complete",
+      metadata: { tokenCount: 10 },
+    };
+    const recent: any = {
+      id: "recent",
+      content: "recent message",
+      parentId: first.id,
+      childrenIds: [],
+      role: "assistant",
+      status: "complete",
+      metadata: { tokenCount: 10 },
+    };
+    const detail = {
+      activeLeafId: recent.id,
+      nodes: {
+        [first.id]: first,
+        [recent.id]: recent,
+      },
+    };
+
+    mocks.getNodePath.mockReturnValue([first, recent]);
+    mocks.sendRequest.mockRejectedValue(new Error("API request failed"));
+
+    const { manualCompress } = useContextCompressor();
+    await expect(manualCompress({} as any, detail as any)).resolves.toEqual(
+      expect.objectContaining({
+        success: false,
+        failureReason: "request-failed",
+      })
+    );
+  });
 });

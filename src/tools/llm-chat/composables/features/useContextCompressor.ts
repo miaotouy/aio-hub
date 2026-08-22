@@ -455,6 +455,10 @@ export function useContextCompressor() {
    */
   interface CompressionResult {
     success: boolean;
+    /**
+     * 失败原因仅供调用方决定用户反馈；自动压缩调用通常无需显示提示。
+     */
+    failureReason?: "not-needed" | "request-failed";
     messageCount?: number;
     savedTokenCount?: number;
   }
@@ -472,7 +476,7 @@ export function useContextCompressor() {
 
     // 检查是否启用以及是否允许自动触发
     if (!effectiveConfig.enabled || effectiveConfig.autoTrigger === false) {
-      return { success: false };
+      return { success: false, failureReason: "not-needed" };
     }
 
     // 2. 获取路径并计算统计
@@ -481,7 +485,7 @@ export function useContextCompressor() {
 
     // 3. 判断是否需要压缩
     if (!shouldCompress(contextStats, effectiveConfig)) {
-      return { success: false };
+      return { success: false, failureReason: "not-needed" };
     }
 
     logger.info("触发上下文压缩", { contextStats, config: effectiveConfig });
@@ -544,7 +548,7 @@ export function useContextCompressor() {
         candidateCount: candidateNodes.length,
         protectCount,
       });
-      return { success: false };
+      return { success: false, failureReason: "not-needed" };
     }
 
     // 确定要压缩的节点：从候选列表头部开始，取 compressCount 个
@@ -564,7 +568,7 @@ export function useContextCompressor() {
     const nodesToCompress = compressibleNodes.slice(0, compressCount);
 
     if (nodesToCompress.length === 0) {
-      return { success: false };
+      return { success: false, failureReason: "not-needed" };
     }
 
     // 连续压缩时，最靠近本次压缩范围的已有摘要承载了更早的上下文。
@@ -627,7 +631,7 @@ export function useContextCompressor() {
         userMessage: "上下文压缩执行失败",
         showToUser: false,
       });
-      return { success: false };
+      return { success: false, failureReason: "request-failed" };
     }
   };
 

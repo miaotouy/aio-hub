@@ -687,7 +687,7 @@ export const useMessageInputStore = defineStore(
             `上下文压缩成功：已压缩 ${result.messageCount} 条消息`
           );
           triggerCalculation();
-        } else {
+        } else if (result.failureReason === "not-needed") {
           customMessage.info("没有可压缩的消息，或历史记录不足");
         }
       } catch (error) {

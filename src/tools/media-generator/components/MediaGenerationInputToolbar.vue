@@ -22,12 +22,14 @@ import {
   Image as ImageIcon,
   Music,
   Sparkles,
+  Wand2,
   MessageSquare,
   Target,
   Video,
 } from "lucide-vue-next";
 import type { ContextToggleMode } from "../utils/contextToggleUi";
 import PromptOptimizePanel from "./PromptOptimizePanel.vue";
+import QuickPromptLibrary from "./QuickPromptLibrary.vue";
 
 const props = defineProps<{
   disabled?: boolean;
@@ -46,11 +48,13 @@ const emit = defineEmits<{
   (e: "send"): void;
   (e: "abort"): void;
   (e: "trigger-attachment"): void;
+  (e: "insert-quick-prompt", prompt: string): void;
 }>();
 
 const store = useMediaGenStore();
 
 const showOptimizePopover = ref(false);
+const showQuickPromptPopover = ref(false);
 
 const attachmentButton = computed(() => {
   const activeType = store.currentConfig.activeType;
@@ -82,6 +86,10 @@ const handleApplyOptimized = (value: string) => {
 
 const handleCancelOptimize = () => {
   showOptimizePopover.value = false;
+};
+
+const handleInsertQuickPrompt = (prompt: string) => {
+  emit("insert-quick-prompt", prompt);
 };
 </script>
 
@@ -117,6 +125,31 @@ const handleCancelOptimize = () => {
         </el-icon>
         <span>{{ attachmentButton.label }}</span>
       </button>
+      <div class="v-divider" />
+      <el-popover
+        v-model:visible="showQuickPromptPopover"
+        placement="top-start"
+        :width="660"
+        trigger="click"
+        popper-class="quick-prompt-popover"
+      >
+        <template #reference>
+          <button
+            class="tool-btn"
+            :disabled="props.disabled"
+            title="快捷提示词"
+          >
+            <el-icon class="quick-prompt-trigger-icon"><Wand2 /></el-icon>
+            <span>快捷提示词</span>
+          </button>
+        </template>
+
+        <QuickPromptLibrary
+          :active-type="store.currentConfig.activeType"
+          :disabled="props.disabled"
+          @insert="handleInsertQuickPrompt"
+        />
+      </el-popover>
       <div class="v-divider" />
       <el-popover
         v-model:visible="showOptimizePopover"
@@ -296,6 +329,17 @@ const handleCancelOptimize = () => {
 
 <style>
 /* 全局样式覆盖，用于优化弹窗 */
+.quick-prompt-popover {
+  z-index: var(--z-index-popover) !important;
+  overflow: visible !important;
+  padding: 16px !important;
+  border-radius: 12px !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2) !important;
+  background-color: var(--card-bg) !important;
+  border: 1px solid var(--border-color) !important;
+  backdrop-filter: blur(var(--ui-blur)) !important;
+}
+
 .optimize-popover {
   z-index: var(--z-index-popover) !important;
   overflow: visible !important;

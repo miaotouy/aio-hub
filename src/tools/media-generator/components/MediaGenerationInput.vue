@@ -32,6 +32,7 @@ import { customMessage } from "@/utils/customMessage";
 import { open } from "@tauri-apps/plugin-dialog";
 import { createModuleLogger } from "@/utils/logger";
 import { getMediaContextToggleUi } from "../utils/contextToggleUi";
+import { insertPromptAtSelection } from "../utils/promptInsertion";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
 import type { Asset } from "@/types/asset-management";
 import { isAudioOutputTaskType, type MediaTaskType } from "../types";
@@ -169,6 +170,25 @@ const prompt = toRef(store, "inputPrompt");
 watch(prompt, () => {
   nextTick(adjustHeight);
 });
+
+const handleInsertQuickPrompt = (insertion: string) => {
+  const textarea = textareaRef.value;
+  const result = insertPromptAtSelection(
+    prompt.value,
+    insertion,
+    textarea?.selectionStart,
+    textarea?.selectionEnd
+  );
+
+  prompt.value = result.value;
+  nextTick(() => {
+    const nextTextarea = textareaRef.value;
+    if (!nextTextarea) return;
+    nextTextarea.focus();
+    nextTextarea.setSelectionRange(result.cursor, result.cursor);
+    adjustHeight();
+  });
+};
 
 const isDisabled = computed(() => isGenerating.value || props.disabled);
 
@@ -544,6 +564,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
         @send="handleSend"
         @abort="handleAbort"
         @trigger-attachment="handleTriggerAttachment"
+        @insert-quick-prompt="handleInsertQuickPrompt"
       />
     </div>
   </div>

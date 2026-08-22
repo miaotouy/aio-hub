@@ -67,6 +67,8 @@ const handleSendQuick = async (options: any, mediaType: any) => {
       timeout: store.settings.requestSettings?.timeout,
       maxRetries: store.settings.requestSettings?.maxRetries,
       metadataWrite: store.settings.metadataWrite,
+      maxConcurrentTasks: store.settings.maxConcurrentTasks,
+      autoCleanCompleted: store.settings.autoCleanCompleted,
     };
 
     await executeGeneration(task, undefined, config);

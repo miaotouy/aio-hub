@@ -228,7 +228,7 @@ export function normalizePromptOptimizationConfig(
 export const DEFAULT_MEDIA_GENERATOR_SETTINGS: MediaGeneratorSettings = {
   autoCleanCompleted: false,
   autoOpenAsset: false,
-  maxConcurrentTasks: 3,
+  maxConcurrentTasks: 6,
   enableNotifications: true,
   topicNaming: {
     modelCombo: "",
@@ -545,7 +545,7 @@ export const mediaGeneratorSettingsConfig: SettingsSection<MediaGeneratorSetting
           id: "maxConcurrentTasks",
           label: "最大并发任务数 ({{ localSettings.maxConcurrentTasks }})",
           component: "SliderWithInput",
-          props: { min: 1, max: 10, step: 1 },
+          props: { min: 1, max: 50, step: 1 },
           modelPath: "maxConcurrentTasks",
           hint: "同时进行的生成任务数量",
           keywords: "concurrent task 并发 任务",

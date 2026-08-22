@@ -121,7 +121,8 @@ sequenceDiagram
     participant Asset as useAssetManager
 
     Store ->> Manager: executeGeneration(task, contextMessages, config)
-    Manager ->> Manager: 创建 AbortController (支持中断)
+    Manager ->> Manager: 放入全局并发队列
+    Manager ->> Manager: 获得槽位后创建 AbortController (支持中断)
     Manager ->> Manager: 处理参考图 (Asset → Base64)
     Manager ->> Rules: sanitizeParams(params, rules)
     Rules -->> Manager: 清洁后的参数
@@ -342,10 +343,12 @@ graph TD
 
 - **能力**:
   - `buildTask(options, type, translatedPrompt?)`: 构建任务对象（纯函数）
-  - `executeGeneration(task, contextMessages?, config?)`: 执行生成（核心方法）
+  - `executeGeneration(task, contextMessages?, config?)`: 进入全局并发队列并执行生成（核心方法）
   - `startGenerationWithTask(task)`: 直接从现有 Task 启动（用于重试）
-  - `abortTask(taskId)` / `abortAll()`: 中止生成
+  - `abortTask(taskId)` / `abortAll()`: 取消排队任务或中止运行中任务
   - `handleResponseAssets(taskId, response, type)`: 处理响应资产
+
+生成队列由模块级状态维护，所有媒体工作区实例共享 `maxConcurrentTasks` 上限。设置变化会动态唤醒队列；`autoCleanCompleted` 开启时，已完成任务在 5 分钟后从全局任务池移除，但会话树中的结果节点保留。应用启动时，持久化的 `pending` / `processing` 任务会恢复为 `error`，因为远程媒体请求不支持跨进程续接。
 
 #### 3.2.5. `useMediaTaskManager` (任务池管理器)
 
@@ -354,6 +357,7 @@ graph TD
 - **全局单例**: `globalTasks` 是一个模块级 `ref`，确保跨组件共享
 - **自动持久化**: 通过 `watch(globalTasks, ...)` 自动触发防抖保存
 - **能力**: 添加/更新/移除/获取任务、统计信息
+- **运行时控制**: 同步最大并发数；完成任务按 5 分钟延迟自动清理；重启时将未恢复的 pending/processing 任务落为 error
 
 #### 3.2.6. `useMediaGenInputManager` (输入管理器)
 

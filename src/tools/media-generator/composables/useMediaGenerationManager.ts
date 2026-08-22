@@ -12,13 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { ref, computed } from "vue";
+import { computed, ref } from "vue";
 import { v4 as uuidv4 } from "uuid";
 import { findLastIndex } from "lodash-es";
 import { invoke } from "@tauri-apps/api/core";
 import { writeTextFile, mkdir } from "@tauri-apps/plugin-fs";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
-import { useMediaTaskManager } from "./useMediaTaskManager";
+import {
+  getMediaTaskRuntimeSettings,
+  setMediaTaskRuntimeSettingsListener,
+  useMediaTaskManager,
+} from "./useMediaTaskManager";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -53,6 +57,75 @@ import type { Asset } from "@/types/asset-management";
 const logger = createModuleLogger("media-generator/manager");
 const errorHandler = createModuleErrorHandler("media-generator/manager");
 
+type MediaGenerationConfig = {
+  timeout?: number;
+  maxRetries?: number;
+  autoIncludeLastResult?: boolean;
+  metadataWrite?: MediaMetadataWriteSettings;
+  maxConcurrentTasks?: number;
+  autoCleanCompleted?: boolean;
+};
+
+type GenerationJob = {
+  task: MediaTask;
+  taskManager: ReturnType<typeof useMediaTaskManager>;
+  contextMessages?: MediaMessage[];
+  config?: MediaGenerationConfig;
+  run: () => Promise<void>;
+  resolve: () => void;
+  reject: (error: unknown) => void;
+};
+
+// useMediaGenerationManager 会被工作区、任务列表和 Store 多次实例化，
+// 调度状态必须放在模块级，才能真正限制整个媒体生成器的并发数。
+const queuedJobs: GenerationJob[] = [];
+const runningTaskIds = new Set<string>();
+const runningTaskCount = ref(0);
+const activeAbortControllers = new Map<string, AbortController>();
+
+const pumpGenerationQueue = () => {
+  const { maxConcurrentTasks } = getMediaTaskRuntimeSettings();
+  while (runningTaskIds.size < maxConcurrentTasks && queuedJobs.length > 0) {
+    const job = queuedJobs.shift()!;
+    const currentTask = job.taskManager.getTask(job.task.id);
+
+    if (!currentTask || currentTask.status === "cancelled") {
+      job.resolve();
+      continue;
+    }
+
+    runningTaskIds.add(job.task.id);
+    runningTaskCount.value += 1;
+    void job
+      .run()
+      .then(job.resolve, job.reject)
+      .finally(() => {
+        runningTaskIds.delete(job.task.id);
+        runningTaskCount.value = Math.max(0, runningTaskCount.value - 1);
+        pumpGenerationQueue();
+      });
+  }
+};
+
+const cancelQueuedTask = (
+  taskId: string,
+  taskManager: ReturnType<typeof useMediaTaskManager>,
+  shouldPump = true
+) => {
+  const index = queuedJobs.findIndex((job) => job.task.id === taskId);
+  if (index === -1) return false;
+  const [job] = queuedJobs.splice(index, 1);
+  taskManager.updateTaskStatus(taskId, "cancelled", {
+    statusText: "任务已取消",
+    error: "用户取消了排队任务",
+  });
+  job.resolve();
+  if (shouldPump) pumpGenerationQueue();
+  return true;
+};
+
+setMediaTaskRuntimeSettingsListener(pumpGenerationQueue);
+
 export function useMediaGenerationManager() {
   const taskManager = useMediaTaskManager();
   const userProfileStore = useUserProfileStore();
@@ -70,9 +143,7 @@ export function useMediaGenerationManager() {
     usesAspectRatioMode,
     buildXaiSizeParams,
   } = useMediaGenParamRules();
-  const isGenerating = ref(false);
-  // 使用 Map 管理多个任务的 AbortController
-  const abortControllers = ref<Map<string, AbortController>>(new Map());
+  const isGenerating = computed(() => runningTaskCount.value > 0);
 
   const resolveModelSelection = (
     profileId: string | undefined,
@@ -310,31 +381,37 @@ export function useMediaGenerationManager() {
    * 中止特定任务
    */
   const abortTask = (taskId: string) => {
-    const controller = abortControllers.value.get(taskId);
-    if (controller) {
-      controller.abort();
-      abortControllers.value.delete(taskId);
-      logger.info("中止了生成任务", { taskId });
+    if (cancelQueuedTask(taskId, taskManager)) {
+      logger.info("取消了排队中的生成任务", { taskId });
+      return;
+    }
 
-      if (abortControllers.value.size === 0) {
-        isGenerating.value = false;
-      }
+    const controller = activeAbortControllers.get(taskId);
+    if (controller) {
+      // 不要在这里删除 controller；由 executeGeneration 的 finally 统一回收，
+      // 这样 AbortError 一定能把任务状态落为 cancelled 并唤醒队列。
+      controller.abort();
+      logger.info("中止了生成任务", { taskId });
     }
   };
 
   /**
-   * 中止所有任务
+   * 中止所有任务（包括尚未启动的排队任务）
    */
   const abortAll = () => {
-    if (abortControllers.value.size === 0) return;
+    const queuedTaskIds = queuedJobs.map((job) => job.task.id);
+    queuedTaskIds.forEach((taskId) =>
+      cancelQueuedTask(taskId, taskManager, false)
+    );
+    pumpGenerationQueue();
 
-    for (const [taskId, controller] of abortControllers.value.entries()) {
+    for (const [taskId, controller] of activeAbortControllers.entries()) {
       controller.abort();
       logger.info("中止了生成任务(批量)", { taskId });
     }
-    abortControllers.value.clear();
-    isGenerating.value = false;
-    logger.info("用户中止了所有生成任务");
+    if (queuedTaskIds.length > 0 || activeAbortControllers.size > 0) {
+      logger.info("用户中止了所有生成任务");
+    }
   };
 
   /**
@@ -378,23 +455,17 @@ export function useMediaGenerationManager() {
    * @param contextMessages 可选的上下文消息列表 (会话模式传入)
    * @param config 可选的请求配置 (超时、重试等)
    */
-  const executeGeneration = async (
+  const runGeneration = async (
     task: MediaTask,
     contextMessages?: MediaMessage[],
-    config?: {
-      timeout?: number;
-      maxRetries?: number;
-      autoIncludeLastResult?: boolean;
-      metadataWrite?: MediaMetadataWriteSettings;
-    }
+    config?: MediaGenerationConfig
   ) => {
     const taskId = task.id;
     const options = task.input.params as any;
     const type = task.type;
 
-    isGenerating.value = true;
     const controller = new AbortController();
-    abortControllers.value.set(taskId, controller);
+    activeAbortControllers.set(taskId, controller);
 
     try {
       if (
@@ -621,9 +692,9 @@ export function useMediaGenerationManager() {
       });
     } catch (error: any) {
       if (error.name === "AbortError") {
-        taskManager.updateTaskStatus(taskId, "error", {
+        taskManager.updateTaskStatus(taskId, "cancelled", {
           error: "已中止",
-          statusText: "任务已中止",
+          statusText: "任务已取消",
         });
         return;
       }
@@ -636,11 +707,50 @@ export function useMediaGenerationManager() {
         showToUser: false,
       });
     } finally {
-      abortControllers.value.delete(taskId);
-      if (abortControllers.value.size === 0) {
-        isGenerating.value = false;
-      }
+      activeAbortControllers.delete(taskId);
     }
+  };
+
+  /**
+   * 将任务放入全局并发队列。只有获得槽位后才会创建 AbortController 并发送远程请求。
+   */
+  const executeGeneration = (
+    task: MediaTask,
+    contextMessages?: MediaMessage[],
+    config?: MediaGenerationConfig
+  ): Promise<void> => {
+    if (
+      config?.maxConcurrentTasks !== undefined ||
+      config?.autoCleanCompleted !== undefined
+    ) {
+      taskManager.configureRuntimeSettings({
+        maxConcurrentTasks: config.maxConcurrentTasks,
+        autoCleanCompleted: config.autoCleanCompleted,
+      });
+    }
+
+    if (
+      runningTaskIds.has(task.id) ||
+      queuedJobs.some((job) => job.task.id === task.id)
+    ) {
+      return Promise.resolve();
+    }
+
+    return new Promise<void>((resolve, reject) => {
+      queuedJobs.push({
+        task,
+        taskManager,
+        contextMessages,
+        config,
+        run: () => runGeneration(task, contextMessages, config),
+        resolve,
+        reject,
+      });
+      taskManager.updateTaskStatus(task.id, "pending", {
+        statusText: "等待并发槽位...",
+      });
+      pumpGenerationQueue();
+    });
   };
 
   /**
@@ -696,12 +806,7 @@ export function useMediaGenerationManager() {
   const startGenerationWithTask = async (
     task: MediaTask,
     contextMessages?: MediaMessage[],
-    config?: {
-      timeout?: number;
-      maxRetries?: number;
-      autoIncludeLastResult?: boolean;
-      metadataWrite?: MediaMetadataWriteSettings;
-    }
+    config?: MediaGenerationConfig
   ) => {
     await executeGeneration(task, contextMessages, config);
   };
@@ -1180,7 +1285,7 @@ export function useMediaGenerationManager() {
 
   return {
     isGenerating,
-    activeTaskCount: computed(() => abortControllers.value.size),
+    activeTaskCount: computed(() => runningTaskCount.value),
     buildTask,
     executeGeneration,
     startGenerationWithTask,

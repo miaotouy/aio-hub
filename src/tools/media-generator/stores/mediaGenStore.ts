@@ -82,6 +82,19 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     },
   });
 
+  // 任务池和生成管理器可能由多个组件实例使用，设置变化时同步到全局
+  // 运行时调度器，确保修改后无需重新打开工作区才生效。
+  watch(
+    () => ({
+      maxConcurrentTasks: settings.value.maxConcurrentTasks,
+      autoCleanCompleted: settings.value.autoCleanCompleted,
+    }),
+    (runtimeSettings) => {
+      taskManager.configureRuntimeSettings(runtimeSettings);
+    },
+    { immediate: true }
+  );
+
   // --- 计算属性 ---
   const sessions = computed(() => Array.from(sessionIndexMap.value.values()));
 
@@ -252,6 +265,8 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       timeout: settings.value.requestSettings?.timeout,
       maxRetries: settings.value.requestSettings?.maxRetries,
       metadataWrite: settings.value.metadataWrite,
+      maxConcurrentTasks: settings.value.maxConcurrentTasks,
+      autoCleanCompleted: settings.value.autoCleanCompleted,
     };
 
     await genManager.executeGeneration(task, messages.value, config);
@@ -570,6 +585,8 @@ export const useMediaGenStore = defineStore("media-generator", () => {
         timeout: settings.value.requestSettings?.timeout,
         maxRetries: settings.value.requestSettings?.maxRetries,
         metadataWrite: settings.value.metadataWrite,
+        maxConcurrentTasks: settings.value.maxConcurrentTasks,
+        autoCleanCompleted: settings.value.autoCleanCompleted,
       });
     } finally {
       retryingSourceMessageIds.value.delete(messageId);

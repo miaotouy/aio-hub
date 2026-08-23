@@ -968,8 +968,20 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         component: "SliderWithInput",
         props: { min: 16, max: 1024, step: 16 },
         modelPath: "topicNaming.maxTokens",
-        hint: "生成标题的最大 token 数。思考模型会自动提高最低预算以避免正文被推理过程挤占。",
+        hint: "生成标题的正文 token 上限。思考模型是否额外预留推理空间由下方设置控制。",
         keywords: "topic naming max tokens 话题 命名 token",
+        visible: (settings) => settings.topicNaming.enabled,
+      },
+      {
+        id: "thinkingTokenReserve",
+        label:
+          "思考额外预留 ({{ localSettings.topicNaming.thinkingTokenReserve }})",
+        component: "SliderWithInput",
+        props: { min: 0, max: 16384, step: 256 },
+        modelPath: "topicNaming.thinkingTokenReserve",
+        hint: "思考模型的 reasoning tokens 也会计入 max_tokens。建议至少预留 4096；关闭思考时不会增加请求上限。",
+        keywords:
+          "topic naming thinking reasoning reserve tokens 话题 命名 思考 推理 预留",
         visible: (settings) => settings.topicNaming.enabled,
       },
       {

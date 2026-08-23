@@ -288,6 +288,8 @@ export interface ChatSettings {
     temperature: number;
     /** 输出上限（token） */
     maxTokens: number;
+    /** 思考模型在 max_tokens 中额外预留的推理空间 */
+    thinkingTokenReserve: number;
     /** 是否在话题命名时关闭模型思考 */
     disableThinking: boolean;
     /** 自动触发的消息数量阈值 */

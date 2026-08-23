@@ -164,7 +164,7 @@ describe("topicNamingUtils", () => {
       });
 
       expect(request.reasoningEffort).toBe("low");
-      expect(request.maxTokens).toBe(1024);
+      expect(request.maxTokens).toBe(4126);
       expect(request.responseFormat?.type).toBe("json_schema");
     });
 
@@ -186,7 +186,7 @@ describe("topicNamingUtils", () => {
 
       expect(request.thinkingEnabled).toBe(false);
       expect(request.reasoningEffort).toBeUndefined();
-      expect(request.maxTokens).toBe(1024);
+      expect(request.maxTokens).toBe(30);
     });
 
     it("enables a small thinking budget on retry for budget models", () => {
@@ -206,8 +206,28 @@ describe("topicNamingUtils", () => {
 
       expect(request.thinkingEnabled).toBe(true);
       expect(request.thinkingBudget).toBe(256);
-      expect(request.maxTokens).toBeGreaterThanOrEqual(1280);
+      expect(request.maxTokens).toBe(4126);
       expect(request.responseFormat).toBeUndefined();
+    });
+
+    it("uses the configurable thinking token reserve", () => {
+      const request = buildTopicNamingRequestOptions({
+        profileId: "p1",
+        modelId: "agnes-2.5-flash",
+        temperature: 0.5,
+        maxTokens: 128,
+        thinkingTokenReserve: 8192,
+        useStructuredOutput: false,
+        disableThinking: false,
+        isRetry: true,
+        capabilities: {
+          thinking: true,
+          thinkingConfigType: "budget",
+        },
+      });
+
+      expect(request.thinkingEnabled).toBe(true);
+      expect(request.maxTokens).toBe(8320);
     });
 
     it("keeps enough output room when disabling budget thinking on first attempt", () => {
@@ -227,7 +247,7 @@ describe("topicNamingUtils", () => {
 
       expect(request.thinkingEnabled).toBe(false);
       expect(request.thinkingBudget).toBeUndefined();
-      expect(request.maxTokens).toBe(1024);
+      expect(request.maxTokens).toBe(128);
     });
 
     it("uses json_object response format for json-output-only models", () => {

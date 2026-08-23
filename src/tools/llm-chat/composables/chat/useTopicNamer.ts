@@ -239,6 +239,7 @@ export function useTopicNamer() {
             modelId,
             temperature: namingConfig.temperature,
             maxTokens: namingConfig.maxTokens,
+            thinkingTokenReserve: namingConfig.thinkingTokenReserve,
             capabilities: modelCapabilities,
             useStructuredOutput,
             structuredOutputMode: useStructuredOutput

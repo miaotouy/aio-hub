@@ -55,6 +55,7 @@ const CONTEXT_MESSAGE_MAX_CHARS = 1200;
 const RETRY_THINKING_BUDGET = 256;
 const THINKING_MODEL_MIN_MAX_TOKENS = 1024;
 const THINKING_MODEL_RETRY_MIN_MAX_TOKENS = 1536;
+export const DEFAULT_TOPIC_THINKING_TOKEN_RESERVE = 4096;
 
 export interface ExtractTopicTitleOptions {
   maxTitleLength?: number;
@@ -69,6 +70,8 @@ export interface TopicNamingRequestBuildOptions {
   capabilities?: ModelCapabilities;
   useStructuredOutput: boolean;
   structuredOutputMode?: TopicStructuredOutputMode;
+  /** 思考模型额外预留的 reasoning token 数；未传入时使用 4096。 */
+  thinkingTokenReserve?: number;
   /** 未传入时保持旧行为；设置页会始终传入该值。 */
   disableThinking?: boolean;
   isRetry: boolean;
@@ -376,6 +379,10 @@ export function buildTopicNamingRequestOptions(
     (thinkingConfigType && thinkingConfigType !== "none")
   );
   const maxTokens = Math.max(16, options.maxTokens);
+  const thinkingTokenReserve = Math.max(
+    0,
+    options.thinkingTokenReserve ?? DEFAULT_TOPIC_THINKING_TOKEN_RESERVE
+  );
   const request: TopicNamingRequestOptionsResult = {
     profileId: options.profileId,
     modelId: options.modelId,
@@ -383,6 +390,12 @@ export function buildTopicNamingRequestOptions(
     maxTokens,
     stream: false,
   };
+  const maxTokensWithThinkingReserve = Math.max(
+    maxTokens + thinkingTokenReserve,
+    options.isRetry
+      ? THINKING_MODEL_RETRY_MIN_MAX_TOKENS
+      : THINKING_MODEL_MIN_MAX_TOKENS
+  );
 
   if (options.useStructuredOutput) {
     request.responseFormat =
@@ -397,19 +410,14 @@ export function buildTopicNamingRequestOptions(
   }
 
   if (options.disableThinking) {
+    // 关闭思考时不再人为追加推理预算；关键是把 disabled 明确透传给兼容渠道。
     request.thinkingEnabled = false;
-    request.maxTokens = Math.max(maxTokens, THINKING_MODEL_MIN_MAX_TOKENS);
     return request;
   }
 
   if (thinkingConfigType === "effort") {
     request.reasoningEffort = "low";
-    request.maxTokens = Math.max(
-      maxTokens,
-      options.isRetry
-        ? THINKING_MODEL_RETRY_MIN_MAX_TOKENS
-        : THINKING_MODEL_MIN_MAX_TOKENS
-    );
+    request.maxTokens = maxTokensWithThinkingReserve;
     return request;
   }
 
@@ -417,34 +425,21 @@ export function buildTopicNamingRequestOptions(
     if (options.isRetry) {
       request.thinkingEnabled = true;
       request.thinkingBudget = RETRY_THINKING_BUDGET;
-      request.maxTokens = Math.max(
-        maxTokens,
-        RETRY_THINKING_BUDGET + THINKING_MODEL_MIN_MAX_TOKENS
-      );
+      request.maxTokens = maxTokensWithThinkingReserve;
     } else {
       request.thinkingEnabled = false;
-      request.maxTokens = Math.max(maxTokens, THINKING_MODEL_MIN_MAX_TOKENS);
+      request.maxTokens = maxTokens;
     }
     return request;
   }
 
   if (thinkingConfigType === "switch") {
     request.thinkingEnabled = options.isRetry;
-    request.maxTokens = Math.max(
-      maxTokens,
-      options.isRetry
-        ? THINKING_MODEL_RETRY_MIN_MAX_TOKENS
-        : THINKING_MODEL_MIN_MAX_TOKENS
-    );
+    request.maxTokens = maxTokensWithThinkingReserve;
     return request;
   }
 
-  request.maxTokens = Math.max(
-    maxTokens,
-    options.isRetry
-      ? THINKING_MODEL_RETRY_MIN_MAX_TOKENS
-      : THINKING_MODEL_MIN_MAX_TOKENS
-  );
+  request.maxTokens = maxTokensWithThinkingReserve;
   return request;
 }
 

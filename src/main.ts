@@ -34,7 +34,7 @@ import { ElNotification } from "element-plus";
 import { extname } from "@tauri-apps/api/path"; // 导入 path 模块用于获取文件扩展名
 import { createPinia } from "pinia"; // 导入 Pinia
 import { errorHandler, ErrorLevel } from "./utils/errorHandler";
-import { createModuleLogger } from "./utils/logger";
+import { createModuleLogger, logger as appLogger } from "./utils/logger";
 import packageJson from "../package.json";
 // 导入 Monaco 汉化模块，确保 globalThis._VSCODE_NLS_MESSAGES 被初始化
 import "@/utils/monaco-i18n/nls";
@@ -182,6 +182,12 @@ const startFrontendHeartbeat = () => {
 
   document.addEventListener("visibilitychange", () => {
     reportFrontendHeartbeat("visibilitychange");
+    if (document.visibilityState === "hidden") {
+      void appLogger.flush();
+    }
+  });
+  window.addEventListener("pagehide", () => {
+    void appLogger.flush();
   });
   window.addEventListener("focus", () => reportFrontendHeartbeat("focus"));
   window.addEventListener("online", () => reportFrontendHeartbeat("online"));

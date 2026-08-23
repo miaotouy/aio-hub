@@ -127,6 +127,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         write_file_force,
         write_text_file_force,
         append_file_force,
+        append_app_log,
         create_dir_force,
         read_text_file_force,
         open_path_force,

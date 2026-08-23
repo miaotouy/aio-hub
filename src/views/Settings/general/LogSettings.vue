@@ -49,6 +49,8 @@ const bufferSizeOptions = [
 
 // 单个日志文件大小选项
 const maxFileSizeOptions = [
+  { label: "256 KB", value: 256 * 1024 },
+  { label: "512 KB（默认）", value: 512 * 1024 },
   { label: "1 MB", value: 1024 * 1024 },
   { label: "2 MB", value: 2 * 1024 * 1024 },
   { label: "5 MB", value: 5 * 1024 * 1024 },
@@ -79,7 +81,7 @@ const internalLogLevel = ref<"DEBUG" | "INFO" | "WARN" | "ERROR">("INFO");
 const internalLogToFile = ref<boolean>(true);
 const internalLogToConsole = ref<boolean>(true);
 const internalLogBufferSize = ref<number>(1000);
-const internalMaxFileSize = ref<number>(2 * 1024 * 1024);
+const internalMaxFileSize = ref<number>(512 * 1024);
 
 // 日志统计信息
 const logStats = ref({

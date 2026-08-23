@@ -369,7 +369,7 @@ export const defaultAppSettings: AppSettings = {
   logToFile: true, // 默认启用文件日志
   logToConsole: true, // 默认启用控制台日志
   logBufferSize: 1000, // 默认缓冲区大小
-  maxFileSize: 2 * 1024 * 1024, // 默认 2MB
+  maxFileSize: 512 * 1024, // 默认 512KB，便于快速定位和读取前端日志
   version: "1.0.0",
   // 默认 CSS 覆盖配置
   cssOverride: {

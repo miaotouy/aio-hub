@@ -22,8 +22,7 @@ use std::fs;
 use std::io::{Read, Seek, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
-use std::time::SystemTime;
+use std::time::{Duration, Instant, SystemTime};
 use tauri::{AppHandle, Emitter};
 use tokio_util::sync::CancellationToken;
 use zip::ZipArchive;
@@ -288,6 +287,10 @@ pub struct OperationLog {
 // 全局操作日志历史（最多保存100条）
 lazy_static! {
     static ref OPERATION_LOGS: Mutex<Vec<OperationLog>> = Mutex::new(Vec::new());
+    // 所有 WebView 共用此锁。前端日志文件的日期切换、大小滚动和追加必须在同一
+    // 临界区内完成，避免多窗口同时轮转时覆盖或丢失记录。
+    static ref APP_LOG_WRITE_LOCK: Mutex<()> = Mutex::new(());
+    static ref APP_LOG_LAST_CLEANUP_DATE: Mutex<Option<String>> = Mutex::new(None);
 }
 
 // 添加操作日志
@@ -2645,6 +2648,193 @@ pub async fn append_file_force(path: String, content: Vec<u8>) -> Result<(), Str
     Ok(())
 }
 
+const APP_LOG_MIN_FILE_SIZE: u64 = 128 * 1024;
+const APP_LOG_MAX_FILE_SIZE: u64 = 20 * 1024 * 1024;
+const APP_LOG_RETENTION_DAYS: u64 = 30;
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct AppLogAppendResult {
+    pub path: String,
+    pub rotated_file_name: Option<String>,
+}
+
+fn validate_app_log_date(date: &str) -> Result<(), String> {
+    chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")
+        .map(|_| ())
+        .map_err(|_| format!("无效的日志日期: {date}"))
+}
+
+fn validate_app_log_archive_time(archive_time: &str) -> Result<(), String> {
+    let is_valid = archive_time.len() == 12
+        && archive_time
+            .chars()
+            .enumerate()
+            .all(|(index, character)| match index {
+                2 | 5 | 8 => character == '-',
+                _ => character.is_ascii_digit(),
+            });
+
+    if is_valid {
+        Ok(())
+    } else {
+        Err(format!("无效的日志归档时间: {archive_time}"))
+    }
+}
+
+fn app_log_active_path(log_dir: &Path, date: &str) -> PathBuf {
+    log_dir.join(format!("app-{date}.log"))
+}
+
+fn next_app_log_archive_path(log_dir: &Path, date: &str, archive_time: &str) -> PathBuf {
+    let base_name = format!("app-{date}.{archive_time}");
+    let mut candidate = log_dir.join(format!("{base_name}.log"));
+    let mut index = 1;
+
+    while candidate.exists() {
+        candidate = log_dir.join(format!("{base_name}-{index}.log"));
+        index += 1;
+    }
+
+    candidate
+}
+
+fn append_app_log_to_dir(
+    log_dir: &Path,
+    date: &str,
+    archive_time: &str,
+    content: &[u8],
+    max_file_size: u64,
+    sync_data: bool,
+) -> Result<AppLogAppendResult, String> {
+    validate_app_log_date(date)?;
+    validate_app_log_archive_time(archive_time)?;
+    fs::create_dir_all(log_dir).map_err(|error| format!("创建日志目录失败: {error}"))?;
+
+    let max_file_size = max_file_size.clamp(APP_LOG_MIN_FILE_SIZE, APP_LOG_MAX_FILE_SIZE);
+    let active_path = app_log_active_path(log_dir, date);
+    let current_size = match fs::metadata(&active_path) {
+        Ok(metadata) => metadata.len(),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => 0,
+        Err(error) => return Err(format!("读取日志文件大小失败: {error}")),
+    };
+
+    let rotated_file_name =
+        if current_size > 0 && current_size.saturating_add(content.len() as u64) > max_file_size {
+            let archive_path = next_app_log_archive_path(log_dir, date, archive_time);
+            fs::rename(&active_path, &archive_path).map_err(|error| {
+                format!(
+                    "轮转前端日志失败 ({} -> {}): {error}",
+                    active_path.display(),
+                    archive_path.display()
+                )
+            })?;
+            archive_path
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+        } else {
+            None
+        };
+
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&active_path)
+        .map_err(|error| format!("打开日志文件失败: {error}"))?;
+    file.write_all(content)
+        .map_err(|error| format!("写入日志文件失败: {error}"))?;
+    // 逐条 flush 让正在诊断的读取器立刻看到日志；ERROR 则额外同步到磁盘。
+    file.flush()
+        .map_err(|error| format!("刷新日志文件失败: {error}"))?;
+    if sync_data {
+        file.sync_data()
+            .map_err(|error| format!("同步日志文件失败: {error}"))?;
+    }
+
+    Ok(AppLogAppendResult {
+        path: active_path.to_string_lossy().into_owned(),
+        rotated_file_name,
+    })
+}
+
+fn cleanup_expired_app_logs(log_dir: &Path) {
+    let Some(cutoff) =
+        SystemTime::now().checked_sub(Duration::from_secs(APP_LOG_RETENTION_DAYS * 24 * 60 * 60))
+    else {
+        return;
+    };
+
+    let entries = match fs::read_dir(log_dir) {
+        Ok(entries) => entries,
+        Err(error) => {
+            eprintln!("[app logger] 无法扫描日志保留期: {error}");
+            return;
+        }
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let is_app_log = path.is_file()
+            && path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with("app-") && name.ends_with(".log"));
+        if !is_app_log {
+            continue;
+        }
+
+        let is_expired = entry
+            .metadata()
+            .and_then(|metadata| metadata.modified())
+            .map(|modified| modified < cutoff)
+            .unwrap_or(false);
+        if is_expired {
+            if let Err(error) = fs::remove_file(&path) {
+                eprintln!("[app logger] 无法删除过期日志 {}: {error}", path.display());
+            }
+        }
+    }
+}
+
+/// 将前端日志写入应用数据目录。日期切换和大小轮转都在 Rust 端原子执行，
+/// 因而多个 WebView 同时记录日志时也不会竞态覆盖文件。
+#[tauri::command]
+pub fn append_app_log(
+    app: AppHandle,
+    date: String,
+    archive_time: String,
+    content: Vec<u8>,
+    max_file_size: u64,
+    sync_data: bool,
+) -> Result<AppLogAppendResult, String> {
+    validate_app_log_date(&date)?;
+    validate_app_log_archive_time(&archive_time)?;
+
+    let _write_guard = APP_LOG_WRITE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let log_dir = crate::get_app_data_dir(app.config()).join("logs");
+
+    {
+        let mut last_cleanup_date = APP_LOG_LAST_CLEANUP_DATE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if last_cleanup_date.as_deref() != Some(date.as_str()) {
+            cleanup_expired_app_logs(&log_dir);
+            *last_cleanup_date = Some(date.clone());
+        }
+    }
+
+    append_app_log_to_dir(
+        &log_dir,
+        &date,
+        &archive_time,
+        &content,
+        max_file_size,
+        sync_data,
+    )
+}
+
 // Tauri 命令：强制打开路径（绕过前端 Scope 检查）
 #[tauri::command]
 pub fn open_path_force(path: String) -> Result<(), String> {
@@ -2713,4 +2903,84 @@ pub async fn create_dir_force(path: String) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod app_log_tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn app_log_writes_to_the_event_date_file() {
+        let temp_dir = tempdir().expect("create temp dir");
+
+        append_app_log_to_dir(
+            temp_dir.path(),
+            "2026-08-23",
+            "23-59-59-999",
+            b"before midnight\n",
+            APP_LOG_MIN_FILE_SIZE,
+            false,
+        )
+        .expect("write first day");
+        append_app_log_to_dir(
+            temp_dir.path(),
+            "2026-08-24",
+            "00-00-00-000",
+            b"after midnight\n",
+            APP_LOG_MIN_FILE_SIZE,
+            false,
+        )
+        .expect("write second day");
+
+        assert_eq!(
+            fs::read_to_string(temp_dir.path().join("app-2026-08-23.log")).expect("read first day"),
+            "before midnight\n"
+        );
+        assert_eq!(
+            fs::read_to_string(temp_dir.path().join("app-2026-08-24.log"))
+                .expect("read second day"),
+            "after midnight\n"
+        );
+    }
+
+    #[test]
+    fn app_log_archives_instead_of_overwriting_when_max_size_is_reached() {
+        let temp_dir = tempdir().expect("create temp dir");
+        let first_content = vec![b'a'; 100 * 1024];
+        let second_content = vec![b'b'; 40 * 1024];
+
+        append_app_log_to_dir(
+            temp_dir.path(),
+            "2026-08-23",
+            "12-00-00-000",
+            &first_content,
+            APP_LOG_MIN_FILE_SIZE,
+            false,
+        )
+        .expect("write active file");
+        let result = append_app_log_to_dir(
+            temp_dir.path(),
+            "2026-08-23",
+            "12-00-01-000",
+            &second_content,
+            APP_LOG_MIN_FILE_SIZE,
+            false,
+        )
+        .expect("rotate and write active file");
+
+        assert_eq!(
+            result.rotated_file_name.as_deref(),
+            Some("app-2026-08-23.12-00-01-000.log")
+        );
+        assert_eq!(
+            fs::read(temp_dir.path().join("app-2026-08-23.12-00-01-000.log"))
+                .expect("read archive"),
+            first_content
+        );
+        assert_eq!(
+            fs::read(temp_dir.path().join("app-2026-08-23.log")).expect("read active file"),
+            second_content
+        );
+    }
 }

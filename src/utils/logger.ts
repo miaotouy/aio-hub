@@ -18,8 +18,6 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
-import { join } from "@tauri-apps/api/path";
-import { getAppConfigDir } from "./appPath";
 import { formatDateTime } from "./time";
 
 export enum LogLevel {
@@ -200,60 +198,30 @@ function sanitizeLogData(
   return sanitized;
 }
 
-class Logger {
+export interface LoggerOptions {
+  now?: () => Date;
+}
+
+interface AppLogAppendResult {
+  path: string;
+  rotatedFileName?: string | null;
+}
+
+const DEFAULT_MAX_FILE_SIZE = 512 * 1024;
+
+export class Logger {
   private currentLevel: LogLevel = LogLevel.DEBUG;
   private logBuffer: LogEntry[] = [];
   private maxBufferSize = 1000;
   private logFilePath: string | null = null;
-  private logsDir: string | null = null;
-  private isInitialized = false;
   private logToFile = true;
   private logToConsole = true;
-  private maxFileSize = 2 * 1024 * 1024; // 2MB
-  private currentFileSize = 0;
-  private isRotating = false;
+  private maxFileSize = DEFAULT_MAX_FILE_SIZE;
+  private writeQueue: Promise<void> = Promise.resolve();
+  private readonly now: () => Date;
 
-  constructor() {
-    this.initialize();
-  }
-
-  /**
-   * 初始化日志系统
-   */
-  private async initialize() {
-    try {
-      const appDir = await getAppConfigDir();
-      this.logsDir = await join(appDir, "logs");
-
-      const isDirExists = await invoke<boolean>("path_exists", {
-        path: this.logsDir,
-      });
-      if (!isDirExists) {
-        await invoke("create_dir_force", { path: this.logsDir });
-      }
-
-      // 使用应用时区生成文件名，避免时区导致日期偏差
-      const date = formatDateTime(new Date(), "yyyy-MM-dd");
-
-      this.logFilePath = await join(this.logsDir, `app-${date}.log`);
-
-      // 获取当前文件大小
-      const isFileExists = await invoke<boolean>("path_exists", {
-        path: this.logFilePath,
-      });
-      if (isFileExists) {
-        const fileInfo = await invoke<{ size: number }>("get_file_metadata", {
-          path: this.logFilePath,
-        });
-        this.currentFileSize = fileInfo.size;
-      } else {
-        this.currentFileSize = 0;
-      }
-
-      this.isInitialized = true;
-    } catch (error) {
-      console.error("初始化日志系统失败:", error);
-    }
+  constructor(options: LoggerOptions = {}) {
+    this.now = options.now ?? (() => new Date());
   }
 
   /**
@@ -282,7 +250,6 @@ class Logger {
    */
   setLogBufferSize(size: number) {
     this.maxBufferSize = size;
-    // 如果当前缓冲区超过新的大小，截断最早的日志
     while (this.logBuffer.length > this.maxBufferSize) {
       this.logBuffer.shift();
     }
@@ -292,7 +259,9 @@ class Logger {
    * 设置单个日志文件最大大小 (字节)
    */
   setMaxFileSize(size: number) {
-    this.maxFileSize = size;
+    if (Number.isFinite(size) && size > 0) {
+      this.maxFileSize = size;
+    }
   }
 
   /**
@@ -308,72 +277,16 @@ class Logger {
     };
   }
 
+  getLogFilePath(): string | null {
+    return this.logFilePath;
+  }
+
   /**
-   * 检查并轮转日志文件
+   * 等待所有已排队的文件写入完成。文件的日期切换和大小轮转由 Rust 命令在
+   * 单一临界区内完成，确保多个 WebView 不会互相覆盖日志。
    */
-  private async checkAndRotate() {
-    if (this.isRotating) return;
-
-    // 必须有路径
-    if (!this.logFilePath || !this.logsDir) {
-      return;
-    }
-
-    // 1. 内存预判：如果内存计数器显示未超标，直接返回，避免频繁 IO
-    if (this.currentFileSize < this.maxFileSize) {
-      return;
-    }
-
-    this.isRotating = true;
-    try {
-      // 2. 真实性检查：多窗口环境下，内存状态可能滞后
-      // 必须获取文件实际大小，确认是否真的需要轮转
-      const isExists = await invoke<boolean>("path_exists", {
-        path: this.logFilePath,
-      });
-      if (!isExists) {
-        // 文件不存在，说明可能被删除了或刚被轮转，重置状态
-        this.currentFileSize = 0;
-        return;
-      }
-
-      const fileInfo = await invoke<{ size: number }>("get_file_metadata", {
-        path: this.logFilePath,
-      });
-      const realSize = fileInfo.size;
-
-      // 如果实际大小小于阈值，说明文件已经被其他实例轮转过了
-      if (realSize < this.maxFileSize) {
-        // 同步内存状态为真实大小
-        this.currentFileSize = realSize;
-        // console.debug("[Logger] 文件大小未达标(可能已被其他窗口轮转)，跳过轮转");
-        return;
-      }
-
-      // 3. 执行轮转
-      // 生成备份文件名: app-YYYY-MM-DD.HH-mm-ss.log (使用应用时区)
-      const now = new Date();
-      const dateStr = formatDateTime(now, "yyyy-MM-dd");
-      const timeStr = formatDateTime(now, "HH-mm-ss");
-      const backupName = `app-${dateStr}.${timeStr}.log`;
-      const backupPath = await join(this.logsDir, backupName);
-
-      // 重命名当前日志文件
-      // 注意：这里暂时保留原有的 rename 调用，因为 fs_scope 已经扩展
-      // 如果 rename 依然受限，后续可考虑增加 move_file_force 命令
-      const { rename } = await import("@tauri-apps/plugin-fs");
-      await rename(this.logFilePath, backupPath);
-
-      // 重置当前文件大小
-      this.currentFileSize = 0;
-
-      // 在控制台记录轮转信息（不写入文件以免死循环）
-      console.log(`[Logger] 日志文件已轮转: ${backupName}`);
-    } catch (error) {
-      console.error("[Logger] 日志轮转失败:", error);
-    } finally {
-      this.isRotating = false;
-    }
+  async flush(): Promise<void> {
+    await this.writeQueue;
   }
 
   /**
@@ -386,7 +299,7 @@ class Logger {
     if (entry.data) {
       try {
         log += `\n数据: ${JSON.stringify(entry.data, null, 2)}`;
-      } catch (error) {
+      } catch {
         log += `\n数据: [无法序列化]`;
       }
     }
@@ -397,26 +310,68 @@ class Logger {
 
     return log;
   }
+
+  private getFileNameParts(entry: LogEntry): {
+    date: string;
+    archiveTime: string;
+  } {
+    const [date, time] = entry.timestamp.split(" ");
+    if (
+      /^\d{4}-\d{2}-\d{2}$/.test(date ?? "") &&
+      /^\d{2}:\d{2}:\d{2}\.\d{3}$/.test(time ?? "")
+    ) {
+      return {
+        date,
+        archiveTime: time.replace(/:/g, "-").replace(".", "-"),
+      };
+    }
+
+    const now = this.now();
+    return {
+      date: formatDateTime(now, "yyyy-MM-dd"),
+      archiveTime: formatDateTime(now, "HH-mm-ss-SSS"),
+    };
+  }
+
+  private enqueueFileWrite(entry: LogEntry) {
+    const persistEntry = async () => {
+      const logLine = `${this.formatLogEntry(entry)}\n`;
+      const content = new TextEncoder().encode(logLine);
+      const { date, archiveTime } = this.getFileNameParts(entry);
+      const result = await invoke<AppLogAppendResult>("append_app_log", {
+        date,
+        archiveTime,
+        content,
+        maxFileSize: this.maxFileSize,
+        syncData: entry.level === LogLevel.ERROR,
+      });
+
+      this.logFilePath = result.path;
+      if (result.rotatedFileName) {
+        console.info(`[Logger] 日志文件已轮转: ${result.rotatedFileName}`);
+      }
+    };
+
+    // 不让单次写入失败污染后续队列；失败已在本次 task 中输出，下一条日志仍会尝试写入。
+    const nextWrite = this.writeQueue.then(persistEntry, persistEntry);
+    this.writeQueue = nextWrite.catch((error) => {
+      console.error("写入日志文件失败:", error);
+    });
+  }
+
   /**
    * 写入日志
    */
-  private async writeLog(entry: LogEntry) {
-    // 添加到缓冲区
+  private writeLog(entry: LogEntry) {
     this.logBuffer.push(entry);
-
-    // 保持缓冲区大小
     if (this.logBuffer.length > this.maxBufferSize) {
       this.logBuffer.shift();
     }
 
-    // 输出到控制台（如果启用）
     if (this.logToConsole) {
       if (entry.collapsed) {
-        // 使用折叠组显示
         const levelStr = LogLevel[entry.level];
         const groupTitle = `[${entry.timestamp}] [${levelStr}] [${entry.module}] ${entry.message}`;
-
-        // 根据日志级别选择合适的控制台方法
         const consoleMethod = this.getConsoleMethod(entry.level);
         consoleMethod(groupTitle);
         console.groupCollapsed("详细信息");
@@ -424,7 +379,7 @@ class Logger {
         if (entry.data) {
           try {
             console.log("数据:", entry.data);
-          } catch (error) {
+          } catch {
             console.log("数据: [无法序列化]");
           }
         }
@@ -435,7 +390,6 @@ class Logger {
 
         console.groupEnd();
       } else {
-        // 原有的非折叠逻辑
         const consoleMsg = this.formatLogEntry(entry);
         switch (entry.level) {
           case LogLevel.DEBUG:
@@ -454,44 +408,9 @@ class Logger {
       }
     }
 
-    // 写入文件（异步，不阻塞）
-    if (this.logToFile && this.isInitialized && this.logFilePath) {
-      try {
-        const logLine = this.formatLogEntry(entry) + "\n";
-        const lineSize = new TextEncoder().encode(logLine).length;
-
-        // 检查是否需要轮转（加上新日志大小后是否超标）
-        if (this.currentFileSize + lineSize > this.maxFileSize) {
-          await this.checkAndRotate();
-        }
-
-        // 使用 Rust 后端命令强制追加，绕过前端 Scope 限制
-        const encoder = new TextEncoder();
-        const uint8Array = encoder.encode(logLine);
-
-        // 性能监控：记录大数据量的 IPC 调用
-        const isLargeLog = uint8Array.length > 500000;
-        const startTime = isLargeLog ? performance.now() : 0;
-
-        await invoke("append_file_force", {
-          path: this.logFilePath,
-          // 关键优化：Tauri v2 支持直接传递 Uint8Array，
-          // 使用 Array.from 会导致数据膨胀数倍且序列化极其缓慢
-          content: uint8Array,
-        });
-
-        if (isLargeLog) {
-          const duration = performance.now() - startTime;
-          console.debug(
-            `[Logger] 大日志 IPC 写入耗时: ${duration.toFixed(2)}ms, 大小: ${(uint8Array.length / 1024).toFixed(2)}KB`
-          );
-        }
-
-        this.currentFileSize += lineSize;
-      } catch (error) {
-        // 写入失败不影响主流程
-        console.error("写入日志文件失败:", error);
-      }
+    // 在记录创建时决定是否落盘，确保之后用户关闭文件日志也不会丢弃已排队的记录。
+    if (this.logToFile) {
+      this.enqueueFileWrite(entry);
     }
   }
 
@@ -524,8 +443,7 @@ class Logger {
     error?: Error,
     collapsed?: boolean
   ): LogEntry {
-    // 使用应用时区格式 YYYY-MM-DD HH:mm:ss.SSS
-    const timestamp = formatDateTime(new Date(), "yyyy-MM-dd HH:mm:ss.SSS");
+    const timestamp = formatDateTime(this.now(), "yyyy-MM-dd HH:mm:ss.SSS");
 
     return {
       timestamp,
@@ -634,10 +552,10 @@ class Logger {
    */
   async exportLogs(filePath: string): Promise<void> {
     try {
+      await this.flush();
       const logs = this.logBuffer
         .map((entry) => this.formatLogEntry(entry))
         .join("\n");
-      // 导出日志也使用强制写入命令
       const encoder = new TextEncoder();
       const uint8Array = encoder.encode(logs);
       await invoke("write_file_force", {

@@ -8,6 +8,7 @@ import {
   suggestModelIdentityFromProvider,
   type ProviderModelInfo,
   type ProviderProfile,
+  type TransportObserver,
 } from "@aiohub/llm-core";
 import { getProviderTypeInfo } from "@/config/llm-providers";
 import { getActiveModelProperties } from "@/config/model-metadata";
@@ -43,10 +44,14 @@ export async function fetchModelsFromApi(
     throw new Error(`提供商 ${providerInfo?.name} 不支持自动获取模型列表`);
   }
 
+  const requestId = options.requestId ?? `models-${profile.id}-${Date.now()}`;
+  const diagnostics = createModelListFetchDiagnostics(options.observer);
+
   logger.info("开始获取模型列表", {
     profileName: profile.name,
     providerType: profile.type,
     endpoint: providerInfo.modelListEndpoint,
+    requestId,
   });
   try {
     const providerProfile: ProviderProfile = {
@@ -70,10 +75,10 @@ export async function fetchModelsFromApi(
       },
       transport: desktopLlmTransport,
       transportOptions: {
-        requestId: options.requestId ?? `models-${profile.id}-${Date.now()}`,
+        requestId,
         timeoutMs: options.timeoutMs ?? 60_000,
         signal: options.signal,
-        observer: options.observer,
+        observer: diagnostics.observer,
         network: {
           strategy: "proxy",
           relaxInvalidCerts: profile.relaxIdCerts,
@@ -87,6 +92,9 @@ export async function fetchModelsFromApi(
     logger.info("模型列表获取成功", {
       profileName: profile.name,
       modelCount: models.length,
+      modelIds: models.map((model) => model.id),
+      requestId,
+      ...diagnostics.toLogContext(),
     });
     return { models, rawResponse: result.raw };
   } catch (error) {
@@ -97,6 +105,83 @@ export async function fetchModelsFromApi(
     }
     throw error;
   }
+}
+
+function createModelListFetchDiagnostics(
+  observer: ModelFetchOptions["observer"]
+) {
+  const startedAt = Date.now();
+  let requestUrl: string | undefined;
+  let status: number | undefined;
+  let statusText: string | undefined;
+  let responseHeaders: Record<string, string> | undefined;
+
+  const diagnosticObserver: TransportObserver = {
+    onRequest(event) {
+      requestUrl = sanitizeModelListUrl(event.request.url);
+      observer?.onRequest?.(event);
+    },
+    onResponseStart(event) {
+      status = event.status;
+      statusText = event.statusText;
+      responseHeaders = event.headers;
+      observer?.onResponseStart?.(event);
+    },
+    onResponseChunk(event) {
+      observer?.onResponseChunk?.(event);
+    },
+    onError(event) {
+      observer?.onError?.(event);
+    },
+  };
+
+  return {
+    observer: diagnosticObserver,
+    toLogContext() {
+      const headers = responseHeaders ?? {};
+      return {
+        durationMs: Date.now() - startedAt,
+        requestUrl,
+        responseStatus: status,
+        ...(statusText ? { responseStatusText: statusText } : {}),
+        responseHeaders: pickModelListDiagnosticHeaders(headers),
+      };
+    },
+  };
+}
+
+function sanitizeModelListUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.search = "";
+    parsed.hash = "";
+    return parsed.toString();
+  } catch {
+    return url.split(/[?#]/, 1)[0];
+  }
+}
+
+function pickModelListDiagnosticHeaders(
+  headers: Record<string, string>
+): Record<string, string> {
+  const allowedNames = [
+    "age",
+    "cache-control",
+    "cf-cache-status",
+    "cf-ray",
+    "date",
+    "etag",
+    "server",
+    "vary",
+    "via",
+    "x-cache",
+    "x-request-id",
+  ];
+  return Object.fromEntries(
+    allowedNames.flatMap((name) =>
+      headers[name] === undefined ? [] : [[name, headers[name]]]
+    )
+  );
 }
 
 export function toDesktopModelInfo(

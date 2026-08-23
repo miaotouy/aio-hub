@@ -19,6 +19,7 @@ import {
   getMatchedRuleChain,
 } from "../model-metadata";
 import type { ModelMetadataRule } from "@/types/model-metadata";
+import { chineseModelRules } from "../model-metadata-presets/models-chinese";
 
 function makeRule(
   id: string,
@@ -92,6 +93,45 @@ describe("model-metadata rule chain", () => {
 });
 
 describe("model-metadata presets", () => {
+  it("provides explicit metadata for the supported Agnes 2.x models", () => {
+    const modelIds = [
+      "agnes-2.0-flash",
+      "agnes-image-2.0-flash",
+      "agnes-2.5-flash",
+      "agnes-2.5-pro-alpha",
+      "agnes-image-2.1-flash",
+      "agnes-video-2.5",
+      "agnes-2.5-pro",
+      "agnes-video-v2.0",
+    ];
+    const directRules = chineseModelRules.filter(
+      (rule) => rule.matchType === "model" && modelIds.includes(rule.matchValue)
+    );
+
+    expect(directRules.map((rule) => rule.matchValue).sort()).toEqual(
+      [...modelIds].sort()
+    );
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "agnes-2.5-pro")
+    ).toMatchObject({
+      group: "Agnes AI",
+      tokenizer: "gpt4",
+      capabilities: { thinking: true, toolUse: true },
+      features: { streaming: true, functionCalling: true },
+    });
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "agnes-image-2.0-flash")
+    ).toMatchObject({
+      group: "Agnes AI",
+      capabilities: { imageGeneration: true, iterativeRefinement: true },
+    });
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "agnes-video-v2.0")
+    ).toMatchObject({
+      group: "Agnes AI",
+      capabilities: { videoGeneration: true, vision: true },
+    });
+  });
   it("marks image generation parameter presets as image generation models", () => {
     expect(
       getMatchedModelProperties(DEFAULT_METADATA_RULES, "dall-e-3")

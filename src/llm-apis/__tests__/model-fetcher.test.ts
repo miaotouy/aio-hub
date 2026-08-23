@@ -15,6 +15,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { LlmProfile } from "@/types/llm-profiles";
 
+const { loggerInfo } = vi.hoisted(() => ({
+  loggerInfo: vi.fn(),
+}));
+
+vi.mock("@/utils/logger", () => ({
+  createModuleLogger: () => ({
+    info: loggerInfo,
+  }),
+}));
+
 vi.mock("@/llm-apis/common", async (importOriginal) => {
   const actual = await importOriginal<any>();
   return {
@@ -75,6 +85,57 @@ describe("ModelFetcher", () => {
     });
 
     expect(model.capabilities?.vision).toBe(false);
+  });
+
+  it("logs model-list cache diagnostics and strips sensitive URL queries", async () => {
+    const profile: LlmProfile = {
+      id: "custom-model-list",
+      name: "Custom model list",
+      baseUrl: "https://example.com",
+      apiKeys: ["secret-key"],
+      type: "openai",
+      enabled: true,
+      models: [],
+      customEndpoints: {
+        models: "https://models.example.com/v1/models?api_key=secret-query",
+      },
+    };
+
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      headers: new Headers({
+        "cache-control": "public, max-age=14400",
+        "cf-cache-status": "HIT",
+        "cf-ray": "ray-id",
+        "x-secret-header": "must-not-log",
+      }),
+      json: async () => ({
+        data: [{ id: "agnes-2.5-pro", object: "model" }],
+      }),
+    });
+
+    await fetchModelsFromApi(profile, { requestId: "model-list-diagnostics" });
+
+    const successLog = loggerInfo.mock.calls.find(
+      ([message]) => message === "模型列表获取成功"
+    );
+    expect(successLog?.[1]).toMatchObject({
+      modelCount: 1,
+      modelIds: ["agnes-2.5-pro"],
+      requestId: "model-list-diagnostics",
+      requestUrl: "https://models.example.com/v1/models",
+      responseStatus: 200,
+      responseHeaders: {
+        "cache-control": "public, max-age=14400",
+        "cf-cache-status": "HIT",
+        "cf-ray": "ray-id",
+      },
+    });
+    expect(successLog?.[1].responseHeaders).not.toHaveProperty(
+      "x-secret-header"
+    );
   });
 
   it("uses Ollama api/tags endpoint for model list", async () => {

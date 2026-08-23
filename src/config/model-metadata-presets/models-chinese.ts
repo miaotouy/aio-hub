@@ -832,6 +832,171 @@ export const chineseModelRules: ModelMetadataRule[] = [
 
   // === Agnes AI (Sapiens AI) 系列模型 ===
   {
+    id: "model-agnes-2.5-flash",
+    matchType: "model",
+    matchValue: "agnes-2.5-flash",
+    properties: {
+      icon: `/model-icons/agnes.png`,
+      group: "Agnes AI",
+      tokenizer: "gpt4",
+      capabilities: {
+        thinking: true,
+        thinkingConfigType: "budget",
+        toolUse: true,
+      },
+      features: {
+        streaming: true,
+        functionCalling: true,
+      },
+      description:
+        "Agnes-2.5-Flash 支持 OpenAI 兼容接口中的思考模式，并通过 reasoning_content 返回推理内容。",
+      recommendedFor: ["代码生成", "复杂推理", "多轮对话"],
+    },
+    priority: 30,
+    enabled: true,
+    description: "Agnes-2.5-Flash 思考模型元数据",
+  },
+
+  {
+    id: "model-agnes-2.5-pro-alpha",
+    matchType: "model",
+    matchValue: "agnes-2.5-pro-alpha",
+    properties: {
+      icon: `/model-icons/agnes.png`,
+      group: "Agnes AI",
+      tokenizer: "gpt4",
+      capabilities: {
+        thinking: true,
+        thinkingConfigType: "budget",
+        toolUse: true,
+      },
+      features: {
+        streaming: true,
+        functionCalling: true,
+      },
+      description:
+        "Agnes-2.5-Pro-Alpha 是 Agnes 2.5 系列的高性能预览文本模型，适用于复杂推理、代码生成与 Agent 工具调用。",
+      recommendedFor: ["复杂推理", "代码生成", "Agent 工作流"],
+    },
+    priority: 30,
+    enabled: true,
+    description: "Agnes-2.5-Pro-Alpha 模型元数据",
+  },
+  {
+    id: "model-agnes-2.5-pro",
+    matchType: "model",
+    matchValue: "agnes-2.5-pro",
+    properties: {
+      icon: `/model-icons/agnes.png`,
+      group: "Agnes AI",
+      tokenizer: "gpt4",
+      capabilities: {
+        thinking: true,
+        thinkingConfigType: "budget",
+        toolUse: true,
+      },
+      features: {
+        streaming: true,
+        functionCalling: true,
+      },
+      description:
+        "Agnes-2.5-Pro 是 Agnes 2.5 系列高性能文本模型，适用于复杂推理、代码生成与 Agent 工具调用。",
+      recommendedFor: ["复杂推理", "代码生成", "Agent 工作流"],
+    },
+    priority: 30,
+    enabled: true,
+    description: "Agnes-2.5-Pro 模型元数据",
+  },
+  {
+    id: "model-agnes-image-2.0-flash",
+    matchType: "model",
+    matchValue: "agnes-image-2.0-flash",
+    properties: {
+      icon: `/model-icons/agnes.png`,
+      group: "Agnes AI",
+      capabilities: {
+        imageGeneration: true,
+        iterativeRefinement: true,
+      },
+      features: {
+        vision: true,
+      },
+      description:
+        "Agnes-Image-2.0-Flash 是 Agnes 图像生成与编辑模型，适用于文生图、图生图和多图参考创作。",
+      recommendedFor: ["图像生成", "图像编辑", "多图合成"],
+    },
+    priority: 30,
+    enabled: true,
+    description: "Agnes-Image-2.0-Flash 模型元数据",
+  },
+  {
+    id: "model-agnes-image-2.1-flash",
+    matchType: "model",
+    matchValue: "agnes-image-2.1-flash",
+    properties: {
+      icon: `/model-icons/agnes.png`,
+      group: "Agnes AI",
+      capabilities: {
+        imageGeneration: true,
+        iterativeRefinement: true,
+      },
+      features: {
+        vision: true,
+      },
+      description:
+        "Agnes-Image-2.1-Flash 是 Agnes 图像生成与编辑模型，适用于文生图、图生图和多图参考创作。",
+      recommendedFor: ["图像生成", "图像编辑", "多图合成"],
+    },
+    priority: 30,
+    enabled: true,
+    description: "Agnes-Image-2.1-Flash 模型元数据",
+  },
+  {
+    id: "model-agnes-video-2.5",
+    matchType: "model",
+    matchValue: "agnes-video-2.5",
+    properties: {
+      icon: `/model-icons/agnes.png`,
+      group: "Agnes AI",
+      capabilities: {
+        videoGeneration: true,
+        vision: true,
+      },
+      features: {
+        vision: true,
+      },
+      description:
+        "Agnes-Video-2.5 是 Agnes 异步视频生成模型，适用于文生视频、图生视频和多图参考视频创作。",
+      recommendedFor: ["文生视频", "图生视频", "多图参考视频"],
+    },
+    priority: 30,
+    enabled: true,
+    description: "Agnes-Video-2.5 模型元数据",
+  },
+  {
+    id: "model-agnes-video-v2.0",
+    matchType: "model",
+    matchValue: "agnes-video-v2.0",
+    properties: {
+      icon: `/model-icons/agnes.png`,
+      group: "Agnes AI",
+      capabilities: {
+        videoGeneration: true,
+        vision: true,
+      },
+      features: {
+        vision: true,
+      },
+      description:
+        "Agnes-Video-V2.0 是 Agnes 异步视频生成模型，适用于文生视频、图生视频和多图参考视频创作。",
+      recommendedFor: ["文生视频", "图生视频", "多图参考视频"],
+    },
+    priority: 30,
+    enabled: true,
+    description: "Agnes-Video-V2.0 模型元数据",
+  },
+  // === Agnes AI (Sapiens AI) 系列模型 ===
+  {
     id: "model-agnes-2.0-flash",
     matchType: "model",
     matchValue: "agnes-2.0-flash",

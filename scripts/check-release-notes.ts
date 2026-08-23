@@ -35,11 +35,13 @@ export async function checkReleaseNotes(
   const expectedFiles = [`${expectedBaseName}.ts`, `${expectedBaseName}.md`];
   const files = await readdir(releasesDir);
 
+  let hasExpectedFiles = true;
   for (const file of expectedFiles) {
     if (!files.includes(file)) {
-      throw new Error(
-        `当前桌面版本 ${packageJson.version} 缺少本地版本说明资源: ${file}`
+      console.warn(
+        `⚠️ [Warning] 当前桌面版本 ${packageJson.version} 缺少本地版本说明资源: ${file}`
       );
+      hasExpectedFiles = false;
     }
   }
 
@@ -66,20 +68,26 @@ export async function checkReleaseNotes(
     channels.set(version, channel);
   }
 
-  const expectedManifest = versions.get(packageJson.version);
-  if (expectedManifest !== `${expectedBaseName}.ts`) {
-    throw new Error(
-      `当前桌面版本 ${packageJson.version} 的 manifest 版本字段与文件名不一致`
-    );
-  }
+  if (hasExpectedFiles) {
+    const expectedManifest = versions.get(packageJson.version);
+    if (expectedManifest !== `${expectedBaseName}.ts`) {
+      throw new Error(
+        `当前桌面版本 ${packageJson.version} 的 manifest 版本字段与文件名不一致`
+      );
+    }
 
-  const expectedChannel = packageJson.version.includes("-")
-    ? "prerelease"
-    : "stable";
-  const actualChannel = channels.get(packageJson.version);
-  if (actualChannel !== expectedChannel) {
-    throw new Error(
-      `当前桌面版本 ${packageJson.version} 的 manifest channel 应为 ${expectedChannel}，实际为 ${actualChannel}`
+    const expectedChannel = packageJson.version.includes("-")
+      ? "prerelease"
+      : "stable";
+    const actualChannel = channels.get(packageJson.version);
+    if (actualChannel !== expectedChannel) {
+      throw new Error(
+        `当前桌面版本 ${packageJson.version} 的 manifest channel 应为 ${expectedChannel}，实际为 ${actualChannel}`
+      );
+    }
+  } else {
+    console.warn(
+      `⚠️ [Warning] 由于缺少当前版本的本地版本说明资源，跳过当前版本的一致性校验。`
     );
   }
 

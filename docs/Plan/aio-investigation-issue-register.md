@@ -31,7 +31,7 @@
 | AIO-I-002 | 功能与资源控制 | 媒体生成器的「最大并发任务数」和「自动清理已完成任务」只有设置定义，没有运行时消费者                                         | `已关闭`           | P1     | 已实现全局并发队列、完成任务延迟清理、设置联动、重启恢复和取消；保留真实 Provider 计费/取消验收。 |
 | AIO-I-003 | 凭据安全       | LLM Profile 连同 API Key / 自定义请求头以普通 JSON 配置保存                                                                  | `已确认，设计风险` | P1     | 明确受支持平台的凭据保护策略、迁移与降级语义；至少验证本机 ACL/备份/导出边界。                    |
 | AIO-I-004 | 功能契约       | content-deduplicator 暴露 fuzzy、`minSimilarity` 等配置，但扫描结果只有精确/规范化哈希匹配                                   | `已确认，未修复`   | P2     | 实现模糊匹配并测试阈值语义，或从类型、预设和 UI 移除/禁用该承诺。                                 |
-| AIO-I-005 | Agent 接口设计 | regex-applier 尚未确定需要向 Agent 暴露的任务场景；现有格式化辅助方法未注册为 Agent 方法                                     | `待产品设计`       | P3     | 先决定是否需要 Agent 编写/维护规则或执行受控批处理；仅在确认场景后定义契约、注册方法并补回归。    |
+| AIO-I-005 | Agent 接口设计 | regex-applier 尚未确定需要向 Agent 暴露的任务场景；现有格式化辅助方法未注册为 Agent 方法                                     | `已确认，待实施`   | P3     | 已完成受控声明式接口设计，待在注册器中实现并暴露 Agent 专用方法。                     |
 | AIO-I-006 | 对话可移植性   | 单会话支持版本化备份 JSON 和历史 Raw JSON 导入；Markdown / 阅读型 JSON 仍为只读导出格式                                      | `已关闭`           | P3     | 回归验证版本化备份、Raw JSON、ZIP 备份、冲突策略与无效会话图拒绝行为。                            |
 | AIO-I-007 | 文档准确性     | media-generator 架构文档仍称 `generateMedia(prompt, type)` 已声明但未实现；当前运行时实际已改为按可见模型动态构建 Agent 方法 | `文档失真`         | P3     | 更新架构文档和 Agent 接入说明，使其与 `buildAgentMethods()` / `getMetadata()` 的当前机制一致。    |
 | AIO-I-008 | 文档准确性     | content-deduplicator 架构文档仍称自定义忽略规则未生效，但当前 Rust walker 已把 `OverrideBuilder` 产物绑定到 `WalkBuilder`    | `文档失真`         | P3     | 更正文档，并增加忽略规则正反例测试，避免以后再次回退。                                            |
@@ -78,13 +78,16 @@ Rust 搜索实现仍通过 `WalkDir` 枚举 Agent 和会话 JSON，并对每个�
 
 ### AIO-I-005：regex-applier 的 Agent 接口尚未完成场景定义
 
-**结论：待产品设计，非已确认 defect 或能力缺口。**
+**结论：已确认，待实施。**
 
-`RegexApplierService` 已提供 `getFormattedTextResult()` 与 `getFormattedFileResult()`（`src/tools/regex-applier/regex-applier.registry.ts:223-260`），但同一个服务的 `getMetadata()` 返回的 `methods` 是空数组，并留有「待重新设计 agent 专用接口」注释（`:268-274`）。这只能证明这些内部/界面辅助格式化方法尚未被注册进 Agent 工具目录；不能据此推导 Agent 理应直接调用它们，或产品已经承诺相应能力。
+将 `regex-applier` 暴露给 Chat Agent 的核心价值在于提供一个**能力范围受限、行为可预测的声明式文本/文件处理接口**，避免 Agent 为完成正则类任务而自行编写并执行任意脚本（Python/Node.js）。该设计降低任意代码执行风险，但不承诺操作系统级文件访问沙箱。
 
-是否需要接口，应先从 Agent 任务而不是人工工作台流程出发决定。例如，Agent 可以协助生成、解释、校验和维护正则规则；而对确定的批量替换，Agent 通常也可以自行编写并执行受控脚本，不一定需要复用面向人工 UI 的快捷方法。若后续确认要让 Agent 对文本或文件执行替换，还需单独定义作用域、预览/确认、文件权限、回滚、批量资源限制，以及稳定的参数和返回契约。
+详细的设计方案（包含权限前提、典型应用场景、以及 Agent API 契约设计）已记录于 [Regex Applier Agent 接口设计与安全沙箱方案](../Plan/regex-applier-agent-integration.md)。
 
-本条暂不按「实现存在、Agent 不可用」立项，也不预设必须暴露现有格式化方法；保留为 Agent 使用场景与接口设计的决策输入。
+**后续动作：**
+
+1. 在 `regex-applier.registry.ts` 及相关引擎层实现 `applyRegexToText`、`applyRegexToFiles`、`getPresets` 和 `validateRegex` 四个 Agent 方法，统一采用参数对象调用。
+2. 在 `getMetadata()` 中完整声明这些方法，使其对 Agent 可见。
 
 ### AIO-I-006：结构化单会话导出不可往返
 

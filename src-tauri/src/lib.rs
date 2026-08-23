@@ -13,6 +13,7 @@
 // limitations under the License.
 
 // 模块声明
+mod backend_logging;
 mod commands;
 mod events;
 mod frontend_monitor;
@@ -23,9 +24,6 @@ mod utils;
 mod web_distillery;
 pub mod webkit_check;
 
-use chrono::{Local, Utc};
-use chrono_tz::Tz;
-use log::LevelFilter;
 use std::collections::HashMap;
 use std::sync::Arc;
 #[cfg(debug_assertions)]
@@ -34,7 +32,6 @@ use tauri::image::Image;
 use tauri::Listener;
 use tauri::{Emitter, Manager};
 use tauri_plugin_deep_link::DeepLinkExt;
-use tauri_plugin_log::{Target, TargetKind, TimezoneStrategy};
 use tokio_util::sync::CancellationToken;
 
 pub use utils::get_app_data_dir;
@@ -161,55 +158,17 @@ pub fn run() {
         main_window_config,
         disable_drag_drop,
     } = startup_config;
-    // 解析时区并计算偏移量
-    let (timezone_strategy, now_formatted, date_filename) = {
-        let now_utc = Utc::now();
-        if timezone_str != "auto" {
-            if let Ok(tz) = timezone_str.parse::<Tz>() {
-                let now_tz = now_utc.with_timezone(&tz);
-                (
-                    TimezoneStrategy::UseLocal,
-                    now_tz.format("%Y-%m-%d %H:%M:%S").to_string(),
-                    now_tz.format("%Y-%m-%d").to_string(),
-                )
-            } else {
-                (
-                    TimezoneStrategy::UseLocal,
-                    Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
-                    Local::now().format("%Y-%m-%d").to_string(),
-                )
-            }
-        } else {
-            (
-                TimezoneStrategy::UseLocal,
-                Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
-                Local::now().format("%Y-%m-%d").to_string(),
-            )
-        }
-    };
-
-    // Manually construct the path to AppData/Roaming/{bundle_id}/logs
+    // 后端日志器在每条记录写入前检查当前日期；应用跨午夜运行时会自动切换到
+    // backend-YYYY-MM-DD.log，并保留按大小归档的历史文件。
+    let log_timezone = backend_logging::LogTimezone::from_setting(&timezone_str);
+    let now_formatted = log_timezone.format_now();
     let log_dir = get_app_data_dir(context.config()).join("logs");
+    backend_logging::install(log_dir, log_timezone)
+        .expect("failed to initialize durable backend logger");
 
-    let log_filename = format!("backend-{}", date_filename);
     let mut builder = tauri::Builder::<tauri::Wry>::default();
 
     builder = builder
-        .plugin(
-            tauri_plugin_log::Builder::new()
-                .clear_targets() // 清除默认目标
-                .targets([
-                    Target::new(TargetKind::Stdout),
-                    Target::new(TargetKind::Folder {
-                        path: log_dir,
-                        file_name: Some(log_filename),
-                    }),
-                ])
-                .timezone_strategy(timezone_strategy)
-                .level_for("hyper", LevelFilter::Warn) // 过滤掉 hyper 的大量 INFO 日志
-                .level_for("hnsw_rs", LevelFilter::Info) // 过滤掉 HNSW 构图时的 TRACE 日志
-                .build(),
-        )
         // 插件初始化
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
@@ -277,7 +236,7 @@ pub fn run() {
     // 注册命令处理器
     let builder = commands::register_commands(builder);
 
-    builder
+    let run_result = builder
         // 设置应用
         .setup(move |app| {
             // 在 Windows 上注册 Deep Link 协议关联
@@ -490,6 +449,9 @@ pub fn run() {
         // 窗口事件处理
         .on_window_event(handle_global_window_event)
         // 运行应用
-        .run(context)
-        .expect("error while running tauri application");
+        .run(context);
+
+    // 正常退出时强制提交最后一批记录；错误记录和文件切换期间也会同步数据。
+    log::logger().flush();
+    run_result.expect("error while running tauri application");
 }

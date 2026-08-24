@@ -32,7 +32,7 @@ function createDefaultTools(): ToolConfig[] {
   }));
 }
 
-describe("tools store quick access", () => {
+describe("tools store", () => {
   beforeEach(() => {
     localStorage.clear();
     setActivePinia(createPinia());
@@ -123,5 +123,45 @@ describe("tools store quick access", () => {
       DEFAULT_PINNED_QUICK_ACCESS_PATHS
     );
     expect(store.hasPinnedQuickAccessPreference).toBe(true);
+  });
+
+  it("restores only registered opened tools and compacts stale cached records", () => {
+    const store = useToolsStore();
+    const tools = [createTool(1), createTool(2)];
+    store.tools.push(...tools);
+    localStorage.setItem(
+      "app-opened-tools",
+      JSON.stringify([
+        tools[1].path,
+        "/removed-tool",
+        tools[1].path,
+        tools[0].path,
+      ])
+    );
+
+    store.initializeOrder();
+
+    expect(store.openedToolPaths).toEqual([tools[1].path, tools[0].path]);
+    expect(localStorage.getItem("app-opened-tools")).toBe(
+      JSON.stringify([tools[1].path, tools[0].path])
+    );
+  });
+
+  it("clears opened tools by removing the persisted cache", () => {
+    const store = useToolsStore();
+    const tool = createTool(1);
+    store.tools.push(tool);
+    store.openTool(tool.path);
+
+    store.clearOpenedTools();
+
+    expect(store.openedToolPaths).toEqual([]);
+    expect(localStorage.getItem("app-opened-tools")).toBeNull();
+
+    setActivePinia(createPinia());
+    const restoredStore = useToolsStore();
+    restoredStore.tools.push(tool);
+    restoredStore.initializeOrder();
+    expect(restoredStore.openedToolPaths).toEqual([]);
   });
 });

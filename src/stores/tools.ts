@@ -23,6 +23,7 @@ import { createModuleLogger } from "@/utils/logger";
 // 注意：此数组已清空，工具配置将通过 autoRegisterServices 自动扫描注册
 const initialTools: ToolConfig[] = [];
 const logger = createModuleLogger("ToolsStore");
+const OPENED_TOOLS_STORAGE_KEY = "app-opened-tools";
 
 /** 主页快捷栏允许固定的最大工具数 */
 export const QUICK_ACCESS_MAX_ITEMS = 6;
@@ -60,13 +61,30 @@ export const useToolsStore = defineStore("tools", () => {
     const appSettingsStore = useAppSettingsStore();
     toolsOrder.value = appSettingsStore.toolsOrder || [];
 
-    // 加载已打开的工具标签
+    // 加载已打开的工具标签。仅恢复当前仍已注册的工具，避免旧版本、
+    // 卸载插件或损坏缓存让侧边栏长期停留在一份过期列表中。
     try {
-      const saved = localStorage.getItem("app-opened-tools");
-      if (saved) {
-        openedToolPaths.value = JSON.parse(saved);
+      const saved = localStorage.getItem(OPENED_TOOLS_STORAGE_KEY);
+      if (saved !== null) {
+        const parsed: unknown = JSON.parse(saved);
+        const normalizedPaths = normalizeOpenedToolPaths(parsed);
+        openedToolPaths.value = normalizedPaths;
+
+        // 立即压实旧缓存：清空时删除 key，避免下次启动再次恢复旧记录。
+        if (JSON.stringify(parsed) !== JSON.stringify(normalizedPaths)) {
+          saveOpenedTools();
+        }
       }
     } catch (e) {
+      openedToolPaths.value = [];
+      try {
+        localStorage.removeItem(OPENED_TOOLS_STORAGE_KEY);
+      } catch (removeError) {
+        logger.error(
+          "Failed to remove invalid opened tools cache",
+          removeError
+        );
+      }
       logger.error("Failed to load opened tools from cache", e);
     }
 
@@ -150,16 +168,56 @@ export const useToolsStore = defineStore("tools", () => {
   }
 
   /**
+   * 规范化已打开工具路径：去重并过滤掉当前未注册的工具。
+   */
+  function normalizeOpenedToolPaths(paths: unknown): string[] {
+    if (!Array.isArray(paths)) return [];
+
+    const registeredToolPaths = new Set(tools.value.map((tool) => tool.path));
+    const uniquePaths = new Set<string>();
+    for (const path of paths) {
+      if (typeof path === "string" && registeredToolPaths.has(path)) {
+        uniquePaths.add(path);
+      }
+    }
+    return [...uniquePaths];
+  }
+
+  /**
+   * 保存已打开的工具到缓存。空列表删除存储项，避免旧记录在后续启动时被恢复。
+   */
+  function saveOpenedTools() {
+    try {
+      if (openedToolPaths.value.length === 0) {
+        localStorage.removeItem(OPENED_TOOLS_STORAGE_KEY);
+      } else {
+        localStorage.setItem(
+          OPENED_TOOLS_STORAGE_KEY,
+          JSON.stringify(openedToolPaths.value)
+        );
+      }
+    } catch (e) {
+      logger.error("Failed to save opened tools to cache", e);
+    }
+  }
+
+  /**
+   * 更新已打开工具的顺序，并持久化规范化后的结果。
+   */
+  function setOpenedToolPaths(paths: string[]) {
+    openedToolPaths.value = normalizeOpenedToolPaths(paths);
+    saveOpenedTools();
+  }
+
+  /**
    * 打开一个工具标签
    */
   function openTool(toolPath: string) {
     // 如果不是有效的工具路径，不处理
-    const isTool = tools.value.some((t) => t.path === toolPath);
-    if (!isTool) return;
+    if (!tools.value.some((tool) => tool.path === toolPath)) return;
 
     if (!openedToolPaths.value.includes(toolPath)) {
-      openedToolPaths.value.push(toolPath);
-      saveOpenedTools();
+      setOpenedToolPaths([...openedToolPaths.value, toolPath]);
     }
   }
 
@@ -167,21 +225,16 @@ export const useToolsStore = defineStore("tools", () => {
    * 关闭一个工具标签
    */
   function closeTool(toolPath: string) {
-    const index = openedToolPaths.value.indexOf(toolPath);
-    if (index !== -1) {
-      openedToolPaths.value.splice(index, 1);
-      saveOpenedTools();
+    if (openedToolPaths.value.includes(toolPath)) {
+      setOpenedToolPaths(
+        openedToolPaths.value.filter((path) => path !== toolPath)
+      );
     }
   }
 
-  /**
-   * 保存已打开的工具到缓存
-   */
-  function saveOpenedTools() {
-    localStorage.setItem(
-      "app-opened-tools",
-      JSON.stringify(openedToolPaths.value)
-    );
+  /** 清空所有已打开工具标签及其本地缓存。 */
+  function clearOpenedTools() {
+    setOpenedToolPaths([]);
   }
 
   /**
@@ -201,17 +254,10 @@ export const useToolsStore = defineStore("tools", () => {
   function removeTool(toolPath: string) {
     const index = tools.value.findIndex((t) => t.path === toolPath);
     if (index !== -1) {
-      tools.value.splice(index, 1);
-      // 同时从已打开列表中移除
+      // 在工具从注册表移除前先关闭标签，以便规范化逻辑保留其他标签。
       closeTool(toolPath);
+      tools.value.splice(index, 1);
     }
-  }
-  /**
-   * 更新已打开工具的顺序
-   */
-  function setOpenedToolPaths(paths: string[]) {
-    openedToolPaths.value = paths;
-    saveOpenedTools();
   }
 
   /**
@@ -375,6 +421,7 @@ export const useToolsStore = defineStore("tools", () => {
     removeTool,
     openTool,
     closeTool,
+    clearOpenedTools,
     setOpenedToolPaths,
     addRecentTool,
     updatePinnedQuickAccess,

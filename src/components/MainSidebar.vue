@@ -64,7 +64,7 @@ const clearOpenedTabs = async () => {
       lockScroll: false,
     });
 
-    toolsStore.setOpenedToolPaths([]);
+    toolsStore.clearOpenedTools();
     customMessage.success("已清空所有标签页");
 
     // 如果当前在工具页面，导航回主页

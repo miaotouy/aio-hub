@@ -17,9 +17,10 @@
  *
  * 包括 Gemini 各版本分组、细分能力匹配、图像/TTS/Live 变体，以及 Gemma 系列。
  */
-import type { ModelMetadataRule } from "../../types/model-metadata";
+import type { LegacyModelMetadataRule } from "@aiohub/model-metadata-core";
+import type { ModelMetadataProperties } from "../../types/model-metadata";
 
-export const googleModelRules: ModelMetadataRule[] = [
+export const googleModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] = [
   // === Gemini 当前具体模型信息（官方模型页/价格页，2026-08） ===
   {
     id: "model-gemini-3.7-flash",

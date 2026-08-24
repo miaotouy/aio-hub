@@ -15,7 +15,8 @@
 /**
  * Anthropic (Claude) 系列模型前缀匹配规则
  */
-import type { ModelMetadataRule } from "../../types/model-metadata";
+import type { LegacyModelMetadataRule } from "@aiohub/model-metadata-core";
+import type { ModelMetadataProperties } from "../../types/model-metadata";
 
 // ===============================
 // Claude 模型的能力配置模板
@@ -49,7 +50,7 @@ const claudeAdaptiveThinkingCapabilities = {
   thinkingConfigType: "none" as const,
 };
 
-export const anthropicModelRules: ModelMetadataRule[] = [
+export const anthropicModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] = [
   // === Claude 当前具体模型信息（官方模型页/价格页，2026-06） ===
   {
     id: "model-claude-fable-5",

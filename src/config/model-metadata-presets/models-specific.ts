@@ -18,9 +18,10 @@
  * 包括 DALL-E、Whisper、TTS、Codex、Sora、Kling、Veo、Midjourney、
  * FLUX、Stable Diffusion、Luma、Suno 等专用模型。
  */
-import type { ModelMetadataRule } from "../../types/model-metadata";
+import type { LegacyModelMetadataRule } from "@aiohub/model-metadata-core";
+import type { ModelMetadataProperties } from "../../types/model-metadata";
 
-export const specificModelRules: ModelMetadataRule[] = [
+export const specificModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] = [
   // === OpenAI 专用模型 ===
   {
     id: "model-dall-e",

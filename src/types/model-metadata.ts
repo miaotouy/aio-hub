@@ -19,11 +19,14 @@
  * 包括但不限于：图标、分组、能力标签、上下文长度、价格等。
  */
 
-/**
- * 匹配规则类型
- */
-export type MetadataMatchType =
-  "provider" | "model" | "modelPrefix" | "modelGroup";
+import type {
+  MetadataMatchType as CoreMetadataMatchType,
+  ModelMetadataRule as CoreModelMetadataRule,
+  ModelMetadataStoreV3,
+} from "@aiohub/model-metadata-core";
+
+/** 规范化的规则匹配类型。 */
+export type MetadataMatchType = CoreMetadataMatchType;
 
 /**
  * 模型元数据属性
@@ -327,55 +330,10 @@ export interface MediaGenParamRules {
  * 定义了一个匹配规则，当模型 ID 或提供商满足条件时，
  * 将应用 properties 中定义的元数据。
  */
-export interface ModelMetadataRule {
-  /** 唯一标识 */
-  id: string;
+export type ModelMetadataRule = CoreModelMetadataRule<ModelMetadataProperties>;
 
-  /** 匹配类型 */
-  matchType: MetadataMatchType;
-
-  /** 匹配值（可以是字符串或正则表达式） */
-  matchValue: string;
-
-  /** 匹配成功后应用的元数据属性 */
-  properties: ModelMetadataProperties;
-
-  /** 优先级（数字越大优先级越高，默认 0） */
-  priority?: number;
-
-  /** 是否启用（默认 true） */
-  enabled?: boolean;
-
-  /** 是否使用正则表达式匹配（仅对 model、modelPrefix 有效） */
-  useRegex?: boolean;
-
-  /**
-   * 是否为独占规则
-   * 如果为 true，则匹配到此规则时，将忽略所有优先级低于此规则的匹配项。
-   * 默认为 false。
-   */
-  exclusive?: boolean;
-
-  /** 备注说明 */
-  description?: string;
-
-  /** 创建时间（ISO 8601 格式） */
-  createdAt?: string;
-}
-
-/**
- * 元数据配置存储结构
- */
-export interface ModelMetadataStore {
-  /** 配置版本 */
-  version: string;
-
-  /** 配置规则列表 */
-  rules: ModelMetadataRule[];
-
-  /** 最后更新时间 */
-  updatedAt?: string;
-}
+/** v3 分层持久化配置结构。 */
+export type ModelMetadataStore = ModelMetadataStoreV3<ModelMetadataProperties>;
 
 /**
  * 预设图标信息

@@ -17,7 +17,8 @@
  *
  * 包括 GPT-4o、GPT-5.6/GPT-5.5/GPT-5、GPT-4.1、GPT-4、GPT-3.5、o1/o3/o4 推理系列、ChatGPT 等。
  */
-import type { ModelMetadataRule } from "../../types/model-metadata";
+import type { LegacyModelMetadataRule } from "@aiohub/model-metadata-core";
+import type { ModelMetadataProperties } from "../../types/model-metadata";
 
 // ==========================================
 // OpenAI 能力预设模板
@@ -86,7 +87,7 @@ const openaiFlagshipCapabilities = {
 // OpenAI 模型规则定义
 // ==========================================
 
-export const openaiModelRules: ModelMetadataRule[] = [
+export const openaiModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] = [
   {
     id: "model-prefix-gpt-4o",
     matchType: "modelPrefix",

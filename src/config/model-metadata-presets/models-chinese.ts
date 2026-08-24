@@ -18,9 +18,10 @@
  * 包括智谱 AI、Moonshot/Kimi、字节跳动、腾讯、百度、MiniMax、
  * 零一万物、百川、InternLM、MiniCPM、Skywork、RWKV 等。
  */
-import type { ModelMetadataRule } from "../../types/model-metadata";
+import type { LegacyModelMetadataRule } from "@aiohub/model-metadata-core";
+import type { ModelMetadataProperties } from "../../types/model-metadata";
 
-export const chineseModelRules: ModelMetadataRule[] = [
+export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] = [
   // === 智谱 AI 系列模型 ===
   {
     id: "model-glm-5-family",

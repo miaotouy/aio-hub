@@ -1,170 +1,74 @@
-/**
- * 模型元数据匹配规则配置 (移动端 - 复用桌面端配置)
- */
+/** Mobile metadata configuration. Matching and merging are provided by the shared pure core. */
+import {
+  getMatchedRuleChain,
+  mergeRuleProperties,
+  testRuleMatch as testCoreRuleMatch,
+} from "@aiohub/model-metadata-core";
 import type {
   ModelMetadataRule,
   ModelMetadataProperties,
 } from "../types/model-metadata";
-import { merge } from "lodash-es";
 import { DEFAULT_METADATA_RULES as PRESET_RULES } from "@shared/config/model-metadata-presets";
 import { AVAILABLE_ICONS } from "./preset-icons";
 
-/**
- * 默认元数据规则配置
- */
-export const DEFAULT_METADATA_RULES =
-  PRESET_RULES as unknown as ModelMetadataRule[];
+export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = PRESET_RULES;
 
-/**
- * 测试规则是否匹配模型
- */
 export function testRuleMatch(
   rule: ModelMetadataRule,
   modelId: string,
   provider?: string
 ): boolean {
-  let matched = false;
-
-  switch (rule.matchType) {
-    case "model":
-      if (rule.useRegex) {
-        try {
-          const regex = new RegExp(rule.matchValue, "i");
-          matched = regex.test(modelId);
-        } catch (e) {
-          matched = false;
-        }
-      } else {
-        matched = modelId === rule.matchValue;
-      }
-      break;
-
-    case "modelPrefix":
-      if (rule.useRegex) {
-        try {
-          const regex = new RegExp(rule.matchValue, "i");
-          matched = regex.test(modelId);
-        } catch (e) {
-          matched = false;
-        }
-      } else {
-        matched = modelId.toLowerCase().includes(rule.matchValue.toLowerCase());
-      }
-      break;
-
-    case "provider":
-      if (
-        provider &&
-        provider.toLowerCase() === rule.matchValue.toLowerCase()
-      ) {
-        matched = true;
-      }
-      break;
-  }
-
-  return matched;
+  return testCoreRuleMatch(rule, { modelId, provider });
 }
 
-/**
- * 获取匹配模型的元数据属性
- */
 export function getMatchedModelProperties(
   modelId: string,
   provider?: string,
   rules: ModelMetadataRule[] = DEFAULT_METADATA_RULES
 ): ModelMetadataProperties | undefined {
-  const sortedEnabledRules = rules
-    .filter((r) => r.enabled !== false)
-    .sort((a, b) => (b.priority || 0) - (a.priority || 0));
-
-  let matchedRules = sortedEnabledRules.filter((rule) =>
-    testRuleMatch(rule, modelId, provider)
-  );
-
-  if (matchedRules.length === 0) {
-    return undefined;
-  }
-
-  const highestExclusiveRule = matchedRules.find((r) => r.exclusive === true);
-
-  if (highestExclusiveRule) {
-    const exclusivePriority = highestExclusiveRule.priority || 0;
-    matchedRules = matchedRules.filter(
-      (r) => (r.priority || 0) >= exclusivePriority
-    );
-  }
-
-  const finalProperties = matchedRules
-    .reverse()
-    .reduce(
-      (acc, rule) => merge(acc, rule.properties),
-      {} as ModelMetadataProperties
-    );
-
-  return finalProperties;
+  return mergeRuleProperties(getMatchedRuleChain(rules, { modelId, provider }));
 }
 
-/**
- * 获取模型图标路径
- */
 export function getModelIconPath(
   modelId: string,
   provider?: string,
   rules: ModelMetadataRule[] = DEFAULT_METADATA_RULES
 ): string | undefined {
   const properties = getMatchedModelProperties(modelId, provider, rules);
-  if (properties?.icon) {
-    return properties.icon;
+  if (properties?.icon) return properties.icon;
+  const candidates = [
+    provider?.toLowerCase(),
+    modelId.toLowerCase(),
+    ...modelId.toLowerCase().split(/[-_/]/),
+  ].filter((candidate): candidate is string =>
+    Boolean(candidate && candidate.length >= 2)
+  );
+  for (const candidate of new Set(candidates)) {
+    const color = `/model-icons/${candidate}-color.svg`;
+    const mono = `/model-icons/${candidate}.svg`;
+    if ((AVAILABLE_ICONS as readonly string[]).includes(color)) return color;
+    if ((AVAILABLE_ICONS as readonly string[]).includes(mono)) return mono;
   }
-
-  const candidates: string[] = [];
-  if (provider) candidates.push(provider.toLowerCase());
-
-  const normalizedModelId = modelId.toLowerCase();
-  candidates.push(normalizedModelId);
-
-  const parts = normalizedModelId.split(/[-_/]/);
-  if (parts.length > 0) candidates.push(...parts);
-
-  const uniqueCandidates = [...new Set(candidates)];
-
-  for (const candidate of uniqueCandidates) {
-    if (candidate.length < 2) continue;
-
-    const colorIcon = `${candidate}-color.svg`;
-    const monoIcon = `${candidate}.svg`;
-
-    if ((AVAILABLE_ICONS as readonly string[]).includes(colorIcon))
-      return colorIcon;
-    if ((AVAILABLE_ICONS as readonly string[]).includes(monoIcon))
-      return monoIcon;
-  }
-
   return undefined;
 }
 
-/**
- * 规范化图标路径（向后兼容）
- * 确保预设图标路径都带有 /model-icons/ 前缀。
- */
 export function normalizeIconPath(iconPath: string): string {
   if (!iconPath || typeof iconPath !== "string") return iconPath;
-
-  // 如果是纯文件名且在预设列表中，补全前缀
-  if (!iconPath.includes("/") && !iconPath.includes("\\")) {
-    if ((AVAILABLE_ICONS as readonly string[]).includes(iconPath)) {
-      return `/model-icons/${iconPath}`;
-    }
+  if (
+    !iconPath.includes("/") &&
+    !iconPath.includes("\\") &&
+    (AVAILABLE_ICONS as readonly string[]).includes(iconPath)
+  ) {
+    return `/model-icons/${iconPath}`;
   }
-
   return iconPath;
 }
 
-/**
- * 验证图标路径是否有效
- */
 export function isValidIconPath(iconPath: string): boolean {
-  if (!iconPath || typeof iconPath !== "string") return false;
-  const validExtensions = [".svg", ".png", ".jpg", ".jpeg", ".webp", ".gif"];
-  return validExtensions.some((ext) => iconPath.toLowerCase().endsWith(ext));
+  return (
+    Boolean(iconPath) &&
+    [".svg", ".png", ".jpg", ".jpeg", ".webp", ".gif"].some((extension) =>
+      iconPath.toLowerCase().endsWith(extension)
+    )
+  );
 }

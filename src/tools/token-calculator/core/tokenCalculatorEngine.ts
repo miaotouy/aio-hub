@@ -25,6 +25,10 @@
  */
 
 import { DEFAULT_METADATA_RULES } from "@/config/model-metadata-presets";
+import {
+  getMatchedRuleChain,
+  mergeRuleProperties,
+} from "@aiohub/model-metadata-core";
 import type {
   ModelMetadataRule,
   ModelMetadataProperties,
@@ -94,104 +98,15 @@ export interface TokenCalculationResult {
 }
 
 /**
- * 简单的对象合并函数，替代 lodash.merge 以减少依赖
- */
-function simpleMerge(target: any, source: any): any {
-  if (!source) return target;
-  const result = { ...target };
-  for (const key in source) {
-    if (
-      source[key] &&
-      typeof source[key] === "object" &&
-      !Array.isArray(source[key])
-    ) {
-      result[key] = simpleMerge(result[key] || {}, source[key]);
-    } else {
-      result[key] = source[key];
-    }
-  }
-  return result;
-}
-
-/**
- * 轻量级模型规则匹配逻辑
- */
-function testRuleMatch(
-  rule: ModelMetadataRule,
-  modelId: string,
-  provider?: string
-): boolean {
-  switch (rule.matchType) {
-    case "model":
-      if (rule.useRegex) {
-        try {
-          return new RegExp(rule.matchValue, "i").test(modelId);
-        } catch {
-          return false;
-        }
-      }
-      return modelId === rule.matchValue;
-
-    case "modelPrefix":
-      if (rule.useRegex) {
-        try {
-          return new RegExp(rule.matchValue, "i").test(modelId);
-        } catch {
-          return false;
-        }
-      }
-      return modelId.toLowerCase().includes(rule.matchValue.toLowerCase());
-
-    case "provider":
-      return !!(
-        provider && provider.toLowerCase() === rule.matchValue.toLowerCase()
-      );
-
-    default:
-      return false;
-  }
-}
-
-/**
- * 获取匹配模型的元数据属性 (Worker 安全版)
+ * Worker-safe metadata resolution backed by the shared core contract.
  */
 function getMatchedModelProperties(
   modelId: string,
   provider?: string,
   rules: ModelMetadataRule[] = DEFAULT_METADATA_RULES
 ): ModelMetadataProperties | undefined {
-  const matchedRules = rules
-    .filter((r) => r.enabled !== false)
-    .sort((a, b) => (b.priority || 0) - (a.priority || 0))
-    .filter((rule) => testRuleMatch(rule, modelId, provider));
-
-  if (matchedRules.length === 0) return undefined;
-
-  const highestExclusiveRule = matchedRules.find((r) => r.exclusive === true);
-  let finalRules = matchedRules;
-  if (highestExclusiveRule) {
-    const exclusivePriority = highestExclusiveRule.priority || 0;
-    finalRules = matchedRules.filter(
-      (r) => (r.priority || 0) >= exclusivePriority
-    );
-  }
-
-  return finalRules
-    .reverse()
-    .reduce(
-      (acc, rule) => simpleMerge(acc, rule.properties),
-      {} as ModelMetadataProperties
-    );
+  return mergeRuleProperties(getMatchedRuleChain(rules, { modelId, provider }));
 }
-
-/**
- * Token 计算引擎类
- *
- * v2 核心契约：
- * - 引擎本身不再持有任何硬编码的 tokenizer 列表 / 正则
- * - 通过 `setRegistry({ profiles, rules })` 注入注册表
- * - 通过 `setProfileDataFetcher(fetcher)` 注入所有 profile 的按需资产加载回调
- */
 export class TokenCalculatorEngine {
   /** profileId → 已实例化的 tokenizer */
   private tokenizerCache = new Map<string, PreTrainedTokenizer>();

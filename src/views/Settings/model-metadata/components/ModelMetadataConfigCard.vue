@@ -39,7 +39,7 @@
           {{ getMatchTypeLabel(config.matchType) }}
         </el-tag>
         <el-tag
-          v-if="config.useRegex"
+          v-if="config.matchType === 'modelRegex'"
           type="success"
           effect="plain"
           size="small"
@@ -130,9 +130,10 @@ const { getDisplayIconPath } = useModelMetadata();
 function getMatchTypeLabel(type: MetadataMatchType): string {
   const labels: Record<MetadataMatchType, string> = {
     provider: "Provider",
-    model: "Model",
-    modelPrefix: "Prefix",
-    modelGroup: "Group",
+    modelExact: "Model exact",
+    modelPrefix: "Model prefix",
+    modelContains: "Model contains",
+    modelRegex: "Model RegEx",
   };
   return labels[type] || type;
 }
@@ -146,9 +147,10 @@ function getMatchTypeTagType(
     "" | "success" | "info" | "warning" | "danger"
   > = {
     provider: "",
-    model: "info",
+    modelExact: "info",
     modelPrefix: "warning",
-    modelGroup: "success",
+    modelContains: "success",
+    modelRegex: "danger",
   };
   return types[type] || "";
 }

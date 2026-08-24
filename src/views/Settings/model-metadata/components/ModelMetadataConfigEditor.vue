@@ -32,12 +32,16 @@
             <el-form-item label="匹配类型">
               <el-select v-model="localConfig.matchType" style="width: 100%">
                 <el-option label="Provider (提供商)" value="provider" />
-                <el-option label="Model (精确模型)" value="model" />
+                <el-option label="Model exact (精确模型)" value="modelExact" />
                 <el-option
-                  label="Model Prefix (模型前缀)"
+                  label="Model prefix (模型前缀)"
                   value="modelPrefix"
                 />
-                <el-option label="Model Group (模型分组)" value="modelGroup" />
+                <el-option
+                  label="Model contains (包含匹配)"
+                  value="modelContains"
+                />
+                <el-option label="Model RegEx (正则)" value="modelRegex" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -60,11 +64,8 @@
             :placeholder="matchValuePlaceholder"
             clearable
           >
-            <template #append v-if="canUseRegex">
-              <el-checkbox v-model="localConfig.useRegex" label="正则" />
-            </template>
           </el-input>
-          <div class="form-hint" v-if="localConfig.useRegex">
+          <div class="form-hint" v-if="localConfig.matchType === 'modelRegex'">
             使用正则表达式匹配。例如：<code>^gpt-4o</code> 可匹配所有以 gpt-4o
             开头的模型
           </div>
@@ -324,25 +325,18 @@ watch(
   { immediate: true, deep: true }
 );
 
-const canUseRegex = computed(() => {
-  return (
-    localConfig.value.matchType !== "provider" &&
-    localConfig.value.matchType !== "modelGroup"
-  );
-});
-
 const matchValuePlaceholder = computed(() => {
-  if (localConfig.value.useRegex) return "正则表达式，例如: ^gpt-4o(-.*)?$";
-
   switch (localConfig.value.matchType) {
     case "provider":
       return "提供商 ID，例如: openai, anthropic";
-    case "model":
+    case "modelExact":
       return "完整模型 ID，例如: gpt-4o-2024-08-06";
     case "modelPrefix":
       return "模型 ID 前缀，例如: gpt-4o, claude-3-5";
-    case "modelGroup":
-      return "模型分组名称";
+    case "modelContains":
+      return "模型 ID 包含文本，例如: image";
+    case "modelRegex":
+      return "正则表达式，例如: ^gpt-4o(-.*)?$";
     default:
       return "匹配值";
   }

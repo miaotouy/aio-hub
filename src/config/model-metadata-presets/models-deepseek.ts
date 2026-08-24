@@ -15,9 +15,10 @@
 /**
  * DeepSeek 系列模型前缀匹配规则
  */
-import type { ModelMetadataRule } from "../../types/model-metadata";
+import type { LegacyModelMetadataRule } from "@aiohub/model-metadata-core";
+import type { ModelMetadataProperties } from "../../types/model-metadata";
 
-export const deepseekModelRules: ModelMetadataRule[] = [
+export const deepseekModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] = [
   {
     id: "model-deepseek-v4-pro",
     matchType: "model",

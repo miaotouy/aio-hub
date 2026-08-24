@@ -499,7 +499,7 @@ function createCoverageRule(row: CoverageItem) {
   );
 
   emit("create-rule", {
-    matchType: "model",
+    matchType: "modelExact",
     matchValue: row.modelId,
     properties: {
       group: recommendedGroup,

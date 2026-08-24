@@ -1,10 +1,12 @@
+import type {
+  MetadataMatchType as CoreMetadataMatchType,
+  ModelMetadataRule as CoreModelMetadataRule,
+  ModelMetadataStoreV3,
+} from "@aiohub/model-metadata-core";
 import type { ModelCapabilities } from "./common";
 
-/**
- * 匹配规则类型
- */
-export type MetadataMatchType =
-  "provider" | "model" | "modelPrefix" | "modelGroup";
+/** 规范化的规则匹配类型。 */
+export type MetadataMatchType = CoreMetadataMatchType;
 
 /**
  * 模型元数据属性
@@ -73,49 +75,10 @@ export interface ModelMetadataProperties {
 /**
  * 模型元数据匹配规则
  */
-export interface ModelMetadataRule {
-  /** 唯一标识 */
-  id: string;
+export type ModelMetadataRule = CoreModelMetadataRule<ModelMetadataProperties>;
 
-  /** 匹配类型 */
-  matchType: MetadataMatchType;
-
-  /** 匹配值（可以是字符串或正则表达式） */
-  matchValue: string;
-
-  /** 匹配成功后应用的元数据属性 */
-  properties: ModelMetadataProperties;
-
-  /** 优先级（数字越大优先级越高，默认 0） */
-  priority?: number;
-
-  /** 是否启用（默认 true） */
-  enabled?: boolean;
-
-  /** 是否使用正则表达式匹配 */
-  useRegex?: boolean;
-
-  /** 是否为独占规则 */
-  exclusive?: boolean;
-
-  /** 备注说明 */
-  description?: string;
-
-  /** 创建时间 */
-  createdAt?: string;
-}
-
-/**
- * 模型元数据存储格式
- */
-export interface ModelMetadataStore {
-  /** 版本号 */
-  version: string;
-  /** 规则列表 */
-  rules: ModelMetadataRule[];
-  /** 更新时间 */
-  updatedAt: string;
-}
+/** v3 分层持久化配置结构。 */
+export type ModelMetadataStore = ModelMetadataStoreV3<ModelMetadataProperties>;
 
 /**
  * 预设图标信息

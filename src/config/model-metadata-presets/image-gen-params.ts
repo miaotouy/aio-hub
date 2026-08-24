@@ -17,9 +17,10 @@
  *
  * 定义各图像生成模型的尺寸、质量、风格等参数预设。
  */
-import type { ModelMetadataRule } from "../../types/model-metadata";
+import type { LegacyModelMetadataRule } from "@aiohub/model-metadata-core";
+import type { ModelMetadataProperties } from "../../types/model-metadata";
 
-export const imageGenParamsRules: ModelMetadataRule[] = [
+export const imageGenParamsRules: LegacyModelMetadataRule<ModelMetadataProperties>[] = [
   // === OpenAI DALL-E 3 ===  已过时
   {
     id: "media-params-dall-e-3",

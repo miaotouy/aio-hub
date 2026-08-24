@@ -1,6 +1,6 @@
 # 模型元数据系统分层、同步与模型物化优化计划
 
-> 状态：待实施
+> 状态：施工中（批次 1 已完成；批次 2 的 Store / 迁移核心已完成，目录更新预览与模型物化待续）
 >
 > 计划日期：2026-07-16
 >
@@ -596,3 +596,35 @@ bun run --cwd mobile build
 - 不允许为兼容旧调用长期保留第二套匹配、合并或物化逻辑。
 - 任何会改变已保存模型请求参数的迁移都必须经过预览或一次性明确迁移，不得在后台启动任务中静默执行。
 - 架构文档当前关于媒体生成实时读取规则的描述已经与实际约束不一致，实施批次 3 后必须同步修正。
+
+## 15. 施工记录
+
+### 2026-08-24：批次 1 完成，批次 2 核心落地
+
+已完成：
+
+- 新增 `packages/model-metadata-core/`，提供纯 TypeScript 的 v3 类型、规则/Store Schema 校验、稳定序列化与目录指纹、五种规范化匹配、稳定排序、`exclusive` 边界、对象递归合并、数组整体替换、`unsetPaths` 与危险路径拒绝、有效规则编译、v2→v3 迁移和内置目录三方差异。
+- 桌面端和移动端改为使用共享核心进行规则匹配与属性合并；移动端不再使用 `as unknown as ModelMetadataRule[]`，也不再保留独立的 `lodash.merge()` 匹配实现。
+- 预设源文件保留旧数据写法，但只在聚合入口一次性转换为 v3 规则；应用和持久化层只消费规范化后的规则，因此旧 `modelPrefix` 的包含语义会被转换为 `modelContains`，不会静默改变已有目录行为。
+- 桌面端 v3 Store 已支持 `sourceSnapshot`、内置覆盖、屏蔽内置规则和自定义规则；加载旧 `metadata-rules.json` 时通过迁移器转换并校验，保存前阻止危险路径、非法正则和重复规则等阻塞诊断。移动端持久化同时升级为兼容的 v3 结构。
+- 设置编辑器移除了 `useRegex` / `modelGroup` 新建入口，改为显式的 exact、prefix、contains、regex 匹配类型；Token Calculator 的 Worker 侧规则解析改为调用共享核心。
+
+本批次的明确偏差与后续项：
+
+- 尚未进入批次 3 的模型物化：`LlmModelInfo.metadataBinding`、`tokenizerProfileId`、`apiFamily`、统一 `materializeModelMetadata()` 以及运行时消费者清零仍待实施。本次未主动改写已保存模型参数。
+- 设置页目前保留原有“合并内置配置”入口的兼容 Facade；它遇到冲突时不会自动应用更新。批次 4 将把该入口替换为字段级目录更新预览、显式冲突选择和模型刷新预览。
+- 本次没有将普通浏览器构建当作 Tauri 运行态验收；批次 4/5 完成 UI 流程后，仍需按第 11.6 节在真实桌面与移动目标运行态走查。
+
+验证结果：
+
+```text
+bun run check:model-metadata-core                         # 通过
+bun run test:model-metadata-core                          # 通过，6 项共享核心契约测试
+bunx vitest --run src/config/__tests__/model-metadata.test.ts \
+  src/views/Settings/model-metadata/utils/__tests__/coverageAnalysis.test.ts
+                                                           # 通过，8 项既有契约测试
+bun run check:frontend                                    # 通过
+bun run check:mobile:frontend                             # 通过
+bun run build:vite                                        # 通过（存在既有第三方 externalize / chunk-size 警告）
+bun run --cwd mobile build                                # 通过
+```

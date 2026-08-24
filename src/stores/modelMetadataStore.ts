@@ -2,18 +2,20 @@
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
 
+import { computed, ref } from "vue";
 import { defineStore } from "pinia";
-import { ref, computed } from "vue";
+import {
+  compileActiveRules,
+  createCatalogSnapshot,
+  diffBuiltinCatalog,
+  migrateV2Store,
+  testRuleMatch,
+  validateRule,
+  validateStore,
+  type BuiltinRuleDiff,
+  type LegacyModelMetadataStore,
+} from "@aiohub/model-metadata-core";
 import type {
   ModelMetadataProperties,
   ModelMetadataRule,
@@ -24,7 +26,6 @@ import {
   DEFAULT_METADATA_RULES,
   isValidIconPath,
   normalizeIconPath,
-  testRuleMatch,
 } from "../config/model-metadata";
 import { PRESET_ICONS } from "../config/preset-icons";
 import { createConfigManager } from "@utils/configManager";
@@ -34,344 +35,336 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 const logger = createModuleLogger("stores/modelMetadataStore");
 const errorHandler = createModuleErrorHandler("stores/modelMetadataStore");
 
-const STORAGE_KEY = "model-icon-configs";
-const CONFIG_VERSION = "2.0.0";
+const CONFIG_VERSION = "3.0.0";
+const CATALOG_REVISION = "2026.08.24.1";
+const CATALOG_GENERATED_AT = "2026-08-24T00:00:00.000Z";
 
-// 配置文件管理器
+function createBuiltinCatalog() {
+  return createCatalogSnapshot(
+    DEFAULT_METADATA_RULES,
+    CATALOG_REVISION,
+    CATALOG_GENERATED_AT
+  );
+}
+
+function createDefaultStore(): ModelMetadataStore {
+  return {
+    version: CONFIG_VERSION,
+    sourceSnapshot: createBuiltinCatalog(),
+    builtinOverrides: {},
+    suppressedBuiltinRuleIds: [],
+    customRules: [],
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 const configManager = createConfigManager<ModelMetadataStore>({
   moduleName: "model-metadata",
   fileName: "metadata-rules.json",
   version: CONFIG_VERSION,
-  createDefault: () => ({
-    version: CONFIG_VERSION,
-    rules: [...DEFAULT_METADATA_RULES],
-    updatedAt: new Date().toISOString(),
-  }),
+  createDefault: createDefaultStore,
+  // v2/v3 detection must see the raw on-disk shape. Shallowly merging a v2
+  // payload into the v3 default would otherwise forge a sourceSnapshot.
+  mergeConfig: (_default, loaded) => loaded as ModelMetadataStore,
 });
 
-/**
- * 模型元数据全局状态 Store
- */
+function isV3Store(value: unknown): value is ModelMetadataStore {
+  return (
+    Boolean(value) &&
+    typeof value === "object" &&
+    (value as ModelMetadataStore).version === CONFIG_VERSION &&
+    Boolean((value as ModelMetadataStore).sourceSnapshot)
+  );
+}
+
+function normalizeRule(rule: ModelMetadataRule): ModelMetadataRule {
+  return {
+    ...rule,
+    properties: {
+      ...rule.properties,
+      ...(rule.properties.icon
+        ? { icon: normalizeIconPath(rule.properties.icon) }
+        : {}),
+    },
+  };
+}
+
+/** Model metadata state. Rules are compiled from the v3 source snapshot, local overrides, and custom rules. */
 export const useModelMetadataStore = defineStore("modelMetadata", () => {
-  // --- 状态 ---
-  const rules = ref<ModelMetadataRule[]>([...DEFAULT_METADATA_RULES]);
+  const metadataStore = ref<ModelMetadataStore>(createDefaultStore());
   const isLoaded = ref(false);
 
-  // --- 计算属性 ---
+  const rules = computed(() => compileActiveRules(metadataStore.value));
   const presetIcons = computed<PresetIconInfo[]>(() => PRESET_ICONS);
   const enabledCount = computed(
-    () => rules.value.filter((r) => r.enabled !== false).length
+    () => rules.value.filter((rule) => rule.enabled !== false).length
+  );
+  const catalogDiffs = computed<BuiltinRuleDiff<ModelMetadataProperties>[]>(
+    () => diffBuiltinCatalog(metadataStore.value, DEFAULT_METADATA_RULES)
+  );
+  const pendingUpdatesCount = computed(
+    () =>
+      catalogDiffs.value.filter(
+        (diff) => diff.status !== "unchanged" && diff.status !== "local"
+      ).length
   );
 
-  /** 内置预设中尚未合并到用户规则的新规则数量 */
-  const pendingUpdatesCount = computed(() => {
-    const currentRuleIds = new Set(rules.value.map((r) => r.id));
-    return DEFAULT_METADATA_RULES.filter((r) => !currentRuleIds.has(r.id))
-      .length;
-  });
-
-  // --- 核心操作 ---
-
-  /**
-   * 加载规则（含旧版数据迁移）
-   */
-  async function loadRules() {
-    try {
-      const data = await configManager.load();
-
-      // 迁移逻辑保持不变
-      if (data.rules.length === DEFAULT_METADATA_RULES.length) {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          logger.info("检测到 localStorage 中的旧版数据，开始迁移", {
-            storageKey: STORAGE_KEY,
-          });
-          try {
-            const oldData: { configs: any[] } = JSON.parse(stored);
-            if (oldData.configs && Array.isArray(oldData.configs)) {
-              data.rules = oldData.configs.map((config) => ({
-                id: config.id,
-                matchType: config.matchType,
-                matchValue: config.matchValue,
-                properties: {
-                  icon: normalizeIconPath(config.iconPath),
-                  group: config.groupName,
-                },
-                priority: config.priority,
-                enabled: config.enabled,
-                useRegex: config.useRegex,
-                description: config.description,
-              }));
-              data.updatedAt = new Date().toISOString();
-              await configManager.save(data);
-              localStorage.removeItem(STORAGE_KEY);
-              logger.info("localStorage 数据迁移完成", {
-                ruleCount: data.rules.length,
-              });
-            }
-          } catch (e) {
-            errorHandler.handle(e, {
-              userMessage: "localStorage 数据迁移失败",
-              showToUser: false,
-            });
-          }
-        }
-      }
-
-      let needsSave = false;
-      const defaultRulesById = new Map(
-        DEFAULT_METADATA_RULES.map((rule) => [rule.id, rule])
-      );
-
-      // 规范化路径，并迁移旧内置规则中误写到 rule.description 的模型描述。
-      const normalizedRules = data.rules.map((rule) => {
-        const defaultRule = defaultRulesById.get(rule.id);
-        const properties: ModelMetadataProperties = {
-          ...(rule.properties || {}),
-          icon: rule.properties?.icon
-            ? normalizeIconPath(rule.properties.icon)
-            : undefined,
-        };
-        let description = rule.description;
-
-        if (properties.icon !== rule.properties?.icon) {
-          needsSave = true;
-        }
-
-        if (
-          !properties.description &&
-          defaultRule?.properties.description &&
-          (description === defaultRule.properties.description ||
-            description === defaultRule.description)
-        ) {
-          properties.description = defaultRule.properties.description;
-          description = defaultRule.description;
-          needsSave = true;
-        }
-
-        return {
-          ...rule,
-          description,
-          properties,
-        };
+  async function persist(nextStore = metadataStore.value): Promise<boolean> {
+    const diagnostics = validateStore(nextStore);
+    if (diagnostics.some((diagnostic) => diagnostic.blocking)) {
+      errorHandler.handle(new Error("模型元数据配置校验失败"), {
+        userMessage: "模型元数据配置无效，未保存更改",
+        context: { diagnostics },
       });
+      return false;
+    }
+    try {
+      const saved = { ...nextStore, updatedAt: new Date().toISOString() };
+      await configManager.save(saved);
+      metadataStore.value = saved;
+      return true;
+    } catch (error) {
+      errorHandler.handle(error, { userMessage: "保存模型元数据规则失败" });
+      return false;
+    }
+  }
 
-      if (needsSave) {
-        await configManager.save({
-          ...data,
-          rules: normalizedRules,
-          updatedAt: new Date().toISOString(),
+  async function loadRules(): Promise<void> {
+    try {
+      const loaded = await configManager.load();
+      if (isV3Store(loaded)) {
+        const diagnostics = validateStore(loaded);
+        if (diagnostics.some((diagnostic) => diagnostic.blocking)) {
+          throw new Error("v3 模型元数据配置校验失败");
+        }
+        metadataStore.value = loaded;
+      } else {
+        const migration = migrateV2Store(
+          loaded as unknown as LegacyModelMetadataStore<ModelMetadataProperties>,
+          createBuiltinCatalog(),
+          new Date().toISOString()
+        );
+        if (
+          !migration.store ||
+          migration.diagnostics.some((diagnostic) => diagnostic.blocking)
+        ) {
+          throw new Error("旧版模型元数据配置无法安全迁移");
+        }
+        metadataStore.value = migration.store;
+        await persist(migration.store);
+        logger.info("模型元数据配置已从 v2 迁移到 v3", {
+          diagnostics: migration.diagnostics.length,
         });
       }
-
-      rules.value = normalizedRules;
-      isLoaded.value = true;
     } catch (error) {
-      errorHandler.error(error, "加载模型元数据规则失败");
-      rules.value = [...DEFAULT_METADATA_RULES];
+      errorHandler.handle(error, { userMessage: "加载模型元数据规则失败" });
+      metadataStore.value = createDefaultStore();
+    } finally {
       isLoaded.value = true;
     }
   }
 
-  /**
-   * 保存规则
-   */
-  async function saveRules() {
+  async function importStore(candidate: unknown): Promise<boolean> {
     try {
-      const data: ModelMetadataStore = {
-        version: CONFIG_VERSION,
-        rules: rules.value,
-        updatedAt: new Date().toISOString(),
-      };
-      await configManager.save(data);
-      return true;
+      const next = isV3Store(candidate)
+        ? candidate
+        : migrateV2Store(
+            candidate as LegacyModelMetadataStore<ModelMetadataProperties>,
+            createBuiltinCatalog(),
+            new Date().toISOString()
+          ).store;
+      if (!next) return false;
+      const diagnostics = validateStore(next);
+      if (diagnostics.some((diagnostic) => diagnostic.blocking)) return false;
+      return persist(next);
     } catch (error) {
-      errorHandler.error(error, "保存模型元数据规则失败", {
-        context: { ruleCount: rules.value.length },
+      errorHandler.handle(error, { userMessage: "导入模型元数据规则失败" });
+      return false;
+    }
+  }
+  async function saveRules(): Promise<boolean> {
+    return persist();
+  }
+
+  async function addRule(
+    input: Omit<ModelMetadataRule, "id">
+  ): Promise<boolean> {
+    const now = new Date().toISOString();
+    const rule = normalizeRule({
+      ...input,
+      id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+      enabled: input.enabled !== false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    if (rule.properties.icon && !isValidIconPath(rule.properties.icon)) {
+      errorHandler.handle(new Error("无效的图标路径"), {
+        userMessage: "添加规则失败",
       });
       return false;
     }
-  }
-
-  /**
-   * 添加规则
-   */
-  async function addRule(
-    rule: Omit<ModelMetadataRule, "id">
-  ): Promise<boolean> {
-    try {
-      const newRule: ModelMetadataRule = {
-        ...rule,
-        id: `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        enabled: rule.enabled !== false,
-        createdAt: new Date().toISOString(),
-        properties: {
-          ...rule.properties,
-          icon: rule.properties.icon
-            ? normalizeIconPath(rule.properties.icon)
-            : undefined,
-        },
-      };
-
-      if (
-        newRule.properties.icon &&
-        !isValidIconPath(newRule.properties.icon)
-      ) {
-        throw new Error("无效的图标路径");
-      }
-      rules.value.push(newRule);
-      await saveRules();
-      return true;
-    } catch (error) {
-      errorHandler.error(error, "添加规则失败");
+    if (validateRule(rule).some((diagnostic) => diagnostic.blocking))
       return false;
-    }
+    return persist({
+      ...metadataStore.value,
+      customRules: [...metadataStore.value.customRules, rule],
+    });
   }
 
-  /**
-   * 更新规则
-   */
   async function updateRule(
     id: string,
     updates: Partial<ModelMetadataRule>
   ): Promise<boolean> {
-    try {
-      const index = rules.value.findIndex((r) => r.id === id);
-      if (index === -1) throw new Error("规则不存在");
-
-      const processedUpdates = { ...updates };
-      if (processedUpdates.properties?.icon) {
-        processedUpdates.properties.icon = normalizeIconPath(
-          processedUpdates.properties.icon
-        );
-      }
-
-      if (
-        processedUpdates.properties?.icon &&
-        !isValidIconPath(processedUpdates.properties.icon)
-      ) {
-        throw new Error("无效的图标路径");
-      }
-
-      rules.value[index] = {
-        ...rules.value[index],
-        ...processedUpdates,
-        properties: {
-          ...rules.value[index].properties,
-          ...(processedUpdates.properties || {}),
+    const current = rules.value.find((rule) => rule.id === id);
+    if (!current) return false;
+    const next = normalizeRule({
+      ...current,
+      ...updates,
+      properties: { ...current.properties, ...(updates.properties ?? {}) },
+      updatedAt: new Date().toISOString(),
+    });
+    if (next.properties.icon && !isValidIconPath(next.properties.icon))
+      return false;
+    if (validateRule(next).some((diagnostic) => diagnostic.blocking))
+      return false;
+    const builtin = metadataStore.value.sourceSnapshot.rules.some(
+      (rule) => rule.id === id
+    );
+    if (builtin) {
+      return persist({
+        ...metadataStore.value,
+        builtinOverrides: {
+          ...metadataStore.value.builtinOverrides,
+          [id]: next,
         },
-      };
-
-      await saveRules();
-      return true;
-    } catch (error) {
-      errorHandler.error(error, "更新规则失败");
-      return false;
+      });
     }
+    return persist({
+      ...metadataStore.value,
+      customRules: metadataStore.value.customRules.map((rule) =>
+        rule.id === id ? next : rule
+      ),
+    });
   }
 
-  /**
-   * 删除规则
-   */
   async function deleteRule(id: string): Promise<boolean> {
-    try {
-      const index = rules.value.findIndex((r) => r.id === id);
-      if (index === -1) throw new Error("规则不存在");
-      rules.value.splice(index, 1);
-      await saveRules();
-      return true;
-    } catch (error) {
-      errorHandler.error(error, "删除规则失败");
-      return false;
+    const builtin = metadataStore.value.sourceSnapshot.rules.some(
+      (rule) => rule.id === id
+    );
+    if (builtin) {
+      const suppressed = new Set(metadataStore.value.suppressedBuiltinRuleIds);
+      suppressed.add(id);
+      const overrides = { ...metadataStore.value.builtinOverrides };
+      delete overrides[id];
+      return persist({
+        ...metadataStore.value,
+        builtinOverrides: overrides,
+        suppressedBuiltinRuleIds: [...suppressed].sort(),
+      });
     }
+    return persist({
+      ...metadataStore.value,
+      customRules: metadataStore.value.customRules.filter(
+        (rule) => rule.id !== id
+      ),
+    });
   }
 
-  /**
-   * 切换状态
-   */
+  async function restoreBuiltinRule(id: string): Promise<boolean> {
+    if (
+      !metadataStore.value.sourceSnapshot.rules.some((rule) => rule.id === id)
+    )
+      return false;
+    const overrides = { ...metadataStore.value.builtinOverrides };
+    delete overrides[id];
+    return persist({
+      ...metadataStore.value,
+      builtinOverrides: overrides,
+      suppressedBuiltinRuleIds:
+        metadataStore.value.suppressedBuiltinRuleIds.filter(
+          (item) => item !== id
+        ),
+    });
+  }
+
   async function toggleRule(id: string): Promise<boolean> {
-    const rule = rules.value.find((r) => r.id === id);
-    if (!rule) return false;
-    rule.enabled = !rule.enabled;
-    await saveRules();
-    return true;
+    const current = rules.value.find((rule) => rule.id === id);
+    return current
+      ? updateRule(id, { enabled: current.enabled === false })
+      : false;
   }
 
-  /**
-   * 重置默认
-   */
   async function resetToDefaults(): Promise<boolean> {
-    try {
-      const now = new Date().toISOString();
-      rules.value = DEFAULT_METADATA_RULES.map((rule) => ({
-        ...rule,
-        createdAt: now,
-      }));
-      await saveRules();
-      return true;
-    } catch (error) {
-      errorHandler.error(error, "重置规则失败");
-      return false;
-    }
+    return persist(createDefaultStore());
   }
 
-  /**
-   * 合并内置
-   */
+  /** @deprecated The settings UI must use catalogDiffs and an explicit preview before applying updates. */
   async function mergeWithDefaults(): Promise<{
     added: number;
     updated: number;
   }> {
-    try {
-      const now = new Date().toISOString();
-      const currentRules = [...rules.value];
-      const currentRuleIds = new Set(currentRules.map((r) => r.id));
-
-      let addedCount = 0;
-      for (const defaultRule of DEFAULT_METADATA_RULES) {
-        if (!currentRuleIds.has(defaultRule.id)) {
-          currentRules.push({ ...defaultRule, createdAt: now });
-          addedCount++;
+    const blocking = catalogDiffs.value.some(
+      (diff) => diff.status === "conflict"
+    );
+    if (blocking) return { added: 0, updated: 0 };
+    const changed = catalogDiffs.value.filter(
+      (diff) => diff.status === "added" || diff.status === "upstream"
+    ).length;
+    if (changed === 0) return { added: 0, updated: 0 };
+    const nextStore: ModelMetadataStore = {
+      ...metadataStore.value,
+      sourceSnapshot: createBuiltinCatalog(),
+      builtinOverrides: Object.fromEntries(
+        Object.entries(metadataStore.value.builtinOverrides).filter(
+          ([id, rule]) => {
+            const incoming = DEFAULT_METADATA_RULES.find(
+              (candidate) => candidate.id === id
+            );
+            return (
+              !incoming || JSON.stringify(incoming) !== JSON.stringify(rule)
+            );
+          }
+        )
+      ),
+    };
+    const saved = await persist(nextStore);
+    return saved
+      ? {
+          added: catalogDiffs.value.filter((diff) => diff.status === "added")
+            .length,
+          updated: changed,
         }
-      }
-
-      rules.value = currentRules;
-      await saveRules();
-      return { added: addedCount, updated: 0 };
-    } catch (error) {
-      errorHandler.error(error, "合并内置配置失败");
-      throw error;
-    }
+      : { added: 0, updated: 0 };
   }
 
-  /**
-   * 获取匹配规则
-   */
   function getMatchedRule(
     modelId: string,
     provider?: string
   ): ModelMetadataRule | undefined {
-    const enabledRules = rules.value
-      .filter((r) => r.enabled !== false)
-      .sort((a, b) => (b.priority || 0) - (a.priority || 0));
-
-    for (const rule of enabledRules) {
-      if (testRuleMatch(rule, modelId, provider)) return rule;
-    }
-    return undefined;
+    return rules.value.find(
+      (rule) =>
+        rule.enabled !== false && testRuleMatch(rule, { modelId, provider })
+    );
   }
 
+  // Load lazily to retain the former composable contract.
+  if (!isLoaded.value) void loadRules();
+
   return {
+    metadataStore,
     rules,
     isLoaded,
     presetIcons,
     enabledCount,
+    catalogDiffs,
     pendingUpdatesCount,
     loadRules,
     saveRules,
+    importStore,
     addRule,
     updateRule,
     deleteRule,
+    restoreBuiltinRule,
     toggleRule,
     resetToDefaults,
     mergeWithDefaults,
@@ -379,16 +372,7 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
   };
 });
 
-/**
- * 模块级访问器（非 Vue 代码使用）
- * 允许在非组件环境下安全获取当前规则列表
- */
+/** Pure consumers may read compiled active rules without creating a second matching implementation. */
 export function getActiveRules(): ModelMetadataRule[] {
-  try {
-    const store = useModelMetadataStore();
-    return store.rules;
-  } catch (e) {
-    // 如果在 Pinia 还没初始化的环境下调用，降级到默认规则
-    return [...DEFAULT_METADATA_RULES];
-  }
+  return compileActiveRules(useModelMetadataStore().metadataStore);
 }

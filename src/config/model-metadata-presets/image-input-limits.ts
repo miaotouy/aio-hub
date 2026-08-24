@@ -17,9 +17,10 @@
  *
  * 定义各模型系列对输入图片的最大尺寸限制。
  */
-import type { ModelMetadataRule } from "../../types/model-metadata";
+import type { LegacyModelMetadataRule } from "@aiohub/model-metadata-core";
+import type { ModelMetadataProperties } from "../../types/model-metadata";
 
-export const imageInputLimitRules: ModelMetadataRule[] = [
+export const imageInputLimitRules: LegacyModelMetadataRule<ModelMetadataProperties>[] = [
   {
     id: "max-image-dim-qwen",
     matchType: "modelPrefix",

@@ -23,14 +23,13 @@ import type {
   ModelMetadataRule,
   ModelMetadataProperties,
 } from "../types/model-metadata";
-import { createModuleLogger } from "@utils/logger";
-import { merge } from "lodash-es";
+import {
+  getMatchedRuleChain as getCoreMatchedRuleChain,
+  mergeRuleProperties,
+  testRuleMatch as testCoreRuleMatch,
+} from "@aiohub/model-metadata-core";
 import { PRESET_ICONS, AVAILABLE_ICONS } from "./preset-icons";
 import { DEFAULT_METADATA_RULES as PRESET_RULES } from "./model-metadata-presets";
-import { getActiveRules } from "../stores/modelMetadataStore";
-
-// 创建模块日志器
-const logger = createModuleLogger("model-metadata");
 
 // 重新导出预设图标配置供外部使用
 export { PRESET_ICONS };
@@ -54,188 +53,61 @@ export function testRuleMatch(
   modelId: string,
   provider?: string
 ): boolean {
-  let matched = false;
-
-  switch (rule.matchType) {
-    case "model":
-      if (rule.useRegex) {
-        try {
-          const regex = new RegExp(rule.matchValue, "i");
-          matched = regex.test(modelId);
-        } catch (e) {
-          logger.warn("无效的正则表达式模式", {
-            ruleId: rule.id,
-            matchValue: rule.matchValue,
-            error: e instanceof Error ? e.message : String(e),
-          });
-        }
-      } else {
-        matched = modelId === rule.matchValue;
-      }
-      break;
-
-    case "modelPrefix":
-      if (rule.useRegex) {
-        try {
-          const regex = new RegExp(rule.matchValue, "i");
-          matched = regex.test(modelId);
-        } catch (e) {
-          logger.warn("无效的正则表达式模式", {
-            ruleId: rule.id,
-            matchValue: rule.matchValue,
-            error: e instanceof Error ? e.message : String(e),
-          });
-        }
-      } else {
-        // 对整个模型 ID 进行不区分大小写的包含匹配，以兼容 user/model-name 格式
-        matched = modelId.toLowerCase().includes(rule.matchValue.toLowerCase());
-      }
-      break;
-
-    case "modelGroup":
-      // modelGroup 已废弃，分组功能通过 properties.group 字段实现
-      break;
-
-    case "provider":
-      if (
-        provider &&
-        provider.toLowerCase() === rule.matchValue.toLowerCase()
-      ) {
-        matched = true;
-      }
-      break;
-  }
-
-  return matched;
+  return testCoreRuleMatch(rule, { modelId, provider });
 }
 
 /**
- * 获取模型的规则合并链（参与最终属性合并的所有规则，含 exclusive 截断）
- * 返回结果按优先级从低到高排列（index 0 = 最低优先级，最后一条 = 最高优先级）
+ * 获取模型的规则合并链。共享核心保证桌面、移动端和覆盖分析顺序一致。
  */
 export function getMatchedRuleChain(
   rules: ModelMetadataRule[],
   modelId: string,
   provider?: string
 ): ModelMetadataRule[] {
-  const sortedEnabledRules = rules
-    .filter((r) => r.enabled !== false)
-    .sort((a, b) => (b.priority || 0) - (a.priority || 0));
-
-  let matchedRules = sortedEnabledRules.filter((rule) =>
-    testRuleMatch(rule, modelId, provider)
-  );
-
-  if (matchedRules.length === 0) {
-    return [];
-  }
-
-  const highestExclusiveRule = matchedRules.find((r) => r.exclusive === true);
-
-  if (highestExclusiveRule) {
-    const exclusivePriority = highestExclusiveRule.priority || 0;
-    matchedRules = matchedRules.filter(
-      (r) => (r.priority || 0) >= exclusivePriority
-    );
-  }
-
-  return matchedRules.reverse();
+  return getCoreMatchedRuleChain(rules, { modelId, provider });
 }
 
-/**
- * 获取匹配模型的元数据属性
- * @param rules 元数据规则列表
- * @param modelId 模型 ID
- * @param provider 提供商
- * @returns 匹配的元数据属性对象或 undefined
- */
 export function getMatchedModelProperties(
   rules: ModelMetadataRule[],
   modelId: string,
   provider?: string
 ): ModelMetadataProperties | undefined {
-  const matchedRules = getMatchedRuleChain(rules, modelId, provider);
-
-  // 如果没有匹配的规则，直接返回
-  if (matchedRules.length === 0) {
-    return undefined;
-  }
-
-  const finalProperties = matchedRules.reduce(
-    (acc, rule) => merge(acc, rule.properties),
-    {} as ModelMetadataProperties
-  );
-
-  return finalProperties;
+  return mergeRuleProperties(getMatchedRuleChain(rules, modelId, provider));
 }
 
-/**
- * 便捷函数：获取当前活跃的模型元数据属性（从 Store 读取规则）
- * 供主线程非 Vue 代码使用
- * @param modelId 模型 ID
- * @param provider 提供商
- */
+/** 仅供目录分析和模型物化流程使用，业务运行时不得将其作为模型字段兜底。 */
 export function getActiveModelProperties(
   modelId: string,
   provider?: string
 ): ModelMetadataProperties | undefined {
-  const rules = getActiveRules();
-  return getMatchedModelProperties(rules, modelId, provider);
+  return getMatchedModelProperties(DEFAULT_METADATA_RULES, modelId, provider);
 }
 
-/**
- * 获取模型图标路径（向后兼容函数）
- * @param rules 元数据规则列表
- * @param modelId 模型 ID
- * @param provider 提供商
- * @returns 图标路径或 undefined
- */
+/** Resolve explicit rule icon first, then fall back to known bundled icon names. */
 export function getModelIconPath(
   rules: ModelMetadataRule[],
   modelId: string,
   provider?: string
 ): string | undefined {
-  // 1. 尝试使用规则匹配
   const properties = getMatchedModelProperties(rules, modelId, provider);
-  if (properties?.icon) {
-    return properties.icon;
+  if (properties?.icon) return properties.icon;
+
+  const candidates = [
+    provider?.toLowerCase(),
+    modelId.toLowerCase(),
+    ...modelId.toLowerCase().split(/[-_/]/),
+  ].filter((candidate): candidate is string =>
+    Boolean(candidate && candidate.length >= 2)
+  );
+  for (const candidate of new Set(candidates)) {
+    const color = `/model-icons/${candidate}-color.svg`;
+    const monochrome = `/model-icons/${candidate}.svg`;
+    if ((AVAILABLE_ICONS as readonly string[]).includes(color)) return color;
+    if ((AVAILABLE_ICONS as readonly string[]).includes(monochrome))
+      return monochrome;
   }
-
-  // 2. 规则未匹配到图标，尝试动态查找
-  const candidates: string[] = [];
-
-  if (provider) {
-    candidates.push(provider.toLowerCase());
-  }
-
-  const normalizedModelId = modelId.toLowerCase();
-  candidates.push(normalizedModelId);
-
-  const parts = normalizedModelId.split(/[-_/]/);
-  if (parts.length > 0) {
-    candidates.push(...parts);
-  }
-
-  const uniqueCandidates = [...new Set(candidates)];
-
-  for (const candidate of uniqueCandidates) {
-    if (candidate.length < 2) continue;
-
-    const colorIcon = `/model-icons/${candidate}-color.svg`;
-    const monoIcon = `/model-icons/${candidate}.svg`;
-
-    if ((AVAILABLE_ICONS as readonly string[]).includes(colorIcon)) {
-      return colorIcon;
-    }
-
-    if ((AVAILABLE_ICONS as readonly string[]).includes(monoIcon)) {
-      return monoIcon;
-    }
-  }
-
   return undefined;
 }
-
 /**
  * 规范化图标路径（向后兼容）
  * 确保预设图标路径都带有 /model-icons/ 前缀。

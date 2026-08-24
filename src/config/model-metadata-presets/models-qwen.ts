@@ -18,7 +18,8 @@
  * 包括 Qwen3.7、Qwen3.6、Qwen3.5、Qwen3、Qwen-Omni、Qwen3-Coder、
  * Qwen Image、Wan、QwQ、QVQ 等。
  */
-import type { ModelMetadataRule } from "../../types/model-metadata";
+import type { LegacyModelMetadataRule } from "@aiohub/model-metadata-core";
+import type { ModelMetadataProperties } from "../../types/model-metadata";
 
 // ==========================================
 // Qwen 能力预设模板
@@ -62,7 +63,7 @@ const qwenFlagshipCapabilities = {
 // Qwen 模型规则定义
 // ==========================================
 
-export const qwenModelRules: ModelMetadataRule[] = [
+export const qwenModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] = [
   // === 通义千问系列模型 ===
   {
     id: "model-prefix-qwen3.7",

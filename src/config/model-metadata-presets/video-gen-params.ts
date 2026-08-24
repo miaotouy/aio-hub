@@ -17,7 +17,8 @@
  *
  * 覆盖主流视频生成模型的尺寸、宽高比、分辨率和时长等参数。
  */
-import type { ModelMetadataRule } from "../../types/model-metadata";
+import type { LegacyModelMetadataRule } from "@aiohub/model-metadata-core";
+import type { ModelMetadataProperties } from "../../types/model-metadata";
 
 const commonVideoAspectRatios = [
   { label: "16:9 (横屏)", value: "16:9" },
@@ -32,7 +33,7 @@ const commonVideoResolutions = [
   { label: "1080p", value: "1080p" },
 ];
 
-export const videoGenParamsRules: ModelMetadataRule[] = [
+export const videoGenParamsRules: LegacyModelMetadataRule<ModelMetadataProperties>[] = [
   // === OpenAI Sora ===
   {
     id: "media-params-sora-video",

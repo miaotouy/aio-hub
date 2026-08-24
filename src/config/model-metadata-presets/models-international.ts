@@ -18,9 +18,10 @@
  * 包括 xAI (Grok)、Meta (Llama)、Mistral、Cohere、AI21、Microsoft (Phi)、
  * Stability AI、BAAI、Black Forest Labs (FLUX) 等。
  */
-import type { ModelMetadataRule } from "../../types/model-metadata";
+import type { LegacyModelMetadataRule } from "@aiohub/model-metadata-core";
+import type { ModelMetadataProperties } from "../../types/model-metadata";
 
-export const internationalModelRules: ModelMetadataRule[] = [
+export const internationalModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] = [
   // === Perplexity 系列模型 ===
   {
     id: "model-prefix-sonar",

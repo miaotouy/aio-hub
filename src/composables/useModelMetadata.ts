@@ -129,11 +129,7 @@ export function useModelMetadata() {
   async function importRules(jsonStr: string): Promise<boolean> {
     try {
       const data = JSON.parse(jsonStr);
-      if (!data.rules || !Array.isArray(data.rules))
-        throw new Error("无效的配置格式");
-      store.rules = data.rules;
-      await store.saveRules();
-      return true;
+      return store.importStore(data);
     } catch (e) {
       return false;
     }
@@ -143,7 +139,7 @@ export function useModelMetadata() {
    * 按优先级排序规则
    */
   function sortByPriority() {
-    store.rules.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+    // 编译后的规则顺序由共享核心定义，不能在 UI 层原地重排。
   }
 
   /**
@@ -164,6 +160,7 @@ export function useModelMetadata() {
     // 规则管理
     loadRules: store.loadRules,
     saveRules: store.saveRules,
+    importStore: store.importStore,
     addRule: store.addRule,
     updateRule: store.updateRule,
     deleteRule: store.deleteRule,

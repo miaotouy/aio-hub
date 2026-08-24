@@ -17,9 +17,10 @@
  *
  * 根据 LLM 服务提供商标识匹配图标和分组。
  */
-import type { ModelMetadataRule } from "../../types/model-metadata";
+import type { LegacyModelMetadataRule } from "@aiohub/model-metadata-core";
+import type { ModelMetadataProperties } from "../../types/model-metadata";
 
-export const providerRules: ModelMetadataRule[] = [
+export const providerRules: LegacyModelMetadataRule<ModelMetadataProperties>[] = [
   // === 主流国际 AI 服务商 ===
   {
     id: "provider-openai",

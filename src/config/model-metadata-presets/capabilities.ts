@@ -17,9 +17,10 @@
  *
  * 根据模型名称中的关键词自动推断模型能力。
  */
-import type { ModelMetadataRule } from "../../types/model-metadata";
+import type { LegacyModelMetadataRule } from "@aiohub/model-metadata-core";
+import type { ModelMetadataProperties } from "../../types/model-metadata";
 
-export const capabilityRules: ModelMetadataRule[] = [
+export const capabilityRules: LegacyModelMetadataRule<ModelMetadataProperties>[] = [
   // 视觉能力
   {
     id: "capability-vision-vl",

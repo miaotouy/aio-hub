@@ -166,7 +166,7 @@
                   >{{ getMatchTypeLabel(testMatchedRule.matchType) }}</el-tag
                 >
                 <el-tag
-                  v-if="testMatchedRule.useRegex"
+                  v-if="testMatchedRule.matchType === 'modelRegex'"
                   type="success"
                   effect="light"
                   >RegEx</el-tag
@@ -503,9 +503,10 @@ function resetPage() {
 function getMatchTypeLabel(type: MetadataMatchType): string {
   const labels: Record<MetadataMatchType, string> = {
     provider: "Provider",
-    model: "Model",
-    modelPrefix: "Prefix",
-    modelGroup: "Group",
+    modelExact: "Model exact",
+    modelPrefix: "Model prefix",
+    modelContains: "Model contains",
+    modelRegex: "Model RegEx",
   };
   return labels[type] || type;
 }
@@ -519,9 +520,10 @@ function getMatchTypeTagType(
     "" | "success" | "info" | "warning" | "danger"
   > = {
     provider: "",
-    model: "info",
+    modelExact: "info",
     modelPrefix: "warning",
-    modelGroup: "success",
+    modelContains: "success",
+    modelRegex: "danger",
   };
   return types[type] || "";
 }

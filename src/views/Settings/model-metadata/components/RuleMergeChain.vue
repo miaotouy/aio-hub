@@ -92,7 +92,9 @@
           <div class="rule-popover__meta">
             <span>优先级: {{ contribution.rule.priority || 0 }}</span>
             <span v-if="contribution.rule.exclusive">独占</span>
-            <span v-if="contribution.rule.useRegex">RegEx</span>
+            <span v-if="contribution.rule.matchType === 'modelRegex'"
+              >RegEx</span
+            >
           </div>
           <div class="field-summary">
             <div>
@@ -135,9 +137,10 @@ defineEmits<{
 function getMatchTypeLabel(type: MetadataMatchType): string {
   const labels: Record<MetadataMatchType, string> = {
     provider: "Provider",
-    model: "Model",
-    modelPrefix: "Prefix",
-    modelGroup: "Group",
+    modelExact: "Model exact",
+    modelPrefix: "Model prefix",
+    modelContains: "Model contains",
+    modelRegex: "Model RegEx",
   };
   return labels[type] || type;
 }
@@ -150,9 +153,10 @@ function getMatchTypeTagType(
     "" | "success" | "info" | "warning" | "danger"
   > = {
     provider: "",
-    model: "info",
+    modelExact: "info",
     modelPrefix: "warning",
-    modelGroup: "success",
+    modelContains: "success",
+    modelRegex: "danger",
   };
   return types[type] || "";
 }

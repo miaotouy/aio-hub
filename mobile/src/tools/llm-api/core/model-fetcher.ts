@@ -9,7 +9,6 @@ import {
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 import { getProviderTypeInfo } from "../config/llm-providers";
-import { getMatchedModelProperties } from "../config/model-metadata";
 import type { LlmModelInfo, LlmProfile } from "../types";
 import { mobileLlmTransport } from "./transports/mobile";
 
@@ -74,9 +73,7 @@ export async function fetchModelsFromApi(
   }
 }
 
-function toMobileModelInfo(model: ProviderModelInfo): LlmModelInfo {
-  const metadata = getMatchedModelProperties(model.id, model.provider);
-  const pricing = model.pricing
+function toMobileModelInfo(model: ProviderModelInfo): LlmModelInfo {  const pricing = model.pricing
     ? Object.fromEntries(
         Object.entries(model.pricing).map(([key, value]) => [
           key,
@@ -92,11 +89,10 @@ function toMobileModelInfo(model: ProviderModelInfo): LlmModelInfo {
     {
       id: model.id,
       name: model.name,
-      group: metadata?.group || model.group || "Other",
+      group: model.group || "Other",
       provider: model.provider,
       description: model.description,
       capabilities: {
-        ...(metadata?.capabilities || {}),
         ...(model.inputModalities
           ? { vision: model.inputModalities.includes("image") }
           : {}),

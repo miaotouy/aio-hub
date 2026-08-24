@@ -5,14 +5,17 @@
  * 各个 LLM API 提供商特定格式的通用辅助函数。
  */
 
-import type { LlmMessageContent, LlmRequestOptions } from "../types/common";
-import { getMatchedModelProperties } from "../config/model-metadata";
+import type {
+  LlmMessageContent,
+  LlmModelInfo,
+  LlmRequestOptions,
+} from "../types/common";
 
 /**
  * 模型家族类型
  */
 export type ModelFamily =
-  "openai" | "claude" | "gemini" | "cohere" | "deepseek" | "qwen" | "unknown";
+  "openai" | "claude" | "gemini" | "cohere" | "deepseek" | "qwen" | "xai" | "unknown";
 
 /**
  * 解析后的消息内容结构
@@ -292,15 +295,17 @@ export function buildBase64DataUrl(
  * 获取模型所属的家族
  */
 export function getModelFamily(
-  modelId: string,
+  model: Pick<LlmModelInfo, "apiFamily" | "group" | "provider"> | string,
   provider?: string
 ): ModelFamily {
-  const props = getMatchedModelProperties(modelId, provider);
-  const group = props?.group?.toLowerCase();
+  const savedModel = typeof model === "string" ? undefined : model;
+  const effectiveProvider = savedModel?.provider ?? provider;
+  if (savedModel?.apiFamily) return savedModel.apiFamily;
+  const group = savedModel?.group?.toLowerCase();
 
   if (!group) {
-    if (provider) {
-      const lowerProvider = provider.toLowerCase();
+    if (effectiveProvider) {
+      const lowerProvider = effectiveProvider.toLowerCase();
       if (lowerProvider === "anthropic" || lowerProvider === "claude")
         return "claude";
       if (
@@ -313,6 +318,7 @@ export function getModelFamily(
       if (lowerProvider === "deepseek") return "deepseek";
       if (lowerProvider === "qwen" || lowerProvider === "alibaba")
         return "qwen";
+      if (lowerProvider === "xai") return "xai";
     }
     return "unknown";
   }
@@ -334,6 +340,7 @@ export function getModelFamily(
   if (group === "cohere" || group === "command") return "cohere";
   if (group === "deepseek") return "deepseek";
   if (group === "qwen" || group.startsWith("qwen")) return "qwen";
+  if (group === "xai" || group.startsWith("grok")) return "xai";
 
   return "unknown";
 }

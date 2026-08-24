@@ -33,7 +33,7 @@ interface Emits {
 const emit = defineEmits<Emits>();
 const { t, tRaw } = useI18n();
 
-const { getMatchedProperties } = useModelMetadata();
+const { loadRules, materializeModel } = useModelMetadata();
 const { capabilities: translatedCapabilities } = useTranslatedCapabilities();
 
 const createDefaultCapabilities = () => ({
@@ -166,7 +166,7 @@ watch(
 
 const isEditMode = computed(() => !!props.model);
 
-const handleApplyPreset = () => {
+const handleApplyPreset = async () => {
   if (!innerModel.value.id) {
     Snackbar.warning(tRaw("tools.llm-api.ModelEditorPopup.请先输入模型 ID"));
     return;
@@ -184,33 +184,18 @@ const handleApplyPreset = () => {
     }
   }
 
-  const matchedProps = getMatchedProperties(
-    innerModel.value.id,
-    innerModel.value.provider
-  );
-  if (matchedProps) {
-    if (matchedProps.icon && !innerModel.value.icon) {
-      innerModel.value.icon = matchedProps.icon;
-    }
-    if (matchedProps.group && !innerModel.value.group) {
-      innerModel.value.group = matchedProps.group;
-    }
-    if (matchedProps.capabilities) {
-      innerModel.value.capabilities = {
-        ...innerModel.value.capabilities,
-        ...matchedProps.capabilities,
-      };
-    }
-    Snackbar.success(tRaw("tools.llm-api.ModelEditorPopup.已应用预设配置"));
-  } else {
-    Snackbar[identityApplied ? "success" : "info"](
-      tRaw(
-        identityApplied
-          ? "tools.llm-api.ModelEditorPopup.已识别模型身份"
-          : "tools.llm-api.ModelEditorPopup.未找到匹配的预设配置"
-      )
-    );
+  await loadRules();
+  const materialized = materializeModel(innerModel.value);
+  if (materialized.changes.length > 0) {
+    innerModel.value = materialized.model;
   }
+  Snackbar[materialized.changes.length > 0 || identityApplied ? "success" : "info"](
+    tRaw(
+      materialized.changes.length > 0 || identityApplied
+        ? "tools.llm-api.ModelEditorPopup.已应用预设配置"
+        : "tools.llm-api.ModelEditorPopup.未找到匹配的预设配置"
+    )
+  );
 };
 
 const handleIconSelect = (icon: any) => {

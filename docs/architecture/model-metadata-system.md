@@ -1,21 +1,41 @@
 # 模型元数据系统架构
 
-> **状态**: Stable  
-> **最后更新**: 2026-04-23
+> **状态**: Stable（v3 分层目录与跨端物化已落地）
+> **最后更新**: 2026-08-24
 
 ---
 
 ## 1. 模块概览
 
-模型元数据系统负责为 LLM 模型/服务商动态配置附加属性，包括图标、分组、能力开关、分词器、上下文长度、媒体生成参数约束等。它是一套基于**规则匹配**的属性注入机制：通过预先定义匹配规则，在运行时根据模型 ID 或 Provider 自动查找并应用对应属性，而无需为每个模型单独配置。
+模型元数据系统负责维护模型元数据目录，并在模型创建、导入、刷新或显式应用预设时把匹配结果物化到模型对象。规则目录可以变化，但业务运行时读取已保存模型的图标、分组、能力、分词器、上下文长度、请求家族和媒体生成参数，不会因全局规则更新而隐式改变。
+
+### v3 生命周期与跨端边界
+
+```text
+内置 Catalog Snapshot + 本地 override + 自定义规则
+                    │
+                    ├─ 设置分析、目录差异与导入诊断
+                    └─ 创建 / 导入 / 刷新 / 显式应用预设
+                                      │
+                                      v
+                         LlmModelInfo 元数据快照与 metadataBinding
+                                      │
+                                      v
+                 聊天、Token、请求家族、图标/分组、媒体生成运行时
+```
+
+- `packages/model-metadata-core` 是桌面与移动端共享的规则编译、迁移、目录差异、冲突应用和模型物化实现；两端不再维护第二套匹配或合并算法。
+- `metadataBinding.mode` 为 `manual`、`fillMissing` 或 `followSource`。只有 `followSource` 的 `managedPaths` 可在用户确认的模型刷新中更新；模型编辑后变动的字段会脱离受管状态。
+- `mediaGenParams` 在首次物化后成为模型对象快照。媒体生成器运行时只读取模型自身字段，不读取或回退到全局规则。
+- 移动端使用相同的核心和 v3 存储；渠道预设、API 拉取和手动新增模型均通过共享物化入口写入快照。
 
 ### 核心特性
 
-- **规则匹配**：支持 Provider / 精确模型 / 前缀 / 正则四种匹配模式
-- **优先级合并**：多条规则同时命中时，按优先级从低到高 `merge()`，高优先级属性覆盖低优先级
+- **规则匹配**：支持 Provider / 精确模型 / 前缀 / 包含 / 正则五种匹配模式
+- **优先级合并**：多条规则同时命中时按稳定顺序合并；对象递归合并，数组整体替换，并支持 `unsetPaths`
 - **独占规则**：`exclusive: true` 可截断优先级更低的所有匹配，实现"完全覆盖"语义
-- **持久化**：用户自定义规则保存至 AppData，应用重启后保留
-- **旧版迁移**：自动检测并迁移 `localStorage` 中的 v1 格式数据
+- **v3 分层持久化**：保存内置来源快照、本地 override、已抑制内置规则和自定义规则
+- **迁移与差异**：v2 规则可迁移为 v3；内置目录以 base/local/incoming 三方差异和字段级决策更新
 
 ### 文件清单
 
@@ -52,7 +72,6 @@ interface ModelMetadataRule {
   properties: ModelMetadataProperties; // 匹配成功时注入的属性
   priority?: number; // 优先级（数字越大越高，默认 0）
   enabled?: boolean; // 是否启用（默认 true）
-  useRegex?: boolean; // 是否使用正则匹配（仅 model / modelPrefix 有效）
   exclusive?: boolean; // 独占规则（见§3.3）
   description?: string; // 备注
   createdAt?: string; // 创建时间（ISO 8601）
@@ -61,14 +80,15 @@ interface ModelMetadataRule {
 
 #### `MetadataMatchType`
 
-| 值            | 含义                              | 匹配目标                       | 支持正则 |
-| ------------- | --------------------------------- | ------------------------------ | -------- |
-| `provider`    | Provider 精确匹配（大小写不敏感） | 调用方传入的 `provider` 参数   | ❌       |
-| `model`       | 模型 ID 精确匹配                  | 完整 `modelId`                 | ✅       |
-| `modelPrefix` | 模型 ID 包含匹配（不区分大小写）  | `modelId.includes(matchValue)` | ✅       |
-| `modelGroup`  | ⚠️ 已废弃，不再使用               | —                              | —        |
+| 值 | 含义 | 匹配目标 |
+| --- | --- | --- |
+| `provider` | Provider 精确匹配（大小写不敏感） | `provider` |
+| `modelExact` | 模型 ID 精确匹配（大小写不敏感） | 完整 `modelId` |
+| `modelPrefix` | 模型 ID 前缀匹配 | `modelId.startsWith(matchValue)` |
+| `modelContains` | 模型 ID 包含匹配 | `modelId.includes(matchValue)` |
+| `modelRegex` | 正则表达式匹配 | `RegExp(matchValue)` |
 
-> `modelPrefix` 的非正则模式使用 `includes()` 而非 `startsWith()`，可兼容 `user/model-name` 格式的 HuggingFace 风格 ID。
+`modelGroup` 已废弃；旧 `model` / `modelPrefix` 包含匹配会在 v2 -> v3 迁移时规范化为相应的 v3 匹配类型。
 
 #### `ModelMetadataProperties`
 
@@ -126,7 +146,7 @@ toggleRule(id)     // 切换 enabled 状态
 
 // 批量操作
 resetToDefaults()         // 清除用户配置，回到出厂默认
-mergeWithDefaults()       // 保留用户规则，补充内置中缺失的规则，返回 {added, updated}
+applyCatalogUpdate(selections) // 应用已明确解决字段冲突的内置目录更新
 
 // 查询
 getMatchedRule(modelId, provider?)  // 返回第一条匹配的规则（仅用于调试/测试模式）
@@ -231,21 +251,16 @@ getMatchedModelProperties(rules, modelId, provider):
 ### 3.4 `testRuleMatch` 匹配逻辑细节
 
 ```typescript
-// provider 匹配（大小写不敏感，无正则）
 case "provider":
   matched = provider?.toLowerCase() === rule.matchValue.toLowerCase()
-
-// model 精确匹配（支持正则）
-case "model":
-  matched = useRegex ? regex.test(modelId) : modelId === matchValue
-
-// modelPrefix 包含匹配（支持正则；非正则模式用 includes 而非 startsWith）
+case "modelExact":
+  matched = modelId.toLowerCase() === rule.matchValue.toLowerCase()
 case "modelPrefix":
-  matched = useRegex ? regex.test(modelId) : modelId.toLowerCase().includes(matchValue.toLowerCase())
-
-// modelGroup 已废弃，始终返回 false
-case "modelGroup":
-  matched = false
+  matched = modelId.toLowerCase().startsWith(rule.matchValue.toLowerCase())
+case "modelContains":
+  matched = modelId.toLowerCase().includes(rule.matchValue.toLowerCase())
+case "modelRegex":
+  matched = new RegExp(rule.matchValue, "i").test(modelId)
 ```
 
 ---
@@ -310,7 +325,7 @@ getModelIconPath(rules, modelId, provider):
 | 区域         | 功能                                                                                                 |
 | ------------ | ---------------------------------------------------------------------------------------------------- |
 | 头部统计栏   | 总配置数 / 启用数 / 当前显示数                                                                       |
-| 操作按钮     | 查看预设 / 导入 / 导出 / 合并最新配置 / 重置为默认 / 添加配置                                        |
+| 操作按钮     | 查看预设 / 导入 / 导出 / 查看目录更新 / 刷新模型配置 / 重置为默认 / 添加配置                              |
 | 工具栏       | 搜索 / 排序（priority/type/name/createdAt）/ 状态筛选（all/enabled/disabled）/ 视图切换（网格/列表） |
 | 测试模式面板 | 输入模型 ID + Provider，实时展示匹配结果（见§6.2）                                                   |
 | 规则卡片列表 | 分页展示（12/24/48/96 条/页），每条支持启用/禁用/编辑/删除                                           |
@@ -347,7 +362,7 @@ getModelIconPath(rules, modelId, provider):
 
 ```
 [匹配规则区] — el-divider，常驻
-  matchType / matchValue / useRegex（checkbox）/ priority / group / enabled / description
+  matchType / matchValue / priority / group / enabled / description
 
 [图标设置区] — el-divider，常驻
   图标路径输入 + [选择文件（Tauri Dialog）] + [选择预设] + 实时预览
@@ -367,9 +382,6 @@ getModelIconPath(rules, modelId, provider):
   RichCodeEditor（language=json）双向同步 properties 对象
   JSON 语法错误时标红不更新表单
 ```
-
-**`useRegex` 的可用性**：仅 `model` 和 `modelPrefix` 类型的规则可以启用正则，`provider` 和 `modelGroup` 类型禁用（`canUseRegex` computed）。
-
 **保存前清理**（`cleanProperties()`）：移除全为 `false` 的 capabilities 对象、空字符串的 icon/group/tokenizer、空数组的 recommendedFor。
 
 **本地文件选择**：调用 `@tauri-apps/plugin-dialog` 的 `open()`，过滤 `png/jpg/jpeg/svg/webp/ico` 格式。
@@ -484,5 +496,5 @@ getModelIconPath(rules, modelId, provider):
 
 在 [`src/config/model-metadata-presets.ts`](../../src/config/model-metadata-presets.ts) 的 `DEFAULT_METADATA_RULES` 数组中添加新规则对象。注意：
 
-- `id` 必须全局唯一且稳定（用于 `mergeWithDefaults()` 的去重判断）
-- 新规则在用户已有自定义配置时，需要用户手动点击"合并最新配置"才会生效
+- `id` 必须全局唯一且稳定（用于目录差异、override 和迁移）
+- 新规则会显示在“查看目录更新”预览中；用户确认应用目录后才会进入本地来源快照

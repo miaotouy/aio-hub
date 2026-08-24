@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { merge } from "lodash-es";
 import { ChevronLeft, Search, Check, Plus, Filter } from "lucide-vue-next";
 import { useI18n } from "@/i18n";
 import type { LlmModelInfo } from "../types";
@@ -24,8 +23,7 @@ interface Emits {
 const emit = defineEmits<Emits>();
 const { t, tRaw } = useI18n();
 
-const { getModelIcon, getModelGroup, getMatchedProperties } =
-  useModelMetadata();
+const { getModelIcon, getModelGroup } = useModelMetadata();
 const { capabilities: translatedCapabilities } = useTranslatedCapabilities();
 
 const searchQuery = ref("");
@@ -153,17 +151,9 @@ const toggleGroupSelection = (groupModels: LlmModelInfo[]) => {
 const handleConfirm = () => {
   const modelsToAdd = selectedModels.value.map((model: LlmModelInfo) => {
     const { modelIdentitySuggestion: _suggestion, ...persistedModel } = model;
-    const matchedProps = getMatchedProperties(model.id, model.provider);
     return {
       ...persistedModel,
       name: model.name || formatModelName(model.id),
-      group: matchedProps?.group || getModelGroup(model),
-      icon: matchedProps?.icon || model.icon,
-      capabilities: merge(
-        {},
-        matchedProps?.capabilities || {},
-        model.capabilities || {}
-      ),
     };
   });
   emit("add-models", modelsToAdd);
@@ -185,12 +175,8 @@ const formatModelName = (modelId: string): string => {
   return name;
 };
 
-const getModelCapabilities = (model: LlmModelInfo) => {
-  const matchedProps = getMatchedProperties(model.id, model.provider);
-  const matchedCapabilities = matchedProps?.capabilities || {};
-  const modelCapabilities = model.capabilities || {};
-  return merge({}, matchedCapabilities, modelCapabilities);
-};
+const getModelCapabilities = (model: LlmModelInfo) =>
+  model.capabilities ?? {};
 const getActiveCapabilities = (model: LlmModelInfo) => {
   const capabilities = getModelCapabilities(model);
   return translatedCapabilities.value.filter(

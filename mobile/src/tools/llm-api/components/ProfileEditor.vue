@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { detachModifiedMetadataPaths } from "@aiohub/model-metadata-core";
 import { mergeDiscoveredModelRouting } from "@aiohub/llm-core";
 import { ref, computed, watch } from "vue";
 import { createModuleLogger } from "@/utils/logger";
@@ -30,6 +31,7 @@ import {
   getLlmEndpointHint,
 } from "../utils/url";
 import type { LlmProfile, LlmModelInfo } from "../types";
+import { useModelMetadata } from "../composables/useModelMetadata";
 
 // 导入子组件
 import CustomHeadersEditor from "./CustomHeadersEditor.vue";
@@ -58,6 +60,7 @@ const emit = defineEmits<{
 
 const { t, tRaw } = useI18n();
 const { keyboardHeight } = useKeyboardAvoidance();
+const { loadRules, materializeModel } = useModelMetadata();
 const isFetchingModels = ref(false);
 const showHeadersPopup = ref(false);
 const showEndpointsPopup = ref(false);
@@ -133,7 +136,10 @@ const handleFetchModels = async () => {
   if (!innerProfile.value) return;
   isFetchingModels.value = true;
   try {
-    const models = await fetchModelsFromApi(innerProfile.value);
+    await loadRules();
+    const models = (await fetchModelsFromApi(innerProfile.value)).map((model) =>
+      materializeModel(model).model
+    );
     // Refresh remote route declarations without replacing a user's manual
     // binding or locally configured model capabilities.
     innerProfile.value.models = mergeFetchedRouteDeclarations(
@@ -186,15 +192,22 @@ const handleEditModel = (model: LlmModelInfo) => {
   showModelEditorPopup.value = true;
 };
 
-const handleSaveModel = (model: LlmModelInfo) => {
+const handleSaveModel = async (model: LlmModelInfo) => {
   if (!innerProfile.value) return;
   const index = innerProfile.value.models.findIndex(
-    (m: LlmModelInfo) => m.id === model.id
+    (item: LlmModelInfo) => item.id === model.id
   );
   if (index > -1) {
-    innerProfile.value.models[index] = model;
+    innerProfile.value.models[index] = detachModifiedMetadataPaths(
+      innerProfile.value.models[index],
+      model
+    );
   } else {
-    innerProfile.value.models = [...innerProfile.value.models, model];
+    await loadRules();
+    innerProfile.value.models = [
+      ...innerProfile.value.models,
+      materializeModel(model).model,
+    ];
   }
   Snackbar.success(tRaw("tools.llm-api.ProfileEditor.模型已保存"));
 };

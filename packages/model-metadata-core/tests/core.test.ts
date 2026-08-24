@@ -6,8 +6,11 @@ import {
   diffBuiltinCatalog,
   getMatchedRuleChain,
   mergeRuleProperties,
+  materializeModelMetadata,
+  detachModifiedMetadataPaths,
   migrateV2Store,
   testRuleMatch,
+  type MaterializableModel,
   type ModelMetadataRule,
 } from "../src";
 
@@ -300,5 +303,56 @@ describe("built-in catalog update application", () => {
     expect(() => applyBuiltinCatalogUpdate(store, incoming)).toThrow(
       'Conflict field "builtin-openai:properties.group" requires an explicit resolution'
     );
+  });
+});
+
+describe("shared model metadata materialization", () => {
+  it("persists resolved metadata on the model and only refreshes managed follow-source fields", () => {
+    const source: MaterializableModel & { name: string } = {
+      id: "gpt-4o",
+      provider: "openai",
+      name: "GPT-4o",
+    };
+    const initial = materializeModelMetadata(
+      source,
+      {
+        group: "OpenAI",
+        tokenizer: "gpt4o",
+        contextLength: 128000,
+        capabilities: { vision: true },
+      },
+      {
+        mode: "followSource",
+        sourceRevision: "2026.08.24.1",
+        appliedRuleIds: ["builtin-openai"],
+        now: "2026-08-24T00:00:00.000Z",
+      }
+    );
+
+    expect(initial.model).toMatchObject({
+      group: "OpenAI",
+      tokenizerProfileId: "gpt4o",
+      apiFamily: "openai",
+      tokenLimits: { contextLength: 128000 },
+      capabilities: { vision: true },
+      metadataBinding: {
+        mode: "followSource",
+        sourceRevision: "2026.08.24.1",
+      },
+    });
+
+    const refreshed = materializeModelMetadata(
+      initial.model,
+      { group: "OpenAI Next", contextLength: 200000 },
+      { sourceRevision: "2026.08.25.1" }
+    );
+    expect(refreshed.model.group).toBe("OpenAI Next");
+    expect(refreshed.model.tokenLimits?.contextLength).toBe(200000);
+
+    const detached = detachModifiedMetadataPaths(refreshed.model, {
+      ...refreshed.model,
+      group: "My group",
+    });
+    expect(detached.metadataBinding?.managedPaths).not.toContain("group");
   });
 });

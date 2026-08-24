@@ -8,6 +8,7 @@ import { Snackbar } from "@varlet/ui";
 import { useI18n } from "@/i18n";
 import type { LlmProfile } from "../types";
 import { generateUuid } from "@/utils/uuid";
+import { useModelMetadata } from "../composables/useModelMetadata";
 
 // 导入子组件
 import ProfileCard from "../components/ProfileCard.vue";
@@ -17,6 +18,7 @@ import ProfileEditor from "../components/ProfileEditor.vue";
 const router = useRouter();
 const { t, tRaw } = useI18n();
 const store = useLlmProfilesStore();
+const { loadRules, materializeModel } = useModelMetadata();
 const isManagementMode = ref(false);
 const multiSelectedIds = ref<Set<string>>(new Set());
 
@@ -32,7 +34,11 @@ const handleAddProfile = () => {
   showPresetsPopup.value = true;
 };
 
-const applyPreset = (preset: any) => {
+const applyPreset = async (preset: any) => {
+  await loadRules();
+  const defaultModels = preset.defaultModels
+    ? JSON.parse(JSON.stringify(preset.defaultModels))
+    : [];
   const newProfile: LlmProfile = {
     id: generateUuid(),
     name: preset.name,
@@ -40,11 +46,9 @@ const applyPreset = (preset: any) => {
     baseUrl: preset.defaultBaseUrl,
     apiKeys: [""],
     enabled: true,
-    models: preset.defaultModels
-      ? JSON.parse(JSON.stringify(preset.defaultModels)).map((model: any) =>
-          materializeModelIdentity(model)
-        )
-      : [],
+    models: defaultModels.map((model: any) =>
+      materializeModel(materializeModelIdentity(model)).model
+    ),
     icon: preset.logoUrl,
     customHeaders: {},
     customEndpoints: {},

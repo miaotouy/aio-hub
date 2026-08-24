@@ -1,6 +1,6 @@
 # 模型元数据系统分层、同步与模型物化优化计划
 
-> 状态：施工中（批次 1～4 已完成；移动端收口与真实运行态验收待批次 5 实施）
+> 状态：施工中（批次 1～4 已完成；批次 5 的共享核心、移动端物化和文档已完成；移动端目录管理 UI 与真实运行态验收待后续收口）
 >
 > 计划日期：2026-07-16
 >
@@ -693,6 +693,34 @@ bunx vitest --run src/utils/__tests__/modelMetadataMaterialization.test.ts \
                                                            # 通过，19 项定向测试
 bun run lint                                              # 通过（既有 no-useless-spread 警告）
 bun run build:vite                                        # 通过（既有第三方 externalize / eval / chunk-size 警告）
+bun run --cwd mobile build                                # 通过（既有 eval / chunk-size 警告）
+git diff --check                                          # 通过
+```
+
+### 2026-08-24：批次 5（第一部分）完成，共享物化与移动端接线
+
+已完成：
+
+- 将 `materializeModelMetadata()` 与“用户编辑后脱离 followSource 受管字段”的逻辑迁入 `packages/model-metadata-core`，桌面端保留薄 Facade，移动端直接调用同一实现；共享核心新增模型物化契约测试。
+- 移动端 `useModelMetadata()` 改为 v3 分层 Store Facade：复用共享的匹配、规则编译、迁移、校验、三方目录差异、字段级目录更新和导入诊断逻辑，删除本地规则数组反推 Store 的重复算法及空实现的 `mergeWithDefaults()`。
+- 移动端模型物化字段与桌面对齐：补充 `mediaGenParams` 类型，并在渠道预设创建、API 获取模型、手动新增模型和显式应用预设时写入模型快照；编辑 followSource 模型时会将用户改动字段移出 `managedPaths`。
+- 移动端模型列表、选择器、获取模型预览和请求家族判断不再为已保存模型回退读取全局元数据规则；模型获取只返回服务端发现数据，随后由明确的模型写入入口物化。
+- 更新模型元数据架构、桌面设置指南和移动端 LLM API 指南，说明 v3 来源、目录更新与“目录不自动改写模型”的边界。
+
+明确保留的后续项：
+
+- 移动端当前没有独立的模型元数据管理页面，因此桌面端已有的“目录更新 / 字段冲突选择 / 模型刷新预览 / 导入确认”交互尚未在移动端呈现；共享 Facade 已暴露所需 `catalogDiffs`、`applyCatalogUpdate()`、`inspectImport()` 和 `materializeModel()`，后续可在移动端按任务式界面接入。
+- 当前环境未执行真实 Tauri 桌面窗口或 Android/iOS 设备/模拟器走查，不能把类型检查与 Vite 构建当作第 11.6 节的真实运行态验收。后续需在目标平台完成“目录更新 -> 刷新模型 -> 部分保存失败”任务走查并记录结果。
+
+验证结果：
+
+```text
+bun run check:model-metadata-core                         # 通过
+bun run test:model-metadata-core                          # 通过，9 项共享核心契约测试
+bunx vitest --run src/utils/__tests__/modelMetadataMaterialization.test.ts \
+  src/config/__tests__/model-metadata.test.ts             # 通过，11 项定向测试
+bun run check:frontend                                    # 通过
+bun run check:mobile:frontend                             # 通过
 bun run --cwd mobile build                                # 通过（既有 eval / chunk-size 警告）
 git diff --check                                          # 通过
 ```

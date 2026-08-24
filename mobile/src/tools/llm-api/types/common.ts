@@ -1,3 +1,5 @@
+import type { MediaGenParamRules } from "@shared/types/model-metadata";
+
 /**
  * LLM 请求通用类型定义
  */
@@ -405,6 +407,12 @@ export interface LlmModelInfo {
    * 用于在 UI 中显示模型的特性和用途说明
    */
   description?: string;
+
+  /**
+   * 模型专属的媒体生成参数规则（可选）。
+   * 元数据物化后它是模型自己的快照，运行时不得回退到全局规则。
+   */
+  mediaGenParams?: MediaGenParamRules;
 
   /**
    * 模型专属的自定义参数（可选）

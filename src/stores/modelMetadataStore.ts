@@ -6,6 +6,7 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import {
+  applyBuiltinCatalogUpdate,
   compileActiveRules,
   createCatalogSnapshot,
   diffBuiltinCatalog,
@@ -14,6 +15,9 @@ import {
   validateRule,
   validateStore,
   type BuiltinRuleDiff,
+  type CatalogUpdateResult,
+  type ModelMetadataDiagnostic,
+  type CatalogUpdateSelection,
   type LegacyModelMetadataStore,
 } from "@aiohub/model-metadata-core";
 import type {
@@ -164,23 +168,47 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
     }
   }
 
-  async function importStore(candidate: unknown): Promise<boolean> {
+  function inspectImport(candidate: unknown): {
+    store?: ModelMetadataStore;
+    diagnostics: ModelMetadataDiagnostic[];
+  } {
     try {
-      const next = isV3Store(candidate)
-        ? candidate
-        : migrateV2Store(
-            candidate as LegacyModelMetadataStore<ModelMetadataProperties>,
-            createBuiltinCatalog(),
-            new Date().toISOString()
-          ).store;
-      if (!next) return false;
-      const diagnostics = validateStore(next);
-      if (diagnostics.some((diagnostic) => diagnostic.blocking)) return false;
-      return persist(next);
-    } catch (error) {
-      errorHandler.handle(error, { userMessage: "导入模型元数据规则失败" });
+      if (isV3Store(candidate)) {
+        return { store: candidate, diagnostics: validateStore(candidate) };
+      }
+      const migration = migrateV2Store(
+        candidate as LegacyModelMetadataStore<ModelMetadataProperties>,
+        createBuiltinCatalog(),
+        new Date().toISOString()
+      );
+      return {
+        store: migration.store,
+        diagnostics: migration.store
+          ? [...migration.diagnostics, ...validateStore(migration.store)]
+          : migration.diagnostics,
+      };
+    } catch {
+      return {
+        diagnostics: [
+          {
+            code: "invalid-schema",
+            message: "导入文件无法解析为模型元数据配置",
+            blocking: true,
+          },
+        ],
+      };
+    }
+  }
+
+  async function importStore(candidate: unknown): Promise<boolean> {
+    const inspected = inspectImport(candidate);
+    if (
+      !inspected.store ||
+      inspected.diagnostics.some((diagnostic) => diagnostic.blocking)
+    ) {
       return false;
     }
+    return persist(inspected.store);
   }
   async function saveRules(): Promise<boolean> {
     return persist();
@@ -298,43 +326,35 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
     return persist(createDefaultStore());
   }
 
-  /** @deprecated The settings UI must use catalogDiffs and an explicit preview before applying updates. */
-  async function mergeWithDefaults(): Promise<{
-    added: number;
-    updated: number;
-  }> {
-    const blocking = catalogDiffs.value.some(
-      (diff) => diff.status === "conflict"
-    );
-    if (blocking) return { added: 0, updated: 0 };
-    const changed = catalogDiffs.value.filter(
-      (diff) => diff.status === "added" || diff.status === "upstream"
-    ).length;
-    if (changed === 0) return { added: 0, updated: 0 };
-    const nextStore: ModelMetadataStore = {
-      ...metadataStore.value,
-      sourceSnapshot: createBuiltinCatalog(),
-      builtinOverrides: Object.fromEntries(
-        Object.entries(metadataStore.value.builtinOverrides).filter(
-          ([id, rule]) => {
-            const incoming = DEFAULT_METADATA_RULES.find(
-              (candidate) => candidate.id === id
-            );
-            return (
-              !incoming || JSON.stringify(incoming) !== JSON.stringify(rule)
-            );
-          }
-        )
-      ),
-    };
-    const saved = await persist(nextStore);
-    return saved
-      ? {
-          added: catalogDiffs.value.filter((diff) => diff.status === "added")
-            .length,
-          updated: changed,
-        }
-      : { added: 0, updated: 0 };
+  async function applyCatalogUpdate(
+    selections: CatalogUpdateSelection[]
+  ): Promise<CatalogUpdateResult<ModelMetadataProperties> | null> {
+    try {
+      const result = applyBuiltinCatalogUpdate(
+        metadataStore.value,
+        createBuiltinCatalog(),
+        selections
+      );
+      return (await persist(result.store)) ? result : null;
+    } catch (error) {
+      errorHandler.handle(error, { userMessage: "应用内置目录更新失败" });
+      return null;
+    }
+  }
+
+  function getRuleSource(
+    id: string
+  ): "builtin" | "builtinOverride" | "custom" | undefined {
+    if (metadataStore.value.customRules.some((rule) => rule.id === id)) {
+      return "custom";
+    }
+    if (metadataStore.value.builtinOverrides[id]) return "builtinOverride";
+    if (
+      metadataStore.value.sourceSnapshot.rules.some((rule) => rule.id === id)
+    ) {
+      return "builtin";
+    }
+    return undefined;
   }
 
   function getMatchedRule(
@@ -361,13 +381,15 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
     loadRules,
     saveRules,
     importStore,
+    inspectImport,
     addRule,
     updateRule,
     deleteRule,
     restoreBuiltinRule,
+    getRuleSource,
     toggleRule,
     resetToDefaults,
-    mergeWithDefaults,
+    applyCatalogUpdate,
     getMatchedRule,
   };
 });

@@ -35,11 +35,12 @@
           class="merge-badge"
         >
           <el-button
-            @click="handleMerge"
+            @click="openCatalogUpdatePreview"
             :type="pendingUpdatesCount ? 'success' : ''"
-            >合并最新配置</el-button
+            >查看目录更新</el-button
           >
         </el-badge>
+        <el-button @click="openModelRefreshPreview">刷新模型配置</el-button>
         <el-button @click="handleReset" type="warning">重置为默认</el-button>
         <el-button @click="handleAdd" type="primary">添加配置</el-button>
       </div>
@@ -54,8 +55,8 @@
           <strong>{{ pendingUpdatesCount }}</strong>
           条新的内置模型规则可用（随应用版本更新）
         </span>
-        <el-button type="primary" size="small" @click="handleMerge"
-          >立即合并</el-button
+        <el-button type="primary" size="small" @click="openCatalogUpdatePreview"
+          >查看更新</el-button
         >
         <el-button size="small" text @click="dismissBanner">忽略</el-button>
       </div>
@@ -283,6 +284,7 @@
             @toggle="toggleConfig"
             @edit="handleEdit"
             @delete="handleDelete"
+            @restore="handleRestoreBuiltin"
           />
         </div>
       </div>
@@ -336,6 +338,63 @@
       @create-rule="handleCoverageCreateRule"
     />
 
+    <ModelMetadataCatalogUpdateDialog
+      v-model="catalogUpdateDialogVisible"
+      :diffs="catalogUpdateDiffs"
+      @apply="handleApplyCatalogUpdate"
+    />
+
+    <ModelMetadataRefreshPreviewDialog
+      v-model="modelRefreshDialogVisible"
+      :items="modelRefreshPreviewItems"
+      @apply="handleApplyModelRefresh"
+    />
+
+    <BaseDialog
+      :model-value="Boolean(importPreview)"
+      title="导入配置预览"
+      width="min(680px, 92vw)"
+      @update:model-value="closeImportPreview"
+    >
+      <template #content>
+        <div v-if="importPreview" class="import-preview">
+          <p>
+            检测到 {{ importPreview.sourceRuleCount }} 条内置基线规则和
+            {{
+              importPreview.customRuleCount
+            }}
+            条自定义规则。确认后才会写入当前配置。
+          </p>
+          <div
+            v-if="importPreview.diagnostics.length"
+            class="import-diagnostics"
+          >
+            <p
+              v-for="diagnostic in importPreview.diagnostics"
+              :key="`${diagnostic.code}:${diagnostic.ruleId || ''}:${diagnostic.path || ''}`"
+              :class="{ blocking: diagnostic.blocking }"
+            >
+              {{ diagnostic.blocking ? "阻塞：" : "提示："
+              }}{{ diagnostic.message }}
+            </p>
+          </div>
+          <p v-else class="import-ok">配置校验通过，可以导入。</p>
+        </div>
+      </template>
+      <template #footer>
+        <div class="dialog-actions">
+          <el-button @click="closeImportPreview">取消</el-button>
+          <el-button
+            type="primary"
+            :disabled="hasBlockingImportDiagnostics"
+            @click="confirmImport"
+          >
+            确认导入
+          </el-button>
+        </div>
+      </template>
+    </BaseDialog>
+
     <!-- 编辑对话框 -->
     <ModelMetadataConfigEditor
       v-model="editingConfig"
@@ -358,9 +417,18 @@ import type {
   ModelMetadataRule,
   MetadataMatchType,
 } from "../../../types/model-metadata";
+import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
+import type {
+  CatalogUpdateSelection,
+  ModelMetadataDiagnostic,
+} from "@aiohub/model-metadata-core";
 import ModelMetadataConfigEditor from "./components/ModelMetadataConfigEditor.vue";
 import ModelMetadataConfigCard from "./components/ModelMetadataConfigCard.vue";
 import CoverageAnalysisDialog from "./components/CoverageAnalysisDialog.vue";
+import ModelMetadataCatalogUpdateDialog from "./components/ModelMetadataCatalogUpdateDialog.vue";
+import ModelMetadataRefreshPreviewDialog, {
+  type ModelMetadataRefreshPreviewItem,
+} from "./components/ModelMetadataRefreshPreviewDialog.vue";
 import IconPresetSelector from "@components/common/IconPresetSelector.vue";
 import { Grid, List } from "@element-plus/icons-vue";
 import { RefreshCw } from "lucide-vue-next";
@@ -369,20 +437,30 @@ const {
   rules: configs,
   presetIcons,
   enabledCount,
+  catalogDiffs,
   pendingUpdatesCount,
   addRule: addConfig,
   updateRule: updateConfig,
   deleteRule: deleteConfig,
+  restoreBuiltinRule,
   toggleRule: toggleConfig,
   resetToDefaults,
-  mergeWithDefaults,
+  applyCatalogUpdate,
   exportRules: exportConfigs,
-  importRules: importConfigs,
+  importStore,
+  inspectImport,
   getMatchedRule,
   getDisplayIconPath,
+  materializeModel,
 } = useModelMetadata();
 
-const { profiles } = useLlmProfiles();
+const { profiles, saveProfile } = useLlmProfiles();
+
+const catalogUpdateDiffs = computed(() =>
+  catalogDiffs.value.filter(
+    (diff) => diff.status !== "unchanged" && diff.status !== "local"
+  )
+);
 
 const showPresets = ref(false);
 const editingConfig = ref<Partial<ModelMetadataRule> | null>(null);
@@ -407,6 +485,24 @@ const testProvider = ref("");
 
 // 覆盖分析
 const coverageDialogVisible = ref(false);
+const catalogUpdateDialogVisible = ref(false);
+const modelRefreshDialogVisible = ref(false);
+type RefreshPreviewItem = ModelMetadataRefreshPreviewItem & {
+  updatedModel: LlmModelInfo;
+};
+const modelRefreshPreviewItems = ref<RefreshPreviewItem[]>([]);
+const importPreview = ref<{
+  candidate: unknown;
+  sourceRuleCount: number;
+  customRuleCount: number;
+  diagnostics: ModelMetadataDiagnostic[];
+} | null>(null);
+const hasBlockingImportDiagnostics = computed(
+  () =>
+    importPreview.value?.diagnostics.some(
+      (diagnostic) => diagnostic.blocking
+    ) ?? false
+);
 
 // 测试匹配结果
 const testMatchedRule = computed(() => {
@@ -608,6 +704,26 @@ async function handleDelete(id: string) {
   }
 }
 
+async function handleRestoreBuiltin(id: string) {
+  try {
+    await ElMessageBox.confirm(
+      "恢复后会移除该规则的本地覆盖，并重新使用当前内置目录值。",
+      "恢复内置规则",
+      {
+        confirmButtonText: "恢复",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    );
+    if (await restoreBuiltinRule(id)) {
+      customMessage.success("已恢复内置规则");
+    }
+  } catch {
+    // 用户取消无需提示。
+  }
+}
+
 // 关闭编辑器
 function closeEditor() {
   editingConfig.value = null;
@@ -637,29 +753,89 @@ async function handleReset() {
   }
 }
 
-// 处理合并最新内置配置
-async function handleMerge() {
-  try {
-    await ElMessageBox.confirm(
-      "此操作将保留您的所有自定义配置，同时添加最新内置配置中的新规则。是否继续？",
-      "合并配置",
-      {
-        confirmButtonText: "确定",
-        cancelButtonText: "取消",
-        type: "info",
-        lockScroll: false,
-      }
+// 查看并显式应用内置目录更新。目录更新不会自动刷新已保存模型。
+function openCatalogUpdatePreview() {
+  catalogUpdateDialogVisible.value = true;
+}
+
+async function handleApplyCatalogUpdate(selections: CatalogUpdateSelection[]) {
+  const result = await applyCatalogUpdate(selections);
+  if (!result) return;
+  catalogUpdateDialogVisible.value = false;
+  const retained = result.retainedAsCustomRuleIds.length;
+  customMessage.success(
+    retained
+      ? `已应用目录更新，并保留 ${retained} 条规则为自定义规则`
+      : `已应用 ${result.appliedRuleIds.length} 条目录更新`
+  );
+}
+
+function openModelRefreshPreview() {
+  const items: RefreshPreviewItem[] = [];
+  for (const profile of profiles.value) {
+    profile.models.forEach((model, modelIndex) => {
+      if (model.metadataBinding?.mode !== "followSource") return;
+      const materialized = materializeModel(model);
+      if (materialized.changes.length === 0) return;
+      items.push({
+        key: `${profile.id}:${modelIndex}`,
+        profileId: profile.id,
+        profileName: profile.name,
+        modelIndex,
+        modelId: model.id,
+        modelName: model.name,
+        changes: materialized.changes,
+        updatedModel: materialized.model,
+      });
+    });
+  }
+  modelRefreshPreviewItems.value = items;
+  modelRefreshDialogVisible.value = true;
+}
+
+async function handleApplyModelRefresh(keys: string[]) {
+  const selected = modelRefreshPreviewItems.value.filter((item) =>
+    keys.includes(item.key)
+  );
+  const selectedByProfile = new Map<string, RefreshPreviewItem[]>();
+  for (const item of selected) {
+    const current = selectedByProfile.get(item.profileId) ?? [];
+    current.push(item);
+    selectedByProfile.set(item.profileId, current);
+  }
+
+  const savedProfileNames: string[] = [];
+  const failedProfileNames: string[] = [];
+  let savedModelCount = 0;
+  for (const [profileId, items] of selectedByProfile) {
+    const profile = profiles.value.find((item) => item.id === profileId);
+    if (!profile) continue;
+    const models = [...profile.models];
+    for (const item of items) models[item.modelIndex] = item.updatedModel;
+    const nextProfile: LlmProfile = { ...profile, models };
+    try {
+      await saveProfile(nextProfile);
+      savedProfileNames.push(profile.name);
+      savedModelCount += items.length;
+    } catch {
+      const profileIndex = profiles.value.findIndex(
+        (item) => item.id === profile.id
+      );
+      if (profileIndex !== -1) profiles.value[profileIndex] = profile;
+      failedProfileNames.push(profile.name);
+    }
+  }
+
+  modelRefreshDialogVisible.value = false;
+  if (savedProfileNames.length > 0) {
+    customMessage.success(
+      `成功刷新 ${savedModelCount} 个模型（${savedProfileNames.join("、")}）`
     );
-    const result = await mergeWithDefaults();
-    if (result.added > 0) {
-      customMessage.success(`成功合并！新增了 ${result.added} 个内置规则`);
-    } else {
-      customMessage.info("没有发现新的内置规则需要添加");
-    }
-  } catch (error) {
-    if (error !== "cancel") {
-      errorHandler.error(error, "合并配置失败");
-    }
+  }
+  if (failedProfileNames.length > 0) {
+    customMessage.warning(
+      `以下渠道未保存：${failedProfileNames.join("、")}。请检查配置后重试。`
+    );
   }
 }
 
@@ -675,27 +851,43 @@ function handleExport() {
   URL.revokeObjectURL(url);
 }
 
-// 处理导入
+// 处理导入：先解析、校验和预览，确认后才持久化。
 function handleImport() {
   const input = document.createElement("input");
   input.type = "file";
   input.accept = "application/json";
-  input.onchange = async (e) => {
-    const file = (e.target as HTMLInputElement).files?.[0];
+  input.onchange = async (event) => {
+    const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
-
     try {
-      const text = await file.text();
-      if (await importConfigs(text)) {
-        alert("导入成功");
-      } else {
-        alert("导入失败，请检查文件格式");
-      }
-    } catch (error) {
-      alert("导入失败: " + error);
+      const candidate = JSON.parse(await file.text()) as unknown;
+      const inspected = inspectImport(candidate);
+      importPreview.value = {
+        candidate,
+        sourceRuleCount: inspected.store?.sourceSnapshot.rules.length ?? 0,
+        customRuleCount: inspected.store?.customRules.length ?? 0,
+        diagnostics: inspected.diagnostics,
+      };
+    } catch {
+      customMessage.error("导入文件不是有效的 JSON 配置");
     }
   };
   input.click();
+}
+
+function closeImportPreview() {
+  importPreview.value = null;
+}
+
+async function confirmImport() {
+  const preview = importPreview.value;
+  if (!preview || hasBlockingImportDiagnostics.value) return;
+  if (await importStore(preview.candidate)) {
+    customMessage.success("配置已导入");
+    closeImportPreview();
+  } else {
+    customMessage.error("导入失败，请检查配置诊断");
+  }
 }
 
 // 忽略更新横幅（本次会话）

@@ -38,6 +38,9 @@
         >
           {{ getMatchTypeLabel(config.matchType) }}
         </el-tag>
+        <el-tag :type="sourceTagType" effect="plain" size="small">
+          {{ sourceLabel }}
+        </el-tag>
         <el-tag
           v-if="config.matchType === 'modelRegex'"
           type="success"
@@ -83,6 +86,16 @@
           <Close v-else />
         </el-icon>
       </el-button>
+      <el-button
+        v-if="ruleSource === 'builtinOverride'"
+        text
+        circle
+        type="warning"
+        @click="$emit('restore', config.id)"
+        title="恢复内置规则"
+      >
+        <el-icon><RefreshLeft /></el-icon>
+      </el-button>
       <el-button text circle @click="$emit('edit', config)" title="编辑">
         <el-icon>
           <Edit />
@@ -104,16 +117,23 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
 import { useModelMetadata } from "@composables/useModelMetadata";
 import { formatDateTime } from "@/utils/time";
 import type {
   ModelMetadataRule,
   MetadataMatchType,
 } from "../../../../types/model-metadata";
-import { Edit, Delete, Select, Close } from "@element-plus/icons-vue";
+import {
+  Edit,
+  Delete,
+  Select,
+  Close,
+  RefreshLeft,
+} from "@element-plus/icons-vue";
 import DynamicIcon from "@components/common/DynamicIcon.vue";
 
-defineProps<{
+const props = defineProps<{
   config: ModelMetadataRule;
   viewMode: "grid" | "list";
 }>();
@@ -122,9 +142,23 @@ defineEmits<{
   (e: "toggle", id: string): void;
   (e: "edit", config: ModelMetadataRule): void;
   (e: "delete", id: string): void;
+  (e: "restore", id: string): void;
 }>();
 
-const { getDisplayIconPath } = useModelMetadata();
+const { getDisplayIconPath, getRuleSource } = useModelMetadata();
+const ruleSource = computed(() => getRuleSource(props.config.id));
+const sourceLabel = computed(
+  () =>
+    ({
+      builtin: "内置",
+      builtinOverride: "内置已修改",
+      custom: "自定义",
+    })[ruleSource.value ?? "custom"]
+);
+const sourceTagType = computed<"" | "info" | "warning">(() => {
+  if (ruleSource.value === "builtinOverride") return "warning";
+  return ruleSource.value === "custom" ? "info" : "";
+});
 
 // 获取匹配类型标签
 function getMatchTypeLabel(type: MetadataMatchType): string {

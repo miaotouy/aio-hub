@@ -1,6 +1,9 @@
 import { deepEqual } from "./fingerprint";
 import type {
   BuiltinRuleDiff,
+  CatalogUpdateResult,
+  CatalogUpdateSelection,
+  MetadataCatalogSnapshot,
   MetadataFieldDiff,
   MetadataProperties,
   ModelMetadataRule,
@@ -95,4 +98,163 @@ export function diffBuiltinCatalog<TProperties extends MetadataProperties>(
       fields,
     };
   });
+}
+
+function cloneRule<TProperties extends MetadataProperties>(
+  rule: ModelMetadataRule<TProperties>
+): ModelMetadataRule<TProperties> {
+  return JSON.parse(JSON.stringify(rule)) as ModelMetadataRule<TProperties>;
+}
+
+function setAtPath(target: unknown, path: string, value: unknown): void {
+  const segments = path.split(".");
+  if (
+    segments.some(
+      (segment) =>
+        segment === "__proto__" ||
+        segment === "constructor" ||
+        segment === "prototype"
+    )
+  ) {
+    throw new Error(`Unsafe catalog update path: ${path}`);
+  }
+  let current = target as Record<string, unknown>;
+  for (const segment of segments.slice(0, -1)) {
+    const next = current[segment];
+    if (!next || typeof next !== "object" || Array.isArray(next)) {
+      current[segment] = {};
+    }
+    current = current[segment] as Record<string, unknown>;
+  }
+  const finalSegment = segments[segments.length - 1];
+  if (value === undefined) delete current[finalSegment];
+  else current[finalSegment] = JSON.parse(JSON.stringify(value));
+}
+
+function nextCustomRuleId<TProperties extends MetadataProperties>(
+  originalId: string,
+  customRules: ModelMetadataRule<TProperties>[]
+): string {
+  const base = `custom-${originalId.replace(/^custom-/, "")}`;
+  const occupied = new Set(customRules.map((rule) => rule.id));
+  if (!occupied.has(base)) return base;
+  let index = 2;
+  while (occupied.has(`${base}-${index}`)) index += 1;
+  return `${base}-${index}`;
+}
+
+/**
+ * Commit an explicitly resolved built-in catalog update. The incoming snapshot
+ * becomes the new accepted source baseline; a kept local value is represented
+ * as an explicit override, while a removed built-in can be retained as a
+ * user-owned custom rule.
+ */
+export function applyBuiltinCatalogUpdate<
+  TProperties extends MetadataProperties,
+>(
+  store: ModelMetadataStoreV3<TProperties>,
+  incomingSnapshot: MetadataCatalogSnapshot<TProperties>,
+  selections: CatalogUpdateSelection[] = []
+): CatalogUpdateResult<TProperties> {
+  const ruleSelectionById = new Map(
+    selections
+      .filter((selection) => !selection.path)
+      .map((selection) => [selection.id, selection.resolution])
+  );
+  const fieldSelectionByKey = new Map(
+    selections
+      .filter(
+        (selection): selection is CatalogUpdateSelection & { path: string } =>
+          Boolean(selection.path)
+      )
+      .map((selection) => [
+        `${selection.id}:${selection.path}`,
+        selection.resolution,
+      ])
+  );
+  const diffs = diffBuiltinCatalog(store, incomingSnapshot.rules);
+  const incomingIds = new Set(incomingSnapshot.rules.map((rule) => rule.id));
+  const builtinOverrides = { ...store.builtinOverrides };
+  const suppressedBuiltinRuleIds = new Set(
+    store.suppressedBuiltinRuleIds.filter((id) => incomingIds.has(id))
+  );
+  const customRules = store.customRules.map(cloneRule);
+  const appliedRuleIds: string[] = [];
+  const retainedAsCustomRuleIds: string[] = [];
+
+  for (const diff of diffs) {
+    const resolution = ruleSelectionById.get(diff.id);
+    const local = diff.local ?? diff.base;
+
+    if (diff.status === "conflict") {
+      const incoming = diff.incoming;
+      if (!incoming || !local) {
+        throw new Error(`Conflict "${diff.id}" has incomplete rule data`);
+      }
+      const nextOverride = cloneRule(incoming);
+      for (const field of diff.fields) {
+        if (field.kind === "local") {
+          setAtPath(nextOverride, field.path, field.local);
+          continue;
+        }
+        if (field.kind !== "conflict") continue;
+        const fieldResolution =
+          resolution ?? fieldSelectionByKey.get(`${diff.id}:${field.path}`);
+        if (
+          fieldResolution !== "acceptIncoming" &&
+          fieldResolution !== "keepLocal"
+        ) {
+          throw new Error(
+            `Conflict field "${diff.id}:${field.path}" requires an explicit resolution`
+          );
+        }
+        if (fieldResolution === "keepLocal") {
+          setAtPath(nextOverride, field.path, field.local);
+        }
+      }
+      if (deepEqual(nextOverride, incoming)) delete builtinOverrides[diff.id];
+      else builtinOverrides[diff.id] = nextOverride;
+      suppressedBuiltinRuleIds.delete(diff.id);
+      appliedRuleIds.push(diff.id);
+      continue;
+    }
+
+    if (diff.status === "removed") {
+      if (resolution === "keepAsCustom" && local) {
+        const customRule = cloneRule(local);
+        customRule.id = nextCustomRuleId(diff.id, customRules);
+        customRule.createdAt = customRule.createdAt ?? store.updatedAt;
+        customRule.updatedAt = store.updatedAt;
+        customRules.push(customRule);
+        retainedAsCustomRuleIds.push(customRule.id);
+      }
+      delete builtinOverrides[diff.id];
+      suppressedBuiltinRuleIds.delete(diff.id);
+      appliedRuleIds.push(diff.id);
+      continue;
+    }
+
+    if (diff.status === "upstream" || diff.status === "added") {
+      delete builtinOverrides[diff.id];
+      appliedRuleIds.push(diff.id);
+      continue;
+    }
+
+    if (diff.status === "local" && local) {
+      builtinOverrides[diff.id] = cloneRule(local);
+      appliedRuleIds.push(diff.id);
+    }
+  }
+
+  return {
+    store: {
+      ...store,
+      sourceSnapshot: incomingSnapshot,
+      builtinOverrides,
+      suppressedBuiltinRuleIds: [...suppressedBuiltinRuleIds].sort(),
+      customRules,
+    },
+    appliedRuleIds,
+    retainedAsCustomRuleIds,
+  };
 }

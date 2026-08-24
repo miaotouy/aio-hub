@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyBuiltinCatalogUpdate,
   compileActiveRules,
   createCatalogSnapshot,
   diffBuiltinCatalog,
@@ -220,6 +221,84 @@ describe("model metadata store migration and catalog diff", () => {
         path: "properties.recommendedFor",
         kind: "upstream",
       })
+    );
+  });
+});
+
+describe("built-in catalog update application", () => {
+  const baseRules = [
+    rule("builtin-openai", "modelContains", "gpt", { group: "OpenAI" }),
+    rule("builtin-removed", "provider", "legacy", { group: "Legacy" }),
+  ];
+
+  const baseSnapshot = createCatalogSnapshot(
+    baseRules,
+    "2026.08.24.1",
+    "2026-08-24T00:00:00.000Z"
+  );
+
+  const store = {
+    version: "3.0.0" as const,
+    sourceSnapshot: baseSnapshot,
+    builtinOverrides: {
+      "builtin-openai": rule("builtin-openai", "modelContains", "gpt", {
+        group: "Local OpenAI",
+      }),
+    },
+    suppressedBuiltinRuleIds: ["builtin-removed"],
+    customRules: [],
+    updatedAt: "2026-08-24T00:00:00.000Z",
+  };
+
+  it("keeps an explicitly selected local conflict as an override", () => {
+    const incoming = createCatalogSnapshot(
+      [
+        rule("builtin-openai", "modelContains", "gpt", {
+          group: "Incoming OpenAI",
+          icon: "/model-icons/openai-color.svg",
+        }),
+      ],
+      "2026.08.25.1",
+      "2026-08-25T00:00:00.000Z"
+    );
+
+    const result = applyBuiltinCatalogUpdate(store, incoming, [
+      {
+        id: "builtin-openai",
+        path: "properties.group",
+        resolution: "keepLocal",
+      },
+      { id: "builtin-removed", resolution: "keepAsCustom" },
+    ]);
+
+    expect(result.store.sourceSnapshot).toBe(incoming);
+    expect(result.store.builtinOverrides["builtin-openai"].properties).toEqual({
+      group: "Local OpenAI",
+      icon: "/model-icons/openai-color.svg",
+    });
+    expect(result.store.suppressedBuiltinRuleIds).toEqual([]);
+    expect(result.store.customRules).toContainEqual(
+      expect.objectContaining({
+        id: "custom-builtin-removed",
+        properties: { group: "Legacy" },
+      })
+    );
+  });
+
+  it("requires conflicts to be explicitly resolved before accepting a snapshot", () => {
+    const incoming = createCatalogSnapshot(
+      [
+        rule("builtin-openai", "modelContains", "gpt", {
+          group: "Incoming OpenAI",
+        }),
+        baseRules[1],
+      ],
+      "2026.08.25.1",
+      "2026-08-25T00:00:00.000Z"
+    );
+
+    expect(() => applyBuiltinCatalogUpdate(store, incoming)).toThrow(
+      'Conflict field "builtin-openai:properties.group" requires an explicit resolution'
     );
   });
 });

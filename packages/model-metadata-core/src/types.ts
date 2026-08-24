@@ -118,3 +118,21 @@ export interface BuiltinRuleDiff<
   incoming?: ModelMetadataRule<TProperties>;
   fields: MetadataFieldDiff[];
 }
+
+export type CatalogUpdateResolution =
+  "acceptIncoming" | "keepLocal" | "keepAsCustom";
+
+export interface CatalogUpdateSelection {
+  id: string;
+  /** Omitted for a rule-level decision such as retaining a removed rule. */
+  path?: string;
+  resolution: CatalogUpdateResolution;
+}
+
+export interface CatalogUpdateResult<
+  TProperties extends MetadataProperties = MetadataProperties,
+> {
+  store: ModelMetadataStoreV3<TProperties>;
+  appliedRuleIds: string[];
+  retainedAsCustomRuleIds: string[];
+}

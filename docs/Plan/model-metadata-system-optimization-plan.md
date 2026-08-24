@@ -1,6 +1,6 @@
 # 模型元数据系统分层、同步与模型物化优化计划
 
-> 状态：施工中（批次 1～3 已完成；目录更新与模型刷新预览待批次 4 实施）
+> 状态：施工中（批次 1～4 已完成；移动端收口与真实运行态验收待批次 5 实施）
 >
 > 计划日期：2026-07-16
 >
@@ -658,6 +658,40 @@ bunx vitest --run src/utils/__tests__/modelMetadataMaterialization.test.ts \
                                                            # 通过，19 项契约测试
 bun run test:model-metadata-core                           # 通过，6 项共享核心契约测试
 bun run lint                                              # 通过（3 条既有 no-useless-spread 警告）
+bun run build:vite                                        # 通过（既有第三方 externalize / eval / chunk-size 警告）
+bun run --cwd mobile build                                # 通过（既有 eval / chunk-size 警告）
+git diff --check                                          # 通过
+```
+
+### 2026-08-24：批次 4 完成，目录更新与模型刷新预览
+
+已完成：
+
+- 共享核心新增 `applyBuiltinCatalogUpdate()`：以接受后的入站 Catalog Snapshot 为新基线，支持规则新增、上游更新、删除、保留删除规则为自定义规则，并要求冲突字段逐项明确选择“保留本地”或“采用上游”。未选择的冲突字段会阻止写入；未冲突的本地字段继续形成明确 override。
+- 桌面端 Store 以显式 `applyCatalogUpdate()` 取代旧 `mergeWithDefaults()` 快捷合并；目录预览只展示待处理规则，不再把无变化或纯本地规则混入更新清单。
+- 设置页新增“查看目录更新”预览，展示规则状态及字段级 current/local/incoming 差异，支持冲突字段逐项决策和已删除规则的“随目录删除 / 保留为自定义规则”。目录更新仍不会自动改写模型。
+- 新增“刷新模型配置”预览：扫描 `followSource` 模型、列出受管字段的实际变更，允许按模型勾选确认；保存时按 Profile 分组并报告已保存与失败渠道。
+- 规则卡片显示内置、内置已修改或自定义来源；内置覆盖可一键恢复为当前内置规则。导入流程改为“选择文件 -> 解析/迁移/诊断预览 -> 确认写入”，阻塞诊断不允许确认导入。
+- 共享核心补充目录更新测试，覆盖字段级冲突保留、本地 override 压缩、删除规则转自定义和未决冲突阻止写入。
+
+本批次的明确偏差与后续项：
+
+- 本批次完成桌面端设置逻辑与生产构建验证，但尚未将普通浏览器结果视为真实 Tauri UI 验收；第 5 批仍需按第 11.6 节记录桌面与移动目标运行态走查。
+- 移动端的目录更新预览、模型刷新预览、来源/恢复和导入确认 UI 仍待批次 5 对齐；移动端现有 v3 读写继续保持兼容。
+
+验证结果：
+
+```text
+bun run check:model-metadata-core                         # 通过
+bun run test:model-metadata-core                          # 通过，8 项共享核心契约测试
+bun run check:frontend                                    # 通过
+bun run check:mobile:frontend                             # 通过
+bunx vitest --run src/utils/__tests__/modelMetadataMaterialization.test.ts \
+  src/config/__tests__/model-metadata.test.ts \
+  src/views/Settings/model-metadata/utils/__tests__/coverageAnalysis.test.ts \
+  src/tools/token-calculator/core/__tests__/tokenCalculatorEngine.test.ts
+                                                           # 通过，19 项定向测试
+bun run lint                                              # 通过（既有 no-useless-spread 警告）
 bun run build:vite                                        # 通过（既有第三方 externalize / eval / chunk-size 警告）
 bun run --cwd mobile build                                # 通过（既有 eval / chunk-size 警告）
 git diff --check                                          # 通过

@@ -194,12 +194,12 @@ function truncateText(text: string, maxLength: number): string {
 }
 
 .query-text.is-scrollable::-webkit-scrollbar-thumb {
-  background: rgba(155, 89, 182, 0.2);
+  background: color-mix(in srgb, var(--el-color-info) 20%, transparent);
   border-radius: 2px;
 }
 
 .query-text.is-scrollable::-webkit-scrollbar-thumb:hover {
-  background: rgba(155, 89, 182, 0.4);
+  background: color-mix(in srgb, var(--el-color-info) 40%, transparent);
 }
 
 .chain-header {
@@ -214,7 +214,7 @@ function truncateText(text: string, maxLength: number): string {
   gap: 6px;
   font-size: 14px;
   font-weight: 700;
-  color: #9b59b6;
+  color: var(--el-color-info);
 }
 
 .json-btn {
@@ -237,7 +237,7 @@ function truncateText(text: string, maxLength: number): string {
   padding: 10px 12px;
   background: var(--el-bg-color-page);
   border-radius: 8px;
-  border-left: 3px solid rgba(155, 89, 182, 0.4);
+  border: 1px solid color-mix(in srgb, var(--el-color-info) 30%, transparent);
 }
 
 .query-text.is-pre,
@@ -266,9 +266,9 @@ function truncateText(text: string, maxLength: number): string {
   flex-wrap: wrap;
   gap: 6px;
   padding: 10px;
-  background: rgba(155, 89, 182, 0.05);
+  background: color-mix(in srgb, var(--el-color-info) 5%, transparent);
   border-radius: 8px;
-  border: 1px dashed rgba(155, 89, 182, 0.2);
+  border: 1px dashed color-mix(in srgb, var(--el-color-info) 20%, transparent);
   cursor: pointer;
 }
 
@@ -283,7 +283,7 @@ function truncateText(text: string, maxLength: number): string {
   align-items: center;
   gap: 4px;
   padding: 2px 10px;
-  background: #9b59b6;
+  background: var(--el-color-info);
   color: white;
   border-radius: 12px;
   font-size: 11px;
@@ -302,7 +302,7 @@ function truncateText(text: string, maxLength: number): string {
 }
 
 .path-connector {
-  color: #9b59b6;
+  color: var(--el-color-info);
   font-size: 12px;
   display: flex;
   align-items: center;
@@ -326,7 +326,7 @@ function truncateText(text: string, maxLength: number): string {
 
 .stage-item:hover {
   background: rgba(0, 0, 0, 0.15);
-  border-color: rgba(155, 89, 182, 0.4);
+  border-color: color-mix(in srgb, var(--el-color-info) 40%, transparent);
 }
 
 .stage-header {
@@ -339,8 +339,8 @@ function truncateText(text: string, maxLength: number): string {
 
 .stage-number {
   font-weight: bold;
-  color: #9b59b6;
-  background: rgba(155, 89, 182, 0.15);
+  color: var(--el-color-info);
+  background: color-mix(in srgb, var(--el-color-info) 15%, transparent);
   padding: 2px 8px;
   border-radius: 4px;
 }
@@ -381,10 +381,10 @@ function truncateText(text: string, maxLength: number): string {
 .mini-score {
   font-family: "JetBrains Mono", monospace;
   font-size: 10px;
-  color: #9b59b6;
+  color: var(--el-color-info);
   font-weight: 700;
   padding: 1px 6px;
-  background: rgba(155, 89, 182, 0.1);
+  background: color-mix(in srgb, var(--el-color-info) 10%, transparent);
   border-radius: 4px;
 }
 
@@ -409,13 +409,13 @@ function truncateText(text: string, maxLength: number): string {
 }
 
 :deep(.tag-ai) {
-  color: #9b59b6;
+  color: var(--el-color-info);
   font-weight: bold;
   margin-right: 4px;
 }
 
 :deep(.tag-user) {
-  color: #3498db;
+  color: var(--el-color-primary);
   font-weight: bold;
   margin-right: 4px;
 }

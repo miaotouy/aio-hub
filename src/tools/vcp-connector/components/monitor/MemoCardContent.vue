@@ -83,9 +83,9 @@ function truncateText(text: string, maxLength: number): string {
 .memo-mode {
   font-size: 12px;
   font-weight: 600;
-  color: #1abc9c;
+  color: var(--el-color-success);
   padding: 2px 8px;
-  background: rgba(26, 188, 156, 0.15);
+  background: color-mix(in srgb, var(--el-color-success) 15%, transparent);
   border-radius: 4px;
 }
 
@@ -96,6 +96,6 @@ function truncateText(text: string, maxLength: number): string {
   padding: 10px;
   background: var(--el-bg-color-page);
   border-radius: 4px;
-  border-left: 2px solid #1abc9c;
+  border: 1px solid color-mix(in srgb, var(--el-color-success) 30%, transparent);
 }
 </style>

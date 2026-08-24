@@ -599,7 +599,6 @@ function truncateRef(ref?: string): string {
 .message-card {
   background: var(--card-bg);
   border: var(--border-width) solid var(--border-color);
-  border-left-width: 3px;
   border-radius: 6px;
   padding: 12px 14px;
   transition: opacity 0.2s ease;
@@ -607,50 +606,6 @@ function truncateRef(ref?: string): string {
 
 .message-card.dimmed {
   opacity: 0.4;
-}
-
-/* 角色色彩：左侧色条 + 标签色 */
-.message-card.role-system {
-  border-left-color: var(--el-color-info, #909399);
-}
-
-.message-card.role-user {
-  border-left-color: var(--el-color-success, #67c23a);
-}
-
-.message-card.role-assistant,
-.message-card.role-model {
-  border-left-color: var(--primary-color);
-}
-
-.message-card.role-tool {
-  border-left-color: var(--el-color-warning, #e6a23c);
-}
-
-.message-card.role-unknown {
-  border-left-color: var(--el-color-info, #909399);
-}
-
-/* 锚点同色 */
-.anchor-chip.role-system {
-  border-left: 3px solid var(--el-color-info, #909399);
-}
-
-.anchor-chip.role-user {
-  border-left: 3px solid var(--el-color-success, #67c23a);
-}
-
-.anchor-chip.role-assistant,
-.anchor-chip.role-model {
-  border-left: 3px solid var(--primary-color);
-}
-
-.anchor-chip.role-tool {
-  border-left: 3px solid var(--el-color-warning, #e6a23c);
-}
-
-.anchor-chip.role-unknown {
-  border-left: 3px solid var(--el-color-info, #909399);
 }
 
 /* === 卡片头 === */

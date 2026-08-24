@@ -567,11 +567,11 @@ li {
 }
 
 .concept-card.render {
-  border-left: 4px solid var(--el-color-success);
+  background: color-mix(in srgb, var(--el-color-success) 4%, var(--card-bg));
 }
 
 .concept-card.request {
-  border-left: 4px solid var(--el-color-warning);
+  background: color-mix(in srgb, var(--el-color-warning) 4%, var(--card-bg));
 }
 
 .concept-tag {

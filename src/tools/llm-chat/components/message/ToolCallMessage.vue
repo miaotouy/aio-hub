@@ -1857,7 +1857,7 @@ defineExpose({
   padding: 8px 14px;
   background-color: var(--input-bg);
   border-radius: 8px;
-  border-left: 4px solid var(--border-color);
+  border: 1px solid var(--border-color);
   opacity: 0.8;
   transition: all 0.2s ease;
 }
@@ -1865,7 +1865,7 @@ defineExpose({
 .tool-preview-line:hover {
   opacity: 1;
   background: var(--hover-bg);
-  border-left-color: var(--primary-color);
+  border-color: var(--primary-color);
 }
 
 .preview-content {
@@ -2045,7 +2045,7 @@ defineExpose({
   padding: 6px 10px;
   background-color: var(--card-bg);
   border-radius: 4px;
-  border-left: 3px solid var(--el-color-primary);
+  border-left: 2px solid var(--el-color-primary);
 }
 
 /* 失败状态 */

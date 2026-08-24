@@ -1804,18 +1804,6 @@ function getPositionLabel(
     border-color 0.2s ease;
 }
 
-.message-card.role-system {
-  border-left: 4px solid var(--el-color-info) !important;
-}
-
-.message-card.role-user {
-  border-left: 4px solid var(--el-color-success) !important;
-}
-
-.message-card.role-assistant {
-  border-left: 4px solid var(--el-color-primary) !important;
-}
-
 .message-card.search-highlight {
   box-shadow: 0 0 0 2px
     rgba(var(--el-color-warning-rgb), calc(var(--card-opacity, 1) * 0.6));
@@ -1926,7 +1914,7 @@ function getPositionLabel(
   background-color: var(--el-fill-color-lighter);
   padding: 12px;
   border-radius: 4px;
-  border-left: 4px solid var(--el-border-color);
+  border: 1px solid var(--el-border-color-lighter);
 }
 
 .compression-tag {
@@ -2129,6 +2117,6 @@ function getPositionLabel(
   background-color: var(--el-fill-color-lighter);
   padding: 10px;
   border-radius: 4px;
-  border-left: 3px solid var(--el-color-warning);
+  border: 1px solid color-mix(in srgb, var(--el-color-warning) 30%, transparent);
 }
 </style>

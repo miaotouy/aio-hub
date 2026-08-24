@@ -268,17 +268,43 @@ const toggleExpand = () => {
   word-break: break-all;
 }
 
-/* 级别特定的边框色增强 */
+/* 级别特定的轻量语义提示：等级图标和标签承担主分类，容器不再使用整高色条 */
 .is-error {
-  border-left: 3px solid var(--el-color-danger);
+  border-color: color-mix(
+    in srgb,
+    var(--el-color-danger) 35%,
+    var(--border-color)
+  );
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-danger) 4%,
+    var(--card-bg)
+  );
 }
 .is-warn {
-  border-left: 3px solid var(--el-color-warning);
+  border-color: color-mix(
+    in srgb,
+    var(--el-color-warning) 35%,
+    var(--border-color)
+  );
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-warning) 4%,
+    var(--card-bg)
+  );
 }
 .is-success {
-  border-left: 3px solid var(--el-color-success);
+  border-color: color-mix(
+    in srgb,
+    var(--el-color-success) 25%,
+    var(--border-color)
+  );
 }
 .is-info {
-  border-left: 3px solid var(--el-color-info);
+  border-color: color-mix(
+    in srgb,
+    var(--el-color-info) 25%,
+    var(--border-color)
+  );
 }
 </style>

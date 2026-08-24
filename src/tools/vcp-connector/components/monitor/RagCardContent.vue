@@ -250,7 +250,7 @@ function renderText(result: RagResult): string {
   padding: 10px 12px;
   background: var(--el-bg-color-page);
   border-radius: 8px;
-  border-left: 3px solid var(--el-border-color);
+  border: 1px solid var(--el-border-color-lighter);
 }
 
 .query-text.is-truncated {
@@ -333,9 +333,9 @@ function renderText(result: RagResult): string {
 }
 
 .result-score.medium {
-  color: #f1c40f;
-  background: rgba(241, 196, 15, 0.1);
-  border: 1px solid rgba(241, 196, 15, 0.3);
+  color: var(--el-color-warning);
+  background: color-mix(in srgb, var(--el-color-warning) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--el-color-warning) 30%, transparent);
 }
 
 .result-score.low {
@@ -347,11 +347,12 @@ function renderText(result: RagResult): string {
 .result-score.is-boosted {
   background: linear-gradient(
     135deg,
-    rgba(241, 196, 15, 0.2),
-    rgba(241, 196, 15, 0.1)
+    color-mix(in srgb, var(--el-color-warning) 20%, transparent),
+    color-mix(in srgb, var(--el-color-warning) 10%, transparent)
   );
-  border-color: #f1c40f;
-  box-shadow: 0 0 8px rgba(241, 196, 15, 0.2);
+  border-color: var(--el-color-warning);
+  box-shadow: 0 0 8px
+    color-mix(in srgb, var(--el-color-warning) 20%, transparent);
 }
 
 .boost-icon {
@@ -374,9 +375,10 @@ function renderText(result: RagResult): string {
 }
 
 .match-tag.is-core {
-  color: #f1c40f;
+  color: var(--el-color-warning);
   font-weight: bold;
-  text-shadow: 0 0 4px rgba(241, 196, 15, 0.3);
+  text-shadow: 0 0 4px
+    color-mix(in srgb, var(--el-color-warning) 30%, transparent);
 }
 
 .result-source {
@@ -403,17 +405,17 @@ function renderText(result: RagResult): string {
 }
 
 :deep(.highlight-tag) {
-  color: #3498db;
+  color: var(--el-color-primary);
   font-weight: 500;
-  background: rgba(52, 152, 219, 0.1);
+  background: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
   padding: 0 2px;
   border-radius: 2px;
 }
 
 :deep(.highlight-tag.is-core) {
-  color: #f1c40f;
+  color: var(--el-color-warning);
   font-weight: 700;
-  background: rgba(241, 196, 15, 0.15);
+  background: color-mix(in srgb, var(--el-color-warning) 15%, transparent);
 }
 
 .more-results-hint {

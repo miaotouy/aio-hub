@@ -90,8 +90,8 @@ function truncateText(text: string, maxLength: number): string {
   font-weight: 600;
   color: var(--el-text-color-primary);
   padding: 2px 8px;
-  background: rgba(241, 196, 15, 0.15);
-  color: #f1c40f;
+  background: color-mix(in srgb, var(--el-color-warning) 15%, transparent);
+  color: var(--el-color-warning);
   border-radius: 4px;
 }
 
@@ -109,13 +109,13 @@ function truncateText(text: string, maxLength: number): string {
 }
 
 .query-bubble {
-  background: rgba(52, 152, 219, 0.1);
-  border-left: 2px solid #3498db;
+  background: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--el-color-primary) 30%, transparent);
 }
 
 .response-bubble {
   background: var(--el-bg-color-page);
-  border-left: 2px solid var(--el-border-color);
+  border: 1px solid var(--el-border-color-lighter);
 }
 
 .bubble-label {

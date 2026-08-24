@@ -9,6 +9,7 @@
 - [核心开发规范](./development-standards.md) - 错误处理、日志系统、UI 组件使用规范
 - [自定义组件与封装指南](./components-guide.md) - 通用组件和 Composables 使用说明
 - [主题外观系统](./theme-appearance.md) - 主题适配和样式规范
+- [容器元素语义与装饰样式对应规范](./semantic-decoration.md) - 容器、卡片、列表项和信息块视觉装饰规范
 - [移动端规范](./mobile-protocols.md) - 移动端开发的完整规范
 
 ## 1. 技术栈概览

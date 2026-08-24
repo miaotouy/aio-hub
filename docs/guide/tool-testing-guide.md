@@ -1,4 +1,4 @@
-# 工具方法测试覆盖指南 (Tool Testing Guide)
+# 工具方法自动化测试指南 (Tool Testing Guide)
 
 本指南旨在指导开发者如何为 AIO Hub 中的各个工具模块（Tools）编写高质量、不依赖 UI 运行时的自动化单元测试。
 
@@ -13,7 +13,18 @@
 
 - **脱离 Tauri 运行时**：在纯 Node/Bun 脚本环境下运行测试，无需启动完整的桌面客户端。
 - **脱离 Pinia/Vue 状态**：无需激活 Vue 运行时或 Pinia Store 即可验证核心业务逻辑。
-- **100% 自动化回归**：通过 Vitest 框架一键运行，确保重构安全。
+- **可重复的契约回归**：对适合自动化的确定性行为使用 Vitest 快速反馈，降低重构风险。
+
+### 1.1 先判断是否值得写自动测试
+
+本指南说明“决定要测试后如何测试”，不要求每个工具、方法或 UI 组件都拥有测试。新增测试前先确认它至少满足一项：
+
+- 保护 Agent 可调用参数、返回值、安全策略或任务状态等稳定外部契约；
+- 保护迁移、持久化、解析、权限和破坏性操作等高错误代价逻辑；
+- 覆盖组合复杂但输入输出确定的纯逻辑；
+- 复现已经发生且可能再次出现的回归。
+
+静态展示、视觉质量、信息层级、响应式布局和主观易用性默认不属于 Vitest 证明范围。测试应在承诺的用户行为被破坏时失败，同时允许内部实现重构；如果断言只是复述当前分支、DOM、样式类名或文案，或者 Mock 完整复制了被测逻辑，就不应编写该测试。
 
 ---
 
@@ -36,7 +47,7 @@
 
 ## 3. 测试目录与命名规范
 
-每个工具的测试代码必须存放在其工具目录下的 `__tests__/` 目录中：
+工具确有自动测试需要时，测试代码统一存放在其工具目录下的 `__tests__/` 目录中：
 
 ```
 src/tools/{toolId}/
@@ -124,7 +135,7 @@ describe("MySecurityTool 安全策略集成测试", () => {
 
 ## 5. 依赖 Mock 最佳实践
 
-在纯脚本测试环境下，Tauri 的原生 API（如 `invoke`、`dialog`、`fs`）是不可用的。如果你的工具方法内部调用了这些 API，你必须在测试文件顶部进行 Mock。
+在纯脚本测试环境下，Tauri 的原生 API（如 `invoke`、`dialog`、`fs`）不可用。确需验证前端调用契约时，应优先复用 `src/test/setup.ts` 的全局 Mock，只为特殊插件补最小局部 Mock；这不能证明真实 command、文件系统或窗口行为，若 Mock 只是复刻原生实现结果，应改用真实 Tauri 验收。
 
 ### 5.1. Mock 常见的 Tauri 插件
 
@@ -179,63 +190,38 @@ describe("MyAsyncTool 进度上报测试", () => {
 
 ---
 
-## 6. 完整测试模板
+## 6. 最小测试示例与自检
 
-以下是一个开箱即用的测试文件模板，你可以直接复制到你的工具目录中修改使用：
+不要复制“完整测试模板”后为每个占位项硬造用例。动手前先回答：
+
+1. 这个测试防止哪一种具体回归？
+2. 断言是否来自稳定契约，而不是当前实现给出的答案？
+3. 内部重构但用户行为不变时，它是否仍会通过？
+4. 类型检查、生产构建或真实运行态验收是否更适合发现该问题？
+5. Mock 是否只隔离环境边界，而没有重新实现被测逻辑？
+
+满足条件时使用最小范围测试。例如，一个工具明确承诺规范化输入并拒绝空值，可以直接验证这两个契约：
 
 ```typescript
-/**
- * {YourToolName} 单元测试
- *
- * 运行方式：
- *   bun run test src/tools/{your-tool-id}
- */
+import { describe, expect, it } from "vitest";
+import { MyTool } from "../index";
 
-import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
-import { toolRegistryManager } from "@/services/registry";
-import { MyTool } from "../index"; // 引入你的工具实现
-
-// 1. Mock 必要的 Tauri 依赖
-vi.mock("@tauri-apps/plugin-fs", () => ({
-  exists: vi.fn().mockResolvedValue(true),
-  readTextFile: vi.fn().mockResolvedValue("file content"),
-}));
-
-describe("MyTool 单元测试", () => {
-  let toolInstance: MyTool;
-
-  beforeAll(async () => {
-    toolInstance = new MyTool();
-    // 如果需要集成测试，可以注册到管理器中
-    await toolRegistryManager.register(toolInstance);
+describe("MyTool 输入契约", () => {
+  it("规范化有效输入", async () => {
+    const result = await new MyTool().someMethod({ input: " hello " });
+    expect(result).toEqual({ value: "hello" });
   });
 
-  afterAll(async () => {
-    await toolRegistryManager.dispose();
-  });
-
-  // 测试用例 1：基础功能
-  it("应该正确处理基础输入", async () => {
-    const result = await toolInstance.someMethod({ input: "hello" });
-    expect(result).toBe("processed: hello");
-  });
-
-  // 测试用例 2：边界条件与容错
-  it("输入为空时应该优雅报错或返回默认值", async () => {
-    await expect(toolInstance.someMethod({ input: "" })).rejects.toThrow(
+  it("拒绝空输入且不执行写入", async () => {
+    const tool = new MyTool();
+    await expect(tool.someMethod({ input: "" })).rejects.toThrow(
       "输入不能为空"
     );
   });
-
-  // 测试用例 3：安全策略（如果实现了 checkSecurityPolicy）
-  it("应该具备正确的安全策略声明", () => {
-    if (typeof toolInstance.checkSecurityPolicy === "function") {
-      const policy = toolInstance.checkSecurityPolicy("someMethod", {});
-      expect(policy.status).toBe("allow");
-    }
-  });
 });
 ```
+
+只有在确实要验证 Registry 参数适配、安全审批或任务上报链路时，才升级为框架集成测试；不要让所有单元测试注册全局管理器。
 
 ---
 

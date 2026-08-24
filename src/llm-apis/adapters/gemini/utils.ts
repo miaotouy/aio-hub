@@ -19,7 +19,6 @@ import type {
   MediaGenerationOptions,
 } from "@/llm-apis/common";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
-import { DEFAULT_METADATA_RULES, testRuleMatch } from "@/config/model-metadata";
 import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 import {
   parseMessageContents,
@@ -543,17 +542,13 @@ export function parseGeminiModelsResponse(data: any): LlmModelInfo[] {
         model.supportedGenerationMethods?.includes("generateContent") &&
         !modelId.includes("embedding");
 
-      const presetCapabilities = extractModelCapabilities(modelId, "gemini");
-
       models.push({
         id: modelId,
         name: model.displayName || modelId,
-        group: extractModelGroup(modelId, "gemini"),
         provider: "gemini",
         version: model.version,
         description: model.description,
         capabilities: {
-          ...presetCapabilities,
           vision: supportsVision,
           thinking: model.thinking === true,
         },
@@ -575,39 +570,4 @@ export function parseGeminiModelsResponse(data: any): LlmModelInfo[] {
   }
 
   return models;
-}
-
-function extractModelCapabilities(modelId: string, provider?: string) {
-  const rules = DEFAULT_METADATA_RULES.filter(
-    (r) => r.enabled !== false && r.properties?.capabilities
-  ).sort((a, b) => (b.priority || 0) - (a.priority || 0));
-
-  for (const rule of rules) {
-    if (
-      testRuleMatch(rule, modelId, provider) &&
-      rule.properties?.capabilities
-    ) {
-      return rule.properties.capabilities;
-    }
-  }
-  return undefined;
-}
-
-function extractModelGroup(modelId: string, provider?: string): string {
-  const rules = DEFAULT_METADATA_RULES.filter(
-    (r) => r.enabled !== false && r.properties?.group
-  ).sort((a, b) => (b.priority || 0) - (a.priority || 0));
-
-  for (const rule of rules) {
-    if (testRuleMatch(rule, modelId, provider) && rule.properties?.group) {
-      return rule.properties.group;
-    }
-  }
-
-  const id = modelId.toLowerCase();
-  if (id.includes("2.5")) return "Gemini 2.5";
-  if (id.includes("2.0")) return "Gemini 2.0";
-  if (id.includes("1.5")) return "Gemini 1.5";
-  if (id.includes("1.0")) return "Gemini 1.0";
-  return "Gemini";
 }

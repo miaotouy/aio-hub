@@ -18,13 +18,13 @@ import type {
   WorldbookEntryPreview,
 } from "../../types/context";
 import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
-import { getActiveModelProperties } from "@/config/model-metadata";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import { resolveAttachmentsBatch } from "./attachment-resolver";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useTranscriptionManager } from "../../composables/features/useTranscriptionManager";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import type { Asset } from "@/types/asset-management";
+import type { LlmModelInfo } from "@/types/llm-profiles";
 import type { ProcessableMessage } from "../../types/context";
 import type { MatchedWorldbookEntry } from "@/tools/st-worldbook-manager/types/worldbook";
 
@@ -61,39 +61,24 @@ export async function buildPreviewDataFromContext(
   let isEstimated = false;
   let tokenizerName: string | undefined = undefined;
 
-  // 获取模型元数据，用于视觉 token 计算
-  const modelMetadata = agentConfig.modelId
-    ? getActiveModelProperties(agentConfig.modelId)
-    : undefined;
-
-  // 从 sharedData 获取 Profile 信息（可能是实时对象，也可能是从元数据恢复的临时对象）
+  // Read the profile's persisted model snapshot. Preview code must not merge the
+  // mutable global rules catalog back into an existing chat configuration.
   const profile = context.sharedData.get("profile") as
     | {
         name?: string;
         type?: string;
-        models?: Array<{ id: string; name?: string }>;
+        models?: Array<{
+          id: string;
+          name?: string;
+          capabilities?: LlmModelInfo["capabilities"];
+        }>;
       }
     | undefined;
-
-  // 获取模型显示名称
-  let modelName: string | undefined;
-  if (profile?.models) {
-    const model = profile.models.find((m) => m.id === agentConfig.modelId);
-    if (model) {
-      modelName = model.name;
-    }
-  }
-  // 如果 Profile 中没找到，尝试从元数据获取（如果有）
-  if (
-    !modelName &&
-    modelMetadata?.name &&
-    typeof modelMetadata.name === "string"
-  ) {
-    modelName = modelMetadata.name;
-  }
-
-  const visionTokenCost = modelMetadata?.capabilities?.visionTokenCost;
-
+  const selectedModel = profile?.models?.find(
+    (model) => model.id === agentConfig.modelId
+  );
+  const modelName = selectedModel?.name;
+  const visionTokenCost = selectedModel?.capabilities?.visionTokenCost;
   // 获取转写设置和转写管理器（提升到外层避免重复调用）
   const { settings } = useChatSettings();
   const transcriptionConfig = settings.value.transcription;

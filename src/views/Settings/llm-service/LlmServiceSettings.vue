@@ -62,7 +62,6 @@ import { useModelEditor } from "./composables/useModelEditor";
 import { useConnectionTest } from "./composables/useConnectionTest";
 import type { ParsedLlmProfileDraft } from "@/utils/llm-config-import";
 import { customMessage } from "@/utils/customMessage";
-import { resolveAppliedModelGroup } from "@/utils/modelMetadataApplication";
 
 // ─── Composables ───
 const {
@@ -159,7 +158,7 @@ watch(
 );
 
 // ─── 图标 ───
-const { getDisplayIconPath, getIconPath, getMatchedProperties } =
+const { getDisplayIconPath, getIconPath, materializeModel } =
   useModelMetadata();
 
 const getProviderIcon = (profile: LlmProfile) => {
@@ -520,27 +519,11 @@ const findPresetModel = (
 const applyMatchedModelMetadata = (
   model: LlmModelInfo,
   providerType: string
-): LlmModelInfo => {
-  const provider = model.provider || providerType;
-  const matchedProps = getMatchedProperties(model.id, provider);
-  return {
+): LlmModelInfo =>
+  materializeModel({
     ...model,
-    provider,
-    group: resolveAppliedModelGroup(model.group, matchedProps?.group),
-    icon: model.icon || matchedProps?.icon,
-    description: model.description || matchedProps?.description,
-    capabilities: {
-      ...(matchedProps?.capabilities || {}),
-      ...(model.capabilities || {}),
-    },
-    mediaGenParams:
-      model.mediaGenParams ||
-      (matchedProps?.mediaGenParams
-        ? JSON.parse(JSON.stringify(matchedProps.mediaGenParams))
-        : undefined),
-  };
-};
-
+    provider: model.provider || providerType,
+  }).model;
 const openDeepLinkInfo = () => {
   showLlmServiceInfoDialog.value = true;
 };

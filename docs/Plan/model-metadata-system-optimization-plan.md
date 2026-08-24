@@ -1,6 +1,6 @@
 # 模型元数据系统分层、同步与模型物化优化计划
 
-> 状态：施工中（批次 1 已完成；批次 2 的 Store / 迁移核心已完成，目录更新预览与模型物化待续）
+> 状态：施工中（批次 1～3 已完成；目录更新与模型刷新预览待批次 4 实施）
 >
 > 计划日期：2026-07-16
 >
@@ -627,4 +627,38 @@ bun run check:frontend                                    # 通过
 bun run check:mobile:frontend                             # 通过
 bun run build:vite                                        # 通过（存在既有第三方 externalize / chunk-size 警告）
 bun run --cwd mobile build                                # 通过
+```
+
+### 2026-08-24：批次 3 完成，模型元数据物化与运行时边界收紧
+
+已完成：
+
+- 新增 `materializeModelMetadata()` 作为桌面端规则结果写入模型对象的唯一入口，并为 `LlmModelInfo` 增加 `metadataBinding`、`tokenizerProfileId` 与 `apiFamily`。物化会把分组、图标、说明、Tokenizer、上下文窗口、能力与 API 家族写入模型快照；`mediaGenParams` 在首次应用后深拷贝为模型自有配置。
+- 明确三种绑定模式：`manual` 不改写模型；`fillMissing` 仅补缺失字段；`followSource` 仅刷新仍位于 `managedPaths` 的字段。模型编辑保存时会移除用户实际修改字段的受管路径，避免后续刷新覆盖用户值。
+- 手动添加、预设渠道创建、渠道导入、从 API 确认添加、手动应用预设和批量应用预设均统一走物化入口。各 Provider 的模型列表解析保留 API 明确返回的数据，不再提前以默认目录补充分组或能力，避免阻止活动目录在确认写入时生效。
+- 请求家族判断、Token 计算、上下文预估、模型选择能力过滤、模型图标/分组显示与媒体生成诊断改为读取已保存的模型字段。Token Worker 新增显式 `tokenizerProfileId` 传递；ID-only 的旧调用只可使用 Tokenizer 规则或 profile 模式匹配，不再读取全局模型元数据目录。
+- 删除桌面端 `getActiveModelProperties()` 和运行时元数据规则兜底。ID-only 的历史展示场景仅使用静态内置图标名回退，不读取可变规则目录。`media-generator` 架构说明及其计划入口已符合“运行时只读取模型自身 `mediaGenParams`”约束，无需再改写。
+- 新增物化回归测试，覆盖缺失字段补全、`followSource` 受管字段刷新、`manual` 不改写、媒体参数快照以及用户编辑字段脱离管理。
+
+本批次的明确偏差与后续项：
+
+- 未自动迁移或后台改写已有模型；按照第 9.2 节，旧模型保持既有字段且不写入新的 binding 状态，用户需显式执行“应用预设”或后续批次的刷新预览。
+- 批次 4 仍负责目录更新差异、字段冲突选择与跨 Profile 模型刷新预览；本批次的批量应用保持现有立即写入交互，不替代该确认流程。
+- 移动端已具备 v3 Store/类型兼容，但模型物化 UI 和运行时消费收口仍按批次 5 实施。未以浏览器构建替代 Tauri / 移动真实运行态验收。
+
+验证结果：
+
+```text
+bun run check:frontend                                    # 通过
+bun run check:mobile:frontend                             # 通过
+bunx vitest --run src/utils/__tests__/modelMetadataMaterialization.test.ts \
+  src/config/__tests__/model-metadata.test.ts \
+  src/views/Settings/model-metadata/utils/__tests__/coverageAnalysis.test.ts \
+  src/tools/token-calculator/core/__tests__/tokenCalculatorEngine.test.ts
+                                                           # 通过，19 项契约测试
+bun run test:model-metadata-core                           # 通过，6 项共享核心契约测试
+bun run lint                                              # 通过（3 条既有 no-useless-spread 警告）
+bun run build:vite                                        # 通过（既有第三方 externalize / eval / chunk-size 警告）
+bun run --cwd mobile build                                # 通过（既有 eval / chunk-size 警告）
+git diff --check                                          # 通过
 ```

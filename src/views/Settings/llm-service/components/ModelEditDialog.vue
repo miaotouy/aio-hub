@@ -29,7 +29,8 @@ import type { LlmOperation } from "@aiohub/llm-core";
 import ModelRoutingEditor from "./ModelRoutingEditor.vue";
 import { PRESET_ICONS } from "@/config/preset-icons";
 import { MODEL_CAPABILITIES } from "@/config/model-capabilities";
-import { getActiveModelProperties } from "@/config/model-metadata";
+import { useModelMetadata } from "@/composables/useModelMetadata";
+import { detachModifiedMetadataPaths } from "@/utils/modelMetadataMaterialization";
 import IconPresetSelector from "@/components/common/IconPresetSelector.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { createModuleLogger } from "@/utils/logger";
@@ -39,6 +40,7 @@ import type { ContextPostProcessRule } from "@/tools/llm-chat/types/llm";
 import type { MediaGenParamRules } from "@/types/model-metadata";
 
 const logger = createModuleLogger("ModelEditDialog");
+const { materializeModel } = useModelMetadata();
 
 const props = defineProps<{
   visible: boolean;
@@ -73,6 +75,7 @@ const modelEditForm = ref<LlmModelInfo>({
 
 const showPresetIconDialog = ref(false);
 const jsonError = ref<string | null>(null);
+const metadataManagedBaseline = ref<LlmModelInfo | null>(null);
 const modelIdentityCanonicalId = ref("");
 const modelIdentityRevision = ref("");
 
@@ -143,6 +146,9 @@ watch(
         customParameters: newModel.customParameters || {},
         defaultPostProcessingRules: defaultRules,
       };
+      metadataManagedBaseline.value = JSON.parse(
+        JSON.stringify(modelEditForm.value)
+      );
       const identity = getModelIdentity(newModel);
       modelIdentityCanonicalId.value = identity?.canonicalId ?? "";
       modelIdentityRevision.value = identity?.revision ?? "";
@@ -162,6 +168,7 @@ watch(
       };
       modelIdentityCanonicalId.value = "";
       modelIdentityRevision.value = "";
+      metadataManagedBaseline.value = null;
     }
   },
   { immediate: true }
@@ -178,7 +185,10 @@ const handleSave = () => {
     return;
   }
 
-  const modelToSave = JSON.parse(JSON.stringify(modelEditForm.value));
+  const modelToSave = detachModifiedMetadataPaths(
+    metadataManagedBaseline.value ?? props.model ?? undefined,
+    JSON.parse(JSON.stringify(modelEditForm.value))
+  );
   delete modelToSave.modelIdentitySuggestion;
   const identityInput = modelIdentityCanonicalId.value.trim();
   if (identityInput) {
@@ -263,88 +273,30 @@ const applyPreset = () => {
     customMessage.warning("请先输入模型 ID");
     return;
   }
-
-  // 从预设中获取匹配的元数据
-  const properties = getActiveModelProperties(
-    modelId,
-    modelEditForm.value.provider || props.providerType
+  const before = JSON.stringify(modelEditForm.value);
+  const materialized = materializeModel({
+    ...modelEditForm.value,
+    provider: modelEditForm.value.provider || props.providerType,
+  }).model;
+  const identified = getModelIdentity(materialized)
+    ? materialized
+    : materializeModelIdentity(materialized);
+  modelEditForm.value = {
+    ...identified,
+    name: identified.name || formatModelName(modelId),
+  };
+  metadataManagedBaseline.value = JSON.parse(
+    JSON.stringify(modelEditForm.value)
   );
-
-  let identityApplied = false;
-  if (!getModelIdentity(modelEditForm.value)) {
-    const materialized = materializeModelIdentity(modelEditForm.value);
-    const identity = getModelIdentity(materialized);
-    if (identity) {
-      modelEditForm.value.modelIdentity = identity;
-      modelIdentityCanonicalId.value = identity.canonicalId;
-      modelIdentityRevision.value = identity.revision ?? "";
-      identityApplied = true;
-    }
+  const identity = getModelIdentity(modelEditForm.value);
+  if (identity) {
+    modelIdentityCanonicalId.value = identity.canonicalId;
+    modelIdentityRevision.value = identity.revision ?? "";
   }
-
-  if (!properties) {
-    // 如果没有预设，至少尝试格式化名称
-    if (!modelEditForm.value.name) {
-      modelEditForm.value.name = formatModelName(modelId);
-      customMessage.success("已根据 ID 生成模型名称");
-    } else {
-      customMessage[identityApplied ? "success" : "info"](
-        identityApplied ? "已识别并填充模型身份" : "未找到匹配的预设配置"
-      );
-    }
-    return;
-  }
-
-  let appliedCount = identityApplied ? 1 : 0;
-
-  // 应用分组
-  if (properties.group && !modelEditForm.value.group) {
-    modelEditForm.value.group = properties.group;
-    appliedCount++;
-  }
-
-  // 应用图标
-  if (properties.icon && !modelEditForm.value.icon) {
-    modelEditForm.value.icon = properties.icon;
-    appliedCount++;
-  }
-
-  // 应用模型描述
-  if (properties.description && !modelEditForm.value.description) {
-    modelEditForm.value.description = properties.description;
-    appliedCount++;
-  }
-
-  // 应用能力
-  if (properties.capabilities) {
-    modelEditForm.value.capabilities = {
-      ...modelEditForm.value.capabilities,
-      ...properties.capabilities,
-    };
-    appliedCount++;
-  }
-
-  if (
-    properties.mediaGenParams &&
-    !hasMediaGenParams(modelEditForm.value.mediaGenParams)
-  ) {
-    modelEditForm.value.mediaGenParams = cloneMediaGenParams(
-      properties.mediaGenParams
-    );
-    appliedCount++;
-  }
-
-  // 如果没有名称，使用格式化后的模型 ID 作为名称
-  if (!modelEditForm.value.name) {
-    modelEditForm.value.name = formatModelName(modelId);
-    appliedCount++;
-  }
-
-  if (appliedCount > 0) {
-    customMessage.success(`已应用预设配置（${appliedCount} 项）`);
-  } else {
-    customMessage.info("所有字段已有值，未覆盖");
-  }
+  const changed = JSON.stringify(modelEditForm.value) !== before;
+  customMessage[changed ? "success" : "info"](
+    changed ? "已应用模型预设" : "所有字段已有值，未覆盖"
+  );
 };
 const dialogTitle = computed(() => {
   return props.isEditing ? "编辑模型" : "添加模型";
@@ -433,10 +385,6 @@ function hasMediaGenParams(
   params: MediaGenParamRules | undefined
 ): params is MediaGenParamRules {
   return !!params && Object.keys(params).length > 0;
-}
-
-function cloneMediaGenParams(params: MediaGenParamRules): MediaGenParamRules {
-  return JSON.parse(JSON.stringify(params));
 }
 
 // 模型声明的能力对应的可编辑路由操作（对话始终可编辑）

@@ -33,8 +33,7 @@ const {
   cancel,
 } = useModelSelectDialog();
 const { enabledProfiles } = useLlmProfiles();
-const { getModelIcon, getMatchedProperties, getModelGroup } =
-  useModelMetadata();
+const { getModelIcon, getModelGroup } = useModelMetadata();
 
 const searchQuery = ref("");
 const selectedCapabilities = ref<string[]>([]);
@@ -69,13 +68,7 @@ watch(modelListWrapperRef, (el) => {
 
 // 获取模型能力
 function getModelCapabilities(model: LlmModelInfo) {
-  // 优先使用模型自身的能力配置
-  if (model.capabilities) {
-    return model.capabilities;
-  }
-  // 否则使用元数据规则匹配的能力
-  const matchedProps = getMatchedProperties(model.id, model.provider);
-  return matchedProps?.capabilities || {};
+  return model.capabilities || {};
 }
 
 // 获取激活的能力列表

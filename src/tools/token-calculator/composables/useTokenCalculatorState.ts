@@ -27,7 +27,6 @@ import {
   type TokenCalculationResult,
 } from "./useTokenCalculator";
 import { calculatorProxy } from "../worker/calculator.proxy";
-import { getActiveModelProperties } from "@/config/model-metadata";
 import { useTokenizerRegistryStore } from "../stores/tokenizerRegistryStore";
 import {
   loadTokenCalculatorConfig,
@@ -211,9 +210,7 @@ export function useTokenCalculator() {
     profiles.value.forEach((profile) => {
       if (profile.enabled && profile.models) {
         profile.models.forEach((model) => {
-          // 尝试从元数据获取分词器名称作为标识
-          const metadata = getActiveModelProperties(model.id, model.provider);
-          const tokenizerName = metadata?.tokenizer;
+          const tokenizerName = model.tokenizerProfileId;
 
           models.push({
             id: model.id,
@@ -348,9 +345,13 @@ export function useTokenCalculator() {
             selectedModelId.value
           );
         } else {
+          const selectedModel = profiles.value
+            .flatMap((profile) => profile.models || [])
+            .find((model) => model.id === selectedModelId.value);
           result = await calculatorProxy.calculateTokens(
             inputText.value,
-            selectedModelId.value
+            selectedModelId.value,
+            selectedModel?.tokenizerProfileId
           );
         }
 
@@ -363,13 +364,15 @@ export function useTokenCalculator() {
         // 获取模型元数据以确定视觉计算规则
         // 如果是 tokenizer 模式，或者模型未定义视觉规则，我们默认使用 Gemini 2.0 规则作为参考
         // 这样用户添加了媒体至少能看到一个合理的数字，而不是 0
-        const metadata = getActiveModelProperties(selectedModelId.value);
+        const selectedModel = profiles.value
+          .flatMap((profile) => profile.models || [])
+          .find((model) => model.id === selectedModelId.value);
         const defaultVisionCost = {
           calculationMethod: "gemini_2_0",
           parameters: {},
         } as const;
         const visionTokenCost =
-          metadata?.capabilities?.visionTokenCost || defaultVisionCost;
+          selectedModel?.capabilities?.visionTokenCost || defaultVisionCost;
 
         mediaItems.value.forEach((item) => {
           let count = 0;

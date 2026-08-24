@@ -26,12 +26,14 @@ import type {
 } from "../types/model-metadata";
 import type { LlmModelInfo } from "../types/llm-profiles";
 import {
+  getBundledModelIconPath,
   getMatchedModelProperties,
-  getModelIconPath,
+  getMatchedRuleChain,
   isValidIconPath,
 } from "../config/model-metadata";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useModelMetadataStore } from "../stores/modelMetadataStore";
+import { materializeModelMetadata } from "@/utils/modelMetadataMaterialization";
 
 /**
  * 模型元数据配置管理 (Composable 封装)
@@ -40,48 +42,40 @@ import { useModelMetadataStore } from "../stores/modelMetadataStore";
 export function useModelMetadata() {
   const store = useModelMetadataStore();
 
-  /**
-   * 获取匹配模型的元数据属性
-   */
-  function getMatchedProperties(
-    modelId: string,
-    provider?: string
-  ): ModelMetadataProperties | undefined {
-    return getMatchedModelProperties(store.rules, modelId, provider);
+  /** Resolve active rules once and materialize their values into a persisted model snapshot. */
+  function materializeModel(
+    model: LlmModelInfo,
+    options?: Parameters<typeof materializeModelMetadata>[2]
+  ) {
+    const chain = getMatchedRuleChain(store.rules, model.id, model.provider);
+    return materializeModelMetadata(
+      model,
+      getMatchedModelProperties(store.rules, model.id, model.provider),
+      {
+        sourceRevision: store.metadataStore.sourceSnapshot.revision,
+        appliedRuleIds: chain.map((rule) => rule.id),
+        ...options,
+      }
+    );
   }
-
   /**
-   * 获取模型的特定元数据属性
-   * 优先级：模型自定义属性 > 规则匹配属性 > 默认值
+   * Read an already persisted model field. Metadata rules are resolved only
+   * during model materialization, never as a runtime fallback.
    */
   function getModelProperty<K extends keyof ModelMetadataProperties>(
     model: LlmModelInfo,
     propertyKey: K,
     defaultValue?: ModelMetadataProperties[K]
   ): ModelMetadataProperties[K] | undefined {
-    // 第一优先级：模型自身的属性
-    const modelValue = (model as Record<string, any>)[propertyKey as string];
-    if (modelValue !== undefined) {
-      return modelValue;
-    }
-
-    // 第二优先级：规则匹配的属性
-    const matchedProps = getMatchedProperties(model.id, model.provider);
-    if (matchedProps?.[propertyKey] !== undefined) {
-      return matchedProps[propertyKey];
-    }
-
-    // 第三优先级：返回默认值
-    return defaultValue;
+    return (
+      ((model as unknown as Record<string, unknown>)[propertyKey as string] as
+        ModelMetadataProperties[K] | undefined) ?? defaultValue
+    );
   }
 
-  /**
-   * 获取模型分组名称
-   */
+  /** 获取已持久化的模型分组。 */
   function getModelGroup(model: LlmModelInfo): string {
-    if (model.group) return model.group;
-    const matchedProps = getMatchedProperties(model.id, model.provider);
-    return matchedProps?.group || "未分组";
+    return model.group || "未分组";
   }
 
   /**
@@ -99,13 +93,9 @@ export function useModelMetadata() {
     return iconPath;
   }
 
-  /**
-   * 获取模型图标
-   */
+  /** 获取已持久化的模型图标。 */
   function getModelIcon(model: LlmModelInfo): string | null {
-    if (model.icon) return getDisplayIconPath(model.icon);
-    const matchedIcon = getModelIconPath(store.rules, model.id, model.provider);
-    return matchedIcon ? getDisplayIconPath(matchedIcon) : null;
+    return model.icon ? getDisplayIconPath(model.icon) : null;
   }
 
   /**
@@ -145,8 +135,12 @@ export function useModelMetadata() {
   /**
    * 获取图标路径（简化版本）
    */
+  /**
+   * Static icon fallback for legacy, ID-only display contexts. It deliberately
+   * does not read the mutable metadata catalog.
+   */
   function getIconPath(modelId: string, provider?: string): string | undefined {
-    return getModelIconPath(store.rules, modelId, provider);
+    return getBundledModelIconPath(modelId, provider);
   }
 
   return {
@@ -175,7 +169,7 @@ export function useModelMetadata() {
 
     // 匹配与查询
     getMatchedRule: store.getMatchedRule,
-    getMatchedProperties,
+    materializeModel,
     getModelProperty,
     getModelGroup,
     getModelIcon,

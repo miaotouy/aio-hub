@@ -42,7 +42,6 @@ import {
   type CapabilityConfig,
 } from "@/config/model-capabilities";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
-import { getActiveModelProperties } from "@/config/model-metadata";
 import { customMessage } from "@/utils/customMessage";
 import type { ChannelProbeResult } from "../probe/types";
 
@@ -161,7 +160,7 @@ const isGroupExpanded = (groupName: string): boolean => {
 };
 
 // 使用统一的图标获取方法和分组方法
-const { getModelIcon, getModelGroup } = useModelMetadata();
+const { getModelIcon, getModelGroup, materializeModel } = useModelMetadata();
 
 const formatModelName = (modelId: string): string => {
   const lastSlashIndex = modelId.lastIndexOf("/");
@@ -174,61 +173,24 @@ const formatModelName = (modelId: string): string => {
 const applyAllPresets = () => {
   let appliedCount = 0;
   const newModels = props.models.map((model) => {
-    const materialized = materializeModelIdentity(model);
-    const properties = getActiveModelProperties(
-      model.id,
-      model.provider || props.providerType
-    );
-    if (!properties) {
-      if (!model.name) {
-        appliedCount++;
-        return { ...materialized, name: formatModelName(model.id) };
-      }
-      if (materialized !== model) appliedCount++;
-      return materialized;
-    }
-    const updated = { ...materialized };
-    let changed = materialized !== model;
-    if (properties.group && !model.group) {
-      updated.group = properties.group;
-      changed = true;
-    }
-    if (properties.icon && !model.icon) {
-      updated.icon = properties.icon;
-      changed = true;
-    }
-    if (properties.description && !model.description) {
-      updated.description = properties.description;
-      changed = true;
-    }
-    if (properties.capabilities) {
-      updated.capabilities = {
-        ...properties.capabilities,
-        ...(model.capabilities || {}),
-      };
-      changed = true;
-    }
-    if (properties.mediaGenParams && !model.mediaGenParams) {
-      updated.mediaGenParams = JSON.parse(
-        JSON.stringify(properties.mediaGenParams)
-      );
-      changed = true;
-    }
-    if (!model.name) {
-      updated.name = formatModelName(model.id);
-      changed = true;
-    }
-    if (changed) appliedCount++;
+    const materialized = materializeModel({
+      ...model,
+      provider: model.provider || props.providerType,
+    }).model;
+    const updated = materializeModelIdentity({
+      ...materialized,
+      name: materialized.name || formatModelName(materialized.id),
+    });
+    if (JSON.stringify(updated) !== JSON.stringify(model)) appliedCount++;
     return updated;
   });
   emit("batch-apply-presets", newModels);
-  if (appliedCount > 0) {
-    customMessage.success(`已为 ${appliedCount} 个模型应用预设`);
-  } else {
-    customMessage.info("所有模型已有完整配置，未做修改");
-  }
+  customMessage[appliedCount > 0 ? "success" : "info"](
+    appliedCount > 0
+      ? `已为 ${appliedCount} 个模型应用预设`
+      : "所有模型已有完整配置，未做修改"
+  );
 };
-
 // 获取模型启用的所有能力配置
 const getEnabledCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
   return MODEL_CAPABILITIES.filter((cap) => model.capabilities?.[cap.key]);
@@ -474,9 +436,7 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
                   <div
                     v-if="isChatRouteUnresolved(item.model)"
                     class="model-route"
-                    :title="
-                      '该模型尚未选择对话协议：请求前请先选择协议或运行模型检查'
-                    "
+                    :title="'该模型尚未选择对话协议：请求前请先选择协议或运行模型检查'"
                   >
                     <el-tag size="small" type="warning" effect="plain">
                       待选协议

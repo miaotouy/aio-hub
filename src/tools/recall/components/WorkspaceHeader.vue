@@ -61,8 +61,7 @@ const {
   batchGenerateTags,
   batchUpdateEntries,
 } = useRecallCollection();
-const { getIconPath, getDisplayIconPath, getMatchedProperties } =
-  useModelMetadata();
+const { getIconPath, getDisplayIconPath } = useModelMetadata();
 
 /**
  * 向量化状态统计
@@ -80,8 +79,7 @@ const vectorStatusInfo = computed(() => {
   const pending = total - ready;
   const isAligned = pending === 0;
 
-  const modelProps = modelId ? getMatchedProperties(modelId) : null;
-  const modelName = modelProps?.name || modelId || "未设置";
+  const modelName = modelId || "未设置";
   const rawIcon = modelId ? getIconPath(modelId) : "";
   const modelIcon = rawIcon ? getDisplayIconPath(rawIcon) : "";
 

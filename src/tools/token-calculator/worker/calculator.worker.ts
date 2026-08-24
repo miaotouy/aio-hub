@@ -101,7 +101,8 @@ async function handleRequest(id: number, method: string, params: any) {
       case "calculateTokens":
         result = await tokenCalculatorEngine.calculateTokens(
           params.text,
-          params.modelId
+          params.modelId,
+          params.tokenizerProfileId
         );
         break;
       case "calculateTokensByTokenizer":

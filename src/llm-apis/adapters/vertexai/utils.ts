@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import type { LlmModelInfo } from "@/types/llm-profiles";
-import { DEFAULT_METADATA_RULES, testRuleMatch } from "@/config/model-metadata";
 
 export const vertexAiUrlHandler = {
   buildUrl: (baseUrl: string, endpoint?: string): string => {
@@ -38,39 +37,10 @@ export function parseVertexAiModelsResponse(data: any): LlmModelInfo[] {
     return {
       id: modelId,
       name: model.displayName || modelId,
-      group: extractModelGroup(modelId, "google"),
       provider: "google",
       capabilities: {
-        ...extractModelCapabilities(modelId, "google"),
         vision: true,
       },
     };
   });
-}
-
-function extractModelCapabilities(modelId: string, provider?: string) {
-  const rules = DEFAULT_METADATA_RULES.filter(
-    (rule) => rule.enabled !== false && rule.properties?.capabilities
-  ).sort((a, b) => (b.priority || 0) - (a.priority || 0));
-  for (const rule of rules) {
-    if (
-      testRuleMatch(rule, modelId, provider) &&
-      rule.properties?.capabilities
-    ) {
-      return rule.properties.capabilities;
-    }
-  }
-  return undefined;
-}
-
-function extractModelGroup(modelId: string, provider?: string): string {
-  const rules = DEFAULT_METADATA_RULES.filter(
-    (rule) => rule.enabled !== false && rule.properties?.group
-  ).sort((a, b) => (b.priority || 0) - (a.priority || 0));
-  for (const rule of rules) {
-    if (testRuleMatch(rule, modelId, provider) && rule.properties?.group) {
-      return rule.properties.group;
-    }
-  }
-  return modelId.toLowerCase().includes("gemini") ? "Gemini" : "Models";
 }

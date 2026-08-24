@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import type { LlmProfile, LlmModelInfo } from "@/types/llm-profiles";
-import { DEFAULT_METADATA_RULES, testRuleMatch } from "@/config/model-metadata";
 import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
 
 /**
@@ -185,17 +184,8 @@ export function parseOpenAiModelsResponse(data: any): LlmModelInfo[] {
       const modelInfo: LlmModelInfo = {
         id: model.id,
         name: model.name || model.id,
-        group: extractModelGroup(
-          model.id,
-          "openai",
-          model.owned_by || "openai"
-        ),
         provider: model.owned_by || "openai",
         description: model.description,
-        capabilities: extractModelCapabilities(
-          model.id,
-          model.owned_by || "openai"
-        ),
       };
 
       // 解析增强字段
@@ -258,44 +248,3 @@ export function parseOpenAiModelsResponse(data: any): LlmModelInfo[] {
 /**
  * 内部辅助：提取模型能力
  */
-function extractModelCapabilities(modelId: string, provider?: string) {
-  const rules = DEFAULT_METADATA_RULES.filter(
-    (r) => r.enabled !== false && r.properties?.capabilities
-  ).sort((a, b) => (b.priority || 0) - (a.priority || 0));
-
-  for (const rule of rules) {
-    if (
-      testRuleMatch(rule, modelId, provider) &&
-      rule.properties?.capabilities
-    ) {
-      return rule.properties.capabilities;
-    }
-  }
-  return undefined;
-}
-
-/**
- * 内部辅助：提取模型分组
- */
-function extractModelGroup(
-  modelId: string,
-  _providerType: string,
-  provider?: string
-): string {
-  const rules = DEFAULT_METADATA_RULES.filter(
-    (r) => r.enabled !== false && r.properties?.group
-  ).sort((a, b) => (b.priority || 0) - (a.priority || 0));
-
-  for (const rule of rules) {
-    if (testRuleMatch(rule, modelId, provider) && rule.properties?.group) {
-      return rule.properties.group;
-    }
-  }
-
-  const id = modelId.toLowerCase();
-  if (id.includes("gpt-4")) return "GPT-4";
-  if (id.includes("gpt-3.5")) return "GPT-3.5";
-  if (id.includes("o1")) return "o1";
-  if (id.includes("o3")) return "o3";
-  return "Other";
-}

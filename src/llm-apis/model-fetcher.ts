@@ -11,7 +11,6 @@ import {
   type TransportObserver,
 } from "@aiohub/llm-core";
 import { getProviderTypeInfo } from "@/config/llm-providers";
-import { getActiveModelProperties } from "@/config/model-metadata";
 import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -200,10 +199,6 @@ export function toDesktopModelInfo(
     model.id,
     model.declaredOwner
   );
-  const matchedCapabilities = getActiveModelProperties(
-    model.id,
-    model.provider
-  )?.capabilities;
   const apiCapabilities: LlmModelInfo["capabilities"] = {};
 
   // 模型列表 API 经常不提供 architecture.input_modalities。
@@ -236,12 +231,8 @@ export function toDesktopModelInfo(
           : model.group,
       provider: model.provider,
       description: model.description,
-      // 先附加当前激活的模型元数据，再用 API 明确返回的能力覆盖。
-      // API 未返回某项能力时，不应写入 false。
-      capabilities: {
-        ...(matchedCapabilities || {}),
-        ...apiCapabilities,
-      },
+      // API 明确返回的能力会在用户确认添加模型时与已物化的规则快照合并。
+      capabilities: apiCapabilities,
       tokenLimits:
         model.contextLength !== undefined || model.maxOutputTokens !== undefined
           ? {

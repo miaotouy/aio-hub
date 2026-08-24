@@ -24,15 +24,6 @@
  * - 计算结果新增 rawCount / tokenizerProfileId / tokenizerConfidence / appliedCalibration 字段
  */
 
-import { DEFAULT_METADATA_RULES } from "@/config/model-metadata-presets";
-import {
-  getMatchedRuleChain,
-  mergeRuleProperties,
-} from "@aiohub/model-metadata-core";
-import type {
-  ModelMetadataRule,
-  ModelMetadataProperties,
-} from "@/types/model-metadata";
 import type { VisionTokenCost } from "@/types/llm-profiles";
 import type {
   TokenizerProfile,
@@ -97,16 +88,6 @@ export interface TokenCalculationResult {
   appliedCalibration?: TokenizerCalibration;
 }
 
-/**
- * Worker-safe metadata resolution backed by the shared core contract.
- */
-function getMatchedModelProperties(
-  modelId: string,
-  provider?: string,
-  rules: ModelMetadataRule[] = DEFAULT_METADATA_RULES
-): ModelMetadataProperties | undefined {
-  return mergeRuleProperties(getMatchedRuleChain(rules, { modelId, provider }));
-}
 export class TokenCalculatorEngine {
   /** profileId → 已实例化的 tokenizer */
   private tokenizerCache = new Map<string, PreTrainedTokenizer>();
@@ -166,11 +147,15 @@ export class TokenCalculatorEngine {
   /**
    * 按优先级解析 modelId 应使用的 profile：
    * 1. 用户在 rules 中配置的显式 override
-   * 2. metadata.tokenizer 指向的 profile
+   * 2. 已物化模型的 tokenizerProfileId 指向的 profile
    * 3. profile.modelPatterns 匹配
    * 4. 返回 undefined（调用方退到字符级估算）
    */
-  resolveProfile(modelId: string, provider?: string): ResolvedProfile | null {
+  resolveProfile(
+    modelId: string,
+    _provider?: string,
+    tokenizerProfileId?: string
+  ): ResolvedProfile | null {
     // 1. 用户规则
     const sortedRules = this.rules
       .filter((r) => r.enabled !== false)
@@ -189,11 +174,9 @@ export class TokenCalculatorEngine {
       }
     }
 
-    // 2. metadata.tokenizer
-    const metadata = getMatchedModelProperties(modelId, provider);
-    const metadataTokenizer = metadata?.tokenizer;
-    if (metadataTokenizer) {
-      const profile = this.profiles.get(metadataTokenizer);
+    // 2. Persisted model snapshot. Do not consult mutable metadata rules here.
+    if (tokenizerProfileId) {
+      const profile = this.profiles.get(tokenizerProfileId);
       if (profile && profile.enabled !== false) {
         return { profile, matchSource: "metadata" };
       }
@@ -270,9 +253,10 @@ export class TokenCalculatorEngine {
 
   async getTokenizer(
     modelId: string,
-    provider?: string
+    provider?: string,
+    tokenizerProfileId?: string
   ): Promise<PreTrainedTokenizer | null> {
-    const resolved = this.resolveProfile(modelId, provider);
+    const resolved = this.resolveProfile(modelId, provider, tokenizerProfileId);
     if (!resolved) return null;
     return this.loadTokenizerForProfile(resolved.profile);
   }
@@ -296,7 +280,8 @@ export class TokenCalculatorEngine {
 
   async calculateTokens(
     text: string,
-    modelId: string
+    modelId: string,
+    tokenizerProfileId?: string
   ): Promise<TokenCalculationResult> {
     if (!text) {
       return {
@@ -308,7 +293,11 @@ export class TokenCalculatorEngine {
     }
 
     const sanitizedText = this._sanitizeText(text);
-    const resolved = this.resolveProfile(modelId);
+    const resolved = this.resolveProfile(
+      modelId,
+      undefined,
+      tokenizerProfileId
+    );
 
     if (resolved) {
       const tokenizer = await this.loadTokenizerForProfile(resolved.profile);

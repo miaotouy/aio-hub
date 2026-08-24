@@ -16,9 +16,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { merge } from "lodash-es";
 import { customMessage } from "@/utils/customMessage";
-import { resolveAppliedModelGroup } from "@/utils/modelMetadataApplication";
 import type { LlmModelInfo } from "@/types/llm-profiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import { MODEL_CAPABILITIES } from "@/config/model-capabilities";
@@ -34,7 +32,7 @@ const props = defineProps<{
 
 const emit = defineEmits(["update:visible", "add-models"]);
 
-const { getDisplayIconPath, getIconPath, getMatchedProperties } =
+const { getDisplayIconPath, getIconPath, materializeModel } =
   useModelMetadata();
 
 const searchQuery = ref("");
@@ -45,27 +43,18 @@ const expandedGroups = ref<Record<string, boolean>>({});
 // 根据分组聚合模型（使用 getModelGroup 获取正确的分组）
 const groupedModels = computed(() => {
   const groups: Record<string, LlmModelInfo[]> = {};
-
   for (const model of props.models) {
-    const matchedProps = getMatchedProperties(
-      model.id,
-      model.provider || props.providerType
-    );
-    const groupName =
-      resolveAppliedModelGroup(model.group, matchedProps?.group) || "未分组";
-    if (!groups[groupName]) {
-      groups[groupName] = [];
-    }
-    groups[groupName].push(model);
+    const materialized = materializeModel({
+      ...model,
+      provider: model.provider || props.providerType,
+    }).model;
+    const groupName = materialized.group || "未分组";
+    (groups[groupName] ||= []).push(materialized);
   }
-
-  // 初始化展开状态（默认全部展开）
   for (const groupName of Object.keys(groups)) {
-    if (!(groupName in expandedGroups.value)) {
+    if (!(groupName in expandedGroups.value))
       expandedGroups.value[groupName] = true;
-    }
   }
-
   return groups;
 });
 // 过滤后的模型
@@ -221,29 +210,18 @@ const copyRawResponse = async () => {
 };
 
 const handleConfirm = () => {
-  // 对选中的模型进行处理，使用格式化后的名称，并同步计算出的能力、分组和图标
-  const modelsToAdd = selectedModels.value.map((model: LlmModelInfo) => {
+  const modelsToAdd = selectedModels.value.map((model) => {
     const { modelIdentitySuggestion: _suggestion, ...persistedModel } = model;
-    const provider = model.provider || props.providerType;
-    const matchedProps = getMatchedProperties(model.id, provider);
-    const matchedMediaGenParams = cloneMediaGenParams(
-      matchedProps?.mediaGenParams
-    );
-    return {
+    return materializeModel({
       ...persistedModel,
-      provider,
+      provider: model.provider || props.providerType,
       name: formatModelName(model.id),
-      group: resolveAppliedModelGroup(model.group, matchedProps?.group),
-      icon: model.icon || matchedProps?.icon,
-      description: model.description || matchedProps?.description,
       capabilities: getModelCapabilities(model),
-      mediaGenParams: model.mediaGenParams || matchedMediaGenParams,
-    };
+    }).model;
   });
   emit("add-models", modelsToAdd);
   closeDialog();
 };
-
 const closeDialog = () => {
   emit("update:visible", false);
 };
@@ -281,28 +259,7 @@ const formatModelName = (modelId: string): string => {
 };
 
 // 获取模型能力
-const getModelCapabilities = (model: LlmModelInfo) => {
-  // 获取元数据规则匹配的能力
-  const matchedProps = getMatchedProperties(
-    model.id,
-    model.provider || props.providerType
-  );
-  const matchedCapabilities = matchedProps?.capabilities || {};
-
-  // 获取模型自身的能力配置
-  const modelCapabilities = model.capabilities || {};
-
-  // 合并能力：模型自身能力覆盖元数据匹配能力
-  // 注意：merge 会修改第一个参数，所以需要创建一个新对象作为目标
-  return merge({}, matchedCapabilities, modelCapabilities);
-};
-
-function cloneMediaGenParams(
-  params: LlmModelInfo["mediaGenParams"] | undefined
-): LlmModelInfo["mediaGenParams"] | undefined {
-  return params ? JSON.parse(JSON.stringify(params)) : undefined;
-}
-
+const getModelCapabilities = (model: LlmModelInfo) => model.capabilities || {};
 // 获取激活的能力列表
 const getActiveCapabilities = (model: LlmModelInfo) => {
   const capabilities = getModelCapabilities(model);

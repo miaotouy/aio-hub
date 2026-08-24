@@ -16,7 +16,6 @@ import { computed } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useFileDownload } from "@/composables/useFileDownload";
-import { getActiveModelProperties } from "@/config/model-metadata";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import { createModuleLogger, logger as appLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/customMessage";
@@ -120,8 +119,11 @@ export function useMediaGenDiagnostics() {
     const [profileId, modelId] = parseModelCombo(modelCombo);
     const profile = getProfileById(profileId);
     const model = profile?.models.find((item) => item.id === modelId);
-    const matchedMetadata = modelId
-      ? getActiveModelProperties(modelId, model?.provider || profile?.type)
+    const matchedMetadata = model
+      ? {
+          capabilities: model.capabilities,
+          mediaGenParams: model.mediaGenParams,
+        }
       : undefined;
 
     return {

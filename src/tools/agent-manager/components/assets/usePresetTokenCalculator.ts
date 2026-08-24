@@ -26,7 +26,6 @@ import {
 import { useAnchorRegistry } from "@/tools/llm-chat/composables/ui/useAnchorRegistry";
 import { calculateShortHash } from "@/utils/hash";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
-import { getActiveModelProperties } from "@/config/model-metadata";
 
 const logger = createModuleLogger("llm-chat/usePresetTokenCalculator");
 
@@ -120,12 +119,9 @@ export function usePresetTokenCalculator(options: {
       modelId.value
     );
     const tokenizerName = tokenizerResult.tokenizerName;
-
-    // 获取模型元数据，用于估算附件 token
-    const modelMetadata = modelId.value
-      ? getActiveModelProperties(modelId.value)
-      : undefined;
-    const visionTokenCost = modelMetadata?.capabilities?.visionTokenCost;
+    // Agent presets only receive a model ID here. Use the default estimator rather
+    // than re-reading mutable global metadata at runtime.
+    const visionTokenCost = undefined;
     const agentAssets: AgentAsset[] = agent.value?.assets || [];
 
     const tasks = localMessages.value.map((message) => async () => {

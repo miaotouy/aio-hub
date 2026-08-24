@@ -24,10 +24,10 @@ import {
 } from "./composables/useTokenCalculator";
 import { calculatorProxy } from "./worker/calculator.proxy";
 import type { AssetMetadata, AssetType } from "@/types/asset-management";
-import { getActiveModelProperties } from "@/config/model-metadata";
 import { markRaw } from "vue";
 import TokenCalculatorIcon from "@/components/icons/TokenCalculatorIcon.vue";
 import { useTokenizerRegistryStore } from "./stores/tokenizerRegistryStore";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
 
 /**
  * Token 计算器服务类
@@ -74,7 +74,15 @@ class TokenCalculatorRegistry implements ToolRegistry {
     modelId: string
   ): Promise<TokenCalculationResult> {
     this.touchStore();
-    return calculatorProxy.calculateTokens(text, modelId);
+    const { profiles } = useLlmProfiles();
+    const model = profiles.value
+      .flatMap((profile) => profile.models || [])
+      .find((item) => item.id === modelId);
+    return calculatorProxy.calculateTokens(
+      text,
+      modelId,
+      model?.tokenizerProfileId
+    );
   }
 
   /**
@@ -156,8 +164,11 @@ class TokenCalculatorRegistry implements ToolRegistry {
 
     // 2. 如果有附件，计算附件 Token
     if (attachments && attachments.length > 0) {
-      // 获取模型的视觉 token 计费规则
-      const metadata = getActiveModelProperties(modelId);
+      // Read the configured model snapshot; never resolve mutable global metadata here.
+      const { profiles } = useLlmProfiles();
+      const model = profiles.value
+        .flatMap((profile) => profile.models || [])
+        .find((item) => item.id === modelId);
 
       // 如果模型未定义视觉规则，默认使用 Gemini 2.0 规则作为参考
       // 这样即使在未配置的模型上也能得到一个估算值
@@ -166,7 +177,7 @@ class TokenCalculatorRegistry implements ToolRegistry {
         parameters: {},
       } as const;
       const visionTokenCost =
-        metadata?.capabilities?.visionTokenCost || defaultVisionCost;
+        model?.capabilities?.visionTokenCost || defaultVisionCost;
 
       const mediaPromises = attachments.map(async (asset) => {
         // 处理图片

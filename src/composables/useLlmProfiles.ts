@@ -30,12 +30,9 @@ import { providerTypes } from "../config/llm-providers";
 import { createConfigManager } from "@utils/configManager";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import {
-  getActiveModelProperties,
-  normalizeIconPath,
-} from "../config/model-metadata";
+import { normalizeIconPath } from "../config/model-metadata";
+import { useModelMetadata } from "./useModelMetadata";
 import { getAioDefaultHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
-import { resolveAppliedModelGroup } from "@/utils/modelMetadataApplication";
 
 const logger = createModuleLogger("LlmProfiles");
 const errorHandler = createModuleErrorHandler("LlmProfiles");
@@ -293,6 +290,8 @@ export function useLlmProfiles() {
     }
   };
 
+  const { materializeModel } = useModelMetadata();
+
   /**
    * 生成唯一 ID
    */
@@ -331,28 +330,12 @@ export function useLlmProfiles() {
     model: LlmModelInfo,
     providerType: ProviderType
   ): LlmModelInfo => {
-    const provider = model.provider || providerType;
-    const matchedProps = getActiveModelProperties(model.id, provider);
-    const mediaGenParams =
-      model.mediaGenParams ||
-      (matchedProps?.mediaGenParams
-        ? JSON.parse(JSON.stringify(matchedProps.mediaGenParams))
-        : undefined);
-
-    return materializeModelIdentity({
+    const materialized = materializeModel({
       ...model,
-      provider,
-      group: resolveAppliedModelGroup(model.group, matchedProps?.group),
-      icon: model.icon || matchedProps?.icon,
-      description: model.description || matchedProps?.description,
-      capabilities: {
-        ...(matchedProps?.capabilities || {}),
-        ...(model.capabilities || {}),
-      },
-      ...(mediaGenParams ? { mediaGenParams } : {}),
-    });
+      provider: model.provider || providerType,
+    }).model;
+    return materializeModelIdentity(materialized);
   };
-
   /**
    * 获取指定渠道类型支持的参数
    */

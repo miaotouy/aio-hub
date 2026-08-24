@@ -18,6 +18,9 @@ export interface ModelMetadataProperties {
   /** 使用的分词器名称（用于 Token 计算） */
   tokenizer?: string;
 
+  /** 请求协议家族，仅在模型物化时写入 apiFamily。 */
+  apiFamily?: import("./common").ModelApiFamily;
+
   /** 分组名称 */
   group?: string;
 

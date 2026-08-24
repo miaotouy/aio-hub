@@ -31,7 +31,6 @@ import type {
 } from "./common";
 import type { LlmProfile, LlmModelInfo } from "../types/llm-profiles";
 import { getProviderTypeInfo } from "../config/llm-providers";
-import { getActiveModelProperties } from "../config/model-metadata";
 
 /**
  * 模型家族类型
@@ -538,79 +537,28 @@ export function buildBase64DataUrl(
  * @returns 模型家族类型
  */
 export function getModelFamily(
-  modelId: string,
-  provider?: string
+  _modelId: string,
+  provider?: string,
+  model?: LlmModelInfo
 ): ModelFamily {
-  const props = getActiveModelProperties(modelId, provider);
-  const group = props?.group?.toLowerCase();
-
-  if (!group) {
-    // 如果元数据没有匹配到，尝试通过 provider 推断
-    if (provider) {
-      const lowerProvider = provider.toLowerCase();
-      if (lowerProvider === "anthropic" || lowerProvider === "claude")
-        return "claude";
-      if (
-        lowerProvider === "google" ||
-        lowerProvider === "gemini" ||
-        lowerProvider === "vertexai"
-      )
-        return "gemini";
-      if (lowerProvider === "openai") return "openai";
-      if (lowerProvider === "cohere") return "cohere";
-      if (lowerProvider === "deepseek") return "deepseek";
-      if (lowerProvider === "qwen" || lowerProvider === "alibaba")
-        return "qwen";
-      if (lowerProvider === "xai") return "xai";
-    }
-    return "unknown";
+  if (model?.apiFamily && model.apiFamily !== "unknown") return model.apiFamily;
+  // The persisted model apiFamily is authoritative; legacy/temporary models fall back to provider.
+  if (provider) {
+    const lowerProvider = provider.toLowerCase();
+    if (lowerProvider === "anthropic" || lowerProvider === "claude")
+      return "claude";
+    if (
+      lowerProvider === "google" ||
+      lowerProvider === "gemini" ||
+      lowerProvider === "vertexai"
+    )
+      return "gemini";
+    if (lowerProvider === "openai") return "openai";
+    if (lowerProvider === "cohere") return "cohere";
+    if (lowerProvider === "deepseek") return "deepseek";
+    if (lowerProvider === "qwen" || lowerProvider === "alibaba") return "qwen";
+    if (lowerProvider === "xai") return "xai";
   }
-
-  // 基于 group 判断家族
-  // OpenAI 系列
-  if (
-    group === "openai" ||
-    group === "openai responses" ||
-    group.startsWith("gpt")
-  ) {
-    return "openai";
-  }
-
-  // Claude 系列
-  if (group === "claude" || group.startsWith("claude")) {
-    return "claude";
-  }
-
-  // Gemini 系列
-  if (
-    group === "gemini" ||
-    group === "gemma" ||
-    group.startsWith("gemini") ||
-    group.startsWith("gemma")
-  ) {
-    return "gemini";
-  }
-
-  // Cohere 系列
-  if (group === "cohere" || group === "command") {
-    return "cohere";
-  }
-
-  // DeepSeek 系列
-  if (group === "deepseek") {
-    return "deepseek";
-  }
-
-  // Qwen 系列
-  if (group === "qwen" || group.startsWith("qwen")) {
-    return "qwen";
-  }
-
-  // xAI 系列
-  if (group === "xai" || group.startsWith("grok")) {
-    return "xai";
-  }
-
   return "unknown";
 }
 
@@ -652,7 +600,8 @@ export function filterParametersByCapabilities(
   const capabilities = model?.capabilities;
   const modelFamily = getModelFamily(
     options.modelId,
-    model?.provider ?? profile.type
+    model?.provider ?? profile.type,
+    model
   );
 
   const filtered: Partial<LlmRequestOptions | MediaGenerationOptions> = {};

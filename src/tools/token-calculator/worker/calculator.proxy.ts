@@ -267,9 +267,14 @@ class TokenCalculatorProxy {
 
   async calculateTokens(
     text: string,
-    modelId: string
+    modelId: string,
+    tokenizerProfileId?: string
   ): Promise<TokenCalculationResult> {
-    return this.request("calculateTokens", { text, modelId });
+    return this.request("calculateTokens", {
+      text,
+      modelId,
+      tokenizerProfileId,
+    });
   }
 
   async calculateTokensByTokenizer(

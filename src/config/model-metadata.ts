@@ -75,23 +75,15 @@ export function getMatchedModelProperties(
   return mergeRuleProperties(getMatchedRuleChain(rules, modelId, provider));
 }
 
-/** 仅供目录分析和模型物化流程使用，业务运行时不得将其作为模型字段兜底。 */
-export function getActiveModelProperties(
-  modelId: string,
-  provider?: string
-): ModelMetadataProperties | undefined {
-  return getMatchedModelProperties(DEFAULT_METADATA_RULES, modelId, provider);
-}
-
-/** Resolve explicit rule icon first, then fall back to known bundled icon names. */
-export function getModelIconPath(
-  rules: ModelMetadataRule[],
+/**
+ * Resolve a bundled icon by an identifier without consulting metadata rules.
+ * This is suitable only for legacy display fallbacks; persisted model.icon
+ * remains authoritative for configured models.
+ */
+export function getBundledModelIconPath(
   modelId: string,
   provider?: string
 ): string | undefined {
-  const properties = getMatchedModelProperties(rules, modelId, provider);
-  if (properties?.icon) return properties.icon;
-
   const candidates = [
     provider?.toLowerCase(),
     modelId.toLowerCase(),
@@ -107,6 +99,16 @@ export function getModelIconPath(
       return monochrome;
   }
   return undefined;
+}
+
+/** Resolve an explicit rule icon first, then use the static bundled-icon fallback. */
+export function getModelIconPath(
+  rules: ModelMetadataRule[],
+  modelId: string,
+  provider?: string
+): string | undefined {
+  const properties = getMatchedModelProperties(rules, modelId, provider);
+  return properties?.icon ?? getBundledModelIconPath(modelId, provider);
 }
 /**
  * 规范化图标路径（向后兼容）

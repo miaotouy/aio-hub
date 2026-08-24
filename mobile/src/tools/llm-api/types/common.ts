@@ -273,6 +273,26 @@ export interface ModelCapabilities {
 /**
  * 模型信息
  */
+/** Explicit request protocol family. This is persisted on the model instead of inferred from display groups. */
+export type ModelApiFamily =
+  | "openai"
+  | "claude"
+  | "gemini"
+  | "cohere"
+  | "deepseek"
+  | "qwen"
+  | "xai"
+  | "unknown";
+
+export interface ModelMetadataBinding {
+  mode: "manual" | "fillMissing" | "followSource";
+  sourceId?: string;
+  sourceRevision?: string;
+  appliedRuleIds?: string[];
+  managedPaths?: string[];
+  appliedAt?: string;
+  fingerprint?: string;
+}
 export interface LlmModelInfo {
   /**
    * 模型ID，用于 API 请求，例如 'gpt-4o', 'llava'
@@ -301,6 +321,12 @@ export interface LlmModelInfo {
 
   /** Model-level execution routing shared with desktop. */
   routing?: LlmModelRouting;
+  /** Explicit API family used by request construction. */
+  apiFamily?: ModelApiFamily;
+  /** Tokenizer profile selected during metadata materialization. */
+  tokenizerProfileId?: string;
+  /** Source and managed-field state for metadata materialization. */
+  metadataBinding?: ModelMetadataBinding;
 
   /**
    * 模型能力标识

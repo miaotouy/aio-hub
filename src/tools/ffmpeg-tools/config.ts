@@ -27,6 +27,25 @@ export const DEFAULT_FFMPEG_CONFIG: FFmpegConfig = {
  */
 export const BUILTIN_PRESETS: FFmpegPreset[] = [
   {
+    id: "builtin-quality-only",
+    name: "仅调整画质（保持原始分辨率）",
+    description: "H.264 + CRF 23，不缩放，仅调整编码画质",
+    isSystem: true,
+    params: {
+      mode: "video",
+      hwaccel: true,
+      videoEncoder: "libx264",
+      preset: "medium",
+      crf: 23,
+      // 显式清除当前缩放设置，确保应用预设后保持输入分辨率。
+      scale: undefined,
+      pixelFormat: "yuv420p",
+      audioEncoder: "aac",
+      audioBitrate: "128k",
+      appendParamsToName: true,
+    },
+  },
+  {
     id: "builtin-wechat",
     name: "微信视频号优化",
     description: "H.264 + 1080p + CRF 23，兼容性最好的通用预设",

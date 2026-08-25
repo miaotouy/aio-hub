@@ -227,6 +227,8 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { basename, extname, dirname, join } from "@tauri-apps/api/path";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { MediaMetadata, FFmpegParams } from "../types";
+import { buildQuickCommandArgs } from "../utils/command";
+import { applyPresetParams } from "../utils/preset";
 import { customMessage } from "@/utils/customMessage";
 
 const store = useFFmpegStore();
@@ -269,51 +271,8 @@ const generatedCommand = computed(() => {
 
   if (params.mode === "custom" && params.customArgs) {
     parts.push(...params.customArgs);
-  } else {
-    if (params.mode === "extract_audio" || params.videoEncoder === "none") {
-      parts.push("-vn");
-    } else {
-      // 视频编码器优化：默认使用 libx264，但如果用户没选且是专业模式，可以考虑 libx265
-      const vEncoder = params.videoEncoder || "libx264";
-      parts.push("-c:v", vEncoder);
-
-      // CRF 逻辑优化
-      if (params.crf !== undefined) {
-        parts.push("-crf", params.crf.toString());
-      } else if (!params.videoBitrate && !params.maxSizeMb) {
-        // 默认 CRF
-        parts.push("-crf", vEncoder.includes("x265") ? "28" : "23");
-      }
-
-      if (params.videoBitrate) parts.push("-b:v", params.videoBitrate);
-      if (params.preset) parts.push("-preset", params.preset);
-      if (params.scale) parts.push("-vf", params.scale);
-      if (params.fps) parts.push("-r", params.fps.toString());
-
-      // 强制 yuv420p 以保证大多数播放器兼容性
-      if (vEncoder !== "copy") {
-        parts.push("-pix_fmt", params.pixelFormat || "yuv420p");
-      }
-    }
-
-    // 音频处理
-    if (params.audioEncoder === "none") {
-      parts.push("-an");
-    } else if (params.audioEncoder) {
-      parts.push("-c:a", params.audioEncoder);
-    }
-
-    if (params.audioEncoder !== "copy" && params.audioEncoder !== "none") {
-      if (params.audioBitrate) parts.push("-b:a", params.audioBitrate);
-      if (params.sampleRate) parts.push("-ar", params.sampleRate);
-      if (params.audioChannels)
-        parts.push("-ac", params.audioChannels.toString());
-    }
-
-    // 优化：添加 faststart 标志，便于网页预加载
-    if (params.mode !== "extract_audio") {
-      parts.push("-movflags", "+faststart");
-    }
+  } else if (params.mode !== "custom") {
+    parts.push(...buildQuickCommandArgs(params, params.mode));
   }
 
   parts.push(`"${outputName.value || "output.mp4"}"`);
@@ -492,34 +451,7 @@ onUnmounted(() => {
  * 应用预设：将预设参数合并到当前参数
  */
 const handleApplyPreset = (preset: import("../types").FFmpegPreset) => {
-  const presetParams = preset.params;
-  // 跳过运行时字段，只覆盖配置参数
-  if (presetParams.mode !== undefined) params.mode = presetParams.mode;
-  if (presetParams.hwaccel !== undefined) params.hwaccel = presetParams.hwaccel;
-  if (presetParams.videoEncoder !== undefined)
-    params.videoEncoder = presetParams.videoEncoder;
-  if (presetParams.preset !== undefined) params.preset = presetParams.preset;
-  if (presetParams.crf !== undefined) params.crf = presetParams.crf;
-  if (presetParams.videoBitrate !== undefined)
-    params.videoBitrate = presetParams.videoBitrate;
-  if (presetParams.scale !== undefined) params.scale = presetParams.scale;
-  if (presetParams.fps !== undefined) params.fps = presetParams.fps;
-  if (presetParams.pixelFormat !== undefined)
-    params.pixelFormat = presetParams.pixelFormat;
-  if (presetParams.audioEncoder !== undefined)
-    params.audioEncoder = presetParams.audioEncoder;
-  if (presetParams.audioBitrate !== undefined)
-    params.audioBitrate = presetParams.audioBitrate;
-  if (presetParams.sampleRate !== undefined)
-    params.sampleRate = presetParams.sampleRate;
-  if (presetParams.audioChannels !== undefined)
-    params.audioChannels = presetParams.audioChannels;
-  if (presetParams.customArgs !== undefined)
-    params.customArgs = presetParams.customArgs;
-  if (presetParams.maxSizeMb !== undefined)
-    params.maxSizeMb = presetParams.maxSizeMb;
-  if (presetParams.appendParamsToName !== undefined)
-    params.appendParamsToName = presetParams.appendParamsToName;
+  applyPresetParams(params, preset.params);
   customMessage.success(`已应用预设: ${preset.name}`);
 };
 

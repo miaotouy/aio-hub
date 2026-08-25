@@ -17,7 +17,11 @@
 <template>
   <el-form :model="params" label-position="top" class="params-form">
     <el-form-item label="处理模式" class="mode-select">
-      <el-radio-group v-model="params.mode" class="mode-group">
+      <el-radio-group
+        v-model="params.mode"
+        class="mode-group"
+        @change="handleModeChange"
+      >
         <el-radio-button value="video">视频</el-radio-button>
         <el-radio-button value="extract_audio">音频</el-radio-button>
         <el-radio-button value="convert">转换</el-radio-button>
@@ -78,7 +82,16 @@
         </div>
         <div class="form-row">
           <el-form-item label="分辨率缩放" class="flex-1">
-            <el-select v-model="params.scale" clearable placeholder="保持原始">
+            <el-select
+              v-model="resolution"
+              clearable
+              placeholder="选择分辨率"
+              :value-on-clear="KEEP_ORIGINAL_RESOLUTION"
+            >
+              <el-option
+                label="保持原始分辨率"
+                :value="KEEP_ORIGINAL_RESOLUTION"
+              />
               <el-option label="4K (3840p)" value="scale=3840:-2" />
               <el-option label="2K (2560p)" value="scale=2560:-2" />
               <el-option label="1080p (FHD)" value="scale=1920:-2" />
@@ -158,7 +171,16 @@
 
         <div class="form-row">
           <el-form-item label="分辨率缩放" class="flex-1">
-            <el-select v-model="params.scale" clearable placeholder="保持原始">
+            <el-select
+              v-model="resolution"
+              clearable
+              placeholder="选择分辨率"
+              :value-on-clear="KEEP_ORIGINAL_RESOLUTION"
+            >
+              <el-option
+                label="保持原始分辨率"
+                :value="KEEP_ORIGINAL_RESOLUTION"
+              />
               <el-option label="4K (3840p)" value="scale=3840:-2" />
               <el-option label="2K (2560p)" value="scale=2560:-2" />
               <el-option label="1080p (FHD)" value="scale=1920:-2" />
@@ -302,8 +324,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
-import type { FFmpegParams } from "../types";
+import { computed, ref, watch } from "vue";
+import type { FFmpegParams, ProcessingMode } from "../types";
+import { buildQuickCommandArgs } from "../utils/command";
 import FFmpegCustomCommand from "./FFmpegCustomCommand.vue";
 
 const props = defineProps<{
@@ -318,6 +341,33 @@ const emit = defineEmits<{
 const strategy = ref<"crf" | "bitrate" | "size">("crf");
 const customArgsStr = ref("");
 const qualityPreset = ref("medium");
+const KEEP_ORIGINAL_RESOLUTION = "__keep_original_resolution__";
+const lastQuickMode = ref<Exclude<ProcessingMode, "custom">>("video");
+
+/**
+ * 将“保持原始分辨率”映射为 undefined，避免把 UI 哨兵值发送给 FFmpeg。
+ */
+const resolution = computed({
+  get: () => props.params.scale ?? KEEP_ORIGINAL_RESOLUTION,
+  set: (value: string | undefined) => {
+    props.params.scale =
+      value && value !== KEEP_ORIGINAL_RESOLUTION ? value : undefined;
+  },
+});
+
+/**
+ * 用户从快捷配置切换到自定义时，将当前快捷参数带入编辑器，避免重新手写或复制预览命令。
+ */
+const handleModeChange = (mode: ProcessingMode) => {
+  if (mode === "custom") {
+    props.params.customArgs = buildQuickCommandArgs(
+      props.params,
+      lastQuickMode.value
+    );
+  } else {
+    lastQuickMode.value = mode;
+  }
+};
 
 const qualityMap: Record<string, number> = {
   high: 18,
@@ -378,19 +428,22 @@ watch(customArgsStr, (val) => {
 watch(
   () => props.params.mode,
   (mode) => {
+    if (mode !== "custom") {
+      lastQuickMode.value = mode;
+    }
+
     if (mode === "convert") {
       props.params.videoEncoder = "copy";
       props.params.audioEncoder = "copy";
     } else if (mode === "extract_audio") {
       props.params.videoEncoder = undefined;
-      props.params.audioEncoder = "aac";
-    } else {
-      // video 模式
-      props.params.videoEncoder = undefined;
-      // 保持之前的音频选择，如果是从 convert 切换过来，默认给 aac
-      if (props.params.audioEncoder === "copy" && mode === "video") {
-        // 允许在视频模式下使用 copy，所以这里不强制改
-      } else {
+      // 保留预设已写入的编码器；手动从流拷贝切换时才回退到 AAC。
+      if (!props.params.audioEncoder || props.params.audioEncoder === "copy") {
+        props.params.audioEncoder = "aac";
+      }
+    } else if (mode === "video") {
+      // 切换到视频模式时保留当前编码设置，避免应用预设后被异步 watch 覆盖。
+      if (!props.params.audioEncoder) {
         props.params.audioEncoder = "aac";
       }
     }

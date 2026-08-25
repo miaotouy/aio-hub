@@ -415,7 +415,7 @@ pub async fn process_media(
                 }
 
                 let mut v_filters = Vec::new();
-                if let Some(scale) = params.scale {
+                if let Some(scale) = params.scale.filter(|scale| !scale.trim().is_empty()) {
                     v_filters.push(scale);
                 }
                 if let Some(pix_fmt) = params.pixel_format {

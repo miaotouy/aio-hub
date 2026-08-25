@@ -695,19 +695,7 @@ const networkSettingSummary = computed(() => {
                   :key="provider.type"
                   :label="provider.name"
                   :value="provider.type"
-                >
-                  <div>
-                    <div>{{ provider.name }}</div>
-                    <div
-                      style="
-                        font-size: 12px;
-                        color: var(--el-text-color-secondary);
-                      "
-                    >
-                      {{ provider.description }}
-                    </div>
-                  </div>
-                </el-option>
+                />
               </el-select>
               <div class="form-hint">
                 API 请求格式类型（兼容该格式的所有服务商均可使用）

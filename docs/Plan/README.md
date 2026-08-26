@@ -2,7 +2,7 @@
 
 > 状态：现行桌面端计划入口
 >
-> 最近盘点：2026-07-29
+> 最近盘点：2026-08-26
 >
 > 范围：根目录跨模块计划与 `src/tools/*/docs/Plan/`；移动端和独立插件仅在构成桌面任务依赖时列入
 
@@ -52,8 +52,8 @@
 
 ### P1：共享基础设施
 
-- [ ] **D-P1-01 模型元数据 v3**：完成共享纯核心、v3 Store 与迁移、模型物化、更新/刷新 UI 和移动端共享收口。详见 [模型元数据优化计划](./model-metadata-system-optimization-plan.md)。
-- [ ] **D-P1-02 原生工具调用闭环**：先冻结 Tool IR、渠道执行所有权和 Runtime Tool Event 存储决策，再完成 Adapter 契约与 `llm-chat` 编排闭环。详见 [原生工具调用计划](./native-tool-calling-adapter-and-orchestration-plan.md)。
+- [ ] **D-P1-01 模型元数据 v3**：共享纯核心、v3 Store 与迁移、模型物化、目录更新/刷新预览及移动端共享物化已实施；剩移动端目录管理 UI 与真实桌面/移动运行态验收，状态为待收口。详见 [模型元数据优化计划](./model-metadata-system-optimization-plan.md)。
+- [ ] **D-P1-02 原生工具调用闭环**：渠道工具处理声明、Azure 与 Provider Adapter A1–A3 修补及相关契约/诊断已完成；`llm-chat` 原生工具检测、审批、执行、结果续轮和 replay state 后置至下一版本周期。详见 [原生工具调用计划](./native-tool-calling-adapter-and-orchestration-plan.md)。
 - [ ] **D-P1-03 LLM Chat 插件扩展验收**：在真实 Tauri 中验证启停、设置注入、配置持久化、上下文改写和日志。详见 [上下文管道扩展测试计划](../../src/tools/llm-chat/docs/Plan/pipeline-extension-test-plan.md)。
 - [ ] **D-P1-04 后台会话服务**：先实现无 UI 的后台会话执行 API 和取消/等待语义，多窗口 UI 后排。详见 [多会话状态与未来规划](../../src/tools/llm-chat/docs/Plan/multi-session-status.md)。
 
@@ -92,11 +92,13 @@
 | [Guided Flow](./guided-flow-plan.md)                                          | 待收口 | D-P0-05，按风险拆分 Alpha 数据/安装硬门禁与正式版完整迁移矩阵                 |
 | [前端 Chunk 治理](./frontend-chunk-size-investigation.md)                     | 按需   | D-P2-08，先做自动分包与真实 Tauri A/B                                         |
 | [Provider Adapter 多端共享](./llm-provider-adapter-sharing-investigation.md)  | 待收口 | D-P3-02，仅剩人工运行态观测                                                   |
-| [LLM 聚合渠道与模型路由](./llm-aggregate-channel-routing-investigation.md)    | 候选   | 先实施模型执行路由 resolver；以 OpenCode Go 验证内置路由表，再增加聚合渠道 UI |
-| [模型元数据系统优化](./model-metadata-system-optimization-plan.md)            | 待实施 | D-P1-01，从批次 1 开始                                                        |
-| [原生工具调用与编排](./native-tool-calling-adapter-and-orchestration-plan.md) | 待实施 | D-P1-02，先关闭设计决策                                                       |
-| [AI 小说专精模块调查](./ai-novel-studio-investigation.md)                     | 候选   | D-P2-06，做垂直切片验证                                                       |
+| [LLM 聚合渠道与模型路由](./llm-aggregate-channel-routing-investigation.md)    | 待实施 | Phase 0–4 已实施；仅剩 Phase 5 多能力路由与高级兼容，按需排期                     |
+| [模型元数据系统优化](./model-metadata-system-optimization-plan.md)            | 待收口 | 批次 1–4、批次 5 第一部分已完成；剩移动端目录管理 UI 与真实运行态验收             |
+| [原生工具调用与编排](./native-tool-calling-adapter-and-orchestration-plan.md) | 待实施 | D-P1-02，Adapter 修补已完成；下一版本周期实施 `llm-chat` 原生编排工作线二       |
+| [AI 小说专精模块调查](./ai-novel-studio-investigation.md)                     | 候选   | D-P2-06，Knowledge/Recall 门禁稳定后做垂直切片验证                              |
 | [Web Canvas 演示稿生成与预览增强](./canvas-presentation-generation-plan.md)   | 候选   | 平替 Open Design：slide-deck 模板、元素/日志投喂 chat、F12 DevTools、平铺视图 |
+| [LLM 虚拟渠道概念调查](./llm-virtual-channel-investigation.md)                 | 候选   | 调查已完成，当前暂缓实施；未来如有容灾需求先评估最小渠道级 fallback              |
+| [Regex Applier Agent 接口](./regex-applier-agent-integration.md)                | 待实施 | 完成 4 个 Agent 方法、元数据声明和定向验证，并同步关闭 AIO-I-005              |
 
 ## 5. 活动工具计划入口
 

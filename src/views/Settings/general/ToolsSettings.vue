@@ -79,6 +79,24 @@ onMounted(() => {
   }
 });
 
+// 更新工具可见性时创建新对象，确保 defineModel 向父组件发出更新事件。
+// 直接修改 toolsVisible.value 的嵌套属性只会改变同一个对象，无法触发父组件的
+// update:tools-visible，从而导致设置未进入 appSettingsStore 的持久化流程。
+const updateToolVisibility = (toolId: string, visible: boolean): void => {
+  toolsVisible.value = {
+    ...(toolsVisible.value ?? {}),
+    [toolId]: visible,
+  };
+};
+
+const setAllToolsVisibility = (visible: boolean): void => {
+  const updated = { ...(toolsVisible.value ?? {}) };
+  sortedTools.value.forEach((tool) => {
+    updated[getToolIdFromPath(tool.path)] = visible;
+  });
+  toolsVisible.value = updated;
+};
+
 // 拖拽开始时记录当前顺序
 const onDragStart = () => {
   orderBeforeDrag.value = sortedTools.value.map((tool) => tool.path);
@@ -149,24 +167,10 @@ const enabledToolsCount = computed(() => {
         </el-tooltip>
       </div>
       <div class="batch-actions">
-        <el-button
-          size="small"
-          @click="
-            Object.keys(toolsVisible || {}).forEach(
-              (k) => (toolsVisible![k] = true)
-            )
-          "
-        >
+        <el-button size="small" @click="setAllToolsVisibility(true)">
           全选
         </el-button>
-        <el-button
-          size="small"
-          @click="
-            Object.keys(toolsVisible || {}).forEach(
-              (k) => (toolsVisible![k] = false)
-            )
-          "
-        >
+        <el-button size="small" @click="setAllToolsVisibility(false)">
           全不选
         </el-button>
         <el-button size="small" @click="resetOrder"> 重置顺序 </el-button>
@@ -198,7 +202,11 @@ const enabledToolsCount = computed(() => {
       >
         <el-checkbox
           v-if="toolsVisible"
-          v-model="toolsVisible[getToolIdFromPath(tool.path)]"
+          :model-value="toolsVisible[getToolIdFromPath(tool.path)] === true"
+          @update:model-value="
+            (value: boolean) =>
+              updateToolVisibility(getToolIdFromPath(tool.path), value === true)
+          "
         >
           <div class="tool-checkbox-content">
             <div class="icon-column">

@@ -1,0 +1,37 @@
+<!--
+  Generic aggregate-channel provider icon.
+  Copyright 2026 AIO Hub contributors. Licensed under Apache-2.0.
+-->
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  fill="none"
+  aria-hidden="true"
+>
+  <defs>
+    <linearGradient
+      id="aggregate-channel-gradient"
+      x1="3"
+      y1="4"
+      x2="21"
+      y2="20"
+      gradientUnits="userSpaceOnUse"
+    >
+      <stop stop-color="#7DD3FC" />
+      <stop offset="1" stop-color="#6366F1" />
+    </linearGradient>
+  </defs>
+  <path
+    d="M7.25 5.5 3.75 12l3.5 6.5h7.5l3.5-6.5-3.5-6.5h-7.5Z"
+    stroke="url(#aggregate-channel-gradient)"
+    stroke-width="1.8"
+    stroke-linejoin="round"
+  />
+  <path
+    d="m9.4 9.2 2.6 2.8-2.6 2.8M14.6 9.2l-2.6 2.8 2.6 2.8"
+    stroke="url(#aggregate-channel-gradient)"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

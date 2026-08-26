@@ -21,6 +21,20 @@ import type { SettingItem } from "../types/settings-renderer";
 import type { ProviderType, ProviderTypeInfo } from "../types/llm-profiles";
 import { getAdapterLabel, OPERATION_LABELS } from "./llm-routing";
 
+/** 聚合渠道的默认品牌/类别图标，供渠道列表、预设和导出视图复用。 */
+const providerTypeIconPaths: Partial<Record<ProviderType, string>> = {
+  "new-api": "/model-icons/newapi-color.svg",
+  sub2api: "/model-icons/sub2api.png",
+  "aggregate-compatible": "/model-icons/aggregate-compatible.svg",
+};
+
+/** 获取渠道类型的显式图标；未配置时由调用方继续使用通用推断。 */
+export function getProviderTypeIconPath(
+  type: ProviderType
+): string | undefined {
+  return providerTypeIconPaths[type];
+}
+
 /**
  * 聚合渠道的“渠道默认协议”配置项。
  * 值写入 `profile.options.routingDefaults`，由共享执行解析器读取；
@@ -28,6 +42,11 @@ import { getAdapterLabel, OPERATION_LABELS } from "./llm-routing";
  */
 function aggregateRoutingConfigFields(): SettingItem[] {
   const operations: LlmOperation[] = ["chat", "embedding", "rerank", "image"];
+  const groupCollapsible = {
+    name: "aggregate-routing-defaults",
+    title: "默认协议（高级回退）",
+  };
+
   return operations.map((operation) => ({
     id: `aggregate-default-${operation}`,
     label: `默认${OPERATION_LABELS[operation]}协议`,
@@ -39,6 +58,7 @@ function aggregateRoutingConfigFields(): SettingItem[] {
     },
     hint: "没有模型级绑定时使用的回退协议。留空表示不假设协议：未绑定模型会提示选择或探测，不会静默猜测。",
     keywords: "aggregate routing default protocol 默认协议 回退",
+    groupCollapsible,
     options: () =>
       listAdaptersForOperation(operation).map((adapterId) => ({
         label: getAdapterLabel(adapterId),

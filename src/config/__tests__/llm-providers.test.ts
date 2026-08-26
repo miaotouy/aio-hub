@@ -13,7 +13,11 @@
 // limitations under the License.
 
 import { describe, expect, it } from "vitest";
-import { getProviderTypeInfo, providerTypes } from "../llm-providers";
+import {
+  getProviderTypeIconPath,
+  getProviderTypeInfo,
+  providerTypes,
+} from "../llm-providers";
 
 describe("Ollama provider configuration", () => {
   it("declares the OpenAI-compatible chat codec and native model discovery", () => {
@@ -53,15 +57,37 @@ describe("Aggregate channel providers", () => {
     }
   });
 
-  it("configures channel default protocol fields under routingDefaults", () => {
+  it("groups channel default protocol fields into a collapsed advanced fallback section", () => {
     const info = getProviderTypeInfo("new-api" as never);
-    const chatField = info?.configFields?.find(
-      (field) => field.modelPath === "routingDefaults.chat"
-    );
+    const fields = info?.configFields ?? [];
 
-    expect(chatField).toBeDefined();
-    expect(chatField?.component).toBe("ElSelect");
-    expect(chatField?.props).toMatchObject({ clearable: true });
+    expect(fields).toHaveLength(4);
+    expect(fields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          modelPath: "routingDefaults.chat",
+          component: "ElSelect",
+          props: expect.objectContaining({ clearable: true }),
+          groupCollapsible: {
+            name: "aggregate-routing-defaults",
+            title: "默认协议（高级回退）",
+          },
+        }),
+      ])
+    );
+    expect(
+      new Set(fields.map((field) => field.groupCollapsible?.name))
+    ).toEqual(new Set(["aggregate-routing-defaults"]));
+  });
+
+  it("provides explicit icons for the aggregate channel identities", () => {
+    expect(getProviderTypeIconPath("new-api")).toBe(
+      "/model-icons/newapi-color.svg"
+    );
+    expect(getProviderTypeIconPath("sub2api")).toBe("/model-icons/sub2api.png");
+    expect(getProviderTypeIconPath("aggregate-compatible")).toBe(
+      "/model-icons/aggregate-compatible.svg"
+    );
   });
 
   it("provides adapter options from the shared operation registry", () => {

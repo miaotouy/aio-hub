@@ -42,7 +42,7 @@ import LlmProfileExportDialog from "./components/LlmProfileExportDialog.vue";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
-import { providerTypes } from "@/config/llm-providers";
+import { getProviderTypeIconPath, providerTypes } from "@/config/llm-providers";
 import { llmPresets } from "@/config/llm-presets";
 import { PRESET_ICONS } from "@/config/preset-icons";
 import {
@@ -165,7 +165,8 @@ const getProviderIcon = (profile: LlmProfile) => {
   if (profile.icon) {
     return getDisplayIconPath(profile.icon);
   }
-  const iconPath = getIconPath("", profile.type);
+  const iconPath =
+    getProviderTypeIconPath(profile.type) ?? getIconPath("", profile.type);
   return iconPath ? getDisplayIconPath(iconPath) : null;
 };
 
@@ -805,16 +806,13 @@ const networkSettingSummary = computed(() => {
               </div>
             </el-form-item>
 
-            <!-- 动态渠道特有配置 -->
-            <template v-if="currentConfigFields.length > 0">
-              <el-divider border-style="dashed">渠道特有配置</el-divider>
-              <SettingListRenderer
-                :items="currentConfigFields"
-                :settings="editForm.options || {}"
-                @update:settings="(val) => (editForm.options = val)"
-              />
-              <el-divider border-style="dashed" />
-            </template>
+            <!-- 动态渠道特有配置。聚合渠道的默认协议为低频回退项，初始折叠以优先展示模型配置。 -->
+            <SettingListRenderer
+              v-if="currentConfigFields.length > 0"
+              :items="currentConfigFields"
+              :settings="editForm.options || {}"
+              @update:settings="(val) => (editForm.options = val)"
+            />
 
             <!-- 网络设置折叠区域 -->
             <el-collapse

@@ -17,7 +17,7 @@ import { createLlmProfileBundle } from "@/utils/llm-profile-transfer";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useModelMetadata } from "@/composables/useModelMetadata";
-import { providerTypes } from "@/config/llm-providers";
+import { getProviderTypeIconPath, providerTypes } from "@/config/llm-providers";
 
 interface Props {
   visible: boolean;
@@ -47,7 +47,8 @@ const getProviderIcon = (profile: LlmProfile) => {
   if (profile.icon) {
     return getDisplayIconPath(profile.icon);
   }
-  const iconPath = getIconPath("", profile.type);
+  const iconPath =
+    getProviderTypeIconPath(profile.type) ?? getIconPath("", profile.type);
   return iconPath ? getDisplayIconPath(iconPath) : null;
 };
 

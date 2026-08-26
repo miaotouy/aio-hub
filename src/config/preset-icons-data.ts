@@ -61,6 +61,18 @@ export const USER_ADDED_ICONS: PresetIconInfo[] = [
     suggestedFor: ["opencode-go", "opencode"],
     category: "开源/本地",
   },
+  {
+    name: "Sub2API",
+    path: "sub2api.png",
+    suggestedFor: ["sub2api", "sub-2-api"],
+    category: "开源/本地",
+  },
+  {
+    name: "通用聚合渠道",
+    path: "aggregate-compatible.svg",
+    suggestedFor: ["aggregate-compatible", "aggregate", "gateway"],
+    category: "开源/本地",
+  },
 ];
 
 /**
@@ -662,7 +674,7 @@ export const MANUAL_PRESET_ICONS: PresetIconInfo[] = [
   {
     name: "NewAPI (彩色)",
     path: "newapi-color.svg",
-    suggestedFor: ["newapi", "one-api"],
+    suggestedFor: ["new-api", "newapi", "one-api"],
     category: "开源/本地",
   },
   {

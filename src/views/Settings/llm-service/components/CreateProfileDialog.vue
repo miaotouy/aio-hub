@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { providerTypes } from "@/config/llm-providers";
+import { getProviderTypeIconPath, providerTypes } from "@/config/llm-providers";
 import { llmPresets } from "@/config/llm-presets";
 import type { LlmPreset } from "@/config/llm-presets";
 import type { ProviderType } from "@/types/llm-profiles";
@@ -101,7 +101,8 @@ const createFromBlank = () => {
 
 // 获取提供商图标
 const getProviderIconForPreset = (providerType: ProviderType) => {
-  const iconPath = getIconPath("", providerType);
+  const iconPath =
+    getProviderTypeIconPath(providerType) ?? getIconPath("", providerType);
   return iconPath ? getDisplayIconPath(iconPath) : null;
 };
 

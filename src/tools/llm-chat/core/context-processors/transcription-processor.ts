@@ -183,9 +183,11 @@ export const transcriptionProcessor: ContextProcessor = {
       "transcriptionConfig"
     ) as ChatTranscriptionConfig | undefined;
 
-    // 如果转写功能未启用，则跳过此处理器的核心逻辑（占位符替换除外，但占位符通常配合转写使用）
-    // 注意：即使关闭转写，我们也可能需要处理已经存在的转写结果或简单的占位符标注，
-    // 但为了符合用户“不开启转写”的预期，我们在这里做更细致的判断。
+    // 总开关关闭时保留原始附件，不读取、拆分或注入既有转写文本。
+    // 这样关闭设置后，历史资产也不会在发送过程中意外走转写链路。
+    if (transcriptionConfig && !transcriptionConfig.enabled) {
+      return;
+    }
 
     // 获取当前上下文使用的模型信息
     const modelId = agentConfig.modelId;

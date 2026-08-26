@@ -25,7 +25,7 @@
 
 - `context.messages[*]._attachments`：消息中的附件引用。
 - `context.sharedData.updatedAssetsMap`：预处理阶段更新后的资产映射。
-- `context.sharedData.transcriptionConfig`：转写策略，例如 smart 模式和强制转写深度。
+- `context.sharedData.transcriptionConfig`：转写开关与策略，例如 smart 模式和强制转写深度；显式关闭 `enabled` 时，处理器保留原始附件，不读取、拆分或注入转写文本。
 - `context.agentConfig.modelId`、`profileId`：用于判断附件处理能力。
 - `resolveAttachmentsBatch()`：批量转写、OCR 或读取文本附件的核心能力。
 
@@ -48,4 +48,3 @@
 - 占位符命中但没有转写结果时，会替换为 `[附件: n - name]` 标注，同时保留原附件供多模态模型读取。
 - 已转为文本的附件必须从 `_attachments` 移除，否则后续 `asset-resolver` 会重复发送同一信息。
 - 批量转写失败时会降级保留全部附件，不阻断管道。
-

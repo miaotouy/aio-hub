@@ -226,6 +226,10 @@ const resolvedModelAndProfile = computed(() => {
 });
 
 const getWillUseTranscription = (asset: Asset) => {
+  if (!settings.value.transcription.enabled) {
+    return false;
+  }
+
   const { modelId, profileId } = resolvedModelAndProfile.value;
 
   // 如果仍然没有模型信息，返回 true（默认需要转写）

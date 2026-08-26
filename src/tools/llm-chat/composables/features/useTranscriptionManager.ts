@@ -424,6 +424,9 @@ export function useTranscriptionManager() {
     modelId?: string,
     profileId?: string
   ) => {
+    // 总开关关闭时，既不创建/等待转写任务，也不使用已有转写结果。
+    if (!settings.value.transcription.enabled) return false;
+
     // 1. 首先检查是否是支持转写的类型
     if (!isSupportedTranscriptionType(asset)) return false;
 
@@ -477,6 +480,9 @@ export function useTranscriptionManager() {
   ): boolean => {
     const config = settings.value.transcription;
 
+    // 总开关优先于历史结果，关闭后不应将既有转写文本注入 Chat 上下文。
+    if (!config.enabled) return false;
+
     // 如果已经有转写结果了
     if (getTranscriptionStatus(asset) === "success") {
       // 如果配置为“始终优先转写”，或者当前是“始终转写”策略，则返回 true
@@ -486,8 +492,6 @@ export function useTranscriptionManager() {
       // 否则，即使有了转写，我们也需要根据模型能力来决定是否真的要“使用”它
       // 如果模型支持，我们可能更倾向于发原文件
     }
-
-    if (!config.enabled) return false;
 
     if (!isSupportedTranscriptionType(asset)) return false;
 
@@ -523,6 +527,10 @@ export function useTranscriptionManager() {
     for (const asset of assets) {
       updatedAssets.set(asset.id, asset);
     }
+
+    // 上下文预处理器会在多条路径中调用本方法；在这里防御性短路，
+    // 避免关闭总开关后仍创建任务、等待在途任务或触发远程转写请求。
+    if (!settings.value.transcription.enabled) return updatedAssets;
 
     const assetsToTranscribe = assets.filter((asset) => {
       const status = getTranscriptionStatus(asset);

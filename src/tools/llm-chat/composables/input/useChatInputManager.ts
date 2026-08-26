@@ -518,16 +518,30 @@ class ChatInputManager {
     );
 
     // 监听全局资产导入完成事件（用于粘贴等直接导入场景的占位符替换）
-    listen<{ asset: Asset; tempId: string }>("asset-imported", (event) => {
-      const { asset, tempId } = event.payload;
-      if (tempId && asset.sourceModule === "llm-chat") {
-        logger.info("[ChatInputManager] 收到全局资产导入事件，触发占位符更新", {
-          tempId,
-          newId: asset.id,
-        });
-        this.updatePlaceholderId(tempId, asset.id);
+    listen<Asset | { asset: Asset; tempId?: string }>(
+      "asset-imported",
+      (event) => {
+        const payload = event.payload;
+        const asset = "asset" in payload ? payload.asset : payload;
+        const tempId =
+          ("tempId" in payload ? payload.tempId : undefined) ||
+          asset.uploadingId;
+        if (
+          tempId &&
+          (asset.sourceModule === "llm-chat" ||
+            asset.sourceModule === "llm-chat-paste")
+        ) {
+          logger.info(
+            "[ChatInputManager] 收到全局资产导入事件，触发占位符更新",
+            {
+              tempId,
+              newId: asset.id,
+            }
+          );
+          this.updatePlaceholderId(tempId, asset.id);
+        }
       }
-    }).then((unlisten) => {
+    ).then((unlisten) => {
       this.unlistenAssetImport = unlisten;
     });
 

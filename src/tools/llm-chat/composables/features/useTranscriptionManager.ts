@@ -29,6 +29,7 @@ import { parseModelCombo } from "@/utils/modelIdUtils";
 import { isDocxAssetLike } from "@/utils/docxParser";
 import { invoke } from "@tauri-apps/api/core";
 import type { Asset } from "@/types/asset-management";
+import { shouldAutoCreateTranscriptionTask } from "../../utils/transcriptionRetryPolicy";
 
 const logger = createModuleLogger("useTranscriptionManager");
 const errorHandler = createModuleErrorHandler("useTranscriptionManager");
@@ -197,20 +198,26 @@ export function useTranscriptionManager() {
     // 1. 监听资产导入事件 (作为事件驱动的补充)
     if (!unlistenAssetImport) {
       logger.debug("注册资产导入监听器");
-      listen<{ asset: Asset; tempId: string }>("asset-imported", (event) => {
-        const { asset } = event.payload;
-        // 仅处理本模块导入的资产
-        if (
-          asset.sourceModule === "llm-chat" ||
-          asset.sourceModule === "llm-chat-paste"
-        ) {
-          // 如果已经在 watch 中处理过了，这里就跳过
-          if (processedAssetIds.has(asset.id)) return;
+      listen<Asset | { asset: Asset; tempId?: string }>(
+        "asset-imported",
+        (event) => {
+          const payload = event.payload;
+          const asset = "asset" in payload ? payload.asset : payload;
+          // 仅处理本模块导入的资产
+          if (
+            asset.sourceModule === "llm-chat" ||
+            asset.sourceModule === "llm-chat-paste"
+          ) {
+            // 如果已经在 watch 中处理过了，这里就跳过
+            if (processedAssetIds.has(asset.id)) return;
 
-          logger.debug("收到资产导入事件，尝试触发转写", { assetId: asset.id });
-          handleAssetImport(asset);
+            logger.debug("收到资产导入事件，尝试触发转写", {
+              assetId: asset.id,
+            });
+            handleAssetImport(asset);
+          }
         }
-      }).then((unlisten) => {
+      ).then((unlisten) => {
         unlistenAssetImport = unlisten;
       });
     }
@@ -541,7 +548,7 @@ export function useTranscriptionManager() {
       updatedAssets.set(asset.id, assetToCheck);
 
       const status = getTranscriptionStatus(assetToCheck);
-      if (status === "none" || status === "error") {
+      if (shouldAutoCreateTranscriptionTask(status)) {
         // 确定执行转写的模型
         const agentStore = useAgentStore();
         const currentAgent = currentAgentId.value

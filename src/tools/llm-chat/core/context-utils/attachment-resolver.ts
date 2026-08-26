@@ -26,6 +26,7 @@ import { createModuleLogger } from "@/utils/logger";
 import type { Asset } from "@/types/asset-management";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { getAttachmentBuffer } from "./attachment-binary";
+import { shouldUseFailedTranscriptionFallback } from "../../utils/transcriptionRetryPolicy";
 import {
   isPipelineAttachment,
   toPipelineAttachment,
@@ -219,6 +220,27 @@ export async function resolveAttachmentContent<
         type: "text",
         content: `\n[转写: ${attachment.name}]\n${transcriptionText}\n`,
         rawText: transcriptionText,
+        asset,
+        source: "transcription",
+      };
+    }
+
+    const transcriptionStatus =
+      transcriptionManager.getTranscriptionStatus(transcriptionAsset);
+    if (
+      shouldUseFailedTranscriptionFallback(
+        transcriptionStatus,
+        shouldTranscribe
+      )
+    ) {
+      logger.warn("附件转写失败且当前模型不支持原始媒体，跳过原始附件", {
+        assetId: attachment.id,
+        assetName: attachment.name,
+      });
+      return {
+        type: "text",
+        content: `\n[附件未发送给模型：${attachment.name}（转写失败）]\n`,
+        rawText: "",
         asset,
         source: "transcription",
       };

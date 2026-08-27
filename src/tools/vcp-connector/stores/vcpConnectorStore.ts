@@ -29,6 +29,9 @@ import {
   AiMemoRetrievalMessage,
   PluginStepStatusMessage,
   VcpLogMessage,
+  VcpNotificationMode,
+  VcpNotificationModeMap,
+  VCP_MESSAGE_TYPES,
 } from "../types/protocol";
 import { VcpNodeProtocol } from "../services/vcpNodeProtocol";
 import { vcpBridgeFactory } from "../services/VcpBridgeFactory";
@@ -52,11 +55,15 @@ const PING_INTERVAL = 30000;
 const INITIAL_RECONNECT_DELAY = 1000;
 const MAX_RECONNECT_DELAY = 30000;
 
-// 配置管理器：负责基础配置
-const configManager = createConfigManager<VcpConfig>({
-  moduleName: "vcp-connector",
-  fileName: "config.json",
-  createDefault: () => ({
+const NOTIFICATION_MODES: VcpNotificationMode[] = [
+  "off",
+  "floating",
+  "center",
+  "both",
+];
+
+function createDefaultVcpConfig(): VcpConfig {
+  return {
     wsUrl: "",
     vcpKey: "",
     vcpPath: "",
@@ -66,6 +73,44 @@ const configManager = createConfigManager<VcpConfig>({
     vcpChatKey: "",
     vcpImageKey: "",
     vcpFileKey: "",
+    // 默认关闭，避免 WebSocket 高频消息打断用户。
+    notificationMode: "off",
+    notificationModes: {
+      AGENT_PRIVATE_CHAT_PREVIEW: "center",
+      PLUGIN_STEP_STATUS: "center",
+      vcp_log: "floating",
+    },
+  };
+}
+
+function normalizeNotificationModes(modes: unknown): VcpNotificationModeMap {
+  if (!modes || typeof modes !== "object") return {};
+
+  return Object.fromEntries(
+    Object.entries(modes).filter(
+      ([, mode]) =>
+        typeof mode === "string" &&
+        NOTIFICATION_MODES.includes(mode as VcpNotificationMode)
+    )
+  ) as VcpNotificationModeMap;
+}
+
+// 配置管理器：负责基础配置
+const configManager = createConfigManager<VcpConfig>({
+  moduleName: "vcp-connector",
+  fileName: "config.json",
+  createDefault: createDefaultVcpConfig,
+  mergeConfig: (defaultConfig, loadedConfig) => ({
+    ...defaultConfig,
+    ...loadedConfig,
+    notificationMode: NOTIFICATION_MODES.includes(
+      loadedConfig.notificationMode as VcpNotificationMode
+    )
+      ? (loadedConfig.notificationMode as VcpNotificationMode)
+      : defaultConfig.notificationMode,
+    notificationModes: normalizeNotificationModes(
+      loadedConfig.notificationModes
+    ),
   }),
 });
 
@@ -104,17 +149,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     _initResolve = resolve;
   });
 
-  const config = ref<VcpConfig>({
-    wsUrl: "",
-    vcpKey: "",
-    vcpPath: "",
-    autoConnect: false,
-    maxHistory: DEFAULT_MAX_HISTORY,
-    mode: "both",
-    vcpChatKey: "",
-    vcpImageKey: "",
-    vcpFileKey: "",
-  });
+  const config = ref<VcpConfig>(createDefaultVcpConfig());
 
   const connection = ref<ConnectionState>({
     status: "disconnected",
@@ -325,6 +360,29 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     }
   }
 
+  function updateNotificationMode(
+    type: Exclude<VcpMessageType, "UNKNOWN">,
+    mode?: VcpNotificationMode
+  ) {
+    const notificationModes = { ...config.value.notificationModes };
+
+    if (mode) {
+      notificationModes[type] = mode;
+    } else {
+      delete notificationModes[type];
+    }
+
+    updateConfig({ notificationModes });
+  }
+
+  function getNotificationMode(
+    type: Exclude<VcpMessageType, "UNKNOWN">
+  ): VcpNotificationMode {
+    return (
+      config.value.notificationModes[type] ?? config.value.notificationMode
+    );
+  }
+
   function setConnectionStatus(status: ConnectionState["status"]) {
     connection.value.status = status;
     logger.info(`Connection status changed: ${status}`);
@@ -350,16 +408,11 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     const type = data.type as string | undefined;
     if (!type) return null;
 
-    const validTypes: VcpMessageType[] = [
-      "RAG_RETRIEVAL_DETAILS",
-      "META_THINKING_CHAIN",
-      "AGENT_PRIVATE_CHAT_PREVIEW",
-      "AI_MEMO_RETRIEVAL",
-      "PLUGIN_STEP_STATUS",
-      "vcp_log",
-    ];
-
-    if (!validTypes.includes(type as VcpMessageType)) return null;
+    if (
+      !VCP_MESSAGE_TYPES.includes(type as Exclude<VcpMessageType, "UNKNOWN">)
+    ) {
+      return null;
+    }
 
     return {
       ...data,
@@ -868,9 +921,10 @@ export const useVcpStore = defineStore("vcp-connector", () => {
         break;
       case "vcp_log":
         stats.value.logCount += 1;
-        handleVcpLogNotification(msg as VcpLogMessage);
         break;
     }
+
+    handleVcpMessageNotification(msg);
 
     // 批量裁剪到限制大小
     if (messages.value.length > config.value.maxHistory) {
@@ -894,102 +948,147 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     return flat.slice(0, maxLen) + "…";
   }
 
-  function handleVcpLogNotification(msg: VcpLogMessage) {
-    const content = msg.data?.content || "";
-    const toolName = msg.data?.tool_name;
-    const status = msg.data?.status;
+  interface VcpNotificationContent {
+    title: string;
+    content: string;
+    summary: string;
+    type: "success" | "error" | "warning" | "info";
+  }
 
-    // 0. 尝试解析 [模块名] JSON 格式，格式化为可读文本
-    const structured = tryParseStructuredContent(content);
-    // 用于通知中心的详情文本：优先使用格式化后的文本
-    const displayContent = structured?.formatted ?? content;
-    // 用于浮动提示的摘要：优先使用提取的文本内容，否则回退到原始 content
-    const summarySource = structured?.textContent ?? content;
-    // 状态：结构化解析的 status 可以补充后端未提供的状态
-    const effectiveStatus = status ?? structured?.status;
-    // 工具前缀：优先使用 toolName，其次使用解析出的模块名
-    const effectiveToolName = toolName ?? structured?.moduleName;
+  function resolveLogNotificationType(
+    status: string | undefined,
+    searchText: string
+  ): VcpNotificationContent["type"] {
+    if (status === "error") return "error";
+    if (status === "success") return "success";
+    if (status === "warning") return "warning";
 
-    // 1. 提取任务 ID (兼容 "task_id: 123" 和 "任务 123")
-    const searchText = structured?.textContent ?? content;
-    const taskIdMatch = searchText.match(/(?:task_id|任务)\s*[:：]?\s*(\d+)/i);
-    const taskId = taskIdMatch ? taskIdMatch[1] : null;
+    const lowerSearchText = searchText.toLowerCase();
+    if (
+      lowerSearchText.includes("error") ||
+      lowerSearchText.includes("failed") ||
+      lowerSearchText.includes("错误") ||
+      lowerSearchText.includes("失败")
+    ) {
+      return "error";
+    }
+    if (
+      lowerSearchText.includes("warning") ||
+      lowerSearchText.includes("警告")
+    ) {
+      return "warning";
+    }
+    if (
+      lowerSearchText.includes("success") ||
+      lowerSearchText.includes("成功") ||
+      lowerSearchText.includes("完成") ||
+      lowerSearchText.includes("归档")
+    ) {
+      return "success";
+    }
+    return "info";
+  }
 
-    // 2. 智能路由
-    const notify = useNotification();
-    const toolPrefix = effectiveToolName ? `[${effectiveToolName}] ` : "";
-    const summary = summarizeLogContent(summarySource);
+  function describeVcpMessage(msg: VcpMessage): VcpNotificationContent {
+    switch (msg.type) {
+      case "RAG_RETRIEVAL_DETAILS": {
+        const query = msg.query || "（未提供查询）";
+        return {
+          title: "VCP RAG 检索",
+          content: `数据库：${msg.dbName || "未命名"}\n查询：${query}\n命中：${msg.results?.length ?? 0} 条`,
+          summary: `命中 ${msg.results?.length ?? 0} 条：${summarizeLogContent(query)}`,
+          type: "info",
+        };
+      }
+      case "META_THINKING_CHAIN": {
+        const query = msg.query || "（未提供查询）";
+        return {
+          title: "VCP 元思考链",
+          content: `链路：${msg.chainName || "未命名"}\n查询：${query}\n阶段：${msg.stages?.length ?? 0} 个`,
+          summary: `${msg.chainName || "未命名"}：${summarizeLogContent(query)}`,
+          type: "info",
+        };
+      }
+      case "AGENT_PRIVATE_CHAT_PREVIEW":
+        return {
+          title: "VCP Agent 私聊预览",
+          content: `Agent：${msg.agentName || "未命名"}\n请求：${msg.query || "（无）"}\n回复：${msg.response || "（无）"}`,
+          summary: `${msg.agentName || "未命名"}：${summarizeLogContent(msg.query || msg.response)}`,
+          type: "info",
+        };
+      case "AI_MEMO_RETRIEVAL":
+        return {
+          title: "VCP 记忆回溯",
+          content: `模式：${msg.mode || "未命名"}\n日记：${msg.diaryCount ?? 0} 条\n内容：${msg.extractedMemories || "（无）"}`,
+          summary: `回溯 ${msg.diaryCount ?? 0} 条日记：${summarizeLogContent(msg.extractedMemories)}`,
+          type: "info",
+        };
+      case "PLUGIN_STEP_STATUS": {
+        const type =
+          msg.status === "failed"
+            ? "error"
+            : msg.status === "completed"
+              ? "success"
+              : msg.status === "pending"
+                ? "warning"
+                : "info";
+        return {
+          title: "VCP 插件步骤",
+          content: `插件：${msg.pluginName || "未命名"}\n步骤：${msg.stepName || "未命名"}\n状态：${msg.status}${msg.message ? `\n说明：${msg.message}` : ""}`,
+          summary: `${msg.pluginName || "未命名"} · ${msg.stepName || "未命名"}：${msg.status}`,
+          type,
+        };
+      }
+      case "vcp_log": {
+        const content = msg.data?.content || "";
+        const structured = tryParseStructuredContent(content);
+        const displayContent = structured?.formatted ?? content;
+        const summarySource = structured?.textContent ?? content;
+        const effectiveStatus = msg.data?.status ?? structured?.status;
+        const effectiveToolName = msg.data?.tool_name ?? structured?.moduleName;
+        const searchText = structured?.textContent ?? content;
+        const taskIdMatch = searchText.match(
+          /(?:task_id|任务)\s*[:：]?\s*(\d+)/i
+        );
+        const taskId = taskIdMatch ? taskIdMatch[1] : null;
+        const type = resolveLogNotificationType(effectiveStatus, searchText);
+        const toolPrefix = effectiveToolName ? `[${effectiveToolName}] ` : "";
 
-    // 3. 决定通知类型
-    let notifyType: "success" | "error" | "warning" | "info" = "info";
-    if (effectiveStatus === "error") {
-      notifyType = "error";
-    } else if (effectiveStatus === "success") {
-      notifyType = "success";
-    } else if (effectiveStatus === "warning") {
-      notifyType = "warning";
-    } else {
-      // 根据内容关键字兜底判断类型
-      const lowerSearchText = searchText.toLowerCase();
-      if (
-        lowerSearchText.includes("error") ||
-        lowerSearchText.includes("failed") ||
-        lowerSearchText.includes("错误") ||
-        lowerSearchText.includes("失败")
-      ) {
-        notifyType = "error";
-      } else if (
-        lowerSearchText.includes("warning") ||
-        lowerSearchText.includes("警告")
-      ) {
-        notifyType = "warning";
-      } else if (
-        lowerSearchText.includes("success") ||
-        lowerSearchText.includes("成功") ||
-        lowerSearchText.includes("完成") ||
-        lowerSearchText.includes("归档")
-      ) {
-        notifyType = "success";
+        return {
+          title: taskId
+            ? `VCP 任务通知 (ID: ${taskId})`
+            : type === "error"
+              ? "VCP 执行错误"
+              : type === "success"
+                ? "VCP 工具执行完成"
+                : "VCP 运行日志",
+          content: `${toolPrefix}${displayContent}`,
+          summary: `${toolPrefix}${summarizeLogContent(summarySource) || "收到运行日志"}`,
+          type,
+        };
       }
     }
+  }
 
-    // 4. 弹出即时浮动提示 (ElMessage / customMessage)
-    // 只有在有明确状态，或者包含重要关键字时才弹出浮动提示，避免刷屏
-    const hasStatus = !!effectiveStatus;
-    const isImportant =
-      searchText.includes("归档") ||
-      searchText.includes("完成") ||
-      searchText.includes("成功") ||
-      searchText.includes("错误") ||
-      searchText.includes("失败") ||
-      taskId;
+  function handleVcpMessageNotification(msg: VcpMessage) {
+    const mode = getNotificationMode(msg.type);
+    if (mode === "off") return;
 
-    if (hasStatus || isImportant) {
-      if (notifyType === "error") {
-        customMessage.error(`${toolPrefix}${summary || "执行错误"}`);
-      } else if (notifyType === "warning") {
-        customMessage.warning(`${toolPrefix}${summary}`);
-      } else if (notifyType === "success") {
-        customMessage.success(`${toolPrefix}${summary}`);
-      } else {
-        customMessage.info(`${toolPrefix}${summary}`);
-      }
+    const notification = describeVcpMessage(msg);
+
+    if (mode === "floating" || mode === "both") {
+      customMessage[notification.type](notification.summary);
     }
 
-    // 5. 全量推送到通知中心
-    // 只要有工具名称，或者有内容，就应该推送到通知中心，不能漏掉任何工具消息！
-    const title = taskId
-      ? `VCP 任务通知 (ID: ${taskId})`
-      : notifyType === "error"
-        ? "VCP 执行错误"
-        : notifyType === "success"
-          ? "VCP 工具执行完成"
-          : "VCP 运行日志";
-
-    // 调用通知系统
-    notify[notifyType](title, `${toolPrefix}${displayContent}`, {
-      source: "VCP",
-    });
+    if (mode === "center" || mode === "both") {
+      const notify = useNotification();
+      notify[notification.type](notification.title, notification.content, {
+        source: "VCP",
+        metadata: {
+          data: { vcpMessageType: msg.type },
+        },
+      });
+    }
   }
 
   function clearMessages() {
@@ -1151,6 +1250,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     nodeProtocol,
     initPromise,
     updateConfig,
+    updateNotificationMode,
     connect,
     disconnect,
     reconnect,

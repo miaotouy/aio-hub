@@ -38,6 +38,9 @@
 8. **注册卡片路由**：
    在 [`BroadcastCard.vue`](../components/monitor/BroadcastCard.vue) 中导入新组件，并在模板中添加对应的路由分支和 Lucide 图标。
 
+9. **注册通知设置**：
+   在 [`NotificationSettingsPage.vue`](../components/NotificationSettingsPage.vue) 的 `messageTypes` 中添加标签与说明；并在 [`vcpConnectorStore.ts`](../stores/vcpConnectorStore.ts) 的 `describeVcpMessage()` 中生成对应的通知标题、详情和摘要。未配置覆盖时，该类型自动跟随通知总设置。
+
 ---
 
 ## 2. 添加新的内置工具

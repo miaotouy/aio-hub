@@ -90,14 +90,23 @@ filteredMessages (computed) ──→ 类型过滤 → 关键词搜索 → UI �
 | `PLUGIN_STEP_STATUS`         | pluginName, stepName                      |
 | `vcp_log`                    | data.content, data.tool_name, data.source |
 
-#### 日志通知处理
+#### 通知处理
 
-[`handleVcpLogNotification()`](../stores/vcpConnectorStore.ts) 实现智能路由逻辑，根据日志内容类型推送不同通知：
+`addMessage()` 在消息完成入队、计数更新后，调用 `handleVcpMessageNotification()`。通知设置来自 `config.json`：
 
-1. **错误优先**: `status === 'error'` 直接推送错误通知
-2. **任务 ID 提取**: 从内容中提取 `task_id` 或 `任务 XXX` 格式，推送任务启动通知
-3. **关键字检测**: 包含 "error"/"failed" 推送错误通知
-4. **成功提示**: 包含 "归档"/"完成"/"成功" 使用 `customMessage.success` 浮动提示
+| 配置                | 作用                                                                     |
+| ------------------- | ------------------------------------------------------------------------ |
+| `notificationMode`  | 通知总设置，未分类覆盖时使用。可选 `off`、`floating`、`center`、`both`。 |
+| `notificationModes` | 以 VCP 消息类型为 key 的可选覆盖；缺失即跟随总设置。                     |
+
+所有已识别的 VCP 广播类型都会先生成标题、详情、摘要和严重级别，再按解析后的通知方式路由：
+
+- `off`：不发送通知；
+- `floating`：通过 `customMessage` 显示即时摘要；
+- `center`：通过 `useNotification()` 写入通知中心；
+- `both`：同时执行两种输出。
+
+`vcp_log` 会继续解析结构化内容、任务 ID 与成功/警告/错误状态；其它类型使用协议字段生成可读摘要。通知策略不会影响监控记录、过滤、统计和历史持久化。
 
 ### 1.2. vcpDistributedStore（分布式 Store）
 
@@ -105,24 +114,24 @@ filteredMessages (computed) ──→ 类型过滤 → 关键词搜索 → UI �
 
 #### 核心状态
 
-| 状态            | 类型                   | 说明                        |
-| --------------- | ---------------------- | --------------------------- |
-| `config`        | `VcpDistributedConfig` | 分布式配置                  |
-| `nodeId`        | `string \| null`       | VCP 服务器分配的节点 ID     |
-| `status`        | 连接状态枚举           | 分布式连接状态              |
-| `exposedTools`  | `VcpToolManifest[]`    | 当前已同步到 VCP 的工具清单 |
-| `pendingExposedTools` | `VcpToolManifest[]` | 已发送、等待确认或兼容确认的工具清单 |
-| `lastHeartbeat` | `number \| null`       | 最近一次心跳时间戳          |
+| 状态                  | 类型                   | 说明                                 |
+| --------------------- | ---------------------- | ------------------------------------ |
+| `config`              | `VcpDistributedConfig` | 分布式配置                           |
+| `nodeId`              | `string \| null`       | VCP 服务器分配的节点 ID              |
+| `status`              | 连接状态枚举           | 分布式连接状态                       |
+| `exposedTools`        | `VcpToolManifest[]`    | 当前已同步到 VCP 的工具清单          |
+| `pendingExposedTools` | `VcpToolManifest[]`    | 已发送、等待确认或兼容确认的工具清单 |
+| `lastHeartbeat`       | `number \| null`       | 最近一次心跳时间戳                   |
 
 #### 工具管理方法
 
-| 方法                      | 说明                    |
-| ------------------------- | ----------------------- |
-| `registerToolToVcp()`     | 手动添加工具到暴露列表  |
-| `unregisterToolFromVcp()` | 从暴露列表移除工具      |
-| `toggleToolDisabled()`    | 切换工具的禁用/启用状态 |
-| `setPendingExposedTools()` | 记录已发起同步、尚未确认的工具清单 |
-| `confirmPendingExposedTools()` | 将待确认清单提升为已同步清单 |
+| 方法                           | 说明                               |
+| ------------------------------ | ---------------------------------- |
+| `registerToolToVcp()`          | 手动添加工具到暴露列表             |
+| `unregisterToolFromVcp()`      | 从暴露列表移除工具                 |
+| `toggleToolDisabled()`         | 切换工具的禁用/启用状态            |
+| `setPendingExposedTools()`     | 记录已发起同步、尚未确认的工具清单 |
+| `confirmPendingExposedTools()` | 将待确认清单提升为已同步清单       |
 
 ---
 

@@ -71,6 +71,12 @@
           <el-tab-pane label="分布式节点" name="distributed">
             <DistributedNodePage />
           </el-tab-pane>
+          <el-tab-pane name="notifications">
+            <template #label>
+              <span class="tab-label"><Bell :size="14" /> 通知设置</span>
+            </template>
+            <NotificationSettingsPage />
+          </el-tab-pane>
         </el-tabs>
       </main>
     </div>
@@ -91,12 +97,13 @@ import { ref, computed, watch } from "vue";
 import { useVcpStore } from "./stores/vcpConnectorStore";
 import { useVcpDistributedNode } from "./composables/useVcpDistributedNode";
 import { useDetachedManager } from "@/composables/useDetachedManager";
-import { PanelLeft, Monitor } from "lucide-vue-next";
+import { PanelLeft, Monitor, Bell } from "lucide-vue-next";
 import InfoCard from "@/components/common/InfoCard.vue";
 import ConnectionPanel from "./components/monitor/ConnectionPanel.vue";
 import FilterPanel from "./components/monitor/FilterPanel.vue";
 import MessageMonitorPage from "./components/monitor/MessageMonitorPage.vue";
 import DistributedNodePage from "./components/distributed/DistributedNodePage.vue";
+import NotificationSettingsPage from "./components/NotificationSettingsPage.vue";
 import JsonViewer from "./components/shared/JsonViewer.vue";
 import type { VcpMessage } from "./types/protocol";
 
@@ -257,5 +264,11 @@ watch(showJsonViewer, (visible: boolean) => {
 .detached-icon {
   color: var(--el-color-primary);
   opacity: 0.8;
+}
+
+.tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 </style>

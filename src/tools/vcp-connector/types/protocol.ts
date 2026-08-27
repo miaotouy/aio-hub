@@ -21,6 +21,22 @@ export type VcpMessageType =
   | "vcp_log"
   | "UNKNOWN";
 
+/** VCP 消息的通知输出方式。 */
+export type VcpNotificationMode = "off" | "floating" | "center" | "both";
+
+export const VCP_MESSAGE_TYPES: Exclude<VcpMessageType, "UNKNOWN">[] = [
+  "RAG_RETRIEVAL_DETAILS",
+  "META_THINKING_CHAIN",
+  "AGENT_PRIVATE_CHAT_PREVIEW",
+  "AI_MEMO_RETRIEVAL",
+  "PLUGIN_STEP_STATUS",
+  "vcp_log",
+];
+
+export type VcpNotificationModeMap = Partial<
+  Record<Exclude<VcpMessageType, "UNKNOWN">, VcpNotificationMode>
+>;
+
 export interface VcpBaseMessage {
   type: VcpMessageType;
   timestamp: number;
@@ -127,6 +143,10 @@ export interface VcpConfig {
   vcpImageKey: string;
   /** VCP 文档服务鉴权 Key (对应后端 File_Key) */
   vcpFileKey: string;
+  /** 未单独配置消息类型时使用的通知方式。 */
+  notificationMode: VcpNotificationMode;
+  /** 每种消息类型的可选覆盖；未设置时跟随 notificationMode。 */
+  notificationModes: VcpNotificationModeMap;
 }
 
 export interface ConnectionState {

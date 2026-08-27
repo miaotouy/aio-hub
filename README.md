@@ -11,8 +11,8 @@
     </td>
     <td align="left">
       <h1>AIO Hub</h1>
-      <p><strong>一站式 AI 创作与开发工作站 | 专业级上下文工程引擎</strong></p>
-      <p>一个基于 Tauri + Vue 3 + TypeScript 构建的跨平台 AI 枢纽，旨在为开发者与创作者提供精准的 LLM 操控体验与高效工具链。</p>
+      <p><strong>本地优先的 AI 能力枢纽 | 人类工作台与 Agent 运行时</strong></p>
+      <p>一个基于 Tauri + Vue 3 + TypeScript 构建的跨平台工作站。人可以直接操作工具；Agent 只能在明确授权、可观察、可审批和可取消的边界内复用合适的能力。</p>
     </td>
   </tr>
 </table>
@@ -35,13 +35,25 @@
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/miaotouy/aio-hub)
 [![zread](https://img.shields.io/badge/Ask_Zread-_.svg?style=flat&color=00b0aa&labelColor=000000&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQuOTYxNTYgMS42MDAxSDIuMjQxNTZDMS44ODgxIDEuNjAwMSAxLjYwMTU2IDEuODg2NjQgMS42MDE1NiAyLjI0MDFWNC45NjAxQzEuNjAxNTYgNS4zMTM1NiAxLjg4ODEgNS42MDAxIDIuMjQxNTYgNS42MDAxSDQuOTYxNTZDNS4zMTUwMiA1LjYwMDEgNS42MDE1NiA1LjMxMzU2IDUuNjAxNTYgNC45NjAxVjIuMjQwMUM1LjYwMTU2IDEuODg2NjQgNS4zMTUwMiAxLjYwMDEgNC45NjE1NiAxLjYwMDFaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00Ljk2MTU2IDEwLjM5OTlIMi4yNDE1NkMxLjg4ODEgMTAuMzk5OSAxLjYwMTU2IDEwLjY4NjQgMS42MDE1NiAxMS4wMzk5VjEzLjc1OTlDMS42MDE1NiAxNC4xMTM0IDEuODg4MSAxNC4zOTk5IDIuMjQxNTYgMTQuMzk5OUg0Ljk2MTU2QzUuMzE1MDIgMTQuMzk5OSA1LjYwMTU2IDE0LjExMzQgNS42MDE1NiAxMy43NTk5VjExLjAzOTlDNS42MDE1NiAxMC42ODY0IDUuMzE1MDIgMTAuMzk5OSA0Ljk2MTU2IDEwLjM5OTlaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik0xMy43NTg0IDEuNjAwMUgxMS4wMzg0QzEwLjY4NSAxLjYwMDEgMTAuMzk4NCAxLjg4NjY0IDEwLjM5ODQgMi4yNDAxVjQuOTYwMUMxMC4zOTg0IDUuMzEzNTYgMTAuNjg1IDUuNjAwMSAxMS4wMzg0IDUuNjAwMUgxMy43NTg0QzE0LjExMTkgNS42MDAxIDE0LjM5ODQgNS4zMTM1NiAxNC4zOTg0IDQuOTYwMVYyLjI0MDFDMTQuMzk4NCAxLjg4NjY0IDE0LjExMTkgMS42MDAxIDEzLjc1ODQgMS42MDAxWiIgZmlsbD0iI2ZmZiIvPgo8cGF0aCBkPSJNNCAxMkwxMiA0TDQgMTJaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00IDEyTDEyIDQiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4K&logoColor=ffffff)](https://zread.ai/miaotouy/aio-hub)
 
-[核心亮点](#-核心亮点) •
-[旗舰功能](#-旗舰功能-llm-智能对话) •
-[功能特性](#-功能特性) •
+[产品定位](#-产品定位) •
+[LLM 工作空间](#-旗舰功能-llm-智能对话工作空间) •
+[人类工作台](#-人类工作台与共享能力) •
+[Agent 与 VCP](#-agent-运行时与-vcp-协作) •
 [下载安装](#-下载安装) •
 [开发指南](#-开发指南)
 
 </div>
+
+## 🧭 产品定位
+
+AIO Hub 从桌面工具枢纽发展为同时服务于**人类用户、Agent、插件和外部执行体**的本地工作站。Chat 是旗舰工作区；工具页、内部服务、Agent 方法和外部协议各自保留适合的入口。
+
+- **人类工作台**：正则预设、Git、网页蒸馏、窗口自动化、OCR、媒体创作、资产管理和弹幕播放器等工具，拥有独立的界面、状态、任务和结果回流链路。
+- **Agent 运行时**：模型只看到经过显式注册和筛选的可调用方法；调用经过参数校验、审批策略、任务管理和结果回注，不等于所有 UI 工具都会自动暴露给 Agent。
+- **共享能力层**：文件、资产、Token 计算、OCR、会话、Recall 和媒体任务等本地能力可以被多个工作台复用，人在界面中操作，Agent 在合适的边界内调用。
+- **外部协作层**：通过 VCP 连接器，AIO Hub 既可以作为节点被远端 VCP 服务驱动，也可以把远端工具桥接到本地注册表供自身工作流使用。
+
+复杂能力可以发展为带状态、任务和结果管理的工作台，轻量工具则保持直接可用。
 
 ## 🌟 旗舰功能: LLM 智能对话工作空间
 
@@ -54,7 +66,7 @@ AIO Hub 的聊天功能是一个专为复杂任务和深度探索而设计的、
 - **统一上下文管道**: 基于AIO自身的流水线架构，将会话树转换为 LLM 请求。内置多阶段核心处理器（会话加载、正则清洗、注入组装、RAG 检索、转写提取、异步工具信息、世界书、Token 限制、格式化、资源解析 等），支持**可视化排序**、**插件化扩展**。
 - **上下文分析器 (Context Analyzer)**: 开发者级调试工具。实时查看最终发送给 LLM 的原始 Prompt、Token 消耗分布、宏解析结果及请求体结构。
 - **上下文压缩 (Context Compression)**: 智能摘要技术。当对话超过阈值时自动触发非破坏性压缩，生成"压缩节点"替代冗余历史，大幅降低长对话的 Token 成本。
-- **宏系统 (Macro System)**: 提供 **60+** 动态宏（如 `{{time}}`, `{{os}}`, `{{last_message}}`），支持复杂的日期时间格式、掷骰子、系统环境获取及局部/全局变量系统。三阶段执行管道（预处理、替换、后处理）实现环境感知与状态管理。
+- **宏系统 (Macro System)**: 提供 **74** 个动态宏（如 `{{time}}`, `{{os}}`, `{{last_message}}`），支持复杂的日期时间格式、掷骰子、系统环境获取及局部/全局变量系统。三阶段执行管道（预处理、替换、后处理）实现环境感知与状态管理。
 - **正则处理管道 (Regex Pipeline)**: 双向处理架构，支持发送前的文本清洗（如隐藏思维链）与渲染前的格式转换（如自定义标签渲染），兼容 **SillyTavern** 正则脚本。具备 Global/Agent/User 三层配置合并能力。
 
 ### ⚡ 交互增强与生态兼容 (Interactive AI & Compatibility)
@@ -81,7 +93,45 @@ AIO Hub 的聊天功能是一个专为复杂任务和深度探索而设计的、
 
 ---
 
-## ✨ 核心亮点
+## 🧰 人类工作台与共享能力
+
+许多能力首先是为人设计的完整桌面工作流，而不是只能由模型触发的一次工具调用。它们保留可视化操作、预览、编辑、任务状态和结果管理；其中适合自动化的部分，才会通过注册表以受控方式共享给 Agent。
+
+### 面向人类的完整工作流
+
+- **网页蒸馏室**: 覆盖快速、智能和交互式蒸馏，提供 API 嗅探、站点配方和 Cookie 身份管理；同时可将 `quickFetch`、`smartExtract` 等能力提供给 Agent。
+- **窗口自动化语言**: 将点击、输入、取色、截图与 OCR 编排为可保存、可复用的流程，支持子流程、变量作用域和条件跳转，适合本机重复操作。
+- **实时字幕 OCR**: 持续监控屏幕区域，进行帧去重和字幕合并，可导出 SRT 或将结果回流至 Chat；OCR 平台也被转写和自动化工具复用。
+- **跨播放器弹幕运行时**: 内置播放器支持弹幕和多种字幕格式；在 Windows 上还可通过透明覆盖层跟随第三方播放器同步显示。
+- **Git 与正则工作台**: 多仓库状态、Diff、暂存、提交和 AI 提交草稿集中管理；正则规则可组成可导入、可排序、可堆叠的预设流程。
+- **对话分享稿工作台**: 从消息选区开始，在独立编排和实时预览中生成分享稿，并保留每次生成的结果历史。
+
+### 跨工作台的本地事实源
+
+- **媒体与中央资产库**: 图像、音频、视频等生成任务拥有独立会话、分支与全局任务队列；结果进入带 SHA-256 去重、来源追踪与跨工具复用的资产库。
+- **Recall 思绪集**: 以 SQLite 为事实源，通过检索管线和严格占位符将即时召回接入上下文；它是对世界书之外的上下文召回工作流补充。
+- **统一 Token 与 LLM 观测**: 多 Tokenizer、多模态预算服务被聊天、翻译和检查器等工具复用；请求检查器可同时观察应用内请求和经本地代理进入的外部请求，并脱敏展示关键字段。
+
+## 🤖 Agent 运行时与 VCP 协作
+
+### 人与 Agent 共享，但不混为一谈
+
+工具注册表同时承载工具页、内部服务和 Agent 方法。只有显式标记为 `agentCallable` 的方法才会进入模型可发现目录；调用还会经过参数规范化、审批策略、异步任务管理和结果回注。这样，人可以直接接管高复杂度工作台，Agent 则在明确授权的子集内协作。
+
+- **Agent Skills**: 兼容 [Agent Skills](https://agentskills.io/) 的渐进式披露模型，按“摘要 → 完整指令 → 按需资源”加载能力；脚本执行有路径锁定、工作目录限制、多运行时探测和超时控制。
+- **扩展运行时**: JavaScript、Native 和 Sidecar 插件可分别扩展 UI、内部服务或受控的 Agent 方法，而非只增加聊天插件。
+
+### VCP 双向互操作
+
+VCP 连接同时覆盖节点注册和远端工具桥接。AIO Hub 可作为 VCP 分布式节点，将经过白名单和审批治理的本地能力注册到远端；也能拉取远端插件清单，动态桥接为本地工具供自身 Agent 使用。连接器还提供 RAG 检索、元思考链、Agent 消息、插件步骤和日志的运行时监控，以及任务进度、取消和审批回传。
+
+## 🍷 SillyTavern 生态与角色工作流
+
+AIO Hub 支持导入并继续编辑 SillyTavern V2/V3 JSON/PNG 角色卡、上下文预设、正则、Quick Reply 和嵌入式世界书。独立世界书管理器会在真实请求中执行关键词/正则触发、扫描深度、递归、概率、冷却与位置注入等运行时子集；角色配置还可携带工具策略、知识、私有资产和样式。
+
+---
+
+## ✨ 桌面工作环境
 
 ### 🖼️ 自由窗口管理
 
@@ -91,11 +141,12 @@ AIO Hub 的聊天功能是一个专为复杂任务和深度探索而设计的、
 - **状态同步**: 所有分离窗口共享同一个状态源，在一个窗口操作，所有窗口实时更新。
 - **记忆功能**: 自动记住所有窗口的位置和大小。
 
-### 🎨 极致视觉体验
+### 🎨 高级主题与视觉配置
 
-- **原生特效**: 支持 Windows Mica / Acrylic 和 macOS Vibrancy 毛玻璃特效。
-- **动态壁纸**: 支持视频/图片轮播壁纸，配合 CSS 混合模式 (Blend Modes)，打造沉浸式工作台。内置精选壁纸库，支持自定义壁纸轮播。全新壁纸取色功能，基于 OKLCH 色彩空间算法自动提取并应用主题色。
-- **深度定制**: 内置 CSS 编辑器，支持实时修改应用样式的每一个细节。
+- **三层主题系统**: 支持明暗/跟随系统、五色主题色阶和独立外观层；主题设置会持久化，并在主窗口和分离窗口启动时恢复。
+- **动态壁纸与取色**: 支持内置或自定义图片轮播、透明度、填充方式和 16 种混合模式；可从壁纸提取背景色与主题色，并用 OKLCH 调整保证可读性。
+- **窗口质感**: 支持分层透明度、模糊、边框和代码块外观配置，以及 Windows Mica/Acrylic、macOS Vibrancy 等原生窗口效果。
+- **CSS 样式覆盖**: 内置 CSS 编辑器和预设管理，可实时预览并应用全局自定义样式。
 - **灵活布局**: 侧边栏支持三种模式（固定侧边栏/抽屉/下拉菜单），适配不同屏幕尺寸。
 
 ### 🧩 强大的插件系统
@@ -155,7 +206,7 @@ _双引擎正则处理工具_
   - **渐进式披露 (Progressive Disclosure)**: 智能控制 Prompt 长度。初始仅注入技能摘要，LLM 按需激活后才注入完整指令与资源索引，有效避免长上下文下的模型幻觉。
   - **安全脚本执行**: 基于 Rust 后端的高性能沙箱环境，支持 Bun、Node.js、Python 等多种运行时。具备严格的路径锁定、超时控制与权限隔离，确保本地执行安全。
   - **动态资源发现**: LLM 可主动探索技能目录、读取参考文档并执行内部脚本，实现从“对话”到“行动”的闭环。
-- **VCP 连接器 (VCP Connector)**: 连接到外部 [**VCP (Variable & Command Protocol)**](https://github.com/lioensky/VCPToolBox) 后端的实时监控面板。支持监听 RAG 检索细节、元思考链、Agent 私聊预览及插件步骤状态，实现与 VCP 生态的深度联动。同时支持将 AIO Hub 注册为 VCP 分布式网络中的一个节点，向云端 Agent 暴露本地工具能力。
+- **VCP 连接器 (VCP Connector)**: 面向 [**VCP (Variable & Command Protocol)**](https://github.com/lioensky/VCPToolBox) 的双向协作入口：监控 RAG、元思考链、Agent 消息与插件步骤；将 AIO Hub 注册为可审批的分布式节点；并把远端插件动态桥接为本地工具。
 - **ST 世界书编辑器**: 专为 SillyTavern 格式设计的独立编辑器，支持大规模设定集的快速构建与维护。
 - **服务注册表浏览器**: 可视化查看应用内所有已注册的工具服务及其元数据，方便开发者调试与集成。
 
@@ -219,11 +270,11 @@ _专为 LLM 流式输出打造的高性能渲染方案_
 # 安装依赖
 bun install
 
-# 启动开发环境
-bun run tauri dev
+# 启动开发环境（支持端口、数据目录和多实例隔离）
+bun run dev
 
 # 构建生产版本
-bun run tauri build
+bun run tauri:build
 ```
 
 ## 📚 文档与支持
@@ -235,10 +286,10 @@ bun run tauri build
 
 ### 📘 架构文档
 
-> 🤖 **对 AI / 爬虫 agents 的指引**：如需深入了解项目全部 33 个工具模块的架构设计、核心定位与技术亮点，请阅读以下 raw 原始文件，无页面渲染干扰。
+> 🤖 **对 AI / 爬虫 agents 的指引**：如需深入了解当前已具备架构文档的工具模块、核心定位与技术亮点，请阅读以下 raw 原始文件，无页面渲染干扰。
 >
 > **[工具架构总集篇](https://raw.githubusercontent.com/miaotouy/aio-hub/main/docs/architecture/tools-architecture-overview.md)** `https://raw.githubusercontent.com/miaotouy/aio-hub/main/docs/architecture/tools-architecture-overview.md`
-> **[设置架构总集篇](https://raw.githubusercontent.com/miaotouy/aio-hub/main/docs/architecture/settings-architecture-overview.md)** `https://raw.githubusercontent.com/miaotouy/aio-hub/main/docs/architecture/tools-architecture-overview.md`
+> **[设置架构总集篇](https://raw.githubusercontent.com/miaotouy/aio-hub/main/docs/architecture/settings-architecture-overview.md)** `https://raw.githubusercontent.com/miaotouy/aio-hub/main/docs/architecture/settings-architecture-overview.md`
 
 - [**工具架构总集篇**](docs/architecture/tools-architecture-overview.md)
 - [**设置架构总集篇**](docs/architecture/settings-architecture-overview.md)

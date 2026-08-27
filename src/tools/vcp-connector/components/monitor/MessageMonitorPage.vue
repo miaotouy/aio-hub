@@ -108,7 +108,12 @@
             </template>
             <div class="filter-popover-content">
               <div class="filter-header">
-                <span class="filter-title">类型筛选</span>
+                <span
+                  class="filter-title"
+                  title="点击切换；按住 Ctrl/⌘ 点击或长按可独选"
+                >
+                  类型筛选
+                </span>
                 <el-link
                   type="primary"
                   underline="never"
@@ -126,7 +131,12 @@
                     type.class,
                     { active: store.filter.types.includes(type.value) },
                   ]"
-                  @click="toggleType(type.value)"
+                  @click="handleTypeClick(type.value, $event)"
+                  @pointerdown="startTypeLongPress(type.value, $event)"
+                  @pointerup="cancelTypeLongPress"
+                  @pointerleave="cancelTypeLongPress"
+                  @pointercancel="cancelTypeLongPress"
+                  @pointermove="cancelTypeLongPress"
                 >
                   <div class="type-indicator"></div>
                   <span class="type-name">{{ type.label }}</span>
@@ -341,7 +351,13 @@ const isAllTypesSelected = computed(
   () => store.filter.types.length === typeOptions.length
 );
 
-function toggleType(type: any) {
+type MessageTypeFilter = (typeof typeOptions)[number]["value"];
+
+const longPressDuration = 500;
+let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+let suppressTypeClick = false;
+
+function toggleType(type: MessageTypeFilter) {
   const current = [...store.filter.types];
   const index = current.indexOf(type);
   if (index > -1) {
@@ -350,6 +366,43 @@ function toggleType(type: any) {
     current.push(type);
   }
   store.setFilter({ types: current });
+}
+
+function isolateType(type: MessageTypeFilter) {
+  store.setFilter({ types: [type] });
+}
+
+function handleTypeClick(type: MessageTypeFilter, event: MouseEvent) {
+  if (suppressTypeClick) {
+    suppressTypeClick = false;
+    return;
+  }
+
+  if (event.ctrlKey || event.metaKey) {
+    isolateType(type);
+    return;
+  }
+
+  toggleType(type);
+}
+
+function startTypeLongPress(type: MessageTypeFilter, event: PointerEvent) {
+  if (event.button !== 0) return;
+
+  cancelTypeLongPress();
+  longPressTimer = setTimeout(() => {
+    isolateType(type);
+    // 长按结束时仍会触发 click，因此忽略紧随其后的那次点击。
+    suppressTypeClick = true;
+    longPressTimer = null;
+  }, longPressDuration);
+}
+
+function cancelTypeLongPress() {
+  if (!longPressTimer) return;
+
+  clearTimeout(longPressTimer);
+  longPressTimer = null;
 }
 
 function toggleAllTypes() {

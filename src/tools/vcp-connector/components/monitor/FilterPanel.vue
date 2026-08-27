@@ -20,7 +20,12 @@
       <h4 class="section-title">消息过滤</h4>
 
       <div class="filter-group">
-        <label class="filter-label">消息类型</label>
+        <label
+          class="filter-label"
+          title="单击切换选中状态；按住 Ctrl/⌘ 点击或长按可独选"
+        >
+          单击切换选中状态；按住 Ctrl/⌘ 点击或长按可独选
+        </label>
         <div class="type-filters">
           <div
             v-for="type in typeOptions"
@@ -30,7 +35,12 @@
               type.class,
               { active: selectedTypes.includes(type.value) },
             ]"
-            @click="toggleType(type.value)"
+            @click="handleTypeClick(type.value, $event)"
+            @pointerdown="startTypeLongPress(type.value, $event)"
+            @pointerup="cancelTypeLongPress"
+            @pointerleave="cancelTypeLongPress"
+            @pointercancel="cancelTypeLongPress"
+            @pointermove="cancelTypeLongPress"
           >
             <div class="type-indicator"></div>
             <span class="type-name">{{ type.label }}</span>
@@ -134,6 +144,10 @@ const typeOptions = [
   { value: "vcp_log", label: "Log", desc: "运行日志", class: "log" },
 ] as const;
 
+const longPressDuration = 500;
+let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+let suppressTypeClick = false;
+
 function toggleType(type: VcpMessageType) {
   const index = selectedTypes.value.indexOf(type);
   if (index > -1) {
@@ -142,6 +156,44 @@ function toggleType(type: VcpMessageType) {
     selectedTypes.value.push(type);
   }
   store.setFilter({ types: [...selectedTypes.value] });
+}
+
+function isolateType(type: VcpMessageType) {
+  selectedTypes.value = [type];
+  store.setFilter({ types: [type] });
+}
+
+function handleTypeClick(type: VcpMessageType, event: MouseEvent) {
+  if (suppressTypeClick) {
+    suppressTypeClick = false;
+    return;
+  }
+
+  if (event.ctrlKey || event.metaKey) {
+    isolateType(type);
+    return;
+  }
+
+  toggleType(type);
+}
+
+function startTypeLongPress(type: VcpMessageType, event: PointerEvent) {
+  if (event.button !== 0) return;
+
+  cancelTypeLongPress();
+  longPressTimer = setTimeout(() => {
+    isolateType(type);
+    // 长按结束时仍会触发 click，因此忽略紧随其后的那次点击。
+    suppressTypeClick = true;
+    longPressTimer = null;
+  }, longPressDuration);
+}
+
+function cancelTypeLongPress() {
+  if (!longPressTimer) return;
+
+  clearTimeout(longPressTimer);
+  longPressTimer = null;
 }
 
 function updateMaxHistory(val: number | undefined) {

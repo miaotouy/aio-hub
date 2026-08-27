@@ -206,7 +206,7 @@
         <!-- 仅渲染可见的虚拟项 -->
         <div
           v-for="virtualItem in virtualItems"
-          :key="`${filteredMessages[virtualItem.index].timestamp}-${filteredMessages[virtualItem.index].type}`"
+          :key="String(virtualItem.key)"
           :data-index="virtualItem.index"
           :ref="
             (el) => {
@@ -393,12 +393,27 @@ const headerStyle = computed(() => {
 const messagesContainer = ref<HTMLElement | null>(null);
 const messageCount = computed(() => filteredMessages.value.length);
 
+// VCP 协议消息没有稳定 ID；为同一对象生成仅供当前列表使用的稳定键，
+// 避免筛选、倒序新增后复用其他消息的测量高度。
+const messageKeys = new WeakMap<VcpMessage, number>();
+let nextMessageKey = 0;
+
+function getMessageKey(message: VcpMessage): number {
+  let key = messageKeys.get(message);
+  if (key === undefined) {
+    key = nextMessageKey++;
+    messageKeys.set(message, key);
+  }
+  return key;
+}
+
 // 创建虚拟化器
 const virtualizer = useVirtualizer({
   get count() {
     return messageCount.value;
   },
   getScrollElement: () => messagesContainer.value as HTMLElement,
+  getItemKey: (index) => getMessageKey(filteredMessages.value[index]),
   estimateSize: () => 120, // 预估每条消息的高度
   overscan: 5, //  overscan 数量
 });
@@ -436,6 +451,20 @@ watch(
       scrollToTop();
     }
   }
+);
+
+// 筛选会让同一索引对应不同消息。清空旧高度缓存并回到顶部，
+// 使实际渲染后的卡片在当前帧重新测量，避免残留的高卡片高度形成空白区。
+watch(
+  () => [store.filter.types.join(","), store.filter.keyword],
+  async () => {
+    await nextTick();
+    if (!messagesContainer.value) return;
+
+    virtualizer.value.scrollToOffset(0);
+    virtualizer.value.measure();
+  },
+  { flush: "post" }
 );
 
 const connectionStatusTagType = computed(() => {

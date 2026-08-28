@@ -202,16 +202,33 @@ const draggableProfiles = computed({
 }
 
 .sidebar-item {
-  padding: 12px;
-  border-radius: 6px;
+  position: relative;
+  padding: 10px 12px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition:
+    background-color 0.15s ease,
+    transform 0.1s ease;
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 4px;
-  border-left: 3px solid transparent;
   user-select: none;
+}
+
+/* Win UI 风格的左侧指示条 */
+.sidebar-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%) scaleY(0);
+  width: 3px;
+  height: 45%;
+  background-color: var(--primary-color);
+  border-radius: 1.5px;
+  transition: transform 0.2s cubic-bezier(0.1, 0.9, 0.2, 1);
+  transform-origin: center;
 }
 
 .drag-handle {
@@ -237,12 +254,28 @@ const draggableProfiles = computed({
 }
 
 .sidebar-item:hover {
-  background: var(--bg-color);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* 暗色/亮色主题自适应的 hover 背景 */
+:deep(.dark) .sidebar-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+:deep(.light) .sidebar-item:hover {
+  background: rgba(0, 0, 0, 0.03);
 }
 
 .sidebar-item.active {
-  background: rgba(var(--primary-color-rgb), 0.1);
-  border-left-color: var(--primary-color);
+  background: rgba(var(--primary-color-rgb), 0.08);
+}
+
+.sidebar-item.active::before {
+  transform: translateY(-50%) scaleY(1);
+}
+
+/* 轻微的按压反馈 */
+.sidebar-item:active {
+  transform: scale(0.985);
 }
 
 .ghost {

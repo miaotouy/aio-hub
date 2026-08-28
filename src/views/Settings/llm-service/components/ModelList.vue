@@ -362,13 +362,7 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
                 @confirm.stop="deleteGroup(group)"
               >
                 <template #reference>
-                  <el-button
-                    size="small"
-                    type="danger"
-                    :icon="Delete"
-                    circle
-                    @click.stop
-                  />
+                  <el-button size="small" :icon="Delete" circle @click.stop />
                 </template>
               </el-popconfirm>
             </div>
@@ -535,7 +529,6 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
                 <div v-if="editable" class="model-actions">
                   <el-button
                     size="small"
-                    type="primary"
                     :icon="VideoPlay"
                     title="测试模型"
                     :loading="testLoading[item.model.id]"
@@ -549,7 +542,6 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
                   />
                   <el-button
                     size="small"
-                    type="danger"
                     :icon="Delete"
                     @click="emit('delete', item.index)"
                   />

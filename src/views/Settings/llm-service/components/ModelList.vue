@@ -32,6 +32,7 @@ import {
   VideoPlay,
   MagicStick,
   Connection,
+  Refresh,
 } from "@element-plus/icons-vue";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
 import type { LlmOperation, ModelRouteBinding } from "@aiohub/llm-core";
@@ -277,15 +278,19 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
     <div class="list-header">
       <span class="model-count">已添加 {{ models.length }} 个模型</span>
       <div class="list-actions">
-        <el-button
+        <el-tooltip
           v-if="editable && models.length > 0"
-          size="small"
-          :icon="VideoPlay"
-          :loading="batchTesting"
-          @click="emit('batch-test')"
+          content="批量检查"
+          placement="top"
         >
-          批量检查
-        </el-button>
+          <el-button
+            size="small"
+            :icon="VideoPlay"
+            :loading="batchTesting"
+            aria-label="批量检查"
+            @click="emit('batch-test')"
+          />
+        </el-tooltip>
         <el-popconfirm
           v-if="editable && models.length > 0"
           title="将为所有模型填充缺失的分组、图标、能力等预设元数据，不覆盖已有配置，确定继续？"
@@ -293,34 +298,29 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
           @confirm="applyAllPresets"
         >
           <template #reference>
-            <el-button size="small" :icon="MagicStick">批量应用预设</el-button>
+            <span style="display: inline-flex">
+              <el-tooltip content="批量应用预设" placement="top">
+                <el-button
+                  size="small"
+                  :icon="MagicStick"
+                  aria-label="批量应用预设"
+                />
+              </el-tooltip>
+            </span>
           </template>
         </el-popconfirm>
-        <el-button
+        <el-tooltip
           v-if="editable && models.length > 0"
-          size="small"
-          :icon="Connection"
-          @click="emit('batch-route')"
+          content="批量设置协议"
+          placement="top"
         >
-          批量设置协议
-        </el-button>
-        <el-button
-          v-if="editable"
-          size="small"
-          :loading="loading"
-          @click="emit('fetch')"
-        >
-          从 API 获取
-        </el-button>
-        <el-button
-          v-if="editable"
-          type="primary"
-          size="small"
-          :icon="Plus"
-          @click="emit('add')"
-        >
-          手动添加
-        </el-button>
+          <el-button
+            size="small"
+            :icon="Connection"
+            aria-label="批量设置协议"
+            @click="emit('batch-route')"
+          />
+        </el-tooltip>
         <el-popconfirm
           v-if="editable && models.length > 0"
           title="确定要清空所有模型吗？"
@@ -328,11 +328,35 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
           @confirm="emit('clear')"
         >
           <template #reference>
-            <el-button type="danger" size="small" :icon="Delete">
-              清空
-            </el-button>
+            <span style="display: inline-flex">
+              <el-tooltip content="清空所有模型" placement="top">
+                <el-button
+                  size="small"
+                  :icon="Delete"
+                  aria-label="清空所有模型"
+                />
+              </el-tooltip>
+            </span>
           </template>
         </el-popconfirm>
+        <el-tooltip v-if="editable" content="手动添加" placement="top">
+          <el-button
+            size="small"
+            :icon="Plus"
+            aria-label="手动添加"
+            @click="emit('add')"
+          />
+        </el-tooltip>
+        <el-tooltip v-if="editable" content="从 API 获取" placement="top">
+          <el-button
+            type="primary"
+            size="small"
+            :icon="Refresh"
+            :loading="loading"
+            aria-label="从 API 获取"
+            @click="emit('fetch')"
+          />
+        </el-tooltip>
       </div>
     </div>
 
@@ -350,7 +374,8 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
               <el-icon
                 class="expand-icon"
                 :class="{ expanded: isGroupExpanded(group.name) }"
-                ><ArrowRight />
+              >
+                <ArrowRight />
               </el-icon>
               <span class="group-name">{{ group.name }}</span>
               <span class="group-count">{{ group.models.length }}</span>
@@ -362,7 +387,17 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
                 @confirm.stop="deleteGroup(group)"
               >
                 <template #reference>
-                  <el-button size="small" :icon="Delete" circle @click.stop />
+                  <span style="display: inline-flex">
+                    <el-tooltip content="删除分组" placement="top">
+                      <el-button
+                        size="small"
+                        :icon="Delete"
+                        circle
+                        aria-label="删除分组"
+                        @click.stop
+                      />
+                    </el-tooltip>
+                  </span>
                 </template>
               </el-popconfirm>
             </div>
@@ -502,7 +537,9 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
                   >
                     <template #reference>
                       <div class="more-capabilities">
-                        <el-icon><MoreFilled /></el-icon>
+                        <el-icon>
+                          <MoreFilled />
+                        </el-icon>
                       </div>
                     </template>
 
@@ -527,24 +564,32 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
 
                 <!-- 操作按钮 -->
                 <div v-if="editable" class="model-actions">
-                  <el-button
-                    size="small"
-                    :icon="VideoPlay"
-                    title="测试模型"
-                    :loading="testLoading[item.model.id]"
-                    :disabled="batchTesting"
-                    @click="emit('test', item.model)"
-                  />
-                  <el-button
-                    size="small"
-                    :icon="Edit"
-                    @click="emit('edit', item.index)"
-                  />
-                  <el-button
-                    size="small"
-                    :icon="Delete"
-                    @click="emit('delete', item.index)"
-                  />
+                  <el-tooltip content="测试模型" placement="top">
+                    <el-button
+                      size="small"
+                      :icon="VideoPlay"
+                      aria-label="测试模型"
+                      :loading="testLoading[item.model.id]"
+                      :disabled="batchTesting"
+                      @click="emit('test', item.model)"
+                    />
+                  </el-tooltip>
+                  <el-tooltip content="编辑模型" placement="top">
+                    <el-button
+                      size="small"
+                      :icon="Edit"
+                      aria-label="编辑模型"
+                      @click="emit('edit', item.index)"
+                    />
+                  </el-tooltip>
+                  <el-tooltip content="删除模型" placement="top">
+                    <el-button
+                      size="small"
+                      :icon="Delete"
+                      aria-label="删除模型"
+                      @click="emit('delete', item.index)"
+                    />
+                  </el-tooltip>
                 </div>
               </div>
             </div>
@@ -790,7 +835,8 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
 .capability-icon {
   font-size: 18px;
   cursor: help;
-  flex-shrink: 0; /* 颜色通过配置文件的 color 属性动态设置 */
+  flex-shrink: 0;
+  /* 颜色通过配置文件的 color 属性动态设置 */
 }
 
 .more-capabilities {

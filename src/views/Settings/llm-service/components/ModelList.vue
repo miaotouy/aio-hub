@@ -46,7 +46,7 @@ import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import { customMessage } from "@/utils/customMessage";
 import type { ChannelProbeResult } from "../probe/types";
 
-const MAX_VISIBLE_CAPS = 4;
+const MAX_VISIBLE_CAPS = 6;
 
 interface Props {
   models: LlmModelInfo[];
@@ -473,123 +473,134 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
                   </div>
                 </div>
 
-                <el-tooltip
-                  v-if="testResults[item.model.id]"
-                  :content="getTestResultTitle(testResults[item.model.id])"
-                  placement="top"
-                >
-                  <div class="model-test-result">
-                    <el-tag
-                      :type="
-                        testResults[item.model.id].success
-                          ? 'success'
-                          : testResults[item.model.id].category === 'cancelled'
-                            ? 'info'
-                            : 'danger'
-                      "
-                      size="small"
-                    >
-                      {{
-                        testResults[item.model.id].success
-                          ? "正常"
-                          : testResults[item.model.id].category === "cancelled"
-                            ? "已停止"
-                            : "失败"
-                      }}
-                    </el-tag>
-                    <span>{{
-                      formatTestDuration(testResults[item.model.id].totalMs)
-                    }}</span>
-                  </div>
-                </el-tooltip>
-
-                <!-- 能力图标 -->
-                <div class="model-capabilities">
-                  <!-- 显示可见的能力图标 -->
-                  <template
-                    v-for="capability in getVisibleCapabilities(item.model)"
-                    :key="capability.key"
-                  >
+                <!-- 右侧状态与操作面板 -->
+                <div class="model-right-panel">
+                  <!-- 第一行：测试结果与能力图标 -->
+                  <div class="model-status-row">
                     <el-tooltip
-                      :content="capability.description"
+                      v-if="testResults[item.model.id]"
+                      :content="getTestResultTitle(testResults[item.model.id])"
                       placement="top"
                     >
-                      <el-icon
-                        class="capability-icon"
-                        :class="capability.className"
-                        :style="{ color: capability.color }"
-                      >
-                        <component :is="capability.icon" />
-                      </el-icon>
-                    </el-tooltip>
-                  </template>
-
-                  <!-- 更多能力折叠 -->
-                  <el-popover
-                    v-if="
-                      getEnabledCapabilities(item.model).length >
-                      MAX_VISIBLE_CAPS
-                    "
-                    placement="top"
-                    :width="220"
-                    trigger="hover"
-                    popper-class="capabilities-popover"
-                  >
-                    <template #reference>
-                      <div class="more-capabilities">
-                        <el-icon>
-                          <MoreFilled />
-                        </el-icon>
-                      </div>
-                    </template>
-
-                    <div class="capabilities-list">
-                      <div class="capabilities-title">所有已启用能力</div>
-                      <div
-                        v-for="cap in getEnabledCapabilities(item.model)"
-                        :key="cap.key"
-                        class="capability-item"
-                      >
-                        <el-icon
-                          class="item-icon"
-                          :style="{ color: cap.color }"
+                      <div class="model-test-result">
+                        <el-tag
+                          :type="
+                            testResults[item.model.id].success
+                              ? 'success'
+                              : testResults[item.model.id].category ===
+                                  'cancelled'
+                                ? 'info'
+                                : 'danger'
+                          "
+                          size="small"
                         >
-                          <component :is="cap.icon" />
-                        </el-icon>
-                        <span class="item-label">{{ cap.label }}</span>
+                          {{
+                            testResults[item.model.id].success
+                              ? "正常"
+                              : testResults[item.model.id].category ===
+                                  "cancelled"
+                                ? "已停止"
+                                : "失败"
+                          }}
+                        </el-tag>
+                        <span>{{
+                          formatTestDuration(testResults[item.model.id].totalMs)
+                        }}</span>
                       </div>
-                    </div>
-                  </el-popover>
-                </div>
+                    </el-tooltip>
 
-                <!-- 操作按钮 -->
-                <div v-if="editable" class="model-actions">
-                  <el-tooltip content="测试模型" placement="top">
-                    <el-button
-                      size="small"
-                      :icon="VideoPlay"
-                      aria-label="测试模型"
-                      :loading="testLoading[item.model.id]"
-                      :disabled="batchTesting"
-                      @click="emit('test', item.model)"
-                    />
-                  </el-tooltip>
-                  <el-tooltip content="编辑模型" placement="top">
-                    <el-button
-                      size="small"
-                      :icon="Edit"
-                      aria-label="编辑模型"
-                      @click="emit('edit', item.index)"
-                    />
-                  </el-tooltip>
-                  <el-tooltip content="删除模型" placement="top">
-                    <el-button
-                      size="small"
-                      :icon="Delete"
-                      aria-label="删除模型"
-                      @click="emit('delete', item.index)"
-                    />
-                  </el-tooltip>
+                    <!-- 能力图标 -->
+                    <div class="model-capabilities">
+                      <!-- 显示可见的能力图标 -->
+                      <template
+                        v-for="capability in getVisibleCapabilities(item.model)"
+                        :key="capability.key"
+                      >
+                        <el-tooltip
+                          :content="capability.description"
+                          placement="top"
+                        >
+                          <el-icon
+                            class="capability-icon"
+                            :class="capability.className"
+                            :style="{ color: capability.color }"
+                          >
+                            <component :is="capability.icon" />
+                          </el-icon>
+                        </el-tooltip>
+                      </template>
+
+                      <!-- 更多能力折叠 -->
+                      <el-popover
+                        v-if="
+                          getEnabledCapabilities(item.model).length >
+                          MAX_VISIBLE_CAPS
+                        "
+                        placement="top"
+                        :width="220"
+                        trigger="hover"
+                        popper-class="capabilities-popover"
+                      >
+                        <template #reference>
+                          <div class="more-capabilities">
+                            <el-icon>
+                              <MoreFilled />
+                            </el-icon>
+                          </div>
+                        </template>
+
+                        <div class="capabilities-list">
+                          <div class="capabilities-title">所有已启用能力</div>
+                          <div
+                            v-for="cap in getEnabledCapabilities(item.model)"
+                            :key="cap.key"
+                            class="capability-item"
+                          >
+                            <el-icon
+                              class="item-icon"
+                              :style="{ color: cap.color }"
+                            >
+                              <component :is="cap.icon" />
+                            </el-icon>
+                            <span class="item-label">{{ cap.label }}</span>
+                          </div>
+                        </div>
+                      </el-popover>
+                    </div>
+                  </div>
+
+                  <!-- 第二行：操作按钮 -->
+                  <div v-if="editable" class="model-actions">
+                    <el-tooltip content="测试模型" placement="top">
+                      <el-button
+                        size="small"
+                        circle
+                        :icon="VideoPlay"
+                        aria-label="测试模型"
+                        :loading="testLoading[item.model.id]"
+                        :disabled="batchTesting"
+                        @click="emit('test', item.model)"
+                      />
+                    </el-tooltip>
+                    <el-tooltip content="编辑模型" placement="top">
+                      <el-button
+                        size="small"
+                        circle
+                        :icon="Edit"
+                        aria-label="编辑模型"
+                        @click="emit('edit', item.index)"
+                      />
+                    </el-tooltip>
+                    <el-tooltip content="删除模型" placement="top">
+                      <el-button
+                        size="small"
+                        circle
+                        :icon="Delete"
+                        aria-label="删除模型"
+                        @click="emit('delete', item.index)"
+                      />
+                    </el-tooltip>
+                  </div>
                 </div>
               </div>
             </div>
@@ -817,23 +828,44 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
   white-space: nowrap;
 }
 
-.model-capabilities {
+.model-right-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.model-status-row {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.model-test-result {
+.model-capabilities {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.model-test-result {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   flex-shrink: 0;
   color: var(--text-color-secondary);
-  font-size: 12px;
+  font-size: 11px;
+}
+
+.model-test-result :deep(.el-tag) {
+  padding: 0 4px;
+  height: 18px;
+  line-height: 16px;
+  font-size: 10px;
 }
 
 .capability-icon {
-  font-size: 18px;
+  font-size: 14px;
   cursor: help;
   flex-shrink: 0;
   /* 颜色通过配置文件的 color 属性动态设置 */
@@ -843,12 +875,16 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
   color: var(--text-color-secondary);
   cursor: pointer;
   transition: all 0.2s;
+}
+
+.more-capabilities .el-icon {
+  font-size: 12px;
 }
 
 .more-capabilities:hover {
@@ -858,7 +894,20 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
 
 .model-actions {
   display: flex;
-  gap: 4px;
+  gap: 6px;
+}
+
+.model-actions :deep(.el-button.is-circle) {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.model-actions :deep(.el-button .el-icon) {
+  font-size: 13px;
 }
 </style>
 

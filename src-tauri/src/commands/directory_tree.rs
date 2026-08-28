@@ -132,11 +132,12 @@ fn collect_entries_parallel(
     // 配置遍历选项
     builder
         .hidden(!show_hidden) // 是否跳过隐藏文件
-        .git_ignore(use_gitignore) // 是否使用 .gitignore
-        .git_global(use_gitignore) // 是否使用全局 gitignore
-        .git_exclude(use_gitignore) // 是否使用 .git/info/exclude
-        .ignore(use_gitignore) // 是否使用 .ignore 文件
-        .parents(use_gitignore) // 是否检查父目录的 ignore 文件
+        .git_ignore(use_gitignore) // 仅使用目标目录及其子目录中的 .gitignore
+        .git_global(false) // 不使用用户级 Git 忽略规则
+        .git_exclude(false) // 不使用 .git/info/exclude
+        .ignore(false) // 不使用 .ignore 文件
+        .parents(false) // 不读取目标目录上层的忽略规则
+        .require_git(false) // 目标目录本身不是 Git 根目录时仍应用其 .gitignore
         .follow_links(false) // 不跟随符号链接
         .same_file_system(false); // 允许跨文件系统
 
@@ -458,6 +459,45 @@ pub async fn generate_directory_tree(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gitignore_rules_are_scoped_to_the_selected_directory_and_descendants() {
+        let temp_dir = tempfile::tempdir().expect("创建临时目录");
+        let parent_dir = temp_dir.path().join("parent");
+        let selected_dir = parent_dir.join("selected");
+        let child_dir = selected_dir.join("child");
+
+        std::fs::create_dir_all(&child_dir).expect("创建测试目录");
+        std::fs::write(parent_dir.join(".gitignore"), "parent-only.txt\n")
+            .expect("写入父目录 .gitignore");
+        std::fs::write(selected_dir.join(".gitignore"), "root-only.txt\n")
+            .expect("写入目标目录 .gitignore");
+        std::fs::write(child_dir.join(".gitignore"), "child-only.txt\n")
+            .expect("写入子目录 .gitignore");
+        for path in [
+            selected_dir.join("parent-only.txt"),
+            selected_dir.join("root-only.txt"),
+            child_dir.join("parent-only.txt"),
+            child_dir.join("child-only.txt"),
+            selected_dir.join("included.txt"),
+        ] {
+            std::fs::write(path, "content").expect("写入测试文件");
+        }
+
+        let (entries, _, _) = collect_entries_parallel(&selected_dir, true, false, 0, true, &[])
+            .expect("收集目录条目");
+        let paths: Vec<PathBuf> = entries
+            .into_iter()
+            .filter(|entry| !entry.is_dir)
+            .map(|entry| entry.relative_path)
+            .collect();
+
+        assert!(paths.contains(&PathBuf::from("parent-only.txt")));
+        assert!(paths.contains(&PathBuf::from("child/parent-only.txt")));
+        assert!(paths.contains(&PathBuf::from("included.txt")));
+        assert!(!paths.contains(&PathBuf::from("root-only.txt")));
+        assert!(!paths.contains(&PathBuf::from("child/child-only.txt")));
+    }
 
     #[test]
     fn test_build_tree_from_entries() {

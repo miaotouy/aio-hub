@@ -99,6 +99,8 @@ export function createSessionGenerationManager(
 
   async function getChatHandler() {
     if (managers.createChatHandler) return managers.createChatHandler();
+    // Keep this deferred: useChatHandler imports useLlmChatStore, which constructs
+    // this manager. A static import would create an initialization cycle.
     const { useChatHandler } =
       await import("../../composables/chat/useChatHandler");
     return useChatHandler();

@@ -297,9 +297,7 @@ export async function resolveAttachmentsBatch<
     // 这通过检查 resolveAttachmentContent 的内部逻辑：
     // 如果 shouldTranscribe 为 true 且返回的是 media 类型，说明没找到转写
     if (result.type === "media") {
-      const transcriptionManager = (
-        await import("../../composables/features/useTranscriptionManager")
-      ).useTranscriptionManager();
+      const transcriptionManager = useTranscriptionManager();
       const shouldTranscribe =
         options.force ||
         transcriptionManager.computeWillUseTranscription(

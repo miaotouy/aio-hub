@@ -34,6 +34,7 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 import { getLocalISOString } from "@/utils/time";
 import { getWebViewFingerprint } from "./core/fingerprint";
+import { useWebDistilleryStore } from "./stores/store";
 
 const errorHandler = createModuleErrorHandler("web-distillery/actions");
 const logger = createModuleLogger("web-distillery/actions");
@@ -415,7 +416,6 @@ export async function openDistillery(url?: string): Promise<void> {
 
   // 如果提供了 URL，先更新 store 中的当前 URL
   if (url) {
-    const { useWebDistilleryStore } = await import("./stores/store");
     const store = useWebDistilleryStore();
     store.setUrl(url);
   }

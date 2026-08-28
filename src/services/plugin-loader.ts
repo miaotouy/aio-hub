@@ -137,11 +137,11 @@ export class PluginLoader {
         default: JsPluginExport;
         manifest: PluginManifest;
       }>("/plugins/*/index.ts", { eager: false });
-
-      // 扫描所有插件的 Vue 组件（支持 .vue 和 .js/.mjs）
+      // 开发模式插件的 UI 源码统一使用 Vue SFC。不要扫描任意 .js/.mjs：
+      // 插件根目录还包含构建、下载等 Node.js 脚本，纳入 Vite 依赖图会导致其被误打包。
       const componentModules = import.meta.glob<{
         default: any;
-      }>("/plugins/*/*.{vue,js,mjs}", { eager: false });
+      }>("/plugins/*/*.vue", { eager: false });
 
       // 存储组件加载器，供 plugin-manager 使用
       if (!window.__PLUGIN_COMPONENTS__) {

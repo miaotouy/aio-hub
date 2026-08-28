@@ -403,6 +403,7 @@ export function useChatHandler() {
         profileDisplayName: profile?.name,
         modelId: agentConfig.modelId,
         modelName: model?.name || model?.id,
+        modelIcon: model?.icon,
         modelDisplayName: model?.name || model?.id,
         virtualTimeConfig: currentAgent?.virtualTimeConfig,
       };
@@ -703,6 +704,7 @@ export function useChatHandler() {
         profileDisplayName: profile?.name,
         modelId: agentConfig.modelId,
         modelName: model?.name || model?.id,
+        modelIcon: model?.icon,
         modelDisplayName: model?.name || model?.id,
         virtualTimeConfig: currentAgent?.virtualTimeConfig,
       };
@@ -885,6 +887,7 @@ export function useChatHandler() {
         profileDisplayName: profile?.name,
         modelId: agentConfig.modelId,
         modelName: model?.name || model?.id,
+        modelIcon: model?.icon,
         modelDisplayName: model?.name || model?.id,
         virtualTimeConfig: currentAgent?.virtualTimeConfig,
       };

@@ -54,7 +54,7 @@ const props = withDefaults(defineProps<Props>(), {
 const agentStore = useAgentStore();
 const userProfileStore = useUserProfileStore();
 const { getProfileById } = useLlmProfiles();
-const { getIconPath, getDisplayIconPath } = useModelMetadata();
+const { getModelIcon, getIconPath, getDisplayIconPath } = useModelMetadata();
 const { settings } = useChatSettings();
 
 const messageStatusPresentation = computed(() =>
@@ -86,7 +86,7 @@ const agent = computed(() => {
 });
 
 // 获取消息生成时使用的 Profile 和 Model 信息
-// 核心原则：优先使用元数据中的快照信息（名称），图标通过模型 ID 匹配规则获取
+// 名称优先使用消息快照；图标优先精确读取当前 profileId + modelId 对应的模型配置。
 const agentProfileInfo = computed(() => {
   const metadata = props.message.metadata;
   if (!metadata) return null;
@@ -96,9 +96,8 @@ const agentProfileInfo = computed(() => {
   const snapshotProfileName =
     metadata.profileDisplayName || metadata.profileName;
 
-  // 获取模型 ID 和提供商类型（用于图标匹配）
+  // 获取模型 ID；渠道类型仅用于渠道图标，不参与模型图标解析。
   const modelId = metadata.modelId || agent.value?.modelId;
-  const providerType = metadata.providerType;
 
   // 如果元数据中连名称都没有，尝试从当前配置中获取（兼容旧消息）
   const profileId = metadata.profileId || agent.value?.profileId;
@@ -113,10 +112,13 @@ const agentProfileInfo = computed(() => {
   // 如果连名称都无法确定，则不显示副标题
   if (!displayModelName && !displayProfileName) return null;
 
-  // 获取模型图标：优先通过模型 ID 匹配规则，无需依赖 model 对象
-  let modelIcon: string | null = null;
-  if (modelId) {
-    const iconPath = getIconPath(modelId, providerType);
+  // 渠道和模型仍存在时，必须精确读取 model.icon；不能用协议类型推断模型品牌。
+  let modelIcon: string | null = model ? getModelIcon(model) : null;
+  if (!modelIcon && metadata.modelIcon) {
+    modelIcon = getDisplayIconPath(metadata.modelIcon);
+  }
+  if (!modelIcon && modelId) {
+    const iconPath = getIconPath(modelId);
     modelIcon = iconPath ? getDisplayIconPath(iconPath) : null;
   }
 

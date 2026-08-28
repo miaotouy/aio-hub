@@ -17,6 +17,7 @@ import {
   DEFAULT_METADATA_RULES,
   getMatchedModelProperties,
   getMatchedRuleChain,
+  getBundledModelIconPath,
 } from "../model-metadata";
 import type { ModelMetadataRule } from "@/types/model-metadata";
 import { chineseModelRules } from "../model-metadata-presets/models-chinese";
@@ -92,6 +93,13 @@ describe("model-metadata rule chain", () => {
   });
 });
 
+describe("bundled model icon fallback", () => {
+  it("prefers a recognizable model ID over an OpenAI-compatible transport", () => {
+    expect(getBundledModelIconPath("gemini-2.5-pro", "openai")).toBe(
+      "/model-icons/gemini-color.svg"
+    );
+  });
+});
 describe("model-metadata presets", () => {
   it("provides explicit metadata for the supported Agnes 2.x models", () => {
     const modelIds = [

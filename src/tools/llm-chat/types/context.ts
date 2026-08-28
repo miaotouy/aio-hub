@@ -308,6 +308,8 @@ export interface ContextPreviewData {
     providerType?: string;
     modelId: string;
     modelName?: string;
+    /** 生成上下文时使用的模型图标快照 */
+    modelIcon?: string;
     virtualTimeConfig?: {
       virtualBaseTime: string;
       realBaseTime: string;

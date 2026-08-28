@@ -84,10 +84,13 @@ export function getBundledModelIconPath(
   modelId: string,
   provider?: string
 ): string | undefined {
+  // 模型 ID 是产品身份，优先于传输渠道/协议类型。
+  // 例如 New API 返回 OpenAI 风格响应时，provider 可能是 openai，
+  // 但 gemini-* 模型仍必须显示 Gemini 图标。
   const candidates = [
-    provider?.toLowerCase(),
     modelId.toLowerCase(),
     ...modelId.toLowerCase().split(/[-_/]/),
+    provider?.toLowerCase(),
   ].filter((candidate): candidate is string =>
     Boolean(candidate && candidate.length >= 2)
   );

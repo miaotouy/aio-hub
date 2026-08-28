@@ -183,7 +183,8 @@ export function getSubtitleInfo(
   node: ChatMessageNode,
   agentStore: any,
   getProfileById: (id: string) => any,
-  getModelIcon: (model: any) => string | undefined | null
+  getModelIcon: (model: any) => string | undefined | null,
+  getDisplayIconPath: (iconPath: string) => string
 ) {
   const metadata = node.metadata;
   if (!metadata || node.role !== "assistant") return null;
@@ -203,7 +204,9 @@ export function getSubtitleInfo(
   const model = profile.models.find((m: any) => m.id === modelId);
   if (!model) return null;
 
-  const modelIcon = getModelIcon(model);
+  const modelIcon =
+    getModelIcon(model) ||
+    (metadata.modelIcon ? getDisplayIconPath(metadata.modelIcon) : null);
   const profileIcon = profile.icon || profile.logoUrl;
   const displayModelName = metadata.modelName || model.name || model.id;
 

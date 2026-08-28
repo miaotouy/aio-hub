@@ -142,6 +142,7 @@ export function useChatExecutor() {
       profileName: profile?.name,
       providerType: profile?.type,
       modelName: model?.name || agentConfigSnippet.modelId,
+      modelIcon: model?.icon,
     };
 
     const vcpStore = useVcpStore();

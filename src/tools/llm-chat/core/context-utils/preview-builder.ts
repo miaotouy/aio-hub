@@ -70,6 +70,7 @@ export async function buildPreviewDataFromContext(
         models?: Array<{
           id: string;
           name?: string;
+          icon?: string;
           capabilities?: LlmModelInfo["capabilities"];
         }>;
       }
@@ -699,6 +700,7 @@ export async function buildPreviewDataFromContext(
       providerType: profile?.type,
       modelId: agentConfig.modelId,
       modelName: modelName,
+      modelIcon: selectedModel?.icon,
       virtualTimeConfig: agentConfig.virtualTimeConfig,
     },
     parameters: agentConfig.parameters,

@@ -165,12 +165,15 @@ const siblingsWithDisplayInfo = computed(() => {
           const displayProfileName =
             metadata.profileName || profile?.name || profileId;
 
-          // 获取模型图标路径
-          let modelIconPath: string | undefined;
-          if (model) {
-            modelIconPath = getModelIcon(model) || undefined;
-          } else {
-            const iconPath = getIconPath(modelId, providerType);
+          // 渠道和模型仍存在时，必须精确读取 model.icon；快照只用于已删除的历史配置。
+          let modelIconPath = model
+            ? getModelIcon(model) || undefined
+            : undefined;
+          if (!modelIconPath && metadata.modelIcon) {
+            modelIconPath = getDisplayIconPath(metadata.modelIcon);
+          }
+          if (!modelIconPath) {
+            const iconPath = getIconPath(modelId);
             if (iconPath) {
               modelIconPath = getDisplayIconPath(iconPath);
             }

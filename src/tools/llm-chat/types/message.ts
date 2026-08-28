@@ -254,6 +254,8 @@ export interface ChatMessageNode {
     modelId?: string;
     /** 使用的模型名称（原始名称/ID） */
     modelName?: string;
+    /** 生成此消息时使用的模型图标（快照，优先于渠道/协议图标） */
+    modelIcon?: string;
     /** 使用的模型显示名称 */
     modelDisplayName?: string;
     /** 是否是排队待生成的节点 */

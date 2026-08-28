@@ -142,7 +142,7 @@ export function useFlowTreeGraph(
   const agentStore = useAgentStore();
   const userProfileStore = useUserProfileStore();
   const { getProfileById } = useLlmProfiles();
-  const { getModelIcon } = useModelMetadata();
+  const { getModelIcon, getDisplayIconPath } = useModelMetadata();
 
   // 1. 基础状态
   const nodes = ref<any[]>([]);
@@ -444,7 +444,8 @@ export function useFlowTreeGraph(
           node,
           agentStore,
           getProfileById,
-          getModelIcon
+          getModelIcon,
+          getDisplayIconPath
         );
         const attachments = node.attachments || EMPTY_ATTACHMENTS;
         const isCompressionNode = !!node.metadata?.isCompressionNode;

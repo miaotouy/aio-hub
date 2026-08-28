@@ -837,14 +837,21 @@ const modelDisplayName = computed(() => {
 });
 
 const modelIcon = computed(() => {
-  // 优先使用从当前配置获取的模型图标
-  if (agentModel.value) {
-    return getModelIcon(agentModel.value);
+  // 正常路径直接读取 profileId + modelId 对应的模型配置。
+  const configuredIcon = agentModel.value
+    ? getModelIcon(agentModel.value)
+    : null;
+  if (configuredIcon) return configuredIcon;
+
+  // 配置已删除时，历史快照仍保留生成当时的图标。
+  if (props.contextData.agentInfo.modelIcon) {
+    return getDisplayIconPath(props.contextData.agentInfo.modelIcon);
   }
-  // 回退到通过 modelId 和 providerType 匹配图标（模型被删除时仍能显示图标）
-  const { modelId, providerType } = props.contextData.agentInfo;
+
+  // 仅旧数据按模型 ID 猜测；协议类型不能决定模型品牌。
+  const { modelId } = props.contextData.agentInfo;
   if (modelId) {
-    const iconPath = getIconPath(modelId, providerType);
+    const iconPath = getIconPath(modelId);
     if (iconPath) {
       return getDisplayIconPath(iconPath);
     }

@@ -85,6 +85,10 @@ const identityOptions = Array.from(
   )
 ).sort();
 
+const isEmbeddingModel = computed(
+  () => modelEditForm.value.capabilities?.embedding === true
+);
+
 const identitySourceLabel = computed(() => {
   if (!modelIdentityCanonicalId.value.trim()) return "未识别";
   const current = getModelIdentity(modelEditForm.value);
@@ -469,39 +473,6 @@ const customParametersJsonString = computed({
             <el-input v-model="modelEditForm.name" placeholder="例如: GPT-4o" />
           </el-form-item>
 
-          <el-form-item label="模型身份">
-            <div class="identity-editor">
-              <el-select
-                v-model="modelIdentityCanonicalId"
-                filterable
-                allow-create
-                clearable
-                default-first-option
-                placeholder="未识别"
-                @blur="normalizeIdentityInput"
-              >
-                <el-option
-                  v-for="identity in identityOptions"
-                  :key="identity"
-                  :label="identity"
-                  :value="identity"
-                />
-              </el-select>
-              <span class="identity-source">{{ identitySourceLabel }}</span>
-            </div>
-            <div class="form-hint">
-              格式为 developer/model。修改身份可能影响 Embedding 向量复用判断。
-            </div>
-          </el-form-item>
-
-          <el-form-item label="模型修订">
-            <el-input
-              v-model="modelIdentityRevision"
-              clearable
-              placeholder="可选，仅填写服务明确提供的固定版本"
-            />
-          </el-form-item>
-
           <el-form-item label="分组">
             <el-input
               v-model="modelEditForm.group"
@@ -625,6 +596,46 @@ const customParametersJsonString = computed({
               </el-tooltip>
             </div>
           </div>
+
+          <template v-if="isEmbeddingModel">
+            <el-divider content-position="left">嵌入模型身份</el-divider>
+
+            <el-form-item label="模型身份">
+              <div class="identity-editor">
+                <el-select
+                  v-model="modelIdentityCanonicalId"
+                  filterable
+                  allow-create
+                  clearable
+                  default-first-option
+                  placeholder="未识别"
+                  @blur="normalizeIdentityInput"
+                >
+                  <el-option
+                    v-for="identity in identityOptions"
+                    :key="identity"
+                    :label="identity"
+                    :value="identity"
+                  />
+                </el-select>
+                <span class="identity-source">{{ identitySourceLabel }}</span>
+              </div>
+              <div class="form-hint">
+                用于识别跨渠道的同一嵌入模型，作为 Embedding 向量复用与空间判断的依据。格式为 developer/model。
+              </div>
+            </el-form-item>
+
+            <el-form-item label="模型修订">
+              <el-input
+                v-model="modelIdentityRevision"
+                clearable
+                placeholder="可选，仅填写服务明确提供的固定版本"
+              />
+              <div class="form-hint">
+                未提供固定修订版本时请留空，避免将不同版本的向量错误视为可复用。
+              </div>
+            </el-form-item>
+          </template>
 
           <!-- 请求协议 / 适配器 -->
           <el-divider content-position="left">请求协议 / 适配器</el-divider>

@@ -54,6 +54,20 @@ type ProfileDataReader = (profileId: string) => Promise<{
   tokenizerConfigJSON?: string;
 }>;
 
+/**
+ * Creates a structured-cloneable copy of a vision token rule for Worker IPC.
+ * Model profiles come from Vue reactive state, so their nested objects may be
+ * Proxy instances even though the rule itself contains only plain data.
+ */
+export function toWorkerVisionTokenCost(
+  visionTokenCost: VisionTokenCost
+): VisionTokenCost {
+  return {
+    calculationMethod: visionTokenCost.calculationMethod,
+    parameters: { ...visionTokenCost.parameters },
+  };
+}
+
 class TokenCalculatorProxy {
   private worker: Worker | null = null;
   private pendingRequests = new Map<
@@ -304,7 +318,10 @@ class TokenCalculatorProxy {
     return this.request("calculateImageTokens", {
       width,
       height,
-      visionTokenCost,
+      // Model profiles are held in Vue reactive state. Copy the nested rule
+      // before crossing the Worker boundary because a Vue Proxy cannot be
+      // structured-cloned by postMessage.
+      visionTokenCost: toWorkerVisionTokenCost(visionTokenCost),
     });
   }
 

@@ -373,12 +373,11 @@ onMounted(async () => {
 
 .content-section {
   flex: 1;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
+  overflow: hidden;
+  /* 改为 hidden，防止整体滚动 */
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 0 0 20px;
   box-sizing: border-box;
   width: 100%;
 }

@@ -54,6 +54,12 @@ export const BUILTIN_WALLPAPERS: BuiltinWallpaper[] = [
   { name: "林间微趣", filename: "micro-forest.png" },
 ];
 
+// 分类栏布局位置：左侧、右侧、上方、下方
+export type HomeCategoryLayout = "left" | "right" | "top" | "bottom";
+
+// 工具卡片呈现风格：经典（大卡片）、紧凑（高密度）、精致（视觉强化）、列表（通栏行）
+export type HomeCardStyle = "classic" | "compact" | "large" | "list";
+
 // 窗口特效类型（根据不同操作系统支持）
 export type WindowEffect = "none" | "blur" | "acrylic" | "mica" | "vibrancy";
 
@@ -148,6 +154,8 @@ export interface AppSettings {
   autoAdjustWindowPosition?: boolean; // 新增：是否自动调整窗口位置
   showQuickAccess?: boolean; // 是否显示首页快捷栏区域
   disableTauriDragDropHandler?: boolean; // true 表示使用 H5 原生拖放兼容模式；false 表示路径优先模式
+  homeCategoryLayout?: HomeCategoryLayout; // 首页分类栏布局位置
+  homeCardStyle?: HomeCardStyle; // 首页工具卡片呈现风格
 
   // 主题颜色配置
   themeColor?: string; // 主色调 hex 值
@@ -345,6 +353,8 @@ export const defaultAppSettings: AppSettings = {
   autoAdjustWindowPosition: true, // 默认开启
   showQuickAccess: true, // 默认显示首页快捷栏
   disableTauriDragDropHandler: false, // 默认使用 Tauri 路径优先拖放
+  homeCategoryLayout: "left", // 默认分类栏在左侧
+  homeCardStyle: "classic", // 默认卡片为经典样式
   // 默认主题颜色
   themeColor: "#409eff", // 主色调 - Element Plus 蓝色
   successColor: "#67c23a", // 成功色 - Element Plus 绿色

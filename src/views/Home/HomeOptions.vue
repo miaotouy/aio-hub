@@ -11,7 +11,7 @@
 <template>
   <el-popover
     placement="bottom-end"
-    :width="248"
+    :width="280"
     trigger="click"
     popper-class="home-options-popover"
   >
@@ -39,6 +39,44 @@
         </div>
         <el-switch v-model="showQuickAccess" aria-label="显示快捷栏" />
       </div>
+
+      <div class="home-option-row flex-column">
+        <div class="home-option-copy">
+          <span class="home-option-label">分类栏位置</span>
+          <span class="home-option-description">
+            调整工具分类导航栏的显示位置
+          </span>
+        </div>
+        <el-radio-group
+          v-model="categoryLayout"
+          size="small"
+          class="home-option-radio-group"
+        >
+          <el-radio-button value="left">左侧</el-radio-button>
+          <el-radio-button value="right">右侧</el-radio-button>
+          <el-radio-button value="top">上方</el-radio-button>
+          <el-radio-button value="bottom">下方</el-radio-button>
+        </el-radio-group>
+      </div>
+
+      <div class="home-option-row flex-column">
+        <div class="home-option-copy">
+          <span class="home-option-label">卡片样式</span>
+          <span class="home-option-description">
+            调整工具卡片的视觉呈现风格
+          </span>
+        </div>
+        <el-radio-group
+          v-model="cardStyle"
+          size="small"
+          class="home-option-radio-group"
+        >
+          <el-radio-button value="classic">经典</el-radio-button>
+          <el-radio-button value="compact">紧凑</el-radio-button>
+          <el-radio-button value="large">精致</el-radio-button>
+          <el-radio-button value="list">列表</el-radio-button>
+        </el-radio-group>
+      </div>
     </div>
   </el-popover>
 </template>
@@ -46,6 +84,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { Settings2 } from "lucide-vue-next";
+import { useAppSettingsStore } from "@/stores/appSettingsStore";
 
 const props = defineProps<{
   modelValue: boolean;
@@ -55,9 +94,22 @@ const emit = defineEmits<{
   "update:modelValue": [visible: boolean];
 }>();
 
+const appSettingsStore = useAppSettingsStore();
+const settings = computed(() => appSettingsStore.settings);
+
 const showQuickAccess = computed({
   get: () => props.modelValue,
   set: (visible: boolean) => emit("update:modelValue", visible),
+});
+
+const categoryLayout = computed({
+  get: () => settings.value.homeCategoryLayout ?? "left",
+  set: (val) => appSettingsStore.update({ homeCategoryLayout: val }),
+});
+
+const cardStyle = computed({
+  get: () => settings.value.homeCardStyle ?? "classic",
+  set: (val) => appSettingsStore.update({ homeCardStyle: val }),
 });
 </script>
 
@@ -127,8 +179,14 @@ const showQuickAccess = computed({
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 0 2px;
+  padding: 12px 0;
   border-top: var(--border-width) solid var(--border-color);
+}
+
+.home-option-row.flex-column {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
 }
 
 .home-option-copy {
@@ -137,6 +195,21 @@ const showQuickAccess = computed({
   gap: 3px;
   min-width: 0;
   text-align: left;
+}
+
+.home-option-radio-group {
+  display: flex;
+  width: 100%;
+}
+
+.home-option-radio-group :deep(.el-radio-button) {
+  flex: 1;
+}
+
+.home-option-radio-group :deep(.el-radio-button__inner) {
+  width: 100%;
+  padding: 8px 0;
+  font-size: 0.75rem;
 }
 
 .home-option-label {

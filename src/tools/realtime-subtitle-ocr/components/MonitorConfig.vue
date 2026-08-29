@@ -22,15 +22,28 @@ import {
   ElOption,
   ElPopover,
   ElButton,
+  ElSwitch,
+  ElCollapse,
+  ElCollapseItem,
 } from "element-plus";
 import { Settings as SettingsIcon } from "lucide-vue-next";
 import { useScreenMonitor } from "../composables/useScreenMonitor";
 import { useOcrProfiles, useOcrExtensions } from "@/tools/smart-ocr/platform";
 import type { OcrEngineConfig } from "@/tools/smart-ocr/types";
-import type { DedupSensitivity } from "../types";
+import type {
+  DedupSensitivity,
+  ImageFilterConfig,
+  ImageFilterPreset,
+} from "../types";
 
-const { config, setIntervalMs, setDedupSensitivity, setEngineConfig } =
-  useScreenMonitor();
+const {
+  config,
+  setIntervalMs,
+  setDedupSensitivity,
+  setEngineConfig,
+  setImageFilterPreset,
+  setImageFilterConfig,
+} = useScreenMonitor();
 
 const { enabledProfiles } = useOcrProfiles();
 const { ocrExtensions, getOcrExtensionById } = useOcrExtensions();
@@ -172,6 +185,21 @@ function onProfileChange(id: string) {
   setEngineConfig({
     ...config.value.engineConfig,
     activeProfileId: id,
+  });
+}
+
+function onImageFilterPresetChange(preset: ImageFilterPreset) {
+  if (preset === "custom") return;
+  setImageFilterPreset(preset);
+}
+
+function updateImageFilter<K extends keyof ImageFilterConfig>(
+  key: K,
+  value: ImageFilterConfig[K]
+) {
+  setImageFilterConfig({
+    ...config.value.imageFilter,
+    [key]: value,
   });
 }
 </script>
@@ -331,6 +359,129 @@ function onProfileChange(id: string) {
         </div>
       </el-popover>
 
+      <!-- OCR 图像滤镜 -->
+      <div class="toolbar-item">
+        <span class="toolbar-label">图像滤镜:</span>
+        <el-select
+          :model-value="config.imageFilter.preset"
+          size="small"
+          style="width: 118px"
+          @update:model-value="
+            onImageFilterPresetChange($event as ImageFilterPreset)
+          "
+        >
+          <el-option label="原图" value="original" />
+          <el-option label="灰度增强" value="grayscale-enhanced" />
+          <el-option label="高对比黑白" value="high-contrast-binary" />
+          <el-option label="反色黑白" value="inverted-binary" />
+          <el-option label="自定义" value="custom" disabled />
+        </el-select>
+        <el-popover
+          placement="bottom-end"
+          title="OCR 图像滤镜"
+          :width="300"
+          trigger="click"
+        >
+          <template #reference>
+            <el-button size="small" circle aria-label="配置 OCR 图像滤镜">
+              <SettingsIcon :size="14" />
+            </el-button>
+          </template>
+          <div class="filter-popover-content">
+            <p class="filter-popover-hint">
+              滤镜后的图像会同时用于预览、时间轴截图和 OCR 识别。
+            </p>
+            <el-collapse>
+              <el-collapse-item title="高级参数" name="advanced-filter">
+                <div class="filter-field filter-field--inline">
+                  <label>灰度</label>
+                  <el-switch
+                    :model-value="config.imageFilter.grayscale"
+                    @update:model-value="
+                      updateImageFilter('grayscale', $event as boolean)
+                    "
+                  />
+                </div>
+                <div class="filter-field">
+                  <label>亮度 {{ config.imageFilter.brightness }}</label>
+                  <el-slider
+                    :model-value="config.imageFilter.brightness"
+                    :min="-100"
+                    :max="100"
+                    @update:model-value="
+                      updateImageFilter('brightness', $event as number)
+                    "
+                  />
+                </div>
+                <div class="filter-field">
+                  <label>对比度 {{ config.imageFilter.contrast }}</label>
+                  <el-slider
+                    :model-value="config.imageFilter.contrast"
+                    :min="-100"
+                    :max="100"
+                    @update:model-value="
+                      updateImageFilter('contrast', $event as number)
+                    "
+                  />
+                </div>
+                <div class="filter-field">
+                  <label>饱和度 {{ config.imageFilter.saturation }}</label>
+                  <el-slider
+                    :model-value="config.imageFilter.saturation"
+                    :min="-100"
+                    :max="100"
+                    @update:model-value="
+                      updateImageFilter('saturation', $event as number)
+                    "
+                  />
+                </div>
+                <div class="filter-field">
+                  <label>色相 {{ config.imageFilter.hue }}°</label>
+                  <el-slider
+                    :model-value="config.imageFilter.hue"
+                    :min="-180"
+                    :max="180"
+                    @update:model-value="
+                      updateImageFilter('hue', $event as number)
+                    "
+                  />
+                </div>
+                <div class="filter-field filter-field--inline">
+                  <label>反色</label>
+                  <el-switch
+                    :model-value="config.imageFilter.invert"
+                    @update:model-value="
+                      updateImageFilter('invert', $event as boolean)
+                    "
+                  />
+                </div>
+                <div class="filter-field filter-field--inline">
+                  <label>二值化</label>
+                  <el-switch
+                    :model-value="config.imageFilter.binarize"
+                    @update:model-value="
+                      updateImageFilter('binarize', $event as boolean)
+                    "
+                  />
+                </div>
+                <div class="filter-field">
+                  <label>二值阈值 {{ config.imageFilter.threshold }}</label>
+                  <el-slider
+                    :model-value="config.imageFilter.threshold"
+                    :min="0"
+                    :max="255"
+                    :disabled="!config.imageFilter.binarize"
+                    @update:model-value="
+                      updateImageFilter('threshold', $event as number)
+                    "
+                  />
+                </div>
+              </el-collapse-item>
+            </el-collapse>
+          </div>
+        </el-popover>
+      </div>
+
       <!-- 采样频率 -->
       <div class="toolbar-item">
         <span class="toolbar-label">采样频率:</span>
@@ -368,6 +519,8 @@ function onProfileChange(id: string) {
 <style scoped>
 .monitor-config {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
   align-items: center;
 }
@@ -414,5 +567,36 @@ function onProfileChange(id: string) {
   font-size: 11px;
   color: var(--el-color-warning);
   line-height: 1.4;
+}
+
+.filter-popover-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filter-popover-hint {
+  margin: 0;
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.filter-field > label {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+}
+
+.filter-field--inline {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
 }
 </style>

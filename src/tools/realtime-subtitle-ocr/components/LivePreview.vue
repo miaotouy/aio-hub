@@ -73,9 +73,15 @@
           <span class="info-value font-mono">{{ lastHash || "N/A" }}</span>
         </div>
         <div class="info-item">
-          <span class="info-label">延迟:</span>
+          <span class="info-label">OCR 延迟:</span>
           <span class="info-value font-mono">{{
             latency ? `${latency}ms` : "N/A"
+          }}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">滤镜:</span>
+          <span class="info-value font-mono">{{
+            filterLatency ? `${filterLatency}ms` : "N/A"
           }}</span>
         </div>
       </div>
@@ -98,6 +104,7 @@ defineProps<{
   lastFrameUrl: string | null;
   lastHash: string;
   latency: number;
+  filterLatency: number;
   isRunning: boolean;
   isMonitorBoxDetached: boolean;
   monitorRect: any;

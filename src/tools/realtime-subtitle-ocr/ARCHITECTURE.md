@@ -14,6 +14,7 @@
 
 - **屏幕选区监控**：用户可在屏幕上自由框选任意区域（如视频播放器的字幕区），进行高频、低开销的定时采样。
 - **像素级图像去重**：在 Rust 后端利用高效的平均哈希算法（aHash）对采样帧进行对比，过滤掉无变化或微弱变化的帧，避免高频大图片通过 IPC 传输，极大节省算力和大模型 API 消耗。
+- **可调图像滤镜**：在截图进入 OCR 前提供原图、灰度增强、高对比黑白和反色黑白预设，以及亮度、对比度、饱和度、色相、反色和二值化高级参数；预览与 OCR 始终使用同一处理图。
 - **多引擎 OCR 识别**：直接复用 `Smart OCR` 的底层平台能力，支持 Windows Native OCR、VLM（多模态大模型）、Tesseract.js、云端 OCR 以及动态插件 OCR 引擎。
 - **流式字幕时间轴**：将识别出的文字与相对时间戳结合，流式追加到时间轴上，支持实时编辑、合并与一键复制。
 - **大字实时编辑**：提供独立的大字编辑面板，支持对当前最新识别的字幕进行快速微调，支持 `Ctrl+Enter` 快捷键提交保存。
@@ -59,7 +60,7 @@
 #### 1. UI 交互层 (UI Layer)
 
 - [`RealtimeSubtitleOcr.vue`](src/tools/realtime-subtitle-ocr/RealtimeSubtitleOcr.vue): 工具主入口，采用**上下分栏布局**。上方为左右分栏（7:3 比例），左侧为 `LivePreview` 实时预览与控制区，右侧为 `ActiveSubtitleEditor` 当前字幕大字编辑框；下方为 `SubtitleTimeline` 字幕时间轴列表。中间提供可拖拽的 Y 轴高度调整条。
-- [`components/MonitorConfig.vue`](src/tools/realtime-subtitle-ocr/components/MonitorConfig.vue): 监控参数配置面板，包含采样频率（500ms - 3000ms）、去重灵敏度（高、中、低）、OCR 引擎选择（Native, Tesseract, VLM, Cloud, Plugin）及引擎额外配置气泡。
+- [`components/MonitorConfig.vue`](src/tools/realtime-subtitle-ocr/components/MonitorConfig.vue): 监控参数配置面板，包含 OCR 图像滤镜预设和高级参数、采样频率（200ms - 3000ms）、去重灵敏度（高、中、低）、OCR 引擎选择（Native, Tesseract, VLM, Cloud, Plugin）及引擎额外配置气泡。
 - [`components/SubtitleTimeline.vue`](src/tools/realtime-subtitle-ocr/components/SubtitleTimeline.vue): 字幕时间轴展示，支持自动滚动、单条字幕的删除、一键复制（纯文本/带时间戳）、发送到 Chat（纯文本/带时间戳）、导出 SRT 和一键清空。
 - [`components/ActiveSubtitleEditor.vue`](src/tools/realtime-subtitle-ocr/components/ActiveSubtitleEditor.vue): 当前字幕大字编辑框，支持双击下方时间轴列表中的字幕，或等待最新识别结果在此处编辑，支持 `Ctrl+Enter` 快捷键提交保存。
 - [`components/LivePreview.vue`](src/tools/realtime-subtitle-ocr/components/LivePreview.vue): 实时预览组件，展示当前截取的最新帧画面，并提供打开/关闭监控框、聚焦监控框、开始/停止监控的控制按钮，以及 aHash 指纹和延迟（ms）的实时显示。
@@ -69,8 +70,8 @@
 
 - [`composables/useScreenMonitor.ts`](src/tools/realtime-subtitle-ocr/composables/useScreenMonitor.ts): 核心业务控制器。负责：
   - 管理定时采样器（`setInterval`）。
-  - 使用 `createConfigManager` 统一管理并防抖持久化监控配置（采样频率、去重灵敏度、引擎配置）。
-  - 调度 Rust 后端进行区域截屏与去重。
+  - 使用 `createConfigManager` 统一管理并防抖持久化监控配置（采样频率、去重灵敏度、图像滤镜、引擎配置）。
+  - 调度 Rust 后端进行区域截屏与去重；仅当原图发生变化时，才在前端应用图像滤镜。
   - 缓存 `scaleFactor`（屏幕缩放因子），避免高频采样时频繁通过 IPC 获取，提升性能。
   - 引入 `activeInstances` 引用计数机制，在 Composable 挂载时启动几何信息监听，销毁时按需注销，防止内存泄漏。
   - 监听 `MonitorBox` 悬浮窗通过窗口同步总线上报的几何信息（`realtime-subtitle-ocr:monitor-box-geometry`）。
@@ -102,7 +103,16 @@
 3. **计算灰度并生成 64 位二进制指纹**：使用 ITU-R BT.601 加权灰度公式 $Gray = (R \times 299 + G \times 587 + B \times 114) / 1000$ 计算灰度值，计算这 64 个像素的灰度平均值。将每个像素的灰度值与平均值进行对比，$\ge$ 平均值记为 `1`，否则记为 `0`。得到一个 64 位的二进制指纹字符串。
 4. **汉明距离对比**：对比当前帧与前端传入的 `lastHash`。若汉明距离小于设定阈值（高灵敏度：2，中灵敏度：4，低灵敏度：8），则判定为“画面无变化”，直接返回 `changed: false`，不进行 PNG 编码，极大节省 CPU 与 IPC 带宽。
 
-### 3.2. 文本合并与断句算法：编辑距离 (Levenshtein Distance)
+### 3.2. 前端 OCR 图像滤镜
+
+Rust 后端始终对**原始截图**计算 aHash。只有返回变化帧后，前端才将图片绘制到复用 Canvas，并按固定顺序执行：**色相/饱和度 → 亮度/对比度 → 灰度 → 反色 → 二值化**。这样既确保滤镜影响实际 OCR 输入，也避免无变化帧产生 Canvas 像素循环、PNG 编码或额外内存分配。
+
+- `原图` 预设完全旁路像素处理，保持原有性能路径。
+- 已启用滤镜时，处理后的 PNG Blob 只编码一次，并派生为预览 Object URL、历史缩略图 Object URL 和 OCR data URL。
+- 预览 URL 与历史字幕 URL 独立管理；刷新预览不会使时间轴缩略图失效。修改滤镜参数会清空 `lastHash`，下一帧会用新参数重新识别。
+- `filterLatency` 单独记录 Canvas 处理与编码耗时；它不包含 OCR 引擎耗时。
+
+### 3.3. 文本合并与断句算法：编辑距离 (Levenshtein Distance)
 
 视频字幕在播放过程中，相邻两帧识别出的文本可能会有重叠或微小差异（如 OCR 噪点）。我们通过编辑距离算法进行智能合并：
 
@@ -143,7 +153,9 @@ sequenceDiagram
         else 画面发生变化
             Rust->>Rust: 进行 PNG 编码
             Rust-->>Composable: 返回 { changed: true, hash, imageBytes }
-            Composable->>Platform: runOcr(imageBytes, activeProfileId)
+            Composable->>Composable: 原图旁路或 Canvas 应用滤镜，生成处理图
+            Note over Composable: 处理图同时供预览、时间轴和 OCR 复用
+            Composable->>Platform: runOcr(processedImage, activeProfileId)
             Platform-->>Composable: 返回识别文本
             Composable->>Composable: 编辑距离对比，追加或合并字幕
             Composable-->>UI: 实时更新字幕时间轴

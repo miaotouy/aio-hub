@@ -24,7 +24,7 @@ export interface SubtitleEntry {
   startMs: number;
   /** 结束时间戳（毫秒，相对于监控开始时刻） */
   endMs: number;
-  /** 截图的 Object URL，用于在表格中预览和人工修 */
+  /** 截图的 Object URL，用于在表格中预览和人工修正 */
   frameUrl?: string;
   /** 识别状态：'pending' | 'processing' | 'done' | 'error' */
   status?: "pending" | "processing" | "done" | "error";
@@ -41,6 +41,92 @@ export interface MonitorRect {
 /** 去重灵敏度档位 */
 export type DedupSensitivity = "high" | "medium" | "low";
 
+/** OCR 图像滤镜预设 */
+export type ImageFilterPreset =
+  | "original"
+  | "grayscale-enhanced"
+  | "high-contrast-binary"
+  | "inverted-binary"
+  | "custom";
+
+/** OCR 输入图像滤镜配置 */
+export interface ImageFilterConfig {
+  preset: ImageFilterPreset;
+  grayscale: boolean;
+  /** -100 ~ 100 */
+  brightness: number;
+  /** -100 ~ 100 */
+  contrast: number;
+  /** -100 ~ 100 */
+  saturation: number;
+  /** -180 ~ 180 */
+  hue: number;
+  invert: boolean;
+  binarize: boolean;
+  /** 0 ~ 255 */
+  threshold: number;
+}
+
+type BuiltInImageFilterPreset = Exclude<ImageFilterPreset, "custom">;
+
+const IMAGE_FILTER_PRESET_VALUES: Record<
+  BuiltInImageFilterPreset,
+  Omit<ImageFilterConfig, "preset">
+> = {
+  original: {
+    grayscale: false,
+    brightness: 0,
+    contrast: 0,
+    saturation: 0,
+    hue: 0,
+    invert: false,
+    binarize: false,
+    threshold: 128,
+  },
+  "grayscale-enhanced": {
+    grayscale: true,
+    brightness: 0,
+    contrast: 20,
+    saturation: 0,
+    hue: 0,
+    invert: false,
+    binarize: false,
+    threshold: 128,
+  },
+  "high-contrast-binary": {
+    grayscale: true,
+    brightness: 0,
+    contrast: 30,
+    saturation: 0,
+    hue: 0,
+    invert: false,
+    binarize: true,
+    threshold: 160,
+  },
+  "inverted-binary": {
+    grayscale: true,
+    brightness: 0,
+    contrast: 30,
+    saturation: 0,
+    hue: 0,
+    invert: true,
+    binarize: true,
+    threshold: 160,
+  },
+};
+
+/** 返回预设的独立配置对象，调用方可安全修改。 */
+export function createImageFilterPreset(
+  preset: BuiltInImageFilterPreset = "original"
+): ImageFilterConfig {
+  return { preset, ...IMAGE_FILTER_PRESET_VALUES[preset] };
+}
+
+/** 默认不改变 OCR 输入图片。 */
+export function createDefaultImageFilterConfig(): ImageFilterConfig {
+  return createImageFilterPreset("original");
+}
+
 /** 监控运行状态 */
 export type MonitorStatus = "idle" | "running" | "stopped";
 
@@ -52,4 +138,6 @@ export interface MonitorConfig {
   dedupSensitivity: DedupSensitivity;
   /** OCR 引擎配置 */
   engineConfig: import("@/tools/smart-ocr/types").OcrEngineConfig;
+  /** 在发送 OCR 前应用到截图的图像滤镜 */
+  imageFilter: ImageFilterConfig;
 }

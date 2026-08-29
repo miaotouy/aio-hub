@@ -57,9 +57,11 @@ const {
   lastHash,
   lastFrameUrl,
   latency,
+  filterLatency,
   start,
   stop,
   removeSubtitle,
+  clearSubtitles,
   updateSubtitleText,
   exportPlainText,
   exportTextWithTime,
@@ -236,7 +238,7 @@ async function clearAll() {
         lockScroll: false,
       }
     );
-    subtitles.value = [];
+    clearSubtitles();
     selectedId.value = null;
     customMessage.success("已清空所有字幕");
   } catch {
@@ -283,6 +285,7 @@ onBeforeUnmount(() => {
             :last-frame-url="lastFrameUrl"
             :last-hash="lastHash"
             :latency="latency"
+            :filter-latency="filterLatency"
             :is-running="isRunning"
             :is-monitor-box-detached="isMonitorBoxDetached"
             :monitor-rect="monitorRect"

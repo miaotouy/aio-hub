@@ -41,9 +41,20 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createConfigManager } from "@/utils/configManager";
 import { getSimilarity, buildSrt, formatSrtTime } from "../utils/algorithms";
-import { createImageBlock } from "../utils/image";
+import {
+  blobToDataUrl,
+  createFilteredImageBlob,
+  createImageBlock,
+  isImageFilterActive,
+} from "../utils/image";
+import {
+  createDefaultImageFilterConfig,
+  createImageFilterPreset,
+} from "../types";
 import type {
   DedupSensitivity,
+  ImageFilterConfig,
+  ImageFilterPreset,
   MonitorConfig,
   MonitorRect,
   MonitorStatus,
@@ -58,11 +69,12 @@ const errorHandler = createModuleErrorHandler(
 const configManager = createConfigManager<MonitorConfig>({
   moduleName: "realtime-subtitle-ocr",
   fileName: "config.json",
-  version: "2.0.0",
+  version: "2.1.0",
   createDefault: () => ({
     intervalMs: 1000,
     dedupSensitivity: "medium",
     engineConfig: { type: "native", name: "native" },
+    imageFilter: createDefaultImageFilterConfig(),
   }),
   mergeConfig: (defaultConfig, loadedConfig) => ({
     ...defaultConfig,
@@ -70,6 +82,10 @@ const configManager = createConfigManager<MonitorConfig>({
     engineConfig: migrateOcrEngineConfig(
       loadedConfig.engineConfig ?? defaultConfig.engineConfig
     ),
+    imageFilter: {
+      ...defaultConfig.imageFilter,
+      ...loadedConfig.imageFilter,
+    },
   }),
 });
 
@@ -107,21 +123,30 @@ const status = ref<MonitorStatus>("idle");
 const monitorRect = ref<MonitorRect | null>(null);
 const lastHash = shallowRef<string>("");
 const lastFrameUrl = ref<string | null>(null);
-const activeUrls = new Set<string>();
+const subtitleFrameUrls = new Set<string>();
 const latency = ref<number>(0);
+const filterLatency = ref<number>(0);
+
+interface OcrQueueItem {
+  entry: SubtitleEntry;
+  /** 与 frameUrl 指向同一 PNG Blob 的 data URL，供 OCR 复用，避免再次编码。 */
+  dataUrl: string;
+}
 
 // 异步 OCR 队列状态
-const ocrQueue = ref<SubtitleEntry[]>([]);
+const ocrQueue = ref<OcrQueueItem[]>([]);
 const isProcessingQueue = ref(false);
 
 // Canvas 缓存，避免高频采样时频繁创建 DOM 元素导致 GC 压力
 let ocrCanvas: HTMLCanvasElement | null = null;
+let filterCanvas: HTMLCanvasElement | null = null;
 
 /** 当前采样配置 */
 const config = ref<MonitorConfig>({
   intervalMs: 1000,
   dedupSensitivity: "medium",
   engineConfig: { type: "native", name: "native" },
+  imageFilter: createDefaultImageFilterConfig(),
 });
 
 // 初始化加载配置
@@ -131,22 +156,28 @@ configManager.load().then((loaded) => {
 
 const isRunning = computed(() => status.value === "running");
 
-function registerUrl(url: string) {
-  activeUrls.add(url);
+function setPreviewUrl(url: string | null) {
+  if (lastFrameUrl.value) {
+    URL.revokeObjectURL(lastFrameUrl.value);
+  }
+  lastFrameUrl.value = url;
 }
 
-function revokeUrl(url: string) {
-  if (activeUrls.has(url)) {
+function registerSubtitleFrameUrl(url: string) {
+  subtitleFrameUrls.add(url);
+}
+
+function revokeSubtitleFrameUrl(url: string) {
+  if (subtitleFrameUrls.delete(url)) {
     URL.revokeObjectURL(url);
-    activeUrls.delete(url);
   }
 }
 
-function revokeAllUrls() {
-  for (const url of activeUrls) {
+function revokeAllSubtitleFrameUrls() {
+  for (const url of subtitleFrameUrls) {
     URL.revokeObjectURL(url);
   }
-  activeUrls.clear();
+  subtitleFrameUrls.clear();
 }
 
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -155,6 +186,7 @@ let abortController: AbortController | null = null;
 let geometryUnlisten: UnlistenFn | null = null;
 let inFlight = false; // 防止采样重叠
 let activeInstances = 0; // 引用计数，管理几何信息监听器
+let imageFilterRevision = 0; // 避免运行中调参被在途采样重新写回去重哈希
 
 export function useScreenMonitor() {
   /** 当前监控框对应的物理坐标截图区域（已向内收缩） */
@@ -235,17 +267,17 @@ export function useScreenMonitor() {
   }
 
   /**
-   * 物理坐标转换、调用 Rust 截屏、处理去重
-   *
-   * @returns 有新画面时返回 HTMLImageElement 及其 Object URL，无变化或停止时返回 null
+   * 物理坐标转换、调用 Rust 截屏、处理去重，并生成预览和 OCR 共用的图片数据。
+   * Rust 仅对原始截图去重；滤镜在变化帧进入前端后才执行。
    */
   async function performCapture(): Promise<{
-    image: HTMLImageElement;
-    url: string;
+    frameUrl: string;
+    dataUrl: string;
     hash: string;
   } | null> {
     const logicalRect = getCaptureRect();
     if (!logicalRect) return null;
+    const captureFilterRevision = imageFilterRevision;
 
     // 如果缓存的缩放因子为 1，尝试更新一次
     if (cachedScaleFactor === 1) {
@@ -256,7 +288,6 @@ export function useScreenMonitor() {
     const y = Math.round(logicalRect.y * cachedScaleFactor);
     const width = Math.round(logicalRect.width * cachedScaleFactor);
     const height = Math.round(logicalRect.height * cachedScaleFactor);
-
     const threshold = DEDUP_THRESHOLD[config.value.dedupSensitivity];
 
     const result = await errorHandler.wrapAsync(
@@ -269,65 +300,79 @@ export function useScreenMonitor() {
           lastHash: lastHash.value || null,
           threshold,
         }),
-      { userMessage: "屏幕截屏失败", showToUser: false } // 静默处理，避免高频弹窗
+      { userMessage: "屏幕截屏失败", showToUser: false }
     );
-    if (!result) return null;
+    if (!result || status.value !== "running") return null;
 
-    // 异步操作后，检查是否在截屏期间停止了监控，防止内存泄漏
-    if (status.value !== "running") {
-      return null;
-    }
-
-    lastHash.value = result.hash;
-
+    lastHash.value =
+      captureFilterRevision === imageFilterRevision ? result.hash : "";
     if (!result.changed || !result.imageBytes) {
-      // 画面无变化：顺延当前字幕结束时间
       const now = Date.now() - monitorStartedAt;
       const last = subtitles.value[subtitles.value.length - 1];
       if (last) last.endMs = now;
       return null;
     }
 
-    const blob = new Blob([new Uint8Array(result.imageBytes)], {
+    const rawBlob = new Blob([new Uint8Array(result.imageBytes)], {
       type: "image/png",
     });
-    const url = URL.createObjectURL(blob);
-    registerUrl(url);
-    const image = new Image();
-    await new Promise<void>((resolve) => {
-      image.onload = () => resolve();
-      image.onerror = () => resolve();
-      image.src = url;
-    });
-    if (!image.naturalWidth || !image.naturalHeight) {
-      revokeUrl(url);
-      return null;
+    let outputBlob = rawBlob;
+
+    if (isImageFilterActive(config.value.imageFilter)) {
+      const rawUrl = URL.createObjectURL(rawBlob);
+      try {
+        const image = new Image();
+        const loaded = await new Promise<boolean>((resolve) => {
+          image.onload = () => resolve(true);
+          image.onerror = () => resolve(false);
+          image.src = rawUrl;
+        });
+        if (!loaded || !image.naturalWidth || !image.naturalHeight) {
+          throw new Error("无法加载屏幕截图");
+        }
+
+        if (!filterCanvas) filterCanvas = document.createElement("canvas");
+        const startTime = performance.now();
+        outputBlob = await createFilteredImageBlob(
+          image,
+          config.value.imageFilter,
+          filterCanvas
+        );
+        filterLatency.value = Math.round(performance.now() - startTime);
+      } finally {
+        URL.revokeObjectURL(rawUrl);
+      }
+    } else {
+      filterLatency.value = 0;
     }
 
-    // 再次检查状态
-    if (status.value !== "running") {
-      revokeUrl(url);
-      return null;
-    }
+    if (status.value !== "running") return null;
 
-    // 释放上一帧 Object URL
-    if (lastFrameUrl.value && lastFrameUrl.value !== url) {
-      revokeUrl(lastFrameUrl.value);
-    }
-    lastFrameUrl.value = url;
+    // Blob 仅编码一次：OCR 复用同一 Blob 的 data URL，预览和时间轴各持有独立 URL。
+    const dataUrl = await blobToDataUrl(outputBlob);
+    if (status.value !== "running") return null;
 
-    return { image, url, hash: result.hash };
+    // 预览和时间轴使用两个独立 URL：更新预览不会使历史字幕缩略图失效。
+    const previewUrl = URL.createObjectURL(outputBlob);
+    const frameUrl = URL.createObjectURL(outputBlob);
+    registerSubtitleFrameUrl(frameUrl);
+    setPreviewUrl(previewUrl);
+
+    return { frameUrl, dataUrl, hash: result.hash };
   }
 
   /**
    * 调度 OCR 引擎并返回文本
    */
-  async function performOcr(image: HTMLImageElement): Promise<string> {
+  async function performOcr(
+    image: HTMLImageElement,
+    dataUrl: string
+  ): Promise<string> {
     const imageId = `img-${Date.now()}`;
     if (!ocrCanvas) {
       ocrCanvas = document.createElement("canvas");
     }
-    const block = createImageBlock(image, imageId, ocrCanvas);
+    const block = createImageBlock(image, imageId, ocrCanvas, dataUrl);
     abortController = new AbortController();
     const { runOcr } = useOcrRunner();
     const startTime = Date.now();
@@ -351,7 +396,8 @@ export function useScreenMonitor() {
 
     try {
       while (ocrQueue.value.length > 0 && status.value === "running") {
-        const entry = ocrQueue.value[0];
+        const job = ocrQueue.value[0];
+        const entry = job.entry;
         if (!entry.frameUrl) {
           ocrQueue.value.shift();
           continue;
@@ -375,7 +421,7 @@ export function useScreenMonitor() {
         }
 
         try {
-          const text = await performOcr(image);
+          const text = await performOcr(image, job.dataUrl);
 
           // 再次检查状态
           if (status.value !== "running") {
@@ -403,8 +449,9 @@ export function useScreenMonitor() {
             if (text.length > lastDone.text.length) {
               lastDone.text = text;
             }
-            // 从总列表中移除当前条目
+            // 从总列表中移除当前条目并释放不再需要的历史缩略图。
             subtitles.value = subtitles.value.filter((s) => s.id !== entry.id);
+            if (entry.frameUrl) revokeSubtitleFrameUrl(entry.frameUrl);
           }
         } catch (err) {
           entry.status = "error";
@@ -441,12 +488,12 @@ export function useScreenMonitor() {
         text: "正在识别...",
         startMs: now,
         endMs: now,
-        frameUrl: captured.url,
+        frameUrl: captured.frameUrl,
         status: "pending",
       };
 
       subtitles.value.push(newEntry);
-      ocrQueue.value.push(newEntry);
+      ocrQueue.value.push({ entry: newEntry, dataUrl: captured.dataUrl });
 
       // 异步触发队列消费，不阻塞截图循环
       processOcrQueue();
@@ -470,9 +517,11 @@ export function useScreenMonitor() {
       });
       return;
     }
+    revokeAllSubtitleFrameUrls();
     subtitles.value = [];
     ocrQueue.value = [];
     isProcessingQueue.value = false;
+    setPreviewUrl(null);
     lastHash.value = "";
     monitorStartedAt = Date.now();
     status.value = "running";
@@ -495,11 +544,7 @@ export function useScreenMonitor() {
     }
     ocrQueue.value = [];
     isProcessingQueue.value = false;
-    if (lastFrameUrl.value) {
-      revokeUrl(lastFrameUrl.value);
-      lastFrameUrl.value = null;
-    }
-    revokeAllUrls();
+    setPreviewUrl(null);
     logger.info("监控停止");
   }
 
@@ -525,9 +570,34 @@ export function useScreenMonitor() {
     configManager.saveDebounced(config.value);
   }
 
-  /** 删除单条字幕 */
+  /** 套用 OCR 图像滤镜预设。 */
+  function setImageFilterPreset(preset: Exclude<ImageFilterPreset, "custom">) {
+    config.value.imageFilter = createImageFilterPreset(preset);
+    imageFilterRevision += 1;
+    lastHash.value = "";
+    configManager.saveDebounced(config.value);
+  }
+
+  /** 更新高级滤镜参数。用户调参后固定标记为自定义。 */
+  function setImageFilterConfig(imageFilter: ImageFilterConfig) {
+    config.value.imageFilter = { ...imageFilter, preset: "custom" };
+    imageFilterRevision += 1;
+    lastHash.value = "";
+    configManager.saveDebounced(config.value);
+  }
+
+  /** 删除单条字幕。正在处理的 OCR 任务允许自然结束，但不会再显示在时间轴。 */
   function removeSubtitle(id: string) {
+    const target = subtitles.value.find((subtitle) => subtitle.id === id);
     subtitles.value = subtitles.value.filter((s) => s.id !== id);
+    if (target?.frameUrl) revokeSubtitleFrameUrl(target.frameUrl);
+  }
+
+  /** 清空字幕并释放当前会话保留的缩略图资源。 */
+  function clearSubtitles() {
+    subtitles.value = [];
+    ocrQueue.value = [];
+    revokeAllSubtitleFrameUrls();
   }
 
   /** 更新单条字幕文本 */
@@ -583,6 +653,8 @@ export function useScreenMonitor() {
     if (activeInstances <= 0) {
       activeInstances = 0;
       stopListeningGeometry();
+      setPreviewUrl(null);
+      revokeAllSubtitleFrameUrls();
     }
   });
 
@@ -598,14 +670,18 @@ export function useScreenMonitor() {
     lastHash,
     lastFrameUrl,
     latency,
+    filterLatency,
     // control
     start,
     stop,
     setEngineConfig,
     setIntervalMs,
     setDedupSensitivity,
+    setImageFilterPreset,
+    setImageFilterConfig,
     // subtitle ops
     removeSubtitle,
+    clearSubtitles,
     updateSubtitleText,
     exportPlainText,
     exportTextWithTime,

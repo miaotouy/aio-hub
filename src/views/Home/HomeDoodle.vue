@@ -1,0 +1,605 @@
+<!--
+  Copyright 2025-2026 miaotouy(Github@miaotouy)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+-->
+
+<template>
+  <div class="home-doodle-container" @click="triggerRandomStyle">
+    <div
+      class="doodle-wrapper"
+      :class="[currentStyle, { 'is-changing': isChanging }]"
+    >
+      <!-- 故障风需要特殊的 DOM 结构 -->
+      <template v-if="currentStyle === 'glitch'">
+        <span class="doodle-text glitch-text" data-text="AIO Hub">AIO Hub</span>
+      </template>
+
+      <!-- 弹跳风需要把字母拆开 -->
+      <template v-else-if="currentStyle === 'bounce'">
+        <span class="doodle-text bounce-text">
+          <span
+            v-for="(char, index) in 'AIO Hub'"
+            :key="index"
+            :style="{ animationDelay: `${index * 0.1}s` }"
+            :class="{ space: char === ' ' }"
+          >
+            {{ char }}
+          </span>
+        </span>
+      </template>
+
+      <template v-else>
+        <span class="doodle-text">{{ doodleText }}</span>
+      </template>
+    </div>
+
+    <div class="doodle-sub" :key="subText">
+      <span>{{ subText }}</span>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted, computed, watch } from "vue";
+import { useAppSettingsStore } from "@/stores/appSettingsStore";
+
+const appSettingsStore = useAppSettingsStore();
+const enableFancyDoodle = computed(() => appSettingsStore.enableFancyDoodle);
+
+const doodleText = "AIO Hub";
+
+// 趣味副标题列表
+const subTexts = [
+  "All In One Hub",
+  "咕咕的秘密基地 🦉",
+  "奇妙的灵感工坊 🎨",
+  "今天也是充满效率的一天！",
+  "探索无限可能 ✨",
+  "让工具触手可及 🛠️",
+  "雪鸮在看着你呢 👁️👁️（没有）",
+  "极简，但不简单 🚀",
+  "输入关键字，开启新世界 🔍",
+  "咕咕：今天也要好好干活哦！",
+  "咕咕：再熬夜羽毛就要掉光了 🦉",
+  "咕咕：今天的外卖我来抢，你专心写 Bug 🍔",
+  "咕咕：翅膀借你当靠垫，但要收费的 💸",
+  "咕咕：听觉太灵敏了，听到你心虚的敲击声 💓",
+  "咕咕：今天也是操心生活起居的一天 🧹",
+  "咕咕：不许摸我的呆毛，会变笨的！",
+  "咕咕：褪黑素分泌曲线已经见底了，快去睡觉 💤",
+  "咕咕：今天也是元气满满的一天 ✨",
+  "咕咕：猛禽的直觉告诉我，这段代码有 Bug 🐛",
+  "咕咕：买衣服的时候请考虑一下翅膀的感受 👗",
+  "咕咕：冰箱里的布丁，我只是帮你做了一下质检 🍮",
+  "Ctrl + Enter 发送！禁止单回车！(怨念加深中... 💢)",
+  "运行成功了！别动，千万别动！",
+  "在我的电脑上是好的 🤷‍♀️",
+  "It's not a bug, it's an undocumented feature.",
+  "PHP 是世界上最好的语言（咕咕：我用 Bun）",
+  "Ctrl + C / Ctrl + V：高级软件工程核心技术",
+  "1024：程序员的浪漫",
+  "npm install -g coffee-to-code",
+  "正在尝试通过重启解决 99% 的问题...",
+  "删库跑路指南.pdf (未下载)",
+  "Bug 数量：0 (编译未通过)",
+  "前端：这不归我管。后端：这不归我管。用户：？？？",
+  "只要代码跑得够快，报错就追不上我 🏃‍♀️",
+  "正在向 LLM 祈祷中... 🙏",
+  "启动！原来你也玩 AIO Hub 🎮",
+  "泰裤辣！",
+  "尊嘟假嘟 🥺",
+  "你说的对，但是《AIO Hub》是由...",
+  "让世界充满咕咕 🦉",
+  "今天的风儿有些喧嚣...",
+  "隐藏着黑暗力量的钥匙啊，在我面前显示你真正的力量！",
+  "不要回答！不要回答！不要回答！",
+  "疯狂星期四，V 我 50 🍗",
+  "我常因不够变态而与你们格格不入",
+  "年轻人不讲武德",
+  "大吉大利，今晚吃鸡 🍗",
+  "你也是雪鸮吗？",
+  "咕咕：今天的风儿甚是喧嚣，适合点外卖 🍕",
+  "咕咕：你再不起来，我就要把你的键盘当磨爪板了 🐾",
+  "咕咕：今天也是高冷（慵懒）的一天 ❄️",
+  "咕咕：我的羽毛很贵，摸一次一包小鱼干 🐟",
+  "咕咕：正在用 2.0 的视力寻找代码里的分号 🔍",
+  "咕咕：你敲键盘的频率暴露了你正在摸鱼 🤫",
+  "咕咕：今天也是被当成抱枕的一天 🛌",
+  "咕咕：这个需求猛禽也搞不定，要不我们去吃夜宵吧 🍜",
+  "咕咕：你的咖啡凉了，需要我用翅膀帮你扇扇风吗 ☕",
+  "咕咕：你再不睡觉，明天黑眼圈就要呈现指数级增长了 📈",
+  "咕咕：我的翅膀很大，但装不下你所有的 Bug 🐛",
+  "咕咕：今天也是被投喂的一天，多谢款待 🍖",
+  "咕咕：你是不是又把密码忘在脑后了 🧠",
+  "咕咕：我的直觉告诉我，你现在很想吃炸鸡 🍗",
+  "咕咕：今天也是完美的一天，除了你还没起床 ☀️",
+  "咕咕：我的羽毛是恒温的，但你的代码是冰冷的 ❄️",
+  "咕咕：你再不理我，我就要去踩你的电源键了 🔌",
+  "咕咕：今天也是操心伙食分配的一天 🍱",
+  "咕咕：我的翅膀虽然不能飞，但可以帮你挡住刺眼的阳光 ☀️",
+  "咕咕：今天也是被当成大号毛绒玩具的一天 🧸",
+  "咕咕：你的代码写得很漂亮，如果能跑通就更好了 🌸",
+  "咕咕：今天也是被摸头杀的一天，羽毛都乱了 💆‍♀️",
+  "咕咕：我的直觉告诉我，你现在需要一杯奶茶 🥤",
+  "咕咕：今天也是被抱在怀里的一天，有点热 🥵",
+  "咕咕：你的代码里有股猫罐头的味道 🐱",
+  "咕咕：今天也是被当成树洞的一天，我会保密的 🤫",
+  "咕咕：你的心跳频率告诉我，你刚才又写了个 Bug 💓",
+  "咕咕：今天也是被当成暖手宝的一天 🔥",
+  "咕咕：你的代码写得像诗，可惜是现代诗，没人看得懂 📜",
+  "咕咕：今天也是被当成背景板的一天 🖼️",
+  "咕咕：你的代码里有股熬夜的仙气 🧚‍♀️",
+  "咕咕：今天也是被当成吉祥物的一天 🍀",
+  "咕咕：你的代码写得像艺术品，只能看不能碰 🎨",
+  "咕咕：今天也是被当成小助手的一天，虽然我只想睡觉 💤",
+  "咕咕：你的代码里有股自由的气息，完全不受语法约束 🍃",
+  "咕咕：今天也是被当成大号抱枕的一天，我的翅膀都麻了 🛌",
+  "咕咕：你的代码写得像迷宫，连猛禽的视力都会迷失 🌀",
+  "咕咕：今天也是被当成倾听者的一天，虽然我只听懂了‘吃什么’ 🍕",
+  "咕咕：你的代码里有股神秘的力量，连编译器都害怕 🔮",
+  "咕咕：今天也是被当成守护神的一天，虽然我只想吃小鱼干 🐟",
+  "咕咕：你的代码写得像天书，需要雪鸮翻译官吗 📖",
+  "咕咕：今天也是被当成大号毛球的一天，我的羽毛要蓬起来了 🦚",
+  "咕咕：你的代码里有股咸鱼的味道，是不是想放假了 🐟",
+  "咕咕：你的代码写得像魔法，一运行就发生奇迹 ✨",
+  "咕咕：今天也是被当成大号暖炉的一天，冬天真好 ❄️",
+  "咕咕：你的代码里有股咖啡因的香气 ☕",
+  "咕咕：今天也是被当成大号靠垫的一天，我的背要酸了 🧘‍♀️",
+  "咕咕：你的代码写得像艺术，就是有点费头发 💇‍♀️",
+  "咕咕：你的代码里有股咕咕的味道，是不是偷偷抱我了 🦉",
+  "咕咕：今天也是被当成大号抱枕的一天，晚安 🌙",
+];
+
+const subText = ref(subTexts[0]);
+
+// 样式列表
+const styles = [
+  "neon", // 霓虹灯
+  "pixel", // 像素风
+  "gradient", // 流光渐变
+  "glitch", // 故障风
+  "glass", // 毛玻璃
+  "retro", // 复古3D
+  "cyberpunk", // 赛博朋克
+  "sketch", // 手绘风
+  "bounce", // 弹跳风
+  "fire", // 火焰风
+];
+
+const currentStyle = ref("gradient");
+const isChanging = ref(false);
+
+// 随机切换样式和副标题
+function triggerRandomStyle() {
+  if (isChanging.value) return;
+  isChanging.value = true;
+
+  // 播放切换动画
+  setTimeout(() => {
+    if (enableFancyDoodle.value) {
+      // 确保不连续出现相同的样式
+      let nextStyle = currentStyle.value;
+      while (nextStyle === currentStyle.value || nextStyle === "classic") {
+        nextStyle = styles[Math.floor(Math.random() * styles.length)];
+      }
+      currentStyle.value = nextStyle;
+    } else {
+      currentStyle.value = "classic";
+    }
+
+    // 随机切换副标题
+    let nextSub = subText.value;
+    while (nextSub === subText.value) {
+      nextSub = subTexts[Math.floor(Math.random() * subTexts.length)];
+    }
+    subText.value = nextSub;
+
+    isChanging.value = false;
+  }, 300);
+}
+
+// 监听 enableFancyDoodle 变化，实时切换样式
+watch(enableFancyDoodle, (fancy) => {
+  if (!fancy) {
+    currentStyle.value = "classic";
+  } else if (currentStyle.value === "classic") {
+    currentStyle.value = styles[Math.floor(Math.random() * styles.length)];
+  }
+});
+
+onMounted(() => {
+  // 初始随机一个样式
+  if (enableFancyDoodle.value) {
+    currentStyle.value = styles[Math.floor(Math.random() * styles.length)];
+  } else {
+    currentStyle.value = "classic";
+  }
+  subText.value = subTexts[Math.floor(Math.random() * subTexts.length)];
+});
+</script>
+
+<style scoped>
+.home-doodle-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 0 10px;
+  cursor: pointer;
+  user-select: none;
+  min-height: 110px;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  transition: transform 0.2s ease;
+}
+
+.home-doodle-container:hover {
+  transform: scale(1.02);
+}
+
+.doodle-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
+}
+
+.doodle-wrapper.is-changing {
+  opacity: 0;
+  transform: scale(0.9) rotate(-3deg);
+}
+
+.doodle-text {
+  font-size: 3.2rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+  line-height: 1.2;
+  transition: all 0.3s ease;
+}
+
+/* ==================== 0. 经典默认样式 ==================== */
+.classic .doodle-text {
+  color: var(--text-color);
+  text-shadow: none;
+  background: none;
+  -webkit-text-fill-color: initial;
+  animation: none;
+  border: none;
+  padding: 0;
+  transform: none;
+  box-shadow: none;
+}
+
+/* 副标题样式 */
+.doodle-sub {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: var(--text-color-light);
+  opacity: 0.8;
+  letter-spacing: 1px;
+  animation: fadeIn 0.5s ease;
+  height: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 0.8;
+    transform: translateY(0);
+  }
+}
+
+/* ==================== 1. 霓虹灯样式 ==================== */
+.neon .doodle-text {
+  color: #fff;
+  text-shadow:
+    0 0 5px rgba(var(--primary-color-rgb), 0.5),
+    0 0 10px rgba(var(--primary-color-rgb), 0.5),
+    0 0 20px rgba(var(--primary-color-rgb), 0.5),
+    0 0 40px var(--primary-color),
+    0 0 80px var(--primary-color);
+  animation: neon-flicker 2s infinite alternate;
+}
+
+@keyframes neon-flicker {
+  0%,
+  19%,
+  21%,
+  23%,
+  25%,
+  54%,
+  56%,
+  100% {
+    text-shadow:
+      0 0 5px rgba(var(--primary-color-rgb), 0.6),
+      0 0 10px rgba(var(--primary-color-rgb), 0.6),
+      0 0 20px rgba(var(--primary-color-rgb), 0.6),
+      0 0 40px var(--primary-color),
+      0 0 80px var(--primary-color);
+  }
+  20%,
+  24%,
+  55% {
+    text-shadow: none;
+    color: rgba(255, 255, 255, 0.3);
+  }
+}
+
+/* ==================== 2. 像素风样式 ==================== */
+.pixel .doodle-text {
+  font-family: "Courier New", Courier, monospace;
+  color: #4caf50;
+  text-shadow:
+    3px 3px 0px #1b5e20,
+    6px 6px 0px rgba(0, 0, 0, 0.2);
+  letter-spacing: 4px;
+  font-weight: 900;
+}
+
+/* ==================== 3. 流光渐变样式 ==================== */
+.gradient .doodle-text {
+  background: linear-gradient(120deg, #ff4081, #00e5ff, #7c4dff, #ff4081);
+  background-size: 300% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradient-flow 4s linear infinite;
+}
+
+@keyframes gradient-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 300% 50%;
+  }
+}
+
+/* ==================== 4. 故障风样式 ==================== */
+.glitch {
+  position: relative;
+}
+
+.glitch-text {
+  position: relative;
+  color: var(--text-color);
+}
+
+.glitch-text::before,
+.glitch-text::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+
+.glitch-text::before {
+  left: 2px;
+  text-shadow: -2px 0 #ff00c1;
+  clip: rect(44px, 450px, 56px, 0);
+  animation: glitch-anim 5s infinite linear alternate-reverse;
+}
+
+.glitch-text::after {
+  left: -2px;
+  text-shadow:
+    -2px 0 #00fff9,
+    0 2px #00fff9;
+  clip: rect(85px, 450px, 140px, 0);
+  animation: glitch-anim2 5s infinite linear alternate-reverse;
+}
+
+@keyframes glitch-anim {
+  0% {
+    clip: rect(31px, 9999px, 94px, 0);
+  }
+  10% {
+    clip: rect(112px, 9999px, 76px, 0);
+  }
+  20% {
+    clip: rect(85px, 9999px, 5px, 0);
+  }
+  30% {
+    clip: rect(27px, 9999px, 115px, 0);
+  }
+  40% {
+    clip: rect(73px, 9999px, 29px, 0);
+  }
+  50% {
+    clip: rect(118px, 9999px, 142px, 0);
+  }
+  60% {
+    clip: rect(9px, 9999px, 53px, 0);
+  }
+  70% {
+    clip: rect(67px, 9999px, 122px, 0);
+  }
+  80% {
+    clip: rect(36px, 9999px, 83px, 0);
+  }
+  90% {
+    clip: rect(141px, 9999px, 8px, 0);
+  }
+  100% {
+    clip: rect(55px, 9999px, 130px, 0);
+  }
+}
+
+@keyframes glitch-anim2 {
+  0% {
+    clip: rect(76px, 9999px, 116px, 0);
+  }
+  11% {
+    clip: rect(43px, 9999px, 98px, 0);
+  }
+  22% {
+    clip: rect(122px, 9999px, 14px, 0);
+  }
+  33% {
+    clip: rect(5px, 9999px, 85px, 0);
+  }
+  44% {
+    clip: rect(139px, 9999px, 44px, 0);
+  }
+  55% {
+    clip: rect(29px, 9999px, 118px, 0);
+  }
+  66% {
+    clip: rect(83px, 9999px, 55px, 0);
+  }
+  77% {
+    clip: rect(12px, 9999px, 132px, 0);
+  }
+  88% {
+    clip: rect(95px, 9999px, 3px, 0);
+  }
+  100% {
+    clip: rect(61px, 9999px, 76px, 0);
+  }
+}
+
+/* ==================== 5. 毛玻璃样式 ==================== */
+.glass .doodle-text {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 4px 24px;
+  border-radius: 16px;
+  box-shadow:
+    0 8px 32px 0 rgba(0, 0, 0, 0.1),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.dark .glass .doodle-text {
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(0, 0, 0, 0.2);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* ==================== 6. 复古3D样式 ==================== */
+.retro .doodle-text {
+  color: #f5f5f5;
+  text-shadow:
+    1px 1px 0px #ccc,
+    2px 2px 0px #c5c5c5,
+    3px 3px 0px #bbb,
+    4px 4px 0px #b5b5b5,
+    5px 5px 0px #aaa,
+    6px 6px 1px rgba(0, 0, 0, 0.1),
+    0 0 5px rgba(0, 0, 0, 0.1),
+    1px 3px 3px rgba(0, 0, 0, 0.2),
+    3px 5px 5px rgba(0, 0, 0, 0.2),
+    5px 10px 10px rgba(0, 0, 0, 0.2),
+    10px 15px 15px rgba(0, 0, 0, 0.2);
+}
+
+.dark .retro .doodle-text {
+  color: #2c2c2c;
+  text-shadow:
+    1px 1px 0px #444,
+    2px 2px 0px #3d3d3d,
+    3px 3px 0px #333,
+    4px 4px 0px #2c2c2c,
+    5px 5px 0px #222,
+    6px 6px 1px rgba(0, 0, 0, 0.5),
+    0 0 5px rgba(0, 0, 0, 0.3),
+    1px 3px 3px rgba(0, 0, 0, 0.4),
+    3px 5px 5px rgba(0, 0, 0, 0.4),
+    5px 10px 10px rgba(0, 0, 0, 0.4);
+}
+
+/* ==================== 7. 赛博朋克样式 ==================== */
+.cyberpunk .doodle-text {
+  color: #000;
+  background: #fcee0a;
+  padding: 2px 16px;
+  font-family: "Impact", "Arial Black", sans-serif;
+  transform: skew(-10deg);
+  border-right: 6px solid #00f0ff;
+  border-left: 6px solid #ff003c;
+  box-shadow: 4px 4px 0px #00f0ff;
+}
+
+/* ==================== 8. 手绘风样式 ==================== */
+.sketch .doodle-text {
+  font-family: "Comic Sans MS", cursive, sans-serif;
+  color: var(--text-color);
+  border: 3px dashed var(--text-color);
+  padding: 4px 20px;
+  border-radius: 255px 15px 225px 15px/15px 225px 15px 255px;
+  transform: rotate(-1.5deg);
+}
+
+/* ==================== 9. 弹跳风样式 ==================== */
+.bounce-text {
+  display: inline-flex;
+}
+
+.bounce-text span {
+  display: inline-block;
+  animation: letter-bounce 1.2s infinite ease-in-out;
+  color: var(--primary-color);
+}
+
+.bounce-text span.space {
+  width: 0.5rem;
+}
+
+@keyframes letter-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-15px);
+    color: #ff4081;
+  }
+}
+
+/* ==================== 10. 火焰风样式 ==================== */
+.fire .doodle-text {
+  color: #fff;
+  text-shadow:
+    0px -2px 4px #fff,
+    0px -4px 10px #ff0,
+    2px -10px 16px #ff5b00,
+    -2px -15px 20px #f00;
+  animation: fire-wave 1.5s infinite alternate;
+}
+
+@keyframes fire-wave {
+  0% {
+    text-shadow:
+      0px -2px 4px #fff,
+      0px -4px 10px #ff0,
+      2px -8px 14px #ff5b00,
+      -2px -12px 18px #f00;
+  }
+  100% {
+    text-shadow:
+      0px -2px 4px #fff,
+      0px -6px 12px #ff0,
+      -2px -12px 18px #ff5b00,
+      2px -18px 24px #f00;
+  }
+}
+</style>

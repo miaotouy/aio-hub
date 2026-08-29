@@ -40,6 +40,26 @@
         <el-switch v-model="showQuickAccess" aria-label="显示快捷栏" />
       </div>
 
+      <div class="home-option-row">
+        <div class="home-option-copy">
+          <span class="home-option-label">显示趣味标志 (Doodle)</span>
+          <span class="home-option-description">
+            在首页上方显示应用名和趣味副标题
+          </span>
+        </div>
+        <el-switch v-model="showHomeDoodle" aria-label="显示趣味标志" />
+      </div>
+
+      <div class="home-option-row" v-if="showHomeDoodle">
+        <div class="home-option-copy sub-option">
+          <span class="home-option-label">启用花哨标题样式</span>
+          <span class="home-option-description">
+            开启后标题会随机呈现各种花哨的艺术字效果
+          </span>
+        </div>
+        <el-switch v-model="enableFancyDoodle" aria-label="启用花哨标题样式" />
+      </div>
+
       <div class="home-option-row flex-column">
         <div class="home-option-copy">
           <span class="home-option-label">分类栏位置</span>
@@ -100,6 +120,18 @@ const settings = computed(() => appSettingsStore.settings);
 const showQuickAccess = computed({
   get: () => props.modelValue,
   set: (visible: boolean) => emit("update:modelValue", visible),
+});
+
+const showHomeDoodle = computed({
+  get: () => settings.value.showHomeDoodle ?? true,
+  set: (visible: boolean) =>
+    appSettingsStore.update({ showHomeDoodle: visible }),
+});
+
+const enableFancyDoodle = computed({
+  get: () => settings.value.enableFancyDoodle ?? true,
+  set: (visible: boolean) =>
+    appSettingsStore.update({ enableFancyDoodle: visible }),
 });
 
 const categoryLayout = computed({
@@ -195,6 +227,11 @@ const cardStyle = computed({
   gap: 3px;
   min-width: 0;
   text-align: left;
+}
+
+.home-option-copy.sub-option {
+  padding-left: 12px;
+  border-left: 2px solid var(--border-color);
 }
 
 .home-option-radio-group {

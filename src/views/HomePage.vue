@@ -18,7 +18,7 @@
   <div class="home-page">
     <HomeOptions v-model="showQuickAccess" />
 
-    <div class="header-section">
+    <div class="header-section" :class="{ 'has-doodle': showHomeDoodle }">
       <HomeQuickAccess
         v-if="showQuickAccess"
         v-model:quick-access-tools="quickAccessDragTools"
@@ -36,6 +36,9 @@
         @unpin="handleUnpinTool"
         @restore="handleRestoreDefaultPinnedTools"
       />
+
+      <HomeDoodle v-if="showHomeDoodle" />
+
       <HomeToolSearch v-model="searchText" />
     </div>
 
@@ -104,6 +107,7 @@ import HomeOptions from "./Home/HomeOptions.vue";
 import HomeQuickAccess from "./Home/HomeQuickAccess.vue";
 import HomeToolCatalog from "./Home/HomeToolCatalog.vue";
 import HomeToolSearch from "./Home/HomeToolSearch.vue";
+import HomeDoodle from "./Home/HomeDoodle.vue";
 
 const router = useRouter();
 const toolsStore = useToolsStore();
@@ -129,6 +133,7 @@ const showQuickAccess = computed({
     appSettingsStore.update({ showQuickAccess: visible });
   },
 });
+const showHomeDoodle = computed(() => settings.value.showHomeDoodle !== false);
 const visibleTools = computed(() => {
   if (!settings.value.toolsVisible) return toolsStore.orderedTools;
 
@@ -369,6 +374,12 @@ onMounted(async () => {
   padding: 20px 20px 15px;
   box-sizing: border-box;
   width: 100%;
+  transition: padding 0.3s ease;
+}
+
+.header-section.has-doodle {
+  padding-top: 45px;
+  padding-bottom: 25px;
 }
 
 .content-section {

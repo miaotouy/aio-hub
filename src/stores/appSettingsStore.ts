@@ -106,7 +106,13 @@ export const useAppSettingsStore = defineStore("appSettings", () => {
   const homeCardStyle = computed(
     () => settings.value.homeCardStyle ?? "classic"
   );
+  /** 是否显示首页 Doodle 容器 */
+  const showHomeDoodle = computed(() => settings.value.showHomeDoodle ?? true);
 
+  /** 是否启用花哨样式的 Doodle 标题 */
+  const enableFancyDoodle = computed(
+    () => settings.value.enableFancyDoodle ?? true
+  );
   /** 生效的主题色（如果开启了自动提取且有提取值，则使用提取值，否则使用设置的主题色） */
   const effectiveThemeColor = computed(() => {
     const app = appearance.value;
@@ -133,6 +139,8 @@ export const useAppSettingsStore = defineStore("appSettings", () => {
     sidebarMode,
     homeCategoryLayout,
     homeCardStyle,
+    showHomeDoodle,
+    enableFancyDoodle,
     effectiveThemeColor,
   };
 });

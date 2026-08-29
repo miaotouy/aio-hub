@@ -153,6 +153,8 @@ export interface AppSettings {
   minimizeToTray?: boolean; // 关闭时是否最小化到托盘（实时生效）
   autoAdjustWindowPosition?: boolean; // 新增：是否自动调整窗口位置
   showQuickAccess?: boolean; // 是否显示首页快捷栏区域
+  showHomeDoodle?: boolean; // 是否显示首页 Doodle 容器
+  enableFancyDoodle?: boolean; // 是否启用花哨样式的 Doodle 标题
   disableTauriDragDropHandler?: boolean; // true 表示使用 H5 原生拖放兼容模式；false 表示路径优先模式
   homeCategoryLayout?: HomeCategoryLayout; // 首页分类栏布局位置
   homeCardStyle?: HomeCardStyle; // 首页工具卡片呈现风格
@@ -352,6 +354,8 @@ export const defaultAppSettings: AppSettings = {
   minimizeToTray: true, // 默认最小化到托盘
   autoAdjustWindowPosition: true, // 默认开启
   showQuickAccess: true, // 默认显示首页快捷栏
+  showHomeDoodle: true, // 默认显示首页 Doodle 容器
+  enableFancyDoodle: true, // 默认启用花哨样式的 Doodle 标题
   disableTauriDragDropHandler: false, // 默认使用 Tauri 路径优先拖放
   homeCategoryLayout: "left", // 默认分类栏在左侧
   homeCardStyle: "classic", // 默认卡片为经典样式

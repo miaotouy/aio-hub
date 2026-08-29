@@ -1202,7 +1202,7 @@ onMounted(async () => {
   width: 140px;
   flex-shrink: 0;
   position: sticky;
-  top: 0;
+  top: 4px; /* 与 .portal-layout 的 padding-top 保持一致，防止滚动初期产生 4px 的跟滚抖动 */
   display: flex;
   flex-direction: column;
   gap: 6px;

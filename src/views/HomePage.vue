@@ -1221,7 +1221,7 @@ onMounted(async () => {
   padding: 10px 12px;
   background: transparent;
   border: none;
-  border-radius: 6px;
+  border-radius: 10px;
   color: var(--text-color);
   cursor: pointer;
   font-size: 0.9rem;
@@ -1238,9 +1238,7 @@ onMounted(async () => {
   background: color-mix(in srgb, var(--primary-color) 15%, transparent);
   color: var(--primary-color);
   font-weight: bold;
-  border-left: 3px solid var(--primary-color);
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
+  box-shadow: 0 4px 12px rgba(var(--primary-color-rgb), 0.1);
   backdrop-filter: blur(var(--ui-blur));
 }
 

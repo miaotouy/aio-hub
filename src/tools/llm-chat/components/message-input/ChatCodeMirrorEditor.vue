@@ -15,7 +15,14 @@
 -->
 
 <script setup lang="ts">
-import { ref, watch, onMounted, shallowRef, nextTick } from "vue";
+import {
+  ref,
+  watch,
+  onMounted,
+  onBeforeUnmount,
+  shallowRef,
+  nextTick,
+} from "vue";
 import {
   EditorView,
   keymap,
@@ -80,6 +87,7 @@ const emit = defineEmits<{
 
 const editorContainer = ref<HTMLElement>();
 const view = shallowRef<EditorView>();
+let isDestroyed = false;
 const inputManager = useChatInputManager();
 
 // 标记是否正在执行从外部 props 到内部 doc 的同步
@@ -275,6 +283,7 @@ const syncDocFromProps = (newVal: string) => {
 };
 
 onMounted(() => {
+  isDestroyed = false;
   if (!editorContainer.value) return;
 
   // 确保宏引擎已初始化
@@ -408,11 +417,17 @@ onMounted(() => {
   });
 });
 
+onBeforeUnmount(() => {
+  isDestroyed = true;
+  view.value?.destroy();
+  view.value = undefined;
+});
+
 // 监听外部值变化
 watch(
   () => props.value,
   (newVal) => {
-    if (!view.value) return;
+    if (!view.value || isDestroyed) return;
     // 如果这个值就是我们自己 emit 出去的，不必回写
     if (newVal === lastEmittedValue) return;
 
@@ -433,7 +448,7 @@ watch(
 watch(
   () => props.disabled,
   (disabled) => {
-    if (view.value) {
+    if (view.value && !isDestroyed) {
       view.value.dispatch({
         effects: editableConf.reconfigure(EditorView.editable.of(!disabled)),
       });
@@ -443,7 +458,7 @@ watch(
 
 // 监听主题变化
 watch(isDark, (dark) => {
-  if (view.value) {
+  if (view.value && !isDestroyed) {
     view.value.dispatch({
       effects: themeConf.reconfigure(dark ? vscodeDark : vscodeLight),
     });
@@ -454,7 +469,7 @@ watch(isDark, (dark) => {
 watch(
   () => props.placeholder,
   (placeholder) => {
-    if (view.value) {
+    if (view.value && !isDestroyed) {
       view.value.dispatch({
         effects: placeholderConf.reconfigure(cmPlaceholder(placeholder || "")),
       });

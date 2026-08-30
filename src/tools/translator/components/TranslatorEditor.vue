@@ -15,7 +15,14 @@
 -->
 
 <script setup lang="ts">
-import { ref, watch, onMounted, shallowRef, nextTick } from "vue";
+import {
+  ref,
+  watch,
+  onMounted,
+  onBeforeUnmount,
+  shallowRef,
+  nextTick,
+} from "vue";
 import {
   EditorView,
   keymap,
@@ -59,6 +66,7 @@ const emit = defineEmits<{
 
 const editorContainer = ref<HTMLElement>();
 const view = shallowRef<EditorView>();
+let isDestroyed = false;
 
 // 防止外部 props 同步触发的 docChanged 回流，导致用户正在打字的内容被回写
 let isSyncingFromProps = false;
@@ -142,6 +150,7 @@ const baseTheme = EditorView.theme({
 });
 
 onMounted(() => {
+  isDestroyed = false;
   if (!editorContainer.value) return;
 
   const extensions = [
@@ -229,11 +238,17 @@ onMounted(() => {
   }
 });
 
+onBeforeUnmount(() => {
+  isDestroyed = true;
+  view.value?.destroy();
+  view.value = undefined;
+});
+
 // 外部 value 变化 → 同步到编辑器
 watch(
   () => props.value,
   (newVal) => {
-    if (!view.value) return;
+    if (!view.value || isDestroyed) return;
     if (isComposing || newVal === lastEmittedValue) return;
     const currentDoc = view.value.state.doc.toString();
     if (newVal === currentDoc) return;
@@ -255,14 +270,16 @@ watch(
 watch(
   () => props.disabled,
   (disabled) => {
-    view.value?.dispatch({
+    if (!view.value || isDestroyed) return;
+    view.value.dispatch({
       effects: editableConf.reconfigure(EditorView.editable.of(!disabled)),
     });
   }
 );
 
 watch(isDark, (dark) => {
-  view.value?.dispatch({
+  if (!view.value || isDestroyed) return;
+  view.value.dispatch({
     effects: themeConf.reconfigure(dark ? vscodeDark : vscodeLight),
   });
 });
@@ -270,7 +287,8 @@ watch(isDark, (dark) => {
 watch(
   () => props.placeholder,
   (placeholder) => {
-    view.value?.dispatch({
+    if (!view.value || isDestroyed) return;
+    view.value.dispatch({
       effects: placeholderConf.reconfigure(cmPlaceholder(placeholder || "")),
     });
   }

@@ -54,7 +54,7 @@
 import {
   ref,
   onMounted,
-  onUnmounted,
+  onBeforeUnmount,
   watch,
   shallowRef,
   computed,
@@ -151,6 +151,7 @@ const emit = defineEmits<{
 
 const editorContainerRef = ref<HTMLDivElement | null>(null);
 const editorView = shallowRef<EditorView | null>(null);
+let isDestroyed = false;
 const editableCompartment = new Compartment();
 
 let isComposing = false;
@@ -291,7 +292,7 @@ const monacoTheme = computed(() => (isDark.value ? "vs-dark" : "vs"));
 
 // CodeMirror 初始化和销毁
 const initCodeMirror = async () => {
-  if (!editorContainerRef.value) return;
+  if (isDestroyed || !editorContainerRef.value) return;
 
   // 如果已有实例，先销毁
   destroyCodeMirror();
@@ -503,7 +504,7 @@ const initCodeMirror = async () => {
   // 初始化语言
   if (props.language) {
     const languageExt = await getCodeMirrorLanguage(props.language);
-    if (languageExt) {
+    if (!isDestroyed && editorView.value === view && languageExt) {
       view.dispatch({
         effects: languageCompartment.reconfigure(languageExt),
       });
@@ -530,12 +531,14 @@ watch(monacoValue, (newVal) => {
 });
 
 onMounted(async () => {
+  isDestroyed = false;
   if (!props.diff && props.editorType === "codemirror") {
     await initCodeMirror();
   }
 });
 
-onUnmounted(() => {
+onBeforeUnmount(() => {
+  isDestroyed = true;
   destroyCodeMirror();
   // Monaco 编辑器由组件库自动处理销毁
 });
@@ -625,12 +628,20 @@ watch(cmTheme, (newTheme) => {
 watch(
   () => props.language,
   async (newLang) => {
-    if (!props.diff && props.editorType === "codemirror" && editorView.value) {
-      const languageExt = await getCodeMirrorLanguage(newLang);
-      editorView.value.dispatch({
-        effects: languageCompartment.reconfigure(languageExt || []),
-      });
+    const currentView = editorView.value;
+    if (
+      isDestroyed ||
+      props.diff ||
+      props.editorType !== "codemirror" ||
+      !currentView
+    ) {
+      return;
     }
+    const languageExt = await getCodeMirrorLanguage(newLang);
+    if (isDestroyed || editorView.value !== currentView) return;
+    currentView.dispatch({
+      effects: languageCompartment.reconfigure(languageExt || []),
+    });
   }
 );
 

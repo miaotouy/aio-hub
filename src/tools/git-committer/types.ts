@@ -24,6 +24,8 @@ export interface RepositoryConfig {
   name: string;
   /** 别名（用户自定义） */
   alias?: string;
+  /** 仓库专属 AI System Prompt；未设置或为空时继承全局提示词 */
+  systemPrompt?: string;
 }
 
 /** 单个仓库的会话记忆 */

@@ -28,6 +28,7 @@ import type {
   RepoSession,
   RepoStatus,
 } from "../types";
+import { resolveSystemPrompt } from "../utils";
 
 const logger = createModuleLogger("git-committer/state");
 
@@ -37,6 +38,7 @@ export const DEFAULT_SYSTEM_PROMPT =
 const configManager = createConfigManager<GitCommitterConfig>({
   moduleName: "git-committer",
   fileName: "config.json",
+  version: "1.1.0",
   createDefault: () => ({
     repositories: [],
     currentRepoPath: "",
@@ -269,4 +271,26 @@ export function updateRepoCommitDraft(path: string, text: string): void {
 /** 恢复默认系统提示词 */
 export function restoreDefaultSystemPrompt(): void {
   systemPrompt.value = DEFAULT_SYSTEM_PROMPT;
+}
+
+/** 更新指定仓库的专属 AI System Prompt；空值表示继承全局提示词。 */
+export function updateRepositorySystemPrompt(
+  repoPath: string,
+  prompt: string
+): void {
+  const repo = repositories.value.find((item) => item.path === repoPath);
+  if (!repo) return;
+
+  const normalizedPrompt = prompt.trim();
+  if (normalizedPrompt) {
+    repo.systemPrompt = normalizedPrompt;
+  } else {
+    delete repo.systemPrompt;
+  }
+}
+
+/** 获取指定仓库实际使用的 AI System Prompt。 */
+export function getSystemPromptForRepo(repoPath: string): string {
+  const repo = repositories.value.find((item) => item.path === repoPath);
+  return resolveSystemPrompt(repo?.systemPrompt, systemPrompt.value);
 }

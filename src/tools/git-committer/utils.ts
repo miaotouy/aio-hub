@@ -49,3 +49,14 @@ export function getFileLanguage(path: string): string {
   };
   return map[ext.toLowerCase()] || "plaintext";
 }
+
+/**
+ * 解析仓库级与全局级提示词的继承关系。
+ * 空白仓库提示词表示跟随全局设置。
+ */
+export function resolveSystemPrompt(
+  repoPrompt: string | undefined,
+  globalPrompt: string
+): string {
+  return repoPrompt?.trim() || globalPrompt;
+}

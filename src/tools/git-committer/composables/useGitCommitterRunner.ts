@@ -35,7 +35,7 @@ import {
   autoPullOnSwitch,
   aiIncludeUnstaged,
   defaultModel,
-  systemPrompt,
+  getSystemPromptForRepo,
   switchRepo,
 } from "./useGitCommitterState";
 
@@ -400,7 +400,7 @@ export async function generateCommitMessage(
     return null;
   }
 
-  const systemPromptText = systemPrompt.value;
+  const systemPromptText = getSystemPromptForRepo(repoPath);
   const requestId = `gc-${repoPath.split(/[/\\]/).pop()}-${Date.now()}`;
 
   try {

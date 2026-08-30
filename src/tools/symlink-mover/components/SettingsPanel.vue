@@ -91,6 +91,16 @@ const emit = defineEmits<{
               : "在目标目录创建链接，保持原文件不动"
           }}
         </div>
+        <div class="setting-help">
+          <el-icon><InfoFilled /></el-icon>
+          <span v-if="operationMode === 'move'">
+            搬家模式会把源文件的实际内容放到目标目录，原来的路径会留下一个链接。
+            依赖原路径的程序通常无需修改配置。
+          </span>
+          <span v-else>
+            仅创建链接不会搬动或删除源文件，只在目标目录生成一个新的链接入口。
+          </span>
+        </div>
       </div>
 
       <div class="setting-group">
@@ -104,10 +114,23 @@ const emit = defineEmits<{
         <div class="mode-description">
           开启后，搬家的内容会同时复刻其在基准目录下的层级结构
         </div>
+        <div class="setting-help">
+          <el-icon><InfoFilled /></el-icon>
+          <span>
+            关闭时，目标目录直接接收每个源文件或文件夹；开启后，目标目录会接收“源路径相对基准源目录”的路径。
+          </span>
+        </div>
       </div>
 
       <div v-if="mirrorMode" class="setting-group animate-fade-in">
         <label>基准源目录</label>
+        <div class="field-help">
+          <strong>它不是搬家目标。</strong>
+          基准源目录用于计算相对路径，必须包含上面添加的所有源文件或文件夹。
+          例如源路径为 <code>D:/Projects/App/src</code>，基准源目录为
+          <code>D:/Projects/App</code>，目标目录为
+          <code>E:/Archive</code>，搬家后会放到 <code>E:/Archive/src</code>。
+        </div>
         <DropZone
           clickable
           variant="input"
@@ -131,6 +154,20 @@ const emit = defineEmits<{
 
       <div class="setting-group">
         <label>目标目录</label>
+        <div class="field-help">
+          <strong>{{
+            operationMode === "move" ? "搬家模式：" : "仅创建链接："
+          }}</strong>
+          {{
+            operationMode === "move"
+              ? "这里是实际内容的新存放位置。工具会在此目录下按源文件名（或镜像后的相对路径）创建目标。"
+              : "这里是链接入口的存放位置。源文件保持原位，工具会在此目录下创建指向源文件的链接。"
+          }}
+          <br />
+          <span class="field-help-note"
+            >不用填写最终文件名，工具会自动拼接；目标路径已存在时会在预检阶段阻止执行。</span
+          >
+        </div>
         <DropZone
           clickable
           variant="input"
@@ -199,6 +236,15 @@ const emit = defineEmits<{
             >硬链接</el-radio-button
           >
         </el-radio-group>
+        <div class="setting-help">
+          <el-icon><InfoFilled /></el-icon>
+          <span v-if="linkType === 'symlink'">
+            符号链接可以跨磁盘并支持文件夹，原路径与目标路径之间保存的是路径引用。
+          </span>
+          <span v-else>
+            硬链接只适用于同一磁盘上的文件，两个路径共享同一份文件数据。
+          </span>
+        </div>
         <div
           v-if="operationMode === 'link-only' && linkType === 'link'"
           class="warning-text"
@@ -213,6 +259,12 @@ const emit = defineEmits<{
 
     <!-- 固定在底部的操作区域 -->
     <div class="action-area">
+      <div class="execution-note">
+        <el-icon><InfoFilled /></el-icon>
+        <span
+          >点击操作后会先进行完整预检；发现目标冲突、权限不足、路径不安全或空间不足时，不会开始搬家。</span
+        >
+      </div>
       <ProgressDisplay
         v-if="isProcessing || showProgress"
         :show-progress="showProgress"
@@ -332,6 +384,67 @@ const emit = defineEmits<{
   font-size: 12px;
   color: var(--text-color-light);
   line-height: 1.4;
+}
+
+.setting-help,
+.field-help,
+.execution-note {
+  font-size: 12px;
+  color: var(--text-color-light);
+  line-height: 1.6;
+}
+
+.setting-help {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--el-color-info) 6%, transparent);
+}
+
+.setting-help .el-icon,
+.execution-note .el-icon {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--el-color-info);
+}
+
+.field-help {
+  padding: 9px 10px;
+  border-left: 2px solid
+    color-mix(in srgb, var(--el-color-primary) 45%, transparent);
+  background: color-mix(in srgb, var(--el-color-primary) 4%, transparent);
+  border-radius: 0 6px 6px 0;
+}
+
+.field-help strong {
+  color: var(--text-color);
+  font-weight: 600;
+}
+
+.field-help code {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(
+    --code-bg,
+    color-mix(in srgb, var(--text-color) 8%, transparent)
+  );
+  color: var(--text-color);
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.field-help-note {
+  color: var(--text-color-light);
+}
+
+.execution-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 0 2px;
 }
 
 /* 警告文字 */

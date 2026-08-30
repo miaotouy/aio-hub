@@ -27,6 +27,7 @@ import type {
   CreateLinksOnlyOptions,
   ValidateFileOptions,
   FormattedLogSummary,
+  SymlinkOperationPreflight,
 } from "../types";
 
 const logger = createModuleLogger("symlink-mover/logic");
@@ -190,6 +191,36 @@ export function useSymlinkMoverLogic() {
     const newFiles = [...files];
     newFiles.splice(index, 1);
     return newFiles;
+  };
+
+  /**
+   * 在任何文件系统写入前执行完整预检。后端执行阶段仍会再次预检，
+   * 这里的调用只负责尽早把冲突、权限和跨设备风险展示给用户。
+   */
+  const preflight = async (options: {
+    sourcePaths: string[];
+    targetDir: string;
+    linkType: LinkType;
+    operationMode: OperationMode;
+    baseSourceDir?: string;
+  }): Promise<SymlinkOperationPreflight | null> => {
+    logger.info("执行符号链接操作预检", options);
+    return await errorHandler.wrapAsync(
+      async () =>
+        await invoke<SymlinkOperationPreflight>("preflight_symlink_operation", {
+          sourcePaths: options.sourcePaths,
+          targetDir: options.targetDir,
+          linkType: options.linkType,
+          operationMode: options.operationMode,
+          baseSourceDir: options.baseSourceDir,
+        }),
+      {
+        level: ErrorLevel.WARNING,
+        userMessage: "文件操作预检失败",
+        context: options,
+        showToUser: true,
+      }
+    );
   };
 
   // ==================== 核心操作 ====================
@@ -501,6 +532,7 @@ export function useSymlinkMoverLogic() {
   return {
     validateFile,
     validateFiles,
+    preflight,
     getFileWarning,
     parsePathsToFileItems,
     mergeFileItems,

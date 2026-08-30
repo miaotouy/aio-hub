@@ -49,11 +49,38 @@ export interface OperationLog {
   successCount: number;
   errorCount: number;
   errors: string[];
+  warnings: string[];
   durationMs: number;
   targetDirectory: string;
   sourcePaths: string[];
   totalSize: number;
   processedFiles: string[];
+}
+
+/**
+ * 执行前预检报告
+ */
+export interface SymlinkPreflightItem {
+  sourcePath: string;
+  targetPath: string;
+  sourceKind: string;
+  size: number;
+  isCrossDevice: boolean;
+  requiresCopy: boolean;
+  blockingIssues: string[];
+  warnings: string[];
+}
+
+export interface SymlinkOperationPreflight {
+  operationMode: OperationMode;
+  linkType: LinkType;
+  sourceCount: number;
+  totalSize: number;
+  requiresCopy: boolean;
+  canExecute: boolean;
+  items: SymlinkPreflightItem[];
+  blockingIssues: string[];
+  warnings: string[];
 }
 
 /**

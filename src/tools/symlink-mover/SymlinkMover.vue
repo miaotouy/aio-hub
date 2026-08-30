@@ -50,10 +50,7 @@ const tickerKey = ref(0);
 
 // 计算属性
 const canExecute = computed(() => {
-  return (
-    sourceFiles.value.length > 0 &&
-    (operationMode.value === "link-only" || !!targetDirectory.value)
-  );
+  return sourceFiles.value.length > 0 && !!targetDirectory.value;
 });
 
 // 生命周期钩子
@@ -191,8 +188,33 @@ const executeMoveAndLink = async () => {
     customMessage.warning("请先添加要处理的文件");
     return;
   }
-  if (!targetDirectory.value && operationMode.value === "move") {
+  if (!targetDirectory.value) {
     customMessage.warning("请选择目标目录");
+    return;
+  }
+
+  const sourcePaths = sourceFiles.value.map((file) => file.path);
+  const operationOptions = {
+    sourcePaths,
+    targetDir: targetDirectory.value,
+    linkType: linkType.value,
+    operationMode: operationMode.value,
+    baseSourceDir: mirrorMode.value ? baseSourceDir.value : undefined,
+  };
+
+  const preflight = await logic.preflight(operationOptions);
+  if (!preflight) {
+    return;
+  }
+  if (!preflight.canExecute) {
+    const issuesByPath = new Map(
+      preflight.items.map((item) => [item.sourcePath, item.blockingIssues])
+    );
+    sourceFiles.value.forEach((file) => {
+      const issues = issuesByPath.get(file.path);
+      file.warning = issues?.[0];
+    });
+    customMessage.error(`预检未通过：\n${preflight.blockingIssues.join("\n")}`);
     return;
   }
 
@@ -206,9 +228,7 @@ const executeMoveAndLink = async () => {
   isProcessing.value = true;
   sourceFiles.value.forEach((file) => (file.status = "processing"));
 
-  const sourcePaths = sourceFiles.value.map((file) => file.path);
   let result: string | null;
-
   const options = {
     sourcePaths,
     targetDir: targetDirectory.value,

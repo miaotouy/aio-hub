@@ -93,6 +93,19 @@ const logic = useSymlinkMoverLogic();
               }}</span>
             </div>
           </div>
+          <div
+            v-if="log.warnings && log.warnings.length > 0"
+            class="log-item-warnings"
+          >
+            <div class="warning-title">清理提醒:</div>
+            <div
+              v-for="(warning, warningIdx) in log.warnings"
+              :key="warningIdx"
+              class="warning-message"
+            >
+              {{ warning }}
+            </div>
+          </div>
           <div v-if="log.errors.length > 0" class="log-item-errors">
             <div class="error-title">错误详情:</div>
             <div
@@ -176,6 +189,39 @@ const logic = useSymlinkMoverLogic();
 
 .error-text {
   color: var(--el-color-error);
+}
+
+.log-item-warnings {
+  margin-top: 12px;
+  padding: 12px;
+  background-color: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
+  border-radius: 4px;
+  border-left: 3px solid var(--el-color-warning);
+}
+
+.warning-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--el-color-warning);
+  margin-bottom: 8px;
+}
+
+.warning-message {
+  font-size: 12px;
+  color: var(--text-color);
+  line-height: 1.6;
+  padding-left: 12px;
+  position: relative;
+}
+
+.warning-message::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: var(--el-color-warning);
 }
 
 .log-item-errors {

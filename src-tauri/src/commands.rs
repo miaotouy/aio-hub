@@ -40,6 +40,7 @@ pub mod ocr;
 pub mod sidecar_plugin;
 pub mod sidecar_plugin_manager;
 pub mod skill_manager;
+pub mod symlink_mover;
 pub mod system;
 pub mod system_pulse;
 #[cfg(windows)]
@@ -104,9 +105,10 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         start_clipboard_monitor,
         stop_clipboard_monitor,
         get_clipboard_content_type,
-        move_and_link,
-        create_links_only,
-        cancel_move_operation,
+        crate::commands::symlink_mover::move_and_link,
+        crate::commands::symlink_mover::create_links_only,
+        crate::commands::symlink_mover::cancel_move_operation,
+        crate::commands::symlink_mover::preflight_symlink_operation,
         get_latest_operation_log,
         get_all_operation_logs,
         get_image_dimensions,

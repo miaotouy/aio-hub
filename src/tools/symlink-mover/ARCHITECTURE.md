@@ -34,16 +34,18 @@ Symlink Mover 是一个文件“搬家”工具，旨在通过移动文件并在
 
 ### 1.3. Rust 后端驱动与安全校验
 
-所有文件系统操作均由 Rust 后端执行，并在操作前进行严格的校验。
+所有文件系统操作均由 Rust 后端执行。前端的字段校验只用于即时提示，不能代替后端预检；执行命令会在真正写入前再次生成计划。
 
-- **文件系统操作**: 通过 Tauri `invoke` 调用 `move_and_link` / `create_links_only` 等 Rust 命令。
-- **前置校验**: 在执行操作前，会调用 `validate_file_for_link` 检查操作的合法性（如硬链接不能用于目录、不能跨盘等），并在 UI 上向用户发出明确警告。
-- **进度监听**: 对于大文件移动，Rust 后端会通过 Tauri Event 实时向前端发送 `copy-progress` 事件，用于更新进度条。
+- **完整预检**: `preflight_symlink_operation` 一次检查源路径、镜像映射、目标冲突、目录写入能力、源目录中的嵌套链接、源路径重叠、目标路径逃逸、链接类型限制、跨设备情况和目标磁盘空间。
+- **执行前删除门禁**: `move_and_link` 在跨设备复制前额外用临时同目录改名往返探测源路径是否可移出，尽量在复制前发现“文件正在使用/权限不足”。这不是对 Windows 文件锁的绝对保证，因此提交阶段仍保留回滚。
+- **两阶段搬家**: 同盘使用 `rename -> 创建链接`；跨盘使用 `临时目录复制 -> 类型/大小校验 -> 源路径备份改名 -> 提交目标 -> 创建链接`。任何提交失败都会尝试恢复源路径。
+- **清理失败不丢数据**: 搬家完成后备份移入回收站失败时，不删除源数据，保留备份并在日志中写入 warning。
+- **进度监听**: 对于跨设备文件复制，Rust 后端通过 Tauri Event 发送 `copy-progress` 事件。
 
 ## 2. 架构概览
 
 - **View (`SymlinkMover.vue`)**: 负责 UI 渲染和用户交互，包括文件拖拽、参数选择和结果展示。
-- **Service (`SymlinkMoverService`)**: 提供高级、无状态的 API，封装了与 Rust 后端的交互逻辑和校验流程。
+- **Service (`useSymlinkMoverLogic`)**: 提供高级、无状态的 API，封装了与 Rust 后端的交互逻辑和校验流程。
 - **Engine (Rust Backend)**: 负责执行实际的文件移动、链接创建、校验和进度上报。
 
 ## 3. 数据流：执行一次“搬家”操作
@@ -51,38 +53,37 @@ Symlink Mover 是一个文件“搬家”工具，旨在通过移动文件并在
 ```mermaid
 sequenceDiagram
     participant User as 用户
-    participant UI (SymlinkMover.vue)
-    participant Service (SymlinkMoverService)
+    participant UI as SymlinkMover.vue
+    participant Service as useSymlinkMoverLogic
     participant Rust as Rust Backend
     participant FS as 文件系统
 
     User->>UI: 拖拽源文件并选择目标目录
-    UI->>Service: validateFiles()
-    Service->>Rust: invoke('validate_file_for_link')
-    Rust-->>Service: 返回校验结果 { isDirectory, isCrossDevice }
-    Service->>UI: (若有)显示警告信息
-    
-    User->>UI: 点击 "开始操作"
-    UI->>Service: moveAndLink(options)
-    Service->>Rust: invoke('move_and_link')
-    
-    loop 复制大文件
-        Rust->>UI: (事件) 发送 copy-progress
-        UI->>UI: 更新进度条
+    User->>UI: 点击“开始操作”
+    UI->>Service: preflight(options)
+    Service->>Rust: invoke('preflight_symlink_operation')
+    Rust-->>Service: 返回完整预检报告
+    alt 预检未通过
+        Service-->>UI: 展示阻断原因，不修改文件系统
+    else 预检通过
+        UI->>Service: moveAndLink(options)
+        Service->>Rust: invoke('move_and_link')
+        Rust->>Rust: 再次预检并执行事务流程
+        loop 跨设备复制
+            Rust->>UI: 发送 copy-progress
+            UI->>UI: 更新进度条
+        end
+        Rust->>FS: 暂存、提交、创建链接、清理备份
+        Rust-->>Service: 返回操作结果
     end
-    
-    Rust->>FS: 移动文件 & 创建链接
-    Rust-->>Service: 返回操作结果
-    Service->>Rust: 保存操作日志
-    Service-->>UI: 显示操作完成
 ```
 
 ## 4. 核心逻辑
 
 - **操作日志**: 每次操作都会在 Rust 后端自动保存一条详细的日志（包含操作类型、文件数量、耗时、错误等），并提供 API (`getOperationHistory`) 供前端查询。
 
-## 5. 未来展望
+## 5. 当前边界
 
-- **Windows Junction 支持**: 增加对 Windows Directory Junction 的支持，作为目录符号链接的一种替代方案。
-- **批量操作优化**: 将当前逐文件调用 Rust command 的模式优化为单次调用、批量处理，以提升处理大量小文件时的性能。
-- **取消操作**: 实现一个可中断的操作流程，并支持对已处理文件的回滚。
+- 预检是尽力而为的能力检查，无法保证操作开始后不会有其他进程抢占文件或改变 ACL；因此后端仍把所有提交步骤当作可能失败处理。
+- 取消操作不会打断底层系统调用，但会在复制阶段结束后停止继续处理；当前条目会清理暂存并保持源路径可恢复，已经提交成功的条目不会自动跨条目回滚。
+- Windows Junction / reparse point 仍按链接边界拒绝，后续如支持需要单独设计其识别、复制和回滚策略。

@@ -137,7 +137,6 @@ function createGenerationManagerForTest(
     generatingNodes,
     queuedSessionIds: queuedIds,
     queuedSessionAgentIds: queuedAgentIds,
-    userAbortedNodeIds: ref(new Set<string>()),
     findSessionIdByNodeId: access.findSessionIdByNodeId,
   });
   const generation = createSessionGenerationManager(
@@ -171,7 +170,9 @@ function createGenerationManagerForTest(
 
   return {
     generation,
+    runtime,
     detailMap: sessionDetailMap,
+    abortControllers,
     generatingNodes,
     queuedIds,
   };
@@ -245,7 +246,6 @@ describe("llm-chat session managers", () => {
       generatingNodes,
       queuedSessionIds,
       queuedSessionAgentIds,
-      userAbortedNodeIds: ref(new Set<string>()),
       findSessionIdByNodeId: access.findSessionIdByNodeId,
     });
     const history = {
@@ -405,6 +405,56 @@ describe("llm-chat session managers", () => {
     expect(generatingNodes.value.has("branch-a")).toBe(true);
   });
 
+  it("marks queued messages as stopped after the preceding generation is manually stopped", async () => {
+    const root = node("root", null, "system");
+    const generatingAssistant = node(
+      "generating-assistant",
+      "root",
+      "assistant",
+      "partial response"
+    );
+    generatingAssistant.status = "generating";
+    const queuedUser = node("queued-user", "generating-assistant", "user");
+    queuedUser.status = "queued";
+    queuedUser.metadata = { isQueued: true, agentId: "agent-queued" };
+    root.childrenIds = ["generating-assistant"];
+    generatingAssistant.childrenIds = ["queued-user"];
+
+    const detail = session("chat", "queued-user", {
+      root,
+      "generating-assistant": generatingAssistant,
+      "queued-user": queuedUser,
+    });
+    const generationState = createGenerationManagerForTest(
+      new Map([["chat", detail]]),
+      "chat",
+      ["generating-assistant"],
+      ["chat"]
+    );
+    const controller = new AbortController();
+    generationState.abortControllers.value.set(
+      "generating-assistant",
+      controller
+    );
+
+    generationState.runtime.abortNodeGeneration("generating-assistant");
+
+    expect(controller.signal.aborted).toBe(true);
+    expect(generationState.queuedIds.value.has("chat")).toBe(false);
+    expect(
+      generationState.generatingNodes.value.has("generating-assistant")
+    ).toBe(false);
+    expect(queuedUser.status).toBe("error");
+    expect(queuedUser.metadata).toMatchObject({
+      error: "队列已停止",
+    });
+    expect(queuedUser.metadata?.isQueued).toBeUndefined();
+
+    await generationState.generation.triggerQueuedGenerationForSession("chat");
+
+    expect(mocks.regenerateFromNode).not.toHaveBeenCalled();
+  });
+
   it("isolates generating state and abort queues by session", () => {
     const aRoot = node("a-root", null, "system");
     const aNode = node("a-node", "a-root", "assistant");
@@ -435,7 +485,6 @@ describe("llm-chat session managers", () => {
           ["b", "agent-b"],
         ])
       ),
-      userAbortedNodeIds: ref(new Set<string>()),
       findSessionIdByNodeId: (nodeId) => (nodeId.startsWith("a-") ? "a" : "b"),
     });
 

@@ -74,8 +74,6 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     temperature: 1,
     maxTokens: 4096,
   });
-  // 用户主动中止的节点集合，用于区分"用户中止"与"自然结束"，防止错误触发排队
-  const userAbortedNodeIds = ref(new Set<string>());
   // 只记录同一会话连续发送产生的队列，避免跨会话生成被误判成全局队列锁
   const queuedSessionIds = ref(new Set<string>());
   const queuedSessionAgentIds = ref(new Map<string, string>());
@@ -102,7 +100,6 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     generatingNodes,
     queuedSessionIds,
     queuedSessionAgentIds,
-    userAbortedNodeIds,
     findSessionIdByNodeId: sessionAccess.findSessionIdByNodeId,
   });
   const sessionHistory = createSessionHistoryManager({
@@ -172,17 +169,6 @@ export const useLlmChatStore = defineStore("llmChat", () => {
               );
             }
           }
-        }
-
-        if (userAbortedNodeIds.value.size > 0) {
-          userAbortedNodeIds.value.forEach((nodeId) => {
-            const sessionId = findSessionIdByNodeId(nodeId);
-            if (sessionId) {
-              queuedSessionIds.value.delete(sessionId);
-              queuedSessionAgentIds.value.delete(sessionId);
-            }
-          });
-          userAbortedNodeIds.value.clear();
         }
 
         // 排队调度按节点路径判断，而不是按整个会话加锁。这样同一会话的不同
@@ -349,10 +335,6 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
   const isSessionGenerating = (sessionId: string): boolean => {
     return sessionRuntime.isSessionGenerating(sessionId);
-  };
-
-  const findSessionIdByNodeId = (nodeId: string): string | null => {
-    return sessionAccess.findSessionIdByNodeId(nodeId);
   };
 
   const currentMessageCount = computed((): number => {

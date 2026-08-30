@@ -33,6 +33,26 @@ describe("messageStatus", () => {
     expect(presentation).toMatchObject({ status, label });
   });
 
+  it("shows stopped messages with a stopped label instead of a generic error", () => {
+    expect(
+      getMessageStatusPresentation(
+        createMessage({
+          status: "error",
+          metadata: { error: "队列已停止" },
+        })
+      )
+    ).toMatchObject({ status: "error", label: "已停止", detail: "队列已停止" });
+
+    expect(
+      getMessageStatusPresentation(
+        createMessage({
+          status: "error",
+          metadata: { error: "已取消" },
+        })
+      )
+    ).toMatchObject({ status: "error", label: "已取消", detail: "已取消" });
+  });
+
   it("keeps normal completed messages without a display status", () => {
     expect(resolveMessageDisplayStatus(createMessage())).toBeNull();
   });

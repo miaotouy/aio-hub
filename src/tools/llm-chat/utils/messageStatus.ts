@@ -98,8 +98,14 @@ export function getMessageStatusPresentation(
       : status === "abnormal"
         ? message.metadata?.emptyResponseDiagnostic
         : undefined;
+  const label =
+    status === "error" && (detail === "队列已停止" || detail === "用户手动停止")
+      ? "已停止"
+      : status === "error" && detail === "已取消"
+        ? "已取消"
+        : presentation[status].label;
 
-  return { status, ...presentation[status], detail };
+  return { status, ...presentation[status], label, detail };
 }
 
 /** 仅用于需要判断消息是否仍处于可执行状态的调用方。 */

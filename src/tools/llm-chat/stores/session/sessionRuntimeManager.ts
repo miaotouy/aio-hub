@@ -14,10 +14,36 @@
 
 import type { Ref } from "vue";
 import type { ChatSessionDetail } from "../../types/session";
+import type { ChatMessageNode } from "../../types/message";
 import { completeAndDisposeStreamingMessageSource } from "../../composables/chat/useStreamingMessageSources";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("llm-chat/session-runtime");
+
+function isQueuedMessageNode(node: ChatMessageNode): boolean {
+  return (
+    node.metadata?.isQueued === true ||
+    node.status === "queued" ||
+    (node.role === "assistant" && (node.status as string) === "pending")
+  );
+}
+
+function markQueuedNodesAsStopped(detail: ChatSessionDetail): number {
+  if (!detail.nodes) return 0;
+
+  let count = 0;
+  Object.values(detail.nodes).forEach((node) => {
+    if (!isQueuedMessageNode(node)) return;
+
+    node.status = "error";
+    if (!node.metadata) node.metadata = {};
+    delete node.metadata.isQueued;
+    node.metadata.error = "队列已停止";
+    count++;
+  });
+
+  return count;
+}
 
 interface RuntimeState {
   sessionDetailMap: Ref<Map<string, ChatSessionDetail>>;
@@ -26,7 +52,6 @@ interface RuntimeState {
   generatingNodes: Ref<Set<string>>;
   queuedSessionIds: Ref<Set<string>>;
   queuedSessionAgentIds: Ref<Map<string, string>>;
-  userAbortedNodeIds: Ref<Set<string>>;
   findSessionIdByNodeId: (nodeId: string) => string | null;
 }
 
@@ -92,7 +117,6 @@ export function createSessionRuntimeManager(state: RuntimeState) {
       });
     }
 
-    state.userAbortedNodeIds.value.add(nodeId);
     state.abortControllers.value.delete(nodeId);
     state.generatingNodes.value.delete(nodeId);
     completeAndDisposeStreamingMessageSource(nodeId);
@@ -111,8 +135,17 @@ export function createSessionRuntimeManager(state: RuntimeState) {
         : null;
 
     if (sessionId) {
+      const cancelledQueuedCount = detail
+        ? markQueuedNodesAsStopped(detail)
+        : 0;
       state.queuedSessionIds.value.delete(sessionId);
       state.queuedSessionAgentIds.value.delete(sessionId);
+      if (cancelledQueuedCount > 0) {
+        logger.info("已停止会话中的排队消息", {
+          sessionId,
+          count: cancelledQueuedCount,
+        });
+      }
     }
 
     markNodeAsUserAborted(nodeId, detail);
@@ -129,8 +162,15 @@ export function createSessionRuntimeManager(state: RuntimeState) {
     const nodeIds = getSessionGeneratingNodeIds(targetSessionId);
     if (nodeIds.length === 0) return;
 
+    const cancelledQueuedCount = markQueuedNodesAsStopped(detail);
     state.queuedSessionIds.value.delete(targetSessionId);
     state.queuedSessionAgentIds.value.delete(targetSessionId);
+    if (cancelledQueuedCount > 0) {
+      logger.info("已停止会话中的排队消息", {
+        sessionId: targetSessionId,
+        count: cancelledQueuedCount,
+      });
+    }
 
     nodeIds.forEach((nodeId) => {
       const controller = state.abortControllers.value.get(nodeId);
@@ -153,7 +193,6 @@ export function createSessionRuntimeManager(state: RuntimeState) {
         controller?.abort();
         state.abortControllers.value.delete(nodeId);
         state.generatingNodes.value.delete(nodeId);
-        state.userAbortedNodeIds.value.delete(nodeId);
         completeAndDisposeStreamingMessageSource(nodeId);
       });
     }

@@ -363,7 +363,7 @@ const toggleCapabilityFilter = (capKey: string) => {
                           {{ model.modelIdentity.canonicalId }}
                         </div>
                         <div
-                          v-else-if="model.modelIdentitySuggestion"
+                          v-else-if="model.capabilities?.embedding && model.modelIdentitySuggestion"
                           class="model-identity is-suggestion"
                         >
                           {{

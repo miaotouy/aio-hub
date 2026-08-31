@@ -423,7 +423,7 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
                       {{ model.modelIdentity.canonicalId }} · 内置精确识别
                     </div>
                     <div
-                      v-else-if="model.modelIdentitySuggestion"
+                      v-else-if="model.capabilities?.embedding && model.modelIdentitySuggestion"
                       class="model-identity is-suggestion"
                       :title="model.modelIdentitySuggestion.evidence"
                     >

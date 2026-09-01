@@ -25,6 +25,7 @@ import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useGenerationInfoViewer } from "@/tools/media-generator/composables/useGenerationInfoViewer";
 import SyncServiceProvider from "@/components/SyncServiceProvider.vue";
 import NotificationCenter from "@/components/notification/NotificationCenter.vue";
+import TopMessageHost from "@/components/common/TopMessageHost.vue";
 
 const ImageViewer = defineAsyncComponent(
   () => import("@/components/common/ImageViewer.vue")
@@ -69,6 +70,9 @@ onMounted(() => {
 <template>
   <!-- 全局同步服务提供者 -->
   <SyncServiceProvider />
+
+  <!-- 顶部浮动消息 -->
+  <TopMessageHost />
 
   <!-- 全局图片查看器 -->
   <ImageViewer

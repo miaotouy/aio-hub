@@ -244,6 +244,10 @@ const styles = [
   "sketch", // 手绘风
   "bounce", // 弹跳风
   "fire", // 火焰风
+  "shining", // 扫光风
+  "heartbeat", // 心跳风
+  "matrix", // 极客风
+  "float", // 漂浮风
 ];
 
 const currentStyle = ref("gradient");
@@ -387,17 +391,33 @@ onMounted(() => {
     0 0 20px rgba(var(--primary-color-rgb), 0.5),
     0 0 40px var(--primary-color),
     0 0 80px var(--primary-color);
-  animation: neon-flicker 2s infinite alternate;
+  animation: neon-flicker 6s infinite;
 }
 
 @keyframes neon-flicker {
+  /* 0% - 75% (前 4.5 秒)：稳定常亮 */
   0%,
-  19%,
-  21%,
-  23%,
-  25%,
-  54%,
-  56%,
+  75% {
+    text-shadow:
+      0 0 5px rgba(var(--primary-color-rgb), 0.6),
+      0 0 10px rgba(var(--primary-color-rgb), 0.6),
+      0 0 20px rgba(var(--primary-color-rgb), 0.6),
+      0 0 40px var(--primary-color),
+      0 0 80px var(--primary-color);
+    color: #fff;
+  }
+  /* 75% - 100% (后 1.5 秒)：接触不良式闪烁 */
+  77%,
+  81%,
+  85%,
+  89% {
+    text-shadow: none;
+    color: rgba(255, 255, 255, 0.3);
+  }
+  79%,
+  83%,
+  87%,
+  91%,
   100% {
     text-shadow:
       0 0 5px rgba(var(--primary-color-rgb), 0.6),
@@ -405,12 +425,7 @@ onMounted(() => {
       0 0 20px rgba(var(--primary-color-rgb), 0.6),
       0 0 40px var(--primary-color),
       0 0 80px var(--primary-color);
-  }
-  20%,
-  24%,
-  55% {
-    text-shadow: none;
-    color: rgba(255, 255, 255, 0.3);
+    color: #fff;
   }
 }
 
@@ -432,13 +447,16 @@ onMounted(() => {
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: gradient-flow 4s linear infinite;
+  animation: gradient-flow 6s infinite ease-in-out;
 }
 
 @keyframes gradient-flow {
-  0% {
+  /* 0% - 60% (前 3.6 秒)：渐变静止 */
+  0%,
+  60% {
     background-position: 0% 50%;
   }
+  /* 60% - 100% (后 2.4 秒)：快速流动一圈 */
   100% {
     background-position: 300% 50%;
   }
@@ -469,7 +487,7 @@ onMounted(() => {
   left: 2px;
   text-shadow: -2px 0 #ff00c1;
   clip: rect(44px, 450px, 56px, 0);
-  animation: glitch-anim 5s infinite linear alternate-reverse;
+  animation: glitch-anim 6s infinite linear;
 }
 
 .glitch-text::after {
@@ -478,75 +496,114 @@ onMounted(() => {
     -2px 0 #00fff9,
     0 2px #00fff9;
   clip: rect(85px, 450px, 140px, 0);
-  animation: glitch-anim2 5s infinite linear alternate-reverse;
+  animation: glitch-anim2 6s infinite linear;
 }
 
 @keyframes glitch-anim {
-  0% {
-    clip: rect(31px, 9999px, 94px, 0);
-  }
-  10% {
-    clip: rect(112px, 9999px, 76px, 0);
-  }
-  20% {
-    clip: rect(85px, 9999px, 5px, 0);
-  }
-  30% {
-    clip: rect(27px, 9999px, 115px, 0);
-  }
-  40% {
-    clip: rect(73px, 9999px, 29px, 0);
-  }
-  50% {
-    clip: rect(118px, 9999px, 142px, 0);
-  }
-  60% {
-    clip: rect(9px, 9999px, 53px, 0);
-  }
-  70% {
-    clip: rect(67px, 9999px, 122px, 0);
-  }
+  /* 0% - 80% (前 4.8 秒)：完全静止，无故障 */
+  0%,
   80% {
-    clip: rect(36px, 9999px, 83px, 0);
+    clip: rect(0, 0, 0, 0);
+    opacity: 0;
   }
-  90% {
+  /* 80% - 100% (后 1.2 秒)：突发剧烈故障 */
+  81% {
+    clip: rect(31px, 9999px, 94px, 0);
+    opacity: 1;
+  }
+  83% {
+    clip: rect(112px, 9999px, 76px, 0);
+    opacity: 1;
+  }
+  85% {
+    clip: rect(85px, 9999px, 5px, 0);
+    opacity: 1;
+  }
+  87% {
+    clip: rect(27px, 9999px, 115px, 0);
+    opacity: 1;
+  }
+  89% {
+    clip: rect(73px, 9999px, 29px, 0);
+    opacity: 1;
+  }
+  91% {
+    clip: rect(118px, 9999px, 142px, 0);
+    opacity: 1;
+  }
+  93% {
+    clip: rect(9px, 9999px, 53px, 0);
+    opacity: 1;
+  }
+  95% {
+    clip: rect(67px, 9999px, 122px, 0);
+    opacity: 1;
+  }
+  97% {
+    clip: rect(36px, 9999px, 83px, 0);
+    opacity: 1;
+  }
+  99% {
     clip: rect(141px, 9999px, 8px, 0);
+    opacity: 1;
   }
   100% {
-    clip: rect(55px, 9999px, 130px, 0);
+    clip: rect(0, 0, 0, 0);
+    opacity: 0;
   }
 }
 
 @keyframes glitch-anim2 {
-  0% {
+  /* 0% - 80% (前 4.8 秒)：完全静止，无故障 */
+  0%,
+  80% {
+    clip: rect(0, 0, 0, 0);
+    opacity: 0;
+  }
+  /* 80% - 100% (后 1.2 秒)：突发剧烈故障 */
+  81% {
     clip: rect(76px, 9999px, 116px, 0);
+    opacity: 1;
   }
-  11% {
+  83% {
     clip: rect(43px, 9999px, 98px, 0);
+    opacity: 1;
   }
-  22% {
+  85% {
     clip: rect(122px, 9999px, 14px, 0);
+    opacity: 1;
   }
-  33% {
+  87% {
     clip: rect(5px, 9999px, 85px, 0);
+    opacity: 1;
   }
-  44% {
+  89% {
     clip: rect(139px, 9999px, 44px, 0);
+    opacity: 1;
   }
-  55% {
+  91% {
     clip: rect(29px, 9999px, 118px, 0);
+    opacity: 1;
   }
-  66% {
+  93% {
     clip: rect(83px, 9999px, 55px, 0);
+    opacity: 1;
   }
-  77% {
+  95% {
     clip: rect(12px, 9999px, 132px, 0);
+    opacity: 1;
   }
-  88% {
+  97% {
     clip: rect(95px, 9999px, 3px, 0);
+    opacity: 1;
+  }
+  99% {
+    clip: rect(61px, 9999px, 76px, 0);
+    opacity: 1;
   }
   100% {
-    clip: rect(61px, 9999px, 76px, 0);
+    clip: rect(0, 0, 0, 0);
+    opacity: 0;
   }
 }
 
@@ -631,7 +688,7 @@ onMounted(() => {
 
 .bounce-text span {
   display: inline-block;
-  animation: letter-bounce 1.2s infinite ease-in-out;
+  animation: letter-bounce 4s infinite ease-in-out;
   color: var(--primary-color);
 }
 
@@ -640,14 +697,18 @@ onMounted(() => {
 }
 
 @keyframes letter-bounce {
+  /* 0% - 30% (前 1.2 秒)：依次弹跳一轮 */
   0%,
+  30%,
   100% {
     transform: translateY(0);
+    color: var(--primary-color);
   }
-  50% {
+  15% {
     transform: translateY(-15px);
     color: #ff4081;
   }
+  /* 30% - 100% (后 2.8 秒)：安静待着 */
 }
 
 /* ==================== 10. 火焰风样式 ==================== */
@@ -658,23 +719,137 @@ onMounted(() => {
     0px -4px 10px #ff0,
     2px -10px 16px #ff5b00,
     -2px -15px 20px #f00;
-  animation: fire-wave 1.5s infinite alternate;
+  animation: fire-wave 5s infinite;
 }
 
 @keyframes fire-wave {
-  0% {
+  /* 0% - 70% (前 3.5 秒)：微弱的火苗呼吸 */
+  0%,
+  70% {
     text-shadow:
-      0px -2px 4px #fff,
-      0px -4px 10px #ff0,
-      2px -8px 14px #ff5b00,
-      -2px -12px 18px #f00;
+      0px -1px 2px #fff,
+      0px -2px 5px #ff0,
+      1px -4px 8px #ff5b00,
+      -1px -6px 10px #f00;
+  }
+  /* 70% - 100% (后 1.5 秒)：火焰突然高涨摆动 */
+  85% {
+    text-shadow:
+      0px -3px 6px #fff,
+      0px -8px 15px #ff0,
+      3px -14px 20px #ff5b00,
+      -3px -20px 26px #f00;
   }
   100% {
     text-shadow:
-      0px -2px 4px #fff,
-      0px -6px 12px #ff0,
-      -2px -12px 18px #ff5b00,
-      2px -18px 24px #f00;
+      0px -1px 2px #fff,
+      0px -2px 5px #ff0,
+      1px -4px 8px #ff5b00,
+      -1px -6px 10px #f00;
+  }
+}
+
+/* ==================== 11. 扫光风样式 ==================== */
+.shining .doodle-text {
+  color: #d4af37;
+  background: linear-gradient(110deg, #d4af37 35%, #fff 50%, #d4af37 65%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shine-sweep 5s infinite ease-in-out;
+}
+
+@keyframes shine-sweep {
+  /* 0% - 70% (前 3.5 秒)：静止在金色 */
+  0%,
+  70% {
+    background-position: 150% 0;
+  }
+  /* 70% - 100% (后 1.5 秒)：扫光划过 */
+  100% {
+    background-position: -50% 0;
+  }
+}
+
+/* ==================== 12. 心跳风样式 ==================== */
+.heartbeat .doodle-text {
+  color: #ff2a6d;
+  display: inline-block;
+  text-shadow: 0 0 5px rgba(255, 42, 109, 0.3);
+  animation: heart-beat 3s infinite ease-in-out;
+}
+
+@keyframes heart-beat {
+  /* 0% - 75% (前 2.25 秒)：静止 */
+  0%,
+  75%,
+  100% {
+    transform: scale(1);
+    text-shadow: 0 0 5px rgba(255, 42, 109, 0.3);
+  }
+  /* 75% - 85%：第一次心跳 */
+  80% {
+    transform: scale(1.12);
+    text-shadow: 0 0 15px rgba(255, 42, 109, 0.8);
+  }
+  85% {
+    transform: scale(1);
+  }
+  /* 85% - 95%：第二次心跳 */
+  90% {
+    transform: scale(1.08);
+    text-shadow: 0 0 12px rgba(255, 42, 109, 0.6);
+  }
+}
+
+/* ==================== 13. 极客风样式 ==================== */
+.matrix .doodle-text {
+  font-family: "Courier New", Courier, monospace;
+  color: #00ff41;
+  text-shadow: 0 0 4px rgba(0, 255, 65, 0.4);
+  background: linear-gradient(90deg, #00ff41 0%, #fff 50%, #00ff41 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: matrix-scan 4s infinite ease-in-out;
+}
+
+@keyframes matrix-scan {
+  /* 0% - 75% (前 3 秒)：静止，微弱呼吸 */
+  0%,
+  75% {
+    background-position: 100% 0;
+    filter: brightness(1);
+  }
+  /* 75% - 100% (后 1 秒)：扫光并闪烁 */
+  85% {
+    filter: brightness(1.4);
+  }
+  100% {
+    background-position: -100% 0;
+    filter: brightness(1);
+  }
+}
+
+/* ==================== 14. 漂浮风样式 ==================== */
+.float .doodle-text {
+  color: var(--primary-color);
+  display: inline-block;
+  animation: feather-float 6s infinite ease-in-out;
+  text-shadow: 0 4px 8px rgba(var(--primary-color-rgb), 0.15);
+}
+
+@keyframes feather-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+    text-shadow: 0 4px 8px rgba(var(--primary-color-rgb), 0.15);
+  }
+  50% {
+    transform: translateY(-8px) rotate(1deg);
+    text-shadow: 0 12px 16px rgba(var(--primary-color-rgb), 0.25);
   }
 }
 </style>

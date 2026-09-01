@@ -129,7 +129,7 @@ const showHomeDoodle = computed({
 });
 
 const enableFancyDoodle = computed({
-  get: () => settings.value.enableFancyDoodle ?? true,
+  get: () => settings.value.enableFancyDoodle ?? false,
   set: (visible: boolean) =>
     appSettingsStore.update({ enableFancyDoodle: visible }),
 });

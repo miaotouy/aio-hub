@@ -111,7 +111,7 @@ export const useAppSettingsStore = defineStore("appSettings", () => {
 
   /** 是否启用花哨样式的 Doodle 标题 */
   const enableFancyDoodle = computed(
-    () => settings.value.enableFancyDoodle ?? true
+    () => settings.value.enableFancyDoodle ?? false
   );
   /** 生效的主题色（如果开启了自动提取且有提取值，则使用提取值，否则使用设置的主题色） */
   const effectiveThemeColor = computed(() => {

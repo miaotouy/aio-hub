@@ -11,8 +11,12 @@
 <template>
   <div class="home-doodle-container" @click="triggerRandomStyle">
     <div
+      :key="shakeKey"
       class="doodle-wrapper"
-      :class="[currentStyle, { 'is-changing': isChanging }]"
+      :class="[
+        currentStyle,
+        { 'is-changing': isChanging, 'is-shaking': isShaking },
+      ]"
     >
       <!-- 故障风需要特殊的 DOM 结构 -->
       <template v-if="currentStyle === 'glitch'">
@@ -38,38 +42,35 @@
       </template>
     </div>
 
-    <div class="doodle-sub" :key="subText">
-      <span>{{ subText }}</span>
+    <div class="doodle-sub" :key="displayedSubText">
+      <span>{{ displayedSubText }}</span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from "vue";
+import { ref, onBeforeUnmount, onMounted, computed, watch } from "vue";
 import { useAppSettingsStore } from "@/stores/appSettingsStore";
 
 const appSettingsStore = useAppSettingsStore();
 const enableFancyDoodle = computed(() => appSettingsStore.enableFancyDoodle);
 
 const doodleText = "AIO Hub";
+const fancyDoodleUnlockClickTarget = 5;
+const fancyDoodleUnlockResetDelay = 1500;
 
 // 趣味副标题列表
 const subTexts = [
   "All In One Hub",
-  "咕咕的秘密基地 🦉",
-  "奇妙的灵感工坊 🎨",
+  "快速点击上面那货，它会变身！",
+  "再多戳戳我吧",
+  "快速点击上面那货，它会变身！",
   "今天也是充满效率的一天！",
-  "探索无限可能 ✨",
-  "让工具触手可及 🛠️",
   "雪鸮在看着你呢 👁️👁️（没有）",
-  "极简，但不简单 🚀",
-  "输入关键字，开启新世界 🔍",
-  "今天也要好好干活哦！",
   "再熬夜羽毛就要掉光了 🦉",
   "今天的外卖我来抢，你专心写 Bug 🍔",
   "翅膀借你当靠垫，但要收费的 💸",
   "听觉太灵敏了，听到你心虚的敲击声 💓",
-  "今天也是操心生活起居的一天 🧹",
   "不许摸我的呆毛，会变笨的！",
   "褪黑素分泌曲线已经见底了，快去睡觉 💤",
   "今天也是元气满满的一天 ✨",
@@ -249,24 +250,74 @@ const styles = [
   "matrix", // 极客风
   "float", // 漂浮风
 ];
+const classicStyleProbability = 0.2;
 
 const currentStyle = ref("gradient");
 const isChanging = ref(false);
+const isShaking = ref(false);
+const shakeKey = ref(0);
+const fancyDoodleUnlockClicks = ref(0);
+let shakeTimer: ReturnType<typeof setTimeout> | undefined;
+let fancyDoodleUnlockTimer: ReturnType<typeof setTimeout> | undefined;
+
+const displayedSubText = computed(() => {
+  if (enableFancyDoodle.value) return subText.value;
+
+  if (fancyDoodleUnlockClicks.value > 0) {
+    const steps = ["就这", "再来", "还不够", "快到了", "变身！"];
+    return steps[fancyDoodleUnlockClicks.value - 1] || subText.value;
+  }
+
+  return subText.value;
+});
+
+function getRandomStyle(excludedStyle?: string) {
+  if (excludedStyle !== "classic" && Math.random() < classicStyleProbability) {
+    return "classic";
+  }
+
+  const availableStyles = styles.filter((style) => style !== excludedStyle);
+  return availableStyles[Math.floor(Math.random() * availableStyles.length)];
+}
+
+function triggerClassicDoodleEasterEgg() {
+  fancyDoodleUnlockClicks.value += 1;
+  shakeKey.value += 1;
+  isShaking.value = true;
+
+  clearTimeout(shakeTimer);
+  shakeTimer = setTimeout(() => {
+    isShaking.value = false;
+  }, 400);
+
+  clearTimeout(fancyDoodleUnlockTimer);
+  if (fancyDoodleUnlockClicks.value === fancyDoodleUnlockClickTarget) {
+    subText.value = "变身！";
+    fancyDoodleUnlockClicks.value = 0;
+    appSettingsStore.update({ enableFancyDoodle: true });
+    return;
+  }
+
+  fancyDoodleUnlockTimer = setTimeout(() => {
+    fancyDoodleUnlockClicks.value = 0;
+  }, fancyDoodleUnlockResetDelay);
+}
 
 // 随机切换样式和副标题
 function triggerRandomStyle() {
+  if (!enableFancyDoodle.value) {
+    triggerClassicDoodleEasterEgg();
+    return;
+  }
+
   if (isChanging.value) return;
   isChanging.value = true;
 
   // 播放切换动画
   setTimeout(() => {
     if (enableFancyDoodle.value) {
-      // 确保不连续出现相同的样式
-      let nextStyle = currentStyle.value;
-      while (nextStyle === currentStyle.value || nextStyle === "classic") {
-        nextStyle = styles[Math.floor(Math.random() * styles.length)];
-      }
-      currentStyle.value = nextStyle;
+      // 确保不连续出现相同的样式，并保留普通样式的随机占比
+      currentStyle.value = getRandomStyle(currentStyle.value);
     } else {
       currentStyle.value = "classic";
     }
@@ -286,15 +337,22 @@ function triggerRandomStyle() {
 watch(enableFancyDoodle, (fancy) => {
   if (!fancy) {
     currentStyle.value = "classic";
+    fancyDoodleUnlockClicks.value = 0;
+    clearTimeout(fancyDoodleUnlockTimer);
   } else if (currentStyle.value === "classic") {
-    currentStyle.value = styles[Math.floor(Math.random() * styles.length)];
+    currentStyle.value = getRandomStyle("classic");
   }
+});
+
+onBeforeUnmount(() => {
+  clearTimeout(shakeTimer);
+  clearTimeout(fancyDoodleUnlockTimer);
 });
 
 onMounted(() => {
   // 初始随机一个样式
   if (enableFancyDoodle.value) {
-    currentStyle.value = styles[Math.floor(Math.random() * styles.length)];
+    currentStyle.value = getRandomStyle();
   } else {
     currentStyle.value = "classic";
   }
@@ -334,6 +392,27 @@ onMounted(() => {
 .doodle-wrapper.is-changing {
   opacity: 0;
   transform: scale(0.9) rotate(-3deg);
+}
+
+.doodle-wrapper.is-shaking {
+  animation: doodle-shake 0.4s ease-in-out;
+}
+
+@keyframes doodle-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  20%,
+  60% {
+    transform: translateX(-5px) rotate(-1deg);
+  }
+
+  40%,
+  80% {
+    transform: translateX(5px) rotate(1deg);
+  }
 }
 
 .doodle-text {

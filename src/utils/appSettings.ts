@@ -355,7 +355,7 @@ export const defaultAppSettings: AppSettings = {
   autoAdjustWindowPosition: true, // 默认开启
   showQuickAccess: true, // 默认显示首页快捷栏
   showHomeDoodle: true, // 默认显示首页 Doodle 容器
-  enableFancyDoodle: true, // 默认启用花哨样式的 Doodle 标题
+  enableFancyDoodle: false, // 默认关闭花哨样式的 Doodle 标题
   disableTauriDragDropHandler: false, // 默认使用 Tauri 路径优先拖放
   homeCategoryLayout: "left", // 默认分类栏在左侧
   homeCardStyle: "classic", // 默认卡片为经典样式

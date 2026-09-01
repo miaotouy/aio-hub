@@ -623,40 +623,57 @@ onMounted(() => {
 
 .dark .glass .doodle-text {
   color: rgba(255, 255, 255, 0.9);
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.1);
   border-color: rgba(255, 255, 255, 0.08);
 }
 
 /* ==================== 6. 复古3D样式 ==================== */
 .retro .doodle-text {
-  color: #f5f5f5;
+  font-family: "Cooper Black", "Arial Rounded MT Bold", sans-serif;
+  background: linear-gradient(
+    180deg,
+    #fff5a5 0%,
+    #ffd94e 24%,
+    #ff9f3f 49%,
+    #ff5b91 76%,
+    #d936a8 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 1px rgba(139, 45, 125, 0.7);
   text-shadow:
-    1px 1px 0px #ccc,
-    2px 2px 0px #c5c5c5,
-    3px 3px 0px #bbb,
-    4px 4px 0px #b5b5b5,
-    5px 5px 0px #aaa,
-    6px 6px 1px rgba(0, 0, 0, 0.1),
-    0 0 5px rgba(0, 0, 0, 0.1),
-    1px 3px 3px rgba(0, 0, 0, 0.2),
-    3px 5px 5px rgba(0, 0, 0, 0.2),
-    5px 10px 10px rgba(0, 0, 0, 0.2),
-    10px 15px 15px rgba(0, 0, 0, 0.2);
+    1px 1px 0 #ffcb45,
+    2px 2px 0 #f17c4c,
+    3px 3px 0 #d34b8f,
+    4px 4px 0 #a83c9d,
+    5px 5px 0 #86368f,
+    6px 6px 0 #703286,
+    7px 7px 0 #5e2d7d,
+    8px 8px 0 #4f2974,
+    9px 9px 0 #43246b,
+    10px 10px 0 #382062,
+    11px 11px 0 #2f1c59,
+    12px 12px 0 #281850,
+    15px 18px 14px rgba(44, 24, 80, 0.38);
 }
 
 .dark .retro .doodle-text {
-  color: #2c2c2c;
+  -webkit-text-stroke-color: rgba(255, 211, 109, 0.55);
   text-shadow:
-    1px 1px 0px #444,
-    2px 2px 0px #3d3d3d,
-    3px 3px 0px #333,
-    4px 4px 0px #2c2c2c,
-    5px 5px 0px #222,
-    6px 6px 1px rgba(0, 0, 0, 0.5),
-    0 0 5px rgba(0, 0, 0, 0.3),
-    1px 3px 3px rgba(0, 0, 0, 0.4),
-    3px 5px 5px rgba(0, 0, 0, 0.4),
-    5px 10px 10px rgba(0, 0, 0, 0.4);
+    1px 1px 0 #ffc441,
+    2px 2px 0 #ea714c,
+    3px 3px 0 #cb408c,
+    4px 4px 0 #9a3a9b,
+    5px 5px 0 #7b338d,
+    6px 6px 0 #632e82,
+    7px 7px 0 #502878,
+    8px 8px 0 #42226e,
+    9px 9px 0 #361d64,
+    10px 10px 0 #2d185a,
+    11px 11px 0 #25144f,
+    12px 12px 0 #1d1044,
+    15px 18px 16px rgba(0, 0, 0, 0.56);
 }
 
 /* ==================== 7. 赛博朋克样式 ==================== */

@@ -1381,7 +1381,9 @@ class ChatInputManager {
         const beforeIds = new Set(
           this.attachmentManager.attachments.value.map((a) => a.id)
         );
-        await this.attachmentManager.addAttachments([cleanPath]);
+        await this.attachmentManager.addAttachments([cleanPath], {
+          notify: false,
+        });
 
         // 重新获取最新的 attachments 引用
         const afterAssets = this.attachmentManager.attachments.value;

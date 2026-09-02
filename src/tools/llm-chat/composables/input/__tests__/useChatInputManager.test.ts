@@ -19,6 +19,7 @@ import type { KnowledgeReference } from "@/tools/knowledge-base/types";
 
 const attachments = ref<Asset[]>([]);
 const syncStateMock = vi.fn();
+const addAttachmentsMock = vi.fn();
 
 const storage = new Map<string, string>();
 Object.defineProperty(globalThis, "localStorage", {
@@ -61,7 +62,7 @@ vi.mock("../../features/useAttachmentManager", () => ({
     isFull: computed(() => false),
     maxCount: 100,
     onImportComplete: vi.fn(),
-    addAttachments: vi.fn(),
+    addAttachments: addAttachmentsMock,
     addAsset: (asset: Asset) => {
       attachments.value.push(asset);
       return true;
@@ -114,6 +115,7 @@ describe("useChatInputManager session drafts", () => {
   beforeEach(() => {
     attachments.value = [];
     syncStateMock.mockReset();
+    addAttachmentsMock.mockReset();
     localStorage.clear();
     const manager = useChatInputManager();
     manager.clearAllDrafts();
@@ -154,6 +156,44 @@ describe("useChatInputManager session drafts", () => {
     expect(
       manager.getDraftSnapshot("session-b").attachments.map((item) => item.id)
     ).toEqual(["asset-move"]);
+  });
+
+  it("converts paths without per-file attachment notifications", async () => {
+    const manager = useChatInputManager();
+    addAttachmentsMock.mockImplementation(async ([path]: string[]) => {
+      const fileName = path.split("\\").pop() || path;
+      attachments.value.push({
+        id: `asset-${fileName}`,
+        uploadingId: `uploading-${fileName}`,
+        type: "document",
+        name: fileName,
+        mimeType: "text/plain",
+        path,
+        size: 12,
+        sourceModule: "llm-chat",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        origins: [],
+        importStatus: "pending",
+      });
+    });
+    manager.setContent("C:\\first.txt\nD:\\second.txt");
+
+    const result = await manager.convertPathsToAttachments();
+
+    expect(addAttachmentsMock).toHaveBeenNthCalledWith(1, ["C:\\first.txt"], {
+      notify: false,
+    });
+    expect(addAttachmentsMock).toHaveBeenNthCalledWith(2, ["D:\\second.txt"], {
+      notify: false,
+    });
+    expect(result).toEqual({
+      successCount: 2,
+      failedCount: 0,
+      totalCount: 2,
+    });
+    expect(manager.inputText.value).toBe(
+      "【file::uploading:uploading-first.txt】\n【file::uploading:uploading-second.txt】"
+    );
   });
 
   it("keeps Knowledge references isolated per session and clears them after send", () => {

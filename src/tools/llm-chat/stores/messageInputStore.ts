@@ -704,7 +704,12 @@ export const useMessageInputStore = defineStore(
         customMessage.info("未在输入内容中检测到本地文件路径");
         return;
       }
-      customMessage.success(`已成功转换 ${result.successCount} 个路径`);
+      const summary = `路径转附件完成：成功 ${result.successCount} 个，失败 ${result.failedCount} 个`;
+      if (result.failedCount > 0) {
+        customMessage.warning(summary);
+      } else {
+        customMessage.success(summary);
+      }
     };
 
     const handleCleanupPlaceholders = () => {

@@ -37,6 +37,11 @@ import {
 const logger = createModuleLogger("AttachmentManager");
 const errorHandler = createModuleErrorHandler("AttachmentManager");
 
+export interface AddAttachmentsOptions {
+  /** 是否显示添加过程中的浮动提示 */
+  notify?: boolean;
+}
+
 export interface AttachmentManagerOptions {
   /** 最大附件数量 */
   maxCount?: number;
@@ -62,7 +67,10 @@ export interface UseAttachmentManagerReturn {
   /** 是否正在处理 */
   isProcessing: Readonly<Ref<boolean>>;
   /** 添加附件 */
-  addAttachments: (paths: string[]) => Promise<void>;
+  addAttachments: (
+    paths: string[],
+    options?: AddAttachmentsOptions
+  ) => Promise<void>;
   /** 直接添加已导入的资产 */
   addAsset: (asset: Asset) => boolean;
   /** 批量添加 Asset 对象 */
@@ -133,19 +141,22 @@ export function useAttachmentManager(
   /**
    * 验证文件
    */
-  const validateFile = async (path: string): Promise<boolean> => {
+  const validateFile = async (
+    path: string,
+    notify: boolean
+  ): Promise<boolean> => {
     try {
       // 检查文件是否存在
       const exists = await invoke<boolean>("path_exists", { path });
       if (!exists) {
-        customMessage.warning(`文件不存在: ${path}`);
+        if (notify) customMessage.warning(`文件不存在: ${path}`);
         return false;
       }
 
       // 检查是否为目录
       const isDir = await invoke<boolean>("is_directory", { path });
       if (isDir) {
-        customMessage.warning("不支持添加文件夹作为附件");
+        if (notify) customMessage.warning("不支持添加文件夹作为附件");
         return false;
       }
 
@@ -156,7 +167,8 @@ export function useAttachmentManager(
       if (metadata.size > maxFileSize) {
         const sizeMB = (metadata.size / (1024 * 1024)).toFixed(1);
         const maxSizeMB = (maxFileSize / (1024 * 1024)).toFixed(0);
-        customMessage.warning(`文件大小 ${sizeMB}MB 超过限制 ${maxSizeMB}MB`);
+        if (notify)
+          customMessage.warning(`文件大小 ${sizeMB}MB 超过限制 ${maxSizeMB}MB`);
         return false;
       }
 
@@ -164,7 +176,7 @@ export function useAttachmentManager(
       if (allowedTypes.length > 0) {
         const ext = path.substring(path.lastIndexOf(".")).toLowerCase();
         if (!allowedTypes.includes(ext)) {
-          customMessage.warning(`不支持的文件类型: ${ext}`);
+          if (notify) customMessage.warning(`不支持的文件类型: ${ext}`);
           return false;
         }
       }
@@ -176,7 +188,7 @@ export function useAttachmentManager(
         context: { path },
         showToUser: false,
       });
-      customMessage.error("验证文件失败");
+      if (notify) customMessage.error("验证文件失败");
       return false;
     }
   };
@@ -420,7 +432,10 @@ export function useAttachmentManager(
    * 异步导入单个资产
    * 将 pending 状态的资产导入到存储系统
    */
-  const importPendingAsset = async (pendingAsset: Asset): Promise<void> => {
+  const importPendingAsset = async (
+    pendingAsset: Asset,
+    notify: boolean
+  ): Promise<void> => {
     if (!pendingAsset.originalPath) {
       errorHandler.handle(new Error("缺少原始路径，无法导入"), {
         userMessage: "缺少原始路径，无法导入",
@@ -445,12 +460,14 @@ export function useAttachmentManager(
         }
       );
       const importedAsset = importResult.asset;
-      for (const warning of importResult.warnings) {
-        customMessage.warning({
-          message: warning.message || warning.title,
-          duration: 12000,
-          showClose: true,
-        });
+      if (notify) {
+        for (const warning of importResult.warnings) {
+          customMessage.warning({
+            message: warning.message || warning.title,
+            duration: 12000,
+            showClose: true,
+          });
+        }
       }
 
       // 检查是否已存在（基于 SHA256）
@@ -544,9 +561,12 @@ export function useAttachmentManager(
    * 2. 在后台异步导入到存储系统
    * 3. 导入完成后更新 Asset 对象状态
    */
-  const addAttachments = async (paths: string[]): Promise<void> => {
+  const addAttachments = async (
+    paths: string[],
+    { notify = true }: AddAttachmentsOptions = {}
+  ): Promise<void> => {
     if (isFull.value) {
-      customMessage.warning(`最多只能添加 ${maxCount} 个附件`);
+      if (notify) customMessage.warning(`最多只能添加 ${maxCount} 个附件`);
       return;
     }
 
@@ -554,7 +574,7 @@ export function useAttachmentManager(
     const availableSlots = maxCount - attachments.value.length;
     const pathsToAdd = paths.slice(0, availableSlots);
 
-    if (pathsToAdd.length < paths.length) {
+    if (pathsToAdd.length < paths.length && notify) {
       customMessage.warning(
         `最多只能添加 ${availableSlots} 个附件，已自动限制`
       );
@@ -563,7 +583,7 @@ export function useAttachmentManager(
     // 第一阶段：快速验证并创建 pending 资产（用于立即预览）
     const pendingAssets: Asset[] = [];
     for (const path of pathsToAdd) {
-      const isValid = await validateFile(path);
+      const isValid = await validateFile(path, notify);
       if (!isValid) continue;
 
       const pendingAsset = await createPendingAsset(path);
@@ -583,7 +603,7 @@ export function useAttachmentManager(
       pendingAssets.length === 1
         ? `已添加附件: ${pendingAssets[0].name}`
         : `已添加 ${pendingAssets.length} 个附件`;
-    customMessage.success(message);
+    if (notify) customMessage.success(message);
 
     logger.info("附件预览已显示", {
       count: pendingAssets.length,
@@ -600,14 +620,16 @@ export function useAttachmentManager(
     }
 
     // 显示去重后的警告
-    for (const warning of uniqueWarnings) {
-      customMessage.warning(warning);
+    if (notify) {
+      for (const warning of uniqueWarnings) {
+        customMessage.warning(warning);
+      }
     }
 
     // 第二阶段：异步导入到存储系统（不阻塞 UI）
     // 并行导入所有资产，但不等待它们完成，让导入在后台进行
     pendingAssets.forEach((asset) => {
-      importPendingAsset(asset).catch((err) => {
+      importPendingAsset(asset, notify).catch((err) => {
         logger.error("后台导入资产失败", err, {
           assetId: asset.id,
           name: asset.name,

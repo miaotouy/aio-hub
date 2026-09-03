@@ -22,19 +22,20 @@
 
 除 FFmpeg 外，仓库中还存在下列已经落地或隐性依赖的外部程序配置点：
 
-| 依赖/集成                   | 当前位置                                                                                                                                                                                    | 当前配置方式                                                                                                       | 建议纳入方式                                                                              |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| **FFmpeg**                  | `src/tools/ffmpeg-tools/config.ts`、`src/tools/transcription/config.ts`、`src/tools/llm-chat/components/settings/settingsConfig.ts`、`src/tools/token-calculator/components/InputPanel.vue` | 多处私有 `ffmpegPath` + 一处硬编码 `"ffmpeg"`                                                                      | 第一优先级统一到 `environment.ffmpegPath`，工具级字段保留为空值覆盖机制                   |
-| **FFprobe**                 | `src-tauri/src/commands/ffmpeg_processor.rs`                                                                                                                                                | 由 `ffmpegPath` 的父目录推断 `ffprobe`，否则回退 `"ffprobe"`                                                       | 与 FFmpeg 一起纳入 `environment.ffprobePath`，避免 Windows 下 `ffprobe.exe` 推断不完整    |
-| **LibreOffice / soffice**   | `src/tools/asset-manager/config.ts`、`src-tauri/src/commands/document_converter/libreoffice.rs`                                                                                             | 资产管理器私有 `documentConversion.libreOfficePath`，并支持常见安装路径/PATH 自动检测                              | 第二优先级纳入 `environment.documentConverters.libreOfficePath`，资产管理器保留工具级覆盖 |
-| **AbiWord**                 | `src/tools/asset-manager/config.ts`、`src-tauri/src/commands/document_converter/abiword.rs`                                                                                                 | 资产管理器私有 `documentConversion.abiWordPath`，并支持常见安装路径/PATH 自动检测                                  | 与 LibreOffice 同组纳入 `environment.documentConverters.abiWordPath`                      |
-| **Microsoft Word COM**      | `src-tauri/src/commands/document_converter/microsoft_word.rs`                                                                                                                               | Windows 上通过 `powershell.exe` + COM 调用，无 Word 可执行文件路径配置                                             | 不作为路径配置；在运行环境页展示为“系统能力检测”更合适                                    |
-| **macOS textutil**          | `src-tauri/src/commands/document_converter/textutil.rs`                                                                                                                                     | macOS 系统命令 `"textutil"`，无路径配置                                                                            | 不作为第一期路径字段；可作为系统能力检测项                                                |
-| **Skill 脚本运行时**        | `src/tools/skill-manager/stores/skillManagerStore.ts`、`src/tools/skill-manager/components/SkillScanSettings.vue`、`src-tauri/src/commands/skill_manager.rs`                                | Skill 管理器私有 `runtimeSettings.{javascript,python,shell,powershell}.command`，JS/TS 空值时自动检测 `bun > node` | 建议抽象为通用 `environment.runtimes`，但迁移时需保留 Skill 管理器现有 UI 与配置兼容      |
-| **Git CLI**                 | `src-tauri/src/commands/git_analyzer.rs`、`src-tauri/src/commands/skill_manager.rs`                                                                                                         | Git 分析器少量操作硬编码 `"git"`；Skill 从 Git 仓库安装时硬编码 `"git clone"`                                      | 纳入 `environment.gitPath`，同时让相关 Tauri command 接收可选 git 路径或读取统一设置      |
-| **PowerShell**              | `src-tauri/src/commands/skill_manager.rs`、`src-tauri/src/commands/document_converter/microsoft_word.rs`、`src-tauri/src/commands/system_pulse.rs`                                          | Skill 运行时可配置；其他 Windows 系统能力硬编码 `"powershell"`/`"powershell.exe"`                                  | 仅 Skill 运行时先纳入；系统诊断类命令暂不纳入用户配置                                     |
-| **mpv JSON IPC**            | `src/tools/danmaku-player/composables/useExternalPlayer.ts`、`src/tools/danmaku-player/core/externalPlayerApi.ts`                                                                           | 弹幕播放器私有 `mpvIpcPath`，默认 `\\.\pipe\mpv`                                                                   | 不是可执行文件路径，不建议放入通用运行时路径；可归入“外部应用连接配置”独立分组            |
-| **插件 Sidecar 可执行文件** | `src/services/sidecar-plugin-adapter.ts`、`src-tauri/src/commands/sidecar_plugin.rs`                                                                                                        | 插件 manifest 声明平台可执行文件，相对插件目录运行                                                                 | 属于插件私有清单，不应进入全局环境设置                                                    |
+| 依赖/集成                                  | 当前位置                                                                                                                                                                                    | 当前配置方式                                                                                                       | 建议纳入方式                                                                                                       |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| **FFmpeg**                                 | `src/tools/ffmpeg-tools/config.ts`、`src/tools/transcription/config.ts`、`src/tools/llm-chat/components/settings/settingsConfig.ts`、`src/tools/token-calculator/components/InputPanel.vue` | 多处私有 `ffmpegPath` + 一处硬编码 `"ffmpeg"`                                                                      | 第一优先级统一到 `environment.ffmpegPath`，工具级字段保留为空值覆盖机制                                            |
+| **FFprobe**                                | `src-tauri/src/commands/ffmpeg_processor.rs`                                                                                                                                                | 由 `ffmpegPath` 的父目录推断 `ffprobe`，否则回退 `"ffprobe"`                                                       | 与 FFmpeg 一起纳入 `environment.ffprobePath`，避免 Windows 下 `ffprobe.exe` 推断不完整                             |
+| **LibreOffice / soffice**                  | `src/tools/asset-manager/config.ts`、`src-tauri/src/commands/document_converter/libreoffice.rs`                                                                                             | 资产管理器私有 `documentConversion.libreOfficePath`，并支持常见安装路径/PATH 自动检测                              | 第二优先级纳入 `environment.documentConverters.libreOfficePath`，资产管理器保留工具级覆盖                          |
+| **AbiWord**                                | `src/tools/asset-manager/config.ts`、`src-tauri/src/commands/document_converter/abiword.rs`                                                                                                 | 资产管理器私有 `documentConversion.abiWordPath`，并支持常见安装路径/PATH 自动检测                                  | 与 LibreOffice 同组纳入 `environment.documentConverters.abiWordPath`                                               |
+| **Microsoft Word COM**                     | `src-tauri/src/commands/document_converter/microsoft_word.rs`                                                                                                                               | Windows 上通过 `powershell.exe` + COM 调用，无 Word 可执行文件路径配置                                             | 不作为路径配置；在运行环境页展示为“系统能力检测”更合适                                                             |
+| **macOS textutil**                         | `src-tauri/src/commands/document_converter/textutil.rs`                                                                                                                                     | macOS 系统命令 `"textutil"`，无路径配置                                                                            | 不作为第一期路径字段；可作为系统能力检测项                                                                         |
+| **Skill 脚本运行时**                       | `src/tools/skill-manager/stores/skillManagerStore.ts`、`src/tools/skill-manager/components/SkillScanSettings.vue`、`src-tauri/src/commands/skill_manager.rs`                                | Skill 管理器私有 `runtimeSettings.{javascript,python,shell,powershell}.command`，JS/TS 空值时自动检测 `bun > node` | 建议抽象为通用 `environment.runtimes`，但迁移时需保留 Skill 管理器现有 UI 与配置兼容                               |
+| **Git CLI**                                | `src-tauri/src/commands/git_analyzer.rs`、`src-tauri/src/commands/skill_manager.rs`                                                                                                         | Git 分析器少量操作硬编码 `"git"`；Skill 从 Git 仓库安装时硬编码 `"git clone"`                                      | 纳入 `environment.gitPath`，同时让相关 Tauri command 接收可选 git 路径或读取统一设置                               |
+| **PowerShell**                             | `src-tauri/src/commands/skill_manager.rs`、`src-tauri/src/commands/document_converter/microsoft_word.rs`、`src-tauri/src/commands/system_pulse.rs`                                          | Skill 运行时可配置；其他 Windows 系统能力硬编码 `"powershell"`/`"powershell.exe"`                                  | 仅 Skill 运行时先纳入；系统诊断类命令暂不纳入用户配置                                                              |
+| **mpv JSON IPC**                           | `src/tools/danmaku-player/composables/useExternalPlayer.ts`、`src/tools/danmaku-player/core/externalPlayerApi.ts`                                                                           | 弹幕播放器私有 `mpvIpcPath`，默认 `\\.\pipe\mpv`                                                                   | 不是可执行文件路径，不建议放入通用运行时路径；可归入“外部应用连接配置”独立分组                                     |
+| **插件 Sidecar 可执行文件**                | `src/services/sidecar-plugin-adapter.ts`、`src-tauri/src/commands/sidecar_plugin.rs`                                                                                                        | 插件 manifest 声明平台可执行文件，相对插件目录运行                                                                 | 属于插件私有清单，不应进入全局环境设置                                                                             |
+| **Everything HTTP Server**（拟议，未实现） | 本机文件名与路径索引服务；可加速本机 AI 部署候选定位                                                                                                                                        | 用户在 Everything 中独立启用 HTTP Server；当前取样为 `8268` 端口                                                   | 纳入 `environment.discovery.everything` 作为可选本机索引连接，而非可执行文件路径；AIO Hub 仍保留本地扫描与结构复核 |
 
 另外还存在若干平台工具命令（如 Windows `explorer`、macOS `open`、Linux `xdg-open`、`secret-tool`、`glxinfo`、`pkg-config`、`zenity`、`kdialog`、`notify-send` 等）。这些当前主要用于系统集成、诊断或平台能力探测，通常不需要暴露路径配置；更适合在“诊断信息”里展示可用性，而不是作为用户常规设置项。
 
@@ -92,6 +93,7 @@ export interface EnvironmentSettings {
   gitPath?: string; // Git 可执行文件路径 (未来扩展)
   runtimes?: EnvironmentRuntimeSettings; // 脚本运行时命令 (未来扩展)
   documentConverters?: DocumentConverterEnvironmentSettings; // 文档转换依赖 (未来扩展)
+  discovery?: EnvironmentDiscoverySettings; // 本机发现可选加速器 (未来扩展)
 }
 
 export interface EnvironmentRuntimeSettings {
@@ -104,6 +106,13 @@ export interface EnvironmentRuntimeSettings {
 export interface DocumentConverterEnvironmentSettings {
   libreOfficePath?: string; // LibreOffice soffice 路径
   abiWordPath?: string; // AbiWord 路径
+}
+
+export interface EnvironmentDiscoverySettings {
+  everything?: {
+    enabled: boolean;
+    baseUrl: string; // 默认 http://127.0.0.1（Everything HTTP Server 默认端口 80），仅限本机回环地址
+  };
 }
 
 export interface AppSettings {
@@ -125,6 +134,12 @@ export const defaultEnvironmentSettings: EnvironmentSettings = {
   documentConverters: {
     libreOfficePath: "",
     abiWordPath: "",
+  },
+  discovery: {
+    everything: {
+      enabled: false,
+      baseUrl: "http://127.0.0.1",
+    },
   },
 };
 
@@ -152,6 +167,14 @@ const mergedEnvironment = {
   documentConverters: {
     ...defaultConfig.environment?.documentConverters,
     ...loadedConfig.environment?.documentConverters,
+  },
+  discovery: {
+    ...defaultConfig.environment?.discovery,
+    ...loadedConfig.environment?.discovery,
+    everything: {
+      ...defaultConfig.environment?.discovery?.everything,
+      ...loadedConfig.environment?.discovery?.everything,
+    },
   },
 };
 
@@ -241,6 +264,16 @@ export function useFFmpeg(
 在全局设置（`src/views/Settings.vue`）中，新增一个专门的设置子页面：**“运行环境 (Environment)”**。
 
 实际实现位置为 `src/views/Settings/environment/EnvironmentSettings.vue`，并通过 `src/config/settings.ts` 注册为全局设置模块。第一期卡片包含 FFmpeg、FFprobe、Git 三项；每张卡片支持路径输入、文件选择、版本检测和下载指引。检测后端没有新增单独的 FFmpeg 版本 command，而是新增通用 `check_command_version(path, versionArg)`，避免后续 Python/Git/LibreOffice 重复写同类 command。
+
+#### Everything 本机索引服务（拟议，未实现）
+
+在“本机发现”分组提供 Everything HTTP Server 的独立连接卡片，配置项为启用开关和服务地址，不提供程序路径选择，也不尝试在 AIO Hub 内启动或配置 Everything。
+
+- 初始状态为关闭，地址预填 `http://127.0.0.1`（Everything HTTP Server 默认端口 `80`）；输入非回环地址时需要显式确认，首版不支持将其用于远端文件发现。用户自行改为其他端口时，保留其显式配置。
+- “检测服务”仅对 `GET /` 做身份探测，确认其为 Everything HTTP Server 后显示可用；失败时不保存可用状态，也不阻断 AIO Hub 的本地扫描。
+- 启用后只授权本机部署发现调用其文件名和路径检索接口。结果必须经本地 detector 的目录标记复核，不能作为部署数量或模型归属的唯一证据。
+- 不在普通配置中保存 HTTP Basic Auth 密码；后续认证支持需接入系统安全存储。
+- 如探测到服务监听所有网络接口且未启用认证，页面展示风险提示和修正建议；AIO Hub 即使在此状态下也只请求回环端点。
 
 #### 界面视觉设计：
 

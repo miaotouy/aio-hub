@@ -144,7 +144,9 @@ describe("agent import assets", () => {
       filename: "sticker.png",
       subdirectory: "agent-manager/agents/imported-agent/assets",
     });
-    const [, importedAgent] = mocks.updateAgent.mock.lastCall;
+    const lastUpdateCall = mocks.updateAgent.mock.lastCall;
+    expect(lastUpdateCall).toBeDefined();
+    const [, importedAgent] = lastUpdateCall!;
     expect(importedAgent.icon).toBe("avatar.png");
     expect(importedAgent.assets).toEqual([
       {

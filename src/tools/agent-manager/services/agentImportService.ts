@@ -386,6 +386,11 @@ export async function preflightImportAgents(
             // 旧结构：根目录的 assets/
             isAsset = true;
             normalizedPath = filePath;
+          } else if (!agentSubDir && !filePath.includes("/")) {
+            // 单 Agent ZIP 的头像位于根目录；在内存中统一为 assets/ 前缀，
+            // 以便后续根据 icon 字段将其写回智能体目录根部。
+            isAsset = true;
+            normalizedPath = `assets/${filePath}`;
           }
 
           if (isAsset) {
@@ -557,6 +562,10 @@ export async function preflightImportAgents(
             } else if (filePath.startsWith("assets/")) {
               isAsset = true;
               normalizedPath = filePath;
+            } else if (!agentSubDir && !filePath.includes("/")) {
+              // 单 Agent PNG 包内的 ZIP 同样允许头像位于根目录。
+              isAsset = true;
+              normalizedPath = `assets/${filePath}`;
             }
 
             if (isAsset) {
@@ -746,7 +755,10 @@ export async function commitImportAgents(
 
             if (assetPath && agentAssets[assetPath]) {
               pendingAssets.push({
-                type: key === "icon" ? "icon" : "asset",
+                type:
+                  key === "icon" || parentKey === "avatarHistory"
+                    ? "icon"
+                    : "asset",
                 binary: agentAssets[assetPath],
                 originalPath: assetPath,
                 objectRef: obj,
@@ -965,11 +977,16 @@ export async function commitImportAgents(
           const assetPathMapping: Record<string, string> = {};
 
           for (const assetInfo of pendingAssets) {
-            const rawRelativePath = assetInfo.originalPath.replace(
-              /^assets[/\\]/,
-              ""
-            );
-            const pathParts = rawRelativePath.split(/[/\\]/);
+            const normalizedOriginalPath = assetInfo.originalPath
+              .replace(/\\/g, "/")
+              .replace(/^\/+/, "");
+            // 导出包将头像和其他资源都归一到 assets/ 下。头像是智能体
+            // 根目录文件，普通资源则必须保留 assets/ 目录，避免导入后扁平化。
+            const storageRelativePath =
+              assetInfo.type === "icon"
+                ? normalizedOriginalPath.replace(/^assets\//, "")
+                : normalizedOriginalPath;
+            const pathParts = storageRelativePath.split("/");
             const filename = pathParts.pop() || "file";
             const relativeSubDir = pathParts.join("/");
 

@@ -17,6 +17,7 @@ pub mod agent_asset_manager;
 pub mod asset_manager;
 pub mod canvas_window;
 pub mod clipboard;
+pub mod color_picker_batch;
 pub mod config_manager;
 pub mod content_deduplicator;
 pub mod dir_search;
@@ -54,6 +55,7 @@ pub use agent_asset_manager::*;
 pub use asset_manager::*;
 pub use canvas_window::*;
 pub use clipboard::*;
+pub use color_picker_batch::*;
 pub use config_manager::*;
 pub use content_deduplicator::*;
 pub use dir_search::*;
@@ -471,5 +473,10 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         get_system_fonts,
         // 壁纸探测命令
         get_system_wallpapers,
+        color_picker_scan_images,
+        color_picker_cancel_scan,
+        color_picker_check_disk_space,
+        color_picker_check_symlink_permission,
+        color_picker_organize_images,
     ])
 }

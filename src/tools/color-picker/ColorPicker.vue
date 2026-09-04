@@ -16,102 +16,110 @@
 
 <template>
   <div class="color-picker-wrapper">
-    <input
-      ref="fileInputRef"
-      type="file"
-      accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,image/svg+xml"
-      style="display: none"
-      @change="onFileSelected"
+    <el-segmented
+      v-model="activeMode"
+      class="mode-switch"
+      :options="modeOptions"
     />
-    <!-- 顶部操作栏 -->
-    <div class="header-bar">
-      <div class="header-content">
-        <div class="header-left">
-          <h3 class="page-title">图片色彩分析</h3>
-          <el-tag v-if="store.isAnalyzing" type="primary" effect="dark">
-            <el-icon class="is-loading"><Loading /></el-icon>
-            分析中...
-          </el-tag>
-        </div>
-        <div class="header-right">
-          <el-tooltip content="查看历史记录" placement="bottom">
-            <el-button :icon="Clock" @click="isHistoryDialogVisible = true">
-              历史记录
-            </el-button>
-          </el-tooltip>
-          <el-tooltip content="清除当前图片和结果" placement="bottom">
-            <el-button
-              :icon="Delete"
-              @click="clearWorkspace"
-              :disabled="!imageUrl"
-            >
-              清除
-            </el-button>
-          </el-tooltip>
-        </div>
-      </div>
-    </div>
-
-    <!-- 主内容区 -->
-    <div class="color-picker-container">
-      <!-- 左侧：图片预览区 -->
-      <div class="left-panel">
-        <InfoCard title="图片预览" class="preview-card">
-          <template #headerExtra>
-            <div v-if="imageUrl" class="preview-actions">
-              <el-text type="info" size="small">拖放或粘贴以替换</el-text>
-              <el-button
-                :icon="FolderOpened"
-                size="small"
-                @click.stop="openFilePicker"
-              >
-                替换图片
+    <BatchColorOrganizer v-if="activeMode === 'batch'" />
+    <template v-else>
+      <input
+        ref="fileInputRef"
+        type="file"
+        accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,image/svg+xml"
+        style="display: none"
+        @change="onFileSelected"
+      />
+      <!-- 顶部操作栏 -->
+      <div class="header-bar">
+        <div class="header-content">
+          <div class="header-left">
+            <h3 class="page-title">图片色彩分析</h3>
+            <el-tag v-if="store.isAnalyzing" type="primary" effect="dark">
+              <el-icon class="is-loading"><Loading /></el-icon>
+              分析中...
+            </el-tag>
+          </div>
+          <div class="header-right">
+            <el-tooltip content="查看历史记录" placement="bottom">
+              <el-button :icon="Clock" @click="isHistoryDialogVisible = true">
+                历史记录
               </el-button>
+            </el-tooltip>
+            <el-tooltip content="清除当前图片和结果" placement="bottom">
               <el-button
                 :icon="Delete"
-                size="small"
-                @click.stop="clearWorkspace"
+                @click="clearWorkspace"
+                :disabled="!imageUrl"
               >
                 清除
               </el-button>
-            </div>
-          </template>
-          <div
-            ref="dropAreaRef"
-            class="image-preview-area"
-            :class="{ highlight: isDraggingOver }"
-          >
-            <div v-if="!imageUrl" class="upload-prompt">
-              <el-icon :size="64"><Upload /></el-icon>
-              <p>拖放图片到此处，或粘贴图片</p>
-              <el-button type="primary" @click.stop="openFilePicker">
-                <el-icon><FolderOpened /></el-icon>
-                选择图片
-              </el-button>
-            </div>
-
-            <template v-else>
-              <img :src="imageUrl" class="preview-image" />
-            </template>
+            </el-tooltip>
           </div>
-        </InfoCard>
+        </div>
       </div>
 
-      <!-- 右侧：分析设置和结果 -->
-      <RightPanel
-        class="right-panel"
-        :is-eye-dropper-supported="isEyeDropperSupported"
-        :on-algorithm-change="onAlgorithmChange"
-        :on-quantize-count-change="onQuantizeCountChange"
-        :open-eye-dropper="openEyeDropper"
-      />
-    </div>
+      <!-- 主内容区 -->
+      <div class="color-picker-container">
+        <!-- 左侧：图片预览区 -->
+        <div class="left-panel">
+          <InfoCard title="图片预览" class="preview-card">
+            <template #headerExtra>
+              <div v-if="imageUrl" class="preview-actions">
+                <el-text type="info" size="small">拖放或粘贴以替换</el-text>
+                <el-button
+                  :icon="FolderOpened"
+                  size="small"
+                  @click.stop="openFilePicker"
+                >
+                  替换图片
+                </el-button>
+                <el-button
+                  :icon="Delete"
+                  size="small"
+                  @click.stop="clearWorkspace"
+                >
+                  清除
+                </el-button>
+              </div>
+            </template>
+            <div
+              ref="dropAreaRef"
+              class="image-preview-area"
+              :class="{ highlight: isDraggingOver }"
+            >
+              <div v-if="!imageUrl" class="upload-prompt">
+                <el-icon :size="64"><Upload /></el-icon>
+                <p>拖放图片到此处，或粘贴图片</p>
+                <el-button type="primary" @click.stop="openFilePicker">
+                  <el-icon><FolderOpened /></el-icon>
+                  选择图片
+                </el-button>
+              </div>
 
-    <HistoryDialog
-      :visible="isHistoryDialogVisible"
-      @update:visible="isHistoryDialogVisible = $event"
-      @load-record="handleLoadFromHistory"
-    />
+              <template v-else>
+                <img :src="imageUrl" class="preview-image" />
+              </template>
+            </div>
+          </InfoCard>
+        </div>
+
+        <!-- 右侧：分析设置和结果 -->
+        <RightPanel
+          class="right-panel"
+          :is-eye-dropper-supported="isEyeDropperSupported"
+          :on-algorithm-change="onAlgorithmChange"
+          :on-quantize-count-change="onQuantizeCountChange"
+          :open-eye-dropper="openEyeDropper"
+        />
+      </div>
+
+      <HistoryDialog
+        :visible="isHistoryDialogVisible"
+        @update:visible="isHistoryDialogVisible = $event"
+        @load-record="handleLoadFromHistory"
+      />
+    </template>
   </div>
 </template>
 
@@ -138,6 +146,7 @@ import { useDebounceFn } from "@vueuse/core";
 import InfoCard from "@/components/common/InfoCard.vue";
 import RightPanel from "./components/RightPanel.vue";
 import HistoryDialog from "./components/HistoryDialog.vue";
+import BatchColorOrganizer from "./BatchColorOrganizer.vue";
 
 const errorHandler = createModuleErrorHandler("color-picker/ColorPicker");
 const logger = createModuleLogger("color-picker/ColorPicker");
@@ -155,6 +164,11 @@ const fileInputRef = ref<HTMLInputElement | null>(null);
 const imageUrl = ref<string | null>(null);
 const isDraggingOver = ref(false);
 const currentImageBlob = ref<Blob | null>(null);
+const activeMode = ref<"single" | "batch">("single");
+const modeOptions = [
+  { label: "单图分析", value: "single" },
+  { label: "批量整理", value: "batch" },
+];
 
 function onAlgorithmChange() {
   // 未来可以根据算法切换触发重新分析
@@ -469,6 +483,11 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.mode-switch {
+  align-self: flex-start;
+  margin-bottom: 16px;
+}
+
 .color-picker-wrapper {
   padding: 20px;
   height: 100%;

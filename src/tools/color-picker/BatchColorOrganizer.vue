@@ -5,27 +5,18 @@
       :candidate-count="candidates.length"
       :max-depth="maxDepth"
       :thresholds="thresholds"
-      :archive-mode="archiveMode"
       :analyzing="analyzing"
       :completed="completed"
       :total="items.length"
       :eta-seconds="etaSeconds"
-      :selected-count="selectedItems.length"
-      :target-directory="targetDirectory"
-      :preflight="preflight"
-      :organizing="organizing"
       @add-files="addFiles"
       @add-directory="addDirectory"
       @clear-candidates="clearCandidates"
       @update:max-depth="maxDepth = $event"
       @update:thresholds="thresholds = $event"
-      @update:archive-mode="archiveMode = $event"
       @start-analyze="startAnalyze"
       @cancel-analyze="cancelAnalyze"
       @drop="handleDrop"
-      @update:target-directory="targetDirectory = $event"
-      @choose-directory="chooseTargetDirectory"
-      @organize="organize"
     />
 
     <!-- 主内容区 -->
@@ -43,6 +34,7 @@
         @export-csv="exportCsv"
         @export-json="exportJson"
         @retry-failed="retryFailed"
+        @start-archive="archiveDialogVisible = true"
       />
 
       <!-- 结果网格 -->
@@ -51,87 +43,28 @@
         @preview="previewItem"
         @toggle-selection="toggleSelection"
         @toggle-group="toggleGroup"
+        @select-group="selectGroup"
+        @archive-group="archiveGroup"
+        @archive-item="archiveItem"
       />
     </div>
 
-    <!-- 右侧面板：归档结果 -->
-    <div v-if="archiveResult" class="archive-result-panel">
-      <div class="panel-header">
-        <h3 class="panel-title">归档结果</h3>
-        <el-button size="small" text @click="archiveResult = null">
-          <el-icon><Close /></el-icon>
-        </el-button>
-      </div>
-
-      <div class="result-stats-grid">
-        <div class="result-stat success">
-          <div class="stat-number">{{ archiveResult.successCount }}</div>
-          <div class="stat-label">成功</div>
-        </div>
-        <div class="result-stat renamed">
-          <div class="stat-number">{{ archiveResult.renamedCount }}</div>
-          <div class="stat-label">重命名</div>
-        </div>
-        <div class="result-stat failed">
-          <div class="stat-number">{{ archiveResult.failedCount }}</div>
-          <div class="stat-label">失败</div>
-        </div>
-        <div class="result-stat missing">
-          <div class="stat-number">{{ archiveResult.sourceNotFoundCount }}</div>
-          <div class="stat-label">丢失</div>
-        </div>
-      </div>
-
-      <div class="result-actions">
-        <el-button size="small" @click="archiveDetailsVisible = true">查看详情</el-button>
-        <el-button v-if="targetDirectory" size="small" @click="openTargetDirectory">
-          <el-icon><FolderOpened /></el-icon>
-          打开目录
-        </el-button>
-      </div>
-    </div>
-
-    <!-- 归档详情对话框 -->
-    <BaseDialog
-      v-model="archiveDetailsVisible"
-      title="归档结果详情"
-      width="760px"
-      height="min(72vh, 680px)"
-    >
-      <div v-if="archiveResult?.details.length" class="archive-details">
-        <div class="archive-detail-summary">
-          共 {{ archiveResult.details.length }} 项：成功 {{ archiveResult.successCount }}，
-          重命名 {{ archiveResult.renamedCount }}，失败 {{ archiveResult.failedCount }}，
-          源文件丢失 {{ archiveResult.sourceNotFoundCount }}
-        </div>
-        <div class="archive-detail-list">
-          <div
-            v-for="detail in archiveResult.details"
-            :key="`${detail.sourcePath}-${detail.targetPath ?? detail.status}`"
-            class="archive-detail-item"
-          >
-            <el-tag size="small" :type="getDetailTagType(detail.status)" effect="plain">
-              {{ getDetailStatusLabel(detail.status) }}
-            </el-tag>
-            <div class="archive-detail-paths">
-              <div class="archive-detail-source" :title="detail.sourcePath">
-                {{ detail.sourcePath }}
-              </div>
-              <div v-if="detail.targetPath" class="archive-detail-target" :title="detail.targetPath">
-                → {{ detail.targetPath }}
-              </div>
-              <div v-if="detail.error" class="archive-detail-error">
-                {{ detail.error }}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div v-else class="empty-state">暂无归档详情。</div>
-      <template #footer>
-        <el-button @click="archiveDetailsVisible = false">关闭</el-button>
-      </template>
-    </BaseDialog>
+    <!-- 归档弹窗 -->
+    <ArchiveDialog
+      v-model:visible="archiveDialogVisible"
+      :selected-count="selectedItems.length"
+      :target-directory="targetDirectory"
+      :archive-mode="archiveMode"
+      :preflight="preflight"
+      :organizing="organizing"
+      :archive-result="archiveResult"
+      @update:target-directory="targetDirectory = $event"
+      @update:archive-mode="archiveMode = $event"
+      @choose-directory="chooseTargetDirectory"
+      @organize="organize"
+      @open-directory="openTargetDirectory"
+      @clear-result="archiveResult = null"
+    />
   </div>
 </template>
 
@@ -141,15 +74,14 @@ import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { Close, FolderOpened } from "@element-plus/icons-vue";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import BaseDialog from "@/components/common/BaseDialog.vue";
 import BatchInputSidebar from "./components/BatchInputSidebar.vue";
 import BatchResultToolbar from "./components/BatchResultToolbar.vue";
 import BatchResultGrid from "./components/BatchResultGrid.vue";
+import ArchiveDialog from "./components/ArchiveDialog.vue";
 import {
   DEFAULT_BRIGHTNESS_THRESHOLDS,
   makeCsv,
@@ -168,15 +100,30 @@ type ArchiveDetail = {
 };
 
 const logger = createModuleLogger("color-picker/BatchColorOrganizer");
-const errorHandler = createModuleErrorHandler("color-picker/BatchColorOrganizer");
+const errorHandler = createModuleErrorHandler(
+  "color-picker/BatchColorOrganizer"
+);
 const { show: showImageViewer } = useImageViewer();
 
 // 数据状态
-const supported = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "ico", "tiff", "avif"];
+const supported = [
+  "jpg",
+  "jpeg",
+  "png",
+  "gif",
+  "webp",
+  "bmp",
+  "svg",
+  "ico",
+  "tiff",
+  "avif",
+];
 const candidates = ref<BatchImageCandidate[]>([]);
 const items = ref<BatchImageItem[]>([]);
 const maxDepth = ref<number | null>(3);
-const thresholds = ref<[number, number, number, number]>([...DEFAULT_BRIGHTNESS_THRESHOLDS]);
+const thresholds = ref<[number, number, number, number]>([
+  ...DEFAULT_BRIGHTNESS_THRESHOLDS,
+]);
 const filter = ref<BatchFilterState>({
   colorFamilies: [],
   brightnessLevels: [],
@@ -193,6 +140,7 @@ const activeNames = ref<string[]>([]);
 const archiveMode = ref<BatchArchiveMode>("copy");
 const targetDirectory = ref("");
 const organizing = ref(false);
+const archiveDialogVisible = ref(false);
 const preflight = ref<{
   loading: boolean;
   error: string;
@@ -208,17 +156,25 @@ const archiveResult = ref<{
   sourceNotFoundCount: number;
   details: ArchiveDetail[];
 } | null>(null);
-const archiveDetailsVisible = ref(false);
 
 // 计算属性
-const failedItems = computed(() => items.value.filter((item) => item.status === "failed"));
-const successCount = computed(() => items.value.filter((item) => item.status === "success").length);
-const selectedItems = computed(() => items.value.filter((item) => item.selected && item.status === "success"));
+const failedItems = computed(() =>
+  items.value.filter((item) => item.status === "failed")
+);
+const successCount = computed(
+  () => items.value.filter((item) => item.status === "success").length
+);
+const selectedItems = computed(() =>
+  items.value.filter((item) => item.selected && item.status === "success")
+);
 
 const groups = computed(() => {
   const map = new Map<string, BatchImageItem[]>();
   items.value
-    .filter((item) => item.status === "success" && matchesBatchFilter(item, filter.value))
+    .filter(
+      (item) =>
+        item.status === "success" && matchesBatchFilter(item, filter.value)
+    )
     .forEach((item) => {
       const key = `${item.colorFamily}/${item.brightnessLevel}`;
       const group = map.get(key) ?? [];
@@ -234,7 +190,10 @@ const groups = computed(() => {
 });
 
 const filteredCount = computed(() => {
-  return items.value.filter((item) => item.status === "success" && matchesBatchFilter(item, filter.value)).length;
+  return items.value.filter(
+    (item) =>
+      item.status === "success" && matchesBatchFilter(item, filter.value)
+  ).length;
 });
 
 // 文件选择
@@ -255,14 +214,17 @@ async function addDirectory() {
 async function scan(roots: string[]) {
   const scanId = crypto.randomUUID();
   try {
-    const result = await invoke<BatchImageCandidate[]>("color_picker_scan_images", {
-      request: {
-        scanId,
-        roots,
-        maxDepth: maxDepth.value,
-        extensions: supported,
-      },
-    });
+    const result = await invoke<BatchImageCandidate[]>(
+      "color_picker_scan_images",
+      {
+        request: {
+          scanId,
+          roots,
+          maxDepth: maxDepth.value,
+          extensions: supported,
+        },
+      }
+    );
     const existing = new Set(candidates.value.map((c) => c.path));
     candidates.value.push(...result.filter((c) => !existing.has(c.path)));
     customMessage.success(`发现 ${result.length} 张图片`);
@@ -307,7 +269,10 @@ async function processAnalysis(queue: BatchImageItem[]) {
       completed.value++;
       const elapsed = (performance.now() - startedAt) / 1000;
       const average = elapsed / completed.value;
-      etaSeconds.value = Math.max(0, Math.ceil(average * (queue.length - completed.value)));
+      etaSeconds.value = Math.max(
+        0,
+        Math.ceil(average * (queue.length - completed.value))
+      );
     }
   };
   await Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
@@ -315,16 +280,21 @@ async function processAnalysis(queue: BatchImageItem[]) {
 
 async function analyzeItem(item: BatchImageItem) {
   item.status = "analyzing";
-  activeNames.value = [...new Set([...activeNames.value, item.fileName])].slice(-4);
+  activeNames.value = [...new Set([...activeNames.value, item.fileName])].slice(
+    -4
+  );
   try {
     const color = await sampleImage(item.path);
     item.averageColor = color.hex;
     item.luminance = color.luminance;
-    item.colorFamily = (await import("./batchColorOrganizer")).classifyColor(color.r, color.g, color.b);
-    item.brightnessLevel = (await import("./batchColorOrganizer")).classifyBrightness(
-      color.luminance,
-      thresholds.value
+    item.colorFamily = (await import("./batchColorOrganizer")).classifyColor(
+      color.r,
+      color.g,
+      color.b
     );
+    item.brightnessLevel = (
+      await import("./batchColorOrganizer")
+    ).classifyBrightness(color.luminance, thresholds.value);
     item.status = "success";
     item.error = undefined;
   } catch (error) {
@@ -332,7 +302,9 @@ async function analyzeItem(item: BatchImageItem) {
     item.error = error instanceof Error ? error.message : "图片解码失败";
     logger.warn("批量图片分析失败", { path: item.path, error: item.error });
   } finally {
-    activeNames.value = activeNames.value.filter((name) => name !== item.fileName);
+    activeNames.value = activeNames.value.filter(
+      (name) => name !== item.fileName
+    );
   }
 }
 
@@ -357,7 +329,10 @@ async function sampleImage(path: string) {
     if (!ctx) throw new Error("无法读取图片像素");
     ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
     const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-    let r = 0, g = 0, b = 0, weight = 0;
+    let r = 0,
+      g = 0,
+      b = 0,
+      weight = 0;
     for (let i = 0; i < data.length; i += 4) {
       const alpha = data[i + 3] / 255;
       if (alpha < 0.01) continue;
@@ -370,9 +345,13 @@ async function sampleImage(path: string) {
     r = Math.round(r / weight);
     g = Math.round(g / weight);
     b = Math.round(b / weight);
-    const luminance = (await import("./batchColorOrganizer")).calculateLuminance(r, g, b);
+    const luminance = (
+      await import("./batchColorOrganizer")
+    ).calculateLuminance(r, g, b);
     return {
-      r, g, b,
+      r,
+      g,
+      b,
       hex: `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`,
       luminance,
     };
@@ -410,9 +389,32 @@ function toggleGroup(group: BatchImageItem[]) {
   });
 }
 
+function selectGroup(groupItems: BatchImageItem[], select: boolean) {
+  groupItems.forEach((item) => {
+    item.selected = select;
+  });
+}
+
+function archiveGroup(groupItems: BatchImageItem[]) {
+  clearSelection();
+  groupItems.forEach((item) => {
+    item.selected = true;
+  });
+  archiveDialogVisible.value = true;
+}
+
+function archiveItem(item: BatchImageItem) {
+  clearSelection();
+  item.selected = true;
+  archiveDialogVisible.value = true;
+}
+
 function selectFiltered() {
   items.value
-    .filter((item) => item.status === "success" && matchesBatchFilter(item, filter.value))
+    .filter(
+      (item) =>
+        item.status === "success" && matchesBatchFilter(item, filter.value)
+    )
     .forEach((item) => {
       item.selected = true;
     });
@@ -431,7 +433,8 @@ function previewItem(item: BatchImageItem) {
 // 归档逻辑
 async function chooseTargetDirectory() {
   const selected = await open({ directory: true, multiple: false });
-  if (selected && typeof selected === "string") targetDirectory.value = selected;
+  if (selected && typeof selected === "string")
+    targetDirectory.value = selected;
 }
 
 async function runPreflight() {
@@ -440,7 +443,10 @@ async function runPreflight() {
     preflight.value = { loading: false, error: "" };
     return;
   }
-  const required = selected.reduce((sum, item) => sum + (item.size || 0), 100 * 1024 * 1024);
+  const required = selected.reduce(
+    (sum, item) => sum + (item.size || 0),
+    100 * 1024 * 1024
+  );
   preflight.value = { loading: true, error: "", required };
   try {
     if (archiveMode.value === "copy") {
@@ -456,9 +462,12 @@ async function runPreflight() {
         diskSufficient: result.sufficient,
       };
     } else {
-      const allowed = await invoke<boolean>("color_picker_check_symlink_permission", {
-        testDirectory: targetDirectory.value,
-      });
+      const allowed = await invoke<boolean>(
+        "color_picker_check_symlink_permission",
+        {
+          testDirectory: targetDirectory.value,
+        }
+      );
       preflight.value = {
         loading: false,
         error: "",
@@ -532,203 +541,38 @@ async function exportJson() {
   customMessage.success("JSON 报告已导出");
 }
 
-// 详情对话框工具
-function getDetailStatusLabel(status: string) {
-  if (status === "success") return "成功";
-  if (status === "renamed") return "已重命名";
-  if (status === "source_not_found") return "源文件丢失";
-  return "失败";
-}
-
-function getDetailTagType(status: string) {
-  if (status === "success") return "success";
-  if (status === "renamed") return "warning";
-  return "danger";
-}
-
 // 监听归档配置变化，触发预检
-watch([selectedItems, targetDirectory, archiveMode], () => void runPreflight(), { deep: true });
+watch(
+  [selectedItems, targetDirectory, archiveMode],
+  () => void runPreflight(),
+  { deep: true }
+);
 </script>
 
 <style scoped>
 .batch-color-organizer {
   height: 100%;
   display: flex;
+  gap: 16px;
   overflow: hidden;
-  background: var(--bg-color);
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
 }
 
 .main-content {
-  flex: 1;
+  flex: 3;
   display: flex;
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
-  background: var(--el-bg-color);
-}
-
-.archive-result-panel {
-  width: 280px;
-  background: var(--el-bg-color);
-  border-left: 1px solid var(--border-color);
-  padding: 16px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.panel-title {
-  font-size: 14px;
-  font-weight: 600;
-  margin: 0;
-  color: var(--text-color);
-}
-
-.result-stats-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-.result-stat {
-  text-align: center;
-  padding: 12px;
-  border-radius: 6px;
-  background: var(--el-fill-color-lighter);
-}
-
-.result-stat.success {
-  background: rgba(103, 194, 58, 0.1);
-}
-
-.result-stat.renamed {
-  background: rgba(230, 162, 60, 0.1);
-}
-
-.result-stat.failed,
-.result-stat.missing {
-  background: rgba(245, 108, 108, 0.1);
-}
-
-.stat-number {
-  font-size: 24px;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.result-stat.success .stat-number {
-  color: var(--el-color-success);
-}
-
-.result-stat.renamed .stat-number {
-  color: var(--el-color-warning);
-}
-
-.result-stat.failed .stat-number,
-.result-stat.missing .stat-number {
-  color: var(--el-color-danger);
-}
-
-.stat-label {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  margin-top: 4px;
-}
-
-.result-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* 归档详情对话框 */
-.archive-details {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  height: 100%;
-}
-
-.archive-detail-summary {
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.archive-detail-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.archive-detail-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
   background: var(--card-bg);
-}
-
-.archive-detail-paths {
-  min-width: 0;
-  flex: 1;
-  font-size: 12px;
-}
-
-.archive-detail-source,
-.archive-detail-target,
-.archive-detail-error {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.archive-detail-source {
-  color: var(--text-color);
-  font-weight: 500;
-}
-
-.archive-detail-target {
-  margin-top: 4px;
-  color: var(--el-text-color-secondary);
-}
-
-.archive-detail-error {
-  margin-top: 4px;
-  color: var(--el-color-danger);
-}
-
-.empty-state {
-  text-align: center;
-  padding: 60px 20px;
-  color: var(--el-text-color-secondary);
+  border: var(--border-width) solid var(--border-color);
+  backdrop-filter: blur(var(--ui-blur));
+  border-radius: 8px;
 }
 
 @media (max-width: 1200px) {
   .batch-color-organizer {
     flex-direction: column;
-  }
-
-  .archive-result-panel {
-    width: 100%;
-    border-left: none;
-    border-top: 1px solid var(--border-color);
+    gap: 12px;
   }
 }
 </style>

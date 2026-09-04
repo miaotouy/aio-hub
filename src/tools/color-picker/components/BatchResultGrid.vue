@@ -5,15 +5,21 @@
       <p>没有符合筛选条件的图片</p>
     </div>
 
-    <div v-else class="virtual-container" :style="{ height: `${virtualTotalSize}px` }">
+    <div
+      v-else
+      class="virtual-container"
+      :style="{ height: `${virtualTotalSize}px` }"
+    >
       <div
         v-for="virtualRow in virtualRows"
         :key="String(virtualRow.key)"
         class="virtual-row"
         :data-index="virtualRow.index"
-        :ref="(el) => {
-          if (el) virtualizer.measureElement(el as HTMLElement);
-        }"
+        :ref="
+          (el) => {
+            if (el) virtualizer.measureElement(el as HTMLElement);
+          }
+        "
         :style="{ transform: `translateY(${virtualRow.start}px)` }"
       >
         <div class="group-card">
@@ -21,7 +27,10 @@
           <div v-if="getRow(virtualRow.index)?.showHeader" class="group-header">
             <span
               class="group-color-indicator"
-              :style="{ background: getRow(virtualRow.index)?.group.items[0]?.averageColor }"
+              :style="{
+                background: getRow(virtualRow.index)?.group.items[0]
+                  ?.averageColor,
+              }"
             ></span>
             <strong class="group-title">
               {{ getRow(virtualRow.index)?.group.colorFamily }} /
@@ -30,10 +39,62 @@
             <span class="group-count">
               {{ getRow(virtualRow.index)?.group.items.length }} 张
             </span>
-            <el-checkbox
-              :model-value="getRow(virtualRow.index)?.group.items.every((item) => item.selected)"
-              @change="$emit('toggle-group', getRow(virtualRow.index)?.group.items ?? [])"
-            />
+            <div class="group-actions" @click.stop>
+              <el-checkbox
+                :model-value="
+                  getRow(virtualRow.index)?.group.items.every(
+                    (item) => item.selected
+                  )
+                "
+                @change="
+                  $emit(
+                    'toggle-group',
+                    getRow(virtualRow.index)?.group.items ?? []
+                  )
+                "
+              />
+              <el-dropdown trigger="click" size="small">
+                <el-button size="small" text :icon="MoreFilled" />
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item
+                      @click="
+                        $emit(
+                          'select-group',
+                          getRow(virtualRow.index)?.group.items ?? [],
+                          true
+                        )
+                      "
+                    >
+                      全选分组
+                    </el-dropdown-item>
+                    <el-dropdown-item
+                      @click="
+                        $emit(
+                          'select-group',
+                          getRow(virtualRow.index)?.group.items ?? [],
+                          false
+                        )
+                      "
+                    >
+                      清空分组
+                    </el-dropdown-item>
+                    <el-dropdown-item
+                      divided
+                      @click="
+                        $emit(
+                          'archive-group',
+                          getRow(virtualRow.index)?.group.items ?? []
+                        )
+                      "
+                    >
+                      <el-icon><FolderOpenedIcon /></el-icon>
+                      归档此分组
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
           </div>
 
           <!-- 图片网格 -->
@@ -56,9 +117,34 @@
                   class="color-preview"
                   :style="{ background: item.averageColor }"
                 ></span>
-                <span class="file-name" :title="item.path">{{ item.fileName }}</span>
-                <span class="luminance-badge">L {{ item.luminance?.toFixed(2) }}</span>
+                <span class="file-name" :title="item.path">{{
+                  item.fileName
+                }}</span>
+                <span class="luminance-badge"
+                  >L {{ item.luminance?.toFixed(2) }}</span
+                >
               </div>
+
+              <!-- 悬浮操作栏 -->
+              <div class="card-hover-actions" @click.stop>
+                <el-tooltip content="预览图片" placement="top">
+                  <el-button
+                    size="small"
+                    circle
+                    :icon="ZoomIn"
+                    @click="$emit('preview', item)"
+                  />
+                </el-tooltip>
+                <el-tooltip content="归档此图片" placement="top">
+                  <el-button
+                    size="small"
+                    circle
+                    :icon="FolderOpenedIcon"
+                    @click="$emit('archive-item', item)"
+                  />
+                </el-tooltip>
+              </div>
+
               <div v-if="item.selected" class="selected-indicator">✓</div>
             </div>
           </div>
@@ -69,10 +155,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from "vue";
+import { computed, ref, watch, nextTick, markRaw } from "vue";
 import { useVirtualizer } from "@tanstack/vue-virtual";
-import { FolderOpened } from "@element-plus/icons-vue";
+import { FolderOpened, MoreFilled, ZoomIn } from "@element-plus/icons-vue";
 import type { BatchImageItem } from "../batchColorOrganizer";
+
+// 显式使用 markRaw 包装图标组件，防止 Vue 响应式代理带来的性能开销
+const FolderOpenedIcon = markRaw(FolderOpened);
 
 interface BatchResultGroup {
   key: string;
@@ -91,6 +180,9 @@ defineEmits<{
   (e: "preview", item: BatchImageItem): void;
   (e: "toggle-selection", item: BatchImageItem): void;
   (e: "toggle-group", items: BatchImageItem[]): void;
+  (e: "select-group", items: BatchImageItem[], select: boolean): void;
+  (e: "archive-group", items: BatchImageItem[]): void;
+  (e: "archive-item", item: BatchImageItem): void;
 }>();
 
 const scrollRef = ref<HTMLElement | null>(null);
@@ -188,10 +280,13 @@ watch(
 }
 
 .group-card {
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   padding: 12px;
-  background: var(--card-bg);
+  background: rgba(
+    var(--el-fill-color-lighter-rgb),
+    calc(var(--card-opacity) * 0.3)
+  );
 }
 
 .group-header {
@@ -200,7 +295,14 @@ watch(
   gap: 10px;
   margin-bottom: 12px;
   padding-bottom: 10px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
+}
+
+.group-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
 }
 
 .group-color-indicator {
@@ -220,24 +322,30 @@ watch(
 .group-count {
   font-size: 12px;
   color: var(--el-text-color-secondary);
-  margin-left: auto;
 }
 
 .image-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
   gap: 10px;
 }
 
 .image-card {
   position: relative;
-  min-height: 90px;
-  border: 2px solid var(--border-color);
+  min-height: 96px;
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
-  background: var(--el-fill-color-light);
+  background: rgba(
+    var(--el-fill-color-lighter-rgb),
+    calc(var(--card-opacity) * 0.5)
+  );
   padding: 10px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition:
+    border-color 0.2s,
+    background-color 0.2s,
+    transform 0.2s,
+    box-shadow 0.2s;
   overflow: hidden;
 }
 
@@ -249,7 +357,10 @@ watch(
 
 .image-card.selected {
   border-color: var(--el-color-primary);
-  background: rgba(var(--primary-color-rgb), 0.05);
+  background: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.08)
+  );
 }
 
 .card-checkbox {
@@ -289,10 +400,42 @@ watch(
 
 .selected-indicator {
   position: absolute;
-  top: 8px;
+  top: 6px;
   right: 8px;
   color: var(--el-color-primary);
   font-weight: bold;
-  font-size: 18px;
+  font-size: 16px;
+}
+
+.card-hover-actions {
+  position: absolute;
+  bottom: -32px;
+  left: 0;
+  right: 0;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: bottom 0.2s;
+  z-index: 2;
+}
+
+.image-card:hover .card-hover-actions {
+  bottom: 0;
+}
+
+.card-hover-actions :deep(.el-button) {
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: #fff;
+}
+
+.card-hover-actions :deep(.el-button:hover) {
+  background: var(--el-color-primary);
+  color: #fff;
 }
 </style>
+

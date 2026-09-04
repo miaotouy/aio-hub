@@ -15,7 +15,9 @@
           placeholder="全部色系"
           size="small"
           style="width: 180px"
-          @update:model-value="$emit('update:filter', { ...filter, colorFamilies: $event })"
+          @update:model-value="
+            $emit('update:filter', { ...filter, colorFamilies: $event })
+          "
         >
           <el-option
             v-for="family in BATCH_COLOR_FAMILIES"
@@ -39,7 +41,9 @@
           placeholder="全部亮度"
           size="small"
           style="width: 180px"
-          @update:model-value="$emit('update:filter', { ...filter, brightnessLevels: $event })"
+          @update:model-value="
+            $emit('update:filter', { ...filter, brightnessLevels: $event })
+          "
         >
           <el-option
             v-for="level in BATCH_BRIGHTNESS_LEVELS"
@@ -87,6 +91,16 @@
       </el-dropdown>
 
       <el-button
+        type="primary"
+        size="small"
+        :disabled="selectedCount === 0"
+        @click="$emit('start-archive')"
+      >
+        <el-icon style="margin-right: 4px"><FolderOpened /></el-icon>
+        开始归档
+      </el-button>
+
+      <el-button
         v-if="failedCount > 0"
         type="warning"
         size="small"
@@ -99,8 +113,17 @@
 </template>
 
 <script setup lang="ts">
-import { ChromeFilled, Sunny, ArrowDown, Document } from "@element-plus/icons-vue";
-import { BATCH_COLOR_FAMILIES, BATCH_BRIGHTNESS_LEVELS } from "../batchColorOrganizer";
+import {
+  ChromeFilled,
+  Sunny,
+  ArrowDown,
+  Document,
+  FolderOpened,
+} from "@element-plus/icons-vue";
+import {
+  BATCH_COLOR_FAMILIES,
+  BATCH_BRIGHTNESS_LEVELS,
+} from "../batchColorOrganizer";
 import type { BatchFilterState } from "../batchColorOrganizer";
 
 interface Props {
@@ -120,6 +143,7 @@ defineEmits<{
   (e: "export-csv"): void;
   (e: "export-json"): void;
   (e: "retry-failed"): void;
+  (e: "start-archive"): void;
 }>();
 </script>
 
@@ -129,8 +153,8 @@ defineEmits<{
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  background: var(--el-bg-color);
-  border-bottom: 1px solid var(--border-color);
+  background: transparent;
+  border-bottom: var(--border-width) solid var(--border-color);
   gap: 16px;
   flex-wrap: wrap;
 }
@@ -182,3 +206,4 @@ defineEmits<{
   }
 }
 </style>
+

@@ -66,7 +66,8 @@
     "windows": {
       "nsis": {
         "languages": ["English", "SimpChinese"],
-        "displayLanguageSelector": true
+        "displayLanguageSelector": true,
+        "template": "nsis/installer.nsi"
       }
     }
   }

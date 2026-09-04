@@ -10,6 +10,10 @@
       :completed="completed"
       :total="items.length"
       :eta-seconds="etaSeconds"
+      :selected-count="selectedItems.length"
+      :target-directory="targetDirectory"
+      :preflight="preflight"
+      :organizing="organizing"
       @add-files="addFiles"
       @add-directory="addDirectory"
       @clear-candidates="clearCandidates"
@@ -19,6 +23,9 @@
       @start-analyze="startAnalyze"
       @cancel-analyze="cancelAnalyze"
       @drop="handleDrop"
+      @update:target-directory="targetDirectory = $event"
+      @choose-directory="chooseTargetDirectory"
+      @organize="organize"
     />
 
     <!-- 主内容区 -->
@@ -47,21 +54,42 @@
       />
     </div>
 
-    <!-- 右侧面板：归档 -->
-    <BatchArchivePanel
-      :selected-count="selectedItems.length"
-      :target-directory="targetDirectory"
-      :archive-mode="archiveMode"
-      :preflight="preflight"
-      :organizing="organizing"
-      :archive-result="archiveResult"
-      @update:target-directory="targetDirectory = $event"
-      @update:archive-mode="archiveMode = $event"
-      @choose-directory="chooseTargetDirectory"
-      @organize="organize"
-      @show-details="archiveDetailsVisible = true"
-      @open-directory="openTargetDirectory"
-    />
+    <!-- 右侧面板：归档结果 -->
+    <div v-if="archiveResult" class="archive-result-panel">
+      <div class="panel-header">
+        <h3 class="panel-title">归档结果</h3>
+        <el-button size="small" text @click="archiveResult = null">
+          <el-icon><Close /></el-icon>
+        </el-button>
+      </div>
+
+      <div class="result-stats-grid">
+        <div class="result-stat success">
+          <div class="stat-number">{{ archiveResult.successCount }}</div>
+          <div class="stat-label">成功</div>
+        </div>
+        <div class="result-stat renamed">
+          <div class="stat-number">{{ archiveResult.renamedCount }}</div>
+          <div class="stat-label">重命名</div>
+        </div>
+        <div class="result-stat failed">
+          <div class="stat-number">{{ archiveResult.failedCount }}</div>
+          <div class="stat-label">失败</div>
+        </div>
+        <div class="result-stat missing">
+          <div class="stat-number">{{ archiveResult.sourceNotFoundCount }}</div>
+          <div class="stat-label">丢失</div>
+        </div>
+      </div>
+
+      <div class="result-actions">
+        <el-button size="small" @click="archiveDetailsVisible = true">查看详情</el-button>
+        <el-button v-if="targetDirectory" size="small" @click="openTargetDirectory">
+          <el-icon><FolderOpened /></el-icon>
+          打开目录
+        </el-button>
+      </div>
+    </div>
 
     <!-- 归档详情对话框 -->
     <BaseDialog
@@ -113,6 +141,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { Close, FolderOpened } from "@element-plus/icons-vue";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
@@ -121,7 +150,6 @@ import BaseDialog from "@/components/common/BaseDialog.vue";
 import BatchInputSidebar from "./components/BatchInputSidebar.vue";
 import BatchResultToolbar from "./components/BatchResultToolbar.vue";
 import BatchResultGrid from "./components/BatchResultGrid.vue";
-import BatchArchivePanel from "./components/BatchArchivePanel.vue";
 import {
   DEFAULT_BRIGHTNESS_THRESHOLDS,
   makeCsv,
@@ -528,6 +556,8 @@ watch([selectedItems, targetDirectory, archiveMode], () => void runPreflight(), 
   display: flex;
   overflow: hidden;
   background: var(--bg-color);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
 }
 
 .main-content {
@@ -536,6 +566,90 @@ watch([selectedItems, targetDirectory, archiveMode], () => void runPreflight(), 
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
+  background: var(--el-bg-color);
+}
+
+.archive-result-panel {
+  width: 280px;
+  background: var(--el-bg-color);
+  border-left: 1px solid var(--border-color);
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-color);
+}
+
+.result-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.result-stat {
+  text-align: center;
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--el-fill-color-lighter);
+}
+
+.result-stat.success {
+  background: rgba(103, 194, 58, 0.1);
+}
+
+.result-stat.renamed {
+  background: rgba(230, 162, 60, 0.1);
+}
+
+.result-stat.failed,
+.result-stat.missing {
+  background: rgba(245, 108, 108, 0.1);
+}
+
+.stat-number {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.result-stat.success .stat-number {
+  color: var(--el-color-success);
+}
+
+.result-stat.renamed .stat-number {
+  color: var(--el-color-warning);
+}
+
+.result-stat.failed .stat-number,
+.result-stat.missing .stat-number {
+  color: var(--el-color-danger);
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-top: 4px;
+}
+
+.result-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 /* 归档详情对话框 */
@@ -609,6 +723,12 @@ watch([selectedItems, targetDirectory, archiveMode], () => void runPreflight(), 
 @media (max-width: 1200px) {
   .batch-color-organizer {
     flex-direction: column;
+  }
+
+  .archive-result-panel {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--border-color);
   }
 }
 </style>

@@ -63,22 +63,10 @@
 
       <div class="config-item">
         <label class="config-label">亮度阈值</label>
-        <div class="threshold-control">
-          <div class="threshold-labels">
-            <span>暗</span>
-            <span>中</span>
-            <span>亮</span>
-          </div>
-          <el-slider
-            :model-value="thresholds"
-            :min="0.01"
-            :max="0.99"
-            :step="0.01"
-            range
-            size="small"
-            @update:model-value="$emit('update:thresholds', $event)"
-          />
-        </div>
+        <BrightnessThresholdSlider
+          :model-value="thresholds"
+          @update:model-value="$emit('update:thresholds', $event)"
+        />
       </div>
     </section>
 
@@ -120,6 +108,7 @@
 import { computed } from "vue";
 import { FolderOpened } from "@element-plus/icons-vue";
 import DropZone from "@/components/common/DropZone.vue";
+import BrightnessThresholdSlider from "./BrightnessThresholdSlider.vue";
 
 interface Props {
   candidateCount: number;

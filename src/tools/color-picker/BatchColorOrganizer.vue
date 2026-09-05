@@ -229,12 +229,9 @@ const filteredCount = computed(() => {
 });
 
 function updateThresholds(values: number[]) {
-  thresholds.value = clampThresholds(values) as [
-    number,
-    number,
-    number,
-    number,
-  ];
+  thresholds.value = clampThresholds(
+    [...values].sort((left, right) => left - right)
+  ) as [number, number, number, number];
 }
 
 async function scanDirectoryPath() {

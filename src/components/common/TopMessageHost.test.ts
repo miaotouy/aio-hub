@@ -51,6 +51,33 @@ describe("TopMessageHost", () => {
     expect(wrapper.find(".top-message").exists()).toBe(false);
   });
 
+  it("renders HTML messages when explicitly enabled", async () => {
+    const wrapper = mount(TopMessageHost);
+    customMessage.error({
+      message: '<strong class="message-detail">请求失败</strong>',
+      dangerouslyUseHTMLString: true,
+      duration: 0,
+    });
+    await nextTick();
+
+    expect(wrapper.find(".message-detail").exists()).toBe(true);
+    expect(wrapper.find(".message-detail").text()).toBe("请求失败");
+    expect(wrapper.find(".top-message__content").text()).toBe("请求失败");
+  });
+
+  it("keeps HTML escaped unless explicitly enabled", async () => {
+    const wrapper = mount(TopMessageHost);
+    customMessage.error({
+      message: "<strong>请求失败</strong>",
+      duration: 0,
+    });
+    await nextTick();
+
+    expect(wrapper.find("strong").exists()).toBe(false);
+    expect(wrapper.find(".top-message__content").text()).toBe(
+      "<strong>请求失败</strong>"
+    );
+  });
   it("copies the message content when the message card is clicked", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {

@@ -44,6 +44,7 @@
         <el-button @click="showCustomMessage('info')">信息消息</el-button>
         <el-button @click="showCustomMessage('warning')">警告消息</el-button>
         <el-button @click="showCustomMessage('error')">错误消息</el-button>
+        <el-button @click="showHTMLCustomMessage">HTML 消息</el-button>
         <el-button @click="showLongCustomMessage">长消息测试</el-button>
       </div>
     </div>
@@ -243,6 +244,15 @@ const showCustomMessage = (type: "success" | "info" | "warning" | "error") => {
   lastResult.value = `显示了自定义 ${type} 消息`;
 };
 
+const showHTMLCustomMessage = () => {
+  customMessage.info({
+    dangerouslyUseHTMLString: true,
+    message: "<strong>这是 <i>CustomMessage</i> 的 HTML 片段</strong>",
+    duration: 0,
+    showClose: true,
+  });
+  lastResult.value = "显示了自定义 HTML 消息";
+};
 const showLongCustomMessage = () => {
   customMessage.info({ message: LONG_TEXT, duration: 5000, showClose: true });
   lastResult.value = "显示了自定义长内容消息";

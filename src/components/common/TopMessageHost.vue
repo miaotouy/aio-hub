@@ -60,7 +60,7 @@ const MessageBody = defineComponent({
       type: [String, Object, Function],
       required: true,
     },
-    dangerouslyUseHTMLString: Boolean,
+    dangerouslyUseHtmlString: Boolean,
   },
   setup(props) {
     return () => {
@@ -68,7 +68,7 @@ const MessageBody = defineComponent({
       const attributes = { class: "top-message__content" };
 
       if (typeof content === "string") {
-        return props.dangerouslyUseHTMLString
+        return props.dangerouslyUseHtmlString
           ? h("p", { ...attributes, innerHTML: content })
           : h("p", attributes, content);
       }

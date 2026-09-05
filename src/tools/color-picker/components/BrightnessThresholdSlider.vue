@@ -98,10 +98,65 @@
       </div>
     </div>
 
-    <div class="threshold-hint">
-      <span>黑</span>
-      <span>亮度范围</span>
-      <span>白</span>
+    <div class="threshold-footer">
+      <div class="threshold-hint">
+        <span>黑 (0.0)</span>
+        <span>亮度划分</span>
+        <span>白 (1.0)</span>
+      </div>
+
+      <div class="threshold-actions">
+        <!-- 组件使用说明 Tooltip -->
+        <el-tooltip placement="top" :show-after="150">
+          <template #content>
+            <div class="guide-content">
+              <div class="guide-title">💡 亮度阈值说明</div>
+              <ul class="guide-list">
+                <li>
+                  <b>5 档划分</b>：4
+                  个阈值将亮度分为<b>极暗、偏暗、中等、偏亮、明亮</b>。
+                </li>
+                <li><b>滑动手柄</b>：直接拖动轨道上手柄调节分界点。</li>
+                <li>
+                  <b>微调拖拽</b>：在数值块上<b>左右拖动</b>可微调，按住
+                  <b>Shift</b> 超精细微调。
+                </li>
+                <li>
+                  <b>精确输入</b>：<b>单击</b>数值块即可切换输入框直接键入。
+                </li>
+              </ul>
+            </div>
+          </template>
+          <button
+            type="button"
+            class="action-btn"
+            :disabled="disabled"
+            aria-label="查看亮度阈值使用说明"
+          >
+            <HelpCircle :size="12" />
+            <span>说明</span>
+          </button>
+        </el-tooltip>
+
+        <!-- 重置默认按钮 -->
+        <el-tooltip
+          :content="`重置为默认值 (${defaultValues.map(formatDisplayValue).join(', ')})`"
+          placement="top"
+          :show-after="300"
+        >
+          <button
+            type="button"
+            class="action-btn reset-btn"
+            :class="{ 'is-disabled': disabled || isDefault }"
+            :disabled="disabled || isDefault"
+            aria-label="重置为默认阈值"
+            @click="resetToDefault"
+          >
+            <RotateCcw :size="12" />
+            <span>重置默认</span>
+          </button>
+        </el-tooltip>
+      </div>
     </div>
   </div>
 </template>
@@ -109,11 +164,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref } from "vue";
 import type { ComponentPublicInstance } from "vue";
+import { HelpCircle, RotateCcw } from "lucide-vue-next";
 
 type ThresholdTuple = [number, number, number, number];
 
 interface Props {
   modelValue: ThresholdTuple;
+  defaultValues?: ThresholdTuple;
   min?: number;
   max?: number;
   step?: number;
@@ -121,6 +178,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  defaultValues: () => [0.2, 0.4, 0.6, 0.8],
   min: 0.01,
   max: 0.99,
   step: 0.01,
@@ -233,6 +291,17 @@ const valueFromPointer = (event: PointerEvent) => {
   const rect = track.getBoundingClientRect();
   const percent = ((event.clientX - rect.left) / rect.width) * 100;
   return percentToValue(percent);
+};
+const isDefault = computed(() => {
+  const current = values.value;
+  const target = normalizeValues(props.defaultValues);
+  return current.every((val, idx) => Math.abs(val - target[idx]) < 0.001);
+});
+
+const resetToDefault = () => {
+  if (props.disabled || isDefault.value) return;
+  const target = normalizeValues(props.defaultValues);
+  emit("update:modelValue", target);
 };
 
 const nearestIndex = (value: number) =>
@@ -592,16 +661,93 @@ onBeforeUnmount(() => {
   pointer-events: none;
 }
 
+.threshold-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  gap: 6px;
+}
+
 .threshold-hint {
   display: flex;
-  justify-content: space-between;
-  margin-top: 7px;
+  gap: 6px;
   color: var(--el-text-color-secondary);
   font-size: 10px;
+  line-height: 1;
 }
 
 .threshold-hint span:nth-child(2) {
   opacity: 0.7;
+}
+
+.threshold-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease;
+  user-select: none;
+}
+
+.action-btn:hover:not(:disabled) {
+  color: var(--el-color-primary);
+  background-color: var(--el-fill-color-light);
+  border-color: var(--border-color);
+}
+
+.action-btn:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 1px;
+}
+
+.action-btn:disabled,
+.action-btn.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.guide-content {
+  font-size: 11px;
+  line-height: 1.5;
+  max-width: 230px;
+  padding: 2px 0;
+}
+
+.guide-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--el-color-primary-light-3, inherit);
+}
+
+.guide-list {
+  margin: 0;
+  padding-left: 14px;
+}
+
+.guide-list li {
+  margin-bottom: 3px;
+}
+
+.guide-list li:last-child {
+  margin-bottom: 0;
 }
 
 .threshold-track.is-disabled,

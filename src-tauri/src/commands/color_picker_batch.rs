@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 use walkdir::WalkDir;
 
@@ -25,6 +25,26 @@ static SVG_FONT_DATABASE: Lazy<Arc<usvg::fontdb::Database>> = Lazy::new(|| {
     database.load_system_fonts();
     Arc::new(database)
 });
+
+// Share a bounded pool across tasks/windows instead of saturating Rayon's global pool.
+// Half the available logical CPUs (at most four image decoders) leaves headroom for
+// the WebView and other tools and limits concurrent full-resolution image buffers.
+fn analysis_worker_count(available: usize) -> usize {
+    (available / 2).clamp(1, 4)
+}
+
+static ANALYSIS_POOL: Lazy<Result<rayon::ThreadPool, String>> = Lazy::new(|| {
+    let available = std::thread::available_parallelism()
+        .map(usize::from)
+        .unwrap_or(1);
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(analysis_worker_count(available))
+        .thread_name(|index| format!("color-analysis-{index}"))
+        .build()
+        .map_err(|error| format!("创建颜色分析线程池失败: {error}"))
+});
+
+const ANALYSIS_PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
 
 const DEFAULT_BRIGHTNESS_THRESHOLDS: [f64; 4] = [0.2, 0.4, 0.6, 0.8];
 
@@ -550,138 +570,142 @@ fn sample_image_color(path: &Path) -> Result<(u8, u8, u8, f64), String> {
 }
 
 #[tauri::command]
-pub fn color_picker_analyze_images(
+pub async fn color_picker_analyze_images(
     app: AppHandle,
     request: AnalyzeImagesRequest,
 ) -> Result<Vec<AnalyzeItemResult>, String> {
-    let task_id = request.task_id.trim();
-    if task_id.is_empty() {
+    if request.task_id.trim().is_empty() {
         return Err("分析任务 ID 不能为空".to_string());
     }
-
+    // Register before dispatch, so cancellation while waiting for a worker is not lost.
     CANCELLED_ANALYSES
         .lock()
         .map_err(|_| "分析任务状态不可用".to_string())?
-        .remove(task_id);
+        .remove(&request.task_id);
 
+    tokio::task::spawn_blocking(move || {
+        analyze_images(request, |progress| {
+            let _ = app.emit("color_picker_analyze_progress", progress);
+        })
+    })
+    .await
+    .map_err(|error| format!("颜色分析后台任务失败: {error}"))?
+}
+
+fn analyze_images(
+    request: AnalyzeImagesRequest,
+    emit: impl Fn(AnalyzeProgress) + Sync,
+) -> Result<Vec<AnalyzeItemResult>, String> {
+    let task_id = &request.task_id;
+    let _cleanup = scopeguard::guard((), |_| {
+        if let Ok(mut cancelled) = CANCELLED_ANALYSES.lock() {
+            cancelled.remove(task_id);
+        }
+    });
+    let pool = ANALYSIS_POOL.as_ref().map_err(Clone::clone)?;
     let thresholds = normalize_brightness_thresholds(request.thresholds.as_deref());
     let total = request.paths.len();
-    let completed = AtomicUsize::new(0);
+    let progress = Mutex::new((0_usize, Vec::new(), Instant::now()));
 
-    // 发送初始进度
-    let _ = app.emit(
-        "color_picker_analyze_progress",
-        AnalyzeProgress {
-            task_id: task_id.to_string(),
-            completed_count: 0,
-            total_count: total,
-            active_names: Vec::new(),
-            batch_results: Vec::new(),
-            done: false,
-            cancelled: false,
-        },
-    );
+    emit(AnalyzeProgress {
+        task_id: task_id.clone(),
+        completed_count: 0,
+        total_count: total,
+        active_names: Vec::new(),
+        batch_results: Vec::new(),
+        done: false,
+        cancelled: false,
+    });
 
-    // 利用 rayon 并行处理图片分析
-    let results: Vec<AnalyzeItemResult> = request
-        .paths
-        .par_iter()
-        .map(|path_str| {
-            let is_cancelled = CANCELLED_ANALYSES
-                .lock()
-                .map(|set| set.contains(task_id))
-                .unwrap_or(false);
+    let results = pool.install(|| {
+        request
+            .paths
+            .par_iter()
+            .map(|path_str| {
+                let is_cancelled = CANCELLED_ANALYSES
+                    .lock()
+                    .map(|set| set.contains(task_id))
+                    .unwrap_or(false);
+                if is_cancelled {
+                    return AnalyzeItemResult {
+                        path: path_str.clone(),
+                        status: "failed".to_string(),
+                        average_color: None,
+                        luminance: None,
+                        color_family: None,
+                        brightness_level: None,
+                        error: Some("分析任务已取消".to_string()),
+                    };
+                }
 
-            if is_cancelled {
-                return AnalyzeItemResult {
-                    path: path_str.clone(),
-                    status: "failed".to_string(),
-                    average_color: None,
-                    luminance: None,
-                    color_family: None,
-                    brightness_level: None,
-                    error: Some("分析任务已取消".to_string()),
-                };
-            }
-
-            let path = Path::new(path_str);
-            let item_result = match sample_image_color(path) {
-                Ok((r, g, b, luminance)) => {
-                    let hex = format!("#{r:02x}{g:02x}{b:02x}");
-                    let color_family = classify_color(r, g, b).to_string();
-                    let brightness_level = classify_brightness(luminance, &thresholds).to_string();
-                    AnalyzeItemResult {
+                let path = Path::new(path_str);
+                let item_result = match sample_image_color(path) {
+                    Ok((r, g, b, luminance)) => AnalyzeItemResult {
                         path: path_str.clone(),
                         status: "success".to_string(),
-                        average_color: Some(hex),
+                        average_color: Some(format!("#{r:02x}{g:02x}{b:02x}")),
                         luminance: Some(luminance),
-                        color_family: Some(color_family),
-                        brightness_level: Some(brightness_level),
+                        color_family: Some(classify_color(r, g, b).to_string()),
+                        brightness_level: Some(
+                            classify_brightness(luminance, &thresholds).to_string(),
+                        ),
                         error: None,
-                    }
-                }
-                Err(err) => AnalyzeItemResult {
-                    path: path_str.clone(),
-                    status: "failed".to_string(),
-                    average_color: None,
-                    luminance: None,
-                    color_family: None,
-                    brightness_level: None,
-                    error: Some(err),
-                },
-            };
-
-            let current_completed = completed.fetch_add(1, Ordering::SeqCst) + 1;
-
-            // 每处理 5 张或到达最后一张时发出进度事件
-            if current_completed.is_multiple_of(5) || current_completed == total {
-                let file_name = path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or_default()
-                    .to_string();
-
-                let _ = app.emit(
-                    "color_picker_analyze_progress",
-                    AnalyzeProgress {
-                        task_id: task_id.to_string(),
-                        completed_count: current_completed,
-                        total_count: total,
-                        active_names: vec![file_name],
-                        batch_results: vec![item_result.clone()],
-                        done: current_completed >= total,
-                        cancelled: false,
                     },
-                );
-            }
+                    Err(err) => AnalyzeItemResult {
+                        path: path_str.clone(),
+                        status: "failed".to_string(),
+                        average_color: None,
+                        luminance: None,
+                        color_family: None,
+                        brightness_level: None,
+                        error: Some(err),
+                    },
+                };
 
-            item_result
-        })
-        .collect();
+                // Serialize both the count and emission: concurrent workers must not
+                // deliver decreasing counts or drop results between progress batches.
+                let mut state = progress.lock().unwrap_or_else(|error| error.into_inner());
+                let (completed, pending, last_emit) = &mut *state;
+                *completed += 1;
+                pending.push(item_result.clone());
+                if *completed == 1 || last_emit.elapsed() >= ANALYSIS_PROGRESS_INTERVAL {
+                    emit(AnalyzeProgress {
+                        task_id: task_id.clone(),
+                        completed_count: *completed,
+                        total_count: total,
+                        active_names: vec![path
+                            .file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .into_owned()],
+                        batch_results: std::mem::take(pending),
+                        done: false,
+                        cancelled: false,
+                    });
+                    *last_emit = Instant::now();
+                }
+                item_result
+            })
+            .collect()
+    });
 
     let was_cancelled = CANCELLED_ANALYSES
         .lock()
         .map(|set| set.contains(task_id))
         .unwrap_or(false);
-
-    let _ = app.emit(
-        "color_picker_analyze_progress",
-        AnalyzeProgress {
-            task_id: task_id.to_string(),
-            completed_count: total,
-            total_count: total,
-            active_names: Vec::new(),
-            batch_results: Vec::new(),
-            done: true,
-            cancelled: was_cancelled,
-        },
-    );
-
-    CANCELLED_ANALYSES
-        .lock()
-        .map_err(|_| "分析任务状态不可用".to_string())?
-        .remove(task_id);
-
+    let (completed, pending, _) = progress
+        .into_inner()
+        .unwrap_or_else(|error| error.into_inner());
+    // Flush the tail even on cancellation; skipped images are not completed work.
+    emit(AnalyzeProgress {
+        task_id: task_id.clone(),
+        completed_count: completed,
+        total_count: total,
+        active_names: Vec::new(),
+        batch_results: pending,
+        done: true,
+        cancelled: was_cancelled,
+    });
     Ok(results)
 }
 
@@ -891,6 +915,139 @@ pub fn color_picker_organize_images(
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    #[test]
+    fn analysis_pool_leaves_cpu_headroom_and_bounds_decoders() {
+        assert_eq!(analysis_worker_count(1), 1);
+        for available in 2..=128 {
+            let workers = analysis_worker_count(available);
+            assert!(workers >= 1);
+            assert!(workers <= available / 2);
+            assert!(workers <= 4);
+        }
+    }
+
+    #[test]
+    fn analysis_streams_every_result_once_with_monotonic_progress() {
+        let directory = tempdir().unwrap();
+        let paths: Vec<String> = (0..13)
+            .map(|index| {
+                let path = directory.path().join(format!("{index}.png"));
+                image::RgbaImage::from_pixel(2, 2, image::Rgba([255, 0, 0, 255]))
+                    .save(&path)
+                    .unwrap();
+                path.to_string_lossy().into_owned()
+            })
+            .chain(std::iter::once(
+                directory
+                    .path()
+                    .join("missing.png")
+                    .to_string_lossy()
+                    .into_owned(),
+            ))
+            .collect();
+        let events = Mutex::new(Vec::new());
+        let results = analyze_images(
+            AnalyzeImagesRequest {
+                task_id: uuid::Uuid::new_v4().to_string(),
+                paths: paths.clone(),
+                thresholds: None,
+            },
+            |event| events.lock().unwrap().push(event),
+        )
+        .unwrap();
+        let events = events.into_inner().unwrap();
+        assert_eq!(results.len(), paths.len());
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| result.status == "success")
+                .count(),
+            13
+        );
+        assert_eq!(results.last().unwrap().status, "failed");
+        assert!(events
+            .iter()
+            .any(|event| !event.done && !event.batch_results.is_empty()));
+        assert_eq!(events.iter().filter(|event| event.done).count(), 1);
+        assert!(events.last().unwrap().done);
+        let mut received = HashSet::new();
+        let mut previous = 0;
+        for event in &events {
+            assert!(event.completed_count >= previous);
+            previous = event.completed_count;
+            for result in &event.batch_results {
+                assert!(
+                    received.insert(result.path.clone()),
+                    "duplicate streamed result"
+                );
+            }
+            assert_eq!(received.len(), event.completed_count);
+        }
+        assert_eq!(received, paths.into_iter().collect());
+        // The streamed payload must agree with the final response, including failures.
+        let streamed: std::collections::HashMap<_, _> = events
+            .iter()
+            .flat_map(|event| &event.batch_results)
+            .map(|result| (&result.path, serde_json::to_value(result).unwrap()))
+            .collect();
+        for result in &results {
+            assert_eq!(
+                streamed[&result.path],
+                serde_json::to_value(result).unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn cancellation_flushes_completed_results_without_counting_skipped_images() {
+        let directory = tempdir().unwrap();
+        let task_id = uuid::Uuid::new_v4().to_string();
+        let events = Mutex::new(Vec::new());
+        // Cancel on the first streamed result. Other in-flight workers may finish,
+        // but queued images must remain unprocessed and must not inflate progress.
+        let results = analyze_images(
+            AnalyzeImagesRequest {
+                task_id: task_id.clone(),
+                paths: (0..100)
+                    .map(|index| {
+                        directory
+                            .path()
+                            .join(format!("missing-{index}.png"))
+                            .to_string_lossy()
+                            .into_owned()
+                    })
+                    .collect(),
+                thresholds: None,
+            },
+            |event| {
+                if event.completed_count > 0 && !event.done {
+                    color_picker_cancel_analyze(task_id.clone()).unwrap();
+                }
+                events.lock().unwrap().push(event);
+            },
+        )
+        .unwrap();
+        let events = events.into_inner().unwrap();
+        let last = events.last().unwrap();
+        assert!(last.done && last.cancelled);
+        assert!(last.completed_count > 0 && last.completed_count < last.total_count);
+        assert_eq!(
+            events
+                .iter()
+                .map(|event| event.batch_results.len())
+                .sum::<usize>(),
+            last.completed_count
+        );
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| result.error.as_deref() == Some("分析任务已取消"))
+                .count(),
+            last.total_count - last.completed_count
+        );
+        assert!(!CANCELLED_ANALYSES.lock().unwrap().contains(&task_id));
+    }
 
     #[test]
     fn safe_component_rejects_path_traversal() {

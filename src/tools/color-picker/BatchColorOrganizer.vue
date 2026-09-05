@@ -71,7 +71,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onUnmounted } from "vue";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
@@ -166,6 +166,8 @@ const cancelled = ref(false);
 const activeNames = ref<string[]>([]);
 const currentTaskId = ref<string>("");
 let unlistenProgress: UnlistenFn | null = null;
+let progressListenerReady: Promise<void> | null = null;
+let disposed = false;
 let analysisStartTime = 0;
 
 // 归档状态
@@ -282,8 +284,27 @@ function clearCandidates() {
   archiveResult.value = null;
 }
 
+// Keep a path index so each progress batch only touches its own results.
+const itemsByPath = computed(
+  () => new Map(items.value.map((item) => [item.path, item]))
+);
+
+function applyAnalysisResults(results: AnalyzeItemResult[]) {
+  for (const result of results) {
+    const item = itemsByPath.value.get(result.path);
+    if (!item) continue;
+    item.status = result.status;
+    item.averageColor = result.averageColor;
+    item.luminance = result.luminance;
+    item.colorFamily = result.colorFamily;
+    item.brightnessLevel = result.brightnessLevel;
+    item.error = result.error;
+  }
+}
+
 // 分析逻辑
 async function startAnalyze() {
+  if (analyzing.value || candidates.value.length === 0) return;
   analyzing.value = true;
   cancelled.value = false;
   completed.value = 0;
@@ -301,6 +322,8 @@ async function startAnalyze() {
   analysisTotal.value = items.value.length;
 
   try {
+    await ensureProgressListener();
+    if (disposed || cancelled.value) return;
     const results = await invoke<AnalyzeItemResult[]>(
       "color_picker_analyze_images",
       {
@@ -312,22 +335,15 @@ async function startAnalyze() {
       }
     );
 
-    const resultMap = new Map(results.map((r) => [r.path, r]));
-    items.value.forEach((item) => {
-      const res = resultMap.get(item.path);
-      if (res) {
-        item.status = res.status;
-        item.averageColor = res.averageColor;
-        item.luminance = res.luminance;
-        item.colorFamily = res.colorFamily;
-        item.brightnessLevel = res.brightnessLevel;
-        item.error = res.error;
-      }
-    });
+    if (!disposed) {
+      applyAnalysisResults(results);
+      if (!cancelled.value) completed.value = analysisTotal.value;
+    }
   } catch (error) {
     errorHandler.error(error, "批量分析失败");
   } finally {
     analyzing.value = false;
+    currentTaskId.value = "";
     activeNames.value = [];
   }
 }
@@ -350,6 +366,8 @@ async function retryFailed() {
   currentTaskId.value = taskId;
 
   try {
+    await ensureProgressListener();
+    if (disposed || cancelled.value) return;
     const results = await invoke<AnalyzeItemResult[]>(
       "color_picker_analyze_images",
       {
@@ -361,22 +379,15 @@ async function retryFailed() {
       }
     );
 
-    const resultMap = new Map(results.map((r) => [r.path, r]));
-    items.value.forEach((item) => {
-      const res = resultMap.get(item.path);
-      if (res) {
-        item.status = res.status;
-        item.averageColor = res.averageColor;
-        item.luminance = res.luminance;
-        item.colorFamily = res.colorFamily;
-        item.brightnessLevel = res.brightnessLevel;
-        item.error = res.error;
-      }
-    });
+    if (!disposed) {
+      applyAnalysisResults(results);
+      if (!cancelled.value) completed.value = analysisTotal.value;
+    }
   } catch (error) {
     errorHandler.error(error, "重试分析失败");
   } finally {
     analyzing.value = false;
+    currentTaskId.value = "";
     activeNames.value = [];
   }
 }
@@ -394,11 +405,12 @@ async function cancelAnalyze() {
   }
 }
 
-onMounted(async () => {
-  unlistenProgress = await listen<AnalyzeProgress>(
+function ensureProgressListener(): Promise<void> {
+  if (progressListenerReady) return progressListenerReady;
+  progressListenerReady = listen<AnalyzeProgress>(
     "color_picker_analyze_progress",
     (event) => {
-      if (event.payload.taskId !== currentTaskId.value) return;
+      if (disposed || event.payload.taskId !== currentTaskId.value) return;
       completed.value = event.payload.completedCount;
       analysisTotal.value = event.payload.totalCount;
       if (event.payload.activeNames?.length) {
@@ -416,29 +428,30 @@ onMounted(async () => {
         );
       }
 
-      if (event.payload.batchResults && event.payload.batchResults.length) {
-        const map = new Map(event.payload.batchResults.map((r) => [r.path, r]));
-        items.value.forEach((item) => {
-          const res = map.get(item.path);
-          if (res) {
-            item.status = res.status;
-            item.averageColor = res.averageColor;
-            item.luminance = res.luminance;
-            item.colorFamily = res.colorFamily;
-            item.brightnessLevel = res.brightnessLevel;
-            item.error = res.error;
-          }
-        });
+      applyAnalysisResults(event.payload.batchResults ?? []);
+      if (event.payload.done) {
+        activeNames.value = [];
+        cancelled.value = event.payload.cancelled;
+        etaSeconds.value = null;
       }
     }
-  );
-});
+  )
+    .then((unlisten) => {
+      if (disposed) unlisten();
+      else unlistenProgress = unlisten;
+    })
+    .catch((error: unknown) => {
+      progressListenerReady = null;
+      throw error;
+    });
+  return progressListenerReady;
+}
 
 onUnmounted(() => {
-  if (unlistenProgress) {
-    unlistenProgress();
-    unlistenProgress = null;
-  }
+  disposed = true;
+  if (analyzing.value) void cancelAnalyze();
+  unlistenProgress?.();
+  unlistenProgress = null;
 });
 
 // 选择逻辑

@@ -258,13 +258,11 @@ const virtualTotalSize = computed(() => virtualizer.value.getTotalSize());
 
 const getRow = (index: number) => rows.value[index];
 
-watch(
-  rows,
-  () => {
-    nextTick(() => virtualizer.value.measure());
-  },
-  { deep: true }
-);
+// 只在分组/行结构发生变化时重新测量。不要 deep watch 每个图片对象，
+// 否则点击选择框修改 selected 会触发虚拟列表重新测量并造成滚动位置跳变。
+watch(rows, () => {
+  nextTick(() => virtualizer.value.measure());
+});
 </script>
 
 <style scoped>

@@ -113,10 +113,34 @@
                 @change="$emit('toggle-selection', item)"
               />
               <div class="card-content">
-                <span
-                  class="color-preview"
-                  :style="{ background: item.averageColor }"
-                ></span>
+                <div class="thumbnail-frame">
+                  <img
+                    v-if="
+                      item.thumbnailUrl && !failedPreviewPaths.has(item.path)
+                    "
+                    :src="item.thumbnailUrl"
+                    :alt="item.fileName"
+                    class="image-thumbnail"
+                    loading="lazy"
+                    decoding="async"
+                    @error="handlePreviewError(item.path)"
+                  />
+                  <div
+                    v-else
+                    class="thumbnail-fallback"
+                    aria-label="无法加载图片预览"
+                  >
+                    <span
+                      class="fallback-color"
+                      :style="{ background: item.averageColor }"
+                    ></span>
+                  </div>
+                  <span
+                    class="color-preview"
+                    :style="{ background: item.averageColor }"
+                    title="平均颜色"
+                  ></span>
+                </div>
                 <span class="file-name" :title="item.path">{{
                   item.fileName
                 }}</span>
@@ -186,6 +210,11 @@ defineEmits<{
 }>();
 
 const scrollRef = ref<HTMLElement | null>(null);
+const failedPreviewPaths = ref(new Set<string>());
+
+function handlePreviewError(path: string) {
+  failedPreviewPaths.value = new Set(failedPreviewPaths.value).add(path);
+}
 
 // 虚拟滚动行数据
 type VirtualRow = {
@@ -332,7 +361,7 @@ watch(
 
 .image-card {
   position: relative;
-  min-height: 96px;
+  min-height: 132px;
   border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   background: rgba(
@@ -376,12 +405,59 @@ watch(
   gap: 6px;
 }
 
-.color-preview {
-  width: 28px;
-  height: 28px;
+.thumbnail-frame {
+  position: relative;
+  width: 100%;
+  height: 78px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 5px;
+  background:
+    linear-gradient(45deg, var(--el-fill-color-light) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--el-fill-color-light) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--el-fill-color-light) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--el-fill-color-light) 75%);
+  background-size: 12px 12px;
+  background-position:
+    0 0,
+    0 6px,
+    6px -6px,
+    -6px 0;
+  border: var(--border-width) solid var(--border-color);
+}
+
+.image-thumbnail {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.thumbnail-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.fallback-color {
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.3);
-  flex-shrink: 0;
+}
+
+.color-preview {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--el-bg-color);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }
 
 .file-name {
@@ -438,4 +514,3 @@ watch(
   color: #fff;
 }
 </style>
-

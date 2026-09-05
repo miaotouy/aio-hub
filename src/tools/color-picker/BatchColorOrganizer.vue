@@ -72,7 +72,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -257,6 +257,7 @@ async function startAnalyze() {
     ...c,
     status: "pending",
     selected: false,
+    thumbnailUrl: toThumbnailUrl(c.path),
   }));
   await processAnalysis(items.value);
   analyzing.value = false;
@@ -428,6 +429,15 @@ function clearSelection() {
   items.value.forEach((item) => {
     item.selected = false;
   });
+}
+
+function toThumbnailUrl(path: string): string | undefined {
+  try {
+    return convertFileSrc(path);
+  } catch (error) {
+    logger.debug("生成图片预览地址失败", { path, error });
+    return undefined;
+  }
 }
 
 function previewItem(item: BatchImageItem) {

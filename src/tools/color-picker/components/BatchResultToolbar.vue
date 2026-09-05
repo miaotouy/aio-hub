@@ -14,7 +14,7 @@
           collapse-tags-tooltip
           placeholder="全部色系"
           size="small"
-          style="width: 180px"
+          style="width: 100px"
           @update:model-value="
             $emit('update:filter', { ...filter, colorFamilies: $event })
           "
@@ -40,7 +40,7 @@
           collapse-tags-tooltip
           placeholder="全部亮度"
           size="small"
-          style="width: 180px"
+          style="width: 120px"
           @update:model-value="
             $emit('update:filter', { ...filter, brightnessLevels: $event })
           "

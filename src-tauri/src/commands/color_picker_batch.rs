@@ -27,10 +27,9 @@ static SVG_FONT_DATABASE: Lazy<Arc<usvg::fontdb::Database>> = Lazy::new(|| {
 });
 
 // Share a bounded pool across tasks/windows instead of saturating Rayon's global pool.
-// Half the available logical CPUs (at most four image decoders) leaves headroom for
-// the WebView and other tools and limits concurrent full-resolution image buffers.
+// Use 3/4 of available logical CPUs (up to 16 workers) to balance throughput with system responsiveness.
 fn analysis_worker_count(available: usize) -> usize {
-    (available / 2).clamp(1, 4)
+    ((available * 3) / 4).clamp(1, 16)
 }
 
 static ANALYSIS_POOL: Lazy<Result<rayon::ThreadPool, String>> = Lazy::new(|| {
@@ -919,14 +918,20 @@ mod tests {
     #[test]
     fn analysis_pool_leaves_cpu_headroom_and_bounds_decoders() {
         assert_eq!(analysis_worker_count(1), 1);
-        for available in 2..=128 {
+        assert_eq!(analysis_worker_count(2), 1);
+        assert_eq!(analysis_worker_count(4), 3);
+        assert_eq!(analysis_worker_count(8), 6);
+        assert_eq!(analysis_worker_count(16), 12);
+        assert_eq!(analysis_worker_count(32), 16);
+        for available in 1..=128 {
             let workers = analysis_worker_count(available);
             assert!(workers >= 1);
-            assert!(workers <= available / 2);
-            assert!(workers <= 4);
+            assert!(workers <= 16);
+            if available >= 2 {
+                assert!(workers <= (available * 3) / 4);
+            }
         }
     }
-
     #[test]
     fn analysis_streams_every_result_once_with_monotonic_progress() {
         let directory = tempdir().unwrap();

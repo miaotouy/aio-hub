@@ -49,7 +49,11 @@
         class="threshold-value"
       >
         <span class="threshold-value-label">{{ label }}</span>
+
+        <!-- 编辑模式：输入框 -->
         <el-input-number
+          v-if="editingIndex === index"
+          :ref="(el: any) => setInputRef(el, index)"
           :model-value="valueAt(index)"
           :min="lowerBound(index)"
           :max="upperBound(index)"
@@ -60,7 +64,37 @@
           :disabled="disabled"
           :aria-label="`${label}阈值`"
           @update:model-value="updateValue(index, $event)"
+          @blur="finishEditing"
+          @keydown.enter="finishEditing"
+          @keydown.esc="cancelEditing"
         />
+
+        <!-- 展示模式：可拖拽调整数值块 -->
+        <div
+          v-else
+          class="scrub-value-box"
+          :class="{
+            'is-scrubbing': scrubbingIndex === index,
+            'is-disabled': disabled,
+          }"
+          role="spinbutton"
+          tabindex="0"
+          :aria-label="`${label}阈值`"
+          :aria-valuemin="lowerBound(index)"
+          :aria-valuemax="upperBound(index)"
+          :aria-valuenow="valueAt(index)"
+          :title="
+            disabled
+              ? undefined
+              : '左右拖拽微调（按住 Shift 超精细），点击直接输入'
+          "
+          @pointerdown="handleScrubPointerDown($event, index)"
+          @keydown="handleScrubKeydown($event, index)"
+        >
+          <span class="scrub-text">{{
+            formatDisplayValue(valueAt(index))
+          }}</span>
+        </div>
       </div>
     </div>
 
@@ -73,7 +107,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref } from "vue";
+import type { ComponentPublicInstance } from "vue";
 
 type ThresholdTuple = [number, number, number, number];
 
@@ -98,6 +133,20 @@ const emit = defineEmits<{
 
 const trackRef = ref<HTMLElement | null>(null);
 const activeIndex = ref<number | null>(null);
+const editingIndex = ref<number | null>(null);
+const scrubbingIndex = ref<number | null>(null);
+const inputRefs = ref<Record<number, any>>({});
+
+const setInputRef = (
+  el: Element | ComponentPublicInstance | null,
+  index: number
+) => {
+  if (el) {
+    inputRefs.value[index] = el;
+  } else {
+    delete inputRefs.value[index];
+  }
+};
 
 const brightnessLevels = ["极暗", "偏暗", "中等", "偏亮", "明亮"];
 const thresholdLabels = ["极暗", "偏暗", "中等", "偏亮"];
@@ -246,7 +295,94 @@ const handleKeydown = (event: KeyboardEvent, index: number) => {
   emitValues(index, next);
 };
 
-onBeforeUnmount(stopDragging);
+const formatDisplayValue = (val: number) => val.toFixed(2);
+
+// --- 数值拖拽 (Scrub) 与 点击切换输入模式 ---
+let scrubStartX = 0;
+let scrubStartValue = 0;
+let scrubMoved = false;
+
+const startEditing = (index: number) => {
+  if (props.disabled) return;
+  editingIndex.value = index;
+  nextTick(() => {
+    const targetComp = inputRefs.value[index];
+    if (!targetComp) return;
+    const inputEl =
+      targetComp.$el?.querySelector?.("input") ||
+      (typeof targetComp.focus === "function" ? targetComp : null);
+    if (inputEl && typeof inputEl.focus === "function") {
+      inputEl.focus();
+      inputEl.select?.();
+    }
+  });
+};
+
+const finishEditing = () => {
+  editingIndex.value = null;
+};
+
+const cancelEditing = () => {
+  editingIndex.value = null;
+};
+
+const handleScrubPointerDown = (event: PointerEvent, index: number) => {
+  if (props.disabled || event.button !== 0) return;
+
+  scrubStartX = event.clientX;
+  scrubStartValue = valueAt(index);
+  scrubMoved = false;
+  scrubbingIndex.value = index;
+
+  const onPointerMove = (e: PointerEvent) => {
+    const deltaX = e.clientX - scrubStartX;
+    if (!scrubMoved && Math.abs(deltaX) >= 3) {
+      scrubMoved = true;
+    }
+
+    if (scrubMoved && scrubbingIndex.value !== null) {
+      // 灵敏度：按住 Shift 时超精细（每 50px 变化 0.01），否则正常微调（每 8px 变化 0.01）
+      const stepRate = e.shiftKey ? 0.0002 : 0.00125;
+      const targetVal = scrubStartValue + deltaX * stepRate;
+      emitValues(scrubbingIndex.value, targetVal);
+    }
+  };
+
+  const onPointerUp = () => {
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", onPointerUp);
+    window.removeEventListener("pointercancel", onPointerUp);
+
+    const currentIndex = scrubbingIndex.value;
+    scrubbingIndex.value = null;
+
+    // 如果未发生明显拖动，则认为是单击，进入输入模式
+    if (!scrubMoved && currentIndex !== null) {
+      startEditing(currentIndex);
+    }
+  };
+
+  window.addEventListener("pointermove", onPointerMove);
+  window.addEventListener("pointerup", onPointerUp);
+  window.addEventListener("pointercancel", onPointerUp);
+};
+
+const handleScrubKeydown = (event: KeyboardEvent, index: number) => {
+  if (props.disabled) return;
+
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    startEditing(index);
+    return;
+  }
+
+  handleKeydown(event, index);
+};
+
+onBeforeUnmount(() => {
+  stopDragging();
+  scrubbingIndex.value = null;
+});
 </script>
 
 <style scoped>
@@ -396,11 +532,64 @@ onBeforeUnmount(stopDragging);
 
 .threshold-value :deep(.el-input__wrapper) {
   padding: 1px 5px;
+  height: 24px;
 }
 
 .threshold-value :deep(.el-input__inner) {
   font-size: 11px;
   text-align: center;
+  height: 22px;
+  line-height: 22px;
+}
+
+.scrub-value-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 24px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  background-color: var(--input-bg, var(--el-fill-color-blank));
+  border: 1px solid var(--border-color, var(--el-border-color));
+  border-radius: 4px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-color, var(--el-text-color-primary));
+  cursor: ew-resize;
+  user-select: none;
+  touch-action: none;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.scrub-value-box:hover {
+  border-color: var(--el-color-primary);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary) 6%,
+    var(--input-bg, var(--el-fill-color-blank))
+  );
+}
+
+.scrub-value-box:focus-visible,
+.scrub-value-box.is-scrubbing {
+  border-color: var(--el-color-primary);
+  outline: none;
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--el-color-primary) 20%, transparent);
+}
+
+.scrub-value-box.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.scrub-text {
+  line-height: 1;
+  pointer-events: none;
 }
 
 .threshold-hint {

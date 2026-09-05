@@ -1,28 +1,27 @@
 <template>
   <aside class="batch-input-sidebar">
-    <!-- 添加图片区 -->
+    <!-- 添加目录区 -->
     <section class="sidebar-section">
-      <h3 class="section-title">添加图片</h3>
-      <div
-        class="dropzone"
-        :class="{ 'is-dragging': dragging }"
-        @dragover.prevent="dragging = true"
-        @dragleave="dragging = false"
-        @drop.prevent="handleDrop"
+      <h3 class="section-title">添加目录</h3>
+      <DropZone
+        variant="input"
+        :directory-only="true"
+        :multiple="false"
+        hide-content
+        @drop="handlePathDrop"
       >
-        <el-icon :size="32"><Upload /></el-icon>
-        <p class="dropzone-hint">拖放图片或目录</p>
-        <div class="dropzone-actions">
-          <el-button size="small" @click="$emit('add-files')">
-            <el-icon><FolderOpened /></el-icon>
-            选择文件
-          </el-button>
-          <el-button size="small" @click="$emit('add-directory')">
-            <el-icon><Folder /></el-icon>
-            选择目录
+        <div class="path-input-group">
+          <el-input
+            :model-value="directoryPath"
+            placeholder="拖拽、输入或选择目录路径"
+            @update:model-value="$emit('update:directoryPath', $event)"
+            @keyup.enter="$emit('scan-path')"
+          />
+          <el-button :icon="FolderOpened" @click.stop="$emit('add-directory')">
+            选择
           </el-button>
         </div>
-      </div>
+      </DropZone>
 
       <!-- 候选列表统计 -->
       <div v-if="candidateCount > 0" class="candidates-summary">
@@ -118,11 +117,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
-import { Upload, FolderOpened, Folder } from "@element-plus/icons-vue";
+import { computed } from "vue";
+import { FolderOpened } from "@element-plus/icons-vue";
+import DropZone from "@/components/common/DropZone.vue";
 
 interface Props {
   candidateCount: number;
+  directoryPath: string;
   maxDepth: number | null;
   thresholds: [number, number, number, number];
   analyzing: boolean;
@@ -134,9 +135,10 @@ interface Props {
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  (e: "add-files"): void;
   (e: "add-directory"): void;
+  (e: "scan-path"): void;
   (e: "clear-candidates"): void;
+  (e: "update:directoryPath", value: string): void;
   (e: "update:maxDepth", value: number | null): void;
   (e: "update:thresholds", value: [number, number, number, number]): void;
   (e: "start-analyze"): void;
@@ -144,7 +146,12 @@ const emit = defineEmits<{
   (e: "drop", paths: string[]): void;
 }>();
 
-const dragging = ref(false);
+const handlePathDrop = (paths: string[]) => {
+  if (paths.length > 0) {
+    emit("update:directoryPath", paths[0]);
+    emit("drop", [paths[0]]);
+  }
+};
 
 const progressPercent = computed(() =>
   props.total ? Math.round((props.completed / props.total) * 100) : 0
@@ -153,16 +160,6 @@ const progressPercent = computed(() =>
 const formatDuration = (seconds: number) => {
   if (seconds < 60) return `${seconds} 秒`;
   return `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`;
-};
-
-const handleDrop = (event: DragEvent) => {
-  dragging.value = false;
-  const paths = Array.from(event.dataTransfer?.files ?? [])
-    .map((file) => (file as File & { path?: string }).path)
-    .filter((path): path is string => !!path);
-  if (paths.length) {
-    emit("drop", paths);
-  }
 };
 </script>
 
@@ -191,33 +188,13 @@ const handleDrop = (event: DragEvent) => {
   color: var(--text-color);
 }
 
-.dropzone {
-  border: 2px dashed var(--border-color);
-  border-radius: 8px;
-  padding: 20px 12px;
+.path-input-group {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  background: var(--el-fill-color-lighter);
-  transition: all 0.2s;
+  gap: 6px;
 }
 
-.dropzone.is-dragging {
-  border-color: var(--el-color-primary);
-  background: rgba(var(--primary-color-rgb), 0.05);
-}
-
-.dropzone-hint {
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-  margin: 0;
-}
-
-.dropzone-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 4px;
+.path-input-group .el-input {
+  min-width: 0;
 }
 
 .candidates-summary {

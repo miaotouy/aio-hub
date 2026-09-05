@@ -3,14 +3,16 @@
     <!-- 左侧边栏：输入与配置 -->
     <BatchInputSidebar
       :candidate-count="candidates.length"
+      :directory-path="directoryPath"
       :max-depth="maxDepth"
       :thresholds="thresholds"
       :analyzing="analyzing"
       :completed="completed"
       :total="items.length"
       :eta-seconds="etaSeconds"
-      @add-files="addFiles"
       @add-directory="addDirectory"
+      @scan-path="scanDirectoryPath"
+      @update:directory-path="directoryPath = $event"
       @clear-candidates="clearCandidates"
       @update:max-depth="maxDepth = $event"
       @update:thresholds="thresholds = $event"
@@ -119,6 +121,7 @@ const supported = [
   "avif",
 ];
 const candidates = ref<BatchImageCandidate[]>([]);
+const directoryPath = ref("");
 const items = ref<BatchImageItem[]>([]);
 const maxDepth = ref<number | null>(3);
 const thresholds = ref<[number, number, number, number]>([
@@ -196,19 +199,17 @@ const filteredCount = computed(() => {
   ).length;
 });
 
-// 文件选择
-async function addFiles() {
-  const selected = await open({
-    multiple: true,
-    directory: false,
-    filters: [{ name: "图片", extensions: supported }],
-  });
-  if (selected) await scan(Array.isArray(selected) ? selected : [selected]);
+async function scanDirectoryPath() {
+  const path = directoryPath.value.trim();
+  if (path) await scan([path]);
 }
 
 async function addDirectory() {
   const selected = await open({ directory: true, multiple: false });
-  if (selected && typeof selected === "string") await scan([selected]);
+  if (selected && typeof selected === "string") {
+    directoryPath.value = selected;
+    await scan([selected]);
+  }
 }
 
 async function scan(roots: string[]) {
@@ -234,7 +235,10 @@ async function scan(roots: string[]) {
 }
 
 function handleDrop(paths: string[]) {
-  if (paths.length) scan(paths);
+  if (paths.length) {
+    directoryPath.value = paths[0];
+    void scan(paths);
+  }
 }
 
 function clearCandidates() {

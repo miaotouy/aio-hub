@@ -9,7 +9,6 @@
       @pointerdown="handleTrackPointerDown"
     >
       <div class="brightness-gradient" aria-hidden="true" />
-      <div class="track-highlight" aria-hidden="true" />
 
       <button
         v-for="(value, index) in values"
@@ -475,34 +474,12 @@ onBeforeUnmount(() => {
   touch-action: none;
 }
 
-.brightness-gradient,
-.track-highlight {
+.brightness-gradient {
   position: absolute;
   inset: 2px;
   border-radius: 3px;
   pointer-events: none;
-}
-
-.brightness-gradient {
-  background: linear-gradient(
-    90deg,
-    #08090b 0%,
-    #1b1d21 10%,
-    #51555d 28%,
-    #a6abb3 52%,
-    #e2e4e8 76%,
-    #fff 100%
-  );
-}
-
-.track-highlight {
-  background: linear-gradient(
-    180deg,
-    rgb(255 255 255 / 28%),
-    transparent 45%,
-    rgb(0 0 0 / 12%)
-  );
-  mix-blend-mode: screen;
+  background: linear-gradient(90deg, #000 0%, #fff 100%);
 }
 
 .threshold-handle {

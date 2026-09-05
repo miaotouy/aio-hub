@@ -16,6 +16,22 @@
 
 <template>
   <div class="messaging-test">
+    <div class="section custom-content-section">
+      <h2 class="section-title">自定义消息内容</h2>
+      <p class="note">
+        填写后，下方各类消息会优先使用这里的内容；留空则使用每个示例的默认内容。
+      </p>
+      <el-input
+        v-model="customContent"
+        type="textarea"
+        :rows="3"
+        :maxlength="2000"
+        show-word-limit
+        clearable
+        placeholder="输入要在各类消息中展示的自定义内容"
+      />
+    </div>
+
     <div class="section">
       <h2 class="section-title">Message 消息提示</h2>
       <div class="message-demo">
@@ -165,9 +181,13 @@ import { h } from "vue";
 const lastResult = ref("");
 const notification = useNotification();
 const targetLoading = ref(false);
+const customContent = ref("");
 
 const LONG_TEXT =
   "这是一段非常长的测试文本，旨在测试消息提示组件在处理大量内容时的表现。通常情况下，消息提示应该能够正确换行，而不会超出屏幕边界或导致 UI 布局崩溃。在 AIO Hub 项目中，我们需要确保所有的反馈机制（包括 ElMessage, ElNotification, ElMessageBox 以及我们自定义的通知系统）都能优雅地展示这些长文本。如果文本过长，可能需要考虑截断或提供滚动条，但在简单的消息提示中，自动换行通常是最佳实践。";
+
+const getMessageContent = (fallback: string) =>
+  customContent.value.trim() ? customContent.value : fallback;
 
 // Message 消息提示
 const showMessage = (
@@ -182,9 +202,9 @@ const showMessage = (
   };
 
   if (type === "default") {
-    ElMessage(messages[type]);
+    ElMessage(getMessageContent(messages[type]));
   } else {
-    ElMessage[type](messages[type]);
+    ElMessage[type](getMessageContent(messages[type]));
   }
   lastResult.value = `显示了 ${type} 类型的消息`;
 };
@@ -192,7 +212,7 @@ const showMessage = (
 const showHTMLMessage = () => {
   ElMessage({
     dangerouslyUseHTMLString: true,
-    message: "<strong>这是 <i>HTML</i> 片段</strong>",
+    message: getMessageContent("<strong>这是 <i>HTML</i> 片段</strong>"),
   });
   lastResult.value = "显示了 HTML 消息";
 };
@@ -200,7 +220,7 @@ const showHTMLMessage = () => {
 const showClosableMessage = () => {
   ElMessage({
     showClose: true,
-    message: "这是一条可关闭的消息",
+    message: getMessageContent("这是一条可关闭的消息"),
     duration: 0,
   });
   lastResult.value = "显示了可关闭的消息";
@@ -208,7 +228,7 @@ const showClosableMessage = () => {
 
 const showCenteredMessage = () => {
   ElMessage({
-    message: "居中的文字",
+    message: getMessageContent("居中的文字"),
     center: true,
   } as MessageOptions & { center?: boolean });
   lastResult.value = "显示了居中消息";
@@ -216,7 +236,7 @@ const showCenteredMessage = () => {
 
 const showGroupedMessage = () => {
   ElMessage({
-    message: "相同内容的消息会被分组",
+    message: getMessageContent("相同内容的消息会被分组"),
     grouping: true,
   });
   lastResult.value = "显示了分组消息";
@@ -224,7 +244,7 @@ const showGroupedMessage = () => {
 
 const showLongMessage = () => {
   ElMessage({
-    message: LONG_TEXT,
+    message: getMessageContent(LONG_TEXT),
     duration: 5000,
     showClose: true,
   });
@@ -240,21 +260,27 @@ const showCustomMessage = (type: "success" | "info" | "warning" | "error") => {
     error: "错误：这是自定义消息（带 offset）",
   };
 
-  customMessage[type](messages[type]);
+  customMessage[type](getMessageContent(messages[type]));
   lastResult.value = `显示了自定义 ${type} 消息`;
 };
 
 const showHTMLCustomMessage = () => {
   customMessage.info({
     dangerouslyUseHTMLString: true,
-    message: "<strong>这是 <i>CustomMessage</i> 的 HTML 片段</strong>",
+    message: getMessageContent(
+      "<strong>这是 <i>CustomMessage</i> 的 HTML 片段</strong>"
+    ),
     duration: 0,
     showClose: true,
   });
   lastResult.value = "显示了自定义 HTML 消息";
 };
 const showLongCustomMessage = () => {
-  customMessage.info({ message: LONG_TEXT, duration: 5000, showClose: true });
+  customMessage.info({
+    message: getMessageContent(LONG_TEXT),
+    duration: 5000,
+    showClose: true,
+  });
   lastResult.value = "显示了自定义长内容消息";
 };
 
@@ -280,7 +306,7 @@ const showNotification = (
 
   ElNotification[type]({
     title: titles[type],
-    message: messages[type],
+    message: getMessageContent(messages[type]),
     position,
   });
   lastResult.value = `显示了 ${type} 通知（位置：${position}）`;
@@ -290,7 +316,7 @@ const showHTMLNotification = () => {
   ElNotification({
     title: "HTML 片段",
     dangerouslyUseHTMLString: true,
-    message: "<strong>这是 <i>HTML</i> 片段</strong>",
+    message: getMessageContent("<strong>这是 <i>HTML</i> 片段</strong>"),
   });
   lastResult.value = "显示了 HTML 通知";
 };
@@ -298,8 +324,9 @@ const showHTMLNotification = () => {
 const showLongNotification = () => {
   ElNotification({
     title: "长内容通知",
-    message:
-      "这是一条很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长的通知内容，用于测试通知框的文本换行和滚动效果。",
+    message: getMessageContent(
+      "这是一条很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长的通知内容，用于测试通知框的文本换行和滚动效果。"
+    ),
   });
   lastResult.value = "显示了长内容通知";
 };
@@ -307,7 +334,7 @@ const showLongNotification = () => {
 const showNoAutoCloseNotification = () => {
   ElNotification({
     title: "不会自动关闭",
-    message: "这条通知不会自动关闭，需要手动点击关闭按钮",
+    message: getMessageContent("这条通知不会自动关闭，需要手动点击关闭按钮"),
     duration: 0,
   });
   lastResult.value = "显示了不自动关闭的通知";
@@ -316,7 +343,7 @@ const showNoAutoCloseNotification = () => {
 // MessageBox 消息弹框
 const showAlert = async () => {
   try {
-    await ElMessageBox.alert("这是一段内容", "标题名称", {
+    await ElMessageBox.alert(getMessageContent("这是一段内容"), "标题名称", {
       confirmButtonText: "确定",
       lockScroll: false,
     });
@@ -328,12 +355,16 @@ const showAlert = async () => {
 
 const showConfirm = async () => {
   try {
-    await ElMessageBox.confirm("此操作将永久删除该文件, 是否继续?", "提示", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      type: "warning",
-      lockScroll: false,
-    });
+    await ElMessageBox.confirm(
+      getMessageContent("此操作将永久删除该文件, 是否继续?"),
+      "提示",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    );
     lastResult.value = "Confirm 已确认";
   } catch {
     lastResult.value = "Confirm 已取消";
@@ -342,14 +373,18 @@ const showConfirm = async () => {
 
 const showPrompt = async () => {
   try {
-    const { value } = await ElMessageBox.prompt("请输入邮箱", "提示", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      inputPattern:
-        /[\w!#$%&'*+/=?^_`{|}~-]+(?:\.[\w!#$%&'*+/=?^_`{|}~-]+)*@(?:[\w](?:[\w-]*[\w])?\.)+[\w](?:[\w-]*[\w])?/,
-      inputErrorMessage: "邮箱格式不正确",
-      lockScroll: false,
-    });
+    const { value } = await ElMessageBox.prompt(
+      getMessageContent("请输入邮箱"),
+      "提示",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        inputPattern:
+          /[\w!#$%&'*+/=?^_`{|}~-]+(?:\.[\w!#$%&'*+/=?^_`{|}~-]+)*@(?:[\w](?:[\w-]*[\w])?\.)+[\w](?:[\w-]*[\w])?/,
+        inputErrorMessage: "邮箱格式不正确",
+        lockScroll: false,
+      }
+    );
     lastResult.value = `Prompt 输入: ${value}`;
   } catch {
     lastResult.value = "Prompt 已取消";
@@ -358,13 +393,17 @@ const showPrompt = async () => {
 
 const showCustomIcon = async () => {
   try {
-    await ElMessageBox.confirm("此操作将永久删除该文件, 是否继续?", "警告", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      type: "warning",
-      icon: h(WarningFilled, { style: { color: "#f56c6c" } }),
-      lockScroll: false,
-    });
+    await ElMessageBox.confirm(
+      getMessageContent("此操作将永久删除该文件, 是否继续?"),
+      "警告",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
+        icon: h(WarningFilled, { style: { color: "#f56c6c" } }),
+        lockScroll: false,
+      }
+    );
     lastResult.value = "自定义图标已确认";
   } catch {
     lastResult.value = "自定义图标已取消";
@@ -374,7 +413,7 @@ const showCustomIcon = async () => {
 const showHTMLContent = async () => {
   try {
     await ElMessageBox.confirm(
-      "<strong>这是 <i>HTML</i> 片段</strong>",
+      getMessageContent("<strong>这是 <i>HTML</i> 片段</strong>"),
       "提示",
       {
         confirmButtonText: "确定",
@@ -391,12 +430,16 @@ const showHTMLContent = async () => {
 
 const showCenterAlign = async () => {
   try {
-    await ElMessageBox.confirm("此操作将永久删除该文件, 是否继续?", "提示", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      type: "info",
-      lockScroll: false,
-    });
+    await ElMessageBox.confirm(
+      getMessageContent("此操作将永久删除该文件, 是否继续?"),
+      "提示",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "info",
+        lockScroll: false,
+      }
+    );
     lastResult.value = "对话框已确认";
   } catch {
     lastResult.value = "对话框已取消";
@@ -405,7 +448,7 @@ const showCenterAlign = async () => {
 
 const showLongMessageBox = async () => {
   try {
-    await ElMessageBox.alert(LONG_TEXT, "长内容测试", {
+    await ElMessageBox.alert(getMessageContent(LONG_TEXT), "长内容测试", {
       confirmButtonText: "了解",
       customStyle: { maxWidth: "500px" },
       lockScroll: false,
@@ -464,8 +507,10 @@ const toggleTargetLoading = () => {
 const testNotification = (type: any) => {
   const content =
     type === "long"
-      ? LONG_TEXT
-      : `这是一条由组件测试工具生成的 ${type} 测试消息。时间：${new Date().toLocaleTimeString()}`;
+      ? getMessageContent(LONG_TEXT)
+      : getMessageContent(
+          `这是一条由组件测试工具生成的 ${type} 测试消息。时间：${new Date().toLocaleTimeString()}`
+        );
   const title = `测试通知 - ${type}`;
 
   switch (type) {
@@ -548,6 +593,10 @@ const clearAll = () => {
   gap: 12px;
   flex-wrap: wrap;
   margin-bottom: 12px;
+}
+
+.custom-content-section :deep(.el-textarea) {
+  width: 100%;
 }
 
 .loading-target {

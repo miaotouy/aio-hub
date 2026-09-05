@@ -189,7 +189,9 @@ const handleApplyPreset = async () => {
   if (materialized.changes.length > 0) {
     innerModel.value = materialized.model;
   }
-  Snackbar[materialized.changes.length > 0 || identityApplied ? "success" : "info"](
+  Snackbar[
+    materialized.changes.length > 0 || identityApplied ? "success" : "info"
+  ](
     tRaw(
       materialized.changes.length > 0 || identityApplied
         ? "tools.llm-api.ModelEditorPopup.已应用预设配置"

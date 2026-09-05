@@ -142,11 +142,7 @@ function isRouteUnresolved(operation: LlmOperation): boolean {
       </span>
     </div>
 
-    <div
-      v-for="operation in operations"
-      :key="operation"
-      class="route-row"
-    >
+    <div v-for="operation in operations" :key="operation" class="route-row">
       <div class="route-heading">
         <span class="route-operation">{{ OPERATION_LABELS[operation] }}</span>
         <el-tag
@@ -167,7 +163,8 @@ function isRouteUnresolved(operation: LlmOperation): boolean {
           clearable
           :aria-label="`${OPERATION_LABELS[operation]}请求协议`"
           @update:model-value="
-            (value: LlmAdapterId | undefined) => onAdapterChange(operation, value)
+            (value: LlmAdapterId | undefined) =>
+              onAdapterChange(operation, value)
           "
         >
           <el-option
@@ -184,7 +181,9 @@ function isRouteUnresolved(operation: LlmOperation): boolean {
           class="route-endpoint-input"
           placeholder="可选：绑定专用端点路径"
           clearable
-          @update:model-value="(value: string) => onEndpointChange(operation, value)"
+          @update:model-value="
+            (value: string) => onEndpointChange(operation, value)
+          "
         />
 
         <el-button
@@ -202,7 +201,8 @@ function isRouteUnresolved(operation: LlmOperation): boolean {
       <div class="route-hint">
         <template v-if="isRouteUnresolved(operation)">
           <span class="route-unresolved">
-            待选择/待探测：该模型没有可用的{{ OPERATION_LABELS[operation]
+            待选择/待探测：该模型没有可用的{{
+              OPERATION_LABELS[operation]
             }}协议路由，请在下方选择协议或先运行模型检查
           </span>
         </template>

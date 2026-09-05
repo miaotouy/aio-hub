@@ -56,7 +56,8 @@ export const anthropicPreset: LlmPreset = {
         vision: true,
         toolUse: true,
       },
-      description: "速度与智能的最佳结合，1M 上下文，128K 输出，自适应思考（2026-06-09）",
+      description:
+        "速度与智能的最佳结合，1M 上下文，128K 输出，自适应思考（2026-06-09）",
     },
     {
       id: "claude-opus-5",
@@ -67,7 +68,8 @@ export const anthropicPreset: LlmPreset = {
         vision: true,
         toolUse: true,
       },
-      description: "复杂 agentic coding 与企业级工作，1M 上下文，128K 输出，自适应思考（2026-06-09）",
+      description:
+        "复杂 agentic coding 与企业级工作，1M 上下文，128K 输出，自适应思考（2026-06-09）",
     },
     {
       id: "claude-fable-5",
@@ -78,7 +80,8 @@ export const anthropicPreset: LlmPreset = {
         vision: true,
         toolUse: true,
       },
-      description: "Anthropic 最强模型，长程 agent 下一代智能，1M 上下文，128K 输出（2026-06-09）",
+      description:
+        "Anthropic 最强模型，长程 agent 下一代智能，1M 上下文，128K 输出（2026-06-09）",
     },
   ],
 };

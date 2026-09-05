@@ -27,12 +27,12 @@ resolveModelExecution({ profile, model, operation });
 
 Phase 4 新增四种聚合渠道类型，渠道身份与线协议解耦：
 
-| 渠道类型              | 模型列表       | 默认回退                                     | 说明                                                                 |
-| --------------------- | -------------- | -------------------------------------------- | -------------------------------------------------------------------- |
-| `new-api`             | `/v1/models`   | OpenAI Chat Completions + embedding/rerank/image | 理解 `supported_endpoint_types`；模型级绑定与探测优先生效         |
-| `sub2api`             | `/v1/models`   | OpenAI Chat Completions + embedding/rerank/image | 按 Key/Group platform 工作，无端点声明时用渠道默认或探测           |
-| `aggregate-compatible` | `/v1/models`   | 无（必须手工绑定/探测/渠道默认）              | 通用手工模式，不假设服务端扩展字段                                  |
-| `opencode-go`         | `/v1/models`   | 内置官方模型路由表（`modelRoutes`）           | 未收录模型抛出 `UnresolvedModelRouteError`，标记"待选择/待探测"      |
+| 渠道类型               | 模型列表     | 默认回退                                         | 说明                                                            |
+| ---------------------- | ------------ | ------------------------------------------------ | --------------------------------------------------------------- |
+| `new-api`              | `/v1/models` | OpenAI Chat Completions + embedding/rerank/image | 理解 `supported_endpoint_types`；模型级绑定与探测优先生效       |
+| `sub2api`              | `/v1/models` | OpenAI Chat Completions + embedding/rerank/image | 按 Key/Group platform 工作，无端点声明时用渠道默认或探测        |
+| `aggregate-compatible` | `/v1/models` | 无（必须手工绑定/探测/渠道默认）                 | 通用手工模式，不假设服务端扩展字段                              |
+| `opencode-go`          | `/v1/models` | 内置官方模型路由表（`modelRoutes`）              | 未收录模型抛出 `UnresolvedModelRouteError`，标记"待选择/待探测" |
 
 聚合渠道在 `PROVIDER_EXECUTION_DEFAULTS` 中标记 `aggregate: true`，并满足：
 
@@ -76,28 +76,28 @@ type LlmOperation =
 
 `PROVIDER_EXECUTION_DEFAULTS` 是旧渠道的兼容基线。其返回的 `adapterId` 用于可观测性和未来覆盖；解析器保留原 `profile.type`，所以不会把 DeepSeek、Azure、xAI、SiliconFlow、Vertex 等现有特化实现错误降级成通用实现。
 
-| 渠道类型                                                                                                | 默认 operation | 默认 adapterId            | 已声明的 operation 覆盖        |
-| ------------------------------------------------------------------------------------------------------- | -------------- | ------------------------- | ------------------------------ |
-| `openai`                                                                                                | chat           | `openai-chat-completions` | embedding, image               |
-| `openai-compatible`                                                                                     | chat           | `openai-chat-completions` | embedding, rerank, image       |
-| `azure`                                                                                                 | chat           | `openai-chat-completions` | embedding                      |
-| `deepseek`                                                                                              | chat           | `openai-chat-completions` | embedding                      |
-| `siliconflow`                                                                                           | chat           | `openai-chat-completions` | embedding, image               |
-| `groq`                                                                                                  | chat           | `openai-chat-completions` | —                              |
-| `mistral`、`perplexity`、`together`、`lmstudio`、`vllm`、`volcengine`、`dashscope`、`zhipu`、`moonshot` | chat           | `openai-chat-completions` | —                              |
-| `ollama`                                                                                                | chat           | `openai-chat-completions` | embedding                      |
-| `openrouter`                                                                                            | chat           | `openai-chat-completions` | embedding                      |
-| `openai-responses`                                                                                      | chat           | `openai-responses`        | embedding, image               |
-| `claude`                                                                                                | chat           | `anthropic-messages`      | —                              |
-| `gemini`                                                                                                | chat           | `gemini-generate-content` | embedding, image, audio, video |
-| `cohere`                                                                                                | chat           | `cohere-chat`             | embedding                      |
-| `vertexai`                                                                                              | chat           | `vertex-google`           | embedding                      |
-| `xai`                                                                                                   | chat           | `openai-chat-completions` | image                          |
-| `suno-newapi`                                                                                           | music          | `suno-newapi`             | —                              |
-| `minimax-music`                                                                                         | music          | `minimax-music`           | —                              |
-| `new-api`、`sub2api`（聚合）                                                                            | chat           | `openai-chat-completions` | embedding, rerank, image；可配置渠道默认 |
-| `aggregate-compatible`（聚合）                                                                          | chat           | 无（须绑定/探测/渠道默认） | —                              |
-| `opencode-go`（聚合）                                                                                   | chat           | 内置 `modelRoutes` 路由表  | —                              |
+| 渠道类型                                                                                                | 默认 operation | 默认 adapterId             | 已声明的 operation 覆盖                  |
+| ------------------------------------------------------------------------------------------------------- | -------------- | -------------------------- | ---------------------------------------- |
+| `openai`                                                                                                | chat           | `openai-chat-completions`  | embedding, image                         |
+| `openai-compatible`                                                                                     | chat           | `openai-chat-completions`  | embedding, rerank, image                 |
+| `azure`                                                                                                 | chat           | `openai-chat-completions`  | embedding                                |
+| `deepseek`                                                                                              | chat           | `openai-chat-completions`  | embedding                                |
+| `siliconflow`                                                                                           | chat           | `openai-chat-completions`  | embedding, image                         |
+| `groq`                                                                                                  | chat           | `openai-chat-completions`  | —                                        |
+| `mistral`、`perplexity`、`together`、`lmstudio`、`vllm`、`volcengine`、`dashscope`、`zhipu`、`moonshot` | chat           | `openai-chat-completions`  | —                                        |
+| `ollama`                                                                                                | chat           | `openai-chat-completions`  | embedding                                |
+| `openrouter`                                                                                            | chat           | `openai-chat-completions`  | embedding                                |
+| `openai-responses`                                                                                      | chat           | `openai-responses`         | embedding, image                         |
+| `claude`                                                                                                | chat           | `anthropic-messages`       | —                                        |
+| `gemini`                                                                                                | chat           | `gemini-generate-content`  | embedding, image, audio, video           |
+| `cohere`                                                                                                | chat           | `cohere-chat`              | embedding                                |
+| `vertexai`                                                                                              | chat           | `vertex-google`            | embedding                                |
+| `xai`                                                                                                   | chat           | `openai-chat-completions`  | image                                    |
+| `suno-newapi`                                                                                           | music          | `suno-newapi`              | —                                        |
+| `minimax-music`                                                                                         | music          | `minimax-music`            | —                                        |
+| `new-api`、`sub2api`（聚合）                                                                            | chat           | `openai-chat-completions`  | embedding, rerank, image；可配置渠道默认 |
+| `aggregate-compatible`（聚合）                                                                          | chat           | 无（须绑定/探测/渠道默认） | —                                        |
+| `opencode-go`（聚合）                                                                                   | chat           | 内置 `modelRoutes` 路由表  | —                                        |
 
 ## 发现与持久化
 

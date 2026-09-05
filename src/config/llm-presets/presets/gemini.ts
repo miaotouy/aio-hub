@@ -208,7 +208,8 @@ export const geminiPreset: LlmPreset = {
       group: "Gemini 3.1",
       provider: "gemini",
       capabilities: { vision: true, imageGeneration: true, preferChat: true },
-      description: "超低延迟、极具性价比的图像生成与编辑，适合高频交互 (Stable)",
+      description:
+        "超低延迟、极具性价比的图像生成与编辑，适合高频交互 (Stable)",
     },
     {
       id: "gemini-3-pro-image",
@@ -231,7 +232,12 @@ export const geminiPreset: LlmPreset = {
       name: "Gemini 3.1 Flash Live",
       group: "Gemini 3.1",
       provider: "gemini",
-      capabilities: { vision: true, audio: true, toolUse: true, webSearch: true },
+      capabilities: {
+        vision: true,
+        audio: true,
+        toolUse: true,
+        webSearch: true,
+      },
       description: "高保真、低延迟的实时对话与语音优先 AI 应用模型 (Preview)",
     },
     {

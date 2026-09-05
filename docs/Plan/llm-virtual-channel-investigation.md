@@ -24,12 +24,14 @@
 ### 2.1 虚拟渠道 vs 聚合渠道
 
 **聚合渠道**（Phase 4 已实施）解决的是"单服务端点暴露多种协议"的适配问题：
+
 - 一个 Base URL
 - 一个 API Key
 - 一份模型列表
 - 不同模型使用不同的线协议（OpenAI Chat / Responses / Anthropic Messages / Gemini）
 
 **虚拟渠道**解决的是"多个独立渠道共同对外提供服务"的编排问题：
+
 - 多个物理渠道（每个有独立的 Base URL、API Key、模型列表）
 - 逻辑上视为一个统一服务
 - 具备故障转移、负载均衡、优先级选择等编排能力
@@ -72,6 +74,7 @@
 ```
 
 关键职责划分：
+
 - **虚拟渠道**：选择"用哪个物理渠道"
 - **模型执行路由**：选择"用哪个协议适配器"
 - **协议适配器**：构造请求并解析响应
@@ -84,46 +87,46 @@
 interface VirtualChannelProfile {
   id: string;
   name: string;
-  type: "virtual";  // 标识为虚拟渠道，与物理渠道区分
-  
+  type: "virtual"; // 标识为虚拟渠道，与物理渠道区分
+
   /** 虚拟渠道的模式 */
   mode: VirtualChannelMode;
-  
+
   /** 成员物理渠道配置 */
   members: VirtualChannelMember[];
-  
+
   /** 模型聚合策略 */
   modelAggregation: ModelAggregationConfig;
-  
+
   /** 请求路由策略 */
   routingStrategy: RoutingStrategyConfig;
-  
+
   /** 健康检查与熔断配置 */
   healthCheck?: HealthCheckConfig;
 }
 
 type VirtualChannelMode =
-  | "failover"      // 主备故障转移
-  | "load-balance"  // 负载均衡
+  | "failover" // 主备故障转移
+  | "load-balance" // 负载均衡
   | "cost-optimize" // 成本优化
-  | "manual";       // 手工选择优先级
+  | "manual"; // 手工选择优先级
 
 interface VirtualChannelMember {
   /** 引用的物理渠道 ID */
   profileId: string;
-  
+
   /** 在虚拟渠道中的角色 */
   role?: "primary" | "secondary" | "fallback";
-  
+
   /** 优先级（数字越小越优先，主备模式使用） */
   priority?: number;
-  
+
   /** 权重（负载均衡模式使用） */
   weight?: number;
-  
+
   /** 是否启用 */
   enabled: boolean;
-  
+
   /** 成员特定的覆盖配置 */
   overrides?: {
     /** 仅使用该成员的特定模型（模型 ID 白名单） */
@@ -136,23 +139,23 @@ interface VirtualChannelMember {
 interface ModelAggregationConfig {
   /** 模型合并策略 */
   strategy: "union" | "intersection" | "primary-only";
-  
+
   /** 同名模型的去重规则 */
   deduplication: {
     /** 去重依据 */
     by: "model-id" | "model-id-and-provider" | "identity";
-    
+
     /** 去重后如何选择展示信息 */
     displayFrom: "primary" | "first" | "merge";
   };
-  
+
   /** 是否在模型名称中显示渠道来源 */
   showChannelSource?: boolean;
 }
 
 interface RoutingStrategyConfig {
   mode: VirtualChannelMode;
-  
+
   /** 主备模式配置 */
   failover?: {
     /** 主渠道失败后的重试次数 */
@@ -162,7 +165,7 @@ interface RoutingStrategyConfig {
     /** 是否自动回切到主渠道 */
     autoRecover: boolean;
   };
-  
+
   /** 负载均衡配置 */
   loadBalance?: {
     /** 均衡算法 */
@@ -170,7 +173,7 @@ interface RoutingStrategyConfig {
     /** 是否感知渠道配额剩余 */
     quotaAware: boolean;
   };
-  
+
   /** 成本优化配置 */
   costOptimize?: {
     /** 价格来源 */
@@ -185,13 +188,13 @@ interface RoutingStrategyConfig {
 interface HealthCheckConfig {
   /** 健康检查间隔（秒） */
   interval: number;
-  
+
   /** 连续失败多少次后熔断 */
   failureThreshold: number;
-  
+
   /** 熔断后多久尝试恢复（秒） */
   recoveryTimeout: number;
-  
+
   /** 熔断后是否完全移除成员 */
   removeOnCircuitBreak: boolean;
 }
@@ -215,13 +218,13 @@ interface ResolveVirtualChannelExecutionOptions {
 interface ResolvedVirtualChannelExecution {
   /** 选中的物理渠道 */
   selectedProfile: LlmProfile;
-  
+
   /** 该物理渠道的模型执行路由 */
   execution: ResolvedModelExecution;
-  
+
   /** 选择原因（用于日志和 Inspector） */
   selectionReason: string;
-  
+
   /** 备选渠道（故障转移时使用） */
   fallbackProfiles?: LlmProfile[];
 }
@@ -247,12 +250,12 @@ type ChannelCategory = "physical" | "virtual";
 
 interface LlmProfile {
   // ... existing fields
-  category: ChannelCategory;  // 新增字段，区分物理渠道和虚拟渠道
-  
+  category: ChannelCategory; // 新增字段，区分物理渠道和虚拟渠道
+
   // 当 category === "physical" 时，type 是现有的 ProviderType
   // 当 category === "virtual" 时，type 固定为 "virtual"
   type: ProviderType | "virtual";
-  
+
   // 当 category === "virtual" 时，必须有 virtualConfig
   virtualConfig?: VirtualChannelProfile;
 }
@@ -319,34 +322,42 @@ function aggregateModelsForVirtualChannel(
   memberProfiles: LlmProfile[]
 ): LlmModelInfo[] {
   const allModels: LlmModelInfo[] = [];
-  
+
   for (const member of virtualChannel.members) {
     if (!member.enabled) continue;
-    
-    const physicalProfile = memberProfiles.find(p => p.id === member.profileId);
+
+    const physicalProfile = memberProfiles.find(
+      (p) => p.id === member.profileId
+    );
     if (!physicalProfile) continue;
-    
+
     let models = physicalProfile.models ?? [];
-    
+
     // 应用成员的包含/排除过滤
     if (member.overrides?.includedModels) {
-      models = models.filter(m => member.overrides!.includedModels!.includes(m.id));
+      models = models.filter((m) =>
+        member.overrides!.includedModels!.includes(m.id)
+      );
     }
     if (member.overrides?.excludedModels) {
-      models = models.filter(m => !member.overrides!.excludedModels!.includes(m.id));
+      models = models.filter(
+        (m) => !member.overrides!.excludedModels!.includes(m.id)
+      );
     }
-    
+
     // 为每个模型附加来源信息
-    allModels.push(...models.map(m => ({
-      ...m,
-      _virtualChannelSource: {
-        profileId: physicalProfile.id,
-        profileName: physicalProfile.name,
-        priority: member.priority,
-      },
-    })));
+    allModels.push(
+      ...models.map((m) => ({
+        ...m,
+        _virtualChannelSource: {
+          profileId: physicalProfile.id,
+          profileName: physicalProfile.name,
+          priority: member.priority,
+        },
+      }))
+    );
   }
-  
+
   // 根据聚合策略去重和合并
   return deduplicateModels(allModels, virtualChannel.modelAggregation);
 }
@@ -357,6 +368,7 @@ function aggregateModelsForVirtualChannel(
 ### 5.1 New API 的"渠道组"
 
 New API 有 Channel Group 概念，但它主要用于：
+
 - 组织和批量管理渠道
 - 共享配额和限流
 - 不涉及请求级的故障转移或负载均衡
@@ -366,6 +378,7 @@ AIO Hub 的虚拟渠道是**运行时编排**，不是管理分组。
 ### 5.2 OpenRouter 的自动路由
 
 OpenRouter 提供了模型级的自动路由：
+
 - 用户请求一个模型
 - OpenRouter 自动选择可用的上游提供商
 - 透明处理故障转移
@@ -383,6 +396,7 @@ llm = primary.with_fallbacks([fallback])
 ```
 
 这与虚拟渠道的主备模式接近，但：
+
 - LangChain 是代码级配置，AIO Hub 是 UI 可配置
 - LangChain 无健康检查和熔断
 - LangChain 不处理模型列表聚合
@@ -391,14 +405,14 @@ llm = primary.with_fallbacks([fallback])
 
 ### 6.1 核心能力依赖
 
-| 能力                   | 前置要求                     | 复杂度 |
-| ---------------------- | ---------------------------- | ------ |
-| 主备故障转移           | 尚未实施；依赖渠道级 fallback 方案 | 中     |
-| 模型列表聚合           | 模型去重与合并逻辑           | 中     |
-| 健康检查与熔断         | 后台任务调度、状态持久化     | 高     |
-| 负载均衡（轮询/权重）  | 请求统计、状态管理           | 高     |
-| 成本优化               | 模型元数据价格、计费统计     | 高     |
-| 配额感知负载均衡       | 渠道配额 API 集成            | 极高   |
+| 能力                  | 前置要求                           | 复杂度 |
+| --------------------- | ---------------------------------- | ------ |
+| 主备故障转移          | 尚未实施；依赖渠道级 fallback 方案 | 中     |
+| 模型列表聚合          | 模型去重与合并逻辑                 | 中     |
+| 健康检查与熔断        | 后台任务调度、状态持久化           | 高     |
+| 负载均衡（轮询/权重） | 请求统计、状态管理                 | 高     |
+| 成本优化              | 模型元数据价格、计费统计           | 高     |
+| 配额感知负载均衡      | 渠道配额 API 集成                  | 极高   |
 
 ### 6.2 与现有功能的冲突
 
@@ -422,15 +436,17 @@ llm = primary.with_fallbacks([fallback])
 ```ts
 interface LlmProfile {
   // ... existing fields
-  fallbackProfiles?: string[];  // 备用渠道 ID 列表
+  fallbackProfiles?: string[]; // 备用渠道 ID 列表
 }
 ```
 
 优点：
+
 - 实现简单，不需要新的渠道类型
 - 向后兼容
 
 缺点：
+
 - 无法表达"多个渠道的模型聚合"
 - 优先级配置分散在每个渠道，不利于管理
 - 无法支持负载均衡和成本优化
@@ -441,15 +457,17 @@ interface LlmProfile {
 
 ```ts
 interface RequestOptions {
-  fallbackProfiles?: LlmProfile[];  // 请求级的备用渠道
+  fallbackProfiles?: LlmProfile[]; // 请求级的备用渠道
 }
 ```
 
 优点：
+
 - 实现成本低
 - 用户无需理解虚拟渠道概念
 
 缺点：
+
 - 每次请求都要手工传递 fallback 列表
 - 无法在 UI 中持久化故障转移策略
 - 无法支持健康检查和熔断
@@ -468,10 +486,12 @@ interface VirtualChannelProfile {
 ```
 
 优点：
+
 - 解决了"多渠道同名模型"的 UI 问题
 - 不涉及运行时请求路由，实现简单
 
 缺点：
+
 - 无法容灾，用户仍需手工切换渠道
 - 价值有限（用户可以手工在多个渠道间切换）
 
@@ -480,6 +500,7 @@ interface VirtualChannelProfile {
 ### 8.1 短期（Phase 5）：不引入虚拟渠道
 
 理由：
+
 1. **Phase 0–4 已完成**，模型执行路由和聚合渠道基础能力先在实际使用中验证稳定性。
 2. **Phase 5 多能力路由**（Embedding / Rerank / Image 等）的需求优先级低于当前发布收口，应按真实需求排期。
 3. **虚拟渠道的价值尚未被用户验证**：目前没有用户明确提出"需要跨渠道容灾"的需求。
@@ -495,6 +516,7 @@ interface VirtualChannelProfile {
 4. 在 Inspector 和日志中记录实际使用的渠道。
 
 **完成标准**：
+
 - 主渠道限速或网络错误时，自动切换到备用渠道
 - 用户可以在渠道设置中配置备用渠道列表
 - 失败重试有明确的超时和次数限制
@@ -511,6 +533,7 @@ interface VirtualChannelProfile {
 5. 提供专门的虚拟渠道配置 UI。
 
 **前置条件**：
+
 - 至少有 3 个以上用户明确提出跨渠道容灾或负载均衡需求
 - Phase 4 聚合渠道已稳定运行
 - 有足够的开发资源投入（预计 2–3 周）
@@ -525,12 +548,14 @@ interface VirtualChannelProfile {
 4. **可以渐进**：如果未来确实需要，可以先实现简单的 fallback，再逐步演进到完整虚拟渠道。
 
 **如果用户明确提出容灾需求**，推荐先实现**方案 A**（渠道内 fallback）：
+
 - 增加 `LlmProfile.fallbackProfiles?: string[]`
 - 在请求失败时自动重试备用渠道
 - 不引入新的渠道类型，不聚合模型列表
 - 实施成本低，风险可控
 
 **Phase 4 已完成聚合渠道类型；后续 Phase 5 专注于多能力路由与高级兼容**：
+
 - 已实现 `new-api` / `sub2api` / `aggregate-compatible` / `opencode-go` 渠道类型
 - 已复用现有的 `resolveModelExecution()` 路由解析
 - 已提供 OpenCode Go 预设作为验收样例

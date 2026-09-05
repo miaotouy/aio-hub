@@ -39,7 +39,11 @@ describe("ModelRoutingEditor", () => {
 
     state.onAdapterChange("chat", "anthropic-messages");
     expect(wrapper.emitted("update:modelValue")?.[0]).toEqual([
-      { bindings: { chat: { adapterId: "anthropic-messages", source: "manual" } } },
+      {
+        bindings: {
+          chat: { adapterId: "anthropic-messages", source: "manual" },
+        },
+      },
     ]);
 
     await wrapper.setProps({

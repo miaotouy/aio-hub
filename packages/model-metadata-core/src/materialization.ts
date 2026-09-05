@@ -1,9 +1,7 @@
 import { deepClone, stableFingerprint } from "./fingerprint";
 
 export type ModelMetadataBindingMode =
-  | "manual"
-  | "fillMissing"
-  | "followSource";
+  "manual" | "fillMissing" | "followSource";
 
 export interface ModelMetadataBindingLike {
   mode: ModelMetadataBindingMode;
@@ -56,7 +54,9 @@ export interface MaterializeModelMetadataOptions {
   now?: string;
 }
 
-export interface MaterializeModelMetadataResult<TModel extends MaterializableModel> {
+export interface MaterializeModelMetadataResult<
+  TModel extends MaterializableModel,
+> {
   model: TModel & MaterializableModel;
   changes: ModelMetadataFieldChange[];
   binding: ModelMetadataBindingLike;
@@ -130,7 +130,8 @@ export function materializeModelMetadata<
 ): MaterializeModelMetadataResult<TModel> {
   const model = deepClone(sourceModel);
   const changes: ModelMetadataFieldChange[] = [];
-  const mode = options.mode ?? sourceModel.metadataBinding?.mode ?? "fillMissing";
+  const mode =
+    options.mode ?? sourceModel.metadataBinding?.mode ?? "fillMissing";
   const managedPaths = new Set(sourceModel.metadataBinding?.managedPaths ?? []);
 
   if (mode === "manual") {
@@ -182,9 +183,9 @@ export function materializeModelMetadata<
 
   for (const [key, value] of Object.entries(properties.capabilities ?? {})) {
     const path = `capabilities.${key}`;
-    const previous = (model.capabilities as Record<string, unknown> | undefined)?.[
-      key
-    ];
+    const previous = (
+      model.capabilities as Record<string, unknown> | undefined
+    )?.[key];
     if (!hasValue(previous) || canManage(sourceModel, path, mode)) {
       if (previous !== value) changes.push({ path, previous, next: value });
       model.capabilities = {
@@ -209,7 +210,9 @@ export function materializeModelMetadata<
   const binding: ModelMetadataBindingLike = {
     mode,
     sourceId:
-      options.sourceId ?? sourceModel.metadataBinding?.sourceId ?? "aiohub-builtin",
+      options.sourceId ??
+      sourceModel.metadataBinding?.sourceId ??
+      "aiohub-builtin",
     sourceRevision:
       options.sourceRevision ?? sourceModel.metadataBinding?.sourceRevision,
     appliedRuleIds:

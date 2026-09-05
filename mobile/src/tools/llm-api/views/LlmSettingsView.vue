@@ -46,8 +46,8 @@ const applyPreset = async (preset: any) => {
     baseUrl: preset.defaultBaseUrl,
     apiKeys: [""],
     enabled: true,
-    models: defaultModels.map((model: any) =>
-      materializeModel(materializeModelIdentity(model)).model
+    models: defaultModels.map(
+      (model: any) => materializeModel(materializeModelIdentity(model)).model
     ),
     icon: preset.logoUrl,
     customHeaders: {},

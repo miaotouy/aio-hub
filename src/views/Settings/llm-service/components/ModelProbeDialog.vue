@@ -49,10 +49,7 @@ const emit = defineEmits<{
     options: ProbeRunOptions & { concurrency: number }
   ): void;
   (event: "cancel"): void;
-  (
-    event: "apply-results",
-    applications: ProbeRouteApplication[]
-  ): void;
+  (event: "apply-results", applications: ProbeRouteApplication[]): void;
 }>();
 
 const tableRef = ref<{ setScrollTop?: (top: number) => void }>();

@@ -15,7 +15,14 @@ import type {
  * 模型家族类型
  */
 export type ModelFamily =
-  "openai" | "claude" | "gemini" | "cohere" | "deepseek" | "qwen" | "xai" | "unknown";
+  | "openai"
+  | "claude"
+  | "gemini"
+  | "cohere"
+  | "deepseek"
+  | "qwen"
+  | "xai"
+  | "unknown";
 
 /**
  * 解析后的消息内容结构

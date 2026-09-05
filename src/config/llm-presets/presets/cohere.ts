@@ -43,7 +43,8 @@ export const coherePreset: LlmPreset = {
         thinking: true,
         thinkingConfigType: "budget",
       },
-      description: "Command A 家族 MoE 旗舰，支持视觉输入、推理与工具调用（2026-05）",
+      description:
+        "Command A 家族 MoE 旗舰，支持视觉输入、推理与工具调用（2026-05）",
     },
     {
       id: "command-a-reasoning",

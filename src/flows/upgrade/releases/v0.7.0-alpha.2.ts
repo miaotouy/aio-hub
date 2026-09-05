@@ -20,7 +20,8 @@ export const releaseNoteV070Alpha2: ReleaseNoteManifest = {
   revision: 1,
   channel: "prerelease",
   title: "LLM 执行路由与消息状态细化",
-  summary: "模型执行路由支持手工分配并应用探测结果，消息新增等待中阶段，聚合渠道与默认协议路由落地。",
+  summary:
+    "模型执行路由支持手工分配并应用探测结果，消息新增等待中阶段，聚合渠道与默认协议路由落地。",
   publishedAt: "2026-08-15",
   body,
   highlights: [

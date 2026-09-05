@@ -80,13 +80,13 @@ interface ModelMetadataRule {
 
 #### `MetadataMatchType`
 
-| 值 | 含义 | 匹配目标 |
-| --- | --- | --- |
-| `provider` | Provider 精确匹配（大小写不敏感） | `provider` |
-| `modelExact` | 模型 ID 精确匹配（大小写不敏感） | 完整 `modelId` |
-| `modelPrefix` | 模型 ID 前缀匹配 | `modelId.startsWith(matchValue)` |
-| `modelContains` | 模型 ID 包含匹配 | `modelId.includes(matchValue)` |
-| `modelRegex` | 正则表达式匹配 | `RegExp(matchValue)` |
+| 值              | 含义                              | 匹配目标                         |
+| --------------- | --------------------------------- | -------------------------------- |
+| `provider`      | Provider 精确匹配（大小写不敏感） | `provider`                       |
+| `modelExact`    | 模型 ID 精确匹配（大小写不敏感）  | 完整 `modelId`                   |
+| `modelPrefix`   | 模型 ID 前缀匹配                  | `modelId.startsWith(matchValue)` |
+| `modelContains` | 模型 ID 包含匹配                  | `modelId.includes(matchValue)`   |
+| `modelRegex`    | 正则表达式匹配                    | `RegExp(matchValue)`             |
 
 `modelGroup` 已废弃；旧 `model` / `modelPrefix` 包含匹配会在 v2 -> v3 迁移时规范化为相应的 v3 匹配类型。
 
@@ -325,7 +325,7 @@ getModelIconPath(rules, modelId, provider):
 | 区域         | 功能                                                                                                 |
 | ------------ | ---------------------------------------------------------------------------------------------------- |
 | 头部统计栏   | 总配置数 / 启用数 / 当前显示数                                                                       |
-| 操作按钮     | 查看预设 / 导入 / 导出 / 查看目录更新 / 刷新模型配置 / 重置为默认 / 添加配置                              |
+| 操作按钮     | 查看预设 / 导入 / 导出 / 查看目录更新 / 刷新模型配置 / 重置为默认 / 添加配置                         |
 | 工具栏       | 搜索 / 排序（priority/type/name/createdAt）/ 状态筛选（all/enabled/disabled）/ 视图切换（网格/列表） |
 | 测试模式面板 | 输入模型 ID + Provider，实时展示匹配结果（见§6.2）                                                   |
 | 规则卡片列表 | 分页展示（12/24/48/96 条/页），每条支持启用/禁用/编辑/删除                                           |
@@ -382,6 +382,7 @@ getModelIconPath(rules, modelId, provider):
   RichCodeEditor（language=json）双向同步 properties 对象
   JSON 语法错误时标红不更新表单
 ```
+
 **保存前清理**（`cleanProperties()`）：移除全为 `false` 的 capabilities 对象、空字符串的 icon/group/tokenizer、空数组的 recommendedFor。
 
 **本地文件选择**：调用 `@tauri-apps/plugin-dialog` 的 `open()`，过滤 `png/jpg/jpeg/svg/webp/ico` 格式。
@@ -471,7 +472,7 @@ getModelIconPath(rules, modelId, provider):
 | [`src/llm-apis/request-builder.ts`](../../src/llm-apis/request-builder.ts)                                                                     | `getActiveModelProperties()`                | 判断模型家族（Claude/Gemini/OpenAI）以选择正确的请求构建器     |
 | [`src/tools/llm-chat/core/context-utils/preview-builder.ts`](../../src/tools/llm-chat/core/context-utils/preview-builder.ts)                   | `getActiveModelProperties()`                | 判断模型是否支持视觉，用于 vision token 计算                   |
 | [`src/tools/token-calculator/composables/useTokenCalculatorState.ts`](../../src/tools/token-calculator/composables/useTokenCalculatorState.ts) | `getActiveModelProperties()`                | 匹配 `tokenizer` 字段选择计算策略                              |
-| [`src/tools/token-calculator/token-calculator.registry.ts`](../../src/tools/token-calculator/token-calculator.registry.ts)                       | `getActiveModelProperties()`                | 提供跨模块 Token 计算服务时匹配分词器                          |
+| [`src/tools/token-calculator/token-calculator.registry.ts`](../../src/tools/token-calculator/token-calculator.registry.ts)                     | `getActiveModelProperties()`                | 提供跨模块 Token 计算服务时匹配分词器                          |
 | [`src/views/Settings/llm-service/components/ModelEditDialog.vue`](../../src/views/Settings/llm-service/components/ModelEditDialog.vue)         | `useModelMetadata().getMatchedProperties()` | "应用预设"按钮：根据模型 ID 自动填充 capabilities、icon 等属性 |
 | [`src/tools/media-generator/`](../../src/tools/media-generator/)                                                                               | 运行时读取具体模型对象的 `mediaGenParams`   | 渲染参数控件并在请求前清理不支持的参数；全局规则只用于诊断对照 |
 

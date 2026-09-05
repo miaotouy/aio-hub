@@ -81,7 +81,10 @@ export function findVcpBlockBoundary(
       continue;
     }
 
-    if (nextStartIndex !== -1 && (endIndex === -1 || nextStartIndex < endIndex)) {
+    if (
+      nextStartIndex !== -1 &&
+      (endIndex === -1 || nextStartIndex < endIndex)
+    ) {
       return { status: "interrupted", nextStartIndex };
     }
 

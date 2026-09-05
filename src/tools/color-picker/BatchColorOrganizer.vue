@@ -32,6 +32,7 @@
         :failed-count="failedItems.length"
         @update:filter="filter = $event"
         @select-filtered="selectFiltered"
+        @invert-selection="invertSelection"
         @clear-selection="clearSelection"
         @export-csv="exportCsv"
         @export-json="exportJson"
@@ -494,6 +495,17 @@ function selectFiltered() {
     )
     .forEach((item) => {
       item.selected = true;
+    });
+}
+
+function invertSelection() {
+  items.value
+    .filter(
+      (item) =>
+        item.status === "success" && matchesBatchFilter(item, filter.value)
+    )
+    .forEach((item) => {
+      item.selected = !item.selected;
     });
 }
 

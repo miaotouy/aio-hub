@@ -18,9 +18,7 @@ const props = defineProps<{
 
 const viewer = useReleaseNotesViewerStore();
 
-const archive = computed(() =>
-  releaseNotesRegistry.getAll().slice().reverse()
-);
+const archive = computed(() => releaseNotesRegistry.getAll().slice().reverse());
 
 const selectedManifest = computed(() => {
   const selected = viewer.selectedVersion
@@ -56,7 +54,10 @@ const selectedManifest = computed(() => {
         >
           <span class="archive-item__meta">
             <strong>v{{ manifest.version }}</strong>
-            <span v-if="manifest.version === primaryVersion" class="current-badge">
+            <span
+              v-if="manifest.version === primaryVersion"
+              class="current-badge"
+            >
               当前
             </span>
             <span class="archive-item__date">{{ manifest.publishedAt }}</span>
@@ -72,7 +73,10 @@ const selectedManifest = computed(() => {
       >
         <div class="release-meta">
           <strong>v{{ selectedManifest.version }}</strong>
-          <span v-if="selectedManifest.version === primaryVersion" class="current-badge">
+          <span
+            v-if="selectedManifest.version === primaryVersion"
+            class="current-badge"
+          >
             当前版本
           </span>
           <span class="release-date">

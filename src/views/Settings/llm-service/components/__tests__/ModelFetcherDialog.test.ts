@@ -21,7 +21,7 @@ const commonStubs = {
   ElSelect: { template: "<div><slot /></div>" },
   ElOption: { template: "<div><slot /></div>" },
   ElButton: { template: "<button><slot /></button>" },
-  ElDropdown: { template: "<div><slot /><slot name=\"dropdown\" /></div>" },
+  ElDropdown: { template: '<div><slot /><slot name="dropdown" /></div>' },
   ElDropdownMenu: { template: "<div><slot /></div>" },
   ElDropdownItem: { template: "<button><slot /></button>" },
   ElTooltip: { template: "<div><slot /></div>" },

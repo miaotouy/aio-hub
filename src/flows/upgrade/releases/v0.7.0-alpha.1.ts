@@ -20,7 +20,8 @@ export const releaseNoteV070Alpha1: ReleaseNoteManifest = {
   revision: 3,
   channel: "prerelease",
   title: "知识体系重构与统一升级引导",
-  summary: "思绪与知识文档双域分离，检索管线产品化；引入统一升级引导与旧数据确认式迁移。",
+  summary:
+    "思绪与知识文档双域分离，检索管线产品化；引入统一升级引导与旧数据确认式迁移。",
   publishedAt: "2026-08-10",
   body,
   contributionIds: ["knowledge-migration"],

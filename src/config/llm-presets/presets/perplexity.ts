@@ -35,7 +35,12 @@ export const perplexityPreset: LlmPreset = {
       name: "Sonar Reasoning Pro",
       group: "Sonar",
       provider: "perplexity",
-      capabilities: { webSearch: true, toolUse: true, thinking: true, thinkingConfigType: "switch" },
+      capabilities: {
+        webSearch: true,
+        toolUse: true,
+        thinking: true,
+        thinkingConfigType: "switch",
+      },
       description: "高级多步 CoT 推理与增强检索，复杂问题求解",
     },
     {
@@ -43,7 +48,12 @@ export const perplexityPreset: LlmPreset = {
       name: "Sonar Deep Research",
       group: "Sonar",
       provider: "perplexity",
-      capabilities: { webSearch: true, fileSearch: true, thinking: true, thinkingConfigType: "switch" },
+      capabilities: {
+        webSearch: true,
+        fileSearch: true,
+        thinking: true,
+        thinkingConfigType: "switch",
+      },
       description: "穷尽式多源研究工作流，生成带引用的深度报告",
     },
     {

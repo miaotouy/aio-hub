@@ -73,7 +73,8 @@ export async function fetchModelsFromApi(
   }
 }
 
-function toMobileModelInfo(model: ProviderModelInfo): LlmModelInfo {  const pricing = model.pricing
+function toMobileModelInfo(model: ProviderModelInfo): LlmModelInfo {
+  const pricing = model.pricing
     ? Object.fromEntries(
         Object.entries(model.pricing).map(([key, value]) => [
           key,

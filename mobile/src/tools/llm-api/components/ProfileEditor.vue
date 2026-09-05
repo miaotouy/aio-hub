@@ -137,8 +137,8 @@ const handleFetchModels = async () => {
   isFetchingModels.value = true;
   try {
     await loadRules();
-    const models = (await fetchModelsFromApi(innerProfile.value)).map((model) =>
-      materializeModel(model).model
+    const models = (await fetchModelsFromApi(innerProfile.value)).map(
+      (model) => materializeModel(model).model
     );
     // Refresh remote route declarations without replacing a user's manual
     // binding or locally configured model capabilities.

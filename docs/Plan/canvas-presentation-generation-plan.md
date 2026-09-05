@@ -219,4 +219,3 @@ sequenceDiagram
 1. Webview 原生截图在 macOS / Linux 平台的行为（方案 A 的可移植性）——Phase 2 开工前用最小原型验证。
 2. 平铺视图多 iframe 的内存占用（每 iframe 独立 webview 上下文）——在 20+ slide 规模下测量，必要时改为"懒加载可见卡片 + 不可见卡片静态占位"。
 3. DevTools 入口是否同时加入主窗口（画布内嵌编辑场景），还是仅预览窗——倾向仅预览窗，减少能力面。
-

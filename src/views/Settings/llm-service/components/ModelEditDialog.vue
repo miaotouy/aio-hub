@@ -621,7 +621,8 @@ const customParametersJsonString = computed({
                 <span class="identity-source">{{ identitySourceLabel }}</span>
               </div>
               <div class="form-hint">
-                用于识别跨渠道的同一嵌入模型，作为 Embedding 向量复用与空间判断的依据。格式为 developer/model。
+                用于识别跨渠道的同一嵌入模型，作为 Embedding
+                向量复用与空间判断的依据。格式为 developer/model。
               </div>
             </el-form-item>
 

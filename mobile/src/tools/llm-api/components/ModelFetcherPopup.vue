@@ -175,8 +175,7 @@ const formatModelName = (modelId: string): string => {
   return name;
 };
 
-const getModelCapabilities = (model: LlmModelInfo) =>
-  model.capabilities ?? {};
+const getModelCapabilities = (model: LlmModelInfo) => model.capabilities ?? {};
 const getActiveCapabilities = (model: LlmModelInfo) => {
   const capabilities = getModelCapabilities(model);
   return translatedCapabilities.value.filter(
@@ -363,7 +362,10 @@ const toggleCapabilityFilter = (capKey: string) => {
                           {{ model.modelIdentity.canonicalId }}
                         </div>
                         <div
-                          v-else-if="model.capabilities?.embedding && model.modelIdentitySuggestion"
+                          v-else-if="
+                            model.capabilities?.embedding &&
+                            model.modelIdentitySuggestion
+                          "
                           class="model-identity is-suggestion"
                         >
                           {{

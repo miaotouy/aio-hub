@@ -360,9 +360,7 @@
         <div v-if="importPreview" class="import-preview">
           <p>
             检测到 {{ importPreview.sourceRuleCount }} 条内置基线规则和
-            {{
-              importPreview.customRuleCount
-            }}
+            {{ importPreview.customRuleCount }}
             条自定义规则。确认后才会写入当前配置。
           </p>
           <div

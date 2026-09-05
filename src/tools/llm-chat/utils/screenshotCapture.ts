@@ -230,8 +230,9 @@ function applyLayoutGuards(
       padding-right: 1px;
     }
 
-    ${options.hideScrollbars
-      ? `
+    ${
+      options.hideScrollbars
+        ? `
       * { scrollbar-width: none !important; }
       *::-webkit-scrollbar { display: none !important; }
       pre, code, .markdown-table-wrapper, .html-preview-container, .code-preview-block, .cm-editor-inner {
@@ -240,7 +241,8 @@ function applyLayoutGuards(
         overflow-y: visible !important;
       }
     `
-      : ""}
+        : ""
+    }
   `;
   clonedRoot.prepend(styleEl);
 }

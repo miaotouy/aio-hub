@@ -44,7 +44,8 @@ export const xaiPreset: LlmPreset = {
         thinkingConfigType: "effort",
         reasoningEffortOptions: ["low", "medium", "high"],
       },
-      description: "旗舰模型：agentic 工具调用、低幻觉、可配置推理，500K 上下文（2026-08）",
+      description:
+        "旗舰模型：agentic 工具调用、低幻觉、可配置推理，500K 上下文（2026-08）",
     },
     {
       id: "grok-4.5",

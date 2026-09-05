@@ -383,9 +383,7 @@ describe("listAdaptersForOperation", () => {
         "vertex-anthropic",
       ])
     );
-    expect(listAdaptersForOperation("chat")).not.toContain(
-      "openai-embeddings"
-    );
+    expect(listAdaptersForOperation("chat")).not.toContain("openai-embeddings");
     expect(listAdaptersForOperation("embedding")).toEqual(
       expect.arrayContaining([
         "openai-embeddings",

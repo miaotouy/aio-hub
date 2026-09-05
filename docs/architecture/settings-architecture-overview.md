@@ -233,8 +233,8 @@
 
 ## 附录：设置模块索引
 
-| 序号 | 模块             | 路径                                                                                                                              | 核心定位               | 关键配置项数 |
-| :--: | ---------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | :----------: |
+| 序号 | 模块             | 路径                                                                                                                               | 核心定位               | 关键配置项数 |
+| :--: | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | :----------: |
 |  1   | general          | [`src/views/Settings/general/GeneralSettings.vue`](../../src/views/Settings/general/GeneralSettings.vue)                           | 通用运行时设置         |     15+      |
 |  2   | startup          | [`src/views/Settings/general/StartupSettings.vue`](../../src/views/Settings/general/StartupSettings.vue)                           | 自启动任务管理         |     N/A      |
 |  3   | theme-colors     | [`src/views/Settings/general/ThemeColorSettings.vue`](../../src/views/Settings/general/ThemeColorSettings.vue)                     | 五色主题定制           |      5       |
@@ -243,7 +243,7 @@
 |  6   | llm-service      | [`src/views/Settings/llm-service/LlmServiceSettings.vue`](../../src/views/Settings/llm-service/LlmServiceSettings.vue)             | LLM 服务渠道配置       |      4+      |
 |  7   | model-metadata   | [`src/views/Settings/model-metadata/ModelMetadataSettings.vue`](../../src/views/Settings/model-metadata/ModelMetadataSettings.vue) | 模型图标元数据规则引擎 |  N/A(规则)   |
 |  8   | ocr-service      | [`src/views/Settings/ocr-service/OcrServiceSettings.vue`](../../src/views/Settings/ocr-service/OcrServiceSettings.vue)             | 云端 OCR 服务渠道配置  |      4+      |
-|  9   | user-profiles    | [`src/tools/user-profile-manager/UserProfileManager.vue`](../../src/tools/user-profile-manager/UserProfileManager.vue)         | 用户档案管理           |  N/A(档案)   |
+|  9   | user-profiles    | [`src/tools/user-profile-manager/UserProfileManager.vue`](../../src/tools/user-profile-manager/UserProfileManager.vue)             | 用户档案管理           |  N/A(档案)   |
 |  10  | asset-management | [`src/views/Settings/general/AssetSettings.vue`](../../src/views/Settings/general/AssetSettings.vue)                               | 资产管理路径配置       |      1       |
 |  11  | tools            | [`src/views/Settings/general/ToolsSettings.vue`](../../src/views/Settings/general/ToolsSettings.vue)                               | 工具模块可见性与排序   |     N/A      |
 |  12  | log-settings     | [`src/views/Settings/general/LogSettings.vue`](../../src/views/Settings/general/LogSettings.vue)                                   | 日志系统控制面板       |      5       |

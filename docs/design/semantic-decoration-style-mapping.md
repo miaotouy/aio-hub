@@ -604,4 +604,3 @@ blockquote,
 - **4px 以上**：不再用于普通容器。
 
 通过这套映射，既能保留现有界面的信息扫描效率，也能降低 LLM Chat、VCP Monitor、LLM Inspector 等高密度页面的装饰重复和视觉噪音。
-

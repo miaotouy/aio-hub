@@ -189,4 +189,3 @@ class StreamController implements ActivityAwareRenderUnit {
 3. **重新进入正确性：** 离屏期间积压的文本回到视口后必须一次性或受控地收敛到正确状态，不能漏 chunk、重放旧动画或显示中间错误 AST。
 4. **固有尺寸误差：** `contain-intrinsic-size: auto 500px` 只是估算。暂停前后不得因为错误估算造成无法接受的滚动跳跃；需要通过实测决定是否记录每条消息的最终高度。
 5. **KeepAlive / 分离窗口：** deactivate、activate、detach、窗口关闭都必须视为生命周期事件，清理或恢复对应的观察器与资源。
-

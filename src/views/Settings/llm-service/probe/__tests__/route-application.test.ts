@@ -19,9 +19,7 @@ function result(
 describe("createProbeRouteApplication", () => {
   it("converts a successful chat probe into a manual-confirmed probe binding", () => {
     expect(
-      createProbeRouteApplication(
-        result({ success: true, capability: "chat" })
-      )
+      createProbeRouteApplication(result({ success: true, capability: "chat" }))
     ).toEqual({
       operation: "chat",
       binding: {
@@ -72,9 +70,7 @@ describe("createProbeRouteApplication", () => {
   });
 
   it("never applies failed, unresolved or unmatched results", () => {
-    expect(
-      createProbeRouteApplication(result({ success: false }))
-    ).toBeNull();
+    expect(createProbeRouteApplication(result({ success: false }))).toBeNull();
     expect(
       createProbeRouteApplication(
         result({ success: true, endpointType: "auto" })
@@ -82,14 +78,19 @@ describe("createProbeRouteApplication", () => {
     ).toBeNull();
     expect(
       createProbeRouteApplication(
-        result({ success: true, capability: "chat", endpointType: "embeddings" })
+        result({
+          success: true,
+          capability: "chat",
+          endpointType: "embeddings",
+        })
       )
     ).toBeNull();
     expect(
       createProbeRouteApplication(
         result({
           success: true,
-          endpointType: "future-protocol" as unknown as ChannelProbeResult["endpointType"],
+          endpointType:
+            "future-protocol" as unknown as ChannelProbeResult["endpointType"],
         })
       )
     ).toBeNull();

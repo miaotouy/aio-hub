@@ -258,7 +258,10 @@ export function useModelMetadata() {
     if (builtin) {
       return persist({
         ...metadataStore.value,
-        builtinOverrides: { ...metadataStore.value.builtinOverrides, [id]: next },
+        builtinOverrides: {
+          ...metadataStore.value.builtinOverrides,
+          [id]: next,
+        },
       });
     }
     return persist({
@@ -286,12 +289,16 @@ export function useModelMetadata() {
     }
     return persist({
       ...metadataStore.value,
-      customRules: metadataStore.value.customRules.filter((rule) => rule.id !== id),
+      customRules: metadataStore.value.customRules.filter(
+        (rule) => rule.id !== id
+      ),
     });
   }
 
   async function restoreBuiltinRule(id: string): Promise<boolean> {
-    if (!metadataStore.value.sourceSnapshot.rules.some((rule) => rule.id === id)) {
+    if (
+      !metadataStore.value.sourceSnapshot.rules.some((rule) => rule.id === id)
+    ) {
       return false;
     }
     const overrides = { ...metadataStore.value.builtinOverrides };
@@ -299,15 +306,18 @@ export function useModelMetadata() {
     return persist({
       ...metadataStore.value,
       builtinOverrides: overrides,
-      suppressedBuiltinRuleIds: metadataStore.value.suppressedBuiltinRuleIds.filter(
-        (item) => item !== id
-      ),
+      suppressedBuiltinRuleIds:
+        metadataStore.value.suppressedBuiltinRuleIds.filter(
+          (item) => item !== id
+        ),
     });
   }
 
   async function toggleRule(id: string): Promise<boolean> {
     const current = rules.value.find((rule) => rule.id === id);
-    return current ? updateRule(id, { enabled: current.enabled === false }) : false;
+    return current
+      ? updateRule(id, { enabled: current.enabled === false })
+      : false;
   }
 
   async function resetToDefaults(): Promise<boolean> {
@@ -337,7 +347,9 @@ export function useModelMetadata() {
       return "custom";
     }
     if (metadataStore.value.builtinOverrides[id]) return "builtinOverride";
-    return metadataStore.value.sourceSnapshot.rules.some((rule) => rule.id === id)
+    return metadataStore.value.sourceSnapshot.rules.some(
+      (rule) => rule.id === id
+    )
       ? "builtin"
       : undefined;
   }
@@ -363,22 +375,20 @@ export function useModelMetadata() {
 
   function materializeModel(
     model: LlmModelInfo,
-    options?: Parameters<typeof materializeModelMetadata<LlmModelInfo, ModelMetadataProperties>>[2]
+    options?: Parameters<
+      typeof materializeModelMetadata<LlmModelInfo, ModelMetadataProperties>
+    >[2]
   ) {
     const ruleChain = getMatchedRuleChain(rules.value, {
       modelId: model.id,
       provider: model.provider,
     });
-    return materializeModelMetadata(
-      model,
-      mergeRuleProperties(ruleChain),
-      {
-        sourceId: metadataStore.value.sourceSnapshot.sourceId,
-        sourceRevision: metadataStore.value.sourceSnapshot.revision,
-        appliedRuleIds: ruleChain.map((rule) => rule.id),
-        ...options,
-      }
-    );
+    return materializeModelMetadata(model, mergeRuleProperties(ruleChain), {
+      sourceId: metadataStore.value.sourceSnapshot.sourceId,
+      sourceRevision: metadataStore.value.sourceSnapshot.revision,
+      appliedRuleIds: ruleChain.map((rule) => rule.id),
+      ...options,
+    });
   }
 
   function getModelProperty<K extends keyof ModelMetadataProperties>(
@@ -387,8 +397,7 @@ export function useModelMetadata() {
     fallback?: ModelMetadataProperties[K]
   ): ModelMetadataProperties[K] | undefined {
     const modelValue = (model as Record<string, unknown>)[key as string] as
-      | ModelMetadataProperties[K]
-      | undefined;
+      ModelMetadataProperties[K] | undefined;
     return modelValue ?? fallback;
   }
 

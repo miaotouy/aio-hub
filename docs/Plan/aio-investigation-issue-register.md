@@ -31,7 +31,7 @@
 | AIO-I-002 | 功能与资源控制 | 媒体生成器的「最大并发任务数」和「自动清理已完成任务」只有设置定义，没有运行时消费者                                         | `已关闭`           | P1     | 已实现全局并发队列、完成任务延迟清理、设置联动、重启恢复和取消；保留真实 Provider 计费/取消验收。 |
 | AIO-I-003 | 凭据安全       | LLM Profile 连同 API Key / 自定义请求头以普通 JSON 配置保存                                                                  | `已确认，设计风险` | P1     | 明确受支持平台的凭据保护策略、迁移与降级语义；至少验证本机 ACL/备份/导出边界。                    |
 | AIO-I-004 | 功能契约       | content-deduplicator 暴露 fuzzy、`minSimilarity` 等配置，但扫描结果只有精确/规范化哈希匹配                                   | `已确认，未修复`   | P2     | 实现模糊匹配并测试阈值语义，或从类型、预设和 UI 移除/禁用该承诺。                                 |
-| AIO-I-005 | Agent 接口设计 | regex-applier 尚未确定需要向 Agent 暴露的任务场景；现有格式化辅助方法未注册为 Agent 方法                                     | `已确认，待实施`   | P3     | 已完成受控声明式接口设计，待在注册器中实现并暴露 Agent 专用方法。                     |
+| AIO-I-005 | Agent 接口设计 | regex-applier 尚未确定需要向 Agent 暴露的任务场景；现有格式化辅助方法未注册为 Agent 方法                                     | `已确认，待实施`   | P3     | 已完成受控声明式接口设计，待在注册器中实现并暴露 Agent 专用方法。                                 |
 | AIO-I-006 | 对话可移植性   | 单会话支持版本化备份 JSON 和历史 Raw JSON 导入；Markdown / 阅读型 JSON 仍为只读导出格式                                      | `已关闭`           | P3     | 回归验证版本化备份、Raw JSON、ZIP 备份、冲突策略与无效会话图拒绝行为。                            |
 | AIO-I-007 | 文档准确性     | media-generator 架构文档仍称 `generateMedia(prompt, type)` 已声明但未实现；当前运行时实际已改为按可见模型动态构建 Agent 方法 | `文档失真`         | P3     | 更新架构文档和 Agent 接入说明，使其与 `buildAgentMethods()` / `getMetadata()` 的当前机制一致。    |
 | AIO-I-008 | 文档准确性     | content-deduplicator 架构文档仍称自定义忽略规则未生效，但当前 Rust walker 已把 `OverrideBuilder` 产物绑定到 `WalkBuilder`    | `文档失真`         | P3     | 更正文档，并增加忽略规则正反例测试，避免以后再次回退。                                            |

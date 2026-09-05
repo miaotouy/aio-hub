@@ -455,7 +455,7 @@ graph TD
 
 | 层级       | 文件                                                                                                                                               | 职责                         |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| Agent 配置 | [`src/tools/agent-manager/types/agent.ts`](src/tools/agent-manager/types/agent.ts)                                                                           | ToolCallConfig 类型定义      |
+| Agent 配置 | [`src/tools/agent-manager/types/agent.ts`](src/tools/agent-manager/types/agent.ts)                                                                 | ToolCallConfig 类型定义      |
 | 编排器     | [`src/tools/llm-chat/composables/chat/useToolCallOrchestrator.ts`](src/tools/llm-chat/composables/chat/useToolCallOrchestrator.ts)                 | 核心循环逻辑                 |
 | 执行器     | [`src/tools/llm-chat/composables/chat/useChatExecutor.ts`](src/tools/llm-chat/composables/chat/useChatExecutor.ts)                                 | 请求执行入口                 |
 | 工具调用   | [`src/tools/tool-calling/composables/useToolCalling.ts`](src/tools/tool-calling/composables/useToolCalling.ts)                                     | 统一门面                     |
